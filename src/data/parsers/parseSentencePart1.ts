@@ -530,10 +530,24 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 🔴「**すべての**カード」＝枚数表記が無いので既定の `count:1` に落ち、**1枚だけ**になっていた
     //   （§6.4 O-35・続き528 実測＝`PR-470B-E2` はアタックのたびに相手エナ全損のはずが1枚）。
     // ⚠**「エナゾーンから」と「すべてのカード」の間に修飾が挟まる形は対象外**＝
-    //   「宣言した色ではない色を持つすべてのカード」（`WXEX1-07-E2`／`WXK09-037-E1`）は
-    //   その色限定が未表現なので、ALL にすると**相手のエナを全部飛ばす過剰**に化ける（A/B で実測）。
-    //   1枚（過少）のまま据置＝限定を表現できるようになってから広げる。
+    //   修飾を表現できないまま ALL にすると**相手のエナを全部飛ばす過剰**に化ける（A/B で実測）。
     const allM = !cM && /エナゾーン(?:から|にある)すべてのカードをトラッシュに置く/.test(t);
+    // 🆕**宣言色の否定だけは表現できるようになったので据置を解いた**（§5.3 `O-261`・2026-09-06）＝
+    //   `WXEX1-07-E2`「宣言した色ではない色を持つすべてのカード」／
+    //   `WXK09-037-E1`「宣言された色を持たず**無色ではない**すべてのカード」。
+    // 🔴**旧は `count:1`**＝過少（全部ではない）と過剰（宣言色のカードまで落としうる）が同居していた。
+    // 🔑受け皿＝`TargetFilter.colorNotDeclaredColor`（`resolveDynamicFilter` が `declared_color` を
+    //   `colorExclude` へ解決する）。⚠**未宣言なら engine 側が空ヒットに倒す**ので、ここで `ALL` を書ける。
+    // ⚠「無色ではない」は**原文にあるときだけ**足す（`WXEX1-07` の原文には無い）。
+    if (/宣言(?:した|された)色(?:ではない色を持つ|を持たず)/.test(t) && /すべてのカードをトラッシュに置く/.test(t)) {
+      return {
+        type: 'TRASH',
+        target: {
+          type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL',
+          filter: { colorNotDeclaredColor: true, ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) },
+        },
+      };
+    }
     return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: allM ? 'ALL' : cM ? parseNum(cM[1]) : 1, ...(upTo ? { upToCount: true } : {}) } };
   }
   // ---- 自分エナゾーン→トラッシュ ----

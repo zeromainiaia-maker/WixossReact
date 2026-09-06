@@ -22648,6 +22648,41 @@ test('§5.3 O-60 第40バッチ: $ref self_energy_count＝エナの filter 一�
   // 反転確認＝エナが空なら 0（＝1体も対象に取れない）。
   eq(resolveCountRef({ $ref: 'self_energy_count' }, ctx), 0, 'エナが空なのに 0 にならない');
 }));
+test('§5.3 O-261: 「宣言した色ではない色を持つすべてのカード」＝相手エナを全数トラッシュ（未宣言なら0枚）', () => withSavedCursor(() => {
+  // 🔴**旧＝`TRASH{ENERGY_CARD, owner:"opponent", count:1}`**＝色条件が丸ごと落ちたうえ**1枚だけ**で、
+  //   **過少（全部ではない）と過剰（宣言色のカードまで落としうる）が同居**していた。
+  //   `count:'ALL'` へ広げるには「宣言色の否定」が要り、それが無かったので `parseSentencePart1.ts` の
+  //   分岐に**据置ガード**が置かれていた（§5.3 の「個別カードの機構待ち」に2件として記載）。
+  // 🔑受け皿＝`TargetFilter.colorNotDeclaredColor` → `resolveDynamicFilter` が `declared_color` を
+  //   `colorExclude` へ解決する。**未宣言なら空ヒット（fail-closed）**。
+  for (const [num, id, wantNonColorless] of [
+    ['WXEX1-07', 'WXEX1-07-E2', false], ['WXK09-037', 'WXK09-037-E1', true],
+  ] as const) {
+    const eff = (effectsMap.get(num) ?? []).find(e => e.effectId === id)!;
+    const j = JSON.stringify(eff);
+    ok(j.includes('"colorNotDeclaredColor":true'), `${id}: 宣言色の否定が載っていない`);
+    ok(j.includes('"count":"ALL"'), `${id}: 🔴1枚のまま（原文は「すべてのカード」）`);
+    // ⚠「無色ではない」は原文にあるカードだけ＝`WXEX1-07` に足すと過少になる。
+    eq(j.includes('"nonColorless":true'), wantNonColorless, `${id}: nonColorless の有無が原文と違う`);
+  }
+  // ── engine 側＝宣言色を除いた相手エナだけが候補になる ──
+  const WHITE = findCard(c => (c.Color ?? '') === '白' && isSigni(c));
+  const BLUE = findCard(c => (c.Color ?? '') === '青' && isSigni(c) && c.CardNum !== WHITE);
+  // ⚠`StateOpts.energy` は**枚数**（`fill(n)`）＝カード番号の配列を渡すと**0枚**になる（初回実装で踏んだ）。
+  //   色を指定したいので `otherState.energy` を直接組む。⚠**別々のカード番号**で置く（同名は数えられない）。
+  const base0 = mkCtx({ signi: ['WXEX1-07', null, null] }, {}, 'WXEX1-07');
+  const base = { ...base0, otherState: { ...base0.otherState, energy: [WHITE, BLUE] } as PlayerState };
+  const trash = { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL',
+    filter: { colorNotDeclaredColor: true } } } as unknown as EffectAction;
+  // 🔴**未宣言＝0枚**（ここが素通りすると相手のエナが全部飛ぶ）。
+  const undeclared = finish(executeAction(trash, base), base);
+  eq(undeclared.otherState.energy.length, 2, '🔴未宣言なのに相手エナが減った（fail-closed が効いていない）');
+  // 宣言後＝宣言色（青）以外だけが落ちる。
+  const declaredCtx = { ...base, otherState: { ...base.otherState, declared_color: '青' } as PlayerState };
+  const done2 = finish(executeAction(trash, declaredCtx), declaredCtx);
+  eq(JSON.stringify(done2.otherState.energy), JSON.stringify([BLUE]), '宣言色（青）以外だけが落ちていない');
+  ok(done2.otherState.trash.includes(WHITE), '白が相手トラッシュへ行っていない');
+}));
 test('§5.3 O-60 第41バッチ: 相手エナの色制限は「宣言された色」から読む（カード全文 regex を撤去）', () => withSavedCursor(() => {
   ok(!!(effectsMap.get('WXK09-037') ?? []).find(e => e.effectId === 'WXK09-037-E3'), 'WXK09-037-E3 が消えている');
   const base = mkCtx({ signi: ['WXK09-037', null, null] }, {}, 'WXK09-037');
@@ -48492,11 +48527,16 @@ test('§6.4 O-35: エナゾーンの「すべてのカード」が count:1 に�
   const a = (effectsMap.get('PR-470B') ?? []).find(e => e.effectId === 'PR-470B-E2')!.action as Extract<EffectAction, { type: 'TRASH' }>;
   eq(a.target.count, 'ALL', '🔴すべて→1枚に潰れている');
   eq(a.target.owner, 'opponent', '相手のエナ');
-  // ⚠限定が未表現の形は**広げない**＝「宣言した色ではない色を持つすべてのカード」は1枚のまま据置
-  //   （ALL にすると相手のエナを全部飛ばす過剰に化ける）。
+  // 🆕**2026-09-06（§5.3 `O-261`）＝「宣言した色ではない色を持つすべてのカード」の据置を解いた。**
+  //   旧はここで `count:1` を assert していた＝**限定を表現できないまま ALL へ広げない**という規律。
+  //   `TargetFilter.colorNotDeclaredColor`（`declared_color` → `colorExclude`・**未宣言なら空ヒット**）が
+  //   入ったので、いまは **ALL ＋ 色の否定**が正しい姿。
+  // ⚠**規律そのものは生きている**＝**色の否定が載っていない ALL** は依然として禁止なので、両方を assert する。
   const w = (effectsMap.get('WXEX1-07') ?? []).find(e => e.effectId === 'WXEX1-07-E2')!.action as SequenceAction;
   const t2 = w.steps[1] as Extract<EffectAction, { type: 'TRASH' }>;
-  eq(t2.target.count, 1, '🔴色限定が未表現のまま ALL へ広げてはいけない');
+  eq(t2.target.count, 'ALL', '🔴すべて→1枚に潰れている（`O-261` で据置を解いた）');
+  eq(t2.target.filter?.colorNotDeclaredColor, true,
+    '🔴色の否定が無いまま ALL へ広がっている＝相手のエナを全部飛ばす過剰実行');
 });
 
 test('§6.4 O-35: 「手札をN枚まで捨てる」の upToCount が落ちない', () => {

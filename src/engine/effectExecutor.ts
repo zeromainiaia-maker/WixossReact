@@ -3013,6 +3013,14 @@ function resolveDynamicFilter(
     const color = declarationState.declared_colors?.[index];
     result = color ? { ...rest, color } : noMatch(rest);
   }
+  // 🆕§5.3 `O-261`（2026-09-06）＝**宣言された色を持たない**（`declared_color` の否定）。
+  // 🔴**未宣言なら空ヒットへ倒す**＝`colorExclude` を付けずに素通りさせると `count:'ALL'` と組んだとき
+  //   **相手のエナを全部飛ばす過剰実行**になる（この2効果が `count:1` で据え置かれていた理由そのもの）。
+  if (result.colorNotDeclaredColor) {
+    const { colorNotDeclaredColor: _cnd, ...rest } = result;
+    const declared = declarationState.declared_color;
+    result = declared ? { ...rest, colorExclude: declared } : noMatch(rest);
+  }
   if (result.colorMatchesLrigIndex != null) {
     const { colorMatchesLrigIndex: index, ...rest } = result;
     const lrigNums = [

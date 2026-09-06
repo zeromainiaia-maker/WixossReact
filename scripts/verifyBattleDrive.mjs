@@ -51947,6 +51947,147 @@ order.push('v166MultiZoneAttackGranted');
 order.push('v166MultiZoneAttackNotGranted');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-167`（§5.3 `O-261`）＝**「宣言した色ではない色を持つすべてのカードをトラッシュに置く」**
+//   （`WXEX1-07-E2` 遊月・四篝 の【出】）。
+//
+// 🔴**旧 live は `TRASH{ENERGY_CARD, owner:'opponent', count:1}`**＝
+//   **過少（「すべて」ではなく1枚）と過剰（宣言色のカードまで落としうる）が同居**していた。
+//   `count:'ALL'` へ広げるには「宣言色の否定」が要り、それが無かったので `parseSentencePart1.ts` に
+//   **据置ガード**（「限定が未表現のまま ALL にしない」）が置かれていた＝§5.3 の
+//   「個別カードの機構待ち」に2件として2026-08-17 から残っていたもの。
+// 🆕**受け皿**＝`TargetFilter.colorNotDeclaredColor` → `resolveDynamicFilter` が `declared_color` を
+//   `colorExclude` へ解決する。**未宣言なら空ヒット（fail-closed）**。
+//
+// 🔑**CPU（guest）の `opponentResponds` 自動応答は常に選択肢の先頭を選ぶ**（`BattleScreen.tsx:634`）＝
+//   色宣言の選択肢は `['白','赤','青','緑','黒']` なので **CPU は必ず「白」を宣言する**＝決定論になる。
+//
+// **観測点**＝相手のエナゾーンから **白以外が全部**トラッシュへ行き、**白は残る**こと。
+//   盤面＝相手エナ 白1 + 青2（**別々のカード番号**）。
+//   🔴**旧挙動との差が枚数に出る**＝旧は「1枚だけ」なので **残2枚**、新は「白以外すべて」で **残1枚**。
+// 🔁**負方向の対照**＝**盤面も操作も同じで、相手エナの色だけ**を 白3 に変える1ビット反転＝
+//   宣言色（白）しかないので **1枚も落ちない**（旧挙動なら1枚落ちる）。
+//
+// ⚠**グロウで【出】を撃つ**＝`WXEX1-07` はルリグ Lv4 で **GrowCost《赤》×0＝無料**。
+//   Lv3 の ユヅキ（`WX04-009` 遊月・参戎）から `H.openGrow` → `grow-execute`。
+// ⚠**相手エナは3枚に留める**＝同カードの【自】は「相手エナが**5枚以上**」で別のトラッシュを起こす
+//   （`OPP_ENERGY_EXCESS_TRASH{oppEnergyThreshold:5}`）＝観測が混ざる。
+// ⚠**罠 1**＝`field.check` を両側に必ず入れる。⚠**`field.signi` はスタックの配列**。
+// ══════════════════════════════════════════════════════════════════════════════
+const V167_LRIG_L3 = 'WX04-009#1';   // 遊月・参戎（ルリグ・Lv3・ユヅキ）＝グロウ元
+const V167_LRIG_L4 = 'WXEX1-07#1';   // 遊月・四篝（ルリグ・Lv4・GrowCost《赤》×0＝無料）
+const V167_WHITE = ['WD01-013', 'WX04-060', 'WD09-014'];  // 白のバニラ Lv1（別々のカード番号）
+const V167_BLUE = ['WD03-013', 'WX04-080'];               // 青のバニラ Lv1（別々のカード番号）
+
+const v167Spec = (oppEnergy) => ({
+  hostSet: {
+    'field.lrig': [V167_LRIG_L3],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [V167_LRIG_L4],
+    energy: ['WD01-013#9', 'WD01-013#8'],   // グロウは無料だが、空だと別の理由で止まらないよう少し持たせる
+    hand: [],
+    actions_done: [],
+    game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // ⚠**3枚に留める**（5枚以上だと同カードの【自】が別のトラッシュを起こして観測が混ざる）。
+    energy: oppEnergy,
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const v167Drive = async (page, H, tag, expectRemain) => {
+  const st0 = await H.queryState();
+  const ena0 = st0?.guest?.energyCards ?? [];
+  if (st0?.host?.lrigTop !== V167_LRIG_L3 || ena0.length !== 3) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrigTop=' + st0?.host?.lrigTop
+      + ' 相手エナ=' + JSON.stringify(ena0) + '）' };
+  }
+  await H.ensureMain();
+  const opened = await H.openGrow(/遊月・四篝/);
+  H.log('  グロウ候補クリック: ' + (opened ? 'OK' : '押せず'));
+  let executed = false, declared = null;
+  let last = st0;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true }).catch(() => {});
+    let did = null;
+    if (!executed) {
+      const exec = page.getByTestId('grow-execute').first();
+      if (await exec.count() && await exec.isVisible().catch(() => false) && await exec.isEnabled().catch(() => false)) {
+        await exec.click().catch(() => {}); did = 'grow-execute'; executed = true;
+      }
+    }
+    // 色宣言は CPU（guest）が自動応答する＝driver からは押さない（先頭＝白が選ばれる）。
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    if (!declared) {
+      const line = (last?.logTail ?? []).find(l => /色「.」を宣言/.test(l));
+      const m = line && line.match(/色「(.)」を宣言/);
+      if (m) declared = m[1];
+    }
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし')
+      + ' | lrigTop=' + last?.host?.lrigTop + ' 宣言=' + (declared ?? '-')
+      + ' 相手エナ=' + JSON.stringify(last?.guest?.energyCards)
+      + ' pEff=' + (last?.pendingEffect ?? '-') + ' stack=' + (last?.stackLen ?? '-'));
+    if (last?.host?.lrigTop === V167_LRIG_L4 && declared && !last?.pendingEffect && !(last?.stackLen > 0) && s > 2) break;
+  }
+  const ena1 = last?.guest?.energyCards ?? [];
+  const dump = '宣言=' + (declared ?? '-') + ' 相手エナ ' + JSON.stringify(ena0) + ' → ' + JSON.stringify(ena1)
+    + '（' + ena0.length + '枚 → ' + ena1.length + '枚）lrigTop=' + last?.host?.lrigTop;
+  H.log('  判定: ' + dump);
+  if (last?.host?.lrigTop !== V167_LRIG_L4) {
+    return { pass: false, detail: '前提崩れ＝グロウできていない＝【出】が撃たれていない。' + dump };
+  }
+  if (!declared) {
+    return { pass: false, detail: '前提崩れ＝色の宣言が観測できなかった（CPU の自動応答が走っていない）。' + dump };
+  }
+  // 🔑**残ったカードが全部「宣言色を持つ」こと**を見る（枚数だけだと旧挙動と区別しきれない盤面がある）。
+  const colorOf = (n) => (V167_WHITE.some(w => n.startsWith(w)) ? '白' : '青');
+  const badKept = ena1.filter(n => colorOf(n) !== declared);
+  const badGone = ena0.filter(n => colorOf(n) === declared && !ena1.includes(n));
+  if (badKept.length) {
+    return { pass: false, detail: '🔴宣言色ではないカードが残った＝「すべて」が効いていない（旧 count:1 の再発）。'
+      + ' 残った非' + declared + '=' + JSON.stringify(badKept) + ' ' + dump };
+  }
+  if (badGone.length) {
+    return { pass: false, detail: '🔴宣言色のカードまで落ちた＝色の否定が効いていない（過剰実行）。'
+      + ' 落ちた' + declared + '=' + JSON.stringify(badGone) + ' ' + dump };
+  }
+  if (ena1.length !== expectRemain) {
+    return { pass: false, detail: '🔴残枚数が期待と違う（期待 ' + expectRemain + '枚）。' + dump };
+  }
+  return { pass: true, detail: '宣言色（' + declared + '）以外だけが全部トラッシュへ行き、宣言色は残った。' + dump };
+};
+
+scenarios.v167DeclaredColorTrashAll = {
+  title: 'V-167(1): WXEX1-07 の【出】＝宣言色ではない相手エナを「すべて」トラッシュへ【旧実装は1枚だけ】',
+  // 白1 + 青2。CPU は先頭の「白」を宣言する＝青2枚が落ちて **残1枚**（旧挙動なら残2枚）。
+  spec: v167Spec([V167_WHITE[0] + '#1', V167_BLUE[0] + '#1', V167_BLUE[1] + '#1']),
+  async drive(page, H) { return v167Drive(page, H, 'v167TrashAll', 1); },
+};
+
+scenarios.v167DeclaredColorKeepsAll = {
+  // 🔴**対照**＝盤面も操作も同じで、**相手エナの色だけ**を白3に変える1ビット反転。
+  //   宣言色（白）しか無いので **1枚も落ちない**（旧挙動なら1枚落ちる）。
+  title: 'V-167(2): 宣言色しか持たないエナは1枚も落ちない（色の否定が効いている）',
+  spec: v167Spec([V167_WHITE[0] + '#1', V167_WHITE[1] + '#1', V167_WHITE[2] + '#1']),
+  async drive(page, H) { return v167Drive(page, H, 'v167KeepAll', 3); },
+};
+
+order.push('v167DeclaredColorTrashAll');
+order.push('v167DeclaredColorKeepsAll');
+
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

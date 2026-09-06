@@ -1403,6 +1403,17 @@ export interface TargetFilter {
   discardedFromHandThisTurn?: boolean;
   // DECLARE_COLORS で宣言した色のうち指定番目と一致。参照不能時は空ヒット。
   colorEqDeclaredColorIndex?: number;
+  /**
+   * 🆕**宣言された色を持たない**（`DECLARE_COLOR` / `OPP_DECLARE_COLOR` が刻む `declared_color` の**否定**）。
+   * §5.3 `O-261`（2026-09-06）＝`WXEX1-07-E2`「宣言した色ではない色を持つ**すべての**カードをトラッシュに置く」／
+   * `WXK09-037-E1`「宣言された色を持たず**無色ではない**すべてのカード」。
+   * 🔴**未宣言のときは空ヒットへ倒す**（`colorExclude` を付けずに素通りさせると
+   *   **相手のエナを全部飛ばす過剰実行**になる＝この2効果が `count:1` で据え置かれていた理由そのもの）。
+   * ⚠**単数 `declared_color` を読む**＝複数版の `colorEqDeclaredColorIndex`（`declared_colors`）とは別物。
+   * ⚠`ENERGY_CARD{owner:'opponent'}` では `resolveDynamicFilter` の `ownerSt` が**対象オーナー**に入れ替わるので、
+   *   `OPP_DECLARE_COLOR` が相手側へ刻んだ宣言色がそのまま読める（`effectExecutor.ts:2569`）。
+   */
+  colorNotDeclaredColor?: boolean;
   // 自分の場のルリグ（センター→左アシスト→右アシスト）の指定番目と共通色。
   // 指定位置にルリグがいなければ空ヒット（WXDi-P15-005 の固定3段用）。
   colorMatchesLrigIndex?: number;
