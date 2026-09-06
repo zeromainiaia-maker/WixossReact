@@ -6894,6 +6894,14 @@ export interface CardEffect {
     duringAttackPhase?: boolean;                      // 「アタックフェイズの間、…したとき」＝アタックフェイズ（ATTACK_*）中のイベントのみ発火（WXEX2-01/WX20-051＝ON_SIGNI_DOWN/UP・WX11-030＝ON_DRAW）
     duringMainPhase?: boolean;                        // 「メインフェイズの間」だけ発火（WX18-052）
     upIncludesLrig?: boolean;                         // ON_SIGNI_BECOMES_UP の「あなたのセンタールリグかシグニ1体がアップ状態になったとき」（WX20-051）＝センタールリグのアップ（lrig_down true→false）でも発火。省略＝シグニのみ
+    /**
+     * 🆕**その手札捨ての「原因カード」の種別**（2026-09-07・意味照合 段2・`WX25-CP1-016-E1`）＝
+     * 原文「**シグニかスペルの**、コストか効果によってあなたが手札を1枚捨てたとき」。
+     * ⚠**fail-closed**＝原因が判らない捨て（ルール処理の手札上限・ガードステップ等）では誘発しない。
+     * 読むのは `collectHandDiscardTriggers` 1点（原因カードは中央 diff が
+     * `hand_discarded_just_cause_card_num` に刻む／コスト経路は `costSourceNum`）。
+     */
+    discardCauseCardTypes?: string[];
     byOwnEffect?: boolean;                            // ON_HAND_DISCARDED（「あなたが**自分の効果によって**カードをN枚以上捨てたとき」WXDi-D09-P16-E2）＝コスト支払いの手札捨て・対戦相手の効果で捨てさせられた場合では発火しない（collectHandDiscardTriggers の asCost と、discarder 側 state の hand_discarded_just_by_opp で判定）。ON_TRASH（自己discard反応「あなたの効果によって/あなたがこのカードを捨てたとき」WXDi-P08-075/P11-069）＝対戦相手の効果起因では発火しない。ON_LEAVE_FIELD any_opp（「あなたの効果によって対戦相手のシグニが…」WXK11-049/WXDi-CP01-027）＝watcher 自身の効果が原因のときのみ発火（バトル/ルール処理でも発火しない）
     byWatcherEffect?: boolean;                        // ON_HAND_DISCARDED any_opp（「あなたの効果によって対戦相手が手札を捨てたとき」）＝その【自】の watcher 所有者の効果が原因のときのみ。捨てた本人を基準にする byOwnEffect とは別軸
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）

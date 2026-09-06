@@ -5988,6 +5988,12 @@ function effJa(e: Eff): string {
       const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
       s = `${who}が凍結状態になったとき`;
     }
+    // 🆕意味照合 段2（2026-09-07）＝**原因カードの種別限定**（`WX25-CP1-016-E1`）。
+    //   ⚠出さないと「原因を見ていない旧実装」と逆翻訳が同じままになり、原文照合で脱落を検出できない。
+    if (t === 'ON_HAND_DISCARDED' && e.triggerCondition?.discardCauseCardTypes?.length) {
+      s = s.replace('あなたが手札を捨てたとき',
+        `${e.triggerCondition.discardCauseCardTypes.join('か')}の、コストか効果によってあなたが手札を捨てたとき`);
+    }
     // ON_HAND_DISCARDED の triggerFilter（捨て札のクラス限定）を反映（「手札から＜宝石＞のシグニを捨てたとき」）
     if (t === 'ON_HAND_DISCARDED' && e.triggerFilter && (e.triggerFilter.story || e.triggerFilter.cardClass)) {
       const cls = e.triggerFilter.story ?? e.triggerFilter.cardClass;

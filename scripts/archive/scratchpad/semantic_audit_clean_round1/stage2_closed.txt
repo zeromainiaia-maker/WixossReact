@@ -1889,3 +1889,12 @@ WXK10-004-E1 :: 場以外のあなたの領域
 #   支払い＝`performSigniActivated`）。⚠**自動支払い**（`cardName` 一意でどれを除外しても等価）＝選択UIは作らない。
 #   ⚠行き先は `excluded`（`trashExile` の `lrig_trash` 近似とは別）。
 WXDi-P13-089-E3 :: 手札とエナゾーンとトラッシュ
+# WX25-CP1-016-E1＝「【自】《ターン１回》：**シグニかスペルの、コストか効果によって**あなたが手札を１枚
+#   捨てたとき、カードを１枚引く」が原因を1つも見ておらず、**ルリグ・アーツ・キーの効果でも、
+#   相手に捨てさせられても**誘発していた（過剰実行）。
+#   ⇒ `triggerCondition.discardCauseCardTypes` を新設。原因カードは
+#   ①コスト経路＝`costSourceNum`（既存）②効果経路＝中央 diff が `causeSourceCardNum` を
+#   `hand_discarded_just_cause_card_num` に刻む（`hand_discarded_just_cause_owner_id` と同じ場所）。
+#   判定は `collectHandDiscardTriggers` の `causeTypeOk` 1点＝**fail-closed**
+#   （原因不明＝ルール処理の手札上限・ガードステップでは誘発しない）。
+WX25-CP1-016-E1 :: シグニかスペルの、コストか効果によって

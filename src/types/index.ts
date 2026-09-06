@@ -947,6 +947,15 @@ export interface PlayerState {
   // hand_discarded_just を起こした効果の owner userId。undefined＝コスト／ルール処理など効果起因でない。
   // triggerCondition.byWatcherEffect（watcher 所有者の効果による相手手札捨て）の判定に使い、同時にクリアする。
   hand_discarded_just_cause_owner_id?: string | null;
+  /**
+   * 🆕**その手札捨ての「原因カード」**（2026-09-07・意味照合 段2・`WX25-CP1-016-E1`）。
+   * 原文「**シグニかスペルの**、コストか効果によってあなたが手札を1枚捨てたとき」＝
+   * 🔴**原因のカード種別で誘発を絞る**必要がある（旧実装は原因を一切見ず、
+   *   ルリグ・アーツ・キーの効果でも、相手に捨てさせられても誘発していた＝過剰実行）。
+   * 刻むのは中央 diff（`causeSourceCardNum` を知っている唯一の場所）／読むのは
+   * `collectHandDiscardTriggers` 1点。⚠**コスト支払い経路は `costSourceNum` が同じ役割**を持つ。
+   */
+  hand_discarded_just_cause_card_num?: string | null;
   // このプレイヤーから見て対戦相手の場に【ウィルス】が置かれた/取り除かれた直後にセット
   // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
   opp_virus_placed_just?: boolean | null;

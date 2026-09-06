@@ -20877,6 +20877,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (Object.keys(f).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...f };
         }
       }
+      // 🆕**原因カードの種別限定**（2026-09-07・意味照合 段2・`WX25-CP1-016-E1`）＝
+      //   「**シグニかスペルの、コストか効果によって**あなたが手札を１枚捨てたとき」。
+      //   🔴旧は原因を一切見ておらず、**ルリグ・アーツ・キーの効果でも、相手に捨てさせられても**誘発していた。
+      //   ⚠engine は fail-closed（原因不明＝非発火）＝ルール処理の手札上限・ガードでは誘発しない。
+      if (timing[0] === 'ON_HAND_DISCARDED') {
+        const causeM = trigText.match(/((?:シグニ|スペル|ルリグ|アーツ|キー|ピース)(?:か(?:シグニ|スペル|ルリグ|アーツ|キー|ピース))*)の、?(?:コストか効果|効果かコスト)によって/);
+        if (causeM) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            discardCauseCardTypes: causeM[1].split('か'),
+          };
+        }
+      }
       // ON_OPP_ARTS_USE: 「対戦相手が**使用**したとき」と既存の「対戦相手のアーツの**効果を受けた**とき」は
       //   engine の受け皿は同じだが原文が違う＝逆翻訳の描画を分けるため any_opp を刻む（engine は scope を見ない）。
       if (timing[0] === 'ON_OPP_ARTS_USE' && /対戦相手がアーツを使用したとき/.test(actionText)) {

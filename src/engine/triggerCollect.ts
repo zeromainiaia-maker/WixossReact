@@ -4192,6 +4192,11 @@ export function collectHandDiscardTriggers(
   opState?: PlayerState, opId?: string, costSourceNum?: string,
   byOppEffect = false,
   causeOwnerId?: string,
+  /**
+   * 🆕**その手札捨ての原因カード**（2026-09-07・意味照合 段2・`WX25-CP1-016-E1`）。
+   * 効果経路＝中央 diff が刻む `hand_discarded_just_cause_card_num`／コスト経路＝`costSourceNum`。
+   */
+  causeCardNum?: string,
 ): { entries: StackEntry[]; usedLimitIds: string[] } {
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
@@ -4221,6 +4226,20 @@ export function collectHandDiscardTriggers(
   // ⚠ターン終了時の手札上限処理はそもそも hand_discarded_just を立てないのでこの経路に来ない。
   const ownEffectOk = (eff: CardEffect): boolean =>
     !eff.triggerCondition?.byOwnEffect || (!asCost && !byOppEffect);
+  // 🆕**原因カードの種別で絞る**（`WX25-CP1-016-E1`＝「シグニかスペルの、コストか効果によって」）。
+  // 🔴**fail-closed**＝原因が判らない捨て（ルール処理の手札上限・ガードステップ等）では誘発しない。
+  //   ⚠原因はコスト経路なら `costSourceNum`（能力の持ち主）、効果経路なら中央 diff が刻む
+  //     `hand_discarded_just_cause_card_num`。どちらも無ければ「不明」。
+  const causeType = (() => {
+    const src = (asCost ? costSourceNum : undefined) ?? causeCardNum ?? costSourceNum;
+    return src ? (ctx.cardMap.get(getCardNum(src))?.Type ?? '') : '';
+  })();
+  const causeTypeOk = (eff: CardEffect): boolean => {
+    const want = eff.triggerCondition?.discardCauseCardTypes;
+    if (!want || want.length === 0) return true;
+    if (!causeType) return false;
+    return want.some(t => causeType.includes(t));
+  };
   // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）
   // 発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして」＝コストを支払った能力の host シグニ
   //（costSourceNum）の CardClass に X を含むときだけ発火（Opusタスク12(xxiv)）。
@@ -4251,6 +4270,7 @@ export function collectHandDiscardTriggers(
       // any_opp＝「対戦相手が捨てたとき」＝discarder 自身の場では発火しない（相手フィールド path で拾う）。
       if (eff.triggerScope === 'any_opp') continue;
       if (!ownEffectOk(eff)) continue;
+      if (!causeTypeOk(eff)) continue;
       const isAny = eff.triggerScope === 'any';
       if (myBlocked) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
@@ -4277,6 +4297,7 @@ export function collectHandDiscardTriggers(
       if (!meetsMinCount(eff)) continue;
       if (eff.triggerScope === 'any_opp') continue; // 相手が捨てたとき＝discarder 自身の LRIG では発火しない
       if (!ownEffectOk(eff)) continue;
+      if (!causeTypeOk(eff)) continue;
       const isAny = eff.triggerScope === 'any';
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
       else if (!isAny && !myIsTurn) continue;
@@ -4313,6 +4334,7 @@ export function collectHandDiscardTriggers(
         // byWatcherEffect（「あなたの効果によって対戦相手が手札を捨てたとき」）＝
         // watcher 所有者（opId）の効果が原因の場合だけ。コスト／ルール処理（undefined）も非発火。
         if (eff.triggerCondition?.byWatcherEffect && causeOwnerId !== opId) continue;
+        if (!causeTypeOk(eff)) continue;   // 原因カードの種別限定（意味照合 段2・`WX25-CP1-016-E1`）
         if (!mainPhaseGateOk(eff, ctx, opId)) continue;   // `O-64`（watcher の持ち主＝opId 視点）
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {

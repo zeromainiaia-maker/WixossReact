@@ -70219,6 +70219,35 @@ test('意味照合 段2 WXDi-P13-089-E3: 手札とエナとトラッシュから
   eq(payMultiZoneExileCost(mkS([NAME], [NAME], [other]), mz, cardMap), null, '払えないときは null（踏み倒さない）');
 }));
 
+// ── 意味照合 段2（2026-09-07）＝`WX25-CP1-016-E1` 手札捨ての**原因カードの種別**で誘発を絞る ──
+// 🔴旧は原因を1つも見ておらず、**ルリグ・アーツ・キーの効果でも、ルール処理でも**誘発していた（過剰実行）。
+test('意味照合 段2 WX25-CP1-016-E1: 手札捨ての原因がシグニかスペルのときだけ誘発する', () => withSavedCursor(() => {
+  const live = effectsMap.get('WX25-CP1-016')?.find(e => e.effectId === 'WX25-CP1-016-E1');
+  eq((live?.triggerCondition?.discardCauseCardTypes ?? []).join(','), 'シグニ,スペル',
+    '🔴原因カードの種別限定が live に載っている');
+
+  const watcher = mkState({}); watcher.field.lrig = ['WX25-CP1-016'];
+  const byCause = (causeCardNum: string | undefined, asCost: boolean) => fired(
+    collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], watcher, HOST, asCost,
+      undefined, undefined, asCost ? causeCardNum : undefined, false, undefined,
+      asCost ? undefined : causeCardNum).entries,
+    'WX25-CP1-016-E1');
+  // 種別ごとに実カードを引いて確かめる（カード番号を決め打ちしない＝CSV が動いても腐らない）。
+  const pick = (type: string) => [...cardMap.values()].find(c => c.Type === type)!.CardNum;
+  const signiNum = pick('シグニ'), spellNum = pick('スペル'), lrigNum = pick('ルリグ'), artsNum = pick('アーツ');
+  eq(byCause(signiNum, false), true, 'シグニの効果なら誘発する');
+  eq(byCause(spellNum, false), true, 'スペルの効果なら誘発する');
+  eq(byCause(signiNum, true), true, 'シグニのコストでも誘発する');
+  eq(byCause(lrigNum, false), false, '🔴ルリグの効果では誘発しない');
+  eq(byCause(artsNum, false), false, '🔴アーツの効果では誘発しない');
+  eq(byCause(undefined, false), false, '🔴原因不明（ルール処理）では誘発しない＝fail-closed');
+
+  // 原因限定を持たない既存の watcher は従来どおり原因を問わず誘発する（退行していない）。
+  const plain = mkState({}); plain.field.lrig = ['WXEX2-12'];
+  eq(fired(collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], plain, HOST, false).entries, 'WXEX2-12-E2'), true,
+    '限定の無い【自】は原因不明でも従来どおり誘発する');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

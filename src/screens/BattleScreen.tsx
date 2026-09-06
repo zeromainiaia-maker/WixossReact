@@ -1615,7 +1615,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           localIsHost ? bs.guest_state : bs.host_state, localIsHost ? bs.guest_id : bs.host_id,
           // byOppEffect＝この手札捨てが「対戦相手の効果によるもの」か（triggerCondition.byOwnEffect の判定材料）。
           // executor が捨てた側の state に立てる（自分の効果なら立たない）。
-          undefined, !!localMy.hand_discarded_just_by_opp, localMy.hand_discarded_just_cause_owner_id ?? undefined);
+          undefined, !!localMy.hand_discarded_just_by_opp, localMy.hand_discarded_just_cause_owner_id ?? undefined,
+          localMy.hand_discarded_just_cause_card_num ?? undefined);
         entries.push(...hdEntries);
         const cleared: PlayerState = {
           ...localMy,
@@ -1624,6 +1625,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_discarded_just: null,
           hand_discarded_just_by_opp: null,
           hand_discarded_just_cause_owner_id: null,
+          hand_discarded_just_cause_card_num: null,
           actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
         };
         const states: Partial<Record<PlayerStateKey, PlayerState>> = { [stateKey]: cleared };
@@ -1631,13 +1633,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (cpuDiscardedHJ.length > 0) {
           const { entries: cpuHd, usedLimitIds: cpuUsed } = collectHandDiscardTriggers(
             cpuDiscardedHJ, bs.guest_state, CPU_PLAYER_ID, false, bs.host_state, bs.host_id,
-            undefined, !!bs.guest_state.hand_discarded_just_by_opp, bs.guest_state.hand_discarded_just_cause_owner_id ?? undefined);
+            undefined, !!bs.guest_state.hand_discarded_just_by_opp, bs.guest_state.hand_discarded_just_cause_owner_id ?? undefined,
+            bs.guest_state.hand_discarded_just_cause_card_num ?? undefined);
           entries.push(...cpuHd);
           states.guest_state = {
             ...bs.guest_state,
             hand_discarded_just: null,
             hand_discarded_just_by_opp: null,
             hand_discarded_just_cause_owner_id: null,
+            hand_discarded_just_cause_card_num: null,
             actions_done: cpuUsed.length > 0 ? [...(bs.guest_state.actions_done ?? []), ...cpuUsed] : bs.guest_state.actions_done,
           };
         }
@@ -3365,11 +3369,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // 効果解決で生じた手札捨ての原因 owner を React watcher まで運ぶ。
     // executor は userId を持たないため、entry/pending 由来の causeOwnerId を知る中央 diff で刻む。
+    // 🆕**原因カード**も同時に刻む（意味照合 段2・`WX25-CP1-016-E1`＝「シグニかスペルの、
+    //   コストか効果によって」）＝`causeSourceCardNum` を知っているのはこの中央 diff だけ。
     if (detectHandTrashed(beforeHost, h).length > 0 && h.hand_discarded_just?.length) {
-      h = { ...h, hand_discarded_just_cause_owner_id: causeOwnerId };
+      h = { ...h, hand_discarded_just_cause_owner_id: causeOwnerId, hand_discarded_just_cause_card_num: causeSourceCardNum };
     }
     if (detectHandTrashed(beforeGuest, g).length > 0 && g.hand_discarded_just?.length) {
-      g = { ...g, hand_discarded_just_cause_owner_id: causeOwnerId };
+      g = { ...g, hand_discarded_just_cause_owner_id: causeOwnerId, hand_discarded_just_cause_card_num: causeSourceCardNum };
     }
 
     entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeHost, h, bs.host_id));
@@ -6194,8 +6200,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     costSourceNum?: string,
     byOppEffect?: boolean,
     causeOwnerId?: string,
+    causeCardNum?: string,
   ): { entries: StackEntry[]; usedLimitIds: string[] } =>
-    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect, causeOwnerId);
+    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect, causeOwnerId, causeCardNum);
 
   /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
