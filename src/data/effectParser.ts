@@ -3780,9 +3780,14 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // 「そのアタックフェイズの間に〈owner〉の＜X＞のシグニが場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
   //   engine は `signi_left_field_this_attack_phase`（アタックフェイズ開始時にリセットし、離場の2経路で追記）を読む。
   //   従来は条件節が丸ごと落ちて**無条件発火**だった。
-  [/その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場を離れていた場合/,
+  // 🆕**行き先を名指しする綴りも拾う**（§5.4 (b)・2026-09-06 第189バッチ）＝
+  //   「場から**トラッシュに置かれて**いた場合」（`WX18-056-E1`）は `destination:'trash'` を載せる。
+  //   🔴**「場を離れていた」（`WX24-P2-075-E1`）とは母集団が別**＝あちらはエナ送り・手札戻しでも成立する。
+  //   両方を同じ条件へ潰すと、片方が必ず過剰か過少になる。
+  [/その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場(を離れて|からトラッシュに置かれて)いた場合/,
     g => ({ type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
-      ...(g[1] ? { filter: { cardType: 'シグニ', story: g[1] } } : {}) })],
+      ...(g[1] ? { filter: { cardType: 'シグニ', story: g[1] } } : {}),
+      ...(g[2] === 'からトラッシュに置かれて' ? { destination: 'trash' as const } : {}) })],
   // 「そのアタックがこのターンN度目の場合」（§6.4 O-25(d)）。🔴従来は条件節が丸ごと落ちて**無条件発火**だった
   //   ＝`WXK06-033/035-E1` は**アタックのたびに自分をアップ**（原文は四度目のみ＝実質もう1回アタックできる）、
   //   `WXK06-037/038/062-E1`／`WXDi-P14-052-E1` は毎アタックで引き／エナチャージ／手札戻しが走っていた。
@@ -22096,11 +22101,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (effectType === 'AUTO' && actionText) {
     // ⚠この時点の actionText は**まだトリガー句を含む**（「〜終了時、」の除去は下流）ので、
     //   先頭アンカーではなく**節をその場で取り除く**（残りは従来どおり下流が処理する）。
-    const lfm = actionText.match(/その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場を離れていた場合[、,]\s*/);
+    // 🆕「場から**トラッシュに置かれて**いた場合」も拾う（§5.4 (b)・第189バッチ）＝上の規則表と同じ2綴り。
+    const lfm = actionText.match(/(?:この|その)?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場(を離れて|からトラッシュに置かれて)いた場合[、,]\s*/);
     if (lfm) {
       const lfCond: Condition = { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE',
         owner: lfm[1] === '対戦相手' ? 'opponent' : 'self',
-        ...(lfm[2] ? { filter: { cardType: 'シグニ', story: lfm[2] } } : {}) };
+        ...(lfm[2] ? { filter: { cardType: 'シグニ', story: lfm[2] } } : {}),
+        ...(lfm[3] === 'からトラッシュに置かれて' ? { destination: 'trash' as const } : {}) };
       extractedTriggerCondition = extractedTriggerCondition
         ? { type: 'AND', conditions: [extractedTriggerCondition, lfCond] }
         : lfCond;

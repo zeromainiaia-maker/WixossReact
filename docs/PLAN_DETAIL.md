@@ -5578,6 +5578,26 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第188バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第188バッチ）＝PLAN §5.4 (b) の「逆翻訳の表示だけ」7件を1バッチ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**据置の理由**＝語彙は増えていない（逆翻訳の描画5種と、既存フラグ `opponentSelects` の配線だけ）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（いずれも据置）。
+  📦**在庫**＝**機構 worklist 2項目**＝索引 **A 0／B 0／G 0／E 2**（E は計器の較正＝維持のみ）。
+  **⑤実機 残 0件**（据置＝この巡は `src/data/` `scripts/` だけ＝PLAN §2.2 の表で実機不要と判定）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**（第187 のラチェット・据置）／**fresh PARTIAL = live PARTIAL = 20**（据置）。
+  🔻**`opponentSelects` の miss = 14 → 2**（残2は既知で正しい＝`WX25-P3-080-E1` の①枝／`WDK10-001-E2` の別規則）。
+  📄**逆翻訳が変わった効果 29**（狙った7件＋同じ汎用修正が届いた22件）。
+  🔧**ゲート（全緑 ✅）**＝golden **3538 / 3538**（3537 +1本＝`§5.4 第188: opponentSelects`）／
+  smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🔁**反転確認**＝修正前の live JSON へ戻すと新テストが **13効果を挙げて FAIL**。
+  **live A/B**＝**全差分が `opponentSelects` の追加のみ**を機械照合（フラグを除いた木が完全一致）。
+  🖥**実機**＝**なし**（PLAN §2.2 の表で不要と判定）。
+
 ### 恒久指標アーカイブ（2026-09-06・第187バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第187バッチ）＝🏁PLAN §5.4 (a)「live に `UNKNOWN` が残る効果」を残0（Opus 5 単独／本ブロックが直近の正）**

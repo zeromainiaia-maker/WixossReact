@@ -511,7 +511,13 @@ export type Condition =
   //   ソウル無しでも成立する**別物**（原文より緩い過剰効果になる）。
   | { type: 'THIS_CARD_HAS_SOUL' }
   | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
-  | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
+  // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。
+  // `signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する。
+  // 🆕**`destination:'trash'` は行き先を「トラッシュ」に限定する**（§5.4 (b)・2026-09-06 第189バッチ）＝
+  //   原文が「場から**トラッシュに置かれて**いた場合」と行き先を名指しする形（`WX18-056-E1`）。
+  //   🔴**省略時は従来どおり行き先を問わない**＝エナ送り・手札戻し・デッキ戻し・除外でも成立する
+  //   （`WX24-P2-075-E1` の原文「場を**離れて**いた場合」がこちら＝**既定を変えない**）。
+  | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number; destination?: 'trash' }
   // 「そのアタックがこのターンN度目の場合」（§6.4 O-25(d)・`WXK06-033/035/037/038/062`／`WXDi-P14-052`／`WXDi-P16-063`）。
   // 🔑序数は**シグニ単位ではなくアタックしたプレイヤーのターン内通算**＝`attacked_signi_ids.length`
   //   ＋ルリグアタック済み分（シグニは通常1回しかアタックできないので「四度目」は盤面全体の通算でしか成立しない）。

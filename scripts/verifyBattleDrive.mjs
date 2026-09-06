@@ -52530,6 +52530,241 @@ scenarios.o263SourceZoneFollowsSigni = {
   async drive(page, H) { return o263DriveSigni(page, H, 'o263SrcZone1', 0, 'draw'); },
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-171`（§5.4 (b) 本物の疑い②＝`WX18-056-E1`）＝**離場の「行き先」を見る**
+//   `WX18-056` 惨之遊　†シガラヤキ†【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、
+//   **このアタックフェイズの間にあなたのシグニが場からトラッシュに置かれていた場合**、－7000。
+//
+// 🔴**旧実装は行き先を問わなかった**（条件 `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` は
+//   実装コメントにも「⚠行き先は問わない」と明記）。しかも **WIXOSS のバニッシュ既定行き先はエナゾーン**
+//   （`execUtils.banishDestination` の最終 return／§4.4-8f にも同じ注記）なので、
+//   **バトルでバニッシュされただけで成立していた**＝「わずかな過剰」どころか**最頻経路での誤発火**。
+//
+// 🖥**なぜ実機が要るか**＝新設した `signi_left_field_to_trash_this_attack_phase` は
+//   **`BattleScreen.tsx` の盤面 diff でしか書かれない**。golden は `evalCondition` と
+//   `detectLeftFieldSigniToTrash` を直接叩くので、**「実戦の経路で1度も書かれない」形の壊れ方を検出できない**
+//   （型は足したが engine のどこも消費していない＝PLAN §2.2 が実機を要求する理由そのもの）。
+//
+// **1ビット反転の軸＝「離場の行き先」**（盤面は両シナリオで完全に同一）：
+//   ①`v171TrashedSigniLowersPower`＝アーツ `WX02-020`（ブラッディ・スラッシュ）で
+//     **自分のシグニを場からトラッシュに置く** → `WX18-056` がアタック → 相手に **-7000 が乗る**
+//   ②`v171BanishedSigniDoesNotLower`（**対照**）＝同じ盤面で、自分のシグニを
+//     **バトルでバニッシュさせる（＝エナゾーン行き）** → `WX18-056` がアタック → **-7000 は乗らない**
+//   🔑**旧実装では②でも -7000 が乗る**＝この対だけが新旧を弁別する。
+// ⚠**罠3b**＝判定の先頭に「離場そのものは起きた」を置く（旧実装でも必ず残る痕跡）。
+//   さもないと反転確認が「前提崩れ」で落ちて旧挙動の再現が読めない。
+// ══════════════════════════════════════════════════════════════════════════════
+const V171_ATTACKER = 'WX18-056#1';   // 惨之遊　†シガラヤキ†（黒Lv3 P7000・【自】アタック時 -7000）
+const V171_SAC      = 'WD05-014#1';   // 堕落の砲女　サキュ（黒Lv1 P1000）＝場から離れる役
+const V171_WALL     = 'WD01-009#1';   // 甲冑　ローメイル（P12000）＝②でサキュをバトルバニッシュさせる壁
+const V171_TARGET   = 'WD03-009#1';   // コードアート　Ｒ・Ｍ・Ｎ（P12000）＝-7000 を受ける側
+const V171_ARTS     = 'WX02-020#1';   // ブラッディ・スラッシュ（《黒》×2・アタックフェイズ可）
+const V171_ENERGY   = ['WD05-010#7101', 'WD05-011#7102'];  // 黒2枚（アーツの《黒》×2）
+
+/** V-171 の盤面（①②で完全に同一＝反転させるのは「離場の行き先」だけ）。 */
+const v171Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD05-001#1'],
+    // zone0＝シガラヤキ（アタッカー）／zone1＝サキュ（場を離れる役）
+    'field.signi': [[V171_ATTACKER], [V171_SAC], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [V171_ARTS], hand: [], energy: [...V171_ENERGY], trash: [],
+    actions_done: [], game_actions_done: [],
+    signi_left_field_this_attack_phase: [],
+    signi_left_field_to_trash_this_attack_phase: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    // guest zone は host と鏡（host zone i の正面は guest zone 2-i＝§4.4-8e）。
+    //   guest zone2 ← host zone0（シガラヤキの正面・-7000 を受ける側）
+    //   guest zone1 ← host zone1（サキュの正面・②の壁）
+    'field.signi': [null, [V171_WALL], [V171_TARGET]],
+    'field.signi_down': [false, false, false],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+  },
+  // 🔴**`ATTACK_ARTS` から始める**（実測でここに1往復した）＝`ATTACK_SIGNI` ではアーツのカード詳細に
+  //   「使用」が出ない（撃てないので提示されない）。`signi_left_field_to_trash_this_attack_phase` の
+  //   記録条件は `['ATTACK_ARTS','ATTACK_ARTS_OP','ATTACK_SIGNI','ATTACK_LRIG']` なので
+  //   **アーツ段で置いたトラッシュもちゃんと履歴に載る**（＝同じアタックフェイズ内）。
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+/** guest の powerMods に -7000 が乗ったか。 */
+const v171Lowered = (st) => (st?.guest?.powerMods ?? []).some(m => /:-7000$/.test(String(m)));
+
+async function v171Drive(page, H, tag, viaTrash) {
+  const st0 = await H.queryState();
+  const ena0 = st0?.host?.energy ?? 0;
+  H.log(`開始 hostField=${JSON.stringify(st0?.host?.fieldSigni)} guestField=${JSON.stringify(st0?.guest?.fieldSigni)} energy=${ena0} trash=${JSON.stringify(st0?.host?.trashCards)}`);
+  let artsUsed = false;      // ①：アーツを撃った
+  let sacGone = false;       // 共通：サキュが場から消えた（sticky＝§4.4-8d）
+  let sacInTrash = false;    // ①：サキュがトラッシュへ行った（sticky）
+  let attacked = false;      // シガラヤキがアタックした
+  let sacPicked = false;     // ①：捨てる対象としてサキュを選び終えた（トグル防止）
+  const picked = new Set();
+  let settled = 0;
+
+  // 🔴**ルリグデッキを開く操作はループの外で1回だけ**（§4.4-2c の同型＝`my-lrig-dk` はトグル）。
+  //   ループ内で毎ティック押すと**開いて閉じてを繰り返し**、アーツのカード詳細を1度も観測できない
+  //   （実測＝34ティックまるごと空振りした）。
+  if (viaTrash) {
+    H.log(`ルリグDK: ${await H.clickTestId('my-lrig-dk') ?? '見つからず'}`);
+    await page.waitForTimeout(700);
+    H.log(`アーツ(zone-card-0): ${await H.clickTestId('zone-card-0') ?? '見つからず'}`);
+    await page.waitForTimeout(700);
+  }
+
+  for (let s = 0; s < 34; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // 🔴**対話が出ている間は対話だけを進める**（実測でここに1往復した）＝
+    //   `pendingEffect` が残っているのにアタック操作を試すと、ゾーンのトグルを押し続けて永久に止まる。
+    const pre = await H.queryState();
+    const busy = !!pre?.pendingEffect || (pre?.stackLen > 0);
+    if (busy) {
+      if (!sacPicked) {
+        did = await clickPendingInstance(page, H, V171_SAC);
+        if (did) sacPicked = true;
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+      if (!did) did = await H.stdStep();
+      const stB = await H.queryState();
+      const fB = stB?.host?.fieldSigni ?? [];
+      const tB = stB?.host?.trashCards ?? [];
+      if (!fB.some(z => JSON.stringify(z ?? []).includes('WD05-014'))) sacGone = true;
+      if (tB.some(c => String(c).startsWith('WD05-014'))) sacInTrash = true;
+      H.log(`  ${tag}[${s}] (対話) -> ${did ?? 'なし'} | hostField=${JSON.stringify(fB)} sacGone=${sacGone} inTrash=${sacInTrash} pEff=${stB?.pendingEffect ?? '-'} stack=${stB?.stackLen ?? '-'}`);
+      continue;
+    }
+
+    // ── ① アーツでサキュを場からトラッシュへ ──
+    if (viaTrash && !artsUsed) {
+      const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if (await submit.count() && await submit.isVisible().catch(() => false)) {
+        if (await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); did = 'btn:アーツ使用'; artsUsed = true; }
+        else {
+          // 罠2c＝押した index を Set で覚える（毎ティック同じ index を押すとトグルで外れる）。
+          for (let i = 0; i < 6 && !did; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId(`artscost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = `artscost-energy-${i}`; }
+          }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['使用']);
+    }
+
+    // ── フェイズ送り＝アーツ段（or 対照の開始位置）から `ATTACK_SIGNI` へ ──
+    if (!did) {
+      const ph = (await H.queryState())?.turnPhase;
+      if (ph && ph !== 'ATTACK_SIGNI' && (!viaTrash || artsUsed)) {
+        const stPh = await H.queryState();
+        if (!stPh?.pendingEffect && !(stPh?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = `repatch:ATTACK_SIGNI(was ${ph})`;
+        }
+      }
+    }
+
+    // ── ② サキュ（zone1）でアタック＝正面の P12000 に負けてバニッシュ（＝エナ行き）──
+    if (!viaTrash && !sacGone && !did) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック(サキュ)'; }
+      else did = await H.clickTestId('my-signi-zone-1');
+    }
+
+    // ── 共通：サキュが居なくなったらシガラヤキ（zone0）でアタック ──
+    if (sacGone && !attacked && !did) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック(シガラヤキ)'; attacked = true; }
+      else did = await H.clickTestId('my-signi-zone-0');
+    }
+
+    if (!did) {
+      // 🔴**自分の場が候補のときは `pick-0` を押さない**（§4.4-6・実測で1往復した）＝
+      //   アーツの「あなたのシグニ1体をトラッシュに置く」で **`pick-0` がアタッカー（シガラヤキ）を掴み**、
+      //   観測対象そのものを場から消していた。**捨てるのはサキュだけ**なので instanceId で狙う。
+      // ⚠**1回だけ押す**（§4.4-2c）＝毎ティック押すと選択がトグルして外れ、`決定` に永久に到達しない
+      //   （実測＝pick-1 を10ティック押し続けて空振りした）。
+      if (!sacPicked) {
+        did = await clickPendingInstance(page, H, V171_SAC);
+        if (did) sacPicked = true;
+      }
+      if (!did) {
+        // 相手シグニ側（アーツのバニッシュ対象／-7000 の対象）は誰でもよい＝先頭で足りる。
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', 'このまま進む']);
+    if (!did) did = await H.stdStep();
+
+    const st = await H.queryState();
+    const host = st?.host ?? {};
+    const field = host.fieldSigni ?? [];
+    const trash = host.trashCards ?? [];
+    const ena = host.energy ?? 0;
+    if (!field.some(z => JSON.stringify(z ?? []).includes('WD05-014'))) sacGone = true;
+    if (trash.some(c => String(c).startsWith('WD05-014'))) sacInTrash = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hostField=${JSON.stringify(field)} sacGone=${sacGone} inTrash=${sacInTrash} attacked=${attacked} energy=${ena} guestPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (s === 6 || s === 16) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+
+    settled = (attacked && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled < 3) continue;
+
+    // ── 判定（§4.4-3b＝旧実装でも残る痕跡を前提条件に置く）──
+    if (!sacGone) return { pass: false, detail: `前提崩れ＝サキュが場を離れていない（hostField=${JSON.stringify(field)}）` };
+    const lowered = v171Lowered(st);
+    if (viaTrash) {
+      if (!sacInTrash) return { pass: false, detail: `前提崩れ＝サキュがトラッシュへ行っていない（trash=${JSON.stringify(trash)} energy=${ena}）` };
+      return lowered
+        ? { pass: true, detail: `場からトラッシュに置かれた → アタック時に -7000 が乗った（trash=${JSON.stringify(trash)} powerMods=${JSON.stringify(st?.guest?.powerMods)}）` }
+        : { pass: false, detail: `🔴トラッシュへ行ったのに -7000 が乗らない＝新しい履歴が書かれていない（trash=${JSON.stringify(trash)} powerMods=${JSON.stringify(st?.guest?.powerMods)} logs=${JSON.stringify((st?.logTail ?? []).slice(-10))}）` };
+    }
+    if (sacInTrash) return { pass: false, detail: `前提崩れ＝対照なのにサキュがトラッシュへ行った（バニッシュはエナ行きのはず。trash=${JSON.stringify(trash)}）` };
+    return lowered
+      ? { pass: false, detail: `🔴旧挙動＝バニッシュ（エナ行き）なのに -7000 が乗った＝行き先を見ていない（energy=${ena} powerMods=${JSON.stringify(st?.guest?.powerMods)}）` }
+      : { pass: true, detail: `対照＝バニッシュ（エナ行き）では -7000 が乗らない（sacGone=${sacGone} energy ${ena0}→${ena} powerMods=${JSON.stringify(st?.guest?.powerMods)}）` };
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（hostField=${JSON.stringify(fin?.host?.fieldSigni)} attacked=${attacked} sacGone=${sacGone} logs=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+}
+
+scenarios.v171TrashedSigniLowersPower = {
+  title: 'V-171(1): WX18-056 は「場からトラッシュに置かれていた」場合に -7000 する',
+  spec: v171Spec(),
+  async drive(page, H) { return v171Drive(page, H, 'v171Trash', true); },
+};
+
+scenarios.v171BanishedSigniDoesNotLower = {
+  // 🔴**対照**＝盤面は1文字も変えず、離場の**行き先だけ**をトラッシュ→エナ（バトルバニッシュ）に反転する。
+  //   🔑旧実装はどちらでも -7000 が乗る＝この対でしか新旧を弁別できない。
+  title: 'V-171(2): 対照＝バニッシュ（エナ行き）では -7000 しない【旧実装は乗っていた】',
+  spec: v171Spec(),
+  async drive(page, H) { return v171Drive(page, H, 'v171Banish', false); },
+};
+
+order.push('v171TrashedSigniLowersPower');
+order.push('v171BanishedSigniDoesNotLower');
+
 order.push('o263ExplicitPicksSecondTrap');
 order.push('o263ExplicitPicksFirstTrap');
 order.push('o263SourceZoneTrapFires');

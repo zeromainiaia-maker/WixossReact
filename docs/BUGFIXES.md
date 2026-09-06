@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第189バッチ）＝PLAN §5.4 (b)「本物の疑い」4件のうち**上2件**をクローズ
+
+**2件とも旧登録票の見立てが外れていた。** ①は「型を足す」必要が無く（受け皿が既にあった）、
+②は「わずかな過剰」ではなく**最頻経路での誤発火**だった。
+
+### ① `WX24-P2-072-E1`＝「そのシグニ」を名指しできず、**別のシグニを代わりにバニッシュできた**
+
+**真因**＝`BANISH` の対象が `{opponent, powerRange:{max:3000}}` だけで、
+原文「対戦相手のシグニ１体が**このシグニの正面に配置されたとき、そのシグニの**パワーが3000以下の場合、
+**そのシグニを**バニッシュする」の**「その」＝トリガー元**が1バイトも載っていなかった。
+⇒ 正面に置かれたシグニが4000でも、**別の3000以下のシグニを落とせた**（過剰実行）。
+
+🔑**受け皿は既にあった**＝`TargetFilter.isTriggerSource`（`execBanish` が `ctx.triggeringCardNum` へ絞る＝
+`effectExecutor.ts:1462`）。**旧注記は「`BANISH` に `targetsTriggerSource` が無いので §5.3 へ」と書いていたが誤り**で、
+**アクション側の軸だけを見て「無い」と判断していた**。受け皿は**アクション・フィルタの2軸**にまたがる
+（CLAUDE.md「1〜3枚の機構項目は『型』を足す前にまず受け皿を疑う」の実例）。
+
+**直し方**＝`manualEffects.ts` の該当効果に `isTriggerSource: true` を足し、`PARTIAL` → `MANUAL`。
+`isTriggerSource` ∩ `powerRange` なので、**正面のシグニが3000超なら候補0＝何も起きない**（原文どおり）。
+**レーン**＝母集団1効果・受け皿あり＝**速いレーン**（PLAN §2.0）。**型は1つも足していない。**
+
+### ② `WX18-056-E1`＝離場の「行き先」を見ておらず、**バトルでバニッシュされただけで発火**していた
+
+**真因**＝条件 `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` は実装コメントにも
+**「⚠行き先は問わない」**と明記されたまま、原文「場から**トラッシュに置かれて**いた場合」に使われていた。
+
+🔴🔑**旧注記の「エナ送り／手札戻しでも成立する**わずかな過剰**」は過小評価だった**＝
+**WIXOSS のバニッシュ既定行き先はエナゾーン**（`execUtils.banishDestination` の最終 return。
+`verifyBattleDrive.mjs` の §4.4-8f にも「バニッシュはエナ行き」と既出）。
+⇒ **バトルで自分のシグニが1体バニッシュされただけで -7000 が乗っていた**＝最頻経路での誤発火。
+
+**直した箇所**（型＋両側＋計器の3点セット）：
+1. `src/types/effects.ts`＝条件に `destination?: 'trash'`。🔴**省略時は従来どおり行き先不問**＝
+   `WX24-P2-075-E1`（原文「場を**離れて**いた場合」）の既定を変えない。
+2. `src/engine/boardDiff.ts`＝`detectLeftFieldSigniToTrash`（**`after.trash` の増分**で行き先を確かめる射影）。
+3. `src/types/index.ts` ＋ `src/screens/battle/turnScopedState.ts`＝
+   `signi_left_field_to_trash_this_attack_phase`（アタックフェイズ開始時にリセット）。
+4. `src/screens/BattleScreen.tsx`＝**離場を記録している2箇所の両方**で同時に書く（片方だけだと2つの履歴が黙ってずれる）。
+5. `src/engine/execUtils.ts`＝`evalCondition` が `destination` で読む配列を切り替える。
+6. `src/data/effectParser.ts`＝2箇所の規則で「場**からトラッシュに置かれて**いた」綴りを拾って payload を載せる。
+7. `scripts/decompileEffects.ts`＝逆翻訳に行き先を描く（描かないと2つの綴りが**同じ文**になる）。
+
+### ③ 逆翻訳の穴を1つ塞いだ（①の副産物）
+
+`targetJa` の `isTriggerSource` 分岐は**レベル条件しか描いていなかった**ので、①を直した直後の逆翻訳が
+「そのシグニをバニッシュする」＝**パワー3000以下が消えた**状態になった。パワー条件も描くようにした。
+🔑**第188バッチで直した `SelectionConstraint` の `totalPower*` と同じ抜け**（レベルは描くがパワーは描かない）。
+
+**影響枚数**＝live **2効果 / 2カード**（①`WX24-P2-072-E1`／②`WX18-056-E1`）。
+逆翻訳が変わったのは2効果（`WX24-P2-072-E1` / `WX18-056-E1`）。
+**検証コマンド**＝`npx tsx scripts/syncManualLive.ts <CardNum>` → `npm run build:effects` → `npm run regen` → `npm run gates`
+→ `node scripts/verifyBattleDrive.mjs v171TrashedSigniLowersPower v171BanishedSigniDoesNotLower`。
+**ゲート（全緑 ✅）**＝golden **3541 / 3541**（3538 +3本）・smoke 全異常0・fuzz 全0・census **0 / BASELINE 0**・
+`census:stubs` A群🔴0・C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・
+`census:deadstate` **0件**（新しい state キーは書きも読みもある）・lint 0 errors。
+**ラチェット更新**＝`PlayerState` のターン限定フィールド数 **52→53** ／ 母集団 **82→83**（新設キー1本ぶん）。
+
+**反転確認＝3本取った**：
+1. `execBanish` の `isTriggerSource` を live から外す → golden `第189` が FAIL。
+2. `evalCondition` を `destination` 無視へ戻す → golden `第189` が FAIL。
+3. 🖥**同じ改変で実機の対照が FAIL**＝`v171BanishedSigniDoesNotLower` が
+   `🔴旧挙動＝バニッシュ（エナ行き）なのに -7000 が乗った（powerMods=["WD03-009#1:-7000"]）` を出した。
+
+🖥**実機（`V-171`・2シナリオ ALL PASS）**＝**②だけが実機必須**（①は `manualEffects.ts` と JSON だけ＝PLAN §2.2 で④まで）。
+- `v171TrashedSigniLowersPower`＝アーツ `WX02-020` で自分のシグニを**場からトラッシュへ** → `WX18-056` がアタック
+  → `powerMods=["WD01-009#1:-7000"]`
+- `v171BanishedSigniDoesNotLower`（**対照**）＝**盤面は1文字も変えず**、離場の**行き先だけ**を
+  トラッシュ→エナ（バトルバニッシュ）に反転 → `powerMods=[]`
+🔑**なぜ実機が要ったか**＝新設した履歴は **`BattleScreen.tsx` の盤面 diff でしか書かれない**＝
+golden は `evalCondition` と `detectLeftFieldSigniToTrash` を直接叩くので、
+**「実戦の経路で1度も書かれない」形の壊れ方**を原理的に検出できない。
+
+⚠**実機シナリオで踏んだ罠4つ**（すべて §4.4 に既出＝**読んでいたのに踏んだ**）：
+1. **`my-lrig-dk` はトグル**＝ループ内で毎ティック押すと開閉を繰り返し、34ティック全空振り（§4.4-2c 同型）。
+   ⇒ **開く操作はループの外で1回だけ。**
+2. **`ATTACK_SIGNI` ではアーツのカード詳細に「使用」が出ない**（撃てないので提示されない）。
+   ⇒ **`ATTACK_ARTS` から始める**（履歴の記録条件は両フェイズを含むので同じアタックフェイズ内で成立する）。
+3. **`pick-0` が観測対象そのもの（アタッカー）を掴んだ**（§4.4-6）。⇒ `clickPendingInstance` で instanceId 指定。
+4. **選択も1回だけ押す**（§4.4-2c）＝毎ティック押すとトグルで外れ `決定` に永久に到達しない。
+🆕**5つ目＝対話中はアタック操作を試さない**＝`pendingEffect` が残っているのにゾーンを押すとトグルで止まる。
+   ⇒ **ティックの先頭で `pendingEffect`/`stackLen` を見て、対話中は対話だけを進める。**
+
+---
+
 ## 2026-09-06（第188バッチ）＝PLAN §5.4 (b) の「逆翻訳の表示だけ」7件を1バッチ＋副産物で JSON のズレ14効果
 
 **表示バッチのつもりで入ったら、逆翻訳を直した瞬間に JSON 側のズレが見えた**（④）。

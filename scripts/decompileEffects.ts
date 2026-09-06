@@ -422,7 +422,18 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   // isTriggerSource: トリガー元（「アタックしたそのシグニ」等）→ 主語省略で「その〜」
   if (t.filter?.isTriggerSource) {
     const lvMax = t.filter.levelRange?.max ?? (typeof t.filter.level === 'object' ? t.filter.level?.max : undefined);
-    return lvMax !== undefined ? `そのレベル${lvMax}以下の${unit}` : `その${unit}`;
+    // 🆕**パワー条件も描く**（§5.4 (b)・2026-09-06 第189バッチ）＝レベルだけを描いていたため
+    //   `WX24-P2-072-E1`「**そのシグニのパワーが3000以下の場合**、そのシグニをバニッシュする」が
+    //   ただの「そのシグニをバニッシュする」に見えた（＝制約が入ったことが原文照合に映らない）。
+    //   🔑第188バッチで直した `SelectionConstraint` の `totalPower*` と**同じ抜け**。
+    const pwMax = t.filter.powerRange?.max;
+    const pwMin = t.filter.powerRange?.min;
+    const qual = [
+      lvMax !== undefined ? `レベル${lvMax}以下の` : '',
+      pwMax !== undefined ? `パワー${pwMax}以下の` : '',
+      pwMin !== undefined ? `パワー${pwMin}以上の` : '',
+    ].join('');
+    return `その${qual}${unit}`;
   }
   // thisCardOnly: このシグニ自身に限定 → 主語・数詞を省略して「このシグニ」
   if (t.filter?.thisCardOnly) {
@@ -1121,7 +1132,11 @@ function condJa(c?: any): string {
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
       const who = c.owner === 'opponent' ? '対戦相手' : 'あなた';
       const cls = c.filter?.story ? `＜${c.filter.story}＞の` : '';
-      return `そのアタックフェイズの間に${who}の${cls}シグニが場を離れていた`;
+      // 🆕**行き先を描く**（§5.4 (b)・第189バッチ）＝描かないと「場を離れた（行き先不問）」と
+      //   「場からトラッシュに置かれた」が**同じ文**になり、絞り込みが入ったことが原文照合に映らない。
+      return c.destination === 'trash'
+        ? `そのアタックフェイズの間に${who}の${cls}シグニが場からトラッシュに置かれていた`
+        : `そのアタックフェイズの間に${who}の${cls}シグニが場を離れていた`;
     }
     case 'THIS_CARD_HAS_ATTACHED': return `このシグニにカードが${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}付いている`;
     case 'ZONE_SUM_COUNT': {

@@ -2354,8 +2354,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX18-056 ／ 原文【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、
   //   **このアタックフェイズの間にあなたのシグニが場からトラッシュに置かれていた場合**、－7000。
   // 🔴旧 live＝条件が丸ごと落ちて**毎アタック無条件に－7000**。
-  // ⚠`PARTIAL`＝受け皿 `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` は「**場を離れた**」までしか見ない（行き先を問わない）＝
-  //   エナ送り／手札戻しでも成立する**わずかな過剰**が残る。行き先つきの追跡は §5.3 へ送るべき別課題。
+  // 🆕**2026-09-06 第189バッチ＝行き先つきの追跡を実装した**（§5.4 (b) 本物の疑い②）。
+  //   旧注記のとおり `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` は「**場を離れた**」までしか見ておらず、
+  //   **エナ送り／手札戻し／デッキ戻し／除外でも成立する過剰**だった。
+  //   ⇒ `destination:'trash'` を足し、`signi_left_field_to_trash_this_attack_phase`
+  //   （`detectLeftFieldSigniToTrash` が `after.trash` の増分で確かめる射影）を読む形にした。
+  //   🔴**既定は変えていない**＝`WX24-P2-075-E1`（原文「場を**離れて**いた場合」）は行き先不問のまま。
   'WX18-056': [
     {
       effectId: 'WX18-056-E1',
@@ -2364,7 +2368,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       triggerScope: 'self',
       action: {
         type: 'CONDITIONAL',
-        condition: { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self' },
+        condition: { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' },
         then: {
           type: 'POWER_MODIFY',
           target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
@@ -2373,15 +2377,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
-      parseStatus: 'PARTIAL',
+      parseStatus: 'MANUAL',
     },
   ],
 
   // WX24-P2-072 ／ 原文【自】《自分ターン》《ターン１回》：対戦相手のシグニ１体がこのシグニの正面に配置されたとき、
   //   **そのシグニのパワーが3000以下の場合、そのシグニを**バニッシュする。
   // 🔴旧 live＝パワー条件が落ちて**相手のどのシグニでもバニッシュできた**。
-  // ⚠`PARTIAL`＝`BANISH` に `targetsTriggerSource` が無く「**その**シグニ」を名指しできない＝
-  //   「パワー3000以下の相手シグニ1体」までしか絞れない（正面に置かれた個体とは限らない）。受け皿の追加は §5.3 へ。
+  // 🆕**2026-09-06 第189バッチ＝「そのシグニ」を名指しできるようにした**（§5.4 (b) 本物の疑い①）。
+  // 🔴**旧注記は誤りだった**＝「`BANISH` に `targetsTriggerSource` が無いので受け皿の追加は §5.3 へ」と
+  //   書いていたが、**受け皿は `TargetFilter.isTriggerSource` として既にあり**、
+  //   `execBanish`（`effectExecutor.ts:1462`）が `ctx.triggeringCardNum` へ絞り込む。
+  //   🔑**アクション側の軸（`targetsTriggerSource`）だけを見て「無い」と判断していた**＝
+  //   受け皿は**アクション・フィルタの2軸**にまたがる（CLAUDE.md「まず受け皿を疑う」）。
+  // ⚠**`powerRange` と併用して意味が出る**＝候補は「トリガー元」∩「パワー3000以下」なので、
+  //   正面に置かれたシグニのパワーが4000なら**候補0＝何も起きない**（原文どおり）。
+  //   旧実装は**別の3000以下のシグニを代わりにバニッシュできた**（過剰実行）。
   'WX24-P2-072': [
     {
       effectId: 'WX24-P2-072-E1',
@@ -2392,11 +2403,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       usageLimit: 'once_per_turn',
       action: {
         type: 'BANISH',
-        target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerRange: { max: 3000 } } },
+        target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', isTriggerSource: true, powerRange: { max: 3000 } } },
       },
       duration: 'INSTANT',
       mandatory: true,
-      parseStatus: 'PARTIAL',
+      parseStatus: 'MANUAL',
     },
   ],
 

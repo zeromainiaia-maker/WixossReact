@@ -19,6 +19,7 @@ import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
+import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
@@ -5641,7 +5642,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 52, 'PlayerState の命名規約由来フィールド数（🆕52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 53, 'PlayerState の命名規約由来フィールド数（🆕53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5656,7 +5657,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 82, '型由来38件＋命名規約外27件の母集団（🆕82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 83, '型由来38件＋命名規約外27件の母集団（🆕83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -61299,7 +61300,8 @@ test('census 149: 手書き是正36件のトップレベル形を固定する（
     ['WXK07-006', 'WXK07-006-E3', { type: 'LRIG_DECK_COUNT', owner: 'self', operator: 'lte', value: 2 }],
     ['WX21-044', 'WX21-044-E2', { type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' }],
     ['WX20-040', 'WX20-040-E2', { type: 'HAS_TRAP_IN_FIELD', owner: 'self', minCount: 3 }],
-    ['WX18-056', 'WX18-056-E1', { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self' }],
+    // 🆕`destination:'trash'`＝原文「場から**トラッシュに置かれて**いた場合」（§5.4 (b)・第189バッチ）。
+    ['WX18-056', 'WX18-056-E1', { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' }],
   ] as const) {
     const a = act(cardNum, effectId);
     eq(a.type, 'CONDITIONAL', effectId);
@@ -69391,6 +69393,84 @@ test('§5.4 第188: 「対戦相手は自分のエナゾーンから…」は op
   const unexpected = miss.filter(id => !KNOWN188.includes(id));
   eq(unexpected.length, 0, `opponentSelects が落ちている効果がある: ${unexpected.join(', ')}`);
   ok(miss.length <= KNOWN188.length, `既知の残 miss が増えた: ${miss.join(', ')}`);
+}));
+
+// ── §5.4 (b) 本物の疑い①＝`WX24-P2-072-E1`「そのシグニをバニッシュする」（2026-09-06 第189バッチ）──
+// 🔴旧 live＝`BANISH{opponent, power<=3000}` だけで、**正面に配置されたシグニとは別の**3000以下を落とせた。
+// 🔑**受け皿は既にあった**＝`TargetFilter.isTriggerSource`（`execBanish` が `ctx.triggeringCardNum` へ絞る）。
+//   前回の登録票は**アクション側の軸（`targetsTriggerSource`）だけを見て「無い」**と判断していた。
+test('§5.4 (b) 第189: WX24-P2-072 は「正面に置かれたそのシグニ」だけをバニッシュする', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WX24-P2-072-E1');
+  ok(!!eff, 'WX24-P2-072-E1 が live にある');
+  const tgt = (eff!.action as unknown as { target: { filter?: Record<string, unknown> } }).target;
+  ok(tgt.filter?.isTriggerSource === true, 'live: 対象はトリガー元に固定されている');
+  eq((tgt.filter?.powerRange as { max?: number } | undefined)?.max, 3000, 'live: パワー3000以下の条件が残っている');
+
+  const banish = eff!.action as EffectAction;
+  // 成立：正面に置かれた（＝トリガー元）P3000 が落ちる。⚠**もう1体の3000以下は残る**（旧実装はどちらも選べた）。
+  {
+    const ep = new Map<string, number>([[SIGNI_P3000, 3000], [SIGNI_P12000, 12000]]);
+    const ctx = { ...mkCtx({}, { signi: [SIGNI_P12000, SIGNI_P3000, null] }), effectivePowers: ep,
+      triggeringCardNum: SIGNI_P3000 } as ExecCtx;
+    const r = run(banish, ctx);
+    eq(tops(r.otherState)[1], null, 'トリガー元（P3000）がバニッシュされる');
+    ok(tops(r.otherState)[0] !== null, '🔴他のシグニは巻き込まない');
+  }
+  // 🔴不成立方向：トリガー元が3000超なら**何も起きない**（旧実装は別の3000以下を代わりに落としていた）。
+  {
+    const ep = new Map<string, number>([[SIGNI_P3000, 3000], [SIGNI_P12000, 12000]]);
+    const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }), effectivePowers: ep,
+      triggeringCardNum: SIGNI_P12000 } as ExecCtx;
+    const r = run(banish, ctx);
+    ok(tops(r.otherState)[0] !== null && tops(r.otherState)[1] !== null,
+      '🔴トリガー元がパワー3000超なら盤面不変（別の3000以下を代わりに落とさない）');
+  }
+}));
+
+// ── §5.4 (b) 本物の疑い②＝`WX18-056-E1`「場からトラッシュに置かれていた場合」（2026-09-06 第189バッチ）──
+// 🔴`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` は**行き先を問わない**（実装コメントにも明記）＝
+//   エナ送り・手札戻し・デッキ戻し・除外でも成立する過剰だった。
+// 🔑**既定は変えない**＝`WX24-P2-075-E1`（原文「場を**離れて**いた場合」）は行き先不問のままが正しい。
+test('§5.4 (b) 第189: SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE の destination:trash', () => withSavedCursor(() => {
+  const anyDest: Condition = { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self' } as Condition;
+  const toTrash: Condition = { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' } as Condition;
+  const withHist = (left: string[], leftToTrash: string[]): ExecCtx => ({
+    ...mkCtx({}, {}),
+    ownerState: { ...mkState(), signi_left_field_this_attack_phase: left,
+      signi_left_field_to_trash_this_attack_phase: leftToTrash },
+  } as ExecCtx);
+  // トラッシュへ行った：両方成立
+  ok(evalCondition(anyDest, withHist([SIGNI_P3000], [SIGNI_P3000])), '行き先不問: トラッシュ行きで成立');
+  ok(evalCondition(toTrash, withHist([SIGNI_P3000], [SIGNI_P3000])), 'trash 限定: トラッシュ行きで成立');
+  // 🔴エナ送り／手札戻し（離場はしたがトラッシュではない）：**trash 限定だけ不成立**＝これが今回の修正点
+  ok(evalCondition(anyDest, withHist([SIGNI_P3000], [])), '行き先不問: エナ送りでも成立（既定は変えていない）');
+  ok(!evalCondition(toTrash, withHist([SIGNI_P3000], [])), '🔴trash 限定: エナ送り／手札戻しでは成立しない');
+  // 何も離れていない
+  ok(!evalCondition(anyDest, withHist([], [])), '行き先不問: 離場なしなら不成立');
+  ok(!evalCondition(toTrash, withHist([], [])), 'trash 限定: 離場なしなら不成立');
+
+  // live の2効果が**別々の綴りのまま**であること（片方に寄せると必ず過剰か過少になる）
+  const w056 = [...effectsMap.values()].flat().find(e => e.effectId === 'WX18-056-E1');
+  ok(!!w056 && JSON.stringify(w056!.action).includes('"destination":"trash"'),
+    'WX18-056-E1（原文「場からトラッシュに置かれて」）は destination:trash');
+  const w075 = [...effectsMap.values()].flat().find(e => e.effectId === 'WX24-P2-075-E1');
+  ok(!!w075 && !JSON.stringify(w075!).includes('"destination"'),
+    '🔴WX24-P2-075-E1（原文「場を離れて」）には destination を付けない');
+}));
+
+// `detectLeftFieldSigniToTrash` の単体＝**行き先を `after.trash` の増分で確かめる**（第189バッチ）。
+test('§5.4 (b) 第189: detectLeftFieldSigniToTrash は行き先がトラッシュのものだけ返す', () => withSavedCursor(() => {
+  const before = mkState({ signi: [SIGNI_P3000, SIGNI_P12000, null] });
+  // P3000 はトラッシュへ、P12000 はエナへ（どちらも場を離れる）
+  const after: PlayerState = { ...before,
+    field: { ...before.field, signi: [null, null, null] },
+    trash: [...before.trash, SIGNI_P3000],
+    energy: [...before.energy, SIGNI_P12000] };
+  const left = detectLeftFieldSigni(before, after).map(x => x.cardNum);
+  ok(left.includes(SIGNI_P3000) && left.includes(SIGNI_P12000), '行き先不問なら2体とも離場として数える');
+  const toTrash = detectLeftFieldSigniToTrash(before, after);
+  ok(toTrash.includes(SIGNI_P3000), 'トラッシュへ行った1体を返す');
+  ok(!toTrash.includes(SIGNI_P12000), '🔴エナへ行った1体は返さない');
 }));
 
 if (listMode) {

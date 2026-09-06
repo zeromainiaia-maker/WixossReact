@@ -103,6 +103,7 @@ const CONVENTION_TURN_SCOPED_STATE = {
   cannot_pay_colorless_this_attack_phase: { boundaries: ['turn-end'], reset: undefined, reason: 'colorless payment ban; cleared for both players at the turn boundary' },
   // アタックフェイズ離場履歴は終了時トリガーまで保持し、次のアタックフェイズ開始時に切り替える。
   signi_left_field_this_attack_phase: { boundaries: ['attack-phase-start'], reset: [], reason: 'signi leave history starts fresh at attack-phase start' },
+  signi_left_field_to_trash_this_attack_phase: { boundaries: ['attack-phase-start'], reset: [], reason: 'signi leave-to-trash history starts fresh at attack-phase start' },
   // 無料グロウは次のグロウで消費し、使わなくても付与ターン終了で失効する。
   free_grow_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'free-grow entitlement is consumed by grow or expires at turn end' },
   // このターンにグロウしたか（§6.4 O-10 続き515）＝「このターンにグロウしていない場合」の判定材料。

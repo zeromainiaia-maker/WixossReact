@@ -264,6 +264,24 @@ export function detectNewlyArmored(before: PlayerState, after: PlayerState): str
  * 場を離れたシグニを検出（ON_LEAVE_FIELDトリガー用。行き先は問わない）。
  * under = そのシグニの下にあったカード（ライズ素材等。フンババの動的フィルタ解決に使う）。
  */
+/**
+ * 場を離れたシグニのうち、**トラッシュへ行った**ものだけを返す（§5.4 (b)・2026-09-06 第189バッチ）。
+ *
+ * 🔴**`detectLeftFieldSigni` は行き先を問わない**＝エナ送り・手札戻し・デッキ戻し・ゲーム除外でも成立する。
+ *   原文が「場から**トラッシュに置かれて**いた場合」と行き先を名指しする効果（`WX18-056-E1`）では
+ *   それが**過剰**になるので、行き先を `after.trash` の増分で確かめる射影を別に持つ。
+ * ⚠**「場を離れた ∧ トラッシュが増えた」で判定する**＝バニッシュは仕様上トラッシュへ行くので当然含まれる
+ *   （除きたいのはエナ・手札・デッキ・除外）。
+ * ⚠**同名カードが既にトラッシュにあっても誤検出しない**＝盤面の識別子は instanceId なので同名でも別物。
+ */
+export function detectLeftFieldSigniToTrash(before: PlayerState, after: PlayerState): string[] {
+  const beforeTrash = new Set(before.trash ?? []);
+  const afterTrash = new Set(after.trash ?? []);
+  return detectLeftFieldSigni(before, after)
+    .map(x => x.cardNum)
+    .filter(n => afterTrash.has(n) && !beforeTrash.has(n));
+}
+
 export function detectLeftFieldSigni(before: PlayerState, after: PlayerState): { cardNum: string; under: string[]; zoneIdx: number }[] {
   const afterFieldCards = new Set(after.field.signi.flatMap(z => z ?? []));
   const result: { cardNum: string; under: string[]; zoneIdx: number }[] = [];

@@ -2655,7 +2655,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // 「そのアタックフェイズの間に〈owner〉のシグニ（filter一致）が場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
       // 記録は instanceId なので cardMap 照合には getCardNum を通す。⚠行き先は問わない。
       const st = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
-      const left = st.signi_left_field_this_attack_phase ?? [];
+      // 🆕**`destination:'trash'` は行き先つきの履歴を読む**（§5.4 (b)・2026-09-06 第189バッチ）。
+      //   🔴省略時は従来どおり行き先を問わない（既定を変えない＝`WX24-P2-075-E1` はこちら）。
+      const left = cond.destination === 'trash'
+        ? (st.signi_left_field_to_trash_this_attack_phase ?? [])
+        : (st.signi_left_field_this_attack_phase ?? []);
       const n = left.filter(id => !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(id)), cond.filter)).length;
       return n >= (cond.minCount ?? 1);
     }

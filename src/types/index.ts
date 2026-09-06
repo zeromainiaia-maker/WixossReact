@@ -966,6 +966,9 @@ export interface PlayerState {
    * ⚠**行き先は問わない**（バニッシュ/エナ送り/トラッシュ/手札戻し すべて「場を離れた」）。
    */
   signi_left_field_this_attack_phase?: string[];
+  /** そのアタックフェイズの間に**場からトラッシュへ**行ったシグニ（`signi_left_field_this_attack_phase` の
+   *  行き先つき射影＝§5.4 (b)・2026-09-06 第189バッチ。原文が行き先を名指しする効果だけが読む）。 */
+  signi_left_field_to_trash_this_attack_phase?: string[];
   // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
   lrig_riding_signi?: string[];
   // このプレイヤーのシグニがドライブ状態になった（ルリグがライドした）直後にセット: 新たにドライブ状態になったシグニのCardNum
