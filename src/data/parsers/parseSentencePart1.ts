@@ -3507,7 +3507,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- ライフクロスをクラッシュ ----
   if (t.includes('ライフクロス') && t.includes('クラッシュ')) {
     const op = t.includes('対戦相手');
-    const cM = t.match(/([０-９\d]+)枚をクラッシュ/) ?? t.match(/ライフクロス([０-９\d]+)枚/);
+    // 🆕**§5.2 round4（2026-09-06・O-A triage）＝「ライフクロスをN枚**まで**クラッシュする」**（`WX07-026-E1`）。
+    //   🔴下の枚数 regex は **「を２枚まで」に1本も当たらず、既定の1枚へ黙って落ちて**いた
+    //   （＝「既定値のある regex は外れたことが可視化されない」族）。engine 側は `upToCount` で 0〜N の選択を立てる。
+    const upToM = t.match(/ライフクロスを([０-９\d]+)枚まで[^。]{0,8}クラッシュする/);
+    const cM = upToM ?? t.match(/([０-９\d]+)枚をクラッシュ/) ?? t.match(/ライフクロス([０-９\d]+)枚/);
     const count = cM ? parseNum(cM[1]) : 1;
     // 🆕**「あなたと対戦相手の」＝両者**（2026-08-27・Sheet1 B10・`WX08-024-E2`／`WXDi-P06-033`）＝
     //   旧実装は `t.includes('対戦相手')` の1つの真偽値しか見ておらず、**自分側のクラッシュが丸ごと落ちて**
@@ -3519,7 +3523,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         { type: 'LIFE_CRASH', owner: 'opponent', count, triggerBurst: true },
       ] } as SequenceAction;
     }
-    return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count, triggerBurst: true };
+    return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count, triggerBurst: true, ...(upToM ? { upToCount: true } : {}) };
   }
 
   // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----

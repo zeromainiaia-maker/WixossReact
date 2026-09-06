@@ -20109,6 +20109,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   終了収集地点と付与ストア経路が加わったため、「このルリグ」も同じ timing へ載せられる。
              //   watcher≠アタッカー（`WX24-P3-055-E2`／`WXK11-006-E4`）と遅延形（`WX14-018-E4`）は
              //   scope/設置の別軸が必要なので、この self 規則には混ぜない。
+             // 🆕**§5.2 round4（2026-09-06・O-A triage）＝「このシグニの正面の〔対戦相手の〕シグニがアタックしたとき」は
+             //   専用 timing `ON_FRONT_SIGNI_ATTACK`**（守備側の**正面ゾーンだけ**で発火・triggeringCardNum＝アタッカー）。
+             //   従来は下の総称フォールバックで `ON_ATTACK_SIGNI` になり、engine 側は
+             //   `collectAttackerSelfTriggers`（アタッカー自身の AUTO を無条件に拾う）が先に食うので
+             //   **「このシグニ自身がアタックしたとき」へ意味が化けて**いた（実測2効果＝`WX05-028-E1`／
+             //   `WXDi-P02-053-E1`。`WX04-082-E1` は同じ穴を manual で個別に回避してあった）。
+             //   ⚠engine の受け皿は `BattleScreen` の正面ゾーン限定ブロック（`ozi !== opFrontZoneIdx` で弾く）＝
+             //     **配線は既にある**（表現だけが無かった）。
+             //   ⚠「あなたのシグニ１体が**正面以外の**シグニゾーンにアタックしたとき」（`WXEX2-71-E1`）は
+             //     主語が違う別物なので、この規則には当たらない（`この…の正面の` で始まる形だけ）。
+             : /^この(?:シグニ|カード)の正面の(?:対戦相手の)?シグニ(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_FRONT_SIGNI_ATTACK']
              : /^この(?:シグニ|カード|ルリグ)がアタックしたとき[、,]\s*そのアタック終了時[、,]/.test(actionText) ? ['ON_ATTACK_END']
              : trigText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : trigText.includes('バニッシュされたとき') ? ['ON_BANISH']

@@ -2320,6 +2320,13 @@ export interface LifeCrashAction {
   type: 'LIFE_CRASH';
   owner: Owner;
   count: NumberOrRef;
+  /**
+   * 🆕**「ライフクロスをN枚**まで**クラッシュする」**（2026-09-06・§5.2 round4 O-A triage・`WX07-026-E1`）＝
+   * 実行側が **0〜`count` 枚**から選ぶ。⚠**「N枚クラッシュする」と同じにしない**＝クラッシュは相手に
+   * ライフバーストとエナを与えるので「少なく撃つ」選択に意味がある（`optional` は 0/N の二択しか作れない）。
+   * engine は `execLifeCrash` で 0..N の `CHOOSE` を立てる。
+   */
+  upToCount?: boolean;
   triggerBurst: boolean; // ライフバーストを発動するか
   conditional?: boolean; // true=前ステップ（自ライフをトラッシュ等）が lastProcessedCards を残した場合のみ実行（「そうした場合」）
 }

@@ -2776,6 +2776,26 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
     return done(ctx);
   }
+  // 🆕**§5.2 round4（2026-09-06・O-A triage）＝「ライフクロスをN枚**まで**クラッシュする」**（`WX07-026-E1`）。
+  //   0〜N から枚数を選ぶ。⚠`optional`（0/N の二択）では表せない＝**中間の枚数**が要る。
+  //   ⚠再入するアクションでは `upToCount`／`conditional` を落とす（ゲートは通過済み・無限再入を防ぐ）。
+  if (a.upToCount) {
+    const max = Math.max(0, resolveNum(a.count));
+    if (max <= 1) return execLifeCrash({ ...a, upToCount: false, conditional: false }, ctx);
+    return needsInteraction(addLog(ctx, `ライフクロスを何枚クラッシュしますか？（0〜${max}枚）`), {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        ...Array.from({ length: max }, (_, i) => ({
+          id: `crash${i + 1}`,
+          label: `${i + 1}枚クラッシュする`,
+          action: { ...a, count: i + 1, upToCount: false, conditional: false } as EffectAction,
+          available: true,
+        })),
+        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as EffectAction, available: true },
+      ],
+    });
+  }
   const state = ownerState(a.owner, ctx);
   // §5.3 O-66: クラッシュ防止／回数制限のゲート（**効果によるクラッシュ**＝cause:'effect'）。
   // 🔴「ダメージ以外によってはクラッシュされない」（`WX19-046-E2`／`WD13-010-E1`①）が効くのは**この経路だけ**

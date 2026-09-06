@@ -5292,6 +5292,45 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   `EffectTarget.totalPowerMax` は**数値固定**。`totalLevelMaxRef` と同じ `NumberOrRef` 版が要る。
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
+### `O-268` — 「限定条件を無視する」の適用範囲を engine が持っていない（アーツ／スペル／シグニ召喚に一律で効く）
+
+> 🆕**2026-09-06（第199バッチ）＝O-A triage の派生で発見して登録。** finding 自体（`WX05-006-E2`＝
+> 「STUB の id が ARTS だけを指しておりスペルが入っているか不明」）は**偽陽性**（スペルは配線済み）だったが、
+> **消費地点を読んだら逆向きの過剰**が出た。⇒ [LESSONS.md](./LESSONS.md) §4.1 の「FP を読み損と数えない」実例。
+
+**規模／母集団（2026-09-06 実測）**＝**live 2効果 / 2カード**（`WX05-006-E2`／`PR-K060-E4`）。
+**過剰適用の当たり先**＝`Restriction` を持つシグニ **952枚**（`CardData_Sheet*.csv` の Type=シグニ・実測）。
+
+**原文（2枚で範囲が違う）**
+- `WX05-006-E2`＝「【常】：あなたが使用する**アーツとスペル**の限定条件は無視される。」
+- `PR-K060-E4`＝「【常】：あなたは限定条件を無視して**アーツ**を使用できる。」
+
+**live**＝どちらも `{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"}`（**payload 無し**）＝
+**範囲を区別する場所がどこにも無い**。
+
+**消費地点（2本・実測）**
+- `src/screens/battle/artsUseGate.ts:143` `hasIgnoreLrigRestriction()` → `ArtsPayerCtx.ignoreRestriction`
+  → **アーツ**（同 :318）と**スペル**（`spellUseGate.ts:146`）の両方の使用ゲート。
+- `src/screens/BattleScreen.tsx:6685` の `ignoreRestriction` → スペルカットイン（:6773）／
+  **手札からのシグニ召喚**（:8721）／ルリグデッキのカードアクション（:8922）。
+
+**何が壊れているか（2つ）**
+1. **シグニの限定まで無視できる**（`BattleScreen.tsx:8721`）＝原文に「シグニ」と書いたカードは**1枚も無い**。
+2. `PR-K060-E4` は原文がアーツだけなのに**スペルの限定も無視できる**。
+
+**取り方（受け皿の設計・着手時に必ずコードから決め直すこと＝[LESSONS.md](./LESSONS.md) §4.1）**
+1. STUB に範囲 payload を足す（例 `ignoreRestrictionScopes:['arts','spell']`）。parser 側は
+   `parseSentencePart2.ts:1763` が生成地点（原文に「スペル」があるかで scope を決められる）。
+2. `hasIgnoreLrigRestriction(my, effectsMap, kind)` に `kind:'arts'|'spell'` を渡す。
+   **シグニ召喚の分岐からは無条件に外す**（`declaredSigniOverride().ignoreRestriction` は別軸なので残す）。
+3. ⚠**`src/screens/` を触る＝§2.2 により実機まで必須。** `artsUseGate` / `spellUseGate` は純関数なので
+   golden から assert できる（[LESSONS.md](./LESSONS.md)＝「`src/screens/` の純関数は golden から import できる」）が、
+   **`BattleScreen.tsx:8721` の手札ゲートは実機でしか通らない**＝観測点を §5.1 へ `V-nn` で足す。
+
+⚠**ついでに決めること**＝`my.lrig_gained_types` の `'__ignore_lrig_restriction__'` は
+**読み口が2箇所あるのに書き手が1箇所も無い**（`grep -rn` で実測）。**消すか、書き手を作るか**を着手時に決める
+（`census:deadstate` は PlayerState の「書かれるだけで読まれない」側しか見ないので、**この逆向きは計器に映らない**）。
+
 ### `O-213` — ピース種別の使用歴（「このゲームの間にリレーピースを使用している」）の受け皿が無い
 
 🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**「`src/` に「リレー」の語彙が1つも無い」は失効していた**＝`effectParser.ts:21231` に `LRIG_TRASH_COUNT{filter:{cardType:'リレーピース'}}` の規則が既にあり、`manualEffects.ts` の `PARTIAL` が上書きして届いていなかっただけ。manual 定義を削除して parser に任せた（2つの【使用条件】が AND で載る）。⚠近似はルリグトラッシュ＝除外されたピースは残らない（偽陰性側）。
@@ -5442,6 +5481,22 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 
 ## 恒久指標の過去行（§6 から退避）
+
+- **2026-09-06（第197バッチ）＝🔍新しい検出パス（意味照合 round4）を開き、そこから実バグ2系統・11枚を修正（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**台帳 残 OPEN 24**｜**census 高シグナル 0 / BASELINE 0**（**すべて据置**）。
+  🔑**据置の理由を明記する**＝**直した11枚はどの計器にも映っていなかった**（クロス宣言は語彙の欠落ではなく、
+  `WX08-010` も STUB を持ち逆翻訳も一見通る）。⇒ **3計器は底を打っている＝動かないことを「停滞」と読まない。**
+  📦**在庫**＝🆕**意味照合 未監査 2,688 → 2,658枚**（**Sheet1 252 → 222枚**）｜**機構 worklist 0項目**（索引 A'/A/B/G/E すべて残0）｜**⑤実機 残 0件**。
+  🆕**新しい在庫計器＝`node scripts/archive/semanticAuditGap.mjs`**（「意味照合を1度も通していないカード数」＝
+  効果あり **6,032枚** − 監査済 **3,374枚**）。第197バッチで `tmp_gap.mjs` から恒久化した。
+  ⚠**`census:cards` の「監査を通したのは 611枚」はこの数と別物**＝あちらは `clean_round1` の
+  `audited_clean_cards_cumulative.txt` **1本しか読んでいない**（`cardProgressCensus.mjs:221`）＝**round4 を消化しても増えない**。
+  📉**歩留まりの実測**＝**30枚 → findings 6件 → 真バグ 3件（precision 50%）／影響 11枚**（batch01 は 0件）。
+  🔧**ゲート（全緑 ✅）**＝golden **3550 → 3553**（+3＝`crossOnly` の assert はこれまで**1件も無かった**）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / 0ハンドラ**（miss 0）／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**live A/B 差分＝12カード**（parser 由来 9 ＋ `syncManualLive` 2 ＋ `WX08-010` 1）＝**意図した件数だけが動いた**。
+  🖥**実機**＝**不要**（§2.2 の機械判定＝`src/data/` `public/data/` `scripts/goldenTest.ts` のみ。`src/screens/` も `src/engine/` も触っていない）。
 
 - **2026-09-04（第121〜129バッチ）＝実機完済＋機構6件クローズ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 18 / 863 (2.1%)**（据置）｜**台帳 残 OPEN 44**（据置）｜

@@ -6,3 +6,6 @@ WX08-010-E1 :: BUG :: 「この方法でクラッシュした1枚につき」が
 WX08-010-E1b :: BUG :: バースト抑制 STUB が LIFE_CRASH の後ろ＋相手側にフラグを立てる実装（第197バッチで修正）
 WX10-072-E1 :: FP :: 「そうした場合」は effectExecutor の did-it ゲートが消費 → 規則13へ還元
 WX11-044-BURST :: FP :: OPPONENT_PAY_OPTIONAL の既定の極性（払わなかったら then）→ 規則14へ還元
+WX05-028-E1 :: BUG :: 「正面のシグニがアタックしたとき」が総称 ON_ATTACK_SIGNI へ落ち、engine の collectAttackerSelfTriggers が食って「自分がアタックしたとき」へ反転（parser 規則で ON_FRONT_SIGNI_ATTACK へ・grep で AUTO 2効果を修正）
+WX07-026-E1 :: BUG :: 「２枚まで」の枚数 regex が外れて既定1枚（LifeCrashAction.upToCount を新設して 0〜2 の選択に・母集団は1効果）
+WX05-006-E2 :: FP :: スペルも配線済み（spellUseGate.ts:146＋BattleScreen の手札ゲート）＝id 名が ARTS だけなのは表示名 → 規則17へ還元。⚠派生で別バグを発見＝適用範囲がシグニ召喚まで広い（PLAN §5.3 O-268 へ登録）

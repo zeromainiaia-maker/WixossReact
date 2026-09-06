@@ -69815,6 +69815,57 @@ test('§5.2 round4 第1: WX08-010 はクラッシュ枚数ぶんバニッシュ�
     '🔴向きの違う SUPPRESS_LIFE_BURST_ON_CRASH（相手にフラグ）を後ろに置かない');
 });
 
+// 🆕**§5.2 round4 第2（2026-09-06・O-A triage）＝「このシグニの正面の〔対戦相手の〕シグニがアタックしたとき」。**
+//   🔴旧 live は総称の `ON_ATTACK_SIGNI` で、engine 側は `collectAttackerSelfTriggers`
+//   （**アタッカー自身**の AUTO を scope も見ずに全部拾う）が先に食う＝
+//   **「このシグニ自身がアタックしたとき」へ意味が反転**していた（守備側では1度も発火しない）。
+//   受け皿 `ON_FRONT_SIGNI_ATTACK`（`BattleScreen` が正面ゾーン限定で積む）は既にあり、配線ではなく**表現**の穴だった。
+test('§5.2 round4 第2: 「正面のシグニがアタックしたとき」は ON_FRONT_SIGNI_ATTACK（自分のアタックでは発火しない）', () => {
+  for (const [num, id] of [['WX05-028', 'WX05-028-E1'], ['WXDi-P02-053', 'WXDi-P02-053-E1'], ['WX04-082', 'WX04-082-E1']] as const) {
+    const e = effectsMap.get(num)?.find(x => x.effectId === id);
+    eq(e?.timing?.[0], 'ON_FRONT_SIGNI_ATTACK', `${id}: 正面のシグニのアタックで発火する timing`);
+    ok(!(e?.timing ?? []).includes('ON_ATTACK_SIGNI'), `${id}: 🔴総称 ON_ATTACK_SIGNI へ戻っていない`);
+  }
+  // 🔴engine 側の反転確認＝アタッカー自身の収集からは1件も出ない（旧実装はここで出ていた）。
+  for (const num of ['WX05-028', 'WXDi-P02-053']) {
+    const owner = mkState({ signi: [num, null, null] });
+    const entries = collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' }, owner, mkState({}), num, HOST);
+    ok(!entries.some(en => en.effectId === `${num}-E1`), `${num}: 自分がアタックしても発火しない`);
+  }
+  // 🔴負方向＝主語が違う同語彙を巻き込まない（「対戦相手のシグニ1体が」＝ゾーン限定なし／「正面以外に」＝味方主語）。
+  for (const [num, id] of [['WX14-050', 'WX14-050-E1'], ['WXK06-076', 'WXK06-076-E1'], ['WXEX2-71', 'WXEX2-71-E1']] as const) {
+    const e = effectsMap.get(num)?.find(x => x.effectId === id);
+    eq(e?.timing?.[0], 'ON_ATTACK_SIGNI', `${id}: 正面限定ではないので総称のまま`);
+  }
+});
+
+// 🆕**§5.2 round4 第3（2026-09-06・O-A triage）＝「対戦相手のライフクロスを２枚**まで**クラッシュする」**（`WX07-026-E1`）。
+//   🔴旧 live は `count:1`＝parser の枚数 regex（`N枚をクラッシュ` / `ライフクロスN枚`）が
+//   **「を２枚まで」に1本も当たらず既定の1枚へ黙って落ちて**いた（「既定値のある regex は外れが可視化されない」族）。
+//   ⚠`optional`（0/N の二択）では表せない＝**中間の枚数**が要るので `upToCount` を新設した。
+test('§5.2 round4 第3: WX07-026-E1 は「2枚まで」＝0〜2枚から選ばせる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX07-026')?.find(e => e.effectId === 'WX07-026-E1');
+  const seq = eff?.action as { type: string; steps?: Array<Record<string, unknown>> };
+  const crash = seq?.steps?.[1] as { type: string; owner: string; count: number; upToCount?: boolean; triggerBurst: boolean };
+  eq(crash?.type, 'LIFE_CRASH', 'step2 は LIFE_CRASH');
+  eq(crash.owner, 'opponent', '削るのは対戦相手のライフ');
+  eq(crash.count, 2, '🔴2枚（1枚固定へ戻っていない）');
+  eq(crash.upToCount, true, '「まで」＝枚数を選ぶ');
+  eq(crash.triggerBurst, true, '通常のクラッシュ＝ライフバーストは誘発する');
+  // 実行＝0/1/2 の3択が出て、選んだ枚数だけ減る。
+  const ctx = mkCtx({}, { life: 5 }, 'WX07-026');
+  const offered = executeAction(crash as unknown as EffectAction, ctx);
+  ok(!offered.done && offered.pending?.type === 'CHOOSE', '枚数の対話が出る');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    const ids = offered.pending.options.map(o => o.id);
+    eq(ids.join(','), 'crash1,crash2,skip', '0〜2枚の3択');
+    const c: ExecCtx = { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs };
+    eq(finish(resumeChoose('skip', offered.pending as never, c), c).otherState.life_cloth.length, 5, '0枚＝ライフは減らない');
+    eq(finish(resumeChoose('crash1', offered.pending as never, c), c).otherState.life_cloth.length, 4, '1枚だけ選べる');
+    eq(finish(resumeChoose('crash2', offered.pending as never, c), c).otherState.life_cloth.length, 3, '2枚まで選べる');
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

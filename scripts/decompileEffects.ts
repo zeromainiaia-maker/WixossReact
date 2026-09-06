@@ -1801,9 +1801,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
       // optional＝原文「〜トラッシュに置いてもよい」（続き417 で任意デッキミルをここへ寄せた）
       return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
+    // 🆕`upToCount`＝原文「N枚**まで**」（2026-09-06・§5.2 round4 O-A triage・`WX07-026-E1`）。
+    //   ⚠描かないと「1枚固定 → 0〜N の選択」に直したこと自体が逆翻訳から読めない（LESSONS §4.2）。
     case 'LIFE_CRASH': return a.triggerBurst === false
-      ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
-      : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;
+      ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚${a.upToCount ? 'まで' : ''}トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
+      : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚${a.upToCount ? 'まで' : ''}クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;
     // ⚠群の filter は `filterJa` に描かせる（`O-188` 第4バッチ・2026-09-01）。
     //   自前の noun 組み立てでは cardType と color しか出ず、クラス・レベル・アイコン・
     //   《ガードアイコン》を持たない・宣言クラスが**逆翻訳から丸ごと消えて原文照合が効かなくなる**。
