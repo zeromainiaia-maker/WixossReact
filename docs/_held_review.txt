@@ -21,3 +21,21 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +SEQUENCE +STUB×2 +TRASH_CARD ［1枚］
+WDK06-C14
+--- WDK06-C14
+  原文: 【出】手札を１枚捨てる：あなたのトラッシュからレベル３以下の＜武勇＞のシグニ１枚を対象とし、あなたのターンの場合、それを場に出す。,：カードを１枚引く。
+  - [0].action.condition.type = "TURN_OWNER"
+  - [0].action.condition.owner = "self"
+  - [0].action.then.type = "ADD_TO_FIELD"
+  - [0].action.then.owner = "self"
+  - [0].action.then.source.type = "TRASH_CARD"
+  - [0].action.then.source.owner = "self"
+  - [0].action.then.source.count = 1
+  - [0].action.then.source.upToCount = false
+  - [0].action.then.source.filter.cardType = "シグニ"
+  - [0].action.then.source.filter.level.max = 3
+  - [0].action.then.source.filter.story = "武勇"
+  ~ [0].action.type : "CONDITIONAL" → "SEQUENCE"
+  …（他 26 行）
+

@@ -1796,3 +1796,31 @@ WXK11-053 :: レベルの異なる赤のシグニ３体
 # 専用ハンドラ `STUB{RETURN_SELF_SPELL_TO_HAND}` を新設し、`finalizeUsedCardPlacement` に
 # 「手札へ戻した使用カードは既定ゾーンへ置かない」ガードを足した（手札とトラッシュへの二重計上を防ぐ）。
 WXK08-040-E1 :: このスペルを手札に戻す
+# --- 2026-09-06 残OPEN掃引：recheck で stale と確定（O-185 で機構実装済み・golden 23167 が固定）
+WX25-P1-022-E2 :: このターン、あなたはそれらを使用
+# ── 2026-09-06 残OPEN掃引②＝recheck が拾えなかった stale 5件（effectId:null / LCS<7）
+# 【ハーモニー】2件＝§5.3 `O-257`(2026-09-05) で live に `-HARMONY` 効果が載っている。
+#   受け皿確認＝`payLrigDownCost`(engine 3ファイル)＋`lrigDown.color`(execUtils.ts:455)・golden 68713 が12枚固定。
+WXDi-D09-P16 :: 【ハーモニー】白のルリグ１体
+WXDi-P04-034 :: 【ハーモニー】黒のルリグ１体
+# ドリームチーム【使用条件】3件＝§5.3 `O-213`/`O-209`(2026-09-02) で解消済み。
+#   live 実測＝両カードとも condition が AND{FIELD_LRIGS_HAVE_COLORS, LRIG_TRASH_COUNT}。
+#   CP02-001 の「合計4枚」も `OPTIONAL_COST{exceed:4}`→`CONDITIONAL{PAID_ADDITIONAL_COST}`→`GAIN_BOND` で実装済み。
+WXDi-CP01-002-E1 :: 両方の【使用条件】
+WXDi-CP02-001-E1 :: 【ドリームチーム】白のルリグ
+WXDi-CP02-001-E1 :: カードを合計４枚
+# ── 2026-09-06 残OPEN掃引③＝「このターン、対戦相手がダメージを受けたとき」の遅延誘発2件は
+#   §5.3 `O-160`(2026-09-02) で解消済み（live=INSTALL_DELAYED_TRIGGER{ON_PLAYER_DAMAGED}）。
+#   engine 消費地点＝`triggerCollect.ts:4168`（collectGenericDelayedTriggers）。
+WX18-002-E3 :: ダメージを受けたとき
+WXEX2-27-E3 :: ダメージを受けたとき
+# ── 2026-09-06 残OPEN掃引④
+WXDi-CP02-034-E1 :: 発動しないことを選んでもよい  # 偽陽性＝原文の括弧書き「：の左側はコストである。コストを支払わず発動しないことを選んでもよい」は**コストを持つ能力**の説明。E1 は「【出】：」＝コスト無しなので強制が正しい（コストを持つ E2《無》・E3【絆出】は live も mandatory:false）
+# ── 2026-09-06 残OPEN掃引⑤＝実際に live を直した2件（gates 全緑・golden 3557 で固定済み）
+# WDK06-C14-E1＝対象宣言が `CONDITIONAL{TURN_OWNER}` の内側にあり、相手ターンに対象を取らなかった。
+#   `SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS`→`CONDITIONAL` の既存3ステップ定型へ組み替え（engine 0行）。
+WDK06-C14-E1 :: シグニ１枚を対象とし
+# WXDi-D03-004-E3＝「《ガードアイコン》を持つカードを1枚捨てないかぎり」の回避ゲートが丸ごと欠落し、
+#   ルリグ2体ダウン→無条件ライフクラッシュだった。`STUB{OPPONENT_PAY_OPTIONAL}`＋`opponentHandDiscardFilter{hasGuard}`
+#   で復元（engine は表示ラベル1箇所のみ／decompiler も対で修正）。
+WXDi-D03-004-E3 :: カードを１枚捨てないかぎり

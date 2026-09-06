@@ -5778,7 +5778,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ? cur.otherState.hand.filter(cn => matchesFilter(cur.cardMap.get(getCardNum(cn)), handFilter))
             : cur.otherState.hand;
           const handCount = handSpec === 'ALL' ? eligibleHand.length : (handSpec ?? 0);
-          const handLabelNoun = handFilter?.color ? `${handFilter.color}のカード` : '手札';
+          // 🆕**選択肢ラベルにも絞り込みを出す**（2026-09-06・§5.2 残OPEN掃引）＝`color` しか見ておらず、
+          //   `hasGuard`（「《ガードアイコン》を持つカードを1枚捨てないかぎり」）が**ラベルから消えて**
+          //   ただの「手札を1枚捨てる」に見えていた。絞り込み自体は上の `eligibleHand` が正しく効いている
+          //   （＝実害は「何を捨てれば回避できるか実機で読めない」表示の穴）。⚠`decompileEffects.ts` の
+          //   `nounOfOPO` と**対で直す**（片方だけだと逆翻訳と実機のラベルが食い違う）。
+          const handLabelNoun = handFilter?.hasGuard ? '《ガードアイコン》を持つカード'
+            : handFilter?.color ? `${handFilter.color}のカード` : '手札';
           const enSpec = stub.opponentEnergyTrash;
           const enCount = enSpec === 'ALL' ? cur.otherState.energy.length : (enSpec ?? 0);
           const options = [

@@ -1,5 +1,92 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第200バッチ）＝**意味照合 段2 台帳の残 OPEN 掃引**（24 → 13）＝実バグ2効果を修正・9件は簿記漏れの回収
+
+**この回の作業単位**＝PLAN §5.2 の**段2 台帳**（round4 の新規監査ではなく、既存 findings の残 OPEN）。
+**残数計器**＝`node scripts/archive/semanticAuditLedger.mjs`（**残 OPEN 24 → 13**）。
+
+### ⓪ この回の最大の収穫＝**「全件が機構待ち」という PLAN の記述が間違っていた**
+
+PLAN §5.2 は残 24 件を「**engine/JSON だけで閉じられるものは0件**・全件が `src/screens/` か新 engine 機構待ち」と
+書いていた（続き766 の全数 triage 結論）。**実測すると 24 件中 11 件はそうではなかった**＝
+**9件は既に直っているのに閉じ忘れ（stale）／1件は偽陽性／1件は engine 0行で直せた。**
+🔑**教訓＝「掘り尽くした」という判定そのものが腐る。** 台帳は `stage2_closed.txt` へ**手で**追記しないと減らないので、
+**別の項目（`O-160`/`O-185`/`O-209`/`O-213`/`O-257`）で直したときに finding を閉じ忘れる**のが恒常的に起きる。
+🔴**`semanticAuditRecheck.mjs` はこの9件のうち1件しか拾えなかった**（LCS 照合の構造的限界）＝
+- **`effectId:null` の finding（ハーモニー2件）は照合対象外**＝識別子が CardNum なので逆翻訳を引けない。
+- **受け皿の名前が変わった finding（ドリームチーム3件・遅延誘発2件）は LCS が伸びない**＝
+  引用句は原文の言い回しなのに、逆翻訳は実装後の語彙で書かれるため似ない。
+⇒ 🔑**recheck を回して0件でも「掘り尽くし」ではない。** 残件が少ないときは
+**finding の受け皿を1件ずつ `grep` で探すほうが速い**（この回は grep だけで9件＝**実装0行**で消えた）。
+
+### ① `WDK06-C14-E1`＝**対象宣言が条件の内側に入っていた**（真因1行）
+
+**真因**＝原文「あなたのトラッシュから…シグニ１枚を**対象とし**、あなたのターンの場合、それを場に出す」に対し、
+live は `CONDITIONAL{TURN_OWNER self}` が**対象選択ごと**包んでいた＝**相手ターンには対象を取らない**。
+⇒ 対象に取ること自体が誘発する能力（`ON_TARGETED`）や対象耐性が相手ターンに働かなかった。
+
+**受け皿**＝**同じ形が既に live にある**（`SPDi44-16-E1` / `WX25-P1-030-E1`）＝
+`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `CONDITIONAL{…, targetsStored}` の3ステップ定型。
+⚠**宣言側と実行側で候補集めの関数が違う**（`transferToHandTrashCandidates` / `zoneTargetCandidates`）ので
+`O-188`「宣言と実行で候補がズレると選んだのに出せない」を確認した＝**どちらも `movableTrashCandidates` に落ちる**ので
+このフィルタ（cardType/level/story のみ）では一致する。
+
+**影響枚数**＝**1効果 / 1カード**。**engine は0行。**
+
+### ② `WXDi-D03-004-E3`＝**「捨てないかぎり」の回避ゲートが丸ごと落ちていた**（真因1行）
+
+**真因**＝引用能力の原文「対戦相手が《ガードアイコン》を持つカードを１枚**捨てないかぎり**、対戦相手にダメージを与える」の
+回避句が parser から落ち、**ルリグ2体をダウンしたら無条件でライフクラッシュ**していた（相手にガードの機会が無い＝過剰実行）。
+
+**受け皿**＝既存の `STUB{OPPONENT_PAY_OPTIONAL}` ＋ `opponentHandDiscard:1` ＋ `opponentHandDiscardFilter:{hasGuard:true}`。
+🔑**極性は「支払わなかったら次の `CONDITIONAL{IS_MY_TURN}` の then が発動」**（`effectExecutor.ts:5749` の標準ペア。
+`thenOnPay` を立てない限りこの向き）＝原文「捨てないかぎり」と一致する。
+⚠**外側の `CONDITIONAL{IS_MY_TURN}` は触っていない**＝あれは parser の「そうした場合」慣例エンコードで、
+engine が did-it ゲートとして読み替える（`DID_IT_GATED_TYPES` に `DOWN` が入っている）＝**正しい**。
+**この読み替えを知らずに「条件が変」と直すのが §5.2 の代表的な偽陽性。**
+
+**派生修正（表示の穴）**＝`hasGuard` が**ラベルにも逆翻訳にも出ていなかった**＝
+engine 側の絞り込み（`eligibleHand`）は正しく効くのに、実機の選択肢は「手札を1枚捨てる」としか出ず
+**何を捨てれば回避できるか読めない**。`effectExecutor.ts` の `handLabelNoun` と
+`decompileEffects.ts` の `nounOfOPO` を**対で**直した（片方だけだと逆翻訳と実機が食い違う）。
+
+**影響枚数**＝**1効果 / 1カード**（表示修正は `opponentHandDiscardFilter` を持つ全効果に効く）。
+
+### ③ 偽陽性1件＝`WXDi-CP02-034-E1`
+
+原文の括弧書き「（【出】能力と【絆出】能力の**：の左側はコストである**。コストを支払わず発動しないことを選んでもよい）」は
+**コストを持つ能力**の説明。E1 は「【出】：」＝**コスト無し**なので `mandatory:true`（強制）が正しい
+（コストを持つ E2《無》・E3【絆出】は live も `mandatory:false`）。
+
+### 検証
+
+`npm run gates` **全緑**（typecheck / golden **3557 PASS** / smoke / fuzz / census / census:stubs /
+manual-fields / census:enginetext / census:costtext / lint）。
+golden に**この2件の live 形を固定するテストを2本追加**（`§5.2 残OPEN: …`）。
+`OPPONENT_PAY_OPTIONAL` の live 出現数ラチェットを **79 → 80**（増えた1件は回避枝あり側＝安全弁は不変）。
+
+**実機の要否**＝**不要**（PLAN §2.2 の機械判定）。触ったのは `src/data/`・`public/data/`・`scripts/` と
+`src/engine/` の**表示ラベル1箇所**だけで、新しい型・機構は1つも足していない。
+
+⚠**`_partial_fresh` のラチェットで1度 FAIL した**＝`syncManualLive.ts` で live へ届けたあと
+**`npm run build:effects` を回し直さないと fresh 側が古いまま**残る。**sync → build:effects の順で閉じる。**
+
+### 残り13件の見立て（全件が機構待ちで確定）
+
+| finding | 要る機構 |
+|---|---|
+| `PR-K048`（無色コストを白/赤/青でしか払えない） | コスト支払い UI（`src/screens/`）に色制限の層 |
+| `SPDi44-16-E2` / `WX25-P1-030-E2`（シグニを3体**まで**） | `cost.fieldTrash` の可変枚数版（`charmTrashVariable`/`lrigDownVariable` と同型＋支払い UI） |
+| `WX13-005B-E1`（スペルの効果より先に） | 解決順序の割り込み機構 |
+| `WX25-CP1-016-E1`（シグニかスペルの、コストか効果によって） | 手札を捨てた**原因カードの種別**の追跡（`byOwnEffect` は原因の種別を持たない） |
+| `WX25-P2-075-E1`（**赤の**スペルを使用していた場合） | `USE_SPELL` マーカーに色を積む（`actions_done` は文字列のみ） |
+| `WXDi-P01-039-E1`×2（デッキとトラッシュの**基本レベル**変更） | 場以外のゾーンのカードへ常時レベル上書き |
+| `WXDi-P09-036-E1`（ルリグのアタックを無効） | `ON_ATTACK_LRIG` 窓＝**宣言通過後**なので `cancel_current_signi_attack` のルリグ版が要る |
+| `WXDi-P11-TK02-E2`（シグニで**合計**一度しかアタックできない） | プレイヤー単位のアタック回数上限 |
+| `WXDi-P13-089-E3`（手札とエナとトラッシュから各1枚除外） | 複数ゾーンを跨ぐ**コスト**（`combinedTrash` は出現条件側にしかない） |
+| `WXK03-059-E1`（【ライド】を〜を持つかのように使用できる） | キーワードの**使用可能タイミング**を拡張する層 |
+| `WXK10-004-E1`（**場以外**のあなたの領域） | `ZONE_MOVE_IMMUNITY.zones` が `'hand'\|'energy'` 固定＝消費地点5箇所をデッキ/トラッシュへ拡張 |
+
 ## 2026-09-06（第199バッチ）＝**O-A の未 triage 3件を判定**（BUG 2／FP 1）＝実バグ3効果を修正・派生発見を `O-268` で登録
 
 **この回の作業単位**＝PLAN §5.0 の 🔵Opus レーン **O-A（findings の triage）**。

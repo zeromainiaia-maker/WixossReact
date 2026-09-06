@@ -23204,6 +23204,31 @@ test('§5.3 O-185: PLAY_FREE{grantUseThisTurn} はカードを動かさず「こ
   eq((tree.match(/"grantUseThisTurn":true/g) ?? []).length, 2,
     'WX25-P1-022-E2 の2枝とも grantUseThisTurn になっていない');
 }));
+// ═══ §5.2 残OPEN掃引（2026-09-06）＝意味照合台帳の残 OPEN を2件 live 修正した分の固定 ═══
+test('§5.2 残OPEN: WDK06-C14-E1 は「対象を取る」を条件の外に出す（相手ターンでも対象宣言する）', () => {
+  const e = (effectsMap.get('WDK06-C14') ?? []).find(x => x.effectId === 'WDK06-C14-E1');
+  const steps = (e?.action as unknown as { type?: string; steps?: Record<string, unknown>[] })?.steps ?? [];
+  eq((e?.action as unknown as { type?: string })?.type, 'SEQUENCE', '🔴CONDITIONAL が対象宣言ごと包む旧形に戻っている');
+  eq((steps[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY', '1歩目が対象宣言でない');
+  // 🔑対象宣言は**条件の外**＝相手ターンでも対象を取る（原文「対象とし、あなたのターンの場合、それを場に出す」）。
+  eq((steps[1] as { id?: string })?.id, 'STORE_LAST_PROCESSED_TARGETS', '2歩目で対象を保存していない');
+  const cond = steps[2] as { type?: string; condition?: { type?: string }; then?: { type?: string; targetsStored?: boolean } };
+  eq(cond?.type, 'CONDITIONAL', '3歩目が条件でない');
+  eq(cond?.condition?.type, 'TURN_OWNER', '条件が TURN_OWNER でない');
+  eq(cond?.then?.type, 'ADD_TO_FIELD', '条件の帰結が場出しでない');
+  ok(cond?.then?.targetsStored === true, '🔴宣言した対象を使っていない＝別のシグニが場に出る');
+});
+test('§5.2 残OPEN: WXDi-D03-004-E3 の引用能力は《ガードアイコン》捨てで回避できる', () => {
+  const e = (effectsMap.get('WXDi-D03-004') ?? []).find(x => x.effectId === 'WXDi-D03-004-E3');
+  const ability = (e?.action as unknown as { abilities?: { action?: unknown }[] })?.abilities?.[0];
+  const tree = JSON.stringify(ability?.action ?? {});
+  // 🔴回避ゲートが無いと「ルリグ2体をダウン → 無条件でライフクラッシュ」＝相手にガードの機会が無い。
+  ok(tree.includes('"OPPONENT_PAY_OPTIONAL"'), '🔴回避ゲートが無い（無条件クラッシュに戻っている）');
+  ok(tree.includes('"opponentHandDiscardFilter":{"hasGuard":true}'),
+    '🔴回避に使える手札が《ガードアイコン》持ちに絞られていない');
+  // ⚠`thenOnPay` を立てると極性が反転する（払ったら発動）＝原文「捨てないかぎり」と逆になる。
+  ok(!tree.includes('"thenOnPay"'), '🔴thenOnPay が立って極性が反転している');
+});
 test('§5.1 V-133②: GRANT_PROTECTION は target 無し＋targetsTriggerSource だけでトリガー元へ付与できる', () => withSavedCursor(() => {
   const host = SIGNI, risen = SIGNI_L3;
   const ctx = mkCtx({ signi: [risen, null, null] }, {}, host);
@@ -25538,9 +25563,14 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   // 79＝2026-08-31 census 高シグナル 第4弾。**増えた1件は引用付与の復元**＝`WXDi-P15-083-E1` の granted 能力
   //   （「対戦相手が手札を３枚捨てないかぎり、ターン終了時まで、それのパワーを－8000する」）。
   //   従来は付与ごと消えて**その場で無条件に－8000**していた。⚠`opponentHandDiscard` を持つ＝回避枝あり側。
-  eq(stubs.length, 79, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  // 80＝2026-09-06 §5.2 残OPEN掃引。**増えた1件は回避ゲートの復元**＝`WXDi-D03-004-E3` の granted 能力
+  //   （「対戦相手が《ガードアイコン》を持つカードを１枚捨てないかぎり、対戦相手にダメージを与える」）。
+  //   従来は回避句ごと落ちて**ダウンしたら無条件でライフクラッシュ**していた。
+  //   ⚠`opponentHandDiscard`＋`opponentHandDiscardFilter{hasGuard}` を持つ＝回避枝あり側なので、
+  //   下の安全弁（回避枝なし＝0）は不変。
+  eq(stubs.length, 80, 'OPPONENT_PAY_OPTIONAL の live 出現数');
   eq(withCost.length, 41, 'エナコストを持つ（＝pay 枝が出る）STUB');  // 40→41＝続き508 の `WXDi-P16-062-E1`（《無》×1）
-  eq(noCost.length, 38, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  eq(noCost.length, 39, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
      'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');

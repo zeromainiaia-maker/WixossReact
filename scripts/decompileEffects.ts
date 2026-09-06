@@ -3429,16 +3429,21 @@ function actionJa(a?: Action, effectType?: string): string {
         const optsOPO: { dict: string; te: string }[] = [];
         const costJaOPO = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
         if (costJaOPO) optsOPO.push({ dict: `${costJaOPO}を支払う`, te: `${costJaOPO}を支払って` });
+        // 🆕**回避に使える手札の絞り込みを名詞へ出す**（2026-09-06・§5.2 残OPEN掃引）＝
+        //   `色` しか読んでおらず、`hasGuard`（《ガードアイコン》を持つカード）が**逆翻訳から消えて**
+        //   「手札を1枚捨てる」に化けていた（engine 側は `eligibleHand` で正しく絞っている＝表示だけの穴）。
+        const nounOfOPO = (f?: { color?: string; hasGuard?: boolean }): string =>
+          f?.hasGuard ? '《ガードアイコン》を持つカード'
+          : f?.color ? `${f.color === '無' ? '無色' : f.color}のカード`
+          : '手札';
         if (a.opponentHandDiscard !== undefined) {
-          const colOPO = a.opponentHandDiscardFilter?.color;
-          const nounOPO = colOPO ? `${colOPO === '無' ? '無色' : colOPO}のカード` : '手札';
+          const nounOPO = nounOfOPO(a.opponentHandDiscardFilter);
           const bodyOPO = a.opponentHandDiscard === 'ALL' ? `${nounOPO}をすべて` : `${nounOPO}を${a.opponentHandDiscard}枚`;
           optsOPO.push({ dict: `${bodyOPO}捨てる`, te: `${bodyOPO}捨てて` });
         }
         // 可変枚数の手札捨て（§6.4 O-9(a)）＝「N枚**まで**」。出さないと固定枚数と見分けが付かない。
         if (a.opponentHandDiscardUpTo !== undefined) {
-          const colUp = a.opponentHandDiscardFilter?.color;
-          const nounUp = colUp ? `${colUp === '無' ? '無色' : colUp}のカード` : '手札';
+          const nounUp = nounOfOPO(a.opponentHandDiscardFilter);
           const bodyUp = `${nounUp}を${a.opponentHandDiscardUpTo}枚まで`;
           optsOPO.push({ dict: `${bodyUp}捨てる`, te: `${bodyUp}捨てて` });
         }

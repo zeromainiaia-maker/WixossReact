@@ -365,6 +365,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   受け皿は今回足した `TargetFilter.isAttacking`（`applyDeltaToState` → `matchesStateFilter` が消費）。
   'WXDi-D03-004': [
     {"effectId":"WXDi-D03-004-E1","effectType":"CONTINUOUS","activeCondition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"NoLimit","operator":"gte","value":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","isAttacking":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  // 2026-09-06（§5.2 残OPEN掃引）＝**「対戦相手が《ガードアイコン》を持つカードを１枚捨てないかぎり、
+  //   対戦相手にダメージを与える」の回避ゲートが丸ごと落ちていた**（`WXDi-D03-004-E3` の引用能力）。
+  // 🔴旧 live＝ルリグ2体をダウンしたら**無条件で**ライフクラッシュ＝相手にガードの機会が無い（過剰実行）。
+  // 🔑受け皿は既存の `STUB{OPPONENT_PAY_OPTIONAL}`＝**極性は「支払わなかったら次の
+  //   `CONDITIONAL{IS_MY_TURN}` の then が発動」**（`effectExecutor.ts:5749` の標準ペア。
+  //   `thenOnPay` を立てない限りこの向き＝原文「捨てないかぎり」と一致）。
+  //   回避手段は `opponentHandDiscard:1` ＋ `opponentHandDiscardFilter:{hasGuard:true}`
+  //   （`hasGuard` は `execUtils.ts:1253` が `card.Guard==='1'` で判定・既存語彙）。
+  // ⚠**外側の `CONDITIONAL{IS_MY_TURN}` は触っていない**＝あれは parser の「そうした場合」慣例エンコードで、
+  //   engine が did-it ゲートとして読み替える（`DID_IT_GATED_TYPES` に `DOWN` が入っている）＝**正しい**。
+  //   この読み替えを知らずに「条件が変」と直すのが §5.2 の代表的な偽陽性（CLAUDE.md の警告）。
+  // ⚠**engine は0行**（新しい型を1つも足していない）。
+    {"effectId":"WXDi-D03-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D03-004-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":2,"filter":{"isUp":true,"level":2}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPPONENT_PAY_OPTIONAL","opponentHandDiscard":1,"opponentHandDiscardFilter":{"hasGuard":true}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}],"rawText":"【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１枚捨てないかぎり、対戦相手にダメージを与える。"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
   'WXK10-014': [
@@ -10242,6 +10255,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   "WXK10-045": [
     {"effectId":"WXK10-045-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"HAND_TO_CHECK_ZONE","owner":"opponent","count":1},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRANSFER_TO_HAND","source":{"type":"CHECK_CARD","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-09-06（§5.2 残OPEN掃引）＝**「〈対象〉を対象とし、あなたのターンの場合、それを〜する」の
+  //   対象選択が条件の内側に入っていた**（`WDK06-C14-E1`）。
+  // 🔴旧 live＝`CONDITIONAL{TURN_OWNER self}` が対象選択ごと包んでおり、**相手ターンには対象を取らない**。
+  //   原文はターンに関係なく対象を取り、**場に出す部分だけ**が「あなたのターンの場合」。
+  //   ⇒ 対象に取ること自体が誘発する能力（`ON_TARGETED`）や対象耐性が相手ターンに働かなかった。
+  // 🔑受け皿は**同じ形が既に live にある**（`SPDi44-16-E1` / `WX25-P1-030-E1`）＝
+  //   `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `CONDITIONAL{...}` の3ステップ定型。
+  // ⚠**宣言側と実行側で候補集めの関数が違う**（`transferToHandTrashCandidates` / `zoneTargetCandidates`）が、
+  //   どちらも `movableTrashCandidates` に落ちる＝このフィルタ（cardType/level/story のみ）では
+  //   候補は一致する（`O-188`「宣言と実行で候補がズレると選んだのに出せない」の確認）。
+  // ⚠**engine は0行**（新しい型を1つも足していない）。
+  "WDK06-C14": [
+    {"effectId":"WDK06-C14-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"武勇"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"武勇"}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   "WX25-CP1-038": [
