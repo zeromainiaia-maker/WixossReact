@@ -1,5 +1,81 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第191バッチ）＝🏁**PLAN §5.4 を閉じた**（残 (c) 2件は**実装済みで、壊れていたのは逆翻訳だけ**）
+
+**真因は1行**＝**engine に payload を足したのに、逆翻訳がその payload を読んでいなかった**。
+その結果 `O-243`／`O-244`（2026-09-04 実装）が **§5.4 (c) の「未実装の残作業」として3回読み直された**。
+**`src/` は1バイトも変えていない**（触ったのは `scripts/decompileEffects.ts` / `scripts/goldenTest.ts` と `docs/`）。
+
+### ① §5.4 (c) の2件は engine まで実装済みだった（🏁確認のみ・修正なし）
+
+| 効果 | 受け皿 | live payload | engine |
+|---|---|---|---|
+| `WX21-028-E2` | `STUB{CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM}` | `crossZoneTriple:{colors:['赤','青','緑'], story:'天使'}` | `execStubPart3.ts`（`O-243`）＝3ゾーンを1枚ずつ宣言 → **「そうした場合」＝コストを払えなければ対象を1枚も動かさない** |
+| `WXDi-P10-007-E3` | `STUB{CHECK_ZONE_FREE_CAST}` | `checkZoneFreeCast:{lookCount:10, totalCostMax:4, maxPick:2}` | `execStubPart3.ts`（`O-244`）＝`SEARCH{selectionConstraint:{totalCostMax}}` → チェックゾーン → 好きな順で無料使用 |
+
+**`totalCostMax` は飾りではない**＝`execUtils.ts:3767` が選択集合のコスト合計を実際に検査している。
+
+### ② 🔴真因＝逆翻訳が `miscStubMap` の**固定文**を出していた
+
+`decompileEffects.ts` の `miscStubMap` は **id → 固定文字列**の表なので、payload の値がどこにも出ない：
+
+| | 修正前（固定文） | 修正後（payload から生成） |
+|---|---|---|
+| `WX21-028-E2` | 「あなたのエナゾーンから**指定色の指定クラス**のシグニを1枚ずつ…」 | 「あなたのエナゾーンから**赤と青と緑の＜天使＞**のシグニを1枚ずつ…」 |
+| `WXDi-P10-007-E3` | 「デッキの上からカードを**見て**…コストの合計が**上限以下**になるように**スペルを**チェックゾーンに置き…」 | 「デッキの上からカードを**10枚**見て…コストの合計が**4以下**になるように**スペルを2枚まで**チェックゾーンに置き…」 |
+
+⇒ どちらも**原文と一致**するようになった（`npm run regen` で `docs/decompile_sheet2/8.txt` を確認）。
+**固定文は残したが「【※ペイロード欠落】…（枚数・コスト上限が未指定）」へ降格**＝
+payload が落ちたときだけ出る正直なフォールバックにした。
+
+🔑**教訓（横断）**＝**payload 化したら逆翻訳もその payload から組む。**
+`O-60` 第59バッチの落とし穴③（「payload 化したら逆翻訳の固定文言も撤去する」）と同じ形の再発で、
+今回は**逆方向の害**が出た＝固定文が**実装済みのものを未実装に見せて**作業キューに残し続けた。
+（第59バッチのときは engine と逆翻訳が**同じ嘘で一致**して計器が緑のままだった。**両方向に壊れる。**）
+
+### ③ 🔴反転確認で「最初のトリップワイヤが弱い」ことが分かった（この巡の2つ目の産物）
+
+最初に書いた golden は `decompileEffects.ts` の**ソース文字列**を `includes` するだけだった。
+反転確認（`if (false && a.id === 'CHECK_ZONE_FREE_CAST' …)` を挟む）で **PASS のまま素通り**した
+＝**部分文字列が残っているので検出できない**。
+
+⇒ **生成物を読む形へ差し替えた**＝`goldenTest.ts` に `decompiledLineOf(effectId)` を新設し、
+`docs/decompile_sheet*.txt` から該当 effectId の行を引いて assert する。
+⚠**シート帰属は先勝ち**なので全10枚を走査する。⚠**decompiler を直したら `npm run regen` まで回す**のが前提
+（`census:stubs` C群と同じ規約）。
+**反転確認をやり直して2本とも FAIL** することを確認した。
+
+🔑**教訓**＝**`decompileEffects.ts` は何も export しない**ので、逆翻訳を機械検証する入口は
+`decompiledLineOf()`（＝生成物）だけ。**ソース grep 型のトリップワイヤは書かない。**
+
+### ④ §5.4 の「機構待ち」2件を §5.3 索引 G へ採番（📦移設）
+
+§5.4 に機構項目を残さないという §5.3 の登録ルールどおり、2件を採番して登録票を PLAN_DETAIL へ書いた。
+
+- **`O-266`**＝【ガード】のコストを置換する機構が engine に無い（`WX25-P2-007`／live 1効果）。
+  live は `STUB{GUARD_ALTERNATIVE_COST}` で **payload すら無い**（逆翻訳は穴を正しく宣言している）。
+  🔑**同じ効果でもう1つ落ちている**＝付与される2つ目の能力（エナフェイズ開始時の【エナチャージ１】）が
+  **JSON に1ステップも無い**（`gameGrants` は見出しだけ）。**取るときは2軸ある。**
+- **`O-267`**＝能力の発動順を他の効果より前に固定できない（`WX13-005B`／live 1効果）。
+  原文「この【出】能力は**そのスペルの効果より先に**発動する」。
+  🔑**帰結（除外／使用禁止）は live で正しく構造化済み**で、**欠けているのは順序だけ**。
+  ⚠1効果のために解決順の一般機構を入れるかは要判断（**入れないと決めてもよい**＝`DEFERRED_*` 運用）。
+
+### ⑤ 簿記で見つけた stale な数字2つ（**退化ではない**）
+
+- **`census:cards --sheet 1` の要対応**＝§6 の記載は「0 / 863」だったが**実測 3**。
+  `git stash` して **HEAD でも 3**＝**今回の編集の前後で同値**。内訳は `mech` 3枚（`O-134` / `O-245` 由来）。
+- **live PARTIAL**＝§6 の記載は 18 だったが**実測 16**。**`public/data/` は1バイトも変えていない。**
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3544 / 3544**（本数は据置＝既存2テストへ assert を4本追加）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+- `npm run regen` 完走。`npm run census:deadstate` 0件／`census:orphanmanual` A/B/C 0。
+- **反転確認**＝逆翻訳の payload 分岐2本を殺して regen → golden `O-243` / `O-244` が **FAIL**（復旧済み）。
+- 🖥**実機は不要**＝触ったのは `scripts/` と `docs/` のみで **`src/` は無変更**（PLAN §2.2 の機械判定）。
+
 ## 2026-09-06（第190バッチ）＝§5.4 (b)「本物の疑い」の残り2件＋**実機が engine の過剰発火を1件出した**
 
 **この巡の主産物は「実機が golden に見えないバグを出した」こと。** §5.4 の2件のうち

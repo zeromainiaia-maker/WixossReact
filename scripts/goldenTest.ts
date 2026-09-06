@@ -167,6 +167,27 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   for (const [id, effs] of Object.entries(j)) effectsMap.set(id, effs as CardEffect[]);
 }
 /**
+ * 逆翻訳シート（`npm run regen` の生成物）から effectId 1件の行を取り出す（§5.4 (c) 第191・2026-09-06）。
+ * 🔑**逆翻訳の「実出力」を assert するための唯一の入口**＝`decompileEffects.ts` は何も export しないので、
+ *   ソース文字列を grep する形のトリップワイヤしか書けず、それは **`if (false && …)` を挟むだけで素通りする**
+ *   （第191バッチの反転確認で実測＝弱いトリップワイヤだった）。⇒ 生成物そのものを見る。
+ * ⚠**シート帰属は先勝ち**なので特定シートに決め打ちしない（全10枚を走査する）。
+ * ⚠これは「regen 済みのシート」を見る＝**decompiler を直したら `npm run regen` まで回す**のが前提
+ *   （CLAUDE.md の `census:stubs` C群と同じ規約）。
+ */
+const decompiledLineOf = (effectId: string): string => {
+  for (let i = 1; i <= 10; i++) {
+    const p = join(root, 'docs', `decompile_sheet${i}.txt`);
+    if (!fs.existsSync(p)) continue;
+    for (const line of fs.readFileSync(p, 'utf-8').split(/\r?\n/)) {
+      const t = line.trim();
+      if (t.startsWith(`${effectId}: `)) return t;
+    }
+  }
+  throw new Error(`逆翻訳シートに ${effectId} の行が無い（npm run regen を回したか？）`);
+};
+
+/**
  * 条件つきコスト置換のテスト用ラッパ（§5.3 `O-86` 第6バッチ）。
  * 🔑`computeCostReplacement` はもう原文を読まない＝**live payload（`EffectCost.costReplacement`）を
  *   渡すのが本番と同じ経路**。ここで `costReplacementOf` を通しておくと、
@@ -66288,6 +66309,13 @@ test('§5.3 O-243: 3ゾーン横断の対象は実装済み（自傷へ倒さな
   const s2 = JSON.stringify(a);
   ok(!s2.includes('TRASH_CARD'), '自分のトラッシュを巻き込まない');
   ok(!s2.includes('TRANSFER_TO_DECK'), '自分のシグニをデッキへ送らない');
+  // 🆕§5.4 (c) 第191（2026-09-06）＝**逆翻訳は payload から組む**。固定文へ戻すと
+  //   「指定色の指定クラス」と出て**実装済みなのに未実装に読める**（この節を2度読み直させた真因）。
+  const lineCZ = decompiledLineOf('WX21-028-E2');
+  ok(lineCZ.includes('赤と青と緑の＜天使＞のシグニを1枚ずつ'),
+     '🔴逆翻訳が payload の色・クラスを出している');
+  ok(!lineCZ.includes('指定色の指定クラス'),
+     '🔴「指定色の指定クラス」の固定文が復活していない');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -66389,6 +66417,14 @@ test('§5.3 O-244: 「見るだけ」に潰れていた本文が実装済みの�
   eq(a?.id, 'CHECK_ZONE_FREE_CAST', 'WXDi-P10-007-E3: 実装済みの受け皿');
   // 🔴**負方向**＝「10枚見るだけ」の旧形へ戻っていない（戻ると逆翻訳が実装済みに見える）。
   ok(!JSON.stringify(a).includes('LOOK_AND_REORDER'), '「見るだけ」へ潰れていない');
+  // 🆕§5.4 (c) 第191（2026-09-06）＝**逆翻訳は payload から組む**。固定文へ戻すと枚数もコスト上限も
+  //   消えて「上限以下」とだけ出る＝**実装済みなのに未実装に読める**。
+  const lineCF = decompiledLineOf('WXDi-P10-007-E3');
+  ok(lineCF.includes('カードを10枚見て') && lineCF.includes('合計が4以下')
+     && lineCF.includes('スペルを2枚まで'),
+     '🔴逆翻訳が payload の枚数・コスト上限を出している');
+  ok(!lineCF.includes('上限以下'),
+     '🔴「上限以下」の固定文が復活していない');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
