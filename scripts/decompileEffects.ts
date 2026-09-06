@@ -2577,7 +2577,9 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを${a.repeat}回繰り返す${a.suppressOnPlay ? '。その【出】能力は発動しない' : ''}`;
     // attackingOnly＝「**アタックしている**シグニ1体を対象」＝候補はいま宣言中のアタッカー（進行中のアタックを落とす）。
     // 無指定は「このターン次にアタックしたとき無効」＝事前登録型で、対象は場の全シグニ（別の意味なので書き分ける）。
-    case 'NEGATE_ATTACK': return `${a.attackingOnly ? `${ownerJa(a.target?.owner)}アタックしているシグニ${numJa(a.target?.count ?? 1)}体を対象とし` : a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}${a.target.upToCount ? '体まで' : '体'}を対象とし、このターン${typeof a.target.count === 'number' && a.target.count > 1 ? 'それらがそれぞれ次に' : 'それが'}アタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}${a.attackingOnly ? '、それの' : 'その'}アタックを無効にする`;
+    // 🆕`attackingOnly` でも**対象の型を読む**（2026-09-07・意味照合 段2・`WXDi-P09-036-E1`）＝
+    //   `CENTER_LRIG_OR_SIGNI` を「シグニ」と書くと **engine と逆翻訳が同じ嘘で一致**して計器が緑のままになる。
+    case 'NEGATE_ATTACK': return `${a.attackingOnly ? `${ownerJa(a.target?.owner)}アタックしている${a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? 'ルリグかシグニ' : 'シグニ'}${numJa(a.target?.count ?? 1)}体を対象とし` : a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}${a.target.upToCount ? '体まで' : '体'}を対象とし、このターン${typeof a.target.count === 'number' && a.target.count > 1 ? 'それらがそれぞれ次に' : 'それが'}アタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}${a.attackingOnly ? '、それの' : 'その'}アタックを無効にする`;
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
     case 'EQUALIZE_ENERGY': return `${a.owner ? ownerJa(a.owner) : '各プレイヤーの'}エナゾーンのカードが${a.targetCount}枚になるようにトラッシュに置く`;
@@ -4619,6 +4621,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕意味照合 段2（2026-09-07）＝`WXK03-059-E1`。【ライド】の使用タイミング拡張（宣言型）。
+        //   消費＝`screens/battle/battleUtils.ts` の `rideUsableInAttackPhase`。
+        RIDE_USABLE_IN_ATTACK_PHASE:
+          'あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を持つかのように使用できる',
         // 🆕§5.3 `O-249` 第156（2026-09-05）＝**自分側**のシグニを《サーバント　ＺＥＲＯ》にする形。
         //   🔴engine の 4つの `*_SERVANT_ZERO` は**すべて `otherState.card_identity_overrides` へ書く**＝
         //     対戦相手のシグニ専用。自分側に流用すると「自分は変換されず相手が変換される」別効果になる。

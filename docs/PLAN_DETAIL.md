@@ -5292,6 +5292,39 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   `EffectTarget.totalPowerMax` は**数値固定**。`totalLevelMaxRef` と同じ `NumberOrRef` 版が要る。
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
+### `O-271` — ルリグ【起】の `fieldTrash` コストに支払いが1行も無い（踏み倒して撃てる）
+
+> 🆕**2026-09-07（第203バッチ）＝§5.2 残 OPEN の掃引中に発見して登録**（実装は別軸なのでその場では取らなかった）。
+
+**規模／母集団**＝**live 8効果 / 7枚**（2026-09-07 実測）。測り方＝`public/data/effects_*.json` を全走査し
+`effectType==='ACTIVATED' && cost.fieldTrash` を持つ効果を CSV の `Type` で割る
+（**シグニ 23効果は既に払える**＝`signiActivateGate.ts:215` が候補数を検算し、
+`useSigniActivated.ts` の `fieldTrashZones` で選ばせている。**穴はルリグ側だけ**）。
+
+**何が無いか（3地点セットが全滅）**
+1. **提示ゲート**＝`lrigActivateGate.ts` の `canActivateLrigEffect` は `cost.fieldBanish` しか見ない
+   （`fieldTrash` の候補数を1度も数えない）＝**場にシグニが0体でも撃てる**。
+2. **支払い UI／実行**＝`performLrigActivated`（`BattleScreen.tsx`）に `fieldTrash` の文字が1つも無い
+   （`sel` にも `fieldTrashZones` が無い）＝**何もトラッシュせずに本体だけが走る**。
+3. **CPU**＝`CPU_LRIG_AUTO_PAYABLE_COST_KEYS` に `fieldTrash` が無い＝`cpuCanAutoPayLrigCost` が false
+   ＝**CPU は撃たない**（＝人間だけが踏み倒せる非対称）。
+
+**なぜ二重に壊れているか（意味照合が引き当てた側）**＝`SPDi44-16-E2` / `WX25-P1-030-E2` の帰結は
+`ADD_TO_FIELD{count:{$ref:'last_processed_count'}}`＝**「この方法でトラッシュに置いたシグニ1体につき1枚」**なので、
+**払っていない＝0体 → 出る枚数も0**。⇒ **コストが無料になるだけでなく本体も空振りする。**
+
+**原文の綴りは「シグニを３体まで」＝可変枚数**（`fieldTrash` に `upToCount` が無い）＝
+実装するときは **`fieldTrash.upToCount` も同時に足す**（固定3体だと「3体いないと撃てない」過小実行になる）。
+⚠**`fieldTrashAll`（`count:'ALL'`）とは別軸**＝あちらは選択不要。
+
+**取り方**＝**遅いレーン**（`src/screens/` を触る＝§2.2 で実機まで必須）。
+🔑**受け皿はシグニ側にそのまま在る**＝`fieldLimit.ts` の `fieldTrashSelectableZones` /
+`fieldTrashSelectionSatisfied` を**そのまま呼ぶ**（新しい判定関数を書かない＝軸が2本に割れる）。
+🔑**`fieldTrashCostCards` に載せる**＝コスト支払いによる離場は `byEffectCause=false`
+（`BattleScreen.tsx` の中央 diff）＝載せ忘れると `ON_TRASH` が「効果で置かれた」として誤発火する。
+🔑**閉じると §5.2 段2 台帳の残 OPEN が 2件減る**（`SPDi44-16-E2` / `WX25-P1-030-E2`＝どちらも
+「コストが3体固定になっている」という同じ finding）。
+
 ### `O-270` — デッキ/トラッシュの基本レベル変更を「場からの宣言」で集められなかった 🏁**2026-09-07 同日クローズ**
 
 > 🆕**2026-09-07（第202バッチ）＝§5.2 残 OPEN の掃引中に発見して即実装した**（索引には載せていない＝
@@ -5591,6 +5624,23 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 
 ## 恒久指標の過去行（§6 から退避）
+
+- **2026-09-07（第202バッチ）＝🧹残 OPEN 12 → 9（本日通算 24 → 9）／§5.3 `O-270` を新設・実装（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 12 → 9**｜**census 高シグナル 0 / BASELINE 0**。
+  🔑🔴**前バッチの教訓（受け皿は概念で探す）を残件へ当てたら、「機構待ちで確定」の3件に受け皿が実在した**＝
+  `signi_attack_once_limit`（同型3件中2件は既に指していた）／`TREAT_AS_LEVEL1_IN_DECK_TRASH`（生成側 live 0件の死んだ受け皿）。
+  **探し方の違いだけ**＝型定義から全数列挙して引き算した（キー名1つの grep では3件とも「機構待ち」に見えていた）。
+  📦**在庫**＝**意味照合 未監査 2,608枚**（Sheet1 **172枚**・据置）｜**未 triage findings 0件**｜
+  **機構 worklist 1項目**（`O-268`）｜**⑤実機 残 0 → 1件**（`V-176`＝`O-270` の実機配線）。
+  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
+  🔧**ゲート（全緑 ✅）**＝golden **3559 → 3563**（+4＝収集の正負両方向／`execSearch` まで通した差し替え／live 形2件）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・**C群0**／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+  ⚠**この回は `census:stubs` C群ゲートが1度 exit 1 で止めた**＝逆翻訳 regex を絞りすぎて別カードが生ID露出に落ちた
+  （`対戦相手` → `対戦相手は` で `WD13-010-E1` が外れた）。🔑**既存 regex を改善するときは当たっている全カードを数え直す。**
+  🖥**実機＝持ち越し1件**（`V-176`）＝観測カードが4パターンとも載らなかった（限定条件／リミット／経路違い／誘発条件）。
+  **engine 経路は golden で代替済み**。⚠**FAIL するシナリオは常設しない**（計器の狼少年化）＝作りかけは削除した。
+  🔁**live A/B 差分＝2カード**（`WXDi-P01-039` / `WXDi-P11-TK02`）＝**意図した件数だけが動いた**。
 
 - **2026-09-06（第197バッチ）＝🔍新しい検出パス（意味照合 round4）を開き、そこから実バグ2系統・11枚を修正（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**台帳 残 OPEN 24**｜**census 高シグナル 0 / BASELINE 0**（**すべて据置**）。

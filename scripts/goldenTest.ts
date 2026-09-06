@@ -61,7 +61,7 @@ import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
 import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition, isPieceCardType } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
-import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
+import { consumeNthAttackNegation, getTargetedAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
@@ -70006,6 +70006,76 @@ test('§5.2 round4 第3: WX07-026-E1 は「2枚まで」＝0〜2枚から選ば�
     eq(finish(resumeChoose('crash1', offered.pending as never, c), c).otherState.life_cloth.length, 4, '1枚だけ選べる');
     eq(finish(resumeChoose('crash2', offered.pending as never, c), c).otherState.life_cloth.length, 3, '2枚まで選べる');
   }
+}));
+
+// ── 意味照合 段2（2026-09-07）＝`WXK03-059-E1` 【ライド】の使用タイミング拡張 ──
+// 🔴旧 live は `GRANT_KEYWORD{keyword:'ライド'}`＝原文に無い「与える」に化けていた。
+// 🔑固定するのは2軸＝①live JSON が宣言型 STUB であること ②収集 funnel が
+//   「そのシグニが場に居るときだけ」ATTACK_ARTS 窓へライドを足すこと（負の向きも見る）。
+test('意味照合 段2 WXK03-059-E1: 【ライド】はこのシグニが場にあるときだけアタックフェイズにも撃てる', () => withSavedCursor(() => {
+  const live = effectsMap.get('WXK03-059')?.find(e => e.effectId === 'WXK03-059-E1');
+  const act = live?.action as { type?: string; id?: string; keyword?: string } | undefined;
+  eq(live?.effectType, 'CONTINUOUS', 'WXK03-059-E1 は【常】');
+  eq(act?.type, 'STUB', '宣言型（付与アクションではない）');
+  eq(act?.id, 'RIDE_USABLE_IN_ATTACK_PHASE', '受け皿は使用タイミング拡張の宣言');
+  eq(act?.keyword, undefined, '🔴「シグニに【ライド】を与える」へ戻っていない');
+
+  // ライド持ちのルリグ＝parser が `<CardNum>-RIDE`（timing:['MAIN']）を生成する。
+  const rideLrig = [...cardMap.values()].find(c => c.Type === 'ルリグ' && /^【ライド】/.test((c.EffectText ?? '').trim()));
+  ok(!!rideLrig, '【ライド】を持つルリグが CSV に存在する');
+  const rideEff = parseCardEffects(rideLrig!).find(e => e.effectId === `${rideLrig!.CardNum}-RIDE`);
+  ok(!!rideEff, 'ライドの【起】が生成される');
+  eq((rideEff!.timing ?? []).join(','), 'MAIN', 'ライドは既定ではメインフェイズだけ');
+
+  const uiMap = new Map<string, CardEffect[]>([[rideLrig!.CardNum, [rideEff!]], ['WXK03-059', [live!]]]);
+  const withBike = mkState({ lrig: [rideLrig!.CardNum], signi: ['WXK03-059', null, null] });
+  const without = mkState({ lrig: [rideLrig!.CardNum], signi: [null, null, null] });
+  eq(collectCenterLrigActivatedEffects(without, uiMap, 'ATTACK_ARTS').length, 0,
+    '🔴レーサーバイクが場に居ないときはアタックフェイズに出さない');
+  eq(collectCenterLrigActivatedEffects(withBike, uiMap, 'ATTACK_ARTS').map(e => e.effectId).join(','),
+    `${rideLrig!.CardNum}-RIDE`, 'レーサーバイクが場に居ればアタックフェイズにも撃てる');
+  eq(collectCenterLrigActivatedEffects(withBike, uiMap, 'MAIN').map(e => e.effectId).join(','),
+    `${rideLrig!.CardNum}-RIDE`, 'メインフェイズは従来どおり撃てる');
+}));
+
+// ── 意味照合 段2（2026-09-07）＝`WXDi-P09-036-E1` 「そのアタック」はルリグのアタックも含む ──
+// 🔴旧 live は `NEGATE_ATTACK{target:{type:'SIGNI'}}`＝引用【自】の綴り「シグニ**かルリグ**１体が
+//   アタックしたとき」のうち**ルリグ側が恒久 no-op**だった（候補にルリグが入らず `attackingOnly` で消える）。
+// 🔴さらに `negated_attacks`（＝アタック**宣言時**に見る事前登録）では進行中のアタックは止まらない。
+test('意味照合 段2 WXDi-P09-036-E1: 進行中のルリグアタックを無効にする', () => withSavedCursor(() => {
+  const live = effectsMap.get('WXDi-P09-036')?.find(e => e.effectId === 'WXDi-P09-036-E1');
+  const granted = (live?.action as { abilities?: CardEffect[] } | undefined)?.abilities?.[0];
+  eq((granted?.timing ?? []).join(','), 'ON_ATTACK_SIGNI,ON_ATTACK_LRIG', 'シグニ／ルリグ両方のアタックで誘発');
+  const match = (granted?.action as { matchAction?: { type?: string; attackingOnly?: boolean; target?: { type?: string } } } | undefined)?.matchAction;
+  eq(match?.type, 'NEGATE_ATTACK', '一致したときの帰結はアタック無効');
+  eq(match?.target?.type, 'CENTER_LRIG_OR_SIGNI', '🔴シグニ限定へ戻っていない');
+  eq(match?.attackingOnly, true, '候補はいまアタックしている1体だけ');
+
+  const lrigNum = [...cardMap.values()].find(c => c.Type === 'ルリグ')!.CardNum;
+  const base = mkCtx({}, { lrig: [lrigNum] }, 'WXDi-P09-036');
+  // 進行中のルリグアタック＝`pending_lrig_attack`（`ON_ATTACK_LRIG` を解決している最中）。
+  const ctx: ExecCtx = { ...base, otherState: {
+    ...base.otherState, pending_lrig_attack: true, pending_lrig_attack_num: lrigNum } };
+  const res = finish(executeAction(match as unknown as EffectAction, ctx), ctx);
+  eq(res.otherState.cancel_current_lrig_attack, true, '進行中のルリグアタックを落とすフラグが立つ');
+  eq((res.otherState.negated_attacks ?? []).length, 0, '🔴事前登録（negated_attacks）へ逃がしていない');
+
+  // アタック宣言中でなければ従来どおり何も起きない（候補0）。
+  const idle = finish(executeAction(match as unknown as EffectAction, base), base);
+  eq(idle.otherState.cancel_current_lrig_attack, undefined, 'アタックしていないルリグは無効化しない');
+
+  // 消費地点＝人間／CPU 共通の funnel。無効化した回は `lrig_attacked` を立てない（ガード応答へ進まない）。
+  const attacker = { ...base.otherState, pending_lrig_attack: true, pending_lrig_attack_num: lrigNum,
+    cancel_current_lrig_attack: true } as typeof base.otherState;
+  const cancelled = resolveLrigAttackContinuation(attacker, base.ownerState);
+  eq(cancelled.cancelled, true, '無効化として解決する');
+  eq(cancelled.defender.field.lrig_attacked, undefined, '🔴ガード応答へ進ませない');
+  eq(cancelled.attacker.cancel_current_lrig_attack, undefined, 'フラグは使った時点で消す');
+  const normal = resolveLrigAttackContinuation(
+    { ...attacker, cancel_current_lrig_attack: undefined }, base.ownerState);
+  eq(normal.cancelled, false, 'フラグが無ければ従来どおり');
+  eq(normal.defender.field.lrig_attacked, true, 'ガード応答へ進む');
+  eq(normal.defender.lrig_attacked_by_num, lrigNum, 'アタック元を伝える');
 }));
 
 if (listMode) {

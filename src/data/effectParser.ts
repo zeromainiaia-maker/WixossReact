@@ -16829,9 +16829,14 @@ function parseActionTextInner(text: string): EffectAction {
   // 🔴従来は公開と比較が UNKNOWN に落ち、`NEGATE_ATTACK` だけが残って**必ず無効化**していた。
   if (/あなたと対戦相手は自分のデッキの一番上を公開し/.test(text)
       && /どちらも【ライフバースト】を持っている/.test(text) && /アタックを無効にする/.test(text)) {
+    // 🆕**無効化するのは「そのアタック」＝ルリグのアタックもありうる**（2026-09-07・意味照合 段2）。
+    //   🔴旧実装は `target:{type:'SIGNI'}` だったので、引用【自】の綴り
+    //     「対戦相手のシグニ**かルリグ**１体がアタックしたとき」のうち**ルリグ側が恒久 no-op**だった
+    //     （候補にルリグが入らず `attackingOnly` の絞り込みで消える）。
+    //   ⚠受け皿は `CENTER_LRIG_OR_SIGNI`＋進行中ルリグアタックの `cancel_current_lrig_attack`。
     return {
       type: 'REVEAL_BOTH_DECK_TOPS',
-      matchAction: { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true },
+      matchAction: { type: 'NEGATE_ATTACK', target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true },
     } as unknown as EffectAction;
   }
 

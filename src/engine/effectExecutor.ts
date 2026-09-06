@@ -41,6 +41,16 @@ export const attackingSigniOf = (state: PlayerState): string | undefined =>
     ? state.field.signi[state.pending_signi_battle.zoneIndex]?.at(-1)
     : undefined;
 
+/**
+ * 🆕**いまアタックを宣言していてガード応答前のルリグ**（2026-09-07・意味照合 段2・`WXDi-P09-036-E1`）。
+ * `pending_lrig_attack` は「`ON_ATTACK_LRIG` を解決している最中」の印＝`attackingSigniOf` のルリグ版。
+ * ⚠アシストルリグのアタックもあるので**センター固定にしない**（`pending_lrig_attack_num` が正）。
+ */
+export const attackingLrigOf = (state: PlayerState): string | undefined =>
+  state.pending_lrig_attack
+    ? (state.pending_lrig_attack_num ?? state.field.lrig.at(-1))
+    : undefined;
+
 function resolvedNextTurnOwner(
   nextTurnOwner: 'self' | 'opponent' | 'next' | undefined,
   ctx: ExecCtx,
@@ -8354,6 +8364,10 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     const lrigTop = state.field.lrig.at(-1);
     const signiCands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+    // ⚠**アシストルリグのアタック**は `lrigTop`（センター）ではないので、候補に入れないと
+    //   `attackingOnly` の絞り込みで消えて無言 no-op になる（意味照合 段2・`WXDi-P09-036-E1`）。
+    const atkLrigC = attackingLrigOf(state);
+    if (atkLrigC && !cands.includes(atkLrigC)) cands = [atkLrigC, ...cands];
   } else if (a.target.type === 'LRIG') {
     // 「対戦相手のセンタールリグがアタックしたとき、そのアタックを無効にする」（WXK10-012②）＝ルリグ単独対象。
     const lrigTop = state.field.lrig.at(-1);
@@ -8364,7 +8378,11 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
   // attackingOnly（「対戦相手の**アタックしている**シグニ1体」）＝候補はいま宣言中のアタッカーだけ。
   // 宣言中のアタッカーが居なければ空振り（この効果は ON_OPP_SIGNI_ATTACK 窓でしか撃てないので通常は必ず1体）。
   if (a.attackingOnly) {
-    cands = cands.filter(n => n === attackingSigniOf(state));
+    // 🆕**ルリグのアタックも「いまアタックしている」に含める**（意味照合 段2・`WXDi-P09-036-E1`）＝
+    //   原文「対戦相手のシグニかルリグ１体がアタックしたとき…そのアタックを無効にする」。
+    //   ⚠`target.type:'SIGNI'` の既存効果は候補にルリグが入らないので挙動は変わらない。
+    const atkLrig = attackingLrigOf(state);
+    cands = cands.filter(n => n === attackingSigniOf(state) || (!!atkLrig && n === atkLrig));
   }
   if (cands.length === 0) return done(ctx);
   // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝`attackingOnly` は選択UIを開かずに即適用する。**
@@ -12380,6 +12398,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (cardNum === attackingSigniOf(s)) {
         const cancelled: PlayerState = { ...s, cancel_current_signi_attack: true };
         return done(addLog(setOwnerState(tgtOwner, cancelled, ctx),
+          `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のアタックを無効にした`));
+      }
+      // 🆕**進行中のルリグアタック**（意味照合 段2・`WXDi-P09-036-E1`）＝同じ理由で事前登録では止まらない。
+      //   🔴旧実装はここで `negated_attacks` に積むだけだったので、`ON_ATTACK_LRIG` から無効化する
+      //     効果（`WDK04-006-E1-G` ほか）は**そのアタックを1回も止められなかった**。
+      if (cardNum === attackingLrigOf(s)) {
+        const cancelledLrig: PlayerState = { ...s, cancel_current_lrig_attack: true };
+        return done(addLog(setOwnerState(tgtOwner, cancelledLrig, ctx),
           `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のアタックを無効にした`));
       }
       const negated = [...(s.negated_attacks ?? []), cardNum];

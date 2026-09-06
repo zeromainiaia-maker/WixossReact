@@ -58,7 +58,7 @@ import { collectPlayerDamagedTriggers } from '../engine/triggerCollect';
 import { matchesTrashArtsFromLrigDeckCost } from './battle/artsTrashCost';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
-import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
+import { consumeNthAttackNegation, getTargetedAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
@@ -4325,6 +4325,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
+          cancel_current_lrig_attack: undefined,      // 同上（ルリグアタック版・`WXDi-P09-036-E1`）
         })));
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -4765,7 +4766,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_plant_down_count: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
-        cancel_current_signi_attack: undefined,
+        cancel_current_signi_attack: undefined, cancel_current_lrig_attack: undefined,
       })));
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -11170,10 +11171,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opKey = isHost ? 'guest_state' : 'host_state';
     setLoading(true);
     try {
-      const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined, pending_lrig_attack_num: undefined };
-      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true },
-        lrig_attacked_by_num: my.pending_lrig_attack_num };
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpState } }));
+      // 🆕**進行中のルリグアタックの無効化**（意味照合 段2・`WXDi-P09-036-E1`）＝
+      //   `ON_ATTACK_LRIG` で立った `cancel_current_lrig_attack` はここが唯一の消費地点。
+      const contLA = resolveLrigAttackContinuation(my, op);
+      if (contLA.cancelled) {
+        appendBattleLogs([`${battleCardMap.get(getCardNum(my.pending_lrig_attack_num ?? my.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ'}のアタックは無効化された`]);
+      }
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: contLA.attacker, opp: { key: opKey, state: contLA.defender } }));
     } finally {
       setLoading(false);
     }
@@ -12055,10 +12059,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── CPUのON_ATTACK_LRIG処理完了後のガード応答セット（pending_lrig_attack）───
     if (cpuSt.pending_lrig_attack && !bs.effect_stack && !bs.pending_effect) {
-      const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined, pending_lrig_attack_num: undefined };
-      const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true },
-        lrig_attacked_by_num: cpuSt.pending_lrig_attack_num };
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleanCpuSt, opp: { key: 'host_state', state: huStWithLrigAttacked } }));
+      // ⚠人間経路（`resolvePendingLrigAttack`）と**同じ関数**を通す（意味照合 段2・`WXDi-P09-036-E1`）。
+      const contCpuLA = resolveLrigAttackContinuation(cpuSt, huSt);
+      if (contCpuLA.cancelled) appendBattleLogs(['[CPU] ルリグのアタックは無効化された']);
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: contCpuLA.attacker, opp: { key: 'host_state', state: contCpuLA.defender } }));
       return;
     }
 

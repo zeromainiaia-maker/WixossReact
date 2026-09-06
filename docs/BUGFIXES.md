@@ -1,5 +1,84 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第203バッチ）＝**残 OPEN 9 → 7**／進行中ルリグアタックの無効化・【ライド】のタイミング拡張を新設
+
+**この回の作業単位**＝§5.2 段2 台帳の残 OPEN。**残数計器**＝`semanticAuditLedger.mjs` **9 → 7**（本日通算 **24 → 7**）。
+**⑤実機の要否**＝🔴**必要**（`src/screens/battle/battleUtils.ts` / `attackNegation.ts` / `BattleScreen.tsx` を触った）＝
+`V-177` / `V-178` として §5.1 へ登録。**判定ロジックは純関数へ出して golden で正負両方向を固定した**ので、
+残るのは「実機の配線が通っているか」の1点だけ。
+
+### ⓪ この回の2件は「無言の no-op」ではなく「無言の**別効果**」だった
+
+どちらも `parseStatus:'AUTO'` で、逆翻訳も日本語として自然に読める。⇒ **census にも `census:stubs` にも
+`census:enginetext` にも映らない**（欠落した語彙が無く、STUB でもなく、engine が原文を読んでもいない）。
+🔑**この形を引き当てられるのは意味照合だけ**＝「原文にある語が live に無い」ではなく
+「**live にある語が原文と違う**」ので、受け皿名を知っている計器は全部素通りする。
+
+### ① `WXDi-P09-036-E1`＝ルリグのアタックを無効にできなかった（真因2つ・受け皿を新設）
+
+**原文**（アシストルリグ【出】がセンターへ付与する引用【自】）＝
+「対戦相手のシグニ**かルリグ**１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し…
+どちらも【ライフバースト】を持っているか、どちらも持っていない場合、**そのアタックを無効にする**。」
+
+**真因(a)**＝`REVEAL_BOTH_DECK_TOPS.matchAction` が `NEGATE_ATTACK{target:{type:'SIGNI'}, attackingOnly:true}`＝
+`execNegateAttack` の候補にルリグが入らず、`attackingOnly` の絞り込みで消える＝**ルリグ側が恒久 no-op**。
+⇒ 対象型を **`CENTER_LRIG_OR_SIGNI`** へ（parser 1箇所・母集団1効果）。
+
+**真因(b)＝こちらが本命**＝対象型を直しても閉じない。`NEGATE_ATTACK` の既定は
+`negated_attacks`（**アタック宣言時**に見る事前登録）への追加だが、この効果は `ON_ATTACK_LRIG` から走る＝
+**宣言はもう済んでいる**。**シグニ側だけが `cancel_current_signi_attack` という別軸を持っていた**＝
+🔴**片側だけ塞がっていた**（同じ壊れ方を `WDK04-006-E1-G` も踏んでいた＝あちらも1回も止められていない）。
+⇒ **`PlayerState.cancel_current_lrig_attack` を新設**：
+- 立てる＝`applyDirectAction` の `NEGATE_ATTACK`（対象が `attackingLrigOf(state)` と一致したとき）。
+- 読む＝**`resolveLrigAttackContinuation`（`screens/battle/attackNegation.ts`）1本**＝
+  **人間経路（`resolvePendingLrigAttack`）と CPU 経路（ガード応答セット）が同じ関数を通す**。
+  無効化した回は**防御側に `lrig_attacked` を立てない**＝ガード応答もダメージも起きない。
+- 失効＝使った時点で即クリア＋ターン終了時の安全クリア（`cancel_current_signi_attack` と同じ2箇所）。
+⚠**アシストルリグのアタック**は `lrigTop`（センター）ではないので、`CENTER_LRIG_OR_SIGNI` の候補へ
+`attackingLrigOf` を足していないと `attackingOnly` の絞り込みで消える（無言 no-op に戻る）。
+**影響枚数**＝直接は1効果 / 1カード。**同じ機構に載る既存効果**＝`ON_ATTACK_LRIG` から
+「そのアタックを無効にする」形（`WDK04-006` ほか）。
+**逆翻訳も直した**＝`decompileEffects.ts` の `NEGATE_ATTACK` は `attackingOnly` のとき対象型を見ずに
+「シグニ」と固定で書いていた＝**engine と逆翻訳が同じ嘘で一致**して計器が緑のままになる形（`O-60` 第59の落とし穴③）。
+
+### ② `WXK03-059-E1`＝「使用できる」が「与える」に化けていた
+
+**原文**＝「【常】：あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を
+**持つかのように使用できる**。」（母集団 **実測1効果 / 1カード**）
+**真因**＝live は `GRANT_KEYWORD{keyword:'ライド', target:{SIGNI, owner:'any'}}`＝
+**自分か対戦相手のシグニ1体に【ライド】を与える**という原文に無い動作（しかも【ライド】は
+**ルリグ側**のキーワード＝`effectParser.ts` が `<CardNum>-RIDE`＝`ACTIVATED{timing:['MAIN'], STUB{RIDE_ON}}`
+を生成する＝**シグニに付けても何も起きない**）。
+⇒ `manualEffects.ts` に**宣言型 `STUB{RIDE_USABLE_IN_ATTACK_PHASE}`** として書き直し（速いレーン）。
+消費は **`collectCenterLrigActivatedEffects`（`screens/battle/battleUtils.ts`）1点**＝
+ATTACK_ARTS 窓のとき、**自分の場にこのシグニが居る場合だけ**ライドの【起】を足す。
+🔑**ライドの `timing` は書き換えない**＝`<CardNum>-RIDE` は**全ルリグ共通の生成物**なので、
+`timing` に `ATTACK_ARTS` を足すと**このシグニが場に居ない盤面でも撃てる**過剰実行になる。
+⚠`census:stubs` C群（生ID露出）を避けるため `decompileEffects.ts` の `miscStubMap` に日本語文を足した。
+
+### ③ 副産物＝`O-271` を登録（**実装はしていない**）
+
+**ルリグ【起】の `cost.fieldTrash` にはどこにも支払いが無い**（実測 **8効果 / 7枚**）＝
+提示ゲート（`lrigActivateGate.ts` は `fieldBanish` しか見ない）も `performLrigActivated` も1行も見ていない＝
+**踏み倒して撃てる**うえ、帰結が `{$ref:'last_processed_count'}` の札は**払っていない＝0体**で本体も空振りする。
+**シグニ【起】側は既に払える**（`signiActivateGate.ts` ＋ `useSigniActivated.ts` の `fieldTrashZones`）＝**穴はルリグ側だけ**。
+閉じると台帳の残 OPEN が **2件**減る（`SPDi44-16-E2` / `WX25-P1-030-E2`）。登録票は `PLAN_DETAIL.md` の `O-271`。
+
+### 検証コマンド
+
+```
+npm run build:effects && npx tsx scripts/syncManualLive.ts WXK03-059
+node scripts/heldReview.mjs --adopt WXDi-P09-036
+npm run regen && npm run gates
+npm run golden -- --only "WXDi-P09-036-E1" --only "WXK03-059-E1"
+```
+
+**ゲート＝全緑 ✅**（golden **3563 → 3565**／smoke 0／fuzz 0／census 0 / BASELINE 0／
+`census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴0行／`census:costtext` A🔴0規則／lint 0 errors）。
+**反転確認＝2件とも実施**＝①`attackingLrigOf` を常に `undefined` にすると FAIL
+②`rideUsableInAttackPhase` の判定を外して常に許すと FAIL（「場に居ないときは出さない」側が落ちる）。
+**live A/B 差分＝2カード**（`WXDi-P09-036` / `WXK03-059`）＝意図した件数だけが動いた。
+
 ## 2026-09-07（第202バッチ）＝**残 OPEN 12 → 9**（`O-269` の教訓を残件へ適用）／`O-270` を新設・実装
 
 **この回の作業単位**＝§5.2 段2 台帳の残 OPEN。**前バッチで得た「受け皿は概念で探す」を残り12件へ機械的に当てた。**

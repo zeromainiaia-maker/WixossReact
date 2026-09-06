@@ -81,3 +81,40 @@ export function resolveNegateEscapeChoice(
     attackNegated: true,
   };
 }
+
+/**
+ * 🆕**`ON_ATTACK_LRIG` の解決後にルリグアタックを続けるか／無効化して終わるか**
+ * （2026-09-07・意味照合 段2・`WXDi-P09-036-E1`）。
+ *
+ * 🔴**`negated_attacks`（＝`getTargetedAttackNegation`）では止まらない**＝あちらは**アタック宣言時**に
+ *   見る事前登録なので、`ON_ATTACK_LRIG` から無効化しても**もう宣言は済んでいる**。
+ *   シグニ側の `cancel_current_signi_attack` と同じ軸で、**アタッカー側**の
+ *   `cancel_current_lrig_attack` を見る。
+ *
+ * ⚠**人間経路（`resolvePendingLrigAttack`）と CPU 経路が同じこの関数を通す**＝
+ *   片方だけに足すと「人間だけ無効化される」型の無言のズレになる（§4.2 の3地点セットと同じ規律）。
+ * ⚠無効化した場合は**防御側に `lrig_attacked` を立てない**＝ガード応答もダメージも起きない。
+ */
+export function resolveLrigAttackContinuation(
+  attacker: PlayerState,
+  defender: PlayerState,
+): { cancelled: boolean; attacker: PlayerState; defender: PlayerState } {
+  const clearedAttacker: PlayerState = {
+    ...attacker,
+    pending_lrig_attack: undefined,
+    pending_lrig_attack_num: undefined,
+    cancel_current_lrig_attack: undefined,
+  };
+  if (attacker.cancel_current_lrig_attack) {
+    return { cancelled: true, attacker: clearedAttacker, defender };
+  }
+  return {
+    cancelled: false,
+    attacker: clearedAttacker,
+    defender: {
+      ...defender,
+      field: { ...defender.field, lrig_attacked: true },
+      lrig_attacked_by_num: attacker.pending_lrig_attack_num,
+    },
+  };
+}

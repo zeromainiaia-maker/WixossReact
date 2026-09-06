@@ -1843,3 +1843,19 @@ WXDi-P11-TK02-E2 :: 合計一度しかアタックできない
 #   collectDeckTrashLevel1Nums に「場のシグニが宣言する」分岐と deckTrashLevel1Filter payload を足した（O-270）。
 WXDi-P01-039-E1 :: デッキとトラッシュにある
 WXDi-P01-039-E1 :: 基本レベルは１になる
+# ── 2026-09-07 第203バッチ（意味照合 段2・残 OPEN 9 → 7）──
+# WXDi-P09-036-E1＝引用【自】は「対戦相手のシグニ**かルリグ**１体がアタックしたとき…そのアタックを
+#   無効にする」なのに `NEGATE_ATTACK{target:{type:'SIGNI'}, attackingOnly}` ＝**ルリグ側が恒久 no-op**
+#   （候補にルリグが入らず `attackingOnly` の絞り込みで消える）。さらに `negated_attacks` は
+#   **アタック宣言時**に見る事前登録なので `ON_ATTACK_LRIG` からでは進行中のアタックを止められない
+#   （同じ壊れ方を `WDK04-006-E1-G` も踏んでいた）。⇒ `CENTER_LRIG_OR_SIGNI` へ直し、
+#   シグニ側の `cancel_current_signi_attack` と同じ軸で `cancel_current_lrig_attack` を新設
+#   （消費＝`resolveLrigAttackContinuation`＝人間／CPU 共通 funnel 1本）。
+WXDi-P09-036-E1 :: シグニかルリグ１体がアタック
+# WXK03-059-E1＝原文は「【常】：あなたは【ライド】を《メインフェイズアイコン》と
+#   《アタックフェイズアイコン》を持つかのように使用できる。」＝**使用タイミングの拡張**なのに
+#   live は `GRANT_KEYWORD{keyword:'ライド', target:{SIGNI, owner:'any'}}`＝原文に無い「与える」に化けていた
+#   （【ライド】はルリグ側のキーワードなのでシグニに付けても何も起きない）。
+#   ⇒ 宣言型 `STUB{RIDE_USABLE_IN_ATTACK_PHASE}` へ書き直し、消費は
+#   `collectCenterLrigActivatedEffects`（ATTACK_ARTS 窓へライドだけを足す）1点。
+WXK03-059-E1 :: かのように使用できる

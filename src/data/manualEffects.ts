@@ -8,6 +8,25 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // 意味照合 段2（2026-09-07）＝【ライド】の**使用タイミング拡張**（`WXK03-059-E1`・実測1効果）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WXK03-059（コードライド　レーサーバイク・シグニ）／ 原文＝
+  //   「【常】：あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を
+  //     持つかのように使用できる。」
+  // 🔴**旧 live は原文と無関係な別効果だった**＝`GRANT_KEYWORD{keyword:'ライド', target:{SIGNI, owner:'any'}}`
+  //   ＝**自分か対戦相手のシグニ1体に【ライド】を与える**（原文には「与える」が1文字も無い）。
+  //   ⚠【ライド】は**ルリグ側のキーワード**（`effectParser.ts` が `<CardNum>-RIDE` という
+  //     `ACTIVATED{timing:['MAIN'], STUB{RIDE_ON}}` を生成する）＝シグニに付けても何も起きない。
+  // 🔑**この文が変えるのは「いつ撃てるか」だけ**＝受け皿は宣言型 STUB 1本で足り、
+  //   消費は `collectCenterLrigActivatedEffects`（`screens/battle/battleUtils.ts`）1点。
+  //   ⚠ATTACK_ARTS 窓は `timing.includes('ATTACK_ARTS')` の厳密一致なので、
+  //     **ライドの `timing` を書き換えるのではなく収集側で足す**（ライドは全ルリグ共通の生成物なので
+  //     `timing` を触るとこのシグニが場に居ない盤面まで巻き込む）。
+  'WXK03-059': [
+    {"effectId":"WXK03-059-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"RIDE_USABLE_IN_ATTACK_PHASE"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.3 `O-262` 残件（2026-09-06 第186バッチ）＝除外が**コスト欄ではなく本文**にある唯一の綴り
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WX17-044（ＡＲＲＯＷ　ＲＡＩＮ・スペル）／ 原文の【起】＝

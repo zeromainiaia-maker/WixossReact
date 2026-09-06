@@ -119,6 +119,38 @@ export function applyRefresh(state: PlayerState, preventLifeToTrash = false): Pl
   return applyRefreshState(state, preventLifeToTrash);
 }
 
+/**
+ * その効果が【ライド】そのものか（`effectParser.ts` が生成する `<CardNum>-RIDE`）。
+ * 🔑**id の綴りではなく `STUB{RIDE_ON}` で見る**＝生成側の命名規約が変わっても壊れない。
+ */
+const isRideAbility = (eff: CardEffect): boolean => {
+  const act = eff.action as { type?: string; id?: string } | undefined;
+  return act?.type === 'STUB' && act.id === 'RIDE_ON';
+};
+
+/**
+ * 🆕**【ライド】をアタックフェイズにも使えるか**（2026-09-07・意味照合 段2・`WXK03-059-E1`）＝
+ * 「【常】：あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を
+ * 持つかのように使用できる。」を宣言している自分のシグニが場に居るか。
+ *
+ * ⚠**ライドの `timing` 自体は書き換えない**＝`<CardNum>-RIDE` は全ルリグ共通の生成物なので、
+ *   `timing` に `ATTACK_ARTS` を足すと**このシグニが場に居ない盤面でも撃てる**過剰実行になる。
+ * ⚠シグニゾーンの頂点は instanceId のことがあるので `getCardNum` を噛ませる。
+ */
+export function rideUsableInAttackPhase(
+  state: PlayerState, effectsMap: Map<string, CardEffect[]>,
+): boolean {
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    const effs = effectsMap.get(getCardNum(top)) ?? [];
+    if (effs.some(e => e.effectType === 'CONTINUOUS'
+      && (e.action as { type?: string; id?: string } | undefined)?.type === 'STUB'
+      && (e.action as { type?: string; id?: string } | undefined)?.id === 'RIDE_USABLE_IN_ATTACK_PHASE')) return true;
+  }
+  return false;
+}
+
 /** センタールリグ本来の【起】だけを、実際のルリグゾーンから拾う。 */
 export function collectCenterLrigActivatedEffects(
   state: PlayerState,
@@ -127,8 +159,11 @@ export function collectCenterLrigActivatedEffects(
 ): CardEffect[] {
   const centerLrig = state.field.lrig.at(-1);
   if (!centerLrig) return [];
+  // 【ライド】の使用タイミング拡張（`WXK03-059-E1`）＝ATTACK_ARTS 窓のときだけ追加で許す。
+  const rideInAttack = timing === 'ATTACK_ARTS' && rideUsableInAttackPhase(state, effectsMap);
   return (effectsMap.get(centerLrig) ?? []).filter(effect =>
-    effect.effectType === 'ACTIVATED' && effect.timing?.includes(timing),
+    effect.effectType === 'ACTIVATED'
+    && (effect.timing?.includes(timing) || (rideInAttack && isRideAbility(effect))),
   );
 }
 

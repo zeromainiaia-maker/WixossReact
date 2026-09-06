@@ -1535,6 +1535,16 @@ export interface PlayerState {
   pending_pridi035_paradise?: boolean;
   // NEGATE_ATTACK_ON_TRIGGER: アタックを無効にする（WXDi-P11-055）
   cancel_current_signi_attack?: boolean;
+  /**
+   * 🆕**進行中のルリグアタックを無効にする**（2026-09-07・意味照合 段2・`WXDi-P09-036-E1`）。
+   * 🔴**`negated_attacks` では止まらない**＝あちらは**アタック宣言時**に見る事前登録なので、
+   *   `ON_ATTACK_LRIG` から無効化しても**もう宣言は済んでいる**（実測＝`WDK04-006-E1-G` も
+   *   同じ壊れ方で恒久 no-op だった）。⇒ シグニ側の `cancel_current_signi_attack` と同じ軸で、
+   *   **アタッカー側の state** に立てる。
+   * 消費＝`resolvePendingLrigAttack`（人間）／CPU のガード応答セット（`BattleScreen.tsx`）の2点。
+   * 失効＝使った時点で即クリア＋ターン終了時の安全クリア（`cancel_current_signi_attack` と同じ場所）。
+   */
+  cancel_current_lrig_attack?: boolean;
   // BANISH_SUBSTITUTE (F-3): バトルバニッシュの任意身代わり置換。防御側で対話待ち中の情報。
   // 攻撃側のバトル解決はこのフラグが立つ間 victim バニッシュを保留し、防御側の決定（banish_substitute_choice）後に再開する。
   // options は collectBanishSubstitutes の BanishSubstituteOption[]（sacrifice=別シグニを犠牲 / pay_cost=コスト払いで victim を残す）。
