@@ -12,14 +12,14 @@ import {
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
-  movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
+  movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
   trapIconEffectOf,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -1827,6 +1827,9 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   // ⚠従来 HAND_CARD 分岐が無く **no-op** に落ちていた。`blind`（＝相手が伏せたまま選ぶ）は
   //   selectOrInteract の blind フラグで表現する（OPP_CHOOSE_YOUR_HAND_DISCARD と同じ慣例）。
   if (tgt.type === 'HAND_CARD') {
+    // 🆕除外も「他の領域への移動」＝保護の対象（意味照合 段2）。🔴従来この分岐には保護判定が無く、
+    //   「手札は移動しない」宣言中でも**除外だけは通っていた**。
+    if (oppZoneMoveBlocked('hand', tgt.owner, ctx)) return done(addLog(ctx, '手札保護により効果なし'));
     const hstate = ownerState(tgt.owner, ctx);
     const hcands = hstate.hand;
     if (hcands.length === 0) return done({ ...addLog(ctx, '除外できる手札がない'), lastProcessedCards: [] });
@@ -1839,6 +1842,8 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   // 下の `tgt.type !== 'TRASH_CARD'` で**無言 no-op** に落ちていた（parser 側はそれを避けて
   // `TRASH`＝エナからトラッシュへ、で近似していた＝除外ではないので相手はトラッシュから回収できる）。
   if (tgt.type === 'ENERGY_CARD') {
+    // 🆕同上＝エナからの除外も保護の対象（意味照合 段2）。
+    if (oppZoneMoveBlocked('energy', tgt.owner, ctx)) return done(addLog(ctx, 'エナ保護により効果なし'));
     const estate = ownerState(tgt.owner, ctx);
     const ecands = energyCandidates(estate, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
@@ -2660,6 +2665,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.type === 'DECK_CARD') {
+    // 🆕「対戦相手の効果によって〈デッキ〉のカードは他の領域に移動しない」（意味照合 段2・`WXK10-004-E1`）。
+    if (oppZoneMoveBlocked('deck', tgt.owner, ctx)) return done(addLog(ctx, 'デッキ保護により効果なし'));
     const count = tgt.count === 'ALL' ? state.deck.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
       + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     const took = state.deck.slice(0, count);
@@ -2772,6 +2779,14 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
+  // 🆕「対戦相手の効果によって〈ライフクロス〉は他の領域に移動しない」（意味照合 段2・`WXK10-004-E1`）。
+  // ⚠**ダメージによるクラッシュはここを通らない**（`execLifeCrash` は効果経路だけ・ルール処理は BattleScreen）
+  //   ＝原文「対戦相手の**効果によって**」と一致する。
+  // ⚠「**クラッシュ以外の**」と書く札（`WXEX2-22-E1`）は【常】版 STUB 経路なので `opp_move_immunity` に
+  //   載らない＝ここは素通りする（＝原文どおり）。
+  if (a.owner === 'opponent' && oppMoveImmunityBlocksCrash(ctx.otherState)) {
+    return done(addLog(ctx, 'ライフクロス保護により効果なし'));
+  }
   if (a.optional) {
     return needsInteraction(addLog(ctx, 'ライフクロスをクラッシュしますか？'), {
       type: 'CHOOSE',
@@ -10313,9 +10328,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const sZMI = ownerState(tgtOwnerZMI, ctx);
       const newZMI: PlayerState = {
         ...sZMI,
-        opp_move_immunity: [...(sZMI.opp_move_immunity ?? []), { zones: zmi.zones, turnsRemaining: zmi.turns }],
+        opp_move_immunity: [...(sZMI.opp_move_immunity ?? []), { zones: zmi.zones, turnsRemaining: zmi.turns, ...(zmi.excludeCrash ? { excludeCrash: true as const } : {}) }],
       };
-      const zonesJaZMI = zmi.zones.map(z => (z === 'hand' ? '手札' : 'エナゾーン')).join('と');
+      const ZONE_JA_ZMI: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
+      const zonesJaZMI = zmi.zones.map(z => ZONE_JA_ZMI[z] ?? z).join('と');
       return done(addLog(setOwnerState(tgtOwnerZMI, newZMI, ctx),
         `${zmi.turns >= 2 ? 'このターンと次のターンの間' : 'このターン'}、対戦相手の効果によって${zonesJaZMI}のカードは移動しない`));
     }

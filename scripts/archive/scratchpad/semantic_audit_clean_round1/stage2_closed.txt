@@ -1859,3 +1859,25 @@ WXDi-P09-036-E1 :: シグニかルリグ１体がアタック
 #   ⇒ 宣言型 `STUB{RIDE_USABLE_IN_ATTACK_PHASE}` へ書き直し、消費は
 #   `collectCenterLrigActivatedEffects`（ATTACK_ARTS 窓へライドだけを足す）1点。
 WXK03-059-E1 :: かのように使用できる
+# ── 2026-09-07 第204バッチ（§5.3 O-271 を実装＝残 OPEN 7 → 5）──
+# SPDi44-16-E2 / WX25-P1-030-E2＝「【起】《ゲーム１回》プライマル シグニを３体まで場からトラッシュに置く：
+#   あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につきシグニ１枚を対象とし、それらを場に出す」。
+#   🔴三重に壊れていた＝①`upToCount` が落ちて「3体ちょうど」＝3体いないと撃てない過小実行
+#   ②ルリグ【起】には `fieldTrash` の提示ゲートも支払いも1行も無く踏み倒して撃てた
+#   ③帰結が `{$ref:'last_processed_count'}`＝engine 内部の直前ステップを読むのでコスト支払いは残らず常に0
+#   ＝「3体トラッシュして0枚出す」恒久空振り。
+#   ⇒ `fieldTrash.upToCount` を parser/gate/UI/支払いに通し、支払いを `payFieldTrashCost` へ funnel 化
+#   （【出】経路・シグニ【起】経路の手書き2本も同じ関数へ寄せた）。体数は
+#   `last_cost_field_trash_count` に載せ、`$ref:'last_cost_field_trash_count'` で読む。
+SPDi44-16-E2 :: シグニを３体まで
+WX25-P1-030-E2 :: シグニを３体まで
+# WXK10-004-E1＝「このターンと次のターンの間、**場以外のあなたの領域**にあるカードは、対戦相手の効果に
+#   よって他の領域に移動しない」が `ZONE_MOVE_IMMUNITY{zones:['hand','energy']}`＝
+#   🔴デッキ・トラッシュ・ライフが1件も守られていなかった（逆翻訳も「手札とエナゾーン」と書いており
+#   engine と表示が同じ嘘で一致＝どの計器にも映らなかった）。
+#   ⇒ 領域型を5つへ広げ（`OppMoveImmunityZone`）、**消費地点を4つ**足した＝
+#   `movableTrashCandidates`（トラッシュから動かす全経路の funnel）／`TRASH{DECK_CARD}`（ミル）／
+#   `execLifeCrash`（効果によるクラッシュ・ダメージは通らない）／`EXILE` の hand・energy 分岐
+#   （旧実装は「手札は移動しない」宣言中でも**除外だけ通っていた**）。
+#   ⚠「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）は `excludeCrash` で表す。
+WXK10-004-E1 :: 場以外のあなたの領域

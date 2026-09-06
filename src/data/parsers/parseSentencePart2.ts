@@ -2174,24 +2174,33 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   期間つきは `ZONE_MOVE_IMMUNITY`（ターン数カウントダウン）／【常】は宣言型 STUB のまま。
   //   ⚠🔴旧実装は両方を同じ STUB に落としており、期間つき側は `prevent_opp_trash_from` を立てるだけで
   //     **失効地点が1つも無く永続していた**（`WXK10-083-E1` は「このターンと次のターンの間」）。
-  // ⚠保護できるのは現状 hand / energy だけ（既存 `PREVENT_NON_FIELD_MOVE_BY_OPP` と同じ近似）＝
-  //   「場以外のあなたの領域」も hand+energy に丸める。デッキ／トラッシュ／ライフは未保護。
+  // 🆕**「場以外のあなたの領域」は手札・エナだけではない**（2026-09-07・意味照合 段2・`WXK10-004-E1`）＝
+  //   🔴従来は hand+energy に丸めており、**デッキ・トラッシュ・ライフが1件も守られていなかった**
+  //   （逆翻訳も「手札とエナゾーン」と書いていたので engine と表示が同じ嘘で一致していた）。
+  //   消費地点＝`movableTrashCandidates`（トラッシュ＝全経路の funnel）／`TRASH{DECK_CARD}`／
+  //   `execLifeCrash`／`EXILE` の hand・energy 分岐。
+  // ⚠「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）は `excludeCrash` で表す。
   {
     const movesJa = /(?:他の領域|トラッシュ|デッキとトラッシュ)に移動しない/;
     if (/対戦相手の効果(?:によって|は)/.test(t) && movesJa.test(t)
-        && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス/.test(t)) {
-      const zones: ('hand' | 'energy')[] = [];
-      if (/場以外の(?:あなたの)?領域/.test(t)) { zones.push('hand', 'energy'); }
+        && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス(?:は|が)/.test(t)) {
+      const zones: import('../../types/effects').OppMoveImmunityZone[] = [];
+      if (/場以外の(?:あなたの)?領域/.test(t)) { zones.push('hand', 'energy', 'deck', 'trash', 'life'); }
       else {
         if (/エナゾーン/.test(t)) zones.push('energy');
         if (/手札/.test(t)) zones.push('hand');
+        if (/トラッシュにある/.test(t)) zones.push('trash');
       }
       if (zones.length > 0) {
         // 「このターンと次のターンの間」「次の対戦相手のターン（終了時まで）」＝2ターン。
         const turns = /このターンと次のターンの間|次の対戦相手のターン/.test(t) ? 2
           : /このターン/.test(t) ? 1 : 0;
         if (turns > 0) {
-          const immunity = { type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones, turns } as ZoneMoveImmunityAction;
+          const immunity = {
+            type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones, turns,
+            // 「クラッシュ以外の対戦相手の効果によって」＝効果によるクラッシュは素通しする。
+            ...(/クラッシュ以外の対戦相手の効果/.test(t) ? { excludeCrash: true as const } : {}),
+          } as ZoneMoveImmunityAction;
           // ⚠🔴同じ文に「あなたは対戦相手のルリグによってダメージを受けず、」が並ぶ形
           //   （`WXEX2-06-E3`／`WXDi-P16-002-E1`）＝**片方だけ拾うと残りが無言で落ちる**。
           //   ダメージ側は続き492 で整えた期間軸（`PREVENT_DAMAGE{scope:'LRIG'}`）へ載せる。

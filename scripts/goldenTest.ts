@@ -55,6 +55,7 @@ import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapS
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
+import { payFieldTrashCost } from '../src/screens/battle/fieldTrashCost';
 import { battleOppLifeCrashSourceMatches } from '../src/screens/battle/lifeCrashTriggers';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, findAcceZone, hasAcceAt } from '../src/utils/acce';
 import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
@@ -148,7 +149,7 @@ import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKin
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
-import { collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
@@ -41561,9 +41562,12 @@ test('§6.4 O-3: `WXK10-004-E1`（場以外の領域）と `WXEX2-06-E3`（ダ�
     const ctx = mkCtx({}, {}, cardNum);
     return finish(executeEffect(eff, ctx), ctx);
   };
-  // 受け皿 STUB（恒久 no-op）だった `WXK10-004-E1`。⚠保護できるのは hand/energy だけ（既存と同じ近似）。
+  // 受け皿 STUB（恒久 no-op）だった `WXK10-004-E1`。
+  // 🆕**2026-09-07（意味照合 段2）＝原文「場以外のあなたの領域」は5領域**（旧実装は hand/energy に丸めており、
+  //   デッキ・トラッシュ・ライフが1件も守られていなかった）。
   const a = run1('WXK10-004', 'WXK10-004-E1').ownerState as PlayerState;
-  eq(JSON.stringify(activeOppMoveImmunityZones(a).sort()), JSON.stringify(['energy', 'hand']), '手札とエナを保護');
+  eq(JSON.stringify(activeOppMoveImmunityZones(a).sort()),
+    JSON.stringify(['deck', 'energy', 'hand', 'life', 'trash']), '🔴場以外の5領域すべてを保護（hand/energy へ戻っていない）');
   // 🔴`WXEX2-06-E3` は「ダメージを受けず」だけ拾われ**移動不可が丸ごと落ちていた**（片側採用）。
   const b = run1('WXEX2-06', 'WXEX2-06-E3').ownerState as PlayerState;
   eq(JSON.stringify(activeOppMoveImmunityZones(b).sort()), JSON.stringify(['energy', 'hand']), '移動不可の半分も効く');
@@ -70076,6 +70080,109 @@ test('意味照合 段2 WXDi-P09-036-E1: 進行中のルリグアタックを無
   eq(normal.cancelled, false, 'フラグが無ければ従来どおり');
   eq(normal.defender.field.lrig_attacked, true, 'ガード応答へ進む');
   eq(normal.defender.lrig_attacked_by_num, lrigNum, 'アタック元を伝える');
+}));
+
+// ── 意味照合 段2（2026-09-07）＝§5.3 `O-271` ルリグ【起】の `fieldTrash` コスト（「N体まで」＋支払い） ──
+// 🔴旧 live は ①`upToCount` が落ちて「3体ちょうど」＝3体いないと撃てない過小実行
+//    ②ルリグ【起】には提示ゲートも支払いも1行も無く**踏み倒して撃てた**
+//    ③帰結が `{$ref:'last_processed_count'}`＝コスト支払いは engine の直前ステップに残らないので**常に0**。
+test('意味照合 段2 O-271: 「シグニを３体まで場からトラッシュ」が可変枚数コストとして払える', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['SPDi44-16', 'SPDi44-16-E2'], ['WX25-P1-030', 'WX25-P1-030-E2']] as const) {
+    const live = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    eq(live?.cost?.fieldTrash?.count, 3, `${effectId}: 上限3体`);
+    eq(live?.cost?.fieldTrash?.upToCount, true, `🔴${effectId}: 「まで」＝可変枚数（3体固定へ戻っていない）`);
+    const src = (live?.action as { source?: { count?: { $ref?: string } } } | undefined)?.source;
+    eq(src?.count?.$ref, 'last_cost_field_trash_count',
+      `🔴${effectId}: コスト支払いの体数を読む（last_processed_count は常に0）`);
+  }
+
+  // 枚数の軸＝`upToCount` は 0〜N を通し、無い側は N ちょうどだけ通す。
+  const ftState = mkState({ signi: ['WX03-035', 'WX03-035', 'WX03-035'] });
+  const upTo = { count: 3, filter: { cardType: 'シグニ' }, upToCount: true as const };
+  const exact = { count: 3, filter: { cardType: 'シグニ' } };
+  eq(fieldTrashSelectionSatisfied(upTo, undefined, [], ftState, cardMap), true, '「3体まで」は0体でも成立');
+  eq(fieldTrashSelectionSatisfied(upTo, undefined, [0, 1], ftState, cardMap), true, '「3体まで」は2体でも成立');
+  eq(fieldTrashSelectionSatisfied(exact, undefined, [0, 1], ftState, cardMap), false, '🔴「3体」は2体では成立しない');
+
+  // 提示ゲート＝`upToCount` は候補不足でも撃てる／固定は撃てない（踏み倒しを塞ぐ）。
+  const gateInput = (cost: typeof upTo | typeof exact, signi: (string | null)[]) => ({
+    my: mkState({ lrig: ['WX03-001'], signi }), op: mkState({}),
+    phase: 'MAIN' as const, effectsMap, cardMap, blockedSelf: new Set<string>(),
+  });
+  const mkEff = (cost: typeof upTo | typeof exact): CardEffect =>
+    ({ effectId: 'T-FT', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { fieldTrash: cost },
+      action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: false,
+      parseStatus: 'MANUAL' } as unknown as CardEffect);
+  eq(canActivateLrigEffect(mkEff(exact), gateInput(exact, [null, null, null]), 'WX03-001'), false,
+    '🔴固定3体はシグニが居なければ撃てない（踏み倒しを塞ぐ）');
+  eq(canActivateLrigEffect(mkEff(upTo), gateInput(upTo, [null, null, null]), 'WX03-001'), true,
+    '「3体まで」は0体でも撃てる');
+
+  // 支払い＝場から消えてトラッシュへ入り、体数が state に載る。
+  const paid = payFieldTrashCost({ state: ftState, zones: [0, 2], cost: { fieldTrash: upTo }, cardMap });
+  eq(paid.trashedCount, 2, '2体を支払った');
+  eq(paid.state.last_cost_field_trash_count, 2, '体数が state に載る');
+  eq(paid.state.field.signi.filter(Boolean).length, 1, '場から2体消えた');
+  eq(paid.state.trash.length, ftState.trash.length + 2, 'トラッシュへ2枚入った');
+
+  // 帰結＝その体数だけトラッシュから場に出す（0体なら何も出ない）。
+  const runAdd = (count: number) => {
+    const base = mkCtx({ trash: 5, signi: [null, null, null] }, {}, 'SPDi44-16');
+    const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, last_cost_field_trash_count: count } };
+    const act = effectsMap.get('SPDi44-16')!.find(e => e.effectId === 'SPDi44-16-E2')!.action;
+    return finish(executeAction(act, ctx), ctx);
+  };
+  eq(runAdd(0).ownerState.field.signi.filter(Boolean).length, 0, '0体払ったら1枚も出ない');
+  ok(runAdd(2).ownerState.field.signi.filter(Boolean).length > 0, '🔴払った体数ぶんは出る（常に0へ戻っていない）');
+}));
+
+// ── 意味照合 段2（2026-09-07）＝`WXK10-004-E1` 「場以外のあなたの領域」が実際に移動を止める ──
+// 🔴宣言（`zones`）を広げただけでは何も変わらない＝**消費地点**を4つ足して初めて盤面が動かなくなる
+//   （`census:deadstate` が言う「書かれるだけで読まれないキー」を作らない）。
+test('意味照合 段2 WXK10-004-E1: 場以外の5領域が対戦相手の効果による移動を止める', () => withSavedCursor(() => {
+  const guarded = (zones: string[]) => ({ opp_move_immunity: [{ zones, turnsRemaining: 2 }] });
+  const mk = (zones: string[] | null) => {
+    const base = mkCtx({}, { trash: 4, life: 5 }, 'WXK10-004');
+    return { ...base, otherState: { ...base.otherState, ...(zones ? guarded(zones) : {}) } } as ExecCtx;
+  };
+  // ① トラッシュ＝`movableTrashCandidates` funnel（除外・手札へ・エナへ・デッキへ の全経路）
+  const exileTrash = { type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'opponent', count: 2 } } as unknown as EffectAction;
+  const openT = mk(null); const shutT = mk(['trash']);
+  ok(finish(executeAction(exileTrash, openT), openT).otherState.trash.length < openT.otherState.trash.length,
+    '保護が無ければトラッシュから除外できる');
+  eq(finish(executeAction(exileTrash, shutT), shutT).otherState.trash.length, shutT.otherState.trash.length,
+    '🔴トラッシュ保護＝除外されない');
+  // ② デッキ＝ミル（`TRASH{DECK_CARD}`）
+  const mill = { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 3 } } as unknown as EffectAction;
+  const openD = mk(null); const shutD = mk(['deck']);
+  ok(finish(executeAction(mill, openD), openD).otherState.deck.length < openD.otherState.deck.length,
+    '保護が無ければデッキを削れる');
+  eq(finish(executeAction(mill, shutD), shutD).otherState.deck.length, shutD.otherState.deck.length,
+    '🔴デッキ保護＝削られない');
+  // ③ ライフ＝効果によるクラッシュ（ダメージによるクラッシュはこの経路を通らない）
+  const crash = { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: false } as unknown as EffectAction;
+  const openL = mk(null); const shutL = mk(['life']);
+  ok(finish(executeAction(crash, openL), openL).otherState.life_cloth.length < openL.otherState.life_cloth.length,
+    '保護が無ければライフをクラッシュできる');
+  eq(finish(executeAction(crash, shutL), shutL).otherState.life_cloth.length, shutL.otherState.life_cloth.length,
+    '🔴ライフ保護＝クラッシュされない');
+  // 「クラッシュ以外の対戦相手の効果によって」（`WXEX2-22-E1`）＝クラッシュだけは通す。
+  const baseX = mkCtx({}, { life: 5 }, 'WXEX2-22');
+  const exCrash = { ...baseX, otherState: { ...baseX.otherState,
+    opp_move_immunity: [{ zones: ['life'], turnsRemaining: 2, excludeCrash: true }] } } as ExecCtx;
+  ok(finish(executeAction(crash, exCrash), exCrash).otherState.life_cloth.length < 5,
+    'クラッシュ以外＝効果によるクラッシュは素通しする');
+  // ④ 手札／エナからの**除外**（旧実装はここに保護判定が無く、除外だけ通っていた）
+  const exileHand = { type: 'EXILE', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  const shutH = mk(['hand']);
+  eq(finish(executeAction(exileHand, shutH), shutH).otherState.hand.length, shutH.otherState.hand.length,
+    '🔴手札保護＝除外もされない');
+  // ⑤ 向きの確認＝**自分**のカードは自分の効果で動かせる（保護は「対戦相手の効果によって」だけ）。
+  const selfExile = { type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as unknown as EffectAction;
+  const selfBase = mkCtx({ trash: 4 }, {}, 'WXK10-004');
+  const selfCtx = { ...selfBase, ownerState: { ...selfBase.ownerState, ...guarded(['trash']) } } as ExecCtx;
+  ok(finish(executeAction(selfExile, selfCtx), selfCtx).ownerState.trash.length < selfCtx.ownerState.trash.length,
+    '自分の効果で自分のトラッシュは動かせる');
 }));
 
 if (listMode) {

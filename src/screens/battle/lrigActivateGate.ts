@@ -141,6 +141,10 @@ export function canActivateLrigEffect(
   // ⚠発生源はルリグなので `excludeSelf`（＝効果元シグニを除く）は効かない＝sourceZone は渡さない。
   if (eff.cost?.fieldBanish
     && fieldTrashSelectableZones(eff.cost.fieldBanish, my, cardMap).length < eff.cost.fieldBanish.count) return false;
+  // 🆕**fieldTrash**（§5.3 `O-271`）＝ルリグ【起】にはこの検算も支払いも1行も無く、**踏み倒して撃てた**。
+  // ⚠**`upToCount`（「N体まで」）は0体でも成立する**ので候補数で止めない＝止めると原文より狭くなる。
+  if (eff.cost?.fieldTrash && !eff.cost.fieldTrash.upToCount
+    && fieldTrashSelectableZones(eff.cost.fieldTrash, my, cardMap).length < eff.cost.fieldTrash.count) return false;
   // SONG_FRAGMENT: エナゾーンに【歌のカケラ】がある場合のみ撃てる。
   const act = eff.action as StubAction;
   if (act?.type === 'STUB' && act.id === 'SONG_FRAGMENT'

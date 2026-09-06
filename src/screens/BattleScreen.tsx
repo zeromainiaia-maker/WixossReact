@@ -28,6 +28,7 @@ import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { payFieldBanishCost } from './battle/fieldBanishCost';
+import { payFieldTrashCost } from './battle/fieldTrashCost';
 import { payFieldToDeckTopCost } from './battle/fieldToDeckTopCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
@@ -13995,33 +13996,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs(ftdPaidAct.logs);
       }
       // fieldTrash: 場のシグニをコストでトラッシュ（チャーム/アクセも一緒に。WX03-035「他の＜古代兵器＞のシグニ1体を場からトラッシュ」等）
+      // ⚠支払いは `payFieldTrashCost` 1本（§5.3 `O-271` で funnel 化）＝写経すると軸が割れる。
       if (!fieldBanishCostAct && !fieldToDeckTopCostAct && fieldTrashZones.size > 0) {
-        const newSigniFA  = [...paid.field.signi] as (string[] | null)[];
-        const newDownFA   = [...(paid.field.signi_down   ?? [false, false, false])];
-        const newFrozenFA = [...(paid.field.signi_frozen ?? [false, false, false])];
-        const newCharmsFA = [...(paid.field.signi_charms ?? [null, null, null])];
-        const newAcceFA   = [...(paid.field.signi_acce   ?? [null, null, null])];
-        const toTrashFA: string[] = [];
-        let trashedSigniLevelFA: number | undefined;
-        for (const zi of fieldTrashZones) {
-          const stack = newSigniFA[zi];
-          if (!stack || stack.length === 0) continue;
-          const topSigniFA = battleCardMap.get(getCardNum(stack.at(-1)!));
-          if (topSigniFA) trashedSigniLevelFA = parseInt(topSigniFA.Level ?? '0', 10) || 0;
-          toTrashFA.push(...stack.map(getCardNum));
-          if (newCharmsFA[zi]) { toTrashFA.push(newCharmsFA[zi]!); newCharmsFA[zi] = null; }
-          if (newAcceFA[zi])   { toTrashFA.push(...newAcceFA[zi]!); newAcceFA[zi] = null; }
-          newSigniFA[zi] = null;
-          newDownFA[zi] = false;
-          newFrozenFA[zi] = false;
-        }
-        paid = {
-          ...paid,
-          field: { ...paid.field, signi: newSigniFA, signi_down: newDownFA, signi_frozen: newFrozenFA, signi_charms: newCharmsFA, signi_acce: newAcceFA },
-          trash: [...paid.trash, ...toTrashFA],
-          last_field_trash_level: trashedSigniLevelFA,
-          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...toTrashFA],
-        };
+        paid = payFieldTrashCost({ state: paid, zones: fieldTrashZones, cost: effect.cost, cardMap: battleCardMap }).state;
       }
       // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）
       if (beatSigniCostCount(effect.cost?.beat_signi) > 0) {
@@ -14598,52 +14575,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         payLogs.push(...ftdPaid.logs);
       }
       // fieldTrash / fieldToLrigTrash: 場のシグニを指定先へ（付属カードはルールどおりトラッシュへ）
+      // ⚠支払いは `payFieldTrashCost` 1本（§5.3 `O-271` で funnel 化）。
       if (!fieldToDeckTopCost && fieldTrashZones.size > 0) {
-        const newSigniF  = [...paid.field.signi] as (string[] | null)[];
-        const newDownF   = [...(paid.field.signi_down   ?? [false, false, false])];
-        const newFrozenF = [...(paid.field.signi_frozen ?? [false, false, false])];
-        const newCharmsF = [...(paid.field.signi_charms ?? [null, null, null])];
-        const newAcceF   = [...(paid.field.signi_acce   ?? [null, null, null])];
-        const toTrashF: string[] = [];
-        const toLrigTrashF: string[] = [];
-        const removedIidsF: string[] = []; // トラッシュしたシグニの instance ID（puppet_signi クリーンアップ用）
-        let trashedSigniLevel: number | undefined;
-        let trashedPuppetF = false; // 傀儡状態のシグニをコストでトラッシュしたか（COST_TRASHED_PUPPET。WDK17-014）
-        const puppetSetF = new Set(paid.field.puppet_signi ?? []);
-        for (const zi of fieldTrashZones) {
-          const stack = newSigniF[zi];
-          if (!stack || stack.length === 0) continue;
-          // この方法でトラッシュに置いたシグニ（スタック最上段）のレベルを記録（WX03-001: 同じレベルのシグニを対象）
-          const topSigni = battleCardMap.get(getCardNum(stack.at(-1)!));
-          if (topSigni) trashedSigniLevel = parseInt(topSigni.Level ?? '0', 10) || 0;
-          if (stack.some(iid => puppetSetF.has(iid))) trashedPuppetF = true;
-          removedIidsF.push(...stack);
-          if (cost?.fieldToLrigTrash) {
-            toLrigTrashF.push(getCardNum(stack.at(-1)!));
-            toTrashF.push(...stack.slice(0, -1).map(getCardNum));
-          } else {
-            toTrashF.push(...stack.map(getCardNum));
-          }
-          if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
-          if (newAcceF[zi])   { toTrashF.push(...newAcceF[zi]!); newAcceF[zi] = null; }
-          newSigniF[zi] = null;
-          newDownF[zi] = false;
-          newFrozenF[zi] = false;
-        }
-        const fieldDestination = cost?.fieldToLrigTrash ? 'lrig_trash' : 'trash';
-        paid = {
-          ...paid,
-          field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF,
-            puppet_signi: (paid.field.puppet_signi ?? []).filter(iid => !removedIidsF.includes(iid)) },
-          trash: [...paid.trash, ...toTrashF],
-          lrig_trash: fieldDestination === 'lrig_trash' ? [...paid.lrig_trash, ...toLrigTrashF] : paid.lrig_trash,
-          last_field_trash_level: trashedSigniLevel,
-          last_cost_trashed_puppet: trashedPuppetF,
-          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...toTrashF],
-        };
-        if (toTrashF.length + toLrigTrashF.length > 0) payLogs.push(
-          `場のシグニ${fieldTrashZones.size}体をコストで${fieldDestination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`,
-        );
+        const ftPay = payFieldTrashCost({ state: paid, zones: fieldTrashZones, cost, cardMap: battleCardMap });
+        paid = ftPay.state;
+        if (ftPay.log) payLogs.push(ftPay.log);
       }
       // beat_signi: シグニを【ビート】にするコスト（beatZones=プレイヤー選択。空なら自動近似）
       if (beatSigniCostCount(cost?.beat_signi) > 0) {
@@ -15078,6 +15014,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
         if (!fbPaidLg) { setLoading(false); return; }
         paid = fbPaidLg.state;
+      }
+      // 🆕**fieldTrash**（§5.3 `O-271`・`SPDi44-16-E2`「シグニを３体まで場からトラッシュに置く：」）。
+      //   🔴**この経路にも支払いが1行も無かった**＝提示ゲートも見ていないので**踏み倒して撃てた**うえ、
+      //     帰結が「この方法でトラッシュに置いたシグニ1体につき」の札は**0体扱いで本体も空振り**していた。
+      //   ⚠ゾーン選択 state は `fieldBanishZones` を共用する（parser は両キーを同時に立てない＝型の注記どおり）。
+      if (!effect.cost?.fieldBanish && effect.cost?.fieldTrash && fieldBanishZones.size > 0) {
+        const ftPaidLg = payFieldTrashCost({
+          state: paid, zones: fieldBanishZones, cost: effect.cost, cardMap: battleCardMap,
+        });
+        paid = ftPaidLg.state;
+        if (ftPaidLg.log) appendBattleLogs([ftPaidLg.log]);
       }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';

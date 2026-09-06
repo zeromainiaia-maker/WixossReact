@@ -658,6 +658,11 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   const ftM = !ftLevelGroups ? costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/) : null;
   const ftVerbM = !ftM ? costStr.match(/シグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/) : null;
   const ftArmWep = !ftM && !ftVerbM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
+  // 🆕**「N体**まで**」＝可変枚数**（2026-09-07・§5.3 `O-271`）。🔴上の3本の regex は最初から `(?:まで)?` を
+  //   許容していたが**捨てていた**＝「3体まで」が「3体ちょうど」になり、**3体いないと撃てない**過小実行だった
+  //   （しかも帰結が「この方法でトラッシュに置いた1体につき」の札は枚数を選べない別効果に化ける）。
+  const ftUpTo = /シグニ[０-９\d]+体まで(?:を)?場からトラッシュに置く/.test(costStr)
+    || /シグニを[０-９\d]+体まで場からトラッシュに置く/.test(costStr);
   // 「他の…シグニを場からトラッシュ」= 効果元自身を除く（excludeSelf）。WX03-035「他の＜古代兵器＞のシグニ1体」等
   const ftOther = /他の(?:＜[^＞]+＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/.test(costStr)
     || /他のシグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/.test(costStr);
@@ -671,9 +676,11 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   } else if (ftM) {
     const ftFilter: TargetFilter = { cardType: 'シグニ' };
     if (ftM[1]) ftFilter.story = ftM[1];
-    cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter, ...(ftOther ? { excludeSelf: true } : {}) };
+    cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter, ...(ftOther ? { excludeSelf: true } : {}),
+      ...(ftUpTo ? { upToCount: true as const } : {}) };
   } else if (ftVerbM) {
-    cost.fieldTrash = { count: parseNum(ftVerbM[1]), filter: { cardType: 'シグニ' } };
+    cost.fieldTrash = { count: parseNum(ftVerbM[1]), filter: { cardType: 'シグニ' },
+      ...(ftUpTo ? { upToCount: true as const } : {}) };
   }
   // fieldTrash の状態・アイコン・色限定。いずれも【出】ヘッダから切り出した costStr 内の
   // 具体句だけに限定し、効果本文の「場からトラッシュ」へ波及させない。
@@ -8672,6 +8679,32 @@ function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[])
         } as CardEffect,
       },
     } as EffectAction;
+  }
+}
+
+/**
+ * 🆕**「この方法でトラッシュに置いたシグニ1体につき」が指すのが**コスト支払い**のとき、
+ * 参照先を `last_cost_field_trash_count` へ差し替える（2026-09-07・§5.3 `O-271`）。
+ *
+ * 🔴**`{$ref:'last_processed_count'}` は `ExecCtx.lastProcessedCards`（engine 内部の直前ステップ）を読む**＝
+ *   コスト支払いは1件も残らないので**必ず 0** ＝ `SPDi44-16-E2` / `WX25-P1-030-E2` は
+ *   「3体トラッシュして0枚出す」恒久空振りだった。
+ * ⚠**単発アクション（`SEQUENCE` ではない）に限る**＝効果本体に前段のステップがあると
+ *   「直前の処理」は本当にそのステップを指す（そちらを壊さない）。
+ */
+function applyCostFieldTrashCountRef(effects: CardEffect[]): void {
+  const rewrite = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.$ref === 'last_processed_count' && o.filter === undefined) { o.$ref = 'last_cost_field_trash_count'; return; }
+    for (const v of Object.values(o)) {
+      for (const child of (Array.isArray(v) ? v : [v])) rewrite(child);
+    }
+  };
+  for (const eff of effects) {
+    if (!eff.cost?.fieldTrash) continue;
+    if ((eff.action as { type?: string })?.type === 'SEQUENCE') continue;
+    rewrite(eff.action);
   }
 }
 
@@ -26579,6 +26612,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDistinctBatch5c(effects, card.EffectText ?? '');
   applyOpponentSelectsBatch11(effects);
   applyProportionalCountBatch6(effects);
+  applyCostFieldTrashCountRef(effects);
   applyGradedThresholdBatch(card.CardNum, effects);
   applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
   applyResultConditionalWave2(card.CardNum, effects);

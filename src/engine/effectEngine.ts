@@ -4224,8 +4224,8 @@ export function collectProtectedZones(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-): ('hand' | 'energy')[] {
-  const result = new Set<'hand' | 'energy'>();
+): import('../types/effects').OppMoveImmunityZone[] {
+  const result = new Set<import('../types/effects').OppMoveImmunityZone>();
   const candidates: string[] = [];
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
@@ -4249,10 +4249,14 @@ export function collectProtectedZones(
         if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
         if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
       }
-      // PREVENT_NON_FIELD_MOVE_BY_OPP: 場以外の全領域（手札・エナ等）を保護
+      // PREVENT_NON_FIELD_MOVE_BY_OPP: 「場以外のあなたの領域」＝手札・エナ・デッキ・トラッシュ・ライフ。
+      // 🔴**2026-09-07 まで hand/energy の2つしか足しておらず、デッキ・トラッシュ・ライフは
+      //   まったく保護されていなかった**（意味照合 段2・`WXK10-004-E1` と同じ穴）。
+      // ⚠クラッシュの扱いは**payload**（`zoneMoveImmunity.excludeCrash`）で持つ＝原文 regex を engine で読まない
+      //   （`census:enginetext` A群を増やさない）。payload が無い旧 live は安全側＝クラッシュも止める。
       if (act.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP') {
-        result.add('hand');
-        result.add('energy');
+        for (const z of ((act as { zoneMoveImmunity?: { zones?: import('../types/effects').OppMoveImmunityZone[] } })
+          .zoneMoveImmunity?.zones ?? ['hand', 'energy', 'deck', 'trash', 'life'])) result.add(z);
       }
     }
   }
@@ -4268,13 +4272,29 @@ export function collectProtectedZones(
  * 🔑**`ExecCtx.otherProtectedZones` が未設定の経路でも効くように、state だけで読めるようにする**＝
  * 消費側は「ctx 側の集合 ∪ この関数」で判定する（ctx を組み立てない経路が実在するため）。
  */
-export function activeOppMoveImmunityZones(state: PlayerState): ('hand' | 'energy')[] {
-  const out = new Set<'hand' | 'energy'>();
+export function activeOppMoveImmunityZones(
+  state: PlayerState,
+): import('../types/effects').OppMoveImmunityZone[] {
+  const out = new Set<import('../types/effects').OppMoveImmunityZone>();
   for (const entry of state.opp_move_immunity ?? []) {
     if (entry.turnsRemaining <= 0) continue;
     for (const z of entry.zones) out.add(z);
   }
   return [...out];
+}
+
+/**
+ * 🆕**効果によるライフクロスのクラッシュまで止まるか**（2026-09-07・意味照合 段2）。
+ * 「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）＝`excludeCrash` が立つ札は素通しする。
+ * ⚠**ダメージによるクラッシュはここを通らない**（`execLifeCrash` は効果経路だけ）＝ルール処理は常に通る。
+ */
+export function oppMoveImmunityBlocksCrash(state: PlayerState): boolean {
+  for (const entry of state.opp_move_immunity ?? []) {
+    if (entry.turnsRemaining <= 0) continue;
+    if (entry.excludeCrash) continue;
+    if (entry.zones.includes('life')) return true;
+  }
+  return false;
 }
 
 /**

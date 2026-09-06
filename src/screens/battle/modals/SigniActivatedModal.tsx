@@ -156,9 +156,13 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     if (actFieldTrashCost.excludeSelf && zi === actSelfZoneFt) return false;
                     return !actFieldTrashCost.filter || matchesFilter(battleCardMap.get(getCardNum(top)), actFieldTrashCost.filter);
                   }) : [];
+              // 🆕**「N体まで」＝可変枚数**（§5.3 `O-271`）＝`fieldTrash` にだけ付く（`fieldBanish`/`fieldToDeckTop` には無い）。
+              const actFtUpTo = eff.cost?.fieldTrash?.upToCount === true;
               const actFieldTrashOk = actFieldTrashGroups
                 ? fieldTrashGroupsSatisfied(actFieldTrashGroups, [...selectedSigniActivatedFieldTrash], my.field.signi, battleCardMap)
-                : (actFtNeeded === 0 || selectedSigniActivatedFieldTrash.size === actFtNeeded);
+                : (actFtNeeded === 0
+                  || (actFtUpTo ? selectedSigniActivatedFieldTrash.size <= actFtNeeded
+                    : selectedSigniActivatedFieldTrash.size === actFtNeeded));
               const actUnderTrashCost = eff.cost?.underSelfTrash;
               const actUnderZone = my.field.signi.findIndex(stack => stack?.at(-1) === pendingSigniActivated.cardNum);
               const actUnderCandidates = actUnderTrashCost && actUnderZone >= 0
@@ -609,7 +613,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                         場から{actFieldTrashGroups
                           ? actFieldTrashGroups.map(g => `${fmtDiscardFilterLabel(g.filter)}シグニ${g.count}体`).join('と')
                           : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}を{actFieldIsBanish ? 'バニッシュ' : actFieldIsDeckTop ? 'デッキの一番上へ' : 'トラッシュ'}:
-                        {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
+                        {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体{actFtUpTo ? 'まで' : ''}
                       </p>
                       {actFtSelectableZones.length === 0 ? (
                         <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>対象シグニがいません</p>

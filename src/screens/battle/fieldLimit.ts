@@ -33,8 +33,13 @@ export function fieldTrashGroupsSelectableZones(
   });
 }
 
+/**
+ * `fieldTrash` / `fieldTrashGroups` の**選択が支払いとして成立しているか**。
+ * 🆕**`upToCount`（「N体まで」）**を honor する（2026-09-07・§5.3 `O-271`）＝
+ * 🔴無いと「N体ちょうど」しか通らず、**原文が可変枚数の札は N 体いないと撃てない**過小実行になる。
+ */
 export function fieldTrashSelectionSatisfied(
-  cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean } | undefined,
+  cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean; upToCount?: true } | undefined,
   groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
   selectedZones: number[],
   state: PlayerState,
@@ -44,7 +49,8 @@ export function fieldTrashSelectionSatisfied(
   if (groups?.length) return fieldTrashGroupsSatisfied(groups, selectedZones, state.field.signi, cardMap);
   if (!cost) return selectedZones.length === 0;
   const selectable = new Set(fieldTrashSelectableZones(cost, state, cardMap, sourceZone));
-  return selectedZones.length === cost.count && selectedZones.every(zi => selectable.has(zi));
+  const countOk = cost.upToCount ? selectedZones.length <= cost.count : selectedZones.length === cost.count;
+  return countOk && selectedZones.every(zi => selectable.has(zi));
 }
 
 // LIMIT_ALL_FIELD_N: すべてのプレイヤーのシグニ場出し数上限を継続STUBから算出（WX04-005-E3）。

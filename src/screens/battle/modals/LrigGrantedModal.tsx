@@ -116,11 +116,20 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               // 🔴**行き先はエナゾーン**なので `fieldTrash`（トラッシュ）と混ぜない。⚠**この経路には
               //   場シグニ系コストの支払いが1行も無かった**＝提示だけして踏み倒していた。
               const lgFieldBanishCost = eff.cost?.fieldBanish;
-              const lgFbSelectableZones = lgFieldBanishCost
-                ? fieldTrashSelectableZones(lgFieldBanishCost, my, battleCardMap)
+              // 🆕**`fieldTrash` も同じゾーン選択 UI を使う**（§5.3 `O-271`）＝parser は
+              //   `fieldBanish` / `fieldTrash` を同時に立てないので state を共用する（シグニ【起】と同じ規約）。
+              //   🔴**ルリグ【起】にはこの UI も支払いも1行も無く、コストを踏み倒して撃てた。**
+              //   ⚠**行き先だけが違う**（バニッシュ＝エナゾーン／トラッシュ＝トラッシュ）＝ラベルを書き分ける。
+              const lgFieldTrashCost = !lgFieldBanishCost ? eff.cost?.fieldTrash : undefined;
+              const lgFieldZoneCost = lgFieldBanishCost ?? lgFieldTrashCost;
+              const lgFieldUpTo = lgFieldTrashCost?.upToCount === true;
+              const lgFbSelectableZones = lgFieldZoneCost
+                ? fieldTrashSelectableZones(lgFieldZoneCost, my, battleCardMap)
                 : [];
-              const lgFieldBanishOk = !lgFieldBanishCost
-                || (selectedLrigGrantedFieldBanish.size === lgFieldBanishCost.count
+              const lgFieldBanishOk = !lgFieldZoneCost
+                || ((lgFieldUpTo
+                      ? selectedLrigGrantedFieldBanish.size <= lgFieldZoneCost.count
+                      : selectedLrigGrantedFieldBanish.size === lgFieldZoneCost.count)
                     && [...selectedLrigGrantedFieldBanish].every(zi => lgFbSelectableZones.includes(zi)));
               const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk;
               const lrigTop = my.field.lrig.at(-1);
@@ -150,6 +159,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                             lgTrashExileCost?.self ? 'このカードをゲームから除外' : lgTrashExileCost ? `トラッシュから${lgTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                             lgLrigDownCost ? fmtLrigDownCostLabel(lgLrigDownCost) : null,
                             lgFieldBanishCost ? `場から${lgFieldBanishCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(lgFieldBanishCost.filter)}シグニ${lgFieldBanishCost.count}体をバニッシュ` : null,
+                            lgFieldTrashCost ? `場から${lgFieldTrashCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(lgFieldTrashCost.filter)}シグニ${lgFieldTrashCost.count}体${lgFieldUpTo ? 'まで' : ''}をトラッシュ` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {lgLrigDownCost && !lgLrigDownOk && (
@@ -396,12 +406,12 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     </p>
                   )}
 
-                  {/* fieldBanish: コストで自分の場のシグニをバニッシュ（行き先はエナゾーン。§5.3 `O-67`） */}
-                  {lgFieldBanishCost && (
+                  {/* fieldBanish（行き先＝エナゾーン。§5.3 `O-67`）／fieldTrash（行き先＝トラッシュ。§5.3 `O-271`）＝同じ選択UI */}
+                  {lgFieldZoneCost && (
                     <>
                       <p style={{ color: lgFieldBanishOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
-                        場から{lgFieldBanishCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(lgFieldBanishCost.filter)}シグニをバニッシュ:
-                        {' '}{selectedLrigGrantedFieldBanish.size} / {lgFieldBanishCost.count}体
+                        場から{lgFieldZoneCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(lgFieldZoneCost.filter)}シグニを{lgFieldBanishCost ? 'バニッシュ' : 'トラッシュ'}:
+                        {' '}{selectedLrigGrantedFieldBanish.size} / {lgFieldZoneCost.count}体{lgFieldUpTo ? 'まで' : ''}
                       </p>
                       {lgFbSelectableZones.length === 0 ? (
                         <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>対象シグニがいません</p>
@@ -417,7 +427,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                                 onClick={() => setSelectedLrigGrantedFieldBanish(prev => {
                                   const next = new Set(prev);
                                   if (next.has(zi)) { next.delete(zi); return next; }
-                                  if (next.size >= lgFieldBanishCost.count) return prev;
+                                  if (next.size >= lgFieldZoneCost.count) return prev;
                                   next.add(zi); return next;
                                 })}
                                 onContextMenu={e => e.preventDefault()}

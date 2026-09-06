@@ -352,6 +352,14 @@ export interface PlayerState {
   last_cost_hand_to_energy_level?: number; // 直前の任意【出】コストで手札からエナへ置いたシグニのレベル（WXDi-P16-080）
   last_cost_energy_trash_level_sum?: number; // 直前の任意【出】コストでエナからトラッシュへ置いたシグニのレベル合計（WXK09-032）
   last_cost_energy_trash_count?: number; // 直前の指定 energyTrash コストで実際にトラッシュへ置いた枚数
+  /**
+   * 🆕直前の `fieldTrash` コストで実際に場からトラッシュへ置いたシグニの体数（2026-09-07・§5.3 `O-271`）。
+   * 🔴**`{$ref:'last_processed_count'}` では取れない**＝あれは `ExecCtx.lastProcessedCards`（engine 内部の
+   *   直前ステップ）を読むので、**コスト支払いは1件も残らず必ず 0 になる**（＝帰結が丸ごと空振りする）。
+   * 読むのは `execUtils.resolveNum` の `$ref:'last_cost_field_trash_count'` 1点。
+   * ⚠支払いのたびに**上書き**する（`last_cost_energy_trash_count` と同じ規約）。
+   */
+  last_cost_field_trash_count?: number;
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   // 「**次の**対戦相手のターンの間、〜宣言されたカード名のスペルを使用できない」（§6.4 O-3・`PR-K046-E1`）。
@@ -825,9 +833,12 @@ export interface PlayerState {
    * ⚠**【常】宣言（`PREVENT_ZONE_MOVE_BY_OPP` / `PREVENT_NON_FIELD_MOVE_BY_OPP`）はここに載せない**＝
    *   場にあるかぎり有効なので `collectProtectedZones` が effectsMap から読む。両方の合成は
    *   `oppMoveProtectedZones`（`engine/effectEngine.ts`）1本。
-   * ⚠現行の保護は **hand / energy → トラッシュ**の移動だけ（既存 `PREVENT_NON_FIELD_MOVE_BY_OPP` と同じ近似）。
+   * 🆕**2026-09-07（意味照合 段2・`WXK10-004-E1`）＝守れる領域を5つへ広げた**
+   *   （`hand` / `energy` / `deck` / `trash` / `life`）。消費地点＝`movableTrashCandidates`（トラッシュから
+   *   動かす全経路の funnel）／`TRASH{DECK_CARD}`（ミル）／`execLifeCrash`（効果によるクラッシュ）／
+   *   `EXILE` の hand・energy 分岐。⚠**ダメージによるクラッシュは対象外**（ルール処理＝効果ではない）。
    */
-  opp_move_immunity?: { zones: ('hand' | 'energy')[]; turnsRemaining: number }[];
+  opp_move_immunity?: { zones: import('./effects').OppMoveImmunityZone[]; turnsRemaining: number; excludeCrash?: true }[];
   // このターンのメインフェイズ／アタックフェイズの間、**自分の効果では**自分のトラッシュにある
   // カードを他の領域へ移動できない（LOCK_OPP_TRASH_MOVE＝タスク12(lxxiii)）。
   // ⚠止めるのは所有者**自身**の効果だけ＝相手の効果によるトラッシュ回収（STEAL_OPP_TRASH_PUPPET 等）は通す。

@@ -147,6 +147,7 @@ const LEVEL_REFS = ['last_processed_level', 'stored_target_level'];
 const numJa = (n: any) => typeof n === 'object'
   ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の'
     : n?.$ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数の'
+    : n?.$ref === 'last_cost_field_trash_count' ? 'コストで場からトラッシュに置いたシグニの体数と同じ数の'
     : n?.$ref === 'cards_drawn_this_attack_phase' ? 'このアタックフェイズ中に引いた枚数と同じ数の'
     // 🆕2026-08-31 続き748＝「このターンにあなたの〈filter〉のシグニがクラッシュした相手ライフ1枚につき」。
     : n?.$ref === 'left_field_under_count' ? 'このシグニの下にあったカードの枚数と同じ数'
@@ -195,6 +196,7 @@ function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
 function refCountJa(ref: string): string {
   const m: Record<string, string> = {
     last_processed_count: 'この方法で処理したカード1枚',
+    last_cost_field_trash_count: 'コストで場からトラッシュに置いたシグニ1体',
     last_processed_level_sum: 'この方法で処理したカードのレベル合計1',
     bet_coins_paid: 'ベットした《コイン》1枚',
     // 🆕§5.3 `O-259` 第11バッチ＝ベットしたコインのうち「①（コスト軽減）に回さなかった」枚数。
@@ -526,6 +528,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
     return `${own}${filterJa(t.filter)}${u}をこの方法で処理した枚数と同じ数だけ`.trim();
   }
+  // 🆕§5.3 `O-271`＝コスト支払いで場からトラッシュした体数（`last_processed_count` とは読み元が別）。
+  if (typeof t.count === 'object' && t.count?.$ref === 'last_cost_field_trash_count') {
+    return `${own}${filterJa(t.filter)}${u}をコストで場からトラッシュに置いたシグニの体数と同じ数だけ`.trim();
+  }
   if (typeof t.count === 'object' && t.count?.$ref === 'cards_drawn_this_attack_phase') {
     return `${own}${filterJa(t.filter)}${u}をこのアタックフェイズ中に引いたカードの枚数まで`.trim();
   }
@@ -549,6 +555,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     const ref = (n as { $ref?: string } | null)?.$ref;
     return ref === 'center_lrig_level' ? 'あなたのセンタールリグのレベルと同じ数'
       : ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数'
+      : ref === 'last_cost_field_trash_count' ? 'コストで場からトラッシュに置いたシグニの体数と同じ数'
       : ref === 'last_processed_level_sum' ? 'この方法で処理したレベル合計と同じ数'
       : ref ? `〈${ref}〉` : String(n);
   };
@@ -755,7 +762,8 @@ function costJa(c?: any): string {
   if (c.energyTrash) parts.push(`エナゾーンから${constraintJa(c.energyTrash.selectionConstraint)}${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
   if (c.charmTrash != null) parts.push(`場の【チャーム】${c.charmTrash}枚をトラッシュ`);
   if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
-  if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
+  // 🆕§5.3 `O-271`＝`upToCount`（「N体まで」）を出さないと**逆翻訳から可変枚数が消える**（原文照合で検出できなくなる）。
+  if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体${c.fieldTrash.upToCount ? 'まで' : ''}をトラッシュ`);
   if (c.fieldTrashGroups) parts.push(`場から${c.fieldTrashGroups.map((g: any) => `${filterJa(g.filter)}シグニ${g.count}体`).join('と')}をトラッシュ`);
   // fieldBanish: 行き先はエナゾーン＝「トラッシュ」と書き分ける（§5.3 `O-67`）。
   if (c.fieldBanish) parts.push(`${c.fieldBanish.excludeSelf ? '他の' : ''}${filterJa(c.fieldBanish.filter)}シグニ${c.fieldBanish.count}体をバニッシュ`);
@@ -2783,9 +2791,12 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${periodPD}${whoPD}はダメージを受けない`;
     }
     case 'ZONE_MOVE_IMMUNITY': {
-      const zonesJa = a.zones.map((z: string) => (z === 'hand' ? '手札' : 'エナゾーン')).join('と');
+      // 🆕意味照合 段2（2026-09-07）＝**5領域を書き分ける**。旧実装は `hand` 以外を全部「エナゾーン」と
+      //   訳しており、engine が hand/energy しか守れないことと**同じ嘘で一致**していた。
+      const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
+      const zonesJa = a.zones.map((z: string) => ZONE_JA[z] ?? z).join('と');
       const periodJa = a.turns >= 2 ? 'このターンと次のターンの間、' : 'このターン、';
-      return `${periodJa}対戦相手の効果によって${a.owner === 'opponent' ? '対戦相手' : 'あなた'}の${zonesJa}にあるカードは移動しない`;
+      return `${periodJa}${a.excludeCrash ? 'クラッシュ以外の' : ''}対戦相手の効果によって${a.owner === 'opponent' ? '対戦相手' : 'あなた'}の${zonesJa}にあるカードは移動しない`;
     }
     case 'SET_LRIG_BASE_LIMIT':
       return `${a.untilNextMainPhase ? '次のあなたのメインフェイズまで、' : ''}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のルリグの基本リミットは${a.value}になる`;

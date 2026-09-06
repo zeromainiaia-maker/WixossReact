@@ -1125,7 +1125,14 @@ export interface EffectCost {
   beat_signi_from_trash?: { count: number; filter?: TargetFilter }; // トラッシュからシグニN体を【ビート】にする（コスト・WDK14-013）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
   // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
-  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）
+  /**
+   * 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）。
+   * 🆕**`upToCount`**（2026-09-07・§5.3 `O-271`）＝原文の「シグニを**３体まで**場からトラッシュに置く」＝
+   * **可変枚数**（0〜N を支払う側が選ぶ）。🔴**無いと「N体いないと撃てない」過小実行になる**うえ、
+   * 帰結が「この方法でトラッシュに置いた1体につき」の札は**枚数を選べない別の効果**に化ける。
+   * ⚠支払った枚数は `PlayerState.last_cost_field_trash_count` に載る（`$ref:'last_cost_field_trash_count'`）。
+   */
+  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean; upToCount?: true };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタの場シグニを組で指定（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」WX04-040-E2）。fieldTrashと併用不可
   /**
    * 自分の場のシグニN体を**バニッシュする**コスト（「他の＜古代兵器＞のシグニ１体をバニッシュする：」
@@ -3678,10 +3685,25 @@ export interface PreventDamageAction {
 export interface ZoneMoveImmunityAction {
   type: 'ZONE_MOVE_IMMUNITY';
   owner: Owner;
-  zones: ('hand' | 'energy')[];
+  zones: OppMoveImmunityZone[];
   /** 有効なグローバルターン数。「このターンと次のターンの間」＝2。 */
   turns: number;
+  /**
+   * 🆕「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）＝
+   * 効果による**ライフクロスのクラッシュ**は素通しする。省略＝クラッシュも止める。
+   */
+  excludeCrash?: true;
 }
+
+/**
+ * 「対戦相手の効果によって〈領域〉のカードは（他の領域に）移動しない」で守れる領域。
+ * 🆕**2026-09-07・意味照合 段2（`WXK10-004-E1`）＝`'deck' | 'trash' | 'life'` を追加**。
+ * 🔴従来は `hand`/`energy` の2つしか無く、原文「**場以外のあなたの領域**」の札は
+ *   デッキ・トラッシュ・ライフが**まったく保護されていなかった**（逆翻訳も「手札とエナゾーン」と書いており
+ *   engine と表示が同じ嘘で一致していた）。
+ * ⚠**`'life'` はクラッシュ以外の移動も含む**（`excludeCrash` で crash だけ外す）。
+ */
+export type OppMoveImmunityZone = 'hand' | 'energy' | 'deck' | 'trash' | 'life';
 
 /**
  * 「このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3 続き492）。

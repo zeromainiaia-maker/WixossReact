@@ -3,6 +3,15 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## （type増減なし＝値/構造変更） ［2枚］
+SPDi44-16 WX25-P1-030
+--- SPDi44-16
+  原文: 【起】《ターン１回》《黒》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜古代兵器＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。【起】《ゲーム１回》プライマル　シグニを３体まで場からトラッシュに置く：あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につきシグニ１枚を対象とし、
+  ~ [1].action.source.count.$ref : "last_processed_count" → "last_cost_field_trash_count"
+--- WX25-P1-030
+  原文: 【起】《ターン１回》《黒》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜古代兵器＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。【起】《ゲーム１回》プライマル　シグニを３体まで場からトラッシュに置く：あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につきシグニ１枚を対象とし、
+  ~ [1].action.source.count.$ref : "last_processed_count" → "last_cost_field_trash_count"
+
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002
@@ -20,10 +29,4 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
-
-## +CENTER_LRIG_OR_SIGNI -SIGNI ［1枚］
-WXDi-P09-036
---- WXDi-P09-036
-  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のシグニかルリグ１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開されたカードがどちらも【ライフバースト】を持っているか、どちらも【ライフバースト】を持っていない場合、そのアタックを無効にする。」を得る。,-
-  ~ [0].action.abilities[0].action.matchAction.target.type : "SIGNI" → "CENTER_LRIG_OR_SIGNI"
 

@@ -53,7 +53,7 @@ export interface ExecCtx {
   trapSetOwners?: Owner[]; // この解決中に【トラップ】を設置した側（効果主から見た owner。設置1回につき1要素）
   // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
   // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
-  otherProtectedZones?: ('hand' | 'energy')[];
+  otherProtectedZones?: import('../types/effects').OppMoveImmunityZone[];
   // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手の効果で能力を失えないシグニ（otherState のカード番号）
   otherProtectedSigniNums?: string[];
   // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_BOUNCE_AND_DOWN_BY_OPP
@@ -216,6 +216,13 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
     return n.filter
       ? cards.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
       : cards.length;
+  }
+  // 🆕**コストで場からトラッシュした体数**（2026-09-07・§5.3 `O-271`・`SPDi44-16-E2` /`WX25-P1-030-E2`）＝
+  //   「この方法でトラッシュに置いたシグニ1体につき」。
+  // 🔴**`last_processed_count` では取れない**＝あれは `ExecCtx.lastProcessedCards`（engine 内部の直前ステップ）
+  //   を読むので、**コスト支払いは1件も残らず必ず 0**＝帰結が丸ごと空振りする。
+  if (n.$ref === 'last_cost_field_trash_count') {
+    return Math.max(0, ctx.ownerState.last_cost_field_trash_count ?? 0);
   }
   if (n.$ref === 'last_processed_level_sum') {
     return (ctx.lastProcessedCards ?? []).reduce((sum, cardNum) => {
@@ -2026,11 +2033,37 @@ export function trashCandidates(state: PlayerState, filter: TargetFilter | undef
  * トラッシュを発生源にする候補列。`trashCandidates` にロック判定（`isOwnTrashMoveLocked`）を被せたもの。
  * ロック中は候補0＝アクションは「対象がない」で自然に no-op する（盤面を巻き戻す必要がない）。
  */
+/**
+ * 🆕**「（このターンと次のターンの間、）対戦相手の効果によって〈領域〉のカードは他の領域に移動しない」**
+ * が、いまその移動を止めるか（2026-09-07・意味照合 段2・`WXK10-004-E1` / `WXEX2-22-E1`）。
+ *
+ * 🔑**`tgtOwner === 'opponent'` のときだけ効く**＝保護は「**対戦相手の**効果によって」なので、
+ * 自分の効果で自分のカードを動かすぶんには関係ない（`hand`/`energy` の既存2地点と同じ向き）。
+ * 🔑**読み元は2つ**＝呼び出し側が組んだ `ctx.otherProtectedZones`（【常】版の動的計算）と、
+ * `state` から直接読める `opp_move_immunity`（期間つき予約）。**ctx を組まない経路があるので両方見る。**
+ */
+export function oppZoneMoveBlocked(
+  zone: import('../types/effects').OppMoveImmunityZone, tgtOwner: Owner, ctx: ExecCtx,
+): boolean {
+  if (tgtOwner !== 'opponent') return false;
+  if (ctx.otherProtectedZones?.includes(zone)) return true;
+  for (const entry of ctx.otherState?.opp_move_immunity ?? []) {
+    if (entry.turnsRemaining <= 0) continue;
+    if (entry.zones.includes(zone)) return true;
+  }
+  return false;
+}
+
 export function movableTrashCandidates(
   owner: Owner, state: PlayerState, filter: TargetFilter | undefined,
   cardMap: Map<string, CardData>, ctx: ExecCtx, allZoneClassOverrides?: Record<string, string>,
 ): string[] {
   if (isOwnTrashMoveLocked(owner, ctx)) return [];
+  // 🆕**「対戦相手の効果によって〈トラッシュ〉のカードは他の領域に移動しない」**（2026-09-07・意味照合 段2
+  //   `WXK10-004-E1`＝「場以外のあなたの領域」）。🔴従来この保護は `hand`/`energy` の2つしか無く、
+  //   **トラッシュは1件も守られていなかった**。⚠ここは**トラッシュから動かす全経路の funnel**
+  //   （除外／手札へ／エナへ／デッキへ）＝1点で塞ぐ。ロックと同じく**候補0**で表す。
+  if (oppZoneMoveBlocked('trash', owner, ctx)) return [];
   // §6.4 O-10（続き514）＝「対戦相手のトラッシュ…にあるカードは…効果を受けない」（`WX12-023`）。
   // 🔑**宣言者は `owner` の対面**＝`owner==='self'` なら相手の場、`'opponent'` なら効果主の場を見る。
   // ⚠ロックと同じく候補0で表す＝アクションは「対象がない」で自然に no-op する（盤面を巻き戻さない）。
