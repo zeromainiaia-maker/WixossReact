@@ -137,7 +137,7 @@ node scripts/groupSimilar.mjs --all   # 同型★
 # 依頼：<タスク名>
 
 作業ディレクトリ / HEAD / 作業ツリー clean の明示
-まず読むもの（CLAUDE.md・PLAN.md §4・BUGFIXES.md 先頭）＋「あなたが続きNNN でやった作業の続き」
+まず読むもの（CLAUDE.md・**docs/LESSONS.md**〔旧 PLAN §4＝2026-09-06 に分離〕・BUGFIXES.md 先頭）＋「あなたが続きNNN でやった作業の続き」
 
 ## 背景＝バグの正体
 （なぜ実害なのか。逆翻訳では気付けない偽陰性なら、それを明記）

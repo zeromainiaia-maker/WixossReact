@@ -5641,6 +5641,23 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第195バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第195バッチ）＝🏁索引 E も残0＝§5.3 機構 worklist が全項目クローズ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  🔴**「0＝正しい」ではない**（計器が見ていないだけ＝`census:cards` の出力にも毎回そう出る）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件 / 347キー**（据置）。
+  📦**在庫**＝**機構 worklist 2 → 0項目**＝索引 **A' 0／A 0／B 0／G 0／E 0**。
+  **⑤実機 残 0件**（据置）。`_held_fresh` 1（`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**／**live PARTIAL 15**（据置＝`public/data/` は無変更）。
+  🔧**ゲート（全緑 ✅）**＝golden **3550 / 3550**（据置＝この巡は `src/` を1バイトも変えていない）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**反転確認**＝索引の `🏁**残0**` 宣言を1つ壊すと `census:cards` の ⚠ 警告が戻る（実測）。
+  🖥**実機**＝**不要**（触ったのは `docs/` と `scripts/cardProgressCensus.mjs` のみ＝§2.2 の機械判定）。
+  ⚠**この巡は「較正」であって前進ではない**（PLAN §3 の原則）＝カードの挙動は1件も変わっていない。
+
 ### 恒久指標アーカイブ（2026-09-06・第194バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第194バッチ）＝🏁索引 G の2件（`O-266`／`O-267`）クローズ／`V-174`・`V-175` 登録・同日返済（Opus 5 単独／本ブロックが直近の正）**
