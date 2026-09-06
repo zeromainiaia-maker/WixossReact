@@ -156,6 +156,20 @@ export function trashActivateVerbLabel(effect: CardEffect): string {
   return walk(effect.action) ?? 'トラッシュから出す';
 }
 
+/**
+ * 🆕**支払いモーダルが出す「何が起きるか」の文言**（2026-09-06・§5.1 `V-168`）。
+ * 🔴**動詞ラベルと同じ1本から決める**＝モーダル側だけ固定文言のままにすると、
+ *   `O-114` で動詞ラベルを直したときと同じ片肺になる（実際 `trashExile.self` の
+ *   自己除外【起】は「トラッシュから場に出す」と嘘をついていた＝カードは場に出ず除外される）。
+ */
+export function trashActivateOutcomeLabel(effect: CardEffect): string {
+  if (effect.energyActivated) return 'エナゾーンから手札に加える';
+  const verb = trashActivateVerbLabel(effect);
+  if (verb === 'このカードを除外して発動') return 'このカードをゲームから除外する';
+  if (verb === '手札に加える') return 'トラッシュから手札に加える';
+  return 'トラッシュから場に出す';
+}
+
 export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op: PlayerState): string[] {
   const cost = effect.cost;
   if (!cost) return [];

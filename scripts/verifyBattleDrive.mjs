@@ -52088,6 +52088,223 @@ order.push('v167DeclaredColorTrashAll');
 order.push('v167DeclaredColorKeepsAll');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-168`（§5.3 `O-262`）＝**トラッシュ自己除外【起】の入口**
+//   （`WX19-070` 幻獣　アルバト の
+//    「【起】トラッシュにあるこのカードをゲームから除外する：あなたのレベル４以上の
+//     ＜空獣＞か＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る」）。
+//
+// 🔴**旧 live は `trashActivated` が立っていなかった**＝原文コスト「トラッシュにあるこのカードを
+//   ゲームから除外する」を持つ【起】10効果すべてが**両方向に壊れていた**：
+//   🔻**過少**＝トラッシュUIの入口（`getMyTrashCardActions`）は `trashActivated` を見る
+//     ＝**一度も提示されない恒久 no-op**。
+//   🔺**過剰**＝シグニなので**場の【起】としては提示され**、しかも `trashExile.self` の支払いは
+//     `trash.filter(cn => cn !== cardNum)`＝**場の札はトラッシュに無いので1枚も減らず、
+//     コストを踏み倒して撃てた**。
+//
+// 🔑**この2本（正方向＋対照）で過少と過剰を同時に否定する。**
+//   **観測点（正方向）**＝トラッシュの `WX19-070` をタップ →「【起】このカードを除外して発動」が出る →
+//     押して支払うと ①`trash` から消えて `lrig_trash`（除外置き場）へ移り
+//     ②`WX01-086`（Lv4 ＜空獣＞）の `keyword_grants` に【ランサー】が載る。
+//   🔁**負方向の対照（1ビット反転）**＝**同じカードを場のゾーン2へ置くだけ**（トラッシュは空）＝
+//     タップしても**【起】が1つも出ない**（旧はここで提示され、しかもコストを踏み倒せた）。
+//
+// ⚠**対照の witness**＝場の【起】が無いシグニは `getMySigniZoneActions` が **`[]` を返す**ので、
+//   「ボタンが1つも無い」だけでは*モーダルが開いていないだけ*と区別が付かない（罠4）。
+//   ⇒ **StackModal が開いて `WX19-070` を表示していること**まで確かめてから「出ない」と判定する。
+// ⚠**罠18**＝場のシグニをタップして開くのは `CardModal` ではなく **`StackModal`**
+//   （`v14OpenSigniActionLabels` が両方を許す locator を持っているので流用する）。
+// ⚠**罠32**＝複合属性セレクタは当たらない＝`data-action-label` を全部読んでから `card-action-{i}` を押す。
+// ⚠**罠1**＝`field.check` を両側に必ず入れる。⚠**`field.signi` はスタックの配列**。
+// ⚠**対象は副作用の無いバニラを使う**（罠35b）＝`WX01-086` は EffectText が `-`・`Restriction` も `-`。
+//   候補が1体だけなので選択モーダルは出ない（罠8l）＝そのまま付与まで走る。
+// ══════════════════════════════════════════════════════════════════════════════
+const V168_CARD = 'WX19-070#1';     // 幻獣　アルバト（緑・精生：空獣・Lv3）＝自己除外【起】の持ち主
+const V168_TARGET = 'WX01-086#1';   // 幻獣　イグル（Lv4 ＜空獣＞ P15000・**バニラ**）＝付与先
+const V168_ACT_PREFIX = '【起】このカードを除外して発動';
+const V168_ACT_LABEL = '【起】このカードを除外して発動（このカードをゲームから除外）';
+
+const v168Spec = (inTrash) => ({
+  hostSet: {
+    'field.lrig': ['WD01-003#1'],
+    // 正方向＝付与先だけ。対照＝**同じ盤面にアルバトを場のゾーン2へ足すだけ**の1ビット反転。
+    'field.signi': inTrash ? [[V168_TARGET], null, null] : [[V168_TARGET], [V168_CARD], null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    trash: inTrash ? [V168_CARD] : [],
+    lrig_trash: [],
+    keyword_grants: {},
+    hand: [],
+    energy: [],
+    abilities_removed: [],
+    actions_done: [],
+    game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    abilities_removed: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** トラッシュゾーン → 先頭カードの CardModal を開き、アクションを testid つきで読む。 */
+async function v168OpenTrashCardActions(page, H) {
+  await H.closeModals();
+  const zoneClick = await H.clickTestId('my-trash');
+  await page.waitForTimeout(400);
+  const cardClick = await H.clickTestId('zone-card-0');
+  const modal = page.getByTestId('card-detail-modal').first();
+  let items = [], modalVisible = false;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    if (await modal.count() && await modal.isVisible().catch(() => false)) {
+      modalVisible = true;
+      items = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(
+        els => els.map(el => ({ tid: el.getAttribute('data-testid'), label: el.getAttribute('data-action-label') ?? '' })));
+      if (items.length > 0) break;
+    }
+  }
+  return { zoneClick, cardClick, modalVisible, items };
+}
+
+const v168DriveFromTrash = async (page, H) => {
+  await H.closeModals();
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const trash0 = st0?.host?.trashCards ?? [];
+  const field0 = (st0?.host?.fieldSigni ?? []).flatMap(z => z ?? []);
+  if (!trash0.includes(V168_CARD) || !field0.includes(V168_TARGET)) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（trash=' + JSON.stringify(trash0)
+      + ' field=' + JSON.stringify(field0) + '）' };
+  }
+  const opened = await v168OpenTrashCardActions(page, H);
+  H.log('  トラッシュ CardModal: zone=' + (opened.zoneClick ?? 'なし') + ' card=' + (opened.cardClick ?? 'なし')
+    + ' visible=' + opened.modalVisible + ' actions=' + JSON.stringify(opened.items.map(a => a.label)));
+  if (!opened.modalVisible) {
+    return { pass: false, detail: 'トラッシュの CardModal が開かなかった（zone=' + (opened.zoneClick ?? 'なし')
+      + ' card=' + (opened.cardClick ?? 'なし') + '）＝【起】の有無は判定しない' };
+  }
+  const hit = opened.items.find(a => a.label.startsWith(V168_ACT_PREFIX));
+  if (!hit) {
+    return { pass: false, detail: '🔴トラッシュUIに自己除外【起】が1つも出ない＝恒久 no-op の再発'
+      + '（actions=' + JSON.stringify(opened.items.map(a => a.label)) + '）' };
+  }
+  if (hit.label !== V168_ACT_LABEL) H.log('  ⚠ラベルが想定と違う: ' + hit.label);
+  await H.clickTestId(hit.tid);
+
+  let paid = false, payLabel = null, settled = 0, last = st0;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: SHOT + '/v168trash-' + s + '.png', fullPage: true }).catch(() => {});
+    let did = null;
+    if (!paid) {
+      const pay = page.getByTestId('trashact-pay').first();
+      if (await pay.count() && await pay.isVisible().catch(() => false)) {
+        // 🔑**支払いボタンの文言も観測点**＝旧は「発動する（トラッシュから場に出す）」固定で、
+        //   除外されて終わるこの【起】に**嘘の予告**を出していた（`O-114` の片肺が残っていた）。
+        payLabel = ((await pay.textContent().catch(() => '')) ?? '').replace(/\s+/g, '');
+        if (await pay.isEnabled().catch(() => false)) {
+          await pay.click({ timeout: 1200 }).catch(() => {}); did = 'trashact-pay'; paid = true;
+        } else { H.log('  (trashact-pay が disabled＝コストが払えない扱いになっている)'); }
+      }
+    }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    H.log('  v168trash[' + s + '] -> ' + (did ?? 'なし') + ' | paid=' + paid
+      + ' trash=' + JSON.stringify(last?.host?.trashCards)
+      + ' lrigTrash=' + JSON.stringify(last?.host?.lrigTrashCards)
+      + ' grants=' + JSON.stringify(last?.host?.keywordGrants)
+      + ' pEff=' + (last?.pendingEffect ?? '-') + ' stack=' + (last?.stackLen ?? '-'));
+    settled = (paid && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+
+  const trash1 = last?.host?.trashCards ?? [];
+  const exile1 = last?.host?.lrigTrashCards ?? [];
+  const grants1 = last?.host?.keywordGrants ?? [];
+  const dump = 'trash ' + JSON.stringify(trash0) + ' → ' + JSON.stringify(trash1)
+    + ' / 除外置き場=' + JSON.stringify(exile1) + ' / grants=' + JSON.stringify(grants1)
+    + ' / 支払いボタン=「' + (payLabel ?? '-') + '」';
+  H.log('  判定: ' + dump);
+  if (!paid) return { pass: false, detail: '支払いモーダル（trashact-pay）に到達しなかった。' + dump };
+  if (trash1.includes(V168_CARD)) {
+    return { pass: false, detail: '🔴コストを踏み倒した＝トラッシュから1枚も減っていない。' + dump };
+  }
+  if (!exile1.includes(V168_CARD)) {
+    return { pass: false, detail: '🔴除外置き場（lrig_trash）に入っていない＝行き先が違う。' + dump };
+  }
+  const lancer = grants1.some(g => g.startsWith(V168_TARGET + ':') && /ランサー/.test(g));
+  if (!lancer) {
+    return { pass: false, detail: '🔴コストは払われたのに本体（【ランサー】付与）が走っていない。' + dump };
+  }
+  // UI 文言の嘘（「トラッシュから場に出す」）はこの【起】では起きえない＝ここも固定する。
+  if (payLabel && !/ゲームから除外/.test(payLabel)) {
+    return { pass: false, detail: '🔴支払いボタンが行き先を偽っている（除外されるのに「' + payLabel + '」）。' + dump };
+  }
+  return { pass: true, detail: 'トラッシュUIから提示され、自身が除外され、Lv4＜空獣＞に【ランサー】が付いた。' + dump };
+};
+
+const v168DriveFromField = async (page, H) => {
+  await H.closeModals();
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const zones0 = (st0?.host?.fieldSigni ?? []).map(z => z ?? []);
+  const trash0 = st0?.host?.trashCards ?? [];
+  if (!(zones0[1] ?? []).includes(V168_CARD)) {
+    return { pass: false, detail: '前提崩れ＝アルバトが場のゾーン2に載っていない（field=' + JSON.stringify(zones0) + '）' };
+  }
+  if (trash0.length !== 0) {
+    return { pass: false, detail: '前提崩れ＝トラッシュが空でない＝正方向との1ビット反転になっていない（trash='
+      + JSON.stringify(trash0) + '）' };
+  }
+  const r = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-1');
+  const modal = page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').first();
+  const text = r.modalVisible ? ((await modal.innerText().catch(() => '')) ?? '').replace(/\s+/g, '') : '';
+  H.log('  場シグニ StackModal: opened=' + r.opened + ' visible=' + r.modalVisible
+    + ' actions=' + JSON.stringify(r.labels) + ' text=' + JSON.stringify(text.slice(0, 60)));
+  if (!r.modalVisible) {
+    return { pass: false, detail: '対照のモーダルが開かなかった（opened=' + r.opened + '）＝「出ない」とは判定しない' };
+  }
+  // 🔑**witness**＝この【起】が無いシグニのアクションは `[]` なので、ボタン0件だけでは
+  //   「モーダルが開いていないだけ」と区別が付かない。**アルバトを表示していること**まで見る。
+  if (!/WX19-070/.test(text)) {
+    return { pass: false, detail: '対照の witness 不成立＝開いたモーダルがアルバトを表示していない（text='
+      + JSON.stringify(text.slice(0, 120)) + '）' };
+  }
+  const leaked = r.labels.filter(l => l.startsWith('【起】'));
+  const last = await H.queryState();
+  const dump = 'actions=' + JSON.stringify(r.labels)
+    + ' trash=' + JSON.stringify(last?.host?.trashCards)
+    + ' 除外置き場=' + JSON.stringify(last?.host?.lrigTrashCards);
+  if (leaked.length > 0) {
+    return { pass: false, detail: '🔴場の【起】として提示された＝入口が2つある（旧挙動＝'
+      + 'トラッシュから1枚も減らないままコストを踏み倒せる）。' + dump };
+  }
+  return { pass: true, detail: '対照成立＝同じカードでも場に在るときは【起】が1つも出ない'
+    + '（モーダルはアルバトを表示済み）。' + dump };
+};
+
+scenarios.v168TrashSelfExileActOffered = {
+  title: 'V-168(1): WX19-070 の自己除外【起】がトラッシュUIから撃てて、自身が除外され【ランサー】が付く【旧実装は一度も提示されない】',
+  spec: v168Spec(true),
+  async drive(page, H) { return v168DriveFromTrash(page, H); },
+};
+
+scenarios.v168FieldSelfExileActHidden = {
+  // 🔴**対照**＝盤面も操作も同じで、**アルバトの居場所だけ**をトラッシュ→場のゾーン2に変える1ビット反転。
+  title: 'V-168(2): 対照＝同じカードが場に在るときは【起】が1つも出ない（コスト踏み倒しの入口を塞いだ）',
+  spec: v168Spec(false),
+  async drive(page, H) { return v168DriveFromField(page, H); },
+};
+
+order.push('v168TrashSelfExileActOffered');
+order.push('v168FieldSelfExileActHidden');
+
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

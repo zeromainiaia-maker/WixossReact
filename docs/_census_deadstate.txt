@@ -9,7 +9,7 @@ PlayerState のキー: 344
   1395 読 /  99 書  energy
   1182 読 /  71 書  deck
   3573 読 /  69 書  field
-  1555 読 /  64 書  trash
+  1561 読 /  64 書  trash
   1729 読 /  60 書  hand
    193 読 /  39 書  lrig_deck
     53 読 /  39 書  temp_power_mods

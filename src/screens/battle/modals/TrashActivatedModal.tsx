@@ -8,7 +8,7 @@ import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { energyCostToString, canAffordGrowCost, isMultiEna } from '../costs';
 import {
-  trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateVerbLabel,
+  trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateOutcomeLabel,
   trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied,
 } from '../trashActivateCost';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -104,8 +104,10 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                       onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{taCard.CardName}</p>
+                      {/* 🆕**何が起きるかは `trashActivateOutcomeLabel` の1本から出す**（§5.1 `V-168`）＝
+                          固定文言だと自己除外【起】・自己回収【起】・エナゾーン起動【起】で嘘になる。 */}
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
-                        このシグニをトラッシュから場に出す
+                        {trashActivateOutcomeLabel(taEffect)}
                       </p>
                       <p data-testid="trashact-cost-summary"
                         data-coin-cost={taEffect.cost?.coin ?? 0}
@@ -261,12 +263,10 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
                     {/* 🆕**文言は本体アクションと入口から決める**（§5.3 `O-114`・実機で発見）＝
                         旧はここが「トラッシュから場に出す」固定だったので、自己回収【起】や
-                        エナゾーン起動【起】で**嘘のラベル**を出していた（アクション出し側だけ直しても片肺）。 */}
-                    発動する（{taEffect.energyActivated
-                      ? 'エナゾーンから手札に加える'
-                      : trashActivateVerbLabel(taEffect) === '手札に加える'
-                        ? 'トラッシュから手札に加える'
-                        : 'トラッシュから場に出す'}）
+                        エナゾーン起動【起】で**嘘のラベル**を出していた（アクション出し側だけ直しても片肺）。
+                        🆕§5.1 `V-168`＝`trashExile.self` の自己除外【起】も同じ嘘を出していたので、
+                        3分岐を `trashActivateOutcomeLabel` の1本へ畳んだ。 */}
+                    発動する（{trashActivateOutcomeLabel(taEffect)}）
                   </button>
                 </>
               );
