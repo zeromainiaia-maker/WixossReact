@@ -1372,7 +1372,11 @@ export function collectTrashTriggers(
     //     メインフェイズのトラッシュでも発火していた（過剰発火）。他コレクタ（:1460/:1692/:1922 …）と同じ式。
     if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
     // 「効果によって」だけの文型はコストを含まない。effect 起因シグナルが無ければ発火しない。
-    if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+    // 🆕**`orResonaCondition` は「効果**か**レゾナの出現条件」の和集合**（§5.4 (b)・第190バッチ・`WD21-017-E1`）＝
+    //   レゾナの出現条件はコスト支払いなので `byEffectCause` が立たず、`byEffect` だけだと**永久に落ちる**。
+    //   🔴**`forResonaCondition`（排他ゲート）では代用できない**＝あちらにすると今度は効果起因が落ちる。
+    if (eff.triggerCondition?.byEffect && !byEffectCause
+        && !(eff.triggerCondition.orResonaCondition && resonaConditionCardNum)) continue;
     // 「あなたの効果によって」＝自分の効果起因のみ。コスト・バトル・ルール処理（!byEffectCause）と相手効果（causeByOpponent）を除外。
     if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
@@ -1594,6 +1598,13 @@ export function collectBanishTriggers(
     // 🆕「**バトル以外によって**バニッシュされたとき」（2026-08-31 §5.2・`WXDi-D06-013-E1`）。
     //   バトル経路だけが `battleAttackerNum` を渡すので、それが在るときは発火しない。
     if (eff.triggerCondition?.notByBattle && battleAttackerNum !== undefined) continue;
+    // 🆕🔴**`byEffect` を ON_BANISH でも見る**（§5.4 (b)・2026-09-06 第190バッチ・`WD21-017-E1`）＝
+    //   ここには `notByBattle` しか無く、**`byEffect` は素通りしていた**＝原文「**効果によって**
+    //   バニッシュされたとき」が**バトルバニッシュでも発火**していた（過剰発火）。
+    //   🔑**実機だけが出した**＝`collectTrashTriggers` を直接叩く golden では ON_BANISH 側を1度も通らない。
+    //   ⚠**原因シグナルは2つ**＝バトル（`battleAttackerNum`）と効果起因（`cause.ownerId`）。
+    //   ルール処理（どちらでもない）でも発火させない（`:93` の `byEffect && !causeOwnerId` と同じ向き）。
+    if (eff.triggerCondition?.byEffect && (battleAttackerNum !== undefined || !cause?.ownerId)) continue;
     if (eff.triggerCondition?.banishedWasUp
       && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
     if (eff.triggerCondition?.banishedHadCharm

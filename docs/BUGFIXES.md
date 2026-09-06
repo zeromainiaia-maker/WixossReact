@@ -1,5 +1,81 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第190バッチ）＝§5.4 (b)「本物の疑い」の残り2件＋**実機が engine の過剰発火を1件出した**
+
+**この巡の主産物は「実機が golden に見えないバグを出した」こと。** §5.4 の2件のうち
+**1件は完全クローズ、1件は JSON/parser/engine を直したが実経路の配線ギャップで発火しない**（→ §5.3 `O-265`）。
+
+### ① `WX25-P1-022-E2` の `PARTIAL` は **stale だった**（🏁クローズ）
+
+刻印を付けた時点の不足（「このターン、あなたはそれらを使用してもよい」の**権利化**）は
+**`O-185`（2026-09-04）で解決済み**で、**刻印だけが残っていた**。全軸を原文と突き合わせて確認：
+
+| 原文 | 受け皿 | 判定 |
+|---|---|---|
+| あなたと対戦相手のトラッシュから | `PLAY_FREE{source:'trash'}` ＋ `{source:'opp_trash'}` | ✅ |
+| それぞれ**１枚まで** | `SEARCH{maxPick:1}`（0枚確定を許す） | ✅ |
+| **このターン**、あなたはそれらを**使用してもよい** | `grantUseThisTurn`（`O-185`） | ✅ |
+| （コストは支払う） | `ignoreCost:false` | ✅ |
+| 《ゲーム１回》 | `usageLimit:'once_per_game'` | ✅ |
+| **ハプニング** | — | ✅**語彙の穴ではない**（下記） |
+
+🔑**「ハプニング」は能力のフレーバー名**＝`【起】《ゲーム１回》<名前>《色×N》` の `<名前>` は
+「プライマル」「カタルシス」「ルミナス」等で **live 40効果超**。**落として正しい**（コストでも条件でもない）。
+⚠CSV に「ハプニング」は2件あるが、もう1件は**カード名**（`WXDi-P14-035` グズ子～ハプニング～）。
+
+🔴**唯一の実害＝原文に無い `ignoreRestrictions:true`**（「限定条件を無視して」）。**外した。**
+同じ理由で **`WX24-P4-040-E2`** からも外した（原文に綴りが無い）。
+**残るのは `WX04-003-E1` / `WX05-011-E3` の2件だけ**＝どちらも原文に「限定条件を無視して」がある。
+⚠**`ignoreRestrictions` は engine に消費地点が1つも無い**（`src/` 全体で**生成と表示だけ**）＝
+挙動は変わらないが、受け皿が実装された瞬間に**原文にない自由度**を与える。⇒ §5.3 `O-264` へ登録。
+🔑**`census:deadstate` はこの形を見つけられない**（あれは `PlayerState` のキーしか走査しない）＝
+**アクション payload の死にキー**は無計器。ゲートは golden に「原文に綴りがある効果だけが持つ」で張った。
+
+### ② `WD21-017-E1`「効果**か**レゾナの出現条件によって」（⚠**半分だけ**）
+
+**真因**＝原文は**原因が2つの和集合**なのに live は `byEffect:true` だけ。
+レゾナの出現条件は**コスト支払い**なので `byEffectCause` が立たず、**その経路は永久に落ちていた**（過少）。
+🔑**既存の `forResonaCondition` では代用できない**＝あれは「レゾナ出現条件**のときだけ**」の**排他ゲート**
+（`WX10-055` / `WX14-049` / `WXEX1-58` / `WXEX1-72`）で、使うと**今度は効果起因が落ちる**。
+⇒ `byEffect` の**緩和フラグ** `orResonaCondition` を新設（型＋`collectTrashTriggers`＋parser＋逆翻訳＋golden）。
+🏁**parser 出力が manual と実体同一になったので手書きを削除**（§6.4 `O-40`／`O-42` の「影武者コピー」禁止）＝
+`censusOrphanManual --unfreeze` で解凍し、**live は parser 産の AUTO** になった。
+
+⚠🔴**ただし実機では発火しない**＝§5.3 `O-265`（下記）。**この項目は閉じていない。**
+
+### ③ 🔴**実機だけが出した engine の過剰発火**＝`ON_BANISH` に `byEffect` ゲートが無かった
+
+**真因**＝`collectBanishTriggers` の「バニッシュされたカード自身」ループには **`notByBattle` しか無く、
+`byEffect` は素通り**していた。⇒ 原文「**効果によって**バニッシュされたとき」が
+**バトルバニッシュでも発火**していた（過剰発火）。
+⇒ `byEffect` なら **バトル（`battleAttackerNum`）でもルール処理（`cause.ownerId` なし）でも発火しない**へ。
+**影響枚数**＝`ON_BANISH` ∧ `byEffect` ∧ `scope:'self'` の live 効果は **1件**（`WD21-017-E1`）＝安全。
+
+🔑🔴**golden では原理的に見えなかった**＝`WD21-017-E1` の検証は `collectTrashTriggers` を直接叩いており、
+**ON_BANISH 側の経路を1度も通らなかった**。**実機 `V-172(2)` の対照が赤にして初めて分かった。**
+⇒ **「1つの効果が2つの timing を持つとき、golden は片方しか通っていないことがある」**（新しい教訓）。
+
+**影響枚数**＝live **3効果 / 3カード**（`WX25-P1-022-E2`／`WX24-P4-040-E2`／`WD21-017-E1`）＋engine 1箇所。
+**検証コマンド**＝`npx tsx scripts/syncManualLive.ts <CardNum>` → `npm run build:effects`
+→ `npx tsx scripts/censusOrphanManual.ts --unfreeze WD21-017-E1` → `npm run regen` → `npm run gates`
+→ `node scripts/verifyBattleDrive.mjs v172BattleBanishDoesNotFire`。
+**ゲート（全緑 ✅）**＝golden **3544 / 3544**（3541 +3本）・smoke 全異常0・fuzz 全0・census **0 / BASELINE 0**・
+`census:stubs` A群🔴0・C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors。
+**反転確認＝3本**＝①`orResonaCondition` の緩和を外す→golden FAIL
+②原文に無い `ignoreRestrictions` を戻す→golden FAIL ③`ON_BANISH` の `byEffect` ゲートを外す→golden FAIL。
+🖥**実機**＝`v172BattleBanishDoesNotFire` **PASS**（③の受け入れ）。
+`v172ResonaConditionFires` は **`O-265` 待ちで `order` から外した**（シナリオは残す＝`O-265` の受け入れテスト）。
+
+🔑**教訓（新規2つ）**：
+1. **1効果が2つの timing を持つとき、golden は片方しか通っていないことがある。**
+   `WD21-017-E1` は `['ON_TRASH','ON_BANISH']` で、golden は `ON_TRASH` 側だけを叩いていた＝
+   **`ON_BANISH` 側は同じ `triggerCondition` を1度も評価していなかった**。
+   ⇒ **timing が複数ある効果は、collector を timing の数だけ叩く。**
+2. **「ゲートを完全に無効化しても発火しない」＝ゲートではなく配線の問題**（切り分けの型）。
+   `O-265` はこの1回の実測で「受け皿の不足」ではなく「呼ばれていない」と確定した。
+
+---
+
 ## 2026-09-06（第189バッチ）＝PLAN §5.4 (b)「本物の疑い」4件のうち**上2件**をクローズ
 
 **2件とも旧登録票の見立てが外れていた。** ①は「型を足す」必要が無く（受け皿が既にあった）、

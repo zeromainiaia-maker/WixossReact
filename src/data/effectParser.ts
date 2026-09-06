@@ -20584,6 +20584,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/バニッシュされるか場からトラッシュに置かれたとき/.test(trigText) && !timing.includes('ON_BANISH')) {
           timing.push('ON_BANISH');
         }
+        // 🆕**「効果**か**レゾナの出現条件によって」＝原因が2つ（和集合）**（§5.4 (b)・2026-09-06 第190バッチ）。
+        // 🔴レゾナの出現条件は**コスト支払い**なので `byEffectCause` が立たず、`byEffect` 単独では**永久に落ちる**。
+        //   ⚠**排他ゲート `forResonaCondition`（「レゾナの出現条件のために」）では代用できない**＝
+        //   あれにすると今度は効果起因が落ちる。⇒ `byEffect` の緩和フラグ `orResonaCondition` を併記する。
+        // ⚠原文は全CSVでこの1枚だけ（`WD21-017-E1`）。
+        if (/効果かレゾナの出現条件によって/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true, orResonaCondition: true };
+        }
         // 🆕**主語なしの「このカードが効果によって〜トラッシュに置かれたとき」**（2026-08-30・原文3枚＝
         //   `WX25-P3-109`「いずれかの領域から」／「デッキから」／「手札かデッキから」）。
         // 🔴下の `actorCause` は「**あなた／対戦相手の**効果によって」しか見ておらず、主語を書かない形が

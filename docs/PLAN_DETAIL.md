@@ -5578,6 +5578,28 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第189バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第189バッチ）＝§5.4 (b)「本物の疑い」上2件をクローズ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**据置の理由**＝語彙は増えていない（条件に軸を1本足し、既存フィルタ `isTriggerSource` を配線しただけ）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／
+  **`census:deadstate` 0件**（新設 `signi_left_field_to_trash_this_attack_phase` は書きも読みもある）。
+  📦**在庫**＝**機構 worklist 2項目**＝索引 **A 0／B 0／G 0／E 2**（E は計器の較正＝維持のみ）。
+  🏁**⑤実機 残 0件**＝`V-171`（2シナリオ）を**同じ巡で返済**。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**（第187 のラチェット・据置）／**fresh PARTIAL = live PARTIAL = 20**（据置）。
+  🔻**§5.4 (b) の残**＝**本物の疑い 4 → 2**（`WD21-017-E1` / `WX25-P1-022-E2`）＋機構待ち2。
+  🔧**ゲート（全緑 ✅）**＝golden **3541 / 3541**（3538 +3本＝`§5.4 (b) 第189` の3本）／
+  smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🔧**ラチェット更新**＝`PlayerState` ターン限定フィールド数 **52→53**／母集団 **82→83**（新設キー1本ぶん）。
+  🔁**反転確認3本**＝①live から `isTriggerSource` を外す→golden FAIL ②`evalCondition` を `destination` 無視へ戻す→golden FAIL
+  ③**同じ改変で実機の対照が FAIL**（`powerMods=["WD03-009#1:-7000"]`＝旧挙動を実機で再現）。
+  🖥**実機（第189）**＝`v171TrashedSigniLowersPower` / `v171BanishedSigniDoesNotLower`（**対照**）＝
+  **盤面は1文字も変えず、離場の行き先だけをトラッシュ↔エナで反転**した1ビット対。
+
 ### 恒久指標アーカイブ（2026-09-06・第188バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第188バッチ）＝PLAN §5.4 (b) の「逆翻訳の表示だけ」7件を1バッチ（Opus 5 単独／本ブロックが直近の正）**

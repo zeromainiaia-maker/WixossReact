@@ -68,4 +68,4 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execUtils.ts:1454 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:2511 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
   execUtils.ts:4156 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
-  triggerCollect.ts:1759 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+  triggerCollect.ts:1770 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

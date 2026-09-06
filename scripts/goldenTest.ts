@@ -69473,6 +69473,100 @@ test('§5.4 (b) 第189: detectLeftFieldSigniToTrash は行き先がトラッシ�
   ok(!toTrash.includes(SIGNI_P12000), '🔴エナへ行った1体は返さない');
 }));
 
+// ── §5.4 (b) 本物の疑い③＝`WD21-017-E1`「効果**か**レゾナの出現条件によって」（2026-09-06 第190バッチ）──
+// 🔴**原因が2つ（和集合）**なのに live は `byEffect:true` だけで、**レゾナの出現条件側が永久に落ちて**いた
+//   （レゾナの出現条件は**コスト支払い**なので `byEffectCause` が立たない）。
+// 🔑**既存の `forResonaCondition` では代用できない**＝あれは「レゾナ出現条件**のときだけ**」の**排他ゲート**
+//   （`WX10-055` / `WX14-049`）で、こちらへ使うと**今度は効果起因が落ちる**。⇒ 緩和フラグ `orResonaCondition`。
+test('§5.4 (b) 第190: WD21-017 は「効果」でも「レゾナの出現条件」でも発火する（和集合）', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WD21-017-E1');
+  ok(!!eff, 'WD21-017-E1 が live にある');
+  eq(eff!.triggerCondition?.byEffect, true, 'live: 効果起因の限定が残っている');
+  eq((eff!.triggerCondition as { orResonaCondition?: boolean } | undefined)?.orResonaCondition, true,
+    'live: レゾナ出現条件への緩和が載っている');
+
+  const fires = (entries: StackEntry[], effectId: string) => entries.some(e => e.effectId === effectId);
+  const hostId = 'H', guestId = 'G';
+  const selfInst = 'WD21-017#1';
+  const resonaInst = 'WX07-009#1';
+  const st = mkState({ signi: [selfInst, null, null] });
+  const ctx: TrigCtx = {
+    hostId, guestId, activeUserId: hostId, turnPhase: 'MAIN',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'g190',
+  };
+  // 効果起因（byEffectCause=true・レゾナなし）＝従来どおり発火
+  ok(fires(collectTrashTriggers(ctx, selfInst, hostId, st, mkState({}), false, true, true).entries, 'WD21-017-E1'),
+    '効果によって場からトラッシュ → 発火');
+  // 🔴レゾナ出現条件（byEffectCause=false・resonaConditionCardNum あり）＝**今回直した側**
+  ok(fires(collectTrashTriggers(ctx, selfInst, hostId, st, mkState({}), false, true, false, resonaInst).entries, 'WD21-017-E1'),
+    '🔴レゾナの出現条件で場からトラッシュ → 発火（旧実装はここが永久に落ちていた）');
+  // 🔴不成立方向＝バトル／ルール処理（どちらの原因でもない）は発火しない＝過剰発火へ戻していない
+  ok(!fires(collectTrashTriggers(ctx, selfInst, hostId, st, mkState({}), false, false, false).entries, 'WD21-017-E1'),
+    '🔴バトル／ルール処理では発火しない（原因の限定は残っている）');
+}));
+
+// ── §5.4 (b) 本物の疑い④＝`WX25-P1-022-E2` の `PARTIAL` は stale だった（2026-09-06 第190バッチ）──
+// 🔑「このターン使用してもよい」の権利化は **`O-185`（2026-09-04）で解決済み**で、刻印だけが残っていた。
+//   残っていた唯一の実害は **原文に無い `ignoreRestrictions`**（限定条件の無視）。
+test('§5.4 (b) 第190: 「限定条件を無視して」は原文にある効果だけが持つ', () => withSavedCursor(() => {
+  // 🔴`ignoreRestrictions` は **engine に消費地点が1つも無い**（生成と表示だけ＝§5.3 `O-264`）。
+  //   いまは挙動を変えないが、**受け皿が実装された瞬間に原文にない自由度**を与えるので、
+  //   「原文に綴りがある効果だけが持つ」を全数で固定する。
+  //   ⚠`census:deadstate` はこの形を見つけられない（あれは `PlayerState` のキーしか走査しない）。
+  const srcTexts = JSON.parse(fs.readFileSync(join(process.cwd(), 'docs/_effect_srctext.json'), 'utf-8')) as Record<string, string>;
+  const wrong: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      if (!JSON.stringify(e.action).includes('"ignoreRestrictions":true')) continue;
+      if (!/限定条件を無視/.test(srcTexts[e.effectId] ?? '')) wrong.push(e.effectId);
+    }
+  }
+  eq(wrong.length, 0, `原文に「限定条件を無視して」が無いのに ignoreRestrictions を持つ: ${wrong.join(', ')}`);
+
+  const e022 = [...effectsMap.values()].flat().find(e => e.effectId === 'WX25-P1-022-E2');
+  ok(!!e022, 'WX25-P1-022-E2 が live にある');
+  eq(e022!.parseStatus, 'MANUAL', 'stale だった PARTIAL 刻印を外した（レビュー印を残さない）');
+  const steps = (e022!.action as unknown as { steps: Array<Record<string, unknown>> }).steps;
+  eq(steps.length, 2, 'あなたと対戦相手の2枝');
+  ok(steps.every(st => st.grantUseThisTurn === true),
+    '両枝とも「このターン使用してもよい」＝権利を積むだけ（O-185）');
+  ok(steps.every(st => st.ignoreCost === false), '両枝とも「（コストは支払う）」');
+  ok(!JSON.stringify(steps).includes('ignoreRestrictions'), '🔴原文に無い「限定条件を無視して」は載せない');
+}));
+
+// ── §5.4 (b) 第190バッチ＝`ON_BANISH` 側の `byEffect` ゲート（**実機だけが出したバグ**）──
+// 🔴`collectBanishTriggers` の「バニッシュされたカード自身」ループには **`notByBattle` しか無く、
+//   `byEffect` は素通りしていた**＝原文「**効果によって**バニッシュされたとき」が
+//   **バトルバニッシュでも発火**していた（過剰発火）。
+// 🔑**golden では見えなかった**＝`WD21-017-E1` の検証は `collectTrashTriggers` を直接叩いており、
+//   ON_BANISH 側の経路を1度も通らなかった。**実機 `V-172(2)` の対照が赤にして初めて分かった。**
+test('§5.4 (b) 第190: ON_BANISH の byEffect はバトル／ルール処理で発火しない', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WD21-017-E1');
+  ok(!!eff, 'WD21-017-E1 が live にある');
+  ok(eff!.timing?.includes('ON_BANISH'), 'ON_BANISH を持つ（バニッシュ契機も原文にある）');
+
+  const HOSTID = 'H', GUESTID = 'G';
+  // ⚠**このループだけ `ctx.effectsMap.get(banishedCardNum)` を素で引く**（他の collector の `effsOf` と違って
+  //   `#` を剥がさない）＝golden の `effectsMap` はカード番号キーなので**素の番号**を渡す。
+  const selfInst = 'WD21-017';
+  const before = mkState({ signi: [selfInst, null, null] });
+  const after = mkState({ signi: [null, null, null] });
+  const ctx: TrigCtx = {
+    hostId: HOSTID, guestId: GUESTID, activeUserId: HOSTID, turnPhase: 'MAIN',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'g190b',
+  };
+  const has = (es: StackEntry[]) => es.some(e => e.effectId === 'WD21-017-E1');
+  // 成立＝効果起因（cause.ownerId あり・バトルではない）
+  ok(has(collectBanishTriggers(ctx, selfInst, HOSTID, after, mkState({}), before, { ownerId: HOSTID, sourceCardNum: 'X#1' }).entries),
+    '効果によってバニッシュ → 発火');
+  // 🔴不成立方向①＝バトルバニッシュ（`battleAttackerNum` が渡る）
+  ok(!has(collectBanishTriggers(ctx, selfInst, HOSTID, after, mkState({}), before, { ownerId: HOSTID }, 'ATK#1').entries),
+    '🔴バトルバニッシュでは発火しない（実機 V-172(2) が赤にした過剰発火）');
+  // 🔴不成立方向②＝ルール処理（原因の owner すら無い）
+  ok(!has(collectBanishTriggers(ctx, selfInst, HOSTID, after, mkState({}), before).entries),
+    '🔴ルール処理では発火しない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

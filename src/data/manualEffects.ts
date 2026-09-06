@@ -441,13 +441,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WD21-017 ／ 原文【自】：このシグニが**効果か**レゾナの出現条件**によって**、バニッシュされるか
   //   場からトラッシュに置かれたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
-  // 🔴旧 live＝原因の限定が丸ごと無く、**バトルでバニッシュされただけでも**発火していた（過剰発火）。
-  //   受け皿は既存の `triggerCondition.byEffect`（`ON_TRASH` / `ON_BANISH` の両 collector が消費）。
-  // ⚠**レゾナの出現条件（＝コスト支払い）側は拾えない**（コスト経路は `byEffect` を立てない）＝`PARTIAL`。
-  //   過小側へ倒す判断＝現状の「何でも発火」より原文に近い。§5.4(ii) に登録。
-  'WD21-017': [
-    {"effectId":"WD21-017-E1","effectType":"AUTO","timing":["ON_TRASH","ON_BANISH"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerCondition":{"fromZones":["field"],"byEffect":true}},
-  ],
+  // 🏁**2026-09-06 第190バッチで手書きを削除した**（§6.4 `O-40`／`O-42`＝**parser 出力と実体同一の
+  //   「影武者コピー」は置かない**＝置くと収穫マージが凍らせて parser の改善が永久に届かない）。
+  //   受け皿は `triggerCondition.byEffect` ＋ 🆕`orResonaCondition`（`effectParser.ts` が原文から立てる）。
 
   // WX14-057 ／ 原文【出】：対戦相手のパワー3000以下のシグニ**１体を対象とし**、あなたのトラッシュに
   //   カード名に《フレイスロ》を含むシグニが５枚以上ある場合、それをバニッシュする。
@@ -1093,8 +1089,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //     印刷コストは `USE_SPELL_FROM_TRASH_PAYING_COST` が請求する。
   //   🔴**旧はここが `ADD_TO_HAND` に落ちていた**＝選んだスペルが**手札に来て**いた
   //     （`opp_trash` 側は**相手のトラッシュから奪って**いた）＝原文と別物だった。
+  //   🆕**2026-09-06 第190バッチ＝`PARTIAL` は stale だった**（§5.4 (b) 本物の疑い④）。
+  //     刻印を付けた時点の不足（「このターン使用してもよい」の権利化）は **`O-185`（2026-09-04）で解決済み**で、
+  //     刻印だけが残っていた。⚠**「ハプニング」は語彙の穴ではない**＝`【起】《ゲーム１回》<名前>《色×N》` の
+  //     `<名前>` は**能力のフレーバー名**（「プライマル」「カタルシス」等で live 40効果超）＝落として正しい。
+  //   🔴**`ignoreRestrictions:true` を外した**＝原文に「限定条件を無視して」が**無い**（過剰な自由度）。
+  //     ⚠**engine には消費地点が1つも無い**（`src/` 全体で生成と表示だけ）＝挙動は変わらないが、
+  //     機構が実装された瞬間に**原文にない権利**を与えることになる。受け皿側は §5.3 `O-264` へ登録。
   'WX25-P1-022': [
-    {"effectId":"WX25-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"PLAY_FREE","source":"trash","filter":{"cardType":"スペル"},"ignoreCost":false,"optional":true,"grantUseThisTurn":true},{"type":"PLAY_FREE","source":"opp_trash","filter":{"cardType":"スペル"},"ignoreCost":false,"ignoreRestrictions":true,"optional":true,"grantUseThisTurn":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+    {"effectId":"WX25-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"PLAY_FREE","source":"trash","filter":{"cardType":"スペル"},"ignoreCost":false,"optional":true,"grantUseThisTurn":true},{"type":"PLAY_FREE","source":"opp_trash","filter":{"cardType":"スペル"},"ignoreCost":false,"optional":true,"grantUseThisTurn":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
   // WX22-Re02 ／ 原文【出】《緑×0》：**あなたのエナゾーンにある**《アクセアイコン》を持つ＜調理＞のシグニ１枚を
@@ -2336,11 +2339,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               // 🆕`targetsLastProcessed`（2026-08-31 続き759）＝原文「**その**スペルを」＝
               //   いま捨てさせたカードそのもの。無いと**相手トラッシュの別のコスト1以下スペル**を使えた
               //   （条件側は既に在ったので、残っていたのは照応だけ）。
+              // 🔴**`ignoreRestrictions` は外した**（§5.4 (b)・2026-09-06 第190バッチ）＝
+              //   原文に「**限定条件を無視して**」が無い（あるのは `WX04-003` / `WX05-011` の2枚だけ）。
+              //   ⚠**engine には消費地点が1つも無い**ので挙動は変わらないが、
+              //   受け皿が実装された瞬間に**原文にない自由度**を与えることになる（受け皿側は §5.3 `O-264`）。
               type: 'PLAY_FREE', source: 'opp_trash',
               filter: { cardType: 'スペル' },
               costThreshold: 1,
               targetsLastProcessed: true,
-              ignoreCost: true, ignoreRestrictions: true, optional: true,
+              ignoreCost: true, optional: true,
             },
           },
         ],

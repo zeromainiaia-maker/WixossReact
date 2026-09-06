@@ -52762,6 +52762,190 @@ scenarios.v171BanishedSigniDoesNotLower = {
   async drive(page, H) { return v171Drive(page, H, 'v171Banish', false); },
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-172`（§5.4 (b) 本物の疑い③＝`WD21-017-E1`）＝**原因が「効果」と「レゾナの出現条件」の和集合**
+//   `WD21-017` 羅星　≡センヤ≡【自】：このシグニが**効果か**レゾナの出現条件**によって**、
+//   バニッシュされるか場からトラッシュに置かれたとき、対戦相手のパワー3000以下のシグニ１体をバニッシュする。
+//
+// 🔴**旧 live は `byEffect:true` だけ**＝レゾナの出現条件は**コスト支払い**なので `byEffectCause` が立たず、
+//   **その経路では永久に発火しなかった**（過少）。⇒ `byEffect` の緩和フラグ `orResonaCondition` を新設。
+// 🔑**既存の `forResonaCondition` では代用できない**＝あれは「レゾナ出現条件**のときだけ**」の排他ゲートで、
+//   使うと**今度は効果起因が落ちる**（どちらの単独フラグでも原文とずれる）。
+//
+// 🖥**なぜ実機が要るか**＝`triggerCondition` の新フラグ＝PLAN §2.2 の「新しい機構を足した」に当たる。
+//   受け皿（`resonaConditionCardNum`）は `BattleScreen.tsx:3415` から実経路で渡っているが、
+//   **「渡っている」と「このフラグを通って発火する」は別**なので実 UI の召喚で確かめる。
+//
+// **1ビット反転の軸＝「場を離れた原因」**（盤面は両シナリオで完全に同一）：
+//   ①`v172ResonaConditionFires`＝`WX08-008` 白羅星マーズ（出現条件＝レゾナではない＜宇宙＞のシグニ2体を
+//     場からトラッシュ）を **センヤ＋アンタレスで支払って召喚** → センヤの【自】が発火 → 相手のP1000が消える
+//   ②`v172BattleBanishDoesNotFire`（**対照**）＝同じ盤面で、センヤを**バトルでバニッシュ**させる
+//     （効果でもレゾナ出現条件でもない）→ 発火しない＝**原因の限定は残っている**
+// ⚠**罠3b**＝判定の先頭に「センヤが場を離れた」を置く（旧実装でも必ず残る痕跡）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V172_WATCHER  = 'WD21-017#1';   // 羅星　≡センヤ≡（赤・精羅：宇宙・Lv1 P2000・観測対象の【自】）
+const V172_MATERIAL = 'WX15-046#1';   // 羅星　≡アンタレス≡（赤・精羅：宇宙・Lv1）＝もう1体の支払い材料
+// ⚠**`WX08-008` は「サシェ限定」**（CSV の `Restriction` 列＝12列目。最初 13列目の `Team` を読んで
+//   「限定なし」と誤判定し、タマのルリグで組んで召喚候補に1度も出なかった＝b17 の注記と同じ罠を踏んだ）。
+const V172_RESONA   = 'WX08-008#1';   // 白羅星　マーズ（レゾナ・サシェ限定・出現条件＝＜宇宙＞2体を場からトラッシュ）
+const V172_LRIG     = 'WX07-007#1';   // 博愛の使者　サシェ・モティエ（マーズのサシェ限定を満たすため）
+const V172_VICTIM   = 'WD05-014#1';   // 堕落の砲女　サキュ（P1000）＝パワー3000以下＝バニッシュされる側
+const V172_WALL     = 'WD01-009#1';   // 甲冑　ローメイル（P12000）＝②でセンヤをバトルバニッシュさせる壁
+
+/** V-172 の盤面（①②で完全に同一＝反転させるのは「場を離れた原因」だけ）。 */
+const v172Spec = () => ({
+  hostSet: {
+    'field.lrig': [V172_LRIG],
+    // zone0＝センヤ（観測対象）／zone1＝アンタレス（もう1体の材料）
+    'field.signi': [[V172_WATCHER], [V172_MATERIAL], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [V172_RESONA], hand: [], energy: [], trash: [],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    // guest zone2 ← host zone0（センヤの正面＝②の壁）／guest zone0＝P1000（①で消える側）
+    'field.signi': [[V172_VICTIM], null, [V172_WALL]],
+    'field.signi_down': [false, false, false],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function v172Drive(page, H, tag, viaResona) {
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 hostField=${JSON.stringify(st0?.host?.fieldSigni)} guestField=${JSON.stringify(st0?.guest?.fieldSigni)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  const victimAlive = (st) => JSON.stringify(st?.guest?.fieldSigni ?? []).includes('WD05-014');
+  if (!victimAlive(st0)) return { pass: false, detail: '前提崩れ＝相手のパワー3000以下のシグニが最初から居ない' };
+
+  // 🔴**ルリグデッキを開く操作はループの外で1回だけ**（§4.4-2c＝`my-lrig-dk` はトグル）。
+  if (viaResona) {
+    H.log(`ルリグDK: ${await H.clickTestId('my-lrig-dk') ?? '見つからず'}`);
+    await page.waitForTimeout(600);
+    H.log(`レゾナ(zone-card-0): ${await H.clickTestId('zone-card-0') ?? '見つからず'}`);
+    await page.waitForTimeout(600);
+  }
+
+  const paid = new Set();
+  let watcherGone = false;   // sticky（§4.4-8d）
+  let placed = false;
+  let attacked = false;
+  let settled = 0;
+
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(750);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+
+    if (viaResona) {
+      // ①【出現条件】召喚＝支払い候補2つ → ゾーン選択 →【出現条件】で召喚
+      if (!did) did = await H.clickBtn('【出現条件】で召喚', { exact: true });
+      if (!did) {
+        for (const i of [0, 1]) {
+          const pay = page.getByTestId(`resona-payment-field-${i}`).first();
+          if (!paid.has(i) && await pay.count() && await pay.isVisible().catch(() => false)) {
+            await pay.click().catch(() => {}); paid.add(i); did = `resona-payment-field-${i}`; break;
+          }
+        }
+      }
+      if (!did) {
+        const zone = page.getByTestId('resona-zone-2').first();
+        if (await zone.count() && await zone.isVisible().catch(() => false) && await zone.isEnabled().catch(() => false)) {
+          await zone.click().catch(() => {}); did = 'resona-zone-2';
+        }
+      }
+    } else {
+      // ②アタックフェイズへ送ってセンヤ（zone0）でアタック＝正面 P12000 に負けてバニッシュ
+      const stPh = await H.queryState();
+      if (!watcherGone && stPh?.turnPhase !== 'ATTACK_SIGNI' && !stPh?.pendingEffect && !(stPh?.stackLen > 0)) {
+        await H.closeModals();
+        await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(600);
+        did = `repatch:ATTACK_SIGNI(was ${stPh?.turnPhase})`;
+      }
+      if (!did && !attacked) {
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        else did = await H.clickTestId('my-signi-zone-0');
+      }
+    }
+
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+      }
+    }
+    // 🔴**`SELECT_SIGNI_ZONE`（配置先ゾーン選択）を処理する**（実測でここに1往復した）＝
+    //   マーズの【出】「デッキからシグニ1枚を探して場に出す」が配置先を訊いてくるので、
+    //   これを押さないと `pendingEffect` が残ったまま30ティック空振りする。
+    //   ⚠**`.first()` で取らない**（§4.4-2d）＝埋まっているゾーンのボタンは disabled で打ち止めになる。
+    if (!did) {
+      for (const zn of ['ゾーン1', 'ゾーン2', 'ゾーン3']) {
+        const zb = page.getByRole('button', { name: new RegExp('^' + zn) }).first();
+        if (await zb.count() && await zb.isVisible().catch(() => false) && await zb.isEnabled().catch(() => false)) {
+          await zb.click().catch(() => {}); did = 'btn:' + zn; break;
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', 'このまま進む']);
+    if (!did) did = await H.stdStep();
+
+    const st = await H.queryState();
+    const hField = st?.host?.fieldSigni ?? [];
+    if (!JSON.stringify(hField).includes('WD21-017')) watcherGone = true;
+    if (JSON.stringify(hField).includes('WX08-008')) placed = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hostField=${JSON.stringify(hField)} guestField=${JSON.stringify(st?.guest?.fieldSigni)} watcherGone=${watcherGone} placed=${placed} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (s === 6 || s === 15) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+
+    const acted = viaResona ? placed : attacked;
+    settled = (acted && watcherGone && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled < 3) continue;
+
+    // ── 判定（§4.4-3b＝旧実装でも残る痕跡を前提条件に置く）──
+    if (!watcherGone) return { pass: false, detail: `前提崩れ＝センヤが場を離れていない（hostField=${JSON.stringify(hField)}）` };
+    const alive = victimAlive(st);
+    if (viaResona) {
+      if (!placed) return { pass: false, detail: `前提崩れ＝レゾナが場に出ていない（hostField=${JSON.stringify(hField)}）` };
+      return !alive
+        ? { pass: true, detail: `レゾナの出現条件で場からトラッシュ → 【自】が発火して相手のP1000が消えた（guestField=${JSON.stringify(st?.guest?.fieldSigni)}）` }
+        : { pass: false, detail: `🔴旧挙動＝レゾナの出現条件では発火しない（相手のP1000が残っている。guestField=${JSON.stringify(st?.guest?.fieldSigni)} logs=${JSON.stringify((st?.logTail ?? []).slice(-10))}）` };
+    }
+    return alive
+      ? { pass: true, detail: `対照＝バトルバニッシュ（効果でもレゾナ出現条件でもない）では発火しない（guestField=${JSON.stringify(st?.guest?.fieldSigni)}）` }
+      : { pass: false, detail: `🔴原因の限定が効いていない＝バトルバニッシュでも発火した（guestField=${JSON.stringify(st?.guest?.fieldSigni)}）` };
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（hostField=${JSON.stringify(fin?.host?.fieldSigni)} watcherGone=${watcherGone} placed=${placed} attacked=${attacked} logs=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+}
+
+scenarios.v172ResonaConditionFires = {
+  title: 'V-172(1): WD21-017 はレゾナの出現条件で場からトラッシュされても発火する【旧実装は永久に不発】',
+  spec: v172Spec(),
+  async drive(page, H) { return v172Drive(page, H, 'v172Resona', true); },
+};
+
+scenarios.v172BattleBanishDoesNotFire = {
+  // 🔴**対照**＝盤面は1文字も変えず、場を離れた**原因だけ**をレゾナ出現条件→バトルバニッシュに反転する。
+  title: 'V-172(2): 対照＝バトルバニッシュ（効果でもレゾナ出現条件でもない）では発火しない',
+  spec: v172Spec(),
+  async drive(page, H) { return v172Drive(page, H, 'v172Battle', false); },
+};
+
+// 🔴**`v172ResonaConditionFires` は `order` に入れない**（§5.3 `O-265` 待ち）＝
+//   レゾナの出現条件で場から離れたカードの `ON_TRASH` が**実経路で `collectTrashTriggers` に届いていない**
+//   （ゲートを完全に無効化しても発火しないことを実測で確認＝ゲートではなく配線の問題）。
+//   ⚠**シナリオは消さない**＝`O-265` を直したときの受け入れテストがこれ。
+//   実行は `node scripts/verifyBattleDrive.mjs v172ResonaConditionFires` で明示的に。
+order.push('v172BattleBanishDoesNotFire');
+
 order.push('v171TrashedSigniLowersPower');
 order.push('v171BanishedSigniDoesNotLower');
 

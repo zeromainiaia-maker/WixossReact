@@ -2713,6 +2713,15 @@ function actionJa(a?: Action, effectType?: string): string {
       const payJa = a.ignoreCost === false ? 'コストを支払って使用する' : 'コストを支払わずに使用する';
       // 🆕targetsLastProcessed＝「その〜」＝直前に処理したカード自身（落とすと別カードを使えるように読める）。
       const thatOne = a.targetsLastProcessed ? 'この方法で処理した' : '';
+      // 🆕**`grantUseThisTurn` は「いま使う」ではなく「このターン使えるようにする」**
+      //   （§5.3 `O-185`／§5.4 (b)・第190バッチで描画を追加）＝描かないと即時使用と**同じ文**になり、
+      //   `O-185` で入れた「権利を積むだけ」という機構が原文照合から丸ごと消える。
+      //   ⚠**枚数は「1枚まで」**（`execPlayFree` は `SEARCH{maxPick:1}` で0枚確定を許す＝原文「1枚まで」）。
+      if (a.grantUseThisTurn) {
+        const payGrant = a.ignoreCost === false ? '（コストは支払う）' : '（コストを支払わずに）';
+        return `${from}から${timingClause}${costLim}${filterJa(a.filter)}${noun}1枚までを対象とし、`
+          + `このターン、あなたはそれを${restr}使用してもよい${payGrant}`;
+      }
       return `${from}から${timingClause}${thatOne}${costLim}${filterJa(a.filter)}${noun}1枚を${restr}${payJa}`;
     }
     case 'PLAY_FREE_FROM_TRASH': {
@@ -5574,10 +5583,13 @@ function effJa(e: Eff): string {
       s = 'レゾナの出現条件のために' + s.replace('トラッシュに置かれたとき', '場からトラッシュに置かれたとき');
     }
     // ON_TRASH の「効果によって」限定を反映（バトル・ルール処理では発火しない。G177）
+    // 🆕`orResonaCondition`＝「効果**か**レゾナの出現条件によって」（§5.4 (b)・第190バッチ）＝
+    //   描かないと排他ゲート `forResonaCondition` との違いが逆翻訳から消える。
     if (t === 'ON_TRASH' && e.triggerCondition?.byEffect) {
+      const causeJa = e.triggerCondition?.orResonaCondition ? '効果かレゾナの出現条件によって' : '効果によって';
       s = s.includes('場からトラッシュに置かれたとき')
-        ? s.replace('場からトラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき')
-        : s.replace('トラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき');
+        ? s.replace('場からトラッシュに置かれたとき', `${causeJa}場からトラッシュに置かれたとき`)
+        : s.replace('トラッシュに置かれたとき', `${causeJa}場からトラッシュに置かれたとき`);
     }
     // ON_TRASH の「あなたの効果によって」限定（相手効果・コスト・バトル・ルール処理では発火しない）
     if (t === 'ON_TRASH' && e.triggerCondition?.byOwnEffect) {
