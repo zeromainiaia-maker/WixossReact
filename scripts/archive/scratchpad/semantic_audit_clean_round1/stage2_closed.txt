@@ -1830,3 +1830,16 @@ WXDi-D03-004-E3 :: カードを１枚捨てないかぎり
 #   `SPELL_USED_THIS_TURN.color` を新設（判定源は actions_done の 'USE_SPELL_COLOR:<色>'）＝
 #   parser 規則1本で条件が入り、誤付着した filter.color も同時に消えた。実機 spellColorMarker PASS。
 WX25-P2-075-E1 :: 赤のスペルを使用していた場合
+# ── 2026-09-07 残OPEN掃引⑥＝受け皿を「概念」で探し直して見つかった2系統（O-269 の教訓を適用）
+# WXDi-P11-TK02-E2＝「シグニで合計一度しかアタックできない」が BLOCK_ACTION{ATTACK,SIGNI×1} ＝
+#   「特定の1体だけ禁止」に化けていた（2体目以降は自由＝過小実行）。受け皿は既にあり、
+#   同型3件のうち2件は既にそれを指していた（STUB{LIMIT_OPP_SIGNI_ATTACKS_ONCE} → signi_attack_once_limit
+#   → signiAttackGate.ts:163「既に1体アタック済みなら禁止」）。engine 0行。
+WXDi-P11-TK02-E2 :: 合計一度しかアタックできない
+# WXDi-P01-039-E1（2 findings）＝「デッキとトラッシュにあるレベル3とレベル2のシグニの基本レベルは1になる」が
+#   BLOCK_ACTION{actionId:'SET_LEVEL_1', until:'END_OF_TURN'}＝消費地点ゼロの恒久 no-op だった。
+#   受け皿 STUB{TREAT_AS_LEVEL1_IN_DECK_TRASH}（消費＝execSearch の searchCardMap 差し替え）は在ったが
+#   収集の主語が「デッキ/トラッシュのカード自身」しか見ておらず生成側 live 0件＝誰も使っていなかった。
+#   collectDeckTrashLevel1Nums に「場のシグニが宣言する」分岐と deckTrashLevel1Filter payload を足した（O-270）。
+WXDi-P01-039-E1 :: デッキとトラッシュにある
+WXDi-P01-039-E1 :: 基本レベルは１になる

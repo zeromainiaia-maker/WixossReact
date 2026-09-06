@@ -5292,6 +5292,43 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   `EffectTarget.totalPowerMax` は**数値固定**。`totalLevelMaxRef` と同じ `NumberOrRef` 版が要る。
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
+### `O-270` — デッキ/トラッシュの基本レベル変更を「場からの宣言」で集められなかった 🏁**2026-09-07 同日クローズ**
+
+> 🆕**2026-09-07（第202バッチ）＝§5.2 残 OPEN の掃引中に発見して即実装した**（索引には載せていない＝
+> 登録と実装が同じセッションなので、索引に1行足してすぐ消す往復を省いた）。
+
+**規模／母集団**＝**live 1効果 / 1カード**（`WXDi-P01-039-E1`＝2 findings）。
+
+**何が壊れていたか**＝原文「【常】：あなたの**デッキとトラッシュにある**レベル３とレベル２のシグニの**基本レベルは１になる**」
+に対し、live は `BLOCK_ACTION{actionId:'SET_LEVEL_1', until:'END_OF_TURN'}`＝
+🔴**`SET_LEVEL_1` を読む消費地点が engine に1つも無い恒久 no-op**（しかも場所も元レベルも持たず、期間もターン終了まで）。
+
+**受け皿は在った**＝`STUB{TREAT_AS_LEVEL1_IN_DECK_TRASH}`。消費は `effectExecutor.ts:5111`＝
+`execSearch` が `searchCardMap` を差し替えて `Level:'1'` にする（**pool は `fromDeck ? deck : trash`
+＝デッキ探索とトラッシュ探索の両方に効く**）。
+🔴**ただし収集の主語が逆だった**＝`collectDeckTrashLevel1Nums` は
+「**デッキ/トラッシュのカード自身**が CONTINUOUS で宣言する」形しか見ておらず、**生成側は live 0件**
+（＝**誰も使っていない受け皿**）。このカードのような「**場のシグニが**デッキ/トラッシュの他の札に効く」形を集められない。
+
+**やったこと**
+- `collectDeckTrashLevel1Nums` に②の分岐（**場のシグニが宣言する**）を追加。旧①も温存（`!deckTrashLevel1Filter` で受け持つ）。
+- 範囲を **`StubAction.deckTrashLevel1Filter`** payload で持たせた。
+  🔴**payload が無い宣言は②では何も集めない**（fail-closed＝範囲が落ちても**デッキ全部がレベル1に化けない**）。
+- 収集に `cardMap` が要るので引数を1つ追加＝**呼び出し元は `BattleScreen` の7箇所**（全部に `battleCardMap` を渡した）。
+  ⚠**渡し忘れると静かな no-op** なので、**golden で「cardMap 無しなら集めない」契約も固定**した。
+- 逆翻訳を payload から組む（固定文にしない＝LESSONS §4.2）。
+
+**⚠罠**
+- ⚠**`execUtils` を import すると循環参照**＝`getCardNum` は使えないのでローカルの `baseNumOf` を置いた。
+- ⚠**`filterJa` も level を出す**＝レベル文言を自前で組むなら filter から `level` を抜いて渡す
+  （渡さないと「レベル2からレベル3の**レベル3以下の**シグニ」と二重になる）。
+- 🔴**`ADD_TO_FIELD{source:TRASH_CARD}` 経路には効かない**＝差し替えは `execSearch` の中だけ。
+  「トラッシュからレベル1のシグニを**対象とし**、それを場に出す」型（`WXK11-062` 等）は**別の穴**。
+  ⇒ **必要になったら `zoneTargetCandidates` / `movableTrashCandidates` 側にも同じ差し替えを入れる**（未着手）。
+
+**実機**＝**未実施**（`V-176` として §5.1 に登録）。観測カードが4パターンとも実機に載らなかった
+（限定条件／リミット超過／経路違い／誘発条件）。engine 経路は golden で代替済み。
+
 ### `O-269` — 使用したスペル／アーツの**色**を engine がどこにも記録していない 🏁**2026-09-07 クローズ**
 
 > 🏁🔴**クローズ時の実測＝登録票の「母集団16」は過大だった。真の穴は 1効果。**
@@ -5784,6 +5821,25 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-07・第201バッチ後・PLAN §6 から退避）
+
+- **2026-09-07（第201バッチ）＝🔧§5.3 `O-269` を実装してクローズ（スペル使用の色記録）／実バグ1効果（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 4 → 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 13 → 12**｜**census 高シグナル 0 / BASELINE 0**。
+  🔑**Sheet1 の 4 → 1 は前進ではなく可視化の巻き戻し**＝`O-269` をクローズして `mech` が外れただけ（実体は直った1効果ぶん）。
+  🔴🔑**登録票の母集団は着手時にもう一度実測する**＝`O-269` は「live 16効果」で登録したが、
+  **14件は別名の受け皿で配線済み**（`triggerFilter.color` 9／`ARTS_USED_THIS_TURN.color` 5／`COST_REDUCTION.color` 1）＝**真の穴は1効果**。
+  原因は登録時の grep が「あるはずの名前」だけを見ていたこと＝**同じセッションで同じ罠を3回踏んだ**
+  （25→1／16→2／2→1）⇒ **受け皿は「概念」で探す。キー名1つの grep 結果を母集団と呼ばない。**
+  📦**在庫**＝**意味照合 未監査 2,608枚**（Sheet1 **172枚**・据置）｜**未 triage findings 0件**｜
+  **機構 worklist 2 → 1項目**（`O-268` のみ）｜**⑤実機 残 0件**（この回のぶんは同セッションで返済済み）。
+  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
+  🔧**ゲート（全緑 ✅）**＝golden **3557 → 3559**（+2＝色条件の正負両方向／live 形の固定）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+  🖥**実機＝実施**（§2.2＝`src/screens/` を触った）＝**`verifyBattleDrive.mjs spellColorMarker` PASS**
+  （`actions_done` に `USE_SPELL` と `USE_SPELL_COLOR:赤` の両方を確認）。**`V-164` として常設**。
+  🔁**live A/B 差分＝1カード**（`WX25-P2-075`）＝**意図した件数だけが動いた**。
 
 ### 恒久指標アーカイブ（2026-09-06・第200バッチ後・PLAN §6 から退避）
 

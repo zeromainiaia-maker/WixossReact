@@ -8062,21 +8062,47 @@ export function collectLevelRefOverridesFromNonField(
 }
 
 // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュでレベル1シグニとして扱うカードのSetを収集
+/** instanceId（`WX01-001#3`）から素のカード番号を取る。⚠`execUtils` を import すると循環参照になるのでローカルに置く。 */
+const baseNumOf = (id: string): string => { const h = id.indexOf('#'); return h > 0 ? id.slice(0, h) : id; };
+
 export function collectDeckTrashLevel1Nums(
   ownerState: PlayerState,
   otherState: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap?: Map<string, CardData>,
 ): Set<string> {
   const result = new Set<string>();
   for (const state of [ownerState, otherState]) {
+    // ① 旧来＝**デッキ/トラッシュのカード自身**が「自分はレベル1として扱う」と宣言する形。
+    //    ⚠生成側は現在0（live に1件も無い）が、受け皿として温存する。
     for (const cn of [...state.deck, ...state.trash]) {
       if (result.has(cn)) continue;
       for (const eff of (effectsMap.get(cn) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
         const act = eff.action as import('../types/effects').StubAction;
-        if (act.type === 'STUB' && act.id === 'TREAT_AS_LEVEL1_IN_DECK_TRASH') {
+        if (act.type === 'STUB' && act.id === 'TREAT_AS_LEVEL1_IN_DECK_TRASH' && !act.deckTrashLevel1Filter) {
           result.add(cn);
           break;
+        }
+      }
+    }
+    // ② 🆕**場のシグニが宣言する**形（§5.3 `O-270`・2026-09-07・`WXDi-P01-039-E1`）＝
+    //    「【常】：あなたのデッキとトラッシュにあるレベル３とレベル２のシグニの基本レベルは１になる」。
+    //    🔴**主語が①と逆**＝宣言するのは場にいるカードで、効くのは**同じプレイヤーの**デッキ/トラッシュ。
+    //    ⚠`deckTrashLevel1Filter` が無い宣言はここでは何も集めない（fail-closed＝範囲が落ちても
+    //      デッキ全部がレベル1に化けない）。①が `!act.deckTrashLevel1Filter` で受け持つ。
+    if (!cardMap) continue;
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const eff of (effectsMap.get(baseNumOf(top)) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'TREAT_AS_LEVEL1_IN_DECK_TRASH') continue;
+        if (!act.deckTrashLevel1Filter) continue;
+        for (const cn of [...state.deck, ...state.trash]) {
+          if (result.has(cn)) continue;
+          if (matchesFilter(cardMap.get(baseNumOf(cn)), act.deckTrashLevel1Filter)) result.add(cn);
         }
       }
     }

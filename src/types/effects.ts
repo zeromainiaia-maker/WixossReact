@@ -4671,6 +4671,15 @@ export interface StubAction {
    *   同じ配列を両方へ載せると `nthActivationFlip` の使用回数が**1回の起動で2進む**）。
    */
   gameGrants?: GameGrantSpec[];
+  /**
+   * `TREAT_AS_LEVEL1_IN_DECK_TRASH` の**対象範囲**（§5.3 `O-270`・2026-09-07）。
+   * 原文＝「【常】：あなたの**デッキとトラッシュにある**レベル３とレベル２のシグニの基本レベルは１になる」
+   * （`WXDi-P01-039-E1`）。⚠**主語は「場にあるこのシグニ」**＝デッキ/トラッシュ側のカードは何も宣言しない。
+   * 🔴**この payload が無い `TREAT_AS_LEVEL1_IN_DECK_TRASH` は「場からの宣言」としては何も集めない**
+   *   （fail-closed）＝parser が範囲を落としても**デッキ全部がレベル1に化ける**ことはない。
+   * ⚠**旧来の「デッキ/トラッシュのカード自身が宣言する」形も残してある**（生成側は現在0だが受け皿として温存）。
+   */
+  deckTrashLevel1Filter?: TargetFilter;
   /** 宣言後の処理が別の型付き action にある場合、逆翻訳では宣言文だけを描く。engine は読まない。 */
   decompileDeclarationOnly?: boolean;
   /**

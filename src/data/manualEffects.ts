@@ -10258,6 +10258,42 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-09-07（§5.3 `O-270`）＝**「デッキとトラッシュにあるレベル３とレベル２のシグニの
+  //   基本レベルは１になる」が `BLOCK_ACTION{SET_LEVEL_1}` に化けていた**（`WXDi-P01-039-E1`）。
+  // 🔴旧 live＝`BLOCK_ACTION{target:自分のシグニ1体, actionId:'SET_LEVEL_1', until:'END_OF_TURN'}`＝
+  //   **場所も元レベルも指定せず・ターン終了までの一時処理**＝原文（常時・デッキとトラッシュ・レベル2と3）と別物。
+  //   `actionId:'SET_LEVEL_1'` を読む消費地点は engine に無く、**恒久 no-op** だった。
+  // 🔑**受け皿は既にあった**＝`STUB{TREAT_AS_LEVEL1_IN_DECK_TRASH}` の消費は
+  //   `effectExecutor.ts:5111`（デッキ探索の `searchCardMap` を差し替えて `Level:'1'` にする）。
+  //   ⚠**ただし収集の主語が逆だった**＝`collectDeckTrashLevel1Nums` は「デッキ/トラッシュのカード**自身**が
+  //   宣言する」形しか見ておらず（生成側は live 0件＝**誰も使っていない受け皿**だった）、
+  //   このカードのような「**場のシグニが**デッキ/トラッシュの他のカードに効く」形を集められなかった。
+  //   ⇒ 収集側に②の分岐を足し、範囲を `deckTrashLevel1Filter` payload で持たせた（§5.3 `O-270`）。
+  // ⚠**payload が無い宣言は②では何も集めない**（fail-closed）＝範囲が落ちてもデッキ全部がレベル1に化けない。
+  // ⚠**レベルは `{min:2,max:3}`**＝原文「レベル３とレベル２の」。レベル1や4以上は対象外。
+  "WXDi-P01-039": [
+    {"effectId":"WXDi-P01-039-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_LEVEL1_IN_DECK_TRASH","deckTrashLevel1Filter":{"cardType":"シグニ","level":{"min":2,"max":3}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-09-07（§5.2 残OPEN掃引②）＝**「シグニで合計一度しかアタックできない」が
+  //   「シグニ1体のアタックを禁止」に化けていた**（`WXDi-P11-TK02-E2`）。
+  // 🔴旧 live＝`BLOCK_ACTION{ATTACK, SIGNI×1, NEXT_TURN}`＝**特定の1体だけ**が撃てなくなる別物。
+  //   原文は**全体で合計1回**なので、2体目以降は自由にアタックできてしまっていた（過小実行）。
+  // 🔑**受け皿は既にあり、同型3件のうち2件は既にそれを指していた**
+  //   （`WX13-005A-E2`＝`LIMIT_OPP_SIGNI_ATTACKS_ONCE`／`WXDi-P04-023-E1`＝`OPP_SIGNI_ONE_ATTACK_TOTAL`）。
+  //   消費は `execStubPart3.ts:759`（`otherState.signi_attack_once_limit=true`）→
+  //   `screens/battle/signiAttackGate.ts:163`（**既に1体アタック済みなら禁止**＝合計1回）。
+  // ⚠**期間は state のリセット地点で決まる**＝`signi_attack_once_limit` は
+  //   `BattleScreen` の「ターン終了プレイヤーのターン内一時状態クリア」で消える（4283/4755行）。
+  //   自分のメインで立てる→**自分のターン終了では相手側は消えない**→相手のターンに効く→相手のターン終了で消える
+  //   ＝原文「次の対戦相手のターンの間」と一致する（`WX13-005A-E2` の「次のあなたのターンまで」と実質同じ期間）。
+  // ⚠**engine は0行**（新しい型を1つも足していない）。
+  "WXDi-P11-TK02": [
+    {"effectId":"WXDi-P11-TK02-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"LIMIT_OPP_SIGNI_ATTACKS_ONCE"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // 2026-09-06（§5.2 残OPEN掃引）＝**「〈対象〉を対象とし、あなたのターンの場合、それを〜する」の
   //   対象選択が条件の内側に入っていた**（`WDK06-C14-E1`）。
   // 🔴旧 live＝`CONDITIONAL{TURN_OWNER self}` が対象選択ごと包んでおり、**相手ターンには対象を取らない**。

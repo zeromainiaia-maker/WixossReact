@@ -4328,8 +4328,31 @@ function actionJa(a?: Action, effectType?: string): string {
       // 相手アタック回数制限（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE・engine実装済み）
       // ＝「（このターン、／次のあなたのターンまで、）対戦相手は…しかアタックできない」を原文抽出（3カードで語順・範囲が異なるため currentCardText 由来）。
       if (a.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || a.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || a.id === 'LIMIT_OPP_ATTACK_ONCE') {
-        const m = currentCardText.match(/(?:このターン、|次のあなたのターンまで、)?対戦相手[^。]*?しかアタックできない/);
+        // 🆕「次の**対戦相手の**ターンの間、」を先頭候補に足した（2026-09-07・`WXDi-P11-TK02-E2`）＝
+        //   無いと `対戦相手[^。]*?` が**期間句の「対戦相手」から**マッチし、「次の」だけが落ちた文になる。
+        // ⚠**`対戦相手` の直後は `は` とは限らない**＝`WD13-010-E1` は「対戦相手**の**センタールリグとシグニは…」。
+        //   `は` を必須にすると**そのカードだけ生ID露出に落ちる**（`census:stubs` C群のゲートが実際に捕まえた）。
+        const m = currentCardText.match(/(?:このターン、|次のあなたのターンまで、|次の対戦相手のターンの間、)?対戦相手(?:は|の)[^。]*?しかアタックできない/);
         if (m) return m[0];
+      }
+      // 🆕`TREAT_AS_LEVEL1_IN_DECK_TRASH`（§5.3 `O-270`・2026-09-07）＝**payload から文を組む**
+      //   （LESSONS §4.2＝固定文のままだと「engine の嘘と一致して計器が緑になる」／「実装済みなのに未実装に読める」）。
+      //   ⚠**2つの形がある**＝payload 付き＝**場のこのシグニが**デッキ/トラッシュの他のカードに効く／
+      //   payload 無し＝**そのカード自身**がデッキ/トラッシュでレベル1として扱われる。
+      if (a.id === 'TREAT_AS_LEVEL1_IN_DECK_TRASH') {
+        const f = (a as { deckTrashLevel1Filter?: TargetFilter }).deckTrashLevel1Filter;
+        if (!f) return 'このカードはデッキとトラッシュにあるかぎりレベル1のシグニとして扱う';
+        const lv = f.level;
+        const lvJa = typeof lv === 'number' ? `レベル${lv}の`
+          : lv && (lv.min !== undefined || lv.max !== undefined)
+            ? (lv.min !== undefined && lv.max !== undefined && lv.min !== lv.max
+                ? `レベル${lv.min}からレベル${lv.max}の`
+                : `レベル${lv.max ?? lv.min}以下の`)
+            : '';
+        // ⚠**`filterJa` も level を出す**ので、ここでは level を抜いた filter を渡す
+        //   （渡さないと「レベル2からレベル3のレベル3以下のシグニ」と二重になる）。
+        const { level: _lv, ...restF } = f;
+        return `あなたのデッキとトラッシュにある${lvJa}${filterJa(restF)}${f.cardType ?? 'カード'}の基本レベルは1になる`;
       }
       // 相手が公開する系（OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND・engine実装済み）
       // ＝3枚で公開元（手札＋ルリグデッキ／ルリグデッキ／デッキトップ＋手札）が異なるため currentCardText から原文抽出。

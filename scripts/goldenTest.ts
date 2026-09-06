@@ -20,7 +20,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
@@ -15595,6 +15595,85 @@ test('SPELL_USED_THIS_TURN 条件: actions_done の USE_SPELL で発火ゲート
   eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, guest), 'WX24-P2-053-E1'), false, 'スペル未使用は非発火');
   const hostUsed = { ...host, actions_done: ['USE_SPELL'] };
   eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX24-P2-053-E1'), true, 'スペル使用済みで発火');
+});
+// ═══ §5.3 `O-270`＝デッキ/トラッシュの基本レベル変更を「場からの宣言」で集める（2026-09-07） ═══
+test('§5.3 O-270: 場のシグニが宣言する TREAT_AS_LEVEL1_IN_DECK_TRASH はフィルタに合う札だけ集める', () => {
+  const HOLDER = 'WXDi-P01-039';                       // 【常】デッキとトラッシュのレベル2・3シグニを基本レベル1に
+  // pool は「レベルで選び分けられる」ことが要る＝レベル別に実カードを引く。
+  const lv2 = findCard(c => (c.Type ?? '') === 'シグニ' && String(c.Level ?? '') === '2');
+  const lv3 = findCard(c => (c.Type ?? '') === 'シグニ' && String(c.Level ?? '') === '3');
+  const lv1 = findCard(c => (c.Type ?? '') === 'シグニ' && String(c.Level ?? '') === '1');
+  const lv4 = findCard(c => (c.Type ?? '') === 'シグニ' && String(c.Level ?? '') === '4');
+  const owner = { ...mkState({ signi: [HOLDER + '#1', null, null] }),
+    deck: [lv2 + '#9', lv1 + '#9'], trash: [lv3 + '#9', lv4 + '#9'] } as PlayerState;
+  const other = mkState({});
+  const got = collectDeckTrashLevel1Nums(owner, other, effectsMap, cardMap);
+  ok(got.has(lv2 + '#9'), `🔴デッキのレベル2を集めていない（${[...got].join(',')}）`);
+  ok(got.has(lv3 + '#9'), `🔴トラッシュのレベル3を集めていない（${[...got].join(',')}）`);
+  // 反転確認①＝**範囲外のレベルは集めない**（原文は「レベル３とレベル２の」）。
+  ok(!got.has(lv1 + '#9'), '🔴レベル1まで集めている＝フィルタが効いていない');
+  ok(!got.has(lv4 + '#9'), '🔴レベル4まで集めている＝フィルタが効いていない');
+  // 反転確認②＝**宣言元が場にいなければ何も集めない**（【常】は場にあるかぎり）。
+  const noHolder = { ...owner, field: { ...owner.field, signi: [null, null, null] } } as PlayerState;
+  eq(collectDeckTrashLevel1Nums(noHolder, other, effectsMap, cardMap).size, 0,
+    '🔴宣言元が場にいないのに集めている');
+  // 反転確認③＝**cardMap を渡さない呼び出しでは「場からの宣言」は集めない**（fail-closed）。
+  //   🔑呼び出し元（BattleScreen 7箇所）が引数を落としたら静かな no-op になるので、ここで契約を固定する。
+  eq(collectDeckTrashLevel1Nums(owner, other, effectsMap).size, 0,
+    'cardMap 無しで場からの宣言を集めている（フィルタ判定できないのに集めてはいけない）');
+});
+test('§5.3 O-270: 収集した札は SEARCH の候補としてレベル1扱いになる（デッキ・トラッシュ両方）', () => {
+  const cursorBefore = cursor;
+  // 🔑**engine の消費地点まで通す**＝`collectDeckTrashLevel1Nums` の戻り値を `ExecCtx.deckTrashLevel1Nums`
+  //   へ載せると `execSearch` が `searchCardMap` を差し替える（`effectExecutor.ts:5111`）。
+  //   ⚠**収集関数だけを assert すると「集めたのに探索へ届かない」型の穴が残る**（LESSONS §4.2
+  //   「collector のゲートを直しても collector まで到達するかは別問題」の逆向き）。
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck = [SIGNI_L3];
+  ctx.ownerState.trash = [SIGNI_L2];
+  const lv1Filter = { cardType: 'シグニ', level: 1 } as const;
+  // ① 差し替え無し＝レベル1のカードが無いので何も引けない。
+  const plainDeck = run({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: lv1Filter,
+    maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' } } as EffectAction, ctx);
+  ok(plainDeck.done && !plainDeck.ownerState.hand.includes(SIGNI_L3),
+    '🔴宣言が無いのにレベル3をレベル1として引けている');
+  // ② 差し替え有り＝デッキのレベル3が「レベル1のシグニ」として引ける。
+  const withOverride = { ...ctx, deckTrashLevel1Nums: new Set([SIGNI_L3, SIGNI_L2]) } as ExecCtx;
+  const deckHit = run({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: lv1Filter,
+    maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' } } as EffectAction, withOverride);
+  ok(deckHit.done && deckHit.ownerState.hand.includes(SIGNI_L3),
+    '🔴デッキのレベル3がレベル1扱いになっていない（差し替えが探索へ届いていない）');
+  // ③ **トラッシュ側にも効く**＝原文は「デッキ**と**トラッシュにある」。
+  //   ⚠`execSearch` の pool は `fromDeck ? state.deck : state.trash` なので同じ差し替えが両方に効く。
+  const trashHit = run({ type: 'SEARCH', from: { location: 'trash', owner: 'self' }, filter: lv1Filter,
+    maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' } } as EffectAction, withOverride);
+  ok(trashHit.done && trashHit.ownerState.hand.includes(SIGNI_L2),
+    '🔴トラッシュのレベル2がレベル1扱いになっていない（原文の「トラッシュにある」が効いていない）');
+  cursor = cursorBefore;
+});
+test('§5.3 O-270: WXDi-P01-039-E1 は恒久 no-op の BLOCK_ACTION から受け皿つき STUB へ移った', () => {
+  const e = (effectsMap.get('WXDi-P01-039') ?? []).find(x => x.effectId === 'WXDi-P01-039-E1');
+  const a = e?.action as unknown as { type?: string; id?: string; actionId?: string;
+    deckTrashLevel1Filter?: { level?: { min?: number; max?: number } } };
+  eq(a?.type, 'STUB', '🔴BLOCK_ACTION に戻っている');
+  eq(a?.id, 'TREAT_AS_LEVEL1_IN_DECK_TRASH', '🔴受け皿の id が違う');
+  // 🔴旧 live は `actionId:'SET_LEVEL_1'`＝engine のどこにも消費が無い恒久 no-op だった。
+  ok(a?.actionId === undefined, '🔴SET_LEVEL_1 の痕跡が残っている');
+  eq(a?.deckTrashLevel1Filter?.level?.min, 2, '🔴レベル下限が原文（レベル2）と違う');
+  eq(a?.deckTrashLevel1Filter?.level?.max, 3, '🔴レベル上限が原文（レベル3）と違う');
+});
+test('§5.2 残OPEN: WXDi-P11-TK02-E2 は「合計1回」の受け皿を指す（1体だけ禁止ではない）', () => {
+  const e = (effectsMap.get('WXDi-P11-TK02') ?? []).find(x => x.effectId === 'WXDi-P11-TK02-E2');
+  const a = e?.action as unknown as { type?: string; id?: string; actionId?: string };
+  eq(a?.type, 'STUB', '🔴BLOCK_ACTION（シグニ1体のアタック禁止）に戻っている');
+  eq(a?.id, 'LIMIT_OPP_SIGNI_ATTACKS_ONCE', '🔴合計1回制限の受け皿を指していない');
+  // 🔑同型2件が同じ受け皿を指していることも固定する（3件で表現がバラけたのが元のバグ）。
+  const same = (id: string, cardNum: string) => {
+    const x = (effectsMap.get(cardNum) ?? []).find(y => y.effectId === id);
+    return (x?.action as unknown as { id?: string })?.id;
+  };
+  eq(same('WX13-005A-E2', 'WX13-005A'), 'LIMIT_OPP_SIGNI_ATTACKS_ONCE', 'WX13-005A-E2 の受け皿が変わった');
+  eq(same('WXDi-P04-023-E1', 'WXDi-P04-023'), 'OPP_SIGNI_ONE_ATTACK_TOTAL', 'WXDi-P04-023-E1 の受け皿が変わった');
 });
 // ═══ §5.3 `O-269`＝「このターンにあなたが〈色〉のスペルを使用していた場合」（2026-09-06） ═══
 test('§5.3 O-269: 色別 SPELL_USED_THIS_TURN は当該色のスペルを使ったときだけ成立する', () => {
