@@ -112,7 +112,7 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 1; // 🆕 2026-09-04 `O-244`（`WXDi-P10-007-E3`）を明示 defer にして 2→1。
+const BASELINE_HIGH = 0; // 2026-09-06（§5.3 `O-132` 第2バッチ）＝残1件（`WX25-P1-022-E2`）が偽陽性だったので較正して 1→**0**。🔑`PLAY_FREE` は `execPlayFree` が `SEARCH{maxPick:1}`＋0枚可を出す＝それ自体が「1枚まで」の上限スロット（型注記がこのカードを名指しで正準形と書いている）。⇒ **0 が正常値の再発防止ゲート**になった＝新しく語彙が落ちたら即 exit 1。旧:  🆕 2026-09-04 `O-244`（`WXDi-P10-007-E3`）を明示 defer にして 2→1。
 //   ⚠**穴が埋まったのではなく「嘘をやめた」**＝旧 live は「デッキの上10枚を見る」だけで本文が丸ごと
 //   落ちており、しかも逆翻訳が**実装済みのように読めた**。残 1 は `WX25-P1-022-E2`（PARTIAL・`O-185`）。
 // 旧: const BASELINE_HIGH = 2; // 2026-09-04 `O-243`（`WX21-028-E2`）を明示 defer にして 3→2。
@@ -1579,7 +1579,17 @@ const PATTERNS: Pattern[] = [
         const s2 = t.replace(/手札を[０-９\d]+枚まで捨てる/g, '');
         if (s2 !== t && !/[０-９\d](枚|体)まで/.test(s2)) return true;
       }
-      if (!js.includes('LOOK_PICK_CHAIN')) return false;
+      // 🆕2026-09-06 較正（§5.3 `O-132` 第2バッチ）＝**`PLAY_FREE` はそれ自体が「1枚まで」の上限スロット**。
+      //   `execPlayFree`（`effectExecutor.ts:8060`）は最後に **`SEARCH{maxPick:1}`** を出し、
+      //   そのコメントが「SEARCH は0枚選択で確定でき、**「使用してもよい」（辞退）に対応する**」と明記している
+      //   ＝**0 か 1**＝原文「１枚まで」そのもの。`upToCount` 等の上限キーは**構造上いらない**。
+      //   🔑`PlayFreeAction` の型注記は `WX25-P1-022-E2`「あなたと対戦相手のトラッシュからスペルを
+      //     **それぞれ１枚まで**」を**名指しで**正準形として書いている（`src/types/effects.ts:3281`）。
+      //   ⚠**キー表（`keys`）には足さない**＝`PLAY_FREE` を免罪符にすると「同じ効果の別アクションにある
+      //     『N体まで』の脱落」まで隠れる（この `extraOk` が LPC で避けているのと同じ罠）。
+      //     **残渣チェック（need ≤ slots）の slot として1つ数えるだけ**にする。
+      //   ⚠`STUB{id:'PLAY_FREE'}` は `r.type === 'STUB'` なので slot に数えない（下の walk で型を見ている）。
+      if (!js.includes('LOOK_PICK_CHAIN') && !js.includes('"type":"PLAY_FREE"')) return false;
       const text = t.replace(/（[^（）]*）/g, ''); // リマインダー文は数えない
       const need = (text.match(/[０-９\d](枚|体)まで/g) ?? []).length + (text.match(/好きな枚数/g) ?? []).length;
       let slots = 0;
@@ -1592,6 +1602,7 @@ const PATTERNS: Pattern[] = [
         if (r.maxCount !== undefined) slots++;
         if (r.transferGroups !== undefined) slots++;
         if (r.type === 'LOOK_PICK_CHAIN' && Array.isArray(r.stages)) slots += r.stages.length;
+        if (r.type === 'PLAY_FREE') slots++;   // 🆕`SEARCH{maxPick:1}`＋0枚可＝「1枚まで」1スロット
         for (const v of Object.values(r)) walk(v);
       };
       try { walk(JSON.parse(js)); } catch { return false; }

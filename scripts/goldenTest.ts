@@ -58540,6 +58540,12 @@ test('2026-08-28 O-132: census 較正キーが live に実在する（較正が�
     // 🆕制限「できない」 ← SELF_PLAY_RESTRICT（§5.3 `O-74`/`O-79`・2026-09-02）。
     //   `STUB{DEPLOY_RESTRICT}` から実装型へ移った瞬間に STUB 免除が外れて高シグナルへ出たので較正した。
     ['WXDi-P11-050-E1', 'SELF_PLAY_RESTRICT'],
+    // 🆕「Nまで」上限選択 ← **`PLAY_FREE` それ自体が「1枚まで」の上限スロット**（§5.3 `O-132` 第2バッチ・2026-09-06）。
+    //   `execPlayFree`（`effectExecutor.ts:8060`）は最後に `SEARCH{maxPick:1}` を出し、**0枚選択で確定できる**
+    //   ＝原文「それぞれ１枚まで」そのもの。`upToCount` 等の上限キーは構造上いらない。
+    //   ⚠**キー表ではなく `extraOk` の残渣チェック（need ≤ slots）の slot として数えている**＝
+    //     免罪符にしない（同じ効果の別アクションに「N体まで」の脱落が残れば高シグナルのまま）。
+    ['WX25-P1-022-E2', '"type":"PLAY_FREE"'],
   ];
   for (const [effectId, key] of CALIBRATED) {
     const cardNum = effectId.replace(/-(E\d+\w*|BURST\w*|SONG\w*|CB-E\d+.*)$/, '');
