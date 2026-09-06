@@ -5641,6 +5641,28 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第194バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第194バッチ）＝🏁索引 G の2件（`O-266`／`O-267`）クローズ／`V-174`・`V-175` 登録・同日返済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  🔴**「0＝正しい」ではない**（計器が見ていないだけ＝`census:cards` の出力にも毎回そう出る）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
+  📦**在庫**＝**機構 worklist 4 → 2項目**＝索引 **A' 0／A 0／B 0／G 0／E 2**。
+  ⚠**残る E 2件（`O-134`／`O-245`）は計器の較正**＝**カードの挙動を直す項目は残0**。
+  **⑤実機 残 0件**（`V-174`＝`O-266` の正・反転2本／`V-175`＝`O-267` の常設番人）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0／
+  `census:orphanmanual` A/B/C **0**・D 5（生成元あり＝凍っていない）。
+  **`live UNKNOWN` = 0**／**live PARTIAL 16 → 15**（`WX25-P2-007-E1` を解凍して parser 出力へ移した）。
+  🔧**ゲート（全緑 ✅）**＝golden **3550 / 3550**（3549 +1本＝`O-266` の2軸と負方向）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🖥**実機**＝`o266GuardAltEnergyGuardCard` **PASS**（エナ1枚と手札1枚の**両方**が支払われた）／
+  反転 `o266GuardAltNoEnergy` **PASS**（エナ0枚なら提示されない）／
+  `o267CutinResonaResolvesBeforeSpell` **PASS**（スペル保留中に除外が起きた＝【出】が先）。**3本とも `order` に入れた。**
+  🔁**反転確認**＝`O-266` はエナ0枚の対照シナリオが担う（提示されたら FAIL）。
+  `O-267` は**実装0行**なので反転確認の対象が無い＝代わりに実機シナリオを常設した。
+
 ### 恒久指標アーカイブ（2026-09-06・第193バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第193バッチ）＝🏁`O-264` クローズ／`V-173` 登録・同日返済（Opus 5 単独／本ブロックが直近の正）**

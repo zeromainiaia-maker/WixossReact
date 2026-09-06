@@ -175,8 +175,20 @@ let mechOpenIds = [];
   //     0件になったら異常なので下で止める。**新規登録は必ず索引に1行（表）で足すこと**（§5.3 の登録ルール）。
   const openIds = new Set([...sec53.matchAll(/^\|\s*`(O-\d+)`/gm)].map(m => m[1]));
   mechOpenIds = [...openIds];
-  if (sec53 && openIds.size === 0) {
+  // 🆕🔴**「書式が壊れた」と「本当に残0」を区別する**（2026-09-06 第195バッチ）＝
+  //   この fail-closed 警告は**索引が空になった瞬間に必ず鳴る**ので、worklist を全部消化すると
+  //   **正常な状態で永久に警告が出続ける**（＝計器が狼少年になる）。
+  //   🔑**判定材料は索引セクションの `🏁**残0**` 宣言**＝PLAN §5.3 は各索引（A/A'/B/G/E）を消化したとき
+  //     行を消して「🏁**残0**」と書く運用なので、**索引見出しの数だけ残0宣言があれば「本当に空」**。
+  //   ⚠**残0宣言が索引見出しより少ない**なら、消したのに宣言を書き忘れたか書式が変わった＝従来どおり警告する。
+  const indexHeads = (sec53.match(/^#### 索引 /gm) ?? []).length;
+  const emptyDecls = (sec53.match(/^🏁\*\*残0\*\*/gm) ?? []).length;
+  const allIndexesEmpty = indexHeads > 0 && emptyDecls >= indexHeads;
+  if (sec53 && openIds.size === 0 && !allIndexesEmpty) {
     console.error('⚠ PLAN.md §5.3 の索引テーブルから O-nn を1件も拾えなかった＝mech フラグが登録票ぶん0件になる（索引の書式が変わった可能性）');
+  }
+  if (sec53 && openIds.size === 0 && allIndexesEmpty) {
+    console.log(`  ℹ §5.3 の索引は ${indexHeads} 本すべてが「🏁残0」＝機構 worklist は空（書式の異常ではない）`);
   }
   const openTickets = tickets
     .split(/\n(?=### `O-\d+`)/)
@@ -228,7 +240,7 @@ console.log(`  held（parser 改善の未採用）  : ${byFlag('held')}`);
 console.log(`  partial（同上・MANUAL 混在） : ${byFlag('partial')}`);
 console.log(`  idset（id 集合ズレ＝§6.4 O-39）: ${byFlag('idset')}`);
 console.log(`  🆕mech（PLAN §5.3 に登録済み＝機構待ち）: ${byFlag('mech')}  ※JSON 修正では閉じない。開く前に §5.3 を読む（この判定は**下限**）`);
-console.log(`     └ 参照した §5.3 索引の未クローズ項目: ${mechOpenIds.length ? mechOpenIds.join(' ') : '（0件＝索引の書式を確認）'}`);
+console.log(`     └ 参照した §5.3 索引の未クローズ項目: ${mechOpenIds.length ? mechOpenIds.join(' ') : '（0件＝上の ℹ／⚠ でどちらか判別できる）'}`);
 console.log(`\n===== 束ねた現在地（${scopeLabel}）=====`);
 console.log(`  🎯要対応カード（フラグ1つ以上）: ${flagged.length} / ${withEffects.length}  (${pct(flagged.length, withEffects.length)})`);
 console.log(`  どのフラグも立たないカード     : ${clean.length} / ${withEffects.length}  (${pct(clean.length, withEffects.length)})`);
