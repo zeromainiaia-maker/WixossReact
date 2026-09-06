@@ -59472,7 +59472,11 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // 🆕**2026-09-06（§5.3 `O-93`）＝8 → 7。** `WXEX2-71-E2` を解凍（parser 出力と実体同一になったので
   //   手書きごと削除＝§6.4 `O-40`）し、`WXK04-015-E1b` は **id を `-E2` へ揃えた結果スタンプごと消えた**
   //   （枝番 id の live 限定 MANUAL は「孤児スタンプ」と「id 集合ズレ」を同時に作る＝1つ直すと2つ減る）。
-  const BASELINE_ORPHAN_MANUAL = 7; // 旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  // 🆕**2026-09-06（§5.4 第187バッチ）＝7 → 6。** live 限定 PARTIAL だった `WD23-017-EA-E1` を解凍した。
+  //   🔑**手で書き起こしたのではなく parser を直して出所を作った**＝「手札１枚をデッキの一番上に置く」
+  //   （`から`／`カード` を伴わない綴り）が解けるようになり、fresh が live と実体同一になったので
+  //   `censusOrphanManual --unfreeze` で AUTO へ戻した（分類 B・§5.4 の測り直しで見つけた）。
+  const BASELINE_ORPHAN_MANUAL = 6; // 旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
@@ -69274,6 +69278,91 @@ test('§5.3 O-259 第12: 相手ターンの追加タイミングと代替コス�
   ok(!timings('3', '5', true).has('ATTACK_ARTS'), '🔴自分のターンには足さない');
   ok(!timings('5', '5', false).has('ATTACK_ARTS'), '🔴レベルが低くなければ足さない');
   ok(!timings('5', '3', false).has('ATTACK_ARTS'), '🔴自分のほうが高ければ足さない');
+}));
+
+// ── §5.4 原文照合テール (a)「live に UNKNOWN が残る効果」＝2026-09-06 第187バッチで残0にした ──
+// 🔴**`UNKNOWN` は engine から見て完全な no-op**（実行しても何も起きない）＝
+//   原文の1手順が黙って消えたまま、census にも `census:stubs` にも出ない（STUB ですらない）。
+// 🏁**live 全数で 0 にした**ので、以後は**ラチェット**として置く（1件でも増えたら FAIL）。
+//   ⚠**PARTIAL/MANUAL の効果も数える**＝手修正で UNKNOWN を焼き付けたら止める。
+test('§5.4 (a) 第187: live の効果に UNKNOWN が1件も残っていない（ラチェット）', () => withSavedCursor(() => {
+  const withUnknown: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) if (JSON.stringify(e.action).includes('"type":"UNKNOWN"')) withUnknown.push(e.effectId);
+  }
+  eq(withUnknown.length, 0, `live に UNKNOWN を含む効果がある: ${withUnknown.join(', ')}`);
+}));
+
+// ── §5.4 (a) の3件の真因ごとの回帰ガード（消すと同じ壊れ方が黙って戻る）──
+test('§5.4 (a) 第187: EXTRA_COST_REMOVE_VIRUS の選択肢に BurstText のプレースホルダが混ざらない', () => withSavedCursor(() => {
+  // 🔴真因＝`foldExtraCostRemoveVirusChoices` へ渡す原文が `EffectText + ' ' + BurstText` で、
+  //   CSV の「ライフバースト無し」＝`-` がそのまま**最後の選択肢の本文**に付いていた
+  //   （`…トラッシュに置く。 -` → `SEQUENCE[本体, UNKNOWN{raw:'-'}]`）。
+  //   fail-closed は**トップレベルの UNKNOWN しか見ていなかった**ので素通りしていた。
+  for (const [id, n] of [['WX16-023-E1', 3], ['WX16-048-E1', 4]] as const) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id} が live にある`);
+    const stub = eff!.action as unknown as { id?: string; extraCostChoose?: { choices: unknown[] } };
+    eq(stub.id, 'EXTRA_COST_REMOVE_VIRUS', `${id} は EXTRA_COST_REMOVE_VIRUS`);
+    ok(!!stub.extraCostChoose, `${id}: 選択肢の payload がある（無いと engine は fail-closed で何もしない）`);
+    eq(stub.extraCostChoose!.choices.length, n, `${id}: 選択肢は原文どおり${n}つ`);
+    // 🔑**入れ子まで見る**＝これが今回の真因（トップレベルだけでは検出できない）。
+    ok(!JSON.stringify(stub.extraCostChoose).includes('"type":"UNKNOWN"'), `${id}: 選択肢に UNKNOWN が無い`);
+    ok(!JSON.stringify(stub.extraCostChoose).includes('"raw":"-"'), `${id}: 選択肢に "-" の残骸が無い`);
+  }
+}));
+
+test('§5.4 (a) 第187: WX09-Re03 の①（原典の誤植「を対象する。」）が UNKNOWN に落ちない', () => withSavedCursor(() => {
+  // 🔴原典が「対戦相手のセンタールリグ１体を対象**する**。」（正しくは「対象**とし、**」）と書いており、
+  //   対象宣言が**独立した1文**になって次文の「それ」と束縛できず、宣言文が丸ごと UNKNOWN で残っていた。
+  //   ⇒ `normalizeTargetDeclarationTypo` が句点を読点へ寄せて1文に畳む（全カードでこの1箇所だけ）。
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WX09-Re03-E1');
+  ok(!!eff, 'WX09-Re03-E1 が live にある');
+  const ch = eff!.action as unknown as { type: string; choices: Array<{ action: { type: string; id?: string } }> };
+  eq(ch.type, 'CHOOSE', 'WX09-Re03-E1 は CHOOSE');
+  eq(ch.choices.length, 4, '選択肢は4つ');
+  eq(ch.choices[0].action.type, 'STUB', '①は STUB へ畳まれる（旧: SEQUENCE[UNKNOWN, STUB]）');
+  eq(ch.choices[0].action.id, 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN', '①の受け皿');
+}));
+
+test('§5.4 第187: 「手札N枚をデッキの一番上に置く」（から/カード を伴わない綴り）が解ける', () => withSavedCursor(() => {
+  // 🔴この綴りが解けなかったせいで `WD23-017-EA-E1` は live を直パッチする以外に手が無く、
+  //   その `parseStatus:'PARTIAL'` が収穫マージで**不可侵**になり parser の改善を永久に受け取れなかった
+  //   （§5.3 `O-133` の「第4の死角」）。parser が解けるようになったので解凍済み。
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WD23-017-EA-E1');
+  ok(!!eff, 'WD23-017-EA-E1 が live にある');
+  eq(eff!.parseStatus, 'AUTO', '解凍済み＝parser が出所（PARTIAL に戻ると再び凍る）');
+  const json = JSON.stringify(eff!.action);
+  ok(json.includes('"type":"DRAW"'), '「カードを２枚引き」＝DRAW');
+  ok(json.includes('"type":"TRANSFER_TO_DECK"') && json.includes('"position":"top"'),
+    '「手札１枚をデッキの一番上に置く」＝TRANSFER_TO_DECK{top}');
+  ok(json.includes('"type":"HAND_CARD"'), '出どころは手札');
+  ok(!json.includes('"type":"UNKNOWN"'), 'UNKNOWN が残っていない');
+}));
+
+test('§5.4 (b) 第187: 「代わりに」加算分解の外科パッチが偽の PARTIAL 刻印を残さない', () => withSavedCursor(() => {
+  // 🔴素の parse は「２５枚以上あるかぎり、代わりに＋5000される。」を `SEQUENCE[POWER_MODIFY, UNKNOWN]` に
+  //   落として `PARTIAL` を刻む。そのあとカード別の外科パッチが **action を丸ごと書き換える**ので、
+  //   最終 JSON に UNKNOWN の痕跡は1つも残らない＝**偽の刻印**（`O-262` と同型）。
+  // ⚠**放置すると害がある**＝`PARTIAL` は収穫マージの不可侵印なので、この効果へは以後の parser 改善が
+  //   永久に届かなくなる（`_held_fresh` / `_partial_fresh` / `_idset_fresh` のどれにも出ない）。
+  const allCards187 = [...cardMap.values()] as CardData[];
+  for (const cardNum of ['WXK02-038', 'WXK10-036']) {
+    const card = allCards187.find(c => c.CardNum === cardNum);
+    ok(!!card, `${cardNum} が CSV にある`);
+    const effs = parseCardEffects(card!);
+    for (const suffix of ['-E1', '-E1b']) {
+      const e = effs.find(x => x.effectId === cardNum + suffix);
+      ok(!!e, `${cardNum}${suffix} が生成される`);
+      eq(e!.parseStatus, 'AUTO', `${cardNum}${suffix}: 偽の PARTIAL 刻印が残っていない`);
+      ok(!JSON.stringify(e!.action).includes('"type":"UNKNOWN"'), `${cardNum}${suffix}: UNKNOWN が無い`);
+    }
+  }
+  // 加算分解そのものの回帰ガード（刻印を消すついでに壊さないこと）。
+  const k2 = parseCardEffects(allCards187.find(c => c.CardNum === 'WXK02-038')!);
+  eq((k2.find(e => e.effectId === 'WXK02-038-E1')!.action as unknown as { delta: number }).delta, 3000, '15枚以上で＋3000');
+  eq((k2.find(e => e.effectId === 'WXK02-038-E1b')!.action as unknown as { delta: number }).delta, 2000,
+    '25枚以上でさらに＋2000（合計＋5000＝原文の「代わりに＋5000」）');
 }));
 
 if (listMode) {

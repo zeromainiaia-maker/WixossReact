@@ -5752,6 +5752,17 @@ function normalizePowerNumericMinusTypo(text: string | undefined): string | unde
   return text?.replace(/(パワーを)ー(?=\s?[０-９\d]{3,})/g, '$1－');
 }
 
+/**
+ * 原典の誤植「〜を対象**する**。」（正しくは「〜を対象**とし、**」）を正準形へ寄せる。
+ * 🔴**全カードで1箇所だけ**（`WX09-Re03`「対戦相手のセンタールリグ１体を対象する。」＝2026-09-06 実測）。
+ * 対象宣言が独立した1文になると後続文の「それ」と束縛できず、宣言文が丸ごと `UNKNOWN` として
+ * 残る（§5.4 (a) の live UNKNOWN 3件のうち1件）。**句点を読点へ寄せて次の文と1文に畳む**のが要点で、
+ * 「対象とする。」（正しい綴りで文を切る形＝17件）は**触らない**＝あちらは別の受け皿が既にある。
+ */
+function normalizeTargetDeclarationTypo(text: string | undefined): string | undefined {
+  return text?.replace(/を対象する。/g, 'を対象とし、');
+}
+
 /** action ツリー中の `POWER_MODIFY` ノードを（書き換え可能な参照のまま）集める（§5.3 `O-80` 第1バッチ）。 */
 function collectPowerModifyNodes(node: unknown, out: PowerModifyAction[] = []): PowerModifyAction[] {
   if (Array.isArray(node)) { node.forEach(v => collectPowerModifyNodes(v, out)); return out; }
@@ -8432,6 +8443,11 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
     if (e1) {
       e1.activeCondition = { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: 15 };
       e1.action = { type: 'POWER_MODIFY', target: { ...selfSigni, filter: { ...thisCard } }, delta: 3000 };
+      // 🔴**刻印も消す**（§5.4 (b)・2026-09-06 第187バッチ）＝素の parse は「２５枚以上あるかぎり、代わりに…」を
+      //   `SEQUENCE[POWER_MODIFY, UNKNOWN]` に落として `PARTIAL` を刻んでいたが、**この外科パッチが
+      //   action を丸ごと書き換えるので最終 JSON にその痕跡は残らない**（＝`O-262` と同じ偽の刻印）。
+      //   刻印を残すと `PARTIAL` が収穫マージの不可侵印になり、以後の parser 改善が届かなくなる。
+      e1.parseStatus = 'AUTO';
       effects.push({
         ...e1, effectId: 'WXK02-038-E1b',
         activeCondition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: 25 },
@@ -8453,6 +8469,7 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
       });
       delete e1.activeCondition;
       e1.action = boost(1000);
+      e1.parseStatus = 'AUTO';   // 🔴偽の刻印を消す（上の `WXK02-038` と同じ理由）
       effects.push({
         ...e1, effectId: 'WXK10-036-E1b',
         activeCondition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 50 },
@@ -23993,7 +24010,10 @@ function foldExtraCostRemoveVirusChoices(action: EffectAction, sourceText: strin
         const { action: optAction, condition } = liftChoiceOptionCondition(parseActionText(optRaw), optRaw);
         return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action: optAction, ...(condition ? { condition } : {}) };
       });
-      if (choices.some(c => c.action.type === 'UNKNOWN')) return a;   // fail-closed（半分だけ載せない）
+      // fail-closed（半分だけ載せない）。🔴**入れ子まで見る**（§5.4 (a)・2026-09-06 第187バッチ）＝
+      // トップレベルだけを見ていたため `SEQUENCE[本体, UNKNOWN]` が素通りし、
+      // **選択肢の一部が黙って欠けた payload** が live へ配送されていた。
+      if (choices.some(c => JSON.stringify(c.action).includes('"type":"UNKNOWN"'))) return a;
       return { ...(a as StubAction),
         extraCostChoose: { type: 'CHOOSE', choose_count: 1, from_count: choices.length, choices } as ChooseAction } as EffectAction;
     }
@@ -26046,8 +26066,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   const rawEffectTextForPrintedCosts = card.EffectText;
   card = {
     ...card,
-    EffectText: normalizePowerNumericMinusTypo(card.EffectText),
-    BurstText: normalizePowerNumericMinusTypo(card.BurstText),
+    EffectText: normalizeTargetDeclarationTypo(normalizePowerNumericMinusTypo(card.EffectText)),
+    BurstText: normalizeTargetDeclarationTypo(normalizePowerNumericMinusTypo(card.BurstText)),
   };
   const effects: CardEffect[] = [];
   const currentSourceTexts = new Map<string, string>();
@@ -26602,7 +26622,14 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     //   あれは「文が丸ごと keyword に入った」record の**キーを全消しして STUB へ置き換える**ので、
     //   前段で載せた `selectTarget` は**必ず消える**（実測で1往復した）。対象の絞り込みはここで載せ直す。
     e.action = foldAttackNegImmuneTarget(e.action, card.EffectText ?? '');
-    e.action = foldExtraCostRemoveVirusChoices(e.action, `${card.EffectText ?? ''} ${card.BurstText ?? ''}`);
+    // 🔴**`BurstText` のプレースホルダ `-` を混ぜない**（§5.4 (a)・2026-09-06 第187バッチ）＝
+    //   CSV は「ライフバースト無し」を `-` と書く。素朴に連結すると**最後の選択肢の本文が
+    //   `…トラッシュに置く。 -` になり**、`①…④` の最終要素だけが `SEQUENCE[本体, UNKNOWN{raw:'-'}]` に化けた
+    //   （`WX16-023-E1` / `WX16-048-E1` の live UNKNOWN 2件の真因）。
+    //   ⚠下の fail-closed は**トップレベルの UNKNOWN しか見ていなかった**ので素通りしていた（同時に再帰化した）。
+    e.action = foldExtraCostRemoveVirusChoices(
+      e.action,
+      [card.EffectText, card.BurstText].filter(t => t && t !== '-').join(' '));
     // 🔴`REVEAL_AND_PICK.then` のエナ行きを正準形 `ADD_TO_ENERGY` へ揃える（2026-08-22 段2 第4バッチ）。
     // 旧 `ENERGY_CHARGE{target:{DECK_CARD}}` は **engine では場のシグニが候補になる**（`execEnergyCharge` は
     // HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝`effectExecutor.ts:2046`）＝公開して選んだ

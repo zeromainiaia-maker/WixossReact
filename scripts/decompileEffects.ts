@@ -3627,11 +3627,19 @@ function actionJa(a?: Action, effectType?: string): string {
         return `その中から（デッキの上から${a.handOrEnergyLookCount}枚）カードを好きな枚数手札に加え、残りをエナゾーンに置く`;
       }
       if (a.id === 'EXTRA_COST_REMOVE_VIRUS') {
-        // ⚠**選択肢そのもの（①②③…）はまだ engine 側の `choiceTextParser` が原文から組む**
-        //   （`INTERNAL_ECRV_APPLY`＝`O-60` のモーダル選択 family。この巡では取っていない）。
+        // 🆕**選択肢（①②③…）も描く**（§5.4・2026-09-06 第187バッチ）。
+        //   旧コメントは「まだ engine の `choiceTextParser` が原文から組む」と書いていたが、
+        //   `O-234`（2026-09-04）で **parser が解いて `extraCostChoose` に載せる**形へ移った後も
+        //   逆翻訳が選択肢を1つも出さなかったため、**payload が壊れても読み手には見えない**ままだった
+        //   （実際 `WX16-023` / `WX16-048` は選択肢の末尾に `UNKNOWN{raw:'-'}` を抱えていた）。
+        // 🔴**payload が無ければ engine は fail-closed で何もしない**（`execStubPart1.ts` の `INTERNAL_ECRV_APPLY`）。
         if (a.virusCount === undefined) return '[EXTRA_COST_REMOVE_VIRUS: 取り除ける上限なし（未指定・engine は0個）]';
         const nECRV = a.virusCount === 'any' || a.virusCount === 'all' ? '好きな数' : `${a.virusCount}つまで`;
-        return `使用コストとして追加で対戦相手の場にある【ウィルス】を${nECRV}取り除いてもよい。取り除いた数に1を加えた数だけ、以下から選ぶ`;
+        const headECRV = `使用コストとして追加で対戦相手の場にある【ウィルス】を${nECRV}取り除いてもよい。取り除いた数に1を加えた数だけ選ぶ`;
+        if (!a.extraCostChoose) return `${headECRV}[選択肢の payload なし＝engine は何もしない]`;
+        const bodyECRV = (a.extraCostChoose.choices || [])
+          .map((c: any) => actionJa(c.action)).filter((t: string) => t !== '').join(' / ');
+        return `${headECRV}【${bodyECRV}】`;
       }
       // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;

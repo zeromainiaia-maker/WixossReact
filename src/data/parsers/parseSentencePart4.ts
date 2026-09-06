@@ -627,7 +627,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 手札からカードをデッキ上/下に置く ----
   {
-    const mHandDeck = t.match(/手札からカード([１-９\d０-９]*)枚?(まで)?をデッキの一番([上下])に置く/);
+    // 🆕**「手札**から**カード」の2語は任意**（§5.4・2026-09-06 第187バッチ）＝原典には
+    //   「手札１枚をデッキの一番上に置く」の綴りが実在する（`WD23-017-EA-E1`＝この効果は
+    //   parser が解けず live を直パッチしていた＝収穫マージが凍結する `PARTIAL` の出所だった）。
+    //   ⚠**「手札**を**１枚デッキの…」形（＝対戦相手が置く綴り）は意図的に外れる**＝
+    //   `手札` の直後に `を` は許していない（あちらは actor が自分とは限らない）。
+    const mHandDeck = t.match(/手札(?:から)?(?:カード)?([１-９\d０-９]*)枚?(まで)?をデッキの一番([上下])に置く/);
     if (mHandDeck) {
       const cnt = mHandDeck[1] ? parseNum(mHandDeck[1]) : 1;
       const up = !!mHandDeck[2];

@@ -5578,8 +5578,30 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第186バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第186バッチ）＝🏁`O-263`／🏁`O-262` クローズ＝索引 B が残0（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**据置の理由**＝語彙は増えていない（足したのは `StubAction` の payload 1本と parser 規則1本）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（いずれも据置）。
+  📦**在庫**＝**機構 worklist 4 → 2項目**＝索引 **A 0／B 0／G 0／E 2**（E は計器の較正＝維持のみ）。
+  🏁**⑤実機 残 0件**＝`V-169`（4シナリオ）・`V-170`（1シナリオ）を**同じ巡で返済**（負方向の対照2本）。
+  🔻**`_held_fresh` 2 → 1**（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  `census:cards -- --sheet 1` が参照した §5.3 の未クローズ項目＝`O-134` `O-245`（どちらも索引 E）。
+  🔧**ゲート（全緑 ✅）**＝golden **3532 / 3532**（3529 +3本＝`§5.3 O-263`／`battleCardNums` ゾーン取りこぼし／`§5.3 O-262`）／
+  smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🔁**反転確認2本**＝①engine の `stub.trapTargetScope` 参照を `undefined` へ潰すと golden が FAIL
+  ②`battleCardNums` から `signi_traps` を抜くと新ゲートが FAIL。
+  🖥**実機（第186）**＝`o263ExplicitPicksSecondTrap` / `o263ExplicitPicksFirstTrap`（**対照**）／
+  `o263SourceZoneTrapFires` / `o263SourceZoneFollowsSigni`（**対照**）／`v170SpellTrashExileActivatesTrap`。
+  🔑**観測点はすべて「どちらの【トラップ】が発動したか」**（手札+2 か エナ+2 か）＝
+  **旧実装はどの盤面でも必ずゾーン1**なので、「エナ+2」になった時点で旧挙動は否定される。
+
 ### 恒久指標アーカイブ（2026-09-05・第157〜173バッチ後・PLAN §6 から退避）
 
+---
 - **2026-09-05（第157〜173バッチ＝17巡）＝索引 A・B 残0／実機14シナリオ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置）｜**台帳 残 OPEN 36 → 24**｜
   **census 高シグナル 1 / BASELINE 1**（据置）

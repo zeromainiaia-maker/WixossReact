@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第187バッチ）＝🏁**PLAN §5.4 (a)「live に `UNKNOWN` が残る効果」を残0**＋(b) の偽 `PARTIAL` 刻印を撤去
+
+**真因は3つとも「木ごと作り直す」案件ではなかった**（§5.4 の登録票の見立てが外れていた）。**実機不要と判定**＝
+触ったのは `src/data/`（parser）と `scripts/`（逆翻訳・golden）だけで、`src/screens/` にも新しい型・機構にも
+触れていない（PLAN §2.2 の表）。
+
+### ① CSV の `BurstText` プレースホルダ `-` が選択肢の本文に混ざっていた（`WX16-023-E1` / `WX16-048-E1`）
+
+**真因**＝`effectParser.ts` の `foldExtraCostRemoveVirusChoices` に渡す原文が
+`` `${card.EffectText} ${card.BurstText}` `` で、CSV が「ライフバースト無し」を書く **`-` がそのまま連結**されていた。
+`①②③④` の分割は最後の要素を文末まで取るので、**最終選択肢だけ本文が `…トラッシュに置く。 -` になり**
+`SEQUENCE[本体, UNKNOWN{raw:'-'}]` に化けていた。
+🔑**fail-closed が効かなかった理由**＝`choices.some(c => c.action.type === 'UNKNOWN')` は**トップレベルしか見ない**。
+⇒ ①連結時に `-` を除外 ②fail-closed を**入れ子まで**見る形へ（`JSON.stringify` に `"type":"UNKNOWN"` が含まれるか）。
+
+### ② 原典の誤植「を対象**する**。」（`WX09-Re03-E1`）
+
+**真因**＝原文が「対戦相手のセンタールリグ１体を対象**する**。」（正しくは「対象**とし、**」）で、
+**対象宣言が独立した1文**になり次文の「それ」と束縛できず、宣言文が丸ごと `UNKNOWN` で残っていた。
+⇒ `normalizeTargetDeclarationTypo`（既存の `normalizePowerNumericMinusTypo` と同じ前処理層）で
+**句点を読点へ寄せて1文に畳む**。⚠**全カードで1箇所だけ**（実測）。正しい綴りの「を対象とする。」17件には掛からない。
+
+### ③ 「手札N枚をデッキの一番上に置く」の綴りが解けなかった（`WD23-017-EA-E1`）
+
+**真因**＝parser の受け皿は `手札**から****カード**N枚をデッキの一番○に置く` に固定されており、
+原典に実在する `手札N枚を…` を取りこぼしていた。解けないので live を**直パッチ**するしかなく、
+その `parseStatus:'PARTIAL'` が収穫マージの**不可侵印**になって parser の改善が永久に届かない状態だった
+（§5.3 `O-133` の「第4の死角」）。
+⇒ `parseSentencePart4.ts` の regex で `から` / `カード` を任意に。**`手札**を**１枚デッキの…` 形は意図的に外す**
+（あちらは actor が対戦相手のことがある）。解けるようになったので `censusOrphanManual --unfreeze` で解凍し、
+`BASELINE_ORPHAN_MANUAL` を **7 → 6** へ下げた。
+
+### ④ 「代わりに」加算分解の外科パッチが偽の `PARTIAL` を残していた（`WXK02-038` / `WXK10-036` の各2効果）
+
+**真因**＝素の parse が「２５枚以上あるかぎり、代わりに＋5000される。」を `SEQUENCE[POWER_MODIFY, UNKNOWN]` に
+落として `PARTIAL` を刻み、その直後にカード別の外科パッチが **action を丸ごと書き換える**のに
+**刻印だけ引き継いでいた**。最終 JSON に痕跡は1つも残らない＝**`O-262` と同型の偽の刻印**。
+⇒ 両パッチで `parseStatus = 'AUTO'` を明示。**fresh PARTIAL 24 → 20 で live と一致**。
+
+### ⑤ 逆翻訳が `EXTRA_COST_REMOVE_VIRUS` の選択肢を1つも描いていなかった（計器の穴）
+
+`O-234`（2026-09-04）で選択肢は **parser が解いて payload に載せる**形へ移ったのに、`decompileEffects.ts` は
+`choiceTextParser` 時代のまま「取り除いた数に1を加えた数だけ、以下から選ぶ」で**打ち切っていた**＝
+**payload が壊れても読み手には見えない**（実際①の `UNKNOWN{raw:'-'}` はこれで隠れていた）。
+⇒ 選択肢を `【A / B / C】` で描き、**payload が無いときは `[選択肢の payload なし＝engine は何もしない]`** と出す。
+
+**影響枚数**＝**live 4効果 / 4カード**（①2・②1・③1）＋ 偽刻印の撤去 4効果 / 2カード。
+**検証コマンド**＝`npm run build:effects` → `node scripts/heldReview.mjs --adopt …` → `npm run regen` → `npm run gates`。
+**ゲート（全緑 ✅）**＝golden **3537 / 3537**（3532 +5本）・smoke 全異常0・fuzz 全0・census **0 / BASELINE 0**・
+`census:stubs` A群🔴0・C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors。
+**反転確認**＝**取った**。①〜③は**修正前の live JSON に戻すと新テスト4本が全部 FAIL**（`git stash` で実測）。
+④は**修正前の `effectParser.ts` に戻すと `WXK02-038-E1` が `PARTIAL` で FAIL**。
+
+🔑**新しく張ったラチェット**＝`§5.4 (a) 第187: live の効果に UNKNOWN が1件も残っていない`。
+**`UNKNOWN` は engine から見て完全な no-op**（原文の1手順が黙って消える）なのに、
+**census にも `census:stubs` にも出ない**（STUB ですらない）＝これまで全数計器が無かった。
+
+🔑**教訓**＝**CSV のプレースホルダ `-` を原文として連結しない**。同じ形の連結は `effectParser.ts` に
+**20箇所以上**あり（`` `${card.EffectText}
+${card.BurstText}` ``）、既存のガード綴り（`card.BurstText !== '-'`）は
+2箇所でしか使われていない。**新しく全文を組むときは必ずプレースホルダを除く。**
+
+---
+
 ## 2026-09-06（第186バッチ）＝🏁**`O-263` と `O-262` を同時にクローズ**＝【トラップ】発動の対象が「先頭固定」だった／設置したカードが `battleCardMap` から落ちていた
 
 **この巡で直したのは3件**（うち2件は**実機が出した engine の本物のバグ**）。**実機 5シナリオ ALL PASS**（負方向の対照 2本）。
