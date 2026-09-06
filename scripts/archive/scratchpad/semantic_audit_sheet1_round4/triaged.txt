@@ -1,0 +1,8 @@
+# triage 済み finding（PLAN §5.0 Opus レーン）＝「<effectId または cardNum> :: BUG|FP :: 一言」
+# ⚠FP と判定したら、必ず scripts/semanticAuditExtract.mjs の「追加の読み方ルール」へ還元する（PLAN §2.6 決定2）。
+WX11-043-E1 :: BUG :: クロス宣言の接頭辞が捨てられ crossOnly が付かない（grep で10枚に展開・第197バッチで修正）
+WX11-043-E2 :: FP :: STUB の id 名と payload の食い違いのみ（挙動は正しい）→ 規則15へ還元
+WX08-010-E1 :: BUG :: 「この方法でクラッシュした1枚につき」が固定 count:1（第197バッチで修正）
+WX08-010-E1b :: BUG :: バースト抑制 STUB が LIFE_CRASH の後ろ＋相手側にフラグを立てる実装（第197バッチで修正）
+WX10-072-E1 :: FP :: 「そうした場合」は effectExecutor の did-it ゲートが消費 → 規則13へ還元
+WX11-044-BURST :: FP :: OPPONENT_PAY_OPTIONAL の既定の極性（払わなかったら then）→ 規則14へ還元

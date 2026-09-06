@@ -156,6 +156,10 @@ ${guide}
 10. LIFE_BURST 効果の mandatory:false は「LB発動は任意」というルールの表現＝報告しない。
 11. アンコール（「アンコール－…」）・ベット（「ベット－…」）の注記は engine 側の別機構で処理される＝JSON に無くても報告しない。
 12. AUTO/ACTIVATED 効果で action が STUB の場合、任意（〜してもよい）の確認は STUB ハンドラ内で行われることがある＝mandatory フラグだけの任意/強制ずれは LOW に格下げ（STUB 以外のアクションなら通常どおり）。
+13. **「そうした場合」＝ did-it ゲート（2026-09-06 の偽陽性から追加）**：LIFE_CRASH・DISCARD など」実際にできたか」で後続が決まるアクションの直後に置かれた CONDITIONAL(IS_MY_TURN) は、engine の did-it ゲート（「DID_IT_GATED_TYPES」）が消費する既知イディオム＝**空振りしたら then は起きない**。**報告しない。**
+14. **OPPONENT_PAY_OPTIONAL の既定の極性（同上）**：「対戦相手は〜してもよい。そうしないかぎり…」型の既定は**」払わなかったら then」**で、「thenOnPay」 を立てたときだけ逆向き。**JSON の CONDITIONAL(IS_MY_TURN) は極性を持たない**＝これを「条件が逆」と**報告しない**。
+15. **STUB の id 名と payload の食い違いは報告しない（同上）**＝id は表示用の名前で、engine が読むのは payload。「..._FROM_TRASH」 という id で 「value2:"hand"」 を持つ形は**payload が原文と合っていれば正しい**。**payload の側が原文と違うときだけ**報告する。
+16. 🔑**engine は JSON の見た目を裏で読み替えることがある**（13〜15 がその実例）。**「JSON にこう書いてあるから間違い」という理由だけの finding は severity を LOW にする**。原文の**語句そのもの**が JSON のどこにも無い型（欠落・数値違い・対象違い）を優先して報告すること。
 
 # 見るべき典型バグ
 
@@ -171,7 +175,11 @@ ${guide}
 
 **JSON のみを出力**（説明文・前置き・コードフェンス不要）。全カード分の results を必ず出力し、不一致が無いカードは findings を空配列にする。
 
-{"results":[{"cardNum":"WX01-001","findings":[{"effectId":"WX01-001-E1 または null","severity":"HIGH|MED|LOW","type":"MISSING|WRONG|EXTRA|SUSPECT_STUB","quote":"原文の該当句（20字以内）","claim":"不一致の内容を日本語1文で"}]}]}
+{"results":[{"cardNum":"WX01-001","findings":[{"effectId":"WX01-001-E1 または null","severity":"HIGH|MED|LOW","type":"MISSING|WRONG|EXTRA|SUSPECT_STUB","quote":"原文の該当句（20字以内）","claim":"不一致の内容を日本語1文で","grep":"同じ壊れ方が他カードにもあるなら、それを探すための原文の言い回し（10字以内）。このカード固有なら null"}]}]}
+
+🔑**「grep」 が最重要**＝この監査の目的は「このカードを直すこと」ではなく**同じ壊れ方の“型”を見つけること**。
+1枚の不一致を見たら「**この言い回しを持つ他のカードでも同じことが起きるか**」を必ず考え、起きるなら
+その言い回し（原文の表記そのまま・記号を含めてよい）を 「grep」 に入れる。カード名や番号は入れない。
 
 severity: HIGH＝効果の意味が実質異なる／主要効果の丸ごと欠落。MED＝数値・対象・条件・任意強制の部分的ずれ。LOW＝軽微または確信が持てない。
 
