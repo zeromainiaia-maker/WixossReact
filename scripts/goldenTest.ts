@@ -11684,6 +11684,39 @@ test('§5.3 O-239: N枚目までにチェックゾーンへ置かれたライフ
   eq(shouldAddGrantedAllZoneBurst('LIFE-X', st, cm, effectsMap, false), false, 'O-239 反転: 順序リストに無いカードは付かない');
 }));
 
+// ── 🆕§5.3 `O-266`（2026-09-06）：【ガード】の代替コスト「エナ＋《ガードアイコン》」と
+//    エナフェイズ開始時の【エナチャージ】（`WX25-P2-007-E1`＝アーツ《一体分身》） ──
+// 🔴**旧 live は2軸とも落ちていた**＝`SEQUENCE[GAIN_ABILITY_THIS_GAME{abilityBlockHeader のみ},
+//    GUARD_ALTERNATIVE_COST（payload なし）]` で、①代替コストの中身がどこにも無く
+//    （`collectGuardAlternativeCost` は payload 無しを fail-closed で「代替なし」に落とす）
+//    ②**付与される2つ目の能力（エナフェイズ開始時の【エナチャージ１】）が JSON に1ステップも無かった**。
+// 🔑**受け皿は `gameGrants`**＝この文型の「このゲームの間、あなたは以下の能力を得る」は
+//    `GAIN_ABILITY_THIS_GAME` の payload に畳むのが既存の規約（`O-60` 第49バッチ）。
+test('§5.3 O-266: 【ガード】代替コスト（エナ＋ガードアイコン）とエナフェイズ【エナチャージ】が載る', () => withSavedCursor(() => {
+  const act = effectsMap.get('WX25-P2-007')?.find(e => e.effectId === 'WX25-P2-007-E1')?.action as
+    { type?: string; id?: string; gameGrants?: Array<{ kind?: string; count?: number; energyCount?: number; guardCardCount?: number }> };
+  eq(act?.id, 'GAIN_ABILITY_THIS_GAME', 'O-266: 宣言1本に畳まれている');
+  const ga = act?.gameGrants ?? [];
+  const charge = ga.find(x => x.kind === 'energyPhaseCharge');
+  ok(!!charge, '🔴O-266: 2つ目の能力（エナフェイズ開始時のエナチャージ）が載る（旧 live には1ステップも無かった）');
+  eq(charge?.count, 1, 'O-266: 【エナチャージ1】');
+  const gAlt = ga.find(x => x.kind === 'guardAltEnergyAndGuardCard');
+  ok(!!gAlt, '🔴O-266: ガード代替コストの中身が載る（旧 live は payload なしで fail-closed に落ちていた）');
+  eq(gAlt?.energyCount, 1, 'O-266: エナ1枚');
+  eq(gAlt?.guardCardCount, 1, 'O-266: 《ガードアイコン》1枚');
+  // 🔴**負方向**＝payload を持たない `GUARD_ALTERNATIVE_COST` の残骸が消えている
+  //   （残っていると engine が「代替コスト無し」に落とす旧経路へ戻る）。
+  ok(!JSON.stringify(act).includes('GUARD_ALTERNATIVE_COST'),
+     '🔴payload なしの GUARD_ALTERNATIVE_COST が残っていない');
+  // engine＝宣言が読み手のある state キーへ落ちる
+  const r = run(act as unknown as EffectAction, mkCtx({}, {}));
+  eq(r.ownerState.game_energy_phase_charge, 1, 'O-266: エナチャージ宣言が state に載る');
+  eq(r.ownerState.game_guard_alt_energy_and_guard_card?.energyCount, 1, 'O-266: ガード代替がstateに載る（エナ）');
+  eq(r.ownerState.game_guard_alt_energy_and_guard_card?.guardCardCount, 1, 'O-266: 同（ガードアイコン）');
+  // 🔑**`guardAltHand`（手札を捨てるだけ）と取り違えていない**＝別キーであることを固定する。
+  eq(r.ownerState.game_guard_alt_hand, undefined, '🔴手札捨て版のフラグは立てない（払う場所が違う）');
+}));
+
 // ── 🆕§5.3 `O-242`（2026-09-04）：そのターンの「最初のグロウ」限定のエナチャージ ──
 // 🔴旧 `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED`＝無言 no-op（`WXDi-P03-002-E1`）。
 // 🔑**条件を落として `growDraw` へ寄せない**＝寄せるとグロウのたびに発火する過大実行（第62で差し戻した件）。

@@ -3246,6 +3246,12 @@ export function execStubPart1(
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_draw: true } };
           logsGA.push('エナフェイズ開始時ドロー（このゲーム）');
           break;
+        // 🆕§5.3 `O-266`（2026-09-06）＝エナフェイズ開始時の【エナチャージN】。
+        //   読み手は `BattleScreen.tsx` のフェイズ遷移（`nextPhase === 'ENERGY'`）1箇所。
+        case 'energyPhaseCharge':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_charge: g.count } };
+          logsGA.push(`エナフェイズ開始時【エナチャージ${g.count}】（このゲーム）`);
+          break;
         case 'deckSigniLevelOverride':
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
             deck_signi_level_override: { class: g.cardClass, level: g.level } } };
@@ -3278,6 +3284,13 @@ export function execStubPart1(
         case 'guardAltHand':
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_alt_hand: g.handCount } };
           logsGA.push(`ガード代替：手札${g.handCount}枚捨て（このゲーム）`);
+          break;
+        // 🆕§5.3 `O-266`（2026-09-06）＝エナ＋ガードアイコンの2箇所払い。
+        //   読み手は `GuardResponseDialog`（提示）と `handleGuardWithEnergyAndGuardCard`（支払い）。
+        case 'guardAltEnergyAndGuardCard':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            game_guard_alt_energy_and_guard_card: { energyCount: g.energyCount, guardCardCount: g.guardCardCount } } };
+          logsGA.push(`ガード代替：エナ${g.energyCount}枚＋《ガードアイコン》${g.guardCardCount}枚をトラッシュ（このゲーム）`);
           break;
         case 'guardBarrierAct':
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_barrier_act: true } };

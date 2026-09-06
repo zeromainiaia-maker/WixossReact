@@ -1267,6 +1267,14 @@ export interface PlayerState {
   game_first_grow_energy_charge?: number;
   game_hand_size_bonus?: number;    // WX25-P2-005: 手札上限増加
   game_energy_phase_draw?: boolean; // WX25-P2-005: エナフェイズ開始時1枚ドロー
+  /** 🆕§5.3 `O-266`＝WX25-P2-007: エナフェイズ開始時の【エナチャージN】（ドロー版とは別処理）。 */
+  game_energy_phase_charge?: number;
+  /**
+   * 🆕§5.3 `O-266`＝WX25-P2-007: 【ガード】の代替コスト
+   * 「エナゾーンからカードN枚と《ガードアイコン》を持つカードM枚をトラッシュに置く」。
+   * 🔑`game_guard_alt_hand`（手札を捨てるだけ）とは払う場所が違うので別キーにする。
+   */
+  game_guard_alt_energy_and_guard_card?: { energyCount: number; guardCardCount: number };
   game_no_coin_gain?: boolean;                     // WXDi-P07-006: このゲームコイン獲得禁止
   game_opp_extra_guard_hand_or_colorless?: number; // WXDi-P05-005: 相手ガード時追加コスト（手札N枚か《無》）
   game_guard_alt_hand?: number;                    // WXDi-P06-006: ガード代替（手札N枚捨て）

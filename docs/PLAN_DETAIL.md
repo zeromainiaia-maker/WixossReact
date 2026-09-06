@@ -4131,7 +4131,7 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 **2026-08-28 `O-113` の作業中に発見**＝`WXK11-019-E2`（Sheet4）「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、**そのシグニ**は効果によって得ている能力を失う」。■live は `REMOVE_ABILITIES{target:{owner:'opponent'}}` **のみ**＝①**アップが丸ごと落ちている** ②**能力を失わせる相手が逆**（原文は自分の受けたシグニ／live は相手シグニ）。■🔑`O-113` で**発火条件**は正しくなった（`affectedByOppArtsFilter`）が、**帰結が「効果を受けたシグニ」を参照する受け皿が無い**＝`targetsTriggerSource` はこの timing ではアーツを指すので使えない。■**取り方**＝`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ載せ、`targetsAffectedByTrigger` 相当で本体へ束縛する（`triggeringCardNum` と同型の1本）。■母集団＝この1枚（`WX05-020-E2` は帰結が「対戦相手にダメージ」で参照不要）。
 
-### `O-266` — 【ガード】のコストを置換する機構が engine に無い（`WX25-P2-007`）
+### `O-266` — 🏁**クローズ（2026-09-06 第194バッチ）**／登録票の「新しい機構が要る」は外れ＝**受け皿は既にあった**
 
 **登録**＝2026-09-06 第191バッチ（PLAN §5.4 (b) の「機構待ち」仕分けから採番）／**規模 M**／**母集団 live 1効果**。
 
@@ -4156,7 +4156,16 @@ STUB{GUARD_ALTERNATIVE_COST} ]`。
 2. **アクション側は STUB ハンドラ1本で書く**（型を足さない）。置換の中身は payload へ。
 3. ⚠**`src/screens/` を触るなら実機まで必須**（§2.2）＝【ガード】の支払い UI はそこにある。
 
-### `O-267` — 能力の発動順を他の効果より前に固定できない（`WX13-005B`）
+🏁**結末（2026-09-06 第194バッチ）**＝**新しい型も engine の新経路も要らなかった。**
+「このゲームの間、あなたは以下の能力を得る」の受け皿 `GAIN_ABILITY_THIS_GAME` の
+**`gameGrants` payload に `kind` を2つ足すだけ**で2軸とも閉じた
+（`guardAltEnergyAndGuardCard`＝ガード代替／`energyPhaseCharge`＝落ちていた2つ目の能力）。
+UI は既存の代替ガード3種の隣に1つ、engine は `execStubPart1` の `switch` に2 case。
+🔴**live へ届けるのに3手**＝手書き `PARTIAL` を消しても収穫マージが live の刻印を不可侵にするので、
+`census:orphanmanual --unfreeze <id>` → `npm run build:effects` → `heldReview --adopt-effect <id>`。
+実機 `V-174`（正・反転）ALL PASS。全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-06（第194バッチ）。
+
+### `O-267` — 🏁**クローズ（2026-09-06 第194バッチ）＝実装不要**／順序は**既に正しかった**（実機で確認・実装0行）
 
 **登録**＝2026-09-06 第191バッチ（PLAN §5.4 (b) の「機構待ち」仕分けから採番）／**規模 M**／**母集団 live 1効果**。
 
@@ -4177,6 +4186,13 @@ STUB{GUARD_ALTERNATIVE_COST} ]`。
    ②の使用禁止は**すでにカットインされたスペルには及ばない**。順序を入れるならこの除外も同時に要る。
 3. 🔑**先に §5.1 で実機の現状を1本撮る**（いま何が先に解決されているか）＝
    直す前に「壊れている」ことを実機で見ていない。
+
+🏁🔴**結末（2026-09-06 第194バッチ）＝実装不要だった。** 手順3のとおり先に実機を撮ったところ、
+**【出】は既にスペルより先に解決していた**（スペルが保留のうちに相手トラッシュのシグニ2枚が除外された）。
+保証しているのは `BattleScreen.tsx` の**「`effect_stack` が空になるまでスペルを解決しない」ガード1本**。
+🔑**登録票の「欠けているのは順序だけ」は外れ**＝欠けているものは無かった。**実装は0行。**
+⇒ そのガードの**唯一の番人**として実機シナリオ `o267CutinResonaResolvesBeforeSpell` を `order` に常設した（`V-175`）。
+🔑**「まず現状を撮る」がそのまま実装1件分を節約した**＝機構項目の既定手順にする価値がある。
 
 ### `O-261` — 🏁**クローズ（2026-09-06 第183バッチ）**／登録時の母集団「30効果」は測定ミスで実測2効果
 
@@ -5624,6 +5640,27 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-06・第193バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第193バッチ）＝🏁`O-264` クローズ／`V-173` 登録・同日返済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 2 → 0 / 863**｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**Sheet1 が 0 になったのは `O-264` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
+  🔴**「0＝正しい」ではない**（計器が見ていないだけ）。⚠**census 据置の理由**＝語彙は増えていない（`public/data/` は無変更）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
+  📦**在庫**＝**機構 worklist 5 → 4項目**＝索引 **A' 0／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**。
+  **⑤実機 残 0件**（`V-173` を新設して同じ巡で返済）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**／**live PARTIAL 16**（据置＝`public/data/` は無変更）。
+  🔧**ゲート（全緑 ✅）**＝golden **3549 / 3549**（3545 +4本＝`PLAY_FREE` の hand／opp_trash／lrig_deck の
+  各置き場所＋限定条件の正負両方向）／smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**反転確認2本**＝①golden＝`thenAction` を `ADD_TO_HAND` へ戻すと新テストが FAIL
+  ②🖥**実機でも**＝同じ差し戻しで `v173` が FAIL（ログが「包括する知識を**手札に加える**」になる）。
+  🖥**実機**＝`v173PlayFreeFromHandActuallyUses` **PASS**（デッキ 40→38＝2枚引いた）／
+  `v172ResonaConditionFires`・`v172BattleBanishDoesNotFire` も **PASS**（3本とも `order` に入っている）。
 
 ### 恒久指標アーカイブ（2026-09-06・第192バッチ後・PLAN §6 から退避）
 

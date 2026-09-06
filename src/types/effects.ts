@@ -4519,6 +4519,13 @@ export type GameGrantSpec =
   | { kind: 'handSizeBonus'; value: number }
   /** 「あなたのエナフェイズ開始時、カードを1枚引く」 */
   | { kind: 'energyPhaseDraw' }
+  /**
+   * 🆕「あなたのエナフェイズ開始時、【エナチャージN】をする」（2026-09-06・§5.3 `O-266`・`WX25-P2-007-E1`）。
+   * 🔴**`energyPhaseDraw` へ寄せない**＝あちらはドロー。こちらは**デッキの上をエナゾーンへ**置く別処理。
+   * ⚠原文の括弧書き「（手札か場からエナゾーンにカードを置く前に【エナチャージN】をする）」は
+   *   **順序の注記**であって別の宣言ではない（規則が二重に当たらないよう `【エナチャージ` は1回だけ拾う）。
+   */
+  | { kind: 'energyPhaseCharge'; count: number }
   /** 「あなたのデッキにある＜X＞のシグニのレベルはNになる」（`cardClass:'*'`＝クラス指定なし） */
   | { kind: 'deckSigniLevelOverride'; cardClass: string; level: number }
   /** 「このゲームの間、あなたは《コインアイコン》を得られない」 */
@@ -4531,6 +4538,14 @@ export type GameGrantSpec =
   | { kind: 'oppGuardExtraHandOrColorless'; handCount: number }
   /** 「あなたが【ガード】する際、…代わりに手札をN枚捨ててもよい」 */
   | { kind: 'guardAltHand'; handCount: number }
+  /**
+   * 🆕「あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに
+   * **あなたのエナゾーンからカードN枚と《ガードアイコン》を持つカードM枚をトラッシュに置いて**もよい」
+   * （2026-09-06・§5.3 `O-266`・`WX25-P2-007-E1`）。
+   * 🔑**`guardAltHand` とは別物**＝あちらは「手札を捨てる」だけ。こちらは**エナと手札の2箇所**を払う。
+   * ⚠エナ側は**色もクラスも問わない**（`GUARD_ALTERNATIVE_COST` の `energy_trash_class` とはここが違う）。
+   */
+  | { kind: 'guardAltEnergyAndGuardCard'; energyCount: number; guardCardCount: number }
   /** 「あなたのターン終了時、あなたのトラッシュから＜X＞のシグニN枚を手札に加える」 */
   | { kind: 'turnEndTrashToHand'; cardClass: string; count: number }
   /** 「あなたのグロウフェイズ開始時、…のリミットを＋Nする」（累積） */

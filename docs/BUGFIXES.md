@@ -1,5 +1,85 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第194バッチ）＝🏁**索引 G の2件（`O-266`／`O-267`）をクローズ＝挙動を直す worklist が残0になった**
+
+**2件とも登録票の見立てが外れた。** 片方は「新しい機構が要る」と書いたが**受け皿が既にあり**、
+もう片方は「順序の機構が要る」と書いたが**そもそも壊れていなかった**。
+
+### ① `O-266`＝【ガード】のコスト置換（`WX25-P2-007`《一体分身》）
+
+**原文**＝『このゲームの間、あなたは以下の能力を得る。
+　【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる**代わりに**
+　　あなたのエナゾーンからカード1枚と《ガードアイコン》を持つカード1枚をトラッシュに置いてもよい。
+　【自】：あなたのエナフェイズ開始時、【エナチャージ１】をする。』
+
+**旧 live**＝`SEQUENCE[ GAIN_ABILITY_THIS_GAME{gameGrants:[abilityBlockHeader]}, STUB{GUARD_ALTERNATIVE_COST}（payload なし） ]`。
+- 代替コストの中身がどこにも無く、`collectGuardAlternativeCost` は payload 無しを **fail-closed** で
+  「代替なし」に落とす＝**支払い肢が1度も出なかった**。
+- **付与される2つ目の能力（エナフェイズ開始時の【エナチャージ１】）が JSON に1ステップも無かった。**
+
+🔑**受け皿は既にあった**＝「このゲームの間、あなたは以下の能力を得る」は `GAIN_ABILITY_THIS_GAME` の
+**`gameGrants` payload**へ畳むのが既存の規約（`O-60` 第49バッチ）。⇒ **`kind` を2つ足すだけ**で2軸とも閉じた：
+
+| 追加 kind | 意味 | 消費地点 |
+|---|---|---|
+| `guardAltEnergyAndGuardCard{energyCount, guardCardCount}` | ガード代替（エナN枚＋《ガードアイコン》M枚をトラッシュ） | `GuardResponseDialog`（提示）＋ `handleGuardWithEnergyAndGuardCard`（支払い） |
+| `energyPhaseCharge{count}` | エナフェイズ開始時の【エナチャージN】 | `BattleScreen` のフェイズ遷移（`nextPhase === 'ENERGY'`） |
+
+⚠**`guardAltHand`（手札を捨てるだけ）と別 kind にした**＝払う場所が違う（あちらは手札のみ、こちらはエナと手札の2箇所）。
+⚠**`energyPhaseDraw` と別 kind にした**＝あちらはドロー、こちらは**デッキの上をエナゾーンへ**。
+⚠エナ側は**色もクラスも問わない**（原文が「カード1枚」）＝`GUARD_ALTERNATIVE_COST` の `energy_trash_class` とはここが違う。
+
+🔴**live へ届けるのに3手かかった**＝parser が正しい JSON を **AUTO** で出すようになっても、
+**収穫マージが live の `PARTIAL` 刻印を効果単位で不可侵にする**ので手書き定義を消すだけでは届かない。
+`npx tsx scripts/censusOrphanManual.ts --unfreeze WX25-P2-007-E1` → `npm run build:effects`
+→ `node scripts/heldReview.mjs --adopt-effect WX25-P2-007-E1` まで回して初めて live が変わった。
+（`--unfreeze` は `parseStatus` を AUTO にするだけで、**中身の差し替えは `heldReview --adopt-effect` が要る**。）
+
+🖥**実機 `V-174`**＝`o266GuardAltEnergyGuardCard` **PASS**（押すと**エナ1枚と手札1枚の両方**が減った）／
+反転 `o266GuardAltNoEnergy` **PASS**（エナ0枚なら提示されない）。
+🔑**両方を見る**＝片方だけだと `guardAltHand`（手札だけ）と区別できない。
+
+### ② 🔴`O-267`＝発動順の固定（`WX13-005B`《白羅星　ニュームーン》）＝**実装不要だった**
+
+**原文**＝『【出】：対戦相手のチェックゾーンにスペルがある場合、以下の2つから1つを選ぶ。
+**この【出】能力はそのスペルの効果より先に発動する。**』
+
+登録票の手順3（「先に §5.1 で実機の現状を1本撮る」）に従って観測したところ、
+**【出】は既にスペルより先に解決していた**＝スペルが**保留のうちに**相手トラッシュのシグニ2枚が除外され、
+そのあとスペルが解決した。保証しているのは `BattleScreen.tsx` の
+**「`effect_stack` が空になるまでスペルを解決しない」ガード1本**。
+
+🔑**登録票の「帰結は正しく構造化済みで、欠けているのは順序だけ」は外れ**＝欠けているものは無かった。**実装は0行。**
+⇒ そのガードの**唯一の番人**として実機シナリオを `order` に常設した（`V-175`）。golden では踏めない経路なので、
+**シナリオを外すとガードが外れても誰も気づかない。**
+
+🔑**教訓＝「機構が要る」と登録した項目も、着手前に実機で現状を撮る。** 今回それが実装1件分を丸ごと節約した。
+
+### ③ 🔴実機シナリオ作りで4回踏み直した罠（すべて §4.4 に既出）
+
+1. **選択はトグル**（§4.4-2c）＝`resona-payment-*` / `pick-*` を毎ティック押すと外れて永久に進まない。**3箇所**で踏んだ。
+2. **`field.check` はライフバーストのチェックゾーン**＝解決待ちスペルは **`spell_in_check_zone`**
+   （`turnScopedState.ts` の `openSpellCheckZone` にその旨のコメントまである）。取り違えて
+   「ライフクロスをオープン」の無限ループになった。
+3. **リミットが足りないルリグ**（`WD01-004`＝Lv1/Limit2）だと `ResonaSummonModal` の
+   ゾーンボタンが `overLimit` で disabled のまま＝クリックは「成功」して見えるのに何も起きない。
+4. 🔴**判定をログでやらない**＝部屋を使い回すので前シナリオの行が混ざる。**盤面で判定する**
+   （「スペルが保留のうちに相手トラッシュが空になったか」＝順序そのもの）。
+   さらに **`'パス'` を汎用クリック候補に入れない**＝あれは**カットインのパス**で、押すと
+   `handleCutinPass` が**スタックを残したままスペルを解決する**＝観測したい順序そのものを壊す。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3550 / 3550**（+1本＝`O-266` の2軸と負方向）／smoke 全異常0／fuzz 全0／
+  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。`npm run regen` 完走。
+- **逆翻訳が原文と一致**＝「あなたのエナフェイズ開始時、【エナチャージ1】をする。あなたが【ガード】する際、
+  《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンからカード1枚と
+  《ガードアイコン》を持つカード1枚をトラッシュに置いてもよい」。
+- 🖥**実機3本 ALL PASS**（`o266GuardAltEnergyGuardCard` / `o266GuardAltNoEnergy` /
+  `o267CutinResonaResolvesBeforeSpell`）。**3本とも `order` に入れた。**
+- **live PARTIAL 16 → 15**（`WX25-P2-007-E1` を解凍して parser 出力へ移した）。
+
 ## 2026-09-06（第193バッチ）＝🏁**`O-264` クローズ**＝`PLAY_FREE` は `opp_hand` 以外がプレースホルダーで、**live 12効果中 9効果が動いていなかった**
 
 **登録票の見立ては2つとも外れていた。** `O-264` は「`ignoreRestrictions` に消費地点が無い（live 2効果）＝

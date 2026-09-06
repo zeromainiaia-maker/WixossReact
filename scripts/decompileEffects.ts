@@ -5031,6 +5031,8 @@ function actionJa(a?: Action, effectType?: string): string {
             case 'firstGrowEnergyCharge': return `あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナチャージ${g.count}】をする`;
             case 'handSizeBonus': return `あなたの手札の枚数の上限は${g.value}増える`;
             case 'energyPhaseDraw': return 'あなたのエナフェイズ開始時、カードを１枚引く';
+            // 🆕§5.3 `O-266`（2026-09-06）＝ドロー版とは別処理（デッキの上をエナゾーンへ）。
+            case 'energyPhaseCharge': return `あなたのエナフェイズ開始時、【エナチャージ${g.count}】をする`;
             case 'deckSigniLevelOverride':
               return `あなたのデッキにある＜${g.cardClass}＞のシグニのレベルは${g.level}になる`;
             case 'noCoinGain': return 'あなたは《コインアイコン》を得られない';
@@ -5041,6 +5043,9 @@ function actionJa(a?: Action, effectType?: string): string {
             case 'oppGuardExtraColorless': return '対戦相手は追加で《無》を支払わないかぎり【ガード】ができない';
             case 'guardAltHand':
               return `あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりに手札を${g.handCount}枚捨ててもよい`;
+            // 🆕§5.3 `O-266`（2026-09-06）＝払う場所が2箇所（エナと手札）＝`guardAltHand` とは別物。
+            case 'guardAltEnergyAndGuardCard':
+              return `あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンからカード${g.energyCount}枚と《ガードアイコン》を持つカード${g.guardCardCount}枚をトラッシュに置いてもよい`;
             case 'guardBarrierAct':
               return '【起】手札から《ガードアイコン》を持つシグニ１枚を捨てる：【ルリグバリア】１つを得る';
             case 'turnEndTrashToHand':

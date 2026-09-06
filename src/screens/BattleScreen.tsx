@@ -4440,6 +4440,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['エナフェイズ開始ドロー（このゲーム）']);
         }
+        // 🆕§5.3 `O-266`（2026-09-06）＝→ENERGY: game_energy_phase_charge（`WX25-P2-007-E1`）。
+        //   🔴**ドロー版とは別処理**＝デッキの上を**エナゾーン**へ置く（手札には入らない）。
+        //   ⚠原文の括弧書き「手札か場からエナゾーンにカードを置く**前に**」＝この地点（フェイズ開始時）で正しい。
+        const enaChargeN = newMyState.game_energy_phase_charge ?? 0;
+        if (nextPhase === 'ENERGY' && enaChargeN > 0 && newMyState.deck.length > 0) {
+          const charged = newMyState.deck.slice(0, enaChargeN);
+          newMyState = { ...newMyState, deck: newMyState.deck.slice(charged.length),
+            energy: [...newMyState.energy, ...charged] };
+          appendBattleLogs([`エナフェイズ開始【エナチャージ${charged.length}】（このゲーム）`]);
+        }
         // HASTARLIQ: →ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
         // ⚠`phase !== 'ATTACK_LRIG'` で「追加のアタックフェイズ」の2周目を除外する
         //   （従来の `phase === 'MAIN'` 判定と等価。メインフェイズがスキップされた場合だけ挙動が変わる）。
@@ -12991,6 +13001,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally { setLoading(false); }
   };
 
+  /**
+   * 🆕**§5.3 `O-266`（2026-09-06）＝【ガード】の代替コスト「エナN枚＋《ガードアイコン》M枚をトラッシュ」。**
+   * `WX25-P2-007-E1`「あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに
+   *   あなたのエナゾーンからカード1枚と《ガードアイコン》を持つカード1枚をトラッシュに置いてもよい。」
+   * 🔑**`handleGuardWithHandAlternative` と払う場所が違う**＝あちらは手札だけ。ここは**エナと手札の2箇所**。
+   * ⚠エナ側は**色もクラスも問わない**（原文が「カード1枚」）＝先頭から N 枚取る（他の《無》コストと同じ規約）。
+   * ⚠**捨てる手札は《ガードアイコン》を持つカードに限る**（`canCardGuard`）＝ここを緩めると
+   *   「どの手札でもガードできる」別カードの効果に化ける。
+   */
+  const handleGuardWithEnergyAndGuardCard = async () => {
+    const spec = my.game_guard_alt_energy_and_guard_card;
+    if (!spec || !my.field.lrig_attacked || loading) return;
+    const guardIdx: number[] = [];
+    my.hand.forEach((cn, i) => {
+      if (guardIdx.length < spec.guardCardCount && canCardGuard(cn, my, battleCardMap, effectsMap)) guardIdx.push(i);
+    });
+    if (my.energy.length < spec.energyCount || guardIdx.length < spec.guardCardCount) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const paidEnergy = my.energy.slice(0, spec.energyCount);
+      const idxSet = new Set(guardIdx);
+      const discarded = my.hand.filter((_, i) => idxSet.has(i));
+      const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+        collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+      const attackerId = isHost ? bs.guest_id : bs.host_id;
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      guardTriggers.push(...attackGuard.entries);
+      const newMyState: PlayerState = {
+        ...my,
+        energy: my.energy.slice(spec.energyCount),
+        hand: my.hand.filter((_, i) => !idxSet.has(i)),
+        trash: [...my.trash, ...paidEnergy, ...discarded],
+        field: { ...my.field, lrig_attacked: false },
+        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+      };
+      appendBattleLogs([`ガード代替：エナ${spec.energyCount}枚と《ガードアイコン》${spec.guardCardCount}枚（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）をトラッシュ`]);
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newOpState = attackGuard.usedOncePerTurnIds.length > 0
+        ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : clearEndOfAttackEffects(op);
+      const existingStackEG = bs.effect_stack ?? null;
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOpState },
+        effectStack: guardTriggers.length > 0
+          ? (existingStackEG ? pushToStack(existingStackEG, guardTriggers) : initStack(bs.active_user_id ?? user.id, guardTriggers))
+          : undefined,
+      }));
+    } finally { setLoading(false); }
+  };
+
   const handleGuardWithHandAlternative = async () => {
     if (!my.field.lrig_attacked || loading) return;
     const altN = Math.max(my.game_guard_alt_hand ?? 0, my.guard_alt_hand_until_opp_turn ?? 0);
@@ -15702,7 +15763,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
-      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} />
+      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} />
 
       {/* リムーブ選択モーダル */}
       <RemoveZoneModal ctx={modalCtx} showRemoveModal={showRemoveModal} setShowRemoveModal={setShowRemoveModal} selectedRemoveZones={selectedRemoveZones} toggleRemoveZone={toggleRemoveZone} handleRemove={handleRemove} />

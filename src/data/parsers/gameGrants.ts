@@ -59,6 +59,12 @@ export function buildGameGrants(text: string, cardNum?: string): GameGrantSpec[]
   const firstGrowEna = t.match(/グロウしたとき[^。]*最初のグロウである場合[^。]*【エナチャージ([０-９\d]+)】/);
   if (firstGrowEna) out.push({ kind: 'firstGrowEnergyCharge', count: num(firstGrowEna[1], 1) });
   if (/エナフェイズ開始時[^。]*カードを[^。]*引く/.test(t)) out.push({ kind: 'energyPhaseDraw' });
+  // 🆕**§5.3 `O-266`（2026-09-06）＝エナフェイズ開始時の【エナチャージN】**（`WX25-P2-007-E1`）。
+  //   ⚠**ドロー版（上）と排他ではない**が、原文が別なので取り違えない。
+  //   ⚠原文には括弧書き「（手札か場からエナゾーンにカードを置く前に【エナチャージ１】をする）」が続く＝
+  //     **順序の注記**なので `match`（最初の1件）で拾い、二重に push しない。
+  const enaPhaseCharge = t.match(/エナフェイズ開始時[^。]*【エナチャージ([０-９\d]+)】/);
+  if (enaPhaseCharge) out.push({ kind: 'energyPhaseCharge', count: num(enaPhaseCharge[1], 1) });
 
   // ---- 手札上限 ----
   const handBonus = t.match(/手札の枚数の上限は([０-９\d]+)増える/);
@@ -84,6 +90,12 @@ export function buildGameGrants(text: string, cardNum?: string): GameGrantSpec[]
   }
   const guardAlt = t.match(/【ガード】する際[^。]*代わりに手札を([０-９\d]+)枚捨ててもよい/);
   if (guardAlt) out.push({ kind: 'guardAltHand', handCount: num(guardAlt[1], 3) });
+  // 🆕**§5.3 `O-266`（2026-09-06）＝エナ＋ガードアイコンの2箇所払い**（`WX25-P2-007-E1`）。
+  //   🔑`guardAltHand`（手札を捨てるだけ）とは払う場所が違うので別 kind にする。
+  //   ⚠エナ側は**色もクラスも問わない**（「エナゾーンからカード１枚」）。
+  const guardAltEna = t.match(/【ガード】する際[^。]*代わりにあなたのエナゾーンからカード([０-９\d]+)枚と《ガードアイコン》を持つカード([０-９\d]+)枚をトラッシュに置いてもよい/);
+  if (guardAltEna) out.push({ kind: 'guardAltEnergyAndGuardCard',
+    energyCount: num(guardAltEna[1], 1), guardCardCount: num(guardAltEna[2], 1) });
   if (/手札から《ガードアイコン》を持つシグニを[^。]*捨てる[^。]*【ルリグバリア】/.test(t)) {
     out.push({ kind: 'guardBarrierAct' });
   }

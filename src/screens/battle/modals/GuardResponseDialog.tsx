@@ -22,11 +22,13 @@ interface GuardResponseDialogProps {
   handleGuardWithHandAlternative: () => void;
   /** 🆕§5.3 `O-230`＝《無》×N を払ってコラボライバー M 人とコラボする代替ガード。 */
   handleGuardWithCollabAlternative: (colorless: number, collab: number) => void;
+  /** 🆕§5.3 `O-266`＝ガード代替「エナN枚＋《ガードアイコン》M枚をトラッシュ」（`WX25-P2-007-E1`）。 */
+  handleGuardWithEnergyAndGuardCard: () => void;
 }
 
 export function GuardResponseDialog(p: GuardResponseDialogProps) {
   const { bs, user, my, op, isMyTurn, loading, battleCardMap, effectsMap } = p.ctx;
-  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative } = p;
+  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard } = p;
   return (
     <>
       {my.field.lrig_attacked && !my.field.check && createPortal(
@@ -86,6 +88,14 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               // 🆕「《無》をN枚支払いコラボライバーM人とコラボしてもよい」＝エナがN枚あれば提示する。
               //   ⚠**コラボの実行部（`INTERNAL_DO_COLLAB`）は既にある**＝ここは提示と支払いだけ。
               const guardAltCollab = guardAltCost?.spec.kind === 'colorless_and_collab' ? guardAltCost.spec : null;
+              // 🆕§5.3 `O-266`＝**付与された**ガード代替（エナN枚＋《ガードアイコン》M枚）。
+              //   🔴`collectGuardAlternativeCost` では拾えない＝あれは `effectsMap` の【常】を走査するが、
+              //   これは `GAIN_ABILITY_THIS_GAME` で**付与された**宣言なので state 側にしか無い
+              //   （`game_guard_alt_hand` と同じ経路＝付与時に engine がフラグを立てる）。
+              const guardAltEnaGuard = !guardDisabledByOpp ? my.game_guard_alt_energy_and_guard_card : undefined;
+              const guardAltEnaGuardOk = !!guardAltEnaGuard
+                && my.energy.length >= guardAltEnaGuard.energyCount
+                && guardCardCountInHand >= guardAltEnaGuard.guardCardCount;
               const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost || guardBlockedByExtraGuard) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ num, card }) => {
@@ -150,6 +160,15 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                         backgroundColor: 'rgba(208,139,208,0.15)', color: '#d08bd0', cursor: 'pointer',
                         fontSize: 13, marginBottom: 8 }}>
                       代替ガード：《無》×{guardAltCollab.colorless}を支払いコラボライバー{guardAltCollab.collab}人とコラボ
+                    </button>
+                  )}
+                  {guardAltEnaGuard && guardAltEnaGuardOk && (
+                    <button onClick={handleGuardWithEnergyAndGuardCard} disabled={loading}
+                      data-testid="guard-alt-energy-guardcard"
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
+                        backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：エナ{guardAltEnaGuard.energyCount}枚と《ガードアイコン》{guardAltEnaGuard.guardCardCount}枚をトラッシュ
                     </button>
                   )}
                   {guardAltEnergyClass && guardAltEnergySigni.length > 0 && (

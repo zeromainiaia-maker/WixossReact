@@ -49076,6 +49076,211 @@ function mkGuardAltCollabScenario(hasEnergy) {
     },
   };
 }
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-174` / §5.3 `O-266`＝【ガード】の代替コスト
+//   「《ガードアイコン》を持つカードを1枚捨てる**代わりに**エナゾーンからカード1枚と
+//    《ガードアイコン》を持つカード1枚をトラッシュに置いてもよい」（`WX25-P2-007-E1`＝《一体分身》）。
+// 🔴**旧 live は payload なしの `STUB{GUARD_ALTERNATIVE_COST}`** で、engine が fail-closed で
+//   「代替コスト無し」に落としていた＝**支払い肢が1度も出なかった**。
+// 🔑**`o230GuardAltCollab` とは経路が違う**＝あちらは場の【常】を `collectGuardAlternativeCost` が
+//   走査する形。こちらは `GAIN_ABILITY_THIS_GAME` で**付与された宣言**なので state キーにしか無い
+//   （`game_guard_alt_hand` と同じ経路）。**注入も state キーで行う。**
+// ⚠**反転（エナ0枚）も対で回す**＝払えないのに提示されたら過剰。
+// ═════════════════════════════════════════════════════════════════════════════
+function mkO266GuardAltEnergyGuardCard(hasEnergy) {
+  const id = hasEnergy ? 'o266GuardAltEnergyGuardCard' : 'o266GuardAltNoEnergy';
+  return {
+    title: `O-266：【ガード】代替コスト「エナ1枚＋《ガードアイコン》1枚をトラッシュ」が応答ダイアログに出る（${hasEnergy ? 'エナあり' : '反転＝エナ0枚'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#9810'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'field.lrig_attacked': true,
+        // 🔑**ガードに使う1枚と、代替コストで捨てる1枚**＝《ガードアイコン》が2枚要る。
+        hand: ['WD01-017#9811', 'WD01-017#9812'],
+        energy: hasEnergy ? ['WD05-013#9813', 'WD05-013#9814'] : [],
+        // 🆕付与された宣言（`GAIN_ABILITY_THIS_GAME` の `guardAltEnergyAndGuardCard`）。
+        game_guard_alt_energy_and_guard_card: { energyCount: 1, guardCardCount: 1 },
+        lrig_deck: [], lrig_trash: [], trash: [], coins: 0,
+        actions_done: [], game_actions_done: [],
+        life_cloth: ['WD01-013#9815', 'WD01-013#9816'],
+        deck: ['WD01-013#9817', 'WD01-013#9818'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        hand: [], energy: [], trash: [],
+        deck: ['WD01-013#9896', 'WD01-013#9897'],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 energy=${st0?.host?.energy} hand=${st0?.host?.hand} lrigAttacked=true`);
+      // ── ボタンを**押す前に全部読む**（提示されるか自体が本題）。
+      let labels = null;
+      for (let s = 0; s < 14 && labels === null; s++) {
+        await page.waitForTimeout(600);
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+        if (btns.some(b => b.includes('ガード'))) labels = btns;
+      }
+      H.log(`  ${id}: ダイアログのボタン=${JSON.stringify(labels)}`);
+      if (labels === null) return { pass: false, detail: '前提崩れ＝ガード応答ダイアログが出ない' };
+      const hasAlt = labels.some(b => b.includes('《ガードアイコン》1枚をトラッシュ'));
+      if (!hasEnergy) {
+        await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+        return hasAlt
+          ? { pass: false, detail: `🔴エナ0枚なのに代替が提示された（払えないのに選べる）。ボタン=${JSON.stringify(labels)}` }
+          : { pass: true, detail: `反転＝エナ0枚なら代替コストは提示されない。ボタン=${JSON.stringify(labels)}` };
+      }
+      if (!hasAlt) return { pass: false, detail: `🔴代替コスト「エナ1枚と《ガードアイコン》1枚をトラッシュ」が出ない（旧＝payload なしで fail-closed）。ボタン=${JSON.stringify(labels)}` };
+      const before = await H.queryState();
+      const clicked = await H.clickTestId('guard-alt-energy-guardcard');
+      let st = before;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(500);
+        await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] energy=${st?.host?.energy} hand=${st?.host?.hand} trash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if ((st?.host?.energy ?? 9) < (before?.host?.energy ?? 0)) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `押した=${clicked ?? 'なし'} energy ${before?.host?.energy}→${st?.host?.energy} hand ${before?.host?.hand}→${st?.host?.hand} trash=${st?.host?.trash} ボタン=${JSON.stringify(labels)}`;
+      if (!clicked) return { pass: false, detail: `前提崩れ＝代替コストのボタンを押せない。${dump}` };
+      // 🔑**2箇所払う**のが原文＝エナ-1 **かつ** 手札-1 の両方を見る（片方だけだと `guardAltHand` と区別できない）。
+      if ((st?.host?.energy ?? 0) !== (before?.host?.energy ?? 0) - 1) {
+        return { pass: false, detail: `🔴エナ1枚が支払われていない。${dump}` };
+      }
+      if ((st?.host?.hand ?? 0) !== (before?.host?.hand ?? 0) - 1) {
+        return { pass: false, detail: `🔴《ガードアイコン》1枚が捨てられていない。${dump}` };
+      }
+      return { pass: true, detail: `代替コストが提示され、押すとエナ1枚と手札1枚の両方が支払われた。${dump}` };
+    },
+  };
+}
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-175` / §5.3 `O-267`＝「この【出】能力は**そのスペルの効果より先に**発動する」
+//   （`WX13-005B` 白羅星　ニュームーン＝《スペルカットインアイコン》のレゾナ）。
+// 🔑**まず現状を観測する**（登録票の手順3）＝順序の一般機構を入れる前に、
+//   いまの実装で既に「先」になっているのかを実機で確かめる。
+// 【観測点】ログの**並び**＝レゾナの【出】（除外／使用禁止）が
+//   「[相手] 〈スペル名〉を使用」より**前**に出るか。
+// 【盤面】CPU がスペルを使用した瞬間（`pendingSpell` を注入）＝自分はカットイン窓に居る。
+//   host は＜宇宙＞のシグニ2体を場に持ち、出現条件（合計2枚を手札/エナ/場からトラッシュ）を払える。
+// ═════════════════════════════════════════════════════════════════════════════
+scenarios.o267CutinResonaResolvesBeforeSpell = {
+  title: 'V-175: WX13-005B の【出】がカットインされたスペルの効果より先に解決する（現状観測）',
+  spec: {
+    hostSet: {
+      // 🔴**リミットが足りるルリグを置く**（`WD01-004` は Lv1/Limit2 で、
+      //   `ResonaSummonModal` の `overLimit` によりゾーンボタンが disabled のままだった＝実測で1往復した）。
+      'field.lrig': ['WD01-001#9910'],
+      'field.signi': [['WD21-017#9911'], ['WX15-046#9912'], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+      lrig_deck: ['WX13-005B#9913'], lrig_trash: [],
+      hand: [], energy: [], trash: [], coins: 0,
+      actions_done: [], game_actions_done: [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9990'],
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      // 🔑**解決待ちのスペル**＝`WX13-005B-E1` の条件 `CHECK_ZONE_COUNT{opponent, スペル ≥ 1}` が
+      //   読むのは `checkZoneCards()`（`execUtils.ts:367`）＝`field.check` + `field.check_rest` + `spell_in_check_zone`。
+      // 🔴**`field.check` に置いてはいけない**＝あれは**ライフバーストのチェックゾーン**で、
+      //   入れるとライフバーストの確認ループに入る（実測＝「ライフクロスをオープン」が延々出た）。
+      'field.check': null,
+      spell_in_check_zone: 'WD01-018#9900',
+      // 選択肢①「対戦相手のトラッシュにあるシグニを2枚まで除外」の対象。
+      trash: ['WD05-014#9995', 'WD05-014#9996'],
+      hand: [], energy: [],
+    },
+    top: {
+      active: 'cpu', turn_phase: 'MAIN', turn_count: 2,
+      pendingSpell: { caster_id: CPU_PLAYER_ID, card_num: 'WD01-018#9900', kind: 'spell' },
+    },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 hostField=${JSON.stringify(st0?.host?.fieldSigni)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} guestTrash=${JSON.stringify(st0?.guest?.trashCards)} pSpell=${st0?.pendingSpell ?? '-'}`);
+    let summoned = false;   // sticky（§4.4-8d）
+    let resonaPicked = false; // 🔴§4.4-2c＝**1回だけ押す**（毎ティック押すとモーダルがトグルして永久に進まない）
+    let paid0 = false, paid1 = false;   // 同上（出現条件の支払い選択もトグル）
+    let tgt0 = false, tgt1 = false;     // 同上（除外する2枚の対象選択もトグル）
+    let exiledWhilePending = false;     // sticky＝**スペルが保留のうちに**除外が起きた（＝順序の観測点）
+    let spellWasPending = false;        // sticky＝スペルが確かに保留状態だった（前提）
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      // カットイン窓 → レゾナを選ぶ（🔴**1回だけ**＝§4.4-2c）
+      if (!summoned && !resonaPicked) {
+        const rb = page.getByRole('button', { name: /白羅星|ニュームーン/ }).first();
+        if (await rb.count() && await rb.isVisible().catch(() => false)) {
+          await rb.click().catch(() => {}); did = 'btn:レゾナ'; resonaPicked = true;
+        }
+      }
+      // 出現条件の支払い（場の2体）とゾーン選択。⚠**どれも1回だけ**（§4.4-2c＝選択はトグル）。
+      if (!did && !paid0) { did = await H.clickTestId('resona-payment-field-0'); if (did) paid0 = true; }
+      if (!did && !paid1) { did = await H.clickTestId('resona-payment-field-1'); if (did) paid1 = true; }
+      if (!did) did = await H.clickTestId('resona-zone-2');
+      // 🔑**選択肢①（トラッシュのシグニを除外）を選ぶ**＝順序が観測できるのはこちら。
+      if (!did) did = await H.clickTextOrBtn(['ゲームから除外']);
+      // トラッシュの2枚を対象に取る。⚠**同じ testid を押し続けない**（§4.4-2c＝選択がトグルして外れ、
+      //   「決定」に永久に到達しない＝実測で1往復した）。**別々の候補を1回ずつ**押す。
+      for (const [n, done] of [[0, () => tgt0], [1, () => tgt1]]) {
+        if (did || done()) continue;
+        const b = page.getByTestId(`pick-${n}`).first();
+        if (await b.count() && await b.isVisible().catch(() => false)) {
+          await b.click().catch(() => {}); did = `pick-${n}`;
+          if (n === 0) tgt0 = true; else tgt1 = true;
+        }
+      }
+      // 🔴**'パス'／'スキップ'／'選ばない' を入れてはいけない**＝'パス' は**カットインのパス**で、
+      //   押すと `handleCutinPass` が**スタックを残したままスペルを解決する**＝観測したい順序そのものを壊す
+      //   （実測で1往復した）。'スキップ' 系は CHOOSE の2択を握り潰す。
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      if (JSON.stringify(st?.host?.fieldSigni ?? []).includes('WX13-005B')) summoned = true;
+      if (st?.pendingSpell && st.pendingSpell !== '-') spellWasPending = true;
+      const logs = st?.logTail ?? [];
+      H.log(`  o267[${s}] -> ${did ?? 'なし'} | hostField=${JSON.stringify(st?.host?.fieldSigni)} guestTrash=${JSON.stringify(st?.guest?.trashCards)} summoned=${summoned} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      // 🔴**判定はログではなく盤面で行う**（§4.4）＝`logTail` は部屋を使い回すので前シナリオの行が混ざり、
+      //   さらに除外の文言は action ごとに違う。**「スペルがまだ保留のうちに相手トラッシュが空になったか」**が
+      //   順序そのものの観測になる。
+      const trashNow = JSON.stringify(st?.guest?.trashCards ?? []);
+      if (st?.pendingSpell && st.pendingSpell !== '-' && !trashNow.includes('WD05-014')) exiledWhilePending = true;
+      if (st?.pendingSpell && st.pendingSpell !== '-') continue;   // まだスペルは解決していない
+      // ⚠**判定の先頭に前提**（§4.4-3b）＝レゾナが出ていなければ順序を語れない。
+      if (!summoned) return { pass: false, detail: `前提崩れ＝レゾナが場に出ていない（trash=${trashNow}）` };
+      if (!spellWasPending) return { pass: false, detail: `前提崩れ＝スペルが保留状態で観測できていない` };
+      return exiledWhilePending
+        ? { pass: true, detail: `【出】がスペルより先に解決した（スペル保留中に相手トラッシュのシグニ2枚が除外された。最終 trash=${trashNow}）` }
+        : { pass: false, detail: `🔴スペルのほうが先に解決した＝順序の機構が要る（保留中に除外が起きなかった。最終 trash=${trashNow} logs=${JSON.stringify(logs)}）` };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `決着せず（summoned=${summoned} hostField=${JSON.stringify(fin?.host?.fieldSigni)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-12))}）` };
+  },
+};
+
+// 🏁**§5.3 `O-267` は「実装不要」でクローズ**（2026-09-06 第194バッチ）＝実機で**順序は既に正しい**と確認。
+//   保証しているのは `BattleScreen.tsx` の「`effect_stack` が空になるまでスペルを解決しない」ガード1本なので、
+//   🔴**このシナリオを `order` から外すと、そのガードが外れても誰も気づかない**（golden では踏めない経路）。
+order.push('o267CutinResonaResolvesBeforeSpell');
+
+scenarios.o266GuardAltEnergyGuardCard = mkO266GuardAltEnergyGuardCard(true);
+order.push('o266GuardAltEnergyGuardCard');
+scenarios.o266GuardAltNoEnergy = mkO266GuardAltEnergyGuardCard(false);
+order.push('o266GuardAltNoEnergy');
+
 scenarios.o230GuardAltCollab = mkGuardAltCollabScenario(true);
 order.push('o230GuardAltCollab');
 scenarios.o230GuardAltCollabNoEnergy = mkGuardAltCollabScenario(false);

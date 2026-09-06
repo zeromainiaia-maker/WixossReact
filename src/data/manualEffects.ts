@@ -3801,9 +3801,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P2-005": [
     {"effectId":"WX25-P2-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"abilityBlockHeader"},{"kind":"energyPhaseDraw"},{"kind":"handSizeBonus","value":2}]},{"type":"STUB","id":"HAND_SIZE_INCREASE","handLimitDelta":2}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
-  "WX25-P2-007": [
-    {"effectId":"WX25-P2-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"abilityBlockHeader"}]},{"type":"STUB","id":"GUARD_ALTERNATIVE_COST"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
-  ],
   "WX25-P2-034": [
     {"effectId":"WX25-P2-034-E1","effectType":"AUTO","timing":["ON_SPELL_USE"],"triggerCondition":{"turnOwner":"self"},"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"story":"電機"}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
