@@ -29,12 +29,24 @@ const batchFiles = readdirSync(promptDir).filter((f) => f.endsWith('.txt')).sort
 const findingsPath = join(outDir, 'findings.jsonl');
 
 // 出力テキストから JSON を取り出す（コードフェンス・前置きに耐性）
+// 🆕2026-09-07＝claude -p が閉じ括弧を書き忘れて打ち切ることがある（実測1/18バッチ）＝
+// 素の JSON.parse が失敗したら、括弧の対応数から不足分の `}` を補って再挑戦する。
 function extractJson(text) {
   const stripped = text.replace(/```json\s*|```\s*/g, '');
   const start = stripped.indexOf('{');
   const end = stripped.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('JSONが見つからない');
-  return JSON.parse(stripped.slice(start, end + 1));
+  if (start < 0) throw new Error('JSONが見つからない');
+  const body = end > start ? stripped.slice(start, end + 1) : stripped.slice(start);
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    const opens = (body.match(/\{/g) || []).length;
+    const closes = (body.match(/\}/g) || []).length;
+    if (opens > closes) {
+      try { return JSON.parse(body + '}'.repeat(opens - closes)); } catch { /* fall through */ }
+    }
+    throw e;
+  }
 }
 
 let totalFindings = 0;

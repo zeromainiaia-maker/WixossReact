@@ -11,37 +11,21 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-07・第203〜204バッチ・Opus 5 単独）＝**🏁**意味照合 段2 台帳の残 OPEN を 0 にした**（**24 → 0**）／**実機 `V-176`〜`V-178` も同日に返済して残0**
-  **この回の作業単位**＝ユーザー指示「OPEN が0になるまで」。**残件は全部「JSON では閉じない」ものだった**ので、
-  **受け皿を engine/UI に1本ずつ足して閉じた**（§5.3 に登録票を作って寝かせるのではなく、その場で実装した）。
+- **セッション（2026-09-07・第205バッチ・Sonnet 5・S-1）＝**🏁**意味照合 round4 Sheet1 を完了**（**残18バッチ／172枚を全消化＝252枚 / 26バッチ**）
+  **作業単位**＝ユーザー指示「S-1 で Sheet1 残18バッチをすべて行う」。**S-1（抽出・実行・簿記）のみ**を行い、**O-A（判定）はやっていない**（§5.0）。
 
-  🔑🔴**閉じた7件が教えたこと＝「機構待ち」は在庫ではなく未着手だった**（1件あたり engine 30〜120行）：
-  | finding | 何が無かったか | 新設した受け皿 |
-  |---|---|---|
-  | `WXDi-P09-036-E1` | 進行中の**ルリグ**アタックを止める軸（シグニ側にしか無かった） | `cancel_current_lrig_attack`＋`resolveLrigAttackContinuation` |
-  | `WXK03-059-E1` | 【ライド】の**使用タイミング拡張**（live は原文に無い「与える」） | `STUB{RIDE_USABLE_IN_ATTACK_PHASE}` |
-  | `SPDi44-16-E2` / `WX25-P1-030-E2` | 「N体**まで**」の可変枚数＋**ルリグ【起】の `fieldTrash` 支払いが1行も無い** | `fieldTrash.upToCount`／`payFieldTrashCost`／`$ref:'last_cost_field_trash_count'` |
-  | `WXK10-004-E1` | 「場以外の**あなたの領域**」がデッキ・トラッシュ・ライフを守っていない | `OppMoveImmunityZone`（5領域）＋消費4地点 |
-  | `WXDi-P13-089-E3` | 3領域から1枚**ずつ**除外するコスト（`trashExile` 1領域で近似） | `EffectCost.multiZoneExile` |
-  | `WX25-CP1-016-E1` | 手札捨ての**原因カード種別**（ルリグ・アーツでも誘発していた） | `triggerCondition.discardCauseCardTypes` |
-  | `PR-K048` | 《無》コストを払える**色の正集合** | `EffectCost.colorlessPayableColors` |
+  実行＝`semanticAuditExtract.mjs`（pending 172枚→18バッチ）→ `semanticAuditRun.mjs --model sonnet`（`claude -p` を18回）。
+  **実測＝約38分・$6.04**。🔧**踏んだ罠2つ**＝①`claude -p` が JSON 契約を守らず markdown で応答（1/18・手動復元）
+  ②`claude -p` が閉じ括弧を書き忘れる（1/18・`extractJson` に括弧補完フォールバックを追加して恒久対応）。
 
-  🔴🔑**最後の1件（`WX13-005B-E1`）は stale だった**＝順序は `O-267` で「実装不要」と確認済みで、
-  同日に実機（`o267CutinResonaResolvesBeforeSpell`）で再確認して閉じた。
-  **「全件 triage 済み」を2度信じて2度とも外している**（第200バッチも同じ）⇒ **残り数件になったら
-  finding を1件ずつ受け皿まで追う**（grep と実機のほうが実装より安い）。
+  🔴🔑**findings 43件（r4-09〜26）は未 triage**＝頻度が r4-01〜08 の**2倍以上**（1.1→2.4件/バッチ）。
+  **triage するまで意味は不明**（過去実測では偽陽性率50%前後）。詳細は `TYPE_LEDGER.md`（round4/Sheet1）。
 
-  🖥**実機＝`V-176`〜`V-178` を返済して残0**（6シナリオを `order` へ常設・**3組とも対照つきの対**）。
-  🔴🔑**`V-176` が実機だけのバグを1件釣った**＝`execSearch` の差し替えが**instanceId をキーに書き、
-  読み手は CardNum で引いて**いた＝**候補が常に0件の恒久 no-op**。**golden は素の CardNum で state を
-  組むので全緑のまま**だった（§2.2「実機が要る回」の実例）。⇒ instanceId 版の golden を回帰ガードに追加。
+  📊**進捗3計器＝Sheet1 要対応 1 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  📦**在庫**＝**未監査 2,436枚**（Sheet1 **0**・**Sheet2 356**が次）｜**未 triage findings 43件**（🆕）｜**機構 worklist 2**（`O-268` / `O-271`）｜**⑤実機 残 0**。
 
-  📊**進捗3計器＝Sheet1 要対応 1 / 863（うち機構待ち1＝即着手可能 0）｜台帳 残 OPEN 0｜census 高シグナル 0 / BASELINE 0**。
-  📦**在庫**＝**未監査 2,608枚**（Sheet1 **172枚**）｜**未 triage findings 0**｜**機構 worklist 2**（`O-268` / `O-271`）｜**⑤実機 残 0**。
-
-**▶ 次の一手**＝**`/clear` → `/model sonnet`** で **§5.2 round4（S-1）を 5〜8バッチ**
-（`node scripts/archive/semanticAuditGap.mjs --sheet 1` で pending を作り直す）。
-**これが唯一残った発見器**＝計器3本と段2 台帳は全部底を打った。
+**▶ 次の一手**＝**`/clear` → `/model opus`** で **O-A triage を 5〜8件ずつ**（`node scripts/archive/semanticAuditPool.mjs` で母集団確認）。
+**43件は一括 triage しない**（§5.0 の周期どおり）。triage が終わったら round4 は Sheet2（356枚）へ進む。
 そのあと余力があれば `O-271`（ルリグ【起】の `fieldTrash` 未払い・実測8効果/7枚）を取る。
 
 ---
@@ -336,9 +320,10 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 > **バッチごとのクローズ履歴 2,251字**に膨らみ、しかも**3節とも数字が stale**（§5.2「残36」／§5.3「2項目」／§5.4「5件」
 > ＝実際はすべて 0）だった。**表に書くのは「いまの残数」だけ。**
 
-| 節 | 役割 | 残（2026-09-06 第197バッチ実測） |
+| 節 | 役割 | 残（2026-09-07 第205バッチ実測） |
 |---|---|---|
-| **§5.2** | 🔥**本線キュー**＝**round4**（意味照合を1度も通していないカードの新規監査） | **Sheet1 222枚**（全体 2,658枚） |
+| **§5.2** | 🔥**本線キュー**＝**round4**（意味照合を1度も通していないカードの新規監査） | **Sheet1 完了0／Sheet2 356枚**（全体 2,436枚） |
+| （§5.2 O-A triage） | 🆕**未 triage findings**（r4-09〜26・Sheet1 完走ぶん） | **43件** |
 | **§5.1** | **実機で確かめる**（`V-nn`）＝`src/screens/`・`src/engine/` に触れた回／挙動が変わった回の返済 | 🏁**0件** |
 | §5.3 | 機構 worklist（`O-nn`）＝**索引 B に `O-271`**（ルリグ【起】の `fieldTrash` 未払い）**／索引 G に `O-268`**（限定条件無視の適用範囲）。round4 で機構待ちを引いたらここへ登録する | **2項目** |
 | （§5.2 段2 台帳） | 🏁**掘り尽くした**（残 OPEN 0）。**この台帳はもう在庫ではない** | 台帳 残 OPEN **0** |
@@ -368,7 +353,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-06 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **S-1** | **意味照合バッチを回す**（10枚/バッチ・105〜383秒・約$0.29） | **Sheet1 残 18バッチ / 172枚**<br>（全体 261バッチ / 2,608枚） | `node scripts/archive/semanticAuditGap.mjs` |
+| **S-1** | **意味照合バッチを回す**（10枚/バッチ・105〜383秒・約$0.29） | 🏁**Sheet1 完了**（2026-09-07・26バッチ/252枚）。**次は Sheet2 残 36バッチ / 356枚**<br>（全体 244バッチ / 2,436枚） | `node scripts/archive/semanticAuditGap.mjs` |
 | **S-2** | **真バグの母集団を grep で数える**（finding の `grep` 句から同型の全数） | **型候補 3件**（母集団は下記＝実測済み） | `node scripts/archive/semanticAuditPool.mjs --grep` |
 | **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | triage の結果に比例 | — |
 | **S-4** | **golden の定型追加・ゲート実行・簿記**（セッション末1回） | 1回/セッション | `npm run gates` |
@@ -381,7 +366,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-06 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🏁**未 triage 0件**（2026-09-06 第199バッチで3件を triage＝BUG 2／FP 1） | `node scripts/archive/semanticAuditPool.mjs` |
+| **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🆕**未 triage 43件**（2026-09-07 第205バッチ・S-1 が Sheet1 を一括消化した分＝r4-09〜26。5〜8件ずつ triage する） | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN**（残りは全件 `src/screens/` か新 engine 機構待ち＝要る機構の一覧は BUGFIXES 第200バッチ末尾） | **13件 / 影響12枚** | `node scripts/archive/semanticAuditLedger.mjs` |
 | **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **現在 17本**（第199バッチで +1＝規則17） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
 | **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | triage の結果に比例 | — |
@@ -481,11 +466,15 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 > **台帳（残 OPEN 13）は残り全件が機構待ち**（`src/screens/` か新 engine 機構＝ここから新規に取らない）。
 > **新規に取るのは round4＝「意味照合を1度も通していないカード」への監査。**
 
-#### ■ round4（Sheet1 未監査）＝**残 222枚**（2026-09-06 実測・パイロット30枚消化済み）
+#### ■ round4（Sheet1 未監査）＝🏁**Sheet1 完了（2026-09-07・残0）。次は Sheet2 残356枚**
+
+🏁**Sheet1 は2026-09-07（第205バッチ・S-1）に全252枚を監査完了**（`scripts/archive/scratchpad/semantic_audit_sheet1_round4/`）。
+**findings 52件のうち43件（r4-09〜26）が未 triage**＝次は Opus で O-A から（§5.0）。
+**Sheet1 が閉じたら次は Sheet2**＝同じ形で `semantic_audit_sheet2_round4/` を新設して回す。
 
 **母集団の実測**＝`node scripts/archive/semanticAuditGap.mjs` で毎回測り直す（**シート別の未監査枚数**。
-`--sheet 1` でそのシートの未監査カード番号を列挙＝`pending_cards.txt` を作り直せる）。
-📊**2026-09-06 第197バッチ後＝効果あり 6,032枚 / 監査済 3,374 / 未監査 2,658（44.1%）**・**Sheet1 は 222枚**。
+`--sheet 2` でそのシートの未監査カード番号を列挙＝`pending_cards.txt` を作り直せる）。
+📊**2026-09-07 第205バッチ後＝効果あり 6,032枚 / 監査済 3,596 / 未監査 2,436（40.4%）**・**Sheet2 は 356枚**。
 ⚠**監査済みの集合は `scratchpad/semantic_audit_*/` の `*cumulative.txt`・`sampled_cards.txt` の和集合を自動走査する**
 （ラウンドを増やしても勝手に入る＝ディレクトリを固定列挙した初版は round4 を数え落とした）。
 🔑**意味照合は「受け皿の名前を知らない穴」も拾える唯一の発見器**（逆翻訳・census・golden は**知っているキーしか見ない**）。
@@ -719,22 +708,16 @@ finding を1件ずつ受け皿まで追う**（grep と実機のほうが実装�
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-07（第203〜204バッチ）＝🏁意味照合 段2 台帳の残 OPEN を 0（24 → 0）／実機 `V-nn` も残0（Opus 5 単独／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 7 → 0**｜**census 高シグナル 0 / BASELINE 0**。
-  🔑🔴**「機構待ちで残っている」は在庫ではなく未着手だった**＝7件とも1件あたり engine 30〜120行で閉じた
-  （受け皿7つを新設＝`cancel_current_lrig_attack` / `RIDE_USABLE_IN_ATTACK_PHASE` / `fieldTrash.upToCount` /
-  `OppMoveImmunityZone` / `multiZoneExile` / `discardCauseCardTypes` / `colorlessPayableColors`）。
-  🔴**最後の1件は stale**（順序は `O-267` で実装不要と確認済み）＝**「全件 triage 済み」を2度信じて2度とも外した。**
-  📦**在庫**＝**意味照合 未監査 2,608枚**（Sheet1 **172枚**・据置）｜**未 triage findings 0件**｜
-  **機構 worklist 2項目**（`O-268` / 🆕`O-271`）｜**⑤実機 残 3 → 0件**（`V-176`〜`V-178` を同日返済）。
-  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
-  🔧**ゲート（全緑 ✅）**＝golden **3563 → 3570**（+7＝**すべて反転確認済み**）／smoke 全異常0／fuzz 全0／
-  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
-  🖥**実機＝7シナリオ ALL PASS**（`v176*`／`v177*`／`v178*`＝**3組とも対照つきの対**＋既存 `o267*`）。
-  🔴🔑**`V-176` が実機だけのバグを1件釣った**＝差し替えのキーが instanceId／読み手が CardNum＝恒久 no-op。
-  **golden は素の CardNum で state を組むので全緑だった**⇒ instanceId 版の golden を追加。
-  🔁**live A/B 差分＝6カード**（`WXDi-P09-036` / `WXK03-059` / `SPDi44-16` / `WX25-P1-030` / `WXDi-P13-089` / `WX25-CP1-016` ほか payload）＝**意図した件数だけが動いた**。
+- **2026-09-07（第205バッチ・S-1／Sonnet 5）＝🏁意味照合 round4 Sheet1 完了（残18バッチ／172枚を全消化）／findings 43件は未 triage（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  🔑**この回は S-1（Sonnet レーン＝抽出・実行・簿記）のみ**＝コード変更は `scripts/semanticAuditRun.mjs` のフォールバック追加1箇所だけ（`src/` 無変更）。
+  実測＝**18バッチ・約38分・$6.04**。findings 頻度は r4-01〜08（1.1件/バッチ）の**2倍以上**（r4-09〜26＝2.4件/バッチ）＝**未 triage につき precision 不明**。
+  📦**在庫**＝**意味照合 未監査 2,608 → 2,436枚**（Sheet1 **0**・**Sheet2 356**が次）｜🆕**未 triage findings 43件**（r4-09〜26）｜
+  **機構 worklist 2項目**（`O-268` / `O-271`・据置）｜**⑤実機 残 0件**（据置）。
+  🧾**型台帳（止め時の判定）**＝Sheet1 は完走のため型台帳の「新型ゼロ連続3」判定は**適用しない**（ユーザー指示で全18バッチ消化）。
+  🔧**ゲート**＝`src/` 無変更のため golden/smoke/census 等は**未実行・未変化**（前回値のまま）。`node --check` で改修スクリプトの構文のみ確認。
+  🖥**実機＝該当なし**（`src/screens/` 無変更）。
+  🔁**live A/B 差分＝0カード**（`public/data/` 無変更＝意味照合は抽出のみで直接の修正を伴わない）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

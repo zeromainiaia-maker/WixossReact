@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第205バッチ・S-1／Sonnet 5）＝**意味照合 round4 Sheet1 完了**（残18バッチ／172枚を全消化＝252枚 / 26バッチ）
+
+**この回の作業単位**＝ユーザー指示「S-1で Sheet1 残18バッチをすべて行う」。**S-1（Sonnet レーン＝抽出・実行・簿記）のみ**を実施＝
+**O-A（真偽の triage）はやっていない**（§5.0 のレーン分担どおり次の Opus セッションへ引き継ぐ）。コード変更は無し（`src/`）。
+
+### ① 実行内容
+
+```
+node scripts/semanticAuditExtract.mjs --out tmp_sa_sheet1 \
+  --cards-file scripts/archive/scratchpad/semantic_audit_sheet1_round4/pending_cards.txt --batch-size 10
+node scripts/semanticAuditRun.mjs --out tmp_sa_sheet1 --model sonnet
+```
+**実測＝18バッチ・約38分・実コスト $6.04**（各バッチの `total_cost_usd` 合算）。結果を
+`scripts/archive/scratchpad/semantic_audit_sheet1_round4/`（raw/findings.jsonl/TYPE_LEDGER.md/audited_cards_cumulative.txt/pending_cards.txt）へ統合（round4 の既存バッチ番号 r4-09〜26 として継続採番）。
+
+### ② 踏んだ罠2つ・`scripts/semanticAuditRun.mjs` を1箇所直した
+
+1. **`claude -p` が JSON 契約を守らず自由形式(markdown)で応答することがある**（18バッチ中1件＝r4-12／旧 batch_04）＝
+   プロンプトで指定した `{"results":[...]}` を一切出さず、「engine ソースを確認した」体の散文レポートを返した
+   （実際に2件の真偽不明の finding を含んでいた＝`WX07-039-E1` の位置限定欠落／`WX03-024-BURST` のルリグタイプ限定欠落）。
+   **自動リトライは実装していない**（頻度が低く、検出も複雑）＝手動で `findings.jsonl` へ書き戻した。
+2. **`claude -p` が JSON の閉じ括弧を書き忘れて打ち切ることがある**（18バッチ中1件＝r4-26／旧 batch_18）＝
+   `stop_reason:"end_turn"` で正常終了しているのに構文が不完全（`{"results":[...]` の最後の `}` が無い）。
+   ⇒ **`extractJson`（`scripts/semanticAuditRun.mjs`）に、開き括弧と閉じ括弧の数の差分で不足分の `}` を補うフォールバックを追加**。
+   `JSON.parse` が素で失敗したときだけ発動し、既存の成功パスには影響しない。
+
+### ③ 結果＝findings 43件（r4-09〜26）は未 triage のまま持ち越し
+
+🔴🔑**findings の頻度が r4-01〜08（80枚・9件＝1.1件/バッチ）の2倍以上**（r4-09〜26＝172枚・43件＝2.4件/バッチ）。
+**triage していないので precision は不明**。過去の実測（パイロット30枚で50%、規則13〜16 追加後は67%）からは
+**相当数が偽陽性の可能性がある**＝duration の既定挙動・did-it ゲート・STUB id 名の疑いに該当しそうな finding が複数混ざっている
+（例＝`WX10-002`「そうした場合」／`WX05-007`「そうした場合」は規則13の did-it ゲート対象かもしれない）。
+⇒ **次セッションは Opus で O-A（triage）を5〜8件ずつ**行う（`TYPE_LEDGER.md` の「新型」列が全部 `?`）。
+
+### ④ 検証・簿記の範囲
+
+`src/` 無変更のため golden/smoke/census 等のゲートは**対象外**（変化なし）。`scripts/semanticAuditRun.mjs` は
+`node --check` で構文のみ確認。`docs/PLAN.md`（§1／§5／§5.0／§5.2／§6）・`docs/PLAN_PROGRESS.md`・
+`scripts/archive/scratchpad/semantic_audit_sheet1_round4/`（README・TYPE_LEDGER・findings・pending/audited リスト）を更新。
+
+---
+
 ## 2026-09-07（第204バッチ）＝**意味照合 段2 台帳の残 OPEN を 0 にした**（7 → 0）／実機 `V-176`〜`V-178` も返済
 
 **この回の作業単位**＝ユーザー指示「OPEN が0になるまで」。**残数計器**＝`semanticAuditLedger.mjs` **7 → 0**（本日通算 **24 → 0**）。

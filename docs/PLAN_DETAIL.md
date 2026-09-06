@@ -5901,6 +5901,25 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-07・第203〜204バッチ後・PLAN §6 から退避）
+
+- **2026-09-07（第203〜204バッチ）＝🏁意味照合 段2 台帳の残 OPEN を 0（24 → 0）／実機 `V-nn` も残0（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 7 → 0**｜**census 高シグナル 0 / BASELINE 0**。
+  🔑🔴**「機構待ちで残っている」は在庫ではなく未着手だった**＝7件とも1件あたり engine 30〜120行で閉じた
+  （受け皿7つを新設＝`cancel_current_lrig_attack` / `RIDE_USABLE_IN_ATTACK_PHASE` / `fieldTrash.upToCount` /
+  `OppMoveImmunityZone` / `multiZoneExile` / `discardCauseCardTypes` / `colorlessPayableColors`）。
+  🔴**最後の1件は stale**（順序は `O-267` で実装不要と確認済み）＝**「全件 triage 済み」を2度信じて2度とも外した。**
+  📦**在庫**＝**意味照合 未監査 2,608枚**（Sheet1 **172枚**・据置）｜**未 triage findings 0件**｜
+  **機構 worklist 2項目**（`O-268` / 🆕`O-271`）｜**⑤実機 残 3 → 0件**（`V-176`〜`V-178` を同日返済）。
+  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
+  🔧**ゲート（全緑 ✅）**＝golden **3563 → 3570**（+7＝**すべて反転確認済み**）／smoke 全異常0／fuzz 全0／
+  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+  🖥**実機＝7シナリオ ALL PASS**（`v176*`／`v177*`／`v178*`＝**3組とも対照つきの対**＋既存 `o267*`）。
+  🔴🔑**`V-176` が実機だけのバグを1件釣った**＝差し替えのキーが instanceId／読み手が CardNum＝恒久 no-op。
+  **golden は素の CardNum で state を組むので全緑だった**⇒ instanceId 版の golden を追加。
+  🔁**live A/B 差分＝6カード**（`WXDi-P09-036` / `WXK03-059` / `SPDi44-16` / `WX25-P1-030` / `WXDi-P13-089` / `WX25-CP1-016` ほか payload）＝**意図した件数だけが動いた**。
+
 ### 恒久指標アーカイブ（2026-09-07・第201バッチ後・PLAN §6 から退避）
 
 - **2026-09-07（第201バッチ）＝🔧§5.3 `O-269` を実装してクローズ（スペル使用の色記録）／実バグ1効果（Opus 5 単独／本ブロックが直近の正）**
