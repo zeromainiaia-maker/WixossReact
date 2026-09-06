@@ -8045,7 +8045,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand: my.hand.filter((_, i) => !discardSet.has(i)),
           trash: [...my.trash, ...paidNums, ...discardNums],
           ...handDiscardHistoryRecord(my, discardNums),
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
+          // 🆕**色マーカー**（§5.3 `O-269`・2026-09-06）＝「このターンにあなたが〈色〉のスペルを使用していた場合」。
+          //   🔑**判定源を `SPELL_USED_THIS_TURN` と同じ `actions_done` に置く**＝専用キー（アーツ側の
+          //   `turn_arts_used_colors`）を作るとリセット地点が別々になり、片方だけ残る事故になる。
+          //   ⚠`actions_done.includes('USE_SPELL')` は要素の完全一致なので既存判定には影響しない。
+          //   ⚠**多色スペルは色ぶん積む**（原文「赤のスペル」は赤を含めば成立）。「無色」は色ではないので積まない。
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL',
+            ...((card.Color || '').match(/白|赤|青|緑|黒/g) ?? []).map(c => `USE_SPELL_COLOR:${c}`),
+            ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
           next_spell_wild_cost_slot: undefined,
@@ -8064,7 +8071,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 🔴**旧実装はここだけ枚数しか書いていなかった**（上のルリグデッキ枝は両方書いていた）＝
           //   手札からスペルを使って払った捨ては `HAND_DISCARDED_THIS_TURN{filter}` から見えなかった。
           ...handDiscardHistoryRecord(my, discardNums),
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
+          // 🆕**色マーカー**（§5.3 `O-269`・2026-09-06）＝「このターンにあなたが〈色〉のスペルを使用していた場合」。
+          //   🔑**判定源を `SPELL_USED_THIS_TURN` と同じ `actions_done` に置く**＝専用キー（アーツ側の
+          //   `turn_arts_used_colors`）を作るとリセット地点が別々になり、片方だけ残る事故になる。
+          //   ⚠`actions_done.includes('USE_SPELL')` は要素の完全一致なので既存判定には影響しない。
+          //   ⚠**多色スペルは色ぶん積む**（原文「赤のスペル」は赤を含めば成立）。「無色」は色ではないので積まない。
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL',
+            ...((card.Color || '').match(/白|赤|青|緑|黒/g) ?? []).map(c => `USE_SPELL_COLOR:${c}`),
+            ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
           next_spell_wild_cost_slot: undefined,

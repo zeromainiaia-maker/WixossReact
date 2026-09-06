@@ -15596,6 +15596,39 @@ test('SPELL_USED_THIS_TURN 条件: actions_done の USE_SPELL で発火ゲート
   const hostUsed = { ...host, actions_done: ['USE_SPELL'] };
   eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX24-P2-053-E1'), true, 'スペル使用済みで発火');
 });
+// ═══ §5.3 `O-269`＝「このターンにあなたが〈色〉のスペルを使用していた場合」（2026-09-06） ═══
+test('§5.3 O-269: 色別 SPELL_USED_THIS_TURN は当該色のスペルを使ったときだけ成立する', () => {
+  const cond = { type: 'SPELL_USED_THIS_TURN', owner: 'self', color: '赤' } as unknown as Condition;
+  const withDone = (done: string[]) =>
+    evalCondition(cond, { ...mkCtx({}, {}), ownerState: { ...mkState(), actions_done: done } } as unknown as ExecCtx);
+  // 🔴従来は color を持てず、**スペルを1枚でも使えば色に関係なく成立**していた（過剰実行）。
+  eq(withDone([]), false, 'スペル未使用は不成立');
+  eq(withDone(['USE_SPELL']), false, '🔴色マーカーが無い＝色不明のスペルでは成立させない');
+  eq(withDone(['USE_SPELL', 'USE_SPELL_COLOR:青']), false, '🔴別色（青）のスペルで成立している＝色を見ていない');
+  eq(withDone(['USE_SPELL', 'USE_SPELL_COLOR:赤']), true, '赤のスペルで成立しない');
+  eq(withDone(['USE_SPELL', 'USE_SPELL_COLOR:青', 'USE_SPELL_COLOR:赤']), true, '多色スペル（赤を含む）で成立しない');
+  // 反転確認＝**色を指定しなければ従来どおり**（枚数判定は `'USE_SPELL'` の完全一致で数える＝色マーカーは数に入らない）。
+  const plain = { type: 'SPELL_USED_THIS_TURN', owner: 'self' } as unknown as Condition;
+  const plainWith = (done: string[]) =>
+    evalCondition(plain, { ...mkCtx({}, {}), ownerState: { ...mkState(), actions_done: done } } as unknown as ExecCtx);
+  eq(plainWith(['USE_SPELL']), true, '色なしは従来どおり USE_SPELL で成立');
+  eq(plainWith(['USE_SPELL_COLOR:赤']), false, '🔴色マーカーだけで「スペルを使用した」と数えている（USE_SPELL の完全一致が壊れた）');
+  const two = { type: 'SPELL_USED_THIS_TURN', owner: 'self', minCount: 2 } as unknown as Condition;
+  eq(evalCondition(two, { ...mkCtx({}, {}), ownerState: { ...mkState(),
+    actions_done: ['USE_SPELL', 'USE_SPELL_COLOR:赤', 'USE_SPELL_COLOR:青'] } } as unknown as ExecCtx), false,
+    '🔴色マーカーを枚数に数えている＝1枚のスペルが2枚に化ける');
+});
+test('§5.3 O-269: WX25-P2-075-E1 は①に色条件を持ち、対象の色限定は消えている', () => {
+  const e = (effectsMap.get('WX25-P2-075') ?? []).find(x => x.effectId === 'WX25-P2-075-E1');
+  const ch = (e?.action as unknown as { choices?: { condition?: { type?: string; color?: string };
+    action?: { target?: { filter?: { color?: string } } } }[] })?.choices ?? [];
+  eq(ch[0]?.condition?.type, 'SPELL_USED_THIS_TURN', '🔴選択肢①の条件が落ちている（無条件バニッシュ）');
+  eq(ch[0]?.condition?.color, '赤', '🔴色が落ちている＝どの色のスペルでも撃てる');
+  // 🔑**同じ根から出た過小と過剰**＝条件が落ちた代わりに「赤の」が**バニッシュ対象の色限定**へ誤付着していた。
+  //   原文は対象の色を縛らない（「対戦相手のパワー3000以下のシグニ1体」）＝両方直って初めて正しい。
+  eq(ch[0]?.action?.target?.filter?.color, undefined, '🔴対象に color 限定が残っている（原文は対象の色を縛らない）');
+  eq(ch[1]?.condition?.type, 'THIS_CARD_IS_AWAKENED', '選択肢②の条件が壊れた');
+});
 test('SPELL_USED_THIS_TURN 構造固定（WX25-P2-108=「代わりに」置換のCONDITIONAL化・WX25-P2-086=選択肢別条件・続き110）', () => {
   // WX25-P2-108: SEQUENCE両実行（-3000&-5000・2つ目owner:any）→ CONDITIONAL{then:-5000, else:-3000} 置換
   const s = JSON.stringify(effectsMap.get('WX25-P2-108') ?? []);

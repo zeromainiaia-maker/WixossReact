@@ -1824,3 +1824,9 @@ WDK06-C14-E1 :: シグニ１枚を対象とし
 #   ルリグ2体ダウン→無条件ライフクラッシュだった。`STUB{OPPONENT_PAY_OPTIONAL}`＋`opponentHandDiscardFilter{hasGuard}`
 #   で復元（engine は表示ラベル1箇所のみ／decompiler も対で修正）。
 WXDi-D03-004-E3 :: カードを１枚捨てないかぎり
+# ── 2026-09-07＝§5.3 `O-269`（スペル使用の色記録）を実装してクローズした分
+# WX25-P2-075-E1＝選択肢①「このターンにあなたが赤のスペルを使用していた場合」の条件が丸ごと落ち、
+#   代わりに「赤の」がバニッシュ対象の色限定へ誤付着していた（過小と過剰が同じ根から出ていた）。
+#   `SPELL_USED_THIS_TURN.color` を新設（判定源は actions_done の 'USE_SPELL_COLOR:<色>'）＝
+#   parser 規則1本で条件が入り、誤付着した filter.color も同時に消えた。実機 spellColorMarker PASS。
+WX25-P2-075-E1 :: 赤のスペルを使用していた場合

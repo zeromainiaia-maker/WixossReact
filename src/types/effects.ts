@@ -452,7 +452,14 @@ export type Condition =
   | { type: 'SIGNI_LEFT_BY_OPP_EFFECT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える。exactCount＝ちょうどN枚目）
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
-  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number; exactCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1。exactCount＝「N枚目のスペルだった場合」の**ちょうどN**＝N+1枚目では成立しない）
+  // 🆕`color`＝「このターンにあなたが**赤の**スペルを使用していた場合」（§5.3 `O-269`・2026-09-06）。
+  //   ⚠**アーツ側（`ARTS_USED_THIS_TURN.color`）とは判定源が違う**＝あちらは `turn_arts_used_colors`
+  //   という専用キーだが、`SPELL_USED_THIS_TURN` は `actions_done` の `'USE_SPELL'` マーカーを数える。
+  //   🔑**判定源は1本に保つ**ので色も `actions_done` に `'USE_SPELL_COLOR:<色>'` として積む＝
+  //   **ターンリセットが自動的に揃う**（専用キーを足すと `actions_done`（3箇所）と
+  //   `turn_arts_used_colors`（6箇所）のようにリセット地点が別々になり、片方だけ残る事故になる）。
+  //   ⚠`actions_done.includes('USE_SPELL')` は**配列要素の完全一致**なので色マーカーを足しても既存判定は不変。
+  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1。exactCount＝「N枚目のスペルだった場合」の**ちょうどN**＝N+1枚目では成立しない）
   // ── §3 タスク6「代わりに」B1残（per-target 値すり替えのターン中イベント counter／コスト参照）。いずれも
   //    「代わりに」置換ゲート（matchLeadingStateCondition 経由）専用＝ownerState の累計/直前記録を参照する。
   //    「このターンにあなたが手札をN枚以上捨てていた場合」（WXDi-P11-067）は既存 TURN_HAND_DISCARD_GTE を使う。

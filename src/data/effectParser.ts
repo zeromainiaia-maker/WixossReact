@@ -3645,6 +3645,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // 「このターンにあなたがスペルを使用していた場合」＝actions_done の 'USE_SPELL' マーカー参照（続き110）。
   // AUTO 効果全体のゲートは hoist（parseBlock 側）が先に処理する＝ここは選択肢内条件（WX25-P2-086/105 の②）と
   // 「代わりに」置換（WX25-P2-108＝matchLeadingStateCondition 経由の per-target 値すり替え）用。
+  // 🆕**色つき**（§5.3 `O-269`・2026-09-06）＝「このターンにあなたが**赤の**スペルを使用していた場合」。
+  // 🔴**色なし規則より前に置く**＝後ろだと `/このターンにあなたがスペルを使用していた場合/` が
+  //   「赤の」を跨げず不一致になる…のではなく、**色つき文には色なし規則が当たらない**ので順序自体は無害だが、
+  //   将来 `.*` 化されたときに色が黙って落ちるのを防ぐため（アーツ側 `ARTS_USED_THIS_TURN` と同じ並び）。
+  // ⚠**engine 側は `actions_done` の `'USE_SPELL_COLOR:<色>'` を読む**（`execUtils.ts` の evalCondition）。
+  [/このターンにあなたが(白|赤|青|緑|黒)のスペルを使用していた場合/,
+    g => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self', color: g[0] })],
   [/このターンにあなたがスペルを使用していた場合/,
     () => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self' })],
   // 「このターンに対戦相手がアーツかスペルを使用していた場合」＝OR ゲート（両語彙・engine 実装済み）。

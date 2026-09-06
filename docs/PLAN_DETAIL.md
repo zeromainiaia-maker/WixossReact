@@ -5292,7 +5292,36 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   `EffectTarget.totalPowerMax` は**数値固定**。`totalLevelMaxRef` と同じ `NumberOrRef` 版が要る。
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
-### `O-269` — 使用したスペル／アーツの**色**を engine がどこにも記録していない
+### `O-269` — 使用したスペル／アーツの**色**を engine がどこにも記録していない 🏁**2026-09-07 クローズ**
+
+> 🏁🔴**クローズ時の実測＝登録票の「母集団16」は過大だった。真の穴は 1効果。**
+> 着手して1件ずつ live を読んだら、**14件は別名の受け皿で既に配線済み**だった：
+> - **トリガー型9件**＝`triggerFilter.color` ＋ `triggerCollect.ts:25` の `spellUseTriggerMatches`
+>   （`matchesFilter(usedSpell, triggerFilter)` が使用スペルそのものを見る）。
+> - **条件型アーツ5件**＝`ARTS_USED_THIS_TURN.color` ＋ `turn_arts_used_colors`（記録・評価とも実装済み）。
+> - **コスト軽減1件**（`WXK01-060-E1`）＝`COST_REDUCTION.color` → `ActiveCostMod.cardColor` →
+>   `screens/battle/costs.ts` の `applyContinuousCostDecreases` が色で絞る（配線済み）。
+> 🔑**登録時の grep が `spellColor|usedSpellColor|last_spell_color` という「あるはずの名前」だけを見ていた**
+> ＝PLAN §5.3 の罠⑤「**受け皿の別名を全部知らないかぎり必ず過大に出る**」を、登録した本人が踏んだ。
+> ⇒ **登録票の母集団は「着手時にもう一度」実測する**（§2.1 ②）。この項目は実装1件分ではなく **1効果分**だった。
+
+**実際にやったこと（2026-09-07）**＝**スペル側だけ**に色を通した（アーツ側は既にあった）。
+- `SPELL_USED_THIS_TURN` に `color?` を追加（`Condition` union のみ＝`ActiveCondition` には元から無い）。
+- 🔑**判定源を増やさない**＝アーツ側の `turn_arts_used_colors` に倣わず、**`actions_done` に
+  `'USE_SPELL_COLOR:<色>'` を積む**。理由＝`SPELL_USED_THIS_TURN` の判定源が `actions_done` なので、
+  **ターンリセットが自動的に揃う**（専用キーを足すと `actions_done` 3箇所と `turn_arts_used_colors` 6箇所のように
+  リセット地点が別々になり、片方だけ残る事故になる）。⚠`actions_done.includes('USE_SPELL')` は
+  **配列要素の完全一致**なので既存判定は不変（golden の反転確認で固定した）。
+- `evalCondition`（`execUtils.ts`）に色分岐／`BattleScreen` の**スペル使用2箇所**に色マーカー／
+  parser 規則1本／`decompileEffects.ts` の逆翻訳に色。
+- **live 修正は `WX25-P2-075-E1` の1件**＝parser 規則を足しただけで、**落ちていた条件が入り、
+  誤付着していた `filter.color:"赤"` も同時に消えた**（過小と過剰が同じ根から出ていた実例）。
+- **実機**＝`node scripts/verifyBattleDrive.mjs spellColorMarker` **PASS**
+  （記録側は `src/screens/` のインライン式なので golden から import できない＝実機が唯一の観測点）。
+
+> ── 以下は登録時（2026-09-06）の記述 ──
+
+#### 旧登録票: `O-269` — 使用したスペル／アーツの**色**を engine がどこにも記録していない
 
 > 🆕**2026-09-06（第200バッチ）＝§5.2 段2 台帳の残 OPEN 掃引で発見して登録。**
 > finding は `WX25-P2-075-E1` の**1件**だったが、**母集団を実測したら 16効果の塊**だった。
@@ -5755,6 +5784,31 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-06・第200バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第200バッチ）＝🧹意味照合 段2 台帳の残 OPEN を掃引（24 → 13）・実バグ2効果を修正（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 → 4 / 863**（**うち機構待ち4＝即着手可能 0**）｜**台帳 残 OPEN 24 → 13**｜**census 高シグナル 0 / BASELINE 0**。
+  🔑**Sheet1 の +3 は退化ではなく可視化**＝`O-269`（下記）を §5.3 索引へ登録したことで `mech` が立った（実体は不変）。
+  🔑**台帳の -11 のうち 9件は実装0行**（他の項目で既に直っていた閉じ忘れ）＋**1件は偽陽性**＋**1件だけが engine 0行の live 修正**。
+  🔴**「全数 triage して掘り尽くした」という判定そのものが腐っていた**＝続き766 は「engine/JSON だけで閉じられるのは0件」と
+  結論していたが、実測すると 24件中 11件はそうではなかった。**判定も計器と同じく再測が要る。**
+  🔴**`semanticAuditRecheck.mjs` は stale 9件のうち1件しか拾えなかった**＝①`effectId:null` の finding は照合対象外
+  ②受け皿の名前が変わると LCS が伸びない（引用句は原文の語彙・逆翻訳は実装後の語彙）。
+  ⇒ 🔑**残件が少ないときは「recheck が0件」で止めず、finding の受け皿を1件ずつ `grep` で探す**（この回は grep だけで9件）。
+  📦**在庫**＝**意味照合 未監査 2,608枚**（**Sheet1 172枚**・据置）｜**未 triage findings 0件**｜
+  **機構 worklist 2項目**（`O-268`＝索引 G／`O-269`＝索引 A）｜**⑤実機 残 0件**。
+  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
+  🔧**ゲート（全緑 ✅）**＝golden **3555 → 3557**（+2＝直した2効果の live 形を固定）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+  ⚠**ラチェット更新1件**＝`OPPONENT_PAY_OPTIONAL` の live 出現数 **79 → 80**（**退化ではなく回避ゲートの復元**＝
+  増えた1件は `opponentHandDiscard` を持つ＝安全弁「回避枝なし＝0」は不変）。
+  🔁**live A/B 差分＝2カード**（`WDK06-C14` / `WXDi-D03-004`）＝**意図した件数だけが動いた**。
+  🖥**実機**＝**不要**（§2.2 の機械判定＝触ったのは `src/data/` `public/data/` `scripts/` と
+  `src/engine/` の**表示ラベル1箇所**だけ。新しい型・機構は1つも足していない）。
+  ⚠**踏んだ罠**＝`syncManualLive.ts` の後に **`build:effects` を回し直さないと `_partial_fresh` が古いまま**残り、
+  golden の `O-93` ラチェットが FAIL する。**sync → build:effects の順で閉じる。**
 
 ### 恒久指標アーカイブ（2026-09-06・第199バッチ後・PLAN §6 から退避）
 

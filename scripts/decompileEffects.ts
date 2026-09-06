@@ -970,7 +970,9 @@ function condJa(c?: any): string {
     case 'SPELL_USED_THIS_TURN':
       // exactCount＝「N枚目のスペルだった場合」＝**ちょうどN枚目**（minCount の「N枚以上」とは別物）。
       if (c.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(c.exactCount)}枚目のスペルだった`;
-      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
+      // 🆕`color`（§5.3 `O-269`・2026-09-06）＝**payload を足したら逆翻訳もその payload から組む**
+      //   （LESSONS §4.2＝固定文のままだと「実装済みなのに未実装に読める／engine の嘘と一致して計器が緑になる」）。
+      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${c.color ? `${c.color}の` : ''}スペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;

@@ -2366,6 +2366,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // exactCount＝「それがこのターンにあなたが使用したN枚目のスペルだった場合」（WXDi-P09-038）。
       // ⚠minCount（N以上）で近似すると **N+1枚目以降でも発火する過剰実行**になるので別軸にしてある。
       if (cond.exactCount !== undefined) return spellUsed === cond.exactCount;
+      // 🆕**色指定**（「このターンにあなたが**赤の**スペルを使用していた場合」＝§5.3 `O-269`・2026-09-06）。
+      // 🔑**判定源は上と同じ `actions_done`**＝スペル使用時に `'USE_SPELL'` と並べて
+      //   `'USE_SPELL_COLOR:<色>'` を色ぶん積む（`BattleScreen` の2箇所）。専用キーを作らないので
+      //   ターンリセットが `actions_done` と自動的に揃う。⚠多色スペルは色ぶん積まれる（どの色でも成立）。
+      // ⚠**枚数系（minCount/exactCount）とは併用しない**＝原文に「N枚目の赤のスペル」の形が無い。
+      if (cond.color) return (st(cond.owner).actions_done ?? []).includes(`USE_SPELL_COLOR:${cond.color}`);
       return spellUsed >= (cond.minCount ?? 1);
     }
     case 'HAS_CARD_IN_FIELD': {
