@@ -51728,6 +51728,225 @@ order.push('o248GrowRevealAuto');
 order.push('o248GrowDiscardPay');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-166`（§5.3 `O-93`）＝**`WXEX2-71-E3` の【起】が実機で本当に効くか**。
+//
+// 原文＝【起】英知＝５《ターン１回》《緑×0》：あなたの**他の**＜英知＞のシグニ１体を対象とし、
+//   ターン終了時まで、それは「【常】：このシグニは、このシグニの**正面以外**の対戦相手のシグニゾーンにも
+//   アタックできる。」を得る。
+//
+// 🔴**旧 live は二重に壊れていた**（2026-09-06 `O-93` で判明）＝
+//   ①`GRANT_KEYWORD.keyword` が**原文の文まるごと**の文字列で、`BattleScreen.tsx:10557` が探す
+//     `'正面以外追加アタック'` と一致せず **恒久 no-op**（撃っても何も起きない）。
+//   ②付与先が `owner:'opponent'`＝原文「**あなたの**他の＜英知＞のシグニ」なのに**相手を強化**していた。
+// 🔑**この2つは golden では見えない**＝keyword 文字列を解釈するのは engine ではなく **UI 側**なので、
+//   live JSON を直した時点でゲートは全部緑になる。⇒ 実機でしか返済できない。
+//
+// **観測点**＝付与されたシグニでアタックしたとき、**正面以外の2ゾーンの相手シグニも一緒にバニッシュされる**。
+//   盤面＝自分 zone1 に パワー10000、相手は3ゾーンとも パワー3000 のバニラ。
+//   `BattleScreen` の `oppZiMZA = 2 - zi` なので、自分 zone1 の正面は相手 zone1、
+//   追加で 自分zone0→相手zone2 / 自分zone2→相手zone0 が battle される。
+// 🔁**負方向の対照**＝**盤面も操作も同じで、【起】を撃つかどうかだけ**を変える（1ビット反転）。
+//   撃たなければ**正面（相手 zone1）だけ**がバニッシュされ、zone0 と zone2 は残る。
+//
+// ⚠**罠 8e**＝host と guest のゾーン index は「正面」で一致しない（`2 - zi`）＝3ゾーンとも埋める。
+// ⚠**罠 8f**＝バニッシュの行き先は**エナゾーン**でトラッシュではない＝「場に居ない」で判定する。
+// ⚠**罠 1**＝`field.check` を両側に必ず入れる。⚠**`field.signi` はスタックの配列**（素の文字列は不可）。
+// ⚠`WXEX2-71` は **ママ限定**なので host のルリグを ママ♥５ にしてある（罠 8k）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V166_LRIG   = 'WX21-004#1';   // ママ♥５（ルリグ・Lv5・リミット12）＝`WXEX2-71` のママ限定に合わせる
+const V166_SRC    = 'WXEX2-71#1';   // 並英の規則 ホウジンザン（＜英知＞・Lv2・【起】英知＝５の持ち主）
+const V166_TARGET = 'WXK02-085#1';  // 費英の埋没 サンクコ（＜英知＞・Lv3・パワー10000・**バニラ**）
+//   🔑英知レベル合計 = 2 + 3 = **5**＝`EICHI_LEVEL_SUM eq 5` をちょうど満たす。
+//   🔑対象はバニラを選ぶ＝自前の能力でバニッシュしてしまうと「MZA が効いた」と区別できない。
+const V166_OPP = ['WD01-013#1', 'WD02-013#1', 'WD03-013#1']; // 相手3ゾーン＝いずれも Lv1/3000/バニラ/バーストなし
+//   🔑**バーストなしを選ぶ**＝ライフバーストが挟まると対話が増えて観測が濁る。
+const V166_ENA = 'WD04-014';        // 幻獣パンダン（緑）＝《緑×0》の提示ゲート用に緑エナを置いておく
+
+const v166Spec = () => ({
+  hostSet: {
+    'field.lrig': [V166_LRIG],
+    // ⚠**スタックの配列**（素の文字列を置くと `battleCardNums` の useMemo が落ちて盤面が1枚も描画されない）。
+    'field.signi': [[V166_SRC], [V166_TARGET], null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    'field.signi_down': [false, false, false],
+    lrig_deck: [],
+    energy: [V166_ENA + '#1', V166_ENA + '#2'],
+    hand: [],
+    keyword_grants: {},
+    game_actions_done: [],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WX16-020#2'],   // ママ♥１（相手ルリグ＝能力の少ない Lv1）
+    'field.signi': [[V166_OPP[0]], [V166_OPP[1]], [V166_OPP[2]]],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.signi_down': [false, false, false],
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** 場に残っている相手シグニの番号集合（`#` を落として素の番号で比較する）。 */
+const v166OppAlive = (st) => new Set(((st?.guest?.fieldSigni ?? [])
+  .flatMap(stack => (Array.isArray(stack) ? stack : (stack ? [stack] : []))))
+  .map(id => String(id).split('#')[0]));
+
+const v166Drive = async (page, H, tag, useAct) => {
+  const st0 = await H.queryState();
+  const alive0 = v166OppAlive(st0);
+  if (st0?.host?.lrigTop !== V166_LRIG || alive0.size !== 3) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+      + ' 相手場=' + JSON.stringify(st0?.guest?.fieldSigni) + '）' };
+  }
+  await H.ensureMain();
+
+  // ── ① 本題のときだけ【起】を撃つ（対照はここを丸ごと飛ばす＝1ビット反転）──────────────
+  let granted = false;
+  if (useAct) {
+    let opened = false, fired = false, confirmed = false, picked = false;
+    for (let s = 0; s < 18 && !granted; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      if (!opened) {
+        // 効果元（zone0 の `WXEX2-71`）の CardModal を開く。
+        const o = await H.clickTestId('my-signi-zone-0');
+        if (o) { opened = true; did = o; }
+      }
+      if (!did && opened && !fired) {
+        // ⚠**罠 2**＝正規表現名＋`exact` は常に0件＝`data-action-label` を直接掴む。
+        const lbl = page.locator('[data-action-label]').first();
+        if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
+          await lbl.click().catch(() => {}); fired = true; did = 'act:kiActivate';
+        }
+      }
+      if (!did && fired && !confirmed) {
+        // 🔴**`H.stdStep` の語彙に「発動」は無い**（§4.4 の 2c が明記）＝能力を選んだだけでは撃たれず、
+        //   ここを踏まないと18ティックまるごと空振りする（2026-09-06 の初回実行で実際に踏んだ）。
+        // ⚠**罠 8b**＝`clickBtn` は `disabled` を見ないので `isEnabled()` を自分で確かめる。
+        const go = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await go.count() && await go.isVisible().catch(() => false) && await go.isEnabled().catch(() => false)) {
+          await go.click().catch(() => {}); confirmed = true; did = 'btn:activate';
+        }
+      }
+      if (!did && fired && !picked) {
+        // 対象は「あなたの**他の**＜英知＞」＝候補は `WXK02-085` の1体だけ。
+        // ⚠**罠 6**＝index を盲目に押さず `data-card-num` で狙う。
+        const cell = page.locator('[data-testid^="pick-"][data-card-num="' + V166_TARGET.split('#')[0] + '"]').first();
+        if (await cell.count() && await cell.isVisible().catch(() => false)) {
+          await cell.click().catch(() => {}); picked = true; did = 'pick:' + V166_TARGET;
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const kg = st?.host?.keywordGrants ?? [];
+      if (kg.some(x => x.includes('正面以外追加アタック'))) granted = true;
+      H.log('  ' + tag + '[act' + s + '] -> ' + (did ?? 'なし')
+        + ' | 付与=' + JSON.stringify(kg)
+        + ' pEff=' + (st?.pendingEffect ?? '-') + ' stack=' + (st?.stackLen ?? '-'));
+    }
+    await H.closeModals();
+    if (!granted) {
+      const stF = await H.queryState();
+      const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+        .map(b => (b.textContent || '').trim().slice(0, 20)).filter(Boolean).slice(0, 24)).catch(() => []);
+      return { pass: false, detail: '🔴ki-activate を撃っても `正面以外追加アタック` が付与されない'
+        + '（旧実装＝keyword が原文まるごとの文字列だった形の再発、または対象が opponent 側）。'
+        + ' 付与=' + JSON.stringify(stF?.host?.keywordGrants) + ' 見えているボタン=' + JSON.stringify(btns) };
+    }
+    // 🔴**付与先が自分側であること**まで見る（旧実装は `owner:'opponent'` で相手を強化していた）。
+    const stG = await H.queryState();
+    const mine = (stG?.host?.keywordGrants ?? []).find(x => x.includes('正面以外追加アタック')) ?? '';
+    const theirs = (stG?.guest?.keywordGrants ?? []).find(x => x.includes('正面以外追加アタック')) ?? '';
+    if (theirs) {
+      return { pass: false, detail: '🔴付与先が対戦相手のシグニになっている（原文は「あなたの他の＜英知＞」）＝'
+        + theirs + ' / 自分側=' + JSON.stringify(mine) };
+    }
+    if (!mine.startsWith(V166_TARGET)) {
+      return { pass: false, detail: '🔴付与先が対象にした ' + V166_TARGET + ' ではない＝' + mine };
+    }
+    H.log('  付与を確認: ' + mine);
+  }
+
+  // ── ② アタックフェイズへ入って zone1（付与されたシグニ）でアタックする ────────────────
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(700);
+  let modalOpened = false, attacked = false, frontGone = false;
+  let aliveEnd = alive0;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true }).catch(() => {});
+    let did = null;
+    {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:attack'; attacked = true;
+      }
+    }
+    if (!did && !modalOpened) {
+      // 付与された `WXK02-085` は zone1（中央）＝ここからアタックする。
+      const o = await H.clickTestId('my-signi-zone-1');
+      if (o) { modalOpened = true; did = o; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', '決定', 'OK', 'はい', 'スキップ']);
+    const st = await H.queryState();
+    aliveEnd = v166OppAlive(st);
+    // ⚠**罠 8d**＝一度立てたら下げない（後続の処理で判定が戻るのを防ぐ）。
+    if (attacked && !aliveEnd.has(V166_OPP[1].split('#')[0])) frontGone = true;
+    H.log('  ' + tag + '[atk' + s + '] -> ' + (did ?? 'なし')
+      + ' | 相手場=' + JSON.stringify(st?.guest?.fieldSigni)
+      + ' 残=' + JSON.stringify([...aliveEnd]) + ' 相手エナ=' + (st?.guest?.energy ?? '-')
+      + ' pEff=' + (st?.pendingEffect ?? '-') + ' stack=' + (st?.stackLen ?? '-'));
+    if (frontGone && !st?.pendingEffect && !(st?.stackLen > 0) && s > 3) break;
+  }
+
+  const z0 = V166_OPP[0].split('#')[0];   // 自分 zone2 の正面（MZA の追加対象）
+  const z1 = V166_OPP[1].split('#')[0];   // 自分 zone1 の正面（通常のバトル相手）
+  const z2 = V166_OPP[2].split('#')[0];   // 自分 zone0 の正面（MZA の追加対象）
+  const dump = '残った相手シグニ=' + JSON.stringify([...aliveEnd])
+    + '（正面=' + z1 + ' / 追加対象=' + z0 + ',' + z2 + '）';
+
+  // 🔑**前提＝正面が落ちたこと**を先に確かめる（アタック自体が起きていない状態と区別する）。
+  if (!frontGone) {
+    return { pass: false, detail: '前提崩れ＝正面のシグニをバニッシュできていない＝アタックが成立していない。' + dump };
+  }
+  const extraGone = !aliveEnd.has(z0) && !aliveEnd.has(z2);
+  if (useAct) {
+    if (!extraGone) {
+      return { pass: false, detail: '🔴付与はされたのに、正面以外の2ゾーンが battle されていない'
+        + '＝`BattleScreen` の MZA 経路まで届いていない。' + dump };
+    }
+    return { pass: true, detail: 'ki-activate で `正面以外追加アタック` が自分の対象へ付与され、'
+      + 'アタック時に正面以外の2ゾーンの相手シグニも一緒にバニッシュされた。' + dump };
+  }
+  if (extraGone) {
+    return { pass: false, detail: '🔴ki-activate を撃っていないのに正面以外まで battle された＝'
+      + '対照が効いていない（付与が残っている／MZA が無条件になっている）。' + dump };
+  }
+  return { pass: true, detail: 'ki-activate を撃たなければ正面だけがバニッシュされ、正面以外の2ゾーンは残った。' + dump };
+};
+
+scenarios.v166MultiZoneAttackGranted = {
+  title: 'V-166(1): WXEX2-71 の起動能力＝他の英知シグニに「正面以外追加アタック」を付与し、正面以外の2ゾーンも battle される【旧実装は恒久 no-op】',
+  spec: v166Spec(),
+  async drive(page, H) { return v166Drive(page, H, 'v166Granted', true); },
+};
+
+scenarios.v166MultiZoneAttackNotGranted = {
+  // 🔴**対照**＝盤面も操作も同じで、**起動能力を撃つかどうかだけ**を変える1ビット反転。
+  title: 'V-166(2): 起動能力を撃たなければ正面だけ＝MZA が無条件になっていない',
+  spec: v166Spec(),
+  async drive(page, H) { return v166Drive(page, H, 'v166Plain', false); },
+};
+
+order.push('v166MultiZoneAttackGranted');
+order.push('v166MultiZoneAttackNotGranted');
+
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
