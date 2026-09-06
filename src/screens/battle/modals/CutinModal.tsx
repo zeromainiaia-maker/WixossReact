@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction, coinPayableFor } from '../costs';
+import { canAffordWithExtraCost, colorlessPayableColorsOf, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction, coinPayableFor } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -172,8 +172,8 @@ export function CutinModal(p: CutinModalProps) {
                             const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
-                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
+                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(candidate.card.CardNum, effectsMap))
+                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(candidate.card.CardNum, effectsMap)));
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
@@ -258,7 +258,7 @@ export function CutinModal(p: CutinModalProps) {
               ) !== null);
               const isValid = underOkModal && exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(pendingCutinCard.card.CardNum, effectsMap))));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -478,16 +478,34 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
  *     本文を手書きしたカードでも失われない＝実測でアンコール9枚／ベット21枚が該当）。
  *   両方を同じ関数から作ることで「fresh と live で別の値になる」経路を構造的に消している。
  */
+/**
+ * 🆕**「（この〈カード〉を場に出す／使用する）ための《無》コストは〈色…〉でしか支払えない」**
+ * （2026-09-07・意味照合 段2・実測3効果＝`PR-K048` / `WX16-006-E1` / `WX19-004-E1`）。
+ *
+ * 🔑**原文を読むのはここ1箇所**（`census:costtext` の規約＝UI 層で `card.EffectText` を読み直さない）。
+ * ⚠**「あなたのセンタールリグが持つ色」**（`WX16-006-E1`）は盤面依存なので**ここでは返さない**
+ *   （静的な色集合として書けない＝別機構）。返すのは**色名が直接書かれている**綴りだけ。
+ */
+export function parseColorlessPayableColorsText(effectText: string): string[] | null {
+  const t = effectText ?? '';
+  const m = t.match(/《無》コストは[、]?([白赤青緑黒](?:か[白赤青緑黒])*)でしか支払えない/);
+  if (!m) return null;
+  const colors = m[1].split('か').filter(Boolean);
+  return colors.length > 0 ? colors : null;
+}
+
 export function printedKeywordCosts(
   effectText: string | undefined,
-): Pick<EffectCost, 'encoreCost' | 'betOptions' | 'boostCost' | 'useTimeCost' | 'costReplacement' | 'optionalDiscardCost'> {
+): Pick<EffectCost, 'encoreCost' | 'betOptions' | 'boostCost' | 'useTimeCost' | 'costReplacement' | 'optionalDiscardCost' | 'colorlessPayableColors'> {
   const encoreCost = parseEncoreCostText(effectText ?? '');
   const betOptions = parseBetOptionsText(effectText ?? '');
   const boostCost = parseBoostCostText(effectText ?? '');
   const useTimeCost = parseUseTimeCostReductionText(effectText ?? '');
   const costReplacement = parseCostReplacementTerms(effectText ?? '');
   const optionalDiscardCost = parseOptionalDiscardCostText(effectText ?? '');
+  const colorlessPayableColors = parseColorlessPayableColorsText(effectText ?? '');
   return {
+    ...(colorlessPayableColors ? { colorlessPayableColors } : {}),
     ...(encoreCost ? { encoreCost } : {}),
     ...(betOptions ? { betOptions } : {}),
     ...(boostCost ? { boostCost } : {}),
@@ -500,4 +518,5 @@ export function printedKeywordCosts(
 /** 印字キーワードコストのキー一覧（重ねる側／除外する側の両方がこれを使う）。 */
 export const PRINTED_KEYWORD_COST_KEYS = [
   'encoreCost', 'betOptions', 'boostCost', 'useTimeCost', 'costReplacement', 'optionalDiscardCost',
+  'colorlessPayableColors',
 ] as const;

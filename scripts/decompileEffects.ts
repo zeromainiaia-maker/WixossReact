@@ -873,6 +873,11 @@ function costJa(c?: any): string {
   if (c.chargeCounterRemove != null) parts.push(`この上からカウンター${c.chargeCounterRemove}つを取り除く`);
   if (c.trapToHand != null) parts.push(`あなたの【トラップ】${c.trapToHand}枚を手札に加える`);
   // `none:true`＝**コストなしの任意効果**（発動するかの確認だけ）。他のキーと同時には立たない。
+  // 🆕意味照合 段2（2026-09-07）＝《無》コストの許可色（`PR-K048` ほか）。⚠出さないと
+  //   「制限を持たない旧実装」と逆翻訳が同じままになり、原文照合で脱落を検出できない。
+  if (c.colorlessPayableColors?.length) {
+    parts.push(`《無》コストは${c.colorlessPayableColors.join('か')}でしか支払えない`);
+  }
   if (c.none && parts.length === 0) parts.push('コストなし');
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');

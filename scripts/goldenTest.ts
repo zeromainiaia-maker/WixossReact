@@ -69,7 +69,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyNextArtsCostReduction } from '../src/screens/battle/costs';
+import { applyNextArtsCostReduction, colorlessPayableColorsOf } from '../src/screens/battle/costs';
 import { addNColorToCost, removeNColorFromCost, costScalingOf, declaredChooseScalingOf, declaredChooseMaxOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction,
@@ -70246,6 +70246,37 @@ test('意味照合 段2 WX25-CP1-016-E1: 手札捨ての原因がシグニかス
   const plain = mkState({}); plain.field.lrig = ['WXEX2-12'];
   eq(fired(collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], plain, HOST, false).entries, 'WXEX2-12-E2'), true,
     '限定の無い【自】は原因不明でも従来どおり誘発する');
+}));
+
+// ── 意味照合 段2（2026-09-07）＝`PR-K048` 《無》コストを払える色の制限 ──
+// 🔴《無》スロットは既定で何色でも払えるので、この制限が無いと**原文より緩い**（過剰実行）。
+test('意味照合 段2 PR-K048: 《無》コストは白か赤か青でしか支払えない', () => withSavedCursor(() => {
+  eq((colorlessPayableColorsOf('PR-K048', effectsMap) ?? []).join(','), '白,赤,青',
+    '🔴キーの《無》コスト許可色が live に載っている');
+  // 同型（アーツ側の綴り）も同じ payload へ乗る。
+  eq((colorlessPayableColorsOf('WX19-004', effectsMap) ?? []).join(','), '白,黒',
+    'アーツの「白か黒でしか支払えない」も同じ受け皿');
+  // ⚠「あなたのセンタールリグが持つ色」（`WX16-006-E1`）は**盤面依存**なので静的な色集合にしない。
+  eq(colorlessPayableColorsOf('WX16-006', effectsMap), undefined,
+    '盤面依存の綴りは payload を持たない（別機構）');
+
+  // 支払い可否＝許可色のカードだけが《無》スロットを埋められる。
+  const pick = (color: string) => [...cardMap.values()]
+    .find(c => (c.Color ?? '') === color && c.Type === 'シグニ')!.CardNum;
+  const white = pick('白'), green = pick('緑');
+  const cards = [...cardMap.values()];
+  const afford = (pool: string[], colors?: string[]) => canAffordGrowCost(
+    pool, cards, '《無》×2', undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, colors);
+  eq(afford([white, white]), true, '制限なしなら白2枚で払える');
+  eq(afford([green, green]), true, '制限なしなら緑2枚でも払える');
+  eq(afford([white, white], ['白', '赤', '青']), true, '許可色（白）なら払える');
+  eq(afford([green, green], ['白', '赤', '青']), false, '🔴許可色外（緑）では払えない');
+  eq(afford([white, green], ['白', '赤', '青']), false, '🔴1枚でも許可色外なら足りない');
+  // 色指定スロットには効かない（原文は《無》だけを縛る）。
+  const colored = canAffordGrowCost([green], cards, '《緑》×1', undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, ['白', '赤', '青']);
+  eq(colored, true, '《緑》スロットは許可色の制限を受けない');
 }));
 
 if (listMode) {

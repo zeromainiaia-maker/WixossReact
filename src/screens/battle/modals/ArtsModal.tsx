@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor, applyCostScalingTerms, declaredChooseScalingOf, declaredChooseMaxOf } from '../costs';
+import { colorlessPayableColorsOf, computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor, applyCostScalingTerms, declaredChooseScalingOf, declaredChooseMaxOf } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -148,7 +148,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0)
                 + encoreDiscardNeed;
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount, my.cannot_pay_colorless_this_attack_phase) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(pendingArtsCard.CardNum, effectsMap)) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);

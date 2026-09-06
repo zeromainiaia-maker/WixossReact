@@ -1898,3 +1898,23 @@ WXDi-P13-089-E3 :: 手札とエナゾーンとトラッシュ
 #   判定は `collectHandDiscardTriggers` の `causeTypeOk` 1点＝**fail-closed**
 #   （原因不明＝ルール処理の手札上限・ガードステップでは誘発しない）。
 WX25-CP1-016-E1 :: シグニかスペルの、コストか効果によって
+# PR-K048（effectId:null）＝「このキーを場に出すための《無》コストは**白か赤か青でしか支払えない**」が
+#   JSON に無く、《無》スロットは既定で何色でも払えた（原文より緩い＝過剰実行）。
+#   ⇒ `EffectCost.colorlessPayableColors` を新設。原文を読むのは `keywordCosts.ts` の
+#   `parseColorlessPayableColorsText` 1箇所（`census:costtext` の規約）→ `printedKeywordCosts` で
+#   live へ載る → UI は `colorlessPayableColorsOf(cardNum, effectsMap)` で読むだけ。
+#   判定は `canAffordGrowCost` / `canAffordWithExtraCost` の1本＝キー（提示＋`KeyUseModal`）と
+#   アーツ（`artsUseGate` / `ArtsModal` / `CutinModal`）の5入口が同じ関数を通る。
+#   ⚠**`banColorlessPay`（無色カード全面禁止）とは別軸**＝あちらは負、こちらは許可色の正集合。
+#   ⚠「あなたのセンタールリグが持つ色」（`WX16-006-E1`）は**盤面依存**なので静的な色集合にしない（別機構）。
+PR-K048 :: 白か赤か青でしか支払えない
+# WX13-005B-E1＝**stale（実バグではない）**。finding は「この【出】能力はそのスペルの効果より先に発動する」が
+#   JSON に無いと言うが、**JSON に書く必要が無い**＝順序は engine の
+#   「`effect_stack` が空になるまでスペルを解決しない」ガード1本で既に保証されている（§5.3 `O-267` は
+#   2026-09-06 第194バッチで**実装不要**としてクローズ済み・実装0行）。
+#   🔑**2026-09-07 にこのセッションで実機を撮り直して再確認した**＝
+#   `node scripts/verifyBattleDrive.mjs o267CutinResonaResolvesBeforeSpell` → PASS
+#   （`pSpell=WD01-018#9900` が保留のまま `guestTrash=[]`＝スペルより先に除外が起きている）。
+#   ⚠**recheck では拾えない型**＝引用句「スペルの効果より先に」は逆翻訳に出ないので LCS が伸びない
+#   （§5.2 の「受け皿の名前が変わった finding」と同じ死角）。
+WX13-005B-E1 :: スペルの効果より先に

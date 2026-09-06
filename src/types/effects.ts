@@ -1236,6 +1236,16 @@ export interface EffectCost {
    *   判定と支払いは `screens/battle/multiZoneExileCost.ts` の2関数だけを通す。
    */
   multiZoneExile?: { zones: ('hand' | 'energy' | 'trash')[]; count: number; filter?: TargetFilter };
+  /**
+   * 🆕**「このカードを使う（場に出す）ための《無》コストは〈色…〉でしか支払えない」**
+   * （2026-09-07・意味照合 段2・`PR-K048`／`WX16-006-E1`／`WX19-004-E1`）。
+   * 🔴**《無》スロットは既定で何色でも払える**ので、この制限が無いと**原文より緩い**（過剰実行）。
+   * ⚠**`cannot_pay_colorless_this_attack_phase`（`banColorlessPay`）とは別軸**＝
+   *   あちらは「無色**のカード**では払えない」全面禁止、こちらは「この色だけ許す」正の集合。
+   * 読むのは支払い可否 funnel（`canAffordGrowCost` / `canAffordWithExtraCost` の
+   *   `colorlessPayableColors`）1本＝提示ゲートと支払いモーダルが同じ関数を通る。
+   */
+  colorlessPayableColors?: string[];
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
   fieldExileSelf?: boolean;    // 場にあるこのシグニをゲームから除外する
   /**

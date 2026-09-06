@@ -52,7 +52,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -9076,7 +9076,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 🆕§5.3 `O-259` 第2バッチ＝カード名指定の《無》軽減（常設＋**このターンだけ**の予約）を通す。
       //   🔴ここと `KeyUseModal` の**両方**に入れないと「一覧では使えるのに払えない」食い違いになる。
       const pieceEffCost = applySpecificCardCostReduction(pieceEffCostGate, cardData.CardName, specificCardCostReductions);
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+      // 🆕**《無》コストの許可色**（意味照合 段2・`PR-K048`＝「このキーを場に出すための《無》コストは
+      //   白か赤か青でしか支払えない」）。🔴ここと `KeyUseModal` の**両方**に入れないと
+      //   「一覧では使えるのに払えない」食い違いになる（上の軽減と同じ理由）。
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
+        undefined, undefined, undefined, undefined, undefined, colorlessPayableColorsOf(cardNum, effectsMap));
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );

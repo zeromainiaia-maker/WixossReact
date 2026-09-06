@@ -13,7 +13,7 @@ import { canUseArtsCondition } from './battleUtils';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyNextArtsCostReduction, applySpecificCardCostReduction,
-  canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
+  canAffordGrowCost, canAffordWithExtraCost, colorlessPayableColorsOf, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
   energyCostToString, isEnaMultiStripped, betOptionsOf, coinPayableFor,
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
@@ -282,14 +282,17 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   // 対戦相手ターン中の代替コスト（`altCostOppTurn`）があればそちらが請求額そのもの。
   const altCost = !isMyTurn ? effectsMap.get(cardNum)?.[0]?.altCostOppTurn : undefined;
   const altCostStr = altCost ? energyCostToString(altCost) : null;
+  // 🆕**《無》コストの許可色**（意味照合 段2・`WX19-004-E1`＝「このアーツの使用コストに含まれる《無》
+  //   コストは、白か黒でしか支払えない」）。⚠**提示ゲートと支払いモーダルの両方**に入れる（§4.2 の3地点）。
+  const colorlessColorsArts = colorlessPayableColorsOf(cardNum, effectsMap);
   const affordWith = (cost: string) => canAffordWithExtraCost(
     poolNums, cards, cost, extraCosts, my.keyword_grants, payer.enaAllMulti, payer.enaMultiStripped,
     payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
-    undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase);
+    undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessColorsArts);
   const affordable = altCostStr !== null
     ? canAffordGrowCost(poolNums, cards, altCostStr, my.keyword_grants, payer.enaAllMulti, payer.enaMultiStripped,
         payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
-        undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
+        undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessColorsArts)
     : (affordWith(reducedCost) || (betCost !== null && affordWith(betCost)));
   // 使用時の任意支払い（`useTimeCost.ts`）で下がりうる**最良コスト**＝いま盤面にある候補を上限まで払った額。
   // ⚠固定形（`perUnit:false`）は候補が上限に届かなければ `applyUseTimeCostReduction` が 0 回に落ちる＝

@@ -494,6 +494,22 @@ const isDeclaredChooseTerm = (term: CostScalingTerm): boolean =>
  * 提示ゲート（`artsUseGate`）の時点では確定していない。ゲートは**増額なし**で通し（0個選ぶのは常に合法）、
  * 実額は `ArtsModal` が `declaredChooseScalingOf` を使って宣言数に追従させる。
  */
+/**
+ * 🆕**《無》コストを払える色の正の集合**（2026-09-07・意味照合 段2・`PR-K048` ほか）を live から読む。
+ * ⚠**原文をここで読み直さない**（`census:costtext` の規約）＝payload は
+ *   `src/data/keywordCosts.ts` の `parseColorlessPayableColorsText` が唯一の出所。
+ */
+export function colorlessPayableColorsOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): string[] | undefined {
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    const cols = effect.cost?.colorlessPayableColors;
+    if (cols?.length) return cols;
+  }
+  return undefined;
+}
+
 export function costScalingOf(
   cardNum: string,
   effectsMap: Map<string, CardEffect[]>,
@@ -1302,6 +1318,14 @@ export function canAffordGrowCost(
    * ⚠**プールから落とす**＝色照合を通す前に除く（無色カードは《無》スロットの充当にも使えない）。
    */
   banColorlessPay?: boolean,
+  /**
+   * 🆕**《無》スロットを払える色の正の集合**（2026-09-07・意味照合 段2・`PR-K048` ほか）＝
+   * 「このキーを場に出すための《無》コストは白か赤か青でしか支払えない」。
+   * 🔴無いと《無》は何色でも払えるので**原文より緩い**（過剰実行）。
+   * ⚠**`banColorlessPay`（無色カード全面禁止）とは別軸**＝併用しても矛盾しない。
+   * ⚠**マルチエナは通す**（任意の色を出せる＝許可色を出せる）。
+   */
+  colorlessPayableColors?: string[],
 ): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
@@ -1334,7 +1358,10 @@ export function canAffordGrowCost(
     for (const p of pool) {
       if (needed > 0 && !p.isWild) {
         const colorMatches = costColorMatches(p.color, color, { extraColor: p.extraColor, colorSubs });
-        if (colorMatches) { needed--; continue; }
+        // 🆕《無》スロットの許可色（意味照合 段2）＝色指定スロットには効かない（原文は《無》だけを縛る）。
+        const colorlessOk = color !== '無' || !colorlessPayableColors?.length
+          || colorlessPayableColors.some(c => p.color.includes(c) || p.extraColor === c);
+        if (colorMatches && colorlessOk) { needed--; continue; }
       }
       rem.push(p);
     }
@@ -1471,8 +1498,9 @@ export function canAffordWithExtraCost(
   extraWildCount?: number,
   /** 「無色のカードでエナコストを支払えない」（§6.4 O-10 続き512）。 */
   banColorlessPay?: boolean,
+  colorlessPayableColors?: string[],
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay, colorlessPayableColors);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -1499,7 +1527,7 @@ export function canAffordWithExtraCost(
       return false;
     }
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay, colorlessPayableColors);
 }
 
 /**
