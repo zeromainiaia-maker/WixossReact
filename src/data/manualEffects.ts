@@ -4719,7 +4719,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WXK03-018": [{"effectId":"WXK03-018-E3","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus"],"subjectOwner":"opponent","subjectFilter":{"cardType":"シグニ"}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-016-E1 混沌の豊穣 シュブニグラ：「あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない」→ isDown。
-  "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","crossOnly":true,"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-CB02-E1（終末の回旋 チェロン）は下方の既存ブロックで是正済（from:['BANISH']＋hasCrossIcon）。
   // WX13-005A-E1 白羅星 フルムーン：「あなたの他のレゾナは対戦相手のシグニの効果を受けない」→ cardType:レゾナ＋excludeSelf。
   "WX13-005A": [{"effectId":"WX13-005A-E1","effectType":"CONTINUOUS","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計３枚のレゾナではない＜宇宙＞のシグニをあなたの手札と場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","field"],"count":3,"filter":{"cardType":"シグニ","story":"宇宙","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"},"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
@@ -4738,6 +4738,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   keyword_grants へ一括付与し collectEffectImmuneSigni が PROTECTION:アーツ:opponent を読む（power30000 は付与時の実効パワーで判定）。
   //   step1 の POWER_MODIFY は INSTANT 実行時 temp_power_mods（ターン終了時クリア）＝原文「ターン終了時まで＋5000」で正しい。
   "WX08-017": [{"effectId":"WX08-017-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000},{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","powerRange":{"min":30000}}},"from":["アーツ"],"sourceOwner":"opponent","duration":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
+  // WX08-010-E1 不灯不屈（アーツ）「あなたのライフクロス２枚をクラッシュする。その後、この方法でクラッシュした
+  //   ライフクロス１枚につき対戦相手のシグニ１体を対象とし、それらをバニッシュする。この方法でクラッシュされた
+  //   カードのライフバーストは発動しない。」（2026-09-06・意味照合 Sheet1 round4 batch03 の指摘から）
+  //   旧AUTO の壊れ方は2つ＝①**BANISH が count:1 固定**でクラッシュ枚数に比例しない（ライフ2枚あっても1体しか
+  //   バニッシュしない＝過小） ②**`STUB{SUPPRESS_LIFE_BURST_ON_CRASH}` を LIFE_CRASH の"後ろ"に置いていた**
+  //   （しかもあのハンドラは `otherState`＝**対戦相手**にターンフラグを立てる。ここは自分のライフなので
+  //   向きも順序も合わない＝バーストが普通に発動していた）。
+  //   修正＝`triggerBurst:false`（クラッシュ札はチェックゾーンを経ずトラッシュ直行＝原文どおりバースト無し）＋
+  //   `snapshotLastProcessedForConditionals` で **実際にクラッシュできた枚数**（`LIFE_CRASH` が
+  //   `lastProcessedCards` に残す）をスナップショットし、1枚以上／2枚以上でバニッシュを1体ずつ足す。
+  //   ⚠**ライフが1枚しか無い盤面では1体だけ**になる＝原文「クラッシュした1枚につき」と一致する。
+  //   ⚠対象選択は逐次（2体同時指定の近似）＝既存の分割 BANISH（`WX04-074`）と同じ枠。
+  "WX08-010": [
+    {"effectId":"WX08-010-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"self","count":2,"triggerBurst":false},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   // WX15-031-LAYER 幻怪姫 ヌラリ（LAYER付与型）：
   //   「【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る…【常】：このシグニは対戦相手のコストの合計が
   //   ５以上の、アーツとスペルの効果を受けない」。内側【常】GRANT_PROTECTION に sourceCostMin:5 を追加（旧JSONはコスト条件脱落で
@@ -9437,8 +9452,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     // 🔑E1（【起】…：【エナチャージ１】）は manual に置かない＝`-E1b`→`-E2` の改名で原文ブロックの割り当てが直り、
   //   parser が正しい JSON を出すようになった（`O-42` tripwire）。旧 live には**原文に無い `LIFE_CRASH{opponent}`**
   //   が `CONDITIONAL{IS_MY_TURN}` の下にぶら下がっていた＝E2 の帰結節が E1 の枠へ漏れていた。
+  // WX25-P1-054-E2＝**【クロス自】なので `crossOnly` が要る**（2026-09-06）。この効果は手書きなので
+  //   parser 側のクロス配線（クロス宣言→先頭ブロック）では埋まらない＝ここで明示する。
   "WX25-P1-054": [
-{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
+{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"crossOnly":true,"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
   "WX25-P2-009": [{"effectId":"WX25-P2-009-ACT","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"INSTALL_GAME_GRANTED_AUTO"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}, {"effectId":"WX25-P2-009-E2","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"turnOwner":"self"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},
     {"effectId":"WX25-P2-009-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"STUB","id":"REPLACE_NEXT_OPP_REFRESH_MILL_LRIG"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_game"},
   ],

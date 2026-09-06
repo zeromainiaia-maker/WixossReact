@@ -1,0 +1,6 @@
+{"batch":"02","cardNum":"WX11-043","effectId":"WX11-043-E1","severity":"HIGH","type":"MISSING","quote":"の右【出】","claim":"原文は「コードアートＣ・Ｍ・Ｃの右にクロスした場合の【出】」限定だが、JSONにcrossOnly等の限定条件が無く、クロスしていなくても発動してしまう（E2にはcrossOnly:trueがあるのにE1には無い）。"}
+{"batch":"02","cardNum":"WX11-043","effectId":"WX11-043-E2","severity":"MED","type":"SUSPECT_STUB","quote":"手札から青のスペル","claim":"STUBのidが『USE_SPELL_FROM_TRASH_PAYING_COST』（トラッシュから使用）となっており、原文の「手札から使用」（value2:handと一致）と矛盾する紛らわしい命名。"}
+{"batch":"03","cardNum":"WX08-010","effectId":"WX08-010-E1","severity":"HIGH","type":"WRONG","quote":"クラッシュしたライフクロス１枚につき","claim":"バニッシュ対象数はクラッシュしたライフクロス枚数（最大2）に比例すべきだが、JSONのBANISHは常にcount:1固定になっている"}
+{"batch":"03","cardNum":"WX08-010","effectId":"WX08-010-E1","severity":"MED","type":"WRONG","quote":"ライフバーストは発動しない","claim":"ライフバースト抑制STUBがBANISHの後（LIFE_CRASH triggerBurst:trueの後）に置かれており、クラッシュ時点で既にバーストが解決してしまう順序になっている可能性がある"}
+{"batch":"03","cardNum":"WX10-072","effectId":"WX10-072-E1","severity":"MED","type":"WRONG","quote":"そうした場合","claim":"「そうした場合」はライフクロスのトラッシュが実際に成立したことを条件とすべきだが、JSONではIS_MY_TURN（自分のターン判定）に対応付けられており、対戦相手のライフが0枚でクラッシュが不発でも後続処理が発生しうる"}
+{"batch":"03","cardNum":"WX11-044","effectId":"WX11-044-BURST","severity":"MED","type":"WRONG","quote":"捨てないかぎり","claim":"手札2枚を捨てる処理は対戦相手が無色1枚の任意コストを支払わなかった場合にのみ発生すべきだが、JSONではIS_MY_TURN（自分のターン判定）に対応付けられており支払い成否と条件が一致していない"}

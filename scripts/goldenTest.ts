@@ -69762,6 +69762,59 @@ test('§5.4 (b) 第190: ON_BANISH の byEffect はバトル／ルール処理で
     '🔴ルール処理では発火しない');
 }));
 
+// ── §5.2 Sheet1 round4 第1バッチ（2026-09-06）＝**クロス宣言つき能力のゲート** ──────────────
+//   原文「《クロスアイコン》《相方名》の右【出】：…」の宣言は**直後の1能力のゲートそのもの**。
+//   parser は接頭辞を捨てるだけで `crossOnly` を立てておらず、**クロスしていなくても発動していた**
+//   （実測＝宣言つき10枚すべて。【クロス自】側にだけフラグが立っていたので気付きにくかった）。
+//   🔑受け皿（`isCrossZoneActive` / CONTINUOUS ループ / `triggerCollect`）は既にあり、配線だけの穴。
+//   ⚠**crossOnly は golden に1件も assert が無かった**＝ここがラチェット。
+test('§5.2 round4 第1: クロス宣言つきの先頭能力に crossOnly が立つ（10枚）', () => {
+  const CROSS_DECLARED = [
+    'WX09-016', 'WX09-020', 'WX11-037', 'WX11-038', 'WX11-041',
+    'WX11-043', 'WX11-046', 'WX11-050', 'WX13-031', 'WX25-P1-054',
+  ];
+  for (const num of CROSS_DECLARED) {
+    const effs = effectsMap.get(num) ?? [];
+    ok(effs.length > 0, `${num}: live に効果がある`);
+    ok(!!effs[0].crossOnly, `${num}: 先頭能力（クロス宣言の直後）が crossOnly`);
+  }
+  // 🔴反転方向＝宣言の無いカードには立たない（接頭辞の消し忘れで全カードに立つ事故を止める）
+  ok(!(effectsMap.get('WX11-042') ?? [])[0]?.crossOnly, '🔴宣言の無いカードには crossOnly が立たない');
+});
+
+// 【クロス自】側（parseBlock が自分で立てる分）も一緒に固定する＝先頭ブロックだけを見て
+// 「消費し切った」と誤って後続を落とす実装への歯止め。
+test('§5.2 round4 第1: 【クロス自】ブロックの crossOnly は据置（先頭で消費し切らない）', () => {
+  for (const num of ['WX09-020', 'WX11-043', 'WX13-031']) {
+    const e2 = (effectsMap.get(num) ?? []).find(e => e.effectId === `${num}-E2`);
+    ok(!!e2?.crossOnly, `${num}-E2: 【クロス自】も crossOnly のまま`);
+  }
+});
+
+// ── WX08-010 不灯不屈（同バッチ・意味照合の指摘から）─────────────────────────────────
+//   「ライフクロス2枚をクラッシュ → **この方法でクラッシュした1枚につき**シグニ1体をバニッシュ →
+//    この方法でクラッシュされたカードのライフバーストは発動しない」。
+//   旧 AUTO は ①BANISH が count:1 固定（＝過小） ②`SUPPRESS_LIFE_BURST_ON_CRASH` を LIFE_CRASH の
+//   **後ろ**に置いていた（しかもあのハンドラは**対戦相手**にフラグを立てる）＝バーストが素通りしていた。
+test('§5.2 round4 第1: WX08-010 はクラッシュ枚数ぶんバニッシュし、バーストを誘発しない', () => {
+  const eff = (effectsMap.get('WX08-010') ?? [])[0];
+  const seq = eff?.action as { type: string; steps?: Array<Record<string, unknown>> };
+  eq(seq?.type, 'SEQUENCE', 'WX08-010-E1 は SEQUENCE');
+  const crash = seq.steps?.[0] as { type: string; owner: string; count: number; triggerBurst: boolean };
+  eq(crash.type, 'LIFE_CRASH', 'step1 は LIFE_CRASH');
+  eq(crash.owner, 'self', '削るのは自分のライフ');
+  eq(crash.count, 2, '2枚');
+  eq(crash.triggerBurst, false, '🔴この方法でクラッシュされたカードのライフバーストは発動しない');
+  const inner = seq.steps?.[1] as { type: string; snapshotLastProcessedForConditionals?: boolean; steps?: Array<{ condition?: { type: string; value?: number } }> };
+  eq(inner.type, 'SEQUENCE', 'step2 は入れ子 SEQUENCE');
+  ok(!!inner.snapshotLastProcessedForConditionals, '枚数はクラッシュ直後のスナップショットで見る（BANISH で上書きされない）');
+  eq(inner.steps?.length, 2, '1枚以上／2枚以上の2段');
+  eq(inner.steps?.[0].condition?.type, 'LAST_PROCESSED_COUNT_GTE', '段1 は処理枚数条件');
+  eq(inner.steps?.[1].condition?.value, 2, '段2 は2枚以上');
+  ok(!JSON.stringify(eff.action).includes('SUPPRESS_LIFE_BURST_ON_CRASH'),
+    '🔴向きの違う SUPPRESS_LIFE_BURST_ON_CRASH（相手にフラグ）を後ろに置かない');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
