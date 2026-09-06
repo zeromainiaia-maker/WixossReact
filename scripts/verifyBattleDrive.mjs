@@ -52305,6 +52305,359 @@ order.push('v168TrashSelfExileActOffered');
 order.push('v168FieldSelfExileActHidden');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-169`（§5.3 `O-263`）＝**`ACTIVATE_TRAP` が「どの【トラップ】か」を読んでいなかった**
+//
+// 🔴**旧実装は原文2種類のどちらでも「先頭の非 null トラップ」を自動で取っていた**（近似）＝
+//   ①「あなたの【トラップ】１つを**対象とし**」（`WX15-017-E1` ほか3効果）＝**プレイヤーが選べない**
+//   ②「**このシグニと同じシグニゾーンにある**【トラップ】１つ」（`WX19-058-E1` ほか2効果）＝
+//     **ゾーン固定なのに先頭を取る**＝別ゾーンのトラップを暴発させる
+// 🆕**受け皿**＝`StubAction.trapTargetScope`（`'explicit'` / `'source_zone'`）。parser が原文から決める。
+//
+// 🖥**なぜ実機が要るか**（§2.2＝新しい型・対話を足した回）＝2つとも golden では届かない層がある：
+//   ① `explicit` は **`SELECT_TARGET` を `signi_traps` の中身で立てる**＝トラップは**場のシグニではない**ので、
+//      `EffectInteractionModal` が候補を描けるか（`pick-*` が出るか）は golden から見えない。
+//   ② `source_zone` は **`ctx.sourceCardNum` が本物の instance id かどうか**に全部かかっている。
+//      🔴**golden は `mkCtx(..., src)` で手で入れている**＝実機の【起】経路が同じものを渡す保証がない。
+//
+// **観測点**＝**トラップ2つ**（ゾーン1＝`WX19-059`＝《トラップアイコン》カードを2枚引く／
+//   ゾーン2＝`WX19-025`＝《トラップアイコン》デッキから2枚エナチャージ）を置き、
+//   **どちらが発動したかを「手札+2」か「エナ+2」で見分ける**。
+//   🔑**旧実装はどの盤面でも必ずゾーン1（＝手札+2）**＝「エナ+2」になった時点で旧挙動は否定される。
+// 🔁**対照は各用法に1本ずつ（1ビット反転）**＝
+//   ①は**選ぶ候補だけ**を2つ目→1つ目に変える ②は**効果元シグニの居るゾーンだけ**をゾーン2→ゾーン1に変える。
+//
+// ⚠**罠8k**＝`WX15-017`（トリップ・トラップ）は**あや限定**＝ルリグを `WX15-014`（ぱわふるあーや！Ⅰ）にしないと
+//   「使用」ボタンが出ない。⚠**罠6**＝`clickPendingInstance` は `data-card-num` で狙うので、
+//   2つのトラップは**別のカード番号**にしてある。⚠**罠1**＝`field.check` を両側に入れる。
+//   ⚠**罠18**＝場のシグニは `StackModal`。⚠**罠32**＝`data-action-label` を読んでから `card-action-{i}`。
+// ══════════════════════════════════════════════════════════════════════════════
+const O263_TRAP_DRAW2 = 'WX19-059#1';   // 大罠 ブーブー＝《トラップアイコン》カードを2枚引く
+const O263_TRAP_ENA2 = 'WX19-025#1';    // 大罠 ドッキリ＝《トラップアイコン》デッキから2枚エナチャージ
+const O263_LRIG_AYA = 'WX15-014#1';     // ぱわふるあーや！Ⅰ（あや Lv1）＝あや限定アーツを使うため
+const O263_ARTS = 'WX15-017#1';         // トリップ・トラップ（アーツ・《青》×0・用法①）
+const O263_SRC_SIGNI = 'WX19-058#1';    // 超罠 ピットフォール（【起】《ダウン》・用法②）
+
+const o263Host = (extra) => ({
+  'field.lrig': [O263_LRIG_AYA],
+  'field.signi': [null, null, null],
+  'field.signi_traps': [O263_TRAP_DRAW2, O263_TRAP_ENA2, null],
+  'field.signi_down': [false, false, false],
+  'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+  'field.free_zone': [], 'field.beat_zone': [],
+  'field.lrig_down': false,
+  lrig_deck: [], hand: [], energy: [],
+  actions_done: [], game_actions_done: [],
+  ...extra,
+});
+
+const o263Guest = () => ({
+  'field.lrig': ['WD03-002#2'],
+  'field.signi': [null, null, null],
+  'field.signi_traps': [null, null, null],
+  'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+  'field.free_zone': [], 'field.beat_zone': [],
+});
+
+const o263Spec = (hostExtra) => ({
+  hostSet: o263Host(hostExtra),
+  guestSet: o263Guest(),
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** 発動したのがどちらのトラップかを盤面から読む（'draw' / 'energy' / null）。 */
+const o263Fired = (st, hand0, ena0) => {
+  const hand = st?.host?.hand ?? 0, ena = st?.host?.energy ?? 0;
+  if (hand >= hand0 + 2 && ena === ena0) return 'draw';
+  if (ena >= ena0 + 2 && hand === hand0) return 'energy';
+  return null;
+};
+
+const o263Judge = (last, hand0, ena0, expect, extra) => {
+  const traps = last?.host?.signiTraps ?? [];
+  const fired = o263Fired(last, hand0, ena0);
+  const dump = `手札 ${hand0}→${last?.host?.hand ?? '-'} / エナ ${ena0}→${last?.host?.energy ?? '-'}`
+    + ` / 【トラップ】=${JSON.stringify(traps)}${extra ?? ''}`;
+  if (fired === null) {
+    return { pass: false, detail: `どちらの《トラップアイコン》も解決していない（手札+2 でもエナ+2 でもない）。${dump}` };
+  }
+  if (fired !== expect) {
+    return { pass: false, detail: `🔴発動したのが期待と違う（期待=${expect} 実際=${fired}）`
+      + `＝旧挙動（常にゾーン1＝手札+2）の再発。${dump}` };
+  }
+  const stayIdx = expect === 'energy' ? 0 : 1;
+  const goneIdx = expect === 'energy' ? 1 : 0;
+  const stayCard = expect === 'energy' ? O263_TRAP_DRAW2 : O263_TRAP_ENA2;
+  if (traps[goneIdx] !== null) {
+    return { pass: false, detail: `🔴発動した【トラップ】が場に残っている（ゾーン${goneIdx + 1}）。${dump}` };
+  }
+  if (traps[stayIdx] !== stayCard) {
+    return { pass: false, detail: `🔴発動していない【トラップ】まで場を離れた（ゾーン${stayIdx + 1}）。${dump}` };
+  }
+  return { pass: true, detail: `狙った【トラップ】だけが発動し、もう1つは場に残った（${expect}）。${dump}` };
+};
+
+// ── 用法①＝アーツ「あなたの【トラップ】1つを対象とし」＝プレイヤーが選ぶ ──
+const o263DriveArts = async (page, H, tag, pickTrap, expect) => {
+  await H.closeModals();
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const traps0 = st0?.host?.signiTraps ?? [];
+  if (JSON.stringify(traps0) !== JSON.stringify([O263_TRAP_DRAW2, O263_TRAP_ENA2, null])) {
+    return { pass: false, detail: '前提崩れ＝【トラップ】が2つ載っていない traps=' + JSON.stringify(traps0) };
+  }
+  const hand0 = st0?.host?.hand ?? 0, ena0 = st0?.host?.energy ?? 0;
+  let deckOpened = false, artsOpened = false, useClicked = false, artsUsed = false;
+  let candsSeen = null, picked = false, confirmed = false, settled = 0, last = st0;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    let did = null;
+    if (!deckOpened) { did = await H.clickTestId('my-lrig-dk'); if (did) deckOpened = true; }
+    else if (!artsOpened) { did = await H.clickTestId('zone-card-0'); if (did) artsOpened = true; }
+    else if (!useClicked) {
+      // ⚠`zone-card-0` はカード詳細を開くだけ＝「使用」を押さないとアーツ使用モーダルが出ない。
+      const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]').first();
+      if (await use.count() && await use.isVisible().catch(() => false)) {
+        await use.click({ timeout: 2000 }).catch(() => {}); did = 'act:使用'; useClicked = true;
+      }
+    }
+    else if (!artsUsed) { did = await clickExactVisibleText(page, 'アーツ使用'); if (did) artsUsed = true; }
+    else if (!picked && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+      // 🔑**候補が立ったこと自体が「旧挙動ではない」証拠**（旧は問わずに先頭を発動した）。
+      if (!candsSeen) candsSeen = [...st.pendingCandidates];
+      did = await clickPendingInstance(page, H, pickTrap); if (did) picked = true;
+    }
+    else if (picked && !confirmed) { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) confirmed = true; }
+    last = await H.queryState();
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし') + ' | 手札=' + (last?.host?.hand ?? '-')
+      + ' エナ=' + (last?.host?.energy ?? '-') + ' traps=' + JSON.stringify(last?.host?.signiTraps)
+      + ' cands=' + JSON.stringify(last?.pendingCandidates) + ' pEff=' + (last?.pendingEffect ?? '-')
+      + ' stack=' + (last?.stackLen ?? '-'));
+    settled = (confirmed && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const dumpHead = ' / 候補=' + JSON.stringify(candsSeen);
+  if (!artsUsed) return { pass: false, detail: 'アーツ「トリップ・トラップ」を使用できなかった（あや限定／コストを確認）。' + dumpHead };
+  if (!candsSeen) {
+    return { pass: false, detail: '🔴【トラップ】の選択が一度も問われなかった＝旧挙動（先頭を自動発動）の再発。'
+      + o263Judge(last, hand0, ena0, expect, dumpHead).detail };
+  }
+  if (!sameInstanceSet(candsSeen, [O263_TRAP_DRAW2, O263_TRAP_ENA2])) {
+    return { pass: false, detail: '🔴候補集合が場の【トラップ】2つと一致しない。' + dumpHead };
+  }
+  return o263Judge(last, hand0, ena0, expect, dumpHead);
+};
+
+// ── 用法②＝シグニ【起】「このシグニと同じシグニゾーンにある【トラップ】1つ」＝ゾーン固定 ──
+const o263DriveSigni = async (page, H, tag, srcZone, expect) => {
+  await H.closeModals();
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const zones0 = (st0?.host?.fieldSigni ?? []).map(z => z ?? []);
+  const traps0 = st0?.host?.signiTraps ?? [];
+  if (!(zones0[srcZone] ?? []).includes(O263_SRC_SIGNI)) {
+    return { pass: false, detail: '前提崩れ＝効果元がゾーン' + (srcZone + 1) + 'に載っていない field=' + JSON.stringify(zones0) };
+  }
+  if (JSON.stringify(traps0) !== JSON.stringify([O263_TRAP_DRAW2, O263_TRAP_ENA2, null])) {
+    return { pass: false, detail: '前提崩れ＝【トラップ】が2つ載っていない traps=' + JSON.stringify(traps0) };
+  }
+  const hand0 = st0?.host?.hand ?? 0, ena0 = st0?.host?.energy ?? 0;
+  const modal = page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').first();
+  const zoneTid = 'my-signi-zone-' + srcZone;
+  let opened = false, actClicked = false, fired = false, settled = 0, last = st0, labelsSeen = null;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true }).catch(() => {});
+    let did = null;
+    if (!opened) { did = await H.clickTestId(zoneTid); if (did) opened = true; }
+    else if (!actClicked) {
+      const items = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(
+        els => els.map(el => ({ tid: el.getAttribute('data-testid'), label: el.getAttribute('data-action-label') ?? '' })))
+        .catch(() => []);
+      if (items.length > 0) {
+        labelsSeen = items.map(a => a.label);
+        const hit = items.find(a => a.label.startsWith('【起】'));
+        if (hit) { did = await H.clickTestId(hit.tid); if (did) actClicked = true; }
+        else { opened = false; }   // 開き直す（罠24＝読んだ時点では開いていたのに閉じていることがある）
+      } else { opened = false; }
+    }
+    else if (!fired) { did = await H.clickTestId('signiact-fire'); if (did) fired = true; }
+    last = await H.queryState();
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし') + ' | 手札=' + (last?.host?.hand ?? '-')
+      + ' エナ=' + (last?.host?.energy ?? '-') + ' traps=' + JSON.stringify(last?.host?.signiTraps)
+      + ' down=' + JSON.stringify(last?.host?.signiDown) + ' pEff=' + (last?.pendingEffect ?? '-')
+      + ' stack=' + (last?.stackLen ?? '-')
+      + ' trash=' + (last?.host?.trash ?? '-')
+      + ' logs=' + JSON.stringify((last?.logTail ?? []).slice(-4)));
+    settled = (fired && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const extra = ' / actions=' + JSON.stringify(labelsSeen) + ' / down=' + JSON.stringify(last?.host?.signiDown);
+  if (!actClicked) return { pass: false, detail: '【起】が提示されなかった。' + extra };
+  // 🔑**witness**＝《ダウン》コストが実際に払われた＝この【起】が走ったことの証拠（罠4）。
+  if ((last?.host?.signiDown ?? [])[srcZone] !== true) {
+    return { pass: false, detail: '🔴《ダウン》コストが払われていない＝【起】が走っていない。' + extra };
+  }
+  return o263Judge(last, hand0, ena0, expect, extra);
+};
+
+scenarios.o263ExplicitPicksSecondTrap = {
+  title: 'V-169(1): WX15-017 の【トラップ】発動は選択を問い、2つ目を選ぶと2つ目が発動する【旧実装は常に先頭】',
+  spec: o263Spec({ lrig_deck: [O263_ARTS] }),
+  async drive(page, H) { return o263DriveArts(page, H, 'o263PickSecond', O263_TRAP_ENA2, 'energy'); },
+};
+
+scenarios.o263ExplicitPicksFirstTrap = {
+  // 🔴**対照**＝盤面も操作も同じで、**選ぶ候補だけ**を2つ目→1つ目に変える1ビット反転。
+  title: 'V-169(2): 対照＝同じ盤面で1つ目を選ぶと1つ目が発動する（選択が実際に効いている）',
+  spec: o263Spec({ lrig_deck: [O263_ARTS] }),
+  async drive(page, H) { return o263DriveArts(page, H, 'o263PickFirst', O263_TRAP_DRAW2, 'draw'); },
+};
+
+scenarios.o263SourceZoneTrapFires = {
+  title: 'V-169(3): WX19-058 の【起】は「同じシグニゾーン」の【トラップ】を発動する【旧実装は別ゾーンを暴発】',
+  spec: o263Spec({ 'field.signi': [null, [O263_SRC_SIGNI], null] }),
+  async drive(page, H) { return o263DriveSigni(page, H, 'o263SrcZone2', 1, 'energy'); },
+};
+
+scenarios.o263SourceZoneFollowsSigni = {
+  // 🔴**対照**＝盤面も操作も同じで、**効果元シグニの居るゾーンだけ**をゾーン2→ゾーン1に変える1ビット反転。
+  //   🔑旧実装はどちらでもゾーン1が発動する＝この対で「ゾーンを見ている」ことが確定する。
+  title: 'V-169(4): 対照＝効果元をゾーン1へ移すと発動する【トラップ】もゾーン1へ移る',
+  spec: o263Spec({ 'field.signi': [[O263_SRC_SIGNI], null, null] }),
+  async drive(page, H) { return o263DriveSigni(page, H, 'o263SrcZone1', 0, 'draw'); },
+};
+
+order.push('o263ExplicitPicksSecondTrap');
+order.push('o263ExplicitPicksFirstTrap');
+order.push('o263SourceZoneTrapFires');
+order.push('o263SourceZoneFollowsSigni');
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-170`（§5.3 `O-262` 残件②）＝**除外がコスト欄ではなく本文にある唯一の綴り**
+//   （`WX17-044` ＡＲＲＯＷ　ＲＡＩＮ＝スペルの【起】
+//    「《メインフェイズアイコン》《アタックフェイズアイコン》《青》《無》：あなたの【トラップ】１つを対象とし、
+//     **トラッシュにあるこのカードをゲームから除外する**。そうした場合、それを表向きにし
+//     《トラップアイコン》を発動させる。」）。
+//
+// 🔴**旧 live は三重に壊れていた**＝①除外が**コストに1つも入っていない**（踏み倒して撃てる）
+//   ②本体1歩目が `TRASH{TRASH_CARD}`＝「トラッシュのカードを1枚捨てる」という**別動作**
+//   ③「そうした場合、」が `CONDITIONAL{IS_MY_TURN}` に化けていた。
+//   しかも `trashActivated` が立たないので**トラッシュUIから一度も提示されない**恒久 no-op でもあった。
+//
+// 🖥**なぜ実機が要るか**＝これは **`manualEffects.ts` への手書き + `syncManualLive --effect` で
+//   live へ届けた**唯一の効果＝**「書けたのに届かない」で1度落ちている経路**（登録票の残件②がそれ）。
+//   golden は live JSON の形しか見ないので、**トラッシュUIから実際に撃てるか**は実機でしか分からない。
+//
+// **観測点**＝トラッシュの `WX17-044` をタップ →「【起】このカードを除外して発動（エナ2枚・…）」が出る →
+//   エナ2枚を払って発動 → **【トラップ】の選択が問われ**、選んだ側だけが発動する。
+//   ①`WX17-044#1` が **trash から消えて除外置き場（lrig_trash）へ移る**（＝コストを実際に払った）
+//   ②選んだ【トラップ】（`WX19-059`＝カードを2枚引く）が発動して**手札 0→2**
+//   ③選ばなかった【トラップ】（`WX19-025`）は**場に残る**。
+// ⚠**罠8p**＝コスト候補セルは常に可視＝押した index を Set で覚えて1回だけ押す。
+// ⚠**罠8b**＝「発動する」は未選択だと disabled＝**エナを選んでから**押す。
+// ══════════════════════════════════════════════════════════════════════════════
+const V170_SPELL = 'WX17-044#1';       // ＡＲＲＯＷ　ＲＡＩＮ（スペル・あや限定）
+const V170_ENERGY = ['WD03-013#1', 'WD01-013#1'];  // 青1（《青》用）＋白1（《無》用）
+
+scenarios.v170SpellTrashExileActivatesTrap = {
+  title: 'V-170: WX17-044 の【起】＝トラッシュUIから出て、自身を除外して選んだ【トラップ】を発動する【旧 live は別動作】',
+  spec: o263Spec({
+    trash: [V170_SPELL],
+    lrig_trash: [],
+    energy: V170_ENERGY,
+  }),
+  async drive(page, H) {
+    await H.closeModals();
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    const trash0 = st0?.host?.trashCards ?? [];
+    const traps0 = st0?.host?.signiTraps ?? [];
+    if (!trash0.includes(V170_SPELL)) {
+      return { pass: false, detail: '前提崩れ＝スペルがトラッシュに無い trash=' + JSON.stringify(trash0) };
+    }
+    if (JSON.stringify(traps0) !== JSON.stringify([O263_TRAP_DRAW2, O263_TRAP_ENA2, null])) {
+      return { pass: false, detail: '前提崩れ＝【トラップ】が2つ載っていない traps=' + JSON.stringify(traps0) };
+    }
+    const hand0 = st0?.host?.hand ?? 0;
+    const opened = await v168OpenTrashCardActions(page, H);
+    H.log('  トラッシュ CardModal: visible=' + opened.modalVisible
+      + ' actions=' + JSON.stringify(opened.items.map(a => a.label)));
+    if (!opened.modalVisible) {
+      return { pass: false, detail: 'トラッシュの CardModal が開かなかった＝【起】の有無は判定しない' };
+    }
+    const hit = opened.items.find(a => a.label.startsWith('【起】このカードを除外して発動'));
+    if (!hit) {
+      return { pass: false, detail: '🔴トラッシュUIに自己除外【起】が出ない＝手書き JSON が live に届いていない'
+        + '（actions=' + JSON.stringify(opened.items.map(a => a.label)) + '）' };
+    }
+    await H.clickTestId(hit.tid);
+
+    const enaPicked = new Set();
+    let paid = false, candsSeen = null, picked = false, confirmed = false, settled = 0, last = st0;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: SHOT + '/v170-' + s + '.png', fullPage: true }).catch(() => {});
+      const st = await H.queryState();
+      let did = null;
+      if (!paid && enaPicked.size < V170_ENERGY.length) {
+        // ⚠**押した index を覚えて1回だけ押す**（毎ティック押すとトグルで外れて永久に揃わない＝罠8p）。
+        const next = [0, 1, 2, 3].find(i => !enaPicked.has(i));
+        if (next !== undefined) { did = await H.clickTestId('trashact-energy-' + next); if (did) enaPicked.add(next); }
+      } else if (!paid) {
+        const pay = page.getByTestId('trashact-pay').first();
+        if (await pay.count() && await pay.isVisible().catch(() => false)) {
+          if (await pay.isEnabled().catch(() => false)) {
+            await pay.click({ timeout: 1200 }).catch(() => {}); did = 'trashact-pay'; paid = true;
+          } else { H.log('  (trashact-pay が disabled＝エナ選択が未完了)'); }
+        }
+      } else if (!picked && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+        if (!candsSeen) candsSeen = [...st.pendingCandidates];
+        did = await clickPendingInstance(page, H, O263_TRAP_DRAW2); if (did) picked = true;
+      } else if (picked && !confirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) confirmed = true;
+      }
+      last = await H.queryState();
+      H.log('  v170[' + s + '] -> ' + (did ?? 'なし') + ' | paid=' + paid + ' 手札=' + (last?.host?.hand ?? '-')
+        + ' trash=' + JSON.stringify(last?.host?.trashCards) + ' 除外=' + JSON.stringify(last?.host?.lrigTrashCards)
+        + ' traps=' + JSON.stringify(last?.host?.signiTraps) + ' cands=' + JSON.stringify(last?.pendingCandidates)
+        + ' pEff=' + (last?.pendingEffect ?? '-') + ' stack=' + (last?.stackLen ?? '-'));
+      settled = (confirmed && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+
+    const trash1 = last?.host?.trashCards ?? [];
+    const exile1 = last?.host?.lrigTrashCards ?? [];
+    const traps1 = last?.host?.signiTraps ?? [];
+    const dump = '手札 ' + hand0 + '→' + (last?.host?.hand ?? '-')
+      + ' / trash=' + JSON.stringify(trash1) + ' / 除外置き場=' + JSON.stringify(exile1)
+      + ' / 【トラップ】=' + JSON.stringify(traps1) + ' / 候補=' + JSON.stringify(candsSeen);
+    if (!paid) return { pass: false, detail: '支払いモーダルに到達しなかった。' + dump };
+    if (trash1.includes(V170_SPELL)) {
+      return { pass: false, detail: '🔴コストを踏み倒した＝スペル自身がトラッシュに残っている。' + dump };
+    }
+    if (!exile1.includes(V170_SPELL)) {
+      return { pass: false, detail: '🔴除外置き場（lrig_trash）に入っていない＝行き先が違う。' + dump };
+    }
+    if (!candsSeen) {
+      return { pass: false, detail: '🔴【トラップ】の選択が問われなかった＝旧挙動（先頭を自動発動）。' + dump };
+    }
+    if ((last?.host?.hand ?? 0) !== hand0 + 2) {
+      return { pass: false, detail: '🔴選んだ【トラップ】（2枚引く）が発動していない。' + dump };
+    }
+    if (traps1[1] !== O263_TRAP_ENA2 || traps1[0] !== null) {
+      return { pass: false, detail: '🔴選ばなかった【トラップ】まで動いた／選んだ側が残った。' + dump };
+    }
+    return { pass: true, detail: 'トラッシュUIから提示され、自身を除外して払い、選んだ【トラップ】だけが発動した。' + dump };
+  },
+};
+
+order.push('v170SpellTrashExileActivatesTrap');
+
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

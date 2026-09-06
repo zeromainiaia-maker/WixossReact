@@ -2120,6 +2120,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 【トラップ】を表向きにして発動 ----
   if (t.match(/【トラップ】.*表向きにし《トラップアイコン》を発動させる/)) {
+    // 🆕🔴**§5.3 `O-263`（2026-09-06）＝「どの【トラップ】か」を engine へ渡す。**
+    //   🔴旧は payload 無しの裸の STUB だったので、engine が**先頭の非 null トラップ**を
+    //     自動で取っていた（原文2種類のどちらでも近似＝過剰実行）。
+    //   ⚠**ゾーン固定を先に見る**＝こちらの原文にも「を対象とし」が含まれるので順序が意味を持つ。
+    if (/この(?:シグニ|カード)と同じシグニゾーンにある【トラップ】/.test(t)) {
+      return { type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'source_zone' } as StubAction;
+    }
+    if (/【トラップ】[０-９0-9]*[つ枚体]?を対象とし/.test(t)) {
+      return { type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'explicit' } as StubAction;
+    }
     return { type: 'STUB', id: 'ACTIVATE_TRAP' } as StubAction;
   }
 

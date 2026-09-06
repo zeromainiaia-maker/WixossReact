@@ -2453,10 +2453,45 @@ export function execStubPart2(
   // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動
   if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
     const trapsAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
-    // lastProcessedCardsに指定があればそのトラップを優先、なければ最初のトラップ
-    const selectedAT = ctx.lastProcessedCards?.[0];
+    // 🆕🔴**§5.3 `O-263`（2026-09-06）＝「どの【トラップ】か」を payload から決める。**
+    //   🔴旧はこの下の1行（`findIndex(t => t !== null)`）だけで、**原文2種類のどちらでも
+    //     先頭の非 null トラップを自動で取っていた**＝
+    //     ①「あなたの【トラップ】１つを**対象とし**」は**プレイヤーが選べない**
+    //     ②「**このシグニと同じシグニゾーンにある**【トラップ】」は**別ゾーンを暴発させる**。
+    //   ⚠**payload 無しは従来どおり先頭**＝`trapOp:'activate'` からの委譲や内部呼び出しを変えない。
+    let zoneCandsAT = trapsAT.map((card, zi) => (card ? zi : -1)).filter(zi => zi >= 0);
+    if (stub.trapTargetScope === 'source_zone') {
+      // ⚠**効果元は自分の場のシグニ**（【自】アタックしたとき／【起】《ダウン》）。
+      //   🔴**ゾーンが引けなければ何もしない**（fail-closed）＝ここで先頭へ落とすと旧バグに戻る。
+      const srcAT = ctx.sourceCardNum ?? ctx.triggeringCardNum;
+      const srcZoneAT = srcAT
+        ? ctx.ownerState.field.signi.findIndex(stack => stack?.includes(srcAT))
+        : -1;
+      if (srcZoneAT < 0) return done(addLog(ctx, 'ACTIVATE_TRAP: 効果元のシグニゾーンが特定できない'));
+      zoneCandsAT = trapsAT[srcZoneAT] ? [srcZoneAT] : [];
+      if (zoneCandsAT.length === 0) return done(addLog(ctx, 'このシグニと同じシグニゾーンに【トラップ】がない'));
+    }
+    // lastProcessedCardsに指定があればそのトラップを優先、なければ最初のトラップ。
+    // 🔴`explicit` だけは **`trapTargetPicked` が立っているときしか読まない**＝先行ステップの
+    //   置き土産（`SP26-001-E1` は直前に設置したカードが残る）を「選択」と誤読しないため。
+    const selectedAT = stub.trapTargetScope === 'explicit'
+      ? (stub.trapTargetPicked ? ctx.lastProcessedCards?.find(c => trapsAT.includes(c)) : undefined)
+      : ctx.lastProcessedCards?.[0];
     let firstTrapIdxAT = selectedAT ? trapsAT.findIndex(t => t === selectedAT) : -1;
-    if (firstTrapIdxAT < 0) firstTrapIdxAT = trapsAT.findIndex((t: string | null) => t !== null);
+    // 候補外（別ゾーン）を指されたら捨てる＝`source_zone` の固定を上書きさせない。
+    if (firstTrapIdxAT >= 0 && !zoneCandsAT.includes(firstTrapIdxAT)) firstTrapIdxAT = -1;
+    // 🆕**`explicit`＝候補が2つ以上あるならプレイヤーに問う**（1つなら問わない＝§4.4 罠8l の規約）。
+    if (firstTrapIdxAT < 0 && stub.trapTargetScope === 'explicit' && zoneCandsAT.length > 1) {
+      return needsInteraction(addLog(ctx, '発動する【トラップ】を選択'), {
+        type: 'SELECT_TARGET',
+        candidates: zoneCandsAT.map(zi => trapsAT[zi]!),
+        count: 1,
+        optional: false,
+        targetScope: 'self_field',
+        thenAction: ({ ...stub, trapTargetPicked: true } as StubAction) as EffectAction,
+      });
+    }
+    if (firstTrapIdxAT < 0) firstTrapIdxAT = zoneCandsAT[0] ?? -1;
     if (firstTrapIdxAT < 0) return done(addLog(ctx, 'トラップなし'));
     const trapCardAT = trapsAT[firstTrapIdxAT]!;
     const newTrapsAT = [...trapsAT] as (string | null)[];

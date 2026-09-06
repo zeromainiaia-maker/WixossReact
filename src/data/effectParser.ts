@@ -18956,7 +18956,16 @@ function parseActionTextInner(text: string): EffectAction {
       }
       // 具体的な条件節（この方法で…た場合/《色》を支払った場合/それが〜の場合）を抽出できず常時true化
       // ＝条件の無言脱落。「そうした場合、」だけは慣例エンコード（§9-9）のため刻印しない。
-      if (!condition && !/^(?:その後、)?そうした場合、$/.test(thenM[0])) {
+      // 🆕🔴**§5.3 `O-262`（2026-09-06）＝「この方法でデッキからカードを探していた場合、デッキをシャッフルする」は刻印しない。**
+      //   🔴この文は `SEARCH.afterSearch:{SHUFFLE_DECK}`（**デッキ枝にだけ**付く）へ既に畳まれており、
+      //     最終 JSON に `IS_MY_TURN` は**1つも残らない**＝**捨てられたパース試行から刻印だけが漏れていた**。
+      //   🔴その偽の `PARTIAL` が `isPureSuperset` の**唯一の不一致リーフ**になり、`WX20-053` は
+      //     `trashActivated:true` を持つ fresh を**採用できないまま held に居座っていた**（第184バッチの残件）。
+      //   ⚠**母集団は実測1効果**＝`npm run census:population -- "この方法でデッキから(カード|それ)を?探し"`。
+      const absorbedByAfterSearch =
+        /^(?:その後、)?この方法でデッキから(?:カード|それ)を?探していた場合、$/.test(thenM[0])
+        && /^デッキをシャッフルする/.test(rest);
+      if (!condition && !absorbedByAfterSearch && !/^(?:その後、)?そうした場合、$/.test(thenM[0])) {
         markSilentFallback(`IS_MY_TURN化:${thenM[0]}`);
       }
       let parsedThen = parseSingleSentence(rest);

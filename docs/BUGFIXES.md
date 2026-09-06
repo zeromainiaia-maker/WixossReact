@@ -1,5 +1,78 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第186バッチ）＝🏁**`O-263` と `O-262` を同時にクローズ**＝【トラップ】発動の対象が「先頭固定」だった／設置したカードが `battleCardMap` から落ちていた
+
+**この巡で直したのは3件**（うち2件は**実機が出した engine の本物のバグ**）。**実機 5シナリオ ALL PASS**（負方向の対照 2本）。
+
+### ① §5.3 `O-263`＝`ACTIVATE_TRAP` が「どの【トラップ】か」を読んでいなかった
+
+**真因**＝`execStubPart2.ts` の `ACTIVATE_TRAP` は **`trapsAT.findIndex(t => t !== null)`＝先頭の非 null トラップ**を自動で取っていた。原文は2種類あり、**どちらも近似**だった。
+
+**影響枚数**＝**live 5効果 / 5カード**（登録票の「6効果」は `WX17-044-E2` を含むが、あれは②の理由で live に届いていなかった）。用法で割ると：
+
+| 用法 | 原文 | 効果 | 旧挙動の実害 |
+|---|---|---|---|
+| ① `explicit` | 「あなたの【トラップ】１つを**対象とし**」 | `WX15-017-E1` / `SP26-001-E1` / `WX19-064-TRAP` | **プレイヤーが選べない**＝2つ以上あると勝手に先頭が発動する |
+| ② `source_zone` | 「**このシグニと同じシグニゾーンにある**【トラップ】１つ」 | `WX15-035-E1` / `WX19-058-E1` | **別ゾーンのトラップを暴発させる** |
+
+**直した箇所**：
+1. `src/types/effects.ts`＝`StubAction.trapTargetScope`（`'explicit'` / `'source_zone'`）と `trapTargetPicked` を新設。**未指定は従来どおり先頭**＝`trapOp:'activate'` からの委譲や内部呼び出しを壊さない。
+2. `src/data/parsers/parseSentencePart2.ts`＝原文から payload を決める。⚠**ゾーン固定を先に見る**（②の原文にも「を対象とし」が含まれるので順序が意味を持つ）。
+3. `src/engine/execStubPart2.ts`＝`source_zone` は `ctx.sourceCardNum` のゾーンに固定（**引けなければ何もしない fail-closed**）、`explicit` は候補2つ以上なら `SELECT_TARGET` で問う。🔴**`trapTargetPicked` が無いと先行ステップの `lastProcessedCards` を「選択」と誤読する**（`SP26-001-E1` は直前に設置したカードが残る）。
+4. `scripts/decompileEffects.ts`＝逆翻訳を **payload から描く**（旧は**カード全文を regex で切り出して原文を貼っていた**＝JSON が対象の決め方を1つも持っていなくてもシートは原文どおりに見えた）。
+
+### ② 実機が出した engine の本物のバグ＝**【トラップ】として設置したカードが `battleCardMap` から落ちる**
+
+**真因**＝`BattleScreen.tsx` の `battleCardNums` が **`field.signi_traps` を走査していなかった**。設置した瞬間そのカードは手札／デッキから抜かれ、他のどのゾーンにも居ないので **`CardData` ごと落ちる** → `trapIconEffectOf` が `cardMap.get(...) === undefined` で null を返し、**【トラップ】は場を離れるのに《トラップアイコン》が1度も解決しない無言の no-op**になっていた。
+
+🔑**なぜ今まで気づけなかったか**＝`pending_effect` が候補として抱えている間だけ別の枝（§5.3 `O-142`）で載るので、**対話を伴う入口（`explicit`）では動き、伴わない入口（`source_zone`）だけが黙って死ぬ**。golden・smoke・fuzz は全部緑（どれも全カードの cardMap を渡すので再現しない）。
+🔑**同じ穴が `signi_magic_boxes` にも開いていた**（`INTERNAL_SET_MAGIC_BOX` も deck/hand から抜く）＝**同時に塞いだ**。
+🔑`signi_facedown_attached`（§5.3 `O-81`・2026-08-26）と**同じ穴の3回目**。
+
+**ゲート**＝`PlayerState['field']` の型から「カードIDを持つゾーン」を**機械で数え直し**、`battleCardNums` の走査がそれを1つ残らず参照していることを golden で固定した（**新しいゾーンを足したら FAIL する**＝写経ではないデータ駆動）。間接経路（`signi_acce`＝`allAcceCards`／`puppet_signi`＝`field.signi` にも入る）だけを**理由つきで**免除。
+
+### ③ §5.3 `O-262` 残2効果＝配送経路が別々の理由で塞がっていた
+
+- **`WX20-053-E2`**＝**偽の `PARTIAL` 刻印**が `isPureSuperset` の**唯一の不一致リーフ**になり、`trashActivated:true` を持つ fresh を採用できず held に居座っていた。
+  🔴**刻印の出どころは「捨てられたパース試行」**＝「その後、この方法でデッキからカードを探していた場合、デッキをシャッフルする。」が `markSilentFallback('IS_MY_TURN化:…')` を記録するが、**最終 JSON に `IS_MY_TURN` は1つも残らない**（`SEARCH.afterSearch:{SHUFFLE_DECK}` へ既に畳まれている＝デッキ枝にだけ付く、という原文どおりの形）。
+  ⇒ **刻印側を直した**（`src/data/effectParser.ts`）。**母集団は実測1効果**（`npm run census:population -- "この方法でデッキから(カード|それ)を?探し"`）。
+  🔑**登録票が想定していた「`censusOrphanManual` の分類 D を PARTIAL にも認める較正」は不要だった**＝刻印が偽なら、**採用（＝凍結）ではなく刻印を消すのが正しい**。live は **AUTO のまま** `trashActivated` を受け取った。
+- **`WX17-044-E2`**＝除外が**コスト欄ではなく本文**にある唯一の綴り。**旧 live は三重に壊れていた**＝①除外が**コストに1つも入っていない**（踏み倒して撃てる）②本体1歩目が `TRASH{TRASH_CARD}`＝「トラッシュのカードを1枚捨てる」という**別動作** ③「そうした場合、」が `CONDITIONAL{IS_MY_TURN}` に化けていた。
+  ⇒ **同型が他に無い（実測1効果）ので PLAN §2.0 の速いレーンで手書き**し、`npx tsx scripts/syncManualLive.ts --effect WX17-044:WX17-044-E2` で **E2 だけ**を live へ届けた（E1 は live のほうが正しいので触らない）。
+  🔑**「手書きが live に届かない」の正体**＝live が全 AUTO のカードは**配列まるごと** `isPureSuperset` に掛かるので、手書きが1リーフでも既存値を変えると held に落ちる。**`syncManualLive --effect` がその逃げ道**。
+
+**🏁母集団10効果すべてが `cost.trashExile.self` ＋ `trashActivated` を持つ状態になった**（golden で全数固定）。
+
+### 同時に強くしたゲート1本
+
+`【トラップアイコン】節: スペル本体（E1）へ混入していない` は、**文字列 `ACTIVATE_TRAP` しか見ておらず、もう1つの発動入口 `TRAP_OP{trapOp:'activate'}` を素通し**にしていた（実際 `WX17-044-E2` の旧 live はそれを持っていたのにこのテストは緑だった）。⇒ **両方を見る**ようにし、母集団を「**唱えた瞬間に走る効果**」に絞った（`trashActivated` 等の別入口は混入ではない）。
+
+### 検証コマンド
+
+- `npm run gates` — **全緑**（golden **3532 / 3532**＝3529 +3本／smoke 全異常0／fuzz 全0／census 高シグナル **0 / BASELINE 0**／census-stubs A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors）。`npm run regen` 完走。
+- `node scripts/verifyBattleDrive.mjs o263ExplicitPicksSecondTrap o263ExplicitPicksFirstTrap o263SourceZoneTrapFires o263SourceZoneFollowsSigni` — **ALL PASS**。
+- `node scripts/verifyBattleDrive.mjs v170SpellTrashExileActivatesTrap` — **PASS**。
+- live の A/B 差分＝**6カードだけ**が変化（O-263 の5枚＋`WX20-053`）＋`syncManualLive` の `WX17-044` 1枚。
+
+### 実機（§5.1 `V-169` / `V-170`）
+
+**観測点はすべて「どちらの【トラップ】が発動したか」**＝ゾーン1に「カードを2枚引く」、ゾーン2に「デッキから2枚エナチャージ」を置き、**手札+2 か エナ+2 か**で見分ける。🔑**旧実装はどの盤面でも必ずゾーン1（＝手札+2）**なので、「エナ+2」になった時点で旧挙動は否定される。
+
+- `o263ExplicitPicksSecondTrap`（**2つ目を選ぶ → エナ+2**）／`o263ExplicitPicksFirstTrap`（**対照**＝選ぶ候補だけを1つ目に変える1ビット反転 → 手札+2）
+- `o263SourceZoneTrapFires`（効果元がゾーン2 → エナ+2）／`o263SourceZoneFollowsSigni`（**対照**＝効果元の居るゾーンだけをゾーン1に変える1ビット反転 → 手札+2）
+- `v170SpellTrashExileActivatesTrap`（`WX17-044` をトラッシュからタップ → 自身が除外置き場へ移り、選んだ【トラップ】だけが発動）
+
+**反転確認**＝①golden の新規2本は engine の payload 参照を `undefined` に潰すと FAIL する（実施）②`battleCardNums` から `signi_traps` を抜くと新ゲートが FAIL する（実施）。
+
+### 🔑 教訓
+
+1. 🔴**「対話を伴う入口では動くが、伴わない入口だけ黙って死ぬ」形がある。** `pending_effect` が抱えているカードは `battleCardMap` に載るので、**選択させる経路だけが偶然生き残る**。⇒ **同じ機構に入口が複数あるなら、対話の無い側で必ず1回実機を通す。**
+2. 🔴**カードが「どのゾーンにも居ない」瞬間を作る機構は、`battleCardNums` に足したか必ず確かめる**（【チャーム】／裏向き付け／ソウル／シード／**【トラップ】**／**【マジックボックス】**）。忘れると **CardData ごと落ちて属性判定が全部 false/0 に倒れる**。
+3. 🔴**`markSilentFallback` は「捨てられたパース試行」からも刻まれる**＝**最終 JSON に痕跡が無い偽の PARTIAL** を作り、それが `isPureSuperset` の唯一の不一致リーフになって **parser 改善の配送を止める**。⇒ **held の原因を見るときは、まず「消えたリーフ／変わったリーフ／増えたリーフ」を機械で出す**（本件は「変わったリーフ1つ＝parseStatus」だけだった）。
+4. 🔑**「採用は凍結と引き換え」なら、採用ではなく原因を消す道を先に探す。** 登録票は `censusOrphanManual` の較正を要求していたが、**刻印が偽だったので較正は不要**だった。
+5. 🔑**ゲートは「当たっている」だけでは足りない**＝混入ガードは**もう1つの入口（`trapOp:'activate'`）を素通し**にしていた。⇒ **同じ意味の入口が engine に何本あるかを数えてからガードを書く**（この機構は4本＝`execUtils.ts:1398` に明記されていた）。
+
+
 ## 2026-09-06（第185バッチ）＝🏁**`V-168` 返済**＝トラッシュ自己除外【起】の入口を実機で確認（2シナリオ ALL PASS）＋支払いモーダルの文言の嘘を1件修正
 
 **この巡の主題**＝第184バッチで直した「トラッシュ自己除外【起】の入口」（§5.3 `O-262`）は **`src/screens/` を触った回**なので PLAN §2.2 で実機まで必須だった。その返済。**実装は前巡で済んでいるので、ここで新しく直したのは UI 文言1件だけ。**

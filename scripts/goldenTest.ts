@@ -11412,6 +11412,165 @@ test('§5.3 O-240: 全領域への《トラップアイコン》付与（native 
   }
 }));
 
+// ── 🆕🔴§5.3 `O-263`（2026-09-06）：`ACTIVATE_TRAP` が「どの【トラップ】か」を読んでいなかった ──
+// 🔴**旧実装は原文2種類のどちらでも「先頭の非 null トラップ」を自動で取っていた**（近似）＝
+//   ①「あなたの【トラップ】１つを**対象とし**」（`WX15-017-E1` / `SP26-001-E1` / `WX19-064-TRAP`）
+//     ＝**プレイヤーが選べない**（2つ以上あると勝手に先頭が発動する）
+//   ②「**このシグニと同じシグニゾーンにある**【トラップ】１つ」（`WX15-035-E1` / `WX19-058-E1`）
+//     ＝**ゾーン固定なのに先頭を取る**＝別ゾーンのトラップを暴発させる
+// 🔑**受け皿は payload 1本**（`trapTargetScope`）＝parser が原文から決め、engine はそれだけを読む。
+// 🔑**反転確認は4方向**＝①payload 無しは従来どおり先頭（既存経路を壊さない）②選ばなかった側は発動しない
+//   ③同じゾーンにトラップが無ければ何も起きない（fail-closed＝別ゾーンを取りに行かない）
+//   ④先行ステップの `lastProcessedCards` を「選択」と誤読しない。
+test('§5.3 O-263: ACTIVATE_TRAP の対象は payload で決まる（explicit＝選ぶ / source_zone＝ゾーン固定）', () => withSavedCursor(() => {
+  const DRAW2 = 'WX19-059';  // 《トラップアイコン》＝カードを2枚引く
+  const ENA2 = 'WX19-025';   // 《トラップアイコン》＝デッキから2枚エナチャージ
+  const SRC = 'WX19-058';    // 効果元シグニ（【起】《ダウン》＝source_zone 側の実カード）
+
+  // ① live の母集団を固定＝5効果が用法2種類に割れていること（payload なしへ戻ると FAIL）
+  const scopeOf = (cardNum: string, effectId: string): string | undefined => {
+    let found: string | undefined;
+    const walk = (a: unknown): void => {
+      if (found !== undefined || !a || typeof a !== 'object') return;
+      const o = a as Record<string, unknown>;
+      if (o.type === 'STUB' && (o.id === 'ACTIVATE_TRAP' || o.id === 'ACTIVATE_TRAP_IN_FIELD')) {
+        found = (o.trapTargetScope as string | undefined) ?? '(なし)';
+        return;
+      }
+      for (const v of Object.values(o)) {
+        if (Array.isArray(v)) v.forEach(walk); else walk(v);
+      }
+    };
+    walk(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action);
+    return found;
+  };
+  for (const [num, eff] of [['WX15-017', 'WX15-017-E1'], ['SP26-001', 'SP26-001-E1'], ['WX19-064', 'WX19-064-TRAP']]) {
+    eq(scopeOf(num, eff), 'explicit', `O-263: ${eff} は「あなたの【トラップ】1つを対象とし」＝プレイヤーが選ぶ`);
+  }
+  for (const [num, eff] of [['WX15-035', 'WX15-035-E1'], ['WX19-058', 'WX19-058-E1']]) {
+    eq(scopeOf(num, eff), 'source_zone', `O-263: ${eff} は「このシグニと同じシグニゾーンにある」＝ゾーン固定`);
+  }
+
+  // ② explicit＝候補が2つ以上なら SELECT_TARGET で問い、**選んだ側だけ**が発動する
+  {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.field.signi_traps = [DRAW2, ENA2, null];
+    const handBefore = ctx.ownerState.hand.length;
+    const enaBefore = ctx.ownerState.energy.length;
+    const r = executeAction({ type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'explicit' } as EffectAction, ctx);
+    ok(!r.done && r.pending.type === 'SELECT_TARGET', 'O-263: explicit は対象を問う（旧は問わず先頭を発動した）');
+    if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+    eq(JSON.stringify(r.pending.candidates), JSON.stringify([DRAW2, ENA2]), 'O-263: 候補は場のすべての【トラップ】');
+    // 🔑**2つ目を選ぶ**＝旧実装（先頭固定）では絶対に到達できなかった側。
+    const after = finish(resumeSelectTarget([ENA2], r.pending, {
+      ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs,
+      lastProcessedCards: r.lastProcessedCards,
+    }), ctx);
+    eq(after.ownerState.energy.length, enaBefore + 2, 'O-263: 選んだ2つ目（エナチャージ）が発動する');
+    eq(after.ownerState.hand.length, handBefore, 'O-263 反転: 先頭（2枚引く）は発動しない');
+    eq(after.ownerState.field.signi_traps?.[0], DRAW2, 'O-263: 選ばなかった【トラップ】は場に残る');
+    eq(after.ownerState.field.signi_traps?.[1], null, 'O-263: 選んだ【トラップ】だけが場を離れる');
+  }
+
+  // ③ 反転＝payload 無しは従来どおり先頭（`trapOp:'activate'` からの委譲・内部呼び出しを壊さない）
+  {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.field.signi_traps = [DRAW2, ENA2, null];
+    const handBefore = ctx.ownerState.hand.length;
+    const r = run({ type: 'STUB', id: 'ACTIVATE_TRAP' } as EffectAction, ctx);
+    eq(r.ownerState.hand.length, handBefore + 2, 'O-263 反転: payload 無しは先頭が発動する（既存経路は不変）');
+  }
+
+  // ④ explicit でも候補が1つなら問わない（§4.4 罠8l＝候補がちょうど必要数なら選択UIを出さない）
+  {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.field.signi_traps = [null, ENA2, null];
+    const enaBefore = ctx.ownerState.energy.length;
+    const r = executeAction({ type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'explicit' } as EffectAction, ctx);
+    ok(r.done, 'O-263: 候補が1つなら対話を出さない');
+    eq(r.ownerState.energy.length, enaBefore + 2, 'O-263: その1つが発動する');
+  }
+
+  // ⑤ source_zone＝効果元と同じゾーンの【トラップ】だけが発動する
+  {
+    const ctx = mkCtx({ signi: [null, SRC, null] }, {}, SRC);
+    ctx.ownerState.field.signi_traps = [DRAW2, ENA2, null];
+    const handBefore = ctx.ownerState.hand.length;
+    const enaBefore = ctx.ownerState.energy.length;
+    const r = run({ type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'source_zone' } as EffectAction, ctx);
+    eq(r.ownerState.energy.length, enaBefore + 2, 'O-263: 効果元と同じゾーン2の【トラップ】が発動する');
+    eq(r.ownerState.hand.length, handBefore, 'O-263 反転: 別ゾーン（ゾーン1）は暴発しない（旧はここが発動した）');
+    eq(r.ownerState.field.signi_traps?.[0], DRAW2, 'O-263: 別ゾーンの【トラップ】は場に残る');
+  }
+
+  // ⑥ source_zone の fail-closed＝同じゾーンに無ければ何もしない（先頭を取りに行かない）
+  {
+    const ctx = mkCtx({ signi: [null, SRC, null] }, {}, SRC);
+    ctx.ownerState.field.signi_traps = [DRAW2, null, null];
+    const handBefore = ctx.ownerState.hand.length;
+    const r = run({ type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'source_zone' } as EffectAction, ctx);
+    eq(r.ownerState.hand.length, handBefore, 'O-263 反転: 同じゾーンに【トラップ】が無ければ何も起きない');
+    eq(r.ownerState.field.signi_traps?.[0], DRAW2, 'O-263 反転: 別ゾーンの【トラップ】を取りに行かない');
+  }
+
+  // ⑦ explicit は先行ステップの置き土産（`lastProcessedCards`）を「選択」と読まない
+  //   🔴`SP26-001-E1` は直前に `LOOK_PICK_CHAIN` で設置したカードが残る＝これを選択と読むと
+  //     「その後、あなたの【トラップ】１つを対象とし」が**問わずに自動決定**され、旧バグへ戻る。
+  {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.field.signi_traps = [DRAW2, ENA2, null];
+    ctx.lastProcessedCards = [ENA2];
+    const r = executeAction({ type: 'STUB', id: 'ACTIVATE_TRAP', trapTargetScope: 'explicit' } as EffectAction, ctx);
+    ok(!r.done && r.pending.type === 'SELECT_TARGET',
+      'O-263 反転: trapTargetPicked が無ければ lastProcessedCards を選択として使わない');
+  }
+}));
+
+// ── 🆕🔴§5.3 `O-263`（2026-09-06・実機 `V-169` で発見）：`battleCardNums` のゾーン取りこぼしゲート ──
+// 🔴**何が起きたか**＝`field.signi_traps` が `battleCardNums` の走査に入っていなかったので、
+//   **【トラップ】として設置した瞬間にそのカードの `CardData` が `battleCardMap` から落ちていた**
+//   （手札／デッキからは抜かれ、他のどのゾーンにも居ない）。⇒ `trapIconEffectOf` が
+//   `cardMap.get(...) === undefined` で null を返し、**【トラップ】は場を離れるのに
+//   《トラップアイコン》が1度も解決しない無言の no-op**になっていた。
+// 🔑**なぜ気づけなかったか**＝`pending_effect` が候補として抱えている間だけ別の枝で載るので、
+//   **対話を伴う入口（`explicit`）では動き、伴わない入口（`source_zone`）だけが黙って死ぬ**。
+//   golden も smoke も fuzz も緑（どれも全カードの cardMap を渡すので再現しない）。
+// 🔑**同じ穴が `signi_magic_boxes` にも開いていた**（`INTERNAL_SET_MAGIC_BOX` も deck/hand から抜く）。
+//
+// ⇒ **型（`PlayerState['field']`）から「カードIDを持つゾーン」を機械で数え直し**、
+//   `battleCardNums` の走査本体がそれを1つ残らず参照していることを固定する。
+//   ⚠**新しいゾーンを足したらここが FAIL する**（＝写経ではなくデータ駆動のゲート）。
+test('§5.3 O-263: battleCardNums はカードIDを持つ field ゾーンを1つも取りこぼさない', () => {
+  const typesSrc = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
+  const fieldStart = typesSrc.indexOf('  field: {');
+  ok(fieldStart > 0, 'PlayerState の field 宣言が見つかる');
+  const fieldBody = typesSrc.slice(fieldStart, typesSrc.indexOf('\n  };', fieldStart));
+  // コメントを落としてから「型に string を含むキー」＝カードIDを持つゾーンだけを拾う。
+  const stripped = fieldBody.replace(/\/\*\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const cardZones = [...stripped.matchAll(/^\s{4}(\w+)\??:\s*([^;]+);/gm)]
+    .filter(m => m[2].includes('string'))
+    .map(m => m[1]);
+  ok(cardZones.length >= 15, `カードIDを持つゾーンを抽出できている（${cardZones.length}件）`);
+
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const memoStart = screenSrc.indexOf('const battleCardNums = useMemo(');
+  ok(memoStart > 0, 'battleCardNums の useMemo が見つかる');
+  const memoBody = screenSrc.slice(memoStart, screenSrc.indexOf('\n  }, [', memoStart));
+
+  // 間接的に載っているゾーンだけ、**理由つきで**免除する（無条件の allowlist にしない）。
+  const indirect: Record<string, string> = {
+    signi_acce: 'allAcceCards(s.field) が全ホストのアクセを畳んで走査している',
+    puppet_signi: '傀儡シグニの instanceId は field.signi にも入っている（execStubPart1 が両方へ積む）',
+  };
+  for (const zone of cardZones) {
+    if (memoBody.includes(zone)) continue;
+    const why = indirect[zone];
+    ok(!!why, `O-263: field.${zone} が battleCardNums の走査に無い`
+      + `＝そのゾーンへ移した瞬間に CardData が battleCardMap から落ちる（無言 no-op になる）`);
+    if (why) ok(memoBody.includes('allAcceCards') || zone === 'puppet_signi', `O-263: ${zone} の間接経路（${why}）が残っている`);
+  }
+});
+
 // ── 🆕§5.3 `O-239`（2026-09-04）：そのターンのクラッシュ順を軸にした【ライフバースト】付与 ──
 // 🔴旧 `DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE` は無言 no-op（`WXDi-P12-036-E1`）。
 // 🔑**軸は「枚数」ではなく「置かれた順」**＝`life_crashed_this_turn` ではダブルクラッシュの
@@ -23669,9 +23828,16 @@ test('STRIP_ATTACHED_AND_UNDER stripSelf: 剥がすのは発生源で、対象�
 test('【トラップアイコン】節: スペル本体（E1）へ混入していない（live 5枚）', () => {
   for (const cardNum of ['WX15-053', 'WX17-044', 'WX17-071', 'WX19-039', 'WX19-064']) {
     const effs = effectsMap.get(cardNum) ?? [];
-    const main = effs.filter(e => e.effectType !== 'TRAP_ICON' && e.effectType !== 'LIFE_BURST');
+    // 🆕🔴**§5.3 `O-262`（2026-09-06）＝母集団は「唱えた瞬間に走る効果」だけ。**
+    //   `WX17-044-E2` は原文どおりの**【起】**（トラッシュにあるこのカードを除外して【トラップ】を発動）で、
+    //   **唱えても走らない別の入口**なので混入ではない。⚠入口キー（`trashActivated` 等）で除く。
+    // 🔴**同時にガードを強くした**＝旧は文字列 `ACTIVATE_TRAP` しか見ておらず、
+    //   **もう1つの発動入口 `TRAP_OP{trapOp:'activate'}` を素通しにしていた**
+    //   （実際 `WX17-044-E2` の旧 live はそれを持っていたのにこのテストは緑だった）。
+    const main = effs.filter(e => e.effectType !== 'TRAP_ICON' && e.effectType !== 'LIFE_BURST'
+      && !e.trashActivated && !e.energyActivated && !e.handActivated);
     const s = JSON.stringify(main);
-    ok(!s.includes('ACTIVATE_TRAP'), `${cardNum}: 本体にトラップ発動が混入`);
+    ok(!s.includes('ACTIVATE_TRAP') && !s.includes('"trapOp":"activate"'), `${cardNum}: 本体にトラップ発動が混入`);
     ok(!s.includes('"keyword":"トラップアイコン"'), `${cardNum}: 本体にゴミ keyword が混入`);
     ok(effs.some(e => e.effectType === 'TRAP_ICON'), `${cardNum}: TRAP effect が別立てで存在`);
   }
@@ -45890,6 +46056,42 @@ test('§5.3 O-262: トラッシュ自己除外【起】は「トラッシュか�
   eq(unsupportedTrashActivateCostKeys(countForm.cost).join(','), 'trashExile',
     '🔴count 形は未対応＝提示しない（載せると踏み倒せる）');
 }));
+
+
+// ── 🏁🆕§5.3 `O-262` 残件（2026-09-06 第186バッチ）：母集団10効果ぜんぶが入口を持つ ──
+// 🔴第184バッチで 8/10 まで返済したが、**残2件は配送経路がそれぞれ別の理由で塞がっていた**：
+//   ①`WX20-053-E2`＝**偽の `PARTIAL` 刻印**（`SEARCH.afterSearch` へ既に畳まれた文の
+//     「無言フォールバック」が、**捨てられたパース試行から刻印だけ漏れていた**）が
+//     `isPureSuperset` の**唯一の不一致リーフ**になり、fresh を採用できず held に居座っていた。
+//     ⇒ **刻印側を直した**ので live は **AUTO のまま** `trashActivated` を受け取る
+//     （＝`heldReview --adopt` の「採用は凍結と引き換え」を回避した）。
+//   ②`WX17-044-E2`＝除外が**コスト欄ではなく本文**にある唯一の綴り。速いレーンで手書きし、
+//     `syncManualLive --effect` で **E2 だけ**を届けた（E1 は live のほうが正しいので触らない）。
+test('§5.3 O-262: 「トラッシュにあるこのカードをゲームから除外する」10効果すべてに入口がある', () => {
+  const ids: [string, string][] = [
+    ['SP27-018', 'SP27-018-E1'], ['WX18-041', 'WX18-041-E1'], ['WX19-036', 'WX19-036-E1'],
+    ['WX19-065', 'WX19-065-E1'], ['WX19-070', 'WX19-070-E1'], ['WX20-053', 'WX20-053-E2'],
+    ['WXDi-P06-032', 'WXDi-P06-032-E3'], ['WXEX1-54', 'WXEX1-54-E2'], ['WXEX1-75', 'WXEX1-75-E2'],
+    ['WX17-044', 'WX17-044-E2'],
+  ];
+  for (const [num, effId] of ids) {
+    const e = effectsMap.get(num)?.find(x => x.effectId === effId);
+    ok(!!e, `${effId}: live に在る`);
+    eq(e?.cost?.trashExile?.self, true, `${effId}: 除外が**コスト**に載っている（＝踏み倒せない）`);
+    ok(e?.trashActivated, `${effId}: 入口はトラッシュ（旧は10効果すべて undefined＝恒久 no-op）`);
+  }
+  // ①の要点＝**採用と引き換えに凍らせていない**（PARTIAL/MANUAL は以後 parser 改善を受け取れない）。
+  eq(effectsMap.get('WX20-053')?.find(e => e.effectId === 'WX20-053-E2')?.parseStatus, 'AUTO',
+    'O-262①: 偽の PARTIAL 刻印を消して採用した＝live は AUTO のまま');
+  // ②の要点＝本文は「あなたの【トラップ】１つを**対象とし**」＝プレイヤーが選ぶ（§5.3 `O-263`）。
+  const e2 = effectsMap.get('WX17-044')?.find(e => e.effectId === 'WX17-044-E2');
+  eq((e2?.action as { id?: string })?.id, 'ACTIVATE_TRAP', 'O-262②: 本体は【トラップ】の発動');
+  eq((e2?.action as { trapTargetScope?: string })?.trapTargetScope, 'explicit',
+    'O-262②: 「1つを対象とし」＝プレイヤーが選ぶ（旧 live は TRASH＋IS_MY_TURN の別動作だった）');
+  // ⚠**E1（スペル本体）を巻き込んでいない**＝`syncManualLive --effect` の1件同期が効いていること。
+  eq((effectsMap.get('WX17-044')?.find(e => e.effectId === 'WX17-044-E1')?.action as { id?: string })?.id,
+    'TRAP_OPERATION', 'O-262②: E1（デッキ上5枚を【トラップ】設置）は live のまま');
+});
 
 test('§6.4 canOfferTrashActivate：手札に該当シグニが足りなければ出さない（WXDi-CP01-050）', () => {
   const eff = effectsMap.get('WXDi-CP01-050')!.find(e => e.effectId === 'WXDi-CP01-050-E2')!;

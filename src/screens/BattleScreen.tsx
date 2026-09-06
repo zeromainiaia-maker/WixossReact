@@ -745,6 +745,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (s.field.key_piece_extra ?? []).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);
       (s.field.signi_charms ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      // 🆕🔴**§5.3 `O-263`（2026-09-06・実機 `V-169` で発見）＝【トラップ】として設置したカード。**
+      //   🔴**ここを抜くと、設置した瞬間にそのカードの CardData が `battleCardMap` から落ちる**
+      //   （手札／デッキからは外れ、他のどのゾーンにも居ない）＝`trapIconEffectOf` が
+      //   `cardMap.get(...) === undefined` で **null を返し、【トラップ】は場を離れるのに
+      //   《トラップアイコン》が1度も解決しない無言の no-op** になる。
+      //   ⚠**`pending_effect` が候補として抱えている間だけ「たまたま動く」**（下の O-142 の枝で載るため）＝
+      //     対話を伴う入口（`explicit`）では緑、伴わない入口（`source_zone`）だけが黙って死ぬ、という
+      //     切り分けにくい形で出ていた。
+      //   🔑`signi_facedown_attached` / `signi_soul` / `signi_seeds` と**同じ穴**（上の注記と同根）。
+      (s.field.signi_traps ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      // 🆕**【マジックボックス】も同じ形**（`INTERNAL_SET_MAGIC_BOX` が deck/hand から抜いて
+      //   `signi_magic_boxes` へ置く＝どのゾーンにも居なくなる）。上と同じ理由でここに載せる。
+      (s.field.signi_magic_boxes ?? []).forEach(n => n && nums.add(getCardNum(n)));
       // §5.3 `O-81`＝**裏向きで付けられたカード**（`signi_facedown_attached`）。⚠**ここを抜くと
       //   付けた瞬間にそのカードの CardData が battleCardMap から落ちる**（手札からは外れ、他のどのゾーンにも居ない）。
       //   実測（2026-08-26 実機）＝`WX16-003-E3` の `FACEDOWN_REVEALED_JUST{cardType:'シグニ'}` が

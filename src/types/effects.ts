@@ -6287,6 +6287,25 @@ export interface StubAction {
    * ⚠トリガー元が場に居ない／ゾーンが引けないときは**何もしない**（fail-closed）。
    */
   trapZoneOfTriggerSource?: boolean;
+  /**
+   * 🆕🔴§5.3 `O-263`（2026-09-06）＝`ACTIVATE_TRAP` が**どの【トラップ】を発動するか**。
+   * 🔴旧実装は原文2種類のどちらでも「**先頭の非 null トラップを自動で取る**」近似だった
+   *   （`execStubPart2.ts` の `ACTIVATE_TRAP`）＝
+   *   - `'explicit'`＝「あなたの【トラップ】１つを**対象とし**」（`WX15-017-E1` / `SP26-001-E1` /
+   *     `WX19-064-TRAP`）＝本来は**プレイヤーが選ぶ**。旧は2つ以上あると勝手に先頭が発動した。
+   *   - `'source_zone'`＝「**このシグニと同じシグニゾーンにある**【トラップ】１つ」
+   *     （`WX15-035-E1` / `WX19-058-E1`）＝**ゾーン固定**。旧は**別ゾーンのトラップを暴発**させた。
+   * ⚠**未指定は従来どおり「先頭の非 null」**＝`trapIconEffectOf` 経由の内部呼び出しや
+   *   `trapOp:'activate'` からの委譲を壊さない。
+   */
+  trapTargetScope?: 'explicit' | 'source_zone';
+  /**
+   * `trapTargetScope:'explicit'` の `SELECT_TARGET` を1往復した印。
+   * 🔴**これが無いと「先行ステップが残した `lastProcessedCards`」を選択と誤読する**＝
+   *   `SP26-001-E1` は直前に `LOOK_PICK_CHAIN` で設置したカードが残るので、
+   *   問わずにそれを発動してしまう（§5.3 `O-59` の `value:'activate'` と同じ作法）。
+   */
+  trapTargetPicked?: boolean;
   /** デッキ上を見て選んだ後の残り札の行き先。 */
   trapRemainder?: 'hand' | 'trash' | 'deck_top' | 'deck_bottom';
   /** `under_signi` の付け先カード名。カード全文regexの代わりにparserが列挙する。 */
