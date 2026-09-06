@@ -5292,6 +5292,17 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   `EffectTarget.totalPowerMax` は**数値固定**。`totalLevelMaxRef` と同じ `NumberOrRef` 版が要る。
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
+### `O-270` 追記（2026-09-07 第204バッチ）＝**実機が本物のバグを1件出した**
+
+`V-176` を返済したところ、`execSearch` の `TREAT_AS_LEVEL1_IN_DECK_TRASH` 差し替えが
+🔴**キーを instanceId（`WD01-012#7611`）で書いていたのに、読み手（`matchesSearchPool`）は
+`searchCardMap.get(getCardNum(n))`＝CardNum で引いて**いた＝**誰も読まないエントリ**になり、
+**実機では候補が常に0件の恒久 no-op**だった（`effectExecutor.ts` の `execSearch`）。
+🔑**golden は素の CardNum で state を組むので全緑のまま**＝これが「実機が要る回」（§2.2）の実例。
+⚠**すぐ下の `deck_signi_level_override` は最初から `getCardNum(n)` で正しく書いていた**＝
+**同じ関数の中に正しい前例があったのに揃っていなかった**。⇒ 修正後、golden に
+「instanceId のデッキでも効く」ケースを足して回帰ガードにした（反転確認済み）。
+
 ### `O-271` — ルリグ【起】の `fieldTrash` コストに支払いが1行も無い（踏み倒して撃てる）
 
 > 🆕**2026-09-07（第203バッチ）＝§5.2 残 OPEN の掃引中に発見して登録**（実装は別軸なのでその場では取らなかった）。
@@ -5624,6 +5635,24 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 
 ## 恒久指標の過去行（§6 から退避）
+
+- **2026-09-07（第203バッチ）＝🧹残 OPEN 9 → 7（本日通算 24 → 7）／進行中ルリグアタックの無効化と【ライド】のタイミング拡張を新設（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 9 → 7**｜**census 高シグナル 0 / BASELINE 0**。
+  🔑🔴**2件とも「無言の no-op」ではなく「無言の別効果」だった**＝`parseStatus:'AUTO'` で逆翻訳も文として自然に読めるので、
+  **census にも `census:stubs` にも映らない**（`NEGATE_ATTACK{SIGNI}` はルリグのアタックに当たらず、
+  `GRANT_KEYWORD{'ライド'}` は原文に無い「与える」）。**意味照合だけが引き当てた形。**
+  🔑**受け皿の階層を1段深く疑う**＝`WXDi-P09-036-E1` は対象型を直しても閉じなかった＝
+  `negated_attacks` が**アタック宣言時の事前登録**で、`ON_ATTACK_LRIG` からでは間に合わない
+  （シグニ側だけ `cancel_current_signi_attack` という別軸を持っていた＝**片側だけ塞がっていた**）。
+  📦**在庫**＝**意味照合 未監査 2,608枚**（Sheet1 **172枚**・据置）｜**未 triage findings 0件**｜
+  **機構 worklist 1 → 2項目**（`O-268` ＋🆕`O-271`＝ルリグ【起】の `fieldTrash` 未払い・実測8効果/7枚）｜**⑤実機 残 1 → 3件**（`V-176`〜`V-178`）。
+  🧾**型台帳（止め時の判定）**＝**新型ゼロの連続 2バッチ**（r4-07 / r4-08）＝**据置**（この回は round4 を回していない）。
+  🔧**ゲート（全緑 ✅）**＝golden **3563 → 3565**（+2＝どちらも**反転確認済み**＝受け皿を潰すと FAIL することを実測）／
+  smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／`census:stubs` A群🔴0・**C群0**（新 STUB は B群＝宣言型）／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+  🖥**実機＝2件を持ち越し**（`V-177`＝ルリグアタック無効化／`V-178`＝アタックフェイズのライド提示）。
+  **判定ロジックは純関数へ出して golden で正負両方向を固定した**＝残るのは「実機の配線が通っているか」だけ。
+  🔁**live A/B 差分＝2カード**（`WXDi-P09-036` / `WXK03-059`）＝**意図した件数だけが動いた**。
 
 - **2026-09-07（第202バッチ）＝🧹残 OPEN 12 → 9（本日通算 24 → 9）／§5.3 `O-270` を新設・実装（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（**うち機構待ち1＝即着手可能 0**）｜**台帳 残 OPEN 12 → 9**｜**census 高シグナル 0 / BASELINE 0**。

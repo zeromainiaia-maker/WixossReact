@@ -1,5 +1,98 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第204バッチ）＝**意味照合 段2 台帳の残 OPEN を 0 にした**（7 → 0）／実機 `V-176`〜`V-178` も返済
+
+**この回の作業単位**＝ユーザー指示「OPEN が0になるまで」。**残数計器**＝`semanticAuditLedger.mjs` **7 → 0**（本日通算 **24 → 0**）。
+**⑤実機の要否**＝🔴**必要**（`src/engine/` と `src/screens/` の両方を触った）＝**同じ回で返済した**
+（`v176*` / `v177*` / `v178*` の6シナリオを `order` へ常設・**3組とも対照つきの対**）。
+
+### ⓪ 「機構待ちで残っている」は在庫ではなく未着手だった
+
+台帳の残件は 2026-09-01 以降ずっと「全件が `src/screens/` か新 engine 機構待ち」と仕分けられていたが、
+**実際には1件あたり engine 30〜120行**で閉じた。新設した受け皿は7つ：
+
+| finding | 何が無かったか | 受け皿 |
+|---|---|---|
+| `SPDi44-16-E2` / `WX25-P1-030-E2` | 「N体**まで**」＋**ルリグ【起】の `fieldTrash` 支払いが1行も無い** | `fieldTrash.upToCount`／`payFieldTrashCost`／`$ref:'last_cost_field_trash_count'` |
+| `WXK10-004-E1` | 「場以外の**あなたの領域**」がデッキ・トラッシュ・ライフを守らない | `OppMoveImmunityZone`（5領域）＋消費4地点 |
+| `WXDi-P13-089-E3` | 3領域から1枚**ずつ**除外するコスト | `EffectCost.multiZoneExile` |
+| `WX25-CP1-016-E1` | 手札捨ての**原因カード種別** | `triggerCondition.discardCauseCardTypes` |
+| `PR-K048` | 《無》コストを払える**色の正集合** | `EffectCost.colorlessPayableColors` |
+| `WX13-005B-E1` | — （**stale**＝順序は `O-267` で実装不要と確認済み） | — |
+
+### ① `O-271`＝ルリグ【起】の `fieldTrash` は提示も支払いも1行も無かった（踏み倒し）
+
+**真因**＝`lrigActivateGate.ts` は `fieldBanish` しか検算せず、`performLrigActivated` にも `fieldTrash` の
+文字が1つも無かった＝**場にシグニが0体でも撃てて、何もトラッシュせずに本体だけ走る**。
+しかも帰結が `{$ref:'last_processed_count'}` の札（`SPDi44-16-E2` / `WX25-P1-030-E2`）は
+**コスト支払いが engine の「直前ステップ」に残らないので常に0**＝「3体トラッシュして0枚出す」恒久空振り。
+さらに parser が原文の「3体**まで**」の「まで」を捨てており、**3体いないと撃てない**過小実行でもあった。
+**直し方**＝①`fieldTrash.upToCount` を parser／`fieldTrashSelectionSatisfied`／提示ゲート／両モーダルへ通す
+②支払いを **`payFieldTrashCost`（`screens/battle/fieldTrashCost.ts`）1本へ funnel 化**
+（`BattleScreen.tsx` に手書きされていた【出】経路とシグニ【起】経路の2本も同じ関数へ寄せた）
+③体数を `last_cost_field_trash_count` に載せ、`$ref:'last_cost_field_trash_count'` で読む
+（parser 側は「単発アクション＋`cost.fieldTrash`」のときだけ `last_processed_count` から差し替える）。
+**影響枚数**＝可変枚数コスト 2効果／`fieldTrash` を持つルリグ【起】**8効果 / 7枚**（踏み倒しの解消）。
+
+### ② `WXK10-004-E1`＝「場以外のあなたの領域」がデッキ・トラッシュ・ライフを守っていなかった
+
+**真因**＝`ZONE_MOVE_IMMUNITY{zones:['hand','energy']}`＝原文の5領域のうち3つが**まったく無保護**。
+🔴**逆翻訳も「手札とエナゾーン」と書いていた**＝engine と表示が**同じ嘘で一致**していて、どの計器にも映らない。
+**直し方**＝`OppMoveImmunityZone`（`hand`/`energy`/`deck`/`trash`/`life`）へ広げ、**消費地点を4つ**足した＝
+`movableTrashCandidates`（トラッシュから動かす**全経路の funnel**）／`TRASH{DECK_CARD}`（ミル）／
+`execLifeCrash`（**効果による**クラッシュ。ダメージはこの経路を通らない）／`EXILE` の hand・energy 分岐
+（🔴旧実装は「手札は移動しない」宣言中でも**除外だけ通っていた**）。
+⚠「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）は `excludeCrash` で表す。
+⚠**parser で `トラッシュにある` を汎用に足すと `LOCK_OPP_TRASH_MOVE`（相手の自分自身への封じ）を奪う**＝
+実測で2枚（`WX24-P4-007` / `WXDi-P14-005`）が別効果に化けたので、`場以外の領域` の綴りだけに限定した。
+
+### ③ `WXDi-P13-089-E3`＝3領域ぶんのコストがトラッシュ1枚に丸められていた
+
+parser に「**→ `trashExile` で近似**」と明記された規則が残っており、**手札とエナの2枚を踏み倒して撃てた**。
+⇒ `EffectCost.multiZoneExile{zones,count,filter}` を新設。判定と支払いは
+`screens/battle/multiZoneExileCost.ts` の2関数だけ（提示＝`signiActivateGate`／支払い＝`performSigniActivated`）。
+⚠**自動支払い**（`cardName` 一意でどれを除外しても等価）＝選択UIは作らない。⚠行き先は `excluded`。
+
+### ④ `WX25-CP1-016-E1`＝手札捨ての「原因」を1つも見ていなかった
+
+原文「**シグニかスペルの、コストか効果によって**」に対し、live は原因を見ず**ルリグ・アーツ・キーの効果でも、
+相手に捨てさせられても**誘発していた。⇒ `triggerCondition.discardCauseCardTypes` を新設。原因カードは
+①コスト経路＝`costSourceNum`（既存）②効果経路＝中央 diff が `causeSourceCardNum` を
+`hand_discarded_just_cause_card_num` に刻む。判定は `collectHandDiscardTriggers` の `causeTypeOk` 1点＝
+**fail-closed**（ルール処理の手札上限・ガードステップでは誘発しない）。
+
+### ⑤ `PR-K048`＝《無》コストを払える色の制限が無かった
+
+《無》スロットは既定で何色でも払えるので**原文より緩い**。⇒ `EffectCost.colorlessPayableColors` を新設。
+🔑**原文を読むのは `keywordCosts.ts` の `parseColorlessPayableColorsText` 1箇所**（`census:costtext` の規約）＝
+`printedKeywordCosts` で live に載り、UI は `colorlessPayableColorsOf(cardNum, effectsMap)` を読むだけ。
+判定は `canAffordGrowCost` / `canAffordWithExtraCost` の1本＝**キー2入口＋アーツ3入口の計5箇所**が同じ関数を通る。
+⚠「あなたのセンタールリグが持つ色」（`WX16-006-E1`）は**盤面依存**なので静的な色集合にしない（別機構）。
+
+### ⑥ 🔴実機が本物のバグを1件釣った（`V-176`／`O-270` の追記）
+
+`execSearch` の `TREAT_AS_LEVEL1_IN_DECK_TRASH` 差し替えが、
+**キーを instanceId（`WD01-012#7611`）で書いていたのに読み手は `getCardNum(n)`＝CardNum で引いて**いた＝
+**誰も読まないエントリ**＝**実機では候補が常に0件の恒久 no-op**。
+🔑**golden は素の CardNum で state を組むので全緑のまま**だった（§2.2「実機が要る回」の実例）。
+⚠**同じ関数のすぐ下の `deck_signi_level_override` は最初から `getCardNum(n)` で正しく書いていた**＝
+**正しい前例が同じ関数の中にあったのに揃っていなかった。**
+⇒ 修正し、**instanceId のデッキでも効く**ケースを golden に足して回帰ガードにした（反転確認済み）。
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt SPDi44-16,WX25-P1-030,WXDi-P13-089
+npm run regen && npm run gates
+node scripts/verifyBattleDrive.mjs v176DeckTrashLevel1SearchFinds v176DeckTrashLevel1SearchNoDeclarer   v177LrigAttackNegatedOnMatch v177LrigAttackHitsOnMismatch   v178RideUsableInAttackPhase v178RideNotUsableWithoutBike o267CutinResonaResolvesBeforeSpell
+```
+
+**ゲート＝全緑 ✅**（golden **3563 → 3570**／smoke 0／fuzz 0／census 0 / BASELINE 0／
+`census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴0行／`census:costtext` A🔴0規則／lint 0 errors）。
+**実機＝7シナリオ ALL PASS。** **反転確認＝新規 golden はすべて実施**（受け皿を潰すと FAIL することを実測）。
+**新しい実機の罠を5本 `DRIVE_TRAPS.md` へ追加**（53〜57＝`stdStep` がアタックを飛ばす／`lrig_down` の残留／
+instanceId と CardNum の取り違え／`Restriction` が手札アクションを消す／任意コストのエナはトグル）。
+
 ## 2026-09-07（第203バッチ）＝**残 OPEN 9 → 7**／進行中ルリグアタックの無効化・【ライド】のタイミング拡張を新設
 
 **この回の作業単位**＝§5.2 段2 台帳の残 OPEN。**残数計器**＝`semanticAuditLedger.mjs` **9 → 7**（本日通算 **24 → 7**）。

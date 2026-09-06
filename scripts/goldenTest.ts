@@ -15651,6 +15651,18 @@ test('§5.3 O-270: 収集した札は SEARCH の候補としてレベル1扱い�
     maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' } } as EffectAction, withOverride);
   ok(trashHit.done && trashHit.ownerState.hand.includes(SIGNI_L2),
     '🔴トラッシュのレベル2がレベル1扱いになっていない（原文の「トラッシュにある」が効いていない）');
+  // ④ 🔴🔑**instanceId のデッキでも効くこと**（2026-09-07・`V-176` の実機で発覚したバグの回帰ガード）＝
+  //   実戦のゾーンは `WD01-012#7611` のような **instanceId** を持つ。旧実装は差し替えを
+  //   **instanceId をキーに**書いていたが、読み手（`matchesSearchPool`）は `getCardNum(n)`＝**CardNum** で引く
+  //   ＝**誰も読まないエントリ**になり、実機では候補が常に0件だった。
+  //   ⚠**この形は素の CardNum で state を組む golden では踏めない**＝だから実機が要る（§2.2）。
+  const instCtx = mkCtx({}, {});
+  instCtx.ownerState.deck = [`${SIGNI_L3}#7611`];
+  const instOverride = { ...instCtx, deckTrashLevel1Nums: new Set([`${SIGNI_L3}#7611`]) } as ExecCtx;
+  const instHit = run({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: lv1Filter,
+    maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' } } as EffectAction, instOverride);
+  ok(instHit.done && instHit.ownerState.hand.some(n => String(n).startsWith(SIGNI_L3)),
+    '🔴instanceId のデッキで差し替えが効いていない（キーが instanceId のままに戻っている）');
   cursor = cursorBefore;
 });
 test('§5.3 O-270: WXDi-P01-039-E1 は恒久 no-op の BLOCK_ACTION から受け皿つき STUB へ移った', () => {

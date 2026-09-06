@@ -49332,6 +49332,314 @@ scenarios.o267CutinResonaResolvesBeforeSpell = {
 //   🔴**このシナリオを `order` から外すと、そのガードが外れても誰も気づかない**（golden では踏めない経路）。
 order.push('o267CutinResonaResolvesBeforeSpell');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-178`＝**【ライド】の使用タイミング拡張**（意味照合 段2・`WXK03-059-E1`・2026-09-07）。
+// 原文＝「【常】：あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を
+//   持つかのように使用できる。」🔴旧 live は `GRANT_KEYWORD{keyword:'ライド'}`＝原文に無い「与える」。
+// 🔑**観測点は「アタックフェイズのアーツステップで【起】が出るか」**＝収集 funnel
+//   （`collectCenterLrigActivatedEffects`）の正負は golden で固定済みなので、残るのは UI 配線1点。
+// ⚠**必ず対で回す**（①レーサーバイクが場にある＝出る ②場に無い＝出ない）。
+//   ②が無いと「もともと常に出ていた」ことと区別できない。
+// ⚠ルリグは `WXK01-008`（レイラ＝ドリフト・Lv3/Limit8）＝レーサーバイク（Lv3）を場に置ける唯一の条件。
+//   このルリグの【起】は2つとも `timing:['MAIN']`（`-E1`＝CENTER_LRIG_RIDES_ON_SIGNI ／ `-RIDE`）なので、
+//   **ATTACK_ARTS で1つでも出れば、それは拡張が効いた証拠**になる。
+// ═════════════════════════════════════════════════════════════════════════════
+const v178Spec = (withBike) => ({
+  hostSet: {
+    'field.lrig': ['WXK01-008#8801'],
+    'field.signi': withBike ? [['WXK03-059#8802'], null, null] : [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], hand: [], energy: [], trash: [], coins: 0,
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8890'],
+    'field.signi': [null, null, null],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+async function driveV178(page, H, expectRide) {
+  const tag = expectRide ? 'v178With' : 'v178Without';
+  const st0 = await H.queryState();
+  H.log(`開始 phase=${st0?.turnPhase} lrig=${st0?.host?.lrigTop} field=${JSON.stringify(st0?.host?.fieldSigni)}`);
+  if (st0?.turnPhase !== 'ATTACK_ARTS') {
+    return { pass: false, detail: `前提崩れ＝アタックフェイズのアーツステップに居ない（phase=${st0?.turnPhase}）` };
+  }
+  let names = [];
+  for (let s = 0; s < 6; s++) {
+    await page.waitForTimeout(700);
+    const opened = await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(700);
+    const btns = page.getByRole('button', { name: /【起】/ });
+    const n = await btns.count();
+    names = [];
+    for (let i = 0; i < n; i++) names.push((await btns.nth(i).textContent().catch(() => '?')) ?? '?');
+    H.log(`  ${tag}[${s}] -> ${opened ?? 'なし'} | 【起】${n}件 ${JSON.stringify(names)}`);
+    if (n > 0) break;
+    // ⚠開けなかったら閉じ直してもう一度（カード詳細が被ることがある＝§4.4 の既知の形）。
+    await page.keyboard.press('Escape').catch(() => {});
+  }
+  const has = names.length > 0;
+  if (expectRide) {
+    return has
+      ? { pass: true, detail: `レーサーバイクが場にあるとき、アタックフェイズでも【ライド】が提示された（${JSON.stringify(names)}）` }
+      : { pass: false, detail: `🔴アタックフェイズで【起】が1つも出ない＝拡張が UI まで届いていない` };
+  }
+  return has
+    ? { pass: false, detail: `🔴対照が崩れた＝レーサーバイクが居ないのに【起】が出た（${JSON.stringify(names)}）＝「もともと常に出る」だけかもしれない` }
+    : { pass: true, detail: 'レーサーバイクが場に無ければアタックフェイズに【起】は出ない（対照）' };
+}
+
+scenarios.v178RideUsableInAttackPhase = {
+  title: 'V-178(1): WXK03-059 が場にあると【ライド】がアタックフェイズにも提示される',
+  spec: v178Spec(true),
+  async drive(page, H) { return driveV178(page, H, true); },
+};
+scenarios.v178RideNotUsableWithoutBike = {
+  title: 'V-178(2): 対照＝WXK03-059 が場に無ければアタックフェイズに【起】は出ない',
+  spec: v178Spec(false),
+  async drive(page, H) { return driveV178(page, H, false); },
+};
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-177`＝**進行中のルリグアタックの無効化**（意味照合 段2・`WXDi-P09-036-E1`・2026-09-07）。
+// 原文（アシストルリグ【出】がセンターへ付与する引用【自】）＝「対戦相手のシグニ**かルリグ**１体が
+//   アタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し…**どちらも【ライフバースト】を
+//   持っているか、どちらも持っていない場合、そのアタックを無効にする**。」
+// 🔴旧実装は2重に壊れていた＝①対象型が `SIGNI` でルリグが候補に入らない
+//   ②`negated_attacks` は**アタック宣言時**に見る事前登録なので `ON_ATTACK_LRIG` からでは間に合わない。
+//   ⇒ `cancel_current_lrig_attack` を新設（消費＝`resolveLrigAttackContinuation`＝人間／CPU 共通 funnel）。
+// 🔑**観測点はライフが減らないこと**（＝ガード応答へ進まずアタックが終わる）。
+// ⚠**必ず対で回す**＝(1) 両デッキトップの【ライフバースト】の有無が**一致**＝無効化される
+//   (2) 対照＝**不一致**＝無効化されずライフが1枚減る。**盤面は deck の1枚だけを変える。**
+// ⚠付与は `lrig_granted_auto_effects` へ直接注入する（アシストを実際に出す経路は本題ではない）。
+//   ⚠`triggerScope:'any_opp'` が要る（`collectLrigAttackDefenderTriggers` は any_opp/any しか拾わない）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V177_GRANTED = {
+  effectId: 'WXDi-P09-036-sub-E1',
+  effectType: 'AUTO',
+  timing: ['ON_ATTACK_SIGNI', 'ON_ATTACK_LRIG'],
+  action: {
+    type: 'REVEAL_BOTH_DECK_TOPS',
+    matchAction: {
+      type: 'NEGATE_ATTACK',
+      target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 },
+      attackingOnly: true,
+    },
+  },
+  duration: 'INSTANT',
+  mandatory: true,
+  parseStatus: 'AUTO',
+  triggerScope: 'any_opp',
+};
+// 🔑デッキトップだけで一致／不一致を作る（`WD01-010` 大剣カリバン＝LBなし／`WD01-009` 甲冑ローメイル＝LBあり）。
+const v177Spec = (match) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#7701'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], hand: [], energy: [], trash: [], coins: 0,
+    deck: ['WD01-010#7710', 'WD01-013#7711'],           // host トップ＝LBなし（固定）
+    lrig_granted_auto_effects: [V177_GRANTED],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD04-001#7790'], 'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 一致＝LBなし同士／不一致＝guest だけ LB あり。⚠**変えるのはこの1枚だけ**。
+    deck: [match ? 'WD01-012#7791' : 'WD01-009#7791', 'WD01-013#7792'],
+    hand: [], energy: [], trash: [], blocked_actions: [],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+});
+
+async function driveV177(page, H, expectNegated) {
+  const tag = expectNegated ? 'v177Match' : 'v177Mismatch';
+  // 🔴🔑**アタック前の盤面が載るまで再注入する**（§4.4「盤面注入は1発で決まらない」）＝
+  //   部屋を使い回すので、前シナリオの `field.lrig_down: true` が残っていると
+  //   **CPU は「もうアタック済み」と見なして何もせず**、ライフが減らない＝
+  //   「無効化された」と読める偽の緑／偽の赤になる（2026-09-07 の連続実行で実測）。
+  let before = await H.queryState();
+  for (let i = 0; i < 4 && before?.guest?.lrigDown === true; i++) {
+    const re = await injectScenario(page, v177Spec(expectNegated));
+    if (re.error) return { pass: false, detail: `再注入失敗=${re.error}` };
+    await page.waitForTimeout(400);
+    before = await H.queryState();
+    H.log(`  ${tag} 再注入[${i}] gLrigDown=${before?.guest?.lrigDown} phase=${before?.turnPhase}`);
+  }
+  const life0 = before?.host?.life ?? 0;
+  H.log(`開始 hLife=${life0} gLrigDown=${before?.guest?.lrigDown} phase=${before?.turnPhase}`);
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    // ⚠**「ガードしない」は押してよい**（無効化されていればそもそも問われない＝押せる時点で対照側）。
+    // 🔴🔑**`H.stdStep()` は呼ばない**（2026-09-07・連続実行で1往復した）＝あれはフェイズ進行ボタンも押すので、
+    //   **CPU がアタックを宣言する前に自分でフェイズを飛ばして**「ライフが減らなかった＝無効化された」と
+    //   誤判定する。アタックは CPU が自分で進めるので、こちらは応答だけ押して待つ。
+    const did = await H.clickTextOrBtn(['ガードしない', 'しない', 'エナに送る', 'ライフバーストなし', 'OK', '決定', 'はい']);
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} gLrigDown=${st?.guest?.lrigDown} phase=${st?.turnPhase} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    const attacked = st?.guest?.lrigDown === true;
+    const crashed = (st?.host?.life ?? 99) <= life0 - 1;
+    // ⚠**アタック前にフェイズが進んでいたら前提崩れ**＝部屋を使い回すので前シナリオの進行が残ることがある。
+    if (!attacked && st?.turnPhase && !['ATTACK_LRIG', 'ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_ARTS_OP'].includes(st.turnPhase)) {
+      return { pass: false, detail: `前提崩れ＝ルリグアタックが宣言される前にフェイズが ${st.turnPhase} へ進んだ` };
+    }
+    if (crashed) {
+      return expectNegated
+        ? { pass: false, detail: `🔴無効化されずライフが減った（${life0}→${st.host.life}）＝cancel_current_lrig_attack が効いていない` }
+        : { pass: true, detail: `対照＝【ライフバースト】の有無が不一致なので無効化されず、ライフが減った（${life0}→${st.host.life}）` };
+    }
+    // アタック宣言（ルリグダウン）が済み、スタックも空で、フェイズが先へ進んだらアタックは終わっている。
+    if (attacked && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && st?.turnPhase !== 'ATTACK_LRIG') {
+      return expectNegated
+        ? { pass: true, detail: `ルリグアタックが無効化された（宣言済み gLrigDown=true・ライフは ${life0} のまま・phase=${st.turnPhase}）` }
+        : { pass: false, detail: `🔴対照が崩れた＝不一致なのにライフが減っていない（life=${st?.host?.life} phase=${st?.turnPhase}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（hLife=${fin?.host?.life} gLrigDown=${fin?.guest?.lrigDown} phase=${fin?.turnPhase} logs=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+}
+
+scenarios.v177LrigAttackNegatedOnMatch = {
+  title: 'V-177(1): 両デッキトップのLB有無が一致 → 進行中のルリグアタックが無効化される',
+  spec: v177Spec(true),
+  async drive(page, H) { return driveV177(page, H, true); },
+};
+scenarios.v177LrigAttackHitsOnMismatch = {
+  title: 'V-177(2): 対照＝LB有無が不一致 → 無効化されずライフが1枚減る',
+  spec: v177Spec(false),
+  async drive(page, H) { return driveV177(page, H, false); },
+};
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-176`＝**デッキ/トラッシュのシグニを「基本レベル1」として探せる**（§5.3 `O-270`・2026-09-07）。
+// 原文（`WXDi-P01-039` 羅星姫 サタン）＝「【常】：あなたの**デッキとトラッシュにある**レベル３と
+//   レベル２のシグニの**基本レベルは１になる**。」
+// 🔴engine 経路（収集→`execSearch` の `searchCardMap` 差し替え）は golden で正負とも固定済み＝
+//   ここで残っていたのは **`BattleScreen` が `collectDeckTrashLevel1Nums(..., battleCardMap)` を
+//   実際に渡しているか**の1点だけ（判定ロジックは無く、引数を渡すだけの7箇所）。
+// 🔑**観測カード**＝`WX13-061`（羅星 カプスフォー）の【出】＝《白×1》で
+//   「デッキから**レベル1**のシグニを2枚まで探して場に出す」。デッキには**レベル2のシグニしか置かない**ので、
+//   宣言が効いていなければ候補0＝何も出ない。
+// ⚠**必ず対で回す**＝(1) サタンが場にいる＝レベル2のシグニが出る (2) 対照＝いない＝出ない。
+// ⚠リミット＝ルリグは `WXK01-001`（Lv4/Limit11）。サタン(3)＋カプスフォー(4)＋フランベル(2)＝9 で収まる。
+// ⚠`WX13-061` の `Restriction` は「サシェ限定」だが**デッキ構築のルール**＝盤面注入では効かない。
+// ═════════════════════════════════════════════════════════════════════════════
+const v176Spec = (withDeclarer) => ({
+  hostSet: {
+    // 🔴**ルリグは＜サシェ＞にする**＝`WX13-061` は `Restriction=サシェ限定` で、
+    //   `BattleScreen.tsx:8946` の `meetsRestriction` が**手札アクションを1つも出さない**
+    //   （2026-09-07 の実測で1往復した＝「召喚」ボタンが最後まで現れなかった）。
+    //   `WX13-007`（サシェ・リュンヌ Lv5/Limit12）＝リュンヌ(–)＋カプスフォー(4)＋サタン(3)＋フランベル(2)=9。
+    'field.lrig': ['WX13-007#7601'],
+    'field.signi': withDeclarer ? [['WXDi-P01-039#7602'], null, null] : [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], trash: [], coins: 0,
+    energy: ['WD01-013#7610'],                 // 白×1（【出】の任意コスト）
+    // 🔑**レベル2のシグニだけ**を置く＝宣言が効かなければ「レベル1」の候補は0件。
+    deck: ['WD01-012#7611', 'WD01-012#7612', 'WD01-010#7613'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#7690'],
+    'field.signi': [null, null, null],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  handPrepend: ['WX13-061#7620'],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV176(page, H, expectFound) {
+  const tag = expectFound ? 'v176With' : 'v176Without';
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`開始 field=${JSON.stringify(before?.host?.fieldSigni)} deck=${before?.host?.deck} ena=${before?.host?.energy}`);
+  H.log(`カプスフォーを手札から: ${await H.clickTestId('my-hand-card-0') ?? '見つからず'}`);
+  let summoned = false, placedLv2 = false, settled = 0, costPicked = false;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+    }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+    // 【出】の任意コスト《白×1》＝エナを選んで支払う。
+    // 【出】の任意コスト＝`SigniOnPlayCostModal`（`onplaycost-energy-*`）。
+    // 🔴**エナは1回だけ押す**（§4.4-2c＝毎ティック押すとトグルで外れ、「発動」が永久に有効にならない）。
+    if (!did && !costPicked) {
+      const e0 = page.getByTestId('onplaycost-energy-0').first();
+      if (await e0.count() && await e0.isVisible().catch(() => false)) {
+        await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; costPicked = true;
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動']);
+    // SEARCH ピッカー＝⚠**1回だけ押す**（§4.4-2c＝毎ティック押すとトグルで外れる）。
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    const field = JSON.stringify(st?.host?.fieldSigni ?? []);
+    if (field.includes('WD01-012')) placedLv2 = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | field=${field} deck=${st?.host?.deck} placedLv2=${placedLv2} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (placedLv2) break;
+    const idle = !did && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    if (summoned && idle) { settled++; if (settled >= 3) break; } else settled = 0;
+  }
+  const fin = await H.queryState();
+  const field = JSON.stringify(fin?.host?.fieldSigni ?? []);
+  // ⚠**判定の先頭に前提**（§4.4-3b）＝カプスフォー自身が場に出ていなければ【出】を語れない。
+  if (!field.includes('WX13-061')) {
+    return { pass: false, detail: `前提崩れ＝カプスフォーが場に出ていない（field=${field}）` };
+  }
+  if (expectFound) {
+    return placedLv2
+      ? { pass: true, detail: `宣言が効き、**レベル2**のシグニが「レベル1」として探せて場に出た（field=${field}）` }
+      : { pass: false, detail: `🔴レベル2のシグニが候補に出ない＝BattleScreen が cardMap を渡していない（field=${field}）` };
+  }
+  return placedLv2
+    ? { pass: false, detail: `🔴対照が崩れた＝宣言者がいないのにレベル2が出た（field=${field}）` }
+    : { pass: true, detail: `対照＝宣言者がいなければレベル1の候補は0件で何も出ない（field=${field}）` };
+}
+
+scenarios.v176DeckTrashLevel1SearchFinds = {
+  title: 'V-176(1): 羅星姫サタンが場にあると、デッキのレベル2シグニが「レベル1」として探せる',
+  spec: v176Spec(true),
+  async drive(page, H) { return driveV176(page, H, true); },
+};
+scenarios.v176DeckTrashLevel1SearchNoDeclarer = {
+  title: 'V-176(2): 対照＝宣言者がいなければレベル1の候補は0件',
+  spec: v176Spec(false),
+  async drive(page, H) { return driveV176(page, H, false); },
+};
+order.push('v176DeckTrashLevel1SearchFinds');
+order.push('v176DeckTrashLevel1SearchNoDeclarer');
+
+order.push('v177LrigAttackNegatedOnMatch');
+order.push('v177LrigAttackHitsOnMismatch');
+
+order.push('v178RideUsableInAttackPhase');
+order.push('v178RideNotUsableWithoutBike');
+
 scenarios.o266GuardAltEnergyGuardCard = mkO266GuardAltEnergyGuardCard(true);
 order.push('o266GuardAltEnergyGuardCard');
 scenarios.o266GuardAltNoEnergy = mkO266GuardAltEnergyGuardCard(false);

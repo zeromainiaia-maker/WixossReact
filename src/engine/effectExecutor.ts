@@ -5138,10 +5138,16 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   if (ctx.deckTrashLevel1Nums && ctx.deckTrashLevel1Nums.size > 0) {
     const overrides = new Map(ctx.cardMap);
     for (const cn of ctx.deckTrashLevel1Nums) {
-      if (pool.includes(cn)) {
-        const card = ctx.cardMap.get(cn);
-        if (card) overrides.set(cn, { ...card, Type: 'シグニ', Level: '1' });
-      }
+      if (!pool.includes(cn)) continue;
+      // 🔴🔑**キーは instanceId ではなく CardNum**（2026-09-07・`V-176` の実機で発覚）＝
+      //   `pool` と `deckTrashLevel1Nums` は **instanceId**（`WD01-012#7611`）だが、
+      //   読み手の `matchesSearchPool` は `searchCardMap.get(getCardNum(n))`＝**CardNum で引く**。
+      //   旧実装は instanceId をキーに書いていたので**誰も読まないエントリ**になり、
+      //   実機では候補が常に0件＝恒久 no-op だった（golden は素の CardNum で state を組むので緑のまま）。
+      //   ⚠すぐ下の `deck_signi_level_override` は最初から `getCardNum(n)` で正しく書いている（同じ規約に揃えた）。
+      const baseCn = getCardNum(cn);
+      const card = ctx.cardMap.get(baseCn);
+      if (card) overrides.set(baseCn, { ...card, Type: 'シグニ', Level: '1' });
     }
     searchCardMap = overrides;
   }
