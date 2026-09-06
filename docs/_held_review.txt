@@ -3,15 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［2枚］
-SPDi44-16 WX25-P1-030
---- SPDi44-16
-  原文: 【起】《ターン１回》《黒》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜古代兵器＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。【起】《ゲーム１回》プライマル　シグニを３体まで場からトラッシュに置く：あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につきシグニ１枚を対象とし、
-  ~ [1].action.source.count.$ref : "last_processed_count" → "last_cost_field_trash_count"
---- WX25-P1-030
-  原文: 【起】《ターン１回》《黒》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜古代兵器＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。【起】《ゲーム１回》プライマル　シグニを３体まで場からトラッシュに置く：あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につきシグニ１枚を対象とし、
-  ~ [1].action.source.count.$ref : "last_processed_count" → "last_cost_field_trash_count"
-
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002

@@ -1226,6 +1226,16 @@ export interface EffectCost {
   // 忠実実装には起動時に「1つ分を手札捨てに振り替えるか」を問う支払いUIが要る（CONTINUOUS COST_SUBSTITUTE
   // の色オーバーライド経路＝WX08-042/WX21-044 とは別＝エナゾーン外からの支払いなので表現できない）。
   costSubstitute?: { originalCost: EnergyCost; discardFromHand?: { count: number; filter?: TargetFilter } };
+  /**
+   * 🆕**「〈領域A〉と〈領域B〉と〈領域C〉にある《カード名》を1枚**ずつ**ゲームから除外する」**
+   * （2026-09-07・意味照合 段2・`WXDi-P13-089-E3`・**実測1効果**）。
+   * 🔴**`trashExile` では表せない**＝あちらは1領域ぶん＝原文の3領域のうち**トラッシュ1枚だけ**になり、
+   *   手札とエナゾーンのぶんを**踏み倒して撃てた**（このカードは自身の同名カードを3領域から失うのが重さ）。
+   * ⚠**「1枚ずつ」＝各領域から `count` 枚**（合計 `count` 枚ではない）。
+   * ⚠支払いは**自動**（`filter` が `cardName` で一意なのでどれを選んでも等価）＝選択UIを作らない。
+   *   判定と支払いは `screens/battle/multiZoneExileCost.ts` の2関数だけを通す。
+   */
+  multiZoneExile?: { zones: ('hand' | 'energy' | 'trash')[]; count: number; filter?: TargetFilter };
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
   fieldExileSelf?: boolean;    // 場にあるこのシグニをゲームから除外する
   /**

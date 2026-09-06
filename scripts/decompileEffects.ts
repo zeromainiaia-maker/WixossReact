@@ -827,6 +827,11 @@ function costJa(c?: any): string {
   if (c.life_crash != null) parts.push(`ライフクロス${c.life_crash}枚をクラッシュする`);
   if (c.lifeTrash != null) parts.push(`ライフクロス${c.lifeTrash}枚をトラッシュに置く`);
   if (c.lifeToHand != null) parts.push(`ライフクロス${c.lifeToHand}枚を手札に加える`);
+  // 🆕意味照合 段2（2026-09-07）＝複数領域から1枚ずつ除外（`trashExile` の1領域近似を置き換えた）。
+  if (c.multiZoneExile) {
+    const ZJA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ' };
+    parts.push(`${c.multiZoneExile.zones.map((z: string) => ZJA[z] ?? z).join('と')}にある${filterJa(c.multiZoneExile.filter)}カード${c.multiZoneExile.count}枚ずつをゲームから除外する`);
+  }
   if (c.trashExile) {
     parts.push(c.trashExile.self
       ? 'トラッシュにあるこのカードをゲームから除外する'

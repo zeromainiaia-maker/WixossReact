@@ -882,8 +882,21 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   if (ltM) cost.lifeTrash = parseNum(ltM[1]);
   const lhM = costStr.match(/ライフクロス([０-９\d]+)枚を手札に加える/);
   if (lhM) cost.lifeToHand = parseNum(lhM[1]);
+  // 🆕**複数領域から1枚ずつ除外**（2026-09-07・意味照合 段2・`WXDi-P13-089-E3`・実測1効果）＝
+  //   「手札とエナゾーンとトラッシュにある《X》を**１枚ずつ**ゲームから除外する」。
+  // 🔴下の `trashExile` に落ちると**トラッシュ1枚だけ**になり、手札とエナの2枚を踏み倒せる。
+  //   ⇒ **`trashExile` より先に**判定する（順序が逆だと同じ文が1領域に丸まる）。
+  {
+    const mzM = costStr.match(/((?:手札|エナゾーン|トラッシュ)(?:と(?:手札|エナゾーン|トラッシュ))+)にある《([^》]+)》を([０-９\d]+)枚ずつゲームから除外する/);
+    if (mzM) {
+      const zoneJa = mzM[1].split('と');
+      const zones = zoneJa.map(z => (z === '手札' ? 'hand' : z === 'エナゾーン' ? 'energy' : 'trash') as 'hand' | 'energy' | 'trash');
+      cost.multiZoneExile = { zones, count: parseNum(mzM[3]), filter: { cardName: mzM[2] } };
+    }
+  }
   // トラッシュにあるカードをゲームから除外するコスト → trashExile
-  if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
+  if (cost.multiZoneExile) { /* 上で拾い済み＝1領域へ丸めない */ }
+  else if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
     cost.trashExile = { self: true };
   } else {
     const teNamedM = costStr.match(/トラッシュにある《([^》]+)》([０-９\d]+)枚をゲームから除外する/);
@@ -1123,13 +1136,9 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
       cost.energyTrash = { count: parseNum(etDistinctM[2]), filter: { cardName: etDistinctM[1] }, selectionConstraint: { distinct: 'name' } };
     }
   }
-  // 手札とエナゾーンとトラッシュにある《XXX》をN枚ずつゲームから除外する → trashExile で近似
-  if (!cost.trashExile) {
-    const multiExileM = costStr.match(/手札とエナゾーンとトラッシュにある《([^》]+)》を([０-９\d]+)枚ずつゲームから除外する/);
-    if (multiExileM) {
-      cost.trashExile = { count: parseNum(multiExileM[2]), filter: { cardName: multiExileM[1] } };
-    }
-  }
+  // 🏁**旧「手札とエナゾーンとトラッシュ…→ `trashExile` で近似」はここから撤去した**
+  //   （2026-09-07・意味照合 段2・`WXDi-P13-089-E3`）＝近似すると**3領域のうちトラッシュ1枚だけ**になり、
+  //   手札とエナの2枚を**踏み倒して撃てた**。いまは上の `multiZoneExile` が正しい形で拾う。
   // 【トラップ】であるこのカードを公開するコスト → none（特殊コスト）
   if (/【トラップ】であるこのカードを公開する/.test(costStr)) cost.none = true;
   // コラボコスト → none（ゲーム実装外コスト）

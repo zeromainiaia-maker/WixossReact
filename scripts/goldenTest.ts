@@ -142,6 +142,7 @@ import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { PIECE_CUTIN_COMMIT_ORDER } from '../src/screens/battle/pieceCutinCommit';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
+import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
@@ -70183,6 +70184,39 @@ test('意味照合 段2 WXK10-004-E1: 場以外の5領域が対戦相手の効�
   const selfCtx = { ...selfBase, ownerState: { ...selfBase.ownerState, ...guarded(['trash']) } } as ExecCtx;
   ok(finish(executeAction(selfExile, selfCtx), selfCtx).ownerState.trash.length < selfCtx.ownerState.trash.length,
     '自分の効果で自分のトラッシュは動かせる');
+}));
+
+// ── 意味照合 段2（2026-09-07）＝`WXDi-P13-089-E3` 3領域から1枚ずつ除外するコスト ──
+// 🔴旧 live は `trashExile{count:1}`＝**トラッシュ1枚だけ**で、手札とエナの2枚を踏み倒して撃てた。
+test('意味照合 段2 WXDi-P13-089-E3: 手札とエナとトラッシュから1枚ずつ除外して初めて撃てる', () => withSavedCursor(() => {
+  const live = effectsMap.get('WXDi-P13-089')?.find(e => e.effectId === 'WXDi-P13-089-E3');
+  const mz = live?.cost?.multiZoneExile;
+  eq(mz?.zones.join(','), 'hand,energy,trash', '3領域すべてがコストに載る');
+  eq(mz?.count, 1, '各領域から1枚ずつ');
+  eq(mz?.filter?.cardName, '夢限//ディソナ', '同名カード限定');
+  eq(live?.cost?.trashExile, undefined, '🔴1領域への近似（trashExile）へ戻っていない');
+
+  // ⚠プールに入れるのは**カード番号**（`matchesFilter` は `cardMap` を引いて `CardName` を見る）。
+  const NAME = 'WXDi-P13-089';           // カード名＝《夢限//ディソナ》
+  const other = [...cardMap.values()].find(c => c.CardName !== '夢限//ディソナ')!.CardNum;
+  const mkS = (hand: string[], energy: string[], trash: string[]) =>
+    ({ ...mkState({}), hand, energy, trash, excluded: [] });
+  // 1領域でも足りなければ払えない（＝提示もされない）。
+  eq(multiZoneExileAffordable(mkS([NAME], [NAME], [NAME]), mz, cardMap), true, '3領域そろえば払える');
+  eq(multiZoneExileAffordable(mkS([NAME], [NAME], [other]), mz, cardMap), false, '🔴トラッシュに無ければ払えない');
+  eq(multiZoneExileAffordable(mkS([other], [NAME], [NAME]), mz, cardMap), false, '🔴手札に無ければ払えない');
+  eq(multiZoneExileAffordable(mkS([NAME], [other], [NAME]), mz, cardMap), false, '🔴エナに無ければ払えない');
+
+  // 支払い＝各領域から1枚ずつ消えて `excluded` に3枚入る（トラッシュへは戻らない）。
+  const before = mkS([NAME, other], [NAME, other], [NAME, other]);
+  const paidMZ = payMultiZoneExileCost(before, mz, cardMap);
+  ok(!!paidMZ, '払える盤面では支払いが成立する');
+  eq(paidMZ!.exiled.length, 3, '3枚を除外した');
+  eq(paidMZ!.state.hand.join(','), other, '手札から1枚だけ減る');
+  eq(paidMZ!.state.energy.join(','), other, 'エナから1枚だけ減る');
+  eq(paidMZ!.state.trash.join(','), other, 'トラッシュから1枚だけ減る');
+  eq((paidMZ!.state.excluded ?? []).length, 3, '🔴ゲームから除外＝トラッシュに戻さない');
+  eq(payMultiZoneExileCost(mkS([NAME], [NAME], [other]), mz, cardMap), null, '払えないときは null（踏み倒さない）');
 }));
 
 if (listMode) {

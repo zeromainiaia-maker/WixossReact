@@ -1881,3 +1881,11 @@ WX25-P1-030-E2 :: シグニを３体まで
 #   （旧実装は「手札は移動しない」宣言中でも**除外だけ通っていた**）。
 #   ⚠「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）は `excludeCrash` で表す。
 WXK10-004-E1 :: 場以外のあなたの領域
+# WXDi-P13-089-E3＝「【起】**手札とエナゾーンとトラッシュにある《夢限//ディソナ》を１枚ずつ**ゲームから
+#   除外する：」が `trashExile{count:1}`＝**トラッシュ1枚だけ**＝手札とエナの2枚を踏み倒して撃てた
+#   （parser に「→ trashExile で近似」と書かれた規則が在った＝**近似が明示されたまま3年放置**）。
+#   ⇒ `EffectCost.multiZoneExile{zones,count,filter}` を新設。判定と支払いは
+#   `screens/battle/multiZoneExileCost.ts` の2関数だけ（提示ゲート＝`signiActivateGate`／
+#   支払い＝`performSigniActivated`）。⚠**自動支払い**（`cardName` 一意でどれを除外しても等価）＝選択UIは作らない。
+#   ⚠行き先は `excluded`（`trashExile` の `lrig_trash` 近似とは別）。
+WXDi-P13-089-E3 :: 手札とエナゾーンとトラッシュ

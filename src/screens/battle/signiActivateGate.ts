@@ -7,6 +7,7 @@ import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLi
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
 import { energyTrashCostSatisfied, handDiscardSigniAffordable, trashExileAffordable } from './costs';
+import { multiZoneExileAffordable } from './multiZoneExileCost';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
 //   トラッシュ【起】と同じ funnel を使う（写経しない）。
 import { canOfferTrashActivate } from './trashActivateCost';
@@ -208,6 +209,9 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   旧＝トラッシュ枚数すら見ておらず、**同名3枚しか無くても提示され支払いも通っていた**。
     //   ⚠支払いUI（`SigniActivatedModal` / `LrigGrantedModal`）と**同じ判定関数群**を通す。
     !(e.cost?.trashExile && !trashExileAffordable(my.trash, e.cost.trashExile, cardMap)) &&
+    // 🆕`multiZoneExile`＝「手札とエナゾーンとトラッシュにある《X》を1枚**ずつ**除外する」（意味照合 段2）。
+    //   🔴旧は `trashExile` 1領域ぶんしか無く、手札とエナの2枚を**踏み倒して撃てた**。
+    multiZoneExileAffordable(my, e.cost?.multiZoneExile, cardMap) &&
     !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
       my, zoneIndex, e.cost.underSelfTrash.count, cardMap,
       e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,

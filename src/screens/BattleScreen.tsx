@@ -29,6 +29,7 @@ import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { payFieldBanishCost } from './battle/fieldBanishCost';
 import { payFieldTrashCost } from './battle/fieldTrashCost';
+import { payMultiZoneExileCost } from './battle/multiZoneExileCost';
 import { payFieldToDeckTopCost } from './battle/fieldToDeckTopCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
@@ -14587,6 +14588,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!beatPay.ok) { setLoading(false); return; } // 支払い不能（対象不足）
         paid = beatPay.state;
         payLogs.push(beatPay.log);
+      }
+      // 🆕`multiZoneExile`（意味照合 段2・`WXDi-P13-089-E3`）＝「手札とエナゾーンとトラッシュにある
+      //   《X》を1枚**ずつ**ゲームから除外する」。⚠**自動支払い**（`filter` が `cardName` で一意なので
+      //   どれを除外しても等価）＝選択UIは作らない。可否は `signiActivateGate` と**同じ関数**。
+      if (cost?.multiZoneExile) {
+        const mzPay = payMultiZoneExileCost(paid, cost.multiZoneExile, battleCardMap);
+        if (!mzPay) { setLoading(false); return; } // 支払い不能（UI側でも非提示）
+        paid = mzPay.state;
+        payLogs.push(`${cost.multiZoneExile.zones.map(z => (z === 'hand' ? '手札' : z === 'energy' ? 'エナゾーン' : 'トラッシュ')).join('と')}から${mzPay.exiled.length}枚をゲームから除外（コスト）`);
       }
       // beat_signi_from_trash: トラッシュからシグニを【ビート】にするコスト（WDK14-013・自動選択近似）
       if ((cost?.beat_signi_from_trash?.count ?? 0) > 0) {

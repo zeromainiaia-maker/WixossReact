@@ -2183,13 +2183,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   {
     const movesJa = /(?:他の領域|トラッシュ|デッキとトラッシュ)に移動しない/;
     if (/対戦相手の効果(?:によって|は)/.test(t) && movesJa.test(t)
-        && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス(?:は|が)/.test(t)) {
+        && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス/.test(t)) {
       const zones: import('../../types/effects').OppMoveImmunityZone[] = [];
       if (/場以外の(?:あなたの)?領域/.test(t)) { zones.push('hand', 'energy', 'deck', 'trash', 'life'); }
       else {
         if (/エナゾーン/.test(t)) zones.push('energy');
         if (/手札/.test(t)) zones.push('hand');
-        if (/トラッシュにある/.test(t)) zones.push('trash');
+        // ⚠**「トラッシュにある」を足してはいけない**（2026-09-07 に実測で踏んだ）＝
+        //   「**対戦相手の**トラッシュにあるカードは**対戦相手の**効果によって移動しない」（`WX24-P4-007` ほか2枚）は
+        //   **相手の自分自身への封じ**＝別の受け皿（`STUB{LOCK_OPP_TRASH_MOVE}`）が持っている。
+        //   ここへ流すと自分側の保護に化ける。
       }
       if (zones.length > 0) {
         // 「このターンと次のターンの間」「次の対戦相手のターン（終了時まで）」＝2ターン。

@@ -21,6 +21,6 @@
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 12 | 12 | BattleScreen.tsx:10609 | normalizeBattleRow | `'アタックできる'` |
-| 1 | 1 | BattleScreen.tsx:984 | normalizeBattleRow | `/そのルリグの【常】能力を得る/` |
-| 1 | 1 | BattleScreen.tsx:10609 | normalizeBattleRow | `'シグニゾーンにもアタックする'` |
+| 12 | 12 | BattleScreen.tsx:10610 | normalizeBattleRow | `'アタックできる'` |
+| 1 | 1 | BattleScreen.tsx:985 | normalizeBattleRow | `/そのルリグの【常】能力を得る/` |
+| 1 | 1 | BattleScreen.tsx:10610 | normalizeBattleRow | `'シグニゾーンにもアタックする'` |
