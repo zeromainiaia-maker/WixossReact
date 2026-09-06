@@ -3,6 +3,16 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## +AND +IS_SELF_UP ［1枚］
+WX11-036
+--- WX11-036
+  原文: 【常】：対戦相手のターンの間、このシグニはアップ状態であるかぎり対戦相手の効果を受けない。【自】：場にあるこのシグニが効果によって他のシグニゾーンに移動したとき、対戦相手のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。,-
+  - [0].activeCondition.owner = "opponent"
+  ~ [0].activeCondition.type : "TURN_OWNER" → "AND"
+  + [0].activeCondition.conditions[0].type = "TURN_OWNER"
+  + [0].activeCondition.conditions[0].owner = "opponent"
+  + [0].activeCondition.conditions[1].type = "IS_SELF_UP"
+
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002

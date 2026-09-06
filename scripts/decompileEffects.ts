@@ -1321,6 +1321,9 @@ function condJa(c?: any): string {
     case 'FIELD_LRIGS_HAVE_COLORS': return `${ownerJa(c.owner)}場に${(c.colors || []).join('と')}のルリグがいる`;
     case 'IS_BOOSTING': return 'このアーツでブースト（追加エナ）を支払っていた';
     case 'IS_SELF_DOWN': return 'このシグニがダウン状態';
+    // 🆕2026-09-07 第206バッチ＝`IS_SELF_UP` は case が無く `[条件:IS_SELF_UP]` と生英語 id で出ていた
+    //   （`WXDi-P04-050-E1/E2`／`WXDi-P07-056-E1`／`WX11-036-E1`）＝原文照合という主軸の検査が効かない。
+    case 'IS_SELF_UP': return 'このシグニがアップ状態';
     case 'LAST_LOOK_TRASHED_MATCHES': return `この方法でトラッシュに置いたカードに${filterJa(c.filter)}カードが${numJa(c.minCount ?? 1)}枚以上ある`;
     case 'LAST_PROCESSED_HAS_NO_ABILITIES': return 'この方法で処理したカードが能力を持たない';
     case 'LIFE_CRASHED_LAST_TURN': return `前のターンに${ownerJa(c.owner)}ライフクロスが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた`;

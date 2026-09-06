@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第206バッチ・O-A／Opus 5）＝**意味照合 findings の triage 9件**（未triage 43 → 33）＝**真バグ1件・偽陽性8件（FP 型2つを規則18/19へ還元）**
+
+**この回の作業単位**＝ユーザー指示「**O-A** を行う」（PLAN §5.0 Opus レーン）。第205バッチが Sheet1 を一括消化して残した
+**未 triage 43件**から、**同型が固まっている2クラスタ（計9件）**を取った。§5.0 の周期どおり **5〜8件ずつ**の範囲。
+
+⑤**実機は不要と判定**（PLAN §2.2）＝触ったのは `src/data/effectParser.ts`・`public/data/`・`scripts/` のみで、
+**`src/screens/` も `src/engine/` も触っておらず、新しい型・機構も足していない**。④ゲートまでで閉じる。
+
+### ① triage 結果
+
+| クラスタ | 件数 | 判定 | 根拠（engine の受け皿） |
+|---|---|---|---|
+| **パワー修正に `duration` が無い＝恒久のはず** | **5**（`WX04-037-BURST` / `WX06-019-BURST` / `WX10-051-BURST` / `WX04-103-E1` / `WX05-015-E1`） | **FP** | `duration` を書かないと `effectExecutor.ts:2188` が **`temp_power_mods`** を選び、`turnScopedState.ts:444`・`BattleScreen.tsx:4740/12907` が**ターン終了時に必ずクリア**する＝**無指定こそが「ターン終了時まで」**。`duration` は**ターン終了より長い**もの（`UNTIL_OPP_TURN_END` / `UNTIL_NEXT_OWN_TURN_END`）専用の語彙。`POWER_MODIFY_PER_LEVEL_SUM` も解決後に `applyDirectAction` で同じ store へ落ちる。効果トップの `duration:"INSTANT"` はパワー修正の寿命と無関係 |
+| **【常】の `target.count:1` に `thisCardOnly` が無い** | **3**（`WX08-005-E2` / `WX03-028-E2` / `WX04-049-E1`） | **FP** | engine は【常】の `count !== 'ALL'` を**効果元シグニ自身**として解決する＝`POWER_SET`（`effectEngine.ts:2482`「count !== 'ALL' = このシグニのみ」）／`SET_BASE_LEVEL`（`applyContinuousBaseLevelOverride` が場の top のみ上書き）／`GRANT_PROTECTION`（`collectProtectedSigni:6008` と `collectEffectImmuneSigni:6500` が `immune.add(sourceNum)`）。**3つの受け皿が揃って同じ規約**なので `thisCardOnly` は不要 |
+| **`WX11-036-E1` の activeCondition が原文と違う** | **1** | 🔴**BUG（修正済み）** | 下記② |
+
+**precision＝1/9（11%）**。⚠第205バッチの ledger が予測していたとおり、**「finding 頻度が2倍になった」のは歩留まりの向上ではなく偽陽性率の上昇だった**
+（r4-01〜08 は 1.1件/バッチ、r4-09〜26 は 2.4件/バッチ）。⇒ **規則18/19 の還元がそのまま次の周期の効率になる。**
+
+### ② 真バグ1件＝`WX11-036-E1`「このシグニ**は**アップ状態であるかぎり」で `IS_SELF_UP` が丸ごと落ちていた
+
+**原文**＝`【常】：対戦相手のターンの間、このシグニはアップ状態であるかぎり対戦相手の効果を受けない。`
+**旧 live**＝`activeCondition: {type:'TURN_OWNER', owner:'opponent'}` ＝ **アップ／ダウンの条件が無い**。
+
+🔴**真因**＝先頭条件節の regex `^このシグニが(アップ|ダウン)状態であるかぎり、`（`effectParser.ts` パターン3f-3）が
+**①助詞 `が`→`は` ②直後の読点なし** の2点で外れ、条件節が**丸ごと**落ちていた
+（`checkActiveCondition` は case の無い条件を消すのではなく**条件そのものが無い**扱いにするので、**ダウン状態でも効果耐性が立つ**過剰実行）。
+
+**母集団＝1効果**（`npm run census:population -- "このシグニ[はが](アップ|ダウン)状態であるかぎり"` ＝ **7効果 / 6カード**のうち、
+**外れていたのは `WX11-036-E1` だけ**。同じ「対戦相手のターンの間、〜であるかぎり」文型の `WXDi-P07-056-E1` は `が`＋読点なので正しく AND に載っていた）。
+
+**直し方**＝`^このシグニ[はが](アップ|ダウン)状態であるかぎり(、?)`。`[はが]` は同ファイルの同族規則7箇所が**既にそうなっており、この1本だけが取り残されていた**。
+
+🔴🔑**「条件を足す」だけでは終わらなかった＝過小を直して過剰を作りかけた**：
+読点を optional にした瞬間、条件節が**主語「このシグニ」ごと**食い、後段の「対戦相手の効果を受けない」が主語を失って
+**`target.count` が `1`（自身）→ `'ALL'`（自分の全シグニ）**へ広がった（`build:effects` の held diff で発見）。
+⇒ **読点なしの分岐だけ主語を `rest` へ戻す**（読点つきは後続節が自前の主語を持つので不要）。
+
+**反転確認**＝live の `activeCondition` を旧形（`TURN_OWNER` 単独）へ戻して `golden -- --only "WX11-036-E1"` → **3本中2本 FAIL**、戻して 3/3 PASS。
+
+**golden 3本**＝①既存ミラー表 `kagiriCases` に1行（`IS_SELF_UP` が載ったか）②🆕**対象が `count:1` のままか**（過剰側の番人）
+③🆕`collectEffectImmuneSigni` で **相手ターン×アップ→耐性あり／相手ターン×ダウン→耐性なし／自分のターン×アップ→耐性なし**の3方向。
+🔑**②が要る理由**＝①だけだと「条件を足したが対象を広げた」ことに気づけない。
+
+### ③ 逆翻訳の穴を1つ塞いだ（`IS_SELF_UP`）
+
+`decompileEffects.ts` の `condJa` に `IS_SELF_UP` の case が無く、**逆翻訳が `[条件:IS_SELF_UP]` と生の英語 id を出していた**
+（`WXDi-P04-050-E1/E2`・`WXDi-P07-056-E1`・`WX11-036-E1` の4効果）。**原文照合という主軸の検査が効かない**ので `このシグニがアップ状態` を追加。
+（`census:stubs` C群ゲートは STUB id しか見ないので、この形は**どのゲートにも映っていなかった**。）
+
+### ④ O-C 還元＝プロンプト規則を **17本 → 19本**
+
+`scripts/semanticAuditExtract.mjs` の「追加の読み方ルール」に **規則18**（パワー修正の `duration` 省略は正準形）・
+**規則19**（【常】の `count:1` は自身）を追加。どちらも**規則16「engine は JSON の見た目を裏で読み替える」の系**。
+
+🔴🔑**この追記で `npm run gates` の lint が落ちた**＝規則本文は**テンプレートリテラルの中**にあるので、
+md の癖で `` `POWER_MODIFY` `` と書くと**そこで文字列が閉じて `.mjs` が Parsing error になる**＝
+**壊れるのはプロンプトではなく S-1 レーンごと**（`semanticAuditExtract.mjs` が起動しない）。
+⚠**`npm run typecheck` は `scripts/` を見ない**ので緑のまま通り、**捕まえたのは `eslint .` 1本だけ**。
+既存の規則13〜17 が識別子を `「…」` で囲っていたのは**この理由**だった（識別子は `「…」` で囲う）。
+
+### ⑤ ゲート
+
+**`npm run gates` 全緑**（typecheck / **golden 3573/3573** / smoke / fuzz / census / census-stubs / manual-fields / census-enginetext / census-costtext / lint）。
+`npm run regen` も実行済み（逆翻訳シートに ③ を反映）。
+
+
 ## 2026-09-07（第205バッチ・S-1／Sonnet 5）＝**意味照合 round4 Sheet1 完了**（残18バッチ／172枚を全消化＝252枚 / 26バッチ）
 
 **この回の作業単位**＝ユーザー指示「S-1で Sheet1 残18バッチをすべて行う」。**S-1（Sonnet レーン＝抽出・実行・簿記）のみ**を実施＝

@@ -9,3 +9,21 @@ WX11-044-BURST :: FP :: OPPONENT_PAY_OPTIONAL の既定の極性（払わなか�
 WX05-028-E1 :: BUG :: 「正面のシグニがアタックしたとき」が総称 ON_ATTACK_SIGNI へ落ち、engine の collectAttackerSelfTriggers が食って「自分がアタックしたとき」へ反転（parser 規則で ON_FRONT_SIGNI_ATTACK へ・grep で AUTO 2効果を修正）
 WX07-026-E1 :: BUG :: 「２枚まで」の枚数 regex が外れて既定1枚（LifeCrashAction.upToCount を新設して 0〜2 の選択に・母集団は1効果）
 WX05-006-E2 :: FP :: スペルも配線済み（spellUseGate.ts:146＋BattleScreen の手札ゲート）＝id 名が ARTS だけなのは表示名 → 規則17へ還元。⚠派生で別バグを発見＝適用範囲がシグニ召喚まで広い（PLAN §5.3 O-268 へ登録）
+# ── 第206バッチ（2026-09-07・O-A triage 第2回／9件）──
+# 型①「パワー修正に duration が無い＝恒久」＝FP 5件 → 規則18へ還元。
+#   engine は duration 無しを temp_power_mods へ積み、ターン終了時に必ずクリアする
+#   （effectExecutor.ts:2188 の powerModKey ／ turnScopedState.ts:444・BattleScreen 4740/12907）。
+#   duration は「ターン終了より長い」ときだけ書く語彙（UNTIL_OPP_TURN_END / UNTIL_NEXT_OWN_TURN_END）。
+WX04-037-BURST :: FP :: POWER_MODIFY に duration 無し＝既定で temp_power_mods（ターン終了クリア）→ 規則18へ還元
+WX06-019-BURST :: FP :: 同上（トップの duration:"INSTANT" はパワー修正の寿命と無関係）→ 規則18
+WX10-051-BURST :: FP :: 同上 → 規則18
+WX05-015-E1 :: FP :: 同上 → 規則18
+WX04-103-E1 :: FP :: POWER_MODIFY_PER_LEVEL_SUM も解決後に applyDirectAction で temp_power_mods へ落とす → 規則18
+# 型②「CONTINUOUS の count:1 に thisCardOnly が無い」＝FP 3件 → 規則19へ還元。
+#   engine は【常】の count!=='ALL' を効果元シグニ自身として解決する
+#   （POWER_SET＝effectEngine.ts:2482／SET_BASE_LEVEL＝applyContinuousBaseLevelOverride
+#    ／GRANT_PROTECTION＝collectProtectedSigni:6008・collectEffectImmuneSigni:6500）。
+WX03-028-E2 :: FP :: POWER_SET count:1 は自身（effectEngine.ts:2482「count !== 'ALL' = このシグニのみ」）→ 規則19
+WX04-049-E1 :: FP :: SET_BASE_LEVEL は applyContinuousBaseLevelOverride が効果元 top のみ上書き → 規則19
+WX08-005-E2 :: FP :: GRANT_PROTECTION owner:self count:1 → immune.add(sourceNum) → 規則19
+WX11-036-E1 :: BUG :: 「このシグニ**は**アップ状態であるかぎり」＋読点なしで先頭条件節 regex が外れ IS_SELF_UP が丸ごと落ちる＝ダウン中も効果耐性が立つ過剰実行（母集団1効果。同文型の WXDi-P07-056-E1 は「が」＋読点で正常）。⚠条件を足すだけだと主語を食って target.count が 1→ALL に広がる（読点なしは主語を rest へ戻す）

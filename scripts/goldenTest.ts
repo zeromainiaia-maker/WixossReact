@@ -49973,6 +49973,7 @@ const kagiriCases = [
   { effectId: 'WX15-038-E1', want: '"IS_SELF_ACCED"', why: 'このシグニ「は」アクセされているかぎり' },
   { effectId: 'WDK12-015-E1', want: '"IS_SELF_CHARMED"', why: 'このシグニに【チャーム】が付いているかぎり' },
   { effectId: 'WXDi-P04-050-E1', want: '"IS_SELF_UP"', why: 'このシグニがアップ状態であるかぎり' },
+  { effectId: 'WX11-036-E1', want: '"IS_SELF_UP"', why: 'このシグニ「は」アップ状態であるかぎり（読点なし・第206バッチ）' },
   { effectId: 'WXDi-P08-059-E1', want: '"IS_SELF_DOWN"', why: 'このシグニがダウン状態であるかぎり' },
   { effectId: 'WXDi-P10-059-E1', want: '"isFrozen":true', why: '対戦相手の場に凍結状態のシグニがあるかぎり' },
   { effectId: 'WX19-021-E1', want: '"story":"ウェポン"', why: '場に＜C＞の（←「の」）シグニがあるかぎり' },
@@ -49994,6 +49995,36 @@ for (const spec of kagiriCases) {
     ok(s.includes(spec.want), `原文どおりのゲート ${spec.want}（実際 ${s}）`);
   });
 }
+
+// 🆕**§5.0 O-A triage 第206バッチ（2026-09-07）＝`WX11-036-E1`「対戦相手のターンの間、このシグニ**は**
+//   アップ状態であるかぎり対戦相手の効果を受けない」。** 助詞 `は` と**読点なし**の2点で先頭条件節の
+//   regex が外れ、`IS_SELF_UP` が丸ごと落ちて**ダウン状態でも耐性が立って**いた（重い過剰実行）。
+// 🔴**この修正は「条件を足す」だけでは終わらない**＝条件節が主語「このシグニ」を食うと、
+//   後段の `対戦相手の効果を受けない` が主語を失って `target.count` が **1 → 'ALL'**（自分の全シグニ）へ
+//   広がる。読点なしの形では主語を rest へ戻す（`effectParser.ts` パターン3f-3）。
+//   ⇒ **条件と対象の両方を assert する**（片方だけだと過小を直して過剰を作ったことに気づけない）。
+test('§5.0 O-A live WX11-036-E1: 助詞「は」＋読点なしでも対象は自身1体のまま（ALL へ広がらない）', () => {
+  const eff = (effectsMap.get('WX11-036') ?? []).find(e => e.effectId === 'WX11-036-E1');
+  ok(!!eff, 'WX11-036-E1 が live に存在');
+  const tgt = (eff?.action as { target?: { owner?: string; count?: unknown } } | undefined)?.target;
+  eq(tgt?.owner, 'self', '対象は自分側');
+  eq(tgt?.count, 1, '🔴対象は自身1体（ALL になると自分の全シグニが対戦相手の効果を受けなくなる）');
+});
+
+test('§5.0 O-A engine WX11-036-E1: 相手ターンでもダウン状態なら効果耐性が立たない', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const opp = mkState({});
+  const up = mkState({ signi: ['WX11-036', null, null] });
+  const down = mkState({ signi: ['WX11-036', null, null] });
+  (down.field as { signi_down: boolean[] }).signi_down = [true, false, false];
+  // isOwnerTurn=false ＝「対戦相手のターンの間」が成立する側
+  ok(collectEffectImmuneSigni(up, opp, cm, effectsMap, false, 'シグニ').has('WX11-036'),
+     '相手ターン × アップ → 効果を受けない');
+  ok(!collectEffectImmuneSigni(down, opp, cm, effectsMap, false, 'シグニ').has('WX11-036'),
+     '🔴相手ターン × ダウン → 耐性なし（IS_SELF_UP が落ちていると常時耐性になる）');
+  ok(!collectEffectImmuneSigni(up, opp, cm, effectsMap, true, 'シグニ').has('WX11-036'),
+     '自分のターン × アップ → 耐性なし（TURN_OWNER 側）');
+});
 
 test('§5d-0 engine: IS_SELF_UP はアップのときだけ成立し、場に居ないときは成立しない', () => {
   const signi = findCard(c => isSigni(c));

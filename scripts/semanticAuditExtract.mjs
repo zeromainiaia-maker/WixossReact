@@ -161,6 +161,8 @@ ${guide}
 15. **STUB の id 名と payload の食い違いは報告しない（同上）**＝id は表示用の名前で、engine が読むのは payload。「..._FROM_TRASH」 という id で 「value2:"hand"」 を持つ形は**payload が原文と合っていれば正しい**。**payload の側が原文と違うときだけ**報告する。
 16. 🔑**engine は JSON の見た目を裏で読み替えることがある**（13〜15 がその実例）。**「JSON にこう書いてあるから間違い」という理由だけの finding は severity を LOW にする**。原文の**語句そのもの**が JSON のどこにも無い型（欠落・数値違い・対象違い）を優先して報告すること。
 17. **STUB の id 名に入っているカード種別（ARTS / SPELL / SIGNI …）は「適用範囲」を表さない（2026-09-06 の偽陽性から追加・規則15の系）**＝範囲を決めるのは engine の消費地点であって id 名ではない。実例＝「IGNORE_LRIG_RESTRICTION_ARTS」 は名前に ARTS しか無いが、engine 側はアーツとスペルの両方の使用ゲートで読んでいる。⇒ **「id 名が狭いので原文の◯◯が抜けている」という理由だけの finding は報告しない**（payload に範囲を絞る値が入っているときだけ報告する）。
+18. **パワー修正の「ターン終了時まで」は書かない のが正準形（2026-09-07 の偽陽性5件から追加・規則16の系）**＝「POWER_MODIFY」 / 「POWER_MODIFY_PER_LEVEL_SUM」 などのパワー修正は、「duration」 を書かないと engine の 「temp_power_mods」 に積まれ、**ターン終了時に必ずクリアされる**。「duration」 は **ターン終了より長い** ものを表すときだけ書く（「UNTIL_OPP_TURN_END」 / 「UNTIL_NEXT_OWN_TURN_END」）。効果トップの 「duration:"INSTANT"」 はパワー修正の寿命とは無関係。⇒ **原文が「ターン終了時まで」なのに JSON に duration が無い／INSTANT だ、という理由だけの finding は報告しない。**
+19. **CONTINUOUS（【常】）の 「target.count:1」 は「このシグニ自身」が正準形（2026-09-07 の偽陽性3件から追加・同系）**＝「POWER_SET」 / 「SET_BASE_LEVEL」 / 「GRANT_PROTECTION」 などの常在効果は、engine 側が 「count !== 'ALL'」 を**効果元シグニ自身**として解決する（対象選択は起きない）。⇒ **「原文は『このシグニ』なのに thisCardOnly フィルターが無い」という理由だけの finding は報告しない**（「count:'ALL'」 になっている・「owner」 が逆・「subjectFilter」 が別のカードを指している、といった**範囲が実際に広がっている**ときだけ報告する）。
 
 # 見るべき典型バグ
 

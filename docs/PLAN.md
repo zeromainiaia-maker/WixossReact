@@ -11,21 +11,33 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-07・第205バッチ・Sonnet 5・S-1）＝**🏁**意味照合 round4 Sheet1 を完了**（**残18バッチ／172枚を全消化＝252枚 / 26バッチ**）
-  **作業単位**＝ユーザー指示「S-1 で Sheet1 残18バッチをすべて行う」。**S-1（抽出・実行・簿記）のみ**を行い、**O-A（判定）はやっていない**（§5.0）。
+- **セッション（2026-09-07・第206バッチ・Opus 5・O-A）＝意味照合 findings の triage 9件**（未 triage **43 → 33**）＝**真バグ1件・偽陽性8件**
+  **作業単位**＝ユーザー指示「**O-A** を行う」。§5.0 の周期どおり **5〜8件ずつ**の範囲で、**同型が固まっている2クラスタ**を取った。
 
-  実行＝`semanticAuditExtract.mjs`（pending 172枚→18バッチ）→ `semanticAuditRun.mjs --model sonnet`（`claude -p` を18回）。
-  **実測＝約38分・$6.04**。🔧**踏んだ罠2つ**＝①`claude -p` が JSON 契約を守らず markdown で応答（1/18・手動復元）
-  ②`claude -p` が閉じ括弧を書き忘れる（1/18・`extractJson` に括弧補完フォールバックを追加して恒久対応）。
+  🔴**真バグ1件**＝`WX11-036-E1`「対戦相手のターンの間、このシグニ**は**アップ状態であるかぎり対戦相手の効果を受けない」＝
+  先頭条件節 regex が**①助詞 `が`→`は` ②読点なし**の2点で外れ、**`IS_SELF_UP` が丸ごと落ちてダウン中も効果耐性が立って**いた。
+  **母集団は1効果**（同文型7効果のうち外れていたのはこれだけ）。**`[はが]` は同族規則7箇所が既にそう書いており、この1本だけ取り残されていた。**
+  ⚠**条件を足すだけだと主語まで食って `target.count` が `1`→`'ALL'` に広がる**（読点なしは主語を `rest` へ戻す）＝**過小を直して過剰を作りかけた**。
 
-  🔴🔑**findings 43件（r4-09〜26）は未 triage**＝頻度が r4-01〜08 の**2倍以上**（1.1→2.4件/バッチ）。
-  **triage するまで意味は不明**（過去実測では偽陽性率50%前後）。詳細は `TYPE_LEDGER.md`（round4/Sheet1）。
+  ✅**偽陽性8件＝FP の新型2つ**を規則18/19へ還元（プロンプト規則 **17→19本**）＝
+  ①**パワー修正の `duration` 省略が正準形**（無指定＝`temp_power_mods`＝ターン終了クリア。`duration` は**より長い**もの専用の語彙）
+  ②**【常】の `target.count:1` は「このシグニ自身」**（`POWER_SET`／`SET_BASE_LEVEL`／`GRANT_PROTECTION` の3受け皿が同じ規約）。
+  🔑**この回の収穫は「バグ1件」より「FP 型2つ」**＝残 33件と Sheet2 以降 356枚の全バッチに効く。
+  ⚠**precision 1/9（11%）**＝第205バッチ ledger の予測どおり、**finding 頻度2倍は歩留まり向上ではなく偽陽性率の上昇**だった。
+
+  🔧**ついでに2つ**＝③逆翻訳 `condJa` に `IS_SELF_UP` の case が無く**生の英語 id が出ていた**（4効果・原文照合が効かない状態）
+  ④**規則追記でバッククォートを書いて `.mjs` のテンプレートリテラルを閉じ、S-1 レーンごと壊した**
+  （`typecheck` は `scripts/` を見ないので緑・**`eslint .` だけが捕まえた**）。
+
+  ⑤**実機は不要と判定**（§2.2）＝`src/data/` `public/data/` `scripts/` のみで `src/screens/` `src/engine/` を触らず、新しい型・機構も足していない。
+  ④`npm run gates` **全緑**（golden 3573/3573）＋ `npm run regen` 済み。
 
   📊**進捗3計器＝Sheet1 要対応 1 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
-  📦**在庫**＝**未監査 2,436枚**（Sheet1 **0**・**Sheet2 356**が次）｜**未 triage findings 43件**（🆕）｜**機構 worklist 2**（`O-268` / `O-271`）｜**⑤実機 残 0**。
+  📦**在庫**＝**未監査 2,436枚**（Sheet2 356 が次）｜**未 triage findings 33件**（🆕 43→33）｜**機構 worklist 2**（`O-268` / `O-271`）｜**⑤実機 残 0**。
 
-**▶ 次の一手**＝**`/clear` → `/model opus`** で **O-A triage を 5〜8件ずつ**（`node scripts/archive/semanticAuditPool.mjs` で母集団確認）。
-**43件は一括 triage しない**（§5.0 の周期どおり）。triage が終わったら round4 は Sheet2（356枚）へ進む。
+**▶ 次の一手**＝**残 33件の O-A triage を続ける**（`node scripts/archive/semanticAuditPool.mjs --list`）。
+**規則18/19 で消える finding が混ざっている**ので、**`duration` 欠落・`thisCardOnly` 欠落を主張する finding は読み飛ばして良い**
+（`WX07-039`／`WX10-028` 系は別軸なので要判定）。33件を終えたら round4 は Sheet2（356枚）へ進む。
 そのあと余力があれば `O-271`（ルリグ【起】の `fieldTrash` 未払い・実測8効果/7枚）を取る。
 
 ---
@@ -366,9 +378,9 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-06 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🆕**未 triage 43件**（2026-09-07 第205バッチ・S-1 が Sheet1 を一括消化した分＝r4-09〜26。5〜8件ずつ triage する） | `node scripts/archive/semanticAuditPool.mjs` |
+| **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🆕**未 triage 33件**（2026-09-07 第206バッチで 43→33。5〜8件ずつ triage する） | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN**（残りは全件 `src/screens/` か新 engine 機構待ち＝要る機構の一覧は BUGFIXES 第200バッチ末尾） | **13件 / 影響12枚** | `node scripts/archive/semanticAuditLedger.mjs` |
-| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **現在 17本**（第199バッチで +1＝規則17） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
+| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **現在 19本**（第206バッチで +2＝規則18/19） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
 | **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | triage の結果に比例 | — |
 
 🔑**O-A を Sonnet に落とさない理由**＝監査員（sonnet・JSON のみ）の precision は**実測 50%**で、
@@ -376,9 +388,31 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 ここを外すと**壊れた修正が live に入り、しかもどの計器にも映らない**。
 
 
-#### 🏁 O-A の3件＝2026-09-06（第199バッチ）に triage 済み・結果
+#### 🏁 O-A の直近 triage 結果（**次に取る findings が出たら、この節を同じ形＝主張／緩めた母集団／罠 で書き直す**）
 
-> 🔑**次に取る findings が出たら、この節を同じ形（主張／緩めた母集団／罠）で書き直す。**
+##### 2026-09-07（第206バッチ）＝9件（**真バグ1・FP 8**。未 triage 43 → 33）
+
+> 🔑**この回の教訓＝「同型が固まっているクラスタから取る」**。43件を上から順に読まず、
+> **finding の claim 文で同型を束ねてから engine の受け皿を1回だけ読んだ**＝**9件を engine 読解2回で捌けた**。
+> 🔑**収穫は「バグ1件」ではなく「FP 型2つ」**＝規則18/19 は残 33件と Sheet2 以降 356枚の全バッチに効く。
+> ⚠**precision 1/9（11%）**＝第205バッチ ledger の予測どおり、**finding 頻度2倍は偽陽性率の上昇**だった。
+
+| finding | 判定 | 実測した母集団 | 何だったか |
+|---|---|---|---|
+| **パワー修正に `duration` が無い** 5件<br>（`WX04-037-BURST`／`WX06-019-BURST`／`WX10-051-BURST`／`WX04-103-E1`／`WX05-015-E1`） | **FP**（→ 規則18） | — | **無指定こそが「ターン終了時まで」**＝`effectExecutor.ts:2188` が `temp_power_mods` を選び、`turnScopedState.ts:444`・`BattleScreen.tsx:4740/12907` が毎ターン必ずクリアする。`duration` は**ターン終了より長い**もの専用の語彙（`UNTIL_OPP_TURN_END` / `UNTIL_NEXT_OWN_TURN_END`）。効果トップの `duration:"INSTANT"` はパワー修正の寿命と無関係 |
+| **【常】の `count:1` に `thisCardOnly` が無い** 3件<br>（`WX08-005-E2`／`WX03-028-E2`／`WX04-049-E1`） | **FP**（→ 規則19） | — | **3つの受け皿が揃って `count !== 'ALL'` を効果元自身として解決する**＝`POWER_SET`（`effectEngine.ts:2482`）／`SET_BASE_LEVEL`（`applyContinuousBaseLevelOverride`）／`GRANT_PROTECTION`（`collectProtectedSigni:6008`・`collectEffectImmuneSigni:6500`） |
+| `WX11-036-E1` **HIGH** | 🔴**BUG**（修正済み） | `このシグニ[はが](アップ\|ダウン)状態であるかぎり` ＝ **7効果 / 6カード** → **外れていたのは1効果だけ**（同文型の `WXDi-P07-056-E1` は `が`＋読点で正常） | 先頭条件節 regex が**①助詞 `が`→`は` ②読点なし**の2点で外れ、**`IS_SELF_UP` が丸ごと落ちてダウン中も効果耐性が立って**いた。`[はが]` は同族規則7箇所が既にそう書いており**この1本だけ取り残されていた** |
+
+🔴🔑**この回の罠＝条件を足したら過剰が生まれた**（LESSONS §4.2 へ還元済み）＝
+読点を optional にした瞬間、条件節が**主語「このシグニ」ごと**食い、
+後段が主語を失って **`target.count` が `1`（自身）→ `'ALL'`（自分の全シグニ）**へ広がった。
+⇒ **読点なしの分岐だけ主語を `rest` へ戻す。golden は「条件が載ったか」と「対象が広がっていないか」の2本を張る。**
+🔴🔑**もう1つの罠＝規則を書き足すときのバッククォート**＝`semanticAuditExtract.mjs` の規則本文は
+**テンプレートリテラルの中**なので、`` `POWER_MODIFY` `` と書くと**そこで文字列が閉じて S-1 レーンごと壊れる**
+（`typecheck` は `scripts/` を見ないので緑。**`eslint .` だけが捕まえた**）。**識別子は `「…」` で囲う。**
+
+##### 2026-09-06（第199バッチ）＝3件
+
 > **LLM が書いた `grep` 句をそのまま使わない**＝`WX05-028-E1` の grep 句「正面の対戦相手のシグニがアタック」は
 > **1効果**しか当たらなかったが、**`正面.{0,14}アタックした` へ緩めると4効果**出た（うち2効果が同じ壊れ方）。
 > **必ず緩めて数え直す**（`npm run census:population -- "<regex>"`）。

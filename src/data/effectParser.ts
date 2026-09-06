@@ -2329,11 +2329,21 @@ function parseActiveCondition(text: string): ConditionParseResult {
   // 🔴従来は落ちて**無条件でパワー＋**（`WXDi-CP01-025-E1`／`WXDi-P08-059-E1`／`WXDi-P04-050-E1`／`-E2`）。
   // ⚠`IS_SELF_DOWN` は既存、`IS_SELF_UP` は今回新設（`checkActiveCondition` に case を足さないと
   //   **未知の型は `return true`＝無条件成立**に落ちるので、型・評価器・golden ミラー表をセットで足す）。
-  const selfUpDownM = text.match(/^このシグニが(アップ|ダウン)状態であるかぎり、/);
+  // 🆕**2026-09-07（第206バッチ・意味照合 O-A triage）＝助詞「は」と読点なしを受理する**（`WX11-036-E1`）。
+  //   原文「対戦相手のターンの間、このシグニ**は**アップ状態であるかぎり対戦相手の効果を受けない」は
+  //   ①`が`→`は` ②直後の読点なし の2点で外れ、**保護がアップ／ダウンを問わず常時立って**いた
+  //   （同じ文型の `WXDi-P07-056-E1` は `が`＋読点なので正しく AND に載っており、**1効果だけが落ちていた**）。
+  //   🔑この綴りの穴は上のミラー表コメント③「このシグニ**は**アクセ」と同型＝**助詞は必ず `[はが]` で受ける**。
+  const selfUpDownM = text.match(/^このシグニ[はが](アップ|ダウン)状態であるかぎり(、?)/);
   if (selfUpDownM) {
+    // 🔴**読点が無い形は「このシグニ」を rest へ戻す**＝条件節が主語を食ったままだと
+    //   後段の対象が主語を失って `count:'ALL'` へ広がる（`WX11-036-E1` の実測＝
+    //   「このシグニは対戦相手の効果を受けない」が**自分の全シグニ**への耐性に化けた）。
+    //   読点つき（`WXDi-P07-056-E1` 等）は後続節が自前の主語を持つのでそのままでよい。
+    const selfUpDownRest = text.slice(selfUpDownM[0].length);
     return {
       condition: { type: selfUpDownM[1] === 'アップ' ? 'IS_SELF_UP' : 'IS_SELF_DOWN' } as ActiveCondition,
-      rest: text.slice(selfUpDownM[0].length),
+      rest: selfUpDownM[2] ? selfUpDownRest : `このシグニは${selfUpDownRest}`,
       conditionFound: true,
     };
   }
