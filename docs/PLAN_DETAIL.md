@@ -5578,6 +5578,29 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第187バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第187バッチ）＝🏁PLAN §5.4 (a)「live に `UNKNOWN` が残る効果」を残0（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**据置の理由**＝語彙は増えていない（parser の前処理1本・regex の緩和1箇所・偽刻印の撤去2箇所だけ）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（いずれも据置）。
+  📦**在庫**＝**機構 worklist 2項目**＝索引 **A 0／B 0／G 0／E 2**（E は計器の較正＝維持のみ）。
+  **⑤実機 残 0件**（据置＝この巡は `src/data/` `scripts/` だけ＝PLAN §2.2 の表で実機不要と判定）。
+  🔻**`_held_fresh` 1**（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  🔻**`census:orphanmanual` A 0 / B 0 / C 0**（残5は D群＝`fixLrigColorFilters.mjs` が build 後に毎回生成し直す＝凍っていない）。
+  🆕**`live UNKNOWN` = 0**（第187バッチで新設したラチェット＝golden `§5.4 (a) 第187`）。
+  🆕**fresh PARTIAL = live PARTIAL = 20 で、20件すべてが `manualEffects.ts` に定義を持つ**（＝手書きの意図的なレビュー印）。
+  `census:cards -- --sheet 1` が参照した §5.3 の未クローズ項目＝`O-134` `O-245`（どちらも索引 E）。
+  🔧**ゲート（全緑 ✅）**＝golden **3537 / 3537**（3532 +5本＝`§5.4 (a) live UNKNOWN ラチェット`／
+  `EXTRA_COST_REMOVE_VIRUS のプレースホルダ混入`／`WX09-Re03 の誤植`／`手札N枚をデッキの一番上に置く`／
+  `「代わりに」加算分解の偽 PARTIAL 刻印`）／smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 **0行 / BASELINE 0**／
+  `census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🔁**反転確認2本**＝①修正前の live JSON へ戻すと新テスト4本が全部 FAIL（`git stash` で実測）
+  ②修正前の `effectParser.ts` へ戻すと `WXK02-038-E1` が `PARTIAL` で FAIL。
+  🖥**実機**＝**なし**（`src/screens/` にも新しい型・機構にも触れていない＝PLAN §2.2 の表で不要と判定）。
+
 ### 恒久指標アーカイブ（2026-09-06・第186バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第186バッチ）＝🏁`O-263`／🏁`O-262` クローズ＝索引 B が残0（Opus 5 単独／本ブロックが直近の正）**

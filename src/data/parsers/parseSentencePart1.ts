@@ -524,7 +524,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 対戦相手エナゾーン→トラッシュ ----
+  // ⚠**入口の regex は緩めない**（第188バッチで1往復した）＝`は、自分` の読点まで許すと
+  //   `WXEX1-07-E1` が専用 STUB（`OPP_ENERGY_EXCESS_TRASH`＝`opponentResponds` つきの対話を組む）から
+  //   **汎用 CONDITIONAL へ落ちて**しまう。フラグの判定だけを下で別に取る。
   if (t.match(/対戦相手(?:は自分)?のエナゾーンから.*カード.*トラッシュに置く/)) {
+    // 🆕**「誰が選ぶか」を主語から読む**（§5.4 表示バッチの副産物・2026-09-06 第188バッチ）＝
+    //   原文「**対戦相手は**自分のエナゾーンから…」は**相手が選ぶ**（`owner`＝誰のカードか とは独立＝§6.4 O-24 の教訓）。
+    //   🔴この規則は `opponentSelects` を一度も立てておらず、live 実測で **14効果**が
+    //   「あなたが相手のエナから選んで落とす」＝**プレイヤー有利側への取り違え**になっていた
+    //   （同じ意味の40効果は別規則で立っており、**同じ原文が2通りに解かれていた**）。
+    //   ⚠**`count:'ALL'` では選択の余地が無い**ので実害は無いが、フラグとしては正しいので一律で立てる。
+    const oppPicksEnergy = /対戦相手は[、,]?自分のエナゾーンから/.test(t);
     const cM = t.match(/カード(?:を)?([０-９\d]+)枚/); // 「カードを２枚まで」の「を」を許容（旧regexは数字直後のみ＝WX04-010 が count:1 に落ちていた）
     const upTo = /([０-９\d]+)枚まで/.test(t);
     // 🔴「**すべての**カード」＝枚数表記が無いので既定の `count:1` に落ち、**1枚だけ**になっていた
@@ -546,9 +556,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL',
           filter: { colorNotDeclaredColor: true, ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) },
         },
+        ...(oppPicksEnergy ? { opponentSelects: true } : {}),
       };
     }
-    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: allM ? 'ALL' : cM ? parseNum(cM[1]) : 1, ...(upTo ? { upToCount: true } : {}) } };
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: allM ? 'ALL' : cM ? parseNum(cM[1]) : 1, ...(upTo ? { upToCount: true } : {}) }, ...(oppPicksEnergy ? { opponentSelects: true } : {}) };
   }
   // ---- 自分エナゾーン→トラッシュ ----
   if (t.match(/あなたのエナゾーンからカード([０-９\d]+)枚をトラッシュに置く/)) {

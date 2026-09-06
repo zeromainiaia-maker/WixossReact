@@ -486,6 +486,15 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     // 🆕§5.3 `O-60` 第40バッチ＝エナの filter 一致枚数を上限にする（`WXK11-040-E1`）。
     : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'self_energy_count'
       ? `レベルの合計があなたのエナゾーンにある${filterJa(t.selectionConstraint.totalLevelMaxRef.filter)}${t.selectionConstraint.totalLevelMaxRef.filter?.cardType ?? 'カード'}の枚数以下になるように`
+    // 🆕**パワー合計の制約を描く**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+    //   `totalLevel*` だけを描いて `totalPower*` を落としていたため、
+    //   「パワーの合計が**このシグニのパワー以下**になるように２枚まで」（`WXEX2-52-E3`）が
+    //   **ただの「2枚まで」**に見え、「制約が消えた」のか「元から無い」のかが原文照合で区別できなかった。
+    //   ⚠`$ref:'source_effective_power'` は**実効パワー**（強化込み）＝原文「このシグニのパワー」。
+    : t.selectionConstraint?.totalPowerExact !== undefined ? `パワーの合計が${t.selectionConstraint.totalPowerExact}になるように`
+    : t.selectionConstraint?.totalPowerMax !== undefined ? `パワーの合計が${t.selectionConstraint.totalPowerMax}以下になるように`
+    : t.selectionConstraint?.totalPowerMaxRef?.$ref === 'source_effective_power' ? 'パワーの合計がこのシグニのパワー以下になるように'
+    : t.selectionConstraint?.totalPowerMaxRef?.$ref ? `パワーの合計が${t.selectionConstraint.totalPowerMaxRef.$ref}以下になるように`
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct === 'costSum' ? 'それぞれコストの合計が異なる'
@@ -1162,7 +1171,11 @@ function condJa(c?: any): string {
     case 'SELECTED_COLOR': return `${(c as { color: string }).color}を選んだ`;
     // 🆕§5.3 `O-143`＝チェックゾーンの枚数（`field.check` ＋ `field.check_rest` の合計）。
     // 🆕filter＝「チェックゾーンにあるスペルが」のようにカード種別で絞る（落とすと逆翻訳から限定が消える）。
-    case 'CHECK_ZONE_COUNT': return `${ownerJa(c.owner)}チェックゾーンにある${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
+    // 🆕**`filter.cardType` を名詞に使う**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+    //   `filterJa` は **`cardType` を描かない**（名詞は呼び出し側が置く規約）ので、
+    //   ここで「カード」固定にしていると `WX13-005B-E1` の原文「チェックゾーンに**スペル**がある場合」が
+    //   「カードが1枚以上」＝**どのカードでもよい**に見えた（JSON は `cardType:'スペル'` で正しい）。
+    case 'CHECK_ZONE_COUNT': return `${ownerJa(c.owner)}チェックゾーンにある${filterJa(c.filter)}${([] as string[]).concat((c.filter as any)?.cardType ?? []).join('か') || 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'BEAT_ZONE_COUNT': return `${c.thisWay ? 'この方法で' : ''}あなたの【ビート】が${numJa(c.value)}枚${c.operator === 'lte' ? '以下' : c.operator === 'eq' ? 'になった' : opJa(c.operator)}`;
     case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
@@ -1366,7 +1379,13 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${srcJaAA}から${cntJaAA[0]}${acceFilJaAA}シグニを、あなたの場の${cntJaAA[1]}${hostFilJaAA}シグニの【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
       }
       void tailAA;
-      return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、あなたの場の${hostFilJaAA}シグニ1体の【アクセ】にする`;
+      // 🆕**`optional` と `targetsLastProcessed` を描く**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+      //   `repeatWhilePossible` の枝だけが `optional` を描いており、こちらは落としていた（`SP24-010-E1`）。
+      //   原文「それをこの方法で場に出したシグニの【アクセ】にしても**よい**」の
+      //   ①**任意である**こと ②**装着先が直前に出したシグニに固定**であること が両方消えていた。
+      const hostJaAA = (a.targetsLastProcessed || a.targetsStored)
+        ? 'この方法で場に出したシグニ' : `あなたの場の${hostFilJaAA}シグニ1体`;
+      return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、${hostJaAA}の【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'FIELD_SIGNI_TO_ACCE': {
       const srcFilJaFSA = a.sourceFilter ? filterJa(a.sourceFilter) : '';
@@ -1571,7 +1590,11 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${targetJa(a.target)}をゲームから除外する`;
     // `targetsStored`＝先行の対象宣言で固定した集合（§6.4 O-8(b)「この方法で移動したシグニ」）。
     // ⚠出さないと「好きな数のダウン状態のシグニをアップする」＝**盤面全体から選べる**逆翻訳になる。
-    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : targetJa(a.target)}をアップする`;
+    // 🆕**ルリグ対象の `thisCardOnly` は「このルリグ」**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+    //   `targetJa` の `thisCardOnly` 分岐は種別を見ずに **常に「このシグニ」**を返すので、
+    //   `WXDi-D04-004-E2`（付与された【自】の「このルリグをアップする」）が
+    //   **「このシグニをアップする」**と出て、原文照合で別物に見えていた（JSON は `LRIG` で正しい）。
+    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : a.target?.type === 'LRIG' && a.target?.filter?.thisCardOnly ? 'このルリグ' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {
       // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
       if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
@@ -2231,7 +2254,19 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${actionJa(a.steps[1]).replace(/にする$/, 'にしてもよい')}。${actionJa(a.steps[2])}`;
       }
       // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
-      const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s, effectType) as string })).filter((p: any) => p.part !== '');
+      // 🆕**同じ宣言を2度描かない**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+      //   「このゲームの間、あなたは以下の能力を得る。『【常】：手札の上限は２増える…』」は parser が
+      //   `GAIN_ABILITY_THIS_GAME{handSizeBonus}` と `HAND_SIZE_INCREASE{handLimitDelta}` の**2ステップ**に解く。
+      //   🔴**engine は二重に増やさない**＝`collectHandLimits` の `HAND_SIZE_INCREASE` 走査は
+      //   **CONTINUOUS 効果だけ**を見るので、ACTIVATED のこの経路では後段は inert
+      //   （`execStubPart3.ts` の「ここで足すと二重に増える。書かないのが正しい」参照）。
+      //   なのに逆翻訳だけが2回出しており、**原文1文に対して2文**＝原文照合で二重適用に見えていた（`WX25-P2-005-E1`）。
+      const gameHandBonus188 = a.steps.find((s: any) => s?.type === 'STUB' && s.id === 'GAIN_ABILITY_THIS_GAME')
+        ?.gameGrants?.find((g: any) => g.kind === 'handSizeBonus')?.value;
+      const stepsForJa188 = gameHandBonus188 === undefined ? a.steps
+        : a.steps.filter((s: any) => !(s?.type === 'STUB' && s.id === 'HAND_SIZE_INCREASE'
+            && s.handLimitDelta === gameHandBonus188));
+      const pairs = stepsForJa188.map((s: any) => ({ step: s, part: actionJa(s, effectType) as string })).filter((p: any) => p.part !== '');
       if (pairs.length === 0) return '何もしない';
       return pairs.reduce((acc: string, { step, part }: any, i: number) => {
         if (i === 0) return part;
@@ -2326,7 +2361,12 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.then.target?.filter?.isTriggerSource) {
           return `対戦相手のエナゾーンにカードが${n}枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く`;
         }
-        return `そこに${n}枚以上のカードがある場合、あなたはそこから対象のカード１枚をトラッシュに置く`;
+        // 🆕**「誰が選ぶか」と「どこのエナか」を payload から描く**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
+        //   旧文は **「あなたはそこから」固定**で、`opponentSelects:true` を1件も読んでいなかった。
+        //   この分岐に落ちる live 15効果のうち **9効果が `opponentSelects`**（原文「対戦相手は自分のエナゾーンから
+        //   カード１枚を**選び**トラッシュに置く」）＝**選ぶ人が逆に見えていた**（JSON は正しい）。
+        //   ⚠`actionJa(a.then)` の `TRASH` 分岐が既に「（相手が選ぶ）」を出すので、そちらへ委譲する。
+        return `対戦相手のエナゾーンにカードが${n}枚以上ある場合、${actionJa(a.then)}`;
       }
       return `${condJa(a.condition)}なら、${actionJa(a.then)}${a.else ? `、そうでなければ${actionJa(a.else)}` : ''}`;
     }

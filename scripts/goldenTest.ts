@@ -69365,6 +69365,34 @@ test('§5.4 (b) 第187: 「代わりに」加算分解の外科パッチが偽�
     '25枚以上でさらに＋2000（合計＋5000＝原文の「代わりに＋5000」）');
 }));
 
+// ── §5.4 表示バッチ（第188）＝逆翻訳の穴と、それが隠していた JSON のズレ ──
+// 🔑**逆翻訳が描かない値は「壊れても誰も気づかない」**（第187 の `EXTRA_COST_REMOVE_VIRUS` と同じ構図）。
+//   ここでは live JSON 側で検証できるものだけを固定する（逆翻訳そのものは `npm run regen` の差分で見る）。
+test('§5.4 第188: 「対戦相手は自分のエナゾーンから…」は opponentSelects が立つ', () => withSavedCursor(() => {
+  // 🔴`owner`（誰のカードか）と `opponentSelects`（誰が選ぶか）は**独立**（§6.4 `O-24` の教訓）。
+  //   `parseSentencePart1.ts` の「対戦相手エナゾーン→トラッシュ」規則はフラグを一度も立てておらず、
+  //   **live 14効果**が「あなたが相手のエナから選んで落とす」＝プレイヤー有利側への取り違えだった。
+  //   ⚠同じ意味の40効果は別規則で立っていた＝**同じ原文が2通りに解かれていた**のが本体。
+  const srcTexts = JSON.parse(fs.readFileSync(join(process.cwd(), 'docs/_effect_srctext.json'), 'utf-8')) as Record<string, string>;
+  const miss: string[] = [];
+  const walk = (n: unknown, e: CardEffect): void => {
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    const tgt = o.target as { type?: string; owner?: string } | undefined;
+    if (o.type === 'TRASH' && tgt?.type === 'ENERGY_CARD' && tgt?.owner === 'opponent' && !o.opponentSelects
+        && /対戦相手は[、,]?自分のエナゾーンから/.test(srcTexts[e.effectId] ?? '')) miss.push(e.effectId);
+    for (const v of Object.values(o)) walk(v, e);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e);
+  // 🔑**残2件は既知**＝`WX25-P3-080-E1` は **①枝には付けないのが正しい**（原文①は「あなたが対象とする」＝
+  //   `manualEffects.ts` の意図的な上書き。parser は今も両枝に付ける）／`WDK10-001-E2` は
+  //   「手札を１枚捨てないかぎり」形で**別の規則**が組む（この規則の入口に入らない）。
+  const KNOWN188 = ['WX25-P3-080-E1', 'WDK10-001-E2'];
+  const unexpected = miss.filter(id => !KNOWN188.includes(id));
+  eq(unexpected.length, 0, `opponentSelects が落ちている効果がある: ${unexpected.join(', ')}`);
+  ok(miss.length <= KNOWN188.length, `既知の残 miss が増えた: ${miss.join(', ')}`);
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

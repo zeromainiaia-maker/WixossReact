@@ -1,5 +1,40 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-06・第187バッチ・Opus 5 単独）＝**🏁**PLAN §5.4 (a)「live に `UNKNOWN` が残る効果」を残0**
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／`census:deadstate` 0件（いずれも据置）。
+  ⚠**据置の理由**＝語彙は増えていない（parser の前処理1本・regex の緩和1箇所・偽刻印の撤去2箇所だけ）。
+  📦**在庫**＝**機構 worklist 2項目**（索引 **A 0／B 0／G 0／E 2**＝E は計器の較正）｜**⑤実機 残 0件**（据置＝この巡は実機不要）。
+  🔻**`_held_fresh` 1**（`O-249` の意図的な据置のみ）／`_partial_fresh` 0／`_idset_fresh` 0。
+  🔻**`census:orphanmanual` A/B/C がすべて 0 になった**（残5は D群＝build 後の fixer が毎回生成し直す＝凍っていない）。
+  gates 全緑（golden **3537 / 3537**＝3532 +5本・smoke 全異常0・fuzz 全0・lint 0 errors）。
+
+  🔴🔑**主産物①＝§5.4 (a) の3件は「木ごと作り直す」案件ではなかった**（登録票の見立てが外れていた）＝
+  ①**CSV の `BurstText` プレースホルダ `-` が選択肢の本文に混ざっていた**（`WX16-023` / `WX16-048`）＝
+  `` `${EffectText} ${BurstText}` `` の素朴な連結で、**最終選択肢だけが `SEQUENCE[本体, UNKNOWN{raw:'-'}]`** に化けていた。
+  ⚠**fail-closed は効いていなかった**＝トップレベルの `UNKNOWN` しか見ておらず、入れ子は素通りだった。
+  ②**原典の誤植「を対象**する**。」**（`WX09-Re03`）＝対象宣言が独立文になって「それ」と束縛できなかった。
+  ⇒ 既存の前処理層（`normalizePowerNumericMinusTypo` の隣）に正規化を1本足して1文へ畳んだ。
+
+  🔴🔑**主産物②＝`UNKNOWN` の全数ラチェットを golden に張った。**
+  **`UNKNOWN` は engine から見て完全な no-op**（原文の1手順が黙って消える）なのに、
+  **census にも `census:stubs` にも出ない**（STUB ですらない）＝これまで全数計器が1つも無かった。
+
+  🔑**主産物③＝「配送が止まっている」在庫は尽きた。** §5.4 (b) を実測すると
+  **fresh 20 == live 20 で、20件すべてが `manualEffects.ts` に定義を持つ**＝**手で書いた意図的なレビュー印**。
+  旧記述の「差4件が live に届いていない」は**偽の刻印**だった（「代わりに」加算分解の外科パッチが
+  action を丸ごと書き換えるのに `PARTIAL` だけ引き継いでいた＝`O-262` と同型）＝**撤去して fresh 24→20**。
+  さらに `WD23-017-EA-E1` は **parser を直して出所を作り**解凍（`BASELINE_ORPHAN_MANUAL` 7→6）。
+
+  🔧**逆翻訳の穴を1つ塞いだ**＝`EXTRA_COST_REMOVE_VIRUS` は `O-234` で選択肢が payload へ移ったのに、
+  逆翻訳は `choiceTextParser` 時代のまま**選択肢を1つも描いていなかった**＝
+  **payload が壊れても読み手には見えない**（今回の `UNKNOWN{raw:'-'}` はこれで隠れていた）。
+
+**▶ 次の一手**＝**§5.4 (a) は残0・(b) は「解凍で回収できる在庫」が尽きた**（1件ずつ原文照合する高コスト作業だけが残る）。
+§5.3 に残るのは **E の2件（計器の較正＝挙動は変わらない）**だけ。
+⇒ **新しい母集団を作るところから始める**＝§5.2 の `node scripts/archive/semanticAuditRecheck.mjs`（残 OPEN 24 の stale 回収）か、
+`npm run census:cards`（全シート）を1シートに固定して掘る。⚠**実機の未実施キューは空。**
+
 - **セッション（2026-09-06・第186バッチ・Opus 5 単独）＝**🏁**`O-263` と `O-262` を同時にクローズ＝索引 B が残0**
   📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
   `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／`census:deadstate` 0件（いずれも据置）。
