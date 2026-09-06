@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第193バッチ）＝🏁**`O-264` クローズ**＝`PLAY_FREE` は `opp_hand` 以外がプレースホルダーで、**live 12効果中 9効果が動いていなかった**
+
+**登録票の見立ては2つとも外れていた。** `O-264` は「`ignoreRestrictions` に消費地点が無い（live 2効果）＝
+限定条件が効いたままで**過少**」として登録されていたが、実測は次のとおり。
+
+### ① 向きが逆＝**過剰**だった（`ignoreRestrictions` は飾りだった）
+
+engine は **`Restriction` をどこでも見ていなかった**（`execPlayFree` にも `STUB{PLAY_FREE}` にも判定が無い）。
+⇒ **フラグの有無に関わらず常に限定を無視**していた＝過少ではなく**過剰実行**で、
+`ignoreRestrictions` は生成と表示だけの死にキーだった。
+
+**修正**＝`execPlayFree` の候補列挙に `meetsRestriction` を通し、`ignoreRestrictions` が無ければ限定が効くようにした。
+🔑**判定は既存の1本を呼ぶ**（`growLogic.meetsRestriction`＝アーツUI `artsUseGate.ts:318`・
+スペルUI `spellUseGate.ts:146`・グロウが共有）＝写経すると
+「**UI では使えないのに効果からは使える**」型の無言のズレになる。
+
+### ② 🔴副産物のほうが大きい＝`opp_hand` 以外がプレースホルダーだった
+
+`execPlayFree` の `thenAction` は `opp_hand` だけ `STUB{PLAY_FREE}`（＝実際に使用する）で、
+**それ以外は `ADD_TO_HAND{owner:'self'}`** だった（コードにも「その他のソースは従来どおりの
+プレースホルダー（暫定）」と書かれていた）。live 12効果を source × フラグで仕分けた結果：
+
+| source | live | 旧挙動 | 原文 |
+|---|---|---|---|
+| `hand` | **6効果** | 🔴**手札のカードを手札に入れる＝完全な無言 no-op** | 「使用する」 |
+| `opp_trash`（grant なし） | 2効果 | 🔴**相手のトラッシュから手札へ奪う**別効果 | 「使用する」 |
+| `lrig_deck` | 1効果 | 🔴**アーツが手札に入る**（ルール上ありえない状態） | 「使用する」 |
+| `opp_hand` | 1効果 | 正しい（`STUB{PLAY_FREE}`） | 「使用する」 |
+| `trash`/`opp_trash`（`grantUseThisTurn`） | 2効果 | 正しい（`O-185` で実装済み） | 「このターン使用してもよい」 |
+
+**修正**＝`grantUseThisTurn` 以外は**全ソースを `STUB{PLAY_FREE}` へ向けた**うえで、置き場所も直した：
+- **相手のトラッシュから借りたスペルは、持ち主のトラッシュに残す**（旧 else 節へ落ちると
+  **自分のトラッシュに複製が増える**）。⚠`CAST_FROM_OPP_TRASH` のように**取り除いてもいけない**
+  （あちらは「手札にあるかのように」使ったあと持ち主へ返す別綴りで、こちらは元からトラッシュにある）。
+- **ルリグデッキのアーツはルリグトラッシュへ**（旧実装は手札に入れていた）。
+
+### ③ 🔴この形はどの計器にも映らない
+
+`STUB` ではないので `census:stubs` A群に出ず、`PlayerState` のキーでもないので `census:deadstate` にも出ず、
+golden・smoke・fuzz も緑だった。**`PLAY_FREE` を live 全数で表にして初めて見えた。**
+🔑**教訓＝「死にキーが1つある」と登録された項目は、その受け皿ごと全数で仕分ける**（死にキーは症状）。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3549 / 3549**（+4本＝hand／opp_trash／lrig_deck の各置き場所＋
+  限定条件の正負両方向）／smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 0行／
+  `census:costtext` A🔴 0規則／lint 0 errors。
+- **golden はバグを先に固定してから直した**（新テストが最初に FAIL することを実測）。
+- 🖥**実機**＝`V-173`（`v173PlayFreeFromHandActuallyUses`）を新設して **PASS**＝
+  《ＮＯＩＳＹ》を使用 → 手札の《包括する知識》をコストなしで使用 → **デッキ 40→38（2枚引いた）**、
+  両方のスペルがトラッシュへ。`order` に入れた。
+- **反転確認は実機でも**＝`thenAction` を `ADD_TO_HAND` へ戻すと `v173` が FAIL し、
+  ログが「包括する知識を**手札に加える**」になる（＝旧実装の無言 no-op がそのまま出る）。
+
 ## 2026-09-06（第192バッチ）＝🏁**`O-265` クローズ**＝レゾナ出現条件の支払いが **instanceId を潰して** ON_TRASH を殺していた
 
 **真因は collector の2つ手前だった。** 第190バッチは `WD21-017-E1`（「効果**か**レゾナの出現条件によって〜

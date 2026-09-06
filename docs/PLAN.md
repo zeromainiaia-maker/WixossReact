@@ -11,40 +11,44 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-06・第192バッチ・Opus 5 単独）＝**🏁**`O-265` をクローズ**（真因は collector の**2つ手前**＝instanceId を潰していた恒久 no-op）
-  📊**進捗3計器＝Sheet1 要対応 3 → 2 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
-  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文＝規約どおり）。
+- **セッション（2026-09-06・第193バッチ・Opus 5 単独）＝**🏁**`O-264` をクローズ**（`ignoreRestrictions` は症状で、真因は **`PLAY_FREE` の大半がプレースホルダー**だった）
+  📊**進捗3計器＝Sheet1 要対応 2 → 0 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
+  ⚠**Sheet1 が 0 になったのは `O-264` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
+  🔴**「0＝正しい」ではない**（計器が見ていないだけ＝出力にも毎回そう出る）。残る `mech` 2件は索引 E の `O-134`/`O-245` 由来。
   `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／`census:deadstate` 0件（いずれも据置）。
-  📦**在庫**＝**機構 worklist 6 → 5項目**（索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**）
-  ｜**⑤実機 残 0件**（`V-172(1)` を返済＝`order` へ戻した）。
-  gates 全緑（golden **3545 / 3545**＝3544 +1本・smoke 全異常0・fuzz 全0・lint 0 errors）。
-  🖥**実機 `v172ResonaConditionFires` / `v172BattleBanishDoesNotFire` の2本とも PASS。**
+  📦**在庫**＝**機構 worklist 5 → 4項目**（索引 **A' 0（残0）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**）
+  ｜**⑤実機 残 0件**（`V-173` を登録・同日返済）。
+  gates 全緑（golden **3549 / 3549**＝3545 +4本・smoke 全異常0・fuzz 全0・lint 0 errors）。
 
-  🔴🔑**主産物＝真因は「ゲート」でも「collector」でもなく、その2つ手前の配線だった。**
-  `payResonaAppearanceAndPlace`（レゾナ出現条件の支払いの**唯一の funnel**）が、場から払ったカードを
-  **`getCardNum()` で instanceId から潰して**トラッシュへ入れていた（`WD21-017#1` → `WD21-017`）。
-  その結果 `detectTrashedSigni` の `after.trash.includes(beforeTop)` が**必ず外れ**、
-  **`collectTrashTriggers` が1度も呼ばれない恒久 no-op**になっていた。
-  🔑**契約は既に文書化されていた**＝`execUtils.ts:51` が `fieldTrashCostCards` を **instanceId の配列**と明記し、
-  engine 側（`banishDestination` ほか）も一貫して instanceId を trash へ入れている＝**この関数だけが例外**だった
-  （同関数内の `discardedCostCards` / `energyTrashed` は id を保っていた）。
-  📦**1行の修正で live 5効果が回復**＝`WD21-017-E1` ＋ `forResonaCondition` 一族4件
-  （`WX10-055-E1` / `WX14-049-E1` / `WXEX1-58-E1` / `WXEX1-72-E1`＝**同じ1行を通る**）。
-  副次的に、下に敷いたカード・チャーム・アクセ（`extras`）の id も保つようになり
-  `detectUnderSigniTrashed` の突き合わせも通るようになった。
+  🔴🔑**主産物＝登録票の見立て「限定条件が効いたまま（過少）」は外れていた。**
+  実測すると **engine は `Restriction` をどこでも見ておらず**、フラグの有無に関わらず常に無視していた＝
+  **過少ではなく過剰**、かつ `ignoreRestrictions` は**飾り**だった。
+  ⇒ `execPlayFree` に `meetsRestriction`（アーツUI・スペルUI・グロウと**同じ1本**）を通し、
+  **`ignoreRestrictions` が無ければ限定が効く**ようにして、フラグを初めて load-bearing にした。
 
-  🔴🔑**なぜ golden が6セッション緑だったか（2つの盲点）**
-  ①**collector を直叩きしていた**＝既存テストは `payResonaAppearanceAndPlace` を呼んだあと、
-  その結果を **`detectTrashedSigni` に通さず** collector へ直接渡していた＝**funnel を飛ばしていた**。
-  ②**fixture が素のカード番号だった**＝`mkState({ signi: [whiteA, whiteB] })` は `#n` を持たないので
-  **`getCardNum()` が no-op になり、潰していること自体が観測できなかった**。
-  ⇒ 両方を塞いだ（差分検出を通す assert ＋ `#n` 付き fixture で `WD21-017-E1` を一気通貫で固定）。
-  🔑**教訓＝ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る。**（§4.2 に追記）
+  🔴📦**副産物のほうが大きい＝`PLAY_FREE` は `opp_hand` 以外がプレースホルダーだった**（コードにその旨の注記あり）。
+  `thenAction` が `ADD_TO_HAND{owner:'self'}` へ落ちており、原文「**使用する**」に対して
+  ①**`source:'hand'` は手札のカードを手札に入れるだけ＝完全な無言 no-op**（**live 6効果**）
+  ②`source:'opp_trash'` は**相手のトラッシュから手札へ奪う**別効果（live 2効果）
+  ③`source:'lrig_deck'` は**アーツが手札に入る**というルール上ありえない状態（live 1効果）。
+  ⇒ **使用の実体である `STUB{PLAY_FREE}` へ全ソースを向け**、置き場所も直した
+  （相手トラッシュ発は**持ち主のトラッシュに残す**＝複製しない／ルリグデッキ発は**ルリグトラッシュへ**）。
+  **live 12効果中 9効果**が動くようになった。
 
-**▶ 次の一手**＝**§5.1 実機は残0・§5.4 も閉じた**ので、本線は §5.3 の索引だけ。
-⇒ **`O-264`**（`ignoreRestrictions` の消費地点＝live 2効果・索引 A'）が最優先。
-次いで索引 G の **`O-266` / `O-267`**（どちらも live 1効果だが**遅いレーン**＝新しい engine 機構が要る。
-`O-267` は「1効果のために解決順の一般機構を入れるか」を先に判断する＝**入れないと決めてもよい**）。
+  🔴🔑**どの計器にも映らない形だった**＝`STUB` ではないので `census:stubs` A群に出ず、
+  `PlayerState` のキーでもないので `census:deadstate` にも出ず、golden・smoke・fuzz も緑。
+  **`PLAY_FREE` を live 全数で仕分けて初めて見えた**（12効果を source × フラグで表にした）。
+  🔑**教訓＝「死にキーが1つある」と登録された項目は、その受け皿ごと全数で仕分ける。**
+
+  🖥**実機**＝`V-173`（`v173PlayFreeFromHandActuallyUses`）を新設して **PASS**
+  （《ＮＯＩＳＹ》→ 手札の《包括する知識》を無料使用 → **デッキ 40→38＝2枚引いた**）。
+  **反転確認も実機で**＝旧実装に戻すとログが「包括する知識を**手札に加える**」になり **FAIL**。
+
+**▶ 次の一手**＝**§5.1 実機は残0／§5.4 は閉／索引 A'・A・B も残0**。本線は **索引 G の2件**だけ。
+⇒ **`O-266`**（【ガード】のコスト置換が engine に無い＝`WX25-P2-007`。**付与される2つ目の能力も JSON に無い**）／
+**`O-267`**（発動順の固定＝`WX13-005B`。**帰結は正しく、欠けているのは順序だけ**）。
+どちらも live 1効果だが**遅いレーン**（新しい engine 機構）＝`O-267` は
+「1効果のために解決順の一般機構を入れるか」を**先に判断する**（入れないと決めてもよい＝`DEFERRED_*` 運用）。
 
 ---
 
@@ -420,6 +424,19 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
   ⇒ **id の同一性が絡む経路のテストは必ず `#n` 付きで組む。**
   🔑**`fieldTrashCostCards` は instanceId の配列**（契約は `execUtils.ts:51` に明記）＝
   名前空間がズレると `byEffectCause` の弁別が静かに反転する（コストが効果扱いになる）。
+
+- 🔴🆕**「死にキーが1つある」と登録された項目は、その受け皿ごと全数で仕分ける**（2026-09-06 第193バッチ＝`O-264`）＝
+  登録票は「`PlayFreeAction.ignoreRestrictions` に消費地点が無い（live 2効果）」だったが、
+  **`PLAY_FREE` を live 12効果すべて source × フラグの表にしたら、9効果が動いていなかった**
+  （`thenAction` が `ADD_TO_HAND` のプレースホルダーのままで、原文「使用する」に対して
+  **手札のカードを手札に入れる＝完全な無言 no-op** だった）。**死にキーは症状で、真因は受け皿側にある。**
+  🔑**この形はどの計器にも映らない**＝`STUB` ではないので `census:stubs` A群に出ず、
+  `PlayerState` のキーでもないので `census:deadstate` にも出ず、golden・smoke・fuzz も緑。
+- 🔴🆕**登録票の「過少／過剰」の向きも実測で確かめる**（同上）＝
+  `O-264` は「限定条件が効いたまま＝**過少**」と登録されていたが、実測すると
+  **engine は `Restriction` をどこでも見ておらず**、フラグの有無に関わらず常に無視していた＝**過剰**だった。
+  🔑**判定を足すときは既存の1本を呼ぶ**（`meetsRestriction` はアーツUI・スペルUI・グロウが共有）＝
+  写経すると「UI では使えないのに効果からは使える」型の無言のズレになる。
 
 ### 4.3 計器の読み方
 
@@ -920,8 +937,10 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 **■ 未実施の観測点＝0件**
 
-🏁**`V-172(1)` は 2026-09-06 第192バッチで返済**（`O-265` の修正で PASS。`order` へ戻した＝
+🏁**`V-172(1)`＝2026-09-06 第192バッチで返済**（`O-265` の修正で PASS。`order` へ戻した＝
 `v172ResonaConditionFires` と対照 `v172BattleBanishDoesNotFire` の2本が常時回る）。
+🏁**`V-173`＝2026-09-06 第193バッチで登録・同日返済**（`O-264`＝`v173PlayFreeFromHandActuallyUses`。
+「手札のスペルを無料使用する」が**無言 no-op** だったのを実機で固定＝`order` に入れた）。
 ⚠**新しい観測点はここへ `V-<次番号>` で足す**（機構項目は §5.3 へ）。
 
 > 🏁**返済済み `V-04`〜`V-170` の全文（何を踏んだか・何が壊れていたか）は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「§5.1 実機返済の完了報告」と [BUGFIXES.md](./BUGFIXES.md) にある。**
@@ -1070,17 +1089,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 #### 索引 A'. 実機が出した配線ギャップ（**2026-09-06 第190バッチ新設**）
 
-> 🔴**この枠は「実機だけが出した」項目**＝golden は緑のまま。**着手前に BUGFIXES を読む。**
-> 🏁**`O-265` は 2026-09-06 第192バッチでクローズ**（真因は `payResonaAppearanceAndPlace` が
-> instanceId を潰していたこと＝**collector の手前で差分検出が必ず外れる恒久 no-op**。
-> 全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-06（第192バッチ）。実機 `V-172` 2本 PASS で返済済み）。
-
-- 🆕**`O-264`＝`PlayFreeAction.ignoreRestrictions` に engine の消費地点が1つも無い**（真 no-op）。
-  原文「限定条件を無視して」を持つのは **live 2効果**（`WX04-003-E1` / `WX05-011-E3`）で、
-  どちらも**相手のスペルを限定条件を無視して使える**はずが、いまは**限定条件が効いたまま**（過少）。
-  🔑**`census:deadstate` では見つからない**＝あれは `PlayerState` のキーしか走査しない＝
-  **アクション payload の死にキーには計器が無い**（この形の一般計器は未実装＝別課題）。
-  🔧**当座のゲートは golden に張った**＝「原文に『限定条件を無視して』がある効果だけが `ignoreRestrictions` を持つ」。
+🏁**残0**（`O-265`＝第192バッチ／`O-264`＝第193バッチでクローズ）。
+> 🔴**この枠の意味**＝**golden が緑のまま実機だけが出した穴**。2件とも真因は「収集器やゲートの中身」ではなく
+> **その手前の配線**だった（①支払いが instanceId を潰して差分検出が外れる ②`thenAction` が
+> プレースホルダーのままで**選んだカードを使わずに手札へ入れていた**）。
+> 🔑**新しくこの型を見つけたらここへ足す**（全文は BUGFIXES の 2026-09-06 第192・第193バッチ）。
 
 #### 索引 E. 計器の較正・掃除（**機構ではない**＝カードの挙動は変わらない）
 
@@ -1247,23 +1260,24 @@ keyword が UI と一致せず恒久 no-op ほか）。**カード番号を含�
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-06（第192バッチ）＝🏁`O-265` クローズ／`V-172(1)` 返済（Opus 5 単独／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 3 → 2 / 863**｜**台帳 残 OPEN 24**（据置）｜
+- **2026-09-06（第193バッチ）＝🏁`O-264` クローズ／`V-173` 登録・同日返済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 2 → 0 / 863**｜**台帳 残 OPEN 24**（据置）｜
   **census 高シグナル 0 / BASELINE 0**（据置）
-  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
-  ⚠**census 据置の理由**＝語彙は増えていない（修正は `src/screens/battle/resonaSummon.ts` の**識別子の扱い1箇所**）。
+  ⚠**Sheet1 が 0 になったのは `O-264` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
+  🔴**「0＝正しい」ではない**（計器が見ていないだけ）。⚠**census 据置の理由**＝語彙は増えていない（`public/data/` は無変更）。
   **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
-  📦**在庫**＝**機構 worklist 6 → 5項目**＝索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**。
-  **⑤実機 残 0件**（`V-172(1)` 返済＝`order` へ戻した）。
+  📦**在庫**＝**機構 worklist 5 → 4項目**＝索引 **A' 0／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**。
+  **⑤実機 残 0件**（`V-173` を新設して同じ巡で返済）。
   `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
-  **`live UNKNOWN` = 0**／**live PARTIAL 16**（どちらも据置＝`public/data/` は無変更）。
-  🔧**ゲート（全緑 ✅）**＝golden **3545 / 3545**（3544 +1本＝`§5.3 O-265` の一気通貫。
-  既存「レゾナ出現条件ON_TRASH」へ funnel の assert も追加）／smoke 全異常0／fuzz 全0／
-  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。
-  🔁**反転確認**＝`getCardNum()` を戻すと新テストと funnel assert が **2本 FAIL**（実測）。
-  🖥**実機**＝`v172ResonaConditionFires` **PASS**（相手の P1000 が消えた）／
-  対照 `v172BattleBanishDoesNotFire` **PASS**（原因が違えば発火しない）。**2本とも `order` に入れた。**
+  **`live UNKNOWN` = 0**／**live PARTIAL 16**（据置＝`public/data/` は無変更）。
+  🔧**ゲート（全緑 ✅）**＝golden **3549 / 3549**（3545 +4本＝`PLAY_FREE` の hand／opp_trash／lrig_deck の
+  各置き場所＋限定条件の正負両方向）／smoke 全異常0／fuzz 全0／census 0 / BASELINE 0／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**反転確認2本**＝①golden＝`thenAction` を `ADD_TO_HAND` へ戻すと新テストが FAIL
+  ②🖥**実機でも**＝同じ差し戻しで `v173` が FAIL（ログが「包括する知識を**手札に加える**」になる）。
+  🖥**実機**＝`v173PlayFreeFromHandActuallyUses` **PASS**（デッキ 40→38＝2枚引いた）／
+  `v172ResonaConditionFires`・`v172BattleBanishDoesNotFire` も **PASS**（3本とも `order` に入っている）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

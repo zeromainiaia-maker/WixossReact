@@ -27129,6 +27129,72 @@ test('PLAY_FREE_FROM_TRASH スペル: コスト3以下の青のみ候補・使�
   ok(rEnd.logs.join('').includes('コストなしで使用'), '使用ログあり');
   eq(rEnd.ownerState.trash.filter(n => n === cheapBlue).length, 1, '使用後もトラッシュに1枚だけ（二重積みなし）');
 });
+// 🔴🆕§5.3 `O-264`（2026-09-06）＝`PLAY_FREE` は **`opp_hand` 以外がプレースホルダー**で、
+//   選んだスペルを**使わずに手札へ入れる**だけだった（`effectExecutor.ts` の `thenAction` 三項）。
+//   🔑`source:'hand'` では「手札のカードを手札に入れる」＝**完全な無言 no-op**（live 6効果）。
+//   🔑`source:'opp_trash'` / `lrig_deck` では**相手や自分のカードを手札へ移す別効果**に化けていた。
+test('§5.3 O-264: PLAY_FREE は選んだスペルを実際に使用する（手札を配るのではない）', () => {
+  const cheap = 'WD03-015';   // 青×1 のスペル
+  const base = mkCtx({}, {});
+  const c = { ...base, ownerState: { ...base.ownerState, hand: [cheap] } } as ExecCtx;
+  const action = { type: 'PLAY_FREE', source: 'hand', filter: { cardType: 'スペル' },
+    ignoreCost: true, optional: true } as unknown as EffectAction;
+  const r = run(action, c);
+  ok(r.logs.join('').includes('コストなしで使用'),
+     '🔴手札のスペルを実際に使用する（旧実装は ADD_TO_HAND で何も起きなかった）');
+  eq(r.ownerState.hand.filter(n => n === cheap).length, 0, '使用したスペルは手札から離れる');
+  eq(r.ownerState.trash.filter(n => n === cheap).length, 1, '使用後は自分のトラッシュへ1枚だけ');
+});
+test('§5.3 O-264: 相手トラッシュから借りたスペルは持ち主のトラッシュに残る（複製しない）', () => {
+  const cheap = 'WD03-015';
+  const base = mkCtx({}, {});
+  const c = { ...base,
+    ownerState: { ...base.ownerState, trash: [] },
+    otherState: { ...base.otherState, trash: [cheap] } } as ExecCtx;
+  const action = { type: 'PLAY_FREE', source: 'opp_trash', filter: { cardType: 'スペル' },
+    ignoreCost: true, ignoreRestrictions: true, optional: true } as unknown as EffectAction;
+  const r = run(action, c);
+  ok(r.logs.join('').includes('コストなしで使用'), '🔴相手トラッシュのスペルを実際に使用する');
+  eq(r.otherState.trash.filter(n => n === cheap).length, 1, '持ち主のトラッシュに1枚だけ残る');
+  eq(r.ownerState.trash.filter(n => n === cheap).length, 0,
+     '🔴自分のトラッシュへ複製されない（旧 else 節の落とし穴）');
+  eq(r.ownerState.hand.filter(n => n === cheap).length, 0,
+     '🔴手札へ移さない（旧実装は ADD_TO_HAND で相手のトラッシュから奪っていた）');
+});
+test('§5.3 O-264: ルリグデッキのアーツを使ったらルリグトラッシュへ（手札に入らない）', () => {
+  const arts = 'WD01-008';   // 白×2 のアーツ
+  const base = mkCtx({}, {});
+  const c = { ...base, ownerState: { ...base.ownerState, lrig_deck: [arts] } } as ExecCtx;
+  const action = { type: 'PLAY_FREE', source: 'lrig_deck', filter: { cardType: 'アーツ' },
+    ignoreCost: true, optional: true } as unknown as EffectAction;
+  const r = run(action, c);
+  eq(r.ownerState.hand.filter(n => n === arts).length, 0,
+     '🔴アーツが手札に入らない（ルール上ありえない状態だった）');
+  eq(r.ownerState.lrig_trash.filter(n => n === arts).length, 1, '使用後はルリグトラッシュへ');
+  eq(r.ownerState.lrig_deck.filter(n => n === arts).length, 0, 'ルリグデッキからは外れる');
+});
+// 🔴§5.3 `O-264`＝**`ignoreRestrictions` を engine が初めて読む**。旧実装は `Restriction` を
+//   どこでも見ておらず、**フラグの有無に関わらず常に無視**していた（死にキーかつ過剰実行）。
+test('§5.3 O-264: 限定条件は ignoreRestrictions が無ければ効き、あれば無視される', () => {
+  const restricted = findCard(c => c.Type === 'スペル'
+    && !!c.Restriction && c.Restriction !== '-' && !c.Restriction.includes('タマ'));
+  const lrigTama = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('タマ'));
+  const mk = (ignore: boolean) => {
+    const base = mkCtx({}, {});
+    const c = { ...base, ownerState: { ...base.ownerState, hand: [restricted],
+      field: { ...base.ownerState.field, lrig: [lrigTama] } } } as ExecCtx;
+    const action = { type: 'PLAY_FREE', source: 'hand', filter: { cardType: 'スペル' },
+      ignoreCost: true, optional: true, ...(ignore ? { ignoreRestrictions: true } : {}) } as unknown as EffectAction;
+    return executeEffect({ effectId: 'pf', effectType: 'ACTIVATED', action,
+      duration: 'INSTANT', mandatory: false } as CardEffect, c);
+  };
+  const blocked = mk(false);
+  ok(blocked.done, '🔴限定が合わないスペルは候補0＝SEARCH を開かない');
+  ok(blocked.logs.join('').includes('対象なし'), '「対象なし」で終わる');
+  const allowed = mk(true);
+  ok(!allowed.done && allowed.pending.type === 'SEARCH',
+     '🔴「限定条件を無視して」があれば同じスペルが候補に出る');
+});
 test('PLAY_FREE_FROM_TRASH アーツ: ルリグトラッシュのコスト5以下のみ候補・使用後も残置（WX19-002-E4）', () => {
   const okArts = 'WD01-008', expArts = 'WX01-023'; // 白2 / 緑12
   const action = { type: 'PLAY_FREE_FROM_TRASH', costThreshold: 5, filter: { cardType: 'アーツ' }, maxCount: 1 } as EffectAction;

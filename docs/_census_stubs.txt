@@ -110,16 +110,16 @@ live JSON の STUB id 種類 : 585（総ノード 3180 件）
 ==============================================================================
     26件  26枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他20枚
-        消費: src\engine\effectExecutor.ts:6019 / src\engine\effectExecutor.ts:6034 / src\engine\triggerCollect.ts:524
+        消費: src\engine\effectExecutor.ts:6020 / src\engine\effectExecutor.ts:6035 / src\engine\triggerCollect.ts:524
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:5623 / src\engine\effectExecutor.ts:5628
+        消費: src\engine\effectExecutor.ts:5624 / src\engine\effectExecutor.ts:5629
      7件   7枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018 …他1枚
         消費(ペイロードキー): src\engine\effectEngine.ts:2212
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
-        消費: src\engine\effectExecutor.ts:5413
+        消費: src\engine\effectExecutor.ts:5414
      5件   5枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
         消費: src\screens\battle\allZoneBurst.ts:24 / src\screens\battle\allZoneBurst.ts:42
@@ -131,25 +131,25 @@ live JSON の STUB id 種類 : 585（総ノード 3180 件）
         消費: src\screens\battle\lifeCrashReplace.ts:54
      4件   4枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX25-CP1-039, WX26-CP1-047, WXDi-CP02-056
-        消費: src\engine\effectExecutor.ts:570
+        消費: src\engine\effectExecutor.ts:571
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:5420
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
-        消費: src\engine\effectExecutor.ts:517
+        消費: src\engine\effectExecutor.ts:518
      3件   3枚  GUARD_LOSS_UNLESS_LRIG
         カード: WX12-025, WX12-034, WX12-036
         消費: src\screens\battle\guard.ts:18
      2件   2枚  EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY
         カード: SPDi44-08, WX25-P1-018
-        消費: src\engine\effectExecutor.ts:469
+        消費: src\engine\effectExecutor.ts:470
      2件   2枚  EXTRA_USE_TIMING
         カード: SP38-005, WX16-Re20
         消費: src\screens\battle\artsUseGate.ts:42
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:5652
+        消費: src\engine\effectExecutor.ts:5653
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
@@ -158,10 +158,10 @@ live JSON の STUB id 種類 : 585（総ノード 3180 件）
         消費: src\screens\battle\signiDamageGate.ts:20
      1件   1枚  EFFECT_LEAVE_REPLACE_BANISH
         カード: WX25-P1-056
-        消費: src\engine\effectExecutor.ts:645
+        消費: src\engine\effectExecutor.ts:646
      1件   1枚  EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF
         カード: WXEX2-28
-        消費: src\engine\effectExecutor.ts:1011
+        消費: src\engine\effectExecutor.ts:1012
      1件   1枚  FLIP_SELF_ON_TARGETED
         カード: WX25-CP1-060
         消費: src\screens\battle\targetDodgeFlip.ts:46
@@ -173,16 +173,16 @@ live JSON の STUB id 種類 : 585（総ノード 3180 件）
         消費: src\engine\effectEngine.ts:7928
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9575
+        消費: src\engine\effectExecutor.ts:9591
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9577
+        消費: src\engine\effectExecutor.ts:9593
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
-        消費: src\engine\effectExecutor.ts:5242
+        消費: src\engine\effectExecutor.ts:5243
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4

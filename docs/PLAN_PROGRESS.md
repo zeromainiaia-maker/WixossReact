@@ -1,5 +1,35 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-06・第192バッチ・Opus 5 単独）＝**🏁**`O-265` をクローズ**（真因は collector の**2つ手前**＝instanceId を潰していた恒久 no-op）
+  📊**進捗3計器＝Sheet1 要対応 3 → 2 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
+  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文＝規約どおり）。
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／`census:deadstate` 0件（いずれも据置）。
+  📦**在庫**＝**機構 worklist 6 → 5項目**（索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**）
+  ｜**⑤実機 残 0件**（`V-172(1)` を返済＝`order` へ戻した）。
+  gates 全緑（golden **3545 / 3545**＝3544 +1本・smoke 全異常0・fuzz 全0・lint 0 errors）。
+  🖥**実機 `v172ResonaConditionFires` / `v172BattleBanishDoesNotFire` の2本とも PASS。**
+
+  🔴🔑**主産物＝真因は「ゲート」でも「collector」でもなく、その2つ手前の配線だった。**
+  `payResonaAppearanceAndPlace`（レゾナ出現条件の支払いの**唯一の funnel**）が、場から払ったカードを
+  **`getCardNum()` で instanceId から潰して**トラッシュへ入れていた（`WD21-017#1` → `WD21-017`）。
+  その結果 `detectTrashedSigni` の `after.trash.includes(beforeTop)` が**必ず外れ**、
+  **`collectTrashTriggers` が1度も呼ばれない恒久 no-op**になっていた。
+  🔑**契約は既に文書化されていた**＝`execUtils.ts:51` が `fieldTrashCostCards` を **instanceId の配列**と明記し、
+  engine 側（`banishDestination` ほか）も一貫して instanceId を trash へ入れている＝**この関数だけが例外**だった
+  （同関数内の `discardedCostCards` / `energyTrashed` は id を保っていた）。
+  📦**1行の修正で live 5効果が回復**＝`WD21-017-E1` ＋ `forResonaCondition` 一族4件
+  （`WX10-055-E1` / `WX14-049-E1` / `WXEX1-58-E1` / `WXEX1-72-E1`＝**同じ1行を通る**）。
+  副次的に、下に敷いたカード・チャーム・アクセ（`extras`）の id も保つようになり
+  `detectUnderSigniTrashed` の突き合わせも通るようになった。
+
+  🔴🔑**なぜ golden が6セッション緑だったか（2つの盲点）**
+  ①**collector を直叩きしていた**＝既存テストは `payResonaAppearanceAndPlace` を呼んだあと、
+  その結果を **`detectTrashedSigni` に通さず** collector へ直接渡していた＝**funnel を飛ばしていた**。
+  ②**fixture が素のカード番号だった**＝`mkState({ signi: [whiteA, whiteB] })` は `#n` を持たないので
+  **`getCardNum()` が no-op になり、潰していること自体が観測できなかった**。
+  ⇒ 両方を塞いだ（差分検出を通す assert ＋ `#n` 付き fixture で `WD21-017-E1` を一気通貫で固定）。
+  🔑**教訓＝ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る。**（§4.2 に追記）
+
 - **セッション（2026-09-06・第191バッチ・Opus 5 単独）＝**🏁**§5.4 を閉じた**（残っていた (c) 2件は**実装済みで、壊れていたのは逆翻訳だけ**）
   📊**進捗3計器＝Sheet1 要対応 3 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
   ⚠**Sheet1 の「3」は退化ではなく前ブロックの数字が stale だった**＝第190 の記載「0」を実測し直した値

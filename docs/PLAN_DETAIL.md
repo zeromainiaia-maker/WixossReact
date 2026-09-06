@@ -5625,6 +5625,26 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第192バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第192バッチ）＝🏁`O-265` クローズ／`V-172(1)` 返済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 → 2 / 863**｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
+  ⚠**census 据置の理由**＝語彙は増えていない（修正は `src/screens/battle/resonaSummon.ts` の**識別子の扱い1箇所**）。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
+  📦**在庫**＝**機構 worklist 6 → 5項目**＝索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**。
+  **⑤実機 残 0件**（`V-172(1)` 返済＝`order` へ戻した）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**／**live PARTIAL 16**（どちらも据置＝`public/data/` は無変更）。
+  🔧**ゲート（全緑 ✅）**＝golden **3545 / 3545**（3544 +1本＝`§5.3 O-265` の一気通貫。
+  既存「レゾナ出現条件ON_TRASH」へ funnel の assert も追加）／smoke 全異常0／fuzz 全0／
+  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**反転確認**＝`getCardNum()` を戻すと新テストと funnel assert が **2本 FAIL**（実測）。
+  🖥**実機**＝`v172ResonaConditionFires` **PASS**（相手の P1000 が消えた）／
+  対照 `v172BattleBanishDoesNotFire` **PASS**（原因が違えば発火しない）。**2本とも `order` に入れた。**
+
 ### 恒久指標アーカイブ（2026-09-06・第191バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第191バッチ）＝🏁§5.4 を閉じた（残 (c) 2件は実装済みで、壊れていたのは逆翻訳だけ）（Opus 5 単独／本ブロックが直近の正）**

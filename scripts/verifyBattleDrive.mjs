@@ -52944,6 +52944,83 @@ scenarios.v172BattleBanishDoesNotFire = {
 //   `detectTrashedSigni` の `after.trash.includes(beforeTop)` が必ず外れ、
 //   **`collectTrashTriggers` が1度も呼ばれない恒久 no-op** だった（ゲートではなく配線）。
 //   ⇒ `order` へ戻した。⚠**この2本は必ず対で回す**（①発火する ②原因が違えば発火しない）。
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-173` / §5.3 `O-264`＝**`PLAY_FREE` の `source:'hand'` は無言 no-op だった**（live 6効果）。
+//   旧実装は `thenAction` を `ADD_TO_HAND{owner:'self'}` へ落としており、
+//   「**手札のカードを手札に入れる**」＝**盤面が1バイトも動かない**。
+//   ⚠**golden だけでは不十分**＝SEARCH モーダルが実際に開いて選べるかは UI 側の問題。
+// 【希望】《ＮＯＩＳＹ》を使う → 手札の《包括する知識》（無×2・カードを２枚引く）を
+//   コストなしで使用 → **2枚引けて両方がトラッシュへ行く**。
+// 【旧挙動】ＮＯＩＳＹ だけがトラッシュへ行き、包括する知識は手札に残りドローも起きない。
+// ═════════════════════════════════════════════════════════════════════════════
+scenarios.v173PlayFreeFromHandActuallyUses = {
+  title: 'V-173: PLAY_FREE{source:hand} が手札のスペルを実際に使用する【旧実装は無言 no-op】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-004#1'],
+      'field.signi': [null, null, null],
+      energy: ['WD03-013#1', 'WD03-013#2'],   // 青×1（ＮＯＩＳＹ のコスト）
+      trash: [], actions_done: [],
+    },
+    guestSet: { 'field.signi': [null, null, null] },
+    handPrepend: ['WX21-038#1', 'WX01-052#1'], // ＮＯＩＳＹ（青×1）／包括する知識（無×2・2枚引く）
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    const deck0 = st0?.host?.deck ?? 0;
+    H.log(`開始 hand=${st0?.host?.hand} deck=${deck0} trash=${JSON.stringify(st0?.host?.trashCards)}`);
+    H.log(`ＮＯＩＳＹ をクリック: ${await H.clickTestId('my-hand-card-0') ?? '見つからず'}`);
+    const clickExact = async (name) => {
+      const b = page.getByRole('button', { name, exact: true }).first();
+      if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+        await b.click().catch(() => {}); return 'btn:' + name;
+      }
+      return null;
+    };
+    let used = false;   // sticky（§4.4-8d）
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      let did = await clickExact('発動');
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          const cast = await clickExact('発動する');
+          if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      // SEARCH（手札から使うスペルを選ぶ）＝⚠**1回だけ押す**（§4.4-2c＝毎ティック押すとトグルで外れる）
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const trash = st?.host?.trashCards ?? [];
+      if (trash.some(c => String(c).startsWith('WX01-052'))) used = true;
+      H.log(`  v173[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand} deck=${st?.host?.deck} trash=${JSON.stringify(trash)} used=${used} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!used) continue;
+      // ⚠**判定の先頭に「ＮＯＩＳＹ が使われた」を置く**（§4.4-3b＝旧実装でも必ず残る痕跡）。
+      if (!trash.some(c => String(c).startsWith('WX21-038'))) {
+        return { pass: false, detail: `前提崩れ＝ＮＯＩＳＹ 自体が使われていない（trash=${JSON.stringify(trash)}）` };
+      }
+      const drew = (st?.host?.deck ?? 0) <= deck0 - 2;
+      return drew
+        ? { pass: true, detail: `手札のスペルが実際に使用された（包括する知識がトラッシュ／デッキ ${deck0}→${st.host.deck}＝2枚引いた）` }
+        : { pass: false, detail: `🔴トラッシュへは行ったのに2枚引いていない（deck ${deck0}→${st?.host?.deck} logs=${JSON.stringify((st?.logTail ?? []).slice(-8))}）` };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `🔴手札のスペルが使われないまま終わった＝旧実装の無言 no-op（hand=${fin?.host?.hand} deck ${deck0}→${fin?.host?.deck} trash=${JSON.stringify(fin?.host?.trashCards)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+  },
+};
+
+order.push('v173PlayFreeFromHandActuallyUses');
+
 order.push('v172ResonaConditionFires');
 order.push('v172BattleBanishDoesNotFire');
 

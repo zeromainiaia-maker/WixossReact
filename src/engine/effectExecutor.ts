@@ -30,6 +30,7 @@ import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
+import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import { collectReturnableAssistLrigTops } from './assistLrig';
 import { acceCardsAt, cloneAcceSlots } from '../utils/acce';
 
@@ -8108,6 +8109,17 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
     const lastPF = new Set(ctx.lastProcessedCards ?? []);
     cands = cands.filter(n => lastPF.has(n));
   }
+  // 🔴🆕**§5.3 `O-264`＝`ignoreRestrictions` をここで初めて「読む」。**
+  //   原文「**限定条件を無視して**使用する」の有無で挙動が分かれるはずが、旧実装は engine のどこでも
+  //   `Restriction` を見ておらず、**フラグが有っても無くても常に無視**していた（＝過剰実行かつ死にキー）。
+  //   ⚠`census:deadstate` では見つからない（あれは `PlayerState` のキーしか走査しない）。
+  //   🔑判定は `meetsRestriction` の**1本だけ**を使う（アーツUI・スペルUI・グロウと同じ関数＝
+  //   写経すると「UI では使えないのに効果からは使える」型の無言のズレになる）。
+  if (!a.ignoreRestrictions) {
+    const lrigNum = ctx.ownerState.field.lrig.at(-1);
+    const lrigClassPF = effectiveLrigClass(ctx.ownerState, ctx.cardMap.get(getCardNum(lrigNum ?? ''))?.CardClass);
+    cands = cands.filter(n => meetsRestriction(ctx.cardMap.get(getCardNum(n))?.Restriction ?? '', lrigClassPF));
+  }
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
 
   // opp_hand: 相手の手札から選んだスペルを「あなたの手札にあるかのように」コストなしで使用する（WX04-003）。
@@ -8118,12 +8130,16 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   //   （`source:'opp_trash'` では**相手のトラッシュから奪う**）＝原文と別物だった。
   //   ⚠**カードは動かさない**（トラッシュに置いたまま使用可能にする）。使用時のコストは
   //   `USE_SPELL_FROM_TRASH_PAYING_COST` 側が印刷コストから請求する。
+  // 🔴🆕**§5.3 `O-264`（2026-09-06）＝`opp_hand` 以外はプレースホルダーだった。**
+  //   旧実装は `ADD_TO_HAND{owner:'self'}` へ落としており、原文「**使用する**」に対して
+  //   ①`source:'hand'`＝**手札のカードを手札に入れる＝完全な無言 no-op**（live 6効果）
+  //   ②`source:'opp_trash'`／`'lrig_deck'`＝**相手/自分のカードを手札へ移す別効果**に化けていた。
+  //   ⇒ **使用の実体は `STUB{PLAY_FREE}` の1本**（`execStubPart2`）＝全ソースをそこへ向ける。
+  //   ⚠`grantUseThisTurn` だけは別物（`O-185`＝カードを動かさず「このターン使用してよい」許可を積む）。
   const thenAction: EffectAction = a.grantUseThisTurn
     ? ({ type: 'STUB', id: 'INTERNAL_GRANT_TRASH_SPELL_USE',
          value: a.source === 'opp_trash' ? 'opponent' : 'self' } as StubAction)
-    : a.source === 'opp_hand'
-      ? ({ type: 'STUB', id: 'PLAY_FREE' } as StubAction)
-      : ({ type: 'ADD_TO_HAND', owner: 'self' } as EffectAction);
+    : ({ type: 'STUB', id: 'PLAY_FREE' } as StubAction);
 
   // SEARCH は0枚選択で確定でき、「使用してもよい」（辞退）に対応する
   return needsInteraction(ctx, {

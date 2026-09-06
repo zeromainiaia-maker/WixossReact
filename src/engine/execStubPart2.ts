@@ -3656,10 +3656,24 @@ export function execStubPart2(
           trash: stateOtherAfterPF.trash.filter(c => c !== cnPF),
           lrig_trash: stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF),
         };
+      } else if (cardPF.Type === 'アーツ' && ctx.ownerState.lrig_deck?.includes(cnPF)) {
+        // 🆕**§5.3 `O-264`（2026-09-06）＝ルリグデッキのアーツを使ったら**ルリグトラッシュ**へ。
+        //   旧実装は `execPlayFree` が `ADD_TO_HAND` へ落としていたので、**アーツが手札に入る**という
+        //   ルール上ありえない状態になっていた（`WX04-011-E1`）。
+        stateAfterPF = {
+          ...stateAfterPF,
+          lrig_deck: stateAfterPF.lrig_deck.filter(c => c !== cnPF),
+          lrig_trash: [...stateAfterPF.lrig_trash, cnPF],
+        };
       } else if (cardPF.Type === 'スペル') {
         // カードの現在位置で移動先を判定（自手札→自トラッシュ / 相手手札から借用→持ち主＝相手のトラッシュ）
         if (stateOtherAfterPF.hand.includes(cnPF)) {
           stateOtherAfterPF = { ...stateOtherAfterPF, hand: stateOtherAfterPF.hand.filter(c => c !== cnPF), trash: [...stateOtherAfterPF.trash, cnPF] };
+        } else if (stateOtherAfterPF.trash.includes(cnPF)) {
+          // 🆕**§5.3 `O-264`＝相手のトラッシュから借りたスペルは、そのまま持ち主のトラッシュに残る。**
+          //   🔴下の else へ落とすと**自分のトラッシュに複製が増える**（`WX05-011-E3`／`WX24-P4-040-E2`）。
+          //   ⚠`CAST_FROM_OPP_TRASH` のように相手トラッシュから**取り除いてもいけない**
+          //   （あちらは「手札にあるかのように」使ったあと持ち主へ返す別綴りで、ここは元からトラッシュ）。
         } else {
           // USE_SPELL_FROM_TRASH（トラッシュ発の使用）は既にトラッシュにあるため二重積みしない
           stateAfterPF = {
