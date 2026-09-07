@@ -17881,9 +17881,15 @@ function parseActionTextInner(text: string): EffectAction {
     //   （既存の `まだ選んでいないもの` と同じ扱い。effectParser の同注記を参照）。
     const notYet = src.match(/以下の[０-９\d２-９]+つからこの【[出起自常]】能力でまだ選ばれていない([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     if (notYet) return { count: parseNum(notYet[1]), upTo: !!notYet[2] };
-    // 「この方法で捨てた〈名詞〉の枚数と同じ数だけ選ぶ」＝直前に処理した枚数（`PR-328`）。
-    if (/以下の[０-９\d２-９]+つから[、,]?この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,10}?の枚数と同じ数だけ選ぶ/.test(src)) {
-      return { count: 1, upTo: false, countChoose: { count: { $ref: 'last_processed_count' } } };
+    // 「この方法で捨てた／〈ルリグ〉トラッシュに置いた〈名詞〉の枚数と同じ数だけ／まで選ぶ」＝
+    //   直前に処理した枚数（`PR-328`＝「だけ」＝ちょうどN個／`WX12-Re22-E1`＝「まで」＝upTo）。
+    //   🆕§5.0 実装キュー 第221バッチ＝旧規則は「トラッシュに置いた」の直前に「ルリグ」が挟まる形
+    //   （「この方法で**ルリグ**トラッシュに置いた」）にも「まで」にも対応しておらず、`WX12-Re22-E1` は
+    //   固定 `choose_count:1` に落ちていた（母集団2効果を再測＝この2件のみ）。
+    const sameCountChoose = src.match(/以下の[０-９\d２-９]+つから[、,]?この方法で(?:捨てた|(?:ルリグ)?トラッシュに置いた|公開した)[^。]{0,10}?の枚数と同じ数(まで|だけ)選ぶ/);
+    if (sameCountChoose) {
+      const upTo = sameCountChoose[1] === 'まで';
+      return { count: 1, upTo, countChoose: { count: { $ref: 'last_processed_count' }, ...(upTo ? { upTo: true } : {}) } };
     }
     // 「〈誰か〉のセンタールリグのルリグタイプ１つにつき１つまで選ぶ」（`PR-471`）。
     const perType = src.match(/以下の[０-９\d２-９]+つから(あなた|対戦相手)のセンタールリグのルリグタイプ[１1]つにつき[１1]つ(まで)?選ぶ/);
@@ -18176,13 +18182,20 @@ function parseActionTextInner(text: string): EffectAction {
     if (chooseIdx >= 0) {
       const chooseSentence = sentences[chooseIdx];
       const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
-      const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
-      const chooseAction = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
+      // 🆕§5.0 実装キュー 第221バッチ＝「以下の[N]つから、この方法で〜の枚数と同じ数まで/だけ選ぶ」は
+      //   choose_count が「つから」の直後に数字で来ない（動的カウント）ので上の抽出が外れ、
+      //   `chooseCount` が既定の1へ落ちていた（`WX12-Re22-E1`）。`chooseCountM` が外れたときだけ
+      //   `parseChooseHeaderCount` の動的枝（`countChoose`）で拾い直す＝**既存の固定数カードには無影響**。
+      const dynHead = !chooseCountM ? parseChooseHeaderCount(chooseSentence) : null;
+      const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : (dynHead?.count ?? 1);
+      const chooseUpTo = chooseCountM ? !!chooseCountM[2] : (dynHead?.upTo ?? false);
+      const chooseAction = buildChoose(text, chooseCount, chooseUpTo);
       if (chooseAction) {
+        const finalChooseAction = dynHead?.countChoose ? { ...chooseAction, countChoose: dynHead.countChoose } : chooseAction;
         const priorActions = sentences.slice(0, chooseIdx).map(s => parseSingleSentence(s.trim()));
         return priorActions.length === 0
-          ? chooseAction
-          : { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
+          ? finalChooseAction
+          : { type: 'SEQUENCE', steps: [...priorActions, finalChooseAction] } as SequenceAction;
       }
     }
   }

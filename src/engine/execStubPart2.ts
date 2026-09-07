@@ -579,18 +579,20 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerTFDPSL },
       `デッキ上${trashCountTFDPSL}枚→トラッシュ（シグニLv合計${lvSumTFDPSL}）`));
   }
-  // チャーム数だけドロー
+  // 🆕§5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（原文「対戦相手の場にある【チャーム】の数に
+  //   １を加えた枚数のカードを引く」）。旧実装は①**自分の**場のチャームを数え②**+1もしない**③チャーム0で
+  //   「引かない」（原文はチャーム0でも1枚は引く）＝所有者・枚数の二重の誤り。live 母集団はこの1効果のみ
+  //   （`census:population -- "場にある【チャーム】の数" --json DRAW_BY_CHARM_COUNT` で確認済み）。
   if (stub.id === 'DRAW_BY_CHARM_COUNT') {
-    const charmCountDBCC = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null && c !== undefined).length;
-    if (charmCountDBCC === 0) return done(addLog(ctx, 'チャームなし（DRAW_BY_CHARM_COUNT）'));
-    const drawCountDBCC = Math.min(charmCountDBCC, ctx.ownerState.deck.length);
+    const charmCountDBCC = (ctx.otherState.field.signi_charms ?? []).filter(c => c !== null && c !== undefined).length;
+    const drawCountDBCC = Math.min(charmCountDBCC + 1, ctx.ownerState.deck.length);
     if (drawCountDBCC === 0) return done(addLog(ctx, 'デッキなし（DRAW_BY_CHARM_COUNT）'));
     const newOwnerDBCC = {
       ...ctx.ownerState,
       deck: ctx.ownerState.deck.slice(drawCountDBCC),
       hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, drawCountDBCC)],
     };
-    return done(addLog({ ...ctx, ownerState: newOwnerDBCC }, `${drawCountDBCC}枚ドロー（チャーム${charmCountDBCC}個）`));
+    return done(addLog({ ...ctx, ownerState: newOwnerDBCC }, `${drawCountDBCC}枚ドロー（対戦相手チャーム${charmCountDBCC}個+1）`));
   }
   // 🗑§5.3 `O-188` 第6バッチ（2026-09-01）＝`BANISH_MULTI_COLOR_SIGNI` のハンドラを削除した。
   //   唯一の利用元 `WXK05-030-E1` の原文は「対戦相手の白、赤、青、緑、黒のシグニを**それぞれ１体**対象とし、

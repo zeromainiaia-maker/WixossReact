@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第221バッチ・Opus・O-D 実装キュー）＝4効果を修正（系統発見2件を分離登録）
+
+**作業単位**＝ユーザー指示「５件ほど続けて」。実装キューを①②③（重い順）で上から取った。
+
+### `WX18-038-BURST`（原文「対戦相手の場にある【チャーム】の数に１を加えた枚数のカードを引く」）
+
+**真因**＝`STUB{DRAW_BY_CHARM_COUNT}` が `ctx.ownerState`（自分）のチャームを数え、`+1` もせず、
+チャーム0枚のとき早期returnで0枚ドローしていた（原文は0枚でも0+1=1枚は引く）。
+**修正**＝`ctx.otherState` へ差し替え・`+1` を追加・早期return撤去（`src/engine/execStubPart2.ts`）。
+live 母集団はこの1効果のみ（`census:population -- "場にある【チャーム】の数" --json DRAW_BY_CHARM_COUNT` で確認）。
+
+### `WX16-074-E1`（原文「このカードをエナゾーンからあなたのシグニ１体の【アクセ】にする」）
+
+**真因**＝`STUB{ACCE_FROM_HAND}`（`parseSentencePart2.ts` の「【アクセ】にする」catch-all が生成）のゲートが
+`ctx.ownerState.hand.includes(srcAFH)` だけを見ており、エナゾーン発は常に「アクセカードが手札にない」で
+恒久no-op。**受け皿の `ATTACH_ACCE`（`effectExecutor.ts` の `ATTACH_ACCE` ケース）は元から `energy`/`hand`
+の両方を見て除去する**ので、壊れていたのはゲート1行だけ。`hand.includes || energy.includes` へ広げて修正
+（`src/engine/execStubPart3.ts`）。
+
+**関連発見（未修正・§5.3 `O-285` へ分離）**＝同じ catch-all が生成する `STUB{ACCE_FROM_HAND}` は他に
+`WXDi-P09-007-E2`（ソースが**ルリグデッキ**）／`WXK05-026-E1`（**候補選択**が必要＝`ctx.sourceCardNum` 固定では
+効果元自身が既に場にいて手札に無い）の2件も飲み込んでおり、どちらも別の新機構が要る恒久no-op。
+
+### `WX21-052-E1-G`（原文「対戦相手のターン終了時、…」）
+
+**真因**＝`triggerScope:'self'` が逆（`collectTurnTriggers` はターンプレイヤー側の場しか `self` を拾わない＝
+自分のターン終了時にしか発火しなかった）。`any_opp` へ1行修正（`src/data/manualEffects.ts`）。
+
+**配送の罠**＝この効果は `parseStatus:'MANUAL'`（`GRANT_FIELD_SIGNI_ABILITY.abilities[]` のネスト）＝
+`manualEffects.ts` を直接編集しただけでは**収穫マージの不可侵ガードに当たり live に届かなかった**
+（`npx tsx scripts/syncManualLive.ts WX21-052` で同期して初めて反映。CLAUDE.md 既知の罠）。
+
+### `WX12-Re22-E1`（原文「この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ」）
+
+**真因**＝2つ重なっていた。①`countChoose{$ref:'last_processed_count'}` を生成する regex
+（`effectParser.ts` の `parseChooseHeaderCount`）が「トラッシュに置いた」の直前に「ルリグ」が挟まる形にも
+「まで」（upTo）変種にも対応していなかった ②仮に①を直しても、この効果を実際に生成する
+`chooseIdx` ブロック（2文構成の CHOOSE 用・`parseActionTextInner` 内）は `countChoose` 自体を
+一度も読んでおらず `choose_count:1` 固定に潰していた（`buildChooseFromHeader` 経由の別入口だけに
+配線済み＝**同義の入口が2つあって片方だけ取り残されていた**型・第213バッチの `hasRiseIcon` と同型）。
+両方を修正（`src/data/effectParser.ts`）。母集団2効果（`PR-328-E1` は既存の「だけ」枝で既に正常）。
+
+### `WX17-004-E1`（着手→新機構要と判明・未修正・§5.3 `O-284` 経由で登録更新）
+
+選択肢③の2本目 `GRANT_KEYWORD`（アサシン）が「そのシグニ」照応を持てず独立選択（`owner:'any'`）に
+落ちる真因は `applyExplicitTargetMarker`（`effectParser.ts:14452`）＝外側テキストに「シグニ…を対象とし」が
+1回でもあると木全体の対象ノードへ無差別に `explicitTarget:true` を刻む後処理。「そのシグニ」照応を認識する
+枝がそもそも無い。同文の `WXK03-TK-01B-E1` も同型と判明（母集団2効果へ登録票を更新）。
+
+**検証**＝4件とも golden 追加（`WX18-038-BURST`×2／`WX16-074-E1`×2／`WX21-052-E1-G`×1／`WX12-Re22-E1`×2＝
+計7本・全て反転確認込み＝修正前コードで FAIL することを確認済み）。`src/screens/` 無変更＝実機不要（§2.2）。
+`npm run gates` 全緑（golden 3624→3631 PASS）。実装キュー残 23行/25効果→19行/20効果。
+
 ## 2026-09-07（第220バッチ・Opus・O-D 実装キュー「系統」）＝`WX07-014-E1`「打ち消したスペルを無料で使用してもよい」の恒久no-op
 
 **真因**＝`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` の `STUB{PLAY_FREE}` は「それ」を

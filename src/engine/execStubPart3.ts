@@ -3551,10 +3551,16 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSRTP }, `デッキトップ公開：${nameRTP}をアタックしているシグニとしてダウン状態で場に出す（アタック継続）`));
   }
   // === バッチ12: アクセ・シグニ配置・能力付与・無効系 ===
-  // ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける
+  // ACCE_FROM_HAND: このカード自身を自分のシグニに【アクセ】として付ける（手札発が大半だが、
+  //   🆕§5.0 実装キュー 第221バッチ＝`WX16-074-E1`「このカードを**エナゾーンから**…【アクセ】にする」も
+  //   同じ parser catch-all（`parseSentencePart2.ts` の「【アクセ】にする」）に落ちる＝この STUB がエナ発も担う。
+  //   🔴旧実装は `hand.includes` だけを見ており、エナゾーン発は「アクセカードが手札にない」で常に無言 no-op だった。
+  //   ⚠**下の `ATTACH_ACCE`（`applyDirectAction`）は元から `energy`/`hand` の両方を見て除去する**（`effectExecutor.ts`
+  //   の `ATTACH_ACCE` ケース）＝**壊れていたのはこのゲート1行だけ**（新機構は不要）。
   if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
     const srcAFH = ctx.sourceCardNum;
-    if (!srcAFH || !ctx.ownerState.hand.includes(srcAFH)) return done(addLog(ctx, 'アクセカードが手札にない'));
+    const srcInZoneAFH = !!srcAFH && (ctx.ownerState.hand.includes(srcAFH) || ctx.ownerState.energy.includes(srcAFH));
+    if (!srcInZoneAFH) return done(addLog(ctx, 'アクセカードが手札/エナにない'));
     const candidatesAFH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       if (!stack || stack.length === 0) return [];
       const host = stack[stack.length - 1];

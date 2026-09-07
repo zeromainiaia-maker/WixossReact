@@ -6017,6 +6017,20 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-07・第220バッチ後・PLAN §6 から退避）
+
+- **2026-09-07（第220バッチ・Opus・O-D）＝実装キューの系統「`WX07-014-E1`」を消化（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝`STUB{PLAY_FREE}` への配線漏れは**どの計器も見ていない穴**
+  （JSON は正しく `SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` を持つが、`ctx` 構築側の配線が欠けていた）。
+  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜
+  **未修正の真バグ 24 → 23行 / 26 → 25効果**｜**機構 worklist 12 → 13項目**（`O-283` を登録）｜
+  **⑤実機 残 0件**（`V-179` を同バッチで返済）。
+  🔧**ゲート（全緑 ✅）**＝golden **3624 / 3624 PASS**（退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
+  census 0 ／ census:stubs A群 0 ／ census:enginetext A🔴0行 ／ census:costtext A🔴0規則 ／ lint 0 errors。
+  🖥**実機＝`V-179`（`scripts/verifyBattleDrive.mjs` の `o283CounterSpellPlayFreeCarriesCardNum`）を新設・PASS**。
+  **反転確認**＝配線を `false &&` で無効化すると FAIL に戻ることを確認済み。
+
 ### 恒久指標アーカイブ（2026-09-07・第217バッチ後・PLAN §6 から退避）
 
 - **2026-09-07（第217バッチ・Opus 5・O-D）＝実装キューの系統4型のうち①③④を消化（本ブロックが直近の正）**

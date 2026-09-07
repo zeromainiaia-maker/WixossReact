@@ -15588,6 +15588,102 @@ test('turn triggerScope 補完: 自/相手ターン終了時を併記したカ�
   ok(!opponentEnd.some(e => e.effectId === 'WXDi-P08-042-E1'), '自ターン終了時の1ドローが相手ターンに過剰収集された');
   ok(opponentEnd.some(e => e.effectId === 'WXDi-P08-042-E2'), '相手ターン終了時の手札捨てが収集されない');
 }));
+// §5.0 実装キュー 第221バッチ＝`WX21-052-E1-G`（GRANT_FIELD_SIGNI_ABILITY 経由の付与AUTO）。
+// 原文「対戦相手のターン終了時」なのに旧 triggerScope:'self' は「自分のターン終了時」にしか発火しなかった
+// （collectTurnTriggers はターンプレイヤー側の場しか 'self' を拾わない）。any_opp へ修正。
+test('WX21-052-E1-G: GRANT_FIELD_SIGNI_ABILITY 付与でも triggerScope は「相手のターン終了時」限定（反転確認込み）', () => withSavedCursor(() => {
+  const runtimeCards = new InstanceMap(cardMap);
+  const owner = mkState({ signi: ['WX21-052#1', null, null] });
+  const empty = mkState({});
+  // ⚠**`collectGrantedFromLayer` は `top`（インスタンスID）で `effectsMap.get()` を引く**＝
+  //   素の `Map`（カード番号キー）だと素通り（空）になる。実機と同じ `InstanceMap`（getCardNum フォールバック
+  //   付き）を渡す（第220バッチの `V-179` 罠と同族＝「InstanceMap で渡す前提のコードを素の型で叩かない」）。
+  const layerMap = new InstanceMap(buildEffectsMap([cardMap.get('WX21-052')!]));
+  const layer = collectGrantedFromLayer(owner, empty, true, layerMap, cardMap as Map<string, CardData>);
+  ok(layer.has('WX21-052#1'), '前提＝CONTINUOUS が自分自身（＜天使＞）へ自己付与している');
+  for (const [num, extra] of layer) {
+    const base = layerMap.get(num) ?? layerMap.get(getCardNum(num)) ?? [];
+    layerMap.set(num, [...base, ...extra]);
+  }
+  const runtimeEffects = layerMap;
+  // 相手（＝empty側）のターン終了時：myState=empty（ターンが終わる側）／opState=owner（付与元がいる側）
+  const oppEnd = collectTurnTriggers({
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, 'ON_TURN_END', empty, owner).entries;
+  ok(oppEnd.some(e => e.effectId === 'WX21-052-E1-G'), '対戦相手のターン終了時に発火する');
+  // 反転確認：自分（owner）のターン終了時には発火しない
+  const ownEnd = collectTurnTriggers({
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, 'ON_TURN_END', owner, empty).entries;
+  ok(!ownEnd.some(e => e.effectId === 'WX21-052-E1-G'), '自分のターン終了時には発火しない（triggerScope:any_opp の反転確認）');
+}));
+
+// §5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（STUB{DRAW_BY_CHARM_COUNT}）。
+// 原文「対戦相手の場にある【チャーム】の数に１を加えた枚数のカードを引く」。旧実装は
+// ①自分の場のチャームを数え ②+1もしない ③チャーム0で「引かない」の二重の誤り。
+test('WX18-038-BURST: 対戦相手の場のチャーム数+1枚ドロー（自分のチャームは数えない）', () => {
+  const eff = effectsMap.get('WX18-038')!.find(e => e.effectId === 'WX18-038-BURST')!;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.field.signi_charms = ['CHARM_OPP_A#1', 'CHARM_OPP_B#1', null];
+  ctx.ownerState.field.signi_charms = ['CHARM_SELF#1', null, null]; // 自分のチャームは数えないことの対照
+  const handBefore = ctx.ownerState.hand.length;
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, handBefore + 3, '対戦相手チャーム2個+1＝3枚ドロー（自分の1個は無視）');
+});
+test('WX18-038-BURST: 対戦相手チャーム0個でも1枚は引く（反転確認）', () => {
+  const eff = effectsMap.get('WX18-038')!.find(e => e.effectId === 'WX18-038-BURST')!;
+  const ctx = mkCtx({}, {});
+  const handBefore = ctx.ownerState.hand.length;
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, handBefore + 1, 'チャーム0でも0+1＝1枚は引く（旧実装は0枚で早期returnしていた）');
+});
+
+// §5.0 実装キュー 第221バッチ＝`WX16-074-E1`（STUB{ACCE_FROM_HAND}）。
+// 原文「このカードをエナゾーンからあなたのシグニ１体の【アクセ】にする」。旧ゲートは `hand.includes` だけを
+// 見ており、エナゾーン発は「アクセカードが手札にない」で恒久 no-op だった（`ATTACH_ACCE` 本体は元から
+// hand/energy 両対応＝ゲート1行が壊れていただけ）。
+test('WX16-074-E1: STUB{ACCE_FROM_HAND} はエナゾーン発でも自分自身をアクセに付けられる', () => {
+  const eff = effectsMap.get('WX16-074')!.find(e => e.effectId === 'WX16-074-E1')!;
+  const self = 'WX16-074#1';
+  const host = fresh();
+  const ctx = mkCtx({ signi: [host, null, null] }, {}, self);
+  ctx.ownerState.hand = [];
+  ctx.ownerState.energy = [self];
+  const r = run(eff.action, ctx);
+  ok(!r.ownerState.energy.includes(self), 'エナゾーンから除去される');
+  ok((r.ownerState.field.signi_acce?.[0] ?? []).includes(self), 'ホストシグニの【アクセ】になる');
+});
+test('WX16-074-E1: 手札にもエナにも無ければ何も起きない（対照）', () => {
+  const eff = effectsMap.get('WX16-074')!.find(e => e.effectId === 'WX16-074-E1')!;
+  const self = 'WX16-074#1';
+  const host = fresh();
+  const ctx = mkCtx({ signi: [host, null, null] }, {}, self);
+  ctx.ownerState.hand = [];
+  ctx.ownerState.energy = [];
+  const r = run(eff.action, ctx);
+  eq((r.ownerState.field.signi_acce?.[0] ?? []).length, 0, '手札にもエナにも無ければアクセされない');
+});
+
+// §5.0 実装キュー 第221バッチ＝`WX12-Re22-E1`（`SEQUENCE[STUB{SOUL_OP}, CHOOSE]`）。
+// 原文「以下の４つから、この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ」＝選択数は
+// 「置いた枚数」に連動する動的な upTo。旧 parser は「つから」直後に数字が無い（動的カウント）形を
+// 拾えず choose_count:1 固定に潰していた。
+test('WX12-Re22-E1: 選択数はルリグの下から置いた枚数と同じ数まで（動的・upTo）', () => {
+  const eff = effectsMap.get('WX12-Re22')!.find(e => e.effectId === 'WX12-Re22-E1')!;
+  const under = ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'];
+  const ctx = mkCtx({ lrig: [...under, 'WD01-001#9'] }, {});
+  const result = executeEffect(eff, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE', 'SOUL_OP は対話なしで即 CHOOSE を提示');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  eq(result.pending.count, 3, '選択数＝ルリグの下から置いた3枚と同じ');
+  eq(result.pending.upTo, true, '「まで」＝upTo（3個未満でも選べる）');
+});
+test('WX12-Re22-E1: ルリグの下が0枚なら選択そのものが起きない（反転確認）', () => {
+  const eff = effectsMap.get('WX12-Re22')!.find(e => e.effectId === 'WX12-Re22-E1')!;
+  const ctx = mkCtx({ lrig: ['WD01-001#9'] }, {});
+  const result = executeEffect(eff, ctx);
+  ok(result.done, 'ルリグの下が0枚＝選択数0でそのまま完了（旧実装は choose_count:1 固定で1つ選べてしまっていた）');
+});
 test('ON_PLAY triggerScope 補完: 別能力の opponent watcher は自身の【出】を汚染しない', () => withSavedCursor(() => {
   const source = 'WX14-025#1';
   const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WX14-025')!]));

@@ -1,5 +1,28 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-07・第220バッチ・Opus・O-D）＝実装キューの系統「`WX07-014-E1`」を消化（live 1効果）**
+  **作業単位**＝ユーザー指示「opus の作業を進める」。第219 で残った系統行（`STUB{PLAY_FREE}` 単独＝真 no-op の残3効果）の先頭を取った。
+
+  🏁**`WX07-014-E1`（クロス・スクランブル）＝`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` の後段が恒久 no-op**。
+  `STUB{PLAY_FREE}` は「それ（打ち消したスペル）」を `ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で決めるが、
+  `BattleScreen.handleCutinUse` は `lastProcessedCards` を一度も渡していなかった＝`sourceCardNum`（カットインした
+  このカード自身）へフォールバックし、自己再帰ガード（`_containsStub`）に引っかかって**何も起きなかった**。
+  ⇒ `ctx` 構築時に `shouldCounterSpell`（既存の打ち消しフラグ）が真のときだけ `lastProcessedCards:[card_num]` を足す1行。
+
+  🔴**`src/screens/` を触った＝実機必須**（§2.2）。`scripts/verifyBattleDrive.mjs` に **`V-179`**
+  （`o283CounterSpellPlayFreeCarriesCardNum`）を新設＝ミルルンLv3＋クロス状態シグニ＋`WX07-014` の盤面を注入し、
+  相手の `WD01-018`（コスト0「カードを1枚引く」）を打ち消させてから無料再使用を確認（host 手札 0→1・PASS）。
+  **反転確認**＝`lastProcessedCards` の付与を `false &&` で無効化すると FAIL に戻ることを確認済み。
+
+  🔑**残2件（`WX21-Re04-E1`／`WX22-014-E3`）は「カードではなくルリグの能力」を使う側**＝
+  `STUB{PLAY_FREE}` は「カードを使う」経路しか持たないので新機構待ち＝§5.3 `O-283` として分離登録。
+
+  `npm run gates` 全緑（golden 3624 PASS・退行なし）。
+
+  📊**進捗3計器＝Sheet1 要対応 9 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 23行 / 25効果**
+  （第220 で1行落とした）｜**機構 worklist 12 → 13項目**（`O-283` を登録）｜**⑤実機 残 0（`V-179` を即日返済）**。
+
 - **セッション（2026-09-07・第218＋第219バッチ・Codex 委譲 × Opus 検証／引き継ぎ・O-D）＝live 12効果**
   **作業単位**＝ユーザー指示「PLAN と CODEX_GUIDE を読み、opus の作業を codex-work に投げ、止まったら Claude が引き継ぐ。
   そのあと次の作業を codex に投げ、それも止まったら引き継いで push」。**2バッチとも Codex へ投入し、2回とも Claude が引き取った。**
