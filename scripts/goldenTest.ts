@@ -44064,8 +44064,14 @@ test('O-96 第6バッチ: UP/GRANT_KEYWORD が支払い後も同じ対象だけ�
   eq((seq.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言が先頭（支払いの前）');
   ok(JSON.stringify(seq.steps.at(-1)).includes('"targetsStored":true'), '本体は固定対象だけをアップ');
   // 🔑`freezeStoredTargets` が `fixedCardNums` へ焼くので、支払いプロンプトを跨いでも対象が生き残る。
-  const a = findCard(c => isSigni(c) && +(c.Power || '0') > 0);
-  const b = findCard(c => isSigni(c) && +(c.Power || '0') > 0 && c.CardNum !== a);
+  // 🆕🔴**盤面は「レゾナ2体」でなければならない**（2026-09-07 第208バッチ）＝原文は「**レゾナ**１体を対象とし」で、
+  //   この巡で `selectTarget` に `cardType:'レゾナ'` が載った。**素のシグニを敷くと候補0**になり
+  //   `abortIfNoCandidate` で何も起きず、「2体ともダウンのまま」＝この test が FAIL する。
+  //   ⚠**その FAIL は退行ではなく fixture の陳腐化**＝旧 fixture は「フィルタが無い」ことに依存していた。
+  //   🔑`matchesFilter` は `Type==='レゾナ'` を `cardType:'シグニ'` にも一致させる（非対称の緩和）ので、
+  //     レゾナを敷いても他の assert の前提は変わらない。
+  const a = findCard(c => c.Type === 'レゾナ' && +(c.Power || '0') > 0);
+  const b = findCard(c => c.Type === 'レゾナ' && +(c.Power || '0') > 0 && c.CardNum !== a);
   const ctx = mkCtx({ signi: [a, b, null], down: [true, true, false] }, {});
   // 🔴**支払い可否を POOL に依存させない**＝`fill()` が引くカードの色でコスト《白》が払えたり
   //   払えなかったりして、絞り込み実行では通るのに全件実行で落ちる（実測）。白を明示的に敷く。
@@ -49995,6 +50001,43 @@ for (const spec of kagiriCases) {
     ok(s.includes(spec.want), `原文どおりのゲート ${spec.want}（実際 ${s}）`);
   });
 }
+
+// 🆕**§5.0 O-D/S-3 実装キュー 第208バッチ（2026-09-07）＝速いレーン4件（受け皿が全部在ったもの）。**
+// 🔑**4件とも「受け皿は在るのに生成側が届いていない」型**＝どの `census:*` にも映らない（第207の型と同族）。
+const o208Cases = [
+  { effectId: 'WX05-005-E3', want: '"ATTACK_ARTS"', ng: '"MAIN"',
+    why: '《アタックフェイズアイコン》エクシード5（manualEffects の手書きが timing:["MAIN"] を焼き込んでいた）' },
+  { effectId: 'WX08-023-E3', want: '"cardType":"レゾナ"', ng: '"cardType":"ルリグ"',
+    why: 'ルリグトラッシュからレゾナ1枚（ゾーン名「ルリグトラッシュ」から cardType:ルリグ を拾っていた）' },
+  { effectId: 'WX10-028-E2', want: '"cardType":"レゾナ"', ng: undefined,
+    why: 'レゾナ1体を対象とし（所有者語が無い宣言＋照応「それを」でフィルタが丸ごと落ちていた）' },
+  { effectId: 'WX05-030-E1', want: '"nameEqLastProcessed":true', ng: undefined,
+    why: 'この方法で公開したシグニと同じ名前（同一性制約が落ちて任意のシグニを3枚持ってこられた）' },
+] as const;
+for (const spec of o208Cases) {
+  test(`§5.0 O-D live ${spec.effectId}: ${spec.why}`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const js = JSON.stringify(eff);
+    ok(js.includes(spec.want), `🔴原文どおりの限定 ${spec.want}（実際 ${js.slice(0, 260)}）`);
+    if (spec.ng) ok(!js.includes(spec.ng), `🔴旧の誤り ${spec.ng} が残っていない`);
+  });
+}
+
+// 🔴**`WX05-005-E3` は「手書きを消して parser に返した」ので、手書きが復活しないことも見張る。**
+//   `manualEffects.ts` に E3 を書き戻すと `mergeManualEffects` が effectId 一致で常に勝ち、
+//   **parser の正しい timing が永久に届かなくなる**（そのとき live は静かに MAIN へ戻る）。
+test('§5.0 O-D WX05-005: manualEffects に E3 を書き戻さない（E2 だけを持つ）', () => {
+  const manual = (MANUAL_EFFECTS['WX05-005'] ?? []).map(e => e.effectId);
+  eq(JSON.stringify(manual), '["WX05-005-E2"]',
+     '🔴E2（energyTrash を持つぶん parser より忠実）だけを残す。E3 は parser の所有');
+});
 
 // 🆕**§5.0 O-A triage 第207バッチ（2026-09-07）＝残33件を全数 triage し、受け皿が既にある3件を直した。**
 // 🔑**3件とも「受け皿は在るのに生成側が1本も出していない」型**＝`census:*` は「受け皿があるか」しか見ないので

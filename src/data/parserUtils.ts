@@ -829,7 +829,14 @@ export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (t.includes('シグニ')) return { cardType: 'シグニ' };
   if (t.includes('スペル')) return { cardType: 'スペル' };
   if (t.includes('アーツ')) return { cardType: 'アーツ' };
-  if (t.includes('ルリグ')) return { cardType: 'ルリグ' };
+  // 🆕🔴**`レゾナ` を `ルリグ` より先に読む**（2026-09-07 第208バッチ・意味照合 O-A の実装キュー・`WX08-023-E3`）＝
+  //   原文「あなたの**ルリグトラッシュ**からレゾナ１枚を対象とし、それを**ルリグデッキ**に加える」は
+  //   `レゾナ` の枝が無いので下の `includes('ルリグ')` に落ちるが、**そこで当たっているのはゾーン名**
+  //   （「ルリグトラッシュ」「ルリグデッキ」）＝`cardType:'ルリグ'` に化けて**レゾナ以外のルリグカードまで戻せた**。
+  //   🔑同じ理由で `ルリグ` 側もゾーン名を先に落とす（「ルリグトラッシュ**から**ルリグ１枚」は
+  //   落としても名詞の `ルリグ` が残るので従来どおり当たる）。
+  if (t.includes('レゾナ')) return { cardType: 'レゾナ' };
+  if (t.replace(/ルリグ(?:トラッシュ|デッキ)/g, '').includes('ルリグ')) return { cardType: 'ルリグ' };
   return {};
 }
 
@@ -1028,9 +1035,17 @@ export function signiClauseExcludeResonaFilter(text: string): Partial<TargetFilt
  *   （`HAS_CARD_IN_FIELD{cardType:'レゾナ'}` の領分）。
  * ⚠**「レゾナではない」は別ヘルパ**（`signiClauseExcludeResonaFilter`）＝この regex は
  *   `レゾナ` の直後に助数詞を要求するので「レゾナではない…シグニN体」には当たらない。
+ *
+ * 🆕🔴**所有者語は任意**（2026-09-07 第208バッチ・意味照合 O-A の実装キュー・`WX10-028-E2`）＝
+ *   原文「**レゾナ１体を対象とし**、《白》を支払ってもよい。そうした場合、それをアップする」は
+ *   所有者語（「あなたの」「対戦相手の」）を持たないため必須にしていた旧 regex に当たらず、
+ *   `{type:'SIGNI', owner:'self', count:1}`（**フィルタなし**）へ潰れて**自分の任意のシグニ**を選べていた。
+ *   ⚠所有者語が無いときは**文頭か句読点の直後**に限る（「あなたの場のレゾナが…」等の途中一致を作らない）。
+ *   ⚠**owner は据置**＝原文が無指定なので本来は両者だが、`owner` を動かすと engine の候補集合が変わる。
+ *     ここで直すのは**種別フィルタだけ**（無指定 owner の扱いは別項目）。
  */
 const SIGNI_CLAUSE_ADJACENT_RESONA =
-  /(?:対象の)?(?:あなた|対戦相手)の(?:(?![。、]|レゾナ|シグニ).){0,12}レゾナ(?:を)?[０-９\d]+体(?:まで)?(?:を?対象とし|を?バニッシュ|を?手札に戻|を?トラッシュに置|をダウン|をアップ|を?エナゾーンに置)/;
+  /(?:^|[。、「『：])(?:対象の)?(?:(?:あなた|対戦相手)の)?(?:(?![。、]|レゾナ|シグニ).){0,12}レゾナ(?:を)?[０-９\d]+体(?:まで)?(?:を?対象とし|を?バニッシュ|を?手札に戻|を?トラッシュに置|をダウン|をアップ|を?エナゾーンに置)/;
 export function signiClauseResonaFilter(text: string): Partial<TargetFilter> {
   return SIGNI_CLAUSE_ADJACENT_RESONA.test(text) ? { cardType: 'レゾナ' } : {};
 }

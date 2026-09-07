@@ -5165,10 +5165,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  グロウ条件「トラッシュに黒のカードが10枚以上ある」はグロウ時ゲート（checkGrowCondition・511行）で処理。グロウ後はE1は常時発動。
   //  E1【常】エナゾーン以外のシグニは黒になる（CHANGE_ALL_SIGNI_COLOR_TO_BLACK・常時発動。WX04-005と同じくグロウ条件はactiveConditionにしない）。実装は effectEngine collectFieldSigniExtraColors。
   //  E2【起】《黒》エナゾーンから黒のカード1枚をトラッシュ：対戦相手のシグニ1体をトラッシュ。コストは energy 黒×1 ＋ energyTrash(黒×1)（旧: energyTrash 欠落）。
-  //  E3【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。
+  //  E3【起】《アタックフェイズアイコン》エクシード5：対戦相手のセンタールリグと全シグニをダウン。
+  // 🆕🔴**2026-09-07（第208バッチ・意味照合 O-A の実装キュー）＝E3 の手書きを削除して parser に返した。**
+  //   手書きは `timing:["MAIN"]` を焼き込んでおり、原文の **《アタックフェイズアイコン》を落としていた**
+  //   （＝メインフェイズに撃てる過剰実行）。parser は同型41効果すべてで `ATTACK_ARTS` を正しく出しており、
+  //   **E3 は手書きと parser 出力が timing 以外1バイトも違わなかった**＝手書きが古いだけだった。
+  //   🔴**この形はどの計器にも映らない**＝`censusManualDrift` の「削除候補」は**実体同一のものしか**挙げないので、
+  //     「手書きが parser より古い（＝実体が違う）」ものは**永久に候補にならない**。
+  //   ⇒ 🔑**手書きを残すのは「parser より忠実な軸がある」ときだけ。E2 は `energyTrash` を持つので残す。**
   "WX05-005": [
-    {"effectId":"WX05-005-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}],"energyTrash":{"count":1,"filter":{"color":"黒"}}},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-005-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX05-005-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}],"energyTrash":{"count":1,"filter":{"color":"黒"}}},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX05-006 虚無の閻魔 ウリス（ルリグ ウリス Lv5）

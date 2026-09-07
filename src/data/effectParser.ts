@@ -9006,6 +9006,15 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   //   **この方法で公開したシグニと同じ名前の**シグニ1枚を探して…」＝前段の REVEAL が
   //   `source:HAND_CARD` を持って初めて engine が lastProcessedCards を記録する（同セッションで語順を是正済み）。
   'WXK05-044-E1': { type: 'SEARCH', flag: 'nameEqLastProcessed' },
+  // 🆕**2026-09-07 第208バッチ（意味照合 O-A の実装キュー）＝同型のもう1件**。
+  //   `WX05-030-E1`「手札から＜アーム＞のシグニ１枚を公開する。あなたのデッキから**この方法で公開した
+  //   シグニと同じ名前の**シグニ**を３枚まで**探して公開し手札に加え…」。
+  //   🔴同一性制約が丸ごと落ちて**任意のシグニを3枚持ってこられる万能サーチ**になっていた。
+  //   ⚠`WXK05-044-E1` と外れ方が違うのは文型の2点＝①「そうした場合、」が無い
+  //     ②「シグニ**を３枚まで**探して」（あちらは「シグニ**１枚を**探して」）。
+  //   🔑前段は同じ `STUB{HAND_REVEAL_CLASS_SIGNI}` で、公開した札が `lastProcessedCards` に残るので
+  //     engine 側（`execSearch` の `nameEqLastProcessed` 解決）はそのまま効く。
+  'WX05-030-E1': { type: 'SEARCH', flag: 'nameEqLastProcessed' },
   // `WXK09-032-E2` は兄弟 E1 と**同じコスト経路**（`energyTrash`）なので同じ変数を参照する。
   //   「この方法でトラッシュに置いたシグニのレベルの合計と同じレベルを持つ」＝`last_cost_energy_trash_level_sum`。
   'WXK09-032-E2': { type: 'SEARCH', flag: 'levelEqualsVar', value: 'cost_energy_trash_level_sum' },
@@ -11814,11 +11823,22 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
         } as EffectTarget;
       })()
     : undefined;
-  const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget
+  const declaredTarget0 = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget
     : outcome.type === 'TRANSFER_TO_DECK' ? deckTarget
       : outcome.type === 'ADD_TO_FIELD' ? placeTarget
         : outcome.type === 'SIGNI_ATTACK_BAN' ? banTarget
           : outcome.target;
+  // 🆕🔴**宣言の名詞が「レゾナ」なら種別を戻す**（2026-09-07 第208バッチ・意味照合 O-A・`WX10-028-E2`）＝
+  //   原文「**レゾナ１体を対象とし**、《白》を支払ってもよい。そうした場合、**それを**アップする」は
+  //   宣言と帰結が別の文なので、帰結側（`UP`）は照応「それを」しか見ておらず**フィルタを持たない**。
+  //   その `outcome.target` をそのまま `SELECT_TARGET_ONLY` へ写すと**自分の任意のシグニ**を選べた。
+  //   🔑ここは宣言文（`text`）を持っている**唯一の層**なので、**帰結が無フィルタのときだけ**種別を戻す
+  //   （既にフィルタがある帰結は触らない＝帰結側の解析のほうが常に詳しい）。
+  //   ⚠`owner` は据置＝原文が所有者を書いていない（無指定＝両者）ので、ここで `self` を疑うのは別項目。
+  const declaredTarget = declaredTarget0 && !declaredTarget0.filter
+    && /(?:^|[。、「『：])(?:対象の)?レゾナ(?:を)?[０-９\d]+体(?:まで)?を?対象とし/.test(text)
+    ? { ...declaredTarget0, filter: { cardType: 'レゾナ' as const } }
+    : declaredTarget0;
   if (!declaredTarget) return action;
   // 🆕**第9バッチ（2026-09-02）＝`TRASH` の対象が相手エナのカードである形を解禁**
   //   （「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。

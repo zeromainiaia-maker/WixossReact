@@ -3059,13 +3059,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   （「まで」の後に「を」が入らない日本語）だけがマッチせず、**filter 丸ごと脱落＋count が1に潰れる**
     //   （`WX25-P3-083-E1`「あなたの＜天使＞のシグニを２体まで対象とし、それらをアップする」＝
     //    クラス無制限の1体アップに化けていた＝意味照合 段2 finding）。あわせて `upToCount` も立てる。
-    const upSpanM = t.match(/([^。、：「」]*?)シグニ(?:を)?([０-９\d]+)体(まで)?を?対象とし/);
-    const upFilter: TargetFilter = { cardType: 'シグニ', ...(upSpanM ? extractNounPhraseFilter(upSpanM[1]) : {}) };
+    // 🆕🔴**対象名詞は「シグニ」だけではない**（2026-09-07 第208バッチ・意味照合 O-A の実装キュー・`WX10-028-E2`）＝
+    //   原文「**レゾナ１体を対象とし**、《白》を支払ってもよい。そうした場合、それをアップする」は
+    //   名詞が「レゾナ」なので `upSpanM` が null になり、**filter が丸ごと落ちて**
+    //   （`cardType:'シグニ'` の1キーだけ＝下の `Object.keys().length > 1` で捨てられる）
+    //   `{type:'SIGNI', owner:'self', count:1}`＝**自分の任意のシグニをアップできる**過剰実行だった。
+    //   🔑`cardType` は**マッチした名詞そのもの**から取る（`レゾナ` は `matchesFilter` が解する種別）。
+    const upSpanM = t.match(/([^。、：「」]*?)(シグニ|レゾナ)(?:を)?([０-９\d]+)体(まで)?を?対象とし/);
+    const upFilter: TargetFilter = {
+      cardType: (upSpanM?.[2] === 'レゾナ' ? 'レゾナ' : 'シグニ'),
+      ...(upSpanM ? extractNounPhraseFilter(upSpanM[1]) : {}),
+    };
     if (upSpanM && upSpanM[1].includes('他の')) upFilter.excludeSelf = true;
     return { type: 'UP', target: {
-      type: 'SIGNI', owner: signiClauseOwner(t), count: upSpanM ? parseNum(upSpanM[2]) : 1,
-      ...(upSpanM?.[3] ? { upToCount: true } : {}),
-      ...(Object.keys(upFilter).length > 1 ? { filter: upFilter } : {}),
+      type: 'SIGNI', owner: signiClauseOwner(t), count: upSpanM ? parseNum(upSpanM[3]) : 1,
+      ...(upSpanM?.[4] ? { upToCount: true } : {}),
+      // ⚠「レゾナ」は 1キーでも載せる＝`cardType` そのものが限定（`シグニ` は既定なので従来どおり捨てる）。
+      ...(Object.keys(upFilter).length > 1 || upFilter.cardType !== 'シグニ' ? { filter: upFilter } : {}),
     } };
   }
 
