@@ -1,5 +1,30 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-07・第210バッチ・Sonnet 5・S-1）＝Sheet2 の意味照合を18バッチ（180枚）実行**（ユーザー指示で途中打ち切り）
+  **作業単位**＝ユーザー指示「S-1のSheet2を18バッチ行う」→ 実行完了後「リミットになった即座に区切る」で本セッションを終了。
+
+  🆕`scripts/archive/scratchpad/semantic_audit_sheet2_round4/` を新設（Sheet1 と同じ形＝seed42 mulberry32 シャッフル→10枚/バッチ）。
+  Sheet2 の未監査356枚を36バッチに分割し、**先頭18バッチ（180枚）を `claude -p`（sonnet）で実行**。
+
+  📊**findings 32件 / 180枚（1.8件/バッチ）**＝Sheet1 の r4-01〜08（1.1件/バッチ）と r4-09〜26（2.4件/バッチ）の中間。**全件未 triage**（次は Opus で O-A から）。
+  詳細は `TYPE_LEDGER.md`（バッチごとの finding 要約）。`mandatory:true` 疑い（LOW）が4件連続＝規則12 該当の可能性を要確認。
+
+  🔑**実行時トラブル1件（s2-07）**＝`claude -p` が JSON 契約を守らず散文で応答（Sheet1 r4-12 と同型）。
+  本文が「findings 空配列で報告済み」と明記していたため 0件で確定・手動復元は不要だった。
+
+  🔴**踏んだ罠**＝`batches/batch_NN.json` の各要素は `{num, group}` であって `{cardNum, group}` ではない。
+  最初 `cardNum` で読み `audited_cards_cumulative.txt` に180行の空行を書いてしまい、`semanticAuditGap.mjs` が
+  Sheet2 の未監査を356のまま変化なしと報告して発覚。修正して180枚が正しく計上された（README に注記済み）。
+
+  ④`npm run gates` **全緑**（src 無変更＝`scripts/archive/scratchpad/` と `docs/` のみ）。⑤実機不要（§2.2）。
+
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  📦**在庫**＝**未監査 2,256枚**（Sheet2 残176・36中18バッチ消化）｜**未 triage findings 32件**（🆕 0→32）｜**未修正の真バグ 10件**（据置）｜**機構 worklist 10**｜**⑤実機 残 0**。
+
+**▶ 次の一手**＝**Opus で O-A triage**＝Sheet2 s2-01〜18 の findings 32件を `semanticAuditPool.mjs` から読み、
+engine の受け皿まで確認して真バグ／偽陽性を判定する（§5.0）。真バグは grep で母集団を数えてから直す。
+triage が一巡したら **S-1 でSheet2 残18バッチ（19〜36・176枚）**を続ける（`README.md` に再開コマンドあり）。
+
 - **セッション（2026-09-07・第209バッチ・Opus 5・O-D）＝「見たライフクロスをトラッシュ」が相手シグニ除去に化けていた4効果**（未修正の真バグ **11 → 10**）
   **作業単位**＝ユーザー指示「重たい1件を行う」。§5.0 実装キューの先頭（＝壊れ方が一番重い「別の効果に化けている」）から。
 

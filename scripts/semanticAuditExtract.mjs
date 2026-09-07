@@ -155,7 +155,7 @@ ${guide}
 9. **任意コストイディオム**：STUB（id が OPTIONAL_COST / TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST / OPTIONAL_TRASH_ENERGY_CLASS）の後に CONDITIONAL(IS_MY_TURN または PAID_ADDITIONAL_COST) が続く形は、原文の「〜を支払ってもよい。そうした場合…」をエンジンがインターセプトして表す既知イディオム。**IS_MY_TURN を不一致として報告しない**。さらに TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の then 内 target.owner が self でもエンジンが opponent に自動修正する＝報告しない。ただし then 内のアクション種別・枚数・フィルターの違い、および原文にあるコスト以外の**発動条件（パワー条件等）が JSON のどこにも無い**場合は報告する。
 10. LIFE_BURST 効果の mandatory:false は「LB発動は任意」というルールの表現＝報告しない。
 11. アンコール（「アンコール－…」）・ベット（「ベット－…」）の注記は engine 側の別機構で処理される＝JSON に無くても報告しない。
-12. AUTO/ACTIVATED 効果で action が STUB の場合、任意（〜してもよい）の確認は STUB ハンドラ内で行われることがある＝mandatory フラグだけの任意/強制ずれは LOW に格下げ（STUB 以外のアクションなら通常どおり）。
+12. 🔴**「〜してもよい」なのに 「mandatory:true」 だ、という finding は報告しない（2026-09-07 の偽陽性4件から強化）**＝action が STUB のとき、任意性は**ハンドラ側**が持つ（「CHANGE_BASE_LEVEL」「MOVE_TO_OTHER_SIGNI_ZONE」 は CHOOSE に「スキップ」肢を出す／「SET_HAND_CARD_AS_TRAP」 は 「trapPlaceOptional」 の既定が true／「LEVEL_REFERENCE_OVERRIDE」 は「候補に足す」形で表す）。効果トップの 「mandatory」 は STUB の実行可否を決めていない。⇒ **STUB 以外の素のアクション（DRAW / BANISH / TRASH …）が 「optional」 も 「mandatory:false」 も持たないときだけ**報告する。
 13. **「そうした場合」＝ did-it ゲート（2026-09-06 の偽陽性から追加）**：LIFE_CRASH・DISCARD など」実際にできたか」で後続が決まるアクションの直後に置かれた CONDITIONAL(IS_MY_TURN) は、engine の did-it ゲート（「DID_IT_GATED_TYPES」）が消費する既知イディオム＝**空振りしたら then は起きない**。**報告しない。**
 14. **OPPONENT_PAY_OPTIONAL の既定の極性（同上）**：「対戦相手は〜してもよい。そうしないかぎり…」型の既定は**」払わなかったら then」**で、「thenOnPay」 を立てたときだけ逆向き。**JSON の CONDITIONAL(IS_MY_TURN) は極性を持たない**＝これを「条件が逆」と**報告しない**。
 15. **STUB の id 名と payload の食い違いは報告しない（同上）**＝id は表示用の名前で、engine が読むのは payload。「..._FROM_TRASH」 という id で 「value2:"hand"」 を持つ形は**payload が原文と合っていれば正しい**。**payload の側が原文と違うときだけ**報告する。
@@ -169,13 +169,19 @@ ${guide}
 23. **STUB ハンドラは自分で「そうした場合」ゲートを持っていることがある（同上・規則13の系）**＝実例＝「LRIG_UNDER_TO_TRASH」 は「ルリグの下がN枚未満なら以降のステップを丸ごとスキップ」を**ハンドラ内で**実装している。⇒ **「STUB の直後に無条件で次のアクションが並んでいる」という理由だけの finding は報告しない**（STUB 以外の普通のアクションが前段のときだけ、規則13の did-it ゲート対象型かを見て判断する）。
 24. **「SEARCH」 の 「then」 は選んだカード1枚ずつに適用される（同上）**＝枚数を決めるのは 「maxCount」 で、「then」 の中の 「target.count」 は**総数の上限ではない**（engine は picked を1枚ずつ回して 「then」 を当てる）。⇒ **「maxCount は3なのに then の count が1だから1枚しか処理されない」という finding は報告しない。**
 
+25. **STUB ハンドラは payload に 「target」 が無くても自分で対象を選ばせる（2026-09-07 の偽陽性から追加・規則23の系）**＝実例＝「CLASS_CHANGE」 は 「classChange」 だけを受け取り、対象は**ハンドラが両プレイヤーの場から SELECT_TARGET で1体選ばせる**。⇒ **「原文は『シグニ1体を対象とし』なのに STUB の payload に target/owner/count が無い」という理由だけの finding は報告しない**（payload に**別の**対象指定が入っていて原文と食い違うときだけ報告する）。
+
+26. **「1枚につき／それぞれについて」は engine が1枚ずつ回す（同上・規則24の系）**＝「SELECT_COLOR{from:"last_processed"}」 は直前に処理したカードを1枚ずつキューで回して色を問う（2枚なら2回）。⇒ **「N枚あるのに選択アクションが1つしか無いから1回しか実行されない」という finding は報告しない。**
+
+27. **原文に無い「中継ステップ」だけを根拠に EXTRA を報告しない（同上）**＝実例＝「探して…コストを支払わずに使用するかトラッシュに置く」は、engine に「探して手に持つ」専用ゾーンが無いため **SEARCH 既定の 「ADD_TO_HAND」 を一度経由する**既知の近似（どちらの枝でも手札には残らないので最終盤面は正しい）。⇒ **カードの最終的な行き先が原文と一致しているなら、途中に余分なゾーン移動があっても報告しない**（最終的な行き先が違うときだけ報告する）。
+
 # 見るべき典型バグ
 
 - 原文の効果・後続処理（「その後…」「〜した場合…」）が JSON のどこにも無い（MISSING）
 - 枚数・レベル・パワー数値・「まで」(upTo/maxCount) の違い（WRONG）
 - 対象の取り違え：自分↔相手、シグニ↔ルリグ、場↔手札↔デッキ↔トラッシュ↔エナ（WRONG）
 - タイミング違い：【出】↔【自】↔【常】↔【起】、ターン終了時↔開始時、自ターン↔相手ターン（WRONG）
-- 任意（〜してもよい）↔強制の取り違え（mandatory）（WRONG）
+- 任意（〜してもよい）↔強制の取り違え（⚠**規則12 を先に読む**＝STUB が action のときは報告しない）（WRONG）
 - フィルター条件（クラス＜〜＞・色・レベル・カード名指定）の欠落や違い（WRONG）
 - 原文に無い効果が JSON にある（EXTRA）
 

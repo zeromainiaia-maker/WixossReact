@@ -70507,6 +70507,45 @@ test('意味照合 段2 PR-K048: 《無》コストは白か赤か青でしか�
   eq(colored, true, '《緑》スロットは許可色の制限を受けない');
 }));
 
+// ── 意味照合 round4（Sheet2）の O-A triage で直した2件（2026-09-07）──────────────────
+test('O-A triage: 「次の対戦相手のターン終了時まで」のルリグ付与は UNTIL_OPP_TURN_END', () => {
+  // 🔴engine は `GRANT_LRIG_ABILITY.duration === 'UNTIL_OPP_TURN_END'` のときだけ長期ストア
+  //   `lrig_granted_auto_effects_until_opp_turn` へ振る（`effectExecutor.ts`）。未指定は
+  //   `lrig_granted_auto_effects`＝`clearTurnGrantedLrigAbilities` がそのターン終了時に必ず落とす。
+  //   ⇒「【自】**あなたのターン終了時**、…次の対戦相手のターン終了時まで…を得る」は
+  //     **付与した直後に消える恒久 no-op** だった（parser が「あなたのセンタールリグは「…」を得る」枝でだけ
+  //     duration を1文型に限定していた）。
+  for (const [card, effectId] of [['WX14-042', 'WX14-042-E2'], ['PR-319', 'PR-319-E2']] as const) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let grant: Record<string, unknown> | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'GRANT_LRIG_ABILITY') { grant = rec; return; }  // 内側の abilities[] へは潜らない
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    ok(!!grant, `${effectId}: GRANT_LRIG_ABILITY がある`); if (!grant) continue;
+    eq(grant.duration, 'UNTIL_OPP_TURN_END', `${effectId}: 次の相手ターン終了時まで残る`);
+  }
+});
+
+test('O-A triage: WX17-063 の【トラップアイコン】は「対戦相手の」トラッシュを戻す', () => {
+  // 🔴原文「**対戦相手は自身の**トラッシュからすべてのカードをデッキに加えてシャッフルする」なのに
+  //   `owner:'self'`＝自分のトラッシュを戻していた。続く `LAST_PROCESSED_COUNT_GTE:10` も自分側の
+  //   枚数で測るので、バニッシュの成否まで別のカードの効果に化けていた。
+  const eff = (effectsMap.get('WX17-063') ?? []).find(e => e.effectId === 'WX17-063-TRAP');
+  ok(!!eff, 'WX17-063-TRAP が live にある'); if (!eff) return;
+  const steps = (eff.action as unknown as { steps?: Array<Record<string, unknown>> }).steps ?? [];
+  const move = steps.find(s => s.type === 'TRANSFER_TO_DECK');
+  ok(!!move, 'TRANSFER_TO_DECK がある'); if (!move) return;
+  const src = move.source as Record<string, unknown>;
+  eq(src.owner, 'opponent', '戻すのは対戦相手のトラッシュ');
+  eq(src.count, 'ALL', 'すべてのカード');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -1,5 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第211バッチ・O-A／Opus 5）＝**意味照合 Sheet2 findings 32件を全数 triage（BUG 24 / FP 8）＋恒久 no-op 2効果と owner 反転1効果を修正**
+
+**この回の作業単位**＝ユーザー指示「S-1 を行った。opus の作業を行う」。§5.0 の Opus レーンを上から
+（**O-A triage → O-C 還元 → O-D 修正**）。第210バッチ（Sonnet・S-1）が Sheet2 の先頭18バッチ（180枚）を
+回して出した **findings 32件が全件未 triage** だったので、それを本線にした。
+
+⑤**実機は不要と判定**（PLAN §2.2）＝触ったのは `src/data/effectParser.ts` / `src/data/manualEffects.ts` /
+`scripts/` / `docs/` のみ。**`src/screens/` も `src/engine/` も触らず、新しい型も機構も足していない**。
+
+### ① O-A triage＝32件（BUG 24 / FP 8＝**precision 75%**）
+
+台帳＝`scripts/archive/scratchpad/semantic_audit_sheet2_round4/triaged.txt`（1件1行・判定理由つき）。
+🔴**判定は必ず engine の受け皿を読んでから**行った（監査員は JSON しか見ていない）。
+
+**precision が 11%（第206）→ 75% に跳ねたのは監査対象が変わったから**＝Sheet1 の終盤は「同じ札を別角度から
+読み直す」段階だったが、Sheet2 は**未監査カード**なので**素の欠落**（条件が丸ごと無い・選択肢が消えている）が出る。
+⚠**precision は予測しない**（第205バッチ ledger の「頻度2倍＝偽陽性増」という読みは今回当たらなかった）。
+
+🔴**罠1＝finding が「恒久 no-op」と書いていても向きは engine を読むまで決まらない。**
+`WX13-019-E1` は監査員が「事実上発動しない」と書いたが、`triggerCollect.ts:81` は
+`triggerScope !== 'any_ally'` なら **無条件で true** を返す＝実際は**逆に過剰発火**していた。
+
+🔴**罠2＝既存の計器と finding が同じ1件を指すことがある。**
+`WX15-001-E1` は `npm run census:wiring` の `hasRiseIcon × POWER_MODIFY{SIGNI}`（miss 1 / has 2）と同一。
+⇒ **triage の母集団は既存計器でも裏を取る**（重複作業を先に潰せる）。
+
+### ② O-C 還元＝FP 8件のうち **4件が規則12 ひとつ**で説明できた
+
+`mandatory:true` なのに原文が「〜してもよい」型（`WX18-067-E1` / `WX14-053-E1` / `WX19-027-E3` / `WX21-057-E1`）。
+**action が `STUB` のとき任意性を持つのはハンドラ側**＝`CHANGE_BASE_LEVEL`・`MOVE_TO_OTHER_SIGNI_ZONE` は
+CHOOSE に「スキップ」肢を出し（`execStubPart3.ts:332` / `execStubPart1.ts:4399`）、`SET_HAND_CARD_AS_TRAP` は
+`trapPlaceOptional` の**既定が `true`**（`execStubPart2.ts:2272`）、`LEVEL_REFERENCE_OVERRIDE` は
+「候補に足す」形で任意を表す（`effectExecutor.ts:7583`）。
+⇒ **規則12 を「LOW へ格下げ」から「報告しない」へ強化**し、末尾の「見るべき典型バグ」の mandatory 行にも
+規則12 への誘導を足した。さらに**規則25〜27 を追加**（25＝STUB は payload に target が無くても自分で選ばせる／
+26＝「1枚につき」は engine が1枚ずつ回す／27＝原文に無い**中継**ステップだけを根拠に EXTRA を出さない）。
+**規則本数 24 → 27。**
+
+### ③ O-D 修正その1＝**`GRANT_LRIG_ABILITY` の duration 欠落（恒久 no-op・2効果）**
+
+原文（`WX14-042-E2`）＝「【自】：**あなたのターン終了時**、このシグニを場からトラッシュに置いてもよい。
+そうした場合、**次の対戦相手のターン終了時まで**、あなたのセンタールリグは「【起】…」を得る。」
+
+**真因**＝engine は `GRANT_LRIG_ABILITY.duration === 'UNTIL_OPP_TURN_END'` のときだけ長期ストア
+`lrig_granted_auto_effects_until_opp_turn` へ振り（`effectExecutor.ts:9646`）、未指定は
+`lrig_granted_auto_effects`＝`clearTurnGrantedLrigAbilities`（`src/screens/battle/grantedAuto.ts:9`）が
+**そのターンの終了時に必ず落とす**。付与するのが**まさにそのターン終了時**なので、
+**付与した直後に消える恒久 no-op** だった（＝この札の存在意義そのものが消えていた）。
+
+**なぜ落ちていたか**＝parser の「**あなたの**センタールリグは『…』を得る」枝だけが
+`duration` を **「【ガード】する際…代わりに手札を1枚捨ててもよい」の1文型に限定**していた
+（`effectParser.ts:16904`）。**兄弟の「**この**ルリグは『…』を得る」枝は当初から無条件**で付けている。
+⇒ 兄弟と同じ無条件形へ揃えた（**1条件を消しただけ**）。
+
+**影響＝2効果**（`WX14-042-E2` / `PR-319-E2`）。A/B 差分（`git show HEAD:public/data/*.json` と突き合わせ）で
+**変わった効果がちょうどこの2件だけ**であることを確認。逆翻訳も
+「ターン終了時まで、あなたのセンタールリグは…」→「**次の対戦相手の**ターン終了時まで、…」へ変わった。
+
+🔴🔑**最初に直した場所は間違っていた（1回分の手戻り）**＝汎用の期間昇格ヘルパー `upgradeToOppTurnEnd`
+（`parseSingleSentence` の末尾フック）に `GRANT_LRIG_ABILITY` を足したが、**live は1効果も動かなかった**。
+デバッグ出力を1行入れて確かめたところ、**この構文は `parseSingleSentence` を通っていなかった**。
+⇒ **動かないと分かった一般化は残さず revert した**（live 0 の枝は検証できないまま増える＝catch-all の温床）。
+教訓は [LESSONS.md](./LESSONS.md) §4.2 の末尾2項へ還元。
+
+### ④ O-D 修正その2＝**`WX17-063-TRAP` の owner 反転**（速いレーン＝`manualEffects.ts`）
+
+原文＝「【トラップアイコン】：**対戦相手は自身の**トラッシュからすべてのカードをデッキに加えてシャッフルする。
+その後、この方法で**10枚以上**のカードがデッキに加えられた場合、あなたは《青》を支払ってもよい。そうした場合、
+対戦相手のシグニ１体を対象とし、それをバニッシュする。」
+
+live は `TRANSFER_TO_DECK{source:{TRASH_CARD, owner:'self'}}`＝**自分のトラッシュ**を戻していた。
+デッキ回復の向きが逆なだけでなく、続く `LAST_PROCESSED_COUNT_GTE:10` も**自分側の枚数**で測るので、
+**バニッシュの成否まで別のカードの効果に化けていた**。
+
+🔑**engine 側の裏返しは無い**ことを先に確かめた＝`TRAP_ICON` 26効果のうち **18効果が `owner:'opponent'` を
+素直に使っている**（`self` は「トラップの持ち主」のまま解決される）。⇒ JSON の `owner` を直すだけでよい。
+🔑**母集団は1効果**（原文 `対戦相手は自身の` は live 全10,759効果でこの1件だけ）＝PLAN §2.0 の**速いレーン**。
+`manualEffects.ts` へ **`WX17-063-TRAP` だけ**を手書きし（E1 は別家族なので触らない）、
+`npx tsx scripts/syncManualLive.ts WX17-063` で live へ届けた。
+
+### ⑤ 検証
+
+- `npm run gates` **全緑**（golden **3,590 / 3,590**＝新規2本を追加）。
+- 新規 golden 2本＝「次の対戦相手のターン終了時まで」のルリグ付与が `UNTIL_OPP_TURN_END` であること／
+  `WX17-063-TRAP` が `owner:'opponent'` かつ `count:'ALL'` であること（**どちらも直す前は落ちる**形で書いた）。
+- `npm run regen` 済み＝逆翻訳の差分は**この3効果だけ**（`decompile_sheet2` / `decompile_sheet6`）。
+- ⑤実機は不要（上記）。
+
+### ⑥ 残した在庫
+
+**未修正の真バグ 30件**（10 + 今回登録22 − 消化2）＝PLAN §5.0 の「O-D / S-3 実装キュー」に
+**壊れ方の重さ順（①別の効果に化けている5件／②丸ごと欠落6件／③限定の欠落11件）**で登録した。
+🔑**この表が唯一の追跡先**＝BUG と triage した瞬間 `semanticAuditPool.mjs` からも `census:cards` からも消える。
+
+---
+
 ## 2026-09-07（第209バッチ・O-D／Opus 5）＝**「見たライフクロスをトラッシュ」が相手シグニ除去に化けていた4効果**（未修正の真バグ 11 → 10）
 
 **この回の作業単位**＝ユーザー指示「重たい1件を行う」。§5.0 実装キューの先頭

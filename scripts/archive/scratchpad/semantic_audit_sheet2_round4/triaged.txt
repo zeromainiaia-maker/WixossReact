@@ -1,0 +1,32 @@
+# 2026-09-07 第211バッチ（Opus・O-A triage）＝Sheet2 s2-01〜18 の findings 32件を全数 triage
+# 形式＝<effectId> :: BUG|FP :: 一言（BUG は PLAN §5.0 の「O-D / S-3 実装キュー」へ登録）
+WX13-019-E1 :: BUG :: 「レゾナではないあなたのシグニ」の限定が無い＝triggerScope/triggerFilter 未指定は engine 側で「無条件」（triggerCollect.ts:81）＝no-op ではなく過剰発火。母集団3効果
+WX16-Re20-E1 :: BUG :: 「能力を持たないシグニとして場に出す」の受け皿が ADD_TO_FIELD に無い（noAbilities は絞り込みフィルターであって付与ではない）＝機構待ち。母集団8効果
+WX20-022-E1 :: BUG :: STUB{TRADE_BANISH_SELF_SIGNI} は catch-all（自シグニ全体から選ばせ→相手をバニッシュ）＝クラス制限＜アーム＞＜ウェポン＞なし・原文は「トラッシュに置く」・任意も無い。さらに直後の CONDITIONAL が別途 TRASH するので相手が二重に除去される
+WX20-077-E2 :: FP :: SEARCH 既定の ADD_TO_HAND を経由する既知の近似（execStubPart1.ts:371 に明記）＝どちらの枝でも手札に残らないので最終盤面は正しい
+WX12-Re07-E1 :: FP :: execSelectColor は last_processed を _cards 継続で1枚ずつ回す（effectExecutor.ts:6468）＝「カード1枚につき色1つ」は実装済み
+WX14-042-E2 :: BUG :: GRANT_LRIG_ABILITY に duration:UNTIL_OPP_TURN_END が無い＝lrig_granted_auto_effects へ入り、付与した当のターン終了時に clearTurnGrantedLrigAbilities が消す恒久 no-op
+WX21-049-E1 :: FP :: CLASS_CHANGE ハンドラは payload に target が無いとき自分で両者の場から SELECT_TARGET する（execStubPart3.ts:178）
+WX21-054-E2 :: BUG :: 「手札から赤と緑の＜龍獣＞を1枚ずつ公開するか」の枝が丸ごと落ち、TRASH の対象が「このシグニ」ではなく場の緑＜龍獣＞（別カード）になっている
+WX20-033-BURST :: BUG :: 「緑の＜美巧＞1枚まで」の SEARCH が丸ごと欠落（白側だけ）
+WX12-010-E3 :: BUG :: REARRANGE_SIGNI の pending.targets はレイアウト対象全体で「移動したもの」に絞られない（effectExecutor.ts:11575）＝UP が動かなかったシグニにも及ぶ。LOW（機構待ち）
+WX20-Re20-E1 :: BUG :: ②「好きな枚数場に出す」が count:1 固定／②の filter に noAbilities が無い（①にはある）＝1 効果に findings 2件
+WX13-035-BURST :: BUG :: 「手札に加えるかエナゾーンに置く」の二択が ADD_TO_HAND 固定に潰れている
+WX13-043-E2 :: BUG :: 「あなたのセンタールリグが赤の場合」の条件がどこにも無い（LRIG_COLOR は既存語彙で hit 10/miss 6・実害はこの1件）
+WX18-067-E1 :: FP :: 規則12＝STUB の mandatory ずれ。LEVEL_REFERENCE_OVERRIDE は「候補に足す」形で任意性を表現済み（effectExecutor.ts:7583）
+WX14-CB03-E2 :: BUG :: 「対戦相手のセンタールリグがレベル５の場合」が無い（LRIG_LEVEL は既存語彙で hit 16/miss 2）
+WX14-003-E2 :: BUG :: CONTINUOUS なのに action が ADD_TO_FIELD＝CONTINUOUS は executeAction を通らないので真 no-op。「限定条件を無視して場に出せる」許可の受け皿が無い（母集団11効果・§5.3 O-268 と同族）
+WX12-035-E1 :: BUG :: 《緑》《緑》《白》の任意コストが cost にも STUB payload にも無い（BANISH_FROM_GAME は payload 無し）＝無償でアタック無効
+WX17-063-E1 :: BUG :: 「《トラップアイコン》を持つ」の絞り込みが無い＝トラッシュの全シグニが対象。語彙 hasTrapAbility は在るが parser の生成が 0/10（母集団10効果）
+WX17-063-TRAP :: BUG :: 「対戦相手は自身のトラッシュから」なのに TRANSFER_TO_DECK の source.owner が self＝自分のトラッシュを戻し、10枚判定も自分側で測る（TRAP_ICON 26効果中18効果は owner:opponent を正しく使っており engine の裏返しは無い）
+WX15-001-E1 :: BUG :: POWER_MODIFY の対象に hasRiseIcon が無く＜武勇＞全体が＋3000（語彙は hit 23 で配線済み・miss 34）
+WX16-005-E1 :: BUG :: ①②とも「レベルが場にある【ウィルス】の数以下」の制限が無い（動的レベル上限の語彙が無い＝機構待ち）。1 効果に findings 2件
+WX14-053-E1 :: FP :: 規則12。MOVE_TO_OTHER_SIGNI_ZONE は CHOOSE に「スキップ」肢を持つ（execStubPart1.ts:4399）
+WX20-020-E1 :: BUG :: ④の ADD_TO_FIELD に suppressOnPlay が無い（語彙 hit 97/miss 11・実害はこの1件）。live は MANUAL
+WX13-048-E1 :: BUG :: 「宣言したカードの場合／ではない場合」の分岐が無く DRAW 2 と DRAW 1 が両方走る＝常に3枚引く。一致時のトラッシュも無い
+WX20-044-CB-E1 :: FP :: 規則17＝STUB の id 名は適用範囲を表さない（ATTACK_PHASE_LEVEL_OVERRIDE）
+WX19-001-E3 :: BUG :: 「手札から《アーク・オーラ》を1枚捨てる」のカード名指定が TRASH{HAND_CARD} に無く任意の1枚
+WD06-018-BURST :: BUG :: SEARCH の filter に hasLifeBurst が無い（語彙は両評価器に実装済み・miss はこの1件だけ）
+WX19-027-E3 :: FP :: 規則12。CHANGE_BASE_LEVEL は CHOOSE に「スキップ」肢を持つ（execStubPart3.ts:332）
+WX20-042-CB-E3 :: BUG :: 原文は「シグニ１体」で所有者を限定していないのに選択・バニッシュとも owner:opponent 固定
+WX21-057-E1 :: FP :: 規則12。SET_HAND_CARD_AS_TRAP は trapPlaceOptional の既定が true＝任意（execStubPart2.ts:2272）

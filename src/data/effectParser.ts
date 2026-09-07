@@ -16901,8 +16901,14 @@ function parseActionTextInner(text: string): EffectAction {
     if (quotedLrigM) {
       // abilities は parseBlock / parseSpellEffect で rawText から埋められる
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim(),
-        ...(/【ガード】する際.*代わりに手札を[１1]枚捨ててもよい/.test(quotedLrigM[1])
-          && text.includes('次の対戦相手のターン終了時まで') ? { duration: 'UNTIL_OPP_TURN_END' as const } : {}),
+        // 🆕**「次の対戦相手のターン終了時まで」は無条件で `UNTIL_OPP_TURN_END`**（2026-09-07・O-A triage）。
+        //   🔴旧はここだけ **「【ガード】する際…」の1文型に限定**していた（兄弟の「このルリグは」枝は当初から
+        //     無条件）。engine は `duration === 'UNTIL_OPP_TURN_END'` のときだけ長期ストア
+        //     `lrig_granted_auto_effects_until_opp_turn` へ振り、未指定は `lrig_granted_auto_effects`＝
+        //     `clearTurnGrantedLrigAbilities` が**そのターンの終了時に必ず落とす**（`grantedAuto.ts:9`）。
+        //   ⇒ **「【自】あなたのターン終了時、…次の対戦相手のターン終了時まで…を得る」は付与した直後に
+        //     消える恒久 no-op** だった（`WX14-042-E2` / `PR-319-E2`＝live 実測2効果）。
+        ...(text.includes('次の対戦相手のターン終了時まで') ? { duration: 'UNTIL_OPP_TURN_END' as const } : {}),
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }

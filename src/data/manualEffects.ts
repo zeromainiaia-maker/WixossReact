@@ -10337,6 +10337,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-CP1-038": [
     {"effectId":"WX25-CP1-038-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ALL_FIELD_SIGNI_MATCH","owner":"self","filter":{"cardType":"シグニ","story":"ブルアカ"}},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_POWER_LTE","value":5000},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"optional":false}},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+
+  // ── WX17-063《中罠　プラスボム》の【トラップアイコン】＝**主語が「対戦相手」なのに自分側を回していた**
+  //   （2026-09-07・O-A triage・意味照合 round4 Sheet2 s2-14）。
+  // 原文＝「対戦相手は**自身の**トラッシュからすべてのカードをデッキに加えてシャッフルする。その後、
+  //   この方法で１０枚以上のカードがデッキに加えられた場合、あなたは《青》を支払ってもよい。そうした場合、
+  //   対戦相手のシグニ１体を対象とし、それをバニッシュする。」
+  // 🔴旧 live は `TRANSFER_TO_DECK{source:{TRASH_CARD, owner:'self'}}`＝**自分のトラッシュ**を戻していた。
+  //   デッキ回復の向きが逆なだけでなく、続く `LAST_PROCESSED_COUNT_GTE:10` も**自分側の枚数**で測るので
+  //   バニッシュの成否まで別のカードの効果に化けていた。
+  // 🔑engine 側の裏返しは無い（`TRAP_ICON` 26効果中18効果が `owner:'opponent'` を素直に使っている＝
+  //   `self` は「トラップの持ち主」のまま解決される）。⇒ JSON の `owner` を直すだけでよい。
+  // ⚠**母集団は1効果**（原文 `対戦相手は自身の` は live 全10,759効果でこの1件だけ）＝PLAN §2.0 の速いレーン。
+  // ⚠**E1（【出】側）は触らない**＝あちらは「《トラップアイコン》を持つ」の絞り込み欠落で、
+  //   `hasTrapAbility` の生成漏れ10効果の一部（parser 側の家族＝別項目）。
+  "WX17-063": [
+    {"effectId":"WX17-063-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
 };
 
 /**
