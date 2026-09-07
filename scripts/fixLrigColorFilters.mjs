@@ -122,6 +122,11 @@ const FIXES = [
     locate: e => e },
   { file: 'effects_WX', card: 'WX14-028', eid: 'WX14-028-BURST', type: 'searchDistinctColors',
     locate: e => e },
+  // 🆕§5.0 実装キュー 第222バッチ＝原文「異なる色を持つ＜遊具＞のシグニ２枚を探して…」（「それぞれ」無し）。
+  //   受け皿は `WX14-028-BURST` と同一（`SelectionConstraint.sharedColor:'none'`＝「互いに色を共有しない」＝
+  //   異なる色を持つ、と等価）。母集団はこの2件のみ（`census:population` 実測）。
+  { file: 'effects_WX', card: 'WX22-022', eid: 'WX22-022-BURST', type: 'searchDistinctColors',
+    locate: e => e },
   // タスク12(cix): MANUAL カードは harvest merge がカード単位で温存するため、manualEffects.ts に足した
   //   DOWN(LRIG) の `filter.isUp`（＝センター固定ではなくアシストも含む＝payLrigDownCost 経路へ乗せる判別子）を
   //   effectId アンカーで外科反映する。

@@ -6017,6 +6017,20 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-07・第221バッチ後・PLAN §6 から退避）
+
+- **2026-09-07（第221バッチ・Opus・O-D）＝実装キューを4件消化（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝4件とも「型・受け皿はあるが生成側/配線側が1本外れている」型
+  （`STUB` の owner 取り違え・catch-all のゲート漏れ・MANUAL の値・`countChoose` の入口漏れ）＝
+  どれも「受け皿の有無」しか見ない計器には原理的に映らない。
+  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜
+  **未修正の真バグ 23 → 19行 / 25 → 20効果**｜**機構 worklist 13 → 15項目**（`O-284`／`O-285` を登録）｜
+  **⑤実機 残 0件**（据置＝4件とも `src/data/` `src/engine/` のみ）。
+  🔧**ゲート（全緑 ✅）**＝golden **3624 → 3631 PASS**（+7本・退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
+  census 0 ／ census:stubs A群 0 ／ census:enginetext A🔴0行 ／ census:costtext A🔴0規則 ／ lint 0 errors。
+  🖥**実機＝該当なし**（`src/screens/` 無変更＝§2.2 の機械判定）。
+
 ### 恒久指標アーカイブ（2026-09-07・第220バッチ後・PLAN §6 から退避）
 
 - **2026-09-07（第220バッチ・Opus・O-D）＝実装キューの系統「`WX07-014-E1`」を消化（本ブロックが直近の正）**

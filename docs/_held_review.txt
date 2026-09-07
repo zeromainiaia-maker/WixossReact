@@ -3,84 +3,23 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +HAND_DIFF ［1枚］
-WX12-032
---- WX12-032
-  原文: このスペルを使用する際、手札から青のスペルを１枚捨ててもよい。そうした場合、このスペルの使用コストは《青×2》減る。対戦相手のシグニ１体を対象とし、あなたの手札の枚数が対戦相手の手札の枚数以上の場合、それをバニッシュする。,-
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].target.upToCount = false
-  ~ [0].action.steps[1].type : "BANISH" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAND_DIFF"
-  + [0].action.steps[1].condition.operator = "gte"
-  + [0].action.steps[1].condition.value = 0
-  + [0].action.steps[1].then.type = "BANISH"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  …（他 3 行）
-
-## +CHOOSE +HAND_CARD +TRASH ［1枚］
-WX14-027
---- WX14-027
-  原文: 【自】：あなたの＜原子＞のシグニ１体が対戦相手の効果によって場を離れたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。【自】：あなたが対戦相手のスペルを使用したとき、対戦相手のシグニ１体を対象とし、それをバニッシュするか、対戦相手の手札を１枚捨てさせる。【出】《青》：対戦相手のトラッシュからスペル１枚を対象とし、それをあなたの手札にあるかのように使用する
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  ~ [1].action.type : "BANISH" → "CHOOSE"
-  + [1].action.choose_count = 1
-  + [1].action.from_count = 2
-  + [1].action.choices[0].choiceId = "banish_signi"
-  + [1].action.choices[0].label = "対戦相手のシグニ1体をバニッシュする"
-  + [1].action.choices[0].action.type = "BANISH"
-  + [1].action.choices[0].action.target.type = "SIGNI"
-  …（他 10 行）
-
-## +CHOOSE +LEVEL_MODIFY +SIGNI ［1枚］
-WX16-067
---- WX16-067
-  原文: 【常】英知=８：このシグニによってクラッシュされたカードのライフバーストは発動しない。【自】：このシグニがアタックしたとき、あなたの＜英知＞のシグニ１体を対象とし、ターン終了時まで、それのレベルを＋１するか－１してもよい。この効果でレベルは０以下にはならない。,-
-  - [1].action.steps[0].target.type = "SIGNI"
-  - [1].action.steps[0].target.owner = "self"
-  - [1].action.steps[0].target.count = 1
-  - [1].action.steps[0].delta = 1
-  - [1].action.steps[0].until = "UNTIL_END_OF_TURN"
-  ~ [1].action.steps[0].type : "LEVEL_MODIFY" → "CHOOSE"
-  + [1].action.steps[0].choose_count = 1
-  + [1].action.steps[0].from_count = 2
-  + [1].action.steps[0].choices[0].choiceId = "level_plus_1"
-  + [1].action.steps[0].choices[0].label = "レベルを+1する"
-  + [1].action.steps[0].choices[0].action.type = "LEVEL_MODIFY"
-  + [1].action.steps[0].choices[0].action.target.type = "SIGNI"
-  …（他 17 行）
-
-## （type増減なし＝値/構造変更） ［1枚］
-WX20-029
---- WX20-029
-  原文: 【自】：このシグニがアタックしたとき、あなたのトラッシュから好きな枚数の＜悪魔＞のシグニを対象とし、それらをデッキに加えてシャッフルする。その後、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこの方法でデッキに加えたカード１枚につき－1000する。【出】：あなたのデッキの上からカードを６枚トラッシュに置く。この方法で＜悪魔＞のシグニが５枚以
-  ~ [0].action.steps[0].source.count : 1 → "ALL"
-  + [0].action.steps[0].source.upToCount = true
-
-## +CHOOSE +STUB ［1枚］
-WX21-030
---- WX21-030
-  原文: 【自】：【ウィルス】１つが対戦相手の場に置かれるか対戦相手の場から取り除かれたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニゾーン１つに【ウィルス】１つを置くか、対戦相手の場にある【ウィルス】１つを取り除く。【起】《ア
-  - [1].action.targetOwner = "opponent"
-  - [1].action.zoneCount = 1
-  - [1].action.virusCount = 1
-  ~ [1].action.type : "PLACE_VIRUS" → "CHOOSE"
-  + [1].action.choose_count = 1
-  + [1].action.from_count = 2
-  + [1].action.choices[0].choiceId = "place_virus"
-  + [1].action.choices[0].label = "対戦相手のシグニゾーンに【ウィルス】1つを置く"
-  + [1].action.choices[0].action.type = "PLACE_VIRUS"
-  + [1].action.choices[0].action.targetOwner = "opponent"
-  + [1].action.choices[0].action.zoneCount = 1
-  + [1].action.choices[0].action.virusCount = 1
-  …（他 5 行）
+## +STUB×2 -GRANT_KEYWORD×2 -SIGNI×2 ［1枚］
+WX19-064
+--- WX19-064
+  原文: 以下の３つから１つを選ぶ。①【ウィルス】１つを取り除く。②【トラップ】１つを対象とし、それをトラッシュに置く。③シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く。【トラップアイコン】：カードを１枚引く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。,：あな
+  - [0].action.choices[0].action.target.type = "SIGNI"
+  - [0].action.choices[0].action.target.owner = "self"
+  - [0].action.choices[0].action.target.count = 1
+  - [0].action.choices[0].action.target.filter.thisCardOnly = true
+  - [0].action.choices[0].action.target.explicitTarget = true
+  - [0].action.choices[0].action.keyword = "ウィルス"
+  - [0].action.choices[0].action.duration = "PERMANENT"
+  - [0].action.choices[1].action.target.type = "SIGNI"
+  - [0].action.choices[1].action.target.owner = "self"
+  - [0].action.choices[1].action.target.count = 1
+  - [0].action.choices[1].action.target.filter.thisCardOnly = true
+  - [0].action.choices[1].action.target.explicitTarget = true
+  …（他 6 行）
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002

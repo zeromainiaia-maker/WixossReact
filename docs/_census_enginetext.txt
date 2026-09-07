@@ -53,8 +53,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:8161 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
   effectExecutor.ts:7532 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:1125 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
-  execStubPart2.ts:4300 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
-  execStubPart2.ts:4396 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart2.ts:4318 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+  execStubPart2.ts:4414 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execStubPart3.ts:3341 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:1225 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1227 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;

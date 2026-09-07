@@ -3616,11 +3616,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX18-019": [
     {"effectId":"WX18-019-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{},"maxCount":2,"then":{"type":"ENERGY_CHARGE","target":{"type":"DECK_CARD","owner":"self","count":2}}},{"type":"SHUFFLE_DECK","owner":"self"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 🆕§5.0 実装キュー 第222バッチ＝原文「【出】：…それらを場に出す。**それらの【出】能力は発動せず**、
+  //   ターン終了時、それらを場からトラッシュに置く。」＝suppressOnPlay と一時召喚の後始末（TRASH_AT_TURN_END）
+  //   の複合文。旧 parser は「発動しない」（終止形）しか BLOCK_ACTION{ON_PLAY_ABILITY} へ変換せず、
+  //   「発動せず、」（連用形）+ 後続「ターン終了時、…」の複合1文をまるごと `STUB{RULE_REMINDER_TEXT}`
+  //   （完全 no-op）へ落としていた。母集団はこの1効果のみ（`census:population` 実測）。
+  //   受け皿は既存の `AddToFieldAction.suppressOnPlay` と `STUB{TRASH_AT_TURN_END}`（`WXDi-P03-034-E1` と同型）。
+  "WX20-001": [
+    {"effectId":"WX20-001-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","story":"武勇"}},"suppressOnPlay":true},{"type":"STUB","id":"TRASH_AT_TURN_END"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   "WX20-006": [
     {"effectId":"WX20-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"WX20-006-E1-c1","label":"デッキから＜精羅＞のシグニを3枚まで探してエナゾーンに置く","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"精羅"},"maxCount":3,"upToTarget":true,"then":{"type":"ADD_TO_ENERGY","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"WX20-006-E1-c2","label":"対戦相手のパワー12000以上のシグニ1体をバニッシュする","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX22-005": [
-    {"effectId":"WX22-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"青","count":1},{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"search","label":"＜天使＞を3枚まで探して場に出す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"天使","color":["赤","青","緑"]},"maxCount":3,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"draw","label":"カードを6枚引く","action":{"type":"DRAW","owner":"self","count":6}},{"choiceId":"counter","label":"スペルの効果を打ち消す","action":{"type":"COUNTER_SPELL"}}]},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    // 🆕§5.0 実装キュー 第222バッチ＝原文「③対象のスペル1つの効果を打ち消す。**そうした場合**、対戦相手の
+    //   エナゾーンから対象のカード1枚をトラッシュに置き、あなたのデッキの一番上のカードをライフクロスに加える。」
+    //   ＝後続2ステップは**③を選んだときだけ**の帰結。旧 JSON は CHOOSE の兄弟に並べており①②を選んでも実行される
+    //   過剰実行だった。③の choice action へ SEQUENCE で畳む。
+    {"effectId":"WX22-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"青","count":1},{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"search","label":"＜天使＞を3枚まで探して場に出す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"天使","color":["赤","青","緑"]},"maxCount":3,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"draw","label":"カードを6枚引く","action":{"type":"DRAW","owner":"self","count":6}},{"choiceId":"counter","label":"スペルの効果を打ち消す","action":{"type":"SEQUENCE","steps":[{"type":"COUNTER_SPELL"},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX22-021": [
     {"effectId":"WX22-021-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_CARD_NAME"},{"type":"STUB","id":"DECK_REVEAL_UNTIL","deckRevealUntil":{"until":"declaredName","hitTo":"hand","restTo":"deckBottomShuffled"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":7},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},

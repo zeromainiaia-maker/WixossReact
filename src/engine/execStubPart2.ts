@@ -2408,6 +2408,24 @@ export function execStubPart2(
     traps[zi] = null;
     return done({ ...ctx, ownerState: { ...ctx.ownerState, hand: [...ctx.ownerState.hand, selected], field: { ...ctx.ownerState.field, signi_traps: traps } }, lastProcessedCards: [selected] });
   }
+  // 🆕§5.0 実装キュー 第222バッチ＝`WX19-064-E1` 選択肢②「【トラップ】１つを対象とし、それをトラッシュに置く」。
+  //   `RETURN_TRAP_TO_HAND_ONE`（手札へ戻す）の完全な対で、行き先だけトラッシュにする。
+  //   ⚠**活性化はしない**（`ACTIVATE_TRAP` とは別物＝トラップ効果を発動させずにただ捨てる）。
+  if (stub.id === 'TRASH_TRAP_ONE') {
+    const trapsTTO = (ctx.ownerState.field.signi_traps ?? []).filter(Boolean) as string[];
+    if (trapsTTO.length === 0) return done({ ...addLog(ctx, 'トラッシュに置ける【トラップ】がない'), lastProcessedCards: [] });
+    const actionTTO: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_SELECTED_TRAP' };
+    return selectOrInteract(trapsTTO, 1, false, 'self_field', actionTTO as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_TRASH_SELECTED_TRAP') {
+    const selected = ctx.lastProcessedCards?.[0];
+    if (!selected) return done({ ...ctx, lastProcessedCards: [] });
+    const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])];
+    const zi = traps.indexOf(selected);
+    if (zi < 0) return done({ ...ctx, lastProcessedCards: [] });
+    traps[zi] = null;
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, selected], field: { ...ctx.ownerState.field, signi_traps: traps } }, lastProcessedCards: [selected] });
+  }
   // TRAP_TO_HAND: 自分の【トラップ】を `trapToHand.count` 枚だけ手札に加える。
   //
   // 🔴**2026-08-26（§5.3 `O-60` 第7バッチ）＝ここはカード全文を

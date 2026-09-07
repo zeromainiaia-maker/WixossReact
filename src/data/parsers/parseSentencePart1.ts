@@ -4056,6 +4056,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
 
+  // 🆕§5.0 実装キュー 第222バッチ＝下の「スタンドアロン形式」は末尾を検査せず「【X】」で**始まりさえすれば**
+  //   丸ごとキーワード付与に落とす（広い母集団で使われているため末尾を締める形の一般化は避け、ここへ
+  //   個別の2文型だけ先に割り込ませる）。「【ウィルス】１つを取り除く」「【トラップ】１つを対象とし、それを
+  //   トラッシュに置く」（`WX19-064-E1` の CHOOSE 選択肢）はどちらも「取り除く／トラッシュに置く」という
+  //   実質の動作文を持つのに素通りし、「このカード自身が【ウィルス】/【トラップ】というキーワード能力を
+  //   永続的に持つ」という原文に無い付与へ化けていた。母集団はこの1カードのみ（`census:population` 実測）。
+  if (/^【ウィルス】(?:[１1]つ)?を取り除く$/.test(t.trim())) {
+    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  }
+  if (/^【トラップ】[１1]つを対象とし、それをトラッシュに置く$/.test(t.trim())) {
+    return { type: 'STUB', id: 'TRASH_TRAP_ONE' } as StubAction;
+  }
+
   // ---- キーワード能力（スタンドアロン形式：【XXX】（説明）or 【XXX】のみ）----
   // 【マルチエナ】など CONTINUOUS 効果として記載されるキーワード能力
   {

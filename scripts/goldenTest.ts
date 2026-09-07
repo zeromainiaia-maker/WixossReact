@@ -1803,6 +1803,21 @@ test('PLAN §6.3 WX14-028: 緑除外サーチ／BURSTの異色2枚制約', () =>
   ok(!satisfiesSelectionConstraint([red, red2], burstSearch.selectionConstraint, cardMap), '同色を共有する2枚は選択不可');
 });
 
+// §5.0 実装キュー 第222バッチ＝`WX22-022-BURST`。原文「異なる色を持つ＜遊具＞のシグニ２枚を探して…」
+// （「それぞれ」無し）に制約が無かった＝どの2枚でも探せてしまう過剰実行。受け皿は `WX14-028-BURST` と同一の
+// `SelectionConstraint.sharedColor:'none'`（`fixLrigColorFilters.mjs` の `searchDistinctColors` 型）。
+test('WX22-022-BURST: 探すシグニ2枚は異なる色（sharedColor:none）', () => {
+  const burst = effectsMap.get('WX22-022')!.find(e => e.effectId === 'WX22-022-BURST')!;
+  const search = burst.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(search.filter.story, '遊具', '＜遊具＞シグニ限定');
+  eq(search.selectionConstraint?.sharedColor, 'none', '異なる色の制約');
+  const red = findCard(c => (c.Color ?? '').includes('赤') && !(c.Color ?? '').includes('青'));
+  const blue = findCard(c => (c.Color ?? '').includes('青') && !(c.Color ?? '').includes('赤'));
+  const red2 = findCard(c => c.CardNum !== red && (c.Color ?? '').includes('赤'));
+  ok(satisfiesSelectionConstraint([red, blue], search.selectionConstraint, cardMap), '異色2枚は選択可');
+  ok(!satisfiesSelectionConstraint([red, red2], search.selectionConstraint, cardMap), '同色を共有する2枚は選択不可（反転確認）');
+});
+
 test('O-161/O-95/O-102 主群: 「共通する色を持たない」選択5効果へ sharedColor:none を配線する', () => withSavedCursor(() => {
   const specs = [
     ['WX21-024', 'WX21-024-E1', 2, 'upToCount'],
@@ -2892,8 +2907,11 @@ test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは
   //   「【ウィルス】１つを**置くか、取り除く**」の**後半が丸ごと無かった**（`PLACE_VIRUS` だけ）。
   //   `CHOOSE` の第2枝として `STUB{REMOVE_VIRUS, virusCount:1}` を足したぶんの +1。
   //   ⚠**新しい機構ではない**＝単独の `REMOVE_VIRUS` は `execStubPart1.ts:1863` が相手の場から除去する。
-  eq(rvNodes.length, 10, 'live の REMOVE_VIRUS ノード数');
-  eq(rvNodes.filter(n => n.virusCount === undefined).length, 1, 'payload 無しは「これを取り除く」（WX25-P3-TK03）の1件だけ');
+  // 🔼**10→11**（2026-09-07・第222バッチ・§5.0 O-D①）＝`WX19-064-E1` 選択肢①「【ウィルス】１つを
+  //   取り除く」が `GRANT_KEYWORD{keyword:'ウィルス'}`（自身へのキーワード永続付与）に化けていた
+  //   （parser の「キーワードのスタンドアロン形式」規則が末尾を見ずに素通りしていた）。
+  eq(rvNodes.length, 11, 'live の REMOVE_VIRUS ノード数');
+  eq(rvNodes.filter(n => n.virusCount === undefined).length, 2, 'payload 無しは「これを取り除く」（WX25-P3-TK03）と `WX19-064-E1`①（既定1個）の2件');
 }));
 test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
   const effect = effectsMap.get('SP26-006')!.find(e => e.effectId === 'SP26-006-E1')!;
@@ -15683,6 +15701,81 @@ test('WX12-Re22-E1: ルリグの下が0枚なら選択そのものが起きな�
   const ctx = mkCtx({ lrig: ['WD01-001#9'] }, {});
   const result = executeEffect(eff, ctx);
   ok(result.done, 'ルリグの下が0枚＝選択数0でそのまま完了（旧実装は choose_count:1 固定で1つ選べてしまっていた）');
+});
+
+// §5.0 実装キュー 第222バッチ＝`WX22-005-E1`（速いレーン＝`manualEffects.ts`）。
+// 原文「③スペルの効果を打ち消す。そうした場合、対戦相手のエナをトラッシュ、ライフクロス加算」＝
+// 後続2ステップは③限定の帰結。旧JSONはCHOOSEの兄弟に置かれ①②を選んでも実行される過剰実行だった。
+test('WX22-005-E1: ①（探索）を選んでも対戦相手エナのトラッシュ／ライフ加算は起きない', () => {
+  const eff = effectsMap.get('WX22-005')!.find(e => e.effectId === 'WX22-005-E1')!;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.energy = ['WD01-013', 'WD03-013'];
+  const lifeBefore = ctx.ownerState.life_cloth.length;
+  const result = executeEffect(eff, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE', '3択が提示される');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  const done1 = resumeChoose('search', result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState });
+  const finalR = finish(done1, ctx);
+  eq(finalR.otherState.energy.length, 2, '①（探索）を選んでも対戦相手エナは減らない（過剰実行の反転確認）');
+  eq(finalR.ownerState.life_cloth.length, lifeBefore, '①（探索）を選んでもライフクロスは増えない');
+});
+test('WX22-005-E1: ③（打ち消し）を選ぶと対戦相手エナのトラッシュ＋ライフ加算が起きる', () => {
+  const eff = effectsMap.get('WX22-005')!.find(e => e.effectId === 'WX22-005-E1')!;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.energy = ['WD01-013', 'WD03-013'];
+  const lifeBefore = ctx.ownerState.life_cloth.length;
+  const result = executeEffect(eff, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE', '3択が提示される');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  const done1 = resumeChoose('counter', result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState });
+  const finalR = finish(done1, ctx);
+  eq(finalR.otherState.energy.length, 1, '③（打ち消し）で対戦相手エナが1枚トラッシュされる');
+  eq(finalR.ownerState.life_cloth.length, lifeBefore + 1, '③（打ち消し）でライフクロスが1枚増える');
+});
+
+// §5.0 実装キュー 第222バッチ＝`WX20-001-E2`。原文「それらを場に出す。それらの【出】能力は発動せず、
+// ターン終了時、それらを場からトラッシュに置く」＝旧 parser は「発動せず、」（連用形）+ 後続節の複合1文を
+// まるごと STUB{RULE_REMINDER_TEXT}（no-op）へ落とし、場に出した【出】が普通に発火し続けていた。
+test('WX20-001-E2: トラッシュから場に出し suppressOnPlay かつターン終了時トラッシュを予約', () => {
+  const eff = effectsMap.get('WX20-001')!.find(e => e.effectId === 'WX20-001-E2')!;
+  const add = eff.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  const addToField = add.steps[0] as Extract<EffectAction, { type: 'ADD_TO_FIELD' }>;
+  eq(addToField.suppressOnPlay, true, 'ADD_TO_FIELD に suppressOnPlay が付いている');
+  eq((add.steps[1] as { id?: string }).id, 'TRASH_AT_TURN_END', '2ステップ目は TRASH_AT_TURN_END（旧 RULE_REMINDER_TEXT は完全no-op）');
+  const buyu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
+  const ctx = mkCtx({ signi: [null, null, null] }, {});
+  ctx.ownerState.trash = [buyu];
+  const result = run(eff.action, ctx);
+  ok(result.ownerState.field.signi.some(s => s?.at(-1) === buyu), 'トラッシュの武勇シグニが場に出る');
+  ok(!result.ownerState.trash.includes(buyu), 'トラッシュから抜ける');
+  ok((result.ownerState.turn_end_field_trash_targets ?? []).includes(buyu), 'ターン終了時トラッシュが予約される');
+});
+
+// §5.0 実装キュー 第222バッチ＝`WX19-064-E1`。選択肢①②が原文「取り除く」「トラッシュに置く」なのに
+// 両方 GRANT_KEYWORD（このカード自身へ【ウィルス】/【トラップ】を永続付与）に化けていた。
+// 真因＝parser の「キーワードのスタンドアロン形式」規則が末尾を検査せず「【X】」で始まりさえすれば
+// キーワード付与へ落としていた（`parseSentencePart1.ts`）。個別の2文型を先に割り込ませて修正。
+test('WX19-064-E1 選択肢①: 【ウィルス】を取り除く（対戦相手の場から1つ）', () => {
+  const eff = effectsMap.get('WX19-064')!.find(e => e.effectId === 'WX19-064-E1')!;
+  const choice0 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action;
+  eq((choice0 as { type?: string }).type, 'STUB', '選択肢①は STUB（GRANT_KEYWORD ではない）');
+  eq((choice0 as { id?: string }).id, 'REMOVE_VIRUS', '選択肢①は REMOVE_VIRUS');
+  const ctx = mkCtx({}, {});
+  ctx.otherState.field.signi_virus = [1, 0, 0];
+  const r = run(choice0, ctx);
+  eq((r.otherState.field.signi_virus ?? []).reduce((s, v) => s + v, 0), 0, '対戦相手の【ウィルス】が1つ取り除かれる');
+});
+test('WX19-064-E1 選択肢②: 【トラップ】1つを対象としトラッシュに置く（活性化しない）', () => {
+  const eff = effectsMap.get('WX19-064')!.find(e => e.effectId === 'WX19-064-E1')!;
+  const choice1 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[1].action;
+  eq((choice1 as { type?: string }).type, 'STUB', '選択肢②は STUB（GRANT_KEYWORD ではない）');
+  eq((choice1 as { id?: string }).id, 'TRASH_TRAP_ONE', '選択肢②は TRASH_TRAP_ONE');
+  const trap = 'WD01-013';
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.signi_traps = [trap, null, null];
+  const r = run(choice1, ctx);
+  ok(r.ownerState.trash.includes(trap), 'トラップがトラッシュへ置かれる');
+  eq(r.ownerState.field.signi_traps?.[0] ?? null, null, 'トラップゾーンから外れる');
 });
 test('ON_PLAY triggerScope 補完: 別能力の opponent watcher は自身の【出】を汚染しない', () => withSavedCursor(() => {
   const source = 'WX14-025#1';
@@ -60149,7 +60242,12 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   🔑**手で書き起こしたのではなく parser を直して出所を作った**＝「手札１枚をデッキの一番上に置く」
   //   （`から`／`カード` を伴わない綴り）が解けるようになり、fresh が live と実体同一になったので
   //   `censusOrphanManual --unfreeze` で AUTO へ戻した（分類 B・§5.4 の測り直しで見つけた）。
-  const BASELINE_ORPHAN_MANUAL = 6; // 旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  // 🆕**2026-09-08（第222バッチ・§5.0 O-D③）＝6 → 7。** `WX22-022-BURST`（`fixLrigColorFilters.mjs` の
+  //   `searchDistinctColors` 型＝異なる色2枚を探す `SelectionConstraint.sharedColor:'none'`）を新規に
+  //   `WX14-028-BURST` と同じ fixer 型で追加した。**新しく凍らせたのではない**＝この test は parser を
+  //   回さないので D群（fixer が毎回生成し直す id）を母集団から外せず、`census:orphanmanual` 側では
+  //   D として扱われ増分は見えない（上の「3だけずれる」注記と同型）。
+  const BASELINE_ORPHAN_MANUAL = 7; // 旧6。旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。

@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（第222バッチ・Opus・O-D 実装キュー）＝4効果を修正
+
+**作業単位**＝ユーザー指示「さらに20件行う」→ 途中で「12件で区切ることに変更する」。
+
+### `WX22-005-E1`（原文「③スペルの効果を打ち消す。**そうした場合**、対戦相手のエナをトラッシュ、ライフクロス加算」）
+
+**真因**＝後続2ステップ（`TRASH{ENERGY_CARD,opponent}` / `ADD_TO_LIFE`）が `CHOOSE` の**兄弟**に並んでおり、
+①②（探索／ドロー）を選んでも無条件に実行される過剰実行。**修正**＝③の choice action へ `SEQUENCE` で畳んだ
+（`manualEffects.ts`・速いレーン）。
+
+### `WX20-001-E2`（原文「それらを場に出す。それらの【出】能力は発動せず、ターン終了時、それらを場からトラッシュに置く」）
+
+**真因**＝「発動せず、」（連用形）+ 後続節の複合1文が丸ごと `STUB{RULE_REMINDER_TEXT}`（no-op）に落ちていた
+（parser は「発動しない」終止形しか `BLOCK_ACTION{ON_PLAY_ABILITY}` へ変換しない）。**修正**＝既存の
+`AddToFieldAction.suppressOnPlay` ＋ `STUB{TRASH_AT_TURN_END}`（`WXDi-P03-034-E1` と同型）を
+`manualEffects.ts` で直接組み直した（母集団1効果）。
+
+### `WX19-064-E1`（原文「①【ウィルス】１つを取り除く」「②【トラップ】１つを対象とし、それをトラッシュに置く」）
+
+**真因**＝parser の「キーワードのスタンドアロン形式」規則（`parseSentencePart1.ts`）が**末尾を検査せず**
+「【X】」で始まりさえすれば `GRANT_KEYWORD`（このカード自身への永続付与）へ落とす広い catch-all だった。
+①②とも「取り除く」「トラッシュに置く」という実質の動作文を持つのに素通りしていた。
+
+**修正**＝①②の具体的な2文型を catch-all より前に割り込ませ、正しい STUB
+（`REMOVE_VIRUS`／新設 `TRASH_TRAP_ONE`）へ差し替えた（`execStubPart2.ts` に `TRASH_TRAP_ONE` を追加＝
+`RETURN_TRAP_TO_HAND_ONE` の完全な対）。
+
+⚠**catch-all 自体は狭めなかった**＝当初「末尾まで固定する」一般化を試みたところ、
+`npm run build:effects` の held が1→35カードへ膨れた（「【クロス出】」「【トラップアイコン】」等の
+正当な「【K】（説明）」形を巻き込んだ）。**撤回して個別2文型の先取りに変更**（母集団2件のみ・安全）。
+🔑教訓＝広く共有される catch-all のスコープを締める一般化は必ず母集団を実測してから行う。
+
+### `WX22-022-BURST`（原文「異なる色を持つ＜遊具＞のシグニ２枚を探して…」）
+
+**真因**＝制約が無くどの2枚でも探せる過剰実行。登録票は「新軸（`SelectionConstraint.distinct:'color'`）が
+要る」としていたが、実測すると受け皿は**既存の `SelectionConstraint.sharedColor:'none'`**
+（`WX14-028-BURST` が既に使用）そのもの。**修正**＝`fixLrigColorFilters.mjs` の `searchDistinctColors` 型に
+1行追加するだけ（母集団2件のみ）。
+
+### 検証・簿記
+
+4件とも golden 追加（計8本・全て反転確認込み＝修正前コードで FAIL することを確認済み）。
+`src/screens/` 無変更＝実機不要（§2.2）。`npm run gates` 全緑（golden 3631→3639 PASS）。
+ラチェット較正2本＝`REMOVE_VIRUS` ノード数 10→11（可視化）／`BASELINE_ORPHAN_MANUAL` 6→7
+（`WX22-022-BURST` の fixer 型追加＝D群・凍っていない）。実装キュー残 19行/20効果→14行/15効果。
+
 ## 2026-09-07（第221バッチ・Opus・O-D 実装キュー）＝4効果を修正（系統発見2件を分離登録）
 
 **作業単位**＝ユーザー指示「５件ほど続けて」。実装キューを①②③（重い順）で上から取った。
