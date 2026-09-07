@@ -11890,6 +11890,74 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
  * ⚠ガードは3枚＝①`STUB{SOUL_OP}` が木にちょうど1つ ②宣言が本文にちょうど1つ
  *   ③宣言と帰結が**同じ効果の原文**に揃っている（`。` を跨いでよいが引用は跨がない）。
  */
+/**
+ * 「〈owner〉のライフクロスの一番上を見る。（あなたは）**それを**トラッシュに置いてもよい。
+ *  そうした場合、〈owner〉のデッキの一番上のカードをライフクロスに加える。」の照応を戻す。
+ *
+ * 🔴**旧 live は「それ」を解決できず `TRASH{target:{SIGNI, owner:'opponent', count:1}}` を出していた**＝
+ *   **見たライフクロスではなく相手のシグニを1体トラッシュする**別の効果に化けていた（重い過剰実行）。
+ *   `WX10-015-E1` は《青×1》のスペルで**この形が2回**あるので、相手のシグニを2体除去できた。
+ * 🔑**受け皿は最初から全部在った**＝`TRASH{target:{type:'LIFE_CLOTH_CARD'}}`（`execTrash` が
+ *   ライフ末尾＝一番上を trash へ移し `lastProcessedCards` に記録する）＋`STUB{OPTIONAL_ACTIVATE}`
+ *   （コスト無しの「〜してもよい」）。**`WX10-002-E2` の手書きが同じ形で動いている。**
+ *   ⇒ 生成側だけが穴だった（`census:*` はどれも「受け皿があるか」しか見ないので原理的に映らない）。
+ *
+ * 🔴**任意ブロックは必ず入れ子にする。** `OPTIONAL_ACTIVATE` の「やらない」は
+ *   `execSequence` の Pattern ⑤ で**その SEQUENCE の残りステップを全部**捨てる。
+ *   平らに置くと `WX10-015-E1` で**自分側を断った瞬間に相手側の処理まで消える**（過小実行）。
+ *
+ * ⚠ガードは4枚＝①原文に「ライフクロスの一番上を見る」がある ②その直後の文が
+ *   「（あなたは）それをトラッシュに置いてもよい」 ③木が `[〈見る〉, TRASH{SIGNI}, CONDITIONAL{IS_MY_TURN}]`
+ *   の並び ④`ADD_TO_LIFE.owner` が〈見る〉側の owner と一致する（＝同じ人のライフを補充している）。
+ *   ④が無いと、たまたま隣り合っただけの別ステップを畳んでしまう。
+ */
+function restoreLookedLifeTopTrashAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/ライフクロスの一番上を見る/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  // 「〈見る〉。（あなたは）それをトラッシュに置いてもよい」の出現数＝畳んでよい回数の上限。
+  const optionalTrashCount = (text.match(/ライフクロスの一番上を見る。(?:あなたは)?それをトラッシュに置いてもよい/g) ?? []).length;
+  if (optionalTrashCount === 0) return action;
+
+  /** 〈見る〉ステップなら、見られたライフの持ち主を返す。 */
+  const lookOwnerOf = (st: EffectAction): Owner | null => {
+    if (st?.type === 'LOOK_AND_REORDER') {
+      const la = st as import('../types/effects').LookAndReorderAction;
+      return la.source.location === 'life_cloth' ? (la.source.owner as Owner) : null;
+    }
+    if (st?.type === 'STUB' && (st as StubAction).id === 'LOOK_OPP_LIFE_TOP') return 'opponent';
+    return null;
+  };
+
+  const steps = [...action.steps];
+  const out: EffectAction[] = [];
+  let folded = 0;
+  for (let i = 0; i < steps.length; i++) {
+    const lookOwner = lookOwnerOf(steps[i]);
+    const trashStep = steps[i + 1] as (EffectAction & { target?: EffectTarget }) | undefined;
+    const condStep = steps[i + 2] as ConditionalAction | undefined;
+    const addToLife = condStep?.then as (EffectAction & { owner?: Owner }) | undefined;
+    const shapeOk = lookOwner !== null
+      && folded < optionalTrashCount
+      && trashStep?.type === 'TRASH' && trashStep.target?.type === 'SIGNI'
+      && condStep?.type === 'CONDITIONAL' && condStep.condition.type === 'IS_MY_TURN'
+      && addToLife?.type === 'ADD_TO_LIFE' && addToLife.owner === lookOwner;
+    if (!shapeOk) { out.push(steps[i]); continue; }
+    out.push(steps[i]);
+    out.push({
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction as EffectAction,
+        { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: lookOwner, count: 1 } } as EffectAction,
+        condStep as EffectAction,
+      ],
+    } as SequenceAction as EffectAction);
+    folded++;
+    i += 2;
+  }
+  if (folded === 0) return action;
+  return { ...action, steps: out } as EffectAction;
+}
+
 function restoreLrigTrashToDeckAnaphora(text: string, action: EffectAction): EffectAction {
   if (!/それをルリグデッキに加える/.test(text)) return action;
   const scan = text.replace(/「[\s\S]*?」/g, '「」');
@@ -26873,6 +26941,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       effect.action = fillBareOptionalCostPayload(effect.action);
       effect.action = applyDroppedFieldPlacementDesignation(sourceText, effect.action);
       effect.action = restoreLrigTrashToDeckAnaphora(sourceText, effect.action);
+      effect.action = restoreLookedLifeTopTrashAnaphora(sourceText, effect.action);
       effect.action = applyTrashedPickOptionalCostPlacement(sourceText, effect.action);
       effect.action = applyO96Nested(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);

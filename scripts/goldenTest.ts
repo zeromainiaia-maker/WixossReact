@@ -50002,6 +50002,112 @@ for (const spec of kagiriCases) {
   });
 }
 
+// 🆕🔴**§5.0 O-D 実装キュー 第209バッチ（2026-09-07）＝「見たライフクロスをトラッシュ」が
+//   `TRASH{SIGNI owner:opponent}`＝**相手シグニ除去**という別の効果に化けていた4効果。**
+//   `WX10-015-E1` は《青×1》のスペルで**この形が2回**あり、相手のシグニを2体除去できた。
+// 🔑受け皿（`TRASH{LIFE_CLOTH_CARD}` ＋ `STUB{OPTIONAL_ACTIVATE}`）は最初から在り、
+//   `WX10-002-E2` の手書きが同じ形で動いていた＝**生成側だけの穴**（`census:*` に原理的に映らない）。
+const o209LifeTopCases = [
+  { effectId: 'WD06-018-E1', lifeOwner: 'opponent', blocks: 1 },
+  { effectId: 'WX13-075-E1', lifeOwner: 'opponent', blocks: 1 },
+  { effectId: 'WXK05-040-E2', lifeOwner: 'opponent', blocks: 1 },
+  { effectId: 'WX10-015-E1', lifeOwner: 'self', blocks: 2 },
+] as const;
+for (const spec of o209LifeTopCases) {
+  test(`§5.0 O-D live ${spec.effectId}: 「見たライフクロスをトラッシュ」が相手シグニ除去に化けていない`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const js = JSON.stringify(eff.action);
+    // 🔴旧の誤り＝「それをトラッシュに置いてもよい」が相手シグニ1体のトラッシュになっていた。
+    ok(!js.includes('"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}'),
+       '🔴`TRASH{SIGNI owner:opponent}`（相手シグニ除去）が残っていない');
+    eq((js.match(/"LIFE_CLOTH_CARD"/g) ?? []).length, spec.blocks,
+       `ライフクロスのトラッシュが ${spec.blocks} 箇所`);
+    eq((js.match(/"OPTIONAL_ACTIVATE"/g) ?? []).length, spec.blocks,
+       '🔴「〜してもよい」の任意ゲートが同数（無いと強制トラッシュ＝別の過剰実行）');
+    ok(js.includes(`{"type":"TRASH","target":{"type":"LIFE_CLOTH_CARD","owner":"${spec.lifeOwner}","count":1}}`),
+       `🔴見た側（${spec.lifeOwner}）のライフを捨てる`);
+  });
+}
+
+test('§5.0 O-D engine WX13-075-E1: 断れば何も起きず、受ければ相手ライフの一番上だけがトラッシュへ', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX13-075')!.find(e => e.effectId === 'WX13-075-E1')!;
+  const oppSigni = findCard(c => isSigni(c) && +(c.Power || '0') > 0);
+  const mk = () => {
+    const ctx = mkCtx({}, { signi: [oppSigni, null, null] });
+    ctx.otherState.life_cloth = [POOL[0], POOL[1], POOL[2]];
+    ctx.otherState.deck = [POOL[3], POOL[4], POOL[5]];
+    ctx.otherState.trash = [];
+    return ctx;
+  };
+  // ① 断る＝ライフもトラッシュも相手の場も動かない。
+  const skipCtx = mk();
+  const r0 = executeEffect(eff, skipCtx);
+  ok(!r0.done && r0.pending.type === 'CHOOSE', '任意ゲートで一度止まる');
+  const skipOpt = (r0.pending as { options: { id: string; label: string }[] }).options
+    .find(o => /しない|スキップ/.test(o.label)) ?? (r0.pending as { options: { id: string }[] }).options[1];
+  const rSkip = resumeChoose(skipOpt.id, r0.pending as never, execCtxFrom(r0, skipCtx));
+  eq(rSkip.otherState.life_cloth.length, 3, '断ればライフは減らない');
+  eq(rSkip.otherState.trash.length, 0, '断ればトラッシュも増えない');
+  eq(rSkip.otherState.field.signi[0]?.at(-1), oppSigni, '🔴相手のシグニは場に残る（旧はここが消えていた）');
+
+  // ② 受ける＝ライフの**一番上**（配列末尾）だけがトラッシュへ行き、デッキ上から1枚補充される。
+  const payCtx = mk();
+  const r1 = executeEffect(eff, payCtx);
+  const payOpt = (r1.pending as { options: { id: string; label: string }[] }).options
+    .find(o => !/しない|スキップ/.test(o.label))!;
+  const rPay = resumeChoose(payOpt.id, r1.pending as never, execCtxFrom(r1, payCtx));
+  ok(rPay.done, '受け入れ側は完了する');
+  ok(rPay.otherState.trash.includes(POOL[2]), '🔴ライフの一番上（配列末尾）がトラッシュへ');
+  ok(!rPay.otherState.trash.includes(POOL[0]), '一番下は動かさない');
+  eq(rPay.otherState.life_cloth.length, 3, '補充されて枚数は戻る（3→2→3）');
+  eq(rPay.otherState.life_cloth.at(-1), POOL[3], 'デッキの一番上がライフの一番上へ');
+  eq(rPay.otherState.field.signi[0]?.at(-1), oppSigni, '🔴相手のシグニには触らない');
+}));
+
+test('§5.0 O-D engine WX10-015-E1: 自分側を断っても相手側の処理は消えない（入れ子の任意ブロック）', () => withSavedCursor(() => {
+  // 🔴**平らに `OPTIONAL_ACTIVATE` を置くと Pattern ⑤ が「その SEQUENCE の残り全部」を捨てる**＝
+  //   自分側を断った瞬間に相手側まで消える（過小実行）。入れ子にしてある理由がこの test。
+  const eff = effectsMap.get('WX10-015')!.find(e => e.effectId === 'WX10-015-E1')!;
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.life_cloth = [POOL[0], POOL[1]];
+  ctx.ownerState.deck = [POOL[2], POOL[3]];
+  ctx.otherState.life_cloth = [POOL[4], POOL[5]];
+  ctx.otherState.deck = [POOL[6], POOL[7]];
+  ctx.ownerState.trash = []; ctx.otherState.trash = [];
+  let res = executeEffect(eff, ctx);
+  let guard = 0;
+  let choices = 0;
+  while (!res.done) {
+    if (++guard > 12) throw new Error('hang');
+    const c = execCtxFrom(res, ctx);
+    const p = res.pending;
+    if (p.type === 'CHOOSE') {
+      const opts = (p as { options: { id: string; label: string }[] }).options;
+      // 1回目（自分側）は断る／2回目（相手側）は受ける。
+      const skip = opts.find(o => /しない|スキップ/.test(o.label)) ?? opts[1];
+      const pay = opts.find(o => !/しない|スキップ/.test(o.label)) ?? opts[0];
+      res = resumeChoose((choices === 0 ? skip : pay).id, p as never, c);
+      choices++;
+    } else if (p.type === 'LOOK_AND_REORDER') {
+      res = resumeLookAndReorder((p as { cards: string[] }).cards, [], p as never, c, []);
+    } else {
+      throw new Error(`unhandled pending ${p.type}`);
+    }
+  }
+  eq(choices, 2, '🔴任意ゲートは2回来る（自分側を断っても相手側が消えない）');
+  eq(res.ownerState.trash.length, 0, '自分側は断ったので何も捨てていない');
+  eq(res.ownerState.life_cloth.length, 2, '自分のライフは減っていない');
+  ok(res.otherState.trash.includes(POOL[5]), '🔴相手側は受けたのでライフの一番上がトラッシュへ');
+  eq(res.otherState.life_cloth.at(-1), POOL[6], '相手のデッキの一番上がライフへ');
+}));
+
 // 🆕**§5.0 O-D/S-3 実装キュー 第208バッチ（2026-09-07）＝速いレーン4件（受け皿が全部在ったもの）。**
 // 🔑**4件とも「受け皿は在るのに生成側が届いていない」型**＝どの `census:*` にも映らない（第207の型と同族）。
 const o208Cases = [

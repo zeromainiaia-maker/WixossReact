@@ -3,6 +3,72 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## +LIFE_CLOTH_CARD +SEQUENCE +STUB -SIGNI ［3枚］
+WD06-018 WX13-075 WXK05-040
+--- WD06-018
+  原文: 対戦相手のライフクロスの一番上を見る。あなたはそれをトラッシュに置いてもよい。そうした場合、対戦相手はデッキの一番上のカードをライフクロスに加える。あなたはカードを１枚引く。,：あなたのデッキから【ライフバースト】を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "ADD_TO_LIFE"
+  - [0].action.steps[2].then.owner = "opponent"
+  - [0].action.steps[2].then.count = 1
+  - [0].action.steps[2].then.fromTop = true
+  - [0].action.steps[3].type = "DRAW"
+  - [0].action.steps[3].owner = "self"
+  - [0].action.steps[3].count = 1
+  ~ [0].action.steps[1].type : "TRASH" → "SEQUENCE"
+  …（他 15 行）
+--- WX13-075
+  原文: 【自】：このシグニがバニッシュされたとき、対戦相手のライフクロスの一番上を見る。あなたはそれをトラッシュに置いてもよい。そうした場合、対戦相手のデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "ADD_TO_LIFE"
+  - [0].action.steps[2].then.owner = "opponent"
+  - [0].action.steps[2].then.count = 1
+  - [0].action.steps[2].then.fromTop = true
+  ~ [0].action.steps[1].type : "TRASH" → "SEQUENCE"
+  + [0].action.steps[1].steps[0].type = "STUB"
+  + [0].action.steps[1].steps[0].id = "OPTIONAL_ACTIVATE"
+  …（他 10 行）
+--- WXK05-040
+  原文: 【自】：対戦相手のターン終了時、このシグニを場から手札に戻す。【自】：このカードが【アクセ】としてシグニに付いたとき、対戦相手のライフクロスの一番上を見る。あなたはそれをトラッシュに置いてもよい。そうした場合、対戦相手のデッキの一番上のカードをライフクロスに加える。,-
+  - [1].action.steps[1].target.type = "SIGNI"
+  - [1].action.steps[1].target.owner = "opponent"
+  - [1].action.steps[1].target.count = 1
+  - [1].action.steps[2].type = "CONDITIONAL"
+  - [1].action.steps[2].condition.type = "IS_MY_TURN"
+  - [1].action.steps[2].then.type = "ADD_TO_LIFE"
+  - [1].action.steps[2].then.owner = "opponent"
+  - [1].action.steps[2].then.count = 1
+  - [1].action.steps[2].then.fromTop = true
+  ~ [1].action.steps[1].type : "TRASH" → "SEQUENCE"
+  + [1].action.steps[1].steps[0].type = "STUB"
+  + [1].action.steps[1].steps[0].id = "OPTIONAL_ACTIVATE"
+  …（他 10 行）
+
+## +LIFE_CLOTH_CARD×2 +SEQUENCE×2 +STUB×2 -SIGNI×2 ［1枚］
+WX10-015
+--- WX10-015
+  原文: あなたのライフクロスの一番上を見る。それをトラッシュに置いてもよい。そうした場合、あなたのデッキの一番上のカードをライフクロスに加える。対戦相手のライフクロスの一番上を見る。それをトラッシュに置いてもよい。そうした場合、対戦相手のデッキの一番上のカードをライフクロスに加える。【自】：あなたか対戦相手のライフバーストが発動したとき、《青》を支払ってもよい。そう
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "ADD_TO_LIFE"
+  - [0].action.steps[2].then.owner = "self"
+  - [0].action.steps[2].then.count = 1
+  - [0].action.steps[2].then.fromTop = true
+  - [0].action.steps[3].id = "LOOK_OPP_LIFE_TOP"
+  - [0].action.steps[3].lookZone.zone = "opp_life"
+  - [0].action.steps[3].lookZone.count = 1
+  - [0].action.steps[4].type = "TRASH"
+  …（他 39 行）
+
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002
