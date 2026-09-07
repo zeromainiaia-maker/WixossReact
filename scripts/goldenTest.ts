@@ -71016,6 +71016,110 @@ test('§5.0 O-D 系統④: count:0 の LOOK_AND_REORDER は live に残ってい
   eq(hits.join(','), '', `🔴 余分な LOOK_AND_REORDER{count:0} が復活した: ${hits.join(', ')}`);
 });
 
+// 🔴**§5.3 O-259 第10バッチ（2026-09-07）＝bare PLAY_FREE の真 no-op 3効果を既存受け皿へ載せ替える。**
+// live だけでなく parseCardEffects の fresh 出力を各群で直接検査する（収穫マージの live 温存を見逃さない）。
+test('§5.3 O-259 第10 A1: 1枚までのトラッシュスペル使用は任意選択し、除外を引き継ぐ', () => {
+  const fresh = findEffectDeep(parseCardEffects(cardMap.get('WX25-P3-064')!), 'WX25-P3-064-E1')!;
+  const use = fresh.action as StubAction;
+  eq(use.id, 'USE_SPELL_FROM_TRASH_PAYING_COST', 'fresh parse が bare PLAY_FREE を受け皿へ替える');
+  eq(use.value2, 'trash', '自分のトラッシュ');
+  eq(JSON.stringify(use.selectTarget?.filter), '{"cardType":"スペル"}', 'スペルだけ');
+  eq(use.selectTarget?.upToCount, true, '「1枚まで」＝任意');
+  eq(use.exileAfterUse, true, 'チェックゾーン離脱時の除外を落とさない');
+
+  const spell = 'WXK01-057';
+  const ctx0 = mkCtx({}, {});
+  const ctx = { ...ctx0, ownerState: { ...ctx0.ownerState, trash: [spell, SIGNI] } } as ExecCtx;
+  const r = executeAction(use, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '候補選択が立つ（旧 bare STUB は立たなかった）');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(r.pending.candidates.join(','), spell, 'シグニは候補に混ざらない');
+  eq(r.pending.optional, true, '0枚を選べる');
+  const miss = executeAction(use, { ...ctx, ownerState: { ...ctx.ownerState, trash: [SIGNI] } } as ExecCtx);
+  ok(miss.done && !miss.ownerState.excluded?.length, '🔴候補が無ければ盤面を動かさず終わる');
+  ok(decompiledLineOf('WX25-P3-064-E1').includes(
+    'あなたのトラッシュからスペル1枚までを対象とし、それを使用する。このターン、それがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される'),
+    '逆翻訳に任意・使用・除外の全軸が出る');
+});
+
+test('§5.3 O-259 第10 A2: abilities[] 内のスペル使用は印刷コストを2倍請求する', () => {
+  const fresh = findEffectDeep(parseCardEffects(cardMap.get('WXK06-005')!), 'WXK06-005-E1-G')!;
+  const use = fresh.action as StubAction;
+  eq(use.id, 'USE_SPELL_FROM_TRASH_PAYING_COST', 'GRANT_LRIG_ABILITY.abilities[] まで walker が降りる');
+  eq(use.value2, 'trash', '自分のトラッシュ');
+  eq(use.selectTarget?.upToCount, false, '「1枚」＝必須');
+  eq(use.useSpellCostMultiplier, 2, 'コスト2倍');
+  eq(use.exileAfterUse, true, '除外を引き継ぐ');
+
+  const spell = 'WXK01-057'; // 《青》×3
+  const ctx0 = mkCtx({}, {});
+  const ctx = { ...ctx0, ownerState: { ...ctx0.ownerState, trash: [spell] } } as ExecCtx;
+  const asked = (act: EffectAction) => {
+    const r1 = executeAction(act, ctx);
+    ok(!r1.done && r1.pending.type === 'SELECT_TARGET', 'まずスペルを選ぶ');
+    if (r1.done || r1.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+    eq(r1.pending.optional, false, '対象1枚は必須');
+    const r2 = resumeSelectTarget([spell], r1.pending,
+      { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs } as ExecCtx);
+    ok(!r2.done && r2.pending.type === 'CHOOSE', '支払い確認へ進む');
+    if (r2.done || r2.pending.type !== 'CHOOSE') throw new Error('CHOOSE expected');
+    return r2.pending.options.find(o => o.id === 'pay')?.costColors ?? [];
+  };
+  eq(asked(use).join(''), '青青青青青青', '《青》×3を2倍＝6枚請求');
+  eq(asked({ ...use, useSpellCostMultiplier: undefined } as StubAction).join(''), '青青青',
+    '🔴倍率が無ければ従来どおり印刷コスト満額＝3枚');
+  ok(decompiledLineOf('WXK06-005-E1').includes(
+    'あなたのトラッシュからスペル1枚を対象とし、それをコストを2倍支払って使用する。このターン、それがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される'),
+    '逆翻訳に2倍・必須・除外の全軸が出る');
+});
+
+test('§5.3 O-259 第10 A3: 両者のルリグトラッシュを合わせ、選択元の側へ委譲する', () => {
+  const fresh = findEffectDeep(parseCardEffects(cardMap.get('WXK09-002')!), 'WXK09-002-E1')!;
+  const seq = fresh.action as SequenceAction;
+  eq(seq.type, 'SEQUENCE', '既存のコスト軽減痕跡と使用受け皿を並べる');
+  eq((seq.steps[0] as StubAction).id, 'ARTS_COST_REDUCTION_BY_CENTER_LRIG',
+    '🔴スコープ外の第1ステップは残す');
+  const use = seq.steps[1] as StubAction;
+  eq(use.id, 'USE_SPELL_FROM_TRASH_PAYING_COST', 'bare PLAY_FREE を受け皿へ替える');
+  eq(use.value2, 'both_lrig_trash', '両プレイヤーのルリグトラッシュ');
+  eq(JSON.stringify(use.selectTarget?.filter), '{"cardType":"アーツ","costMax":5}', 'アーツかつ印刷コスト5以下');
+  eq(use.selectTarget?.upToCount, false, '対象1枚は必須');
+  eq(use.useSpellIgnoreCost, true, '支払いを飛ばす');
+
+  const ownArts = 'WD01-007';  // 《白》×3
+  const oppArts = 'WD02-007';  // 《赤》×2
+  const tooHigh = 'WX01-023';  // 合計12
+  const ctx0 = mkCtx({}, {});
+  const ctx = {
+    ...ctx0,
+    ownerState: { ...ctx0.ownerState, lrig_trash: [ownArts, tooHigh] },
+    otherState: { ...ctx0.otherState, lrig_trash: [oppArts] },
+  } as ExecCtx;
+  const r = executeAction(use, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '両者集合から候補選択が立つ');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(r.pending.candidates.join(','), `${ownArts},${oppArts}`, '自分→相手の順で合成し、コスト超過を除く');
+  eq(r.pending.optional, false, '必須選択');
+  const pick = (cn: string) => resumeSelectTarget([cn], r.pending,
+    { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx);
+  const ownResult = pick(ownArts);
+  ok(ownResult.ownerState.lrig_trash.includes(ownArts), '自分側は既存 USE_SPELL_FROM_TRASH 経路へ委譲');
+  const oppResult = pick(oppArts);
+  ok(!oppResult.otherState.lrig_trash.includes(oppArts), '相手側は既存 CAST_FROM_OPP_TRASH 経路へ委譲して取り除く');
+  const miss = executeAction(use, {
+    ...ctx, ownerState: { ...ctx.ownerState, lrig_trash: [tooHigh] }, otherState: { ...ctx.otherState, lrig_trash: [] },
+  } as ExecCtx);
+  ok(miss.done, '🔴コスト5超だけなら候補0で終わる');
+  ok(decompiledLineOf('WXK09-002-E1').includes(
+    'いずれかのプレイヤーのルリグトラッシュからコストの合計が5以下のアーツ1枚を対象とし、それをコストを支払わずに使用する'),
+    '逆翻訳に両者領域・上限・無料が出る');
+  // 🔴**「限定条件を無視して」は逆翻訳に出さない**（2026-09-07 第218の検証で撤去）＝
+  //   その情報は JSON のどこにも載っておらず、初版は**領域から原文を復元**していた（＝嘘の一致）。
+  //   受け皿（この経路で `meetsRestriction` を効かせる／無視を明示する）は §5.3 `O-281`。
+  ok(!decompiledLineOf('WXK09-002-E1').includes('限定条件を無視して'),
+    '🔴payload に無い節を領域から復元しない');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -3529,6 +3529,8 @@ export function execStubPart2(
       // 🆕`'opp_lrig_trash'`＝**相手のルリグトラッシュ**（§5.3 `O-259` 第5）＝アーツはここに落ちる。
       const zoneUS = stub.value2 === 'opp_trash' ? ctx.otherState.trash
         : stub.value2 === 'opp_lrig_trash' ? ctx.otherState.lrig_trash
+          : stub.value2 === 'both_lrig_trash'
+            ? [...new Set([...ctx.ownerState.lrig_trash, ...ctx.otherState.lrig_trash])]
           : fromHandUS ? ctx.ownerState.hand
             : ctx.ownerState.trash;
       const candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
@@ -3537,13 +3539,16 @@ export function execStubPart2(
       //   参照する」）と一致する＝軽減は**支払い時**に効くのであって候補の適格性は変えない。
       const zoneJaUS = fromHandUS ? '手札'
         : stub.value2 === 'opp_trash' ? '相手のトラッシュ'
-          : stub.value2 === 'opp_lrig_trash' ? '相手のルリグトラッシュ' : 'トラッシュ';
+          : stub.value2 === 'opp_lrig_trash' ? '相手のルリグトラッシュ'
+            : stub.value2 === 'both_lrig_trash' ? 'いずれかのプレイヤーのルリグトラッシュ' : 'トラッシュ';
       // ⚠**候補の呼び名は filter から取る**＝アーツも通る経路になったので「スペル」固定は嘘になる。
       const kindJaUS = Array.isArray(filtUS?.cardType) ? filtUS.cardType.join('か') : (filtUS?.cardType ?? 'カード');
       if (candsUS.length === 0) return done(addLog(ctx, `[${zoneJaUS}から使用: 対象の${kindJaUS}なし]`));
       return needsInteraction(addLog(ctx, `${zoneJaUS}から使用する${kindJaUS}を選ぶ`), {
-        type: 'SELECT_TARGET', candidates: candsUS, count: 1, optional: true,
-        targetScope: stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash' ? 'opp_trash'
+        type: 'SELECT_TARGET', candidates: candsUS, count: 1,
+        optional: stub.selectTarget?.upToCount ?? true,
+        targetScope: stub.value2 === 'both_lrig_trash' ? 'both_trash'
+          : stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash' ? 'opp_trash'
           : fromHandUS ? 'self_hand' : 'self_trash',
         thenAction: ({ ...stub, value: 'picked' } as StubAction) as EffectAction,
       });
@@ -3558,6 +3563,12 @@ export function execStubPart2(
       if (m[1] === 'コイン') continue;                       // コインはエナではない
       const nUS = parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
       for (let i = 0; i < nUS; i++) colorsUS.push(m[1]);
+    }
+    // 🆕「コストをN倍支払って使用する」＝軽減前の印刷コスト全体をN組へ増やす。
+    const multiplierUS = Math.max(1, Math.floor(stub.useSpellCostMultiplier ?? 1));
+    if (multiplierUS > 1) {
+      const printedColorsUS = [...colorsUS];
+      for (let i = 1; i < multiplierUS; i++) colorsUS.push(...printedColorsUS);
     }
     // 🆕**§5.3 `O-185`＝相手のトラッシュから使う場合は本体を `CAST_FROM_OPP_TRASH` にする。**
     //   ⚠あちらは「コストなし」型だが、**支払いはこの手前で済ませている**ので二重請求にはならない。
@@ -3577,7 +3588,11 @@ export function execStubPart2(
     //   🔴**枚数は減らさない**（色だけを無視する＝原文どおり）。⚠軽減（`useSpellCostReduction`）の**後**に
     //     置く＝先に無色化すると「同じ色を引く」軽減が一致しなくなる。
     const colorsPayUS = stub.useIgnoreCostColors ? colorsUS.map(() => '無') : colorsUS;
-    const fromOppUS = stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash';
+    // 両者集合だけは value2 では側が決まらないため、選ばれた実カードの現在位置で委譲先を決める。
+    // 既存の相手専用2領域は従来どおり常に相手側。万一両側に同じ instance id があれば自分側を優先する。
+    const fromOppUS = stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash'
+      || (stub.value2 === 'both_lrig_trash'
+        && !ctx.ownerState.lrig_trash.includes(cnUS) && ctx.otherState.lrig_trash.includes(cnUS));
     // ⚠**`exileAfterUse` は本体へ引き継ぐ**（除外は「配置する瞬間」に効くので本体側で処理する）。
     const exileUS = stub.exileAfterUse ? { exileAfterUse: true } : {};
     const bodyUS: StubAction = fromOppUS

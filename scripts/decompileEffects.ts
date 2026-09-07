@@ -3144,13 +3144,31 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕§5.3 `O-259` 第5バッチ＝相手のルリグトラッシュ／アーツ／色無視も描く。
         const zoneJa = a.value2 === 'hand' ? 'あなたの手札'
           : a.value2 === 'opp_trash' ? '対戦相手のトラッシュ'
-            : a.value2 === 'opp_lrig_trash' ? '対戦相手のルリグトラッシュ' : 'あなたのトラッシュ';
+            : a.value2 === 'opp_lrig_trash' ? '対戦相手のルリグトラッシュ'
+              : a.value2 === 'both_lrig_trash' ? 'いずれかのプレイヤーのルリグトラッシュ' : 'あなたのトラッシュ';
         const kindJa = a.selectTarget?.filter?.cardType ?? 'スペル';
         const red = (a.useSpellCostReduction ?? []).map(r => `《${r.color}×${r.count}》`).join('');
-        return `${zoneJa}から${filterJa(a.selectTarget?.filter)}${kindJa}1枚を対象とし、それを`
-          + (a.useSpellIgnoreCost ? 'コストを支払わずに使用してもよい' : '使用してもよい')
+        const explicitSelection = a.selectTarget?.upToCount !== undefined;
+        const countJa = `1枚${a.selectTarget?.upToCount ? 'まで' : ''}`;
+        const useVerbJa = explicitSelection ? '使用する' : '使用してもよい';
+        // 🔴**「限定条件を無視して」をここで描いてはいけない**（2026-09-07 第218の検証で撤去）＝
+        //   初版は `value2 === 'both_lrig_trash'` という**領域**から原文の一節を復元していたが、
+        //   その情報は JSON のどこにも載っていない＝**engine も逆翻訳も同じ嘘で一致する**形
+        //   （CLAUDE.md `census:enginetext` 第59バッチ ③ と同型）。**受け皿は `O-281` で作る。**
+        //   ⚠この経路（`USE_SPELL_FROM_TRASH` / `CAST_FROM_OPP_TRASH` への委譲）は
+        //   **`meetsRestriction` を一度も見ない**＝12効果すべてが事実上「限定条件を無視」している。
+        //   `execPlayFree`（`effectExecutor.ts:8195`＝`O-264`）だけが検査を持つ。
+        const useJa = a.useSpellCostMultiplier && a.useSpellCostMultiplier > 1
+          ? `コストを${a.useSpellCostMultiplier}倍支払って${useVerbJa}`
+          : a.useSpellIgnoreCost ? `コストを支払わずに${useVerbJa}` : useVerbJa;
+        return `${zoneJa}から${filterJa(a.selectTarget?.filter)}${kindJa}${countJa}を対象とし、それを${useJa}`
           + (red ? `。それの使用コストは${red}減る` : '')
-          + (a.useIgnoreCostColors ? '。この方法で使用する際、コストの色を無視して支払える' : '');
+          + (a.useIgnoreCostColors ? '。この方法で使用する際、コストの色を無視して支払える' : '')
+          // 🆕**`exileAfterUse` は payload が在るかぎり必ず描く**（2026-09-07 第218の検証で拡張）＝
+          //   初版は `explicitSelection`（＝`upToCount` の有無）で絞っており、**同じ payload を持つ
+          //   `WX14-002-E2` / `WXDi-P06-066-E2` / `WXK11-016-E3` の3効果で除外の節が逆翻訳から消えていた**
+          //   （`wireExileAfterUse` が `STUB{EXILE_FROM_CHECK_ZONE}` を木から外すので、他に出る場所が無い）。
+          + (a.exileAfterUse ? '。このターン、それがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される' : '');
       }
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       // §6.4 A群・続き427 で実装済み（`screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)`）。

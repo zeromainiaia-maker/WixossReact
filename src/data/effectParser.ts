@@ -1462,8 +1462,18 @@ function wirePieceCostReduction(action: EffectAction, card: CardData): EffectAct
  */
 function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction {
   const text = card.EffectText ?? '';
-  const m = text.match(
+  const legacyM = text.match(
     /あなたの(手札|トラッシュ)から([^。：【】]*?)スペル１枚を(?:対象とし、それを手札にあるかのように)?、?(?:その)?(コストを支払わずに|コストを支払って)?使用/);
+  // 🆕§5.3 `O-259` 第10バッチ＝「トラッシュにある」「1枚まで」「コストをN倍支払って」型。
+  // 既存の広い文型へ混ぜず、「対象とし、それを～使用」までを同じ文内で読み切れる形だけ採る。
+  const targetedCandidate = text.match(
+    /あなたの(手札|トラッシュ)(?:から|にある)([^。：【】]*?)スペルを?１枚(まで)?を?対象とし、それを(?:手札にあるかのように)?、?(?:その)?(コストを支払わずに|コストを支払って|コストを([０-９\d]+)倍支払って)?使用/);
+  // 従来文型までこちらへ取り込むと、既存 JSON に optional:false を新生させるため、新軸を含む形に限定する。
+  const targetedM = targetedCandidate
+    && (targetedCandidate[3] === 'まで' || targetedCandidate[5]
+      || /あなたの(?:手札|トラッシュ)にある/.test(targetedCandidate[0]))
+    ? targetedCandidate : null;
+  const m = targetedM ?? legacyM;
   if (!m) return action;
   const zone = m[1] === '手札' ? 'hand' : 'trash';
   // 🔴**修飾は「。：【】」を跨がせない**＝`.*?` のままだと**別の能力の文を丸ごと飲み込む**
@@ -1471,7 +1481,9 @@ function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction 
   //    1つの修飾として吸い上げていた）。⚠このときは `rest` が残るので fail-closed で見送られたが、
   //   **見送られた＝直っていない**なので、綴りを足す前に必ず実データで当てて確かめる。
   const modifier = m[2] ?? '';
-  const ignoreCost = m[3] === 'コストを支払わずに';
+  const costPhrase = targetedM ? targetedM[4] : legacyM?.[3];
+  const ignoreCost = costPhrase === 'コストを支払わずに';
+  const costMultiplier = targetedM?.[5] ? parseNum(targetedM[5]) : undefined;
   // ── 修飾から候補フィルタを組む（読めた分だけ載せる＝読めない修飾があれば見送る） ──
   const filter: TargetFilter = { cardType: 'スペル' };
   let rest = modifier;
@@ -1496,8 +1508,12 @@ function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction 
   const use: EffectAction = {
     type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
     value2: zone,
-    selectTarget: { type: 'CARD', owner: 'self', count: 1, filter } as unknown as EffectTarget,
+    selectTarget: {
+      type: 'CARD', owner: 'self', count: 1, filter,
+      ...(targetedM ? { upToCount: targetedM[3] === 'まで' } : {}),
+    } as unknown as EffectTarget,
     ...(reduction.length ? { useSpellCostReduction: reduction } : {}),
+    ...(costMultiplier !== undefined && costMultiplier > 1 ? { useSpellCostMultiplier: costMultiplier } : {}),
     ...(ignoreCost ? { useSpellIgnoreCost: true } : {}),
   } as EffectAction;
   // 使用側の痕跡 STUB を差し替え、軽減側の痕跡 STUB は（もう `use` が持つので）取り除く。
@@ -1505,13 +1521,26 @@ function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction 
   let placed = false;
   const walk = (node: EffectAction): EffectAction | null => {
     if (!node || typeof node !== 'object') return node;
-    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[] };
-    if (n.type === 'STUB' && n.id && USE_MARKERS.has(n.id) && !placed) { placed = true; return use; }
+    const n = node as unknown as {
+      type?: string; id?: string; steps?: EffectAction[]; exileAfterUse?: boolean;
+      abilities?: Array<{ action: EffectAction; [key: string]: unknown }>;
+    };
+    if (n.type === 'STUB' && n.id && USE_MARKERS.has(n.id) && !placed) {
+      placed = true;
+      return (n.exileAfterUse ? { ...use, exileAfterUse: true } : use) as EffectAction;
+    }
     if (n.type === 'STUB' && n.id === 'ARTS_COST_REDUCTION_BY_EFFECT') return null;   // 取り除く
     if (n.type === 'SEQUENCE') {
       const steps = (n.steps ?? []).map(walk).filter((x): x is EffectAction => x != null);
       if (steps.length === 1) return steps[0];
       return { ...node, steps } as EffectAction;
+    }
+    // `WXK06-005-E1-G` は GRANT_LRIG_ABILITY.abilities[] の中にある。
+    if (n.type === 'GRANT_LRIG_ABILITY' && n.abilities) {
+      return {
+        ...node,
+        abilities: n.abilities.map(ab => ({ ...ab, action: walk(ab.action) ?? ab.action })),
+      } as EffectAction;
     }
     return node;
   };
@@ -1595,18 +1624,37 @@ function wireNamedCardCostReduction(action: EffectAction, card: CardData): Effec
  */
 function wireEffectOppTrashUse(action: EffectAction, card: CardData): EffectAction {
   const text = card.EffectText ?? '';
-  const m = text.match(
+  const legacyM = text.match(
     /対戦相手の(ルリグ)?トラッシュから(アーツ|スペル)１枚を対象とし、(?:この?ターン、)?それを[^。]*?使用(する|してもよい)/);
+  // 🆕§5.3 `O-259` 第10バッチ＝両者のルリグトラッシュを1つの候補集合にする型。
+  const eitherLrigM = text.match(
+    /いずれかのプレイヤーのルリグトラッシュから([^。：【】]*?)(アーツ|スペル)１枚を対象とし、それを(コストを支払わずに)?(?:限定条件を無視して)?使用(する|してもよい)/);
+  const m = eitherLrigM ?? legacyM;
   if (!m) return action;
   // 🔴**「コストを支払わずに」型は除外**＝free が原文どおり（`WXEX1-46-E3`）。
-  if (/コストを支払わずに使用/.test(text)) return action;
-  const zone = m[1] ? 'opp_lrig_trash' : 'opp_trash';
-  const cardType = m[2];
+  if (!eitherLrigM && /コストを支払わずに使用/.test(text)) return action;
+  const zone = eitherLrigM ? 'both_lrig_trash' : (legacyM?.[1] ? 'opp_lrig_trash' : 'opp_trash');
+  const cardType = eitherLrigM ? eitherLrigM[2] : legacyM![2];
+  const filter: TargetFilter = { cardType: cardType as TargetFilter['cardType'] };
+  if (eitherLrigM) {
+    let rest = eitherLrigM[1] ?? '';
+    const rangeM = rest.match(/コストの合計が([０-９\d]+)[～〜]([０-９\d]+)の/);
+    const lteM = rest.match(/コストの合計が([０-９\d]+)以下の/);
+    const gteM = rest.match(/コストの合計が([０-９\d]+)以上の/);
+    if (rangeM) { filter.costMin = parseNum(rangeM[1]); filter.costMax = parseNum(rangeM[2]); rest = rest.replace(rangeM[0], ''); }
+    else if (lteM) { filter.costMax = parseNum(lteM[1]); rest = rest.replace(lteM[0], ''); }
+    else if (gteM) { filter.costMin = parseNum(gteM[1]); rest = rest.replace(gteM[0], ''); }
+    if (rest.trim() !== '') return action;
+  }
   const ignoreColors = /コストの色を無視して支払(?:える|ってもよい)/.test(text);
   const use: EffectAction = {
     type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
     value2: zone,
-    selectTarget: { type: 'CARD', owner: 'opponent', count: 1, filter: { cardType } } as unknown as EffectTarget,
+    selectTarget: {
+      type: 'CARD', owner: eitherLrigM ? 'any' : 'opponent', count: 1, filter,
+      ...(eitherLrigM ? { upToCount: false } : {}),
+    } as unknown as EffectTarget,
+    ...(eitherLrigM?.[3] ? { useSpellIgnoreCost: true } : {}),
     ...(ignoreColors ? { useIgnoreCostColors: true } : {}),
   } as EffectAction;
   let placed = false;
@@ -1618,7 +1666,8 @@ function wireEffectOppTrashUse(action: EffectAction, card: CardData): EffectActi
     // ⚠**痕跡は2種類ある**＝`CAST_FROM_OPP_TRASH`（相手トラッシュ・コストなし）と
     //   `USE_SPELL_FROM_TRASH`（**自分の**トラッシュ・コストなし）。後者に落ちている効果は
     //   **ゾーンまで間違っている**（`WXDi-P06-066-E2` は相手のトラッシュを1度も見ていなかった）。
-    if (n.type === 'STUB' && (n.id === 'CAST_FROM_OPP_TRASH' || n.id === 'USE_SPELL_FROM_TRASH') && !placed) {
+    if (n.type === 'STUB' && (n.id === 'CAST_FROM_OPP_TRASH' || n.id === 'USE_SPELL_FROM_TRASH'
+        || (eitherLrigM && n.id === 'PLAY_FREE')) && !placed) {
       placed = true;
       return (n.exileAfterUse ? { ...use, exileAfterUse: true } : use) as EffectAction;
     }

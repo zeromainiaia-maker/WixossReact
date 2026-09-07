@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第218バッチ・Codex・O-259 第10）＝bare `STUB{PLAY_FREE}` 真 no-op 3効果を既存使用経路へ載せ替え
+
+**真因**＝`PLAY_FREE` は `carriedCardNum ?? lastProcessedCards?.[0] ?? sourceCardNum` を使用対象にするだけで、
+候補を選ばせない。前段の選択が無い3効果は効果元自身を使おうとして再帰ガードに止められ、全計器が緑のまま
+盤面を1つも動かさない真 no-op だった。新しい実行型は作らず、既存の
+`USE_SPELL_FROM_TRASH_PAYING_COST`（選択→印刷コスト展開→支払う／やめる→本体委譲）へ載せ替えた。
+
+- `WX25-P3-064-E1`＝自分のトラッシュのスペル1枚**まで**を選ぶ。`selectTarget.upToCount:true` と
+  既存の `exileAfterUse:true` を引き継いだ。
+- `WXK06-005-E1-G`＝`GRANT_LRIG_ABILITY.abilities[]` まで既存 walker を降ろし、
+  `useSpellCostMultiplier:2` を追加。印刷コストの色配列を2組へ増やしてから既存の軽減／支払いへ渡す。
+- `WXK09-002-E1`＝`value2:'both_lrig_trash'` で両者のルリグトラッシュを候補集合にし、
+  `cardType:'アーツ'`＋`costMax:5`＋`useSpellIgnoreCost:true` を載せた。選択後は実カードの所在を見て、
+  自分側なら `USE_SPELL_FROM_TRASH`、相手側なら `CAST_FROM_OPP_TRASH` へ委譲する。
+  第1ステップ `ARTS_COST_REDUCTION_BY_CENTER_LRIG` はそのまま残した。
+
+**調査で追認した境界**：従来の領域は `hand/trash/opp_trash/opp_lrig_trash` の4種だけで、両者の
+ルリグトラッシュ集合は無かった。コスト倍率軸も無かった。限定条件はこの直接委譲経路では一度も検査しておらず、
+明示フラグを足しても死にフィールドになるため追加していない。
+
+### 🔴 検証（Opus）で差し戻した2点＝**どちらも逆翻訳の側**
+
+1. 🔴**逆翻訳が「限定条件を無視して」を `value2 === 'both_lrig_trash'` という*領域*から復元していた**
+   （Codex の初版）。**その情報は JSON のどこにも載っていない**＝`engine` と `decompileEffects.ts` が
+   **同じ嘘で一致する**形（CLAUDE.md `census:enginetext` 第59バッチ ③ と同型）で、
+   **将来この領域を使う別カードが原文に無い節を出す**。⇒ 一節ごと撤去し、
+   **「payload に無い節を領域から復元しない」を golden の負方向 assert で固定**した。
+   受け皿（この経路で `meetsRestriction` を効かせる／無視を明示する）は §5.3 **`O-281`** に登録。
+   ⚠**この経路は12効果すべてが事実上「限定条件を無視」している**（検査を持つのは
+   `execPlayFree`＝`effectExecutor.ts:8195`＝`O-264` だけ）。
+2. 🔴**`exileAfterUse` の逆翻訳を `upToCount` の有無（＝今回の新文型かどうか）で絞っていた**ため、
+   **同じ payload を持つ既存3効果（`WX14-002-E2` / `WXK11-016-E3` / `WXDi-P06-066-E2`）で
+   除外の節が逆翻訳から丸ごと消えていた**（`wireExileAfterUse` が `STUB{EXILE_FROM_CHECK_ZONE}` を
+   木から外すので、他に出る場所が無い）。⇒ **payload が在るかぎり必ず描く**へ拡張し、
+   3効果とも原文に当該の一文が在ることを確認した（＝**逆翻訳の欠落を1件から4件ぶん回収**）。
+
+🔑**教訓＝Codex の「逆翻訳は実際の意味を表示する」は、逆翻訳を*原文の復元*に使うと必ず破れる。**
+**逆翻訳が描いてよいのは JSON に載っている軸だけ**（載っていない軸は「欠けている」と見えるのが正しい）。
+
+**B群 `WX07-014-E1` の据置調査**：`COUNTER_SPELL` は executor で `done(ctx)` のみ。実際に打ち消した
+`card_num` は `BattleScreen.handleCutinUse` が `newCasterState` の trash / lrig_trash へ移した直後に保持している。
+別バッチで同関数の `executeEffect(cutinEff, ctx)` 用 `ctx` に
+`lastProcessedCards: shouldCounterSpell ? [card_num] : undefined` を足すのが最小配線。`src/screens/` 変更なので
+今回は実装せず、実機確認へ回した。
+
+**回帰契約**：A1/A2/A3 それぞれ fresh `parseCardEffects`、候補成立／不成立、A2 の3色→6色請求、
+A3 の自分側／相手側委譲、逆翻訳の全軸を golden に固定。新規 regex を一時的に不成立化すると3件とも
+live が正しいまま `PLAY_FREE` へ戻って FAIL することを確認した。fresh / live の変化集合は
+`WX25-P3-064-E1` / `WXK06-005-E1-G`（親 `WXK06-005-E1` を含む）/ `WXK09-002-E1` だけ。
+`PR-474-E1` / `WX21-Re04-E1` / `WX22-014-E3` と B群は `JSON.stringify` 完全一致。
+
 ## 2026-09-07（第217バッチ・Opus 5・O-D）＝**実装キューの系統4型のうち①③④を消化**（live 19効果）
 
 **この回の作業単位**＝ユーザー指示「opus の作業を進める」。第216の triage で `grep` 系統化した4型を上から取る。
