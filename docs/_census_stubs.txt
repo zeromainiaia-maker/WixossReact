@@ -67,7 +67,7 @@ live JSON の STUB id 種類 : 588（総ノード 3212 件）
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16332 / src\data\manualEffects.ts:10239
+        生成: src\data\effectParser.ts:16332 / src\data\manualEffects.ts:10264
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2216

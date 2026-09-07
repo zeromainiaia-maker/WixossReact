@@ -1,5 +1,28 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-08・第222バッチ・Opus・O-D）＝実装キューを4件消化（live 4効果）**
+  **作業単位**＝ユーザー指示「さらに20件行う」→ 途中で「12件で区切ることに変更する」。
+  `WX22-005-E1` → `WX20-001-E2` → `WX19-064-E1`（①②2箇所）→ `WX22-022-BURST` の4件を直した。
+
+  🏁**`WX22-005-E1`＝CHOOSE の兄弟に並んだ「打ち消した場合」の帰結2ステップが①②を選んでも実行**される
+  過剰実行。③（打ち消し）の choice action へ `SEQUENCE` で畳んだ（`manualEffects.ts`・速いレーン）。
+  🏁**`WX20-001-E2`＝「それらの【出】能力は発動せず、ターン終了時…」の複合1文が丸ごと `RULE_REMINDER_TEXT`**
+  （no-op）に落ちていた。既存の `AddToFieldAction.suppressOnPlay` ＋ `STUB{TRASH_AT_TURN_END}`
+  （`WXDi-P03-034-E1` と同型）を`manualEffects.ts`で組み直し。
+  🏁**`WX19-064-E1`＝選択肢①②が両方 `GRANT_KEYWORD`（自身への【ウィルス】/【トラップ】永続付与）に化けていた**。
+  真因は parser の「キーワードのスタンドアロン形式」規則（`parseSentencePart1.ts`）が**末尾を検査せず
+  「【X】」で始まりさえすれば付与へ落とす**広い catch-all だったこと。①②の具体的な2文型を先に割り込ませて
+  正しい STUB（`REMOVE_VIRUS`／新設 `TRASH_TRAP_ONE`）へ差し替えた。
+  ⚠**catch-all 自体は狭めなかった**＝末尾を締める一般化を試みたところ held が35カードへ膨れ（既存の正当な
+  「【K】(説明)」形を巻き込んだ）ため撤回し、個別2文型の先取りに変更（母集団2件のみで安全）。
+  🏁**`WX22-022-BURST`＝「異なる色を持つ」制約が無く**どの2枚でも探せる過剰実行だった。受け皿は
+  `WX14-028-BURST` と同一の `SelectionConstraint.sharedColor:'none'`（`fixLrigColorFilters.mjs` の
+  `searchDistinctColors` 型を1行追加するだけ＝登録票の「新軸が要る」は誤りだった）。
+
+  🔴**4件とも `src/data/` `src/engine/` `scripts/` のみ＝実機不要**（§2.2＝`src/screens/` 無変更）。
+  `npm run gates` 全緑（golden 3631 → 3639 PASS・+8本・退行なし）。ラチェット2本を較正
+  （`REMOVE_VIRUS` ノード数 10→11／`BASELINE_ORPHAN_MANUAL` 6→7＝どちらも可視化で退化ではない）。
+
 - **セッション（2026-09-07・第221バッチ・Opus・O-D）＝実装キューを4件消化（live 4効果・①系3件＋③系1件）**
   **作業単位**＝ユーザー指示「５件ほど続けて」。①②③（重い順）で上から取り、`WX18-038-BURST` → `WX16-074-E1` →
   `WX21-052-E1-G` → `WX12-Re22-E1` の4件を直した（5件目 `WX17-004-E1` は着手し途中で新機構要と判明→分離登録）。

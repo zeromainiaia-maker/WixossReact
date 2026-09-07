@@ -1818,6 +1818,69 @@ test('WX22-022-BURST: 探すシグニ2枚は異なる色（sharedColor:none）',
   ok(!satisfiesSelectionConstraint([red, red2], search.selectionConstraint, cardMap), '同色を共有する2枚は選択不可（反転確認）');
 });
 
+// §5.0 実装キュー 第223バッチ＝`WX17-004-E1`／`WXK03-TK-01B-E1`。選択肢③「そのシグニがレベル4以上の
+// 場合、追加でそれは【アサシン】を得る」の「そのシグニ」「それ」は①で選んだ**同一の1体**への照応なのに、
+// 旧 live は独立した新規対象選択（owner:'any' で相手シグニも選べる）＋恒久化（duration:PERMANENT）だった。
+for (const [cardNum, effId] of [['WX17-004', 'WX17-004-E1'], ['WXK03-TK-01B', 'WXK03-TK-01B-E1']] as const) {
+  test(`${effId}: レベル4以上を選ぶと同じシグニに【アサシン】も付く（ターン終了時まで）`, () => withSavedCursor(() => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effId)!;
+    const choice3 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[2].action;
+    const grantAssassin = (choice3 as Extract<EffectAction, { type: 'SEQUENCE' }>).steps[1];
+    eq((grantAssassin as { type?: string }).type, 'CONDITIONAL', '2本目は CONDITIONAL（同一対象のレベル判定）に畳まれている');
+    const highLevel = findCard(c => isSigni(c) && parseInt(c.Level ?? '0', 10) >= 4);
+    const ctx = mkCtx({ signi: [highLevel, null, null] }, {});
+    const result = executeEffect({ ...eff, action: choice3 } as CardEffect, ctx);
+    ok(!result.done && result.pending.type === 'SELECT_TARGET', 'ダブルクラッシュの対象選択が最初に出る');
+    if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+    eq(JSON.stringify(result.pending.candidates), JSON.stringify([highLevel]), '自分のシグニだけが候補（相手は選べない）');
+    const picked = resumeSelectTarget([highLevel], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState });
+    const finalR = finish(picked, ctx);
+    const g = finalR.ownerState.keyword_grants?.[highLevel] ?? [];
+    ok(g.includes('ダブルクラッシュ'), 'ダブルクラッシュが付く');
+    ok(g.includes('アサシン'), '同じシグニにアサシンも付く（レベル4以上）');
+  }));
+  test(`${effId}: レベル4未満を選ぶと【アサシン】は付かない（反転確認）`, () => withSavedCursor(() => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effId)!;
+    const choice3 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[2].action;
+    const lowLevel = findCard(c => isSigni(c) && parseInt(c.Level ?? '0', 10) < 4 && parseInt(c.Level ?? '0', 10) > 0);
+    const ctx = mkCtx({ signi: [lowLevel, null, null] }, {});
+    const result = executeEffect({ ...eff, action: choice3 } as CardEffect, ctx);
+    ok(!result.done && result.pending.type === 'SELECT_TARGET', 'ダブルクラッシュの対象選択が最初に出る');
+    if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+    const picked = resumeSelectTarget([lowLevel], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState });
+    const finalR = finish(picked, ctx);
+    const g = finalR.ownerState.keyword_grants?.[lowLevel] ?? [];
+    ok(g.includes('ダブルクラッシュ'), 'ダブルクラッシュは付く');
+    ok(!g.includes('アサシン'), 'レベル4未満はアサシンが付かない');
+  }));
+}
+
+// §5.0 実装キュー 第223バッチ＝`WX15-061-E1`。原文「《無》を支払ってもよい。そうした場合、このシグニを
+// 場からトラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それをダウン状態で場に出す」＝
+// 「その後」節は「そうした場合」節に連なる＝**払ったときだけ**の一連の流れ。旧 live は `ADD_TO_FIELD` が
+// `CONDITIONAL` の兄弟で、コストを払わなくても（自身をトラッシュに置かなくても）場に出せる過剰実行だった。
+test('WX15-061-E1: 帰結（自己トラッシュ→トラッシュから場出し）は CONDITIONAL.then に畳まれた1本のSEQUENCE', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX15-061')!.find(e => e.effectId === 'WX15-061-E1')!;
+  const seq = eff.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  eq(seq.steps.length, 2, '外側は STUB{OPTIONAL_COST} と CONDITIONAL の2ステップだけ（旧実装は ADD_TO_FIELD が3本目の兄弟）');
+  const conditional = seq.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(conditional.type, 'CONDITIONAL', '2ステップ目は CONDITIONAL');
+  const then = conditional.then as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  eq(then.type, 'SEQUENCE', '.then は SEQUENCE（TRASH と ADD_TO_FIELD の2ステップ）');
+  eq(then.steps.map(s => s.type).join(','), 'TRASH,ADD_TO_FIELD', '.then の中身は TRASH → ADD_TO_FIELD の順');
+  // 帰結だけを直接実行すると、自己トラッシュとトラッシュからの場出しが**同じ実行**でまとまって起きる
+  // （旧実装は ADD_TO_FIELD が外側 SEQUENCE の独立した3本目で、コストの成否に関係なく単独で走った）。
+  // ⚠`cardMap` は素の Map（カード番号キー）＝インスタンスID（#suffix）を使うと fieldCandidates の
+  // matchesFilter が引けず候補ゼロになる（`WX22-005-E1` と同型の罠）。
+  const self = 'WX15-061';
+  const other = fresh();
+  const ctx = mkCtx({ signi: [self, null, null] }, {}, self);
+  ctx.ownerState.trash = [other];
+  const result = run(then, ctx);
+  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === self), '自身が場から消える（トラッシュに置かれた）');
+  ok(result.ownerState.field.signi.some(s => s?.at(-1) === self || s?.at(-1) === other), 'トラッシュのシグニ1体が場に出る');
+}));
+
 test('O-161/O-95/O-102 主群: 「共通する色を持たない」選択5効果へ sharedColor:none を配線する', () => withSavedCursor(() => {
   const specs = [
     ['WX21-024', 'WX21-024-E1', 2, 'upToCount'],
@@ -15639,7 +15702,7 @@ test('WX21-052-E1-G: GRANT_FIELD_SIGNI_ABILITY 付与でも triggerScope は「�
 // §5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（STUB{DRAW_BY_CHARM_COUNT}）。
 // 原文「対戦相手の場にある【チャーム】の数に１を加えた枚数のカードを引く」。旧実装は
 // ①自分の場のチャームを数え ②+1もしない ③チャーム0で「引かない」の二重の誤り。
-test('WX18-038-BURST: 対戦相手の場のチャーム数+1枚ドロー（自分のチャームは数えない）', () => {
+test('WX18-038-BURST: 対戦相手の場のチャーム数+1枚ドロー（自分のチャームは数えない）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX18-038')!.find(e => e.effectId === 'WX18-038-BURST')!;
   const ctx = mkCtx({}, {});
   ctx.otherState.field.signi_charms = ['CHARM_OPP_A#1', 'CHARM_OPP_B#1', null];
@@ -15647,20 +15710,20 @@ test('WX18-038-BURST: 対戦相手の場のチャーム数+1枚ドロー（自�
   const handBefore = ctx.ownerState.hand.length;
   const r = run(eff.action, ctx);
   eq(r.ownerState.hand.length, handBefore + 3, '対戦相手チャーム2個+1＝3枚ドロー（自分の1個は無視）');
-});
-test('WX18-038-BURST: 対戦相手チャーム0個でも1枚は引く（反転確認）', () => {
+}));
+test('WX18-038-BURST: 対戦相手チャーム0個でも1枚は引く（反転確認）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX18-038')!.find(e => e.effectId === 'WX18-038-BURST')!;
   const ctx = mkCtx({}, {});
   const handBefore = ctx.ownerState.hand.length;
   const r = run(eff.action, ctx);
   eq(r.ownerState.hand.length, handBefore + 1, 'チャーム0でも0+1＝1枚は引く（旧実装は0枚で早期returnしていた）');
-});
+}));
 
 // §5.0 実装キュー 第221バッチ＝`WX16-074-E1`（STUB{ACCE_FROM_HAND}）。
 // 原文「このカードをエナゾーンからあなたのシグニ１体の【アクセ】にする」。旧ゲートは `hand.includes` だけを
 // 見ており、エナゾーン発は「アクセカードが手札にない」で恒久 no-op だった（`ATTACH_ACCE` 本体は元から
 // hand/energy 両対応＝ゲート1行が壊れていただけ）。
-test('WX16-074-E1: STUB{ACCE_FROM_HAND} はエナゾーン発でも自分自身をアクセに付けられる', () => {
+test('WX16-074-E1: STUB{ACCE_FROM_HAND} はエナゾーン発でも自分自身をアクセに付けられる', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX16-074')!.find(e => e.effectId === 'WX16-074-E1')!;
   const self = 'WX16-074#1';
   const host = fresh();
@@ -15670,8 +15733,8 @@ test('WX16-074-E1: STUB{ACCE_FROM_HAND} はエナゾーン発でも自分自身�
   const r = run(eff.action, ctx);
   ok(!r.ownerState.energy.includes(self), 'エナゾーンから除去される');
   ok((r.ownerState.field.signi_acce?.[0] ?? []).includes(self), 'ホストシグニの【アクセ】になる');
-});
-test('WX16-074-E1: 手札にもエナにも無ければ何も起きない（対照）', () => {
+}));
+test('WX16-074-E1: 手札にもエナにも無ければ何も起きない（対照）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX16-074')!.find(e => e.effectId === 'WX16-074-E1')!;
   const self = 'WX16-074#1';
   const host = fresh();
@@ -15680,13 +15743,13 @@ test('WX16-074-E1: 手札にもエナにも無ければ何も起きない（対�
   ctx.ownerState.energy = [];
   const r = run(eff.action, ctx);
   eq((r.ownerState.field.signi_acce?.[0] ?? []).length, 0, '手札にもエナにも無ければアクセされない');
-});
+}));
 
 // §5.0 実装キュー 第221バッチ＝`WX12-Re22-E1`（`SEQUENCE[STUB{SOUL_OP}, CHOOSE]`）。
 // 原文「以下の４つから、この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ」＝選択数は
 // 「置いた枚数」に連動する動的な upTo。旧 parser は「つから」直後に数字が無い（動的カウント）形を
 // 拾えず choose_count:1 固定に潰していた。
-test('WX12-Re22-E1: 選択数はルリグの下から置いた枚数と同じ数まで（動的・upTo）', () => {
+test('WX12-Re22-E1: 選択数はルリグの下から置いた枚数と同じ数まで（動的・upTo）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX12-Re22')!.find(e => e.effectId === 'WX12-Re22-E1')!;
   const under = ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'];
   const ctx = mkCtx({ lrig: [...under, 'WD01-001#9'] }, {});
@@ -15695,18 +15758,18 @@ test('WX12-Re22-E1: 選択数はルリグの下から置いた枚数と同じ数
   if (result.done || result.pending.type !== 'CHOOSE') return;
   eq(result.pending.count, 3, '選択数＝ルリグの下から置いた3枚と同じ');
   eq(result.pending.upTo, true, '「まで」＝upTo（3個未満でも選べる）');
-});
-test('WX12-Re22-E1: ルリグの下が0枚なら選択そのものが起きない（反転確認）', () => {
+}));
+test('WX12-Re22-E1: ルリグの下が0枚なら選択そのものが起きない（反転確認）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX12-Re22')!.find(e => e.effectId === 'WX12-Re22-E1')!;
   const ctx = mkCtx({ lrig: ['WD01-001#9'] }, {});
   const result = executeEffect(eff, ctx);
   ok(result.done, 'ルリグの下が0枚＝選択数0でそのまま完了（旧実装は choose_count:1 固定で1つ選べてしまっていた）');
-});
+}));
 
 // §5.0 実装キュー 第222バッチ＝`WX22-005-E1`（速いレーン＝`manualEffects.ts`）。
 // 原文「③スペルの効果を打ち消す。そうした場合、対戦相手のエナをトラッシュ、ライフクロス加算」＝
 // 後続2ステップは③限定の帰結。旧JSONはCHOOSEの兄弟に置かれ①②を選んでも実行される過剰実行だった。
-test('WX22-005-E1: ①（探索）を選んでも対戦相手エナのトラッシュ／ライフ加算は起きない', () => {
+test('WX22-005-E1: ①（探索）を選んでも対戦相手エナのトラッシュ／ライフ加算は起きない', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX22-005')!.find(e => e.effectId === 'WX22-005-E1')!;
   const ctx = mkCtx({}, {});
   ctx.otherState.energy = ['WD01-013', 'WD03-013'];
@@ -15718,8 +15781,8 @@ test('WX22-005-E1: ①（探索）を選んでも対戦相手エナのトラッ�
   const finalR = finish(done1, ctx);
   eq(finalR.otherState.energy.length, 2, '①（探索）を選んでも対戦相手エナは減らない（過剰実行の反転確認）');
   eq(finalR.ownerState.life_cloth.length, lifeBefore, '①（探索）を選んでもライフクロスは増えない');
-});
-test('WX22-005-E1: ③（打ち消し）を選ぶと対戦相手エナのトラッシュ＋ライフ加算が起きる', () => {
+}));
+test('WX22-005-E1: ③（打ち消し）を選ぶと対戦相手エナのトラッシュ＋ライフ加算が起きる', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX22-005')!.find(e => e.effectId === 'WX22-005-E1')!;
   const ctx = mkCtx({}, {});
   ctx.otherState.energy = ['WD01-013', 'WD03-013'];
@@ -15731,12 +15794,12 @@ test('WX22-005-E1: ③（打ち消し）を選ぶと対戦相手エナのトラ�
   const finalR = finish(done1, ctx);
   eq(finalR.otherState.energy.length, 1, '③（打ち消し）で対戦相手エナが1枚トラッシュされる');
   eq(finalR.ownerState.life_cloth.length, lifeBefore + 1, '③（打ち消し）でライフクロスが1枚増える');
-});
+}));
 
 // §5.0 実装キュー 第222バッチ＝`WX20-001-E2`。原文「それらを場に出す。それらの【出】能力は発動せず、
 // ターン終了時、それらを場からトラッシュに置く」＝旧 parser は「発動せず、」（連用形）+ 後続節の複合1文を
 // まるごと STUB{RULE_REMINDER_TEXT}（no-op）へ落とし、場に出した【出】が普通に発火し続けていた。
-test('WX20-001-E2: トラッシュから場に出し suppressOnPlay かつターン終了時トラッシュを予約', () => {
+test('WX20-001-E2: トラッシュから場に出し suppressOnPlay かつターン終了時トラッシュを予約', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX20-001')!.find(e => e.effectId === 'WX20-001-E2')!;
   const add = eff.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
   const addToField = add.steps[0] as Extract<EffectAction, { type: 'ADD_TO_FIELD' }>;
@@ -15749,13 +15812,13 @@ test('WX20-001-E2: トラッシュから場に出し suppressOnPlay かつター
   ok(result.ownerState.field.signi.some(s => s?.at(-1) === buyu), 'トラッシュの武勇シグニが場に出る');
   ok(!result.ownerState.trash.includes(buyu), 'トラッシュから抜ける');
   ok((result.ownerState.turn_end_field_trash_targets ?? []).includes(buyu), 'ターン終了時トラッシュが予約される');
-});
+}));
 
 // §5.0 実装キュー 第222バッチ＝`WX19-064-E1`。選択肢①②が原文「取り除く」「トラッシュに置く」なのに
 // 両方 GRANT_KEYWORD（このカード自身へ【ウィルス】/【トラップ】を永続付与）に化けていた。
 // 真因＝parser の「キーワードのスタンドアロン形式」規則が末尾を検査せず「【X】」で始まりさえすれば
 // キーワード付与へ落としていた（`parseSentencePart1.ts`）。個別の2文型を先に割り込ませて修正。
-test('WX19-064-E1 選択肢①: 【ウィルス】を取り除く（対戦相手の場から1つ）', () => {
+test('WX19-064-E1 選択肢①: 【ウィルス】を取り除く（対戦相手の場から1つ）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX19-064')!.find(e => e.effectId === 'WX19-064-E1')!;
   const choice0 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action;
   eq((choice0 as { type?: string }).type, 'STUB', '選択肢①は STUB（GRANT_KEYWORD ではない）');
@@ -15764,8 +15827,8 @@ test('WX19-064-E1 選択肢①: 【ウィルス】を取り除く（対戦相手
   ctx.otherState.field.signi_virus = [1, 0, 0];
   const r = run(choice0, ctx);
   eq((r.otherState.field.signi_virus ?? []).reduce((s, v) => s + v, 0), 0, '対戦相手の【ウィルス】が1つ取り除かれる');
-});
-test('WX19-064-E1 選択肢②: 【トラップ】1つを対象としトラッシュに置く（活性化しない）', () => {
+}));
+test('WX19-064-E1 選択肢②: 【トラップ】1つを対象としトラッシュに置く（活性化しない）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX19-064')!.find(e => e.effectId === 'WX19-064-E1')!;
   const choice1 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[1].action;
   eq((choice1 as { type?: string }).type, 'STUB', '選択肢②は STUB（GRANT_KEYWORD ではない）');
@@ -15776,7 +15839,7 @@ test('WX19-064-E1 選択肢②: 【トラップ】1つを対象としトラッ�
   const r = run(choice1, ctx);
   ok(r.ownerState.trash.includes(trap), 'トラップがトラッシュへ置かれる');
   eq(r.ownerState.field.signi_traps?.[0] ?? null, null, 'トラップゾーンから外れる');
-});
+}));
 test('ON_PLAY triggerScope 補完: 別能力の opponent watcher は自身の【出】を汚染しない', () => withSavedCursor(() => {
   const source = 'WX14-025#1';
   const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WX14-025')!]));

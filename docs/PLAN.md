@@ -11,38 +11,37 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-08・第222バッチ・Opus・O-D）＝実装キューを4件消化（live 4効果）**
-  **作業単位**＝ユーザー指示「さらに20件行う」→ 途中で「12件で区切ることに変更する」。
-  `WX22-005-E1` → `WX20-001-E2` → `WX19-064-E1`（①②2箇所）→ `WX22-022-BURST` の4件を直した。
+- **セッション（2026-09-08・第223バッチ・Opus・O-D）＝実装キューを2行3効果消化（live 3効果・「12件」区切りの続き）**
+  **作業単位**＝ユーザー指示「さらに20件行う」→「12件で区切ることに変更する」（第222の4件＋本バッチの2行＝
+  カード数で6件目・7件目・8件目）。`WX17-004-E1` → `WX15-061-E1` の順に直した。
 
-  🏁**`WX22-005-E1`＝CHOOSE の兄弟に並んだ「打ち消した場合」の帰結2ステップが①②を選んでも実行**される
-  過剰実行。③（打ち消し）の choice action へ `SEQUENCE` で畳んだ（`manualEffects.ts`・速いレーン）。
-  🏁**`WX20-001-E2`＝「それらの【出】能力は発動せず、ターン終了時…」の複合1文が丸ごと `RULE_REMINDER_TEXT`**
-  （no-op）に落ちていた。既存の `AddToFieldAction.suppressOnPlay` ＋ `STUB{TRASH_AT_TURN_END}`
-  （`WXDi-P03-034-E1` と同型）を`manualEffects.ts`で組み直し。
-  🏁**`WX19-064-E1`＝選択肢①②が両方 `GRANT_KEYWORD`（自身への【ウィルス】/【トラップ】永続付与）に化けていた**。
-  真因は parser の「キーワードのスタンドアロン形式」規則（`parseSentencePart1.ts`）が**末尾を検査せず
-  「【X】」で始まりさえすれば付与へ落とす**広い catch-all だったこと。①②の具体的な2文型を先に割り込ませて
-  正しい STUB（`REMOVE_VIRUS`／新設 `TRASH_TRAP_ONE`）へ差し替えた。
-  ⚠**catch-all 自体は狭めなかった**＝末尾を締める一般化を試みたところ held が35カードへ膨れ（既存の正当な
-  「【K】(説明)」形を巻き込んだ）ため撤回し、個別2文型の先取りに変更（母集団2件のみで安全）。
-  🏁**`WX22-022-BURST`＝「異なる色を持つ」制約が無く**どの2枚でも探せる過剰実行だった。受け皿は
-  `WX14-028-BURST` と同一の `SelectionConstraint.sharedColor:'none'`（`fixLrigColorFilters.mjs` の
-  `searchDistinctColors` 型を1行追加するだけ＝登録票の「新軸が要る」は誤りだった）。
+  🏁**`WX17-004-E1`＝選択肢③で付与するアサシンが「対象シグニのレベル」を見ずに全対象へ付与**されていた。
+  母集団を測り直すと**同一構造のトークンカード `WXK03-TK-01B` にも同じバグ**が見つかり、2枚まとめて直した
+  （登録は1行だったが実効2効果＝②'の母集団実測が効いた例）。付与を `CONDITIONAL{LAST_PROCESSED_MATCHES,
+  filter:{level:{min:4}}}` で包み、`targetsLastProcessed:true` で直前ステップの対象を引き継ぐ形にした。
+  🏁**`WX15-061-E1`＝`ADD_TO_FIELD`（トラッシュから場に出す）が `SEQUENCE` の独立3手目**になっており、
+  「条件を満たさない場合も無条件に場へ出る」過剰実行だった。`CONDITIONAL.then` の `SEQUENCE` へ畳み直した。
 
-  🔴**4件とも `src/data/` `src/engine/` `scripts/` のみ＝実機不要**（§2.2＝`src/screens/` 無変更）。
-  `npm run gates` 全緑（golden 3631 → 3639 PASS・+8本・退行なし）。ラチェット2本を較正
-  （`REMOVE_VIRUS` ノード数 10→11／`BASELINE_ORPHAN_MANUAL` 6→7＝どちらも可視化で退化ではない）。
+  🔴**回顧的発見＝POOL カーソルリークを自己発見・修正**＝新規テストの一部が `mkCtx`/`fresh()` を
+  `withSavedCursor()` で包まずに書かれており、共有カーソルが恒久的にずれて**無関係な既存テスト2件
+  （`WX08-073-E1`／`WX04-047-E1`）が全件 golden でだけ偶発的に FAIL**していた（`--only` では隠れる）。
+  第221バッチ（`fa0500646`・既に push 済み）と本バッチの両方に及んでいたため、影響した全テストへ
+  `withSavedCursor` を遡って追加。**⇒ フィルタ実行の PASS は全件実行と等価ではない教訓を自ら踏んだ**
+  （[LESSONS.md](./LESSONS.md) 既知の罠だが実装時に見落とした）。
+
+  🔴**2件とも `src/data/manualEffects.ts`（速いレーン・MANUAL）＋ゲート増設のみ＝実機不要**
+  （§2.2＝`src/screens/` 無変更）。`npm run gates` 全緑（golden **3639 → 3642 PASS**・+3本・退行なし）。
 
   📊**進捗3計器＝Sheet1 要対応 9 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
-  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 14行 / 15効果**
-  （19行/20効果 → 4件消化）｜**機構 worklist 15項目（据置）**｜**⑤実機 残 0（据置）**。
+  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 12行 / 13効果**
+  （14行/15効果 → 2行3効果消化）｜**機構 worklist 15項目（据置）**｜**⑤実機 残 0（据置）**。
 
-**▶ 次の一手**＝⇒ **O-D 実装キューの残 14行 / 15効果**を上から取る（① 別の効果に化けている → ② 丸ごと欠落 → ③ 限定の欠落）。
+**▶ 次の一手**＝⇒ **O-D 実装キューの残 12行 / 13効果**を上から取る（① 別の効果に化けている → ② 丸ごと欠落 → ③ 限定の欠落）。
 先頭は **`WX07-017-E1`**（「各プレイヤーは」の2手順が `owner:'self'` だけ＝実行者が逆。§5.3 `O-279` と対で取る）、
 次が **`WX13-048-E1`**（分岐が消えて常に3枚引く＝`DECLARE_CARD_NAME` の結果を読む条件型が要る）。
-⚠**着手時に必ず母集団を測り直す**（§2.1 ②）＝今回も「受け皿が要る」登録票が実測で「既存で足りる」（`WX22-022-BURST`）
-「深い parser archaeology が要る」（`WX19-064-E1`）の両方向に外れた。
+⚠**`WX21-Re18-E1` は着手前の母集団実測で「新機構が要る」側に確定**＝`PAID_COLORS_INCLUDE_ALL` 条件は在るが、
+**追加コスト（エナのトラッシュ）で実際に払った色を記録する側が丸ごと無い**（`STUB{OPTIONAL_COST}` の
+`costText` はログ表示のみで engine は読まない）＝**実装せず §5.3 へ新規登録してから次の行へ進むこと**。
 🔑**`O-281`（`USE_SPELL_FROM_TRASH_PAYING_COST` が `Restriction` を一度も検査しない＝live 12効果のうち11件が過剰実行）は
 engine 内で閉じる（実機不要）ので、キューより先に取ってもよい。**
 🔑**S-1（Sheet3 残 35バッチ / 349枚）は実装キューを崩してから**（[LESSONS.md](./LESSONS.md) §4.7 の理由3）。
@@ -340,7 +339,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | 節 | 役割 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
 | **§5.2 round4** | 🔥**本線キュー**＝意味照合を1度も通していないカードの新規監査 | **Sheet3 残 349枚 / 35バッチ**（Sheet1・Sheet2 は🏁完了。全シート合計の未監査は 2,060枚） | `node scripts/archive/semanticAuditGap.mjs` |
-| **§5.0 実装キュー** | 🔥**triage で真バグと確定した未修正バグ**（O-D / S-3） | **14行 / 15効果** | この表が唯一の追跡先（どの計器にも映らない） |
+| **§5.0 実装キュー** | 🔥**triage で真バグと確定した未修正バグ**（O-D / S-3） | **12行 / 13効果** | この表が唯一の追跡先（どの計器にも映らない） |
 | §5.0 O-A | findings の triage（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
 | §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | **15項目**（`O-268` / `O-272`〜`O-285`） | §5.3 の索引 A〜G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-179` は第220バッチで検証・返済済み） | §5.1 の本文 |
@@ -390,13 +389,13 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN** | 🏁**0件**（掘り尽くした＝もう在庫ではない） | `node scripts/archive/semanticAuditLedger.mjs` |
 | **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **34本**（⚠**増やしたら「何を還元したか」を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の triage 履歴に1行書く**） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
-| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**下の実装キュー＝14行 / 15効果** | 下の実装キュー |
+| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**下の実装キュー＝12行 / 13効果** | 下の実装キュー |
 
 🔑**O-A を Sonnet に落とさない理由**＝監査員（sonnet・JSON のみ）の precision は**実測 50%**で、
 **偽陽性は全部 engine の受け皿を読まないと判定できない型**だった。⇒ **triage は「engine を読む」工程**であり、
 ここを外すと**壊れた修正が live に入り、しかもどの計器にも映らない**。
 
-#### 🔥 実装キュー（O-D / S-3）＝triage 済みの**未修正バグ 14行 / 15効果**（2026-09-08 実測）
+#### 🔥 実装キュー（O-D / S-3）＝triage 済みの**未修正バグ 12行 / 13効果**（2026-09-08 実測）
 
 > 🔴**「見立て」ではなく triage 済みの確定リスト**＝engine の受け皿まで読んで真バグと判定してある。
 > 🔴🔑**この表が唯一の追跡先**＝**finding を「BUG」と triage した瞬間、`semanticAuditPool.mjs` からも
@@ -422,16 +421,15 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | ② | `WX16-033-E1` | 「対戦相手の**すべてのシグニゾーンにある、すべてのカード**をトラッシュに置き」が丸ごと無い（`REMOVE_VIRUS` だけ） | 新機構（下のカード・チャーム・アクセまで含む一括トラッシュ） | 遅い |
 | ② | `WX19-025-E1` | 「デッキの上から3枚見る。その中から**《トラップアイコン》を持つカード1枚をチェックゾーンに置き**、残りをデッキの一番下に置く。その後、**その《トラップアイコン》を発動させる**」が丸ごと無く、素の `LOOK_AND_REORDER{count:3}` だけ | 既存＝`REVEAL_AND_PICK{then:check_zone}`＋`STUB{ACTIVATE_TRAP}` の組み合わせを要確認 | 遅い |
 | ② | `WX16-002-E4` | 【出】**／【起】**の起動型経路が無い（`AUTO`/`ON_PLAY` だけ）。⚠この効果は `STUB{NEGATE_COIN_ABILITY}`（ログのみ）でもある | parser が2効果を出す | 遅い |
-| ② | `WX15-061-E1` | 「その後」の `ADD_TO_FIELD` が `CONDITIONAL` の**外**＝任意コストを**払わなくても**トラッシュからシグニが出る（`execSequence` が `remaining` を無条件 `continuation` にする＝`effectExecutor.ts:5463`）。⚠**この combinator は25カードが「remaining は無条件」に依存する共有経路**（コメント実測）＝**engine 側は触らない**。直しは parser 側でこの文型（「そうした場合、Xに置く。その後、Yを場に出す」＝場に出す先が**直前に自分で置いたトラッシュ**）だけを検出し `CONDITIONAL.then` へ `SEQUENCE[TRASH, ADD_TO_FIELD]` として畳んで出す | parser 側で構造を組み替える（`conditional.then` へ畳む） | 遅い |
 | ③ | `WX16-005-E1` | ①②とも「レベルが場にある【ウィルス】の数以下」が無い＝**1効果に findings 2件** | 新機構＝動的レベル上限フィルター | 遅い |
 | ③ | `WX12-010-E3` | 「この方法で**他のシグニゾーンに移動した**シグニをアップ」なのに `REARRANGE_SIGNI` の `pending.targets` は**配置対象の全体**（`effectExecutor.ts:11575`）＝動かなかったシグニもアップできる。LOW | 新機構＝移動したものだけを `lastProcessedCards` に載せる | 遅い |
-| ③ | `WX17-004-E1` | ③の【アサシン】が `owner:'any'`＋`explicitTarget`＝**相手のシグニも選べる新規対象選択**（原文は「そのシグニ」＝直前に【ダブルクラッシュ】を得た自シグニ）。`duration` も `PERMANENT`（**1効果に findings 2件**）。⚠**同文カード `WXK03-TK-01B-E1` も同型**（母集団2効果） | 既存＝`targetsLastProcessed`＋`CONDITIONAL{LAST_PROCESSED_MATCHES,filter:{level:{min:4}}}`。🔑**真因は `applyExplicitTargetMarker`**（`effectParser.ts:14452`）＝外側テキストに「シグニ…を対象とし」が1回でもあると木全体の `GRANT_KEYWORD`/`POWER_SET`/`POWER_MULTIPLY` へ無差別に `explicitTarget:true` を刻む後処理で、**「そのシグニ」照応を認識する枝がそもそも無い**ので2本目の GRANT_KEYWORD が独立選択に落ちる（第221バッチで着手時に特定・未実装） | 遅い |
 
 🏁**消化・却下した分の全文**（第217の系統①③④＝トラップアイコン未分離4カード／`hasIcon:"トラップ"` 欠落3効果／
 無意味な `LOOK_AND_REORDER` 17効果、第218の `PLAY_FREE` 3効果、第219の一点物9効果と偽陽性 `WX16-031-BURST`、
 第220の `WX07-014-E1`＝残2件は §5.3 `O-283` へ分離、第221の4効果（`WX18-038-BURST`／`WX16-074-E1`／
 `WX21-052-E1-G`／`WX12-Re22-E1`）＝派生発見2件は §5.3 `O-284`／`O-285` へ分離、第222の4効果
-（`WX22-005-E1`／`WX20-001-E2`／`WX19-064-E1`／`WX22-022-BURST`））は
+（`WX22-005-E1`／`WX20-001-E2`／`WX19-064-E1`／`WX22-022-BURST`）、第223の2行3効果
+（`WX17-004-E1`＋母集団実測で発見した同型 `WXK03-TK-01B-E1`／`WX15-061-E1`）は
 [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「2026-09-07 整理：§5.0 実装キューの統合」節と [BUGFIXES.md](./BUGFIXES.md) にある。
 
 #### 回し方＝**周期**（Sonnet 5〜8バッチ : Opus triage 1回）★2026-09-06 決定
@@ -726,16 +724,18 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-08（第222バッチ・Opus・O-D）＝実装キューを4件消化（本ブロックが直近の正）**
+- **2026-09-08（第223バッチ・Opus・O-D）＝実装キューを2行3効果消化（本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
-  ⚠**3計器が動かないのは想定どおり**＝4件とも「受け皿はあるが catch-all のゲート漏れ／配線漏れ」型。
+  ⚠**3計器が動かないのは想定どおり**＝`manualEffects.ts` の速いレーン修正2件（catch-all のフィルタ漏れ／
+  SEQUENCE の畳み違い）で、どちらも計器が見ている軸ではない。
   📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜
-  **未修正の真バグ 19 → 14行 / 20 → 15効果**｜**機構 worklist 15項目**（据置）｜
-  **⑤実機 残 0件**（据置＝4件とも `src/data/` `src/engine/` `scripts/` のみ）。
-  🔧**ゲート（全緑 ✅）**＝golden **3631 → 3639 PASS**（+8本・退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
+  **未修正の真バグ 14 → 12行 / 15 → 13効果**｜**機構 worklist 15項目**（据置）｜
+  **⑤実機 残 0件**（据置＝2件とも `src/data/manualEffects.ts` ＋ゲート増設のみ）。
+  🔧**ゲート（全緑 ✅）**＝golden **3639 → 3642 PASS**（+3本・退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
   census 0 ／ census:stubs A群 0 ／ census:enginetext A🔴0行 ／ census:costtext A🔴0規則 ／ lint 0 errors。
-  **ラチェット較正2本**＝`REMOVE_VIRUS` ノード数 10→11（`WX19-064-E1`①の可視化）／
-  `BASELINE_ORPHAN_MANUAL` 6→7（`WX22-022-BURST` の fixer 型追加＝D群・凍っていない）。
+  🔴**回顧的修正1本＝POOL カーソルリーク**（第221バッチ・既 push 済み分を含む複数テストが `withSavedCursor`
+  無しで `mkCtx`/`fresh()` を呼んでおり、無関係な既存2テストを全件 golden でだけ偶発 FAIL させていた）を
+  遡って修正。ラチェット較正は無し（今回の2効果はどの計器のカウンタも動かさない型）。
   🖥**実機＝該当なし**（`src/screens/` 無変更＝§2.2 の機械判定）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
