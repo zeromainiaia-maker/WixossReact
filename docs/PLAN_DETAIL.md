@@ -12471,3 +12471,21 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   `WXDi-P16-069-E1` / `WXK05-070-E1` / `WXK05-072-E2` / `WX25-CP1-003-E1` / `WX25-CP1-065-E1`）。
   🧾**legacy catch-all 含有効果＝14 → 6**（`WXEX1-09-E2` / `PR-195-E3` / `WX25-P2-022-E2` /
   `WX25-CP1-092-E1` / `WXDi-P00-018-E1` / `WXK05-003-E1`＝全部「新機構待ち」）。
+
+### 恒久指標アーカイブ（2026-09-07 第214バッチ・PLAN §6 から退避）
+
+- **2026-09-07（第214バッチ・O-D／Opus 5）＝実装キューを重い順に5件（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（全件 `mech`・据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かない理由**＝今回の5件は**すべて「原文の一節が JSON にそもそも無い」型**で、
+  census（知っているキーしか見ない）にも Sheet1 のフラグ（`mech` のみ残存）にも**原理的に映らない**。
+  📦**在庫**＝**意味照合 未監査 2,256枚**（据置）｜**未 triage findings 0**（据置）｜
+  🆕**未修正の真バグ 14効果 / 13行**（19 −5）｜🆕**機構 worklist 11項目**（`O-268` / `O-271` / `O-272`〜`O-280`）｜
+  **⑤実機 残 0件**（据置）。
+  🔧**ゲート**＝`npm run gates` **全緑 ✅**（golden **3,605 / 3,605 PASS**＝新規3本／smoke 全0／fuzz 全0／
+  `census:stubs` A群🔴0・C群0／`census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／
+  `manual-fields` 違反0／lint 0 errors・256 warnings／収穫マージ3バケツ＝`_partial_fresh` **0** /
+  `_idset_fresh` **0** / `_held_fresh` **1**（`WXDi-P04-002`・据置））。
+  🖥**実機＝1本 PASS**（`optionalTrashEnergyClassAttack`・15s・`SKIP_BUILD=0`）。
+  新語彙 `levelLtOwnLrig` を足した回なので §2.2 の「新しい型・機構」に該当させた。
+  🔁**live A/B 差分＝5効果**（`WX07-032-E1` / `WX09-037-E1` / `WX10-031-E1` / `WX11-006-E3` / `WX11-025-BURST`）。
+  🧾**`manualEffects.ts`**＝991 → 996カード。**`OPTIONAL_TRASH_ENERGY_CLASS` の live 利用＝37 → 36効果**（誤配線1件を外した）。

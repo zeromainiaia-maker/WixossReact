@@ -5432,7 +5432,11 @@ function effJa(e: Eff): string {
         : `${([] as unknown[]).concat(e.triggerFilter.color as unknown).join('か')}の`;
       const stories = e.triggerFilter?.story === undefined ? ''
         : `${([] as unknown[]).concat(e.triggerFilter.story as unknown).map(x => `＜${String(x)}＞`).join('か')}の`;
-      s = `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${colors}${stories}シグニが対戦相手のライフクロス1枚をクラッシュしたとき`;
+      // 🆕`excludeResona`（2026-09-07・`WX13-019-E1`）＝**描かないと限定が監査面から消える**。
+      //   ⚠この分岐は `filterJa` を通さず色とクラスだけを手組みしていたので、
+      //     `triggerFilter` に足した限定が**逆翻訳に1文字も出ない**（第214の `levelLtOwnLrig` と同型の穴）。
+      const resonaJa = e.triggerFilter?.excludeResona ? 'レゾナではない' : '';
+      s = `${resonaJa}あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${colors}${stories}シグニが対戦相手のライフクロス1枚をクラッシュしたとき`;
     }
     // 🆕**2026-08-31 §5.2 再照合**＝`triggerCondition.crashedByKeywords`（【ランサー】によるクラッシュ限定）を
     //   逆翻訳が描いていなかった。engine は `triggerCollect.ts:59` で **fail-closed** に消費しており

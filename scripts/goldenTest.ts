@@ -70864,6 +70864,72 @@ test('WX11-006-E3: 手札が0枚なら場に出せない（旧形は「エナを
     '🔴負: 手札0枚なら払えないので場に出ない');
 }));
 
+// ── 第215バッチ（Codex 実装＋Claude 検証）＝triage 済み実装キュー A群8効果 ──────────────
+test('第215 A群: 直した8効果が live に載っている（原文の一節が無い／別物になっていた）', () => {
+  const live = (card: string, id: string) => JSON.stringify(
+    (effectsMap.get(card) ?? []).find(e => e.effectId === id) ?? null);
+
+  // A1 WX10-002-E2＝「そうした場合」の外に帰結が置かれ、手札を捨てなくてもライフ最上段を落とせた。
+  const a1 = live('WX10-002', 'WX10-002-E2');
+  ok(a1.includes('"PAID_ADDITIONAL_COST"'), 'A1: 支払いゲートの内側に入った');
+  ok(!/"IS_MY_TURN"/.test(a1), 'A1: 素通しの IS_MY_TURN ゲートは残っていない');
+  // 🔴帰結（ライフ最上段トラッシュ）がゲートの then の中にあること＝外に残っていたら意味が無い。
+  const a1obj = (effectsMap.get('WX10-002') ?? []).find(e => e.effectId === 'WX10-002-E2');
+  const a1steps = (a1obj?.action as unknown as { steps?: Array<Record<string, unknown>> }).steps ?? [];
+  eq(a1steps.length, 2, 'A1: トップレベルは「任意コスト」と「ゲート」の2ステップだけ');
+  ok(JSON.stringify(a1steps[1]).includes('LIFE_CLOTH_CARD'), 'A1: ライフ処理はゲートの中');
+
+  // A2 WX07-033-E2 / WX05-025-E1＝「そのシグニ」＝バニッシュされた当該カードへの固定。
+  for (const [card, id] of [['WX07-033', 'WX07-033-E2'], ['WX05-025', 'WX05-025-E1']] as const) {
+    ok(live(card, id).includes('"targetsTriggerSource":true'), `A2 ${id}: トリガー元へ固定`);
+  }
+
+  // A3 WX21-054-E2＝「公開するか、このシグニをトラッシュ」の二択。
+  const a3 = live('WX21-054', 'WX21-054-E2');
+  ok(a3.includes('"CHOOSE"') && a3.includes('"REVEAL"'), 'A3: 公開の選択肢が復活した');
+  ok(a3.includes('"thisCardOnly":true'), 'A3: トラッシュするのは「このシグニ」');
+  ok(!/"story":"龍獣","color":"緑"\}\},"duration"/.test(a3), 'A3: 場の別カードを落とす1本道ではない');
+
+  // A4 WX13-035-BURST＝「手札に加えるかエナゾーンに置く」。
+  ok(live('WX13-035', 'WX13-035-BURST').includes('"handOrEnergy":true'), 'A4: 行き先の二択');
+
+  // A5 WX15-001-E1＝《ライズアイコン》を持つ＜武勇＞だけ。
+  ok(live('WX15-001', 'WX15-001-E1').includes('"hasRiseIcon":true'), 'A5: ライズアイコン限定');
+
+  // A6 WX17-063-E1＝《トラップアイコン》を持つシグニだけ。
+  const a6 = live('WX17-063', 'WX17-063-E1');
+  ok(a6.includes('"hasIcon":"トラップ"'), 'A6: トラップアイコン限定');
+  ok(!a6.includes('hasTrapAbility'), '🔴A6: 消費地点が1本しかない hasTrapAbility を使っていない');
+
+  // A7 WX13-019-E1＝「レゾナではないあなたのシグニ」。⚠未指定は無条件 true に落ちる（過剰発火）。
+  const a7 = live('WX13-019', 'WX13-019-E1');
+  ok(a7.includes('"triggerScope":"any_ally"'), 'A7: 味方シグニのクラッシュに反応する');
+  ok(a7.includes('"excludeResona":true'), 'A7: レゾナを除外する');
+});
+
+test('第215 A2: ADD_TO_FIELD{targetsTriggerSource} はエナの「そのシグニ」だけを場に出す', () => withSavedCursor(() => {
+  // 🔴受け皿は `execAddToField` の ENERGY_CARD 分岐（`effectExecutor.ts:3987`）＝
+  //   `ctx.triggeringCardNum` がエナに居るときだけ候補にする。居なければ**0件**（別のエナ札に化けない）。
+  const trigger = 'WD04-009', other = 'WD04-010';
+  const base = mkCtx({ energy: 0 }, {}, 'WX05-025');
+  const ctx = { ...base, ownerState: { ...base.ownerState, energy: [other, trigger] },
+    triggeringCardNum: trigger } as ExecCtx;
+  const r = run({ type: 'ADD_TO_FIELD', owner: 'self', targetsTriggerSource: true,
+    source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+  } as unknown as EffectAction, ctx);
+  ok(r.ownerState.field.signi.some(st => st?.at(-1) === trigger), '正: トリガー元が場に出る');
+  ok(r.ownerState.energy.includes(other), '🔴対照: 同じエナの別シグニは動かない');
+
+  // 負方向＝トリガー元がエナに居なければ何も出ない（別の札で代用しない）。
+  const base2 = mkCtx({ energy: 0 }, {}, 'WX05-025');
+  const ctx2 = { ...base2, ownerState: { ...base2.ownerState, energy: [other] },
+    triggeringCardNum: trigger } as ExecCtx;
+  const r2 = run({ type: 'ADD_TO_FIELD', owner: 'self', targetsTriggerSource: true,
+    source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+  } as unknown as EffectAction, ctx2);
+  ok(!r2.ownerState.field.signi.some(st => st?.at(-1) === other), '🔴負: エナに居なければ別の札を出さない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

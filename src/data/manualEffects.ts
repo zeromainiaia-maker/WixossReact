@@ -3561,6 +3561,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX06-014-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":5,"filter":{"cardType":"シグニ","story":"古代兵器"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
   "WX13-019": [
+    {"effectId":"WX13-019-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","excludeResona":true},"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計３枚のレゾナではない＜遊具＞のシグニをあなたの手札と場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","field"],"count":3,"filter":{"cardType":"シグニ","story":"遊具","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}},
     {"effectId":"WX13-019-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"then":"hand","pickNoun":"カード"},{"pickCount":1,"then":"energy","pickNoun":"カード"}],"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX13-036": [
@@ -6156,6 +6157,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // アタック無効化 watcher。スイボクは場、ミニマリ／シンカーはトラッシュを発生源とする。
   'WX05-025': [
     {
+      effectId: 'WX05-025-E1', effectType: 'AUTO', timing: ['ON_BANISH'],
+      triggerScope: 'any_ally', triggerFilter: { cardType: 'シグニ', story: '美巧' },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['緑', '白'] },
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+          type: 'ADD_TO_FIELD', owner: 'self',
+          source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+          targetsTriggerSource: true,
+        } },
+      ] },
+      duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+    },
+    {
       effectId: 'WX05-025-E2', effectType: 'AUTO',
       timing: ['ON_GUARD', 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT'], triggerScope: 'self',
       action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
@@ -7127,16 +7141,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
           {
             type: 'CONDITIONAL',
-            condition: { type: 'IS_MY_TURN' },
-            then: { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } },
-          },
-          {
-            type: 'SEQUENCE',
-            steps: [
-              { type: 'STUB', id: 'OPTIONAL_ACTIVATE' },
-              { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } },
-              { type: 'ADD_TO_LIFE', owner: 'opponent', count: 1, fromTop: true },
-            ],
+            condition: { type: 'PAID_ADDITIONAL_COST' },
+            then: {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } },
+                {
+                  type: 'SEQUENCE',
+                  steps: [
+                    { type: 'STUB', id: 'OPTIONAL_ACTIVATE' },
+                    { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } },
+                    { type: 'ADD_TO_LIFE', owner: 'opponent', count: 1, fromTop: true },
+                  ],
+                },
+              ],
+            },
           },
         ],
       } as unknown as import('../types/effects').EffectAction,
@@ -8689,6 +8708,42 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       triggerScope: 'self',
       condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 5 },
       action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX21-054-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'CHOOSE', choose_count: 1, from_count: 2,
+        choices: [
+          {
+            choiceId: 'reveal',
+            label: '手札から赤と緑の＜龍獣＞のシグニを1枚ずつ公開する',
+            action: {
+              type: 'REVEAL',
+              source: {
+                type: 'HAND_CARD', owner: 'self', count: 2, upToCount: false,
+                filter: { anyOf: [
+                  { cardType: 'シグニ', story: '龍獣', color: '赤' },
+                  { cardType: 'シグニ', story: '龍獣', color: '緑' },
+                ] },
+                selectionConstraint: { groups: [
+                  { filter: { cardType: 'シグニ', story: '龍獣', color: '赤' }, count: 1 },
+                  { filter: { cardType: 'シグニ', story: '龍獣', color: '緑' }, count: 1 },
+                ] },
+              },
+            },
+          },
+          {
+            choiceId: 'trash_self',
+            label: 'このシグニを場からトラッシュに置く',
+            action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } },
+          },
+        ],
+      },
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',
@@ -10367,6 +10422,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**E1（【出】側）は触らない**＝あちらは「《トラップアイコン》を持つ」の絞り込み欠落で、
   //   `hasTrapAbility` の生成漏れ10効果の一部（parser 側の家族＝別項目）。
   "WX17-063": [
+    {"effectId":"WX17-063-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","excludeCardName":"中罠　プラスボム","hasIcon":"トラップ"}},"shuffle":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX17-063-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
@@ -10528,6 +10584,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   "WX12-035": [
     {"effectId":"WX12-035-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"any_opp","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","白"],"trashExile":{"count":1,"owner":"self","filter":{"thisCardOnly":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1},"attackingOnly":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // 2026-09-07（第215バッチ）＝意味照合 triage 済み一点物。
+  "WX07-033": [
+    {"effectId":"WX07-033-E2","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_ally","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WX13-035": [
+    {"effectId":"WX13-035-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":2,"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"split_top_bottom"},"handOrEnergy":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX15-001": [
+    {"effectId":"WX15-001-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"武勇","hasRiseIcon":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 };
 

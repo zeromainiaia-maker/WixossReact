@@ -342,6 +342,16 @@
   **払えなくても後段が走る過剰実行**になる。⇒ `OPTIONAL_COST{handDiscard}` ＋ `PAID_ADDITIONAL_COST` に寄せる
   （`canAffordOptionalCostSpec` が払えない盤面を弾く）。
 
+- 🔴🆕**逆翻訳のラベルを手組みしている分岐は、フィルタを足しても何も出ない。**（第215バッチ）＝
+  `decompileEffects.ts` の `ON_OPP_LIFE_CRASHED` × `any_ally` は **`filterJa` を通さず色とクラスだけを手で組んで**おり、
+  `triggerFilter.excludeResona` を足しても**逆翻訳に1文字も出なかった**（＝限定が監査面から消える）。
+  🔑**`filterJa` に描画があること ≠ その効果の逆翻訳に出ること。** 足したら**必ず `npm run regen` して
+  `docs/decompile_sheet*.txt` を grep で確かめる**（第214の `levelLtOwnLrig` と同型で2回目）。
+- 🔴🆕**worklist の項目が「もう実装済み」であることがある。**（同上）＝§5.3 `O-271` は**11日前に実装され、
+  提示ゲート・支払い funnel・golden まで揃っていた**のに索引から消し忘れて残っていた。
+  🔑**着手前に「受け皿があるか」ではなく「もう直っていないか」を先に見る**＝
+  登録票が名指ししているファイルを開いて、その修正が**既に入っていないか**を確かめるのが一番安い。
+
 ### 4.3 計器の読み方
 
 - 🔴🆕**golden のラチェットが落ちると、そのテストが途中で abort して POOL カーソルが変わり、

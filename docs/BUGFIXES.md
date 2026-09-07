@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第215バッチ・Codex 実装＋Opus 5 検証）＝**triage 済み実装キューの A群8効果**（未修正の真バグ 14効果 → 6効果）
+
+**この回の作業単位**＝ユーザー指示「実装を codex-work に投げる」。`CODEX_GUIDE §3` の投入前実測 → 指示書 →
+`CODEX_HOME=.codex-work` で投入 → §7 で検証。
+
+### ① 投入前の実測で簿記の誤りを1件見つけた（先にコミットしてベースラインを確定）
+
+🏁**§5.3 `O-271`（ルリグ【起】の `fieldTrash` コストが踏み倒せる）は第204バッチ（`4712b91a7`）で実装済み**だった。
+`lrigActivateGate.ts:144` の提示ゲート／`BattleScreen.tsx:15044` の `payFieldTrashCost` 呼び出し／
+`fieldTrashCost.ts` の funnel ／`goldenTest.ts:70316` の golden がすべて在り、登録票の「`upToCount` が無い」も失効
+（live の `SPDi44-16-E2` / `WX25-P1-030-E2` は既に `upToCount:true`）。**索引から消し忘れて残っていただけ。**
+🔑**`CODEX_GUIDE §3-1`「簿記を信用せず実測する」は、自分が数日前に書いた索引にも効く。**
+
+**同時に「10効果以上の家族はもう無い」ことも確定した**＝`O-272` は4効果（5効果に見えた群は
+`triggerCondition.banishedFrontOfSelf` で**既に正しい**）、`O-268` は2効果。
+⇒ 今回は**一点物を per-effect 明細つきで束ねたバッチ**として投げ、その性質を指示書の冒頭に明記した。
+
+### ② 指示書に自分の見立ての訂正を2件先に書いた
+
+- **`WX17-063-E1` の受け皿は `hasTrapAbility` ではなく `hasIcon:'トラップ'`**＝前者は消費地点が
+  `effectExecutor.ts:3565`（トラッシュ候補）の1本だけ。後者は `matchesFilter` 本体（`execUtils.ts:1299`）。
+- **`WX15-001-E1` の「miss 34」は別綴り `hasIcon:'ライズ'` を数え落としていた**＝真の miss は4件、
+  うち3件は `O-276`（別項目）＝**実質1効果**。
+
+### ③ Codex は A群8効果の実装を完了した直後に `.codex-work` の**利用上限**で止まった
+
+`-o` の最終レポートは書けていない（落ち方②＝実装済み・検証未了）。
+**破棄せず引き継いだ**（memory の codex-fallback-order の規約どおり）。作業ツリーに残っていたのは
+`src/data/manualEffects.ts` と `public/data/effects_WX.json` の2ファイル。
+
+| # | 効果 | 壊れ方 | 直し方 |
+|---|---|---|---|
+| A1 | `WX10-002-E2` | 🔴**ゲートの外**＝「そうした場合」の `CONDITIONAL` の外側に帰結があり、**手札を捨てなくても相手のライフ最上段をトラッシュできた** | 帰結を `CONDITIONAL{PAID_ADDITIONAL_COST}` の中へ入れ子化 |
+| A2 | `WX07-033-E2` ／ `WX05-025-E1` | **「そのシグニ」がエナの任意シグニ**＝バニッシュされた当該カードへの固定が無い（2効果・同型） | `ADD_TO_FIELD{targetsTriggerSource:true}`（受け皿は `execAddToField:3987` の ENERGY_CARD 分岐） |
+| A3 | `WX21-054-E2` | 🔴**選択肢が消えて別カードを処分**＝二択が消え、場の緑＜龍獣＞（**このシグニではない別カード**）をトラッシュする1本道 | `CHOOSE`（公開 / `thisCardOnly` トラッシュ）＋`selectionConstraint.groups` で「赤と緑を1枚ずつ」 |
+| A4 | `WX13-035-BURST` | 「手札に加える**か**エナゾーンに置く」の二択が `ADD_TO_HAND` 固定に潰れていた | 既存 `handOrEnergy:true`（消費は `effectExecutor.ts:7678` / `:10963`） |
+| A5 | `WX15-001-E1` | `POWER_MODIFY` の対象に条件が無く**＜武勇＞全体**が＋3000 | `hasRiseIcon:true` |
+| A6 | `WX17-063-E1` | アイコン限定が無く**トラッシュの全シグニ**が対象 | `hasIcon:'トラップ'`（訂正どおり `hasTrapAbility` は使っていない） |
+| A7 | `WX13-019-E1` | 「レゾナではない」の限定が無い。⚠**no-op ではなく過剰発火**（`triggerCollect.ts:81` で未指定は無条件 true） | `triggerScope:'any_ally'` ＋ `triggerFilter.excludeResona` |
+
+### ④ 検証（Claude 側）＝**差し戻し0・是正1・残 finding 1**
+
+**不変条件はすべて満たしていた**＝ベースライン `bf911115b` との per-effect diff は**8効果ちょうど**、
+C群3効果（`O-279`／`O-268` 同族／能力なし付与）と B群3効果は `JSON.stringify` 完全一致、
+収穫マージ3バケツも基準どおり。**新しく使われた2キーの受け皿も実コードで追認した**
+（`targetsTriggerSource` は `execAddToField:3987`、`handOrEnergy` は `:7678`／`:10963`）。
+
+🔴**是正1件＝`WX13-019-E1` の「レゾナではない」が逆翻訳に1文字も出ていなかった。**
+`ON_OPP_LIFE_CRASHED` × `any_ally` のラベル生成（`decompileEffects.ts:5430`）は
+**`filterJa` を通さず色とクラスだけを手組み**しており、`excludeResona` を無視していた。
+⇒ 描画を追加した。🔑**第214の `levelLtOwnLrig` と同型の穴**＝
+**逆翻訳に描かない限定は「無い」のと区別できない**（このリポの意味照合は逆翻訳を読む）。
+
+⚠**残 finding 1件（未修正・据置）**＝`WX07-033-E2` の原文は
+「バニッシュされた**《羅星　アルファード》ではない**そのシグニをエナゾーンから場に出す」で、
+**この除外条件は表現できていない**（カード名はこの効果元自身）。`targetsTriggerSource` の
+ENERGY_CARD 分岐は `src.filter` を見ないので、engine を触らずには書けない。**誤変換より無変換で据置。**
+
+### ⑤ ゲート
+
+- `npm run gates` **全緑を独立実行**（golden **3,607 / 3,607**＝検証側で新規2本）。smoke 全0・fuzz 全0。
+- 追加 golden ＝①A群8効果の形状 assert（`hasTrapAbility` を使っていないことの否定 assert 込み）
+  ②`ADD_TO_FIELD{targetsTriggerSource}` の**挙動**（トリガー元だけが出る／同じエナの別札は動かない／
+  トリガー元がエナに居なければ何も出ない）。
+- `npm run regen` の逆翻訳8行を目視して原文照合。⑤実機は不要（`src/screens/` 無変更）。
+
+---
+
 ## 2026-09-07（第214バッチ・O-D／Opus 5）＝**実装キューを壊れ方の重い順に5件**（未修正の真バグ 19効果 → 14効果）
 
 **この回の作業単位**＝ユーザー指示「続ける」。§5.0「O-D / S-3 実装キュー」の先頭から5件。
