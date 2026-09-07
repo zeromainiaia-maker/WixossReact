@@ -1,0 +1,890 @@
+あなたは WIXOSS カードゲームの効果DSL監査員です。
+各カードについて「原文テキスト」と「effects JSON」を意味レベルで比較し、JSON が原文を正しく表現していない点（不一致）だけを列挙してください。
+文言・語順の違いは無視し、ゲーム上の意味（何が・いくつ・誰に・いつ・任意か強制か）だけを比較します。
+
+# effects JSON の読み方
+
+# effects_*.json 読み方ガイド
+
+## ファイル構成
+
+| ファイル | 内容 | 件数 |
+|---|---|---|
+| `effects_WX.json` | WX01〜WX22, WXEX | 1,903件 |
+| `effects_WXDi.json` | WXDiシリーズ | 1,542件 |
+| `effects_WX24_26.json` | WX24〜WX26 | 864件 |
+| `effects_WXK.json` | WXK01〜WXK11 | 894件 |
+| `effects_misc.json` | WD/WDK/PR/SP系 | 731件 |
+
+```
+{ "カードID": [ 効果定義, ... ], ... }
+```
+
+1枚のカードに複数の効果がある場合は配列に複数入る。
+
+---
+
+## 効果定義1件の骨格
+
+```json
+{
+  "effectId":    "WX01-001-E1",
+  "effectType":  "ACTIVATED",
+  "timing":      ["MAIN"],
+  "cost":        { ... },
+  "action":      { ... },
+  "duration":    "INSTANT",
+  "mandatory":   false,
+  "parseStatus": "AUTO"
+}
+```
+
+| フィールド | 説明 |
+|---|---|
+| `effectId` | カードID + E番号（同カード複数効果時は E1, E2...） |
+| `effectType` | 効果種別（下記参照） |
+| `timing` | 発動タイミング（下記参照） |
+| `cost` | 払うコスト |
+| `action` | 実際に何をするか |
+| `duration` | `INSTANT`=一瞬 / `UNTIL_END`=ターン終了まで |
+| `mandatory` | `true`=強制発動 |
+| `parseStatus` | `AUTO`=パーサー自動生成 / `MANUAL`=手書き |
+
+---
+
+## effectType（効果種別）
+
+| 値 | カードテキスト | 説明 |
+|---|---|---|
+| `ACTIVATED` | 【起】 | コストを払って起動する能力 |
+| `AUTO` | 【出】【自】 | 条件を満たすと自動発動する能力 |
+| `CONTINUOUS` | 【常】 | 常時適用される能力 |
+| `LIFE_BURST` | ライフバースト | ライフクロスがクラッシュされたとき発動 |
+
+---
+
+## timing（発動タイミング）
+
+| 値 | 説明 |
+|---|---|
+| `MAIN` | メインフェイズ |
+| `ON_PLAY` | 場に出たとき（【出】能力） |
+| `ATTACK` | アタックフェイズ |
+| `ON_BANISH` | バニッシュされたとき |
+
+---
+
+## cost（コスト）
+
+```json
+{ "energy": [{"color":"白","count":1}] }
+```
+
+| フィールド | 説明 |
+|---|---|
+| `energy` | エナコスト。`color`と`count`の配列 |
+| `down_self` | `true` = 自分をダウン（横向き）にする |
+| `handDiscardSigni` | 手札のシグニを捨てる。`color`で色指定 |
+| `exceed` | エクシード消費数 |
+| `discard` | 手札を捨てる枚数 |
+
+colorの値: `"白"` `"赤"` `"青"` `"緑"` `"黒"` `"無"`
+
+---
+
+## action（アクション）
+
+### 主なtype一覧
+
+| type | 効果 |
+|---|---|
+| `BOUNCE` | シグニを手札に戻す |
+| `BANISH` | シグニをバニッシュ |
+| `SEARCH` | デッキから探す |
+| `DRAW` | カードを引く |
+| `DISCARD` | 手札を捨てる |
+| `MILL` | デッキの上からトラッシュに置く |
+| `POWER_MODIFY` | パワーを増減する |
+| `MOVE_TO_ENERGY` | エナゾーンに置く |
+| `ADD_TO_HAND` | 手札に加える |
+| `REVEAL` | 公開する |
+| `SHUFFLE_DECK` | デッキをシャッフル |
+| `SEQUENCE` | 複数アクションを順番に実行（`steps`配列） |
+| `CHOOSE` | 選択肢から1つ選ぶ（`options`配列） |
+| `STUB` | 未実装（プレースホルダー） |
+
+### 連鎖処理
+
+```json
+{
+  "type": "SEARCH",
+  "then": {
+    "type": "SEQUENCE",
+    "steps": [
+      { "type": "REVEAL" },
+      { "type": "ADD_TO_HAND", "owner": "self" }
+    ]
+  },
+  "afterSearch": { "type": "SHUFFLE_DECK", "owner": "self" }
+}
+```
+
+- `then` : このアクションの後に続けて実行
+- `steps` : `SEQUENCE`内の順番に実行するアクション配列
+- `afterSearch` : サーチ後の後処理（シャッフルなど）
+
+---
+
+## filter（対象の絞り込み）
+
+```json
+{
+  "cardType":        "シグニ",
+  "color":           "白",
+  "level":           { "max": 3 },
+  "excludeCardName": "忘得ぬ幻想　ヴァルキリー"
+}
+```
+
+| フィールド | 説明 |
+|---|---|
+| `cardType` | `"シグニ"` / `"ルリグ"` / `"スペル"` |
+| `color` | カードの色 |
+| `level` | `{ "min": 1, "max": 3 }` など |
+| `cardName` | この文字列を**含む**カード名（部分一致） |
+| `cardNames` | いずれかの名前に一致（完全一致・複数指定） |
+| `excludeCardName` | この名前を**除外**（完全一致）。「〜以外」に対応 |
+| `owner` | `"self"` / `"opponent"` |
+| `location` | `"field"` / `"hand"` / `"deck"` / `"trash"` |
+
+---
+
+## 実例: WX01-037（「以外」フィルターの例）
+
+```json
+{
+  "effectId":   "WX01-037-E1",
+  "effectType": "ACTIVATED",
+  "timing":     ["MAIN"],
+  "cost":       { "down_self": true },
+  "action": {
+    "type": "SEARCH",
+    "from": { "location": "deck", "owner": "self" },
+    "filter": {
+      "cardType": "シグニ",
+      "level":    { "max": 3 },
+      "excludeCardName": "忘得ぬ幻想　ヴァルキリー"
+    },
+    "maxCount": 1,
+    "then": {
+      "type": "SEQUENCE",
+      "steps": [
+        { "type": "REVEAL" },
+        { "type": "ADD_TO_HAND", "owner": "self" }
+      ]
+    },
+    "afterSearch": { "type": "SHUFFLE_DECK", "owner": "self" }
+  },
+  "duration":    "INSTANT",
+  "mandatory":   false,
+  "parseStatus": "AUTO"
+}
+```
+
+**読み方**: ダウンコストを払い、デッキから「ヴァルキリー以外」のレベル3以下シグニ1枚をサーチ→公開→手札に加え→シャッフル。
+
+
+# 追加の読み方ルール（誤検出を避けるため厳守）
+
+1. **STUB ノード（{"type":"STUB","id":"..."} ）は「未実装」ではなく実装済みの名前付きハンドラ**。id 名と周辺パラメータが原文の意味に対応していそうなら不一致にしない。id の意味が原文と明らかに食い違う、または原文の主要な処理がどの STUB・アクションにも対応しない場合のみ type: "SUSPECT_STUB" で報告。
+2. 【グロウ】条件（「【グロウ】：…」）は JSON に含まれない仕様（エンジンが原文から直接評価）。報告しない。
+3. ガード・リミット・パワー・コイン枚数などカードの基礎ステータスは別管理。JSON に無くても報告しない。
+4. 括弧書きのルール注記（例:「（コストのない【出】能力は…）」「（このスペルは…）」）は効果ではない。報告しない。
+5. アーツ/スペルの**使用コスト増減**文（「使用コストは《白》×１減る」等）は ARTS_COST_REDUCTION_* 系 STUB で表現され、増減量はエンジンが原文を再パースして算出する仕様。量が JSON に無くても報告しない。
+6. アーツの使用タイミング（メインフェイズ/アタックフェイズ等）は別管理。報告しない。
+7. **「バニッシュする」と「エナゾーンに置く」「トラッシュに置く」は厳密に別アクション**。取り違えは HIGH。
+8. 効果の分割単位（1文が2 effect に分かれる等）は自由。全体として意味が揃っていれば不一致にしない。
+9. **任意コストイディオム**：STUB（id が OPTIONAL_COST / TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST / OPTIONAL_TRASH_ENERGY_CLASS）の後に CONDITIONAL(IS_MY_TURN または PAID_ADDITIONAL_COST) が続く形は、原文の「〜を支払ってもよい。そうした場合…」をエンジンがインターセプトして表す既知イディオム。**IS_MY_TURN を不一致として報告しない**。さらに TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の then 内 target.owner が self でもエンジンが opponent に自動修正する＝報告しない。ただし then 内のアクション種別・枚数・フィルターの違い、および原文にあるコスト以外の**発動条件（パワー条件等）が JSON のどこにも無い**場合は報告する。
+10. LIFE_BURST 効果の mandatory:false は「LB発動は任意」というルールの表現＝報告しない。
+11. アンコール（「アンコール－…」）・ベット（「ベット－…」）の注記は engine 側の別機構で処理される＝JSON に無くても報告しない。
+12. AUTO/ACTIVATED 効果で action が STUB の場合、任意（〜してもよい）の確認は STUB ハンドラ内で行われることがある＝mandatory フラグだけの任意/強制ずれは LOW に格下げ（STUB 以外のアクションなら通常どおり）。
+13. **「そうした場合」＝ did-it ゲート（2026-09-06 の偽陽性から追加）**：LIFE_CRASH・DISCARD など」実際にできたか」で後続が決まるアクションの直後に置かれた CONDITIONAL(IS_MY_TURN) は、engine の did-it ゲート（「DID_IT_GATED_TYPES」）が消費する既知イディオム＝**空振りしたら then は起きない**。**報告しない。**
+14. **OPPONENT_PAY_OPTIONAL の既定の極性（同上）**：「対戦相手は〜してもよい。そうしないかぎり…」型の既定は**」払わなかったら then」**で、「thenOnPay」 を立てたときだけ逆向き。**JSON の CONDITIONAL(IS_MY_TURN) は極性を持たない**＝これを「条件が逆」と**報告しない**。
+15. **STUB の id 名と payload の食い違いは報告しない（同上）**＝id は表示用の名前で、engine が読むのは payload。「..._FROM_TRASH」 という id で 「value2:"hand"」 を持つ形は**payload が原文と合っていれば正しい**。**payload の側が原文と違うときだけ**報告する。
+16. 🔑**engine は JSON の見た目を裏で読み替えることがある**（13〜15 がその実例）。**「JSON にこう書いてあるから間違い」という理由だけの finding は severity を LOW にする**。原文の**語句そのもの**が JSON のどこにも無い型（欠落・数値違い・対象違い）を優先して報告すること。
+17. **STUB の id 名に入っているカード種別（ARTS / SPELL / SIGNI …）は「適用範囲」を表さない（2026-09-06 の偽陽性から追加・規則15の系）**＝範囲を決めるのは engine の消費地点であって id 名ではない。実例＝「IGNORE_LRIG_RESTRICTION_ARTS」 は名前に ARTS しか無いが、engine 側はアーツとスペルの両方の使用ゲートで読んでいる。⇒ **「id 名が狭いので原文の◯◯が抜けている」という理由だけの finding は報告しない**（payload に範囲を絞る値が入っているときだけ報告する）。
+18. **パワー修正の「ターン終了時まで」は書かない のが正準形（2026-09-07 の偽陽性5件から追加・規則16の系）**＝「POWER_MODIFY」 / 「POWER_MODIFY_PER_LEVEL_SUM」 などのパワー修正は、「duration」 を書かないと engine の 「temp_power_mods」 に積まれ、**ターン終了時に必ずクリアされる**。「duration」 は **ターン終了より長い** ものを表すときだけ書く（「UNTIL_OPP_TURN_END」 / 「UNTIL_NEXT_OWN_TURN_END」）。効果トップの 「duration:"INSTANT"」 はパワー修正の寿命とは無関係。⇒ **原文が「ターン終了時まで」なのに JSON に duration が無い／INSTANT だ、という理由だけの finding は報告しない。**
+19. **CONTINUOUS（【常】）の 「target.count:1」 は「このシグニ自身」が正準形（2026-09-07 の偽陽性3件から追加・同系）**＝「POWER_SET」 / 「SET_BASE_LEVEL」 / 「GRANT_PROTECTION」 などの常在効果は、engine 側が 「count !== 'ALL'」 を**効果元シグニ自身**として解決する（対象選択は起きない）。⇒ **「原文は『このシグニ』なのに thisCardOnly フィルターが無い」という理由だけの finding は報告しない**（「count:'ALL'」 になっている・「owner」 が逆・「subjectFilter」 が別のカードを指している、といった**範囲が実際に広がっている**ときだけ報告する）。
+20. **キーワード能力は本文に対応する語が無くても展開される（2026-09-07 の偽陽性から追加）**＝「【チェイン】《緑》《白》」のようなキーワードは、engine が読む形（この例では 「COST_REDUCTION{targetCardType:"アーツ"}」＝このターン次に使うアーツのコスト軽減）へ**parser が展開して JSON に載せる**。⇒ **「原文の効果文に書かれていないアクションが JSON にある」という理由だけの finding は報告しない**。まず**カード名の直後や効果文の先頭にキーワード（【チェイン】【アンコール】【ベット】【エクシード】等）が無いか**を確かめる。
+21. **「アップ状態の〜をダウンする」使用コストに 「isUp」 フィルターは要らない（同上）**＝「useTimeCost{source:"signi_down"}」 は候補算出の時点で**既にダウンしているシグニを除外する**（ダウンできないものはダウン用コストの候補にならない）。⇒ **コスト側の 「filter」 に 「isUp」 が無いという理由だけの finding は報告しない。**
+22. **「crossOnly:true」 は「クロス相手を問わない」ではない（同上）**＝クロス相手の**具体的なカード名はカードデータのクロス条件そのもの**から解決される（JSON に書き写さない）。⇒ **「特定のカードとクロスしている場合限定なのに crossOnly しか無い」という理由だけの finding は報告しない。**
+23. **STUB ハンドラは自分で「そうした場合」ゲートを持っていることがある（同上・規則13の系）**＝実例＝「LRIG_UNDER_TO_TRASH」 は「ルリグの下がN枚未満なら以降のステップを丸ごとスキップ」を**ハンドラ内で**実装している。⇒ **「STUB の直後に無条件で次のアクションが並んでいる」という理由だけの finding は報告しない**（STUB 以外の普通のアクションが前段のときだけ、規則13の did-it ゲート対象型かを見て判断する）。
+24. **「SEARCH」 の 「then」 は選んだカード1枚ずつに適用される（同上）**＝枚数を決めるのは 「maxCount」 で、「then」 の中の 「target.count」 は**総数の上限ではない**（engine は picked を1枚ずつ回して 「then」 を当てる）。⇒ **「maxCount は3なのに then の count が1だから1枚しか処理されない」という finding は報告しない。**
+
+# 見るべき典型バグ
+
+- 原文の効果・後続処理（「その後…」「〜した場合…」）が JSON のどこにも無い（MISSING）
+- 枚数・レベル・パワー数値・「まで」(upTo/maxCount) の違い（WRONG）
+- 対象の取り違え：自分↔相手、シグニ↔ルリグ、場↔手札↔デッキ↔トラッシュ↔エナ（WRONG）
+- タイミング違い：【出】↔【自】↔【常】↔【起】、ターン終了時↔開始時、自ターン↔相手ターン（WRONG）
+- 任意（〜してもよい）↔強制の取り違え（mandatory）（WRONG）
+- フィルター条件（クラス＜〜＞・色・レベル・カード名指定）の欠落や違い（WRONG）
+- 原文に無い効果が JSON にある（EXTRA）
+
+# 出力形式
+
+**JSON のみを出力**（説明文・前置き・コードフェンス不要）。全カード分の results を必ず出力し、不一致が無いカードは findings を空配列にする。
+
+{"results":[{"cardNum":"WX01-001","findings":[{"effectId":"WX01-001-E1 または null","severity":"HIGH|MED|LOW","type":"MISSING|WRONG|EXTRA|SUSPECT_STUB","quote":"原文の該当句（20字以内）","claim":"不一致の内容を日本語1文で","grep":"同じ壊れ方が他カードにもあるなら、それを探すための原文の言い回し（10字以内）。このカード固有なら null"}]}]}
+
+🔑**「grep」 が最重要**＝この監査の目的は「このカードを直すこと」ではなく**同じ壊れ方の“型”を見つけること**。
+1枚の不一致を見たら「**この言い回しを持つ他のカードでも同じことが起きるか**」を必ず考え、起きるなら
+その言い回し（原文の表記そのまま・記号を含めてよい）を 「grep」 に入れる。カード名や番号は入れない。
+
+severity: HIGH＝効果の意味が実質異なる／主要効果の丸ごと欠落。MED＝数値・対象・条件・任意強制の部分的ずれ。LOW＝軽微または確信が持てない。
+
+# 監査対象カード
+
+## WX20-Re03（name=ドライ＝ラッカー type=シグニ class=精武：毒牙 color=黒 level=3 power=8000）
+
+### 原文テキスト
+【自】《ターン１回》：対戦相手のシグニのパワーが０以下になったとき、あなたのデッキの一番上のカードをエナゾーンに置く。
+
+### effects JSON
+[
+ {
+  "effectId": "WX20-Re03-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_POWER_ZERO_OR_LESS"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn",
+  "triggerScope": "any_opp"
+ }
+]
+
+---
+
+## WX18-076（name=コードイート　ミカジャ type=シグニ class=精械：調理 color=緑 level=1 power=2000）
+
+### 原文テキスト
+【起】《緑×0》：あなたのシグニ１体を対象とし、このカードをエナゾーンからそれの【アクセ】にする。【常】：これにアクセされている＜調理＞のシグニは「【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニの正面にあったシグニ１体を対象とし、それをバニッシュする。」を得る。
+
+### effects JSON
+[
+ {
+  "effectId": "WX18-076-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "ATTACH_ACCE",
+   "targetSigniOwner": "self",
+   "sourceOwner": "self"
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX18-076-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_ACCE_HOST_ABILITY",
+   "filter": {
+    "cardType": "シグニ",
+    "cardClass": "調理"
+   },
+   "abilities": [
+    {
+     "effectId": "WX18-076-E2-G",
+     "effectType": "AUTO",
+     "timing": [
+      "ON_BANISH"
+     ],
+     "triggerScope": "self",
+     "condition": {
+      "type": "IS_OPPONENT_TURN"
+     },
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "frontOfSelf": true
+       },
+       "upToCount": false
+      }
+     },
+     "duration": "INSTANT",
+     "mandatory": true,
+     "parseStatus": "MANUAL"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ }
+]
+
+---
+
+## WX20-033（name=双演の趣向　*サブカルズ* type=シグニ class=精像：美巧 color=白 level=4 power=12000 lifeBurst=あり）
+
+### 原文テキスト
+【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、《白》《緑》を支払ってもよい。そうした場合、それを手札に戻す。【自】：このシグニがバニッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。
+ライフバースト：：あなたのデッキから白の＜美巧＞のシグニ１枚までと緑の＜美巧＞のシグニ１枚までを探して公開し手札に加え、デッキをシャッフルする。
+
+### effects JSON
+[
+ {
+  "effectId": "WX20-033-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+     "costColors": [
+      "白",
+      "緑"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BOUNCE",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "optional": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX20-033-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_BANISH"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX20-033-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {
+    "cardType": "シグニ",
+    "color": "白",
+    "story": "美巧"
+   },
+   "maxCount": 1,
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "REVEAL"
+     },
+     {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     }
+    ]
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX13-029（name=羅星宙姫　ノーザンセブン type=シグニ class=精羅：宇宙 color=白 level=5 power=15000 lifeBurst=あり）
+
+### 原文テキスト
+【自】：あなたのアタックフェイズ開始時、以下の４つから１つを選ぶ。①このターン、あなたのシグニはバニッシュされない。②このターン、あなたのシグニは場から手札に戻らない。③このターン、あなたのシグニは新たに能力を得られない。④このターン、あなたのシグニは対戦相手の効果によってダウンしない。
+ライフバースト：：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+
+### effects JSON
+[
+ {
+  "effectId": "WX13-029-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 4,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "GRANT_PROTECTION",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "from": [
+       "BANISH"
+      ],
+      "sourceOwner": "any",
+      "duration": "PERMANENT"
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "STUB",
+      "id": "SIGNI_CANT_BOUNCE_FROM_FIELD"
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "STUB",
+      "id": "SUPPRESS_GAIN_ABILITY"
+     }
+    },
+    {
+     "choiceId": "c3",
+     "label": "選択肢4",
+     "action": {
+      "type": "STUB",
+      "id": "PREVENT_SIGNI_DOWN_BY_OPP"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX13-029-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX13-093（name=幻蟲　ヤゴ type=シグニ class=精生：凶蟲 color=黒 level=1 power=5000）
+
+### 原文テキスト
+【出】：対戦相手の場に【チャーム】がない場合、このシグニをトラッシュに置く。
+
+### effects JSON
+[
+ {
+  "effectId": "WX13-093-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "STUB",
+   "id": "SELF_TRASH_IF_NO_OPP_CHARM"
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX17-054（name=炎纏の天牛　グガランネ type=シグニ class=精像：武勇 color=赤 level=1 power=2000）
+
+### 原文テキスト
+【自】：このシグニがライズされたとき、ターン終了時まで、あなたのすべてのシグニのパワーを＋2000する。
+
+### effects JSON
+[
+ {
+  "effectId": "WX17-054-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_RISE"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": 2000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX21-018（name=満たされし使　リワト＝トヴォ type=ルリグ class=タウィル color=赤青緑 level=2 limit=5）
+
+### 原文テキスト
+【常】：このカードにグロウする際、手札から＜天使＞のシグニを１枚捨ててもよい。そうした場合、このカードにグロウするためのコストは《緑×0》になる。
+
+### effects JSON
+[
+ {
+  "effectId": "WX21-018-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "handDiscard": {
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "天使"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "GROW_COST_REDUCTION",
+      "reduction": [],
+      "zeroColors": [
+       "緑"
+      ],
+      "forSelfGrowOnly": true
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX15-031（name=幻怪姫　ヌラリ type=シグニ class=精生：怪異 color=白 level=4 power=12000 lifeBurst=あり）
+
+### 原文テキスト
+【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない。
+ライフバースト：：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+
+### effects JSON
+[
+ {
+  "effectId": "WX15-031-LAYER",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_FIELD_SIGNI_ABILITY",
+   "filter": {
+    "cardType": "シグニ",
+    "story": "怪異"
+   },
+   "abilities": [
+    {
+     "effectId": "WX15-031-LAYER-E1",
+     "effectType": "CONTINUOUS",
+     "action": {
+      "type": "GRANT_PROTECTION",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "from": [
+       "スペル",
+       "アーツ"
+      ],
+      "sourceOwner": "opponent",
+      "sourceCostMin": 5,
+      "duration": "PERMANENT"
+     },
+     "duration": "PERMANENT",
+     "mandatory": true,
+     "parseStatus": "MANUAL"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WX15-031-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "optional": false
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+---
+
+## WX16-062（name=中罠　ラクガキ type=シグニ class=精武：トリック color=青 level=2 power=5000 lifeBurst=あり）
+
+### 原文テキスト
+《トラップアイコン》：対戦相手のレベル３のシグニ１体を対象とし、それを手札に戻す。（対戦相手のシグニがアタックしたとき、その正面にシグニがない場合、そこにある【トラップ】を表向きにし《トラップアイコン》を発動してもよい。その後トラッシュに置く）
+ライフバースト：：【エナチャージ１】
+
+### effects JSON
+[
+ {
+  "effectId": "WX16-062-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX16-062-TRAP",
+  "effectType": "TRAP_ICON",
+  "timing": [
+   "ON_TRAP_ACTIVATE"
+  ],
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "level": 3
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+---
+
+## WX21-071（name=ワイズ・スパーク type=スペル color=黒）
+
+### 原文テキスト
+このスペルを使用する際、手札から青と黒の＜電機＞のシグニを１枚ずつ捨ててもよい。そうした場合、このスペルの使用コストは《黒×0》になる。対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。この効果によってそのシグニのパワーが０以下になった場合、カードを１枚引き、対戦相手は手札を１枚捨てる。
+
+### effects JSON
+[
+ {
+  "effectId": "WX21-071-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    },
+    {
+     "color": "青",
+     "count": 1
+    }
+   ],
+   "costReplacement": [
+    {
+     "when": {
+      "kind": "paidOptionalDiscard"
+     },
+     "mode": "replace",
+     "cost": [],
+     "stopIfUnmet": true
+    }
+   ],
+   "optionalDiscardCost": {
+    "groups": [
+     {
+      "color": "青",
+      "story": "電機",
+      "count": 1
+     },
+     {
+      "color": "黒",
+      "story": "電機",
+      "count": 1
+     }
+    ],
+    "cost": []
+   }
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "STUB",
+      "id": "ARTS_COST_REDUCTION_BY_EFFECT"
+     }
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "delta": -8000
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_POWER_LTE",
+      "value": 0
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 1
+       },
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "opponent",
+         "count": 1
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
