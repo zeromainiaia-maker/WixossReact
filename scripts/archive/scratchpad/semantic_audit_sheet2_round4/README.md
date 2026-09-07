@@ -1,7 +1,8 @@
-# 意味照合監査 Sheet2 round4（2026-09-07 開始）
+# 意味照合監査 Sheet2 round4（2026-09-07 開始）🏁完了
 
-🔵**Sheet2 は 2026-09-07 に30/36バッチ（300/356枚）を消化**（第210バッチで18バッチ・続きの回で s2-19〜30 の12バッチ）。**残 6バッチ / 56枚。**
-**findings 53件は全件未 triage**＝次セッションは Opus で O-A から（§5.0）。詳細は `TYPE_LEDGER.md`。
+🏁**Sheet2 は 2026-09-07 に36/36バッチ（356/356枚）を完了**（第210バッチで18バッチ・続きの回で s2-19〜30 の12バッチ・さらに続きで s2-31〜36 の6バッチ）。
+**findings 累計 73件のうち s2-19〜36 の 41件が未 triage**＝次セッションは Opus で O-A から（§5.0）。詳細は `TYPE_LEDGER.md`。
+**以後の意味照合は Sheet3（`../semantic_audit_sheet3_round4/`）。**
 
 Sheet1（`semantic_audit_sheet1_round4/`）が完了したので、同じ形でこのディレクトリを新設した。
 
@@ -40,5 +41,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 - 実行時トラブルなし（12バッチとも JSON 契約どおり応答）。
 - `audited_cards_cumulative.txt` は 180件 → **300件**（`semanticAuditGap.mjs --sheet 2` の残枚数は 176 → **56** と一致確認済み）。
 - 止め時（連続3バッチで新型0）はこの回では判定できない（新型判定は O-A triage の役目・§2.6 決定1／§5.0）。
+
+## 🏁 s2-31〜36 の実績（56枚・2026-09-07・S-1 6バッチ＝Sheet2 完了）
+
+- findings **20件 / 56枚（3.3件/バッチ）**。全件未 triage。HIGH 6件を含む（`WX12-032` 発動条件欠落・`WX19-064` 意味逆転×2・`WX12-033`／`WX12-002` 範囲/付与欠落・`WX18-001` 場出し処理欠落）。
+- 実行時トラブルなし（6バッチとも JSON 契約どおり応答）。
+- `audited_cards_cumulative.txt` は 300件 → **356件**（`semanticAuditGap.mjs --sheet 2` の残枚数は 56 → **0** と一致確認済み）。
+- 🏁**Sheet2 完了（36/36バッチ・356/356枚）。以後は Sheet3。**
 
 詳細は `TYPE_LEDGER.md`。

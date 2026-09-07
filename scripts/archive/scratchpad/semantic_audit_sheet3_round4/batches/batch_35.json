@@ -1,0 +1,42 @@
+[
+ {
+  "num": "WXK07-011",
+  "group": "clean"
+ },
+ {
+  "num": "WXK07-018",
+  "group": "clean"
+ },
+ {
+  "num": "WXK07-025",
+  "group": "clean"
+ },
+ {
+  "num": "WXK07-027",
+  "group": "stub"
+ },
+ {
+  "num": "WXK07-029",
+  "group": "clean"
+ },
+ {
+  "num": "WXK07-030",
+  "group": "stub"
+ },
+ {
+  "num": "WXK07-031",
+  "group": "stub"
+ },
+ {
+  "num": "WXK07-032",
+  "group": "stub"
+ },
+ {
+  "num": "WXK07-033",
+  "group": "stub"
+ },
+ {
+  "num": "WXK07-034",
+  "group": "stub"
+ }
+]

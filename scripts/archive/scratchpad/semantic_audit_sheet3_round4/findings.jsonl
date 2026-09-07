@@ -1,0 +1,4 @@
+{"batch":"01","cardNum":"WX22-005","effectId":"WX22-005-E1","severity":"HIGH","type":"WRONG","quote":"それの効果を打ち消す。そうした場合、対戦相手のエナゾーンから","claim":"エナゾーンのカードをトラッシュ＋デッキトップをライフに加える後続処理は③(スペル打ち消し)を選んだ場合のみのはずだが、JSONではCHOOSEの後に無条件のSEQUENCEステップとして並んでおり①②を選んでも発動する","grep":"効果を打ち消す。そうした場合"}
+{"batch":"01","cardNum":"WX22-010","effectId":"WX22-010-E3","severity":"MED","type":"MISSING","quote":"チェックゾーンに置く。その後、それらを場に出し","claim":"遊具シグニをチェックゾーンに置いた後『場に出す』(【出】再誘発)ステップがJSONに無く、FIELD_SIGNI_TO_CHECK_ZONE→UPだけになっている","grep":"チェックゾーンに置く。その後、それらを場に出し"}
+{"batch":"01","cardNum":"WX22-014","effectId":"WX22-014-E3","severity":"LOW","type":"SUSPECT_STUB","quote":"このルリグのエクシード能力１つをコストを支払わずに使用する","claim":"STUB id が PLAY_FREE でカードのプレイ用に見え、エクシード能力の無償使用と対応しているか不確実","grep":"エクシード能力１つをコストを支払わずに"}
+{"batch":"02","cardNum":"WX22-022","effectId":"WX22-022-BURST","severity":"MED","type":"MISSING","quote":"異なる色を持つ＜遊具＞のシグニ２枚","claim":"LBで探す＜遊具＞シグニ2枚の「異なる色を持つ」制約がJSONのfilterに無い","grep":"異なる色を持つ"}

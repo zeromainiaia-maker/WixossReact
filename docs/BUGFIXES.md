@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（続き・Sonnet 5・S-1）＝**意味照合バッチ8件を追加実行**（🏁Sheet2 完了 30→36/36バッチ／Sheet3 着手 0→2/37バッチ）
+
+**この回の作業単位**＝ユーザー指示「S-1 を8バッチ行う」。§2.6 の監査ラウンド軽量運用（Sonnet レーン）＝
+抽出・実行・簿記のみで、判定（O-A triage）はしない。**バグ修正は0件**（今回は監査のみ・`src/` `scripts/` 無変更）。
+
+- `semanticAuditRun.mjs --out .../semantic_audit_sheet2_round4 --model sonnet --batches 31,32,33,34,35,36`
+  ＝**Sheet2 完了（36/36バッチ・356枚）**。findings **20件 / 56枚（3.3件/バッチ・HIGH 6件）**。
+- `semanticAuditGap.mjs --sheet 3 --list 2>/dev/null` → `semanticAuditExtract.mjs`（Sheet3 を37バッチに分割）
+  → `semanticAuditRun.mjs --out .../semantic_audit_sheet3_round4 --model sonnet --batches 1,2`
+  ＝**Sheet3 着手（2/37バッチ・20/369枚）**。findings **4件 / 20枚（2.0件/バッチ）**。
+- 8バッチとも実行時トラブルなし。⚠**Sheet3 の抽出で1点**＝`semanticAuditGap.mjs --list` の `[gap] …` 行は
+  stderr へ出る（Sheet2 README は `>` 直書きだった）＝`2>/dev/null` を足さないと `--cards-file` が1行余分に読む。Sheet3 README に明記。
+
+簿記＝Sheet2 cumulative 300→356（`--sheet 2` 残 56→0 と一致確認）／Sheet3 dir 新設・cumulative 0→20（残 369→349 と一致確認）／
+両 `TYPE_LEDGER.md`・`README.md` を更新（Sheet2 は🏁完了・Sheet3 は再開コマンド `--batches 3..8`）。
+
+**findings 累計 77件が未 triage**（Sheet2 s2-19〜36 の41件＋Sheet3 s3-01〜02 の4件・次は `/model opus` で O-A から。§5.0）。
+セッション末に `npm run gates` を1回実行＝**全緑**（対象コード無変更）。詳細な finding 一覧は各 `TYPE_LEDGER.md` を参照。
+
 ## 2026-09-07（続き・Sonnet 5・S-1）＝**意味照合バッチ12件を追加実行**（Sheet2 消化 18/36 → 30/36バッチ）
 
 **この回の作業単位**＝ユーザー指示「S-1 を12バッチ行う」。§2.6 の監査ラウンド軽量運用（Sonnet レーン）＝
