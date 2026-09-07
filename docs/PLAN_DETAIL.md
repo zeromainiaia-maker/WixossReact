@@ -12452,3 +12452,22 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   `WX20-033-BURST` / `WX20-042-CB-E3` / `WX20-Re20-E1` / `WD06-018-BURST`）＝**意図した件数と完全一致**。
   逆翻訳（`npm run regen`）の差分も同9行だけ（`decompile_sheet2`）。
   🧾**`manualEffects.ts`**＝984 → 991カード（乖離0・削除候補0＝`censusManualDrift`）。
+
+### 恒久指標アーカイブ（2026-09-07 第213バッチ・PLAN §6 から退避）
+
+- **2026-09-07（第213バッチ・Codex 実装＋Opus 5 検証）＝legacy catch-all STUB 2本を14→6効果へ縮小（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（全件 `mech`・据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かない理由**＝今回の穴は「STUB が payload も原文も読まない」型で、
+  **どの計器も『受け皿（語彙・ハンドラ）があるか』しか見ない**＝原理的に映らない。
+  📦**在庫**＝**意味照合 未監査 2,256枚**（据置）｜**未 triage findings 0**（据置）｜
+  🆕**未修正の真バグ 19効果 / 18行**（`WX20-022-E1` を消化）｜**機構 worklist 10項目**（据置）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート**＝`npm run gates` **全緑 ✅（Claude 側で独立実行）**（golden **3,602 / 3,602 PASS**＝Codex +9・検証 +1／
+  smoke 10,741効果 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／`manual-fields` 違反0／lint **0 errors / 256 warnings**（±0）／
+  同型★ **1グループ / 2枚**（`WXK08-071`・`WDK06-C14`・据置）／収穫マージ3バケツ＝`_partial_fresh` **0** /
+  `_idset_fresh` **0** / `_held_fresh` **1**（`WXDi-P04-002`・据置））。
+  🖥**実機＝該当なし**（`src/screens/` 無変更。engine は `handReveal` の `'ALL'`/`upToCount` 対応3行のみ）。
+  🔁**live A/B 差分＝9効果**（`WX18-033-E1` / `WX20-022-E1` / `WXDi-D09-H15-E2` / `WXDi-P11-041-E2` /
+  `WXDi-P16-069-E1` / `WXK05-070-E1` / `WXK05-072-E2` / `WX25-CP1-003-E1` / `WX25-CP1-065-E1`）。
+  🧾**legacy catch-all 含有効果＝14 → 6**（`WXEX1-09-E2` / `PR-195-E3` / `WX25-P2-022-E2` /
+  `WX25-CP1-092-E1` / `WXDi-P00-018-E1` / `WXK05-003-E1`＝全部「新機構待ち」）。

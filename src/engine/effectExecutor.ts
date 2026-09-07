@@ -3251,6 +3251,19 @@ function resolveDynamicFilter(
       ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: opLv - 1 } }
       : rest;
   }
+  // 🆕**levelLtOwnLrig**（2026-09-07・`WX09-037-E1`）＝上の**鏡**＝「**あなたの**センタールリグより低いレベルを持つ」。
+  // 🔴**`levelLtOppLrig` を流用してはいけない**＝参照するルリグが逆なので、原文が自分のルリグを基準にしている
+  //   カードで**別のシグニが対象になる**（`CODEX_GUIDE §5-5e`＝名前が近いだけの語彙を借りない）。
+  // ⚠フォールバックは `levelLtOppLrig` と同じ**制限なし（fail-open）**へ揃える＝ここだけ fail-closed にすると
+  //   同じ原文の兄弟で挙動が割れる（`LESSONS.md §4.2` の「規約が2種類混在」）。
+  if (result.levelLtOwnLrig) {
+    const { levelLtOwnLrig: _lw, ...rest } = result;
+    const myLrig = ownerSt?.field.lrig.at(-1);
+    const myLv = myLrig ? parseInt(cardMap.get(getCardNum(myLrig))?.Level ?? '', 10) : NaN;
+    result = !isNaN(myLv)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: myLv - 1 } }
+      : rest;
+  }
   // powerLtAnyAlly: 自分の場のシグニのいずれか（＝最大実効パワー）よりパワーが低い（「あなたのいずれかのシグニよりパワーの低い」。
   // 「いずれか…より低い」＝いずれか1体より低ければ可＝最大値未満）→ powerRange.max:maxAlly-1 へ解決。参照不能（場に自シグニ無し）なら制限なしへフォールバック
   if (result.powerLtAnyAlly) {

@@ -10459,6 +10459,73 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠`CONDITIONAL{IS_MY_TURN}` は「そうした場合」の受け皿＝任意コストの先取り（規則9）が消費するので
   //   相手ターンでも正しく動く（条件としては評価されない）。
   // ⚠母集団＝原文「〜を支払い、トラッシュにあるこのシグニをゲームから除外」は live でこの1効果だけ。
+  // ══════════════════════════════════════════════════════════════════
+  // 2026-09-07（第214バッチ）＝§5.0「O-D / S-3 実装キュー」を**壊れ方の重い順**に5件。
+  // ⚠**5件とも着手時に母集団を実測して「実害1効果」を確認**（§2.1 ②）＝キューの「遅い」見立ては外れていた。
+  //   例＝`WX11-006-E3` の `STUB{OPTIONAL_TRASH_ENERGY_CLASS}` は live 37効果が使うが、
+  //   **原文が「エナゾーンから」でないのはこの1件だけ**＝engine ではなく生成側の誤配線。
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── WX11-006 の【起】＝**原文に無いコストを払わせ、対象参照も落ちていた**
+  // 原文＝「【起】《ターン１回》《アタックフェイズアイコン》エクシード１：あなたのトラッシュから
+  //   ＜悪魔＞のシグニ１枚を対象とし、**手札からカードを１枚捨てる**。そうした場合、それを場に出す。」
+  // 🔴旧 live＝`STUB{OPTIONAL_TRASH_ENERGY_CLASS}`＝**エナゾーンから**クラス一致カードを探して払わせる
+  //   （原文は手札1枚捨て）。しかも `ADD_TO_FIELD` に `source` も対象参照も無く、
+  //   **トラッシュの＜悪魔＞を指定したのに何が場に出るか決まっていない**（実質 no-op か別カード）。
+  // 🔑受け皿はすべて既存＝`SELECT_TARGET_ONLY{TRASH_CARD}`（`execStubPart1.ts:196` が
+  //   `transferToHandTrashCandidates` を共有）＋`OPTIONAL_COST{handDiscard}`＋
+  //   `ADD_TO_FIELD{source:TRASH_CARD, targetsStored}`（`execAddToField:4006` が stored で候補を絞る）。
+  // ⚠**任意コスト形にした理由**＝原文の「捨てる」は強制だが、`TRASH` は `DID_IT_GATED_TYPES`
+  //   （`effectExecutor.ts:5226`）に**入っていない**ので「素の TRASH ＋ CONDITIONAL{IS_MY_TURN}」だと
+  //   **手札が0枚でも場に出せる過剰実行**になる。`OPTIONAL_COST` なら `canAffordOptionalCostSpec` が
+  //   手札0枚を弾き、`PAID_ADDITIONAL_COST` が「そうした場合」を正しくゲートする。
+  "WX11-006": [
+    {"effectId":"WX11-006-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"usageLimit":"once_per_turn","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX07-032 のスペル＝**「場に出し」が丸ごと落ちてライフに加える側だけ残っていた**
+  // 原文（末尾）＝「その後、あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、**それを場に出し**、
+  //   あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それをライフクロスに加える。」
+  // 🔴旧 live は `ADD_TO_LIFE{fromTrash}` だけ＝**11エナのスペルの帰結が半分**になっていた。
+  // ⚠**対象は2枚別々に宣言する**（同じ1枚を場にもライフにも置けない）＝`ADD_TO_FIELD` と `ADD_TO_LIFE` を
+  //   それぞれ独立の source として並べる（先に場へ出したカードはトラッシュから消えるので二重取りにならない）。
+  // ⚠使用コストの軽減（`useTimeCost`）と前段のバニッシュ2つは正しいので**1バイトも触らない**。
+  "WX07-032": [
+    {"effectId":"WX07-032-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":11}],"useTimeCost":{"source":"signi_down","filter":{"story":["悪魔"],"cardType":"シグニ"},"max":"ANY","perUnit":true,"reduction":[{"color":"黒","count":2}]}},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}}},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":false,"fromTrash":true,"filter":{"cardType":"シグニ","story":"悪魔"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX10-031 のスペル＝**「手札に戻し」が丸ごと落ちていた**
+  // 原文＝「対象の対戦相手のシグニ１体を**手札に戻し**、対象の対戦相手のシグニ１体をバニッシュする。」
+  // 🔴旧 live は `BANISH` だけ＝**2体除去のスペルが1体除去**になっていた。
+  // ⚠**対象は2体別々**（「対象の…1体を手札に戻し、対象の…1体をバニッシュ」）＝`BOUNCE` と `BANISH` を
+  //   独立ステップで並べる（`targetsStored` で同じ1体に束ねない）。
+  // ⚠コスト軽減（`costReplacement` ＋ `STUB{CONDITIONAL_COST_REDUCTION_BY_FIELD}`）は正しいので触らない。
+  "WX10-031": [
+    {"effectId":"WX10-031-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":2},{"color":"白","count":2},{"color":"無","count":1}],"costReplacement":[{"when":{"kind":"selfFieldHasSigni","each":[{"story":"アーム"},{"story":"ウェポン"}]},"mode":"reduce","cost":[{"color":"白","count":1},{"color":"赤","count":1}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CONDITIONAL_COST_REDUCTION_BY_FIELD"},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX11-025 のライフバースト＝**「ダウンする」が丸ごと落ちていた**
+  // 原文＝「あなたのデッキから＜迷宮＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルし、
+  //   **対象の対戦相手のシグニ１体をダウンする**。」
+  // 🔴旧 live は `SEARCH` だけ＝LB の後半（相手シグニ1体のダウン）が起きなかった。
+  // ⚠`SEARCH` は単独 action だったので `SEQUENCE` で包んでから `DOWN` を足す（`afterSearch` は SEARCH 側に残す）。
+  "WX11-025": [
+    {"effectId":"WX11-025-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX09-037 のアーツ＝**「トラッシュに置き」が丸ごと落ち、両側のレベル制限も無かった**
+  // 原文＝「**あなたのセンタールリグより低いレベルを持つ**対象の対戦相手のシグニ１体を**トラッシュに置き**、
+  //   あなたのトラッシュから**あなたのセンタールリグより低いレベルを持つ**対象のシグニ１枚を場に出す。」
+  // 🔴旧 live は `ADD_TO_FIELD{TRASH_CARD, filter:{cardType:'シグニ'}}` だけ＝**除去が丸ごと無く、
+  //   場に出す側もレベル無制限**（レベル5のシグニまで踏み倒せた）。
+  // 🆕**`levelLtOwnLrig` を新設**（`src/types/effects.ts` ＋ `resolveDynamicFilter`）＝
+  //   既存 `levelLtOppLrig` の**鏡**。🔴**流用禁止**＝参照するルリグが逆で別のカードが対象になる。
+  // ⚠原文に「そうした場合」が無いので**did-it ゲートを挟まない**（両方とも起きる）。
+  // ⚠コスト軽減（`costReplacement` ＋ `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`）は正しいので触らない。
+  "WX09-037": [
+    {"effectId":"WX09-037-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1},{"color":"黒","count":1},{"color":"無","count":2}],"costReplacement":[{"when":{"kind":"selfCenterLrigLevelGte","value":5},"mode":"reduce","cost":[{"color":"無","count":2}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLtOwnLrig":true}}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLtOwnLrig":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   "WX12-035": [
     {"effectId":"WX12-035-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"any_opp","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","白"],"trashExile":{"count":1,"owner":"self","filter":{"thisCardOnly":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1},"attackingOnly":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],

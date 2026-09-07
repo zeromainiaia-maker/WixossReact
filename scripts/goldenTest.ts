@@ -70792,6 +70792,78 @@ test('catch-all A7′ WXK05-072-E2: 同じ文型の兄弟も《緑》+同名手�
   ok(!skipped.ownerState.trash.includes(green), 'A7′ 負: 払わなければ《緑》は減らない');
 }));
 
+// ── 実装キュー 第214バッチ（2026-09-07）＝壊れ方の重い順に5件 ──────────────────────
+test('実装キュー第214: 直した5効果が live に載っている（丸ごと欠落・誤ったコスト）', () => {
+  const live = (card: string, id: string) => JSON.stringify(
+    (effectsMap.get(card) ?? []).find(e => e.effectId === id) ?? null);
+
+  // ① WX11-006-E3＝原文に無い「エナゾーンから」を払わせていた（旧 `OPTIONAL_TRASH_ENERGY_CLASS`）。
+  const w06 = live('WX11-006', 'WX11-006-E3');
+  ok(!w06.includes('OPTIONAL_TRASH_ENERGY_CLASS'), 'WX11-006-E3: エナを払わせる旧 STUB は消えた');
+  ok(w06.includes('"handDiscard":{"count":1}'), 'WX11-006-E3: 手札1枚捨てが載っている');
+  ok(w06.includes('"targetsStored":true'), 'WX11-006-E3: 宣言したトラッシュの1枚を場に出す');
+  ok(w06.includes('"story":"悪魔"'), 'WX11-006-E3: ＜悪魔＞限定');
+
+  // ② WX07-032-E1＝「それを場に出し」が丸ごと落ちていた（ライフに加える側だけ残っていた）。
+  const w32 = live('WX07-032', 'WX07-032-E1');
+  ok(w32.includes('"ADD_TO_FIELD"') && w32.includes('"ADD_TO_LIFE"'),
+    'WX07-032-E1: 場出しとライフ追加の両方がある');
+
+  // ③ WX10-031-E1＝「手札に戻し」が丸ごと落ちていた。
+  const w31 = live('WX10-031', 'WX10-031-E1');
+  ok(w31.includes('"BOUNCE"') && w31.includes('"BANISH"'), 'WX10-031-E1: バウンスとバニッシュの両方がある');
+
+  // ④ WX11-025-BURST＝「ダウンする」が丸ごと落ちていた。
+  const w25 = live('WX11-025', 'WX11-025-BURST');
+  ok(w25.includes('"SEARCH"') && w25.includes('"DOWN"'), 'WX11-025-BURST: サーチとダウンの両方がある');
+
+  // ⑤ WX09-037-E1＝「トラッシュに置き」が丸ごと落ち、両側のレベル制限も無かった。
+  const w37 = live('WX09-037', 'WX09-037-E1');
+  ok(w37.includes('"TRASH"') && w37.includes('"ADD_TO_FIELD"'), 'WX09-037-E1: 除去と場出しの両方がある');
+  eq((w37.match(/levelLtOwnLrig/g) ?? []).length, 2, 'WX09-037-E1: レベル制限は除去側と場出し側の両方に付く');
+  ok(!w37.includes('levelLtOppLrig'), '🔴WX09-037-E1: 相手ルリグ基準の鏡を流用していない');
+});
+
+test('levelLtOwnLrig: あなたのセンタールリグより低いレベルだけが候補（levelLtOppLrig の鏡）', () => withSavedCursor(() => {
+  // 🔴新語彙は「型＋評価器＋golden」の3点セットで初めて1件完了（LESSONS §4.2）。
+  //   ⚠`levelLtOppLrig` を流用すると**参照するルリグが逆**になり、別のシグニが対象になる。
+  const lrig3 = 'WD01-002';                    // レベル3のルリグ
+  const lv2 = 'WD01-012', lv4 = 'WD01-009';    // レベル2（取れる）／レベル4（取れない）
+  const base = mkCtx({ lrig: [lrig3] }, { signi: [lv2, lv4] }, undefined);
+  const r = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+    upToCount: false, filter: { cardType: 'シグニ', levelLtOwnLrig: true } } } as EffectAction, base);
+  ok(r.otherState.trash.includes(lv2), '正: レベル2（自ルリグ3より低い）は取れる');
+  ok(!r.otherState.trash.includes(lv4), '🔴負: レベル4（自ルリグ3以上）は取れない');
+
+  // 対照＝自分のルリグをレベル5にすると、さっき取れなかったレベル4が取れる（判定が本当に効いている証拠）。
+  const lrig5 = (cardMap.get('WD01-002')?.Level === '5') ? 'WD01-002' : undefined;
+  const hiLrig = lrig5 ?? [...cardMap.entries()].find(([, c]) =>
+    (c.Type ?? '').includes('ルリグ') && c.Level === '5')?.[0];
+  ok(!!hiLrig, 'レベル5のルリグが CSV にある'); if (!hiLrig) return;
+  const base2 = mkCtx({ lrig: [hiLrig] }, { signi: [lv4] }, undefined);
+  const r2 = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+    upToCount: false, filter: { cardType: 'シグニ', levelLtOwnLrig: true } } } as EffectAction, base2);
+  ok(r2.otherState.trash.includes(lv4), '対照: 自ルリグが5ならレベル4も取れる');
+}));
+
+test('WX11-006-E3: 手札が0枚なら場に出せない（旧形は「エナを払えれば出せる」過剰実行だった）', () => withSavedCursor(() => {
+  // 🔑`TRASH` は `DID_IT_GATED_TYPES` に**入っていない**ので、素の TRASH ＋ CONDITIONAL{IS_MY_TURN} だと
+  //   手札0枚でも後段が走る。`OPTIONAL_COST{handDiscard}` ＋ `PAID_ADDITIONAL_COST` に寄せて塞いだ。
+  const effect = catchAllLive('WX11-006', 'WX11-006-E3');
+  const devil = 'WD05-010', spare = 'WD01-016';
+  const paidCtx = mkCtx({ hand: 0, trash: 0 }, {}, 'WX11-006');
+  paidCtx.ownerState.trash = [devil]; paidCtx.ownerState.hand = [spare];
+  const paid = finishPayingCosts(executeEffect(effect, paidCtx), paidCtx);
+  ok(paid.ownerState.field.signi.some(st => st?.at(-1) === devil), '正: 宣言した＜悪魔＞が場に出る');
+  ok(paid.ownerState.trash.includes(spare), '正: 手札から1枚捨てている');
+
+  const emptyCtx = mkCtx({ hand: 0, trash: 0 }, {}, 'WX11-006');
+  emptyCtx.ownerState.trash = [devil]; emptyCtx.ownerState.hand = [];
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  ok(!empty.ownerState.field.signi.some(st => st?.at(-1) === devil),
+    '🔴負: 手札0枚なら払えないので場に出ない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -312,6 +312,9 @@ function filterJa(f?: any): string {
   if (f.levelEqTrigger) parts.push('そのシグニと同じレベルの');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
   if (f.levelLtOppLrig) parts.push('対戦相手のセンタールリグより低いレベルを持つ');
+  // 🆕`levelLtOwnLrig`（2026-09-07・`WX09-037-E1`）＝上の鏡。**逆翻訳に出さないと限定が監査面から消える**
+  //   （このリポの意味照合は逆翻訳を読むので、描かないフィルタは「無い」のと区別できない）。
+  if (f.levelLtOwnLrig) parts.push('あなたのセンタールリグより低いレベルを持つ');
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');

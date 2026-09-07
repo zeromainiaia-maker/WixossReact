@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第214バッチ・O-D／Opus 5）＝**実装キューを壊れ方の重い順に5件**（未修正の真バグ 19効果 → 14効果）
+
+**この回の作業単位**＝ユーザー指示「続ける」。§5.0「O-D / S-3 実装キュー」の先頭から5件。
+
+🔴🔑**5件とも「遅いレーン」と登録されていたが、着手時に母集団を測ると全部「実害1効果」だった**（§2.1 ②）。
+最も分かりやすいのが `WX11-006-E3`＝`STUB{OPTIONAL_TRASH_ENERGY_CLASS}` は **live 37効果**が使っているが、
+**原文が「エナゾーンから」でないのはこの1件だけ**＝engine の欠陥ではなく**生成側の誤配線**だった。
+⇒ 5件とも `manualEffects.ts` へ手書き（速いレーン）。**キューの「レーン」列は登録時の見立てにすぎない。**
+
+### ① 直した5件
+
+| 効果 | 壊れ方 | 直し方 |
+|---|---|---|
+| `WX11-006-E3` | 🔴**原文に無いコストを払わせる**＝「手札からカードを1枚捨てる」なのに**エナゾーンから**クラス一致カードを探していた。さらに `ADD_TO_FIELD` に `source` も対象参照も無く、**トラッシュの＜悪魔＞を宣言したのに何が場に出るか決まっていない** | `SELECT_TARGET_ONLY{TRASH_CARD,悪魔}` → `STORE` → `OPTIONAL_COST{handDiscard:1}` → `PAID_ADDITIONAL_COST` → `ADD_TO_FIELD{targetsStored}` |
+| `WX07-032-E1` | **丸ごと欠落**＝「トラッシュから＜悪魔＞のシグニ1枚を**場に出し**」が無く、ライフに加える側だけ残っていた（11エナのスペルの帰結が半分） | `ADD_TO_FIELD{source:TRASH_CARD,悪魔}` を `ADD_TO_LIFE` の前に追加 |
+| `WX10-031-E1` | **丸ごと欠落**＝「対戦相手のシグニ1体を**手札に戻し**」が無く `BANISH` だけ（2体除去が1体除去に） | `BOUNCE` を追加（対象は2体別々なので `targetsStored` で束ねない） |
+| `WX11-025-BURST` | **丸ごと欠落**＝「対象の対戦相手のシグニ1体を**ダウンする**」が無い | `SEARCH` を `SEQUENCE` で包んで `DOWN` を追加 |
+| `WX09-037-E1` | **丸ごと欠落＋限定の欠落**＝「対戦相手のシグニ1体を**トラッシュに置き**」が無く、しかも**両側のレベル制限が無い**（レベル5まで踏み倒せた） | `TRASH` を追加＋🆕`levelLtOwnLrig` を両側に付与 |
+
+### ② 新語彙 `levelLtOwnLrig`（型＋評価器＋golden の3点セット）
+
+原文「**あなたの**センタールリグより低いレベルを持つ」。既存 `levelLtOppLrig`（＝**対戦相手の**センタールリグ基準）の**鏡**。
+🔴**流用してはいけない**＝参照するルリグが逆なので、**別のシグニが対象になる**（`CODEX_GUIDE §5-5e`）。
+`resolveDynamicFilter`（`effectExecutor.ts`）に鏡の分岐を追加し、フォールバックは既存と同じ**制限なし（fail-open）**へ揃えた
+（ここだけ fail-closed にすると同じ原文の兄弟で挙動が割れる）。
+🔑**`scripts/decompileEffects.ts` の `filterJa` にも足した**＝**逆翻訳に描かないフィルタは「無い」のと区別できない**
+（このリポの意味照合は逆翻訳を読むので、描かない限定は監査面から消える）。
+
+### ③ この回に確かめた engine の既定
+
+🔴**`TRASH` は `DID_IT_GATED_TYPES` に入っていない**（`effectExecutor.ts:5226`）。
+だから `WX11-006-E3` を「素の `TRASH{HAND_CARD}` ＋ `CONDITIONAL{IS_MY_TURN}`」で書くと、
+**手札0枚でも後段の場出しが走る過剰実行**になる。⇒ `OPTIONAL_COST{handDiscard}` ＋ `PAID_ADDITIONAL_COST` に寄せた
+（`canAffordOptionalCostSpec` が手札0枚を弾く）。原文の「捨てる」は強制だが、
+**払えないときに場に出させないことのほうが原文に近い**と判断した。
+
+### ④ 検証
+
+- `npm run gates` **全緑**（golden **3,605 / 3,605**＝新規3本）。
+- **live A/B 差分＝5効果ちょうど**。逆翻訳5行を目視（`levelLtOwnLrig` の限定も表示されることを確認）。
+- ⑤**実機を1本走らせた**＝新語彙を足した回なので §2.2 の「新しい型・機構」に該当。
+  `SKIP_BUILD=0 node scripts/verifyBattleDrive.mjs optionalTrashEnergyClassAttack` **PASS**（15s）。
+  🔑**これは `WX11-006-E3` から外した `OPTIONAL_TRASH_ENERGY_CLASS` の“残り36効果”が壊れていないことの回帰**
+  （シナリオが使うのは `WX25-P3-062-E2`＝正当な利用者）。
+
+### ⑤ 在庫の整理
+
+第213バッチで残った **legacy catch-all 6効果**を §5.3 索引 G へ **`O-280`** として登録した
+（1件ずつ別の機構が要る＝5回反復／相手が捨てる／束分割／対象数比例コスト／CHOOSE の選択肢単位変換）。
+⚠**6件を1バッチにしない**と登録票に明記。
+
+---
+
 ## 2026-09-07（第213バッチ・legacy catch-all 残14効果／Codex 実装＋Opus 5 検証）＝**A群8効果を正準形へ移し（＋検証で1効果を追加採用）、固定挙動 STUB を14→6効果へ縮小**
 
 `TRADE_BANISH_SELF_SIGNI` / `TARGET_AND_DISCARD_HAND` は payload と原文を読まず、前者は
