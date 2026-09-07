@@ -15283,6 +15283,13 @@ const LEGACY_TRADE_STUB_IDS = ['TRADE_BANISH_SELF_SIGNI', 'TARGET_AND_DISCARD_HA
  */
 function fullyExpressibleCostFilter(spec: string): TargetFilter | null {
   let rest = (spec ?? '').trim();
+  // 「＜A＞か＜B＞」は1枚がどちらかに一致すればよい OR。配列 story は matchesFilter が
+  // `some` で消費する。⚠「＜A＞と＜B＞を合計N枚」は下の専用分岐で扱い、ここへ混ぜない。
+  const storyOr = rest.match(/^＜([^＞]+)＞か＜([^＞]+)＞の?$/);
+  if (storyOr) return { story: [storyOr[1], storyOr[2]] };
+  // 《トラップアイコン》は TargetFilter.hasIcon の既存語彙で手札候補にも効く。
+  // `hasTrapAbility` はトラッシュ候補専用の別フラグなので使わない。
+  if (rest === '《トラップアイコン》を持つ') return { hasIcon: 'トラップ' };
   if (/[かと]＜|か[白赤青緑黒無]|を持つ|以上|以下|それぞれ|合計|好きな/.test(rest)) return null;
   const filter: TargetFilter = {};
   const cls = rest.match(/＜([^＞]+)＞の?/);
@@ -15312,6 +15319,22 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
   //   `costText` が「あなたの＜水獣＞のシグニ１体を対象とし、手札から《幻水　セベク》を１枚捨ててもよい」）。
   //   ⚠**コスト句そのものに「対象とし」は現れない**（コストは「〜を支払い」「〜を捨て」）＝剥がして安全。
   const c = clause.replace(/^[、,]/, '').replace(/^[^。]*?を対象とし[、,]\s*/, '').trim();
+  // 「（あなたのターンの場合、）《色》を支払い、手札から〈修飾〉をN枚捨て」＝
+  // 2つを同じ OPTIONAL_COST に束ねる。片方だけ載せると**無料化する**ので両方読める形だけを通す。
+  // 🔴**カード名を regex へ焼き込まない**（`CODEX_GUIDE §5-5c` / `5c′`）＝投入バッチの14効果に
+  //   合わせて `《幻水　コノハケロ》` を直書きした版を 2026-09-07 の検証で差し戻した。
+  //   同じ文型の `WXK05-072-E2`（`《幻水　カワウソ》`）は **`OPTIONAL_COST{costText}` の生文字列止まり**＝
+  //   engine が何も読まず**《緑》が無料**になっていた（＝直すべき同型で、除外する理由が無かった）。
+  // ⚠修飾部の可否は `fullyExpressibleCostFilter` が決める（色・アイコンの《…》は自分で弾く）。
+  const colorHandM = c.match(/^(?:あなたのターンの場合[、,])?((?:《[白赤青緑黒無]》)+)を支払い[、,](?:あなたの)?手札から(.*?)を([０-９\d]+)枚捨て$/);
+  if (colorHandM) {
+    const filter = fullyExpressibleCostFilter(colorHandM[2]);
+    if (!filter) return null;
+    return {
+      costColors: [...colorHandM[1].matchAll(/《([白赤青緑黒無])》/g)].map(m => m[1]),
+      handDiscard: { count: parseNum(colorHandM[3]), ...(Object.keys(filter).length ? { filter } : {}) },
+    };
+  }
   // O-190 第2バッチ①「トラッシュから〈修飾〉カードN枚をゲームから除外し」。
   // 「コストの合計がN」は既存 TargetFilter.costMin/costMax の同値で exact を表し、新キーを作らない。
   const trashExileM = c.match(/^(あなたのトラッシュにある|(?:あなたは)?いずれかのトラッシュから対象の)(.*?)(カード|シグニ|スペル)([０-９\d]+)枚をゲームから除外し$/);
@@ -15384,6 +15407,21 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
   const charmM = c.match(/^あなたの場にある【チャーム】([０-９\d]+)枚をトラッシュに置い$/);
   if (charmM) return { charmTrash: parseNum(charmM[1]) };
   // ⑤「手札から〈修飾〉をN枚捨て」（枚数固定のみ。「好きな枚数」は別軸＝倍率が付くので触らない）
+  // 「＜A＞と＜B＞のシグニを合計N枚」＝各1枚ではなく、A/B の OR 候補から合計N枚。
+  // parseCostPrefix に同じ印字文型の既存正準形があり、selectionConstraint.groups には分けない。
+  const handStoryTotalM = c.match(/^手札から＜([^＞]+)＞と＜([^＞]+)＞のシグニを合計([０-９\d]+)枚捨て$/);
+  if (handStoryTotalM) {
+    return { handDiscard: { count: parseNum(handStoryTotalM[3]),
+      filter: { cardType: 'シグニ', story: [handStoryTotalM[1], handStoryTotalM[2]] } } };
+  }
+  // 「赤のカードか＜宝石＞のシグニを合計N枚」＝異種の候補集合の OR。
+  const handColorOrStoryM = c.match(/^手札から([白赤青緑黒])のカードか＜([^＞]+)＞のシグニを合計([０-９\d]+)枚捨て$/);
+  if (handColorOrStoryM) {
+    return { handDiscard: { count: parseNum(handColorOrStoryM[3]), filter: { anyOf: [
+      { color: handColorOrStoryM[1] },
+      { cardType: 'シグニ', story: handColorOrStoryM[2] },
+    ] } } };
+  }
   const handM = c.match(/^手札から(.*?)を?([０-９\d]+)枚捨て$/);
   if (handM) {
     const specH = handM[1] ?? '';
@@ -15411,17 +15449,20 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
   }
   // ⑦「このシグニの下から〈修飾〉カードN枚をトラッシュに置き」。fromThis を落とすと
   // 他のシグニの下でも払えるため、既存 runtime 契約どおり必ず true を明示する。
-  const underM = c.match(/^このシグニの下から(.*?)(カード|シグニ|スペル)(?:を([０-９\d]+)枚|([０-９\d]+)枚を)トラッシュに置き$/);
+  const underM = c.match(/^(このシグニ|あなたのシグニ)の下から(.*?)(カード|シグニ|スペル)(?:を([０-９\d]+)枚|([０-９\d]+)枚を)トラッシュに置[いき]$/);
   if (underM) {
-    const baseU = fullyExpressibleCostFilter(underM[1] ?? '');
+    // 語尾「置い」は今回の A2（「あなたのシグニの下から」）だけを解く。
+    // 「このシグニ…置い」まで広げると WXDi-P11-042 の raw parse がスコープ外で動く。
+    if (underM[1] === 'このシグニ' && c.endsWith('置い')) return null;
+    const baseU = fullyExpressibleCostFilter(underM[2] ?? '');
     if (!baseU) return null;
     const filter: TargetFilter = {
-      ...(underM[2] !== 'カード' ? { cardType: underM[2] as 'シグニ' | 'スペル' } : {}),
+      ...(underM[3] !== 'カード' ? { cardType: underM[3] as 'シグニ' | 'スペル' } : {}),
       ...baseU,
     };
     return {
       underAnySigniTrash: {
-        count: parseNum(underM[3] ?? underM[4]), fromThis: true,
+        count: parseNum(underM[4] ?? underM[5]), ...(underM[1] === 'このシグニ' ? { fromThis: true } : {}),
         ...(Object.keys(filter).length ? { filter } : {}),
       },
     };
@@ -15479,6 +15520,32 @@ function applyCompositeOptionalCostFields(text: string, action: EffectAction): E
 function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   const scan = text.replace(/（[^（）]*）/g, '').replace(/「[^」]*」/g, '「Q」');
+  // 「好きな枚数公開」＋公開枚数倍率。旧 TRADE STUB は原文に無い自場トラッシュ＋相手バニッシュを
+  // 実行するため、対象固定と公開ブロックだけを同じ内側 SEQUENCE に閉じ、後続リコレクトは外へ残す。
+  const revealScale = scan.match(/(対戦相手の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし[、,](?:あなたの)?手札から＜([^＞]+)＞のカードを好きな枚数公開する。ターン終了時まで[、,]それのパワーをこの方法で公開したカード[０-９\d]+枚につき([－-][０-９\d]+)する/);
+  if (revealScale) {
+    const steps = [...action.steps];
+    const legacyIdx = steps.findIndex(step => step.type === 'STUB' && step.id === 'TRADE_BANISH_SELF_SIGNI');
+    if (legacyIdx >= 0 && steps.filter(step => step.type === 'STUB' && step.id === 'TRADE_BANISH_SELF_SIGNI').length === 1) {
+      const powerIdx = steps.findIndex((step, index) => index > legacyIdx && step.type === 'POWER_MODIFY'
+        && !!step.deltaPerLastProcessedCount && step.delta === parseSignedNum(revealScale[3]));
+      if (powerIdx === legacyIdx + 1) {
+        const target = parseSigniTarget(revealScale[1], 'opponent');
+        const power = bindToStoredTarget(steps[powerIdx], target);
+        steps.splice(legacyIdx, 2, {
+          type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+            { type: 'STUB', id: 'OPTIONAL_COST', handReveal: {
+              count: 'ALL', upToCount: true, filter: { story: revealScale[2] },
+            } } as EffectAction,
+            power,
+          ],
+        } as SequenceAction);
+        return { ...action, steps } as SequenceAction;
+      }
+    }
+  }
   // 「〈相手シグニの対象宣言〉を対象とし、〈コスト句〉てもよい。そうした場合、〈帰結〉」だけを扱う
   const m = scan.match(/(対戦相手の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、(.*?)てもよい。そうした場合[、,]/);
   if (!m) return action;
@@ -15489,7 +15556,14 @@ function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAct
   //   （実測＝`WX24-P3-076-E1` の -5000/-3000 の置換が消え、B7 の golden 2本が落ちて発覚）。
   if (/場合[、,]代わりに/.test(scan)) return action;
   const steps = (action as SequenceAction).steps;
-  const legacy = steps.filter(s => s.type === 'STUB' && LEGACY_TRADE_STUB_IDS.includes((s as StubAction).id));
+  const legacy = steps.map((step, index) => {
+    if (step.type === 'STUB' && LEGACY_TRADE_STUB_IDS.includes(step.id)) return { index, stub: step, wrapper: undefined };
+    // A7 の既存 TURN_OWNER wrapper だけを解く。任意の CONDITIONAL まで広げると
+    // WX24-P2-050-E2 の別文型を巻き込む（§5-11 のスコープ外）。
+    if (step.type === 'CONDITIONAL' && !step.else && step.condition.type === 'TURN_OWNER' && step.then.type === 'STUB'
+        && LEGACY_TRADE_STUB_IDS.includes(step.then.id)) return { index, stub: step.then, wrapper: step };
+    return null;
+  }).filter((hit): hit is { index: number; stub: StubAction; wrapper: ConditionalAction | undefined } => !!hit);
   if (legacy.length !== 1) return action;
   const gates = steps.filter(isDidItGate);
   if (gates.length !== 1) return action;
@@ -15497,15 +15571,19 @@ function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAct
   if (!fields) return action;                                          // 表せない句は据置（誤変換より無変換）
   const target = parseSigniTarget(m[1], 'opponent');
   const outcome = (gates[0] as import('../types/effects').ConditionalAction).then;
+  const costStep = (fields.id === 'OPTIONAL_TRASH_SELF'
+    ? { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' }
+    : { type: 'STUB', id: 'OPTIONAL_COST', ...fields }) as EffectAction;
+  const wrappedCost = legacy[0].wrapper
+    ? { ...legacy[0].wrapper, then: costStep } as EffectAction
+    : costStep;
   return {
     ...action,
     steps: [
       { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
       // 「このシグニを場からトラッシュ」だけは既存の専用 STUB を使う（payload を持たない）。
-      (fields.id === 'OPTIONAL_TRASH_SELF'
-        ? { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' }
-        : { type: 'STUB', id: 'OPTIONAL_COST', ...fields }) as EffectAction,
+      wrappedCost,
       {
         type: 'CONDITIONAL',
         condition: { type: 'PAID_ADDITIONAL_COST' },

@@ -3579,6 +3579,14 @@ function actionJa(a?: Action, effectType?: string): string {
           const otherFT = a.fieldTrapTrash.excludeSource ? '他の' : '';
           return `${headOC}あなたの場にある${otherFT}【トラップ】${a.fieldTrapTrash.count}枚をトラッシュに置き${costJaOC ? `、${costJaOC}を支払っ` : ''}てもよい`;
         }
+        // 場のシグニを任意コストにする形。payload を描かないと WX20-022-E1 が
+        // 「コストを支払ってもよい」に潰れ、アーム/ウェポン限定を逆翻訳で監査できない。
+        if (a.fieldTrash) {
+          const otherFTS = a.fieldTrash.excludeSelf ? '他の' : '';
+          const fFTS = a.fieldTrash.filter ? filterJa(a.fieldTrash.filter) : '';
+          const countFTS = a.fieldTrash.count === 'ALL' ? 'すべて' : `${a.fieldTrash.count}体${a.fieldTrash.upToCount ? 'まで' : ''}`;
+          return `${headOC}あなたの場から${otherFTS}${fFTS}シグニ${countFTS}をトラッシュに置いてもよい`;
+        }
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）
@@ -3610,7 +3618,10 @@ function actionJa(a?: Action, effectType?: string): string {
           const cHR = scHR?.distinct === 'name' ? 'それぞれ名前の異なる'
             : scHR?.distinct === 'level' ? 'それぞれレベルの異なる'
             : scHR?.distinct === 'class' ? 'それぞれクラスの異なる' : '';
-          return `${headOC}${costJaOC ? `${costJaOC}を支払い、` : ''}手札から${cHR}${fHR}${nounHR}を${a.handReveal.count}枚公開してもよい`;
+          const countHR = a.handReveal.count === 'ALL'
+            ? (a.handReveal.upToCount ? '好きな枚数' : 'すべて')
+            : `${a.handReveal.count}枚${a.handReveal.upToCount ? 'まで' : ''}`;
+          return `${headOC}${costJaOC ? `${costJaOC}を支払い、` : ''}手札から${cHR}${fHR}${nounHR}を${countHR}公開してもよい`;
         }
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {

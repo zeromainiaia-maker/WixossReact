@@ -6249,12 +6249,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   そうした場合、ターン終了時まで、それのパワーを－2000する。このターン、対戦相手のライフクロス１枚がクラッシュされたとき、
   //   ターン終了時まで、それのパワーを－2000する。
   // 鍵: 即時-2000 と「クラッシュ時-2000」を同一の選択対象へ適用する必要がある（「それ」＝同じ対象）。
-  // STUB TARGET_AND_DISCARD_HAND（対象選択→直後 CONDITIONAL(IS_MY_TURN).then を選択対象へ applyDirectAction で適用→手札1枚捨て）を利用し、
+  // SELECT_TARGET_ONLY→STORE→OPTIONAL_COST{handDiscard:<ブルアカ>}→PAID_ADDITIONAL_COST の正準形で、
   //   then を SEQUENCE[POWER_MODIFY -2000, GRANT_EFFECT(ON_LIFE_CRASHED→POWER_MODIFY thisCardOnly -2000)] にする。
   // 付与先＝相手シグニ。相手（＝付与先コントローラー）のライフがクラッシュされると、その付与 ON_LIFE_CRASHED が
   //   collectSelfEventTriggers（相手フィールド走査）で発火し、付与先自身が-2000（thisCardOnly）。クラッシュごとにスタック（usageLimitなし）。
-  // 近似: 捨てる対象の＜ブルアカ＞限定・「捨ててもよい」の任意性・「そうした場合」ゲートは TARGET_AND_DISCARD_HAND の仕様上
-  //   「手札を1枚（任意カード）強制で捨て対象選択」に簡略化（既存STUB踏襲）。E2【絆自】は絆条件未対応のため非実装。
+  // E2【絆自】は絆条件未対応のため非実装。
   'WX25-CP1-065': [
     {
       effectId: 'WX25-CP1-065-E1',
@@ -6264,10 +6263,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: {
         type: 'SEQUENCE',
         steps: [
-          { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' },
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1, filter: { story: 'ブルアカ' } } },
           {
             type: 'CONDITIONAL',
-            condition: { type: 'IS_MY_TURN' },
+            condition: { type: 'PAID_ADDITIONAL_COST' },
             then: {
               type: 'SEQUENCE',
               steps: [
@@ -6275,11 +6276,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
                   type: 'POWER_MODIFY',
                   target: { type: 'SIGNI', owner: 'opponent', count: 1 },
                   delta: -2000,
+                  targetsStored: true,
                 },
                 {
                   type: 'GRANT_EFFECT',
                   target: { type: 'SIGNI', owner: 'opponent', count: 1 },
                   duration: 'UNTIL_END_OF_TURN',
+                  targetsStored: true,
                   effect: {
                     effectId: 'WX25-CP1-065-E1-CRASH',
                     effectType: 'AUTO',

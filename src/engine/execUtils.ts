@@ -428,7 +428,7 @@ export function sumCardLevels(cardNums: string[] | undefined, ctx: ExecCtx): { s
 export interface OptionalCostSpec {
   costColors: string[];
   handDiscard?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
-  handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  handReveal?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
@@ -584,7 +584,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.handReveal) {
     const matching = ctx.ownerState.hand.filter(n =>
       !spec.handReveal!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handReveal!.filter));
-    if (matching.length < spec.handReveal.count) return false;
+    if (spec.handReveal.count !== 'ALL' && matching.length < spec.handReveal.count) return false;
     if (!hasValidConstrainedSelection(matching, spec.handReveal.count, spec.handReveal.selectionConstraint, ctx.cardMap)) return false;
   }
   if (spec.energyTrash) {
@@ -779,6 +779,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       type: 'REVEAL',
       source: {
         type: 'HAND_CARD', owner: 'self', count: spec.handReveal.count,
+        ...(spec.handReveal.upToCount ? { upToCount: true } : {}),
         filter: spec.handReveal.filter, selectionConstraint: spec.handReveal.selectionConstraint,
       },
     } as EffectAction] : []),

@@ -1,5 +1,66 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第213バッチ・legacy catch-all 残14効果／Codex 実装＋Opus 5 検証）＝**A群8効果を正準形へ移し（＋検証で1効果を追加採用）、固定挙動 STUB を14→6効果へ縮小**
+
+`TRADE_BANISH_SELF_SIGNI` / `TARGET_AND_DISCARD_HAND` は payload と原文を読まず、前者は
+「自分の場の任意シグニ1体をトラッシュ→相手1体をバニッシュ」、後者は「自分の手札末尾1枚を自動で捨てる」
+を固定実行する legacy catch-all。後段の本来の帰結と合わせて二重除去にもなっていた。
+
+原文を effectId ごとに照合し、既存の
+`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST → PAID_ADDITIONAL_COST` へ次の8効果だけを移した。
+
+- `WX20-022-E1`: `fieldTrash{count:1, filter:{cardType:'シグニ', story:['アーム','ウェポン']}}` → 固定相手をトラッシュ
+- `WXDi-P16-069-E1`: `underAnySigniTrash{count:1, filter:{cardType:'シグニ', story:'解放派'}}` → 固定相手をデッキ下
+- `WX18-033-E1`: `handDiscard{count:2, filter:{cardType:'シグニ', hasIcon:'トラップ'}}` → 固定相手をバニッシュ
+- `WXDi-P11-041-E2`: `story:['アーム','ウェポン']` の OR 候補から合計2枚（各1枚 groups ではない）
+- `WXDi-D09-H15-E2`: `anyOf:[{color:'赤'},{cardType:'シグニ',story:'宝石'}]` から合計2枚
+- `WX25-CP1-065-E1`: `handDiscard{count:1, filter:{story:'ブルアカ'}}` → 固定相手だけ -2000 と能力付与
+- `WXK05-070-E1`: 既存 `TURN_OWNER` を維持し、`costColors:['緑']` と同名手札1枚を同じ任意コストへ合成
+- `WX25-CP1-003-E1`: `handReveal{count:'ALL',upToCount:true,filter:{story:'ブルアカ'}}`。
+  `REVEAL` が公開札を `lastProcessedCards` に載せる既存経路で、公開枚数×-3000を実測
+
+`WX25-CP1-092-E1` は対象数比例のエナ支払いを現行 `OptionalCostSpec` で表せないため据置。
+B群5効果も指示どおり live JSON 不変。最終の live per-effect 差分は上記8件だけ、残存 STUB は
+`WXEX1-09-E2` と `PR-195-E3` / `WX25-P2-022-E2` / `WX25-CP1-092-E1` /
+`WXDi-P00-018-E1` / `WXK05-003-E1` の6効果。
+
+🔴**スコープ外波及を2回、fresh diff で止めた。** A7用の複合コストを一般化すると `WXK05-072-E2`、
+任意の条件ラッパーを解くと `WX24-P2-050-E2` が動いたため、前者は《幻水 コノハケロ》句、後者は
+`TURN_OWNER` だけに限定。A2の「置い」語尾も `あなたのシグニの下から` だけに限定し、
+`WXDi-P11-042` の raw parse 波及を解消した。最終 outlier 0。
+
+### 🔍 検証（Claude 側・CODEX_GUIDE §7）＝**差し戻し0・是正1（追加採用 +1効果）**
+
+**機械検証はすべて申告どおり**＝ベースライン `9ee1b4dd5` との per-effect diff は**8効果ちょうど**、
+legacy STUB 含有効果は **14 → 6**（残りは B群5件＋据置の `WX25-CP1-092-E1`）、
+B群5件と A9 は `JSON.stringify` 完全一致、3バケツも基準どおり。`npm run gates` を独立実行して全緑。
+
+🔴🔑**是正1件＝`《幻水　コノハケロ》` という「カード名の regex 焼き込み」を差し戻した**（`CODEX_GUIDE §5-5c` / `5c′`）。
+Codex はスコープを守るために正しく限定したのだが、**除外された `WXK05-072-E2` は同じ文型の兄弟で、
+しかも直すべき同型だった**＝live は `OPTIONAL_COST{costText:"《緑》を支払い、手札から《幻水　カワウソ》を１枚捨ててもよい"}` の
+**生文字列止まり**で、`resolveOptionalCostSpec` に `costText` を読む分岐は無い＝**《緑》が無料**だった。
+⇒ regex を `手札から(.*?)を([０-９\d]+)枚捨て` へ一般化（修飾部の可否判定は `fullyExpressibleCostFilter` に任せる）。
+**live 差分は 8 → 9効果**（増えたのは `WXK05-072-E2` だけ）。
+
+⚠🔑**この穴は逆翻訳では原理的に気付けない**＝decompiler は `costText` を**そのまま印字する**ので、
+payload が空でも「《緑》を支払い、手札から《幻水　カワウソ》を１枚捨ててもよい」と**正しく読めてしまう**。
+（`WXK05-072-E2` の逆翻訳は修正の前後で1文字も変わっていない。）
+
+**追加した golden 1本**＝`catch-all A7′ WXK05-072-E2`（正＝《緑》と同名手札を両方払って +5000／
+負＝払わなければ +5000 も《緑》の減少も起きない）。🔑**反転確認済み**＝live を基準版へ戻すと FAIL、
+戻すと PASS（`A7′ 正: 《緑》を払う` が落ちる）。**golden は 3601 → 3602。**
+
+**据置に同意した項目**＝`WX24-P2-050-E2` は既に正準形で**直す必要が無い**（`TURN_OWNER` 限定は正しい）。
+`WXDi-P11-042-E1` も既に正しい（「置い」語尾ガードは二重処理の防止であって取り残しではない）。
+
+検証は `npm run gates` 全緑。golden **3592→3601（+9）/ FAIL 0**、smoke 10741効果の
+CRASH/HANG/INVARIANT/SKIP 全0、fuzz 全0、census 高シグナル 0、lint 0 errors / 256 warnings。
+`_held_fresh` は基準の `WXDi-P04-002` 1件、`_partial_fresh` / `_idset_fresh` は空。
+同型★は基準どおり1グループ/2枚。golden は8効果すべての実行盤面を検査し、A1では支払い・スキップ・
+支払い不能と二重除去なし、A4ではアーム2枚だけでの支払い、A8では公開札保持と公開2枚×-3000を固定した。
+
+---
+
 ## 2026-09-07（第212バッチ・O-D／Opus 5）＝**実装キューの「速いレーン」9件を1巡でまとめて消化**（未修正の真バグ 29効果 → 20効果）
 
 **この回の作業単位**＝ユーザー指示「早いレーンをまとめて行う」。§5.0「O-D / S-3 実装キュー」の**速いレーン**を全件。

@@ -5935,7 +5935,7 @@ export interface StubAction {
   handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 手札から条件一致カードを選んで公開する（手札には残す）。 */
-  handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  handReveal?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 手札からエナゾーンへ置く任意コスト。 */
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */

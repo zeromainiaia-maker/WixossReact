@@ -46759,15 +46759,15 @@ test('§6.4 ルリグ宣言の取りこぼし: 本体が LRIG{opponent} にな�
   eq(body6.target?.owner, 'opponent', 'WX26-CP1-006-E1: 対戦相手');
 });
 
-// 変換を掛けてはいけない形＝据置のトリップワイヤ（誤った filter を作るより無変換が安全）。
-// 「好きな枚数」は TRASH{count:'ALL',upToCount:true} で表現できるため、O-173 の2件は typed 化済み。
-test('§6.4 手札コスト変換の境界: 複合クラスだけ据置、可変枚数は typed 化', () => {
-  const stillStub = (cardNum: string, effectId: string, why: string) => {
-    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
-    ok(!!e, `${effectId} が存在する`);
-    ok(JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), `${effectId}: ${why}`);
-  };
-  stillStub('WXDi-P11-041', 'WXDi-P11-041-E2', '「＜アーム＞と＜ウェポン＞を合計2枚」＝handDiscardGroups の領分');
+// 「好きな枚数」は TRASH{count:'ALL',upToCount:true}、A4 の「AとBを合計2枚」は
+// story 配列（OR）で表現できるため、いずれも typed 化済み。
+test('§6.4 手札コスト変換の境界: クラスORの合計枚数と可変枚数は typed 化', () => {
+  const armWeapon = effectsMap.get('WXDi-P11-041')?.find(e => e.effectId === 'WXDi-P11-041-E2');
+  ok(!!armWeapon, 'WXDi-P11-041-E2 が存在する');
+  ok(!JSON.stringify(armWeapon).includes('TARGET_AND_DISCARD_HAND'),
+    'WXDi-P11-041-E2: 「＜アーム＞と＜ウェポン＞を合計2枚」は OR 候補から合計2枚');
+  ok(JSON.stringify(armWeapon).includes('"story":["アーム","ウェポン"]'),
+    'WXDi-P11-041-E2: 各1枚を強制する groups ではなく story 配列 OR');
   for (const [cardNum, effectId] of [
     ['WX26-CP1-051', 'WX26-CP1-051-E1'],
     ['WX24-P3-052', 'WX24-P3-052-E2'],
@@ -46881,10 +46881,8 @@ test('B9 固定挙動 catch-all: 原文のコスト種が OPTIONAL_COST の payl
 // 🔴**残る `TRADE_BANISH_SELF_SIGNI` の利用は許容リストと集合一致**（§5-27 のトリップワイヤ）。
 //   増えたら新しい catch-all 適用・減ったらリストを縮める、の両方向で FAIL する。
 const B9_TRADE_STUB_ALLOWED = [
-  'WX20-022-E1',      // 「＜アーム＞**か**＜ウェポン＞」＝OR のコストフィルタが表せない
   'WXEX1-09-E2',      // 「場**か**エナゾーンから」＝複数ゾーンのコストが表せない
-  'WX25-CP1-003-E1',  // 「手札から〜を**好きな枚数公開**」＝可変枚数＋公開が表せない
-  'WXDi-P16-069-E1',  // 「シグニの**下から**」＝`underAnySigniTrash` 系の別受け皿が要る
+  // 🏁2026-09-07＝WX20-022 / WX25-CP1-003 / WXDi-P16-069 は既存語彙へ忠実化。
   // 🏁2026-09-04（§5.3 `O-197`）＝`WXK10-051-E1` は `manualEffects.ts` へ手書きして catch-all から降りた
   //   （`TRANSFER_TO_DECK{optional, selectionConstraint{distinct:'level'}}` ＋ `deltaFromSourcePower`）。
   // 🏁**`WD22-029-G-E2` は 2026-08-28（§5.3 `O-133` B群 第8バッチ）で解消**＝
@@ -70623,6 +70621,176 @@ test('EXILE{TRASH_CARD, thisCardOnly}: トラッシュの「このカード」�
   const r2 = run({ type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction, ctx2);
   eq((r2.ownerState.excluded ?? []).length, 0, 'トラッシュに居なければ何も除外しない');
 });
+
+const LEGACY_TARGET_STUB_ALLOWED = [
+  'PR-195-E3', 'WX25-P2-022-E2', 'WX25-CP1-092-E1',
+  'WXDi-P00-018-E1', 'WXK05-003-E1',
+];
+test('catch-all トリップワイヤ: TARGET_AND_DISCARD_HAND の残存5効果は据置集合と一致', () => {
+  const users: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) if (JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND')) users.push(e.effectId);
+  }
+  eq(users.sort().join(','), [...LEGACY_TARGET_STUB_ALLOWED].sort().join(','),
+    '残存集合が増減したら、原文照合した effectId 単位で許容リストを更新する');
+});
+
+// ── legacy catch-all STUB 残14効果（2026-09-07）＝A群8効果を対象固定→任意コスト→帰結へ ──
+// 旧 TRADE_BANISH_SELF_SIGNI / TARGET_AND_DISCARD_HAND は payload を見ず、原文にないコストと
+// 相手除去を先に実行していた。ここでは live JSON を実行し、各効果の盤面差分まで固定する。
+const catchAllLive = (cardNum: string, effectId: string): CardEffect => {
+  const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} が live にない`);
+  return effect;
+};
+const catchAllCtx = (r: ExecResult, base: ExecCtx): ExecCtx => ({
+  ...base, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs,
+  lastProcessedCards: r.lastProcessedCards,
+  storedTargetCards: r.storedTargetCards ?? base.storedTargetCards,
+} as ExecCtx);
+const skipCatchAllCost = (effect: CardEffect, base: ExecCtx): ExecResult => {
+  let r = executeEffect(effect, base);
+  if (!r.done && r.pending.type === 'SELECT_TARGET') {
+    r = resumeSelectTarget(r.pending.candidates.slice(0, r.pending.count), r.pending, catchAllCtx(r, base));
+  }
+  if (r.done || r.pending.type !== 'CHOOSE') throw new Error(`${effect.effectId}: 任意コスト選択が出ない`);
+  return finish(resumeChoose('skip', r.pending, catchAllCtx(r, base)), base);
+};
+
+test('catch-all A1 WX20-022-E1: アーム/ウェポン1体を任意でトラッシュし、固定した相手1体だけをトラッシュ', () => withSavedCursor(() => {
+  const effect = catchAllLive('WX20-022', 'WX20-022-E1');
+  const victim = 'WD04-009', untouched = 'WD04-010', arm = 'WD01-009', wrong = 'WX16-029';
+  const paidCtx = mkCtx({ signi: [arm, wrong] }, { signi: [victim, untouched] }, 'WX20-022');
+  const paid = finishPayingCosts(executeEffect(effect, paidCtx), paidCtx);
+  ok(paid.ownerState.trash.includes(arm), 'A1 正: ＜アーム＞を場からトラッシュ');
+  ok(paid.otherState.trash.includes(victim), 'A1 正: 宣言時に固定した相手をトラッシュ');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === untouched), 'A1 🔴二重除去なし: 相手のもう1体は場に残る');
+  ok(paid.ownerState.field.signi.some(s => s?.at(-1) === wrong), 'A1 対照: 非アーム/ウェポンは払われない');
+
+  const skipCtx = mkCtx({ signi: [arm] }, { signi: [victim] }, 'WX20-022');
+  const skipped = skipCatchAllCost(effect, skipCtx);
+  ok(skipped.ownerState.field.signi.some(s => s?.at(-1) === arm), 'A1 負: スキップならコストを払わない');
+  ok(skipped.otherState.field.signi.some(s => s?.at(-1) === victim), 'A1 負: スキップなら帰結も起きない');
+
+  const noCtx = mkCtx({ signi: [wrong] }, { signi: [victim] }, 'WX20-022');
+  let offered = executeEffect(effect, noCtx);
+  if (!offered.done && offered.pending.type === 'SELECT_TARGET') {
+    offered = resumeSelectTarget([victim], offered.pending, catchAllCtx(offered, noCtx));
+  }
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'A1 対照: 支払い不能でもスキップ選択へ進む');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    eq(offered.pending.options.find(o => o.id === 'pay')?.available, false, 'A1 対照: 払える札が無ければ pay は選択不能');
+  }
+}));
+
+test('catch-all A2 WXDi-P16-069-E1: 任意の自シグニ下の＜解放派＞1枚だけで、固定相手をデッキ下へ', () => withSavedCursor(() => {
+  const effect = catchAllLive('WXDi-P16-069', 'WXDi-P16-069-E1');
+  const under = 'WXDi-P15-048', host = 'WD01-009', victim = 'WD04-009', untouched = 'WD04-010';
+  const base = mkCtx({}, { signi: [victim, untouched] }, 'WXDi-P16-069');
+  base.ownerState.field.signi = [[under, host], null, null];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  ok(paid.ownerState.trash.includes(under), 'A2 正: 下の＜解放派＞をトラッシュ');
+  eq(paid.ownerState.field.signi[0]?.join(','), host, 'A2 正: ホストは場に残る');
+  ok(paid.otherState.deck.includes(victim), 'A2 正: 固定相手をデッキへ移す');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === untouched), 'A2 🔴二重除去なし: もう1体は場に残る');
+}));
+
+test('catch-all A3 WX18-033-E1: トラップアイコン持ちシグニ2枚を捨てた場合だけ固定相手をバニッシュ', () => withSavedCursor(() => {
+  const effect = catchAllLive('WX18-033', 'WX18-033-E1');
+  const trap1 = 'WX16-029', trap2 = 'WX16-041', victim = 'WD04-009', untouched = 'WD04-010';
+  const base = mkCtx({ hand: 0 }, { signi: [victim, untouched] }, 'WX18-033');
+  base.ownerState.hand = [trap1, trap2];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  eq(paid.ownerState.hand.length, 0, 'A3 正: 限定札を2枚捨てる');
+  ok(paid.ownerState.trash.includes(trap1) && paid.ownerState.trash.includes(trap2), 'A3 正: 2枚ともトラッシュ');
+  ok(paid.otherState.energy.includes(victim), 'A3 正: 固定相手をバニッシュ');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === untouched), 'A3 🔴二重除去なし: もう1体は場に残る');
+}));
+
+test('catch-all A4 WXDi-P11-041-E2: アーム/ウェポンのOR候補から合計2枚（各1枚強制ではない）', () => withSavedCursor(() => {
+  const effect = catchAllLive('WXDi-P11-041', 'WXDi-P11-041-E2');
+  const arm1 = 'WD01-009', arm2 = 'WD01-010', victim = 'WD04-009';
+  const base = mkCtx({ hand: 0 }, { signi: [victim] }, 'WXDi-P11-041');
+  base.ownerState.hand = [arm1, arm2];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  eq(paid.ownerState.hand.length, 0, 'A4 正: アーム2枚だけでも合計2枚として払える');
+  ok(paid.otherState.energy.includes(victim), 'A4 正: 固定相手をバニッシュ');
+}));
+
+test('catch-all A5 WXDi-D09-H15-E2: 赤カード OR ＜宝石＞シグニの合計2枚で固定相手をバニッシュ', () => withSavedCursor(() => {
+  const effect = catchAllLive('WXDi-D09-H15', 'WXDi-D09-H15-E2');
+  const red = 'WX01-039', gem = 'WXK11-019', victim = 'WD04-009';
+  const base = mkCtx({ hand: 0 }, { signi: [victim] }, 'WXDi-D09-H15');
+  base.ownerState.hand = [red, gem];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  eq(paid.ownerState.hand.length, 0, 'A5 正: ORの両側から1枚ずつでも払える');
+  ok(paid.otherState.energy.includes(victim), 'A5 正: 固定相手をバニッシュ');
+}));
+
+test('catch-all A6 WX25-CP1-065-E1: ＜ブルアカ＞1枚を任意で捨て、固定相手だけ-2000', () => withSavedCursor(() => {
+  const effect = catchAllLive('WX25-CP1-065', 'WX25-CP1-065-E1');
+  const blueArchive = 'WXDi-CP02-051', victim = 'WD04-009', untouched = 'WD04-010';
+  const base = mkCtx({ hand: 0 }, { signi: [victim, untouched] }, 'WX25-CP1-065');
+  base.ownerState.hand = [blueArchive];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  ok(paid.ownerState.trash.includes(blueArchive), 'A6 正: ＜ブルアカ＞を1枚捨てる');
+  ok((paid.otherState.temp_power_mods ?? []).some(m => m.cardNum === victim && m.delta === -2000), 'A6 正: 固定相手に-2000');
+  ok(!(paid.otherState.temp_power_mods ?? []).some(m => m.cardNum === untouched), 'A6 対照: もう1体には修正しない');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === victim), 'A6 🔴原文にない除去をしない');
+}));
+
+test('catch-all A7 WXK05-070-E1: 《緑》+同名手札を両方払い、TURN_OWNER内の固定相手をエナへ', () => withSavedCursor(() => {
+  const effect = catchAllLive('WXK05-070', 'WXK05-070-E1');
+  const green = 'WD04-009', kero = 'WXK05-070', victim = 'WD01-009';
+  const base = mkCtx({ hand: 0, energy: 0 }, { signi: [victim] }, 'WXK05-070');
+  base.ownerState.hand = [kero]; base.ownerState.energy = [green];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  ok(paid.ownerState.trash.includes(green) && paid.ownerState.trash.includes(kero), 'A7 正: 《緑》と《幻水 コノハケロ》を両方払う');
+  ok(paid.otherState.energy.includes(victim), 'A7 正: 固定したパワー10000以上の相手をエナへ');
+}));
+
+test('catch-all A8 WX25-CP1-003-E1: 好きな枚数の＜ブルアカ＞公開を保持し、公開数×-3000（除去なし）', () => withSavedCursor(() => {
+  const effect = catchAllLive('WX25-CP1-003', 'WX25-CP1-003-E1');
+  const ba1 = 'WXDi-CP02-051', ba2 = 'WXDi-CP02-052', nonBa = 'WD01-009';
+  const victim = 'WD04-009', untouched = 'WD04-010';
+  const base = mkCtx({ hand: 0 }, { signi: [victim, untouched] }, 'WX25-CP1-003');
+  base.ownerState.hand = [ba1, ba2]; base.ownerState.deck = Array(20).fill(nonBa);
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  ok(paid.ownerState.hand.includes(ba1) && paid.ownerState.hand.includes(ba2), 'A8 正: 公開札は捨てず手札に残る');
+  ok((paid.otherState.temp_power_mods ?? []).some(m => m.cardNum === victim && m.delta === -6000), 'A8 正: 公開2枚×-3000');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === victim), 'A8 🔴原文にないバニッシュをしない');
+  ok(!(paid.otherState.temp_power_mods ?? []).some(m => m.cardNum === untouched), 'A8 対照: 固定対象だけを修正');
+
+  const skipBase = mkCtx({ hand: 0 }, { signi: [victim] }, 'WX25-CP1-003');
+  skipBase.ownerState.hand = [ba1, ba2]; skipBase.ownerState.deck = Array(20).fill(nonBa);
+  const skipped = skipCatchAllCost(effect, skipBase);
+  eq((skipped.otherState.temp_power_mods ?? []).length, 0, 'A8 負: 0枚公開（スキップ）ならパワー修正なし');
+}));
+
+test('catch-all A7′ WXK05-072-E2: 同じ文型の兄弟も《緑》+同名手札を払う（カード名を regex へ焼き込まない）', () => withSavedCursor(() => {
+  // 🔴**検証側（Claude）の追加採用**（2026-09-07）＝Codex は `《幻水　コノハケロ》` を regex へ直書きして
+  //   この兄弟を意図的に除外していた（`CODEX_GUIDE §5-5c` / `5c′`＝カード固有の本文を埋め込むのは禁止）。
+  //   除外されていた `WXK05-072-E2` は `OPTIONAL_COST{costText}` の**生文字列止まり**で、
+  //   engine は `costText` を一切読まない（`resolveOptionalCostSpec` に分岐が無い）＝**《緑》が無料**だった。
+  // ⚠🔑**逆翻訳では気付けない**＝decompiler は `costText` をそのまま印字するので、
+  //   payload が空でも「《緑》を支払い、手札から《幻水　カワウソ》を１枚捨ててもよい」と正しく見える。
+  const effect = catchAllLive('WXK05-072', 'WXK05-072-E2');
+  const green = 'WD04-009', kawauso = 'WXK05-072', mySigni = 'WX01-043';   // WX01-043＝＜水獣＞のシグニ
+  const base = mkCtx({ hand: 0, energy: 0, signi: [mySigni] }, {}, 'WXK05-072');
+  base.ownerState.hand = [kawauso]; base.ownerState.energy = [green];
+  const paid = finishPayingCosts(executeEffect(effect, base), base);
+  ok(paid.ownerState.trash.includes(green), "A7′ 正: 《緑》を払う（旧 live は costText だけで無料だった）");
+  ok(paid.ownerState.trash.includes(kawauso), 'A7′ 正: 《幻水　カワウソ》を捨てる');
+  ok((paid.ownerState.temp_power_mods ?? []).some(m => m.cardNum === mySigni && m.delta === 5000),
+    'A7′ 正: ＜水獣＞のシグニに +5000');
+
+  // 負方向＝払わなければパワー修正は起きない（§5-3′ の対照）。
+  const skipBase = mkCtx({ hand: 0, energy: 0, signi: [mySigni] }, {}, 'WXK05-072');
+  skipBase.ownerState.hand = [kawauso]; skipBase.ownerState.energy = [green];
+  const skipped = skipCatchAllCost(effect, skipBase);
+  eq((skipped.ownerState.temp_power_mods ?? []).length, 0, 'A7′ 負: 払わなければ +5000 は起きない');
+  ok(!skipped.ownerState.trash.includes(green), 'A7′ 負: 払わなければ《緑》は減らない');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

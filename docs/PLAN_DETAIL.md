@@ -12434,3 +12434,21 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   🔁**live A/B 差分＝3効果**（`WX14-042-E2` / `PR-319-E2` / `WX17-063-TRAP`）＝**意図した件数と完全一致**。
   逆翻訳（`npm run regen`）の差分も `decompile_sheet2` / `decompile_sheet6` の同3行だけ。
   🧾**FP 規則**＝`semanticAuditExtract.mjs` の読み方ルール **24 → 27本**（規則12 を「報告しない」へ強化・25〜27 を新設）。
+
+### 恒久指標アーカイブ（2026-09-07 第212バッチ・PLAN §6 から退避）
+
+- **2026-09-07（第212バッチ・O-D／Opus 5）＝実装キューの「速いレーン」9件を一括消化（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（全件 `mech`＝即着手可能 0・据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かない理由**＝今回直した9件は**すべて「語彙は正しく載っているが値が違う／条件が抜けている」型**＝
+  census（知っているキーしか見ない）にも Sheet1 のフラグ（`mech` のみ残存）にも**原理的に映らない**。
+  📦**在庫**＝**意味照合 未監査 2,256枚**（Sheet2 残176・据置）｜**未 triage findings 0件**（据置）｜
+  🆕**未修正の真バグ 20効果 / 19行**（29 −9消化 −1を `O-276` へ移送）＝🏁**残りは全件が遅いレーン**｜
+  **機構 worklist 10項目**（`O-268` / `O-271` / `O-272`〜`O-279`・据置）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート**＝`npm run gates` **全緑 ✅**（golden **3,592 / 3,592 PASS**＝新規2本／smoke 全0／fuzz 全0／
+  `census:stubs` A群🔴0・C群0／`census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／`manual-fields` 違反0／
+  収穫マージの3バケツ＝`_partial_fresh` **0** / `_idset_fresh` **0** / `_held_fresh` **1**（`WXDi-P04-002`・据置））。
+  🖥**実機＝該当なし**（`src/screens/` 無変更。engine は `thisCardOnly` を既存経路で効かせた2行のみで新機構なし＝§2.2）。
+  🔁**live A/B 差分＝9効果**（`WX12-035-E1` / `WX13-043-E2` / `WX14-CB03-E2` / `WX19-001-E3` / `WX20-020-E1` /
+  `WX20-033-BURST` / `WX20-042-CB-E3` / `WX20-Re20-E1` / `WD06-018-BURST`）＝**意図した件数と完全一致**。
+  逆翻訳（`npm run regen`）の差分も同9行だけ（`decompile_sheet2`）。
+  🧾**`manualEffects.ts`**＝984 → 991カード（乖離0・削除候補0＝`censusManualDrift`）。
