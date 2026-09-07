@@ -5914,6 +5914,25 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-07・第215バッチ後・PLAN §6 から退避）
+
+- **2026-09-07（第215バッチ・Codex 実装＋Opus 5 検証）＝実装キュー A群8効果（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（全件 `mech`・据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かない理由**＝今回の8件は「原文の一節が JSON に無い／別物になっている」型で、
+  **どの計器も『受け皿があるか』しか見ない**＝原理的に映らない。
+  📦**在庫**＝**意味照合 未監査 2,256枚**（据置）｜**未 triage findings 0**（据置）｜
+  🆕**未修正の真バグ 6効果 / 6行**（14 −8）＝🏁**残りは全件が「新しい型・機構が要る」側**｜
+  🆕**機構 worklist 10項目**（`O-268` / `O-272`〜`O-280`＝`O-271` をクローズ）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート**＝`npm run gates` **全緑 ✅（Claude 側で独立実行）**（golden **3,607 / 3,607 PASS**＝検証側 +2／
+  smoke 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／`manual-fields` 違反0／lint 0 errors・256 warnings／
+  同型★ **1グループ / 2枚**（据置）／収穫マージ3バケツ＝`_partial_fresh` **0** / `_idset_fresh` **0** /
+  `_held_fresh` **1**（`WXDi-P04-002`・据置））。
+  🖥**実機＝該当なし**（`src/screens/` 無変更。engine も無変更＝触ったのは `manualEffects.ts` と `decompileEffects.ts` だけ）。
+  🔁**live A/B 差分＝8効果**（`WX05-025-E1` / `WX07-033-E2` / `WX10-002-E2` / `WX13-019-E1` /
+  `WX13-035-BURST` / `WX15-001-E1` / `WX17-063-E1` / `WX21-054-E2`）。**C群3効果と B群3効果は完全一致。**
+  🧾**Codex の停止**＝`.codex-work` の利用上限（再開 19:00）。**実装は完了しており、検証以降を Claude が引き継いだ。**
+
 ### 恒久指標アーカイブ（2026-09-07・第203〜204バッチ後・PLAN §6 から退避）
 
 - **2026-09-07（第203〜204バッチ）＝🏁意味照合 段2 台帳の残 OPEN を 0（24 → 0）／実機 `V-nn` も残0（Opus 5 単独／本ブロックが直近の正）**

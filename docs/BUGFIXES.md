@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（続き・Sonnet 5・S-1）＝**意味照合バッチ12件を追加実行**（Sheet2 消化 18/36 → 30/36バッチ）
+
+**この回の作業単位**＝ユーザー指示「S-1 を12バッチ行う」。§2.6 の監査ラウンド軽量運用（Sonnet レーン）＝
+抽出・実行・簿記のみで、判定（O-A triage）はしない。**バグ修正は0件**（今回は監査のみ・コード変更なし）。
+
+`node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audit_sheet2_round4 --model sonnet --batches 19,20,21,22,23,24,25,26,27,28,29,30`
+を実行。**12バッチとも成功**（実行時トラブルなし＝第210バッチの s2-07 散文応答は再発せず）。
+**findings 21件 / 120枚（1.75件/バッチ）**＝第210バッチ（1.8件/バッチ）とほぼ同水準・逓減の兆候なし。
+
+簿記＝`audited_cards_cumulative.txt` に120件追記（180→300、`semanticAuditGap.mjs --sheet 2` の残枚数
+176→56 と一致確認）→ `TYPE_LEDGER.md` に s2-19〜30 の12行を追記 → `README.md` の実績節・再開コマンドを更新
+（すべて `scripts/archive/scratchpad/semantic_audit_sheet2_round4/`）。
+
+**findings 21件は全件未 triage**（次は `/model opus` で O-A から。§5.0）。コード変更が無いため `npm run gates` は
+未実行（§2.6 決定3）。詳細な finding 一覧は `TYPE_LEDGER.md` を参照。
+
 ## 2026-09-07（第215バッチ・Codex 実装＋Opus 5 検証）＝**triage 済み実装キューの A群8効果**（未修正の真バグ 14効果 → 6効果）
 
 **この回の作業単位**＝ユーザー指示「実装を codex-work に投げる」。`CODEX_GUIDE §3` の投入前実測 → 指示書 →

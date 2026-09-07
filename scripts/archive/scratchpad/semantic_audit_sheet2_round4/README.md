@@ -1,7 +1,7 @@
 # 意味照合監査 Sheet2 round4（2026-09-07 開始）
 
-🔵**Sheet2 は 2026-09-07（第210バッチ）に先頭18/36バッチ（180/356枚）を消化。残 18バッチ / 176枚。**
-**findings 32件は全件未 triage**＝次セッションは Opus で O-A から（§5.0）。詳細は `TYPE_LEDGER.md`。
+🔵**Sheet2 は 2026-09-07 に30/36バッチ（300/356枚）を消化**（第210バッチで18バッチ・続きの回で s2-19〜30 の12バッチ）。**残 6バッチ / 56枚。**
+**findings 53件は全件未 triage**＝次セッションは Opus で O-A から（§5.0）。詳細は `TYPE_LEDGER.md`。
 
 Sheet1（`semantic_audit_sheet1_round4/`）が完了したので、同じ形でこのディレクトリを新設した。
 
@@ -12,7 +12,7 @@ node scripts/archive/semanticAuditGap.mjs --sheet 2 --list > tmp_sheet2_pending.
 node scripts/semanticAuditExtract.mjs --out scripts/archive/scratchpad/semantic_audit_sheet2_round4 \
   --cards-file tmp_sheet2_pending.txt --batch-size 10
 node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audit_sheet2_round4 \
-  --model sonnet --batches 19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36
+  --model sonnet --batches 31,32,33,34,35,36
 ```
 
 ⚠**初回抽出時のシャッフルは seed 42 の mulberry32**（`pending_cards.txt` が356枚の並び。以後は
@@ -33,5 +33,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
   本文が「findings 空配列で報告済み」と明記していたため 0件で確定・手動復元は不要だった。
 - `mandatory:true` 疑い（LOW・「してもよい」なのに強制）が**4件**連続で出ている＝
   規則12（STUB内で任意判定される可能性）に該当するかを O-A triage で優先確認する。
+
+## s2-19〜30 の実績（120枚・2026-09-07・S-1 12バッチ）
+
+- findings **21件 / 120枚（1.75件/バッチ）**。全件未 triage。第210バッチ（1.8件/バッチ）とほぼ同水準＝逓減の兆候なし。
+- 実行時トラブルなし（12バッチとも JSON 契約どおり応答）。
+- `audited_cards_cumulative.txt` は 180件 → **300件**（`semanticAuditGap.mjs --sheet 2` の残枚数は 176 → **56** と一致確認済み）。
+- 止め時（連続3バッチで新型0）はこの回では判定できない（新型判定は O-A triage の役目・§2.6 決定1／§5.0）。
 
 詳細は `TYPE_LEDGER.md`。
