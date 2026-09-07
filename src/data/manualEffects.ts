@@ -8,6 +8,26 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 O-D 実装キュー（2026-09-08）＝場の【ウィルス】総数を動的レベル上限へ解決
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX16-005（ネバーエンド）／①②はいずれも
+  //   「レベルが場にある【ウィルス】の数以下」のシグニだけを対象にする。
+  // 🔴旧 live は両枝とも cardType だけで、レベル無制限だった。
+  // 🔑同型は実測1効果なので parser にカード固有規則を足さず、既存の動的フィルタ
+  //   `levelLteFieldVirusCount` を2つの対象集合へ載せる。解決は `resolveDynamicFilter` が
+  //   両プレイヤーの `field.signi_virus` 合計を静的な `level.max` へ落としてから matcher に渡す。
+  'WX16-005': [
+    {"effectId":"WX16-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],
+     "cost":{"energy":[{"color":"黒","count":1}],"betOptions":{"options":[2],"variable":false}},
+     "action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[
+       {"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","levelLteFieldVirusCount":true},"upToCount":false}}},
+       {"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLteFieldVirusCount":true}},"suppressOnPlay":true}]}},
+       {"choiceId":"c2","label":"選択肢3","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"REMOVE_VIRUS","virusCount":3},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]}}
+     ],"betChoose":{"thenChooseCount":3,"thenUpTo":true}},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.0 実装キュー（2026-09-08）＝相手のシグニゾーン一括トラッシュが丸ごと欠落（実測1効果）
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WX16-033（サーバント　∞・スペル）／ 原文＝

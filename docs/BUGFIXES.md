@@ -1,5 +1,43 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（O-D 実装キュー①・engine/parser 内で閉じる3効果）＝1件採用・1件 stale 確認・1件安全見送り
+
+**着手前実測**＝`【出】／【起】` 1効果／1枚、`【起】／【出】` 0、
+`他のシグニゾーンに移動したシグニ` 1効果／1枚、
+`レベルが場にある【ウィルス】の数以下` 1効果／1枚。いずれも2件以下なので parser 一般化ではなく
+manual レーン。ただし受け皿まで読むと、登録票には以下の stale があった。
+
+### `WX16-005-E1`＝2つの対象集合へ既存の動的レベル上限を配線（採用）
+
+**真因**＝`TargetFilter.levelLteFieldVirusCount` と `resolveDynamicFilter` は既存だったが、live の
+BANISH／ADD_TO_FIELD 両枝は `cardType:'シグニ'` だけでレベル無制限だった。
+**修正**＝`manualEffects.ts` の1効果へ既存キーを2箇所だけ載せ、live JSON に同期。
+`resolveDynamicFilter` は両プレイヤーの `field.signi_virus` 合計を `level.max` に落とす。
+併せて対戦相手 state を参照できない異常経路は `noMatch` へ倒し、未知キーが matcher で無視されて
+無制限になる経路を閉じた。decompiler にも同キーを描画。
+**検証**＝live／fresh+manual の両方で2刻印、ウィルス2個ならLv2可・Lv3不可、0個ならBANISH／場出しとも
+候補0を固定。反転で動的解決分岐を `false &&` にすると Lv3 も候補へ入り golden FAIL。
+
+### `WX12-010-E3`＝登録票 stale（挙動変更なし・指定された両方向 golden のみ追加）
+
+`resumeRearrangeSigni` は既に `oldZoneOf(num) !== ni` の `rearrMoved` だけを `lastProcessedCards` に載せ、
+空配列は `targetsStored` の候補0へ落ちていた。既存 O-8(b) golden 2本も着手前に PASS。
+今回さらに (a) 配置不変ならアップ候補0、(b) 空きゾーンへ1体だけ移動ならその1体だけが候補、を明示固定。
+反転で差分判定を `false &&` にすると (b) が golden FAIL。
+
+### `WX16-002-E4`＝起動能力追加を安全見送り
+
+登録票の「`NEGATE_COIN_ABILITY` はログのみ」は stale。実コードは相手の
+`negate_coin_abilities` を立て、Arts／Cutin／Spell の現ターンのベット入口がこの flag を読む。
+しかし原文は「このターンの前のターンに発動したコイン技を無効にする」であり、既存処理とは意味が違う。
+この STUB 本体は今回スコープ外なので、起動肢だけ追加すると誤った現ターン禁止効果を任意に増やす。
+件数消化より過剰実行防止を優先して未採用。
+
+**最終ゲート**＝golden **3648→3651 PASS / 0 FAIL**、census 高シグナル **0**、
+enginetext A🔴 **0行**、costtext A🔴 **0規則**、smoke **10745/10745・全0・SKIP0**、
+fuzz **200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION 全0**、lint **0 errors / 256 warnings**。
+`build:effects` → `regen` → `gates` の順で完走。`src/screens/`、PLAN／PLAN_PROGRESS、commit／push は無変更。
+
 ## 2026-09-08（第224バッチ・Opus・O-281 ＋ O-D 実装キュー）＝Opus レーンの作業を5件消化
 
 **作業単位**＝ユーザー指示「opusの作業を５件行う」。**§5.3 `O-281`（live 12効果）→ 実装キューを上から4行**。

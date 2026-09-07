@@ -25319,6 +25319,31 @@ test('§6.4 O-8(b): アップ状態のシグニは候補に出ない（isDown �
   ok(!cands.includes(a), 'すでにアップ状態のシグニは候補外');
   ok(cands.includes(b), 'ダウン状態で移動したシグニだけが候補');
 }));
+test('§5.0 O-D WX12-010-E3: 1体も移動しなければアップ候補は0体', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c3 = fresh();
+  const live = manualEffect('WX12-010', 'WX12-010-E3');
+  const ctx = mkCtx({}, { signi: [a, b, c3], down: [true, true, true] }, 'WX12-010');
+  const r0 = executeEffect(live, ctx);
+  ok(!r0.done && r0.pending.type === 'REARRANGE_SIGNI', '配置し直しの対話');
+  const r1 = resumeRearrangeSigni([a, b, c3], r0.pending as never, execCtxFrom(r0, ctx));
+  ok(r1.done, '🔴配置を変えなければ SELECT_TARGET を出さず終了');
+  eq(JSON.stringify(r1.otherState.field.signi_down), JSON.stringify([true, true, true]),
+    '1体もアップされない');
+}));
+test('§5.0 O-D WX12-010-E3: 空きゾーンへ1体だけ移動したらその1体だけがアップ候補', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh();
+  const live = manualEffect('WX12-010', 'WX12-010-E3');
+  const ctx = mkCtx({}, { signi: [a, b, null], down: [true, true, false] }, 'WX12-010');
+  const r0 = executeEffect(live, ctx);
+  ok(!r0.done && r0.pending.type === 'REARRANGE_SIGNI', '配置し直しの対話');
+  const r1 = resumeRearrangeSigni([a, '', b], r0.pending as never, execCtxFrom(r0, ctx));
+  ok(!r1.done && r1.pending.type === 'SELECT_TARGET', '移動した1体のアップ選択へ進む');
+  eq((r1.pending as { candidates: string[] }).candidates.join(','), b,
+    '🔴アップ候補はゾーン1→2へ移動した1体だけ');
+  const r2 = resumeSelectTarget([b], r1.pending as never, execCtxFrom(r1, ctx));
+  eq(r2.otherState.field.signi_down?.[0], true, '動かなかったaはダウンのまま');
+  eq(r2.otherState.field.signi_down?.[2], false, '移動して選んだbだけアップ');
+}));
 
 test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新配置に反映（WX04-041-E2）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
@@ -71928,6 +71953,78 @@ test('§5.3 O-281: live で ignoreRestrictions を持つのは原文に「限定
   eq(hits.length, 12, 'USE_SPELL_FROM_TRASH_PAYING_COST を使う live 効果数（2026-09-08 実測 12）');
   eq(flagged.join(','), 'WXK09-002-E1', '🔴限定無視の印はこの1効果だけ（残り11件は限定条件を守る）');
 });
+
+// ═══ §5.0 O-D 実装キュー（2026-09-08）＝場の【ウィルス】総数を動的レベル上限へ解決 ═══
+test('§5.0 O-D WX16-005-E1: 2枝の動的レベル上限と0枚 fail-closed', () => withSavedCursor(() => {
+  const live = manualEffect('WX16-005', 'WX16-005-E1');
+  const fresh = findEffectDeep(
+    mergeManualEffects('WX16-005', parseCardEffects(cardMap.get('WX16-005')!)),
+    'WX16-005-E1',
+  );
+  if (!fresh) throw new Error('WX16-005-E1 (fresh+manual) not found');
+  for (const [label, effect] of [['live', live], ['fresh+manual', fresh]] as const) {
+    const json = JSON.stringify(effect.action);
+    eq((json.match(/"levelLteFieldVirusCount":true/g) ?? []).length, 2,
+      `${label}: BANISH と ADD_TO_FIELD の両方に動的上限が載る`);
+  }
+
+  const chooseAction = live.action;
+  if (chooseAction.type !== 'CHOOSE') throw new Error('WX16-005-E1 must be CHOOSE');
+  const branch = (id: string): EffectAction => {
+    const hit = chooseAction.choices.find(c => c.choiceId === id);
+    if (!hit) throw new Error(`${id} not found`);
+    return hit.action;
+  };
+  const lv2 = SIGNI_L2;
+  const lv3 = SIGNI_L3;
+  const withTwoViruses = (ctx: ExecCtx): ExecCtx => ({
+    ...ctx,
+    ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_virus: [1, 0, 0] } },
+    otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: [0, 1, 0] } },
+  });
+
+  // ①ちょうど上限（Lv2）は取れる／②上限+1（Lv3）は取れない：バニッシュ枝。
+  const banishCtx = withTwoViruses(mkCtx({}, { signi: [lv2, lv3, null] }, 'WX16-005'));
+  const banishPick = executeAction(branch('c0'), banishCtx);
+  ok(!banishPick.done && banishPick.pending.type === 'SELECT_TARGET', 'バニッシュ対象選択が立つ');
+  if (banishPick.done || banishPick.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(banishPick.pending.candidates.join(','), lv2, '🔴ウィルス2個ならLv2だけが候補（Lv3は候補外）');
+  const banished = resumeSelectTarget([lv2], banishPick.pending, execCtxFrom(banishPick, banishCtx));
+  ok(!tops(banished.otherState).includes(lv2) && tops(banished.otherState).includes(lv3),
+    '上限内の1体だけをバニッシュ');
+
+  // 同じ動的フィルタがトラッシュ→場の枝にも届く。
+  const fieldBase = mkCtx({}, {}, 'WX16-005');
+  const fieldCtx = withTwoViruses({
+    ...fieldBase,
+    ownerState: { ...fieldBase.ownerState, trash: [lv2, lv3] },
+  } as ExecCtx);
+  const fieldPick = executeAction(branch('c1'), fieldCtx);
+  ok(!fieldPick.done && fieldPick.pending.type === 'SELECT_TARGET', 'トラッシュからの対象選択が立つ');
+  if (fieldPick.done || fieldPick.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(fieldPick.pending.candidates.join(','), lv2, '🔴場出しもウィルス2個ならLv2だけが候補');
+  const selectedForField = resumeSelectTarget([lv2], fieldPick.pending, execCtxFrom(fieldPick, fieldCtx));
+  ok(!selectedForField.done && selectedForField.pending.type === 'SELECT_SIGNI_ZONE',
+    '場出し先のゾーン選択へ進む');
+  if (selectedForField.done || selectedForField.pending.type !== 'SELECT_SIGNI_ZONE') throw new Error('SELECT_SIGNI_ZONE expected');
+  const placed = resumeSelectSigniZone(0, selectedForField.pending, execCtxFrom(selectedForField, fieldCtx));
+  ok(tops(placed.ownerState).includes(lv2) && placed.ownerState.trash.includes(lv3),
+    '上限内の1枚だけを場に出す');
+
+  // ③【ウィルス】0枚なら両枝とも候補なし（0を「無制限」に裏返さない）。
+  const zeroBanish = executeAction(branch('c0'), mkCtx({}, { signi: [lv2, null, null] }, 'WX16-005'));
+  ok(zeroBanish.done && tops(zeroBanish.otherState).includes(lv2),
+    '🔴ウィルス0枚ならLv2をバニッシュできない');
+  const zeroFieldBase = mkCtx({ trash: 0 }, {}, 'WX16-005');
+  const zeroFieldCtx = { ...zeroFieldBase, ownerState: { ...zeroFieldBase.ownerState, trash: [lv2] } } as ExecCtx;
+  const zeroField = executeAction(branch('c1'), zeroFieldCtx);
+  ok(zeroField.done && zeroField.ownerState.trash.includes(lv2) && !tops(zeroField.ownerState).includes(lv2),
+    '🔴ウィルス0枚ならLv2を場に出せない');
+
+  const reverse = decompiledLineOf('WX16-005-E1');
+  eq((reverse.match(/レベルが場にある【ウィルス】の数以下/g) ?? []).length, 2,
+    '逆翻訳にも①②それぞれの動的上限が出る');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

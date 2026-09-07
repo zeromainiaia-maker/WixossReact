@@ -282,6 +282,7 @@ function filterJa(f?: any): string {
   if (f.powerLteZoneCount) parts.push(`パワーが「${countFromZoneJa(f.powerLteZoneCount)}」以下の`);
   if (f.powerLteLastProcessedCount != null) parts.push(`パワーが「この方法で処理したカードの枚数×${f.powerLteLastProcessedCount}」以下の`);
   if (f.levelLteZoneCount) parts.push(`${countFromZoneJa(f.levelLteZoneCount)}以下のレベルを持つ`);
+  if (f.levelLteFieldVirusCount) parts.push('レベルが場にある【ウィルス】の数以下の');
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
   if (f.costMin != null && f.costMax != null && f.costMin === f.costMax) parts.push(`コストの合計が${f.costMax}の`);

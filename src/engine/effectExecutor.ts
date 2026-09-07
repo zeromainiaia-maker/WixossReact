@@ -3525,11 +3525,16 @@ function resolveDynamicFilter(
     const max = (lastProcessedCards?.length ?? 0) * mult;
     result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max } };
   }
-  if (result.levelLteFieldVirusCount && otherSt) {
-    const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
-    const oppVirus = (otherSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+  if (result.levelLteFieldVirusCount) {
     const { levelLteFieldVirusCount: _, ...rest } = result;
-    result = { ...rest, level: { max: ownVirus + oppVirus } };
+    // 動的な数え元を解決できない経路では未知キーを matcher へ流さない。
+    // `matchesFilter` は未知キーを無視するため、そのままだと「参照不能＝無制限」の過剰実行になる。
+    if (!otherSt) result = noMatch(rest);
+    else {
+      const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+      const oppVirus = (otherSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+      result = { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: ownVirus + oppVirus } };
+    }
   }
   // levelLteHandDiff: レベルが自分と対戦相手の手札枚数の差（self−opp）以下（「その枚数の差以下のレベルを持つ」WXK10-045）。
   // ownerSt は常に効果キャスター＝self。HAND_DIFF{gt,0} ゲート下でのみ実行されるが、防御的に max(0, diff) でクランプ。
