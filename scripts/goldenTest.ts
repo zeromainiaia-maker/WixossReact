@@ -19120,7 +19120,10 @@ test('O-96 据置契約: ルリグ対象は固定形へ変えない（対象が�
 //   「それ」の照応先が JSON のどこにも残っていなかった。兄弟形の `WX16-029-E1` と型を揃えた。
 test('O-220 据置契約: 「アタックしているシグニ」対象は attackingOnly で一意にする', () => {
   for (const [cardNum, effectId] of [
-    ['WX16-029', 'WX16-029-E1'],
+    // 🆕**2026-09-07 第217バッチ＝`WX16-029-E1` から `-TRAP` へ引っ越した。**
+    //   《トラップアイコン》節が【自】効果へ融合していたのを parser が分離したので、
+    //   「アタックしているシグニ」対象を持つのは**トラップ側**（本体は設置だけ）。
+    ['WX16-029', 'WX16-029-TRAP'],
     ['WX17-044', 'WX17-044-TRAP'],
     ['WX12-001', 'WX12-001-E2'],
     ['WX14-003', 'WX14-003-E3'],
@@ -28963,8 +28966,12 @@ test('LIFE_COUNT/AND/SELF_POWER eq: 成立・不成立の両方向', () => {
   ok(!evalCondition(powerEq, { ...base, effectivePowers: new Map([[src, 13000]]) }), 'power eq不成立');
 });
 
+// ⚠**2026-09-07 第217バッチ＝`WX16-065-E1` → `WX16-065-TRAP` へ引っ越した。**
+//   「対戦相手のターンの場合」は《トラップアイコン》節の条件で、旧 parser がそれを**本体へ融合**していた
+//   （＝スペルを唱えた瞬間に2回ドローする過剰実行）。分離後は TRAP 側が条件を持つ。
+// ⚠`effectId` の末尾は `-TRAP` なので、下の `card` 抽出 regex（`-(?:E\d+|BURST)$`）に `TRAP` を足してある。
 test('バッチ①第1波 parser: 採用25効果に TURN_OWNER/LIFE_COUNT 条件が残る', () => {
-  const ids = ['PR-K054-E2','WDK06-C14-E1','WDK07-Y13-E1','WDK17-013-E1','WDK17-017-E1','WXEX1-25-E1','WXK04-036-E2','WXK08-071-E1','WXK09-093-E1','WXK11-057-E2','WXDi-P11-038-E1','WXK03-079-E1','WX09-Re04-E1','WX16-012-E1','WX21-Re07-E1','WXDi-P02-001-E1','WX16-065-E1','SPDi43-02-E1','SPDi43-07-E1','WX11-026-E2','WX11-032-E3','WX19-028-E2','WXDi-P09-047-E1','WXK11-019-BURST','WXDi-P01-004-E1'];
+  const ids = ['PR-K054-E2','WDK06-C14-E1','WDK07-Y13-E1','WDK17-013-E1','WDK17-017-E1','WXEX1-25-E1','WXK04-036-E2','WXK08-071-E1','WXK09-093-E1','WXK11-057-E2','WXDi-P11-038-E1','WXK03-079-E1','WX09-Re04-E1','WX16-012-E1','WX21-Re07-E1','WXDi-P02-001-E1','WX16-065-TRAP','SPDi43-02-E1','SPDi43-07-E1','WX11-026-E2','WX11-032-E3','WX19-028-E2','WXDi-P09-047-E1','WXK11-019-BURST','WXDi-P01-004-E1'];
   const hasState = (x: unknown): boolean => {
     if (!x || typeof x !== 'object') return false;
     const o = x as Record<string, unknown>;
@@ -28972,7 +28979,7 @@ test('バッチ①第1波 parser: 採用25効果に TURN_OWNER/LIFE_COUNT 条件
     return Object.values(o).some(v => Array.isArray(v) ? v.some(hasState) : hasState(v));
   };
   for (const id of ids) {
-    const card = id.replace(/-(?:E\d+|BURST)$/, '');
+    const card = id.replace(/-(?:E\d+|BURST|TRAP)$/, '');
     const parsed = parseCardEffects(cardMap.get(card)!).find(e => e.effectId === id);
     ok(!!parsed && hasState(parsed), `${id}: condition 欠落`);
   }
@@ -60242,7 +60249,14 @@ test('O-147: 多ゾーン消費ライズの枠割り当て（候補数では判�
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 10;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  // 🆕🔴**13**（2026-09-07 第217バッチ・§5.0 O-D 系統④）＝**較正であって退化ではない**。
+  //   `WX16-Re04-E1` / `WX17-029-E1` / `WXK05-039-E1` の `reorder:true` は
+  //   **`count:0` の `LOOK_AND_REORDER`（原文に無い余分なステップ）の中にしか無かった**＝
+  //   0枚を並べ替えるステップなので**実行しても並べ替えは一度も起きない**。
+  //   このラチェットは「`reorder:true` がどこかに在るか」しか見ないので、**no-op を「届いた」と読んでいた**。
+  //   ⇒ 余分なステップを落とした結果、**元から届いていなかった3件が可視化された**（engine の挙動は1ミリも変わらない）。
+  //   🔑**払い戻すときは `REVEAL_AND_PICK.remainder.reorder` / `restDest` 側に載せる**（そこが本当の受け皿）。
+  const BASELINE_REORDER_MISSING = 13;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
   //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
   //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）
@@ -70929,6 +70943,78 @@ test('第215 A2: ADD_TO_FIELD{targetsTriggerSource} はエナの「そのシグ�
   } as unknown as EffectAction, ctx2);
   ok(!r2.ownerState.field.signi.some(st => st?.at(-1) === other), '🔴負: エナに居なければ別の札を出さない');
 }));
+
+
+// 🔴**§5.0 O-D 系統①（第217バッチ・2026-09-07）＝トラップアイコン節の見出しは3表記ある。**
+// parser は長らく `【トラップアイコン】：`（コロン必須）しか見ておらず、`【トラップアイコン】`（コロン無し）と
+// `《トラップアイコン》：` は**節ごと直前の能力へ tail-splice** されていた＝
+//   ①`-TRAP` effect が生成されず**トラップが永久に発動しない** ②元の能力に**別の帰結が無条件でぶら下がる**。
+// ⚠この test は **live（採用後）** を見る＝parser を直しても収穫マージで held に留まったままなら意味が無い。
+test('§5.0 O-D 系統①: トラップアイコン節の3表記すべてが -TRAP effect に分離される', () => {
+  const eff = (card: string, id: string) => (effectsMap.get(card) ?? []).find(e => e.effectId === id);
+  // (a) 見出し3表記＝コロン無し【】1枚・《》6枚のうち parser 生成の4枚（残りは manualEffects が持つ）。
+  for (const card of ['WX21-036', 'WX16-029', 'WX16-065', 'WX16-066']) {
+    const t = eff(card, `${card}-TRAP`);
+    ok(!!t, `${card}: -TRAP effect が生成されている`);
+    eq(t!.effectType, 'TRAP_ICON', `${card}: effectType`);
+    eq(JSON.stringify(t!.timing), '["ON_TRAP_ACTIVATE"]', `${card}: timing`);
+  }
+  // (b) 本体側からトラップ本文が消えている（tail-splice の再発検出）。
+  const e1 = (card: string) => JSON.stringify(eff(card, `${card}-E1`)?.action ?? null);
+  ok(!e1('WX21-036').includes('BANISH'), '🔴WX21-036-E1: 無条件バニッシュが残っていない');
+  ok(!e1('WX21-036').includes('GRANT_KEYWORD'), '🔴WX21-036-E1: ゴミ GRANT_KEYWORD{トラップアイコン} が無い');
+  ok(!e1('WX16-029').includes('NEGATE_ATTACK'), '🔴WX16-029-E1: トラップ本文が残っていない');
+  // `WX16-065` は唱えた瞬間に2回ドロー＋2枚捨てさせていた（本体＋トラップ節）。いまは1回だけ。
+  eq((e1('WX16-065').match(/"DRAW"/g) ?? []).length, 1, '🔴WX16-065-E1: ドローは1回だけ');
+  ok(!e1('WX16-065').includes('TURN_OWNER'), '🔴WX16-065-E1: トラップ節のターン条件が本体に残っていない');
+  ok(!e1('WX16-066').includes('BANISH'), '🔴WX16-066-E1: トラップ本文が残っていない');
+  // (c) `WX21-036-TRAP` は発動条件つき（「このターンにあなたのシグニがバニッシュされていた場合」）。
+  //     ⚠parser の条件表に regex を足すと正準形が崩れるので manualEffects で持つ（両ファイルに経緯あり）。
+  const t36 = JSON.stringify(eff('WX21-036', 'WX21-036-TRAP')?.action ?? null);
+  ok(t36.includes('"SIGNI_BANISHED_THIS_TURN"'), 'WX21-036-TRAP: 発動条件がある');
+  ok(t36.includes('"PAID_ADDITIONAL_COST"'), 'WX21-036-TRAP: 《青》の支払いゲートが残っている');
+  ok(t36.includes('"targetsStored":true'), 'WX21-036-TRAP: 対象は支払い前に固定した1体');
+});
+
+// 🔴**§5.0 O-D 系統③（第217バッチ・2026-09-07）＝「《Xアイコン》を持つ」がトラッシュ→手札の入口で落ちていた。**
+// `hasIcon` は型にも `matchesFilter` にも実装済み（同じ `WX18-033` の E1 がコスト側で使っている）なのに、
+// `parseSentencePart1` の trash→hand 合成から漏れており**トラッシュのどのカードでも回収できる**過剰効果だった
+// （すぐ上の `hasLifeBurst` と完全に同型の配線漏れ＝`census:wiring` が拾えなかった入口）。
+// ⚠`parseNameFilter` は `アイコン` を含む《》を名前候補から捨てる（`parserUtils.ts:918`）＝ここで拾わないと消える。
+test('§5.0 O-D 系統③: トラッシュから「《トラップアイコン》を持つ」の回収は hasIcon で絞る', () => {
+  const f = (card: string, id: string) => JSON.stringify(
+    ((effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action as unknown as
+      { source?: { filter?: unknown } })?.source?.filter ?? null);
+  eq(f('WX18-033', 'WX18-033-E2'),
+    '{"cardType":"シグニ","excludeCardName":"超罠　ギジドウ","hasIcon":"トラップ"}',
+    'WX18-033-E2: 除外カード名とアイコン限定が同居する');
+  eq(f('WX19-064', 'WX19-064-BURST'), '{"hasIcon":"トラップ"}', 'WX19-064-BURST: 空 filter ではない');
+  eq(f('WD23-033-A', 'WD23-033-A-BURST'), '{"cardType":"シグニ","hasIcon":"トラップ"}', 'WD23-033-A-BURST');
+});
+
+// 🔴**§5.0 O-D 系統④（第217バッチ・2026-09-07）＝`count:0` の `LOOK_AND_REORDER` は原文に無い余分なステップ。**
+// 「残りを好きな順番でデッキの一番下に置く」の後半だけが独立した文としてもう一度 parse され、
+// `REVEAL_AND_PICK` / `REVEAL_PICK_*`（remainder を既に持つ）の隣に生えていた（実測13効果）。
+// 🔴**0枚だから無害ではない**＝`execLookAndReorder` は deck×self×`private:false` で `maybeAskRevealPlusOne` を
+// 先に通すので、**盤面が動かないモーダルが1回開く**。
+// ⚠残る2件（`WXDi-P11-070-E1`＝MANUAL／`WD20-018-E1`＝PARTIAL）は**手書きの凍結分**なので数に入れる。
+test('§5.0 O-D 系統④: count:0 の LOOK_AND_REORDER は live に残っていない（手書き2件を除く）', () => {
+  const frozen = new Set(['WXDi-P11-070-E1', 'WD20-018-E1']);
+  const hits: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const walk = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(walk); return; }
+        const o = n as Record<string, unknown>;
+        if (o.type === 'LOOK_AND_REORDER' && o.count === 0 && !frozen.has(e.effectId)) hits.push(e.effectId);
+        for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v);
+      };
+      walk(e.action);
+    }
+  }
+  eq(hits.join(','), '', `🔴 余分な LOOK_AND_REORDER{count:0} が復活した: ${hits.join(', ')}`);
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

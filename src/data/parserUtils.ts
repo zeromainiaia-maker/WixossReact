@@ -589,7 +589,16 @@ export function parseIconFilter(span: string): Partial<TargetFilter> {
   //   `《ライズアイコン_黒》_black` という**画像由来の綴り**が実在する（`WDK15-001/009/017` の3枚）。
   //   ⚠色サフィックスは**表示上の色**であってフィルタ条件ではない（`WDK15-009-E1` の MANUAL 実装も
   //   `hasRiseIcon:true` だけを書いている）＝**色を filter に足さない**。
-  const m = span.match(/《(ライズ|クロス|アクセ)アイコン(?:_[白赤青緑黒])?》(?:_[a-z]+)?を持つ/);
+  // 🆕**トラップを足した**（2026-09-07 第217バッチ・§5.0 O-D 系統③・実測3効果＝
+  //   `WX18-033-E2`／`WX19-064-BURST`／`WD23-033-A-BURST`）。**この1文字の欠けが穴の全量**だった＝
+  //   `hasIcon:'トラップ'` は型にも `matchesFilter` にも実装済みで、`《ライズアイコン》を持つ` と
+  //   **一字違いの同じ文型**なのに、ここの選択肢に無いせいで**トラッシュのどのカードでも回収できる**
+  //   過剰効果になっていた（同じ `WX18-033` の E1 はコスト側の別ヘルパで正しく絞れている）。
+  // 🔑**入口ごとに書かない**＝当初 `parseSentencePart1` の trash→hand 合成へ直接足したが、
+  //   ①ライズが `hasRiseIcon` と `hasIcon` の**二重キー**になり
+  //   ②ここが持つ「別ピックが2本ある span では付けない」ガードを迂回して
+  //   `WX16-026-BURST` の `transferGroups` が**丸ごと生成されなくなった**（golden が捕まえた）。
+  const m = span.match(/《(ライズ|クロス|アクセ|トラップ)アイコン(?:_[白赤青緑黒])?》(?:_[a-z]+)?を持つ/);
   return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
 }
 

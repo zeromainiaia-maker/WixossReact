@@ -814,9 +814,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ③その結果、**このカードには `TRAP_ICON` 効果が1つも無かった**（アイコンが発動しても何も起きない）。
   // 🔑`SET_OPP_SIGNI_AS_TRAP` は「居たゾーンの添字をそのまま使う」ので**そのシグニゾーン設置は既に正しい**
   //   （2026-09-02 の実測。固定ゾーン指定の口を新設してはいけない）。
+  // WX21-036 中罠　ハトハット ／ 原文【トラップアイコン】対戦相手のシグニ１体を対象とし、
+  //   **このターンにあなたのシグニがバニッシュされていた場合**、《青》を支払ってもよい。そうした場合、それをバニッシュする。
+  // 🆕**2026-09-07（第217バッチ・§5.0 O-D 系統①）＝TRAP 効果そのものは parser が正しく出せるようになった**
+  //   （見出し `【トラップアイコン】`＋コロン無しを `TRAP_ICON_HEADER` が拾う）。**ここで足すのは発動条件1つだけ。**
+  // 🔴**parser の条件表に regex を足す道は塞がっている**＝足すと文単位 parser の分岐が変わり、
+  //   正準形（`SELECT_TARGET_ONLY`→`STORE`→`OPTIONAL_COST`→`PAID_ADDITIONAL_COST`）が崩れて
+  //   `IS_MY_TURN` の素の CONDITIONAL に化け、**相手ターン（＝トラップ発動時）に false でバニッシュが起きない**
+  //   （`effectParser.ts` の該当箇所に 🗑 で経緯を残した）。原文母集団は**この1効果だけ**なので手書きにする。
+  // ⚠`SIGNI_BANISHED_THIS_TURN{owner:'self'}` は **バニッシュされた側の台帳**（`ownerState.signi_banished_this_turn`）
+  //   を読む＝トラップの持ち主から見て「あなたのシグニ」で正しい（能動形の `OPP_SIGNI_BANISHED_COUNT_THIS_TURN` と主語が逆）。
+  'WX21-036': [
+    {"effectId":"WX21-036-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"SIGNI_BANISHED_THIS_TURN","owner":"self"},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   'WX21-025': [
     {"effectId":"WX21-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_opp","triggerCondition":{"placedOnTrapZone":true},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true},{"type":"STUB","id":"TRAP_OPERATION","trapOp":"trash","trapZoneOfTriggerSource":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX21-025-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX21-025-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","additionalCostChoices":[{"id":"pay_blue","label":"《青》《青》を支払う","costColors":["青","青"],"action":{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP","targetsStored":true}},{"id":"discard_trick","label":"手札から＜トリック＞のシグニ2枚を捨てる","costColors":[],"handDiscard":{"count":2,"filter":{"cardType":"シグニ","story":"トリック"}},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"トリック"}},"asCost":true},{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP","targetsStored":true}]}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
@@ -9637,7 +9650,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //    受け皿は既存＝`<CardNum>-TRAP` / `effectType:'TRAP_ICON'` / `timing:['ON_TRAP_ACTIVATE']`（`WX16-062` ほか）。
   "WX16-041": [
     {"effectId":"WX16-041-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1,"discardFilter":{"hasIcon":"トラップ"}},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"トリック"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX16-041-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":15000}}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // ⑥ 【レイヤー】付与能力の1本目「**このシグニの正面の**シグニ１体」が `owner:'self'` に化けていた
   //    ＝**自分のシグニの能力を自分で消す**逆向きの実行。受け皿は既存＝`filter.frontOfSelf`
@@ -9753,7 +9765,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX17-071-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"WX17-071-TRAP-c1","label":"あなたのトラッシュから無色のカード1枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"color":"無"}}}},{"choiceId":"WX17-071-TRAP-c2","label":"対戦相手の手札を見て無色のカード1枚を捨てさせる","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"filter":{"color":"無"},"actingPlayerSelects":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX20-062": [
-    {"effectId":"WX20-062-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"ハニトラ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX20-062-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","cardNames":["超罠　ハニトラ"]},"upToCount":false},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX20-063": [
@@ -10422,7 +10433,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**E1（【出】側）は触らない**＝あちらは「《トラップアイコン》を持つ」の絞り込み欠落で、
   //   `hasTrapAbility` の生成漏れ10効果の一部（parser 側の家族＝別項目）。
   "WX17-063": [
-    {"effectId":"WX17-063-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","excludeCardName":"中罠　プラスボム","hasIcon":"トラップ"}},"shuffle":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX17-063-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 

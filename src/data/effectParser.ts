@@ -1678,6 +1678,49 @@ function wireExileAfterUse(action: EffectAction): EffectAction {
   return walk(action);
 }
 
+/**
+ * 🆕**`count:0` の `LOOK_AND_REORDER` を落とす**（2026-09-07 第217バッチ・§5.0 O-D 系統④・実測13効果）。
+ *
+ * 原文「その中から〈選ぶ〉、**残りを好きな順番でデッキの一番下に置く**」の**後半だけ**が独立した文として
+ * もう一度 parse され、`LOOK_AND_REORDER{count:0}` が `REVEAL_AND_PICK` / `REVEAL_PICK_*` の**隣に生える**。
+ * 残りの行き先は前段の `remainder` / `restDest` が既に持っているので、これは**原文に無い余分なステップ**。
+ *
+ * 🔴**「0枚だから無害」ではない**＝`execLookAndReorder` は `deck`×`self`×`private:false` の枝で
+ * `maybeAskRevealPlusOne`（「公開枚数を+1しますか」）を**先に**通すので、**盤面が動かないモーダルが1回開く**。
+ * ⚠**`count:0` だけを落とす**＝`count>0` の重複（`WX14-037-E1` / `WX18-034-E2`）は、
+ *   `WX12-Re10-E1` のように**直後の CONDITIONAL が `lastProcessedCards`（公開した札）を読む**形と
+ *   見分けが付かないので触らない（§5.0 の実装キューに残す）。
+ */
+function dropEmptyLookAndReorder(action: EffectAction): EffectAction {
+  const walk = (node: EffectAction): EffectAction => {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === 'SEQUENCE') {
+      // ⚠**1ステップになっても `SEQUENCE` を剥がさない**＝剥がすと**この関数と無関係な全効果**の構造が変わり、
+      //   収穫マージが「純粋上位集合ではない」と判定して**100枚近くが held に落ちる**（2026-09-07 に実測して戻した）。
+      const steps = node.steps
+        .filter(st => !(st.type === 'LOOK_AND_REORDER' && st.count === 0))
+        .map(walk);
+      return { ...node, steps };
+    }
+    const obj = node as unknown as Record<string, unknown>;
+    let changed: Record<string, unknown> | null = null;
+    for (const [k, v] of Object.entries(obj)) {
+      if (!v || typeof v !== 'object') continue;
+      if (Array.isArray(v)) {
+        const arr = v.map(item => (item && typeof item === 'object' && 'type' in (item as object)
+          ? walk(item as EffectAction) : (item && typeof item === 'object' && 'action' in (item as object)
+            ? { ...(item as object), action: walk((item as { action: EffectAction }).action) } : item)));
+        if (arr.some((item, i) => item !== v[i])) (changed ??= { ...obj })[k] = arr;
+      } else if ('type' in (v as object)) {
+        const next = walk(v as EffectAction);
+        if (next !== v) (changed ??= { ...obj })[k] = next;
+      }
+    }
+    return (changed ?? obj) as unknown as EffectAction;
+  };
+  return walk(action);
+}
+
 const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
 function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
   if (!terms) return action;
@@ -3945,6 +3988,15 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // ⚠体数の指定が無い形（WXK04-029）は「1体以上」＝minCount 省略。
   [/このターンに対戦相手のシグニが(?:([０-９\d]+)体以上)?バニッシュされていた場合/,
     g => ({ type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent', ...(g[0] ? { minCount: parseNum(g[0]) } : {}) })],
+  // 🗑**「このターンにあなたのシグニがバニッシュされていた場合」をここに足してはいけない**
+  //   （2026-09-07 第217バッチで足して戻した）。受け皿自体は在る（`SIGNI_BANISHED_THIS_TURN{owner:'self'}`＝
+  //   engine は `ownerState.signi_banished_this_turn` を読む）が、**live の唯一の該当効果 `WX21-036-TRAP` では
+  //   この規則が当たると文単位 parser の分岐が変わり、正準形**（`SELECT_TARGET_ONLY`→`STORE`→`OPTIONAL_COST`→
+  //   `CONDITIONAL{PAID_ADDITIONAL_COST}`→`BANISH{targetsStored}`）**が崩れて
+  //   `CONDITIONAL{…}{then:STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}}` ＋ 素の `CONDITIONAL{IS_MY_TURN}` に化ける**。
+  //   後者は `execSequence` の任意コスト look-ahead が **STUB が先頭でないため対にならず**、
+  //   `IS_MY_TURN` が**相手ターン（＝トラップ発動時）に literal で false** になって**バニッシュが起きない**。
+  //   ⇒ この1効果は `manualEffects.ts` 側で条件つきの正準形を手書きする（§2.0 速いレーン）。
   // 「このターンにシグニが〔N体以上〕場から手札に戻っていた場合」＝持ち主を言わない＝owner:'any'（両者合算）。
   [/このターンにシグニが(?:([０-９\d]+)体以上)?場から手札に戻っていた場合/,
     g => ({ type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any', ...(g[0] ? { minCount: parseNum(g[0]) } : {}) })],
@@ -16555,14 +16607,13 @@ function parseActionTextInner(text: string): EffectAction {
       } as import('../types/effects').NegateAttackAction;
     }
   }
-  // アーツ本文末の《トラップアイコン》節は、通常効果の続きではなくトラップ発動時だけ解決する追加節。
-  // 今回の文型はターン条件を内包するため、その追加節だけを CONDITIONAL に保つ（WX16-065）。
-  const inlineTrapM = text.match(/^(.+。)《トラップアイコン》：((?:あなた|対戦相手)のターンの場合、.+)$/s);
-  if (inlineTrapM) {
-    const base = parseActionText(inlineTrapM[1]);
-    const trap = parseActionText(inlineTrapM[2]);
-    return { type: 'SEQUENCE', steps: base.type === 'SEQUENCE' ? [...(base as SequenceAction).steps, trap] : [base, trap] };
-  }
+  // 🗑**2026-09-07（第217バッチ・§5.0 O-D 系統①）＝`《トラップアイコン》：` 節を本体へ連結する規則を撤去した。**
+  // 🔴旧実装は「ターン条件を内包するので追加節だけ CONDITIONAL に保つ」として **`SEQUENCE` の末尾へ足していた**が、
+  //   トラップ節は**カードを使ったときには解決しない**（トラップとして設置され、めくれて発動したときだけ）。
+  //   ⇒ `WX16-065` は**唱えた瞬間に2回ドロー＋相手に2枚捨てさせる**過剰実行で、しかも `-TRAP` effect が
+  //   1つも生成されないので**トラップとして発動しても何も起きない**という二重の誤りだった。
+  // 🔑いまは `stripTrapIconClause`（見出し3表記を1本で処理）が本文から節を落とし、
+  //   `parseCardEffects` の下段が `-TRAP` effect を独立に生成する。**ここへ戻さないこと。**
   // ---- 「対戦相手は以下のNつから1つを選び、〈あなた／対戦相手〉はそれを行う。①…②…」（§5.3 `O-60` 第14バッチ）----
   // 🔴従来は `STUB{OPP_CHOOSE_EFFECT}` / `STUB{OPP_CHOOSES_FOR_YOU}` で、**JSON は STUB 1個だけ**だった。
   //   engine（`execStubPart3.ts`）が実行時に**カード全文**から `①([^②③]+)` を切り出し、
@@ -24802,15 +24853,34 @@ function nestCenterLrigGrantBlocks(
 // ===== メインエクスポート =====
 
 /**
- * 【トラップアイコン】：〜 の節を本文から取り除く（§6.4 O-34(a)）。
+ * トラップアイコン節（＝トラップが発動したときだけ解決する別能力）の**見出し**。
+ *
+ * 🆕🔴**2026-09-07（第217バッチ・§5.0 O-D 系統①）＝見出しの表記は3通りある。**
+ * 従来は `【トラップアイコン】：`（コロン必須）だけを見ており、残り2通りが**素通りしていた**：
+ * - `【トラップアイコン】`（**コロン無し**）＝`WX20-062` / `WX21-025` / `WX21-036`
+ * - `《トラップアイコン》：`（**二重山括弧**）＝`WX16-029` / `WX16-041` / `WX16-062` / `WX16-064` / `WX16-065` / `WX16-066`
+ *
+ * 素通りすると**節が直前の能力へ tail-splice** され、①トラップ能力が `-TRAP` effect として生成されず
+ * **永久に発動しない** ②元の能力に**別の帰結が無条件でぶら下がる**（`WX16-065` は唱えた瞬間に2回ドロー）。
+ * ⚠**5枚は `manualEffects.ts` で1枚ずつ手当てされていた**（`WX16-041`/`WX16-062`/`WX16-064`/`WX20-062`/`WX21-025`）
+ *   ＝**同じ型を9回踏んでいた**ので、ここで見出し側を1本に揃える。
+ * ⚠`《トラップアイコン》`は**コロンを必須にする**＝`《トラップアイコン》を持つ`（フィルタ）・
+ *   `《トラップアイコン》が発動したとき`（トリガー）・`《トラップアイコン》を発動させる`（アクション）と衝突する。
+ *   `【トラップアイコン】`側は live 24枚すべてが見出しなのでコロンを任意にしてよい（2026-09-07 実測）。
+ */
+const TRAP_ICON_HEADER = '(?:【トラップアイコン】：?|《トラップアイコン》：)';
+
+/**
+ * トラップアイコン節を本文から取り除く（§6.4 O-34(a)）。
  *
  * この節は「そのカードを【トラップ】として設置し、めくれて発動したとき」だけ解決する別能力で、
  * 下段（`-TRAP` effect）で独立に解析される。本文へ残すと**直前の能力へ tail-splice** され、
  * カードを使った瞬間にトラップ本体まで走る（＝過剰実行）。
  * ⚠**シグニ側とスペル側で同じ1本を通す**（従来はシグニ側にしか除去が無く、スペル5枚中4枚が漏れていた）。
+ * ⚠**見出しの3表記も同じ1本を通す**（`TRAP_ICON_HEADER`）＝別々に書くと片方だけ直る。
  */
 function stripTrapIconClause(text: string): string {
-  return text.replace(/【トラップアイコン】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
+  return text.replace(new RegExp(`${TRAP_ICON_HEADER}.+?(?=（【|。【[常出起自ガ]】|$)`, 'gs'), '');
 }
 
 /**
@@ -26656,9 +26726,12 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     }
   }
 
-  // トラップアイコン効果（EffectTextに【トラップアイコン】：〜 がある場合）
-  if (card.EffectText && card.EffectText !== '-' && card.EffectText.includes('【トラップアイコン】')) {
-    const trapM = card.EffectText.match(/【トラップアイコン】：(.+?)(?=（|【[常出起自ガ]】|$)/s);
+  // トラップアイコン効果（EffectText にトラップアイコン節の見出しがある場合）。
+  // ⚠**見出しは3表記ある**＝`TRAP_ICON_HEADER`（`stripTrapIconClause` と必ず同じ1本を使う。
+  //   片方だけ広げると「本文からは消えたのに `-TRAP` effect が生えない」＝能力ごと消失する）。
+  if (card.EffectText && card.EffectText !== '-'
+      && new RegExp(TRAP_ICON_HEADER).test(card.EffectText)) {
+    const trapM = card.EffectText.match(new RegExp(`${TRAP_ICON_HEADER}(.+?)(?=（|【[常出起自ガ]】|$)`, 's'));
     if (trapM) {
       const raw = stripRuleParens(trapM[1]).trim();
       if (raw) {
@@ -26938,6 +27011,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // （個別の枝に書くと、次に枝が増えたときまた漏れる＝実際 `10541` の局所修正では届いていなかった）。
     normalizeRevealPickEnergyThen(e.action);
     normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
+    e.action = dropEmptyLookAndReorder(e.action);
   }
 
   // mandatory【出】先頭ゲート修復（2026-07-28）。
