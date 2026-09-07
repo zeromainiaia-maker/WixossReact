@@ -1,5 +1,67 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第219バッチ・Codex 途中停止＋Opus 引き継ぎ・O-D）＝**既存受け皿で直る一点物 9効果**（10件中1件は偽陽性）
+
+**作業単位**＝ユーザー指示「codex に投げ、止まったら Claude が引き継ぐ」。**Codex は9関数を書いた時点で
+`.codex-work` の利用上限（落ち方②）に当たり、`build:effects` にも golden 実行にも一度も到達せず停止**した。
+⇒ **採用・検証・差し戻し・簿記は Opus が引き継いで完走。**
+
+**真因（9件に共通）**＝原文の帰結・条件・選択肢が JSON に**ひとつも無い**（丸ごと欠落6・限定の欠落3）。
+どれも受け皿は既存で、`applyConfirmedOdQueueRepairs`（`effectParser.ts`）に
+**「具体的な原文の一文 × 欠落した action の形」の二重ガードつき**の後処理を9本足した。
+
+| 効果 | 直した欠落 | 使った既存受け皿 |
+|---|---|---|
+| `WX12-032-E1` | 「あなたの手札の枚数が対戦相手の手札の枚数以上の場合」が**どこにも無く BANISH が無条件** | `CONDITIONAL{HAND_DIFF gte 0}` |
+| `WX13-036-E3` | 「対戦相手は**手札を1枚捨て**」が丸ごと無い | `TRASH{HAND_CARD, owner:'opponent'}` を前段に |
+| `WX18-001-E2` | 「その後、あなたの**トラッシュから**＜悪魔＞1枚を場に出し」が丸ごと無い | `ADD_TO_FIELD{source:TRASH_CARD}` |
+| `WX21-030-E2` | 「置く**か、取り除く**」の二択の後半が無い | `CHOOSE` ＋ `STUB{REMOVE_VIRUS, virusCount:1}` |
+| `WX14-027-E2` | 「バニッシュする**か、対戦相手の手札を1枚捨てさせる**」の後半が無い | `CHOOSE` ＋ `TRASH{HAND_CARD, opponent}` |
+| `WX16-067-E2` | **−1側の枝が無い**（`delta:1` 固定）／対象の**＜英知＞限定も無い**（1効果に findings 2件） | `CHOOSE` ＋ `LEVEL_MODIFY{delta:-1}` ＋ `story:'英知'` |
+| `WX12-033-E1` | 「**あなたのシグニ**の基本パワーを15000に」が `count:1`＝**規則19 で効果元1体**に潰れていた | `count:'ALL'` |
+| `WX20-023-BURST` | `keyword:'レイヤー'` が無く**どのシグニでも取れた** | `filter.keyword` |
+| `WX20-029-E1` | 「**好きな枚数**の＜悪魔＞」が `count:1`＝後段の −1000×枚数も連動して過小 | `count:'ALL'` ＋ `upToCount:true` |
+
+### 🔴 引き継ぎで差し戻した3点（Codex は golden を1度も実行していない）
+
+1. 🔴**`WX13-036-E3` の3段構成は過剰実行になる**＝Codex は
+   `SEQUENCE[SELECT_TARGET_ONLY{opponentSelects}, STORE_LAST_PROCESSED_TARGETS, TRASH{手札}, TRASH{シグニ,targetsStored}]`
+   を出していたが、**`storedTargetCards` はインタラクションの resume を跨いで生存しない**（`effectExecutor.ts:153`）。
+   `freezeStoredTargets` が `fixedCardNums` へ焼き込むのは**任意コスト／CONDITIONAL の分岐だけ**で、
+   **素の `SEQUENCE` の途中に対話（手札を捨てる選択）が挟まる形では一度も呼ばれない**
+   ⇒ 宣言した1体が消えて**相手のシグニ全体から選び直す SELECT_TARGET が開く**。
+   ⇒ **足りない一節だけを前に置く2ステップ**へ書き換え、元の `TRASH` は1バイトも変えない契約を golden で固定した。
+2. 🔴**`WX16-031-BURST`（B3）は偽陽性**＝finding は「`count:1` 固定＝0枚を選べない」だったが、
+   **`execTransferToHand`（`effectExecutor.ts:3597`）が各群を展開するときに `upToCount:true` を無条件で付ける**
+   ＝**JSON の見た目を engine が裏で読み替えている**型。実装せず、代わりに
+   **「`transferGroups` を使う効果は原文が必ず『まで』を持つ」トリップワイヤ**を golden へ張った
+   （現在 live 8効果すべてが該当＝**裏返すと engine が黙って任意化する**ので、許容リストではなく毎回再導出する形）。
+3. 🔴**golden の fixture が偶然《セイリュ》を引いていた**＝`§6.3(f)` と `O-247` の2本は
+   空獣/地獣の1枚目に **`WD04-009 幻獣　セイリュ`** を使っており、これは同じ盤面に置く `WX12-033` の
+   **`WX12-033-E1` の発動条件そのもの**。`count:'ALL'` へ直した瞬間に基本パワーが 12000→15000 に上書きされ、
+   **「パワー増減の保護」と交絡**した。⚠しかも **−3000 側は 15000−3000＝12000 と `basePower` に一致する**ので
+   **保護が壊れても緑になりうる**。⇒ fixture から《セイリュ》を除外した（テストの意図は変えていない）。
+
+🔑**教訓＝「engine は実装済み」ではなく「engine は *この形で* 実装済みか」を見る。**
+`SELECT_TARGET_ONLY` も `STORE_LAST_PROCESSED_TARGETS` も `targetsStored` も**全部実在した**（捏造ではない）。
+壊れていたのは**組み合わせ方**＝対話を跨ぐ位置に置いたこと。**語彙の grep だけでは判定できない。**
+
+**配送経路の罠**＝`WX13-036` / `WX18-001` / `WX12-033` は**兄弟に MANUAL があるカード**で、
+`PRESERVE_STATUSES` によりカード単位で温存され **`_partial_fresh.json` に落ちて live に届かなかった**
+（CODEX_GUIDE §5-10）。⇒ **effectId アンカーの外科パッチ**で採用（§5-18）。他5枚は `heldReview --adopt`。
+
+**偽陽性の還元（O-C）**＝`semanticAuditExtract.mjs` に**規則33・34**を追加（32→34本）。
+33＝「N枚まで」の任意性を engine が構造ごとに補うことがある（上の B3）。
+34＝**逆翻訳に原文の一節が出ていても JSON に載っているとは限らない**（第218の差し戻しの一般化）。
+
+**検証**＝`npm run gates` 全緑。**golden 3613 → 3624 PASS / 0 FAIL**（+11＝Codex の10本＋B3 トリップワイヤ1本）。
+census 高シグナル 0/0（据置）・smoke 0・fuzz 0・**lint 256（ベースライン同値**＝+7 に見えたのは Codex が
+リポジトリ直下に残した `tmp_cards.ts` を eslint が数えていたため。削除して復帰）。
+`census:stubs`/`enginetext`/`costtext` の A群すべて 0 維持。
+**ラチェット更新1件＝`REMOVE_VIRUS` ノード数 9→10**（`WX21-030-E2` の二択の後半ぶん＝**新機構ではない**）。
+**live A/B 差分＝変化した effectId ちょうど9件・outlier 0**。逆翻訳も同じ9行だけ動いた。
+**⑤実機＝不要**（§2.2＝`src/data/` `public/data/` `scripts/` のみ。`src/engine/` `src/screens/` は無改変）。
+
 ## 2026-09-07（第218バッチ・Codex・O-259 第10）＝bare `STUB{PLAY_FREE}` 真 no-op 3効果を既存使用経路へ載せ替え
 
 **真因**＝`PLAY_FREE` は `carriedCardNum ?? lastProcessedCards?.[0] ?? sourceCardNum` を使用対象にするだけで、

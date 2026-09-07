@@ -10665,6 +10665,197 @@ function applyRecoveryTransferGroups(text: string, action: EffectAction): Effect
   return action;
 }
 
+// ── O-D queue: confirmed one-off omissions with existing executor vocabulary (2026-09-07) ──
+// Each repair is guarded by both a concrete sentence shape and the exact deficient action shape.
+// Do not fold these into a broad noun/verb rewrite: nearby cards often have materially different
+// choice boundaries, target owners, or ordering requirements.
+function restoreHandDiffBanishCondition(text: string, action: EffectAction): EffectAction {
+  if (!/あなたの手札の枚数が対戦相手の手札の枚数以上の場合、それをバニッシュする/.test(text)
+      || action.type !== 'SEQUENCE') return action;
+  const steps = action.steps;
+  const banishIndexes = steps.flatMap((step, index) =>
+    step.type === 'BANISH' && step.target.type === 'SIGNI' && step.target.owner === 'opponent'
+      ? [index] : []);
+  if (banishIndexes.length !== 1) return action;
+  const index = banishIndexes[0];
+  return {
+    ...action,
+    steps: steps.map((step, stepIndex) => stepIndex === index ? {
+      type: 'CONDITIONAL',
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: 0 },
+      then: step,
+    } as ConditionalAction : step),
+  };
+}
+
+function restoreOpponentDiscardBeforeOwnSigniTrash(text: string, action: EffectAction): EffectAction {
+  if (!/対戦相手は自分のシグニ１体を対象とし、手札を１枚捨て、それをトラッシュに置く/.test(text)
+      || action.type !== 'TRASH'
+      || action.target.type !== 'SIGNI'
+      || action.target.owner !== 'opponent'
+      || action.target.count !== 1) return action;
+  // 🔴**`SELECT_TARGET_ONLY` ＋ `STORE_LAST_PROCESSED_TARGETS` ＋ `targetsStored` の3段にしてはいけない**
+  //   （2026-09-07 第219の検証で実測＝Codex の初版がこれで、golden が捕まえた）。
+  //   `storedTargetCards` は**インタラクションの resume を跨いで生存しない**（`effectExecutor.ts:153`）。
+  //   `freezeStoredTargets` が `fixedCardNums` へ焼き込むのは**任意コスト／CONDITIONAL の分岐だけ**で、
+  //   素の `SEQUENCE` の途中に対話（手札を捨てる選択）が挟まる形では**一度も呼ばれない**。
+  //   ⇒ 宣言した1体が消えて**相手のシグニ全体から選び直す SELECT_TARGET が開く＝過剰実行**になる。
+  // ⇒ **足りない一節（相手の手札1枚を捨てさせる）だけを前に置く**。元の `TRASH` は1バイトも変えない。
+  //   ⚠原文の語順は「対象宣言 → 手札を捨て → トラッシュ」だが、宣言と実行がこの1アクションなので
+  //   2ステップでは表せない。**最終盤面は同一**（どちらも相手が自分の札を選び、相手のトラッシュへ行く）。
+  //   ⚠「対戦相手が選ぶ」ことは `execTrash` が `opponentSelects` を読まないので今も表せていない
+  //   （元の live も同じ＝今回のスコープ外）。
+  return {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+      action,
+    ],
+  };
+}
+
+function restoreSecondClassSigniFromTrash(text: string, action: EffectAction): EffectAction {
+  const match = text.match(/デッキから＜([^＞]+)＞のシグニ１枚を探して場に出す。その後、あなたのトラッシュから＜([^＞]+)＞のシグニ１枚を対象とし、それを場に出し、デッキをシャッフルする/);
+  if (!match || match[1] !== match[2] || action.type !== 'SEQUENCE') return action;
+  const searchIndexes = action.steps.flatMap((step, index) =>
+    step.type === 'SEARCH' && step.from.location === 'deck' && step.from.owner === 'self'
+      && step.then.type === 'ADD_TO_FIELD' ? [index] : []);
+  const shuffleIndexes = action.steps.flatMap((step, index) => step.type === 'SHUFFLE_DECK' ? [index] : []);
+  if (searchIndexes.length !== 1 || shuffleIndexes.length !== 1 || searchIndexes[0] >= shuffleIndexes[0]) return action;
+  const trashPlacement: AddToFieldAction = {
+    type: 'ADD_TO_FIELD',
+    source: {
+      type: 'TRASH_CARD', owner: 'self', count: 1,
+      filter: { cardType: 'シグニ', story: match[1] },
+    },
+    owner: 'self',
+  };
+  const steps = [...action.steps];
+  steps.splice(shuffleIndexes[0], 0, trashPlacement);
+  return { ...action, steps };
+}
+
+function restoreVirusPlaceOrRemoveChoice(text: string, action: EffectAction): EffectAction {
+  if (!/対戦相手のシグニゾーン１つに【ウィルス】１つを置くか、対戦相手の場にある【ウィルス】１つを取り除く/.test(text)
+      || action.type !== 'PLACE_VIRUS'
+      || action.targetOwner !== 'opponent'
+      || action.zoneCount !== 1
+      || action.virusCount !== 1) return action;
+  return {
+    type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'place_virus', label: '対戦相手のシグニゾーンに【ウィルス】1つを置く', action },
+      { choiceId: 'remove_virus', label: '対戦相手の場の【ウィルス】1つを取り除く', action: { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 1 } },
+    ],
+  };
+}
+
+function restoreBanishOrOpponentDiscardChoice(text: string, action: EffectAction): EffectAction {
+  if (!/対戦相手のシグニ１体を対象とし、それをバニッシュするか、対戦相手の手札を１枚捨てさせる/.test(text)
+      || action.type !== 'BANISH'
+      || action.target.type !== 'SIGNI'
+      || action.target.owner !== 'opponent'
+      || action.target.count !== 1) return action;
+  return {
+    type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'banish_signi', label: '対戦相手のシグニ1体をバニッシュする', action },
+      {
+        choiceId: 'discard_opponent_hand', label: '対戦相手の手札を1枚捨てさせる',
+        action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+      },
+    ],
+  };
+}
+
+function restoreClassLevelPlusOrMinusChoice(text: string, action: EffectAction): EffectAction {
+  const match = text.match(/あなたの＜([^＞]+)＞のシグニ１体を対象とし、ターン終了時まで、それのレベルを＋１するか－１してもよい/);
+  if (!match || action.type !== 'SEQUENCE') return action;
+  const levelIndexes = action.steps.flatMap((step, index) =>
+    step.type === 'LEVEL_MODIFY' && step.target.type === 'SIGNI' && step.target.owner === 'self'
+      && step.target.count === 1 && step.delta === 1 ? [index] : []);
+  if (levelIndexes.length !== 1) return action;
+  const index = levelIndexes[0];
+  const base = action.steps[index] as import('../types/effects').LevelModifyAction;
+  const classFilter: TargetFilter = { ...(base.target.filter ?? {}), cardType: 'シグニ', story: match[1] };
+  const plus: EffectAction = { ...base, target: { ...base.target, filter: classFilter }, delta: 1 };
+  // The printed reminder forbids level 0 or lower. LEVEL_MODIFY stores raw deltas, so the -1
+  // branch reuses the existing levelRange filter and is offered only for current level 2+.
+  const minus: EffectAction = {
+    ...base,
+    target: { ...base.target, filter: { ...classFilter, levelRange: { min: 2 } } },
+    delta: -1,
+  };
+  return {
+    ...action,
+    steps: action.steps.map((step, stepIndex) => stepIndex === index ? {
+      type: 'CHOOSE', choose_count: 1, from_count: 2,
+      choices: [
+        { choiceId: 'level_plus_1', label: 'レベルを+1する', action: plus },
+        { choiceId: 'level_minus_1', label: 'レベルを-1する', action: minus },
+      ],
+    } as ChooseAction : step),
+  };
+}
+
+function restoreAllOwnSigniPowerSet(text: string, action: EffectAction): EffectAction {
+  if (!/あなたのシグニの基本パワーを[０-９\d]+にする/.test(text)
+      || action.type !== 'POWER_SET'
+      || action.target.type !== 'SIGNI'
+      || action.target.owner !== 'self'
+      || action.target.count !== 1) return action;
+  return { ...action, target: { ...action.target, count: 'ALL' } };
+}
+
+function restoreDeckSearchPrintedKeyword(text: string, action: EffectAction): EffectAction {
+  const match = text.match(/あなたのデッキから【([^】]+)】を持つシグニ１枚を探して公開し、手札に加えるか場に出し、デッキをシャッフルする/);
+  if (!match || action.type !== 'SEARCH'
+      || action.from.location !== 'deck'
+      || action.from.owner !== 'self'
+      || action.maxCount !== 1
+      || !action.handOrField
+      || action.filter.keyword !== undefined) return action;
+  return { ...action, filter: { ...action.filter, cardType: 'シグニ', keyword: match[1] } };
+}
+
+function restoreAnyNumberClassTrashToDeck(text: string, action: EffectAction): EffectAction {
+  const match = text.match(/あなたのトラッシュから好きな枚数の＜([^＞]+)＞のシグニを対象とし、それらをデッキに加えてシャッフルする/);
+  if (!match || action.type !== 'SEQUENCE') return action;
+  const transferIndexes = action.steps.flatMap((step, index) =>
+    step.type === 'TRANSFER_TO_DECK'
+      && step.source.type === 'TRASH_CARD'
+      && step.source.owner === 'self'
+      && step.source.count === 1
+      && step.shuffle === true
+      ? [index] : []);
+  if (transferIndexes.length !== 1) return action;
+  const index = transferIndexes[0];
+  const transfer = action.steps[index] as TransferToDeckAction;
+  const parsedClass = transfer.source.filter?.story ?? transfer.source.filter?.cardClass;
+  if (parsedClass !== match[1]) return action;
+  return {
+    ...action,
+    steps: action.steps.map((step, stepIndex) => stepIndex === index ? {
+      ...transfer,
+      source: { ...transfer.source, count: 'ALL', upToCount: true },
+    } : step),
+  };
+}
+
+function applyConfirmedOdQueueRepairs(text: string, action: EffectAction): EffectAction {
+  let repaired = action;
+  repaired = restoreHandDiffBanishCondition(text, repaired);
+  repaired = restoreOpponentDiscardBeforeOwnSigniTrash(text, repaired);
+  repaired = restoreSecondClassSigniFromTrash(text, repaired);
+  repaired = restoreVirusPlaceOrRemoveChoice(text, repaired);
+  repaired = restoreBanishOrOpponentDiscardChoice(text, repaired);
+  repaired = restoreClassLevelPlusOrMinusChoice(text, repaired);
+  repaired = restoreAllOwnSigniPowerSet(text, repaired);
+  repaired = restoreDeckSearchPrintedKeyword(text, repaired);
+  repaired = restoreAnyNumberClassTrashToDeck(text, repaired);
+  return repaired;
+}
+
 // ── §6.4 「〈任意コスト〉てもよい。そうした場合、〈本体〉」の**任意性脱落**（続き416）──
 // 原文の「てもよい」が parser で落ち、コスト（手札を捨てる等）が **強制** になっていた系統
 // （`node scripts/_checkAllEffects.mjs` の `MANDATORY_SUSPICIOUS` 実測35カード。手札捨てが最大クラスタ）。
@@ -27145,6 +27336,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (effect.parseStatus === 'AUTO') {
       effect.action = applyRecoveryNounPhraseModifiers(sourceText, effect.action);
       effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
+      effect.action = applyConfirmedOdQueueRepairs(sourceText, effect.action);
       effect.action = fillBareOptionalCostPayload(effect.action);
       effect.action = applyDroppedFieldPlacementDesignation(sourceText, effect.action);
       effect.action = restoreLrigTrashToDeckAnaphora(sourceText, effect.action);

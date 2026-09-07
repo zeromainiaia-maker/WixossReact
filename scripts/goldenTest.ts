@@ -2888,7 +2888,11 @@ test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは
   // 🔼**8→9**（2026-09-03・§5.3 `O-60` 第60バッチ）＝`WX16-005-E1`③（ベットの3択）が live JSON に出た。
   //   ⚠**新しい効果が増えたのではなく可視化**＝旧 live は `STUB{BET_MECHANIC}` 1ノードで、
   //   ①②③は engine が実行時にカード全文から組み立てていた（＝live にも逆翻訳にも現れなかった）。
-  eq(rvNodes.length, 9, 'live の REMOVE_VIRUS ノード数');
+  // 🔼**9→10**（2026-09-07・第219バッチ・§5.0 O-D A4）＝`WX21-030-E2` の原文
+  //   「【ウィルス】１つを**置くか、取り除く**」の**後半が丸ごと無かった**（`PLACE_VIRUS` だけ）。
+  //   `CHOOSE` の第2枝として `STUB{REMOVE_VIRUS, virusCount:1}` を足したぶんの +1。
+  //   ⚠**新しい機構ではない**＝単独の `REMOVE_VIRUS` は `execStubPart1.ts:1863` が相手の場から除去する。
+  eq(rvNodes.length, 10, 'live の REMOVE_VIRUS ノード数');
   eq(rvNodes.filter(n => n.virusCount === undefined).length, 1, 'payload 無しは「これを取り除く」（WX25-P3-TK03）の1件だけ');
 }));
 test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
@@ -3408,7 +3412,13 @@ test('§6.3(f) POWER_MODIFY免疫5件: ±方向と保護スコープを厳密に
   };
   const emitter = findCard(c => isSigni(c) && !['WX05-024','WX12-033','WX20-023','WX22-013','WXK03-018'].includes(c.CardNum));
   const plain = findCard(c => isSigni(c) && c.CardNum !== emitter && !(c.CardClass ?? '').includes('空獣') && !(c.CardClass ?? '').includes('地獣') && !(c.CardClass ?? '').includes('怪異'));
-  const beast = findCard(c => isSigni(c) && ((c.CardClass ?? '').includes('空獣') || (c.CardClass ?? '').includes('地獣')) && c.CardNum !== emitter);
+  // 🔴**《セイリュ》を除く**（2026-09-07 第219）＝最初に当たる 空獣/地獣 は `WD04-009 幻獣　セイリュ` で、
+  //   これは同じ盤面に置く `WX12-033` の **`WX12-033-E1`（【常】：あなたの場にカード名に《セイリュ》を含む
+  //   シグニがあるかぎり、あなたのシグニの基本パワーを15000にする）の発動条件そのもの**。
+  //   E1 を `count:'ALL'`（原文どおり）へ直した時点で基本パワーが 12000→15000 に上書きされ、
+  //   **このテストが見たい「パワー増減の保護」と交絡する**（しかも -3000 側は 15000-3000=12000 と
+  //   `basePower(beast)` に一致してしまい、**保護が壊れても緑になりうる**）。⇒ fixture 側で外す。
+  const beast = findCard(c => isSigni(c) && ((c.CardClass ?? '').includes('空獣') || (c.CardClass ?? '').includes('地獣')) && c.CardNum !== emitter && !(c.CardName ?? '').includes('セイリュ'));
   const kaii = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異') && c.CardNum !== emitter);
 
   // WX05-024: 裸の「シグニ」＝両盤面。相手由来の±を双方で止める。
@@ -3477,7 +3487,13 @@ test('§5.3 O-247: 対戦相手の効果によるパワー減少の保護が tem
     return em;
   };
   const mine = findCard(c => isSigni(c) && !['WX05-024', 'WX12-033', 'WX20-023', 'WX22-013', 'WXK03-018'].includes(c.CardNum));
-  const beast = findCard(c => isSigni(c) && ((c.CardClass ?? '').includes('空獣') || (c.CardClass ?? '').includes('地獣')) && c.CardNum !== mine);
+  // 🔴**《セイリュ》を除く**（2026-09-07 第219）＝最初に当たる 空獣/地獣 は `WD04-009 幻獣　セイリュ` で、
+  //   これは同じ盤面に置く `WX12-033` の **`WX12-033-E1`（【常】：あなたの場にカード名に《セイリュ》を含む
+  //   シグニがあるかぎり、あなたのシグニの基本パワーを15000にする）の発動条件そのもの**。
+  //   E1 を `count:'ALL'`（原文どおり）へ直した時点で基本パワーが 12000→15000 に上書きされ、
+  //   **このテストが見たい「パワー増減の保護」と交絡する**（しかも -3000 側は 15000-3000=12000 と
+  //   `basePower(beast)` に一致してしまい、**保護が壊れても緑になりうる**）。⇒ fixture 側で外す。
+  const beast = findCard(c => isSigni(c) && ((c.CardClass ?? '').includes('空獣') || (c.CardClass ?? '').includes('地獣')) && c.CardNum !== mine && !(c.CardName ?? '').includes('セイリュ'));
   const plain = findCard(c => isSigni(c) && c.CardNum !== mine && c.CardNum !== beast
     && !(c.CardClass ?? '').includes('空獣') && !(c.CardClass ?? '').includes('地獣'));
   const em = manualMap('WX12-033');
@@ -71119,6 +71135,308 @@ test('§5.3 O-259 第10 A3: 両者のルリグトラッシュを合わせ、選�
   ok(!decompiledLineOf('WXK09-002-E1').includes('限定条件を無視して'),
     '🔴payload に無い節を領域から復元しない');
 });
+
+// ── §5.0 O-D: existing-receptacle one-offs (2026-09-07) ──
+// Every adopted effect is checked through both persisted live JSON and a fresh parse. The execution
+// assertions then hit the actual consumer, so a correctly shaped but unread field cannot pass here.
+const odEffect = (cardNum: string, effectId: string, freshParse = false): CardEffect => {
+  const effects = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = effects.find(candidate => candidate.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} (${freshParse ? 'fresh' : 'live'}) not found`);
+  return effect;
+};
+
+const odChoice = (effect: CardEffect, choiceId: string, ctx: ExecCtx): ExecResult => {
+  const initial = executeEffect(effect, ctx);
+  ok(!initial.done && initial.pending.type === 'CHOOSE', `${effect.effectId}: CHOOSE が立つ`);
+  if (initial.done || initial.pending.type !== 'CHOOSE') throw new Error('CHOOSE expected');
+  return resumeChoose(choiceId, initial.pending, execCtxFrom(initial, ctx));
+};
+
+test('O-D 一点物 A1 WX12-032-E1: HAND_DIFF は同数で通り、相手が1枚多いと止まる', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const json = JSON.stringify(odEffect('WX12-032', 'WX12-032-E1', freshParse).action);
+    ok(json.includes('"HAND_DIFF","operator":"gte","value":0'), `${freshParse ? 'fresh' : 'live'}: HAND_DIFF >= 0`);
+  }
+  const action = odEffect('WX12-032', 'WX12-032-E1').action;
+  const victim = SIGNI_P12000;
+  const equal = mkCtx({ hand: 2 }, { hand: 2, signi: [victim, null, null] });
+  const hit = run(action, equal);
+  ok(!tops(hit.otherState).includes(victim), '同数なら条件成立してバニッシュ');
+  const behind = mkCtx({ hand: 1 }, { hand: 2, signi: [victim, null, null] });
+  const miss = run(action, behind);
+  ok(tops(miss.otherState).includes(victim), '🔴相手が1枚多ければバニッシュしない');
+}));
+
+test('O-D 一点物 A2 WX13-036-E3: 相手の手札1枚と相手のシグニ1体の両方がトラッシュへ行く', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX13-036', 'WX13-036-E3', freshParse).action as SequenceAction;
+    eq(action.type, 'SEQUENCE', `${freshParse ? 'fresh' : 'live'}: 2ステップになる`);
+    eq(action.steps.length, 2, `${freshParse ? 'fresh' : 'live'}: 手札捨て＋シグニトラッシュ`);
+    ok(JSON.stringify(action.steps[0]).includes('"type":"HAND_CARD","owner":"opponent","count":1'),
+      '🔴丸ごと欠けていた「対戦相手は手札を1枚捨て」');
+    // 🔴**元の `TRASH{SIGNI}` は1バイトも変えない**＝限定を足したり `targetsStored` を挟んだりしない。
+    eq(JSON.stringify(action.steps[1]),
+      '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}',
+      `${freshParse ? 'fresh' : 'live'}: 既存ステップは無改変`);
+    // 🔴**`storedTargetCards` を跨がせる3段構成へ戻さない**（第219の検証で実測＝
+    //   `freezeStoredTargets` は素の SEQUENCE では呼ばれず、対話の後に候補が全体へ開く＝過剰実行）。
+    ok(!JSON.stringify(action).includes('targetsStored'),
+      '🔴対話を跨ぐ targetsStored を使わない');
+  }
+  const victimA = SIGNI_L2, victimB = SIGNI_L3;
+  const ctx = mkCtx({ hand: 2 }, { hand: 2, signi: [victimA, victimB, null] });
+  const ownHand = [...ctx.ownerState.hand];
+  const discarded = ctx.otherState.hand[1];
+  const first = executeEffect(odEffect('WX13-036', 'WX13-036-E3'), ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'まず捨てる手札を選ぶ');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  const second = resumeSelectTarget([discarded], first.pending, execCtxFrom(first, ctx));
+  ok(!second.done && second.pending.type === 'SELECT_TARGET', '続けてシグニを選ぶ');
+  if (second.done || second.pending.type !== 'SELECT_TARGET') throw new Error('signi SELECT_TARGET expected');
+  const doneResult = resumeSelectTarget([victimB], second.pending, execCtxFrom(second, ctx));
+  ok(doneResult.done, '2段の選択で完了する');
+  ok(tops(doneResult.otherState).includes(victimA) && !tops(doneResult.otherState).includes(victimB),
+    '選んだ1体だけが場から消える');
+  ok(doneResult.otherState.trash.includes(victimB) && doneResult.otherState.trash.includes(discarded),
+    '相手の2枚が相手トラッシュへ');
+  eq(doneResult.ownerState.hand.join(','), ownHand.join(','), '🔴自分の手札は捨てない');
+  eq(doneResult.otherState.hand.length, ctx.otherState.hand.length - 1, '相手の手札が1枚減る');
+
+  // 🔴対照＝手札捨てのステップを外すと、相手の手札は1枚も減らない（修正前の状態）。
+  const before = executeEffect(
+    { ...odEffect('WX13-036', 'WX13-036-E3'),
+      action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } } as CardEffect, ctx);
+  ok(!before.done && before.pending.type === 'SELECT_TARGET', '修正前はシグニ選択から始まる');
+  if (before.done || before.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  const beforeDone = resumeSelectTarget([victimB], before.pending, execCtxFrom(before, ctx));
+  eq(beforeDone.otherState.hand.length, ctx.otherState.hand.length, '🔴修正前は相手の手札が減らない');
+}));
+
+test('O-D 一点物 A3 WX18-001-E2: デッキとトラッシュから悪魔を各1体ずつ場に出す', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const json = JSON.stringify(odEffect('WX18-001', 'WX18-001-E2', freshParse).action);
+    eq((json.match(/"ADD_TO_FIELD"/g) ?? []).length, 2, `${freshParse ? 'fresh' : 'live'}: 場出しが2本`);
+    ok(json.includes('"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"悪魔"}'),
+      'トラッシュ側も悪魔1枚に限定');
+  }
+  const devils = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('悪魔')).slice(0, 2).map(c => c.CardNum);
+  const nonDevils = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('悪魔')).slice(0, 2).map(c => c.CardNum);
+  const base = mkCtx({ signi: [null, null, null] }, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, deck: [nonDevils[0], devils[0]], trash: [nonDevils[1], devils[1]] } } as ExecCtx;
+  const result = finish(executeEffect(odEffect('WX18-001', 'WX18-001-E2'), ctx), ctx);
+  const field = tops(result.ownerState);
+  ok(field.includes(devils[0]) && field.includes(devils[1]), 'デッキとトラッシュの悪魔が場に出る');
+  ok(result.ownerState.trash.includes(nonDevils[1]), '🔴非悪魔はトラッシュに残る');
+
+  const noTrashDevil = { ...ctx, ownerState: { ...ctx.ownerState, trash: [nonDevils[1]] } } as ExecCtx;
+  const miss = finish(executeEffect(odEffect('WX18-001', 'WX18-001-E2'), noTrashDevil), noTrashDevil);
+  eq(tops(miss.ownerState).filter(Boolean).length, 1, '🔴トラッシュに悪魔が無ければ別カードで代用しない');
+}));
+
+test('O-D 一点物 A4 WX21-030-E2: ウィルス配置と除去の二択が別々に実働する', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX21-030', 'WX21-030-E2', freshParse).action as unknown as { type: string; choices: { choiceId: string; action: EffectAction }[] };
+    eq(action.type, 'CHOOSE', `${freshParse ? 'fresh' : 'live'}: CHOOSE`);
+    eq(action.choices.map(c => c.choiceId).join(','), 'place_virus,remove_virus', '配置／除去の2枝');
+    ok(JSON.stringify(action.choices[1].action).includes('"id":"REMOVE_VIRUS","virusCount":1'), '除去枝の payload');
+  }
+  const placeBase = mkCtx({}, {});
+  placeBase.otherState.field.signi_virus = [0, 0, 0];
+  const placed = finish(odChoice(odEffect('WX21-030', 'WX21-030-E2'), 'place_virus', placeBase), placeBase);
+  eq((placed.otherState.field.signi_virus ?? []).reduce((a, b) => a + b, 0), 1, '配置枝は+1');
+  const removeBase = mkCtx({}, {});
+  removeBase.otherState.field.signi_virus = [1, 1, 0];
+  const removed = finish(odChoice(odEffect('WX21-030', 'WX21-030-E2'), 'remove_virus', removeBase), removeBase);
+  eq((removed.otherState.field.signi_virus ?? []).reduce((a, b) => a + b, 0), 1, '除去枝は2→1');
+  ok(!(removed.otherState.field.signi_virus ?? []).some(n => n > 1), '🔴除去枝で配置しない');
+}));
+
+test('O-D 一点物 A5 WX14-027-E2: バニッシュ枝と相手手札捨て枝の対象集合を混ぜない', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX14-027', 'WX14-027-E2', freshParse).action as unknown as { type: string; choices: { choiceId: string }[] };
+    eq(action.type, 'CHOOSE', `${freshParse ? 'fresh' : 'live'}: CHOOSE`);
+    eq(action.choices.map(c => c.choiceId).join(','), 'banish_signi,discard_opponent_hand', '二択の境界');
+  }
+  const victim = SIGNI_L3;
+  const banishCtx = mkCtx({}, { hand: 2, signi: [victim, null, null] });
+  const beforeHand = [...banishCtx.otherState.hand];
+  const banished = finish(odChoice(odEffect('WX14-027', 'WX14-027-E2'), 'banish_signi', banishCtx), banishCtx);
+  ok(!tops(banished.otherState).includes(victim), 'バニッシュ枝はシグニを処理');
+  eq(banished.otherState.hand.join(','), beforeHand.join(','), 'バニッシュ枝では手札を捨てない');
+  const discardCtx = mkCtx({}, { hand: 2, signi: [victim, null, null] });
+  const discarded = finish(odChoice(odEffect('WX14-027', 'WX14-027-E2'), 'discard_opponent_hand', discardCtx), discardCtx);
+  ok(tops(discarded.otherState).includes(victim), '🔴手札枝ではシグニを選ばせず場に残す');
+  eq(discarded.otherState.hand.length, 1, '相手自身が手札を1枚捨てる');
+}));
+
+test('O-D 一点物 A6 WX16-067-E2: 英知だけを±1し、レベル1は-1候補にしない', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const json = JSON.stringify(odEffect('WX16-067', 'WX16-067-E2', freshParse).action);
+    ok(json.includes('"story":"英知"'), `${freshParse ? 'fresh' : 'live'}: 英知限定`);
+    ok(json.includes('"delta":-1'), '−1枝');
+    ok(json.includes('"levelRange":{"min":2}'), 'レベル0以下防止が実行可能な限定になっている');
+  }
+  const eichiL1 = findCard(c => c.Type === 'シグニ' && c.Level === '1' && (c.CardClass ?? '').includes('英知'));
+  const eichiL2 = findCard(c => c.Type === 'シグニ' && c.Level === '2' && (c.CardClass ?? '').includes('英知'));
+  const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('英知'));
+  const plusCtx = mkCtx({ signi: [eichiL1, other, null] }, {});
+  const plus = odChoice(odEffect('WX16-067', 'WX16-067-E2'), 'level_plus_1', plusCtx);
+  ok(!plus.done && plus.pending.type === 'SELECT_TARGET', '+1枝の対象選択');
+  if (plus.done || plus.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(plus.pending.candidates.join(','), eichiL1, '非英知は+1候補に混ざらない');
+  const plusDone = resumeSelectTarget([eichiL1], plus.pending, execCtxFrom(plus, plusCtx));
+  eq((plusDone.ownerState.temp_level_mods ?? []).find(m => m.cardNum === eichiL1)?.delta, 1, '+1適用');
+
+  const minusCtx = mkCtx({ signi: [eichiL1, eichiL2, other] }, {});
+  const minus = odChoice(odEffect('WX16-067', 'WX16-067-E2'), 'level_minus_1', minusCtx);
+  ok(!minus.done && minus.pending.type === 'SELECT_TARGET', '-1枝の対象選択');
+  if (minus.done || minus.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(minus.pending.candidates.join(','), eichiL2, '🔴英知でもレベル1は-1候補にしない');
+  const minusDone = resumeSelectTarget([eichiL2], minus.pending, execCtxFrom(minus, minusCtx));
+  eq((minusDone.ownerState.temp_level_mods ?? []).find(m => m.cardNum === eichiL2)?.delta, -1, '-1適用');
+}));
+
+test('O-D 一点物 B1 WX12-033-E1: 条件成立時は自分のシグニ2体以上を同時に15000へする', () => withSavedCursor(() => {
+  const live = odEffect('WX12-033', 'WX12-033-E1');
+  const freshParsed = odEffect('WX12-033', 'WX12-033-E1', true);
+  for (const effect of [live, freshParsed]) {
+    eq((effect.action as unknown as { target: { count: unknown } }).target.count, 'ALL', 'live/fresh とも全体');
+    ok(JSON.stringify(effect.activeCondition).includes('"cardName":"セイリュ"'), '既存 activeCondition は維持');
+  }
+  const host = 'WX12-033';
+  const seiryu = findCard(c => c.Type === 'シグニ' && (c.CardName ?? '').includes('セイリュ'));
+  const ally = findCard(c => c.Type === 'シグニ' && c.CardNum !== host && c.CardNum !== seiryu && c.Power !== '15000');
+  const localEffects = new Map(effectsMap);
+  localEffects.set(host, [live]);
+  const active = mkState({ signi: [host, ally, seiryu] });
+  const powers = calcFieldPowers(active, mkState({}), true, localEffects, cardMap as Map<string, CardData>);
+  eq(powers.get(host), 15000, '効果元も15000');
+  eq(powers.get(ally), 15000, '2体目も同時に15000');
+  eq(powers.get(seiryu), 15000, '条件札も15000');
+  const inactive = mkState({ signi: [host, ally, null] });
+  const raw = parseInt(cardMap.get(ally)?.Power ?? '0', 10);
+  eq(calcFieldPowers(inactive, mkState({}), true, localEffects, cardMap as Map<string, CardData>).get(ally), raw,
+    '🔴セイリュ不在なら全体化しない');
+}));
+
+test('O-D 一点物 B2 WX20-023-BURST: 【レイヤー】持ちだけをデッキ探索候補にする', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX20-023', 'WX20-023-BURST', freshParse).action as unknown as { filter: TargetFilter };
+    eq(action.filter.keyword, 'レイヤー', `${freshParse ? 'fresh' : 'live'}: keyword`);
+  }
+  const layer = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【レイヤー】'));
+  const ordinary = findCard(c => c.Type === 'シグニ' && !(c.EffectText ?? '').includes('【レイヤー】'));
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, deck: [ordinary, layer] } } as ExecCtx;
+  const result = executeEffect(odEffect('WX20-023', 'WX20-023-BURST'), ctx);
+  ok(!result.done && result.pending.type === 'SEARCH', '探索UIが立つ');
+  if (result.done || result.pending.type !== 'SEARCH') throw new Error('SEARCH expected');
+  eq(result.pending.visibleCards.join(','), layer, 'レイヤーだけが候補');
+  // 🔴対照＝レイヤー不在なら**通常シグニで代用しない**（`keyword` を外すと ordinary が候補に出る）。
+  //   ⚠候補0のとき engine は SEARCH を立てずに `done` で降りる（第219の検証で実測）＝
+  //   「SEARCH が立って visibleCards が0」ではない。**どちらで終わるかまで assert する。**
+  const missCtx = { ...ctx, ownerState: { ...ctx.ownerState, deck: [ordinary] } } as ExecCtx;
+  const miss = executeEffect(odEffect('WX20-023', 'WX20-023-BURST'), missCtx);
+  ok(miss.done, '🔴レイヤー不在なら通常シグニで代用せず、そのまま終わる');
+  ok(!miss.ownerState.hand.includes(ordinary) && !tops(miss.ownerState).includes(ordinary),
+    '🔴通常シグニは手札にも場にも来ない');
+  const noKeyword = executeEffect({
+    ...odEffect('WX20-023', 'WX20-023-BURST'),
+    action: { ...(odEffect('WX20-023', 'WX20-023-BURST').action as unknown as Record<string, unknown>),
+      filter: { cardType: 'シグニ' } } as unknown as EffectAction,
+  } as CardEffect, missCtx);
+  ok(!noKeyword.done && noKeyword.pending.type === 'SEARCH'
+    && noKeyword.pending.visibleCards.includes(ordinary),
+    '🔴対照＝keyword を外すと同じ盤面で通常シグニが候補に出る（限定が効いている証拠）');
+}));
+
+test('O-D 一点物 B3 WX16-031-BURST: transferGroups 既存経路は各群を0〜1枚で独立選択する', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX16-031', 'WX16-031-BURST', freshParse).action as import('../src/types/effects').TransferToHandAction;
+    eq(action.transferGroups?.length, 2, `${freshParse ? 'fresh' : 'live'}: 2群`);
+    ok(action.transferGroups?.every(group => group.count === 1) ?? false, '各群の上限1');
+  }
+  const cook = 'WX15-038';
+  const acce = 'WX15-058';
+  const ordinary = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('調理') && !(c.EffectText ?? '').includes('【アクセ】'));
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [cook, acce, ordinary] } } as ExecCtx;
+  const first = executeEffect(odEffect('WX16-031', 'WX16-031-BURST'), ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET' && first.pending.optional === true, '第1群は0枚可');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  ok(first.pending.candidates.includes(cook) && !first.pending.candidates.includes(ordinary), '第1群は調理だけ');
+  const skippedFirst = resumeSelectTarget([], first.pending, execCtxFrom(first, ctx));
+  ok(!skippedFirst.done && skippedFirst.pending.type === 'SELECT_TARGET' && skippedFirst.pending.optional === true,
+    '第1群を0枚にしても第2群へ進む');
+  if (skippedFirst.done || skippedFirst.pending.type !== 'SELECT_TARGET') throw new Error('second SELECT_TARGET expected');
+  ok(skippedFirst.pending.candidates.includes(acce) && !skippedFirst.pending.candidates.includes(cook), '第2群はアクセ持ちだけ');
+  const skippedAll = resumeSelectTarget([], skippedFirst.pending, execCtxFrom(skippedFirst, ctx));
+  ok(skippedAll.done && skippedAll.ownerState.trash.includes(cook) && skippedAll.ownerState.trash.includes(acce), '両群0枚も完了できる');
+
+  const pickedFirst = resumeSelectTarget([cook], first.pending, execCtxFrom(first, ctx));
+  ok(!pickedFirst.done && pickedFirst.pending.type === 'SELECT_TARGET', '第1群を選ぶと第2群へ');
+  if (pickedFirst.done || pickedFirst.pending.type !== 'SELECT_TARGET') throw new Error('second SELECT_TARGET expected');
+  const pickedAll = resumeSelectTarget([acce], pickedFirst.pending, execCtxFrom(pickedFirst, ctx));
+  ok(pickedAll.done && pickedAll.ownerState.hand.includes(cook) && pickedAll.ownerState.hand.includes(acce), '各群1枚を回収');
+  ok(pickedAll.ownerState.trash.includes(ordinary), '🔴群外カードは残る');
+}));
+
+// 🔴🔑**§5.0 O-D B3（2026-09-07 第219）＝`transferGroups` の「N枚まで」は engine のハードコード。**
+// finding は「`count:1` 固定＝0枚を選べない」だったが、**偽陽性**＝`execTransferToHand`
+// （`effectExecutor.ts:3597`）が各群を展開するときに **`upToCount: true` を無条件で付ける**ので、
+// JSON に「まで」の痕跡が無くても実挙動は既に「0〜N枚」になっている。
+// ⇒ **JSON だけを読むと分からない型**（`engine が JSON の見た目を裏で読み替えている`）。
+// 🔴**ただし裏返すと「まで」の無いカードが来た瞬間に黙って任意化する**＝原文が「それぞれ1枚」と
+//   強制しているのに0枚で流せる。現在の live 8効果は**全件が原文に「まで」を持つ**（実測）ので、
+//   その一致をトリップワイヤで固定する（§5-27＝許容リストではなく毎回ゼロから再導出する）。
+test('§5.0 O-D B3: transferGroups を使う効果は原文が必ず「まで」を持つ（engine が無条件に任意化するため）', () => withSavedCursor(() => {
+  const srcTextsTG = JSON.parse(fs.readFileSync(join(process.cwd(), 'docs/_effect_srctext.json'), 'utf-8')) as Record<string, string>;
+  const usersTG: string[] = [];
+  const wrongTG: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      if (!JSON.stringify(e.action).includes('"transferGroups"')) continue;
+      usersTG.push(e.effectId);
+      if (!/まで/.test(srcTextsTG[e.effectId] ?? '')) wrongTG.push(e.effectId);
+    }
+  }
+  ok(usersTG.length > 0, 'transferGroups を使う効果が live に在る（空振りで緑にしない）');
+  eq(wrongTG.length, 0,
+    `原文に「まで」が無いのに transferGroups＝engine が黙って0枚を許す: ${wrongTG.join(', ')}`);
+}));
+
+test('O-D 一点物 B4 WX20-029-E1: 好きな枚数の悪魔を戻した実数が後段の-1000倍数になる', () => withSavedCursor(() => {
+  for (const freshParse of [false, true]) {
+    const action = odEffect('WX20-029', 'WX20-029-E1', freshParse).action as SequenceAction;
+    const transfer = action.steps[0] as import('../src/types/effects').TransferToDeckAction;
+    eq(transfer.source.count, 'ALL', `${freshParse ? 'fresh' : 'live'}: 候補全数を上限にする`);
+    eq(transfer.source.upToCount, true, '0枚〜全数を選べる');
+    ok(JSON.stringify(action.steps[1]).includes('"deltaPerLastProcessedCount":true'), '後段の既存連動軸を維持');
+  }
+  const devils = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('悪魔')).slice(0, 2).map(c => c.CardNum);
+  const ordinary = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('悪魔'));
+  const victim = SIGNI_P12000;
+  const base = mkCtx({}, { signi: [victim, null, null] });
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [...devils, ordinary] } } as ExecCtx;
+  const first = executeEffect(odEffect('WX20-029', 'WX20-029-E1'), ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET' && first.pending.optional === true, '好きな枚数の選択UI');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(first.pending.candidates.join(','), devils.join(','), '悪魔だけが候補');
+  const moved = resumeSelectTarget(devils, first.pending, execCtxFrom(first, ctx));
+  ok(!moved.done && moved.pending.type === 'SELECT_TARGET', '後段の相手シグニ選択へ進む');
+  if (moved.done || moved.pending.type !== 'SELECT_TARGET') throw new Error('power SELECT_TARGET expected');
+  eq((moved.pending.thenAction as unknown as { delta: number }).delta, -2000, '2枚戻したので-2000を選択前に焼き込む');
+  const applied = resumeSelectTarget([victim], moved.pending, execCtxFrom(moved, ctx));
+  eq((applied.otherState.temp_power_mods ?? []).filter(m => m.cardNum === victim).reduce((sum, m) => sum + m.delta, 0), -2000,
+    '後段へ実数連動');
+  ok(applied.ownerState.trash.includes(ordinary) && devils.every(card => applied.ownerState.deck.includes(card)), '非悪魔は残り、悪魔2枚はデッキへ');
+
+  const skipped = resumeSelectTarget([], first.pending, execCtxFrom(first, ctx));
+  const skippedDone = finish(skipped, ctx);
+  eq((skippedDone.otherState.temp_power_mods ?? []).filter(m => m.cardNum === victim).reduce((sum, m) => sum + m.delta, 0), 0,
+    '🔴0枚を選べば後段も-0');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

@@ -396,8 +396,8 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 |---|---|---|---|
 | **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🏁**未 triage 0件**（2026-09-07 **第216バッチ**で Sheet2 s2-19〜36 の41件＋Sheet3 s3-01〜02 の4件＝**45件を全数 triage＝BUG 38 / FP 7＝precision 84%**（効果単位では 41効果＝BUG 34 / FP 7）。第211＝32件・BUG24/FP8） | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN**（残りは全件 `src/screens/` か新 engine 機構待ち＝要る機構の一覧は BUGFIXES 第200バッチ末尾） | **13件 / 影響12枚** | `node scripts/archive/semanticAuditLedger.mjs` |
-| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **現在 32本**（第216バッチで +5＝規則28〜32／第211で +3＝規則25〜27・同時に規則12 を「報告しない」へ強化） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
-| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**未修正の真バグ 36効果 / 36行**（第217で系統①③④を消化＝キューから5行を落とし `WX19-025-E1` を1行足した。**live では19効果**が動いた） | — |
+| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **現在 34本**（🆕第219で +2＝規則33「N枚まで の任意性を engine が構造ごとに補う」／規則34「**逆翻訳に原文の一節が出ていても JSON に載っているとは限らない**」／第216で +5＝規則28〜32／第211で +3＝規則25〜27） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
+| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**未修正の真バグ 27効果 / 27行**（🆕第218で系統②のうち3効果／**第219で既存受け皿の一点物9効果**を消化＝キューから計12行を落とした。**live では第218＝3効果・第219＝9効果**が動いた。⚠**うち1件（`WX16-031-BURST`）は実装せず偽陽性として落とした**＝engine が `upToCount` を無条件で補っていた） | — |
 
 🔑**O-A を Sonnet に落とさない理由**＝監査員（sonnet・JSON のみ）の precision は**実測 50%**で、
 **偽陽性は全部 engine の受け皿を読まないと判定できない型**だった。⇒ **triage は「engine を読む」工程**であり、
@@ -491,15 +491,9 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | 効果 | 壊れ方 | 受け皿 | レーン |
 |---|---|---|---|
 | `WX16-033-E1` | 「対戦相手の**すべてのシグニゾーンにある、すべてのカード**をトラッシュに置き」が丸ごと無い（`REMOVE_VIRUS` だけ） | 新機構（下のカード・チャーム・アクセまで含む一括トラッシュ） | 遅い |
-| `WX12-032-E1` | 「あなたの手札の枚数が対戦相手の手札の枚数以上の場合」が**どこにも無く** `BANISH` が無条件 | 既存＝`HAND_DIFF` | 遅い |
 | 🆕`WX19-025-E1` | 「デッキの上から3枚見る。その中から**《トラップアイコン》を持つカード1枚をチェックゾーンに置き**、残りをデッキの一番下に置く。その後、**その《トラップアイコン》を発動させる**」が丸ごと無く、素の `LOOK_AND_REORDER{count:3}` だけ（第217の系統③の実測で発見） | 既存＝`REVEAL_AND_PICK{then:check_zone}`＋`STUB{ACTIVATE_TRAP}` の組み合わせを要確認 | 遅い |
-| `WX13-036-E3` | 「対戦相手は**手札を1枚捨て**」が丸ごと無い（対象シグニのトラッシュだけ） | 既存＝`TRASH{HAND_CARD, owner:'opponent'}` | 遅い |
-| `WX18-001-E2` | 「その後、あなたの**トラッシュから**＜悪魔＞1枚を対象とし、それを場に出し」が無い（`SEARCH`＋`SHUFFLE` だけ） | 既存＝`ADD_TO_FIELD{source:TRASH_CARD}` | 遅い |
-| `WX21-030-E2` | 「【ウィルス】1つを置く**か、取り除く**」の二択の後半が無い | 既存＝`CHOOSE`＋`STUB{REMOVE_VIRUS}` | 遅い |
-| `WX14-027-E2` | 「それをバニッシュする**か、対戦相手の手札を1枚捨てさせる**」の後半が無い | 既存＝`CHOOSE` | 遅い |
 | `WX16-002-E4` | 【出】**／【起】**の起動型経路が無い（`AUTO`/`ON_PLAY` だけ）。⚠この効果は `STUB{NEGATE_COIN_ABILITY}`（ログのみ）でもある | parser が2効果を出す | 遅い |
 | `WX20-001-E2` | `suppressOnPlay`（「それらの【出】能力は発動しない」）と「ターン終了時、それらを場からトラッシュに置く」が両方無い | 既存＝`suppressOnPlay` ＋ `WXDi-P03-034-E1` と同じ遅延（**miss はこの1効果だけ**） | 遅い |
-| `WX16-067-E2` | 「＋1する**か－1**してもよい」の−1側が無い（`delta:1` 固定）／対象フィルタの＜英知＞も無い（**1効果に findings 2件**） | 既存＝`CHOOSE`＋`LEVEL_MODIFY{delta:-1}` | 遅い |
 | `WX22-005-E1` | 選択肢③「スペルを打ち消す。**そうした場合**、…」限定の後続2ステップが `CHOOSE` の**兄弟**に並び、①②を選んでも実行される。**`parseStatus:'MANUAL'`＝直しは `manualEffects.ts`** | 既存（`CHOOSE` の枝へ畳む） | 速い |
 | `WX15-061-E1` | 「その後」の `ADD_TO_FIELD` が `CONDITIONAL` の**外**＝任意コストを**払わなくても**トラッシュからシグニが出る（`execSequence` が `remaining` を無条件 `continuation` にする＝`effectExecutor.ts:5463`） | 既存（`conditional.then` へ畳む） | 遅い |
 
@@ -507,13 +501,10 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | 効果 | 壊れ方 | 受け皿 | レーン |
 |---|---|---|---|
-| `WX12-033-E1` | 「**あなたのシグニ**の基本パワーを15000にする」が `POWER_SET target.count:1`＝規則19 で**効果元自身1体**に解決される（範囲が狭い） | 既存＝`count:'ALL'` | 遅い |
 | `WX17-001-E1` | 「自身以外の効果を受けない」が `sourceOwner:'opponent'`＝**自分の効果を素通し**する | 既存＝`sourceOwner:'any'` ＋ `exceptSource` | 遅い |
 | `WX17-004-E1` | ③の【アサシン】が `owner:'any'`＋`explicitTarget`＝**相手のシグニも選べる新規対象選択**（原文は「そのシグニ」＝直前に【ダブルクラッシュ】を得た自シグニ）。`duration` も `PERMANENT`（**1効果に findings 2件**） | 既存＝`targetsLastProcessed` | 遅い |
-| `WX20-023-BURST` | `SEARCH` の `filter` に `keyword:"レイヤー"` が無く**どのシグニでも取れる** | 既存（`WX18-060`／`WXEX1-05` が使用・**miss はこの1効果**） | 遅い |
-| `WX20-029-E1` | 「**好きな枚数**の＜悪魔＞」が `TRANSFER_TO_DECK count:1`（後段の −1000×枚数も連動して過小） | 既存＝`count:'ALL'`＋`upToCount` | 遅い |
 | `WX12-Re22-E1` | 「ルリグトラッシュに置いた枚数**と同じ数まで**選ぶ」が `choose_count:1` 固定 | 既存＝`countChoose{last_processed_count, upTo}` | 遅い |
-| `WX16-031-BURST` | 「それぞれ**1枚まで**」が `transferGroups` の `count:1` 固定＝0枚を選べない | 既存（`upTo` 軸の追加） | 遅い |
+| 🏁~~`WX16-031-BURST`~~ | 🏁**2026-09-07 第219＝偽陽性**＝`execTransferToHand`（`effectExecutor.ts:3597`）が `transferGroups` の各群を展開するとき **`upToCount:true` を無条件で付ける**＝JSON に痕跡が無くても実挙動は既に「0〜N枚」。**engine が JSON の見た目を裏で読み替えている型**。⇒ 実装せず、**「`transferGroups` を使う効果は原文が必ず『まで』を持つ」トリップワイヤ**を golden へ張った（裏返すと engine が黙って任意化するため）。読み方ルール33 へ還元済み。 | — | — |
 | `WX22-022-BURST` | 「**異なる色を持つ**＜遊具＞2枚」の制約が無い | 新軸＝`SelectionConstraint.distinct` に `'color'` を足す（`'level'/'name'/'class'/'costSum'` は既存） | 遅い |
 
 #### 🏁 O-A の直近 triage 結果（**次に取る findings が出たら、この節を同じ形＝主張／緩めた母集団／罠 で書き直す**）
