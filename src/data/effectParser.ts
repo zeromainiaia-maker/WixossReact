@@ -1647,6 +1647,11 @@ function wireEffectOppTrashUse(action: EffectAction, card: CardData): EffectActi
     if (rest.trim() !== '') return action;
   }
   const ignoreColors = /コストの色を無視して支払(?:える|ってもよい)/.test(text);
+  // 🆕**§5.3 `O-281`（2026-09-08）＝「限定条件を無視して使用する」**（live では `WXK09-002-E1` の1件だけ）。
+  //   🔴**既定は「限定条件を検査する」**（engine 側を fail-closed にしたので、この印が無い11効果は原文どおり
+  //     限定条件で弾かれるようになった）。⚠`PR-433-E1` の「（限定条件、使用タイミングは無視しない）」は
+  //     この regex に当たらない＝印を立てない、で原文どおり。
+  const ignoreRestr = /限定条件を無視して使用/.test(text);
   const use: EffectAction = {
     type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
     value2: zone,
@@ -1656,6 +1661,7 @@ function wireEffectOppTrashUse(action: EffectAction, card: CardData): EffectActi
     } as unknown as EffectTarget,
     ...(eitherLrigM?.[3] ? { useSpellIgnoreCost: true } : {}),
     ...(ignoreColors ? { useIgnoreCostColors: true } : {}),
+    ...(ignoreRestr ? { ignoreRestrictions: true } : {}),
   } as EffectAction;
   let placed = false;
   const walk = (node: EffectAction): EffectAction | null => {

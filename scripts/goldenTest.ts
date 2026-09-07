@@ -9009,15 +9009,37 @@ test('O-60 parser: 「見る／公開する」の LOOK_OPP_LIFE_TOP が lookZone
   eq(zoneOf('WXDi-P05-039-E2')?.zone, 'opp_hand', '同・《ガードアイコン》を持たないカードを選ぶ形');
   eq(zoneOf('WX25-P2-026-E2')?.zone, 'self_life', '🔴「あなたのライフクロスをすべて見て」は自分側（旧実装は所有者を見ていない）');
   eq(zoneOf('WX25-P2-026-E2')?.count, 'ALL', '同・すべて見る');
-  eq(zoneOf('WX13-048-E1')?.zone, 'opp_deck_top', '「対戦相手はデッキの一番上のカードを公開する」はデッキ上');
+  // 🔴🆕**2026-09-08（§5.0 実装キュー）＝`WX13-048-E1` は live から降りた**＝あの効果は「公開して
+  //   宣言名と照合し、一致したらトラッシュへ」なので、公開札を後段へ渡せる `REVEAL_DECK_TOP` へ
+  //   置き換えた（`LOOK_OPP_LIFE_TOP` は `last_revealed_deck_cards` を書かないので `TRASH_REVEALED` が空振る）。
+  //   ⇒ **`opp_deck_top` の live 例は 0 になった**ので、この枝だけ**parser の出力**を直接 assert する
+  //   （§5-29 の「live だけを見ると parser の退行を見逃す」の裏返し＝生成規則そのものを固定する）。
+  {
+    const freshDeckTop = parseCardEffects(cardMap.get('WX13-048')!).find(e => e.effectId === 'WX13-048-E1');
+    const zonesFresh: string[] = [];
+    const walkFresh = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      if (Array.isArray(v)) { v.forEach(walkFresh); return; }
+      const o = v as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'LOOK_OPP_LIFE_TOP') {
+        zonesFresh.push((o.lookZone as { zone?: string } | undefined)?.zone ?? 'undefined');
+      }
+      Object.values(o).forEach(walkFresh);
+    };
+    walkFresh(freshDeckTop?.action);
+    eq(zonesFresh.join(','), 'opp_deck_top',
+      '「対戦相手はデッキの一番上のカードを公開する」はデッキ上（parser 側の生成規則を固定）');
+  }
   eq(zoneOf('WXEX1-11-E2')?.zone, 'opp_life', '相手ライフの複数枚形');
   eq(zoneOf('WXEX1-11-E2')?.count, 2, '🔴「上からカードを２枚見る」が2枚（旧実装は既定の1枚に潰れた）');
   eq(zoneOf('WD06-006-E1')?.count, 1, '「一番上を公開する」は1枚');
 
   // ⚠payload の無いノードが残っているのは既知＝この id が20の無関係な文型の catch-all だから（§5.3 `O-76`）。
   //   engine は fail-closed で**何も見ない**ので、ここでは「見る文が payload を持つ」側だけを固定する。
+  // 🔴🆕**2026-09-08＝`opp_deck_top` の live 例は 0 になった**（`WX13-048-E1` を `REVEAL_DECK_TOP` へ
+  //   置き換えた＝上のブロックで parser 側を直接 assert している）。live 側は残り3ゾーンを固定する。
   const zones = new Set(found.filter(x => x.zone).map(x => x.zone));
-  eq([...zones].sort().join(','), 'opp_deck_top,opp_hand,opp_life,self_life', '4ゾーンすべてが live に存在する');
+  eq([...zones].sort().join(','), 'opp_hand,opp_life,self_life', '残り3ゾーンが live に存在する');
 });
 
 test('O-60 engine: 見る領域は payload で決まり、payload が無ければ何も覗かない', () => withSavedCursor(() => {
@@ -71694,6 +71716,218 @@ test('O-D 一点物 B4 WX20-029-E1: 好きな枚数の悪魔を戻した実数�
   eq((skippedDone.otherState.temp_power_mods ?? []).filter(m => m.cardNum === victim).reduce((sum, m) => sum + m.delta, 0), 0,
     '🔴0枚を選べば後段も-0');
 }));
+
+// ═══ §5.0 実装キュー（2026-09-08）＝`WX16-033-E1` 相手のシグニゾーン一括トラッシュが丸ごと欠落 ═══
+// 🔴旧 live は `STUB{REMOVE_VIRUS}` 1歩だけ＝**相手の場は1体も落ちなかった**（コスト軽減だけが正しかった）。
+// 🔑受け皿は `trashAllScope`（`O-60` 第59で payload 化済み）＝足したのは `zoneAttachments` の1キーだけ。
+//   原文「シグニゾーンにある、**すべてのカード**」＝下のカード（`zones:['signi']` が既に流す）に加えて
+//   【チャーム】／【アクセ】／【トラップ】まで（それぞれ別配列）。⚠既定では触らない。
+test('§5.0 WX16-033-E1: 相手のシグニゾーンが下のカード・チャーム・アクセごとトラッシュへ落ちる', () => withSavedCursor(() => {
+  const seq33 = manualEffect('WX16-033', 'WX16-033-E1').action as SequenceAction;
+  eq(seq33.steps.map(st => (st as StubAction).id).join(','), 'TRASH_ALL_SIGNI_AND_KEY,REMOVE_VIRUS',
+    '一括トラッシュ→ウィルス除去の2歩（旧はウィルス除去だけ）');
+  const scope33 = (seq33.steps[0] as StubAction).trashAllScope!;
+  eq(`${scope33.owner}/${scope33.zones.join('+')}/${scope33.zoneAttachments}`, 'opponent/signi/true',
+    '相手のシグニゾーンを付随カードごと');
+  const [top, under, charm, acce, trap] = [fresh(), fresh(), fresh(), fresh(), fresh()];
+  const base33 = mkCtx({}, {});
+  const ctx33 = {
+    ...base33,
+    otherState: {
+      ...base33.otherState, trash: [],
+      field: {
+        ...base33.otherState.field,
+        signi: [[under, top], null, null] as (string[] | null)[],
+        signi_charms: [charm, null, null] as (string | null)[],
+        signi_acce: [[acce], null, null] as (string[] | null)[],
+        signi_traps: [trap, null, null] as (string | null)[],
+      },
+    },
+  } as ExecCtx;
+  const r33 = run(seq33.steps[0], ctx33);
+  for (const [label, card] of [['シグニ本体', top], ['下のカード', under], ['チャーム', charm], ['アクセ', acce], ['トラップ', trap]] as const) {
+    ok(r33.otherState.trash.includes(card), `🔴${label}が相手のトラッシュへ`);
+  }
+  eq(r33.otherState.field.signi.filter(z => z && z.length).length, 0, 'シグニゾーンは空になる');
+  eq((r33.otherState.field.signi_charms ?? []).filter(Boolean).length, 0, 'チャームも残らない');
+  eq((r33.otherState.field.signi_acce ?? []).flatMap(a => a ?? []).length, 0, 'アクセも残らない');
+  eq(r33.ownerState.trash.includes(top), false, '自分のトラッシュへは入らない（持ち主のトラッシュ）');
+  // 🔴既定（`zoneAttachments` なし）は付随カードを触らない＝既存の「すべてのシグニをトラッシュに置き」型を変えない。
+  const plain33 = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY',
+    trashAllScope: { zones: ['signi'], owner: 'opponent' } } as unknown as EffectAction, ctx33);
+  eq(plain33.otherState.field.signi_charms?.[0], charm, '既定ではチャームは残る（意味を変えない）');
+  eq(plain33.otherState.trash.includes(charm), false, '既定ではチャームは落ちない');
+}));
+
+// ═══ §5.0 実装キュー（2026-09-08）＝`WX19-025-E1` チェックゾーン経由の《トラップアイコン》発動 ═══
+// 🔴旧 live は素の `LOOK_AND_REORDER{count:3}` だけ＝チェックゾーン移動も発動も丸ごと無かった。
+// 🔑engine 側に足したのは2つ＝①`to_check` が `trapFilter` を候補へ当てる ②`trapOp:'activate'` の
+//   `trapSource:'check'`（旧委譲先 `ACTIVATE_TRAP` はシグニゾーンの伏せトラップしか見ない＝恒久 no-op）。
+test('§5.0 WX19-025-E1: 見た3枚のうち《トラップアイコン》持ちだけがチェックゾーンへ行き、そこで発動する', () => withSavedCursor(() => {
+  const seq25 = manualEffect('WX19-025', 'WX19-025-E1').action as SequenceAction;
+  eq(seq25.steps.length, 3, '見る→チェックゾーンへ→発動 の3ステップ（旧は1ステップ）');
+  const toCheck25 = seq25.steps[1] as StubAction;
+  eq(toCheck25.trapOp, 'to_check', '2手目はチェックゾーンへ');
+  eq(toCheck25.trapFilter?.hasIcon, 'トラップ', '🔴限定＝《トラップアイコン》を持つカード');
+  const act25 = seq25.steps[2] as StubAction;
+  eq(`${act25.trapOp}/${act25.trapSource}`, 'activate/check', '3手目はチェックゾーンの札の発動');
+  // engine（1）＝限定に合う札だけが候補。
+  const trapCard = findCard(c => (c.EffectText ?? '').includes('《トラップアイコン》：'));
+  const plainA = findCard(c => c.Type === 'シグニ' && !(c.EffectText ?? '').includes('《トラップアイコン》'));
+  const plainB = findCard(c => c.Type === 'シグニ' && c.CardNum !== plainA && !(c.EffectText ?? '').includes('《トラップアイコン》'));
+  const base25 = mkCtx({}, {});
+  const ctx25 = { ...base25, lastProcessedCards: [plainA, trapCard, plainB],
+    ownerState: { ...base25.ownerState, deck: [plainA, trapCard, plainB, ...base25.ownerState.deck] } } as ExecCtx;
+  const rPick = executeAction(seq25.steps[1], ctx25);
+  ok(!rPick.done && rPick.pending.type === 'SELECT_TARGET', 'チェックゾーンへ置く札を選ばせる');
+  const selPick = rPick.pending as Extract<typeof rPick.pending, { type: 'SELECT_TARGET' }>;
+  eq(selPick.candidates.join(','), trapCard, '🔴候補は《トラップアイコン》持ちの1枚だけ（旧は3枚とも）');
+  const placed = resumeSelectTarget([trapCard], selPick,
+    { ...ctx25, ownerState: rPick.ownerState, otherState: rPick.otherState, logs: rPick.logs } as ExecCtx);
+  eq(placed.ownerState.field.check, trapCard, 'チェックゾーンに載る');
+  // engine（2）＝そのチェックゾーンの札の《トラップアイコン》が発動する（伏せトラップ0でも動く）。
+  const ctxAct = { ...ctx25, ownerState: { ...ctx25.ownerState, field: { ...ctx25.ownerState.field, check: trapCard, signi_traps: [null, null, null] } } } as ExecCtx;
+  const rAct = executeAction(seq25.steps[2], ctxAct);
+  ok(rAct.logs.some(l => l.includes('《トラップアイコン》を発動')), '🔴チェックゾーンの札の《トラップアイコン》が発動する');
+  ok(!rAct.logs.some(l => l.includes('トラップなし')), '伏せトラップを探しに行かない（旧経路の恒久 no-op ではない）');
+}));
+
+// ═══ §5.0 実装キュー（2026-09-08）＝`WX13-048-E1` 宣言との一致で分かれる2枝が消えて両方走っていた ═══
+// 🔴旧 live は `DRAW 2` と `DRAW 1` が無条件に並び**常に3枚引いた**（一致時の「それをトラッシュに置き」も無し）。
+// 🔴`nameEqDeclaredName` は `matchesFilter` が読まないキー＝`LAST_PROCESSED_MATCHES` で解決しないと
+//   **黙って無条件成立**（宣言していないカードでも一致枝が通る）。
+test('§5.0 WX13-048-E1: 公開札が宣言名と一致したときだけ2枚・外れたら1枚（両方は走らない）', () => withSavedCursor(() => {
+  const seq48 = manualEffect('WX13-048', 'WX13-048-E1').action as SequenceAction;
+  eq(seq48.steps.map(st => (st as { type: string }).type).join(','),
+    'STUB,REVEAL_DECK_TOP,CONDITIONAL', '宣言→公開→分岐の3ステップ（旧は DRAW 2 と DRAW 1 が平ら）');
+  const cond48 = seq48.steps[2] as import('../src/types/effects').ConditionalAction;
+  eq(cond48.condition.type, 'LAST_PROCESSED_MATCHES', '分岐は公開札の照合');
+  ok(!!cond48.else, '外れ枝（1枚引く）がある');
+  // engine＝宣言名と一致／不一致で枝が分かれ、一致時だけ相手のデッキトップがトラッシュへ落ちる。
+  const named = findCard(c => c.Type === 'シグニ' && !!c.CardName);
+  const otherName = findCard(c => c.Type === 'シグニ' && c.CardName !== cardMap.get(named)?.CardName);
+  const mk48 = (top: string) => {
+    const b = mkCtx({ hand: 0 }, {});
+    return {
+      ...b,
+      ownerState: { ...b.ownerState, hand: [], declared_card_name: cardMap.get(named)?.CardName },
+      otherState: { ...b.otherState, deck: [top, ...b.otherState.deck], trash: [] },
+    } as ExecCtx;
+  };
+  const revealed48 = (top: string): ExecCtx => {
+    const c = mk48(top);
+    return { ...c, lastProcessedCards: [top], otherState: { ...c.otherState, last_revealed_deck_cards: [top] } } as ExecCtx;
+  };
+  const hit = run(seq48.steps[2], revealed48(named));
+  eq(hit.ownerState.hand.length, 2, '🔴一致＝2枚引く');
+  ok(hit.otherState.trash.includes(named), '一致＝公開札は相手のトラッシュへ');
+  const missCtx = revealed48(otherName);
+  const miss = run(seq48.steps[2], missCtx);
+  eq(miss.ownerState.hand.length, 1, '🔴不一致＝1枚だけ（旧は両枝で3枚）');
+  eq(miss.otherState.trash.includes(otherName), false, '不一致＝公開札はデッキに残る');
+  // 🔴未宣言なら fail-closed（`matchesFilter` が黙って無視すると、ここが2枚になる）。
+  const noDecl = run(seq48.steps[2], { ...missCtx, ownerState: { ...missCtx.ownerState, declared_card_name: undefined } } as ExecCtx);
+  eq(noDecl.ownerState.hand.length, 1, '未宣言なら一致枝は通らない（無条件成立しない）');
+}));
+
+// ═══ §5.0 実装キュー（2026-09-08）＝`WX07-017-E1`「各プレイヤーは自分の〜」が自分側だけに縮んでいた ═══
+// 🔴旧 live は後半3文がすべて `owner:'self'`＝②③は**相手ぶんが丸ごと落ち**、④は**実行者が逆**だった。
+// 🔑受け皿は3つとも既にあった（§5.3 `O-279` の「`owner` は片側しか取れない」は stale）＝
+//   `ADD_TO_FIELD`（`owner`）／`TRANSFER_TO_HAND`（`source.owner`）／`ENERGY_CHARGE`（`target.owner`）。
+test('§5.0 WX07-017-E1: 「各プレイヤーは」が自分ぶんと相手ぶんの2本に割れ、最後の1文は相手が実行する', () => withSavedCursor(() => {
+  const seq7 = manualEffect('WX07-017', 'WX07-017-E1').action as SequenceAction;
+  const shape7 = seq7.steps.map(st => {
+    const o = st as unknown as Record<string, Record<string, string> | string>;
+    const own = (o.owner as string) ?? ((o.source as Record<string, string>)?.owner)
+      ?? ((o.target as Record<string, string>)?.owner) ?? ((o.trashAllScope as Record<string, string>)?.owner);
+    return `${o.type as string}:${own}`;
+  });
+  eq(shape7.join(' | '),
+    'STUB:both | ADD_TO_FIELD:self | ADD_TO_FIELD:opponent | TRANSFER_TO_HAND:self | TRANSFER_TO_HAND:opponent | ENERGY_CHARGE:opponent',
+    '🔴6ステップの実行者（旧は自分4本＝相手ぶん欠落＋最後が実行者逆）');
+  // engine＝相手側3本が本当に相手のトラッシュを見て相手のゾーンへ入る（宣言だけの no-op ではない）。
+  const oppSigni = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const base7 = mkCtx({ trash: 0 }, { trash: 0 });
+  const ctx7 = {
+    ...base7,
+    ownerState: { ...base7.ownerState, trash: [] },
+    otherState: { ...base7.otherState, trash: [...oppSigni], hand: [], energy: [] },
+  } as ExecCtx;
+  const rHand = executeAction(seq7.steps[4], ctx7);
+  ok(!rHand.done && rHand.pending.type === 'SELECT_TARGET', '相手ぶんの手札回収は選択を要求');
+  const selHand = rHand.pending as Extract<typeof rHand.pending, { type: 'SELECT_TARGET' }>;
+  eq(selHand.targetScope, 'opp_trash', '候補は**相手の**トラッシュ');
+  eq([...selHand.candidates].sort().join(','), [...oppSigni].sort().join(','), '相手トラッシュのシグニ3枚が候補');
+  const afterHand = resumeSelectTarget([oppSigni[0]], selHand,
+    { ...ctx7, ownerState: rHand.ownerState, otherState: rHand.otherState, logs: rHand.logs } as ExecCtx);
+  ok(afterHand.otherState.hand.includes(oppSigni[0]), '🔴回収先は**相手の**手札');
+  eq(afterHand.ownerState.hand.includes(oppSigni[0]), false, '自分の手札には入らない');
+  const rEna = executeAction(seq7.steps[5], ctx7);
+  const selEna = rEna.pending as Extract<typeof rEna.pending, { type: 'SELECT_TARGET' }>;
+  eq(selEna.targetScope, 'opp_trash', 'エナ回収も**相手の**トラッシュから');
+  const afterEna = resumeSelectTarget([oppSigni[1]], selEna,
+    { ...ctx7, ownerState: rEna.ownerState, otherState: rEna.otherState, logs: rEna.logs } as ExecCtx);
+  ok(afterEna.otherState.energy.includes(oppSigni[1]), '🔴チャージ先は**相手の**エナゾーン（旧は自分側だった）');
+  eq(afterEna.ownerState.energy.includes(oppSigni[1]), false, '自分のエナには入らない');
+  const rField = executeAction(seq7.steps[2], ctx7);
+  const selField = rField.pending as Extract<typeof rField.pending, { type: 'SELECT_TARGET' }>;
+  eq(selField.targetScope, 'opp_trash', '相手ぶんの場出しも相手のトラッシュから');
+}));
+
+// ═══ §5.3 `O-281`（2026-09-08）＝「効果でカードを使わせる」経路が限定条件を検査していなかった ═══
+// 🔴**旧実装は engine のどこでも `Restriction` を見ておらず、`USE_SPELL_FROM_TRASH_PAYING_COST` を通る
+//   live 12効果すべてが事実上「限定条件を無視して」使えた**（原文に当該句があるのは `WXK09-002-E1` の1件だけ
+//   ＝残り11件は過剰実行）。`PR-433-E1` は原文が明示的に「（限定条件、使用タイミングは無視しない）」と書いている。
+// 🔑受け皿の先例は `execPlayFree`（§5.3 `O-264`）＝`meetsRestriction` 1本＋`ignoreRestrictions` フラグ。
+test('§5.3 O-281: 効果で使わせるスペルは限定条件で弾く（印がある1効果だけ無視する）', () => withSavedCursor(() => {
+  const tamaSpell = 'WX01-028';        // アーク・オーラ（タマ限定）
+  const hanayoSpell = 'WX01-030';      // 贖罪の対火（花代限定）
+  const freeSpell = 'WD01-018';        // 噴流する知識（限定なし・《無》×０）
+  eq(cardMap.get(tamaSpell)?.Restriction, 'タマ限定', 'テスト前提＝タマ限定');
+  eq(cardMap.get(hanayoSpell)?.Restriction, '花代限定', 'テスト前提＝花代限定');
+  ok(!(cardMap.get(freeSpell)?.Restriction ?? '').includes('限定'), 'テスト前提＝限定なし');
+  const tamaLrig = findCard(c => c.Type === 'ルリグ' && c.CardClass === 'タマ');
+  const base = mkCtx({ lrig: [tamaLrig] }, {});
+  const ctx281 = { ...base, ownerState: { ...base.ownerState, trash: [tamaSpell, hanayoSpell, freeSpell] } } as ExecCtx;
+  const stub281 = {
+    type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
+    selectTarget: { type: 'CARD', owner: 'self', count: 1, filter: { cardType: 'スペル' } },
+  } as unknown as EffectAction;
+  const r281 = executeAction(stub281, ctx281);
+  ok(!r281.done && r281.pending.type === 'SELECT_TARGET', '候補選択を要求');
+  const sel281 = r281.pending as Extract<typeof r281.pending, { type: 'SELECT_TARGET' }>;
+  eq([...sel281.candidates].sort().join(','), [tamaSpell, freeSpell].sort().join(','),
+    '🔴タマ限定と無限定だけが候補＝花代限定は弾かれる（旧実装は3枚とも出た）');
+  // 印があるときだけ無視する（`WXK09-002-E1` の原文「限定条件を無視して使用する」）。
+  const rIgn = executeAction({ ...(stub281 as object), ignoreRestrictions: true } as EffectAction, ctx281);
+  const selIgn = rIgn.pending as Extract<typeof rIgn.pending, { type: 'SELECT_TARGET' }>;
+  eq([...selIgn.candidates].sort().join(','), [tamaSpell, hanayoSpell, freeSpell].sort().join(','),
+    'ignoreRestrictions:true なら花代限定も候補');
+}));
+test('§5.3 O-281: live で ignoreRestrictions を持つのは原文に「限定条件を無視して」がある1効果だけ', () => {
+  const hits: string[] = [];
+  const flagged: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    for (const e of effs) {
+      let found: Record<string, unknown> | null = null;
+      const walk = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        const o = n as Record<string, unknown>;
+        if (o.type === 'STUB' && o.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') found = o;
+        for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); }
+      };
+      walk(e.action);
+      if (!found) continue;
+      hits.push(e.effectId);
+      if ((found as Record<string, unknown>).ignoreRestrictions) flagged.push(e.effectId);
+      const text = cardMap.get(cardNum)?.EffectText ?? '';
+      eq(/限定条件を無視して使用/.test(text), !!(found as Record<string, unknown>).ignoreRestrictions,
+        `${e.effectId}: 原文の「限定条件を無視して使用」と印が一致する`);
+    }
+  }
+  eq(hits.length, 12, 'USE_SPELL_FROM_TRASH_PAYING_COST を使う live 効果数（2026-09-08 実測 12）');
+  eq(flagged.join(','), 'WXK09-002-E1', '🔴限定無視の印はこの1効果だけ（残り11件は限定条件を守る）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

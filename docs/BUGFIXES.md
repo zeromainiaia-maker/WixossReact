@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（第224バッチ・Opus・O-281 ＋ O-D 実装キュー）＝Opus レーンの作業を5件消化
+
+**作業単位**＝ユーザー指示「opusの作業を５件行う」。**§5.3 `O-281`（live 12効果）→ 実装キューを上から4行**。
+**②' レーン判定**＝`O-281` と `WX19-025-E1` / `WX16-033-E1` は engine（遅いレーン）、`WX07-017-E1` /
+`WX13-048-E1` は同型実測1効果なので `manualEffects.ts`（速いレーン）。**`src/screens/` は無変更＝実機不要（§2.2）。**
+
+### `O-281`＝「効果でカードを使わせる」経路が限定条件（`Restriction`）を一度も検査しない（live 12効果）
+
+**真因**＝`STUB{USE_SPELL_FROM_TRASH_PAYING_COST}`（`execStubPart2.ts`）が候補を `matchesFilter` だけで絞り、
+本体を `USE_SPELL_FROM_TRASH` / `CAST_FROM_OPP_TRASH` / `PLAY_SPELL_FROM_HAND` へ委譲するため、
+**engine のどこでも `Restriction` を見ていなかった**＝この STUB を通る **12効果すべてが事実上「限定条件を
+無視して」使えた**。原文に当該句があるのは `WXK09-002-E1` の1件だけで、**残り11件は過剰実行**
+（`PR-433-E1` は原文が「（限定条件、使用タイミングは無視しない）」と明記している）。
+**修正**＝受け皿の先例 `execPlayFree`（§5.3 `O-264`・`effectExecutor.ts:8195`）と**同じ `meetsRestriction` 1本**を
+候補絞り込みへ入れ、`StubAction.ignoreRestrictions` を新設。parser 側は `wireEffectOppTrashUse` で
+「限定条件を無視して使用」に当たったときだけ印を立てる（既定は検査する＝fail-closed）。
+**影響**＝live 12効果（11件が過剰実行の解消・1件は印つきで従来どおり）。
+**検証**＝`golden -- --only "O-281"`（2本＝engine の候補絞り込み／live の印と原文の一致トリップワイヤ）。
+**反転確認**＝`if (false && !stub.ignoreRestrictions)` で分岐を殺すと候補が3枚に戻って FAIL することを確認。
+
+### `WX07-017-E1`（原文「各プレイヤーは自分のトラッシュから…／その後、対戦相手は自分のトラッシュから…」）
+
+**真因**＝後半3文がすべて `owner:'self'`＝②③は**相手ぶんが丸ごと落ち**（過小実行）、④は**実行者が逆**
+（相手のリカバリーが自分のリカバリーに化ける＝過剰実行）。
+🔑**§5.3 `O-279` の登録票「`ADD_TO_FIELD`／`TRANSFER_TO_HAND` の `owner` は片側しか取れない」は stale**＝
+実測すると `execAddToField`（`owner`）／`execTransferToHand`（`source.owner`）／`execEnergyCharge`（`target.owner`）は
+**3つとも相手側を取れた**。⇒ 新しい型も engine の新経路も要らず、既存の綴り（「各プレイヤーは」を
+self/opponent の2本に割る＝`parseSentencePart1.ts` のドロー規則と同型）で閉じた。**`O-279` もクローズ**。
+**修正**＝`manualEffects.ts` に6ステップの `SEQUENCE` を手書き（同型は実測1効果）。
+**影響**＝live 1効果。**検証**＝`golden -- --only "WX07-017-E1"`（構造＋相手ぶん3本が実際に相手のゾーンへ入る）。
+
+### `WX13-048-E1`（原文「それが宣言したカードの場合…／宣言したカードではない場合…」）
+
+**真因**＝分岐が丸ごと消えて `DRAW 2` と `DRAW 1` が無条件に並び、**常に3枚引いていた**（一致時の
+「それをトラッシュに置き」も無し）。公開も `STUB{LOOK_OPP_LIFE_TOP}`＝**見るだけ**で公開札を後段へ渡さない。
+**修正**＝`REVEAL_DECK_TOP{owner:'opponent'}` →
+`CONDITIONAL{LAST_PROCESSED_MATCHES, filter:{nameEqDeclaredName:true}}` → 一致なら
+`SEQUENCE[TRASH_REVEALED{opponent}, DRAW 2]` / 外れなら `DRAW 1`（`manualEffects.ts`・同型実測1効果）。
+🔴**engine 側に1点だけ追加**＝`nameEqDeclaredName` は **`matchesFilter` が読まないキー**
+（契約は「`resolveDynamicFilter` が `cardNames` へ解決してから使う」＝`effectExecutor.ts:3021`）なので、
+`LAST_PROCESSED_MATCHES` に素で載せると**黙って無条件成立**する＝「宣言していないカードでも一致枝が通る」。
+`execUtils.ts` の同条件型で明示解決した（未宣言なら不成立＝fail-closed）。
+**影響**＝live 1効果。**反転確認**＝解決を殺すと不一致でも2枚引いて FAIL することを確認。
+
+### `WX19-025-E1`（原文「《トラップアイコン》を持つカード1枚をチェックゾーンに置き…その後、それを発動させる」）
+
+**真因**＝**効果の本体が丸ごと無かった**＝素の `LOOK_AND_REORDER{count:3}`（3枚見て一番下に置く）だけで、
+チェックゾーンへの移動も《トラップアイコン》の発動も存在しない。
+**修正**＝受け皿の先例 `WX21-Re20-E1`（ライフバースト版）と同じ3段へ。engine に足したのは2つだけ＝
+①`trapOp:'to_check'` が **`trapFilter` を候補に当てる**（無いと3枚のどれでも置けた＝原文の限定が落ちる。
+見た札が1枚しかない経路にも同じ判定を入れた） ②`trapOp:'activate'` に **`trapSource:'check'`** を追加
+（🔴旧委譲先 `STUB{ACTIVATE_TRAP}` は **`field.signi_traps`（シグニゾーンに伏せた【トラップ】）しか見ない**ので、
+チェックゾーンの札に当てると必ず「トラップなし」＝**恒久 no-op**）。
+**影響**＝live 1効果。**反転確認**＝2つの追加をそれぞれ個別に殺して FAIL することを確認。
+
+### `WX16-033-E1`（原文「対戦相手のすべてのシグニゾーンにある、すべてのカードをトラッシュに置き…」）
+
+**真因**＝本体の前半が丸ごと無く `STUB{REMOVE_VIRUS, virusCount:'all'}` の1歩だけ＝**相手の場は1体も落ちなかった**
+（コスト軽減 payload だけが正しく載っていた）。
+**修正**＝受け皿は `TRASH_ALL_SIGNI_AND_KEY` の `trashAllScope`（§5.3 `O-60` 第59で payload 化済み）。
+足したのは **`zoneAttachments`** の1キーだけ＝原文「シグニゾーンにある、**すべてのカード**」は
+シグニ本体と下のカード（`zones:['signi']` が既に流す）に加えて **【チャーム】／【アクセ】／【トラップ】**まで含む
+（`signi_charms` / `signi_acce` / `signi_traps` は別配列）。⚠**既定（未指定）は従来どおり付随カードを残す**＝
+「すべてのシグニをトラッシュに置き」型（`WXEX2-21-E3` ほか）の意味を変えない。
+**影響**＝live 1効果。**検証**＝golden で5種（本体・下・チャーム・アクセ・トラップ）が相手のトラッシュへ落ちること
+＋**既定では落ちないこと**の両方を assert。
+
+### 移送＝`WX21-Re18-E1` → §5.3 `O-286`（実装せず登録）
+
+着手前の実測で「新機構が要る」側に確定＝判定側の `PAID_COLORS_INCLUDE_ALL` は在るが、
+**追加コスト（エナのトラッシュ）で実際に払った色を記録する側が丸ごと無い**（`STUB{OPTIONAL_COST}` の
+`costText` はログ表示のみで engine は読まない）。PLAN §5.0 から §5.3 索引 G へ移した。
+
+### 逆翻訳（decompiler）の追随＝3箇所
+
+LESSONS §4.2「payload を足したら逆翻訳もその payload から組む」に従って `decompileEffects.ts` を較正：
+①`trashAllScope.zoneAttachments` ②`trapOp:'activate'` の `trapSource:'check'` ③`trapOp:'to_check'` の `trapFilter`。
+放置すると `WX16-033-E1` が「シグニをすべてトラッシュに置く」、`WX19-025-E1` が
+「あなたの【トラップ】1つを表向きにし」と読め、**原文照合という主軸の検査が効かなくなる**。
+
+### 既存 tripwire の較正＝`LOOK_OPP_LIFE_TOP` の `opp_deck_top`
+
+`WX13-048-E1` を `REVEAL_DECK_TOP` へ置き換えた結果、**`opp_deck_top` の live 例が 0 になった**
+（実測＝他に1件も無い）。⇒ その枝だけ **live の assert から parser 出力の直接 assert へ移した**
+（`parseCardEffects('WX13-048')` を見る）＝生成規則そのものは固定したまま。live 側は残り3ゾーンを assert する。
+🔑**「バグを直すと、バグに依存していた golden が落ちる。それは退行ではない」**（LESSONS §4.2）の同族＝
+落ちた test が**何に依存して緑だったか**を先に読んでから直した。
+
+### 前バッチの取りこぼし回収＝`TRASH_TRAP_ONE` の逆翻訳が生の英語 ID だった
+
+第222バッチで `WX19-064-E1` の選択肢②に新設した `STUB{TRASH_TRAP_ONE}` に**逆翻訳の綴りが無く**、
+`[STUB:TRASH_TRAP_ONE]` が逆翻訳シートに出ていた（engine 実装は正しい＝**逆翻訳だけの穴**）。
+🔴**前バッチが `npm run regen` を回していなかったので `census:stubs` C群ゲートに一度も掛からなかった**
+（今回 regen したことで初めて exit 1 になった）。`decompileEffects.ts` に1行足して回収。
+🔑**教訓＝逆翻訳シートを読む計器（`census:stubs` C群）は `npm run regen` を回すまで嘘をつく**
+（CLAUDE.md の「⚠`npm run regen` まで回す」が守られていないと、次のバッチが払う）。
+
+### 検証・簿記
+
+`npm run gates` 全緑（golden **3642 → 3648 PASS**・+6本）。`npm run regen` 済み（逆翻訳3件を目視確認）。
+ラチェット較正なし（`census:enginetext` A群 0行／`census:costtext` A群 0規則のまま）。
+実装キュー残 **12行/13効果 → 7行/7効果**（4行消化＋1行を §5.3 へ移送。⚠**行を数え直した**＝
+旧「13効果」は行数と一致しない集計だった）。機構 worklist **15項目 → 14項目**
+（`O-279`／`O-281` をクローズ、`O-286` を新規登録）。
+
 ## 2026-09-08（第223バッチ・Opus・O-D 実装キュー）＝2行3効果を修正（POOL カーソルリークを回顧的修正）
 
 **作業単位**＝ユーザー指示「さらに20件行う」→「12件で区切ることに変更する」の続き（第222の4件に続く5〜6件目相当）。

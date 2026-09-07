@@ -3322,12 +3322,21 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // matchesFilter は CardData のみで hasCharm 等を黙って無視するため、この補助照合が要る）。
       const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'hasUnderCards', 'hasAttachedOrUnder', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
       const needsZoneState = !!cond.filter && ZONE_STATE_KEYS.some(k => (cond.filter as Record<string, unknown>)[k] !== undefined);
+      // 🔴🆕**§5.0（2026-09-08・`WX13-048-E1`）＝`nameEqDeclaredName` は `matchesFilter` が読まないキー。**
+      //   契約は「`resolveDynamicFilter` が `cardNames`（完全一致）へ解決してから使う」（`effectExecutor.ts:3021`）で、
+      //   その解決を通らないこの条件型に素で載せると **`matchesFilter` が黙って無視して無条件成立**する
+      //   ＝「宣言していないカードでも『宣言したカードの場合』の枝が通る」過剰実行になる。
+      //   ⇒ **ここで明示的に解決する**（未宣言なら不成立＝fail-closed）。
+      const declaredNameLPM = ctx.ownerState.declared_card_name;
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));
+        if (cond.filter?.nameEqDeclaredName
+            && (!declaredNameLPM || card?.CardName !== declaredNameLPM)) return false;
         // noAbilities は CardData 単体ではなく場の `abilities_removed` も見るため、静的判定から外す。
         // ZONE_STATE_KEYS が findFieldZoneState を起動し、唯一の判定 hasNoAbility へ渡す。
-        const cardFilter = cond.filter?.noAbilities !== undefined
-          ? { ...cond.filter, noAbilities: undefined }
+        // ⚠`nameEqDeclaredName` も同じ理由で `matchesFilter` へ渡さない（上で解決済み）。
+        const cardFilter = (cond.filter?.noAbilities !== undefined || cond.filter?.nameEqDeclaredName)
+          ? { ...cond.filter, noAbilities: undefined, nameEqDeclaredName: undefined }
           : cond.filter;
         if (!matchesFilter(card, cardFilter)) return false;
         if (cond.levelLteCenterLrig) {

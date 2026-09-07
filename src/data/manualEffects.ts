@@ -8,6 +8,137 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 実装キュー（2026-09-08）＝相手のシグニゾーン一括トラッシュが丸ごと欠落（実測1効果）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX16-033（サーバント　∞・スペル）／ 原文＝
+  //   「このスペルの使用コストは、あなたの場にある＜微菌＞のシグニ１体につき《黒×1》減り、
+  //     対戦相手の場にある【ウィルス】１つにつき《黒×1》減る。
+  //     **対戦相手のすべてのシグニゾーンにある、すべてのカードをトラッシュに置き**
+  //     すべての【ウィルス】を取り除く。」
+  // 🔴**旧 live は本体の前半が丸ごと無かった**＝`STUB{REMOVE_VIRUS, virusCount:'all'}` の1歩だけで、
+  //   **相手の場は1体も落ちなかった**（コスト軽減 payload だけが正しく載っていた）。
+  // 🔑**受け皿は `TRASH_ALL_SIGNI_AND_KEY` の `trashAllScope`**（§5.3 `O-60` 第59バッチで payload 化済み）。
+  //   足したのは **`zoneAttachments`** の1キーだけ＝原文「シグニゾーンにある、**すべてのカード**」は
+  //   シグニ本体と下のカード（`zones:['signi']` が既に流す）に加えて
+  //   **【チャーム】／【アクセ】／【トラップ】**まで含む（`signi_charms` / `signi_acce` / `signi_traps` は別配列）。
+  //   ⚠**既定は従来どおり付随カードを残す**＝「すべてのシグニをトラッシュに置き」型の意味を変えない。
+  // 🔑**同型は実測1効果**（`census:population -- "シグニゾーンにある、?すべてのカード"` の2件のうち
+  //   もう1件 `WXK05-005-E1` は「デッキに加える」型＝別受け皿）。
+  'WX16-033': [
+    {"effectId":"WX16-033-E1","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"黒","count":9}],"costScaling":[
+       {"direction":"reduce","counts":[{"kind":"zone","zone":"field","owner":"self","filter":{"cardType":"シグニ","cardClass":"微菌"}}],"per":1,"amount":[{"color":"黒","count":1}]},
+       {"direction":"reduce","counts":[{"kind":"virus","owner":"opponent"}],"per":1,"amount":[{"color":"黒","count":1}]}
+     ]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"TRASH_ALL_SIGNI_AND_KEY",
+        "trashAllScope":{"zones":["signi"],"owner":"opponent","zoneAttachments":true}},
+       {"type":"STUB","id":"REMOVE_VIRUS","virusCount":"all"}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    // ⚠BURST は既存の手書き（別の場所にあったものをここへ統合＝1カード1キーの規約）。内容は無改変。
+    {"effectId":"WX16-033-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 実装キュー（2026-09-08）＝チェックゾーン経由の《トラップアイコン》発動が丸ごと無かった
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX19-025（幻怪　ヒトツメ・シグニ）／ 原文の【自】＝
+  //   「このシグニがアタックしたとき、あなたのデッキの上からカードを３枚見る。
+  //     その中から**《トラップアイコン》を持つカード１枚をチェックゾーンに置き**、残りを好きな順番で
+  //     デッキの一番下に置く。その後、**この方法でチェックゾーンに置いたカードの《トラップアイコン》を
+  //     発動させる**。」
+  // 🔴**旧 live は素の `LOOK_AND_REORDER{count:3}` だけ**＝「3枚見て一番下に置く」で終わっており、
+  //   チェックゾーンへの移動も《トラップアイコン》の発動も**丸ごと無かった**（効果の本体が消えていた）。
+  // 🔑**受け皿の先例は `WX21-Re20-E1`**（ライフバースト版）＝`LOOK_AND_REORDER` →
+  //   `TRAP_OPERATION{to_check, trapSource:'looked'}` → 発動、の3段。足した engine 側は2つだけ：
+  //   ①`to_check` が **`trapFilter` を候補に当てる**（無いと3枚のどれでも置けた＝原文の限定が落ちる）
+  //   ②`trapOp:'activate'` に **`trapSource:'check'`** を足す（旧委譲先 `ACTIVATE_TRAP` は
+  //     シグニゾーンに伏せた【トラップ】しか見ないので、チェックゾーンの札には**恒久 no-op**）。
+  // ⚠**近似**＝原文は「1枚を選んでから残りを並べ替える」順だが、`LOOK_AND_REORDER` を先に置いて
+  //   3枚を一番下へ送り、そのあと該当札をデッキから抜く（集合としては原文と同じ結果になる）。
+  'WX19-025': [
+    {"effectId":"WX19-025-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,
+        "private":true,"reorder":true,"canTrash":false,
+        "destination":{"location":"deck","owner":"self","position":"bottom"}},
+       {"type":"STUB","id":"TRAP_OPERATION","trapOp":"to_check","trapSource":"looked","count":1,
+        "trapFilter":{"hasIcon":"トラップ"}},
+       {"type":"STUB","id":"TRAP_OPERATION","trapOp":"activate","trapSource":"check"}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 実装キュー（2026-09-08）＝宣言との一致で分岐する2枝が消えて両方走っていた（実測1効果）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX13-048（幻水　テッポウオ・シグニ）／ 原文の【出】＝
+  //   「手札から＜水獣＞のシグニを１枚捨てる：あなたはカード名１つを宣言する。
+  //     対戦相手は自分のデッキの一番上のカードを公開する。
+  //     **それが宣言したカードの場合**、それをトラッシュに置き、あなたはカードを２枚引く。
+  //     **宣言したカードではない場合**、あなたはカードを１枚引く。」
+  // 🔴**旧 live は分岐が丸ごと消えて `DRAW 2` と `DRAW 1` が無条件に並んでいた**＝**常に3枚引く**
+  //   （どちらの枝も走る過剰実行）。一致時の「それをトラッシュに置き」も無かった。
+  //   公開も `STUB{LOOK_OPP_LIFE_TOP, lookZone:opp_deck_top}`＝**見るだけ**で公開札を後段へ渡さない。
+  // 🔑**受け皿は3つとも既にあった**＝`REVEAL_DECK_TOP{owner:'opponent'}`（`lastProcessedCards` と
+  //   `last_revealed_deck_cards` を置く）／`CONDITIONAL.else`／`TRASH_REVEALED{owner:'opponent'}`。
+  //   足したのは **`LAST_PROCESSED_MATCHES` の `nameEqDeclaredName` 解決だけ**（`execUtils.ts`）＝
+  //   🔴このキーは `matchesFilter` が読まない（`resolveDynamicFilter` が `cardNames` へ解決する契約）ので、
+  //   素で載せると**黙って無条件成立**する＝「宣言していないカードでも一致枝が通る」過剰実行になっていた。
+  // 🔑**同型は実測1効果**（`census:population -- "宣言したカードではない場合"`）＝速いレーンで手書きする。
+  'WX13-048': [
+    {"effectId":"WX13-048-E1","effectType":"AUTO","timing":["ON_PLAY"],
+     "cost":{"handDiscardSigni":{"count":1,"story":"水獣"}},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"DECLARE_CARD_NAME"},
+       {"type":"REVEAL_DECK_TOP","owner":"opponent","count":1},
+       {"type":"CONDITIONAL",
+        "condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"nameEqDeclaredName":true}},
+        "then":{"type":"SEQUENCE","steps":[
+          {"type":"TRASH_REVEALED","owner":"opponent"},
+          {"type":"DRAW","owner":"self","count":2}
+        ]},
+        "else":{"type":"DRAW","owner":"self","count":1}}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 実装キュー（2026-09-08）＝「各プレイヤーは自分の〜」が自分側だけに縮んでいた（実測1効果）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX07-017（台風一過・アーツ）／ 原文＝
+  //   「**各プレイヤーは**、自分の手札とエナゾーンにあるカードと場にあるシグニをすべてトラッシュに置く。
+  //     その後、**各プレイヤーは**自分のトラッシュからシグニを３枚まで対象とし、それらを場に出す。
+  //     その後、**各プレイヤーは**自分のトラッシュからシグニを３枚まで対象とし、それらを手札に加える。
+  //     その後、**対戦相手は**自分のトラッシュからカードを３枚まで対象とし、それらをエナゾーンに置く。」
+  // 🔴**旧 live は後半3文がすべて `owner:'self'`** ＝②③は相手ぶんが丸ごと落ち（過小実行）、
+  //   ④は**実行者が逆**（相手のリカバリーが自分のリカバリーに化けていた＝過剰実行）。
+  //   ①（全ゾーン一括トラッシュ）だけは `trashAllScope.owner:'both'` で正しかった。
+  // 🔑**受け皿は3つとも既にあった**（§5.3 `O-279` の登録票「`owner` は片側しか取れない」は**stale**）＝
+  //   `execAddToField` は `owner:'opponent'` で相手の場へ、`execTransferToHand` は `source.owner` を
+  //   そのまま移動先の持ち主に使い、`execEnergyCharge` は `target.owner` で相手のエナへ置く。
+  //   ⇒ **新しい型も engine の新経路も要らず、「2本に割る」という既存の綴り**
+  //   （`parseSentencePart1.ts` の「各プレイヤーはカードをN枚引く」＝self/opponent の SEQUENCE）で足りる。
+  // 🔑**同型は実測1効果**（`npm run census:population -- "各プレイヤーは自分のトラッシュから"`）＝
+  //   PLAN §2.0 の速いレーンで原文から手書きする。
+  // ⚠**原文の括弧書き「（あなたからカードを選択し両者が同時に移動させる）」は同時性の指示**だが、
+  //   engine は逐次解決しかできない＝**自分→相手の順**で近似する（枚数・移動先は原文どおり）。
+  'WX07-017': [
+    {"effectId":"WX07-017-E1","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"緑","count":3},{"color":"無","count":3}]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"TRASH_ALL_SIGNI_AND_KEY","trashAllScope":{"zones":["signi","hand","energy"],"owner":"both"}},
+       {"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
+       {"type":"ADD_TO_FIELD","owner":"opponent","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
+       {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
+       {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
+       {"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true}}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // 意味照合 段2（2026-09-07）＝【ライド】の**使用タイミング拡張**（`WXK03-059-E1`・実測1効果）
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WXK03-059（コードライド　レーサーバイク・シグニ）／ 原文＝
@@ -9005,9 +9136,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WXDi-D09-P15": [
     {"effectId":"WXDi-D09-P15-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"bounce","label":"手札を3枚捨ててもよい。そうした場合、それを手札に戻す","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":3}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]}},{"choiceId":"exile","label":"手札2枚とガードを持つシグニ1枚を捨ててもよい。そうした場合、それを除外","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscardGroups":[{"count":2},{"count":1,"filter":{"hasGuard":true,"cardType":"シグニ"}}]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]}}]}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
-  "WX16-033": [
-    {"effectId":"WX16-033-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-D01-016": [
     {"effectId":"WXDi-D01-016-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":20000},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"else":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":15000},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}

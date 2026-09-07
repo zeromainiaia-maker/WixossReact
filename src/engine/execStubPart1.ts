@@ -2946,7 +2946,7 @@ export function execStubPart1(
     const targetsTAK: ('self' | 'opponent')[] = specTAK.owner === 'both'
       ? ['self', 'opponent'] : [specTAK.owner];
     let ctxTAK = ctx;
-    let signiTAK = 0, handTAK = 0, energyTAK = 0, keysTAK = 0;
+    let signiTAK = 0, handTAK = 0, energyTAK = 0, keysTAK = 0, attachTotalTAK = 0;
     for (const target of targetsTAK) {
       const st = ownerState(target, ctxTAK);
       const moveSigni = specTAK.zones.includes('signi');
@@ -2956,18 +2956,37 @@ export function execStubPart1(
       const handAll = moveHand ? [...st.hand] : [];
       const energyAll = moveEnergy ? [...st.energy] : [];
       const keyCard = specTAK.keys ? st.field.key_piece : null;
+      // 🆕**§5.0（2026-09-08・`WX16-033-E1`）＝「シグニゾーンにある、**すべてのカード**」。**
+      //   シグニ本体と下のカードは `signiAll` が既に拾うが、**同じゾーンに同居する
+      //   【チャーム】／【アクセ】／【トラップ】**は別配列なので明示的に流す。
+      //   ⚠既定では触らない＝「すべてのシグニをトラッシュに置き」型の意味を変えない。
+      const attachTAK = (moveSigni && specTAK.zoneAttachments)
+        ? [
+          ...(st.field.signi_charms ?? []).filter((c): c is string => !!c),
+          ...(st.field.signi_acce ?? []).flatMap(a => a ?? []),
+          ...(st.field.signi_traps ?? []).filter((c): c is string => !!c),
+        ]
+        : [];
       const newSt: PlayerState = {
         ...st,
         ...(moveHand ? { hand: [] } : {}),
         ...(moveEnergy ? { energy: [] } : {}),
-        trash: [...st.trash, ...signiAll, ...handAll, ...energyAll],
+        trash: [...st.trash, ...signiAll, ...attachTAK, ...handAll, ...energyAll],
         lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
         field: {
           ...st.field,
           ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[] } : {}),
+          ...(moveSigni && specTAK.zoneAttachments
+            ? {
+              signi_charms: [null, null, null] as (string | null)[],
+              signi_acce: [null, null, null] as (string[] | null)[],
+              signi_traps: [null, null, null] as (string | null)[],
+            }
+            : {}),
           ...(specTAK.keys ? { key_piece: null } : {}),
         },
       };
+      attachTotalTAK += attachTAK.length;
       signiTAK += signiAll.length; handTAK += handAll.length; energyTAK += energyAll.length;
       if (keyCard) keysTAK++;
       ctxTAK = setOwnerState(target, newSt, ctxTAK);
@@ -2976,6 +2995,7 @@ export function execStubPart1(
       ...(signiTAK > 0 ? [`シグニ${signiTAK}体`] : []),
       ...(handTAK > 0 ? [`手札${handTAK}枚`] : []),
       ...(energyTAK > 0 ? [`エナ${energyTAK}枚`] : []),
+      ...(attachTotalTAK > 0 ? [`ゾーンの付随カード${attachTotalTAK}枚`] : []),
       ...(keysTAK > 0 ? [`キー${keysTAK}`] : []),
     ];
     return done(addLog(ctxTAK, `${partsTAK.join('＋') || '対象なし'}をトラッシュへ`));

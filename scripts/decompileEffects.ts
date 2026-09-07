@@ -3818,6 +3818,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-60` 第7バッチ（2026-08-26）＝**枚数を payload から描く**。
       // 🔴旧実装は**カード全文を regex で切り出して原文をそのまま貼っていた**ので、
       //   JSON が枚数を1つも持っていなくても逆翻訳シートは緑だった（§4.3 の「計器が嘘をつく」形）。
+      // 🆕**§5.0 実装キュー 第222バッチの取りこぼし（2026-09-08 第224 で回収）**＝
+      //   `WX19-064-E1` の選択肢②で新設した `TRASH_TRAP_ONE` に逆翻訳の綴りが無く、
+      //   **生の英語 ID が逆翻訳シートに出ていた**（`census:stubs` C群ゲートが検出）。
+      //   ⚠engine 実装は正しい＝**逆翻訳だけの穴**（`RETURN_TRAP_TO_HAND_ONE` の行き先違いの対）。
+      if (a.id === 'TRASH_TRAP_ONE') return 'あなたの【トラップ】1つを対象とし、それをトラッシュに置く';
       if (a.id === 'TRAP_TO_HAND') {
         const tth = (a as { trapToHand?: { count: number | 'ALL'; upTo?: boolean; alsoSigniFilter?: any } }).trapToHand;
         if (tth) {
@@ -3864,16 +3869,22 @@ function actionJa(a?: Action, effectType?: string): string {
           if (a.trapZoneOfTriggerSource) return 'そのシグニゾーンにある【トラップ】をトラッシュに置く';
           return `あなたの【トラップ】${a.count ?? 1}つをトラッシュに置く`;
         }
+        // 🆕**§5.0（2026-09-08）＝`trapSource:'check'`（チェックゾーンに置いた札の《トラップアイコン》）**。
+        //   🔴描き分けないと「あなたの【トラップ】1つを表向きにし」と読め、**別の効果に見える**。
         if (a.trapOp === 'activate') return a.trapSource === 'field_signi'
           ? `あなたの${a.trapFilter?.story ? `＜${a.trapFilter.story}＞の` : ''}シグニ1体の《トラップアイコン》を発動させる（そのシグニは場に留まる）`
-          : 'あなたの【トラップ】1つを表向きにし《トラップアイコン》を発動させる';
+          : a.trapSource === 'check'
+            ? 'この方法でチェックゾーンに置いたカードの《トラップアイコン》を発動させる'
+            : 'あなたの【トラップ】1つを表向きにし《トラップアイコン》を発動させる';
         if (a.trapOp === 'rearrange') return 'あなたのすべての【トラップ】を好きなように配置し直す（※並べ替え対話は未実装）';
         if (a.trapOp === 'to_check') {
           const source = a.trapSource === 'trash' ? 'そのシグニをトラッシュから'
             : a.trapSource === 'deck_top' ? 'あなたのデッキの一番上のカードを'
             // 🆕§5.3 `O-60` 第43バッチ＝デッキの一番下（`WXK02-035-E2`）。落とすと「その中から」に化ける。
             : a.trapSource === 'deck_bottom' ? 'あなたのデッキの一番下のカードを'
-            : 'その中からカード1枚を';
+            // 🆕**§5.0（2026-09-08）＝`trapFilter` の限定を描く**（`WX19-025-E1`＝
+            //   「その中から**《トラップアイコン》を持つカード**1枚を」）。落とすと限定が逆翻訳から消える。
+            : `その中から${a.trapFilter?.hasIcon ? `《${a.trapFilter.hasIcon}アイコン》を持つ` : ''}カード1枚を`;
           return `${source}チェックゾーンに置${a.upToCount ? 'いてもよい' : 'く'}${a.trapRemainder === 'hand' ? '、残りを手札に加える' : ''}`;
         }
         if (a.trapOp === 'from_check') return 'そのカードをチェックゾーンからトラッシュに置く';
@@ -5177,7 +5188,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const ta = a.trashAllScope;
         if (!ta) return '【※ペイロード欠落】全体トラッシュ（engine は何もしない）';
         const whoJa = ta.owner === 'both' ? '各プレイヤーは自分の' : ta.owner === 'opponent' ? '対戦相手は自分の' : 'あなたの';
-        const zoneJa = ta.zones.map(z => (z === 'signi' ? '場にあるシグニ' : z === 'hand' ? '手札' : 'エナゾーンにあるカード')).join('と');
+        // 🆕**§5.0（2026-09-08）＝`zoneAttachments`（シグニゾーンの付随カードごと）を描く。**
+        //   🔴描かないと `WX16-033-E1` が「シグニをすべてトラッシュに置く」と読め、
+        //   **チャーム・アクセ・トラップまで流している**ことが逆翻訳から消える。
+        const zoneJa = ta.zones.map(z => (z === 'signi'
+          ? (ta.zoneAttachments ? 'すべてのシグニゾーンにあるすべてのカード（下のカード・チャーム・アクセ・トラップを含む）' : '場にあるシグニ')
+          : z === 'hand' ? '手札' : 'エナゾーンにあるカード')).join('と');
         return `${whoJa}${zoneJa}をすべてトラッシュに置く${ta.keys ? '。すべてのキーをルリグトラッシュに置く' : ''}`;
       }
       if (a.id === 'GRANT_CHOSEN_ABILITY' || a.id === 'GRANT_CHOSEN_ABILITY_SELF') {

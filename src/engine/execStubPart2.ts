@@ -21,6 +21,7 @@ import {
 } from './execUtils';
 import { allAcceCards } from '../utils/acce';
 import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
+import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import {
   markTurnEndFacedownTrashIfOccupied,
   moveFieldSigniFacedown,
@@ -2716,6 +2717,22 @@ export function execStubPart2(
       }, `トラップ${trashed.length}枚をトラッシュへ`));
     }
     if (stub.trapOp === 'activate') {
+      // 🆕**§5.0（2026-09-08・`WX19-025-E1`）＝「この方法で**チェックゾーンに置いた**カードの
+      //   《トラップアイコン》を発動させる」。** 🔴既存の委譲先 `ACTIVATE_TRAP` は
+      //   **シグニゾーンに伏せた【トラップ】**（`field.signi_traps`）しか見ないので、
+      //   チェックゾーンの札に当てると必ず「トラップなし」＝**恒久 no-op** になる。
+      //   🔑`activate_check_burst` の【ライフバースト】版と同じ形＝対象は `field.check`、
+      //     能力の引き方は `trapIconEffectOf`（付与された《トラップアイコン》も同じ funnel から取る）。
+      //   ⚠**効果元は発動するカード自身へ差し替える**（`trapOp:'activate'` の場のシグニ版と同じ規約）。
+      if (stub.trapSource === 'check') {
+        const checkedAC = ctx.ownerState.field.check ?? ctx.lastProcessedCards?.[0];
+        if (!checkedAC) return done(addLog(ctx, 'トラップアイコン：チェックゾーンにカードなし'));
+        const trapIconAC = trapIconEffectOf(checkedAC, ctx);
+        const nameAC = ctx.cardMap.get(getCardNum(checkedAC))?.CardName ?? checkedAC;
+        if (!trapIconAC) return done(addLog(ctx, `${nameAC}: トラップアイコン能力なし`));
+        return exec(trapIconAC.action, addLog({ ...ctx, sourceCardNum: checkedAC, trapActivated: true },
+          `チェックゾーンの${nameAC}の《トラップアイコン》を発動`));
+      }
       if (stub.trapSource !== 'field_signi') {
         return exec({ type: 'STUB', id: 'ACTIVATE_TRAP' } as StubAction, ctx);
       }
@@ -2761,9 +2778,15 @@ export function execStubPart2(
         const trapCheckSeed = (ctx.lastProcessedCards?.length ?? 0) > 0
           ? ctx.lastProcessedCards!
           : (ctx.triggeringCardNum ? [ctx.triggeringCardNum] : []);
-        const candidates = stub.trapSource === 'trash'
+        const seedZoned = stub.trapSource === 'trash'
           ? trapCheckSeed.filter(card => ctx.ownerState.trash.includes(card))
           : trapCheckSeed;
+        // 🆕**§5.0（2026-09-08・`WX19-025-E1`）＝「その中から《トラップアイコン》を持つカード1枚を」**＝
+        //   見た札のうち**限定に合うものだけ**を候補にする。🔴無いと3枚のどれでもチェックゾーンへ置けた
+        //   （＝原文の限定が丸ごと落ちる過剰実行）。⚠合う札が1枚も無ければ**何も置かない**（fail-closed）。
+        const candidates = stub.trapFilter
+          ? seedZoned.filter(card => matchesFilter(ctx.cardMap.get(getCardNum(card)), stub.trapFilter))
+          : seedZoned;
         if (candidates.length === 0) return done(addLog(ctx, 'チェックゾーン：候補なし'));
         return needsInteraction(addLog(ctx, 'チェックゾーンに置くカードを選択'), {
           type: 'SELECT_TARGET', candidates, count: 1, optional: stub.upToCount === true,
@@ -2777,6 +2800,11 @@ export function execStubPart2(
         // 🆕§5.3 `O-60` 第43バッチ＝デッキの**一番下**（`WXK02-035-E2`）。
         ?? (stub.trapSource === 'deck_bottom' ? (ctx.ownerState.deck.at(-1) ?? null) : null);
       if (!cardToCheck) return done(addLog(ctx, '[チェックゾーン：対象カードなし]'));
+      // ⚠上の選択分岐は「見た札が2枚以上」のときしか通らない＝1枚しか見ていない経路でも
+      //   `trapFilter` を必ず当てる（当たらなければ置かない＝fail-closed）。
+      if (stub.trapFilter && !matchesFilter(ctx.cardMap.get(getCardNum(cardToCheck)), stub.trapFilter)) {
+        return done(addLog(ctx, 'チェックゾーン：限定に合うカードなし'));
+      }
       let remainderCards: string[] = [];
       if (stub.trapRemainder === 'hand' && typeof stub.value === 'string' && stub.value.startsWith('[')) {
         try { remainderCards = (JSON.parse(stub.value) as string[]).filter(card => card !== cardToCheck); } catch { remainderCards = []; }
@@ -3553,7 +3581,20 @@ export function execStubPart2(
             ? [...new Set([...ctx.ownerState.lrig_trash, ...ctx.otherState.lrig_trash])]
           : fromHandUS ? ctx.ownerState.hand
             : ctx.ownerState.trash;
-      const candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
+      let candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
+      // 🔴🆕**§5.3 `O-281`（2026-09-08）＝この経路は `Restriction`（限定条件）を一度も検査していなかった。**
+      //   本体は `USE_SPELL_FROM_TRASH` / `CAST_FROM_OPP_TRASH` / `PLAY_SPELL_FROM_HAND` へ委譲するので、
+      //   **live 12効果すべてが事実上「限定条件を無視して」使えた**（原文に当該句があるのは `WXK09-002-E1` の1件だけ
+      //   ＝残り11件は過剰実行）。`PR-433-E1` は原文が明示的に「（限定条件、使用タイミングは無視しない）」と書いている。
+      //   🔑判定は `meetsRestriction` の**1本だけ**を使う（アーツUI・スペルUI・グロウ・`execPlayFree`＝`O-264` と同じ関数。
+      //     写経すると「UI では使えないのに効果からは使える」型の無言のズレになる）。
+      //   ⚠**使用者は常に効果の持ち主**＝相手のトラッシュ／ルリグトラッシュ発でも原文は
+      //     「**あなたの**手札／ルリグデッキにあるかのように使用する」なので `ownerState` のルリグ限定で見る。
+      if (!stub.ignoreRestrictions) {
+        const lrigNumUS = ctx.ownerState.field.lrig.at(-1);
+        const lrigClassUS = effectiveLrigClass(ctx.ownerState, ctx.cardMap.get(getCardNum(lrigNumUS ?? ''))?.CardClass);
+        candsUS = candsUS.filter(cn => meetsRestriction(ctx.cardMap.get(getCardNum(cn))?.Restriction ?? '', lrigClassUS));
+      }
       // ⚠**「コストの合計が２～４の」は `filter.costMin/costMax` が既に受け皿**（`matchesFilter`）＝
       //   ここで数え直さない。印刷コストだけを見る点も原文の注記（「カードの左上に書かれているコストのみを
       //   参照する」）と一致する＝軽減は**支払い時**に効くのであって候補の適格性は変えない。
