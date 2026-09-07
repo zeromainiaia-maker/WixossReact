@@ -70546,6 +70546,84 @@ test('O-A triage: WX17-063 の【トラップアイコン】は「対戦相手�
   eq(src.count, 'ALL', 'すべてのカード');
 });
 
+// ── 速いレーン一括（2026-09-07 第212バッチ）＝O-D 実装キューの「同型2枚以下」9件 ────────────
+test('速いレーン9件: 直した箇所が live に載っている（O-D 実装キュー・第212バッチ）', () => {
+  const eff = (card: string, id: string) => (effectsMap.get(card) ?? []).find(e => e.effectId === id);
+  const js = (card: string, id: string) => JSON.stringify(eff(card, id) ?? null);
+
+  // ① WX20-033-BURST＝白と緑で SEARCH が2本（旧は白だけ＝緑の1枚が永久に取れなかった）
+  const w33 = eff('WX20-033', 'WX20-033-BURST');
+  ok(!!w33, 'WX20-033-BURST が live にある');
+  const searches33 = ((w33?.action as unknown as { steps?: { type: string; filter?: { color?: string } }[] }).steps ?? [])
+    .filter(s => s.type === 'SEARCH');
+  eq(searches33.length, 2, 'WX20-033-BURST: SEARCH は2本');
+  eq(searches33.map(s => s.filter?.color).join(','), '白,緑', 'WX20-033-BURST: 白→緑の順');
+
+  // ② WX20-Re20-E1 ②＝好きな枚数（count:'ALL'+upToCount）かつ noAbilities
+  const re20 = (eff('WX20-Re20', 'WX20-Re20-E1')?.action as unknown as { steps?: { choices?: { action: unknown }[] }[] })
+    ?.steps?.[0]?.choices?.[1]?.action as { steps?: { type: string; source?: Record<string, unknown> }[] } | undefined;
+  const add20 = (re20?.steps ?? []).find(s => s.type === 'ADD_TO_FIELD');
+  ok(!!add20, 'WX20-Re20-E1 ②に ADD_TO_FIELD がある');
+  eq(add20?.source?.count, 'ALL', 'WX20-Re20-E1 ②: 好きな枚数');
+  eq(add20?.source?.upToCount, true, 'WX20-Re20-E1 ②: 0枚も選べる');
+  eq((add20?.source?.filter as { noAbilities?: boolean })?.noAbilities, true, 'WX20-Re20-E1 ②: 能力を持たないシグニ限定');
+
+  // ③ WX13-043-E2＝センタールリグが赤のときだけ（🔴activeCondition では効かない＝CONDITIONAL で包む）
+  const w43 = eff('WX13-043', 'WX13-043-E2')?.action as unknown as { type?: string; condition?: Record<string, unknown> };
+  eq(w43?.type, 'CONDITIONAL', 'WX13-043-E2: 本体ごと条件で包む');
+  eq(w43?.condition?.type, 'LRIG_COLOR', 'WX13-043-E2: LRIG_COLOR で判定');
+  eq(w43?.condition?.color, '赤', 'WX13-043-E2: 赤');
+  ok(!eff('WX13-043', 'WX13-043-E2')?.activeCondition,
+    '🔴WX13-043-E2: activeCondition に書かない（フェイズ境界の収集器は activeCondition を見ない＝無言 no-op）');
+
+  // ④ WX14-CB03-E2＝相手センタールリグ Lv5 のときだけ任意コストを提示する（CONDITIONAL が STUB を包む形）
+  const cb03 = (eff('WX14-CB03', 'WX14-CB03-E2')?.action as unknown as { steps?: { type: string; condition?: Record<string, unknown>; then?: { id?: string } }[] })?.steps?.[0];
+  eq(cb03?.type, 'CONDITIONAL', 'WX14-CB03-E2: 任意コストを条件で包む');
+  eq(cb03?.condition?.type, 'LRIG_LEVEL', 'WX14-CB03-E2: LRIG_LEVEL');
+  eq(cb03?.condition?.owner, 'opponent', 'WX14-CB03-E2: 対戦相手のセンタールリグ');
+  eq(cb03?.condition?.value, 5, 'WX14-CB03-E2: レベル5');
+  eq(cb03?.then?.id, 'OPTIONAL_COST', 'WX14-CB03-E2: 包まれているのは任意コスト');
+
+  // ⑤ WX19-001-E3＝捨てるのは《アーク・オーラ》だけ
+  ok(js('WX19-001', 'WX19-001-E3').includes('"cardName":"アーク・オーラ"'), 'WX19-001-E3: カード名指定');
+
+  // ⑥ WD06-018-BURST＝【ライフバースト】を持つシグニだけ
+  ok(js('WD06-018', 'WD06-018-BURST').includes('"hasLifeBurst":true'), 'WD06-018-BURST: LB 持ち限定');
+
+  // ⑦ WX20-020-E1 ④＝「その【出】能力は発動しない」（🔴既定は発動する＝suppressOnPlay が要る）
+  ok(js('WX20-020', 'WX20-020-E1').includes('"suppressOnPlay":true'), 'WX20-020-E1 ④: 【出】不発');
+
+  // ⑧ WX20-042-CB-E3＝原文が所有者を限定していない＝owner:'any'
+  const cb3 = js('WX20-042-CB', 'WX20-042-CB-E3');
+  ok(!cb3.includes('"owner":"opponent"'), 'WX20-042-CB-E3: 相手固定を残さない');
+  ok(cb3.includes('"owner":"any"'), 'WX20-042-CB-E3: 自分のシグニも対象にできる');
+
+  // ⑨ WX12-035-E1＝3エナ＋自身除外の任意コスト／無効化は「いま宣言中のアタッカー」限定
+  const w35 = js('WX12-035', 'WX12-035-E1');
+  ok(w35.includes('"costColors":["緑","緑","白"]'), 'WX12-035-E1: エナコストが載っている');
+  ok(w35.includes('"trashExile"') && w35.includes('"thisCardOnly":true'), 'WX12-035-E1: 除外はトラッシュの自分自身');
+  ok(w35.includes('"attackingOnly":true'), 'WX12-035-E1: 無効化はアタック中のシグニ限定');
+  ok(!w35.includes('BANISH_FROM_GAME'), 'WX12-035-E1: 旧 catch-all STUB は消えた');
+});
+
+test('EXILE{TRASH_CARD, thisCardOnly}: トラッシュの「このカード」だけを除外する（WX12-035-E1 の任意コスト）', () => {
+  // 🔴`matchesFilter` は `thisCardOnly` を**黙って無視する**ので、候補集めの層で絞らないと
+  //   「トラッシュの何でも1枚」が除外される（＝別のカードが消える無言バグ）。
+  const src = fresh();
+  const others = fill(3);
+  const base = mkCtx({ trash: 0 }, {}, src);
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [...others, src] } } as ExecCtx;
+  const r = run({ type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction, ctx);
+  eq((r.ownerState.excluded ?? []).join(','), src, '除外されたのは効果元自身だけ');
+  eq([...r.ownerState.trash].sort().join(','), [...others].sort().join(','), '他のトラッシュは1枚も減らない');
+
+  // 効果元がトラッシュに居なければ候補ゼロ＝何も除外されない（払えない）。
+  const base2 = mkCtx({ trash: 0 }, {}, src);
+  const ctx2 = { ...base2, ownerState: { ...base2.ownerState, trash: [...fill(3)] } } as ExecCtx;
+  const r2 = run({ type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction, ctx2);
+  eq((r2.ownerState.excluded ?? []).length, 0, 'トラッシュに居なければ何も除外しない');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

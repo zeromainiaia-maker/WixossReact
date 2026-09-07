@@ -2349,6 +2349,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    // 🆕**E3＝原文が所有者を限定していないのに相手固定だった**（2026-09-07・O-A triage）。
+    // 原文＝「【自】：このシグニがアタックしたとき、**シグニ１体**を対象とし、このシグニの下からカード２枚を
+    //   トラッシュに置いてもよい。そうした場合、それをバニッシュする。」
+    // 🔴旧 live は選択・バニッシュとも `owner:'opponent'` 固定＝**自分のシグニを選ぶ手が指せない**
+    //   （自分の【自】持ちを能動的に落として誘発させる、という正当な使い方が消えていた）。
+    //   同カードのライフバースト側は `owner:'any'` で正しく、E3 だけが食い違っていた。
+    // 🔑`SELECT_TARGET_ONLY{type:'SIGNI', owner:'any'}` は `fieldCandidatesByOwner('any', …)` で両者の場を候補にする。
+    // ⚠`OPTIONAL_COST{underAnySigniTrash.fromThis}` と `PAID_ADDITIONAL_COST` ゲートは正しいので触らない。
+    {"effectId":"WX20-042-CB-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","underAnySigniTrash":{"count":2,"fromThis":true}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WX24-P4-040 ／ 原文【出】：対戦相手の手札を見て１枚選び、捨てさせる。
@@ -5384,7 +5393,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ・冒頭のコスト軽減（自L4以下&相手L5以上で《無×1》）は CONDITIONAL_ARTS_COST STUB のまま（実コストの
   //   適用は支払い時の `computeArtsEffectiveCost`）。🆕§5.3 `O-60` 第8バッチ（2026-08-26）で engine が
   //   カード全文 regex を読むのをやめたので、**条件は payload で刻む**（落とすと条件がログに出なくなる）。
-  // ・④ADD_TO_FIELD はエンジン上【出】を発動させないため「【出】能力は発動しない」を既定で満たす。
+  // ・④「そのシグニの【出】能力は発動しない」＝🔴**`suppressOnPlay:true` が要る**（2026-09-07・O-A triage）。
+  //   旧コメントは「ADD_TO_FIELD はエンジン上【出】を発動させないため既定で満たす」と書いていたが**逆**で、
+  //   `collectOnPlayTriggers`（`triggerCollect.ts:598`）は **`opts.suppressOnPlay` のときだけ**空を返す＝
+  //   既定は【出】が**発動する**。live 108効果中97効果は正しく `suppressOnPlay` を持っており、この札だけ落ちていた。
   'WX20-020': [
     {
       effectId: 'WX20-020-E1',
@@ -5402,7 +5414,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           { choiceId: 'c2', label: 'デッキトップ2枚をエナゾーンへ',
             action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } },
           { choiceId: 'c3', label: '共通色シグニをトラッシュから場に出す（【出】不発）',
-            action: { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } } },
+            action: { type: 'ADD_TO_FIELD', owner: 'self', suppressOnPlay: true, source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } } },
         ] },
       ] },
       duration: 'INSTANT',
@@ -10353,6 +10365,99 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `hasTrapAbility` の生成漏れ10効果の一部（parser 側の家族＝別項目）。
   "WX17-063": [
     {"effectId":"WX17-063-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════
+  // 2026-09-07（第212バッチ）＝§5.0「O-D / S-3 実装キュー」の**速いレーン**を1巡でまとめて消化。
+  // ⚠**全件、着手時に母集団を測り直した**（§2.1 ②）＝どれも**実害は1効果**で、
+  //   同じ言い回しの他効果は既に正しく出ている（＝parser を触る理由が無い＝速いレーン）。
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── WX20-033 のライフバースト＝**緑側のサーチが丸ごと落ちていた**
+  // 原文＝「あなたのデッキから**白の＜美巧＞のシグニ１枚まで**と**緑の＜美巧＞のシグニ１枚まで**を
+  //   探して公開し手札に加え、デッキをシャッフルする。」
+  // 🔴旧 live は `SEARCH{color:'白'}` の1本だけ＝**緑の1枚が永久に手に入らない**（原文の半分）。
+  // 🔑受け皿は既存の「同じアクションを2ステップ並べる」形＝**同カードの `WX20-042-CB-E1`
+  //   （`PLACE_UNDER_SIGNI` を2本並べて「＜原子＞3枚まで**と**青のスペル1枚まで」を表す）が先例**。
+  // ⚠**シャッフルは最後の1回だけ**（`afterSearch` を2本目にだけ置く）＝原文も「探して…シャッフルする」で1回。
+  // ⚠母集団＝原文「N枚まで**と**…N枚まで」は6効果あるが、**他5件は REVEAL/LOOK 系の別機構**で、
+  //   SEARCH が1本しか無いのはこの1件だけ。
+  "WX20-033": [
+    {"effectId":"WX20-033-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","color":"白","story":"美巧"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]}},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","color":"緑","story":"美巧"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX20-Re20 の選択肢②＝**枚数が1枚固定＋「能力を持たない」が落ちていた**（1効果に findings 2件）
+  // 原文②＝「あなたの手札から**能力を持たないシグニ**を**好きな枚数**場に出す。ターン終了時、それらを場からトラッシュに置く。」
+  // 🔴旧 live は `count:1` かつ `filter:{cardType:'シグニ'}`＝**1枚しか出せず、しかも能力持ちも出せた**
+  //   （①のサーチ側には `noAbilities:true` が付いているので、②だけが落ちていた）。
+  // 🔑「好きな枚数」＝`count:'ALL'` ＋ `upToCount:true`（0枚も選べる）。`execAddToField` は空きシグニゾーン数で上限を切る。
+  // ⚠母集団＝原文「好きな枚数場に出す」は3効果。他2件は正しい（`WXK03-003B-E1` は**キー**の話で別機構）。
+  "WX20-Re20": [
+    {"effectId":"WX20-Re20-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"白","count":1}],"costScaling":[{"direction":"increase","counts":[{"kind":"declaredChooseCount","owner":"self"}],"per":2,"amount":[{"color":"無","count":2}],"minCount":2,"maxCount":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"declaredCountChoose":true,"choices":[{"choiceId":"c0","label":"能力を持たないシグニを3枚まで探して手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","noAbilities":true},"maxCount":3,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"c1","label":"手札から能力を持たないシグニを好きな枚数場に出す（ターン終了時トラッシュ）","action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":"ALL","upToCount":true,"filter":{"cardType":"シグニ","noAbilities":true}}},{"type":"STUB","id":"TRASH_AT_TURN_END"}]}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX13-043 の【自】＝**発動条件「あなたのセンタールリグが赤の場合」が丸ごと無かった**
+  // 原文＝「【自】：あなたのメインフェイズ開始時、**あなたのセンタールリグが赤の場合**、このシグニを場から
+  //   トラッシュに置く。そうした場合、対戦相手のライフクロス１枚をクラッシュする。…」
+  // 🔴旧 live は無条件＝**メインフェイズ開始のたびに自壊してライフを割る**（色に関係なく）。
+  // 🔴🔑**`activeCondition` では効かない**＝フェイズ境界のトリガー収集（`triggerCollect.ts:5087` 付近）は
+  //   `eff.condition` は見るが **`eff.activeCondition` を見ていない**＝書いても無言 no-op になる。
+  //   ⇒ **`CONDITIONAL{LRIG_COLOR}` で本体ごと包む**（実行時に `evalCondition`＝`execUtils.ts:2852` が読む）。
+  //   同じ形は `WX14-026-E2` が live で稼働している（`LRIG_COLOR` の hit 9件の1つ）。
+  // ⚠内側の `CONDITIONAL{IS_MY_TURN}` は「そうした場合」＝did-it ゲート（規則13）なのでそのまま残す。
+  // ⚠母集団＝原文「あなたのセンタールリグが〜の場合」は10効果あるが、**条件が落ちているのはこの1件だけ**。
+  "WX13-043": [
+    {"effectId":"WX13-043-E2","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],"action":{"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"self","color":"赤"},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}},{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CRASH"}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX14-CB03 の【自】＝**「対戦相手のセンタールリグがレベル５の場合」が丸ごと無かった**
+  // 原文＝「【自】《ターン１回》：このシグニがアタックしたとき、**対戦相手のセンタールリグがレベル５の場合**、
+  //   手札から＜空獣＞か＜地獣＞のシグニを１枚捨ててもよい。そうした場合、このシグニをアップする。」
+  // 🔴旧 live は無条件＝相手ルリグのレベルに関係なく毎ターン1回アップできた。
+  // 🔑**`CONDITIONAL` で `OPTIONAL_COST` を包む**のが正準形＝`effectExecutor.ts:5270` の `wrapCond` 分岐が
+  //   「ゲート成立なら包みを解いて Pattern④/⑤ へ委譲／不成立なら**対になる『そうした場合』の本体ごと読み飛ばす**」
+  //   を実装している（＝任意コストの提示自体が出なくなる。ここを平らに並べると条件が効かない）。
+  // ⚠母集団＝原文「対戦相手のセンタールリグがレベルN…」は18効果／`LRIG_LEVEL` の miss はこの1件だけ
+  //   （もう1件の `WX19-007-E2` は「グロウする」側の別機構）。
+  "WX14-CB03": [
+    {"effectId":"WX14-CB03-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","usageLimit":"once_per_turn","action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"opponent","operator":"eq","value":5},"then":{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1,"filter":{"cardType":"シグニ","story":["空獣","地獣"]}}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX19-001 の【起】＝**捨てるカードのカード名指定が落ちていた**
+  // 原文＝「【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》：手札から**《アーク・オーラ》**を
+  //   １枚捨てる。そうした場合、対戦相手のセンタールリグとすべてのシグニをダウンし、…」
+  // 🔴旧 live は `TRASH{HAND_CARD, count:1}`＝**手札の何でも1枚**で払えた（コイン2枚だけで盤面全ダウン）。
+  // 🔑`TargetFilter.cardName` は `matchesFilter` が `CardName.includes()` で判定する（`execUtils.ts:1242`）。
+  // ⚠母集団＝原文「手札から《カード名》をN枚捨てる」は2効果／miss はこの1件だけ。
+  "WX19-001": [
+    {"effectId":"WX19-001-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"coin":2},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1,"filter":{"cardName":"アーク・オーラ"}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WD06-018 のライフバースト＝**「【ライフバースト】を持つ」の絞り込みが落ちていた**
+  // 原文＝「あなたのデッキから**【ライフバースト】を持つシグニ**１枚を探して公開し手札に加え、デッキをシャッフルする。」
+  // 🔴旧 live は `filter:{cardType:'シグニ'}`＝**デッキのどのシグニでも**引けた。
+  // 🔑`hasLifeBurst` は両評価器に実装済み（`execUtils.ts:1298` / `effectEngine.ts:1095`）。
+  // ⚠母集団＝原文「【ライフバースト】を持つシグニ」は live 全体でこの1効果だけ。
+  "WD06-018": [
+    {"effectId":"WD06-018-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","hasLifeBurst":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX12-035 の【自】＝**エナコストが無く、無償でアタックを無効にできた**
+  // 原文＝「【自】：対戦相手のシグニ１体がアタックしたとき、**《緑》《緑》《白》を支払い**、トラッシュにある
+  //   このシグニをゲームから除外して**もよい**。そうした場合、**そのシグニ**のアタックを一度無効にする。」
+  // 🔴旧 live は `STUB{BANISH_FROM_GAME}`（＝除外するかを問うだけ）で、**3エナの支払いがどこにも無かった**。
+  //   しかも無効化の対象が「場の相手シグニ1体」＝**アタックしていないシグニ**を選べてしまう（無言 no-op）。
+  // 🔑受け皿は既存の任意コスト1本に寄せた＝`OPTIONAL_COST{costColors, trashExile}`。
+  //   `trashExile` は `EXILE{TRASH_CARD}` を払いステップとして積む（`execUtils.ts:810`）。
+  // 🔴**`filter:{thisCardOnly:true}` を engine 側で効くようにした**＝`matchesFilter` は `thisCardOnly` を
+  //   **黙って無視する**ので、旧のままだと「トラッシュの**何でも1枚**」が除外されていた。
+  //   支払い可否（`canAffordOptionalCostSpec`）と実行（`execExile` の TRASH_CARD 分岐）の**両方**を直した。
+  // 🔑`attackingOnly:true`＝候補を**いま宣言中のアタッカー**に限定する（`NegateAttackAction` の既存フラグ）。
+  // ⚠`CONDITIONAL{IS_MY_TURN}` は「そうした場合」の受け皿＝任意コストの先取り（規則9）が消費するので
+  //   相手ターンでも正しく動く（条件としては評価されない）。
+  // ⚠母集団＝原文「〜を支払い、トラッシュにあるこのシグニをゲームから除外」は live でこの1効果だけ。
+  "WX12-035": [
+    {"effectId":"WX12-035-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"any_opp","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","白"],"trashExile":{"count":1,"owner":"self","filter":{"thisCardOnly":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1},"attackingOnly":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 };
 

@@ -636,11 +636,18 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (underCount < spec.underAnySigniTrash.count) return false;
   }
   if (spec.trashExile) {
+    // 🆕**`thisCardOnly`＝「トラッシュにある**このカード**を除外する」**（2026-09-07・`WX12-035-E1`）。
+    // 🔴`matchesFilter` は `thisCardOnly` を**黙って無視する**（`effectExecutor.ts:1878` に同じ注意書き）ので、
+    //   ここで剥がして候補を絞らないと**トラッシュの何でも1枚**が支払い候補になる。
+    //   ⚠支払い可否（ここ）と実際の除外（`execExile` の TRASH_CARD 分岐）の**両方**で同じ絞りが要る。
     const owners: Owner[] = spec.trashExile.owner === 'any'
       ? ['self', 'opponent'] : [spec.trashExile.owner];
-    const matching = owners.flatMap(owner => movableTrashCandidates(
-      owner, ownerState(owner, ctx), spec.trashExile!.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
-    ));
+    const matching = spec.trashExile.filter?.thisCardOnly
+      ? owners.filter(owner => !!ctx.sourceCardNum && ownerState(owner, ctx).trash.includes(ctx.sourceCardNum))
+        .map(() => ctx.sourceCardNum!)
+      : owners.flatMap(owner => movableTrashCandidates(
+        owner, ownerState(owner, ctx), spec.trashExile!.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+      ));
     if (matching.length < spec.trashExile.count) return false;
   }
   if (spec.trashToDeckBottom) {

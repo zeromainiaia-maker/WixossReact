@@ -298,6 +298,25 @@
   デバッグ出力で確かめる**（`_held_fresh` / `_partial_fresh` / `_idset_fresh` を見る前の段）。
   ⚠**動かないと分かった一般化は残さない**（live 0 の枝は検証できないまま増える＝catch-all の温床）。
 
+- 🔴🆕**「フラグを1つ足すだけ」に見える項目こそ、受け皿が**返り値を作っているか**まで見る。**（第212バッチ）＝
+  `WX06-019-E1` は `BANISH_SUBSTITUTE` の trigger に `excludeSelf` を足すだけの速いレーン項目に見えたが、
+  `collectBanishSubstitutes` の `else if` 連鎖（`discardSpell` / `trashStackSpell` / `lifeCrash`）に
+  **`powerReduction` が入っておらず、候補を1件も `push` しない**＝**効果まるごと恒久 no-op**。
+  🔑**「フィルターが読まれているか」ではなく「そのコスト種別で `result.push` に到達するか」を見る。**
+- 🔴🆕**トリガー収集器ごとに「見る条件フィールド」が違う。**（同上）＝フェイズ境界の収集器
+  （`triggerCollect.ts` の `collectPhaseBoundaryTriggers`）は **`eff.condition` は評価するのに
+  `eff.activeCondition` を1行も見ない**＝そこに条件を書くと**無言 no-op**。
+  🔑**AUTO に条件を足すときは、その timing を集めている収集器を開いて `activeCondition` / `condition` の
+  どちらを読んでいるか確かめる。**どちらも読まないなら**本体ごと `CONDITIONAL` で包む**（実行時評価に落とす）。
+- 🔴🆕**「既定でそうなっているから書かなくてよい」と書かれたコメントを信じない。**（同上）＝
+  `WX20-020` の manual コメントは「`ADD_TO_FIELD` はエンジン上【出】を発動させないので既定で満たす」と
+  書いていたが**逆**（`collectOnPlayTriggers` は `suppressOnPlay` のときだけ空を返す）。
+  🔑**「既定」を主張するコメントは、その既定を作っている関数を開いて1行で裏を取る。**
+- 🔴🆕**`syncManualLive` の後に `build:effects` をもう一度回す。**（同上）＝回さないと
+  `_partial_fresh` ラチェットが赤くなる（`build:effects` は **live がまだ AUTO のまま**の状態で
+  「fresh は manual 適用済み・live と非 superset」と判定してレビュー待ちへ入れるため）。
+  live を MANUAL にしてから回し直すと不可侵側へ回り、3バケツとも 0 に戻る。
+
 ### 4.3 計器の読み方
 
 - 🔴🆕**golden のラチェットが落ちると、そのテストが途中で abort して POOL カーソルが変わり、

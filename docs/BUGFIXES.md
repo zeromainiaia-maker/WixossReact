@@ -1,5 +1,84 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第212バッチ・O-D／Opus 5）＝**実装キューの「速いレーン」9件を1巡でまとめて消化**（未修正の真バグ 29効果 → 20効果）
+
+**この回の作業単位**＝ユーザー指示「早いレーンをまとめて行う」。§5.0「O-D / S-3 実装キュー」の**速いレーン**を全件。
+🏁**これで速いレーンは在庫ゼロ**（残り19行は全件が遅いレーン＝parser／engine／新機構）。
+
+⑤**実機は不要と判定**（PLAN §2.2）＝`src/data/manualEffects.ts` と `src/engine/` の2ファイル・`scripts/` `docs/`。
+**`src/screens/` は無変更／新しい型・機構も足していない**（`thisCardOnly` は既存フィルターを既存経路で効かせただけ）。
+
+### ① 着手時の実測で2件が「速いレーン」から外れた（§2.1 ② の効き目）
+
+- 🔴**`WX06-019-E1`＝フラグを足しても挙動が1ミリも変わらない**。「`BANISH_SUBSTITUTE` の trigger に `excludeSelf` を
+  足すだけ」に見えたが、`collectBanishSubstitutes`（`effectEngine.ts:7132`〜）の `else if` 連鎖は
+  `discardSpell` / `trashStackSpell` / `lifeCrash` の3つだけで、**`powerReduction` はどこにも入っていない**＝
+  候補を1件も返さない＝**この効果は現状まるごと恒久 no-op**。同関数のコメント自身が「powerReduction（WX06-019）は
+  『効果による場離れ』トリガーでバトル外のため未対応」と書いていた。⇒ 実装キューから §5.3 `O-276` へ移送。
+  ⚠ついでに `tf.story` しか見ておらず live の `cardClass:'水獣'` も効いていない（同じ登録票に記録）。
+- 🔑**`WX12-035-E1` は engine を1箇所だけ触った**（下記④）。それ以外の8件は `manualEffects.ts` の手書きだけ。
+
+⚠**9件とも母集団を測り直した**（`docs/_effect_srctext.json` を原文 regex で走査＋live に受け皿キーがあるかの miss 判定）。
+**どれも実害は1効果**で、同じ言い回しの他効果は既に正しく出ていた（例＝「あなたのセンタールリグが〜の場合」は
+原文10効果あるが miss はこの1件／「【出】能力は発動しない」は 97 hit / 11 miss で実害1件）。⇒ **parser を触る理由が無い＝速いレーン。**
+
+### ② 直した9件（原文 → 何が壊れていたか）
+
+| 効果 | 壊れ方 | 直し方 |
+|---|---|---|
+| `WX20-033-BURST` | 「白の＜美巧＞1枚まで**と**緑の＜美巧＞1枚まで」の**緑側の SEARCH が丸ごと無い** | `SEARCH` を2本並べる（同カード `WX20-042-CB-E1` の `PLACE_UNDER_SIGNI` 2本が先例）。シャッフルは2本目にだけ |
+| `WX20-Re20-E1` ② | 「能力を持たないシグニを**好きな枚数**場に出す」が `count:1` 固定＋`noAbilities` 欠落（①側にはある） | `count:'ALL'` ＋ `upToCount:true` ＋ `filter.noAbilities` |
+| `WX13-043-E2` | 「**あなたのセンタールリグが赤の場合**」が無く、メインフェイズ開始のたびに無条件で自壊＋ライフクラッシュ | 本体ごと `CONDITIONAL{LRIG_COLOR}` で包む（下記③） |
+| `WX14-CB03-E2` | 「**対戦相手のセンタールリグがレベル５の場合**」が無く、相手のレベルに関係なく毎ターン使えた | `CONDITIONAL{LRIG_LEVEL opponent eq 5}` で `OPTIONAL_COST` を包む |
+| `WX19-001-E3` | 「手札から**《アーク・オーラ》**を1枚捨てる」のカード名指定が無く、**手札の何でも1枚**で払えた（コイン2枚で盤面全ダウン） | `TargetFilter.cardName`（`matchesFilter` が `CardName.includes()` で判定） |
+| `WD06-018-BURST` | 「**【ライフバースト】を持つ**シグニ」の絞り込みが無く、デッキのどのシグニでも引けた | `hasLifeBurst:true`（両評価器に実装済み） |
+| `WX20-020-E1` ④ | 「その【出】能力は発動しない」が無い（下記③） | `suppressOnPlay:true` |
+| `WX20-042-CB-E3` | 原文が所有者を限定していない「シグニ1体」なのに選択・バニッシュとも `owner:'opponent'` 固定＝**自分のシグニを選ぶ手が指せない**（同カードの LB は `any` で正しかった） | `owner:'any'`（`SELECT_TARGET_ONLY` は `fieldCandidatesByOwner('any',…)` を持つ） |
+| `WX12-035-E1` | **《緑》《緑》《白》の支払いがどこにも無い**＝無償でアタックを無効にできた。無効化の対象も「場の相手シグニ1体」＝アタックしていないシグニを選べた | `OPTIONAL_COST{costColors, trashExile{thisCardOnly}}` ＋ `NEGATE_ATTACK{attackingOnly:true}` |
+
+### ③ この回に見つけた「engine が JSON の見た目を裏で読み替える」型2つ
+
+🔴**(a) フェイズ境界トリガーは `activeCondition` を見ない。**
+`WX13-043-E2` に `activeCondition:{LRIG_COLOR}` と書くのが自然に見えるが、
+`collectPhaseBoundaryTriggers`（`triggerCollect.ts:5087` 付近）は **`eff.condition` は評価するのに
+`eff.activeCondition` を1行も見ていない**＝書いても**無言 no-op**。⇒ **本体ごと `CONDITIONAL` で包む**
+（実行時に `evalCondition`＝`execUtils.ts:2852` が読む。`WX14-026-E2` が live で稼働している同じ形）。
+golden に「`activeCondition` に書かないこと」を assert する行を入れた。
+
+🔴**(b) `ADD_TO_FIELD` の既定は【出】が「発動する」。**
+`WX20-020` の manual コメントは「ADD_TO_FIELD はエンジン上【出】を発動させないため既定で満たす」と書いていたが**逆**で、
+`collectOnPlayTriggers`（`triggerCollect.ts:598`）は **`opts.suppressOnPlay` のときだけ**空を返す。
+live 108効果中97効果は正しく `suppressOnPlay` を持っており、この札だけ落ちていた。コメントも訂正した。
+
+### ④ engine を触ったのは1箇所＝`thisCardOnly` をトラッシュ除外に効かせる
+
+`WX12-035-E1` の任意コストは「トラッシュにある**このシグニ**をゲームから除外」。
+`OPTIONAL_COST{trashExile}` に `filter:{thisCardOnly:true}` を書いても、
+🔴**`matchesFilter` は `thisCardOnly` を黙って無視する**ので、そのままだと**トラッシュの何でも1枚**が除外される
+（＝別のカードが消える無言バグ）。**支払い可否と実行の両方**で候補を絞る必要があるので2箇所を対で直した：
+
+- `execUtils.ts` `canAffordOptionalCostSpec` の `trashExile` 分岐
+- `effectExecutor.ts` `execExile` の `TRASH_CARD` 分岐
+
+どちらも `transferToHandTrashCandidates`（同型の先例・`effectExecutor.ts:3546`）と同じ書き方に揃えた。
+
+### ⑤ 検証
+
+- `npm run gates` **全緑**（golden **3,592 / 3,592**＝新規2本）。smoke 全0・fuzz 全0。
+- 新規 golden ＝①9件の直した箇所が live に載っていることの形状 assert（`activeCondition` を使わない、の否定 assert 込み）
+  ②`EXILE{TRASH_CARD, thisCardOnly}` の**挙動**テスト（他のトラッシュが1枚も減らないこと／効果元がトラッシュに無ければ何も除外しないこと）。
+- **live A/B 差分＝9効果ちょうど**（`git show HEAD:public/data/*.json` と effectId 単位で突き合わせ）。
+- `npm run regen` の逆翻訳9行を目視（§2.0 速いレーンの検証手順）＝全件が原文どおりに読める。
+- ⑤実機は不要（上記）。
+
+🔴🔑**踏んだ罠＝`syncManualLive` のあとに `build:effects` をもう一度回す。**
+1度目の `gates` が **`_partial_fresh` ラチェットで赤**になった（`WX20-042-CB`）。理由＝`build:effects` は
+**live がまだ AUTO のまま**の状態で「fresh（manual 適用済み）と live が非 superset で食い違う」と判定して
+レビュー待ちバケツへ入れる。`syncManualLive` で live を MANUAL にした**あとに**もう一度 `build:effects` を回すと
+そのカードは不可侵側に回り、3バケツとも 0 に戻る（実測 partial 1→0 / held 8→1 / idset 0）。
+
+---
+
 ## 2026-09-07（第211バッチ・O-A／Opus 5）＝**意味照合 Sheet2 findings 32件を全数 triage（BUG 24 / FP 8）＋恒久 no-op 2効果と owner 反転1効果を修正**
 
 **この回の作業単位**＝ユーザー指示「S-1 を行った。opus の作業を行う」。§5.0 の Opus レーンを上から

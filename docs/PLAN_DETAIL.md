@@ -12417,3 +12417,20 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   🔧**ゲート**＝`npm run gates` **全緑 ✅**（`src/` 無変更なので数値は前回値のまま据置）。
   🖥**実機＝該当なし**（`src/screens/` 無変更）。
   🔁**live A/B 差分＝0カード**（`public/data/` 無変更＝意味照合は抽出のみで直接の修正を伴わない）。
+
+### 恒久指標アーカイブ（2026-09-07 第211バッチ・PLAN §6 から退避）
+
+- **2026-09-07（第211バッチ・O-A/O-C/O-D／Opus 5）＝Sheet2 findings 32件を全数 triage（BUG 24 / FP 8）＋恒久 no-op 2効果と owner 反転1効果を修正（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（🔴**全件 `mech`＝即着手可能 0**）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**Sheet1 の「0 → 9」は退化ではない**＝第207バッチで §5.3 に登録した `O-272`〜`O-279` を `cardProgressCensus` が拾い始めただけ
+  （前ブロックの「要対応 0」表記のほうが stale だった）。**mech フラグは JSON 修正では閉じない。**
+  ⚠**台帳と census が動かない理由**＝どちらも「知っているキーしか見ない」計器で、今回直した2系統
+  （`GRANT_LRIG_ABILITY` の duration 未指定／`TRANSFER_TO_DECK` の owner）は**どちらも語彙としては正しく載っていた**＝原理的に映らない。
+  📦**在庫**＝**意味照合 未監査 2,256枚**（Sheet1 **0**・**Sheet2 残176**・据置）｜🏁**未 triage findings 0件**（32 → 0）｜
+  🆕**未修正の真バグ 30件**（10 +22 −2＝§5.0 の O-D 実装キューが正）｜**機構 worklist 10項目**（`O-268` / `O-271` / `O-272`〜`O-279`）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート**＝`npm run gates` **全緑 ✅**（golden **3,590 / 3,590 PASS**＝新規2本／smoke 全0／fuzz 全0／
+  `census:stubs` A群🔴0・C群0／`census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／`manual-fields` 違反0）。
+  🖥**実機＝該当なし**（`src/screens/` `src/engine/` とも無変更＝§2.2 の判定どおり）。
+  🔁**live A/B 差分＝3効果**（`WX14-042-E2` / `PR-319-E2` / `WX17-063-TRAP`）＝**意図した件数と完全一致**。
+  逆翻訳（`npm run regen`）の差分も `decompile_sheet2` / `decompile_sheet6` の同3行だけ。
+  🧾**FP 規則**＝`semanticAuditExtract.mjs` の読み方ルール **24 → 27本**（規則12 を「報告しない」へ強化・25〜27 を新設）。

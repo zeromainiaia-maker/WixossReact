@@ -1856,9 +1856,16 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
   const trashOwners: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner];
-  const cands = trashOwners.flatMap(owner => movableTrashCandidates(
-    owner, ownerState(owner, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
-  ));
+  // 🆕**`thisCardOnly`＝「トラッシュにある**このカード**を除外する」**（2026-09-07・`WX12-035-E1` の任意コスト）。
+  // 🔴`matchesFilter` は `thisCardOnly` を**黙って無視する**（同ファイル :1878 と同じ罠）ので、
+  //   剥がして候補を絞らないと**トラッシュの何でも1枚**が除外されてしまう（別のカードが消える）。
+  //   ⚠`canAffordOptionalCostSpec`（`execUtils.ts`）の同じ分岐と**必ず対で直す**。
+  const cands = tgt.filter?.thisCardOnly
+    ? trashOwners.filter(owner => !!ctx.sourceCardNum && ownerState(owner, ctx).trash.includes(ctx.sourceCardNum))
+      .map(() => ctx.sourceCardNum!)
+    : trashOwners.flatMap(owner => movableTrashCandidates(
+      owner, ownerState(owner, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+    ));
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
   const scope: TargetScope = tgt.owner === 'any' ? 'both_trash'
     : tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
