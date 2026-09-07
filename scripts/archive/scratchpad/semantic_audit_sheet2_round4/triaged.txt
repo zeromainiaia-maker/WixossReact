@@ -30,3 +30,41 @@ WD06-018-BURST :: BUG :: SEARCH の filter に hasLifeBurst が無い（語彙�
 WX19-027-E3 :: FP :: 規則12。CHANGE_BASE_LEVEL は CHOOSE に「スキップ」肢を持つ（execStubPart3.ts:332）
 WX20-042-CB-E3 :: BUG :: 原文は「シグニ１体」で所有者を限定していないのに選択・バニッシュとも owner:opponent 固定
 WX21-057-E1 :: FP :: 規則12。SET_HAND_CARD_AS_TRAP は trapPlaceOptional の既定が true＝任意（execStubPart2.ts:2272）
+# ---- 第216バッチ（2026-09-07・Opus O-A）＝s2-19〜36 の41件 ----
+WX20-023-BURST :: BUG :: SEARCH filter に keyword:"レイヤー" が無い（受け皿は WX18-060/WXEX1-05 に実在・miss はこの1件）
+WX21-Re18-E1 :: BUG :: 追加コストで置いた色ごとの5分岐が全部無条件に順次実行される（色条件がどこにも無い／赤緑の色フィルタが対象シグニ側に誤着）
+WX21-030-E2 :: BUG :: 「ウィルスを置くか取り除く」の二択が PLACE_VIRUS だけ（受け皿 STUB{REMOVE_VIRUS} は実在）
+WX21-036-E1 :: BUG :: 【トラップアイコン】能力が別効果に分離されず ON_BANISH の SEQUENCE へ融合＝《青》の任意コストも「シグニがバニッシュされていた場合」も消えている（同型4カード）
+WX20-001-E2 :: BUG :: suppressOnPlay と「ターン終了時それらをトラッシュ」がどちらも無い（受け皿は WXDi-P03-034-E1 に実在＝miss はこの1件）
+WX13-036-E3 :: BUG :: 「対戦相手は手札を1枚捨て」が丸ごと無い（TRASH{SIGNI} だけ）
+WX16-074-E1 :: BUG :: 原文は「エナゾーンから」なのに STUB{ACCE_FROM_HAND} が hand.includes を要求＝恒久 no-op（ACCE_FROM_TRASH と同型の受け皿が要る）
+WX20-029-E1 :: BUG :: 「好きな枚数」が TRANSFER_TO_DECK count:1 に潰れている（後段の -1000×枚数も連動して過小）
+WX15-061-E1 :: BUG :: 「その後」の ADD_TO_FIELD が CONDITIONAL の外＝任意コストを払わなくても場に出る（execSequence が remaining を無条件 continuation にする）
+WX14-027-E2 :: BUG :: 「バニッシュするか手札を1枚捨てさせる」の二択が BANISH 単独
+WX17-004-E1 :: BUG :: ③のアサシンが owner:any + explicitTarget の新規対象選択（原文は「そのシグニ」＝直前にダブルクラッシュを得た自シグニ）／duration も PERMANENT（finding 2件は同一効果）
+WX16-033-E1 :: BUG :: 「対戦相手のすべてのシグニゾーンのすべてのカードをトラッシュ」が丸ごと欠落（REMOVE_VIRUS だけ）
+WX12-Re22-E1 :: BUG :: choose_count が 1 固定（受け皿 countChoose{last_processed_count, upTo} は実在）
+WX12-032-E1 :: BUG :: 「手札の枚数が対戦相手以上の場合」が無く BANISH が無条件（受け皿 HAND_DIFF は実在）
+WX19-064-E1 :: BUG :: ①②が GRANT_KEYWORD{ウィルス/トラップ}＝意味が逆（原文は取り除く／トラッシュに置く）。finding 2件は同一効果
+WX12-033-E1 :: BUG :: POWER_SET が count:1＝規則19 で効果元自身に解決されるが原文は「あなたのシグニ」全体（count:'ALL' が要る）
+WX12-002-E3 :: BUG :: 「全領域のカードは【ライフバースト】【エナチャージ1】を持つ」が ENERGY_CHARGE_FROM_DECK 1枚に化けている
+WX18-001-E2 :: BUG :: 「その後トラッシュから＜悪魔＞1枚を場に出す」が欠落（SEARCH+SHUFFLE だけ）
+WX21-Re04-E1 :: BUG :: STUB{PLAY_FREE} 単独＝前段の対象選択が無く cnPF が効果元自身に落ちる → _containsStub で弾かれて真 no-op（同型6効果）
+WX16-002-E4 :: BUG :: 【出】／【起】の【起】経路が無い（AUTO/ON_PLAY だけ）
+WX20-078-E1 :: FP :: 「それが感染状態の場合」を候補フィルタへ畳んだ形は最終盤面が一致する既知の近似（原文でも非感染を選べば何も起きない）→ 規則28
+WX18-020-E3 :: FP :: STUB{SUMMON_RESONA_FROM_LRIG_DECK} は「出現条件を無視して場に出す」こと自体が本体の意味＝ハンドラは出現条件を一切見ない → 規則29
+WX14-037-E1 :: BUG :: REVEAL_PICK 系の直前に無意味な LOOK_AND_REORDER（3枚見てデッキ上へ戻す）が挿入されている（同型17効果・うち count:0 が13）
+WX18-033-E2 :: BUG :: filter に hasIcon:"トラップ" が無い（同カード E1 が同じキーを使っており受け皿は実在・同型6効果）
+WX14-026-E2 :: FP :: GRANT_KEYWORD は filter 無し＋explicitTarget 無しなら engine が効果元自身へ自動適用する（effectExecutor.ts:4997）→ 規則30
+WX16-003-E1 :: BUG :: 「エナから＜英知＞1枚を対象」「最初に使用したアーツだった場合」「手札に加える側の選択肢」が全部無く ENERGY_CHARGE 1枚だけ（finding 2件は同一効果）
+WX21-052-E1-G :: BUG :: 原文「対戦相手のターン終了時」なのに triggerScope:'self'＝自分のターン終了時にしか発火しない（collectTurnTriggers は myState=ターンプレイヤーしか self を拾わない）
+WX19-064-BURST :: BUG :: TRANSFER_TO_HAND の filter が空＝トラップアイコン指定が欠落（WX18-033-E2 と同型）
+WX16-067-E2 :: BUG :: レベル±1 の「－1」側が無く delta:1 固定／対象フィルタの＜英知＞も欠落（finding 2件は同一効果）
+WX17-001-E1 :: BUG :: 「自身以外の効果を受けない」が sourceOwner:'opponent'＝自分の効果を素通しする（受け皿は sourceOwner:'any' + exceptSource）
+WX20-059-E2 :: FP :: 規則12。action が STUB{USE_SPELL_FROM_TRASH_PAYING_COST}＝任意性はハンドラが持つ
+WX13-054-E1 :: BUG :: 末尾に count:0 の LOOK_AND_REORDER が余分（WX14-037-E1 と同型）
+WX16-029-E1 :: BUG :: 主張（NEGATE_ATTACK≒ダメージを与えない）は許容範囲の近似だが、triage 中に真因を発見＝《トラップアイコン》能力が ON_BANISH 効果へ融合していて -TRAP 効果が存在しない（WX21-036-E1 と同型）
+WX19-047-E1 :: FP :: engine は同じ STUB でも abilityBlockTextOf でその効果のブロックだけを読み分けている（effectEngine.ts:4243＝E1 は energy・E2 は hand）→ 規則31
+WX14-050-E1 :: FP :: 規則12（MOVE_TO_OTHER_SIGNI_ZONE は CHOOSE にスキップ肢を出す）
+WX18-038-BURST :: BUG :: STUB{DRAW_BY_CHARM_COUNT} は「自分の場のチャーム数」を数えて「＋1」もしない（原文は対戦相手の場のチャーム数＋1）＝所有者と枚数の二重の誤り
+WX16-031-BURST :: BUG :: transferGroups の count が 1 固定で「それぞれ1枚まで」の upTo が無い

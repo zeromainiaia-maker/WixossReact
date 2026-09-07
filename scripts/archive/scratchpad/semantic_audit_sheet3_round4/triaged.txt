@@ -1,0 +1,6 @@
+# 意味照合 Sheet3 round4 の triage 記録（形式＝<effectId> :: BUG|FP :: 一言）
+# ---- 第216バッチ（2026-09-07・Opus O-A）＝s3-01〜02 の4件 ----
+WX22-005-E1 :: BUG :: ③のみの後続（エナをトラッシュ＋デッキトップをライフ）が CHOOSE の兄弟に並んでいて①②でも実行される。parseStatus は MANUAL＝直しは manualEffects.ts 側
+WX22-010-E3 :: FP :: FIELD_SIGNI_TO_CHECK_ZONE は「チェックゾーンに置く→場に出し直す」の往復を1アクションに畳んだ形で、lastProcessedCards 経由で【出】も再発火する（effectExecutor.ts:10213）→ 規則32
+WX22-022-BURST :: BUG :: 「異なる色を持つ」制約が無い（SelectionConstraint.distinct に 'color' 軸が無い＝1軸の追加が要る）
+WX22-014-E3 :: BUG :: STUB{PLAY_FREE} 単独＝対象選択の前段が無く cnPF が効果元ルリグに落ちて真 no-op（WX21-Re04-E1 と同型・全6効果）

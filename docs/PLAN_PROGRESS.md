@@ -1,5 +1,33 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-07・続き・Sonnet 5・S-1）＝Sheet2 完了（残 s2-31〜36・6バッチ）＋ Sheet3 着手（s3-01〜02・2バッチ）＝計8バッチ**
+  **作業単位**＝ユーザー指示「S-1 を8バッチ行う」。§2.6 の軽量運用（監査ラウンド中）＝抽出・実行・簿記のみ。判定（O-A triage）はしない。
+
+  🔧`semanticAuditRun.mjs --out .../semantic_audit_sheet2_round4 --model sonnet --batches 31..36`（**Sheet2 完了＝36/36バッチ・356枚**）
+  → `semanticAuditGap.mjs --sheet 3 --list 2>/dev/null > tmp_sheet3_pending.txt` → `semanticAuditExtract.mjs --out .../semantic_audit_sheet3_round4 --cards-file … --batch-size 10`（**37バッチに分割**）
+  → `semanticAuditRun.mjs --out .../semantic_audit_sheet3_round4 --model sonnet --batches 1,2`。**8バッチとも成功**（実行時トラブルなし）。
+  **findings＝Sheet2 s2-31〜36 で 20件 / 56枚（3.3件/バッチ・HIGH 6件）＋ Sheet3 s3-01〜02 で 4件 / 20枚（2.0件/バッチ）**。逓減の兆候なし。
+
+  🔑**壊れ方の傾向（未 triage）**＝二択・分岐の片側が丸ごと欠落／発動条件の欠落＝無条件実行（`WX12-032`／`WX22-005`）／
+  意味の逆転（`WX19-064`＝「取り除く」が「付与」に化けている×2）。`mandatory:true` 疑い（LOW）は1件のみ。
+
+  🔑**Sheet3 の抽出で1点ハマった**＝`semanticAuditGap.mjs --list` の `[gap] …` 行は **stdout ではなく stderr** へ出るが、
+  Sheet2 の README は `>` 直書きだった＝Sheet3 は `2>/dev/null` を足さないと `--cards-file` が1行余分に読む。Sheet3 README に明記。
+
+  ④**判定・修正なし＝`npm run gates` は §2.6 決定3 に従いセッション末に1回のみ**（`src/` 無変更・`scripts/` 無変更）。⑤実機不要（触ったのは `scripts/archive/scratchpad/` のみ）。
+
+  🔴🔑**簿記**＝Sheet2 cumulative に56件追記（300→356・残0と一致確認）／Sheet3 dir 新設・cumulative に20件（残369→349と一致確認）／
+  両 `TYPE_LEDGER.md`・`README.md` を更新（Sheet2 は🏁完了マーク・Sheet3 は走らせ方＝残 `--batches 3..8`）。
+
+  📊**進捗3計器＝Sheet1 要対応 9 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  📦**在庫**＝**意味照合 未監査 2,060枚**（2,136 → 2,060・Sheet2 の56枚＋Sheet3 の20枚ぶん減）｜
+  **未 triage findings 77件**（53 → 77・Sheet2 s2-19〜36 の41件＋Sheet3 s3-01〜02 の4件＝新規24件・O-A待ち）｜
+  **未修正の真バグ 6効果 / 6行**（据置＝今回は触っていない）｜**機構 worklist 10項目**（据置）｜**⑤実機 残 0**（据置）。
+
+**▶ 次の一手**＝⇒ **次は `/model opus` で O-A triage**（未 triage 77件・§5.0）が先＝§2.6 決定1「止め時は連続3バッチで新型0」を判定できるのは triage だけ。
+🔑**S-1 の続きは Sheet3 残 35バッチ / 349枚**（`--batches 3,4,5,6,7,8`・README に再開コマンド）。
+🔑**実装キュー（O-D・残6行）は新しい型・機構待ちで止まっている**＝§5.3 の機構項目として1件ずつ取るのはそのまま。
+
 - **セッション（2026-09-07・続き・Sonnet 5・S-1）＝Sheet2 の s2-19〜30（12バッチ・120枚）を追加実行**（Sheet2 消化 **18/36 → 30/36バッチ**）
   **作業単位**＝ユーザー指示「S-1 を12バッチ行う」。§2.6 の軽量運用（監査ラウンド中）＝抽出・実行・簿記のみ。判定（O-A triage）はしない。
 
