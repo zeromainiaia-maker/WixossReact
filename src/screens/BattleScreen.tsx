@@ -8634,7 +8634,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cutinExtraColors = new Map([...collectFieldSigniExtraColors(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectFieldSigniExtraColors(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
       const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap, battleCardMap);
       const cutinDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState), cutinPaid, newCasterState, effectsMap, cutinIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
+      // 🆕§5.0 実装キュー「系統」（`WX07-014-E1`）＝「それ（打ち消したスペル）をトラッシュから…使用してもよい」
+      //   （`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]`）が `card_num` を一度も渡していなかった＝
+      //   `STUB{PLAY_FREE}` は `ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で「それ」を決めるが
+      //   `sourceCardNum` はカットインしたこのカード自身＝**打ち消したはずのスペルではなくカットイン札を
+      //   もう一度使おうとする恒久 no-op**だった。⚠**打ち消しを行ったときだけ**渡す（`countersSpell:false` の
+      //   ピース等では「それ」が指すものが無い）。
+      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums, ...(shouldCounterSpell ? { lastProcessedCards: [card_num] } : {}) };
       fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = cutinIsOwnerTurn;
       let result = executeEffect(cutinEff, ctx);

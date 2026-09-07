@@ -49640,6 +49640,94 @@ order.push('v177LrigAttackHitsOnMismatch');
 order.push('v178RideUsableInAttackPhase');
 order.push('v178RideNotUsableWithoutBike');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-179`＝PLAN §5.0 実装キュー「系統」（`WX07-014-E1`）。
+// 原文＝「スペル１つを対象とし、それの効果を打ち消す。その後、あなたは**それ**をトラッシュから、
+//   あなたの手札にあるかのようにコストを支払わずに限定条件を無視して**使用してもよい**。」
+// live は `SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]`。🔴`STUB{PLAY_FREE}` は
+//   `ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で「それ」を決めるが、
+//   `handleCutinUse` は `lastProcessedCards` を一度も渡していなかった＝`sourceCardNum`
+//   （カットインしたこのカード自身）へフォールバックし、`_containsStub` ガードに引っかかって
+//   何も起きない**恒久 no-op**（PLAN.md の該当行参照）。
+// 🔑**観測点は host の手札枚数**＝WX07-014 は lrig_deck 経由（手札は動かない）で使うので、
+//   打ち消した `WD01-018`（コスト0・効果「カードを１枚引く」）が正しく無料再使用されれば
+//   host 手札が 0→1 に増える。バグ時は 0 のまま（PLAY_FREE が `[フリープレイ: 対象カードなし/効果実行不可]` に落ちる）。
+// ⚠**カードは`ミルルン限定`**＝host lrig は `WX07-013`（ミルルン・Lv3）を使う。
+// ⚠**使用条件「場にクロス状態のシグニ」**＝`field.cross_state[0]=true` を明示注入する
+//   （`injectScenario` は既定で全ゾーン false へリセットするので、hostSet で必ず上書きする）。
+// ═════════════════════════════════════════════════════════════════════════════
+scenarios.o283CounterSpellPlayFreeCarriesCardNum = {
+  title: 'V-179: WX07-014-E1「打ち消したスペルをその後コストなしで使用してもよい」＝STUB{PLAY_FREE}へ card_num が渡らない恒久no-op',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX07-013#7801'],
+      'field.signi': [['WD01-013#7802'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.cross_state': [true, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+      lrig_deck: ['WX07-014#7803'], lrig_trash: [],
+      hand: [], energy: ['WD03-013#7804'], trash: [], coins: 0,
+      actions_done: [], game_actions_done: [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#7890'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [],
+    },
+    top: {
+      active: 'cpu', turn_phase: 'MAIN', turn_count: 2,
+      // WD01-018（噴流する知識）: コスト《無》×０・「カードを１枚引く」＝観測しやすい単純なスペル。
+      pendingSpell: { caster_id: CPU_PLAYER_ID, card_num: 'WD01-018#7899', kind: 'spell' },
+    },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    const HAND_BASE = st0?.host?.hand ?? 0;
+    H.log(`開始 hostHand=${st0?.host?.hand} hostDeck=${st0?.host?.deck} guestTrash=${JSON.stringify(st0?.guest?.trashCards)} pSpell=${st0?.pendingSpell ?? '-'}`);
+    let picked = false, paid = false, used = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      // 候補（WX07-014「クロス・スクランブル」）を選ぶ（🔴1回だけ＝§4.4-2c）。
+      if (!did && !picked) {
+        const btn = page.getByRole('button', { name: /クロス・スクランブル/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          await btn.click().catch(() => {}); did = 'btn:候補選択'; picked = true;
+        }
+      }
+      // コスト（青×1）のエナを選ぶ。
+      if (!did && picked && !paid) {
+        did = await H.clickTestId('cutincost-energy-0');
+        if (did) paid = true;
+      }
+      // 「カットイン使用」で確定。
+      if (!did && picked && paid && !used) {
+        const ub = page.getByRole('button', { name: 'カットイン使用', exact: true }).first();
+        if (await ub.count() && await ub.isVisible().catch(() => false)) {
+          await ub.click().catch(() => {}); did = 'btn:カットイン使用'; used = true;
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      H.log(`  o283[${s}] -> ${did ?? 'なし'} | hostHand=${st?.host?.hand} handCards=${JSON.stringify(st?.host?.handCards)} guestTrash=${JSON.stringify(st?.guest?.trashCards)} pSpell=${st?.pendingSpell ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (used && (!st?.pendingSpell || st.pendingSpell === '-')) break;
+    }
+    const fin = await H.queryState();
+    const guestTrashHasSpell = (fin?.guest?.trashCards ?? []).some(c => c.startsWith('WD01-018'));
+    if (!guestTrashHasSpell) {
+      return { pass: false, detail: `前提崩れ＝スペルが打ち消されていない（guestTrash=${JSON.stringify(fin?.guest?.trashCards)}）` };
+    }
+    const handNow = fin?.host?.hand ?? 0;
+    return handNow > HAND_BASE
+      ? { pass: true, detail: `打ち消した WD01-018 をコストなしで再使用しドローが乗った（hostHand ${HAND_BASE}→${handNow}）` }
+      : { pass: false, detail: `🔴恒久no-op＝打ち消した後の「使用してもよい」が発火しない（hostHand ${HAND_BASE}→${handNow} guestTrash=${JSON.stringify(fin?.guest?.trashCards)}）` };
+  },
+};
+order.push('o283CounterSpellPlayFreeCarriesCardNum');
+
 scenarios.o266GuardAltEnergyGuardCard = mkO266GuardAltEnergyGuardCard(true);
 order.push('o266GuardAltEnergyGuardCard');
 scenarios.o266GuardAltNoEnergy = mkO266GuardAltEnergyGuardCard(false);

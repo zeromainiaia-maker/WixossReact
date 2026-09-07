@@ -1,5 +1,46 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-07・第218＋第219バッチ・Codex 委譲 × Opus 検証／引き継ぎ・O-D）＝live 12効果**
+  **作業単位**＝ユーザー指示「PLAN と CODEX_GUIDE を読み、opus の作業を codex-work に投げ、止まったら Claude が引き継ぐ。
+  そのあと次の作業を codex に投げ、それも止まったら引き継いで push」。**2バッチとも Codex へ投入し、2回とも Claude が引き取った。**
+
+  🏁**第218（Codex 完走・Opus 検証）＝bare `STUB{PLAY_FREE}` の真 no-op 3効果**（`WX25-P3-064-E1`／`WXK06-005-E1-G`／`WXK09-002-E1`）。
+  既存受け皿 `USE_SPELL_FROM_TRASH_PAYING_COST` へ載せ替え、足したのは **`useSpellCostMultiplier`（コスト2倍）**と
+  **`value2:'both_lrig_trash'`（両者のルリグトラッシュ）**の2軸だけ。
+  🔑**投入前に指摘した罠が当たった**＝A2 は `GRANT_LRIG_ABILITY.abilities[]` にネストしており、
+  既存 wire 関数の walker は `SEQUENCE` しか降りない（**届かないまま「実装したつもり」になる形**）。
+  🔴**検証で差し戻した2点はどちらも逆翻訳側**＝①「限定条件を無視して」を**領域（`value2`）から復元**していた
+  （JSON に載っていない節を engine と逆翻訳が**同じ嘘で一致**する形）⇒ 撤去し**負方向 assert** で固定・受け皿は `O-281`
+  ②`exileAfterUse` の描画を `upToCount` の有無で絞っていたため、**同じ payload を持つ既存3効果で除外の節が消えていた**
+  ⇒ payload が在れば必ず描く形へ（原文に当該の一文が在ることを3件とも確認＝**逆翻訳の欠落を4件ぶん回収**）。
+
+  🏁**第219（Codex 途中停止・Opus 引き継ぎ）＝既存受け皿で直る一点物9効果**。
+  🔴**Codex は parser の修復関数9本を書いた時点で `.codex-work` の利用上限に当たり、
+  `build:effects` にも golden 実行にも一度も到達せず停止**（落ち方②）。⇒ **採用・検証・差し戻し・簿記は Opus が完走。**
+  🔴**引き継ぎで差し戻した3点**＝①`WX13-036-E3` の `SELECT_TARGET_ONLY`＋`STORE`＋`targetsStored` の3段は
+  **`storedTargetCards` が対話 resume を跨げず候補が全体へ開く＝過剰実行**（`freezeStoredTargets` は素の `SEQUENCE` では呼ばれない）
+  ⇒ 足りない一節だけを前に置く2ステップへ
+  ②`WX16-031-BURST` は**偽陽性**＝`execTransferToHand` が `transferGroups` の各群に **`upToCount:true` を無条件で付ける**
+  ⇒ 実装せず**トリップワイヤ**（「`transferGroups` を使う効果は原文が必ず『まで』を持つ」）を張った
+  ③**golden の fixture が偶然《セイリュ》（`WD04-009`）を引いていた**＝`WX12-033-E1` の発動条件そのもので、
+  `count:'ALL'` 化と**パワー保護テストが交絡**（しかも −3000 側は 15000−3000＝12000 で**偽の緑になりうる**）。
+
+  🔑**この2回の教訓＝「engine は実装済み」ではなく「engine は *この形で* 実装済みか」を見る。**
+  Codex が使った語彙（`SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` / `targetsStored` / `virusCount`）は
+  **全部実在した**。壊れていたのは**対話を跨ぐ位置に置いた組み合わせ方**＝**語彙の grep だけでは判定できない。**
+  🔑**配送経路**＝兄弟に MANUAL があるカード3枚は `PRESERVE_STATUSES` で `_partial_fresh` に落ち live に届かない
+  ⇒ effectId アンカーの外科パッチ（§5-18）。他5枚は `heldReview --adopt`。
+
+  ④**live A/B 差分＝第218 が3効果・第219 が9効果ちょうど（outlier 0）**。**golden 3610 → 3624 PASS / 0 FAIL**（+14）。
+  `npm run gates` 全緑・lint 256（ベースライン同値）。**ラチェット更新1件＝`REMOVE_VIRUS` 9→10**（二択の後半ぶん＝新機構ではない）。
+  ⑤**実機不要**（§2.2＝`src/data/` `public/data/` `scripts/` のみ。`src/engine/` は第218 の受け皿拡張のみで `src/screens/` は無改変）。
+
+  📊**進捗3計器＝Sheet1 要対応 9 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 24行 / 26効果**
+  （第218 で3行・第219 で9行を落とした。うち1行は**偽陽性として落とした**。⚠**「27効果 / 27行」は簿記のズレ**で、
+  2026-09-07 の §5.0 統合時に表の行を数え直して較正した＝**退化ではない**）｜**機構 worklist 10 → 12項目**
+  （`O-281`／`O-282` を登録＝**退化ではなく可視化**）｜**⑤実機 残 0（据置）**。
+
 - **セッション（2026-09-07・第217バッチ・Opus 5・O-D）＝実装キューの系統4型のうち①③④を消化（live 19効果）**
   **作業単位**＝ユーザー指示「opus の作業を進める」。第216 の triage で `grep` 系統化した4型を上から取る。
 

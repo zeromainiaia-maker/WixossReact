@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-07（第220バッチ・Opus・O-D 実装キュー「系統」）＝`WX07-014-E1`「打ち消したスペルを無料で使用してもよい」の恒久no-op
+
+**真因**＝`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` の `STUB{PLAY_FREE}` は「それ」を
+`ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で決めるが、`BattleScreen.handleCutinUse` は
+`lastProcessedCards` を一度も渡していなかった＝`sourceCardNum`（カットインしたこのカード自身）へ
+フォールバックし、自己再帰ガード（`_containsStub`）に引っかかって**何も起きない恒久no-op**だった。
+
+**修正**＝`handleCutinUse` の `ctx` 構築時に `shouldCounterSpell`（既存の打ち消しフラグ）が真のときだけ
+`lastProcessedCards: [card_num]` を足す1行（`src/screens/BattleScreen.tsx`）。
+`src/screens/` を触った＝実機必須（§2.2）。
+
+**検証**＝`scripts/verifyBattleDrive.mjs` に `V-179`（`o283CounterSpellPlayFreeCarriesCardNum`）を新設。
+ミルルンLv3＋クロス状態シグニ＋`WX07-014` の盤面を注入し、相手の `WD01-018`（コスト0「カードを1枚引く」）を
+打ち消させてから無料再使用を確認＝host 手札 0→1（PASS）。**反転確認**＝`lastProcessedCards` の付与を
+`false &&` で無効化すると FAIL に戻ることを確認済み。`npm run gates` 全緑。
+
+**影響枚数**＝1効果（`WX07-014-E1`）。残り2件（`WX21-Re04-E1`／`WX22-014-E3`＝ルリグの能力を使う側）は
+新機構待ちなので §5.3 へ `O-284` として登録（下記）。実装キュー残は 24行→23行 / 26効果→25効果。
+
 ## 2026-09-07（第219バッチ・Codex 途中停止＋Opus 引き継ぎ・O-D）＝**既存受け皿で直る一点物 9効果**（10件中1件は偽陽性）
 
 **作業単位**＝ユーザー指示「codex に投げ、止まったら Claude が引き継ぐ」。**Codex は9関数を書いた時点で

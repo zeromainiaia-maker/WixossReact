@@ -11,50 +11,32 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-07・第218＋第219バッチ・Codex 委譲 × Opus 検証／引き継ぎ・O-D）＝live 12効果**
-  **作業単位**＝ユーザー指示「PLAN と CODEX_GUIDE を読み、opus の作業を codex-work に投げ、止まったら Claude が引き継ぐ。
-  そのあと次の作業を codex に投げ、それも止まったら引き継いで push」。**2バッチとも Codex へ投入し、2回とも Claude が引き取った。**
+- **セッション（2026-09-07・第220バッチ・Opus・O-D）＝実装キューの系統「`WX07-014-E1`」を消化（live 1効果）**
+  **作業単位**＝ユーザー指示「opus の作業を進める」。第219 で残った系統行（`STUB{PLAY_FREE}` 単独＝真 no-op の残3効果）の先頭を取った。
 
-  🏁**第218（Codex 完走・Opus 検証）＝bare `STUB{PLAY_FREE}` の真 no-op 3効果**（`WX25-P3-064-E1`／`WXK06-005-E1-G`／`WXK09-002-E1`）。
-  既存受け皿 `USE_SPELL_FROM_TRASH_PAYING_COST` へ載せ替え、足したのは **`useSpellCostMultiplier`（コスト2倍）**と
-  **`value2:'both_lrig_trash'`（両者のルリグトラッシュ）**の2軸だけ。
-  🔑**投入前に指摘した罠が当たった**＝A2 は `GRANT_LRIG_ABILITY.abilities[]` にネストしており、
-  既存 wire 関数の walker は `SEQUENCE` しか降りない（**届かないまま「実装したつもり」になる形**）。
-  🔴**検証で差し戻した2点はどちらも逆翻訳側**＝①「限定条件を無視して」を**領域（`value2`）から復元**していた
-  （JSON に載っていない節を engine と逆翻訳が**同じ嘘で一致**する形）⇒ 撤去し**負方向 assert** で固定・受け皿は `O-281`
-  ②`exileAfterUse` の描画を `upToCount` の有無で絞っていたため、**同じ payload を持つ既存3効果で除外の節が消えていた**
-  ⇒ payload が在れば必ず描く形へ（原文に当該の一文が在ることを3件とも確認＝**逆翻訳の欠落を4件ぶん回収**）。
+  🏁**`WX07-014-E1`（クロス・スクランブル）＝`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` の後段が恒久 no-op**。
+  `STUB{PLAY_FREE}` は「それ（打ち消したスペル）」を `ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で決めるが、
+  `BattleScreen.handleCutinUse` は `lastProcessedCards` を一度も渡していなかった＝`sourceCardNum`（カットインした
+  このカード自身）へフォールバックし、自己再帰ガード（`_containsStub`）に引っかかって**何も起きなかった**。
+  ⇒ `ctx` 構築時に `shouldCounterSpell`（既存の打ち消しフラグ）が真のときだけ `lastProcessedCards:[card_num]` を足す1行。
 
-  🏁**第219（Codex 途中停止・Opus 引き継ぎ）＝既存受け皿で直る一点物9効果**。
-  🔴**Codex は parser の修復関数9本を書いた時点で `.codex-work` の利用上限に当たり、
-  `build:effects` にも golden 実行にも一度も到達せず停止**（落ち方②）。⇒ **採用・検証・差し戻し・簿記は Opus が完走。**
-  🔴**引き継ぎで差し戻した3点**＝①`WX13-036-E3` の `SELECT_TARGET_ONLY`＋`STORE`＋`targetsStored` の3段は
-  **`storedTargetCards` が対話 resume を跨げず候補が全体へ開く＝過剰実行**（`freezeStoredTargets` は素の `SEQUENCE` では呼ばれない）
-  ⇒ 足りない一節だけを前に置く2ステップへ
-  ②`WX16-031-BURST` は**偽陽性**＝`execTransferToHand` が `transferGroups` の各群に **`upToCount:true` を無条件で付ける**
-  ⇒ 実装せず**トリップワイヤ**（「`transferGroups` を使う効果は原文が必ず『まで』を持つ」）を張った
-  ③**golden の fixture が偶然《セイリュ》（`WD04-009`）を引いていた**＝`WX12-033-E1` の発動条件そのもので、
-  `count:'ALL'` 化と**パワー保護テストが交絡**（しかも −3000 側は 15000−3000＝12000 で**偽の緑になりうる**）。
+  🔴**`src/screens/` を触った＝実機必須**（§2.2）。`scripts/verifyBattleDrive.mjs` に **`V-179`**
+  （`o283CounterSpellPlayFreeCarriesCardNum`）を新設＝ミルルンLv3＋クロス状態シグニ＋`WX07-014` の盤面を注入し、
+  相手の `WD01-018`（コスト0「カードを1枚引く」）を打ち消させてから無料再使用を確認（host 手札 0→1・PASS）。
+  **反転確認**＝`lastProcessedCards` の付与を `false &&` で無効化すると FAIL に戻ることを確認済み。
 
-  🔑**この2回の教訓＝「engine は実装済み」ではなく「engine は *この形で* 実装済みか」を見る。**
-  Codex が使った語彙（`SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` / `targetsStored` / `virusCount`）は
-  **全部実在した**。壊れていたのは**対話を跨ぐ位置に置いた組み合わせ方**＝**語彙の grep だけでは判定できない。**
-  🔑**配送経路**＝兄弟に MANUAL があるカード3枚は `PRESERVE_STATUSES` で `_partial_fresh` に落ち live に届かない
-  ⇒ effectId アンカーの外科パッチ（§5-18）。他5枚は `heldReview --adopt`。
+  🔑**残2件（`WX21-Re04-E1`／`WX22-014-E3`）は「カードではなくルリグの能力」を使う側**＝
+  `STUB{PLAY_FREE}` は「カードを使う」経路しか持たないので新機構待ち＝§5.3 `O-283` として分離登録。
 
-  ④**live A/B 差分＝第218 が3効果・第219 が9効果ちょうど（outlier 0）**。**golden 3610 → 3624 PASS / 0 FAIL**（+14）。
-  `npm run gates` 全緑・lint 256（ベースライン同値）。**ラチェット更新1件＝`REMOVE_VIRUS` 9→10**（二択の後半ぶん＝新機構ではない）。
-  ⑤**実機不要**（§2.2＝`src/data/` `public/data/` `scripts/` のみ。`src/engine/` は第218 の受け皿拡張のみで `src/screens/` は無改変）。
+  `npm run gates` 全緑（golden 3624 PASS・退行なし）。
 
   📊**進捗3計器＝Sheet1 要対応 9 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
-  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 24行 / 26効果**
-  （第218 で3行・第219 で9行を落とした。うち1行は**偽陽性として落とした**。⚠**「27効果 / 27行」は簿記のズレ**で、
-  2026-09-07 の §5.0 統合時に表の行を数え直して較正した＝**退化ではない**）｜**機構 worklist 10 → 12項目**
-  （`O-281`／`O-282` を登録＝**退化ではなく可視化**）｜**⑤実機 残 0（据置）**。
+  📦**在庫**＝**意味照合 未監査 2,060枚（据置）｜未 triage findings 0件（据置）｜未修正の真バグ 23行 / 25効果**
+  （第220 で1行落とした）｜**機構 worklist 12 → 13項目**（`O-283` を登録）｜**⑤実機 残 0（`V-179` を即日返済）**。
 
-**▶ 次の一手**＝⇒ **O-D 実装キューの残 24行 / 26効果**を上から取る（系統 → ①別の効果に化けている → ②丸ごと欠落 → ③限定の欠落）。
-先頭は**系統行（`STUB{PLAY_FREE}` 単独＝真 no-op の残3効果）**、次が **`WX19-064-E1`
-（意味が逆＝「取り除く」「トラッシュに置く」が両方 `GRANT_KEYWORD`＝付与になっている）**。
+**▶ 次の一手**＝⇒ **O-D 実装キューの残 23行 / 25効果**を上から取る（① 別の効果に化けている → ② 丸ごと欠落 → ③ 限定の欠落）。
+先頭は **`WX07-017-E1`**（「各プレイヤーは」の2手順が `owner:'self'` だけ＝実行者が逆。§5.3 `O-279` と対で取る）、
+次が **`WX19-064-E1`**（意味が逆＝「取り除く」「トラッシュに置く」が両方 `GRANT_KEYWORD`＝付与になっている）。
 ⚠**着手時に必ず母集団を測り直す**（§2.1 ②）＝第219 で 10件中1件が偽陽性だった。
 🔑**`O-281`（`USE_SPELL_FROM_TRASH_PAYING_COST` が `Restriction` を一度も検査しない＝live 12効果のうち11件が過剰実行）は
 engine 内で閉じる（実機不要）ので、キューより先に取ってもよい。**
@@ -353,10 +335,10 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | 節 | 役割 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
 | **§5.2 round4** | 🔥**本線キュー**＝意味照合を1度も通していないカードの新規監査 | **Sheet3 残 349枚 / 35バッチ**（Sheet1・Sheet2 は🏁完了。全シート合計の未監査は 2,060枚） | `node scripts/archive/semanticAuditGap.mjs` |
-| **§5.0 実装キュー** | 🔥**triage で真バグと確定した未修正バグ**（O-D / S-3） | **24行 / 26効果** | この表が唯一の追跡先（どの計器にも映らない） |
+| **§5.0 実装キュー** | 🔥**triage で真バグと確定した未修正バグ**（O-D / S-3） | **23行 / 25効果** | この表が唯一の追跡先（どの計器にも映らない） |
 | §5.0 O-A | findings の triage（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
-| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | **12項目**（`O-268` / `O-272`〜`O-282`） | §5.3 の索引 A〜G |
-| §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件** | §5.1 の本文 |
+| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | **13項目**（`O-268` / `O-272`〜`O-283`） | §5.3 の索引 A〜G |
+| §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-179` は第220バッチで検証・返済済み） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
 | §5.4 | 🏁閉じた。**新しい構造混線を見つけたときだけ足す** | 0件 | — |
 | §5.5 | 低優先・保留（母集団が測れていない） | — | — |
@@ -403,13 +385,13 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN** | 🏁**0件**（掘り尽くした＝もう在庫ではない） | `node scripts/archive/semanticAuditLedger.mjs` |
 | **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **34本**（⚠**増やしたら「何を還元したか」を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の triage 履歴に1行書く**） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
-| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**下の実装キュー＝24行 / 26効果** | 下の実装キュー |
+| **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🔥**下の実装キュー＝23行 / 25効果** | 下の実装キュー |
 
 🔑**O-A を Sonnet に落とさない理由**＝監査員（sonnet・JSON のみ）の precision は**実測 50%**で、
 **偽陽性は全部 engine の受け皿を読まないと判定できない型**だった。⇒ **triage は「engine を読む」工程**であり、
 ここを外すと**壊れた修正が live に入り、しかもどの計器にも映らない**。
 
-#### 🔥 実装キュー（O-D / S-3）＝triage 済みの**未修正バグ 24行 / 26効果**（2026-09-07 実測）
+#### 🔥 実装キュー（O-D / S-3）＝triage 済みの**未修正バグ 23行 / 25効果**（2026-09-07 実測）
 
 > 🔴**「見立て」ではなく triage 済みの確定リスト**＝engine の受け皿まで読んで真バグと判定してある。
 > 🔴🔑**この表が唯一の追跡先**＝**finding を「BUG」と triage した瞬間、`semanticAuditPool.mjs` からも
@@ -425,7 +407,6 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | 分類 | 効果 | 壊れ方 | 受け皿 | レーン |
 |---|---|---|---|---|
-| **系統** | `WX07-014-E1`／`WX21-Re04-E1`／`WX22-014-E3`（**3効果**） | **`STUB{PLAY_FREE}` 単独＝真 no-op**（当初6効果・第218で3効果を消化した残り） | `WX07-014-E1`＝`BattleScreen.handleCutinUse` の `ctx` に `lastProcessedCards:[card_num]` を足す1行（⚠**`src/screens/` を触る＝実機まで必須**）／残2件は**カードではなく「ルリグの能力」を使う**＝§5.3 の新機構待ち | 遅い |
 | ① | `WX07-017-E1` | 「各プレイヤーは」の2手順が `owner:'self'` だけ／最後の「対戦相手は」も `owner:'self'` で**実行者が逆** | **両者版が要る**＝§5.3 `O-279` と対で取る | 遅い |
 | ① | `WX13-048-E1` | 🔴**分岐が消えて常に3枚引く**＝「宣言したカードの場合／ではない場合」で 2枚/1枚に分かれるのに `DRAW 2` と `DRAW 1` が無条件に並ぶ。一致時の「それをトラッシュに置く」も無い | `DECLARE_CARD_NAME` の結果を読む条件型 | 遅い |
 | ① | `WX14-003-E2` | 🔴**真 no-op**＝`CONTINUOUS` なのに action が `ADD_TO_FIELD`（CONTINUOUS は `executeAction` を通らない）。「レベル5シグニの限定条件を無視して場に出せる」という**許可**の受け皿が無い | 新機構（§5.3 `O-268` と同族・原文母集団11効果） | 遅い |
@@ -451,7 +432,8 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | ③ | `WX22-022-BURST` | 「**異なる色を持つ**＜遊具＞2枚」の制約が無い | 新軸＝`SelectionConstraint.distinct` に `'color'` を足す（`'level'/'name'/'class'/'costSum'` は既存） | 遅い |
 
 🏁**消化・却下した分の全文**（第217の系統①③④＝トラップアイコン未分離4カード／`hasIcon:"トラップ"` 欠落3効果／
-無意味な `LOOK_AND_REORDER` 17効果、第218の `PLAY_FREE` 3効果、第219の一点物9効果と偽陽性 `WX16-031-BURST`）は
+無意味な `LOOK_AND_REORDER` 17効果、第218の `PLAY_FREE` 3効果、第219の一点物9効果と偽陽性 `WX16-031-BURST`、
+第220の `WX07-014-E1`＝残2件は §5.3 `O-283` へ分離）は
 [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「2026-09-07 整理：§5.0 実装キューの統合」節と [BUGFIXES.md](./BUGFIXES.md) にある。
 
 #### 回し方＝**周期**（Sonnet 5〜8バッチ : Opus triage 1回）★2026-09-06 決定
@@ -656,6 +638,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | `O-268` | **live 2効果**（`WX05-006-E2`／`PR-K060-E4`）／過剰適用先＝**限定つきシグニ 952枚** | **「限定条件を無視する」の適用範囲を engine が持っていない**（アーツ／スペル／シグニ召喚に一律で効く）。⚠**`src/screens/` を触る＝実機まで必須**（§2.2）。**着手前に [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `O-268` 登録票を読む。** |
 | `O-281` | **live 12効果**（`USE_SPELL_FROM_TRASH_PAYING_COST` の全量。2026-09-07 第218 実測） | **「効果でカードを使わせる」受け皿が限定条件（`Restriction`）を一度も検査しない**＝この STUB は候補を `matchesFilter` だけで絞り、本体を `USE_SPELL_FROM_TRASH` / `CAST_FROM_OPP_TRASH` / `PLAY_SPELL_FROM_HAND` へ委譲するので、**12効果すべてが事実上「限定条件を無視して」使える**。原文に「限定条件を無視して」と書いてあるのは `WXK09-002-E1` の1件だけ＝**残り11件は過剰実行**。🔑**受け皿の先例は `execPlayFree`（`effectExecutor.ts:8195`＝`O-264`）**＝`meetsRestriction` 1本と `ignoreRestrictions` フラグで既に解決済みなので、**同じ2つをこの経路へ写す**のが本体（`ignoreRestrictions` を持つ効果は原文に当該句があることを既存 tripwire golden `goldenTest.ts:70092` が assert している）。⚠**11効果は1件ずつ原文照合してから**（`§5-11`＝既存挙動を広く変える一般化はしない）。⚠**`O-268`（限定無視の適用範囲）と同族だがこちらは engine 内で閉じる**（`src/screens/` を触らない＝実機不要）。 |
 | `O-282` | **live 母集団 未実測**（着手前に `GRANT_LRIG_ABILITY` の全量を数える） | **【常】の「あなたのセンタールリグは以下の能力を得る」が engine ではターン終了で落ちる**＝`GRANT_LRIG_ABILITY` は `permanent` フラグが無いと `lrig_granted_auto_effects`（ターン終了で落ちるストア）へ積まれ、逆翻訳も「ターン終了時まで」と描く（`decompileEffects.ts:3027` に「省略時の既定も明示する」と明記＝**engine と逆翻訳は一致しているが、原文と食い違う**）。`WXK06-005-E1` は原文が【常】＝**場に在るかぎり恒久**なのに、**付与した当のターン終了時に消える**。🔑**この形は第211バッチの `WX14-042-E2` と同型**（`clearTurnGrantedLrigAbilities` が落とす恒久 no-op）。⚠**「逆翻訳が原文と違う」だけに見えるが実害は engine 側**。 |
+| `O-283` | **live 2効果**（`WX21-Re04-E1`／`WX22-014-E3`。2026-09-07 第220 実測） | **`STUB{PLAY_FREE}` は「カードを使う」経路しか持たず「ルリグの能力（【起】等）を使う」を表せない**＝原文が指す「それ」が**カードではなくルリグの能力**なので、`cnPF = ctx.lastProcessedCards?.[0]` が解決しても `parseCardEffects(cardPF)` から ACTIVATED/ON_PLAY を拾う現行ロジックでは対応する能力を一意に選べない。**残り1件（`WX07-014-E1`）はカード使用側＝2026-09-07 第220 で `lastProcessedCards` 配線を修正済み**（`BUGFIXES.md` 参照）。 |
 
 #### 索引 E. 計器の較正・掃除（**機構ではない**＝カードの挙動は変わらない）
 
@@ -743,20 +726,17 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-07（第217バッチ・Opus 5・O-D）＝実装キューの系統4型のうち①③④を消化（本ブロックが直近の正）**
+- **2026-09-07（第220バッチ・Opus・O-D）＝実装キューの系統「`WX07-014-E1`」を消化（本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
-  ⚠**3計器が動かないのは想定どおり**＝直した19効果は**どの計器も見ていない穴**だった（意味照合 round4 の finding 由来）。
-  🔑**これがこの運用の要点**＝逆翻訳・census・golden は**知っているキーしか見ない**ので、
-  「トラップ能力が節ごと別の効果へ融合していた」型は**3計器とも緑のまま**live が壊れていた。
-  **`census:enginetext` A🔴 35行**（据置）／**`census:costtext` A🔴 0規則**（据置）／**`census:deadstate` 6件**（据置）。
-  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置＝第216で全数 triage）｜
-  **未修正の真バグ 40 → 36効果 / 36行**（系統①③④で5行返済・`WX19-025-E1` を1行登録）｜
-  **機構 worklist 10項目**（据置）｜**⑤実機 残 0件**（据置）。
-  🧾**live A/B＝追加4・実体変更19・刻印のみ4（本体はバイト同一）・削除0**。
-  **影武者 manual 4件を返済**（`manualEffects.ts` から削除＋`census:orphanmanual --unfreeze A`）。
-  🔧**ゲート（全緑 ✅）**＝golden **3610 / 3610**（+3本＝系統①③④の契約）／smoke 10,745 全 OK ／ fuzz 0 ／
-  census 0 ／ census:stubs A群 0 ／ lint 0 errors。**`O-144` ラチェットは 10 → 13 へ引き上げ（較正）**。
-  🖥**実機＝該当なし**（`src/screens/` `src/engine/` とも無変更＝§2.2 の機械判定）。
+  ⚠**3計器が動かないのは想定どおり**＝`STUB{PLAY_FREE}` への配線漏れは**どの計器も見ていない穴**
+  （JSON は正しく `SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]` を持つが、`ctx` 構築側の配線が欠けていた）。
+  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜
+  **未修正の真バグ 24 → 23行 / 26 → 25効果**｜**機構 worklist 12 → 13項目**（`O-283` を登録）｜
+  **⑤実機 残 0件**（`V-179` を同バッチで返済）。
+  🔧**ゲート（全緑 ✅）**＝golden **3624 / 3624 PASS**（退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
+  census 0 ／ census:stubs A群 0 ／ census:enginetext A🔴0行 ／ census:costtext A🔴0規則 ／ lint 0 errors。
+  🖥**実機＝`V-179`（`scripts/verifyBattleDrive.mjs` の `o283CounterSpellPlayFreeCarriesCardNum`）を新設・PASS**。
+  **反転確認**＝配線を `false &&` で無効化すると FAIL に戻ることを確認済み。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 
