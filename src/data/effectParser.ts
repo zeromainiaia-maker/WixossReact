@@ -4451,8 +4451,17 @@ function injectSuperlativeIntoSigniTargets(action: EffectAction, sup: { key: 'po
 //   前者は汎用枝の `owner:'any' / count:1` へ落ちて**どちらの場のシグニ1体か不定**という別物になっていた。
 // ⚠「これ／このシグニにアクセされている」は**装着ホスト参照**（`acceHost`）で別キー＝除外する。
 function bindCharmedSigniActionTarget(action: EffectAction, text: string): EffectAction {
-  // 複合効果の「その後」節は今回の効果単位母集団外。前段との結合意味を変えない。
-  if (/^その後[、,]/.test(text.trim())) return action;
+  // 🆕**「その後、」節でも状態語を読む**（2026-09-07 第207バッチ・意味照合 O-A triage・`WX11-034-BURST`）。
+  //   旧実装は「複合効果の『その後』節は母集団外」として**丸ごと早期 return** していたため、
+  //   「対戦相手のデッキの一番上を【チャーム】にしてもよい。**その後**、ターン終了時まで、
+  //    【チャーム】が付いている対戦相手のすべてのシグニのパワーを－8000する」で `hasCharm` が落ち、
+  //   **相手の全シグニに－8000**（原文はチャームの付いたシグニだけ）という過剰実行になっていた。
+  //   🔑同型の9効果のうち**この1効果だけ**が「その後、」で始まっていた＝早期 return がそのまま穴だった。
+  //   ⚠**照応（「それ」「それら」）を含む節は従来どおり触らない**＝前段で選んだ対象を指しているので、
+  //     ここで名詞句から対象を組み直すと前段との結合意味が変わる（早期 return の本来の目的）。
+  const afterStripped = text.trim().replace(/^その後[、,]/, '');
+  if (afterStripped !== text.trim() && /それ|その/.test(afterStripped)) return action;
+  text = afterStripped;
   const nounM = text.match(/(?:(あなた|対戦相手)の)?(?:【チャーム】が付いている|(?<!(?:これ|この(?:シグニ|カード))に)アクセされている)(?:(あなた|対戦相手)の)?(すべての)?シグニ(?:([０-９\d]+)体)?(?=のパワーを|は能力を失う|を対象とし|は【)/);
   if (!nounM || !['POWER_MODIFY', 'REMOVE_ABILITIES', 'GRANT_KEYWORD'].includes(action.type)) return action;
   const ownerWord = nounM[1] ?? nounM[2];
@@ -20892,11 +20901,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   🔴旧は原因を一切見ておらず、**ルリグ・アーツ・キーの効果でも、相手に捨てさせられても**誘発していた。
       //   ⚠engine は fail-closed（原因不明＝非発火）＝ルール処理の手札上限・ガードでは誘発しない。
       if (timing[0] === 'ON_HAND_DISCARDED') {
-        const causeM = trigText.match(/((?:シグニ|スペル|ルリグ|アーツ|キー|ピース)(?:か(?:シグニ|スペル|ルリグ|アーツ|キー|ピース))*)の、?(?:コストか効果|効果かコスト)によって/);
+        // 🆕**2026-09-07 第207バッチ（意味照合 O-A triage・`WX09-028-E1`）＝「効果によって」単独と所有者語を受ける。**
+        //   初版は `(?:コストか効果|効果かコスト)によって` しか見ておらず、
+        //   「対戦相手が**あなたのシグニの効果によって**手札を１枚捨てたとき」が**原因を一切見ないまま**通っていた
+        //   （＝相手が自分のコストで捨てても、ルリグやアーツの効果で捨てても発火する過剰実行）。
+        //   🔑所有者語「あなたの」＋捨てた側が対戦相手 ⇒ `byWatcherEffect`（＝その【自】の持ち主の効果が原因のときだけ）。
+        const causeM = trigText.match(/(?:(あなた|対戦相手)の)?((?:シグニ|スペル|ルリグ|アーツ|キー|ピース)(?:か(?:シグニ|スペル|ルリグ|アーツ|キー|ピース))*)の、?(?:コストか効果|効果かコスト|効果|コスト)によって/);
         if (causeM) {
           extractedTriggerCondObj = {
             ...(extractedTriggerCondObj ?? {}),
-            discardCauseCardTypes: causeM[1].split('か'),
+            discardCauseCardTypes: causeM[2].split('か'),
+            // 「あなたの〜の効果によって**対戦相手が**捨てたとき」＝原因は watcher 側。
+            ...(causeM[1] === 'あなた' && /対戦相手が/.test(trigText) ? { byWatcherEffect: true } : {}),
           };
         }
       }

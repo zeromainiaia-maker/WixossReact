@@ -27,3 +27,38 @@ WX03-028-E2 :: FP :: POWER_SET count:1 は自身（effectEngine.ts:2482「count 
 WX04-049-E1 :: FP :: SET_BASE_LEVEL は applyContinuousBaseLevelOverride が効果元 top のみ上書き → 規則19
 WX08-005-E2 :: FP :: GRANT_PROTECTION owner:self count:1 → immune.add(sourceNum) → 規則19
 WX11-036-E1 :: BUG :: 「このシグニ**は**アップ状態であるかぎり」＋読点なしで先頭条件節 regex が外れ IS_SELF_UP が丸ごと落ちる＝ダウン中も効果耐性が立つ過剰実行（母集団1効果。同文型の WXDi-P07-056-E1 は「が」＋読点で正常）。⚠条件を足すだけだと主語を食って target.count が 1→ALL に広がる（読点なしは主語を rest へ戻す）
+# ── 第207バッチ（2026-09-07・O-A triage 第3回／残33件すべて）──
+# 判定＝BUG 26 / FP 7（precision 79%）。⚠第206バッチの9件（11%）とは対照的＝
+#   規則18/19 で消えるクラスタを先に抜いたぶん、残りは真バグの密度が高かった。
+# ■ FP 7件（すべて engine の受け皿を読まないと判定できない型）
+WX11-021-E1 :: FP :: COST_REDUCTION は【チェイン】《緑》《白》の正準表現（effectParser.ts:23630・タスク12(xciii)＝以前はキーワードごと落ちて軽減が一度も起きなかった）→ 規則20へ還元
+WX07-030-E1 :: FP :: useTimeCost{source:'signi_down'} は useTimeCost.ts:97 が「既にダウン＝候補外」で弾く＝アップ限定は構造的に保証されている（filter に isUp は要らない）→ 規則21へ還元
+WX09-020-E1 :: FP :: crossOnly:true は「相手を問わない」ではない＝クロス相手は getCrossConditionText(card)＋evaluateCrossCondition がカードデータのクロス条件から解決する（逆翻訳も《混沌の豊穣　シュプニグラ》の左と描いている）→ 規則22へ還元
+WX05-007-E1 :: FP :: STUB{LRIG_UNDER_TO_TRASH} は effectExecutor.ts:5294 で「下がN枚未満なら以降スキップ」＝ハンドラ自身が did-it ゲートを実装している → 規則23へ還元
+WX11-006-E1 :: FP :: SEARCH の then は effectExecutor.ts:11041 が picked 1枚ずつに applyDirectAction する＝then の target.count は総数ではない（枚数は maxCount が決める）→ 規則24へ還元
+WX04-004-E2 :: FP :: STUB{OPP_DIRECT_ATTACK_NEGATE} は execStubPart3.ts:5477 が＜美巧＞の手札捨てをハンドラ内にハードコードしている（payload の costColors はエナぶんだけ）＝規則15の系
+# ■ BUG 26件（うち受け皿が既にあるもの＝安い / 機構が要るもの＝§5.3 へ登録）
+WX03-002-E1 :: BUG :: 「＜天使＞ではない」が story:"天使" へ**反転**。受け皿 cardClassExclude は types/effects.ts:1342 のコメントが**このカード番号 WX03-002 を名指し**しているのに parser が出していなかった
+WX11-034-BURST :: BUG :: 「【チャーム】が付いている対戦相手のすべてのシグニ」の hasCharm:true が欠落＝相手全シグニに－8000（受け皿は WDK12-011-E1 で稼働中）
+WX10-028-E2 :: BUG :: selectTarget に cardType:"レゾナ" が無く自分の任意シグニを対象にできる（受け皿は WX10-066-E1 で稼働中）
+WX08-023-E3 :: BUG :: filter が cardType:"ルリグ"＝レゾナ以外のルリグカードもルリグデッキに戻せる
+WX05-030-E1 :: BUG :: 「この方法で公開したシグニと同じ名前」が欠落。受け皿 cardName:'__lastRevealed__' は execSearch(effectExecutor.ts:5100) に在る
+WX09-028-E1 :: BUG :: 「あなたのシグニの効果によって」の限定なし。受け皿 triggerCondition.discardCauseCardTypes は**前日（第204バッチ）に新設済み**
+WX05-005-E3 :: BUG :: 《アタックフェイズアイコン》なのに timing が MAIN
+WX06-019-E1 :: BUG :: BANISH_SUBSTITUTE の trigger に excludeSelf が無い（「あなたの**他の**＜水獣＞」）＋発生原因（対戦相手の効果）と「場を離れる」（バニッシュより広い）の限定なし＝**後者2つは受け皿ごと無い**
+WX11-025-BURST :: BUG :: 「対象の対戦相手のシグニ1体をダウンする」が丸ごと欠落（逆翻訳が手札に加えるで終わっている）
+WX10-031-E1 :: BUG :: 「対戦相手のシグニ１体を手札に戻し」が丸ごと欠落（BANISH だけ）
+WX09-037-E1 :: BUG :: 「対戦相手のシグニ１体をトラッシュに置き」が丸ごと欠落＋場に出す側の「センタールリグより低いレベル」も欠落
+WX07-032-E1 :: BUG :: 「トラッシュから＜悪魔＞のシグニ1枚を場に出し」が丸ごと欠落（ライフに加える側だけ残っている）
+WX07-017-E1 :: BUG :: 「各プレイヤーは」の2手順が owner:self だけ＝対戦相手側が実行されない／最後の「対戦相手は」も owner:self で実行者が逆
+WX10-015-E1 :: BUG :: 「それ（見たライフクロス）をトラッシュに置いてもよい」が **TRASH{SIGNI owner:opponent}**＝相手シグニを落とす別の効果に化けている（自分側・相手側の2箇所とも）
+WX10-002-E2 :: BUG :: 「その後、それを…してもよい」の第3ステップが CONDITIONAL の外にあり、手札を捨てなくても相手のライフ最上段をトラッシュできる
+WX07-033-E2 :: BUG :: 「バニッシュされたそのシグニ」がエナの任意シグニになっている（トリガー元への固定が無い）
+WX05-025-E1 :: BUG :: 同上（「そのシグニをエナゾーンから場に出す」＝バニッシュされた当該カード）＝WX07-033-E2 と同型
+WX07-039-E1 :: BUG :: 「正面にあった」の位置限定が丸ごと落ちている。⚠**素朴に frontOfSelf を足すと恒久 no-op**（resolveFrontOfSelfCardNum は効果元が場に居ることを要求する＝離場後は null）＝機構が要る。母集団4効果で**4効果とも別々の壊れ方**
+WX11-021-E1 :: BUG :: 選択肢②の「対戦相手の効果によって」クラッシュ限定が LIFE_CRASHED_THIS_TURN に無い（受け皿ごと無い）
+WX07-021-E1 :: BUG :: 「好きな数の【チャーム】」が REMOVE_CHARM{count:'ALL'}＝全チャーム強制トラッシュ（RemoveCharmAction に upToCount が無い）
+WX06-014-E2 :: BUG :: 「好きな順番で」デッキの一番下へ置く並び順選択が無い（TransferToDeckAction の orderChosenBy は 'opponent' しか無い）
+WX09-032-E1 :: BUG :: 代替コストの発動条件（《緑》×3 か ×2 を支払う際）がどこにも無い＝STUB{OPTIONAL_COST,costText} の生文字列止まり
+WX11-006-E3 :: BUG :: STUB{OPTIONAL_TRASH_ENERGY_CLASS} が原文にない「エナゾーンから」を読んで**エナを払わせる**（原文は手札1枚捨て）＋ADD_TO_FIELD に source も対象参照も無い
+WX03-024-BURST :: BUG :: STUB{FREE_GROW_NEXT_TURN} は free_grow_next_turn を立てるだけ＝「センタールリグと完全に同一のルリグタイプ」の限定が無く次ターンの全グロウが無料

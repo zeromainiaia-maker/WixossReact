@@ -49996,6 +49996,42 @@ for (const spec of kagiriCases) {
   });
 }
 
+// 🆕**§5.0 O-A triage 第207バッチ（2026-09-07）＝残33件を全数 triage し、受け皿が既にある3件を直した。**
+// 🔑**3件とも「受け皿は在るのに生成側が1本も出していない」型**＝`census:*` は「受け皿があるか」しか見ないので
+//   原理的に映らない（第199バッチの型①と同族）。**意味照合だけが拾えた。**
+test('§5.0 O-A live WX03-002-E1: 「＜天使＞ではない」は cardClassExclude（story への反転を許さない）', () => {
+  const eff = (effectsMap.get('WX03-002') ?? []).find(e => e.effectId === 'WX03-002-E1');
+  ok(!!eff, 'WX03-002-E1 が live に存在');
+  const s2 = JSON.stringify(eff ?? null);
+  ok(s2.includes('"cardClassExclude":"天使"'), '🔴否定は cardClassExclude（受け皿は types/effects.ts:1342 に WX03-002 を名指しで在った）');
+  ok(!s2.includes('"story":"天使"'), '🔴story:"天使" が残っていない（残ると対象が原文と正反対＝＜天使＞しか落とせない）');
+});
+
+test('§5.0 O-A live WX11-034-BURST: 「その後、」節でも hasCharm が対象に載る', () => {
+  const eff = (effectsMap.get('WX11-034') ?? []).find(e => e.effectId === 'WX11-034-BURST');
+  ok(!!eff, 'WX11-034-BURST が live に存在');
+  const steps = ((eff?.action as { steps?: { type: string; target?: { filter?: Record<string, unknown> } }[] })?.steps) ?? [];
+  const pm = steps.find(st => st.type === 'POWER_MODIFY');
+  ok(!!pm, 'POWER_MODIFY ステップがある');
+  eq(pm?.target?.filter?.hasCharm, true, '🔴【チャーム】が付いているシグニに限定（落ちると相手の全シグニに－8000）');
+});
+
+test('§5.0 O-A live WX09-028-E1: 「あなたのシグニの効果によって」が原因種別＋watcher 限定になる', () => {
+  const eff = (effectsMap.get('WX09-028') ?? []).find(e => e.effectId === 'WX09-028-E1');
+  ok(!!eff, 'WX09-028-E1 が live に存在');
+  const tc = eff?.triggerCondition as { discardCauseCardTypes?: string[]; byWatcherEffect?: boolean } | undefined;
+  eq(JSON.stringify(tc?.discardCauseCardTypes), '["シグニ"]', '🔴原因はシグニの効果に限る');
+  eq(tc?.byWatcherEffect, true, '🔴原因は「あなた（この【自】の持ち主）」の効果に限る');
+});
+
+test('§5.0 O-A live WX25-CP1-016-E1: 「コストか効果」型は第207の一般化で退行しない（対照）', () => {
+  const eff = (effectsMap.get('WX25-CP1-016') ?? []).find(e => e.effectId === 'WX25-CP1-016-E1');
+  ok(!!eff, 'WX25-CP1-016-E1 が live に存在');
+  const tc = eff?.triggerCondition as { discardCauseCardTypes?: string[]; byWatcherEffect?: boolean } | undefined;
+  eq(JSON.stringify(tc?.discardCauseCardTypes), '["シグニ","スペル"]', '原因種別は2つのまま');
+  eq(tc?.byWatcherEffect, undefined, '所有者語が無いので byWatcherEffect は立たない');
+});
+
 // 🆕**§5.0 O-A triage 第206バッチ（2026-09-07）＝`WX11-036-E1`「対戦相手のターンの間、このシグニ**は**
 //   アップ状態であるかぎり対戦相手の効果を受けない」。** 助詞 `は` と**読点なし**の2点で先頭条件節の
 //   regex が外れ、`IS_SELF_UP` が丸ごと落ちて**ダウン状態でも耐性が立って**いた（重い過剰実行）。

@@ -882,9 +882,21 @@ export function parseStoryFilter(text: string): Partial<TargetFilter> {
   })();
   const scoped = gate ? text.slice(gate[0].length) : text;
   // 同一クラス名が複数回出る場合（条件文＋フィルタ文で＜X＞が2回など）は重複除去
-  const matches = [...new Set([...scoped.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
-  if (matches.length === 0) return {};
-  return { story: matches.length === 1 ? matches[0] : matches };
+  // 🆕🔴**「＜X＞ではない」は除外＝`cardClassExclude`**（2026-09-07 第207バッチ・意味照合 O-A triage）。
+  //   従来は否定語を読まずに `story:'X'` を返していたので、**対象が原文と正反対**になっていた
+  //   （`WX03-002-E1`「＜天使＞ではない対戦相手のシグニ１体をトラッシュに置く」＝
+  //    **＜天使＞しか落とせない**過小実行かつ、原文が守っている＜天使＞を落とす過剰実行）。
+  //   🔑受け皿 `cardClassExclude` は `types/effects.ts:1342` に**このカード番号を名指しして**在ったのに、
+  //     生成側が1本も無かった（`parseSentencePart1.ts` の傀儡専用分岐だけが手で組んでいた）。
+  //   ⚠**肯定側と混ぜない**＝「＜A＞ではない＜B＞」のような形は否定側だけを除外に回し、残りは story に残す。
+  const negated = new Set([...scoped.matchAll(/＜([^＞]+)＞(?:の(?:シグニ|カード))?ではない/g)].map(m => m[1]));
+  const matches = [...new Set([...scoped.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))]
+    .filter(cls => !negated.has(cls));
+  const exclude = [...negated];
+  const excludePart = exclude.length === 0 ? {}
+    : { cardClassExclude: exclude.length === 1 ? exclude[0] : exclude };
+  if (matches.length === 0) return excludePart;
+  return { ...excludePart, story: matches.length === 1 ? matches[0] : matches };
 }
 
 // 《カード名》 を抽出してカード名フィルターを返す
