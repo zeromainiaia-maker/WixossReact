@@ -72966,6 +72966,81 @@ test('§5.0 第229: 《ターン1回》を usageLimit 以外の受け皿で実�
   eq(spk?.coinAbilityBoost?.extraGameUse, true, 'SPK06-01-E1 はコイン技の使用回数を増やす側');
 }));
 
+// 🆕**§5.0 実装キュー（2026-09-08 第230バッチ）＝triage 済み BUG リストの検証と修正 12効果**。
+//   🔴**この巡で分かったこと＝BUG リスト 433 の precision は高くない**（実測＝見た 62効果のうち
+//   真バグ 12・機構待ち 8・**偽陽性 42**）。偽陽性は全部「監査員（JSON だけを読む sonnet）が
+//   **既に在るキーを見落とした**」型で、triage がそれを追認していた。⇒ **BUG 行を実装前に必ず live と突き合わせる。**
+test('§5.0 第230: triage 済み BUG のうち 1〜2キーで直る 12効果', () => withSavedCursor(() => {
+  const liveEff = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  const nodesOf = (root: unknown, type: string): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    const walk = (o: unknown, d = 0): void => {
+      if (d > 40 || !o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(x => walk(x, d + 1)); return; }
+      const rec = o as Record<string, unknown>;
+      if (rec.type === type) out.push(rec);
+      Object.values(rec).forEach(x => walk(x, d + 1));
+    };
+    walk(root);
+    return out;
+  };
+
+  // ① WXK11-033-E1＝「ターン終了時まで、このシグニは『対戦相手の効果によってバニッシュされない』を得る」。
+  //    GRANT_PROTECTION が SEQUENCE の直下にあるので、外側の効果 duration は効かない＝ここに書かないと恒久化する。
+  //    ⚠**GRANT_EFFECT でラップされている形は別**（付与そのものに寿命があるので内側は PERMANENT が正しい）。
+  eq(nodesOf(liveEff('WXK11-033', 'WXK11-033-E1')?.action, 'GRANT_PROTECTION')[0]?.duration, 'UNTIL_END_OF_TURN',
+    'WXK11-033-E1 の効果耐性はターン終了時まで');
+
+  // ② 【ライド】の重複＝`RIDE_ON`（原文どおりコスト《赤×0》・ターン1回）だけを残す。
+  //    `CENTER_LRIG_RIDES_ON_SIGNI` は「別カードからセンタールリグを乗せる」側の受け皿（WDK01-008 / SPK01-01）。
+  for (const cardNum of ['WXK01-008', 'WXK01-009']) {
+    const ids = (effectsMap.get(cardNum) ?? []).map(e => e.effectId);
+    eq(ids.join(','), `${cardNum}-RIDE`, `${cardNum} の【ライド】は RIDE_ON 1本だけ`);
+  }
+
+  // ③ SPDi43-28-E1＝「あなたの《335 アキノ》1体がアタックしたとき…そのルリグをアップし、能力を失う」。
+  //    ルリグのアタック誘発は ON_ATTACK_LRIG しか収集されない（triggerCollect.ts:870-905）。
+  const spdi = liveEff('SPDi43-28', 'SPDi43-28-E1');
+  eq((spdi?.timing ?? []).join(','), 'ON_ATTACK_LRIG', 'SPDi43-28-E1 はルリグのアタック誘発');
+  ok(nodesOf(spdi?.action, 'UP').some(u => (u.target as { type?: string })?.type === 'LRIG'),
+    'SPDi43-28-E1 はルリグをアップする（UP が丸ごと欠けていた）');
+  ok(nodesOf(spdi?.action, 'REMOVE_ABILITIES').some(r => (r.target as { type?: string })?.type === 'LRIG'),
+    'SPDi43-28-E1 の能力喪失はルリグが対象');
+
+  // ④ WXK11-071-E1＝「そのシグニをトラッシュに置く」＝場に出たトリガー元（前例 WXDi-P02-083）。
+  eq(nodesOf(liveEff('WXK11-071', 'WXK11-071-E1')?.action, 'TRASH')[0]?.targetsTriggerSource, true,
+    'WXK11-071-E1 はトリガー元を落とす（任意の相手シグニではない）');
+
+  // ⑤ WXDi-CP01-040-E1＝「あなたのルリグ1体がアタックしたとき」。
+  const cp01 = liveEff('WXDi-CP01-040', 'WXDi-CP01-040-E1');
+  eq((cp01?.timing ?? []).join(','), 'ON_ATTACK_LRIG', 'WXDi-CP01-040-E1 はルリグのアタック誘発');
+  eq(cp01?.triggerScope, 'any_ally', '味方ルリグが対象');
+
+  // ⑥ pickUpTo 系統＝原文「N枚まで」なのに pickCount 固定＝0枚を選べない（effectExecutor.ts:7761）。
+  //    母集団は REVEAL_AND_PICK(pickCount>=2) 110効果のうち 4効果（5ノード）。
+  for (const [cardNum, effectId] of [
+    ['WX24-P1-020', 'WX24-P1-020-E1'],
+    ['WX25-P1-037', 'WX25-P1-037-E1'],
+    ['WX25-P3-040', 'WX25-P3-040-E1'],
+    ['WXDi-D04-021', 'WXDi-D04-021-E1'],
+  ] as const) {
+    const picks = nodesOf(liveEff(cardNum, effectId)?.action, 'REVEAL_AND_PICK');
+    ok(picks.length > 0, `${effectId} に REVEAL_AND_PICK がある`);
+    ok(picks.every(p => p.pickUpTo === true), `${effectId} は「N枚まで」＝0枚も選べる`);
+  }
+
+  // ⑦ 色フィルタ系統＝原文「あなたの白（黒）のセンタールリグ1体を対象とし」。
+  //    ⚠**コストの色と混同しない**（cost.energy の色は支払い側）。
+  for (const [cardNum, effectId, color] of [
+    ['WXK11-052', 'WXK11-052-E1', '白'],
+    ['WXK11-077', 'WXK11-077-E1', '黒'],
+  ] as const) {
+    const g = nodesOf(liveEff(cardNum, effectId)?.action, 'GRANT_EFFECT')[0];
+    eq(((g?.target as { filter?: { color?: string } })?.filter?.color), color, `${effectId} の対象は${color}のルリグ限定`);
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

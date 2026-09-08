@@ -1,5 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（S-3 第230＝実装キューを 62効果ぶん検証し、真バグ 12効果を修正・**偽陽性 25効果を落とした**）
+
+**作業単位**＝ユーザー指示「20効果続けて直して」。§5.0 実装キュー（triage 済み BUG 433効果）の
+`parseStatus` が MANUAL の 106効果を、深刻度 HIGH から順に検証した。
+
+### 🔴 一番大きい発見＝**BUG リストの precision は高くない**
+
+**見た 62効果の内訳＝真バグ 12 / 機構待ち 8 / 偽陽性 42。**
+🔴**偽陽性は全部「監査員（JSON だけを読む sonnet）が、既に在るキーを見落とした」型**で、
+triage（codex＋私）はそれを **engine 側だけ確かめて追認**していた（＝JSON を読み直していない）。
+**壊れ方の型で偏りがはっきり出た**：
+
+| finding の type | 見た数 | 真バグ | 偽陽性 |
+|---|---:|---:|---:|
+| `MISSING`（「〜が丸ごと欠落」） | 17 | **0** | 15（＋機構待ち2） |
+| `WRONG` / `EXTRA` / `SUSPECT_STUB` | 45 | 12 | 27（＋機構待ち6） |
+
+🔑**`MISSING` は構造的に誤検出しやすい**＝監査員は「無い」を主張するのに JSON 全体を読み切る必要があり、
+**長い JSON ほど落とす**。⇒ **`MISSING` の finding は実装前に必ず live を grep する**（`O-C` へ還元した）。
+
+### 修正した 12効果
+
+| 効果 | 直したもの |
+|---|---|
+| `WXK11-033-E1` | `GRANT_PROTECTION.duration` が `PERMANENT`＝**効果耐性が恒久化**。⚠**`GRANT_EFFECT` でラップされている形は別**（付与そのものに寿命があるので内側は `PERMANENT` が正しい＝実測3件はこの形で偽陽性だった） |
+| `WXK01-008-E1` / `-009-E1` | 【ライド】が `CENTER_LRIG_RIDES_ON_SIGNI`（manual）と `-RIDE`（`RIDE_ON`）で**二重定義**＝使用回数も別管理だった。manual 側を削除（原文どおりの `RIDE_ON` を残す）。⚠`CENTER_LRIG_RIDES_ON_SIGNI` 自体は正しい受け皿（`WDK01-008` / `SPK01-01`＝**別カードから**センタールリグを乗せる側） |
+| `SPDi43-28-E1` | ルリグのアタック誘発なのに `ON_ATTACK_SIGNI`（＝一生誘発しない）／原文の `UP` が丸ごと欠落／`REMOVE_ABILITIES` の対象がシグニ |
+| `WXK11-071-E1` | 「そのシグニをトラッシュに置く」が**任意の相手シグニ**＝`targetsTriggerSource:true` を追加 |
+| `WXDi-CP01-040-E1` | 同じく `ON_ATTACK_SIGNI` → `ON_ATTACK_LRIG`＋`triggerScope:any_ally` |
+| `WX24-P1-020-E1` / `WX25-P1-037-E1` / `WX25-P3-040-E1` / `WXDi-D04-021-E1` | **`pickUpTo` 系統**＝原文「N枚まで」なのに `pickCount` 固定で**0枚を選べない**。母集団を実測（`REVEAL_AND_PICK` で `pickCount>=2` の 110効果 → **欠落は4効果5ノード**）して全数直した |
+| `WXK11-052-E1` / `WXK11-077-E1` | 原文「あなたの**白（黒）の**センタールリグ1体を対象」の色フィルタが `target` に無い。⚠**コストの色と混同しない**（`cost.energy` は支払い側） |
+
+### 機構待ちに回した 8効果（実装キューに残す）
+
+`SPDi44-04-E2`（`commonClass` は engine に消費が無い）／`WX16-Re20-E1`（`ADD_TO_FIELD.abilitiesRemoved` は
+**parser が書くだけで engine に消費が無い**＝真 no-op・母集団8効果）／`SPK01-13-E1`・`WXK11-020-E1`
+（「効果によるダメージを受けない」は `prevent_lrig_damage`＝**1回消費型**なので「このターン全部」を表せない）／
+`WXDi-D09-H15-E1`（`SET_BASE_LEVEL.until` に `'END_OF_TURN'` しかない）／`WX26-CP1-048-E2`
+（`ENERGY_CHARGE_FROM_DECK` に `optional` が無い）／`WXDi-P16-074-E2`（`FIELD_HAS_GATE` はゾーン一致を見ない）／
+`WDK17-009-E2`（条件の掛かる範囲が違う＝構造の作り直し）。
+⚠`PR-457-E2` は **live が MANUAL なのに `manualEffects.ts` に定義が無い**（`census:orphanmanual` の C 分類）＝別扱い。
+
+**検証**＝`npm run golden -- --only "§5.0 第230"`（新規1本・12効果を assert）→ **反転確認あり**（`git stash` で FAIL）→
+`npm run gates` 全緑（golden 3679/3679）。**⑤実機＝不要**（`src/data/` と `public/data/` だけ）。
+**在庫**＝実装キュー **419 → 383効果**（修正12＋偽陽性25を `semantic_bug_fixed.txt` へ記録）。
+S-3（MANUAL 残）は **106 → 70効果**。
+
+
 ## 2026-09-08（S-3 第229＝《ターン1回》《ゲーム1回》の使用回数制限が抜けていた 9効果）
 
 **作業単位**＝ユーザー指示「S-3 を行う」。§5.0 実装キューの系統「《ターン1回》なのに `usageLimit` が無い」から。

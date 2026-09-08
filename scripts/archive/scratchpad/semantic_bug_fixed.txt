@@ -16,3 +16,40 @@ WXDi-P04-015-E1-G :: 2026-09-08 :: 同上
 SP27-015-E3-G :: 2026-09-08 :: 第229＝アクセ付与の起動能力に usageLimit:once_per_turn ＋ timing に ATTACK_ARTS を追加
 WXDi-P15-010-E3 :: 2026-09-08 :: 第229＝usageLimit:once_per_game を追加（受け皿は lrigActivateGate.ts:125 の game_actions_done）
 WXDi-P15-011-E3 :: 2026-09-08 :: 同上
+WXK11-033-E1 :: 2026-09-08 :: 第230＝GRANT_PROTECTION の duration を PERMANENT→UNTIL_END_OF_TURN（SEQUENCE 直下なので外側 duration が効かない）
+WXK01-008-E1 :: 2026-09-08 :: 第230＝【ライド】の重複定義（CENTER_LRIG_RIDES_ON_SIGNI）を削除。本線は -RIDE の RIDE_ON
+WXK01-009-E1 :: 2026-09-08 :: 同上
+SPDi43-28-E1 :: 2026-09-08 :: 第230＝timing を ON_ATTACK_LRIG へ／UP{LRIG} を追加／REMOVE_ABILITIES の対象を LRIG へ
+WXK11-071-E1 :: 2026-09-08 :: 第230＝TRASH に targetsTriggerSource:true（「そのシグニ」＝場に出たトリガー元）
+WXDi-CP01-040-E1 :: 2026-09-08 :: 第230＝timing を ON_ATTACK_LRIG＋triggerScope:any_ally へ
+WX24-P1-020-E1 :: 2026-09-08 :: 第230＝REVEAL_AND_PICK に pickUpTo:true（原文「2枚まで」）
+WX25-P1-037-E1 :: 2026-09-08 :: 同上
+WX25-P3-040-E1 :: 2026-09-08 :: 同上
+WXDi-D04-021-E1 :: 2026-09-08 :: 同上（then/else の2ノードとも）
+WXK11-052-E1 :: 2026-09-08 :: 第230＝GRANT_EFFECT の target に filter.color:白（原文「あなたの白のセンタールリグ」）
+WXK11-077-E1 :: 2026-09-08 :: 同上（黒）
+WX13-019-E1 :: 2026-09-08 :: FP＝triggerScope:any_ally＋triggerFilter.excludeResona が既に在る（監査員の見落とし）
+WX20-020-E1 :: 2026-09-08 :: FP＝c3 の ADD_TO_FIELD に suppressOnPlay が既に在る
+WX11-025-BURST :: 2026-09-08 :: FP＝DOWN ステップが既に在る
+WX10-031-E1 :: 2026-09-08 :: FP＝BOUNCE ステップが既に在る
+WX09-037-E1 :: 2026-09-08 :: FP＝TRASH と levelLtOwnLrig が既に在る
+WX07-017-E1 :: 2026-09-08 :: FP＝self/opponent の両側ステップが既に在る（最後の ENERGY_CHARGE も owner:opponent）
+WX07-033-E2 :: 2026-09-08 :: FP＝targetsTriggerSource:true が既に在る
+WX21-054-E2 :: 2026-09-08 :: FP＝公開の枝が CHOOSE に在り、TRASH は thisCardOnly
+WX20-033-BURST :: 2026-09-08 :: FP＝緑側の SEARCH が既に在る
+WX13-035-BURST :: 2026-09-08 :: FP＝handOrEnergy:true が既に在る
+WX13-043-E2 :: 2026-09-08 :: FP＝LRIG_COLOR 条件が既に在る
+WX14-CB03-E2 :: 2026-09-08 :: FP＝LRIG_LEVEL(opponent,eq,5) が既に在る
+WX12-035-E1 :: 2026-09-08 :: FP＝OPTIONAL_COST に costColors[緑,緑,白] が既に在る
+WX17-063-TRAP :: 2026-09-08 :: FP＝TRANSFER_TO_DECK の source.owner は opponent
+WX13-048-E1 :: 2026-09-08 :: FP＝CONDITIONAL の else 分岐が既に在る
+WX19-001-E3 :: 2026-09-08 :: FP＝TRASH の filter.cardName「アーク・オーラ」が既に在る
+WX20-001-E2 :: 2026-09-08 :: FP＝suppressOnPlay と TRASH_AT_TURN_END が両方在る
+WX15-061-E1 :: 2026-09-08 :: FP＝ADD_TO_FIELD は CONDITIONAL の then 内に在る
+WX12-002-E3 :: 2026-09-08 :: FP＝SET_ALL_ZONE_BURST_GRANT_THIS_TURN で実装済み（同日の別バッチ）
+WX20-042-CB-E3 :: 2026-09-08 :: FP＝選択・バニッシュとも owner:any
+WX17-001-E1 :: 2026-09-08 :: FP＝sourceOwner:any＋exceptSelfSource:true が既に在る
+WX21-052-E1-G :: 2026-09-08 :: FP＝triggerScope:any_opp が既に在る
+WX07-021-E1 :: 2026-09-08 :: FP＝OPTIONAL_COST の charmTrashVariable{min:0} で可変になっている
+WX10-002-E2 :: 2026-09-08 :: FP＝第3ステップは CONDITIONAL の then 内に在る
+WX05-025-E1 :: 2026-09-08 :: FP＝targetsTriggerSource:true が既に在る

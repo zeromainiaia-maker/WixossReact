@@ -50,7 +50,7 @@
 🔴**うち `O-293` は「受け皿が在ると書いてあったのに名前どおり動いていなかった」型**（10効果が2フェイズ早く切れる）。
 **次に取るのは受け皿が実在して母集団の大きい系統**＝**「置いてもよい」の強制化（A 9＋M 2）**か**遅延誘発（A 8＋M 2）**。
 ⚠**`OPPONENT_PAY_OPTIONAL`（同32）は受け皿が無い**＝§5.3 `O-288` なので、先に安い方から取る。
-🔑**在庫の数え方**＝`node scripts/archive/semanticAuditBugList.mjs`（**残419 / 消化済み14 / 確定433**）。
+🔑**在庫の数え方**＝`node scripts/archive/semanticAuditBugList.mjs`（**残383 / 消化済み51 / 確定433**）。
 **直したら `scripts/archive/scratchpad/semantic_bug_fixed.txt` へ1行足す**＝これをしないとカウンタが永久に減らない。
 ⚠**受け皿を確かめてから parser を直す**のがこの系統の作法＝`commonClass`（`O-287`）のように
 **parser が生成するだけで engine に消費が無い**と、直したつもりで何も変わらない。
@@ -348,7 +348,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 |---|---|---|---|
 | §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（全11シート 100%）。⚠**止め時の判定（新型0×連続3バッチ）は未実施**＝新規ラウンドを始めるならそこから | `node scripts/archive/semanticAuditGap.mjs` |
 | §5.0 O-A | 🏁**完了**＝findings の triage | 🏁**未 triage 0**（572件を全数確定＝**BUG 433 / FP 70**・FP は全件 engine の行を人手で裏取り済み） | `node scripts/archive/semanticAuditPool.mjs` |
-| **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**残419効果**（確定433 − 消化済み14）。🔴`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `node scripts/archive/semanticAuditBugList.mjs` |
+| **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**残383効果**（確定433 − 消化済み51）。🔴**このリストの precision は高くない**＝第230 の実測で**見た62効果のうち真バグ12・機構待ち8・偽陽性42**（特に `MISSING` は 17件中 真バグ0）。**実装前に必ず live と突き合わせる。**🔴`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `node scripts/archive/semanticAuditBugList.mjs` |
 | §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**6項目**（`O-287`/`O-288`/`O-290`〜`O-293`）。🆕**`O-289` は S-2 で「機構不要」と確定して降ろし、`O-293` を新規登録した** | §5.3 の索引 G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
@@ -383,7 +383,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 |---|---|---|---|
 | **S-1** | **意味照合バッチを回す**（10枚/バッチ）🆕**codex なら Claude 月額枠を消費しない**（2026-09-08 実測＝213バッチ / 失敗0・1バッチ 12〜81秒） | 🏁**残0バッチ**（全11シート監査完了） | `node scripts/archive/semanticAuditGap.mjs` |
 | **S-2** | **真バグの母集団を grep で数える**（原文の言い回し × live JSON の受け皿の有無） | 🏁**残0**（2026-09-08＝系統7件＋機構4件を全数実測。登録23効果 → 実測48効果） | 使い捨て `tmp_*` で `docs/_effect_srctext.json` × `public/data/effects_*.json` を突き合わせる（道具＝`scripts/archive/scratchpad/s2_population_20260908/s2_lib.mjs`） |
-| **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | 🔥**106効果**（2026-09-08 実測＝残419効果のうち live の `parseStatus` が MANUAL＝**定義が `manualEffects.ts` に在るので手書きで直せる**）。⚠**在庫の見立てであって判定ではない**＝着手時に §2.1 ② で同型枚数を測る（AUTO 306 はそこで速い／遅いに割れる） | `node scripts/archive/semanticAuditBugList.mjs` ＋ live の `parseStatus` で引き算 |
+| **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | 🔥**70効果**（2026-09-08 実測＝残383効果のうち live の `parseStatus` が MANUAL＝**定義が `manualEffects.ts` に在るので手書きで直せる**）。⚠**在庫の見立てであって判定ではない**＝着手時に §2.1 ② で同型枚数を測る（AUTO 306 はそこで速い／遅いに割れる） | `node scripts/archive/semanticAuditBugList.mjs` ＋ live の `parseStatus` で引き算 |
 | **S-4** | **golden の定型追加・ゲート実行・簿記**（セッション末1回） | 1回/セッション | `npm run gates` |
 
 ⚠**S-1 の残バッチ数は「止め時」ではない**＝止め時は **TYPE_LEDGER.md の「新型ゼロの連続3バッチ」**（§2.6 決定1）。
