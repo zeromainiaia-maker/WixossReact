@@ -127,6 +127,18 @@
 - 🔴**母集団は「その語彙が live にあるか」ではなく「その意味を担うノードが在るか」で数える**（2026-08-25 続き649 で実測）。⚠**既存型の名前は命名規約に従っていないことがある**＝正規表現で型名を推測すると静かに取りこぼす。 実例＝「このターンに〜していた場合」を「live に `*_this_turn` 語彙があるか」で数えると**74件**に膨れたが、「**条件ノードが在るか**」で数えた真の母集団は**19効果**だった（`TURN_HAND_DISCARD_GTE`／`THIS_CARD_PLACED_BY_CLASS` など**命名規約に従っていない既存型**を正規表現が取りこぼす）。**測り方を3回作り直して初めて正しい母集団に着いた。**
 
 
+- 🆕🔴**受け皿の「別名」を知らないまま MISS を数えると必ず過大に出る**（2026-09-08・S-2 で**私自身が2回踏んだ**）＝
+  ①相手【エナチャージ】の任意性を「`ENERGY_CHARGE_FROM_DECK` に `optional` が無い」で数えて 6 とした
+  → 実際は**1段上の `CHOOSE{opponentResponds:true, choices:[charge, skip]}`** が正準形で**真バグは4**。
+  ②「1枚を上・残りを下」を `first_top_rest_bottom` だけで数えて 14 とした
+  → 受け皿は他に3つ（`split_top_bottom` ／ `LOOK_TOP_ONE_RETURN_REST_BOTTOM` ／
+  `then:"deck_top"`＋`remainder:{location:"deck",position:"bottom"}`）あり**真バグは2**。
+  🔑**predicate は「そのノードのキー」ではなく「その意味を表しうる全形」の OR で書く。親ノードまで見る。**
+- 🆕🔴**登録票の「受け皿が無い」も stale になる**（2026-09-08・`O-289`）＝
+  「`grep -rn "usedChoices|chosen_once|choiceUsed" src/engine/` は0件」を根拠に新機構が要ると登録されていたが、
+  **`taken_choice_keys`（`src/types/index.ts:885`）という別名で実在**し、ターン境界を越えて永続していた。
+  🔑**キー名を思い浮かべて grep して0件は「無い」の証明にならない**＝**型定義（`src/types/`）から概念で列挙して引き算する。**
+
 ### 4.2 実装 — 型・parser・engine
 
 - 🔴**型を足すときは「型 ＋ 両評価器 ＋ golden」の3点セットで初めて1件完了。**`checkActiveCondition` は case の無い型を **`return true`＝無条件成立**に落とすので、**型だけ足すのは条件が無いのと同じか、それ以下**（条件つき常在能力が常時発動する）。しかも **smoke/census/fuzz は全部緑**のまま通る。
@@ -530,6 +542,17 @@
 - ⚠**1バッチ 20クラスタ／40 findings 前後を厳守**（107件を投げたバッチは根拠がテンプレート化して証拠にならなかった）。**件数を減らして1件ごとの証拠を厚くするほうが総合的な収量は高い。**
 - ⚠**投入前に必ず `git status --porcelain` を空にする**（計器の生成時刻1行の差分で Codex が起動を拒否した実績）。
 - **投入コマンド**＝`codex exec -C "C:/Users/zerom/source/WixossReact" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`。⚠**既定は `model_reasoning_effort = "low"` なので `-c` の指定は必須**。⚠**`-c sandbox_mode=…` は "danger" 文字列で分類器に弾かれるので付けない**。詳細は [CODEX_GUIDE.md](./CODEX_GUIDE.md)。
+- 🆕🔑**「測る」工程を委譲するときは、共通ローダを先に自分で書いて渡す**（2026-09-08・S-2 全数実測）＝
+  `tmp_s2_lib.mjs`（`docs/_effect_srctext.json` × `public/data/effects_*.json` を突き合わせる `scan(regex, predicate)`）を
+  指示書と一緒に置いたら、**codex 2本ともデータの在処を探すターンを使わずに測定へ入った**。
+  🔑**委譲の原価は「codex のトークン」ではなく「codex が探索に使うターン」**＝**入口を固定できる工程は必ず道具を先に渡す。**
+- 🆕🔑**2アカウント並列は成立する**（2026-09-08 再確認）＝`CODEX_HOME` が別なら認証も別。
+  ⚠**同じディレクトリへ書かせるときはファイル名を分ける**（`tmp_s2_a_*` / `tmp_s2_b_*`・`REPORT_A.md` / `REPORT_B.md`）と
+  指示書に明記する。両者とも他方のファイルに触らなかった。
+- 🆕🔴**codex の「除外（FP/C）」判定は必ず engine の行を自分で開く**（2026-09-08 に再発）＝
+  「対象がセンタールリグ固定だから色フィルタが無くても実害ゼロ」という**もっともらしい除外**が誤りだった
+  （`lrigLikeFilterOk` が `matchesFilter` へ落ちて `color` を消費する＝**不発すべき効果が通っていた**）。
+  🔑**「誤選択できないから無害」は成り立たない**＝**候補が0になるべき場面**を必ず考える。
 
 ### 4.7 意味照合ラウンドと triage の読み方（PLAN §5.0 O-A / §5.2 round4）
 

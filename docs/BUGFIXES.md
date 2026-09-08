@@ -1,5 +1,75 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（S-2 全数実測＝新バグ集団10件の母集団を grep で測り切った・**`src/` は無変更**）
+
+**作業単位**＝ユーザー指示「すべての新バグ集団に S-2 を行う。codex-work と codex を使うこと」。
+**S-2＝真バグの母集団を grep で数える工程**（PLAN §5.0 の Sonnet レーン）。**実装は0行**（測定と簿記のみ）。
+
+### やったこと
+
+**codex 2アカウントを並列で回した**（`CODEX_HOME=/c/Users/zerom/.codex-work` ＝バッチA／既定 `~/.codex` ＝バッチB）。
+🔑**先に共通ローダ `tmp_s2_lib.mjs` を私が書いて渡した**（`docs/_effect_srctext.json` の効果単位原文 10,768件 ×
+`public/data/effects_*.json` の live 10,745効果を突き合わせる `scan(regex, predicate)` API）＝
+**codex が「データの在処を探す」ターンを丸ごと削るため**。実測でどちらも一発で測定に入った。
+**報告書**＝`scripts/archive/scratchpad/s2_population_20260908/REPORT_A.md` / `REPORT_B.md`。
+
+### 結果＝**登録 18効果 → 実測 38効果**（系統6件）＋機構4件
+
+| 系統 | 登録 | 実測 A+B | M（手書き別枠） | stale か |
+|---|---:|---:|---:|---|
+| C1 遅延誘発が即時実行 | 6 | **8** | 2 | **stale** |
+| C2「置いてもよい」が強制 | 4 | **9** | 2 | **stale** |
+| C3 1枚を上・残りを下／残りをシャッフル | 2 | **5** | 3 | **stale** |
+| C4【ライド】重複 | 2 | 0 | 2 | 正しい（M込み2） |
+| C5 色フィルタ欠落 | 2 | **4** | 1 | **stale**（登録2件は中身が入れ替わり） |
+| C6 グロウ「公開した場合」 | 2 | 0 | 2 | 正しい（M込み2） |
+| **計** | **18** | **26** | **12** | — |
+
+| 機構（§5.3 索引 G） | 登録 | 実測 | 「受け皿が無い」は正しかったか |
+|---|---:|---|---|
+| `O-289` 起動をまたぐ選択済み管理 | 2 | 2 | 🔴**stale＝機構不要**（下記） |
+| `O-290` キー配置コスト | 4 | **3カード** | 一部 stale（`coinReduction` は既存） |
+| `O-291` エナ効果免疫 | 1 | 1 | 正しい |
+| `O-292` コラボ起動コスト | 3 | 3 | 正しい |
+
+### 🔴 最大の収穫＝`O-289` は engine 新機構が要らなかった
+
+登録票は「`CHOOSE.noRepeat` は解決内だけ・起動をまたいで覚えるストアが無い（`grep usedChoices|chosen_once|choiceUsed` は0件）」
+と書いていたが、**キー名が違うだけで受け皿は実在した**＝**`PlayerState.taken_choice_keys`**（`src/types/index.ts:885`）。
+`effectExecutor.ts:6432` が `noRepeat` のとき読み、**`execStubPart1.ts:922-930` がターン境界で消さずに書き込む**。
+⇒ **parser が `CHOOSE.noRepeat` を出せば閉じる**＝§5.3 索引 G から §5.0 の系統行へ降ろした（機構 worklist 6 → **5項目**）。
+🔑**教訓の再確認＝「キー名を3つ思い浮かべて grep して0件」は「受け皿が無い」の証明にならない。**
+`semanticAuditRecheck` / `census:population` の MISS と同じで、**別名を知らないかぎり必ず過大に出る**。
+
+### 🔴 codex の判定を1件訂正した（FP 側で真バグを消しかけた・既知の型の再発）
+
+**C5 の `WXK11-052-E1` / `WXK11-077-E1`** を codex は「対象が `field.lrig.at(-1)` 固定だから
+**色が違っても別のルリグを誤選択できず実害ゼロ**」として **C（除外）**にしていた。**前半は正しいが結論が誤り。**
+`effectExecutor.ts:4986` は `cands = lrigTop && lrigLikeFilterOk(lrigTop, filter, ctx) ? [lrigTop] : []` で、
+**`lrigLikeFilterOk`（同 `:4875-4895`）は `matchesFilter` へ落ちて `color` を消費する**。
+⇒ **色フィルタを足すと「センタールリグが白でないとき候補0＝不発」になる**＝いまは色を問わず能力が付く。
+**壊れ方は「誤選択」ではなく「不発すべき効果が通る」。** ⇒ **B（真バグ）へ訂正**。
+🔑**PLAN §5.0 の「codex の FP 判定は人間が engine を読んで確定する」規約が2回目の仕事をした。**
+
+### 🔁 私（Opus）側の実測も2件間違えた＝**MISS は判定ではない**を自分で踏んだ
+
+| 私の誤り | 実際 |
+|---|---|
+| 相手【エナチャージ】任意を **6効果**と数えた | **4効果**。`SPDi43-18-E1` / `WXDi-P05-072-E2` は**1段上の `CHOOSE{opponentResponds:true, choices:[charge, skip]}`** で正しく表現されていた＝**アクションノードにキーが無くても親が正準形**（codex 側の `hasRelevantOppEnergyOptional` が正しかった） |
+| C3①「1枚を上・残りを下」を **14効果**と数えた | **2効果**。`first_top_rest_bottom` は parser が生成しないが、**受け皿は他に3つある**（`split_top_bottom` ／ `LOOK_TOP_ONE_RETURN_REST_BOTTOM` ／ `then:"deck_top"`＋`remainder:{location:"deck",position:"bottom"}`） |
+
+⛔**追加で測って空振りだった系統**＝「原文が3色以上を『か』で列挙しているのに live の `color` 配列が短い」
+＝候補9・MISS 6だが、**1件ずつ開いたら真バグは `WXDi-D06-014-E1` の1件だけ**。残り5件は
+`OR × ENERGY_HAS_CARD{color:単色}` や **`LAST_PROCESSED_MATCHES.requiredDistinctColors:["赤",["白","青","緑","黒"]]`**
+（入れ子配列）という**別の正準形で正しく表現済み**だった。
+
+### 検証・簿記
+
+- 🔴**`src/` `public/` は1バイトも変更していない**（測定のみ）＝`npm run gates` は対象コード無変更のため未実行（§2.6 決定3）。
+- 追加したのは `scripts/archive/scratchpad/s2_population_20260908/`（報告書2本）のみ。測定スクリプトは `tmp_*`（gitignore 圏内）。
+- **在庫**＝実装キュー **残426効果**（据置＝S-2 は測るだけで直していない）／機構 worklist **6 → 5項目**／
+  **S-2 は残0**（新しい系統を triage で見つけたら戻す）。
+
 ## 2026-09-08（§5.0 実装キュー 系統①＝`ADD_TO_FIELD` の `asDown` 欠落・7効果）
 
 **真因**＝原文「ダウン状態で場に出す」が `ADD_TO_FIELD.asDown` へ落ちておらず、**アップ状態で場に出ていた**
