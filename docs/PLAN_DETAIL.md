@@ -1351,6 +1351,19 @@
 > | §5.4 (ii) のクローズ済み6件 | 「旧・§5.4 (ii) クローズ済み」 |
 > | §6 恒久指標（続き769＝PLAN 再編第2回の直後） | 「恒久指標（退避）2026-09-01 続き769 前」 |
 
+- **2026-09-08（🏁O-A 全数 triage 完了＝実装キューの母集団が確定・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 2 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝今回も**発見と判定**しかしておらず、live の効果を1件も直していない。
+  📦**在庫**＝🏁**意味照合 未監査 0枚（全11シート）**｜🏁**未 triage findings 0件**（572件を全数確定）｜
+  🔥**実装キュー 433効果**（`grep -h ':: BUG ::' scripts/archive/scratchpad/semantic_audit_*/triaged.txt | wc -l`）｜
+  🔥**機構 worklist 6項目**（`O-287`〜`O-292`）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート（全緑 ✅）**＝golden 3674 PASS ／ smoke 全 OK ／ fuzz 0 ／ census 0 / BASELINE 0 ／
+  census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ lint 0 errors。
+  ⚠**CI が一度赤くなった**（`react-hooks/set-state-in-effect`）＝**私の変更ではなく依存の自動更新**
+  （CI は `npm install` ＋ caret 範囲）。`src/screens/DeckListScreen.tsx` をレンダー中調整へ直して復旧。
+  🏁**根本原因も解消**＝2026-09-08 にユーザー承認のうえ CI を **`npm ci`** へ変更。⚠**Windows では `npm ci` が通る lock を作れない**（optional 依存の依存ツリーを解決しないため `@emnapi/runtime` が入らない）＝**ubuntu の一時ワークフローで生成して artifact で取り込んだ**（[LESSONS.md](./LESSONS.md) §4.2x）。**依存133パッケージが一度だけ上がり**（`eslint 10.3.0→10.10.0` ほか）、**ローカルでも `npm ci` を回して手元と CI を揃えた**（gates 全緑・lint 0 errors / 254 warnings）。⚠**依存を足したら lock を必ず commit する**。
+  🖥**実機＝該当なし**（`src/screens/` の変更は lint 由来の1関数のみ・挙動不変）。
+
 - **2026-09-05（第140〜145バッチ＝6巡）＝🏁`O-187` クローズ ＋ held を 74 → 44枚（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 → 1 / 863 (0.1%)**｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 1 / BASELINE 1**（据置）
