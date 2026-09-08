@@ -3,24 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
-WXDi-D06-016
---- WXDi-D06-016
-  原文: 【自】：このシグニがバニッシュされたとき、このシグニの正面にあったシグニ１体を対象とし、《無》《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたの場にあるシグニが持つ色の種類１つにつき－3000する。,-
-  - [0].action.steps[0].costColors[0] = "無"
-  - [0].action.steps[0].costColors[1] = "無"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "POWER_MODIFY"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.delta = -10000
-  - [0].action.steps[1].then.targetsTriggerSource = true
-  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].selectTarget.owner = "opponent"
-  …（他 22 行）
-
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002
@@ -38,4 +20,10 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## （type増減なし＝値/構造変更） ［1枚］
+WXK07-018
+--- WXK07-018
+  原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
+  + [0].action.steps[0].asDown = true
 

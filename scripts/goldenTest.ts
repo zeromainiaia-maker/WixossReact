@@ -65723,7 +65723,9 @@ test('§5.3 O-60 第53: ゾーン移動・属性 family は live 全ノードが
   };
   for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
   eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
-  ok(nodes >= 21, `走査対象が消えていない（実測 ${nodes} ノード）`);
+  // WXEX1-13-E1 は第234バッチで、公開札を直接扱える正準形 LOOK_PICK_CHAIN へ移行した。
+  // 旧 STUB の payload 走査対象はその1件ぶん減る。
+  ok(nodes >= 20, `走査対象が消えていない（実測 ${nodes} ノード）`);
 });
 
 test('§5.3 O-60 第53: WXDi-P09-007-E1 のルリグデッキ追加はコスト記号を拾わない（旧は《無》《ゲーム１回》も候補）', () => {
@@ -65765,6 +65767,9 @@ test('§5.3 O-60 第53: PLACE_TRAP_FROM_REVEALED の公開枚数は payload（�
         const rec = n as Record<string, unknown>;
         if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED') {
           found = (rec.placeTrapReveal as { revealCount: number } | undefined)?.revealCount;
+        }
+        if (effectId === 'WXEX1-13-E1' && rec.type === 'LOOK_PICK_CHAIN') {
+          found = rec.revealCount as number | undefined;
         }
         Object.values(rec).forEach(visit);
       };
@@ -73395,6 +73400,104 @@ test('第233 WX24-P3-090-E1/WXDi-P13-049-E1 engine: 任意処理のskipは後続
     eq(JSON.stringify(skipped.ownerState.deck), JSON.stringify(deckBefore), `${effectId}: skipならデッキ不変`);
     eq(skipped.otherState.temp_power_mods?.length ?? 0, 0, `${effectId}: skipなら後続のパワー変更なし`);
   }
+}));
+
+// §5.0 第234バッチ：既存語彙だけで閉じる一点物6効果。
+const batch234Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, check] of [
+  ['WX24-D5-05', 'WX24-D5-05-E1', 'power_zero_delay'],
+  ['WXEX1-13', 'WXEX1-13-E1', 'trap_exchange'],
+  ['WXEX1-30', 'WXEX1-30-E3', 'two_color_search'],
+  ['WXEX1-54', 'WXEX1-54-E2', 'both_phases'],
+  ['WXEX1-67', 'WXEX1-67-E1', 'blue_optional'],
+  ['WXEX2-10', 'WXEX2-10-E3', 'opp_hand_replace'],
+] as const) {
+  test(`第234 ${effectId}: 原文の限定を fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const effect = batch234Effect(cardNum, effectId, fresh);
+      const json = JSON.stringify(effect);
+      const side = fresh ? 'fresh' : 'live';
+      if (check === 'power_zero_delay') {
+        ok(json.includes('"type":"INSTALL_DELAYED_TRIGGER"'), `${side}: 即時ミルではなく遅延設置`);
+        ok(json.includes('"timing":"ON_SIGNI_POWER_ZERO_OR_LESS","zeroedOwner":"opponent"'), `${side}: 相手シグニ0以下限定`);
+      } else if (check === 'trap_exchange') {
+        ok(json.includes('"id":"OPTIONAL_ACTIVATE"'), `${side}: トラップ回収から後ろが任意`);
+        ok(json.includes('"id":"TRAP_TO_HAND","trapToHand":{"count":1}'), `${side}: トラップ1つを回収`);
+        ok(json.includes('"type":"LOOK_PICK_CHAIN"'), `${side}: 上2枚から1枚をトラップ、残りを下へ`);
+      } else if (check === 'two_color_search') {
+        ok(json.includes('"color":["白","青"]'), `${side}: 白と青を検索候補にする`);
+        ok(json.includes('"selectionConstraint":{"groups"'), `${side}: 各色1枚ずつ`);
+      } else if (check === 'both_phases') {
+        eq(JSON.stringify(effect.timing), JSON.stringify(['ATTACK_ARTS', 'MAIN']), `${side}: メイン/アタック両方`);
+      } else if (check === 'blue_optional') {
+        ok(json.includes('"id":"OPTIONAL_COST","costColors":["青"]'), `${side}: 青の任意コスト`);
+        ok(json.includes('"type":"PAID_ADDITIONAL_COST"'), `${side}: 支払った場合だけバウンス`);
+        ok(json.includes('"targetsStored":true'), `${side}: 宣言済みの同じ対象を戻す`);
+      } else {
+        ok(json.includes('"type":"HAND_CARD","owner":"opponent","count":1'), `${side}: 相手手札から選ぶ`);
+        ok(json.includes('"levelLteLastProcessed":true'), `${side}: 戻したシグニ以下のレベル`);
+        ok(json.includes('"actingPlayerSelects":true'), `${side}: 効果使用者が相手手札を見る`);
+        ok(json.includes('"owner":"opponent","opponentSelectsZone":true'), `${side}: 相手の場へ相手が配置`);
+      }
+    }
+  });
+}
+
+test('第234 WX24-D5-05-E1 engine: 解決時はミルせず相手シグニ0以下の遅延誘発を設置する', () => withSavedCursor(() => {
+  const effect = batch234Effect('WX24-D5-05', 'WX24-D5-05-E1', true);
+  const ctx = mkCtx({}, {});
+  const before = [...ctx.otherState.deck];
+  const result = run(effect.action, ctx);
+  eq(JSON.stringify(result.otherState.deck), JSON.stringify(before), '解決時に相手デッキを削らない');
+  const delayed = result.ownerState.delayed_triggers ?? [];
+  eq(delayed.length, 1, '遅延誘発を1件設置');
+  eq(delayed[0].trigger.zeroedOwner, 'opponent', '0以下になった対象は相手シグニ限定');
+}));
+
+test('第234 WXEX1-13-E1 engine: 任意処理を断ればトラップもデッキも動かない', () => withSavedCursor(() => {
+  const effect = batch234Effect('WXEX1-13', 'WXEX1-13-E1', true);
+  const trap = findCard(isSigni);
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.signi_traps = [trap, null, null];
+  const deckBefore = [...ctx.ownerState.deck];
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '任意実行を提示');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const skipped = finish(resumeChoose('skip', offered.pending, ctxAfter(offered, ctx)), ctx);
+  eq(JSON.stringify(skipped.ownerState.field.signi_traps), JSON.stringify([trap, null, null]), 'トラップを戻さない');
+  eq(JSON.stringify(skipped.ownerState.deck), JSON.stringify(deckBefore), 'デッキ上2枚も見ない');
+}));
+
+test('第234 WXEX2-10-E3 engine: 相手手札は戻したレベル以下だけを自分が選び、配置先は相手が選ぶ', () => withSavedCursor(() => {
+  const refLv4 = findCard(c => isSigni(c) && Number(c.Level) === 4);
+  const lowLv3 = findCard(c => isSigni(c) && Number(c.Level) === 3);
+  const highLv5 = findCard(c => isSigni(c) && Number(c.Level) === 5);
+  const ctx = mkCtx({}, {});
+  ctx.lastProcessedCards = [refLv4];
+  ctx.otherState.hand = [lowLv3, highLv5];
+  ctx.otherState.field.signi = [null, null, null];
+  const action: EffectAction = {
+    type: 'ADD_TO_FIELD', owner: 'opponent', opponentSelectsZone: true,
+    source: {
+      type: 'HAND_CARD', owner: 'opponent', count: 1,
+      filter: { cardType: 'シグニ', levelLteLastProcessed: true }, actingPlayerSelects: true,
+    },
+  };
+  const offered = executeAction(action, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '相手手札の候補選択を提示');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(offered.pending.candidates), JSON.stringify([lowLv3]), 'Lv5を除外しLv3だけを候補にする');
+  ok(!offered.pending.opponentResponds, '手札から選ぶのは効果使用者');
+  const placing = resumeSelectTarget([lowLv3], offered.pending, ctxAfter(offered, ctx));
+  ok(!placing.done && placing.pending.type === 'SELECT_SIGNI_ZONE', '相手場の配置ゾーン選択へ進む');
+  if (placing.done || placing.pending.type !== 'SELECT_SIGNI_ZONE') return;
+  ok(!!placing.pending.opponentResponds, '配置ゾーンを選ぶのは対戦相手');
 }));
 
 if (listMode) {

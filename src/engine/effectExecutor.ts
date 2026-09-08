@@ -4059,7 +4059,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     }
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
-    cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // 「直前に戻したシグニ以下のレベル」等の動的フィルタは、場・デッキだけでなく
+    // 相手手札から場に出す候補にも同じ resolver を通す。
+    const resolvedHandFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt,
+      ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
+    cands = handCandidates(state, resolvedHandFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_hand' : 'opp_hand';
   } else if (src.type === 'DECK_CARD') {
     // 「デッキの一番上を見る。それが〈filter〉の場合、場に出してもよい」（G141）。
@@ -10704,6 +10708,7 @@ export function resumeSelectTarget(
       cardNums: selected,
       ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
       ...((pending.thenAction as AddToFieldAction).abilitiesRemoved ? { abilitiesRemoved: true } : {}),
+      ...((pending.thenAction as AddToFieldAction).opponentSelectsZone ? { opponentSelectsZone: true } : {}),
       ...(pending.continuation ? { afterAction: pending.continuation } : {}),
     };
     return execPlaceSigniOnField(placeAll, cur);

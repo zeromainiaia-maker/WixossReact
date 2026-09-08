@@ -12885,3 +12885,17 @@ node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
 - 検証（Codex 申告値。Claude の独立実行と一致）：`typecheck` PASS、golden `3709/3709`、smoke `10744/10744`（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム不具合0、census 高シグナル `0 / baseline 0`、lint `0 errors / 254 warnings`。
 - `src/engine/`（`effectExecutor.ts`／`execUtils.ts`）と `src/data/effectParser.ts` を触った回＝`docs/PLAN.md` §2.2 により **`src/screens/` 不触・新しい型/機構も不足**なので実機検証は不要（④まででよい）。
 - 消化記録＝`scripts/archive/scratchpad/semantic_bug_fixed.txt` に16行追記（`docs/PLAN.md` §5.0 実装キューの在庫カウンタから引き算するため）。
+
+## 2026-09-09 — 第234バッチ（前半）：機構不要の一点物30効果のうち6効果＝`.codex-work` が利用上限で停止・Claude が検証済み
+
+**`.codex-work` が30効果中6効果を実装した時点で利用上限に達し停止**（`ERROR: You've hit your usage limit...`／
+`memory/codex-limit-handoff.md` の既定どおり、途中差分を検証してから残りは別途続行する）。
+
+- `WX24-D5-05-E1`＝「対戦相手のシグニ1体のパワーが0以下になったとき」を`INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS,zeroedOwner:'opponent'}`へ修復（アーツ解決時の無条件ミルから遅延誘発化）。
+- `WXEX1-13-E1`＝「自分の【トラップ】1つを対象とし手札に戻してもよい」が場のシグニを誤対象にするBOUNCEだったのを`STUB{OPTIONAL_ACTIVATE}`→`STUB{TRAP_TO_HAND}`→`LOOK_PICK_CHAIN`（公開2枚→1枚をトラップ設置・残りデッキ下）へ修復。
+- `WXEX1-30-E3`＝白1枚青1枚を検索する効果が単色filterで白しか探せなかったのを`selectionConstraint.groups`（色ごとに1枚指定）で修復。
+- `WXEX1-54-E2`＝timingが`MAIN`だけで原文が許可する`ATTACK_ARTS`から起動できなかったのを追加。
+- `WXEX1-67-E1`＝「《青》を支払ってもよい。そうした場合」のコストが丸ごと欠落し無償バウンスだったのを`OPTIONAL_COST`+`PAID_ADDITIONAL_COST`で修復。
+- `WXEX2-10-E3`＝`levelLteLastProcessed`が`ADD_TO_FIELD`の`HAND_CARD`ソースでは`resolveDynamicFilter`を通らず未解決だった配線漏れを追加、`opponentSelectsZone`で配置先を対戦相手選択に修復。
+- **Claude 側の独立検証**＝①受け皿5点（`TRAP_TO_HAND`ハンドラ・`selectionConstraint.groups`消費・`ON_SIGNI_POWER_ZERO_OR_LESS`+`zeroedOwner`トリガー収集・`opponentSelectsZone`・`levelLteLastProcessed`）が全てこのバッチ以前から実在することをコード上で確認 ②`git diff`のeffectId単位差分がちょうど6件 ③`typecheck`PASS ④`npm run gates`独立実行で全緑（lint 254 warnings=直前と同値・census 0/0） ⑤`npm run golden`（フィルタなし全件）`3718/3718`PASS（3709→+9）。
+- 残り24効果（`WX05-028-E1`ほか）は別途 Claude が引き継いで実装する。

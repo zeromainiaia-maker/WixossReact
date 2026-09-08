@@ -26948,6 +26948,118 @@ function repairSemanticBatch233(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第234バッチ：意味照合で確定した一点物30効果のうち、未配送かつ既存語彙で
+ * 正確に表現できる6効果を正史へ戻す。
+ *
+ * いずれも母集団1件で、汎用 regex にすると「そうした場合」の範囲や選択者を異にする
+ * 兄弟文まで巻き込むため effectId で閉じる。
+ */
+function repairSemanticBatch234(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WX24-D5-05-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'DOUBLE_POWER_MINUS', doublePowerMinus: { duration: 'this_turn' } },
+            {
+              type: 'INSTALL_DELAYED_TRIGGER',
+              duration: 'THIS_TURN',
+              trigger: { timing: 'ON_SIGNI_POWER_ZERO_OR_LESS', zeroedOwner: 'opponent' },
+              effect: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 2 } },
+            },
+          ],
+        };
+        break;
+      case 'WXEX1-13-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_ACTIVATE' },
+            { type: 'STUB', id: 'TRAP_TO_HAND', trapToHand: { count: 1 } },
+            {
+              type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 2,
+              stages: [{ pickCount: 1, then: 'trap', pickNoun: 'カード' }],
+              remainder: { location: 'deck', position: 'bottom' },
+            },
+          ],
+        };
+        break;
+      case 'WXEX1-30-E3':
+        effect.action = {
+          type: 'SEARCH',
+          from: { location: 'deck', owner: 'self' },
+          filter: { cardType: 'シグニ', color: ['白', '青'] },
+          maxCount: 2,
+          selectionConstraint: {
+            groups: [
+              { filter: { cardType: 'シグニ', color: '白' }, count: 1 },
+              { filter: { cardType: 'シグニ', color: '青' }, count: 1 },
+            ],
+          },
+          then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+          afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+        };
+        break;
+      case 'WXEX1-54-E2':
+        effect.timing = ['ATTACK_ARTS', 'MAIN'];
+        break;
+      case 'WXEX1-67-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY',
+              selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', levelLteZoneCount: { zone: 'trap', owner: 'self' } },
+              },
+              abortIfNoCandidate: true,
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: {
+                type: 'BOUNCE',
+                target: {
+                  type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                  filter: { cardType: 'シグニ', levelLteZoneCount: { zone: 'trap', owner: 'self' } },
+                },
+                optional: false,
+                targetsStored: true,
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXEX2-10-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'BOUNCE',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+              optional: false,
+            },
+            {
+              type: 'ADD_TO_FIELD', owner: 'opponent', opponentSelectsZone: true,
+              source: {
+                type: 'HAND_CARD', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ', levelLteLastProcessed: true },
+                actingPlayerSelects: true,
+              },
+            },
+          ],
+        };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -27816,6 +27928,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   // 一点物の意味修復は、汎用 rewriter が木を組み直し終えた最後に適用する。
   repairSemanticBatch233(effects);
+  repairSemanticBatch234(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

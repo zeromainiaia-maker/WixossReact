@@ -121,3 +121,9 @@ WX25-P1-101-E2 :: 2026-09-09 :: 第233バッチ＝TRASH→MILL{optional:true}
 WX11-043-E1 :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（live crossOnly:true 確認）
 WX08-010-E1 :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（live が per-count CONDITIONAL に修復済み）
 WX08-010-E1b :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（E1へ統合され独立effectIdとしては存在しない）
+WX24-D5-05-E1 :: 2026-09-09 :: 第234バッチ＝INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS}へ修復
+WXEX1-13-E1 :: 2026-09-09 :: 第234バッチ＝BOUNCE誤爆をSTUB{TRAP_TO_HAND}+LOOK_PICK_CHAINへ修復
+WXEX1-30-E3 :: 2026-09-09 :: 第234バッチ＝SEARCH selectionConstraint.groupsで白青各1枚へ修復
+WXEX1-54-E2 :: 2026-09-09 :: 第234バッチ＝timing MAIN→ATTACK_ARTS,MAINへ修復
+WXEX1-67-E1 :: 2026-09-09 :: 第234バッチ＝OPTIONAL_COST{青}+PAID_ADDITIONAL_COST追加
+WXEX2-10-E3 :: 2026-09-09 :: 第234バッチ＝levelLteLastProcessed解決追加+opponentSelectsZoneで相手手札→相手場を修復
