@@ -3,7 +3,7 @@
 ## 2026-09-08（🏁O-A triage 完了＝572 findings を全数確定・未 triage 0）
 
 **意味照合 round4 の findings 572件をすべて triage し終えた**（未 triage 443 → **0**）。
-**確定＝BUG 433 / FP 67**（FP 3件は根拠の裏が取れず未 triage へ差し戻した＝下記）（433 は effectId のユニーク数）。**これが §5.0 実装キューの母集団になる。**
+**確定＝BUG 433 / FP 70**（FP は全件、根拠の engine 行を自分で開いて裏取り済み＝下記）（433 は effectId のユニーク数）。**これが §5.0 実装キューの母集団になる。**
 🔴**追跡先は各ラウンド dir の `triaged.txt`**（`semanticAuditPool.mjs` は残 0 になったのでもう在庫を映さない）。
 
 ### 🔴 この工程で最も高くついた教訓＝**任意コストの3分岐を取り違えると判定が反転する**
@@ -51,15 +51,19 @@
 | `effectEngine.ts:6398` | `srcIsArts = アーツ\|ピース\|キー`＝`from:['アーツ']` はキーの効果も含む |
 | `execUtils.ts:1486-1490` | `trapIconEffectOf` は対象カード自身の `TRAP_ICON` を先に返す |
 
-#### 🔴 1箇所は確認できず、FP 3件を未 triage へ戻した
+#### 🔑 1箇所は一度差し戻してから確定した（`triggerCollect.ts:5080` の `collectTurnTriggers`）
 
-`triggerCollect.ts:5080`（`collectTurnTriggers`）を根拠にした
-**`WXDi-P12-057-E1` / `WX24-P4-044-E3` / `WXK04-074-E2`**（いずれも「ターン終了時誘発に自ターン限定が無い」型）。
-🔴**呼び出し側は `collectTurnTriggers('ON_TURN_END', my, op)`（`BattleScreen.tsx:4031`）で、
-`my` は `isHost ? host_state : guest_state`＝ローカルプレイヤーの state であってターンプレイヤーの state ではない**（同 `:2664`）。
-収集関数側にもターン所有者の判定は見当たらなかった。⇒ **codex の「ターンプレイヤーの scope:self だけ収集する」という根拠は裏が取れない。**
-**自分で決めた非対称ルール（engine の行で証明できないなら FP で閉じない）に従い、3件を未 triage へ戻した**（残 3件）。
-⚠**この型は実機で「相手ターン終了時に発火するか」を見るのが最短**（§5.1 の `V-nn` 向き）。
+**`WXDi-P12-057-E1` / `WX24-P4-044-E3` / `WXK04-074-E2`**（「ターン終了時誘発に自ターン限定が無い」型）。
+最初に見た呼び出し側 `collectTurnTriggers('ON_TURN_END', my, op)`（`BattleScreen.tsx:4031`）の `my` が
+`isHost ? host_state : guest_state`（同 `:2664`）＝**ローカルプレイヤー**に見えたため、
+**証明できないものは FP で閉じない**という自分のルールに従って一度 3件を未 triage へ戻した。
+🔑**その後 `doPhaseAdvance`（同 `:3930`）の中である事と、同 `:2901` の明記された不変条件
+「⚠myState はターンプレイヤー（=user.id=meId）、opState は非ターンプレイヤーである前提（doPhaseAdvance）」**
+を見つけて確定＝**FP で正しい**（収集側も `triggerScope` 既定 `self` を `myState` の場からしか拾わない）。
+
+🔑**この往復から得た運用**＝**呼び出し側の変数名（`my`/`op`）だけで所有者を判断しない。
+その関数が「誰のターンに呼ばれるか」を決めているのは呼び出し元の早期 return と不変条件コメントであり、
+engine 側の関数シグネチャには現れない。**
 
 ### 🔑 系統（1 finding が複数効果に化けたもの＝実装の取り掛かり）
 
