@@ -1,0 +1,6 @@
+# <effectId> :: BUG|FP :: 一言
+# 2026-09-08 Opus triage（b54）
+WXK09-TK-01A-E1 :: FP :: 選択肢②③とも SEQUENCE[STUB{OPTIONAL_COST}, GRANT_EFFECT/…] で、STUB の直後が CONDITIONAL ではない＝Pattern ⑤（effectExecutor.ts:6163-6192）が適用され、残りステップは pay 側 cont5 だけで実行される（skip は空 SEQUENCE）。未払いでは付与されない
+WXDi-P16-TK01-E1 :: BUG :: CHOOSE に同じ選択肢の重複選択を許可する指定が無く、原文の「重複して選べる」が表現されていない
+WX25-P1-TK3-E1 :: BUG :: 数字の宣言と相手手札を見る処理しかなく、「宣言した数字と同じレベルを持つシグニをすべて捨てさせる」主要処理に対応するアクション・payload が無い
+WXDi-P13-004B-E3 :: BUG :: E3＝リミット＋2 の期限が現ターン終了時（原文は次のあなたのエナフェイズ終了時まで）で、さらに「このシグニが場にあるかぎり」の継続条件も欠けている

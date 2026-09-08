@@ -74,3 +74,16 @@ WXDi-P16-053-E1 :: BUG :: 原文「対戦相手のトラッシュにあるいず
 WXDi-P16-074-E2 :: BUG :: 条件が FIELD_HAS_GATE＝自分の own_gate_zones が1件以上あるかだけを見る（execUtils.ts:2886）＝原文の「同じシグニゾーンに【ゲート】がある」というゾーン一致を判定していない
 WXDi-CP01-006-E2 :: BUG :: ①E2 の起動コスト「コラボライバー1人とのコラボ」が JSON に無く無色1エナだけで起動できる（signiActivateGate.ts:180-247 にコラボ検査が無い） ②E3 の付与能力が LIFE_CRASH だけで、「対戦相手が《無》4を支払うかガードアイコン持ちを1枚捨てればダメージを回避できる」処理が無い
 WXDi-CP01-006-E3 :: BUG :: ①E2 の起動コスト「コラボライバー1人とのコラボ」が JSON に無く無色1エナだけで起動できる（signiActivateGate.ts:180-247 にコラボ検査が無い） ②E3 の付与能力が LIFE_CRASH だけで、「対戦相手が《無》4を支払うかガードアイコン持ちを1枚捨てればダメージを回避できる」処理が無い
+# 2026-09-08 Opus triage（b42）
+WXDi-CP01-007-E2 :: BUG :: E2 の起動コスト「コラボライバー1人とのコラボ」が JSON に無い（cost なし）＝コラボ実行機構は STUB{INTERNAL_DO_COLLAB} にしかなく（execStubPart3.ts:1311-1314 が通常効果からの生成元が無いと明記）、この効果はそこへ到達しない
+WXDi-CP01-008-E2 :: BUG :: 同上＝E2 の起動コストのコラボが無い
+WXDi-CP01-029-E2 :: BUG :: E2＝相手シグニへの -12000 だけで「このシグニ自身のパワーも -12000 する」処理が無い（POWER_MODIFY は target.owner の陣営からしか候補を作らない＝effectExecutor.ts:2134-2183）
+WXDi-CP01-033-E1 :: BUG :: 「デッキ下からトラッシュに置いたカードが＜バーチャル＞のシグニである場合」の条件が無く、どのカードでも +5000 される。DEFERRED_REPEAT_ON_REVEALED_NAME には専用ハンドラも無く execStub.ts:20 のログだけの既定処理に落ちる
+WXDi-CP01-040-E1 :: BUG :: timing が ON_ATTACK_SIGNI＝原文「あなたのルリグ1体がアタックしたとき」。味方ルリグのアタック収集（triggerCollect.ts:870-905）は ON_ATTACK_LRIG しか受理しないので、この効果はルリグのアタックで発動しない
+WXDi-CP02-009-E1 :: BUG :: 「このターンにあなたのエナゾーンにカードが2枚以上置かれていた場合」の発動条件が effect.condition に無い（triggerCollect.ts:5091-5094 は condition があるときだけ止める）
+# 2026-09-08 Opus triage（b43）
+WXDi-CP02-059-E1 :: BUG :: 原文「次のルリグアタックステップ開始時に」の遅延が無く、任意コスト直後の CONDITIONAL で即クラッシュする（遅延の受け皿は INSTALL_DELAYED_TRIGGER＝effectExecutor.ts:2947-2978 ／ triggerCollect.ts:5328）
+WXDi-CP02-078-E1-GRANT :: BUG :: 付与能力（-E1-GRANT）が通常の OPTIONAL_COST なので対象を先に確定する経路（optionalCostTarget を持つ TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST＝effectExecutor.ts:5666-5670）に乗らず、支払い後に対象を選ぶ＝対象不在でもコストを払える
+WXDi-CP02-080-E1 :: FP :: 条件付き任意コストの包み形（effectExecutor.ts:5354-5372）が ALL_FIELD_SIGNI_MATCH を先に評価し、不成立なら後続本体ごとスキップする。成立時も Pattern ⑤ が未払い時に残りを捨てる＝条件・支払いの両方でゲートされている
+WXDi-CP02-086-E1 :: BUG :: 「このターンにコストか効果によってカードが1枚以上あなたのエナゾーンに置かれていた場合」の発動条件が無い
+WXDi-CP02-095-E1 :: BUG :: SIGNI_REPOSITION の配置対象と後続 POWER_MODIFY の対象を同一にする targetsStored が無く（effectExecutor.ts:2197,2284）、別の相手シグニを選べる
