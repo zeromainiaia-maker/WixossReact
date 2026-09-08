@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -111,13 +111,19 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
   };
 
   // 親からdecksが更新されたら同期（新規作成・削除後）
-  useEffect(() => {
+  // ⚠**レンダー中に調整する形**にしてある（`useEffect` + `setLocalDecks` は
+  //   eslint `react-hooks/set-state-in-effect` の error＝カスケードレンダーになる）。
+  //   同期するのは**集合が変わったときだけ**＝並べ替えだけの親更新でローカル順序を潰さない、という
+  //   元の意図はそのまま（`added || removed` の判定は元の実装と同一）。
+  const [syncedDecks, setSyncedDecks] = useState<Deck[]>(decks);
+  if (syncedDecks !== decks) {
+    setSyncedDecks(decks);
     const localIds = new Set(localDecks.map(d => d.id));
     const parentIds = new Set(decks.map(d => d.id));
     const added = decks.some(d => !localIds.has(d.id));
     const removed = localDecks.some(d => !parentIds.has(d.id));
     if (added || removed) setLocalDecks(decks);
-  }, [decks]);
+  }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', color: '#fff', padding: '24px' }}>

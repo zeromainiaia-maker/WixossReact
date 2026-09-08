@@ -1,0 +1,1 @@
+# <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）

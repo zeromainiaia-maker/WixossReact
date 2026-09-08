@@ -40,3 +40,5 @@ WD19-018-E1 :: BUG :: ①②とも「バニッシュする。そうした場合�
 WD20-006-E1 :: BUG :: 「エナゾーンにあるカード2枚を対象とし、それらをトラッシュに置く」が丸ごと欠落（相手シグニ2体の TRASH しかない）
 WD20-008-E1 :: BUG :: ①「各プレイヤーは」なのに ENERGY_CHARGE_FROM_DECK が owner:self だけ＝相手側が落ちている ②「3枚まで」なのに count:3 固定
 WD22-007-G-E1 :: BUG :: 原文のコストは《黒》支払い＋そのシグニを場からトラッシュの2つだが、STUB{OPTIONAL_COST} に costColors が無く costText だけ＝engine は costText をコストとして読まない（effectExecutor.ts:6016 の特例1件のみ）＝無償でバニッシュできる
+# 2026-09-08 Opus triage（b20・台帳ラウンドへ誤記したぶんの付け替え）
+WDK01-007-E1 :: BUG :: ①原文「代わりに」なのに GRANT_KEYWORD が2本の独立ステップで加算になっている ②2本目の target が {owner:any, level>=3} ＝1本目のドライブ状態シグニに紐づかず相手のシグニも選べる

@@ -1,0 +1,9 @@
+# <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
+# 2026-09-08 Opus triage（b20）
+WDK05-R11-E1 :: BUG :: BANISH の filter に「トラッシュに置かれたシグニのレベル合計と同じレベル」が無い。⚠同効果のもう1件（支払わなくてもバニッシュされる）は FP＝CONDITIONAL が STUB の直後なので Pattern ④ ではなく Pattern ⑤ が効き BANISH まで pay 側に入る
+WDK07-E08-E1 :: BUG :: 原文「それの効果を打ち消し、それをトラッシュから対戦相手の手札に戻す」の「それ」＝打ち消したスペルだが TRANSFER_TO_HAND の source が {TRASH_CARD, opponent, filter:スペル}＝相手トラッシュの任意スペルになっている
+WDK09-011-E1 :: BUG :: 原文「それが宣言した数字と同じレベルのシグニの場合、カードを1枚引く」の条件が無く DRAW が無条件
+WDK09-017-E1 :: BUG :: ①「対戦相手はそれをデッキの一番下に置き」の処理が無い ②その後の DRAW が owner:self＝原文では対戦相手が引く ③「カードを1枚選んだ場合」のゲートも無い
+WDK10-009-E2 :: FP :: 「次のあなたのターンまで」は nextTurnOwner:opponent ＋ appliesThisTurn:true が正しい表現＝自分の現ターンと相手の次ターンに適用され、自分の次ターン開始で切れる（resolvedNextTurnOwner＝effectExecutor.ts:54-62）。self にすると自分の次ターンに適用されて逆に伸びる
+# 2026-09-08 Opus triage（b20・台帳ラウンドへ誤記したぶんの付け替え）
+WDK08-Y01-E1 :: FP :: TRASHED_DISTINCT_LEVELS_GTE は名前に反して ctx.lastProcessedCards を読む（execUtils.ts:3327-3335）。直前ステップが REVEAL なので判定対象は「公開した4枚」＝原文どおり
