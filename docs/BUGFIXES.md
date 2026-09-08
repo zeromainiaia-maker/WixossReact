@@ -1,5 +1,183 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（§5.3 索引 G＝`O-273`〜`O-286` の11項目を全消化）＝🏁索引 G 残0
+
+**作業単位**＝ユーザー指示「索引 G. 新規分離（母集団 1〜2効果）をすべて消化する」。
+**11項目のうち 9件を実装・1件を明示 defer・1件は登録票が stale で別の真バグを回収**した。
+`npm run gates` 全緑（golden **3659 → 3674 PASS / 0 FAIL**）、実機 **5シナリオ全 PASS ＋ 反転確認2本**。
+
+### 🔴 このバッチの一番の教訓＝**登録票の「新機構が要る」は 11件中 3件が誤りだった**
+
+| 項目 | 登録票の見立て | 実測 |
+|---|---|---|
+| `O-273` | 「`upToCount` と 0〜N の選択UIが要る／`src/screens/` を触る＝実機必須」 | ❌ **受け皿は既に在った**（同型 `WX07-045-E1` の `STUB{OPTIONAL_COST, charmTrashVariable}`＝engine 側が 0..N の CHOOSE を出す）＝`src/screens/` は1バイトも触らず終了 |
+| `O-274` | 「live 1効果（`WX06-014-E2`）」 | ❌ **過小**。実体は **live 28効果**の engine バグ（下記） |
+| `O-276` | 「`substituteCost.powerReduction` は候補を1件も返さない＝この効果はまるごと恒久 no-op」 | ❌ **stale**。実装は**別軸に最初から在り**（`collectLeaveSubstituteOptions` の `powerReduction` 軸）、真の穴は**別の1行**だった（下記） |
+| `O-286` | 「記録側が丸ごと無い」 | ⚠**半分 stale**（`last_cost_trashed_cards` は在った）＝足りなかったのは**色**の記録と読み手 |
+
+🔑**`O-276` の読み間違いの構造**＝登録票が名指しした `collectBanishSubstitutes`（**バトルのバニッシュ経路**）だけを
+読んで「未対応」と結論していた。原文は「**対戦相手の効果によって**場を離れる場合」＝**バトルでは発動しない**ので、
+あの collector に無いのが**正しい**。⇒ **登録票が名指しした関数だけを読んで結論しない**（同じ機構の別入口を必ず数える）。
+
+---
+
+### `O-273` — 【チャーム】を「好きな数」トラッシュする（live 1効果・速いレーン）
+
+**真因**＝`WX07-021-E1` の live が `REMOVE_CHARM{count:'ALL'}`＝原文「**対象の好きな数の**あなたの場にある
+【チャーム】をトラッシュに置く」が**全チャーム強制トラッシュ**になり、後続のパワー減少も常に最大だった。
+**修正**＝`manualEffects.ts` に `STUB{OPTIONAL_COST, charmTrashVariable:{min:0}}` ＋
+`POWER_MODIFY_PER_CHARM{sourceLocation:'trashed_this_effect'}` で手書き（同型 `WX07-045-E1` と同じ綴り）。
+**影響**＝1効果。**検証**＝`golden -- --only "O-273"`（0/2/3枚の3点で実トラッシュ枚数とパワー減少が一致）。
+**実機**＝不要（`src/data/` のみ）。
+
+### `O-274` — トラッシュから固定N枚をデッキへ戻す効果が**先頭N枚を無言で確定**していた（🔴 live 28効果）
+
+**真因**＝`execTrash` ではなく `execTransferToDeck` の `TRASH_CARD` 分岐末尾で `cands.slice(0, N)`。
+`optional` も `upToCount` も `selectionConstraint` も無い**「N枚を対象とし」の族が全部ここへ落ち**、
+①**どのN枚を戻すか** ②**積む順番**（原文「好きな順番で」）の両方がプレイヤーから奪われていた。
+**修正**＝候補が N より多いときだけ `selectOrInteract` を通す（**N枚以下なら従来どおり自動**＝無意味なモーダルを増やさない）。
+`resumeSelectTarget` は `selected` の順に per-card 適用するので、**選んだ順＝デッキに積まれる順**になる
+（`orderChosenBy` を増やす必要は無かった）。
+**影響**＝**live 28効果**（`WXK09-091-E1`「この方法で《バズイール》と《ブロト》を加えた場合」のように
+**どれを戻したかを後続が読む**効果も含む）。
+**検証**＝`golden`「§5.3 O-274」＋実機 `V-182`（下記）。**反転確認**＝engine を旧形へ戻すと `v182TrashPickOffered` が赤。
+
+### `O-275` — ライフクラッシュの「発生原因」の軸（live 1効果）
+
+**真因**＝`LIFE_CRASHED_THIS_TURN` が**原因を区別しない総数**しか読めず、原文
+「このターンにあなたのライフクロスが**対戦相手の効果によって**クラッシュされていた場合」（`WX11-021-E1`②）が
+**アタックのダメージでも自分の効果でも成立**していた。
+**修正**＝`PlayerState.life_crashed_by_opp_effect_this_turn` を新設し、**`execLifeCrash{owner:'opponent'}` だけ**が
+加算（＝被害側から見て「相手の効果」）。条件に `byOpponentEffect` を足し、parser の**除外規則を実装へ置き換えた**。
+⚠**`WX11-021-E1` は live 限定 MANUAL スタンプで凍っていた**ので解凍した（`BASELINE_ORPHAN_MANUAL` 7→6）。
+その刻印は stale＝`fixLrigColorFilters.mjs` が差し込んでいた【チェイン】の `COST_REDUCTION` を
+**parser 自身が出すようになっていた**（凍らせたままだと `byOpponentEffect` が live へ永久に届かない）。
+**影響**＝1効果。**検証**＝`golden`「§5.3 O-275」（書き手・読み手・turn-scoped 失効の3点）。
+
+### `O-276` — 「自分の他の＜水獣＞が相手の効果で場を離れる」身代わりが**同名2体目で無言に失敗**していた
+
+**真因**＝`findEffectLeavePowerReductionSubstitute` の `cardMap.get(victimNum)`＝**instance id を base 化していない**。
+場に同名シグニが並ぶ（`WX01-043#2`）と `victimCard` が `undefined` になり、`matchesFilter` が false へ倒れて
+**身代わりが1件も出ない**。同族の他の victim 参照（`applyEffectLeaveLrigAbilitySubstitute` ／
+`collectBanishSubstitutes`）は**既に base 化されており、ここだけが漏れていた**。
+**修正**＝`getCardNum()` を通す1行。あわせて `collectBanishSubstitutes` の
+「powerReduction は…未対応」という**未実装の意味に読める誤記コメント**を、
+**「バトル経路には足してはいけない／実装は別軸に在る」**と書き直した。
+**影響**＝1効果（ただし**実戦では同名が並ぶ盤面が普通**なので体感は大きい）。**検証**＝`golden`「§5.3 O-276」。
+
+### `O-277` — 代替コストが「エナ1組」を丸ごと置き換える形（**明示 defer**）
+
+`WX09-032-E1`「あなたが《緑》《緑》《緑》か《緑》《緑》を支払う際、代わりにエナから《オサキ》1枚を…」＝
+**1枚で《緑》2〜3個ぶん**を賄う。既存の代替コスト機構は**エナ1枚の色オーバーライド**なので表せず、
+支払いUI（`costs.ts` ＋ 4モーダル）へ「1枚がN個ぶん」の軸を通す必要がある＝**live 1効果のために `src/screens/` を貫く**。
+⇒ PLAN §5.3 の規約どおり **`DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY` へ改名**した。
+🔴**旧 live は `STUB{OPTIONAL_COST, costText}` の生文字列**＝engine は読まない完全な無言 no-op で、
+しかも `OPTIONAL_COST` は SEQUENCE 内では実装済みなので **`census:stubs` A群にも出ず計器から消えていた**。
+⚠**単発の《色》を置き換える族5枚は実装済み**（`WX08-042` / `WX21-044` / `SP07-011` / `WDK16-01T` / `WXK10-015`）＝
+defer 規則は**《色》が2つ以上連続する組**だけに当てて巻き込まない（golden で6枚とも据置を assert）。
+
+### `O-278` — 無料グロウの範囲（「完全に同一のルリグタイプ」）（live 2効果）
+
+**真因**＝`free_grow_next_turn` / `free_grow_this_turn` が**真偽値1つ**で、原文の限定がどこにも載らず
+**次の自分ターンの全グロウが無料**（`WX03-024-BURST` / `WX03-027-BURST`）。
+さらに `turnScopedState.ts` の移し替えが `? true :` で、**範囲を書けたとしても1行で潰れる**形だった。
+**修正**＝両フィールドを `boolean | {sameLrigTypeExact:true}` に広げ、
+①parser が原文から範囲を決めて payload（`sameLrigTypeExact`）に載せる ②`execStubPart2` が値ごと予約する
+③`turnScopedState` が**値ごと**移す ④`GrowModal` は**候補ごと**に `freeGrowAppliesTo()` で判定する。
+🔑「完全に同一」＝**集合の一致**（`lrigClassesCompatible` の「1つでも重なる」より狭い）。
+**影響**＝2効果。**検証**＝`golden`「§5.3 O-278」＋実機 `V-183`（下記）。**実機必須**（`src/screens/` を触った）。
+
+### `O-280` — legacy catch-all `STUB{TARGET_AND_DISCARD_HAND}` の残り6件を**1件ずつ**閉じた（🏁残0）
+
+🔴**catch-all の実体**（`effectExecutor.ts:5365`）＝「**相手シグニ1体を選んでバニッシュし、手札を1枚捨てる**」固定。
+対象の絞り込みも、捨てる札の絞り込みも、順序も、枚数も原文と無関係＝当たったカードは**別の効果に化ける**。
+
+| 効果 | 旧 live の実挙動 | 直し方 |
+|---|---|---|
+| `PR-195-E3` | 相手シグニ1体をバニッシュ＋**自分**が手札1枚捨て | `TRASH{HAND_CARD, owner:'opponent'}` ＋ `countFromZone{field, isFrozen}` |
+| `WX25-CP1-092-E1` | 対象1体・エナ支払いなし・手札1枚捨て | `energyTrashCountFromTargetCount`（**対象の体数**で払う）を新設 |
+| `WXDi-P00-018-E1` | **後半の1文が丸ごと catch-all** | `DRAW_DISCARD_COUNT_PLUS_N` に `drawDiscardOwner` を新設（＋`Math.max(0, …)`） |
+| `WXK05-003-E1`④ | **レベル4を持たなくてもバニッシュできた**（捨てる前にバニッシュする順序） | 対象固定 → `TRASH{level:4}` → `BANISH{conditional:true}` |
+| `WXEX1-09-E2` | `TRADE_BANISH_SELF_SIGNI`＝**丸ごと別の効果** | `EffectTarget.extraZones` を `TRASH` の**列挙と適用の両方**へ配線＋レベル1〜5の5ステップ展開 |
+| `WX25-P2-022-E2` | 相手シグニ**2体**バニッシュ＋自分が手札**2枚**捨て | `DEFERRED_OPP_SPLIT_HAND_TWO_PILES`（秘匿2束分割は新 interaction が要る） |
+
+🔴**副産物の engine バグ**＝`countFromZone` は `matchesFilter`（**CardData 単体**）でしか絞れないので、
+`isFrozen` / `isDown` / `crossState` のような**ゾーン状態の語彙を黙って素通り**していた。
+`ZONE_STATE_FILTER_KEYS` を定義し、その語彙が入っているときだけ `fieldCandidates` へ委ねる
+（**入っていないときは1バイトも経路を変えない**）。これで `WXEX2-02-E1`（「対戦相手の場にある**凍結状態の**シグニ
+１体につき《無×1》増える」）の**過大請求も同時に直った**。
+
+### `O-283` — 「ルリグの能力」をコストなしで使う（live 2効果）
+
+**真因**＝`STUB{PLAY_FREE}` は「**カード**を使う」経路で、対象は `lastProcessedCards[0] ?? sourceCardNum` を
+`parseCardEffects` して**最初の ACTIVATED/【出】**を実行する。ルリグの能力は「カード」ではないので、
+`WX22-014-E3` は**同じカードの E1（【常】）**を、`WX21-Re04-E1` は**そのアーツ自身**を撃とうとしていた。
+**修正**＝`STUB{USE_OWN_LRIG_ABILITY_FREE}` を新設（**エクシード能力だけ**を列挙／`maxExceed` で値の上限／
+`lrigAbilityScope:'all_lrigs'` でセンター＋アシスト／複数なら選ばせる／**能力の持ち主を `sourceCardNum` に据える**）。
+⚠**実装中に golden が配列 aliasing を捕まえた**＝`pickedUOLA = candsUOLA` のまま `candsUOLA.length = 0` して
+**options が空の CHOOSE**（＝押せないソフトロック）になっていた。コピーを取って解消。
+
+### `O-284` — 「自身以外の効果を受けない」＝**自分側の効果も遮断する**耐性（live 1効果）
+
+**真因**＝2つ。①live が `sourceOwner:'opponent'`＝**原文の半分**しか書いていない
+②`collectEffectImmuneSigni` の呼び出しが `BattleScreen.tsx` に**1本しか無く**、
+「対戦相手の効果が自分側を侵すか」だけを計算する**片側専用**だった（`sourceOwner:'any'` と書いても効かない）。
+**修正**＝①`GrantProtectionAction.exceptSelfSource`（**このカード自身の能力だけ**を例外にする identity 限定。
+`exceptSource` は型限定なので**アシストルリグまで通ってしまう**）②`ExecCtx.ownEffectImmuneNums` を新設し、
+`collectEffectImmuneSigni` を**自分側視点でも**呼ぶ対を作った（先例＝`ownBanishProtectedNums`）。
+engine 側の消費地点（POWER_MODIFY のマイナス／FREEZE／DOWN／バニッシュ保護）も対で足した。
+⚠**コスト経路（`payLrigDownCost`）は遮断しない**＝コストは「効果」ではない。
+
+### `O-285` — `STUB{ACCE_FROM_HAND}` catch-all が飲んでいた別2形（live 2効果）
+
+**真因**＝あの catch-all はアクセ札を **`ctx.sourceCardNum`（効果元自身）に固定**する。原文が
+「**手札から**〜1枚を」「**ルリグデッキから**〜1枚を」と**別のカードを選ぶ**形だと、効果元は候補ではないので
+**恒久 no-op**（無言）。
+**修正**＝`WXK05-026-E1` は既存の `AttachAcceAction.fromHand`（2段選択）へ、
+`WXDi-P09-007-E2` は **`fromLrigDeck` を新設**（列挙 `execAttachAcce` と除去 `applyDirectAction` を**対で**足す＝
+片方だけだと「選ばせるのにカードが複製される」）。逆翻訳の発生元ラベルも `ルリグデッキ` を足した
+（既定 else が `エナゾーン` なので、**足さないと嘘の逆翻訳**になる）。
+
+### `O-286` — 追加コストで「実際に払った色」を記録して分岐させる（live 1効果）
+
+**真因**＝`WX21-Re18-E1` の追加コストが `STUB{OPTIONAL_COST, costText}` の**生文字列**で、
+**5つの分岐が全部無条件に順次実行**されていた（手札戻し＋バニッシュ×2＋ドロー捨て＋トラッシュ回収が
+**コスト0で毎回全部**走る）。しかも赤/緑の色指定が**対象シグニ側のフィルタへ誤着**していた。
+**修正**＝3つ。①`PlayerState.last_cost_energy_trash_colors`（`execTrash{asCost}` の**一括経路と1枚ずつ経路の両方**で書く）
+②条件 `COST_ENERGY_TRASHED_COLOR`（**記録が無ければ false** の fail-closed）
+③`energyTrash.atLeast`（「2枚以上」＝上限なし・下限は `SelectionConstraint.minCount`）を engine の任意コスト経路でも払えるようにした。
+⚠**`PAID_COLORS_INCLUDE_ALL` は使えない**＝あれは**基本コスト**で払ったエナの色を読む別の軸。
+
+---
+
+### 実機（§2.2＝`src/screens/` を触ったので同日返済）
+
+| シナリオ | 結果 |
+|---|---|
+| `v182TrashPickOffered`（`O-274`） | ✅ 候補=`[WX02-067, WX04-051]`（**Lv4黒だけ**／Lv1白の `WD01-013` は候補外）→ 選んだ札がデッキの一番下へ |
+| `v182TrashAutoWhenExact`（対照） | ✅ 候補がちょうど1枚ならモーダルを出さずに確定（無意味なモーダルを増やしていない） |
+| `v183FreeGrowUnrestricted`（`O-278`） | ✅ 範囲なしの権利は従来どおり**エナ0枚**でグロウできる（common path の退化検出） |
+| `v183FreeGrowSameLrigTypeExact` | ✅ 範囲つき＋**同一タイプ**（タマ→タマ）は無料 |
+| `v183FreeGrowScopeBlocksPartialType`（対照） | ✅ **重なるだけ**（リメンバ/ピルルク→ピルルク）は無料にならない＝候補が押せない |
+
+🔴**反転確認（軸ごとに1本）**＝`execTransferToDeck` の分岐を殺すと `v182TrashPickOffered` が
+「🔴選択モーダルが1度も出ないまま先頭が自動確定した」で赤／`freeGrowAppliesTo` の範囲判定を殺すと
+`v183FreeGrowScopeBlocksPartialType` が「🔴対照が崩れた」で赤。**どちらも FAIL 文言が原因を指している**（§4.4-3b）。
+
+⚠**この巡で踏んだ運用ミス**＝反転確認の後始末に `git checkout src/screens/battle/growLogic.ts` を使ったら、
+**同じファイルに書いた未コミットの `freeGrowAppliesTo` ごと消えた**（`V-183` は通ったままなので気付きにくい）。
+⇒ **反転確認の復元は「入れた1行だけを戻す」**（ファイル単位の `git checkout` は**未コミットの本体も巻き込む**）。
+
+### ゲート
+
+`npm run gates` 全緑＝golden **3674 PASS / 0 FAIL**（3659 → +15本）、smoke 10745 全 OK、fuzz 全0、
+census 高シグナル 0 / BASELINE 0、`census:stubs` A群🔴 0・C群 0、`census:enginetext` A🔴 0行、
+`census:costtext` A🔴 0規則、lint 0 errors。
+⚠**較正したラチェット3本**＝turn-scoped 54→55（`life_crashed_by_opp_effect_this_turn`）／
+`Condition` 型数 148→149（`COST_ENERGY_TRASHED_COLOR`）／`BASELINE_ORPHAN_MANUAL` 7→6（`WX11-021-E1` を解凍）。
+⚠**トリップワイヤ3本を「残0」へ更新**＝`B9_TRADE_STUB_ALLOWED`／`LEGACY_TARGET_STUB_ALLOWED`／
+`WX25-CP1-092-E1` の据置 assert（**どれも「壊れている状態」を許容リストに固定していた**ので、直したら赤くなる設計＝正しく赤くなった）。
+
 ## 2026-09-08（§5.1 実機返済・`V-180` / `V-181`）＝5シナリオを常設して同日返済
 
 第227・第228バッチで `src/screens/` を触ったので、§2.2 のとおり**同じ日のうちに実機まで回した**。

@@ -8,6 +8,282 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-285`（2026-09-08）＝`STUB{ACCE_FROM_HAND}` catch-all が飲み込んでいた別2形
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔴**catch-all の実体**（`execStubPart3.ts:3560`）＝アクセ札を **`ctx.sourceCardNum`（効果元自身）に固定**し、
+  //   それが手札／エナに在るときだけ動く。原文が「**手札から**〜1枚を」「**ルリグデッキから**〜1枚を」と
+  //   **別のカードを選ぶ**形だと、効果元は候補ではないので**恒久 no-op** になる（無言）。
+  // 🔑受け皿は `AttachAcceAction` の2段選択（段1＝アクセ札／段2＝ホスト）＝`fromHand` は既存、
+  //   `fromLrigDeck` を同バッチで新設した（列挙 `execAttachAcce` と除去 `applyDirectAction` の対で足す）。
+
+  // ── WXDi-P09-007（コードイート　ドーナツ）E2
+  //   原文＝【起】《無》：あなたのシグニ１体を対象とし、あなたのルリグデッキからクラフトであるシグニ１枚を
+  //         それの【アクセ】にする。
+  // ⚠E1 がルリグデッキへ足すクラフト3種（`ADD_CARD_TO_LRIG_DECK`）を、この E2 が拾って付ける対になっている。
+  // ⚠「クラフトである」＝ルリグデッキに居るシグニは事実上クラフトだけなので、`signiFilter` は cardType のみ。
+  "WXDi-P09-007": [
+    {"effectId":"WXDi-P09-007-E2","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"無","count":1}]},
+     "action":{"type":"ATTACH_ACCE","targetSigniOwner":"self","sourceOwner":"self","fromLrigDeck":true,
+       "signiFilter":{"cardType":"シグニ"},"targetFilter":{"cardType":"シグニ"}},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXK05-026（コードイート　ハイパーオムライス）E1
+  //   原文＝【出】：あなたの＜調理＞のシグニ１体を対象とし、あなたの手札から＜調理＞のシグニ１枚を
+  //         それの【アクセ】にする。
+  // ⚠**ホストもアクセ札も＜調理＞**（`targetFilter` と `signiFilter` の両方に載せる）＝
+  //   片方だけだと原文より広い／狭い別の効果になる。
+  "WXK05-026": [
+    {"effectId":"WXK05-026-E1","effectType":"AUTO","timing":["ON_PLAY"],
+     "action":{"type":"ATTACH_ACCE","targetSigniOwner":"self","sourceOwner":"self","fromHand":true,
+       "signiFilter":{"cardType":"シグニ","cardClass":"調理"},"targetFilter":{"cardType":"シグニ","cardClass":"調理"}},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-283`（2026-09-08）＝「ルリグの能力」をコストなしで使う（カードを使う経路とは別）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔴**旧 live はどちらも `STUB{PLAY_FREE}`**＝あれは「**カード**を使う」経路で、対象は
+  //   `lastProcessedCards[0]`（無ければ**効果元自身**）を `parseCardEffects` して
+  //   **最初の ACTIVATED/【出】**を実行する。ルリグの能力は「カード」ではないので、
+  //   `WX22-014-E3` は**同じカードの E1（【常】のリミット上昇）**を、`WX21-Re04-E1` は
+  //   **そのアーツ自身**を撃とうとして噛み合わない＝丸ごと別の効果だった。
+  // 🔑同バッチで足した `STUB{USE_OWN_LRIG_ABILITY_FREE}` が受け皿＝**エクシード能力だけ**を列挙し、
+  //   複数あれば選ばせ、**能力の持ち主を `sourceCardNum` に据えて**コストなしで実行する。
+
+  // ── WX21-Re04（サーバント　Ｑ２）E1
+  //   原文＝対戦相手のターンの間、このカードの使用コストは《無》《無》《無》になる。
+  //         あなたのルリグのエクシードの値が３以下の能力１つをコストを支払わずに使用する。（使用タイミングを無視する）
+  // ⚠「**あなたのルリグ**の」＝センター＋アシスト（`lrigAbilityScope:'all_lrigs'`）。
+  // ⚠「エクシードの値が**３以下**」＝`maxExceed:3`。⚠`altCostOppTurn` は旧 live のまま維持する。
+  "WX21-Re04": [
+    {"effectId":"WX21-Re04-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],
+     "cost":{"energy":[{"color":"無","count":1}]},
+     "altCostOppTurn":[{"color":"無","count":1},{"color":"無","count":1},{"color":"無","count":1}],
+     "action":{"type":"STUB","id":"USE_OWN_LRIG_ABILITY_FREE","maxExceed":3,"lrigAbilityScope":"all_lrigs"},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX22-014（幻怪姫　タウィル）E3
+  //   原文＝【起】《ターン１回》《アタックフェイズアイコン》エクシード１：このルリグのエクシード能力１つを
+  //         コストを支払わずに使用する。この能力はあなたの場に《差し伸べし者　タウィル》がいる場合にしか使用できない。
+  // ⚠「**この**ルリグの」＝センタールリグだけ（`lrigAbilityScope` を付けない）。上限指定も無い。
+  // ⚠使用条件（《差し伸べし者　タウィル》）とコスト（エクシード１）と《ターン１回》は旧 live のまま。
+  "WX22-014": [
+    {"effectId":"WX22-014-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],
+     "condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"差し伸べし者　タウィル"}},
+     "cost":{"exceed":1},
+     "action":{"type":"STUB","id":"USE_OWN_LRIG_ABILITY_FREE"},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-286`（2026-09-08）＝追加コストで「実際に払った色」を記録して分岐させる
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX21-Re18（無垢なる宝剣）E1
+  //   原文＝このスペルを使用する際、使用コストとして追加でエナゾーンからカードを２枚以上トラッシュに置く。
+  //         これの使用コストとして追加で白のカードがトラッシュに置かれた場合、対象の対戦相手のシグニ１体を手札に戻す。
+  //         赤の場合、対象の対戦相手のパワー12000以下のシグニ１体をバニッシュする。
+  //         青の場合、カードを２枚引き、手札を１枚捨てる。
+  //         緑の場合、対象の対戦相手のパワー12000以上のシグニ１体をバニッシュする。
+  //         黒の場合、あなたのトラッシュから対象のシグニ１枚を手札に加える。
+  // 🔴旧 live は追加コストが `STUB{OPTIONAL_COST, costText}` の**生文字列**（engine は読まない）で、
+  //   5つの分岐が**全部無条件に順次実行**されていた＝手札戻し＋バニッシュ×2＋ドロー捨て＋トラッシュ回収が
+  //   **コスト0で毎回全部**走る、このシートで最も過剰な効果のひとつだった。
+  // 🔑同バッチで足した3つが受け皿＝①記録側 `last_cost_energy_trash_colors`
+  //   （`execTrash{asCost}` の**一括経路と1枚ずつ経路の両方**で書く）②条件 `COST_ENERGY_TRASHED_COLOR`
+  //   ③`energyTrash.atLeast`（「２枚以上」＝上限なし・下限は `selectionConstraint.minCount`）。
+  // ⚠**`PAID_COLORS_INCLUDE_ALL` は使えない**＝あれは**基本コスト**で払ったエナの色を読む別の軸。
+  // ⚠旧 live は赤/緑の色指定を**対象シグニ側のフィルタ**へ載せていた（原文に無い過少実行）＝組み直した。
+  // ⚠パワー条件は「12000以下」（赤）と「12000以上」（緑）＝`max`／`min` を取り違えない。
+  "WX21-Re18": [
+    {"effectId":"WX21-Re18-E1","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"無","count":0}]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":2,"atLeast":true},
+        "costText":"使用コストとして追加でエナゾーンからカードを２枚以上トラッシュに置く"},
+       {"type":"CONDITIONAL","condition":{"type":"COST_ENERGY_TRASHED_COLOR","color":"白"},
+        "then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},
+       {"type":"CONDITIONAL","condition":{"type":"COST_ENERGY_TRASHED_COLOR","color":"赤"},
+        "then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false}}},
+       {"type":"CONDITIONAL","condition":{"type":"COST_ENERGY_TRASHED_COLOR","color":"青"},
+        "then":{"type":"SEQUENCE","steps":[
+          {"type":"DRAW","owner":"self","count":2},
+          {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]}},
+       {"type":"CONDITIONAL","condition":{"type":"COST_ENERGY_TRASHED_COLOR","color":"緑"},
+        "then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}}},
+       {"type":"CONDITIONAL","condition":{"type":"COST_ENERGY_TRASHED_COLOR","color":"黒"},
+        "then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-280`（2026-09-08）＝legacy catch-all `STUB{TARGET_AND_DISCARD_HAND}` の残りを1件ずつ閉じる
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔴**catch-all の実体**（`effectExecutor.ts:5365`）＝「**相手シグニ1体を選んでバニッシュし、手札を
+  //   1枚捨てる**」に固定されている。対象の絞り込みも、捨てる札の絞り込みも、順序も、枚数も原文と無関係。
+  //   ⇒ 当たったカードは**別の効果に化ける**（下の2件はどちらも原文と共通点がほとんど無かった）。
+
+  // ── PR-195（羅星姫　アルデバラン）E3
+  //   原文＝【起】《ダウン》：対戦相手は自分の凍結状態のシグニ１体につき手札を１枚捨てる。
+  //         この能力はあなたの場にクロス状態のシグニがある場合にしか使用できない。
+  // 🔴旧 live は catch-all ＝**相手シグニ1体をバニッシュして自分が手札を1枚捨てる**＝丸ごと別の効果。
+  // 🔑受け皿は既存＝`EffectTarget.countFromZone`（`zone:'field'` ＋ `filter.isFrozen`）で
+  //   「相手の凍結シグニの数」を動的枚数に解決する。捨てる主体は `owner:'opponent'`（既定＝本人が選ぶ）。
+  // ⚠使用条件（クロス状態のシグニ）とコスト（《ダウン》）は旧 live で既に正しいので**触らない**。
+  // ── WX25-P2-022（ソウイ＝スリー）E2 ＝**明示 defer**（新しい秘匿 interaction が要る）
+  //   原文＝【起】《ゲーム１回》ワンサイド《青×0》：対戦相手は手札を裏向きで２つの束に分ける。
+  //         あなたはどちらかの束を選び、対戦相手はその束を捨てる。
+  // 🔴旧 live は catch-all ×2 ＝**相手シグニを2体バニッシュし、自分が手札を2枚捨てる**＝
+  //   原文と1つも共通点が無いうえ、**自分が損して相手も別の損をする**明確な誤実行だった。
+  //   ⇒ 何もしない明示 defer のほうが厳密に正しい（PLAN §5.3「1枚のために機構を作らないと決めてよい」）。
+  // 🔑要る機構＝**相手側が伏せて2束に分ける** → **こちらが束だけを見て選ぶ** → **相手がその束を捨てる**。
+  //   engine の pending には「相手が分割して提示し、こちらが集合を選ぶ」形が1つも無く、
+  //   `src/screens/` に分割UIと選択UIの両方が要る（live 1効果）。
+  "WX25-P2-022": [
+    {"effectId":"WX25-P2-022-E2","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"青","count":0}]},
+     "action":{"type":"STUB","id":"DEFERRED_OPP_SPLIT_HAND_TWO_PILES"},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
+
+  // ── WXEX1-09（コード・ピルルク　APEX）E2
+  //   原文＝【起】《アタックフェイズアイコン》《コインアイコン》×４：対戦相手の、場かエナゾーンから
+  //         レベル１のシグニ１枚を対象とし、それをトラッシュに置く。
+  //         レベル２、レベル３、レベル４、レベル５についても同様に行う。
+  // 🔴旧 live は `STUB{TRADE_BANISH_SELF_SIGNI}` ＋ `STUB{RULE_REMINDER_TEXT}` ＝**丸ごと別の効果**。
+  // 🔑2つの機構が要った＝①**レベル1〜5の5回反復**（原文が5文ぶんを1文に畳んでいる）
+  //   ②**場とエナを跨ぐ1回の対象選択**（同バッチで `EffectTarget.extraZones` を TRASH へ配線した）。
+  // ⚠**反復は `REPEAT` ではなく5ステップに展開する**＝レベルが回ごとに変わるので回数だけでは表せない。
+  // ⚠各ステップは独立した対象選択＝**該当レベルが居なければそのレベルだけ空振り**する（原文どおり）。
+  "WXEX1-09": [
+    {"effectId":"WXEX1-09-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],
+     "cost":{"coin":4},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":1},"extraZones":["energy"],"upToCount":false}},
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":2},"extraZones":["energy"],"upToCount":false}},
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":3},"extraZones":["energy"],"upToCount":false}},
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":4},"extraZones":["energy"],"upToCount":false}},
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":5},"extraZones":["energy"],"upToCount":false}}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WX25-CP1-092（黒舘ハルナ(正月)）E1
+  //   原文＝【自】：あなたのアタックフェイズ開始時、対戦相手のシグニを３体まで対象とし、
+  //         それらのシグニ１体につきあなたのエナゾーンから＜ブルアカ＞のカード１枚を
+  //         トラッシュに置いてもよい。そうした場合、ターン終了時まで、それらのパワーを－3000する。
+  // 🔴旧 live は catch-all ＝**対象1体・エナ支払いなし・手札を1枚捨てる**＝コストも対象数も別物。
+  // 🔑同バッチで足した `energyTrashCountFromTargetCount`（宣言した対象の**体数**で払う）が受け皿。
+  //   ⚠既存の `energyTrashCountFromTargetLevel`（対象の**レベル**）と取り違えない。
+  // ⚠支払いは任意（「置いても**よい**」）＝`STUB{OPTIONAL_COST}` ＋ `CONDITIONAL{PAID_ADDITIONAL_COST}`。
+  //   払わなければパワー減少も起きない（「**そうした場合**」）。
+  "WX25-CP1-092": [
+    {"effectId":"WX25-CP1-092-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self",
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"abortIfNoCandidate":true},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+       {"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardClass":"ブルアカ"}},"energyTrashCountFromTargetCount":true},
+       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
+        "then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"delta":-3000,"targetsStored":true}}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXDi-P00-018（コード・ハート　Ｍｉｌｕ//メモリア）E1
+  //   原文＝【出】：あなたは手札をすべて捨て、捨てたカードの枚数に１を加えた枚数のカードを引く。
+  //         対戦相手は手札をすべて捨て、捨てたカードの枚数から１を引いた枚数のカードを引く。
+  // 🔴旧 live は**後半の1文が丸ごと catch-all**（相手シグニ1体をバニッシュ＋自分が手札1枚捨て）に化けていた。
+  // 🔑受け皿は既存の `DRAW_DISCARD_COUNT_PLUS_N`＝同バッチで**引く側**（`drawDiscardOwner`）を足しただけ。
+  //   ⚠`-1` は `Math.max(0, …)` で下限を切る（切らないと `deck.slice(0,-1)` でデッキがほぼ全部手札に入る）。
+  // ⚠捨てる枚数は `lastProcessedCards` から読む＝**各プレイヤーの `TRASH` の直後**に置くこと
+  //   （2つを1つの SEQUENCE に並べると、後半が前半の捨て枚数を読む）。
+  "WXDi-P00-018": [
+    {"effectId":"WXDi-P00-018-E1","effectType":"AUTO","timing":["ON_PLAY"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"SEQUENCE","steps":[
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},
+         {"type":"STUB","id":"DRAW_DISCARD_COUNT_PLUS_N","drawDiscardPlus":1}]},
+       {"type":"SEQUENCE","steps":[
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":"ALL"}},
+         {"type":"STUB","id":"DRAW_DISCARD_COUNT_PLUS_N","drawDiscardPlus":-1,"drawDiscardOwner":"opponent"}]}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXK05-003（コード・ハート　ＬｏＶ//ＭＥＭＯＲＹ）E1 の選択肢④
+  //   原文④＝対戦相手のシグニ１体を対象とし、手札からレベル４のシグニを１枚捨てる。
+  //           そうした場合、それをバニッシュする。
+  // 🔴旧 live の④は catch-all ＝**手札のどれでも1枚**捨てればよく、しかも**捨てる前にバニッシュ**していた
+  //   （catch-all は「対象へ then を適用 → そのあと手札1枚」の順で固定）＝
+  //   **レベル4のシグニを持っていなくてもバニッシュできる**（コスト踏み倒し）。
+  // 🔑正準形＝`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `TRASH{HAND_CARD, filter}` →
+  //   `BANISH{targetsStored, conditional:true}`。`conditional` は「そうした場合」＝**直前が
+  //   `lastProcessedCards` を残したときだけ**実行する（捨てられなければバニッシュしない）。
+  // ⚠**①〜③は旧 live のまま1バイトも変えない**（正しく出来ている＝ここで壊さない）。
+  // ⚠`conditionChoose`（センターが＜ＬｏＶ＞なら3つまで）と `upTo` もそのまま維持する。
+  "WXK05-003": [
+    {"effectId":"WXK05-003-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],
+     "cost":{"energy":[{"color":"赤","count":3},{"color":"無","count":1}]},
+     "action":{"type":"CHOOSE","choose_count":2,"from_count":4,"upTo":true,
+      "conditionChoose":{"condition":{"type":"LRIG_STORY","owner":"self","story":"ＬｏＶ"},"thenChooseCount":3,"thenUpTo":true},
+      "choices":[
+       {"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},
+         {"type":"DRAW","owner":"self","count":4}]}},
+       {"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}},"upToCount":false}}},
+       {"choiceId":"c2","label":"選択肢3","action":{"type":"SEQUENCE","steps":[
+         {"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false}},
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]}},
+       {"choiceId":"c3","label":"選択肢4","action":{"type":"SEQUENCE","steps":[
+         {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},
+         {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":4}}},
+         {"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"conditional":true}]}}
+      ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  "PR-195": [
+    {"effectId":"PR-195-E3","effectType":"ACTIVATED","timing":["MAIN"],
+     "condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","crossState":true}},
+     "cost":{"down_self":true},
+     "action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,
+       "countFromZone":{"zone":"field","owner":"opponent","filter":{"cardType":"シグニ","isFrozen":true}}}},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-273`（2026-09-08）＝【チャーム】を「好きな数」トラッシュする
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX07-021（アトラク・パニッシュ）E1
+  //   原文＝対象の好きな数のあなたの場にある【チャーム】をトラッシュに置く。ターン終了時まで、
+  //         対象の対戦相手のシグニ１体のパワーをこの方法でトラッシュに置いた【チャーム】１枚につき－8000する。
+  // 🔴旧 live は `REMOVE_CHARM{count:'ALL'}` ＝**「好きな数」が表せず全チャームを強制トラッシュ**
+  //   （後続のパワー減少も常に最大＝チャームを温存する選択が消えていた）。
+  // 🔑受け皿は既に在った＝同型 `WX07-045-E1`（【出】…【チャーム】を好きな数トラッシュに置く：）が使っている
+  //   `STUB{OPTIONAL_COST, charmTrashVariable}` ＋ `POWER_MODIFY_PER_CHARM{sourceLocation:'trashed_this_effect'}`。
+  //   `effectExecutor.ts:6144` の可変枚数コスト先取りが **0..N の CHOOSE** を engine 側で出すので、
+  //   ⇒ **`src/screens/` は触らない＝実機不要**（登録票の「選択UIが要る／実機まで必須」は stale）。
+  // ⚠**どのチャームを外すかはゾーン順の自動選択**＝`INTERNAL_PAY_CHARM_TRASH_VARIABLE`（`execStubPart1.ts:778`）
+  //   も UI 側（`BattleScreen.tsx:13963`）も先頭ゾーンから取る。既存の同型と同じ近似に揃えてある。
+  "WX07-021": [
+    {"effectId":"WX07-021-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],
+     "cost":{"energy":[{"color":"黒","count":1}]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"OPTIONAL_COST","charmTrashVariable":{"min":0},
+        "costText":"あなたの場にある【チャーム】を好きな数トラッシュに置く"},
+       {"type":"POWER_MODIFY_PER_CHARM",
+        "target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},
+        "deltaPerCharm":-8000,"sourceOwner":"self","sourceLocation":"trashed_this_effect",
+        "until":"UNTIL_END_OF_TURN"}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.3 `O-272`（2026-09-08）＝「このシグニの正面にあったシグニ」の位置限定
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WXDi-D06-016 E1
@@ -4946,12 +5222,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "PR-470A": [
     {"effectId":"PR-470A-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":10000},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":25000},"then":{"type":"STUB","id":"SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME","fetchCardName":"進化する筋肉　紗倉ひびき"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
-  // own-other-source part of "except itself" is near-inert and intentionally
-  // deferred; sourceOwner keeps the lrig's own effects from being blocked.
-  // `O-75`＝E2 の「このルリグ」も任意のシグニへ誤分類されていたため、既存の LRIG 付与形へ戻す。
+  // 🏁**§5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」を原文どおりにした。**
+  //   原文＝【常】：《カーニバル　―Ｑ―》は**自身以外の効果を受けない**。
+  //   🔴旧 live は `sourceOwner:'opponent'` ＝**対戦相手の効果だけ**を遮断していた（旧コメントは
+  //     「自分側の分はほぼ不活性なので意図的に defer」と書いていたが、それは**近似ではなく別の意味**）。
+  //   🔑2つを同バッチで足した＝①`exceptSelfSource`（**このカード自身の能力**だけを例外にする
+  //     identity 限定。`exceptSource` の型限定ではアシストルリグまで通ってしまう）
+  //     ②`ExecCtx.ownEffectImmuneNums`（`collectEffectImmuneSigni` を**自分側視点でも**呼ぶ対の計算）。
+  //   ⚠`sourceOwner:'any'` にしただけでは効かない＝呼び出しが片側専用だったのが本体（`O-284` の登録票）。
+  //   ⚠E2 の「このルリグ」は `O-75` で既存の LRIG 付与形へ戻してある＝ここでは触らない。
   "WX17-001": [
-    {"effectId":"WX17-001-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX17-001-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"any","exceptSelfSource":true,"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX17-001-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}},{"choiceId":"c2","label":"選択肢3","action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c3","label":"選択肢4","action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // PLAN §6.3 sub-case (d): designation survives the intervening optional reveal.

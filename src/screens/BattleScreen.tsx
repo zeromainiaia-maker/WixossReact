@@ -5131,7 +5131,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherBanishProtectedNums = collectBanishEffectProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, undefined, 'opponent', bs.turn_phase);
       // 発生源無限定（sourceOwner:any）の耐性は、自分の効果で自場をバニッシュする場合にも有効。
       // opponent 指定はこの集合へ入らないため、既存の相手限定耐性は広がらない。
-      const ownBanishProtectedNums = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, ctxPowers, 'self', bs.turn_phase);
+      const ownBanishProtectedNums0 = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, ctxPowers, 'self', bs.turn_phase);
       // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
       const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
       // SELF_TRASH_PREVENT（WX07-033）: 効果オーナー自身が自シグニをトラッシュに置けない制限（§6.1）
@@ -5143,6 +5143,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
       const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
       const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType);
+      // 🆕**§5.3 `O-284`（2026-09-08）＝自分側の完全効果耐性も対で計算する。**
+      //   🔴上の1本だけだと「**対戦相手の効果が自分側を侵すか**」しか判定されず、
+      //     `sourceOwner:'any'`（`WX17-001-E1`「自身以外の効果を受けない」）は**自分の効果に対して素通り**だった。
+      //   🔑先例＝`collectBanishEffectProtectedSigni` の `otherBanishProtectedNums` / `ownBanishProtectedNums` の対。
+      //   ⚠`sourceOwner:'opponent'` の耐性はこの集合に入らない（collector が弾く）＝既存の相手限定耐性は広がらない。
+      const ownEffectImmuneNums = collectEffectImmuneSigni(ownerStateForCtx, otherState, battleCardMap, effectsMap, isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType, ctxPowers);
       // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
       const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(
         otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType, entry.cardNum,
@@ -5152,6 +5158,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums, ...otherBanishBySourceNums]);
       const otherTrashFieldProtectedNumsM = [...otherTrashFieldProtectedNums, ...otherEffectImmuneNums];
       const otherProtectedSigniNumsM  = [...otherProtectedSigniNums, ...otherEffectImmuneNums];
+      // 🆕§5.3 `O-284`＝自分側の完全効果耐性はバニッシュ保護へも union する（相手側と同じ扱い）。
+      const ownBanishProtectedNumsM = new Set<string>([...ownBanishProtectedNums0, ...ownEffectImmuneNums]);
       const otherAbilityGainProtectedNums = [...otherAbilityGainProtectedNums0, ...otherEffectImmuneNums];
       // BLOCK_OPP_DECK_TO_ENERGY / BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT
       const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
@@ -5172,7 +5180,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   BottomSubstitute`／`banishRedirectOpts.turnPhase`）、いずれも**フェイズ不明なら成立させない側へ
       //   倒す**設計なので、渡し忘れると「engine は正しいのに実UIでは丸ごと不発」になり計器にも映らない。
       //   golden ハーネス（`src/verify/main.ts`）は `currentPhase:'MAIN'` を手で埋めるため緑のまま通る。
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, sourceEffectId: entry.effectId, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, sourceLeftZoneIdx: entry.sourceLeftZoneIdx, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, ownBanishProtectedNums, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, sourceEffectId: entry.effectId, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, sourceLeftZoneIdx: entry.sourceLeftZoneIdx, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, ownBanishProtectedNums: ownBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, ownEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = isOwnerTurn;
       // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
       // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。

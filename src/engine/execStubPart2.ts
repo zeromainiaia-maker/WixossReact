@@ -1165,15 +1165,25 @@ export function execStubPart2(
   // 🔴旧実装は **カード全文**へ `/枚数に(\d+)を加えた/` を当てていた＝`WXDi-P00-018` は同じ効果内に
   //   「枚数**から**１を**引いた**」（相手側）が並んでおり、綴りが1文字違うだけの隣接表記だった。
   // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定 +1 は原文を読まないドローになる。
+  // 🆕**§5.3 `O-280`⑤（2026-09-08）＝引く側を payload で選べるようにした（`drawDiscardOwner`）。**
+  //   🔴`WXDi-P00-018-E1` は同じ効果の中で「あなたは…＋１枚引く」「**対戦相手は**…−１枚引く」の
+  //     2文を持つのに、このハンドラは `ctx.ownerState` 固定＝相手側の文が catch-all へ落ちていた。
+  //   ⚠`plusN` が負のとき `drawCount` が負になりうる＝**0 で下限を切る**
+  //     （旧式のままだと `deck.slice(0, -1)` で**デッキ末尾以外が全部手札に入る**）。
   if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
     const plusN = stub.drawDiscardPlus;
     if (plusN === undefined) return done(addLog(ctx, '[DRAW_DISCARD_COUNT_PLUS_N: 加算値なし（未指定）]'));
     const discardCount = ctx.lastProcessedCards?.length ?? 0;
-    const drawCount = discardCount + plusN;
-    const sDDCPN = ctx.ownerState;
+    const drawCount = Math.max(0, discardCount + plusN);
+    const ownerDDCPN: Owner = stub.drawDiscardOwner === 'opponent' ? 'opponent' : 'self';
+    const sDDCPN = ownerDDCPN === 'opponent' ? ctx.otherState : ctx.ownerState;
     const canDraw = Math.min(drawCount, sDDCPN.deck.length);
     const newSDDCPN: PlayerState = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDraw)], deck: sDDCPN.deck.slice(canDraw) };
-    return done(addLog({ ...ctx, ownerState: newSDDCPN }, `捨て${discardCount}枚+${plusN}→${canDraw}枚ドロー`));
+    const ctxDDCPN = ownerDDCPN === 'opponent'
+      ? { ...ctx, otherState: newSDDCPN }
+      : { ...ctx, ownerState: newSDDCPN };
+    return done(addLog(ctxDDCPN,
+      `${ownerDDCPN === 'opponent' ? '対戦相手は' : ''}捨て${discardCount}枚${plusN >= 0 ? '+' : ''}${plusN}→${canDraw}枚ドロー`));
   }
   // 🏁**`LOOK_TOP_N` / `LOOK_TOP_SORT` / `LOOK_TOP_COLOR_SORT` / `LOOK_TOP_BY_LIFE_COUNT` は撤去した**
   //   （2026-09-05 §5.3 `O-60` 第74バッチ）＝**live 0 の死んだ枝**。4つとも見る枚数を
@@ -3696,6 +3706,75 @@ export function execStubPart2(
       targetScope: 'opp_trash', thenAction: contCFOT as EffectAction,
     });
   }
+  // 🆕**§5.3 `O-283`（2026-09-08）＝「ルリグの能力」をコストなしで使う。**
+  //   原文＝`WX22-014-E3`「このルリグの**エクシード能力**１つをコストを支払わずに使用する」／
+  //         `WX21-Re04-E1`「あなたのルリグの**エクシードの値が３以下の能力**１つをコストを支払わずに使用する
+  //         （使用タイミングを無視する）」。
+  // 🔴**`PLAY_FREE` では表せない**＝あちらは「カードを使う」経路で、対象は `lastProcessedCards[0]`
+  //   （無ければ効果元自身）を `parseCardEffects` して**最初の ACTIVATED/【出】**を実行する。
+  //   ルリグの能力は「カード」ではないので、旧 live（`STUB{PLAY_FREE}`）は
+  //   **効果元カード自身の別の能力**を実行する別効果に化けていた（`WX22-014` なら E1 が走る）。
+  // 🔑ここは**候補を列挙してプレイヤーに選ばせる**＝「能力１つを」＝複数あるなら選択が要る。
+  // ⚠**コストは払わない**ので `cost` を落とした effect を実行する（`usageLimit` も見ない＝
+  //   原文は「使用する」であって「起動する」ではない＝《ターン１回》の消費対象にしない）。
+  // ⚠`maxExceed` は原文の「エクシードの値が３以下」＝**省略時は上限なし**（`WX22-014-E3`）。
+  if (stub.id === 'USE_OWN_LRIG_ABILITY_FREE') {
+    const lrigNumsUOLA = [
+      ctx.ownerState.field.lrig.at(-1),
+      ...(stub.lrigAbilityScope === 'all_lrigs'
+        ? [ctx.ownerState.field.assist_lrig_l?.at(-1), ctx.ownerState.field.assist_lrig_r?.at(-1)]
+        : []),
+    ].filter((n): n is string => !!n);
+    type CandUOLA = { lrigNum: string; effect: import('../types/effects').CardEffect };
+    const candsUOLA: CandUOLA[] = [];
+    for (const lrigNum of lrigNumsUOLA) {
+      const base = getCardNum(lrigNum);
+      const effs = ctx.effectsMap?.get(lrigNum) ?? ctx.effectsMap?.get(base)
+        ?? ctx.cardMap.get(base)?.effects
+        ?? (ctx.cardMap.get(base) ? parseCardEffects(ctx.cardMap.get(base)!) : []);
+      for (const e of effs) {
+        if (e.effectType !== 'ACTIVATED') continue;
+        const exceed = e.cost?.exceed;
+        // 🔴**エクシード能力に限る**＝`exceed` が無い【起】まで拾うと「コストなしで何でも撃てる」になる。
+        if (exceed === undefined) continue;
+        if (stub.maxExceed !== undefined && exceed > stub.maxExceed) continue;
+        candsUOLA.push({ lrigNum, effect: e });
+      }
+    }
+    // 再入（CHOOSE で選ばれた1本）＝carriedCardNum/carriedEffectId で1件へ絞る。
+    const pickedUOLA = stub.carriedEffectId
+      ? candsUOLA.filter(c => c.effect.effectId === stub.carriedEffectId
+          && (!stub.carriedCardNum || c.lrigNum === stub.carriedCardNum))
+      // ⚠**コピーを取る**＝同じ配列を指したまま下で `length = 0` すると、絞り込み結果ごと消える
+      //   （golden が「options:[] の CHOOSE」で捕まえた）。
+      : [...candsUOLA];
+    if (pickedUOLA.length === 0) return done(addLog(ctx, 'コストを支払わずに使用できるルリグの能力がない'));
+    candsUOLA.length = 0;
+    candsUOLA.push(...pickedUOLA);
+    const freeOf = (c: CandUOLA): EffectAction => c.effect.action;
+    // 🔑**能力の持ち主を `sourceCardNum` に据えて実行する**＝そうしないと「このルリグ」等の自己参照が
+    //   **この効果を撃ったカード**（`WX21-Re04` はアーツ）を指してしまう。
+    // ⚠候補が1つでも `CHOOSE` を挟まず即実行する（原文は「使用する」＝強制。無意味な確認を出さない）。
+    const runUOLA = (c: CandUOLA, base: ExecCtx): ExecResult => exec(freeOf(c), {
+      ...addLog(base, `${base.cardMap.get(getCardNum(c.lrigNum))?.CardName ?? c.lrigNum}の能力をコストなしで使用`),
+      sourceCardNum: c.lrigNum, sourceEffectId: c.effect.effectId,
+    });
+    if (candsUOLA.length === 1) return runUOLA(candsUOLA[0], ctx);
+    // 🔴**複数あるなら選ばせる**（「能力**１つ**を」）＝先頭を勝手に撃つと別の能力に化ける。
+    //   ⚠`CHOOSE` の option の action は engine が**現在の ctx**で実行するので、
+    //     持ち主の付け替えは `INTERNAL_USE_LRIG_ABILITY` へ畳んで再入する。
+    return needsInteraction(addLog(ctx, 'コストを支払わずに使用する能力を選択'), {
+      type: 'CHOOSE', count: 1,
+      options: candsUOLA.map((c, i) => ({
+        id: `lrig_ability_${i}`,
+        label: `${ctx.cardMap.get(getCardNum(c.lrigNum))?.CardName ?? c.lrigNum}：エクシード${c.effect.cost?.exceed}の能力`,
+        action: ({ type: 'STUB', id: 'USE_OWN_LRIG_ABILITY_FREE',
+          maxExceed: stub.maxExceed, lrigAbilityScope: stub.lrigAbilityScope,
+          carriedCardNum: c.lrigNum, carriedEffectId: c.effect.effectId } as StubAction) as EffectAction,
+        available: true,
+      })),
+    });
+  }
   // フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ
   if (stub.id === 'PLAY_FREE' || stub.id === 'CAST_FROM_OPP_TRASH'
       || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
@@ -4177,9 +4256,15 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerGCZ }, 'グロウコスト0（次のグロウは無料）'));
   }
   // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）
+  // 🆕§5.3 `O-278`（2026-09-08）＝`sameLrigTypeExact` は parser が原文から決めて payload に載せる
+  //   （engine に原文 regex を書かない＝`census:enginetext` A群の規約）。**省略は従来どおり無制限**。
   if (stub.id === 'FREE_GROW_NEXT_TURN') {
-    const newOwnerGNT: PlayerState = { ...ctx.ownerState, free_grow_next_turn: true };
-    return done(addLog({ ...ctx, ownerState: newOwnerGNT }, '次の自分ターンのグロウは無料'));
+    const scopeGNT = stub.sameLrigTypeExact ? ({ sameLrigTypeExact: true } as const) : true;
+    const newOwnerGNT: PlayerState = { ...ctx.ownerState, free_grow_next_turn: scopeGNT };
+    return done(addLog({ ...ctx, ownerState: newOwnerGNT },
+      stub.sameLrigTypeExact
+        ? '次の自分ターン、センタールリグと完全に同一のルリグタイプへのグロウは無料'
+        : '次の自分ターンのグロウは無料'));
   }
   if (stub.id === 'GROW_COST_SUBSTITUTE_TRASH_SIGNI') {
     return done(addLog(ctx, '[グロウコスト代替: GROW_COST_SUBSTITUTE_TRASH_SIGNI]'));

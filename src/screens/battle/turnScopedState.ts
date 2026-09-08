@@ -85,6 +85,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_by_signi_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi life crash total for the current turn' },
   // ライフクラッシュ累計は終了時に last_turn へ写し、現在ターン分を破棄する。
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
+  // 🆕§5.3 `O-275`（2026-09-08）＝原因を「対戦相手の効果」に限定した累計。last_turn 版は要らない（原文が無い）。
+  life_crashed_by_opp_effect_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crashes caused by opponent effects during the current turn' },
   // 🆕**§5.3 `O-239`（2026-09-04）**＝チェックゾーンへ置かれたライフクロスの**順序**と、
   //   「N枚目までに置かれたライフは【ライフバースト】…を得る」の宣言。どちらも「このターン」限定。
   checked_life_order_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'order of life cloths put into the check zone during the current turn' },
@@ -495,7 +497,9 @@ export function activateTurnStartScopedState(state: PlayerState): PlayerState {
       ? [...(state.pending_own_turn_end_effects ?? []), ...(state.pending_next_own_turn_end_effects ?? [])]
       : undefined,
     pending_next_own_turn_end_effects: undefined,
-    free_grow_this_turn: state.free_grow_next_turn ? true : undefined,
+    // 🔴§5.3 `O-278`（2026-09-08）＝**値ごと**移す。旧実装は `? true :` で潰しており、
+    //   「センタールリグと完全に同一のルリグタイプに限る」という範囲が**移し替えの1行で消えていた**。
+    free_grow_this_turn: state.free_grow_next_turn ? state.free_grow_next_turn : undefined,
     free_grow_next_turn: undefined,
     must_attack_signi: state.must_attack_signi_next_turn ? true : undefined,
     must_attack_signi_next_turn: undefined,

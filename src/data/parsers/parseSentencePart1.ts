@@ -641,7 +641,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「グロウコストは《無×0》になる」= グロウコストが0になる（実質フリーグロウ）。
     // 「減る（reduction）」ではなく「0にセット」なので専用STUBで表現する（WX03-024-BURST等）。
     if (totalCount === 0) {
-      return { type: 'STUB', id: isNextTurn ? 'FREE_GROW_NEXT_TURN' : 'GROW_COST_ZERO', raw: t } as StubAction;
+      // 🆕**§5.3 `O-278`（2026-09-08）＝範囲は parser が原文から決めて payload に載せる。**
+      //   🔴原文「あなたのルリグデッキにある**あなたのセンタールリグと完全に同一のルリグタイプを持つ**
+      //     ルリグのグロウコストは《無×0》になる」（`WX03-024-BURST` / `WX03-027-BURST`）の限定が
+      //     どこにも載らず、**次の自分ターンの全グロウが無料**になっていた。
+      //   ⚠**範囲の省略は「無制限」に倒れる**ので、原文に限定句があるときだけ true を立てる（fail-open ではない）。
+      const sameTypeExact = /完全に同一のルリグタイプ/.test(t);
+      return {
+        type: 'STUB', id: isNextTurn ? 'FREE_GROW_NEXT_TURN' : 'GROW_COST_ZERO', raw: t,
+        ...(sameTypeExact ? { sameLrigTypeExact: true } : {}),
+      } as StubAction;
     }
     return {
       type: 'COST_REDUCTION',

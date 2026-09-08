@@ -239,6 +239,32 @@ export function effectiveLrigClass(
 }
 
 // ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り、全角"／"もあり）が1つでもあれば true
+/**
+ * 🆕**§5.3 `O-278`（2026-09-08）＝無料グロウの権利がこの候補に効くか。**
+ *
+ * 🔴**`free_grow_this_turn === true` で判定してはいけない**＝範囲つきの権利（`{sameLrigTypeExact:true}`）が
+ *   丸ごと落ちて「無料にならない」に倒れる。逆に範囲を見ずに truthy 判定だけすると
+ *   `WX03-024-BURST` が**次の自分ターンの全グロウを無料**にする（この軸を足す前の実際の挙動）。
+ * 🔑「**完全に同一のルリグタイプ**」＝集合が一致すること（`lrigClassesCompatible` の「1つでも重なる」より狭い）。
+ *   例＝センターが `リメンバ/ピルルク` のとき `ピルルク` は**同一ではない**（重なりはあるので通常グロウは可）。
+ * ⚠実機の返済は `V-183`（`scripts/verifyBattleDrive.mjs`）＝**エナ0枚で押せるか**で観測する。
+ */
+export function freeGrowAppliesTo(
+  entitlement: boolean | { sameLrigTypeExact: true } | undefined,
+  currentLrigClass: string | undefined,
+  candidateClass: string | undefined,
+): boolean {
+  if (!entitlement) return false;
+  if (entitlement === true) return true;
+  const split = (s: string | undefined) =>
+    new Set((s ?? '').split(/[/／]/).map(x => x.trim()).filter(Boolean));
+  const from = split(currentLrigClass);
+  const to = split(candidateClass);
+  if (from.size === 0 || from.size !== to.size) return false;
+  for (const c of from) if (!to.has(c)) return false;
+  return true;
+}
+
 export function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
   const fromSet = new Set(fromClass.split(/[/／]/).map(s => s.trim()).filter(Boolean));
   return toClass.split(/[/／]/).map(s => s.trim()).some(c => fromSet.has(c));

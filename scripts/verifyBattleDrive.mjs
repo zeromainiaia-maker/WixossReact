@@ -49912,6 +49912,292 @@ order.push('v181FrontOfSelfAfterBanishCenter');
 order.push('v181FrontOfSelfFollowsSwap');
 
 // ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-182`＝§5.3 `O-274`「トラッシュから固定N枚をデッキへ戻す効果で候補を選ばせる」（2026-09-08）。
+// 原文（`WXK09-058-E1`）＝【出】：あなたのトラッシュから**レベル４の黒のシグニ１枚を対象とし**、
+//   それをデッキの一番下に置く。
+// 🔴**旧 engine は `cands.slice(0, N)` ＝トラッシュの並び順で先頭N枚を無言で確定**していた
+//   （live 28効果が同じ経路）。原文が「対象とし」「好きな順番で」と書いていても選択UIが出ず、
+//   ①どのN枚を戻すか ②積む順番 の両方がプレイヤーの手から消えていた。
+// 🔑**実機で見るべきは「選択モーダルが出るか」**＝engine を直したせいで**28効果が新しく対話を挟む**ので、
+//   `EffectInteractionModal` が `self_trash` の候補を描けないと**その28効果がまるごとソフトロックする**
+//   （§4.4 冒頭＝ソフトロックは golden/smoke/fuzz/CPU が全部「クランプする側」を通るので緑のまま出ない）。
+// ⚠**対照は「候補がちょうど必要数」**（§4.4-8l）＝1枚しか無ければモーダルは出ずに自動確定するのが正。
+//   これで「選ばせる／選ばせない」の1ビットだけを反転できる。
+// ⚠銀行役の副作用（§4.4-8z/35b）＝トラッシュに積む2枚は **`EffectText === '-'` のバニラ**
+//   （`WX02-067` 悪夢の続発 リリス／`WX04-051` コードアンチ ウロボロス＝どちらも Lv4・黒）。
+//   フィルタが効いていることの witness に **Lv1 白の `WD01-013`** を1枚混ぜ、候補に入らないことを見る。
+// ⚠ホストのルリグは `WX14-003`（Lv5 / Limit15 / CardClass `?`）＝限定にもリミットにも掛からない（§4.4-8k）。
+// ═════════════════════════════════════════════════════════════════════════════
+const v182Spec = (trashCards) => ({
+  hostSet: {
+    'field.lrig': ['WX14-003#8101'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], coins: 0, energy: [],
+    trash: trashCards,
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む（末尾＝デッキの一番下の観測点）。
+    deck: ['WD01-013#8110', 'WD01-013#8111', 'WD01-013#8112'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8190'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  handPrepend: ['WXK09-058#8120'],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV182(page, H, o) {
+  const { tag, expectChoice, want } = o;
+  await H.ensureMain();
+  // §4.4-49＝判定の瞬間に「自分が張った盤面か」を見る（見ないと両方向に嘘をつく）。
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.handCards ?? []).some(n => String(n).startsWith('WXK09-058')); r++) {
+    H.log(`再注入(${r})… hand=${JSON.stringify(before?.host?.handCards)}`);
+    await injectScenario(page, o.spec);
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  if (!(before?.host?.handCards ?? []).some(n => String(n).startsWith('WXK09-058'))) {
+    return { pass: false, detail: `前提崩れ＝WXK09-058 が手札に無い（hand=${JSON.stringify(before?.host?.handCards)}）` };
+  }
+  H.log(`開始 hand=${JSON.stringify(before?.host?.handCards)} trash=${JSON.stringify(before?.host?.trashCards)} deck=${JSON.stringify(before?.host?.deckCards)}`);
+
+  let summoned = false, sawChoice = false, choiceCands = null, picked = false;
+  const pickedIds = new Set();   // §4.4-2c＝候補セルはトグルなので同じものを押し続けない
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    // 🔴§4.4-7b＝対話が出ている間は対話だけを進める。
+    const busy = !!st?.pendingEffect || (st?.stackLen ?? 0) > 0;
+    if ((st?.pendingCandidates ?? []).length > 0) {
+      sawChoice = true;
+      choiceCands = [...new Set((st.pendingCandidates ?? []).map(n => String(n).split('#')[0]))].sort();
+    }
+    let did = null;
+    if (!busy) {
+      if (!summoned) {
+        if (!(await page.locator('[data-action-label]').count())) await H.clickTestId('my-hand-card-0');
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click({ timeout: 1500 }).catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+      } else {
+        did = await H.clickTestId('summon-zone-1', 'summon-zone-0', 'summon-zone-2');
+      }
+    } else if (!did && !picked) {
+      // §4.4-2c＝候補セルはトグル。押した testid を覚えて未選択のものだけを1つ押す。
+      const cells = page.locator('[data-testid^="pick-"]');
+      const n = await cells.count();
+      for (let i = 0; i < n; i++) {
+        const id = await cells.nth(i).getAttribute('data-testid');
+        if (!id || pickedIds.has(id)) continue;
+        if (!(await cells.nth(i).isVisible().catch(() => false))) continue;
+        await cells.nth(i).click({ timeout: 1500 }).catch(() => {});
+        pickedIds.add(id); picked = true; did = `pick:${id}`; break;
+      }
+    }
+    // §4.4-21＝「決定 (N/M)」は前方一致でしか掴めない。選び終えてから押す。
+    if (!did && busy && picked) did = await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい']);
+    const after = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(after?.host?.fieldSigni)} trash=${JSON.stringify(after?.host?.trashCards)} deckBottom=${after?.host?.deckBottom} pEff=${after?.pendingEffect ?? '-'} cands=${JSON.stringify(after?.pendingCandidates)}`);
+    const moved = want.some(cn => String(after?.host?.deckBottom ?? '').startsWith(cn));
+    if (moved && !after?.pendingEffect && !(after?.stackLen > 0)) {
+      const finTrash = (after?.host?.trashCards ?? []).map(n => String(n).split('#')[0]);
+      if (expectChoice) {
+        if (!sawChoice) {
+          return { pass: false, detail: `🔴選択モーダルが1度も出ないまま先頭が自動確定した（旧挙動＝cands=null のまま deckBottom=${after?.host?.deckBottom}）` };
+        }
+        if (JSON.stringify(choiceCands) !== JSON.stringify([...want].sort())) {
+          return { pass: false, detail: `🔴候補が原文のフィルタと一致しない（cands=${JSON.stringify(choiceCands)} 期待=${JSON.stringify([...want].sort())}）` };
+        }
+        return { pass: true, detail: `トラッシュから選ばせた（候補=${JSON.stringify(choiceCands)}＝Lv4黒だけ／Lv1白の WD01-013 は候補外）→ 選んだ札がデッキの一番下（${after?.host?.deckBottom}）／トラッシュ残=${JSON.stringify(finTrash)}` };
+      }
+      return sawChoice
+        ? { pass: false, detail: `🔴対照が崩れた＝候補が1枚しか無いのに選択モーダルが出た（cands=${JSON.stringify(choiceCands)}）` }
+        : { pass: true, detail: `対照＝候補がちょうど1枚なら自動で確定する（deckBottom=${after?.host?.deckBottom}／モーダルは出ない）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未確認（field=${JSON.stringify(fin?.host?.fieldSigni)} trash=${JSON.stringify(fin?.host?.trashCards)} deckBottom=${fin?.host?.deckBottom} sawChoice=${sawChoice} cands=${JSON.stringify(choiceCands)}）` };
+}
+
+scenarios.v182TrashPickOffered = {
+  title: 'V-182(1): WXK09-058-E1＝トラッシュのLv4黒シグニが2枚あるとき「どれを戻すか」を選ばせる（O-274 の28効果が通る新経路）',
+  spec: v182Spec(['WX02-067#8130', 'WX04-051#8131', 'WD01-013#8132']),
+  async drive(page, H) {
+    return driveV182(page, H, {
+      tag: 'v182Pick', expectChoice: true, spec: this.spec,
+      want: ['WX02-067', 'WX04-051'],
+    });
+  },
+};
+scenarios.v182TrashAutoWhenExact = {
+  title: 'V-182(2): 対照＝候補がちょうど1枚なら選択モーダルを出さずに確定する（無意味なモーダルを増やしていない）',
+  spec: v182Spec(['WX02-067#8130', 'WD01-013#8132']),
+  async drive(page, H) {
+    return driveV182(page, H, {
+      tag: 'v182Auto', expectChoice: false, spec: this.spec,
+      want: ['WX02-067'],
+    });
+  },
+};
+order.push('v182TrashPickOffered');
+order.push('v182TrashAutoWhenExact');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-183`＝§5.3 `O-278`「無料グロウの範囲（完全に同一のルリグタイプ）」（2026-09-08）。
+// 原文（`WX03-024-BURST` / `WX03-027-BURST`）＝次のあなたのターンの間、あなたのルリグデッキにある
+//   **あなたのセンタールリグと完全に同一のルリグタイプを持つ**ルリグのグロウコストは《無×0》になる。
+// 🔴旧実装は `free_grow_this_turn` が**真偽値1つ**で、`GrowModal` も `=== true` の1回きり判定だった＝
+//   **次の自分ターンの全グロウが無料**（範囲がどこにも載らない）。
+// 🔑**実機でしか見えない**＝直したのは `GrowModal.tsx` の**候補ごと**の `isFreeGrow` 計算で、
+//   engine は1バイトも通らない（golden は純関数 `freeGrowAppliesTo` までしか見ない）。
+// 🔑**観測点は「エナ0枚で実際にグロウできたか」**＝グロウコストを払える余地を残すと
+//   「無料だから通った」のか「払えたから通った」のかが分からない（§4.4-8w の「請求額を見る」の同型）。
+// ⚠**反転は権利の値1ビットだけ**＝盤面（センター・ルリグデッキ・エナ0）は3本とも同じ形にしてある。
+//   ・(1) `true`（範囲なし）＝従来どおり無制限に無料（**common path の退化検出**）
+//   ・(2) `{sameLrigTypeExact:true}` ＋ **同一タイプ**（タマ→タマ）＝無料
+//   ・(3) `{sameLrigTypeExact:true}` ＋ **重なるだけ**（リメンバ/ピルルク→ピルルク）＝**無料にならない**
+// ⚠カード選定（§4.4-8k/35b）＝センターは `EffectText === '-'` のバニラ
+//   （`WX13-008` リメンバ/ピルルク Lv4／`WX03-006` タマ Lv4）。
+//   グロウ先は**【グロウ】条件を持たない** Lv5（`WXEX2-12` ピルルク／`WX19-001` タマ）＝
+//   落ちるとしたら「無料かどうか」だけになるよう他の門を開けてある。
+// ═════════════════════════════════════════════════════════════════════════════
+const v183Spec = (centerLrig, growTarget, entitlement) => ({
+  hostSet: {
+    'field.lrig': [centerLrig + '#8201'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    lrig_deck: [growTarget + '#8202'],
+    // 🔴**エナ0**＝無料でなければ絶対にグロウできない境界に置く（これが観測点そのもの）。
+    energy: [],
+    hand: [], trash: [], lrig_trash: [], coins: 0,
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む。
+    deck: ['WD01-013#8210', 'WD01-013#8211', 'WD01-013#8212'],
+    actions_done: [], game_actions_done: [],
+    free_grow_this_turn: entitlement,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8290'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV183(page, H, o) {
+  const { tag, spec, target, expectFree, why } = o;
+  // §4.4-49＝判定の瞬間に「自分が張った盤面か」を見る。
+  let st0 = await H.queryState();
+  for (let r = 0; r < 4 && !String(st0?.host?.lrigTop ?? '').startsWith(spec.hostSet['field.lrig'][0].split('#')[0]); r++) {
+    H.log(`再注入(${r})… lrigTop=${st0?.host?.lrigTop}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    st0 = await H.queryState();
+  }
+  if ((st0?.host?.energy ?? 0) !== 0) {
+    return { pass: false, detail: `前提崩れ＝エナが0枚でない（energy=${st0?.host?.energy}）＝「無料だから通った」と言えない` };
+  }
+  H.log(`開始 lrigTop=${st0?.host?.lrigTop} energy=${st0?.host?.energy} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards ?? [])}`);
+
+  // グロウ窓を開く（§4.4-8g＝phase は注入ではなく repatch で歩かせる）。
+  let modalSeen = false, btnEnabled = null;
+  for (let k = 0; k < 6 && !modalSeen; k++) {
+    await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(700);
+    const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+    if ((await gb.count()) > 0 && await gb.isVisible().catch(() => false)) await gb.click({ timeout: 1500 }).catch(() => {});
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT}/${tag}-open${k}.png`, fullPage: true }).catch(() => {});
+    // グロウ候補はカード名のボタン。名前ではなく **`lrig_deck` に入れた1枚**だけが出るはず。
+    const cand = page.getByRole('button', { name: new RegExp(target.name) }).first();
+    if ((await cand.count()) > 0 && await cand.isVisible().catch(() => false)) {
+      modalSeen = true;
+      // 🔴§4.4-19＝**無効なボタンは押さずに `isEnabled()` を読むだけ**（押すと30秒待たされる）。
+      btnEnabled = await cand.isEnabled().catch(() => false);
+    }
+    H.log(`  ${tag}[open${k}] modal=${modalSeen} enabled=${btnEnabled}`);
+  }
+  if (!modalSeen) {
+    return { pass: false, detail: `前提崩れ＝グロウ候補「${target.name}」がモーダルに出ない（クラス互換／【グロウ】条件を疑う）` };
+  }
+  if (!expectFree) {
+    // 対照＝範囲外なので**無料にならない**＝エナ0では押せない（§4.4-3＝出ない側は必ず対照とセット）。
+    return btnEnabled
+      ? { pass: false, detail: `🔴対照が崩れた＝${why}のにエナ0で押せる（範囲が効いていない＝旧挙動の「全グロウ無料」）` }
+      : { pass: true, detail: `対照＝${why}のでエナ0では無料にならず候補が押せない（範囲が効いている）` };
+  }
+  if (!btnEnabled) {
+    return { pass: false, detail: `🔴${why}のにエナ0で押せない＝無料グロウの権利が候補へ届いていない` };
+  }
+  // §4.4-47＝「ゲートを通した」と「実際にグロウできた」は別の観測面。最後まで押し切って盤面を assert する。
+  const cand = page.getByRole('button', { name: new RegExp(target.name) }).first();
+  await cand.click({ timeout: 1500 }).catch(() => {});
+  let last = st0;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(700);
+    const did = await H.stdStep(['グロウ', '確定', '決定', 'OK', 'はい', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  ${tag}[grow${s}] -> ${did ?? 'なし'} | lrigTop=${last?.host?.lrigTop} energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'}`);
+    if (String(last?.host?.lrigTop ?? '').startsWith(target.num)) break;
+  }
+  return String(last?.host?.lrigTop ?? '').startsWith(target.num)
+    ? { pass: true, detail: `${why}＝エナ0枚のままグロウできた（lrigTop=${last?.host?.lrigTop}／energy=${last?.host?.energy}）` }
+    : { pass: false, detail: `候補は押せたのにグロウが成立しない（lrigTop=${last?.host?.lrigTop}）` };
+}
+
+scenarios.v183FreeGrowUnrestricted = {
+  title: 'V-183(1): 範囲なしの無料グロウ（従来形）＝エナ0でもグロウできる（common path の退化検出）',
+  spec: v183Spec('WX13-008', 'WXEX2-12', true),
+  async drive(page, H) {
+    return driveV183(page, H, {
+      tag: 'v183Free', spec: this.spec, expectFree: true,
+      target: { num: 'WXEX2-12', name: 'アロス・ピルルク' },
+      why: '権利に範囲が無い（従来どおり無制限）',
+    });
+  },
+};
+scenarios.v183FreeGrowSameLrigTypeExact = {
+  title: 'V-183(2): 範囲つき（完全に同一のルリグタイプ）＝タマ→タマ は無料になる',
+  spec: v183Spec('WX03-006', 'WX19-001', { sameLrigTypeExact: true }),
+  async drive(page, H) {
+    return driveV183(page, H, {
+      tag: 'v183Same', spec: this.spec, expectFree: true,
+      target: { num: 'WX19-001', name: '炎・タマヨリヒメ・伍改' },
+      why: 'センター（タマ）と完全に同一のルリグタイプな',
+    });
+  },
+};
+scenarios.v183FreeGrowScopeBlocksPartialType = {
+  title: 'V-183(3): 対照＝「重なるだけ」（リメンバ/ピルルク→ピルルク）は無料にならない（旧挙動＝全グロウ無料の停止）',
+  spec: v183Spec('WX13-008', 'WXEX2-12', { sameLrigTypeExact: true }),
+  async drive(page, H) {
+    return driveV183(page, H, {
+      tag: 'v183Partial', spec: this.spec, expectFree: false,
+      target: { num: 'WXEX2-12', name: 'アロス・ピルルク' },
+      why: 'センター（リメンバ/ピルルク）と重なるだけで完全に同一ではない',
+    });
+  },
+};
+order.push('v183FreeGrowUnrestricted');
+order.push('v183FreeGrowSameLrigTypeExact');
+order.push('v183FreeGrowScopeBlocksPartialType');
+
+// ═════════════════════════════════════════════════════════════════════════════
 // §5.1 `V-179`＝PLAN §5.0 実装キュー「系統」（`WX07-014-E1`）。
 // 原文＝「スペル１つを対象とし、それの効果を打ち消す。その後、あなたは**それ**をトラッシュから、
 //   あなたの手札にあるかのようにコストを支払わずに限定条件を無視して**使用してもよい**。」

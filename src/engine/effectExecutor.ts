@@ -8,7 +8,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
-  costSlotIsAny, energyMatchesCostSlot,
+  costSlotIsAny, energyMatchesCostSlot, splitColors,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
@@ -413,7 +413,13 @@ function findEffectLeavePowerReductionSubstitute(
   victimState: PlayerState,
   cardMap: Map<string, import('../types').CardData>,
 ): { protectorNum: string; reduction: number } | null {
-  const victimCard = cardMap.get(victimNum);
+  // 🔴**§5.3 `O-276`（2026-09-08）＝`getCardNum` を通す。** 旧実装は `cardMap.get(victimNum)` で
+  //   **instance id（`WX01-043#2`）を base 化していなかった**＝同名2体目以降が victim のとき
+  //   `victimCard` が `undefined` になり、`matchesFilter` が false へ倒れて**無言で身代わりが出ない**。
+  //   場に同名シグニが並ぶのは普通の盤面なので、実戦では守れない機会が恒常的にあった。
+  //   ⚠この取り違えは同族の他の victim 参照（`applyEffectLeaveLrigAbilitySubstitute` の `baseNum`／
+  //     `collectBanishSubstitutes` の `baseNum`）では既に base 化されている＝**ここだけ漏れていた**。
+  const victimCard = cardMap.get(getCardNum(victimNum));
   for (const stack of victimState.field.signi) {
     const top = stack?.at(-1);
     if (!top || top === victimNum) continue; // 「他の」＝victim自身は除外
@@ -2144,11 +2150,15 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     : a.target.filter;
   let cands: string[];
   if (isAny) {
-    const selfCands = fieldCandidates(ctx.ownerState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    let selfCands = fieldCandidates(ctx.ownerState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     let oppCands = fieldCandidates(ctx.otherState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効
     if (delta < 0 && ctx.otherEffectImmuneNums?.size) {
       oppCands = oppCands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+    }
+    // 🆕§5.3 `O-284`（2026-09-08）＝`sourceOwner:'any'` の耐性は**自分の効果が自分側を侵す**経路にも効く。
+    if (delta < 0 && ctx.ownEffectImmuneNums?.size) {
+      selfCands = selfCands.filter(n => !ctx.ownEffectImmuneNums!.has(n));
     }
     cands = [...selfCands, ...oppCands];
   } else {
@@ -2156,6 +2166,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効（プラスは利益なので除外しない）
     if (tgtOwner === 'opponent' && delta < 0 && ctx.otherEffectImmuneNums?.size) {
       cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+    }
+    // 🆕§5.3 `O-284`＝自分側の完全効果耐性（`sourceOwner:'any'`）。
+    if (tgtOwner === 'self' && delta < 0 && ctx.ownEffectImmuneNums?.size) {
+      cands = cands.filter(n => !ctx.ownEffectImmuneNums!.has(n));
     }
   }
   cands = filterCandidatesToTargetZone(cands, a.target, state);
@@ -2404,6 +2418,15 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       cands = trigTS ? cands.filter(n => n === trigTS) : [];
     }
     if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
+    // 🆕**§5.3 `O-280`①（2026-09-08）＝「場かエナゾーンから」の統一プール**
+    //   （`WXEX1-09-E2`「対戦相手の、**場かエナゾーンから**レベル１のシグニ１枚を対象とし」）。
+    // 🔴原文は**1回の選択で両ゾーンを跨ぐ**（片方ずつ2回選ぶのとは別物＝合計2枚落ちてしまう）。
+    // 🔑候補式はエナ側の唯一の評価器 `energyCandidates` に合わせる（TRASH の ENERGY_CARD 分岐と同じ）。
+    // ⚠**適用側（`applyDirectAction` の TRASH/SIGNI 分岐）にも同じ `extraZones` の分岐が要る**＝
+    //   片方だけだと「選ばせるのに何も起きない」無言 no-op になる。
+    if (tgt.extraZones?.includes('energy')) {
+      cands = [...cands, ...energyCandidates(state, trashFilter, ctx.cardMap, ctx.treatAsClassAllZones)];
+    }
     // SELF_TRASH_PREVENT（WX07-033・§6.1）: 自分（owner:self）の効果で自シグニをトラッシュに置く場合、
     // 「自分でトラッシュに置けない」シグニを候補から除外する（相手効果によるトラッシュは対象外）。
     if (tgt.owner === 'self' && ctx.ownSelfTrashPreventNums && ctx.ownSelfTrashPreventNums.size > 0) {
@@ -2619,6 +2642,13 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...(a.asCost && selected.length > 0 ? {
           last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), ...selected.map(getCardNum)],
           last_cost_energy_trash_count: (s.last_cost_energy_trash_count || 0) + selected.length,
+          // 🆕§5.3 `O-286`（2026-09-08）＝**払った色**を記録する（`COST_ENERGY_TRASHED_COLOR` が読む）。
+          //   ⚠**適用の2経路（ここと `applyDirectAction`）の両方に要る**＝片方だけだと
+          //     「選ばせたのに色が記録されない」＝条件が常に不成立へ倒れる。
+          last_cost_energy_trash_colors: [
+            ...(s.last_cost_energy_trash_colors ?? []),
+            ...selected.flatMap(n => splitColors(c.cardMap.get(getCardNum(n))?.Color)),
+          ],
           last_cost_energy_trash_level_sum:
             (s.last_cost_energy_trash_level_sum || 0) + selected.reduce((sum, n) => {
               const level = parseInt(c.cardMap.get(getCardNum(n))?.Level || '', 10);
@@ -2850,6 +2880,13 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   let newS: PlayerState;
   // LIFE_CRASHED_THIS_TURN 用カウンタ（実際にクラッシュした枚数を加算）
   const crashedCountAcc = (state.life_crashed_this_turn ?? 0) + crashed.length;
+  // 🆕**§5.3 `O-275`（2026-09-08）＝「対戦相手の効果によって」クラッシュされた枚数**を別に数える。
+  //   🔑`a.owner === 'opponent'`＝**効果元の対戦相手のライフを削る**＝被害側から見れば「相手の効果」。
+  //   ⚠`a.owner === 'self'`（自分の効果で自分のライフを削る）はここに入れない＝
+  //     入れると原文「対戦相手の効果によって」が**自分の効果でも成立**する（この軸を足した理由そのもの）。
+  const oppEffectCrashAcc = a.owner === 'opponent'
+    ? (state.life_crashed_by_opp_effect_this_turn ?? 0) + crashed.length
+    : state.life_crashed_by_opp_effect_this_turn;
   if (a.triggerBurst) {
     // バースト発動あり: 先頭1枚をチェックゾーンへ、残りはpending
     const checkCard = crashed[0] ?? null;
@@ -2858,6 +2895,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       ...state,
       life_cloth: life,
       life_crashed_this_turn: crashedCountAcc,
+      life_crashed_by_opp_effect_this_turn: oppEffectCrashAcc,
       // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（枚数だけでは1枚目/2枚目を区別できない）。
       checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
       field: { ...state.field, check: checkCard },
@@ -2879,6 +2917,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       ...state,
       life_cloth: life,
       life_crashed_this_turn: crashedCountAcc,
+      life_crashed_by_opp_effect_this_turn: oppEffectCrashAcc,
       trash: [...state.trash, ...crashed],
     };
   }
@@ -4268,6 +4307,10 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     if (tgtOwner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
       cands = cands.filter(num => !ctx.otherEffectImmuneNums!.has(num));
     }
+    // 🆕§5.3 `O-284`＝自分側の完全効果耐性。
+    if (tgtOwner === 'self' && ctx.ownEffectImmuneNums?.size) {
+      cands = cands.filter(num => !ctx.ownEffectImmuneNums!.has(num));
+    }
     if (cands.length === 0) return done(ctx);
     if (a.target.count === 'ALL') {
       let cur = ctx;
@@ -4285,6 +4328,10 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     const lstate = ownerState(a.target.owner, ctx);
     const lrigTopId = lstate.field.lrig?.at(-1);
     if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
+      return done(addLog(ctx, 'センタールリグは効果を受けない（凍結無効）'));
+    }
+    // 🆕§5.3 `O-284`＝自分側のセンタールリグも `sourceOwner:'any'` の耐性で守る。
+    if (a.target.owner === 'self' && lrigTopId && ctx.ownEffectImmuneNums?.has(lrigTopId)) {
       return done(addLog(ctx, 'センタールリグは効果を受けない（凍結無効）'));
     }
     if (!lrigTopId) return done(ctx);
@@ -4321,6 +4368,10 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
     cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
   }
+  // 🆕§5.3 `O-284`＝自分側の完全効果耐性。
+  if (a.target.owner === 'self' && ctx.ownEffectImmuneNums?.size) {
+    cands = cands.filter(n => !ctx.ownEffectImmuneNums!.has(n));
+  }
   function applyFreeze(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
@@ -4341,6 +4392,11 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     const lrigTopId = state.field.lrig?.at(-1);
     // 効果耐性（「あなたのセンタールリグはアーツの効果を受けない」WX04-064 等）: 相手効果ならダウン無効
     if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
+      return done(addLog(ctx, 'センタールリグは効果を受けない（ダウン無効）'));
+    }
+    // 🆕§5.3 `O-284`（2026-09-08）＝`sourceOwner:'any'` の耐性は自分側のセンタールリグにも効く。
+    //   ⚠**コスト経路（`payLrigDownCost`）は別**＝コストはそもそも「効果」ではないので遮断しない。
+    if (a.target.owner === 'self' && lrigTopId && ctx.ownEffectImmuneNums?.has(lrigTopId)) {
       return done(addLog(ctx, 'センタールリグは効果を受けない（ダウン無効）'));
     }
     // 「あなたのアップ状態の（レベルNの）ルリグN体をダウン（してもよい）」＝**センター固定ではない**（アシスト
@@ -6124,6 +6180,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               // 枚数側も同じ寿命（execTrash{asCost} が累算するため、クリアしないと前の効果の
               // 支払い枚数が costThresholdFromPaidCount の閾値に足し込まれて上限が膨らむ）。
               last_cost_energy_trash_count: undefined,
+              // 🆕§5.3 `O-286`＝色も同じ寿命（残すと**前の効果で払った色**で分岐が成立する）。
+              last_cost_energy_trash_colors: undefined,
             },
           };
           const activateOnly5 = stub5.id === 'OPTIONAL_ACTIVATE';
@@ -7010,6 +7068,21 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       const count = resolveNum(src.count);
       const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
       return selectOrInteract(cands, count, false, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+    }
+    // 🆕**§5.3 `O-274`（2026-09-08）＝候補が枚数より多いときは必ず選ばせる。**
+    // 🔴旧実装はここで `cands.slice(0, N)` ＝**トラッシュの並び順で先頭 N 枚を無言で確定**していた。
+    //   原文が「トラッシュから…N枚を**対象とし**」「…N枚を**好きな順番で**デッキの一番下に置く」と
+    //   書いていても選択UIが出ず、①**どの N 枚を戻すか** ②**積む順番** の両方が奪われていた
+    //   （実測 live 28効果がこの経路。`WXK09-091-E1` のように「どの2枚を戻したか」を後続が読む効果もある）。
+    // 🔑`resumeSelectTarget` は `selected` の順に per-card 適用する＝**選んだ順＝積まれる順**なので、
+    //   「好きな順番で」は選択UIだけで表現できる（`orderChosenBy` を増やす必要は無かった）。
+    // ⚠**候補が N 枚以下なら選ぶ余地が無い**ので従来どおり自動で確定する（無意味なモーダルを出さない）。
+    if (src.count !== 'ALL') {
+      const fixedCount = resolveNum(src.count);
+      if (cands.length > fixedCount) {
+        const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+        return selectOrInteract(cands, fixedCount, false, scope, a, undefined, ctx, false);
+      }
     }
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
@@ -9406,6 +9479,27 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
       optional: a.optional === true,
       targetScope: 'self_energy',
       thenAction: pickFromEna as import('../types/effects').EffectAction,
+    });
+  }
+
+  // 🆕**§5.3 `O-285`（2026-09-08）＝ルリグデッキから選んでアクセにする**（`WXDi-P09-007-E2`）。
+  //   `fromHand`／`fromEnergy` と同じ2段選択（段1＝アクセ札／段2＝ホスト）に載せる。
+  //   ⚠**除去側（`applyDirectAction` の `ATTACH_ACCE`）にも `lrig_deck` の分岐が要る**＝
+  //     片方だけだと「選ばせるのにカードが2枚に増える」（元の場所から抜けない）。
+  if (a.fromLrigDeck) {
+    const lrigDeckCands = (srcState.lrig_deck ?? []).filter(cn => {
+      const card = ctx.cardMap.get(getCardNum(cn));
+      return card && card.Type === 'シグニ' && (!a.signiFilter || matchesFilter(card, a.signiFilter));
+    });
+    if (lrigDeckCands.length === 0) return done(addLog(ctx, 'アクセ可能なルリグデッキのシグニなし'));
+    const pickFromLrigDeck: AttachAcceAction = { ...a, fromLrigDeck: false, _selectingAcceFromHand: true };
+    return needsInteraction(addLog(ctx, 'ルリグデッキからアクセするシグニを選択'), {
+      type: 'SELECT_TARGET',
+      candidates: lrigDeckCands,
+      count: 1,
+      optional: a.optional === true,
+      targetScope: 'self_lrig_deck',
+      thenAction: pickFromLrigDeck as import('../types/effects').EffectAction,
     });
   }
 
@@ -11913,6 +12007,22 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           return done(addLog(causeCtx,
             `${c.cardMap.get(cardNum)?.CardName ?? cardNum}を${destination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`));
         }
+        // 🆕**§5.3 `O-280`①（2026-09-08）＝「場かエナゾーンから」の統一プールで選ばれた札がエナ側だった場合。**
+        //   ⚠列挙側（`execTrash` の SIGNI 分岐）と対で入れること＝片方だけだと無言 no-op。
+        //   ⚠エナからの移動は**離場置換を通さない**（場を離れるのではない）＝場側の分岐と扱いを分ける。
+        if (tgt.extraZones?.includes('energy')) {
+          const ei = s.energy.indexOf(cardNum);
+          if (ei >= 0) {
+            if (owner === 'opponent'
+                && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
+              return done(addLog(ctx, 'エナ保護により効果なし'));
+            }
+            const newEnergyXZ = [...s.energy]; newEnergyXZ.splice(ei, 1);
+            const newSXZ: PlayerState = { ...s, energy: newEnergyXZ, trash: [...s.trash, cardNum] };
+            return done(addLog(setOwnerState(owner, newSXZ, ctx),
+              `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンからトラッシュへ`));
+          }
+        }
         return done(ctx);
       }
       // DECK_CARD: デッキ（公開中の1枚）からトラッシュへ（LOOK_PICK_CHAIN の trash ステージ等）
@@ -11949,6 +12059,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               ...(trashAction.asCost ? {
                 last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), getCardNum(cardNum)],
                 last_cost_energy_trash_count: (s.last_cost_energy_trash_count || 0) + 1,
+                // 🆕§5.3 `O-286`（2026-09-08）＝上の一括経路と対で色を記録する。
+                last_cost_energy_trash_colors: [
+                  ...(s.last_cost_energy_trash_colors ?? []),
+                  ...splitColors(ctx.cardMap.get(getCardNum(cardNum))?.Color),
+                ],
                 last_cost_energy_trash_level_sum:
                   (s.last_cost_energy_trash_level_sum || 0) + (Number.isFinite(trashedLevel) ? trashedLevel : 0),
               } : {}),
@@ -12352,8 +12467,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newSrc = { ...newSrc, energy: newSrc.energy.filter(n => n !== acceCardNum) };
       } else if (newSrc.hand.includes(acceCardNum)) {
         newSrc = { ...newSrc, hand: newSrc.hand.filter(n => n !== acceCardNum) };
+      // 🆕§5.3 `O-285`（2026-09-08）＝ルリグデッキ発（`WXDi-P09-007-E2` のクラフト）。
+      //   ⚠列挙側（`execAttachAcce` の `fromLrigDeck`）と対で足す＝落とすとカードが複製される。
+      } else if ((newSrc.lrig_deck ?? []).includes(acceCardNum)) {
+        newSrc = { ...newSrc, lrig_deck: newSrc.lrig_deck.filter(n => n !== acceCardNum) };
       } else {
-        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札にない`));
+        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札/ルリグデッキにない`));
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
       // signi_acce[zoneIdx] の末尾へ追加

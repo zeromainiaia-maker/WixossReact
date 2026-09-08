@@ -353,6 +353,17 @@ export interface PlayerState {
   last_cost_energy_trash_level_sum?: number; // 直前の任意【出】コストでエナからトラッシュへ置いたシグニのレベル合計（WXK09-032）
   last_cost_energy_trash_count?: number; // 直前の指定 energyTrash コストで実際にトラッシュへ置いた枚数
   /**
+   * 🆕**直前の追加コストで「エナゾーンからトラッシュへ置いたカードの色」**（2026-09-08・§5.3 `O-286`）。
+   * 原文「これの使用コストとして追加で**白のカード**がトラッシュに置かれた場合」（`WX21-Re18-E1`）＝
+   * **払った色ごとに別の効果**が付く形。読み手は条件 `COST_ENERGY_TRASHED_COLOR`。
+   * 🔴**`last_paid_energy_colors` とは別物**＝あちらは**基本コスト**（カードの使用コスト）で払ったエナの色。
+   *   こちらは**追加コストでトラッシュに置いた**カードの色で、書き手も読み手も別。
+   * ⚠色は**印刷色**（`splitColors`）＝多色カードは全色を足す。無色は何も足さない。
+   * ⚠支払いのたびに**累積**する（同じ効果の中で複数ステップに分かれることがある）＝
+   *   `last_cost_energy_trash_count` と同じ寿命で、任意コストの入口でクリアされる。
+   */
+  last_cost_energy_trash_colors?: string[];
+  /**
    * 🆕直前の `fieldTrash` コストで実際に場からトラッシュへ置いたシグニの体数（2026-09-07・§5.3 `O-271`）。
    * 🔴**`{$ref:'last_processed_count'}` では取れない**＝あれは `ExecCtx.lastProcessedCards`（engine 内部の
    *   直前ステップ）を読むので、**コスト支払いは1件も残らず必ず 0 になる**（＝帰結が丸ごと空振りする）。
@@ -452,6 +463,16 @@ export interface PlayerState {
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;
   // このターンに自分のライフクロスがクラッシュされた枚数（LIFE_CRASHED_THIS_TURN 条件用。ターン開始時にリセット）
   life_crashed_this_turn?: number;
+  /**
+   * 🆕**このターンに「対戦相手の効果によって」クラッシュされた枚数**（2026-09-08・§5.3 `O-275`）。
+   * 🔴`life_crashed_this_turn` は**原因を区別しない**＝アタックのダメージも、自分の効果も、
+   *   身代わりコストとして自分で払ったぶんも同じ1つのカウンタに入る。原文が原因を限定するとき
+   *   （`WX11-021-E1`②）に総数を読むと**自分の効果でクラッシュしただけで成立**してしまう。
+   * ⚠**書き手は `execLifeCrash` の「効果元の対戦相手側のライフを削る」経路だけ**＝
+   *   アタックのダメージ（`BattleScreen`）とコスト支払い（`lifeCost.ts`／身代わり）では立てない。
+   * ⚠ターン終了時にクリア（`turnScopedState.ts`）。
+   */
+  life_crashed_by_opp_effect_this_turn?: number;
   /**
    * 🆕**このターンに「チェックゾーンへ置かれた」ライフクロスを置かれた順に持つ**（2026-09-04・§5.3 `O-239`）。
    * 🔴**`life_crashed_this_turn` では足りない**＝あちらは枚数だけなので、ダブルクラッシュで2枚同時に
@@ -1074,7 +1095,16 @@ export interface PlayerState {
    * `resolvePendingPiece` が読んで「解決せずゲームから除外」に倒す。⚠読んだら必ず落とす。
    */
   piece_use_countered?: boolean;
-  free_grow_this_turn?: boolean;
+  /**
+   * このターンのグロウが無料になる権利。
+   * 🆕**`{ sameLrigTypeExact: true }`（2026-09-08・§5.3 `O-278`）＝
+   *   「あなたのセンタールリグと**完全に同一のルリグタイプ**を持つルリグ」に限る**（`WX03-024-BURST`）。
+   * 🔴`true` は**無制限**（グロウ候補すべてが無料）。原文が範囲を書いているのに `true` を立てると
+   *   **グロウできる札が全部タダ**になる（この軸を足すまで実際にそうなっていた）。
+   * ⚠読み手は `freeGrowAppliesTo`（`screens/battle/growLogic.ts`）1本に寄せる＝
+   *   `=== true` で比較すると範囲つきの権利が**丸ごと落ちる**。
+   */
+  free_grow_this_turn?: boolean | { sameLrigTypeExact: true };
   /**
    * このターンにセンタールリグがグロウしたか（§6.4 O-10・続き515・`WXDi-P16-001A`
    * 「このターンにあなたのセンタールリグがグロウしていない場合」）。
@@ -1182,8 +1212,8 @@ export interface PlayerState {
   // 直後の【出】が THIS_CARD_PLACED_BY_CLASS で判定するために記録。通常召喚では記録されない。
   signi_placed_by_source?: Record<string, string>;
   // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）。
-  // 自分ターン開始時に free_grow_this_turn へ移される。
-  free_grow_next_turn?: boolean;
+  // 自分ターン開始時に free_grow_this_turn へ**値ごと**移される（§5.3 `O-278`＝範囲を落とさない）。
+  free_grow_next_turn?: boolean | { sameLrigTypeExact: true };
   // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
   // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
   cards_drawn_by_effect_this_turn?: number;

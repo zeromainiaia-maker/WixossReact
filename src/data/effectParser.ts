@@ -6581,16 +6581,24 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // → CONDITIONAL(LIFE_CRASHED_THIS_TURN)（WX18-063/064・WXDi-P16-065）。
   // 【自】ターン終了時札は actionText 先頭に timing 句（「各ターン終了時、」「あなたのターン終了時、」）が
   // 残るため正規表現で吸収する。
-  // 「対戦相手の効果によってクラッシュ」（WX11-021-E1②）は engine にクラッシュ発生源を区別する counter が
-  // 無く、アタックによるクラッシュでも真になって過剰発動するため除外＝この条件では近似しない。
+  // 🆕**§5.3 `O-275`（2026-09-08）＝「対戦相手の効果によってクラッシュ」を近似せず正確に出す。**
+  //   🔴旧実装はこの形を**丸ごと除外**していた（「engine に発生源を区別する counter が無く、アタックに
+  //     よるクラッシュでも真になって過剰発動する」）。同バッチで `life_crashed_by_opp_effect_this_turn`
+  //     を足したので、`byOpponentEffect` を刻んで**原因を限定した条件**として出せるようになった。
+  //   ⚠**「対戦相手の効果によって」以外の原因句は今も出さない**（fail-closed）＝
+  //     未知の原因句を無原因の総数へ丸めると、この軸を足した意味が消える。
   {
     const m = text.trim().match(/^(?:[^、]*?(?:終了時|開始時)、)?このターンに(あなた|対戦相手)の?ライフ(?:クロス)?が([^、]*?)クラッシュされ(?:てい)?た場合、(.+)/s);
-    if (m && !/効果によって/.test(m[2])) {
+    const byOppEffect = !!m && /対戦相手の効果によって/.test(m[2]);
+    if (m && (byOppEffect || !/効果によって/.test(m[2]))) {
       const owner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
       const vm = m[2].match(/([０-９\d]+)枚以上/);
       return {
         type: 'CONDITIONAL',
-        condition: { type: 'LIFE_CRASHED_THIS_TURN', owner, operator: 'gte', value: vm ? parseNum(vm[1]) : 1 },
+        condition: {
+          type: 'LIFE_CRASHED_THIS_TURN', owner, operator: 'gte', value: vm ? parseNum(vm[1]) : 1,
+          ...(byOppEffect ? { byOpponentEffect: true } : {}),
+        },
         then: parseSingleSentence(m[3]),
       } as import('../types/effects').ConditionalAction;
     }

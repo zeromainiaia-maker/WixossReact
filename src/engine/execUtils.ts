@@ -91,6 +91,14 @@ export interface ExecCtx {
   // 解決中効果のソース種別が耐性対象に該当する相手(otherState)シグニ。FREEZE/POWER_MODIFY等の対象から除外する。
   // （バニッシュ/バウンス/ダウン/トラッシュ/能力消失/能力付与は各専用保護セットへ別途 union 済み）
   otherEffectImmuneNums?: Set<string>;
+  /**
+   * 🆕**自分側の完全効果耐性**（2026-09-08・§5.3 `O-284`）＝`sourceOwner:'any'` の耐性は
+   * **自分の効果が自分の場を侵す経路**にも効く（`WX17-001-E1`「自身以外の効果を受けない」）。
+   * 🔴`otherEffectImmuneNums` は「対戦相手の効果が自分側を侵すか」だけを毎回計算する**片側専用**で、
+   *   `sourceOwner:'any'` と書いても実際には相手側しか判定されていなかった。
+   * 🔑先例は `ownBanishProtectedNums`（`collectBanishEffectProtectedSigni` の対の呼び出し）。
+   */
+  ownEffectImmuneNums?: Set<string>;
   // BLOCK_OPP_DECK_TO_ENERGY: 相手CONTにより自分のデッキ→エナ効果がブロックされている
   deckToEnergyBlocked?: boolean;
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 相手CONTにより自分はシグニ効果でシグニを出せない
@@ -333,6 +341,19 @@ export function zoneCardsOf(
 }
 
 /** CountFromZone の唯一の解決器。動的対象上限と動的 action 枚数の双方が同じ盤面定義を使う。 */
+/**
+ * 🆕**「そのゾーンの状態」を指す `TargetFilter` の語彙**（§5.3 `O-280`・2026-09-08）。
+ * 🔴これらは `matchesFilter`（CardData 単体）では判定できず、**ゾーン添字を知っている
+ *   `fieldCandidates` の中でしか評価されない**。`countFromZone` のように `matchesFilter` だけで
+ *   絞る経路に紛れ込むと**黙って素通りして数え過ぎる**。
+ * ⚠**新しい盤面状態フィルタを `fieldCandidates` に足したら、ここにも足す**（片方だけだと同じ穴が再発する）。
+ */
+const ZONE_STATE_FILTER_KEYS = [
+  'isFrozen', 'isDown', 'isUp', 'crossState', 'isArmored', 'isAttacking', 'attackedThisTurn',
+  'hasCharm', 'hasAcce', 'hasSoul', 'hasUnderCards', 'hasAttachedOrUnder',
+  'isPuppet', 'isDrive', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities',
+] as const satisfies readonly (keyof TargetFilter)[];
+
 export function countFromZone(
   fromZone: CountFromZone,
   ownerSt: PlayerState,
@@ -360,7 +381,19 @@ export function countFromZone(
     return unitsCLT * (fromZone.per ?? 1);
   }
   const cards = zoneCardsOf(fromZone, ownerSt, otherSt, sourceCardNum);
-  const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
+  // 🔴**§5.3 `O-280`（2026-09-08）＝盤面状態のフィルタは `matchesFilter` では判定できない。**
+  //   `matchesFilter` は **CardData 単体**しか見ないので、`isFrozen` / `isDown` / `crossState` のような
+  //   「**そのゾーンの状態**」を指す語彙は**黙って素通りする**（未知キーは true 扱い）＝
+  //   `PR-195-E3`「対戦相手の**凍結状態の**シグニ１体につき」が**相手シグニの総数**を返していた。
+  //   ⇒ 場のゾーン状態を見る語彙が1つでも入っていたら、判定を持っている `fieldCandidates` に任せる。
+  // ⚠**入っていないときは1バイトも経路を変えない**（既存の `countFromZone` 利用箇所は全部そちら）＝
+  //   `fieldCandidates` は中央ルリグを含まない等の差があるので、無条件の切り替えは退化になる。
+  const zoneStateCards = ZONE_STATE_FILTER_KEYS.some(k => fromZone.filter?.[k] !== undefined)
+      && (fromZone.zone === 'field' || fromZone.zone === 'signi_zone_all')
+    ? fieldCandidates(fromZone.owner === 'self' ? ownerSt : otherSt, fromZone.filter, cardMap)
+    : null;
+  const matchedCards = zoneStateCards
+    ?? cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
   const rawMatched = fromZone.sumBy === 'power'
     // 「パワーの合計と同じだけ」＝枚数ではなく Power の総和を単位量にする（§5.3 `O-141`）。
     // スタック下段のカードは場に出ていない＝実効パワー（`effectivePowers`）を持たないので印刷値で数える。
@@ -462,7 +495,8 @@ export interface OptionalCostSpec {
    * ⚠`trashExile`（ゲームから除外）とは**行き先が違う**＝デッキへ戻るので後で引ける。流用禁止。
    */
   trashToDeckBottom?: { count: number; filter?: TargetFilter };
-  energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  // 🆕`atLeast`（「N枚**以上**」・§5.3 `O-286`）は宣言側（`StubAction.energyTrash`）から素通しする。
+  energyTrash?: { count: number | 'ALL'; atLeast?: boolean; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** 異なるフィルタの組でエナから置く（「《A》1枚と《B》1枚と…」）。支払いはグループごとに1ステップへ分解する。 */
   energyTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** `count:'ALL'`＝「すべてのシグニを場からトラッシュに置く」（§5.3 `O-68`①・`EffectCost.fieldTrashAll`）。 */
@@ -525,9 +559,15 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   const handDiscard = a.handDiscardCountFromTargetLevel
     ? { count: level, filter: a.handDiscardFilter }
     : a.handDiscard;
+  // 🆕§5.3 `O-280`④（2026-09-08）＝「対象**1体につき**1枚」＝宣言済み対象の**体数**で払う。
+  //   ⚠レベル軸（`energyTrashCountFromTargetLevel`）と取り違えない。
+  const targetCount = (ctx.storedTargetCards ?? []).length;
   const energyTrash = a.energyTrash
     ? {
-        count: a.energyTrashCountFromTargetLevel ? level : a.energyTrash.count,
+        count: a.energyTrashCountFromTargetCount ? targetCount
+          : a.energyTrashCountFromTargetLevel ? level : a.energyTrash.count,
+        // 🆕§5.3 `O-286`＝「N枚以上」（上限なし）。`upToCount`（0〜N）とは向きが逆。
+        atLeast: a.energyTrash.atLeast,
         upToCount: a.energyTrash.upToCount,
         // 「それと同じレベルの緑のシグニ」＝候補側にも対象のレベルを課す（翠英　マキトミ）
         filter: a.energyTrashSameLevelAsTarget ? { ...a.energyTrash.filter, level } : a.energyTrash.filter,
@@ -804,11 +844,20 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
         filter: spec.handReveal.filter, selectionConstraint: spec.handReveal.selectionConstraint,
       },
     } as EffectAction] : []),
+    // 🆕**§5.3 `O-286`（2026-09-08）＝`atLeast`（「N枚**以上**」）を engine 側でも払えるようにした。**
+    //   🔴従来 `atLeast` は UI のコスト層（`costs.ts`）にしか無く、engine の任意コスト経路では
+    //     **`count` ちょうど**に潰れていた＝「２枚以上」が常に2枚固定になり、
+    //     `WX21-Re18-E1` のように**払った枚数と色で分岐が変わる**札を表せなかった。
+    //   🔑上限なし＝`count:'ALL' + upToCount`（0〜全部）に、下限は `selectionConstraint.minCount` で課す。
     ...(spec.energyTrash ? [{
       type: 'TRASH', asCost: true,
-      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count,
-        ...(spec.energyTrash.upToCount ? { upToCount: true } : {}),
-        filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
+      target: spec.energyTrash.atLeast
+        ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL', upToCount: true,
+            filter: spec.energyTrash.filter,
+            selectionConstraint: { ...(spec.energyTrash.selectionConstraint ?? {}), minCount: spec.energyTrash.count } }
+        : { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count,
+            ...(spec.energyTrash.upToCount ? { upToCount: true } : {}),
+            filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
     } as EffectAction] : []),
     // 🔑`energyTrashGroups` は**グループごとに1ステップ**へ分解する＝
     //   1本の TRASH に潰すと「《A》1枚と《B》1枚と…」の「各1枚ずつ」が消えて同名3枚でも払えてしまう。
@@ -2291,8 +2340,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'TURN_OWNER':
       return ctx.isOwnerTurn == null || (cond.owner === 'self' ? ctx.isOwnerTurn : !ctx.isOwnerTurn);
-    case 'LIFE_CRASHED_THIS_TURN':
-      return cmp(st(cond.owner).life_crashed_this_turn ?? 0, cond.operator, resolveNum(cond.value));
+    case 'LIFE_CRASHED_THIS_TURN': {
+      // 🆕§5.3 `O-275`＝`byOpponentEffect` は**対戦相手の効果による分だけ**を数える別カウンタを読む。
+      const crashed = cond.byOpponentEffect
+        ? (st(cond.owner).life_crashed_by_opp_effect_this_turn ?? 0)
+        : (st(cond.owner).life_crashed_this_turn ?? 0);
+      return cmp(crashed, cond.operator, resolveNum(cond.value));
+    }
     case 'LIFE_CRASHED_LAST_TURN':
       return cmp(st(cond.owner).life_crashed_last_turn ?? 0, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
@@ -2374,6 +2428,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     //   単純な「union に全色が含まれる」判定だと、**マルチエナ1枚で5色すべて成立**してしまう。
     // 🔴**記録が無いときは false（fail-closed）**＝推定で倒すと過剰実行になる（`COST_COLOR_SELECT` の
     //   フォールバック推定はここでは使わない）。
+    // 🆕§5.3 `O-286`（2026-09-08）＝**追加コストで**エナからトラッシュへ置いた色に this color が在るか。
+    //   ⚠`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）と読み元が別。
+    //   ⚠記録が無ければ false（fail-closed）＝5分岐が全部走るのを止めるためのゲート。
+    case 'COST_ENERGY_TRASHED_COLOR':
+      return (ctx.ownerState.last_cost_energy_trash_colors ?? []).includes(cond.color);
     case 'PAID_COLORS_INCLUDE_ALL': {
       const need = cond.colors;
       const sets = (ctx.ownerState.last_paid_energy_colors ?? []).map(cs => cs.filter(c => need.includes(c)));
@@ -3834,6 +3893,8 @@ export function satisfiesSelectionConstraint(
   cardMap: Map<string, CardData>,
 ): boolean {
   if (!constraint) return true;
+  // 🆕§5.3 `O-286`＝下限枚数（「２枚以上」）。上限は `count` 側が担う。
+  if (constraint.minCount !== undefined && nums.length < constraint.minCount) return false;
   const cards = nums.map(n => cardMap.get(getCardNum(n)));
   const levelSum = (): number => cards.reduce((sum, card) => {
     const level = parseInt(card?.Level ?? '', 10);

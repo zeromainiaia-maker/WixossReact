@@ -6,6 +6,8 @@ import { collectGrowCostReductions, collectGrowCostSubstitute, collectGrowPayOpt
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna, coinPayableFor } from '../costs';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
+import { freeGrowAppliesTo } from '../growLogic';
+import { getCardNum } from '../../../engine/execUtils';
 import type { BattleModalCtx } from './types';
 
 interface GrowModalProps {
@@ -74,8 +76,15 @@ export function GrowModal(p: GrowModalProps) {
                       : growCostR;
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     // 🆕§5.3 `O-83`＝`'plus1_paid'` は**効果によるグロウだがコストは払う**＝free 扱いにしない。
-                    const isFreeGrow = my.free_grow_this_turn === true
-                      || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
+                    // 🆕§5.3 `O-278`（2026-09-08）＝無料グロウの権利は**候補ごと**に判定する。
+                    //   🔴旧は `my.free_grow_this_turn === true` の1回きりで、`WX03-024-BURST` の
+                    //     「センタールリグと完全に同一のルリグタイプを持つルリグ」限定が消え、
+                    //     **次の自分ターンの全グロウが無料**になっていた。
+                    const isFreeGrow = freeGrowAppliesTo(
+                      my.free_grow_this_turn,
+                      battleCardMap.get(getCardNum(my.field.lrig.at(-1) ?? ''))?.CardClass,
+                      card.CardClass,
+                    ) || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
                     // 🆕§5.3 `O-245`（2026-09-04）＝グロウはルリグ＝`coin_use_restriction` の対象。
                     const coinOk = growCoinNeeded === 0 || (my.coins >= growCoinNeeded && coinPayableFor(my, 'lrig'));
                     const enaOkFor = (cost: string) => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);

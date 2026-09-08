@@ -6459,6 +6459,13 @@ export function collectEffectImmuneSigni(
       for (const gp of protections) {
         if (gp.sourceOwner && gp.sourceOwner !== 'opponent' && gp.sourceOwner !== 'any') continue;
 
+        // 🆕**§5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」の identity 例外。**
+        //   ⚠`exceptSource`（型限定）では表せない＝同じ型の**別カード**まで通してしまう。
+        //   ⚠instance id（`CardNum#N`）で来る経路があるので base 化して比べる。
+        //   ⚠`getCardNum` はこのファイルに import が無いのでインスタンス ID の `#N` はここで落とす。
+        if (gp.exceptSelfSource && sourceCardNum
+            && sourceCardNum.split('#')[0] === sourceNum.split('#')[0]) continue;
+
         // この解決中のソース種別が耐性対象に含まれるか判定
         const blocked = gp.fromAll
           ? !exceptMatches(gp.exceptSource)
@@ -7147,7 +7154,13 @@ export function collectBanishSubstitutes(
           // §3タスク6 D（WX14-026）: 自分のライフクロスを割ってバニッシュを回避。ライフが足りなければ選べない。
           if (state.life_cloth.length >= cost.lifeCrash) result.push({ kind: 'pay_cost', sourceNum, costType: 'lifeCrash', amount: cost.lifeCrash });
         }
-        // powerReduction（WX06-019）は「効果による場離れ」トリガーでバトル外のため未対応
+        // 🔑**`powerReduction`（`WX06-019-E1`）をここに足してはいけない**（§5.3 `O-276`・2026-09-08 に確認）。
+        //   この collector は**バトルのバニッシュ経路**（`BattleScreen` の battle ladder）が読む。
+        //   `WX06-019-E1` の原文は「**対戦相手の効果によって**場を離れる場合」＝**バトルでは発動しない**。
+        //   実装は別軸に在る＝`collectLeaveSubstituteOptions` の `powerReduction` 軸
+        //   （`applyEffectLeavePowerReductionSubstitute`＝`effectExecutor.ts`）で、**効果による離場全般**
+        //   （バニッシュ／バウンス／エナ送り／トラッシュ）を `victimOwner === 'opponent'` の一点で
+        //   「相手の効果起因」に絞っている。⚠旧コメント「バトル外のため未対応」は**未実装の意味に読める誤記**だった。
         continue;
       }
     }

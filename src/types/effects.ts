@@ -397,7 +397,14 @@ export type Condition =
   // ／「このシグニが左のシグニゾーンに出たとき」）に使う。ActiveCondition 側にも同型あり＝両方揃えて更新すること
   | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
   | { type: 'LIFE_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
-  | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
+  /**
+   * このターンに owner のライフクロスがクラッシュされた枚数。
+   * 🆕**`byOpponentEffect`（2026-09-08・§5.3 `O-275`）＝発生原因を「対戦相手の効果によるもの」に限定する。**
+   *   原文「このターンにあなたのライフクロスが**対戦相手の効果によって**クラッシュされていた場合」（`WX11-021-E1`②）。
+   *   🔴省略時は従来どおり**原因を問わない総数**（アタックのダメージ・自分の効果・コスト支払いを含む）＝
+   *     この軸が無かった頃は自分の効果でクラッシュしただけでも成立していた。
+   */
+  | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef; byOpponentEffect?: boolean }
   | { type: 'LIFE_CRASHED_LAST_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
@@ -436,6 +443,16 @@ export type Condition =
    * 🔴**記録が無いときは false（fail-closed）**＝推定で「5色払った」に倒すと過剰実行になる。
    */
   | { type: 'PAID_COLORS_INCLUDE_ALL'; colors: string[] }
+  /**
+   * 🆕**追加コストで「エナゾーンからトラッシュへ置いた」カードにこの色が在ったか**
+   * （2026-09-08・§5.3 `O-286`・`WX21-Re18-E1`「これの使用コストとして追加で**白のカード**が
+   * トラッシュに置かれた場合、〜。**赤の場合**、〜。」）。読み元は `last_cost_energy_trash_colors`。
+   * 🔴**`PAID_COLORS_INCLUDE_ALL` とは別の軸**＝あちらは**基本コスト**で払ったエナの色。
+   *   取り違えると「使用コストの色」で分岐が成立して、追加で何も払わなくても全部の枝が走る。
+   * 🔴**記録が無ければ false（fail-closed）**＝この効果は分岐が5つあるので、
+   *   true へ倒すと**5つ全部が無条件に走る**（この項目を登録した理由そのもの）。
+   */
+  | { type: 'COST_ENERGY_TRASHED_COLOR'; color: string }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
@@ -782,7 +799,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
   SIGNI_LEFT_BY_OPP_EFFECT: true,
   SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
-  PAID_COLORS_INCLUDE_ALL: true,
+  PAID_COLORS_INCLUDE_ALL: true, COST_ENERGY_TRASHED_COLOR: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
@@ -1817,6 +1834,12 @@ export interface EffectTarget {
 }
 
 export interface SelectionConstraint {
+  /**
+   * 🆕**選択の下限枚数**（2026-09-08・§5.3 `O-286`）＝原文「カードを**２枚以上**トラッシュに置く」。
+   * 🔴`count:'ALL' + upToCount`（0〜全部）だけでは**0枚でも確定できる**＝追加コストがタダになる。
+   * ⚠上限は `count` 側が担う（ここは下限だけ）。`satisfiesSelectionConstraint` が確定を止める。
+   */
+  minCount?: number;
   /**
    * 1回の選択集合を filter ごとの上限へ割り当てる。
    * 「＜A＞1枚と＜B＞1枚」「シグニ1枚とスペル1枚」のように、単一の aggregate filter では
@@ -3194,6 +3217,14 @@ export interface GrantProtectionAction {
    */
   sourceSharedColorWithSelf?: boolean;
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
+  /**
+   * 🆕**「自身以外の効果を受けない」**（2026-09-08・§5.3 `O-284`・`WX17-001-E1`）＝
+   * **このカード自身の能力からの効果だけ**を例外にする。
+   * 🔴`exceptSource`（`{sourceType, sourceOwner}`）は**型**の限定なので、
+   *   「自分のルリグ効果は通す」と書くと**アシストルリグの効果まで通る**＝原文より緩い。
+   * ⚠`sourceOwner:'any'` と併せて使う（自分側の他カードからの効果も遮断するのが原文）。
+   */
+  exceptSelfSource?: boolean;
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外
   duration: EffectDuration;
 }
@@ -4470,6 +4501,15 @@ export interface AttachAcceAction {
    */
   fromEnergy?: boolean;
   /**
+   * 🆕**ルリグデッキから選んでアクセにする**（2026-09-08・§5.3 `O-285`・`WXDi-P09-007-E2`
+   * 「あなたのシグニ１体を対象とし、あなたの**ルリグデッキから**クラフトであるシグニ１枚をそれの【アクセ】にする」）。
+   * 🔴この形は `STUB{ACCE_FROM_HAND}` の catch-all に飲まれており、あの STUB は
+   *   **アクセ札を `ctx.sourceCardNum`（＝効果元自身）に固定**するので**恒久 no-op** だった
+   *   （効果元はルリグデッキの中の候補ではない）。`fromHand`／`fromEnergy` と同じ2段選択に載せる。
+   * ⚠除去は `applyDirectAction` の `ATTACH_ACCE` で `lrig_deck` も見る（列挙と除去は必ず対で足す）。
+   */
+  fromLrigDeck?: boolean;
+  /**
    * 🆕true＝アクセを付けるホストを**この効果で直前に処理したシグニ**に固定する
    * （2026-08-31・`SP24-010-E1`「それを**この方法で場に出したシグニ**の【アクセ】にしてもよい」）。
    * 🔴無いと `targetFilter` で**場の任意のシグニ**を選べてしまい、原文の照応が消える。
@@ -5122,6 +5162,11 @@ export interface StubAction {
    * ③効果元が `cardMap` から引けない経路（スペル・`effect_stack` 注入）では**必ず既定値**になる。
    * ⚠**どれも payload が無ければ何もしない**（fail-closed）＝旧既定値へ倒すと原文と無関係な数で動く。
    */
+  /**
+   * 🆕`DRAW_DISCARD_COUNT_PLUS_N` の**引く側**（2026-09-08・§5.3 `O-280`⑤）。
+   * 省略＝`self`。`WXDi-P00-018-E1` は同じ効果の中で自分側（＋1）と相手側（−1）を両方書く。
+   */
+  drawDiscardOwner?: Owner;
   /** `DRAW_DISCARD_COUNT_PLUS_N`＝「捨てた枚数に**N**を加えた枚数のカードを引く」の N。 */
   drawDiscardPlus?: number;
   /** `LIMIT_OPP_DRAW_COUNT`＝「カードを合計**N**枚までしか引けない」の N。 */
@@ -6067,6 +6112,12 @@ export interface StubAction {
   lrigDownVariableCount?: number;
   /** OPTIONAL_COST: 場のチャームを好きな数トラッシュする。 */
   charmTrashVariable?: { min: number };
+  /**
+   * 🆕`FREE_GROW_NEXT_TURN` の範囲（2026-09-08・§5.3 `O-278`）＝
+   * 「あなたのセンタールリグと**完全に同一のルリグタイプ**を持つルリグ」に限る（`WX03-024-BURST`）。
+   * 🔴省略＝無制限（次の自分ターンの**全グロウ**が無料）＝原文に範囲があるのに省くと過剰効果。
+   */
+  sameLrigTypeExact?: boolean;
   /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */
   down_self?: boolean;
   /**
@@ -6139,8 +6190,30 @@ export interface StubAction {
   costColorsPerTargetLevel?: string[];
   /** OPTIONAL_COST: 対象**すべてのレベル合計**1につき繰り返す単位エナコスト（例 ['緑']）。 */
   costColorsPerTargetLevelSum?: string[];
-  /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
-  energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  /**
+   * 🆕`USE_OWN_LRIG_ABILITY_FREE`（2026-09-08・§5.3 `O-283`）＝**エクシードの値の上限**。
+   * 原文「あなたのルリグの**エクシードの値が３以下**の能力１つ」（`WX21-Re04-E1`）。
+   * 省略＝上限なし（`WX22-014-E3`「このルリグのエクシード能力１つ」）。
+   */
+  maxExceed?: number;
+  /**
+   * 🆕`USE_OWN_LRIG_ABILITY_FREE` の再入時に「どの能力を選んだか」を運ぶ（2026-09-08・§5.3 `O-283`）。
+   * ⚠`carriedCardNum`（既存）と対で使う＝**持ち主のルリグ**と**その effectId**の両方で1本に絞る。
+   */
+  carriedEffectId?: string;
+  /**
+   * 🆕`USE_OWN_LRIG_ABILITY_FREE` の対象範囲（2026-09-08・§5.3 `O-283`）。
+   * 省略＝**センタールリグだけ**（`WX22-014-E3`「**この**ルリグの」）。
+   * `'all_lrigs'`＝センター＋アシスト（`WX21-Re04-E1`「**あなたのルリグの**」）。
+   */
+  lrigAbilityScope?: 'all_lrigs';
+  /**
+   * OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。
+   * 🆕`atLeast`（2026-09-08・§5.3 `O-286`）＝「**N枚以上**」＝上限なし・下限 N
+   * （`upToCount`＝「N枚**まで**」とは向きが逆）。`optionalCostPaySteps` が
+   * `count:'ALL' + upToCount` ＋ `selectionConstraint.minCount` へ展開する。
+   */
+  energyTrash?: { count: number | 'ALL'; atLeast?: boolean; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /**
    * OPTIONAL_COST: **異なるフィルタの組**でエナゾーンからトラッシュへ置く任意コスト
    * （「エナゾーンから《A》1枚と《B》1枚と《C》1枚をトラッシュに置く」＝`WXK03-070-E1`）。
@@ -6151,6 +6224,16 @@ export interface StubAction {
   energyTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: energyTrash.count を対象シグニのレベルにする。 */
   energyTrashCountFromTargetLevel?: boolean;
+  /**
+   * 🆕**支払う枚数＝宣言した対象の「体数」**（2026-09-08・§5.3 `O-280`④）＝
+   * 原文「対戦相手のシグニを**３体まで**対象とし、**それらのシグニ１体につき**あなたのエナゾーンから
+   * ＜ブルアカ＞のカード１枚をトラッシュに置いてもよい」（`WX25-CP1-092-E1`）。
+   * ⚠**`energyTrashCountFromTargetLevel`（対象の"レベル"）とは別の軸**＝取り違えると
+   *   レベル4のシグニ1体を選んだだけで4枚払わされる。
+   * 🔑読み元は `ctx.storedTargetCards`＝先に `STUB{STORE_LAST_PROCESSED_TARGETS}` を通しておくこと
+   *   （通さないと 0 枚＝タダで本体が走る）。
+   */
+  energyTrashCountFromTargetCount?: boolean;
   /** OPTIONAL_COST: energyTrash の候補を「対象と同じレベル」に限定（「それと同じレベルの緑のシグニ」）。 */
   energyTrashSameLevelAsTarget?: boolean;
   /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */

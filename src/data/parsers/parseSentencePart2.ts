@@ -250,6 +250,25 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
+  // ---- 代替コストが「複数のエナ1組」を丸ごと置き換える形＝明示 defer（§5.3 `O-277`・2026-09-08）----
+  // 原文＝`WX09-032-E1`「あなたが《緑》《緑》《緑》か《緑》《緑》を支払う際、代わりにあなたのエナゾーンから
+  //        カード名に《オサキ》を含むカード１枚をトラッシュに置いてもよい」。
+  // 🔴**旧 live は `STUB{OPTIONAL_COST, costText}` の生文字列止まり**＝engine は読まない完全な無言 no-op。
+  //   しかも `OPTIONAL_COST` は SEQUENCE 内では実装済みなので `census:stubs` A群にも出ず、**計器から消えていた**。
+  // 🔑受け皿が無い理由＝既存の代替コスト機構は**エナ1枚の色オーバーライド**（`collectEnergyColorSubs` の
+  //   `colorOverrideMap`）で表現している。この札は**1枚で《緑》2〜3個ぶん**を賄うので色の読み替えでは表せず、
+  //   支払いUI（`costs.ts` の `canAffordGrowCost` / `canAffordWithExtraCost` と4つのモーダル）へ
+  //   「1枚がN個ぶんになる」軸を通す必要がある＝**live 1効果のために `src/screens/` の支払い層を貫く**。
+  // ⇒ PLAN §5.3「1枚のために機構を作らないと決めてよい／その場合は無言 no-op にせず `DEFERRED_*` にする」に従う。
+  // ⚠**単発の《色》を置き換える族（`WX08-042` / `WX21-044` / `SP07-011` / `WDK16-01T` / `WXK10-015`）は
+  //   既に実装済み**なので巻き込まない＝**《色》が2つ以上連続する組**だけをここで拾う（か以下は任意）。
+  {
+    const multiCostSubM = t.match(/(?:^|あなたが)《[^》]+》《[^》]+》[^、]*を支払う際、代わりに.+てもよい/);
+    if (multiCostSubM) {
+      return { type: 'STUB', id: 'DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY' } as StubAction;
+    }
+  }
+
   // ---- 自身の基本パワーはNになる（条件なし単独文）----
   {
     const basePowerM = t.match(/^このシグニの基本パワーは([０-９\d]+)になる$/);

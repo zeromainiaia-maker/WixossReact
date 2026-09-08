@@ -11,16 +11,16 @@
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 4434 | 4403 | battle/growLogic.ts:340 | listGrowCandidates | `/かつ\|と/` |
+| 4434 | 4403 | battle/growLogic.ts:366 | listGrowCandidates | `/かつ\|と/` |
 | 29 | 29 | battle/costs.ts:1274 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:151 | canActivateLrigEffect | `'【歌のカケラ】'` |
 | 11 | 11 | battle/pieceCutin.ts:21 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
-| 4 | 4 | battle/growLogic.ts:314 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
+| 4 | 4 | battle/growLogic.ts:340 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
 
 ## C OTHER  3規則 / 当たり 14カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 12 | 12 | BattleScreen.tsx:10622 | normalizeBattleRow | `'アタックできる'` |
+| 12 | 12 | BattleScreen.tsx:10630 | normalizeBattleRow | `'アタックできる'` |
 | 1 | 1 | BattleScreen.tsx:985 | normalizeBattleRow | `/そのルリグの【常】能力を得る/` |
-| 1 | 1 | BattleScreen.tsx:10622 | normalizeBattleRow | `'シグニゾーンにもアタックする'` |
+| 1 | 1 | BattleScreen.tsx:10630 | normalizeBattleRow | `'シグニゾーンにもアタックする'` |

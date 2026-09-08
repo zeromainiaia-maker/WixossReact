@@ -449,7 +449,15 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     return `指定されたシグニゾーンにある${filterJa(t.filter)}${unit}`;
   }
   // owner='any': count='ALL' は「すべてのシグニ」（両者・主語省略）、単体選択は「自分または対戦相手の」（どちらも選べる）
-  const own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
+  let own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
+  // 🆕**§5.3 `O-280`①（2026-09-08）＝`extraZones`（場に足すゾーン）を描く。**
+  //   🔴描かないと `WXEX1-09-E2`「対戦相手の、**場かエナゾーンから**レベル１のシグニ」が
+  //     **場限定**に見える＝候補プールが広いことが原文照合から消える
+  //     （`REMOVE_ABILITIES` 側には 2026-09-01 に同じ手当てが入っている＝ここが漏れていた）。
+  if (t.extraZones?.length && t.type === 'SIGNI') {
+    const zoneJaXZ: Record<string, string> = { hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ' };
+    own = `${own}${['場', ...t.extraZones.map((z: string) => zoneJaXZ[z] ?? z)].join('か')}にある`;
+  }
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
   const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
@@ -944,7 +952,7 @@ function condJa(c?: any): string {
       : `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
     case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
+    case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${c.byOpponentEffect ? '対戦相手の効果によって' : ''}${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
     case 'ENERGY_COUNT_FILTER': return c.distinctClasses
       ? `${ownerJa(c.owner)}エナゾーンにあるシグニが持つクラスが合計${numJa(c.value)}種類${opJa(c.operator)}`
@@ -1349,6 +1357,10 @@ function condJa(c?: any): string {
     case 'IS_SELF_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     case 'IS_SELF_IN_SIDE_ZONE':
       return `このシグニが${c.side === 'either' ? '左か右' : c.side === 'left' ? '左' : '右'}のシグニゾーンにある`;
+    // 🆕§5.3 `O-286`（2026-09-08）＝追加コストでエナからトラッシュへ置いた色。
+    //   ⚠色を落とすと5つの分岐が同じ文になり、**どの色でどれが起きるか**が原文照合から消える。
+    case 'COST_ENERGY_TRASHED_COLOR':
+      return `これの使用コストとして追加で${c.color}のカードがトラッシュに置かれていた`;
     default: return `[条件:${c.type}]`;
   }
 }
@@ -1411,7 +1423,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
     // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
     case 'ATTACH_ACCE': {
-      const srcJaAA = a.fromHand ? '手札' : 'エナゾーン';
+      // 🆕§5.3 `O-285`（2026-09-08）＝`fromLrigDeck` を描く。落とすと「エナゾーンから」と**嘘の逆翻訳**になる
+      //   （既定の else が 'エナゾーン' なので、新しい発生元は必ずここへ足すこと）。
+      const srcJaAA = a.fromLrigDeck ? 'ルリグデッキ' : a.fromHand ? '手札' : 'エナゾーン';
       const acceFilJaAA = a.signiFilter ? filterJa(a.signiFilter) : '';
       const hostFilJaAA = a.targetFilter ? filterJa(a.targetFilter) : '';
       // 🆕repeatWhilePossible＝「好きな枚数を好きな数のシグニの【アクセ】にする」（落とすと1×1に読める）。
@@ -1479,7 +1493,13 @@ function actionJa(a?: Action, effectType?: string): string {
         : t?.type === 'HAND_CARD' && t?.owner === 'opponent'
         ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
-      const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて')
+      // 🆕**§5.3 `O-280`（2026-09-08）＝`countFromZone`（盤面で決まる動的枚数）を描く。**
+      //   🔴この分岐だけ `t.count` しか見ておらず、`PR-195-E3`「相手の凍結状態のシグニ**1体につき**
+      //     手札を1枚捨てる」が **`1枚トラッシュに置く`** と描かれていた＝
+      //     engine は `resolveCountRef` で実数を使うのに**逆翻訳だけが固定枚数の嘘をつく**形
+      //     （`targetJa` 側には 2026-08-28 に同じ手当てが入っている＝ここが漏れていた）。
+      const cnt = t?.countFromZone ? countFromZonePerJa(t.countFromZone, '枚', !!t?.upToCount)
+        : t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて')
         : (typeof t?.count === 'object' && LEVEL_REFS.includes(t?.count?.$ref)) ? 'それのレベル1につき1枚'
         : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count')
           ? `この方法で処理した${t.count.filter ? `${filterJa(t.count.filter)}カード` : 'カード'}と同じ枚数`
@@ -3412,7 +3432,12 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'DISRUPT_OPP_LRIG_UNDER_BY_TYPE') return '対戦相手のセンタールリグの下のカードを最大2枚、あなたのルリグデッキから同じルリグタイプのルリグ2枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く';
       if (a.id === 'DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG') return 'あなたの＜さんばか＞のルリグ1体に「【自】《ターン1回》：このルリグがアタックしたとき、このルリグをアップする」を付与する（ターン終了時まで）※ルリグ対象grant未配線';
-      if (a.id === 'FREE_GROW_NEXT_TURN') return '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
+      if (a.id === 'FREE_GROW_NEXT_TURN') {
+        // 🆕§5.3 `O-278`＝範囲を落とさない（落とすと「全グロウ無料」に読める＝意味照合の偽陰性源）。
+        return a.sameLrigTypeExact
+          ? '次のあなたのターンの間、あなたのセンタールリグと完全に同一のルリグタイプを持つルリグのグロウコストは《無×0》になる'
+          : '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
+      }
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'POWER_DOUBLE_ALL') return 'ターン終了時まで、あなたのすべてのシグニのパワーを2倍にする';
       if (a.id === 'BANISH_REDIRECT_POWER0_TRASH') return 'このターン、パワーが0以下のシグニがバニッシュされる場合、エナゾーンの代わりにトラッシュに置かれる';
@@ -3587,6 +3612,12 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.handDiscardCountFromTargetLevel) {
           const f = a.handDiscardFilter ? filterJa(a.handDiscardFilter) : '';
           return `それのレベル1につき手札から${f}カードを1枚捨ててもよい`;
+        }
+        // 🆕§5.3 `O-280`④（2026-09-08）＝「対象**1体につき**1枚」。描かないと**固定1枚**に見える。
+        if (a.energyTrashCountFromTargetCount) {
+          const nounTC = a.energyTrash?.filter?.cardType ?? 'カード';
+          const fTC = a.energyTrash?.filter ? `${filterJa(a.energyTrash.filter)}${nounTC}` : 'カード';
+          return `それら1体につきあなたのエナゾーンから${fTC}を1枚トラッシュに置いてもよい`;
         }
         if (a.energyTrashCountFromTargetLevel) {
           const same = a.energyTrashSameLevelAsTarget ? 'それと同じレベルの' : '';
@@ -4339,7 +4370,11 @@ function actionJa(a?: Action, effectType?: string): string {
       //   （旧はカード全文から原文を切り出しており、engine の取り違えをそのまま復唱していた）。
       if (a.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
         if (a.drawDiscardPlus === undefined) return '[DRAW_DISCARD_COUNT_PLUS_N: 加算値なし（未指定・engine も何もしない）]';
-        return `この方法で捨てた枚数に${a.drawDiscardPlus}を加えた枚数のカードを引く`;
+        // 🆕§5.3 `O-280`⑤（2026-09-08）＝**引く側**と**符号**を描く（落とすと「あなたが＋N引く」に読める）。
+        const whoDD = a.drawDiscardOwner === 'opponent' ? '対戦相手は' : 'あなたは';
+        const opDD = a.drawDiscardPlus < 0
+          ? `から${Math.abs(a.drawDiscardPlus)}を引いた` : `に${a.drawDiscardPlus}を加えた`;
+        return `${whoDD}この方法で捨てた枚数${opDD}枚数のカードを引く`;
       }
       // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝スカラー payload family の逆翻訳。
       //   ⚠**数値を描かないと「原文の数と違う」ことが原文照合で読めない**（§4.1 の教訓）。
@@ -4738,6 +4773,17 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-283`（2026-09-08）＝「カードを使う」ではなく「**ルリグの能力**を使う」経路。
+        //   ⚠上限（`maxExceed`）と範囲（`lrigAbilityScope`）は下の動的分岐で描く（固定文にしない）。
+        // 🆕§5.3 `O-280`③（2026-09-08）＝相手が手札を伏せて2束に分け、こちらが束を選ぶ秘匿 interaction。
+        //   engine の pending にこの形が無く、分割UI・選択UIの両方が `src/screens/` に要る（live 1効果）。
+        DEFERRED_OPP_SPLIT_HAND_TWO_PILES:
+          '【未実装】対戦相手は手札を裏向きで2つの束に分け、あなたが選んだほうの束を捨てる',
+        // 🆕§5.3 `O-277`（2026-09-08）＝**エナ1組（《緑》2〜3個）を1枚の代替コストで置き換える**形。
+        //   受け皿は「エナ1枚の色オーバーライド」しか無く、1枚がN個ぶんになる軸が支払いUIに無い＝
+        //   live 1効果（`WX09-032-E1`）のために `src/screens/` の支払い層を貫くのは割に合わないので明示 defer。
+        DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY:
+          '【未実装】複数のエナコスト1組を、エナゾーンから特定カード1枚をトラッシュして代替する',
         // 🆕意味照合 段2（2026-09-07）＝`WXK03-059-E1`。【ライド】の使用タイミング拡張（宣言型）。
         //   消費＝`screens/battle/battleUtils.ts` の `rideUsableInAttackPhase`。
         RIDE_USABLE_IN_ATTACK_PHASE:
@@ -5074,6 +5120,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // §6.4 O-12（続き545）＝`ENERGY_COLOR_SUBSTITUTE_<色>_OR_<色>_TO_<色>` は**色を id に焼き込んだ動的 id**。
       // ⚠`genStubsMd.mjs` のハンドラ抽出は `stub.id === '[A-Z0-9_]+'` なので**日本語入りの id は拾えない**＝
       //   固定キーの `miscStubMap` にも並べられない。id から色を読んで文を組む。
+      // 🆕§5.3 `O-283`（2026-09-08）＝範囲と上限を payload から描く（落とすと「どのルリグの何を使うか」が消える）。
+      if (a.id === 'USE_OWN_LRIG_ABILITY_FREE') {
+        const scopeJa = a.lrigAbilityScope === 'all_lrigs' ? 'あなたのルリグ' : 'このルリグ';
+        const limJa = a.maxExceed === undefined ? 'エクシード能力' : `エクシードの値が${a.maxExceed}以下の能力`;
+        return `${scopeJa}の${limJa}1つをコストを支払わずに使用する`;
+      }
       {
         const subst = a.id.match(/^ENERGY_COLOR_SUBSTITUTE_(.)(?:_OR_(.))?_TO_(.)$/);
         if (subst) {
