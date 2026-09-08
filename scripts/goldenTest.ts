@@ -144,11 +144,13 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
-import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
+import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
+import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
+import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
@@ -5822,7 +5824,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 53, 'PlayerState の命名規約由来フィールド数（🆕53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 54, 'PlayerState の命名規約由来フィールド数（🆕54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5837,7 +5839,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 83, '型由来38件＋命名規約外27件の母集団（🆕83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 84, '型由来38件＋命名規約外27件の母集団（🆕84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -67571,7 +67573,10 @@ test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わ
   // 手札からの召喚ゲート＝レベル0（レベル制限とリミット）と限定条件の無視の両方
   ok(bs.includes('const declaredOverride = declaredSigniOverride(my, cardData.CardName);'), '召喚ゲートで読む');
   ok(bs.includes('declaredOverride.levelZero ? 0 : (parseInt(cardData.Level) || 0)'), '基本レベルが0になる');
-  ok(bs.includes('ignoreRestriction || declaredOverride.ignoreRestriction'), '限定条件を無視できる');
+  // 🆕**2026-09-08（§5.3 `O-268`）＝左辺が scope つきの判定に変わった**（`hasIgnoreLrigRestriction(…, 'signi', card)`）。
+  //   ⚠**`declaredOverride.ignoreRestriction` との OR は維持**＝こちらは「宣言したシグニ」の別軸なので消さない。
+  ok(bs.includes("hasIgnoreLrigRestriction(my, effectsMap, 'signi', cardData) || declaredOverride.ignoreRestriction"),
+    '限定条件を無視できる（宣言軸は scope 判定と OR のまま）');
   // 場のリミット計算にも効く（原文「メインデッキと手札と**場**にある」）
   ok(bs.includes('if (declaredSigniOverride(my, top?.CardName).levelZero) return 0;'), '場のレベル合計にも効く');
   // 🆕🔴**2026-09-04（`V-148` の実機で発覚）＝読み手は3箇所要る。**
@@ -72119,6 +72124,161 @@ test('§5.0 O-D WX16-Re20-E1: 場出し6効果が能力喪失を刻み、通常�
   ok(reverse.includes('能力を持たないシグニとして'), '逆翻訳に配置修飾が出る');
   ok(decompiledLineOf('WXDi-P13-042-E2').includes('ターン終了時、それらを場からトラッシュに置く'),
     '同一カードの単数E1／複数E2を取り違えず、複数配置の逆翻訳は「それら」と描く');
+}));
+
+// ═══ §5.3 O-268 ＋ §5.0 実装キュー `WX14-003-E2`（2026-09-08）＝「限定条件を無視する」の適用範囲 ═══
+//   🔴旧実装＝範囲 payload の無い `STUB{IGNORE_LRIG_RESTRICTION_ARTS}` を消費地点が一律に読んでいた＝
+//     アーツだけを書いた2枚が**限定つきシグニ 952枚**にも効いた（過剰実行）。逆に `WX14-003-E2` は
+//     `CONTINUOUS + ADD_TO_FIELD` に化けており **`executeAction` を通らない真 no-op** だった。
+//   🔑いまは **parser が原文から範囲を決めて payload に載せ**、`hasIgnoreLrigRestriction(my, em, kind, card)`
+//     が scope を見る。**範囲省略は fail-closed（何も無視しない）**。
+test('§5.3 O-268: 限定無視は宣言した範囲だけに効く（arts / spell / signi の3方向＋対照）', () => withSavedCursor(() => {
+  const LRIG = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const lv5Signi = findCard(c => c.Type === 'シグニ' && c.Level === '5');
+  const lv4Signi = findCard(c => c.Type === 'シグニ' && c.Level === '4');
+  const st = { ...mkState({}), field: { ...mkState({}).field, lrig: [LRIG] } } as PlayerState;
+  const emOf = (action: StubAction): Map<string, CardEffect[]> => new Map([[LRIG, [
+    { effectId: 'T-IGN-E1', effectType: 'CONTINUOUS', action, duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL' } as CardEffect,
+  ]]]);
+  const stub = (scopes: Array<'arts' | 'spell' | 'signi'>, levelEq?: number): StubAction =>
+    ({ type: 'STUB', id: 'IGNORE_LRIG_RESTRICTION_ARTS', ignoreRestrictionScopes: scopes,
+       ...(levelEq !== undefined ? { ignoreRestrictionSigni: { levelEq } } : {}) } as StubAction);
+
+  // ① アーツだけの宣言（`PR-K060-E4`）＝スペルにもシグニにも波及しない。
+  const artsOnly = emOf(stub(['arts']));
+  ok(hasIgnoreLrigRestriction(st, artsOnly, 'arts'), 'arts 宣言はアーツに効く');
+  ok(!hasIgnoreLrigRestriction(st, artsOnly, 'spell'), '🔴arts 宣言はスペルには効かない');
+  ok(!hasIgnoreLrigRestriction(st, artsOnly, 'signi', cardMap.get(lv5Signi)), '🔴arts 宣言はシグニ召喚には効かない');
+
+  // ② アーツ＋スペルの宣言（`WX05-006-E2`）＝それでもシグニ召喚には波及しない。
+  const artsSpell = emOf(stub(['arts', 'spell']));
+  ok(hasIgnoreLrigRestriction(st, artsSpell, 'arts'), 'arts+spell 宣言はアーツに効く');
+  ok(hasIgnoreLrigRestriction(st, artsSpell, 'spell'), 'arts+spell 宣言はスペルに効く');
+  ok(!hasIgnoreLrigRestriction(st, artsSpell, 'signi', cardMap.get(lv5Signi)), '🔴限定つきシグニ952枚への波及を止める');
+
+  // ③ シグニ（レベル5限定）の宣言（`WX14-003-E2`）＝レベルが違えば効かず、アーツ／スペルにも効かない。
+  const signiLv5 = emOf(stub(['signi'], 5));
+  ok(hasIgnoreLrigRestriction(st, signiLv5, 'signi', cardMap.get(lv5Signi)), 'レベル5シグニには効く');
+  ok(!hasIgnoreLrigRestriction(st, signiLv5, 'signi', cardMap.get(lv4Signi)), '🔴レベル4シグニには効かない');
+  ok(!hasIgnoreLrigRestriction(st, signiLv5, 'signi'), '🔴カードが渡らなければ効かない（fail-closed）');
+  ok(!hasIgnoreLrigRestriction(st, signiLv5, 'arts'), '🔴signi 宣言はアーツには効かない');
+
+  // ④ 範囲省略（旧形＝payload 無し）は**何も無視しない**＝fail-closed。
+  const legacy = emOf({ type: 'STUB', id: 'IGNORE_LRIG_RESTRICTION_ARTS' } as StubAction);
+  ok(!hasIgnoreLrigRestriction(st, legacy, 'arts'), '🔴範囲省略は fail-closed（過剰実行に倒さない）');
+  ok(!hasIgnoreLrigRestriction(st, legacy, 'spell'), '🔴範囲省略は fail-closed（spell）');
+  ok(!hasIgnoreLrigRestriction(st, legacy, 'signi', cardMap.get(lv5Signi)), '🔴範囲省略は fail-closed（signi）');
+
+  // ⑤ 限定そのものが無ければ宣言に関係なく通る（対照＝この test が「常に false」で満点にならないこと）。
+  eq(meetsRestriction('#限定', 'タマ', hasIgnoreLrigRestriction(st, artsOnly, 'arts')), true, 'arts 宣言下では限定を越えられる');
+  eq(meetsRestriction('#限定', 'タマ', hasIgnoreLrigRestriction(st, artsOnly, 'spell')), false, '🔴spell では越えられない');
+}));
+
+test('§5.3 O-268: live と fresh の3効果すべてに範囲 payload が載る（範囲無しは0件）', () => {
+  const expected: Record<string, string> = {
+    'PR-K060-E4': 'arts',
+    'WX05-006-E2': 'arts,spell',
+    'WX14-003-E2': 'signi',
+  };
+  // (a) live＝範囲 payload を持たない `IGNORE_LRIG_RESTRICTION_ARTS` が1件も無い（＝どこも fail-closed で死んでいない）。
+  const bare: string[] = [];
+  const seen: Record<string, string> = {};
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      const a = e.action as StubAction;
+      if (a?.type !== 'STUB' || a.id !== 'IGNORE_LRIG_RESTRICTION_ARTS') continue;
+      const scopes = a.ignoreRestrictionScopes ?? [];
+      if (scopes.length === 0) bare.push(e.effectId);
+      else seen[e.effectId] = scopes.join(',');
+    }
+  }
+  eq(bare.join(','), '', '🔴範囲 payload の無い宣言は live に1件も無い');
+  const norm = (o: Record<string, string>) =>
+    Object.keys(o).sort().map(k => `${k}=${o[k]}`).join(' / ');
+  eq(norm(seen), norm(expected), 'live の3効果の範囲が原文どおり');
+  // (b) fresh パース側でも同じ（§5-29＝live 読みだけの golden は parser を退行させても緑のまま通る）。
+  const freshOf = (card: string, effId: string): StubAction =>
+    parseCardEffects(cardMap.get(card)!).find(e => e.effectId === effId)!.action as StubAction;
+  const k060 = freshOf('PR-K060', 'PR-K060-E4');
+  eq((k060.ignoreRestrictionScopes ?? []).join(','), 'arts', 'fresh: PR-K060-E4 はアーツだけ');
+  const w14 = freshOf('WX14-003', 'WX14-003-E2');
+  eq((w14.ignoreRestrictionScopes ?? []).join(','), 'signi', 'fresh: WX14-003-E2 はシグニだけ');
+  eq(w14.ignoreRestrictionSigni?.levelEq, 5, '🔴fresh: レベル5の限定まで載る（原文「レベル５のシグニ」）');
+  // (c) 🔴「コストを支払わずに限定条件を無視して使用する」（PLAY_FREE 系）を巻き込んでいない。
+  const playFree = parseCardEffects(cardMap.get('WXEX2-14')!).find(e => e.effectId === 'WXEX2-14-E2')!;
+  ok(!JSON.stringify(playFree.action).includes('IGNORE_LRIG_RESTRICTION_ARTS'),
+    '🔴その1回の使用に閉じる PLAY_FREE 系は別軸のまま');
+});
+
+// ═══ §5.3 O-282（2026-09-08）＝【常】の付与に「ターン終了時まで」と書かない ═══
+//   🔴登録票の「engine がターン終了で落とす」は **stale**＝`GRANT_LRIG_ABILITY` が
+//     `lrig_granted_auto_effects`（ターン終了で落ちるストア）へ積まれるのは **`executeAction` を通る
+//     ACTIVATED / AUTO の付与だけ**。**CONTINUOUS は `collectLrigGrantedEffects`（`effectEngine.ts:3642`）が
+//     effectsMap から毎回ライブに読む**ので、付与ストアを一切通らず期限も無い（engine は元から正しい）。
+//   ⇒ 実害は**逆翻訳だけが嘘をついていた**こと＝意味照合が「期間のズレ」の偽陽性を出し続ける。
+test('§5.3 O-282: CONTINUOUS の GRANT_LRIG_ABILITY は逆翻訳に期限を書かない（期間つきは書く）', () => {
+  // (a) 【常】付与＝期限を書かない（`WXK06-005-E1`＝キーの【常】。キーが場にあるかぎり有効）。
+  const cont = decompiledLineOf('WXK06-005-E1');
+  ok(!cont.includes('ターン終了時まで'), '🔴【常】の付与に「ターン終了時まで」と書かない');
+  ok(cont.includes('あなたのセンタールリグは'), '主語は残す');
+  // (b) 対照＝原文に「ターン終了時まで」と書いてある付与は従来どおり書く（消してしまっていないこと）。
+  const turnScoped = decompiledLineOf('WX01-028-E1');
+  ok(turnScoped.includes('ターン終了時まで'), '🔴期間つきの付与からは期限を消さない（対照）');
+  // (c) live の全 CONTINUOUS 付与で期限表記が消えていること＝1件でも残っていれば規則が当たっていない。
+  let leaked = 0, contTotal = 0;
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      if (e.effectType !== 'CONTINUOUS' || e.action?.type !== 'GRANT_LRIG_ABILITY') continue;
+      contTotal++;
+      // ⚠**行頭の期限だけを見る**＝付与された能力が**入れ子でさらに期間つき付与をする**形
+      //   （`PR-K077-E1`）は正当なので、部分一致で数えると偽陽性になる。
+      if (/^【[^】]*常】ターン終了時まで/.test(decompiledLineOf(e.effectId))) leaked++;
+    }
+  }
+  ok(contTotal >= 35, `【常】付与の母集団が想定どおり（2026-09-08 実測 39効果 / いま ${contTotal}効果）`);
+  eq(leaked, 0, '🔴【常】付与で「ターン終了時まで」と描かれるものは0件');
+});
+
+// ═══ §5.0 実装キュー `WX12-002-E3`（2026-09-08）＝「このターン」だけの全領域【ライフバースト】付与 ═══
+//   🔴旧 live は `ENERGY_CHARGE_FROM_DECK{count:1}` **1枚だけ**＝丸ごと別の効果に化けていた
+//     （`parseSentencePart1` の `/【エナチャージN】/` catch-all が**付与文の引用の中**の【エナチャージ１】を
+//     即時効果として拾っていた）。母集団は実測1効果なので §2.0 の速いレーン＝`manualEffects.ts` で書く。
+//   🔑受け皿はディスペア（`allzone_burst_grant_until_opp_turn`）と**寿命だけ**が違う＝
+//     寄せると**相手ターンまで1ターン長く効く過剰実行**になるので別キーにした。
+test('§5.0 WX12-002-E3: このターンだけ全領域が【ライフバースト】を得る（ターン終了で落ちる）', () => withSavedCursor(() => {
+  const live = manualEffect('WX12-002', 'WX12-002-E3');
+  eq((live.action as StubAction).id, 'SET_ALL_ZONE_BURST_GRANT_THIS_TURN', 'live は付与 STUB（即時エナチャージではない）');
+  const ctx = mkCtx({}, {}, 'WX12-002');
+  const before = ctx.ownerState;
+  const em = ctx.effectsMap;
+  const plain = findCard(c => c.Type === 'シグニ' && c.LifeBurst !== '1');
+  ok(!allZoneBurstGrantMatches(plain, before, ctx.cardMap, em, true), '対照：使用前は付与されていない');
+
+  const r = executeEffect(live, ctx);
+  ok(r.done, '対話を挟まず解決する');
+  const after = r.ownerState;
+  ok(!!after.allzone_burst_grant_this_turn, '🔴「このターン」用のストアへ積む');
+  eq(after.allzone_burst_grant_until_opp_turn, undefined, '🔴ディスペア（次の対戦相手ターンまで）側は触らない');
+  ok(allZoneBurstGrantMatches(plain, after, ctx.cardMap, em, true), '使用後は全領域のカードが【ライフバースト】を持つ');
+  const granted = resolveAllZoneBurstGrant(after, em, true, plain);
+  eq(granted?.burstAction?.type, 'ENERGY_CHARGE_FROM_DECK', '付与される内容は【エナチャージ１】');
+  ok(granted?.burstAdditive, 'ネイティブ【ライフバースト】持ちにも追加で付く（原文どおり）');
+
+  // 🔴寿命＝グローバルターン終了で落ちる（ディスペアのように相手ターンまで残らない）。
+  const nextTurn = clearTurnEndScopedState(after);
+  eq(nextTurn.allzone_burst_grant_this_turn, undefined, '🔴ターン終了で落ちる');
+  ok(!allZoneBurstGrantMatches(plain, nextTurn, ctx.cardMap, em, true), '🔴次のターンには付与が残らない');
+
+  // 対照＝ディスペア（`allzone_burst_grant_until_opp_turn`）はターン終了で落ちない（既存挙動を壊していない）。
+  const dispair = { ...before, allzone_burst_grant_until_opp_turn:
+    { type: 'STUB', id: 'GRANT_ALL_ZONE_LIFEBURST', burstAction: { type: 'DRAW', owner: 'self', count: 1 } } as StubAction } as PlayerState;
+  ok(!!clearTurnEndScopedState(dispair).allzone_burst_grant_until_opp_turn,
+    '🔴対照：次の対戦相手ターンまでの付与はターン終了で落ちない');
+
+  // 逆翻訳も payload から描く（原文と一致する）。
+  const line = decompiledLineOf('WX12-002-E3');
+  ok(line.includes('このターン、あなたのすべての領域にあるカードは追加で【ライフバースト】'),
+    '逆翻訳が原文どおり（旧「デッキの上から1枚をエナゾーンに置く」だけではない）');
 }));
 
 if (listMode) {

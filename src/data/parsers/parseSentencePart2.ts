@@ -1759,8 +1759,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 限定条件無視アーツ使用 ----
+  //   ⚠通常は part1 の先頭（§5.3 `O-268`）が範囲つきで引き取るので、ここへ落ちてくるのは
+  //     文末の形が違う変種だけ。**payload 無しの STUB を返さない**（消費側は範囲省略を fail-closed に扱う）。
   if (t.match(/あなたは限定条件を無視してアーツを使用できる/)) {
-    return { type: 'STUB', id: 'IGNORE_LRIG_RESTRICTION_ARTS' } as StubAction;
+    return { type: 'STUB', id: 'IGNORE_LRIG_RESTRICTION_ARTS', ignoreRestrictionScopes: ['arts'] } as StubAction;
   }
 
   // ---- 場にレベルN+M+Kのシグニがあれば選択効果 ----

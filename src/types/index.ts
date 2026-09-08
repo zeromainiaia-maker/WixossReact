@@ -428,6 +428,8 @@ export interface PlayerState {
   /** 次の対戦相手のターンの間だけ有効な全ゾーンLB付与（ディスペア）。
    * GRANT_ALL_ZONE_LIFEBURST 同型の StubAction を保持し、自分の次ターン開始時にクリアする。 */
   allzone_burst_grant_until_opp_turn?: import('./effects').StubAction;
+  /** 「このターン」だけ有効な全ゾーンLB付与。グローバルターン終了で両プレイヤーからクリアする。 */
+  allzone_burst_grant_this_turn?: import('./effects').StubAction;
   // 次の自分／対戦相手ターンに場のシグニへ動的適用する統一予約（キーワード・パワー）。
   // filter/zone/condition は active 中も毎回評価するため、予約後に場へ出たシグニにも適用される。
   field_grants_next_turn?: FieldGrant[];

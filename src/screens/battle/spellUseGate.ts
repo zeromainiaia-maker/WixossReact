@@ -2,7 +2,7 @@ import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { collectBlockLowCostSpellCount, collectFirstSpellCostUp } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
-import type { ArtsPayerCtx } from './artsUseGate';
+import { hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyMeltFactPreUseCost, applySpecificCardCostReduction,
@@ -143,7 +143,7 @@ export function checkSpellUse(p: {
     !p.pendingSpell &&
     !isSpellUseBlockedFor(my, payer.blockedSelf, card) &&
     !dissonaBlocked && !lowCostBlocked &&
-    meetsRestriction(card.Restriction, payer.lrigClass, payer.ignoreRestriction) &&
+    meetsRestriction(card.Restriction, payer.lrigClass, hasIgnoreLrigRestriction(my, effectsMap, 'spell', card)) &&
     !cardNameUseBlocked(my, card.CardName, card.Type) &&
     (!eff?.condition || evalUseCondition(eff.condition, my, op, cardMap, cardNum, p.turnPhase, p.effectivePowers));
 

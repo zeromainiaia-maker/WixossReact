@@ -3045,9 +3045,17 @@ function actionJa(a?: Action, effectType?: string): string {
       // ⚠**省略時の既定（ターン終了時まで）も明示する**（§6.4 O-25・続き538）＝engine は duration 省略の
       //   付与を `lrig_granted_auto_effects`（ターン終了で落ちるストア）へ積むので、無表記だと
       //   **恒久付与に見えて**原文照合で期間のズレを見つけられない（続き536 の targetedCenter 枝と同じ軸）。
+      // 🆕🔴**§5.3 `O-282`（2026-09-08）＝CONTINUOUS の付与に「ターン終了時まで」と書いてはいけない。**
+      //   上の既定は **`executeAction` を通る付与（ACTIVATED / AUTO）** の話で、
+      //   **CONTINUOUS の `GRANT_LRIG_ABILITY` は `collectLrigGrantedEffects`（`effectEngine.ts:3642`）が
+      //   effectsMap から毎回ライブに読む**＝付与ストアを一切通らないのでターン終了で落ちない。
+      //   ⇒ 旧実装は **engine が正しいのに逆翻訳だけが嘘をつく**状態で、意味照合が偽陽性を出し続けていた
+      //   （2026-09-08 実測 = 【常】付与 39効果すべてが「ターン終了時まで」と描かれていた）。
+      const glaIsContinuous = effectType === 'CONTINUOUS';
       const glaDuration = a.permanent ? 'このゲームの間、'
         : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        : glaIsContinuous ? ''
         : 'ターン終了時まで、';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
       const glaOwner = a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの';
@@ -3058,8 +3066,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const glaSpan = a.permanent ? 'このゲームの間'
           : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで'
           : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで'
+          : glaIsContinuous ? ''
           : 'ターン終了時まで';
-        return `${glaOwner}センタールリグ１体を対象とし、${glaSpan}、それは以下の能力を得る。『${glaInner}』`;
+        return glaSpan
+          ? `${glaOwner}センタールリグ１体を対象とし、${glaSpan}、それは以下の能力を得る。『${glaInner}』`
+          : `${glaOwner}センタールリグ１体を対象とし、それは以下の能力を得る。『${glaInner}』`;
       }
       return `${glaDuration}${glaOwner}センタールリグは『${glaInner}』を得る`;
     }
@@ -3707,9 +3718,18 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK' || a.id === 'FORCE_COLOR_BLACK') {
         return 'エナゾーン以外の領域にあるシグニは黒になる';
       }
-      // IGNORE_LRIG_RESTRICTION_ARTS: あなたが使用するアーツとスペルの限定条件は無視される（BattleScreen meetsRestriction で実装済み）
+      // IGNORE_LRIG_RESTRICTION_ARTS: 限定条件の無視（§5.3 `O-268`＝範囲 payload を持つ）。
+      //   🔴**範囲を描かないと「engine と逆翻訳が同じ嘘で一致する」形になり計器が緑のまま意味が壊れる**
+      //     （旧実装は payload が無く、常に「アーツとスペル」と描いていた＝シグニ召喚まで無視できたことが見えなかった）。
       if (a.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
-        return 'あなたが使用するアーツとスペルの限定条件は無視される';
+        const scopes = (a as { ignoreRestrictionScopes?: string[] }).ignoreRestrictionScopes ?? [];
+        const label: Record<string, string> = { arts: 'アーツ', spell: 'スペル', signi: 'シグニ' };
+        const lv = (a as { ignoreRestrictionSigni?: { levelEq?: number } }).ignoreRestrictionSigni?.levelEq;
+        if (scopes.length === 0) return '限定条件の無視（範囲不明＝何も無視しない）';
+        if (scopes.length === 1 && scopes[0] === 'signi') {
+          return `あなたは${lv !== undefined ? `レベル${lv}の` : ''}シグニの限定条件を無視して場に出せる`;
+        }
+        return `あなたが使用する${scopes.map(s => label[s] ?? s).join('と')}の限定条件は無視される`;
       }
       // LRIG_UNDER_TO_TRASH: センタールリグの下からN枚をルリグトラッシュへ（エクシード相当のゲート。置けない場合は以降スキップ）
       if (a.id === 'LRIG_UNDER_TO_TRASH') {
@@ -4251,6 +4271,16 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD') {
         const m = currentCardText.match(/あなたの場に[^。]*?使用コストは[^。]*?減る/);
         if (m) return m[0];
+      }
+      // 🆕このターンだけの全領域【ライフバースト】付与（SET_ALL_ZONE_BURST_GRANT_THIS_TURN・§5.0 `WX12-002-E3`）。
+      //   🔑**payload から描く**＝engine（`execStubPart1.ts`）は原文を読まず payload だけを見るので、
+      //     逆翻訳も payload に揃える（原文 regex で描くと両者がズレても計器に映らない）。
+      if (a.id === 'SET_ALL_ZONE_BURST_GRANT_THIS_TURN') {
+        const bInner = a.burstAction ? actionJa(a.burstAction) : '';
+        const bAdd = a.burstAdditive ? '追加で' : '';
+        const bFilt = a.burstFilter ? filterJa(a.burstFilter) : '';
+        if (!bInner) return 'このターンの全領域【ライフバースト】付与（内容が無いため何も起きない）';
+        return `このターン、あなたのすべての領域にある${bFilt}カードは${bAdd}【ライフバースト】「${bInner}」を持つ`;
       }
       // 全領域ライフバースト付与（GRANT_ALL_ZONE_LIFEBURST・engine実装済み）＝「あなたのすべての領域にある（…の）カードは【ライフバースト】…を持つ」。
       if (a.id === 'GRANT_ALL_ZONE_LIFEBURST') {

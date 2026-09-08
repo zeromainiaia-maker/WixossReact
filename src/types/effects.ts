@@ -6514,6 +6514,13 @@ export interface StubAction {
   burstFilter?: TargetFilter; // GRANT_ALL_ZONE_LIFEBURST: 付与対象の絞り込み（省略時=全カード。例: ＜怪異＞シグニ限定=WX17-036）
   burstAction?: EffectAction; // GRANT_ALL_ZONE_LIFEBURST: 付与する【ライフバースト】のアクション（省略時=相手シグニ1体バニッシュ=WD14-001）
   burstAdditive?: boolean;    // GRANT_ALL_ZONE_LIFEBURST: ネイティブ【ライフバースト】を持つカードにも付与分を追加（両方を好きな順で使用）。例: WX02-002（すべての領域のカードが追加で【エナチャージ１】）
+  /**
+   * IGNORE_LRIG_RESTRICTION_ARTS: 限定条件を無視できるカード種。
+   * 省略時は何も無視しない（fail-closed）。
+   */
+  ignoreRestrictionScopes?: Array<'arts' | 'spell' | 'signi'>;
+  /** IGNORE_LRIG_RESTRICTION_ARTS の signi scope だけに掛かる追加条件。 */
+  ignoreRestrictionSigni?: { levelEq?: number };
   // BANISH_SUBSTITUTE (F-3): バニッシュされる場合の任意身代わり置換（CONTINUOUS宣言）。
   // バトルバニッシュ経路で「victim の代わりに sacrifice をバニッシュしてもよい」を対話で適用する。
   banishSubstitute?: {

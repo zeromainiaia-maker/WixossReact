@@ -3,23 +3,19 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +STUB×2 -GRANT_KEYWORD×2 -SIGNI×2 ［1枚］
-WX19-064
---- WX19-064
-  原文: 以下の３つから１つを選ぶ。①【ウィルス】１つを取り除く。②【トラップ】１つを対象とし、それをトラッシュに置く。③シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く。【トラップアイコン】：カードを１枚引く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。,：あな
-  - [0].action.choices[0].action.target.type = "SIGNI"
-  - [0].action.choices[0].action.target.owner = "self"
-  - [0].action.choices[0].action.target.count = 1
-  - [0].action.choices[0].action.target.filter.thisCardOnly = true
-  - [0].action.choices[0].action.target.explicitTarget = true
-  - [0].action.choices[0].action.keyword = "ウィルス"
-  - [0].action.choices[0].action.duration = "PERMANENT"
-  - [0].action.choices[1].action.target.type = "SIGNI"
-  - [0].action.choices[1].action.target.owner = "self"
-  - [0].action.choices[1].action.target.count = 1
-  - [0].action.choices[1].action.target.filter.thisCardOnly = true
-  - [0].action.choices[1].action.target.explicitTarget = true
-  …（他 6 行）
+## +STUB ［1枚］
+WX12-002
+--- WX12-002
+  原文: 【自】：対戦相手のアタックフェイズ開始時、あなたのライフクロスが３枚以上ある場合、このターン、あなたはゲームに敗北しない。【出】：あなたのエナゾーンからすべてのカードをトラッシュに置く。あなたのデッキの一番上のカードをライフクロスに加える。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《無》：このターン、あなたのすべての領域にある
+  - [2].action.owner = "self"
+  - [2].action.count = 1
+  ~ [2].action.type : "ENERGY_CHARGE_FROM_DECK" → "STUB"
+  + [2].action.id = "SET_ALL_ZONE_BURST_GRANT_THIS_TURN"
+  + [2].action.burstAdditive = true
+  + [2].action.burstAction.type = "ENERGY_CHARGE_FROM_DECK"
+  + [2].action.burstAction.owner = "self"
+  + [2].action.burstAction.count = 1
+  ~ [2].parseStatus : "AUTO" → "MANUAL"
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
@@ -38,3 +34,4 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+

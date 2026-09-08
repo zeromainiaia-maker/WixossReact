@@ -143,7 +143,7 @@ import { listActivatableSigniEffects, listActivatableSeedEffects } from './battl
 import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
 import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, effectiveCoinCost } from './battle/lrigActivateGate';
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
-import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
+import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, hasIgnoreLrigRestriction, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
 import { pickCpuMainSpell } from './battle/cpuSpell';
@@ -6692,15 +6692,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ルリグのクラス（制限チェック共通）
   // ⚠「〇〇限定」の使用制限も**実効クラス**で見る（追加で得たルリグタイプを含む・§6.4 O-3）。
   const lrigClass = effectiveLrigClass(my, currentLrig?.CardClass);
-  const ignoreRestriction = (my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false) ||
-    [my.field.lrig.at(-1), my.field.key_piece].filter(Boolean).some(cn =>
-      (effectsMap.get(cn!) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' &&
-        (e.action as import('../types/effects').StubAction).type === 'STUB' &&
-        (e.action as import('../types/effects').StubAction).id === 'IGNORE_LRIG_RESTRICTION_ARTS'
-      )
-    );
-
   // シグニ召喚・表示と効果条件で共有する実効リミット。
   const lrigLimit = computeEffectiveLrigLimit(my, op, battleCardMap, effectsMap, isMyTurn);
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
@@ -6780,7 +6771,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cardNum = getCardNum(instanceId);
         const card = battleCardMap.get(cardNum);
         if (!card || !card.Timing.includes('スペルカットイン')) return;
-        if (!meetsRestriction(card.Restriction, lrigClass, ignoreRestriction)) return;
+        if (!meetsRestriction(card.Restriction, lrigClass,
+          hasIgnoreLrigRestriction(my, effectsMap, 'arts', card))) return;
         const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
         const eff = effs.find(e => e.effectType === 'ACTIVATED');
         if (!canUseArtsCondition(effs, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
@@ -8748,7 +8740,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         // Restriction チェック
         const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass,
-          ignoreRestriction || declaredOverride.ignoreRestriction);
+          hasIgnoreLrigRestriction(my, effectsMap, 'signi', cardData) || declaredOverride.ignoreRestriction);
         const printedPower = cardData.Power === '∞' ? Infinity : parseInt(cardData.Power ?? '', 10);
         const powerBlockOk = !isHandSigniPlayBlockedByPower(my, printedPower);
         if (levelOk && canFitSomewhere && restrictionOk && powerBlockOk) {
@@ -8949,7 +8941,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return [];
     const cardData = battleCardMap.get(cardNum);
     if (!cardData) return [];
-    if (!meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction)) return [];
+    const ignoreCardRestriction = cardData.Type === 'アーツ'
+      && hasIgnoreLrigRestriction(my, effectsMap, 'arts', cardData);
+    if (!meetsRestriction(cardData.Restriction, lrigClass, ignoreCardRestriction)) return [];
 
     const phase = bs.turn_phase;
     const actions: CardAction[] = [];

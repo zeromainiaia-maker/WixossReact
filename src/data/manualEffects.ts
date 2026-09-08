@@ -8,6 +8,31 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.0 O-D 実装キュー（2026-09-08）＝「このターン」だけの全領域【ライフバースト】付与
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WX12-002（アン＝フォース）E3
+  //   原文＝【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《無》：
+  //         このターン、あなたのすべての領域にあるカードは【ライフバースト】【エナチャージ１】を持つ。
+  // 🔴旧 live は `ENERGY_CHARGE_FROM_DECK{count:1}` **1枚だけ**＝**丸ごと別の効果に化けていた**
+  //   （`parseSentencePart1` の `/【エナチャージN】/` catch-all が、**付与文の引用の中にある**
+  //   【エナチャージ１】を即時効果として拾っていた）。
+  // 🔑受け皿は既存の `allZoneBurst.ts`。ディスペア（`SET_DISPAIR_BURST_GRANT`＝次の対戦相手ターンまで）
+  //   と**寿命だけ**が違うので、`SET_ALL_ZONE_BURST_GRANT_THIS_TURN` を1本足して
+  //   `allzone_burst_grant_this_turn` へ積み、`turnScopedState.ts` の `turn-end` 境界で落とす。
+  // ⚠**母集団は実測1効果**（`npm run census:population -- "すべての領域にあるカードは【ライフバースト】"`
+  //   ＝3効果のうち `WX02-002-E1` は【常】恒久・`WX24-P3-022-E2` は「このターンと次のターン」＝
+  //   既存のディスペア経路が正しい）。⇒ §2.0 の**速いレーン**＝parser の catch-all は割らない。
+  // ⚠`burstAdditive`＝原文が同型の `WX02-002-E1`（【常】版）に合わせる＝
+  //   ネイティブ【ライフバースト】を持つカードにも追加で付く。
+  "WX12-002": [
+    {"effectId":"WX12-002-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],
+     "cost":{"energy":[{"color":"無","count":1}]},
+     "action":{"type":"STUB","id":"SET_ALL_ZONE_BURST_GRANT_THIS_TURN","burstAdditive":true,
+       "burstAction":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.0 O-D 実装キュー（2026-09-08）＝場の【ウィルス】総数を動的レベル上限へ解決
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WX16-005（ネバーエンド）／①②はいずれも
@@ -5401,7 +5426,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   JSON を読んでも何が起きるか分からず、ペナルティの種類も1つに焼き込まれていた。
   //   ⇒ **宣言する軸と一致軸数ごとの帰結を JSON に出す**（下の `WX16-Re17` が3分岐の実例）。
   "WX05-006": [
-    {"effectId":"WX05-006-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    // 🆕**2026-09-08（§5.3 `O-268`）＝E2 の manual 定義は削除した**＝parser（`parseSentencePart1` の
+    //   「限定条件を無視する」規則）が範囲つきで同じものを出せるようになったので、影武者コピーを残すと
+    //   **その効果にだけ以後の parser 改善が永久に届かない**（`O-42` の tripwire が検出する）。
     {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"DECLARE_ICON_REVEAL_CHECK","declare":["icon"],"outcomes":[{"matched":0,"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 

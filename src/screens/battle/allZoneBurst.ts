@@ -42,7 +42,11 @@ export function resolveAllZoneBurstGrant(
       if (action.type === 'STUB' && action.id === 'GRANT_ALL_ZONE_LIFEBURST') return action;
     }
   }
-  return includeTemporary ? (state.allzone_burst_grant_until_opp_turn ?? null) : null;
+  // 🆕**§5.0 `WX12-002-E3`（2026-09-08）**＝「このターン」だけの付与（`turn-end` で落ちる）。
+  //   ⚠**次の対戦相手ターンまでの付与（ディスペア）とは寿命が違う**ので別キーで持つ。
+  //   両方が立っていることは実データでは無いが、**このターンの付与を先に返す**（短いほうが後勝ち）。
+  if (!includeTemporary) return null;
+  return state.allzone_burst_grant_this_turn ?? state.allzone_burst_grant_until_opp_turn ?? null;
 }
 
 export function allZoneBurstGrantMatches(

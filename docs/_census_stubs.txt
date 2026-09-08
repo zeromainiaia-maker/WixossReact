@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 588（総ノード 3214 件）
+live JSON の STUB id 種類 : 589（総ノード 3216 件）
 逆翻訳シートの [STUB:…] 総数: 350  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -10,7 +10,7 @@ live JSON の STUB id 種類 : 588（総ノード 3214 件）
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 36 種 / 115 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 560 種
+  D 健全（実装あり＋日本語表示）                          : 561 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 340 種
 
 ==============================================================================
@@ -40,7 +40,7 @@ live JSON の STUB id 種類 : 588（総ノード 3214 件）
         生成: src\data\effectParser.ts:16056
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
-        生成: src\data\parsers\parseSentencePart2.ts:2901
+        生成: src\data\parsers\parseSentencePart2.ts:2903
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
         生成: src\data\effectParser.ts:16059
@@ -67,10 +67,10 @@ live JSON の STUB id 種類 : 588（総ノード 3214 件）
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16350 / src\data\manualEffects.ts:10412
+        生成: src\data\effectParser.ts:16350 / src\data\manualEffects.ts:10439
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
-        生成: src\data\parsers\parseSentencePart1.ts:2216
+        生成: src\data\parsers\parseSentencePart1.ts:2254
      1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
         カード: WDK09-015
         生成: src\data\effectParser.ts:16245

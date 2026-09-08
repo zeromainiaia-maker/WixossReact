@@ -561,6 +561,28 @@ export function execStubPart1(
       ownerState: { ...ctx.ownerState, allzone_burst_grant_until_opp_turn: grant },
     }, '次の対戦相手ターンの間、全ゾーンの非ライフバーストカードへライフバーストを付与'));
   }
+  // 🆕**§5.0 実装キュー `WX12-002-E3`（2026-09-08）＝「このターン、あなたのすべての領域にあるカードは
+  //   【ライフバースト】〈内容〉を持つ」**＝ディスペア（`SET_DISPAIR_BURST_GRANT`＝次の対戦相手ターン）と
+  //   **寿命だけが違う**同型。
+  //   🔴**既存の `allzone_burst_grant_until_opp_turn` へ寄せない**＝あちらは自分の次ターン開始時まで残る
+  //     ＝「このターン」の付与を寄せると**相手ターンまで1ターン長く効く過剰実行**になる。
+  //   ⇒ 別キー `allzone_burst_grant_this_turn` に積み、`turnScopedState.ts` の `turn-end` 境界で落とす。
+  // SET_ALL_ZONE_BURST_GRANT_THIS_TURN: このターン、あなたのすべての領域にあるカードは【ライフバースト】〈内容〉を持つ
+  if (stub.id === 'SET_ALL_ZONE_BURST_GRANT_THIS_TURN') {
+    // ⚠**中身が無い付与は載せない**（載せると「バーストは出るのに何も起きない」無言 no-op）。
+    if (!stub.burstAction) return done(addLog(ctx, '付与する【ライフバースト】の内容が無いため何もしない'));
+    const grantThisTurn: StubAction = {
+      type: 'STUB',
+      id: 'GRANT_ALL_ZONE_LIFEBURST',
+      burstAction: stub.burstAction,
+      burstFilter: stub.burstFilter,
+      burstAdditive: stub.burstAdditive,
+    };
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, allzone_burst_grant_this_turn: grantThisTurn },
+    }, 'このターン、あなたのすべての領域にあるカードは【ライフバースト】を持つ'));
+  }
   // 🆕**§5.3 `O-239`（2026-09-04）＝「このターン、1枚目と2枚目にあなたのチェックゾーンに置かれた
   //   ライフクロスは【ライフバースト】「…」を得る」**（`WXDi-P12-036-E1`）。
   //   🔴旧 `DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE` は無言 no-op だった。

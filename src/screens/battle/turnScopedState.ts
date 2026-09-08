@@ -23,6 +23,8 @@ type ConventionTurnScopedField = Extract<
 >;
 
 const CONVENTION_TURN_SCOPED_STATE = {
+  // 起動能力による全領域LB付与のうち「このターン」だけのもの。
+  allzone_burst_grant_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'all-zone life-burst grant lasting only for the current turn' },
   // 効果によるドロー累計は、そのターンが終われば条件判定に使わない。
   cards_drawn_by_effect_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'effect draw total for the current turn' },
   // アタックフェイズごとのドロー累計。追加アタックフェイズでも新しいフェイズ開始時に数え直す。

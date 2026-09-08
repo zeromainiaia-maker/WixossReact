@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（O-D 実装キュー③・`O-268` ＋ `WX14-003-E2` ＋ `O-282` ＋ `WX12-002-E3`）＝4件
+
+🔴**codex は `.codex-work`（12:26まで）に続き既定 `~/.codex`（13:22まで）も利用上限に当たり、
+`src/screens/` 側の実装だけを残して中断した。以降は Claude が引き継いで完成させた**
+（[codex-fallback-order] の「両方とも上限なら Claude が最後まで回す」）。
+
+### `O-268` ＋ `WX14-003-E2`＝「限定条件を無視する」に**適用範囲**を持たせた（live 3効果）
+
+**真因**＝`STUB{IGNORE_LRIG_RESTRICTION_ARTS}` が**範囲 payload を持たず**、消費地点
+（`artsUseGate.hasIgnoreLrigRestriction` → アーツ／スペルの使用ゲート、`BattleScreen` の
+スペルカットイン／**手札からのシグニ召喚**／ルリグデッキのカードアクション）が**一律にそれを読んでいた**。
+⇒ ①アーツだけを書いた2枚が**限定つきシグニ 952枚**にも効く ②`PR-K060-E4` は原文がアーツだけなのに
+スペルの限定も無視できる ③逆に `WX14-003-E2` は `CONTINUOUS + ADD_TO_FIELD` に化けており
+**`executeAction` を通らない真 no-op**（「レベル5シグニの限定を無視して場に出せる」が丸ごと無かった）。
+
+**修正**＝**範囲は parser が原文から決めて payload に載せる**（engine / UI 層に原文 regex を書かない）。
+- `parseSentencePart1` の**先頭**に規則を1本（3つの言い回し＝「限定条件を無視して〈種別〉を使用できる」／
+  「あなたが使用する〈種別〉の限定条件は無視される」／「あなたは〈レベルN の〉〈種別〉の限定条件を無視して場に出すことができる」）。
+  🔑**先頭で引き取らないと `WX14-003-E2` は下流の汎用「場に出す」規則に食われる**。
+  ⚠**「コストを支払わずに限定条件を無視して使用する」（`PLAY_FREE` 系＝その1回に閉じる）は巻き込まない**
+  ＝文末の形で切り分け、golden で対照を固定した。
+- `hasIgnoreLrigRestriction(my, effectsMap, kind, card)` に `kind:'arts'|'spell'|'signi'` を渡し、消費地点を全部直した。
+  **範囲省略は fail-closed（何も無視しない）**。
+- **`my.lrig_gained_types` の `'__ignore_lrig_restriction__'` を撤去**（登録票の宿題）＝
+  **読み口が2箇所あるのに書き手が1箇所も無かった**ので、読み口ごと削除した（挙動は1ミリも変わらない）。
+- `WX05-006-E2` の manual 定義は**削除**＝parser が同じものを出せるようになったため
+  （`O-42` tripwire が影武者コピーを検出。live の MANUAL スタンプは `census:orphanmanual --unfreeze A` で解凍）。
+
+**検証**＝golden 2本（scope 3方向 × 成立/不成立、範囲省略の fail-closed、live と fresh の両方で範囲を assert）。
+**反転確認2本**＝①scope 判定を殺すと「arts 宣言がスペルにも効く」で FAIL ②parser 規則を殺すと fresh の範囲が空で FAIL。
+🔴**`BattleScreen.tsx` の手札シグニ召喚ゲートは golden から通らない**＝実機の観測点として PLAN §5.1 へ登録した。
+
+### `O-282`＝【常】の付与に「ターン終了時まで」と書いていたのは**逆翻訳だけの嘘**だった（登録票 stale）
+
+**登録票の「engine がターン終了で落とす」は誤り**＝`lrig_granted_auto_effects`（ターン終了で落ちるストア）へ
+積まれるのは **`executeAction` を通る ACTIVATED / AUTO の付与だけ**。**CONTINUOUS の `GRANT_LRIG_ABILITY` は
+`collectLrigGrantedEffects`（`effectEngine.ts:3642`）が effectsMap から毎回ライブに読む**ので、
+付与ストアを通らず期限も無い＝**engine は元から正しい**。
+**実害**＝逆翻訳が【常】付与 **39効果すべて**に「ターン終了時まで」と書いており、
+**意味照合が「期間のズレ」の偽陽性を出し続ける**（engine と逆翻訳が食い違う型）。
+**修正**＝`decompileEffects` の `GRANT_LRIG_ABILITY` で `effectType === 'CONTINUOUS'` なら期限を書かない。
+**検証**＝golden 1本（【常】は書かない／期間つき `WX01-028-E1` は書く対照／live 全 CONTINUOUS 付与で行頭の期限0件）。
+⚠**入れ子の付与（`PR-K077-E1`＝付与された【起】がさらに期間つき付与をする）は正当**なので、行頭だけを見る。
+**反転確認**＝分岐を殺して regen すると FAIL。
+
+### `WX12-002-E3`＝「このターン」だけの全領域【ライフバースト】付与（別の効果に化けていた）
+
+**真因**＝live が `ENERGY_CHARGE_FROM_DECK{count:1}` **1枚だけ**＝丸ごと別の効果。
+`parseSentencePart1` の `/【エナチャージN】/` catch-all が、**付与文の引用の中**の【エナチャージ１】を
+即時効果として拾っていた。
+**母集団は実測1効果**（`npm run census:population -- "すべての領域にあるカードは【ライフバースト】"` の3効果のうち
+`WX02-002-E1` は【常】恒久・`WX24-P3-022-E2` は「このターンと次のターン」＝既存のディスペア経路が正しい）
+⇒ **§2.0 の速いレーン＝`manualEffects.ts` に手書きし、catch-all は割らない**（割ると巻き添えの範囲が読めない）。
+**修正**＝`SET_ALL_ZONE_BURST_GRANT_THIS_TURN` を1本足して `allzone_burst_grant_this_turn` へ積み、
+`turnScopedState.ts` の `turn-end` 境界で落とす。逆翻訳も **payload から**描く。
+🔴**既存の `allzone_burst_grant_until_opp_turn`（ディスペア）へ寄せない**＝あちらは自分の次ターン開始まで残るので、
+寄せると**相手ターンまで1ターン長く効く過剰実行**になる。
+**検証**＝golden 1本（付与前後／ディスペア側を触らない／ターン終了で落ちる／ディスペアは落ちない対照／逆翻訳）。
+**反転確認**＝新キーの読みを殺すと FAIL。
+
+**ラチェット2本を較正**（退化ではなく新設1キーぶん）＝turn-scoped の命名規約フィールド **53→54**、
+母集団 **83→84**。`O-226` tripwire の assert 文字列も scope つきの式へ更新した（`declaredOverride` との OR は維持）。
+
+**最終ゲート**＝`npm run gates` 全緑。golden **3652 → 3656 PASS / 0 FAIL**、census 高シグナル **0**、
+`census:enginetext` A🔴 **0行**、`census:costtext` A🔴 **0規則**、smoke・fuzz 全0、lint **0 errors / 256 warnings**（据置）。
+live JSON の変更は**4効果のみ**（機械 diff）。
+🔴**`src/screens/` を触った＝§2.2 により実機まで必須**（観測点は PLAN §5.1 の `V-nn`）。
+
 ## 2026-09-08（O-D 実装キュー②・付与／条件の新機構3効果）＝能力なし場出し6効果を採用、2件は安全見送り
 
 ### `WX16-Re20-E1` 同型6効果＝能力を持たない状態で場に出す

@@ -140,16 +140,27 @@ export function collectEnergyExtraColors(
   return map;
 }
 
-/** `IGNORE_LRIG_RESTRICTION_ARTS`（「限定」を無視してアーツを使える）を持っているか。 */
-function hasIgnoreLrigRestriction(my: PlayerState, effectsMap: Map<string, CardEffect[]>): boolean {
-  return (my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false) ||
-    [my.field.lrig.at(-1), my.field.key_piece].filter(Boolean).some(cn =>
-      (effectsMap.get(cn!) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' &&
-        (e.action as StubAction).type === 'STUB' &&
-        (e.action as StubAction).id === 'IGNORE_LRIG_RESTRICTION_ARTS'
-      )
-    );
+export type IgnoreRestrictionKind = 'arts' | 'spell' | 'signi';
+
+/** `IGNORE_LRIG_RESTRICTION_ARTS` の宣言を scope とシグニ条件まで含めて判定する。 */
+export function hasIgnoreLrigRestriction(
+  my: PlayerState,
+  effectsMap: Map<string, CardEffect[]>,
+  kind: IgnoreRestrictionKind,
+  card?: CardData,
+): boolean {
+  return [my.field.lrig.at(-1), my.field.key_piece].filter(Boolean).some(cn =>
+    (effectsMap.get(cn!) ?? []).some(e => {
+      if (e.effectType !== 'CONTINUOUS' || e.action.type !== 'STUB') return false;
+      const action = e.action as StubAction;
+      if (action.id !== 'IGNORE_LRIG_RESTRICTION_ARTS'
+          || !action.ignoreRestrictionScopes?.includes(kind)) return false;
+      if (kind !== 'signi') return true;
+      if (!card) return false;
+      const levelEq = action.ignoreRestrictionSigni?.levelEq;
+      return levelEq === undefined || (parseInt(card.Level ?? '', 10) || 0) === levelEq;
+    })
+  );
 }
 
 /**
@@ -192,7 +203,7 @@ export function buildArtsPayerCtx(p: {
     specificCardCostReductions: collectSpecificCardCostReductions(actor, cardMap, effectsMap),
     blockedSelf: calcContinuousBlockedActions(actor, opponent, isActorTurn, effectsMap, cardMap, p.effectivePowers).forSelf,
     lrigClass: effectiveLrigClass(actor, cardMap.get(actor.field.lrig.at(-1) ?? '')?.CardClass),
-    ignoreRestriction: hasIgnoreLrigRestriction(actor, effectsMap),
+    ignoreRestriction: hasIgnoreLrigRestriction(actor, effectsMap, 'arts'),
   };
 }
 

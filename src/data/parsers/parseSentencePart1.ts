@@ -202,6 +202,44 @@ function removeAbilitiesTargetNounPhraseFilter(t: string, owner: Owner): TargetF
 }
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // ---- 🆕「限定条件を無視する」の適用範囲（§5.3 `O-268` ＋ 実装キュー `WX14-003-E2`・2026-09-08）----
+  //   🔴旧実装は範囲 payload を持たない `STUB{IGNORE_LRIG_RESTRICTION_ARTS}` 1種類だけで、消費地点
+  //     （`artsUseGate` / `spellUseGate` / `BattleScreen` の手札シグニ召喚）が**一律に**それを読んでいた
+  //     ＝アーツだけを書いた2枚が **限定つきシグニ 952枚**にまで効く過剰実行だった。
+  //   ⚠**part1 の先頭で引き取る**＝`WX14-003-E2` は下流の汎用「場に出す」規則に食われて
+  //     `CONTINUOUS + ADD_TO_FIELD`（＝`executeAction` を通らない真 no-op）に化けていた。
+  //   🔑範囲は**原文で決めて payload に載せる**（engine / UI 層に原文 regex を書かない＝`census:enginetext` A群）。
+  //   ⚠**「コストを支払わずに限定条件を無視して使用する」は別軸**（`PLAY_FREE` 系＝その1回の使用に閉じる）。
+  //     ここで引き取るのは**【常】の恒久的な許可**だけなので、文末の形で厳密に切り分ける。
+  {
+    const ignoreBody = t.trim().replace(/。$/, '');
+    const ignoreScopesOf = (s: string): Array<'arts' | 'spell' | 'signi'> => {
+      const out: Array<'arts' | 'spell' | 'signi'> = [];
+      if (s.includes('アーツ')) out.push('arts');
+      if (s.includes('スペル')) out.push('spell');
+      if (s.includes('シグニ')) out.push('signi');
+      return out;
+    };
+    // (a) `PR-K060-E4`  「あなたは限定条件を無視してアーツを使用できる」
+    const ignA = ignoreBody.match(/^あなたは限定条件を無視して(.+?)を使用できる$/);
+    // (b) `WX05-006-E2` 「あなたが使用するアーツとスペルの限定条件は無視される」
+    const ignB = ignoreBody.match(/^あなたが使用する(.+?)の限定条件は無視される$/);
+    // (c) `WX14-003-E2` 「あなたはレベル５のシグニの限定条件を無視して場に出すことができる」
+    const ignC = ignoreBody.match(/^あなたは(?:レベル([０-９\d]+)の)?(.+?)の限定条件を無視して場に出すことができる$/);
+    const ignRaw = ignA?.[1] ?? ignB?.[1] ?? ignC?.[2];
+    if (ignRaw !== undefined) {
+      const scopes = ignoreScopesOf(ignRaw);
+      // 🔴範囲を1つも読めなかったら**この規則を当てない**（payload 無しの STUB を作ると消費側が
+      //   fail-closed で全部落ちるため、無言 no-op より「規則が当たらなかった」ほうが計器に出る）。
+      if (scopes.length > 0) {
+        return {
+          type: 'STUB', id: 'IGNORE_LRIG_RESTRICTION_ARTS',
+          ignoreRestrictionScopes: scopes,
+          ...(ignC?.[1] ? { ignoreRestrictionSigni: { levelEq: parseNum(ignC[1]) } } : {}),
+        } as EffectAction;
+      }
+    }
+  }
   // ---- 🆕「対戦相手のシグニゾーンにある表向きのすべてのカードをトラッシュに置く」（2026-08-31 §5.2・`WDK13-001-E3`）----
   //   🔴汎用の TRASH 規則に食われて **`count:1`**（＝相手シグニ1体だけ）へ潰れていた。
   //     原文は「**すべての**カード」なので、選択の余地なく相手の場のシグニ全部が対象。
