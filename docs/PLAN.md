@@ -396,7 +396,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 |---|---|---|---|
 | **O-A** | 🏁**findings の triage＝完了** | 🏁**0件**（572件を全数確定＝BUG 433 / FP 70）。🔑**委譲の形は残した**＝`scripts/semanticAuditTriageExtract.mjs` → `semanticAuditRunCodex.mjs`（**engine を読ませるのが委譲の条件**）。⚠**codex の判定は BUG 側 4/5・FP 側で2件の取り違え**＝確定は人間が engine を読んでから | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN** | 🏁**0件**（掘り尽くした＝もう在庫ではない） | `node scripts/archive/semanticAuditLedger.mjs` |
-| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **34本**（⚠**増やしたら「何を還元したか」を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の triage 履歴に1行書く**） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
+| **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール）＝**`O-A` の副産物**（単独では着手しない） | **残0**（`O-A` が残0なので動かない）。**累計 34本**を還元済み | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
 | **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🏁**残0**（2026-09-08 第225〜228） | 下の実装キュー |
 
 🔑**O-A を Sonnet に落とさない理由**＝監査員（sonnet・JSON のみ）の precision は**実測 50%**で、
