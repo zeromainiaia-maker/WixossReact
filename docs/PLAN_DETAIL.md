@@ -6161,6 +6161,21 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-08・続き229〜232後・PLAN §6 から退避）
+
+- **2026-09-08（続き229〜232＝S-3 の消化と実装キューの棚卸し・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**Sheet1 が 2 → 3 に増えたのは退化ではない**＝`O-294`〜`O-305` を §5.3 へ登録したことで、
+  そのカードが `mech`（機構待ち）として**新たに数えられるようになった**ため（計器の可視化）。**即着手可能は 0 のまま。**
+  ⚠**台帳と census が動かないのは想定どおり**＝どちらも「未 triage の findings」と「語彙の欠落」を数える計器で、
+  今回直したのは**triage 済みの真バグ**＝**どちらの母数にも入っていない**。
+  📦**在庫**＝🔥**実装キュー 353効果**（`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み81）｜
+  🔥**機構 worklist 18項目**（索引 A 4／B 4／G 10＝`O-287`〜`O-305`）｜**⑤実機 残 0件**（据置）｜
+  🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3680 PASS**（3674 → +6＝新規5本と再編1本）／ smoke 全 OK ／ fuzz 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ lint 0 errors。
+  🖥**実機＝不要**（4バッチとも `src/data/manualEffects.ts` と `public/data/` だけ＝PLAN §2.2 の機械判定）。
+
 ### 恒久指標アーカイブ（2026-09-07・第221バッチ後・PLAN §6 から退避）
 
 - **2026-09-07（第221バッチ・Opus・O-D）＝実装キューを4件消化（本ブロックが直近の正）**

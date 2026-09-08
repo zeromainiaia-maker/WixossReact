@@ -3716,9 +3716,16 @@ test('多分岐の後続枝が LAST_PROCESSED_MATCHES 化（bare step の無条�
   // WXDi-P13-049: ミル→「レベル1→引く。レベル2→捨てさせる。レベル3以上→バニッシュ。スペル→…」。
   // 従来は第1枝のみ条件付きで第2枝以降が bare step（無条件発火＝過剰実行）だった。
   const e = (effectsMap.get('WXDi-P13-049') ?? []).find(x => x.effectId === 'WXDi-P13-049-E1');
-  const steps = (e?.action as { steps?: Array<{ type?: string; condition?: { type?: string; filter?: Record<string, unknown> } }> })?.steps ?? [];
-  const conds = steps.filter(s => s.type === 'CONDITIONAL' && s.condition?.type === 'LAST_PROCESSED_MATCHES');
-  ok(conds.length === 4, `4枝すべて LAST_PROCESSED_MATCHES 化のはず（実際 ${conds.length}枝・${JSON.stringify(steps.map(s => s.type))}）`);
+  const conds: Array<{ condition?: { type?: string; filter?: Record<string, unknown> } }> = [];
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const obj = node as { type?: string; condition?: { type?: string; filter?: Record<string, unknown> } };
+    if (obj.type === 'CONDITIONAL' && obj.condition?.type === 'LAST_PROCESSED_MATCHES') conds.push(obj);
+    Object.values(obj).forEach(walk);
+  };
+  walk(e?.action);
+  ok(conds.length === 4, `4枝すべて LAST_PROCESSED_MATCHES 化のはず（実際 ${conds.length}枝）`);
   const s = JSON.stringify(conds.map(c => c.condition?.filter));
   ok(s.includes('"level":1') && s.includes('"level":2') && s.includes('"min":3') && s.includes('"cardType":"スペル"'),
      `レベル1/2/3以上/スペルの4条件のはず（実際 ${s}）`);
@@ -9037,8 +9044,10 @@ test('O-60 parser: 「見る／公開する」の LOOK_OPP_LIFE_TOP が lookZone
   };
   for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
   // §5.3 `O-76` 第2バッチ（2026-08-29）＝裸の catch-all 9件を引き剥がしたので 27→18 ノードへ縮んだ。
+  // 第233バッチで WX25-P1-TK3-E1 の相手手札閲覧と WX10-015-E1 の相手ライフ閲覧を
+  // 型付き LOOK_AND_REORDER へ移し、18→16。
   //   ⚠この assert は「live から数え直しているか」を見るためのもので、件数を固定したいわけではない。
-  ok(found.length >= 18, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  ok(found.length >= 16, `母集団は live から再導出（実測 ${found.length} ノード）`);
 
   // 🔑ゾーン別の代表を live から assert する＝「相手ライフ」以外の枝が実在することを固定し、
   //    payload を落として既定へ倒す退化（＝旧バグの形）を検出する。
@@ -16146,7 +16155,8 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
   // 🆕187→**186**（2026-08-31 続き757）＝`WXK03-008-E3` を原文どおり
   //   `GRANT_LRIG_ABILITY` の中の【自】へ入れ子にしたので、トップレベルの ON_TURN_END が1件減った
   //   （挙動は消えていない＝センタールリグが得る能力として発火する。§5.2 意味照合）。
-  eq(count('ON_TURN_END').eff, 186, 'ON_TURN_END（CPU 経路に収集が無かった）');
+  // 第233バッチで PR-319-E2 の「あなたのターン終了時」を CONTINUOUS から AUTO へ修復し、186→187。
+  eq(count('ON_TURN_END').eff, 187, 'ON_TURN_END（CPU 経路に収集が無かった）');
   eq(count('ON_MAIN_PHASE_START').eff, 31, 'ON_MAIN_PHASE_START（同上）');
   eq(count('ON_TURN_START').eff, 3, 'ON_TURN_START（同上）');
   eq(count('ON_LRIG_ATTACK_STEP_START').eff, 1, 'ON_LRIG_ATTACK_STEP_START（同上）');
@@ -16629,7 +16639,7 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
   //   ⚠この集合は**両方向 assert**（増えても減っても FAIL）＝hand-source を足したら必ずここへ載せる。
   const opponentHandLookIds = [
     'SPDi43-27-E2', 'WD16-010-E1', 'WX06-CB02-E2', 'WX11-018-E1', 'WX17-002-E4', 'WX17-042-E2',
-    'WX17-069-E1', 'WXDi-P03-025-E1', 'WXDi-P09-065-E1', 'WXDi-P09-067-E1',
+    'WX17-069-E1', 'WX25-P1-TK3-E1', 'WXDi-P03-025-E1', 'WXDi-P09-065-E1', 'WXDi-P09-067-E1',
     'WXK09-039-E2', 'WXK11-061-E1',
   ].sort();
   const handToDeckSpecs = new Map([
@@ -16637,7 +16647,7 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
     ['WXK02-089-E1', 2], ['WXK05-025-E1', 2],
   ]);
 
-  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧12効果だけ', () => {
+  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧13効果だけ', () => {
     const actual: string[] = [];
     for (const effects of effectsMap.values()) for (const effect of effects) {
       const hits = walkActions(effect.action, a => a.type === 'LOOK_AND_REORDER'
@@ -73270,6 +73280,121 @@ test('PR-459A-E1 live: スペルの場合は公開したそのカードだけを
   const result = run(finalStep, ctx);
   ok(!result.otherState.hand.includes(spell), '公開したスペルを捨てさせる');
   ok(result.otherState.hand.includes(decoy), '🔴公開していない別のスペルは対象にしない（旧実装は任意の1枚だった）');
+}));
+
+// §5.0 第233バッチ：宣言レベル一致／「トラッシュに置いてもよい」の一点物修復。
+const batch233Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, check] of [
+  ['WXK01-044', 'WXK01-044-E1', 'declared'],
+  ['WXK06-040', 'WXK06-040-E1', 'declared'],
+  ['WD13-008', 'WD13-008-E1', 'declared_reorder'],
+  ['WDK09-011', 'WDK09-011-E1', 'declared'],
+  ['PR-K022', 'PR-K022-E1-G', 'declared_reorder'],
+  ['WXDi-D09-P14', 'WXDi-D09-P14-E2', 'declared_look'],
+  ['WXDi-P08-025', 'WXDi-P08-025-E1', 'declared_reorder'],
+  ['WX25-P1-TK3', 'WX25-P1-TK3-E1', 'declared_hand_all'],
+] as const) {
+  test(`第233 ${effectId}: 宣言レベル一致を fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const effect = batch233Effect(cardNum, effectId, fresh);
+      const json = JSON.stringify(effect.action);
+      if (check === 'declared_hand_all') {
+        ok(json.includes('"location":"hand","owner":"opponent"'), `${fresh ? 'fresh' : 'live'}: 相手手札を見る`);
+        ok(json.includes('"type":"HAND_CARD","owner":"opponent","count":"ALL"'), `${fresh ? 'fresh' : 'live'}: 該当する全部を捨てる`);
+      } else {
+        ok(json.includes('"type":"LAST_PROCESSED_MATCHES"'), `${fresh ? 'fresh' : 'live'}: 直前カード条件`);
+      }
+      ok(json.includes('"levelEqDeclaredNumber":true'), `${fresh ? 'fresh' : 'live'}: 宣言レベル一致`);
+      if (check === 'declared_reorder') ok(json.includes('"reorder":true'), `${fresh ? 'fresh' : 'live'}: 好きな順番`);
+      if (check === 'declared_look') ok(json.includes('"type":"LOOK_AND_REORDER"'), `${fresh ? 'fresh' : 'live'}: 公開ステップ`);
+    }
+  });
+}
+
+for (const [cardNum, effectId, check] of [
+  ['WX10-015', 'WX10-015-E1', 'life_both'],
+  ['WXK11-036', 'WXK11-036-E2', 'mill_optional'],
+  ['PR-319', 'PR-319-E2', 'turn_end_auto'],
+  ['WXDi-P00-042', 'WXDi-P00-042-E1', 'deck_optional'],
+  ['WXDi-P13-049', 'WXDi-P13-049-E1', 'blue_optional'],
+  ['WX24-P3-089', 'WX24-P3-089-E1', 'deck_optional'],
+  ['WX24-P3-090', 'WX24-P3-090-E1', 'mill_optional'],
+  ['WX25-P1-101', 'WX25-P1-101-E2', 'mill_optional'],
+] as const) {
+  test(`第233 ${effectId}: 任意トラッシュを fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const effect = batch233Effect(cardNum, effectId, fresh);
+      const json = JSON.stringify(effect);
+      if (check === 'life_both') {
+        eq((json.match(/"id":"OPTIONAL_ACTIVATE"/g) ?? []).length, 2, `${fresh ? 'fresh' : 'live'}: 自分/相手の2回とも任意`);
+        eq((json.match(/"location":"life_cloth"/g) ?? []).length, 4, `${fresh ? 'fresh' : 'live'}: 自分/相手の閲覧元と戻し先`);
+        ok(!json.includes('"id":"LOOK_OPP_LIFE_TOP"'), `${fresh ? 'fresh' : 'live'}: 旧閲覧STUBを残さない`);
+        ok(!json.includes('"type":"SIGNI","owner":"opponent"'), `${fresh ? 'fresh' : 'live'}: 相手場シグニを誤対象にしない`);
+      } else if (check === 'turn_end_auto') {
+        eq(effect.effectType, 'AUTO', `${fresh ? 'fresh' : 'live'}: AUTO`);
+        ok(effect.timing?.includes('ON_TURN_END') ?? false, `${fresh ? 'fresh' : 'live'}: ターン終了時`);
+        ok(json.includes('"id":"OPTIONAL_TRASH_SELF"'), `${fresh ? 'fresh' : 'live'}: 自身を任意トラッシュ`);
+      } else if (check === 'deck_optional') {
+        ok(json.includes('"id":"OPTIONAL_ACTIVATE"'), `${fresh ? 'fresh' : 'live'}: コストなし任意ブロック`);
+        ok(json.includes('"type":"DECK_CARD","owner":"self","count":1'), `${fresh ? 'fresh' : 'live'}: 見たデッキトップ`);
+        ok(!json.includes('"type":"SIGNI","owner":"opponent"'), `${fresh ? 'fresh' : 'live'}: 相手場シグニを誤対象にしない`);
+      } else if (check === 'blue_optional') {
+        ok(json.includes('"id":"OPTIONAL_COST","costColors":["青"]'), `${fresh ? 'fresh' : 'live'}: 青の任意コスト`);
+        ok(json.includes('"type":"PAID_ADDITIONAL_COST"'), `${fresh ? 'fresh' : 'live'}: 支払い後だけ後続`);
+      } else {
+        ok(json.includes('"type":"MILL"'), `${fresh ? 'fresh' : 'live'}: デッキからミル`);
+        ok(json.includes('"optional":true'), `${fresh ? 'fresh' : 'live'}: スキップ可能`);
+      }
+    }
+  });
+}
+
+test('第233 engine: LAST_PROCESSED_MATCHES の levelEqDeclaredNumber は一致時だけ成立する', () => withSavedCursor(() => {
+  const lv2 = findCard(c => isSigni(c) && Number(c.Level) === 2);
+  const lv3 = findCard(c => isSigni(c) && Number(c.Level) === 3);
+  const condition: Condition = {
+    type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelEqDeclaredNumber: true }, minCount: 1,
+  };
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.declared_number = 2;
+  ok(evalCondition(condition, { ...ctx, lastProcessedCards: [lv2] }), '一致するレベル2なら成立');
+  ok(!evalCondition(condition, { ...ctx, lastProcessedCards: [lv3] }), '不一致のレベル3なら不成立');
+  ok(!evalCondition(condition, { ...mkCtx({}, {}), lastProcessedCards: [lv2] }), '未宣言なら fail-closed');
+}));
+
+test('第233 WX25-P1-TK3-E1 engine: 相手手札から宣言レベルのシグニをすべて捨てさせる', () => withSavedCursor(() => {
+  const lv2a = findCard(c => isSigni(c) && Number(c.Level) === 2);
+  const lv2b = findCard(c => isSigni(c) && Number(c.Level) === 2 && c.CardNum !== lv2a);
+  const lv3 = findCard(c => isSigni(c) && Number(c.Level) === 3);
+  const spell = findCard(c => c.Type === 'スペル');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.declared_number = 2;
+  ctx.otherState.hand = [lv2a, lv3, spell, lv2b];
+  const result = run({
+    type: 'TRASH',
+    target: { type: 'HAND_CARD', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', levelEqDeclaredNumber: true } },
+  } as EffectAction, ctx);
+  eq(JSON.stringify(result.otherState.hand), JSON.stringify([lv3, spell]), 'レベル違いとスペルは残る');
+  eq(JSON.stringify(result.otherState.trash.slice(-2)), JSON.stringify([lv2a, lv2b]), '一致するシグニ2枚をすべて捨てる');
+}));
+
+test('第233 WX24-P3-090-E1/WXDi-P13-049-E1 engine: 任意処理のskipは後続を実行しない', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WX24-P3-090', 'WX24-P3-090-E1'], ['WXDi-P13-049', 'WXDi-P13-049-E1']] as const) {
+    const effect = batch233Effect(cardNum, effectId, false);
+    const ctx = mkCtx({}, { signi: [findCard(isSigni), null, null] }, cardNum);
+    const deckBefore = [...ctx.ownerState.deck];
+    const offered = executeEffect(effect, ctx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', `${effectId}: 任意処理を提示`);
+    const skipped = finish(resumeChoose('skip', offered.pending, execCtxFrom(offered, ctx)), ctx);
+    eq(JSON.stringify(skipped.ownerState.deck), JSON.stringify(deckBefore), `${effectId}: skipならデッキ不変`);
+    eq(skipped.otherState.temp_power_mods?.length ?? 0, 0, `${effectId}: skipなら後続のパワー変更なし`);
+  }
 }));
 
 if (listMode) {

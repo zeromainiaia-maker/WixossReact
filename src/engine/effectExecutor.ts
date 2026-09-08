@@ -2531,7 +2531,17 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
-    let cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // §5.0 第233バッチ＝HAND_CARD は SIGNI 等と違って resolveDynamicFilter を通らない。
+    // 宣言レベル一致だけを既存の静的 level へ解決し、未宣言時は fail-closed にする。
+    let handFilter = tgt.filter;
+    if (handFilter?.levelEqDeclaredNumber) {
+      const { levelEqDeclaredNumber: _dynamicLevel, ...staticFilter } = handFilter;
+      const declaredLevel = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
+      handFilter = declaredLevel === undefined
+        ? { ...staticFilter, cardNum: '__NO_DYNAMIC_FILTER_MATCH__' }
+        : { ...staticFilter, level: declaredLevel };
+    }
+    let cands = handCandidates(state, handFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     // 🆕2026-09-09（S-3・意味照合triage `PR-459A-E1`）＝SIGNI/ENERGY_CARD 分岐（execTrash:2412,2629）と
     //   揃え、HAND_CARD でも `targetsStored`（「そのカード」＝ STORE_LAST_PROCESSED_TARGETS で固定した
     //   直前の公開/選択カード）を候補に効かせる。従来はここだけ無視しており、

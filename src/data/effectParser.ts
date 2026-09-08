@@ -26795,6 +26795,159 @@ function repairGrantKeywordMetadataBatch41(
   return rewrite(action);
 }
 
+/**
+ * §5.0 第233バッチ：意味照合で確定した一点物16効果のうち、未配送15効果を正史へ戻す。
+ *
+ * いずれも既存 action / condition / optional-cost 語彙だけで表現できるが、汎用 regex にすると
+ * 「それ」の先行詞や「そうした場合」の範囲が違う兄弟文まで巻き込むため effectId で閉じる。
+ * WX10-015-E1 は第209バッチですでに同じ正準形へ配送済みなので、ここでは変更しない。
+ */
+function repairSemanticBatch233(effects: CardEffect[]): void {
+  const declaredLevelGate = (then: EffectAction): EffectAction => ({
+    type: 'CONDITIONAL',
+    condition: {
+      type: 'LAST_PROCESSED_MATCHES',
+      filter: { cardType: 'シグニ', levelEqDeclaredNumber: true },
+      minCount: 1,
+    },
+    then,
+  });
+
+  const repairDeclaredSequence = (effect: CardEffect, reorder = false): void => {
+    if (effect.action.type !== 'SEQUENCE' || effect.action.steps.length < 3) return;
+    const steps = [...effect.action.steps];
+    if (reorder && steps[1]?.type === 'LOOK_AND_REORDER') {
+      steps[1] = { ...steps[1], reorder: true };
+    }
+    steps[2] = declaredLevelGate(steps[2]);
+    effect.action = { ...effect.action, steps };
+  };
+
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXK01-044-E1':
+      case 'WXK06-040-E1':
+      case 'WDK09-011-E1':
+        repairDeclaredSequence(effect);
+        break;
+      case 'WD13-008-E1':
+      case 'WXDi-P08-025-E1':
+        repairDeclaredSequence(effect, true);
+        break;
+      case 'WXDi-D09-P14-E2':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'DECLARE_NUMBER' },
+            {
+              type: 'LOOK_AND_REORDER',
+              source: { location: 'deck', owner: 'opponent' },
+              count: 1,
+              private: false,
+              reorder: false,
+              destination: { location: 'deck', owner: 'opponent', position: 'top' },
+            },
+            declaredLevelGate({ type: 'DRAW', owner: 'self', count: 1 }),
+          ],
+        };
+        break;
+      case 'WX25-P1-TK3-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'DECLARE_NUMBER' },
+            {
+              type: 'LOOK_AND_REORDER',
+              source: { location: 'hand', owner: 'opponent' },
+              count: 'ALL',
+              private: true,
+              reorder: false,
+              destination: { location: 'hand', owner: 'opponent', position: 'any' },
+            },
+            {
+              type: 'TRASH',
+              target: {
+                type: 'HAND_CARD', owner: 'opponent', count: 'ALL',
+                filter: { cardType: 'シグニ', levelEqDeclaredNumber: true },
+              },
+            },
+            { type: 'STUB', id: 'ARTS_IMMOVABLE' },
+          ],
+        };
+        break;
+      case 'WX10-015-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[2]?.type === 'STUB'
+            && effect.action.steps[2].id === 'LOOK_OPP_LIFE_TOP') {
+          effect.action.steps[2] = {
+            type: 'LOOK_AND_REORDER',
+            source: { location: 'life_cloth', owner: 'opponent' },
+            count: 1,
+            private: true,
+            reorder: false,
+            destination: { location: 'life_cloth', owner: 'opponent', position: 'top' },
+          };
+        }
+        break;
+      case 'WXK11-036-E2':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'MILL') {
+          effect.action.steps[0] = { ...effect.action.steps[0], optional: true };
+        }
+        break;
+      case 'PR-319-E2':
+        effect.effectType = 'AUTO';
+        effect.timing = ['ON_TURN_END'];
+        effect.triggerScope = 'self';
+        effect.duration = 'INSTANT';
+        effect.mandatory = true;
+        break;
+      case 'WXDi-P00-042-E1':
+      case 'WX24-P3-089-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'TRASH') {
+          effect.action.steps[1] = {
+            type: 'SEQUENCE',
+            steps: [
+              { type: 'STUB', id: 'OPTIONAL_ACTIVATE' },
+              { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+            ],
+          };
+        }
+        break;
+      case 'WXDi-P13-049-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'MILL') {
+          const paidSteps = [...effect.action.steps];
+          effect.action = {
+            type: 'SEQUENCE',
+            steps: [
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+              {
+                type: 'CONDITIONAL',
+                condition: { type: 'PAID_ADDITIONAL_COST' },
+                then: { type: 'SEQUENCE', steps: paidSteps },
+              },
+            ],
+          };
+        }
+        break;
+      case 'WX24-P3-090-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'TRASH') {
+          effect.action.steps[0] = { type: 'MILL', owner: 'self', count: 3, optional: true };
+        }
+        break;
+      case 'WX25-P1-101-E2':
+        effect.action = { type: 'MILL', owner: 'self', count: 3, optional: true };
+        break;
+      default:
+        break;
+    }
+
+    // PR-K022-E1-G は PR-K022-E1 / GRANT_LRIG_ABILITY.abilities[] の内側。
+    if (effect.effectId === 'PR-K022-E1' && effect.action.type === 'GRANT_LRIG_ABILITY') {
+      const granted = effect.action.abilities.find(ability => ability.effectId === 'PR-K022-E1-G');
+      if (granted) repairDeclaredSequence(granted, true);
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -27661,6 +27814,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // §5.3 `O-272`＝「このシグニの正面にあった」の位置限定も**最後に**刻む（後段 rewriter が木を組み直すため）。
     markFrontOfSelfTargets(effect.action, srcTextO272);
   }
+  // 一点物の意味修復は、汎用 rewriter が木を組み直し終えた最後に適用する。
+  repairSemanticBatch233(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

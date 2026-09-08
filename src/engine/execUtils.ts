@@ -3408,15 +3408,23 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       //   ＝「宣言していないカードでも『宣言したカードの場合』の枝が通る」過剰実行になる。
       //   ⇒ **ここで明示的に解決する**（未宣言なら不成立＝fail-closed）。
       const declaredNameLPM = ctx.ownerState.declared_card_name;
+      // §5.0 第233バッチ＝levelEqDeclaredNumber も matchesFilter が直接は読まない動的キー。
+      // DECLARE_NUMBER の保存先をここで解決し、未宣言時は name と同じく fail-closed にする。
+      const declaredLevelLPM = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));
         if (cond.filter?.nameEqDeclaredName
             && (!declaredNameLPM || card?.CardName !== declaredNameLPM)) return false;
+        if (cond.filter?.levelEqDeclaredNumber) {
+          const cardLevel = parseInt(card?.Level ?? '', 10);
+          if (declaredLevelLPM === undefined || !Number.isFinite(cardLevel) || cardLevel !== declaredLevelLPM) return false;
+        }
         // noAbilities は CardData 単体ではなく場の `abilities_removed` も見るため、静的判定から外す。
         // ZONE_STATE_KEYS が findFieldZoneState を起動し、唯一の判定 hasNoAbility へ渡す。
         // ⚠`nameEqDeclaredName` も同じ理由で `matchesFilter` へ渡さない（上で解決済み）。
-        const cardFilter = (cond.filter?.noAbilities !== undefined || cond.filter?.nameEqDeclaredName)
-          ? { ...cond.filter, noAbilities: undefined, nameEqDeclaredName: undefined }
+        const cardFilter = (cond.filter?.noAbilities !== undefined
+          || cond.filter?.nameEqDeclaredName || cond.filter?.levelEqDeclaredNumber)
+          ? { ...cond.filter, noAbilities: undefined, nameEqDeclaredName: undefined, levelEqDeclaredNumber: undefined }
           : cond.filter;
         if (!matchesFilter(card, cardFilter)) return false;
         if (cond.levelLteCenterLrig) {

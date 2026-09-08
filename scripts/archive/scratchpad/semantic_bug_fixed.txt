@@ -102,3 +102,19 @@ WX06-014-E2 :: 2026-09-09 :: FP（stale）＝§5.3 O-274（execTransferToDeck �
 WD13-002-E1 :: 2026-09-09 :: FP（設計判断）＝§5.3 O-248/O-219＝「公開する」コストは手札を失わないため HAND_COUNT_FILTER で自動適用する意図的な近似（UIを挟む理由が無い）
 WD13-003-E1 :: 2026-09-09 :: FP（設計判断）＝同上（O-248 コメント内で名指し）
 WDK17-009-E2 :: 2026-09-09 :: FP（設計判断）＝§5.3 O-65＝「それら」＝対象化した2枚は無条件、手札1枚捨てだけがライフ2枚以下条件、という原文の崩れた構文への意図的な読み（WD20-006-E1 の同型構文と揃えた）
+WXK01-044-E1 :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート追加
+WXK06-040-E1 :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート追加
+WD13-008-E1 :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート＋reorder:true
+WDK09-011-E1 :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート追加
+PR-K022-E1-G :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート＋reorder:true（親PR-K022-E1のGRANT_LRIG_ABILITY内）
+WXDi-D09-P14-E2 :: 2026-09-09 :: 第233バッチ＝公開ステップ補完＋levelEqDeclaredNumber 条件ゲート
+WXDi-P08-025-E1 :: 2026-09-09 :: 第233バッチ＝levelEqDeclaredNumber 条件ゲート＋reorder:true
+WX25-P1-TK3-E1 :: 2026-09-09 :: 第233バッチ＝相手手札LOOK_AND_REORDER＋TRASH{HAND_CARD,levelEqDeclaredNumber,count:ALL}へ実装
+WX10-015-E1 :: 2026-09-09 :: 第233バッチ＝相手ライフクロス閲覧を型付きLOOK_AND_REORDERへ置換
+WXK11-036-E2 :: 2026-09-09 :: 第233バッチ＝MILL.optional:true 追加
+PR-319-E2 :: 2026-09-09 :: 第233バッチ＝CONTINUOUS→AUTO/ON_TURN_END へ修復
+WXDi-P00-042-E1 :: 2026-09-09 :: 第233バッチ＝TRASH対象をDECK_CARDへ訂正＋OPTIONAL_ACTIVATE
+WXDi-P13-049-E1 :: 2026-09-09 :: 第233バッチ＝《青》OPTIONAL_COST+PAID_ADDITIONAL_COST 追加
+WX24-P3-089-E1 :: 2026-09-09 :: 第233バッチ＝TRASH対象をDECK_CARDへ訂正＋OPTIONAL_ACTIVATE
+WX24-P3-090-E1 :: 2026-09-09 :: 第233バッチ＝TRASH→MILL{optional:true}
+WX25-P1-101-E2 :: 2026-09-09 :: 第233バッチ＝TRASH→MILL{optional:true}

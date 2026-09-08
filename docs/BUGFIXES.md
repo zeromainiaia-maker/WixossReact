@@ -12868,3 +12868,20 @@ node scripts/verifyBattleDrive.mjs censusSelfCrashToTrashRefill
 node scripts/verifyBattleDrive.mjs censusSideAttackLancerFires
 node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
 ```
+
+---
+
+## 2026-09-09 — 第233バッチ：宣言レベル一致／任意トラッシュ（機構不要の一点物16効果・`.codex-work` 実装／Claude 検証済み）
+
+**実装は `CODEX_HOME=.codex-work codex exec` へ委譲**（`docs/PLAN.md` §5.0 実装キュー・triage 済み BUG のうち新しい engine 機構が不要と事前確認した効果だけを抽出）。Codex の申告は Claude が独立実行で全数検算し、差し戻し0で採用。
+
+- 対象16効果を原文・fresh・live・逆翻訳で照合。`WX10-015-E1` は第209バッチで任意性と対象が修正済みだったが、相手側閲覧の旧 STUB を型付き `LOOK_AND_REORDER` へ置換し、全16効果を parser の effectId 限定後段修復として配送した。
+- A群は `LAST_PROCESSED_MATCHES{filter:{cardType:'シグニ',levelEqDeclaredNumber:true}}` で主要処理をゲートし、3枚公開系は `reorder:true`、`WXDi-D09-P14-E2` は相手デッキトップ公開を補完した。
+- `WX25-P1-TK3-E1` は型付きの相手手札 `LOOK_AND_REORDER` と `TRASH{HAND_CARD,count:'ALL',levelEqDeclaredNumber:true}` へ修復。既存の同型 `PR-257-E1` の filtered `count:'ALL'` を踏襲した。
+- B群は「そうした場合」の範囲に応じて `MILL.optional`、内側 `OPTIONAL_ACTIVATE`、または `OPTIONAL_COST{青}→PAID_ADDITIONAL_COST` を使い分けた。`PR-319-E2` は `AUTO/ON_TURN_END` へ修復した。
+- 実測で `levelEqDeclaredNumber` は `LAST_PROCESSED_MATCHES` と手札 `TRASH` の2経路では未解決だったため、既存フィールドを静的 level へ解決する配線を追加（未宣言時 fail-closed）。新しい action/condition/state は追加していない。
+- 付随発見：`WX25-P1-TK3-E1` の `ARTS_IMMOVABLE` は activated sequence 内の STUB のままで、常在収集側が要求する top-level `CONTINUOUS` 形ではない。同型クラフト群にまたがる範囲外問題のため未修正（範囲外・見送り）。
+- **Claude 側の独立検証**＝①`git diff` の effectId 単位差分が申告どおり**ちょうど16件**（`PR-K022-E1-G` は親 `PR-K022-E1` として1件に数える）②`npm run typecheck` 独立実行 PASS ③`npm run gates` 独立実行＝**全緑**（golden・smoke・fuzz・census・census:stubs・census:enginetext・census:costtext・manual-fields・lint すべて PASS。census 高シグナル `0/baseline 0`・lint `0 errors/254 warnings`＝投入前と同値）④golden `--only "第233"` で新規19本 PASS ⑤新規 golden は fresh/live 両読み＋反転（任意処理skip時に後続が実行されないこと）を含む。
+- 検証（Codex 申告値。Claude の独立実行と一致）：`typecheck` PASS、golden `3709/3709`、smoke `10744/10744`（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム不具合0、census 高シグナル `0 / baseline 0`、lint `0 errors / 254 warnings`。
+- `src/engine/`（`effectExecutor.ts`／`execUtils.ts`）と `src/data/effectParser.ts` を触った回＝`docs/PLAN.md` §2.2 により **`src/screens/` 不触・新しい型/機構も不足**なので実機検証は不要（④まででよい）。
+- 消化記録＝`scripts/archive/scratchpad/semantic_bug_fixed.txt` に16行追記（`docs/PLAN.md` §5.0 実装キューの在庫カウンタから引き算するため）。
