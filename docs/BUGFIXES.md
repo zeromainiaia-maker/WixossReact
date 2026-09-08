@@ -42,6 +42,28 @@ triage（codex＋私）はそれを **engine 側だけ確かめて追認**して
 `WDK17-009-E2`（条件の掛かる範囲が違う＝構造の作り直し）。
 ⚠`PR-457-E2` は **live が MANUAL なのに `manualEffects.ts` に定義が無い**（`census:orphanmanual` の C 分類）＝別扱い。
 
+### 🆕 機構待ちの §5.3 登録（同日追記＝**最初の巡で飛ばしていた**）
+
+🔴**PLAN の規約は「実装キューの行を消してよいのは (a) 直した (b) 偽陽性 (c) §5.3 へ `O-nn` で登録し直した ときだけ」**
+なのに、最初は BUGFIXES に列挙しただけで登録していなかった。**母集団を実測してから 4件を登録した**：
+
+| ID | 索引 | 母集団（実測） | 何が無いか |
+|---|---|---|---|
+| `O-294` | B | **live 7効果** | `ADD_TO_FIELD.abilitiesRemoved` に engine の消費が無い（parser が書くだけの真 no-op）。⚠**同名の別実装が2つ在る**（`collectContinuousAbilitiesRemovedSigni` / `BoardComponents` の `string[]`）＝**grep だけで「在る」と読むと外す** |
+| `O-295` | B | **live 6効果**＋原文のみ1 | 「対戦相手の効果によってダメージを受けない」が `prevent_lrig_damage`＝**1回消費型**。`PREVENT_DAMAGE`（期間型）は `scope` が `'ALL'|'LRIG'` だけで「効果による」を表せない |
+| `O-296` | G | **live 1効果**＋原文のみ2 | `SET_BASE_LEVEL.until` が `'END_OF_TURN'` だけ＝「次の対戦相手のターン終了時まで」が表せず**同じ文の `POWER_SET` と寿命が食い違う**。`O-293` と同じ「寿命の語彙が足りない」族 |
+| `O-297` | G | **1効果** | ON_BANISH の**トリガー元シグニのゾーン**参照が無い（`SAME_ZONE_HAS_GATE` は効果元、`filter.inGateZone` は場に在るシグニ） |
+
+**既に登録済みだった2件**＝`SPDi44-04-E2` は `O-287`（`commonClass` に消費が無い・live 27効果）、
+`WXK11-020-E1` は `O-291`（`STRIP_OPP_ENA_MULTI_ENA` の後半）。
+**機構不要と判定して §5.0 に残した2件**＝`WX26-CP1-048-E2`（任意性は既存5経路で書ける＝系統行）／
+`WDK17-009-E2`（`opponentSelects`＋`targetsStored` で構造を書き直せる）。
+
+🔴**登録のついでに計器のバグを1つ直した**＝`cardProgressCensus.mjs:176` は **`| \`O-nn\`` で始まる行しか読まない**のに、
+`O-293`（2026-09-08 登録）が **`| 🆕\`O-293\`` と書かれていて登録当日から計器に載っていなかった**。
+PLAN §5.3 に「ID セルの先頭に絵文字を置かない（`O-281`/`O-282` で実際に起きた）」と**警告が書いてあるのに再発**していた。
+⇒ `O-293`/`O-296`/`O-297` の 🆕 を説明文側へ移し、**索引10項目すべてが計器に載ることを確認**した。
+
 **検証**＝`npm run golden -- --only "§5.0 第230"`（新規1本・12効果を assert）→ **反転確認あり**（`git stash` で FAIL）→
 `npm run gates` 全緑（golden 3679/3679）。**⑤実機＝不要**（`src/data/` と `public/data/` だけ）。
 **在庫**＝実装キュー **419 → 383効果**（修正12＋偽陽性25を `semantic_bug_fixed.txt` へ記録）。

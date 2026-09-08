@@ -349,7 +349,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（全11シート 100%）。⚠**止め時の判定（新型0×連続3バッチ）は未実施**＝新規ラウンドを始めるならそこから | `node scripts/archive/semanticAuditGap.mjs` |
 | §5.0 O-A | 🏁**完了**＝findings の triage | 🏁**未 triage 0**（572件を全数確定＝**BUG 433 / FP 70**・FP は全件 engine の行を人手で裏取り済み） | `node scripts/archive/semanticAuditPool.mjs` |
 | **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**残383効果**（確定433 − 消化済み51）。🔴**このリストの precision は高くない**＝第230 の実測で**見た62効果のうち真バグ12・機構待ち8・偽陽性42**（特に `MISSING` は 17件中 真バグ0）。**実装前に必ず live と突き合わせる。**🔴`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `node scripts/archive/semanticAuditBugList.mjs` |
-| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**6項目**（`O-287`/`O-288`/`O-290`〜`O-293`）。🆕**`O-289` は S-2 で「機構不要」と確定して降ろし、`O-293` を新規登録した** | §5.3 の索引 G |
+| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**10項目**（索引 B に🆕`O-294`/`O-295`／索引 G に `O-287`/`O-288`/`O-290`〜`O-293`＋🆕`O-296`/`O-297`）。🆕**2026-09-08 第230＝§5.0 の検証で機構が要ると確定した4件を登録した** | §5.3 の索引 G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
 | §5.4 | 🏁閉じた。**新しい構造混線を見つけたときだけ足す** | 0件 | — |
@@ -688,11 +688,16 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 （live の `SPDi44-16-E2` / `WX25-P1-030-E2` は既に `upToCount:true` を持つ）。
 🔑**CODEX_GUIDE §3-1「簿記を信用せず実測する」は、自分が数日前に書いた索引にも効く。**
 
-🏁**残0**（2026-09-08 に `O-272` をクローズ）。
+🆕🔥**残2項目**（2026-09-08 第230＝§5.0 実装キューの検証中に「機構が要る」と確定した2件を登録）。
+
+| ID | 母集団 | 何が無いか |
+|---|---|---|
+| `O-294` | **live 7効果**（`WX16-Re20-E1` / `WXDi-P03-034-E1` / `WXDi-P07-005-E1` / `-sub-E1` / `WXDi-P13-042-E1` / `-E2` / `WXDi-P15-046-E2`。原文「能力を持たないシグニとして場に出す」6効果とほぼ一致＝取りこぼし0） | **`ADD_TO_FIELD.abilitiesRemoved` に engine の消費地点が無い**＝`effectParser.ts:8112` が書くだけの真 no-op（`O-287` の `commonClass` と同型）。⚠**`abilitiesRemoved` という名前は engine にもう1つある**（`effectEngine.ts:2428` の `collectContinuousAbilitiesRemovedSigni`＝**CONTINUOUS の能力喪失**で別物・`BoardComponents.tsx:408` は `string[]`）＝**grep だけで「在る」と読むと外す** |
+| `O-295` | **live 6効果**（`SPDi44-04-E2`＋`-GRANT` / `WX19-046-E3` / `WX25-P1-026-E2`＋`-GRANT` / `WXK03-011-E1`）＋**原文にあって JSON に無い1件**（`SPK01-13-E1`） | **「対戦相手の効果によってダメージを受けない」の期間が表せない**＝受け皿 `PREVENT_DAMAGE_FROM_OPP_EFFECTS` が立てる `prevent_lrig_damage` は **1回消費型**（`BattleScreen.tsx:13289` が消費時に `undefined` に戻す）。原文「**このターン**」「【常】」は回数無制限なので**2回目以降が素通りする**。⚠`PREVENT_DAMAGE`（期間型・回数無制限）は既に在るが `scope` が `'ALL' | 'LRIG'` だけ＝**「効果による」を表せない**（`ALL` にするとアタックのダメージまで防ぐ過剰実行） |
 
 #### 索引 G. 新規分離（母集団 1〜2効果）
 
-🔥**残6項目**（`O-287`/`O-288`/`O-290`〜`O-293`）。
+🔥**残8項目**（`O-287`/`O-288`/`O-290`〜`O-293`／🆕`O-296`/`O-297`）。
 🆕🔴**2026-09-08 の S-2（母集団 grep 実測）で `O-289` は「機構不要」と確定して降ろした**＝受け皿 `taken_choice_keys`
 （`src/types/index.ts:885`・読み `effectExecutor.ts:6432`・**ターン境界で消さずに**書く `execStubPart1.ts:922-930`）が実在し、
 **parser が `CHOOSE.noRepeat` を出せば閉じる**（§5.0 の系統行へ移した）。
@@ -706,7 +711,9 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | `O-290` | 🆕**S-2 実測 3カード**（登録4＝stale。`WXK03-014` は `coinReduction` で処理済み） | **キーを場に出すときのコスト条件・軽減**＝「場に出すためのコストは《コイン×0》になる」2枚（`WXK10-015`/`WXK11-012`）と「エナの色が3種類以上ある場合にしか出せない」1枚（`PR-K060`）。⚠**この3文は effectId が切り出されていない**（`_effect_srctext.json` に無い＝CSV 全文が正本）。専用 `PLACE_KEY_FROM_LRIG_DECK.coinReduction` はあるが**通常キープレイ経路（`BattleScreen.tsx:9074`／`KeyUseModal.tsx:35-56`）は印刷コインを直読み**する |
 | `O-291` | 🆕**S-2 実測 1効果＝登録どおり**（`WXK11-020-E1`・MANUAL） | **`STRIP_OPP_ENA_MULTI_ENA` の後半**＝「対戦相手のエナゾーンのカードは対戦相手の効果を受けない」。消費地点は `costs.ts:1233` と `artsUseGate.ts:71` の2箇所だけで【マルチエナ】剥奪しか実装していない |
 | `O-292` | 🆕**S-2 実測 3効果＝登録どおり**（`WXDi-CP01-006-E2`/`-007-E2`/`-008-E2`） | **通常効果からのコラボ**＝起動コスト「コラボライバー1人とのコラボ」。実行機構は `STUB{INTERNAL_DO_COLLAB}` にしかなく、`execStubPart3.ts:1311-1314` が「通常効果からの生成元が無い」と明記している |
-| 🆕`O-293` | **S-2 実測 10効果**（軸① リミット期限 10・軸② 付与能力期限 5・重複あり） | **「次のあなたのエナフェイズ終了時まで」の寿命ストアが無い**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`（`execStubPart1.ts:4208`）は `lrig_limit_mod` を足すだけで、それは**ターン終了時に消える**（`BattleScreen.tsx:4284` / `:4735`）。🔴**STUB 名・ログ文言「（エナフェイズ終了まで）」・型コメント（`types/index.ts:799`）の3つとも嘘**＝**受け皿が在るように見えて 7効果が2フェイズ早く切れている**。付与能力側（`GRANT_LRIG_ABILITY.duration`）も `UNTIL_OPP_TURN_END` が最長で原文に届かない |
+| `O-296` | 🆕 **live 4効果中1件**（`WXDi-D09-H15-E1`）＋**原文にあって JSON に無い2件**（`WX11-051-BURST` / `WXDi-P01-039-E1`） | **`SET_BASE_LEVEL.until` が `'END_OF_TURN'` しか取れない**＝原文「次の対戦相手のターン終了時まで、基本レベルは3になり基本パワーは12000になる」の前半だけが**恒久化**する（隣の `POWER_SET` は `UNTIL_OPP_TURN_END` を持てるので**同じ文の2つのアクションで寿命が食い違う**）。🔑`O-293`（「次のエナフェイズ終了まで」）と**同じ「寿命の語彙が足りない」族**＝まとめて取ると安い |
+| `O-297` | 🆕 **1効果**（`WXDi-P16-074-E2`） | **ON_BANISH のトリガー元シグニのゾーンを参照する軸が無い**＝原文「**同じシグニゾーンに【ゲート】がある**あなたのシグニ1体がバニッシュされたとき」。⚠**受け皿は2つ在るがどちらも軸が違う**＝`SAME_ZONE_HAS_GATE`（`execUtils.ts:2858`）は **`sourceCardNum`＝効果元**のゾーンしか見ず、`filter.inGateZone`（`effectEngine.ts:1207`）は**いま場に在るシグニ**の状態フィルタ＝**バニッシュ後のトリガー元**には当たらない（`prevOwnerState` が要る）。🔑**`FIELD_HAS_GATE` を使う live 10効果のうち 9件は原文が「あなたの場に【ゲート】がある場合」＝正しい**（誤用はこの1件だけ） |
+| `O-293` | 🆕 **S-2 実測 10効果**（軸① リミット期限 10・軸② 付与能力期限 5・重複あり） | **「次のあなたのエナフェイズ終了時まで」の寿命ストアが無い**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`（`execStubPart1.ts:4208`）は `lrig_limit_mod` を足すだけで、それは**ターン終了時に消える**（`BattleScreen.tsx:4284` / `:4735`）。🔴**STUB 名・ログ文言「（エナフェイズ終了まで）」・型コメント（`types/index.ts:799`）の3つとも嘘**＝**受け皿が在るように見えて 7効果が2フェイズ早く切れている**。付与能力側（`GRANT_LRIG_ABILITY.duration`）も `UNTIL_OPP_TURN_END` が最長で原文に届かない |
 
 🔴**全文の登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「§5.3 機構 worklist 登録票の全文」にある**（着手前に同じ ID を読む）。
 
