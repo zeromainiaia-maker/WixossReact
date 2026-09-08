@@ -5893,6 +5893,28 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   ⚠**実機は不要と判定**（`src/screens/` 不変更）。🔴**ただし新機構に多段対話が2つある**ので、
   UI 層まで見るなら §5.1 へ `V-nn` を足す。**live の A/B 差分＝15カード**（巻き添え0）。
 
+### `O-306` — 宣言したカード名のカードを「このターン」全領域で別名カードへ変更する期限つき規則が無い
+
+**規模／母集団**＝1効果（`WXEX2-10-E2`）。2026-09-09 第234バッチ後半の re-triage（`.codex-work` の利用上限で
+中断した第234バッチの残24効果を検証中に発見）。
+
+原文＝「シグニのカード名1つを宣言する。このターン、対戦相手のすべての領域にある宣言されたカード名のカードは
+《サーバント　ＺＥＲＯ》になる。」現在の live JSON は `SEQUENCE[STUB{DECLARE_CARD_NAME}, STUB{DECLARE_CARD_NAME}]`
+で、名前変更の主要処理が丸ごと無い。既存の `DECLARED_NAME_TO_SERVANT_ZERO` 相当のハンドラ実装候補は現存インスタンス
+への永続 snapshot（`card_identity_overrides`）で、①「このターン」という期限 ②発動後にその領域へ来たカードへの
+継続適用、のどちらも満たさない＝**turn-scoped な PlayerState 規則（宣言名→別名への恒常置換ルールをターン境界で
+自動失効させる仕組み）が要る**。
+
+### `O-307` — 相手の非公開ルリグデッキを2束に分けて片方だけ見る秘匿分割 interaction が無い
+
+**規模／母集団**＝1効果（`WXEX2-12-E4`）。2026-09-09 第234バッチ後半の re-triage で発見（`O-306` と同じ巡）。
+
+原文＝「対戦相手は自分のルリグデッキを裏向きで2つの束に分ける。あなたはどちらかの束を見て、その中からアーツ1枚を
+ルリグトラッシュに置く。」現在の live JSON は `SEQUENCE[STUB{CAST_FROM_OPP_TRASH}, STUB{CAST_FROM_OPP_TRASH}]`で、
+「相手のルリグトラッシュから唱える」という全く別の機構が2つ並んでいるだけ（意味的に無関係）。
+**engine にはルリグデッキを2束に裏向きで分割し、効果使用者がそのうち1束だけを見て1枚選ぶ pending/UI が存在しない**
+＝相手が持つ非公開情報を一部だけ開示する新しい interaction 型が要る。
+
 
 ## 恒久指標の過去行（§6 から退避）
 
@@ -6160,6 +6182,18 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-09・第233バッチ後・PLAN §6 から退避）
+
+- **2026-09-09（第233バッチ・Sonnet 5＝Codex 委譲・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。
+  📦**在庫**＝🔥**実装キュー 318効果**（353 → 318・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み116）｜
+  🔥**機構 worklist 18項目**（据置）｜**⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3709 PASS**（3690 → +19＝第233バッチ新規）／ smoke 10744 OK ／ fuzz 200ゲーム 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+  lint 0 errors / 254 warnings（投入前と同値）。**Claude 独立実行で全数検算済み**（`git diff` effectId 単位差分16件一致）。
+  🖥**実機＝不要**（`src/engine/`・`src/data/effectParser.ts` のみ＝`src/screens/` 不触＝PLAN §2.2 の機械判定）。
 
 ### 恒久指標アーカイブ（2026-09-08・続き229〜232後・PLAN §6 から退避）
 

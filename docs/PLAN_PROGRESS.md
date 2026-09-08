@@ -1,5 +1,27 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-09・第233バッチ・Sonnet 5＝Codex 委譲）＝機構不要の一点物16効果を `.codex-work` へ委譲して消化**
+  **作業単位**＝ユーザー指示「PLANをよみ。機構のいらないバグ修正をcodex-workとcodexに投げる」。
+
+  ✅**実装キュー（§5.0・triage 済み BUG 433件の在庫）から、新しい engine 機構が不要と事前確認した2系統16効果を選定**
+  （A群＝「宣言した数字と同じレベル」条件欠落8効果／B群＝「トラッシュに置いてもよい」の任意性欠落・対象誤り8効果。
+  受け皿は両群とも実在確認済み＝`TargetFilter.levelEqDeclaredNumber`／`LOOK_AND_REORDER.reorder`／
+  `TrashAction.optional`／`MILLAction.optional`）。
+  ✅`docs/CODEX_GUIDE.md` の指示書テンプレに沿って作成し、`CODEX_HOME=.codex-work codex exec` で投入（バックグラウンド）。
+  ✅**Codex の申告＝16/16採用・見送り0・差し戻し対象0**。golden 新規19本（fresh/live 両読み＋任意skip時の反転含む）。
+  ✅**Claude 側で独立検証**＝`git diff` の effectId 単位差分が申告どおりちょうど16件（`PR-K022-E1-G` は親
+  `PR-K022-E1` として計上）／`typecheck`／`npm run gates` を独立実行して全緑（census 高シグナル 0/0・lint 0 errors/254
+  warnings＝投入前と同値）／`golden -- --only "第233"` 19/19 PASS。**差し戻し0で採用。**
+  ✅**副産物＝engineの配線漏れを1件発見・修復**（`levelEqDeclaredNumber` が `LAST_PROCESSED_MATCHES` と手札
+  `TRASH` の2経路で未解決だった＝`nameEqDeclaredName` と同じ fail-closed パターンで解決を追加。新しい
+  action/condition/state 型は0＝「機構不要」の見立てどおり着地）。
+  ✅`src/engine/`・`src/data/effectParser.ts` を触ったが `src/screens/` は不触＝§2.2 により実機検証は不要。
+
+  🔑**この巡の要点＝「機構不要」の絞り込みが Codex 委譲の成否を決めた。**
+  委譲前に Claude が①受け皿（型・フィールド）の実在をコード上で確認②原文・現行JSON・triage出典を効果ごとに
+  表で用意③既存機構の名前を指示書に明示、まで済ませたことで、Codex 側の探索コストが下がり差し戻し0で着地した。
+  **「機構がいらない」の判定自体が事前調査の主要コスト**（今回は `grep` と型定義の確認で15分程度）。
+
 - **セッション（2026-09-08・続き229〜232・Opus 5・S-3 の消化と実装キューの棚卸し）＝live を 44効果直した**
   **作業単位**＝ユーザー指示「S-3を行う」→「20件」→「30件くらい」→「残りのキューをすべて O-nn に登録して」。
   **前セッションが確定させた実装キュー433効果を、初めて live へ落とし込んだ巡。**

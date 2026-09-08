@@ -12899,3 +12899,44 @@ node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
 - `WXEX2-10-E3`＝`levelLteLastProcessed`が`ADD_TO_FIELD`の`HAND_CARD`ソースでは`resolveDynamicFilter`を通らず未解決だった配線漏れを追加、`opponentSelectsZone`で配置先を対戦相手選択に修復。
 - **Claude 側の独立検証**＝①受け皿5点（`TRAP_TO_HAND`ハンドラ・`selectionConstraint.groups`消費・`ON_SIGNI_POWER_ZERO_OR_LESS`+`zeroedOwner`トリガー収集・`opponentSelectsZone`・`levelLteLastProcessed`）が全てこのバッチ以前から実在することをコード上で確認 ②`git diff`のeffectId単位差分がちょうど6件 ③`typecheck`PASS ④`npm run gates`独立実行で全緑（lint 254 warnings=直前と同値・census 0/0） ⑤`npm run golden`（フィルタなし全件）`3718/3718`PASS（3709→+9）。
 - 残り24効果（`WX05-028-E1`ほか）は別途 Claude が引き継いで実装する。
+
+## 2026-09-09 — 第234バッチ（後半）：残24効果の stale 再照合（`~/.codex`〔default アカウント〕実装・Claude 検証済み）
+
+指示書の live JSON はスナップショットなので、24効果を原文・現在の live・fresh parser・逆翻訳・既存 engine 受け皿で再照合した。
+その結果、**21効果は先行バッチですでに修正済み**、残る**3効果は新しい機構が必要**だったため、
+`repairSemanticBatch234` への case 追加や近似実装は行わなかった。
+
+- **既修正21効果**＝`WX05-028-E1`、`WX07-026-E1`、`WX11-036-E1`、`WX11-034-BURST`、
+  `WX08-023-E3`、`WX11-021-E1`、`WX03-024-BURST`、`WX20-022-E1`、`WX14-042-E2`、
+  `WX20-023-BURST`、`WX21-030-E2`、`WX21-036-E1`、`WX13-036-E3`、`WX16-074-E1`、
+  `WX20-029-E1`、`WX14-027-E2`、`WX12-Re22-E1`、`WX12-032-E1`、`WX19-064-E1`、
+  `WX12-033-E1`、`WX18-001-E2`。全件で live と fresh が一致し、指示書の triage が指した欠落は現存しない。
+- `WX05-028-E1` の `OPTIONAL_COST` 直後の `CONDITIONAL{IS_MY_TURN}` は、engine がこの並びに限って
+  「そうした場合」の旧プレースホルダーとして横取りし、pay 枝だけで後続を実行する既存契約。
+  相手ターンに常に不発になる条件ではない。`WX14-042-E2` の `OPTIONAL_TRASH_SELF` も同じ dispatcher が
+  pay/skip を分岐する。いずれも追加不整合ではなかった。
+- `WX16-074-E1` は STUB id が歴史的に `ACCE_FROM_HAND` のままだが、既存 handler は
+  `hand.includes || energy.includes` を受け、`ATTACH_ACCE` も両領域から除去する。既存 golden が
+  エナ発の正方向と手札・エナ双方に無い負方向を実行確認済み。
+- **見送り `WX09-032-E1`**＝すでに `DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY` へ明示 defer 済み。
+  エナ1枚で《緑》2個または3個の1組を置換するには、複数スロットを1枚で満たす支払い候補・UIが要る。
+- **見送り `WXEX2-10-E2`**＝`DECLARED_NAME_TO_SERVANT_ZERO` handler は存在するが、現存カードの
+  instance を `card_identity_overrides` へ永続的に書く snapshot 実装で、ターン終了時の失効も
+  発動後に該当領域へ来たカードへの適用もない。正確な実装には turn-scoped な PlayerState 規則が要る。
+- **見送り `WXEX2-12-E4`**＝相手が非公開のルリグデッキを2束へ分け、こちらが片方だけを見てアーツを選ぶ
+  交互・秘匿 interaction の pending/UI が存在しない。現在の `CAST_FROM_OPP_TRASH` ×2 は誤生成のまま。
+- 条件以外の追加不整合は0件。`GRANT_* abilities[]` に入れ子だった監査対象も0件
+  （`WX14-042-sub-E1` は対象 effectId ではなく、`WX14-042-E2` 内で付与される子能力）。
+- 検証＝`npm run regen` 完走・生成差分0、`npm run typecheck` PASS、フィルタなし `npm run golden`
+  **3718/3718 PASS**、`npm run gates` 全緑（golden 3718、smoke 10744/10744、fuzz 不具合0、
+  census 高シグナル 0/baseline 0、`census:stubs` A群0、`census:enginetext` A群0、
+  `census:costtext` A群0、lint 0 errors/254 warnings）。投入前から数値変化なし。
+- **Claude 側の独立検証**＝①`git status --porcelain` が `docs/BUGFIXES.md` の1件のみ（コード・JSON差分0＝申告と一致）
+  ②stale21件のうち4件（`WX20-029-E1`／`WX12-033-E1`／`WX19-064-E1`／`WX16-074-E1`）を live JSON で直接抜き取り確認
+  ＝申告どおりの実装が既に入っていた（`WX16-074-E1` は `execStubPart3.ts:3554-3559` のコメントが「第221バッチで
+  ゲート1行だけ直した」と明記しており、より古いバッチでの既修正と確認できた）③新規発見2件（`WXEX2-10-E2`／
+  `WXEX2-12-E4`）の live JSON・原文を直接照合し、真に機構待ちと確認 → **`O-306`／`O-307`** として §5.3 索引 G
+  ＋ [PLAN_DETAIL.md](./PLAN_DETAIL.md) 登録票へ追加登録した。`WX09-032-E1` は既存の `DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY`
+  （`census:stubs` の DEFERRED_ 免除規約）で十分カバーされているため新規登録はしていない。
+- 消化記録＝stale21件を `scripts/archive/scratchpad/semantic_bug_fixed.txt` へ`FP（stale）`として追記
+  （実装キューの在庫カウンタを引き算するため）。実装キュー: 309→**288効果**。

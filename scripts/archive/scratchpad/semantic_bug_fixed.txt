@@ -127,3 +127,24 @@ WXEX1-30-E3 :: 2026-09-09 :: 第234バッチ＝SEARCH selectionConstraint.groups
 WXEX1-54-E2 :: 2026-09-09 :: 第234バッチ＝timing MAIN→ATTACK_ARTS,MAINへ修復
 WXEX1-67-E1 :: 2026-09-09 :: 第234バッチ＝OPTIONAL_COST{青}+PAID_ADDITIONAL_COST追加
 WXEX2-10-E3 :: 2026-09-09 :: 第234バッチ＝levelLteLastProcessed解決追加+opponentSelectsZoneで相手手札→相手場を修復
+WX05-028-E1 :: 2026-09-09 :: FP（stale）＝第234バッチ後半のre-triageで確認。ON_FRONT_SIGNI_ATTACK配線済み
+WX07-026-E1 :: 2026-09-09 :: FP（stale）＝count:2,upToCount:true実装済み（0〜2枚選択）
+WX11-036-E1 :: 2026-09-09 :: FP（stale）＝TURN_OWNER(opponent)+IS_SELF_UP、対象自身1体とも実装済み
+WX11-034-BURST :: 2026-09-09 :: FP（stale）＝hasCharm:true実装済み
+WX08-023-E3 :: 2026-09-09 :: FP（stale）＝filter.cardType:"レゾナ"実装済み
+WX11-021-E1 :: 2026-09-09 :: FP（stale）＝LIFE_CRASHED_THIS_TURN.byOpponentEffect:true実装済み
+WX03-024-BURST :: 2026-09-09 :: FP（stale）＝sameLrigTypeExact:true実装済み
+WX20-022-E1 :: 2026-09-09 :: FP（stale）＝対象保存→任意トラッシュの経路が実装済み
+WX14-042-E2 :: 2026-09-09 :: FP（stale）＝GRANT_LRIG_ABILITY.duration:"UNTIL_OPP_TURN_END"実装済み
+WX20-023-BURST :: 2026-09-09 :: FP（stale）＝keyword:"レイヤー"実装済み
+WX21-030-E2 :: 2026-09-09 :: FP（stale）＝CHOOSEにPLACE_VIRUS/REMOVE_VIRUSの二択実装済み
+WX21-036-E1 :: 2026-09-09 :: FP（stale）＝トラップ能力は別効果WX21-036-TRAPへ分離済み
+WX13-036-E3 :: 2026-09-09 :: FP（stale）＝相手手札→相手シグニのTRASH二段実装済み
+WX16-074-E1 :: 2026-09-09 :: FP（stale）＝第221バッチでhandler側がhand/energy両対応済み（STUB id名だけが旧名）
+WX20-029-E1 :: 2026-09-09 :: FP（stale）＝count:"ALL",upToCount:true+deltaPerLastProcessedCount実装済み
+WX14-027-E2 :: 2026-09-09 :: FP（stale）＝バニッシュ/相手手札捨てのCHOOSE実装済み
+WX12-Re22-E1 :: 2026-09-09 :: FP（stale）＝countChoose.last_processed_count+upTo:true実装済み
+WX12-032-E1 :: 2026-09-09 :: FP（stale）＝HAND_DIFF gte 0条件実装済み
+WX19-064-E1 :: 2026-09-09 :: FP（stale）＝REMOVE_VIRUS/TRASH_TRAP_ONE/STRIP_ATTACHED_AND_UNDERの三択実装済み
+WX12-033-E1 :: 2026-09-09 :: FP（stale）＝POWER_SET target.count:"ALL"実装済み
+WX18-001-E2 :: 2026-09-09 :: FP（stale）＝デッキ探索→トラッシュから場出し→シャッフル実装済み
