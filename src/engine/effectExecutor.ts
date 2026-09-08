@@ -2531,7 +2531,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
-    const cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    let cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // 🆕2026-09-09（S-3・意味照合triage `PR-459A-E1`）＝SIGNI/ENERGY_CARD 分岐（execTrash:2412,2629）と
+    //   揃え、HAND_CARD でも `targetsStored`（「そのカード」＝ STORE_LAST_PROCESSED_TARGETS で固定した
+    //   直前の公開/選択カード）を候補に効かせる。従来はここだけ無視しており、
+    //   相手の手札を1枚公開してから「それを捨てる」効果が**無関係な任意の1枚**を捨てさせていた。
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);

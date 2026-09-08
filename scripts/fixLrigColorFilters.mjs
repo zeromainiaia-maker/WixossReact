@@ -81,9 +81,9 @@ const FIXES = [
   { file: 'effects_misc', card: 'SP27-016', eid: 'SP27-016-E1', type: 'negateNthAttack',
     locate: e => e.action?.choices?.[1]?.action },
 
-  // PR-457-E2: SEARCH.filter
-  { file: 'effects_misc', card: 'PR-457', eid: 'PR-457-E2', type: 'matchesLrig',
-    locate: e => e.action },
+  // 🔴2026-09-09（意味照合 triage・S-3 codex-work引き継ぎ）＝削除。原文の【起】「デッキからシグニ1枚」に
+  //   色条件は無く、colorMatchesLrig は E1 の色条件が E2 へ誤って漏れていた（真バグ）。この行が
+  //   build:effects のたびに毎回そのバグを再注入していたので、manual 側だけ直しても揮発する。
   // タスク12(xxix)(2): PRESERVEカードへ parser の手札捨てコスト改善を外科反映。
   { file: 'effects_misc', card: 'PR-457', eid: 'PR-457-E1', type: 'discardAnyOne',
     locate: e => e },

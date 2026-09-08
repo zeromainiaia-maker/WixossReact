@@ -1,5 +1,65 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09（§5.0 実装キュー・MANUAL/PARTIAL 20効果バッチ＝codex-work 利用上限を Claude が引き継いで完遂）
+
+**作業単位**＝§5.0 実装キュー（残353効果）のうち `parseStatus` が `MANUAL`/`PARTIAL`（＝`manualEffects.ts` に定義があり
+新機構なしで直せる）20効果を `CODEX_HOME=.codex-work` へ投入 → **7効果を完走した時点で利用上限に到達**、
+Claude が差分を検証したうえで残りを引き継いで完了させた（[[codex-limit-handoff]]の手順どおり）。
+
+### codex-work が直した7効果（検証のみ・変更なし）
+`WXK07-001-E1`／`WDK07-E08-E1`／`WDK16-06H-E1`／`WXDi-P05-006-E1`／`WXDi-P14-002-E1`／`WXK10-031-E1`／`WD19-018-E1`。
+いずれも golden の反転確認つきE2Eテストが同梱されていた（`scripts/goldenTest.ts` 末尾）。
+
+### Claude が引き継いで直した3効果＋engineのバグ1件
+- **`PR-457-E2`**＝真因は指示書のスコープ外（`scripts/fixLrigColorFilters.mjs` の `matchesLrig` ルールが
+  `build:effects` のたびに `colorMatchesLrig:true` を再注入していた＝**manual 側だけ直しても揮発する**）。
+  該当ルールを削除し、`npx tsx scripts/censusOrphanManual.ts --unfreeze A` で `parseStatus` を `AUTO` へ解凍。
+  ⚠**Codex はここに `manualEffects.ts` の手書きコピーを足して「直した」と報告していたが、それは
+  fixer が毎回上書きする対症療法**で、golden の `§6.4 O-42 tripwire`（manual 影武者コピー検出）が
+  即座に検知した。**Codex の報告を鵜呑みにせず golden を全件回して初めて気づいた。**
+- **`SPK01-13-E1`**＝選択肢③「このターン、対戦相手の効果によってダメージを受けない」が
+  `PREVENT_NEXT_DAMAGE{count:1}`（1回消費）になっていた＝既存の `PREVENT_DAMAGE{until:UNTIL_END_OF_TURN}`
+  （期間中無制限）へ差し替え。
+- **`PR-459A-E1`**＝末尾「スペルの場合、対戦相手はそのカードを捨てる」の「それ」＝公開した
+  そのカード自身が、無指定の `TRASH{HAND_CARD,opponent,1}`＝相手手札の任意1枚になっていた。
+  `STORE_LAST_PROCESSED_TARGETS`＋`targetsStored:true` で固定。
+  🔴**この過程で engine のバグを1件発見・修正**＝`execTrash` の `SIGNI`/`ENERGY_CARD` 分岐は
+  `targetsStored` を候補フィルタに反映するのに、**`HAND_CARD` 分岐だけ同じ処理が抜けていた**
+  （`src/engine/effectExecutor.ts` の HAND_CARD ブランチへ追加）。この抜けは他の「手札の特定1枚を
+  参照する」効果にも影響しうる形＝**同種の抜けが無いか today 時点では横展開していない**（要フォローアップ）。
+
+### 据置（機構不要と見立てたが実際は新機構が要ると判明＝2件）
+- **`WD22-007-G-E1`**＝「そのシグニを場からトラッシュに置いてもよい」の「そのシグニ」＝
+  `triggerScope:'any_ally'` で発火した**トリガー元シグニ**（`ctx.triggeringCardNum`）だが、
+  既存の `OPTIONAL_COST{selfTrash}` は**能力の持ち主**（`ctx.sourceCardNum`）しか場から外せない
+  （`execUtils.ts` 実測）。誤って `selfTrash` を付けると WD22-007-G 自身を落とす誤実装になるため見送った。
+  §5.3 へ新規登録が必要（`triggeringCardNum` 版の selfTrash、または同等の新 payload）。
+- **`WXK03-023-E1`**＝①「手札を1枚捨て」の欠落だけ追加した。②「2枚以上トラッシュで+1ドロー」
+  ③「4枚トラッシュでバニッシュ」は**据置**＝`underAnySigniTrash` は固定 count のオール・オア・ナッシングしか
+  実装が無く、`TAKE_FROM_UNDER_SIGNI` は `last_cost_trashed_cards` も書かないため、**実際に支払った枚数を
+  段階的に読む条件が既存機構に無い**（13件の live カードが同じ `underAnySigniTrash` を固定countで使っており、
+  変更は横展開の影響範囲が広い）。既存の DRAW×2・BANISH無条件は温存（過少化させない）。§5.3 へ新規登録が必要。
+
+### 偽陽性・stale finding（8効果＝triage 後に既に別バッチで正しく直っていた／もとから正しい設計判断だった）
+- `WX07-032-E1`／`WX21-Re18-E1`／`WX21-Re04-E1`／`WX22-014-E3`＝§5.3 `O-286` で既に修正済み（同バッチの
+  コミット履歴には残らなかったが `manualEffects.ts` のコメントで確認）。
+- `WX06-014-E2`＝§5.3 `O-274`（`execTransferToDeck` の選択UI一般化）で「好きな順番で」は解決済み。
+- `WD13-002-E1`／`WD13-003-E1`＝§5.3 `O-248`/`O-219` の意図的な設計判断＝「公開する」コストは
+  手札を失わないので UI を挟まず `HAND_COUNT_FILTER` で自動適用する近似（コメントに理由が明記されていた）。
+- `WDK17-009-E2`＝§5.3 `O-65` の意図的な読み＝原文の壊れた構文（読点なし）を `WD20-006-E1` の同型構文と
+  揃えて「対象化した2枚は無条件、手札1枚捨てだけが条件つき」と解釈済み（コメントに全文の根拠あり）。
+
+⚠**教訓**＝意味照合 triage の `triaged.txt` は**修正後も行が残る**ため、着手前に必ず
+`manualEffects.ts` の該当エントリ周辺のコメントを読むこと。上の8効果は**全部コメント付きの
+既存エントリ**で、コメントを読まずに直すと**既に正しい実装を壊すところだった**（特に `WD13-002`/`WD13-003`/
+`WDK17-009` は理由込みの明示的な設計判断）。
+
+**簿記**＝`scripts/archive/scratchpad/semantic_bug_fixed.txt` へ18行追記（fixed 10・FP 8）。
+golden に `BASELINE_ORPHAN_MANUAL`（6→5）の較正1件＋新規テスト2本（`SPK01-13-E1`／`PR-459A-E1`）。
+`npm run gates` 全緑（検証は本エントリ確定後に別途実行）。
+
+---
+
 ## 2026-09-08（第232＝実装キューの残353効果を全数クラスタリングし、機構8系統を `O-298`〜`O-305` で登録・**`src/` は無変更**）
 
 **作業単位**＝ユーザー指示「残りのキューをすべて O-nn に登録して」。**実装は0行**（分類・実測・登録のみ）。

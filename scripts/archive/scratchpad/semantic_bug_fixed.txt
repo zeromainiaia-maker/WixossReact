@@ -83,3 +83,22 @@ WXDi-P05-060-E1 :: 2026-09-08 :: FP（golden の契約）＝E1 の POWER_MODIFY 
 WXEX1-69-E1 :: 2026-09-08 :: FP（golden の契約）＝対象を先に確定させると §6.3 [B]26「公開writer」の記録が壊れる
 WXDi-CP01-038-E1 :: 2026-09-08 :: FP（golden の契約）＝GRANT_EFFECT で包むと bySourceType/bySourceLevel の保存と BANISH 保護が消える（golden 3本）
 WXDi-P03-016-E2 :: 2026-09-08 :: FP（golden の契約）＝§6.4 O-25 が「E2 は近似のまま（構造化すると効かなくなる）」と明記していた
+WXK07-001-E1 :: 2026-09-09 :: codex-work（S-3・20効果バッチ）＝宣言値と同じレベルのガード制限を既存 GUARD_LV_DECLARED で実装
+WDK07-E08-E1 :: 2026-09-09 :: codex-work＝STORE_LAST_PROCESSED_TARGETS＋targetsStored で「それ」＝打ち消したスペルへ限定
+WDK16-06H-E1 :: 2026-09-09 :: codex-work＝SUBSCRIBER_COUNT gte 100 分岐でパワー制限を外す
+WXDi-P05-006-E1 :: 2026-09-09 :: codex-work＝チーム条件を AND(IS_MY_TURN OR OPP_USING_TEAM_PIECE) に組み替え、通常使用とカットインを両立
+WXDi-P14-002-E1 :: 2026-09-09 :: codex-work＝countChoose.$ref:'center_lrig_level' でセンタールリグのレベル数まで選択
+WXK10-031-E1 :: 2026-09-09 :: codex-work＝CONDITIONAL{PAID_ADDITIONAL_COST} で公開とBOUNCEを未払い時に止める
+WD19-018-E1 :: 2026-09-09 :: codex-work＝LAST_PROCESSED_COUNT_GTE の did-it ゲートでバニッシュ不成立時の後続を止める
+PR-457-E2 :: 2026-09-09 :: Claude（codex-work利用上限引き継ぎ）＝真因は fixLrigColorFilters.mjs の誤ルール（build:effects のたび colorMatchesLrig を再注入）。ルール削除＋census:orphanmanual --unfreeze A で AUTO へ解凍
+SPK01-13-E1 :: 2026-09-09 :: Claude（同上）＝選択肢③を PREVENT_NEXT_DAMAGE{count:1} から既存 PREVENT_DAMAGE{until:UNTIL_END_OF_TURN}（期間中無制限）へ
+PR-459A-E1 :: 2026-09-09 :: Claude（同上）＝STORE_LAST_PROCESSED_TARGETS＋targetsStored で「対戦相手はそのカードを捨てる」を公開カード自身へ限定。execTrash の HAND_CARD 分岐に targetsStored フィルタが無かったので engine 側も追加
+WXK03-023-E1 :: 2026-09-09 :: Claude（同上）＝①「手札を1枚捨て」の欠落だけ追加（※②「2枚以上で+1ドロー」③「4枚でバニッシュ」は未修正＝可変枚数の任意コスト＋段階条件の機構が無く別行として残る。§5.3 へ新規登録が必要）
+WX07-032-E1 :: 2026-09-09 :: FP（stale）＝ADD_TO_FIELD は既に実装済み（manualEffects.ts のコメントどおり別バッチで修正済み）
+WX21-Re18-E1 :: 2026-09-09 :: FP（stale）＝§5.3 O-286 で既に色ごとの分岐を実装済み
+WX21-Re04-E1 :: 2026-09-09 :: FP（stale）＝USE_OWN_LRIG_ABILITY_FREE で既に実装済み（PLAY_FREE ではない）
+WX22-014-E3 :: 2026-09-09 :: FP（stale）＝同上
+WX06-014-E2 :: 2026-09-09 :: FP（stale）＝§5.3 O-274（execTransferToDeck の選択UI一般化）で「好きな順番で」は解決済み
+WD13-002-E1 :: 2026-09-09 :: FP（設計判断）＝§5.3 O-248/O-219＝「公開する」コストは手札を失わないため HAND_COUNT_FILTER で自動適用する意図的な近似（UIを挟む理由が無い）
+WD13-003-E1 :: 2026-09-09 :: FP（設計判断）＝同上（O-248 コメント内で名指し）
+WDK17-009-E2 :: 2026-09-09 :: FP（設計判断）＝§5.3 O-65＝「それら」＝対象化した2枚は無条件、手札1枚捨てだけがライフ2枚以下条件、という原文の崩れた構文への意図的な読み（WD20-006-E1 の同型構文と揃えた）

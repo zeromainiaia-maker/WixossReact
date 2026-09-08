@@ -41505,9 +41505,8 @@ test('§6.4 O-10（続き518）: ピース応答窓＝候補が出るのは窓�
   ok(act.includes('COUNTER_TEAM_PIECE_AND_EXILE') && !act.includes('DEFERRED_'), 'defer は解体済み');
 });
 
-test('§6.4 O-10（続き517）: カットイン専用ピースの使用条件を復元（過剰実行→宣言済みの過少）', () => {
-  // 🔴従来 `WXDi-P05-006-E1` は `condition` が丸ごと無く、**チームが揃っていなくても・カットイン窓でなくても**
-  //    メイン／アタックフェイズにいつでも撃てた（選択肢②＝「1枚引き＋エナチャージ1」が《青×0》で撃ち放題）。
+test('§6.4 O-10（続き517）: WXDi-P05-006-E1 は通常使用とチームピースへのカットインを両立する', () => {
+  // 使用条件のチーム3体は常に必要。カットイン節は通常使用を禁止する条件ではなく、追加の使用機会。
   const eff = mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])
     .find(e => e.effectId === 'WXDi-P05-006-E1')!;
   const cond = JSON.stringify(eff.condition ?? {});
@@ -41515,12 +41514,13 @@ test('§6.4 O-10（続き517）: カットイン専用ピースの使用条件�
      '【使用条件】【チーム】＜きゅるきゅるーん☆＞（同族11効果と同じ形）');
   ok(cond.includes('"value":3'), 'チームは3体');
   ok(cond.includes('OPP_USING_TEAM_PIECE'), '🔴「カットインして使用できる」＝窓限定の使用条件');
-  // ⚠窓が無い間は**常に false**＝使えない（宣言済みの過少）。ここが true に化けたら過剰実行に戻る。
+  ok(cond.includes('"type":"OR"') && cond.includes('IS_MY_TURN'),
+     '🔴カットイン条件は通常使用条件との AND ではなく、通常使用との OR');
+  // 原子的な窓条件は窓外で false のまま（OR の通常使用枝が使えるようにする）。
   const ctx = mkCtx({}, {});
   eq(evalUseCondition({ type: 'OPP_USING_TEAM_PIECE' } as never, ctx.ownerState, ctx.otherState,
      cardMap as Map<string, CardData>, 'WXDi-P05-006', 'MAIN'), false,
-     '🔴応答窓が無い間は常に false（＝通常タイミングで撃てない）');
-  // 選択肢②は窓が出来たらそのまま動く形で残してある（消さない）。
+     '応答窓が無い間はカットイン枝だけ false');
   const act = JSON.stringify(eff.action);
   ok(act.includes('"type":"DRAW"') && act.includes('ENERGY_CHARGE_FROM_DECK'), '②は実装済みのまま残す');
   ok(act.includes('COUNTER_TEAM_PIECE_AND_EXILE'), '①も続き518 で実装済み（応答窓ごと）');
@@ -60398,7 +60398,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   D群（`fixLrigColorFilters.mjs` が【チェイン】の `COST_REDUCTION` を毎回差し込む）だったが、
   //   **parser 自身が同じ step を出すようになっていた**＝刻印は stale で、これが在るせいで
   //   `byOpponentEffect` を足した parser 改善が live へ永久に届かない状態だった。
-  const BASELINE_ORPHAN_MANUAL = 6; // 旧7。旧6。旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  const BASELINE_ORPHAN_MANUAL = 5; // 旧6。2026-09-09（S-3・codex-work引き継ぎ）＝`PR-457-E2` の真因（`fixLrigColorFilters.mjs` の誤ルール）を削除し `--unfreeze A` で AUTO へ解凍＝orphan から外れた（この test は parser を回さないので `census:orphanmanual` の「parser 自身が同じ印を出す」1件も母集団に残る＝D4+その1件=5。払い戻し・退化ではない）。旧7。旧6。旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
@@ -73113,6 +73113,153 @@ test('§5.0 第231: S-3 で直した 15効果', () => withSavedCursor(() => {
   for (const [cardNum, effectId] of [['WX25-P2-066', 'WX25-P2-066-E1'], ['WX25-CP1-002', 'WX25-CP1-002-E1']] as const) {
     ok(jsonOf(cardNum, effectId).includes('"shuffle":true'), `${effectId} は残りをシャッフルする`);
   }
+}));
+
+// §5.0 triage 再照合（2026-09-09）: MANUAL/PARTIAL のうち、現 HEAD に実在する受け皿だけで直した効果。
+// fresh parser ではなく effectsMap（live）を駆動し、成立／不成立の両方向を固定する。
+test('WXK07-001-E1 live: 宣言値と同じレベルのガード制限を立てる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXK07-001')!.find(e => e.effectId === 'WXK07-001-E1')!;
+  const grant = eff.action as { abilities: CardEffect[] };
+  const inner = grant.abilities[0].action;
+  const before = mkCtx({ lrig: ['WXK07-001'] }, {});
+  eq(before.ownerState.declared_guard_restrict_levels, undefined, '発動前は制限なし');
+  const after = run(inner, before);
+  eq((after.ownerState.declared_guard_restrict_levels ?? []).join(','), '1',
+    'autopilot が宣言した1と同レベルのガードを制限');
+  ok(JSON.stringify(inner).includes('GUARD_LV_DECLARED'), 'live の付与AUTOが既存受け皿を使う');
+}));
+
+test('WDK07-E08-E1 live: 打ち消したスペルだけを相手の手札へ戻す', () => withSavedCursor(() => {
+  const counter = liveChoiceAction('WDK07-E08', 'WDK07-E08-E1', 2);
+  const spells = [...cardMap.values()].filter(c => c.Type === 'スペル').slice(0, 2).map(c => c.CardNum);
+  ok(spells.length === 2, 'スペル試料2枚');
+  const exact = mkCtx({}, {});
+  exact.otherState.trash = [...spells];
+  const hit = run(counter, { ...exact, lastProcessedCards: [spells[1]] });
+  ok(hit.otherState.hand.includes(spells[1]), '打ち消したスペルを戻す');
+  ok(hit.otherState.trash.includes(spells[0]), '別のスペルはトラッシュに残る');
+  const miss = mkCtx({}, {});
+  miss.otherState.trash = [...spells];
+  const noRef = run(counter, { ...miss, lastProcessedCards: [] });
+  eq(noRef.otherState.trash.filter(n => spells.includes(n)).length, 2,
+    '参照札が無ければ任意スペルを代わりに戻さない');
+}));
+
+test('WDK16-06H-E1 live: 登録者100万人で8000上限を外し、未達では維持する', () => withSavedCursor(() => {
+  const action = effectsMap.get('WDK16-06H')!.find(e => e.effectId === 'WDK16-06H-E1')!.action;
+  const high = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) > 8000);
+  const low = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) <= 8000);
+  const at = (subs: number, target: string) => {
+    const ctx = mkCtx({}, { signi: [target, null, null] });
+    ctx.ownerState.subscriber_count = subs;
+    return run(action, ctx);
+  };
+  eq(tops(at(99, high).otherState)[0], high, '99万人では高パワーをバニッシュできない');
+  eq(tops(at(100, high).otherState)[0], null, '100万人ならパワー制限なし');
+  eq(tops(at(99, low).otherState)[0], null, '未達でも8000以下は従来どおりバニッシュ');
+}));
+
+test('WXDi-P05-006-E1 live: 通常使用を許しつつチームピースのカットイン候補にもなる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P05-006')!.find(e => e.effectId === 'WXDi-P05-006-E1')!;
+  const team = [...cardMap.values()].filter(c => c.Type === 'ルリグ' && (c.Team ?? '').includes('きゅるきゅるーん☆')).slice(0, 3);
+  eq(team.length, 3, 'チーム試料3体');
+  const ready = mkCtx({ lrig: [team[0].CardNum], assistL: [team[1].CardNum], assistR: [team[2].CardNum] }, {});
+  ok(evalUseCondition(eff.condition!, ready.ownerState, ready.otherState, cardMap, 'WXDi-P05-006', 'MAIN'),
+    'チーム成立なら窓外の通常MAINでも使用可能');
+  const short = mkCtx({ lrig: [team[0].CardNum] }, {});
+  ok(!evalUseCondition(eff.condition!, short.ownerState, short.otherState, cardMap, 'WXDi-P05-006', 'MAIN'),
+    'チーム不足なら通常使用不可');
+  ready.ownerState.lrig_deck = ['WXDi-P05-006'];
+  const candidates = collectPieceCutinCandidates({ responder: ready.ownerState, caster: ready.otherState,
+    usedPieceCard: cardMap.get('WXDi-P05-006'), cardMap, effectsMap, turnPhase: 'MAIN' });
+  ok(candidates.some(c => c.effect.effectId === 'WXDi-P05-006-E1'), '相手チームピース使用時はカットイン候補');
+}));
+
+test('WXDi-P14-002-E1 live: センタールリグのレベル数まで選べ、参照不能なら0', () => withSavedCursor(() => {
+  const action = effectsMap.get('WXDi-P14-002')!.find(e => e.effectId === 'WXDi-P14-002-E1')!.action;
+  const lrig3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const offer = executeAction(action, mkCtx({ lrig: [lrig3] }, {}));
+  ok(!offer.done && offer.pending.type === 'CHOOSE', 'Lv3でCHOOSEを提示');
+  if (!offer.done) {
+    eq(offer.pending.count, 3, 'Lv3なので最大3つ');
+    eq((offer.pending as { upTo?: boolean }).upTo, true, '0〜3つまで選べる');
+  }
+  const noLrig = executeAction(action, mkCtx({}, {}));
+  ok(noLrig.done, 'センタールリグ参照不能は選択数0へ fail-closed');
+}));
+
+test('WXK10-031-E1 live: 無を払った場合だけ公開とバウンスを実行する', () => withSavedCursor(() => {
+  const action = effectsMap.get('WXK10-031')!.find(e => e.effectId === 'WXK10-031-E1')!.action;
+  const base = mkCtx({ deckTop: [SIGNI_L3], energy: 1 }, { signi: [SIGNI_L1, null, null] }, 'WXK10-031');
+  const offered = executeAction(action, base);
+  ok(!offered.done, '任意コストを提示');
+  if (offered.done) return;
+  const resumeCtx = { ...base, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs } as ExecCtx;
+  const skipped = finish(resumeOptionalCost('skip', [], offered.pending, resumeCtx), resumeCtx);
+  ok(!skipped.ownerState.trash.includes(SIGNI_L3), '未払いならデッキを公開・トラッシュしない');
+  eq(tops(skipped.otherState)[0], SIGNI_L1, '未払いならBOUNCEもしない');
+  const paid = run(action, base);
+  ok(paid.ownerState.trash.includes(SIGNI_L3), '支払い時は公開札をトラッシュ');
+  eq(tops(paid.otherState)[0], null, '支払い時は低レベルをBOUNCE');
+}));
+
+test('PR-457-E2 live: 色を問わずシグニだけを検索できる', () => withSavedCursor(() => {
+  const action = effectsMap.get('PR-457')!.find(e => e.effectId === 'PR-457-E2')!.action;
+  const whiteLrig = findCard(c => c.Type === 'ルリグ' && c.Color === '白');
+  const redSigni = findCard(c => isSigni(c) && c.Color === '赤');
+  const spell = findCard(c => c.Type === 'スペル');
+  const offColor = mkCtx({ lrig: [whiteLrig] }, {});
+  offColor.ownerState.deck = [redSigni];
+  const hit = executeAction(action, offColor);
+  ok(!hit.done && hit.pending.type === 'SEARCH' && hit.pending.visibleCards.includes(redSigni),
+    '白ルリグでも赤シグニを検索候補にできる');
+  const nonSigni = mkCtx({ lrig: [whiteLrig] }, {});
+  nonSigni.ownerState.deck = [spell];
+  const miss = executeAction(action, nonSigni);
+  ok(miss.done || !miss.pending.visibleCards.includes(spell), 'スペルは検索候補にしない');
+}));
+
+test('WD19-018-E1 live: バニッシュ成立時だけ後続を実行する', () => withSavedCursor(() => {
+  const microbe = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('微菌'));
+  const virusCount = (s: PlayerState) => (s.field.signi_virus ?? []).reduce((n, v) => n + v, 0);
+  const virus = liveChoiceAction('WD19-018', 'WD19-018-E1', 0);
+  const virusMiss = run(virus, mkCtx({}, {}));
+  eq(virusCount(virusMiss.otherState), 0, '微菌をバニッシュできなければウィルスを置かない');
+  const virusHit = run(virus, mkCtx({ signi: [microbe, null, null] }, {}));
+  eq(virusCount(virusHit.otherState), 1, 'バニッシュできた場合だけウィルスを置く');
+  const weaken = liveChoiceAction('WD19-018', 'WD19-018-E1', 1);
+  const weakMiss = run(weaken, mkCtx({}, { signi: [SIGNI, null, null] }));
+  eq(weakMiss.otherState.temp_power_mods?.length ?? 0, 0, 'バニッシュ失敗時は－7000しない');
+  const weakHit = run(weaken, mkCtx({ signi: [microbe, null, null] }, { signi: [SIGNI, null, null] }));
+  ok((weakHit.otherState.temp_power_mods ?? []).some(m => m.cardNum === SIGNI && m.delta === -7000),
+    'バニッシュ成功時だけ－7000');
+}));
+
+// §5.0 codex-work引き継ぎ（2026-09-09）: 利用上限で止まった codex-work の続きを Claude が仕上げた分。
+test('SPK01-13-E1 live: 選択肢③はターン終了まで無制限にダメージを防ぐ（1回消費ではない）', () => withSavedCursor(() => {
+  const choice = liveChoiceAction('SPK01-13', 'SPK01-13-E1', 2);
+  const result = run(choice, mkCtx({}, {}));
+  const windows = result.ownerState.prevent_damage_windows ?? [];
+  ok(windows.some(w => w.scope === 'ALL' && w.expires === 'MY_TURN_END'),
+    '🔴「このターン、対戦相手の効果によってダメージを受けない」＝期間つき無制限ウィンドウ（PREVENT_DAMAGE）');
+  eq(result.ownerState.prevent_next_damage ?? 0, 0,
+    '1回消費カウンタ（PREVENT_NEXT_DAMAGE の旧実装）は使わない');
+}));
+
+test('PR-459A-E1 live: スペルの場合は公開したそのカードだけを対戦相手に捨てさせる', () => withSavedCursor(() => {
+  const action = effectsMap.get('PR-459A')!.find(e => e.effectId === 'PR-459A-E1')!.action as { steps: EffectAction[] };
+  const finalStep = action.steps.at(-1)!;
+  ok(JSON.stringify(finalStep).includes('"targetsStored":true'),
+    '🔴「そのカード」＝ STORE_LAST_PROCESSED_TARGETS で固定した公開カードを参照する');
+  const spell = findCard(c => c.Type === 'スペル');
+  const decoy = findCard(c => c.Type === 'スペル' && c.CardNum !== spell)!;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.hand = [spell, decoy];
+  ctx.lastProcessedCards = [spell];
+  ctx.storedTargetCards = [spell];
+  const result = run(finalStep, ctx);
+  ok(!result.otherState.hand.includes(spell), '公開したスペルを捨てさせる');
+  ok(result.otherState.hand.includes(decoy), '🔴公開していない別のスペルは対象にしない（旧実装は任意の1枚だった）');
 }));
 
 if (listMode) {
