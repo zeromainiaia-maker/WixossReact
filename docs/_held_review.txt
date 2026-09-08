@@ -3,19 +3,23 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +STUB ［1枚］
-WX12-002
---- WX12-002
-  原文: 【自】：対戦相手のアタックフェイズ開始時、あなたのライフクロスが３枚以上ある場合、このターン、あなたはゲームに敗北しない。【出】：あなたのエナゾーンからすべてのカードをトラッシュに置く。あなたのデッキの一番上のカードをライフクロスに加える。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《無》：このターン、あなたのすべての領域にある
-  - [2].action.owner = "self"
-  - [2].action.count = 1
-  ~ [2].action.type : "ENERGY_CHARGE_FROM_DECK" → "STUB"
-  + [2].action.id = "SET_ALL_ZONE_BURST_GRANT_THIS_TURN"
-  + [2].action.burstAdditive = true
-  + [2].action.burstAction.type = "ENERGY_CHARGE_FROM_DECK"
-  + [2].action.burstAction.owner = "self"
-  + [2].action.burstAction.count = 1
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
+## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
+WXDi-D06-016
+--- WXDi-D06-016
+  原文: 【自】：このシグニがバニッシュされたとき、このシグニの正面にあったシグニ１体を対象とし、《無》《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたの場にあるシグニが持つ色の種類１つにつき－3000する。,-
+  - [0].action.steps[0].costColors[0] = "無"
+  - [0].action.steps[0].costColors[1] = "無"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "POWER_MODIFY"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.delta = -10000
+  - [0].action.steps[1].then.targetsTriggerSource = true
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  + [0].action.steps[0].selectTarget.owner = "opponent"
+  …（他 22 行）
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002

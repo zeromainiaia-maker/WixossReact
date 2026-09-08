@@ -24,6 +24,25 @@ import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
 
+/**
+ * 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。
+ *
+ * 🆕**§5.3 `O-272`（2026-09-08）＝場に居なければ「離場直前のゾーン添字」で解く。**
+ * 原文の「このシグニの**正面にあった**シグニ」は `ON_BANISH` / `ON_LEAVE_FIELD` から解決されるので、
+ * **効果元はもう場に居ない**＝場の位置だけを見る旧実装は**必ず `null`**（＝`frontOfSelf` を持つ効果は
+ * 無言 no-op、持たない効果は「相手の任意1体」への過剰実行のどちらかに倒れていた）。
+ * ⚠**優先順位は「いま場に居る位置」が先**＝離場していない通常の解決を変えない。
+ * ⚠**どちらも取れなければ `null`（fail-closed）**＝「解決できないので無制限」に倒さない。
+ */
+export function resolveFrontOfSelfCardNum(
+  ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum' | 'sourceLeftZoneIdx'>,
+): string | null {
+  const onField = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+  const zi = onField >= 0 ? onField : ctx.sourceLeftZoneIdx ?? -1;
+  if (zi < 0 || zi > 2) return null;
+  return ctx.otherState.field.signi[2 - zi]?.at(-1) ?? null;
+}
+
 export interface ExecCtx {
   ownerState: PlayerState;   // "self"：効果オーナー
   otherState: PlayerState;   // "opponent"：相手
@@ -47,6 +66,8 @@ export interface ExecCtx {
   lastLookTrashedCards?: string[]; // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   storedTargetCards?: string[]; // 任意コスト支払い前に固定した対象（支払いTRASHでlastProcessedCardsが上書きされても保持）
   leftFieldUnderCards?: string[]; // ON_LEAVE_FIELD 発火元の離場直前の下カード
+  // 🆕§5.3 `O-272`＝離場直前のシグニゾーン添字（0〜2）。「正面にあった」の解決に使う（`StackEntry` と同義）。
+  sourceLeftZoneIdx?: number;
   autoTargetedCards?: string[]; // 選択UIを経ずに自動対象化したシグニ（targetsTriggerSource/targetsLastProcessed）＝ON_TARGETED 収集用（続き137・タスク12(xx)）
   fieldTrashCostCards?: string[]; // この解決ラウンドでコストとして場→トラッシュへ置いたinstanceId（ON_TRASH byEffect 原因弁別用）
   trapActivated?: boolean; // この解決中に《トラップアイコン》が実際に発動した（BattleScreen が完了解決後に watcher を収集）

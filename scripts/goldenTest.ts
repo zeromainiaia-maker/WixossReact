@@ -47,7 +47,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
-  hasTrapAbilityCard,
+  hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
@@ -72280,6 +72280,78 @@ test('§5.0 WX12-002-E3: このターンだけ全領域が【ライフバース�
   ok(line.includes('このターン、あなたのすべての領域にあるカードは追加で【ライフバースト】'),
     '逆翻訳が原文どおり（旧「デッキの上から1枚をエナゾーンに置く」だけではない）');
 }));
+
+// ═══ §5.3 O-272（2026-09-08）＝離場したシグニの「正面にあった」相手シグニを解決する ═══
+//   🔴`resolveFrontOfSelfCardNum` は**効果元が場に居ること**を要求していたので、`ON_BANISH` から呼ぶと必ず null。
+//     ⇒ `frontOfSelf` を持つ効果は**無言 no-op**（`WX18-076-E2`）、持たない効果は**相手の任意1体**への
+//     過剰実行（`WX07-039-E1` ほか）という、真逆の2つの壊れ方に分かれていた。
+//   🔑受け皿＝`ExecCtx.sourceLeftZoneIdx`（離場直前のゾーン添字）を `triggerCollect` が積み、
+//     解決器が「場に居なければそれで解く」。**どちらも取れなければ null（fail-closed）**。
+test('§5.3 O-272: 離場後でも「正面にあった」を解ける（取れなければ 0体＝fail-closed）', () => withSavedCursor(() => {
+  const meA = fresh(), oppL = fresh(), oppC = fresh(), oppR = fresh();
+  const base = mkCtx({ signi: [meA, null, null] }, { signi: [oppL, oppC, oppR] }, meA);
+  // ① 場に居るときは従来どおり「いまの位置の正面」（ゾーン0 ⇔ 相手ゾーン2）。
+  eq(resolveFrontOfSelfCardNum(base), oppR, '場に居れば 2-zi の正面を返す');
+  // ② 場を離れたら null（旧実装の挙動＝これが無言 no-op / 過剰実行の原因だった）。
+  const leftState = { ...base.ownerState, field: { ...base.ownerState.field, signi: [null, null, null] } } as PlayerState;
+  const leftCtx = { ...base, ownerState: leftState };
+  eq(resolveFrontOfSelfCardNum(leftCtx), null, '🔴離場後にゾーン添字が無ければ解けない（fail-closed）');
+  // ③ 離場直前のゾーン添字があれば解ける。
+  eq(resolveFrontOfSelfCardNum({ ...leftCtx, sourceLeftZoneIdx: 0 }), oppR, '🔴離場直前のゾーン0 → 相手ゾーン2');
+  eq(resolveFrontOfSelfCardNum({ ...leftCtx, sourceLeftZoneIdx: 1 }), oppC, '離場直前のゾーン1 → 相手ゾーン1');
+  eq(resolveFrontOfSelfCardNum({ ...leftCtx, sourceLeftZoneIdx: 2 }), oppL, '離場直前のゾーン2 → 相手ゾーン0');
+  // ④ 範囲外の添字は使わない（壊れた値で別のシグニを掴まない）。
+  eq(resolveFrontOfSelfCardNum({ ...leftCtx, sourceLeftZoneIdx: 3 }), null, '🔴範囲外の添字は null');
+  // ⑤ 正面が空なら null（「解けないので誰でも」に倒さない）。
+  const emptyFront = { ...leftCtx, otherState: { ...base.otherState,
+    field: { ...base.otherState.field, signi: [oppL, oppC, null] } } as PlayerState, sourceLeftZoneIdx: 0 };
+  eq(resolveFrontOfSelfCardNum(emptyFront), null, '🔴正面が空なら 0体');
+}));
+
+test('§5.3 O-272: WX07-039-E1 は「正面にあった」1体だけを候補にする（離場後も解ける）', () => withSavedCursor(() => {
+  const meA = fresh(), oppL = fresh(), oppC = fresh(), oppR = fresh();
+  const live = manualEffect('WX07-039', 'WX07-039-E1');
+  const ctx = mkCtx({ signi: [null, null, null] }, { signi: [oppL, oppC, oppR] }, meA);
+  // 効果元は既にバニッシュ済み（場に居ない）＝収集器が積んだ離場直前のゾーン添字だけが手がかり。
+  const r = executeEffect(live, { ...ctx, sourceLeftZoneIdx: 0 });
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '対象選択が立つ');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(r.pending.candidates.join(','), oppR, '🔴候補は離場直前の正面1体だけ（相手の任意1体ではない）');
+  // 添字が無ければ候補0＝`abortIfNoCandidate` で止まる（過剰実行に倒さない）。
+  const r0 = executeEffect(live, ctx);
+  ok(r0.done, '🔴正面を解決できなければ何も起きない（fail-closed）');
+}));
+
+test('§5.3 O-272: live と fresh の4効果が原文どおりの対象になっている', () => {
+  const actionOf = (card: string, effId: string): string =>
+    JSON.stringify(manualEffect(card, effId).action);
+  // ①③＝位置限定 `frontOfSelf` が載る。
+  ok(actionOf('WX07-039', 'WX07-039-E1').includes('"frontOfSelf":true'), 'WX07-039-E1 に位置限定');
+  ok(JSON.stringify(manualEffect('WX18-076', 'WX18-076-E2').action).includes('"frontOfSelf":true'),
+    'WX18-076-E2（アクセ付与）に位置限定');
+  // ④＝対象がトリガー元自身（＝バニッシュされた自分）から正面の相手シグニへ。
+  const d06 = actionOf('WXDi-D06-016', 'WXDi-D06-016-E1');
+  ok(d06.includes('"frontOfSelf":true'), 'WXDi-D06-016-E1 に位置限定');
+  ok(!d06.includes('"targetsTriggerSource"'), '🔴対象がトリガー元自身（自分のシグニ）へすり替わっていない');
+  ok(d06.includes('"owner":"opponent"'), '🔴パワー減少の対象は相手側');
+  // ②＝原文「正面にあった**その**シグニ」＝トリガー元で一意（`frontOfSelf` ではない）。
+  const p02 = actionOf('WXDi-P02-083', 'WXDi-P02-083-E1');
+  ok(p02.includes('"targetsTriggerSource":true'), '🔴WXDi-P02-083-E1 は正面に出たそのシグニだけ');
+  // (b) fresh パース側でも位置限定が載る（§5-29＝live 読みだけだと parser を退行させても緑のまま通る）。
+  const freshAct = JSON.stringify(
+    parseCardEffects(cardMap.get('WX07-039')!).find(e => e.effectId === 'WX07-039-E1')!.action);
+  ok(freshAct.includes('"frontOfSelf":true'), '🔴fresh: parser 後段パスが位置限定を刻む');
+  // (c) 「正面にあった」を含まない効果に位置限定を撒いていない（後段パスの巻き添え0件）。
+  const spread: string[] = [];
+  for (const [cn, effs] of effectsMap) {
+    for (const e of effs) {
+      if (!JSON.stringify(e.action).includes('"frontOfSelf":true')) continue;
+      const src = (cardMap.get(getCardNumG(cn))?.EffectText ?? '') + (cardMap.get(getCardNumG(cn))?.BurstText ?? '');
+      if (!src.includes('正面')) spread.push(e.effectId);
+    }
+  }
+  eq(spread.join(','), '', '🔴原文に「正面」が無いカードへ位置限定を撒いていない');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

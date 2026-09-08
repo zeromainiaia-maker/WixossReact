@@ -15,7 +15,7 @@ import {
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
-  trapIconEffectOf,
+  trapIconEffectOf, resolveFrontOfSelfCardNum,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -1316,12 +1316,9 @@ export function execLeaveSubDecide(stub: StubAction, ctx: ExecCtx): ExecResult {
   return done(setOwnerState(victimOwner, { ...state, leave_substitute_choices: next }, ctx));
 }
 
-/** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
-export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
-  const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
-  if (zi < 0) return null;
-  return ctx.otherState.field.signi[2 - zi]?.at(-1) ?? null;
-}
+// 🔑`resolveFrontOfSelfCardNum` は `execUtils.ts` へ移した（`execStubPart1` の対象宣言からも呼ぶため）。
+//   ここでは互換のため再エクスポートする（既存の import 元を変えない）。
+export { resolveFrontOfSelfCardNum };
 
 /**
  * filter.aboveSelf:「このカードの上にあるシグニ」＝効果元カード（sourceCardNum）が**下に置かれている**

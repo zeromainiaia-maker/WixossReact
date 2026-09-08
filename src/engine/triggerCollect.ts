@@ -1620,6 +1620,8 @@ export function collectBanishTriggers(
       effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, ctx.cardMap.get(getCardNum(banishedCardNum)), banishedUnder),
       // 場を離れた後に「このシグニの下から」を参照する action（execTakeFromUnderSigni の fallback）用スナップショット。
       leftFieldUnderCards: [...banishedUnder],
+      // 🆕§5.3 `O-272`＝「このシグニの**正面にあった**シグニ」の解決用（バニッシュ直前のゾーン添字）。
+      ...(banishedZone >= 0 ? { sourceLeftZoneIdx: banishedZone } : {}),
     });
   }
 
@@ -1901,6 +1903,8 @@ export function collectLeaveFieldTriggers(
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
       effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder, ownerStateAfter.facedown_revealed_just ?? []),
       leftFieldUnderCards: [...leftUnder],
+      // 🆕§5.3 `O-272`＝「このシグニの**正面にあった**シグニ」の解決用（離場直前のゾーン添字）。
+      ...(leftZoneIdx !== undefined ? { sourceLeftZoneIdx: leftZoneIdx } : {}),
     });
   }
   // watcher（味方）視点のターン。turnOwner 条件（「対戦相手/あなたのターンの間」）判定に使う。

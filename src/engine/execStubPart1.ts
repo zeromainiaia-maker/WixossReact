@@ -14,7 +14,7 @@ import {
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked,
   fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
-  resolveHandCardPick, handCardPickLabel,
+  resolveHandCardPick, handCardPickLabel, resolveFrontOfSelfCardNum,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
@@ -283,6 +283,15 @@ export function execStubPart1(
     if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigTopSTO) cands = [lrigTopSTO, ...cands];
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
+    }
+    // 🆕**§5.3 `O-272`（2026-09-08）＝`frontOfSelf`（このシグニの正面）を対象宣言でも honor する。**
+    //   🔴`matchesFilter` は `frontOfSelf` を**黙って無視する**（解決には `ctx` が要るため各ハンドラ側で
+    //     剥がして絞る規約＝`effectExecutor` の BANISH ほか4箇所）。対象宣言だけがその処理を持っておらず、
+    //     **位置限定を刻んでも「相手の任意1体」が候補に出る過剰実行**のままだった。
+    //   ⚠**解決できなければ候補0（fail-closed）**＝「解けないので全部」に倒さない。
+    if (tgt.filter?.frontOfSelf) {
+      const frontNum = resolveFrontOfSelfCardNum(ctx);
+      cands = frontNum ? cands.filter(n => n === frontNum) : [];
     }
     // `count:'ALL'`＋`upToCount`＝「好きな数」（0体〜全体）＝候補数を上限にする（§6.4 O-3）。
     const count = typeof tgt.count === 'number' ? tgt.count

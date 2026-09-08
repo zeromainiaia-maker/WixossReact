@@ -1,5 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（§5.3 `O-272`）＝離場したシグニの「正面にあった」相手シグニを解決する（live 4効果 / 4カード）
+
+🔴**codex は両アカウントとも利用上限だったので、この項目は Claude が単独で実装した。**
+
+**真因**＝`resolveFrontOfSelfCardNum` が**効果元が場に居ること**を要求していたため、
+`ON_BANISH` から呼ぶと**必ず `null`**。⇒ **真逆の2つの壊れ方**に分かれていた＝
+①位置限定が落ちて「相手の任意1体」への**過剰実行**（`WX07-039-E1`）
+②`frontOfSelf` は在るのに解けず**無言 no-op**（`WX18-076-E2`）。
+
+🔴**素朴に `filter.frontOfSelf` を足すだけでは直らない**＝**過剰実行が恒久 no-op に変わるだけ**
+（登録票の警告どおり）。⇒ **先に「解決できるようにする」ほうを作った。**
+
+**修正（4点）**
+1. **`ExecCtx.sourceLeftZoneIdx` / `StackEntry` / `PendingEffect` に離場直前のゾーン添字**を足し、
+   `triggerCollect` の **ON_BANISH（`banishedZone`）** と **ON_LEAVE_FIELD（`leftZoneIdx`）**が積む。
+   `BattleScreen` は `leftFieldUnderCards` と同じ経路で ctx へ渡す（対話 pause を跨ぐ経路も含め3箇所）。
+2. `resolveFrontOfSelfCardNum` を **「場に居ればその位置／居なければ離場直前の添字」**の順で解決。
+   **どちらも取れなければ `null`（fail-closed）**。範囲外の添字も `null`。
+   🔑`execUtils.ts` へ移した（`execStubPart1` の対象宣言からも呼ぶため。`effectExecutor` は再エクスポート）。
+3. 🔴**`SELECT_TARGET_ONLY`（対象宣言）が `frontOfSelf` を honor していなかった**＝
+   `matchesFilter` はこのキーを**黙って無視する**（解決に ctx が要るので各ハンドラ側で剥がす規約）。
+   本体アクション4箇所には在ったのに**対象宣言だけが無く**、位置限定を刻んでも候補は「相手の任意1体」のままだった。
+4. parser 後段パス `markFrontOfSelfTargets`＝原文に「正面にあった」がある効果の**相手シグニ対象**へ
+   `frontOfSelf` を刻む。⚠**`targetsTriggerSource` で既に一意な対象は触らない**。
+
+**4効果の内訳（全部ちがう壊れ方）**
+- `WX07-039-E1`（AUTO・parser）＝位置限定が落ちて相手の任意1体 → 後段パスで `frontOfSelf`。
+- `WX18-076-E2`（MANUAL・アクセ付与）＝`frontOfSelf` は在ったが**離場後に解けず無言 no-op** → 2. だけで復活（JSON 無変更）。
+- `WXDi-D06-016-E1`（→ MANUAL）＝**対象がトリガー元自身**（＝バニッシュされた自分のシグニ）にすり替わっており、
+  相手ではなく**自分のシグニを −10000 する真逆**の実装だった。同型の `WX07-039-E1` と同じ綴りへ揃えた。
+- `WXDi-P02-083-E1`（MANUAL）＝原文「正面にあった**その**シグニ」の「それ」は**トリガー元**なので
+  `targetsTriggerSource` で一意（`frontOfSelf` は不要）。位置限定が落ちて相手の任意1体だった。
+
+⚠**`CONDITIONAL{IS_MY_TURN}` は直していない**＝engine の**「そうした場合」ゲートの綴り**
+（`stripDidItConditional`）であってターン判定ではない（意味照合の恒常的な偽陽性源）。
+🔴**未解決として残した1点**＝`WXDi-P02-083-E1` のコスト「このシグニを場からトラッシュに置いてもよい」は
+`costText`（ログのみ）で**実際には払わせない**。`OptionalCostSpec.fieldTrash` に「効果元自身だけ」を表す軸が無く、
+`thisCardOnly` は `matchesFilter` が黙って無視するので載せると**どのシグニでも払える**方向へ壊れる。
+
+**検証**＝golden 3本（解決器の5方向＋fail-closed／`WX07-039-E1` の候補が正面1体だけ・添字が無ければ発動しない／
+live と fresh の4効果 ＋ **原文に「正面」が無いカードへ位置限定を撒いていない**）。
+**反転確認3本**＝①添字フォールバックを殺す→2本 FAIL ②対象宣言の honor を殺す→候補が3体に戻って FAIL
+③parser 後段パスを殺す→fresh の刻印が消えて FAIL。
+**ゲート**＝`npm run gates` 全緑。golden **3656 → 3659 PASS / 0 FAIL**、census 高シグナル **0**、
+`census:enginetext` A🔴 **0行**、`census:costtext` A🔴 **0規則**、smoke・fuzz 全0、lint **0 errors / 256 warnings**（据置）。
+live JSON の変更は**3効果のみ**（機械 diff。`WX18-076-E2` は engine だけで直った）。
+🔴**`src/screens/BattleScreen.tsx` を触った＝§2.2 により実機まで必須**（ctx への添字受け渡し）。
+
 ## 2026-09-08（O-D 実装キュー③・`O-268` ＋ `WX14-003-E2` ＋ `O-282` ＋ `WX12-002-E3`）＝4件
 
 🔴**codex は `.codex-work`（12:26まで）に続き既定 `~/.codex`（13:22まで）も利用上限に当たり、

@@ -8065,6 +8065,35 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
 }
 
 /**
+ * 🆕**§5.3 `O-272`（2026-09-08）＝「このシグニの正面にあったシグニ」の位置限定。**
+ * 原文にこの句があるのに live の対象が「相手のシグニ1体」だと**位置限定が落ちた過剰実行**になる。
+ * 🔴**受け皿は既存の `TargetFilter.frontOfSelf`**（`resolveFrontOfSelfCardNum`）だが、旧実装は
+ * 効果元が場に居ることを要求していたため `ON_BANISH` からは必ず `null`＝**刻んでも恒久 no-op**だった。
+ * 同バッチで `ExecCtx.sourceLeftZoneIdx`（離場直前のゾーン添字）を足したので、いまは解決できる。
+ * ⚠**相手シグニの対象にだけ刻む**（自分側の対象や、`targetsTriggerSource` で既に一意に決まる対象は触らない）。
+ */
+function markFrontOfSelfTargets(action: EffectAction, sourceText: string): void {
+  if (!/正面にあった/.test(sourceText)) return;
+  const visitTarget = (t: { type?: string; owner?: string; filter?: TargetFilter } | undefined,
+                       hasTriggerSource: boolean): void => {
+    if (!t || t.type !== 'SIGNI' || t.owner !== 'opponent' || hasTriggerSource) return;
+    t.filter = { ...(t.filter ?? {}), frontOfSelf: true };
+  };
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    const node = n as Record<string, unknown>;
+    const trig = node.targetsTriggerSource === true;
+    visitTarget(node.target as never, trig);
+    visitTarget(node.selectTarget as never, trig);
+    for (const v of Object.values(node)) {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') walk(v);
+    }
+  };
+  walk(action);
+}
+
+/**
  * 「それを能力を持たないシグニとして場に出す」は、候補フィルタではなく配置結果への修飾。
  * 効果単位の原文にこの句があるときだけ、同じ効果木のトラッシュ→場 ADD_TO_FIELD へ印を付ける。
  */
@@ -27546,7 +27575,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // O-D WX16-Re20-E1 系統：「能力を持たないシグニとして」の配置修飾は、後段 rewriter が
   // action 木を組み直した**あと**に刻む。前段で刻むと live 5効果で印が消えることを build:effects で実測済み。
   for (const effect of effects) {
-    markAbilitylessTrashPlacements(effect.action, currentSourceTexts.get(effect.effectId) ?? '');
+    const srcTextO272 = currentSourceTexts.get(effect.effectId) ?? '';
+    markAbilitylessTrashPlacements(effect.action, srcTextO272);
+    // §5.3 `O-272`＝「このシグニの正面にあった」の位置限定も**最後に**刻む（後段 rewriter が木を組み直すため）。
+    markFrontOfSelfTargets(effect.action, srcTextO272);
   }
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;

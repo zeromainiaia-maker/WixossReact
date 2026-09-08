@@ -8,6 +8,30 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-272`（2026-09-08）＝「このシグニの正面にあったシグニ」の位置限定
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WXDi-D06-016 E1
+  //   原文＝【自】：このシグニがバニッシュされたとき、このシグニの正面にあったシグニ１体を対象とし、
+  //         《無》《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。
+  // 🔴旧 live は `POWER_MODIFY{owner:'self', targetsTriggerSource:true}` ＝**対象がトリガー元自身**
+  //   （＝バニッシュされたこのシグニ）にすり替わっていた＝相手ではなく自分のシグニを弱くする真逆の実装。
+  // 🔑同型の `WX07-039-E1`（正面にあったシグニをバニッシュ）と**同じ綴り**へ揃えた＝
+  //   `SELECT_TARGET_ONLY{frontOfSelf}` → `STORE_LAST_PROCESSED_TARGETS` → `OPTIONAL_COST` →
+  //   `CONDITIONAL{PAID_ADDITIONAL_COST}` → 本体は `targetsStored`。
+  // ⚠**この解決は効果元がもう場に居ない**ので、`frontOfSelf` は同バッチで足した
+  //   `ExecCtx.sourceLeftZoneIdx`（離場直前のゾーン添字）で解ける（それ以前は必ず候補0＝無言 no-op だった）。
+  "WXDi-D06-016": [
+    {"effectId":"WXDi-D06-016-E1","effectType":"AUTO","timing":["ON_BANISH"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false},"abortIfNoCandidate":true},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+       {"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無"]},
+       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-10000,"targetsStored":true}}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.0 O-D 実装キュー（2026-09-08）＝「このターン」だけの全領域【ライフバースト】付与
   // ══════════════════════════════════════════════════════════════════════════════
   // ── WX12-002（アン＝フォース）E3
@@ -3956,8 +3980,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-P02-061": [
     {"effectId":"WXDi-P02-061-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":12000},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}},"else":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","condition":{"type":"SELF_POWER_GTE","value":8000}},
   ],
+  // 🆕**§5.3 `O-272`（2026-09-08）＝対象が「相手のシグニ1体」で位置限定が落ちていた**。
+  //   原文「正面にあった**その**シグニをトラッシュに置く」の「それ」は**トリガー元**（このシグニの正面の
+  //   シグニゾーンに出た相手シグニ）なので、`targetsTriggerSource` で一意に決まる＝`frontOfSelf` は要らない。
+  //   ⚠**`CONDITIONAL{IS_MY_TURN}` は engine の「そうした場合」ゲートの綴り**（`stripDidItConditional`）＝
+  //     ターン判定ではないので**直さない**（意味照合の恒常的な偽陽性源。CLAUDE.md の did-it ゲート）。
+  //   🔴**未解決の残り**＝コスト「このシグニを場からトラッシュに置いてもよい」は `costText`（ログのみ）＝
+  //     engine は実際には払わせない。`OptionalCostSpec.fieldTrash` に「効果元自身だけ」を表す軸が無い
+  //     （`thisCardOnly` は `matchesFilter` が黙って無視するので載せると**どのシグニでも払える**方向へ壊れる）。
   "WXDi-P02-083": [
-    {"effectId":"WXDi-P02-083-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"このシグニを場からトラッシュに置いてもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp","triggerCondition":{"placedFront":true},"triggerFilter":{"level":{"max":2}}},
+    {"effectId":"WXDi-P02-083-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"このシグニを場からトラッシュに置いてもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsTriggerSource":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp","triggerCondition":{"placedFront":true},"triggerFilter":{"level":{"max":2}}},
   ],
   "WXDi-P03-043": [
     {"effectId":"WXDi-P03-043-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-3000,"targetsTriggerSource":true},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","triggerScope":"any_opp","triggerCondition":{"placedFront":true}},

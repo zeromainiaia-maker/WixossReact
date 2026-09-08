@@ -1921,6 +1921,8 @@ export interface PendingEffect {
   trapSetOwners?: import('./effects').Owner[]; // pause を跨いで【トラップ】設置イベントを保持
   storedTargetCards?: string[]; // pause を跨いで STORE_LAST_PROCESSED_TARGETS の固定対象を保持（targetsStored の resume 用。WX16-033 等）
   leftFieldUnderCards?: string[]; // ON_LEAVE_FIELD 発火元の離場直前の下カード（対話pause越し参照用）
+  // 🆕§5.3 `O-272`＝離場直前のシグニゾーン添字（「正面にあった」の解決用・対話pause越し参照）。
+  sourceLeftZoneIdx?: number;
   spellPlacement?: 'trash' | 'lrig_trash'; // 使用中スペルの解決後配置。pause 中は未配置のまま保持する
 }
 
@@ -1935,6 +1937,13 @@ export interface StackEntry {
   effect: import('./effects').CardEffect;
   triggeringCardNum?: string;                  // any_ally/self scope で効果を引き起こしたカード番号（「それ」参照用）
   leftFieldUnderCards?: string[];              // ON_LEAVE_FIELD 発火元の離場直前の下カード
+  /**
+   * 🆕**§5.3 `O-272`（2026-09-08）＝離場直前に居たシグニゾーンの添字**（0〜2）。
+   * 「このシグニの**正面にあった**シグニ」は効果元が場を離れた**あと**に解決されるので、
+   * `resolveFrontOfSelfCardNum`（効果元が場に居ることを要求する）だけでは必ず `null` になる。
+   * ⚠**離場していない効果では未設定**＝設定されていれば場の位置より優先しない（場に居ればそちらが正）。
+   */
+  sourceLeftZoneIdx?: number;
   triggeringKeyword?: string;                  // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY が「その能力」として参照・WXDi-P04-035）
   battleAttackerCardNum?: string;              // ON_SIGNI_BANISH_OPPONENT/_BATTLE の battleBanishEntries：バニッシュを行ったアタッカー自身のカード番号（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）
   banishedSigniPower?: number;                  // ON_SIGNI_BANISH_BATTLE の被バニッシュシグニのバニッシュ直前実効パワー
