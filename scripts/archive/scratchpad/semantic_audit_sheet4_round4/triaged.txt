@@ -1,0 +1,42 @@
+# <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
+# 2026-09-08 Opus triage（codex 委譲分の b15 を人手で確定）
+WXK08-053-E1 :: FP :: 任意コスト Pattern ⑤ が後続 CONDITIONAL を pay 側 cont5 にまとめる（effectExecutor.ts:6170,6188-6192,6253-6259・skip は noopAction5）＝支払いゲートは在る
+WXK09-039-E1 :: FP :: 同上 Pattern ⑤。CONDITIONAL が STUB の直後にあるため Pattern ④ の condIdx>i+1 に当たらず（effectExecutor.ts:6101-6107）、TRASH まで pay 側に入る
+WXK09-038-E1 :: FP :: ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196 / performGuardResponse）＝ON_HAND_DISCARDED はガードステップで発火しない
+WXK10-006-E3 :: FP :: matchesTrashArtsFromLrigDeckCost が Type===アーツ の厳密一致（artsTrashCost.ts:9）。クラフトアーツは Type=アーツ/クラフト（CardData_TK.csv・8枚）＝既に除外済み
+WXK09-033-E1 :: BUG :: ADD_TO_FIELD に asDown が無い（受け皿は在る＝effectExecutor.ts:4137,10690・live 39効果が使用中）。同型8効果
+WXK09-096-E1 :: BUG :: 原文「各プレイヤーは」に対し TRASH{DECK_CARD owner:self} のみ＝相手側が落ちない。owner:both の先例は WXEX2-21 に1件
+WXK09-004-E1 :: BUG :: 選択肢②の「対象のシグニ1枚を手札に加え」が丸ごと欠落（JSON は ADD_TO_FIELD のみ）。⚠選択肢③の対象順序の指摘は同一効果だが FP（挙動同値）
+# 2026-09-08 Opus triage（b16）
+WXK10-015 :: BUG :: 「このキーを場に出すためのコストは《コイン×0》になる」が JSON に無い（E2/E3/E4 のみ）。受け皿の先例は manualEffects.ts:10669（O-200＝キー配置コスト軽減）
+WXK10-018-E2 :: BUG :: costUnparsed:true＝起動コスト（シグニに付いているカード/下のカード1枚をトラッシュ）が解析されず、コスト無しでドローできる
+WXK10-031-E1 :: FP :: Pattern ⑤（effectExecutor.ts:6163-6192,6253-6259）が CONDITIONAL と BOUNCE をまとめて pay 側 cont5 に入れる＝未払いでは BOUNCE も実行されない
+WXK10-044-E1 :: BUG :: 原文「対戦相手は手札を1枚デッキの一番下に置く」に対し TRANSFER_TO_DECK の source が SIGNI(場)＝手札ではなく場のシグニを送っている
+WXK10-055-E1 :: BUG :: 対象指定の順序＝原文はトラッシュの＜美巧＞を先に対象化するが JSON はコスト支払い後に選ぶ＝コストで置いた＜美巧＞をそのまま回収できる。⚠支払いゲート自体は engine 対応済み（effectExecutor.ts:2507 が本カードを名指し）
+WXK10-056-E2 :: BUG :: 「この方法で捨てたシグニと共通するクラスを持つ」条件が JSON に無い。🔴受け皿も無い＝filter.commonClass は effectParser.ts が生成するだけで src/engine/ に消費地点が無く、live 3効果（WXDi-P10-029-E1 / WXDi-CP01-020-E1 / WXDi-CP02-046-E1）で黙って無視されている＝機構待ち
+WXK10-063-E1 :: BUG :: 原文「あなたのドライブ状態のシグニ1体が…クラッシュしたとき」の発動条件が無く、ドライブ状態でないシグニのクラッシュでも発動する
+WXK10-070-E1 :: FP :: ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196 / performGuardResponse）＝ON_HAND_DISCARDED はガードステップで発火しない。WXK09-038-E1 と同型
+# 2026-09-08 Opus triage（b17）
+WXK10-091-E1 :: BUG :: 原文「対戦相手は自分のデッキから…場に出し」に対し SEARCH{from:deck,owner:self} + ADD_TO_FIELD{owner:self}＝使用者のデッキから使用者の場に出している（プレイヤーが逆）
+WXK11-012 :: BUG :: 「このキーを場に出すためのコストは《コイン×0》になる」が JSON に無い。WXK10-015 と同型＝母集団3枚（WXK03-014 / WXK10-015 / WXK11-012・全部キー）
+WXK11-020-E1 :: BUG :: STUB{STRIP_OPP_ENA_MULTI_ENA} の消費地点は costs.ts:1233 と artsUseGate.ts:71 の2箇所だけ＝【マルチエナ】剥奪のみ実装。原文後半「対戦相手の効果を受けない」の受け皿が engine に無い＝機構待ち
+WXK11-024-E1 :: BUG :: ①timing が ON_SPELL_USE のみで ON_ARTS_USE（triggerCollect.ts:4464 に実在）が無く緑のアーツで発動しない ②「エナゾーンからシグニ1枚を対象とし手札に加える」選択肢が無く ENERGY_CHARGE_FROM_DECK だけになっている
+WXK11-033-E1 :: BUG :: GRANT_PROTECTION の duration が PERMANENT＝原文「ターン終了時まで」が効かず恒久化（外側 duration:UNTIL_END_OF_TURN は付与アクション自身の期間ではない）
+WXK11-036-E2 :: BUG :: 原文「トラッシュに置いてもよい」に対し MILL に optional が無く強制実行される（受け皿は MILLAction.optional＝types/effects.ts に実在）
+WXK11-047-E3 :: BUG :: 起動コストの filter に cardType:シグニ が無く、名に《サーバント》を含む非シグニ（WX13-027 アーツ「サーバント・アライブ」）もエナから15枚の数に入る
+# 2026-09-08 Opus triage（b18）
+WXK11-052-E1 :: BUG :: 原文「あなたの白のセンタールリグ1体を対象」に対し target={LRIG,self,count:1} で色フィルタ無し（cost の色と混同しないこと）。系統2効果（WXK11-052-E1 / WXK11-077-E1）
+WXK11-077-E1 :: BUG :: 同系統＝原文「あなたの黒のセンタールリグ1体を対象」の色フィルタが target に無い
+WXK11-071-E1 :: BUG :: 原文「そうした場合、そのシグニをトラッシュに置く」の「そのシグニ」＝場に出たトリガー元だが TRASH{SIGNI,opponent,count:1} で任意の相手シグニを選べる（受け皿は targetsTriggerSource が実在）
+WD10-001-E1 :: BUG :: 原文「あなたのクロス状態のシグニのパワーを＋5000」に対し target={SIGNI,owner:any,count:1}＝①owner が any ②クロス状態の条件が無い ③1体だけで全体でない、の3点が同時に外れている
+WD13-002-E1 :: BUG :: 原文「この方法で＜迷宮＞のシグニを公開した場合」の判定が HAND_COUNT_FILTER＝「手札に持っているか」になっており、公開せずに軽減を受けられる。系統2効果（WD13-002-E1 / WD13-003-E1）
+WD13-003-E1 :: BUG :: 同系統＝「公開してもよい。そうした場合」が HAND_COUNT_FILTER の AND で判定されている
+WD13-008-E1 :: BUG :: ①「その中に宣言した数字と同じレベルのシグニがある場合」の条件が無く BOUNCE が無条件 ②原文「好きな順番でデッキの一番上に戻す」に対し LOOK_AND_REORDER の reorder:false
+# 2026-09-08 Opus triage（b19）
+WD14-009-E1 :: BUG :: 「この方法でトラッシュに置いたシグニ1枚につき」の連動が無く ADD_TO_FIELD の source.count が固定1（受け皿 {$ref:last_processed_count} は同バッチの WD14-011-E2 が使用中）
+WD14-011-E2 :: BUG :: 原文に「まで」は無いのに BANISH の upToCount:true＝任意に少ない数を選べる
+WD17-008-E1 :: BUG :: ADD_TO_FIELD に asDown が無い（原文「ダウン状態で場に出し」）＝WXK09-033-E1 と同じ系統8効果
+WD19-018-E1 :: BUG :: ①②とも「バニッシュする。そうした場合」の did-it ゲートが無い。abortIfNoCandidate は SELECT_TARGET_ONLY 専用（effectExecutor.ts:6367-6372）で、素の BANISH ステップには効かない＝バニッシュできなくても後続のウィルス設置／パワー減少が走る
+WD20-006-E1 :: BUG :: 「エナゾーンにあるカード2枚を対象とし、それらをトラッシュに置く」が丸ごと欠落（相手シグニ2体の TRASH しかない）
+WD20-008-E1 :: BUG :: ①「各プレイヤーは」なのに ENERGY_CHARGE_FROM_DECK が owner:self だけ＝相手側が落ちている ②「3枚まで」なのに count:3 固定
+WD22-007-G-E1 :: BUG :: 原文のコストは《黒》支払い＋そのシグニを場からトラッシュの2つだが、STUB{OPTIONAL_COST} に costColors が無く costText だけ＝engine は costText をコストとして読まない（effectExecutor.ts:6016 の特例1件のみ）＝無償でバニッシュできる

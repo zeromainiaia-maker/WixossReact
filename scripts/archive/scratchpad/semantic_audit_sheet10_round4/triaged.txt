@@ -1,0 +1,3 @@
+# <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
+# 2026-09-08 Opus＝codex 判定の抜き取り検査（8件・うち1件は判定を覆した）
+SPDi43-28-E1 :: BUG :: 原文はルリグ《335 アキノ》のアタック誘発だが timing=ON_ATTACK_SIGNI・UP が無い・REMOVE_ABILITIES の対象が自分のシグニ（parseStatus MANUAL＝人が書いた誤り）

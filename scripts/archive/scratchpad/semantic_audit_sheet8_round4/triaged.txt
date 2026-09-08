@@ -1,0 +1,4 @@
+# <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
+# 2026-09-08 Opus＝codex 判定の抜き取り検査（8件・うち1件は判定を覆した）
+WXDi-CP01-038-E1 :: BUG :: 付与する常在の「対戦相手のターンの間」条件が JSON に無い（duration:UNTIL_OPP_TURN_END は付与期間であって発動条件ではない）＝自分のターンにも耐性が働く
+WXDi-P11-076-E1 :: BUG :: 指摘の向き（未払いでも手札に加わる）は FP だが逆向きの真バグ＝Pattern ⑤ が skip 側で残り全ステップを捨てるため、原文で無条件の ENERGY_CHARGE まで実行されない

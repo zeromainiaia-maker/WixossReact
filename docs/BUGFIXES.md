@@ -75,7 +75,51 @@ codex 2アカウント（`CODEX_HOME=C:/Users/zerom/.codex-work` と既定 `~/.c
   （後続 CONDITIONAL が無い任意コストは pay 側だけが残りステップを実行する）を引用しており、**既知の偽陽性型と整合**する。
   系統としてまとまるなら `semanticAuditExtract.mjs` の読み方ルールへ還元する（O-C）候補。
 
-#### ⚠ 両アカウントとも使用量上限に到達した（＝この規模の委譲の律速）
+#### 🔵 Opus による triage（b15〜b19 ＋ codex 判定の抜き取り検査）＝**52 findings を確定**（443 → 391）
+
+🔴🔑**抜き取り検査の結論＝codex の BUG 判定は 4/5 正しいが、FP 側で真バグを1件消しかけていた。**
+
+| 検査 | 結果 |
+|---|---|
+| **BUG 側5件** | **4件は妥当**。**1件は誤り**＝`WXK07-002-E1`（監査員が「②の対象が対戦相手に限定されていない」と主張したが、**原文②に「対戦相手の」は無い**）。⇒ **codex は engine を正確に読むが、監査員の原文解釈を検証しない。** |
+| **FP 側3件** | 1件妥当・1件未検証・**1件は反転**＝`WXDi-P11-076-E1` は指摘の向きこそ FP だが、**Pattern ⑤ が skip 側で残り全ステップを捨てるため原文で無条件の `ENERGY_CHARGE` まで実行されない**という逆向きの真バグが同居。⚠**codex はそれを `note` に書きながら verdict を FP にしていた**（FP 28件を全数走査した結果、この型は1件のみ）。 |
+
+⇒ **2つの規則を `semanticAuditTriageExtract.mjs` のプロンプトへ還元した**（①監査員の主張が原文と合っているかを先に確かめる ②FP と判定するとき別の壊れ方が無いか最後に確かめる／`note` に書くくらいなら `BUG` にする）。
+
+#### Opus triage 5バッチの内訳＝**BUG 33 / FP 7**（真バグ率 83%）
+
+⚠**codex の 89% とは母集団が違う**（b15〜19 は codex が処理できなかった分）ので**精度の比較には使えない**。
+🔑**FP 7件のうち5件が2つの型だけ**＝**任意コスト Pattern ④/⑤**（`effectExecutor.ts:6060` / `:6163`）と
+**ガードステップの手札捨て**（`BattleScreen.tsx:6196`＝`hand_discarded_just` を立てないので `ON_HAND_DISCARDED` は発火しない）。
+⇒ **この2型は監査プロンプト（`semanticAuditExtract.mjs`）へ還元すれば次ラウンドの finding から消せる。**
+
+#### 🔑 見つかった系統（1 finding が複数効果に化けたもの）
+
+| 系統 | 効果数 | 中身 |
+|---|---|---|
+| **`ADD_TO_FIELD` の `asDown` 欠落** | **8** | 原文「ダウン状態で場に出」55効果中 `asDown` あり39・無し16、うち `ADD_TO_FIELD` を持つ8件。**受け皿は実在**（`effectExecutor.ts:4137,10690`） |
+| **キー配置コストの軽減が無い** | **3** | `WXK03-014` / `WXK10-015` / `WXK11-012`（全部キー）。先例は `manualEffects.ts:10669`（`O-200`） |
+| **`filter.commonClass` に engine 消費地点が無い** | **4** | 🔴`effectParser.ts` が生成するだけで `src/engine/` に消費が無く、**live 3効果で黙って無視されている**（`WXDi-P10-029-E1` / `WXDi-CP01-020-E1` / `WXDi-CP02-046-E1`）＋`WXK10-056-E2`。**`census:deadstate` と同型の真 no-op＝機構待ち** |
+| **色付きルリグ対象の色フィルタ欠落** | **2** | `WXK11-052-E1` / `WXK11-077-E1`。⚠`cost` 側の `"color"` と混同して数えないこと |
+| **グロウ時「公開した場合」が「手札にある」判定** | **2** | `WD13-002-E1` / `WD13-003-E1`（`GROW_COST_REDUCTION` × `HAND_COUNT_FILTER`） |
+| **`OPTIONAL_COST` が `costText` だけで実体コストが無い** | **18（上限）** | `WD22-007-G-E1` で発覚。⚠**「コストの無い任意効果」の正しい用法も混ざる**ので着手時に割り直す |
+
+#### ⚠ 受け皿が既に在るものが多い＝速いレーンで落とせる
+
+`ON_ARTS_USE`（`triggerCollect.ts:4464`）／`MILLAction.optional`／`GRANT_PROTECTION.duration`／`asDown`／
+`duringOppTurn`（`protectionKeyword` の `PROTECTION_FILTERED`）／`targetsTriggerSource`／`{$ref:last_processed_count}`
+は**すべて実装済み**で、parser が出し損ねているだけ。**engine 機構が要るのは
+`STRIP_OPP_ENA_MULTI_ENA` の後半（「対戦相手の効果を受けない」）と `commonClass` の2件だけ。**
+
+#### ⚠ engine の非対称な仕様（triage で繰り返し効いた3つ）
+
+- **`abortIfNoCandidate` は `SELECT_TARGET_ONLY` 専用**（`effectExecutor.ts:6367-6372`）＝**素の `BANISH`/`TRASH` ステップには効かない**。
+  ⇒「そうした場合」を SEQUENCE の並びで表すと**失敗しても後続が走る**（`WD19-018-E1`）。
+- **`costText` は engine が読まない**（特例は `effectExecutor.ts:6016` の1件）＝`costColors` 等の実体が無い `OPTIONAL_COST` は**無償**。
+- **`Pattern ④` は `condIdx > i + 1` を要求する**（`effectExecutor.ts:6101-6107`）＝**`CONDITIONAL` が STUB の直後だと `Pattern ⑤` に落ちる**。
+  この差で「未払いでも実行される」か「支払っても実行されない」かが反転する。
+
+### ⚠ 両アカウントとも使用量上限に到達した（＝この規模の委譲の律速）
 
 `.codex-work` は batch_15 で、既定 `~/.codex` は batch_46 で上限。**どちらもサーキットブレーカーが5連続失敗で正しく停止**した
 （`semanticAuditRunCodex.mjs` の `MAX_CONSECUTIVE_FAILURES=5`）。**未実行は b15〜27 と b46〜54 の計22バッチ**。

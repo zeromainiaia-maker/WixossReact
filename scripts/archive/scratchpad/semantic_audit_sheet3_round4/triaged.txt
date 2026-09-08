@@ -4,3 +4,8 @@ WX22-005-E1 :: BUG :: ③のみの後続（エナをトラッシュ＋デッキ�
 WX22-010-E3 :: FP :: FIELD_SIGNI_TO_CHECK_ZONE は「チェックゾーンに置く→場に出し直す」の往復を1アクションに畳んだ形で、lastProcessedCards 経由で【出】も再発火する（effectExecutor.ts:10213）→ 規則32
 WX22-022-BURST :: BUG :: 「異なる色を持つ」制約が無い（SelectionConstraint.distinct に 'color' 軸が無い＝1軸の追加が要る）
 WX22-014-E3 :: BUG :: STUB{PLAY_FREE} 単独＝対象選択の前段が無く cnPF が効果元ルリグに落ちて真 no-op（WX21-Re04-E1 と同型・全6効果）
+# 2026-09-08 Opus＝codex 判定の抜き取り検査（8件・うち1件は判定を覆した）
+WXK03-026-E4 :: BUG :: zone_moved_just は場外→場の入れ替えでも記録される（effectExecutor.ts:11804）＝「場にあるこのシグニが他のシグニゾーンに移動」に限定できず過剰発火
+WXK01-008-E1 :: BUG :: 【ライド】が E1（CENTER_LRIG_RIDES_ON_SIGNI）と -RIDE（RIDE_ON）の2つの独立した起動能力になっている＝使用回数も別管理
+WXK07-002-E1 :: BUG :: 「4つから2つまで選ぶ」構造が欠落。⚠②の「対象が対戦相手に限定されていない」という指摘は FP＝原文②に「対戦相手の」は無い（①だけが対戦相手限定）
+WXEX1-09-E2 :: FP :: TRASH{extraZones:["energy"]} の5ステップ（レベル1〜5）で実装済み＝監査員の「どこにも表現されていない」は誤読
