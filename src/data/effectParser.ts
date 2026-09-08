@@ -97,6 +97,9 @@ const LOOK_PICK_CHAIN_WAVE2_CARDS = new Set([
   'WXEX1-25', 'WXDi-P16-008', 'WXK01-069', 'WXEX1-15', 'WXDi-P14-079',
 ]);
 let _parsingCardNum = '';
+// 🆕2026-09-09（S-3・gates高速化）＝ tryWrapLeadingStateCond のメモ化キャッシュ。
+//   定義はその関数を見る（安全性の前提もそこに書いてある）。
+const _tryWrapLeadingStateCondCache = new Map<string, EffectAction | null>();
 /**
  * いま parse 中のカードの全文（`EffectText`＋`BurstText`）。
  *
@@ -4453,7 +4456,18 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     ...STATE_CONDITION_CLAUSES_V2,
   ];
 
+// 🆕2026-09-09（S-3・gates高速化）＝`tryWrapLeadingStateCond` と同じ理由でメモ化する
+//   （再帰下降パーサから同一部分文字列で繰り返し呼ばれる。純関数＝`_parsingCardNum` 込みでキー化すれば安全）。
+const _matchLeadingStateConditionCache = new Map<string, { condition: Condition; rest: string } | null>();
 function matchLeadingStateCondition(text: string): { condition: Condition; rest: string } | null {
+  const cacheKey = _parsingCardNum + ' ' + text;
+  const cached = _matchLeadingStateConditionCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const result = matchLeadingStateConditionUncached(text);
+  _matchLeadingStateConditionCache.set(cacheKey, result);
+  return result;
+}
+function matchLeadingStateConditionUncached(text: string): { condition: Condition; rest: string } | null {
   const t = text.trim();
   for (const [re, mk] of STATE_CONDITION_CLAUSES) {
     if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
@@ -4500,7 +4514,16 @@ function matchTargetPropertyCondition(text: string): { condition: Condition; res
 // 例：「その後、対戦相手の手札が０枚の場合、」→ HAND_COUNT(opponent,eq,0)／
 //     「その後、あなたのライフクロスが１枚以下の場合、」→ LIFE_COUNT(self,lte,1)。
 // これが無いと thenM 一致後に condition=null で IS_MY_TURN 化（常時真）＝条件の無言脱落になる（§3 Opusタスク12(xxii)）。
+// 🆕2026-09-09（S-3・gates高速化）＝同じ理由でメモ化（この関数は `_parsingCardNum` を見ない純関数）。
+const _parseHoistStateConditionCache = new Map<string, Condition | null>();
 function parseHoistStateCondition(prefix: string): Condition | null {
+  const cached = _parseHoistStateConditionCache.get(prefix);
+  if (cached !== undefined) return cached;
+  const result = parseHoistStateConditionUncached(prefix);
+  _parseHoistStateConditionCache.set(prefix, result);
+  return result;
+}
+function parseHoistStateConditionUncached(prefix: string): Condition | null {
   const t = prefix.trim().replace(/^その後、/, '').replace(/、$/, '');
   for (const [re, mk] of STATE_CONDITION_CLAUSES) {
     const m = t.match(new RegExp('^' + re.source + '$'));
@@ -6649,7 +6672,19 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   （WX12-046「ターン終了時、手札がN枚以上ある場合、…」等）。②は t 先頭がクリーン（トリガー句既除去）なので
   //   プレフィックス空でマッチする。①が return したら②へは来ない＝二重ラップしない。
   function tryWrapLeadingStateCond(text: string): EffectAction | null {
-    // ⚠表は module 直下の `LEADING_STATE_CLAUSES`（複数文ハンドラと共用）。
+    // ⚠表は module 直下の LEADING_STATE_CLAUSES（複数文ハンドラと共用）。
+    // 🔴2026-09-09（S-3・gates高速化）＝ then: parseSingleSentence(m[1]+rest) 経由で logSourceText（_sourceTextLog）の初出記録へ副作用が届くため、
+    //   単純に (cardNum,text) だけでメモ化すると getAbilityBlockTexts（_collectSourceText=true で parseCardEffects を再入する）の文脈と
+    //   普通のパースの文脈がキャッシュを共有してしまい、先に実行した方の副作用しか残らない（WXDi-P12-002-E1 等 4効果で hash 不一致を実測）。
+    //   → `_collectSourceText`をキーに含めてキャッシュ空間を完全に分離すれば、どちらの文脈も自分自身の中では自己一貫（同じ文脈の再試行は logSourceText の「初出」判定でどうせ no-op）なので安全（hash 一致を再確認済み）。
+    const __cacheKey = (_collectSourceText ? "L" : "N") + _parsingCardNum + " " + text;
+    const __cached = _tryWrapLeadingStateCondCache.get(__cacheKey);
+    if (__cached !== undefined) return __cached;
+    const __result = tryWrapLeadingStateCondUncached(text);
+    _tryWrapLeadingStateCondCache.set(__cacheKey, __result);
+    return __result;
+  }
+  function tryWrapLeadingStateCondUncached(text: string): EffectAction | null {
     const t0 = text.trim();
     for (const [re, mk] of LEADING_STATE_CLAUSES) {
       if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;

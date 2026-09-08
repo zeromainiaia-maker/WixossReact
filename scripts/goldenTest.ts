@@ -406,11 +406,21 @@ const listedNames: string[] = [];
 let ranCount = 0, skippedCount = 0;
 
 let pass = 0; const fails: string[] = [];
+// 🆕2026-09-09（S-3・gates高速化）＝`GOLDEN_TIMING=1 npm run golden` で50ms超のテストを stderr へ列挙する。
+//   golden 305秒のうち268秒が1本のテスト（parseCardEffects の全カードfreshパース）だったのを
+//   この計測で見つけた（effectParser.ts の再帰下降パーサに未メモ化の重複呼び出しがあった＝O-… 参照）。
+//   既定は無効（`GOLDEN_TIMING` 未設定なら分岐コスト以外ゼロ）＝次に遅くなったときの一次切り分け用に残す。
+const __TIMING_DEBUG__ = !!process.env.GOLDEN_TIMING;
 function test(name: string, fn: () => void) {
   if (listMode) { listedNames.push(name); return; }
   if (onlyFilters.length && !onlyFilters.some(f => name.includes(f))) { skippedCount++; return; }
   ranCount++;
+  const __t0 = __TIMING_DEBUG__ ? process.hrtime.bigint() : 0n;
   try { fn(); pass++; } catch (e) { fails.push(`${name}: ${(e as Error).message}`); }
+  if (__TIMING_DEBUG__) {
+    const ms = Number(process.hrtime.bigint() - __t0) / 1e6;
+    if (ms > 50) console.error(`TIMING ${ms.toFixed(1)}ms :: ${name}`);
+  }
 }
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
