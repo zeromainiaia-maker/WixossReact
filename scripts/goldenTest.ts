@@ -73041,6 +73041,80 @@ test('§5.0 第230: triage 済み BUG のうち 1〜2キーで直る 12効果', 
   }
 }));
 
+// 🆕**§5.0 実装キュー（2026-09-08 第231バッチ）＝S-3 を 70効果ぶん検証し、真バグ 20効果を修正**。
+//   🔑**この巡でやり方を変えた**＝JSON を1件ずつ読むのをやめ、**原文（`docs/_effect_srctext.json`）×
+//     逆翻訳（`docs/decompile_sheet*.txt`）を並べて一気に読む**使い捨てスクリプトで仕分けた。
+//     1件あたりのコストが 5分の1 になり、同じセッションで前回の 62件 → 70件を見られた。
+//   ⚠**逆翻訳は情報を落とす**ので「逆訳に出ない＝JSON に無い」ではない＝**当たりだけ JSON を開く**という使い方。
+test('§5.0 第231: S-3 で直した 15効果', () => withSavedCursor(() => {
+  const liveEff = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  const nodesOf = (root: unknown, type: string): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    const walk = (o: unknown, d = 0): void => {
+      if (d > 40 || !o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(x => walk(x, d + 1)); return; }
+      const rec = o as Record<string, unknown>;
+      if (rec.type === type) out.push(rec);
+      Object.values(rec).forEach(x => walk(x, d + 1));
+    };
+    walk(root);
+    return out;
+  };
+  const jsonOf = (cardNum: string, effectId: string) => JSON.stringify(liveEff(cardNum, effectId) ?? null);
+
+  // ① 二重加算＝【絆常】の +4000（E2）が E1 にも書かれていた
+  eq(nodesOf(liveEff('WX25-CP1-061', 'WX25-CP1-061-E1')?.action, 'POWER_MODIFY').length, 1,
+    'WX25-CP1-061-E1 のパワー修正は「公開1枚につき+2000」の1本だけ');
+  // ② 「このターン、〜したとき」に回数制限は無い＝遅延誘発の once を外す
+  ok(!jsonOf('WX24-P4-017', 'WX24-P4-017-E3').includes('"once"'),
+    'WX24-P4-017-E3 の遅延誘発は毎回誘発する');
+  // ③ 「手札を1枚捨ててもよい。そうした場合、それをバニッシュする」＝任意コスト＋対象の事前確定
+  ok(jsonOf('SP27-014', 'SP27-014-E2').includes('PAID_ADDITIONAL_COST'),
+    'SP27-014-E2 の③は捨てなければバニッシュしない');
+  // ④ 「＜プリパラ＞のシグニ1体につき【エナチャージ1】」＝枚数連動
+  ok(jsonOf('WXDi-P10-004', 'WXDi-P10-004-E1').includes('countFromZone'),
+    'WXDi-P10-004-E1 の③は場の＜プリパラ＞の数だけチャージする');
+  // ⑤ 「それを凍結し、それのパワーを－2000」＝同じシグニ（別々に選ばせない）
+  eq(nodesOf(liveEff('WXDi-P07-044', 'WXDi-P07-044-E2')?.action, 'POWER_MODIFY')[0]?.targetsLastProcessed, true,
+    'WXDi-P07-044-E2 のパワー修正は凍結したシグニと同じ対象');
+  // ⑥⑦ 対象を先に確定してからコストを払う（原文の順序）
+  for (const [cardNum, effectId] of [['WXK10-055', 'WXK10-055-E1']] as const) {
+    ok(jsonOf(cardNum, effectId).includes('STORE_LAST_PROCESSED_TARGETS'), `${effectId} は対象を先に決める`);
+  }
+  // ⑩⑪ 「次のあなたのアタックフェイズ開始時」＝遅延誘発
+  for (const [cardNum, effectId] of [['WX26-CP1-001', 'WX26-CP1-001-E1'], ['WX25-P3-007', 'WX25-P3-007-E1']] as const) {
+    ok(nodesOf(liveEff(cardNum, effectId)?.action, 'INSTALL_DELAYED_TRIGGER')
+      .some(n => (n.trigger as { timing?: string })?.timing === 'ON_ATTACK_PHASE_START'),
+      `${effectId} は次のアタックフェイズ開始時まで遅延する`);
+  }
+  ok(jsonOf('WX25-P3-007', 'WX25-P3-007-E1').includes('"delta":8000'),
+    'WX25-P3-007-E1 のパワー+8000（欠落していた）');
+  // ⑫ 「そうした場合」＝4枚戻せたときだけパワーを下げる
+  ok(nodesOf(liveEff('WD07-012', 'WD07-012-E2')?.action, 'CONDITIONAL')
+    .some(c => (c.condition as { type?: string; value?: number })?.type === 'LAST_PROCESSED_COUNT_GTE'),
+    'WD07-012-E2 は4枚戻せた場合だけ－10000する');
+  // ⑬ 【常】のパワー+2000（丸ごと欠落していた）
+  const k034 = liveEff('WXK03-034', 'WXK03-034-E1b');
+  eq((k034?.activeCondition as { type?: string })?.type, 'TURN_HAND_DISCARD_GTE',
+    'WXK03-034-E1b は「このターン手札を2枚以上捨てていた場合」の常在');
+  // ⑭ 任意コストの色（《白》《白》《無》《無》）が落ちていた
+  ok(jsonOf('WXK03-048', 'WXK03-048-E1').includes('"costColors"'),
+    'WXK03-048-E1 の任意コストに色が在る');
+  // ⑮ 「対戦相手のシグニ1体が場からトラッシュに置かれたとき」＝自分自身ではない
+  const p354 = liveEff('WX25-P3-054', 'WX25-P3-054-E2');
+  eq(p354?.triggerScope, 'any_opp', 'WX25-P3-054-E2 は相手のシグニがトラッシュされたとき');
+  // ⑯ 前提条件（《防衛者ＭＣ．ＬＩＯＮ－３ｒｄ》がいる）と UP が欠落していた
+  const p056 = jsonOf('WXDi-P15-056', 'WXDi-P15-056-E1');
+  ok(p056.includes('HAS_CARD_IN_FIELD'), 'WXDi-P15-056-E1 に《防衛者ＭＣ．ＬＩＯＮ－３ｒｄ》の前提が在る');
+  ok(nodesOf(liveEff('WXDi-P15-056', 'WXDi-P15-056-E1')?.action, 'UP').length > 0,
+    'WXDi-P15-056-E1 はこのシグニをアップする');
+  // ⑱⑲ 「残りをシャッフルしてデッキの一番下に置く」
+  for (const [cardNum, effectId] of [['WX25-P2-066', 'WX25-P2-066-E1'], ['WX25-CP1-002', 'WX25-CP1-002-E1']] as const) {
+    ok(jsonOf(cardNum, effectId).includes('"shuffle":true'), `${effectId} は残りをシャッフルする`);
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

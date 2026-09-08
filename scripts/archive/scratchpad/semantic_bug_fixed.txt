@@ -53,3 +53,33 @@ WX21-052-E1-G :: 2026-09-08 :: FP＝triggerScope:any_opp が既に在る
 WX07-021-E1 :: 2026-09-08 :: FP＝OPTIONAL_COST の charmTrashVariable{min:0} で可変になっている
 WX10-002-E2 :: 2026-09-08 :: FP＝第3ステップは CONDITIONAL の then 内に在る
 WX05-025-E1 :: 2026-09-08 :: FP＝targetsTriggerSource:true が既に在る
+WX25-CP1-061-E1 :: 2026-09-08 :: 第231＝原文に無い固定+4000（E2 の【絆常】と二重）を削除
+WX24-P4-017-E3 :: 2026-09-08 :: 第231＝遅延誘発の once:true を外した（原文に回数制限が無い）
+SP27-014-E2 :: 2026-09-08 :: 第231＝③を任意コスト＋対象事前確定へ（捨てが強制・未払いでもバニッシュしていた）
+WXDi-P10-004-E1 :: 2026-09-08 :: 第231＝③のエナチャージに countFromZone（場の＜プリパラ＞の数）を追加
+WXDi-P07-044-E2 :: 2026-09-08 :: 第231＝POWER_MODIFY に targetsLastProcessed（凍結と別々に対象を選んでいた）
+WXK10-055-E1 :: 2026-09-08 :: 第231＝トラッシュの＜美巧＞を先に対象化（コストで置いた札を回収できていた）
+WX26-CP1-001-E1 :: 2026-09-08 :: 第231＝③を INSTALL_DELAYED_TRIGGER で「次のアタックフェイズ開始時」へ遅延
+WX25-P3-007-E1 :: 2026-09-08 :: 第231＝同上＋パワー+8000の欠落と期間（UNTIL_OPP_TURN_END）を追加
+WD07-012-E2 :: 2026-09-08 :: 第231＝「4枚戻せた場合」の条件（LAST_PROCESSED_COUNT_GTE）を追加
+WXK03-034-E1 :: 2026-09-08 :: 第231＝【常】のパワー+2000（E1b）が丸ごと無かったので追加
+WXK03-048-E1 :: 2026-09-08 :: 第231＝任意コストの色《白》《白》《無》《無》が落ちていた
+WX25-P3-054-E2 :: 2026-09-08 :: 第231＝triggerScope:any_opp＋fromZones:[field]（自分がトラッシュされたときになっていた）
+WXDi-P15-056-E1 :: 2026-09-08 :: 第231＝《防衛者ＭＣ．ＬＩＯＮ－３ｒｄ》の前提条件と UP の欠落を追加
+WX25-P2-066-E1 :: 2026-09-08 :: 第231＝remainder に shuffle:true
+WX25-CP1-002-E1 :: 2026-09-08 :: 同上
+WX20-Re20-E1 :: 2026-09-08 :: FP＝②は count:"ALL"+upToCount+noAbilities で既に正しい
+WX17-004-E1 :: 2026-09-08 :: FP＝③のアサシンは targetsLastProcessed＋UNTIL_END_OF_TURN で既に正しい
+WX22-005-E1 :: 2026-09-08 :: FP＝③の後続は choices 内にネストしている
+WX11-006-E3 :: 2026-09-08 :: FP＝OPTIONAL_COST の handDiscard で既に正しい（エナは払わない）
+WXK07-002-E1 :: 2026-09-08 :: FP＝「4つから2つまで選ぶ」は既に在る
+WX16-005-E1 :: 2026-09-08 :: FP＝levelLteFieldVirusCount が既に在る
+WX16-033-E1 :: 2026-09-08 :: FP＝相手シグニゾーン全カードのトラッシュは既に在る
+WX15-001-E1 :: 2026-09-08 :: FP＝hasRiseIcon が既に在る
+WD06-018-BURST :: 2026-09-08 :: FP＝hasLifeBurst が既に在る
+WX22-022-BURST :: 2026-09-08 :: FP＝distinct color が既に在る
+WXK08-005-E2-G2 :: 2026-09-08 :: FP（golden の契約）＝LRIG_LEVEL_CMP_OPP はタスク2で意図的に付けたゲート。一度外して golden が落ち差し戻した
+WXDi-P05-060-E1 :: 2026-09-08 :: FP（golden の契約）＝E1 の POWER_MODIFY は O-128 第4 A-2 の契約。E2 は既に正しく実装済みだった
+WXEX1-69-E1 :: 2026-09-08 :: FP（golden の契約）＝対象を先に確定させると §6.3 [B]26「公開writer」の記録が壊れる
+WXDi-CP01-038-E1 :: 2026-09-08 :: FP（golden の契約）＝GRANT_EFFECT で包むと bySourceType/bySourceLevel の保存と BANISH 保護が消える（golden 3本）
+WXDi-P03-016-E2 :: 2026-09-08 :: FP（golden の契約）＝§6.4 O-25 が「E2 は近似のまま（構造化すると効かなくなる）」と明記していた
