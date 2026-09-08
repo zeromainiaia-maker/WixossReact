@@ -9,11 +9,13 @@
 //   node scripts/archive/semanticAuditBugList.mjs --list            … 1行ずつ（severity / type / 一言）
 //   node scripts/archive/semanticAuditBugList.mjs --list --sev HIGH … 深刻度で絞る
 //   node scripts/archive/semanticAuditBugList.mjs --list --grep asDown … 判定の一言で絞る（系統の抽出）
+//   node scripts/archive/semanticAuditBugList.mjs --list --fixed        … 消化済みだけを見る
 //
 // ⚠**これは在庫カウンタであって判定ではない**＝「BUG」は triage 時点の確定で、
 //   実装時には §2.1 ② で母集団を測り直す（LESSONS §4.7）。
-// ⚠**直したら `triaged.txt` の行を消さない**＝消すと「何を直したか」の履歴ごと消える。
-//   消化の記録は BUGFIXES.md と golden が正（PLAN §5.0 の表からは行を消す）。
+// 🔴**直したら `scripts/archive/scratchpad/semantic_bug_fixed.txt` へ1行足す**＝
+//   `triaged.txt` の行は「何を直したか」の履歴なので消さない。消さないと在庫が減らないので、
+//   消化側をこのファイルで引き算する（**これをやらないとカウンタが永久に 433 のまま**になる）。
 import fs from 'fs';
 
 const SCRATCH = 'scripts/archive/scratchpad';
@@ -53,7 +55,20 @@ for (const d of dirs) {
   }
 }
 
+/** 消化済み（PLAN §5.0 の表から行を消したもの）＝triaged.txt は履歴なので消さず、ここで引き算する */
+const FIXED_PATH = `${SCRATCH}/semantic_bug_fixed.txt`;
+const fixed = new Map();
+if (fs.existsSync(FIXED_PATH)) {
+  for (const l of fs.readFileSync(FIXED_PATH, 'utf8').split(/\r?\n/)) {
+    if (!l.trim() || l.startsWith('#')) continue;
+    const [k, , ...rest] = l.split('::');
+    fixed.set(k.trim(), rest.join('::').trim());
+  }
+}
+const showFixed = args.includes('--fixed');
+
 const rows = [...bug.entries()]
+  .filter(([id]) => showFixed ? fixed.has(id) : !fixed.has(id))
   .filter(([, m]) => !sevFilter || m.sev === sevFilter)
   .filter(([, m]) => !grepFilter || (m.note ?? '').includes(grepFilter));
 
@@ -68,7 +83,7 @@ const tally = (fn) => {
   for (const [, m] of rows) { const k = fn(m) ?? '(不明)'; o[k] = (o[k] ?? 0) + 1; }
   return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ');
 };
-console.log(`[buglist] BUG 確定 ${rows.length} 効果${sevFilter ? `（--sev ${sevFilter}）` : ''}${grepFilter ? `（--grep ${grepFilter}）` : ''}`);
+console.log(`[buglist] 🔥残 ${rows.length} 効果 ／ 🏁消化済み ${fixed.size} 効果 ／ BUG 確定 ${bug.size} 効果${sevFilter ? `（--sev ${sevFilter}）` : ''}${grepFilter ? `（--grep ${grepFilter}）` : ''}`);
 console.log(`[buglist] 壊れ方: ${tally(m => m.type)}`);
 console.log(`[buglist] 深刻度: ${tally(m => m.sev)}`);
 console.log(`[buglist] シート: ${tally(m => (m.dir ?? '').replace('semantic_audit_', '').replace('_round4', ''))}`);

@@ -44,10 +44,11 @@
   📦**在庫**＝🏁**意味照合 未監査 0枚**｜🏁**未 triage 0件**｜🔥**実装キュー 433効果**｜🔥**機構 worklist 6項目**（`O-287`〜`O-292`）｜**⑤実機 残0**。
 
 **▶ 次の一手**＝🔥**§5.0 実装キューの「系統」を上から取る**（1行が複数効果を畳んでいるので1件ずつより桁で安い）。
-**着手中**＝`ADD_TO_FIELD` の `asDown` 欠落（原文55効果中16が欠落・うち `ADD_TO_FIELD` を持つ10が対象）。
-parser の生成箇所が20あるので**後処理1本**（`normalizeAddToFieldAsDown`）で正準化し、判定入力は
-**カード全文ではなくその効果のアビリティブロック**（`abilityBlockTextOf`）にした。**engine 側の受け皿は確認済み**
-（直接配置 `effectExecutor.ts:4137` と選択 resume `:10690`/`:11165` の両方が `asDown` を読む）。
+🏁**系統①（`asDown`）は 2026-09-08 に消化済み＝7効果**（`normalizeAddToFieldAsDown`・gates 全緑・push 済み）。
+**次に取るのは受け皿が実在する系統**＝**`usageLimit` 欠落（grep 実測11）**か**`reorder:false`（同12）**。
+⚠**`OPPONENT_PAY_OPTIONAL`（同32）は受け皿が無い**＝§5.3 `O-288` なので、先に安い方から取る。
+🔑**在庫の数え方**＝`node scripts/archive/semanticAuditBugList.mjs`（**残426 / 消化済み7 / 確定433**）。
+**直したら `scripts/archive/scratchpad/semantic_bug_fixed.txt` へ1行足す**＝これをしないとカウンタが永久に減らない。
 ⚠**受け皿を確かめてから parser を直す**のがこの系統の作法＝`commonClass`（`O-287`）のように
 **parser が生成するだけで engine に消費が無い**と、直したつもりで何も変わらない。
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -340,11 +341,11 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 > **バッチごとのクローズ履歴 2,251字**に膨らみ、しかも**3節とも数字が stale**（§5.2「残36」／§5.3「2項目」／§5.4「5件」
 > ＝実際はすべて 0）だった。**表に書くのは「いまの残数」だけ。**
 
-| 節 | 役割 | 残（2026-09-07 実測） | 測り直すコマンド |
+| 節 | 役割 | 残（2026-09-08 実測） | 測り直すコマンド |
 |---|---|---|---|
 | §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（全11シート 100%）。⚠**止め時の判定（新型0×連続3バッチ）は未実施**＝新規ラウンドを始めるならそこから | `node scripts/archive/semanticAuditGap.mjs` |
 | §5.0 O-A | 🏁**完了**＝findings の triage | 🏁**未 triage 0**（572件を全数確定＝**BUG 433 / FP 70**・FP は全件 engine の行を人手で裏取り済み） | `node scripts/archive/semanticAuditPool.mjs` |
-| **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**433効果**（2026-09-08 の全数 triage の結果）。🔴**追跡先は各ラウンド dir の `triaged.txt` の `:: BUG ::` 行**＝`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `grep -h ':: BUG ::' scripts/archive/scratchpad/semantic_audit_*/triaged.txt \| wc -l` |
+| **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**残426効果**（確定433 − 消化済み7）。🔴`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `node scripts/archive/semanticAuditBugList.mjs` |
 | §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**6項目**（`O-287`〜`O-292`＝2026-09-08 の O-A 全数 triage で「engine に受け皿が無い」と確定した分） | §5.3 の索引 G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
@@ -440,6 +441,9 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 **系統で畳めているのは 99効果だけで、残る 334効果（77%）は上の①〜④に入る**。
 **「一点物」と書いてあっても件数は 3桁**＝**PLAN のこの表を見て「少ない」と思ってはいけない。**
+🏁**2026-09-08 時点＝確定433 のうち 7効果を消化済み（系統①`asDown`）＝残 426。**
+**消化は `scripts/archive/scratchpad/semantic_bug_fixed.txt` に1行ずつ記録する**
+（`triaged.txt` の行は履歴なので消さない＝**消化側を引き算しないとカウンタが永久に減らない**）。
 
 | 軸 | 内訳 |
 |---|---|
