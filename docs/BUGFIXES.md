@@ -3,7 +3,7 @@
 ## 2026-09-08（🏁O-A triage 完了＝572 findings を全数確定・未 triage 0）
 
 **意味照合 round4 の findings 572件をすべて triage し終えた**（未 triage 443 → **0**）。
-**確定＝BUG 433 / FP 70**（433 は effectId のユニーク数）。**これが §5.0 実装キューの母集団になる。**
+**確定＝BUG 433 / FP 67**（FP 3件は根拠の裏が取れず未 triage へ差し戻した＝下記）（433 は effectId のユニーク数）。**これが §5.0 実装キューの母集団になる。**
 🔴**追跡先は各ラウンド dir の `triaged.txt`**（`semanticAuditPool.mjs` は残 0 になったのでもう在庫を映さない）。
 
 ### 🔴 この工程で最も高くついた教訓＝**任意コストの3分岐を取り違えると判定が反転する**
@@ -31,6 +31,35 @@
 | **engine が原文を読む** | `WXDi-P06-034`（`getRiseRequirement` が【ライズ】節を読む） | JSON に無くても実装済み |
 | **型名から推測した誤検出** | `WDK08-Y01-E1`（`TRASHED_DISTINCT_LEVELS_GTE` は `lastProcessedCards`＝公開したカードを読む） | 名前と実装が食い違う |
 | **監査員が原文に無い限定を足した** | `WXK07-002-E1` / `PR-K076-E1` | 原文を全文で読み直すと限定が存在しない |
+
+### 🔴 FP 判定の根拠を全数で裏取りした（ユーザー指摘「codex 側が判定したものは確認しなくていいのか」）
+
+**FP は「真バグを恒久的に消す」向き**なので、**私が根拠の行を自分で開いていなかった13箇所を全部確かめた**。
+**12箇所は確認できた**（うち2箇所は engine のコメントが当該カードを名指ししていた）:
+
+| 根拠 | 確認した内容 |
+|---|---|
+| `effectExecutor.ts:4592` / `:8891` | LRIG 対象の `UP` は `field.lrig.at(-1)` の `lrig_down` を直接解除、`REMOVE_ABILITIES` も `lrigTop` だけを候補にする＝**センター固定** |
+| `boardDiff.ts:667` | `KEYWORD_GAINED_TARGETS = ['アサシン','ランサー','ダブルクラッシュ']`（**コメントが `WXDi-P04-035` を名指し**） |
+| `triggerCollect.ts:98` | `battleBanisherMatchesTrigger`＝`scope==='self'` なら `watcherNum === banisherNum` を要求 |
+| `effectExecutor.ts:4297` | `CENTER_LRIG_OR_SIGNI` は `lrigZoneTops`（センター＋左右アシスト）＋全シグニへ展開 |
+| `effectExecutor.ts:5139` | `thisCardOnly` は `lrig.at(-1)` / `assist_lrig_l` / `assist_lrig_r` も効果元として探す（**コメントが `WXDi-P16-039` を名指し**） |
+| `execStubPart1.ts:1481` | `BLOCK_OPP_SIGNI_AUTO`（当ターン）と `BLOCK_OWN_SIGNI_AUTO:NEXT_TURN`（次ターン予約）を**同時に**保存 |
+| `effectExecutor.ts:2890,2921` | `if (a.triggerBurst)` の**else 側**が `trash: [...state.trash, ...crashed]`＝`triggerBurst:false` は直接トラッシュ |
+| `effectExecutor.ts:5152-5160` | `untilOppTurn = a.duration === 'UNTIL_OPP_TURN_END'`／それ以外は**ターン用 `granted_effects`**＝`PERMANENT` でもターン終了時に消える |
+| `triggerCollect.ts:2992-3002` | `ON_SIGNI_FROZEN` の scope 既定は `any_opp`、`frozenIsWatcherOwn` なら除外 |
+| `effectEngine.ts:6398` | `srcIsArts = アーツ\|ピース\|キー`＝`from:['アーツ']` はキーの効果も含む |
+| `execUtils.ts:1486-1490` | `trapIconEffectOf` は対象カード自身の `TRAP_ICON` を先に返す |
+
+#### 🔴 1箇所は確認できず、FP 3件を未 triage へ戻した
+
+`triggerCollect.ts:5080`（`collectTurnTriggers`）を根拠にした
+**`WXDi-P12-057-E1` / `WX24-P4-044-E3` / `WXK04-074-E2`**（いずれも「ターン終了時誘発に自ターン限定が無い」型）。
+🔴**呼び出し側は `collectTurnTriggers('ON_TURN_END', my, op)`（`BattleScreen.tsx:4031`）で、
+`my` は `isHost ? host_state : guest_state`＝ローカルプレイヤーの state であってターンプレイヤーの state ではない**（同 `:2664`）。
+収集関数側にもターン所有者の判定は見当たらなかった。⇒ **codex の「ターンプレイヤーの scope:self だけ収集する」という根拠は裏が取れない。**
+**自分で決めた非対称ルール（engine の行で証明できないなら FP で閉じない）に従い、3件を未 triage へ戻した**（残 3件）。
+⚠**この型は実機で「相手ターン終了時に発火するか」を見るのが最短**（§5.1 の `V-nn` 向き）。
 
 ### 🔑 系統（1 finding が複数効果に化けたもの＝実装の取り掛かり）
 

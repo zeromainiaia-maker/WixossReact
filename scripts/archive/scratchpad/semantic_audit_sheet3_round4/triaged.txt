@@ -81,7 +81,6 @@ WXK04-033-E1 :: BUG :: 原文「ターン終了時にこの効果で【アクセ
 # 2026-09-08 Opus triage（b11）
 WXK04-034-E2 :: BUG :: E2＝見た2枚のうち手札に加えなかったカードの行き先がエナゾーンでなくデッキの一番下になっている
 WXK04-038-E1 :: BUG :: 任意コストの前提「このターンに自分のエナゾーンへ＜植物＞のシグニが1枚以上置かれていた場合」の条件が無い
-WXK04-074-E2 :: FP :: E2 は timing:ON_TURN_END かつ triggerScope 既定 self＝collectTurnTriggers はターンプレイヤーの場の scope:self 効果だけを収集する（triggerCollect.ts:5080-5100）ので相手ターン終了時には発動しない
 WXK05-001-E2 :: BUG :: E2＝「追加ターンのメインフェイズ中に手札からシグニを出せない」制約が STUB{RULE_REMINDER_TEXT}（no-op）で表現されておらず、実際の制限が掛からない
 WXK05-029-E3 :: BUG :: E3＝selectionConstraint に「レベルが異なる」はあるが「4枚の能力が同じであること」を要求する制約が欠落している
 WXK06-005-E1-G :: BUG :: E1-G＝STUB の payload に「スペルの使用コストを2倍にする」指定が無く、原文どおりのコストで使用される

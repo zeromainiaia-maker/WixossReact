@@ -34,7 +34,6 @@ WXDi-P12-008-E3 :: BUG :: E3＝OPPONENT_PAY_OPTIONAL 先取り（effectExecutor.
 WXDi-P12-009-E1 :: BUG :: ①「あなたの場にあるすべてのシグニが《ディソナアイコン》の場合」の条件がパワー修正にしか掛かっておらず、不成立でも追加コストで【Ｓランサー】を付与できる ②その GRANT_KEYWORD に targetsStored / fixedCardNums が無く（effectExecutor.ts:5010-5012）、パワーを上げたシグニと別のシグニを選べる
 WXDi-P12-044-E2 :: FP :: LRIG 対象の UP はセンタールリグを直接アップし（effectExecutor.ts:4592-4610）、REMOVE_ABILITIES も field.lrig.at(-1) のセンター1体だけを候補にする（同:8891-8903）＝別々のルリグを選ぶ経路が無い。WXDi-P04-051-E1 と同型
 WXDi-P12-045-E1 :: BUG :: OPPONENT_PAY_OPTIONAL 先取りが対象選択なしに支払いプロンプトを出し、未払い時だけ対象を選ぶ＝原文「対象を決めてから支払いを選ぶ」の順序と逆（LOW だが盤面の情報量が変わる）
-WXDi-P12-057-E1 :: FP :: collectTurnTriggers は myState をターンプレイヤーと定義し、そのフィールドの triggerScope:self 効果だけを収集する（triggerCollect.ts:5080-5100）＝相手ターン終了時にはこのカードの効果は収集されない
 # 2026-09-08 Opus triage（b37）
 WXDi-P12-068-E1 :: BUG :: 「このシグニの下にあるシグニ1枚と同じレベルの」対象制限が無い＝TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST は optionalCostTarget.filter が無いと {cardType:シグニ} で相手盤面全体を候補にする（effectExecutor.ts:5668-5679）
 WXDi-P13-003A-E1 :: BUG :: 【使用条件】【ドリームチーム】「白か黒のルリグを1体以上含む」が JSON に無い（持っている条件は CENTER_LRIG_NOT_GROWN_THIS_TURN だけ＝グロウ履歴しか見ない）
