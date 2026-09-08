@@ -1,3 +1,14 @@
 # <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
 # 2026-09-08 Opus＝codex 判定の抜き取り検査（8件・うち1件は判定を覆した）
 SPDi43-28-E1 :: BUG :: 原文はルリグ《335 アキノ》のアタック誘発だが timing=ON_ATTACK_SIGNI・UP が無い・REMOVE_ABILITIES の対象が自分のシグニ（parseStatus MANUAL＝人が書いた誤り）
+# 2026-09-08 Opus triage（b01）
+WX24-D5-05-E1 :: BUG :: 原文「このターン、対戦相手のシグニ1体のパワーが0以下になったとき」の遅延誘発になっておらず、SEQUENCE の TRASH{DECK_CARD,2} がアーツ解決時に無条件で走る
+SPDi43-03-E2 :: BUG :: E2＝起動能力解決時の「対戦相手のライフクロス1枚をクラッシュする」主要処理が無く、GRANT_LRIG_ABILITY の保存だけで終わる（effectExecutor.ts:9804-9818）
+SPDi43-06-E2 :: BUG :: 原文全文で確認＝【起】「アップ状態の【他の】シグニ1体をダウンする」。fieldDown コストの候補生成に excludeSelf が無く（execUtils.ts:753-755,947-950）自身をコストにできる
+SPDi43-08-E2 :: BUG :: ①《VOGUE3-EXTREMEサンガ》等の指定カード存在確認が任意コストだけに掛かり支払い成否の後続ゲートも無い ②SELF_POWER_GTE(15000) が効果全体の effect.condition になっており（triggerCollect.ts:570-571 が全体を止める）、無条件で選べるはずの選択肢①まで使えなくなる
+SPDi43-17-E2 :: BUG :: 原文「あなたのルリグ1体を対象とし…それをアップする」に対し SELECT_TARGET_ONLY と UP の target が type:SIGNI＝ルリグを対象にできない（execStubPart1.ts:280-282 は LRIG 型だけをルリグ候補にする）
+SPDi43-18-E2 :: BUG :: 同上＝アップ対象が SIGNI 型でルリグにならない
+SPDi43-19-E2 :: BUG :: 同上＝アップ対象が SIGNI 型でルリグにならない
+# 2026-09-08 Opus triage（b02）
+SPDi43-22-E1 :: BUG :: ①発動条件「自分の場に《VOGUE3-EXTREMEサンガ》がいる場合」が無い ②「このシグニへ宣言した色を追加する」処理が無い（INTERNAL_DCCE_TRASH_COLOR は宣言色のエナをトラッシュするだけで declared_color を保存しない＝execStubPart2.ts:967-981）
+SPDi44-04-E2 :: BUG :: E2＝「選んだシグニ同士が共通するクラスを持たない」条件が無い（commonClass 系統）。ENERGY_CARD→TRANSFER_TO_HAND は filter 一致のエナを全候補化するだけで選択集合のクラス重複を検査しない

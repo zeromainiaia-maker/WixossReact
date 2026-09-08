@@ -87,3 +87,7 @@ WXDi-CP02-078-E1-GRANT :: BUG :: 付与能力（-E1-GRANT）が通常の OPTIONA
 WXDi-CP02-080-E1 :: FP :: 条件付き任意コストの包み形（effectExecutor.ts:5354-5372）が ALL_FIELD_SIGNI_MATCH を先に評価し、不成立なら後続本体ごとスキップする。成立時も Pattern ⑤ が未払い時に残りを捨てる＝条件・支払いの両方でゲートされている
 WXDi-CP02-086-E1 :: BUG :: 「このターンにコストか効果によってカードが1枚以上あなたのエナゾーンに置かれていた場合」の発動条件が無い
 WXDi-CP02-095-E1 :: BUG :: SIGNI_REPOSITION の配置対象と後続 POWER_MODIFY の対象を同一にする targetsStored が無く（effectExecutor.ts:2197,2284）、別の相手シグニを選べる
+# 2026-09-08 Opus triage（最終）
+WXDi-P08-030-E1 :: BUG :: 選ばれたシグニ以外のアタック禁止はあるが、「選ばれたシグニに可能ならアタックを強制する」処理が無い
+WXDi-P10-055-E1 :: BUG :: 「あなたの場の＜天使＞シグニの合計パワーが20000以上」の発動条件が無く、条件未達でも対象選択と任意コスト支払いへ進める
+WXDi-CP02-033-E2 :: BUG :: E2＝LOOK_AND_REORDER の reorder:false＝原文「見た5枚を好きな順番でデッキ上に戻す」の並べ替えができない

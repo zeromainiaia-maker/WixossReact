@@ -59,3 +59,6 @@ WXDi-P07-004-sub-E1 :: BUG :: OPPONENT_PAY_OPTIONAL 先取り（effectExecutor.t
 WXDi-P07-006-E1 :: BUG :: 「このゲームの間にあなたが《コイン》を得ていない場合」の判定が無く GAIN_COIN{5} が無条件。engine 側も獲得履歴を持たない（effectExecutor.ts:8944-8946 は禁止フラグと現在枚数しか見ない）
 WXDi-P07-044-E1 :: BUG :: ①E1＝原文「そのカードをトラッシュから場に出す」の「そのカード」＝直前に捨てたシグニだが ADD_TO_FIELD の source がトラッシュ全体（triggeringCardNum で絞っていない） ②E2＝FREEZE と POWER_MODIFY が別々に対象を選ぶ＝同一対象への拘束（SELECT_TARGET_ONLY＋targetsStored）が無い
 WXDi-P07-044-E2 :: BUG :: ①E1＝原文「そのカードをトラッシュから場に出す」の「そのカード」＝直前に捨てたシグニだが ADD_TO_FIELD の source がトラッシュ全体（triggeringCardNum で絞っていない） ②E2＝FREEZE と POWER_MODIFY が別々に対象を選ぶ＝同一対象への拘束（SELECT_TARGET_ONLY＋targetsStored）が無い
+# 2026-09-08 Opus triage（最終）
+WXDi-P02-043-E2 :: FP :: ON_TARGETED は engine 側が「対戦相手の能力か効果の対象になったとき」として定義している＝collectTargetedTriggers の契約が targetedOwnerId＝対象に取られたシグニの所有者（＝効果発生源の対戦相手）（triggerCollect.ts:695-696, 2799-2802）。timing 自体が相手起因の対象化を意味するので JSON に条件は要らない
+WXDi-P05-060-E1 :: BUG :: 《コードアクセル　ヒャッハー》への＋2000 が「このカードの上にある間」の常在効果でなく、使用時の一時的なパワー修正になっている

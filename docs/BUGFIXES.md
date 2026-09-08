@@ -1,5 +1,55 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（🏁O-A triage 完了＝572 findings を全数確定・未 triage 0）
+
+**意味照合 round4 の findings 572件をすべて triage し終えた**（未 triage 443 → **0**）。
+**確定＝BUG 433 / FP 70**（433 は effectId のユニーク数）。**これが §5.0 実装キューの母集団になる。**
+🔴**追跡先は各ラウンド dir の `triaged.txt`**（`semanticAuditPool.mjs` は残 0 になったのでもう在庫を映さない）。
+
+### 🔴 この工程で最も高くついた教訓＝**任意コストの3分岐を取り違えると判定が反転する**
+
+`SEQUENCE[STUB{任意コスト}, …]` の挙動は**3通り**あり、**STUB の直後に何が来るか**で決まる。
+**私はこれを一度取り違えて FP と誤判定し、2件を後から BUG へ訂正した**（`WXK09-039-E1` / `WXK10-031-E1`）。
+
+| STUB の直後 | 効く分岐 | 後続ステップ |
+|---|---|---|
+| **`CONDITIONAL{IS_MY_TURN\|PAID_ADDITIONAL_COST}`** | **`effectExecutor.ts:5532`**（Pattern ④/⑤ より先） | 🔴**CHOOSE の `continuation`＝pay でも skip でも実行される** |
+| 別ステップを挟んで `CONDITIONAL{IS_MY_TURN\|PAID}` | **Pattern ④**（`:6060`・`condIdx > i + 1`） | 間は無条件（基本効果）／CONDITIONAL の then が強化分＝**replace mode** |
+| 上記以外（普通のアクション／別条件の CONDITIONAL） | **Pattern ⑤**（`:6163`） | **残り全ステップが pay 側だけ**（skip は空 SEQUENCE） |
+
+⇒ **「未払いでも実行される」という指摘が BUG になるのは1行目の形のときだけ。** 2・3行目は FP。
+**codex も同じ取り違えを2件していた**（`WXK02-030-E1` / `WXK07-054-CB-E2` を Pattern ⑤ 根拠で FP と判定＝実際は BUG）。
+
+### FP 70件の内訳＝**すべて「engine が JSON の見た目と違う意味を持つ」型**
+
+| 型 | 代表 | engine の実際 |
+|---|---|---|
+| **ガードステップの手札捨て** | `WXK09-038-E1` ほか**6件** | ガードの手札捨ては `hand_discarded_just` を立てない（`BattleScreen.tsx:6196`）＝`ON_HAND_DISCARDED` はガードステップで発火しない。🔴**codex はこの型を BUG と誤判定していた（3件）** |
+| **ターン終了時誘発の所有者** | `WXDi-P12-057-E1` ほか**3件** | `collectTurnTriggers` はターンプレイヤーの場の `scope:self` だけ収集（`triggerCollect.ts:5080-5100`） |
+| **LRIG 対象の UP / REMOVE_ABILITIES** | `WXDi-P04-051-E1` ほか2件 | どちらもセンタールリグ固定（`:4592-4610` / `:8891-8903`）＝別々のルリグを選ぶ経路が無い |
+| **timing 自体が条件を担う** | `WXDi-P04-035-E1`（`ON_KEYWORD_GAINED` は3キーワード固定）／`WXDi-P08-037-E3`（`ON_SIGNI_BANISH_OPPONENT` はバトル専用）／`WXDi-P02-043-E2`（`ON_TARGETED` は相手起因の対象化） | 収集器が原文の限定を内包している |
+| **engine が原文を読む** | `WXDi-P06-034`（`getRiseRequirement` が【ライズ】節を読む） | JSON に無くても実装済み |
+| **型名から推測した誤検出** | `WDK08-Y01-E1`（`TRASHED_DISTINCT_LEVELS_GTE` は `lastProcessedCards`＝公開したカードを読む） | 名前と実装が食い違う |
+| **監査員が原文に無い限定を足した** | `WXK07-002-E1` / `PR-K076-E1` | 原文を全文で読み直すと限定が存在しない |
+
+### 🔑 系統（1 finding が複数効果に化けたもの＝実装の取り掛かり）
+
+| 系統 | 効果数 | 受け皿 |
+|---|---|---|
+| `OPPONENT_PAY_OPTIONAL` が**対象を事前選択しない**（相手が支払いを判断する時点で対象未確定） | **12** | 要新設（`freezeStoredTargets` は `targetsStored` があるときだけ働く） |
+| `ADD_TO_FIELD` の **`asDown` 欠落** | **12** | ✅実在（`effectExecutor.ts:4137,10690`） |
+| **`filter.commonClass`** に engine 消費地点が無い | **9** | ❌**機構待ち**（`effectParser.ts` が生成するだけ＝真 no-op） |
+| **遅延誘発が即時実行に化けている** | **6** | ✅実在（`INSTALL_DELAYED_TRIGGER`） |
+| 期限が「次のあなたのエナフェイズ終了時まで」でなく現ターン終了時 | **5** | 一部実在（`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`） |
+| 「宣言した数字と同じレベル」条件欠落＋`reorder:false` | **4** | ✅実在 |
+| ソウル/付与能力の `usageLimit` 欠落 | **3** | ✅実在（`triggerCollect.ts:2043-2048`） |
+| 「置いてもよい」が素の `TRASH`／`MILL` で強制 | **4** | ✅実在（`optional`） |
+| 「1枚をデッキ上・残りを下」が全部下 | 2 | ✅実在（`first_top_rest_bottom`） |
+| キー配置コストの軽減が無い | 3 | △先例あり（`O-200`） |
+| 【ライド】が2つの起動能力に重複 | 2 | — |
+
+⚠**系統の枚数は上限値**＝着手時にもう一度割る（LESSONS §4.7）。
+
 ## 2026-09-08（S-1 大掃引＝意味照合 round4 の全シート監査完了・codex 2アカウント）
 
 **作業単位**＝ユーザー指示「codex に S-1 を作業させたい」。**213バッチ / 2,080枚 / findings 447件 / 失敗 0バッチ**を

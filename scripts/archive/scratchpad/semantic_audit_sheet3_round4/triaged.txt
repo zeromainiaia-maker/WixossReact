@@ -9,3 +9,97 @@ WXK03-026-E4 :: BUG :: zone_moved_just は場外→場の入れ替えでも記�
 WXK01-008-E1 :: BUG :: 【ライド】が E1（CENTER_LRIG_RIDES_ON_SIGNI）と -RIDE（RIDE_ON）の2つの独立した起動能力になっている＝使用回数も別管理
 WXK07-002-E1 :: BUG :: 「4つから2つまで選ぶ」構造が欠落。⚠②の「対象が対戦相手に限定されていない」という指摘は FP＝原文②に「対戦相手の」は無い（①だけが対戦相手限定）
 WXEX1-09-E2 :: FP :: TRASH{extraZones:["energy"]} の5ステップ（レベル1〜5）で実装済み＝監査員の「どこにも表現されていない」は誤読
+# 2026-09-08 Opus triage（b02）
+WX22-Re04-E2 :: FP :: 選択肢③の GRANT_PROTECTION は GRANT_EFFECT へ変換され（effectExecutor.ts:7320-7331）、UNTIL_OPP_TURN_END 以外はターン用 granted_effects に入る（同:5156-5166）＝duration:PERMANENT でもターン終了時に消える
+WX22-Re07-E2 :: BUG :: ADD_TO_FIELD の source がトラッシュ全体＝原文「それを（直前にデッキ上から置いたカードを）トラッシュから場に出す」の限定が無い（targetsStored / fixedCardNums が無い＝effectExecutor.ts:4037-4075）
+# 2026-09-08 Opus triage（b03）
+WXEX1-04-E1 :: BUG :: 選択肢③＝原文「場に出たそのレゾナ」への付与だが targetsTriggerSource が無く、自分の任意のシグニ1体を対象にできる
+WXEX1-13-E1 :: BUG :: BOUNCE の対象が「自分のシグニ1体」＝原文「自分の【トラップ】1つ」ではない（fieldCandidatesByOwner は場のシグニだけを候補化する）
+WXEX1-30-E3 :: BUG :: E3＝SEARCH の filter が単一で「白のシグニ1枚」しか探せず、原文の「青のシグニ1枚を探して公開し手札に加える」側が欠落（selectionConstraint.groups が無い）
+WXEX1-37-E1 :: FP :: effectEngine.ts:6398 がアーツ・ピース・キーを同じ srcIsArts に分類し、:6406 で from に「アーツ」があればその全種を耐性元として扱う＝キーの効果も含まれる
+WXEX1-52-E1 :: BUG :: triggerFilter が無く（triggerCollect.ts:1417-1422 は triggerFilter があるときだけ絞る）、原文「場からトラッシュへ置かれたシグニが自分の＜遊具＞である」制限が効かない
+WXEX1-54-E2 :: BUG :: E2 の timing が MAIN だけで、原文が許可するアタックフェイズで起動できない
+WXEX1-62-E2 :: BUG :: REVEAL_AND_PICK が先にデッキトップを公開してレベル4を判定してからバニッシュ対象を選ぶ＝原文「公開前に対象を決める」と順序が逆
+# 2026-09-08 Opus triage（b04）
+WXEX1-64-E1 :: FP :: steps は [STUB{OPTIONAL_COST}, POWER_MODIFY]＝STUB の直後が CONDITIONAL ではないので Pattern ⑤（effectExecutor.ts:6163-6192）が適用され、POWER_MODIFY は pay 側 cont5 だけで実行される（skip は空 SEQUENCE）
+WXEX1-67-E1 :: BUG :: JSON に OPTIONAL_COST 自体が無く、各 step が順に実行される＝原文「《青》を支払ってもよい。そうした場合」のコストが丸ごと欠落し無償でバウンスできる
+WXEX1-69-E1 :: BUG :: エナの TRANSFER_TO_HAND が REVEAL 後の CONDITIONAL 内にあり、原文「手札を公開する前にエナゾーンの対象を決める」と順序が逆
+WXEX1-72-E2 :: BUG :: E2＝LIFE_CRASH を即実行している（life_cloth から実際に取り除く＝effectExecutor.ts:2876）。原文は「次にクラッシュされる相手ライフクロスのライフバーストを無効化する」で、クラッシュ自体はしない
+WXEX2-02-E2 :: FP :: ON_SIGNI_FROZEN は triggerScope 省略時 any_opp が既定で、凍結カードが能力保持者自身の所有なら除外される（triggerCollect.ts:2992-2998）＝原文どおり相手シグニの凍結だけで発動する
+WXEX2-04-E3 :: BUG :: E3＝DESIGNATE_SIGNI_ZONE の owner が self 以外なら opponent へ固定される（execStubPart2.ts:3402〜）＝原文「所有者を限定せずシグニゾーン1つを指定」にならない
+WXEX2-08-E4 :: BUG :: E4＝候補が target.owner の state だけから取られ owner:self に限定されている＝原文「所有者を限定せずエナゾーンのカードを対象にできる」にならない
+WXEX2-10-E2 :: BUG :: ①E2＝DECLARE_CARD_NAME を2回並べるだけで「宣言されたカード名のカードを全領域で《サーバント　ＺＥＲＯ》に変更する」主要処理が無い ②E3＝配置先が action.owner 依存・source 省略で自分側になり、原文「相手の手札を見てバウンスしたシグニ以下のレベルのシグニを相手の場に出す」の参照元とレベル条件が無い
+WXEX2-10-E3 :: BUG :: ①E2＝DECLARE_CARD_NAME を2回並べるだけで「宣言されたカード名のカードを全領域で《サーバント　ＺＥＲＯ》に変更する」主要処理が無い ②E3＝配置先が action.owner 依存・source 省略で自分側になり、原文「相手の手札を見てバウンスしたシグニ以下のレベルのシグニを相手の場に出す」の参照元とレベル条件が無い
+# 2026-09-08 Opus triage（b05）
+WXEX2-12-E2 :: BUG :: E4＝「対戦相手のルリグデッキを2分し、一方を見てアーツ1枚をルリグトラッシュに置く」処理に対応する payload が無く STUB{CAST_FROM_OPP_TRASH}（相手トラッシュのスペルを使う別機構）になっている。⚠E2 の「ガードステップを除外する条件が無い」という指摘は FP＝ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196）ので ON_HAND_DISCARDED はガードステップで発火しない
+WXEX2-12-E4 :: BUG :: E4＝「対戦相手のルリグデッキを2分し、一方を見てアーツ1枚をルリグトラッシュに置く」処理に対応する payload が無く STUB{CAST_FROM_OPP_TRASH}（相手トラッシュのスペルを使う別機構）になっている。⚠E2 の「ガードステップを除外する条件が無い」という指摘は FP＝ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196）ので ON_HAND_DISCARDED はガードステップで発火しない
+WXEX2-13-E1 :: BUG :: 「デッキからライフバーストを持つカード1枚を探してチェックゾーンに置く」処理が無く、STUB{TRIGGER_LIFE_BURST} は lastProcessedCards が無いと効果元自身を選ぶ（execStubPart3.ts:520-524）
+WXEX2-17-E1 :: BUG :: timing に ON_ATTACK_LRIG が無く、防御側の ON_ATTACK_LRIG 収集（triggerCollect.ts:840-842）に入らない＝対戦相手のセンタールリグのアタックで発動しない
+WXEX2-22-E3 :: BUG :: E3＝デッキからトラッシュに置く枚数が固定1枚＝原文「移動させたシグニのレベルと同数」の連動が無い
+WXEX2-23-E3 :: BUG :: E3＝「バニッシュする2体が同じカード名である」という選択条件が無い（BANISH は owner:any の全候補をそのまま出す）
+WXEX2-29-E1 :: BUG :: ①E1＝「効果で場に出た対戦相手のシグニを凍結する」処理が欠落（REMOVE_ABILITIES だけ） ②E3＝SEARCH の from.owner が一方だけで、原文「対戦相手も同じ処理を行う」側が無い
+WXEX2-29-E3 :: BUG :: ①E1＝「効果で場に出た対戦相手のシグニを凍結する」処理が欠落（REMOVE_ABILITIES だけ） ②E3＝SEARCH の from.owner が一方だけで、原文「対戦相手も同じ処理を行う」側が無い
+# 2026-09-08 Opus triage（b06）
+WXEX2-39-E1 :: BUG :: ①E1＝原文「0枚を含む任意の枚数を捨てられる」に対し TRASH{HAND_CARD} が固定 count でちょうど1枚を強制 ②E3＝「手札からトラッシュに置かれた理由がコストである場合」の発動条件が無い
+WXEX2-39-E3 :: BUG :: ①E1＝原文「0枚を含む任意の枚数を捨てられる」に対し TRASH{HAND_CARD} が固定 count でちょうど1枚を強制 ②E3＝「手札からトラッシュに置かれた理由がコストである場合」の発動条件が無い
+WXEX2-44-E3 :: BUG :: E3＝BOUNCE の候補が場のシグニ＝原文「対戦相手のエナゾーンの全カードを手札に戻す」と領域が違う
+WXEX2-54-E2 :: BUG :: E2＝「場からトラッシュに置いたシグニよりレベルがちょうど1低い」限定が無い（捨てたシグニのレベル自体は engine が記録している）
+WXEX2-66-E1 :: FP :: trapIconEffectOf は対象カード自身の TRAP_ICON を先に探し、既に持つ場合はその native 効果を返す（execUtils.ts:1486-1490）＝「トラップアイコンを持たない」限定は engine 側が担っている
+WXEX2-81-E2 :: BUG :: E2＝対象条件が「＜天使＞であること」になっており、原文「自分の場の＜天使＞が持つ色の種類以下のレベル」という動的条件になっていない
+WXK01-009-E1 :: BUG :: 【ライド】が E1 と -RIDE の2つの独立した起動能力として重複している（WXK01-008-E1 と同型）
+# 2026-09-08 Opus triage（b07）
+WXK01-037-E1 :: BUG :: BANISH に filter.isTriggerSource が無く、原文「ライフクロスをクラッシュしたそのシグニ」ではなく自分の任意のシグニを対象にできる
+WXK01-044-E1 :: BUG :: filter.levelEqDeclaredNumber が無く、「トラッシュに置いたカードが宣言した数字と同じレベルのシグニである場合だけ」の条件が効かない
+WXK01-045-E1 :: BUG :: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST に optionalCostTarget が無く、「このターンに場に出た対戦相手のシグニ」への限定が効かない
+WXK01-051-E1 :: BUG :: 「対戦相手のライフクロスが2枚以上の場合」の条件が無く、1枚以下でもクラッシュする
+WXK01-082-E1 :: BUG :: CONDITIONAL{TURN_OWNER} が対象選択まで囲っており、自分のターンでない場合に対象すら選べない＝原文は自分のターンかに関係なく対象を選ぶ
+WXK02-002-E3 :: BUG :: E3＝「ターン終了時に使用アーツ数と宣言値を比較して対戦相手を敗北させる」処理が数値宣言＋STUB{RULE_REMINDER_TEXT}（no-op）だけで表現されていない
+WXK02-003-E3 :: BUG :: E3＝lookZone が相手ライフクロス最上段だけで、原文の「対戦相手の手札を見る」処理が無い
+WXK02-027-E1 :: BUG :: ①トラッシュに置く相手シグニに「自分のセンタールリグよりレベルが1つ高い」条件が無い ②トラッシュから場に出すシグニに「1つ低い」条件が無い
+# 2026-09-08 Opus triage（b08）
+WXK02-030-E1 :: BUG :: ①手札に戻す処理が任意コストの支払い成否の外にある（STUB の直後が CONDITIONAL{IS_MY_TURN} なので後続は continuation＝未払いでも走る） ②戻す対象に「公開したカードがシグニでありそのシグニと同じレベル」の条件が無い
+WXK02-060-E1 :: BUG :: 原文はトラッシュ枚数の判定より前に相手シグニを対象とするが、JSON は条件成立時にだけ対象を選ぶ＝対象宣言のタイミングが違う（相手の ON_TARGETED に影響する）
+WXK03-002-E2 :: BUG :: E2＝DECLARE_CARD_NAME が2回並ぶだけで、「宣言したカード名の相手シグニを《サーバント　ＺＥＲＯ》にする」処理が無い（宣言名は保存されるだけ＝execStubPart1.ts:1130-1145）
+WXK03-003A :: BUG :: 「このカードをルリグデッキに入れる場合、アーツは3枚までしか入れられない」というデッキ構築条件が JSON に無い
+WXK03-011-E1 :: BUG :: 「シグニゾーン以外の自分の領域にあるカードが相手の効果でトラッシュ／デッキへ移動しない」保護が無く、STUB{PREVENT_DAMAGE_FROM_OPP_EFFECTS} は prevent_lrig_damage フラグを立てるだけ（execStubPart2.ts:1416-1418）
+WXK03-020-E2 :: BUG :: E2＝「効果によって場に出た場合だけ」という限定が無く、ON_PLAY 一般で発動する（triggerCollect.ts:614-620）
+WXK03-023-E1 :: BUG :: ①「手札を1枚捨てる」処理が存在しない ②追加の1枚ドローが「シグニの下から2枚以上トラッシュに置いた場合」の条件なしで常に実行される ③相手シグニのバニッシュも「4枚トラッシュに置いた場合」の条件なしで常に実行される
+# 2026-09-08 Opus triage（b09）
+WXK03-024-E3 :: FP :: E3＝ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196 / performGuardResponse）＝ON_HAND_DISCARDED はガードステップで発火しない。⚠codex は BUG としたが、この経路を見ていない
+WXK03-025-E1 :: BUG :: 対戦相手が捨てる手札2枚に「レベルが異なる」という selectionConstraint が原文に無いのに付いている（過剰制約）
+WXK03-028-E3 :: BUG :: E3＝場に出す候補がトラッシュ全体で、原文「直前にデッキ上から置いたそのカード」への固定が無い
+WXK03-029-E2 :: BUG :: E2＝SEARCH の filter が「カード名に『ガードアイコン』を含むシグニ」になっており、原文の《ガードアイコン》所持判定になっていない
+WXK03-030-E1 :: BUG :: 追加コストを支払った場合に「このシグニ自身を場から手札へ戻す」処理が JSON に無い
+WXK03-034-E1 :: BUG :: 「このターンに手札を2枚以上捨てていた場合、このシグニのパワーを＋2000する」常在が JSON に無い
+# 2026-09-08 Opus triage（b10）
+WXK03-048-E1 :: BUG :: 任意コストから《白》《白》《無》《無》の色コストが欠落し、このシグニをトラッシュに置くだけになっている
+WXK03-064-E1 :: FP :: ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196）＝ON_HAND_DISCARDED はガードステップで発火しない
+WXK03-065-E1 :: FP :: 同上＝ガードステップでは ON_HAND_DISCARDED が発火しない
+WXK04-003-E2 :: BUG :: E2＝①「見た4枚から好きな枚数の＜調理＞シグニを場に出す」処理が無い ②STUB{ACCE_FROM_HAND} は効果元自身を手札/エナからアクセにするハンドラで、見たデッキのカードをアクセにする受け皿ではない ③原文「選ばなかったカードをトラッシュに置く」に対し canTrash:false でデッキ上に残る
+WXK04-031-E1 :: BUG :: 付与能力の有効条件《コードイートアイスケーキ》が【アクセ】として付いていること、が activeCondition に無い（collectGrantedFromLayer は activeCondition しか見ない＝effectEngine.ts:7264〜）
+WXK04-033-E1 :: BUG :: 原文「ターン終了時にこの効果で【アクセ】にしたカードだけを手札へ戻す」に対し、効果解決中に BOUNCE している（ACCE_FROM_HAND は効果元自身を付けるハンドラ）
+# 2026-09-08 Opus triage（b11）
+WXK04-034-E2 :: BUG :: E2＝見た2枚のうち手札に加えなかったカードの行き先がエナゾーンでなくデッキの一番下になっている
+WXK04-038-E1 :: BUG :: 任意コストの前提「このターンに自分のエナゾーンへ＜植物＞のシグニが1枚以上置かれていた場合」の条件が無い
+WXK04-074-E2 :: FP :: E2 は timing:ON_TURN_END かつ triggerScope 既定 self＝collectTurnTriggers はターンプレイヤーの場の scope:self 効果だけを収集する（triggerCollect.ts:5080-5100）ので相手ターン終了時には発動しない
+WXK05-001-E2 :: BUG :: E2＝「追加ターンのメインフェイズ中に手札からシグニを出せない」制約が STUB{RULE_REMINDER_TEXT}（no-op）で表現されておらず、実際の制限が掛からない
+WXK05-029-E3 :: BUG :: E3＝selectionConstraint に「レベルが異なる」はあるが「4枚の能力が同じであること」を要求する制約が欠落している
+WXK06-005-E1-G :: BUG :: E1-G＝STUB の payload に「スペルの使用コストを2倍にする」指定が無く、原文どおりのコストで使用される
+WXK06-025-E2 :: BUG :: E2＝STUB に「正面のシグニを任意でトラッシュに置く」対象・移動先・任意性の payload が無い
+WXK06-028-E1 :: BUG :: 選んだ複数のカードをデッキ上に置く順番を対戦相手が決める、という指定が無い
+# 2026-09-08 Opus triage（b12）
+WXK06-029-E2 :: BUG :: ①E2＝zone_moved_just は場外→場の入れ替えでも記録される（effectExecutor.ts:11804）ので「場のシグニが別のシグニゾーンへ移動した場合」に限定できていない ②E3＝原文「自分か対戦相手の一方を選び、そのプレイヤーの全シグニを配置し直す」に対し対戦相手固定になっている
+WXK06-029-E3 :: BUG :: ①E2＝zone_moved_just は場外→場の入れ替えでも記録される（effectExecutor.ts:11804）ので「場のシグニが別のシグニゾーンへ移動した場合」に限定できていない ②E3＝原文「自分か対戦相手の一方を選び、そのプレイヤーの全シグニを配置し直す」に対し対戦相手固定になっている
+WXK06-040-E1 :: BUG :: 「トラッシュに置いたカードが宣言した数字と同じレベルのシグニである」条件が無い
+WXK06-050-E1 :: FP :: steps は [STUB{OPTIONAL_COST}, MILL, CONDITIONAL{LAST_PROCESSED_MATCHES}]＝STUB の直後が CONDITIONAL{IS_MY_TURN|PAID} ではないので Pattern ⑤ が適用され、MILL 以降は pay 側 cont5 だけで実行される
+WXK06-073-E1 :: BUG :: ①「相手の手札から無色ではないカードを最大1枚選びデッキの一番下に置く」処理が無い ②カードを引くプレイヤーが対戦相手でなく自分になっている
+WXK06-074-E1 :: BUG :: 「このターンに対戦相手のカードが自分の効果でデッキへ移動していた」という発動条件が無い
+WXK07-001-E1 :: BUG :: 「宣言した数字と同じレベルのシグニによるガードを禁止する」処理が無い
+# 2026-09-08 Opus triage（b13）
+WXK07-003-E1 :: BUG :: 原文「相手のシグニゾーン1つにある非シグニカードすべて」に対し、相手のシグニ1体をトラッシュに置く効果になっている
+WXK07-018-E1 :: BUG :: 自分側への ADD_TO_FIELD しかなく、「自分と相手のシグニをチェックゾーンへ置いてからダウン状態で戻す」処理が無い
+WXK07-033-E1 :: BUG :: STUB 群に「宣言値を相手ルリグのレベル以下へ制限する」情報も「選んだ相手シグニの基本レベルをその値にする」処理も無い
+WXK07-054-CB-E2 :: BUG :: steps は [STUB{OPTIONAL_COST}, CONDITIONAL{IS_MY_TURN}, POWER_MODIFY]＝STUB の直後が CONDITIONAL{IS_MY_TURN} なので effectExecutor.ts:5532 が先取りし、その後ろの POWER_MODIFY は CHOOSE の continuation として pay/skip 両方で実行される＝未払いでも対象選択とパワー減少が走る。⚠codex は Pattern ⑤ を根拠に FP としたが誤り
+WXK07-056-E1 :: BUG :: 「デッキ内の＜宇宙＞シグニをレベル4にする」期間が gameGrants でゲーム中持続になっている＝原文はこのターンだけ
+WXK07-071-E1 :: FP :: steps は [CONDITIONAL{THIS_CARD_IS_CHARMED}, CONDITIONAL{IS_MY_TURN}]＝条件付き任意コストの包み形（effectExecutor.ts:5354-5381）で、チャーム条件が不成立なら本体ごと読み飛ばし、支払いスキップ時も Pattern ⑤ が空 SEQUENCE を選ぶ
+WD07-012-E2 :: BUG :: E2＝「レベルの異なる＜古代兵器＞4枚を実際にデッキ下へ戻せた場合だけ」の条件が無く、戻せなくてもパワー－10000する
