@@ -813,7 +813,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
   census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ lint 0 errors。
   ⚠**CI が一度赤くなった**（`react-hooks/set-state-in-effect`）＝**私の変更ではなく依存の自動更新**
   （CI は `npm install` ＋ caret 範囲）。`src/screens/DeckListScreen.tsx` をレンダー中調整へ直して復旧。
-  🔴**根本原因は未解決**＝`npm ci` にしない限り**コードを変えなくても CI が赤くなりうる**（ユーザー判断待ち）。
+  🏁**根本原因も解消**＝2026-09-08 にユーザー承認のうえ CI を **`npm ci`** へ変更（lockfile と package.json の同期は事前に機械照合）。⚠**依存を足したら `npm install` をローカルで回して lock を必ず commit する**（同期していないと `npm ci` はハード失敗する）。
   🖥**実機＝該当なし**（`src/screens/` の変更は lint 由来の1関数のみ・挙動不変）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外

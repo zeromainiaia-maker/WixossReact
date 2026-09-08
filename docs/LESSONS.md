@@ -372,6 +372,11 @@
   **`timeout` で殺されたビルドを「完走した」と2度報告した**（`public/data/*.json` の mtime で気付いた）。
   ⇒ **長時間コマンドは単独で走らせ、`exit=$?` を直後に取る。成果物の mtime も必ず見る。**
 - 🔴**`npm run build:effects` は約8分**（baseline 実測）。**「数分」で見積もって timeout を短く切らない。**
+- 🔴**CI の依存は lockfile で固定する**＝`npm install` ＋ caret 範囲だと**コードを1行も変えていないのに CI が赤くなる**
+  （2026-09-08 実測＝`eslint-plugin-react-hooks` が上がり `react-hooks/set-state-in-effect` が error 化。
+  **ローカルは古い版のままなので `npm run gates` は緑**＝「手元が緑なら CI も緑」が成り立たない）。
+  ⇒ CI は **`npm ci`**。⚠その代わり **package.json と package-lock.json が同期していないとハード失敗**する＝
+  **依存を足したらローカルで `npm install` を回して lock を commit する。**
 - 🔴**parser の後処理で `Object.values` の総当たり再帰を書かない**＝action ノードは巨大構造への参照を持ちうるので
   **26分走って出力0**になる。**構造キー**（`steps`/`then`/`else`/`choices`/`abilities`/`action`/
   `continuation`/`thenAction`/`afterSearch`）**だけを辿る**。

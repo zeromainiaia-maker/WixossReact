@@ -20,8 +20,15 @@ jobs:
           node-version: 24
           cache: npm
 
+      # 🔴**`npm install` にしない**＝caret 範囲（`^7.1.1` 等）を毎回解決し直すので、
+      #   **コードを1行も変えていないのに CI が突然赤くなる**（2026-09-08 に実際に発生＝
+      #   `eslint-plugin-react-hooks` が上がって `react-hooks/set-state-in-effect` が error になり、
+      #   07:24 の run は緑・07:48 の run が赤。ローカルは 7.1.1 のままなので `npm run gates` は緑だった）。
+      #   `npm ci` は `package-lock.json` のとおりに入れるので**再現性がある**。
+      # ⚠`npm ci` は package.json と package-lock.json が同期していないと**ハード失敗**する
+      #   ＝依存を足したら `npm install` をローカルで回して lock を必ず commit する。
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Type check
         run: npx tsc -b --noEmit
