@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（§5.0 実装キュー 系統①＝`ADD_TO_FIELD` の `asDown` 欠落・7効果）
+
+**真因**＝原文「ダウン状態で場に出す」が `ADD_TO_FIELD.asDown` へ落ちておらず、**アップ状態で場に出ていた**
+（＝**そのターン中にアタックできる**という盤面差）。**parser の生成箇所が 20 箇所**あり、
+既存の `asDown` 付与は `effectParser.ts:18649` の1経路（`then` テキスト判定）だけだった。
+**修正**＝後処理1本 `normalizeAddToFieldAsDown` を finalization ループへ追加（`normalizeRevealPickEnergyThen` と同じ方針）。
+**影響**＝**7効果**（`WD17-008-E1` / `WXK09-033-E1` / `WXDi-P01-087-E1` / `WXDi-P13-054-E1` /
+`WXDi-P15-049-E1` / `WX24-P2-058-E1` / `WX25-P3-061-E1`）。**live の差分は7カード・すべて `asDown:true` の追加のみ**（巻き添え0を機械照合）。
+**検証**＝`npm run golden -- --only "asDown"` ＋ `npm run gates` 全緑。**実機は不要**（`src/screens/` 無変更＝§2.2 の機械判定）。
+**残 9 効果は別の穴**＝MANUAL 3件（`manualEffects.ts` 側なので収穫マージが触らない）＋
+**該当する `ADD_TO_FIELD` が JSON に無い 6件**（主要処理ごと欠落＝§5.0 の個別行）。
+
+### 🔴 この1件で踏んだ罠3つ（全部「緑に見えて緑でない」型）
+
+| 罠 | 何が起きたか |
+|---|---|
+| **①パイプの終了コード** | `timeout 600 npm run build:effects \| tail -6; echo $?` で **`tail` の終了コードを見て「完走した」と誤報告した**。実際は timeout が殺しており **`public/data/*.json` は1バイトも書かれていなかった**（mtime で気付いた）。⇒ **`npm run build:effects` は必ず単独で走らせ、`ls -la public/data/` の mtime で書き込みを確認する** |
+| **②総当たり再帰は使えない** | 初版の `walk` が `Object.values` で全プロパティを再帰していた＝**26分走って出力0**。action ノードは巨大構造への参照を持ちうる。⇒ **構造キー（`steps`/`then`/`else`/`choices`/`abilities`/`action`/`continuation`/`thenAction`/`afterSearch`）だけを辿る** |
+| **③`abilityBlockTextOf` を全効果で呼ばない** | 原文を毎回分割し直す関数なので、**全 10,700 効果で呼ぶと build が 8分 → 10分超**になった。⇒ **カード全文に該当句が無ければ呼ばない前置ガード**を置く（呼び出しが約55回に減る） |
+
+🔑**`npm run build:effects` の所要は約8分**（2026-09-08 に baseline で実測）。**「数分」で見積もらない。**
+
 ## 2026-09-08（🏁O-A triage 完了＝572 findings を全数確定・未 triage 0）
 
 **意味照合 round4 の findings 572件をすべて triage し終えた**（未 triage 443 → **0**）。

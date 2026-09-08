@@ -13310,6 +13310,38 @@ function replaceFirstLegacyReveal(action: EffectAction, replacement: RevealUntil
 
 // プレイヤー全体・ターン限定と、相手シグニを恒久的に抑止する【常】を同じ死 actionId のまま
 // 混同しないよう構造化する。前者だけ executor が PlayerState へ書き、後者は collector が宣言走査する。
+/**
+ * 「ダウン状態で場に出す」を `ADD_TO_FIELD.asDown` へ正準化する（2026-09-08・O-A triage の系統）。
+ *
+ * 🔴**生成箇所が 20 箇所あるので後処理1本で根絶する**（`normalizeRevealPickEnergyThen` と同じ方針＝
+ *   個別の枝に書くと次に枝が増えたときまた漏れる）。実測＝原文「ダウン状態で場に出」の 55 効果のうち
+ *   **39 は既に `asDown` を持ち、16 が落ちていた**（うち `ADD_TO_FIELD` を持つ 10 効果がこの関数の対象）。
+ * 🔴**入力はその効果のアビリティブロック**（`abilityBlockTextOf`）＝**カード全文で判定してはいけない**
+ *   （同じカードの別能力の「ダウン状態で場に出す」を巻き込む）。
+ * ⚠**engine の受け皿は既にある**＝直接配置（`effectExecutor.ts:4137`）と、選択 UI を経る resume 経路
+ *   （同 `:10690` / `:11165` が `pending.thenAction.asDown` を読む）の両方が消費する。
+ *   ⇒ `SEARCH.then` / `REVEAL_AND_PICK.then` / `ADD_TO_FIELD{source}` のどの形でも効く。
+ */
+function normalizeAddToFieldAsDown(action: EffectAction, blockText: string): void {
+  if (!/ダウン状態で場に出/.test(blockText)) return;
+  // 🔴**構造キーだけを辿る**＝`Object.values` の総当たり再帰にすると
+  //   action ノードが持つ**カードデータ等への参照**まで舐めてしまい、
+  //   効果ごとに巨大構造を走査して **`build:effects` が事実上ハングする**（2026-09-08 に実測して書き直した）。
+  const KEYS = ['steps', 'then', 'else', 'action', 'choices', 'abilities', 'effect',
+    'continuation', 'thenAction', 'afterSearch'] as const;
+  const seen = new WeakSet<object>();
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (seen.has(node as object)) return;
+    seen.add(node as object);
+    if (Array.isArray(node)) { for (const x of node) walk(x); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'ADD_TO_FIELD' && rec.asDown === undefined) rec.asDown = true;
+    for (const k of KEYS) if (k in rec) walk(rec[k]);
+  };
+  walk(action);
+}
+
 function normalizeOnPlayAbilitySuppression(effect: CardEffect, rawText: string): void {
   if (effect.action.type !== 'BLOCK_ACTION') return;
   const block = effect.action as import('../types/effects').BlockActionAction;
@@ -27319,6 +27351,12 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // （個別の枝に書くと、次に枝が増えたときまた漏れる＝実際 `10541` の局所修正では届いていなかった）。
     normalizeRevealPickEnergyThen(e.action);
     normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
+    // 🔴**カード全文に無ければ `abilityBlockTextOf` を呼ばない**＝この関数は原文を毎回分割し直すので、
+    //   全 10,700 効果で呼ぶと `build:effects` が 8分 → 10分超になる（2026-09-08 に実測して前置ガードを足した）。
+    //   該当は原文「ダウン状態で場に出」の 55 効果だけ＝呼び出しは約 55 回に減る。
+    if (/ダウン状態で場に出/.test(`${card.EffectText ?? ''}${card.BurstText ?? ''}`)) {
+      normalizeAddToFieldAsDown(e.action, abilityBlockTextOf(card, e.effectId));
+    }
     e.action = dropEmptyLookAndReorder(e.action);
   }
 

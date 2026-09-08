@@ -88,3 +88,5 @@ WX24-P1-011-E1 :: BUG :: 能力を失わせる対象が {SIGNI, owner:self}＝�
 WX24-P2-047-E1 :: BUG :: steps は [CONDITIONAL{HAS_CARD_IN_FIELD}, CHOOSE]＝指定カードの存在条件が任意コスト側だけを囲み、後続の CHOOSE が条件の外にあるため、指定カードがいなくても・支払わなくても選択肢を実行できる
 WX24-P2-050-E1 :: BUG :: 原文「この能力で実際にカードをトラッシュへ置くまで再度誘発できる」に対し usageLimit が単純な once_per_turn で、置けなかった場合も1回で打ち切られる
 WX24-P3-007-E1 :: BUG :: 付与能力の期限が UNTIL_OPP_TURN_END＝原文「次のあなたのエナフェイズ終了時まで」より早く切れる（WX24-P3-005 / WX24-P3-009 と同型）
+# 2026-09-08 Opus triage（再確認）
+WX24-P4-044-E3 :: FP :: 同上＝ON_TURN_END + triggerScope 既定 self はターンプレイヤーの場からしか収集されない（BattleScreen.tsx:2901 の不変条件 ＋ triggerCollect.ts:5085-5093）

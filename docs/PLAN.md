@@ -378,7 +378,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | ID | 作業 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
 | **S-1** | **意味照合バッチを回す**（10枚/バッチ）🆕**codex なら Claude 月額枠を消費しない**（2026-09-08 実測＝213バッチ / 失敗0・1バッチ 12〜81秒） | 🏁**残0バッチ**（全11シート監査完了） | `node scripts/archive/semanticAuditGap.mjs` |
-| **S-2** | **真バグの母集団を grep で数える**（finding の `grep` 句から同型の全数） | 実装キューの**「系統」行が現在の全量** | `node scripts/archive/semanticAuditPool.mjs --grep` |
+| **S-2** | 🔥**真バグの母集団を grep で数える**（原文の言い回し × live JSON の受け皿の有無） | **未実施の系統が残っている**＝実測した5系統で**母集団が 2.7〜3.7倍**に増えた（監査員が気づくのは同型の約1/3） | ⚠**`semanticAuditPool.mjs --grep` は使えない**（未 triage を数えるので triage 完了後は常に0）。**`docs/_effect_srctext.json`（効果単位の原文）× `public/data/effects_*.json` を突き合わせる使い捨て `tmp_*` で数える** |
 | **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | 🏁**0件**（`WX22-005-E1` を第222バッチで消化） | 下の実装キュー |
 | **S-4** | **golden の定型追加・ゲート実行・簿記**（セッション末1回） | 1回/セッション | `npm run gates` |
 
@@ -420,13 +420,13 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | 分類 | 効果 | 壊れ方 | 受け皿 | レーン |
 |---|---|---|---|---|
-| 系統 | `ADD_TO_FIELD` の `asDown` 欠落（16効果・うち `ADD_TO_FIELD` を持つ10） | 「ダウン状態で場に出す」がアップ状態で出る＝そのターン中にアタックできる | ✅実在（`effectExecutor.ts:4137` 直接配置／`:10690`・`:11165` の選択 resume） | 遅い（parser 後処理1本） |
-| 系統 | `OPPONENT_PAY_OPTIONAL` が対象を事前選択しない（12効果） | 相手が支払いを判断する時点で対象が未確定＝原文と情報量が違う | ❌**要新設**（`freezeStoredTargets` は `targetsStored` があるときだけ働く）→ §5.3 `O-288` | 遅い |
+| 🏁系統 | ~~`ADD_TO_FIELD` の `asDown` 欠落~~＝**7効果を修正済み**（2026-09-08・`normalizeAddToFieldAsDown`）。**残9は別の穴**＝MANUAL 3件＋該当 `ADD_TO_FIELD` が JSON に無い6件（個別行へ） | — | — | 🏁完了 |
+| 系統 | `OPPONENT_PAY_OPTIONAL` が対象を事前選択しない（**grep 実測 32効果**／findings 由来12） | 相手が支払いを判断する時点で対象が未確定＝原文と情報量が違う | ❌**要新設**（`freezeStoredTargets` は `targetsStored` があるときだけ働く）→ §5.3 `O-288` | 遅い |
 | 系統 | 遅延誘発が即時実行に化けている（6効果） | 「次の〜時に」が解決時に走る | ✅実在（`INSTALL_DELAYED_TRIGGER`） | 遅い |
 | 系統 | 期限が「次のあなたのエナフェイズ終了時まで」でなく現ターン終了時（5効果） | 効果が1ターン早く切れる | 一部実在（`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`） | 遅い |
-| 系統 | 「宣言した数字と同じレベル」条件欠落＋`reorder:false`（4効果） | 無条件バウンス＋並べ替え不可 | ✅実在 | 遅い |
+| 系統 | 「宣言した数字と同じレベル」条件欠落＋`reorder:false`（**grep 実測 12効果**／findings 由来4） | 無条件バウンス＋並べ替え不可 | ✅実在 | 遅い |
 | 系統 | 「置いてもよい」が素の `TRASH`／`MILL` で強制（4効果） | 任意が強制になる | ✅実在（`optional`） | 速い |
-| 系統 | ソウル／付与能力の `usageLimit` 欠落（3効果） | 《ターン1回》が無制限になる | ✅実在（`triggerCollect.ts:2043-2048`） | 速い |
+| 系統 | 《ターン1回》なのに `usageLimit` が無い（**grep 実測 11効果**／findings 由来3） | 《ターン1回》が無制限になる | ✅実在（`triggerCollect.ts:2043-2048`） | 速い |
 | 系統 | 「1枚をデッキ上・残りを下」が全部下（2効果） | 積み込みが効かない | ✅実在（`first_top_rest_bottom`） | 速い |
 | 系統 | 【ライド】が2つの起動能力に重複（2効果） | 同じ能力が2回提示され使用回数も別管理 | — | 遅い |
 | 系統 | 色付きルリグ対象の色フィルタ欠落（2効果） | 色条件を無視して対象にできる | ✅実在 | 速い |
@@ -434,6 +434,12 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | ①別の効果に化けている | 一点物（`triaged.txt` の `:: BUG ::` から上記系統を除いた残り） | 対象・所有者・領域の取り違え | 個別 | 個別 |
 | ②丸ごと欠落 | 同上 | 主要処理が JSON に無い | 個別 | 個別 |
 | ③限定の欠落 | 同上 | 条件・フィルタが無い | 個別 | 個別 |
+
+🔴🔑**2026-09-08 実測＝S-2（grep 展開）をやると系統の母集団が 2.7〜3.7倍になる**
+（`usageLimit` 3→**11**／`OPPONENT_PAY_OPTIONAL` 12→**32**／`reorder:false` 4→**12**／`commonClass` 9→**27**）。
+⇒ **監査員が気づくのは同型の約1/3**＝**着手前に必ず S-2 を回す**（やらないと同じ型を何度も踏む）。
+⚠**grep 実測も上限値**＝別軸で表現済みのものを「欠落」と数える（「次のエナフェイズ終了時まで」は
+findings 由来5に対し grep 実測3＝**判定式が甘くて逆に取りこぼした**例）。**着手時に1件ずつ割る。**
 
 🔴**機構が要ると判明したものは §5.3 索引 G へ `O-287`〜`O-292` で登録した**（この表からは外れる）。
 ⚠**`src/screens/` を指す BUG が5件ある**＝着手する回は §2.2 により**実機まで必須**（観測点は §5.1 へ `V-nn` で足す）。
@@ -656,8 +662,8 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-287` | live 9効果 | **`filter.commonClass` に engine の消費地点が無い**＝`effectParser.ts` が生成するだけの真 no-op（`census:deadstate` と同型）。「共通するクラスを持つ／持たない」がすべて素通り |
-| `O-288` | live 12効果 | **`OPPONENT_PAY_OPTIONAL` の対象事前選択**＝相手が支払いを判断する前に対象を確定・保存する軸が無い（`freezeStoredTargets` は `targetsStored` 前提） |
+| `O-287` | **live 27効果**（grep 実測・findings 由来は9） | **`filter.commonClass` に engine の消費地点が無い**＝`effectParser.ts` が生成するだけの真 no-op（`census:deadstate` と同型）。「共通するクラスを持つ／持たない」がすべて素通り |
+| `O-288` | **live 32効果**（grep 実測・findings 由来は12） | **`OPPONENT_PAY_OPTIONAL` の対象事前選択**＝相手が支払いを判断する前に対象を確定・保存する軸が無い（`freezeStoredTargets` は `targetsStored` 前提） |
 | `O-289` | live 2効果 | **起動をまたぐ「選択済み」管理**＝`CHOOSE` の `noRepeat` はターン内で、原文「この【起】能力でまだ選ばれていない」「ゲーム中1回だけ」に対応する持続ストアが無い |
 | `O-290` | live 4効果 | **キーを場に出すときのコスト条件・軽減**＝「場に出すためのコストは《コイン×0》になる」3枚と「エナの色が3種類以上ある場合にしか出せない」1枚。先例は `manualEffects.ts:10669`（`O-200`）だが宣言型が無い |
 | `O-291` | live 1効果 | **`STRIP_OPP_ENA_MULTI_ENA` の後半**＝「対戦相手のエナゾーンのカードは対戦相手の効果を受けない」。消費地点は `costs.ts:1233` と `artsUseGate.ts:71` の2箇所だけで【マルチエナ】剥奪しか実装していない |

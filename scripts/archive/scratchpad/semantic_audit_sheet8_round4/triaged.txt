@@ -90,3 +90,5 @@ WXDi-CP02-095-E1 :: BUG :: SIGNI_REPOSITION の配置対象と後続 POWER_MODIF
 WXDi-P08-030-E1 :: BUG :: 選ばれたシグニ以外のアタック禁止はあるが、「選ばれたシグニに可能ならアタックを強制する」処理が無い
 WXDi-P10-055-E1 :: BUG :: 「あなたの場の＜天使＞シグニの合計パワーが20000以上」の発動条件が無く、条件未達でも対象選択と任意コスト支払いへ進める
 WXDi-CP02-033-E2 :: BUG :: E2＝LOOK_AND_REORDER の reorder:false＝原文「見た5枚を好きな順番でデッキ上に戻す」の並べ替えができない
+# 2026-09-08 Opus triage（再確認）
+WXDi-P12-057-E1 :: FP :: 🔑再確認して確定＝collectTurnTriggers('ON_TURN_END', my, op) は doPhaseAdvance（BattleScreen.tsx:3930〜, :4031）の中で呼ばれ、そこは「myState はターンプレイヤー（=user.id=meId）、opState は非ターンプレイヤー」という明記された前提（同 :2901）で動く。収集側も triggerScope 既定 self の効果を myState の場からしか拾わない（triggerCollect.ts:5085-5093）＝相手ターン終了時には発動しない

@@ -102,3 +102,5 @@ WXK07-054-CB-E2 :: BUG :: steps は [STUB{OPTIONAL_COST}, CONDITIONAL{IS_MY_TURN
 WXK07-056-E1 :: BUG :: 「デッキ内の＜宇宙＞シグニをレベル4にする」期間が gameGrants でゲーム中持続になっている＝原文はこのターンだけ
 WXK07-071-E1 :: FP :: steps は [CONDITIONAL{THIS_CARD_IS_CHARMED}, CONDITIONAL{IS_MY_TURN}]＝条件付き任意コストの包み形（effectExecutor.ts:5354-5381）で、チャーム条件が不成立なら本体ごと読み飛ばし、支払いスキップ時も Pattern ⑤ が空 SEQUENCE を選ぶ
 WD07-012-E2 :: BUG :: E2＝「レベルの異なる＜古代兵器＞4枚を実際にデッキ下へ戻せた場合だけ」の条件が無く、戻せなくてもパワー－10000する
+# 2026-09-08 Opus triage（再確認）
+WXK04-074-E2 :: FP :: 同上＝ON_TURN_END + triggerScope 既定 self はターンプレイヤーの場からしか収集されない

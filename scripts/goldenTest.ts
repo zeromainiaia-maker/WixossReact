@@ -2914,6 +2914,24 @@ test('DEPLOY_RESTRICT 配置数制限: 相手3体→超過1体トラッシュ＋
   eq(r.otherState.signi_deploy_count_limit, 2, '配置数上限フラグ=2');
   eq(r.otherState.trash.length, 1, '超過1体をトラッシュ');
 });
+test('§5.0 系統 asDown: 「ダウン状態で場に出す」が ADD_TO_FIELD.asDown へ正準化されている（2026-09-08）', () => {
+  // 🔴**この系統は「アップ状態で場に出る」＝そのターン中にアタックできる**という盤面差になる。
+  //   parser の生成箇所が 20 あるので後処理1本（`normalizeAddToFieldAsDown`）で正準化した。
+  // ⚠**残 9 効果は別の穴**＝MANUAL 3件（`manualEffects.ts` 側なので収穫マージが触らない）と、
+  //   そもそも該当する `ADD_TO_FIELD` が JSON に無い 6 件（主要処理ごと欠落＝§5.0 実装キューの個別行）。
+  //   ⇒ ここは**直した 7 効果を固定するだけ**にして、残りはラチェットにしない（数を固定すると
+  //   別の巡で 1 件直したときに golden が赤くなり、直した側が罰される）。
+  const fixed: Array<[string, string]> = [
+    ['WD17-008', 'WD17-008-E1'], ['WXK09-033', 'WXK09-033-E1'], ['WXDi-P01-087', 'WXDi-P01-087-E1'],
+    ['WXDi-P13-054', 'WXDi-P13-054-E1'], ['WXDi-P15-049', 'WXDi-P15-049-E1'],
+    ['WX24-P2-058', 'WX24-P2-058-E1'], ['WX25-P3-061', 'WX25-P3-061-E1'],
+  ];
+  for (const [cardNum, effectId] of fixed) {
+    const eff = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live に在る`);
+    ok(/"asDown":true/.test(JSON.stringify(eff!.action)), `${effectId} の ADD_TO_FIELD が asDown を持つ`);
+  }
+});
 test('§6.3 H4 WXDi-P13-003B-E2: 追加ターンの配置数制限は自分側へ予約し、相手側へ反転しない', () => {
   const savedCursor = cursor;
   try {
