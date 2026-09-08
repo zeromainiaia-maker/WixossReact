@@ -1670,6 +1670,10 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'ADD_TO_FIELD': {
       const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';
+      const abilitylessAF = a.abilitiesRemoved ? '能力を持たないシグニとして' : '';
+      const defaultPlacementAF = abilitylessAF
+        ? `${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}`
+        : (a.asDown ? 'ダウン状態で' : 'に');
       if (a.source?.type === 'HAND_CARD' && a.source.owner === 'opponent'
           && a.owner === 'opponent' && a.opponentSelectsZone) {
         const sourceFilter = a.source.filter ?? {};
@@ -1677,19 +1681,19 @@ function actionJa(a?: Action, effectType?: string): string {
         const restFilter = filterJa({ ...sourceFilter, nonColorless: undefined });
         const noun = sourceFilter.cardType === 'シグニ' ? 'シグニ' : 'カード';
         const count = typeof a.source.count === 'number' ? a.source.count : 1;
-        return `対戦相手の手札を見て${nonColorless}${restFilter}${noun}${count}枚を選び、対戦相手はそれを${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
+        return `対戦相手の手札を見て${nonColorless}${restFilter}${noun}${count}枚を選び、対戦相手はそれを${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       }
       if (a.source?.fromLeftFieldUnder)
-        return `トラッシュにある、このカードの下にあった${leftFieldUnderNounJa(a.source)}を${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
+        return `トラッシュにある、このカードの下にあった${leftFieldUnderNounJa(a.source)}を${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
-        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+        return `このシグニをトラッシュから${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
       if (a.targetsTriggerSource && a.source?.type === 'ENERGY_CARD')
-        return `エナゾーンからそのシグニを${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+        return `エナゾーンからそのシグニを${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
       // 「このシグニをエナゾーンから場に出す」自己蘇生（thisCardOnly source・TRASH_CARD 版と同型）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
-        return `このシグニをエナゾーンから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
-      return (a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す')) + supAF;
+        return `このシグニをエナゾーンから${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      return (a.source ? `${targetJa(a.source)}をコストを支払わず${defaultPlacementAF}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を${abilitylessAF}場に出す` : `直前に選んだカードを${abilitylessAF}場に出す`)) + supAF;
     }
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') {
@@ -2310,7 +2314,22 @@ function actionJa(a?: Action, effectType?: string): string {
       const stepsForJa188 = gameHandBonus188 === undefined ? a.steps
         : a.steps.filter((s: any) => !(s?.type === 'STUB' && s.id === 'HAND_SIZE_INCREASE'
             && s.handLimitDelta === gameHandBonus188));
-      const pairs = stepsForJa188.map((s: any) => ({ step: s, part: actionJa(s, effectType) as string })).filter((p: any) => p.part !== '');
+      const pairs = stepsForJa188.map((s: any, i: number) => {
+        let part = actionJa(s, effectType) as string;
+        // 同一カードに単数・複数の TRASH_AT_TURN_END が併存する場合（WXDi-P13-042）、
+        // カード全文から最初の文を拾うだけでは E2 まで「それを」になる。直前の場出し payload を優先する。
+        if (s?.type === 'STUB' && s.id === 'TRASH_AT_TURN_END') {
+          const prev = stepsForJa188[i - 1];
+          const placement = prev?.type === 'ADD_TO_FIELD'
+            ? prev
+            : prev?.type === 'CONDITIONAL' && prev.then?.type === 'ADD_TO_FIELD'
+              ? prev.then
+              : undefined;
+          const count = placement?.source?.count ?? placement?.count;
+          if (typeof count === 'number' && count > 1) part = part.replace('それを', 'それらを');
+        }
+        return { step: s, part };
+      }).filter((p: any) => p.part !== '');
       if (pairs.length === 0) return '何もしない';
       return pairs.reduce((acc: string, { step, part }: any, i: number) => {
         if (i === 0) return part;

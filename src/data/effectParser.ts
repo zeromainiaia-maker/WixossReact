@@ -8065,6 +8065,18 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
 }
 
 /**
+ * 「それを能力を持たないシグニとして場に出す」は、候補フィルタではなく配置結果への修飾。
+ * 効果単位の原文にこの句があるときだけ、同じ効果木のトラッシュ→場 ADD_TO_FIELD へ印を付ける。
+ */
+function markAbilitylessTrashPlacements(action: EffectAction, sourceText: string): void {
+  if (!/能力を持たないシグニとして場に出す/.test(sourceText)) return;
+  for (const node of collectActionNodesByType(action, 'ADD_TO_FIELD')) {
+    const place = node as AddToFieldAction;
+    if (place.source?.type === 'TRASH_CARD') place.abilitiesRemoved = true;
+  }
+}
+
+/**
  * §6.4 O-10（続き507）＝離場置換「代わりにこの能力を失う。**そうした場合、このシグニをダウンする。**」の
  * 2文目を1つの宣言へ畳む。
  *
@@ -27531,6 +27543,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // 🆕§5.3 `O-96` 第6バッチ＝**最後に**選択範囲と帰結の対象を合わせる（後段のパスが帰結側だけを
   //   差し替える形が実在するので、`applyO96OptionalCostTargetFirst` の直後では間に合わない）。
   for (const effect of effects) syncO96SelectTargetOwner(effect.action);
+  // O-D WX16-Re20-E1 系統：「能力を持たないシグニとして」の配置修飾は、後段 rewriter が
+  // action 木を組み直した**あと**に刻む。前段で刻むと live 5効果で印が消えることを build:effects で実測済み。
+  for (const effect of effects) {
+    markAbilitylessTrashPlacements(effect.action, currentSourceTexts.get(effect.effectId) ?? '');
+  }
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

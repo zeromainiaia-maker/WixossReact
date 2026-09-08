@@ -1827,6 +1827,8 @@ export type PendingInteractionDef =
       type: 'SELECT_ZONE';
       cardNum: string;          // 場に出すカードのCardNum（instance ID含む）
       owner: 'self' | 'opponent';
+      /** `ADD_TO_FIELD.abilitiesRemoved` をゾーン選択後の配置へ引き継ぐ。 */
+      abilitiesRemoved?: boolean;
       continuation?: EffectAction;
     }
   | {
@@ -1834,6 +1836,8 @@ export type PendingInteractionDef =
       cardNum: string;          // 場に出すカード（ソースから除去済み）
       owner: 'self' | 'opponent';
       asDown?: boolean;
+      /** `ADD_TO_FIELD.abilitiesRemoved` をゾーン選択後の配置へ引き継ぐ。 */
+      abilitiesRemoved?: boolean;
       // 手札以外からの配置。ソース除去後に中断する特殊配置経路が resume 側へ出自を渡す。
       fromNonHand?: boolean;
       continuation?: EffectAction;

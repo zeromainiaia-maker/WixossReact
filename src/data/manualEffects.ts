@@ -10446,7 +10446,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   「ライフ2枚以下でしか使えないアーツ」に化ける（`effectParser.ts` の `STATE_HOIST_BATCH1_CARDS`
   //   ガードはその誤変換を封じているので**外さない**）。
   "WX16-Re20": [
-    {"effectId":"WX16-Re20-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"type":"STUB","id":"TRASH_AT_TURN_END"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX16-Re20-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":false,"filter":{"cardType":"シグニ"}},"abilitiesRemoved":true}},{"type":"STUB","id":"TRASH_AT_TURN_END"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX16-Re20-E2","effectType":"CONTINUOUS","activeCondition":{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2},"action":{"type":"STUB","id":"EXTRA_USE_TIMING","extraUseTiming":{"timing":"ATTACK_ARTS"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 

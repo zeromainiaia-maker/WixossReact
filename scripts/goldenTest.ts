@@ -72026,6 +72026,101 @@ test('§5.0 O-D WX16-005-E1: 2枝の動的レベル上限と0枚 fail-closed', (
     '逆翻訳にも①②それぞれの動的上限が出る');
 }));
 
+// ═══ §5.0 O-D WX16-Re20-E1 系統＝「能力を持たないシグニとして場に出す」 ═══
+test('§5.0 O-D WX16-Re20-E1: 場出し6効果が能力喪失を刻み、通常召喚との対照で【常】【出】【起】を止める', () => withSavedCursor(() => {
+  const ids = [
+    ['WX16-Re20', 'WX16-Re20-E1'],
+    ['WXDi-P03-034', 'WXDi-P03-034-E1'],
+    ['WXDi-P07-005', 'WXDi-P07-005-E1'],
+    ['WXDi-P13-042', 'WXDi-P13-042-E1'],
+    ['WXDi-P13-042', 'WXDi-P13-042-E2'],
+    ['WXDi-P15-046', 'WXDi-P15-046-E2'],
+  ] as const;
+  const placementMarks = (effect: CardEffect): number => {
+    let count = 0;
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      const rec = node as Record<string, unknown>;
+      if (rec.type === 'ADD_TO_FIELD'
+          && (rec.source as { type?: string } | undefined)?.type === 'TRASH_CARD'
+          && rec.abilitiesRemoved === true) count++;
+      Object.values(rec).forEach(walk);
+    };
+    walk(effect.action);
+    return count;
+  };
+  for (const [cardNum, effectId] of ids) {
+    const live = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    if (!live) throw new Error(`${effectId}: live effect not found`);
+    eq(placementMarks(live), 1, `${effectId}: live のトラッシュ→場へ abilitiesRemoved:true が1つ載る`);
+  }
+  // §5-29: fresh parser を直接通す。規則を外すと live 生成物だけでなくここも赤くなる。
+  for (const [cardNum, effectId] of [['WXDi-P03-034', 'WXDi-P03-034-E1'], ['WX16-Re20', 'WX16-Re20-E1']] as const) {
+    const freshEffects = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!));
+    const freshEffect = freshEffects.find(e => e.effectId === effectId);
+    if (!freshEffect) throw new Error(`${effectId}: fresh effect not found`);
+    eq(placementMarks(freshEffect), 1, `${effectId}: fresh parse（MANUAL merge含む）にも印が載る`);
+  }
+
+  // 実カード3枚を原文どおり空の場へ出し、配置完了時に3枚すべてが既存ストアへ記録される。
+  const continuousCard = 'WX09-019';
+  const onPlayCard = 'WD01-011';
+  ok(cardMap.get(continuousCard)?.Type === 'シグニ' && cardMap.get(onPlayCard)?.Type === 'シグニ',
+    'テスト前提＝【常】／【出】を持つ実カードはいずれもシグニ');
+  const activatedCard = findCard(c => c.Type === 'シグニ'
+    && c.CardNum !== continuousCard && c.CardNum !== onPlayCard);
+  const base = mkCtx({ trash: 0, signi: [null, null, null], energy: 4 }, {}, 'WX16-Re20');
+  const ctx = {
+    ...base,
+    ownerState: { ...base.ownerState, trash: [continuousCard, onPlayCard, activatedCard] },
+  } as ExecCtx;
+  const placed = run(manualEffect('WX16-Re20', 'WX16-Re20-E1').action, ctx);
+  const placedNums = tops(placed.ownerState).filter((n): n is string => !!n);
+  eq([...placedNums].sort().join(','), [continuousCard, onPlayCard, activatedCard].sort().join(','),
+    '原文どおりトラッシュのシグニ3枚が場に出る');
+  eq([...(placed.ownerState.abilities_removed ?? [])].sort().join(','), [...placedNums].sort().join(','),
+    '🔴出した3枚すべてを abilities_removed に記録する');
+  eq([...(placed.ownerState.turn_end_field_trash_targets ?? [])].sort().join(','), [...placedNums].sort().join(','),
+    'ターン終了時トラッシュの予約も同じ3枚を保持する');
+
+  // (a) この効果で出したカードの【常】は効かない／(b) 通常召喚した同じカードの【常】は効く。
+  const isolated = mkState({ signi: [continuousCard, null, null], energy: 4 });
+  const rawPower = Number(cardMap.get(continuousCard)?.Power ?? 0);
+  const normalPower = calcFieldPowers(isolated, mkState({}), false, effectsMap,
+    cardMap as Map<string, CardData>).get(continuousCard);
+  const removedPower = calcFieldPowers({ ...isolated, abilities_removed: [continuousCard] }, mkState({}), false,
+    effectsMap, cardMap as Map<string, CardData>).get(continuousCard);
+  ok(normalPower !== rawPower, '対照：通常召喚した同じシグニの【常】は効く');
+  eq(removedPower, rawPower, '🔴abilities_removed の同じシグニでは【常】が効かない');
+
+  // 【出】collector と【起】提示も同じ既存ストアを読む（宣言だけの死フィールドにしない）。
+  const onPlayNormal = collectPlacedSelfOnPlayTriggers(
+    trigCtx(HOST, HOST), onPlayCard, { ...placed.ownerState, abilities_removed: [] }, placed.otherState,
+    HOST, { placedByEffect: true, sourceIsSigni: false },
+  ).entries;
+  const onPlayRemoved = collectPlacedSelfOnPlayTriggers(
+    trigCtx(HOST, HOST), onPlayCard, placed.ownerState, placed.otherState,
+    HOST, { placedByEffect: true, sourceIsSigni: false },
+  ).entries;
+  ok(onPlayNormal.some(e => e.effectId === 'WD01-011-E1'), '対照：通常召喚なら同じシグニの【出】を収集する');
+  ok(!onPlayRemoved.some(e => e.effectId === 'WD01-011-E1'), '🔴能力なし配置なら同じシグニの【出】を収集しない');
+
+  const actZone = placed.ownerState.field.signi.findIndex(stack => stack?.at(-1) === activatedCard);
+  const actMap = new Map<string, CardEffect[]>([[activatedCard, [mkAct('ABILITYLESS-ACT')]]]);
+  const listAct = (state: PlayerState) => listActivatableSigniEffects({
+    my: state, op: placed.otherState, zoneIndex: actZone, phase: 'MAIN', isMyTurn: true,
+    effectsMap: actMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(listAct({ ...placed.ownerState, abilities_removed: [] }).length, 1, '対照：通常召喚なら同じシグニの【起】を提示する');
+  eq(listAct(placed.ownerState).length, 0, '🔴能力なし配置なら同じシグニの【起】を提示しない');
+
+  const reverse = decompiledLineOf('WX16-Re20-E1');
+  ok(reverse.includes('能力を持たないシグニとして'), '逆翻訳に配置修飾が出る');
+  ok(decompiledLineOf('WXDi-P13-042-E2').includes('ターン終了時、それらを場からトラッシュに置く'),
+    '同一カードの単数E1／複数E2を取り違えず、複数配置の逆翻訳は「それら」と描く');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

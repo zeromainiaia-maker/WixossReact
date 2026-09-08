@@ -38,4 +38,3 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
-

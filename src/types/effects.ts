@@ -2408,6 +2408,8 @@ export interface PlaceSigniOnFieldAction {
   owner: Owner;
   cardNums: string[];        // 場に出すカード（デッキ/トラッシュ等から。applyDirectActionが現領域から除去）
   asDown?: boolean;          // ダウン状態で出す
+  /** `ADD_TO_FIELD.abilitiesRemoved` を複数枚のゾーン選択チェーンへ引き継ぐ。 */
+  abilitiesRemoved?: boolean;
   afterAction?: EffectAction; // 全カード配置後に実行（SHUFFLE_DECK 等）
   /** 全配置完了後に復元する公開snapshot。配置対象だけの一時 lastProcessedCards と区別する。 */
   lastProcessedCardsAfter?: string[];
@@ -2466,6 +2468,12 @@ export interface AddToFieldAction {
   asDown?: boolean;      // true = ダウン状態で場に出す
   cardName?: string;     // ゲーム外からトークンを生成して場に出す場合のCardNum
   optional?: boolean;    // true =「場に出してもよい」（出す/出さないを選択可能にする）
+  /**
+   * true = この配置で場に出したシグニを、能力を持たない状態にする。
+   * `TargetFilter.noAbilities`（候補の絞り込み）とは別軸。配置完了時に PlayerState.abilities_removed へ記録し、
+   * CONTINUOUS collector／【出】・【自】collector／【起】提示の既存 funnel が同じ印を消費する。
+   */
+  abilitiesRemoved?: boolean;
   // suppressOnPlay: true =「その（それらの）シグニの【出】能力は発動しない」＝この配置で場に出したシグニ自身の
   // ON_PLAY を発火させない（他シグニの watcher 反応は従来どおり発火）。旧・全体 BLOCK_ACTION{ON_PLAY_ABILITY}
   // （engine 未参照の死アクション）を parser の foldSuppressOnPlay が配置アクションへ畳み込んだ忠実表現。

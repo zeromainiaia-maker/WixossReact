@@ -3737,10 +3737,12 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
   }
   const [head, ...rest] = a.cardNums;
   const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}),
+    ...(a.abilitiesRemoved ? { abilitiesRemoved: true } : {}),
     ...(a.opponentSelectsZone ? { opponentSelectsZone: true } : {}) };
   const cont: import('../types/effects').PlaceSigniOnFieldAction = {
     type: 'PLACE_SIGNI_ON_FIELD', owner: a.owner, cardNums: rest,
     ...(a.asDown ? { asDown: a.asDown } : {}),
+    ...(a.abilitiesRemoved ? { abilitiesRemoved: true } : {}),
     ...(a.afterAction ? { afterAction: a.afterAction } : {}),
     ...(a.lastProcessedCardsAfter ? { lastProcessedCardsAfter: a.lastProcessedCardsAfter } : {}),
     ...(a.opponentSelectsZone ? { opponentSelectsZone: true } : {}),
@@ -3791,6 +3793,12 @@ function clearNonHandPlacement(state: PlayerState, placedInstanceId: string): Pl
     ...state,
     signi_played_from_non_hand_this_turn: (state.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== placedInstanceId),
   };
+}
+
+/** 「能力を持たないシグニとして場に出す」配置だけを既存の全能力喪失ストアへ記録する。 */
+function markPlacedAbilitiesRemoved(state: PlayerState, cardNum: string, enabled?: boolean): PlayerState {
+  if (!enabled || state.abilities_removed?.includes(cardNum)) return state;
+  return { ...state, abilities_removed: [...(state.abilities_removed ?? []), cardNum] };
 }
 
 /**
@@ -3933,10 +3941,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         cardNum: instanceId,
         owner: tgtOwner === 'opponent' ? 'opponent' : 'self',
         fromNonHand: true,
+        ...(a.abilitiesRemoved ? { abilitiesRemoved: true } : {}),
       });
     }
     signi[emptyZones[0].i] = [instanceId];
-    const newS: PlayerState = recordNonHandPlacement({ ...state, field: { ...state.field, signi } }, instanceId);
+    const newS: PlayerState = markPlacedAbilitiesRemoved(
+      recordNonHandPlacement({ ...state, field: { ...state.field, signi } }, instanceId),
+      instanceId,
+      a.abilitiesRemoved,
+    );
     const cardLabel = ctx.cardMap.get(instanceId)?.CardName ?? a.cardName;
     return done(addLog(setOwnerState(tgtOwner, newS, ctx),
       `${cardLabel}をゾーン${emptyZones[0].i + 1}に場に出す（ゲーム外から）`));
@@ -3975,6 +3988,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       type: 'SELECT_ZONE',
       cardNum,
       owner: tgtOwner === 'opponent' ? 'opponent' : 'self',
+      ...(a.abilitiesRemoved ? { abilitiesRemoved: true } : {}),
     });
   }
 
@@ -4080,6 +4094,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       const emptyIdx = placeZone ?? signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
+      newS = markPlacedAbilitiesRemoved(newS, n, a.abilitiesRemoved);
       // 出自記録: この配置が効果起因（sourceCardNum あり・自身の再配置でない）なら発生源を記録（WX26-CP1-048）。
       newS = recordPlacedBySource(newS, n, ctx.sourceCardNum);
       // ダウン状態で場に出す（ミズフウセン等「ダウン状態で場に出してもよい」）
@@ -10582,6 +10597,7 @@ export function resumeSelectTarget(
       owner: (pending.thenAction as AddToFieldAction).owner,
       cardNums: selected,
       ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
+      ...((pending.thenAction as AddToFieldAction).abilitiesRemoved ? { abilitiesRemoved: true } : {}),
       ...(pending.continuation ? { afterAction: pending.continuation } : {}),
     };
     return execPlaceSigniOnField(placeAll, cur);
@@ -11056,6 +11072,7 @@ export function resumeSearch(
       owner: (pending.thenAction as AddToFieldAction).owner,
       cardNums: picked,
       ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
+      ...((pending.thenAction as AddToFieldAction).abilitiesRemoved ? { abilitiesRemoved: true } : {}),
       ...(after ? { afterAction: after } : {}),
       ...(pending.lastProcessedCardsAfter ? { lastProcessedCardsAfter: pending.lastProcessedCardsAfter } : {}),
       // §6.4 O-2: 「対戦相手は…場に出し」＝公開札を選んだ相手が**ゾーンも選ぶ**。
@@ -11388,8 +11405,12 @@ export function resumeSelectZone(
       `ゾーンが埋まっているため${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をデッキに戻す`));
   }
   signi[zoneIndex] = [pending.cardNum];
-  const newS: PlayerState = recordPlacedBySource(recordNonHandPlacement({ ...state, field: { ...state.field, signi },
-    signi_played_from_deck: [...(state.signi_played_from_deck ?? []), pending.cardNum] }, pending.cardNum), pending.cardNum, ctx.sourceCardNum);
+  const newS: PlayerState = markPlacedAbilitiesRemoved(
+    recordPlacedBySource(recordNonHandPlacement({ ...state, field: { ...state.field, signi },
+      signi_played_from_deck: [...(state.signi_played_from_deck ?? []), pending.cardNum] }, pending.cardNum), pending.cardNum, ctx.sourceCardNum),
+    pending.cardNum,
+    pending.abilitiesRemoved,
+  );
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
@@ -11411,6 +11432,7 @@ export function resumeSelectSigniZone(
   signi[zoneIndex] = [pending.cardNum];
   let newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
   if (pending.fromNonHand) newS = recordNonHandPlacement(newS, pending.cardNum);
+  newS = markPlacedAbilitiesRemoved(newS, pending.cardNum, pending.abilitiesRemoved);
   // 一時レゾナ（`WX07-050`／`WX16-Re18`）＝ゾーン選択の pause を跨いで「置いたレゾナ」を残す。
   if (pending.recordSummonedResona) {
     newS = { ...newS, last_summoned_resonas: [...(newS.last_summoned_resonas ?? []), pending.cardNum] };
@@ -12278,12 +12300,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (emptyZones.length >= 2 && (owner === 'self' || owner === 'opponent')) {
         const ctxAfterRemove = setOwnerState(owner, newS, ctx);
         return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}),
+          ...((action as AddToFieldAction).abilitiesRemoved ? { abilitiesRemoved: true } : {}),
           // §6.4 O-2: 明示指定のときだけ相手応答（既定＝従来どおり効果オーナーがゾーンを選ぶ）
           ...((action as AddToFieldAction).opponentSelectsZone ? { opponentResponds: true } : {}) });
       }
       // 空きゾーン1つのみ: 自動配置
       signi[emptyZones[0].i] = [cardNum];
       newS = { ...newS, field: { ...newS.field, signi } };
+      newS = markPlacedAbilitiesRemoved(newS, cardNum, (action as AddToFieldAction).abilitiesRemoved);
       if (asDown) {
         const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
         newDown[emptyZones[0].i] = true;

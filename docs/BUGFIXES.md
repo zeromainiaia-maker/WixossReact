@@ -1,5 +1,40 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（O-D 実装キュー②・付与／条件の新機構3効果）＝能力なし場出し6効果を採用、2件は安全見送り
+
+### `WX16-Re20-E1` 同型6効果＝能力を持たない状態で場に出す
+
+**着手前実測**＝`能力を持たないシグニとして` は登録票の8効果ではなく **6効果／5枚**。
+既存受け皿 `PlayerState.abilities_removed` は【常】collector、【出】collector、【自】collector、
+【起】提示の全経路で既に消費されていたため、新しい状態は作らず `ADD_TO_FIELD.abilitiesRemoved` を追加し、
+配置完了時に実体カード番号を記録した。parser は最終 action-tree 後処理で原文6効果へ印を載せ、
+MANUAL の `WX16-Re20-E1` も同じ payload に揃えた。逆翻訳は payload から
+「能力を持たないシグニとして場に出す」と描き、同一カードの単数E1／複数E2も取り違えないようにした。
+
+**ターン終了処理の順序**＝`BattleScreen.tsx` の通常終了／手札上限確認後終了の両経路とも、
+`turn_end_field_trash_targets` の対象を場からトラッシュへ移した後に `clearTurnEndScopedState` を呼ぶ。
+同関数で `abilities_removed` が消える時点では対象シグニは既に場にいないため、能力が一瞬復活する窓はない。
+
+**検証**＝6 effectId の live と AUTO／MANUAL fresh parse、3枚同時配置、ターン終了予約を固定。
+通常召喚との対照で同じシグニの【常】【出】【起】が生き、能力なし配置では3経路すべて止まることを固定した。
+parser 印、executor 記録、decompiler 表示を個別に殺す3回の反転確認はいずれも同 golden が FAIL。
+
+### `WX12-002-E3`／`WX16-003-E1`＝安全見送り
+
+`WX12-002-E3` の文型は **3効果／3枚**だが、全領域ライフバースト付与の既存 funnel は
+`src/screens/battle/allZoneBurst.ts` にあり、指定禁止の `src/screens/` を触らずターン期限つき付与を完成できない。
+誤変換元は `parseSentencePart1.ts` の `/【エナチャージN】/` catch-all が、付与する能力の引用内にある
+【エナチャージ１】だけを拾ったもの。引用外側を判定できない規則の是正を含め、別バッチへ回す。
+`WX16-003-E1` の「最初に使用したアーツ」は **1効果／1枚**。登録票と違い `ARTS_USED_THIS_TURN.exactCount`
+および `evalCondition`／`checkActiveCondition` の受け皿は既に揃っていた。ただし同じ効果が自分／相手の
+`ON_ARTS_USE` で発火し、「そのプレイヤー」を静的 `owner` へ安全に解けない。対象・任意2択に加え、
+トリガー元プレイヤーを fail-closed で渡す必要があるため、①完了を優先して未着手とした。どちらも既存 live は変更していない。
+
+**最終ゲート**＝golden **3651→3652 PASS / 0 FAIL**、census 高シグナル **0**、
+enginetext A🔴 **0行**、costtext A🔴 **0規則**、smoke **10745/10745・全0・SKIP0**、
+fuzz **200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION 全0**、lint **0 errors / 256 warnings**。
+`build:effects` → `regen` → `gates` の順で完走。`src/screens/`、PLAN／PLAN_PROGRESS、commit／push は無変更。
+
 ## 2026-09-08（O-D 実装キュー①・engine/parser 内で閉じる3効果）＝1件採用・1件 stale 確認・1件安全見送り
 
 **着手前実測**＝`【出】／【起】` 1効果／1枚、`【起】／【出】` 0、
