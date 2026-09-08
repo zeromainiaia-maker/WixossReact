@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（S-3 第229＝《ターン1回》《ゲーム1回》の使用回数制限が抜けていた 9効果）
+
+**作業単位**＝ユーザー指示「S-3 を行う」。§5.0 実装キューの系統「《ターン1回》なのに `usageLimit` が無い」から。
+
+**真因**＝JSON に `usageLimit` キーを書き忘れると、engine 側の回数チェッカ（`triggerCollect.ts:2043` の
+`mkLimitOk`／起動能力は `signiActivateGate.ts:100`・`lrigActivateGate.ts:120`）が**素通りする**＝
+**《ターン1回》が無制限になる**。受け皿は全経路に実在していたので、**JSON に1キー足すだけで直る**。
+
+**②母集団の実測**（`docs/_effect_srctext.json` の効果単位原文 × live JSON をツリー全走査）：
+
+| 原文 | 母集団 | 制限あり | 欠落 | うち真バグ |
+|---|---:|---:|---:|---:|
+| 《ターン1回》 | 856 | 845 | **11** | **7**（残4は下記） |
+| 《ゲーム1回》 | 211 | 208 | **3** | **2**（残1は FP） |
+| 《ターン2回》 | 52 | 52 | 0 | — |
+
+⚠**初回の実測は 51件と出た**＝`effectId` を live のトップレベルしか引いておらず、
+**付与能力（`abilities[]` / `GRANT_EFFECT.effect`）の入れ子ノードを数えていなかった**。
+🔑**入れ子まで辿ると 11件**（PLAN §5.0 の登録「grep 実測 11効果」と一致）。
+⚠**同じ罠をもう一度踏んだ**＝「カギ括弧内の《ターン1回》」で追加の網を掛けたとき、
+`abilities[]` しか見ずに **30件を候補と誤検出**した（実体は `GRANT_EFFECT.effect.usageLimit` で全件配線済み）。
+**受け皿は同じ概念でも3つの形（`abilities[]` / `GRANT_EFFECT.effect` / 専用ステート）を取る。**
+
+**影響＝9効果／9カード**（すべて `manualEffects.ts` の手書き＝§2.0 速いレーン）：
+- ソウル付与4件（`WXDi-D07-003-E1-G` / `WXDi-P04-011-E1-G` / `-012` / `-015`）＝アタックのたびにバニッシュ／パワー減が無制限に誘発していた
+- アクセ付与1件（`SP27-015-E3-G`）＝`usageLimit` に加えて **timing が `MAIN` だけ**だった（原文は《メインフェイズアイコン》《アタックフェイズアイコン》）→ `ATTACK_ARTS` を追加
+- 起動能力1件（`WX21-031-CB-E1`）＝トップレベル `ACTIVATED` に欠落
+- 遅延誘発1件（`WXDi-D04-011-E1`）＝**`usageLimit` ではなく `INSTALL_DELAYED_TRIGGER.once` が受け皿**。
+  このカードは同じ効果で「1ターンに3回アタックできる」ようにするので、**3回ぶん誘発していた**
+- 《ゲーム1回》2件（`WXDi-P15-010-E3` / `-011-E3`）＝`once_per_game`（`game_actions_done` を見る）
+
+**🔴偽陽性3件＝受け皿が別名で実装済み**（golden に「番人」テストを置いた。足すと二重制限＝過小実行になる）：
+- `WXDi-P12-030-E1` → `SET_NEXT_LIFE_CRASH_COUNTER` の `remaining:1`（消費は `BattleScreen.tsx:13606`）
+- `WX25-P2-001-E1` → `game_guard_barrier_act`＋`actions_done` の `'GUARD_BARRIER_ACT'`（`:15403`）
+- `SPK06-01-E1` → 原文の《ゲーム１回》は「**コイン技の**《ゲーム1回》を《ゲーム2回》にする」への言及＝`COIN_ABILITY_BOOST.extraGameUse`
+
+**未修正2件**（実装キューに残す）＝`WX25-P2-003-E1`（`DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED`＝効果自体が保留 STUB）／
+`WXDi-P04-002-E1`（別 finding で全面破損＝`usageLimit` 以前の話）。
+
+**配送**＝`npx tsx scripts/syncManualLive.ts <9カード>`（既存 id の書き直しは収穫マージが不可侵にするので `build:effects` では届かない）。
+**検証**＝`npm run golden -- --only "§5.0 第229"`（新規3本）→ **反転確認あり**（`git stash push -- public/data` で FAIL 2 を確認）→ `npm run gates` 全緑。
+**⑤実機＝不要**（触ったのは `src/data/manualEffects.ts` と `public/data/` だけ＝PLAN §2.2）。
+**在庫**＝実装キュー **426 → 419効果**（triage 由来7件を `semantic_bug_fixed.txt` へ記録。`WX21-031-CB-E1`／`WXDi-D04-011-E1` は
+triage 由来ではなく**この母集団実測で新たに見つけた**分＝カウンタには元から載っていない）。
+
+
 ## 2026-09-08（S-2 全数実測＝新バグ集団10件の母集団を grep で測り切った・**`src/` は無変更**）
 
 **作業単位**＝ユーザー指示「すべての新バグ集団に S-2 を行う。codex-work と codex を使うこと」。

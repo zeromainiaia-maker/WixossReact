@@ -9,3 +9,10 @@ WXDi-P13-054-E1 :: 2026-09-08 :: 同上（※「デッキトップがシグニ�
 WXDi-P15-049-E1 :: 2026-09-08 :: 同上
 WX24-P2-058-E1 :: 2026-09-08 :: 同上（※対象限定とコスト可変は未修正＝別行として残る）
 WX25-P3-061-E1 :: 2026-09-08 :: 同上（※《ウリス》条件と1回制限は未修正＝別行として残る）
+WXDi-D07-003-E1 :: 2026-09-08 :: 第229＝ソウル付与能力に usageLimit:once_per_turn を追加（受け皿は triggerCollect.ts の mkLimitOk）
+WXDi-P04-011-E1-G :: 2026-09-08 :: 同上
+WXDi-P04-012-E1-G :: 2026-09-08 :: 同上
+WXDi-P04-015-E1-G :: 2026-09-08 :: 同上
+SP27-015-E3-G :: 2026-09-08 :: 第229＝アクセ付与の起動能力に usageLimit:once_per_turn ＋ timing に ATTACK_ARTS を追加
+WXDi-P15-010-E3 :: 2026-09-08 :: 第229＝usageLimit:once_per_game を追加（受け皿は lrigActivateGate.ts:125 の game_actions_done）
+WXDi-P15-011-E3 :: 2026-09-08 :: 同上

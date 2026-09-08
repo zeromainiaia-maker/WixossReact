@@ -72905,6 +72905,67 @@ test('§5.3 O-285: 手札／ルリグデッキから「別のカードを選ん�
   eq((after.ownerState.lrig_deck ?? []).length, 0, '🔴ルリグデッキから抜ける（複製しない）');
 }));
 
+// 🆕**§5.0 実装キュー（2026-09-08 第229バッチ）＝《ターン1回》《ゲーム1回》の使用回数制限の欠落**。
+//   母集団の実測＝原文《ターン1回》856効果のうち usageLimit がツリーのどこにも無いのは 11効果、
+//   《ゲーム1回》211効果のうち 3効果（《ターン2回》52効果は欠落 0）。
+//   そのうち **9効果が真バグ**（残りは受け皿が別名で実装済み＝下の「別名で実装済み」テストが番人）。
+//   🔑受け皿は既存＝誘発は `triggerCollect.ts` の `mkLimitOk`（`actions_done` の出現回数）、
+//     起動は `signiActivateGate.ts:100`／`lrigActivateGate.ts:120`（`once_per_game` は `game_actions_done`）、
+//     実行時の書き戻しは `BattleScreen.tsx:7809`/`:7910`。⇒ **JSON に1キー足すだけで効く。**
+test('§5.0 第229: 《ターン1回》の付与能力に usageLimit:once_per_turn が入っている', () => withSavedCursor(() => {
+  // ソウル／アクセのホストへ付与する能力は、付与先ノード（abilities[]）に書かないと無制限になる。
+  const grantedAbility = (cardNum: string, grantId: string) => {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => (e.action as { abilities?: { effectId: string }[] }).abilities
+      ?.some(a => a.effectId === grantId));
+    return (eff?.action as { abilities?: { effectId: string; usageLimit?: string; timing?: string[] }[] })
+      ?.abilities?.find(a => a.effectId === grantId);
+  };
+  for (const [cardNum, grantId] of [
+    ['WXDi-D07-003', 'WXDi-D07-003-E1-G'],
+    ['WXDi-P04-011', 'WXDi-P04-011-E1-G'],
+    ['WXDi-P04-012', 'WXDi-P04-012-E1-G'],
+    ['WXDi-P04-015', 'WXDi-P04-015-E1-G'],
+    ['SP27-015', 'SP27-015-E3-G'],
+  ] as const) {
+    const ab = grantedAbility(cardNum, grantId);
+    ok(!!ab, `${grantId} が live に存在`);
+    eq(ab?.usageLimit, 'once_per_turn', `${grantId} は《ターン1回》`);
+  }
+  // SP27-015-E3-G は原文が《メインフェイズアイコン》《アタックフェイズアイコン》＝両方で撃てる。
+  eq((grantedAbility('SP27-015', 'SP27-015-E3-G')?.timing ?? []).join(','), 'ATTACK_ARTS,MAIN',
+    'SP27-015-E3-G はアタックフェイズでも起動できる');
+}));
+test('§5.0 第229: 《ターン1回》《ゲーム1回》のトップレベル起動能力に usageLimit が入っている', () => withSavedCursor(() => {
+  const liveEff = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  eq(liveEff('WX21-031-CB', 'WX21-031-CB-E1')?.usageLimit, 'once_per_turn', 'WX21-031-CB-E1 は《ターン1回》');
+  eq(liveEff('WXDi-P15-010', 'WXDi-P15-010-E3')?.usageLimit, 'once_per_game', 'WXDi-P15-010-E3 は《ゲーム1回》');
+  eq(liveEff('WXDi-P15-011', 'WXDi-P15-011-E3')?.usageLimit, 'once_per_game', 'WXDi-P15-011-E3 は《ゲーム1回》');
+  // WXDi-D04-011-E1＝「1ターンに3回アタックできる」ルリグへ付ける遅延誘発。usageLimit ではなく
+  // INSTALL_DELAYED_TRIGGER の `once` が《ターン1回》の受け皿（設置が1回目の発火で消費される）。
+  const d04 = liveEff('WXDi-D04-011', 'WXDi-D04-011-E1');
+  const install = (d04?.action as { steps?: { type: string; once?: boolean }[] })?.steps
+    ?.find(s => s.type === 'INSTALL_DELAYED_TRIGGER');
+  eq(install?.once, true, 'WXDi-D04-011-E1 の遅延誘発は1回だけ（3回アタックしても1回）');
+}));
+test('§5.0 第229: 《ターン1回》を usageLimit 以外の受け皿で実装している効果（偽陽性の番人）', () => withSavedCursor(() => {
+  // 🔴この3件に usageLimit を足すと**二重に制限がかかる**（＝過小実行）。
+  //   「原文に《ターン1回》があるのに JSON に usageLimit が無い」だけでバグと判定しないための番人。
+  const liveEff = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  // ① WXDi-P12-030-E1＝`life_crash_counter.remaining:1`（`execStubPart1.ts:553`／消費は `BattleScreen.tsx:13606`）
+  const p12 = liveEff('WXDi-P12-030', 'WXDi-P12-030-E1')?.action as { type: string; id?: string; value?: number };
+  eq(p12?.id, 'SET_NEXT_LIFE_CRASH_COUNTER', 'WXDi-P12-030-E1 はカウンタークラッシュ設定');
+  eq(p12?.value, 1, '1回だけ（remaining:1 が《ターン1回》）');
+  // ② WX25-P2-001-E1＝`game_guard_barrier_act`（回数は `actions_done` の 'GUARD_BARRIER_ACT'＝`BattleScreen.tsx:15403`）
+  const p2 = liveEff('WX25-P2-001', 'WX25-P2-001-E1')?.action as { gameGrants?: { kind: string }[] };
+  ok((p2?.gameGrants ?? []).some(g => g.kind === 'guardBarrierAct'), 'WX25-P2-001-E1 は guardBarrierAct を付与');
+  // ③ SPK06-01-E1＝原文の《ゲーム1回》は「コイン技の《ゲーム1回》を《ゲーム2回》にする」への言及
+  const spk = (liveEff('SPK06-01', 'SPK06-01-E1')?.action as { steps?: { id?: string; coinAbilityBoost?: { extraGameUse?: boolean } }[] })
+    ?.steps?.find(s => s.id === 'COIN_ABILITY_BOOST');
+  eq(spk?.coinAbilityBoost?.extraGameUse, true, 'SPK06-01-E1 はコイン技の使用回数を増やす側');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
