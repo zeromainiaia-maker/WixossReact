@@ -1,7 +1,7 @@
 # <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
 # 2026-09-08 Opus triage（codex 委譲分の b15 を人手で確定）
 WXK08-053-E1 :: FP :: 任意コスト Pattern ⑤ が後続 CONDITIONAL を pay 側 cont5 にまとめる（effectExecutor.ts:6170,6188-6192,6253-6259・skip は noopAction5）＝支払いゲートは在る
-WXK09-039-E1 :: FP :: 同上 Pattern ⑤。CONDITIONAL が STUB の直後にあるため Pattern ④ の condIdx>i+1 に当たらず（effectExecutor.ts:6101-6107）、TRASH まで pay 側に入る
+WXK09-039-E1 :: BUG :: 🔴訂正（当初 FP と誤判定）＝effectExecutor.ts:5532 の分岐が Pattern ④/⑤ より先に効き、STUB{任意コスト} の直後の CONDITIONAL{IS_MY_TURN} を支払いプレースホルダとして消費したうえで、その後ろのステップを CHOOSE の continuation に付ける（:5661,:5707）＝pay/skip の両方で走る。よって TRASH{相手手札} は《青》未払いでも実行される＝監査員の指摘どおり
 WXK09-038-E1 :: FP :: ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196 / performGuardResponse）＝ON_HAND_DISCARDED はガードステップで発火しない
 WXK10-006-E3 :: FP :: matchesTrashArtsFromLrigDeckCost が Type===アーツ の厳密一致（artsTrashCost.ts:9）。クラフトアーツは Type=アーツ/クラフト（CardData_TK.csv・8枚）＝既に除外済み
 WXK09-033-E1 :: BUG :: ADD_TO_FIELD に asDown が無い（受け皿は在る＝effectExecutor.ts:4137,10690・live 39効果が使用中）。同型8効果
@@ -10,7 +10,7 @@ WXK09-004-E1 :: BUG :: 選択肢②の「対象のシグニ1枚を手札に加�
 # 2026-09-08 Opus triage（b16）
 WXK10-015 :: BUG :: 「このキーを場に出すためのコストは《コイン×0》になる」が JSON に無い（E2/E3/E4 のみ）。受け皿の先例は manualEffects.ts:10669（O-200＝キー配置コスト軽減）
 WXK10-018-E2 :: BUG :: costUnparsed:true＝起動コスト（シグニに付いているカード/下のカード1枚をトラッシュ）が解析されず、コスト無しでドローできる
-WXK10-031-E1 :: FP :: Pattern ⑤（effectExecutor.ts:6163-6192,6253-6259）が CONDITIONAL と BOUNCE をまとめて pay 側 cont5 に入れる＝未払いでは BOUNCE も実行されない
+WXK10-031-E1 :: BUG :: 🔴訂正（当初 FP と誤判定）＝同上。[STUB, CONDITIONAL{IS_MY_TURN}{DECK_REVEAL_UNTIL}, BOUNCE] の BOUNCE は continuation なので《無》未払いでも実行される
 WXK10-044-E1 :: BUG :: 原文「対戦相手は手札を1枚デッキの一番下に置く」に対し TRANSFER_TO_DECK の source が SIGNI(場)＝手札ではなく場のシグニを送っている
 WXK10-055-E1 :: BUG :: 対象指定の順序＝原文はトラッシュの＜美巧＞を先に対象化するが JSON はコスト支払い後に選ぶ＝コストで置いた＜美巧＞をそのまま回収できる。⚠支払いゲート自体は engine 対応済み（effectExecutor.ts:2507 が本カードを名指し）
 WXK10-056-E2 :: BUG :: 「この方法で捨てたシグニと共通するクラスを持つ」条件が JSON に無い。🔴受け皿も無い＝filter.commonClass は effectParser.ts が生成するだけで src/engine/ に消費地点が無く、live 3効果（WXDi-P10-029-E1 / WXDi-CP01-020-E1 / WXDi-CP02-046-E1）で黙って無視されている＝機構待ち

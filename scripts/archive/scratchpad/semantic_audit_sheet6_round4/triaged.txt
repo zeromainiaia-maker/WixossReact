@@ -1,0 +1,19 @@
+# <effectId> :: BUG|FP :: 一言
+# 2026-09-08 Opus triage（b22）
+PR-305-E1 :: BUG :: ①TRANSFER_TO_DECK の source が {SIGNI, owner:self}＝原文「このシグニがバトルしたそのシグニ」（＝相手側のバトル相手）ではない ②「そのバトル終了時に」の遅延指定が無く即時実行される
+# 2026-09-08 Opus triage（b23）
+PR-319-E2 :: BUG :: 原文「あなたのターン終了時、このシグニを場からトラッシュに置いてもよい」は turn-end 誘発だが effectType が CONTINUOUS＝ターン終了時に発動する表現になっていない（AUTO + ON_TURN_END が要る）
+PR-422-E1 :: BUG :: 原文「パワー０以下のこのシグニがバニッシュされたとき」の power 条件が無く、ON_BANISH で無条件に STUB{DEFEAT}＝どんなバニッシュでも敗北する
+PR-457-E2 :: BUG :: E2 の SEARCH filter に colorMatchesLrig:true が付いている（原文の【起】は「デッキからシグニ1枚」で色条件なし）＝E1 の色条件が E2 へ漏れている
+PR-459A-E1 :: BUG :: スペル分岐が TRASH{HAND_CARD, owner:opponent, count:1}＝相手手札の任意1枚。原文は「対戦相手はそのカードを（捨てる）」＝公開したそのカード自身
+PR-460-E1 :: BUG :: 「対象の対戦相手のセンタールリグ1体は【常】：アタックできない を得」が丸ごと無く POWER_MODIFY -15000 だけ
+PR-469-E3 :: BUG :: 原文「この【起】能力でまだ選ばれていない1つを選ぶ」＝起動をまたいだ選択済み管理が要るが、JSON にキーが無く engine にも受け皿が無い（usedChoices 等の grep が0件）＝機構待ち
+PR-K021-E3 :: BUG :: E3 の SELECT_TARGET_ONLY が {SIGNI, owner:self}。原文「シグニ1体を対象とし」は所有者を限定していないので owner:any が正しい
+PR-K022-E1-G :: BUG :: 付与する起動能力（PR-K022-E1-G）で ①「その中に宣言した数字と同じレベルのシグニがある場合」の条件が無く BOUNCE が無条件 ②「好きな順番で戻す」なのに LOOK_AND_REORDER の reorder:false。WD13-008-E1 と同型
+# 2026-09-08 Opus triage（b24）
+PR-K043-E2 :: BUG :: E2 の SEARCH filter に「レベルの合計が５」の制約が無い（nonColorless と maxCount:2 だけ）
+PR-K060 :: BUG :: 「エナゾーンのカードが持つ色が合計3種類以上ある場合にしか新たに場に出せない」というキーの登場制限が JSON に無い（E2 の付与能力しかない）
+PR-K070-E1 :: BUG :: SEARCH filter に「この方法でトラッシュに置いたカードと共通するクラスを持つ」が無い＝commonClass 系統の5件目（受け皿が engine に無い＝機構待ち）
+PR-K076-BURST :: FP :: 🔴監査員の前提が原文と合っていない＝PR-K076 の原文（全文確認済み）に「このターンにアタックした」という限定は無い。JSON の {SIGNI, owner:opponent} は原文どおり
+PR-K077-sub-E1 :: BUG :: 付与能力 PR-K077-sub-E1 の OPTIONAL_COST.handDiscard の filter が {cardType:シグニ} だけ＝原文「そのシグニと同じレベルのシグニを1枚捨ててもよい」のレベル一致条件が無い
+PR-K078-BURST :: BUG :: E2 の GRANT_KEYWORD{ランサー} が無条件＝原文「それが＜悪魔＞かレベル3以上のシグニの場合」の条件が表現されていない（先行の STUB は DEFERRED_ で保留済み）

@@ -1,0 +1,30 @@
+# <effectId> :: BUG|FP :: 一言
+# 2026-09-08 Opus triage（b24）
+WXDi-D02-19LAT-E1 :: BUG :: 使用条件の LRIG_LEVEL はセンタールリグ1体しか見ない（execUtils.ts:2654-2659＝field.lrig の末尾のみ）＝原文「全員レベル1以上」が表現できていない
+WXDi-D05-017-E1 :: BUG :: 原文「このシグニの正面のシグニが凍結状態の場合」という発動条件が JSON に無く、凍結していなくてもコストを払ってアサシンを得られる
+# 2026-09-08 Opus triage（b25）
+WXDi-D06-014-E1 :: BUG :: filter.color が ["青","緑"] だけ＝原文「白か赤か青か緑」の白・赤が落ちている
+WXDi-D07-003-E1 :: BUG :: 付与能力 WXDi-D07-003-E1-G に usageLimit:once_per_turn が無い（原文《ターン1回》）
+WXDi-D07-013-E1 :: BUG :: 原文「対戦相手は【エナチャージ１】をしてもよい」＝相手の任意だが、ENERGY_CHARGE_FROM_DECK{owner:opponent} が強制実行になっている
+WXDi-D09-H11-E1 :: BUG :: 原文「あなたのレベル3のルリグ1体を対象とし」の対象指定とレベル条件が GRANT_LRIG_ABILITY に無い
+WXDi-D09-H15-E1 :: BUG :: ①SET_BASE_LEVEL に duration が無く「次の対戦相手のターン終了時まで」が効かない（隣の POWER_SET は UNTIL_OPP_TURN_END を持つ）②E2 の対象に「このシグニのレベル以下」の限定が無い
+WXDi-D09-H15-E2 :: BUG :: ①SET_BASE_LEVEL に duration が無く「次の対戦相手のターン終了時まで」が効かない（隣の POWER_SET は UNTIL_OPP_TURN_END を持つ）②E2 の対象に「このシグニのレベル以下」の限定が無い
+WXDi-D09-H20-E1 :: BUG :: OPTIONAL_COST.handDiscard の filter が {cardType:シグニ} だけ＝原文「レベル1のシグニを1枚捨ててもよい」のレベル条件が無い
+WXDi-D09-P04-E1 :: BUG :: ①2本目の POWER_MODIFY{-6000} が条件分岐の外＝「6枚以上多い場合、代わりに」が無条件になり -3000 と重複する ②その target が {owner:any} で相手限定でない ③【起】の「ガードアイコンを持たず宣言レベルと同じシグニをすべて捨てさせる」主要処理が無い
+WXDi-D09-P04-E3 :: BUG :: ①2本目の POWER_MODIFY{-6000} が条件分岐の外＝「6枚以上多い場合、代わりに」が無条件になり -3000 と重複する ②その target が {owner:any} で相手限定でない ③【起】の「ガードアイコンを持たず宣言レベルと同じシグニをすべて捨てさせる」主要処理が無い
+# 2026-09-08 Opus triage（b26）
+WXDi-D09-P14-E2 :: BUG :: E2 が SEQUENCE[DECLARE_NUMBER, DRAW] だけ＝「対戦相手のデッキの一番上を公開し、宣言した数字と同じレベルのシグニの場合」の公開と判定が無く常にドローする（WDK09-011-E1 と同型）
+WXDi-P00-037-E1 :: BUG :: 原文「対戦相手の手札を3枚まで見ないで選び、それらを見て1枚をデッキの一番下に置く」に対し TRANSFER_TO_DECK の source が {SIGNI, owner:opponent}＝場のシグニを送っている
+WXDi-P00-038-E1 :: BUG :: 「場を離れる代わりに裏向きにする」置換と「次の次のあなたのメインフェイズ開始時に同じシグニゾーンが空なら表向きにする」遅延処理が無く、STUB{RULE_REMINDER_TEXT}＋相手手札2枚トラッシュだけになっている
+WXDi-P00-039-BURST :: BUG :: LB の PREVENT_NEXT_DAMAGE に scope が無い＝原文「次にあなたがシグニからダメージを受ける場合」のダメージ源限定が落ちている（scope は PR-K077-E1-G が scope:LRIG で使用中＝受け皿は実在）
+WXDi-P00-042-E1 :: BUG :: 原文「デッキの一番上を見る。それをトラッシュに置いてもよい」に対し TRASH{SIGNI, owner:opponent, count:1}＝①対象が相手の場のシグニ ②任意でなく強制
+WXDi-P01-042-E1 :: BUG :: 「このターンにあなたのデッキからカードが1枚以上エナゾーンに移動していた場合」の発動条件が無い（受け皿は実在＝条件型 SELF_DECK_TO_ENERGY_THIS_TURN が manualEffects.ts:9781 で使用中）
+WXDi-P01-059-E1 :: BUG :: SELECT_TARGET_ONLY の filter に powerRange.max:8000 が無く、任意の相手シグニをバニッシュできる
+WXDi-P01-087-E1 :: BUG :: ADD_TO_FIELD に asDown が無い（原文「ダウン状態で場に出」）＝WXK09-033-E1 と同じ系統8効果
+# 2026-09-08 Opus triage（b27）
+WXDi-P02-040-BURST :: BUG :: LB＝原文「対象のレベル2の＜天使＞1枚を手札に加えて、対象のレベル1の＜天使＞1枚を場に出す」に対し JSON は ADD_TO_FIELD{level:2,天使} の1ステップだけ＝①レベル2側の行き先が手札でなく場 ②レベル1側を場に出す処理が丸ごと無い
+WXDi-P02-074-E1 :: BUG :: 「このターンにあなたのデッキからカードが1枚以上エナゾーンに移動していた場合」の発動条件が無い（受け皿は実在＝SELF_DECK_TO_ENERGY_THIS_TURN）。WXDi-P01-042-E1 と同型
+WXDi-P03-005-E1 :: BUG :: 原文「追加でエクシード4を支払っていた場合、代わりにその中から2枚まで」＝同じ5枚に対する取得上限の置換だが、JSON は REVEAL_AND_PICK(5枚,1枚) の後にもう一度別の5枚を見る形になっている
+WXDi-P03-009-E1 :: BUG :: SELECT_TARGET_ONLY が {SIGNI, owner:self, filter:{cardType:シグニ}}＝原文「レベル2以下のシグニ1体を対象とし」に対し ①owner を自分に限定している（原文は無制限） ②レベル2以下の条件が無い
+WXDi-P03-016-E2 :: BUG :: ①原文「このルリグは『【常】：あなたのシグニのパワーを＋5000する』を得る」＝常在能力の付与なので後から出たシグニにも効くが、JSON は解決時の POWER_MODIFY で直接加算しているだけ ②付与能力のアップ対象が「能力を得たこのルリグ自身」でなく自分のルリグ1体を対象にしている
+WXDi-P03-016-E3 :: BUG :: ①原文「このルリグは『【常】：あなたのシグニのパワーを＋5000する』を得る」＝常在能力の付与なので後から出たシグニにも効くが、JSON は解決時の POWER_MODIFY で直接加算しているだけ ②付与能力のアップ対象が「能力を得たこのルリグ自身」でなく自分のルリグ1体を対象にしている

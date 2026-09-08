@@ -1,9 +1,23 @@
 # <effectId> :: BUG|FP :: 一言（PLAN §5.0 O-A）
 # 2026-09-08 Opus triage（b20）
-WDK05-R11-E1 :: BUG :: BANISH の filter に「トラッシュに置かれたシグニのレベル合計と同じレベル」が無い。⚠同効果のもう1件（支払わなくてもバニッシュされる）は FP＝CONDITIONAL が STUB の直後なので Pattern ④ ではなく Pattern ⑤ が効き BANISH まで pay 側に入る
+WDK05-R11-E1 :: BUG :: BANISH の filter に「トラッシュに置かれたシグニのレベル合計と同じレベル」が無い。🔴訂正＝「支払わなくてもバニッシュされる」という指摘も FP ではなく BUG（CONDITIONAL の後ろの BANISH は continuation ＝未払いでも走る）
 WDK07-E08-E1 :: BUG :: 原文「それの効果を打ち消し、それをトラッシュから対戦相手の手札に戻す」の「それ」＝打ち消したスペルだが TRANSFER_TO_HAND の source が {TRASH_CARD, opponent, filter:スペル}＝相手トラッシュの任意スペルになっている
 WDK09-011-E1 :: BUG :: 原文「それが宣言した数字と同じレベルのシグニの場合、カードを1枚引く」の条件が無く DRAW が無条件
 WDK09-017-E1 :: BUG :: ①「対戦相手はそれをデッキの一番下に置き」の処理が無い ②その後の DRAW が owner:self＝原文では対戦相手が引く ③「カードを1枚選んだ場合」のゲートも無い
 WDK10-009-E2 :: FP :: 「次のあなたのターンまで」は nextTurnOwner:opponent ＋ appliesThisTurn:true が正しい表現＝自分の現ターンと相手の次ターンに適用され、自分の次ターン開始で切れる（resolvedNextTurnOwner＝effectExecutor.ts:54-62）。self にすると自分の次ターンに適用されて逆に伸びる
 # 2026-09-08 Opus triage（b20・台帳ラウンドへ誤記したぶんの付け替え）
 WDK08-Y01-E1 :: FP :: TRASHED_DISTINCT_LEVELS_GTE は名前に反して ctx.lastProcessedCards を読む（execUtils.ts:3327-3335）。直前ステップが REVEAL なので判定対象は「公開した4枚」＝原文どおり
+# 2026-09-08 Opus triage（b21）
+WDK10-011-E1 :: FP :: ガードの手札捨ては hand_discarded_just を立てない（BattleScreen.tsx:6196 / performGuardResponse）＝ON_HAND_DISCARDED はガードステップで発火しない。WXK09-038-E1 と同型
+WDK10-015-E1 :: BUG :: BANISH の filter に「この方法で捨てたシグニのパワーの半分以下」が無い。⚠同効果のもう1件（捨てなくてもバニッシュされる）は FP＝後続 BANISH は Pattern ⑤ の cont5 に入り pay 側だけで実行される
+WDK11-001-E3 :: BUG :: ADD_TO_FIELD{owner:self} だけで、取得元（ルリグデッキ）もカード名《ＧＦ　ノーマン＆レイ》の指定も無い＝何を場に出すか決まっていない
+WDK12-007-E1 :: BUG :: 選択肢②＝①「この方法でトラッシュに置いた【チャーム】と同じ数だけカードを引く」が丸ごと無い ②エナチャージが count:1 固定で枚数連動していない（JSON は REMOVE_CHARM{ALL} → ENERGY_CHARGE_FROM_DECK{1} だけ）
+WDK15-001-E3 :: BUG :: DRAW_PER_FIELD_COUNT の countFilter が {cardType:シグニ} だけ＝原文「下にカードがあるあなたのシグニ1体につき」の「下にカードがある」条件が落ちている
+WDK16-06H-E1 :: BUG :: 「登録者数が100万人を達成している場合、代わりに（パワー制限なしの）対戦相手のシグニ1体をバニッシュ」の分岐が無く powerRange.max:8000 の一本だけ。受け皿は実在（state.subscriber_count＋effectParser.ts:2483 のパターン3f2）
+# 2026-09-08 Opus triage（b22）
+WDK16-10-E1 :: BUG :: 2本目の STUB{GAIN_SUBSCRIBER_COUNT,10} に条件が無く常時実行される。原文は「センタールリグのレベルが対戦相手と同じ場合、追加で」＝条件付き
+WDK17-009-E2 :: BUG :: 原文は「対象とする」だけが無条件で、トラッシュに置くのは「ライフクロスが2枚以下の場合」。JSON は相手シグニとエナの TRASH を条件の外に置いており無条件でトラッシュする
+SP26-002-E1 :: BUG :: 原文は「【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない」だが、JSON の実体は STUB{SUPPRESS_LIFE_BURST_ON_CRASH}＝原文が明示的に除外している【ライフバースト】を抑止しており、意味がほぼ反転している。トリガー能力の抑止本体・領域指定・期間の payload が無い
+SP27-014-E2 :: BUG :: 選択肢③＝原文「手札を1枚捨ててもよい。そうした場合、それをバニッシュする」に対し SEQUENCE[TRASH{HAND_CARD,self,1}, BANISH] ＝①捨てるのが強制 ②捨てなくてもバニッシュが走る形（任意コストの STUB を経由していないので Pattern ⑤ も効かない）
+SPK01-13-E1 :: BUG :: 選択肢③＝原文「このターン、あなたは対戦相手の効果によってダメージを受けない」に対し PREVENT_NEXT_DAMAGE{count:1}＝次の1回だけ。ターン中すべてを防ぐ表現になっていない
+SP27-015-E3-G :: BUG :: 付与する起動能力（GRANT_ACCE_HOST_ABILITY の abilities[0]）に ①usageLimit:once_per_turn が無い（原文《ターン1回》） ②timing が MAIN だけ（原文は《メインフェイズアイコン》《アタックフェイズアイコン》＝ATTACK_ARTS も要る）

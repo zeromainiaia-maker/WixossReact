@@ -134,6 +134,21 @@ const HEADER = `あなたは WIXOSS カードゲーム実装（このリポジ�
   という**逆向きの真バグ**が同居していた。⇒ **\`note\` に「別の不整合がある」と書くくらいなら verdict は \`BUG\` にする**
   （FP として閉じるとその真バグは恒久的に失われる）。
 
+# 🔴🔴 任意コストの3分岐を取り違えない（2026-09-08 に実際に2件誤判定した）
+
+\`SEQUENCE[STUB{任意コスト}, …]\` の挙動は**3つ**あり、どれに当たるかで結論が反転する。**必ず現物の並びを見る。**
+
+1. **STUB の直後が \`CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}\`** → \`effectExecutor.ts:5532\` が先取りする。
+   その CONDITIONAL は「そうした場合」のプレースホルダとして消費され、**その後ろのステップは
+   CHOOSE の \`continuation\` に付く**（:5661 / :5707）＝**pay でも skip でも実行される**。
+   ⇒ 🔴**「後続が支払いの外にある」という監査員の指摘はこの形なら正しい（BUG）。**
+2. **STUB と \`CONDITIONAL{IS_MY_TURN|PAID}\` の間に別ステップがある**（\`condIdx > i + 1\`）→ **Pattern ④**（\`:6060\`）。
+   間のステップは**基本効果として無条件**、CONDITIONAL の then が強化分。
+3. **直後に該当 CONDITIONAL が無い**（次が普通のアクション、または CONDITIONAL でも条件が別型）→ **Pattern ⑤**（\`:6163\`）。
+   **残り全ステップが pay 側だけで実行される**（skip は空 SEQUENCE）＝この形なら「未払いでも実行される」は FP。
+
+⚠**Pattern ⑤ を根拠に FP と書く前に、STUB の直後が \`IS_MY_TURN\`/\`PAID_ADDITIONAL_COST\` の CONDITIONAL でないことを確かめる。**
+
 # 逆向きの罠（FP に見えて BUG）
 
 - 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で\*\*無条件に発動\*\*していた**前例があります
