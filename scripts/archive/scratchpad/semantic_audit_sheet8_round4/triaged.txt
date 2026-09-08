@@ -2,3 +2,75 @@
 # 2026-09-08 Opus＝codex 判定の抜き取り検査（8件・うち1件は判定を覆した）
 WXDi-CP01-038-E1 :: BUG :: 付与する常在の「対戦相手のターンの間」条件が JSON に無い（duration:UNTIL_OPP_TURN_END は付与期間であって発動条件ではない）＝自分のターンにも耐性が働く
 WXDi-P11-076-E1 :: BUG :: 指摘の向き（未払いでも手札に加わる）は FP だが逆向きの真バグ＝Pattern ⑤ が skip 側で残り全ステップを捨てるため、原文で無条件の ENERGY_CHARGE まで実行されない
+# 2026-09-08 Opus triage（b32）
+WXDi-P08-025-E1 :: BUG :: ①「その中に宣言した数字と同じレベルのシグニがある場合」の条件が無く BOUNCE が無条件 ②「好きな順番で戻す」なのに LOOK_AND_REORDER の reorder:false。WD13-008-E1 / PR-K022-E1-G と同じ系統3件目
+WXDi-P08-037-E3 :: FP :: timing の ON_SIGNI_BANISH_OPPONENT が「バトルで相手シグニをバニッシュした側」専用の collector で処理され（triggerCollect.ts:98 battleBanisherMatchesTrigger）、triggerScope:self が能力保持者＝バニッシュしたシグニであることを要求する（同:107-108）＝原文の条件は timing 自体が担っている
+# 2026-09-08 Opus triage（b33）
+WXDi-P08-040-E2 :: BUG :: E2＝「あなたのエナゾーンとライフクロスにあるすべてのカードをトラッシュに置き」が丸ごと欠落（手札全捨て→ドロー2→エナチャージ2 だけ）
+WXDi-P08-044-E2 :: BUG :: ①E2＝「対戦相手の効果によって場を離れる場合、代わりに」という置換条件が無く CONTINUOUS の SEQUENCE として常時走る形になっている ②「下からカード2枚をトラッシュ」が upToCount:true＝0〜2枚で、2枚未満でも後続の DOWN が走る（effectExecutor.ts:8483-8486）
+WXDi-P08-059-E2 :: BUG :: 原文「対戦相手は【エナチャージ１】をしてもよい」＝相手の任意だが ENERGY_CHARGE_FROM_DECK{owner:opponent} が強制（effectExecutor.ts:2796-2807 は選択肢を出さない）。WXDi-D07-013-E1 と同型
+WXDi-P09-045-E1 :: BUG :: 「このターンにあなたのシグニが1体以上トラッシュから場に出ていた場合」の発動条件が effect.condition に無い（engine 側はトラッシュから出たシグニを記録している＝effectExecutor.ts:4105）
+WXDi-P09-047-E2 :: BUG :: 「このターンにあなたの効果で対戦相手のエナゾーンからカードが1枚以上トラッシュに置かれていた場合」の発動条件が無い（受け皿は実在＝ENERGY_TRASHED_BY_OPP の評価器が execUtils.ts:2466）
+WXDi-P09-050-E1 :: BUG :: 原文「その中からカード1枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く」に対し destination.position が bottom のみ＝全部が下へ行く。受け皿は実在（first_top_rest_bottom 分岐）
+WXDi-P09-051-E1 :: BUG :: 基本パワー変更の期限が現ターン終了時＝原文「次の対戦相手のターン終了時まで」より短い
+# 2026-09-08 Opus triage（b34）
+WXDi-P10-004-E1 :: BUG :: 選択肢③のエナチャージが count:1 固定＝原文「あなたの場にある＜プリパラ＞のシグニ1体につき」の枚数連動が無い
+WXDi-P10-033-E2 :: BUG :: LOOK_AND_REORDER が reorder:false ＋ destination.position:top ＝原文「シャッフルしてデッキの一番下に置く」と真逆（順序も保存され位置も上）
+WXDi-P10-038-E1 :: BUG :: 原文「＜プリパラ＞のシグニを1枚捨てるか手札を2枚捨てる」＝必須の二択だが STUB{OPTIONAL_COST, costText のみ} で表現＝skip でどちらも行わずに済み、しかも costText は engine が読まないので実体コストも無い
+WXDi-P10-040-E2 :: BUG :: ①原文「このシグニの下からスペルを好きな枚数トラッシュに置く」が TRASH{SIGNI, owner:opponent}＝相手の場のシグニを強制トラッシュに化けている ②POWER_MODIFY が targetsStored を持たず最初に対象化した相手シグニへ固定されない
+WXDi-P10-047-E2 :: BUG :: 原文「1枚をデッキの一番上に戻し、残りを一番下」に対し destination.position が bottom のみ＝2枚とも下へ行く。WXDi-P09-050-E1 と同じ系統
+WXDi-P10-052-E2 :: BUG :: BANISH_SUBSTITUTE が E1 で選んだシグニを参照せず、このシグニ以外の自分のシグニ全体を身代わり対象にしている
+# 2026-09-08 Opus triage（b35）
+WXDi-P11-002-E1 :: BUG :: 「ゲーム中1回だけ選べる」制約が無い＝CHOOSE に noRepeat が付いておらず（effectExecutor.ts:6427-6443 は noRepeat がある場合だけ選択済みを除外する）同じ選択肢を何度でも選べる。PR-469 と同じ「選択済み管理」系統
+WXDi-P11-006-E1 :: FP :: STUB{TRAP_OPERATION, to_check} は lastProcessedCards が空なら triggeringCardNum（＝今回捨てたシグニ）を候補にし、さらにトラッシュにあるそのカードだけへ限定する（execStubPart2.ts:2777-2790）＝原文どおり
+WXDi-P11-046-E2 :: BUG :: E2＝「このターンにあなたがピースを使用していた場合」の発動条件が effect.condition に無く、timing 一致だけで収集される（triggerCollect.ts:4558-4564）
+WXDi-P11-060-E1 :: BUG :: E1/E2 とも「このシグニの左か右にダウン状態の＜ウェポン＞／＜アーム＞のシグニがある場合」という隣接ゾーン条件が effect.condition に無い＝無条件で対象選択と任意コストが走る
+WXDi-P11-060-E2 :: BUG :: E1/E2 とも「このシグニの左か右にダウン状態の＜ウェポン＞／＜アーム＞のシグニがある場合」という隣接ゾーン条件が effect.condition に無い＝無条件で対象選択と任意コストが走る
+WXDi-P11-062-E1 :: BUG :: 「対戦相手の効果によって－（マイナス）されない」常在が無い。engine の保護収集は CONTINUOUS の STUB{PREVENT_POWER_MINUS_BY_OPP} か powerModifyProtection を見る（effectEngine.ts:2207-2222）が、この効果は素の POWER_MODIFY だけ
+# 2026-09-08 Opus triage（b36）
+WXDi-P11-080-E1 :: BUG :: 原文「このシグニの下からカードを好きな枚数トラッシュに置く」が TRASH{SIGNI, owner:opponent}＝相手の場のシグニをトラッシュする処理に化けている（effectExecutor.ts:2435-2456 は場のシグニを移す受け皿で、下のカードは扱わない）
+WXDi-P12-007-E1 :: BUG :: SELECT_TARGET_ONLY の owner が any＝原文「あなたのシグニ1体を対象とし」に反して相手シグニも候補になる（execStubPart1.ts:274-282 は any で両者の場から集める）
+WXDi-P12-008-E3 :: BUG :: E3＝OPPONENT_PAY_OPTIONAL 先取り（effectExecutor.ts:5873,6009-6013）が支払い選択を先に出し、未払い枝で初めて対象を選ぶ＝原文「対象を決めてから対戦相手が支払いを判断」の順序と逆。WXDi-P04-058 / WXDi-P07-004 と同型
+WXDi-P12-009-E1 :: BUG :: ①「あなたの場にあるすべてのシグニが《ディソナアイコン》の場合」の条件がパワー修正にしか掛かっておらず、不成立でも追加コストで【Ｓランサー】を付与できる ②その GRANT_KEYWORD に targetsStored / fixedCardNums が無く（effectExecutor.ts:5010-5012）、パワーを上げたシグニと別のシグニを選べる
+WXDi-P12-044-E2 :: FP :: LRIG 対象の UP はセンタールリグを直接アップし（effectExecutor.ts:4592-4610）、REMOVE_ABILITIES も field.lrig.at(-1) のセンター1体だけを候補にする（同:8891-8903）＝別々のルリグを選ぶ経路が無い。WXDi-P04-051-E1 と同型
+WXDi-P12-045-E1 :: BUG :: OPPONENT_PAY_OPTIONAL 先取りが対象選択なしに支払いプロンプトを出し、未払い時だけ対象を選ぶ＝原文「対象を決めてから支払いを選ぶ」の順序と逆（LOW だが盤面の情報量が変わる）
+WXDi-P12-057-E1 :: FP :: collectTurnTriggers は myState をターンプレイヤーと定義し、そのフィールドの triggerScope:self 効果だけを収集する（triggerCollect.ts:5080-5100）＝相手ターン終了時にはこのカードの効果は収集されない
+# 2026-09-08 Opus triage（b37）
+WXDi-P12-068-E1 :: BUG :: 「このシグニの下にあるシグニ1枚と同じレベルの」対象制限が無い＝TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST は optionalCostTarget.filter が無いと {cardType:シグニ} で相手盤面全体を候補にする（effectExecutor.ts:5668-5679）
+WXDi-P13-003A-E1 :: BUG :: 【使用条件】【ドリームチーム】「白か黒のルリグを1体以上含む」が JSON に無い（持っている条件は CENTER_LRIG_NOT_GROWN_THIS_TURN だけ＝グロウ履歴しか見ない）
+WXDi-P13-049-E1 :: BUG :: 原文「《青》を支払い…トラッシュに置いてもよい」の《青》コストが無く、eff.cost 無しの任意効果は OPTIONAL_ACTIVATE へ変換されるだけ（triggerCollect.ts:519-529）＝無償で撃てる
+WXDi-P13-054-E1 :: BUG :: ①「トラッシュに置いたデッキトップがシグニである場合にだけ」の条件が無い ②その後の ADD_TO_FIELD に asDown が無い（原文はダウン状態で場に出す）＝asDown 系統
+WXDi-P13-085-E1 :: BUG :: 発動原因を「あなたの《ディソナアイコン》のカードの効果」に限定する triggerCondition.milledSourceStory が無く（triggerCollect.ts:2216-2223）、相手デッキのミル全般で発動する
+WXDi-P14-001-E1 :: BUG :: 選択肢①の「シグニバリア1つを得る」が欠落＝REVEAL_AND_PICK 単体で STUB{GAIN_SIGNI_BARRIER}（execStubPart3.ts:4797-4803）を呼んでいない
+WXDi-P14-002-E1 :: BUG :: 原文「あなたのセンタールリグのレベル1につき1つまで選ぶ」＝可変選択数だが choose_count:1 固定（effectExecutor.ts:6449 は action.choose_count をそのまま使う）
+# 2026-09-08 Opus triage（b38）
+WXDi-P14-006-E1 :: FP :: LIFE_CRASH は triggerBurst:false のときクラッシュしたライフクロスをチェックゾーンへ置かずそのままトラッシュへ移す（effectExecutor.ts:2815,2914-2922）＝原文「トラッシュに置く」と同じ挙動
+WXDi-P14-031-E1 :: BUG :: 原文は「宣言したレベルのシグニがこのターン次にアタックしたとき」の遅延誘発だが、DECLARE_NUMBER は宣言値を保存して後続へ進むだけ（effectExecutor.ts:5502-5510）＝INSTALL_DELAYED_TRIGGER へ変換されず BANISH が宣言直後に走る
+WXDi-P14-040-E1 :: BUG :: ①「対戦相手の場に凍結状態のルリグとシグニが合計3体以上いる場合」の発動条件が無い（CONDITIONAL{IS_MY_TURN} は支払いプレースホルダなので条件にならない） ②E2 の FREEZE の target.type が SIGNI＝原文「対戦相手のセンタールリグではないルリグ1体」を凍結できない（LRIG 対象の受け皿は effectExecutor.ts:4327-4338 に実在）
+WXDi-P14-040-E2 :: BUG :: ①「対戦相手の場に凍結状態のルリグとシグニが合計3体以上いる場合」の発動条件が無い（CONDITIONAL{IS_MY_TURN} は支払いプレースホルダなので条件にならない） ②E2 の FREEZE の target.type が SIGNI＝原文「対戦相手のセンタールリグではないルリグ1体」を凍結できない（LRIG 対象の受け皿は effectExecutor.ts:4327-4338 に実在）
+WXDi-P14-060-E1 :: BUG :: 公開 STUB は選んだカードを lastProcessedCards に保存するが、後続 TRASH{HAND_CARD} に targetsStored 等の同一対象指定が無く独立に選び直す＝公開したカードと別のカードを捨て得る
+WXDi-P14-061-E1 :: BUG :: 付与能力が原文と大きく食い違う＝①宣言値を「対戦相手のセンタールリグのレベル以下」に制限する条件が無い ②「ガードを持たず宣言値と同じレベルのシグニをすべて捨てさせる」主要処理が無い ③「対象が指定カードの場合だけ覚醒する」条件が無い（AWAKEN_SIGNI は effectExecutor.ts:8546-8553 で効果元＝スペルを対象にしようとして空振りする）
+# 2026-09-08 Opus triage（b39）
+WXDi-P14-083-E1 :: BUG :: OPTIONAL_DISCARD_HAND_CLASS 分岐（effectExecutor.ts:5797-5809）が「手札を捨てる→conditional.then」の順に組み、対象を事前確定しない＝原文「対戦相手のパワー5000以下のシグニ1体を対象とし」→コストの順序と逆で、対象不在でもコストだけ払える
+WXDi-P14-088-E1 :: BUG :: OPTIONAL_TRASH_ENERGY_CLASS 分岐（effectExecutor.ts:5712-5748）がエナ選択の後に GRANT_KEYWORD を連結＝付与対象をコスト前に確定していない（原文は対象が先）
+WXDi-P15-010-E3 :: BUG :: E3 に usageLimit:once_per_game が無い＝signiActivateGate.ts:193-196 は once_per_game のときだけ game_actions_done を検査するので、繰り返し使用できる
+WXDi-P15-011-E3 :: BUG :: E3 に usageLimit:once_per_game が無い（WXDi-P15-010-E3 と同型）
+WXDi-P15-033-E2 :: BUG :: E2 の duration が現ターン終了時まで＝原文「次の対戦相手のターン終了時まで」より短い。STUB{LRIG_GAIN_OPP_ACTIVATE_COST_UP} は duration を参照せず加算するだけ（execStubPart1.ts:1503-1506）
+WXDi-P15-049-E1 :: BUG :: ADD_TO_FIELD に asDown が無い（原文「ダウン状態で場に出す」）＝asDown 系統
+WXDi-P15-056-E1 :: BUG :: 任意コストの前提「あなたの場に《防衛者ＭＣ．ＬＩＯＮ－３ｒｄ》がいる場合」の判定が無く、さらに支払い成功時のアクションが REMOVE_ABILITIES だけで UP を呼んでいない
+# 2026-09-08 Opus triage（b40）
+WXDi-P15-083-E1 :: BUG :: OPPONENT_PAY_OPTIONAL 先取り（effectExecutor.ts:5873,6003-6005）が「支払わない」を選んだ後に初めて対象選択を含む POWER_MODIFY を実行＝原文「対象を決めてから相手が判断」の順序と逆。同型4件目
+WXDi-P15-087-E1 :: BUG :: 「あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合」の発動条件が無い（受け皿は実在＝LRIG_LEVEL_EQ_OPP が execUtils.ts:2907-2913）
+WXDi-P16-002-E1 :: BUG :: ①使用条件「全員レベル1以上」が LRIG_LEVEL 単体＝センタールリグしか見ない（WXDi-D02-19LAT と同型） ②トラッシュ移動を防ぐ zones に「デッキ」が無く手札とエナだけ ③センタールリグのリミット増加の期限が現ターン終了時＝原文「次のあなたのエナフェイズ終了時まで」より短い
+WXDi-P16-005-E1 :: FP :: FREEZE の CENTER_LRIG_OR_SIGNI はセンター・左右アシストの各トップと全シグニへ展開される（effectExecutor.ts:4297-4315）＝アシストルリグも対象に含まれる
+WXDi-P16-039-E2 :: FP :: GRANT_EFFECT は filter.thisCardOnly のとき宣言された SIGNI 型より効果元を優先し、シグニ／センタールリグ／左右アシストから効果元自身を探して付与する（effectExecutor.ts:5139-5149）＝アシストルリグ自身が対象になる
+WXDi-P16-044-E2 :: FP :: STUB{LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO} は当ターン用 BLOCK_OPP_SIGNI_AUTO と次ターン予約 BLOCK_OWN_SIGNI_AUTO:NEXT_TURN を同時に保存する（execStubPart1.ts:1481-1486）＝duration の見た目より長く、次の対戦相手ターン終了時までを満たす
+# 2026-09-08 Opus triage（b41）
+WXDi-P16-047-E2 :: BUG :: E2 のリミット減少の期限が END_OF_TURN＝原文「次の対戦相手のメインフェイズ終了時まで」より短い（LRIG_LIMIT_MODIFY は until:NEXT_TURN のときだけ pending_lrig_limit_mod へ積む＝effectExecutor.ts:9853-9855）
+WXDi-P16-048-E1 :: BUG :: 選択肢②＝OPTIONAL_COST 直後の CONDITIONAL を組にする先取り（effectExecutor.ts:5530-5535）で支払い後に BANISH の対象を選ぶ＝原文「対象を決めてから任意コスト」の順序と逆
+WXDi-P16-049-E1 :: BUG :: 選択肢①に condition が無く（effectExecutor.ts:5409-5418 は ch.condition がある場合だけ available を判定）、原文「あなたのライフクロスが3枚以上」でなくても選べる
+WXDi-P16-052-E2 :: BUG :: 原文全文で確認＝【起】「アップ状態の【他の】シグニ1体をダウンする」。fieldDown コストの候補生成に excludeSelf が無く（execUtils.ts:753-755,947-950 は isUp しか足さない）自身をコストにできる。SPDi43-06-E2 と同型
+WXDi-P16-053-E1 :: BUG :: 原文「対戦相手のトラッシュにあるいずれかのカードと同じ名前の対戦相手のシグニ1体を対象とし」の同名条件が無く、TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の既定フィルタ {cardType:シグニ} で相手盤面全体が候補になる
+WXDi-P16-074-E2 :: BUG :: 条件が FIELD_HAS_GATE＝自分の own_gate_zones が1件以上あるかだけを見る（execUtils.ts:2886）＝原文の「同じシグニゾーンに【ゲート】がある」というゾーン一致を判定していない
+WXDi-CP01-006-E2 :: BUG :: ①E2 の起動コスト「コラボライバー1人とのコラボ」が JSON に無く無色1エナだけで起動できる（signiActivateGate.ts:180-247 にコラボ検査が無い） ②E3 の付与能力が LIFE_CRASH だけで、「対戦相手が《無》4を支払うかガードアイコン持ちを1枚捨てればダメージを回避できる」処理が無い
+WXDi-CP01-006-E3 :: BUG :: ①E2 の起動コスト「コラボライバー1人とのコラボ」が JSON に無く無色1エナだけで起動できる（signiActivateGate.ts:180-247 にコラボ検査が無い） ②E3 の付与能力が LIFE_CRASH だけで、「対戦相手が《無》4を支払うかガードアイコン持ちを1枚捨てればダメージを回避できる」処理が無い

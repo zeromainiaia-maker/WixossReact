@@ -28,3 +28,34 @@ WXDi-P03-005-E1 :: BUG :: 原文「追加でエクシード4を支払ってい�
 WXDi-P03-009-E1 :: BUG :: SELECT_TARGET_ONLY が {SIGNI, owner:self, filter:{cardType:シグニ}}＝原文「レベル2以下のシグニ1体を対象とし」に対し ①owner を自分に限定している（原文は無制限） ②レベル2以下の条件が無い
 WXDi-P03-016-E2 :: BUG :: ①原文「このルリグは『【常】：あなたのシグニのパワーを＋5000する』を得る」＝常在能力の付与なので後から出たシグニにも効くが、JSON は解決時の POWER_MODIFY で直接加算しているだけ ②付与能力のアップ対象が「能力を得たこのルリグ自身」でなく自分のルリグ1体を対象にしている
 WXDi-P03-016-E3 :: BUG :: ①原文「このルリグは『【常】：あなたのシグニのパワーを＋5000する』を得る」＝常在能力の付与なので後から出たシグニにも効くが、JSON は解決時の POWER_MODIFY で直接加算しているだけ ②付与能力のアップ対象が「能力を得たこのルリグ自身」でなく自分のルリグ1体を対象にしている
+# 2026-09-08 Opus triage（b28）
+WXDi-P03-035-E1 :: BUG :: 原文「そのルリグをアップし、ターン終了時まで、そのルリグは能力を失う」＝アタックした白のルリグへの参照が UP / REMOVE_ABILITIES のどちらにも無く（{LRIG,self,count:1} のみ）、白の色条件も無い。両アクションが同一対象を維持する指定も無い
+WXDi-P03-054-E1 :: FP :: Pattern ④ の replace mode が効く＝CONDITIONAL{IS_MY_TURN} が STUB の直後ではなく i+2 にあり condIdx > i+1 を満たす（effectExecutor.ts:6101-6107）。支払った枝は conditional.then のみ・未払い枝だけが baseAction4（通常の5枚1枚取り）を実行する＝二重に公開しない
+WXDi-P04-002-E1 :: BUG :: 原文は「このゲームの間、以下の能力を得る」＝ターン1回の誘発能力の獲得だが、JSON は①GRANT_KEYWORD で自分のシグニに「使用条件」という原文に無いキーワードを永久付与し ②選択肢を使用時に即時実行し ③各選択肢の色判定（赤/青/緑）が全て無く ④選択肢①内の任意《無》が効果全体の必須コストに化けている
+WXDi-P04-006-E1 :: BUG :: GAIN_ABILITY_THIS_GAME でターン終了時回収を登録した後に、独立した TRANSFER_TO_HAND が同じ回収をピース使用時にも即時実行している＝1回分過剰
+# 2026-09-08 Opus triage（b29）
+WXDi-P04-007-E3 :: BUG :: E3＝GRANT_KEYWORD{シャドウ, duration:PERMANENT, target:ALL}＝①期間が「次の対戦相手のターンのメインフェイズとアタックフェイズの間」でなく永久 ②解決時の場のシグニだけに個別付与するため（effectExecutor.ts:4994-5025）、原文の注記「この能力の使用後に場に出たシグニにも影響を与える」が効かない
+WXDi-P04-011-E1-G :: BUG :: ソウル付与能力（-E1-G）に usageLimit:once_per_turn が無い（原文《ターン1回》）。triggerCollect.ts:2043-2048 が usageLimit を見る＝受け皿は実在。ソウル系の同型3件（P04-011 / P04-012 / P04-015）
+WXDi-P04-012-E1-G :: BUG :: 同上＝ソウル付与能力に usageLimit:once_per_turn が無い
+WXDi-P04-015-E1-G :: BUG :: 同上＝ソウル付与能力に usageLimit:once_per_turn が無い（バニッシュなので影響が大きい）
+WXDi-P04-035-E1 :: FP :: timing の ON_KEYWORD_GAINED 自体が【アサシン】【ランサー】【ダブルクラッシュ】の3種に固定されている（boardDiff.ts:667-690 が差分検出をこの3つに限定し、triggerCollect.ts:5547-5571 が積む）＝JSON に列挙が無くても原文どおり
+WXDi-P04-051-E1 :: FP :: LRIG 対象の UP はセンタールリグの lrig_down を直接解除し（effectExecutor.ts:4592-4610）、REMOVE_ABILITIES もセンタールリグ最上段だけを候補にする（同:8891-8903）＝両アクションが別のルリグを選ぶ経路が無い。原文にルリグの色条件も無い
+WXDi-P04-058-BURST :: BUG :: LB＝原文「対戦相手のシグニ1体を対象とし、対戦相手が《無》《無》を支払わないかぎり」＝対象を先に決めてから相手が支払いを選ぶが、OPPONENT_PAY_OPTIONAL 先取り分岐（effectExecutor.ts:5871-5924）は支払い選択を先に出し、不払い後に BANISH の対象を選ぶ＝対象事前選択・保存が無い
+# 2026-09-08 Opus triage（b30）
+WXDi-P04-059-E1 :: BUG :: 原文は「対戦相手のパワー5000以下のシグニ1体を対象とし」→「このシグニをダウンしてもよい」の順だが、JSON は DOWN{optional} が先で BANISH の対象は後から選ぶ＝SELECT_TARGET_ONLY による事前対象化が無い
+WXDi-P05-006-E1 :: BUG :: 「対戦相手がチームピースを使用する際、カットインして使用できる」＝使用機会の追加なのに、OPP_USING_TEAM_PIECE が effect.condition の AND に入っており使用可否そのものを縛る（execUtils.ts:3548,3574）＝通常のメイン/アタックフェイズで使えない
+WXDi-P05-025-E2 :: BUG :: E2 の LRIG_LIMIT_MODIFY が until:END_OF_TURN＝原文「次のあなたのエナフェイズ終了時まで」より短い（effectExecutor.ts:9842-9857 は NEXT_TURN 以外を即時＋ターン終了時までとして扱う）
+WXDi-P05-035-E1 :: BUG :: ①LOOK_AND_REORDER の destination.position が top＝原文「デッキの一番下に置く」と逆 ②「シャッフルして」が無く reorder:false ③任意コストが無色7個固定＝原文「《無》×6 から公開したレベル1シグニ1枚につき《無》を減らす」の可変計算が無い（枚数も6でなく7）
+WXDi-P05-077-E1 :: BUG :: ①選択肢①の「エナゾーンから＜天使＞のシグニ1枚をトラッシュに置く」処理が欠落 ②選択肢②の対象に《翠天姫　ガイア》のカード名フィルタが無く任意のエナを手札に加えられる（effectExecutor.ts:3710-3711 は filter が無ければ絞らない）
+# 2026-09-08 Opus triage（b31）
+WXDi-P05-078-E1 :: BUG :: 原文「あなたの《凶天姫　ヴァルキリー》1体がアタックしたとき」のカード名指定が triggerFilter に無く triggerScope も自身のみ＝別シグニのアタックで発動せず、自分のアタックで誤発動する
+WXDi-P05-086-E1 :: BUG :: 【常】「デッキかトラッシュにあるかぎり、効果1つによって参照する場合レベル1のシグニとして扱ってもよい」が STUB{RULE_REMINDER_TEXT}＝execStubPart1.ts:621 で状態を変えず終了する no-op。既存の読み替え経路（effectExecutor.ts:7623）も「レベルを参照する場合」に限定され原文を満たさない
+WXDi-P06-002-E1 :: BUG :: 「あなたのレベル3のルリグ1体を対象とし」の対象指定とレベル条件が無い。GRANT_LRIG_ABILITY は対象を選ばずプレイヤー共通の付与ストアへ入れる（effectExecutor.ts:9779-9806・grantedAuto.ts:49-60 はアタックしたルリグのレベルを見ない）。WXDi-D09-H11 と同型
+WXDi-P06-032-E1 :: BUG :: 「レベルがあなたの場にいる白のルリグの数以下の」という動的レベル上限が JSON に無く（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の既定フィルタは {cardType:シグニ} だけ＝effectExecutor.ts:5671-5679）、任意の相手シグニを戻せる
+WXDi-P06-034 :: FP :: 【ライズ】条件は engine が原文から直接読む＝getRiseRequirement（execUtils.ts:4236-4252）が /【ライズ】(.+?)(?=（この条件|【|$)/ で節を取り、コメントで WXDi-P06-034 の「トラッシュの＜武勇＞2枚を下に重ねて場に出す」形を明示的に扱っている。JSON に無くても実装済み
+WXDi-P06-059-E1 :: BUG :: ①選択肢①の対象に赤の色条件が無い ②同じく「《ライズアイコン》を持つシグニの下にある」という位置条件が無い ③選択肢②の付与能力のバニッシュ対象に「自身のパワー以下」（filter.powerLteSelf＝effectExecutor.ts:3204-3212 が受け皿）が無く任意の相手シグニをバニッシュできる
+# 2026-09-08 Opus triage（b32）
+WXDi-P07-004-sub-E1 :: BUG :: OPPONENT_PAY_OPTIONAL 先取り（effectExecutor.ts:5871）は支払い選択を先に出し、拒否後の DOWN で対象を選ぶ＝原文「対戦相手のシグニ1体を対象とし、対戦相手が手札を3枚捨てないかぎり」の事前対象化が無い（freezeStoredTargets は targetsStored がある場合しか働かない）。WXDi-P04-058-BURST と同型
+WXDi-P07-006-E1 :: BUG :: 「このゲームの間にあなたが《コイン》を得ていない場合」の判定が無く GAIN_COIN{5} が無条件。engine 側も獲得履歴を持たない（effectExecutor.ts:8944-8946 は禁止フラグと現在枚数しか見ない）
+WXDi-P07-044-E1 :: BUG :: ①E1＝原文「そのカードをトラッシュから場に出す」の「そのカード」＝直前に捨てたシグニだが ADD_TO_FIELD の source がトラッシュ全体（triggeringCardNum で絞っていない） ②E2＝FREEZE と POWER_MODIFY が別々に対象を選ぶ＝同一対象への拘束（SELECT_TARGET_ONLY＋targetsStored）が無い
+WXDi-P07-044-E2 :: BUG :: ①E1＝原文「そのカードをトラッシュから場に出す」の「そのカード」＝直前に捨てたシグニだが ADD_TO_FIELD の source がトラッシュ全体（triggeringCardNum で絞っていない） ②E2＝FREEZE と POWER_MODIFY が別々に対象を選ぶ＝同一対象への拘束（SELECT_TARGET_ONLY＋targetsStored）が無い
