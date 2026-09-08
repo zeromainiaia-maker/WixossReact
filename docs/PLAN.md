@@ -46,7 +46,8 @@
 **▶ 次の一手**＝🔥**§5.0 実装キューの「系統」を上から取る**（1行が複数効果を畳んでいるので1件ずつより桁で安い）。
 🏁**系統①（`asDown`）は 2026-09-08 に消化済み＝7効果**（`normalizeAddToFieldAsDown`・gates 全緑・push 済み）。
 🏁**S-2（母集団の grep 実測）は 2026-09-08 に全数完了**＝残っていた系統6件＋機構4件を codex 2アカウントで測り切った
-（報告書＝`scripts/archive/scratchpad/s2_population_20260908/REPORT_A.md` / `REPORT_B.md`）。**登録18効果 → 実測38効果。**
+（報告書＝`scripts/archive/scratchpad/s2_population_20260908/`）。**登録23効果 → 実測48効果**、
+🔴**うち `O-293` は「受け皿が在ると書いてあったのに名前どおり動いていなかった」型**（10効果が2フェイズ早く切れる）。
 **次に取るのは受け皿が実在して母集団の大きい系統**＝**「置いてもよい」の強制化（A 9＋M 2）**か**遅延誘発（A 8＋M 2）**。
 ⚠**`OPPONENT_PAY_OPTIONAL`（同32）は受け皿が無い**＝§5.3 `O-288` なので、先に安い方から取る。
 🔑**在庫の数え方**＝`node scripts/archive/semanticAuditBugList.mjs`（**残426 / 消化済み7 / 確定433**）。
@@ -348,7 +349,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（全11シート 100%）。⚠**止め時の判定（新型0×連続3バッチ）は未実施**＝新規ラウンドを始めるならそこから | `node scripts/archive/semanticAuditGap.mjs` |
 | §5.0 O-A | 🏁**完了**＝findings の triage | 🏁**未 triage 0**（572件を全数確定＝**BUG 433 / FP 70**・FP は全件 engine の行を人手で裏取り済み） | `node scripts/archive/semanticAuditPool.mjs` |
 | **§5.0 実装キュー** | 🔥🔥**本線キュー**＝triage で真バグと確定した未修正バグ（O-D / S-3） | 🔥**残426効果**（確定433 − 消化済み7）。🔴`semanticAuditPool.mjs` は残0になったのでもう在庫を映さない | `node scripts/archive/semanticAuditBugList.mjs` |
-| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**5項目**（`O-287`/`O-288`/`O-290`〜`O-292`）。🆕**`O-289` は S-2 で「機構不要」と確定して §5.0 へ降ろした** | §5.3 の索引 G |
+| §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🔥**6項目**（`O-287`/`O-288`/`O-290`〜`O-293`）。🆕**`O-289` は S-2 で「機構不要」と確定して降ろし、`O-293` を新規登録した** | §5.3 の索引 G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
 | §5.4 | 🏁閉じた。**新しい構造混線を見つけたときだけ足す** | 0件 | — |
@@ -381,7 +382,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | ID | 作業 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
 | **S-1** | **意味照合バッチを回す**（10枚/バッチ）🆕**codex なら Claude 月額枠を消費しない**（2026-09-08 実測＝213バッチ / 失敗0・1バッチ 12〜81秒） | 🏁**残0バッチ**（全11シート監査完了） | `node scripts/archive/semanticAuditGap.mjs` |
-| **S-2** | **真バグの母集団を grep で数える**（原文の言い回し × live JSON の受け皿の有無） | 🏁**残0**（2026-09-08＝**新バグ集団を全数実測**＝系統6件＋機構4件を codex 2アカウントで測り切った。**登録18効果 → 実測38効果**）。⚠**新しい系統を triage で見つけたらここへ戻す** | ⚠**`semanticAuditPool.mjs --grep` は使えない**（未 triage を数えるので triage 完了後は常に0）。**`docs/_effect_srctext.json`（効果単位の原文）× `public/data/effects_*.json` を突き合わせる使い捨て `tmp_*` で数える** |
+| **S-2** | **真バグの母集団を grep で数える**（原文の言い回し × live JSON の受け皿の有無） | 🏁**残0**（2026-09-08＝**新バグ集団を全数実測**＝**系統7件＋機構4件**を測り切った。**登録23効果 → 実測48効果**）。⚠**「grep 実測N」と書いてあっても失敗の記録のことがある**（この巡で1系統を測り残した）。⚠**新しい系統を triage で見つけたらここへ戻す** | ⚠**`semanticAuditPool.mjs --grep` は使えない**（未 triage を数えるので triage 完了後は常に0）。**`docs/_effect_srctext.json`（効果単位の原文）× `public/data/effects_*.json` を突き合わせる使い捨て `tmp_*` で数える** |
 | **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | 🏁**0件**（`WX22-005-E1` を第222バッチで消化） | 下の実装キュー |
 | **S-4** | **golden の定型追加・ゲート実行・簿記**（セッション末1回） | 1回/セッション | `npm run gates` |
 
@@ -426,7 +427,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | 🏁系統 | ~~`ADD_TO_FIELD` の `asDown` 欠落~~＝**7効果を修正済み**（2026-09-08・`normalizeAddToFieldAsDown`）。**残9は別の穴**＝MANUAL 3件＋該当 `ADD_TO_FIELD` が JSON に無い6件（個別行へ） | — | — | 🏁完了 |
 | 系統 | `OPPONENT_PAY_OPTIONAL` が対象を事前選択しない（**grep 実測 32効果**／findings 由来12） | 相手が支払いを判断する時点で対象が未確定＝原文と情報量が違う | ❌**要新設**（`freezeStoredTargets` は `targetsStored` があるときだけ働く）→ §5.3 `O-288` | 遅い |
 | 系統 | 遅延誘発が即時実行に化けている（🆕**S-2 実測 A 8効果＋M 2**／登録6） | 「次の〜時に」が解決時に走る | ✅実在（`INSTALL_DELAYED_TRIGGER` ほか6経路） | 遅い |
-| 系統 | 期限が「次のあなたのエナフェイズ終了時まで」でなく現ターン終了時（5効果） | 効果が1ターン早く切れる | 一部実在（`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`） | 遅い |
+| 系統 | 期限が「次のあなたのエナフェイズ終了時まで」でなく現ターン終了時（🆕**S-2 実測 10効果**／登録5＝**全候補が壊れている**） | 効果が2フェイズ早く切れる。🔴**受け皿の名前が嘘**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` が書く `lrig_limit_mod` は**ターン終了時に消える**（`BattleScreen.tsx:4284` と `:4735`） | ❌**要新設**（「次のエナフェイズ終了まで」生きるストアが engine に無い）→ §5.3 `O-293` | 遅い |
 | 系統 | 「宣言した数字と同じレベル」条件欠落＋`reorder:false`（**grep 実測 12効果**／findings 由来4） | 無条件バウンス＋並べ替え不可 | ✅実在 | 遅い |
 | 系統 | 「置いてもよい」が素の `TRASH`／`MILL`／`ENERGY_CHARGE` で強制（🆕**S-2 実測 A 9効果＋M 2**／登録4） | 任意が強制になる | ✅実在（`optional`／`mandatory:false`／`CHOOSE`／`OPTIONAL_ACTIVATE`／任意 STUB の5経路） | 遅い（3実装単位にまたがる） |
 | 系統 | 《ターン1回》なのに `usageLimit` が無い（**grep 実測 11効果**／findings 由来3） | 《ターン1回》が無制限になる | ✅実在（`triggerCollect.ts:2043-2048`） | 速い |
@@ -692,7 +693,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 新規分離（母集団 1〜2効果）
 
-🔥**残5項目**（2026-09-08 の O-A 全数 triage で「engine の受け皿が無い」と確定したもの＝`O-287`〜`O-292`）。
+🔥**残6項目**（`O-287`/`O-288`/`O-290`〜`O-293`）。
 🆕🔴**2026-09-08 の S-2（母集団 grep 実測）で `O-289` は「機構不要」と確定して降ろした**＝受け皿 `taken_choice_keys`
 （`src/types/index.ts:885`・読み `effectExecutor.ts:6432`・**ターン境界で消さずに**書く `execStubPart1.ts:922-930`）が実在し、
 **parser が `CHOOSE.noRepeat` を出せば閉じる**（§5.0 の系統行へ移した）。
@@ -706,6 +707,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | `O-290` | 🆕**S-2 実測 3カード**（登録4＝stale。`WXK03-014` は `coinReduction` で処理済み） | **キーを場に出すときのコスト条件・軽減**＝「場に出すためのコストは《コイン×0》になる」2枚（`WXK10-015`/`WXK11-012`）と「エナの色が3種類以上ある場合にしか出せない」1枚（`PR-K060`）。⚠**この3文は effectId が切り出されていない**（`_effect_srctext.json` に無い＝CSV 全文が正本）。専用 `PLACE_KEY_FROM_LRIG_DECK.coinReduction` はあるが**通常キープレイ経路（`BattleScreen.tsx:9074`／`KeyUseModal.tsx:35-56`）は印刷コインを直読み**する |
 | `O-291` | 🆕**S-2 実測 1効果＝登録どおり**（`WXK11-020-E1`・MANUAL） | **`STRIP_OPP_ENA_MULTI_ENA` の後半**＝「対戦相手のエナゾーンのカードは対戦相手の効果を受けない」。消費地点は `costs.ts:1233` と `artsUseGate.ts:71` の2箇所だけで【マルチエナ】剥奪しか実装していない |
 | `O-292` | 🆕**S-2 実測 3効果＝登録どおり**（`WXDi-CP01-006-E2`/`-007-E2`/`-008-E2`） | **通常効果からのコラボ**＝起動コスト「コラボライバー1人とのコラボ」。実行機構は `STUB{INTERNAL_DO_COLLAB}` にしかなく、`execStubPart3.ts:1311-1314` が「通常効果からの生成元が無い」と明記している |
+| 🆕`O-293` | **S-2 実測 10効果**（軸① リミット期限 10・軸② 付与能力期限 5・重複あり） | **「次のあなたのエナフェイズ終了時まで」の寿命ストアが無い**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`（`execStubPart1.ts:4208`）は `lrig_limit_mod` を足すだけで、それは**ターン終了時に消える**（`BattleScreen.tsx:4284` / `:4735`）。🔴**STUB 名・ログ文言「（エナフェイズ終了まで）」・型コメント（`types/index.ts:799`）の3つとも嘘**＝**受け皿が在るように見えて 7効果が2フェイズ早く切れている**。付与能力側（`GRANT_LRIG_ABILITY.duration`）も `UNTIL_OPP_TURN_END` が最長で原文に届かない |
 
 🔴**全文の登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「§5.3 機構 worklist 登録票の全文」にある**（着手前に同じ ID を読む）。
 
