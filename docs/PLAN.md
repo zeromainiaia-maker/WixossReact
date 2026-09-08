@@ -813,7 +813,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
   census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ lint 0 errors。
   ⚠**CI が一度赤くなった**（`react-hooks/set-state-in-effect`）＝**私の変更ではなく依存の自動更新**
   （CI は `npm install` ＋ caret 範囲）。`src/screens/DeckListScreen.tsx` をレンダー中調整へ直して復旧。
-  🏁**根本原因も解消**＝2026-09-08 にユーザー承認のうえ CI を **`npm ci`** へ変更（lockfile と package.json の同期は事前に機械照合）。⚠**依存を足したら `npm install` をローカルで回して lock を必ず commit する**（同期していないと `npm ci` はハード失敗する）。
+  🏁**根本原因も解消**＝2026-09-08 にユーザー承認のうえ CI を **`npm ci`** へ変更。⚠**Windows では `npm ci` が通る lock を作れない**（optional 依存の依存ツリーを解決しないため `@emnapi/runtime` が入らない）＝**ubuntu の一時ワークフローで生成して artifact で取り込んだ**（[LESSONS.md](./LESSONS.md) §4.2x）。**依存133パッケージが一度だけ上がり**（`eslint 10.3.0→10.10.0` ほか）、**ローカルでも `npm ci` を回して手元と CI を揃えた**（gates 全緑・lint 0 errors / 254 warnings）。⚠**依存を足したら lock を必ず commit する**。
   🖥**実機＝該当なし**（`src/screens/` の変更は lint 由来の1関数のみ・挙動不変）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外

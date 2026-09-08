@@ -372,6 +372,20 @@
   **`timeout` で殺されたビルドを「完走した」と2度報告した**（`public/data/*.json` の mtime で気付いた）。
   ⇒ **長時間コマンドは単独で走らせ、`exit=$?` を直後に取る。成果物の mtime も必ず見る。**
 - 🔴**`npm run build:effects` は約8分**（baseline 実測）。**「数分」で見積もって timeout を短く切らない。**
+- 🔴🔑**バックグラウンドを止めても子プロセスは残る**＝`TaskStop` はラッパー（`npm`）しか止めず、
+  `tsx`／`node` の子は生き続ける。2026-09-08 に**止めたはずの `build:effects` が6プロセス生存**していて、
+  ①`npm ci` が `EPERM: unlink esbuild.exe` で失敗し `node_modules` が半壊 ②**`public/data/*.json` を
+  書きうる状態のまま放置**されていた（実害は出なかったが、live を上書きしうる）。
+  ⇒ **成果物を書き換える長時間コマンドを止めたら、必ず残骸を確認して PID 指定で止める**：
+  `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*<repo>*' }`
+  ⚠**`taskkill /IM node.exe` は使わない**（Codex や MCP サーバまで巻き添えにする）。
+- 🔴**Windows では `npm ci` が通る lockfile を作れないことがある**＝`wasm32-wasi` 等の optional 依存の
+  **依存ツリーを解決しない**ので `@emnapi/runtime` が lock に入らず、Linux の `npm ci` が
+  「Missing: … from lock file」で落ちる。`--os=linux --cpu=x64` も `--include=optional` も効かない。
+  ⇒ **ubuntu の一時ワークフローで `npm install --package-lock-only` を回し、artifact で持ち帰る**
+  （2026-09-08 に実施。取り込み後にワークフローは削除した）。
+  ⚠**その lock は caret を最新へ再解決する**＝一度だけ大きく上がる（実測133パッケージ）。
+  **上げたらローカルでも `npm ci` を回して手元と CI を揃える**（揃えないと「手元は緑・CI は赤」が再発する）。
 - 🔴**CI の依存は lockfile で固定する**＝`npm install` ＋ caret 範囲だと**コードを1行も変えていないのに CI が赤くなる**
   （2026-09-08 実測＝`eslint-plugin-react-hooks` が上がり `react-hooks/set-state-in-effect` が error 化。
   **ローカルは古い版のままなので `npm run gates` は緑**＝「手元が緑なら CI も緑」が成り立たない）。
