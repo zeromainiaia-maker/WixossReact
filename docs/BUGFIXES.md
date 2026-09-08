@@ -1,5 +1,65 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-08（§5.1 実機返済・`V-180` / `V-181`）＝5シナリオを常設して同日返済
+
+第227・第228バッチで `src/screens/` を触ったので、§2.2 のとおり**同じ日のうちに実機まで回した**。
+**engine のバグは1件も出なかった**（＝実装は正しかった）が、**実機でしか通らない配線を2本とも実測で確かめた**。
+
+### `V-180`＝「限定条件を無視する」が宣言した範囲だけに効く（3シナリオ）
+
+**なぜ実機が要ったか**＝`artsUseGate` / `spellUseGate` は純関数なので golden で3スコープ×両方向を固定できたが、
+**`BattleScreen.tsx` の手札シグニ召喚ゲートだけは golden から通らない**。
+
+| シナリオ | 盤面 | 結果 |
+|---|---|---|
+| `v180IgnoreRestrictionSigniLv5Summonable` | ルリグ `WX14-003`（signi/Lv5 宣言）＋ 手札に `WX13-030`（**ユヅキ限定・Lv5**） | ✅ 「召喚」が出て**実際に場へ置けた** |
+| `v180IgnoreRestrictionSigniLv4Blocked` | 同じ宣言＋ `WD01-009`（**タマ限定・Lv4**） | ✅ 「召喚」が出ない（`levelEq:5` が効いている） |
+| `v180IgnoreRestrictionArtsScopeSigniBlocked` | ルリグ `WX05-006`（**arts+spell 宣言**）＋ `WX13-030` | ✅ 「召喚」が出ない（**限定つきシグニ952枚への過剰適用が止まっている**） |
+
+⚠**カード選定**＝`WX14-003` は `CardClass='?'`・`WX05-006` は `ウリス` で、どちらも観測カードの限定に一致しない。
+リミットは 15 / ∞ で足りるので、**落ちるとしたら限定のせいだけ**になるよう他の門を全部開けてある。
+
+### `V-181`＝離場したシグニの「正面にあった」が実機の収集経路でも解ける（2シナリオ）
+
+**なぜ実機が要ったか**＝`ExecCtx.sourceLeftZoneIdx` は **`triggerCollect`（`ON_BANISH` の `banishedZone`）
+→ `StackEntry` → `BattleScreen` の ctx 組み立て**の3段を通って初めて届く。**golden は ctx を手で組むので
+この配線を1本も検査していない**（`V-176` が釣った「engine は正しいのに実機だけ恒久 no-op」と同型）。
+
+盤面＝host 中央の `WX07-039`（P10000）で正面（guest 中央・P15000 のバニラ）へアタックし**返り討ちにさせる**。
+guest は3ゾーンとも埋める。**観測点は `pendingCandidates`**。
+
+- `v181FrontOfSelfAfterBanishCenter`（正面 `WX01-064`）＝✅ 候補は `[WX01-064#8192]` **1体だけ**。
+- `v181FrontOfSelfFollowsSwap`（正面と側面を入れ替え）＝✅ 候補が `[WX01-053#8192]` へ**追随**した
+  （固定 index を掴んでいないことの証拠）。
+
+### 🔴 実機レベルの反転確認（軸ごとに1本）
+
+| 殺した1ビット | Lv5可 | Lv4不可 | arts不可 | v181(1) | v181(2) |
+|---|---|---|---|---|---|
+| なし（正） | PASS | PASS | PASS | PASS | PASS |
+| `ignoreRestrictionScopes` の判定 | PASS | **PASS** | 🔴FAIL | 🔴FAIL※ | 🔴FAIL※ |
+| `ignoreRestrictionSigni.levelEq` の判定 | PASS | 🔴FAIL | PASS | PASS | PASS |
+| `resolveFrontOfSelfCardNum` の `sourceLeftZoneIdx` フォールバック | — | — | — | 🔴FAIL | 🔴FAIL |
+
+※1回目の反転では scope と resolver を同時に殺している。
+🔑**`hasIgnoreLrigRestriction` は scope 判定と levelEq 判定の2段**なので、**scope だけ殺しても
+`Lv4不可` は緑のまま**だった＝**対照の本数ぶん反転を用意しないと「どの対照がどのビットを守っているか」が
+対応づかない**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 60 として採番した）。
+🔴**復元は `git checkout` ＋ `SKIP_BUILD=0`**（同 39＝mtime 保存の `mv` で戻すと stale dist で回る）。
+**復元後にもう一度 5本とも PASS を確認済み。**
+
+### シナリオを書く過程で踏んだ罠（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) へ 58〜60 で採番）
+
+- **58**＝`getByRole('button', { name: 'アタック', exact: false })` が盤面常設の「**ルリグアタック**へ」に当たり、
+  **シグニのアタックを1度も宣言しないまま毎ティック「押せた」と報告**していた（`exact: true` で解決）。
+  ＋応答系ラベル（「しない」等）は**対話中だけ**押す（常に押すと `settled` の早期打ち切りが効かず FAIL 確定に 28秒）。
+- **59**＝`V-nn` の採番で**使用済みの `V-179` を再利用**しかけた（第220バッチで返済済み）。
+  **登録前に `grep -ohE "V-[0-9]{2,3}" scripts/ docs/ | sort -u` で最大値を実測する。**
+- **60**＝上記の「反転は軸ごとに1本」。
+
+**ゲート**＝`npm run gates` 全緑（golden **3659 PASS / 0 FAIL**・census 高シグナル 0・enginetext A🔴 0行・
+costtext A🔴 0規則・smoke/fuzz 全0・lint 0 errors / 256 warnings 据置）。**`src/` は反転後 clean に復元済み。**
+
 ## 2026-09-08（§5.3 `O-272`）＝離場したシグニの「正面にあった」相手シグニを解決する（live 4効果 / 4カード）
 
 🔴**codex は両アカウントとも利用上限だったので、この項目は Claude が単独で実装した。**

@@ -49641,6 +49641,277 @@ order.push('v178RideUsableInAttackPhase');
 order.push('v178RideNotUsableWithoutBike');
 
 // ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-180`＝§5.3 `O-268`「限定条件を無視する」の**適用範囲**（2026-09-08 第227バッチ）。
+//
+// 🔴**旧実装は範囲を区別する場所がどこにも無かった**＝`STUB{IGNORE_LRIG_RESTRICTION_ARTS}` に payload が無く、
+//   消費地点（`artsUseGate` / `spellUseGate` / `BattleScreen` の手札シグニ召喚）が**一律に**それを読んでいた。
+//   ⇒ 原文が「アーツ」「アーツとスペル」しか書いていない2枚が、**限定つきシグニ 952枚**にも効いていた。
+// 🔑いまは parser が原文から `ignoreRestrictionScopes` を決めて payload に載せ、
+//   `hasIgnoreLrigRestriction(my, effectsMap, kind, card)` が scope を見る（範囲省略は fail-closed）。
+//
+// 🔴**なぜ実機が要るか**＝`artsUseGate` / `spellUseGate` は純関数なので golden で3スコープ×両方向を固定したが、
+//   **`BattleScreen.tsx:8741` の手札シグニ召喚ゲートだけは golden から通らない**（§2.2）。
+//
+// **3本セット**（§4.4-3＝負方向は必ず対照とセット・§4.4-45＝塞ぎすぎ側も見る）：
+//   (1) `WX14-003`（signi/レベル5宣言）＋ Lv5 限定シグニ → **召喚できる**（＝宣言が届いている）
+//   (2) `WX14-003` ＋ Lv4 限定シグニ           → **召喚できない**（＝`levelEq:5` が効いている＝1ビット反転）
+//   (3) `WX05-006`（arts+spell 宣言）＋ Lv5 限定シグニ → **召喚できない**（＝952枚への過剰適用が止まっている）
+//
+// ⚠**カード選定の根拠**（§4.4-8k / §4.4-56＝限定は手札アクションを丸ごと消す）：
+//   - `WX14-003` 紡ぐ者＝ルリグ Lv5 / Limit15 / **CardClass=`?`**（どの「〜限定」にも一致しない）。
+//   - `WX05-006` 虚無の閻魔 ウリス＝ルリグ Lv5 / Limit∞ / CardClass=ウリス（ユヅキ限定には一致しない）。
+//   - `WX13-030` 幻竜神姫 バハムート＝シグニ **Lv5** / **ユヅキ限定** / P15000（効果は【常】2つだけ＝副作用なし）。
+//   - `WD01-009` 甲冑 ローメイル＝シグニ **Lv4** / **タマ限定** / P12000（効果は【常】1つだけ）。
+//   ⇒ リミットは 15（または ∞）で足りる＝**落ちるとしたら限定のせいだけ**になるよう他の門を全部開けてある。
+// ⚠**「ボタンが0件」だけでは negative の witness にならない**（§4.4-37b）＝
+//   `card-detail-modal` が**可視**であることまで確かめてから「出ない」と判定する。
+// ═════════════════════════════════════════════════════════════════════════════
+const v180Spec = (lrigNum, handSigni) => ({
+  hostSet: {
+    'field.lrig': [lrigNum + '#8001'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], trash: [], coins: 0, energy: [],
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む（観測対象とは別カード）。
+    deck: ['WD01-013#8010', 'WD01-013#8011', 'WD01-013#8012'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8090'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  handPrepend: [handSigni + '#8020'],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV180(page, H, o) {
+  const { tag, expectSummon, handSigni, why } = o;
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`開始 lrig=${before?.host?.lrigTop} hand=${JSON.stringify(before?.host?.handCards)} field=${JSON.stringify(before?.host?.fieldSigni)}`);
+  // 🔴§4.4-49＝判定の瞬間に「自分が張った盤面か」を見る（見ないと両方向に嘘をつく）。
+  if (!(before?.host?.handCards ?? []).some(n => String(n).startsWith(handSigni))) {
+    return { pass: false, detail: `前提崩れ＝観測カード ${handSigni} が手札に無い（hand=${JSON.stringify(before?.host?.handCards)}）` };
+  }
+  let modalVisible = false, labels = [], sawSummon = false;
+  for (let s = 0; s < 10; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    // §4.4-2c＝モーダルはトグルなので「開いていないときだけ」押す。
+    if (!modalVisible) await H.clickTestId('my-hand-card-0');
+    const modal = page.locator('[data-testid="card-detail-modal"]').first();
+    modalVisible = (await modal.count()) > 0 && await modal.isVisible().catch(() => false);
+    // §4.4-32＝複合属性セレクタは当たらないので `data-action-label` を全部読む。
+    labels = await page.locator('[data-action-label]')
+      .evaluateAll(els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+    if (labels.includes('召喚')) sawSummon = true;
+    H.log(`  ${tag}[${s}] modal=${modalVisible} labels=${JSON.stringify(labels)} sawSummon=${sawSummon}`);
+    if (sawSummon) break;
+  }
+  if (!modalVisible) {
+    return { pass: false, detail: `前提崩れ＝カード詳細モーダルが開かなかった（labels=${JSON.stringify(labels)}）` };
+  }
+  if (expectSummon) {
+    if (!sawSummon) {
+      return { pass: false, detail: `🔴${why}のに「召喚」が出ない＝宣言が手札召喚ゲートへ届いていない（labels=${JSON.stringify(labels)}）` };
+    }
+    // §4.4-47＝「ゲートを通した」と「実際に置けた」は別の観測面。最後まで置ききって盤面を assert する。
+    let placed = false;
+    for (let s = 0; s < 12; s++) {
+      const btn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await btn.count() && await btn.isVisible().catch(() => false)) await btn.click({ timeout: 1500 }).catch(() => {});
+      await H.clickTestId('summon-zone-1', 'summon-zone-0', 'summon-zone-2');
+      await page.waitForTimeout(700);
+      const st = await H.queryState();
+      const f = JSON.stringify(st?.host?.fieldSigni ?? []);
+      if (f.includes(handSigni)) { placed = true; H.log(`  ${tag}[置いた] field=${f}`); break; }
+      H.log(`  ${tag}[置き${s}] field=${f}`);
+    }
+    return placed
+      ? { pass: true, detail: `${why}＝限定つきシグニを手札から場に出せた（宣言が BattleScreen の召喚ゲートまで届いている）` }
+      : { pass: false, detail: `🔴「召喚」は出たのに場に出せなかった（§4.4-47＝ゾーンが全部 disabled 等）` };
+  }
+  return sawSummon
+    ? { pass: false, detail: `🔴対照が崩れた＝${why}のに「召喚」が出た（限定無視が範囲外まで効いている＝過剰実行）` }
+    : { pass: true, detail: `対照＝${why}ので「召喚」は出ない（labels=${JSON.stringify(labels)}）` };
+}
+
+scenarios.v180IgnoreRestrictionSigniLv5Summonable = {
+  title: 'V-180(1): WX14-003「レベル5のシグニの限定条件を無視して場に出せる」＝ユヅキ限定のLv5シグニを召喚できる',
+  spec: v180Spec('WX14-003', 'WX13-030'),
+  async drive(page, H) {
+    return driveV180(page, H, {
+      tag: 'v180Lv5Ok', expectSummon: true, handSigni: 'WX13-030',
+      why: '宣言が signi スコープ・レベル5な',
+    });
+  },
+};
+scenarios.v180IgnoreRestrictionSigniLv4Blocked = {
+  title: 'V-180(2): 対照＝同じ宣言でも Lv4 の限定シグニは召喚できない（levelEq:5 の1ビット反転）',
+  spec: v180Spec('WX14-003', 'WD01-009'),
+  async drive(page, H) {
+    return driveV180(page, H, {
+      tag: 'v180Lv4Ng', expectSummon: false, handSigni: 'WD01-009',
+      why: '宣言はレベル5限定でカードは Lv4 な',
+    });
+  },
+};
+scenarios.v180IgnoreRestrictionArtsScopeSigniBlocked = {
+  title: 'V-180(3): 対照＝WX05-006（アーツとスペルの宣言）は限定つきシグニ召喚に効かない（952枚への過剰適用の停止）',
+  spec: v180Spec('WX05-006', 'WX13-030'),
+  async drive(page, H) {
+    return driveV180(page, H, {
+      tag: 'v180ArtsNg', expectSummon: false, handSigni: 'WX13-030',
+      why: '宣言が arts+spell スコープでシグニを含まな',
+    });
+  },
+};
+order.push('v180IgnoreRestrictionSigniLv5Summonable');
+order.push('v180IgnoreRestrictionSigniLv4Blocked');
+order.push('v180IgnoreRestrictionArtsScopeSigniBlocked');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-181`＝§5.3 `O-272`「このシグニの正面にあったシグニ」の解決（2026-09-08 第228バッチ）。
+//
+// 🔴**旧実装は `resolveFrontOfSelfCardNum` が「効果元が場に居ること」を要求**していたので、
+//   `ON_BANISH` から呼ぶと必ず `null`＝`WX07-039-E1` は**位置限定が落ちて相手の任意1体**（過剰実行）だった。
+// 🔑いまは `ExecCtx.sourceLeftZoneIdx`（離場直前のゾーン添字）で解く。
+//
+// 🔴**なぜ実機が要るか**＝その添字は **`triggerCollect`（ON_BANISH の `banishedZone`）→ `StackEntry`
+//   → `BattleScreen` の ctx 組み立て**の3段を通って初めて届く。**golden は ctx を手で組むので
+//   この配線を1本も検査していない**（`V-176` が釣った「engine は正しいのに実機だけ恒久 no-op」と同型）。
+//
+// **観測点**＝`SELECT_TARGET_ONLY` が出す `pendingCandidates` が**正面1体だけ**であること。
+//   ・配線が抜けていれば候補0＝`abortIfNoCandidate` で**対話が1度も立たない**（＝FAIL）。
+//   ・位置限定が効いていなければ**相手3体すべて**が候補に出る（＝FAIL）。
+//
+// **2本セット**（§4.4-3 / §4.4-25f＝反転は1ビットだけ動かす）＝
+//   正面に置く相手シグニを入れ替えると候補もそれに追随すること（固定 index を掴んでいないことの証拠）。
+//
+// ⚠**盤面の作り方**＝host 中央（zone1）の `WX07-039`（羅原 Uuo・青 Lv4 P10000）でアタックし、
+//   正面（guest zone1・§4.4-8e＝**中央同士だけが正面**）に **P15000 のバニラ**を置いて
+//   **アタッカーを返り討ちにする**＝これで `ON_BANISH` が実際のバトル経路から発火する。
+//   guest は3ゾーンとも埋める（§4.4-8e＝1ゾーンだけだと正面素通りでライフクラッシュになりバトルが起きない）。
+// ⚠**バニラを選ぶ**（§4.4-35b＝銀行役の副作用を避ける）＝`WX01-053` / `WX01-064` / `WX01-086` は
+//   `EffectText` も `BurstText` も持たない（全カード走査で確認）。
+// ⚠**エナは青2枚**＝続く `OPTIONAL_COST{青青}` まで到達させるため。
+// ═════════════════════════════════════════════════════════════════════════════
+const v181Spec = (frontNum, sideNum) => ({
+  hostSet: {
+    'field.lrig': ['WD01-004#8101'],
+    'field.signi': [null, ['WX07-039#8102'], null],   // 中央＝アタッカー（正面が解決対象）
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    lrig_deck: [], lrig_trash: [], trash: [], coins: 0,
+    energy: ['WD03-013#8110', 'WD03-013#8111'],       // 青×2（《青》《青》の任意コスト）
+    deck: ['WD01-013#8120', 'WD01-013#8121', 'WD01-013#8122'],
+    hand: [], actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8190'],
+    // zone1 が host zone1 の正面（§4.4-8e）。3ゾーンとも P15000 のバニラで埋める。
+    'field.signi': [[sideNum + '#8191'], [frontNum + '#8192'], ['WX01-086#8193']],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV181(page, H, o) {
+  const { tag, frontNum, sideNum } = o;
+  const st0 = await H.queryState();
+  H.log(`開始 host=${JSON.stringify(st0?.host?.fieldSigni)} guest=${JSON.stringify(st0?.guest?.fieldSigni)} ena=${st0?.host?.energy}`);
+  // §4.4-49＝自分が張った盤面かを注入確認する。
+  if (!JSON.stringify(st0?.host?.fieldSigni ?? []).includes('WX07-039')
+      || !JSON.stringify(st0?.guest?.fieldSigni ?? []).includes(frontNum)) {
+    return { pass: false, detail: `前提崩れ＝盤面が注入されていない（host=${JSON.stringify(st0?.host?.fieldSigni)} guest=${JSON.stringify(st0?.guest?.fieldSigni)}）` };
+  }
+  let attacked = false, modalOpened = false, banished = false;
+  let candSeen = null, settled = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    const chk = await H.queryState();
+    // §4.4-8q＝アタックフェイズの到達点はフェイズ名で確かめる（ドリフトしたら repatch）。
+    if (!attacked && chk?.turnPhase && chk.turnPhase !== 'ATTACK_SIGNI'
+        && !chk?.pendingEffect && !(chk?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${chk.turnPhase})`;
+    }
+    // 🔴§4.4-7b＝対話中はアタック操作を試さない（ゾーンのトグルを押し続けて止まる）。
+    const busy = !!chk?.pendingEffect || (chk?.stackLen ?? 0) > 0;
+    // 🔴**必ず exact:true**（§4.4-2 / §4.4-32 と同型）＝`exact:false` だと盤面に常設の
+    //   「**ルリグアタック**へ」「**アタック**フェイズへ」に当たり、**シグニのアタックを1度も宣言しないまま
+    //   「押せた」と報告し続ける**（初版でこれを踏んで26ティック空振りした）。
+    if (!did && !busy) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) {
+        await atk.click({ timeout: 1500 }).catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    // §4.4-2c＝ゾーンの行動一覧はトグルなので「開いていないときだけ」押す。
+    if (!did && !busy && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-1');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    // 🔴§4.4-41＝「押した」ではなく「盤面が変わった」を進行条件にする。応答系のラベルは
+    //   盤面に常時出ている文言（「しない」等）にも当たるので、**対話中だけ**押す
+    //   （常に押すと did が毎ティック真になり、settled の早期打ち切りが効かない）。
+    if (!did && busy) did = await H.clickTextOrBtn(['発動順序を確定', 'ガードしない', 'しない']);
+    const st = await H.queryState();
+    // 🔑**観測点**＝`SELECT_TARGET_ONLY` の候補集合（先に立つ側）。§4.4-8d＝sticky に持つ。
+    if (candSeen === null && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+      candSeen = [...st.pendingCandidates];
+      H.log(`  ${tag} 候補を観測: ${JSON.stringify(candSeen)}`);
+    }
+    // §4.4-8f＝バニッシュの行き先はエナ。場に無いことで判定する。
+    if (!JSON.stringify(st?.host?.fieldSigni ?? []).includes('WX07-039')) banished = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | atk=${attacked} banished=${banished} cand=${JSON.stringify(st?.pendingCandidates ?? null)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (candSeen) break;
+    settled = (attacked && banished && !busy && !did) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const fin = await H.queryState();
+  if (!banished) {
+    return { pass: false, detail: `前提崩れ＝アタッカーがバニッシュされていない（host=${JSON.stringify(fin?.host?.fieldSigni)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
+  }
+  if (!candSeen) {
+    return { pass: false, detail: `🔴【自】が対象選択を出さなかった＝正面を解決できず abortIfNoCandidate で降りた（＝離場ゾーン添字が実機の収集経路で積まれていない）` };
+  }
+  const uniq = [...new Set(candSeen.map(n => String(n).split('#')[0]))];
+  if (uniq.length === 1 && uniq[0] === frontNum) {
+    return { pass: true, detail: `候補は正面の ${frontNum} 1体だけ（側面の ${sideNum} / WX01-086 は候補外）＝離場後も正面が解決できている` };
+  }
+  return { pass: false, detail: `🔴候補が正面1体ではない（cand=${JSON.stringify(candSeen)} 期待=${frontNum}）＝位置限定が落ちて相手の任意1体になっている` };
+}
+
+scenarios.v181FrontOfSelfAfterBanishCenter = {
+  title: 'V-181(1): バニッシュされた WX07-039 の【自】候補は「正面にあった」1体だけ（正面=WX01-064）',
+  spec: v181Spec('WX01-064', 'WX01-053'),
+  async drive(page, H) { return driveV181(page, H, { tag: 'v181Front64', frontNum: 'WX01-064', sideNum: 'WX01-053' }); },
+};
+scenarios.v181FrontOfSelfFollowsSwap = {
+  title: 'V-181(2): 正面と側面を入れ替えると候補も入れ替わる（固定 index を掴んでいないことの証拠）',
+  spec: v181Spec('WX01-053', 'WX01-064'),
+  async drive(page, H) { return driveV181(page, H, { tag: 'v181Front53', frontNum: 'WX01-053', sideNum: 'WX01-064' }); },
+};
+order.push('v181FrontOfSelfAfterBanishCenter');
+order.push('v181FrontOfSelfFollowsSwap');
+
+// ═════════════════════════════════════════════════════════════════════════════
 // §5.1 `V-179`＝PLAN §5.0 実装キュー「系統」（`WX07-014-E1`）。
 // 原文＝「スペル１つを対象とし、それの効果を打ち消す。その後、あなたは**それ**をトラッシュから、
 //   あなたの手札にあるかのようにコストを支払わずに限定条件を無視して**使用してもよい**。」
