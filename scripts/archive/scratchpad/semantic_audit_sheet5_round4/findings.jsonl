@@ -1,0 +1,22 @@
+{"batch":"01","cardNum":"WDK05-R11","effectId":"WDK05-R11-E1","severity":"HIGH","type":"MISSING","quote":"そうした場合","claim":"バニッシュが追加コスト支払い時のCONDITIONAL外にあり、《青》を支払わなくても実行される構造になっている。","grep":"そうした場合"}
+{"batch":"01","cardNum":"WDK05-R11","effectId":"WDK05-R11-E1","severity":"HIGH","type":"MISSING","quote":"レベルの合計と同じレベル","claim":"バニッシュ対象に、トラッシュへ置いたシグニのレベル合計と同じレベルという条件がない。","grep":"レベルの合計と同じ"}
+{"batch":"02","cardNum":"WDK07-E08","effectId":"WDK07-E08-E1","severity":"HIGH","type":"WRONG","quote":"それをトラッシュから","claim":"打ち消したスペルそのものではなく、対戦相手のトラッシュにある任意のスペル1枚を手札に戻す指定になっている。","grep":"それをトラッシュから"}
+{"batch":"04","cardNum":"WDK08-Y01","effectId":"WDK08-Y01-E1","severity":"MED","type":"WRONG","quote":"それぞれレベルの異なる","claim":"公開したシグニのレベル差を判定すべきところ、トラッシュに置かれたカードの異なるレベル数を判定している。","grep":"レベルの異なる"}
+{"batch":"06","cardNum":"WDK09-011","effectId":"WDK09-011-E1","severity":"HIGH","type":"MISSING","quote":"同じレベルのシグニの場合","claim":"宣言した数字とトラッシュに置いたシグニのレベルが一致した場合にだけ引く条件がなく、JSONでは常にカードを1枚引く。","grep":"同じレベル"}
+{"batch":"06","cardNum":"WDK09-017","effectId":"WDK09-017-E1","severity":"HIGH","type":"WRONG","quote":"対戦相手はそれをデッキ","claim":"原文では選んだ相手の手札をデッキ下へ置いた場合に対戦相手が1枚引くが、JSONの後続DRAWは条件なしで自分が1枚引く。","grep":"対戦相手はそれを"}
+{"batch":"06","cardNum":"WDK10-009","effectId":"WDK10-009-E2","severity":"MED","type":"WRONG","quote":"次のあなたのターンまで","claim":"原文の継続期限は次の自分のターンまでだが、JSONはnextTurnOwnerをopponentにしており相手側の次ターンを期限に指定している。","grep":"次のあなたのターン"}
+{"batch":"06","cardNum":"WDK10-011","effectId":"WDK10-011-E1","severity":"MED","type":"MISSING","quote":"ガードステップ以外で","claim":"手札を捨てた時がガードステップ以外であるという発動条件がJSONにない。","grep":"ガードステップ以外"}
+{"batch":"07","cardNum":"WDK10-015","effectId":"WDK10-015-E1","severity":"HIGH","type":"MISSING","quote":"パワーの半分以下","claim":"バニッシュ対象を、この方法で捨てたシグニのパワーの半分以下に限定する条件がJSONにありません。","grep":"パワーの半分以下"}
+{"batch":"07","cardNum":"WDK10-015","effectId":"WDK10-015-E1","severity":"HIGH","type":"WRONG","quote":"この方法で捨てたシグニ","claim":"任意の手札捨てを行わなかった場合でも、JSONでは対戦相手のシグニを無条件に1体バニッシュします。","grep":"この方法で捨てた"}
+{"batch":"07","cardNum":"WDK11-001","effectId":"WDK11-001-E3","severity":"HIGH","type":"MISSING","quote":"ルリグデッキから","claim":"《ＧＦ　ノーマン＆レイ》をルリグデッキから選ぶための取得元とカード名指定がJSONにありません。","grep":"ルリグデッキから"}
+{"batch":"07","cardNum":"WDK12-007","effectId":"WDK12-007-E1","severity":"HIGH","type":"MISSING","quote":"同じ数だけカードを引き","claim":"選択肢②の、トラッシュに置いたチャームと同じ枚数だけカードを引く処理がJSONにありません。","grep":"同じ数だけカード"}
+{"batch":"07","cardNum":"WDK12-007","effectId":"WDK12-007-E1","severity":"HIGH","type":"WRONG","quote":"同じ数だけ【エナチャージ１】","claim":"選択肢②のエナチャージ回数が、トラッシュに置いたチャームの枚数ではなく固定1回になっています。","grep":"同じ数だけ【エナ"}
+{"batch":"08","cardNum":"WDK15-001","effectId":"WDK15-001-E3","severity":"HIGH","type":"WRONG","quote":"下にカードがある","claim":"ドロー枚数の集計対象が「下にカードがある自分のシグニ」ではなく、自分の場の全シグニになっている。","grep":"下にカードがある"}
+{"batch":"10","cardNum":"WDK16-06H","effectId":"WDK16-06H-E1","severity":"HIGH","type":"MISSING","quote":"１００万人を達成している場合","claim":"登録者数が100万人以上ならパワー制限なしの相手シグニ1体を代わりにバニッシュする処理が欠落している。","grep":"場合、代わりに"}
+{"batch":"10","cardNum":"WDK16-10","effectId":"WDK16-10-E1","severity":"MED","type":"WRONG","quote":"レベルが対戦相手と同じ場合","claim":"追加の登録者数10万人を得る処理が、両センタールリグのレベルが同じ場合という条件なしで常に実行される。","grep":"同じ場合、追加で"}
+{"batch":"11","cardNum":"WDK17-009","effectId":"WDK17-009-E2","severity":"HIGH","type":"WRONG","quote":"ライフクロスが２枚以下の場合","claim":"原文ではライフクロスが2枚以下の場合にのみ選んだシグニとエナをトラッシュに置くが、JSONではそれらを条件判定前に無条件でトラッシュに置く。","grep":"枚以下の場合"}
+{"batch":"12","cardNum":"SP26-002","effectId":"SP26-002-E1","severity":"HIGH","type":"SUSPECT_STUB","quote":"トリガー能力は発動しない","claim":"原文は【ライフバースト】を除く対戦相手のシグニのトリガー能力すべてをこのターン発動不能にするが、JSONにはその対象・除外条件・期間に対応するpayloadがなく、SUPPRESS_LIFE_BURST_ON_CRASHは原文で抑止対象外とされたライフバーストを指している。","grep":"以外の対戦相手"}
+{"batch":"13","cardNum":"SP27-014","effectId":"SP27-014-E2","severity":"MED","type":"WRONG","quote":"手札を１枚捨ててもよい","claim":"③の手札1枚を捨てる処理は任意だが、JSONでは必ず1枚をトラッシュに置く処理になっている。","grep":"捨ててもよい"}
+{"batch":"13","cardNum":"SP27-015","effectId":"SP27-015-E3-G","severity":"MED","type":"MISSING","quote":"《ターン１回》","claim":"付与される起動能力のターン1回制限がJSONにない。","grep":"《ターン１回》"}
+{"batch":"13","cardNum":"SP27-015","effectId":"SP27-015-E3-G","severity":"MED","type":"WRONG","quote":"《アタックフェイズアイコン》","claim":"付与される起動能力はメインフェイズとアタックフェイズの両方で使用できるが、JSONのtimingはMAINだけになっている。","grep":"《アタックフェイズアイコン》"}
+{"batch":"14","cardNum":"SPK01-13","effectId":"SPK01-13-E1","severity":"HIGH","type":"WRONG","quote":"このターン、あなたは","claim":"選択肢③はこのターン中に対戦相手の効果から受けるすべてのダメージを防ぐ効果だが、JSONは次のダメージ1回だけを防ぐ効果になっている。","grep":"ダメージを受けない"}

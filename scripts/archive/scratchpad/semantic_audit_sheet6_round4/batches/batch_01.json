@@ -1,0 +1,42 @@
+[
+ {
+  "num": "SPK16-8C",
+  "group": "stub"
+ },
+ {
+  "num": "SPK16-13B",
+  "group": "clean"
+ },
+ {
+  "num": "SPK16-13E",
+  "group": "stub"
+ },
+ {
+  "num": "PR-195",
+  "group": "stub"
+ },
+ {
+  "num": "PR-204",
+  "group": "stub"
+ },
+ {
+  "num": "PR-238",
+  "group": "stub"
+ },
+ {
+  "num": "PR-247",
+  "group": "clean"
+ },
+ {
+  "num": "PR-257",
+  "group": "stub"
+ },
+ {
+  "num": "PR-288",
+  "group": "stub"
+ },
+ {
+  "num": "PR-305",
+  "group": "stub"
+ }
+]

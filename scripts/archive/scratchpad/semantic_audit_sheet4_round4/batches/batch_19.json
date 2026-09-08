@@ -1,0 +1,42 @@
+[
+ {
+  "num": "WD14-011",
+  "group": "stub"
+ },
+ {
+  "num": "WD15-001",
+  "group": "stub"
+ },
+ {
+  "num": "WD15-006",
+  "group": "stub"
+ },
+ {
+  "num": "WD15-015",
+  "group": "clean"
+ },
+ {
+  "num": "WD16-006",
+  "group": "clean"
+ },
+ {
+  "num": "WD16-010",
+  "group": "stub"
+ },
+ {
+  "num": "WD16-014",
+  "group": "clean"
+ },
+ {
+  "num": "WD16-023",
+  "group": "clean"
+ },
+ {
+  "num": "WD17-001",
+  "group": "clean"
+ },
+ {
+  "num": "WD17-006",
+  "group": "stub"
+ }
+]

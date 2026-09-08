@@ -1,0 +1,5 @@
+{"batch":"01","cardNum":"WXK09-TK-01A","effectId":"WXK09-TK-01A-E1","severity":"HIGH","type":"WRONG","quote":"《緑》を支払ってもよい","claim":"選択肢②は任意コストの支払い成否を判定する条件がなく、支払わなかった場合にも起動能力を付与する構造になっている。","grep":"支払ってもよい"}
+{"batch":"01","cardNum":"WXK09-TK-01A","effectId":"WXK09-TK-01A-E1","severity":"HIGH","type":"WRONG","quote":"《緑》《緑》を支払ってもよい","claim":"選択肢③は任意コストの支払い成否を判定する条件がなく、支払わなかった場合にも自動能力を付与する構造になっている。","grep":"支払ってもよい"}
+{"batch":"01","cardNum":"WXDi-P16-TK01","effectId":"WXDi-P16-TK01-E1","severity":"MED","type":"MISSING","quote":"同じ選択肢を２回選んでもよい","claim":"CHOOSEに同じ選択肢の重複選択を許可する指定がなく、原文の重複選択可能という条件が表現されていない。","grep":"２回選んでもよい"}
+{"batch":"01","cardNum":"WX25-P1-TK3","effectId":"WX25-P1-TK3-E1","severity":"HIGH","type":"SUSPECT_STUB","quote":"すべてのシグニを捨てさせる","claim":"数字の宣言と対戦相手の手札を見る処理しかなく、宣言した数字と同じレベルを持つシグニをすべて捨てさせる処理に対応するアクションまたはpayloadがない。","grep":"同じレベルを持つ"}
+{"batch":"03","cardNum":"WXDi-P13-004B","effectId":"WXDi-P13-004B-E3","severity":"HIGH","type":"WRONG","quote":"次のあなたのエナフェイズ終了時まで","claim":"リミット＋2の期限が次の自分のエナフェイズ終了時までではなく現在のターン終了時までになっており、さらに「このシグニが場にあるかぎり」という継続条件も欠けている。","grep":"エナフェイズ終了時まで"}

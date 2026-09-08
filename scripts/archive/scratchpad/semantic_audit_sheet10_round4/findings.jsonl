@@ -1,0 +1,14 @@
+{"batch":"01","cardNum":"WX24-D5-05","effectId":"WX24-D5-05-E1","severity":"HIGH","type":"WRONG","quote":"パワーが０以下になったとき","claim":"原文ではこのターン中に相手シグニのパワーが0以下になったときにデッキを2枚トラッシュに置く誘発効果だが、JSONではアーツ解決時に無条件で即座に2枚置く。","grep":"０以下になったとき"}
+{"batch":"01","cardNum":"SPDi43-03","effectId":"SPDi43-03-E2","severity":"HIGH","type":"MISSING","quote":"ライフクロス１枚をクラッシュ","claim":"起動能力の解決時に対戦相手のライフクロス1枚をクラッシュする主要処理がJSONに存在せず、付与能力の処理しかない。","grep":"ライフクロス１枚をクラッシュ"}
+{"batch":"02","cardNum":"SPDi43-06","effectId":"SPDi43-06-E2","severity":"MED","type":"WRONG","quote":"アップ状態の他のシグニ１体","claim":"ダウンするコストの対象からこのシグニ自身を除外する条件がなく、自身もコストに選べる。","grep":"他のシグニ"}
+{"batch":"02","cardNum":"SPDi43-08","effectId":"SPDi43-08-E2","severity":"HIGH","type":"WRONG","quote":"いる場合、《赤》を支払ってもよい","claim":"指定カードの存在確認が任意コストだけに掛かり、支払い成否の後続ゲートもないため、不在時または未払い時にも選択肢を実行できる。","grep":"いる場合、《"}
+{"batch":"02","cardNum":"SPDi43-08","effectId":"SPDi43-08-E2","severity":"HIGH","type":"WRONG","quote":"このシグニのパワーが15000以上","claim":"パワー15000以上の条件が効果全体の発動条件になっており、本来は無条件で選べる①まで使用不能になる一方、②だけを制限する条件になっていない。","grep":"以下の場合"}
+{"batch":"02","cardNum":"SPDi43-17","effectId":"SPDi43-17-E2","severity":"HIGH","type":"WRONG","quote":"あなたのルリグ１体を対象とし","claim":"アップする対象が自分のルリグではなく自分のシグニとして定義されている。","grep":"ルリグ１体を対象"}
+{"batch":"02","cardNum":"SPDi43-18","effectId":"SPDi43-18-E2","severity":"HIGH","type":"WRONG","quote":"あなたのルリグ１体を対象とし","claim":"アップする対象が自分のルリグではなく自分のシグニとして定義されている。","grep":"ルリグ１体を対象"}
+{"batch":"02","cardNum":"SPDi43-19","effectId":"SPDi43-19-E2","severity":"HIGH","type":"WRONG","quote":"あなたのルリグ１体を対象とし","claim":"アップする対象が自分のルリグではなく自分のシグニとして定義されている。","grep":"ルリグ１体を対象"}
+{"batch":"03","cardNum":"SPDi43-22","effectId":"SPDi43-22-E1","severity":"HIGH","type":"MISSING","quote":"サンガ》がいる場合","claim":"発動条件である自分の場の《VOGUE3-EXTREMEサンガ》の存在確認がJSONにありません。","grep":"がいる場合"}
+{"batch":"03","cardNum":"SPDi43-22","effectId":"SPDi43-22-E1","severity":"MED","type":"MISSING","quote":"宣言した色を得る","claim":"このシグニへ宣言した色を追加する処理がJSONにありません。","grep":"色を得る"}
+{"batch":"03","cardNum":"SPDi43-28","effectId":"SPDi43-28-E1","severity":"HIGH","type":"WRONG","quote":"《335　アキノ》１体が","claim":"原文は自分の《335　アキノ》がアタックしたときの能力ですが、JSONはシグニのアタック時となっており、カード名条件もありません。","grep":"１体がアタックしたとき"}
+{"batch":"03","cardNum":"SPDi43-28","effectId":"SPDi43-28-E1","severity":"HIGH","type":"MISSING","quote":"そのルリグをアップし","claim":"コスト支払い後に、アタックしたルリグをアップする処理がJSONにありません。","grep":"ルリグをアップし"}
+{"batch":"03","cardNum":"SPDi43-28","effectId":"SPDi43-28-E1","severity":"HIGH","type":"WRONG","quote":"そのルリグは能力を失う","claim":"原文ではアタックしたルリグの能力を失わせますが、JSONのREMOVE_ABILITIESは自分のシグニを対象にしています。","grep":"ルリグは能力を失う"}
+{"batch":"04","cardNum":"SPDi44-04","effectId":"SPDi44-04-E2","severity":"HIGH","type":"MISSING","quote":"それぞれ共通するクラスを持たない場合","claim":"選んだシグニ同士が共通するクラスを持たないことを確認する条件がなく、任意のシグニをそのまま手札に加えられる。","grep":"共通するクラス"}

@@ -10,63 +10,48 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
+- **セッション（2026-09-08・S-1 大掃引・Opus＋codex 2アカウント）＝🏁意味照合 round4 の全シート監査完了（未監査 2,060 → 0枚）**
+  **作業単位**＝ユーザー指示「codex に S-1 を作業させたい」。**213バッチ / 2,080枚 / findings 447件 / 失敗0バッチ**を
+  **codex 2アカウント並走**（`CODEX_HOME=C:/Users/zerom/.codex-work` と既定 `~/.codex`）で消化した。
+  **Claude 側は投入・簿記・計器の読みだけ**（監査本体のトークンは1つも Claude 月額枠を使っていない）。
 
-- **セッション（2026-09-08・第230〜240バッチ）＝§5.3 索引 G（`O-273`〜`O-286` の11項目）を全消化して 🏁残0**
-  **作業単位**＝ユーザー指示「索引 G. 新規分離（母集団 1〜2効果）をすべて消化する」。
-  **9件を実装・1件を明示 defer・1件は登録票が stale で別の真バグを回収**。全文は [BUGFIXES.md](./BUGFIXES.md) が正。
+  🔴🔑**このセッションの一番の教訓＝「周期（5〜8バッチ）」を破ると triage 在庫が桁で増える。**
+  PLAN §5.0 の周期はユーザー判断で意図的に破った（codex 側の原価が Claude 枠と別だから）。
+  **結果は想定どおり**＝**未 triage findings が 4 → 443件**（[LESSONS.md](./LESSONS.md) §4.7 の理由②③がそのまま出る＝
+  偽陽性の還元（O-C）が213バッチ全部に届かないまま回り、真バグの grep 展開も後回しになった）。
+  🔑**ただし掃引そのものは成功**＝**止め時（新型0が連続3バッチ）を判定する材料が初めて全数そろった**。
 
-  🔴🔑**このバッチの一番の教訓＝登録票の「新機構が要る」は 11件中 3件が誤りだった。**
-  ・`O-273`＝受け皿は既に在った（同型 `WX07-045-E1` の `STUB{OPTIONAL_COST, charmTrashVariable}`）＝`src/screens/` 不要。
-  ・`O-276`＝「まるごと恒久 no-op」は **stale**。登録票が名指しした `collectBanishSubstitutes` は
-  　**バトルのバニッシュ経路**で、原文「**対戦相手の効果によって**場を離れる場合」は**そこに無いのが正しい**。
-  　実装は別軸（`collectLeaveSubstituteOptions` の `powerReduction`）に在り、真の穴は
-  　**`cardMap.get(victimNum)` が instance id を base 化していない1行**だった（同名2体目が victim だと無言で守れない）。
-  ・`O-274`＝「live 1効果」は**過小**で、実体は **live 28効果**の engine バグ。
-  ⇒ **登録票が名指しした関数だけを読んで結論しない。同じ機構の別入口を必ず数える。**
+  🏁**シート別の実績**（枚数 / バッチ / findings / 歩留まり）
+  Sheet3 369/37/98/2.65 ｜ Sheet4 252/26/50/1.9 ｜ Sheet5 143/15/22/1.5 ｜ Sheet6 43/5/16/3.2 ｜
+  Sheet7 368/37/64/1.7 ｜ Sheet8 390/39/90/2.3 ｜ Sheet9 441/45/88/2.0 ｜ Sheet10 42/5/14/2.8 ｜ TK 32/4/5/1.25。
+  **型の内訳＝WRONG 233 / MISSING 186 / SUSPECT_STUB 18 / EXTRA 10。深刻度＝HIGH 259 / MED 180 / LOW 8。**
 
-  🏁**最大の収穫＝`O-274`（live 28効果）**＝`execTransferToDeck` の `TRASH_CARD` 分岐が `cands.slice(0, N)` で
-  **トラッシュの並び順で先頭N枚を無言確定**していた。原文が「N枚を**対象とし**」「**好きな順番で**」と
-  書いていても選択UIが出ず、**どのN枚を戻すか／積む順番**の両方が奪われていた
-  （`WXK09-091-E1` のように「**どれを戻したか**」を後続が読む効果も含む）。
-  🔑`resumeSelectTarget` は `selected` の順に per-card 適用する＝**選んだ順＝積まれる順**なので、
-  `orderChosenBy` を増やす必要は無かった。
+  🆕🔑**運用として確定した3つ**（次に大量掃引するときはこれで回す）
+  ・**codex は2アカウント並走してよい**＝`CODEX_HOME` が別なら認証ファイルも別で、**トークンリフレッシュ競合は起きない**
+  　（旧記録 PLAN_PROGRESS.md:10851 の「5連続失敗」は**同一アカウント**の同時実行が原因だった）。
+  ・**同一 `--out` を2プロセスで分担してよい**＝スキップ規約が `raw/batch_NN.json` の有無なので、
+  　**バッチ番号が重ならなければ二重監査は起きない**（Sheet9 を b01〜23 / b24〜45 で分担して実証）。
+  　⚠`findings.jsonl` だけは両者が `appendFileSync` する＝**正本は `raw/batch_NN.json`**。実測は破損0行だったが、
+  　壊れたら raw から再構築する（再構築コードは Sheet9 の README にある）。
+  ・**同一アカウントでは直列**＝`.codex-work` に Sheet9後半→Sheet10→TK を投げるときは1コマンドで順に回した。
 
-  🏁**`O-280`（legacy catch-all `TARGET_AND_DISCARD_HAND`）は残0**＝6件を1件ずつ閉じた
-  （5件を実装＋秘匿2束分割の `WX25-P2-022-E2` だけ `DEFERRED_*` へ）。
-  副産物で **`countFromZone` が盤面状態フィルタ（`isFrozen` 等）を黙って素通りしていた**engine バグも回収
-  （`matchesFilter` は CardData 単体しか見ない）＝`WXEX2-02-E1` の過大請求も同時に直った。
+  🔴**engine/parser/`src/` は1行も触っていない**（監査は読み取りのみ）＝`npm run gates` は全緑のまま据置。
+  **直したのは計器1本だけ**＝`semanticAuditGap.mjs` の `--sheet TK` が `CardData_SheetTK.csv` を探して
+  **静かに0枚を返していた**（実ファイルは `CardData_TK.csv`）＝**エラーではなく無言の0件**で、
+  そのままなら「TK は監査済み」と誤読していた。全文は [BUGFIXES.md](./BUGFIXES.md)。
 
-  🆕**新設した機構**＝`life_crashed_by_opp_effect_this_turn` ＋ `LIFE_CRASHED_THIS_TURN.byOpponentEffect`（`O-275`）／
-  `free_grow_this_turn` の範囲化（`O-278`）／`energyTrashCountFromTargetCount`・`drawDiscardOwner`・
-  `EffectTarget.extraZones` の TRASH 配線（`O-280`）／`USE_OWN_LRIG_ABILITY_FREE`（`O-283`）／
-  `GRANT_PROTECTION.exceptSelfSource` ＋ `ExecCtx.ownEffectImmuneNums`（`O-284`）／
-  `AttachAcceAction.fromLrigDeck`（`O-285`）／`last_cost_energy_trash_colors` ＋ `COST_ENERGY_TRASHED_COLOR` ＋
-  `energyTrash.atLeast`（`O-286`）。
+  📊**進捗3計器＝Sheet1 要対応 2 / 863（据置）｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  ⚠**3計器が動かないのは想定どおり**＝今回は**発見**しかしておらず、修正を1件も入れていない（計器は修正しか映さない）。
+  📦**在庫**＝🏁**意味照合 未監査 2,060 → 0枚（全11シート 100%）**｜🔥**未 triage findings 0 → 443件**（HIGH 258 / MED 178 / LOW 7・
+  うち grep 句あり 441）｜**実装キュー 残0**（据置）｜**機構 worklist 残0**（据置）｜**⑤実機 残0**（据置）。
 
-  🏁**`src/screens/` を触ったので §2.2 の実機まで回した（同日返済）＝`V-182` / `V-183` の5シナリオ全 PASS**
-  （`v182*` 2本＝トラッシュ候補を選ばせる／候補ちょうどなら出さない、`v183*` 3本＝範囲なし無料／
-  同一タイプ無料／重なるだけは無料にならない）。**反転確認は軸ごとに1本**（engine を旧形へ戻すと `v182Pick` が赤、
-  `freeGrowAppliesTo` の範囲判定を殺すと `v183Partial` が赤）。
-  ⚠**踏んだ運用ミス**＝反転確認の後始末に `git checkout <file>` を使い、**同じファイルの未コミットの本体**
-  （`freeGrowAppliesTo`）ごと消した。⇒ **反転確認の復元は「入れた1行だけを戻す」**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) 61）。
-
-  `npm run gates` 全緑（golden **3659 → 3674 PASS / 0 FAIL**、smoke 10745 全 OK、fuzz 全0、
-  census 高シグナル 0 / BASELINE 0、`census:stubs` A群🔴 0・C群 0、enginetext A🔴 0行、costtext A🔴 0規則、
-  lint 0 errors）。⚠**ラチェット3本を較正**（turn-scoped 54→55／`Condition` 型数 148→149／
-  `BASELINE_ORPHAN_MANUAL` 7→6）＋**トリップワイヤ3本を「残0」へ更新**（どれも「壊れている状態」を
-  許容リストに固定していたので、直したら正しく赤くなった）。
-
-  📊**進捗3計器＝Sheet1 要対応 7 → 2 / 863｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
-  🔑**Sheet1 の残 2 は `mech` フラグ**＝§5.3 の「根拠つき defer」2件（`WXDi-P05-006` / `WX20-Re20`）を
-  指しているだけで、**即着手可能は 0**。
-  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜**実装キュー 残0**（据置）｜
-  🏁**機構 worklist 11 → 0 項目**（索引 A/A'/B/E/G すべて残0）｜🏁**⑤実機 残0**（`V-182` / `V-183` を同日返済）。
-
-**▶ 次の一手**＝🔴**§5.3 の索引が全部 残0 になった**＝**機構主導の worklist が尽きた**。
-⇒ 残る在庫は **§5.2 round4（意味照合 未監査 2,060枚）**の1本だけ。**§2.6 の型発見方式**で回す
-（枚数を目標にしない／finding ごとに grep で母集団を取る／連続3バッチで新型0 なら止める）。
-🔑**そこで見つかった機構ギャップを §5.3 索引 G へ `O-nn` で足す**のが、次に索引を再び埋める唯一の経路。
-
+**▶ 次の一手**＝🔥**§5.0 の O-A（triage）が唯一の本線**。443件は1周期（3〜6件）の約100倍で、
+第207バッチの実績（1セッション33件）換算で**十数セッション規模**。
+🔑**枚数ではなく「型」で潰す**＝`node scripts/archive/semanticAuditPool.mjs --grep` で同型を束ね、
+**1 finding を grep で系統に化けさせてから**実装キューへ落とす（[LESSONS.md](./LESSONS.md) §4.7）。
+⚠**precision は実測 50〜84% と振れる**＝**engine の受け皿を読むまで真バグと確定しない**。
+🔑**監査の止め時（新型0 × 連続3バッチ）は triage を通してしか判定できない**＝
+**掃引は終わったが「監査を止めてよいか」はまだ決まっていない。**
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
 > **2026-08-23 制定。** 従来は「実装（旧 §6）」と「実機検証（旧 §7）」を別セクション・別モデルに割っていたため、**実装だけが進んで実機検証が溜まった**（実測＝V エントリ13件＋21バッチが未検証のまま）。§5.1 自身が「⚠寝かせるほど『バグか、シナリオの腐りか』の切り分けが高くつく」と警告していた失敗モードに、運用そのものが乗っていた。**以後は実機検証を1巡の中に含める。**
@@ -359,9 +344,9 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | 節 | 役割 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **§5.2 round4** | 🔥**本線キュー**＝意味照合を1度も通していないカードの新規監査 | **Sheet3 残 349枚 / 35バッチ**（Sheet1・Sheet2 は🏁完了。全シート合計の未監査は 2,060枚） | `node scripts/archive/semanticAuditGap.mjs` |
-| **§5.0 実装キュー** | 🔥**triage で真バグと確定した未修正バグ**（O-D / S-3） | 🏁**残0**（2026-09-08 第225〜228 で7行すべてを処理＝採用5・根拠つき見送り2） | この表が唯一の追跡先（どの計器にも映らない） |
-| §5.0 O-A | findings の triage（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
+| §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（2026-09-08 に全11シート 100%＝213バッチ / 2,080枚を codex 2アカウントで消化） | `node scripts/archive/semanticAuditGap.mjs` |
+| **§5.0 O-A** | 🔥🔥**本線キュー**＝findings の triage（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**（HIGH 258 / MED 178 / LOW 7・うち grep 句あり 441）＝2026-09-08 の大掃引で 0 → 443 | `node scripts/archive/semanticAuditPool.mjs` |
+| §5.0 実装キュー | triage で真バグと確定した未修正バグ（O-D / S-3） | 🏁**残0**（2026-09-08 第225〜228 で7行すべて処理）＝**O-A の triage が進めばここが埋まる** | この表が唯一の追跡先（どの計器にも映らない） |
 | §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🏁**0項目**（2026-09-08 に索引 G の11項目を全消化＝**索引 A/A'/B/E/G すべて残0**） | §5.3 の索引 A〜G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
 | §5.2 段2台帳 | 旧・本線。🏁掘り尽くした＝**もう在庫ではない** | 残 OPEN **0** | `node scripts/archive/semanticAuditLedger.mjs` |
@@ -394,7 +379,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **S-1** | **意味照合バッチを回す**（10枚/バッチ・54〜443秒・約$0.29） | **Sheet3 残 35バッチ / 349枚**（Sheet1・Sheet2 は🏁完了） | `node scripts/archive/semanticAuditGap.mjs` |
+| **S-1** | **意味照合バッチを回す**（10枚/バッチ）🆕**codex なら Claude 月額枠を消費しない**（2026-09-08 実測＝213バッチ / 失敗0・1バッチ 12〜81秒） | 🏁**残0バッチ**（全11シート監査完了） | `node scripts/archive/semanticAuditGap.mjs` |
 | **S-2** | **真バグの母集団を grep で数える**（finding の `grep` 句から同型の全数） | 実装キューの**「系統」行が現在の全量** | `node scripts/archive/semanticAuditPool.mjs --grep` |
 | **S-3** | **`manualEffects.ts` への手書き修正**（§2.0 速いレーン＝同型2枚以下） | 🏁**0件**（`WX22-005-E1` を第222バッチで消化） | 下の実装キュー |
 | **S-4** | **golden の定型追加・ゲート実行・簿記**（セッション末1回） | 1回/セッション | `npm run gates` |
@@ -407,7 +392,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **O-A** | **findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🏁**0件** | `node scripts/archive/semanticAuditPool.mjs` |
+| **O-A** | 🔥**findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**（HIGH 258 / MED 178 / LOW 7）＝**唯一の本線**。⚠1周期3〜6件の約100倍＝**型で束ねて潰す**（`--grep`） | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN** | 🏁**0件**（掘り尽くした＝もう在庫ではない） | `node scripts/archive/semanticAuditLedger.mjs` |
 | **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **34本**（⚠**増やしたら「何を還元したか」を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の triage 履歴に1行書く**） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
 | **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🏁**残0**（2026-09-08 第225〜228） | 下の実装キュー |
@@ -750,20 +735,18 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-08（第223バッチ・Opus・O-D）＝実装キューを2行3効果消化（本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
-  ⚠**3計器が動かないのは想定どおり**＝`manualEffects.ts` の速いレーン修正2件（catch-all のフィルタ漏れ／
-  SEQUENCE の畳み違い）で、どちらも計器が見ている軸ではない。
-  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜
-  **未修正の真バグ 14 → 12行 / 15 → 13効果**｜**機構 worklist 15項目**（据置）｜
-  **⑤実機 残 0件**（据置＝2件とも `src/data/manualEffects.ts` ＋ゲート増設のみ）。
-  🔧**ゲート（全緑 ✅）**＝golden **3639 → 3642 PASS**（+3本・退行なし）／smoke 10,745 全 OK ／ fuzz 0 ／
-  census 0 ／ census:stubs A群 0 ／ census:enginetext A🔴0行 ／ census:costtext A🔴0規則 ／ lint 0 errors。
-  🔴**回顧的修正1本＝POOL カーソルリーク**（第221バッチ・既 push 済み分を含む複数テストが `withSavedCursor`
-  無しで `mkCtx`/`fresh()` を呼んでおり、無関係な既存2テストを全件 golden でだけ偶発 FAIL させていた）を
-  遡って修正。ラチェット較正は無し（今回の2効果はどの計器のカウンタも動かさない型）。
+- **2026-09-08（S-1 大掃引・Opus＋codex）＝意味照合 round4 の全シート監査完了（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 2 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝今回は**発見しかしていない**（修正0件）。計器は修正しか映さない。
+  📦**在庫**＝🏁**意味照合 未監査 2,060 → 0枚（全11シート 100%・効果あり 6,032枚）**｜
+  🔥**未 triage findings 0 → 443件**（HIGH 258 / MED 178 / LOW 7・うち grep 句あり 441・全11ラウンド累計 findings 572）｜
+  **未修正の真バグ 0行**（据置＝実装キュー残0）｜**機構 worklist 0項目**（据置）｜**⑤実機 残 0件**（据置）。
+  🔧**ゲート（全緑 ✅）**＝golden **3674 PASS**（据置）／smoke 全 OK ／ fuzz 0 ／ census 高シグナル 0 / BASELINE 0 ／
+  census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ lint 0 errors。
+  ⚠**`src/` を1行も触っていない**（監査は読み取りのみ）＝**ゲートは全項目が前回の据置**。ラチェット較正なし。
   🖥**実機＝該当なし**（`src/screens/` 無変更＝§2.2 の機械判定）。
-
+  🔑**計器を1本直した**＝`semanticAuditGap.mjs --sheet TK` が無言で 0枚を返していた（`CardData_TK.csv` を
+  `CardData_SheetTK.csv` と綴っていた）。**在庫計器が過小に出る形**だったので、上の「未監査0」はこの修正後の実測。
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 
 1. **使用条件＋本体**（「このカードは〜の場合にしか使用できない」が前置き）＝条件として正しく表現済み。【真の偽陽性】

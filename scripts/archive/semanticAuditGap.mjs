@@ -52,18 +52,23 @@ for (const d of fs.readdirSync(SCRATCH)) {
 }
 
 const sheets = {};
+// ⚠ `--sheet TK` は `CardData_TK.csv`＝`CardData_SheetTK.csv` ではない（数字シートだけが `Sheet<N>` 綴り）。
+// 数字以外を渡されたら `CardData_<arg>.csv` として解決する（初版はこれが無く TK が常に 0 枚と出た）。
+const sheetFile = sheetArg == null ? null
+  : /^\d+$/.test(sheetArg) ? `CardData_Sheet${sheetArg}.csv` : `CardData_${sheetArg}.csv`;
+
 const pending = [];
 for (const [id, f] of sheetOf) {
   const r = rows.get(id);
   if (!hasEffect(r)) continue;
   (sheets[f] ??= { tot: 0, aud: 0 }).tot++;
   if (audited.has(id)) sheets[f].aud++;
-  else if (sheetArg && f === `CardData_Sheet${sheetArg}.csv`) pending.push(id);
+  else if (sheetFile && f === sheetFile) pending.push(id);
 }
 
 if (sheetArg) {
   for (const id of pending) console.log(id);
-  console.error(`[gap] Sheet${sheetArg} 未監査 ${pending.length} 枚`);
+  console.error(`[gap] ${sheetFile} 未監査 ${pending.length} 枚`);
 } else {
   let T = 0, A = 0;
   for (const [f, v] of Object.entries(sheets)) {

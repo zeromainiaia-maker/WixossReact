@@ -1,0 +1,247 @@
+{
+ "seed": 42,
+ "perGroup": "50",
+ "batchSize": 10,
+ "groups": [
+  "stub",
+  "clean"
+ ],
+ "excludeFile": null,
+ "population": {
+  "stubOrManual": 2514,
+  "cleanAuto": 3462,
+  "textNoJson": 56
+ },
+ "textNoJson": [
+  "WXDi-D01-018",
+  "WXDi-D01-019",
+  "WXDi-D02-26",
+  "WXDi-D02-27",
+  "WXDi-D03-018",
+  "WXDi-D03-019",
+  "WXDi-D04-018",
+  "WXDi-D04-019",
+  "WXDi-D05-018",
+  "WXDi-D05-019",
+  "WXDi-D06-018",
+  "WXDi-D06-019",
+  "WXDi-D07-020",
+  "WXDi-P00-085",
+  "WXDi-P00-088",
+  "WXDi-P01-089",
+  "WXDi-P01-090",
+  "WXDi-P01-095",
+  "WXDi-P01-098",
+  "WXDi-P04-087",
+  "WXDi-P04-088",
+  "WXDi-P04-090",
+  "WXDi-P04-091",
+  "WXDi-P04-092",
+  "WXDi-P05-087",
+  "WXDi-P05-088",
+  "WXDi-P05-089",
+  "WXDi-P05-090",
+  "WXDi-P05-091",
+  "WXDi-P05-092",
+  "WXDi-P06-086",
+  "WXDi-P06-087",
+  "WXDi-P06-088",
+  "WXDi-P06-089",
+  "WXDi-P06-090",
+  "WXDi-P06-091",
+  "WXDi-P07-096",
+  "WXDi-P07-097",
+  "WXDi-P07-098",
+  "WXDi-P07-099",
+  "WXDi-P13-023",
+  "WX24-P4-090",
+  "WX24-P4-091",
+  "WX24-P4-092",
+  "WX24-P4-093",
+  "WX24-P4-094",
+  "WX24-P4-095",
+  "WX24-P4-096",
+  "WX24-P4-097",
+  "WX24-P4-098",
+  "WX24-P4-099",
+  "WX25-P2-111",
+  "WX25-P3-108",
+  "WX24-D1-TK1",
+  "WX24-P1-TK2A",
+  "WX26-CP1-TK01"
+ ],
+ "picked": [
+  {
+   "num": "SPK16-8C",
+   "group": "stub"
+  },
+  {
+   "num": "SPK16-13B",
+   "group": "clean"
+  },
+  {
+   "num": "SPK16-13E",
+   "group": "stub"
+  },
+  {
+   "num": "PR-195",
+   "group": "stub"
+  },
+  {
+   "num": "PR-204",
+   "group": "stub"
+  },
+  {
+   "num": "PR-238",
+   "group": "stub"
+  },
+  {
+   "num": "PR-247",
+   "group": "clean"
+  },
+  {
+   "num": "PR-257",
+   "group": "stub"
+  },
+  {
+   "num": "PR-288",
+   "group": "stub"
+  },
+  {
+   "num": "PR-305",
+   "group": "stub"
+  },
+  {
+   "num": "PR-316",
+   "group": "clean"
+  },
+  {
+   "num": "PR-319",
+   "group": "stub"
+  },
+  {
+   "num": "PR-328",
+   "group": "stub"
+  },
+  {
+   "num": "PR-366",
+   "group": "stub"
+  },
+  {
+   "num": "PR-370",
+   "group": "stub"
+  },
+  {
+   "num": "PR-372",
+   "group": "stub"
+  },
+  {
+   "num": "PR-422",
+   "group": "stub"
+  },
+  {
+   "num": "PR-423",
+   "group": "clean"
+  },
+  {
+   "num": "PR-426",
+   "group": "stub"
+  },
+  {
+   "num": "PR-431",
+   "group": "stub"
+  },
+  {
+   "num": "PR-433",
+   "group": "stub"
+  },
+  {
+   "num": "PR-434",
+   "group": "stub"
+  },
+  {
+   "num": "PR-457",
+   "group": "stub"
+  },
+  {
+   "num": "PR-459A",
+   "group": "stub"
+  },
+  {
+   "num": "PR-460",
+   "group": "stub"
+  },
+  {
+   "num": "PR-461",
+   "group": "stub"
+  },
+  {
+   "num": "PR-465",
+   "group": "stub"
+  },
+  {
+   "num": "PR-469",
+   "group": "stub"
+  },
+  {
+   "num": "PR-470A",
+   "group": "stub"
+  },
+  {
+   "num": "PR-471",
+   "group": "stub"
+  },
+  {
+   "num": "PR-472",
+   "group": "clean"
+  },
+  {
+   "num": "PR-474",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K021",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K022",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K026",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K043",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K049",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K060",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K070",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K072",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K076",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K077",
+   "group": "stub"
+  },
+  {
+   "num": "PR-K078",
+   "group": "stub"
+  }
+ ]
+}

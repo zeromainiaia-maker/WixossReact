@@ -1,7 +1,12 @@
 # 意味照合監査 Sheet3 round4（2026-09-07 開始）
 
-🔵**Sheet3 は 2026-09-07 に 2/37バッチ（20/369枚）を消化**（続きの S-1 回で s3-01〜02）。**残 35バッチ / 349枚。**
-**findings 4件は全件未 triage**＝次セッションは Opus で O-A から（§5.0）。詳細は `TYPE_LEDGER.md`。
+🏁**Sheet3（round4）は 2026-09-08 に監査完了＝369枚 / 37バッチ全消化**
+（s3-01〜02＝2026-09-07 claude 版／**s3-03〜37＝2026-09-08 に codex（`CODEX_HOME=C:/Users/zerom/.codex-work`）で349枚・失敗0バッチ・19〜69秒/バッチ**）。
+`node scripts/archive/semanticAuditGap.mjs --sheet 3` の未監査は **0**。
+🔴**findings 98件は全件未 triage**＝次は Opus で O-A から（PLAN §5.0）。内訳＝HIGH 60 / MED 36 / LOW 2、
+型は WRONG 43 / MISSING 41 / SUSPECT_STUB 11 / EXTRA 3。⚠**歩留まり 2.65件/バッチ**（Sheet1 後半の 2.4 と同水準）。
+⚠**`audited_cards_cumulative.txt` はランナーが更新しない**＝バッチを回したら `raw/batch_NN.json` の `cardNum` を
+手で追記する（忘れると gap 計器が減らず、再抽出で同じ枚数をもう一度監査する）。
 
 Sheet2（`semantic_audit_sheet2_round4/`）が完了したので、同じ形でこのディレクトリを新設した。
 

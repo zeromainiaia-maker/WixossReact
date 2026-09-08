@@ -1,0 +1,42 @@
+[
+ {
+  "num": "SP38-006",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-01",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-02",
+  "group": "clean"
+ },
+ {
+  "num": "SPK01-05",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-07",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-09",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-10",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-11",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-12",
+  "group": "stub"
+ },
+ {
+  "num": "SPK01-13",
+  "group": "stub"
+ }
+]

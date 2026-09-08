@@ -1,0 +1,42 @@
+[
+ {
+  "num": "WDK05-T01",
+  "group": "stub"
+ },
+ {
+  "num": "WDK05-T11",
+  "group": "stub"
+ },
+ {
+  "num": "WDK05-T15",
+  "group": "stub"
+ },
+ {
+  "num": "WDK05-T20",
+  "group": "stub"
+ },
+ {
+  "num": "WDK05-R11",
+  "group": "stub"
+ },
+ {
+  "num": "WDK06-R07",
+  "group": "stub"
+ },
+ {
+  "num": "WDK06-R08",
+  "group": "stub"
+ },
+ {
+  "num": "WDK06-R09",
+  "group": "stub"
+ },
+ {
+  "num": "WDK06-R20",
+  "group": "stub"
+ },
+ {
+  "num": "WDK06-C11",
+  "group": "clean"
+ }
+]

@@ -6856,6 +6856,63 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+
+- **セッション（2026-09-08・第230〜240バッチ）＝§5.3 索引 G（`O-273`〜`O-286` の11項目）を全消化して 🏁残0**
+  **作業単位**＝ユーザー指示「索引 G. 新規分離（母集団 1〜2効果）をすべて消化する」。
+  **9件を実装・1件を明示 defer・1件は登録票が stale で別の真バグを回収**。全文は [BUGFIXES.md](./BUGFIXES.md) が正。
+
+  🔴🔑**このバッチの一番の教訓＝登録票の「新機構が要る」は 11件中 3件が誤りだった。**
+  ・`O-273`＝受け皿は既に在った（同型 `WX07-045-E1` の `STUB{OPTIONAL_COST, charmTrashVariable}`）＝`src/screens/` 不要。
+  ・`O-276`＝「まるごと恒久 no-op」は **stale**。登録票が名指しした `collectBanishSubstitutes` は
+  　**バトルのバニッシュ経路**で、原文「**対戦相手の効果によって**場を離れる場合」は**そこに無いのが正しい**。
+  　実装は別軸（`collectLeaveSubstituteOptions` の `powerReduction`）に在り、真の穴は
+  　**`cardMap.get(victimNum)` が instance id を base 化していない1行**だった（同名2体目が victim だと無言で守れない）。
+  ・`O-274`＝「live 1効果」は**過小**で、実体は **live 28効果**の engine バグ。
+  ⇒ **登録票が名指しした関数だけを読んで結論しない。同じ機構の別入口を必ず数える。**
+
+  🏁**最大の収穫＝`O-274`（live 28効果）**＝`execTransferToDeck` の `TRASH_CARD` 分岐が `cands.slice(0, N)` で
+  **トラッシュの並び順で先頭N枚を無言確定**していた。原文が「N枚を**対象とし**」「**好きな順番で**」と
+  書いていても選択UIが出ず、**どのN枚を戻すか／積む順番**の両方が奪われていた
+  （`WXK09-091-E1` のように「**どれを戻したか**」を後続が読む効果も含む）。
+  🔑`resumeSelectTarget` は `selected` の順に per-card 適用する＝**選んだ順＝積まれる順**なので、
+  `orderChosenBy` を増やす必要は無かった。
+
+  🏁**`O-280`（legacy catch-all `TARGET_AND_DISCARD_HAND`）は残0**＝6件を1件ずつ閉じた
+  （5件を実装＋秘匿2束分割の `WX25-P2-022-E2` だけ `DEFERRED_*` へ）。
+  副産物で **`countFromZone` が盤面状態フィルタ（`isFrozen` 等）を黙って素通りしていた**engine バグも回収
+  （`matchesFilter` は CardData 単体しか見ない）＝`WXEX2-02-E1` の過大請求も同時に直った。
+
+  🆕**新設した機構**＝`life_crashed_by_opp_effect_this_turn` ＋ `LIFE_CRASHED_THIS_TURN.byOpponentEffect`（`O-275`）／
+  `free_grow_this_turn` の範囲化（`O-278`）／`energyTrashCountFromTargetCount`・`drawDiscardOwner`・
+  `EffectTarget.extraZones` の TRASH 配線（`O-280`）／`USE_OWN_LRIG_ABILITY_FREE`（`O-283`）／
+  `GRANT_PROTECTION.exceptSelfSource` ＋ `ExecCtx.ownEffectImmuneNums`（`O-284`）／
+  `AttachAcceAction.fromLrigDeck`（`O-285`）／`last_cost_energy_trash_colors` ＋ `COST_ENERGY_TRASHED_COLOR` ＋
+  `energyTrash.atLeast`（`O-286`）。
+
+  🏁**`src/screens/` を触ったので §2.2 の実機まで回した（同日返済）＝`V-182` / `V-183` の5シナリオ全 PASS**
+  （`v182*` 2本＝トラッシュ候補を選ばせる／候補ちょうどなら出さない、`v183*` 3本＝範囲なし無料／
+  同一タイプ無料／重なるだけは無料にならない）。**反転確認は軸ごとに1本**（engine を旧形へ戻すと `v182Pick` が赤、
+  `freeGrowAppliesTo` の範囲判定を殺すと `v183Partial` が赤）。
+  ⚠**踏んだ運用ミス**＝反転確認の後始末に `git checkout <file>` を使い、**同じファイルの未コミットの本体**
+  （`freeGrowAppliesTo`）ごと消した。⇒ **反転確認の復元は「入れた1行だけを戻す」**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) 61）。
+
+  `npm run gates` 全緑（golden **3659 → 3674 PASS / 0 FAIL**、smoke 10745 全 OK、fuzz 全0、
+  census 高シグナル 0 / BASELINE 0、`census:stubs` A群🔴 0・C群 0、enginetext A🔴 0行、costtext A🔴 0規則、
+  lint 0 errors）。⚠**ラチェット3本を較正**（turn-scoped 54→55／`Condition` 型数 148→149／
+  `BASELINE_ORPHAN_MANUAL` 7→6）＋**トリップワイヤ3本を「残0」へ更新**（どれも「壊れている状態」を
+  許容リストに固定していたので、直したら正しく赤くなった）。
+
+  📊**進捗3計器＝Sheet1 要対応 7 → 2 / 863｜台帳 残 OPEN 0（据置）｜census 高シグナル 0 / BASELINE 0（据置）**。
+  🔑**Sheet1 の残 2 は `mech` フラグ**＝§5.3 の「根拠つき defer」2件（`WXDi-P05-006` / `WX20-Re20`）を
+  指しているだけで、**即着手可能は 0**。
+  📦**在庫**＝**意味照合 未監査 2,060枚**（据置）｜**未 triage findings 0件**（据置）｜**実装キュー 残0**（据置）｜
+  🏁**機構 worklist 11 → 0 項目**（索引 A/A'/B/E/G すべて残0）｜🏁**⑤実機 残0**（`V-182` / `V-183` を同日返済）。
+
+**▶ 次の一手**＝🔴**§5.3 の索引が全部 残0 になった**＝**機構主導の worklist が尽きた**。
+⇒ 残る在庫は **§5.2 round4（意味照合 未監査 2,060枚）**の1本だけ。**§2.6 の型発見方式**で回す
+（枚数を目標にしない／finding ごとに grep で母集団を取る／連続3バッチで新型0 なら止める）。
+🔑**そこで見つかった機構ギャップを §5.3 索引 G へ `O-nn` で足す**のが、次に索引を再び埋める唯一の経路。
+
 - 🏁**セッション（2026-09-02・🏁`O-220` クローズ回・第1〜8バッチ・Opus 5 単独）＝欠陥署名 23→13（-10効果）**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**
   ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で、語彙は1つも欠けていない。

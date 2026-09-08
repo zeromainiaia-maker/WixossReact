@@ -1,0 +1,16 @@
+{"batch":"01","cardNum":"PR-305","effectId":"PR-305-E1","severity":"HIGH","type":"WRONG","quote":"バトルしたそのシグニ","claim":"デッキの一番下に置く対象はこのシグニとバトルした相手のシグニだが、JSONはowner:selfの自分のシグニを対象にしている。","grep":"バトルしたその"}
+{"batch":"01","cardNum":"PR-305","effectId":"PR-305-E1","severity":"MED","type":"MISSING","quote":"そのバトル終了時に","claim":"原文ではコスト支払い後の移動処理をそのバトル終了時まで遅延するが、JSONにはバトル終了時に実行する指定がない。","grep":"バトル終了時に"}
+{"batch":"02","cardNum":"PR-319","effectId":"PR-319-E2","severity":"HIGH","type":"WRONG","quote":"あなたのターン終了時","claim":"原文では自分のターン終了時に誘発する能力だが、JSONはCONTINUOUSでターン終了時の発動タイミングを表していない。","grep":"ターン終了時"}
+{"batch":"02","cardNum":"PR-422","effectId":"PR-422-E1","severity":"HIGH","type":"MISSING","quote":"パワー０以下の","claim":"敗北効果が発動する条件である「このシグニのパワーが0以下」がJSONに無く、パワーにかかわらずバニッシュ時に敗北する。","grep":"パワー０以下"}
+{"batch":"03","cardNum":"PR-457","effectId":"PR-457-E2","severity":"MED","type":"WRONG","quote":"シグニ１枚を探して","claim":"サーチ対象が原文では任意のシグニ1枚だが、JSONではセンタールリグと共通する色のシグニに限定されている。","grep":"シグニ１枚を探して"}
+{"batch":"03","cardNum":"PR-459A","effectId":"PR-459A-E1","severity":"MED","type":"WRONG","quote":"そのカードを捨てる","claim":"公開したカードがスペルの場合にそのカード自身を捨てるべきところ、JSONは対戦相手の手札の任意の1枚を対象としており、公開したカードとの対応付けがない。","grep":"そのカードを捨てる"}
+{"batch":"03","cardNum":"PR-460","effectId":"PR-460-E1","severity":"HIGH","type":"MISSING","quote":"アタックできない","claim":"対象の対戦相手のセンタールリグ1体にターン終了時までアタック禁止を与える処理がJSONにない。","grep":"アタックできない"}
+{"batch":"03","cardNum":"PR-469","effectId":"PR-469-E3","severity":"HIGH","type":"MISSING","quote":"まだ選ばれていない１つ","claim":"各選択肢をこの起動能力で一度しか選べないという複数回の起動にまたがる選択済み管理がJSONにない。","grep":"まだ選ばれていない"}
+{"batch":"04","cardNum":"PR-K021","effectId":"PR-K021-E3","severity":"MED","type":"WRONG","quote":"シグニ１体を対象とし","claim":"原文はプレイヤーを限定せずシグニ1体を対象にできるが、JSONは自分のシグニだけに対象を限定している。","grep":"シグニ１体を対象"}
+{"batch":"04","cardNum":"PR-K022","effectId":"PR-K022-E1-G","severity":"HIGH","type":"MISSING","quote":"同じレベルのシグニがある場合","claim":"公開した3枚に宣言した数字と同じレベルのシグニがある場合だけバウンスする条件がなく、JSONでは常に相手シグニを手札へ戻す。","grep":"宣言した数字と同じ"}
+{"batch":"04","cardNum":"PR-K043","effectId":"PR-K043-E2","severity":"MED","type":"MISSING","quote":"レベルの合計が５","claim":"サーチする2枚のレベル合計を5にする選択条件がJSONにない。","grep":"レベルの合計が"}
+{"batch":"04","cardNum":"PR-K060","effectId":null,"severity":"HIGH","type":"MISSING","quote":"合計３種類以上ある場合","claim":"エナゾーンのカードが持つ色が合計3種類以上の場合にしかこのキーを場に出せないという登場制限がJSONにない。","grep":"場合にしか新たに場に出せない"}
+{"batch":"04","cardNum":"PR-K070","effectId":"PR-K070-E1","severity":"MED","type":"MISSING","quote":"共通するクラスを持つ","claim":"サーチ対象がコストでトラッシュに置いたカードと共通するクラスを持つ条件がJSONにない。","grep":"共通するクラス"}
+{"batch":"05","cardNum":"PR-K076","effectId":"PR-K076-BURST","severity":"MED","type":"MISSING","quote":"このターンにアタックした","claim":"対象をこのターンにアタックした対戦相手のシグニに限定する条件がありません。","grep":"このターンにアタック"}
+{"batch":"05","cardNum":"PR-K077","effectId":"PR-K077-sub-E1","severity":"MED","type":"MISSING","quote":"そのシグニと同じレベル","claim":"捨てるシグニをアタックしたシグニと同じレベルに限定する条件がありません。","grep":"同じレベルのシグニ"}
+{"batch":"05","cardNum":"PR-K078","effectId":"PR-K078-BURST","severity":"MED","type":"MISSING","quote":"かレベル３のシグニ","claim":"トラッシュから加える対象が＜悪魔＞だけに限定され、レベル3のシグニという代替条件がありません。","grep":"かレベル３のシグニ"}

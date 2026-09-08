@@ -1,0 +1,42 @@
+[
+ {
+  "num": "WXK10-060",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-062",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-063",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-064",
+  "group": "clean"
+ },
+ {
+  "num": "WXK10-067",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-069",
+  "group": "clean"
+ },
+ {
+  "num": "WXK10-070",
+  "group": "clean"
+ },
+ {
+  "num": "WXK10-074",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-075",
+  "group": "stub"
+ },
+ {
+  "num": "WXK10-076",
+  "group": "clean"
+ }
+]
