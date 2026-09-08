@@ -118,3 +118,6 @@ WXDi-P13-049-E1 :: 2026-09-09 :: 第233バッチ＝《青》OPTIONAL_COST+PAID_A
 WX24-P3-089-E1 :: 2026-09-09 :: 第233バッチ＝TRASH対象をDECK_CARDへ訂正＋OPTIONAL_ACTIVATE
 WX24-P3-090-E1 :: 2026-09-09 :: 第233バッチ＝TRASH→MILL{optional:true}
 WX25-P1-101-E2 :: 2026-09-09 :: 第233バッチ＝TRASH→MILL{optional:true}
+WX11-043-E1 :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（live crossOnly:true 確認）
+WX08-010-E1 :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（live が per-count CONDITIONAL に修復済み）
+WX08-010-E1b :: 2026-09-09 :: FP（stale）＝triaged.txt記載どおり第197バッチで修正済み（E1へ統合され独立effectIdとしては存在しない）
