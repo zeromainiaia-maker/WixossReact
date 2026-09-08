@@ -1,0 +1,822 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WX26-CP1-028 プリンセス・ネージュ　レベル３
+【原文】【起】《ターン１回》エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く：このルリグはそのカードの【歌のカケラ】を使用する。
+        【起】《ゲーム１回》このルリグの下からカード３枚をルリグトラッシュに置く：対戦相手のルリグ１体を対象とし、次の対戦相手のターン終了時まで、それは能力を失う。
+        その後、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX26-CP1-028-E2 引用「対戦相手のルリグ１体」
+     指摘: 能力を失わせる対象が原文では対戦相手のルリグ1体だが、JSONでは対戦相手のシグニ1体になっている。
+     監査員が挙げた同型の grep 句: 「ルリグ１体を対象とし」
+【effects JSON】
+[
+ {
+  "effectId": "WX26-CP1-028-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energyTrash": {
+    "count": 1,
+    "filter": {
+     "keyword": "歌のカケラ"
+    }
+   }
+  },
+  "action": {
+   "type": "STUB",
+   "id": "SONG_FRAGMENT"
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WX26-CP1-028-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "exceed": 3
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REMOVE_ABILITIES",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1
+     },
+     "until": "UNTIL_OPP_TURN_END"
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ WX26-CP1-048 プリンセス・ジール(テイクミーハイヤー)
+【原文】【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜プリオケ＞の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+        【出】：このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+        それが対戦相手のセンタールリグと共通する色を持つ場合、対戦相手は【エナチャージ１】をしてもよい。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WX26-CP1-048-E2 引用「エナチャージ１】をしてもよい」
+     指摘: 対戦相手のエナチャージは任意だが、JSONのENERGY_CHARGE_FROM_DECKには任意指定がなく強制処理になっている。
+     監査員が挙げた同型の grep 句: 「してもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WX26-CP1-048-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "triggerScope": "self",
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "ALL_FIELD_SIGNI_MATCH",
+    "owner": "self",
+    "filter": {
+     "cardType": "シグニ",
+     "story": "プリオケ"
+    }
+   },
+   "then": {
+    "type": "BANISH",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "filter": {
+      "cardType": "シグニ",
+      "powerRange": {
+       "max": 8000
+      }
+     },
+     "upToCount": false
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX26-CP1-048-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "THIS_CARD_PLACED_BY_CLASS",
+    "cardClass": "プリオケ"
+   },
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "TRASH",
+      "target": {
+       "type": "ENERGY_CARD",
+       "owner": "opponent",
+       "count": 1
+      }
+     },
+     {
+      "type": "CONDITIONAL",
+      "condition": {
+       "type": "LAST_PROCESSED_SHARES_COLOR_WITH_LRIG",
+       "owner": "opponent"
+      },
+      "then": {
+       "type": "ENERGY_CHARGE_FROM_DECK",
+       "owner": "opponent",
+       "count": 1
+      }
+     }
+    ]
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WX24-D1-05 アーク・ライト・オーラ
+【原文】あなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】：このルリグがアタックしたとき、このルリグをアップし、ターン終了時まで、このルリグは能力を失う。
+        」を得る。
+        このターン、対戦相手は追加で《無》を支払わないかぎり【ガード】ができない。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX24-D1-05-E1 引用「このルリグは能力を失う」
+     指摘: 付与能力の解決時に能力を失う対象がルリグではなく自分のシグニ1体に指定されている。
+     監査員が挙げた同型の grep 句: 「能力を失う」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-D1-05-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "GRANT_EFFECT",
+     "target": {
+      "type": "LRIG",
+      "owner": "self",
+      "count": 1
+     },
+     "duration": "UNTIL_END_OF_TURN",
+     "effect": {
+      "effectId": "WX24-D1-05-sub-E1",
+      "effectType": "AUTO",
+      "timing": [
+       "ON_ATTACK_LRIG"
+      ],
+      "action": {
+       "type": "SEQUENCE",
+       "steps": [
+        {
+         "type": "UP",
+         "target": {
+          "type": "LRIG",
+          "owner": "self",
+          "count": 1
+         }
+        },
+        {
+         "type": "REMOVE_ABILITIES",
+         "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1
+         },
+         "until": "UNTIL_END_OF_TURN"
+        }
+       ]
+      },
+      "duration": "UNTIL_END_OF_TURN",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "GUARD_EXTRA_COST_BY_OPP",
+     "until": "END_OF_TURN"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK09-TK-01A 改造素材
+【原文】このターン、あなたは《改造素材》を使用できない。
+        以下の３つから１つを選ぶ。
+        ①あなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋4000する。
+        ②あなたの＜電機＞のシグニ１体を対象とし、《緑》を支払ってもよい。
+        そうした場合、ターン終了時まで、それは「【起】《ダウン》：このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        」を得る。
+        ③あなたの＜電機＞のシグニ１体を対象とし、《緑》《緑》を支払ってもよい。
+        そうした場合、ターン終了時まで、それは「【自】《ターン１回》：このシグニがアタックしたとき、このシグニをアップする。
+        」を得る。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK09-TK-01A-E1 引用「《緑》を支払ってもよい」
+     指摘: 選択肢②は任意コストの支払い成否を判定する条件がなく、支払わなかった場合にも起動能力を付与する構造になっている。
+     監査員が挙げた同型の grep 句: 「支払ってもよい」
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK09-TK-01A-E1 引用「《緑》《緑》を支払ってもよい」
+     指摘: 選択肢③は任意コストの支払い成否を判定する条件がなく、支払わなかった場合にも自動能力を付与する構造になっている。
+     監査員が挙げた同型の grep 句: 「支払ってもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WXK09-TK-01A-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BLOCK_CARD_USE",
+     "cardName": "改造素材"
+    },
+    {
+     "type": "CHOOSE",
+     "choose_count": 1,
+     "from_count": 3,
+     "choices": [
+      {
+       "choiceId": "c0",
+       "label": "＜電機＞シグニのパワー+4000",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "POWER_MODIFY",
+          "target": {
+           "type": "SIGNI",
+           "owner": "self",
+           "count": 1,
+           "upToCount": false,
+           "filter": {
+            "cardType": "シグニ",
+            "story": "電機"
+           }
+          },
+          "delta": 4000,
+          "duration": "UNTIL_END_OF_TURN"
+         },
+         {
+          "type": "STUB",
+          "id": "MARK_MATERIAL_TARGET"
+         }
+        ]
+       }
+      },
+      {
+       "choiceId": "c1",
+       "label": "《緑》で起動能力を付与",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "STUB",
+          "id": "OPTIONAL_COST",
+          "costColors": [
+           "緑"
+          ]
+         },
+         {
+          "type": "GRANT_EFFECT",
+          "duration": "UNTIL_END_OF_TURN",
+          "target": {
+           "type": "SIGNI",
+           "owner": "self",
+           "count": 1,
+           "upToCount": false,
+           "filter": {
+            "cardType": "シグニ",
+            "story": "電機"
+           }
+          },
+          "effect": {
+           "effectId": "WXK09-TK-01A-G2",
+           "effectType": "ACTIVATED",
+           "timing": [
+            "MAIN"
+           ],
+           "cost": {
+            "down_self": true
+           },
+           "action": {
+            "type": "BANISH",
+            "target": {
+             "type": "SIGNI",
+             "owner": "opponent",
+             "count": 1,
+             "upToCount": false,
+             "filter": {
+              "cardType": "シグニ",
+              "powerLtSelf": true
+             }
+            }
+           },
+           "duration": "INSTANT",
+           "mandatory": false,
+           "parseStatus": "MANUAL"
+          }
+         },
+         {
+          "type": "STUB",
+          "id": "MARK_MATERIAL_TARGET"
+         }
+        ]
+       }
+      },
+      {
+       "choiceId": "c2",
+       "label": "《緑》《緑》で自動能力を付与",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "STUB",
+          "id": "OPTIONAL_COST",
+          "costColors": [
+           "緑",
+           "緑"
+          ]
+         },
+         {
+          "type": "GRANT_EFFECT",
+          "duration": "UNTIL_END_OF_TURN",
+          "target": {
+           "type": "SIGNI",
+           "owner": "self",
+           "count": 1,
+           "upToCount": false,
+           "filter": {
+            "cardType": "シグニ",
+            "story": "電機"
+           }
+          },
+          "effect": {
+           "effectId": "WXK09-TK-01A-G3",
+           "effectType": "AUTO",
+           "timing": [
+            "ON_ATTACK_SIGNI"
+           ],
+           "usageLimit": "once_per_turn",
+           "action": {
+            "type": "UP",
+            "target": {
+             "type": "SIGNI",
+             "owner": "self",
+             "count": 1,
+             "filter": {
+              "thisCardOnly": true
+             }
+            }
+           },
+           "duration": "INSTANT",
+           "mandatory": true,
+           "parseStatus": "MANUAL"
+          }
+         },
+         {
+          "type": "STUB",
+          "id": "MARK_MATERIAL_TARGET"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WXDi-P16-TK01 インビンシブル・ストーリー
+【原文】このピースはあなたの場にルリグが３体いなくても使用できる。
+        以下の３つから２つまで選ぶ。
+        同じ選択肢を２回選んでもよい。
+        ①《白》を支払ってもよい。
+        そうした場合、【ルリグバリア】１つを得る。
+        ②対戦相手のシグニ１体を対象とし、《赤》を支払ってもよい。
+        そうした場合、それをバニッシュする。
+        ③《青》を支払ってもよい。
+        そうした場合、カードを３枚引く。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=WXDi-P16-TK01-E1 引用「同じ選択肢を２回選んでもよい」
+     指摘: CHOOSEに同じ選択肢の重複選択を許可する指定がなく、原文の重複選択可能という条件が表現されていない。
+     監査員が挙げた同型の grep 句: 「２回選んでもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P16-TK01-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 3
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "RULE_REMINDER_TEXT"
+    },
+    {
+     "type": "CHOOSE",
+     "choose_count": 2,
+     "from_count": 3,
+     "choices": [
+      {
+       "choiceId": "c0",
+       "label": "選択肢1",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "STUB",
+          "id": "OPTIONAL_COST",
+          "costColors": [
+           "白"
+          ]
+         },
+         {
+          "type": "CONDITIONAL",
+          "condition": {
+           "type": "IS_MY_TURN"
+          },
+          "then": {
+           "type": "STUB",
+           "id": "GAIN_LRIG_BARRIER"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "choiceId": "c1",
+       "label": "選択肢2",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "STUB",
+          "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+          "costColors": [
+           "赤"
+          ]
+         },
+         {
+          "type": "CONDITIONAL",
+          "condition": {
+           "type": "IS_MY_TURN"
+          },
+          "then": {
+           "type": "BANISH",
+           "target": {
+            "type": "SIGNI",
+            "owner": "opponent",
+            "count": 1,
+            "filter": {
+             "cardType": "シグニ"
+            },
+            "upToCount": false
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "choiceId": "c2",
+       "label": "選択肢3",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "STUB",
+          "id": "OPTIONAL_COST",
+          "costColors": [
+           "青"
+          ]
+         },
+         {
+          "type": "CONDITIONAL",
+          "condition": {
+           "type": "IS_MY_TURN"
+          },
+          "then": {
+           "type": "DRAW",
+           "owner": "self",
+           "count": 3
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "upTo": true
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-P1-TK3 ダーク・アナライズ
+【原文】（クラフトであるアーツは、使用後にゲームから除外される）数字１つを宣言する。
+        対戦相手の手札を見て、宣言した数字と同じレベルを持つすべてのシグニを捨てさせる。
+        【常】：このアーツはあなたの、コストや効果でルリグデッキから他の領域に移動しない。
+        
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=WX25-P1-TK3-E1 引用「すべてのシグニを捨てさせる」
+     指摘: 数字の宣言と対戦相手の手札を見る処理しかなく、宣言した数字と同じレベルを持つシグニをすべて捨てさせる処理に対応するアクションまたはpayloadがない。
+     監査員が挙げた同型の grep 句: 「同じレベルを持つ」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P1-TK3-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "DECLARE_NUMBER"
+    },
+    {
+     "type": "STUB",
+     "id": "LOOK_OPP_LIFE_TOP",
+     "lookZone": {
+      "zone": "opp_hand",
+      "count": "ALL"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "ARTS_IMMOVABLE"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXDi-P13-004B UNKNOWN-CODE-RU-
+【原文】【常】：対戦相手のターンの間、このシグニは【シャドウ】を得る。
+        （このシグニは対戦相手によって対象にされない）【自】：このシグニがアタックしたとき、カードを１枚引くか【エナチャージ１】をする。
+        【出】：次のあなたのエナフェイズ終了時まで、このシグニが場にあるかぎり、あなたのセンタールリグのリミットを＋２する。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXDi-P13-004B-E3 引用「次のあなたのエナフェイズ終了時まで」
+     指摘: リミット＋2の期限が次の自分のエナフェイズ終了時までではなく現在のターン終了時までになっており、さらに「このシグニが場にあるかぎり」という継続条件も欠けている。
+     監査員が挙げた同型の grep 句: 「エナフェイズ終了時まで」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P13-004B-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "opponent"
+  },
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "keyword": "シャドウ",
+   "duration": "PERMANENT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P13-004B-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXDi-P13-004B-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "LRIG_LIMIT_MODIFY",
+   "owner": "self",
+   "delta": 2,
+   "until": "END_OF_TURN"
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]

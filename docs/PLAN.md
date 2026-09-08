@@ -45,6 +45,14 @@
   📦**在庫**＝🏁**意味照合 未監査 2,060 → 0枚（全11シート 100%）**｜🔥**未 triage findings 0 → 443件**（HIGH 258 / MED 178 / LOW 7・
   うち grep 句あり 441）｜**実装キュー 残0**（据置）｜**機構 worklist 残0**（据置）｜**⑤実機 残0**（据置）。
 
+  🆕**同日の後半＝O-A（triage）を codex へ委譲できる形にした**＝`scripts/semanticAuditTriageExtract.mjs` を新設し、
+  **443件 / 54バッチ**を2アカウントへ投入。**32バッチ / 263件の判定候補を回収**（BUG 234 / FP 28 / UNKNOWN 0）。
+  🔴**確定はしていない**＝`triaged.txt` は未記入なので `semanticAuditPool.mjs` の 443 は減らない。
+  **FP の確定だけは Opus が engine を読んでから書く**（誤ると真バグが恒久的にプールから消える向き）。
+  ⚠**両アカウントとも使用量上限に到達**（`.codex-work` は b15、既定は b46 で停止＝**未実行 22バッチ**）。
+  🔑**上限は「1バッチの秒数」に効く**＝監査バッチ（20〜80秒）は213本回っても平気だったが、
+  **triage バッチ（約292秒）は32本で2アカウントとも枯れた**。**重い委譲はバッチ数ではなく秒数で見積もる。**
+
 **▶ 次の一手**＝🔥**§5.0 の O-A（triage）が唯一の本線**。443件は1周期（3〜6件）の約100倍で、
 第207バッチの実績（1セッション33件）換算で**十数セッション規模**。
 🔑**枚数ではなく「型」で潰す**＝`node scripts/archive/semanticAuditPool.mjs --grep` で同型を束ね、
@@ -345,7 +353,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 | 節 | 役割 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
 | §5.2 round4 | 🏁**掃引完了**＝意味照合を1度も通していないカードは無くなった | 🏁**残0枚**（2026-09-08 に全11シート 100%＝213バッチ / 2,080枚を codex 2アカウントで消化） | `node scripts/archive/semanticAuditGap.mjs` |
-| **§5.0 O-A** | 🔥🔥**本線キュー**＝findings の triage（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**（HIGH 258 / MED 178 / LOW 7・うち grep 句あり 441）＝2026-09-08 の大掃引で 0 → 443 | `node scripts/archive/semanticAuditPool.mjs` |
+| **§5.0 O-A** | 🔥🔥**本線キュー**＝findings の triage（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**（うち **263件は codex が判定候補を提出済み**＝BUG 234 / FP 28。**確定は未**＝`triaged.txt` は未記入なのでこの数字は減らない） | `node scripts/archive/semanticAuditPool.mjs` |
 | §5.0 実装キュー | triage で真バグと確定した未修正バグ（O-D / S-3） | 🏁**残0**（2026-09-08 第225〜228 で7行すべて処理）＝**O-A の triage が進めばここが埋まる** | この表が唯一の追跡先（どの計器にも映らない） |
 | §5.3 | 機構 worklist（`O-nn`）＝新しい型・評価器・engine が要るもの | 🏁**0項目**（2026-09-08 に索引 G の11項目を全消化＝**索引 A/A'/B/E/G すべて残0**） | §5.3 の索引 A〜G |
 | §5.1 | 実機で確かめる（`V-nn`） | 🏁**0件**（`V-182` / `V-183` を 2026-09-08 に同日返済＝さらに5シナリオを `order` に常設） | §5.1 の本文 |
@@ -392,7 +400,7 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 | ID | 作業 | 残（2026-09-07 実測） | 測り直すコマンド |
 |---|---|---|---|
-| **O-A** | 🔥**findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**（HIGH 258 / MED 178 / LOW 7）＝**唯一の本線**。⚠1周期3〜6件の約100倍＝**型で束ねて潰す**（`--grep`） | `node scripts/archive/semanticAuditPool.mjs` |
+| **O-A** | 🔥**findings の triage**（真バグか／engine が裏で読み替えているだけか） | 🔥**443件**。🆕**codex へ委譲できる形にした**＝`scripts/semanticAuditTriageExtract.mjs` → `semanticAuditRunCodex.mjs`（**engine を読ませるのが委譲の条件**）。**判定候補 263件提出済み・残 22バッチ**。🔴**FP の確定だけは Opus が engine を読んでから**（誤ると真バグが恒久的に消える向き） | `node scripts/archive/semanticAuditPool.mjs` |
 | **O-B** | **意味照合 段2 台帳の残 OPEN** | 🏁**0件**（掘り尽くした＝もう在庫ではない） | `node scripts/archive/semanticAuditLedger.mjs` |
 | **O-C** | **偽陽性のプロンプト還元**（`semanticAuditExtract.mjs` の読み方ルール） | **34本**（⚠**増やしたら「何を還元したか」を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の triage 履歴に1行書く**） | `grep -c "^[0-9]*\. " scripts/semanticAuditExtract.mjs` |
 | **O-D** | **`effectParser.ts` / `src/engine/` を触る修正**（§2.0 遅いレーン＝同型3枚以上・新しい型） | 🏁**残0**（2026-09-08 第225〜228） | 下の実装キュー |

@@ -1,0 +1,596 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXK03-048 師の遊　ボウピン
+【原文】【自】：あなたのアタックフェイズ開始時、《白》《白》《無》《無》を支払い、このシグニを場からトラッシュに置いてもよい。
+        そうした場合、あなたのすべてのシグニを場から手札に戻す。
+        この方法で＜遊具＞のシグニ２体が手札に戻った場合、あなたのデッキの上からカードを４枚見る。
+        その中から＜遊具＞のシグニを３枚まで場に出し、好きな枚数を好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-048-E1 引用「《白》《白》《無》《無》を支払い」
+     指摘: 任意コストから《白》《白》《無》《無》の支払いが欠落しており、このシグニをトラッシュに置くだけで後続効果を使用できる。
+     監査員が挙げた同型の grep 句: 「を支払い、この」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-048-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "triggerScope": "self",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "このシグニを場からトラッシュに置いてもよい"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "BOUNCE",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": "ALL",
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "story": "遊具"
+      },
+      "minCount": 2,
+      "verbJa": "手札に戻った"
+     },
+     "then": {
+      "type": "REVEAL_AND_PICK",
+      "owner": "self",
+      "revealCount": 4,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "遊具"
+      },
+      "pickCount": 3,
+      "pickUpTo": true,
+      "then": {
+       "type": "ADD_TO_FIELD",
+       "owner": "self"
+      },
+      "remainder": {
+       "location": "deck",
+       "position": "split_top_bottom",
+       "reorder": true
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WXK03-064 魔界の公爵　クロケル
+【原文】【自】《ターン１回》：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。
+        （パワーが０以下のシグニはルールによってバニッシュされる）
+【LB】：【エナチャージ１】
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-064-E1 引用「ガードステップ以外で」
+     指摘: 手札を捨てたタイミングからガードステップを除外する条件がJSONにありません。
+     監査員が挙げた同型の grep 句: 「ガードステップ以外」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-064-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HAND_DISCARDED"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -2000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK03-064-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-065 魔界の破片　カガミ
+【原文】【自】《ターン１回》：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－1000する。
+        （パワーが０以下のシグニはルールによってバニッシュされる）
+【LB】：【エナチャージ１】
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-065-E1 引用「ガードステップ以外で」
+     指摘: 手札を捨てたタイミングからガードステップを除外する条件がJSONにありません。
+     監査員が挙げた同型の grep 句: 「ガードステップ以外」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-065-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HAND_DISCARDED"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -1000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK03-065-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK04-003 エルドラ　オーバークロック
+【原文】【デコレ】【自】《ターン１回》：あなたのシグニ１体に【アクセ】が付いたとき、以下の３つから１つを選ぶ。
+        ①対戦相手のシグニ１体を対象とし、それをダウンする。
+        ②カードを１枚引く。
+        ③対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。
+        【起】《ゲーム１回》サプライズ《コインアイコン》：あなたのデッキの上からカードを４枚見る。
+        その中から好きな枚数の＜調理＞のシグニを場に出し、その後、好きな枚数の＜調理＞のシグニをあなたの＜調理＞のシグニの【アクセ】にする。
+        残りをトラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK04-003-E2 引用「シグニを場に出し」
+     指摘: 見た4枚から好きな枚数の＜調理＞シグニを場に出す処理がJSONにありません。
+     監査員が挙げた同型の grep 句: 「シグニを場に出し」
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=WXK04-003-E2 引用「【アクセ】にする」
+     指摘: ACCE_FROM_HANDは効果元自身を手札またはエナからアクセにするハンドラであり、見たデッキのカードを好きな枚数アクセにする原文を表現できません。
+     監査員が挙げた同型の grep 句: 「好きな枚数の」
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK04-003-E2 引用「残りをトラッシュに置く」
+     指摘: 原文では選ばなかったカードをトラッシュに置きますが、JSONは見た4枚をデッキの上に残します。
+     監査員が挙げた同型の grep 句: 「残りをトラッシュ」
+【effects JSON】
+[
+ {
+  "effectId": "WXK04-003-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ACCE_ATTACH"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "DOWN",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "delta": -5000
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK04-003-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "count": 4,
+     "private": true,
+     "reorder": false,
+     "canTrash": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "top"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "ACCE_FROM_HAND"
+    },
+    {
+     "type": "STUB",
+     "id": "RULE_REMINDER_TEXT"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ },
+ {
+  "effectId": "WXK04-003-DECORE",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "ATTACH_ACCE",
+   "fromHand": true,
+   "sourceOwner": "self",
+   "targetSigniOwner": "self",
+   "signiFilter": {
+    "cardType": "シグニ",
+    "story": "調理"
+   },
+   "targetFilter": {
+    "cardType": "シグニ",
+    "story": "調理"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL",
+  "usageLimit": "once_per_turn"
+ }
+]
+
+======================================================================
+■ WXK04-031 コードオーダー　メレドール
+【原文】【常】：このシグニは《コードイートアイスケーキ》が【アクセ】として付いているかぎり、「【自】：あなたのアタックフェイズ開始時、カードを１枚引く。
+        その後、手札から＜調理＞のシグニを１枚捨ててもよい。
+        そうした場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        」を得る。
+        【常】：これにアクセされているシグニがバニッシュされる場合、代わりにこのカードをトラッシュに置く。
+        
+【LB】：あなたのトラッシュから＜調理＞のシグニを２枚まで手札に加える。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK04-031-E1 引用「アイスケーキが【アクセ】」
+     指摘: 付与能力の有効条件である《コードイートアイスケーキ》が【アクセ】として付いていることがJSONに無く、常に能力を得る表現になっている。
+     監査員が挙げた同型の grep 句: 「付いているかぎり」
+【effects JSON】
+[
+ {
+  "effectId": "WXK04-031-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_FIELD_SIGNI_ABILITY",
+   "thisCardOnly": true,
+   "abilities": [
+    {
+     "effectId": "WXK04-031-E1-G",
+     "effectType": "AUTO",
+     "timing": [
+      "ON_ATTACK_PHASE_START"
+     ],
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 1
+       },
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "handDiscard": {
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "調理"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "BANISH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     },
+     "duration": "INSTANT",
+     "mandatory": true,
+     "parseStatus": "AUTO",
+     "triggerScope": "self"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK04-031-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "ACCE_BANISH_SELF_TRASH"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK04-031-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "TRANSFER_TO_HAND",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": true,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "調理"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK04-033 ＩＣＥ　ＳＴＯＲＭ
+【原文】あなたのトラッシュから対象の＜調理＞のシグニを３枚まで、対象のあなたの＜調理＞のシグニ３体までの【アクセ】にする。
+        ターン終了時、この方法で【アクセ】にしたすべてのカードを場から手札に戻す。
+        （【アクセ】はシグニ１体に１枚までしか付けられない）
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK04-033-E1 引用「この方法で【アクセ】にした」
+     指摘: ターン終了時にこの効果で【アクセ】にしたカードだけを手札へ戻すべきところ、JSONは効果解決中に自分の全シグニを手札へ戻す。
+     監査員が挙げた同型の grep 句: 「この方法で」
+【effects JSON】
+[
+ {
+  "effectId": "WXK04-033-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 4
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "ACCE_FROM_HAND"
+    },
+    {
+     "type": "BOUNCE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": "ALL",
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "optional": false
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

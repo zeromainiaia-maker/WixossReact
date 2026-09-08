@@ -1,0 +1,812 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WDK16-10 ファイト・ゴースト
+【原文】あなたのデッキから＜電機＞のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。
+        登録者数を２０万人得る。
+        あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合、追加で登録者数を１０万人得る。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WDK16-10-E1 引用「レベルが対戦相手と同じ場合」
+     指摘: 追加の登録者数10万人を得る処理が、両センタールリグのレベルが同じ場合という条件なしで常に実行される。
+     監査員が挙げた同型の grep 句: 「同じ場合、追加で」
+【effects JSON】
+[
+ {
+  "effectId": "WDK16-10-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "SEARCH",
+     "from": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "filter": {
+      "cardType": "シグニ",
+      "story": "電機"
+     },
+     "maxCount": 2,
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "REVEAL"
+       },
+       {
+        "type": "ADD_TO_HAND",
+        "owner": "self"
+       }
+      ]
+     },
+     "afterSearch": {
+      "type": "SHUFFLE_DECK",
+      "owner": "self"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "GAIN_SUBSCRIBER_COUNT",
+     "value": 20
+    },
+    {
+     "type": "STUB",
+     "id": "GAIN_SUBSCRIBER_COUNT",
+     "value": 10
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WDK17-009 愛憎の果てに　ハイティ・鍵
+【原文】【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき、以下の３つから１つを選ぶ。
+        ①カードを１枚引く。
+        ②対戦相手のダウン状態のシグニ１体を対象とし、それをバニッシュする。
+        ③あなたのセンタールリグが＜アルフォウ＞であなたのライフクロスが１枚以下の場合、対戦相手のライフクロス１枚をクラッシュする。
+        【起】このキーを場からルリグトラッシュに置く：対戦相手は自分の場からシグニ１体と自分のエナゾーンからカード１枚を対象とする。
+        あなたのライフクロスが２枚以下の場合、対戦相手は、手札を１枚捨てそれらをトラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WDK17-009-E2 引用「ライフクロスが２枚以下の場合」
+     指摘: 原文ではライフクロスが2枚以下の場合にのみ選んだシグニとエナをトラッシュに置くが、JSONではそれらを条件判定前に無条件でトラッシュに置く。
+     監査員が挙げた同型の grep 句: 「枚以下の場合」
+【effects JSON】
+[
+ {
+  "effectId": "WDK17-009-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_LIFE_CRASHED"
+  ],
+  "triggerScope": "self",
+  "triggerCondition": {
+   "duringAttackPhase": true,
+   "turnOwner": "opponent"
+  },
+  "usageLimit": "once_per_turn",
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "カードを1枚引く",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "対戦相手のダウン状態のシグニ1体をバニッシュ",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "isDown": true
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "対戦相手のライフクロス1枚をクラッシュ",
+     "condition": {
+      "type": "AND",
+      "conditions": [
+       {
+        "type": "LRIG_NAME_CONTAINS",
+        "owner": "self",
+        "name": "アルフォウ"
+       },
+       {
+        "type": "LIFE_COUNT",
+        "owner": "self",
+        "operator": "lte",
+        "value": 1
+       }
+      ]
+     },
+     "action": {
+      "type": "LIFE_CRASH",
+      "owner": "opponent",
+      "count": 1,
+      "triggerBurst": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WDK17-009-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "trash_key": true
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "opponentSelects": true,
+     "bestEffort": true
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "ENERGY_CARD",
+      "owner": "opponent",
+      "count": 1
+     },
+     "opponentSelects": true,
+     "bestEffort": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LIFE_COUNT",
+      "owner": "self",
+      "operator": "lte",
+      "value": 2
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "HAND_CARD",
+       "owner": "opponent",
+       "count": 1
+      },
+      "bestEffort": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ SP26-002 アンチ・アビリティ
+【原文】このアーツは対戦相手のターンにしか使用できない。
+        このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない。
+        （「～したとき、」「～時、」と書かれた能力、【出】、【自】、《トラップアイコン》、【ライフバースト】、はトリガー能力である）
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=SP26-002-E1 引用「トリガー能力は発動しない」
+     指摘: 原文は【ライフバースト】を除く対戦相手のシグニのトリガー能力すべてをこのターン発動不能にするが、JSONにはその対象・除外条件・期間に対応するpayloadがなく、SUPPRESS_LIFE_BURST_ON_CRASHは原文で抑止対象外とされたライフバーストを指している。
+     監査員が挙げた同型の grep 句: 「以外の対戦相手」
+【effects JSON】
+[
+ {
+  "effectId": "SP26-002-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK",
+   "SPELL_CUTIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BLOCK_ACTION",
+     "target": {
+      "type": "PLAYER",
+      "owner": "self",
+      "count": 1
+     },
+     "actionId": "USE_ARTS_EXCEPT_OPP_TURN",
+     "until": "PERMANENT"
+    },
+    {
+     "type": "STUB",
+     "id": "SUPPRESS_LIFE_BURST_ON_CRASH"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ SP27-014 中水罠　オトヒメ
+【原文】【常】：あなたの他の青のシグニのパワーを＋2000する。
+        【自】：このシグニが対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき、以下の３つから１つを選ぶ。
+        ①カードを１枚引く。
+        ②あなたのデッキの一番上のカードをエナゾーンに置く。
+        ③対戦相手のシグニ１体を対象とし、手札を１枚捨ててもよい。
+        そうした場合、それをバニッシュする。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=SP27-014-E2 引用「手札を１枚捨ててもよい」
+     指摘: ③の手札1枚を捨てる処理は任意だが、JSONでは必ず1枚をトラッシュに置く処理になっている。
+     監査員が挙げた同型の grep 句: 「捨ててもよい」
+【effects JSON】
+[
+ {
+  "effectId": "SP27-014-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ",
+     "color": "青",
+     "excludeSelf": true
+    },
+    "upToCount": false
+   },
+   "delta": 2000,
+   "excludeSelf": true
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "SP27-014-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TRASH"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "SP27-014-E2-c1",
+     "label": "カードを1枚引く",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "SP27-014-E2-c2",
+     "label": "デッキの一番上のカードをエナゾーンに置く",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "SP27-014-E2-c3",
+     "label": "手札を1枚捨て、対戦相手のシグニ1体をバニッシュする",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 1
+        }
+       },
+       {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL",
+  "triggerCondition": {
+   "byOpponentEffect": true,
+   "fromAnyZone": true
+  }
+ }
+]
+
+======================================================================
+■ SP27-015 コードイート　トンカツ
+【原文】【起】《メインフェイズアイコン》《アタックフェイズアイコン》《緑×0》：場にあるこのシグニを対象のあなたの他のシグニ１体の【アクセ】にする。
+        そうした場合、このシグニに付いていた【アクセ】１枚を対象のあなたのシグニ１体に付けてもよい。
+        【常】：これにアクセされているシグニのパワーを＋1000する。
+        【常】：これにアクセされているシグニは「【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》あなたの【アクセ】２枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        」を得る。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=SP27-015-E3-G 引用「《ターン１回》」
+     指摘: 付与される起動能力のターン1回制限がJSONにない。
+     監査員が挙げた同型の grep 句: 「《ターン１回》」
+  ▶ 精査対象 [MED/WRONG] effectId=SP27-015-E3-G 引用「《アタックフェイズアイコン》」
+     指摘: 付与される起動能力はメインフェイズとアタックフェイズの両方で使用できるが、JSONのtimingはMAINだけになっている。
+     監査員が挙げた同型の grep 句: 「《アタックフェイズアイコン》」
+【effects JSON】
+[
+ {
+  "effectId": "SP27-015-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS",
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "FIELD_SIGNI_TO_ACCE",
+   "sourceOwner": "self",
+   "targetSigniOwner": "self",
+   "sourceThisCard": true,
+   "targetFilter": {
+    "cardType": "シグニ",
+    "excludeSelf": true
+   },
+   "reattachPreviousAcceOptional": true
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "SP27-015-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "acceHost": true
+    }
+   },
+   "delta": 1000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "SP27-015-E3",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_ACCE_HOST_ABILITY",
+   "abilities": [
+    {
+     "effectId": "SP27-015-E3-G",
+     "effectType": "ACTIVATED",
+     "timing": [
+      "MAIN"
+     ],
+     "cost": {
+      "acceTrash": 2
+     },
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     },
+     "duration": "INSTANT",
+     "mandatory": false,
+     "parseStatus": "MANUAL"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ SPK01-13 セレクト・ハッピー５
+【原文】アンコール－キー１枚を場からルリグトラッシュに置く以下の５つから１つを選ぶ。
+        ①あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
+        ②対戦相手のトラッシュにあるカードを２枚まで対象とし、それらをゲームから除外する。
+        ③このターン、あなたは対戦相手の効果によってダメージを受けない。
+        ④対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。
+        」を得る。
+        ⑤ターン終了時まで、対戦相手のすべてのシグニは効果によって得ている能力を失う。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPK01-13-E1 引用「このターン、あなたは」
+     指摘: 選択肢③はこのターン中に対戦相手の効果から受けるすべてのダメージを防ぐ効果だが、JSONは次のダメージ1回だけを防ぐ効果になっている。
+     監査員が挙げた同型の grep 句: 「ダメージを受けない」
+【effects JSON】
+[
+ {
+  "effectId": "SPK01-13-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK",
+   "SPELL_CUTIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 0
+    }
+   ],
+   "encoreCost": {
+    "energy": [],
+    "coins": 0,
+    "trashOwnKey": true
+   }
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 5,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "TRANSFER_TO_HAND",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "EXILE",
+      "target": {
+       "type": "TRASH_CARD",
+       "owner": "opponent",
+       "count": 2,
+       "upToCount": true
+      }
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "PREVENT_NEXT_DAMAGE",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "c3",
+     "label": "選択肢4",
+     "action": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "keyword": "アタックできない",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    },
+    {
+     "choiceId": "c4",
+     "label": "対戦相手のすべてのシグニは効果で得ている能力を失う（ターン終了時まで）",
+     "action": {
+      "type": "REMOVE_ABILITIES",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": "ALL"
+      },
+      "grantedOnly": true,
+      "until": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ PR-305 エンジェルキラー　†上柚木綾瀬†
+【原文】【自】：あなたのターンの間、このシグニがバトルしたとき、手札を１枚捨ててもよい。
+        そうした場合、そのバトル終了時にこのシグニがバトルしたそのシグニを場からデッキの一番下に置く。
+        【出】：対戦相手の＜天使＞のシグニ１体を対象とし、あなたのセンタールリグが黒の場合、それをバニッシュする。
+        【出】《黒》：対戦相手のレベル３のシグニ１体を対象とし、それをバニッシュする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=PR-305-E1 引用「バトルしたそのシグニ」
+     指摘: デッキの一番下に置く対象はこのシグニとバトルした相手のシグニだが、JSONはowner:selfの自分のシグニを対象にしている。
+     監査員が挙げた同型の grep 句: 「バトルしたその」
+  ▶ 精査対象 [MED/MISSING] effectId=PR-305-E1 引用「そのバトル終了時に」
+     指摘: 原文ではコスト支払い後の移動処理をそのバトル終了時まで遅延するが、JSONにはバトル終了時に実行する指定がない。
+     監査員が挙げた同型の grep 句: 「バトル終了時に」
+【effects JSON】
+[
+ {
+  "effectId": "PR-305-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_BATTLE"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "handDiscard": {
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "TRANSFER_TO_DECK",
+      "source": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "shuffle": false,
+      "position": "bottom"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerCondition": {
+   "turnOwner": "self"
+  }
+ },
+ {
+  "effectId": "PR-305-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "LRIG_COLOR",
+    "owner": "self",
+    "color": "黒"
+   },
+   "then": {
+    "type": "BANISH",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "filter": {
+      "cardType": "シグニ",
+      "story": "天使"
+     },
+     "upToCount": false
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-305-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "level": 3
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

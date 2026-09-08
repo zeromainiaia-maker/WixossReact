@@ -1,0 +1,875 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXK03-024 魔界の千夜　シャハラザ
+【原文】【常】：あなたの手札が０枚であるかぎり、このシグニのパワーは＋2000される。
+        【自】：各アタックフェイズ開始時、あなたは手札を１枚捨てる。
+        【自】《ターン２回》：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－6000する。
+        
+【LB】：手札を１枚捨てる。このターン終了時、カードを２枚引く。
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-024-E3 引用「ガードステップ以外で」
+     指摘: 手札を捨てたタイミングがガードステップ以外であるという発動条件がJSONにない。
+     監査員が挙げた同型の grep 句: 「ガードステップ以外」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-024-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "COUNT_THRESHOLD",
+   "location": "hand",
+   "owner": "self",
+   "operator": "eq",
+   "value": 0
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 2000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-024-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "HAND_CARD",
+    "owner": "self",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any"
+ },
+ {
+  "effectId": "WXK03-024-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HAND_DISCARDED"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -6000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "twice_per_turn"
+ },
+ {
+  "effectId": "WXK03-024-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "type": "INSTALL_DELAYED_TRIGGER",
+     "duration": "THIS_TURN",
+     "trigger": {
+      "timing": "ON_TURN_END"
+     },
+     "effect": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 2
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-025 最英の探偵　ホームズ
+【原文】【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。
+        この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。
+        【出】：対戦相手の場にある凍結状態のシグニ１体につきカードを１枚引く。
+        この方法で引いたカードの枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く。
+        
+【LB】：対戦相手のすべてのシグニを凍結する。カードを１枚引く。
+  ▶ 精査対象 [MED/EXTRA] effectId=WXK03-025-E1 引用「手札を２枚捨てる」
+     指摘: 対戦相手が捨てる手札2枚にレベルが異なることを要求する制約がJSONで余分に付いている。
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-025-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "MILL",
+     "owner": "self",
+     "count": 4,
+     "fromBottom": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "TRASHED_DISTINCT_LEVELS_GTE",
+      "count": 4
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "HAND_CARD",
+       "owner": "opponent",
+       "count": 2,
+       "selectionConstraint": {
+        "distinct": "level"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXK03-025-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW_PER_FIELD_COUNT",
+     "drawPerUnit": 1,
+     "countFilter": {
+      "cardType": "シグニ",
+      "isFrozen": true
+     },
+     "countOwner": "opponent"
+    },
+    {
+     "type": "STUB",
+     "id": "DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-025-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "FREEZE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": "ALL",
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-026 幻怪姫　ネムリヒメ
+【原文】【常】：対戦相手の効果によって、このシグニのパワーは－（マイナス）されない。
+        【常】：このシグニはパワーが20000以上であるかぎり、【Ｓランサー】を得る。
+        【常】：このターンにあなたがアーツを３回以上使用していた場合、このシグニはバニッシュされない。
+        【自】《ターン１回》：場にあるこのシグニが他のシグニゾーンに移動したとき、あなたのルリグデッキに《刺々迷路》１枚を加える。
+        
+【LB】：あなたのルリグデッキに《刺々迷路》２枚を加える。
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-026-E4 引用「場にあるこのシグニが」
+     指摘: 移動前にこのシグニが場にあることを要求する発動条件がJSONにない。
+     監査員が挙げた同型の grep 句: 「場にあるこのシグニが」
+  ▶ 精査対象 [MED/MISSING] effectId=WXK03-026-E4 引用「他のシグニゾーンに移動」
+     指摘: 移動先が別のシグニゾーンであることを要求する発動条件がJSONにない。
+     監査員が挙げた同型の grep 句: 「他のシグニゾーンに」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-026-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "PREVENT_POWER_MINUS_BY_OPP"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-026-E2",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "SELF_POWER_THRESHOLD",
+   "operator": "gte",
+   "value": 20000
+  },
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "keyword": "Sランサー",
+   "duration": "PERMANENT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-026-E3",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "ARTS_USED_THIS_TURN",
+   "owner": "self",
+   "minCount": 3
+  },
+  "action": {
+   "type": "GRANT_PROTECTION",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1
+   },
+   "from": [
+    "BANISH"
+   ],
+   "sourceOwner": "any",
+   "duration": "PERMANENT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-026-E4",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ZONE_MOVED"
+  ],
+  "action": {
+   "type": "ADD_CRAFT_TO_LRIG_DECK",
+   "owner": "self",
+   "cardName": "刺々迷路",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK03-026-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ADD_CRAFT_TO_LRIG_DECK",
+   "owner": "self",
+   "cardName": "刺々迷路",
+   "count": 2
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-028 超罠　モリアーティ
+【原文】【常】：レベルが奇数の対戦相手のシグニは「【常】：アタックできない。
+        」を得る。
+        【自】：レベルが偶数のあなたのシグニ１体が場に出たとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。
+        【出】《黒》：あなたのデッキの一番上のカードをトラッシュに置く。
+        それがレベルが偶数のシグニの場合、それをトラッシュから場に出す。
+        
+【LB】：レベルが奇数の対戦相手のすべてのシグニをバニッシュする。
+  ▶ 精査対象 [MED/WRONG] effectId=WXK03-028-E3 引用「それをトラッシュから場に出す」
+     指摘: 場に出す対象が直前にデッキ上から置いたカードに固定されず、トラッシュの別の偶数レベルのシグニを選べる表現になっている。
+     監査員が挙げた同型の grep 句: 「それをトラッシュから」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-028-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "ODD_LEVEL_SIGNI_CANT_ATTACK"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-028-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -3000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "levelParity": "even"
+  }
+ },
+ {
+  "effectId": "WXK03-028-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "DECK_CARD",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "levelParity": "even"
+      }
+     },
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-028-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ",
+     "levelParity": "odd"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-029 サーバント　F
+【原文】【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのセンタールリグが＜夢限＞の場合、手札から＜精元＞のシグニを２枚捨ててもよい。
+        そうした場合、それをトラッシュに置く。
+        【出】《無》：あなたのデッキから《ガードアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+        
+【LB】：あなたのトラッシュから＜精元＞のシグニを２枚まで対象とし、それらを手札に加える。
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK03-029-E2 引用「《ガードアイコン》を持つ」
+     指摘: サーチ条件がガードアイコンの所持ではなく、カード名に「ガードアイコン」を含むシグニになっている。
+     監査員が挙げた同型の grep 句: 「《ガードアイコン》」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-029-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LRIG_STORY",
+      "owner": "self",
+      "story": "夢限"
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "SELECT_TARGET_ONLY",
+        "selectTarget": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         }
+        },
+        "abortIfNoCandidate": true
+       },
+       {
+        "type": "STUB",
+        "id": "STORE_LAST_PROCESSED_TARGETS"
+       },
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "handDiscard": {
+         "count": 2,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "精元"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "PAID_ADDITIONAL_COST"
+        },
+        "then": {
+         "type": "TRASH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          }
+         },
+         "targetsStored": true
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXK03-029-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {
+    "cardType": "シグニ",
+    "cardName": "ガードアイコン"
+   },
+   "maxCount": 1,
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "REVEAL"
+     },
+     {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     }
+    ]
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK03-029-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "TRANSFER_TO_HAND",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": true,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "精元"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK03-030 讃の遊　ボールプール
+【原文】【自】：あなたのレベル４の＜遊具＞のシグニがアタックしたとき、《白》を支払ってもよい。
+        そうした場合、このシグニを場から手札に戻し、手札からレベル２以下の＜遊具＞のシグニ１枚を場に出す。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK03-030-E1 引用「このシグニを場から手札に戻し」
+     指摘: 追加コストを支払った場合に、このシグニ自身を場から手札へ戻す処理がJSONにない。
+     監査員が挙げた同型の grep 句: 「場から手札に戻し」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-030-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "白"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "HAND_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "level": {
+         "max": 2
+        },
+        "story": "遊具"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "level": 4,
+   "story": "遊具"
+  }
+ }
+]
+
+======================================================================
+■ WXK03-034 中装　ニョイボウ
+【原文】【常】：このターンにあなたが手札を２枚以上捨てていた場合、このシグニのパワーは＋2000され、このシグニは「【自】：このシグニがアタックしたとき、このシグニのパワー以下の対戦相手のシグニ１体を対象とし、《赤》を支払ってもよい。
+        そうした場合、それをバニッシュする。
+        」を得る。
+        
+【LB】：カードを１枚引く。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK03-034-E1 引用「パワーは＋2000され」
+     指摘: このターンに手札を2枚以上捨てていた場合にこのシグニのパワーを＋2000する常時効果がJSONにない。
+     監査員が挙げた同型の grep 句: 「パワーは＋2000され」
+【effects JSON】
+[
+ {
+  "effectId": "WXK03-034-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "triggerScope": "self",
+  "condition": {
+   "type": "TURN_HAND_DISCARD_GTE",
+   "value": 2
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerLteSelf": true
+      },
+      "upToCount": false
+     },
+     "abortIfNoCandidate": true
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "赤"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "powerLteSelf": true
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WXK03-034-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

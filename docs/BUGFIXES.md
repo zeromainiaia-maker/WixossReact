@@ -45,6 +45,44 @@ codex 2アカウント（`CODEX_HOME=C:/Users/zerom/.codex-work` と既定 `~/.c
 
 **型の内訳＝WRONG 233 / MISSING 186 / SUSPECT_STUB 18 / EXTRA 10。**
 
+### 🆕 O-A（triage）を codex へ委譲した＝`scripts/semanticAuditTriageExtract.mjs` を新設
+
+**443件の未 triage を捌くために、triage 工程そのものを codex へ委譲できる形にした。**
+🔴**PLAN §5.0 は「O-A を Sonnet に落とすな」と書いているが、その根拠は「監査員が JSON しか読めないから」**であって、
+**リポジトリ内で `grep` できる実行環境（codex exec）なら前提が違う**。⇒ 委譲の条件は**engine を読ませること**。
+
+| | |
+|---|---|
+| **新ツール** | `scripts/semanticAuditTriageExtract.mjs`＝`semanticAuditPool.mjs` と同じ規約で未 triage を拾い、カード単位に束ねて `prompts/batch_NN.txt` を作る。**出力スキーマを監査バッチと揃えたので実行は既存の `semanticAuditRunCodex.mjs` がそのまま使える**（新しいランナーを書いていない） |
+| **出力先** | `scripts/archive/scratchpad/semantic_triage_round4/`（443件 / 54バッチ・8件/バッチ） |
+| **実測** | 1バッチ **約292秒**（監査バッチの 12〜81秒より1桁重い＝engine を読む分）。**32 / 54バッチ完了で263件**（BUG 234 / FP 28 / UNKNOWN 0） |
+
+#### 🔴 プロンプトに入れた非対称ルール（ここが設計の要）
+
+**FP と書いてよいのは engine の該当行を `ファイル:行` で引用できたときだけ。できなければ UNKNOWN。**
+理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグをプールから恒久的に消す**
+（`triaged.txt` に書いた瞬間 `semanticAuditPool.mjs` からも `census:cards` からも見えなくなる）。
+⇒ **codex には `triaged.txt` を書かせない**。確定は人間（Opus）が engine を読んでから。
+
+#### ⚠ 実測でわかった codex の傾向（2アカウント・32バッチで一貫）
+
+- 🔴**UNKNOWN が1件も出ない**＝「引用できなければ UNKNOWN」と明示しても**常に断定する**。
+- **FP 率 10.6%**＝過去の precision 実測（50〜84%＝FP 16〜50%）の**下限を下回る**。⇒ **BUG 側に寄った判定として扱う。**
+- ✅**フォーマットは完璧に守る**＝`ファイル:行` の引用が無い判定 **0件** / 263件、`population` 記入 233件。
+- ⚠**`population` は水増しする**＝finding の grep 句をそのまま数えるので「ルリグ１体を対象」で 114 のような値が返る。
+  **同じ壊れ方の数ではなく、その言い回しが出る効果数の上限値**として読む（LESSONS §4.7「grep の母集団は着手時にもう一度割る」）。
+- 🔑**筋の良い兆候もある**＝FP 判定のうち5件が `effectExecutor.ts:6163` の **`OPTIONAL_COST` Pattern ⑤**
+  （後続 CONDITIONAL が無い任意コストは pay 側だけが残りステップを実行する）を引用しており、**既知の偽陽性型と整合**する。
+  系統としてまとまるなら `semanticAuditExtract.mjs` の読み方ルールへ還元する（O-C）候補。
+
+#### ⚠ 両アカウントとも使用量上限に到達した（＝この規模の委譲の律速）
+
+`.codex-work` は batch_15 で、既定 `~/.codex` は batch_46 で上限。**どちらもサーキットブレーカーが5連続失敗で正しく停止**した
+（`semanticAuditRunCodex.mjs` の `MAX_CONSECUTIVE_FAILURES=5`）。**未実行は b15〜27 と b46〜54 の計22バッチ**。
+🔑**再開は同じコマンドでよい**（`raw/batch_NN.json` の有無でスキップ）。
+🔑**上限は「1バッチの重さ」に効く**＝監査バッチ（20〜80秒）は213本回っても上限に当たらなかったが、
+**triage バッチ（約292秒）は32本で2アカウントとも枯れた**。⇒ **重い委譲はバッチ数ではなく秒数で見積もる。**
+
 ### ⚠ 周期を破った結果（記録として残す）
 
 PLAN §5.0 の周期（Sonnet 5〜8バッチ : Opus triage 1回）は**ユーザー判断で意図的に破った**（codex 側の原価が Claude 月額枠と別のため）。

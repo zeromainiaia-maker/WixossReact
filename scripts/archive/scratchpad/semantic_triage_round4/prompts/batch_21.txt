@@ -1,0 +1,664 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WDK10-011 幻竜　アン＝ミラ
+【原文】【自】《ターン２回》：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－6000する。
+        【出】手札から＜龍獣＞のシグニを１枚捨てる：あなたのトラッシュからレベル３以下の＜龍獣＞のシグニ１枚を対象とし、それを場に出す。
+        
+【LB】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
+  ▶ 精査対象 [MED/MISSING] effectId=WDK10-011-E1 引用「ガードステップ以外で」
+     指摘: 手札を捨てた時がガードステップ以外であるという発動条件がJSONにない。
+     監査員が挙げた同型の grep 句: 「ガードステップ以外」
+【effects JSON】
+[
+ {
+  "effectId": "WDK10-011-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HAND_DISCARDED"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -6000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "twice_per_turn"
+ },
+ {
+  "effectId": "WDK10-011-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "handDiscardSigni": {
+    "count": 1,
+    "story": "龍獣"
+   }
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "level": {
+      "max": 3
+     },
+     "story": "龍獣"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK10-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -12000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WDK10-015 幻竜　コスド
+【原文】【自】：このシグニがアタックしたとき、手札から＜龍獣＞のシグニを１枚捨ててもよい。
+        その後、パワーがこの方法で捨てたシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        
+【LB】：【エナチャージ１】
+  ▶ 精査対象 [HIGH/MISSING] effectId=WDK10-015-E1 引用「パワーの半分以下」
+     指摘: バニッシュ対象を、この方法で捨てたシグニのパワーの半分以下に限定する条件がJSONにありません。
+     監査員が挙げた同型の grep 句: 「パワーの半分以下」
+  ▶ 精査対象 [HIGH/WRONG] effectId=WDK10-015-E1 引用「この方法で捨てたシグニ」
+     指摘: 任意の手札捨てを行わなかった場合でも、JSONでは対戦相手のシグニを無条件に1体バニッシュします。
+     監査員が挙げた同型の grep 句: 「この方法で捨てた」
+【effects JSON】
+[
+ {
+  "effectId": "WDK10-015-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "handDiscard": {
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "龍獣"
+      }
+     }
+    },
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WDK10-015-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WDK11-001 エマ　レベル４
+【原文】【自】：このルリグがアタックしたとき、あなたの場に《ＧＦ　ノーマン＆レイ》がいる場合、《白》を支払ってもよい。
+        その後、この方法で《白》を支払った場合、あなたのトラッシュから＜英知＞のシグニ１枚を対象とし、それを手札に加える。
+        【自】：このルリグがアタックしたとき、あなたの場に＜英知＞のシグニがある場合、カードを１枚引く。
+        【出】：あなたのルリグデッキから《ＧＦ　ノーマン＆レイ》１枚を場に出す。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WDK11-001-E3 引用「ルリグデッキから」
+     指摘: 《ＧＦ　ノーマン＆レイ》をルリグデッキから選ぶための取得元とカード名指定がJSONにありません。
+     監査員が挙げた同型の grep 句: 「ルリグデッキから」
+【effects JSON】
+[
+ {
+  "effectId": "WDK11-001-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_LRIG"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "HAS_CARD_IN_FIELD",
+    "owner": "self",
+    "filter": {
+     "cardName": "ＧＦ　ノーマン＆レイ"
+    }
+   },
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "STUB",
+      "id": "OPTIONAL_COST",
+      "costColors": [
+       "白"
+      ]
+     },
+     {
+      "type": "CONDITIONAL",
+      "condition": {
+       "type": "PAID_ADDITIONAL_COST"
+      },
+      "then": {
+       "type": "TRANSFER_TO_HAND",
+       "source": {
+        "type": "TRASH_CARD",
+        "owner": "self",
+        "count": 1,
+        "upToCount": false,
+        "filter": {
+         "cardType": "シグニ",
+         "story": "英知"
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WDK11-001-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_LRIG"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "HAS_CARD_IN_FIELD",
+    "owner": "self",
+    "filter": {
+     "cardType": "シグニ",
+     "story": "英知"
+    }
+   },
+   "then": {
+    "type": "DRAW",
+    "owner": "self",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK11-001-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self"
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WDK12-007 難攻不落
+【原文】ベット―《コインアイコン》《コインアイコン》（このアーツを使用する際に《コインアイコン》を支払ってもよい）以下の２つから１つを選ぶ。
+        あなたがベットしていた場合、代わりに２つ選ぶ。
+        ①あなたのトラッシュから対象の＜微菌＞のシグニ１枚を対象のあなたのシグニ１体の【チャーム】にする。
+        ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは「【常】：対戦相手のターンの間、バニッシュされない。
+        」を得る。
+        ②あなたの場にあるすべての【チャーム】をトラッシュに置く。
+        この方法でトラッシュに置いた【チャーム】と同じ数だけカードを引き、同じ数だけ【エナチャージ１】をする。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WDK12-007-E1 引用「同じ数だけカードを引き」
+     指摘: 選択肢②の、トラッシュに置いたチャームと同じ枚数だけカードを引く処理がJSONにありません。
+     監査員が挙げた同型の grep 句: 「同じ数だけカード」
+  ▶ 精査対象 [HIGH/WRONG] effectId=WDK12-007-E1 引用「同じ数だけ【エナチャージ１】」
+     指摘: 選択肢②のエナチャージ回数が、トラッシュに置いたチャームの枚数ではなく固定1回になっています。
+     監査員が挙げた同型の grep 句: 「同じ数だけ【エナ」
+【effects JSON】
+[
+ {
+  "effectId": "WDK12-007-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK",
+   "SPELL_CUTIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 1
+    }
+   ],
+   "betOptions": {
+    "options": [
+     2
+    ],
+    "variable": false
+   }
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "ATTACH_CHARM",
+        "charm": {
+         "type": "TRASH_CARD",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "story": "微菌"
+         }
+        },
+        "to": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1
+        }
+       },
+       {
+        "type": "GRANT_PROTECTION",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": "ALL",
+         "filter": {
+          "cardType": "シグニ",
+          "hasCharm": true
+         }
+        },
+        "from": [
+         "BANISH"
+        ],
+        "sourceOwner": "any",
+        "duringOppTurn": true,
+        "duration": "UNTIL_END_OF_TURN"
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "REMOVE_CHARM",
+        "targetOwner": "self",
+        "count": "ALL"
+       },
+       {
+        "type": "ENERGY_CHARGE_FROM_DECK",
+        "owner": "self",
+        "count": 1
+       }
+      ]
+     }
+    }
+   ],
+   "betChoose": {
+    "thenChooseCount": 2,
+    "thenUpTo": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WDK15-001 ナナシ　其ノ四ノ報
+【原文】【自】《ターン１回》：《ライズアイコン_黒》_blackを持つあなたのシグニ１体が場に出たとき、あなたのトラッシュからシグニ１枚を対象とし、それをそのシグニの下に置く。
+        【出】：あなたのトラッシュから《ライズアイコン_黒》_blackを持つシグニ１枚と＜ウェポン＞のシグニ１枚を対象とし、それらを手札に加える。
+        【起】《ゲーム１回》《メインフェイズアイコン》《アタックフェイズアイコン》ブラインド《コインアイコン》：あなたのトラッシュから対象のシグニを２枚まで、対象のあなたの＜ウェポン＞のシグニ２体までの下に置く。
+        下にカードがあるあなたのシグニ１体につきカードを１枚引く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WDK15-001-E3 引用「下にカードがある」
+     指摘: ドロー枚数の集計対象が「下にカードがある自分のシグニ」ではなく、自分の場の全シグニになっている。
+     監査員が挙げた同型の grep 句: 「下にカードがある」
+【effects JSON】
+[
+ {
+  "effectId": "WDK15-001-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "STUB",
+   "id": "BLACK_RISE_PLAY_STACK_FROM_TRASH"
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "hasRiseIcon": true
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK15-001-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "TRANSFER_TO_HAND",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": false,
+    "filter": {
+     "anyOf": [
+      {
+       "cardType": "シグニ",
+       "hasRiseIcon": true
+      },
+      {
+       "cardType": "シグニ",
+       "cardClass": "ウェポン"
+      }
+     ]
+    },
+    "selectionConstraint": {
+     "groups": [
+      {
+       "filter": {
+        "cardType": "シグニ",
+        "hasRiseIcon": true
+       },
+       "count": 1
+      },
+      {
+       "filter": {
+        "cardType": "シグニ",
+        "cardClass": "ウェポン"
+       },
+       "count": 1
+      }
+     ]
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK15-001-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS",
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "TRASH_SIGNI_UNDER_FIELD_SIGNI",
+     "trashUnderPlace": {
+      "count": 2,
+      "upTo": true,
+      "sourceFilter": {
+       "cardType": "シグニ"
+      },
+      "destFilter": {
+       "cardType": "シグニ",
+       "story": "ウェポン"
+      }
+     }
+    },
+    {
+     "type": "DRAW_PER_FIELD_COUNT",
+     "drawPerUnit": 1,
+     "countFilter": {
+      "cardType": "シグニ"
+     },
+     "countOwner": "self"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ WDK16-06H コードＶＬ　本間ひまわり
+【原文】【常】：あなたの場にカード名に《楓》を含むセンタールリグがいるかぎり、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+        あなたの登録者数が１００万人を達成している場合、代わりに対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        」を得る。
+        
+【LB】：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WDK16-06H-E1 引用「１００万人を達成している場合」
+     指摘: 登録者数が100万人以上ならパワー制限なしの相手シグニ1体を代わりにバニッシュする処理が欠落している。
+     監査員が挙げた同型の grep 句: 「場合、代わりに」
+【effects JSON】
+[
+ {
+  "effectId": "WDK16-06H-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "triggerScope": "self",
+  "condition": {
+   "type": "LRIG_NAME_CONTAINS",
+   "owner": "self",
+   "name": "楓"
+  },
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "powerRange": {
+      "max": 8000
+     }
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WDK16-06H-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

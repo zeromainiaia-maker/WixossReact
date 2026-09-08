@@ -1,0 +1,959 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ PR-319 幻蟲　オオムラサキ
+【原文】【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。
+        【常】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。
+        そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。
+        」を得る。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=PR-319-E2 引用「あなたのターン終了時」
+     指摘: 原文では自分のターン終了時に誘発する能力だが、JSONはCONTINUOUSでターン終了時の発動タイミングを表していない。
+     監査員が挙げた同型の grep 句: 「ターン終了時」
+【effects JSON】
+[
+ {
+  "effectId": "PR-319-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "HAS_CARD_IN_FIELD",
+   "owner": "self",
+   "filter": {
+    "cardType": "レゾナ"
+   }
+  },
+  "action": {
+   "type": "POWER_SET",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1
+   },
+   "value": 12000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-319-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_TRASH_SELF"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "GRANT_LRIG_ABILITY",
+      "abilities": [
+       {
+        "effectId": "PR-319-sub-E1",
+        "effectType": "ACTIVATED",
+        "timing": [
+         "ATTACK_ARTS"
+        ],
+        "cost": {
+         "energy": [
+          {
+           "color": "黒",
+           "count": 0
+          }
+         ]
+        },
+        "action": {
+         "type": "POWER_MODIFY",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          },
+          "upToCount": false
+         },
+         "delta": -7000
+        },
+        "duration": "UNTIL_END_OF_TURN",
+        "mandatory": false,
+        "parseStatus": "AUTO",
+        "usageLimit": "once_per_turn"
+       }
+      ],
+      "rawText": "【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。",
+      "duration": "UNTIL_OPP_TURN_END"
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ PR-422 ３－遊　§タカラトミーたそ§
+【原文】【自】：パワー０以下のこのシグニがバニッシュされたとき、あなたはゲームに敗北する。
+        【自】：あなたのターン終了時、このシグニのパワーが10000以上の場合、このシグニを場からトラッシュに置き、カードを３枚引く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=PR-422-E1 引用「パワー０以下の」
+     指摘: 敗北効果が発動する条件である「このシグニのパワーが0以下」がJSONに無く、パワーにかかわらずバニッシュ時に敗北する。
+     監査員が挙げた同型の grep 句: 「パワー０以下」
+【effects JSON】
+[
+ {
+  "effectId": "PR-422-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_BANISH"
+  ],
+  "action": {
+   "type": "STUB",
+   "id": "DEFEAT"
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-422-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "condition": {
+   "type": "SELF_POWER_GTE",
+   "value": 10000
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "thisCardOnly": true
+      }
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 3
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ PR-457 コードイート　八重
+【原文】【出】手札を一枚捨てる：あなたのデッキの上からカードを２枚公開する。
+        その中からあなたのセンタールリグと共通する色を持つすべてのカードをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。
+        【起】《ターン１回》《無》《無》：あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+        
+【LB】：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  ▶ 精査対象 [MED/WRONG] effectId=PR-457-E2 引用「シグニ１枚を探して」
+     指摘: サーチ対象が原文では任意のシグニ1枚だが、JSONではセンタールリグと共通する色のシグニに限定されている。
+     監査員が挙げた同型の grep 句: 「シグニ１枚を探して」
+【effects JSON】
+[
+ {
+  "effectId": "PR-457-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "discard": 1
+  },
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 2,
+   "filter": {
+    "colorMatchesLrig": true
+   },
+   "pickCount": "ALL",
+   "pickNoun": "カード",
+   "then": {
+    "type": "ADD_TO_ENERGY",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "reorder": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-457-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {
+    "cardType": "シグニ",
+    "colorMatchesLrig": true
+   },
+   "maxCount": 1,
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "REVEAL"
+     },
+     {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     }
+    ]
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "PR-457-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ PR-459A トライ・ラック
+【原文】対戦相手の手札を１枚見ないで選び、対戦相手はそのカードを公開する。
+        その後、そのカードがレベル１のシグニの場合、あなたのデッキの上からカードを３枚エナゾーンに置く。
+        レベル２のシグニの場合、あなたはカードを３枚引く。
+        レベル３のシグニの場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        レベル４のシグニの場合、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+        レベル５のシグニの場合、あなたは手札を１枚捨てる。
+        スペルの場合、対戦相手はそのカードを捨てる。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=PR-459A-E1 引用「そのカードを捨てる」
+     指摘: 公開したカードがスペルの場合にそのカード自身を捨てるべきところ、JSONは対戦相手の手札の任意の1枚を対象としており、公開したカードとの対応付けがない。
+     監査員が挙げた同型の grep 句: 「そのカードを捨てる」
+【effects JSON】
+[
+ {
+  "effectId": "PR-459A-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "REVEAL_OPP_HAND_CARD"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "level": 1
+      }
+     },
+     "then": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 3
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "level": 2
+      }
+     },
+     "then": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 3
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "level": 3
+      }
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "level": 4
+      }
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "level": 5
+      }
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "HAND_CARD",
+       "owner": "self",
+       "count": 1
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "スペル"
+      }
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "HAND_CARD",
+       "owner": "opponent",
+       "count": 1
+      },
+      "optional": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ PR-460 スピニング・フェイト
+【原文】このアーツの使用コストはあなたのセンタールリグが＜タウィル＞の場合、《黒×1》減り、あなたのセンタールリグが＜ウムル＞の場合、《白×1》減る。
+        ターン終了時まで、対象の対戦相手のセンタールリグ１体は「【常】：アタックできない。
+        」を得、対象の対戦相手のシグニ１体のパワーをー15000する。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=PR-460-E1 引用「アタックできない」
+     指摘: 対象の対戦相手のセンタールリグ1体にターン終了時までアタック禁止を与える処理がJSONにない。
+     監査員が挙げた同型の grep 句: 「アタックできない」
+【effects JSON】
+[
+ {
+  "effectId": "PR-460-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "黒",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 2
+    }
+   ],
+   "costReplacement": [
+    {
+     "when": {
+      "kind": "selfCenterLrigName",
+      "keyword": "タウィル"
+     },
+     "mode": "reduce",
+     "cost": [
+      {
+       "color": "黒",
+       "count": 1
+      }
+     ],
+     "accumulate": true
+    },
+    {
+     "when": {
+      "kind": "selfCenterLrigName",
+      "keyword": "ウムル"
+     },
+     "mode": "reduce",
+     "cost": [
+      {
+       "color": "白",
+       "count": 1
+      }
+     ],
+     "accumulate": true
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "ARTS_COST_REDUCTION_BY_EFFECT"
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "delta": -15000
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ PR-469 五体合体　グレートタマヨリオー
+【原文】【グロウ】あなたのルリグデッキにある＜タマ＞のルリグ５枚をゲームから除外する【常】：レベル０のルリグからこのルリグにグロウできる。
+        【常】：あなたはアーツとスペルを使用できない。
+        【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》《白》《白》ルリグデッキにある＜タマ＞のルリグ１枚をゲームから除外する：以下の３つからこの【起】能力でまだ選ばれていない１つを選ぶ。
+        ①対戦相手のすべてのシグニをトラッシュに置く。
+        ②対戦相手のデッキからすべてのカードをトラッシュに置く。
+        ③対戦相手のルリグデッキからカードを１枚見ないで選び公開する。
+        それがルリグでない場合、それをルリグトラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=PR-469-E3 引用「まだ選ばれていない１つ」
+     指摘: 各選択肢をこの起動能力で一度しか選べないという複数回の起動にまたがる選択済み管理がJSONにない。
+     監査員が挙げた同型の grep 句: 「まだ選ばれていない」
+【effects JSON】
+[
+ {
+  "effectId": "PR-469-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "GROW_FROM_LEVEL0"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-469-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BLOCK_ACTION",
+     "target": {
+      "type": "PLAYER",
+      "owner": "self",
+      "count": 1
+     },
+     "actionId": "USE_ARTS",
+     "until": "PERMANENT"
+    },
+    {
+     "type": "BLOCK_ACTION",
+     "target": {
+      "type": "PLAYER",
+      "owner": "self",
+      "count": 1
+     },
+     "actionId": "USE_SPELL",
+     "until": "PERMANENT"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "PR-469-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS",
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "白",
+     "count": 1
+    }
+   ],
+   "exileLrigFromLrigDeck": {
+    "count": 1,
+    "story": "タマ"
+   }
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "TRASH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": "ALL"
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "MILL",
+      "owner": "opponent",
+      "count": 0,
+      "all": true
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPP_LRIG_DECK_BLIND_REVEAL"
+       },
+       {
+        "type": "STUB",
+        "id": "RULE_REMINDER_TEXT"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ PR-K021 讃の遊　シンカリオンＥ６こまち
+【原文】【自】：各アタックフェイズ開始時、ターン終了時まで、このシグニの基本パワーは正面のシグニのパワーと同じ値になる。
+        【自】：このシグニがアタックしたとき、このシグニのパワーが8000の場合、【エナチャージ１】する。
+        【自】：このシグニがアタックしたとき、シグニ１体を対象とし、このシグニのパワーが12000の場合、《白》《白》《無》《無》を支払ってもよい。
+        そうした場合、それを手札に戻す。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=PR-K021-E3 引用「シグニ１体を対象とし」
+     指摘: 原文はプレイヤーを限定せずシグニ1体を対象にできるが、JSONは自分のシグニだけに対象を限定している。
+     監査員が挙げた同型の grep 句: 「シグニ１体を対象」
+【effects JSON】
+[
+ {
+  "effectId": "PR-K021-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "STUB",
+   "id": "POWER_EQUALS_FRONT_SIGNI"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any"
+ },
+ {
+  "effectId": "PR-K021-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "condition": {
+   "type": "SELF_POWER_GTE",
+   "operator": "eq",
+   "value": 8000
+  },
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "PR-K021-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "condition": {
+   "type": "SELF_POWER_GTE",
+   "operator": "eq",
+   "value": 12000
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "abortIfNoCandidate": true
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "白",
+      "白",
+      "無",
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "BOUNCE",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "optional": false,
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ PR-K022 新鋭の巫女　タマヨリヒメ
+【原文】【常】：あなたのセンタールリグは以下の能力を得る。
+        【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：数字１つを宣言する。
+        その後、あなたのデッキの上からカードを３枚公開する。
+        その中に宣言した数字と同じレベルのシグニがある場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。
+        この効果で公開したカードを好きな順番でデッキの一番上に戻す。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=PR-K022-E1-G 引用「同じレベルのシグニがある場合」
+     指摘: 公開した3枚に宣言した数字と同じレベルのシグニがある場合だけバウンスする条件がなく、JSONでは常に相手シグニを手札へ戻す。
+     監査員が挙げた同型の grep 句: 「宣言した数字と同じ」
+【effects JSON】
+[
+ {
+  "effectId": "PR-K022-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_LRIG_ABILITY",
+   "abilities": [
+    {
+     "effectId": "PR-K022-E1-G",
+     "effectType": "ACTIVATED",
+     "timing": [
+      "ATTACK_ARTS",
+      "MAIN"
+     ],
+     "cost": {
+      "exceed": 2
+     },
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "DECLARE_NUMBER"
+       },
+       {
+        "type": "LOOK_AND_REORDER",
+        "source": {
+         "location": "deck",
+         "owner": "self"
+        },
+        "count": 3,
+        "private": false,
+        "reorder": false,
+        "canTrash": false,
+        "destination": {
+         "location": "deck",
+         "owner": "self",
+         "position": "top"
+        }
+       },
+       {
+        "type": "BOUNCE",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "upToCount": false,
+         "filter": {
+          "cardType": "シグニ"
+         }
+        },
+        "optional": false
+       }
+      ]
+     },
+     "duration": "INSTANT",
+     "mandatory": false,
+     "parseStatus": "AUTO",
+     "usageLimit": "once_per_turn"
+    }
+   ],
+   "rawText": "【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：数字１つを宣言する。その後、あなたのデッキの上からカードを３枚公開する。その中に宣言した数字と同じレベルのシグニがある場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。この効果で公開したカードを好きな順番でデッキの一番上に戻す。"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]

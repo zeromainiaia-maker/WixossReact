@@ -1,0 +1,826 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXDi-P08-040 紅天姫　ヒラナ//メモリア
+【原文】【自】：このシグニがバニッシュされたとき、《無》《無》を支払ってもよい。
+        そうした場合、あなたの手札から白か青のシグニ１枚をダウン状態で場に出す。
+        そのシグニの【出】能力は発動しない。
+        【起】エクシード４：あなたのエナゾーンとライフクロスにあるすべてのカードをトラッシュに置き、手札をすべて捨てる。
+        カードを２枚引き【エナチャージ２】をする。
+        
+【LB】：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXDi-P08-040-E2 引用「エナゾーンとライフクロスにあるすべて」
+     指摘: 起動能力で自分のエナゾーンとライフクロスの全カードをトラッシュに置く処理が丸ごと欠落しています。
+     監査員が挙げた同型の grep 句: 「エナゾーンとライフクロス」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P08-040-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_BANISH"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "無",
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "HAND_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "color": [
+         "白",
+         "青"
+        ]
+       }
+      },
+      "asDown": true,
+      "suppressOnPlay": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-040-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "exceed": 4
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": "ALL"
+     }
+    },
+    {
+     "type": "SEQUENCE",
+     "steps": [
+      {
+       "type": "DRAW",
+       "owner": "self",
+       "count": 2
+      },
+      {
+       "type": "ENERGY_CHARGE_FROM_DECK",
+       "owner": "self",
+       "count": 2
+      }
+     ]
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-040-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "isUp": true
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXDi-P08-044 翠将姫　ヒデヨシ
+【原文】【常】：対戦相手のシグニの【自】【出】【起】能力が発動する場合、このシグニの下からカード２枚をトラッシュに置いてもよい。
+        そうした場合、代わりに発動したその能力は何もしない。
+        【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこのシグニの下からカード２枚をトラッシュに置いてもよい。
+        そうした場合、このシグニをダウンする。
+        【出】：あなたのエナゾーンからカードを４枚までこのシグニの下に置く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXDi-P08-044-E2 引用「対戦相手の効果によって場を離れる場合」
+     指摘: 対戦相手の効果でこのシグニが場を離れる場合に適用する置換条件がJSONにありません。
+     監査員が挙げた同型の grep 句: 「効果によって場を離れる」
+  ▶ 精査対象 [MED/WRONG] effectId=WXDi-P08-044-E2 引用「カード２枚をトラッシュに置いてもよい」
+     指摘: 任意で正確に2枚を支払う代替コストが、0～2枚を取るTAKE_FROM_UNDER_SIGNIとして表現されており、2枚未満でも後続のダウンが行われ得ます。
+     監査員が挙げた同型の grep 句: 「下からカード２枚」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P08-044-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "underAnySigniTrash": {
+      "count": 2,
+      "fromThis": true
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "STUB",
+      "id": "NEGATE_ABILITY"
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-044-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TAKE_FROM_UNDER_SIGNI",
+     "destination": "trash",
+     "count": 2,
+     "fromThis": true,
+     "upToCount": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "DOWN",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "thisCardOnly": true
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-044-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "PLACE_UNDER_SIGNI",
+   "source": "energy",
+   "count": 4,
+   "upToCount": true,
+   "filter": {}
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXDi-P08-059 羅踊石　ガーネット
+【原文】【常】：このシグニがダウン状態であるかぎり、このシグニのパワーは＋4000される。
+        【起】《ダウン》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+        そうした場合、対戦相手は【エナチャージ１】をしてもよい。
+        
+【LB】：対戦相手のパワー12000以下のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、それをバニッシュする。
+  ▶ 精査対象 [MED/WRONG] effectId=WXDi-P08-059-E2 引用「エナチャージ１】をしてもよい」
+     指摘: 原文では対戦相手がエナチャージを行うか任意に選べるが、JSONではトラッシュ処理成功後に対戦相手へ強制的にエナチャージさせる。
+     監査員が挙げた同型の grep 句: 「をしてもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P08-059-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "IS_SELF_DOWN"
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 4000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-059-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "down_self": true
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "ENERGY_CARD",
+      "owner": "opponent",
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "opponent",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P08-059-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerRange": {
+        "max": 12000
+       }
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "handDiscard": {
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXDi-P09-045 惨之遊姫　ジンロウ
+【原文】【自】：このシグニがアタックしたとき、このターンにあなたのシグニが１体以上トラッシュから場に出ていた場合、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。
+        そうした場合、ターン終了時まで、それのパワーを－10000する。
+        【起】手札を３枚捨てる：あなたのトラッシュからこのカードを場に出す。
+        （この能力はこのカードがトラッシュにある場合にしか使用できない）
+  ▶ 精査対象 [MED/MISSING] effectId=WXDi-P09-045-E1 引用「トラッシュから場に出ていた場合」
+     指摘: このターンに自分のシグニが1体以上トラッシュから場に出ていた場合という発動条件がJSONに無く、条件を満たさなくても対象選択と任意コスト支払いが発生する。
+     監査員が挙げた同型の grep 句: 「場に出ていた場合」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P09-045-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+     "costColors": [
+      "黒"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "delta": -10000
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXDi-P09-045-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "discard": 3
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "trashActivated": true
+ }
+]
+
+======================================================================
+■ WXDi-P09-047 幻竜姫　真・遊月//メモリア
+【原文】【自】：あなたのアタックフェイズ開始時、あなたのライフクロスが１枚以下で対戦相手のエナゾーンにカードが２枚以上ある場合、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く。
+        【自】：このシグニがアタックしたとき、このターンにあなたの効果によって対戦相手のエナゾーンからカードが１枚以上トラッシュに置かれていた場合、《赤》《緑》《無》を支払ってもよい。
+        そうした場合、ターン終了時まで、このシグニは【アサシン】を得る。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=WXDi-P09-047-E2 引用「エナゾーンからカードが１枚以上」
+     指摘: このターンに自分の効果で対戦相手のエナゾーンからカードが1枚以上トラッシュに置かれていた場合という発動条件がJSONに無く、未達成でも任意コストを支払ってアサシンを得られる。
+     監査員が挙げた同型の grep 句: 「置かれていた場合」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P09-047-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "AND",
+    "conditions": [
+     {
+      "type": "LIFE_COUNT",
+      "owner": "self",
+      "operator": "lte",
+      "value": 1
+     },
+     {
+      "type": "ENERGY_COUNT",
+      "owner": "opponent",
+      "operator": "gte",
+      "value": 2
+     }
+    ]
+   },
+   "then": {
+    "type": "TRASH",
+    "target": {
+     "type": "ENERGY_CARD",
+     "owner": "opponent",
+     "count": 1
+    },
+    "opponentSelects": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXDi-P09-047-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "赤",
+      "緑",
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "thisCardOnly": true
+       }
+      },
+      "keyword": "アサシン",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ WXDi-P09-050 コードアート　Gラボ
+【原文】【出】：あなたのデッキの上からカードを２枚見る。
+        その中からカード１枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く。
+        【自】：あなたのターン終了時、このシグニがアップ状態の場合、あなたのデッキの一番上を公開してもよい。
+        そのカードがスペルの場合、カードを１枚引く。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WXDi-P09-050-E1 引用「カード１枚をデッキの一番上に戻し」
+     指摘: JSONは見た2枚の行き先をデッキ下にしか指定しておらず、1枚をデッキの一番上へ戻す処理が欠けています。
+     監査員が挙げた同型の grep 句: 「一番上に戻し」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P09-050-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "LOOK_AND_REORDER",
+   "source": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "count": 2,
+   "private": true,
+   "reorder": true,
+   "canTrash": false,
+   "destination": {
+    "location": "deck",
+    "owner": "self",
+    "position": "bottom"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P09-050-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "THIS_CARD_IS_UP"
+   },
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "STUB",
+      "id": "OPTIONAL_ACTIVATE"
+     },
+     {
+      "type": "REVEAL_AND_PICK",
+      "owner": "self",
+      "revealCount": 1,
+      "filter": {
+       "cardType": "スペル"
+      },
+      "pickCount": 1,
+      "then": {
+       "type": "DRAW",
+       "owner": "self",
+       "count": 1
+      },
+      "remainder": {
+       "location": "deck",
+       "position": "top"
+      }
+     }
+    ]
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXDi-P09-051 幻怪　ドーナ//メモリア
+【原文】【出】《白》：シグニ１体を対象とし、次の対戦相手のターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる。
+        【起】《ターン１回》《コインアイコン》《コインアイコン》《コインアイコン》：あなたのデッキの上からカードを３枚見る。
+        その中からシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        
+【LB】：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  ▶ 精査対象 [MED/WRONG] effectId=WXDi-P09-051-E1 引用「次の対戦相手のターン終了時まで」
+     指摘: 基本パワー変更の期限が原文では次の対戦相手ターン終了時までですが、JSONでは現在のターン終了時までになっています。
+     監査員が挙げた同型の grep 句: 「次の対戦相手の」
+【effects JSON】
+[
+ {
+  "effectId": "WXDi-P09-051-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "STUB",
+   "id": "COPY_TARGET_POWER"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXDi-P09-051-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 3
+  },
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 3,
+   "filter": {
+    "cardType": "シグニ"
+   },
+   "pickCount": 1,
+   "then": {
+    "type": "ADD_TO_HAND",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "reorder": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXDi-P09-051-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 3,
+   "filter": {
+    "cardType": "シグニ"
+   },
+   "pickCount": 1,
+   "handOrField": true,
+   "then": {
+    "type": "ADD_TO_HAND",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "reorder": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

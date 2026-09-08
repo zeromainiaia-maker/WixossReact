@@ -1,0 +1,675 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WD14-009 デビル・トゥ・デビル
+【原文】あなたのエナゾーンから＜悪魔＞のシグニを好きな数対象とし、それらをトラッシュに置いてもよい。
+        その後、この方法でトラッシュに置いたシグニ１枚につきあなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それらを場に出す。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WD14-009-E1 引用「シグニ１枚につき」
+     指摘: 場に出す枚数がトラッシュに置いたシグニの枚数と連動せず、ADD_TO_FIELDが固定1枚になっている。
+     監査員が挙げた同型の grep 句: 「１枚につき」
+【effects JSON】
+[
+ {
+  "effectId": "WD14-009-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_TRASH_ENERGY_CLASS"
+    },
+    {
+     "type": "ADD_TO_FIELD",
+     "owner": "self",
+     "source": {
+      "type": "TRASH_CARD",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "悪魔"
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD14-011 弄命の侯爵　アモノウル
+【原文】【自】：あなたの＜悪魔＞のシグニ１体がバニッシュされたとき、あなたのトラッシュからそのシグニより低いレベルを持つシグニ１枚を対象とし、それを場に出す。
+        【出】：あなたの他のすべてのシグニをトラッシュに置く。
+        その後、この方法でトラッシュに置いたシグニ１体につき対戦相手のシグニ１体を対象とし、それらをバニッシュする。
+        
+【LB】：どちらか１つを選ぶ。①手札を２枚捨てる。この方法で手札を２枚捨てた場合、あなたのデッキの一番上のカードをライフクロスに加える。②あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それを手札に加える。
+  ▶ 精査対象 [MED/WRONG] effectId=WD14-011-E2 引用「シグニ１体につき」
+     指摘: 原文ではトラッシュに置いたシグニ数だけ対象を選ぶ必要があるが、JSONはupToCount:trueのため任意に少ない数を選べる。
+     監査員が挙げた同型の grep 句: 「１体につき」
+【effects JSON】
+[
+ {
+  "effectId": "WD14-011-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_BANISH"
+  ],
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "levelLtTrigger": true
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "story": "悪魔"
+  }
+ },
+ {
+  "effectId": "WD14-011-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": "ALL",
+      "filter": {
+       "excludeSelf": true
+      }
+     }
+    },
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": {
+       "$ref": "last_processed_count"
+      },
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WD14-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "discard-life",
+     "label": "手札を2枚捨て、この方法で2枚捨てた場合デッキの一番上をライフクロスに加える",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 2
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "LAST_PROCESSED_COUNT_GTE",
+         "value": 2
+        },
+        "then": {
+         "type": "ADD_TO_LIFE",
+         "owner": "self",
+         "count": 1,
+         "fromTop": true
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "recover-demon",
+     "label": "トラッシュから＜悪魔＞のシグニ1枚を手札に加える",
+     "action": {
+      "type": "TRANSFER_TO_HAND",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "story": "悪魔"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WD17-008 瞬息爆変
+【原文】あなたのデッキから赤のシグニ１枚を探してダウン状態で場に出し、デッキをシャッフルする。
+        ターン終了時、そのシグニを場からトラッシュに置く。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=WD17-008-E1 引用「ダウン状態で場に出し」
+     指摘: ADD_TO_FIELDにダウン状態で場に出す指定がなく、通常のアップ状態で場に出る表現になっている。
+     監査員が挙げた同型の grep 句: 「ダウン状態で場に出し」
+【effects JSON】
+[
+ {
+  "effectId": "WD17-008-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "SEARCH",
+     "from": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "filter": {
+      "cardType": "シグニ",
+      "color": "赤"
+     },
+     "maxCount": 1,
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self"
+     },
+     "afterSearch": {
+      "type": "SHUFFLE_DECK",
+      "owner": "self"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "TRASH_AT_TURN_END"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD19-018 ラブリー・バイオ
+【原文】以下の２つから１つを選ぶ。
+        ①あなたの＜微菌＞のシグニ１体を対象とし、それをバニッシュする。
+        そうした場合、対戦相手のシグニゾーン１つに【ウィルス】１つを置く。
+        （【ウィルス】はシグニゾーン１つにつき１つまでしか置けない）②対象のあなたの＜微菌＞のシグニ１体をバニッシュする。
+        そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－7000する。
+        （パワーが０以下のシグニはルールによってバニッシュされる）
+  ▶ 精査対象 [MED/MISSING] effectId=WD19-018-E1 引用「そうした場合」
+     指摘: 両方の選択肢で、対象の＜微菌＞シグニを実際にバニッシュできた場合だけ後続処理を行う条件が欠落している。
+     監査員が挙げた同型の grep 句: 「そうした場合」
+【effects JSON】
+[
+ {
+  "effectId": "WD19-018-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "①自分の＜微菌＞シグニをバニッシュ→ウィルス",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "cardClass": "微菌"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "PLACE_VIRUS",
+        "targetOwner": "opponent",
+        "zoneCount": 1,
+        "virusCount": 1
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "②自分の＜微菌＞シグニをバニッシュ→相手シグニ－7000",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "cardClass": "微菌"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "POWER_MODIFY",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        },
+        "delta": -7000
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WD20-006 全知全能
+【原文】ベット―《コインアイコン》《コインアイコン》対戦相手のシグニ２体と、エナゾーンにあるカード２枚を対象とし、それらをトラッシュに置く。
+        その後、対戦相手は手札を２枚捨てる。
+        あなたのデッキの一番上のカードをライフクロスに加える。
+        このターンが対戦相手のターンで、あなたがベットしていなかった場合、次のあなたのターンをスキップする。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WD20-006-E1 引用「エナゾーンにあるカード２枚」
+     指摘: エナゾーンのカード2枚を対象としてトラッシュに置く処理が欠落している。
+     監査員が挙げた同型の grep 句: 「エナゾーンにある」
+【effects JSON】
+[
+ {
+  "effectId": "WD20-006-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 4
+    },
+    {
+     "color": "無",
+     "count": 4
+    }
+   ],
+   "betOptions": {
+    "options": [
+     2
+    ],
+    "variable": false
+   }
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 2,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "opponent",
+      "count": 2
+     }
+    },
+    {
+     "type": "ADD_TO_LIFE",
+     "owner": "self",
+     "count": 1,
+     "fromTop": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "AND",
+      "conditions": [
+       {
+        "type": "TURN_OWNER",
+        "owner": "opponent"
+       },
+       {
+        "type": "IS_BETTING",
+        "negate": true
+       }
+      ]
+     },
+     "then": {
+      "type": "STUB",
+      "id": "SKIP_NEXT_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD20-008 母性本能
+【原文】このカードはあなたがこのターンにアーツを使用していた場合、使用できない。
+        各プレイヤーは自分のデッキの上からカードを３枚までエナゾーンに置く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WD20-008-E1 引用「各プレイヤーは」
+     指摘: デッキ上からエナゾーンに置く処理が自分にしか定義されておらず、対戦相手が行う処理が欠落している。
+     監査員が挙げた同型の grep 句: 「各プレイヤーは」
+  ▶ 精査対象 [MED/WRONG] effectId=WD20-008-E1 引用「カードを３枚まで」
+     指摘: 0～3枚を選べる効果が3枚固定として定義されている。
+     監査員が挙げた同型の grep 句: 「枚までエナ」
+【effects JSON】
+[
+ {
+  "effectId": "WD20-008-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "USE_CONDITION_ARTS_USED"
+    },
+    {
+     "type": "ENERGY_CHARGE_FROM_DECK",
+     "owner": "self",
+     "count": 3
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD22-007-G 成就の駄姫　グズ子
+【原文】【自】《ターン１回》：あなたの＜遊具＞のシグニ１体がトラッシュから場に出たとき、《黒》を支払い、そのシグニを場からトラッシュに置いてもよい。
+        そうした場合、対象の対戦相手のシグニ１体をバニッシュする。
+        【出】《コインアイコン》：あなたのトラッシュから黒のシグニを２枚まで対象とし、それらを場に出す。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WD22-007-G-E1 引用「《黒》を支払い、そのシグニを」
+     指摘: 任意コストの《黒》支払いと、トラッシュから場に出たそのシグニを場からトラッシュに置く処理が実行可能なpayloadとして存在せず、コストなしで後続のバニッシュを選べる。
+     監査員が挙げた同型の grep 句: 「を支払い、その」
+【effects JSON】
+[
+ {
+  "effectId": "WD22-007-G-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "そのシグニを場からトラッシュに置いてもよい"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL",
+  "usageLimit": "once_per_turn",
+  "triggerScope": "any_ally",
+  "triggerCondition": {
+   "placedFromTrash": true
+  },
+  "triggerFilter": {
+   "story": "遊具"
+  }
+ },
+ {
+  "effectId": "WD22-007-G-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": true,
+    "filter": {
+     "cardType": "シグニ",
+     "color": "黒"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

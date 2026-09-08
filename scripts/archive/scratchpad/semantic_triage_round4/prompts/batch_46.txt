@@ -1,0 +1,781 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WX24-P3-009 ダーク・ブルーム
+【原文】あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。
+        『【常】：あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。
+        【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを５枚トラッシュに置く。
+        その後、あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
+        』
+  ▶ 精査対象 [MED/WRONG] effectId=WX24-P3-009-E1 引用「次のあなたのエナフェイズ終了時まで」
+     指摘: 付与能力の期限が相手ターン終了時までとなっており、次の自分のエナフェイズ終了時より早く失われる。
+     監査員が挙げた同型の grep 句: 「次のあなたのエナ」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-P3-009-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END",
+     "lrigLimitChange": {
+      "owner": "self",
+      "delta": 1
+     }
+    },
+    {
+     "type": "GRANT_LRIG_ABILITY",
+     "abilities": [
+      {
+       "effectId": "WX24-P3-009-sub-E1",
+       "duration": "UNTIL_OPP_TURN_END",
+       "mandatory": true,
+       "parseStatus": "MANUAL",
+       "effectType": "CONTINUOUS",
+       "action": {
+        "type": "STUB",
+        "id": "REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY",
+        "refreshLifeMoveReplace": true
+       }
+      },
+      {
+       "effectId": "WX24-P3-009-sub-E2",
+       "effectType": "ACTIVATED",
+       "timing": [
+        "MAIN"
+       ],
+       "cost": {
+        "down_self": true
+       },
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "TRASH",
+          "target": {
+           "type": "DECK_CARD",
+           "owner": "self",
+           "count": 5
+          }
+         },
+         {
+          "type": "TRANSFER_TO_HAND",
+          "source": {
+           "type": "TRASH_CARD",
+           "owner": "self",
+           "count": 1,
+           "upToCount": false,
+           "filter": {
+            "cardType": "シグニ"
+           }
+          }
+         }
+        ]
+       },
+       "duration": "INSTANT",
+       "mandatory": false,
+       "parseStatus": "AUTO",
+       "usageLimit": "once_per_turn"
+      }
+     ],
+     "rawText": "【常】：あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。",
+     "targetedCenter": true,
+     "duration": "UNTIL_OPP_TURN_END"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX24-P3-018 ちより　第三章
+【原文】【自】：あなたのメインフェイズ開始時、あなたの場にある、中身が＜トリック＞のシグニである【マジックボックス】を３枚まで表向きにしてシグニにする。
+        あなたのデッキの上からカードを３枚見る。
+        その中からカードを１枚まで【マジックボックス】としてあなたのシグニゾーンに設置し、残りを好きな順番でデッキの一番下に置く。
+        【起】《ゲーム１回》ファンタジー《赤×0》：クラフトの《転生したらレベル１のママ勇者だったけど無双してみた》１つを場に出す。
+        
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=WX24-P3-018-E1 引用「３枚まで表向きにしてシグニにする」
+     指摘: 中身が＜トリック＞の【マジックボックス】を最大3枚表向きにしてシグニにする処理が、意味を特定できないUNKNOWN_NESTEDにしか対応していない。
+     監査員が挙げた同型の grep 句: 「表向きにして」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-P3-018-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_MAIN_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "UNKNOWN_NESTED"
+    },
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "count": 3,
+     "private": true,
+     "reorder": false,
+     "canTrash": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "top"
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "PLACE_MAGIC_BOX"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX24-P3-018-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "cardName": "転生したらレベル１のママ勇者だったけど無双してみた"
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ WX24-P3-058 コードラビリンス　バンリ
+【原文】【自】：このシグニがアタックしたとき、《黒》《黒》を支払ってもよい。
+        そうした場合、ターン終了時まで、このシグニは「【常】：このシグニの正面のシグニの基本パワーは０になる。
+        」を得る。
+        （シグニのパワーを計算する場合、先に基本パワーを適用してプラスやマイナスをする）
+【LB】：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する。②カードを１枚引く。
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX24-P3-058-E1 引用「正面のシグニの基本パワーは０」
+     指摘: 原文はこのシグニに正面のシグニの基本パワーを0にする常在能力を与えるが、JSONはこのシグニ自身のパワーを0にしている。
+     監査員が挙げた同型の grep 句: 「基本パワーは０」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-P3-058-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "黒",
+      "黒"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "POWER_SET",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "value": 0
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX24-P3-058-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "isUp": true
+       },
+       "upToCount": false
+      },
+      "delta": -15000
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX24-P3-066 小罠　ファイヤートーチ
+【原文】【自】：このシグニがアタックしたとき、このシグニと同じシグニゾーンに【マジックボックス】がある場合、以下の２つから１つを選ぶ。
+        ①対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。
+        ②対戦相手のパワー5000以下のシグニ１体を対象とし、このシグニと同じシグニゾーンにある【マジックボックス】１つを表向きにしトラッシュに置いてもよい。
+        そうした場合、それをバニッシュする。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX24-P3-066-E1 引用「マジックボックス】がある場合」
+     指摘: 原文では同じシグニゾーンに【マジックボックス】がある場合に限り選択効果が発動するが、JSONにはこの発動条件がなく、存在しなくても選択肢①を実行できる。
+     監査員が挙げた同型の grep 句: 「がある場合」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-P3-066-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "powerRange": {
+         "max": 2000
+        }
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "SELECT_TARGET_ONLY",
+        "selectTarget": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "powerRange": {
+           "max": 5000
+          }
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "STUB",
+        "id": "STORE_LAST_PROCESSED_TARGETS"
+       },
+       {
+        "type": "STUB",
+        "id": "OPEN_MAGIC_BOX"
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "BANISH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          },
+          "upToCount": false
+         },
+         "targetsStored": true
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ WX25-P2-006 ダンシング・ソード
+【原文】このアーツを使用する際、あなたのルリグデッキからアーツ１枚をルリグトラッシュに置いてもよい。
+        そうした場合、このアーツの使用コストは《無×3》減る。
+        このターン、あなたがシグニによってダメージを受ける場合、代わりに手札を１枚捨ててもよい。
+        《リコレクトアイコン》［４枚以上］追加で、ターン終了時まで、対戦相手のすべてのシグニは「【自】《ターン１回》：このシグニがアタックしたとき、対戦相手はカードを１枚引く。
+        」を得る。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX25-P2-006-E1 引用「ダメージを受ける場合」
+     指摘: 原文はこのターン中にシグニからダメージを受ける各場合の任意の代替処理だが、JSONはアーツ解決時に手札1枚を即座に捨てる処理になっている。
+     監査員が挙げた同型の grep 句: 「代わりに」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P2-006-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 4
+    }
+   ],
+   "useTimeCost": {
+    "source": "lrig_deck_arts",
+    "filter": {
+     "cardType": "アーツ"
+    },
+    "max": 1,
+    "perUnit": false,
+    "reduction": [
+     {
+      "color": "無",
+      "count": 3
+     }
+    ]
+   }
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "STUB",
+      "id": "ARTS_COST_REDUCTION_BY_EFFECT"
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": 1
+     },
+     "optional": true
+    },
+    {
+     "type": "RECOLLECT_GATE",
+     "minArts": 4
+    },
+    {
+     "type": "GRANT_EFFECT",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": "ALL",
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "duration": "UNTIL_END_OF_TURN",
+     "effect": {
+      "effectId": "WX25-P2-006-sub-E1",
+      "effectType": "AUTO",
+      "timing": [
+       "ON_ATTACK_SIGNI"
+      ],
+      "action": {
+       "type": "DRAW",
+       "owner": "opponent",
+       "count": 1
+      },
+      "duration": "INSTANT",
+      "mandatory": true,
+      "parseStatus": "AUTO",
+      "triggerScope": "self",
+      "usageLimit": "once_per_turn"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-P2-008 夢幻泡影
+【原文】このアーツを使用する際、あなたのルリグデッキからアーツ１枚をルリグトラッシュに置いてもよい。
+        そうした場合、このアーツの使用コストは《無×3》減る。
+        このターン、あなたはパワー12000以上のシグニによってダメージを受けない。
+        《リコレクトアイコン》［４枚以上］追加でシグニを２体まで対象とし、ターン終了時まで、それらのパワーを＋10000する。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX25-P2-008-E1 引用「パワー12000以上」
+     指摘: 原文はこのターン中、パワー12000以上のシグニによるすべてのダメージを防ぐが、JSONは攻撃元のパワー条件がなく次のダメージ1回だけを防ぐ。
+     監査員が挙げた同型の grep 句: 「ダメージを受けない」
+  ▶ 精査対象 [MED/WRONG] effectId=WX25-P2-008-E1 引用「シグニを２体まで」
+     指摘: 原文はシグニを0～2体対象にできるが、JSONのパワー修正対象は1体で「まで」の任意性も表現されていない。
+     監査員が挙げた同型の grep 句: 「２体まで」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P2-008-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 3
+    }
+   ],
+   "useTimeCost": {
+    "source": "lrig_deck_arts",
+    "filter": {
+     "cardType": "アーツ"
+    },
+    "max": 1,
+    "perUnit": false,
+    "reduction": [
+     {
+      "color": "無",
+      "count": 3
+     }
+    ]
+   }
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "STUB",
+      "id": "ARTS_COST_REDUCTION_BY_EFFECT"
+     }
+    },
+    {
+     "type": "PREVENT_NEXT_DAMAGE",
+     "count": 1
+    },
+    {
+     "type": "RECOLLECT_GATE",
+     "minArts": 4
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "any",
+      "count": 1
+     },
+     "delta": 10000
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX24-P3-085 中罠　アシククリ
+【原文】【自】：このシグニがアタックしたとき、このシグニと同じシグニゾーンにある【マジックボックス】１つを表向きにしトラッシュに置いてもよい。
+        そのカードが【ライフバースト】を持つ場合、ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。
+        【ライフバースト】を持たない場合、このアタックを無効にし、【エナチャージ３】をする。
+        
+【LB】：対戦相手のパワー7000以上のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それをバニッシュする。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX24-P3-085-E1 引用「このアタックを無効にし」
+     指摘: 公開した【マジックボックス】がライフバーストを持たない場合に、このアタックを無効にする処理がJSONにありません。
+     監査員が挙げた同型の grep 句: 「アタックを無効」
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX24-P3-085-E1 引用「持たない場合、【エナチャージ３】」
+     指摘: 【エナチャージ３】がライフバーストを持たない場合の分岐内ではなく無条件に実行されるため、持つ場合にもエナチャージします。
+     監査員が挙げた同型の grep 句: 「持たない場合」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-P3-085-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPEN_MAGIC_BOX"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_HAS_BURST"
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "thisCardOnly": true
+       }
+      },
+      "keyword": "ランサー:{\"powerLte\":5000}",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    },
+    {
+     "type": "ENERGY_CHARGE_FROM_DECK",
+     "owner": "self",
+     "count": 3
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX24-P3-085-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerRange": {
+        "min": 7000
+       }
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

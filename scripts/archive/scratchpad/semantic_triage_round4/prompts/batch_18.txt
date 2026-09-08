@@ -1,0 +1,792 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXK11-052 アーク・オーダー
+【原文】あなたの白のセンタールリグ１体を対象とし、ターン終了時まで、それは「【自】：このルリグがアタックしたとき、あなたのシグニ２体を場からトラッシュに置いてもよい。
+        そうした場合、このルリグをアップする。
+        」を得る。
+        
+【LB】：対戦相手のセンタールリグ１体とシグニ１体を対象とし、それらをダウンする。
+  ▶ 精査対象 [MED/WRONG] effectId=WXK11-052-E1 引用「あなたの白のセンタールリグ１体」
+     指摘: 付与対象に白の色条件がなく、自分の白以外のルリグも対象にできる。
+     監査員が挙げた同型の grep 句: 「白のセンタールリグ」
+【effects JSON】
+[
+ {
+  "effectId": "WXK11-052-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 3
+    }
+   ]
+  },
+  "action": {
+   "type": "GRANT_EFFECT",
+   "target": {
+    "type": "LRIG",
+    "owner": "self",
+    "count": 1
+   },
+   "duration": "UNTIL_END_OF_TURN",
+   "effect": {
+    "effectId": "WXK11-052-E1-G",
+    "effectType": "AUTO",
+    "timing": [
+     "ON_ATTACK_LRIG"
+    ],
+    "action": {
+     "type": "CHOOSE",
+     "choose_count": 1,
+     "from_count": 2,
+     "choices": [
+      {
+       "choiceId": "trash_and_up",
+       "label": "シグニ２体をトラッシュしてルリグをアップ",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "TRASH",
+          "target": {
+           "type": "SIGNI",
+           "owner": "self",
+           "count": 2
+          }
+         },
+         {
+          "type": "UP",
+          "target": {
+           "type": "LRIG",
+           "owner": "self",
+           "count": 1
+          }
+         }
+        ]
+       }
+      },
+      {
+       "choiceId": "skip",
+       "label": "トラッシュしない",
+       "action": {
+        "type": "SEQUENCE",
+        "steps": []
+       }
+      }
+     ]
+    },
+    "duration": "INSTANT",
+    "mandatory": false,
+    "parseStatus": "MANUAL",
+    "triggerScope": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WXK11-052-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "LRIG",
+      "owner": "opponent",
+      "count": 1
+     }
+    },
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK11-071 大罠　フーディナ
+【原文】【自】：対戦相手のシグニ１体が場に出たとき、このシグニを場からトラッシュに置いてもよい。
+        そうした場合、そのシグニをトラッシュに置く。
+        【起】《黒》《黒》：このシグニをトラッシュから場に出す。
+        （この能力はこのシグニがトラッシュにある場合にしか使用できない）
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK11-071-E1 引用「そのシグニをトラッシュに置く」
+     指摘: トラッシュに置く対象が場に出たトリガー元のシグニに限定されず、対戦相手の任意のシグニ１体になっている。
+     監査員が挙げた同型の grep 句: 「そのシグニを」
+【effects JSON】
+[
+ {
+  "effectId": "WXK11-071-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "このシグニを場からトラッシュに置いてもよい"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "TRASH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL",
+  "triggerScope": "any_opp"
+ },
+ {
+  "effectId": "WXK11-071-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    },
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "trashActivated": true
+ }
+]
+
+======================================================================
+■ WXK11-077 エニグマ・オーダー
+【原文】あなたの黒のセンタールリグ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このルリグがアタックしたとき、あなたのシグニ３体を対象とし、それらを場からトラッシュに置いてもよい。
+        その後、この方法でシグニ３体をトラッシュに置いた場合、あなたのトラッシュから対戦相手の選んだカード１枚をライフクロスに加える。
+        」を得る。
+        
+【LB】：あなたのトラッシュから黒のシグニ１枚を対象とし、それを場に出す。そのシグニの【出】能力は発動しない。
+  ▶ 精査対象 [MED/WRONG] effectId=WXK11-077-E1 引用「黒のセンタールリグ１体」
+     指摘: 対象に黒属性の条件がなく、自分の黒ではないルリグにも効果を付与できる定義になっている。
+     監査員が挙げた同型の grep 句: 「黒のセンタールリグ」
+【effects JSON】
+[
+ {
+  "effectId": "WXK11-077-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "GRANT_EFFECT",
+   "target": {
+    "type": "LRIG",
+    "owner": "self",
+    "count": 1
+   },
+   "duration": "UNTIL_END_OF_TURN",
+   "effect": {
+    "effectId": "WXK11-077-sub-E1",
+    "effectType": "AUTO",
+    "timing": [
+     "ON_ATTACK_LRIG"
+    ],
+    "usageLimit": "once_per_turn",
+    "action": {
+     "type": "SEQUENCE",
+     "steps": [
+      {
+       "type": "TRASH",
+       "target": {
+        "type": "SIGNI",
+        "owner": "self",
+        "count": 3,
+        "upToCount": false,
+        "filter": {
+         "cardType": "シグニ"
+        }
+       },
+       "optional": true
+      },
+      {
+       "type": "CONDITIONAL",
+       "condition": {
+        "type": "LAST_PROCESSED_MATCHES",
+        "filter": {
+         "cardType": "シグニ"
+        },
+        "minCount": 3
+       },
+       "then": {
+        "type": "ADD_TO_LIFE",
+        "owner": "self",
+        "count": 1,
+        "fromTop": false,
+        "fromTrash": true,
+        "opponentSelects": true
+       }
+      }
+     ]
+    },
+    "duration": "INSTANT",
+    "mandatory": false,
+    "parseStatus": "MANUAL",
+    "triggerScope": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WXK11-077-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "ADD_TO_FIELD",
+     "owner": "self",
+     "source": {
+      "type": "TRASH_CARD",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ",
+       "color": "黒"
+      }
+     },
+     "suppressOnPlay": true
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD10-001 勇猛果敢　タマヨリヒメ之肆
+【原文】【常】：あなたのターンの間、あなたのクロス状態のシグニのパワーを＋5000する。
+        【自】：あなたのシグニが《ヘブン》したとき、カードを１枚引いてもよい。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WD10-001-E1 引用「あなたのクロス状態のシグニ」
+     指摘: 対象がowner:anyのシグニ1体でクロス状態の条件もなく、自分のクロス状態のシグニ全体を強化する原文と対象範囲が異なる。
+     監査員が挙げた同型の grep 句: 「クロス状態のシグニ」
+【effects JSON】
+[
+ {
+  "effectId": "WD10-001-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "self"
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "any",
+    "count": 1
+   },
+   "delta": 5000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WD10-001-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HEAVEN"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_ACTIVATE"
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally"
+ }
+]
+
+======================================================================
+■ WD13-002 愛幸の巫女　ユキ
+【原文】【常】：このカードにグロウする際、手札からシグニを２枚まで公開する。
+        この方法で＜迷宮＞のシグニを公開した場合、このカードにグロウするためのコストは《白×1》減り、＜毒牙＞の場合、《黒×1》減る。
+        【常】：対戦相手のターンの間、あなたのシグニのパワーをあなたの＜迷宮＞のシグニ１体につき＋1000する。
+        【常】：あなたのターンの間、対戦相手のシグニのパワーをあなたの＜毒牙＞のシグニ１体につき－1000する。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WD13-002-E1 引用「この方法で＜迷宮＞」
+     指摘: コスト軽減条件が、この方法で公開したカードではなく手札全体の＜迷宮＞・＜毒牙＞の有無を参照している。
+     監査員が挙げた同型の grep 句: 「この方法で」
+【effects JSON】
+[
+ {
+  "effectId": "WD13-002-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "手札からシグニを２枚まで公開する"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAND_COUNT_FILTER",
+      "owner": "self",
+      "filter": {
+       "cardType": "シグニ",
+       "story": "迷宮"
+      },
+      "operator": "gte",
+      "value": 1
+     },
+     "then": {
+      "type": "GROW_COST_REDUCTION",
+      "reduction": [
+       {
+        "color": "白",
+        "count": 1
+       }
+      ],
+      "forSelfGrowOnly": true
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAND_COUNT_FILTER",
+      "owner": "self",
+      "filter": {
+       "cardType": "シグニ",
+       "story": "毒牙"
+      },
+      "operator": "gte",
+      "value": 1
+     },
+     "then": {
+      "type": "GROW_COST_REDUCTION",
+      "reduction": [
+       {
+        "color": "黒",
+        "count": 1
+       }
+      ],
+      "forSelfGrowOnly": true
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WD13-002-E2",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "opponent"
+  },
+  "action": {
+   "type": "POWER_MODIFY_PER_FIELD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "deltaPerUnit": 1000,
+   "countFilter": {
+    "cardType": "シグニ",
+    "story": "迷宮"
+   },
+   "countOwner": "self"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WD13-002-E3",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "self"
+  },
+  "action": {
+   "type": "POWER_MODIFY_PER_FIELD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "deltaPerUnit": -1000,
+   "countFilter": {
+    "cardType": "シグニ",
+    "story": "毒牙"
+   },
+   "countOwner": "self"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WD13-003 泡沫の巫女　タマ
+【原文】【常】：このカードにグロウする際、手札から＜アーム＞のシグニ１枚と＜天使＞のシグニ１枚を公開してもよい。
+        そうした場合、このカードにグロウするためのコストは《白×1》減る。
+        【起】《ターン１回》エクシード１（あなたのルリグの下からカードを１枚ルリグトラッシュに置く）：対象のあなたの白のシグニ１体を手札に戻す。
+        対象のあなたのシグニ１体をアップする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WD13-003-E1 引用「そうした場合」
+     指摘: 公開を実行したかではなく手札に＜アーム＞と＜天使＞が存在するかだけでコスト軽減を判定しており、公開しなかった場合にも軽減され得る。
+     監査員が挙げた同型の grep 句: 「公開してもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WD13-003-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "手札から＜アーム＞のシグニ１枚と＜天使＞のシグニ１枚を公開してもよい"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "AND",
+      "conditions": [
+       {
+        "type": "HAND_COUNT_FILTER",
+        "owner": "self",
+        "filter": {
+         "cardType": "シグニ",
+         "story": "アーム"
+        },
+        "operator": "gte",
+        "value": 1
+       },
+       {
+        "type": "HAND_COUNT_FILTER",
+        "owner": "self",
+        "filter": {
+         "cardType": "シグニ",
+         "story": "天使"
+        },
+        "operator": "gte",
+        "value": 1
+       }
+      ]
+     },
+     "then": {
+      "type": "GROW_COST_REDUCTION",
+      "reduction": [
+       {
+        "color": "白",
+        "count": 1
+       }
+      ],
+      "forSelfGrowOnly": true
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WD13-003-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "exceed": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BOUNCE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ",
+       "color": "白"
+      }
+     },
+     "optional": false
+    },
+    {
+     "type": "UP",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ }
+]
+
+======================================================================
+■ WD13-008 モダン・バウンダリー
+【原文】数字１つを宣言する。
+        その後、あなたのデッキの上からカードを３枚公開する。
+        その中に宣言した数字と同じレベルのシグニがある場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。
+        この効果で公開したカードを好きな順番でデッキの一番上に戻す。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WD13-008-E1 引用「同じレベルのシグニがある場合」
+     指摘: 公開した3枚に宣言した数字と同じレベルのシグニがある場合だけバウンスする条件がなく、無条件で対戦相手のシグニを戻す。
+     監査員が挙げた同型の grep 句: 「宣言した数字」
+  ▶ 精査対象 [MED/WRONG] effectId=WD13-008-E1 引用「好きな順番で」
+     指摘: 公開したカードを好きな順番で戻す効果なのに、LOOK_AND_REORDERのreorderがfalseで並べ替えられない。
+     監査員が挙げた同型の grep 句: 「好きな順番で」
+【effects JSON】
+[
+ {
+  "effectId": "WD13-008-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "DECLARE_NUMBER"
+    },
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "count": 3,
+     "private": false,
+     "reorder": false,
+     "canTrash": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "top"
+     }
+    },
+    {
+     "type": "BOUNCE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "optional": false
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

@@ -1,0 +1,782 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WX25-P3-040 赤羽矢立
+【原文】対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+        あなたのデッキの上からカードを５枚見る。
+        その中から＜天使＞のシグニを２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WX25-P3-040-E1 引用「シグニを２枚まで」
+     指摘: REVEAL_AND_PICKにpickUpTo:trueがなく、対象が2枚以上あれば原文では任意の0～2枚であるところを2枚選ぶことが強制される。
+     監査員が挙げた同型の grep 句: 「２枚まで公開し」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P3-040-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerRange": {
+        "max": 10000
+       }
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "REVEAL_AND_PICK",
+     "owner": "self",
+     "revealCount": 5,
+     "filter": {
+      "cardType": "シグニ",
+      "story": "天使"
+     },
+     "pickCount": 2,
+     "remainder": {
+      "location": "deck",
+      "position": "bottom",
+      "reorder": true
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "REVEAL"
+       },
+       {
+        "type": "ADD_TO_HAND",
+        "owner": "self"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WX25-P1-093 翠美　ユーフォニアム
+【原文】【自】：あなたのアタックフェイズ開始時、対戦相手のパワー8000以下のシグニ１体を対象とし、あなたのエナゾーンからそれと共通するクラスを持つシグニ１枚をトラッシュに置きアップ状態のこのシグニをダウンしてもよい。
+        そうした場合、それをバニッシュする。
+        
+【LB】：対戦相手のパワー7000以上のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それをバニッシュする。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX25-P1-093-E1 引用「共通するクラスを持つシグニ１枚」
+     指摘: 対象シグニと共通するクラスを持つエナゾーンのシグニ1枚をトラッシュに置く任意コストがJSONから欠落している。
+     監査員が挙げた同型の grep 句: 「共通するクラスを持つ」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P1-093-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "isUp": true,
+       "thisCardOnly": true
+      }
+     },
+     "optional": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "powerRange": {
+         "max": 8000
+        }
+       },
+       "upToCount": false
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX25-P1-093-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerRange": {
+        "min": 7000
+       }
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-P1-096 幻竜　トリケラトプス
+【原文】【自】：あなたのアタックフェイズ開始時、対戦相手のパワー10000以上のシグニ１体を対象とし、あなたのエナゾーンから共通するクラスを持たないシグニ２枚をトラッシュに置いてもよい。
+        そうした場合、それをバニッシュする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX25-P1-096-E1 引用「共通するクラスを持たない」
+     指摘: 原文は対象シグニと共通するクラスを持たないエナのシグニ2枚を要求するが、JSONは選ぶ2枚同士のクラスを別々にする制約になっている。
+     監査員が挙げた同型の grep 句: 「共通するクラスを持たない」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P1-096-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "powerRange": {
+        "min": 10000
+       }
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "energyTrash": {
+      "count": 2,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "selectionConstraint": {
+       "distinct": "class"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ WX25-P1-101 幻怪　ゴーレム
+【原文】【常】：あなたのトラッシュに＜怪異＞のシグニが３枚以上あるかぎり、このシグニは【シャドウ（パワー5000以下のシグニ）】を得る。
+        （このシグニは対戦相手のパワー5000以下のシグニによって対象にされない）【自】：あなたのターン終了時、このターンにあなたがアーツを使用していた場合、あなたのデッキの上からカードを３枚トラッシュに置いてもよい。
+        
+【LB】：対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－12000する。
+  ▶ 精査対象 [MED/WRONG] effectId=WX25-P1-101-E2 引用「３枚トラッシュに置いてもよい」
+     指摘: 原文ではデッキ上3枚をトラッシュに置く処理は任意だが、JSONの素のTRASHアクションには任意指定がなく強制処理になっている。
+     監査員が挙げた同型の grep 句: 「トラッシュに置いてもよい」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P1-101-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TRASH_HAS_CARD",
+   "owner": "self",
+   "filter": {
+    "cardType": "シグニ",
+    "story": "怪異"
+   },
+   "minCount": 3
+  },
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "keyword": "シャドウ:{\"powerLte\":5000}",
+   "duration": "PERMANENT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX25-P1-101-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "condition": {
+   "type": "ARTS_USED_THIS_TURN",
+   "owner": "self"
+  },
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "DECK_CARD",
+    "owner": "self",
+    "count": 3
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX25-P1-101-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+     "costColors": [
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "delta": -12000
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-P3-042 ウィッチ・ブレンド
+【原文】対戦相手のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、ターン終了時まで、それのパワーを－12000する。
+        あなたのデッキの上からカードを５枚見る。
+        その中から＜微菌＞のシグニを２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        
+  ▶ 精査対象 [LOW/WRONG] effectId=WX25-P3-042-E1 引用「シグニ１体を対象とし」
+     指摘: 原文では対象を決めてから対戦相手が手札を捨てるか選ぶが、JSON上は捨てるかの選択後にパワー減少対象を選ぶ順序になっている。
+     監査員が挙げた同型の grep 句: 「を対象とし、対戦相手が」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P3-042-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "SEQUENCE",
+     "steps": [
+      {
+       "type": "STUB",
+       "id": "OPPONENT_PAY_OPTIONAL",
+       "opponentHandDiscard": 2
+      },
+      {
+       "type": "CONDITIONAL",
+       "condition": {
+        "type": "IS_MY_TURN"
+       },
+       "then": {
+        "type": "POWER_MODIFY",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        },
+        "delta": -12000
+       }
+      }
+     ]
+    },
+    {
+     "type": "REVEAL_AND_PICK",
+     "owner": "self",
+     "revealCount": 5,
+     "filter": {
+      "story": "微菌",
+      "cardType": "シグニ"
+     },
+     "pickCount": 2,
+     "pickUpTo": true,
+     "then": {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     },
+     "remainder": {
+      "location": "deck",
+      "position": "bottom",
+      "reorder": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-P3-054 コードラビリンス　アークルーブル
+【原文】【自】：各アタックフェイズ開始時、ターン終了時まで、このシグニのパワーを＋3000し、このシグニの正面のシグニゾーンにあるシグニは能力を失う。
+        【自】《自分ターン》《ターン１回》：対戦相手のシグニ１体が場からトラッシュに置かれたとき、あなたの場に《解明の巫女　ユキ》がいる場合、あなたのデッキの上からカードを５枚見る。
+        その中から＜迷宮＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX25-P3-054-E2 引用「対戦相手のシグニ１体が場から」
+     指摘: 発動条件にある「対戦相手のシグニが場からトラッシュに置かれたとき」の所有者・カード種別・移動元の制限がJSONに無く、別のカードがトラッシュに置かれた場合にも発動し得る。
+     監査員が挙げた同型の grep 句: 「シグニ１体が場から」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P3-054-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "thisCardOnly": true
+      }
+     },
+     "delta": 3000,
+     "duration": "UNTIL_END_OF_TURN"
+    },
+    {
+     "type": "REMOVE_ABILITIES",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "frontOfSelf": true
+      }
+     },
+     "until": "UNTIL_END_OF_TURN"
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any"
+ },
+ {
+  "effectId": "WX25-P3-054-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TRASH"
+  ],
+  "condition": {
+   "type": "HAS_CARD_IN_FIELD",
+   "owner": "self",
+   "filter": {
+    "cardName": "解明の巫女　ユキ"
+   }
+  },
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 5,
+   "filter": {
+    "cardType": "シグニ",
+    "cardClass": "迷宮"
+   },
+   "pickCount": 1,
+   "then": {
+    "type": "ADD_TO_HAND",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "reorder": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL",
+  "usageLimit": "once_per_turn",
+  "triggerCondition": {
+   "turnOwner": "self"
+  }
+ }
+]
+
+======================================================================
+■ WX25-P3-057 コードハート　Oイルヒーター
+【原文】【常】：このシグニが覚醒状態であるかぎり、このシグニは【アサシン】と「【常】：このシグニのアタックは対戦相手の効果によって無効にならない。
+        」と「【自】：あなたのターン終了時、このシグニをバニッシュする。
+        」を得る。
+        【自】：あなたのアタックフェイズ開始時、あなたの手札が０枚の場合、《赤》を支払ってもよい。
+        そうした場合、このシグニは覚醒する。
+        
+【LB】：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。
+  ▶ 精査対象 [HIGH/MISSING] effectId=(なし) 引用「このシグニは【アサシン】と」
+     指摘: 覚醒状態であるかぎりこのシグニが【アサシン】を得る効果がJSONにありません。
+     監査員が挙げた同型の grep 句: 「覚醒状態であるかぎり」
+  ▶ 精査対象 [HIGH/MISSING] effectId=(なし) 引用「アタックは対戦相手の効果」
+     指摘: 覚醒状態であるかぎり、このシグニのアタックが対戦相手の効果で無効にならない効果がJSONにありません。
+     監査員が挙げた同型の grep 句: 「効果によって無効にならない」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-P3-057-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "triggerScope": "self",
+  "condition": {
+   "type": "THIS_CARD_IS_AWAKENED"
+  },
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "thisCardOnly": true
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WX25-P3-057-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAND_COUNT",
+      "owner": "self",
+      "operator": "eq",
+      "value": 0
+     },
+     "then": {
+      "type": "STUB",
+      "id": "OPTIONAL_COST",
+      "costColors": [
+       "赤"
+      ]
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "AWAKEN_SIGNI"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX25-P3-057-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "isUp": true
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

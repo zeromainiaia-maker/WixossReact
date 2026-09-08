@@ -1,0 +1,1004 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXEX1-04 快抱の使者　サシェ
+【原文】【自】《ターン１回》：あなたのターンの間、あなたのレゾナ１体が場に出たとき、以下の３つから１つを選ぶ。
+        ①カードを１枚引き、【エナチャージ１】をする。
+        ②対戦相手のシグニ１体を対象とし、それを手札に戻す。
+        ③ターン終了時まで、そのレゾナは「【常】：バニッシュされない。
+        」を得る。
+        【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》：ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》《無》を支払わないかぎりアタックできない。
+        」を得る。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WXEX1-04-E1 引用「そのレゾナは」
+     指摘: 選択肢③は場に出たそのレゾナへ付与する効果だが、JSONでは自分のレゾナに限定されず任意のシグニ1体を対象にできる。
+     監査員が挙げた同型の grep 句: 「そのレゾナは」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-04-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 1
+       },
+       {
+        "type": "ENERGY_CHARGE_FROM_DECK",
+        "owner": "self",
+        "count": 1
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "BOUNCE",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "optional": false
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "GRANT_PROTECTION",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "from": [
+       "BANISH"
+      ],
+      "sourceOwner": "any",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "cardType": "レゾナ"
+  },
+  "triggerCondition": {
+   "turnOwner": "self"
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXEX1-04-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS"
+  ],
+  "cost": {
+   "coin": 2
+  },
+  "action": {
+   "type": "SIGNI_ATTACK_BAN",
+   "owner": "opponent",
+   "unlessPayColorless": 2
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXEX1-09 カーニバル　－ＱＮ－
+【原文】【出】：あなたのデッキの上からカードを２枚公開する。
+        その中からレベル４のシグニを２枚まで手札に加え、残りをトラッシュに置く。
+        【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》：対戦相手の、場かエナゾーンからレベル１のシグニ１枚を対象とし、それをトラッシュに置く。
+        レベル２、レベル３、レベル４、レベル５についても同様に行う。
+        
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=WXEX1-09-E2 引用「場かエナゾーンから」
+     指摘: レベル1～5ごとに対戦相手の場またはエナゾーンのシグニ1枚をトラッシュに置く処理が、JSONのSTUBやpayloadのどこにも表現されていない。
+     監査員が挙げた同型の grep 句: 「についても同様」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-09-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 2,
+   "filter": {
+    "level": 4,
+    "cardType": "シグニ"
+   },
+   "pickCount": 2,
+   "pickUpTo": true,
+   "then": {
+    "type": "ADD_TO_HAND",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "trash",
+    "position": "any"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-09-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS"
+  ],
+  "cost": {
+   "coin": 4
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "level": 1
+      },
+      "extraZones": [
+       "energy"
+      ],
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "level": 2
+      },
+      "extraZones": [
+       "energy"
+      ],
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "level": 3
+      },
+      "extraZones": [
+       "energy"
+      ],
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "level": 4
+      },
+      "extraZones": [
+       "energy"
+      ],
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "level": 5
+      },
+      "extraZones": [
+       "energy"
+      ],
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WXEX1-13 うるとらあーや！Ⅳ
+【原文】【自】：対戦相手のアタックフェイズ開始時、あなたの【トラップ】１つを対象とし、それを手札に戻してもよい。
+        そうした場合、あなたのデッキの上からカードを２枚見る。
+        その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置し、残りをデッキの一番下に置く。
+        【起】《ターン１回》《アタックフェイズアイコン》《コインアイコン》：あなたのデッキの上からカードを５枚見る。
+        その中から２枚までを【トラップ】としてあなたのシグニゾーンに設置する。
+        残りをシャッフルしてデッキの一番下に置く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXEX1-13-E1 引用「あなたの【トラップ】１つ」
+     指摘: 手札に戻す対象は自分のトラップ1つだが、JSONではトラップ条件のない自分のシグニ1体が対象になっている。
+     監査員が挙げた同型の grep 句: 「【トラップ】１つ」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-13-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BOUNCE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "optional": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "LOOK_AND_REORDER",
+      "source": {
+       "location": "deck",
+       "owner": "self"
+      },
+      "count": 2,
+      "private": true,
+      "reorder": false,
+      "canTrash": false,
+      "destination": {
+       "location": "deck",
+       "owner": "self",
+       "position": "top"
+      }
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "PLACE_TRAP_FROM_REVEALED",
+     "placeTrapReveal": {
+      "revealCount": 2
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_opp"
+ },
+ {
+  "effectId": "WXEX1-13-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "LOOK_PICK_CHAIN",
+   "owner": "self",
+   "revealCount": 5,
+   "stages": [
+    {
+     "pickCount": 2,
+     "pickUpTo": true,
+     "pickNoun": "カード",
+     "then": "trap"
+    }
+   ],
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "shuffle": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ }
+]
+
+======================================================================
+■ WXEX1-30 羅星姫　レオニズ
+【原文】【常】：対戦相手の凍結状態のシグニが場を離れる場合、代わりにトラッシュに置かれる。
+        【自】《ターン１回》：対戦相手の凍結状態のシグニ１体が場を離れたとき、対戦相手のシグニ１体を対象とし、あなたのターンの場合、それを手札に戻す。
+        【出】《白》《青》：あなたのデッキから白のシグニ１枚と青のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+        
+【LB】：あなたのトラッシュから白のシグニ１枚と青のシグニ１枚を対象とし、それらを手札に加える。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXEX1-30-E3 引用「白のシグニ１枚と青のシグニ１枚」
+     指摘: デッキから白のシグニを探す処理しかなく、青のシグニ1枚を探して公開し手札に加える処理が欠落している。
+     監査員が挙げた同型の grep 句: 「白のシグニ１枚と」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-30-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "FROZEN_SIGNI_TO_TRASH_ON_LEAVE"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-30-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_LEAVE_FIELD"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "TURN_OWNER",
+    "owner": "self"
+   },
+   "then": {
+    "type": "BOUNCE",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "upToCount": false,
+     "filter": {
+      "cardType": "シグニ"
+     }
+    },
+    "optional": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_opp",
+  "triggerCondition": {
+   "leftStateFilter": {
+    "isFrozen": true
+   }
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXEX1-30-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "青",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {
+    "cardType": "シグニ",
+    "color": "白"
+   },
+   "maxCount": 1,
+   "then": {
+    "type": "SEQUENCE",
+    "steps": [
+     {
+      "type": "REVEAL"
+     },
+     {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     }
+    ]
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-30-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRANSFER_TO_HAND",
+     "source": {
+      "type": "TRASH_CARD",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "color": "白"
+      }
+     }
+    },
+    {
+     "type": "TRANSFER_TO_HAND",
+     "source": {
+      "type": "TRASH_CARD",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "color": "青"
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXEX1-37 コードアクセル　アパッチ
+【原文】【常】：あなたのドライブ状態のシグニは対戦相手の、キーとアーツの効果を受けない。
+        【自】《ターン１回》：あなたのシグニ１体がドライブ状態になったとき、あなたの＜乗機＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。
+        
+【LB】：あなたのトラッシュから＜乗機＞のシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  ▶ 精査対象 [MED/MISSING] effectId=WXEX1-37-E1 引用「キーとアーツの効果」
+     指摘: ドライブ状態のシグニへの耐性元がアーツだけに限定され、対戦相手のキーの効果に対する耐性が欠落している。
+     監査員が挙げた同型の grep 句: 「キーとアーツ」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-37-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_PROTECTION",
+   "subjectFilter": {
+    "cardType": "シグニ",
+    "isDrive": true
+   },
+   "subjectOwner": "self",
+   "from": [
+    "アーツ"
+   ],
+   "sourceOwner": "opponent",
+   "duration": "PERMANENT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WXEX1-37-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_BECOMES_DRIVE"
+  ],
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "乗機"
+    },
+    "explicitTarget": true
+   },
+   "keyword": "アサシン",
+   "duration": "UNTIL_END_OF_TURN"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXEX1-37-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "hand",
+     "label": "手札に加える",
+     "action": {
+      "type": "TRANSFER_TO_HAND",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "story": "乗機"
+       }
+      }
+     }
+    },
+    {
+     "choiceId": "field",
+     "label": "場に出す",
+     "action": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "story": "乗機"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXEX1-52 死之遊姫　アタリナシ
+【原文】【自】《ターン１回》：アタックフェイズの間、あなたの＜遊具＞のシグニ１体が場からトラッシュに置かれたとき、あなたのトラッシュからそのシグニより低いレベルを持つ＜遊具＞のシグニ１枚を対象とし、それを場に出す。
+        【出】：対戦相手のシグニ１体を対象とし、あなたの他のシグニ１体を場からトラッシュに置く。
+        そうした場合、それをバニッシュする。
+        
+【LB】：対象の対戦相手のシグニ１体をバニッシュし、対象のあなたのシグニ１体を場からトラッシュに置く。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXEX1-52-E1 引用「＜遊具＞のシグニ１体」
+     指摘: 発動条件に、場からトラッシュへ置かれたシグニが自分の＜遊具＞であるという制限がない。
+     監査員が挙げた同型の grep 句: 「＜遊具＞のシグニ」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-52-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TRASH"
+  ],
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "遊具",
+     "levelLtTrigger": true
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerCondition": {
+   "duringAttackPhase": true,
+   "fromZones": [
+    "field"
+   ]
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXEX1-52-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "abortIfNoCandidate": true
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "excludeSelf": true
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-52-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXEX1-54 羅星　ジュメニーズ
+【原文】【出】：対戦相手の凍結状態のシグニ１体を対象とし、それを手札に戻す。
+        【起】《メインフェイズ》《アタックフェイズ》トラッシュにあるこのカードをゲームから除外する：対戦相手のシグニを２体まで対象とし、それらを凍結する。
+        この能力はあなたのセンタールリグが＜リメンバ＞の場合にしか使用できない。
+        【常】：【コンバート《青》】（エナコストを支払う際、このカードは《青》として支払える）
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXEX1-54-E2 引用「《アタックフェイズ》」
+     指摘: トラッシュから起動する能力のタイミングがMAINだけで、原文で許可されているアタックフェイズに使用できない。
+     監査員が挙げた同型の grep 句: 「《アタックフェイズ》」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-54-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "isFrozen": true
+    }
+   },
+   "optional": false
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-54-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "condition": {
+   "type": "LRIG_STORY",
+   "owner": "self",
+   "story": "リメンバ"
+  },
+  "cost": {
+   "trashExile": {
+    "self": true
+   }
+  },
+  "action": {
+   "type": "FREEZE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 2,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "trashActivated": true
+ },
+ {
+  "effectId": "WXEX1-54-E3",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "CONVERT_ENERGY_COLOR",
+   "value": "青"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXEX1-62 羅星　ケプリ
+【原文】【常】：このカードがデッキか手札かトラッシュにあるかぎり、あなたの効果１つによってこのシグニのレベルを参照する場合、レベル４として扱ってもよい。
+        【自】：このシグニがアタックしたとき、対戦相手のパワー1000以下のシグニ１体を対象とし、あなたのデッキの一番上を公開する。
+        そのカードがレベル４のシグニの場合、それをバニッシュする。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WXEX1-62-E2 引用「シグニ１体を対象とし、」
+     指摘: 原文はデッキトップの公開前に対象を決めるが、JSONはレベル4の公開確認後にバニッシュ対象を選ぶため、対象を決定するタイミングが異なる。
+     監査員が挙げた同型の grep 句: 「対象とし、」
+【effects JSON】
+[
+ {
+  "effectId": "WXEX1-62-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "STUB",
+   "id": "LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXEX1-62-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 1,
+   "filter": {
+    "cardType": "シグニ",
+    "level": 4
+   },
+   "pickCount": 1,
+   "then": {
+    "type": "BANISH",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "filter": {
+      "cardType": "シグニ",
+      "powerRange": {
+       "max": 1000
+      }
+     },
+     "upToCount": false
+    }
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "top"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]

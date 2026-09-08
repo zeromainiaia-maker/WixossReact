@@ -1,0 +1,951 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WX25-CP1-027 ハッキング
+【原文】あなたのデッキの上からカードを５枚見る。
+        その中から＜ブルアカ＞のカードを２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        その後、この方法で青の＜ブルアカ＞のカードを１枚以上手札に加えた場合、対戦相手のパワー12000以下のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、それをバニッシュする。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WX25-CP1-027-E1 引用「シグニ１体を対象とし」
+     指摘: 原文ではバニッシュするシグニを先に対象としてから対戦相手が手札を捨てるか決めるが、JSONは対戦相手の選択後に対象を選ぶ順序になっている。
+     監査員が挙げた同型の grep 句: 「捨てないかぎり」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-027-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REVEAL_AND_PICK",
+     "owner": "self",
+     "revealCount": 5,
+     "filter": {
+      "cardClass": "ブルアカ"
+     },
+     "pickCount": 2,
+     "pickUpTo": true,
+     "pickNoun": "カード",
+     "then": {
+      "type": "ADD_TO_HAND",
+      "owner": "self"
+     },
+     "remainder": {
+      "location": "deck",
+      "position": "bottom",
+      "reorder": true
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "color": "青",
+       "cardClass": "ブルアカ"
+      },
+      "minCount": 1
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPPONENT_PAY_OPTIONAL",
+        "opponentHandDiscard": 2
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "BANISH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ",
+           "powerRange": {
+            "max": 12000
+           }
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WX25-CP1-028 作戦準備
+【原文】以下の２つから１つを選ぶ。
+        ①対戦相手のルリグかシグニ１体を対象とし、それをダウンする。
+        ②対戦相手のルリグとシグニを合計２体まで対象とし、あなたのエナゾーンから＜ブルアカ＞のカード２枚をトラッシュに置いてもよい。
+        そうした場合、それらをダウンする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX25-CP1-028-E1 引用「ルリグとシグニを合計２体まで」
+     指摘: 選択肢②は対戦相手のルリグとシグニを合計2体までダウンする効果だが、JSONは自分のシグニちょうど1体を対象にしている。
+     監査員が挙げた同型の grep 句: 「合計２体まで」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-028-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "DOWN",
+      "target": {
+       "type": "CENTER_LRIG_OR_SIGNI",
+       "owner": "opponent",
+       "count": 1
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_TRASH_ENERGY_CLASS"
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "DOWN",
+         "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-CP1-039 秤アツコ
+【原文】【常】：あなたのアップ状態の＜ブルアカ＞のシグニ１体が対戦相手の効果によって場を離れる場合、代わりに《白》を支払ってもよい。
+        そうした場合、そのシグニをダウンする。
+        【自】：あなたのターン終了時、あなたのすべての＜ブルアカ＞のシグニをアップする。
+        【絆常】《相手ターン》：あなたのシグニのパワーを＋3000する。
+        
+【LB】：対戦相手のアップ状態のシグニ１体を対象とし、それをトラッシュに置く。
+  ▶ 精査対象 [MED/MISSING] effectId=WX25-CP1-039-E1 引用「アップ状態の＜ブルアカ＞」
+     指摘: 場を離れるシグニがアップ状態であるという置換効果の条件がvictimFilterにありません。
+     監査員が挙げた同型の grep 句: 「アップ状態の」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-039-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY",
+     "leavePayLoseSelfAbility": {
+      "victimFilter": {
+       "cardType": "シグニ",
+       "story": "ブルアカ"
+      },
+      "costColors": [
+       "白"
+      ]
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "DOWN",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX25-CP1-039-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "UP",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "story": "ブルアカ"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX25-CP1-039-E3",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "opponent"
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": 3000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "kizunaIcon": true
+ },
+ {
+  "effectId": "WX25-CP1-039-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "isUp": true
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-CP1-061 和泉元エイミ
+【原文】【自】：あなたのターン終了時、あなたの手札から＜ブルアカ＞のカードを３枚まで公開してもよい。
+        次の対戦相手のターン終了時まで、このシグニのパワーをこの方法で公開したカード１枚につき＋2000する。
+        【絆常】：このシグニのパワーは＋4000される。
+        
+【LB】：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。カードを１枚引く。
+  ▶ 精査対象 [HIGH/EXTRA] effectId=WX25-CP1-061-E1 引用「【絆常】：このシグニのパワー」
+     指摘: 【絆常】の＋4000はE2で常時適用されているのに、E1にも＋4000のPOWER_MODIFYが混入しており、ターン終了時に重複して加算される。
+     監査員が挙げた同型の grep 句: 「【絆常】」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-061-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costText": "あなたの手札から＜ブルアカ＞のカードを３枚まで公開してもよい"
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "thisCardOnly": true
+      }
+     },
+     "delta": 2000,
+     "deltaPerLastProcessedCount": true,
+     "perLastProcessed": {},
+     "duration": "UNTIL_OPP_TURN_END"
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "thisCardOnly": true
+      }
+     },
+     "delta": 4000
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "WX25-CP1-061-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 4000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "kizunaIcon": true
+ },
+ {
+  "effectId": "WX25-CP1-061-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "FREEZE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "down": true
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WX25-CP1-081 狐坂ワカモ(水着)
+【原文】【自】：あなたのアタックフェイズ開始時、あなたのエナゾーンから＜ブルアカ＞のカード２枚をトラッシュに置いてもよい。
+        そうした場合、ターン終了時まで、このシグニは【ランサー（パワー10000以下のシグニ）】と「【自】：このシグニがシグニ１体とバトルしたとき、ターン終了時まで、そのシグニは能力を失う。
+        」を得る。
+        【絆常】：このシグニのパワーは＋4000される。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX25-CP1-081-E1 引用「このシグニがシグニ１体とバトルしたとき」
+     指摘: 任意コストを支払った場合に得る、バトルしたシグニの能力をターン終了時まで失わせる自動能力がJSONにありません。
+     監査員が挙げた同型の grep 句: 「シグニ１体とバトル」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-081-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_TRASH_ENERGY_CLASS"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "thisCardOnly": true
+       }
+      },
+      "keyword": "ランサー:{\"powerLte\":10000}",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WX25-CP1-081-E2",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 4000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "kizunaIcon": true
+ }
+]
+
+======================================================================
+■ WX25-CP1-091 春原ココナ
+【原文】【自】：あなたの＜ブルアカ＞のシグニ１体がアタックしたとき、次の対戦相手のターン終了時まで、そのシグニのパワーを＋2000する。
+        あなたのトラッシュからカードを１枚まで対象とし、それをこのシグニの下に置く。
+        【自】：あなたのターン終了時、このシグニの下から＜ブルアカ＞のカードを３枚トラッシュに置いてもよい。
+        そうした場合、【エナチャージ１】をする。
+        【絆自】：あなたのアタックフェイズ開始時、対戦相手のデッキの上からカードを２枚トラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX25-CP1-091-E1 引用「そのシグニのパワーを＋2000」
+     指摘: 原文はアタックした＜ブルアカ＞のシグニを強化するが、JSONのPOWER_MODIFYはアタックしたシグニとの対応付けがなく、ownerもanyであるため効果元自身または別のシグニに適用される。
+     監査員が挙げた同型の grep 句: 「がアタックしたとき」
+【effects JSON】
+[
+ {
+  "effectId": "WX25-CP1-091-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "any",
+      "count": 1
+     },
+     "delta": 2000,
+     "duration": "UNTIL_OPP_TURN_END"
+    },
+    {
+     "type": "PLACE_UNDER_SIGNI",
+     "source": "trash",
+     "count": 1,
+     "upToCount": true,
+     "filter": {}
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "story": "ブルアカ"
+  }
+ },
+ {
+  "effectId": "WX25-CP1-091-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "underAnySigniTrash": {
+      "count": 3,
+      "fromThis": true,
+      "filter": {
+       "story": "ブルアカ"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX25-CP1-091-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "DECK_CARD",
+    "owner": "opponent",
+    "count": 2
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "kizunaIcon": true,
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ WX26-CP1-001 FUTURE SESSION
+【原文】以下の３つから１つを選ぶ。
+        《リコレクトアイコン》［４枚以上］代わりに２つまで選ぶ。
+        （上から順番に行う）①【シグニバリア】１つを得る。
+        ②あなたのデッキの上からカードを５枚見る。
+        その中からカードを２枚まで手札に加え、＜プリオケ＞のカードを１枚までエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。
+        ③次のあなたのアタックフェイズ開始時、あなたの＜プリオケ＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+        」を得る。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX26-CP1-001-E1 引用「次のあなたのアタックフェイズ開始時」
+     指摘: 選択肢③は次の自分のアタックフェイズ開始時に対象を選んで能力を与える効果だが、JSONは遅延トリガーを設置せずアーツ解決時に即座に対象を選んで付与する。
+     監査員が挙げた同型の grep 句: 「次のあなたのアタック」
+【effects JSON】
+[
+ {
+  "effectId": "WX26-CP1-001-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "STUB",
+      "id": "GAIN_SIGNI_BARRIER"
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "LOOK_PICK_CHAIN",
+      "owner": "self",
+      "revealCount": 5,
+      "stages": [
+       {
+        "pickCount": 2,
+        "then": "hand",
+        "pickUpTo": true
+       },
+       {
+        "filter": {
+         "story": "プリオケ"
+        },
+        "pickCount": 1,
+        "then": "energy",
+        "pickNoun": "カード",
+        "pickUpTo": true
+       }
+      ],
+      "remainder": {
+       "location": "deck",
+       "position": "bottom",
+       "reorder": true
+      }
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "GRANT_EFFECT",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "story": "プリオケ"
+       }
+      },
+      "duration": "UNTIL_END_OF_TURN",
+      "effect": {
+       "effectId": "WX26-CP1-001-GRANT",
+       "effectType": "AUTO",
+       "timing": [
+        "ON_ATTACK_SIGNI"
+       ],
+       "triggerScope": "self",
+       "action": {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       "duration": "INSTANT",
+       "mandatory": true,
+       "parseStatus": "MANUAL"
+      }
+     }
+    }
+   ],
+   "recollectArts": {
+    "minArts": 4,
+    "thenChooseCount": 2,
+    "thenUpTo": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "MANUAL"
+ }
+]
+
+======================================================================
+■ WX26-CP1-003 TRIAD FORCE
+【原文】以下の３つから１つを選ぶ。
+        《リコレクトアイコン》［４枚以上］代わりに２つまで選ぶ。
+        （上から順番に行う）①あなたのセンタールリグのレベル１につきカードを１枚引くか、あなたのセンタールリグのレベル１につき【エナチャージ１】をする。
+        ②手札から＜プリオケ＞のカードを２枚捨ててもよい。
+        そうした場合、対戦相手のライフクロス１枚をクラッシュする。
+        ③次のあなたのアタックフェイズ開始時、あなたの＜プリオケ＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る。
+        （【アサシン】は、アタックすると正面のシグニとバトルをせず対戦相手にダメージを与える。
+        【ダブルクラッシュ】は、アタックによるダメージでライフクロスを２枚クラッシュする）
+  ▶ 精査対象 [HIGH/MISSING] effectId=WX26-CP1-003-E1 引用「【アサシン】か【ダブルクラッシュ】」
+     指摘: 選択肢③では【アサシン】と【ダブルクラッシュ】から選べるが、JSONは【アサシン】の付与しか実装しておらず【ダブルクラッシュ】の選択肢が欠落している。
+     監査員が挙げた同型の grep 句: 「か【ダブルクラッシュ】」
+【effects JSON】
+[
+ {
+  "effectId": "WX26-CP1-003-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "CHOOSE",
+      "choose_count": 1,
+      "from_count": 2,
+      "choices": [
+       {
+        "choiceId": "c0",
+        "label": "選択肢1",
+        "action": {
+         "type": "DRAW_PER_LRIG_LEVEL",
+         "drawPerLevel": 1,
+         "lrigOwner": "self",
+         "owner": "self"
+        }
+       },
+       {
+        "choiceId": "c1",
+        "label": "選択肢2",
+        "action": {
+         "type": "ENERGY_CHARGE_PER_LRIG_LEVEL",
+         "chargePerLevel": 1,
+         "lrigOwner": "self",
+         "owner": "self"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "handDiscard": {
+         "count": 2,
+         "filter": {
+          "story": "プリオケ"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "LIFE_CRASH",
+         "owner": "opponent",
+         "count": 1,
+         "triggerBurst": true
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "INSTALL_DELAYED_TRIGGER",
+      "duration": "THIS_TURN",
+      "trigger": {
+       "timing": "ON_ATTACK_PHASE_START"
+      },
+      "effect": {
+       "type": "GRANT_KEYWORD",
+       "target": {
+        "type": "SIGNI",
+        "owner": "self",
+        "count": 1,
+        "filter": {
+         "cardType": "シグニ",
+         "story": "プリオケ"
+        },
+        "explicitTarget": true
+       },
+       "keyword": "アサシン",
+       "duration": "UNTIL_END_OF_TURN"
+      }
+     }
+    }
+   ],
+   "recollectArts": {
+    "minArts": 4,
+    "thenChooseCount": 2,
+    "thenUpTo": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

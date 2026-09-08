@@ -1,0 +1,893 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WXK01-037 コードアクセル　ロドローラ
+【原文】【自】《ターン１回》：あなたのシグニ１体が対戦相手のライフクロス１枚をクラッシュしたとき、そのシグニをバニッシュしてもよい。
+        そうした場合、カードを２枚引く。
+        【自】：あなたのターン終了時、手札を１枚捨ててもよい。
+        そうした場合、あなたのデッキの上からシグニがめくれるまで公開する。
+        そのシグニを場に出し、この方法で公開されたカードをトラッシュに置く。
+        
+【LB】：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
+  ▶ 精査対象 [HIGH/WRONG] effectId=WXK01-037-E1 引用「そのシグニをバニッシュ」
+     指摘: 原文ではライフクロスをクラッシュした当該シグニをバニッシュするが、JSONは自分の任意のシグニ1体を対象にしている。
+     監査員が挙げた同型の grep 句: 「そのシグニを」
+【effects JSON】
+[
+ {
+  "effectId": "WXK01-037-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_OPP_LIFE_CRASHED"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "optional": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 2
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "cardType": "シグニ"
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK01-037-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "handDiscard": {
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "REVEAL_UNTIL",
+      "owner": "self",
+      "stopCondition": {
+       "kind": "signiCount",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      },
+      "hit": {
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "count": "ALL",
+       "destination": "field"
+      },
+      "restDestination": "trash"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK01-037-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LIFE_COUNT",
+      "owner": "self",
+      "operator": "lte",
+      "value": 4
+     },
+     "then": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK01-044 超罠　Ｊ・リッパー
+【原文】【自】：このシグニがアタックしたとき、数字１つを宣言する。
+        その後、あなたのデッキの一番上のカードをトラッシュに置く。
+        それが宣言した数字と同じレベルのシグニの場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。
+        【出】：ターン終了時まで、レベルが偶数の対戦相手のシグニ１体のパワーを－5000する。
+        
+【LB】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK01-044-E1 引用「宣言した数字と同じレベル」
+     指摘: トラッシュに置いたカードが宣言した数字と同じレベルのシグニである場合だけパワーを－10000する条件がなく、常にパワーを減少させる。
+     監査員が挙げた同型の grep 句: 「宣言した数字と同じ」
+【effects JSON】
+[
+ {
+  "effectId": "WXK01-044-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "DECLARE_NUMBER"
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "DECK_CARD",
+      "owner": "self",
+      "count": 1
+     }
+    },
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "delta": -10000
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXK01-044-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "levelParity": "even"
+    },
+    "upToCount": false
+   },
+   "delta": -5000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK01-044-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -12000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK01-045 超罠　ヤミガネ
+【原文】【自】：このシグニがアタックしたとき、このターンに場に出た対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。
+        そうした場合、それをバニッシュする。
+        【出】《黒》：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+        対戦相手は自分のデッキを上から、それ以下のレベルを持つシグニがめくれるまで公開し、そのシグニを場に出す。
+        そのシグニの【出】能力は発動しない。
+        この方法で公開されたカードをシャッフルしてデッキの一番下に置く。
+        
+【LB】：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
+  ▶ 精査対象 [MED/MISSING] effectId=WXK01-045-E1 引用「このターンに場に出た」
+     指摘: 対象をこのターンに場に出た対戦相手のシグニに限定する条件がなく、以前から場にいるシグニも選べる。
+     監査員が挙げた同型の grep 句: 「このターンに場に出た」
+【effects JSON】
+[
+ {
+  "effectId": "WXK01-045-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+     "costColors": [
+      "黒"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXK01-045-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "REVEAL_UNTIL",
+     "owner": "opponent",
+     "stopCondition": {
+      "kind": "signiCount",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "levelLteLastProcessed": true
+      }
+     },
+     "hit": {
+      "filter": {
+       "cardType": "シグニ",
+       "levelLteLastProcessed": true
+      },
+      "count": 1,
+      "destination": "field",
+      "suppressOnPlay": true
+     },
+     "restDestination": "deck_bottom_shuffled"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK01-045-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LIFE_COUNT",
+      "owner": "self",
+      "operator": "lte",
+      "value": 4
+     },
+     "then": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK01-051 絶縁の豪爪
+【原文】対戦相手のライフクロスが２枚以上ある場合、対戦相手のライフクロス１枚をクラッシュする。
+        あなたの場にドライブ状態のシグニがある場合、この効果でクラッシュされたカードのライフバーストは発動しない。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=WXK01-051-E1 引用「ライフクロスが２枚以上」
+     指摘: 対戦相手のライフクロスが2枚以上の場合にだけクラッシュする条件がなく、1枚以下でもクラッシュする。
+     監査員が挙げた同型の grep 句: 「ライフクロスが２枚以上」
+【effects JSON】
+[
+ {
+  "effectId": "WXK01-051-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 3
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "LIFE_CRASH",
+     "owner": "opponent",
+     "count": 1,
+     "triggerBurst": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAS_CARD_IN_FIELD",
+      "owner": "self",
+      "filter": {
+       "cardType": "シグニ",
+       "isDrive": true
+      }
+     },
+     "then": {
+      "type": "STUB",
+      "id": "SUPPRESS_LIFE_BURST_ON_CRASH"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ WXK01-082 魔海の吸盤　クラーケン
+【原文】【自】《ターン２回》：あなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、あなたのターンの場合、ターン終了時まで、それのパワーを－4000する。
+        （手札を２枚捨てた場合２回発動する）
+  ▶ 精査対象 [MED/WRONG] effectId=WXK01-082-E1 引用「シグニ１体を対象とし」
+     指摘: 原文では自分のターンかに関係なく対象を選ぶが、JSONでは自分のターンの場合にだけ対象を選ぶ構造になっている。
+     監査員が挙げた同型の grep 句: 「対象とし、あなたのターン」
+【effects JSON】
+[
+ {
+  "effectId": "WXK01-082-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_HAND_DISCARDED"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "TURN_OWNER",
+    "owner": "self"
+   },
+   "then": {
+    "type": "POWER_MODIFY",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "filter": {
+      "cardType": "シグニ"
+     },
+     "upToCount": false
+    },
+    "delta": -4000
+   }
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "twice_per_turn"
+ }
+]
+
+======================================================================
+■ WXK02-002 真情の記憶　リル
+【原文】【出】：あなたのトラッシュから《ライズアイコン》を持つシグニ１枚と＜アーム＞のシグニ１枚を対象とし、それらを手札に加える。
+        【起】《ターン１回》《赤×0》：《ライズアイコン》を持つあなたのシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。
+        【起】《ゲーム１回》オーネスト《コインアイコン》：対戦相手は数字１つを宣言する。
+        ターン終了時、このターンに対戦相手が使用したアーツの回数が宣言した数字と異なる場合、対戦相手はゲームに敗北する。
+        
+  ▶ 精査対象 [HIGH/SUSPECT_STUB] effectId=WXK02-002-E3 引用「対戦相手はゲームに敗北する」
+     指摘: ターン終了時に使用アーツ数と宣言値を比較して対戦相手を敗北させる処理が、数値宣言とRULE_REMINDER_TEXTだけでは表現されていない。
+     監査員が挙げた同型の grep 句: 「ゲームに敗北する」
+【effects JSON】
+[
+ {
+  "effectId": "WXK02-002-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "TRANSFER_TO_HAND",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": false,
+    "filter": {
+     "anyOf": [
+      {
+       "cardType": "シグニ",
+       "hasRiseIcon": true
+      },
+      {
+       "cardType": "シグニ",
+       "cardClass": "アーム"
+      }
+     ]
+    },
+    "selectionConstraint": {
+     "groups": [
+      {
+       "filter": {
+        "cardType": "シグニ",
+        "hasRiseIcon": true
+       },
+       "count": 1
+      },
+      {
+       "filter": {
+        "cardType": "シグニ",
+        "cardClass": "アーム"
+       },
+       "count": 1
+      }
+     ]
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK02-002-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "hasIcon": "ライズ"
+    },
+    "explicitTarget": true
+   },
+   "keyword": "ダブルクラッシュ",
+   "duration": "UNTIL_END_OF_TURN"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WXK02-002-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "DECLARE_NUMBER"
+    },
+    {
+     "type": "STUB",
+     "id": "RULE_REMINDER_TEXT"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ WXK02-003 来夢の巫女　リメンバ・ミッドナイト
+【原文】【自】：あなたのアタックフェイズ開始時、デッキの上からカードを３枚見る。
+        その中から好きな枚数を好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す。
+        【出】《青》：対戦相手のシグニを２体まで対象とし、それらを凍結する。
+        カードを２枚引く。
+        【起】《ゲーム１回》アストロジ《コインアイコン》：対戦相手の手札と対戦相手のライフクロスの一番上を見る。
+        カードを２枚引く。
+        
+  ▶ 精査対象 [MED/MISSING] effectId=WXK02-003-E3 引用「対戦相手の手札と」
+     指摘: 対戦相手のライフクロス最上段を見る処理はあるが、対戦相手の手札を見る処理がない。
+     監査員が挙げた同型の grep 句: 「相手の手札と」
+【effects JSON】
+[
+ {
+  "effectId": "WXK02-003-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "action": {
+   "type": "LOOK_AND_REORDER",
+   "source": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "count": 3,
+   "private": true,
+   "reorder": true,
+   "canTrash": false,
+   "destination": {
+    "location": "deck",
+    "owner": "self",
+    "position": "split_top_bottom"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WXK02-003-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "FREEZE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 2,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": true
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 2
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WXK02-003-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "LOOK_OPP_LIFE_TOP",
+     "lookZone": {
+      "zone": "opp_life",
+      "count": 1
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 2
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ WXK02-027 デッド・ゲート
+【原文】このアーツを使用する際、使用コストとして追加で《黒×1》を支払ってもよい。
+        対象のあなたのセンタールリグよりレベルが１つ高い対戦相手のシグニ１体をトラッシュに置く。
+        追加で《黒×1》を支払っていた場合、あなたのトラッシュから対象のあなたのセンタールリグよりレベルが１つ低いシグニ１枚を場に出す。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=WXK02-027-E1 引用「レベルが１つ高い」
+     指摘: トラッシュに置く対戦相手のシグニに「自分のセンタールリグよりレベルが1つ高い」という条件がありません。
+     監査員が挙げた同型の grep 句: 「レベルが１つ高い」
+  ▶ 精査対象 [MED/WRONG] effectId=WXK02-027-E1 引用「レベルが１つ低い」
+     指摘: トラッシュから場に出すシグニに「自分のセンタールリグよりレベルが1つ低い」という条件がありません。
+     監査員が挙げた同型の grep 句: 「レベルが１つ低い」
+【effects JSON】
+[
+ {
+  "effectId": "WXK02-027-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "黒"
+     ]
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

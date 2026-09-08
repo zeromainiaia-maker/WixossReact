@@ -1,0 +1,824 @@
+あなたは WIXOSS カードゲーム実装（このリポジトリ）の **triage 担当**です。
+別の監査員が「原文と effects JSON が食い違う」と報告した finding を1件ずつ精査し、
+**真バグ（BUG）／偽陽性（FP）／判定不能（UNKNOWN）** に仕分けてください。
+
+# 最重要：あなたは JSON だけを読む監査員ではない
+
+監査員は JSON と原文しか見ていないので、**precision は実測 50〜84%** です。
+そして**偽陽性は例外なく「engine が JSON の見た目を裏で読み替えている」型**でした。
+⇒ **あなたの仕事の本体は `src/engine/` を読むことです。** JSON と原文だけで結論を書かないでください。
+
+## 受け皿の探し方（必ずやる）
+
+- STUB なら **`grep -rn "<STUB の id>" src/`**。ハンドラは `src/engine/execStubPart*.ts` に散っています。
+- アクション型なら **`grep -rn "'<TYPE>'" src/engine/`**（`effectExecutor.ts` が主）。
+- 誘発（timing）なら `src/engine/triggerCollect.ts`、条件なら `src/engine/execUtils.ts` の `evalCondition`。
+- コストなら `src/data/keywordCosts.ts` と `src/screens/battle/costs.ts`。
+- 逆翻訳の語彙は `scripts/decompileEffects.ts`。**逆翻訳が正しく見えても engine が同じ嘘をついていることがある**。
+- 🔴**「本体ハンドラ」以外の消費地点がある**＝`effectExecutor.ts` が STUB を先取りする分岐が実在します。
+  `grep -rn "<STUB id>" src/engine/` を**必ず**打ってから「消費されていない」と書いてください。
+
+# 判定ルール（非対称：ここが一番大事）
+
+- **FP と書いてよいのは、engine の該当行を `ファイル:行` で引用して「JSON の見た目と違う挙動になる」ことを示せたときだけ。**
+- 示せないなら **UNKNOWN**（人間の判断へ回す）。**曖昧なものを FP にしない。**
+- 理由＝**BUG の誤判定は実装時に気付くが、FP の誤判定は真バグを恒久的に消す**（記録した瞬間どの計器からも見えなくなる）。
+- **BUG と書くときも `ファイル:行` を挙げる**（「どの受け皿に何が無いか」）。「JSON に無い」だけでは根拠になりません。
+
+# 既知の偽陽性パターン（これに当たったら FP。ただし該当行の引用は必須）
+
+1. **STUB の id 名から意味を推測して「別物だ」と言う**型。id は実装済みハンドラの表示名でもある。
+2. **did-it ゲート**＝STUB ハンドラが自前で「実行できたか」を見て後続を止める（例 `effectExecutor.ts` の `LRIG_UNDER_TO_TRASH`）。
+   ⇒「支払わなくても後続が実行される」系の指摘は、**まずハンドラ内のゲートを探す**。
+3. **`OPPONENT_PAY_OPTIONAL` の既定の極性**＝JSON に書いていない側が既定で正しいことがある。
+4. **`abilityBlockTextOf` / `sourceAbilityText(ctx)`**＝engine が**その効果のアビリティブロックだけ**を原文から読み直す。
+   ⇒「JSON に条件が無い」ように見えて、engine が原文を読んで判定していることがある。
+5. **`filter` が無い対象は「効果元自身」**を意味することがある（対象が広すぎるという指摘の定番の外し方）。
+6. **往復（出す→戻す等）が1アクションに畳んである**ことがある。
+7. **`mandatory:true` なのに原文が「〜してもよい」**＝engine 側が任意として扱う経路がある。
+8. **LIFE_BURST の `mandatory:false`** はルール上正しい（LB 発動は任意）。
+9. **【グロウ】条件・基礎ステータス（パワー/リミット/ガード/コイン）・括弧書きのルール注記**は JSON に載らない仕様。
+10. **アーツ/スペルの使用コスト増減**は engine が原文を再パースして算出する（量が JSON に無くても正しい）。
+
+# 逆向きの罠（FP に見えて BUG）
+
+- 🔴**「恒久 no-op で発動しない」と書かれた finding が、実は engine の既定で**無条件に発動**していた**前例があります
+  （`triggerCollect.ts`）＝**壊れる向きは engine を読むまで決まりません。**
+- 🔴**主張が弱い（LOW・「近似では」）finding でも盤面は開く**＝近似の指摘の裏に別の重いバグが居た前例があります。
+- 🔴**既定値のある regex は「当たらないこと」が可視化されない**＝engine 側が原文 regex で数値を取っている場合、
+  **当たらないと既定値（1枚・-3000 等）で静かに通ります。**
+
+# 同型の母集団（BUG のときだけ）
+
+BUG と判定したら、finding の `grep` 句（原文の言い回し）で**同型が何効果あるか**を数えてください。
+`docs/_effect_srctext.json`（効果単位の原文）を grep するのが最短です。
+⚠**カード全文で数えると同じカードの別効果を数えて水増しします。**
+数えられなければ `population: null` で構いません（**推測値を書かない**）。
+
+# 禁止事項
+
+- 🔴**コードを1行も変更しないでください。**（triage は判定だけ。修正は人間が別工程でやります）
+- 🔴**`triaged.txt` などの台帳ファイルに書き込まないでください。**
+- 🔴**確認していないことを書かないでください。** 読んでいないファイルの行番号を書かない。
+
+# 出力（このJSONだけを返す。前後に文章を付けない）
+
+```json
+{"results":[
+  {"cardNum":"WX22-005","findings":[
+    {"effectId":"WX22-005-E1",
+     "verdict":"BUG",
+     "receptacle":"src/engine/effectExecutor.ts:5294 の CHOOSE 分岐",
+     "evidence":"効果元の SEQUENCE は選択肢に関係なく実行される（同ファイル 5301 行で choice を見ずに次の step へ進む）",
+     "population":3,
+     "note":"③を選んだ場合だけに限定する受け皿が無い"}
+  ]}
+]}
+```
+
+- `verdict` は `"BUG"` / `"FP"` / `"UNKNOWN"` のいずれか。
+- `receptacle` と `evidence` は**必ず `ファイル:行` を含める**（UNKNOWN のときは「何を探して見つからなかったか」を書く）。
+- **入力に出てくる finding をすべて1件ずつ返す**（省略しない）。
+
+---
+
+# 精査する finding（このバッチ）
+
+======================================================================
+■ WX24-D5-05 ダーク・ウィップ
+【原文】このターン、あなたの効果によって対戦相手のシグニのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される。
+        このターン、対戦相手のシグニ１体のパワーが０以下になったとき、対戦相手のデッキの上からカードを２枚トラッシュに置く。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=WX24-D5-05-E1 引用「パワーが０以下になったとき」
+     指摘: 原文ではこのターン中に相手シグニのパワーが0以下になったときにデッキを2枚トラッシュに置く誘発効果だが、JSONではアーツ解決時に無条件で即座に2枚置く。
+     監査員が挙げた同型の grep 句: 「０以下になったとき」
+【effects JSON】
+[
+ {
+  "effectId": "WX24-D5-05-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "DOUBLE_POWER_MINUS",
+     "doublePowerMinus": {
+      "duration": "this_turn"
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "DECK_CARD",
+      "owner": "opponent",
+      "count": 2
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ SPDi43-03 エクス・スリーNEO
+【原文】【起】《赤×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。
+        【起】《ゲーム１回》バーテックス　ルリグデッキからアーツ１枚をルリグトラッシュに置く：対戦相手のライフクロス１枚をクラッシュする。
+        ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、《赤》を支払ってもよい。
+        そうした場合、このルリグをアップする。
+        」を得る。
+        
+  ▶ 精査対象 [HIGH/MISSING] effectId=SPDi43-03-E2 引用「ライフクロス１枚をクラッシュ」
+     指摘: 起動能力の解決時に対戦相手のライフクロス1枚をクラッシュする主要処理がJSONに存在せず、付与能力の処理しかない。
+     監査員が挙げた同型の grep 句: 「ライフクロス１枚をクラッシュ」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-03-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "STUB",
+   "id": "SOUL_OP",
+   "soulOp": {
+    "kind": "under_to_soul",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "SPDi43-03-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "trashArtsFromLrigDeck": {
+    "count": 1
+   }
+  },
+  "action": {
+   "type": "GRANT_LRIG_ABILITY",
+   "abilities": [
+    {
+     "effectId": "SPDi43-03-sub-E1",
+     "effectType": "AUTO",
+     "timing": [
+      "ON_ATTACK_END"
+     ],
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "costColors": [
+         "赤"
+        ]
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "UP",
+         "target": {
+          "type": "LRIG",
+          "owner": "self",
+          "count": 1
+         }
+        }
+       }
+      ]
+     },
+     "duration": "INSTANT",
+     "mandatory": true,
+     "parseStatus": "AUTO",
+     "triggerScope": "self",
+     "triggerCondition": {
+      "attackDealtNoDamage": true
+     }
+    }
+   ],
+   "rawText": "【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、《赤》を支払ってもよい。そうした場合、このルリグをアップする。"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+
+======================================================================
+■ SPDi43-06 大罠　Ｙリコーダーガン
+【原文】【自】：このシグニがアタックしたとき、対戦相手は《無》《無》を支払ってもよい。
+        そうした場合、このアタックを無効にする。
+        【起】アップ状態の他のシグニ１体をダウンする：あなたの場に《ゆかゆか☆さんさんきらきら》がいる場合、次の対戦相手のターン終了時まで、このシグニは【アサシン（レベル２以下のシグニ）】か【シャドウ（レベル３以上のシグニ）】を得る。
+        
+  ▶ 精査対象 [MED/WRONG] effectId=SPDi43-06-E2 引用「アップ状態の他のシグニ１体」
+     指摘: ダウンするコストの対象からこのシグニ自身を除外する条件がなく、自身もコストに選べる。
+     監査員が挙げた同型の grep 句: 「他のシグニ」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-06-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPPONENT_PAY_OPTIONAL",
+     "costColors": [
+      "無",
+      "無"
+     ],
+     "thenOnPay": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "STUB",
+      "id": "SET_CANCEL_ATTACK_FLAG"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "SPDi43-06-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "fieldDown": {
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "isUp": true
+    }
+   }
+  },
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "HAS_CARD_IN_FIELD",
+    "owner": "self",
+    "filter": {
+     "cardName": "ゆかゆか☆さんさんきらきら"
+    }
+   },
+   "then": {
+    "type": "CHOOSE",
+    "choose_count": 1,
+    "from_count": 2,
+    "choices": [
+     {
+      "choiceId": "SPDi43-06-E2-kw0",
+      "label": "【アサシン:{\"levelLte\":2}】を得る",
+      "action": {
+       "type": "GRANT_KEYWORD",
+       "target": {
+        "type": "SIGNI",
+        "owner": "self",
+        "count": 1,
+        "filter": {
+         "thisCardOnly": true
+        }
+       },
+       "keyword": "アサシン:{\"levelLte\":2}",
+       "duration": "UNTIL_OPP_TURN_END"
+      }
+     },
+     {
+      "choiceId": "SPDi43-06-E2-kw1",
+      "label": "【シャドウ:{\"levelGte\":3}】を得る",
+      "action": {
+       "type": "GRANT_KEYWORD",
+       "target": {
+        "type": "SIGNI",
+        "owner": "self",
+        "count": 1,
+        "filter": {
+         "thisCardOnly": true
+        }
+       },
+       "keyword": "シャドウ:{\"levelGte\":3}",
+       "duration": "UNTIL_OPP_TURN_END"
+      }
+     }
+    ]
+   }
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+
+======================================================================
+■ SPDi43-08 幻怪姫　Ｘヒューマン
+【原文】【常】《自分ターン》：このシグニに【ソウル】が付いているかぎり、このシグニのパワーは＋5000される。
+        【自】：あなたのアタックフェイズ開始時、あなたの場に《エクス・スリーNEO》がいる場合、《赤》を支払ってもよい。
+        そうした場合、以下の２つから１つを選ぶ。
+        ①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。
+        ②このシグニのパワーが15000以上の場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPDi43-08-E2 引用「いる場合、《赤》を支払ってもよい」
+     指摘: 指定カードの存在確認が任意コストだけに掛かり、支払い成否の後続ゲートもないため、不在時または未払い時にも選択肢を実行できる。
+     監査員が挙げた同型の grep 句: 「いる場合、《」
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPDi43-08-E2 引用「このシグニのパワーが15000以上」
+     指摘: パワー15000以上の条件が効果全体の発動条件になっており、本来は無条件で選べる①まで使用不能になる一方、②だけを制限する条件になっていない。
+     監査員が挙げた同型の grep 句: 「以下の場合」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-08-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "AND",
+   "conditions": [
+    {
+     "type": "TURN_OWNER",
+     "owner": "self"
+    },
+    {
+     "type": "IS_SELF_SOUL_ATTACHED"
+    }
+   ]
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 5000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "SPDi43-08-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_PHASE_START"
+  ],
+  "condition": {
+   "type": "SELF_POWER_GTE",
+   "value": 15000
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAS_CARD_IN_FIELD",
+      "owner": "self",
+      "filter": {
+       "cardName": "エクス・スリーNEO"
+      }
+     },
+     "then": {
+      "type": "STUB",
+      "id": "OPTIONAL_COST",
+      "costColors": [
+       "赤"
+      ]
+     }
+    },
+    {
+     "type": "CHOOSE",
+     "choose_count": 1,
+     "from_count": 2,
+     "choices": [
+      {
+       "choiceId": "c0",
+       "label": "選択肢1",
+       "action": {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "powerRange": {
+           "max": 12000
+          }
+         },
+         "upToCount": false
+        }
+       }
+      },
+      {
+       "choiceId": "c1",
+       "label": "選択肢2",
+       "action": {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ SPDi43-17 コードハート　Lオンプアンプ
+【原文】【自】《ターン１回》：あなたの《MC.LION3rdVerse-ULT》がダウンしたとき、あなたのデッキの上からカードを５枚見る。
+        その中からスペル１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+        【自】：このシグニがアタックしたとき、このターンにあなたがスペルを使用していた場合、あなたのルリグ１体を対象とし、《白》を支払ってもよい。
+        そうした場合、それをアップする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPDi43-17-E2 引用「あなたのルリグ１体を対象とし」
+     指摘: アップする対象が自分のルリグではなく自分のシグニとして定義されている。
+     監査員が挙げた同型の grep 句: 「ルリグ１体を対象」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-17-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_DOWN"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 5,
+   "filter": {
+    "cardType": "スペル"
+   },
+   "pickCount": 1,
+   "pickNoun": "スペル",
+   "then": {
+    "type": "ADD_TO_HAND",
+    "owner": "self"
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "bottom",
+    "reorder": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "cardName": "MC.LION3rdVerse-ULT"
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "SPDi43-17-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "condition": {
+   "type": "SPELL_USED_THIS_TURN",
+   "owner": "self"
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1
+     },
+     "abortIfNoCandidate": true
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "白"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "UP",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ SPDi43-18 幻獣神　Lターンテーブル
+【原文】【自】《ターン１回》：あなたの《DJ.LOVIT3rdVerse-ULT》がダウンしたとき、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+        それが対戦相手のセンタールリグと共通する色を持つ場合、対戦相手は【エナチャージ１】をしてもよい。
+        【自】：このシグニがアタックしたとき、対戦相手のエナゾーンにあるカードが４枚以下の場合、あなたのルリグ１体を対象とし、《赤》を支払ってもよい。
+        そうした場合、それをアップする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPDi43-18-E2 引用「あなたのルリグ１体を対象とし」
+     指摘: アップする対象が自分のルリグではなく自分のシグニとして定義されている。
+     監査員が挙げた同型の grep 句: 「ルリグ１体を対象」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-18-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_DOWN"
+  ],
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "cardName": "DJ.LOVIT3rdVerse-ULT"
+  },
+  "usageLimit": "once_per_turn",
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "ENERGY_CARD",
+      "owner": "opponent",
+      "count": 1
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_SHARES_COLOR_WITH_LRIG",
+      "owner": "opponent"
+     },
+     "then": {
+      "type": "CHOOSE",
+      "choose_count": 1,
+      "from_count": 2,
+      "opponentResponds": true,
+      "choices": [
+       {
+        "choiceId": "charge",
+        "label": "【エナチャージ1】をする",
+        "action": {
+         "type": "ENERGY_CHARGE_FROM_DECK",
+         "owner": "opponent",
+         "count": 1
+        }
+       },
+       {
+        "choiceId": "skip",
+        "label": "しない",
+        "action": {
+         "type": "SEQUENCE",
+         "steps": []
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "MANUAL"
+ },
+ {
+  "effectId": "SPDi43-18-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "ENERGY_COUNT",
+      "owner": "opponent",
+      "operator": "lte",
+      "value": 4
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "SELECT_TARGET_ONLY",
+        "selectTarget": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1
+        },
+        "abortIfNoCandidate": true
+       },
+       {
+        "type": "STUB",
+        "id": "STORE_LAST_PROCESSED_TARGETS"
+       },
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "costColors": [
+         "赤"
+        ]
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "PAID_ADDITIONAL_COST"
+        },
+        "then": {
+         "type": "UP",
+         "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1
+         },
+         "targetsStored": true
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+
+======================================================================
+■ SPDi43-19 轟砲　Wプロジェクター
+【原文】【自】《ターン１回》：あなたの《VJ.WOLF3rdVerse-ULT》がダウンしたとき、あなたの場にあるシグニのパワーの合計が30000以上の場合、【エナチャージ１】をする。
+        【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、あなたのルリグ１体を対象とし、《緑》を支払ってもよい。
+        そうした場合、それをアップする。
+        
+  ▶ 精査対象 [HIGH/WRONG] effectId=SPDi43-19-E2 引用「あなたのルリグ１体を対象とし」
+     指摘: アップする対象が自分のルリグではなく自分のシグニとして定義されている。
+     監査員が挙げた同型の grep 句: 「ルリグ１体を対象」
+【effects JSON】
+[
+ {
+  "effectId": "SPDi43-19-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_DOWN"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "FIELD_LEVEL_SUM",
+    "owner": "self",
+    "target": "signi",
+    "metric": "power",
+    "operator": "gte",
+    "value": 30000
+   },
+   "then": {
+    "type": "ENERGY_CHARGE_FROM_DECK",
+    "owner": "self",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "triggerFilter": {
+   "cardName": "VJ.WOLF3rdVerse-ULT"
+  },
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "SPDi43-19-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_SIGNI_BANISH_OPPONENT"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1
+     },
+     "abortIfNoCandidate": true
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "緑"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "PAID_ADDITIONAL_COST"
+     },
+     "then": {
+      "type": "UP",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1
+      },
+      "targetsStored": true
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
