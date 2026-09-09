@@ -1633,7 +1633,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}のパワーを${countHand}${a.unitSize ?? 1}枚につき${dHand >= 0 ? '＋' : '－'}${Math.abs(dHand)}する`;
     }
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
-    case 'DOWN': return `${targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
+    case 'DOWN': return `${a.targetsStored ? 'それ' : targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
     case 'PREVENT_NEXT_DAMAGE':
       if (a.millAtTurnEndPerPrevented) return `このターン、次の${a.count ?? 1}回のダメージを受けず、防いだ回数だけ「ターン終了時、デッキの上からカードを${a.millAtTurnEndPerPrevented}枚トラッシュに置く。」を得る`;
       if (a.sourceLevelLtLastProcessed) return `このターン、次にあなたがそれより低いレベルを持つ対戦相手のシグニによってダメージを受ける場合、代わりにダメージを受けない`;
@@ -3093,7 +3093,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🔴**枚数・`upToCount`・destination・`fromThis` を必ず出す**（PLAN §3 follow-up①・Opusタスク12 (cli)）。
       //   旧実装は 'このシグニの下のカードを取る' の固定文で、`count:1` と `count:9,upToCount:true` が
       //   **同じ文字列**になっていた＝過剰実行（9枚まで払える誤 parse）が逆翻訳にも同型★にも一度も映らなかった。
-      const tuFrom = a.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
+      const hostNoun = a.hostFilter?.cardType && !Array.isArray(a.hostFilter.cardType) ? a.hostFilter.cardType : 'シグニ';
+      const tuFrom = a.fromThis ? 'このシグニの下から'
+        : a.hostFilter ? `あなたの${filterJa(a.hostFilter)}${hostNoun}の下から`
+        : 'あなたのシグニの下から';
       const tuNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
       // 🆕`count:'ALL'` は**内部トークンをそのまま出さない**（2026-09-09・第239バッチの検証で発見）＝
       //   「スペルを**ALL枚まで**トラッシュに置く」と出ていた（`WXDi-P11-077-E1`／`WXDi-P10-040-E2`）。
@@ -3702,7 +3705,16 @@ function actionJa(a?: Action, effectType?: string): string {
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
         const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
           + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
-        const headOC = a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : '';
+        let optionalTargetJa = a.optionalCostTarget ? targetJa(a.optionalCostTarget) : '対戦相手のシグニ１体';
+        if (a.optionalCostTarget?.filter?.powerLteSelf) {
+          const { powerLteSelf: _powerLteSelf, ...restFilter } = a.optionalCostTarget.filter;
+          optionalTargetJa = `このシグニのパワー以下の${targetJa({ ...a.optionalCostTarget, filter: restFilter })}`;
+        }
+        const headOC = a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? `${optionalTargetJa}を対象とし、` : '';
+        if (a.costColorsMinusRevealedLevel1) {
+          const reductionUnit = a.costColors?.[0] ? `《${a.costColors[0]}》` : 'コスト1つ';
+          return `${headOC}${costJaOC}からこの方法で公開されたレベル1のシグニ1枚につき${reductionUnit}を減らしたエナコストを支払ってもよい`;
+        }
         // 手札捨てコスト（続き416）。従来は spec を見ずに「コストを支払ってもよい」へ潰れており、
         // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
         // シグニの下からトラッシュする任意コスト（`fromThis`＝このシグニの下から）
@@ -3754,6 +3766,15 @@ function actionJa(a?: Action, effectType?: string): string {
         // エナゾーンからトラッシュする任意コスト（続き421）。従来は spec を見ずに
         // 「コストを支払ってもよい」へ潰れており、**どのカードを何枚払うのかが逆翻訳から消えて**いた
         // ＝原文照合でコスト取り違え（幻の手札コスト）を見つけられない状態だった。
+        if (a.energyTrash && a.handDiscard) {
+          const fET = a.energyTrash.filter ? filterJa(a.energyTrash.filter) : '';
+          const nounET = ([] as string[]).concat(a.energyTrash.filter?.cardType ?? 'カード').join('か');
+          const countET = a.energyTrash.count === 'ALL' ? '好きな枚数' : `${a.energyTrash.count}枚`;
+          const fHD = a.handDiscard.filter ? filterJa(a.handDiscard.filter) : '';
+          const nounHD = ([] as string[]).concat(a.handDiscard.filter?.cardType ?? 'カード').join('か');
+          const countHD = a.handDiscard.count === 'ALL' ? '好きな枚数' : `${a.handDiscard.count}枚`;
+          return `${headOC}あなたのエナゾーンから${fET}${nounET}を${countET}トラッシュに置き、手札から${fHD}${nounHD}を${countHD}捨ててもよい`;
+        }
         if (a.energyTrash) {
           const fET = a.energyTrash.filter ? filterJa(a.energyTrash.filter) : '';
           const nounET = ([] as string[]).concat(a.energyTrash.filter?.cardType ?? 'カード').join('か');

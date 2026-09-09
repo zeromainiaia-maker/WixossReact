@@ -552,14 +552,36 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   const levelSum = sumCardLevels(ctx.storedTargetCards, ctx);
   const perLevel = !!(a.costColorsPerTargetLevel || a.costColorsPerTargetLevelSum
     || a.handDiscardCountFromTargetLevel || a.energyTrashCountFromTargetLevel);
-  const costColors = a.costColorsPerTargetLevelSum
+  const baseCostColors = a.costColorsPerTargetLevelSum
     ? Array.from({ length: levelSum.sum }, () => a.costColorsPerTargetLevelSum!).flat()
     : a.costColorsPerTargetLevel
       ? Array.from({ length: level }, () => a.costColorsPerTargetLevel!).flat()
     : (a.costColors ?? []);
-  const handDiscard = a.handDiscardCountFromTargetLevel
+  const revealedLevel1Count = a.costColorsMinusRevealedLevel1
+    ? (ctx.lastProcessedCards ?? []).filter(cardNum => {
+        const card = ctx.cardMap.get(getCardNum(cardNum));
+        return card?.Type?.includes('シグニ') === true && Number.parseInt(card.Level ?? '', 10) === 1;
+      }).length
+    : 0;
+  const costColors = a.costColorsMinusRevealedLevel1
+    ? baseCostColors.slice(0, Math.max(0, baseCostColors.length - revealedLevel1Count))
+    : baseCostColors;
+  const handDiscardRaw = a.handDiscardCountFromTargetLevel
     ? { count: level, filter: a.handDiscardFilter }
     : a.handDiscard;
+  // 第245バッチ：任意コストの手札候補にも、トリガー元基準の既存フィルタを具体値へ解決する。
+  // `matchesFilter` は `levelEqTrigger` を解釈しないため、この枝が無いと同レベル限定が無条件になる。
+  const handDiscard = handDiscardRaw?.filter?.levelEqTrigger
+    ? (() => {
+        const { levelEqTrigger: _levelEqTrigger, ...rest } = handDiscardRaw.filter!;
+        const triggerLevel = Number.parseInt(
+          ctx.cardMap.get(getCardNum(ctx.triggeringCardNum ?? ''))?.Level ?? '', 10);
+        return {
+          ...handDiscardRaw,
+          filter: { ...rest, level: Number.isFinite(triggerLevel) ? triggerLevel : -1 },
+        };
+      })()
+    : handDiscardRaw;
   // 🆕§5.3 `O-280`④（2026-09-08）＝「対象**1体につき**1枚」＝宣言済み対象の**体数**で払う。
   //   ⚠レベル軸（`energyTrashCountFromTargetLevel`）と取り違えない。
   const targetCount = (ctx.storedTargetCards ?? []).length;

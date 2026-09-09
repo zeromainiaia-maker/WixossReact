@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 591（総ノード 3256 件）
+live JSON の STUB id 種類 : 591（総ノード 3260 件）
 逆翻訳シートの [STUB:…] 総数: 337  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -173,16 +173,16 @@ live JSON の STUB id 種類 : 591（総ノード 3256 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1495
+        消費: src\engine\execUtils.ts:1517
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:7978
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9871
+        消費: src\engine\effectExecutor.ts:9872
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9873
+        消費: src\engine\effectExecutor.ts:9874
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
@@ -212,7 +212,7 @@ live JSON の STUB id 種類 : 591（総ノード 3256 件）
         消費: src\screens\battle\costs.ts:1233
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:2112
+        消費: src\engine\execUtils.ts:2134
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:8189

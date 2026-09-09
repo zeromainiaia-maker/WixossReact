@@ -6423,6 +6423,8 @@ export interface StubAction {
    */
   selectionConstraint?: SelectionConstraint;
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
+  /** OPTIONAL_COST: 直前に公開したレベル1シグニ1枚につき costColors の末尾を1枠減らす。 */
+  costColorsMinusRevealedLevel1?: boolean;
   coinCost?: number;     // OPTIONAL_COST: 支払う《コイン》の枚数（「《コイン》を支払ってもよい」。エナと併用も可）
   costText?: string;     // OPTIONAL_COST: エナ色以外の任意コスト句を原文どおり明示（例: 「このシグニを場からトラッシュに置いてもよい」「使用コストとして追加でエクシード４を支払ってもよい」）。decompiler はこれをそのまま描画。engine 精緻化は別途（A3）
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
@@ -6768,6 +6770,8 @@ export interface TakeFromUnderSigniAction {
   count: number | 'ALL';
   upToCount?: boolean;
   filter?: TargetFilter;
+  /** fromThis 未指定時、下カードを取り出せるスタックの最上面シグニを限定する。 */
+  hostFilter?: TargetFilter;
   fromThis?: boolean; // true = このシグニの下から（sourceCardNumが基準）
 }
 

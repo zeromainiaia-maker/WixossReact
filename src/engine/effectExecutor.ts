@@ -8553,6 +8553,7 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
   } else {
     ctx.ownerState.field.signi.forEach(stack => {
       if (!stack || stack.length <= 1) return;
+      if (a.hostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(stack.at(-1)!)), a.hostFilter)) return;
       stack.slice(0, -1).forEach(cn => {
         if (!a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter)) cands.push(cn);
       });

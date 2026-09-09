@@ -68820,7 +68820,7 @@ test('§5.3 O-249 第146: held が指した parser の退化9件（live と fres
   for (const [cardNum, effectId, path] of [
     ['WXDi-P06-011', 'WXDi-P06-011-E1', 'steps.1.then'],
     ['WXDi-D07-013', 'WXDi-D07-013-E1', 'steps.1.then.choices.0.action'],
-    ['WXDi-P08-059', 'WXDi-P08-059-E2', 'steps.1.then'],
+    ['WXDi-P08-059', 'WXDi-P08-059-E2', 'steps.1.then.choices.0.action'],
   ] as const) {
     for (const [label, e] of Object.entries({ live: both(cardNum, effectId)[0], fresh: both(cardNum, effectId)[1] })) {
       const n = filterOf(e, path);
@@ -74363,6 +74363,101 @@ test('第244 engine: OPTIONAL_COST{fieldDown, excludeSelf} は効果元自身を
   const withOther = mkCtx({ signi: [src, other, null] }, {}, src);
   ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, withOther), withOther),
     '他のシグニがアップなら支払える');
+}));
+
+test('第245 採用契約: 修復した8効果の核payloadを fresh/live の両方に保持', () => {
+  const cases = [
+    ['WDK11-001', 'WDK11-001-E3', ['"type":"PLACE_KEY_FROM_LRIG_DECK"', '"cardName":"ＧＦ　ノーマン＆レイ"']],
+    ['WXDi-P04-058', 'WXDi-P04-058-BURST', ['"id":"SELECT_TARGET_ONLY"', '"id":"OPPONENT_PAY_OPTIONAL"', '"targetsStored":true']],
+    ['WXDi-P05-077', 'WXDi-P05-077-E1', ['"energyTrash":{"count":1', '"story":"天使"', '"cardName":"翠天姫　ガイア"']],
+    ['WXDi-P07-004', 'WXDi-P07-004-sub-E1', ['"id":"SELECT_TARGET_ONLY"', '"opponentHandDiscard":3', '"targetsStored":true']],
+    ['WXDi-P08-059', 'WXDi-P08-059-E2', ['"opponentResponds":true', '"choiceId":"charge"', '"choiceId":"skip"']],
+    ['PR-K077', 'PR-K077-sub-E1', ['"levelEqTrigger":true']],
+    ['WXDi-P06-059', 'WXDi-P06-059-E1', ['"hostFilter":{"cardType":"シグニ","hasIcon":"ライズ"}', '"color":"赤"', '"powerLteSelf":true']],
+    ['WXDi-P05-035', 'WXDi-P05-035-E1', ['"costColorsMinusRevealedLevel1":true', '"costColors":["無","無","無","無","無","無"]']],
+  ] as const;
+  for (const [cardNum, effectId, must] of cases) {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect);
+      for (const fragment of must) ok(json.includes(fragment), `${effectId} ${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  }
+});
+
+test('第245 engine PR-K077-sub-E1: 任意手札コストは攻撃シグニと同じレベルだけ', () => withSavedCursor(() => {
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: {
+    count: 1, filter: { cardType: 'シグニ', levelEqTrigger: true },
+  } } as unknown as StubAction;
+  const hit = mkCtx({}, {}, 'PR-K077');
+  hit.ownerState = { ...hit.ownerState, hand: [SIGNI_L1] };
+  hit.triggeringCardNum = SIGNI_L1;
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, hit), hit), '同レベルなら支払える');
+  const miss = { ...hit, ownerState: { ...hit.ownerState, hand: [SIGNI_L2] } } as ExecCtx;
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, miss), miss), '異なるレベルでは支払えない');
+  const unknown = { ...hit, triggeringCardNum: undefined } as ExecCtx;
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, unknown), unknown), 'トリガー元不明は fail-closed');
+}));
+
+test('第245 engine WXDi-P06-059-E1: ライズ持ちの下にある赤シグニだけを回収候補にする', () => withSavedCursor(() => {
+  const rise = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【ライズ】'));
+  const plain = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【ライズ】') && c.CardNum !== rise);
+  const red1 = findCard(c => isSigni(c) && c.Color?.includes('赤') && c.CardNum !== rise && c.CardNum !== plain);
+  const red2 = findCard(c => isSigni(c) && c.Color?.includes('赤') && ![rise, plain, red1].includes(c.CardNum));
+  const action = { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand', count: 1, upToCount: false,
+    filter: { cardType: 'シグニ', color: '赤' }, hostFilter: { cardType: 'シグニ', hasIcon: 'ライズ' } } as EffectAction;
+  const ctx = mkCtx({}, {}, 'WXDi-P06-059');
+  ctx.ownerState.field.signi = [[red1, rise], [red2, plain], null];
+  const result = run(action, ctx);
+  ok(result.ownerState.hand.includes(red1), 'ライズ持ちの下にある赤シグニを回収');
+  ok(!result.ownerState.hand.includes(red2), '非ライズの下にある赤シグニは候補外');
+}));
+
+test('第245 engine WXDi-P05-035-E1: 公開したレベル1シグニ枚数ぶん《無》×6を減額', () => withSavedCursor(() => {
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無', '無', '無', '無', '無'],
+    costColorsMinusRevealedLevel1: true } as unknown as StubAction;
+  const ctx = mkCtx({}, {}, 'WXDi-P05-035');
+  ctx.lastProcessedCards = [SIGNI_L1, SIGNI_L1, SIGNI_L2];
+  eq(resolveOptionalCostSpec(stub, ctx).costColors.length, 4, 'レベル1シグニ2枚で2軽減');
+  const none = { ...ctx, lastProcessedCards: [SIGNI_L2] } as ExecCtx;
+  eq(resolveOptionalCostSpec(stub, none).costColors.length, 6, 'レベル1以外では軽減しない');
+}));
+
+// 🔴**通しの E2E**（Claude が第245の検証で追加）＝`costColorsMinusRevealedLevel1` は
+//   **直前の `LOOK_AND_REORDER` が公開札を `lastProcessedCards` に残して初めて効く**。
+//   `resolveOptionalCostSpec` を単体で呼ぶテストは ctx を手で作るので、**その連結を確かめていない**
+//   （同じ落とし穴で第245 の `WXEX2-54-E2` は採用を撤回している）。ここは効果を実際に走らせて、
+//   提示される支払い選択肢のコスト枠が減っているかを見る。
+test('第245 通し WXDi-P05-035-E1: 公開→任意コストの連結でレベル1シグニ枚数ぶん減額される', () => withSavedCursor(() => {
+  const effect = findEffectDeep(effectsMap.get('WXDi-P05-035') ?? [], 'WXDi-P05-035-E1')!;
+  ok(!!effect, 'WXDi-P05-035-E1 が live に無い');
+  const lv1a = findCard(c => isSigni(c) && c.Level === '1');
+  const lv1b = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== lv1a);
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const payOptionCost = (deckTop: string[]): number => {
+    const ctx = mkCtx({ deckTop, energy: 12 }, {}, 'WXDi-P05-035');
+    let result = executeEffect(effect, ctx);
+    // 公開（LOOK_AND_REORDER）の pending をそのまま確定し、次に来る任意コストの提示を読む。
+    let steps = 0;
+    while (!result.done && ++steps < 10) {
+      const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
+      const cur: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState,
+        logs: result.logs, lastProcessedCards: result.lastProcessedCards };
+      if (pending.type === 'CHOOSE') {
+        const pay = ((pending as { options?: { id: string; costColors?: string[] }[] }).options ?? [])
+          .find(o => o.id === 'pay');
+        if (pay) return (pay.costColors ?? []).length;
+        return -1;
+      }
+      if (pending.type !== 'LOOK_AND_REORDER') return -2;
+      result = resumeLookAndReorder((pending.cards as string[]) ?? [], [], pending as never, cur);
+    }
+    return -3;
+  };
+  eq(payOptionCost([lv1a, lv1b, lv4, lv4, lv4]), 4, '🔴レベル1を2枚公開したのに《無》が6枠のまま（公開札が lastProcessedCards に残っていない疑い）');
+  eq(payOptionCost([lv4, lv4, lv4, lv4, lv4]), 6, 'レベル1が無ければ減額しない');
 }));
 
 if (listMode) {

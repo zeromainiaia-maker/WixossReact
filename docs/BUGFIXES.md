@@ -1,5 +1,93 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — 第245バッチ（未開拓プール2巡目）：8効果修正・第239で機構待ちにした `WXDi-P05-035-E1` が解けた
+
+**投入**＝プール残86効果の先頭30。**Codex は完走**（`gates` 全緑・報告12項目）＝**8効果採用／21機構待ち／1 FP**。
+🔑**density 70%（第244）→ 27%（第245）**＝プールの「安い側」から順に取っているので当然の減衰。
+⚠**在庫の枯渇と読まない**（第243 でその誤読をした）＝**残った側は機構が要るだけ。**
+
+### 採用8効果
+`WDK11-001-E3`／`WXDi-P04-058-BURST`／**`WXDi-P05-035-E1`**／`WXDi-P05-077-E1`／`PR-K077-E1`／
+`WXDi-P06-059-E1`／`WXDi-P07-004-E1`／`WXDi-P08-059-E2`。
+
+🔑**`WXDi-P05-035-E1` は第239バッチで「可変コストは新機構が要る」として実装キューに残した効果**
+（原文「《無》×6 から**この方法で公開されたレベル1のシグニ1枚につき**《無》を減らしたエナコスト」）。
+Codex が `OPTIONAL_COST.costColorsMinusRevealedLevel1` を新設して閉じた。
+**据置にした軸が、プールを回している途中で解ける**＝機構待ちの棚卸しは定期的に見直す価値がある。
+
+### engine に足した受け皿3つ
+`TAKE_FROM_UNDER_SIGNI.hostFilter`（「《ライズアイコン》を持つシグニの**下**」）／
+`OPTIONAL_COST.costColorsMinusRevealedLevel1`（上記）／
+`OPTIONAL_COST.handDiscard.filter.levelEqTrigger` の**実レベル解決**
+（`matchesFilter` は `levelEqTrigger` を解釈しないので、解決しないと同レベル限定が**無条件**になる）。
+
+### 🔴 Claude が足した通しの E2E（Codex の E2E では届いていなかった軸）
+
+`costColorsMinusRevealedLevel1` は **直前の `LOOK_AND_REORDER` が公開札を `lastProcessedCards` に
+残して初めて効く**。Codex の E2E は `resolveOptionalCostSpec` を**単体で**呼び、`ctx` を手で作っていたので
+**その連結を確かめていなかった**（同じ落とし穴で第245 の `WXEX2-54-E2` は採用を撤回している）。
+⇒ **効果を実際に走らせ、提示される支払い選択肢の枠数を見る E2E** を追加（レベル1を2枚公開 → 6枠が4枠へ／
+レベル1なし → 6枠のまま）。**結果は正しく連結していた。**
+🔑**「payload の単体テスト」と「直前ステップとの連結」は別のテスト**＝`$ref`／`lastProcessedCards` を
+読む payload は必ず**通し**で確かめる。
+
+### 検証
+`git diff 28b42f2a4` の **effectId 単位差分＝8件**（スコープ外0）。`npm run gates` 全緑・
+**golden 3849 PASS**（3844 → +5＝Codex 4 ＋ Claude 1）・`regen` の逆翻訳を8件すべて原文と目視照合。
+**実機は不要**（`src/screens/` 不触）。
+
+**実装キュー: 170 → 164効果**（本セッション通算 266 → 164）。**プール残 56効果**（除外 21＋FP 1 を反映）。
+
+## 2026-09-10 — 第245バッチ（未開拓プール2巡目）：8効果修正／21機構待ち／1 FP
+
+**投入**＝未開拓プール残86効果の先頭30効果。現行JSONと原文を再照合し、既存の受け皿で閉じる8効果を
+`repairSemanticBatch245` から live へ採用した。効果ID単位の配送差分は対象8効果と、それらを内包する親4 IDだけで
+**スコープ外0**。母集団も `census:population` で再測定し、広い検索結果は直接効果／付与能力／リコレクト条件など
+AST位置が異なるため、この30効果に限定した effectId アンカーを維持した。
+
+### 採用8効果
+- `WDK11-001-E3`＝ルリグデッキの《ＧＦ　ノーマン＆レイ》を名指しする `PLACE_KEY_FROM_LRIG_DECK` へ修正。
+- `WXDi-P04-058-BURST`＝対象を先に宣言・保存してから相手の《無》《無》支払いを尋ね、不払い時は保存対象をバニッシュ。
+- `WXDi-P05-035-E1`＝任意コストを《無》×6へ直し、直前に公開したレベル1シグニ1枚につき1軽減。
+- `WXDi-P05-077-E1`＝①にエナの＜天使＞1枚＋手札の＜天使＞1枚の複合任意コスト、②に《翠天姫　ガイア》名指定。
+- `PR-K077-sub-E1`＝任意手札コストをトリガー元シグニと同じレベルに限定。
+- `WXDi-P06-059-E1`＝①を《ライズアイコン》持ちの下にある赤シグニへ限定、②の付与能力を自身のパワー以下へ限定。
+- `WXDi-P07-004-sub-E1`＝対象を先に宣言・保存してから相手へ手札3枚捨てを尋ね、不払い時は保存対象をダウン。
+- `WXDi-P08-059-E2`＝相手エナを実際にトラッシュへ置けた場合だけ、相手が【エナチャージ1】／何もしないを選ぶ形へ修正。
+
+### engine の既存族を塞いだ3点
+- `TAKE_FROM_UNDER_SIGNI.hostFilter` を型と `execTakeFromUnderSigni` の候補列挙へ配線し、配下カード自身だけでなく
+  **上のシグニ**（《ライズアイコン》）も候補条件にできるようにした。
+- `OPTIONAL_COST.costColorsMinusRevealedLevel1` を追加し、`lastProcessedCards` の実カード／レベルから可変コストを算出。
+- `OPTIONAL_COST.handDiscard.filter.levelEqTrigger` をトリガー元の実レベルへ具体化してから既存の候補判定・支払いへ渡す。
+
+いずれも golden E2E で正方向と候補外を確認。JSON契約は8効果すべて fresh/live の修正核をassertした。
+
+### 見送り21効果／FP 1効果
+- 移動元・場→別シグニゾーンの履歴が無い：`WXK03-026-E4`、`WXK06-029-E2`（同カードE3のプレイヤー選択は第244で修正済み）。
+- 次回／遅延／履歴／置換の新しい状態機構が要る：`WXEX1-72-E2`、`PR-305-E1`、`WXDi-P04-007-E3`、
+  `WXDi-P05-025-E2`、`WXDi-P07-006-E1`、`WXDi-P08-044-E2`。
+- 条件側の新型または収集機構が要る（今回新設禁止）：`PR-422-E1`、`PR-K060`、`WXDi-D02-19LAT-E1`、
+  `WXDi-P06-032-E1`、`WXDi-P09-045-E1`。
+- 対象／参照／全域抑止の受け皿が足りない：`SPDi43-22-E1`、`WXEX2-13-E1`、`WXK03-011-E1`、`WXK10-015`、
+  `WDK10-015-E1`、`SP26-002-E1`、`WXDi-P05-086-E1`、`WXDi-P06-002-E1`。
+- `WXK08-005` は **FP**。既存goldenと LESSONS §4.1 の契約どおり、G2のレベル比較は能力使用条件ではなく
+  アタックフェイズ中のアイコン利用可否を表すため削除しない。
+
+### 逆翻訳の嘘を4効果・5箇所修正
+`npm run regen` 後の目視照合で、payloadが描けていなかった次を `decompileEffects.ts` で修正した：
+`costColorsMinusRevealedLevel1`、複合 `energyTrash + handDiscard`、`TAKE_FROM_UNDER_SIGNI.hostFilter`、
+`optionalCostTarget.powerLteSelf`、`DOWN.targetsStored`。すべてpayloadから描き、原文regexの抜き書きは追加していない。
+
+### gate・契約
+`npm run gates` 全緑：**golden 3848 PASS**（3844→+4）／smoke **10744 OK**／fuzz 不具合0／
+census 高シグナル **1・BASELINE 1**／census:stubs A群0／census:enginetext A🔴0／census:costtext A🔴0／
+lint **0 errors / 254 warnings**。`censusManualDrift` は0件。既存goldenの書換えは
+`WXDi-P08-059-E2` の旧強制エナチャージ参照1件だけ（型・choiceIdで新しい相手選択枝を参照）。
+集合トリップワイヤの拡張0件。`src/screens/` 不触のため実ブラウザ確認不要。commit/pushはしていない。
+
+(未検証・Codex 草稿)
+
 ## 2026-09-10 — 第244バッチ（未開拓プール初回）：22効果修正＝**density 70%** でプールの見立てが裏付いた
 
 **投入**＝除外し続けていた108効果のプールから先頭30効果。Codex は21効果を live まで反映した時点で利用上限

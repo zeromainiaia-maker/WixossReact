@@ -56,16 +56,16 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:4448 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
   execStubPart2.ts:4544 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execStubPart3.ts:3341 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
-  execUtils.ts:1315 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
-  execUtils.ts:1317 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
-  execUtils.ts:1319 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
-  execUtils.ts:1321 <fn:matchesFilter> if (filter.noRecollectIcon && (card.EffectText?.includes('《リコレクトアイコン》'))) return false;
-  execUtils.ts:1323 <fn:matchesFilter> if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
-  execUtils.ts:1369 <fn:matchesFilter> const noAb = (card.effects?.length ?? 0) === 0 && blankTxt(card.EffectText) && blankTxt(card.BurstText);
-  execUtils.ts:1386 <fn:matchesFilter> const txt = card.EffectText ?? '';
-  execUtils.ts:1420 <fn:matchesFilter> const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
-  execUtils.ts:1429 <fn:matchesFilter> const txt = card.EffectText ?? '';
-  execUtils.ts:1559 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
-  execUtils.ts:2658 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:4322 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  execUtils.ts:1337 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
+  execUtils.ts:1339 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
+  execUtils.ts:1341 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
+  execUtils.ts:1343 <fn:matchesFilter> if (filter.noRecollectIcon && (card.EffectText?.includes('《リコレクトアイコン》'))) return false;
+  execUtils.ts:1345 <fn:matchesFilter> if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
+  execUtils.ts:1391 <fn:matchesFilter> const noAb = (card.effects?.length ?? 0) === 0 && blankTxt(card.EffectText) && blankTxt(card.BurstText);
+  execUtils.ts:1408 <fn:matchesFilter> const txt = card.EffectText ?? '';
+  execUtils.ts:1442 <fn:matchesFilter> const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
+  execUtils.ts:1451 <fn:matchesFilter> const txt = card.EffectText ?? '';
+  execUtils.ts:1581 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
+  execUtils.ts:2680 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
+  execUtils.ts:4344 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
   triggerCollect.ts:1777 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
