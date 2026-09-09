@@ -4634,10 +4634,14 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》(?:《無》)*を支払わないかぎりアタックできない。」を得る/);
         if (m) return m[0];
       }
-      // 対象シグニのパワーを基本パワーにコピー（COPY_TARGET_POWER）＝「シグニN体を対象とし、（次の対戦相手の）ターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる」を原文抽出。
+      // 対象シグニのパワーを基本パワーにコピー（COPY_TARGET_POWER）。
+      // 原文抽出では JSON の期限欠落を隠すため、payload から期限を描く。
       if (a.id === 'COPY_TARGET_POWER') {
-        const m = currentCardText.match(/シグニ[０-９\d一]体を対象とし、(?:次の対戦相手の)?ターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる/);
-        if (m) return m[0];
+        const until = a.copyTargetPowerUntilOppTurnEnd ? '次の対戦相手のターン終了時まで' : 'ターン終了時まで';
+        return `シグニ１体を対象とし、${until}、このシグニの基本パワーはそれのパワーと同じ値になる`;
+      }
+      if (a.id === 'DRAW_BY_CHARM_COUNT') {
+        return '対戦相手の場にある【チャーム】の数に１を加えた枚数のカードを引く';
       }
       // 場・エナのシグニが色を追加取得（FIELD_ENERGY_SIGNI_GAIN_COLOR・CONTINUOUS）＝「あなたの、場とエナゾーンにある…シグニは追加で…を得る」を原文抽出。
       if (a.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {

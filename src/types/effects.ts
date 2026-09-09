@@ -4761,6 +4761,8 @@ export interface SoulOpSpec {
 
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /** COPY_TARGET_POWER の修正を次の対戦相手のターン終了時まで保持する。省略時は従来どおりターン終了時まで。 */
+  copyTargetPowerUntilOppTurnEnd?: boolean;
   /**
    * `GAIN_ABILITY_THIS_GAME` の中身（§5.3 `O-60` 第49バッチ・2026-09-03）。
    * 🔴**このペイロードが無い `GAIN_ABILITY_THIS_GAME` は「何も宣言しない」**（fail-closed）＝

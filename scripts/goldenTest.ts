@@ -74063,6 +74063,54 @@ test('第242 engine WXDi-P11-076-E1: 追加エクシードを断っても無条�
   eq(result.ownerState.hand.length, 0, '追加エクシード未払いなのにエナから手札へ加えている');
 }));
 
+const batch243Effect = (cardNum: string, effectId: string, live: boolean): CardEffect => {
+  const effects = live ? effectsMap.get(cardNum) : parseCardEffects(cardMap.get(cardNum)!);
+  const effect = effects?.find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} が ${live ? 'live' : 'fresh'} に無い`);
+  return effect;
+};
+
+test('第243 JSON WXDi-P09-051-E1: COPY_TARGET_POWER の期限payloadをfresh/live双方に保持', () => {
+  for (const live of [false, true]) {
+    const effect = batch243Effect('WXDi-P09-051', 'WXDi-P09-051-E1', live);
+    const action = effect.action as StubAction;
+    eq(action.id, 'COPY_TARGET_POWER', `${live ? 'live' : 'fresh'}: COPY_TARGET_POWER`);
+    eq(effect.duration, 'UNTIL_OPP_TURN_END', `${live ? 'live' : 'fresh'}: effect期限`);
+    eq(action.copyTargetPowerUntilOppTurnEnd, true,
+      `🔴${live ? 'live' : 'fresh'}: 次の対戦相手のターン終了時まで、の期限が欠落`);
+  }
+});
+
+test('第243 engine WXDi-P09-051-E1: コピーした基本パワーは長期ストアへ入り短期ストアへ入らない（反転確認つき）', () => withSavedCursor(() => {
+  const source = 'WXDi-P09-051';
+  const sourcePower = parseInt(cardMap.get(source)?.Power ?? '0', 10) || 0;
+  const target = findCard(c => isSigni(c) && c.CardNum !== source && (parseInt(c.Power ?? '0', 10) || 0) !== sourcePower);
+  const makeCtx = () => {
+    const ctx = mkCtx({ signi: [source, target, null] }, {}, source);
+    ctx.lastProcessedCards = [target];
+    return ctx;
+  };
+  const action = batch243Effect(source, 'WXDi-P09-051-E1', true).action as StubAction;
+  const result = run(action, makeCtx());
+  ok((result.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === source),
+    '🔴COPY_TARGET_POWER が長期ストアへ書かれていない');
+  ok(!(result.ownerState.temp_power_mods ?? []).some(m => m.cardNum === source),
+    '長期期限なのにターン終了時ストアへ書かれている');
+
+  const reversed = run({ ...action, copyTargetPowerUntilOppTurnEnd: false }, makeCtx());
+  ok((reversed.ownerState.temp_power_mods ?? []).some(m => m.cardNum === source),
+    '反転確認: payloadを外しても短期ストアへ戻らない');
+  ok(!(reversed.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === source),
+    '反転確認: payloadなしでも長期ストアへ入っている');
+}));
+
+test('第243 逆翻訳: COPY_TARGET_POWER期限とDRAW_BY_CHARM_COUNT所有者・+1をpayload/idから描く', () => {
+  const copy = decompiledLineOf('WXDi-P09-051-E1');
+  ok(copy.includes('次の対戦相手のターン終了時まで'), `COPY_TARGET_POWER期限: ${copy}`);
+  const charm = decompiledLineOf('WX18-038-BURST');
+  ok(charm.includes('対戦相手の場にある【チャーム】の数に１を加えた枚数'), `DRAW_BY_CHARM_COUNT: ${charm}`);
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

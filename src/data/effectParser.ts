@@ -28538,6 +28538,22 @@ function repairSemanticBatch242(effects: CardEffect[]): void {
   }
 }
 
+/** §5.0 第243バッチ：既存語彙だけで閉じる一点物の意味修復。 */
+function repairSemanticBatch243(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXDi-P09-051-E1':
+        if (effect.action.type === 'STUB' && effect.action.id === 'COPY_TARGET_POWER') {
+          effect.action.copyTargetPowerUntilOppTurnEnd = true;
+          effect.duration = 'UNTIL_OPP_TURN_END';
+        }
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -29413,6 +29429,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch240(effects);
   repairSemanticBatch241(effects);
   repairSemanticBatch242(effects);
+  repairSemanticBatch243(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

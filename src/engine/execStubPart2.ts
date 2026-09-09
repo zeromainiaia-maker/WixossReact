@@ -514,7 +514,8 @@ export function execStubPart2(
         ...[0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
       ].filter(cn => cn !== selfCnCTP);
       if (allFieldCTP.length === 0) return done(addLog(ctx, 'コピー対象シグニなし'));
-      const contCTP: StubAction = { type: 'STUB', id: 'COPY_TARGET_POWER' };
+      // 対象選択の pause を跨いでも期限 payload を落とさない。
+      const contCTP: StubAction = { ...stub, type: 'STUB', id: 'COPY_TARGET_POWER' };
       const noopCTP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
       return needsInteraction(addLog(ctx, 'パワーをコピーするシグニを選択'), {
         type: 'SELECT_TARGET', candidates: allFieldCTP, count: 1, optional: false,
@@ -525,8 +526,11 @@ export function execStubPart2(
     const targetPwCTP = ctx.effectivePowers?.get(targetCnCTP) ?? parseInt(ctx.cardMap.get(targetCnCTP)?.Power ?? '0', 10);
     const selfPwCTP = ctx.effectivePowers?.get(selfCnCTP) ?? parseInt(ctx.cardMap.get(selfCnCTP)?.Power ?? '0', 10);
     const deltaCTP = targetPwCTP - selfPwCTP;
-    const modsCTP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: selfCnCTP, delta: deltaCTP }];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCTP } },
+    const modCTP = { cardNum: selfCnCTP, delta: deltaCTP, srcCardNum: ctx.sourceCardNum };
+    const newOwnerCTP = stub.copyTargetPowerUntilOppTurnEnd
+      ? { ...ctx.ownerState, power_mods_until_opp_turn: [...(ctx.ownerState.power_mods_until_opp_turn ?? []), modCTP] }
+      : { ...ctx.ownerState, temp_power_mods: [...(ctx.ownerState.temp_power_mods ?? []), modCTP] };
+    return done(addLog({ ...ctx, ownerState: newOwnerCTP },
       `${ctx.cardMap.get(selfCnCTP)?.CardName ?? selfCnCTP}のパワーを${targetPwCTP}にコピー（${ctx.cardMap.get(targetCnCTP)?.CardName ?? targetCnCTP}から）`));
   }
   // 自パワーに合わせて相手シグニのパワーを設定
