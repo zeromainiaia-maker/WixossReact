@@ -12969,3 +12969,51 @@ node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
   ⑥`WD14-009-E1`の`{$ref:'last_processed_count'}`は`execUtils.ts:242`の`resolveCountRef`が`ctx.lastProcessedCards`
   から解決する確立済みパターンであることをコードで確認（`delta`に書くと0になる別の`$ref`経路と混同していないことも確認）。
 - 消化記録＝`scripts/archive/scratchpad/semantic_bug_fixed.txt`へ16行追記。実装キュー: 288→**272効果**。
+
+## 2026-09-09 — 第236バッチ：機構不要候補30効果の再照合・6効果修正（`.codex-work` 実装・Claude 検証済み）
+
+指示書のスナップショットを信用せず、対象30効果すべてについて原文・現在のlive JSON・fresh parser・逆翻訳・既存golden・engineの実消費箇所を再照合した。triageが指した不整合は30件とも現存し、staleは0件。うち**既存の型・フィールドだけで正確に閉じた6効果を採用**し、残る24効果は新しい動的条件・選択者・遅延状態などが要るため近似せず据え置いた。全対象ともトップレベル効果で、`GRANT_*`配下の入れ子は0件。
+
+- `WDK01-007-E1`＝ドライブ状態の対象を支払前に保存し、`LAST_PROCESSED_MATCHES{level.min:3}`のthen/elseで【トリプルクラッシュ】と【ダブルクラッシュ】を排他的に付与。
+- `WDK05-R11-E1`＝`OPTIONAL_COST{青}`の支払枝の中へ下2枚MILLとBANISHをまとめ、対象filterを`levelEqLastProcessedLevelSum:true`にした。旧goldenの「未払いでもBANISH」を原文どおり不発へ訂正。
+- `WDK09-017-E1`＝相手手札を全閲覧し、非無色1枚までをデッキ下へ移す`TRANSFER_TO_DECK`を追加。1枚動いた場合だけ相手が1枚引く。
+- `WDK12-007-E1`＝選択肢②を`REMOVE_CHARM{ALL}`→`DRAW{$ref:last_processed_count}`→`ENERGY_CHARGE_FROM_DECK{$ref:last_processed_count}`へ修復。
+- `WDK15-001-E3`＝`DRAW_PER_FIELD_COUNT.countFilter`へ`hasUnderCards:true`を追加。
+- `PR-460-E1`＝相手センタールリグへの`GRANT_KEYWORD{アタックできない, UNTIL_END_OF_TURN}`を追加し、既存の相手シグニ`POWER_MODIFY{-15000}`もターン終了時までと明示。
+
+**見送り24効果**（いずれもtriage有効）：
+
+- `WXEX2-29-E3`＝最初のSEARCH結果に左右されず、元の相手シグニのレベルを両プレイヤーのSEARCHまで保持する参照が無い。
+- `WXEX2-81-E2`＝自分の＜天使＞の色種類数を相手シグニの動的レベル上限へ渡すfilterが無い。
+- `WXK02-002-E3`＝相手の宣言値と当該ターンのアーツ使用回数をターン終了時まで保持・比較する遅延状態が無い。
+- `WXK04-003-E2`＝見た同じ4枚を「場出し」「アクセ」「残りトラッシュ」の複数選択へ引き回す共有poolが無い。
+- `WXK04-033-E1`＝トラッシュの札とアクセ先を最大3組対応付け、ターン終了時にその札だけ戻す追跡が無い。
+- `WXK04-038-E1`＝「このターン、＜植物＞がエナへ置かれた」履歴条件が無い。
+- `WXK05-001-E2`＝追加ターンのメインフェイズだけ、手札からのシグニ配置を禁じるsource/phase限定が無い。
+- `WXK06-025-E2`＝正面シグニの任意TRASHは既存語彙で書けるが、その後に**相手自身が**自分の手札から選ぶ`ADD_TO_FIELD`の候補選択者フィールドが無い。
+- `WXK07-003-E1`＝既存の付属札除去は裏向きのトラップ等を除外するため、「指定シグニゾーンの非シグニ札すべて」と一致しない。
+- `WXK07-018-E1`＝自分と相手の各1体をチェックゾーンへ移してから、それぞれダウン状態で戻す対称な選択・往復actionが無い。
+- `WXK07-033-E1`＝相手ルリグレベル以下の宣言値を、選んだ相手シグニの基本レベルへ動的に渡す配線が無い。
+- `WXK10-018-E2`＝既存`TRASH_ATTACHED_OR_UNDER_CARD`は候補を自動取得する近似で、起動コストとしての選択・支払失敗ゲートを満たさない。
+- `WXK10-044-E1`＝手札sourceへ直すだけでは使用者が相手手札を選べるため、「相手自身が選ぶ」選択者配線が要る。
+- `WXK10-091-E1`＝ownerを相手へ直すだけではSEARCHの選択者が使用者のままになり、相手自身のデッキ探索にならない。
+- `WD20-006-E1`＝修飾先が限定されないエナゾーン2枚を正確に対象化する複数owner候補が無い。
+- `WD20-008-E1`＝両者の3枚までチャージは既存語彙で書けるが、`USE_CONDITION_ARTS_USED`が使用可否を実際にはゲートしない。
+- `WXK08-001-E1`＝対象宣言後に任意コストを払う順序を3選択肢で保持する必要があり、特に`REMOVE_ABILITIES`に保存対象を渡す既存配線が無い。
+- `WXK08-017-E1`＝次のダメージ1回防止は既存だが、任意のキー移動STUBが成否を記録せず「そうした場合」を正確にゲートできない。
+- `WXK08-028-E2`＝全ライフを手札へ移した実枚数まで、手札から任意枚数をライフへ戻す動的up-to countが無い。
+- `WDK10-015-E1`＝捨てたシグニのパワーの半分以下を参照する動的power filterが無い。
+- `WDK11-001-E3`＝指定名の札をルリグデッキからシグニ場へ出す既存action/STUBが無い。
+- `SP26-002-E1`＝全領域の相手シグニのトリガー能力だけを、ライフバーストを除外してターン中抑止する収集ゲートが無い。
+- `PR-305-E1`＝バトル終了時まで「このシグニがバトルした相手」を保持してデッキ下へ送る遅延対象carrierが無い。
+- `PR-422-E1`＝バニッシュ直前の効果元パワー0以下を読むtrigger conditionが無い。
+
+triage記載以外にも、`WXK06-025-E2`・`WXK10-044-E1`・`WXK10-091-E1`の相手側選択者、`WD20-008-E1`の使用条件STUBが非ゲート、`WXK08-001-E1`の対象宣言順、`WXK08-017-E1`の任意処理成否未記録を確認した。これらも今回の範囲では新しい受け皿が要るため未修正。
+
+検証＝対象6件の個別`npm run golden -- --only` PASS、`npm run regen`完走、`npm run typecheck` PASS、フィルタなし`npm run golden` **3745/3745 PASS**（投入前3737→新規8本）、`npm run gates`全緑。smoke **10744/10744**（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム不具合0、census高シグナル`0 / baseline 0`、`census:stubs` A群0、`census:enginetext` A群0、`census:costtext` A群0、manual field loss 0、lint `0 errors / 254 warnings`。commit/pushなし、`docs/PLAN.md`・`docs/PLAN_PROGRESS.md`不触。
+
+- **Claude 側の独立検証**＝①`git diff`のeffectId単位差分がちょうど6件（採用申告と一致）②`typecheck`／`npm run golden`全件（`3745/3745`）／`npm run gates`を独立実行して全緑（申告値と一致）③新規識別子6点（`betChoose`／`DRAW_PER_FIELD_COUNT`／`hasUnderCards`／`TRASH_SIGNI_UNDER_FIELD_SIGNI`／`costReplacement.accumulate`／`levelEqLastProcessedLevelSum`）をすべてコードで実在・消費確認済み ④`src/screens/`不触のため実機検証は不要（PLAN §2.2）。
+- **見送り24効果は今回の「機構不要」スクリーニングの誤判定**＝いずれも実際には新しい動的条件・選択者・遅延状態などの
+  engine 機構が要ると Codex が確認した。個別の系統性は無い（それぞれ異なる根本原因）ため §5.3 への個別登録はせず、
+  実装キューには残したまま次回の「機構不要」候補選定から除外する（ローカルの候補リストから除去済み）。
+- 消化記録＝`scripts/archive/scratchpad/semantic_bug_fixed.txt`へ6行追記。実装キュー: 272→**266効果**。

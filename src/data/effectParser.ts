@@ -27318,6 +27318,136 @@ function repairSemanticBatch235(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第236バッチ：意味照合で確定した一点物30効果のうち、既存語彙だけで
+ * 正確に表現できる6効果を正史へ戻す。
+ *
+ * 動的な履歴条件・遅延予約・相手側 SEARCH の選択者など、新しい受け皿が必要な
+ * 効果はここへ近似で入れず据え置く。各分岐は母集団1件のため effectId で閉じる。
+ */
+function repairSemanticBatch236(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WDK01-007-E1': {
+        const target = {
+          type: 'SIGNI' as const, owner: 'self' as const, count: 1,
+          filter: { isDrive: true }, explicitTarget: true,
+        };
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target, abortIfNoCandidate: true },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'CONDITIONAL',
+              condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: { min: 3 } } },
+              then: {
+                type: 'GRANT_KEYWORD', target, keyword: 'トリプルクラッシュ',
+                duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+              },
+              else: {
+                type: 'GRANT_KEYWORD', target, keyword: 'ダブルクラッシュ',
+                duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+              },
+            },
+          ],
+        };
+        break;
+      }
+      case 'WDK05-R11-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: {
+                type: 'SEQUENCE',
+                steps: [
+                  { type: 'MILL', owner: 'self', count: 2, fromBottom: true },
+                  {
+                    type: 'BANISH',
+                    target: {
+                      type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                      filter: { cardType: 'シグニ', levelEqLastProcessedLevelSum: true },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WDK09-017-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } },
+            {
+              type: 'TRANSFER_TO_DECK',
+              source: {
+                type: 'HAND_CARD', owner: 'opponent', count: 1, upToCount: true,
+                filter: { nonColorless: true }, actingPlayerSelects: true,
+              },
+              shuffle: false, position: 'bottom',
+            },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+              then: { type: 'DRAW', owner: 'opponent', count: 1 },
+            },
+          ],
+        };
+        break;
+      case 'WDK12-007-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const choice = effect.action.choices.find(c => c.choiceId === 'c1');
+          if (choice) {
+            choice.action = {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'REMOVE_CHARM', targetOwner: 'self', count: 'ALL' },
+                { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } },
+                { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: { $ref: 'last_processed_count' } },
+              ],
+            };
+          }
+        }
+        break;
+      case 'WDK15-001-E3':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'DRAW_PER_FIELD_COUNT') {
+          effect.action.steps[1].countFilter = {
+            ...(effect.action.steps[1].countFilter ?? {}), cardType: 'シグニ', hasUnderCards: true,
+          };
+        }
+        break;
+      case 'PR-460-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+            {
+              type: 'GRANT_KEYWORD',
+              target: { type: 'LRIG', owner: 'opponent', count: 1, explicitTarget: true },
+              keyword: 'アタックできない', duration: 'UNTIL_END_OF_TURN',
+            },
+            {
+              type: 'POWER_MODIFY',
+              target: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+              delta: -15000, duration: 'UNTIL_END_OF_TURN',
+            },
+          ],
+        };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -28188,6 +28318,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch233(effects);
   repairSemanticBatch234(effects);
   repairSemanticBatch235(effects);
+  repairSemanticBatch236(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

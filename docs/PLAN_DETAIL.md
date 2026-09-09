@@ -6183,6 +6183,21 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-09・第235バッチ後・PLAN §6 から退避）
+
+- **2026-09-09（第235バッチ・Sonnet 5＝Codex 委譲〔2アカウント〕・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。
+  📦**在庫**＝🔥**実装キュー 272効果**（288 → 272・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み162）｜
+  🔥**機構 worklist＝索引 G 12項目**（据置）｜**⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3737 PASS**（3718 → +19＝第235バッチ新規）／ smoke OK ／ fuzz 200ゲーム 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0・C群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+  lint 0 errors / 254 warnings（投入前と同値）。**Claude 独立実行で全数検算済み**（`git diff` effectId 単位差分16件一致・
+  `node scripts/heldReview.mjs` 再実行で held の一時的な中間差分6枚が0件に収束することを確認）。
+  🖥**実機＝不要**（`src/engine/`・`src/data/effectParser.ts` のみ＝`src/screens/` 不触＝PLAN §2.2 の機械判定）。
+  ⚠**両アカウントとも利用上限に到達済み**（`.codex-work` は次回リセット済み想定・default は 1:18 PM リセット）＝
+  **次バッチ投入は各アカウントの復帰を確認してから**。
+
 ### 恒久指標アーカイブ（2026-09-09・第234バッチ後・PLAN §6 から退避）
 
 - **2026-09-09（第234バッチ・Sonnet 5＝Codex 委譲〔2アカウント〕・本ブロックが直近の正）**

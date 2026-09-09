@@ -51679,7 +51679,7 @@ test('task12(cl)(d) 遅延後の内側ゲート: ①pay→ターン終了発火�
   ok(!result.ownerState.field.signi.some(s => s?.at(-1) === opened.source), '🔴遅延後の②skip なのに場へ戻った');
 }));
 
-test('task12(cxlvii)(d) 対照: 後続が独立の既存効果は任意コストskip後も実行する', () => withSavedCursor(() => {
+test('第236 WDK05-R11-E1: 任意コストskip時はミルも後続BANISHも実行しない', () => withSavedCursor(() => {
   const source = 'WDK05-R11';
   const target = findCard(c => c.Type === 'シグニ' && c.CardNum !== source);
   const effect = (effectsMap.get(source) ?? []).find(e => e.effectId === 'WDK05-R11-E1')!;
@@ -51690,9 +51690,9 @@ test('task12(cxlvii)(d) 対照: 後続が独立の既存効果は任意コスト
   const result = finish(resumeOptionalCost('skip', [], first.pending, ctxAfter(first, base)), base);
   eq(result.ownerState.energy.length, base.ownerState.energy.length, 'skip なのに対照効果のエナが減った');
   eq(result.ownerState.deck.length, base.ownerState.deck.length, 'skip なのに支払い枝のデッキ2枚トラッシュが走った');
-  ok(!result.otherState.field.signi.some(s => s?.at(-1) === target),
-    '🔴独立した後続BANISHまで支払い枝へ畳まれ、skip時に過小実行になった');
-  ok(result.otherState.energy.includes(target), '独立した後続BANISHの移動先が違う');
+  ok(result.otherState.field.signi.some(s => s?.at(-1) === target),
+    '🔴skipなのに後続BANISHが実行された');
+  ok(!result.otherState.energy.includes(target), 'skipなのに対象がバニッシュされてエナへ移動した');
 }));
 
 test('task12(cxlix) ピース応答: 支払い→効果投入→最新盤面取得→完了フラグの順序を固定', () => {
@@ -53973,7 +53973,9 @@ test('段2 第28バッチ E2E: WX08-061-E1 はダブルクラッシュ所持シ�
   ok(run(effect.action, dynamic).ownerState.keyword_grants?.[plain]?.includes('アサシン') ?? false, '付与済みDCを所持として読まない');
 }));
 
-for (const effectId of ['WXK01-049-E1', 'WDK01-007-E1'] as const) {
+// WDK01-007-E1 は第236バッチで「レベル3以上なら代わりにトリプルクラッシュ」を
+// 分岐込みで検証するため、単独 GRANT_KEYWORD 前提の旧共有テストから外す。
+for (const effectId of ['WXK01-049-E1'] as const) {
   test(`段2 第28バッチ E2E: ${effectId} はドライブ状態だけへダブルクラッシュ`, () => withSavedCursor(() => {
     const effect = batch28Effect(effectId);
     const grant = effect.action.type === 'SEQUENCE'
@@ -73571,6 +73573,71 @@ test('第235 WD14-009-E1 engine: 捨てた＜悪魔＞の枚数を場出し上�
   eq(JSON.stringify(offered.pending.candidates), JSON.stringify([devil1, devil2]), '＜悪魔＞だけが候補');
   eq(offered.pending.count, 2, '候補数まで選べる');
   ok(!!offered.pending.optional, '0枚も選べる');
+}));
+
+// §5.0 第236バッチ：新しい機構を増やさず既存語彙だけで閉じた一点物6効果。
+const batch236Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WDK01-007', 'WDK01-007-E1', ['"id":"SELECT_TARGET_ONLY"', '"isDrive":true', '"id":"STORE_LAST_PROCESSED_TARGETS"', '"type":"LAST_PROCESSED_MATCHES"', '"keyword":"トリプルクラッシュ"', '"keyword":"ダブルクラッシュ"', '"targetsStored":true'], ['"owner":"any"']],
+  ['WDK05-R11', 'WDK05-R11-E1', ['"id":"OPTIONAL_COST","costColors":["青"]', '"type":"PAID_ADDITIONAL_COST"', '"type":"MILL","owner":"self","count":2,"fromBottom":true', '"levelEqLastProcessedLevelSum":true'], ['"type":"IS_MY_TURN"']],
+  ['WDK09-017', 'WDK09-017-E1', ['"zone":"opp_hand","count":"ALL"', '"type":"HAND_CARD","owner":"opponent","count":1,"upToCount":true', '"nonColorless":true', '"actingPlayerSelects":true', '"type":"DRAW","owner":"opponent","count":1'], ['"type":"DRAW","owner":"self"']],
+  ['WDK12-007', 'WDK12-007-E1', ['"type":"REMOVE_CHARM","targetOwner":"self","count":"ALL"', '"type":"DRAW","owner":"self","count":{"$ref":"last_processed_count"}', '"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":{"$ref":"last_processed_count"}'], ['"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1']],
+  ['WDK15-001', 'WDK15-001-E3', ['"type":"DRAW_PER_FIELD_COUNT"', '"hasUnderCards":true'], []],
+  ['PR-460', 'PR-460-E1', ['"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"opponent"', '"keyword":"アタックできない"', '"delta":-15000', '"duration":"UNTIL_END_OF_TURN"'], []],
+] as const) {
+  test(`第236 ${effectId}: 原文の限定を fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const json = JSON.stringify(batch236Effect(cardNum, effectId, fresh).action);
+      const side = fresh ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+test('第236 WDK01-007-E1 engine: 選んだドライブ状態シグニにレベル別のクラッシュ能力を排他的に付与する', () => withSavedCursor(() => {
+  const lv3 = findCard(c => isSigni(c) && Number(c.Level) >= 3);
+  const lv2 = findCard(c => isSigni(c) && Number(c.Level) < 3 && c.CardNum !== lv3);
+  const runOne = (target: string) => {
+    const ctx = mkCtx({ signi: [target, null, null] }, {}, 'WDK01-007');
+    ctx.ownerState.lrig_riding_signi = [target];
+    return run(batch236Effect('WDK01-007', 'WDK01-007-E1', true).action, ctx).ownerState.keyword_grants?.[target] ?? [];
+  };
+  const high = runOne(lv3);
+  ok(high.includes('トリプルクラッシュ'), 'レベル3以上はトリプルクラッシュ');
+  ok(!high.includes('ダブルクラッシュ'), 'レベル3以上へダブルクラッシュを重ねない');
+  const low = runOne(lv2);
+  ok(low.includes('ダブルクラッシュ'), 'レベル2以下はダブルクラッシュ');
+  ok(!low.includes('トリプルクラッシュ'), 'レベル2以下へトリプルクラッシュを付けない');
+}));
+
+test('第236 WDK12-007-E1 engine: 外したチャーム枚数とドロー・エナチャージ枚数が一致する', () => withSavedCursor(() => {
+  const charm1 = fresh(), charm2 = fresh();
+  const ctx = mkCtx({ deckTop: fill(5) }, {}, 'WDK12-007');
+  ctx.ownerState.field.signi_charms = [charm1, charm2, null];
+  const handBefore = ctx.ownerState.hand.length;
+  const energyBefore = ctx.ownerState.energy.length;
+  const choice = (batch236Effect('WDK12-007', 'WDK12-007-E1', true).action as ChooseAction).choices[1].action;
+  const result = run(choice, ctx);
+  eq(result.ownerState.hand.length - handBefore, 2, 'チャーム2枚ぶんドロー');
+  eq(result.ownerState.energy.length - energyBefore, 2, 'チャーム2枚ぶんエナチャージ1');
+  ok(result.ownerState.trash.includes(charm1) && result.ownerState.trash.includes(charm2), '外したチャームをトラッシュへ');
+}));
+
+test('第236 WDK15-001-E3 engine: 下にカードがあるシグニだけを数えてドローする', () => withSavedCursor(() => {
+  const under = fresh(), host = fresh(), plain = fresh();
+  const ctx = mkCtx({ signi: [host, plain, null], deckTop: fill(4) }, {}, 'WDK15-001');
+  ctx.ownerState.field.signi = [[under, host], [plain], null];
+  const handBefore = ctx.ownerState.hand.length;
+  const draw = (batch236Effect('WDK15-001', 'WDK15-001-E3', true).action as SequenceAction).steps[1];
+  const result = run(draw, ctx);
+  eq(result.ownerState.hand.length - handBefore, 1, '下カード持ち1体だけを数える');
 }));
 
 if (listMode) {

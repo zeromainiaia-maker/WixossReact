@@ -164,3 +164,9 @@ WXK07-056-E1 :: 2026-09-09 :: 第235バッチ＝STUB{DECK_SIGNI_LEVEL_OVERRIDE}�
 WXK09-004-E1 :: 2026-09-09 :: 第235バッチ＝CHOOSE c1をTRANSFER_TO_HAND+ADD_TO_FIELDへ実装
 WD10-001-E1 :: 2026-09-09 :: 第235バッチ＝POWER_MODIFY target.owner:self,count:ALL,filter.crossState:trueへ修復
 WD14-009-E1 :: 2026-09-09 :: 第235バッチ＝TRASH{ENERGY_CARD}→ADD_TO_FIELD{count:$ref:last_processed_count}の連鎖実装
+WDK01-007-E1 :: 2026-09-09 :: 第236バッチ＝LAST_PROCESSED_MATCHES{level.min:3}のthen/elseでトリプル/ダブルクラッシュを排他付与
+WDK05-R11-E1 :: 2026-09-09 :: 第236バッチ＝OPTIONAL_COST{青}配下へMILL+BANISH{levelEqLastProcessedLevelSum}をまとめ未払い不発化
+WDK09-017-E1 :: 2026-09-09 :: 第236バッチ＝相手手札全閲覧→非無色1枚TRANSFER_TO_DECK→条件付きDRAWへ実装
+WDK12-007-E1 :: 2026-09-09 :: 第236バッチ＝選択肢②をREMOVE_CHARM+DRAW/ENERGY_CHARGE{$ref:last_processed_count}へ修復
+WDK15-001-E3 :: 2026-09-09 :: 第236バッチ＝DRAW_PER_FIELD_COUNT.countFilterにhasUnderCards:true追加
+PR-460-E1 :: 2026-09-09 :: 第236バッチ＝相手LRIGへGRANT_KEYWORD{アタックできない}追加
