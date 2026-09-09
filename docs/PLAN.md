@@ -31,7 +31,9 @@
   ⑤実機 残2（`V-184`／`V-185`）。
 
   **次の一手**
-  ① 🔥**プール残58効果**から30ずつ投げる。⚠**density は 70% → 27% へ減衰**（安い側から取っているため）＝**枯渇と読まない**。
+  ① 🔥**プール残58効果**から30ずつ投げる＝**`node scripts/archive/semanticAuditQueue.mjs --take 30 --out <dir>` →
+  `scripts/archive/scratchpad/codex_batch_template.md` を埋めて投入**（手順の全文は §5.0「1バッチの回し方」）。
+  ⚠**density は 70%（第244）→ 27%（第245）へ減衰**（安い側から取っているため）＝**枯渇と読まない**。
   ② プールが尽きたら §5.3 の機構実装（母集団順＝`O-288` 32／`O-287` 27／`O-294` 7／`O-312` 6）。
   ③ `V-184`／`V-185` の実機（どちらも UI 1〜2行・headless は golden 済み）。
   ④ `decompileEffects.ts` の「原文 regex 抜き出し」を測る計器（`census:enginetext` の逆翻訳版）。
@@ -355,9 +357,31 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 （S-1/S-2＝意味照合・grep母集団、O-A/O-B/O-C＝triage・還元、O-D＝parser/engine修正）。
 **全文（完了時点の数値・教訓）は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「2026-09-09 整理」節に無改変で退避した。**
 
-🆕**2026-09-09 以降の実質ワークフローは Codex 委譲バッチ**（PLAN §1 参照＝第233〜バッチ）＝
-①Claude が実装キューから「機構不要」候補を事前スクリーニング ②`CODEX_HOME=.codex-work`（または `~/.codex`）へ
+🔴**2026-09-09 以降の実質ワークフローは Codex 委譲バッチ**（PLAN §1 参照＝第233〜バッチ）＝
+①Claude が実装キューから候補を組む ②`CODEX_HOME=/c/Users/zerom/.codex-work`（または既定 `~/.codex`）へ
 指示書を投入 ③Codex が実装・見送りを申告 ④Claude が `git diff`/`typecheck`/`golden`/`gates` で独立検証・簿記。
+
+#### 🔥 1バッチの回し方（2026-09-10 に道具ごとリポジトリへ退避した＝スクラッチに置かない）
+
+```
+# ① 候補を組む（残数・優先度の確認だけなら引数なし）
+node scripts/archive/semanticAuditQueue.mjs --take 30 --out <scratchpad>
+#    → batch.json（原文・live JSON つき）と batch_table.md（指示書に貼る表）
+
+# ② 指示書を作る（テンプレをコピーして <NNN>/<BASELINE_COMMIT>/<GOLDEN>/<プール残>/<残数> を埋め、
+#    batch_table.md を「今回のスコープ」節へ丸ごと貼る）
+scripts/archive/scratchpad/codex_batch_template.md
+
+# ③ 投入（⚠先に git status --porcelain を空にする）
+CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"   -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1
+```
+
+🔑**候補の母集団は3ファイルの引き算だけ**＝`triaged.txt` の `:: BUG ::` − `semantic_bug_fixed.txt`
+− `semantic_bug_deferred.txt`。**外部状態に依存しないので、セッションが変わっても同じ候補が再現する。**
+🔴**これを道具にした理由**＝第238〜245 は候補の組み立てがスクラッチにしか無く、
+**第243 の候補生成で、第233〜237 に除外したはずの12効果がまるごと復活した**（`commonClass` 系統8件ほか）。
+⚠**「直さないと判定した分」は必ず `semantic_bug_deferred.txt` へ1行足す**（在庫からは引かない・候補からだけ外す）。
+⚠**`pri=2`（判定文が「機構が要る」と明言）は既定で候補から外れる**＝入れても Codex が見送りを書くだけ。
 **S-3（`manualEffects.ts` 手書き＝同型2枚以下）は在庫として残っている**（🆕2026-09-09 セッション末 実測＝残195効果のうち
 `parseStatus` が **MANUAL 15**・**AUTO 167**・**live 未検出（`GRANT_*` 入れ子等）13**）が、上の Codex 委譲バッチが
 AUTO/MANUAL を問わず処理しているため、**S-3 単独では取らない**。
