@@ -61,3 +61,19 @@ WXDi-D09-H15-E2 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-296）
 WX24-P1-023-E1 :: 2026-09-09 :: REGISTERED :: OPPONENT_PAY_OPTIONAL の対象事前選択が無い（§5.3 O-288）
 WX24-P1-071-E1 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-288）
 WX24-P3-009-E1 :: 2026-09-09 :: REGISTERED :: 「次のあなたのエナフェイズ終了時まで」の寿命が無い（§5.3 O-293）
+
+# ── 第233〜237バッチ（2026-09-09・過去セッションの除外分をここへ移した）──
+# ⚠これらは当時「ローカルの候補リストから除去」されていただけで、**セッションのスクラッチと一緒に消えていた**
+#   （第243 の候補生成で全部が復活してきたので、ここへ書き戻した）。
+SPDi44-04-E2 :: 2026-09-09 :: REGISTERED :: filter.commonClass に engine の消費地点が無い（§5.3 O-287）
+WXK10-056-E2 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+PR-K070-E1 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX25-P1-026-E2 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX25-P1-058-E2 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX25-P1-092-E1 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX25-P1-093-E1 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX25-P1-096-E1 :: 2026-09-09 :: REGISTERED :: 同上（§5.3 O-287）
+WX16-Re20-E1 :: 2026-09-09 :: REGISTERED :: ADD_TO_FIELD.abilitiesRemoved に engine の消費地点が無い（§5.3 O-294）
+WX14-003-E2 :: 2026-09-09 :: MECH :: CONTINUOUS なのに action が ADD_TO_FIELD＝CONTINUOUS は executeAction を通らない
+PR-469-E3 :: 2026-09-09 :: MECH :: 第237 の候補選定で除外（機構待ちと判定済み）
+WX09-032-E1 :: 2026-09-09 :: STALE :: 既存の DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY で対応済み（第234で確認）
