@@ -1066,7 +1066,14 @@ function condJa(c?: any): string {
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
     case 'COINS_PAID_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が《コイン》を合計${numJa(c.value)}枚${opJa(c.operator)}支払っていた`;
     case 'HAND_TRASHED_BY_OPP':   return `このターンに対戦相手の効果によってあなたの手札からカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
-    case 'ENERGY_TRASHED_BY_OPP': return `このターンに対戦相手の効果によってあなたのエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
+    // 🔴**向きは `owner` が決める**（2026-09-09）＝カウンタ `energy_trashed_by_opp_this_turn` は
+    //   **トラッシュされた側の state** に書かれる（`effectExecutor.ts:2675` が `setOwnerState(tgt.owner, …)`）。
+    //   ⇒ `owner:'opponent'` は「**あなたの効果で対戦相手の**エナが減った」の意味。
+    //   旧実装は `owner` を無視した固定文で、`WXDi-P09-047-E2` の逆翻訳が**原文と正反対の向き**に出ていた
+    //   （engine は正しいのに計器だけが嘘をつく型＝LESSONS §4.3）。
+    case 'ENERGY_TRASHED_BY_OPP': return c.owner === 'opponent'
+      ? `このターンにあなたの効果によって対戦相手のエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`
+      : `このターンに対戦相手の効果によってあなたのエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
     // 🆕§5.3 `O-233`（2026-09-04）＝手札／エナ版の**シグニ版**。
     case 'SIGNI_LEFT_BY_OPP_EFFECT': return `このターンに対戦相手の効果によってあなたのシグニが${numJa(c.value)}体以上場を離れていた`;
     case 'IS_MY_TURN': return '自分のターンの間';

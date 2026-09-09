@@ -4294,6 +4294,17 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
       g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    // 「このターンに**あなたの効果によって対戦相手の**エナゾーンからカードがN枚以上トラッシュに置かれていた場合」
+    //   （2026-09-09・第244相当・`WXDi-P09-047-E2`）＝**上の行の向きを反転しただけ**。
+    // 🔑受け皿は同じ `ENERGY_TRASHED_BY_OPP` で、**`owner` で向きが決まる**＝
+    //   カウンタ `energy_trashed_by_opp_this_turn` は**トラッシュされた側の state** へ書かれる
+    //   （`effectExecutor.ts:2675` が `setOwnerState(tgt.owner, …)`）ので、
+    //   「相手のエナが減った」は **`owner:'opponent'`** で読む。⚠型名は "BY_OPP" だが向きは owner が決める。
+    [/このターンにあなたの効果によって対戦相手のエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
+      g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'opponent', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    // 「あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合」（`WXDi-P15-087-E1`）。
+    //   受け皿は実在＝`LRIG_LEVEL_EQ_OPP`（`execUtils.ts` の評価器・`WDK16-10-E1` で稼働中）。
+    [/あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合/, () => ({ type: 'LRIG_LEVEL_EQ_OPP' })],
     // 🆕「このターンにあなたのデッキからカードがN枚以上エナゾーンに移動していた場合」
     //   （2026-09-09・第238バッチ・`WXDi-P01-042-E1`／`WXDi-P02-074-E1` の2効果）。
     //   受け皿は**実在**（`SELF_DECK_TO_ENERGY_THIS_TURN`＝`execEnergyChargeFromDeck` と

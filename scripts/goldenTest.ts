@@ -74111,6 +74111,28 @@ test('第243 逆翻訳: COPY_TARGET_POWER期限とDRAW_BY_CHARM_COUNT所有者�
   ok(charm.includes('対戦相手の場にある【チャーム】の数に１を加えた枚数'), `DRAW_BY_CHARM_COUNT: ${charm}`);
 });
 
+// 未開拓プール（triage が engine の行を引用していたため6バッチ除外され続けていた83効果）の初回2件。
+// 🔑どちらも**受け皿は実在**していて条件節だけが落ちていた＝第238 と同型の「いちばん安い在庫」。
+for (const [cardNum, effectId, must] of [
+  // ⚠型名は "BY_OPP" だが**向きは `owner` が決める**＝カウンタはトラッシュされた側の state に書かれるので
+  //   「あなたの効果で**対戦相手の**エナが減った」は `owner:'opponent'` で読む（`effectExecutor.ts:2675`）。
+  ['WXDi-P09-047', 'WXDi-P09-047-E2', ['"type":"ENERGY_TRASHED_BY_OPP","owner":"opponent"', '"id":"OPTIONAL_COST"']],
+  ['WXDi-P15-087', 'WXDi-P15-087-E1', ['"type":"LRIG_LEVEL_EQ_OPP"', '"id":"OPTIONAL_COST"']],
+] as const) {
+  test(`未開拓プール ${effectId}: 落ちていた発動条件を fresh/live が保持する`, () => {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect.action);
+      for (const fragment of must) ok(json.includes(fragment), `${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+      // 🔴条件は**任意コストを含む枝ごと**包む＝条件不成立でコストだけ払える形へ戻さない。
+      ok(!/\{"type":"STUB","id":"OPTIONAL_COST"[^}]*\},\{"type":"CONDITIONAL","condition":\{"type":"IS_MY_TURN"/.test(json),
+        `${freshParse ? 'fresh' : 'live'}: 条件が任意コストの外へ戻っている`);
+    }
+  });
+}
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
