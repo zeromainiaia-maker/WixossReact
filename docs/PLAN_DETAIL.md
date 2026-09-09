@@ -1474,6 +1474,21 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-09（第238＋第239バッチ・Opus 5＝自力実装6効果 ＋ Codex 委譲15効果・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。
+  📦**在庫**＝🔥**実装キュー 245効果**（266 → 245・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み189）｜
+  🔥**機構 worklist＝索引 G 11項目**（10 → 11＝🆕`O-308`＝AUTO 用 `Condition` が5種類足りない・6効果）｜
+  **⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3769 PASS**（3745 → 3753 → 3769＝第238で+8・第239で+16）／ smoke 10744 OK ／
+  fuzz 200ゲーム 0 ／ census 0 / BASELINE 0 ／ census:stubs A群 0 ／ census:enginetext A🔴 0行 ／
+  census:costtext A🔴 0規則 ／ lint 0 errors / 254 warnings（着手前と同値）。**Claude 独立実行で全数検算済み**
+  （`git diff` の effectId 単位差分＝第238で6件・第239で15件・スコープ外0）。
+  🖥**実機＝不要**（`src/data/` `src/engine/` `public/data/` `scripts/` のみ＝`src/screens/` 不触＝PLAN §2.2 の機械判定）。
+  🔑**engine の無言 no-op を2件塞いだ**＝`TRANSFER_TO_DECK{owner:'any'}` の場候補（第238）と
+  `POWER_SET{frontOfSelf}` の CONTINUOUS 適用（第239）。**どちらも兄弟の型には既に在った分岐**＝
+  **同じ族の残りを確かめる**のが最も安い発見法だった（どちらも golden で反転確認済み）。
+
 - **2026-09-09（第238バッチ・Opus 5＝Codex 両アカウント利用上限中の自力実装・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
   ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。

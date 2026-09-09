@@ -27902,6 +27902,269 @@ function repairSemanticBatch239(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第240バッチ：意味照合で BUG と確定した一点物のうち、
+ * 既存の action / condition / state で厳密に表現できる効果だけを修復する。
+ */
+function repairSemanticBatch240(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WX25-P3-001-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          effect.action.steps = [
+            effect.action.steps[0],
+            { type: 'STUB', id: 'GAIN_LRIG_BARRIER' },
+            ...effect.action.steps.slice(1),
+          ];
+        }
+        break;
+      case 'WX24-P4-087-E1':
+        effect.action = {
+          type: 'BANISH_REDIRECT',
+          target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+          targetsTriggerSource: true,
+          redirectTo: 'trash', until: 'END_OF_TURN',
+        };
+        break;
+      case 'WX25-P3-006-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+            { type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 } },
+            {
+              type: 'DOWN',
+              target: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WX25-P1-087-E1':
+        effect.action = {
+          type: 'GRANT_EFFECT',
+          target: {
+            type: 'SIGNI', owner: 'self', count: 1, upToCount: false, explicitTarget: true,
+            filter: { cardType: 'シグニ', story: '原子' },
+          },
+          duration: 'UNTIL_OPP_TURN_END',
+          effect: {
+            effectId: 'WX25-P1-087-E1-GRANT', effectType: 'AUTO', timing: ['ON_BANISH'],
+            triggerScope: 'self',
+            action: {
+              type: 'CHOOSE', choose_count: 1, from_count: 2,
+              choices: [
+                {
+                  choiceId: 'discard', label: '対戦相手の手札を1枚見ないで選び、捨てさせる',
+                  action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
+                },
+                {
+                  choiceId: 'power', label: '《青》を支払い、相手シグニ1体を－8000',
+                  action: {
+                    type: 'SEQUENCE', steps: [
+                      {
+                        type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+                        selectTarget: {
+                          type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                          filter: { cardType: 'シグニ' },
+                        },
+                      },
+                      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+                      { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+                      {
+                        type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+                        then: {
+                          type: 'POWER_MODIFY',
+                          target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+                          targetsStored: true, delta: -8000, duration: 'UNTIL_END_OF_TURN',
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+          },
+        };
+        break;
+      case 'WX25-P3-036-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const first = effect.action.choices[0]?.action;
+          if (first?.type === 'SEQUENCE') {
+            const oppCrash = first.steps.find(a => a.type === 'CONDITIONAL');
+            if (oppCrash?.type === 'CONDITIONAL' && oppCrash.then.type === 'LIFE_CRASH') {
+              oppCrash.then.triggerBurst = false;
+            }
+            first.steps = first.steps.filter(a => !(a.type === 'STUB' && a.id === 'SUPPRESS_LIFE_BURST_ON_CARD'));
+          }
+        }
+        break;
+      case 'WX25-CP1-026-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const second = effect.action.choices[1]?.action;
+          if (second?.type === 'SEQUENCE') {
+            const gated = second.steps.find(a => a.type === 'CONDITIONAL');
+            if (gated?.type === 'CONDITIONAL') gated.then = {
+              type: 'GRANT_KEYWORD',
+              target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 2, upToCount: true },
+              keyword: 'アタックできない', duration: 'UNTIL_END_OF_TURN',
+            };
+          }
+        }
+        break;
+      case 'WX25-CP1-028-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const second = effect.action.choices[1]?.action;
+          if (second?.type === 'SEQUENCE') {
+            const gated = second.steps.find(a => a.type === 'CONDITIONAL');
+            if (gated?.type === 'CONDITIONAL') gated.then = {
+              type: 'DOWN',
+              target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 2, upToCount: true },
+            };
+          }
+        }
+        break;
+      case 'WX25-CP1-081-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          const gated = effect.action.steps.find(a => a.type === 'CONDITIONAL');
+          if (gated?.type === 'CONDITIONAL') gated.then = {
+            type: 'SEQUENCE',
+            steps: [
+              {
+                type: 'GRANT_KEYWORD',
+                target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                keyword: 'ランサー:{"powerLte":10000}', duration: 'UNTIL_END_OF_TURN',
+              },
+              {
+                type: 'GRANT_EFFECT',
+                target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                duration: 'UNTIL_END_OF_TURN',
+                effect: {
+                  effectId: 'WX25-CP1-081-E1-GRANT', effectType: 'AUTO', timing: ['ON_SIGNI_BATTLE'],
+                  triggerScope: 'self',
+                  action: {
+                    type: 'REMOVE_ABILITIES',
+                    target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+                    targetsTriggerSource: true, until: 'UNTIL_END_OF_TURN',
+                  },
+                  duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+                },
+              },
+            ],
+          };
+        }
+        break;
+      case 'WX25-CP1-091-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'POWER_MODIFY') {
+          effect.action.steps[0].target.owner = 'self';
+          effect.action.steps[0].targetsTriggerSource = true;
+        }
+        break;
+      case 'WX26-CP1-003-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const delayed = effect.action.choices[2]?.action;
+          if (delayed?.type === 'INSTALL_DELAYED_TRIGGER') delayed.effect = {
+            type: 'SEQUENCE', steps: [
+              {
+                type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+                selectTarget: {
+                  type: 'SIGNI', owner: 'self', count: 1, upToCount: false, explicitTarget: true,
+                  filter: { cardType: 'シグニ', story: 'プリオケ' },
+                },
+              },
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+              {
+                type: 'CHOOSE', choose_count: 1, from_count: 2,
+                choices: [
+                  {
+                    choiceId: 'assassin', label: '【アサシン】を得る',
+                    action: {
+                      type: 'GRANT_KEYWORD',
+                      target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsStored: true,
+                      keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN',
+                    },
+                  },
+                  {
+                    choiceId: 'double_crush', label: '【ダブルクラッシュ】を得る',
+                    action: {
+                      type: 'GRANT_KEYWORD',
+                      target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsStored: true,
+                      keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN',
+                    },
+                  },
+                ],
+              },
+            ],
+          };
+        }
+        break;
+      case 'WX26-CP1-028-E2':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'REMOVE_ABILITIES') {
+          effect.action.steps[0].target = { type: 'LRIG', owner: 'opponent', count: 1 };
+          effect.action.steps[0].alsoCenterLrig = true;
+        }
+        break;
+      case 'WX24-D1-05-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'GRANT_EFFECT') {
+          const granted = effect.action.steps[0].effect;
+          if (granted?.action.type === 'SEQUENCE' && granted.action.steps[1]?.type === 'REMOVE_ABILITIES') {
+            granted.action.steps[1].target = { type: 'LRIG', owner: 'self', count: 1 };
+            granted.action.steps[1].alsoCenterLrig = true;
+          }
+        }
+        break;
+      case 'WX24-P1-011-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          const gated = effect.action.steps.find(a => a.type === 'CONDITIONAL' && a.then.type === 'SEQUENCE');
+          if (gated?.type === 'CONDITIONAL' && gated.then.type === 'SEQUENCE') {
+            const remove = gated.then.steps.find(a => a.type === 'REMOVE_ABILITIES');
+            if (remove?.type === 'REMOVE_ABILITIES') {
+              remove.target = { type: 'LRIG', owner: 'self', count: 1 };
+              remove.alsoCenterLrig = true;
+            }
+          }
+        }
+        break;
+      case 'WX24-P2-047-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          effect.condition = {
+            type: 'HAS_CARD_IN_FIELD', owner: 'self',
+            filter: { cardName: '満月の使徒　小湊るう子' },
+          };
+          effect.action.steps[0] = { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] };
+        }
+        break;
+      case 'WXDi-P16-TK01-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'CHOOSE') {
+          effect.action.steps[1].allowRepeat = true;
+        }
+        break;
+      case 'WX14-037-E1':
+        if (effect.action.type === 'CHOOSE') {
+          const second = effect.action.choices[1]?.action;
+          if (second?.type === 'SEQUENCE') {
+            const reveal = second.steps.find(a => a.type === 'STUB' && a.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM');
+            second.steps = reveal ? [
+              second.steps[0],
+              { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: reveal },
+            ] : second.steps.filter(a => a.type !== 'LOOK_AND_REORDER');
+          }
+        }
+        break;
+      case 'WXEX1-04-E1':
+        if (effect.action.type === 'CHOOSE' && effect.action.choices[2]?.action.type === 'GRANT_PROTECTION') {
+          effect.action.choices[2].action.targetsTriggerSource = true;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -28774,6 +29037,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch235(effects);
   repairSemanticBatch236(effects);
   repairSemanticBatch239(effects);
+  repairSemanticBatch240(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

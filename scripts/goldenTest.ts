@@ -21961,8 +21961,15 @@ test('ライフバースト抑制: 所有者句つき2文型と CONTINUOUS 用�
   const inner = (layer!.action as { abilities?: CardEffect[] }).abilities?.[0];
   eq((inner?.action as { id?: string })?.id, 'SUPPRESS_LIFE_BURST_ON_CRASH', 'レイヤー付与の中身が UNKNOWN のまま');
   eq(inner?.effectType, 'CONTINUOUS', 'レイヤー付与の【常】が失われている');
+  // 🆕**2026-09-09（第240バッチ）＝`SUPPRESS_LIFE_BURST_ON_CARD` から `LIFE_CRASH{triggerBurst:false}` へ移した。**
+  //   🔴旧 STUB は `otherState.suppress_life_burst = true`（`execStubPart1.ts:1763`）＝**そのターンの相手のバーストを全部**
+  //   止める過剰抑制で、原文「**その**対戦相手のカードのライフバーストは発動しない」より広かった。
+  //   いまは自分側クラッシュ＝`triggerBurst:true`／相手側クラッシュ＝`triggerBurst:false` の2ステップで原文どおり。
   const p3036 = (effectsMap.get('WX25-P3-036') ?? []).find(e => e.effectId === 'WX25-P3-036-E1');
-  ok(JSON.stringify(p3036?.action ?? {}).includes('SUPPRESS_LIFE_BURST_ON_CARD'), 'WX25-P3-036-E1 が UNKNOWN のまま');
+  const p3036Json = JSON.stringify(p3036?.action ?? {});
+  ok(p3036Json.includes('"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true'), 'WX25-P3-036-E1 の自分側クラッシュがバースト有りでない');
+  ok(p3036Json.includes('"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false'), 'WX25-P3-036-E1 の相手側クラッシュがバースト不発でない');
+  ok(!p3036Json.includes('SUPPRESS_LIFE_BURST_ON_CARD'), 'ターン全体を止める旧 STUB へ戻っている（過剰抑制）');
 
   // CONTINUOUS 用法の受け皿＝発生源（crash_source_card_num）だけを見る
   const HOSTILE = 'WXEX1-32#1';
@@ -23145,7 +23152,14 @@ test('SIGNI_DEPLOY_BAN / BLOCK_ACTION: 5カードの live 形（§6.4 O-3 続き
     return (cur ?? {}) as Record<string, unknown>;
   };
   eq(step('WXK10-019', 'WXK10-019-E3', ['steps', 1]).namesFromTargets, true, 'WXK10-019 の同名配置禁止');
-  eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 4]).namesFromTargets, true, 'WX25-P3-001 の同名配置禁止');
+  // ⚠**添字ではなく型で引く**（2026-09-09 第240バッチ）＝原文にあって落ちていた「【ルリグバリア】1つを得る」を
+  //   steps[1] へ足したときに**位置固定の assert が一斉にずれた**。位置は実装詳細なので固定しない。
+  const stepOfType = (num: string, effectId: string, type: string) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effectId);
+    const steps = ((e?.action as { steps?: Record<string, unknown>[] })?.steps ?? []);
+    return (steps.find(st => st.type === type) ?? {}) as Record<string, unknown>;
+  };
+  eq(stepOfType('WX25-P3-001', 'WX25-P3-001-E1', 'SIGNI_DEPLOY_BAN').namesFromTargets, true, 'WX25-P3-001 の同名配置禁止');
   eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 4]).bySource, 'signi_or_spell_effect', 'WX25-P3-009 の出自限定配置禁止');
   // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-78`）**＝期間の書き方が `次の対戦相手のターン終了時まで` の同型。
   //   旧 live は `STUB{DEPLOY_RESTRICT}`（payload 無し）＝engine には**ログしか無い真 no-op** だった。
@@ -23153,7 +23167,13 @@ test('SIGNI_DEPLOY_BAN / BLOCK_ACTION: 5カードの live 形（§6.4 O-3 続き
   eq(step('WXK09-015', 'WXK09-015-E3', ['steps', 1]).namesFromTargets, true, 'WXK09-015 は除外したシグニと同名だけを禁止する');
   eq(step('WXK09-015', 'WXK09-015-E3', ['steps', 1]).turns, 2, 'このターン＋次の対戦相手のターン＝2');
   // ⚠MANUAL 不可侵で live に届いていなかった2枚（§6.4 O-6 同型）＝エクシード任意コストを parser 化して AUTO 化した。
-  eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 2]).exceed, 3, 'WX25-P3-001 のエクシード任意コストが落ちている');
+  // ⚠STUB は同じ効果に複数ある（`GAIN_LRIG_BARRIER` が先に来る）ので **id で引く**。
+  const stubOfId = (num: string, effectId: string, id: string) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effectId);
+    const steps = ((e?.action as { steps?: Record<string, unknown>[] })?.steps ?? []);
+    return (steps.find(st => st.type === 'STUB' && st.id === id) ?? {}) as Record<string, unknown>;
+  };
+  eq(stubOfId('WX25-P3-001', 'WX25-P3-001-E1', 'OPTIONAL_COST').exceed, 3, 'WX25-P3-001 のエクシード任意コストが落ちている');
   eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 2]).exceed, 3, 'WX25-P3-009 のエクシード任意コストが落ちている');
   // 「次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない」
   eq(step('WX25-CP1-016', 'WX25-CP1-016-E2', ['steps', 1]).actionId, 'USE_LRIG_ACT', 'WX25-CP1-016 のルリグ【起】封じ');
@@ -53824,7 +53844,10 @@ for (const [effectId, source, keyword] of [
 
 test('段2 第28バッチ E2E: WX15-038-E2 はテキソス限定で+3000と対シグニ効果耐性', () => withSavedCursor(() => {
   const source = 'WX15-038';
-  const wrongAcce = fresh();
+  // ⚠**POOL カーソルから引かない**（2026-09-09 第240バッチ）＝`fresh()` は実行順で中身が変わるので、
+  //   前段のテストが1回でも増減すると**「別名アクセ」がたまたま `WX15-058` 自身**になり、この assert が化ける
+  //   （実測＝第240の parser 変更でカーソルがずれ、+3000 が乗って赤くなった）。名前限定の検証なので明示的に選ぶ。
+  const wrongAcce = findCard(c => isSigni(c) && c.CardNum !== 'WX15-058' && c.CardNum !== 'WX15-038');
   const make = (acce: string) => {
     const state = mkState({ signi: [source, null, null] });
     state.field.signi_acce = [[acce], null, null];
@@ -73764,6 +73787,71 @@ test('第239 engine: CONTINUOUS POWER_SET{frontOfSelf} は正面の相手シグ�
   eq(powers.get(front), 0, '🔴正面のシグニのパワーが0になっていない（POWER_SET の frontOfSelf が無言 no-op）');
   ok((powers.get(other) ?? 0) > 0, '正面でない相手シグニまで0にしている（過剰実行）');
   ok((powers.get(host) ?? 0) > 0, '効果元自身のパワーを0にしている（旧誤訳の向き）');
+}));
+
+// ═══════════════════════════════════════════════
+// 第240バッチ：意味照合済み一点物。effectId アンカーの parser 後処理なので fresh/live を両方固定。
+const batch240Effect = (cardNum: string, effectId: string, freshParse: boolean): CardEffect => {
+  const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WX25-P3-001', 'WX25-P3-001-E1', ['"id":"GAIN_LRIG_BARRIER"', '"type":"RECOLLECT_GATE"'], []],
+  ['WX24-P4-087', 'WX24-P4-087-E1', ['"type":"BANISH_REDIRECT"', '"count":1', '"targetsTriggerSource":true'], ['"count":"ALL"']],
+  ['WX25-P3-006', 'WX25-P3-006-E1', ['"type":"LRIG","owner":"opponent","count":1', '"type":"SIGNI","owner":"opponent","count":1'], []],
+  ['WX25-P1-087', 'WX25-P1-087-E1', ['"type":"GRANT_EFFECT"', '"story":"原子"', '"timing":["ON_BANISH"]', '"duration":"UNTIL_OPP_TURN_END"', '"targetsStored":true'],
+    // 🔴mustNot は**旧形（トップレベルが CHOOSE）だけ**を撃つ形にする（2026-09-09・Claude 検証）＝
+    //   素の `"action":{"type":"CHOOSE"` は**付与される能力の中の正しい CHOOSE**（原文「以下の2つから1つを選ぶ」）
+    //   にも当たって誤検出する。コスト直後という位置で旧形に限定する。
+    ['"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE"']],
+  ['WX25-P3-036', 'WX25-P3-036-E1', ['"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true', '"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false'], ['"id":"SUPPRESS_LIFE_BURST_ON_CARD"']],
+  ['WX25-CP1-026', 'WX25-CP1-026-E1', ['"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true', '"keyword":"アタックできない"'], ['"owner":"any","count":1']],
+  ['WX25-CP1-028', 'WX25-CP1-028-E1', ['"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true'], ['"type":"SIGNI","owner":"self"']],
+  ['WX25-CP1-081', 'WX25-CP1-081-E1', ['"keyword":"ランサー:{\\"powerLte\\":10000}"', '"type":"GRANT_EFFECT"', '"timing":["ON_SIGNI_BATTLE"]', '"type":"REMOVE_ABILITIES"', '"targetsTriggerSource":true'], []],
+  ['WX25-CP1-091', 'WX25-CP1-091-E1', ['"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1}', '"targetsTriggerSource":true', '"duration":"UNTIL_OPP_TURN_END"'], ['"owner":"any"']],
+  ['WX26-CP1-003', 'WX26-CP1-003-E1', ['"type":"INSTALL_DELAYED_TRIGGER"', '"keyword":"アサシン"', '"keyword":"ダブルクラッシュ"', '"targetsStored":true'], []],
+  ['WX26-CP1-028', 'WX26-CP1-028-E2', ['"type":"REMOVE_ABILITIES","target":{"type":"LRIG","owner":"opponent","count":1}', '"alsoCenterLrig":true', '"until":"UNTIL_OPP_TURN_END"'], ['"type":"REMOVE_ABILITIES","target":{"type":"SIGNI"']],
+  ['WX24-D1-05', 'WX24-D1-05-E1', ['"timing":["ON_ATTACK_LRIG"]', '"type":"REMOVE_ABILITIES","target":{"type":"LRIG","owner":"self","count":1}', '"alsoCenterLrig":true'], ['"type":"REMOVE_ABILITIES","target":{"type":"SIGNI"']],
+  ['WX24-P1-011', 'WX24-P1-011-E1', ['"type":"UP","target":{"type":"LRIG","owner":"self","count":1}', '"type":"REMOVE_ABILITIES","target":{"type":"LRIG","owner":"self","count":1}', '"alsoCenterLrig":true'], ['"type":"REMOVE_ABILITIES","target":{"type":"SIGNI"']],
+  ['WX24-P2-047', 'WX24-P2-047-E1', ['"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"満月の使徒　小湊るう子"}}', '"id":"OPTIONAL_COST","costColors":["白"]', '"type":"CHOOSE"'], ['"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"満月の使徒　小湊るう子"}},"then":{"type":"STUB"']],
+  ['WXDi-P16-TK01', 'WXDi-P16-TK01-E1', ['"choose_count":2', '"allowRepeat":true', '"upTo":true'], []],
+  ['WX14-037', 'WX14-037-E1', ['"id":"REVEAL_PICK_HAND_SHUFFLE_BOTTOM"', '"restDest":"deck_bottom"'], ['"type":"LOOK_AND_REORDER"']],
+  ['WXEX1-04', 'WXEX1-04-E1', ['"type":"GRANT_PROTECTION"', '"from":["BANISH"]', '"targetsTriggerSource":true'], []],
+] as const) {
+  test(`第240 ${effectId}: 原文どおりの一点物修復を fresh/live に保持`, () => {
+    for (const freshParse of [true, false]) {
+      const json = JSON.stringify(batch240Effect(cardNum, effectId, freshParse));
+      const side = freshParse ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+test('第240 engine: BANISH_REDIRECT targetsTriggerSource は配置されたその相手シグニだけを保持', () => withSavedCursor(() => {
+  const target = fresh();
+  const bystander = fresh();
+  const ctx = mkCtx({}, { signi: [target, bystander, null] }, 'WX24-P4-087');
+  ctx.triggeringCardNum = target;
+  const result = run(batch240Effect('WX24-P4-087', 'WX24-P4-087-E1', true).action, ctx);
+  eq(JSON.stringify(result.ownerState.banish_redirect_target_nums), JSON.stringify([target]), '🔴トリガー元個体を保持できない');
+  ok(!(result.ownerState.banish_redirect_target_nums ?? []).includes(bystander), '無関係な相手シグニまで置換対象にしている');
+}));
+
+test('第240 engine: DOWN{CENTER_LRIG_OR_SIGNI,count:2} は相手ルリグとシグニを同時にダウン', () => withSavedCursor(() => {
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const signi = fresh();
+  const bystander = fresh();
+  const ctx = mkCtx({}, { lrig: [lrig], signi: [signi, bystander, null] }, 'WX25-CP1-028');
+  const result = run({
+    type: 'DOWN', target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 2, upToCount: true },
+  } as EffectAction, ctx);
+  eq(result.otherState.field.lrig_down, true, '🔴複合対象からルリグが落ちている');
+  eq(result.otherState.field.signi_down?.[0], true, '選んだシグニがダウンしていない');
+  eq(result.otherState.field.signi_down?.[1], false, '選んでいないシグニまでダウンしている');
 }));
 
 if (listMode) {

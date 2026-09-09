@@ -2165,6 +2165,15 @@ function actionJa(a?: Action, effectType?: string): string {
       // alsoCenterLrig: 「**センタールリグと**すべてのシグニ」（段2 第45バッチ）。落とすとシグニだけに見えて、
       // ルリグ側（`lrig_abilities_disabled`）が効いていることが計器に映らない。
       if (a.alsoCenterLrig) {
+        // 🆕**対象が `LRIG` のときは「ルリグだけ」**（2026-09-09・第240バッチ）＝
+        //   `execRemoveAbilities` の候補は `target.type==='LRIG'` ならセンタールリグ1枚だけで、
+        //   シグニには1枚も当たらない（`effectExecutor.ts` の `cands` 分岐）。
+        // 🔴旧文は無条件に「すべてのシグニ」と書いていたため、**原文「対戦相手のルリグ1体」を
+        //   `alsoCenterLrig` で表した効果が、逆翻訳では過剰実行に見えていた**
+        //   （`WX26-CP1-028-E2` / `WX24-D1-05-E1`）＝**逆翻訳は原文照合の主計器なので嘘をつかせない。**
+        if (a.target?.type === 'LRIG') {
+          return `${ownerJa(a.target?.owner)}センタールリグは能力を失い、新たに得られない${durRA}`;
+        }
         return `${ownerJa(a.target?.owner)}センタールリグとすべての${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
       }
       return `${subjRA}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
@@ -5190,6 +5199,24 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-60` 第33〜36バッチ（2026-09-03）＝残り5ハンドラも **payload から描く**。
       //   ⚠`POWER_CAP` はハンドラを撤去したので `genStubsMd` の説明が消え、放置すると
       //   逆翻訳に**生の英語 ID**（`[STUB:POWER_CAP]`）が出て `census:stubs` C群ゲートが止まる。
+      // 🆕**`REVEAL_PICK_HAND_SHUFFLE_BOTTOM` を payload から描く**（2026-09-09・第240バッチ）＝
+      //   従来は `genStubsMd` の総称ラベル「デッキ上**N**枚公開して**M**枚を…」がそのまま出ており、
+      //   **枚数が逆翻訳に一切現れなかった**（原文照合で「3枚公開・1枚手札」を確かめられない）。
+      //   ⚠`revealPickParams` は `execStubPart1.ts:3675` が実際に読む payload（既定は 1枚 / deck_bottom / hand）。
+      if (a.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
+        const rp = (a as { revealPickParams?: { revealCount?: number; pickCount?: number | 'ALL'; restDest?: string; then?: string; filter?: TargetFilter } }).revealPickParams;
+        const restJa: Record<string, string> = {
+          deck_bottom: '残りを好きな順番でデッキの一番下に置く', deck_top: '残りをデッキの一番上に置く',
+          trash: '残りをトラッシュに置く', energy: '残りをエナゾーンに置く',
+        };
+        const thenJa: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', field: '場に出す' };
+        const revealJa = rp?.revealCount != null ? `${rp.revealCount}枚` : '数枚';
+        const pickJa = rp?.pickCount === 'ALL' ? 'すべて' : `${rp?.pickCount ?? 1}枚`;
+        // ⚠**pick の絞り込みも出す**＝`params.filter` は `execStubPart1.ts:3710` が実際に効かせている
+        //   （落とすと「どのカードでも手札に加えられる」ように読めて原文照合が通ってしまう）。
+        return `あなたのデッキの上から${revealJa}公開し、その中から${rp?.filter ? filterJa(rp.filter) : ''}${pickJa}${thenJa[rp?.then ?? 'hand'] ?? '手札に加える'}、`
+          + `${restJa[rp?.restDest ?? 'deck_bottom'] ?? '残りをデッキの一番下に置く'}`;
+      }
       if (a.id === 'POWER_CAP') {
         const pc = (a as { powerCap?: { max: number } }).powerCap;
         return pc ? `このシグニのパワーは${pc.max}より大きくならない` : 'このシグニのパワーに上限がある（上限値なし＝適用しない）';

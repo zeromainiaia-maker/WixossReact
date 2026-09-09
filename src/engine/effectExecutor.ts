@@ -4406,6 +4406,48 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
+  // 「対戦相手のルリグとシグニを合計N体まで」。GRANT_KEYWORD と同じ複合対象型を
+  // DOWN でも消費する。従来は SIGNI 候補だけへ落ち、ルリグを選べない silent no-op だった。
+  if (a.target.type === 'CENTER_LRIG_OR_SIGNI') {
+    const tgtOwner: Owner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+    const state = ownerState(tgtOwner, ctx);
+    let lrigTop = state.field.lrig.at(-1);
+    let signis = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers,
+      ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+
+    const immune = tgtOwner === 'opponent' ? ctx.otherEffectImmuneNums : ctx.ownEffectImmuneNums;
+    if (immune?.size) {
+      if (lrigTop && immune.has(lrigTop)) lrigTop = undefined;
+      signis = signis.filter(n => !immune.has(n));
+    }
+    if (tgtOwner === 'opponent') {
+      if (ctx.otherState.prevent_signi_down_by_opp) signis = [];
+      const protectedNums = new Set(ctx.otherDownProtectedNums ?? []);
+      for (const [cardNum, kws] of Object.entries(ctx.otherState.keyword_grants ?? {})) {
+        if (kws.some(kw => kw.startsWith('PROTECTION:')
+          && (kw.includes('DOWN') || kw.includes('any')) && kw.endsWith(':opponent'))) {
+          protectedNums.add(cardNum);
+        }
+      }
+      signis = signis.filter(n => !protectedNums.has(n));
+    }
+    const cands = [...(lrigTop ? [lrigTop] : []), ...signis];
+    if (cands.length === 0) return done(ctx);
+    // ⚠**枚数は `resolveCountRef`**（同関数の主経路と揃える）＝`resolveNum` は `{$ref}` を問答無用で 0 にするので
+    //   動的枚数が**黙って0体ダウン**に化ける。golden の「C2 $refトリップワイヤ」がこの差分を検出した。
+    const count = a.target.count === 'ALL' ? cands.length : resolveCountRef(a.target.count, ctx, a.target.countFromZone);
+    const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+    if (a.target.count === 'ALL') {
+      let cur = ctx;
+      for (const num of cands) {
+        const applied = applyDirectAction(a, num, cur);
+        cur = { ...cur, ownerState: applied.ownerState, otherState: applied.otherState, logs: applied.logs };
+      }
+      return done({ ...cur, lastProcessedCards: cands });
+    }
+    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx,
+      false, { selectionConstraint: a.target.selectionConstraint });
+  }
   if (a.target.type === 'LRIG') {
     const state = ownerState(a.target.owner, ctx);
     const lrigTopId = state.field.lrig?.at(-1);
@@ -9907,6 +9949,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'BANISH_REDIRECT': {
       const brAction = action as BanishRedirectAction;
+      // 「正面に配置されたそのシグニ」等：トリガー元へ対象選択なしで固定。
+      // payload だけ書いても applyDirectAction へ渡さなければ silent no-op なので、ここが消費地点。
+      if (brAction.targetsTriggerSource) {
+        const cardNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+        if (!cardNum) return done(addLog(ctx, 'バニッシュ先変更対象（トリガー元）を特定できない'));
+        const targetState = brAction.target.owner === 'self' ? ctx.ownerState : ctx.otherState;
+        const cands = fieldCandidates(targetState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
+          ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+        if (!cands.includes(cardNum)) return done(addLog(ctx, 'バニッシュ先変更対象が場にいない'));
+        return applyDirectAction(brAction, cardNum, ctx);
+      }
       // targetsLastProcessed: 「それ」= 直前ステップで選択/処理したシグニへ選択UIなしで適用。
       // 直前ステップが空振りなら did-it ゲートとして no-op（全体フラグや全候補へのフォールバックはしない）。
       if (brAction.targetsLastProcessed) {
@@ -12726,6 +12779,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const downA = action as import('../types/effects').DownAction;
       const downOwner: Owner = downA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : downA.target.owner as Owner;
       const downS = ownerState(downOwner, ctx);
+      if (downS.field.lrig.at(-1) === cardNum) {
+        if (downS.field.lrig_down) return done(ctx);
+        return done(addLog(setOwnerState(downOwner,
+          { ...downS, field: { ...downS.field, lrig_down: true } }, ctx),
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をダウン`));
+      }
       const zoneIdx = downS.field.signi.findIndex(st => st?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
       const newDown = [...(downS.field.signi_down ?? [false, false, false])] as boolean[];

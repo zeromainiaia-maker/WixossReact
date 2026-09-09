@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09 — 第240バッチ：Codex が利用上限で途中停止 → Claude が引き継いで17効果を完成（既存 golden 3本の腐りと engine の $ref 死角も是正）
+
+**投入**＝実装キュー残245から機構不要スクリーニングで30効果（HIGH 17＋MED 13。HIGH の在庫が尽きたので MED を混ぜた）。
+**Codex は parser 17効果＋engine 3箇所＋golden 19本まで書いた時点で利用上限**（`try again at 6:27 PM`）に到達し、
+`build:effects` も full gates も回せずに停止した。**Claude が作業ツリーを検証したうえで引き継いで完成させた。**
+
+### 採用17効果（`repairSemanticBatch240`＝effectId アンカー）
+`WX25-P3-001-E1`（【ルリグバリア】の欠落）／`WX24-P4-087-E1`（`BANISH_REDIRECT` が相手全シグニ→トリガー元1体）／
+`WX25-P3-006-E1`（相手ルリグのダウン欠落）／`WX25-P1-087-E1`（即時 CHOOSE →＜原子＞への `ON_BANISH` 付与）／
+`WX25-P3-036-E1`（バースト不発の表し方）／`WX25-CP1-026-E1`・`WX25-CP1-028-E1`（相手ルリグ＋シグニ合計2体まで）／
+`WX25-CP1-081-E1`（バトルしたシグニの能力喪失）／`WX25-CP1-091-E1`（アタックしたシグニへの強化）／
+`WX26-CP1-003-E1`（【ダブルクラッシュ】側の選択肢）／`WX26-CP1-028-E2`・`WX24-D1-05-E1`・`WX24-P1-011-E1`
+（能力喪失の対象がシグニ→ルリグ）／`WX24-P2-047-E1`（存在条件の係り先）／`WXDi-P16-TK01-E1`（同じ選択肢の重複選択）／
+`WX14-037-E1`（無意味な `LOOK_AND_REORDER` の除去）／`WXEX1-04-E1`（付与先が場に出たそのレゾナ）。
+
+**engine 3箇所**（Codex 実装・Claude 検証）＝①`execDown` に `CENTER_LRIG_OR_SIGNI` 分岐（ルリグとシグニを同時にダウン）
+②`applyDirectAction` の `DOWN` にルリグ枝（`lrig_down`）③`BANISH_REDIRECT` の `targetsTriggerSource` 消費地点。
+**型追加は `BanishRedirectAction.targetsTriggerSource` の1つだけ。**
+
+### 🔴 Claude が引き継いで直した4件（**うち1件は Codex の実装ミス**）
+
+1. **`execDown` の新分岐が `resolveNum` で枚数を解いていた**＝`{$ref}` を問答無用で 0 にするので、
+   動的枚数が**黙って0体ダウン**に化ける死角。**golden の「C2 $refトリップワイヤ」がこの差分を検出**した
+   （凍結された関数集合に `execDown` が増えた）。⇒ 同関数の主経路と同じ `resolveCountRef` へ直した。
+   🔑**トリップワイヤを「更新して黙らせる」のではなく、実装を直すのが正しい向き**だった。
+2. **`WX25-P3-036-E1` の既存 golden が腐っていた**＝旧 live は `STUB{SUPPRESS_LIFE_BURST_ON_CARD}`＝
+   `otherState.suppress_life_burst = true`（`execStubPart1.ts:1763`）で**そのターンの相手のバーストを全部**止める
+   過剰抑制だった。原文は「**その**対戦相手のカードのライフバーストは発動しない」なので
+   `LIFE_CRASH{owner:'opponent', triggerBurst:false}` が正しい。**assert を新しい正しい形へ更新した。**
+3. **位置固定の golden がずれた**＝`WX25-P3-001-E1` に落ちていた【ルリグバリア】を `steps[1]` へ足したので、
+   `['steps', 4]` / `['steps', 2]` を見ていた assert が一斉に外れた。⇒ **添字ではなく型・id で引く**形へ直した
+   （位置は実装詳細なので固定しない）。
+4. 🔑**`fresh()`（POOL カーソル）に依存した golden が、無関係な parser 変更で赤くなった**＝
+   `WX15-038-E2` の「**別名**アクセでは+3000しない」の"別名"を `fresh()` で引いていたため、
+   前段テストの `fresh()` 消費が変わると**たまたま `WX15-058` 自身**を引いて +3000 が乗る。
+   ⇒ `findCard` で明示的に別カードを選ぶ形へ。**`--only` では緑・全件では赤**という典型的な出方をした。
+
+### 逆翻訳（原文照合の主計器）の嘘を2つ直した
+- **`REMOVE_ABILITIES{target:LRIG, alsoCenterLrig}` が「センタールリグと**すべてのシグニ**は能力を失い」と出ていた**＝
+  engine の候補は `target.type==='LRIG'` ならセンタールリグ1枚だけなのに、**逆翻訳だけが過剰実行に見えていた**
+  （`WX26-CP1-028-E2` / `WX24-D1-05-E1` / `WX24-P1-011-E1`）。対象が `LRIG` のときは「センタールリグは」に直した。
+- **`REVEAL_PICK_HAND_SHUFFLE_BOTTOM` が総称ラベル「デッキ上**N**枚公開して**M**枚を…」のままで、
+  枚数も絞り込みも逆翻訳に出ていなかった**（`revealPickParams` は engine が実際に読んでいる）。payload から描くようにした。
+
+### 検証
+`git diff c7fbc0cb5` の **effectId 単位差分＝ちょうど17件**（スコープ外0）。新規キーの消費地点を全点コード確認
+（`GAIN_LRIG_BARRIER`／`alsoCenterLrig`／`allowRepeat`／`revealPickParams.restDest`・`.filter`／`triggerBurst`／
+`targetsTriggerSource` を `POWER_MODIFY`・`REMOVE_ABILITIES`・`GRANT_EFFECT`・`GRANT_PROTECTION`・`BANISH_REDIRECT` の各所で）。
+`ON_SIGNI_BATTLE` の付与能力が拾われること（`BattleScreen.tsx:11025` は augmented effectsMap を読む・
+`triggeringCardNum` はバトル相手）も確認。`npm run gates` 全緑・**golden 3788 PASS**（3769 → +19）・
+smoke 10744 OK・fuzz 0・census 各計器 0。`npm run regen` の逆翻訳を17件とも原文と目視照合。
+**実機は不要**（§2.2＝`src/screens/` 不触）。
+
+**実装キュー: 245 → 228効果**。**未着手13効果**（`WX25-P3-032-E2`／`WXDi-P13-004B-E3`／`WX10-028-E2`／`WX09-028-E1`／
+`WX05-005-E3`／`WX06-019-E1`／`WX07-039-E1`／`WX17-063-E1`／`WX16-002-E4`／`WX18-033-E2`／`WX16-003-E1`／
+`WX19-064-BURST`／`WX16-067-E2`）は**そのまま次バッチの先頭へ回す**（Codex は着手すらしていない＝見送り判定ではない）。
+
 ## 2026-09-09 — 第239バッチ：機構不要候補30効果の再照合・Codex が15効果修正（Claude 検証済み）＋検証で見つけた engine の穴1件
 
 対象30効果について原文・投入時live JSON・fresh parser・既存golden・engineの実消費箇所を再照合し、
