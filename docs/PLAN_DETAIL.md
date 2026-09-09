@@ -1474,6 +1474,19 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-09（第238〜第240バッチ・Opus 5＝自力6効果 ＋ Codex 委譲32効果・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  📦**在庫**＝🔥**実装キュー 228効果**（266 → 228・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み206）｜
+  🔥**機構 worklist＝索引 G 11項目**（`O-308` を追加した第239から据置）｜
+  **⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3788 PASS**（3745 → 3753 → 3769 → 3788）／ smoke 10744 OK ／ fuzz 200ゲーム 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+  lint 0 errors / 254 warnings（着手前と同値）。**Claude 独立実行で全数検算済み**
+  （effectId 単位差分＝第238で6件・第239で15件・第240で17件・スコープ外0）。
+  🖥**実機＝不要**（3巡とも `src/screens/` 不触＝PLAN §2.2 の機械判定）。
+  🔑**engine の穴3件**（`TRANSFER_TO_DECK{owner:any}`／`POWER_SET{frontOfSelf}`／`execDown` の `$ref` 死角）と
+  **golden の腐り4件**（位置固定2・POOL カーソル依存1・旧実装固定1）を是正。**どちらも「同じ族の残りを確かめる」で出た。**
+
 - **2026-09-09（第238＋第239バッチ・Opus 5＝自力実装6効果 ＋ Codex 委譲15効果・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
   ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。

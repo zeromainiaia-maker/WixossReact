@@ -1705,6 +1705,10 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.source?.fromLeftFieldUnder)
         return `トラッシュにある、このカードの下にあった${leftFieldUnderNounJa(a.source)}を${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
+      if (a.targetsStored && a.source?.type === 'TRASH_CARD'
+          && Object.keys(a.source.filter ?? {}).every(k => k === 'cardType')) {
+        return `この方法でトラッシュに置いたそれをコストを支払わず${defaultPlacementAF}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      }
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
@@ -2552,6 +2556,11 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.from === 'deck_bottom' && a.then?.type === 'ADD_TO_FIELD'
             && a.pickCount === 1 && a.pickUpTo === true && rem?.location === 'trash') {
           return `${revealJa}、そのカードを場に出すかトラッシュに置く`;
+        }
+        if (a.then?.type === 'BANISH' && a.then.targetsStored) {
+          const otherwise = a.elseAction ? `。そうでない場合、${actionJa(a.elseAction)}` : '';
+          const condRem = (rapCnt && rapCnt > 1) ? remJa : '';
+          return `${revealJa}、それが${filterStr}の場合、先に対象としたそれをバニッシュする${otherwise}${condRem}`;
         }
         const suppress = a.then?.type === 'ADD_TO_FIELD' && a.then?.suppressOnPlay
           ? '。それらのシグニの【出】能力は発動しない' : '';
@@ -5603,7 +5612,8 @@ function effJa(e: Eff): string {
       //   ⚠この分岐は `filterJa` を通さず色とクラスだけを手組みしていたので、
       //     `triggerFilter` に足した限定が**逆翻訳に1文字も出ない**（第214の `levelLtOwnLrig` と同型の穴）。
       const resonaJa = e.triggerFilter?.excludeResona ? 'レゾナではない' : '';
-      s = `${resonaJa}あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${colors}${stories}シグニが対戦相手のライフクロス1枚をクラッシュしたとき`;
+      const driveJa = e.triggerFilter?.isDrive ? 'ドライブ状態の' : '';
+      s = `${resonaJa}あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${driveJa}${colors}${stories}シグニが対戦相手のライフクロス1枚をクラッシュしたとき`;
     }
     // 🆕**2026-08-31 §5.2 再照合**＝`triggerCondition.crashedByKeywords`（【ランサー】によるクラッシュ限定）を
     //   逆翻訳が描いていなかった。engine は `triggerCollect.ts:59` で **fail-closed** に消費しており

@@ -28165,6 +28165,172 @@ function repairSemanticBatch240(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第241バッチ：意味照合で BUG と確定した一点物のうち、
+ * 既存の action / condition / state で厳密に表現できる効果だけを修復する。
+ */
+function repairSemanticBatch241(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXEX1-62-E2':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+              selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', powerRange: { max: 1000 } },
+              },
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1,
+              filter: { cardType: 'シグニ', level: 4 }, pickCount: 1,
+              then: {
+                type: 'BANISH',
+                target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+                targetsStored: true,
+              },
+              remainder: { location: 'deck', position: 'top' },
+            },
+          ],
+        };
+        break;
+      case 'WXEX2-22-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'TRASH',
+              target: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+            },
+            {
+              type: 'TRASH',
+              target: { type: 'DECK_CARD', owner: 'self', count: { $ref: 'last_processed_level' } },
+            },
+          ],
+        };
+        break;
+      case 'WXK01-082-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+              selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'CONDITIONAL', condition: { type: 'TURN_OWNER', owner: 'self' },
+              then: {
+                type: 'POWER_MODIFY',
+                target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+                targetsStored: true, delta: -4000, duration: 'UNTIL_END_OF_TURN',
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK02-003-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } },
+            { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } },
+            { type: 'DRAW', owner: 'self', count: 2 },
+          ],
+        };
+        break;
+      case 'WXK02-060-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+              selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'CONDITIONAL',
+              condition: {
+                type: 'TRASH_HAS_CARD', owner: 'self', minCount: 5,
+                filter: { cardType: 'シグニ', story: '武勇' },
+              },
+              then: {
+                type: 'SEQUENCE',
+                steps: [
+                  { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+                  {
+                    type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+                    then: {
+                      type: 'POWER_MODIFY',
+                      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+                      targetsStored: true, delta: -3000, duration: 'UNTIL_END_OF_TURN',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK03-025-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          const discard = effect.action.steps[1];
+          if (discard?.type === 'CONDITIONAL' && discard.then.type === 'TRASH') {
+            discard.then.target.selectionConstraint = undefined;
+          }
+        }
+        break;
+      case 'WXK03-028-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'CONDITIONAL',
+              condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'even' } },
+              then: {
+                type: 'ADD_TO_FIELD', owner: 'self', targetsStored: true,
+                source: {
+                  type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                  filter: { cardType: 'シグニ' },
+                },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK09-096-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 1 } },
+          ],
+        };
+        break;
+      case 'WXK10-063-E1':
+        effect.triggerScope = 'any_ally';
+        effect.triggerFilter = { cardType: 'シグニ', isDrive: true };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -29038,6 +29204,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch236(effects);
   repairSemanticBatch239(effects);
   repairSemanticBatch240(effects);
+  repairSemanticBatch241(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

@@ -13523,7 +13523,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const topNum of oppCrashSources) {
         for (const eff of effectsMap.get(topNum) ?? []) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
-          if (!battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap)) continue;
+          if (!battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap, op)) continue;
           // §5.3 O-120: 「【ランサー】によってクラッシュしたとき」＝原因キーワード限定（fail-closed）。
           if (!crashCauseMatches(eff, crashCause)) continue;
           if (eff.kizunaIcon && !isKizunaActive(op, topNum, battleCardMap)) continue; // 【絆自】は絆獲得時のみ

@@ -75,11 +75,16 @@ export function oppLifeCrashSourceMatches(
   watcherNum: string,
   crashSourceCardNum: string | undefined,
   cardMap: Map<string, CardData>,
+  crasherState?: PlayerState,
 ): boolean {
   if (!crashSourceCardNum) return true;
   if (effect.triggerScope === 'self' && effect.triggerFilter?.thisCardOnly) return crashSourceCardNum === watcherNum;
   if (effect.triggerScope !== 'any_ally') return true;
   if (effect.triggerFilter?.excludeSelf && crashSourceCardNum === watcherNum) return false;
+  if (effect.triggerFilter?.isDrive) {
+    const zoneIdx = crasherState?.field.signi.findIndex(stack => stack?.at(-1) === crashSourceCardNum) ?? -1;
+    if (!crasherState || zoneIdx < 0 || !matchesStateFilter(crasherState, zoneIdx, effect.triggerFilter)) return false;
+  }
   return matchesFilter(cardMap.get(getCardNum(crashSourceCardNum)), effect.triggerFilter);
 }
 
@@ -4141,7 +4146,7 @@ export function collectOppLifeCrashedTriggers(
       : (ctx.effectsMap.get(watcher) ?? []);
     for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
-      if (!oppLifeCrashSourceMatches(eff, watcher, crashSourceCardNum, ctx.cardMap)) continue;
+      if (!oppLifeCrashSourceMatches(eff, watcher, crashSourceCardNum, ctx.cardMap, crasherState)) continue;
       if (!crashCauseMatches(eff, crashCause)) continue;   // §5.3 O-120（fail-closed）
       if (!limitOk(eff)) continue;
       entries.push({ id: ctx.genId(), playerId: crasherId, cardNum: watcher, effectId: eff.effectId,

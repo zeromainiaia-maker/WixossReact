@@ -208,3 +208,12 @@ WX24-P2-047-E1 :: 2026-09-09 :: 第240バッチ＝カード名存在条件が任
 WXDi-P16-TK01-E1 :: 2026-09-09 :: 第240バッチ＝CHOOSEに同じ選択肢の重複選択（allowRepeat）と2つまで（upTo）を追加
 WX14-037-E1 :: 2026-09-09 :: 第240バッチ＝無意味なLOOK_AND_REORDERを除去しREVEAL_PICK_HAND_SHUFFLE_BOTTOM{revealCount:3,filter}へ
 WXEX1-04-E1 :: 2026-09-09 :: 第240バッチ＝選択肢③の付与先を場に出たそのレゾナ（targetsTriggerSource）へ
+WXEX1-62-E2 :: 2026-09-09 :: 第241バッチ＝対象宣言を公開より前へ（SELECT_TARGET_ONLY＋targetsStored）＝原文の順序どおりに
+WXEX2-22-E3 :: 2026-09-09 :: 第241バッチ＝デッキトラッシュ枚数を{$ref:last_processed_level}へ（固定1枚→移動シグニのレベル連動）
+WXK01-082-E1 :: 2026-09-09 :: 第241バッチ＝TURN_OWNER条件が対象選択まで囲っていたのを帰結だけへ（自分ターン以外でも対象は選べる）
+WXK02-003-E3 :: 2026-09-09 :: 第241バッチ＝「対戦相手の手札を見る」処理の欠落を追加（opp_hand ALL）
+WXK02-060-E1 :: 2026-09-09 :: 第241バッチ＝トラッシュ枚数条件（TRASH_HAS_CARD）を任意コストのゲートへ・対象宣言を先行させた
+WXK03-025-E1 :: 2026-09-09 :: 第241バッチ＝原文に無いselectionConstraint（レベルが異なる）を除去しTRASHED_DISTINCT_LEVELS_GTEへ
+WXK03-028-E3 :: 2026-09-09 :: 第241バッチ＝場に出す候補をトラッシュ全体→直前にデッキ上から置いたそのカードへ（targetsStored）
+WXK09-096-E1 :: 2026-09-09 :: 第241バッチ＝「各プレイヤーは」の相手側が落ちていたのを追加（DECK_CARD owner:opponent）
+WXK10-063-E1 :: 2026-09-09 :: 第241バッチ＝ドライブ状態限定（triggerFilter.isDrive）を追加＋crasherStateをengine/実機経路へ配線

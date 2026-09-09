@@ -21746,6 +21746,22 @@ test('段2 第37バッチ engine両方向: any_allyは実クラッシュ源のSI
   eq(runCrash('WX11-028', weapon, 'WX03-031'), false, '非＜ウェポン＞SIGNIがクラッシュ→非発火');
 }));
 
+test('第241バッチ E2E WXK10-063-E1: ドライブ状態のシグニがクラッシュしたときだけ発火', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXK10-063')!).find(e => e.effectId === 'WXK10-063-E1')!;
+  eq(effect.triggerScope, 'any_ally', 'あなたのシグニ＝any_ally');
+  eq(effect.triggerFilter?.isDrive, true, 'ドライブ状態フィルタを刻む');
+  const watcher = 'WXK10-063#watcher';
+  const crashSource = 'WXK10-063#source';
+  const state = mkState({ signi: [watcher, crashSource, null] });
+  state.lrig_riding_signi = [crashSource];
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[watcher, [effect]]]) };
+  eq(collectOppLifeCrashedTriggers(ctx, state, HOST, crashSource).entries.some(e => e.effectId === effect.effectId), true,
+    'ドライブ状態のシグニがクラッシュしたときは発火');
+  state.lrig_riding_signi = [];
+  eq(collectOppLifeCrashedTriggers(ctx, state, HOST, crashSource).entries.some(e => e.effectId === effect.effectId), false,
+    'ドライブ状態でないシグニのクラッシュでは非発火');
+}));
+
 test('段2 第37バッチ engine両方向: 明示selfはwatcher自身のinstanceだけ発火する', () => withSavedCursor(() => {
   const parsed = (cardNum: string, effectId: string) => parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
   for (const [cardNum, effectId, other] of [
@@ -21781,14 +21797,32 @@ test('段2 第37バッチ 二重経路契約: engine collectorとBattleScreenは
   const state = mkState({ signi: ['WX11-028', null, null] });
   for (const [source, expected] of [['WX11-028', true], ['WX03-031', false]] as const) {
     const engineResult = collectOppLifeCrashedTriggers(ctx, state, HOST, source).entries.some(e => e.effectId === eff.effectId);
-    const battleResult = battleOppLifeCrashSourceMatches(eff, 'WX11-028', source, cardMap as Map<string, CardData>);
+    const battleResult = battleOppLifeCrashSourceMatches(eff, 'WX11-028', source, cardMap as Map<string, CardData>, state);
     eq(engineResult, expected, `engine collector ${source}`);
     eq(battleResult, expected, `BattleScreen実機predicate ${source}`);
     eq(battleResult, engineResult, `同一盤面の二重経路一致 ${source}`);
   }
   const battleSource = fs.readFileSync(join(process.cwd(), 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(battleSource.includes('battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap)'),
+  ok(battleSource.includes('battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap, op)'),
     '実機のoppCrashSourcesループが検証済みのBattleScreen predicateを呼ぶ');
+  // 🆕**第241バッチ（2026-09-09）＝`triggerFilter.isDrive` も二重経路で一致させる。**
+  //   🔴この軸は**クラッシュ側の `PlayerState` が要る**（`matchesStateFilter` がゾーン番号を引く）ため、
+  //   `crasherState` を渡し忘れると **fail-closed で永久に発火しない**（無言の過少実行）。
+  //   ⚠`src/screens/` は golden から import できる純関数だけが検証対象＝**この経路をここで押さえておく**
+  //   （BattleScreen 本体の呼び出しは上の source assert が住所を固定している）。
+  {
+    const driveEff = parseCardEffects(cardMap.get('WXK10-063')!).find(e => e.effectId === 'WXK10-063-E1')!;
+    const driveWatcher = 'WXK10-063#w', driveSource = 'WXK10-063#s';
+    const driveState = mkState({ signi: [driveWatcher, driveSource, null] });
+    driveState.lrig_riding_signi = [driveSource];
+    ok(battleOppLifeCrashSourceMatches(driveEff, driveWatcher, driveSource, cardMap as Map<string, CardData>, driveState),
+      'ドライブ状態のクラッシュ元を実機 predicate が拾えていない');
+    driveState.lrig_riding_signi = [];
+    ok(!battleOppLifeCrashSourceMatches(driveEff, driveWatcher, driveSource, cardMap as Map<string, CardData>, driveState),
+      'ドライブ状態でないクラッシュ元まで実機 predicate が通している');
+    ok(!battleOppLifeCrashSourceMatches(driveEff, driveWatcher, driveSource, cardMap as Map<string, CardData>, undefined),
+      'crasherState 未指定は fail-closed（渡し忘れを緑にしない）');
+  }
 });
 
 test('段2 第37バッチ 既存self非退化契約: source個体マーカーのないscope:selfは従来どおり原因を限定しない', () => {
@@ -48455,6 +48489,10 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     'HAND_CARD.count',                 // execTrash 通常(:1579) と blind(:1504) の両分岐とも resolveCountRef
     'ENERGY_CARD.count',               // execTrash(:1646) / execTransferToHand(:2288) とも resolveCountRef
     'TRASH_CARD.count',                // execAddToField / execTransferToHand の source
+    // ⚠**親が `TRASH` のときだけ検証済み**（`execTrash` の DECK_CARD 分岐＝`resolveCountRef`）。
+    //   2026-09-09 実測＝live でこの位置に `$ref` を持つのは `WXEX2-22-E3` の1件だけ。
+    //   **別の親（`TRANSFER_TO_DECK` の source 等）で出てきたら、その消費地点を読み直すこと。**
+    'DECK_CARD.count',                 // execTrash は resolveCountRef（WXEX2-22: 直前に移動したシグニのレベル枚）
     'ADD_TO_LIFE.count',               // execAddToLife(:2596)
     'ENERGY_CHARGE_FROM_DECK.count',   // execEnergyChargeFromDeck(:1740)
     'DRAW.count',                      // execDraw（last_processed_count / attack-phase draw count）
@@ -49607,9 +49645,13 @@ test('§6.4 O-36: ターン条件の持ち上げが allowlist 無しで全カー
   const ch13 = (k13.action as import('../src/types/effects').ChooseAction).choices[0];
   eq(ch13.condition?.type, 'TURN_OWNER', '🔴選択肢①のターン条件が落ちている');
   eq((ch13.condition as Extract<Condition, { type: 'TURN_OWNER' }>).owner, 'opponent', '相手ターン限定');
-  // (e) MANUAL 刻印で収穫マージが触れない4効果（外科パッチ済み＝戻ると無言で過剰発火に戻る）
+  // (e) WXK01-082 は対象宣言がターン条件より前。パワー修正だけを自分のターンに限定する。
+  const k82 = (effectsMap.get('WXK01-082') ?? []).find(x => x.effectId === 'WXK01-082-E1')!;
+  const k82Steps = (k82.action as SequenceAction).steps;
+  eq((k82Steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', '🔴WXK01-082: 相手ターンでも対象を宣言する');
+  eq(turnCond(k82Steps[2])?.owner, 'self', 'WXK01-082: パワー-4000だけ自分ターン限定');
+  // MANUAL 刻印で収穫マージが触れない残りの効果。
   for (const [card, eid, owner] of [
-    ['WXK01-082', 'WXK01-082-E1', 'self'],
     ['WXDi-P03-010', 'WXDi-P03-010-E2', 'opponent'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === eid)!;
@@ -73852,6 +73894,53 @@ test('第240 engine: DOWN{CENTER_LRIG_OR_SIGNI,count:2} は相手ルリグとシ
   eq(result.otherState.field.lrig_down, true, '🔴複合対象からルリグが落ちている');
   eq(result.otherState.field.signi_down?.[0], true, '選んだシグニがダウンしていない');
   eq(result.otherState.field.signi_down?.[1], false, '選んでいないシグニまでダウンしている');
+}));
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WXEX1-62', 'WXEX1-62-E2', ['"id":"SELECT_TARGET_ONLY"', '"powerRange":{"max":1000}', '"targetsStored":true'], ['"action":{"type":"REVEAL_AND_PICK"']],
+  ['WXEX2-22', 'WXEX2-22-E3', ['"count":{"$ref":"last_processed_level"}'], ['"type":"DECK_CARD","owner":"self","count":1']],
+  ['WXK01-082', 'WXK01-082-E1', ['"id":"SELECT_TARGET_ONLY"', '"condition":{"type":"TURN_OWNER","owner":"self"}', '"targetsStored":true'], ['"action":{"type":"CONDITIONAL"']],
+  ['WXK02-003', 'WXK02-003-E3', ['"zone":"opp_hand","count":"ALL"', '"zone":"opp_life","count":1', '"type":"DRAW","owner":"self","count":2'], []],
+  ['WXK02-060', 'WXK02-060-E1', ['"id":"SELECT_TARGET_ONLY"', '"type":"TRASH_HAS_CARD"', '"type":"PAID_ADDITIONAL_COST"', '"targetsStored":true'], ['"id":"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"']],
+  ['WXK03-025', 'WXK03-025-E1', ['"type":"TRASHED_DISTINCT_LEVELS_GTE","count":4', '"type":"HAND_CARD","owner":"opponent","count":2'], ['"selectionConstraint"']],
+  ['WXK03-028', 'WXK03-028-E3', ['"id":"STORE_LAST_PROCESSED_TARGETS"', '"levelParity":"even"', '"targetsStored":true'], []],
+  ['WXK09-096', 'WXK09-096-E1', ['"type":"DECK_CARD","owner":"self","count":1', '"type":"DECK_CARD","owner":"opponent","count":1'], ['"action":{"type":"TRASH"']],
+  ['WXK10-063', 'WXK10-063-E1', ['"triggerScope":"any_ally"', '"triggerFilter":{"cardType":"シグニ","isDrive":true}', '"id":"CENTER_LRIG_DISMOUNT"'], []],
+] as const) {
+  test(`第241 ${effectId}: 原文どおりの一点物修復を fresh/live に保持`, () => {
+    for (const freshParse of [true, false]) {
+      const json = JSON.stringify(batch240Effect(cardNum, effectId, freshParse));
+      const side = freshParse ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+test('第241 逆翻訳: 先行対象とドライブ限定をpayloadから描く', () => {
+  ok(decompiledLineOf('WXEX1-62-E2').includes('先に対象としたそれをバニッシュする'),
+    'WXEX1-62-E2: 公開札自身をバニッシュする表示になっている');
+  ok(decompiledLineOf('WXK10-063-E1').includes('あなたのドライブ状態のシグニ'),
+    'WXK10-063-E1: ドライブ限定が表示から落ちている');
+  ok(decompiledLineOf('WXK03-028-E3').includes('この方法でトラッシュに置いたそれを'),
+    'WXK03-028-E3: 直前のデッキ上のカードへの同一性固定が表示から落ちている');
+});
+
+// 🆕**第241バッチの検証で足した E2E**（Claude・2026-09-09）＝`{$ref:'last_processed_level'}` は
+//   **直前ステップが `lastProcessedCards` を残していて初めて効く**。JSON に `$ref` が載っていることと、
+//   実行時に正しい枚数になることは別問題（同バッチの `WXEX2-54-E2` は `lastProcessedCards` が空になるため見送られた）。
+test('第241 engine: WXEX2-22-E3 はトラッシュしたシグニのレベル枚だけデッキを削る', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXEX2-22')!).find(e => e.effectId === 'WXEX2-22-E3')!;
+  const run1 = (oppSigni: string) => {
+    const ctx = mkCtx({ deckTop: fill(8) }, { signi: [oppSigni, null, null] });
+    const before = ctx.ownerState.deck.length;
+    const result = run(effect.action, ctx);
+    return before - result.ownerState.deck.length;
+  };
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  eq(run1(lv1), 1, 'レベル1のシグニをトラッシュしたのにデッキ削りが1枚でない');
+  eq(run1(lv4), 4, 'レベル4のシグニをトラッシュしたのにデッキ削りが4枚でない（$ref が 0 に落ちている疑い）');
 }));
 
 if (listMode) {

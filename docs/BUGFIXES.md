@@ -1,5 +1,79 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09 — 第241バッチ：Codex が30効果を再照合し9効果修正（Claude 検証済み）＝トリップワイヤ拡張の妥当性まで検算
+
+指示書のlive JSONスナップショットを再照合し、**9効果を`repairSemanticBatch241`で採用**、
+**10効果は既修正またはFP**、**11効果は新しい動的条件・状態・選択UIが要るため見送り**とした。
+live JSONの差分effectIdは採用9件と完全一致し、全件トップレベルで`GRANT_*` 入れ子は0件。
+
+**採用9効果**：
+
+- `WXEX1-62-E2`＝相手シグニを公開前に対象化・保存し、デッキ上がレベル4シグニの場合だけ保存対象をバニッシュ。逆翻訳も「先に対象としたそれ」を描画。
+- `WXEX2-22-E3`＝デッキ上のトラッシュ枚数を`{$ref:'last_processed_level'}`にし、`execTrash`の`resolveCountRef`消費を確認。
+- `WXK01-082-E1`＝対象宣言をターン条件の前へ出し、保存対象のパワー修正だけを自ターンに限定。
+- `WXK02-003-E3`＝相手手札全枚→相手ライフ上1枚→2ドローの順に構築。
+- `WXK02-060-E1`＝相手シグニの対象化・保存をトラッシュ5枚判定より前へ出し、黒コスト支払後だけ保存対象を-3000。
+- `WXK03-025-E1`＝条件側の異なる4レベル判定は維持し、結果側の手札2枚に付いていた偽`selectionConstraint.distinct:'level'`を除去。
+- `WXK03-028-E3`＝デッキ上からトラッシュに置いた同一カードを保存し、偶数レベルシグニの場合だけ`targetsStored:true`で場出し。逆翻訳も同一性を描画。
+- `WXK09-096-E1`＝自分・相手の`TRASH{DECK_CARD,count:1}`を連結し「各プレイヤー」を復元。
+- `WXK10-063-E1`＝`triggerScope:'any_ally'` + `triggerFilter.isDrive:true`を刻み、headless collectorとBattleScreen実機経路の両方で既存`matchesStateFilter`を消費。
+
+**既修正/FP 10効果**：`WX10-028-E2`, `WX09-028-E1`, `WX05-005-E3`, `WX06-019-E1`,
+`WX07-039-E1`, `WX17-063-E1`, `WX18-033-E2`, `WX19-064-BURST`, `WX16-067-E2`, `WXEX2-12-E2`。
+
+**見送り11効果**：`WX25-P3-032-E2`（次のアタッククラッシュをトラッシュへ置換+バース抑止するkindが無い）、
+`WXDi-P13-004B-E3`（次の自分エナフェイズ終了+発生源が場にある間の寿命が無い）、`WX16-002-E4`（同一能力の【出】/【起】二重経路が無い）、
+`WX16-003-E1`（各プレイヤーのそのターン最初のアーツ条件+二択キャリアが無い）、`WXEX2-08-E4`（両プレイヤーのエナを横断する候補UIが無い）、
+`WXEX2-39-E3`（「コスト OR ＜凶蟲＞の効果」の原因条件が無い）、`WXEX2-54-E2`（場トラッシュレベルへの-1オフセット参照が無い。E2Eで`lastProcessedCards` が空になることを確認し誤採用を撤回）、
+`WXK01-045-E1`（任意の相手シグニの「このターンに場に出た」filterが無い）、`WXK02-027-E1`（自センタールリグへの厳密なレベル+1/-1 filterが無い）、
+`WXK05-029-E3`（`selectionConstraint`に4枚の能力同一制約が無い）、`WXK06-028-E1`（`TRASH_CARD,count:2`のデッキ上配置順を相手が決めるUIが無い）。
+
+**engine変更**＝`src/engine/triggerCollect.ts` の`oppLifeCrashSourceMatches`/`collectOppLifeCrashedTriggers`、
+`src/screens/battle/lifeCrashTriggers.ts`、`src/screens/BattleScreen.tsx`。反転確認は
+`第241バッチ E2E WXK10-063-E1: ドライブ状態のシグニがクラッシュしたときだけ発火`＝分岐ありPASS→分岐を外すと非ドライブで発火しFAIL→復元後PASS。
+
+**書き換えた既存golden 3件**：①`O-36 ターン条件`の`WXK01-082-E1`は旧実装固定（対象選択まで条件内）だったため原文向きへ反転、
+②`段2 第37バッチ 二重経路契約`は実機ラッパーのstate引数追加による文字列assert腐り、
+③`C1 $refトリップワイヤ`は`DECK_CARD.count`の新規出現を正しく検知し、`execTrash`が`resolveCountRef`で消費するため許可位置へ追加。実装ミスによる書き換えは0件。
+
+検証＝`npm run regen` 完走、`npm run typecheck` PASS、フィルタなし`npm run golden` **3799/3799 PASS**（投入前3788→+11）、
+`npm run gates` 全緑。smoke **10744/10744**（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム不具合0、census高シグナル`0 / baseline 0`、
+`census:stubs` A群0、`census:enginetext` A群0、`census:costtext` A群0、manual field loss 0、lint `0 errors / 254 warnings`。
+commit/pushなし、`docs/PLAN.md`・`docs/PLAN_PROGRESS.md`不触。
+
+### Claude の独立検証（すべて再実行）
+
+- `git diff 69519b7e3` の **effectId 単位差分＝ちょうど9件**（報告と一致・スコープ外0）。
+- 🔴**Codex が広げたトリップワイヤ（`C1 $ref`）の妥当性を検算した**＝`OK_POSITIONS` に `DECK_CARD.count` を追加した件。
+  **消費地点を読んで正当と確認**（`execTrash` の DECK_CARD 分岐は `resolveCountRef`＝`effectExecutor.ts` の該当行）。
+  さらに **live 全効果を走査して、この位置に `$ref` を持つのは `WXEX2-22-E3` の1件だけ／親は `TRASH`** と実測し、
+  **「親が別のアクション（`TRANSFER_TO_DECK` の source 等）で出てきたら消費地点を読み直す」**注記をテストへ足した。
+  🔑**トリップワイヤの許可リストを広げる変更は、広げた本人の主張ではなく消費地点のコードで判定する。**
+- 🆕**`{$ref}` の実挙動を E2E で確かめた**＝JSON に `$ref` が載っていることと、実行時に正しい枚数になることは別問題
+  （同バッチで `WXEX2-54-E2` は `lastProcessedCards` が空になるため Codex が採用を撤回している）。
+  `WXEX2-22-E3` はレベル1→1枚／レベル4→4枚を assert（`第241 engine:` テスト）。
+- 🆕**`src/screens/` 側の新経路を golden で押さえた**＝`triggerFilter.isDrive` は**クラッシュ側の `PlayerState`** が要るため、
+  `crasherState` を渡し忘れると **fail-closed で永久に発火しない**。既存の「二重経路契約」テストへ
+  ドライブ／非ドライブ／`crasherState` 未指定（fail-closed）の3方向を足した。
+  ⚠**`BattleScreen.tsx` の呼び出し1行だけは golden から import できない**ので、同テストの
+  **呼び出し文字列 assert** が住所を固定している（引数追加もこの assert が検出した＝腐りではなく設計どおり）。
+- 書き換えられた既存 golden 3本を1件ずつ判定＝①`O-36 ターン条件`（`WXK01-082-E1`）は**旧実装固定の腐り**で、
+  原文「対象とし、**あなたのターンの場合**、…－4000する」どおりに**対象宣言は無条件・パワー修正だけ自分ターン限定**へ反転（新形が正しい）
+  ②`段2 第37バッチ 二重経路契約`は引数追加による**文字列 assert の腐り** ③`C1 $ref`は上のとおり**正当な拡張**。
+  **実装ミスによる書き換えは0件**（第240とは違い、今回は Codex の申告どおりだった）。
+- `npm run gates` 全緑・**golden 3800 PASS**（3788 → +12＝Codex 11 ＋ Claude 1）・smoke 10744 OK・fuzz 0・census 各計器 0。
+  `npm run regen` の逆翻訳を9件とも原文と目視照合（全一致）。
+
+### ⚠ 実機（§2.2）＝この回は `src/screens/` を触ったので本来は実機まで必須
+
+触ったのは `src/screens/battle/lifeCrashTriggers.ts`（**純関数＝golden から import 済み**）と
+`src/screens/BattleScreen.tsx` の**引数1個の受け渡し**だけで、上のとおり golden で両方を押さえてある。
+**ただし実ブラウザでの通し確認はこのセッションでは行っていない**＝観測点を PLAN §5.1 へ **`V-184`** として登録した。
+
+**実装キュー: 228 → 219効果**。**未着手21効果**（Codex が「既修正/FP 10件」「見送り11件」と判定した分は
+キューに残置＝次バッチの候補から外す）。
+
+
 ## 2026-09-09 — 第240バッチ：Codex が利用上限で途中停止 → Claude が引き継いで17効果を完成（既存 golden 3本の腐りと engine の $ref 死角も是正）
 
 **投入**＝実装キュー残245から機構不要スクリーニングで30効果（HIGH 17＋MED 13。HIGH の在庫が尽きたので MED を混ぜた）。

@@ -1,4 +1,4 @@
-import type { CardData } from '../../types';
+import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { oppLifeCrashSourceMatches } from '../../engine/triggerCollect';
 
@@ -8,6 +8,7 @@ export function battleOppLifeCrashSourceMatches(
   watcherNum: string,
   crashSourceCardNum: string | undefined,
   cardMap: Map<string, CardData>,
+  crasherState?: PlayerState,
 ): boolean {
-  return oppLifeCrashSourceMatches(effect, watcherNum, crashSourceCardNum, cardMap);
+  return oppLifeCrashSourceMatches(effect, watcherNum, crashSourceCardNum, cardMap, crasherState);
 }
