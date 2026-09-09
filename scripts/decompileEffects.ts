@@ -3025,7 +3025,11 @@ function actionJa(a?: Action, effectType?: string): string {
       //   **同じ文字列**になっていた＝過剰実行（9枚まで払える誤 parse）が逆翻訳にも同型★にも一度も映らなかった。
       const tuFrom = a.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
       const tuNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
-      const tuCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
+      // 🆕`count:'ALL'` は**内部トークンをそのまま出さない**（2026-09-09・第239バッチの検証で発見）＝
+      //   「スペルを**ALL枚まで**トラッシュに置く」と出ていた（`WXDi-P11-077-E1`／`WXDi-P10-040-E2`）。
+      //   ⚠逆翻訳は原文照合の主計器なので、engine の内部語彙が混ざると照合の目が鈍る。
+      const tuCnt = a.count === 'ALL' ? '好きな枚数'
+        : a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
       const tuDest: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', trash: 'トラッシュに置く' };
       return `${tuFrom}${a.filter ? filterJa(a.filter) : ''}${tuNoun}を${tuCnt}${tuDest[a.destination] ?? `${a.destination}へ置く`}`;
     }

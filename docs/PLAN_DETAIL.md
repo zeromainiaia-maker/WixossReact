@@ -1474,6 +1474,19 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-09（第238バッチ・Opus 5＝Codex 両アカウント利用上限中の自力実装・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。
+  📦**在庫**＝🔥**実装キュー 260効果**（266 → 260・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み173）｜
+  🔥**機構 worklist＝索引 G 12項目**（据置。`WXDi-P05-035-E1` の可変コスト軸は未登録＝実装キューに残したまま）｜
+  **⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3753 PASS**（3745 → +8＝第238バッチ新規）／ smoke 10744 OK ／ fuzz 200ゲーム 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+  lint 0 errors / 254 warnings（着手前と同値）。
+  🖥**実機＝不要**（`src/data/` `src/engine/` `public/data/` `scripts/` のみ＝`src/screens/` 不触＝PLAN §2.2 の機械判定）。
+  🔑**engine を1機構だけ足した**＝`TRANSFER_TO_DECK{owner:'any'}` の場候補（`fieldCandidatesByOwner` ＋ `sideOfFieldCard`）。
+  **兄弟の型（`SELECT_TARGET_ONLY`／`BANISH`／`BOUNCE`）が既に埋めていた穴で、この型だけ取り残されていた。**
+
 - **2026-09-09（第236バッチ・Sonnet 5＝Codex 委譲〔`.codex-work`〕・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
   ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。

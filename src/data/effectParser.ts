@@ -27465,6 +27465,443 @@ function repairSemanticBatch236(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第239バッチ：意味照合で確定した一点物30効果のうち、既存語彙だけで
+ * 正確に閉じられる15効果を修復する。
+ *
+ * 同じ文言を含む兄弟でも壊れ方は個別なので、スコープ外へ波及しないよう
+ * effectId で閉じる。新しい action / condition / state は追加しない。
+ */
+function repairSemanticBatch239(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXDi-D09-P04-E1': {
+        const power = (delta: number): EffectAction => ({
+          type: 'POWER_MODIFY',
+          target: {
+            type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+            filter: { cardType: 'シグニ' },
+          },
+          delta, duration: 'UNTIL_END_OF_TURN',
+        });
+        effect.action = {
+          type: 'CONDITIONAL', condition: { type: 'HAND_DIFF', operator: 'gte', value: 6 },
+          then: power(-6000),
+          else: {
+            type: 'CONDITIONAL', condition: { type: 'HAND_DIFF', operator: 'gte', value: 3 },
+            then: power(-3000),
+          },
+        };
+        break;
+      }
+      case 'WXDi-P02-040-BURST':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'TRANSFER_TO_HAND',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', level: 2, story: '天使' },
+              },
+            },
+            {
+              type: 'ADD_TO_FIELD', owner: 'self',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', level: 1, story: '天使' },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXDi-P03-005-E1': {
+        const pick = (pickCount: number): EffectAction => ({
+          type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 5,
+          filter: { cardType: 'シグニ', noGuard: true }, pickCount, pickUpTo: true,
+          then: { type: 'ADD_TO_HAND', owner: 'self' },
+          remainder: { location: 'deck', position: 'bottom', reorder: true },
+        });
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costText: '使用コストとして追加でエクシード４を支払ってもよい', exceed: 4 },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: pick(2), else: pick(1),
+            },
+          ],
+        };
+        break;
+      }
+      case 'WXDi-P04-002-E1':
+        effect.cost = { energy: [{ color: '無', count: 0 }] };
+        effect.condition = {
+          type: 'LRIG_TEAM_COUNT', owner: 'self', team: 'アンシエント・サプライズ', operator: 'gte', value: 3,
+        };
+        effect.action = {
+          type: 'GRANT_PLAYER_ABILITY', permanent: true,
+          rawText: '【自】《ターン１回》：あなたのターンの間、あなたのシグニ１体が場に出たとき、色に対応する効果を１つ選ぶ。',
+          abilities: [{
+            effectId: 'WXDi-P04-002-E1-GRANT', effectType: 'AUTO', timing: ['ON_PLAY'],
+            triggerScope: 'any_ally', triggerCondition: { turnOwner: 'self' }, usageLimit: 'once_per_turn',
+            action: {
+              type: 'CHOOSE', choose_count: 1, from_count: 3,
+              choices: [
+                {
+                  choiceId: 'red', label: '赤：相手のパワー8000以下を対象とし《無》を払えばバニッシュ',
+                  condition: { type: 'TRIGGER_SOURCE_MATCHES', filter: { color: '赤' } },
+                  action: {
+                    type: 'SEQUENCE', steps: [
+                      {
+                        type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+                        selectTarget: {
+                          type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                          filter: { cardType: 'シグニ', powerRange: { max: 8000 } },
+                        },
+                      },
+                      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+                      { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無'] },
+                      {
+                        type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+                        then: {
+                          type: 'BANISH',
+                          target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+                          targetsStored: true,
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  choiceId: 'blue', label: '青：カードを1枚引く',
+                  condition: { type: 'TRIGGER_SOURCE_MATCHES', filter: { color: '青' } },
+                  action: { type: 'DRAW', owner: 'self', count: 1 },
+                },
+                {
+                  choiceId: 'green', label: '緑：【エナチャージ1】',
+                  condition: { type: 'TRIGGER_SOURCE_MATCHES', filter: { color: '緑' } },
+                  action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+                },
+              ],
+            },
+            duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+          }],
+        };
+        break;
+      case 'WXDi-P04-006-E1':
+        effect.condition = {
+          type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: 0, minLrigs: 3,
+        };
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'TRASH',
+              target: { type: 'SIGNI', owner: 'self', count: 2, filter: { cardType: 'シグニ', story: '悪魔' } },
+            },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 2 },
+              then: {
+                type: 'GRANT_PLAYER_ABILITY', permanent: true,
+                rawText: '【自】：あなたのターン終了時、あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それを手札に加える。',
+                abilities: [{
+                  effectId: 'WXDi-P04-006-E1-GRANT', effectType: 'AUTO', timing: ['ON_TURN_END'],
+                  triggerScope: 'self',
+                  action: {
+                    type: 'TRANSFER_TO_HAND',
+                    source: {
+                      type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                      filter: { cardType: 'シグニ', story: '悪魔' },
+                    },
+                  },
+                  duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+                }],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXDi-P08-040-E2':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' } },
+            { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 'ALL' } },
+            { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } },
+            { type: 'DRAW', owner: 'self', count: 2 },
+            { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
+          ],
+        };
+        break;
+      case 'WXDi-P10-038-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'DRAW', owner: 'self', count: 2 },
+            {
+              type: 'CHOOSE', choose_count: 1, from_count: 2,
+              choices: [
+                {
+                  choiceId: 'pripara', label: '＜プリパラ＞のシグニ1枚を捨てる',
+                  condition: {
+                    type: 'HAND_COUNT_FILTER', owner: 'self', operator: 'gte', value: 1,
+                    filter: { cardType: 'シグニ', story: 'プリパラ' },
+                  },
+                  action: {
+                    type: 'TRASH',
+                    target: {
+                      type: 'HAND_CARD', owner: 'self', count: 1,
+                      filter: { cardType: 'シグニ', story: 'プリパラ' },
+                    },
+                  },
+                },
+                {
+                  choiceId: 'two', label: '手札を2枚捨てる',
+                  condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gte', value: 2 },
+                  action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } },
+                },
+              ],
+            },
+          ],
+        };
+        break;
+      case 'WXDi-P10-040-E2':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+              selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              },
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 'ALL', upToCount: true,
+              fromThis: true, filter: { cardType: 'スペル' },
+            },
+            {
+              type: 'POWER_MODIFY',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+              targetsStored: true, delta: -5000, deltaPerLastProcessedCount: true,
+              perLastProcessed: {}, duration: 'UNTIL_END_OF_TURN',
+            },
+          ],
+        };
+        break;
+      case 'WX24-P3-058-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒', '黒'] },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: {
+                type: 'GRANT_EFFECT',
+                target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                duration: 'UNTIL_END_OF_TURN',
+                effect: {
+                  effectId: 'WX24-P3-058-E1-GRANT', effectType: 'CONTINUOUS',
+                  action: {
+                    type: 'POWER_SET',
+                    target: {
+                      type: 'SIGNI', owner: 'opponent', count: 1,
+                      filter: { cardType: 'シグニ', frontOfSelf: true },
+                    },
+                    value: 0,
+                  },
+                  duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+                },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WX24-P3-085-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPEN_MAGIC_BOX' },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_HAS_BURST' },
+              then: {
+                type: 'GRANT_KEYWORD',
+                target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                keyword: 'ランサー:{"powerLte":5000}', duration: 'UNTIL_END_OF_TURN',
+              },
+            },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_HAS_BURST', negate: true },
+              then: {
+                type: 'SEQUENCE',
+                steps: [
+                  { type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' },
+                  { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 3 },
+                ],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WX25-P2-018-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+              selectTarget: {
+                type: 'SIGNI', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', story: '電機' },
+              },
+            },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            {
+              type: 'CHOOSE', choose_count: 1, from_count: 2,
+              choices: [
+                {
+                  choiceId: 'awaken', label: '覚醒状態にする',
+                  action: { type: 'AWAKEN_SIGNI', targetsLastProcessed: true },
+                },
+                {
+                  choiceId: 'double', label: '《赤》《無》を払えば【ダブルクラッシュ】を得る',
+                  action: {
+                    type: 'SEQUENCE', steps: [
+                      { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤', '無'] },
+                      {
+                        type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+                        then: {
+                          type: 'GRANT_KEYWORD',
+                          target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsStored: true,
+                          keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN',
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        };
+        break;
+      case 'WX24-P4-025-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'RECOLLECT_GATE', minArts: 4 },
+            {
+              type: 'TRANSFER_TO_DECK',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 'ALL', filter: { hasLifeBurst: false },
+              },
+              shuffle: true,
+            },
+            {
+              type: 'POWER_MODIFY',
+              target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+              delta: -1000, deltaPerLastProcessedCount: true, perLastProcessed: {},
+              duration: 'UNTIL_END_OF_TURN',
+            },
+          ],
+        };
+        break;
+      case 'WX25-P2-076-E1':
+        effect.action = {
+          type: 'CHOOSE', choose_count: 1, from_count: 2,
+          choices: [
+            {
+              choiceId: 'c0', label: '選択肢1',
+              action: {
+                type: 'CONDITIONAL',
+                condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 2 },
+                then: {
+                  type: 'SEQUENCE', steps: [
+                    {
+                      type: 'STUB', id: 'OPTIONAL_COST',
+                      energyTrash: { count: 1, filter: { cardType: 'シグニ', story: '電機' } },
+                    },
+                    {
+                      type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+                      then: {
+                        type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 },
+                        opponentSelects: true,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              choiceId: 'c1', label: '選択肢2',
+              action: {
+                type: 'CONDITIONAL',
+                condition: {
+                  type: 'AND', conditions: [
+                    { type: 'THIS_CARD_IS_AWAKENED' },
+                    { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 3 },
+                  ],
+                },
+                then: {
+                  type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 2 },
+                  opponentSelects: true,
+                },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WX24-P4-034-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 5 } },
+            {
+              type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS',
+              trashedPick: { count: 2, upTo: true, filter: { cardType: 'シグニ' }, dest: 'hand' },
+            },
+            {
+              type: 'CONDITIONAL',
+              condition: {
+                type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' },
+                requiredDistinctColors: ['黒', ['白', '赤', '青', '緑']], verbJa: '手札に加えた',
+              },
+              then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 8 } },
+            },
+          ],
+        };
+        break;
+      case 'WX25-P2-006-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } },
+            {
+              type: 'LIFE_CRASH_REPLACE', replaceKind: 'pay_cost', count: 1,
+              optional: true, damageSource: 'signi', byAttack: true,
+              payOptions: [{ handDiscard: 1 }],
+            },
+            { type: 'RECOLLECT_GATE', minArts: 4 },
+            {
+              type: 'GRANT_EFFECT',
+              target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+              duration: 'UNTIL_END_OF_TURN',
+              effect: {
+                effectId: 'WX25-P2-006-sub-E1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+                action: { type: 'DRAW', owner: 'opponent', count: 1 },
+                duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+                triggerScope: 'self', usageLimit: 'once_per_turn',
+              },
+            },
+          ],
+        };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -28336,6 +28773,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch234(effects);
   repairSemanticBatch235(effects);
   repairSemanticBatch236(effects);
+  repairSemanticBatch239(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

@@ -32090,15 +32090,14 @@ test('WXDi-P05-009-E1: ルリグ下を任意消費した場合だけトラッシ
 test('置換一般化: 分離pick文を追加エクシードのreplace枝へ単独解決する', () => {
   const parsed = parseCardEffects(cardMap.get('WXDi-P03-005')!).find(e => e.effectId === 'WXDi-P03-005-E1')!;
   const action = parsed.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
-  eq(action.type, 'SEQUENCE', '追加コスト＋基本＋置換の列');
-  const base = action.steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
-  const replacement = action.steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
-  eq(base.type, 'REVEAL_AND_PICK', '基本pickを構造化');
-  eq(base.pickCount, 1, '未払いは1枚まで');
+  eq(action.type, 'SEQUENCE', '追加コスト＋排他的置換の列');
+  const replacement = action.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq(replacement.type, 'CONDITIONAL', '追加コスト置換条件');
-  eq(replacement.condition.type, 'IS_MY_TURN', 'Pattern④ replaceモード');
+  eq(replacement.condition.type, 'PAID_ADDITIONAL_COST', '追加エクシードの支払成否');
   eq(replacement.then.type, 'REVEAL_AND_PICK', '分離pick文を単独解決');
   eq((replacement.then as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).pickCount, 2, '支払い時は同じ5枚から2枚まで');
+  eq(replacement.else?.type, 'REVEAL_AND_PICK', '未払い側も同じ1回の公開処理');
+  eq((replacement.else as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).pickCount, 1, '未払いは1枚まで');
 });
 
 test('WX21-002-E3 curated実行: ＜龍獣＞でない公開カードはREVEAL_AND_PICK候補にも手札にも入らない', () => {
@@ -45550,13 +45549,12 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
 
   // ⚠`WXDi-P16-002` は続き493 で採用済み（【使用条件】ヘッダが `GRANT_KEYWORD{"使用条件"}` に化けていた
   //   ゴミ付与を除去し、ダメージ無効＋移動不可＋遅延本体の受け皿を載せた）＝据置リストから外す。
-  const deferred = ['WXDi-P04-002'] as const;
-  for (const cardNum of deferred) {
-    const live = (effectsMap.get(cardNum) ?? []).find(effect => effect.effectId === `${cardNum}-E1`);
-    if (!live) throw new Error(`${cardNum}: live effect exists`);
-    eq(live.condition, undefined, `${cardNum}: action退化を飲まずconditionも据置`);
-    eq(live.action.type, 'SEQUENCE', `${cardNum}: 既存の具体SEQUENCEを温存`);
-  }
+  // 第239バッチで既存語彙だけの完全形へ昇格。使用時の即時3択ではなく、ゲーム中の
+  // ターン1回ON_PLAY能力を得る。旧「据置」期待は原文と逆向きなので正方向へ更新する。
+  const p04002 = (effectsMap.get('WXDi-P04-002') ?? []).find(effect => effect.effectId === 'WXDi-P04-002-E1');
+  if (!p04002) throw new Error('WXDi-P04-002: live effect exists');
+  eq(p04002.condition?.type, 'LRIG_TEAM_COUNT', 'WXDi-P04-002: チーム使用条件を復元');
+  eq(p04002.action.type, 'GRANT_PLAYER_ABILITY', 'WXDi-P04-002: ゲーム中の能力獲得へ昇格');
   // ⚠**続き493 で据置を解除**＝「次の対戦相手のターンの間、〜ダメージを受けず、〜移動しない」を
   //   `PREVENT_DAMAGE{scope:'LRIG'}`＋`ZONE_MOVE_IMMUNITY` の両方で構造化できたので、
   //   raw も live も未パース節（`DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`）へは落ちない。
@@ -65040,14 +65038,16 @@ test('§5.3 O-60 第49: GAIN_ABILITY_THIS_GAME は live 全ノードが gameGran
   };
   for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
   eq(missing.length, 0, `gameGrants を持たないノード: ${missing.join(', ')}`);
-  // 🔑**下限は 19 → 18（2026-09-05 §5.3 `O-249` 第146）→ 17（2026-09-09 第235バッチ）。**
+  // 🔑**下限は 19 → 18（2026-09-05 §5.3 `O-249` 第146）→ 17（2026-09-09 第235バッチ）
+  //   → 16（第239バッチ）。**
   //   `held` に温存されていた `WX25-P2-003` / `WXDi-P05-004` を採用した結果、この2ノードは
   //   第68バッチの規約どおり **`DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` へ改名**された
   //   （＝見出し `abilityBlockHeader` しか取れていない＝宣言は1つも立っていないので、
   //    `GAIN_ABILITY_THIS_GAME` のまま残すと「実装済みに見える」）。engine は1行も変えていない。
   //   `WXK07-056-E1` は原文「このターン」なのでゲーム中持続宣言から
   //   `DECK_SIGNI_LEVEL_OVERRIDE`（ターン境界で消える既存 state）へ移した。意図した1減である。
-  ok(nodes >= 17, `走査対象が消えていない（実測 ${nodes} ノード）`);
+  //   `WXDi-P04-006-E1` はpayload STUB＋即時回収から、実装済み`GRANT_PLAYER_ABILITY`だけへ昇格した。
+  ok(nodes >= 16, `走査対象が消えていない（実測 ${nodes} ノード）`);
 });
 
 test('§5.3 O-60 第49: WXDi-P11-004-E1 メインフェイズ開始時ドローが payload に載る（旧 regex は全角「５枚以下」に当たらず no-op）', () => {
@@ -73701,6 +73701,69 @@ test('第238 engine: TRANSFER_TO_DECK{owner:any} は自分の場のシグニも�
   ok(!result.ownerState.field.signi.some(s => s?.at(-1) === mine), '🔴自分のシグニが場に残った（owner:any が相手側へ潰れている）');
   eq(result.ownerState.deck.at(-1), mine, '自分のデッキの一番下へ戻っていない');
   eq(result.ownerState.deck.length, deckBefore + 1, 'デッキ枚数が増えていない');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 第239バッチ：意味照合済み一点物。effectId アンカーの parser 後処理なので fresh/live の両方を固定する。
+const batch239Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WXDi-D09-P04', 'WXDi-D09-P04-E1', ['"operator":"gte","value":6', '"else":', '"owner":"opponent"'], ['"owner":"any"']],
+  ['WXDi-P02-040', 'WXDi-P02-040-BURST', ['"type":"TRANSFER_TO_HAND"', '"level":2', '"type":"ADD_TO_FIELD"', '"level":1'], []],
+  ['WXDi-P03-005', 'WXDi-P03-005-E1', ['"type":"PAID_ADDITIONAL_COST"', '"else":', '"pickCount":2', '"pickCount":1'], []],
+  ['WXDi-P04-002', 'WXDi-P04-002-E1', ['"type":"GRANT_PLAYER_ABILITY"', '"type":"TRIGGER_SOURCE_MATCHES"', '"usageLimit":"once_per_turn"'], ['"keyword":"使用条件"']],
+  ['WXDi-P04-006', 'WXDi-P04-006-E1', ['"type":"FIELD_LRIG_COLOR_COUNT"', '"minLrigs":3', '"type":"GRANT_PLAYER_ABILITY"', '"timing":["ON_TURN_END"]', '"permanent":true'], ['"id":"GAIN_ABILITY_THIS_GAME"']],
+  ['WXDi-P08-040', 'WXDi-P08-040-E2', ['"type":"ENERGY_CARD","owner":"self","count":"ALL"', '"type":"LIFE_CLOTH_CARD","owner":"self","count":"ALL"'], []],
+  ['WXDi-P10-038', 'WXDi-P10-038-E1', ['"type":"CHOOSE"', '"story":"プリパラ"', '"type":"HAND_COUNT"'], ['"id":"OPTIONAL_COST"']],
+  ['WXDi-P10-040', 'WXDi-P10-040-E2', ['"type":"TAKE_FROM_UNDER_SIGNI"', '"cardType":"スペル"', '"targetsStored":true'], ['"type":"TRASH","target":{"type":"SIGNI"']],
+  ['WX24-P3-058', 'WX24-P3-058-E1', ['"type":"GRANT_EFFECT"', '"effectType":"CONTINUOUS"', '"frontOfSelf":true'], ['"type":"POWER_SET","target":{"type":"SIGNI","owner":"self"']],
+  ['WX24-P3-085', 'WX24-P3-085-E1', ['"type":"LAST_PROCESSED_HAS_BURST","negate":true', '"id":"SET_CANCEL_ATTACK_FLAG"'], []],
+  ['WX25-P2-018', 'WX25-P2-018-E1', ['"id":"SELECT_TARGET_ONLY"', '"story":"電機"', '"targetsLastProcessed":true', '"targetsStored":true'], []],
+  ['WX24-P4-025', 'WX24-P4-025-E3', ['"hasLifeBurst":false'], []],
+  ['WX25-P2-076', 'WX25-P2-076-E1', ['"type":"THIS_CARD_IS_AWAKENED"', '"owner":"opponent","operator":"gte","value":3'], []],
+  ['WX24-P4-034', 'WX24-P4-034-E1', ['"requiredDistinctColors":["黒",["白","赤","青","緑"]]', '"verbJa":"手札に加えた"'], []],
+  ['WX25-P2-006', 'WX25-P2-006-E1', ['"type":"LIFE_CRASH_REPLACE"', '"replaceKind":"pay_cost"', '"damageSource":"signi"', '"payOptions":[{"handDiscard":1}]'], ['"type":"TRASH","target":{"type":"HAND_CARD"']],
+] as const) {
+  test(`第239 ${effectId}: 原文どおりの一点物修復を fresh/live に保持`, () => {
+    for (const fresh of [true, false]) {
+      const json = JSON.stringify(batch239Effect(cardNum, effectId, fresh));
+      const side = fresh ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+// 🔴第239バッチの検証で見つけた engine の穴（Claude が同じ巡で塞いだ）＝
+//   `WX24-P3-058-E1` が `GRANT_EFFECT` で自分へ載せる CONTINUOUS `POWER_SET{owner:'opponent',
+//   count:1, filter:{frontOfSelf:true}}` は、`calcFieldPowers` の POWER_SET 分岐が
+//   **`owner:'self'|'any'` しか見ていなかった**ため**どの枝にも入らず無言 no-op** だった
+//   （`POWER_MODIFY` 側には同じ `frontOfSelf` 分岐が既にあった＝片方だけ実装されていた）。
+test('第239 engine: CONTINUOUS POWER_SET{frontOfSelf} は正面の相手シグニだけを0にする', () => withSavedCursor(() => {
+  const host = findCard(c => isSigni(c) && Number.parseInt(c.Power ?? '', 10) > 0);
+  const front = findCard(c => isSigni(c) && Number.parseInt(c.Power ?? '', 10) > 0 && c.CardNum !== host);
+  const other = findCard(c => isSigni(c) && Number.parseInt(c.Power ?? '', 10) > 0 && c.CardNum !== host && c.CardNum !== front);
+  // 効果元はゾーン0＝正面は相手ゾーン2（engine 共通規約の 2 - zi）。
+  const my = mkState({ signi: [host, null, null] });
+  const op = mkState({ signi: [other, null, front] });
+  const granted: CardEffect = {
+    effectId: 'WX24-P3-058-E1-GRANT', effectType: 'CONTINUOUS',
+    action: { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } }, value: 0 },
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+  } as CardEffect;
+  // ⚠`calcFieldPowers` は `effectsMap.get(topNum)`（＝印刷能力）しか読まない＝付与は
+  //   `BattleScreen` の **augmented effectsMap**（`BattleScreen.tsx:902`）経由で載る。ここでは同じ合成を再現する。
+  const augmented = new Map(effectsMap);
+  augmented.set(host, [...(effectsMap.get(host) ?? []), granted]);
+  const powers = calcFieldPowers(my, op, true, augmented, cardMap as Map<string, CardData>);
+  eq(powers.get(front), 0, '🔴正面のシグニのパワーが0になっていない（POWER_SET の frontOfSelf が無言 no-op）');
+  ok((powers.get(other) ?? 0) > 0, '正面でない相手シグニまで0にしている（過剰実行）');
+  ok((powers.get(host) ?? 0) > 0, '効果元自身のパワーを0にしている（旧誤訳の向き）');
 }));
 
 if (listMode) {

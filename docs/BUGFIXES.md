@@ -1,5 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09 — 第239バッチ：機構不要候補30効果の再照合・Codex が15効果修正（Claude 検証済み）＋検証で見つけた engine の穴1件
+
+対象30効果について原文・投入時live JSON・fresh parser・既存golden・engineの実消費箇所を再照合し、
+母集団を`npm run census:population`で効果単位に実測した。triageが指した不整合は30件とも現存し、staleは0件。
+うち**既存の型・フィールド・実装済みSTUBだけで正確に閉じた15効果を採用**し、残る15効果は新しい条件、
+動的参照、遅延状態、共有選択poolなどが要るため近似せず据え置いた。変更した15件はいずれも
+`repairSemanticBatch239`のeffectId分岐でスコープを閉じ、live JSONとの差分も15 effectIdだけであることを確認した。
+全30件ともトップレベル効果で、`GRANT_*`配下の入れ子は0件。
+
+- `WXDi-D09-P04-E1`＝手札差6枚以上を先に判定して相手1体を－6000、そうでなければ3枚以上で－3000とし、「代わりに」を排他的分岐へ修復。
+- `WXDi-P02-040-BURST`＝トラッシュのLv2＜天使＞1枚を手札へ、Lv1＜天使＞1枚を場へ出す2段へ修復。
+- `WXDi-P03-005-E1`＝追加エクシード4の支払成否で、同じデッキ上5枚からの取得上限を2枚／1枚に分岐。
+- `WXDi-P04-002-E1`＝チーム使用条件を復元し、即時3択をゲーム中のターン1回ON_PLAY能力へ変更。赤／青／緑のトリガー元色条件と赤択の任意《無》も内側へ復元。
+- `WXDi-P04-006-E1`＝ルリグ3体の使用条件を`FIELD_LRIG_COLOR_COUNT.minLrigs`で復元し、＜悪魔＞2体を実際に処理した場合だけターン終了時回収能力を永久付与。使用時の即時回収を除去。
+- `WXDi-P08-040-E2`＝自分のエナ・ライフクロス・手札をすべてトラッシュへ置いてから、2枚ドロー・エナチャージ2を行う順序へ修復。
+- `WXDi-P10-038-E1`＝ドロー2後の必須処理を、＜プリパラ＞シグニ1枚か手札2枚を捨てる`CHOOSE`へ修復。
+- `WXDi-P10-040-E2`＝相手シグニを先に保存し、このシグニの下のスペルを好きな枚数トラッシュへ置き、その実枚数×－5000を保存対象へ適用。
+- `WX24-P3-058-E1`＝任意《黒》《黒》後、このシグニへ「正面の相手シグニの基本パワーを0にする」常在効果をターン終了時まで付与。
+- `WX24-P3-085-E1`＝公開したマジックボックスがLB持ちならランサー、LBなしなら攻撃無効＋エナチャージ3という排他的帰結へ修復。未処理時は両条件ともfail-closed。
+- `WX25-P2-018-E1`＝＜電機＞1体を先に対象保存し、覚醒と任意コスト後ダブルクラッシュの両択が同じ対象を参照する形へ修復。
+- `WX24-P4-025-E3`＝デッキへ戻すトラッシュ全カードを`hasLifeBurst:false`で限定し、戻した実枚数を全相手シグニの－1000倍率へ維持。
+- `WX25-P2-076-E1`＝択①を相手エナ2枚以上かつ＜電機＞エナコスト支払時だけ1枚トラッシュ、択②を自身覚醒かつ相手エナ3枚以上のときだけ2枚トラッシュへ修復。
+- `WX24-P4-034-E1`＝この方法で手札に加えた2枚が「黒1枚＋白赤青緑のいずれか1枚」の場合だけ相手デッキ8枚をトラッシュへ置く条件を追加。
+- `WX25-P2-006-E1`＝解決時の即時手札捨てを、ターン中のシグニによる各ダメージを任意の手札1枚捨てへ置換する`LIFE_CRASH_REPLACE`へ修復。
+
+**見送り15効果**（いずれもtriage有効）：
+
+- `WXDi-D05-017-E1`＝正面シグニが凍結状態というAUTO用Conditionが無い（`FRONT_SIGNI`はActiveCondition側だけ）。
+- `WXDi-D09-P04-E3`＝主要な全該当手札捨ては既存語彙で書けるが、宣言候補を相手センタールリグのレベル以下へ動的制限できず、部分修正を採用しなかった。
+- `WXDi-P00-037-E1`＝相手手札から非公開で3枚まで選んだ集合を閲覧し、その同じ集合から1枚をデッキ下へ送る共有poolが無い。
+- `WXDi-P00-038-E1`＝離場を裏向き化へ置換し、次の次の自分メインフェイズに同じゾーンが空なら復帰する複数ターン遅延状態が無い。
+- `WXDi-P03-035-E1`＝`UP`／`REMOVE_ABILITIES.targetsTriggerSource`の実装はシグニ専用で、アタックしたアシストルリグを同一対象として扱えない。
+- `WXDi-P10-052-E2`＝`BANISH_SUBSTITUTE`がE1で選んだシグニを恒久参照するcarrierを持たない。
+- `WXDi-P11-060-E1`／`WXDi-P11-060-E2`＝左右隣接ゾーンにダウン状態の指定クラスがいるAUTO用Conditionが無い。
+- `WXDi-CP02-086-E1`＝このターンにコストまたは効果で自分のエナへカードが置かれた履歴を表す状態・Conditionが無い。
+- `WXDi-P08-030-E1`＝既存`FORCE_SIGNI_ATTACK`は全シグニ（または感染限定）だけで、保存した選択対象だけを可能なら攻撃させる指定が無い。
+- `WXDi-P10-055-E1`＝`FIELD_LEVEL_SUM{metric:'power'}`は全シグニ合計のみで、＜天使＞だけの実効パワー合計に絞れない。
+- `WX24-P3-018-E1`＝中身が＜トリック＞のマジックボックスを3枚まで選んで表向きのシグニへ戻すaction/UIが無い。
+- `WX24-P3-066-E1`＝同じシグニゾーンのマジックボックス存在を判定するConditionが無い。
+- `WX25-P2-008-E1`＝ターン中の「パワー12000以上のシグニによる全ダメージ」を防ぐ発生源power付き継続防止が無い（既存は次の1回のみ）。
+- `WX24-P4-022-E3`＝相手のシグニゾーンとエナゾーンを1つの候補poolにし、5色それぞれ1枚までを対象化して手札へ戻すactionが無い。
+
+triage記載以外では、`WXDi-D09-P04-E3`の宣言上限、`WXDi-P03-035-E1`のルリグ対象フラグが実行側で
+消費されない点、`WXDi-P04-006-E1`のルリグ3体使用条件欠落を確認した。前2件は見送り理由へ反映し、
+後者は採用修正に含めた。`WX24-P3-085-E1`は任意のマジックボックス処理を辞退した場合、
+`LAST_PROCESSED_HAS_BURST`が否定形を含め空集合でfalseになることも実装確認済み。
+
+検証＝各編集後`npm run typecheck` PASS、対象15件の`npm run golden -- --only "第239"` **15/15 PASS**、
+`npm run regen`完走、フィルタなし`npm run golden` **3768/3768 PASS**（投入前3753→新規15本）、
+`npm run gates`全緑。smoke **10744/10744**（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム不具合0、
+census高シグナル`0 / baseline 0`、`census:stubs` A群0、`census:enginetext` A群0、
+`census:costtext` A群0、manual field loss 0、lint `0 errors / 254 warnings`。
+commit/pushなし、`docs/PLAN.md`・`docs/PLAN_PROGRESS.md`不触。
+
+### 🔴 Claude の独立検証で見つけた engine の穴（同じ巡で塞いだ）
+
+**`WX24-P3-058-E1` の採用形は、JSON は原文どおりなのに engine が何もしない無言 no-op だった。**
+`GRANT_EFFECT` で自分へ載せる CONTINUOUS `POWER_SET{owner:'opponent', count:1, filter:{frontOfSelf:true}}` は、
+`calcFieldPowers` の **POWER_SET 分岐が `owner:'self'|'any'` しか見ていない**（`effectEngine.ts:2481`）ため
+**どの枝にも入らず落ちていた**。すぐ下の `POWER_MODIFY` 側には同じ `frontOfSelf` 分岐が既にあり
+（`effectEngine.ts:2526`）、**片方の型にだけ実装されていた**形。
+- 直し＝`POWER_SET` にも `frontOfSelf` 分岐を足した（正面は engine 共通規約の **2 - zi**・効果元が場に居なければ何もしない）。
+- golden に E2E を1本追加し、**反転確認**（パッチを外すと `expected=0 got=10000` で赤／戻すと緑）を実際に取った。
+- 🔑**教訓＝「JSON が原文どおり」と「engine が動く」は別**。指示書に書いた「無言 no-op を作るな」は
+  Codex 側では**新しく書いたキー**にしか適用されず、**既存キーの組み合わせが未実装**の形は素通りする。
+  ⇒ **採用形が CONTINUOUS/付与を経由するときは、`calcFieldPowers` など収集側まで読む。**
+
+### 逆翻訳の内部トークン漏れを1件直した（計器の較正）
+
+`TAKE_FROM_UNDER_SIGNI{count:'ALL'}` が逆翻訳に「スペルを**ALL枚まで**トラッシュに置く」と出ていた
+（`WXDi-P10-040-E2` と、以前からの `WXDi-P11-077-E1` の2件）。**逆翻訳は原文照合の主計器**なので
+engine の内部語彙が混ざると照合の目が鈍る＝`decompileEffects.ts` で「好きな枚数」へ直した。
+
+### Claude 側の検証（すべて再実行）
+
+- `git diff 7a29bc44c` の **effectId 単位差分＝ちょうど15件**（報告と一致・スコープ外0）。
+- **新しく書かれたキーの消費地点をすべてコードで確認**＝`GRANT_PLAYER_ABILITY`→`game_granted_effects`
+  （`effectEngine` 2箇所・`lifeCrashGate`・`lrigDamageShield`・`BattleScreen`）／`LAST_PROCESSED_HAS_BURST{negate}`
+  （`execUtils.ts:3367`）／`SET_CANCEL_ATTACK_FLAG`（`execStubPart3.ts:5427`）／`hasLifeBurst`（`execUtils.ts:1376`）／
+  `requiredDistinctColors` の**入れ子配列スロット**（`execUtils.ts:3452`）／`LIFE_CRASH_REPLACE{pay_cost,payOptions}`
+  （`screens/battle/lifeCrashReplace.ts`）／`TAKE_FROM_UNDER_SIGNI{fromThis,filter,'ALL'}`（`effectExecutor.ts:8487`）／
+  `TRASH{LIFE_CLOTH_CARD,'ALL'}`（`effectExecutor.ts:2371`）／`CHOOSE` の choice 別 `condition`（`effectExecutor.ts:6461`）。
+- **`once` を書かなかったのは正しい**＝`LIFE_CRASH_REPLACE` は `once` でなければターン中何度でも残る
+  （`lifeCrashReplace.ts:151`）＝原文「各場合」と一致する。
+- `npm run regen` の逆翻訳を15件とも原文と目視照合（全一致）。⚠`WXDi-P04-006-E1` の
+  `FIELD_LRIG_COLOR_COUNT{value:0, minLrigs:3}` は「色0種類以上」という**退化した色条件で枚数だけを見る**
+  書き方＝意味は正しいが逆翻訳の文が不自然（据置）。
+- `npm run gates` 全緑・**golden 3769 PASS**（3753 → +16＝Codex 15 ＋ Claude 1）・smoke 10744 OK・fuzz 0・
+  census 高シグナル 0/0・census:stubs A群0・census:enginetext A🔴0行・census:costtext A🔴0規則・lint 254 warnings（同値）。
+- **実機は不要**（§2.2＝触ったのは `src/data/` `src/engine/` `public/data/` `scripts/` のみ）。
+
+**実装キュー: 260 → 245効果**（`node scripts/archive/semanticAuditBugList.mjs`）。
+見送り15件は**キューに残したまま**（次回の「機構不要」候補からは除外）。うち**条件型が無いだけ**の6効果は
+PLAN §5.3 索引 G へ `O-308` としてまとめて登録した。
+
+
 ## 2026-09-09（§5.0 実装キュー・第238バッチ＝Codex 両アカウント利用上限中に Claude が6効果を自力実装）
 
 **作業単位**＝ユーザー指示「PLANをよみ、作業の続きを行う」。前セッションが準備した第237バッチ（30効果）は

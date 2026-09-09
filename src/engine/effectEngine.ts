@@ -2481,6 +2481,23 @@ export function calcFieldPowers(
         const sets = extractPowerSets(effect.action);
         for (const s of sets) {
           const value = typeof s.value === 'number' ? s.value : 0;
+          // 🆕**`frontOfSelf`＝「このシグニの正面のシグニの基本パワーは0になる」**（2026-09-09・第239バッチ・
+          //   `WX24-P3-058-E1` が `GRANT_EFFECT` で自分へ載せる CONTINUOUS）。
+          // 🔴**下の `count !== 'ALL'` 分岐は `owner:'self'|'any'` しか見ない**ので、
+          //   `owner:'opponent'` の正面指定は**どの枝にも入らず無言 no-op** だった
+          //   （`POWER_MODIFY` 側には同じ分岐が `:2526` に既にある＝**片方だけ実装されていた**）。
+          // ⚠正面の解決は engine 共通規約の **2 - zi**（`resolveFrontOfSelfCardNum` と同じ）。
+          //   ⚠**効果元が場に居ないときは何もしない**（fail-closed）。
+          if (s.target.count !== 'ALL' && s.target.filter?.frontOfSelf) {
+            const ziHostPS = ownerState.field.signi.findIndex(st => st?.at(-1) === topNum);
+            const frontNumPS = ziHostPS >= 0 ? otherState.field.signi[2 - ziHostPS]?.at(-1) : undefined;
+            if (frontNumPS && powers.has(frontNumPS) && (s.target.owner === 'opponent' || s.target.owner === 'any')) {
+              const { frontOfSelf: _fps, ...restFilterPS } = s.target.filter;
+              const frontBasePS = frontNumPS.includes('#') ? frontNumPS.slice(0, frontNumPS.indexOf('#')) : frontNumPS;
+              if (matchesFilter(cardMap.get(frontBasePS), restFilterPS)) powers.set(frontNumPS, value);
+            }
+            continue;
+          }
           if (s.target.count !== 'ALL') {
             // count !== 'ALL' = このシグニのみ
             const card = cardMap.get(topNum);

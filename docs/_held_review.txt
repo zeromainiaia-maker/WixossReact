@@ -3,24 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
-WXDi-P04-002
---- WXDi-P04-002
-  原文: 【使用条件】【チーム】＜アンシエント・サプライズ＞このゲームの間、あなたは以下の能力を得る。『【自】《ターン１回》：あなたのターンの間、あなたのシグニ１体が場に出たとき、以下の３つから１つを選ぶ。①場に出たそのシグニが赤の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それをバニッシュする。②場に出たそのシグニ
-  - [0].action.steps[0].type = "GRANT_KEYWORD"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  - [0].action.steps[1].type = "CHOOSE"
-  - [0].action.steps[1].choose_count = 1
-  - [0].action.steps[1].from_count = 3
-  - [0].action.steps[1].choices[0].choiceId = "c0"
-  - [0].action.steps[1].choices[0].label = "選択肢1"
-  - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
-  …（他 39 行）
-
 ## （type増減なし＝値/構造変更） ［1枚］
 WXK07-018
 --- WXK07-018
