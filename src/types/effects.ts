@@ -1233,7 +1233,7 @@ export interface EffectCost {
     selectionConstraint?: SelectionConstraint;
   };
   // ─ v0.312 追加: 追加コストタイプ群 ─
-  fieldDown?: { count: number; filter?: TargetFilter }; // 場のシグニN体をダウン（コスト）
+  fieldDown?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場のシグニN体をダウン（コスト）
   discardUpTo?: number;        // 手札をN枚まで捨てる（任意上限）
   handBottomDeck?: number;     // 手札をN枚デッキの一番下に置く
   // 「この能力の使用コストに含まれる《X》を支払う際、代わりに<substitute>してもよい」＝この能力スコープの
@@ -2460,6 +2460,8 @@ export interface AddToLifeAction {
   count: NumberOrRef;
   fromTop: boolean; // true=デッキ上から
   fromHand?: boolean; // true=手札から1枚選ぶ
+  /** true=指定枚数まで（0枚も可）。主に直前に手札へ移した枚数を上限にする。 */
+  upToCount?: boolean;
   fromTrash?: boolean; // true=トラッシュから選ぶ
   fromBottom?: boolean; // true=デッキの**一番下**から（`WXK03-066`「デッキの一番下のカードをライフクロスに加える」）
   /**
@@ -3629,6 +3631,10 @@ export interface RemoveAbilitiesAction {
    */
   grantedOnly?: boolean;
   targetsLastProcessed?: boolean; // 「それ」= 直前の POWER_MODIFY 等で選んだ同一シグニへ無選択で適用
+  /** 任意コストより前に STORE_LAST_PROCESSED_TARGETS で固定した対象。 */
+  targetsStored?: boolean;
+  /** 任意コストの対話を跨ぐ際に targetsStored を焼き込んだ対象。 */
+  fixedCardNums?: string[];
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
 
@@ -6107,6 +6113,8 @@ export interface StubAction {
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: アップ状態の**自分の場のシグニ**N体をダウンする任意コスト（「あなたのアップ状態の＜X＞のシグニN体をダウンし…てもよい」）。filter は色/クラス等の限定。 */
   fieldDown?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: この効果を発動させたシグニを場からトラッシュへ置く。 */
+  triggeringSigniTrash?: boolean;
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
   lrigDown?: { count: number; centerOnly?: boolean; level?: number; color?: string };
   /** OPTIONAL_COST: アップ状態のルリグを好きな数ダウンする。 */

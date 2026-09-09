@@ -175,7 +175,7 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   //   ⇒ **空なら据置**＝`targetsStored` のまま後段（正しい地点）の焼き込みに委ねる。
   if ((ctx.storedTargetCards ?? []).length === 0) return action;
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
-    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI',
+    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI', 'REMOVE_ABILITIES',
     // 🆕**§5.3 `O-222`（2026-09-02）で `SIGNI_ATTACK_BAN` を追加**＝「〈対象〉を対象とし、
     //   〈任意コスト〉してもよい。そうした場合、それは『【常】：…かぎりアタックできない』を得る」。
     //   🔴`storedTargetCards` は支払いプロンプトの resume を跨がないので、焼き込まないと
@@ -2531,16 +2531,14 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
-    // §5.0 第233バッチ＝HAND_CARD は SIGNI 等と違って resolveDynamicFilter を通らない。
-    // 宣言レベル一致だけを既存の静的 level へ解決し、未宣言時は fail-closed にする。
-    let handFilter = tgt.filter;
-    if (handFilter?.levelEqDeclaredNumber) {
-      const { levelEqDeclaredNumber: _dynamicLevel, ...staticFilter } = handFilter;
-      const declaredLevel = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
-      handFilter = declaredLevel === undefined
-        ? { ...staticFilter, cardNum: '__NO_DYNAMIC_FILTER_MATCH__' }
-        : { ...staticFilter, level: declaredLevel };
-    }
+    // HAND_CARD も SIGNI / ENERGY_CARD と同じ動的フィルタを通す。
+    // 宣言者は常に効果の owner なので、相手手札を絞る場合も declaredRefSt は ctx.ownerState。
+    const handFilter = resolveDynamicFilter(
+      tgt.filter, state, ctx.cardMap,
+      tgt.owner === 'self' ? ctx.otherState : ctx.ownerState,
+      ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+      ctx.ownerState, ctx.fieldSigniExtraColors, ctx.allColorSigniNums,
+    );
     let cands = handCandidates(state, handFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     // 🆕2026-09-09（S-3・意味照合triage `PR-459A-E1`）＝SIGNI/ENERGY_CARD 分岐（execTrash:2412,2629）と
     //   揃え、HAND_CARD でも `targetsStored`（「そのカード」＝ STORE_LAST_PROCESSED_TARGETS で固定した
@@ -4267,7 +4265,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     const cands = handCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
     if (cands.length === 0) return done(addLog(ctx, '手札がないためライフクロスに加えられない'));
     const scope: TargetScope = a.owner === 'self' ? 'self_hand' : 'opp_hand';
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+    return selectOrInteract(cands, count, a.upToCount ?? false, scope, a, undefined, ctx);
   }
   if (a.fromBottom) {
     // 「デッキの**一番下**のカードをライフクロスに加える」（`WXK03-066`）。
@@ -8997,6 +8995,8 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   }
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   if (a.targetsLastProcessed) {
     const previous = new Set(ctx.lastProcessedCards ?? []);
     const selected = cands.filter(n => previous.has(n));
@@ -9005,6 +9005,10 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: selected }, `${selected.length}`));
   }
   if (cands.length === 0) return done(ctx);
+  if (a.targetsStored || a.fixedCardNums) {
+    const newS = applyAbilitiesRemoval(a, state, cands, nextOwnTurnEndSpan(ctx));
+    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
+  }
   // count:'ALL'（または thisCardOnly/frontOfSelf で対象が確定済み）は全候補に適用。
   // count が数値（「対戦相手のシグニ1体を対象とし」等。G085）は選択して該当数だけに適用する。
   if (a.target.count !== 'ALL' && thisCardRestrict === null && frontRestrict === null) {

@@ -513,7 +513,8 @@ export interface OptionalCostSpec {
    * ⚠**キーゾーンはシグニゾーンと別**なので `fieldToLrigTrash`（シグニ／レゾナ用）では払えない。
    */
   trashOwnKey?: boolean;
-  fieldDown?: { count: number; filter?: TargetFilter };
+  fieldDown?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  triggeringSigniTrash?: boolean;
   lrigDown?: { count: number; centerOnly?: boolean; level?: number; color?: string };
   down_self?: boolean;
   /** 効果元シグニ自身を場からエナゾーンへ置く任意コスト（§6.4 O-7）。 */
@@ -580,7 +581,9 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     energyTrash, energyTrashGroups: a.energyTrashGroups,
     fieldTrash: a.fieldTrash, fieldTrapTrash: a.fieldTrapTrash,
     fieldToDeckBottom: a.fieldToDeckBottom, fieldToDeckTop: a.fieldToDeckTop, fieldTrashGroups: a.fieldTrashGroups,
-    fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
+    fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown,
+    triggeringSigniTrash: a.triggeringSigniTrash,
+    lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
     selfEnergyToDeckBottom: a.selfEnergyToDeckBottom,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
@@ -752,8 +755,19 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.trashOwnKey && !ctx.ownerState.field.key_piece) return false;
   if (spec.fieldDown) {
     // アップ状態の自分シグニがN体そろっているか（`isUp` はフィルタ側で判定される）
-    const matching = fieldCandidates(ctx.ownerState, { ...(spec.fieldDown.filter ?? {}), isUp: true }, ctx.cardMap);
+    // 🆕`excludeSelf`＝「アップ状態の**他の**シグニ1体をダウンする」（2026-09-10・`SPDi43-06-E2`）。
+    // 🔴**UI 側2箇所（`signiActivateGate.ts` / `BattleScreen.tsx`）だけが honor していて、
+    //   engine の支払い経路（ここと下の payment action）が読んでいなかった**＝
+    //   自分しかアップしていない盤面で「払える」と誤判定し、支払いで**効果元自身をダウン**しうる。
+    //   `fieldTrash`／`fieldToDeckBottom` には同じ処理が既に在る＝**この1族だけ抜けていた。**
+    const matching = fieldCandidates(ctx.ownerState,
+      { ...(spec.fieldDown.filter ?? {}), isUp: true, ...(spec.fieldDown.excludeSelf ? { excludeSelf: true } : {}) }, ctx.cardMap)
+      .filter(n => !spec.fieldDown!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldDown.count) return false;
+  }
+  if (spec.triggeringSigniTrash) {
+    const triggerNum = ctx.triggeringCardNum;
+    if (!triggerNum || !ctx.ownerState.field.signi.some(stack => stack?.at(-1) === triggerNum)) return false;
   }
   if (spec.lrigDown) {
     if (!payLrigDownCost(ctx.ownerState, spec.lrigDown, ctx.cardMap)) return false;
@@ -946,8 +960,14 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.trashOwnKey ? [{ type: 'STUB', id: 'INTERNAL_TRASH_OWN_KEY' } as EffectAction] : []),
     ...(spec.fieldDown ? [{
       type: 'DOWN',
+      // ⚠`excludeSelf` は候補集めの側の責務（`fieldCandidatesByOwner` の `dropSelf`）＝filter へ載せる。
       target: { type: 'SIGNI', owner: 'self', count: spec.fieldDown.count, upToCount: false,
-        filter: { ...(spec.fieldDown.filter ?? {}), isUp: true } },
+        filter: { ...(spec.fieldDown.filter ?? {}), isUp: true,
+          ...(spec.fieldDown.excludeSelf ? { excludeSelf: true } : {}) } },
+    } as EffectAction] : []),
+    ...(spec.triggeringSigniTrash ? [{
+      type: 'TRASH', asCost: true, targetsTriggerSource: true,
+      target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
     } as EffectAction] : []),
     ...(spec.lrigDown ? [{
       type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN', lrigDown: spec.lrigDown,

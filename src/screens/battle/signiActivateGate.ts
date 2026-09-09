@@ -237,6 +237,7 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
       const fdTop = my.field.signi[zi]?.at(-1);
       if (!fdTop) return false;
+      if (e.cost!.fieldDown!.excludeSelf && zi === zoneIndex) return false;
       if (my.field.signi_down?.[zi]) return false; // アップ状態のみ
       const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
       return matchesFilter(cardMap.get(getCardNum(fdTop)), fdCardFilter);

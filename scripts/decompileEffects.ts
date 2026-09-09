@@ -789,7 +789,13 @@ function costJa(c?: any): string {
     const unit = c.fieldToLrigTrash.filter?.cardType === 'レゾナ' ? 'レゾナ' : 'カード';
     parts.push(`場から${filterJa(c.fieldToLrigTrash.filter)}${unit}${c.fieldToLrigTrash.count}体をルリグトラッシュに置く`);
   }
-  if (c.fieldDown) parts.push(`場の${filterJa(c.fieldDown.filter)}シグニ${c.fieldDown.count}体をダウン`);
+  // 🔴`excludeSelf`（「アップ状態の**他の**シグニ1体をダウンする」）を落とすと、逆翻訳では
+  //   **効果元自身も払える**ように読める（2026-09-10・`SPDi43-06-E2`）。engine は honor している。
+  if (c.fieldDown) {
+    // ⚠`filterJa` は `isUp` を「アップ状態の」と描くので、文頭で書くなら**フィルタ側からは外す**（二重表記になる）。
+    const fdF = c.fieldDown.filter ? filterJa({ ...c.fieldDown.filter, isUp: undefined }) : '';
+    parts.push(`場のアップ状態の${c.fieldDown.excludeSelf ? '他の' : ''}${fdF}シグニ${c.fieldDown.count}体をダウン`);
+  }
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);
   if (c.lrigDownVariable) parts.push('アップ状態のルリグを好きな数ダウンする');
@@ -1354,7 +1360,11 @@ function condJa(c?: any): string {
     case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': return c.count === undefined
       ? `${ownerJa(c.owner ?? 'self')}場にあるシグニがそれぞれ共通する色を持たない`
       : `${ownerJa(c.owner ?? 'self')}場にそれぞれ共通する色を持たないシグニが${numJa(c.count)}体ある`;
-    case 'NO_OTHER_ARTS_USED_THIS_TURN': return `このターンに《${c.exceptCardName}》以外のアーツを使用していない`;
+    // ⚠`__NO_ARTS__` は「例外カードなし」を表す内部センチネル（`__NO_SUCH_CARD__` と同じ流儀）＝
+    //   そのまま出すと逆翻訳に**内部トークンが漏れる**（2026-09-10・`WD20-008-E1` で実測）。
+    case 'NO_OTHER_ARTS_USED_THIS_TURN': return c.exceptCardName && c.exceptCardName !== '__NO_ARTS__'
+      ? `このターンに《${c.exceptCardName}》以外のアーツを使用していない`
+      : 'このターンにアーツを使用していない';
     case 'THIS_CARD_FROM_NON_HAND_THIS_TURN': return 'このターンにこのシグニが手札以外の領域から場に出ていた';
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
@@ -1688,13 +1698,20 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': {
       // 枚数（`last_processed_count` は「この方法でトラッシュに置いた1体につき」）
-      const nAL = (typeof a.count === 'object' && a.count?.$ref === 'last_processed_count')
-        ? 'トラッシュに置いたシグニ1体につき1' : numJa(a.count);
+      // ⚠`last_processed_count` は**直前ステップが処理した枚数**であって「トラッシュに置いたシグニ」に限らない
+      //   （2026-09-10・`WXK08-028-E2`＝直前は**ライフを手札に加える**処理で、原文は
+      //    「この方法で手札に加えたカードの枚数まで」）。固定文言だと逆翻訳が**別の概念に化ける。**
+      const refLastAL = typeof a.count === 'object' && a.count?.$ref === 'last_processed_count';
+      const nAL = refLastAL ? 'トラッシュに置いたシグニ1体につき1' : numJa(a.count);
       const toAL = `${ownerJa(a.owner)}ライフクロスに加える`;
       // ⚠出所を描き分けないと**逆翻訳が常に「デッキの一番上」**になり、fromTrash/fromField を
       //   直しても逆翻訳シートが緑のまま＝計器が穴を映さない（PLAN §3「逆翻訳を直したらエンジンもセット」の逆向き）。
       if (a.fromField) return `${targetJa(a.target ?? { type: 'SIGNI', owner: a.owner, count: a.count })}を場から${toAL}`;
       if (a.fromTrash) return `${ownerJa(a.owner)}トラッシュから${filterJa(a.filter)}${a.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}${nAL}枚を${a.opponentSelects ? '対戦相手が選び' : '選び'}${toAL}`;
+      // ⚠`last_processed_count` は**直前ステップが処理した枚数**であって「トラッシュに置いたシグニ」に限らない
+      //   （2026-09-10・`WXK08-028-E2`＝直前は**ライフを手札に加える**処理で、原文は
+      //    「この方法で手札に加えたカードの枚数まで」）。固定文言のままだと逆翻訳が**別の概念に化ける。**
+      if (a.fromHand && refLastAL) return `この方法で処理した枚数まで手札からカードを${toAL}`;
       if (a.fromHand) return `手札を${nAL}枚選んで${toAL}`;
       if (a.fromSearch) return `デッキから探したカードを${toAL}`;
       if (a.fromBottom) return `${ownerJa(a.owner)}デッキの一番下から${nAL}枚を${toAL}`;
@@ -3766,7 +3783,7 @@ function actionJa(a?: Action, effectType?: string): string {
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {
           const fFD = a.fieldDown.filter ? filterJa({ ...a.fieldDown.filter, cardType: undefined, isUp: undefined }) : '';
-          const bodyFD = `あなたのアップ状態の${fFD}シグニ${a.fieldDown.count}体をダウンし`;
+          const bodyFD = `あなたのアップ状態の${a.fieldDown.excludeSelf ? '他の' : ''}${fFD}シグニ${a.fieldDown.count}体をダウンし`;
           return `${headOC}${bodyFD}${costJaOC ? `${costJaOC}を支払っ` : ''}てもよい`;
         }
         if (a.handDiscard) {

@@ -28565,6 +28565,271 @@ function repairSemanticBatch243(effects: CardEffect[]): void {
   }
 }
 
+/** §5.0 第244バッチ：未開拓プールの一点物の意味修復。 */
+function repairSemanticBatch244(effects: CardEffect[]): void {
+  const rewriteStoredUpTargetToLrig = (action: EffectAction): void => {
+    if (action.type === 'STUB' && action.id === 'SELECT_TARGET_ONLY' && action.selectTarget?.type === 'SIGNI') {
+      action.selectTarget = { ...action.selectTarget, type: 'LRIG' };
+      return;
+    }
+    if (action.type === 'UP' && action.target.type === 'SIGNI' && action.targetsStored) {
+      action.target = { ...action.target, type: 'LRIG' };
+      return;
+    }
+    if (action.type === 'SEQUENCE') action.steps.forEach(rewriteStoredUpTargetToLrig);
+    if (action.type === 'CONDITIONAL') {
+      rewriteStoredUpTargetToLrig(action.then);
+      if (action.else) rewriteStoredUpTargetToLrig(action.else);
+    }
+    if (action.type === 'CHOOSE') action.choices.forEach(choice => rewriteStoredUpTargetToLrig(choice.action));
+  };
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'SPDi43-03-E2': {
+        const grant = effect.action;
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+            grant,
+          ],
+        };
+        break;
+      }
+      case 'SPDi43-17-E2':
+      case 'SPDi43-18-E2':
+      case 'SPDi43-19-E2':
+        rewriteStoredUpTargetToLrig(effect.action);
+        break;
+      case 'SPDi43-08-E2':
+        effect.condition = {
+          type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'エクス・スリーNEO' },
+        };
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤'] },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+              type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+                { choiceId: 'c0', label: '選択肢1', action: {
+                  type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                    filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false },
+                } },
+                { choiceId: 'c1', label: '選択肢2', condition: { type: 'SELF_POWER_GTE', value: 15000 }, action: {
+                  type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                    filter: { cardType: 'シグニ' }, upToCount: false },
+                } },
+              ],
+            } },
+          ],
+        };
+        break;
+      case 'SPDi43-06-E2':
+        if (effect.cost?.fieldDown) effect.cost.fieldDown.excludeSelf = true;
+        break;
+      case 'WX22-Re07-E2':
+        effect.action = {
+          type: 'SEQUENCE', steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'CONDITIONAL', condition: {
+              type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '古代兵器' },
+            }, then: {
+              type: 'ADD_TO_FIELD', owner: 'self', source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ' },
+              }, optional: true, targetsStored: true,
+            } },
+          ],
+        };
+        break;
+      case 'WXEX1-52-E1':
+        effect.triggerScope = 'any_ally';
+        effect.triggerFilter = { cardType: 'シグニ', story: '遊具' };
+        break;
+      case 'WXEX2-04-E3':
+        effect.action = {
+          type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+            { choiceId: 'self', label: 'あなたのシグニゾーン', action: {
+              type: 'SEQUENCE', steps: [
+                { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE', owner: 'self' },
+                { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' }, zoneSource: 'designated' }, until: 'UNTIL_OPP_TURN_END' },
+              ],
+            } },
+            { choiceId: 'opponent', label: '対戦相手のシグニゾーン', action: {
+              type: 'SEQUENCE', steps: [
+                { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE', owner: 'opponent' },
+                { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, zoneSource: 'designated' }, until: 'UNTIL_OPP_TURN_END' },
+              ],
+            } },
+          ],
+        };
+        break;
+      case 'WXEX2-17-E1':
+        effect.timing = ['ON_ATTACK_SIGNI', 'ON_ATTACK_LRIG'];
+        break;
+      case 'WXK03-002-E2':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'DECLARE_CARD_NAME' },
+          { type: 'STUB', id: 'DECLARED_NAME_TO_SERVANT_ZERO' },
+        ] };
+        break;
+      case 'WXK03-020-E2':
+        effect.triggerCondition = { ...(effect.triggerCondition ?? {}), byEffect: true };
+        break;
+      case 'WXK04-031-E1':
+        effect.activeCondition = { type: 'IS_SELF_ACCED', cardName: 'コードイートアイスケーキ' };
+        break;
+      case 'WXK06-029-E3':
+        effect.action = {
+          type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+            { choiceId: 'self', label: 'あなた', action: {
+              type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+            } },
+            { choiceId: 'opponent', label: '対戦相手', action: {
+              type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+            } },
+          ],
+        };
+        break;
+      case 'WXK07-054-CB-E2': {
+        const old = effect.action;
+        if (old.type === 'SEQUENCE') {
+          const reveal = old.steps.find(a => a.type === 'CONDITIONAL');
+          const power = old.steps.find(a => a.type === 'POWER_MODIFY');
+          const revealAction = reveal?.type === 'CONDITIONAL' ? reveal.then : undefined;
+          if (revealAction && power) {
+            effect.action = { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+              { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+                type: 'SEQUENCE', steps: [revealAction, power],
+              } },
+            ] };
+          }
+        }
+        break;
+      }
+      case 'WXK09-039-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'DECLARE_CARD_NAME' },
+              { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1,
+                filter: { nameEqDeclaredName: true }, actingPlayerSelects: true } },
+            ],
+          } },
+        ] };
+        break;
+      case 'WXK11-024-E1':
+        effect.timing = ['ON_SPELL_USE', 'ON_ARTS_USE'];
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' },
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+            { choiceId: 'hand', label: '手札に加える', action: {
+              type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1,
+                upToCount: false, filter: { cardType: 'シグニ' } }, targetsStored: true,
+            } },
+            { choiceId: 'charge', label: 'エナチャージ1', action: {
+              type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1,
+            } },
+          ] },
+        ] };
+        break;
+      case 'WXK08-017-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'PREVENT_NEXT_DAMAGE', count: 1 },
+          { type: 'STUB', id: 'TRASH_OWN_KEY_OPTIONAL' },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+            type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' } },
+          } },
+        ] };
+        break;
+      case 'WXK08-001-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' },
+          { type: 'CHOOSE', choose_count: 2, from_count: 3, upTo: true, choices: [
+            { choiceId: 'c0', label: '選択肢1', action: { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+                type: 'SIGNI', owner: 'opponent', count: 2, upToCount: true, filter: { cardType: 'シグニ' },
+              } },
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+              { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+                type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 2,
+                  upToCount: true, filter: { cardType: 'シグニ' } }, targetsStored: true, until: 'UNTIL_END_OF_TURN',
+              } },
+            ] } },
+            { choiceId: 'c1', label: '選択肢2', action: { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+                type: 'SIGNI', owner: 'any', count: 1, upToCount: false, filter: { cardType: 'シグニ' },
+              }, abortIfNoCandidate: true },
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤'] },
+              { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+                type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1,
+                  upToCount: false, filter: { cardType: 'シグニ' } }, targetsStored: true,
+              } },
+            ] } },
+            { choiceId: 'c2', label: '選択肢3', action: { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+                type: 'SIGNI', owner: 'any', count: 1, upToCount: false, filter: { cardType: 'シグニ' },
+              }, abortIfNoCandidate: true },
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+              { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+                type: 'SEQUENCE', steps: [
+                  { type: 'DOWN', target: { type: 'SIGNI', owner: 'any', count: 1,
+                    upToCount: false, filter: { cardType: 'シグニ' } }, targetsStored: true },
+                  { type: 'DRAW', owner: 'self', count: 1 },
+                ],
+              } },
+            ] } },
+          ] },
+        ] };
+        break;
+      case 'WXK08-028-E2':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'TRANSFER_TO_HAND', source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 'ALL' } },
+          { type: 'ADD_TO_LIFE', owner: 'self', count: { $ref: 'last_processed_count' },
+            fromTop: false, fromHand: true, upToCount: true },
+          { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME', gameGrants: [{ kind: 'suppressLifeBurst' }] },
+        ] };
+        break;
+      case 'WD20-008-E1': {
+        const chargeChoices = (owner: Owner): ChoiceOption[] => [0, 1, 2, 3].map(count => ({
+          choiceId: `${owner}-${count}`,
+          label: `${count}枚置く`,
+          action: count === 0
+            ? { type: 'SEQUENCE', steps: [] }
+            : { type: 'ENERGY_CHARGE_FROM_DECK', owner, count },
+        }));
+        effect.condition = { type: 'NO_OTHER_ARTS_USED_THIS_TURN', exceptCardName: '__NO_ARTS__' };
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'CHOOSE', choose_count: 1, from_count: 4, choices: chargeChoices('self') },
+          { type: 'CHOOSE', choose_count: 1, from_count: 4, choices: chargeChoices('opponent'), opponentResponds: true },
+        ] };
+        break;
+      }
+      case 'WD22-007-G-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'], triggeringSigniTrash: true },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' }, upToCount: false },
+          } },
+        ] };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -29441,6 +29706,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch241(effects);
   repairSemanticBatch242(effects);
   repairSemanticBatch243(effects);
+  repairSemanticBatch244(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

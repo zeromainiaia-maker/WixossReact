@@ -13823,6 +13823,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (let zi = 0; zi < my.field.signi.length && remainingFD > 0; zi++) {
           const fdTop = my.field.signi[zi]?.at(-1);
           if (!fdTop || newSigniDown[zi]) continue;
+          if (effect.cost.fieldDown.excludeSelf && fdTop === cardNum) continue;
           if (!matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter)) continue;
           newSigniDown[zi] = true;
           remainingFD--;

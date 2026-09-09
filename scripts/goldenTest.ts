@@ -4637,9 +4637,28 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
   {
     const a = act('WXK07-054-CB', 'WXK07-054-CB-E2');
     eq(countLooks(a), 0, 'WXK07-054-CB-E2: REVEAL_UNTIL 経路には LOOK_AND_REORDER を作らない');
-    const ru = (steps(a)[1] as { then?: { type?: string; restDestination?: string } }).then!;
-    eq(ru.type, 'REVEAL_UNTIL', 'WXK07-054-CB-E2: REVEAL_UNTIL のまま');
+    // ⚠**位置ではなく型で引く**（2026-09-10・未開拓プール第244）＝原文「そうした場合、…公開する。**その後**、
+    //   …パワーを－1000する」に対し旧 live は **`POWER_MODIFY` が支払いゲートの外**にあり、
+    //   **未払いでもパワー修正が走る**過剰実行だった。ゲート内を `SEQUENCE` で包んだので
+    //   `steps[1].then` は `REVEAL_UNTIL` ではなくなる＝**位置固定 assert が腐った**（第240 の教訓と同型）。
+    const findRU = (node: unknown): { type?: string; restDestination?: string } | undefined => {
+      if (!node || typeof node !== 'object') return undefined;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'REVEAL_UNTIL') return o as { type?: string; restDestination?: string };
+      for (const v of Object.values(o)) {
+        const hit = Array.isArray(v) ? v.map(findRU).find(Boolean) : findRU(v);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    const ru = findRU(a)!;
+    ok(!!ru, 'WXK07-054-CB-E2: REVEAL_UNTIL が消えている');
     eq(ru.restDestination, 'deck_bottom_shuffled', 'WXK07-054-CB-E2: 後始末は restDestination が持つ');
+    // 🔴**パワー修正は支払いゲートの中**（未払いで走らせない）＝今回直した本体を固定する。
+    const gate = steps(a)[1] as { condition?: { type?: string }; then?: Record<string, unknown> };
+    eq(gate.condition?.type, 'PAID_ADDITIONAL_COST', 'WXK07-054-CB-E2: 支払いゲートが外れている');
+    ok(JSON.stringify(gate.then).includes('"type":"POWER_MODIFY"'),
+      '🔴WXK07-054-CB-E2: パワー修正がゲートの外へ戻っている（未払いでも走る）');
   }
 });
 // ── §5.3 `O-91`（2026-08-26）：**前文の主語が省略された閾値ゲート**。
@@ -6493,8 +6512,12 @@ test('§6.4 O-16 live: 指定ゾーンを読む消費者が配線されている
 // instanceId を記録するので「後からそのゾーンへ出たシグニ」に効かず、原文の「新たに得られない」が死ぬ。
 test('§6.4 O-16 E2E WXEX2-04-E3: 指定ゾーンの能力喪失は入れ替わっても効く', () => withSavedCursor(() => {
   const a = fresh(), b = fresh(), c = fresh();
-  const applied = run(nextTurnLiveAction('WXEX2-04', 'WXEX2-04-E3'),
-    { ...mkCtx({}, { signi: [a, b, c] }, 'WXEX2-04'), isOwnerTurn: true });
+  const base = { ...mkCtx({}, { signi: [a, b, c] }, 'WXEX2-04'), isOwnerTurn: true };
+  const choose = nextTurnLiveAction('WXEX2-04', 'WXEX2-04-E3') as ChooseAction;
+  eq(choose.type, 'CHOOSE', '自分／対戦相手の場を選ぶ');
+  const opponentBranch = choose.choices.find(c => c.choiceId === 'opponent');
+  ok(!!opponentBranch, '対戦相手側の選択肢がある');
+  const applied = run(opponentBranch!.action, base);
   const zones = designatedZones(applied.otherState);
   eq(zones.length, 1, '1ゾーン指定');
   const zone = zones[0];
@@ -20458,7 +20481,12 @@ test('parse timing 語彙: §6.3 J-4 フェイズ／アタック終了（ON_ATTA
 });
 test('O-181 SPDi43-03: 付与される「このルリグ」の能力が ON_ATTACK_END へ届く', () => {
   const top = parseCardEffects(cardMap.get('SPDi43-03')!).find(e => e.effectId === 'SPDi43-03-E2');
-  const inner = (top?.action as { abilities?: CardEffect[] })?.abilities?.find(e => e.effectId === 'SPDi43-03-sub-E1');
+  const steps = top?.action.type === 'SEQUENCE' ? top.action.steps : [];
+  eq(JSON.stringify(steps[0]), JSON.stringify({ type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true }),
+    '起動能力の主要処理として相手ライフクロス1枚をクラッシュ');
+  const grant = steps.find(a => a.type === 'GRANT_LRIG_ABILITY');
+  const inner = grant?.type === 'GRANT_LRIG_ABILITY'
+    ? grant.abilities.find(e => e.effectId === 'SPDi43-03-sub-E1') : undefined;
   eq(inner?.timing?.[0], 'ON_ATTACK_END', '付与AUTOの timing');
   eq(inner?.triggerScope, 'self', '付与先ルリグ自身のアタック限定');
   eq(inner?.triggerCondition?.attackDealtNoDamage, true, 'ダメージ無し限定');
@@ -34543,9 +34571,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
 
 // ── タスク12(xxix) 最終: 効果配置シグニ自身の【出】（段階1）──
 {
+  // 2026-09-10（未開拓プール第244）＝`WXK03-020-E2` を追加（10 → 11）。
+  // 原文「このシグニが**効果によって**場に出た場合」に対し `triggerCondition.byEffect` が落ちていた＝
+  // **通常召喚でも発火する過剰実行**だった。条件を足したので、この集合へ入るのが正しい（退化ではない）。
+  // ⚠同じ効果が段階2の母集団からは抜けるので、下の `1467` も 1 減る（同じ1件の移動）。
   const phase1Ids = [
     'WX10-081-E1', 'WX10-084-E1', 'WX11-045-E1', 'WX11-076-E1', 'WX11-079-E1',
     'WD23-023-E-E2', 'WX15-039-E2', 'WX15-108-E1', 'WX15-109-E1', 'WX15-110-E1',
+    'WXK03-020-E2',
   ];
   const stackCount = (entries: StackEntry[]) => {
     const stack = initStack('host', entries);
@@ -34615,7 +34648,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1455→1467＝2026-09-05（§5.3 `O-257`）で【ハーモニー】**12枚**に
     //   `AUTO / ON_PLAY / mandatory` の能力（「〈色〉のルリグをダウンしないかぎり、これをダウンする」）を
     //   足した分。⚠**任意なのは中の支払いだけ**で能力自体は強制なので、この集合に入るのが正しい。
-    eq(eligible.length, 1467, '段階2 mandatory集合');
+    // 🆕1467→1466＝2026-09-10（未開拓プール第244）で `WXK03-020-E2` に `triggerCondition.byEffect` を足し、
+    //   **段階1（効果で場に出たとき限定）の集合へ移った**ぶんの1減。⚠新しい死角ではない＝同じ1件の移動。
+    eq(eligible.length, 1466, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -34629,7 +34664,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   条件なし側から条件あり側へ2件移っただけ。旧は条件が落ちていて**空でも撃てた**）。
     // 🆕1393→1405＝2026-09-05（§5.3 `O-257`）の【ハーモニー】12枚（条件は持たず、
     //   支払うかどうかは解決中の `OPTIONAL_COST` が問う）＝**条件なし側**へ入る。
-    eq(eligible.length - conditional.length, 1405, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    // 🆕1405→1404＝2026-09-10（未開拓プール第244）で `WXK03-020-E2` が段階1へ移ったぶんの1減
+    //   （同じ1件の移動＝上の 1467→1466 と対）。
+    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 62, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
@@ -60497,7 +60534,9 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   D群（`fixLrigColorFilters.mjs` が【チェイン】の `COST_REDUCTION` を毎回差し込む）だったが、
   //   **parser 自身が同じ step を出すようになっていた**＝刻印は stale で、これが在るせいで
   //   `byOpponentEffect` を足した parser 改善が live へ永久に届かない状態だった。
-  const BASELINE_ORPHAN_MANUAL = 5; // 旧6。2026-09-09（S-3・codex-work引き継ぎ）＝`PR-457-E2` の真因（`fixLrigColorFilters.mjs` の誤ルール）を削除し `--unfreeze A` で AUTO へ解凍＝orphan から外れた（この test は parser を回さないので `census:orphanmanual` の「parser 自身が同じ印を出す」1件も母集団に残る＝D4+その1件=5。払い戻し・退化ではない）。旧7。旧6。旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  const BASELINE_ORPHAN_MANUAL = 6; // 旧5。2026-09-10（未開拓プール第244）＝`SPDi43-08-E2` を `_partial_fresh` から採用した結果、
+  // **parser 自身が `PARTIAL` を出す効果**が1件増えた（1→2）。この test は parser を回さないので母集団から外せない＝
+  // **凍っていない（毎回の build で再生成される）**＝較正であって退化ではない。`census:orphanmanual` の A/B/C はいずれも 0。旧6。2026-09-09（S-3・codex-work引き継ぎ）＝`PR-457-E2` の真因（`fixLrigColorFilters.mjs` の誤ルール）を削除し `--unfreeze A` で AUTO へ解凍＝orphan から外れた（この test は parser を回さないので `census:orphanmanual` の「parser 自身が同じ印を出す」1件も母集団に残る＝D4+その1件=5。払い戻し・退化ではない）。旧7。旧6。旧7。旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
@@ -74132,6 +74171,199 @@ for (const [cardNum, effectId, must] of [
     }
   });
 }
+
+test('第244 JSON SPDi43-17/18/19-E2: 対象宣言とアップ先をルリグとして fresh/live 双方に保持', () => {
+  for (const [cardNum, effectId] of [
+    ['SPDi43-17', 'SPDi43-17-E2'],
+    ['SPDi43-18', 'SPDi43-18-E2'],
+    ['SPDi43-19', 'SPDi43-19-E2'],
+  ] as const) {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect.action);
+      ok(json.includes('"id":"SELECT_TARGET_ONLY","selectTarget":{"type":"LRIG"'),
+        `${effectId} ${freshParse ? 'fresh' : 'live'}: 対象宣言がルリグでない`);
+      ok(json.includes('"type":"UP","target":{"type":"LRIG"'),
+        `${effectId} ${freshParse ? 'fresh' : 'live'}: アップ先がルリグでない`);
+      ok(!json.includes('"id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI"'),
+        `${effectId} ${freshParse ? 'fresh' : 'live'}: 旧SIGNI対象が残る`);
+    }
+  }
+});
+
+test('第244 JSON SPDi43-08-E2: 発動条件・任意支払い・選択肢別パワー条件を正しい階層に保持', () => {
+  for (const freshParse of [true, false]) {
+    const pool = freshParse ? parseCardEffects(cardMap.get('SPDi43-08')!) : (effectsMap.get('SPDi43-08') ?? []);
+    const effect = findEffectDeep(pool, 'SPDi43-08-E2');
+    if (!effect) throw new Error(`SPDi43-08-E2: ${freshParse ? 'fresh' : 'live'} effect missing`);
+    eq(JSON.stringify(effect.condition), JSON.stringify({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'エクス・スリーNEO' },
+    }), `${freshParse ? 'fresh' : 'live'}: 指定カード存在条件`);
+    const json = JSON.stringify(effect.action);
+    ok(json.includes('"condition":{"type":"PAID_ADDITIONAL_COST"}'),
+      `${freshParse ? 'fresh' : 'live'}: 支払い成否ゲートが無い`);
+    ok(json.includes('"condition":{"type":"SELF_POWER_GTE","value":15000}'),
+      `${freshParse ? 'fresh' : 'live'}: 15000条件が選択肢2に無い`);
+    ok(!JSON.stringify(effect.condition).includes('SELF_POWER_GTE'),
+      `${freshParse ? 'fresh' : 'live'}: 15000条件が効果全体を止める`);
+  }
+});
+
+test('第244 JSON 既存受け皿8件: fresh/live 双方が落ちていた限定と処理を保持', () => {
+  const cases = [
+    ['WX22-Re07', 'WX22-Re07-E2', ['"id":"STORE_LAST_PROCESSED_TARGETS"', '"targetsStored":true']],
+    ['WXEX1-52', 'WXEX1-52-E1', ['"triggerScope":"any_ally"', '"triggerFilter":{"cardType":"シグニ","story":"遊具"']],
+    ['WXEX2-04', 'WXEX2-04-E3', ['"choiceId":"self"', '"choiceId":"opponent"', '"zoneSource":"designated"']],
+    ['WXEX2-17', 'WXEX2-17-E1', ['"timing":["ON_ATTACK_SIGNI","ON_ATTACK_LRIG"]']],
+    ['WXK03-002', 'WXK03-002-E2', ['"id":"DECLARED_NAME_TO_SERVANT_ZERO"']],
+    ['WXK03-020', 'WXK03-020-E2', ['"triggerCondition":{"byEffect":true}']],
+    ['WXK04-031', 'WXK04-031-E1', ['"activeCondition":{"type":"IS_SELF_ACCED","cardName":"コードイートアイスケーキ"}']],
+    ['WXK06-029', 'WXK06-029-E3', ['"choiceId":"self"', '"choiceId":"opponent"', '"type":"REARRANGE_SIGNI"']],
+  ] as const;
+  for (const [cardNum, effectId, must] of cases) {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect);
+      for (const fragment of must) ok(json.includes(fragment),
+        `${effectId} ${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  }
+});
+
+test('第244 SPDi43-06-E2: fieldDown.excludeSelf を提示判定と実支払い地点の双方が消費する', () => withSavedCursor(() => {
+  for (const freshParse of [true, false]) {
+    const pool = freshParse ? parseCardEffects(cardMap.get('SPDi43-06')!) : (effectsMap.get('SPDi43-06') ?? []);
+    const effect = findEffectDeep(pool, 'SPDi43-06-E2');
+    if (!effect) throw new Error(`SPDi43-06-E2: ${freshParse ? 'fresh' : 'live'} effect missing`);
+    eq(effect.cost?.fieldDown?.excludeSelf, true, `${freshParse ? 'fresh' : 'live'}: 他のシグニ限定`);
+  }
+  const other = findCard(c => isSigni(c) && c.CardNum !== 'SPDi43-06');
+  const offered = (signi: (string | null)[]) => listActivatableSigniEffects({
+    my: mkState({ signi }), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap, cardMap,
+  }).some(e => e.effectId === 'SPDi43-06-E2');
+  eq(offered(['SPDi43-06', null, null]), false, '自身しかいない盤面ではコストを払えない');
+  eq(offered(['SPDi43-06', other, null]), true, '他のアップ状態シグニがいれば提示する');
+  const paymentSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(paymentSource.includes('effect.cost.fieldDown.excludeSelf && fdTop === cardNum'),
+    '🔴実支払い地点も自身を候補から除外する');
+}));
+
+test('第244 JSON 任意コスト等4件: fresh/live が支払い範囲・選択肢・主要効果を保持', () => {
+  const cases = [
+    ['WXK07-054-CB', 'WXK07-054-CB-E2', ['"condition":{"type":"PAID_ADDITIONAL_COST"}', '"type":"REVEAL_UNTIL"', '"type":"POWER_MODIFY"']],
+    ['WXK09-039', 'WXK09-039-E1', ['"condition":{"type":"PAID_ADDITIONAL_COST"}', '"nameEqDeclaredName":true']],
+    ['WXK11-024', 'WXK11-024-E1', ['"timing":["ON_SPELL_USE","ON_ARTS_USE"]', '"type":"ENERGY_CARD"', '"choiceId":"charge"']],
+    ['WXK08-017', 'WXK08-017-E1', ['"type":"PREVENT_NEXT_DAMAGE","count":1', '"id":"TRASH_OWN_KEY_OPTIONAL"']],
+  ] as const;
+  for (const [cardNum, effectId, must] of cases) {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect);
+      for (const fragment of must) ok(json.includes(fragment), `${effectId} ${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  }
+});
+
+test('第244 engine WXK09-039-E1: HAND_CARD の宣言名フィルタは完全一致し未宣言なら fail-closed', () => withSavedCursor(() => {
+  const declared = findCard(c => !!c.CardName);
+  const other = findCard(c => !!c.CardName && c.CardName !== cardMap.get(declared)?.CardName);
+  const action: EffectAction = {
+    type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1,
+      filter: { nameEqDeclaredName: true }, actingPlayerSelects: true },
+  };
+  const base = mkCtx({}, {}, 'WXK09-039');
+  base.ownerState = { ...base.ownerState, declared_card_name: cardMap.get(declared)?.CardName };
+  base.otherState = { ...base.otherState, hand: [other, declared], trash: [] };
+  const hit = run(action, base);
+  ok(hit.otherState.trash.includes(declared), '宣言名と一致するカードを捨てる');
+  ok(hit.otherState.hand.includes(other), '非一致カードは候補にならない');
+  const noDeclaration = run(action, { ...base, ownerState: { ...base.ownerState, declared_card_name: undefined } });
+  eq(noDeclaration.otherState.trash.length, 0, '宣言名なしで任意の手札を捨てない');
+}));
+
+test('第244 JSON WXK08-001/028: 対象所有者・固定対象・ライフ入替枚数を fresh/live に保持', () => {
+  for (const [cardNum, effectId, must] of [
+    ['WXK08-001', 'WXK08-001-E1', ['"owner":"opponent","count":2,"upToCount":true', '"owner":"any","count":1', '"targetsStored":true']],
+    ['WXK08-028', 'WXK08-028-E2', ['"type":"LIFE_CLOTH_CARD","owner":"self","count":"ALL"', '"count":{"$ref":"last_processed_count"}', '"upToCount":true']],
+  ] as const) {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect);
+      for (const fragment of must) ok(json.includes(fragment), `${effectId} ${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  }
+});
+
+test('第244 engine REMOVE_ABILITIES: stored/fixed 対象だけを能力消失させる', () => withSavedCursor(() => {
+  const a = findCard(c => isSigni(c));
+  const b = findCard(c => isSigni(c) && c.CardNum !== a);
+  const base = mkCtx({}, { signi: [a, b, null] }, 'WXK08-001');
+  const stored = run({ type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 2 },
+    targetsStored: true, until: 'UNTIL_END_OF_TURN' }, { ...base, storedTargetCards: [a] });
+  ok(stored.otherState.abilities_removed?.includes(a), 'stored対象は能力を失う');
+  ok(!stored.otherState.abilities_removed?.includes(b), 'stored外へ広がらない');
+  const fixed = run({ type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 2 },
+    fixedCardNums: [b], until: 'UNTIL_END_OF_TURN' }, base);
+  ok(fixed.otherState.abilities_removed?.includes(b), '支払い対話を跨いだfixed対象を消費する');
+  ok(!fixed.otherState.abilities_removed?.includes(a), 'fixed外へ広がらない');
+}));
+
+test('第244 engine WXK08-028-E2: 移した全ライフ枚数を上限に手札から戻し、LBを封じる', () => withSavedCursor(() => {
+  const cards = [fresh(), fresh(), fresh(), fresh(), fresh()];
+  const ctx = mkCtx({}, {}, 'WXK08-028');
+  ctx.ownerState = { ...ctx.ownerState, life_cloth: cards.slice(0, 2), hand: cards.slice(2), deck: [] };
+  const effect = findEffectDeep(effectsMap.get('WXK08-028') ?? [], 'WXK08-028-E2')!;
+  const result = run(effect.action, ctx);
+  eq(result.ownerState.life_cloth.length, 2, '直前に手札へ移した2枚までをライフへ戻す');
+  eq(result.ownerState.hand.length, 3, 'ライフ2枚と手札2枚の交換で手札枚数は元へ戻る');
+  eq(result.ownerState.game_suppress_lb, true, 'このゲームのライフバーストを封じる');
+}));
+
+test('第244 WD20-008-E1: 使用制限と各プレイヤー0〜3枚のエナチャージを fresh/live に保持', () => {
+  for (const freshParse of [true, false]) {
+    const pool = freshParse ? parseCardEffects(cardMap.get('WD20-008')!) : (effectsMap.get('WD20-008') ?? []);
+    const effect = findEffectDeep(pool, 'WD20-008-E1');
+    if (!effect) throw new Error(`WD20-008-E1: ${freshParse ? 'fresh' : 'live'} effect missing`);
+    eq(JSON.stringify(effect.condition), JSON.stringify({ type: 'NO_OTHER_ARTS_USED_THIS_TURN', exceptCardName: '__NO_ARTS__' }),
+      `${freshParse ? 'fresh' : 'live'}: アーツ使用済みなら使用不可`);
+    const json = JSON.stringify(effect.action);
+    for (const fragment of ['"choiceId":"self-0"', '"choiceId":"self-3"', '"choiceId":"opponent-0"', '"choiceId":"opponent-3"', '"opponentResponds":true']) {
+      ok(json.includes(fragment), `${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  }
+  const effect = findEffectDeep(effectsMap.get('WD20-008') ?? [], 'WD20-008-E1')!;
+  const unused = mkCtx({}, {}, 'WD20-008');
+  ok(evalUseCondition(effect.condition!, unused.ownerState, unused.otherState, cardMap, 'WD20-008', 'MAIN'), 'アーツ未使用なら使用可');
+  const used = { ...unused.ownerState, turn_arts_used_names: ['任意のアーツ'] };
+  ok(!evalUseCondition(effect.condition!, used, unused.otherState, cardMap, 'WD20-008', 'MAIN'), 'アーツ使用済みなら使用不可');
+});
+
+// 🔴第244バッチの検証で見つけた非対称（Claude が同じ巡で塞いだ）＝`cost.fieldDown.excludeSelf`
+//   （「アップ状態の**他の**シグニ1体をダウンする」）は **UI 側2箇所だけ**が honor していて、
+//   engine の任意コスト経路（`buildOptionalCostSpec` の可否判定と支払いアクション）が読んでいなかった。
+//   同じ処理は `fieldTrash` / `fieldToDeckBottom` には既に在り、**この1族だけ抜けていた。**
+test('第244 engine: OPTIONAL_COST{fieldDown, excludeSelf} は効果元自身を支払い候補にしない', () => withSavedCursor(() => {
+  const src = fresh();
+  const other = fresh();
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', fieldDown: { count: 1, excludeSelf: true } } as unknown as StubAction;
+  // 自分しかアップしていない盤面＝払えない（旧実装は「払える」と誤判定した）。
+  const onlySelf = mkCtx({ signi: [src, null, null] }, {}, src);
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, onlySelf), onlySelf),
+    '🔴効果元自身しかアップしていないのに支払い可能と判定した');
+  // 他のシグニがアップなら払える。
+  const withOther = mkCtx({ signi: [src, other, null] }, {}, src);
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, withOther), withOther),
+    '他のシグニがアップなら支払える');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
