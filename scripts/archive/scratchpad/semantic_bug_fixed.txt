@@ -148,3 +148,19 @@ WX12-032-E1 :: 2026-09-09 :: FP（stale）＝HAND_DIFF gte 0条件実装済み
 WX19-064-E1 :: 2026-09-09 :: FP（stale）＝REMOVE_VIRUS/TRASH_TRAP_ONE/STRIP_ATTACHED_AND_UNDERの三択実装済み
 WX12-033-E1 :: 2026-09-09 :: FP（stale）＝POWER_SET target.count:"ALL"実装済み
 WX18-001-E2 :: 2026-09-09 :: FP（stale）＝デッキ探索→トラッシュから場出し→シャッフル実装済み
+WXEX2-23-E3 :: 2026-09-09 :: 第235バッチ＝BANISH selectionConstraint{same:'name'}で同名2体指定へ修復
+WXEX2-29-E1 :: 2026-09-09 :: 第235バッチ＝FREEZE{isTriggerSource}+REMOVE_ABILITIESの2段へ修復
+WXEX2-39-E1 :: 2026-09-09 :: 第235バッチ＝TRASH{HAND_CARD,count:ALL,upToCount:true}へ好きな枚数化
+WXEX2-44-E3 :: 2026-09-09 :: 第235バッチ＝SEND_TO_ENERGY+条件付きTRANSFER_TO_HANDへ修復
+WXK01-037-E1 :: 2026-09-09 :: 第235バッチ＝BANISH filter.isTriggerSource追加
+WXK01-051-E1 :: 2026-09-09 :: 第235バッチ＝CONDITIONAL{LIFE_COUNT gte 2}でゲート追加
+WXK02-030-E1 :: 2026-09-09 :: 第235バッチ＝OPTIONAL_COST{白}+PAID_ADDITIONAL_COST+levelEqLastProcessed追加
+WXK03-029-E2 :: 2026-09-09 :: 第235バッチ＝SEARCH filter.hasGuard:trueへ修正（cardName誤指定を解消）
+WXK03-030-E1 :: 2026-09-09 :: 第235バッチ＝OPTIONAL_COST{白}+PAID_ADDITIONAL_COST+BOUNCE/ADD_TO_FIELDへ修復
+WXK04-034-E2 :: 2026-09-09 :: 第235バッチ＝REVEAL_AND_PICK remainder.location:'energy'へ修正
+WXK06-073-E1 :: 2026-09-09 :: 第235バッチ＝LOOK+TRANSFER_TO_DECK+条件付きDRAWへ修復
+WXK06-074-E1 :: 2026-09-09 :: 第235バッチ＝CONDITIONAL{OPP_CARDS_MOVED_TO_DECK_THIS_TURN}でゲート追加
+WXK07-056-E1 :: 2026-09-09 :: 第235バッチ＝STUB{DECK_SIGNI_LEVEL_OVERRIDE}へ実装
+WXK09-004-E1 :: 2026-09-09 :: 第235バッチ＝CHOOSE c1をTRANSFER_TO_HAND+ADD_TO_FIELDへ実装
+WD10-001-E1 :: 2026-09-09 :: 第235バッチ＝POWER_MODIFY target.owner:self,count:ALL,filter.crossState:trueへ修復
+WD14-009-E1 :: 2026-09-09 :: 第235バッチ＝TRASH{ENERGY_CARD}→ADD_TO_FIELD{count:$ref:last_processed_count}の連鎖実装

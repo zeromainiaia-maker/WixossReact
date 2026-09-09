@@ -1,5 +1,32 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-09・第233〜234バッチ・Sonnet 5＝Codex 委譲）＝機構不要の一点物46効果を投げ、6効果採用＋21効果stale消化＋2件を機構待ちへ選別**
+  **作業単位**＝ユーザー指示「PLANをよみ。機構のいらないバグ修正をcodex-workとcodexに投げる」→「残267の一点物を投げる」。
+
+  ✅**第233バッチ＝系統だった16効果**（宣言レベル一致8＋任意トラッシュ8）を `.codex-work` へ委譲し**16/16採用**
+  （受け皿は事前にコードで実在確認＝`levelEqDeclaredNumber`／`LOOK_AND_REORDER.reorder`／`TrashAction.optional`／
+  `MILLAction.optional`）。副産物＝`levelEqDeclaredNumber` の配線漏れを1件発見・修復。
+
+  ✅**第234バッチ＝一点物30効果**（`.ts:行番号` 引用なし＋「機構待ち」等の語句を除外する機械スクリーニングで選定）。
+  **`.codex-work` が6効果を実装した時点で「ERROR: You've hit your usage limit」に到達し停止**
+  （`memory/codex-limit-handoff.md` の既定どおり Claude が引き継いだ）。
+  - **6効果は受け皿5点（`TRAP_TO_HAND`／`selectionConstraint.groups`／`ON_SIGNI_POWER_ZERO_OR_LESS`+`zeroedOwner`／
+    `opponentSelectsZone`／`levelLteLastProcessed`）が既存と確認のうえ採用**。
+  - **残り24効果は default アカウント（`~/.codex`）へ再投入**＝**21効果が既に別バッチで解消済み（stale）**、
+    **2効果（`WXEX2-10-E2`／`WXEX2-12-E4`）は真に新しい engine 機構が要ると判明**したため `O-306`／`O-307` へ登録、
+    **1効果（`WX09-032-E1`）は既存の `DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY` で対応済み**。
+  - Claude 側で全件独立検証（`git diff` の effectId 単位差分・`typecheck`・`npm run gates`・`golden` 全件・
+    live JSON の直接照合サンプリング）。**差し戻し0で採用、機構待ちの選別も精度良く着地。**
+
+  🔑**この巡の教訓＝機械スクリーニング（`.ts:行番号` 引用なし）だけでは「機構不要」を確定できない**
+  （`commonClass` 系統8効果・`WX16-Re20-E1`・`WX14-003-E2`・`PR-469-E3` は red-flag 語句で追加除外が必要だった）。
+  **さらに、triage 判定文はスナップショットで stale 化する**（24効果中21件が「別バッチで既修正」）＝
+  **指示書に「現在の live JSON と原文を必ず突き合わせよ」を明記したのが機能した**（Codex が自発的に24件全数を
+  再照合し、無駄な近似実装をせず正確に仕分けた）。
+
+  🔑**利用上限に当たったら `.codex-work` → default（`~/.codex`）の順で試す**（default はサンドボックスが
+  `workspace-write` になるので Windows では書き込みが通らないことがある＝結果的に今回は通った）。
+
 - **セッション（2026-09-09・第233バッチ・Sonnet 5＝Codex 委譲）＝機構不要の一点物16効果を `.codex-work` へ委譲して消化**
   **作業単位**＝ユーザー指示「PLANをよみ。機構のいらないバグ修正をcodex-workとcodexに投げる」。
 

@@ -27060,6 +27060,264 @@ function repairSemanticBatch234(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * §5.0 第235バッチ：意味照合で確定した一点物30効果のうち、既存語彙だけで
+ * 正確に表現できる16効果を正史へ戻す。
+ *
+ * いずれも母集団1件で、同じ語を含む兄弟文へ一般化すると対象・選択者・
+ * 「そうした場合」の範囲を壊すため effectId で閉じる。
+ */
+function repairSemanticBatch235(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXEX2-23-E3':
+        effect.action = {
+          type: 'BANISH',
+          target: {
+            type: 'SIGNI', owner: 'any', count: 2, upToCount: false,
+            filter: { cardType: 'シグニ' },
+            selectionConstraint: { same: 'name' },
+          },
+        };
+        break;
+      case 'WXEX2-29-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'FREEZE',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { isTriggerSource: true } },
+            },
+            {
+              type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+              until: 'UNTIL_END_OF_TURN', targetsTriggerSource: true,
+            },
+          ],
+        };
+        break;
+      case 'WXEX2-39-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'TRASH',
+              target: {
+                type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true,
+                filter: { cardType: 'シグニ', story: '凶蟲' },
+              },
+            },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+              then: { type: 'STUB', id: 'DRAW_DISCARD_COUNT_PLUS_N', drawDiscardPlus: 1 },
+            },
+          ],
+        };
+        break;
+      case 'WXEX2-44-E3':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } },
+            {
+              type: 'CONDITIONAL',
+              condition: {
+                type: 'HAS_CARD_IN_FIELD', owner: 'self',
+                filter: { cardType: 'シグニ', color: '白', story: '美巧' },
+              },
+              then: {
+                type: 'TRANSFER_TO_HAND',
+                source: { type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL' },
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK01-037-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'BANISH') {
+          effect.action.steps[0] = {
+            ...effect.action.steps[0],
+            target: {
+              ...effect.action.steps[0].target,
+              filter: { ...(effect.action.steps[0].target.filter ?? {}), isTriggerSource: true },
+            },
+          };
+        }
+        break;
+      case 'WXK01-051-E1':
+        effect.action = {
+          type: 'CONDITIONAL',
+          condition: { type: 'LIFE_COUNT', owner: 'opponent', operator: 'gte', value: 2 },
+          then: effect.action,
+        };
+        break;
+      case 'WXK02-030-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: {
+                type: 'SEQUENCE',
+                steps: [
+                  {
+                    type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1,
+                    private: false, reorder: false,
+                    destination: { location: 'deck', owner: 'self', position: 'top' },
+                  },
+                  {
+                    type: 'BOUNCE',
+                    target: {
+                      type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                      filter: { cardType: 'シグニ', levelEqLastProcessed: true },
+                    },
+                    optional: false,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK03-029-E2':
+        if (effect.action.type === 'SEARCH') {
+          effect.action = { ...effect.action, filter: { cardType: 'シグニ', hasGuard: true } };
+        }
+        break;
+      case 'WXK03-030-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: {
+                type: 'SEQUENCE',
+                steps: [
+                  {
+                    type: 'BOUNCE',
+                    target: {
+                      type: 'SIGNI', owner: 'self', count: 1, upToCount: false,
+                      filter: { cardType: 'シグニ', thisCardOnly: true },
+                    },
+                    optional: false,
+                  },
+                  {
+                    type: 'ADD_TO_FIELD', owner: 'self',
+                    source: {
+                      type: 'HAND_CARD', owner: 'self', count: 1, upToCount: false,
+                      filter: { cardType: 'シグニ', level: { max: 2 }, story: '遊具' },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        break;
+      case 'WXK04-034-E2':
+        if (effect.action.type === 'REVEAL_AND_PICK') {
+          effect.action = { ...effect.action, remainder: { location: 'energy', position: 'any' } };
+        }
+        break;
+      case 'WXK06-073-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } },
+            {
+              type: 'TRANSFER_TO_DECK',
+              source: {
+                type: 'HAND_CARD', owner: 'opponent', count: 1, upToCount: true,
+                filter: { nonColorless: true }, actingPlayerSelects: true,
+              },
+              shuffle: false, position: 'bottom',
+            },
+            {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+              then: { type: 'DRAW', owner: 'opponent', count: 1 },
+            },
+          ],
+        };
+        break;
+      case 'WXK06-074-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[2]?.type === 'STUB') {
+          effect.action.steps[2] = {
+            type: 'CONDITIONAL',
+            condition: { type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', operator: 'gte', value: 1 },
+            then: effect.action.steps[2],
+          };
+        }
+        break;
+      case 'WXK07-056-E1':
+        effect.action = {
+          type: 'STUB', id: 'DECK_SIGNI_LEVEL_OVERRIDE',
+          deckSigniLevelOverride: { story: '宇宙', level: 4 },
+        };
+        break;
+      case 'WXK09-004-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'CHOOSE') {
+          const choice = effect.action.steps[1].choices.find(c => c.choiceId === 'c1');
+          if (choice) {
+            choice.action = {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'TRANSFER_TO_HAND',
+                  source: {
+                    type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                    filter: { cardType: 'シグニ' },
+                  },
+                },
+                {
+                  type: 'ADD_TO_FIELD', owner: 'self',
+                  source: {
+                    type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                    filter: { cardType: 'シグニ' },
+                  },
+                },
+              ],
+            };
+          }
+        }
+        break;
+      case 'WD10-001-E1':
+        effect.action = {
+          type: 'POWER_MODIFY',
+          target: {
+            type: 'SIGNI', owner: 'self', count: 'ALL',
+            filter: { cardType: 'シグニ', crossState: true },
+          },
+          delta: 5000,
+        };
+        break;
+      case 'WD14-009-E1':
+        effect.action = {
+          type: 'SEQUENCE',
+          steps: [
+            {
+              type: 'TRASH',
+              target: {
+                type: 'ENERGY_CARD', owner: 'self', count: 'ALL', upToCount: true,
+                filter: { cardType: 'シグニ', story: '悪魔' },
+              },
+            },
+            {
+              type: 'ADD_TO_FIELD', owner: 'self',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: { $ref: 'last_processed_count' }, upToCount: false,
+                filter: { cardType: 'シグニ', story: '悪魔' },
+              },
+            },
+          ],
+        };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -27929,6 +28187,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // 一点物の意味修復は、汎用 rewriter が木を組み直し終えた最後に適用する。
   repairSemanticBatch233(effects);
   repairSemanticBatch234(effects);
+  repairSemanticBatch235(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

@@ -43614,7 +43614,11 @@ test('task12(lxxxii) WXK09-004-E1: 単一コスト改変marker後の文中CHOOSE
   eq(choose.from_count, 3, '選択肢数');
   eq(choose.choices.length, 3, 'choices配列');
   ok(!!choose.choices[0].condition && choose.choices[0].action.type === 'BANISH', '①トラッシュ30枚条件つき全バニッシュ');
-  ok(!!choose.choices[1].condition && choose.choices[1].action.type === 'ADD_TO_FIELD', '②ライフ0条件つき場出し');
+  ok(!!choose.choices[1].condition && choose.choices[1].action.type === 'SEQUENCE', '②ライフ0条件つき回収＋場出し');
+  if (choose.choices[1].action.type === 'SEQUENCE') {
+    eq(choose.choices[1].action.steps[0]?.type, 'TRANSFER_TO_HAND', '②対象のシグニ1枚を手札に加える');
+    eq(choose.choices[1].action.steps[1]?.type, 'ADD_TO_FIELD', '②別の対象のシグニ1枚を場に出す');
+  }
   eq(choose.choices[2].action.type, 'CONDITIONAL', '③手札0条件つき6枚回収');
 }));
 
@@ -65034,12 +65038,14 @@ test('§5.3 O-60 第49: GAIN_ABILITY_THIS_GAME は live 全ノードが gameGran
   };
   for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
   eq(missing.length, 0, `gameGrants を持たないノード: ${missing.join(', ')}`);
-  // 🔑**下限は 19 → 18（2026-09-05 §5.3 `O-249` 第146＝較正であって退化ではない）。**
+  // 🔑**下限は 19 → 18（2026-09-05 §5.3 `O-249` 第146）→ 17（2026-09-09 第235バッチ）。**
   //   `held` に温存されていた `WX25-P2-003` / `WXDi-P05-004` を採用した結果、この2ノードは
   //   第68バッチの規約どおり **`DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` へ改名**された
   //   （＝見出し `abilityBlockHeader` しか取れていない＝宣言は1つも立っていないので、
   //    `GAIN_ABILITY_THIS_GAME` のまま残すと「実装済みに見える」）。engine は1行も変えていない。
-  ok(nodes >= 18, `走査対象が消えていない（実測 ${nodes} ノード）`);
+  //   `WXK07-056-E1` は原文「このターン」なのでゲーム中持続宣言から
+  //   `DECK_SIGNI_LEVEL_OVERRIDE`（ターン境界で消える既存 state）へ移した。意図した1減である。
+  ok(nodes >= 17, `走査対象が消えていない（実測 ${nodes} ノード）`);
 });
 
 test('§5.3 O-60 第49: WXDi-P11-004-E1 メインフェイズ開始時ドローが payload に載る（旧 regex は全角「５枚以下」に当たらず no-op）', () => {
@@ -73498,6 +73504,73 @@ test('第234 WXEX2-10-E3 engine: 相手手札は戻したレベル以下だけ�
   ok(!placing.done && placing.pending.type === 'SELECT_SIGNI_ZONE', '相手場の配置ゾーン選択へ進む');
   if (placing.done || placing.pending.type !== 'SELECT_SIGNI_ZONE') return;
   ok(!!placing.pending.opponentResponds, '配置ゾーンを選ぶのは対戦相手');
+}));
+
+// §5.0 第235バッチ：既存語彙だけで閉じる一点物16効果。
+const batch235Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WXEX2-23', 'WXEX2-23-E3', ['"count":2', '"selectionConstraint":{"same":"name"}'], []],
+  ['WXEX2-29', 'WXEX2-29-E1', ['"type":"FREEZE"', '"isTriggerSource":true', '"type":"REMOVE_ABILITIES"', '"targetsTriggerSource":true'], []],
+  ['WXEX2-39', 'WXEX2-39-E1', ['"type":"HAND_CARD"', '"count":"ALL"', '"upToCount":true', '"story":"凶蟲"', '"id":"DRAW_DISCARD_COUNT_PLUS_N"'], []],
+  ['WXEX2-44', 'WXEX2-44-E3', ['"type":"TRANSFER_TO_HAND"', '"type":"ENERGY_CARD","owner":"opponent","count":"ALL"'], ['"type":"BOUNCE"']],
+  ['WXK01-037', 'WXK01-037-E1', ['"type":"BANISH"', '"isTriggerSource":true'], []],
+  ['WXK01-051', 'WXK01-051-E1', ['"type":"LIFE_COUNT","owner":"opponent","operator":"gte","value":2', '"type":"LIFE_CRASH"'], []],
+  ['WXK02-030', 'WXK02-030-E1', ['"id":"OPTIONAL_COST","costColors":["白"]', '"type":"PAID_ADDITIONAL_COST"', '"levelEqLastProcessed":true'], []],
+  ['WXK03-029', 'WXK03-029-E2', ['"hasGuard":true'], ['"cardName":"ガードアイコン"']],
+  ['WXK03-030', 'WXK03-030-E1', ['"type":"PAID_ADDITIONAL_COST"', '"type":"BOUNCE"', '"thisCardOnly":true', '"type":"ADD_TO_FIELD"'], []],
+  ['WXK04-034', 'WXK04-034-E2', ['"remainder":{"location":"energy","position":"any"}'], ['"location":"deck","position":"bottom"']],
+  ['WXK06-073', 'WXK06-073-E1', ['"zone":"opp_hand","count":"ALL"', '"type":"HAND_CARD","owner":"opponent"', '"nonColorless":true', '"owner":"opponent","count":1'], ['"type":"DRAW","owner":"self"']],
+  ['WXK06-074', 'WXK06-074-E1', ['"type":"OPP_CARDS_MOVED_TO_DECK_THIS_TURN","operator":"gte","value":1', '"type":"PAID_ADDITIONAL_COST"'], []],
+  ['WXK07-056', 'WXK07-056-E1', ['"id":"DECK_SIGNI_LEVEL_OVERRIDE"', '"deckSigniLevelOverride":{"story":"宇宙","level":4}'], ['"id":"GAIN_ABILITY_THIS_GAME"']],
+  ['WXK09-004', 'WXK09-004-E1', ['"type":"TRANSFER_TO_HAND"', '"type":"ADD_TO_FIELD"'], []],
+  ['WD10-001', 'WD10-001-E1', ['"owner":"self","count":"ALL"', '"crossState":true', '"delta":5000'], ['"owner":"any"']],
+  ['WD14-009', 'WD14-009-E1', ['"type":"ENERGY_CARD","owner":"self","count":"ALL","upToCount":true', '"story":"悪魔"', '"count":{"$ref":"last_processed_count"}'], ['"id":"OPTIONAL_TRASH_ENERGY_CLASS"']],
+] as const) {
+  test(`第235 ${effectId}: 原文の限定を fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const json = JSON.stringify(batch235Effect(cardNum, effectId, fresh).action);
+      const side = fresh ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+test('第235 WXEX2-29-E1 engine: 効果で出たその相手シグニだけを凍結し能力を失わせる', () => withSavedCursor(() => {
+  const target = findCard(isSigni);
+  const bystander = findCard(c => isSigni(c) && c.CardNum !== target);
+  const ctx = mkCtx({}, { signi: [target, bystander, null] }, 'WXEX2-29');
+  ctx.triggeringCardNum = target;
+  const result = run(batch235Effect('WXEX2-29', 'WXEX2-29-E1', true).action, ctx);
+  eq(result.otherState.field.signi_frozen?.[0], true, 'トリガー元を凍結');
+  ok(result.otherState.abilities_removed?.includes(target) ?? false, 'トリガー元は能力を失う');
+  ok(!(result.otherState.abilities_removed?.includes(bystander) ?? false), '別の相手シグニは能力を失わない');
+}));
+
+test('第235 WXK07-056-E1 engine: デッキ内＜宇宙＞のレベル4化はターン限定stateへ載る', () => withSavedCursor(() => {
+  const result = run(batch235Effect('WXK07-056', 'WXK07-056-E1', true).action, mkCtx({}, {}, 'WXK07-056'));
+  eq(JSON.stringify(result.ownerState.deck_signi_level_override), JSON.stringify({ class: '宇宙', level: 4 }), 'ターン限定レベル上書き');
+  ok(!JSON.stringify(result.ownerState).includes('gameGrants'), 'ゲーム中持続の宣言へ載せない');
+}));
+
+test('第235 WD14-009-E1 engine: 捨てた＜悪魔＞の枚数を場出し上限へ渡す', () => withSavedCursor(() => {
+  const devil1 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+  const devil2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔') && c.CardNum !== devil1);
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('悪魔'));
+  const ctx = mkCtx({ signi: [null, null, null] }, {}, 'WD14-009');
+  ctx.ownerState.energy = [devil1, devil2, other];
+  const offered = executeAction(batch235Effect('WD14-009', 'WD14-009-E1', true).action, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '好きな枚数の＜悪魔＞を選べる');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(offered.pending.candidates), JSON.stringify([devil1, devil2]), '＜悪魔＞だけが候補');
+  eq(offered.pending.count, 2, '候補数まで選べる');
+  ok(!!offered.pending.optional, '0枚も選べる');
 }));
 
 if (listMode) {

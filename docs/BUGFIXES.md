@@ -12940,3 +12940,32 @@ node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
   （`census:stubs` の DEFERRED_ 免除規約）で十分カバーされているため新規登録はしていない。
 - 消化記録＝stale21件を `scripts/archive/scratchpad/semantic_bug_fixed.txt` へ`FP（stale）`として追記
   （実装キューの在庫カウンタを引き算するため）。実装キュー: 309→**288効果**。
+
+## 2026-09-09 — 第235バッチ：機構不要の一点物30効果のうち16効果＝default アカウントが利用上限で停止・Claude 検証済み
+
+第234バッチ後半に続き default アカウント（`~/.codex`）へ第235バッチ（一点物30効果・第234バッチと同じスクリーニング）を投入。
+**16効果を実装した時点で default アカウント自身の利用上限にも到達し停止**（`ERROR: You've hit your usage limit... try again at 1:18 PM`）。
+報告書は書けずに終わったため、Claude が差分を直接検証して採用。**残り14効果（`WXEX2-29-E3`ほか）は未投入のまま実装キューに残る**。
+
+- `WXEX2-23-E3`＝`BANISH`に`selectionConstraint:{same:'name'}`を追加し、同名のシグニ2体を対象にする制約を復元。
+- `WXEX2-29-E1`＝`REMOVE_ABILITIES`単独だったのを`FREEZE{filter.isTriggerSource}`+`REMOVE_ABILITIES`の2段へ。
+- `WXEX2-39-E1`＝`TRASH{HAND_CARD}`の`count:1`を`count:'ALL',upToCount:true`にして「好きな枚数」を表現。
+- `WXEX2-44-E3`＝`SEND_TO_ENERGY`後、自陣に該当シグニがある場合だけ`TRANSFER_TO_HAND`する条件分岐を追加。
+- `WXK01-037-E1`＝`BANISH`のfilterに`isTriggerSource:true`を追加。
+- `WXK01-051-E1`＝`CONDITIONAL{LIFE_COUNT gte 2}`で全体をゲート。
+- `WXK02-030-E1`／`WXK03-030-E1`＝`OPTIONAL_COST{白}`+`PAID_ADDITIONAL_COST`で任意コストを復元し、後続処理も正しい対象へ修正。
+- `WXK03-029-E2`＝`SEARCH`のfilterを`cardName:"ガードアイコン"`（誤り）から`hasGuard:true`へ訂正。
+- `WXK04-034-E2`＝`REVEAL_AND_PICK`の`remainder.location`を`'energy'`へ修正。
+- `WXK06-073-E1`＝相手手札を見て非無色1枚をデッキ下へ送り、送れたら1枚引く3ステップへ実装。
+- `WXK06-074-E1`＝`CONDITIONAL{OPP_CARDS_MOVED_TO_DECK_THIS_TURN}`でゲートを追加。
+- `WXK07-056-E1`＝`STUB{DECK_SIGNI_LEVEL_OVERRIDE}`へ実装（デッキ内の該当シグニの基本レベルを上書き）。
+- `WXK09-004-E1`＝`CHOOSE`の選択肢c1を`TRANSFER_TO_HAND`+`ADD_TO_FIELD`（トラッシュから手札経由で場出し）へ実装。
+- `WD10-001-E1`＝`POWER_MODIFY`の対象を`owner:'any',count:1`から`owner:'self',count:'ALL',filter.crossState:true`へ修正。
+- `WD14-009-E1`＝エナから捨てた＜悪魔＞の枚数を`{$ref:'last_processed_count'}`でトラッシュからの場出し枚数へ連動。
+- **Claude 側の独立検証**＝①`git diff`のeffectId単位差分がちょうど16件 ②`typecheck`PASS ③`npm run golden`（全件）
+  `3737/3737`PASS（3718→+19）④`npm run gates`独立実行で全緑 ⑤`node scripts/heldReview.mjs`を再実行し、
+  batch235関連の一時的なheld項目（fresh/live不一致）が0件に収束することを確認（build:effects直後の中間スナップショットで
+  一時的に6枚分の差分が`_held_review.txt`に残っていたが、`heldReview.mjs`再実行で解消＝live側は既に正しい）
+  ⑥`WD14-009-E1`の`{$ref:'last_processed_count'}`は`execUtils.ts:242`の`resolveCountRef`が`ctx.lastProcessedCards`
+  から解決する確立済みパターンであることをコードで確認（`delta`に書くと0になる別の`$ref`経路と混同していないことも確認）。
+- 消化記録＝`scripts/archive/scratchpad/semantic_bug_fixed.txt`へ16行追記。実装キュー: 288→**272効果**。
