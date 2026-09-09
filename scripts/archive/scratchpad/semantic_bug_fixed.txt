@@ -170,3 +170,9 @@ WDK09-017-E1 :: 2026-09-09 :: 第236バッチ＝相手手札全閲覧→非無�
 WDK12-007-E1 :: 2026-09-09 :: 第236バッチ＝選択肢②をREMOVE_CHARM+DRAW/ENERGY_CHARGE{$ref:last_processed_count}へ修復
 WDK15-001-E3 :: 2026-09-09 :: 第236バッチ＝DRAW_PER_FIELD_COUNT.countFilterにhasUnderCards:true追加
 PR-460-E1 :: 2026-09-09 :: 第236バッチ＝相手LRIGへGRANT_KEYWORD{アタックできない}追加
+WXDi-D06-014-E1 :: 2026-09-09 :: 第238バッチ＝parseColorFilter を3色以上のORへ一般化（白か赤か青か緑）
+WXDi-P01-042-E1 :: 2026-09-09 :: 第238バッチ＝LEADING_STATE_CLAUSES に SELF_DECK_TO_ENERGY_THIS_TURN の文型を追加
+WXDi-P02-074-E1 :: 2026-09-09 :: 第238バッチ＝同上（デッキ→エナ移動のターン条件が丸ごと落ちていた）
+WXDi-P05-078-E1 :: 2026-09-09 :: 第238バッチ＝triggerScope:any_ally＋triggerFilter.cardName《凶天姫　ヴァルキリー》へ（manual）
+WXDi-P03-009-E1 :: 2026-09-09 :: 第238バッチ＝対象を owner:any＋level.max:2 へ（manual）＋TRANSFER_TO_DECK{owner:any}をengineへ配線
+WXDi-P10-033-E2 :: 2026-09-09 :: 第238バッチ＝foldRevealShuffleToDeckBottom を「それらのカードを〜」1文形へ拡張（shuffle+bottom）

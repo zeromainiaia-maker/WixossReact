@@ -1474,6 +1474,18 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-09（第236バッチ・Sonnet 5＝Codex 委譲〔`.codex-work`〕・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝実装キューの triage 済みバグを直しても、Sheet1／台帳／census のどの母数にも入らない。
+  📦**在庫**＝🔥**実装キュー 266効果**（272 → 266・`node scripts/archive/semanticAuditBugList.mjs`／確定433 − 消化済み168）｜
+  🔥**機構 worklist＝索引 G 12項目**（据置。第236の見送り24件は系統性が無いため個別登録せず）｜
+  **⑤実機 残 0件**（据置）｜🏁意味照合 未監査 0枚・未 triage 0件（据置）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3745 PASS**（3737 → +8＝第236バッチ新規）／ smoke 10744 OK ／ fuzz 200ゲーム 0 ／
+  census 0 / BASELINE 0 ／ census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+  lint 0 errors / 254 warnings（投入前と同値）。**Claude 独立実行で全数検算済み**（`git diff` effectId 単位差分6件一致）。
+  🖥**実機＝不要**（`src/data/effectParser.ts` のみ＝`src/screens/` 不触＝PLAN §2.2 の機械判定）。
+  🔑**`.codex-work` の利用上限は約1時間で復帰**（09:28頃リセット→09:38に再投入して成功）。
+
 - **2026-09-08（第222バッチ・Opus・O-D）＝実装キューを4件消化**
   📊**進捗3計器**＝**Sheet1 要対応 9 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 0 / BASELINE 0**（据置）。
   ⚠**3計器が動かないのは想定どおり**＝4件とも「受け皿はあるが catch-all のゲート漏れ／配線漏れ」型。

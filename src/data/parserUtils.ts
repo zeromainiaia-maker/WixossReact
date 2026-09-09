@@ -495,10 +495,14 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
   // ⚠**同じ原文を配列で正しく出している経路が既に在る**（`TRANSFER_TO_HAND`／`REVEAL_AND_PICK` の
   //   `color:["白","黒"]`）＝**受け皿が無いのではなく、この入口だけが取り残されていた**非対称。
   // ⚠**無色ではない**は別キー（`nonColorless`）なので、OR 判定より先に既存の無色分岐を通す。
-  const orM = text.match(/(白|赤|青|緑|黒|無色)か(白|赤|青|緑|黒|無色)の/);
+  // 🆕**3色以上の OR も読む**（2026-09-09・第238バッチ）＝旧実装は `(色)か(色)の` の**2色固定**だったため、
+  //   「**白か赤か青か緑**のレベル1のシグニ」は末尾2色だけが当たって `color:['青','緑']`＝
+  //   **白・赤のシグニを選べない過小効果**になっていた（`WXDi-D06-014-E1`）。
+  //   ⚠`+` で連鎖を全部飲む＝**末尾から2色だけ**を拾う旧挙動に戻さない。
+  const orM = text.match(/((?:白|赤|青|緑|黒|無色)(?:か(?:白|赤|青|緑|黒|無色))+)の/);
   if (orM && !/無色ではない/.test(text)) {
     const norm = (c: string) => (c === '無色' ? '無' : c);
-    return { color: [norm(orM[1]), norm(orM[2])] };
+    return { color: orM[1].split('か').map(norm) };
   }
   if (/無色の/.test(text) && !/無色ではない/.test(text)) return { color: '無' };
   for (const c of ['白', '赤', '青', '緑', '黒']) {

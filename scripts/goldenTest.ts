@@ -73640,6 +73640,69 @@ test('第236 WDK15-001-E3 engine: 下にカードがあるシグニだけを数�
   eq(result.ownerState.hand.length - handBefore, 1, '下カード持ち1体だけを数える');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.0 第238バッチ（2026-09-09）＝実装キューの一点物5効果（機構は1本だけ追加）。
+// ══════════════════════════════════════════════════════════════════════════════
+const batch238Effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+  const pool = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${fresh ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+// parser で直した3効果＝fresh（parser 出力）と live の両方を見る。
+for (const [cardNum, effectId, must, mustNot] of [
+  // 「白か赤か青か緑の」＝**3色以上のOR**（旧 `parseColorFilter` は末尾2色しか読まず白・赤を落としていた）。
+  ['WXDi-D06-014', 'WXDi-D06-014-E1', ['"color":["白","赤","青","緑"]', '"level":1'], ['"color":["青","緑"]']],
+  // 「このターンにあなたのデッキからカードが1枚以上エナゾーンに移動していた場合」＝条件節が丸ごと落ちていた。
+  ['WXDi-P01-042', 'WXDi-P01-042-E1', ['"type":"SELF_DECK_TO_ENERGY_THIS_TURN"', '"id":"OPTIONAL_COST"'], []],
+  ['WXDi-P02-074', 'WXDi-P02-074-E1', ['"type":"SELF_DECK_TO_ENERGY_THIS_TURN"', '"id":"OPTIONAL_COST"'], []],
+  // 「N枚公開し、**それらのカードを**シャッフルしてデッキの一番下に置く」＝読点で1文になった綴りは
+  // 後始末の節がノードにすらならず落ちていた＝公開したN枚がデッキの**一番上**に残っていた。
+  ['WXDi-P05-035', 'WXDi-P05-035-E1', ['"shuffle":true', '"position":"bottom"'], ['"position":"top"']],
+  ['WXDi-P10-033', 'WXDi-P10-033-E2', ['"shuffle":true', '"position":"bottom"'], ['"position":"top"']],
+] as const) {
+  test(`第238 ${effectId}: 原文の限定を fresh/live JSON が保持する`, () => {
+    for (const fresh of [true, false]) {
+      const json = JSON.stringify(batch238Effect(cardNum, effectId, fresh).action);
+      const side = fresh ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+// manualEffects.ts で直した2効果＝live だけを見る（parser は原文を読めない＝§2.0 の速いレーン）。
+test('第238 WXDi-P05-078-E1: 主語は《凶天姫　ヴァルキリー》のアタック（any_ally）', () => {
+  const eff = batch238Effect('WXDi-P05-078', 'WXDi-P05-078-E1', false);
+  eq(eff.triggerScope, 'any_ally', '自身のアタックで誤発火する既定 scope へ戻さない');
+  eq(eff.triggerFilter?.cardName, '凶天姫　ヴァルキリー', '主語のカード名限定が落ちている');
+  eq(eff.parseStatus, 'MANUAL', 'manualEffects.ts が出所であることを刻む');
+});
+
+test('第238 WXDi-P03-009-E1: 対象は所有者無制限のレベル2以下', () => {
+  const json = JSON.stringify(batch238Effect('WXDi-P03-009', 'WXDi-P03-009-E1', false).action);
+  ok(json.includes('"owner":"any","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}'), '無制限＋レベル2以下の対象になっていない');
+  ok(!json.includes('"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}}'), '旧誤訳（自分限定・レベル無制限）を残さない');
+});
+
+// 🔴この巡で足した唯一の機構＝`TRANSFER_TO_DECK{owner:'any'}` の場候補。
+//   `ownerState('any')` は相手側へ潰れるので、素の `fieldCandidates` のままだと
+//   **自分のシグニを選んでも候補に無く黙って空振り**していた。
+test('第238 engine: TRANSFER_TO_DECK{owner:any} は自分の場のシグニもデッキの一番下へ戻せる', () => withSavedCursor(() => {
+  const mine = fresh();
+  const ctx = mkCtx({ signi: [mine, null, null] }, {});
+  const deckBefore = ctx.ownerState.deck.length;
+  const result = run({
+    type: 'TRANSFER_TO_DECK',
+    source: { type: 'SIGNI', owner: 'any', count: 1 },
+    shuffle: false, position: 'bottom',
+  } as unknown as EffectAction, ctx);
+  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === mine), '🔴自分のシグニが場に残った（owner:any が相手側へ潰れている）');
+  eq(result.ownerState.deck.at(-1), mine, '自分のデッキの一番下へ戻っていない');
+  eq(result.ownerState.deck.length, deckBefore + 1, 'デッキ枚数が増えていない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09（§5.0 実装キュー・第238バッチ＝Codex 両アカウント利用上限中に Claude が6効果を自力実装）
+
+**作業単位**＝ユーザー指示「PLANをよみ、作業の続きを行う」。前セッションが準備した第237バッチ（30効果）は
+`.codex-work` が投入直後に利用上限（復帰 16:08）、default も 13:18 まで復帰しないため、**委譲を待たずに
+Claude 自身で実装**した。取ったのは同バッチ候補（`queueClean.json` の HIGH 先頭30）のうち、
+§2.1 ② の母集団実測で「受け皿が実在する」と確認できた6効果。
+
+### 直した6効果（すべて母集団を実測してからレーンを決めた＝PLAN §2.0）
+
+| 効果 | 真因 | 直した場所 | 母集団 |
+|---|---|---|---|
+| `WXDi-D06-014-E1` | 「白か赤か青か緑の」＝**3色以上のOR**を共通ヘルパが読めず、**末尾2色だけ**を拾って白・赤のシグニを選べなかった | `parserUtils.ts` の `parseColorFilter` を N 色へ一般化 | 9効果（この形の被害は1） |
+| `WXDi-P01-042-E1`／`WXDi-P02-074-E1` | 「このターンにあなたのデッキからカードが1枚以上エナゾーンに移動していた場合」の**条件節が丸ごと落ち**、無条件にコストを払えた | `effectParser.ts` の `LEADING_STATE_CLAUSES` に1行（受け皿 `SELF_DECK_TO_ENERGY_THIS_TURN` は実在） | 2効果 |
+| `WXDi-P05-035-E1`／`WXDi-P10-033-E2` | 「N枚公開**し、それらのカードを**シャッフルしてデッキの一番下に置く」が**読点で1文**のため後始末の節がノードにすらならず落ち、公開した5枚が**デッキの一番上**に残っていた（次のドローが全部見える） | `foldRevealShuffleToDeckBottom` を「それらのカード」綴り＋**no-op ノードが無い形**へ拡張 | 4効果（うち2が被害） |
+| `WXDi-P05-078-E1` | 主語が**逆**＝「あなたの《凶天姫　ヴァルキリー》1体がアタックしたとき」が既定 scope（self）で、**自分のアタックで誤発火し本来の主語では発火しない** | `manualEffects.ts`（`triggerScope:'any_ally'`＋`triggerFilter.cardName`） | 2効果・うち1件は既に MANUAL＝速いレーン |
+| `WXDi-P03-009-E1` | 対象「レベル2以下のシグニ1体」が `owner:'self'`＋**レベル限定なし**＝相手のシグニを戻せず、レベル4も戻せた | `manualEffects.ts`（`owner:'any'`＋`level.max:2`）＋**engine 2箇所** | 2効果・もう1件は既に正しい |
+
+### この巡で足した唯一の機構＝`TRANSFER_TO_DECK{owner:'any'}` の場候補（engine）
+
+🔴**`ownerState('any')` は相手側へ潰れる**ので、素の `fieldCandidates(state, …)` のままだと
+**自分のシグニは候補に無く、選ばせても黙って何も起きない**（無言 no-op）。同じ非対称は
+`SELECT_TARGET_ONLY`（§6.4 `O-34(a)`）・`BANISH`・`BOUNCE` で既に埋まっており、
+**`TRANSFER_TO_DECK` だけが取り残されていた**。2箇所を直した:
+- `effectExecutor.ts` の `execTransferToDeck` SIGNI 分岐＝候補集めを `fieldCandidatesByOwner('any')` へ、
+  適用（`applyToBottom`）は **選んだ1枚の側**（`sideOfFieldCard`）で解決。
+- `applyDirectAction` の `case 'TRANSFER_TO_DECK'`＝`tdOwner` を同様に解決。**ここが本命**＝
+  `count:1` は `SELECT_TARGET` を挟むので**必ずこちらを通り**、旧実装では所在探索が全部外れて
+  `return done(ctx)` の無言 no-op になっていた（golden の反転確認で実際に赤→緑を見た）。
+
+### 検証
+`npm run gates` 全緑（typecheck / **golden 3753 PASS（3745→+8）** / smoke 10744 OK / fuzz / census 高シグナル0 /
+census:stubs / manual-fields / census:enginetext A群0 / census:costtext A群0 / lint）。
+`npm run regen` の逆翻訳を6効果とも原文と目視照合（全一致）。
+**実機は不要**（§2.2＝触ったのは `src/data/` `src/engine/` `public/data/` `scripts/` のみで `src/screens/` は無し）。
+
+### 据置（同じカードの別軸＝機構が要る）
+- **`WXDi-P05-035-E1` の第3軸**＝「《無》×6 から**この方法で公開されたレベル1のシグニ1枚につき**《無》を減らす」
+  可変コストは未実装のまま（live は無色7固定）。`costScaling` は**ゾーン枚数**しか数えられず、
+  **直前の公開結果を数える** payload が無い＝新機構。⇒ この効果は実装キューから**落とさない**
+  （`semantic_bug_fixed.txt` にも入れていない）。
+- **`WXDi-P10-033-E2` の後段** `STUB{TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE}` は今回のfindingの対象外（別軸）。
+
+**実装キュー: 266 → 260効果**（`node scripts/archive/semanticAuditBugList.mjs`）。
+
+
 ## 2026-09-09（§5.0 実装キュー・MANUAL/PARTIAL 20効果バッチ＝codex-work 利用上限を Claude が引き継いで完遂）
 
 **作業単位**＝§5.0 実装キュー（残353効果）のうち `parseStatus` が `MANUAL`/`PARTIAL`（＝`manualEffects.ts` に定義があり

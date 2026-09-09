@@ -4294,6 +4294,13 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
       g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    // 🆕「このターンにあなたのデッキからカードがN枚以上エナゾーンに移動していた場合」
+    //   （2026-09-09・第238バッチ・`WXDi-P01-042-E1`／`WXDi-P02-074-E1` の2効果）。
+    //   受け皿は**実在**（`SELF_DECK_TO_ENERGY_THIS_TURN`＝`execEnergyChargeFromDeck` と
+    //   `execEnergyChargeByFieldCount` が `self_deck_to_energy_this_turn` を加算する）が、
+    //   **この文型を読む規則だけが無く**、条件節が丸ごと落ちて**無条件にコストを払える**過剰実行だった。
+    [/このターンにあなたのデッキからカードが(?:([０-９\d]+)枚以上)?エナゾーンに(?:移動して|置かれて)いた場合/,
+      g => ({ type: 'SELF_DECK_TO_ENERGY_THIS_TURN', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     // 🆕§5.3 `O-233`（2026-09-04）＝手札／エナ版の**シグニ版**（`SPK16-13E-E1`①）。
     [/このターンに対戦相手の効果によってあなたの(?:シグニ|すべてのシグニ)が(?:([０-９\d]+)体以上)?場を離れていた場合/,
       g => ({ type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
@@ -13601,7 +13608,11 @@ function foldQualifiedRevealUntil(text: string, parsed: EffectAction): EffectAct
  * 据え置く（`REVEAL_UNTIL` 経路で既に解けている札を二重に触らないためのガードでもある）。
  */
 function foldRevealShuffleToDeckBottom(text: string, parsed: EffectAction): EffectAction {
-  if (!/公開したカードをシャッフルしてデッキの一番下に置く/.test(text)) return parsed;
+  // 🆕**「それらのカードを〜」も同じ一文**（2026-09-09・第238バッチ・`WXDi-P05-035-E1`／`WXDi-P10-033-E2`）。
+  //   こちらは「N枚公開**し、**それらのカードをシャッフルして…」と**読点で1文**になるため、
+  //   後半が別ノード（`count:0` の no-op）にすらならず**節ごと落ちていた**＝
+  //   公開したN枚がデッキの一番上に残り、原文と逆に**次のドローが全部見えている**状態になっていた。
+  if (!/(?:公開したカード|それらのカード|それら)をシャッフルしてデッキの一番下に置く/.test(text)) return parsed;
 
   const looks: Record<string, unknown>[] = [];
   const visit = (node: unknown): void => {
@@ -13625,17 +13636,23 @@ function foldRevealShuffleToDeckBottom(text: string, parsed: EffectAction): Effe
       && source?.location === 'deck' && source.owner === 'self' && destIs(node, 'top');
   });
   const noops = looks.filter(node => node.count === 0 && destIs(node, 'bottom'));
-  if (reveals.length !== 1 || noops.length !== 1) return parsed;
+  // 🆕**no-op ノードが無い形も畳む**（2026-09-09・第238バッチ）＝読点で1文になった綴りでは
+  //   後始末の節が**ノードにすらならない**。⚠**公開ノードは相変わらずちょうど1つ**を要求する
+  //   （どの公開札の話か確定できない木は据え置く＝fail-closed のガードは外さない）。
+  if (reveals.length !== 1 || noops.length > 1) return parsed;
 
   const reveal = reveals[0];
   const noop = noops[0];
   // 公開が先・後始末が後、という原文の順序を満たさない木は据え置く（走査は深さ優先の出現順）。
-  if (looks.indexOf(reveal) > looks.indexOf(noop)) return parsed;
+  if (noop && looks.indexOf(reveal) > looks.indexOf(noop)) return parsed;
 
   const dest = reveal.destination as Record<string, unknown>;
   reveal.destination = { ...dest, position: 'bottom' };
   reveal.shuffle = true;
 
+  // ⚠上の書き換えは `reveal` を**その場で**変えている＝落とす no-op が無ければ、
+  //   書き換え済みの木をそのまま返せばよい（`drop` は no-op の除去専用）。
+  if (!noop) return parsed;
   const drop = (node: EffectAction): EffectAction | null => {
     if ((node as unknown as Record<string, unknown>) === noop) return null;
     if (node.type === 'SEQUENCE') {

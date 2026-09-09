@@ -7233,7 +7233,14 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
         gateFrontRestrict = [];
       }
     }
-    let cands = fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
+    // 🆕**`owner:'any'`（修飾語なし「シグニ１体を対象とし」）は両フィールドから候補を集める**
+    //   （2026-09-09・第238バッチ・`WXDi-P03-009-E1`）。
+    // 🔴`ownerState('any')` は**相手側へ潰れる**ので、素の `fieldCandidates(state, …)` のままだと
+    //   **自分のシグニを対象に宣言しても候補に無く、支払いのあとで黙って空振り**する（無言の過少実行）。
+    //   同じ非対称は `SELECT_TARGET_ONLY`（`execStubPart1.ts:275`＝§6.4 `O-34(a)`）・`BANISH`・`BOUNCE` で
+    //   既に埋めてあり、`TRANSFER_TO_DECK` だけが取り残されていた。
+    const anyTTD = src.owner === 'any' ? fieldCandidatesByOwner('any', srcFilter, ctx) : null;
+    let cands = anyTTD ? anyTTD.cands : fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
     if (deckExcludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
     if (deckThisCardOnly) cands = ctx.sourceCardNum ? cands.filter(n => n === ctx.sourceCardNum) : [];
     if (gateFrontRestrict !== null) cands = cands.filter(n => gateFrontRestrict!.includes(n));
@@ -7243,19 +7250,22 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
     if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
-    const scope: TargetScope = src.owner === 'self' ? 'self_field' : 'opp_field';
+    const scope: TargetScope = anyTTD ? anyTTD.scope : src.owner === 'self' ? 'self_field' : 'opp_field';
 
     function applyToBottom(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
       for (const num of selected) {
-        const sub = applyEffectLeaveSubstitutes(num, src.owner, cur);
+        // ⚠`owner:'any'` は**選んだ1枚がどちらの場にあるか**で所属を決める（`execBanish` と同規約）＝
+        //   潰した側（相手）で固定すると、自分のシグニを選んだときに**除去も戻し先も相手側**になる。
+        const side: Owner = src.owner === 'any' ? sideOfFieldCard(num, cur) : src.owner;
+        const sub = applyEffectLeaveSubstitutes(num, side, cur);
         cur = sub.ctx;            // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
         if (sub.replaced) continue;
-        if (!isOnFieldTop(num, src.owner, cur)) continue;  // (cxxvi)
-        const s = ownerState(src.owner, cur);
+        if (!isOnFieldTop(num, side, cur)) continue;  // (cxxvi)
+        const s = ownerState(side, cur);
         const removed = removeFromField(num, s);
         const newS = insertToDeck(removed, [num]);
-        cur = addLog(setOwnerState(src.owner, newS, cur),
+        cur = addLog(setOwnerState(side, newS, cur),
           `${cur.cardMap.get(num)?.CardName ?? num}をデッキ${toBottom ? '下' : '上'}へ`);
       }
       return cur;
@@ -12935,7 +12945,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       //   ⚠同じ式を3箇所に書いたのが事故の形（transferSpecificDeckCard／insertToDeck／ここ）。
       const tdA = action as TransferToDeckAction;
       if (tdA.source.type === 'DECK_CARD') return transferSpecificDeckCard(tdA, cardNum, ctx);
-      const tdOwner = tdA.source.owner;
+      // 🆕**`owner:'any'`（修飾語なし「シグニ１体を対象とし」）は選んだ1枚の側で解決する**
+      //   （2026-09-09・第238バッチ・`GRANT_PROTECTION` / `POWER_SET` の同型分岐と同規約）。
+      // 🔴`ownerState('any')` は**相手側へ潰れる**ので、自分のシグニを選ぶと下の所在探索が
+      //   すべて外れて `return done(ctx)`＝**無言 no-op** になっていた（対象は選ばせるのに何も起きない）。
+      const tdOwner: Owner = tdA.source.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : tdA.source.owner;
       let tdCtx = ctx;
       const tdS = ownerState(tdOwner, ctx);
       let tdNew = { ...tdS };

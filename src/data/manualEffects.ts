@@ -8,6 +8,61 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // 第238バッチ（2026-09-09）＝「あなたの《カード名》1体がアタックしたとき」の主語
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WXDi-P05-078（凶天　ワルキューレ）E1
+  //   原文＝【自】《ターン１回》：あなたの《凶天姫　ヴァルキリー》１体がアタックしたとき、対戦相手のシグニ１体を
+  //         対象とし、手札から＜天使＞のシグニを好きな枚数捨てる。ターン終了時まで、それのパワーを
+  //         この方法で捨てたカード１枚につき－4000する。
+  // 🔴live は `triggerScope` 既定（＝self・主語限定なし）だった＝**このシグニ自身のアタックで誤発火し、
+  //   本来の《凶天姫　ヴァルキリー》のアタックでは発火しない**（主語が丸ごと逆）。
+  // 🔑受け皿は実在＝`triggerScope:'any_ally'` ＋ `triggerFilter.cardName`
+  //   （`collectFieldTriggers('ON_ATTACK_SIGNI', …)`＝`BattleScreen.tsx:9524` が味方場の watcher を拾い、
+  //   `matchesFilter` が `CardName.includes` で照合する）。
+  // ⚠**parser では直せない**＝`parseAllyAttackSubject` は主語に「シグニ」の語を要求するが、原文は
+  //   《カード名》だけで名詞が無い。名前がシグニかルリグかは**カードDBを引かないと決まらず**、parser は
+  //   カードDBを持たない（同型の `SPDi43-28-E1` は**ルリグ**で、既に MANUAL 側で ON_ATTACK_LRIG として書いてある）。
+  //   ⇒ 母集団2効果・うち1件は既に MANUAL＝速いレーン（PLAN §2.0）。
+  // ⚠自身の名は「凶天　ワルキューレ」＝別名なので `excludeSelf` は不要（cardName 照合で落ちる）。
+  // ── WXDi-P03-009（ノーリミット・ドロー）E1
+  //   原文＝【チーム自】：あなたのアタックフェイズ開始時、このターンにあなたが効果によってカードを２枚以上
+  //         引いていた場合、レベル２以下のシグニ１体を対象とし、《青》《無》を支払ってもよい。
+  //         そうした場合、それをデッキの一番下に置く。
+  // 🔴live は対象が `{SIGNI, owner:'self', filter:{cardType:'シグニ'}}` だった＝**①所有者を自分に限定**
+  //   （原文は無制限＝相手のシグニを戻せない）**②レベル2以下の限定が丸ごと落ちている**（レベル4でも戻せる）。
+  // 🔑受け皿は実在＝`owner:'any'`（`SELECT_TARGET_ONLY` は `fieldCandidatesByOwner('any')` を通す）。
+  //   ⚠`TRANSFER_TO_DECK` 側は**この巡で engine に足した**（`effectExecutor.ts` の SIGNI 分岐＝
+  //   `ownerState('any')` が相手側へ潰れるため、自分のシグニを選ぶと黙って空振りしていた）。
+  // ⚠母集団は2効果で、もう1件（`WXK11-039-E2`）は既に owner 無制限＋レベル限定つきで出ている＝速いレーン。
+  "WXDi-P03-009": [
+    {"effectId":"WXDi-P03-009-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],
+     "condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"NoLimit","operator":"gte","value":3},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"CONDITIONAL","condition":{"type":"CARDS_DRAWN_BY_EFFECT","owner":"self","operator":"gte","value":2},
+        "then":{"type":"SEQUENCE","steps":[
+          {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},"abortIfNoCandidate":true},
+          {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+          {"type":"STUB","id":"OPTIONAL_COST","costColors":["青","無"]},
+          {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
+           "then":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},"shuffle":false,"position":"bottom","targetsStored":true}}
+        ]}}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  "WXDi-P05-078": [
+    {"effectId":"WXDi-P05-078-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","cardName":"凶天姫　ヴァルキリー"},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+       {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL","upToCount":true,"filter":{"cardType":"シグニ","story":"天使"}}},
+       {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"delta":-4000,"deltaPerLastProcessedCount":true,"perLastProcessed":{"unit":"cards"},"duration":"UNTIL_END_OF_TURN"}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.3 `O-285`（2026-09-08）＝`STUB{ACCE_FROM_HAND}` catch-all が飲み込んでいた別2形
   // ══════════════════════════════════════════════════════════════════════════════
   // 🔴**catch-all の実体**（`execStubPart3.ts:3560`）＝アクセ札を **`ctx.sourceCardNum`（効果元自身）に固定**し、
