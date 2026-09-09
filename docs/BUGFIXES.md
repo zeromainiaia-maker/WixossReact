@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-09 — 第242バッチ：Codex が24効果を修正して利用上限で停止 → Claude が引き継いで完成（逆翻訳の嘘3件も是正）
+
+**投入**＝実装キュー残219から30効果（全件 MED＝HIGH の在庫は尽き、残 HIGH の大半は §5.3 登録済み）。
+**既登録の機構待ち**（`O-288`／`O-293`／`O-296`／`O-308`）に該当する5件は候補から除外して組んだ。
+**Codex は24効果を live まで反映した時点で利用上限**（既定アカウント・復帰 9/10 0:19）に到達し、
+`npm run regen` と最終報告の前に停止。**Claude が引き継いで検証・完成させた。**
+
+### 採用24効果（全件 `git diff` の effectId 単位差分と一致・スコープ外0）
+`WXK11-047-E3`／`WD14-011-E2`／`WDK16-10-E1`／`PR-K021-E3`／`PR-K043-E2`／`PR-K078-BURST`／
+`WXDi-D07-013-E1`／`WXDi-D09-H20-E1`／`WXDi-P00-039-BURST`／`WXDi-P01-059-E1`／`WXDi-P04-059-E1`／
+`WXDi-P07-044-E1`／`WXDi-P09-050-E1`／`WXDi-P10-047-E2`／`WXDi-P11-076-E1`／`WXDi-P13-003A-E1`／
+`WXDi-P14-060-E1`／`WXDi-P16-053-E1`／`WXDi-CP02-033-E2`／`WX24-P2-014-E1`／`WX25-P1-052-E2`／
+`WX25-P2-022-E1`／`WX25-P3-014-E1`／`WX25-P3-027-E1`（内訳は `semantic_bug_fixed.txt`）。
+
+🔑**今回の主軸は「順序」**＝**対象宣言・条件判定・任意コストの前後**が原文とずれている型が過半だった。
+定型は `STUB{SELECT_TARGET_ONLY}` ＋ `STUB{STORE_LAST_PROCESSED_TARGETS}` ＋ `targetsStored:true`。
+⚠**条件を対象宣言まで巻き込まない**（原文が「対象とし、〜の場合」なら対象は無条件に宣言する）。
+
+**engine 追加は1箇所**＝`execAddToField` の `targetsTriggerSource`（「あなたがシグニを1枚捨てたとき、
+**そのカード**をトラッシュから場に出す」＝`WXDi-P07-044-E1`）。**型追加は
+`LookAndReorderAction.destination.position` に `'first_top_rest_bottom'` の1つだけ。**
+
+### 🔴 Claude が引き継いで直した「逆翻訳の嘘」3件（計器の較正）
+
+**Codex は `regen` を回す前に止まったので、payload が逆翻訳に出るかを誰も見ていなかった。** 実際3件が嘘をついていた:
+1. **`TRASH{HAND_CARD, opponent}` ＋ `targetsStored`** が「（**相手が選ぶ**）」と描かれていた（`WXDi-P14-060-E1`）＝
+   原文「あなたはその（公開した）カードを捨てさせてもよい」と**情報量が正反対**。⇒「（先に対象としたそのカード）」へ。
+2. **`ADD_TO_FIELD{targetsTriggerSource}`** が「トラッシュのシグニ1枚を場に出す」＝**自由選択**に読めていた
+   （`WXDi-P07-044-E1`）。engine は `triggeringCardNum` の1枚に絞るのに逆翻訳だけが広い。⇒「そのカード（トリガー元）」へ。
+3. **`hasGuard:false`**（《ガードアイコン》を持たない）が**丸ごと消えて**いた（`WXDi-P11-076-E1`）＝
+   `filterJa` が `hasGuard` の**真だけ**を見ていた。⚠`undefined`（無指定）と `false`（否定）を取り違えない。
+
+🔑**この3件は「engine は正しいのに計器が嘘をつく」型**＝原文照合そのものが効かなくなるので、
+**payload を足したら必ず `regen` して逆翻訳を読む**（第240 でも同型を2件直している）。
+
+### Claude が足した golden
+
+`WXDi-P14-060-E1` の既存テストへ **`targetsStored:true` と `STORE_LAST_PROCESSED_TARGETS` の対**を assert
+（Codex は位置固定 assert を型・id 引きへ直したが、**修正の核である `targetsStored` は固定していなかった**）。
+⚠`STORE_*` が前段に無いと `targetsStored` は空集合を指して**無言 no-op** になるので、必ず対で見る。
+
+### 書き換えられた既存 golden 2件（どちらも腐り＝実装ミスではない）
+①`§6.4 捨てさせる向き`＝**位置固定 assert** を型・id 引きへ（第240 の教訓どおり Codex 自身が直していた）
+②`§5.3 O-249 第146` の live/fresh 比較パスが `steps.1.then` → `steps.1.then.choices.0.action`
+（`WXDi-D07-013-E1` が任意化で `CHOOSE` を挟んだため）。
+did-it ゲートの regex に `PAID_ADDITIONAL_COST` を足したのも同型（`IS_MY_TURN` と等価の gate）。
+
+### 検証
+`npm run gates` 全緑・**golden 3828 PASS**（3800 → +28）・smoke 10744 OK・fuzz 0・census 各計器 0。
+`npm run regen`（Claude が実行）の逆翻訳を**24件すべて原文と目視照合＝全一致**。
+**実機は不要**（§2.2＝`src/screens/` 不触）。
+
+**実装キュー: 219 → 195効果**。**未反映6効果**（`WXK08-024-E2`／`WXDi-D09-H11-E1`／`WXDi-P03-016-E3`／
+`WXDi-P09-051-E1`／`WXDi-P16-002-E1`／`WX24-P4-048-E2`）は**見送りではなく未着手**＝次バッチの先頭へ回す。
+
 ## 2026-09-09 — 第241バッチ：Codex が30効果を再照合し9効果修正（Claude 検証済み）＝トリップワイヤ拡張の妥当性まで検算
 
 指示書のlive JSONスナップショットを再照合し、**9効果を`repairSemanticBatch241`で採用**、

@@ -28331,6 +28331,213 @@ function repairSemanticBatch241(effects: CardEffect[]): void {
   }
 }
 
+/** §5.0 第242バッチ：既存語彙だけで閉じる一点物の意味修復。 */
+function repairSemanticBatch242(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXK11-047-E3':
+        if (effect.cost?.energyTrash) {
+          effect.cost.energyTrash.filter = { ...(effect.cost.energyTrash.filter ?? {}), cardType: 'シグニ' };
+        }
+        break;
+      case 'WD14-011-E2':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'BANISH') {
+          effect.action.steps[1].target.upToCount = false;
+        }
+        break;
+      case 'WDK16-10-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[2]?.type === 'STUB') {
+          effect.action.steps[2] = {
+            type: 'CONDITIONAL', condition: { type: 'LRIG_LEVEL_EQ_OPP' }, then: effect.action.steps[2],
+          };
+        }
+        break;
+      case 'PR-K021-E3':
+        if (effect.action.type === 'SEQUENCE') {
+          const select = effect.action.steps[0];
+          if (select?.type === 'STUB' && select.selectTarget) select.selectTarget.owner = 'any';
+          const result = effect.action.steps[3];
+          if (result?.type === 'CONDITIONAL' && result.then.type === 'BOUNCE') result.then.target.owner = 'any';
+        }
+        break;
+      case 'PR-K043-E2':
+        if (effect.action.type === 'SEARCH') effect.action.selectionConstraint = { totalLevelExact: 5 };
+        break;
+      case 'PR-K078-BURST':
+        if (effect.action.type === 'TRANSFER_TO_HAND') {
+          effect.action.source.filter = {
+            cardType: 'シグニ', anyOf: [{ story: '悪魔' }, { level: 3 }],
+          };
+        }
+        break;
+      case 'WXDi-D07-013-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'CONDITIONAL') {
+          effect.action.steps[1].then = {
+            type: 'CHOOSE', choose_count: 1, from_count: 2,
+            opponentResponds: true, costlessOpponentChoice: true,
+            choices: [
+              { choiceId: 'charge', label: '【エナチャージ1】をする', action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: 1 } },
+              { choiceId: 'skip', label: 'しない', action: { type: 'SEQUENCE', steps: [] } },
+            ],
+          };
+        }
+        break;
+      case 'WXDi-D09-H20-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[2]?.type === 'STUB') {
+          effect.action.steps[2].handDiscard = { count: 1, filter: { cardType: 'シグニ', level: 1 } };
+        }
+        break;
+      case 'WXDi-P00-039-BURST':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'PREVENT_NEXT_DAMAGE') {
+          effect.action.steps[1].damageSource = 'signi';
+        }
+        break;
+      case 'WXDi-P01-059-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          const gate = effect.action.steps[1];
+          if (gate?.type === 'CONDITIONAL' && gate.then.type === 'SEQUENCE') {
+            const select = gate.then.steps[0];
+            if (select?.type === 'STUB' && select.selectTarget) {
+              select.selectTarget.filter = { cardType: 'シグニ', powerRange: { max: 8000 } };
+            }
+            const paid = gate.then.steps[3];
+            if (paid?.type === 'CONDITIONAL' && paid.then.type === 'BANISH') {
+              paid.then.target.filter = { cardType: 'シグニ', powerRange: { max: 8000 } };
+            }
+          }
+        }
+        break;
+      case 'WXDi-P04-059-E1':
+        effect.action = {
+          type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true, selectTarget: {
+              type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+              filter: { cardType: 'シグニ', powerRange: { max: 5000 } },
+            } },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1,
+              filter: { cardType: 'シグニ', thisCardOnly: true, isUp: true } }, optional: true },
+            { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+              type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ', powerRange: { max: 5000 } }, upToCount: false }, targetsStored: true,
+            } },
+          ],
+        };
+        break;
+      case 'WXDi-P07-044-E1':
+        if (effect.action.type === 'ADD_TO_FIELD') effect.action.targetsTriggerSource = true;
+        break;
+      case 'WXDi-P09-050-E1':
+      case 'WXDi-P10-047-E2':
+        if (effect.action.type === 'LOOK_AND_REORDER') {
+          effect.action.destination.position = 'first_top_rest_bottom';
+        }
+        break;
+      case 'WXDi-P13-003A-E1':
+        effect.condition = {
+          type: 'AND', conditions: [
+            { type: 'CENTER_LRIG_NOT_GROWN_THIS_TURN', owner: 'self' },
+            { type: 'OR', conditions: [
+              { type: 'FIELD_LRIGS_HAVE_COLORS', owner: 'self', colors: ['白'] },
+              { type: 'FIELD_LRIGS_HAVE_COLORS', owner: 'self', colors: ['黒'] },
+            ] },
+          ],
+        };
+        break;
+      case 'WXDi-P14-060-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          effect.action.steps.splice(1, 0, { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' });
+          const trash = effect.action.steps[3];
+          if (trash?.type === 'TRASH') {
+            trash.target.blind = false;
+            trash.targetsStored = true;
+          }
+        }
+        break;
+      case 'WXDi-P16-053-E1':
+        effect.action = {
+          type: 'SEQUENCE', steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 4 } },
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true, selectTarget: {
+              type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+              filter: { cardType: 'シグニ', nameMatchesAnyTrashCard: 'opponent' },
+            } },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒', '黒', '無'] },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+              type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ', nameMatchesAnyTrashCard: 'opponent' }, upToCount: false }, targetsStored: true,
+            } },
+          ],
+        };
+        break;
+      case 'WXDi-CP02-033-E2':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[0]?.type === 'LOOK_AND_REORDER') {
+          effect.action.steps[0].reorder = true;
+        }
+        break;
+      case 'WX24-P2-014-E1':
+        if (effect.action.type === 'SEQUENCE' && effect.action.steps[1]?.type === 'ENERGY_CHARGE_FROM_DECK') {
+          effect.action.steps[1] = {
+            type: 'CONDITIONAL',
+            condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '天使' } },
+            then: effect.action.steps[1],
+          };
+        }
+        break;
+      case 'WX25-P2-022-E1':
+        if (effect.action.type === 'SEQUENCE') {
+          const select = effect.action.steps[0];
+          if (select?.type === 'STUB' && select.selectTarget) {
+            select.selectTarget.filter = { cardType: 'シグニ', story: '武勇' };
+          }
+          const paid = effect.action.steps[3];
+          if (paid?.type === 'CONDITIONAL' && paid.then.type === 'GRANT_KEYWORD') {
+            paid.then.target.filter = { cardType: 'シグニ', story: '武勇' };
+          }
+        }
+        break;
+      case 'WX25-P3-014-E1':
+        effect.action = {
+          type: 'CONDITIONAL',
+          condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '迷宮' } },
+          then: { type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true, selectTarget: {
+              type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+              filter: { cardType: 'シグニ', noAbilities: true },
+            } },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+              type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: { max: 2 } } },
+              then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                upToCount: false, filter: { cardType: 'シグニ' } }, targetsStored: true },
+              else: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+                upToCount: false, filter: { cardType: 'シグニ' } }, optional: false, targetsStored: true },
+            } },
+          ] },
+        };
+        break;
+      case 'WX25-P3-027-E1':
+        effect.action = {
+          type: 'CONDITIONAL',
+          condition: { type: 'TRASH_HAS_CARD', owner: 'self', minCount: 15,
+            filter: { cardType: 'シグニ', story: '悪魔' } },
+          then: { type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+              type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+              actionId: 'GUARD', until: 'END_OF_ATTACK',
+            } },
+          ] },
+        };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -29205,6 +29412,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch239(effects);
   repairSemanticBatch240(effects);
   repairSemanticBatch241(effects);
+  repairSemanticBatch242(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

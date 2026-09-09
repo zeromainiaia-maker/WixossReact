@@ -2779,7 +2779,7 @@ export interface LookAndReorderAction {
     location: CardLocation;
     owner: Owner;
     // split_top_bottom: 見た中から好きな枚数を一番上へ、残りを一番下へ振り分ける（G168）
-    position: 'top' | 'bottom' | 'any' | 'split_top_bottom';
+    position: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';
   };
 }
 

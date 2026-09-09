@@ -3,9 +3,135 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［1枚］
-WXK07-018
---- WXK07-018
-  原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
-  + [0].action.steps[0].asDown = true
+## （type増減なし＝値/構造変更） ［6枚］
+PR-K021 PR-K078 WXDi-CP02-033 WXDi-P09-050 WXDi-P10-047 WXK07-018
+--- PR-K021
+  原文: 【自】：各アタックフェイズ開始時、ターン終了時まで、このシグニの基本パワーは正面のシグニのパワーと同じ値になる。【自】：このシグニがアタックしたとき、このシグニのパワーが8000の場合、【エナチャージ１】する。【自】：このシグニがアタックしたとき、シグニ１体を対象とし、このシグニのパワーが12000の場合、《白》《白》《無》《無》を支払ってもよい。そうした場
+  ~ [2].action.steps[0].selectTarget.owner : "self" → "any"
+  ~ [2].action.steps[3].then.target.owner : "self" → "any"
+--- PR-K078
+  原文: 【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、あなたのデッキの上からカードを３枚公開する。その中からレベル２以下のシグニ１枚を手札に加え、残りを好きな順番でデッキの一番下に置く。【出】：対戦相手はあなたの手札を１枚見ないで選び、あなたはそれを公開する。それが＜悪魔＞かレベル３以上のシグニの場合、ターン終了時まで、このシグニは【ランサー】
+  - [2].action.source.filter.story = "悪魔"
+  + [2].action.source.filter.anyOf[0].story = "悪魔"
+  + [2].action.source.filter.anyOf[1].level = 3
+--- WXDi-CP02-033
+  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のシグニ１体がアタックしたとき、あなたはデッキの一番上のカードをチェックゾーンに置く。そのカードがアタックしたそのシグニと同じレベルのシグニの場合、そのアタックを無効にする。そのカードをチェックゾーンからトラッシュに置く。」を得る。【出】《青》：あなたのデッキの上からカードを５枚見る。それらのカードを好
+  ~ [1].action.steps[0].reorder : false → true
+
+## +CHOOSE +SEQUENCE ［1枚］
+WXDi-D07-013
+--- WXDi-D07-013
+  原文: 【出】：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置いてもよい。そうした場合、対戦相手は【エナチャージ１】をしてもよい。,：対戦相手のパワー8000以下のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする。
+  - [0].action.steps[1].then.owner = "opponent"
+  - [0].action.steps[1].then.count = 1
+  ~ [0].action.steps[1].then.type : "ENERGY_CHARGE_FROM_DECK" → "CHOOSE"
+  + [0].action.steps[1].then.choose_count = 1
+  + [0].action.steps[1].then.from_count = 2
+  + [0].action.steps[1].then.opponentResponds = true
+  + [0].action.steps[1].then.costlessOpponentChoice = true
+  + [0].action.steps[1].then.choices[0].choiceId = "charge"
+  + [0].action.steps[1].then.choices[0].label = "【エナチャージ1】をする"
+  + [0].action.steps[1].then.choices[0].action.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.steps[1].then.choices[0].action.owner = "opponent"
+  + [0].action.steps[1].then.choices[0].action.count = 1
+  …（他 3 行）
+
+## +SIGNI +STUB×2 ［1枚］
+WXDi-P04-059
+--- WXDi-P04-059
+  原文: 【自】：あなたがスペルを使用したとき、対戦相手のパワー5000以下のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをバニッシュする。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.thisCardOnly = true
+  - [0].action.steps[0].target.filter.isUp = true
+  - [0].action.steps[0].optional = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BANISH"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  …（他 32 行）
+
+## +STUB ［1枚］
+WXDi-P14-060
+--- WXDi-P14-060
+  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手の手札を１枚見ないで選び、対戦相手はそのカードを公開する。あなたはそのカードを捨てさせてもよい。そうした場合、対戦相手はカードを１枚引く。,-
+  - [0].action.steps[2].target.type = "HAND_CARD"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.blind = true
+  - [0].action.steps[3].condition.type = "IS_MY_TURN"
+  - [0].action.steps[3].then.type = "DRAW"
+  - [0].action.steps[3].then.owner = "opponent"
+  - [0].action.steps[3].then.count = 1
+  ~ [0].action.steps[1].id : "OPTIONAL_ACTIVATE" → "STORE_LAST_PROCESSED_TARGETS"
+  ~ [0].action.steps[2].type : "TRASH" → "STUB"
+  + [0].action.steps[2].id = "OPTIONAL_ACTIVATE"
+  ~ [0].action.steps[3].type : "CONDITIONAL" → "TRASH"
+  …（他 10 行）
+
+## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
+WXDi-P16-053
+--- WXDi-P16-053
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のデッキの上からカードを４枚トラッシュに置く。その後、対戦相手のトラッシュにあるいずれかのカードと同じ名前の対戦相手のシグニ１体を対象とし、《黒》《黒》《無》を支払ってもよい。そうした場合、それをバニッシュする。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。
+  - [0].action.steps[1].costColors[0] = "黒"
+  - [0].action.steps[1].costColors[1] = "黒"
+  - [0].action.steps[1].costColors[2] = "無"
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "BANISH"
+  - [0].action.steps[2].then.target.type = "SIGNI"
+  - [0].action.steps[2].then.target.owner = "opponent"
+  - [0].action.steps[2].then.target.count = 1
+  - [0].action.steps[2].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[2].then.target.upToCount = false
+  ~ [0].action.steps[1].id : "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[1].abortIfNoCandidate = true
+  …（他 23 行）
+
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
+WX24-P2-014
+--- WX24-P2-014
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に＜悪魔＞のシグニがある場合、カードを１枚引く。＜天使＞のシグニがある場合、【エナチャージ１】をする。【起】《ゲーム１回》夢限の理《ダウン》：対戦相手のセンタールリグがレベル３以上の場合、各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、すべてのクラフトをゲームから除外し、すべてのカードを
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 1
+  ~ [0].action.steps[1].type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "self"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.story = "天使"
+  + [0].action.steps[1].then.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 1
+
+## +PAID_ADDITIONAL_COST -IS_MY_TURN ［1枚］
+WX25-P3-014
+--- WX25-P3-014
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に＜迷宮＞のシグニがある場合、能力を持たない対戦相手のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。それがレベル２以下の場合、代わりにそれをトラッシュに置く。【起】《ゲーム１回》トゥルース《白×0》：対戦相手のシグニゾーンを２つまで指定し、このターンと次のターンの間、それらのシ
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].selectTarget.type = "SIGNI"
+  - [0].action.steps[0].selectTarget.owner = "opponent"
+  - [0].action.steps[0].selectTarget.count = 1
+  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  - [0].action.steps[0].selectTarget.filter.noAbilities = true
+  - [0].action.steps[0].selectTarget.upToCount = false
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
+  …（他 68 行）
+
+## +CONDITIONAL +LRIG_LEVEL_EQ_OPP ［1枚］
+WDK16-10
+--- WDK16-10
+  原文: あなたのデッキから＜電機＞のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。登録者数を２０万人得る。あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合、追加で登録者数を１０万人得る。,-
+  - [0].action.steps[2].id = "GAIN_SUBSCRIBER_COUNT"
+  - [0].action.steps[2].value = 10
+  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "LRIG_LEVEL_EQ_OPP"
+  + [0].action.steps[2].then.type = "STUB"
+  + [0].action.steps[2].then.id = "GAIN_SUBSCRIBER_COUNT"
+  + [0].action.steps[2].then.value = 10
 

@@ -4051,6 +4051,10 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
     cands = zoneTargetCandidates(src, tgtOwner, ctx);
+    if (a.targetsTriggerSource) {
+      const triggering = ctx.triggeringCardNum;
+      cands = triggering && state.trash.includes(triggering) ? cands.filter(n => n === triggering) : [];
+    }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     cands = zoneTargetCandidates(src, tgtOwner, ctx);
@@ -4170,6 +4174,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   //   支払い後にもう一度同じ札を選ばせる画面が出る（`execGrantKeyword` が第6バッチで踏んだのと同じ形）。
   //   ⚠**golden は全緑のまま通る**（構造だけ見ていて UI の再プロンプトを観測できない）＝実機だけが捕まえる。
   if (a.fixedCardNums?.length) {
+    return cands.length > 0 ? done(applyToField(cands, ctx)) : done({ ...ctx, lastProcessedCards: [] });
+  }
+  // 「捨てたそのカードを場に出す」等は対象選択を挟まない。triggeringCardNum で1枚に絞った
+  // 既存の targetsTriggerSource を、そのまま即時配置の合図としても消費する。
+  if (a.targetsTriggerSource && src.type === 'TRASH_CARD') {
     return cands.length > 0 ? done(applyToField(cands, ctx)) : done({ ...ctx, lastProcessedCards: [] });
   }
   const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);

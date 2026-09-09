@@ -339,6 +339,10 @@ function filterJa(f?: any): string {
   if (f.levelEqDiscardSigniOffset !== undefined) parts.push(`この方法で捨てたシグニよりレベルが${f.levelEqDiscardSigniOffset}つ高い`);
   if (f.classMatchesDiscardSigni) parts.push('この方法で捨てたシグニと共通するクラスを持つ');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
+  // 🆕**否定側**（2026-09-09 第242バッチ）＝`hasGuard:false` は engine が `matchesFilter` で効かせているのに
+  //   逆翻訳では**絞り込みが丸ごと消えて**いた（`WXDi-P11-076-E1`「《ガードアイコン》を持たないシグニを2枚まで」が
+  //   「シグニ2枚まで」と読めてしまう）。⚠`undefined`（無指定）と `false`（否定）を取り違えない。
+  if (f.hasGuard === false) parts.push('《ガードアイコン》を持たない');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
   if (f.noAbilities) parts.push('能力を持たない'); // §5d パターンA（描画が無いと原文照合で脱落に見える）
   if (f.hasRiseIcon) parts.push('《ライズアイコン》を持つ');
@@ -1486,7 +1490,12 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）。
       // count:'ALL'（すべて捨てる）は選択の余地がないため明示しない。
-      const who = t?.count === 'ALL'
+      // 🆕**`targetsStored`＝先行の対象宣言で固定した同一カード**（2026-09-09 第242バッチ・`WXDi-P14-060-E1`）。
+      //   🔴engine は `execTrash` が `storedTargetCards` で候補を絞るのに、逆翻訳は所有者だけを見て
+      //   **「（相手が選ぶ）」と正反対の嘘**をついていた（原文は「見ないで選んだ**そのカード**を捨てさせる」）。
+      const who = a.targetsStored
+        ? '（先に対象としたそのカード）'
+        : t?.count === 'ALL'
         ? ''
         : a.opponentSelects && t?.owner === 'opponent'
         ? '（相手が選ぶ）'
@@ -1689,6 +1698,11 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${nAL}枚を${toAL}`;
     }
     case 'ADD_TO_FIELD': {
+      // 🆕**`targetsTriggerSource`＝「**そのカード**をトラッシュから場に出す」**（2026-09-09 第242バッチ・
+      //   `WXDi-P07-044-E1`「あなたがシグニを1枚捨てたとき、**そのカード**を…」）。
+      //   🔴engine は `execAddToField` が `triggeringCardNum` の1枚へ絞る（対象選択も挟まない）のに、
+      //   逆翻訳は**「トラッシュのシグニ1枚」＝自由選択**に読めていた。
+      const trigSrcAF = a.targetsTriggerSource ? 'そのカード（トリガー元）' : '';
       const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';
       const abilitylessAF = a.abilitiesRemoved ? '能力を持たないシグニとして' : '';
       const defaultPlacementAF = abilitylessAF
@@ -1717,7 +1731,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このシグニをエナゾーンから場に出す」自己蘇生（thisCardOnly source・TRASH_CARD 版と同型）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
         return `このシグニをエナゾーンから${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
-      return (a.source ? `${targetJa(a.source)}をコストを支払わず${defaultPlacementAF}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を${abilitylessAF}場に出す` : `直前に選んだカードを${abilitylessAF}場に出す`)) + supAF;
+      return (a.source
+        ? `${trigSrcAF || targetJa(a.source)}をコストを支払わず${defaultPlacementAF}場に出す${a.optional ? '（してもよい）' : ''}`
+        : (a.cardName ? `クラフト/トークンの《${a.cardName}》を${abilitylessAF}場に出す` : `直前に選んだカードを${abilitylessAF}場に出す`)) + supAF;
     }
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') {
@@ -1816,6 +1832,9 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.destination?.position === 'split_top_bottom') {
         return `${src}${loc}${cntJa}を見て、好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く`;
+      }
+      if (a.destination?.position === 'first_top_rest_bottom') {
+        return `${src}${loc}${cntJa}を見て、その中からカード1枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く`;
       }
       // destination（行き先）を原文どおり描画する。reorder＝「好きな順番で〜に置く/戻す」。
       const dest = a.destination;
@@ -2398,6 +2417,15 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'PREVENT_REFRESH':
       return 'このターンと次のターンの間、あなたはリフレッシュできない';
     case 'CHOOSE': {
+      const optionalOppEnergyCharge = a.opponentResponds && a.costlessOpponentChoice
+        ? (a.choices || []).find((c: any) => c.action?.type === 'ENERGY_CHARGE_FROM_DECK'
+            && c.action.owner === 'opponent')?.action
+        : undefined;
+      const hasNoopChoice = (a.choices || []).some((c: any) => c.action?.type === 'SEQUENCE'
+        && (c.action.steps?.length ?? 0) === 0);
+      if (optionalOppEnergyCharge && hasNoopChoice && (a.choices?.length ?? 0) === 2) {
+        return `対戦相手は【エナチャージ${numJa(optionalOppEnergyCharge.count)}】をしてもよい`;
+      }
       // 原文「以下の[N]つから[M]つ（まで）を選ぶ。①…②…」に合わせる（N=from_count）。区切りは規約の「 / 」。
       // choice.condition＝「あなたの場に〜がある場合、」等の選択肢自体の選択可否ゲート（続き105・execChoose の available 判定に対応）。
       const chOpts = (a.choices || []).map((c: any) => {

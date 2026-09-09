@@ -47390,13 +47390,23 @@ test('§6.4 幻の手札コスト: 共通クラス制約つきエナコスト（
 test('§6.4 捨てさせる向き: 損失は対戦相手側（WXDi-P14-060-E1）', () => {
   const e = effectsMap.get('WXDi-P14-060')?.find(x => x.effectId === 'WXDi-P14-060-E1');
   ok(!!e, 'WXDi-P14-060-E1 が存在する');
-  const steps = (e!.action as unknown as { steps: Array<{ type: string; id?: string; target?: { type?: string; owner?: string }; then?: { owner?: string } }> }).steps;
-  eq(steps[0]?.id, 'REVEAL_OPP_HAND_CARD', '①相手の手札を1枚公開');
-  eq(steps[1]?.id, 'OPTIONAL_ACTIVATE', '②「捨てさせてもよい」＝辞退できる（辞退なら以降ごとスキップ）');
-  eq(steps[2]?.type, 'TRASH', '③捨てさせる');
-  eq(steps[2]?.target?.type, 'HAND_CARD', '③手札を');
-  eq(steps[2]?.target?.owner, 'opponent', '🔴③対戦相手の手札（旧実装は自分の手札を捨てていた）');
-  eq(steps[3]?.then?.owner, 'opponent', '④そうした場合、対戦相手が1枚引く');
+  const steps = (e!.action as unknown as { steps: Array<{ type: string; id?: string; targetsStored?: boolean; target?: { type?: string; owner?: string; blind?: boolean }; then?: { owner?: string } }> }).steps;
+  const reveal = steps.find(step => step.id === 'REVEAL_OPP_HAND_CARD');
+  const optional = steps.find(step => step.id === 'OPTIONAL_ACTIVATE');
+  const trash = steps.find(step => step.type === 'TRASH');
+  const drawGate = steps.find(step => step.then?.owner === 'opponent');
+  ok(!!reveal, '①相手の手札を1枚公開');
+  ok(!!optional, '②「捨てさせてもよい」＝辞退できる（辞退なら以降ごとスキップ）');
+  eq(trash?.target?.type, 'HAND_CARD', '③手札を捨てさせる');
+  eq(trash?.target?.owner, 'opponent', '🔴③対戦相手の手札（旧実装は自分の手札を捨てていた）');
+  eq(drawGate?.then?.owner, 'opponent', '④そうした場合、対戦相手が1枚引く');
+  // 🆕**捨てさせるのは「見ないで選んで公開したそのカード」**（2026-09-09 第242バッチ）＝
+  //   🔴`targetsStored` が無いと `execTrash` は**相手に選ばせる**（＝相手が一番いらない札を捨てる）＝
+  //   原文の「あなたはそのカードを捨てさせてもよい」と情報量が逆になる。
+  //   ⚠`STORE_LAST_PROCESSED_TARGETS` が前段に無いと `targetsStored` は空集合を指して**無言 no-op** になるので対で見る。
+  ok(steps.some(step => step.id === 'STORE_LAST_PROCESSED_TARGETS'), '公開したカードを保存していない（targetsStored が空振りする）');
+  eq(trash?.targetsStored, true, '🔴公開したそのカードではなく相手の任意の手札を捨てさせている');
+  eq(trash?.target?.blind, false, '公開済みなので blind ではない');
 });
 
 // ── 🔴 対象宣言の脱落＝「フィルタが無いから等価」は誤り（2026-08-10・続き423）─────────────
@@ -47410,7 +47420,7 @@ test('§6.4 対象宣言の脱落: フィルタが無くても owner/count は�
   const bodyTarget = (cardNum: string, effectId: string): T => {
     const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
     ok(!!e, `${effectId} が存在する`);
-    const m = JSON.stringify(e).match(/"condition":\{"type":"IS_MY_TURN"\},"then":\{[^]*?"target":(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})/);
+    const m = JSON.stringify(e).match(/"condition":\{"type":"(?:IS_MY_TURN|PAID_ADDITIONAL_COST)"\},"then":\{[^]*?"target":(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})/);
     ok(!!m, `${effectId}: 「そうした場合」ゲートの帰結対象が読める`);
     return JSON.parse(m![1]) as T;
   };
@@ -68770,7 +68780,7 @@ test('§5.3 O-249 第146: held が指した parser の退化9件（live と fres
   //    **相手に与えるデメリットが自分の利益に化けて**いた（実測3効果）。
   for (const [cardNum, effectId, path] of [
     ['WXDi-P06-011', 'WXDi-P06-011-E1', 'steps.1.then'],
-    ['WXDi-D07-013', 'WXDi-D07-013-E1', 'steps.1.then'],
+    ['WXDi-D07-013', 'WXDi-D07-013-E1', 'steps.1.then.choices.0.action'],
     ['WXDi-P08-059', 'WXDi-P08-059-E2', 'steps.1.then'],
   ] as const) {
     for (const [label, e] of Object.entries({ live: both(cardNum, effectId)[0], fresh: both(cardNum, effectId)[1] })) {
@@ -73941,6 +73951,116 @@ test('第241 engine: WXEX2-22-E3 はトラッシュしたシグニのレベル�
   const lv4 = findCard(c => isSigni(c) && c.Level === '4');
   eq(run1(lv1), 1, 'レベル1のシグニをトラッシュしたのにデッキ削りが1枚でない');
   eq(run1(lv4), 4, 'レベル4のシグニをトラッシュしたのにデッキ削りが4枚でない（$ref が 0 に落ちている疑い）');
+}));
+
+// ═══════════════════════════════════════════════
+// 第242バッチ：意味照合済み一点物。MANUAL は fresh parser 出力へ manual overlay を載せて比較する。
+const batch242Effect = (cardNum: string, effectId: string, freshParse: boolean): CardEffect => {
+  const pool = freshParse
+    ? mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!))
+    : (effectsMap.get(cardNum) ?? []);
+  const effect = findEffectDeep(pool, effectId);
+  if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, must, mustNot] of [
+  ['WXK11-047', 'WXK11-047-E3', ['"cardName":"サーバント","cardType":"シグニ"', '"distinct":"name"'], []],
+  ['WD14-011', 'WD14-011-E2', ['"count":{"$ref":"last_processed_count"}', '"upToCount":false'], ['"upToCount":true']],
+  ['WDK16-10', 'WDK16-10-E1', ['"condition":{"type":"LRIG_LEVEL_EQ_OPP"}', '"id":"GAIN_SUBSCRIBER_COUNT","value":10'], []],
+  ['PR-K021', 'PR-K021-E3', ['"selectTarget":{"type":"SIGNI","owner":"any"', '"type":"BOUNCE","target":{"type":"SIGNI","owner":"any"', '"targetsStored":true'], ['"selectTarget":{"type":"SIGNI","owner":"self"']],
+  ['PR-K043', 'PR-K043-E2', ['"selectionConstraint":{"totalLevelExact":5}'], []],
+  ['PR-K078', 'PR-K078-BURST', ['"anyOf":[{"story":"悪魔"},{"level":3}]'], []],
+  ['WXDi-D07-013', 'WXDi-D07-013-E1', ['"type":"CHOOSE"', '"opponentResponds":true', '"costlessOpponentChoice":true', '"type":"ENERGY_CHARGE_FROM_DECK","owner":"opponent"'], []],
+  ['WXDi-D09-H20', 'WXDi-D09-H20-E1', ['"handDiscard":{"count":1,"filter":{"cardType":"シグニ","level":1}}'], []],
+  ['WXDi-P00-039', 'WXDi-P00-039-BURST', ['"type":"PREVENT_NEXT_DAMAGE","count":1,"damageSource":"signi"'], []],
+  ['WXDi-P01-059', 'WXDi-P01-059-E1', ['"powerRange":{"max":8000}', '"targetsStored":true'], []],
+  ['WXDi-P04-059', 'WXDi-P04-059-E1', ['"id":"SELECT_TARGET_ONLY"', '"powerRange":{"max":5000}', '"id":"STORE_LAST_PROCESSED_TARGETS"', '"targetsStored":true'], []],
+  ['WXDi-P07-044', 'WXDi-P07-044-E1', ['"targetsTriggerSource":true'], []],
+  ['WXDi-P11-076', 'WXDi-P11-076-E1', ['"steps":[{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST"', '"colorMatchesLrig":true', '"condition":{"type":"PAID_ADDITIONAL_COST"}', '"hasGuard":false'], []],
+  ['WXDi-P09-050', 'WXDi-P09-050-E1', ['"position":"first_top_rest_bottom"'], ['"position":"bottom"']],
+  ['WXDi-P10-047', 'WXDi-P10-047-E2', ['"position":"first_top_rest_bottom"'], ['"position":"bottom"']],
+  ['WXDi-P13-003A', 'WXDi-P13-003A-E1', ['"type":"CENTER_LRIG_NOT_GROWN_THIS_TURN"', '"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白"]', '"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["黒"]'], []],
+  ['WXDi-P14-060', 'WXDi-P14-060-E1', ['"id":"STORE_LAST_PROCESSED_TARGETS"', '"type":"HAND_CARD","owner":"opponent","count":1,"blind":false', '"targetsStored":true'], ['"blind":true']],
+  ['WXDi-P16-053', 'WXDi-P16-053-E1', ['"nameMatchesAnyTrashCard":"opponent"', '"condition":{"type":"PAID_ADDITIONAL_COST"}', '"targetsStored":true'], ['"id":"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"']],
+  ['WXDi-CP02-033', 'WXDi-CP02-033-E2', ['"count":5,"private":true,"reorder":true'], ['"count":5,"private":true,"reorder":false']],
+  ['WX24-P2-014', 'WX24-P2-014-E1', ['"story":"天使"}},"then":{"type":"ENERGY_CHARGE_FROM_DECK"'], []],
+  ['WX25-P2-022', 'WX25-P2-022-E1', ['"story":"武勇"', '"targetsStored":true'], []],
+  ['WX25-P3-014', 'WX25-P3-014-E1', ['"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD"', '"story":"迷宮"', '"condition":{"type":"PAID_ADDITIONAL_COST"}', '"targetsStored":true'], ['"id":"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"']],
+  ['WX25-P1-052', 'WX25-P1-052-E2', ['"type":"LOOK_PICK_CHAIN"', '"then":"field"', '"position":"bottom","reorder":true'], ['"type":"REVEAL_AND_PICK"']],
+  ['WX25-P3-027', 'WX25-P3-027-E1', ['"action":{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD"', '"minCount":15', '"condition":{"type":"PAID_ADDITIONAL_COST"}'], ['"condition":{"type":"AND"', '"condition":{"type":"IS_MY_TURN"}']],
+] as const) {
+  test(`第242 ${effectId}: 原文どおりの一点物修復を fresh/live に保持`, () => {
+    for (const freshParse of [true, false]) {
+      const json = JSON.stringify(batch242Effect(cardNum, effectId, freshParse));
+      const side = freshParse ? 'fresh' : 'live';
+      for (const fragment of must) ok(json.includes(fragment), `${side}: ${fragment}`);
+      for (const fragment of mustNot) ok(!json.includes(fragment), `${side}: 旧誤訳 ${fragment} を残さない`);
+    }
+  });
+}
+
+test('第242 engine WXDi-P07-044-E1: 捨てたトリガー元シグニだけをトラッシュから場に出す', () => withSavedCursor(() => {
+  const trigger = findCard(c => isSigni(c) && c.CardNum !== 'WXDi-P07-044');
+  const bystander = findCard(c => isSigni(c) && c.CardNum !== trigger && c.CardNum !== 'WXDi-P07-044');
+  const ctx = mkCtx({}, {}, 'WXDi-P07-044');
+  // 候補順は無関係札を先に置く。targetsTriggerSource の絞り込みが無い実装なら autopilot が誤札を選ぶ。
+  ctx.ownerState.trash = [bystander, trigger];
+  ctx.triggeringCardNum = trigger;
+  const result = run(batch242Effect('WXDi-P07-044', 'WXDi-P07-044-E1', false).action, ctx);
+  eq(result.ownerState.field.signi[0]?.at(-1), trigger, '🔴捨てたそのシグニが場に出ていない');
+  ok(!result.ownerState.trash.includes(trigger), '場に出たシグニがトラッシュにも残っている');
+  ok(result.ownerState.trash.includes(bystander), '無関係なトラッシュのシグニまで場に出している');
+}));
+
+test('第242 engine WD14-011-E2: last_processed_count は実際にトラッシュへ置いた他のシグニ数をバニッシュ数へ渡す', () => withSavedCursor(() => {
+  const source = 'WD14-011';
+  const own1 = findCard(c => isSigni(c) && c.CardNum !== source);
+  const own2 = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== own1);
+  const opp1 = findCard(c => isSigni(c) && ![source, own1, own2].includes(c.CardNum));
+  const opp2 = findCard(c => isSigni(c) && ![source, own1, own2, opp1].includes(c.CardNum));
+  const opp3 = findCard(c => isSigni(c) && ![source, own1, own2, opp1, opp2].includes(c.CardNum));
+  const ctx = mkCtx({ signi: [source, own1, own2] }, { signi: [opp1, opp2, opp3] }, source);
+  const result = run(batch242Effect(source, 'WD14-011-E2', false).action, ctx);
+  eq(result.ownerState.field.signi.flatMap(stack => stack ?? []).join(','), source,
+    '自分の「他の」シグニ2体だけをトラッシュに置く');
+  ok(result.ownerState.trash.includes(own1) && result.ownerState.trash.includes(own2),
+    '直前ステップが lastProcessedCards を2枚残していない');
+  eq(result.otherState.field.signi.filter(Boolean).length, 1,
+    '🔴{$ref:last_processed_count} が2枚として消費されていない');
+}));
+
+test('第242 engine WXDi-P14-060-E1: 公開して固定したその手札だけを任意発動後に捨てさせる', () => withSavedCursor(() => {
+  const hand1 = findCard(c => c.Type === 'スペル');
+  const hand2 = findCard(c => c.Type === 'スペル' && c.CardNum !== hand1);
+  const ctx = mkCtx({}, {}, 'WXDi-P14-060');
+  ctx.otherState.hand = [hand1, hand2];
+  const offered = executeEffect(batch242Effect('WXDi-P14-060', 'WXDi-P14-060-E1', false), ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '公開後に「捨てさせる／発動しない」の選択を出す');
+  const revealed = offered.lastProcessedCards?.[0];
+  ok(!!revealed && offered.storedTargetCards?.includes(revealed), '公開したカードを STORE していない');
+  const result = finish(resumeChoose('pay', offered.pending as never, execCtxFrom(offered, ctx)), ctx);
+  ok(!result.otherState.hand.includes(revealed!), '🔴公開したそのカードを捨てていない');
+  const bystander = revealed === hand1 ? hand2 : hand1;
+  ok(result.otherState.hand.includes(bystander), '公開していない別の手札を捨てている');
+}));
+
+test('第242 engine WXDi-P11-076-E1: 追加エクシードを断っても無条件のトラッシュ→エナは実行する', () => withSavedCursor(() => {
+  const lrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('緑'));
+  const signi = findCard(c => isSigni(c) && (c.Color ?? '').includes('緑'));
+  const ctx = mkCtx({}, {}, 'WXDi-P11-076');
+  ctx.ownerState.field.lrig = [lrig];
+  ctx.ownerState.trash = [signi];
+  ctx.ownerState.energy = [];
+  ctx.ownerState.hand = [];
+  ctx.ownerState.lrig_trash = [];
+  const offered = executeEffect(batch242Effect('WXDi-P11-076', 'WXDi-P11-076-E1', false), ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '追加エクシード7の任意支払いを提示する');
+  const skipped = resumeOptionalCost('skip', [], offered.pending as never, execCtxFrom(offered, ctx));
+  const result = finish(skipped, ctx);
+  ok(result.ownerState.energy.includes(signi), '🔴skip が外側SEQUENCEまで捨て、無条件のエナ移動が消えている');
+  ok(!result.ownerState.trash.includes(signi), 'エナへ置いたシグニがトラッシュに残っている');
+  eq(result.ownerState.hand.length, 0, '追加エクシード未払いなのにエナから手札へ加えている');
 }));
 
 if (listMode) {
