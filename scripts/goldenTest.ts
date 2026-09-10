@@ -74948,6 +74948,91 @@ test('O-287 engine: 共通クラスを持つ2枚だけが選べる（反転つ�
   }
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-324`（2026-09-10）＝「それぞれ共通するクラスを持たない」の配線。
+// 🔴🔑**登録時 12効果 → 着手時の実測は 3効果**。残り9は既に配線済みだった：
+//   ①`SelectionConstraint.distinct:'class'` 済み 4件（`WX25-P1-090-E2`／`-096-E1`／`-097-E1`／`WXDi-P04-028-E3`）
+//   ②別名の受け皿 `FIELD_SIGNI_ALL_DISTINCT_CLASS` 済み 3件（`SPDi44-04-E1`／`WX25-P1-026-E1`／`WX25-P1-088-E1`）
+//   ③`LAST_PROCESSED_MATCHES.shareClass` 済み 1件（`WXDi-D01-004-E2`）
+//   ④`WX25-P1-041-E1` は**参照カード基準**＝軸が違う（`O-325`）
+// 🔑**「受け皿が無い」と登録した項目こそ、着手時に別名で grep し直す。**
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('O-324: 「それぞれ共通するクラスを持たない」が live で受け皿に載っている（全数）', () => {
+  // 受け皿は4つある（選択制約／場の条件／直前処理の照合／コスト側）＝**どれか1つに載っていればよい**。
+  // ⚠**別名を全部知らないと「配線されていない」を過大に出す**（CLAUDE.md の census:population の罠）。
+  const RECEIVERS = ['"distinct":"class"', 'FIELD_SIGNI_ALL_DISTINCT_CLASS', '"shareClass":true', 'distinctClasses'];
+  const EXPECTED_UNWIRED = [
+    'WX25-P1-041-E1',   // 参照カード基準（「そのシグニと共通するクラスを持たない」）＝§5.3 `O-325`
+  ];
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const unwired: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const t = srcText[e.effectId] ?? '';
+      if (!/共通するクラスを持たない/.test(t)) continue;
+      const j = JSON.stringify(e);
+      if (!RECEIVERS.some(k => j.includes(k))) unwired.push(e.effectId);
+    }
+  }
+  eq(unwired.sort().join(','), [...EXPECTED_UNWIRED].sort().join(','),
+     '🔴「共通するクラスを持たない」を原文に持つ効果で受け皿に載っていないもの（増えたら配線漏れ）');
+});
+
+test('O-324: 場の条件（FIELD_SIGNI_ALL_DISTINCT_CLASS）が発動ゲートとして載る（WX25-P1-092-E1）', () => {
+  // 🔴この条件が丸ごと落ちていた＝場のクラスが被っていても毎アタックフェイズ
+  //   「レベル1につき《緑》を払ってバニッシュ」が提示されていた（無条件発火）。
+  // ✅受け皿は実在（`effectEngine.ts:141` / `execUtils.ts:3308`）＝**parser だけが語彙を知らなかった**。
+  //   同型3効果は既に MANUAL でこの条件を持っており、`LEADING_STATE_CLAUSES` に1行足して揃えた。
+  const e = findEffectDeep(effectsMap.get('WX25-P1-092') ?? [], 'WX25-P1-092-E1');
+  ok(!!e, 'WX25-P1-092-E1 が live にある'); if (!e) return;
+  const j = JSON.stringify(e);
+  ok(j.includes('FIELD_SIGNI_ALL_DISTINCT_CLASS'), '🔴場の異クラス条件が落ちている');
+  // ⚠**残件（意図的に未達）**＝条件が包んでいるのは任意コストのステップまでで、
+  //   その前の `SELECT_TARGET_ONLY` は条件の外に残っている＝**条件不成立でも対象選択のプロンプトが出る**。
+  //   盤面は動かない（`PAID_ADDITIONAL_COST` が偽になるので BANISH は起きない）ので過剰実行ではない。
+  //   🔴**巻き取り位置を直そうとして `LEADING_STATE_CLAUSES` の前置き許可リストへ
+  //   「あなたのアタックフェイズ開始時」を足す案を A/B で試したが、この効果は変わらず
+  //   `WXK09-046-E1`（「**次の**あなたのアタックフェイズ開始時、…ある場合」＝遅延誘発）だけが
+  //   perturb した**＝効果ゼロ・副作用ありなので撤回した。ここは据置。
+  const steps = (e.action as SequenceAction).steps as { type: string; id?: string }[];
+  eq(steps[0]?.id, 'SELECT_TARGET_ONLY', '（残件）対象選択は条件の外に残っている＝直したら この assert を更新する');
+});
+
+test('O-324: エナから好きな枚数を手札へ戻す2効果に「互いに異クラス」制約が載る（MANUAL）', () => {
+  // 🔴原文「エナゾーンからシグニを**好きな枚数**対象とし、**それらがそれぞれ共通するクラスを持たない場合**、
+  //   それらを手札に加える」＝制約が無いと**エナ全部を無条件で回収**できる（`count:'ALL'` なので上限も無い）。
+  // ⚠**どちらも `parseStatus:'MANUAL'`**＝収穫マージが不可侵にするので `manualEffects.ts` を手で直した。
+  for (const [num, eid] of [
+    ['SPDi44-04', 'SPDi44-04-E2'], ['WX25-P1-026', 'WX25-P1-026-E2'],
+  ] as const) {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    ok(j.includes('"selectionConstraint":{"distinct":"class"}'), `🔴${eid}: 互いに異クラスの制約が落ちている`);
+  }
+  // engine 側が実際に効くこと（反転つき）＝制約が宣言だけにならないための本体 assert
+  const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').trim() !== '');
+  const byClass = new Map<string, string[]>();
+  for (const c of signi) {
+    for (const cls of (c.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean)) {
+      const arr = byClass.get(cls) ?? [];
+      if (arr.length < 4) arr.push(c.CardNum);
+      byClass.set(cls, arr);
+    }
+  }
+  const same = [...byClass.values()].find(v => v.length >= 2)!;
+  ok(!satisfiesSelectionConstraint([same[0], same[1]], { distinct: 'class' }, cardMap),
+     '🔴反転: 同じクラスを共有する2枚は選べない');
+  const other = signi.find(c => {
+    const mine = new Set((cardMap.get(same[0])?.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean));
+    const theirs = (c.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean);
+    return theirs.length > 0 && !theirs.some(x => mine.has(x));
+  })!;
+  ok(satisfiesSelectionConstraint([same[0], other.CardNum], { distinct: 'class' }, cardMap),
+     'クラスを共有しない2枚は選べる');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

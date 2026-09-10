@@ -4258,6 +4258,14 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     //   **否定形**（場の全シグニが互いに異クラス）なので流用してはいけない（§5-5e）。
     [/(あなた|対戦相手)の場に([白赤青緑黒])のシグニが([０-９\d]+)体あり、それらが共通するクラスを持つ場合/,
       g => ({ type: 'FIELD_SIGNI_SHARE_CLASS', owner: g[0] === 'あなた' ? 'self' : 'opponent', color: g[1], count: parseNum(g[2]) })],
+    // 🆕**§5.3 `O-324`（2026-09-10）＝「〈誰か〉の場にあるすべてのシグニがそれぞれ共通するクラスを持たない場合」**。
+    // 🔴**この条件が落ちると発動が無条件になる**＝`WX25-P1-092-E1` は場のクラスが被っていても
+    //   「レベル1につき《緑》を払ってバニッシュ」が毎アタックフェイズ提示されていた。
+    // ✅**受け皿は実在**＝`FIELD_SIGNI_ALL_DISTINCT_CLASS`（`effectEngine.ts:141` / `execUtils.ts:3308`）。
+    //   同型3効果（`SPDi44-04-E1`／`WX25-P1-026-E1`／`WX25-P1-088-E1`）は既に MANUAL でこの条件を持っており、
+    //   **parser だけが語彙を知らなかった**。⚠上の `FIELD_SIGNI_SHARE_CLASS` は**肯定形**で別物（§5-5e）。
+    [/(あなた|対戦相手)の場にあるすべてのシグニがそれぞれ共通するクラスを持たない場合/,
+      g => ({ type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS', owner: g[0] === 'あなた' ? 'self' : 'opponent' })],
     [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
     [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
     [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
