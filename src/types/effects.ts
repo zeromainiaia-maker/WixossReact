@@ -1414,6 +1414,8 @@ export interface TargetFilter {
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
   levelEqDeclaredNumber?: boolean; // レベルがこの効果で宣言した数と一致
+  /** 効果元シグニの下にあるシグニのいずれかと同じレベル。効果元不在／該当札なしは空ヒット。 */
+  levelMatchesUnderSourceSigni?: boolean;
   // カード名がこの効果で宣言したカード名と完全一致（「その中から宣言したカード１枚を手札に加え」WX11-037／WX13-054）。
   // resolveDynamicFilter が declared_card_name を cardNames（完全一致）へ解決する。未宣言なら空ヒット
   // （＝宣言していないのにどのカードでも拾える過剰実行を避ける）。
@@ -2535,6 +2537,8 @@ export interface AddToFieldAction {
 export interface FreezeAction {
   type: 'FREEZE'; // 凍結付与
   target: EffectTarget;
+  /** true＝センターを除く左右アシストルリグだけを対象候補にする。 */
+  assistLrigOnly?: boolean;
   down?: boolean; // true=「ダウンし凍結」：同一対象をダウンも行う。省略時は凍結のみ（現在のアップ/ダウン状態は変えない）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それを凍結する」。タスク12(lxiv)）
   /**
@@ -5261,6 +5265,8 @@ export interface StubAction {
   autoPayGateColors?: string[];
   /** `LRIG_GAIN_OPP_ACTIVATE_COST_UP`＝対戦相手のカードの【起】能力の使用コストが《無×N》増える。 */
   oppActivateCostPlus?: number;
+  /** 同コスト増加を次の対戦相手ターン終了時まで保持する。 */
+  oppActivateCostUntilOppTurnEnd?: boolean;
   gainedLrigType?: string;
   /**
    * ── 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family** ──
@@ -5330,6 +5336,8 @@ export interface StubAction {
    *   engine がブロック全文を読み直すしかなかった。⇒ **効果単位の後処理**で `owner` を刻む。
    */
   repositionAll?: boolean;
+  /** SIGNI_REPOSITION: moving the already-declared target is optional. */
+  repositionOptional?: boolean;
   /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。

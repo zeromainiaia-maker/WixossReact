@@ -269,6 +269,20 @@ export function execStubPart1(
         ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: sourcePower / 2 } }
         : rest;
     }
+    if (selectFilter?.levelMatchesUnderSourceSigni) {
+      const { levelMatchesUnderSourceSigni: _under, ...rest } = selectFilter;
+      const host = ctx.sourceCardNum
+        ? ctx.ownerState.field.signi.find(stack => stack?.includes(ctx.sourceCardNum!))
+        : undefined;
+      const levels = [...new Set((host?.slice(0, -1) ?? [])
+        .map(cn => ctx.cardMap.get(getCardNum(cn)))
+        .filter(card => card?.Type === 'シグニ')
+        .map(card => parseInt(card?.Level ?? '', 10))
+        .filter(Number.isFinite))];
+      selectFilter = levels.length > 0
+        ? { ...rest, anyOf: levels.map(level => ({ level })) }
+        : { ...rest, cardNum: '__dynamic_filter_reference_unavailable__' };
+    }
     // ⚠センタールリグだけを候補にする（`GRANT_KEYWORD` の同型分岐と同じ近似＝アシストは対象外）。
     const lrigTopSTO = state.field.lrig.at(-1);
     // 🔑`owner:'any'`（修飾語なし「シグニ１体を対象とし」）は `ownerState` が**相手側へ潰す**ので、
@@ -1503,7 +1517,9 @@ export function execStubPart1(
   if (stub.id === 'LRIG_GAIN_OPP_ACTIVATE_COST_UP') {
     const nLG = stub.oppActivateCostPlus;
     if (!nLG) return done(addLog(ctx, '[未実装] 相手【起】能力コスト増加（payload なし）'));
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_opp_act_cost_plus: (ctx.ownerState.lrig_opp_act_cost_plus ?? 0) + nLG } },
+    const keyLG = stub.oppActivateCostUntilOppTurnEnd
+      ? 'lrig_opp_act_cost_plus_until_opp_turn' : 'lrig_opp_act_cost_plus';
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, [keyLG]: (ctx.ownerState[keyLG] ?? 0) + nLG } },
       `相手起動能力コスト《無×${nLG}》増加`));
   }
   // LRIG_GAIN_ATTACK_PHASE_POWER_DOWN: アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ1体につき－Nする

@@ -25,7 +25,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -356,9 +356,13 @@ function findEffectDeep(effects: readonly CardEffect[], effectId: string): CardE
   //   （`WXK01-038-E1`＝「乗る」＋「能力を得る」の2文）だと、abilities だけを辿る旧実装では見つからなかった。
   const findInAction = (action: unknown, id: string): CardEffect | undefined => {
     if (!action || typeof action !== 'object') return undefined;
-    const a = action as { abilities?: CardEffect[]; steps?: unknown[]; then?: unknown; else?: unknown };
+    const a = action as { abilities?: CardEffect[]; effect?: CardEffect; steps?: unknown[]; then?: unknown; else?: unknown };
     if (Array.isArray(a.abilities)) {
       const hit = findEffectDeep(a.abilities, id);
+      if (hit) return hit;
+    }
+    if (a.effect) {
+      const hit = findEffectDeep([a.effect], id);
       if (hit) return hit;
     }
     for (const sub of [...(a.steps ?? []), a.then, a.else]) {
@@ -4498,10 +4502,13 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
   // (a) 期間句で割れた照応＝「…配置してもよい。**ターン終了時まで、それの**パワーを－3000する」。
   //     旧: owner:'self' + targetsTriggerSource ＝**自分のシグニのパワーが下がる**。
   {
-    const pm = steps(act('WXDi-CP02-095'))[1] as { type?: string; target?: Record<string, unknown>; targetsTriggerSource?: boolean };
-    eq(pm.type, 'POWER_MODIFY', 'WXDi-CP02-095-E1 末尾は POWER_MODIFY');
+    const pm = steps(act('WXDi-CP02-095')).find(s => s.type === 'POWER_MODIFY') as
+      { type?: string; target?: Record<string, unknown>; targetsTriggerSource?: boolean; targetsStored?: boolean } | undefined;
+    ok(!!pm, 'WXDi-CP02-095-E1 に POWER_MODIFY がある'); if (!pm) return;
+    eq(pm.type, 'POWER_MODIFY', 'WXDi-CP02-095-E1 に POWER_MODIFY がある');
     eq((pm.target as { owner?: string }).owner, 'opponent', 'WXDi-CP02-095-E1 「それ」＝対象化した相手シグニ');
     eq(pm.targetsTriggerSource ?? false, false, 'WXDi-CP02-095-E1 トリガー元フラグは撤去される');
+    eq(pm.targetsStored, true, 'WXDi-CP02-095-E1 配置選択を跨いでも宣言対象を固定');
   }
   // (b) 結果句で割れた照応＝「…場合、追加でそれをトラッシュに置く」（旧 owner:'any'＝自シグニも対象）。
   {
@@ -26143,8 +26150,10 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   //   従来は回避句ごと落ちて**ダウンしたら無条件でライフクラッシュ**していた。
   //   ⚠`opponentHandDiscard`＋`opponentHandDiscardFilter{hasGuard}` を持つ＝回避枝あり側なので、
   //   下の安全弁（回避枝なし＝0）は不変。
-  eq(stubs.length, 80, 'OPPONENT_PAY_OPTIONAL の live 出現数');
-  eq(withCost.length, 41, 'エナコストを持つ（＝pay 枝が出る）STUB');  // 40→41＝続き508 の `WXDi-P16-062-E1`（《無》×1）
+  // 81/42/39＝2026-09-10 第246バッチ。`WXDi-CP01-006-E3` の付与能力に
+  //   《無》×4 or ガード持ち1枚の回避枝を復元。cost あり側のみ+1で安全弁は不変。
+  eq(stubs.length, 81, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 42, 'エナコストを持つ（＝pay 枝が出る）STUB');
   eq(noCost.length, 39, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
@@ -65702,17 +65711,9 @@ test('§5.3 O-60 第52: WXDi-P16-047-E2 は「対戦相手の」リミットを�
   ok(!!mod, 'typed LRIG_LIMIT_MODIFY がある'); if (!mod) return;
   eq(mod.owner, 'opponent', '原文「**対戦相手の**センタールリグのリミットを－１する」');
   eq(mod.delta, -1, '－1');
-  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）で `NEXT_TURN` → `END_OF_TURN` へ更新**（契約の変更）。
-  //   🔴原文の「次の」には2つの意味がある＝「次の〜**の間**」＝**その時から**効く窓（`NEXT_TURN`＝
-  //     `pending_lrig_limit_mod`＝次のメインフェイズから適用）／
-  //     「次の〜**終了時まで**」＝**いま**効き始めてそこまで続く期間。
-  //   旧実装は「`次の` を含む」だけで `NEXT_TURN` に倒しており、後者の3効果
-  //     （`WXDi-P05-025-E2` ほか）が**払ったターンには1も効かなかった**。
-  //   ⚠**この効果自体は `NEXT_TURN` でもほぼ同じ盤面になる**（相手のリミットが効くのは相手のメイン
-  //     フェイズだけ）が、**判定規則を1本に揃える**ために同じ扱いにした。
-  //   ⚠**正確な期間（相手の次のメインフェイズ終了時まで）を表す語彙は `until` に無い**＝
-  //     `END_OF_TURN`（相手のターン終了時にリセット）へ倒している。`PERMANENT` でないことが要点。
-  eq(mod.until, 'END_OF_TURN', '「次の対戦相手のメインフェイズ終了時まで」＝いま効き始めて恒久ではない');
+  // 第246で原文の適用窓を再確認。リミットは相手のメインフェイズで初めて参照されるため、
+  // `pending_lrig_limit_mod` へ積み、次の相手メイン開始で適用する `NEXT_TURN` が正確。
+  eq(mod.until, 'NEXT_TURN', '「次の対戦相手のメインフェイズ終了時まで」は pending 予約');
 });
 
 test('§5.3 O-60 第52: エナしきい値は2ハンドラで別々の値が届く（旧は既定 5 と 3 で食い違っていた）', () => {
@@ -74458,6 +74459,167 @@ test('第245 通し WXDi-P05-035-E1: 公開→任意コストの連結でレベ�
   };
   eq(payOptionCost([lv1a, lv1b, lv4, lv4, lv4]), 4, '🔴レベル1を2枚公開したのに《無》が6枠のまま（公開札が lastProcessedCards に残っていない疑い）');
   eq(payOptionCost([lv4, lv4, lv4, lv4, lv4]), 6, 'レベル1が無ければ減額しない');
+}));
+
+// ── 第246バッチ：一点物20効果。各 effectId を独立テスト名にし、fresh/live の核 payload を対で固定する。──
+const batch246Contracts = [
+  ['WXDi-P11-002', 'WXDi-P11-002-E1', ['"effectId":"WXDi-P11-002-sub-E1"', '"noRepeat":true', '"type":"ENERGY_CARD","owner":"self","count":2']],
+  ['WXDi-P11-062', 'WXDi-P11-062-E1', ['"type":"SEQUENCE"', '"id":"PREVENT_POWER_MINUS_BY_OPP"']],
+  ['WXDi-P11-080', 'WXDi-P11-080-E1', ['"type":"TAKE_FROM_UNDER_SIGNI"', '"count":"ALL"', '"deltaPerLastProcessedCount":true', '"targetsStored":true']],
+  ['WXDi-P12-007', 'WXDi-P12-007-E1', ['"id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self"', '"targetsStored":true']],
+  ['WXDi-P12-009', 'WXDi-P12-009-E1', ['"type":"ALL_FIELD_SIGNI_MATCH"', '"id":"STORE_LAST_PROCESSED_TARGETS"', '"type":"PAID_ADDITIONAL_COST"', '"targetsStored":true']],
+  ['WXDi-P12-068', 'WXDi-P12-068-E1', ['"levelMatchesUnderSourceSigni":true', '"id":"STORE_LAST_PROCESSED_TARGETS"', '"targetsStored":true']],
+  ['WXDi-P14-001', 'WXDi-P14-001-E1', ['"id":"GAIN_SIGNI_BARRIER"']],
+  ['WXDi-P14-031', 'WXDi-P14-031-E1', ['"type":"INSTALL_DELAYED_TRIGGER"', '"once":true', '"levelEqDeclaredNumber":true', '"isTriggerSource":true']],
+  ['WXDi-P14-040', 'WXDi-P14-040-E2', ['"type":"FREEZE"', '"type":"LRIG"', '"assistLrigOnly":true']],
+  ['WXDi-P14-083', 'WXDi-P14-083-E1', ['"id":"SELECT_TARGET_ONLY"', '"powerRange":{"max":5000}', '"id":"OPTIONAL_DISCARD_HAND_CLASS"', '"targetsStored":true']],
+  ['WXDi-P14-088', 'WXDi-P14-088-E1', ['"id":"SELECT_TARGET_ONLY"', '"story":"電音部"', '"id":"OPTIONAL_TRASH_ENERGY_CLASS"', '"targetsStored":true']],
+  ['WXDi-P15-033', 'WXDi-P15-033-E2', ['"oppActivateCostUntilOppTurnEnd":true', '"duration":"UNTIL_OPP_TURN_END"']],
+  ['WXDi-P16-047', 'WXDi-P16-047-E2', ['"type":"PAID_ADDITIONAL_COST"', '"type":"LRIG_LIMIT_MODIFY"', '"until":"NEXT_TURN"']],
+  ['WXDi-P16-049', 'WXDi-P16-049-E1', ['"condition":{"type":"LIFE_COUNT","owner":"self","operator":"gte","value":3}', '"condition":{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2}']],
+  ['WXDi-P16-052', 'WXDi-P16-052-E2', ['"fieldDown":{"count":1', '"excludeSelf":true']],
+  ['WXDi-CP01-006', 'WXDi-CP01-006-E3', ['"id":"OPPONENT_PAY_OPTIONAL"', '"opponentHandDiscard":1', '"hasGuard":true', '"type":"LIFE_CRASH"']],
+  ['WXDi-CP01-029', 'WXDi-CP01-029-E2', ['"type":"PAID_ADDITIONAL_COST"', '"owner":"opponent"', '"owner":"self"', '"thisCardOnly":true']],
+  ['WXDi-CP02-059', 'WXDi-CP02-059-E1', ['"type":"INSTALL_DELAYED_TRIGGER"', '"timing":"ON_LRIG_ATTACK_STEP_START"', '"once":true']],
+  ['WXDi-CP02-078', 'WXDi-CP02-078-E1-GRANT', ['"id":"SELECT_TARGET_ONLY"', '"id":"OPTIONAL_COST"', '"targetsStored":true']],
+  ['WXDi-CP02-095', 'WXDi-CP02-095-E1', ['"id":"SIGNI_REPOSITION"', '"repositionOptional":true', '"targetsStored":true']],
+] as const;
+for (const [cardNum, effectId, must] of batch246Contracts) {
+  test(`第246 採用契約 ${effectId}: 核payloadを fresh/live に保持`, () => {
+    for (const freshParse of [true, false]) {
+      const pool = freshParse
+        ? mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!))
+        : (effectsMap.get(cardNum) ?? []);
+      const effect = findEffectDeep(pool, effectId);
+      if (!effect) throw new Error(`${effectId}: ${freshParse ? 'fresh' : 'live'} effect missing`);
+      const json = JSON.stringify(effect);
+      for (const fragment of must) ok(json.includes(fragment), `${effectId} ${freshParse ? 'fresh' : 'live'}: ${fragment}`);
+    }
+  });
+}
+
+test('第246 engine WXDi-P11-062-E1: 条件成立時は+3000と相手パワーマイナス耐性を同時収集', () => withSavedCursor(() => {
+  const spellA = findCard(c => c.Type === 'スペル');
+  const spellB = findCard(c => c.Type === 'スペル' && c.CardNum !== spellA);
+  const active = mkState({ signi: ['WXDi-P11-062', null, null] });
+  active.trash = [spellA, spellB];
+  ok(collectPowerProtectedSigni(active, cardMap, effectsMap, mkState({}), true).includes('WXDi-P11-062'),
+    'スペル2枚なら複合常在内の保護STUBを拾う');
+  const inactive = { ...active, trash: [spellA] } as PlayerState;
+  ok(!collectPowerProtectedSigni(inactive, cardMap, effectsMap, mkState({}), true).includes('WXDi-P11-062'),
+    '反転: スペル1枚では保護しない');
+}));
+
+test('第246 engine WXDi-P12-068-E1: 効果元の下のシグニと同レベルだけをコスト前に対象化', () => withSavedCursor(() => {
+  const effect = findEffectDeep(effectsMap.get('WXDi-P12-068') ?? [], 'WXDi-P12-068-E1')!;
+  const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, 'WXDi-P12-068');
+  ctx.ownerState.field.signi = [[SIGNI_L2, 'WXDi-P12-068'], null, null];
+  const offered = executeAction(effect.action, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象選択をコストより先に提示');
+  eq(JSON.stringify(!offered.done ? offered.pending.candidates : []), JSON.stringify([SIGNI_L2]), '下のシグニと同じレベル2だけ');
+  const empty = { ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: [['WXDi-P12-068'], null, null] } } } as ExecCtx;
+  ok(executeAction(effect.action, empty).done, '反転: 下にシグニが無ければ対象を取れず終了');
+}));
+
+test('第246 engine WXDi-P14-031-E1: 宣言レベルを遅延設置時に焼き込み、次の該当アタックだけ発火', () => withSavedCursor(() => {
+  const install: EffectAction = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+    trigger: { timing: 'ON_ATTACK_SIGNI', attackerOwner: 'opponent', attackerFilter: { cardType: 'シグニ', levelEqDeclaredNumber: true } },
+    effect: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { isTriggerSource: true } } } };
+  const ctx = mkCtx({}, {});
+  ctx.ownerState = { ...ctx.ownerState, declared_number: 2 };
+  const armed = run(install, ctx).ownerState;
+  const frozen = armed.delayed_triggers?.[0]?.trigger.attackerFilter;
+  eq(JSON.stringify(frozen), JSON.stringify({ cardType: 'シグニ', level: 2 }), '宣言値2を具体レベルへ焼き込む');
+  eq(collectSigniAttackDelayedTriggers(trigCtx(GUEST, HOST), HOST, armed, SIGNI_L2).length, 1, 'レベル2で発火');
+  eq(collectSigniAttackDelayedTriggers(trigCtx(GUEST, HOST), HOST, armed, SIGNI_L1).length, 0, '反転: レベル1では発火しない');
+}));
+
+test('第246 engine WXDi-P14-040-E2: センターを除く相手アシストルリグだけを凍結', () => withSavedCursor(() => {
+  const lrigA = findCard(c => c.Type === 'ルリグ');
+  const lrigB = findCard(c => c.Type === 'ルリグ' && c.CardNum !== lrigA);
+  const effect = findEffectDeep(effectsMap.get('WXDi-P14-040') ?? [], 'WXDi-P14-040-E2')!;
+  const hit = run(effect.action, mkCtx({}, { lrig: [lrigA], assistL: [lrigB] }, 'WXDi-P14-040'));
+  eq(hit.otherState.field.assist_lrig_l_frozen, true, 'アシストを凍結');
+  ok(!hit.otherState.field.lrig_frozen, 'センターは候補外');
+  const miss = run(effect.action, mkCtx({}, { lrig: [lrigA] }, 'WXDi-P14-040'));
+  ok(!miss.otherState.field.lrig_frozen, '反転: センターしかいなければ何もしない');
+}));
+
+test('第246 engine WXDi-P15-033-E2: 起動コスト増加は次の相手ターン終了境界でだけ消える', () => withSavedCursor(() => {
+  const effect = findEffectDeep(effectsMap.get('WXDi-P15-033') ?? [], 'WXDi-P15-033-E2')!;
+  const armed = run(effect.action, mkCtx({}, {}, 'WXDi-P15-033')).ownerState;
+  eq(collectIncreaseActCost(armed, true, new Map()), 1, '期限内は《無×1》増加');
+  eq(collectIncreaseActCost(clearUntilOppTurnEffects(armed), true, new Map()), 0, '反転: 次の相手ターン終了で解除');
+}));
+
+test('第246 engine WXDi-P14-083-E1: 対象不在では捨てず、対象ありでは同じ対象だけをバニッシュ', () => withSavedCursor(() => {
+  const denon = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('電音部'));
+  const weak = findCard(c => c.Type === 'シグニ' && parseInt(c.Power ?? '0', 10) <= 5000);
+  const effect = findEffectDeep(effectsMap.get('WXDi-P14-083') ?? [], 'WXDi-P14-083-E1')!;
+  const hitCtx = mkCtx({}, { signi: [weak, null, null] }, 'WXDi-P14-083');
+  hitCtx.ownerState = { ...hitCtx.ownerState, hand: [denon], trash: [] };
+  const hit = run(effect.action, hitCtx);
+  ok(hit.ownerState.trash.includes(denon), '対象宣言後に＜電音部＞を捨てる');
+  ok(!hit.otherState.field.signi.some(s => s?.at(-1) === weak), '宣言した対象をバニッシュ');
+  const missCtx = mkCtx({}, {}, 'WXDi-P14-083');
+  missCtx.ownerState = { ...missCtx.ownerState, hand: [denon], trash: [] };
+  const miss = run(effect.action, missCtx);
+  eq(miss.ownerState.hand.length, 1, '反転: 対象不在ならコストを払わない');
+}));
+
+test('第246 engine WXDi-P11-080-E1: 実際に下から捨てた枚数×3000を事前確定した対象だけに反映', () => withSavedCursor(() => {
+  const under = [fresh(), fresh()];
+  const victim = findCard(c => c.Type === 'シグニ');
+  const effect = findEffectDeep(effectsMap.get('WXDi-P11-080') ?? [], 'WXDi-P11-080-E1')!;
+  const ctx = mkCtx({}, { signi: [victim, null, null] }, 'WXDi-P11-080');
+  ctx.ownerState.field.signi = [[...under, 'WXDi-P11-080'], null, null];
+  const trashBefore = ctx.ownerState.trash.length;
+  const hit = run(effect.action, ctx);
+  eq(hit.ownerState.trash.length, trashBefore + under.length, '下の2枚を実際にトラッシュ');
+  ok((hit.otherState.temp_power_mods ?? []).some(m => m.cardNum === victim && m.delta === -6000),
+    '実処理枚数2枚×-3000を宣言対象へ適用');
+  const empty = mkCtx({}, { signi: [victim, null, null] }, 'WXDi-P11-080');
+  empty.ownerState.field.signi = [['WXDi-P11-080'], null, null];
+  const miss = run(effect.action, empty);
+  ok(!(miss.otherState.temp_power_mods ?? []).some(m => m.cardNum === victim && m.delta !== 0),
+    '反転: 下のカードが0枚ならパワーを減らさない');
+}));
+
+test('第246 engine WXDi-P14-088-E1: 付与対象を先に固定し、＜電音部＞3枚を払えた場合だけランサーを付与', () => withSavedCursor(() => {
+  const denon = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('電音部')).slice(0, 4).map(c => c.CardNum);
+  ok(denon.length >= 4, `電音部4種以上(${denon.length})`);
+  const effect = findEffectDeep(effectsMap.get('WXDi-P14-088') ?? [], 'WXDi-P14-088-E1')!;
+  const hitCtx = mkCtx({ signi: [denon[0], null, null] }, {}, 'WXDi-P14-088');
+  hitCtx.ownerState.energy = denon.slice(1, 4);
+  const hit = run(effect.action, hitCtx);
+  eq(hit.ownerState.energy.length, 0, '＜電音部＞3枚をトラッシュ');
+  ok((hit.ownerState.keyword_grants?.[denon[0]] ?? []).includes('ランサー'), '事前確定した対象へ付与');
+  const missCtx = mkCtx({}, {}, 'WXDi-P14-088');
+  missCtx.ownerState.energy = denon.slice(1, 4);
+  const miss = run(effect.action, missCtx);
+  eq(miss.ownerState.energy.length, 3, '反転: 対象不在ではエナを払わない');
+}));
+
+test('第246 engine WXDi-P16-047-E2: 任意コスト支払い時だけ次の相手メインフェイズ用リミット減を予約', () => withSavedCursor(() => {
+  const white = findCard(c => (c.Color ?? '').includes('白'));
+  const colorless = findCard(c => (c.Color ?? '').includes('無'));
+  const effect = findEffectDeep(effectsMap.get('WXDi-P16-047') ?? [], 'WXDi-P16-047-E2')!;
+  const paidCtx = mkCtx({}, {}, 'WXDi-P16-047');
+  paidCtx.ownerState.energy = [white, colorless, colorless];
+  const paid = run(effect.action, paidCtx);
+  eq(paid.otherState.pending_lrig_limit_mod, -1, '支払い後は相手側の次メイン用予約に-1');
+  const unpaid = run(effect.action, mkCtx({}, {}, 'WXDi-P16-047'));
+  eq(unpaid.otherState.pending_lrig_limit_mod, undefined, '反転: 払えなければ予約しない');
+}));
+
+test('第246 engine WXDi-CP02-095-E1: 配置先選択を跨いでも宣言対象へ-3000を固定', () => withSavedCursor(() => {
+  const target = findCard(c => c.Type === 'シグニ');
+  const other = findCard(c => c.Type === 'シグニ' && c.CardNum !== target);
+  const effect = findEffectDeep(effectsMap.get('WXDi-CP02-095') ?? [], 'WXDi-CP02-095-E1')!;
+  const result = run(effect.action, mkCtx({}, { signi: [target, other, null] }, 'WXDi-CP02-095'));
+  const mods = result.otherState.temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === target && m.delta === -3000), '配置した対象へ-3000');
+  ok(!mods.some(m => m.cardNum === other && m.delta === -3000), '反転: 別の相手シグニへ広がらない');
 }));
 
 if (listMode) {

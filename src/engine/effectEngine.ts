@@ -1381,6 +1381,13 @@ function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
   return [];
 }
 
+/** CONTINUOUS の複合能力に含まれる宣言型 STUB を収集する。 */
+function extractContinuousStubs(action: EffectAction): import('../types/effects').StubAction[] {
+  if (action.type === 'STUB') return [action];
+  if (action.type === 'SEQUENCE') return action.steps.flatMap(extractContinuousStubs);
+  return [];
+}
+
 /**
  * 🆕**CONTINUOUS の `POWER_MODIFY` で `deltaFromZone` を解く**（§5.3 `O-60` 第50バッチ・2026-09-03）。
  *
@@ -2206,11 +2213,11 @@ export function calcFieldPowers(
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
         if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, topNum)) continue;
-        const act = eff.action as import('../types/effects').StubAction;
-        if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
-        if (act.type === 'STUB' && act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtectionSources.add(topNum);
-        const p = act.type === 'STUB' ? act.powerModifyProtection : undefined;
-        if (p) {
+        for (const act of extractContinuousStubs(eff.action)) {
+          if (act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
+          if (act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtectionSources.add(topNum);
+          const p = act.powerModifyProtection;
+          if (!p) continue;
           const targets: Array<[PlayerState, PowerDeltaProtection]> = [];
           if (p.subjectOwner === 'self' || p.subjectOwner === 'any') targets.push([otherState, otherPowerProtection]);
           if (p.subjectOwner === 'opponent' || p.subjectOwner === 'any') targets.push([ownerState, ownerPowerProtection]);
@@ -6607,16 +6614,15 @@ export function collectPowerProtectedSigni(
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
-      const act = eff.action as import('../types/effects').StubAction;
-      if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') {
-        protected_.add(topNum);
-      }
-      // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「〜パワーは－されない」テキスト検出
-      if (act.type === 'STUB' && act.id === 'GRANT_ABILITY_INNER_TEXT') {
-        const card = cardMap.get(topNum);
-        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-        const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
-        if (qm?.[1]?.match(/対戦相手の効果によって.{0,15}パワーは?[－-]/)) protected_.add(topNum);
+      for (const act of extractContinuousStubs(eff.action)) {
+        if (act.id === 'PREVENT_POWER_MINUS_BY_OPP') protected_.add(topNum);
+        // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「〜パワーは－されない」テキスト検出
+        if (act.id === 'GRANT_ABILITY_INNER_TEXT') {
+          const card = cardMap.get(topNum);
+          const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+          const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
+          if (qm?.[1]?.match(/対戦相手の効果によって.{0,15}パワーは?[－-]/)) protected_.add(topNum);
+        }
       }
     }
     // keyword_grants 経由のパワー弱体保護（AUTO/ACTIVATED で付与）
@@ -7729,7 +7735,8 @@ export function collectIncreaseActCost(
     ...activeKeyAbilitySources(opponentState),
   ];
   // lrig_opp_act_cost_plus: GRANT_ABILITY_INNER_TEXT で付与されたコスト増加
-  let extra = opponentState.lrig_opp_act_cost_plus ?? 0;
+  let extra = (opponentState.lrig_opp_act_cost_plus ?? 0)
+    + (opponentState.lrig_opp_act_cost_plus_until_opp_turn ?? 0);
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;

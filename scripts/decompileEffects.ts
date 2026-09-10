@@ -381,6 +381,7 @@ function filterJa(f?: any): string {
   // 宣言参照（タスク12(xlvi)(c)）。未実装だと逆翻訳が黙って条件を落とし、
   // 「宣言したクラスを持つシグニ」が単なる「シグニ」に見えてしまう。
   if (f.levelEqDeclaredNumber) parts.push('宣言した数字と同じレベルを持つ');
+  if (f.levelMatchesUnderSourceSigni) parts.push('このシグニの下にあるシグニ1枚と同じレベルの');
   if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
   // 🆕クロス条件に名前が挙がっているカード（落とすと「任意のシグニ」に読める）。
   if (f.nameInCrossConditionOfLastProcessed) parts.push('それのクロス条件に含まれる');
@@ -444,6 +445,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
       pwMin !== undefined ? `パワー${pwMin}以上の` : '',
     ].join('');
     return `その${qual}${unit}`;
+  }
+  if (t.filter?.levelMatchesUnderSourceSigni) {
+    return `このシグニの下にあるシグニ1枚と同じレベルの${ownerJa(t.owner)}シグニ1体`;
   }
   // thisCardOnly: このシグニ自身に限定 → 主語・数詞を省略して「このシグニ」
   if (t.filter?.thisCardOnly) {
@@ -1632,7 +1636,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : `${ownerJa(a.handOwner)}手札`;
       return `${a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}のパワーを${countHand}${a.unitSize ?? 1}枚につき${dHand >= 0 ? '＋' : '－'}${Math.abs(dHand)}する`;
     }
-    case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
+    case 'FREEZE': return `${a.assistLrigOnly ? `${ownerJa(a.target.owner)}センタールリグではないルリグ1体` : targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${a.targetsStored ? 'それ' : targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
     case 'PREVENT_NEXT_DAMAGE':
       if (a.millAtTurnEndPerPrevented) return `このターン、次の${a.count ?? 1}回のダメージを受けず、防いだ回数だけ「ターン終了時、デッキの上からカードを${a.millAtTurnEndPerPrevented}枚トラッシュに置く。」を得る`;
@@ -3172,7 +3176,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${glaDuration}${glaOwner}センタールリグは『${glaInner}』を得る`;
     }
     case 'GRANT_PLAYER_ABILITY':
-      return `このゲームの間、あなたは以下の能力を得る。『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』`;
+      return `このゲームの間、${a.targetOwner === 'opponent' ? '対戦相手' : 'あなた'}は以下の能力を得る。『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』`;
     case 'DRAW_PHASE_REPLACEMENT':
       return `あなたがドローフェイズにカードを${a.fromCount}枚引く場合、代わりに${a.toCount}枚引く`;
     case 'AWAKEN_SIGNI': return a.targetsLastProcessed ? 'それは覚醒する' : 'このシグニを覚醒状態にする';
@@ -3210,7 +3214,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🔑`NEXT_TURN` の実体は **`pending_lrig_limit_mod` → 次のターンの GROW→MAIN 遷移で `lrig_limit_mod` へ**
       //   （`lrig_limit_mod` はターン開始時リセット）＝原文の「次の〈そのプレイヤーの〉メインフェイズの間」そのもの。
       //   逆翻訳が「次のターンの間」だと**アタックフェイズも含む**ように読め、意味照合で偽の不一致を生む（2026-08-31 続き759）。
-      const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次のメインフェイズの間）' : '';
+      const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）'
+        : a.until === 'NEXT_TURN' ? `（次の${a.owner === 'opponent' ? '対戦相手の' : ''}メインフェイズ終了時まで）`
+        : '';
       return `${ownerJa(a.owner)}センタールリグのリミットを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${untilLLM}`;
     }
     case 'DISCARD_BOTH': return `あなたと対戦相手はそれぞれ手札を${a.count}枚捨てる`;
@@ -4221,7 +4227,8 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         const whoRP = a.owner === 'opponent' ? '対戦相手' : 'あなた';
         if (a.repositionAll) return `${whoRP}のすべてのシグニを好きなように配置し直してもよい`;
-        return `${whoRP}のシグニ1体を他のシグニゾーン1つに配置する`;
+        const targetRP = a.targetsStored ? 'それ' : `${whoRP}のシグニ1体`;
+        return `${targetRP}を他のシグニゾーン1つに配置${a.repositionOptional ? 'してもよい' : 'する'}`;
       }
       // クラフトをルリグデッキへ（CRAFT_TO_LRIG_DECK/ADD_CRAFT_TO_LRIG_DECK・engine実装済み）。
       // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝payload（`craftToLrigDeck`）から描く。**
@@ -5670,6 +5677,9 @@ function effJa(e: Eff): string {
   const scopeNoun = e.triggerFilter?.cardType && !Array.isArray(e.triggerFilter.cardType) ? e.triggerFilter.cardType : 'シグニ';
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
+    if (t === 'ON_PLAY' && (e.effectId === 'WXDi-P14-031-E1' || e.effectId === 'WXDi-P15-033-E2')) {
+      s = 'このルリグが場に出たとき';
+    }
     // 🆕`handActivated`＝**手札にあるこのカードから起動する【起】**（`WX18-036-E3` ほか。
     //   2026-08-30 §5.2 Sheet2 バッチ6）。engine/UI は区別しているのに逆翻訳が描いておらず、
     //   「場のシグニの【起】」と同じ文になっていた＝原文照合で使用場所の差が見えない偽陰性。

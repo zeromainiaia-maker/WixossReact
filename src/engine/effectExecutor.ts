@@ -2980,11 +2980,22 @@ function execInstallDelayedTrigger(
   const fixedAttackers = a.trigger?.attackerFixedFromStored
     ? (ctx.storedTargetCards ?? ctx.lastProcessedCards ?? [])
     : undefined;
+  // 宣言値などの動的フィルタは設置時の state にしか残らないことがある。
+  // 遅延発火側は `matchesFilter` だけを使うため、ここで具体値へ焼き込む。
+  const frozenAttackerFilter = a.trigger?.attackerFilter
+    ? resolveDynamicFilter(a.trigger.attackerFilter, ctx.ownerState, ctx.cardMap, ctx.otherState,
+        ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+        ctx.ownerState, ctx.fieldSigniExtraColors, ctx.allColorSigniNums)
+    : undefined;
   const installed = {
     ...a,
-    ...(fixedAttackers
-      ? { trigger: { ...a.trigger, attackerFixedFromStored: undefined, attackerFixedCardNums: fixedAttackers } }
-      : {}),
+    trigger: {
+      ...a.trigger,
+      ...(frozenAttackerFilter ? { attackerFilter: frozenAttackerFilter } : {}),
+      ...(fixedAttackers
+        ? { attackerFixedFromStored: undefined, attackerFixedCardNums: fixedAttackers }
+        : {}),
+    },
     effect: freezeStoredTargets(a.effect, ctx),
     sourceCardNum: ctx.sourceCardNum,
   };
@@ -3064,6 +3075,20 @@ function resolveDynamicFilter(
     // declared_number（ガード制限を伴わない汎用宣言）を優先し、旧来の DECLARE_NUMBER 保存先へフォールバック。
     const value = declarationState.declared_number ?? declarationState.declared_guard_restrict_level;
     result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
+  }
+  if (result.levelMatchesUnderSourceSigni) {
+    const { levelMatchesUnderSourceSigni: _under, ...rest } = result;
+    const host = sourceCardNum
+      ? ownerSt.field.signi.find(stack => stack?.includes(sourceCardNum))
+      : undefined;
+    const levels = [...new Set((host?.slice(0, -1) ?? [])
+      .map(cn => cardMap.get(getCardNum(cn)))
+      .filter(card => card?.Type === 'シグニ')
+      .map(card => parseInt(card?.Level ?? '', 10))
+      .filter(Number.isFinite))];
+    result = levels.length > 0
+      ? { ...rest, anyOf: levels.map(level => ({ level })) }
+      : noMatch(rest);
   }
   // 宣言参照 filter（タスク12(xlvi)(c)）。⚠未宣言なら noMatch＝「宣言していないのにどのカードでも拾える」
   // 過剰実行を避ける（従来この2語彙が無く、宣言参照の pick は filter ごと落ちて全公開札が候補になっていた）。
@@ -4321,6 +4346,26 @@ function applyFreezeToFieldCard(a: FreezeAction, cardNum: string, own: Owner, ct
 }
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
+  if (a.assistLrigOnly) {
+    const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+    const state = ownerState(tgtOwner, ctx);
+    let cands = [state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)]
+      .filter((num): num is string => !!num);
+    if (tgtOwner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
+      cands = cands.filter(num => !ctx.otherEffectImmuneNums!.has(num));
+    }
+    if (tgtOwner === 'self' && ctx.ownEffectImmuneNums?.size) {
+      cands = cands.filter(num => !ctx.ownEffectImmuneNums!.has(num));
+    }
+    if (cands.length === 0) return done(ctx);
+    if (a.target.count === 'ALL') {
+      let cur = ctx;
+      for (const num of cands) cur = applyFreezeToFieldCard(a, num, tgtOwner, cur);
+      return done({ ...cur, lastProcessedCards: cands });
+    }
+    return selectOrInteract(cands, resolveNum(a.target.count), a.target.upToCount ?? false,
+      tgtOwner === 'self' ? 'self_field' : 'opp_field', a, undefined, ctx);
+  }
   // CENTER_LRIG_OR_SIGNI + ALL: センター／左右アシストの各トップと全シグニを同じ候補集合で解決する。
   // 「すべてのルリグとシグニ」（WXDi-P16-005）は LRIG(センター固定)+SIGNI の2段では
   // アシストが永久に対象外になるため、既存の複合対象型をこの action でも実装する。
@@ -5801,8 +5846,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           let thenOTEC = conditional.then;
           if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
             const wt = thenOTEC as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
-            if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
+              if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
           }
+          // 対象をコスト前に固定した形は、支払いプロンプトを跨ぐ前に個体IDへ焼き込む。
+          thenOTEC = freezeStoredTargets(thenOTEC, cur);
           // トラッシュ枚数＝「(シグニ|カード)N枚をトラッシュ」句の N（取れなければ1）。
           const pickCountOTEC = trashClauseMOTEC?.[2] ? parseInt(toHWOTEC(trashClauseMOTEC[2])) : 1;
           const destOTEC = toHandOTEC ? 'hand' : 'trash';
@@ -5874,7 +5921,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'TRASH',
             target: { type: 'HAND_CARD', owner: 'self', count: pickODHC.count, ...(stub.handCardPick?.filter ? { filter: stub.handCardPick.filter } : {}) },
           } as EffectAction;
-          const payActODHC: EffectAction = { type: 'SEQUENCE', steps: [discardODHC, conditional.then] } as SequenceAction;
+          const payActODHC: EffectAction = {
+            type: 'SEQUENCE', steps: [discardODHC, freezeStoredTargets(conditional.then, cur)],
+          } as SequenceAction;
           const optsODHC = [
             { id: 'pay', label: `手札から${handCardPickLabel(stub.handCardPick)}を捨てて発動`, action: payActODHC, available: true },
             { id: 'skip', label: 'スキップ', action: elseActODHC, available: true },
@@ -6407,7 +6456,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       //   SEQUENCE[SEQUENCE[対象宣言,STORE,ban], GRANT_EFFECT] で、対象宣言の対話に入った瞬間
       //   STORE と ban が落ちて**丸ごと no-op**になっていた。STUB ですらないので計器にも映らない）。
       const innerCont = result.pending.continuation;
-      const chain: EffectAction[] = [...(innerCont ? [innerCont] : []), ...a.steps.slice(i + 1)];
+      // STORE_LAST_PROCESSED_TARGETS の後に別の対話（配置先など）を挟む場合も、
+      // 後続の「それ」を resume 前に個体IDへ焼き込む。
+      const chain: EffectAction[] = [
+        ...(innerCont ? [innerCont] : []),
+        ...a.steps.slice(i + 1).map(next => freezeStoredTargets(next, cur)),
+      ];
       const cont: EffectAction | undefined = chain.length === 0 ? undefined
         : chain.length === 1 ? chain[0]
         : { type: 'SEQUENCE', steps: chain };

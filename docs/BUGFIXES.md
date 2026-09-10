@@ -1,5 +1,70 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — 第246バッチ（未開拓プール3巡目）：20効果修正／1済み／9機構待ち
+
+**投入**＝指定30効果。現行JSON・原文・消費地点を再照合し、既存action/状態の小拡張で閉じる20効果を
+`repairSemanticBatch246` または `manualEffects` から live へ採用した。`PR-K077-sub-E1` は第245で
+`OPTIONAL_COST.handDiscard.filter.levelEqTrigger:true` が既に live 化済みだったため無変更。
+
+### 採用20効果
+`WXDi-P11-002-E1`／`WXDi-P11-062-E1`／`WXDi-P11-080-E1`／`WXDi-P12-007-E1`／
+`WXDi-P12-009-E1`／`WXDi-P12-068-E1`／`WXDi-P14-001-E1`／`WXDi-P14-031-E1`／
+`WXDi-P14-040-E2`／`WXDi-P14-083-E1`／`WXDi-P14-088-E1`／`WXDi-P15-033-E2`／
+`WXDi-P16-047-E2`／`WXDi-P16-049-E1`／`WXDi-P16-052-E2`／`WXDi-CP01-006-E3`／
+`WXDi-CP01-029-E2`／`WXDi-CP02-059-E1`／`WXDi-CP02-078-E1-GRANT`／`WXDi-CP02-095-E1`。
+
+主な是正は、対象の事前確定と支払い後の同一個体固定、下敷きの実枚数参照、宣言レベルの遅延誘発への焼き込み、
+アシストルリグ限定凍結、CONTINUOUS の複合action内にあるパワーマイナス保護の収集、
+「次の相手ターン終了」の起動コスト増加マーカー、リミット減少の `pending_lrig_limit_mod` 予約、
+遅延ライフクラッシュ、相手の《無》×4／ガード持ち捨ての回避枝復元。
+
+### engine で塞いだ「型は在るが1分岐だけ抜ける」系
+- `SELECT_TARGET_ONLY` で効果元の下のシグニの実レベルを解決。下敷き不在は fail-closed。
+- `OPTIONAL_DISCARD_HAND_CLASS` / `OPTIONAL_TRASH_ENERGY_CLASS` の支払いプロンプトを跨ぐ前に保存対象を個体IDへ凍結。
+- `SIGNI_REPOSITION` は owner/任意性/保存対象を対話継続に渡し、配置しない選択も追加。
+- `INSTALL_DELAYED_TRIGGER` は宣言値filterを設置時に固定。`FREEZE` は左右アシストだけを候補化。
+- パワー保護collectorは `SEQUENCE` 内の宣言STUBも収集。期間つき起動コスト増加は相手ターン終了時に解除。
+
+### 見送り9効果
+- 新しい条件型／履歴stateが必要：`WXDi-P11-046-E2`（このターンのピース使用）、
+  `WXDi-P13-085-E1`（ディソナアイコンの効果がミル元）、`WXDi-P14-040-E1`（凍結ルリグ＋シグニ合算3体）、
+  `WXDi-P16-074-E2`（バニッシュ元ゾーンとゲートの一致）、`WXDi-CP02-009-E1`（このターンのエナ追加枚数）。
+- 新しい起動コスト軸：`WXDi-CP01-006-E2`／`WXDi-CP01-008-E2`（コラボライバー1人とコラボ）。
+- 複合フロー機構が必要：`WXDi-P14-061-E1`（宣言上限／相手手札全捜索／条件付き覚醒）、
+  `WXDi-CP01-033-E1`（デッキ下の名前条件で効果全体を反復）。
+
+### 逆翻訳・golden・検証
+`npm run regen` で全10シートを再生成。新payloadが消えないよう、下敷きレベル一致、アシスト限定凍結、
+相手へのプレイヤー能力付与、次の相手メイン終了、保存対象の配置替え／任意性をpayloadから描画。
+`ON_PLAY` のルリグ主語は本バッチの2 effectIdに限定し、スコープ外の表示更新は避けた。
+
+採用20効果はそれぞれ fresh/live の核payload契約を追加。engine E2Eは10本（正方向＋反転）。
+既存goldenの書き換えは3件：`WXDi-CP02-095-E1` の位置固定を型検索へ、
+`OPPONENT_PAY_OPTIONAL` 母集団を **80/41/39 → 81/42/39** へ、`WXDi-P16-047-E2` の旧 `END_OF_TURN`
+契約を実消費地点の `NEXT_TURN` へ更新。付与能力契約の死角を防ぐため `findEffectDeep` に
+`GRANT_EFFECT.effect` の再帰も追加。
+
+`npm run gates` 全緑：**golden 3879 PASS / FAIL 0**／smoke **10744 OK**／fuzz **CRASH/HANG/INVARIANT/EXPLOSION 0**／
+census 高シグナル **1 / BASELINE 1**／census:stubs A群0／census:enginetext A🔴0／census:costtext A🔴0／
+manual field loss 0／manual drift 0／lint **0 errors / 254 warnings**。commit/pushはしていない。
+
+### Claude の独立検証（2026-09-10）
+- **live の per-effect 差分＝ちょうど20 effectId・スコープ外0**（全シートを `HEAD` と突き合わせる自前スクリプトで実測）。
+- **新 payload キー5本すべてに engine の消費地点がある**（`levelMatchesUnderSourceSigni` / `assistLrigOnly` /
+  `oppActivateCostUntilOppTurnEnd` / `repositionOptional` ＋ state `lrig_opp_act_cost_plus_until_opp_turn`）。
+  コスト増加は `effectEngine.ts:7738-7739` が**新旧キーを合算する単一 funnel**＝「1分岐だけ抜ける」形ではない。
+  `FREEZE` は経路が2本あるが、2本目（`effectExecutor.ts:12879`）は**カード確定済みの適用経路**で候補フィルタは無関係。
+- **同じ finding が2行に展開されていた `WXDi-P14-040` は正しく割れた**＝E2（`FREEZE` の対象型がルリグにならない）は
+  `assistLrigOnly:true` で修正、E1（凍結ルリグ＋シグニ合計3体の発動条件）は条件型が要るので見送り。
+- `npm run gates` を Claude 側で回し直して**全緑を再現**（golden **3849 → 3879**＝+30・smoke 10744・fuzz 0・
+  census 高シグナル 1/1・A群各0・lint 0 errors / 254 warnings）。
+
+🔑**残った不正確さを1件記録する（隠さない）**＝`WXDi-P16-047-E2` の期限。原文は「次の対戦相手の**メインフェイズ**
+終了時まで」だが、採用した `until:"NEXT_TURN"` は `pending_lrig_limit_mod` → 相手 MAIN 開始時に `lrig_limit_mod` へ
+移り、**相手のターン終了時に消える＝1フェイズ長い**。修正前は「自分のターン終了時に消える＝相手のメインフェイズに
+一度も効かない」だったので**明確な前進**であり、既存4効果と同じ契約に乗せた。**フェイズ粒度の期限ストアは
+`O-293` と同クラスの新機構待ち**（この1点だけ未達として残す）。
+
 ## 2026-09-10 — 第245バッチ（未開拓プール2巡目）：8効果修正・第239で機構待ちにした `WXDi-P05-035-E1` が解けた
 
 **投入**＝プール残86効果の先頭30。**Codex は完走**（`gates` 全緑・報告12項目）＝**8効果採用／21機構待ち／1 FP**。

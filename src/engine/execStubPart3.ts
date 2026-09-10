@@ -3659,7 +3659,7 @@ export function execStubPart3(
         ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
       if (!selectedSRAll) {
         const noopSRAll: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-        const contSRAll: StubAction = { type: 'STUB', id: 'SIGNI_REPOSITION' };
+        const contSRAll: StubAction = { ...stub };
         return needsInteraction(addLog(ctx, '配置替えするシグニを選択（任意）'), {
           type: 'SELECT_TARGET', candidates: candsSRAll, count: 1, optional: true,
           targetScope: 'self_field', thenAction: noopSRAll as EffectAction, continuation: contSRAll as EffectAction,
@@ -3685,12 +3685,13 @@ export function execStubPart3(
       const candsSR = targetStateSR.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
       if (candsSR.length === 0) return done(addLog(ctx, 'シグニなし（SIGNI_REPOSITION）'));
       const noopSR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-      const contSR: StubAction = { type: 'STUB', id: stub.id };
+      // Preserve owner/optionality across the target-selection pause.
+      const contSR: StubAction = { ...stub };
       return needsInteraction(addLog(ctx, '配置替えするシグニを選択'), {
         // ⚠**第56バッチ前と同じ**＝旧 `optional: stub.id === 'SWAP_OPTIONAL'` は
         //   `SIGNI_REPOSITION` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` では常に `false` だった
         //   （`SWAP_OPTIONAL` はこの門から外したので、この式はもう分岐しない）。
-        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: false,
+        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: stub.repositionOptional === true,
         targetScope: targetScopeSR, thenAction: noopSR as EffectAction, continuation: contSR as EffectAction,
       });
     }
@@ -3702,6 +3703,11 @@ export function execStubPart3(
         value: `${selectedSR}:${zi}:${isOppSR}` } as StubAction) as EffectAction,
       available: true,
     }));
+    if (stub.repositionOptional) zoneOptsSR.push({
+      id: 'skip', label: '配置しない',
+      action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+      available: true,
+    });
     return needsInteraction(addLog(ctx, '移動先ゾーンを選択'), { type: 'CHOOSE', options: zoneOptsSR, count: 1 });
   }
   // INTERNAL_REPOSITION_MOVE: 選択シグニを空きゾーンへ移動（後方互換）

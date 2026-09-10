@@ -12,5 +12,6 @@ export function clearUntilOppTurnEffects(state: PlayerState): PlayerState {
     opp_cost_up_until_opp_turn: undefined,
     prevent_refresh_until_opp_turn: undefined,
     treated_as_resona_until_opp_turn: undefined, // §5.3 `O-203`（レゾナとしても扱う）
+    lrig_opp_act_cost_plus_until_opp_turn: undefined,
   };
 }

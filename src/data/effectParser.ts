@@ -28966,6 +28966,237 @@ function repairSemanticBatch245(effects: CardEffect[]): void {
   }
 }
 
+/** §5.0 第246バッチ：未開拓プール3巡目の一点物意味修復。 */
+function repairSemanticBatch246(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXDi-P11-002-E1': {
+        if (effect.action.type !== 'GRANT_PLAYER_ABILITY') break;
+        const granted = effect.action.abilities.find(a => a.effectId === 'WXDi-P11-002-sub-E1');
+        if (granted?.action.type === 'CHOOSE') {
+          granted.action.noRepeat = true;
+          const energyChoice = granted.action.choices.find(c => c.choiceId === 'c1');
+          if (energyChoice) energyChoice.action = {
+            type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 2 },
+          };
+        }
+        break;
+      }
+      case 'WXDi-P11-062-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'POWER_MODIFY', target: {
+            type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true },
+          }, delta: 3000 },
+          { type: 'STUB', id: 'PREVENT_POWER_MINUS_BY_OPP' },
+        ] };
+        break;
+      case 'WXDi-P11-080-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 'ALL', upToCount: true, fromThis: true },
+          { type: 'POWER_MODIFY', target: {
+            type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' },
+          }, delta: -3000, duration: 'UNTIL_END_OF_TURN', deltaPerLastProcessedCount: true, targetsStored: true },
+        ] };
+        break;
+      case 'WXDi-P12-007-E1': {
+        if (effect.action.type !== 'SEQUENCE') break;
+        const gate = effect.action.steps.find(a => a.type === 'CONDITIONAL');
+        if (gate?.type !== 'CONDITIONAL' || gate.then.type !== 'SEQUENCE') break;
+        const select = gate.then.steps.find(
+          a => a.type === 'STUB' && a.id === 'SELECT_TARGET_ONLY');
+        if (select?.type === 'STUB' && select.selectTarget) select.selectTarget.owner = 'self';
+        break;
+      }
+      case 'WXDi-P12-009-E1':
+        effect.action = { type: 'CONDITIONAL', condition: {
+          type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', isDisona: true },
+        }, then: { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'any', count: 1, explicitTarget: true,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'POWER_MODIFY', target: {
+            type: 'SIGNI', owner: 'any', count: 1,
+          }, delta: 5000, duration: 'UNTIL_END_OF_TURN', targetsStored: true },
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['緑', '無'] },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'GRANT_KEYWORD', target: {
+              type: 'SIGNI', owner: 'any', count: 1, explicitTarget: true,
+            }, keyword: 'Sランサー', duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+          } },
+        ] } };
+        break;
+      case 'WXDi-P12-068-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1, filter: {
+              cardType: 'シグニ', levelMatchesUnderSourceSigni: true,
+            }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤'] },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'BANISH', target: {
+              type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false,
+            }, targetsStored: true,
+          } },
+        ] };
+        break;
+      case 'WXDi-P14-001-E1': {
+        if (effect.action.type !== 'CHOOSE') break;
+        const first = effect.action.choices.find(c => c.choiceId === 'c0');
+        if (!first) break;
+        first.action = { type: 'SEQUENCE', steps: [
+          first.action,
+          { type: 'STUB', id: 'GAIN_SIGNI_BARRIER' },
+        ] };
+        break;
+      }
+      case 'WXDi-P14-031-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'DECLARE_NUMBER' },
+          { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true, trigger: {
+            timing: 'ON_ATTACK_SIGNI', attackerOwner: 'opponent',
+            attackerFilter: { cardType: 'シグニ', levelEqDeclaredNumber: true },
+          }, effect: {
+            type: 'BANISH', target: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ', isTriggerSource: true }, upToCount: false,
+            },
+          } },
+        ] };
+        break;
+      case 'WXDi-P14-040-E2':
+        effect.action = { type: 'FREEZE', target: {
+          type: 'LRIG', owner: 'opponent', count: 1, upToCount: false,
+        }, assistLrigOnly: true };
+        break;
+      case 'WXDi-P15-033-E2':
+        if (effect.action.type === 'STUB' && effect.action.id === 'LRIG_GAIN_OPP_ACTIVATE_COST_UP') {
+          effect.action.oppActivateCostUntilOppTurnEnd = true;
+          effect.duration = 'UNTIL_OPP_TURN_END';
+        }
+        break;
+      case 'WXDi-P16-049-E1': {
+        if (effect.action.type !== 'CHOOSE') break;
+        const first = effect.action.choices.find(c => c.choiceId === 'c0');
+        const second = effect.action.choices.find(c => c.choiceId === 'c1');
+        if (first) first.condition = { type: 'LIFE_COUNT', owner: 'self', operator: 'gte', value: 3 };
+        if (second) {
+          second.condition = { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: 2 };
+          if (second.action.type === 'SEQUENCE') {
+            const costGateIndex = second.action.steps.findIndex(
+              a => a.type === 'CONDITIONAL' && a.condition.type === 'LIFE_COUNT');
+            if (costGateIndex >= 0) {
+              second.action.steps[costGateIndex] = { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤'] };
+            }
+            const paidGate = second.action.steps.find(
+              a => a.type === 'CONDITIONAL' && a.condition.type === 'IS_MY_TURN');
+            if (paidGate?.type === 'CONDITIONAL') paidGate.condition = { type: 'PAID_ADDITIONAL_COST' };
+          }
+        }
+        break;
+      }
+      case 'WXDi-P16-047-E2': {
+        if (effect.action.type !== 'SEQUENCE') break;
+        const paid = effect.action.steps.find(a => a.type === 'CONDITIONAL');
+        if (paid?.type === 'CONDITIONAL' && paid.then.type === 'LRIG_LIMIT_MODIFY') {
+          paid.condition = { type: 'PAID_ADDITIONAL_COST' };
+          paid.then.until = 'NEXT_TURN';
+        }
+        break;
+      }
+      case 'WXDi-P16-052-E2':
+        if (effect.cost?.fieldDown) {
+          effect.cost.fieldDown.excludeSelf = true;
+          effect.cost.fieldDown.filter = {
+            ...(effect.cost.fieldDown.filter ?? {}), cardType: 'シグニ', isUp: true,
+          };
+        }
+        break;
+      case 'WXDi-CP01-029-E2': {
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'SEQUENCE', steps: [
+              { type: 'POWER_MODIFY', target: {
+                type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' },
+              }, delta: -12000, duration: 'UNTIL_END_OF_TURN', targetsStored: true },
+              { type: 'POWER_MODIFY', target: {
+                type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true },
+              }, delta: -12000, duration: 'UNTIL_END_OF_TURN' },
+            ],
+          } },
+        ] };
+        break;
+      }
+      case 'WXDi-CP01-006-E3': {
+        if (effect.action.type !== 'GRANT_LRIG_ABILITY') break;
+        const granted = effect.action.abilities.find(a => a.effectId === 'WXDi-CP01-006-sub-E1');
+        if (!granted) break;
+        granted.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無', '無', '無', '無'],
+            opponentHandDiscard: 1, opponentHandDiscardFilter: { hasGuard: true } },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+            type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true,
+          } },
+        ] };
+        break;
+      }
+      case 'WXDi-CP02-059-E1': {
+        if (effect.action.type !== 'SEQUENCE') break;
+        const paid = effect.action.steps.find(a => a.type === 'CONDITIONAL');
+        if (paid?.type !== 'CONDITIONAL') break;
+        paid.condition = { type: 'PAID_ADDITIONAL_COST' };
+        paid.then = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+          trigger: { timing: 'ON_LRIG_ATTACK_STEP_START' },
+          effect: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true } };
+        break;
+      }
+      case 'WXDi-CP02-095-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'opponent', repositionOptional: true, targetsStored: true },
+          { type: 'POWER_MODIFY', target: {
+            type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' },
+          }, delta: -3000, duration: 'UNTIL_END_OF_TURN', targetsStored: true },
+        ] };
+        break;
+      case 'WXDi-P14-088-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'self', count: 1,
+            filter: { cardType: 'シグニ', story: '電音部' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'GRANT_KEYWORD', target: {
+              type: 'SIGNI', owner: 'self', count: 1, explicitTarget: true,
+            }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+          } },
+        ] };
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -29844,6 +30075,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch243(effects);
   repairSemanticBatch244(effects);
   repairSemanticBatch245(effects);
+  repairSemanticBatch246(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }
