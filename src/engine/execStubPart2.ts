@@ -1416,10 +1416,16 @@ export function execStubPart2(
   if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') {
     return done(addLog(ctx, `ルリグダメージ無効（レベル${stub.value ?? '?'}以下・【常】宣言）`));
   }
-  // PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
+  // PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP:
+  //   「あなたは対戦相手の**効果によって**ダメージを受けない」の**【常】宣言型**（§5.3 `O-295` 第259バッチ）。
+  // 🔴**`prevent_lrig_damage` を書かない**＝上の `PREVENT_LRIG_DAMAGE` と同じ理由。
+  //   旧実装はこのフラグを立てていたが、消費地点が `BattleScreen` の**ルリグアタックのダメージ**で、
+  //   ①**アタックは「効果」ではない**（軸違いの過剰実行）②その分岐が消費時に `undefined` へ戻すので
+  //   **1回で切れる**（【常】なのに過小実行）＝**両方向に外していた**。
+  // 🔑判定は `isEffectDamagePreventedByOpp`（`effectEngine.ts`）が effectsMap と付与ストアから
+  //   宣言を読み、**効果によるライフクラッシュの funnel `execLifeCrash`** で効く。
   if (stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
-    const newSPLLD: PlayerState = { ...ctx.ownerState, prevent_lrig_damage: true };
-    return done(addLog({ ...ctx, ownerState: newSPLLD }, 'ルリグダメージ無効'));
+    return done(addLog(ctx, '対戦相手の効果によるダメージ無効（【常】宣言・判定は isEffectDamagePreventedByOpp）'));
   }
   // PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: 相手の次ターン最初のダメージを無効
   if (stub.id === 'PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN') {

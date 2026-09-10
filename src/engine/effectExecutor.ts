@@ -19,7 +19,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -2957,6 +2957,25 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   //   載らない＝ここは素通りする（＝原文どおり）。
   if (a.owner === 'opponent' && oppMoveImmunityBlocksCrash(ctx.otherState)) {
     return done(addLog(ctx, 'ライフクロス保護により効果なし'));
+  }
+  // 🆕**「あなたは対戦相手の効果によってダメージを受けない」**（§5.3 `O-295` 第259バッチ・2026-09-11）。
+  // 🔑**ダメージ＝ライフクロスのクラッシュ**なので、**効果によるクラッシュ**を通すこの funnel が判定点。
+  //   ルール処理（ルリグ／シグニのアタックによるダメージ）は BattleScreen 側を通るのでここには来ない
+  //   ＝原文「対戦相手の**効果によって**」と軸が一致する。
+  // 🔴旧実装は `prevent_lrig_damage` を立てて**ルリグアタックのダメージ**を1回だけ止めていた
+  //   （軸違いの過剰実行 ＋ 【常】なのに1回で切れる過小実行）。
+  // 期間つきの同軸（`PREVENT_DAMAGE{scope:'OPP_EFFECT'}`＝「**このターン**、あなたは対戦相手の
+  //   効果によってダメージを受けない」）も同じ funnel で止める。
+  if (a.owner === 'opponent'
+      && (ctx.otherState.prevent_damage_windows ?? []).some(w =>
+        w.scope === 'OPP_EFFECT' && w.expires !== 'NEXT_TURN_START')) {
+    return done(addLog(ctx, '対戦相手の効果によるダメージを受けないため効果なし'));
+  }
+  if (a.owner === 'opponent' && isEffectDamagePreventedByOpp({
+    defender: ctx.otherState, attacker: ctx.ownerState, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap ?? new Map(),
+    isDefenderTurn: ctx.isOwnerTurn === undefined ? undefined : !ctx.isOwnerTurn,
+  })) {
+    return done(addLog(ctx, '対戦相手の効果によるダメージを受けないため効果なし'));
   }
   if (a.optional) {
     return needsInteraction(addLog(ctx, 'ライフクロスをクラッシュしますか？'), {
@@ -12097,11 +12116,21 @@ export function resumeRearrangeSigni(
       const newField: typeof f = {
         ...removed.field, signi,
       };
+      // 🔴**`zone_moved_just` をここで積まない**（§5.3 `O-303` 第259バッチ・2026-09-11）。
+      //   この枝は**場外（デッキ／エナ／トラッシュ）と場の入れ替え**＝
+      //   `pending.swapSourceNum` は**場外 → 場**、`selected` は**場 → 場外**で、
+      //   **どちらも「場にあるシグニが他のシグニゾーンへ移動した」ではない**。
+      //   旧実装は両方を積んでいたので、`ON_ZONE_MOVED`（原文「**場にある**このシグニが
+      //   **他のシグニゾーンに**移動したとき」＝`WXK03-026-E4` / `WXK06-029-E2`）が
+      //   **入れ替えのたびに2回、場外から来た札の分まで**誤発火していた（過剰実行）。
+      // 🔑**場→場の3経路（`resumeRearrangeSigni` の `rearrMoved` ／
+      //   `INTERNAL_MOVE_SIGNI_ZONE` ／ `INTERNAL_REPOSITION_TO_ZONE`）は正しいので触らない。**
+      // ⚠`zone_moved_just` の読み手は `BattleScreen` の `ON_ZONE_MOVED` 収集だけ
+      //   （`src/screens/BattleScreen.tsx:1748`）＝ここを外しても他の機構は影響を受けない。
       const newState: PlayerState = { ...removed, [sourceZone]: destination, field: newField,
         signi_played_from_non_hand_this_turn: [
           ...(removed.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pending.swapSourceNum), pending.swapSourceNum,
-        ],
-        zone_moved_just: [...(removed.zone_moved_just ?? []), pending.swapSourceNum, selected] };
+        ] };
       const zoneLabel = sourceZone === 'deck' ? 'デッキ' : sourceZone === 'energy' ? 'エナゾーン' : 'トラッシュ';
       return continueAfterSwap({ ...addLog(setOwnerState(pending.owner, newState, ctx), `${zoneLabel}のシグニと場のシグニを入れ替えた`),
         lastProcessedCards: [pending.swapSourceNum] });

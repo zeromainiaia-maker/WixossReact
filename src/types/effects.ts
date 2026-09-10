@@ -3766,7 +3766,17 @@ export interface PreventDamageAction {
   type: 'PREVENT_DAMAGE';
   owner: Owner;
   until: EffectDuration | 'END_OF_ATTACK';
-  scope?: 'ALL' | 'LRIG';
+  /**
+   * `'ALL'`＝あらゆるダメージ／`'LRIG'`＝ルリグアタックのダメージだけ／
+   * 🆕`'OPP_EFFECT'`＝**対戦相手の効果によるダメージだけ**（§5.3 `O-295` 第259バッチ・2026-09-11
+   *   `SPK01-13-E1`③「このターン、あなたは対戦相手の効果によってダメージを受けない」）。
+   * 🔴**`'ALL'` で代用しない**＝アタックのダメージまで止まる過剰実行になる
+   *   （既定は `until:'NEXT_TURN'` なら `'LRIG'`／それ以外は `'ALL'` なので、
+   *   scope を書かない限りこの札は `'ALL'` に落ちていた）。
+   * ⚠消費地点が `'ALL'/'LRIG'` と違う＝`OPP_EFFECT` は **`execLifeCrash`**（効果経路）でだけ効き、
+   *   `hasActivePreventDamageWindow(state,'LRIG'|'ALL')` には**当たらない**。
+   */
+  scope?: 'ALL' | 'LRIG' | 'OPP_EFFECT';
   /**
    * 「次のあなたのメインフェイズまで」（`WXK01-002-E2`・§6.4 O-3 続き492）＝**ターン境界を跨ぐ**期間。
    * `EffectDuration` にはこの長さが無いので専用フラグで表し、`until` より優先する。

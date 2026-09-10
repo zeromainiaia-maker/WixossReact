@@ -6109,6 +6109,130 @@ test('§6.4 NEXT_TURN WXDi-CP01-005-E3: シグニ限定シャドウを次相手�
   assertNextOpponentShadow('WXDi-CP01-005', 'WXDi-CP01-005-E3', seq.steps[1]);
 }));
 
+// ── §5.3 `O-295` 第259バッチ（2026-09-11）＝「あなたは対戦相手の**効果によって**ダメージを受けない」。
+// 🔴旧実装は `PlayerState.prevent_lrig_damage` を立てており、**軸も回数も外していた**＝
+//   ①消費地点が `BattleScreen` の**ルリグアタックのダメージ**（アタックは「効果」ではない＝過剰実行）
+//   ②その分岐が消費時に `undefined` へ戻すので**1回で切れる**（【常】なのに過小実行）。
+// 🔑いまは `execLifeCrash`（**効果による**ライフクラッシュの funnel）で
+//   `isEffectDamagePreventedByOpp` が判定する＝ルール処理のダメージはここへ来ない。
+test('§5.3 O-295: 効果によるダメージ無効は【常】宣言で回数無制限（印刷・付与の両方）', () => withSavedCursor(() => {
+  const shieldNum = fresh();
+  const crash = { type: 'LIFE_CRASH', owner: 'opponent', count: 1 } as EffectAction;
+  const decl = (id: string): CardEffect => ({
+    effectId: `T-O295-${id}`, effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id } as StubAction,
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect);
+
+  // 対照＝宣言が無ければ効果でクラッシュされる。
+  const bare = mkCtx({}, { signi: [shieldNum, null, null] });
+  const bareRes = run(crash, { ...bare, effectsMap: new Map() } as ExecCtx);
+  eq(bareRes.otherState.life_cloth.length, 6, '対照：宣言が無ければ効果でライフが1枚減る');
+
+  // ① 印刷【常】（`WXK03-011-E1` / `WX19-046-E3` の形）＝場のシグニに載った宣言を読む。
+  for (const id of ['PREVENT_DAMAGE_FROM_OPP_EFFECTS', 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP']) {
+    const ctx = { ...mkCtx({}, { signi: [shieldNum, null, null] }),
+      effectsMap: new Map([[shieldNum, [decl(id)]]]) } as ExecCtx;
+    const r1 = run(crash, ctx);
+    eq(r1.otherState.life_cloth.length, 7, `${id}: 効果によるダメージを止めない`);
+    // 🔴**回数無制限**＝旧実装はここで素通りしていた（フラグが1回で消えるため）。
+    const r2 = run(crash, { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs } as ExecCtx);
+    eq(r2.otherState.life_cloth.length, 7, `${id}: 2回目が素通りする（1回消費型に戻っている）`);
+    // 宣言型なので state フラグは1つも立たない（立つと BattleScreen のアタック分岐が誤発火する）。
+    const stub = run({ type: 'STUB', id } as unknown as EffectAction, mkCtx({}, {}));
+    eq(stub.ownerState.prevent_lrig_damage, undefined, `${id}: ルリグアタック用フラグを立てない（軸違い）`);
+  }
+
+  // ② 付与された【常】（`SPDi44-04-E2-GRANT` / `WX25-P1-026-E2-GRANT` は `effectsMap` に載らない）。
+  const grantedBase = mkCtx({}, {});
+  const granted = { ...grantedBase, effectsMap: new Map(),
+    otherState: { ...grantedBase.otherState,
+      lrig_granted_auto_effects_until_opp_turn: [decl('PREVENT_DAMAGE_FROM_OPP_EFFECTS')] },
+  } as ExecCtx;
+  eq(run(crash, granted).otherState.life_cloth.length, 7, '付与された【常】も読む（印刷側だけ見ると恒久 no-op）');
+
+  // ③ 期間つき同軸（`PREVENT_DAMAGE{scope:'OPP_EFFECT'}`＝`SPK01-13-E1`③「このターン、あなたは
+  //    対戦相手の効果によってダメージを受けない」）。🔴scope 省略だと `'ALL'` に落ちて**アタックの
+  //    ダメージまで止まる**過剰実行だった。
+  const windowCtxBase = mkCtx({}, {});
+  const windowCtx = { ...windowCtxBase, effectsMap: new Map(),
+    otherState: { ...windowCtxBase.otherState,
+      prevent_damage_windows: [{ scope: 'OPP_EFFECT', expires: 'MY_TURN_END' }] },
+  } as ExecCtx;
+  eq(run(crash, windowCtx).otherState.life_cloth.length, 7, '期間つき OPP_EFFECT も効果によるクラッシュを止める');
+  // ⚠アタック側のゲート（`hasActivePreventDamageWindow`）には当たらない＝アタックのダメージは通す。
+  ok(!hasActivePreventDamageWindow(windowCtx.otherState, 'LRIG'),
+    'OPP_EFFECT がルリグアタックのダメージまで止めている（ALL への逆戻り）');
+  ok(!hasActivePreventDamageWindow(windowCtx.otherState, 'ALL'),
+    'OPP_EFFECT があらゆるダメージ扱いになっている');
+  const liveSpk = effectsMap.get('SPK01-13')?.find(e => e.effectId === 'SPK01-13-E1');
+  const spkChoice = (liveSpk?.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[2].action as Extract<EffectAction, { type: 'PREVENT_DAMAGE' }>;
+  eq(spkChoice.scope, 'OPP_EFFECT', 'SPK01-13-E1③ の範囲が原文より広い（既定 ALL）へ戻っている');
+  ok(decompiledLineOf('SPK01-13-E1').includes('このターン、あなたは対戦相手の効果によってダメージを受けない'),
+    'SPK01-13-E1③ の逆翻訳が範囲を落としている');
+
+  // ④ live の3効果が宣言型のまま（CONTINUOUS + STUB）であることを固定する。
+  const liveDecl = (cardNum: string, effectId: string) => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    if (!e) throw new Error(`${effectId}: live effect not found`);
+    return e;
+  };
+  for (const [cardNum, effectId] of [['WXK03-011', 'WXK03-011-E1'], ['WX19-046', 'WX19-046-E3']] as const) {
+    const e = liveDecl(cardNum, effectId);
+    eq(e.effectType, 'CONTINUOUS', `${effectId}: 【常】宣言でなくなっている`);
+    ok(['PREVENT_DAMAGE_FROM_OPP_EFFECTS', 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP']
+      .includes((e.action as StubAction).id ?? ''), `${effectId}: 受け皿の STUB id が変わっている`);
+  }
+}));
+
+// ── §5.3 `O-302` 第259バッチ（2026-09-11）＝**`$ref` の逆翻訳が `[参照値]` に潰れる**。
+// 🔑**登録票「可変選択数が表せない」は stale**＝受け皿 `ChooseAction.countChoose` は
+//   `effectExecutor.ts` が `resolveCountRef` で解決しており、母集団6効果すべてに payload が載っていた。
+// 🔴**残っていた穴は逆翻訳だけ**＝`decompileEffects.ts` の `numJa` が知らない `$ref` を
+//   `[参照値]` に潰すので、**engine は正しく数えているのに逆翻訳が「いくつなのか」を言わない**
+//   （実測 9行／全10シート）。さらに CHOOSE では助数詞が嵌まらず「〜と同じ数の**つ**を選ぶ」になっていた。
+// ⚠**このテストが守るのは「2つの表の集合一致」**＝`resolveCountRef` に `$ref` を足して
+//   `REF_NOUN_JA` に足し忘れると、**逆翻訳だけが黙って `[参照値]` に戻る**（ゲートがどれも緑のまま）。
+test('§5.3 O-302: 逆翻訳の $ref 名詞表が resolveCountRef と一致し、シートに [参照値] が残らない', () => {
+  const execSrc = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf-8');
+  const body = execSrc.slice(execSrc.indexOf('export function resolveCountRef'));
+  const end = body.indexOf('unknown numeric ref');
+  ok(end > 0, 'resolveCountRef の終端（unknown numeric ref の警告）が見つからない');
+  const resolved = new Set([...body.slice(0, end).matchAll(/[$]ref === '([a-z_]+)'/g)].map(m => m[1]));
+  ok(resolved.size >= 15, `resolveCountRef から $ref を抽出できていない（${resolved.size}件）`);
+
+  const decSrc = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf-8');
+  const tableStart = decSrc.indexOf('const REF_NOUN_JA');
+  ok(tableStart > 0, 'REF_NOUN_JA が無い');
+  const table = decSrc.slice(tableStart, decSrc.indexOf('};', tableStart));
+  const named = new Set([...table.matchAll(/^[ ]{2}([a-z_]+):/gm)].map(m => m[1]));
+  // filter を持つ3つは表ではなく refNounJa が組み立てる（固定文字列にすると限定が消える）。
+  for (const built of ['self_energy_count', 'opp_energy_count', 'life_crashed_by_signi_this_turn']) named.add(built);
+  const missing = [...resolved].filter(r => !named.has(r));
+  eq(missing.join(','), '', `resolveCountRef にあるのに逆翻訳の名詞表に無い $ref（[参照値] に潰れる）`);
+
+  // 逆翻訳シート全10枚に [参照値] が1つも残らない。
+  let placeholders = 0;
+  for (let i = 1; i <= 10; i++) {
+    const sheet = join(root, 'docs', `decompile_sheet${i}.txt`);
+    if (!fs.existsSync(sheet)) continue;
+    placeholders += (fs.readFileSync(sheet, 'utf-8').match(/\[参照値\]/g) ?? []).length;
+  }
+  eq(placeholders, 0, '逆翻訳シートに [参照値] が残っている（npm run regen を回したか？）');
+
+  // O-302 の母集団6効果が「参照値の出どころ」を名指しで描く。
+  for (const effectId of ['WXDi-P06-003-E1', 'WXDi-P07-002-E1', 'WXDi-P14-002-E1', 'WXDi-P14-003-E1']) {
+    ok(decompiledLineOf(effectId).includes('あなたのセンタールリグのレベルと同じ数まで選ぶ'),
+      `${effectId}: 選択数がセンタールリグのレベル参照だと読めない`);
+  }
+  ok(decompiledLineOf('PR-471-E1').includes('対戦相手のセンタールリグのルリグタイプの種類数と同じ数まで選ぶ'),
+    'PR-471-E1: ルリグタイプ数の参照が読めない');
+  ok(decompiledLineOf('WXEX1-22-E1').includes('【チャーム】1枚につき1つまで選ぶ'),
+    '対照＝countFromZone 側（もともと描けていた形）を壊していない');
+  // 数値の選択数は従来どおり「Nつ」で描く（名詞句化が数値へ漏れていない）。
+  ok(decompiledLineOf('WXDi-P14-005-E1').includes('つまで選ぶ'), '対照＝固定数の CHOOSE は「Nつまで選ぶ」のまま');
+});
+
 // ── §5.3 `O-301` 第258バッチ（2026-09-11）＝「**次の対戦相手のターンの、メインフェイズと
 //   アタックフェイズの間**、あなたのシグニは【シャドウ】を得る」（`WXDi-P04-007-E3`）。
 // 🔴旧 live＝`duration:'PERMANENT'`＝**ゲーム終了まで永続**していた（遅延も寿命も両方落ちていた）。
@@ -25784,6 +25908,28 @@ for (const spec of externalSwapSpecs) test(`§6.4 zone swap E2E ${spec.effectId}
   eq(after.field.signi[0]?.at(-1), external, `${spec.effectId}: 場外シグニが対象と同じゾーンへ`);
   eq(physicalCardCount(swapped.ownerState), beforeOwner, `${spec.effectId}: 自分の総枚数保存`);
   eq(physicalCardCount(swapped.otherState), beforeOther, `${spec.effectId}: 相手の総枚数保存`);
+  // 🆕§5.3 `O-303` 第259バッチ（2026-09-11）＝**場外↔場の入れ替えは `ON_ZONE_MOVED` を誘発しない。**
+  // 🔴旧実装は交換の**両側**を `zone_moved_just` に積んでいた＝`pending.swapSourceNum` は場外→場、
+  //   `selected` は場→場外で、**どちらも原文「場にあるこのシグニが他のシグニゾーンに移動したとき」
+  //   （`WXK03-026-E4` / `WXK06-029-E2`）ではない**のに、入れ替えのたびに2件誤発火していた。
+  eq((swapped.ownerState.zone_moved_just ?? []).length, 0,
+    `${spec.effectId}: 場外交換で ON_ZONE_MOVED を誤発火させない（自分側）`);
+  eq((swapped.otherState.zone_moved_just ?? []).length, 0,
+    `${spec.effectId}: 場外交換で ON_ZONE_MOVED を誤発火させない（相手側）`);
+}));
+
+// 対照＝**場→場**の並び替えは従来どおり `zone_moved_just` を積む（§5.3 `O-303` で過小へ倒していない反証）。
+test('§5.3 O-303 対照: 場→場の並び替えは ON_ZONE_MOVED 用フラグを積む', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
+  const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done, 'REARRANGE_SIGNI で対話待ち');
+  const pending = (result as { pending: { owner: string; signiNums: string[] } }).pending;
+  const reversed = [...pending.signiNums].reverse();
+  const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  const r2 = resumeRearrangeSigni(reversed, pending as never, c);
+  const moved = r2.otherState.zone_moved_just ?? [];
+  ok(moved.length >= 2, '場→場でゾーンが変わったシグニは記録される（記録を消しすぎていない）');
+  ok(!moved.includes(pending.signiNums[1]), '同じゾーンに留まったシグニは記録しない');
 }));
 
 test('§6.4 zone swap: 同レベル限定は候補絞り込み、同レベル条件は不一致なら交換しない', () => withSavedCursor(() => {
@@ -73641,7 +73787,11 @@ test('SPK01-13-E1 live: 選択肢③はターン終了まで無制限にダメ�
   const choice = liveChoiceAction('SPK01-13', 'SPK01-13-E1', 2);
   const result = run(choice, mkCtx({}, {}));
   const windows = result.ownerState.prevent_damage_windows ?? [];
-  ok(windows.some(w => w.scope === 'ALL' && w.expires === 'MY_TURN_END'),
+  // 🆕§5.3 `O-295` 第259バッチ（2026-09-11）＝**scope を `'ALL'` から `'OPP_EFFECT'` へ絞った。**
+  //   この assert の元の意図（**期間つき・回数無制限**であって1回消費ではない）はそのまま。
+  //   🔴`'ALL'` は「scope 未指定の既定値」でしかなく、原文「対戦相手の**効果によって**」より広い
+  //   （アタックのダメージまで止まる過剰実行）。消費地点も違う＝`OPP_EFFECT` は `execLifeCrash` だけ。
+  ok(windows.some(w => w.scope === 'OPP_EFFECT' && w.expires === 'MY_TURN_END'),
     '🔴「このターン、対戦相手の効果によってダメージを受けない」＝期間つき無制限ウィンドウ（PREVENT_DAMAGE）');
   eq(result.ownerState.prevent_next_damage ?? 0, 0,
     '1回消費カウンタ（PREVENT_NEXT_DAMAGE の旧実装）は使わない');

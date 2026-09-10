@@ -1,5 +1,122 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第259バッチ（PLAN §5.3 **索引 B を残0**）：🏁`O-294`／`O-302`／`O-303`／`O-295` を4件ともクローズ
+
+**索引 B の4項目を実測した結果、登録票が正しかったのは2件だけだった。** 4件それぞれの結論：
+
+| ID | 登録票の主張 | 実測 | 結果 |
+|---|---|---|---|
+| `O-294` | `ADD_TO_FIELD.abilitiesRemoved` に engine の消費が無い＝真 no-op | 🔴**stale**＝消費地点は `markPlacedAbilitiesRemoved`（`effectExecutor.ts:3997`・4経路から呼ばれる） | 🏁**変更なしでクローズ** |
+| `O-302` | 可変選択数（「〜につき1つまで選ぶ」）が表せない | 🔴**stale**＝`ChooseAction.countChoose` を `resolveCountRef` が解決済み。**残っていたのは逆翻訳だけ** | 🏁**逆翻訳を修正してクローズ** |
+| `O-303` | `zone_moved_just` が場外→場の入れ替えでも記録される | ✅**登録どおり**（行番号だけ `:11804` → `:12104` にずれていた） | 🏁**engine 1箇所を修正** |
+| `O-295` | 「効果によるダメージを受けない」が1回消費型 | ✅**真バグ・かつ登録票より重い**（軸違いの過剰実行も同時にあった） | 🏁**engine funnel を張り替えて修正** |
+
+### 1. 🏁`O-294`＝**登録より前のバッチで既に閉じていた**（変更なし）
+
+**母集団**＝`npm run census:population -- "能力を持たない[^。]*場に出す"`＝**8効果 / 7カード**、
+受け皿 `abilitiesRemoved` の判定で **OK 6 / MISS 2**。
+- **OK 6** は `markPlacedAbilitiesRemoved` が `PlayerState.abilities_removed` へ刻む＝**真 no-op ではない**。
+  golden（`§5.0 O-D WX16-Re20-E1`）が【常】【出】【起】の**3方向とも対照つきで**固定していた。
+- **MISS 2**（`WX20-Re20-E1` / `WXK09-006-E2`）は**別軸**＝原文の「能力を持たないシグニ」が
+  **配置修飾ではなく検索フィルタ**で、`filter.noAbilities` が `effectEngine.ts:1085` で消費されている。
+- ⚠**寿命も正しい**＝`abilities_removed` は turn-end で失効するが、**母集団6効果すべてが原文で
+  「ターン終了時、それらを場からトラッシュに置く」**なので場に残らない（食い違わない）。
+
+🔴🔑**なぜ stale だったか**＝実装コミット `a49563c86`（第226バッチ）が**登録コミット `f499c0cbb` の祖先**だった。
+⇒ **「機構待ち」を登録するときは、その場で受け皿を grep して実装済みでないことを確かめる。**
+
+### 2. 🏁`O-302`＝機構は実装済み。**逆翻訳が `[参照値]` に潰れていた**
+
+**母集団**＝`npm run census:population -- "につき[^。]{0,6}[１1]つまで選ぶ"`＝**6効果 / 6カード**（登録どおり）。
+**6効果すべてに `countChoose` payload が載っており**、`effectExecutor.ts:6756` が
+`resolveCountRef` で解決していた（golden も挙動を反証つきで固定済み）。
+
+🔴**残っていた穴は逆翻訳**＝`decompileEffects.ts` の `numJa` が知らない `$ref` を **`[参照値]`** に潰すので、
+**engine は正しく数えているのに逆翻訳が「いくつなのか」を言わない**（実測 **9行 / 全10シート**）。
+さらに CHOOSE では助数詞が嵌まらず「この方法で処理した枚数と同じ数の**つ**を選ぶ」になっていた。
+
+**直し方**＝`REF_NOUN_JA`（`$ref` → 裸の名詞句）を新設し、`numJa` は「〜と同じ数の」、
+CHOOSE は「〜と同じ数だけ／まで選ぶ」で閉じる。`filter` を持つ3つ（`self_energy_count` /
+`opp_energy_count` / `life_crashed_by_signi_this_turn`）だけは名詞句を組み立てる。
+**engine は0行**（`resolveCountRef` は1行も触っていない）。
+
+🔑**ゲートは「2つの表の集合一致」**＝`resolveCountRef` から `$ref` を抽出して `REF_NOUN_JA` と突き合わせる golden を新設した。
+**片方だけ足すと逆翻訳が黙って `[参照値]` に戻る**（他のゲートは全部緑のまま）ので、そこを止める。
+
+### 3. 🏁`O-303`＝場外↔場の入れ替えが `ON_ZONE_MOVED` を2件ずつ誤発火させていた
+
+**真因**＝`effectExecutor.ts`（`resumeRearrangeSigni` の `mode:'swap'` × `swapSourceLocation` が
+deck/energy/trash の枝）が `zone_moved_just` へ**交換の両側**を積んでいた。
+実際は `pending.swapSourceNum` が**場外→場**、`selected` が**場→場外**で、
+**どちらも原文「場にあるこのシグニが他のシグニゾーンに移動したとき」ではない**
+（`WXK03-026-E4` / `WXK06-029-E2`）＝入れ替えのたびに2件の過剰発火。
+
+**直し方**＝この枝の `zone_moved_just` を積まない（**engine 1箇所・実質2語**）。
+⚠**場→場の3経路は正しいので触らない**＝`rearrMoved`（旧ゾーン≠新ゾーン）／
+`INTERNAL_MOVE_SIGNI_ZONE`（`execStubPart1.ts:4516`）／`INTERNAL_REPOSITION_TO_ZONE`（`execStubPart3.ts:3807`）。
+⚠`zone_moved_just` の読み手は `BattleScreen.tsx:1748` の `ON_ZONE_MOVED` 収集だけ＝他機構に影響しない。
+
+### 4. 🏁`O-295`＝**軸も回数も外していた**（登録票は回数だけを指していた）
+
+**真因は2つ**（登録票は②だけを書いていた）：
+1. 🔴**軸違いの過剰実行**＝`PREVENT_DAMAGE_FROM_OPP_EFFECTS` / `PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP` が
+   `PlayerState.prevent_lrig_damage` を立て、消費地点が `BattleScreen` の**ルリグアタックのダメージ**だった。
+   **ルリグアタックは「効果」ではない**ので、原文「対戦相手の**効果によって**ダメージを受けない」と軸が違う。
+2. 🔴**過小実行**＝その分岐が消費時に `undefined` へ戻すので**1回で切れる**（原文は【常】＝回数無制限）。
+
+**受け皿**＝engine には既に「**効果による**ライフクラッシュ」の funnel `execLifeCrash` があり、
+すぐ隣に同型のゲート `oppMoveImmunityBlocksCrash`（「効果によってライフクロスは移動しない」）が座っていた。
+⇒ **同じ場所へ載せる**のが正解で、`src/screens/` は1行も触らずに済んだ。
+
+- `effectEngine.ts` に `isEffectDamagePreventedByOpp` を新設（`oppMoveImmunityBlocksCrash` の直後）。
+- `execStubPart2.ts` の2 STUB は**フラグを書かない宣言型**へ（既存 `PREVENT_LRIG_DAMAGE` と同じ作法）。
+- `execLifeCrash` に `a.owner === 'opponent'` のときのゲートを2本（**【常】宣言** ＋ **期間つきウィンドウ**）。
+- ⚠🔴**印刷能力だけ走査すると付与された【常】が恒久 no-op**＝`SPDi44-04-E2-GRANT` / `WX25-P1-026-E2-GRANT` は
+  `GRANT_LRIG_ABILITY` 由来で **`effectsMap` に載らない**ので、`lrigDamageShield.ts` の
+  `shieldCandidates` と同じく**印刷側と付与ストア側を対で**走査する（golden で付与側も反証つきで固定）。
+
+**期間つき同軸（`SPK01-13-E1`③）も同時に閉じた**＝原文「**このターン**、あなたは対戦相手の効果によって
+ダメージを受けない」に対し live は `PREVENT_DAMAGE{until:'UNTIL_END_OF_TURN'}`＝**scope 省略の既定が `'ALL'`**
+で、**アタックのダメージまで止まる**過剰実行だった。`scope` に **`'OPP_EFFECT'`** を足し、
+`execLifeCrash` だけが見る（`hasActivePreventDamageWindow('ALL'|'LRIG')` には**当たらない**）ようにした。
+⚠**既存 golden が `scope === 'ALL'` を assert していた**ので原文どおりに更新した
+（その assert の元の意図＝「期間つき・回数無制限であって1回消費ではない」はそのまま維持）。
+
+### 検証（4件まとめて）
+
+- `npm run gates` **全緑**＝golden **3929 PASS / 0 FAIL**（3926 → +3）／smoke CRASH・HANG・INVARIANT 0／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／manual-fields 0／lint 0 errors・254 warnings。**ratchet の較正なし**。
+- **live の per-effect 差分＝ちょうど1 effectId**（`SPK01-13-E1`）。`O-294`/`O-302`/`O-303` は live を変えない。
+- **反転確認は4件すべてで実行した**＝①`REF_NOUN_JA` から `center_lrig_level` を1件抜くと新 golden が
+  `got=center_lrig_level` で FAIL ②`zone_moved_just` の行を戻すと `zone swap` E2E が **11本 FAIL**（`got=2`）
+  ③`execLifeCrash` のゲートを外すと `got=6`（ライフが減る）で FAIL ④STUB のフラグ書きを戻すと
+  `prevent_lrig_damage: got=true` で FAIL ⑤live の `scope` を戻すと `got=undefined` で FAIL。
+- `npm run regen` 後の逆翻訳（§5-14 の証跡）＝
+  - `[参照値]` は**全10シートで 9行 → 0行**。
+  - `WXK10-104-E1`：`以下の3つからあなたのセンタールリグのレベルと同じ数だけ選ぶ`
+  - `WXDi-P05-008-E1`：`あなたのデッキの上からあなたのアシストルリグのレベルの合計と同じ数の枚をエナゾーンに置く`
+  - `SPK01-13-E1`：`このターン、あなたは対戦相手の効果によってダメージを受けない`
+
+### ⑤実機は不要と判定（§2.2）
+
+触ったのは `src/engine/`（3ファイル）・`src/types/`・`src/data/`・`public/data/`・`scripts/` で、
+🔑**`src/screens/` は1行も触っていない**（`O-295` はむしろ screens 側の消費地点への依存を**外した**）。
+新しい**アクション型／条件型／`PlayerState` キー**も足していない
+（足したのは既存 `PreventDamageAction.scope` の**列挙値1つ**と、既存宣言を読む engine 内 predicate 1本）。
+消費地点は同じ変更内の funnel で、golden が**両方向の反転**で固定している。⇒ `V-nn` の登録もしない。
+
+### 🏁 索引 B は **残0**
+
+索引 A は **残2**（`O-298` 残4／`O-299` 残8）、索引 G は 残24。機構 worklist は **30 → 26項目**。
+
+🔴🔑**教訓＝索引 B は4件中2件が stale で、残る2件は「登録票より重い」バグだった。**
+`O-294` は**登録より前に実装が入っていた**（コミットの祖先関係で確認できる）。
+`O-295` は**回数の問題として登録されていたが、実際は軸違いの過剰実行も同時にあった**。
+⇒ **登録票は「その項目が存在する」ことの証拠にも、「何が壊れているか」の記述にもならない。着手時に必ず両方を測り直す。**
+🔑**受け皿は「同じ概念の隣」を見ると見つかる**＝`O-295` の正しい funnel は、
+`execLifeCrash` の中で**すぐ隣の行**に座っていた `oppMoveImmunityBlocksCrash`（「効果によってライフクロスは移動しない」）だった。
+
 ## 2026-09-11 — 第258バッチ（PLAN §5.3 索引A `O-301`）：🏁**クローズ**。「次の〜アタックフェイズ開始時」の遅延は**受け皿が全部在った**／真の穴は永続化1件
 
 **真因**＝`WXDi-P04-007-E3` の live が `GRANT_KEYWORD{duration:'PERMANENT'}`＝原文

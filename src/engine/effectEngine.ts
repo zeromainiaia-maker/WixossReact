@@ -4334,6 +4334,63 @@ export function oppMoveImmunityBlocksCrash(state: PlayerState): boolean {
 }
 
 /**
+ * 🆕**「あなたは対戦相手の効果によってダメージを受けない」の唯一の判定点**
+ * （§5.3 `O-295` 第259バッチ・2026-09-11）。
+ *
+ * 🔴**旧実装は `PlayerState.prevent_lrig_damage` を立てていた**（`execStubPart2.ts`）が、これは
+ *   **軸も回数も違った**＝①消費地点は `BattleScreen` の**ルリグアタックのダメージ**
+ *   （`src/screens/BattleScreen.tsx`）で、**ルリグアタックは「効果」ではない**（過剰実行）
+ *   ②その分岐が消費時に `undefined` へ戻すので**1回で終わる**のに、原文は【常】＝回数無制限（過小実行）。
+ *
+ * 🔑**正しい funnel は `execLifeCrash`**＝engine の「**効果による**ライフクロスのクラッシュ」経路で、
+ *   ルール処理（アタックのダメージ）は BattleScreen 側を通るのでここには落ちてこない
+ *   （すぐ上の `oppMoveImmunityBlocksCrash` と同じ切り分け）。
+ *
+ * ⚠🔴**印刷能力だけを走査すると付与された【常】が恒久 no-op になる**
+ *   （`SPDi44-04-E2-GRANT` / `WX25-P1-026-E2-GRANT` は `GRANT_LRIG_ABILITY` 由来で
+ *   **`effectsMap` に載らない**）＝`lrigDamageShield.ts` の `shieldCandidates` と同じ対で書く。
+ */
+export function isEffectDamagePreventedByOpp(args: {
+  /** ダメージ（＝効果によるライフクラッシュ）を受ける側。 */
+  defender: PlayerState;
+  /** 効果のコントローラー。`activeCondition` の相手視点に使う。 */
+  attacker: PlayerState;
+  cardMap: Map<string, CardData>;
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>;
+  /** 防御側が現在のターンプレイヤーかどうか（`activeCondition` 用）。 */
+  isDefenderTurn?: boolean;
+}): boolean {
+  const { defender, attacker, cardMap, effectsMap, isDefenderTurn } = args;
+  const printed: string[] = [
+    ...defender.field.signi.flatMap(stack => (stack?.at(-1) ? [stack.at(-1)!] : [])),
+    ...(defender.field.lrig.at(-1) ? [defender.field.lrig.at(-1)!] : []),
+    ...(defender.field.assist_lrig_l?.at(-1) ? [defender.field.assist_lrig_l.at(-1)!] : []),
+    ...(defender.field.assist_lrig_r?.at(-1) ? [defender.field.assist_lrig_r.at(-1)!] : []),
+    ...activeKeyAbilitySources(defender),
+  ];
+  const candidates: Array<[string, import('../types/effects').CardEffect]> = [];
+  for (const num of printed) {
+    for (const eff of (effectsMap.get(num) ?? effectsMap.get(num.split('#')[0]) ?? [])) candidates.push([num, eff]);
+  }
+  const lrigTop = defender.field.lrig.at(-1) ?? '';
+  if (!defender.lrig_abilities_disabled) {
+    for (const eff of defender.lrig_granted_auto_effects ?? []) candidates.push([lrigTop, eff]);
+    for (const eff of defender.lrig_granted_auto_effects_until_opp_turn ?? []) candidates.push([lrigTop, eff]);
+  }
+  for (const eff of defender.game_granted_effects ?? []) candidates.push([lrigTop, eff]);
+
+  for (const [num, eff] of candidates) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.type !== 'STUB') continue;
+    if (act.id !== 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' && act.id !== 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') continue;
+    if (!checkActiveCondition(eff.activeCondition, defender, attacker, isDefenderTurn ?? false, cardMap, num)) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
  * ATTACK_PHASE_LEVEL_OVERRIDE: 【英知】条件の判定でだけレベルを読み替えるシグニを収集する。
  * CardNum → **取りうるレベル群**（`number[]`）を返す。
  *

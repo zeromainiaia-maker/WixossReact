@@ -375,10 +375,10 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-294` | **live 7効果**（`WX16-Re20-E1` / `WXDi-P03-034-E1` / `WXDi-P07-005-E1` / `-sub-E1` / `WXDi-P13-042-E1` / `-E2` / `WXDi-P15-046-E2`。原文「能力を持たないシグニとして場に出す」6効果とほぼ一致＝取りこぼし0） | **`ADD_TO_FIELD.abilitiesRemoved` に engine の消費地点が無い**＝`effectParser.ts:8112` が書くだけの真 no-op（`O-287` の `commonClass` と同型）。⚠**`abilitiesRemoved` という名前は engine にもう1つある**（`effectEngine.ts:2428` の `collectContinuousAbilitiesRemovedSigni`＝**CONTINUOUS の能力喪失**で別物・`BoardComponents.tsx:408` は `string[]`）＝**grep だけで「在る」と読むと外す** |
-| `O-302` | **6効果**（原文「〜につき1つまで選ぶ」） | **可変選択数が表せない**＝`effectExecutor.ts:6449` は `action.choose_count` をそのまま使うので、原文「あなたのセンタールリグの**レベル1につき**1つまで選ぶ」が固定1に潰れる。⚠`CHOOSE.upTo` は「N個まで」の N が定数のとき用 |
-| `O-303` | **3効果**（`WXK03-026-E4` / `WXK06-029-E2` / `-E3`） | **`zone_moved_just` が場外→場の入れ替えでも記録される**（`effectExecutor.ts:11804`）＝原文「**場にある**このシグニが他のシグニゾーンに移動したとき」に絞れず過剰発火する。🔴**live JSON にキーが無い**（engine 内部の state）＝**どの計器にも映らない** |
-| `O-295` | **live 6効果**（`SPDi44-04-E2`＋`-GRANT` / `WX19-046-E3` / `WX25-P1-026-E2`＋`-GRANT` / `WXK03-011-E1`）＋**原文にあって JSON に無い1件**（`SPK01-13-E1`） | **「対戦相手の効果によってダメージを受けない」の期間が表せない**＝受け皿 `PREVENT_DAMAGE_FROM_OPP_EFFECTS` が立てる `prevent_lrig_damage` は **1回消費型**（`BattleScreen.tsx:13289` が消費時に `undefined` に戻す）。原文「**このターン**」「【常】」は回数無制限なので**2回目以降が素通りする**。⚠`PREVENT_DAMAGE`（期間型・回数無制限）は既に在るが `scope` が `'ALL' | 'LRIG'` だけ＝**「効果による」を表せない**（`ALL` にするとアタックのダメージまで防ぐ過剰実行） |
+| 🏁`O-294` | **クローズ済**（2026-09-11・第259バッチ）＝🔴**登録票が stale**。消費地点は `markPlacedAbilitiesRemoved`（`effectExecutor.ts:3997`）に実在し、**実装コミット `a49563c86`（第226）が登録コミット `f499c0cbb` の祖先**だった。母集団8効果のうち MISS 2 は別軸（`filter.noAbilities`＝検索フィルタ）で、寿命も原文と一致（6効果すべて「ターン終了時に場からトラッシュ」）。**変更なしでクローズ** |
+| 🏁`O-302` | **クローズ済**（2026-09-11・第259バッチ）＝**機構は実装済み**（`countChoose` → `resolveCountRef`・golden も反証つき）。🔴**穴は逆翻訳だけ**＝`numJa` が知らない `$ref` を `[参照値]` に潰していた（9行／全10シート）。`REF_NOUN_JA` を新設して 9 → 0。**engine は0行。** ゲートは `resolveCountRef` × `REF_NOUN_JA` の**集合一致** |
+| 🏁`O-303` | **クローズ済**（2026-09-11・第259バッチ）＝✅**登録どおり**（行番号だけ `:11804` → `:12104`）。場外↔場の入れ替えが `zone_moved_just` へ**両側**を積み、`ON_ZONE_MOVED` を**1入れ替えにつき2件**誤発火させていた。engine 1箇所を削って解消（場→場の3経路は正しいので不変） |
+| 🏁`O-295` | **クローズ済**（2026-09-11・第259バッチ）＝✅真バグ・かつ**登録票より重い**。①軸違いの過剰実行（`prevent_lrig_damage` の消費地点が**ルリグアタックのダメージ**＝アタックは「効果」ではない）②1回消費（【常】なのに）。✅**受け皿は既存**＝`execLifeCrash`（効果によるライフクラッシュの funnel）の**すぐ隣**に同型ゲート `oppMoveImmunityBlocksCrash` があった。`isEffectDamagePreventedByOpp` を新設し STUB は宣言型へ。期間つき同軸（`SPK01-13-E1`③）は `PreventDamageAction.scope` に `OPP_EFFECT` を追加。**`src/screens/` は1行も触っていない** |
 
 #### 索引 G. 新規分離（母集団 1〜2効果）
 
@@ -835,6 +835,17 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
+
+- **2026-09-11（第258バッチ・Opus 5 単独＝索引 A の 🏁`O-301` クローズ・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（前ブロックの「3」は**再計測していない stale 値**＝`HEAD`（`8d42733fb`）で測り直しても **1**。今回の作業では動いていない）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  ⚠**3計器がどれも動かないのは想定どおり**＝`WXDi-P04-007` は **Sheet7** で Sheet1 の母数に入らないうえ、直したのは**付与の寿命**（原文にも live にも語彙は出ている）＝台帳も census もこの層を見ていない。
+  🔑**「据置」と書くときも実測する**＝今回、前ブロックの Sheet1「3」が stale だったことがこの手順で分かった。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 30項目**（**A 2**／B 4／G 24。31 → 30＝`O-301` クローズ）｜
+  🏁**実機 残0**（§2.2 により実機不要と判定＝`src/screens/` 無傷・新型/新機構なし）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3926 PASS**（3925 → 3926）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  **ratchet の較正なし。反転確認あり**（live を `PERMANENT` へ戻すと新 golden が FAIL することを実行で確認）。
+  📈**live の per-effect 差分＝ちょうど1 effectId**（`WXDi-P04-007-E3`）。
 
 - **2026-09-11（第256〜第257バッチ・Codex 実装 → Opus 5 検証＝索引 A の `O-299` triage ＋ 🏁`O-300` クローズ・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。

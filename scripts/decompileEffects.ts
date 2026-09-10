@@ -144,6 +144,46 @@ const countPredicateJa = (op?: string) => ({
 } as Record<string, string>)[op ?? ''] ?? (op ?? '');
 // タスク12(liii)「それのレベル１につき」族＝対象シグニのレベルが枚数になる動的値
 const LEVEL_REFS = ['last_processed_level', 'stored_target_level'];
+// 🆕**`$ref` の日本語名詞句**（§5.3 `O-302` 第259バッチ・2026-09-11）。
+// 🔴**なぜ要るか**＝`numJa` は知らない `$ref` を **`[参照値]`** に潰すので、
+//   **engine は正しく数えているのに逆翻訳だけが「いくつなのか」を言わない**状態になる
+//   （実測＝逆翻訳シート全10枚で9行。うち4行は `O-302` の母集団そのもの）。
+//   これは「挙動を壊さない嘘」＝**次に着手する人の母集団の切り方を狂わせる**ので engine のバグと同じ扱いで直す。
+// 🔑**正は `resolveCountRef`（`src/engine/execUtils.ts:182`）**＝あちらに `$ref` を足したらここにも足す
+//   （golden の「§5.3 O-302」テストが両者の集合一致を assert するので、片方だけ足すと赤くなる）。
+// ⚠**返すのは「裸の名詞句」**＝助数詞を付けない。付ける側（`numJa`＝「〜と同じ数の」／
+//   CHOOSE＝「〜と同じ数だけ選ぶ」）が文脈に合わせて閉じる。
+const REF_NOUN_JA: Record<string, string> = {
+  last_processed_level: 'それのレベル',
+  stored_target_level: 'それのレベル',
+  last_processed_count: 'この方法で処理した枚数',
+  last_processed_level_sum: 'この方法で処理したカードのレベルの合計',
+  last_cost_field_trash_count: 'コストで場からトラッシュに置いたシグニの体数',
+  cards_drawn_this_attack_phase: 'このアタックフェイズ中に引いた枚数',
+  left_field_under_count: 'このシグニの下にあったカードの枚数',
+  center_lrig_level: 'あなたのセンタールリグのレベル',
+  opp_lrig_level: '対戦相手のセンタールリグのレベル',
+  self_center_lrig_type_count: 'あなたのセンタールリグのルリグタイプの種類数',
+  opp_center_lrig_type_count: '対戦相手のセンタールリグのルリグタイプの種類数',
+  assist_lrig_level_sum: 'あなたのアシストルリグのレベルの合計',
+  self_hand_over_five: 'あなたの手札が5枚を超えている分の枚数',
+  seven_minus_self_life_count: '7からあなたのライフクロスの枚数を引いた数',
+  bet_coins_paid: 'あなたがベットしたコインの枚数',
+  bet_coins_minus_declared_choose: 'あなたがベットしたコインのうち宣言しなかった枚数',
+  source_effective_power: 'このシグニのパワー',
+};
+// filter を持つ `$ref` だけは名詞句を組み立てる（表に固定文字列を置くと限定が消える）。
+const refNounJa = (n: any): string | null => {
+  if (!n || typeof n !== 'object' || typeof n.$ref !== 'string') return null;
+  if (n.$ref === 'self_energy_count' || n.$ref === 'opp_energy_count') {
+    return `${n.$ref === 'self_energy_count' ? 'あなた' : '対戦相手'}のエナゾーンにある`
+      + `${n.filter ? filterJa(n.filter) : ''}カードの枚数`;
+  }
+  if (n.$ref === 'life_crashed_by_signi_this_turn') {
+    return `このターンにあなたの${n.filter ? filterJa(n.filter) : ''}シグニがクラッシュした対戦相手のライフクロスの枚数`;
+  }
+  return REF_NOUN_JA[n.$ref] ?? null;
+};
 const numJa = (n: any) => typeof n === 'object'
   ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の'
     : n?.$ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数の'
@@ -153,7 +193,7 @@ const numJa = (n: any) => typeof n === 'object'
     : n?.$ref === 'left_field_under_count' ? 'このシグニの下にあったカードの枚数と同じ数'
     : n?.$ref === 'life_crashed_by_signi_this_turn'
       ? `このターンにあなたの${n.filter ? filterJa(n.filter) : ''}シグニがクラッシュした対戦相手のライフクロスの枚数と同じ数`
-    : '[参照値]')
+    : (refNounJa(n) ? `${refNounJa(n)}と同じ数の` : '[参照値]'))
   : String(n);
 
 // anyOf（OR フィルタ）＝下位フィルタごとに名詞まで出して「AかB」に組む。
@@ -2473,7 +2513,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const cntCh = a.countChoose?.countFromZone
         ? `${countFromZonePerJa(a.countChoose.countFromZone, 'つ', a.countChoose.upTo)}選ぶ`
         : a.countChoose
-        ? `${numJa(a.countChoose.count)}つ${a.countChoose.upTo ? 'まで' : 'を'}選ぶ`
+        // 🆕`$ref` は「Nつ」の助数詞に嵌まらない（旧＝「この方法で処理した枚数と同じ数の**つ**を選ぶ」）＝
+        //   §5.3 `O-302` 第259バッチで名詞句へ切り替えた。数値のときは従来どおり「Nつ」で描く。
+        ? (refNounJa(a.countChoose.count)
+          ? `${refNounJa(a.countChoose.count)}と同じ数${a.countChoose.upTo ? 'まで' : 'だけ'}選ぶ`
+          : `${numJa(a.countChoose.count)}つ${a.countChoose.upTo ? 'まで' : 'を'}選ぶ`)
         : a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
       // betChoose＝「あなたがベットしていた場合、代わりにKつ(まで)選ぶ」の択一（engine が is_betting で choose_count 上書き）。
       const betCh = a.betChoose
@@ -2931,6 +2975,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const periodPD = a.untilNextMainPhase ? '次のあなたのメインフェイズまで、'
         : a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、'
           : a.until === 'END_OF_ATTACK' ? 'そのアタックで' : 'このターン、';
+      // 🆕scope:'OPP_EFFECT'（§5.3 O-295）＝**対戦相手の効果による**ダメージだけ。`ALL` と同じ文で描くと
+      //   「あらゆるダメージ」に見えて engine の実挙動より広く読める（逆翻訳だけが嘘をつく形）。
+      if (a.scope === 'OPP_EFFECT')
+        return `${periodPD}${whoPD}は対戦相手の効果によってダメージを受けない`;
       if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
         return `${periodPD}${whoPD}は対戦相手のルリグによってダメージを受けない`;
       return `${periodPD}${whoPD}はダメージを受けない`;
