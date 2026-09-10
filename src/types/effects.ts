@@ -209,7 +209,7 @@ export interface CountFromZone {
    * ⚠**カードを数えるゾーンではない**＝`filter` / `sumBy` / `distinctBy` は効かない（`unitSize` / `per` / `maxCount` は効く）。
    *   同じ軸の `$ref:'self_center_lrig_type_count'` / `'opp_center_lrig_type_count'` と**同じ数え方**にしてある。
    */
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check' | 'appearance_cost' | 'signi_zone_all' | 'center_lrig_types';
+  zone: 'field' | 'lrig_field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check' | 'appearance_cost' | 'signi_zone_all' | 'center_lrig_types';
   owner: Owner;
   filter?: TargetFilter;
   /**
@@ -295,7 +295,7 @@ export type ActiveCondition =
   //   トラッシュに赤/青/緑のカードが１枚もない**かぎり**」）。⚠**両評価器を揃える**（PLAN §4.2 の3点セット）。
   | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number; distinctAcrossZones?: 'name' | 'level' }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート
-  | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
+  | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number; allFieldLrigs?: boolean } // 通常はセンター。allFieldLrigs=true はセンター＋アシスト全員
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
   | { type: 'IS_SELF_ACCED'; cardName?: string }                // このシグニにアクセが付いているかぎり（cardName指定時はそのカード名のアクセ限定）
@@ -352,7 +352,7 @@ export type ActiveCondition =
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり。distinctName=true は異なるカード名の種類数
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter | CardTypeFilter[]; filter?: TargetFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType/filter一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（省略=1 は turn_signi_returned_to_hand フラグ、N≧2 は signi_returned_to_hand_count_this_turn。G087）
-  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える。exactCount＝「N枚目のアーツだった場合」の**ちょうどN**）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; filter?: TargetFilter; minCount?: number; exactCount?: number } // このターンにアーツ／ピースを使用した履歴。filter 省略時は従来どおり全件、指定時は使用カード名を CardData に戻して絞る
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
   | { type: 'DURING_ATTACK_PHASE'; owner?: Owner }             // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果（CONTINUOUS）。owner:'self'=あなたのアタックフェイズのみ／'opponent'=対戦相手のアタックフェイズのみ／省略=どちらのアタックフェイズでも。engine は calcFieldPowers に渡された turnPhase（ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）で判定＝省略すると相手ターン中も過剰適用になっていた（WX25-CP1-082-E3/WX24-P1-050-E1 ほか9効果・タスク12）。turnPhase 未指定の呼び出し元では従来どおり true（過小実行を避ける）
   | { type: 'DURING_MAIN_PHASE'; owner?: Owner }               // 🆕§5.3 `O-65`：「[あなたの/対戦相手の]メインフェイズの間、」有効な常在効果（CONTINUOUS）。`DURING_ATTACK_PHASE` の対で、判定も同じ規約＝**turnPhase を渡さない呼び出し元では true**（過小実行を避ける）。⚠**受け皿を足すだけでは効かない**＝消費地点（`collectBanishEffectProtectedSigni` 等）が `checkActiveCondition` へ `turnPhase` を渡していないと恒久 no-op になる（`O-64` と同じ「委ね先が読んでいない」型）
@@ -469,7 +469,7 @@ export type Condition =
    *   カウンタは `causeOwnerId`（離脱を引き起こした**効果**のオーナー）が在るときだけ増える。
    */
   | { type: 'SIGNI_LEFT_BY_OPP_EFFECT'; owner: Owner; operator: CompareOp; value: number }
-  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える。exactCount＝ちょうどN枚目）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; filter?: TargetFilter; minCount?: number; exactCount?: number } // このターンに owner がアーツ／ピースを使用した履歴。filter 省略時は従来互換
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
   // 🆕`color`＝「このターンにあなたが**赤の**スペルを使用していた場合」（§5.3 `O-269`・2026-09-06）。
   //   ⚠**アーツ側（`ARTS_USED_THIS_TURN.color`）とは判定源が違う**＝あちらは `turn_arts_used_colors`
@@ -515,7 +515,7 @@ export type Condition =
   | { type: 'ALL_SELF_SIGNI_DOWN' }
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
-  | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
+  | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number; allFieldLrigs?: boolean }
   | { type: 'LRIG_STORY'; owner: Owner; story: string; negate?: boolean } // negate=true は「センタールリグが＜X＞**でない**場合」（この条件系には NOT ラッパが無いので`HAS_CARD_IN_FIELD`／`IS_BETTING` と同じ慣例で否定を表す。§6.4 O-35・`WXK05-005-E1`）
   | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
   | { type: 'THIS_CARD_IN_CENTER_ZONE' }
@@ -2584,7 +2584,7 @@ export interface DownAction {
 export interface UpAction {
   type: 'UP'; // アップ
   target: EffectTarget;
-  targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニ（ダウン状態で場に出たシグニ等）をアップ（ctx.triggeringCardNum → ctx.sourceCardNum）
+  targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニ／ルリグをアップ（ctx.triggeringCardNum → ctx.sourceCardNum）
   targetsBattleAttacker?: boolean; // 「そのアタックしているシグニ」= バトルを行ったアタッカー自身をアップ（ctx.battleAttackerCardNum。ON_SIGNI_BANISH_OPPONENT any_ally 等・能力ホストと攻撃者が別カードになりうるため thisCardOnly/targetsTriggerSource とは別軸。WX17-032）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それをアップする」。タスク12(lxiv)）
   /**
@@ -3654,7 +3654,7 @@ export interface RemoveAbilitiesAction {
   targetsStored?: boolean;
   /** 任意コストの対話を跨ぐ際に targetsStored を焼き込んだ対象。 */
   fixedCardNums?: string[];
-  targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
+  targetsTriggerSource?: boolean; // 「そのシグニ／ルリグ」= トリガー元へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
 
 // ルリグのレベルに比例したパワー修正（ACTIVATED効果）
@@ -7008,6 +7008,8 @@ export interface CardEffect {
     // ON_CARD_MILLED_FROM_DECK の発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
     // engine は last_effect_mill_source の CardClass で判定し、発生源不明のときは非発火（原因限定を保守側へ倒す）。
     milledSourceStory?: string;
+    /** ON_CARD_MILLED_FROM_DECK の発生源カードを一般 TargetFilter で限定する。発生源不明は非発火。 */
+    milledSourceFilter?: TargetFilter;
     milledMinCount?: number;                        // ON_CARD_MILLED_FROM_DECK の発火に必要な、その効果解決で対象デッキからトラッシュに置かれた最低枚数（省略=1）。「合計N枚」型はこの解決単位での近似（cf. TODO §3.5）
     movedToDeckOwner?: 'self' | 'opponent' | 'any';  // ON_CARD_MOVED_TO_DECK の宛先デッキ（トリガー所有者から見た self/opponent/any）。省略=any
     movedToDeckMinCount?: number;                     // ON_CARD_MOVED_TO_DECK の発火に必要な、その効果解決で対象デッキに加わった最低枚数（省略=1）。「N枚以上」型はこの解決単位での近似（cf. TODO §3.5）

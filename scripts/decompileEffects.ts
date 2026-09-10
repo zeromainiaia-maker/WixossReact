@@ -163,13 +163,14 @@ function anyOfJa(list: any[]): string {
 }
 
 function countFromZoneJa(spec: any): string {
-  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下', check: 'チェックゾーン' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
+  const zone = ({ field: '場', lrig_field: 'ルリグ場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下', check: 'チェックゾーン' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
   const noun = spec?.filter
-    ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || 'カード'}`
+    ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || (spec?.zone === 'lrig_field' ? 'ルリグ' : 'カード')}`
     : 'カード';
   const owner = ownerJa(spec?.owner);
   const base = spec?.zone === 'deck' ? `${owner}デッキの枚数`
     : spec?.zone === 'charm' ? `${owner}場にある【チャーム】の枚数`
+    : spec?.zone === 'lrig_field' ? `${owner}場にいる${noun}の数`
     // `under`＝効果元スタックの下段（§5.3 `O-141`）。所有者は効果元で決まるので owner を出さない。
     : spec?.zone === 'under' ? `${zone}にある${noun}の枚数`
     : `${owner}${zone}にある${noun}の枚数`;
@@ -281,7 +282,7 @@ function filterJa(f?: any): string {
   if (f.powerLteRevealedSigniLevelSum != null) parts.push(`パワーが「この方法で公開したシグニのレベルの合計×${f.powerLteRevealedSigniLevelSum}」以下の`);
   if (f.powerLteZoneCount) parts.push(`パワーが「${countFromZoneJa(f.powerLteZoneCount)}」以下の`);
   if (f.powerLteLastProcessedCount != null) parts.push(`パワーが「この方法で処理したカードの枚数×${f.powerLteLastProcessedCount}」以下の`);
-  if (f.levelLteZoneCount) parts.push(`${countFromZoneJa(f.levelLteZoneCount)}以下のレベルを持つ`);
+  if (f.levelLteZoneCount) parts.push(`レベルが${countFromZoneJa(f.levelLteZoneCount)}以下の`);
   if (f.levelLteFieldVirusCount) parts.push('レベルが場にある【ウィルス】の数以下の');
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
@@ -985,7 +986,7 @@ function condJa(c?: any): string {
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
     case 'LRIG_NAME_CONTAINS': return `${ownerJa(c.owner)}センタールリグ名が「${c.name}」を含む`;
     case 'LRIG_COLOR': return `${ownerJa(c.owner)}センタールリグが${c.color}`;
-    case 'LRIG_LEVEL': return `${ownerJa(c.owner)}センタールリグがレベル${numJa(c.value)}${opJa(c.operator)}`;
+    case 'LRIG_LEVEL': return `${ownerJa(c.owner)}${c.allFieldLrigs ? '場のルリグ全員' : 'センタールリグ'}がレベル${numJa(c.value)}${opJa(c.operator)}`;
     case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'FIELD_LEVEL_SUM': {
@@ -1008,10 +1009,12 @@ function condJa(c?: any): string {
       return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return c.minCount && c.minCount > 1 ? `このターンにシグニが${numJa(c.minCount)}体以上場から手札に戻っていた` : 'このターンにシグニが場から手札に戻っていた';
     case 'ARTS_USED_THIS_TURN': {
-      const artsCondition = c as { color?: string; minCount?: number; exactCount?: number };
+      const artsCondition = c as { color?: string; minCount?: number; exactCount?: number; filter?: { cardType?: string | string[] } };
+      const usedTypes = ([] as string[]).concat(artsCondition.filter?.cardType ?? []);
+      const usedNoun = usedTypes.some(type => type === 'ピース' || type === 'リレーピース') ? 'ピース' : 'アーツ';
       // exactCount＝「N枚目のアーツだった場合」＝**ちょうどN枚目**（minCount の「N回以上」とは別物）。
       if (artsCondition.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(artsCondition.exactCount)}枚目のアーツだった`;
-      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsCondition.color ? `${artsCondition.color}の` : ''}アーツを${(artsCondition.minCount ?? 1) > 1 ? `${numJa(artsCondition.minCount!)}回以上` : ''}使用していた`;
+      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsCondition.color ? `${artsCondition.color}の` : ''}${usedNoun}を${(artsCondition.minCount ?? 1) > 1 ? `${numJa(artsCondition.minCount!)}回以上` : ''}使用していた`;
     }
     case 'SPELL_USED_THIS_TURN':
       // exactCount＝「N枚目のスペルだった場合」＝**ちょうどN枚目**（minCount の「N枚以上」とは別物）。
@@ -1688,7 +1691,7 @@ function actionJa(a?: Action, effectType?: string): string {
     //   `targetJa` の `thisCardOnly` 分岐は種別を見ずに **常に「このシグニ」**を返すので、
     //   `WXDi-D04-004-E2`（付与された【自】の「このルリグをアップする」）が
     //   **「このシグニをアップする」**と出て、原文照合で別物に見えていた（JSON は `LRIG` で正しい）。
-    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : a.target?.type === 'LRIG' && a.target?.filter?.thisCardOnly ? 'このルリグ' : targetJa(a.target)}をアップする`;
+    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? `それ（トリガー元${a.target?.type === 'LRIG' ? 'ルリグ' : 'シグニ'}）` : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : a.target?.type === 'LRIG' && a.target?.filter?.thisCardOnly ? 'このルリグ' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {
       // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
       if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
@@ -2186,7 +2189,7 @@ function actionJa(a?: Action, effectType?: string): string {
           ? `このシグニの正面のシグニの${kinds.map((k: string) => `【${k}】`).join('')}能力は発動しない`
           : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
       }
-      const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      const subjRA = a.targetsTriggerSource ? `それ（トリガー元${a.target?.type === 'LRIG' ? 'ルリグ' : 'シグニ'}）` : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
       // 🆕§5.3 `O-130`＝「**効果によって得ている**能力を失う」。落とすと全能力喪失と同じ文になり、
       //   **印刷能力まで消していた旧実装と区別できない**（＝直しても計器に映らない）。
       if (a.grantedOnly) {
@@ -6146,6 +6149,8 @@ function effJa(e: Eff): string {
       const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
       const source = e.triggerCondition?.milledSourceStory
         ? `あなたの＜${e.triggerCondition.milledSourceStory}＞のシグニの効果によって`
+        : e.triggerCondition?.milledSourceFilter
+        ? `あなたの${filterJa(e.triggerCondition.milledSourceFilter)}カードの効果によって`
         : e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
         : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
         : e.triggerCondition?.byEffect ? '効果によって' : '';

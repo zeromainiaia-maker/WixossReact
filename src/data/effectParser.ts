@@ -18105,6 +18105,10 @@ function parseActionTextInner(text: string): EffectAction {
         return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
       }),
       ...(upTo ? { upTo: true } : {}),
+      // 「まだ選んでいないもの」／「この【起】能力でまだ選ばれていない」＝
+      // 解決をまたいで選択済みの枝を除外する。履歴の記録・消費は既存の
+      // `ChooseAction.noRepeat` / `PlayerState.taken_choice_keys` に一本化する。
+      ...(/まだ選んでいないもの|まだ選ばれていない/.test(rawText) ? { noRepeat: true } : {}),
     };
   }
 
@@ -18124,8 +18128,8 @@ function parseActionTextInner(text: string): EffectAction {
     const fixed = src.match(/以下(?:の[０-９\d２-９]+つ|から[０-９\d２-９]+つ)から(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     if (fixed) return { count: parseNum(fixed[1]), upTo: !!fixed[2] };
     // 「この【起】能力で**まだ選ばれていない**１つを選ぶ」（`PR-469`）＝既存の「まだ選んでいないもの」と同義。
-    // ⚠**選択履歴（使用済み選択肢の除外）は未実装**＝毎回すべての選択肢から選べる近似のまま
-    //   （既存の `まだ選んでいないもの` と同じ扱い。effectParser の同注記を参照）。
+    // 選択履歴は `buildChoose` が `noRepeat:true` を立て、engine が永続の
+    // `taken_choice_keys` を参照して使用済み選択肢を除外する。
     const notYet = src.match(/以下の[０-９\d２-９]+つからこの【[出起自常]】能力でまだ選ばれていない([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     if (notYet) return { count: parseNum(notYet[1]), upTo: !!notYet[2] };
     // 「この方法で捨てた／〈ルリグ〉トラッシュに置いた〈名詞〉の枚数と同じ数だけ／まで選ぶ」＝
@@ -21457,6 +21461,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const msM = actionText.match(/あなたの＜([^＞]+)＞のシグニの効果/);
         if (msM) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), milledSourceStory: msM[1] };
+        } else if (/あなたの《ディソナアイコン》のカードの効果/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), milledSourceFilter: { isDisona: true } };
         } else if (/(?:＜[^＞]+＞の)シグニの効果/.test(actionText)) {
           // 「あなたの」が付かない別形＝上の規則で拾えない＝従来どおり落とす近似として計器に刻む
           markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
@@ -22885,6 +22891,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.replace(/、?このターンにあなたがアーツを使用していた場合(?:、)?/, '、').replace(/^、/, '');
   }
 
+  // 「このターンにあなたがピースを使用していた場合」＝アーツ／ピース共通の使用履歴を
+  // cardType で絞る。専用カウンタを増やさず、既存 `turn_arts_used_names` を唯一の台帳にする。
+  if (actionText && /このターンにあなたがピースを使用していた場合/.test(actionText)) {
+    const pieceCond: Condition = { type: 'ARTS_USED_THIS_TURN', owner: 'self',
+      filter: { cardType: ['ピース', 'リレーピース'] } };
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, pieceCond] }
+      : pieceCond;
+    actionText = actionText.replace(/、?このターンにあなたがピースを使用していた場合(?:、)?/, '、').replace(/^、/, '');
+  }
+
   // 「このターンにあなたがスペルを使用していた場合」= SPELL_USED_THIS_TURN 条件に昇格（WX24-P1-068 等8枚の系統・続き110）。
   // ⚠(a) 直後が「代わりに」の場合は per-target 置換（WX25-P2-108）＝hoist せず STATE_CONDITION_CLAUSES_V2 の
   //     置換ゲート（matchLeadingStateCondition）に委ねる（色別 ARTS_USED と同じ扱い）。
@@ -24166,7 +24183,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       build: match => ({
         type: 'AND', conditions: [
           { type: 'LRIG_TEAM_COUNT', owner: 'self', team: normalizePrintedTeamName(match[1]), operator: 'gte', value: 3 },
-          { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(match[2]) },
+          { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(match[2]), allFieldLrigs: true },
         ],
       }),
     },

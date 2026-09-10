@@ -707,6 +707,21 @@ export function parseDynamicCountLimit(text: string): Partial<TargetFilter> {
   const processedLevel = text.match(/この(?:方法|効果)でトラッシュに置かれた(.+?)(?:の|を(?:合計した|合わせた))枚数以下のレベル/);
   if (processedLevel) return { levelLteLastProcessedCount: sourceFilter(processedLevel[1]) ?? true };
 
+  // 「レベルが〈owner〉の場にいる〈色〉のルリグの数以下」＝センターだけでなく
+  // 左右アシストも含む。既存の汎用 levelLteZoneCount に新しい数え元を渡す。
+  const fieldLrigLevel = text.match(/レベルが(あなた|対戦相手)の場にいる([白赤青緑黒無])のルリグの数以下/);
+  if (fieldLrigLevel) {
+    return {
+      levelLteZoneCount: {
+        zone: 'lrig_field',
+        owner: fieldLrigLevel[1] === '対戦相手' ? 'opponent' : 'self',
+        // zone 自体がルリグ3枠に閉じている。`cardType:'ルリグ'` を重ねると
+        // CardData.Type が「アシストルリグ」の札を除外してしまうため、色だけを掛ける。
+        filter: { color: fieldLrigLevel[2] },
+      },
+    };
+  }
+
   const fieldLevel = text.match(/あなたの場にある(.+?)の(?:枚数|数)以下のレベル/);
   if (fieldLevel) {
     return { levelLteZoneCount: { zone: 'field', owner: 'self', filter: sourceFilter(fieldLevel[1]) } };

@@ -50,7 +50,7 @@ import {
   hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
@@ -6620,6 +6620,21 @@ test('§6.4 O-16 live: ゾーン限定のアタック禁止3効果が指定ゾ�
   }
 });
 
+test('O-321 WXDi-P11-046-E2: このターンのピース使用履歴だけで発火する', () => {
+  const eff = effectsMap.get('WXDi-P11-046')!.find(e => e.effectId === 'WXDi-P11-046-E2')!;
+  eq(JSON.stringify(eff.condition), JSON.stringify({ type: 'ARTS_USED_THIS_TURN', owner: 'self',
+    filter: { cardType: ['ピース', 'リレーピース'] } }), 'ピース限定の履歴条件');
+  const pieceNum = findCard(c => c.Type === 'ピース');
+  const artsNum = findCard(c => c.Type === 'アーツ');
+  const pieceName = cardMap.get(pieceNum)!.CardName;
+  const artsName = cardMap.get(artsNum)!.CardName;
+  const cond = eff.condition!;
+  const hit = mkCtx({}, {}); hit.ownerState.turn_arts_used_names = [pieceName]; hit.ownerState.turn_arts_used = true;
+  const miss = mkCtx({}, {}); miss.ownerState.turn_arts_used_names = [artsName]; miss.ownerState.turn_arts_used = true;
+  ok(evalCondition(cond, hit), '成立方向: ピース使用済みなら成立');
+  ok(!evalCondition(cond, miss), '反転確認: アーツだけの使用では不成立');
+});
+
 // §6.4 O-16(a): ゾーン継続の**動的 delta**。「指定されたシグニゾーンにあるシグニのパワーを
 // **そのシグニのレベル１につき**－2000する」＝`FieldGrant{kind:'power'}` は固定 delta しか持てず、
 // この語形は `STUB{POWER_MOD_PER_COUNT}`（ACTIVATED 経路に消費地点なし＝真 no-op）へ落ちていた。
@@ -11466,6 +11481,91 @@ test('§3 (cxxviii) parser: 「あなたのルリグがアタックしたとき�
   }
 });
 
+test('O-316 WXDi-P03-035-E1: アタックしたアシストルリグ自身をアップし能力を失わせる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P03-035')!.find(e => e.effectId === 'WXDi-P03-035-E1')!;
+  const up = findActionByType(eff.action, 'UP') as Extract<EffectAction, { type: 'UP' }> | undefined;
+  const remove = findActionByType(eff.action, 'REMOVE_ABILITIES') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }> | undefined;
+  ok(!!up?.targetsTriggerSource && !!remove?.targetsTriggerSource, '両帰結がアタック元ルリグに束縛される');
+  if (!up || !remove) return;
+  const center = findCard(c => c.Type === 'ルリグ');
+  const assist = findCard(c => c.Type === 'アシストルリグ');
+  const base = mkCtx({}, {}, 'WXDi-P03-035');
+  base.ownerState.field = { ...base.ownerState.field, lrig: [center], assist_lrig_l: [assist],
+    lrig_down: true, assist_lrig_l_down: true };
+  const trig = { ...base, triggeringCardNum: assist } as ExecCtx;
+  const upped = executeAction(up, trig);
+  ok(upped.done && upped.ownerState.field.assist_lrig_l_down === false, '成立方向: アタックしたアシストをアップ');
+  ok(upped.done && upped.ownerState.field.lrig_down === true, '反転確認: センタールリグはアップしない');
+  const removed = executeAction(remove, trig);
+  ok(removed.done && removed.ownerState.abilities_removed?.includes(assist), '成立方向: アタックしたアシストが能力を失う');
+  ok(removed.done && !removed.ownerState.abilities_removed?.includes(center), '反転確認: センターは能力を失わない');
+
+  const printed: CardEffect = { effectId: 'assist-auto', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL' };
+  const tc = { ...trigCtx(HOST), effectsMap: new Map([[assist, [printed]]]) };
+  ok(attackingLrigPrintedEffects(tc, base.ownerState, assist).length === 1, '能力がある間は印刷AUTOを収集');
+  const lost = { ...base.ownerState, abilities_removed: [assist] };
+  ok(attackingLrigPrintedEffects(tc, lost, assist).length === 0, '反転確認: 能力喪失後は印刷AUTOを収集しない');
+}));
+
+for (const [cardNum, effectId, losesAbility] of [
+  ['WX19-021', 'WX19-021-E2', false],
+  ['WX26-CP1-046', 'WX26-CP1-046-E1', true],
+  ['WXDi-CP01-028', 'WXDi-CP01-028-E1', true],
+  ['WXDi-P03-035', 'WXDi-P03-035-E1', true],
+  ['WXDi-P04-051', 'WXDi-P04-051-E1', true],
+  ['WXDi-P12-044', 'WXDi-P12-044-E2', true],
+] as const) {
+  test(`O-316 共有生成点: ${effectId} の「そのルリグ」をアタック元へ束縛`, () => withSavedCursor(() => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const up = findActionByType(eff.action, 'UP') as Extract<EffectAction, { type: 'UP' }> | undefined;
+    ok(up?.target.type === 'LRIG' && up.targetsTriggerSource === true, `${effectId}: UP の束縛`);
+    const remove = findActionByType(eff.action, 'REMOVE_ABILITIES') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }> | undefined;
+    eq(!!remove, losesAbility, `${effectId}: 能力喪失の有無`);
+    if (remove) ok(remove.target.type === 'LRIG' && remove.targetsTriggerSource === true, `${effectId}: 能力喪失の束縛`);
+    if (!up) return;
+    const center = findCard(c => c.Type === 'ルリグ');
+    const assist = findCard(c => c.Type === 'アシストルリグ');
+    const ctx = mkCtx({}, {}, cardNum);
+    ctx.ownerState.field = { ...ctx.ownerState.field, lrig: [center], assist_lrig_l: [assist],
+      lrig_down: true, assist_lrig_l_down: true };
+    ctx.triggeringCardNum = assist;
+    const upped = executeAction(up, ctx);
+    ok(upped.done && upped.ownerState.field.assist_lrig_l_down === false, `${effectId}: アタック元アシストをアップ`);
+    ok(upped.done && upped.ownerState.field.lrig_down === true, `${effectId}: 反転確認・センターはアップしない`);
+    if (remove) {
+      const removed = executeAction(remove, ctx);
+      ok(removed.done && removed.ownerState.abilities_removed?.includes(assist), `${effectId}: アタック元アシストの能力を失わせる`);
+      ok(removed.done && !removed.ownerState.abilities_removed?.includes(center), `${effectId}: 反転確認・センターの能力は残る`);
+    }
+  }));
+}
+
+for (const [cardNum, effectId] of [
+  ['WXDi-D07-011', 'WXDi-D07-011-E1'], ['WXDi-P16-002', 'WXDi-P16-002-E1'],
+] as const) {
+  test(`O-316 ${effectId}: 「全員レベル1以上」はセンターと両アシストを評価する`, () => withSavedCursor(() => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const levelCond = (eff.condition as Extract<Condition, { type: 'AND' }>).conditions
+      .find(c => c.type === 'LRIG_LEVEL') as Extract<Condition, { type: 'LRIG_LEVEL' }> | undefined;
+    ok(levelCond?.allFieldLrigs === true, 'live の LRIG_LEVEL が場の全ルリグを指す');
+    if (!levelCond) return;
+    const center = findCard(c => c.Type === 'ルリグ' && parseInt(c.Level, 10) >= 1);
+    const good = [...cardMap.values()].filter(c => c.Type === 'アシストルリグ' && parseInt(c.Level, 10) >= 1)
+      .slice(0, 2).map(c => c.CardNum);
+    ok(good.length === 2, 'レベル1以上のアシスト標本が2体ある');
+    const low = `__O316_L0_ASSIST_${cardNum}__`;
+    const testCardMap = new Map(cardMap);
+    testCardMap.set(low, { ...cardMap.get(good[0])!, CardNum: low, Level: '0' });
+    const valid = mkState({ lrig: [center], assistL: [good[0]], assistR: [good[1]] });
+    const invalid = mkState({ lrig: [center], assistL: [low], assistR: [good[1]] });
+    ok(evalCondition(levelCond, { ...mkCtx({}, {}), ownerState: valid, cardMap: testCardMap }), '成立方向: 3体ともレベル1以上');
+    ok(!evalCondition(levelCond, { ...mkCtx({}, {}), ownerState: invalid, cardMap: testCardMap }), '反転確認: アシスト1体がレベル0なら不成立');
+    ok(checkActiveCondition(levelCond as ActiveCondition, valid, mkState(), true, testCardMap), 'ActiveCondition 側も全員Lv1以上で成立');
+    ok(!checkActiveCondition(levelCond as ActiveCondition, invalid, mkState(), true, testCardMap), '反転確認: ActiveCondition 側もLv0アシストを拒否');
+  }));
+}
+
 test('§3 (cxxviii) parser: 語彙化できない主語修飾は timing を触らない（過小実行を過剰発火へ付け替えない）', () => {
   // 「あなたの《335　アキノ》１体がアタックしたとき」（`SPDi43-28-E1`）は**ルリグという語すら無い**指示語主語。
   // `parseAllyLrigAttackSubject` は未知修飾で null を返すので timing は据置＝**据置が正しい**（配線しない）。
@@ -15537,6 +15637,23 @@ test('Stage2 ON_CARD_MILLED_FROM_DECK: 発生源クラス限定（WX24-P3-030-E1
   eq(fire(akuma!), true, '悪魔シグニの効果によるミルでは発火するはず');
   eq(fire(other!), false, '悪魔以外の効果によるミルでは発火しないはず（従来はここが過剰発火）');
   eq(fire(undefined), false, '発生源不明（execMill 以外の経路）は原因限定を満たさず非発火');
+});
+
+test('O-321 WXDi-P13-085-E1: ディソナ発生源のミルだけで誘発する', () => {
+  const eff = effectsMap.get('WXDi-P13-085')!.find(e => e.effectId === 'WXDi-P13-085-E1')!;
+  eq(JSON.stringify(eff.triggerCondition?.milledSourceFilter), JSON.stringify({ isDisona: true }),
+    '発生源フィルタを live に保持');
+  const disona = findCard(c => c.Story === 'Dissona');
+  const ordinary = findCard(c => c.Story !== 'Dissona');
+  const fire = (src: string | undefined) => {
+    const host = mkState({ signi: ['WXDi-P13-085', null, null] });
+    const guest = mkState({});
+    guest.last_effect_mill_source = src;
+    return has(collectMillTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WXDi-P13-085-E1');
+  };
+  ok(fire(disona), '成立方向: ディソナカードの効果なら発火');
+  ok(!fire(ordinary), '反転確認: 非ディソナカードの効果では非発火');
+  ok(!fire(undefined), '反転確認: 発生源不明では非発火');
 });
 
 // 🔴V-83（2026-08-24・実機で恒久 no-op を確認して修正）＝上の collector テストは
@@ -29213,8 +29330,9 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(!!exile, '🔴除外コストが落ちると《白×3》だけで撃てる（コスト踏み倒し）');
     eq(exile!.count, 1, '除外枚数');
     eq(exile!.story, 'タマ', '🔴＜タマ＞限定が落ちると何を除外してもよくなる');
-    const a = eff.action as unknown as { type: string; choices: { action: Record<string, unknown> }[] };
+    const a = eff.action as unknown as { type: string; noRepeat?: boolean; choices: { action: Record<string, unknown> }[] };
     eq(a.type, 'CHOOSE', '🔴3択が組まれず受け皿 STUB に戻っている');
+    eq(a.noRepeat, true, '🔴「この【起】能力でまだ選ばれていない」枝を解決間で除外する');
     eq(a.choices.length, 3, '選択肢数');
     eq(a.choices[0].action.type, 'TRASH', '①相手のすべてのシグニをトラッシュ');
     eq((a.choices[1].action as { type: string; all?: boolean }).type, 'MILL', '②相手デッキを落とす');
@@ -29224,6 +29342,22 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(c3.includes('OPP_LRIG_DECK_BLIND_REVEAL'), '③の見ないで選び公開が落ちている');
     ok(!c3.includes('NON_LRIG_TO_LRIG_TRASH'),
       '🔴自分側固定の NON_LRIG_TO_LRIG_TRASH が後段に残ると、相手のカードが自分のルリグトラッシュへ複製される');
+
+    // engine 反転：既に選んだ c0 は候補から外れ、未選択 c1/c2 は残る。
+    const usedCtx = mkCtx({}, {}, 'PR-469');
+    usedCtx.ownerState = { ...usedCtx.ownerState, taken_choice_keys: ['PR-469-E3:c0'] };
+    const offered = executeEffect(eff, usedCtx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', '未選択肢が残る間は選択を提示');
+    if (!offered.done && offered.pending.type === 'CHOOSE') {
+      eq(offered.pending.options.find(o => o.id === 'c0')?.available, false, '反転確認: 選択済み c0 は再選択不可');
+      eq(offered.pending.options.find(o => o.id === 'c1')?.available, true, '成立方向: 未選択 c1 は選択可');
+      eq(offered.pending.options.find(o => o.id === 'c2')?.available, true, '成立方向: 未選択 c2 は選択可');
+    }
+    const exhaustedCtx = mkCtx({}, {}, 'PR-469');
+    exhaustedCtx.ownerState = { ...exhaustedCtx.ownerState,
+      taken_choice_keys: ['PR-469-E3:c0', 'PR-469-E3:c1', 'PR-469-E3:c2'] };
+    const exhausted = executeEffect(eff, exhaustedCtx);
+    ok(exhausted.done, '反転確認: 全枝選択済みなら選択を提示せず no-op');
   });
   test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
@@ -45625,12 +45759,12 @@ const batch389TeamCondition = (team: string, withLevel: boolean): Condition => {
     type: 'LRIG_TEAM_COUNT', owner: 'self', team, operator: 'gte', value: 3,
   };
   return withLevel
-    ? { type: 'AND', conditions: [teamCondition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 1 }] }
+    ? { type: 'AND', conditions: [teamCondition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 1, allFieldLrigs: true }] }
     : teamCondition;
 };
 
 for (const [cardNum, team, withLevel] of batch389Cases) {
-  test(`続き389 ${cardNum}-E1: 実データの同一チーム3体とセンターLvで使用ゲートを評価`, () => withSavedCursor(() => {
+  test(`続き389 ${cardNum}-E1: 実データの同一チーム3体と全ルリグLvで使用ゲートを評価`, () => withSavedCursor(() => {
     const rawEffects = parseCardEffects(cardMap.get(cardNum)!);
     const effect = rawEffects.find(candidate => candidate.effectId === `${cardNum}-E1`)!;
     batch387AssertCondition(effect, batch389TeamCondition(team, withLevel));
@@ -45640,13 +45774,14 @@ for (const [cardNum, team, withLevel] of batch389Cases) {
     ok(exactTeamCards.length > 0, `${cardNum}: condition.team=${team} がCSV Team列に実在`);
     const levelOneCenter = findCard(card => card.Type === 'ルリグ' && card.Team === team && parseInt(card.Level, 10) >= 1);
     const levelZeroCenter = findCard(card => card.Type === 'ルリグ' && card.Team === team && card.Level === '0');
-    const assists = exactTeamCards.filter(card => card.Type === 'アシストルリグ').map(card => card.CardNum);
+    const assists = exactTeamCards.filter(card => card.Type === 'アシストルリグ' && parseInt(card.Level, 10) >= 1).map(card => card.CardNum);
+    const levelZeroAssist = exactTeamCards.find(card => card.Type === 'アシストルリグ' && card.Level === '0')?.CardNum;
     ok(assists.length >= 2, `${cardNum}: 同一チームの実アシストが2体以上`);
     const mixedAssist = findCard(card => card.Type === 'アシストルリグ' && card.Team !== team && card.Team !== '-');
 
     const opponent = mkState({});
     const states = [
-      [mkState({ lrig: [levelOneCenter], assistL: [assists[0]], assistR: [assists[1]] }), true, '同一チーム3体・センターLv1以上'],
+      [mkState({ lrig: [levelOneCenter], assistL: [assists[0]], assistR: [assists[1]] }), true, '同一チーム3体・全員Lv1以上'],
       [mkState({ lrig: [levelZeroCenter], assistL: [assists[0]], assistR: [assists[1]] }), !withLevel, '同一チーム3体・センターLv0'],
       [mkState({ lrig: [levelOneCenter], assistL: [assists[0]] }), false, '同一チーム2体'],
       [mkState({ lrig: [levelOneCenter], assistL: [assists[0]], assistR: [mixedAssist] }), false, '別チーム混在'],
@@ -45656,6 +45791,13 @@ for (const [cardNum, team, withLevel] of batch389Cases) {
         `${cardNum}: evalUseCondition ${label}`);
       eq(canUseArtsCondition([effect], state, opponent, cardMap, cardNum, 'MAIN'), expected,
         `${cardNum}: canUseArtsCondition ${label}`);
+    }
+    if (withLevel && levelZeroAssist) {
+      const lowAssistState = mkState({ lrig: [levelOneCenter], assistL: [levelZeroAssist], assistR: [assists[1]] });
+      eq(evalUseCondition(effect.condition!, lowAssistState, opponent, cardMap, cardNum, 'MAIN'), false,
+        `${cardNum}: 反転確認・アシスト1体がLv0なら不成立`);
+      eq(canUseArtsCondition([effect], lowAssistState, opponent, cardMap, cardNum, 'MAIN'), false,
+        `${cardNum}: 反転確認・使用可否もアシストLv0を拒否`);
     }
     if (cardNum === 'WXDi-D01-011') {
       ok(cardMap.get(cardNum)!.EffectText.includes('アンシエント･サプライズ'), '原文は半角中黒のトリップワイヤ');
@@ -53626,6 +53768,28 @@ for (const [effectId, zone] of batch26LevelSpecs) {
     if (effectId === 'WXEX1-67-E1') ok(!findActionByType(batch26FreshEffect(effectId).action, 'GRANT_KEYWORD'), `${effectId}: 数え元のトラップを付与にしない`);
   }));
 }
+
+test('O-304 WXDi-P06-032-E1: 白ルリグ総数をレベル上限にし、超過レベルを選べない', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P06-032')!.find(e => e.effectId === 'WXDi-P06-032-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"levelLteZoneCount":{"zone":"lrig_field","owner":"self","filter":{"color":"白"}}'),
+    'センター＋アシストを数える汎用 CountFromZone が live に載る');
+  const bounce = findActionByType(eff.action, 'BOUNCE') as Extract<EffectAction, { type: 'BOUNCE' }> | undefined;
+  ok(!!bounce, '帰結の BOUNCE');
+  if (!bounce) return;
+  const lv2 = SIGNI_L2;
+  const lv3 = SIGNI_L3;
+  const whiteLrig = findCard(c => (c.Type ?? '').includes('ルリグ') && (c.Color ?? '').includes('白'));
+  const ctx = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [lv2, lv3, null], hand: 0, trash: 0, energy: 0 });
+  ctx.ownerState.field.lrig = [whiteLrig];
+  ctx.ownerState.field.assist_lrig_l = [`${whiteLrig}#assist`];
+  const offered = executeAction(bounce, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '白ルリグ2体なら対象選択を提示');
+  if (!offered.done && offered.pending.type === 'SELECT_TARGET') {
+    ok(offered.pending.candidates.includes(lv2), '成立方向: レベル2は候補');
+    ok(!offered.pending.candidates.includes(lv3), '反転確認: レベル3は候補外');
+  }
+}));
 
 test('段2 第26バッチ E2E: WX25-CP1-080-E1 は実際にエナから置いた枚数×4000', () => withSavedCursor(() => {
   const effect = batch26FreshEffect('WX25-CP1-080-E1');

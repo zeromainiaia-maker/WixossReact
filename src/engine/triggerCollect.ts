@@ -890,6 +890,7 @@ export function collectAllyLrigAttackTriggers(
   // ⚠ここを見ないと限定が黙って落ちて「どのルリグのアタックでも発火する」過剰発火になる（続き475e）。
   const attackingLrigCard = ctx.cardMap.get(getCardNum(attackingLrigNum));
   for (const num of sources) {
+    if ((attackerState.abilities_removed ?? []).includes(num)) continue;
     for (const eff of effsOf(ctx, num)) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
       const scope = eff.triggerScope ?? 'self';
@@ -904,10 +905,22 @@ export function collectAllyLrigAttackTriggers(
         id: ctx.genId(), playerId: attackerId, cardNum: num, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(num))?.CardName ?? num} の【自】効果（あなたのルリグのアタック時）`,
         effect: eff,
+        triggeringCardNum: attackingLrigNum,
       });
     }
   }
   return { entries, usedIds };
+}
+
+/** アタックしたルリグ自身の印刷【自】。能力喪失中は収集しない。 */
+export function attackingLrigPrintedEffects(
+  ctx: TrigCtx,
+  attackerState: PlayerState,
+  attackingLrigNum: string,
+): CardEffect[] {
+  if ((attackerState.abilities_removed ?? []).includes(attackingLrigNum)) return [];
+  return effsOf(ctx, attackingLrigNum)
+    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
 }
 
 /**
@@ -2221,10 +2234,13 @@ export function collectMillTriggers(
       // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
       // last_effect_mill_source が無い経路は原因不明。原因限定付き効果は保守側へ倒して非発火。
       const reqMillStory = eff.triggerCondition?.milledSourceStory;
-      if (reqMillStory) {
+      const reqMillFilter = eff.triggerCondition?.milledSourceFilter;
+      if (reqMillStory || reqMillFilter) {
         const millSrc = (owner === 'opponent' ? otherState : controllerState).last_effect_mill_source;
         const source = millSrc ? ctx.cardMap.get(getCardNum(millSrc)) : undefined;
-        if (!source || source.Type !== 'シグニ' || !(source.CardClass ?? '').includes(reqMillStory)) continue;
+        if (!source) continue;
+        if (reqMillStory && (source.Type !== 'シグニ' || !(source.CardClass ?? '').includes(reqMillStory))) continue;
+        if (reqMillFilter && !matchesFilter(source, reqMillFilter)) continue;
       }
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
@@ -2260,7 +2276,7 @@ export function collectMillTriggers(
     if (turnOwner === 'self' && !isControllerTurn) continue;
     if (turnOwner === 'opponent' && isControllerTurn) continue;
     if (!mainPhaseGateOk(eff, ctx, controllerId)) continue;
-    if (eff.triggerCondition?.milledSourceStory) continue;
+    if (eff.triggerCondition?.milledSourceStory || eff.triggerCondition?.milledSourceFilter) continue;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, '')) continue;
     if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, '', ctx.turnPhase, ctx.effectivePowers)) continue;
     if (!limitOk(eff)) continue;

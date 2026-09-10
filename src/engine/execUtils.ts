@@ -324,6 +324,10 @@ export function zoneCardsOf(
         ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
         ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
       ]
+    // `lrig_field`＝センター＋左右アシストの現在の最上面。`field` は歴史的に
+    // センターだけを含むため、意味を変えず別の CountFromZone として扱う。
+    : fromZone.zone === 'lrig_field'
+    ? lrigZoneTops(state.field).filter((n): n is string => !!n)
     // 🆕`signi_zone_all`＝シグニゾーンの**スタック全カード**（下段も含む・ルリグは含まない）。
     //   §5.3 `O-60` 第50バッチ＝原文「あなたのシグニゾーンにあるカード１枚につき」。
     //   ⚠`field` と取り違えない（あちらは最上面＋センタールリグ）。
@@ -2512,12 +2516,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).signi_left_by_opp_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'ARTS_USED_THIS_TURN': {
       const artsSt = st(cond.owner);
+      const usedNames = artsSt.turn_arts_used_names ?? [];
+      const filteredNames = cond.filter
+        ? usedNames.filter(name => [...ctx.cardMap.values()].some(card => card.CardName === name && matchesFilter(card, cond.filter)))
+        : usedNames;
       // exactCount＝「それがこのターンにあなたが使用したN枚目のアーツだった場合」（WXK01-042）。
       // ⚠minCount（N以上）で近似すると **N+1枚目以降でも発火する過剰実行**になるので別軸にしてある。
-      if (cond.exactCount !== undefined) return (artsSt.turn_arts_used_names ?? []).length === cond.exactCount;
-      if (cond.minCount !== undefined) return (artsSt.turn_arts_used_names ?? []).length >= cond.minCount;
+      if (cond.exactCount !== undefined) return filteredNames.length === cond.exactCount;
+      if (cond.minCount !== undefined) return filteredNames.length >= cond.minCount;
       // color 指定時は当該色のアーツを使用していた場合のみ（turn_arts_used_colors）
       if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
+      if (cond.filter) return filteredNames.length > 0;
       return artsSt.turn_arts_used === true;
     }
     case 'NO_OTHER_ARTS_USED_THIS_TURN':
@@ -2694,11 +2703,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return false;
     }
     case 'LRIG_LEVEL': {
-      const lrig = st(cond.owner).field.lrig;
-      const topLrig = lrig[lrig.length - 1];
-      if (!topLrig) return false;
-      const lv = parseInt(ctx.cardMap.get(topLrig)?.Level ?? '-1', 10);
-      return cmp(lv, cond.operator, cond.value);
+      const field = st(cond.owner).field;
+      const tops = cond.allFieldLrigs
+        ? lrigZoneTops(field).filter((n): n is string => !!n)
+        : [field.lrig.at(-1)].filter((n): n is string => !!n);
+      if (tops.length === 0) return false;
+      return tops.every(n => {
+        const lv = parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '-1', 10);
+        return cmp(lv, cond.operator, cond.value);
+      });
     }
     case 'LRIG_STORY': {
       const lrig = st(cond.owner).field.lrig;

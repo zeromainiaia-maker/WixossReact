@@ -1020,7 +1020,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   シグニから能力を奪う**に化けていた（実測6効果。いずれも直前が「そのルリグをアップし」）。
     //   ⚠**live 全6件とも効果主自身のルリグ**を指す（相手のルリグを指す用例は0件＝原文照合済み）。
     if (!isQuotedGrant && /その(?:センター)?ルリグ(?:は|が)[^。]{0,12}能力を失/.test(t)) {
-      return { type: 'REMOVE_ABILITIES', target: { type: 'LRIG', owner: 'self', count: 1 }, until: dur } as RemoveAbilitiesAction;
+      return { type: 'REMOVE_ABILITIES', target: { type: 'LRIG', owner: 'self', count: 1 },
+        targetsTriggerSource: true, until: dur } as RemoveAbilitiesAction;
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     // §6.4 O-16(b):「（対戦相手の）場にある**キーと**シグニは能力を失い、新たに得られない」＝
@@ -3089,7 +3090,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         // アシストルリグも起こす。⚠**`count:'ALL'` を消費するのは `execUp` の LRIG 分岐**（そこで
         // `assist_lrig_l_down` / `assist_lrig_r_down` も倒す）。片方だけ直すと JSON だけ変わって挙動は同じ。
         const allLrig = upLrigM[1] === 'あなたのすべての';
-        return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: allLrig ? 'ALL' : 1 } };
+        return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: allLrig ? 'ALL' : 1 },
+          ...(upLrigM[1].startsWith('その') ? { targetsTriggerSource: true } : {}) };
       }
     }
     if (hasOtherSelfSigniNoun(t)) return { type: 'UP', target: parseSigniTarget(t, 'self') };

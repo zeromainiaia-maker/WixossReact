@@ -470,18 +470,21 @@ export function checkActiveCondition(
 
     case 'LRIG_LEVEL': {
       const lrigState = cond.owner === 'self' ? ownerState : otherState;
-      const lrig = lrigState.field.lrig;
-      const top = lrig[lrig.length - 1];
-      if (!top) return false;
-      const lv = parseInt(cardMap.get(top)?.Level ?? '-1', 10);
-      switch (cond.operator) {
-        case 'gte': return lv >= cond.value;
-        case 'lte': return lv <= cond.value;
-        case 'gt':  return lv >  cond.value;
-        case 'lt':  return lv <  cond.value;
-        case 'eq':  return lv === cond.value;
-        case 'neq': return lv !== cond.value;
-      }
+      const tops = cond.allFieldLrigs
+        ? lrigZoneTops(lrigState.field).filter((n): n is string => !!n)
+        : [lrigState.field.lrig.at(-1)].filter((n): n is string => !!n);
+      if (tops.length === 0) return false;
+      const compareLevel = (lv: number): boolean => {
+        switch (cond.operator) {
+          case 'gte': return lv >= cond.value;
+          case 'lte': return lv <= cond.value;
+          case 'gt':  return lv >  cond.value;
+          case 'lt':  return lv <  cond.value;
+          case 'eq':  return lv === cond.value;
+          case 'neq': return lv !== cond.value;
+        }
+      };
+      return tops.every(n => compareLevel(parseInt(cardMap.get(n.includes('#') ? n.slice(0, n.indexOf('#')) : n)?.Level ?? '-1', 10)));
       // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
       // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
       return false;
@@ -934,10 +937,15 @@ export function checkActiveCondition(
 
     case 'ARTS_USED_THIS_TURN': {
       const artsState = cond.owner === 'self' ? ownerState : otherState;
+      const usedNames = artsState.turn_arts_used_names ?? [];
+      const filteredNames = cond.filter
+        ? usedNames.filter(name => [...cardMap.values()].some(card => card.CardName === name && matchesFilter(card, cond.filter)))
+        : usedNames;
       // exactCount＝ちょうどN枚目（`Condition` 側と同じ式＝両方揃えて更新すること）。
-      if (cond.exactCount !== undefined) return (artsState.turn_arts_used_names ?? []).length === cond.exactCount;
-      if (cond.minCount !== undefined) return (artsState.turn_arts_used_names ?? []).length >= cond.minCount;
+      if (cond.exactCount !== undefined) return filteredNames.length === cond.exactCount;
+      if (cond.minCount !== undefined) return filteredNames.length >= cond.minCount;
       if (cond.color) return (artsState.turn_arts_used_colors ?? []).includes(cond.color);
+      if (cond.filter) return filteredNames.length > 0;
       return artsState.turn_arts_used === true;
     }
 
@@ -1595,11 +1603,15 @@ function evalConditionForContinuous(
       return count >= (cond.minCount ?? 1);
     }
     case 'LRIG_LEVEL': {
-      const lrig = st(cond.owner).field.lrig;
-      const top = lrig[lrig.length - 1];
-      if (!top) return false;
-      const lv = parseInt(cardMap.get(top)?.Level ?? '-1', 10);
-      return cmp(lv, cond.operator, cond.value);
+      const field = st(cond.owner).field;
+      const tops = cond.allFieldLrigs
+        ? lrigZoneTops(field).filter((n): n is string => !!n)
+        : [field.lrig.at(-1)].filter((n): n is string => !!n);
+      if (tops.length === 0) return false;
+      return tops.every(n => {
+        const base = n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+        return cmp(parseInt(cardMap.get(base)?.Level ?? '-1', 10), cond.operator, cond.value);
+      });
     }
     case 'LRIG_STORY': {
       const lrig = st(cond.owner).field.lrig;

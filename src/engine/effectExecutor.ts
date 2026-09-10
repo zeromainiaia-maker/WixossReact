@@ -4704,6 +4704,22 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'LRIG') {
     const s = ownerState(a.target.owner, ctx);
+    if (a.targetsTriggerSource) {
+      const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+      const [center, left, right] = lrigZoneTops(s.field);
+      if (!autoNum || ![center, left, right].includes(autoNum)) return done(ctx);
+      const newS: PlayerState = {
+        ...s,
+        field: {
+          ...s.field,
+          ...(autoNum === center ? { lrig_down: false } : {}),
+          ...(autoNum === left ? { assist_lrig_l_down: false } : {}),
+          ...(autoNum === right ? { assist_lrig_r_down: false } : {}),
+        },
+      };
+      const name = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
+      return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${name}をアップ`));
+    }
     const lrigName = s.field.lrig?.length
       ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
       : '';
@@ -8989,10 +9005,13 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     }
     return done(addLog(cur, touched ? '指定シグニゾーンのシグニは能力を失う' : '指定されたシグニゾーンがない'));
   }
-  // targetsTriggerSource: 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ。WXK10-022 ON_PLAY any_opp）へ無選択で適用
+  // targetsTriggerSource: 「そのシグニ／ルリグ」= トリガー元へ無選択で適用。
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
-    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+    const onRequestedField = autoNum && (a.target.type === 'LRIG'
+      ? lrigZoneTops(state.field).includes(autoNum)
+      : state.field.signi.some(s => s?.at(-1) === autoNum));
+    if (autoNum && onRequestedField) {
       const newS = applyAbilitiesRemoval(a, state, [autoNum], nextOwnTurnEndSpan(ctx));
       const nameRA = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
