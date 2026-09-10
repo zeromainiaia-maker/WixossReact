@@ -6005,6 +6005,26 @@ export interface StubAction {
     costColors?: string[];
     /** 手札を捨てて払う場合の枚数。 */
     handDiscard?: number;
+    /** false のとき、支払い後に宣言元の能力を失わない（置換対価が支払いだけの文型）。省略＝true。 */
+    loseAbility?: boolean;
+    /** 支払いが成立した後、場に残った victim 自身をダウンする。 */
+    thenDownVictim?: boolean;
+  };
+  /**
+   * `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER` / `RISE_LEAVE_DISCARD_STACK` の共通 payload。
+   * 離場置換 funnel は原文を読まず、この構造だけを消費する。
+   */
+  leaveUnderCardsTrash?: {
+    /** 守る範囲。self＝宣言元自身、all_own＝宣言元と同じ側の全シグニ。 */
+    victimScope: 'self' | 'all_own';
+    /** 捨てる下敷きの枚数。 */
+    count: number | 'ALL';
+    /** 成立に必要な下敷きの最小枚数（省略時は count、ALL は1枚）。 */
+    minUnderCards?: number;
+    /** 守れる victim の条件（ライズアイコン等）。 */
+    victimFilter?: TargetFilter;
+    /** 支払いが成立した後、場に残った victim 自身をダウンする。 */
+    thenDownVictim?: boolean;
   };
   /**
    * 🆕`EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF`（§5.3 `O-202`・2026-09-02・`WXEX2-28-E1`）＝

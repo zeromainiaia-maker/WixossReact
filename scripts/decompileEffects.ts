@@ -2537,6 +2537,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : sc.lifeCrash ? `あなたのライフクロス${sc.lifeCrash}枚をクラッシュして` : '';
       // trigger.filter.thisCardOnly＝「このシグニが」（targetJa は「あなたのシグニ1体」に落ちるため個別に出す）
       const subj = a.trigger?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.trigger);
+      // 🆕§5.3 `O-299`（2026-09-11・第256バッチ）＝🔴**`powerReduction` だけは「バニッシュ」ではない。**
+      //   この軸の消費地点は**離場 funnel の `powerReduction` 軸**（`applyEffectLeavePowerReductionSubstitute`）
+      //   1本だけで、**バニッシュ経路には意図的に足していない**（`effectEngine.ts:7192` に「ここへ足すな」）。
+      //   ⇒ 旧文「がバニッシュされる場合」は原文（`WX06-019`＝「対戦相手の効果によって場を離れる場合」）より
+      //   **狭く読める嘘**だった。engine が実際にやっていること（①victim 自身は除外＝原文「他の」
+      //   ②`temp_power_mods`＝ターン内スコープ）もあわせて描く。⚠live は `WX06-019-E1` の1件だけ。
+      if (sc.powerReduction) {
+        return `${subj === 'このシグニ' ? subj : subj.replace(/^あなたの/, 'あなたの他の')}が対戦相手の効果によって場を離れる場合、代わりにターン終了時まで、このシグニのパワーを－${sc.powerReduction}してもよい`;
+      }
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
@@ -5259,6 +5268,34 @@ function actionJa(a?: Action, effectType?: string): string {
       //   （固定文にすると `WX25-P3-055`（ダウンなし）と `WX25-P2-TK04`（ダウンあり）が同じ文になる）。
       if (a.id === 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY') {
         return `このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う${a.leaveLoseSelfAbility?.thenDown ? '。そうした場合、このシグニをダウンする' : ''}`;
+      }
+      if (a.id === 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY') {
+        const spec = a.leavePayLoseSelfAbility;
+        if (!spec) return '【※ペイロード欠落】コスト付き場離れ置換（消費側は無視する＝効果なし）';
+        const cost = spec.costColors?.length
+          ? spec.costColors.map((c: string) => `《${c}》`).join('')
+          : spec.handDiscard ? `「手札を${spec.handDiscard}枚捨てる」を行う` : '未指定のコスト';
+        const victimState = spec.victimFilter?.isUp ? 'アップ状態の' : '';
+        const victim = `あなたの${victimState}${filterJa({ ...spec.victimFilter, isUp: undefined })}シグニ1体`;
+        if (spec.loseAbility === false) {
+          return `${victim}が対戦相手の効果によって場を離れる場合、代わりに${cost}を支払ってもよい${spec.thenDownVictim ? '。そうした場合、そのシグニをダウンする' : ''}`;
+        }
+        return `${victim}が対戦相手の効果によって場を離れる場合、${cost}を支払ってもよい。そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う`;
+      }
+      if (a.id === 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER' || a.id === 'RISE_LEAVE_DISCARD_STACK') {
+        const spec = a.leaveUnderCardsTrash;
+        if (!spec) return '【※ペイロード欠落】下のカードを対価にする場離れ置換（消費側は無視する＝効果なし）';
+        // 🆕§5.3 `O-299`（2026-09-11・第256バッチ）＝**成立に要る下敷きの枚数（`minUnderCards`）を描く。**
+        //   🔴これを落とすと `WXEX2-09-E1` の原文「自身の下にカードが**３枚以上**ある」が逆翻訳から消え、
+        //     「下敷き1枚でも守れる」と読める嘘になる（engine は 3 枚で fail-closed している＝JSON は正しい）。
+        //   ⚠**`count` が数値のときは書かない**＝「カードN枚をトラッシュに置く」が同じ数を既に言っており、
+        //     `minUnderCards === count` は導出値でしかない（`WXDi-P08-044-E2`）。書くと原文に無い節が増える。
+        const needUnder = spec.count === 'ALL' && spec.minUnderCards
+          ? `${spec.victimScope === 'self' ? '' : '自身の'}下にカードが${spec.minUnderCards}枚以上ある` : '';
+        const owner = spec.victimScope === 'self'
+          ? `${needUnder}このシグニ` : `${needUnder}${filterJa(spec.victimFilter)}あなたのシグニ1体`;
+        const under = spec.count === 'ALL' ? 'すべてのカード' : `カード${spec.count}枚`;
+        return `${owner}が対戦相手の効果によって場を離れる場合、代わりに${spec.victimScope === 'self' ? 'このシグニ' : 'そのシグニ'}の下から${under}をトラッシュに置いてもよい${spec.thenDownVictim ? '。そうした場合、そのシグニをダウンする' : ''}`;
       }
       if (a.id === 'CHARM_POWER_MINUS_MULTIPLIER') {
         return `それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、代わりに${typeof a.value === 'number' ? a.value : 3}倍－される`;

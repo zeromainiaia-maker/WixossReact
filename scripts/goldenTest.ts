@@ -36,7 +36,7 @@ import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
-import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -68952,13 +68952,13 @@ test('§5.3 held 第145: 離場置換の宣言形／「3枚まで探して置く
   //    `STUB{OPTIONAL_COST}` だったので、**離場置換が一度も成立しない恒久 no-op** だった。
   const c39 = (effectsMap.get('WX25-CP1-039') ?? []).find(e => e.effectId === 'WX25-CP1-039-E1');
   ok(!!c39, 'WX25-CP1-039-E1 が live にある'); if (!c39) return;
-  const step0 = (c39.action as SequenceAction).steps[0] as unknown as StubAction;
-  eq(step0.id, 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
+  const replace = c39.action as StubAction;
+  eq(replace.id, 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
     '🔴 離場置換は engine が走査する宣言 id で書く（OPTIONAL_COST では拾われない）');
-  const spec = (step0 as unknown as Record<string, unknown>).leavePayLoseSelfAbility as Record<string, unknown>;
+  const spec = replace.leavePayLoseSelfAbility as unknown as Record<string, unknown>;
   ok(!!spec, '宣言の中身が載っている');
   eq((spec.victimFilter as Record<string, unknown>).story, 'ブルアカ', '置換対象は＜ブルアカ＞のシグニに限る');
-  // ⚠**原文「あなたの**アップ状態の**＜ブルアカ＞のシグニ」の `isUp` はまだ載っていない**（別軸・据置）。
+  eq((spec.victimFilter as Record<string, unknown>).isUp, true, '置換対象はアップ状態に限る');
 
   // ② 🔴**「シグニを3枚まで探してトラッシュに置き」の置く枚数が1枚だった**（探すのは3枚なのに）。
   const w06 = (effectsMap.get('WD07-006') ?? []).find(e => e.effectId === 'WD07-006-E1');
@@ -75380,6 +75380,8 @@ test('O-298 スコープ: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 族は触らな�
 // ══════════════════════════════════════════════════════════════════════════════
 test('O-299 離場置換 underCardsTrash: 「代わりに下のカードをトラッシュ」で場に残る（WXDi-P05-038）', () => {
   const victim = 'WXDi-P05-038';
+  const declaration = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-P05-038-E1')?.action as StubAction;
+  eq(declaration.leaveUnderCardsTrash?.count, 'ALL', '既存宣言は payload 化後も「すべて」を捨てる');
   const ctx = mkCtx({}, { signi: [victim, null, null] });
   // 【ライズ】なので下にカードがある盤面が本来の姿＝スタックを直接組む。
   ctx.otherState.field.signi[0] = ['WD01-013#u1', 'WD01-013#u2', victim];
@@ -75393,6 +75395,7 @@ test('O-299 離場置換 underCardsTrash: 「代わりに下のカードをト�
   const zone = applied.ctx.otherState.field.signi[0] ?? [];
   eq(zone.join(','), victim, '🔴下のカードだけが取り除かれ、victim は場に残る');
   eq(applied.ctx.otherState.trash.length, trashBefore + 2, '下の2枚がトラッシュへ');
+  eq(applied.ctx.otherState.field.signi_down?.[0], false, '既存宣言は payload 化後も victim をダウンしない');
 });
 
 test('O-299 離場置換 underCardsTrash: 下にカードが無ければ成立しない（コスト0で離場を無効化しない）', () => {
@@ -75421,6 +75424,134 @@ test('O-299 離場置換 underCardsTrash: ルリグ宣言（WXEX2-09）はアタ
      '下が2枚なら成立しない（原文の「３枚以上」）');
   eq(collectLeaveSubstituteOptions(riseSigni, 'opponent', mk(3, 'MAIN')).filter(o => o.axis === 'underCardsTrash').length, 0,
      'メインフェイズでは成立しない（原文の「アタックフェイズの間」）');
+  // 🆕第256（検証側）＝**`minUnderCards` は逆翻訳にも出す。** 落とすと「下敷き1枚でも守れる」と読める嘘になり、
+  //   engine が 3 枚で fail-closed していること（上の3行）が**シートから見えなくなる**（§5-14）。
+  ok(decompiledLineOf('WXEX2-09-E1').includes('自身の下にカードが3枚以上ある《ライズアイコン》を持つあなたのシグニ1体が対戦相手の効果によって場を離れる場合'),
+     '逆翻訳に「下にカードが3枚以上ある」とライズ限定が現れる');
+  ok(decompiledLineOf('WXDi-P05-038-E1').includes('下にカードが1枚以上あるこのシグニが対戦相手の効果によって場を離れる場合'),
+     '自己宣言側にも成立要件の下敷き枚数が現れる');
+});
+
+test('O-299 残18 (a) WX06-019: powerReduction 軸は「バニッシュ」ではなく「効果による場離れ」と描く', () => {
+  // 原文＝「【常】：あなたの**他の**＜水獣＞のシグニ１体が**対戦相手の効果によって場を離れる場合**、
+  //   代わりに**ターン終了時まで**、このシグニのパワーを－6000してもよい」。
+  // 🔴 engine は正しかったが**逆翻訳だけが「バニッシュされる場合」と嘘をついていた**＝
+  //   `BANISH_SUBSTITUTE` の既定文をそのまま使っていたため。この軸の消費地点は離場 funnel 1本だけで、
+  //   バニッシュ経路には**意図的に足していない**（`effectEngine.ts:7192`）。
+  const victimBase = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('水獣') && c.CardNum !== 'WX06-019');
+  const victim = `${victimBase}#victim`;
+  const ctx = mkCtx({}, { signi: ['WX06-019#protector', victim, null] });
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', ctx).filter(o => o.axis === 'powerReduction');
+  eq(opts.length, 1, '他の＜水獣＞が離れるとき、宣言元のパワーを下げる置換候補が出る');
+  eq(opts[0].kind, 'optional', '原文「してもよい」＝任意軸');
+  // §5-21 対照＝同じ盤面で victim を宣言元自身にすると「他の」に当たらず候補が消える。
+  eq(collectLeaveSubstituteOptions('WX06-019#protector', 'opponent', ctx).filter(o => o.axis === 'powerReduction').length, 0,
+     '🔴宣言元自身は守れない（原文「あなたの他の」）');
+  ok(decompiledLineOf('WX06-019-E1').includes('あなたの他の＜水獣＞のシグニ1体が対戦相手の効果によって場を離れる場合、代わりにターン終了時まで、このシグニのパワーを－6000してもよい'),
+     '逆翻訳が「他の」「効果によって場を離れる」「ターン終了時まで」を描く');
+  ok(!decompiledLineOf('WX06-019-E1').includes('バニッシュされる場合'),
+     '🔴「バニッシュされる場合」という原文より狭い嘘を出さない');
+});
+
+test('O-299 残18 (b) WX25-CP1-039: 白を払い、アップ状態の＜ブルアカ＞victim自身をダウンして残す', () => {
+  const source = 'WX25-CP1-039#source';
+  const victimBase = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('ブルアカ') && c.CardNum !== 'WX25-CP1-039');
+  const victim = `${victimBase}#victim`;
+  const white = findCard(c => (c.Color ?? '').includes('白'));
+  const declaration = effectsMap.get('WX25-CP1-039')?.find(e => e.effectId === 'WX25-CP1-039-E1')?.action as StubAction;
+  eq(declaration.type, 'STUB', 'CONTINUOUS の死んだ SEQUENCE を残さず funnel が読む宣言1本へ畳む');
+  eq(declaration.leavePayLoseSelfAbility?.victimFilter?.isUp, true, 'victim のアップ限定が payload にある');
+  eq(declaration.leavePayLoseSelfAbility?.loseAbility, false, '原文にない能力喪失を起こさない');
+  eq(declaration.leavePayLoseSelfAbility?.thenDownVictim, true, '支払い後にダウンするのは victim');
+
+  const ctx = mkCtx({}, { signi: [source, victim, null], down: [false, false, false] });
+  ctx.otherState.energy = [white];
+  const option = collectLeaveSubstituteOptions(victim, 'opponent', ctx).find(o => o.axis === 'selfAbilityPay');
+  ok(!!option, 'アップ状態かつ白を払えると置換候補が出る');
+  eq(option!.resultCtx.otherState.energy.length, 0, '《白》を実際に支払う');
+  eq(option!.resultCtx.otherState.field.signi[1]?.at(-1), victim, 'victim は場に残る');
+  eq(option!.resultCtx.otherState.field.signi_down?.[1], true, '「そのシグニ」＝victim 自身をダウンする');
+  ok(!(option!.resultCtx.otherState.lost_ability_effect_ids_this_turn ?? []).includes('WX25-CP1-039-E1'),
+    '🔴宣言元の能力を失う、という原文にない帰結を起こさない');
+
+  // §5-21：同じ盤面で原因だけを外す対照。victim をダウン状態にしたときだけ候補が消える。
+  const downVictim = mkCtx({}, { signi: [source, victim, null], down: [false, true, false] });
+  downVictim.otherState.energy = [white];
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', downVictim).filter(o => o.axis === 'selfAbilityPay').length, 0,
+    'ダウン状態の＜ブルアカ＞は守れない');
+  downVictim.otherState.field.signi_down![1] = false;
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', downVictim).filter(o => o.axis === 'selfAbilityPay').length, 1,
+    '同じ盤面で victim をアップ状態へ戻すと候補が出る');
+  ok(decompiledLineOf('WX25-CP1-039-E1').includes('アップ状態の＜ブルアカ＞のシグニ1体が対戦相手の効果によって場を離れる場合、代わりに《白》を支払ってもよい。そうした場合、そのシグニをダウンする'),
+    '逆翻訳にも victim 条件・白コスト・victim のダウンが現れる');
+});
+
+test('O-299 残18 (b) WXDi-P08-044-E2: 下からちょうど2枚を払い、victimをダウンして残す', () => {
+  const victim = 'WXDi-P08-044';
+  const declaration = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-P08-044-E2')?.action as StubAction;
+  eq(declaration.type, 'STUB', '能動 TAKE_FROM_UNDER ではなく funnel が読む宣言になっている');
+  eq(declaration.leaveUnderCardsTrash?.count, 2, '捨てる枚数は「すべて」ではなく2枚');
+  eq(declaration.leaveUnderCardsTrash?.thenDownVictim, true, '成立後に victim をダウンする payload がある');
+
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  ctx.otherState.field.signi[0] = ['WD01-013#u1', 'WD01-013#u2', 'WD01-013#u3', victim];
+  const trashBefore = ctx.otherState.trash.length;
+  const option = collectLeaveSubstituteOptions(victim, 'opponent', ctx).find(o => o.axis === 'underCardsTrash');
+  ok(!!option, '下に2枚以上あれば置換候補が出る');
+  eq(option!.resultCtx.otherState.field.signi[0]?.join(','), `WD01-013#u3,${victim}`,
+    'ちょうど2枚だけを取り除き、残りの下敷きと victim は場に残る');
+  eq(option!.resultCtx.otherState.trash.length, trashBefore + 2, '下のカードをちょうど2枚トラッシュへ置く');
+  eq(option!.resultCtx.otherState.field.signi_down?.[0], true, '成立後に victim 自身をダウンする');
+
+  // §5-21：同じ盤面で原因（2枚目の下敷き）だけを外す／戻す対照。
+  const oneUnder = mkCtx({}, { signi: [victim, null, null] });
+  oneUnder.otherState.field.signi[0] = ['WD01-013#u1', victim];
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', oneUnder).filter(o => o.axis === 'underCardsTrash').length, 0,
+    '下が1枚ではタダ置換にせず候補を出さない');
+  oneUnder.otherState.field.signi[0] = ['WD01-013#u1', 'WD01-013#u2', victim];
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', oneUnder).filter(o => o.axis === 'underCardsTrash').length, 1,
+    '同じ盤面へ2枚目だけを戻すと候補が出る');
+  ok(decompiledLineOf('WXDi-P08-044-E2').includes('このシグニの下からカード2枚をトラッシュに置いてもよい。そうした場合、そのシグニをダウンする'),
+    '逆翻訳にも枚数2と後続ダウンが現れる');
+});
+
+test('O-299 残18 (a) WXDi-P13-004A-E1: 配置札の遅延除外宣言が既存 resolver へ届く', () => {
+  const action = effectsMap.get('WXDi-P13-004A')?.find(e => e.effectId === 'WXDi-P13-004A-E1')?.action as SequenceAction;
+  eq(action.type, 'SEQUENCE', '配置と遅延除外マークを順に行う');
+  eq((action.steps[1] as StubAction).id, 'MARK_PLACED_DELAYED_EXILE', '既存の遅延除外 marker を宣言する');
+
+  const placed = `${SIGNI_L1}#placed`;
+  const marked = { ...mkState({ signi: [placed, null, null] }), pending_exile_nums: [placed] } as PlayerState;
+  eq(resolvePendingExiles(marked).field.signi[0]?.at(-1), placed, '場にいる間は早期除外しない');
+  const left = resolvePendingExiles({
+    ...marked, field: { ...marked.field, signi: [null, null, null] }, trash: [placed],
+  });
+  ok(!left.trash.includes(placed) && (left.excluded ?? []).includes(placed),
+    '同じ marker が場を離れた札を移動先から除き、代わりにゲーム外へ置く');
+});
+
+test('O-299 残18 (a) WDK17-007-E1: 傀儡が場を離れたら既存 sweep が持ち主のトラッシュへ置換する', () => {
+  const effect = effectsMap.get('WDK17-007')?.find(e => e.effectId === 'WDK17-007-E1');
+  ok(!!effect && effect.action.type === 'STUB' && effect.action.id === 'STEAL_OPP_TRASH_PUPPET',
+    'アーツ本体は既存の傀儡配置 handler へ届く');
+  const puppet = SIGNI_L2;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.trash = [puppet];
+  const placed = run(effect!.action, ctx);
+  ok((placed.ownerState.field.puppet_signi ?? []).includes(puppet), '相手の札を傀儡として自分の場へ置く');
+  ok(placed.ownerState.field.signi.some(z => z?.at(-1) === puppet), '場にいる間は持ち主のトラッシュへ戻さない');
+
+  const zone = placed.ownerState.field.signi.findIndex(z => z?.at(-1) === puppet);
+  const leftSigni = [...placed.ownerState.field.signi];
+  leftSigni[zone] = null;
+  const movedToEnergy = {
+    ...placed.ownerState,
+    energy: [...placed.ownerState.energy, puppet],
+    field: { ...placed.ownerState.field, signi: leftSigni },
+  };
+  const swept = sweepPuppets(movedToEnergy, placed.otherState);
+  ok(!swept.a.energy.includes(puppet), '仮の移動先には残さない');
+  ok(swept.b.trash.includes(puppet), '場を離れる場合、代わりに真の持ち主のトラッシュへ置く');
 });
 
 test('O-299 離場置換 selfDeckBottom: 「代わりにこれをデッキの一番下」（WXDi-P08-046）', () => {

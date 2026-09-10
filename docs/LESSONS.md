@@ -499,6 +499,16 @@
 | `TRASH{HAND_CARD,opponent}` ＋ `targetsStored` が「（**相手が選ぶ**）」 | 先に対象宣言した1枚に固定 | `targetsStored` を先に見る |
 | `ADD_TO_FIELD{targetsTriggerSource}` が「トラッシュのシグニ1枚」＝自由選択 | `triggeringCardNum` の1枚 | 「そのカード（トリガー元）」 |
 | `hasGuard:false` が**丸ごと消える** | `matchesFilter` が効かせている | `false`（否定）も描く |
+| 🆕`leaveUnderCardsTrash.minUnderCards` が**丸ごと消える**（「下にカードが3枚以上ある」が出ない） | engine は3枚未満で fail-closed している | 成立要件の枚数も描く。⚠**`count` が数値のときは書かない**＝「カードN枚をトラッシュに置く」が同じ数を既に言っており `minUnderCards === count` は導出値 |
+| 🆕`BANISH_SUBSTITUTE{powerReduction}` が「**がバニッシュされる場合**」＝原文より**狭い** | 消費地点は**離場 funnel の `powerReduction` 軸1本だけ**でバニッシュ経路には意図的に足していない（`effectEngine.ts:7192` に「ここへ足すな」と明記） | payload の形で分岐して「が対戦相手の効果によって場を離れる場合」へ。engine が実際にやっている「他の」（victim 自身の除外）と「ターン終了時まで」も描く |
+
+🆕🔴🔑**2026-09-11（第256）＝この系統は「新しい限定を payload に足した回」に必ず生える。**
+`minUnderCards` は**足したその回に**逆翻訳から落ちていた（golden も census も緑）。
+⇒ **payload にキーを1つ足したら、`npm run regen` 後の `docs/decompile_sheet*.txt` に
+その限定が文字列として出るまでが1巡**（§5-14）。**出たら `decompiledLineOf` で golden に固定する。**
+🔑**「挙動を壊さない嘘」は engine のバグと同じ重さで扱う**＝次に着手する人の**母集団の切り方を狂わせる**
+（「3枚以上」が見えないカードを「配線済み」と数える）。⚠**この2件は Codex の報告では「食い違い0件」だった**＝
+**`decompileEffects.ts` を触っていない回でも、payload を足したなら逆翻訳を自分で読む**（[CODEX_GUIDE.md](./CODEX_GUIDE.md) §7）。
 
 🆕🔴**最悪形＝逆翻訳が「原文を regex で抜き出して」描いている**（2026-09-09 第243・`COPY_TARGET_POWER`）。
 `/(?:次の対戦相手の)?ターン終了時まで、このシグニの基本パワーは…/` と**両方の期限を受ける regex** で原文を抜いていたため、

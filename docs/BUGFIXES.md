@@ -1,5 +1,100 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第256バッチ（§5.3 索引 A `O-299` 残18）：全件 triage、既存 funnel の未配線2効果を修正
+
+着手時に `npm run regen` 後、原文 regex `場を離れる場合[^。]*代わりに` を効果単位で再計測し、
+**24効果 / 24カード**を確認した。既に置換候補を出す6効果を除いた残18は登録票どおりで、母数訂正はない。
+18効果の実コード消費地点を追跡した結果は **(a) 既に正しく動く8 / (b) 受け皿は在るが未配線2 /
+(c) 新しい軸・機構が要る8**。§5-26 に従い、実装は確実に既存軸で取れる (b) 2件だけに絞った。
+
+- **(a) 8**：`WX06-019-E1` / `WXEX2-28-E1` / `WXEX2-30-E1` / `WXDi-P13-004A-E1` /
+  `WX25-P2-071-E1` / `SPDi44-08-E2` / `WX25-P1-018-E2` / `WDK17-007-E1`。
+  既存 golden が effectId 固定で無かった `WXDi-P13-004A-E1`（`MARK_PLACED_DELAYED_EXILE`）と
+  `WDK17-007-E1`（傀儡離場後の `sweepPuppets`）には正負の固定 golden を追加した。
+- **(b) 2**：`WX25-CP1-039-E1` / `WXDi-P08-044-E2`（下記）。
+- **(c) 8・見送り**：`WXDi-P00-038-E1` / `WXDi-CP02-TK01A-E2` / `WXEX2-32-E1` /
+  `WXDi-P04-037-E1` / `WXEX1-30-E1` / `WXK05-024-E2` / `WXDi-P09-TK03A-E1` /
+  `WX24-P4-002-E1`。battle だけの処理、banish だけの行き先変更、裏向き＋次々メイン復帰などで、
+  原文の「場を離れる場合」全経路を満たす受け皿がない。並行する劣化軸は作らず残した。
+
+### 修正した2効果
+
+1. `WX25-CP1-039-E1` は既存 `selfAbilityPay` 軸を一般化。parser が文型から
+   `victimFilter:{story:'ブルアカ',isUp:true}` / `costColors:['白']` / `loseAbility:false` /
+   `thenDownVictim:true` を載せ、死んだ `CONTINUOUS SEQUENCE` を宣言1本へ畳む。
+   engine は《白》を実際に払い、victim を場に残してその victim をダウンする。従来の
+   「宣言元が能力を失う」「任意の自分シグニをダウンする」という誤帰結は起こさない。
+   旧 card/effectId 個別の `isUp` 修正は撤去し、`アップ状態の` を文型で読む規則へ統合した。
+2. `WXDi-P08-044-E2` は既存 `underCardsTrash` 軸を payload 化。
+   `count:2 / minUnderCards:2 / thenDownVictim:true` を parser が載せ、engine は原文を読まず
+   payload どおり下から**ちょうど2枚**だけをトラッシュへ置き、victim をダウンして場に残す。
+   下が1枚なら候補を出さず、コスト0置換を作らない。既存 `WXDi-P05-038-E1` / `WXEX2-09-E1` も
+   同じ payload へ移し、従来どおり「すべてを捨てる・ダウンしない」を golden で固定した。
+
+逆翻訳は `npm run regen` 後、両効果とも victim 条件・支払い・枚数・後続ダウンまで表示されることを確認。
+live の per-effect 差分は **4 effectId だけ**＝修正2件と payload 化した既存2件：
+`WX25-CP1-039-E1` / `WXDi-P08-044-E2` / `WXDi-P05-038-E1` / `WXEX2-09-E1`。
+
+### 検証
+
+- golden **3922 PASS / 0 FAIL**（3918 → +4）。追加は (b) 2件の原因だけを外す正負対照と、
+  golden が無かった (a) 2件の固定。
+- smoke **10744 / CRASH・HANG・INVARIANT 0**、fuzz 0。
+- census 高シグナル **1 / BASELINE 1**、`census:stubs` A群/C群 0、
+  `census:enginetext` A🔴 0行、`census:costtext` A🔴 0規則、manual field loss 0。
+- lint **0 errors / 254 warnings**（warning 増減なし）。ratchet の較正なし。
+- held review はベースライン **9枚 → 2枚**（追加0、既存7枚が解消）。raw `_held_fresh.json` には採用した
+  2枚が増えたが、`heldReview --adopt` 済みのため `_held_review.txt` から除外される。
+  `_partial_fresh.json` / `_idset_fresh.json` はともに **0 → 0**。
+- `src/screens/` は未変更、新しい軸・機構も追加していないため、§2.2 の実機必須 effectId は**なし**。
+
+### 🔍 Claude 側の独立検証（CODEX_GUIDE §7）＝差し戻し0・**是正2**
+
+**機械検証は全項目一致**＝ベースライン `7e062cc78` と全 `effects_*.json` を effectId 単位で突き合わせ、
+**変化はちょうど4 effectId**（申告どおり）。`npm run gates` を独立実行して全緑を追認。
+(a) 判定もサンプリングして engine で追認した（`WX06-019-E1`＝`findEffectLeavePowerReductionSubstitute` が
+`top === victimNum` で原文「他の」を除外し ＜水獣＞ を照合、`temp_power_mods` でターン内スコープ）。
+🔑**カード番号の焼き込みを1件撤去している**のが特に良い＝`repairSemanticBatch247` の
+`WX25-CP1-039-E1` 専用パッチを消し、`parseSentencePart1` の文型規則（`アップ状態の` → `victimFilter.isUp`）へ
+一般化した（§5-5c）。
+
+🔴**是正2件＝どちらも「engine は正しいが逆翻訳が嘘をつく」型**（報告項目6 が「0件」扱いだった）。
+**この型は挙動を壊さないぶん発見が遅れ、次の人の母集団の切り方を狂わせる**ので、engine 修正と同じ重さで扱う。
+
+| # | 効果 | 何が嘘だったか | 直し方 |
+|---|---|---|---|
+| ① | `WXEX2-09-E1` / `WXDi-P05-038-E1` | **`minUnderCards` を `decompileEffects.ts` が1文字も描いていなかった**＝原文「自身の下にカードが**３枚以上**ある」が消え、**「下敷き1枚でも守れる」と読める**（engine は3枚で fail-closed＝JSON は正しい） | `leaveUnderCardsTrash` の分岐で `minUnderCards` を描く。⚠**`count` が数値のときは書かない**＝「カードN枚をトラッシュに置く」が同じ数を既に言っており、`minUnderCards === count` は導出値（`WXDi-P08-044-E2`） |
+| ② | `WX06-019-E1` | **「がバニッシュされる場合」と原文より狭く出ていた**＝`BANISH_SUBSTITUTE` の既定文をそのまま使っていた。**`powerReduction` の消費地点は離場 funnel 1本だけで、バニッシュ経路には意図的に足していない**（`effectEngine.ts:7192` に「ここへ足すな」と明記されている） | `sc.powerReduction` のときだけ「が対戦相手の効果によって場を離れる場合、代わりにターン終了時まで、〜」へ分岐。engine が実際にやっている「他の」（victim 自身の除外）と「ターン終了時まで」（`temp_power_mods`）もあわせて描く。⚠**live は `WX06-019-E1` の1件だけ**（payload の形で分岐＝カード番号は書かない） |
+
+**golden を +1テスト／+6アサーション追加して両方を固定**（`minUnderCards` の表示2本は既存テストへ追記／
+`powerReduction` 軸は新規テスト1本＝正負＋対照＋「バニッシュされる場合」を出さないこと）。
+⚠**`powerReduction` の負方向は §5-21 の対照つき**＝同じ盤面で victim を宣言元自身に差し替えると
+候補が消える（原文「あなたの**他の**」）。
+
+🔑**あわせて記録＝挙動が1つ静かに良くなっている**（codex の報告に無い）＝
+`applyEffectLeaveUnderCardsTrashSubstitute` が `checkActiveCondition` を見るようになったため、
+`WXDi-P05-038-E1` の **《相手ターン》が初めて効くようになった**（旧実装は activeCondition を1度も読まず、
+自分のターンでも置換が成立していた）。原文どおりの縮小＝退化ではない。
+
+**⑤実機は不要と判定した**（§2.2）＝触ったのは `src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` だけで
+`src/screens/` は無傷、**新しい軸も足していない**（既存軸の payload 化）。
+funnel が実戦経路から UI まで届くことは**前日の `V-186` で実機確認済み**＝全軸が同じ funnel を通る。
+⇒ `V-nn` の登録もしない。
+
+**最終ゲート（是正2件を入れたあと・Claude が独立実行・フィルタなし全件）**＝**全緑**＝
+golden **3923 PASS / 0 FAIL**（3918 → codex +4 → 検証 +1）／smoke 10744・CRASH/HANG/INVARIANT 0／fuzz 0／
+census 高シグナル **1 / BASELINE 1**（据置）／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+`census:costtext` A🔴 **0規則**／manual-fields 0／lint **0 errors / 254 warnings**（増減なし）。**ratchet の較正なし。**
+
+### `O-299` はクローズしない＝**残8（全件 (c)＝機構待ち）**
+
+**8件の共通の欠落は1つ**＝**「置換処理がバトル経路にしか無い」**＝`BattleScreen.tsx` 側にダウン置換・除外置換・
+凍結の行き先変更が実装されているが、**バトルによる離場からしか呼ばれない**。原文はどれも
+「（対戦相手の効果によって）**場を離れる場合**」＝**効果による離場の全経路**を指す。
+⇒ **取り方＝処理を `collectLeaveSubstituteOptions` の軸へ持ち上げ、バトル経路はその funnel を呼ぶ側にする。**
+⚠**`src/screens/` を触るので §2.2 により実機まで必須**。**8件の内訳と取る順は
+[PLAN_DETAIL.md](./PLAN_DETAIL.md) の `O-299` 登録票**（カード番号もそちら）。
+
 ## 2026-09-10 — 第255バッチ（§5.3 索引 A `O-299`）：離場置換の「誰も読まない宣言」3件を funnel へ配線＋実機（`V-186`）
 
 🔴**真因＝宣言だけが立って engine が読まない**（PLAN §1 の「繰り返し出た型」④）。

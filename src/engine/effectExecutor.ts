@@ -587,7 +587,7 @@ export function applyEffectLeavePayLoseSelfAbilitySubstitute(
       if (act.id !== 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY') continue;
       const spec = act.leavePayLoseSelfAbility;
       if (!spec) continue;
-      if (lost.includes(eff.effectId)) continue;
+      if (spec.loseAbility !== false && lost.includes(eff.effectId)) continue;
       if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, declarer)) continue;
       // ⚠victim 条件は**盤面状態込み**で見る（`matchesStateFilter`＝凍結/ダウン等）＝他軸と同じ規約。
       if (spec.victimFilter
@@ -610,14 +610,17 @@ export function applyEffectLeavePayLoseSelfAbilitySubstitute(
         paidLabels.push(`手札${spec.handDiscard}枚`);
       }
       if (paidLabels.length === 0) continue;   // コストの無い宣言は成立させない（タダ置換の防止）
+      const nextDown = [...(paidState.field.signi_down ?? [false, false, false])];
+      if (spec.thenDownVictim) nextDown[victimZone] = true;
       const nextState: PlayerState = {
         ...paidState,
-        lost_ability_effect_ids_this_turn: [...lost, eff.effectId],
+        ...(spec.loseAbility === false ? {} : { lost_ability_effect_ids_this_turn: [...lost, eff.effectId] }),
+        ...(spec.thenDownVictim ? { field: { ...paidState.field, signi_down: nextDown } } : {}),
       };
       const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
       return {
         ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
-          `${paidLabels.join('・')}を支払い、${name}の場離れをこの能力の喪失で置換`),
+          `${paidLabels.join('・')}を支払い、${name}の場離れを置換${spec.thenDownVictim ? 'してダウン' : '（この能力を失う）'}`),
         replaced: true,
       };
     }
@@ -1000,30 +1003,51 @@ export function applyEffectLeaveUnderCardsTrashSubstitute(
   if (zi < 0) return { ctx, replaced: false };
   const stack = state.field.signi[zi] ?? [];
   const under = stack.slice(0, -1);
-  if (under.length === 0) return { ctx, replaced: false };
-
-  const declares = (holder: string, id: string) =>
-    declaredContinuousEffects(holder, state, ctx.cardMap).some(eff =>
-      eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
-      && (eff.action as import('../types/effects').StubAction).id === id);
-
-  const selfDeclared = declares(victimNum, 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER');
-  const riseDeclared = (ctx.currentPhase ?? '').startsWith('ATTACK')
-    && under.length >= 3
-    && matchesFilter(ctx.cardMap.get(getCardNum(victimNum)), { hasIcon: 'ライズ' })
-    && [
-      ...state.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
-      ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
-    ].some(n => declares(n, 'RISE_LEAVE_DISCARD_STACK'));
-  if (!selfDeclared && !riseDeclared) return { ctx, replaced: false };
+  const victimCard = ctx.cardMap.get(getCardNum(victimNum));
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  const holders = [
+    ...state.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+  ];
+  let spec: NonNullable<import('../types/effects').StubAction['leaveUnderCardsTrash']> | undefined;
+  for (const holder of holders) {
+    for (const eff of declaredContinuousEffects(holder, state, ctx.cardMap)) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (!['REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER', 'RISE_LEAVE_DISCARD_STACK'].includes(act.id)) continue;
+      const candidate = act.leaveUnderCardsTrash;
+      if (!candidate) continue; // payload 欠落は fail-closed（無料置換を作らない）
+      if (candidate.victimScope === 'self' && holder !== victimNum) continue;
+      if (candidate.victimFilter && !matchesFilter(victimCard, candidate.victimFilter)) continue;
+      if (!checkActiveCondition(
+        eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, holder,
+        undefined, undefined, ctx.currentPhase as import('../types').TurnPhase | undefined,
+      )) continue;
+      const minimum = candidate.minUnderCards ?? (candidate.count === 'ALL' ? 1 : candidate.count);
+      if (under.length < minimum || (typeof candidate.count === 'number' && under.length < candidate.count)) continue;
+      spec = candidate;
+      break;
+    }
+    if (spec) break;
+  }
+  if (!spec) return { ctx, replaced: false };
 
   const nextSigni = [...state.field.signi];
-  nextSigni[zi] = [victimNum];
+  const trashCount = spec.count === 'ALL' ? under.length : spec.count;
+  const trashed = under.slice(0, trashCount);
+  nextSigni[zi] = [...under.slice(trashCount), victimNum];
+  const nextDown = [...(state.field.signi_down ?? [false, false, false])];
+  if (spec.thenDownVictim) nextDown[zi] = true;
   const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
   return {
     ctx: addLog(setOwnerState(victimOwner,
-      { ...state, field: { ...state.field, signi: nextSigni }, trash: [...state.trash, ...under] }, ctx),
-      `${name}は場を離れる代わりに下のカード${under.length}枚をトラッシュに置いた`),
+      {
+        ...state,
+        field: { ...state.field, signi: nextSigni, ...(spec.thenDownVictim ? { signi_down: nextDown } : {}) },
+        trash: [...state.trash, ...trashed],
+      }, ctx),
+      `${name}は場を離れる代わりに下のカード${trashed.length}枚をトラッシュに置いた${spec.thenDownVictim ? '（ダウン）' : ''}`),
     replaced: true,
   };
 }
@@ -1173,7 +1197,7 @@ export function collectLeaveSubstituteOptions(
     applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx));
   // §6.4 O-10（続き511）＝コスト付きの「代わりにこの能力を失う」。⚠**無料の軸より後ろ**に置く
   //   （自動 policy は先頭から採るので、先に置くとタダで済む置換があるのに資源を払ってしまう）。
-  push('selfAbilityPay', 'optional', '〈コスト〉を払って代わりにこの能力を失う',
+  push('selfAbilityPay', 'optional', '〈コスト〉を払って場離れを置換する',
     applyEffectLeavePayLoseSelfAbilitySubstitute(victimNum, victimOwner, ctx));
   // §5.3 `O-202`（2026-09-02）＝宣言者が自分をダウンして身代わりになる。⚠無料の軸より後ろに置く。
   push('downProtector', 'optional', '代わりに宣言者のシグニをダウンする',

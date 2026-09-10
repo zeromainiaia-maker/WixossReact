@@ -830,6 +830,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       if (colM) victimFilter.color = colM[1];
       const storyM = victimDesc.match(/＜([^＞]+)＞/);
       if (storyM) victimFilter.story = storyM[1];
+      if (/アップ状態の/.test(victimDesc)) victimFilter.isUp = true;
       return {
         type: 'STUB', id: 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
         leavePayLoseSelfAbility: {

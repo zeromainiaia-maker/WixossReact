@@ -8199,6 +8199,9 @@ function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
   // の死に文を捨てる。⚠残すと逆翻訳が「自分のシグニの能力を消す」と嘘をつく。
   const isDeferredPay = (s: EffectAction): boolean =>
     s.type === 'STUB' && (s as StubAction).id === 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY';
+  const isUnderCardsTrash = (s: EffectAction): boolean =>
+    s.type === 'STUB'
+    && ['REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER', 'RISE_LEAVE_DISCARD_STACK'].includes((s as StubAction).id);
   const isThenDown = (s: EffectAction): boolean => {
     if (s.type !== 'CONDITIONAL') return false;
     const co = s as import('../types/effects').ConditionalAction;
@@ -8216,12 +8219,34 @@ function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
       out[out.length - 1] = { ...(prev as StubAction), leaveLoseSelfAbility: { thenDown: true } } as EffectAction;
       continue;
     }
+    // 「白を支払う。そうした場合、そのシグニをダウンする」＝能力喪失版と同じ受け皿を使うが、
+    // 失う能力は無く、ダウンするのは宣言元ではなく守られた victim。
+    if (prev && isDeferredPay(prev) && isThenDown(step)) {
+      const stub = prev as StubAction;
+      out[out.length - 1] = {
+        ...stub,
+        leavePayLoseSelfAbility: {
+          ...stub.leavePayLoseSelfAbility!, loseAbility: false, thenDownVictim: true,
+        },
+      } as EffectAction;
+      continue;
+    }
+    // 「下からN枚をトラッシュ。そうした場合、そのシグニをダウンする」も同じ置換宣言へ畳む。
+    if (prev && isUnderCardsTrash(prev) && isThenDown(step)) {
+      const stub = prev as StubAction;
+      out[out.length - 1] = {
+        ...stub,
+        leaveUnderCardsTrash: { ...stub.leaveUnderCardsTrash!, thenDownVictim: true },
+      } as EffectAction;
+      continue;
+    }
     // ⚠この `REMOVE_ABILITIES{owner:'self'}` を残すと**自分のシグニの能力を消す**表示になる（実行はされない
     //   ので盤面には出ないが、逆翻訳が嘘をつくうえ将来 CONTINUOUS を実行し始めたら自傷になる）。
     if (prev && isDeferredPay(prev) && isThenLoseAbility(step)) continue;
     out.push(step);
   }
-  return out.length === 1 && (isSelfLose(out[0]) || isDeferredPay(out[0])) ? out[0] : { ...seq, steps: out };
+  return out.length === 1 && (isSelfLose(out[0]) || isDeferredPay(out[0]) || isUnderCardsTrash(out[0]))
+    ? out[0] : { ...seq, steps: out };
 }
 
 // 状態条件節バッチ①第2波。全件を CardNum+effectId でゲートし、同型カードへ生パースを波及させない。
@@ -29565,18 +29590,6 @@ function repairSemanticBatch247(effects: CardEffect[]): void {
             type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 }, targetsStored: true,
           } },
         ] };
-        break;
-      }
-      case 'WX25-CP1-039-E1': {
-        if (effect.action.type !== 'SEQUENCE') break;
-        const replace = effect.action.steps.find(
-          a => a.type === 'STUB' && a.id === 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY');
-        if (replace?.type === 'STUB' && replace.leavePayLoseSelfAbility) {
-          replace.leavePayLoseSelfAbility.victimFilter = {
-            ...replace.leavePayLoseSelfAbility.victimFilter,
-            isUp: true,
-          };
-        }
         break;
       }
       default:

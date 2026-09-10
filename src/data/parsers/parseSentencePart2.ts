@@ -2583,7 +2583,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   ようになったので、ここへ来る文からその語は消える。⇒ **`UNKNOWN` に落ちて置換が丸ごと効かなくなっていた**
   //   （`WXEX2-09-E1`＝原文1枚）。期間は `activeCondition` 側が持つので、ここでは主語と帰結だけを見る。
   if (t.match(/《ライズアイコン》を持つあなたのシグニが.*場を離れる場合.*その下からすべてのカード/)) {
-    return { type: 'STUB', id: 'RISE_LEAVE_DISCARD_STACK' } as StubAction;
+    return {
+      type: 'STUB', id: 'RISE_LEAVE_DISCARD_STACK',
+      leaveUnderCardsTrash: {
+        victimScope: 'all_own', count: 'ALL', minUnderCards: 3,
+        victimFilter: { cardType: 'シグニ', hasIcon: 'ライズ' },
+      },
+    } as StubAction;
   }
 
   // ---- このルリグのリミット増加と追加色取得 ----
@@ -3049,7 +3055,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 場離れ代替：下のカードをトラッシュに置く ----
   if (t.match(/このシグニが対戦相手の効果によって場を離れる場合.*代わりに.*下からすべてのカードをトラッシュに置いてもよい/)) {
-    return { type: 'STUB', id: 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER' } as StubAction;
+    return {
+      type: 'STUB', id: 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER',
+      leaveUnderCardsTrash: { victimScope: 'self', count: 'ALL', minUnderCards: 1 },
+    } as StubAction;
+  }
+  {
+    const leaveUnderCountM = t.match(/このシグニが対戦相手の効果によって場を離れる場合.*代わりに.*このシグニの下からカード([０-９\d]+)枚をトラッシュに置いてもよい/);
+    if (leaveUnderCountM) {
+      const count = parseNum(leaveUnderCountM[1]);
+      return {
+        type: 'STUB', id: 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER',
+        leaveUnderCardsTrash: { victimScope: 'self', count, minUnderCards: count },
+      } as StubAction;
+    }
   }
 
   // ---- 対戦相手のドロー枚数制限 ----
