@@ -2711,8 +2711,16 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'POWER_MOD_BY_TRASH_CLASS_COUNT' } as StubAction;
 
   // ---- マジックボックスを表向きシグニにする ----
-  if (t.match(/【マジックボックス】.*表向き.*シグニにする/))
-    return { type: 'STUB', id: 'MAGIC_BOX_REVEAL' } as StubAction;
+  if (t.match(/【マジックボックス】.*表向き.*シグニにする/)) {
+    const countM = t.match(/【マジックボックス】を([０-９\d]+)枚まで表向き/);
+    return {
+      type: 'STUB', id: 'MAGIC_BOX_REVEAL',
+      magicBoxReveal: {
+        count: countM ? parseNum(countM[1]) : 3,
+        filter: { cardType: 'シグニ', ...parseStoryFilter(t) },
+      },
+    } as StubAction;
+  }
 
   // ---- パワーを表記差の倍数で変更 ----
   if (t.match(/表記されているパワーとの差の[０-９\d]+倍/))

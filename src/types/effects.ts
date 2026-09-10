@@ -1395,6 +1395,12 @@ export interface TargetFilter {
    */
   attackedThisTurn?: boolean;
   /**
+   * このターンに場に出たシグニ（§5.3 `O-315`・`WXK01-045-E1`）。
+   * `fieldCandidates` が候補側PlayerStateの `signi_placed_origin_this_turn` を読む。
+   * ⚠カード属性だけの `matchesFilter` では消費しない（`attackedThisTurn` と同じstate-aware軸）。
+   */
+  placedThisTurn?: boolean;
+  /**
    * 🆕**いまアタック中の**シグニ（2026-08-31 続き759・`WXDi-D03-004-E1`
    * 「【チーム常】：**アタックしている**あなたのシグニのパワーを＋2000する」）。
    * ⚠`attackedThisTurn`（このターンに1度でもアタックした）とは**別軸**＝こちらは
@@ -4786,6 +4792,14 @@ export interface SoulOpSpec {
 
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /**
+   * `MAGIC_BOX_REVEAL` で表向きにしてシグニにする中身の条件と上限。
+   * §5.3 `O-313`・`WX24-P3-018-E1`＝「中身が＜トリック＞のシグニである
+   * 【マジックボックス】を3枚まで」。省略時は旧来どおり場の全MB（最大3）を扱う。
+   */
+  magicBoxReveal?: { count: number; filter?: TargetFilter };
+  /** `MAGIC_BOX_REVEAL` の選択確定後に、表向きにするシグニゾーン番号を内部actionへ渡す。 */
+  magicBoxRevealZones?: number[];
   /** COPY_TARGET_POWER の修正を次の対戦相手のターン終了時まで保持する。省略時は従来どおりターン終了時まで。 */
   copyTargetPowerUntilOppTurnEnd?: boolean;
   /**
@@ -7107,6 +7121,12 @@ export interface CardEffect {
      */
     centerLrigOnly?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集
     trashSourceStory?: string;                        // ON_TRASH 自己discard反応の発生源限定「あなたの＜X＞のシグニの効果によってこのカードが捨てられたとき」（WXDi-P14-086）＝原因効果の発生源カード（中央diff の causeSourceCardNum）の CardClass に X を含むときのみ発火
+    /**
+     * `trashSourceStory` の原因にコスト支払いも OR で含める（§5.3 `O-315`・`WXEX2-39-E3`）。
+     * 効果側は既存 `collectAnyZoneTrashSelfTriggers`、コスト側は明示的な `asCost` を受け取る
+     * `collectHandDiscardTriggers` が読む。ルール処理をコストと誤認しないため、単なる「効果でない」は使わない。
+     */
+    trashSourceStoryIncludesCost?: boolean;
     revealSourceStory?: string;                       // ON_REVEALED_FROM_HAND 自己反応の発生源限定「あなたの＜X＞のシグニの効果によって手札から公開されたとき」＝公開原因カードの CardClass に X を含むときのみ発火
   };
 

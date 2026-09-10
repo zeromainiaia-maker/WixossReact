@@ -36,6 +36,7 @@ import {
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
+import { parseSentencePart4 } from './parseSentencePart4';
 
 
 /**
@@ -2133,7 +2134,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- あなたのメインフェイズ開始時〜（フェーズトリガー前置きを剥がして再解析）----
   {
     const m = t.match(/^あなたのメインフェイズ開始時[、,]\s*(.+)$/);
-    if (m) return (parseSentencePart1(m[1].trim()) ?? parseSentencePart2(m[1].trim()) ?? { type: 'STUB', id: 'UNKNOWN_NESTED' } as EffectAction);
+    if (m) {
+      const nested = m[1].trim();
+      // §5.3 O-313: Part4 に既存語彙があるのに、この前置き剥がしは Part1/2 だけを
+      // 再走査していたため MAGIC_BOX_REVEAL が UNKNOWN_NESTED へ落ちていた。
+      // Part4 全体へ広げると別文型を大量に perturb し得るので、同じ語彙だけを明示して再利用する。
+      const part4 = /【マジックボックス】.*表向き.*シグニにする/.test(nested)
+        ? parseSentencePart4(nested) : null;
+      // この文は Part1 の広い「自シグニを任意でトラッシュ」catch-all にも当たるため、
+      // MB語彙に一致したときだけ Part4 の専用結果を先に採る。
+      return part4 ?? parseSentencePart1(nested) ?? parseSentencePart2(nested)
+        ?? { type: 'STUB', id: 'UNKNOWN_NESTED' } as EffectAction;
+    }
   }
   if (t === 'あなたのメインフェイズ開始時') {
     return { type: 'STUB', id: 'MAIN_PHASE_START_TRIGGER' } as StubAction;

@@ -4265,16 +4265,26 @@ export function collectHandDiscardTriggers(
     if (!causeType) return false;
     return want.some(t => causeType.includes(t));
   };
-  // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）
+  // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）。
+  // `trashSourceStoryIncludesCost` は ON_TRASH の「コスト OR 指定クラス効果」を同じ明示的な
+  // asCost funnel で拾う。`byEffectCause === false` ではルール捨ても混ざるため、任意領域collector側で
+  // コストと推測しない。
   // 発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして」＝コストを支払った能力の host シグニ
   //（costSourceNum）の CardClass に X を含むときだけ発火（Opusタスク12(xxiv)）。
   const costSrcClass = costSourceNum ? (ctx.cardMap.get(costSourceNum)?.CardClass ?? '') : '';
   if (asCost) {
     for (const cn of discardedNums) {
       for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DISCARDED_AS_COST')) continue;
-        const reqStory = eff.triggerCondition?.discardCostSourceStory;
-        if (reqStory && !costSrcClass.includes(reqStory)) continue;
+        if (eff.effectType !== 'AUTO') continue;
+        const discardedAsCost = eff.timing?.includes('ON_DISCARDED_AS_COST');
+        const trashCostOrStory = eff.timing?.includes('ON_TRASH')
+          && eff.triggerCondition?.trashSourceStoryIncludesCost === true
+          && eff.triggerCondition?.fromZones?.includes('hand');
+        if (!discardedAsCost && !trashCostOrStory) continue;
+        if (discardedAsCost) {
+          const reqStory = eff.triggerCondition?.discardCostSourceStory;
+          if (reqStory && !costSrcClass.includes(reqStory)) continue;
+        }
         if (!limitOk(eff)) continue;
         entries.push({
           id: ctx.genId(), playerId: discarderId, cardNum: cn, effectId: eff.effectId,

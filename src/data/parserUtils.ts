@@ -1391,6 +1391,9 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (text.includes('アップ状態')) filter.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) filter.isDown = true;
   if (text.includes('凍結状態')) filter.isFrozen = true;
+  // 「このターンに場に出た〈owner〉のシグニ」＝候補側の配置履歴で絞る。
+  // 体数つき対象名詞句に限定し、条件節の一般的な「場に出たとき」は巻き込まない。
+  if (/このターンに場に出た[^。、]*シグニ(?:を)?[０-９\d]+体/.test(text)) filter.placedThisTurn = true;
   // 「あなたの他の（修飾）シグニ」= 効果元シグニ自身を対象から除外。
   // 「他のシグニゾーン」「他のルリグ」「他のカード名」のように「他の」がシグニへ掛からない形は除外する。
   if (hasOtherSelfSigniNoun(text)) filter.excludeSelf = true;

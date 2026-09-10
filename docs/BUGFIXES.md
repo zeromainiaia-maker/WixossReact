@@ -1,5 +1,150 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — 第252バッチ（§5.3 索引 G・7項目の棚卸し＋配線）：3効果修正／棚卸し7項目完了
+
+🔥**第251 の失敗（棚卸しの報告が最終レポート生成前に消えた）を構造的に潰した回**＝指示書で
+**「1項目の棚卸しが終わるたびに、その場で `docs/BUGFIXES.md` へ追記する」を必須**にした。
+結果、**Codex の最初の書き込みが BUGFIXES になり**、実装より先に棚卸しが git へ永続化された。
+🔑**この形なら途中で利用上限に当たっても成果（＝棚卸し）は失われない。** 今回は完走した（上限0件）。
+
+### Claude の独立検証
+
+- **live の per-effect 差分＝ちょうど3 effectId**（`WXEX2-39-E3` / `WX24-P3-018-E1` / `WXK01-045-E1`）。
+  **スコープ外の巻き添え0**。
+- **新キー2本とも engine の消費地点がある**＝`placedThisTurn`（`execUtils.ts`）／
+  `trashSourceStoryIncludesCost`（`triggerCollect.ts`）。
+- **3効果とも原文と一致**することを照合した：
+  `WXEX2-39-E3`＝「このカードが**コストか**＜凶蟲＞のシグニの効果によって手札からトラッシュに置かれたとき」／
+  `WXK01-045-E1`＝「**このターンに場に出た**対戦相手のシグニ1体を対象とし」／
+  `WX24-P3-018-E1`＝「中身が**＜トリック＞のシグニである**【マジックボックス】を**3枚まで**表向きにして」。
+- **書き換えた既存 golden 1本は本物の「腐り」**＝旧テスト名が
+  「凶蟲効果**だけ**で蘇生し…」＝**原文の「コストか」を落とした狭すぎる契約**を固定していた。
+  ⚠**否定 assert は1つも削られていない**（差分で確認＝消えたのは `test(` の名前行だけ）。
+- `npm run gates` **全緑**＝**golden 3907 → 3909**（+2）／smoke 10744 OK／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／A群各0／manual field loss 0／lint **0 errors / 254 warnings**。
+
+### 🔴 棚卸しの結論（7項目・**登録票は今回も2件外れた**）
+
+| 項目 | 登録 | 実測 | 未配線 | 今回修正 | 残 |
+|---|---:|---:|---:|---:|---:|
+| `O-313` | 4 | **5** | 5 | 1 | 4 |
+| `O-315` | 3 | 3 | 3 | **2** | 1 |
+| `O-322` | 2 | **3** | 3 | 0 | 3 |
+| `O-323` | 1 | 1 | 1 | 0 | 1 |
+| `O-304` 残 | 1 | 1 | **0＝実は配線済み** | 0 | 0 |
+| `O-316` 残 | 1 | 1（同文型は7） | 1 | 0 | 1 |
+| `O-321` 残 | 1 | 1 | 1 | 0 | 1 |
+
+🔑**訂正3件**＝①`O-313` に登録外の `WXK06-030-E1` ②`O-322` に同文の `WXDi-D09-P04-E3`
+③**`O-304` の `WX18-020-E1` は別名の正準形 `BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT` で実装済みだった**。
+⇒ **「受け皿が無い」と登録した項目が、着手時に実は在ったのはこれで4件目**
+（`O-288` / `O-324` / `O-287` に続く）。**登録票は仮説であって事実ではない、が定着した。**
+
+### 見送り11効果（理由つき・次の入口）
+
+`O-313` 残4＝**シグニゾーン内の「非シグニ札」を一様に選ぶ入口が本当に無い**（付属札・下敷きが
+種類ごとの専用 action に割れている）／`O-315` 残1・`O-321` 残1＝**任意移動元のカード列を持つ履歴**が無い／
+`O-322` 残3＝複合フロー／`O-323` 残1＝**「成功したときだけ消費する」`usageLimit` の軸**が無い／
+`O-316` 残1。⚠**どれも「共通機構が要る」と実測できた側**＝見送りは正しい判断。
+
+(以下は Codex が調査中に逐次追記した棚卸しの生ログ)
+
+## 2026-09-10 — 第252バッチ 棚卸しの生ログ (未検証・Codex 草稿)
+
+> 棚卸しを失わないため、各項目の調査完了時点で逐次追記する。段階1が完了するまで実装には入らない。
+
+### 棚卸し 1/7 — `O-313`（登録票4効果 → 実測5効果、未配線5）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝5効果。実行コマンド：
+  `npm run census:population -- "対戦相手のシグニゾーンからカード１枚|シグニゾーン１つにある、シグニではないすべてのカード|シグニに付いているカード１枚か、あなたのシグニの下にあるカード１枚|場にある、中身が.*【マジックボックス】.*表向き"`
+  登録4件に加え、同じ「シグニゾーンからカード1枚」の `WXK06-030-E1` を1件検出した。
+- **探した受け皿**＝`EffectTarget` 全variant（`SIGNI` / 各通常ゾーン札 / `SEED_CARD`。シグニゾーンの付属札・下敷きを一様に選ぶ型は無し）、`CountFromZone.signi_zone_all`（数えるだけ）、`FIELD_ATTACHED_COUNT{include:'attached'|'under'|'both'}`（数える条件だけ）、`REMOVE_CHARM`、`TAKE_FROM_UNDER_SIGNI`、`STUB{STRIP_ATTACHED_AND_UNDER}`、`OPEN_MAGIC_BOX`、`MAGIC_BOX_REVEAL`、`PLACE_MAGIC_BOX`、`signi_charms` / `signi_acce` / `signi_soul` / `signi_magic_boxes` を型コメントと engine 消費地点まで確認した。種類別の移動ハンドラは在るが、候補を一様に列挙・選択する入口は無い。`scripts/goldenTest.ts` は `WXK06-030-E1` の「最上面シグニだけ」という既知 PARTIAL、`WXK10-018-E2` の `costUnparsed` を固定する既存テストあり。登録4 effectId そのものの正しい非シグニ選択を固定する golden は無し。`manualEffects.ts` は `WXK06-030-E1` だけ手書き PARTIAL（コメントにも下敷き未対応と明記）、登録4件の同型手書きは無し。
+- **live**＝`WXK08-024-E2` は `BOUNCE{target:SIGNI}` のため最上面シグニしか選べない。`WXK06-030-E1` は manual `SELECT_TARGET_ONLY{SIGNI}` → `TRASH{SIGNI,targetsStored}` で同じく最上面限定。`WXK07-003-E1` は末尾が `TRASH{target:SIGNI,count:1}` で「指定1ゾーンの非シグニ札すべて」になっていない。`WXK10-018-E2` は `costUnparsed:true` でコストが未表現。`WX24-P3-018-E1` は既存 `MAGIC_BOX_REVEAL` の受け皿があるのに先頭が `STUB{UNKNOWN_NESTED}` で、最大3枚のMB→シグニ化が未配線。
+- ⇒ **未配線5効果**。登録票との差は **4→5**（`WXK06-030-E1` の既知 PARTIAL を母集団へ追加）。うち `WX24-P3-018-E1` は既存 `MAGIC_BOX_REVEAL` を使えるが、消費側を再確認すると中身の＜トリック＞限定を読んでおらず、parser 配線＋既存payloadの最小拡張が必要だった。残4効果は「シグニゾーン内の非シグニ札」を統一選択・移動する入口が本当に無く、機構設計が要る。
+
+### 棚卸し 2/7 — `O-315`（登録票3効果 → 実測3効果、未配線3）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝3効果。実行コマンド：
+  `npm run census:population -- "このターンにあなたのエナゾーンに＜植物＞のシグニが.*置かれていた場合|このターンに場に出た対戦相手のシグニ|コストか＜凶蟲＞のシグニの効果によって"`
+- **探した受け皿**＝`Condition` / `ActiveCondition` の全 `*_THIS_TURN`、`SELF_DECK_TO_ENERGY_THIS_TURN`、`THIS_CARD_FROM_ZONE_THIS_TURN`、`THIS_CARD_PLACED_BY_CLASS`、`TargetFilter`、`triggerCondition.fromZones` / `fromAnyZone` / `byEffect` / `byOwnEffect` / `fromFieldByCostOrEffect` / `trashSourceStory`、`PlayerState.signi_placed_origin_this_turn` / `signi_played_from_non_hand_this_turn` / `signi_placed_by_source` / `self_deck_to_energy_this_turn` を型コメント・writer・reader・ターン境界まで確認した。`signi_placed_origin_this_turn` は場に出た個体IDを保持するので `WXK01-045` の記録源として再利用可能だが、対象フィルタ側の reader は無い。エナ履歴はデッキ由来の数だけで、移動札を一般フィルタできる履歴は無い。手札→トラッシュの原因は effect/cost の真偽と `causeSourceCardNum` を collector が受け取るが、「コスト OR 指定クラス効果」のOR受け皿は無い。`scripts/goldenTest.ts` は `WXEX2-39-E3` に既存 golden があり、現状の「凶蟲効果だけ」を正方向・別クラス/原因不明/エナ起点を反転で固定している（コスト方向が欠落した腐り契約）。他2 effectId の golden は無し。`manualEffects.ts` に対象3件の同型手書きは無し。
+- **live**＝`WXK04-038-E1` は履歴条件が丸ごと無く、`OPTIONAL_TRASH_ENERGY_CLASS`→`CONDITIONAL{IS_MY_TURN}`（did-itゲート）だけ。`WXK01-045-E1` は対象が通常の相手シグニで「このターンに場に出た」限定無し。`WXEX2-39-E3` は `fromZones:['hand'] + trashSourceStory:'凶蟲'` で凶蟲効果側だけ配線済み、コストで捨てた方向は `trashSourceStory` に拒否される。
+- ⇒ **未配線3効果**。登録票の3と一致。ただし「履歴の受け皿が全面的に無い」ではなく、`WXK01-045` は既存 `signi_placed_origin_this_turn` の reader追加、`WXEX2-39` は既存 collector の原因情報と `trashSourceStory` のOR拡張で閉じうる。新しい履歴ストアが必要なのは植物で絞るエナ追加履歴だけ。
+
+### 棚卸し 3/7 — `O-322`（登録票2効果 → 実測3効果、未配線3）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝3効果。実行コマンド：
+  `npm run census:population -- "対戦相手のセンタールリグのレベル以下の数字１つを宣言.*対戦相手の手札を見て|デッキの一番下のカードをトラッシュに置く.*この効果を繰り返す"`
+  登録2件に加え、`WXDi-P14-061-E1` の付与能力と同文の単体能力 `WXDi-D09-P04-E3` を検出した。
+- **探した受け皿**＝数字宣言の `STUB{DECLARE_NUMBER/DECLARE_NUMBER_PLAIN}`＋`PlayerState.declared_number`、静的 `StubAction.numberChoices`、相手手札全走査の `LOOK_OPP_LIFE_TOP{lookZone:{zone:'opp_hand',count:'ALL'}}`、宣言レベルで相手手札を捨てる既存 `LOOK_OPP_HAND_DISCARD_SIGNI`、`TargetFilter.levelEqDeclaredNumber` / `hasGuard`、覚醒の `AWAKEN_SIGNI.targetsLastProcessed`＋`LAST_PROCESSED_MATCHES{cardName}`、反復の `REPEAT{count/countRef/optional}`、`MILL{fromBottom}`、`LAST_PROCESSED_MATCHES` を型コメントと engine handler まで確認した。宣言値の動的上限は無く `numberChoices` は静的だけ。既存手札捨てSTUBは宣言レベル一致を1枚だけ選ばせ、ガード無し限定・全件強制破棄を表せない。`REPEAT` は固定回数/直前処理枚数だけで「直前札が指定名である間」の制御条件を持たない。`scripts/goldenTest.ts` は `WXDi-CP01-033-E1` の bottom MILL と誤 `CONDITIONAL_POWER_BONUS` 非復帰だけを固定し、反復は未検証。`WXDi-P14-061-E1` / `WXDi-D09-P04-E3` の完成形 golden は無し。`manualEffects.ts` に3件の同型手書きは無し。
+- **live**＝`WXDi-P14-061-E1` と `WXDi-D09-P04-E3` は `DECLARE_NUMBER`→`LOOK_OPP_LIFE_TOP{opp_hand,ALL}` までで、①宣言上限なし（1～5固定）②一致するガード無しシグニの全破棄なし。さらに `WXDi-P14-061-E1` は外側 `AWAKEN_SIGNI` が `targetsLastProcessed` もカード名条件も持たず、効果元スペルを見て空振りする。`WXDi-CP01-033-E1` は bottom MILL と無条件 `POWER_MODIFY +5000`（＜バーチャル＞条件も欠落）の後に `STUB{DEFERRED_REPEAT_ON_REVEALED_NAME}` が残り、反復ハンドラ無し。
+- ⇒ **未配線3効果**。登録票との差は **2→3**（同型 `WXDi-D09-P04-E3` を追加）。新しい独立 action/condition 型が必須とは未確定で、宣言・手札走査・覚醒は既存payload拡張/既存ノードの組合せ、反復は既存 `REPEAT` の条件付き拡張で閉じる余地がある。
+
+### 棚卸し 4/7 — `O-323`（登録票1効果 → 実測1効果、未配線1）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝1効果。実行コマンド：
+  `npm run census:population -- "このターンにこの能力でカードをトラッシュに置いていない場合|この能力で.*トラッシュ.*置くまで.*再度誘発"`
+- **探した受け皿**＝`UsageLimit` 全5値（`once_per_turn` / `twice_per_turn` / `once_per_game` / `once_per_trigger` / `unlimited`）、全 collector の `used*Ids`→`actions_done` 消費経路、`STORE_LAST_PROCESSED_TARGETS` / `lastProcessedCards`、did-it funnel、`TRASH` の実処理記録を確認した。既存 usageLimit は collector が**誘発を積んだ時点**で消費する方式だけで、解決後に `lastProcessedCards` が非空だった場合だけ消費する値・payload・marker は無い。`STORE_LAST_PROCESSED_TARGETS` は対象束縛用で、成功後のターン履歴には残らない。`scripts/goldenTest.ts` には対象 effectId の既存テストがあり、現状の `once_per_turn` を「初回収集で usedHostIds を返し、以後発火しない」と明示固定しているため、原文と逆の腐り契約。実際の `TRASH` 成立/空振りを確認する golden は別にあるが usage 消費と連動していない。`manualEffects.ts` に同型手書きは無し。
+- **live**＝`WX24-P2-050-E1` は `usageLimit:'once_per_turn'`。相手エナが3枚未満なら action 内 `ENERGY_COUNT` が不成立でカードを置かないが、collector は解決前に effectId を `usedHostIds` へ返すため、そのターンは再誘発できない。相手エナ3枚以上なら `TRASH{isTriggerSource}` 自体は正しく置かれた札だけをトラッシュにする。
+- ⇒ **未配線1効果**。登録票と一致。既存 `usageLimit` に成功時消費の軸は本当に無い。安全な設計案は、対象効果だけ opt-in する `usageLimit:'once_per_turn_on_success'` 相当を追加し、collector では予約だけ・効果解決で `lastProcessedCards` が非空のとき `actions_done` に刻むこと。ただし stack/interaction を跨ぐ共通解決経路の変更が必要で重い。
+
+### 棚卸し 5/7 — `O-304` 残件（登録票2効果中の残1 → 実測1効果、未配線0＝実は配線済み）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝1効果。実行コマンド：
+  `npm run census:population -- "コストの合計が.*の数以下のスペル|コストの合計が場にある【チャーム】の数以下"`
+- **探した受け皿**＝前回追加の汎用 `CountFromZone` / `levelLteZoneCount` / `powerLteZoneCount` だけでなく、別正準形 `STUB{BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT}` を追跡した。消費は `effectEngine.collectBlockLowCostSpellCount` が効果保持者の場と `signi_charms` を読み、`screens/battle/spellUseGate.checkSpellUse`（人間の提示＋CPU共通）と `BattleScreen` の使用確定直前が同じ閾値を再確認する。`execStubPart3` の no-op 群に名前があるが、CONTINUOUS 宣言型なので executeAction ではなく上記collectorが読む正準形。`scripts/goldenTest.ts` に effectId 直指定は無い。`O-1 spellUseGate` テスト名には低コスト封じとあるが、現状コード上はこの専用効果を置いた明示fixtureが見当たらない。`manualEffects.ts` に対象効果の手書き無し。
+- **live**＝`WX18-020-E1` は `CONTINUOUS + STUB{BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT}`。場にこの効果がありチャーム数>0なら、その枚数を閾値として返し、使用候補判定と使用確定の双方で `印刷Costの合計 <= チャーム数` のスペルを拒否する。チャーム0なら制限なし。原文の意味を満たしている。
+- ⇒ **未配線0効果＝実は配線済み**。登録票は「動的上限キーが無い」を「機構が無い」と読んでいたが、`WX18-020-E1` は対象選択フィルタではなくスペル使用ゲートの専用正準形で既に動くため、前回の `levelLteZoneCount` を流用する対象ではなかった。
+
+### 棚卸し 6/7 — `O-316` 残件（登録票3効果中の残1 → 同文型実測7効果、スコープ内未配線1）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝同じ対象句で7効果。実行コマンド：
+  `npm run census:population -- "あなたのレベル３のルリグ１体を対象"`
+  今回の残件は `WXDi-D09-H11-E1` だけだが、同文型として `WXDi-D03-011-E1` / `WXDi-D04-011-E1` / `WXDi-D05-011-E1` / `WXDi-D06-011-E1` / `WXDi-P06-002-E1` / `WXDi-P07-001-E1` も検出した。
+- **探した受け皿**＝前回追加の `LRIG_LEVEL.allFieldLrigs`（使用条件「全員」の評価）と `UP.targetsTriggerSource`（アタックした個体をアップ）に加え、`EffectTarget{type:'LRIG'}`、`TargetFilter.thisCardOnly`、`GRANT_EFFECT`（per-card `granted_effects` ストア）、`GRANT_LRIG_ABILITY`（センター専用ストア）、`STUB{LRIG_ATTACK_LIMIT}`、フィールドの `lrig` / `assist_lrig_l` / `assist_lrig_r` を型コメント・executor・collectorまで確認した。別正準形 `GRANT_EFFECT{target:LRIG}` は存在するが、`execGrantEffect` の通常候補は `field.lrig.at(-1)` だけで、アシストを候補に含めるのは `thisCardOnly` で効果元自身へ無選択付与するときだけ。「センター＋左右アシストからレベル3を選ぶ」入口は無い。`GRANT_LRIG_ABILITY` も型コメントどおりセンター固定。`scripts/goldenTest.ts` は7件すべてを含む付与構造・実行テスト群があり、いずれも現状のセンター付与を前提にする。`manualEffects.ts` は D03/D04/D05/D06 の4件が手書きで、D03/D05/D06 は `GRANT_LRIG_ABILITY`、D04 は対象を持たない `LRIG_ATTACK_LIMIT`。残件D09とP06/P07は自動生成。
+- **live**＝`WXDi-D03-011-E1` / `D05-011-E1` / `D06-011-E1` / `WXDi-D09-H11-E1` / `WXDi-P06-002-E1` / `WXDi-P07-001-E1` は全て `GRANT_LRIG_ABILITY` でセンターへ固定。`WXDi-D04-011-E1` は対象選択なしの `LRIG_ATTACK_LIMIT`＋遅延誘発で、やはり選んだルリグ個体を保持しない。前回追加の `LRIG_LEVEL.allFieldLrigs` は使用条件を正すだけ、`UP.targetsTriggerSource` は付与された子能力の実行を正すだけで、外側の付与先選択には届かない。
+- ⇒ **今回スコープ内の未配線1効果**（`WXDi-D09-H11-E1`）。登録票の残1という判定はスコープ内では一致したが、母集団を句で測ると同じセンター固定の構造は計7件だった。残件を正すには `EffectTarget{type:'LRIG'}` の候補を明示的に全フィールドルリグへ広げ、レベル3で絞って選択し、`GRANT_EFFECT` の per-card ストアへ付与する軸が必要。共有生成地点で直すと6件へ波及し、D04はさらに攻撃上限・遅延誘発を対象個体へ束縛する別設計が必要なため、今回の1件アンカーだけで安全には閉じない。
+
+### 棚卸し 7/7 — `O-321` 残件（登録票3効果中の残1 → 実測1効果、未配線1）(未検証・Codex 草稿)
+
+- **原文の母集団（効果単位）**＝1効果。実行コマンド：
+  `npm run census:population -- "このターンにあなたのエナゾーンにカードが２枚以上置かれていた場合|このターンにあなたのエナゾーンにカードが2枚以上置かれていた場合"`
+- **探した受け皿**＝前回拡張した `ARTS_USED_THIS_TURN.filter` と `triggerCondition.milledSourceFilter`、全 `*_THIS_TURN` 条件、`Condition.SELF_DECK_TO_ENERGY_THIS_TURN`、`PlayerState.self_deck_to_energy_this_turn` のwriter（`ENERGY_CHARGE_FROM_DECK` 系2経路）・reader（`execUtils.evalCondition`）・ターンリセット、エナ増加の中央set-diff `detectEnergyAdded` / `ON_ENERGY_CHARGE` / `ON_OPP_ENERGY_ADDED` を確認した。`SELF_DECK_TO_ENERGY_THIS_TURN` は名前・実装とも**デッキ由来だけの枚数**で、手札・トラッシュ・場など任意の移動元を合算しない。中央set-diffは誘発検出用で、ターン累計を保存していない。`scripts/goldenTest.ts` は対象 effectId を「自分のシグニへのSランサー付与」としてだけ固定し、履歴条件のcontract/反転は無し。`manualEffects.ts` に対象の手書き無し。
+- **live**＝`WXDi-CP02-009-E1` は `ON_ATTACK_PHASE_START` から対象選択→任意コスト→did-itゲート→`GRANT_KEYWORD{Sランサー}` まであり、先頭の「このターンにエナゾーンへ2枚以上置かれた」条件だけが丸ごと無い。`SELF_DECK_TO_ENERGY_THIS_TURN` をそのまま置くとデッキ由来2枚しか数えず、原文より狭い。
+- ⇒ **未配線1効果**。登録票の残1と一致。`O-315` の植物履歴と同族だが、既存カウンタには任意移動元のカード列が無い。最短の共通設計は既存 `SELF_DECK_TO_ENERGY_THIS_TURN` を「由来指定省略時は従来どおりdeck、`source:'any'` 時は全由来」のように拡張し、中央エナ増加diffでターン中に置かれたカードIDを記録すること。植物側は同じ記録へ `filter` を適用できる。ただし記録の所有者・同時移動・置換後だけを全解決経路で一度だけ刻む必要があり、単なるparser配線では閉じない。
+
+### 段階2 実装 1件目 — `WX24-P3-018-E1` (`O-313`) (未検証・Codex 草稿)
+
+- `parseSentencePart3` のメインフェイズ前置き剥がしが Part1/2 しか再走査せず、さらに Part1 の広い任意トラッシュ規則が先に当たる経路を、既存 Part4 のマジックボックス語彙だけ優先して再利用するよう修正。`parseSentencePart4` は `MAGIC_BOX_REVEAL.magicBoxReveal={count:3,filter:{cardType:'シグニ',story:'トリック'}}` を生成する。
+- `execStubPart3` は上限とfilterを消費し、条件を満たすMBの全ての部分集合（0枚を含む）を `CHOOSE` で提示して、選んだゾーンだけを内部actionで表向きにする。条件外・カード不明のMBは候補に出さず裏向きのまま残す。新キーの消費地点＝`src/engine/execStubPart3.ts` の `MAGIC_BOX_REVEAL` / `INTERNAL_MAGIC_BOX_REVEAL` handler。逆翻訳もpayloadから「中身が＜トリック＞のシグニ」「3枚まで」を描く。
+- `build:effects` → `heldReview --adopt-effect WX24-P3-018-E1` 済み。共有経路A/Bの live per-effect 差分は **この1件だけ**（`UNKNOWN_NESTED` → `MAGIC_BOX_REVEAL`＋payload）。`npm run golden -- --only "第252 O-313"` は **PASS 1 / FAIL 0**。正方向は条件内2枚から1枚／2枚／0枚を選べること、反転は非＜トリック＞が全選択肢から外れること、さらに選ばなかった条件内MBも裏向きで残ることまで実行確認した。
+
+### 段階2 実装 2件目 — `WXK01-045-E1` (`O-315`) (未検証・Codex 草稿)
+
+- 既存履歴 `PlayerState.signi_placed_origin_this_turn` を再利用し、`TargetFilter.placedThisTurn` を追加。`parseSigniTarget` が「このターンに場に出た対戦相手のシグニ」を生成し、対象句と帰結が別文のこの文型では生成後の既存 `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 構造へ、支払い前の `optionalCostTarget` と支払い後の `BANISH.target` の両方を刻む。
+- 新キーの消費地点＝`src/engine/execUtils.ts` の `fieldCandidates`。候補側stateの `signi_placed_origin_this_turn` に `<instanceId>:<移動元>` がある個体だけを通す。逆翻訳も `このターンに場に出た` をpayloadから描く。
+- 共有規則を一度広げた時点のA/Bで **狙い以外103効果**に `optionalCostTarget` が増える perturb を検出したため、その変更は撤回。第1実装直後の5シート実測スナップショットへ live を戻して再生成し、最終 per-effect 差分が **`WXK01-045-E1` 1件だけ**であることを確認した。AUTOの純改善として live へ直接採用されたため、指定どおり実行した `heldReview --adopt-effect WXK01-045-E1` は `held/partial fresh has no effectId`（採用待ち無し）を返した。
+- `npm run golden -- --only "第252 O-315"` は **PASS 1 / FAIL 0**。fresh/live contractに加え、engineの候補列挙で「履歴あり個体だけ通る／同じ場にいても履歴なし個体は通らない」を正方向＋反転で確認した。
+
+### 段階2 実装 3件目 — `WXEX2-39-E3` (`O-315`) (未検証・Codex 草稿)
+
+- 既存 `triggerCondition.trashSourceStory` を維持し、同じ条件のOR拡張 `trashSourceStoryIncludesCost` を追加。＜凶蟲＞効果側は従来どおり `collectAnyZoneTrashSelfTriggers`、コスト側は明示的な `asCost` を持つ `collectHandDiscardTriggers` が読む。単なる `byEffectCause:false` をコスト扱いしないため、手札上限などのルール捨ては通らない。
+- 新キーの消費地点＝`src/engine/triggerCollect.ts` のコスト捨てcollector。逆翻訳はpayloadから「コストか＜凶蟲＞のシグニの効果によって」を描く。build前後の live per-effect 差分は **`WXEX2-39-E3` 1件だけ**（companion flagの追加）。AUTOの純改善で直接採用されたため、指定どおり実行した `heldReview --adopt-effect WXEX2-39-E3` は採用待ち無しを返した。
+- **書き換えた既存goldenは1本**：旧 `censusトリガー C群: 凶蟲効果だけで蘇生し…` を `第252 O-315 WXEX2-39-E3: コストまたは凶蟲効果で蘇生し…` に改めた。正方向は「凶蟲効果」「別クラス能力のコスト」、反転は「別クラス効果」「原因不明」「ルール捨て」「エナ起点」。`npm run golden -- --only "第252 O-315 WXEX2"` は **PASS 1 / FAIL 0**。
+
+### 段階2 見送り — 残11効果 (未検証・Codex 草稿)
+
+- `O-313` 残4（`WXK08-024-E2` / `WXK06-030-E1` / `WXK07-003-E1` / `WXK10-018-E2`）＝付属札・下敷き・MBを同じゾーン内容として列挙し、対象指定／全移動／コスト支払いへ渡す型とUIが必要。既存の種類別actionだけでは一様選択を表せない。
+- `O-315` 残1（`WXK04-038-E1`）＋`O-321` 残1（`WXDi-CP02-009-E1`）＝全移動元のエナ追加をターン累計し、前者はさらに＜植物＞filterを掛ける共通履歴ストアが必要。既存 `SELF_DECK_TO_ENERGY_THIS_TURN` をそのまま使うとデッキ由来だけになり過小。
+- `O-322` 実測3（`WXDi-P14-061-E1` / `WXDi-D09-P04-E3` / `WXDi-CP01-033-E1`）＝宣言値の動的上限・相手手札の一致札全破棄・指定名だけ覚醒・公開名を条件にした反復を揃える必要があり、単点parser配線では閉じない。
+- `O-323` 1（`WX24-P2-050-E1`）＝成功時だけ usageLimit を消費するため、対話を跨ぐ共通解決完了経路への予約／確定機構が必要。
+- `O-316` 残1（`WXDi-D09-H11-E1`）＝センター＋左右アシストの候補列挙、選んだルリグ個体への能力付与が必要。同文型7件へ届く共有修正になり、D04はさらに攻撃上限の対象束縛が別途必要。
+
+### 最終検証（上記Codex草稿を確定）
+
+- ベースラインスナップショットとの live per-effect 差分は **3件だけ**：`WX24-P3-018-E1` / `WXK01-045-E1` / `WXEX2-39-E3`。スコープ外巻き添え0。
+- `npm run regen` 済み。逆翻訳は順に「中身が＜トリック＞のシグニであるMBを3枚まで」「このターンに場に出た相手シグニ」「コストか＜凶蟲＞のシグニの効果によって」を描く。
+- `npm run gates` **全緑**：typecheck PASS / golden **3909 PASS・FAIL 0**（ベースライン3907から新規2本、既存1本を書き換え）/ smoke **10744 OK・CRASH/HANG/INVARIANT 0** / fuzz不具合0 / census高シグナル **1・BASELINE 1** / census:stubs A群0 / census:enginetext A🔴0 / census:costtext A🔴0 / manual field loss 0 / lint **0 errors・254 warnings**。数値悪化なし。
+
 ## 2026-09-10 — 第251バッチ（索引 G の棚卸し＋配線）：12効果修正。Codex が利用上限で停止し Claude が検証
 
 **投入**＝§5.3 索引 G の8項目（`O-304`/`O-305`/`O-313`/`O-315`/`O-316`/`O-321`/`O-322`/`O-323`・見立て19効果）。

@@ -2424,23 +2424,74 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, reveal_count_plus_one_this_turn: true } },
       'このターン、デッキの上から公開する枚数を1枚増やしてもよい'));
   }
-  // MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする（全MBをシグニとして配置）
-  if (stub.id === 'MAGIC_BOX_REVEAL') {
+  // MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする。
+  // payload 付きは「N枚まで」なので、条件を満たすMBの任意の部分集合（0枚を含む）を選ばせる。
+  if (stub.id === 'MAGIC_BOX_REVEAL' && stub.magicBoxReveal) {
+    const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
+    const eligibleZones = mbsReveal.flatMap((mbCard, zone) => {
+      if (!mbCard) return [];
+      const cardData = ctx.cardMap.get(getCardNum(mbCard));
+      return cardData?.Type === 'シグニ' && matchesFilter(cardData, stub.magicBoxReveal!.filter)
+        ? [zone] : [];
+    });
+    if (eligibleZones.length === 0) {
+      return done({ ...addLog(ctx, '条件を満たす【マジックボックス】なし'), lastProcessedCards: [] });
+    }
+    const max = Math.min(stub.magicBoxReveal.count, eligibleZones.length);
+    const subsets: number[][] = [];
+    for (let mask = 1; mask < (1 << eligibleZones.length); mask++) {
+      const zones = eligibleZones.filter((_, i) => (mask & (1 << i)) !== 0);
+      if (zones.length <= max) subsets.push(zones);
+    }
+    return exec({
+      type: 'CHOOSE', choose_count: 1, from_count: subsets.length + 1,
+      choices: [
+        ...subsets.map(zones => ({
+          choiceId: `magic_box_${zones.join('_')}`,
+          label: zones.map(zone => {
+            const cardNum = mbsReveal[zone]!;
+            return `シグニゾーン${zone + 1}（${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}）`;
+          }).join('・') + 'を表向きにする',
+          action: {
+            type: 'STUB', id: 'INTERNAL_MAGIC_BOX_REVEAL',
+            magicBoxReveal: stub.magicBoxReveal,
+            magicBoxRevealZones: zones,
+          } as StubAction as EffectAction,
+        })),
+        {
+          choiceId: 'magic_box_skip', label: '表向きにしない',
+          action: { type: 'STUB', id: 'INTERNAL_MAGIC_BOX_REVEAL', magicBoxRevealZones: [] } as StubAction,
+        },
+      ],
+    }, ctx);
+  }
+  // 旧payload無しは従来互換で全MBを処理。内部actionは選ばれたゾーンだけを処理する。
+  if (stub.id === 'MAGIC_BOX_REVEAL' || stub.id === 'INTERNAL_MAGIC_BOX_REVEAL') {
     const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
     const newSigniReveal = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const newMBsReveal = [...mbsReveal] as (string | null)[];
     const revealedCards: string[] = [];
-    for (let i = 0; i < 3; i++) {
+    const revealLimit = stub.magicBoxReveal?.count ?? 3;
+    const requestedZones = stub.id === 'INTERNAL_MAGIC_BOX_REVEAL'
+      ? (stub.magicBoxRevealZones ?? []).slice(0, revealLimit)
+      : [0, 1, 2];
+    for (const i of requestedZones) {
+      if (revealedCards.length >= revealLimit) break;
+      if (i < 0 || i >= 3) continue;
       if (!mbsReveal[i]) continue;
       const mbCard = mbsReveal[i]!;
-      const cardData = ctx.cardMap.get(mbCard);
-      // 中身がシグニでなければスキップ（例：スペル等は場に出せない）
-      if (cardData && cardData.Type !== 'シグニ') continue;
+      const cardData = ctx.cardMap.get(getCardNum(mbCard));
+      // 中身がシグニでない、またはpayloadのクラス等を満たさないMBは裏向きのまま残す。
+      // 不明なカードも場へ出さない（旧実装は cardMap miss を通す fail-open だった）。
+      if (!cardData || cardData.Type !== 'シグニ'
+          || (stub.magicBoxReveal?.filter && !matchesFilter(cardData, stub.magicBoxReveal.filter))) continue;
       newSigniReveal[i] = [mbCard];
       newMBsReveal[i] = null;
       revealedCards.push(mbCard);
     }
-    if (revealedCards.length === 0) return done(addLog(ctx, 'MBなし（または中身がシグニでない）'));
+    if (revealedCards.length === 0) {
+      return done({ ...addLog(ctx, 'MBを表向きにしない（または条件を満たす中身なし）'), lastProcessedCards: [] });
+    }
     const newOwnerReveal: PlayerState = {
       ...ctx.ownerState,
       field: { ...ctx.ownerState.field, signi: newSigniReveal, signi_magic_boxes: newMBsReveal },

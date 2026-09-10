@@ -1992,6 +1992,11 @@ export function fieldCandidates(
       const attacked = (state.attacked_signi_ids ?? []).includes(cardNum);
       if (filter.attackedThisTurn !== attacked) return [];
     }
+    // 「このターンに場に出たシグニ」＝配置元に関係なく、候補側stateの既存履歴に個体IDがあるか。
+    if (filter?.placedThisTurn !== undefined) {
+      const placed = (state.signi_placed_origin_this_turn ?? []).some(entry => entry.startsWith(`${cardNum}:`));
+      if (filter.placedThisTurn !== placed) return [];
+    }
     // 🆕「**アタックしている**シグニ」＝いま宣言中のアタッカー1体（`pending_signi_battle` のゾーン）。
     if (filter?.isAttacking !== undefined) {
       const attacking = state.pending_signi_battle?.zoneIndex === zoneIdx;

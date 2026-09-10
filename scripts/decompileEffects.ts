@@ -252,6 +252,7 @@ function filterJa(f?: any): string {
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
   if (f.attackedThisTurn) parts.push('このターンにアタックした');
+  if (f.placedThisTurn) parts.push('このターンに場に出た');
   // 🆕いま宣言中のアタッカー限定（`attackedThisTurn` とは別軸＝バトル未解決の1体だけ）。
   if (f.isAttacking) parts.push('アタックしている');
   if (f.color) {
@@ -3267,6 +3268,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      if (a.id === 'MAGIC_BOX_REVEAL' && a.magicBoxReveal) {
+        return `あなたの場にある、中身が${filterJa(a.magicBoxReveal.filter)}シグニである【マジックボックス】を${numJa(a.magicBoxReveal.count)}枚まで表向きにしてシグニにする`;
+      }
       // 🆕§5.3 `O-238`（2026-09-05）＝フリップアタック付与は payload から文を組む
       //   （engine も UI も原文を読まないので、逆翻訳もここが唯一の生成地点）。
       if (a.id === 'GRANT_QUOTED_ATTACK_FLIP' && a.altAttackFlip) {
@@ -5897,7 +5901,9 @@ function effJa(e: Eff): string {
     if (t === 'ON_TRASH' && ((e.triggerCondition?.byOwnEffect && !isFieldOriginTrash) || e.triggerCondition?.trashSourceStory
         || (e.triggerCondition?.byOpponentEffect && e.triggerCondition?.fromZones?.length === 1 && e.triggerCondition.fromZones[0] === 'hand'))) {
       const sdTc = e.triggerCondition;
-      const causeJa = sdTc?.trashSourceStory ? `あなたの＜${sdTc.trashSourceStory}＞のシグニの効果によって`
+      const causeJa = sdTc?.trashSourceStoryIncludesCost && sdTc.trashSourceStory
+        ? `コストか＜${sdTc.trashSourceStory}＞のシグニの効果によって`
+        : sdTc?.trashSourceStory ? `あなたの＜${sdTc.trashSourceStory}＞のシグニの効果によって`
         : sdTc?.byOpponentEffect ? '対戦相手の効果によって'
         : sdTc?.byOwnEffect ? 'あなたの効果によって' : '';
       const turnJa = sdTc?.turnOwner === 'self' ? 'あなたのターンの間、' : sdTc?.turnOwner === 'opponent' ? '対戦相手のターンの間、' : '';

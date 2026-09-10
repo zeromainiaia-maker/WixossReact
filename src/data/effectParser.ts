@@ -14550,6 +14550,25 @@ function applyLookPickFieldScope(text: string, parsed: EffectAction): EffectActi
   return parsed;
 }
 
+/**
+ * §5.3 O-315: 「このターンに場に出た相手シグニ」を、任意コストの候補判定と
+ * 支払い後の実対象の両方へ刻む。対象句と帰結が別文になるため parseSigniTarget だけでは
+ * 後段の「それ」へ届かない。effectId ではなく、この文型＋既存TOSOC構造を生成地点で直す。
+ */
+function applyPlacedThisTurnOptionalTarget(text: string, parsed: EffectAction): EffectAction {
+  if (!/このターンに場に出た対戦相手のシグニ[０-９\d]*体を対象とし/.test(text)
+      || parsed.type !== 'SEQUENCE') return parsed;
+  const head = parsed.steps[0];
+  const body = parsed.steps[1];
+  if (head?.type !== 'STUB' || head.id !== 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
+      || body?.type !== 'CONDITIONAL' || !('target' in body.then) || !body.then.target
+      || body.then.target.type !== 'SIGNI') return parsed;
+  const target = parseSigniTarget(text, 'opponent');
+  head.optionalCostTarget = JSON.parse(JSON.stringify(target)) as EffectTarget;
+  body.then = { ...body.then, target } as EffectAction;
+  return parsed;
+}
+
 function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
   const groups = parseExplicitSelectionGroups(text);
   if (!groups) {
@@ -15068,6 +15087,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = applyLookPickUpTo(text, parsed);
   parsed = applyLookPickFieldScope(text, parsed);
   parsed = applyPrintedPowerScope(text, parsed);
+  parsed = applyPlacedThisTurnOptionalTarget(text, parsed);
   parsed = applyOptionalTransferDidItGate(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
@@ -26276,7 +26296,11 @@ function applyIdentityCostTriggerBatch2026Aug30(card: CardData, effects: CardEff
 
     if (effect.effectId === 'WXEX2-39-E3'
         && /コストか＜凶蟲＞のシグニの効果によって手札からトラッシュに置かれたとき/.test(source)) {
-      effect.triggerCondition = { ...(effect.triggerCondition ?? {}), trashSourceStory: '凶蟲' };
+      effect.triggerCondition = {
+        ...(effect.triggerCondition ?? {}),
+        trashSourceStory: '凶蟲',
+        trashSourceStoryIncludesCost: true,
+      };
       changed = true;
     }
 

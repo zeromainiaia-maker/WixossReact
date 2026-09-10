@@ -18201,16 +18201,21 @@ test('censusコスト B群: beat_signi.excludeSelf は同名コピーを除外�
     '反転確認: 同名だけなら候補ゼロ');
 }));
 
-test('censusトリガー C群: 凶蟲効果だけで蘇生し、別クラス／発生源不明／別ゾーンでは発火しない', () => withSavedCursor(() => {
+test('第252 O-315 WXEX2-39-E3: コストまたは凶蟲効果で蘇生し、別原因では発火しない', () => withSavedCursor(() => {
   const effect = (effectsMap.get('WXEX2-39') ?? []).find(e => e.effectId === 'WXEX2-39-E3')!;
   eq(effect.triggerCondition?.trashSourceStory, '凶蟲', 'live JSON に凶蟲発生源限定');
+  eq(effect.triggerCondition?.trashSourceStoryIncludesCost, true, 'live JSON にコストとのORを保持');
   const bug = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('凶蟲'));
   const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('凶蟲'));
   const collect = (source: string | undefined, origin: 'hand' | 'energy' = 'hand') =>
     collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WXEX2-39', HOST, false, origin, source, true);
   ok(collect(bug).some(e => e.effectId === 'WXEX2-39-E3'), '成立方向: 凶蟲シグニの効果で手札から置けば発火');
+  ok(collectHandDiscardTriggers(trigCtx(HOST), ['WXEX2-39'], mkState({}), HOST, true, undefined, undefined, other)
+    .entries.some(e => e.effectId === 'WXEX2-39-E3'), '成立方向: 別クラスの能力のコストでも発火');
   ok(!collect(other).some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: 別クラス効果では非発火');
   ok(!collect(undefined).some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: 発生源不明では非発火');
+  ok(!collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WXEX2-39', HOST, false, 'hand', undefined, false)
+    .some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: ルール処理をコストと誤認しない');
   ok(!collect(bug, 'energy').some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: エナ起点では非発火');
 }));
 // §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
@@ -75195,6 +75200,83 @@ test('O-324: エナから好きな枚数を手札へ戻す2効果に「互いに
   })!;
   ok(satisfiesSelectionConstraint([same[0], other.CardNum], { distinct: 'class' }, cardMap),
      'クラスを共有しない2枚は選べる');
+});
+
+test('第252 O-313 WX24-P3-018-E1: ＜トリック＞のMBだけを表向きシグニにする（反転つき）', () => {
+  const findMagicBoxReveal = (value: unknown): Extract<EffectAction, { type: 'STUB' }> | null => {
+    if (!value || typeof value !== 'object') return null;
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'MAGIC_BOX_REVEAL') {
+      return value as Extract<EffectAction, { type: 'STUB' }>;
+    }
+    for (const child of Object.values(obj)) {
+      if (Array.isArray(child)) {
+        for (const item of child) { const found = findMagicBoxReveal(item); if (found) return found; }
+      } else {
+        const found = findMagicBoxReveal(child); if (found) return found;
+      }
+    }
+    return null;
+  };
+  const fresh = findEffectDeep(parseCardEffects(cardMap.get('WX24-P3-018')!), 'WX24-P3-018-E1');
+  const live = findEffectDeep(effectsMap.get('WX24-P3-018') ?? [], 'WX24-P3-018-E1');
+  const freshReveal = findMagicBoxReveal(fresh?.action);
+  const liveReveal = findMagicBoxReveal(live?.action);
+  ok(!!freshReveal && !!liveReveal, 'fresh/live とも UNKNOWN_NESTED ではなく MAGIC_BOX_REVEAL に載る');
+  if (!freshReveal || !liveReveal) return;
+  eq(liveReveal.magicBoxReveal?.count, 3, '原文の上限3枚をpayloadに保持');
+  eq(liveReveal.magicBoxReveal?.filter?.story, 'トリック', '中身の＜トリック＞限定をpayloadに保持');
+
+  const trick = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('トリック'));
+  const nonTrick = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('トリック'));
+  const ctx = mkCtx({ signi: [null, null, null] }, {}, 'WX24-P3-018');
+  ctx.ownerState.field.signi_magic_boxes = [trick, nonTrick, trick];
+  const offered = executeAction(liveReveal, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '条件内MBの部分集合（0枚を含む）を選択できる');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const options = offered.pending.options;
+  ok(options.some(o => o.id === 'magic_box_0') && options.some(o => o.id === 'magic_box_2')
+    && options.some(o => o.id === 'magic_box_0_2') && options.some(o => o.id === 'magic_box_skip'),
+    '正方向: 条件内2枚から1枚・2枚・0枚を選べる');
+  ok(!options.some(o => o.id.split('_').includes('1')), '反転: 非＜トリック＞のゾーンはどの選択肢にも入らない');
+  const result = resumeChoose('magic_box_0', offered.pending,
+    { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(result.done, '選んだMBの公開処理が完了する');
+  eq(result.ownerState.field.signi[0]?.at(-1), trick, '正方向: ＜トリック＞の中身はシグニになる');
+  eq(result.ownerState.field.signi_magic_boxes?.[0], null, '正方向: 表向きにしたMB枠は空になる');
+  eq(result.ownerState.field.signi[1], null, '反転: ＜トリック＞でない中身はシグニにならない');
+  eq(result.ownerState.field.signi_magic_boxes?.[1], nonTrick, '反転: 条件外MBは裏向きのまま残る');
+  eq(result.ownerState.field.signi[2], null, '「3枚まで」なので条件内でも選ばなかったMBはシグニにならない');
+  eq(result.ownerState.field.signi_magic_boxes?.[2], trick, '選ばなかった条件内MBは裏向きのまま残る');
+});
+
+test('第252 O-315 WXK01-045-E1: このターンに場に出た相手シグニだけを対象にする（反転つき）', () => {
+  const freshEffect = findEffectDeep(parseCardEffects(cardMap.get('WXK01-045')!), 'WXK01-045-E1');
+  const liveEffect = findEffectDeep(effectsMap.get('WXK01-045') ?? [], 'WXK01-045-E1');
+  const targetOf = (effect: CardEffect | undefined) => {
+    if (effect?.action.type !== 'SEQUENCE') return null;
+    const head = effect.action.steps[0];
+    const body = effect.action.steps[1];
+    if (head?.type !== 'STUB' || head.id !== 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
+        || body?.type !== 'CONDITIONAL' || body.then.type !== 'BANISH') return null;
+    return { optional: head.optionalCostTarget, actual: body.then.target };
+  };
+  const freshTargets = targetOf(freshEffect);
+  const liveTargets = targetOf(liveEffect);
+  ok(!!freshTargets && !!liveTargets, 'fresh/live とも任意コスト候補と帰結対象を保持');
+  if (!freshTargets || !liveTargets) return;
+  eq(freshTargets.optional?.filter?.placedThisTurn, true, 'fresh: 支払い前の候補判定に履歴条件を刻む');
+  eq(liveTargets.actual.filter?.placedThisTurn, true, 'live: バニッシュ対象にも履歴条件を刻む');
+
+  const placed = fresh();
+  const old = fresh();
+  const opponent = mkState({ signi: [placed, old, null] });
+  opponent.signi_placed_origin_this_turn = [`${placed}:hand`];
+  const candidates = fieldCandidates(opponent, liveTargets.actual.filter ?? {}, cardMap as Map<string, CardData>);
+  eq(candidates.join('|'), placed, '正方向: このターンに場に出たシグニだけが engine の候補になる');
+  const noHistory = { ...opponent, signi_placed_origin_this_turn: [] } as PlayerState;
+  eq(fieldCandidates(noHistory, liveTargets.actual.filter ?? {}, cardMap as Map<string, CardData>).length, 0,
+    '反転: 場にいてもこのターンの配置履歴がなければ候補にならない');
 });
 
 if (listMode) {
