@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第258バッチ（PLAN §5.3 索引A `O-301`）：🏁**クローズ**。「次の〜アタックフェイズ開始時」の遅延は**受け皿が全部在った**／真の穴は永続化1件
+
+**真因**＝`WXDi-P04-007-E3` の live が `GRANT_KEYWORD{duration:'PERMANENT'}`＝原文
+「**次の対戦相手のターンの、メインフェイズとアタックフェイズの間**、あなたのシグニは【シャドウ】を得る」の
+**遅延（次の相手ターン）も寿命（そのターンで切れる）も両方落ちて、ゲーム終了まで全自シグニがシャドウ**だった（過剰実行）。
+
+**影響枚数**＝**1効果 / 1カード**（`WXDi-P04-007`）。
+
+### ② 母集団の実測（登録票は3点とも stale だった）
+
+原文 `/次の[^。]{0,20}(アタックフェイズ|ルリグアタックステップ|シグニアタックステップ)/` で効果単位に数え直し＝**28効果 / 28カード**
+（登録票の「23効果」より広い）。live 側は受け皿を**別名まで含めて**判定した
+（`INSTALL_DELAYED_TRIGGER` / `DELAY_TO_NEXT_OPP_ATTACK_PHASE` / `ON_ATTACK_PHASE_START` /
+`ON_LRIG_ATTACK_STEP_START` / `ADD_EXTRA_ATTACK_PHASE` / `NEXT_OPP_ATTACK_PHASE_START`）＝**OK 19 / MISS 9**。
+
+🔴**登録票の stale 3点**
+1. **「10効果」は過大**＝`INSTALL_DELAYED_TRIGGER` 1キーだけで判定していたため、
+   **`DELAY_TO_NEXT_OPP_ATTACK_PHASE`（「次の**対戦相手の**」側の正準形・4効果）が丸ごと MISS に出ていた**。
+2. **「`ON_LRIG_ATTACK_STEP_START` 相当の timing が無い」は誤り**＝実在し、`WXDi-CP02-059-E1` が使っている。
+3. **「JSON の書き方の問題が大半」も外れ**＝MISS 9 のうち8件は**別軸の正しい受け皿**へ載っていた。
+
+**MISS 9 の triage＝(a) 穴ではない8 ／ (b) 受け皿は在るが未配線1 ／ (c) 機構が要る0**
+
+| effectId | 判定 | 実際の受け皿 |
+|---|---|---|
+| `PR-Di035-E1` | (a) | `STUB{PRDI035_PARADISE_COLOR}`＝次アタックフェイズ開始時の判定フラグ（golden 済み） |
+| `WXDi-P09-009-E3` | (a) | `SIGNI_FLIP_FACEDOWN{returnTiming:'NEXT_OPP_ATTACK_PHASE_START'}`（`facedownSigni.ts:111`） |
+| `WXK06-026-E1` | (a) | `ADD_EXTRA_ATTACK_PHASE.onStart`（追加アタックフェイズ＝別概念） |
+| `SP38-006-E4` | (a) | `BLOCK_ACTION{ATTACK_PHASE/GROW, until:'NEXT_TURN'}`＝フェイズスキップ（`:NEXT_TURN` 昇格式） |
+| `WX13-005A-E2` / `WXDi-P11-TK02-E2` | (a) | `LIMIT_OPP_SIGNI_ATTACKS_ONCE`＝アタック回数制限（期間は state のリセット地点で一致済み） |
+| `WX24-P4-007-E1` / `WXDi-P14-005-E1` | (a) | `STUB{LOCK_OPP_TRASH_MOVE}`＝**同じ「メインフェイズとアタックフェイズの間」句をフェイズ限定つきで実装済み** |
+| 🔴`WXDi-P04-007-E3` | **(b)** | `GrantKeywordAction.duration:'NEXT_TURN'` ＋ `nextTurnOwner:'opponent'` |
+
+さらに広く `/(アタックフェイズ|ルリグ／シグニアタックステップ)開始時/` の**558効果**を掃いても
+追加 MISS は2件だけで、どちらも別 effectId（`WXDi-P05-060-E2`＝`GRANT_SIGNI_ABOVE_ABILITY`／
+`WXDi-P07-010-E2`＝`FACEDOWN_RELEASE_BY_OPP_PAYMENT`）が受けており穴ではなかった。
+
+### ③ 実装（速いレーン＝母集団1効果・`src/engine/` と `effectParser.ts` は0行）
+
+`src/data/manualEffects.ts` に `WXDi-P04-007-E3` を **`parseStatus:'MANUAL'`** で手書きし、
+`duration:'NEXT_TURN'` ＋ `nextTurnOwner:'opponent'` に直した。
+受け皿は既存の2スロット式＝`reserveFieldGrant`（`effectExecutor.ts:65`）が `field_grants_next_opp_turn` へ予約 →
+`clearTurnEndScopedState`（`turnScopedState.ts:375,414`）が**自分のターン終了時に `field_grants_active` へ昇格 →
+相手のターン終了時に空へ戻す**。
+
+🔑**同じ文が真上の `WX15-004-E3` では正しく `NEXT_TURN` になっていた**＝parser の期間検出が
+`t.includes('次の対戦相手のターンの間')` の**完全一致**で、間に「の、メインフェイズとアタックフェイズ」が挟まる
+**この1枚だけが外れていた**。⇒ 受け皿は最初から在り、機構は1つも足していない。
+
+⚠**「メインフェイズとアタックフェイズの間」→「そのターンの間」への近似は意図的**＝
+`FieldGrantCondition` にフェイズ軸が無く、**1効果のために機構は作らない**（PLAN §5.3「1〜3枚の項目の取り方」4.）。
+差は相手のグロウ／エナ／ターン終了時だけで、`LOCK_OPP_TRASH_MOVE` と同じ近似の作法。理由は manualEffects.ts に明記した。
+
+⚠**`build:effects` では live に届かず `npx tsx scripts/syncManualLive.ts WXDi-P04-007` が要った**
+（既存 id の書き直しは収穫マージが通さない＝CLAUDE.md 既知）。
+
+### ④ 検証コマンドと結果
+
+- `npm run gates` **全緑**＝golden **3926 PASS / 0 FAIL**（3925 → +1）／smoke CRASH・HANG・INVARIANT 0／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／manual-fields 0／lint 0 errors・254 warnings。**ratchet の較正なし**。
+- **live の per-effect 差分＝ちょうど1 effectId**（`WXDi-P04-007-E3`）。他カードは0。
+- **反転確認あり**＝live を `PERMANENT` へ戻すと新 golden が
+  `PERMANENT（永続）へ戻っている expected=NEXT_TURN got=PERMANENT` で FAIL することを実行して確認した。
+- `npm run regen` 後の逆翻訳（§5-14 の証跡）＝
+  `docs/decompile_sheet7.txt:6655` → `WXDi-P04-007-E3: 【起】（メイン起動）：《once_per_game》〈《白×0》〉あなたのすべてのシグニに【シャドウ】を与える（次の対戦相手のターンの間）`
+
+### ⑤ 実機は不要と判定（§2.2）
+
+触ったのは `src/data/` `public/data/` `scripts/` だけで **`src/screens/` は無傷**、**新しい型・機構も0**。
+挙動側は golden の `assertNextOpponentShadow`（既存ヘルパー）が
+**発動ターンは効かない → 次の相手ターンだけ対象効果を拒否 → そのターン終了で失効**の3点を実行で固定している。⇒ `V-nn` の登録もしない。
+
+### 🏁 `O-301` はクローズ／`O-318` を 6 → 5効果へ訂正
+
+**(c) 0件＝残件なし。** 索引 A は **残2項目**（`O-298` 残4／`O-299` 残8）。
+`WXDi-P04-007-E3` は索引 G の `O-318`（遅延・置換の受け皿が足りない・6効果）にも入っていたので、
+そちらの母集団を **5効果**へ訂正した。
+
+🔑**教訓＝「受け皿が無い」型の登録票は、受け皿の別名を数え落とすと必ず過大に出る**（CLAUDE.md の既知の罠を
+そのまま踏んでいた実例）。**1キーで判定した MISS 数を登録票に書かない**＝別名を列挙してから数える。
+
 ## 2026-09-11 — PLAN §5.3 索引A `O-300`（`GRANT_LRIG_ABILITY` の対象レベル資格）
 
 `npm run census:population -- "ルリグ[１1]体を対象とし" --json GRANT_LRIG_ABILITY` を再実測し、母集団は **113効果 / 112カード、OK 20 / MISS 93**。OK 20を原文と live JSON で全件 triage した結果は **(a) 穴ではない12 / (b) レベル制限欠落8 / (c) 受け皿なし0** だった。登録票の stale 3点（executor 行番号、対象選択ではなく資格フィルタが実害、20件全部が穴ではない）を追認した。

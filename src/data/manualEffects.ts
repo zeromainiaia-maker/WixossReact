@@ -878,6 +878,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P04-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"あなたのトラッシュをすべてデッキに加えてシャッフルする","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"choiceId":"c1","label":"対戦相手のトラッシュをすべてデッキに加えてシャッフルする","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true}}]},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
+  // ── WXDi-P04-007 ／ 原文【起】《ゲーム１回》《白×0》：「**次の対戦相手のターンの、メインフェイズと
+  //   アタックフェイズの間**、あなたのシグニは【シャドウ】を得る。」（§5.3 `O-301` 第258バッチ・2026-09-11）
+  // 🔴旧 live＝`GRANT_KEYWORD{duration:'PERMANENT'}`＝**ゲーム終了まで永続**する過剰実行だった
+  //   （原文の「次の対戦相手のターンの」という遅延も、そのターンで切れる寿命も、両方落ちていた）。
+  // ✅**受け皿は既存**＝`GrantKeywordAction.duration:'NEXT_TURN'` ＋ `nextTurnOwner:'opponent'`
+  //   → `reserveFieldGrant`（`effectExecutor.ts:65`）が `field_grants_next_opp_turn` へ予約し、
+  //   `clearTurnEndScopedState`（`screens/battle/turnScopedState.ts:375,414`）が
+  //   **自分のターン終了時に `field_grants_active` へ昇格 → 相手のターン終了時に空へ戻す**2スロット式。
+  //   ⚠`reserveFieldGrant` は `target` が `SIGNI`／`count:'ALL'`／`owner!=='any'` のときだけ予約する
+  //     （この効果はその形なので条件を満たす）。形を崩すと**予約されず即時付与に戻る**。
+  // ⚠**「メインフェイズとアタックフェイズの間」→「そのターンの間」の近似**は engine 既存の作法と同じ
+  //   （`LOCK_OPP_TRASH_MOVE` は `lock_trash_move_next_turn` で同じ予約をしてフェイズ限定だけ
+  //   `isOwnTrashMoveLocked` が見る）。`FieldGrantCondition` にはフェイズ軸が無く、**1効果のために
+  //   機構は作らない**（PLAN §5.3「1〜3枚の項目の取り方」4.）。差は相手のグロウ／エナ／ターン終了時だけ。
+  // ⚠**engine は0行**（新しい型もキーも足していない）。
+  'WXDi-P04-007': [
+    {"effectId":"WXDi-P04-007-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"シャドウ","duration":"NEXT_TURN","nextTurnOwner":"opponent"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
+
   // ── WX19-061 ／ 原文【出】：デッキの一番上を公開する。それが青のカードの場合、対戦相手のデッキの一番上を見る。
   //   **＜水獣＞のシグニの場合、カードを１枚引く。** スペルの場合、…（入れ替え）
   // 🔴旧 live＝「青のシグニ」1枝だけで、**＜水獣＞のドローが丸ごと無かった**。公開カードへの分岐は

@@ -6109,6 +6109,23 @@ test('§6.4 NEXT_TURN WXDi-CP01-005-E3: シグニ限定シャドウを次相手�
   assertNextOpponentShadow('WXDi-CP01-005', 'WXDi-CP01-005-E3', seq.steps[1]);
 }));
 
+// ── §5.3 `O-301` 第258バッチ（2026-09-11）＝「**次の対戦相手のターンの、メインフェイズと
+//   アタックフェイズの間**、あなたのシグニは【シャドウ】を得る」（`WXDi-P04-007-E3`）。
+// 🔴旧 live＝`duration:'PERMANENT'`＝**ゲーム終了まで永続**していた（遅延も寿命も両方落ちていた）。
+// 🔑真上の `WX15-004-E3` は**同じ文**で正しく `NEXT_TURN`＋`nextTurnOwner:'opponent'` になっている＝
+//   parser の期間検出が `t.includes('次の対戦相手のターンの間')` の**完全一致**で、
+//   間に「の、メインフェイズとアタックフェイズ」が挟まる1枚だけ外れていた（受け皿は最初から在った）。
+// ⚠**この assert は「予約されること」まで見る**＝`reserveFieldGrant` は target が
+//   `SIGNI`／`count:'ALL'`／`owner!=='any'` のときだけ予約するので、形を崩すと即時付与へ黙って戻る。
+test('§5.3 O-301 WXDi-P04-007-E3: メイン／アタック間シャドウを次相手ターンだけ有効化', () => withSavedCursor(() => {
+  const action = nextTurnLiveAction('WXDi-P04-007', 'WXDi-P04-007-E3');
+  const gk = action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(gk.type, 'GRANT_KEYWORD', 'GRANT_KEYWORD でなくなっている');
+  eq(gk.duration, 'NEXT_TURN', 'PERMANENT（永続）へ戻っている');
+  eq(gk.nextTurnOwner, 'opponent', '「次の対戦相手の」が落ちて自分のターン基準になっている');
+  assertNextOpponentShadow('WXDi-P04-007', 'WXDi-P04-007-E3', action);
+}));
+
 test('§6.4 NEXT_TURN WX26-CP1-007-E1: 選択肢3のルリグダメージ無効は次相手ターンだけ', () => withSavedCursor(() => {
   const choose = nextTurnLiveAction('WX26-CP1-007', 'WX26-CP1-007-E1') as Extract<EffectAction, { type: 'CHOOSE' }>;
   const prevent = choose.choices[2].action;

@@ -326,7 +326,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | `O-298` | **15効果**（`STUB{OPTIONAL_COST}`→`CONDITIONAL` かつ `STORE_LAST_PROCESSED_TARGETS` 無しの187効果のうち、**原文で対象が任意コストより前に来る**もの） | **自分の任意コストで「対象を先に確定する」軸が無い**＝engine は `STUB{任意コスト}` の直後の `CONDITIONAL` を組にして先取りする（`effectExecutor.ts:5530-5535` ほか）ので、原文「〜1体を対象とし、…を支払ってもよい」が**支払ってから対象を選ぶ**順に化ける。🔴**`O-288` は「相手が払う」側**＝こちらは自分側で分岐が別（`5530` 系と `5871` 系） |
 | `O-299` | 🔥**残8**（2026-09-11 に全件 triage 済み＝下の登録票を読む。**登録時の「21効果」は母集団の切り方が違う**＝当時は「バニッシュされる場合」も混ぜて数えていた） | **置換効果（「代わりに」）の受け皿が足りない**＝受け皿そのものは `collectLeaveSubstituteOptions` の軸列で在る。**残っているのは「バトル経路にしか無い置換処理を、効果による離場の全経路へ持ち上げる」1点**（下記） |
 | 🏁`O-300` | **クローズ済**（2026-09-11・第257バッチ）＝実測 母集団113効果/112カード のうち `GRANT_LRIG_ABILITY` 持ちは **20**、その内訳は **(a) 穴ではない12 ／ (b) レベル資格の欠落8＝全部修正 ／ (c) 0** | 🔴**登録票は3点とも stale だった**＝①真因の行番号（`:9779-9818` は `execAttachAcce`。本体は `:10058`）②**「対象を選ばない」は的外れ**＝付与先はプレイヤー単位のストア1箇所なので選ばせないこと自体に実害は無く、**実害は原文のレベル資格が落ちて正当な対象が居なくても付与が通ること**（過剰実行）③**20件全部が穴ではない**。✅**受け皿は既存**＝`CardEffect.condition` の `LRIG_LEVEL`＋`canUseArtsCondition`（`src/screens/battle/battleUtils.ts:24` → UI の `artsUseGate.ts:337` と実行入口 `BattleScreen.tsx:7381` の両方が呼ぶ）。**`src/engine/` は1行も触らず `effectParser.ts` 23行で閉じた。** ⚠**罠2つ**＝`GrantLrigAbilityAction.targetedCenter` は**表示専用**（型コメントに `engine挙動は既定と同一`）／`LRIG_LEVEL{allFieldLrigs:true}` は **`.every()`＝全ルリグが満たす判定で存在判定ではない**（`execUtils.ts:2710`）。全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-11 `O-300` ブロック |
-| `O-301` | **10効果**（原文「次の（あなたの／対戦相手の）アタックフェイズ・ルリグアタックステップ」23効果のうち `INSTALL_DELAYED_TRIGGER` が無いもの） | **「次の〜フェイズ開始時に」の遅延が無く解決時に即実行**する。⚠受け皿（`INSTALL_DELAYED_TRIGGER`＋`ON_ATTACK_PHASE_START`）は実在＝**JSON の書き方の問題**が大半のはずだが、`ON_LRIG_ATTACK_STEP_START` 相当の timing が無いものは機構が要る |
+| 🏁`O-301` | **クローズ済**（2026-09-11・第258バッチ）＝実測 母集団 **28効果 / 28カード**、受け皿を別名まで含めて判定して **OK 19 / MISS 9**、MISS の内訳は **(a) 穴ではない8 ／ (b) 未配線1＝修正 ／ (c) 0** | 🔴**登録票は3点とも stale だった**＝①**「10効果」は過大**（`INSTALL_DELAYED_TRIGGER` 1キーだけで判定したので、「次の**対戦相手の**」側の正準形 `DELAY_TO_NEXT_OPP_ATTACK_PHASE` の4効果が丸ごと MISS に出ていた）②**`ON_LRIG_ATTACK_STEP_START` は実在する**（`WXDi-CP02-059-E1` が使用）③**「JSON の書き方の問題が大半」も外れ**＝MISS 9 のうち8件は別軸の正しい受け皿（`PRDI035_PARADISE_COLOR`／`SIGNI_FLIP_FACEDOWN.returnTiming`／`ADD_EXTRA_ATTACK_PHASE.onStart`／`BLOCK_ACTION{ATTACK_PHASE}`／`LIMIT_OPP_SIGNI_ATTACKS_ONCE`／`LOCK_OPP_TRASH_MOVE`）に載っていた。✅**真の穴は1件**＝`WXDi-P04-007-E3` が `GRANT_KEYWORD{duration:'PERMANENT'}`＝**ゲーム終了まで全自シグニがシャドウ**（原文は「次の対戦相手のターンの、メインフェイズとアタックフェイズの間」）。受け皿は既存 `duration:'NEXT_TURN'`＋`nextTurnOwner:'opponent'` → `reserveFieldGrant` の2スロット式で、`src/engine/`・`effectParser.ts` は0行。全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-11 第258バッチ |
 
 ⚠**新しく母集団2桁の項目が出たらここへ足す。**
 
@@ -835,6 +835,16 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
+
+- **2026-09-11（第256〜第257バッチ・Codex 実装 → Opus 5 検証＝索引 A の `O-299` triage ＋ 🏁`O-300` クローズ・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝直したのは離場置換の payload 化・**逆翻訳の忠実性**・**アーツ/ピースの使用資格ゲート**で、どの計器もこの層を見ていない。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 31項目**（**A 3**／B 4／G 24。`O-299` 残8＝全件 (c)）｜
+  🏁**実機 残0**（2バッチとも §2.2 により実機不要と判定＝`src/screens/` 無傷・新型/新機構なし）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3925 PASS**（3918 → 3923 → 3925）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  🆕**held 9枚 → 1枚**（残 `WXK07-018` は無関係）。`_partial_fresh` / `_idset_fresh` はともに 0。**ratchet の較正なし。**
+  📈**live の per-effect 差分＝第256 が4 effectId・第257 が8 effectId**（どちらも申告と機械照合で一致）。**Codex 差し戻し0／是正 第256=2・第257=0。**
 
 - **2026-09-11（第256バッチ・Codex 実装 → Opus 5 検証＝索引 A `O-299` の残18を全件 triage・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
