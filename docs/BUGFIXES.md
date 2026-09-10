@@ -1,5 +1,52 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — §5.3 `O-287` 軸1を実装：`commonClass`（engine 消費0の真 no-op）を `sharedClass` へ移した
+
+**真因**＝原文「共通するクラスを持つシグニ2枚を対象とし」が **`TargetFilter.commonClass` という真偽値**で
+表現されており、**`src/engine/` に消費地点が1件も無かった**（`effectParser` が生成し `decompileEffects` が
+描くだけ）。⇒ **どの2枚でも取れていた**。🔴**生成側のコメント自身が
+「engine には消費地点が無い（＝候補はまだ絞れない）が、逆翻訳と語彙センサスが読む」と
+**宣言だけ載せる規約**を明記していた**＝`census:deadstate` と同型で、逆翻訳・census・golden・smoke・fuzz が
+全部緑のまま意味が壊れる形。
+
+🔑**受け皿は既に在った**＝`SelectionConstraint`（`sharedColor:'all'|'none'` と `distinct:'class'` の兄弟）。
+**新機構ではなく既存の軸へ1つ足すだけ**で閉じた（PLAN §5.3「1〜3枚の項目はまず受け皿を疑う」の実例）。
+
+**直し方**＝`SelectionConstraint.sharedClass:'all'` を新設し `satisfiesSelectionConstraint` に実装。
+parser は `filter.commonClass` をやめて `source.selectionConstraint` へ載せ、
+**型からも死にキー `commonClass` を撤去**（同じ意味の軸を2つ残さない）。
+逆翻訳と `vocabCensus` の参照も新しい場所へ移した。live 3効果
+（`WXDi-P10-029-E1` / `WXDi-CP01-020-E1` / `WXDi-CP02-046-E1`）が実際に絞られるようになった。
+
+⚠**`'none'` は作っていない**＝「共通するクラスを持たない」は既存の `distinct:'class'` が担当する。
+`sharedColor` が `'all'|'none'` の両方を持つのは色側に `distinct:'color'` が無いためで、**対称にしないのは意図的**。
+⚠**クラスが読めないカードは不成立**へ倒した（fail-closed。`same:'power'` と同じ規約）。
+
+### 🔴 母集団の実測＝登録票の「27効果」は原文 grep で、実装軸は3つに割れる
+
+`docs/_effect_srctext.json` で「共通するクラス」を含む効果は **37**（登録票の27より多い）。
+**1つの真偽値では足りない**という登録票の警告どおり、**意味軸が3つある**：
+
+| 軸 | 効果数 | 内容 | 状態 |
+|---|---|---|---|
+| **① 選んだN枚が互いにクラスを共有する** | **13**（うち live に宣言があるのは3） | 「共通するクラスを持つシグニ2枚を対象とし」 | 🏁**今回実装**（`sharedClass:'all'`）。残10は**parser がまだ制約を生成していない**＝別バッチ |
+| **② 集合が互いにクラスを共有しない** | 12 | 「それぞれ共通するクラスを持たない」 | ✅**受け皿は在る**（`distinct:'class'`＋条件側の `distinctClasses`）＝**生成側の配線が残っている** |
+| **③ 参照カードと共通するクラスを持つ** | 12 | 「この方法で捨てたシグニ**と**共通するクラスを持つ」 | ❌**受け皿が無い**＝「参照先の集合」を対象条件へ渡す軸が要る（`sharesClassWithPrev` が近いが直前ピック限定） |
+
+⇒ **`O-287` は①だけクローズし、②③を `O-324`／`O-325` として分離登録した**（1項目に3軸を畳んだままだと
+着手のたびに母集団を測り直す羽目になる）。
+
+### 検証
+
+`npm run gates` **全緑**＝**golden 3890 → 3892**（+2）／smoke 10744 OK／fuzz 0／census 高シグナル 1 / BASELINE 1／
+A群各0／lint **0 errors / 254 warnings**。
+逆翻訳＝「あなたの**共通するクラスを持つ**《ガードアイコン》を持たないシグニ(トラッシュ)2枚を手札に加える」
+＝payload から描いている（`selectionConstraint` を読む形へ移した）。
+golden は **contract（旧キーが live に1件も残っていない）＋ engine（共有しない2枚は選べない＝反転）**の2本。
+🔑**反転側が本体**＝contract だけでは「宣言はあるが engine が読まない」真 no-op を検出できない。
+
+⚠**自分で lint エラーを3件出した**（golden の regex に不要なエスケープ `\/`）＝`gates` が止めた。ベースラインへ戻した。
+
 ## 2026-09-10 — §5.3 `O-288` 本体消化（Claude 自力）：事前対象化を live 7 → 29効果へ
 
 **取った理由**＝第247 で**軸（engine）は実装済み**（`freezeStoredTargets` を先取り分岐の then/else へ噛ませる）

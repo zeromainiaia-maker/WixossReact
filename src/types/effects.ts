@@ -1572,7 +1572,7 @@ export interface TargetFilter {
    *   **落とすと原文照合から制約が消える**ので、機構が入るまでは出し続ける。
    * ⚠機構は PLAN §5.3 に登録済み（選択制約は `SelectionConstraint` がコスト側にだけ在る＝対象側にも要る）。
    */
-  commonClass?: boolean;
+
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決
@@ -1871,6 +1871,19 @@ export interface SelectionConstraint {
    */
   same?: 'name' | 'level' | 'power';
   sharedColor?: 'all' | 'none';
+  /**
+   * 🆕**選択集合の全カードが1つ以上のクラスを共有すること**（2026-09-10・§5.3 `O-287`）＝
+   * 原文「共通するクラスを持つシグニN枚を対象とし」。
+   * 🔴**旧実装は `TargetFilter.commonClass` という真偽値で、engine に消費地点が1つも無かった**
+   *   （`effectParser` が生成し `decompileEffects` が描くだけ＝宣言だけ立って盤面が動かない
+   *   ＝`census:deadstate` と同型で、どの計器にも映らなかった）。
+   * ⚠**`'none'` は無い**＝「共通するクラスを持たない」は既存の `distinct:'class'` が担当する
+   *   （同じ意味の軸を2つ作らない）。`sharedColor` が `'all' | 'none'` なのは色側に
+   *   `distinct:'color'` が無いためで、対称にしないのは意図的。
+   * ⚠**クラスは複数持ちうる**（`splitFieldClasses`）＝「1つでも共有していれば成立」。
+   * ⚠**クラスが読めないカードは不成立**へ倒す（fail-closed。`same:'power'` と同じ規約）。
+   */
+  sharedClass?: 'all';
   /** 選択したカードのレベル合計をちょうど N にする。候補単体ではなく選択集合全体の制約。 */
   totalLevelExact?: number;
   /** 実行時に解決するレベル合計の一致値（「この方法で処理した枚数と同じ」）。 */
@@ -7011,7 +7024,7 @@ export interface CardEffect {
      * 2026-09-03・`WD17-001-E2` の引用能力）＝`banishedNotFront` の**正の向き**。
      * ⚠**engine 未配線**（消費は `banishedNotFront` と同じ `battleBanishEntries` のゾーン比較になる予定）＝
      *   いまは `ON_SIGNI_BANISH_OPPONENT` の近似（＝正面以外を効果でバニッシュしても発火する）。
-     *   ⚠**出さないと原文照合から制約が丸ごと消える**ので、宣言だけは載せる（`commonClass` と同じ規約）。
+     *   ⚠**出さないと原文照合から制約が丸ごと消える**ので、宣言だけは載せる。
      *   配線は §5.3 `O-235` に登録した（`src/screens/BattleScreen.tsx` を触る＝実機必須）。
      */
     banishedFrontOnly?: boolean;

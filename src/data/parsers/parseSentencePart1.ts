@@ -3249,16 +3249,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     // 🆕「**共通するクラスを持つ**シグニN枚を対象とし」＝選択制約（§5.3 `O-133` B群 第4バッチ・実測3効果＝
     //   `WXDi-P10-029-E1`／`WXDi-CP01-020-E1`／`WXDi-CP02-046-E1`）。
-    // ⚠engine には消費地点が無い（＝候補はまだ絞れない）が、**逆翻訳（`decompileEffects.ts:261`）と
-    //   語彙センサス（`vocabCensus.ts:815`）が読む**＝出さないと原文照合から制約が丸ごと消える。
+    // 🆕**2026-09-10 §5.3 `O-287`＝`filter.commonClass`（engine の消費地点が0の真 no-op）をやめ、
+    //   実装のある `selectionConstraint.sharedClass` へ移した**（`satisfiesSelectionConstraint`）。
+    //   旧コメントは「engine には消費地点が無い（＝候補はまだ絞れない）が逆翻訳と語彙センサスが読む」
+    //   と**宣言だけ載せる規約**を明記していた＝受け皿を作った今はその近似が不要になった。
     // ⚠**「〜と共通するクラスを持つ」（参照比較）を巻き込まない**＝あちらは「この方法で捨てたシグニ**と**」の
     //   ように**別カードを基準にした動的比較**で、ここの「選んだN枚が互いにクラスを共有する」とは別物
     //   （`WXK10-056-E2` で誤検出を実測）。直前の「と」を lookbehind で弾く。
-    if (/(?<!と)共通するクラスを持つ/.test(trashTargetPhrase)) filter.commonClass = true;
+    const sharesClass = /(?<!と)共通するクラスを持つ/.test(trashTargetPhrase);
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
     return { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter,
+      ...(sharesClass ? { selectionConstraint: { sharedClass: 'all' as const } } : {}),
       // 「このシグニ/カードの下にあった〜」＝離場・バニッシュ直前の下カードだけ（`WXK10-054-E1`／`SPK01-02-E2`）。
       ...(isUnderLeftCardPhrase(spanTxt) ? { fromLeftFieldUnder: true } : {}) } };
   }

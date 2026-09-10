@@ -74882,6 +74882,72 @@ test('O-288 本体: MANUAL 2件も同じ形に揃っている（収穫マージ�
   }
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-287`（2026-09-10）＝「共通するクラスを持つN枚」に engine の受け皿を作った。
+// 🔴**旧実装は `TargetFilter.commonClass` という真偽値で、engine の消費地点が1つも無かった**
+//   （parser が生成し逆翻訳が描くだけ＝**宣言だけ立って盤面が動かない**）。
+//   生成側のコメント自身が「engine には消費地点が無いが逆翻訳と語彙センサスが読む」と
+//   **宣言だけ載せる規約**を明記していた＝`census:deadstate` と同型で、どの計器にも映らない。
+// 🔑**受け皿は既に在った**＝`SelectionConstraint`（`sharedColor` / `distinct:'class'` の兄弟）。
+//   新機構ではなく**既存の軸へ1つ足すだけ**で閉じた（PLAN §5.3「まず受け皿を疑う」）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('O-287 contract: 「共通するクラスを持つ2枚」は selectionConstraint.sharedClass で載る（live 3効果）', () => {
+  // ⚠**旧キー `filter.commonClass` は live から消えていること**＝残っていると
+  //   「宣言だけで engine が読まない」状態が復活する（同じ意味の軸が2つある状態も作らない）。
+  for (const [num, eid] of [
+    ['WXDi-P10-029', 'WXDi-P10-029-E1'], ['WXDi-CP01-020', 'WXDi-CP01-020-E1'],
+    ['WXDi-CP02-046', 'WXDi-CP02-046-E1'],
+  ] as const) {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    ok(!j.includes('commonClass'), `🔴${eid}: 死にキー commonClass が残っている`);
+    ok(j.includes('"sharedClass":"all"'), `🔴${eid}: sharedClass 制約が落ちている`);
+  }
+  // 全数＝旧キーがどこにも残っていないこと（生成側を1本に保つ）
+  let stale = 0;
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    if (JSON.stringify(e).includes('commonClass')) stale++;
+  }
+  eq(stale, 0, '🔴live 全体に旧キー commonClass は1件も無い');
+});
+
+test('O-287 engine: 共通クラスを持つ2枚だけが選べる（反転つき）', () => {
+  // 🔑**この assert が本体**＝旧実装では「どの2枚でも取れた」ので、**不成立側が false になること**が
+  //   受け皿ができた唯一の証拠になる（contract だけでは真 no-op を検出できない）。
+  const constraint = { sharedClass: 'all' as const };
+  const classOf = (num: string): string => cardMap.get(num)?.CardClass ?? '';
+  // 同じクラスを持つシグニ2枚と、そのどちらとも共有しない1枚を live から拾う
+  const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').trim() !== '');
+  const byClass = new Map<string, string[]>();
+  for (const c of signi) {
+    for (const cls of (c.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean)) {
+      const arr = byClass.get(cls) ?? [];
+      if (arr.length < 4) arr.push(c.CardNum);
+      byClass.set(cls, arr);
+    }
+  }
+  const pair = [...byClass.values()].find(v => v.length >= 2)!;
+  ok(!!pair, '同クラス2枚の標本が取れる');
+  ok(satisfiesSelectionConstraint([pair[0], pair[1]], constraint, cardMap),
+     `同じクラスを共有する2枚は選べる（${classOf(pair[0])} / ${classOf(pair[1])}）`);
+  const foreign = signi.find(c => {
+    const mine = new Set((cardMap.get(pair[0])?.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean));
+    const theirs = (c.CardClass ?? '').split(/[:：/／、\s]+/).filter(Boolean);
+    return theirs.length > 0 && !theirs.some(x => mine.has(x));
+  })!;
+  ok(!!foreign, 'クラスを共有しない標本が取れる');
+  ok(!satisfiesSelectionConstraint([pair[0], foreign.CardNum], constraint, cardMap),
+     `🔴反転: クラスを共有しない2枚は選べない（${classOf(pair[0])} vs ${classOf(foreign.CardNum)}）`);
+  // ⚠fail-closed＝クラスが読めない札を混ぜて制約を素通りさせない
+  const classless = [...cardMap.values()].find(c => (c.CardClass ?? '').trim() === '');
+  if (classless) {
+    ok(!satisfiesSelectionConstraint([pair[0], classless.CardNum], constraint, cardMap),
+       '🔴クラスが読めない札は不成立（fail-closed）');
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

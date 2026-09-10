@@ -354,7 +354,7 @@ function filterJa(f?: any): string {
   if (f.hasLifeBurst === true) parts.push('【ライフバースト】を持つ');
   if (f.hasLifeBurst === false) parts.push('【ライフバースト】を持たない');
   if (f.levelParity) parts.push(f.levelParity === 'odd' ? 'レベルが奇数の' : 'レベルが偶数の');
-  if (f.commonClass) parts.push('共通するクラスを持つ');
+
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
   if (f.isDown) parts.push('ダウン状態の');
   if (f.isUp) parts.push('アップ状態の');
@@ -528,6 +528,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : t.selectionConstraint?.totalPowerMax !== undefined ? `パワーの合計が${t.selectionConstraint.totalPowerMax}以下になるように`
     : t.selectionConstraint?.totalPowerMaxRef?.$ref === 'source_effective_power' ? 'パワーの合計がこのシグニのパワー以下になるように'
     : t.selectionConstraint?.totalPowerMaxRef?.$ref ? `パワーの合計が${t.selectionConstraint.totalPowerMaxRef.$ref}以下になるように`
+    : t.selectionConstraint?.sharedClass === 'all' ? '共通するクラスを持つ'
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct === 'costSum' ? 'それぞれコストの合計が異なる'
@@ -596,6 +597,7 @@ function constraintJa(c?: import('../src/types/effects').SelectionConstraint): s
   if (c?.totalLevelMaxRef?.$ref === 'self_energy_count') {
     return `レベルの合計があなたのエナゾーンにある${filterJa(c.totalLevelMaxRef.filter)}${c.totalLevelMaxRef.filter?.cardType ?? 'カード'}の枚数以下になるように`;
   }
+  if (c?.sharedClass === 'all') return '共通するクラスを持つ';   // 🆕§5.3 `O-287`
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
   if (c?.distinct === 'class') return '共通するクラスを持たない';

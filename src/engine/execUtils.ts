@@ -4031,6 +4031,16 @@ export function satisfiesSelectionConstraint(
       if ([...sets[i]].some(v => sets[j].has(v))) return false;
     }
   }
+  // 🆕§5.3 `O-287`（2026-09-10）＝「共通するクラスを持つN枚」。
+  // 🔴**旧実装は `filter.commonClass` という真偽値で engine の消費地点が0**＝宣言だけ立って
+  //   どの2枚でも取れていた（`census:deadstate` と同型の真 no-op）。
+  // ⚠**1枚でもクラスが読めなければ不成立**（fail-closed）＝読めない札を混ぜて制約を素通りさせない。
+  // ⚠「持たない」側は `distinct:'class'`（上）が担当＝ここには `'none'` を作らない。
+  if (constraint.sharedClass === 'all') {
+    const classSets = cards.map(cardClasses);
+    if (classSets.some(set => set.size === 0)) return false;
+    if (classSets.length > 0 && ![...classSets[0]].some(v => classSets.every(s2 => s2.has(v)))) return false;
+  }
   const colors = cards.map(cardColors);
   if (constraint.sharedColor === 'all') {
     if (colors.length > 0 && ![...colors[0]].some(v => colors.every(s => s.has(v)))) return false;

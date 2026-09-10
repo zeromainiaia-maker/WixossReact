@@ -18656,7 +18656,7 @@ function parseActionTextInner(text: string): EffectAction {
             ...(/《ガードアイコン》を持たない/.test(filterSrc) ? { noGuard: true } : {}),
             // 「共通するクラスを持つシグニN枚」＝選択制約（§5.3 `O-133` B群 第4バッチ・実測3効果）。
             // ⚠engine には消費地点が無い（＝まだ絞れない）が、**逆翻訳と語彙センサスが読む**ので出す。
-            ...(/(?<!と)共通するクラスを持つ/.test(filterSrc) ? { commonClass: true } : {}),
+
             ...(/《ライズアイコン》を持つ/.test(filterSrc) ? { hasRiseIcon: true } : {}),
             ...(/《アクセアイコン》を持つ/.test(filterSrc) ? { hasIcon: 'アクセ' as const } : {}),
             ...(/《ディソナアイコン》/.test(filterSrc) ? { isDisona: true } : {}),

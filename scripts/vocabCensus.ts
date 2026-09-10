@@ -1336,7 +1336,7 @@ const PATTERNS: Pattern[] = [
   {
     name: 'クラス指定(＜X＞のシグニ)',
     re: /＜[^＞]+＞の(シグニ|カード)/,
-    keys: ['story', 'cardClass', 'commonClass', 'CLASS'],
+    keys: ['story', 'cardClass', 'sharedClass', 'CLASS'],
     // 🆕2026-08-30 較正＝**トリガー元のクラス限定は `triggerCondition` の `*SourceStory` に載る**
     //   （`banishedSourceStory` / `revealSourceStory` / `trashSourceStory` /
     //    `powerDecreaseSourceStory` / `discardCostSourceStory`）。
