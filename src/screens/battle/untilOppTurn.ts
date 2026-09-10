@@ -8,6 +8,7 @@ export function clearUntilOppTurnEffects(state: PlayerState): PlayerState {
     granted_effects_until_opp_turn: undefined,
     power_mods_until_opp_turn: undefined,
     lrig_granted_auto_effects_until_opp_turn: undefined,
+    lrig_attack_phase_power_down_per_signi_until_opp_turn: undefined,
     guard_alt_hand_until_opp_turn: undefined,
     opp_cost_up_until_opp_turn: undefined,
     prevent_refresh_until_opp_turn: undefined,

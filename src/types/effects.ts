@@ -136,6 +136,8 @@ export type EffectDuration =
   | 'INSTANT'            // 即時解決して終わり
   | 'UNTIL_END_OF_TURN'  // ターン終了時まで
   | 'UNTIL_OPP_TURN_END' // 次の対戦相手のターン終了時まで
+  /** 次の自分のエナフェイズ終了時（＝次に自分が MAIN へ入る境界）まで。 */
+  | 'UNTIL_OWN_ENERGY_PHASE_END'
   /**
    * 🆕**次の「あなた」（＝効果の持ち主）のターン終了時まで**（2026-09-02・§5.3 `O-186`）。
    * 🔴`UNTIL_OPP_TURN_END` を当てると**短すぎる**（相手ターンを跨がずに切れる）＝過小実行だった
@@ -4426,7 +4428,7 @@ export interface GrantLrigAbilityAction {
   abilities: CardEffect[];  // 付与される能力（サブエフェクト）
   rawText?: string;         // 元のテキスト（manual で構造を直接付与する場合は省略可）
   permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
-  duration?: EffectDuration; // UNTIL_OPP_TURN_END は長期ストアへ格納
+  duration?: EffectDuration; // UNTIL_OPP_TURN_END は長期ストア、UNTIL_OWN_ENERGY_PHASE_END は通常ストアへ期限印つきで格納
   targetedCenter?: boolean; // 「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る」表記変種（WX25-P1-001系）。engine挙動は既定と同一（自分のセンタールリグへ付与）＝decompiler表示用
   targetOwner?: Owner;      // 付与先センタールリグの持ち主。省略=self、opponent=対戦相手（WXK03-001-E3）
 }
@@ -4828,7 +4830,12 @@ export interface StubAction {
    * ⚠**このペイロードが無い宣言は何もしない**（fail-closed）＝旧既定の「リミット+1」は
    *   原文に無い数値を勝手に足す形だった。
    */
-  lrigLimitChange?: { owner: Owner; delta: number };
+  lrigLimitChange?: {
+    owner: Owner;
+    delta: number;
+    /** 次の自分のエナフェイズ終了まで保持する（省略時は従来どおり lrig_limit_mod）。 */
+    untilOwnEnergyPhaseEnd?: boolean;
+  };
   /**
    * 🆕**`POWER_MOD_BY_*`（「〈数え上げ〉N につき ±M」）の単価**（§5.3 `O-60` 第59バッチ・2026-09-03）。
    * 対象＝`POWER_MOD_BY_LRIG_LEVEL_SUM`（場のルリグのレベル合計）／
@@ -5267,6 +5274,8 @@ export interface StubAction {
   oppActivateCostPlus?: number;
   /** 同コスト増加を次の対戦相手ターン終了時まで保持する。 */
   oppActivateCostUntilOppTurnEnd?: boolean;
+  /** LRIG_GAIN_ATTACK_PHASE_POWER_DOWN を次の対戦相手ターン終了時まで保持する。 */
+  attackPhasePowerDownUntilOppTurnEnd?: boolean;
   gainedLrigType?: string;
   /**
    * ── 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family** ──
@@ -7145,4 +7154,6 @@ export interface CardEffect {
   energyActivated?: boolean;
   // GRANT_LRIG_ABILITY permanent:true で付与された能力（lrig_granted_auto_effects 内で「このゲームの間」持続＝ターン境界リセットで残す）
   permanentGrant?: boolean;
+  /** GRANT_LRIG_ABILITY が次の自分のエナフェイズ終了まで保持する能力へ刻む期限印。 */
+  untilOwnEnergyPhaseEndGrant?: boolean;
 }

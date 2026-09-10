@@ -4,12 +4,13 @@ import { grantedStoreWatchers } from '../../engine/grantedStore';
 
 /**
  * ターン終了時までのルリグ付与能力だけを落とす。
- * `GRANT_LRIG_ABILITY.permanent` が刻んだ能力は、全ターン終了経路で保持する。
+ * `GRANT_LRIG_ABILITY.permanent` と「次の自分のエナフェイズ終了まで」の能力はターン終了を跨いで保持する。
  */
 export function clearTurnGrantedLrigAbilities(state: PlayerState): PlayerState {
   return {
     ...state,
-    lrig_granted_auto_effects: state.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
+    lrig_granted_auto_effects: state.lrig_granted_auto_effects?.filter(
+      e => e.permanentGrant || e.untilOwnEnergyPhaseEndGrant),
   };
 }
 

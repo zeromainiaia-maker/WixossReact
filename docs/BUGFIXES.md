@@ -1,5 +1,88 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — 第247バッチ（系統2本＋一点物）：23効果修正。Codex が利用上限で停止し Claude が完成させた
+
+**投入**＝候補プール残19効果（`pri=2` の4件は既定で除外）。🔴**うち8効果が「登録済みの機構待ち系統」に集中していた**ので、
+指示書を組み替えて **`O-288`（相手の支払い前に対象を確定）と `O-293`（次のあなたのエナフェイズ終了時まで）を
+正面から実装してよい**ことにした（「PLAN に登録済みだから」で見送らせない、と明記した）。
+
+🔴**Codex は `.codex-work` で 904,938 トークンを使って利用上限に当たり、最終レポートを書けずに停止**した。
+落ち方は memory の②＝**実装は済み・golden とゲートと簿記が未了**。**Claude が引き継いで完成させた。**
+
+### Claude が引き継いでやったこと（Codex の未了分）
+
+1. **型エラー5件を修正**＝`GRANT_EFFECT.effect` の optional ガード漏れ（`effect.action.effect?.effectId` ほか）。
+   ⚠**`npm run typecheck` は `scripts/` を見ない**が、今回は `src/` 側だったので検出できた。
+2. 🔴**母集団を測り直して修正を5枚→7枚へ広げた**。Codex は `WX24-P3-005-E1` / `-007-E1` の2枚を
+   **effectId アンカーで**直していたが、実測すると **`STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}` を持つ live 7効果は
+   原文「次のあなたのエナフェイズ終了時まで」と 1:1（例外0）**だった。
+   ⇒ **アンカー2件を撤去し、生成地点（`parseSentencePart3.ts:594` と `effectParser.ts:17316`）で一律に期限印を付ける形へ移した。**
+   巻き添えで `WX24-P3-001/003/009-E1`・`WX25-P2-014-E2`・`WX25-P3-037-E4` の5効果も是正された。
+   🔑**生成地点のコメントが「その語彙が `EffectDuration` に無い」と旧制約を明記していた**＝語彙を足した回に読み直せば分かる。
+3. **腐った既存 golden 3本を判定して更新**（下記）。
+4. **golden を7本新規に書いた**（Codex は1本も書けていない）。
+5. **新規に出した lint warning 2件を自分で潰した**（254→256→254）。
+
+### 系統①＝`O-288`（相手が支払いを判断する前に対象を確定）＝5効果
+
+**真因**＝原文「対戦相手のシグニ1体を対象とし、対戦相手が〜しないかぎり、それを〜する」に対し、
+engine の先取り分岐（`effectExecutor.ts:5871` 前後）が**支払いプロンプトを先に出し、拒否枝で初めて対象を選んで**いた
+＝**相手が支払いを判断する時点の情報量が原文と違う**。
+
+**直し方**＝JSON 側を `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `OPPONENT_PAY_OPTIONAL` の順にし、
+engine 側は先取り分岐の `conditional.then` / `conditional.else` を **`freezeStoredTargets()` に通す**だけ。
+🔑**`freezeStoredTargets` は `targetsStored` が無いアクションには何もしない**＝**既存効果は素通り＝opt-in**。
+共有経路を触るときの必須条件（指示書で「限定できないなら5件まとめて見送ってよい」と書いた条件を満たしている）。
+対象＝`WX24-P1-006-E1` / `WX25-P3-042-E1` / `WX25-P3-087-E1` / `WX25-P3-091-E1` / `WX25-CP1-027-E1`。
+⚠**`OPPONENT_PAY_OPTIONAL` のトリップワイヤ（81/42/39）は動いていない**＝新規 STUB を足していないので当然。golden で固定した。
+
+### 系統②＝`O-293`（次のあなたのエナフェイズ終了時まで）＝7効果
+
+🔴**受け皿の名前が嘘だった実例**＝`STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}` は期限を名乗っているのに、
+書き込み先の `lrig_limit_mod` は**ターン終了時に消える**（CLAUDE.md の既知の罠そのもの）。
+parser 側は「その語彙が `EffectDuration` に無い」ため **`UNTIL_OPP_TURN_END` へ過少側に倒して**いた。
+
+**3点セットで閉じた**（第246 の `oppActivateCostUntilOppTurnEnd` と同じ形）：
+- 型＝`EffectDuration` に `UNTIL_OWN_ENERGY_PHASE_END`、`lrigLimitChange.untilOwnEnergyPhaseEnd`
+- state＝`lrig_limit_mod_until_own_energy_phase_end`（`turnScopedState.ts` に登録・境界は **`main-phase-start`**
+  ＝次に自分が ENERGY を出て MAIN へ入るとき。**turn-end ではない**）
+- 読み＝`lrigLimit.ts` が通常ストアと合算する単一 funnel／付与側は `grantedAuto.ts` がターン終了を跨いで保持
+
+### 一点物11効果
+
+`WX24-P1-004-E1`（遅延誘発が即時実行に化けていた）／`WX24-P1-046-E2`（条件が後続に掛かっていない）／
+`WX24-P2-030-E2`（期限を見ずに永続ストアへ書き以後の全アタックフェイズに効いていた）／
+`WX24-P2-055-E1`（クラッシュ原因の限定が無い）／`WX24-P2-056-E3`（枚数がアーツ数に連動しない）／
+`WX24-P2-080-E1`（遅延が無く即実行）／`WX25-P3-003-E1`（did-it ゲートの先取りで払わなかった枝でも実行）／
+`WX25-P3-019-E1`（相手の回避枝が無く無条件ダメージ）／`WX25-CP1-004-E1`（任意コスト前の対象化）／
+`WX25-CP1-039-E1`（置換の被害者条件に「アップ状態」が無い）／`WX26-CP1-048-E2`（任意が強制）。
+
+### 書き換えた既存 golden 3本と、なぜ落ちたかの判定
+
+| テスト | 判定 | 内容 |
+|---|---|---|
+| `§6.4 turn-scoped T1` | **正当なラチェット更新** | 命名規約外フィールド 30→31・母集団 85→86。新設 `lrig_limit_mod_until_own_energy_phase_end` は funnel に登録済み＝**ラチェットが仕事をした**（未登録なら止まる） |
+| `§6.4 O-27` | 🔴**腐り**＝**assert が近似を契約にしていた** | `UNTIL_OPP_TURN_END`（「過少側の近似」とテスト名自身が書いていた）→ 原文どおり `UNTIL_OWN_ENERGY_PHASE_END`。5枚とも原文が完全一致であることを実測してから更新した。リミット側の期限印も assert に足した |
+| `§6.4 O-37(a)` | 🔴**腐り＋私の一次判断が広すぎた** | 同 family でも**期限句が効果ごとに違う**（`WX24-P3-005-E1` だけが「エナフェイズ」、`WX25-P1-014-E2` / `SPDi44-12-E2` / `WX24-P4-021-E3` は「次の対戦相手のターン」）。一括置換して1本落としたので、**effectId ごとに期待値を分ける形**へ直した |
+
+🔑**教訓＝「同じ golden の同じループに入っている」は「同じ期限である」を意味しない。** family の一括更新は原文を1件ずつ当ててから。
+
+### 検証（Claude 実測）
+
+- **live の per-effect 差分＝23 effectId**（スコープ18＋生成地点修正の巻き添え5）。**スコープ外の意図しない変化 0**。
+- `npm run regen` 後の逆翻訳を目視＝期限が原文どおりに出ることを確認。
+  🔑**逆翻訳は payload から描いている**（`decompileEffects.ts` が `lc.untilOwnEnergyPhaseEnd` で「次の」の有無を切り替える）
+  ＝罠②（原文 regex で描いていて JSON が壊れても正しく見える）には当たっていない。
+- `npm run gates` **全緑**＝**golden 3879 → 3886**（+7）／smoke 10744 OK（CRASH/HANG/INVARIANT 0）／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／census:stubs A群0／census:enginetext A🔴0／census:costtext A🔴0／
+  manual field loss 0／lint **0 errors / 254 warnings**（ベースライン維持）。
+- **実装キュー 144 → 128効果**（消化済み 292 → 315）。候補プール 23 → **7**（うち `pri=2` が4）。
+
+### 未着手1件
+
+`WX24-P2-050-E1`＝「この能力で実際にカードをトラッシュへ置くまで再度誘発できる」＝**did-it 連動の `usageLimit`**が無い
+（現状は素の `once_per_turn` で、置けなかった場合も1回で打ち切られる）。利用上限で未着手のまま。`§5.3 O-323` として登録した。
+
 ## 2026-09-10 — 第246バッチ（未開拓プール3巡目）：20効果修正／1済み／9機構待ち
 
 **投入**＝指定30効果。現行JSON・原文・消費地点を再照合し、既存action/状態の小拡張で閉じる20効果を

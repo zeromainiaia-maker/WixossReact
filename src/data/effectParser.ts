@@ -17307,16 +17307,17 @@ function parseActionTextInner(text: string): EffectAction {
     //   （`STUB{GRANT_ABILITY_INNER_TEXT}`）に落ちて**リミットごと何も起きない**真 no-op だった。
     // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝リミット側も payload で渡す**（engine は原文を読まない）。
     //   ⚠**原文は「**それの**リミットを＋N」＝対象に取った自分のセンタールリグ**なので owner は常に self。
-    // ⚠**期間は `UNTIL_OPP_TURN_END` で過少側に倒す**＝原文「次のあなたのエナフェイズ終了時まで」は
-    //   相手ターンを跨いで**自分の次のターンのエナフェイズ**まで続くが、その語彙が `EffectDuration` に無い。
-    //   長い側（PERMANENT）へ倒すと**消えない付与**になるので短い側を選ぶ。
+    // 🆕**2026-09-10 第247＝期限を原文どおりにした**。旧実装は「その語彙が `EffectDuration` に無い」ため
+    //   `UNTIL_OPP_TURN_END` へ**過少側に倒していた**（＝相手ターン終了で切れ、自分の次のエナフェイズまで持たない）。
+    //   `UNTIL_OWN_ENERGY_PHASE_END` と `lrig_limit_mod_until_own_energy_phase_end` を新設したので近似は不要。
     const limitAndGrantM = text.match(/(?:あなたの)?(?:レベル[０-９\d]+以上の)?センタールリグ[１1]体を対象とし[、,]次のあなたのエナフェイズ終了時まで[、,]それのリミットを[＋+]([０-９\d]+)し[、,]それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
     if (limitAndGrantM) {
       return { type: 'SEQUENCE', steps: [
         { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
-          lrigLimitChange: { owner: 'self', delta: parseNum(limitAndGrantM[1]) } } as StubAction,
+          lrigLimitChange: { owner: 'self', delta: parseNum(limitAndGrantM[1]),
+            untilOwnEnergyPhaseEnd: true } } as StubAction,
         { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: limitAndGrantM[2].trim(),
-          targetedCenter: true, duration: 'UNTIL_OPP_TURN_END' } as GrantLrigAbilityAction,
+          targetedCenter: true, duration: 'UNTIL_OWN_ENERGY_PHASE_END' } as GrantLrigAbilityAction,
       ] } as SequenceAction;
     }
     const targetGrantM = text.match(/(?:あなたの)?センタールリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
@@ -29197,6 +29198,239 @@ function repairSemanticBatch246(effects: CardEffect[]): void {
   }
 }
 
+/** §5.0 第247バッチ：一点物＋相手任意支払い前の対象確定。 */
+function repairSemanticBatch247(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WX24-P1-006-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'DOWN', target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 } },
+          { type: 'RECOLLECT_GATE', minArts: 4 },
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 3 },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+            type: 'DOWN', target: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' }, upToCount: false,
+            }, targetsStored: true,
+          } },
+        ] };
+        break;
+      case 'WX25-P3-042-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' }, upToCount: false,
+            }, abortIfNoCandidate: true },
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+            { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 2 },
+            { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+              type: 'POWER_MODIFY', target: {
+                type: 'SIGNI', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ' }, upToCount: false,
+              }, delta: -12000, duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+            } },
+          ] },
+          { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 5,
+            filter: { story: '微菌', cardType: 'シグニ' }, pickCount: 2, pickUpTo: true,
+            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder: { location: 'deck', position: 'bottom', reorder: true } },
+        ] };
+        break;
+      case 'WX25-P3-087-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 2 },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+            type: 'POWER_MODIFY', target: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' }, upToCount: false,
+            }, delta: -5000, duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+          } },
+        ] };
+        break;
+      case 'WX25-P3-091-E1': {
+        if (effect.action.type !== 'GRANT_EFFECT') break;
+        const granted = effect.action.effect;
+        if (!granted || granted.effectId !== 'WX25-P3-091-sub-E1') break;
+        granted.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 3 },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+            type: 'POWER_MODIFY', target: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' }, upToCount: false,
+            }, delta: -8000, duration: 'UNTIL_END_OF_TURN', targetsStored: true,
+          } },
+        ] };
+        break;
+      }
+      case 'WX24-P2-030-E2':
+        if (effect.action.type === 'STUB' && effect.action.id === 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN') {
+          effect.action.attackPhasePowerDownUntilOppTurnEnd = true;
+          effect.duration = 'UNTIL_OPP_TURN_END';
+        }
+        break;
+      case 'WX24-P1-004-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'BANISH', target: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false,
+          } },
+          { type: 'RECOLLECT_GATE', minArts: 4 },
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ' }, upToCount: false,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: {
+            timing: 'ON_ATTACK_SIGNI', attackerOwner: 'opponent', attackerFixedFromStored: true,
+          }, effect: { type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無'] },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+              type: 'BANISH', target: {
+                type: 'SIGNI', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ', isTriggerSource: true }, upToCount: false,
+              },
+            } },
+          ] } },
+        ] };
+        break;
+      case 'WX24-P1-046-E2':
+        effect.action = { type: 'CONDITIONAL', condition: {
+          type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: '讃型　緑姫' },
+        }, then: { type: 'SEQUENCE', steps: [
+          { type: 'TRANSFER_TO_DECK', source: {
+            type: 'TRASH_CARD', owner: 'self', count: 1,
+            filter: { cardType: 'シグニ', story: '地獣' },
+          }, shuffle: false, position: 'bottom', optional: true },
+          { type: 'POWER_MODIFY', target: {
+            type: 'SIGNI', owner: 'self', count: 1,
+            filter: { cardType: 'シグニ', story: '地獣' }, upToCount: false,
+          }, delta: 1, deltaPerLastProcessedCount: true,
+            perLastProcessed: { filter: { cardType: 'シグニ' }, unit: 'power_sum' },
+            duration: 'UNTIL_OPP_TURN_END' },
+        ] } };
+        break;
+      case 'WX24-P2-055-E1':
+        if (effect.action.type === 'GRANT_EFFECT'
+          && effect.action.effect?.effectId === 'WX24-P2-055-sub-E1') {
+          effect.action.effect.triggerCondition = {
+            ...(effect.action.effect.triggerCondition ?? {}),
+            crashedByKeywords: ['ランサー', 'Ｓランサー'],
+          };
+        }
+        break;
+      case 'WX24-P2-056-E3':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'TRASH_CARD', owner: 'self', count: 0, upToCount: true,
+            countFromZone: { zone: 'lrig_trash', owner: 'self', filter: { cardType: 'アーツ' } },
+          } },
+          { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'processed' } },
+        ] };
+        break;
+      case 'WX24-P2-080-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'DRAW', owner: 'self', count: 2 },
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+            trigger: { timing: 'ON_ATTACK_PHASE_END' }, effect: {
+              type: 'ADD_TO_FIELD', owner: 'self', source: {
+                type: 'HAND_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', level: { max: 2 }, story: '遊具' },
+              }, optional: true, suppressOnPlay: true,
+            },
+          } },
+        ] };
+        break;
+      case 'WX25-P3-003-E1':
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true,
+          }, else: { type: 'SEQUENCE', steps: [
+            { type: 'DRAW', owner: 'self', count: 2 },
+            { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
+          ] } },
+          { type: 'RECOLLECT_GATE', minArts: 4 },
+          { type: 'STUB', id: 'OPTIONAL_COST', costText: 'エクシード３を支払ってもよい', exceed: 3 },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'STUB', id: 'SUPPRESS_LIFEBURST_COLOR_CONDITION',
+          } },
+          { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: {
+            timing: 'ON_ATTACK_PHASE_START',
+          }, effect: { type: 'GRANT_KEYWORD', target: {
+            type: 'SIGNI', owner: 'self', count: 1, explicitTarget: true,
+          }, keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN' } },
+        ] };
+        break;
+      case 'WX25-P3-019-E1': {
+        if (effect.action.type !== 'SEQUENCE') break;
+        const paid = effect.action.steps.find(a => a.type === 'CONDITIONAL');
+        if (paid?.type !== 'CONDITIONAL' || paid.then.type !== 'GRANT_LRIG_ABILITY') break;
+        const granted = paid.then.abilities.find(a => a.effectId === 'WX25-P3-019-sub-E1');
+        if (!granted) break;
+        granted.action = { type: 'CHOOSE', choose_count: 1, from_count: 2, opponentResponds: true,
+          choices: [
+            { choiceId: 'avoid', label: 'ルリグデッキのカード1枚をルリグトラッシュに置く',
+              condition: { type: 'LRIG_DECK_COUNT', owner: 'opponent', operator: 'gte', value: 1 },
+              action: { type: 'STUB', id: 'OPP_LRIG_DECK_TO_LRIG_TRASH' } },
+            { choiceId: 'damage', label: '置かずにダメージを受ける', action: {
+              type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true,
+            } },
+          ] };
+        break;
+      }
+      case 'WX25-CP1-004-E1': {
+        if (effect.action.type !== 'CHOOSE') break;
+        const lrigChoice = effect.action.choices.find(c => c.choiceId === 'c1');
+        if (!lrigChoice) break;
+        lrigChoice.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'LRIG', owner: 'opponent', count: 1,
+          }, abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', costText: '手札から＜ブルアカ＞のカードを１枚捨ててもよい',
+            handDiscard: { count: 1, filter: { story: 'ブルアカ' } } },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
+            type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 }, targetsStored: true,
+          } },
+        ] };
+        break;
+      }
+      case 'WX25-CP1-039-E1': {
+        if (effect.action.type !== 'SEQUENCE') break;
+        const replace = effect.action.steps.find(
+          a => a.type === 'STUB' && a.id === 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY');
+        if (replace?.type === 'STUB' && replace.leavePayLoseSelfAbility) {
+          replace.leavePayLoseSelfAbility.victimFilter = {
+            ...replace.leavePayLoseSelfAbility.victimFilter,
+            isUp: true,
+          };
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -30076,6 +30310,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch244(effects);
   repairSemanticBatch245(effects);
   repairSemanticBatch246(effects);
+  repairSemanticBatch247(effects);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

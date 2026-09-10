@@ -56,6 +56,7 @@ export function computeEffectiveLrigLimit(
     + ((state.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((state.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (state.lrig_limit_mod ?? 0)
+    + (state.lrig_limit_mod_until_own_energy_phase_end ?? 0)
     + (state.game_lrig_limit_bonus ?? 0)
     + limitUpperBonus
     + continuousDelta

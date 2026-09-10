@@ -6011,7 +6011,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const thenOnPay = stub.thenOnPay === true;
           /** 支払い枝のアクション。`thenOnPay` のときだけ帰結（then）を後ろに繋ぐ。 */
           const payBranch = (payment: EffectAction): EffectAction => thenOnPay
-            ? { type: 'SEQUENCE', steps: [payment, conditional.then] } as SequenceAction
+            ? { type: 'SEQUENCE', steps: [payment, freezeStoredTargets(conditional.then, cur)] } as SequenceAction
             : payment;
           const handSpec = stub.opponentHandDiscard;
           const handFilter = stub.opponentHandDiscardFilter;
@@ -6119,7 +6119,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             {
               id: 'skip',
               label: stub.opponentHandDiscardUpTo !== undefined ? `${handLabelNoun}を捨てない（0枚）` : '支払わない',
-              action: thenOnPay ? ((conditional.else ?? noopAction) as EffectAction) : conditional.then,
+              action: thenOnPay
+                ? freezeStoredTargets((conditional.else ?? noopAction) as EffectAction, cur)
+                : freezeStoredTargets(conditional.then, cur),
               available: true,
             },
           ];
@@ -9919,7 +9921,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const targetState = targetsOpponent ? ctx.otherState : ctx.ownerState;
         const existing = targetState[storeKey] ?? [];
         // permanent（「このゲームの間」）は各能力に permanentGrant を刻み、ターン境界リセットで残す
-        const granted = ga.permanent ? ga.abilities.map(ab => ({ ...ab, permanentGrant: true })) : ga.abilities;
+        const granted = ga.permanent
+          ? ga.abilities.map(ab => ({ ...ab, permanentGrant: true }))
+          : ga.duration === 'UNTIL_OWN_ENERGY_PHASE_END'
+            ? ga.abilities.map(ab => ({ ...ab, untilOwnEnergyPhaseEndGrant: true }))
+            : ga.abilities;
         const guardAlt = ga.abilities
           .map(ab => ab.action)
           .find((act): act is import('../types/effects').StubAction =>

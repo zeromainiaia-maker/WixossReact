@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 591（総ノード 3278 件）
+live JSON の STUB id 種類 : 591（総ノード 3294 件）
 逆翻訳シートの [STUB:…] 総数: 336  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -25,13 +25,13 @@ live JSON の STUB id 種類 : 591（総ノード 3278 件）
         生成: src\data\parsers\parseSentencePart2.ts:527
      2件   2枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WX25-P2-003, WXDi-P05-004
-        生成: src\data\effectParser.ts:25523 / src\data\effectParser.ts:25532
+        生成: src\data\effectParser.ts:25524 / src\data\effectParser.ts:25533
      2件   2枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
         カード: WX25-P1-071, WXDi-P06-006
         生成: src\data\parsers\parseSentencePart3.ts:190 / src\data\parsers\parseSentencePart3.ts:464
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:24009
+        生成: src\data\effectParser.ts:24010
      1件   1枚  DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY
         カード: WX09-032
         生成: src\data\parsers\parseSentencePart2.ts:268
@@ -116,7 +116,7 @@ live JSON の STUB id 種類 : 591（総ノード 3278 件）
 ==============================================================================
     34件  33枚  OPTIONAL_ACTIVATE
         カード: WD06-018, WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046 …他27枚
-        消費: src\engine\effectExecutor.ts:6287 / src\engine\effectExecutor.ts:6304 / src\engine\triggerCollect.ts:529
+        消費: src\engine\effectExecutor.ts:6289 / src\engine\effectExecutor.ts:6306 / src\engine\triggerCollect.ts:529
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:5883 / src\engine\effectExecutor.ts:5888
@@ -179,10 +179,10 @@ live JSON の STUB id 種類 : 591（総ノード 3278 件）
         消費: src\engine\effectEngine.ts:7985
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9926
+        消費: src\engine\effectExecutor.ts:9932
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9928
+        消費: src\engine\effectExecutor.ts:9934
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72

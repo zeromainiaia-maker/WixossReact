@@ -229,6 +229,7 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   lrig_base_limit_override: { boundaries: ['main-phase-start'], reset: undefined, reason: 'base lrig limit override lasting until the owner next enters MAIN' },
   // 同じ期間のドローフェイズ置換（次のドローフェイズは次のメインフェイズより前なので必ず1回使える）。
   draw_phase_replacement: { boundaries: ['main-phase-start'], reset: undefined, reason: 'draw-phase replacement lasting until the owner next enters MAIN' },
+  lrig_limit_mod_until_own_energy_phase_end: { boundaries: ['main-phase-start'], reset: undefined, reason: 'lrig limit modifier lasting until the owner next leaves ENERGY for MAIN' },
 } as const satisfies Partial<Record<keyof PlayerState, TurnScopedSpec>>;
 
 /** ターン限定フィールドの唯一の実行時レジストリ。各フィールドは上のどちらかに1回だけ現れる。 */
@@ -530,7 +531,13 @@ export function clearAttackPhaseScopedState(state: PlayerState): PlayerState {
 export function clearMainPhaseScopedState(state: PlayerState): PlayerState {
   const reset = resetBoundary(state, 'main-phase-start');
   const windows = (state.prevent_damage_windows ?? []).filter(w => w.expires !== 'MY_NEXT_MAIN_PHASE');
-  return { ...reset, prevent_damage_windows: windows.length > 0 ? windows : undefined };
+  const lrigGrants = (reset.lrig_granted_auto_effects ?? [])
+    .filter(e => !e.untilOwnEnergyPhaseEndGrant);
+  return {
+    ...reset,
+    prevent_damage_windows: windows.length > 0 ? windows : undefined,
+    lrig_granted_auto_effects: lrigGrants.length > 0 ? lrigGrants : undefined,
+  };
 }
 
 /** 無料グロウを実行した時点で権利を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */

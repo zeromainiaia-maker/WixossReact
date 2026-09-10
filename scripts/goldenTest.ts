@@ -5906,10 +5906,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 31, '命名規約外のターン限定フィールド数（🆕31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加＝原文「次のあなたのエナフェイズ終了時まで」の受け皿。境界は main-phase-start＝**次に自分が ENERGY を出て MAIN へ入るとき**。30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 85, '型由来38件＋命名規約外27件の母集団（🆕85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 86, '型由来38件＋命名規約外27件の母集団（🆕86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -49836,7 +49836,13 @@ test('§6.4 O-27: 「リミット＋Nし、それは以下の能力を得る」�
     eq((steps[0] as StubAction).id, 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END', `${eid}: リミット修正が落ちている`);
     const gla = steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
     eq(gla.type, 'GRANT_LRIG_ABILITY', `🔴${eid}: 引用能力の付与が丸ごと消えている`);
-    eq(gla.duration, 'UNTIL_OPP_TURN_END', `${eid}: 期間（過少側の近似）`);
+    // 🆕2026-09-10 第247＝`UNTIL_OPP_TURN_END`（過少側の近似）→ 原文どおりの `UNTIL_OWN_ENERGY_PHASE_END`。
+    // 🔑**この assert は「腐り」で落ちた**＝旧実装は「その語彙が `EffectDuration` に無い」ため短い側へ倒しており、
+    //   この行はその近似を契約として固定していた。語彙と受け皿（`lrig_limit_mod_until_own_energy_phase_end`）が
+    //   入ったので近似は不要になった。5枚とも原文は「次のあなたのエナフェイズ終了時まで」で完全一致（実測）。
+    eq(gla.duration, 'UNTIL_OWN_ENERGY_PHASE_END', `${eid}: 期間（原文どおり）`);
+    const lim = steps[0] as StubAction;
+    eq(lim.lrigLimitChange?.untilOwnEnergyPhaseEnd, true, `${eid}: リミット側にも期限印が要る（無いと lrig_limit_mod へ落ちてターン終了時に消える）`);
     // 🔑**引用の2ブロック（【常】/【自】＋【起】）が両方そろう**＝片方を STUB へ潰すと同居ブロックが消える
     eq(gla.abilities.length, 2, `🔴${eid}: 同居する能力ブロックが落ちている`);
     eq(gla.abilities[1].effectType, 'ACTIVATED', `${eid}: 2つ目は【起】`);
@@ -49903,7 +49909,11 @@ test('§6.4 O-37(a): ダメージ置換のコスト選択肢が原文どおり�
     const act = e.action.type === 'SEQUENCE' ? (e.action as SequenceAction).steps[stepIdx] : e.action;
     const gla = act as import('../src/types/effects').GrantLrigAbilityAction;
     eq(gla.type, 'GRANT_LRIG_ABILITY', `🔴${eid}: 付与ごと消えている（GRANT_ABILITY_INNER_TEXT へ落ちた）`);
-    eq(gla.duration, 'UNTIL_OPP_TURN_END', `${eid}: 期間`);
+    // 🆕2026-09-10 第247＝**期限は原文ごとに違う**。`WX24-P3-005-E1` だけが「次のあなたのエナフェイズ終了時まで」で、
+    //   `WX25-P1-014-E2` / `SPDi44-12-E2` / `WX24-P4-021-E3` は「次の対戦相手のターン終了時まで」（原文で実測）。
+    //   ⚠**この family を一括で `UNTIL_OWN_ENERGY_PHASE_END` にしない**（同じ O-37(a) でも期限句が別）。
+    eq(gla.duration, eid === 'WX24-P3-005-E1' ? 'UNTIL_OWN_ENERGY_PHASE_END' : 'UNTIL_OPP_TURN_END',
+      `${eid}: 期間`);
     return (gla.abilities[0].action as StubAction).damageReplaceByCost!;
   };
   // 手札1枚だけ（『』引用・アーツ）
@@ -74621,6 +74631,141 @@ test('第246 engine WXDi-CP02-095-E1: 配置先選択を跨いでも宣言対象
   ok(mods.some(m => m.cardNum === target && m.delta === -3000), '配置した対象へ-3000');
   ok(!mods.some(m => m.cardNum === other && m.delta === -3000), '反転: 別の相手シグニへ広がらない');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 第247バッチ（2026-09-10）＝Codex が実装し利用上限で停止、Claude が引き継いで検証・golden を書いた。
+// 🔑**このバッチは系統2本を正面から取った**＝①`OPPONENT_PAY_OPTIONAL` の対象事前確定（`O-288`）
+//   ②「次のあなたのエナフェイズ終了時まで」の期限（`O-293`）。
+// 🔴**Codex は golden を1本も書けずに止まった**＝以下はすべて Claude が原文と live を突き合わせて書いた。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('第247 §5.3 O-288: 相手が支払うか選ぶ前に対象が確定している（5効果・contract）', () => {
+  // 🔴原文はどれも「対戦相手の〜1体を対象とし、対戦相手が〜しないかぎり、それを〜する」＝
+  //   **対象を先に決めてから相手が支払いを判断する**。旧実装は支払いプロンプトが先に出て、
+  //   拒否枝で初めて対象を選んでいた（＝相手が持つ情報量が原文と違う）。
+  // 受け皿＝`freezeStoredTargets`（effectExecutor.ts:156-190）。`targetsStored` が無いアクションには
+  //   何もしないので、**既存効果は素通り＝opt-in**（共有経路を触るときの必須条件）。
+  for (const [num, eid] of [
+    ['WX24-P1-006', 'WX24-P1-006-E1'], ['WX25-P3-042', 'WX25-P3-042-E1'],
+    ['WX25-P3-087', 'WX25-P3-087-E1'], ['WX25-P3-091', 'WX25-P3-091-E1'],
+    ['WX25-CP1-027', 'WX25-CP1-027-E1'],
+  ] as const) {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    const iSel = j.indexOf('SELECT_TARGET_ONLY');
+    const iStore = j.indexOf('STORE_LAST_PROCESSED_TARGETS');
+    const iPay = j.indexOf('OPPONENT_PAY_OPTIONAL');
+    ok(iSel >= 0, `🔴${eid}: 支払い前の対象選択（SELECT_TARGET_ONLY）が無い`);
+    ok(iStore >= 0, `🔴${eid}: 選んだ対象の保存（STORE_LAST_PROCESSED_TARGETS）が無い`);
+    ok(iPay >= 0, `${eid}: OPPONENT_PAY_OPTIONAL が消えている`);
+    // 🔑**順序が核**＝選択 → 保存 → 支払い。1つでも後ろへ回ると原文の情報量に戻らない。
+    ok(iSel < iStore && iStore < iPay, `🔴${eid}: 順序が「選択→保存→支払い」でない`);
+    ok(j.includes('"targetsStored":true'), `🔴${eid}: 支払い後の本体が保存対象を引いていない（新規選択に戻る）`);
+  }
+});
+
+test('第247 §5.3 O-288 反転: 事前対象化していない既存効果は増減していない', () => {
+  // 🔴共有経路を触ったので**「直していない側が変わっていない」ことの固定が本体と同じだけ重要**。
+  const all: Record<string, unknown>[] = [];
+  for (const effs of effectsMap.values()) {
+    const walk = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      const o = v as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'OPPONENT_PAY_OPTIONAL') all.push(o);
+      for (const x of Object.values(o)) { if (Array.isArray(x)) x.forEach(walk); else walk(x); }
+    };
+    effs.forEach(walk);
+  }
+  eq(all.length, 81, 'OPPONENT_PAY_OPTIONAL の live 総数（第247 で増減していない＝新規 STUB は足していない）');
+});
+
+test('第247 §5.3 O-293: 「次のあなたのエナフェイズ終了時まで」が原文どおりの期限で載る（7効果）', () => {
+  // 🔴旧実装は「その語彙が EffectDuration に無い」ため `UNTIL_OPP_TURN_END` へ**過少側に倒して**いた。
+  //   受け皿の名前 `LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` が期限を主張していたのに、書き込み先の
+  //   `lrig_limit_mod` は**ターン終了時に消える**＝CLAUDE.md の「受け皿の名前が嘘」の実例だった。
+  // 🔑**この STUB id は原文フレーズと live 7効果で 1:1（例外0を実測）**＝effectId アンカーではなく
+  //   生成地点（parseSentencePart3.ts / effectParser.ts）で一律に印を付けてある。
+  const hits: string[] = [];
+  for (const [, effs] of effectsMap) {
+    const walk = (v: unknown, rootId: string): void => {
+      if (!v || typeof v !== 'object') return;
+      const o = v as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
+        const spec = o.lrigLimitChange as { untilOwnEnergyPhaseEnd?: boolean } | undefined;
+        ok(spec?.untilOwnEnergyPhaseEnd === true,
+          `🔴${rootId}: 期限印が無い＝lrig_limit_mod へ落ちてターン終了時に消える`);
+        hits.push(rootId);
+      }
+      for (const x of Object.values(o)) { if (Array.isArray(x)) x.forEach(y => walk(y, rootId)); else walk(x, rootId); }
+    };
+    effs.forEach(e => walk(e, e.effectId));
+  }
+  eq(hits.length, 7, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
+});
+
+test('第247 engine O-293: リミット増は自分の次のエナフェイズ境界まで生き、そこで消える', () => withSavedCursor(() => {
+  const effect = findEffectDeep(effectsMap.get('WX25-P3-037') ?? [], 'WX25-P3-037-E4')!;
+  const result = run(effect.action, mkCtx({}, {}, 'WX25-P3-037'));
+  eq(result.ownerState.lrig_limit_mod_until_own_energy_phase_end, 1, '期限つきストアへ入る');
+  eq(result.ownerState.lrig_limit_mod ?? 0, 0, '🔴反転: ターン終了時に消える通常ストアへは入らない');
+  // 境界＝main-phase-start（＝次に自分が ENERGY を出て MAIN へ入るとき）で落ちることを funnel で固定
+  eq(TURN_SCOPED_STATE_FIELDS.lrig_limit_mod_until_own_energy_phase_end?.boundaries?.join(','),
+     'main-phase-start', '失効境界は main-phase-start（turn-end ではない）');
+}));
+
+test('第247 O-27 family: リミット側と付与側の期限が両方そろう（5効果・片方だけだと寿命がずれる）', () => {
+  for (const [num, eid] of [
+    ['WX24-P3-001', 'WX24-P3-001-E1'], ['WX24-P3-003', 'WX24-P3-003-E1'],
+    ['WX24-P3-005', 'WX24-P3-005-E1'], ['WX24-P3-007', 'WX24-P3-007-E1'],
+    ['WX24-P3-009', 'WX24-P3-009-E1'],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const steps = (e.action as SequenceAction).steps;
+    const lim = steps[0] as StubAction;
+    const gla = steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
+    eq(lim.lrigLimitChange?.untilOwnEnergyPhaseEnd, true, `${eid}: リミット側の期限印`);
+    eq(gla.duration, 'UNTIL_OWN_ENERGY_PHASE_END', `${eid}: 付与側の期限`);
+  }
+});
+
+test('第247 contract: 期限の異なる2系統を取り違えていない（WX24-P2-030-E2 は相手ターン終了まで）', () => {
+  // ⚠原文「次の**対戦相手のターン**終了時まで」＝`O-293` とは別の系統。
+  //   受け皿も別（`lrig_attack_phase_power_down_per_signi_until_opp_turn`）で、
+  //   旧実装は期限を見ずに永続ストアへ書いて**以後の全アタックフェイズに効いていた**。
+  const e = (effectsMap.get('WX24-P2-030') ?? []).find(x => x.effectId === 'WX24-P2-030-E2')!;
+  const stub = e.action as StubAction;
+  eq(stub.id, 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN', 'STUB が変わっていない');
+  eq(stub.attackPhasePowerDownUntilOppTurnEnd, true, '🔴期限印が無いと永続ストアへ落ちる');
+  eq(e.duration, 'UNTIL_OPP_TURN_END', '期限は相手ターン終了まで（自分のエナフェイズではない）');
+});
+
+test('第247 contract: 一点物9効果の修正の核が live に載っている', () => {
+  const has = (num: string, eid: string, needles: string[]) => {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) return;
+    const j = JSON.stringify(e);
+    needles.forEach(n => ok(j.includes(n), `🔴${eid}: ${n} が無い`));
+  };
+  // 遅延誘発＝「このターン、それがアタックしたとき」＝設置時に対象個体を焼き込む
+  has('WX24-P1-004', 'WX24-P1-004-E1', ['"INSTALL_DELAYED_TRIGGER"', '"attackerFixedFromStored":true']);
+  // 条件が SEQUENCE 全体を包む（旧＝CONDITIONAL の中だけで後続が条件外に出ていた）
+  has('WX24-P1-046', 'WX24-P1-046-E2', ['"HAS_CARD_IN_FIELD"', '"cardName":"讃型　緑姫"']);
+  // クラッシュ原因の限定（旧＝原因不問で発動）
+  has('WX24-P2-055', 'WX24-P2-055-E1', ['"crashedByKeywords":["ランサー","Ｓランサー"]']);
+  // 枚数がルリグトラッシュのアーツ数に連動（resolveNum だと {$ref} が 0 になる＝countFromZone で解決）
+  has('WX24-P2-056', 'WX24-P2-056-E3', ['"countFromZone"', '"zone":"lrig_trash"', '"cardType":"アーツ"']);
+  // 「次のアタックフェイズ終了時」の遅延（旧＝手札を捨てた直後に即実行）
+  has('WX24-P2-080', 'WX24-P2-080-E1', ['"INSTALL_DELAYED_TRIGGER"', '"timing":"ON_ATTACK_PHASE_END"']);
+  // 「捨てなかった場合」＝did-it ゲートの else 枝（旧＝pay/skip 両方で後続が走っていた）
+  has('WX25-P3-003', 'WX25-P3-003-E1', ['"PAID_ADDITIONAL_COST"', '"else"']);
+  // 相手の回避枝（ルリグデッキ1枚をルリグトラッシュへ）＝旧は無条件ダメージ
+  has('WX25-P3-019', 'WX25-P3-019-E1', ['"opponentResponds":true', '"LRIG_DECK_COUNT"']);
+  // 置換の被害者条件に「アップ状態である」
+  has('WX25-CP1-039', 'WX25-CP1-039-E1', ['"isUp":true']);
+  // 「してもよい」の任意性（旧＝強制エナチャージ）
+  has('WX26-CP1-048', 'WX26-CP1-048-E2', ['"opponentResponds":true', '"choiceId":"skip"']);
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

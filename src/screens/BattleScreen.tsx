@@ -1078,9 +1078,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const base = calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap, bs.turn_phase);
     // lrig_attack_phase_power_down_per_signi: アタックフェイズ中に相手シグニのパワーを自シグニ数×N下げる
     const isAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase);
-    if (isAttackPhase && (myS.lrig_attack_phase_power_down_per_signi ?? 0) > 0) {
+    const lrigAttackPhasePowerDown = (myS.lrig_attack_phase_power_down_per_signi ?? 0)
+      + (myS.lrig_attack_phase_power_down_per_signi_until_opp_turn ?? 0);
+    if (isAttackPhase && lrigAttackPhasePowerDown > 0) {
       const friendlyCount = myS.field.signi.filter(s => s?.length).length;
-      const penalty = -(myS.lrig_attack_phase_power_down_per_signi! * friendlyCount);
+      const penalty = -(lrigAttackPhasePowerDown * friendlyCount);
       const result = new Map(base);
       for (const stack of opS.field.signi) {
         const top = stack?.at(-1);

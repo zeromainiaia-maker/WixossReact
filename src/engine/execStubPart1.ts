@@ -10,6 +10,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter, evalCondition,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
+  resolveCountRef,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked,
@@ -199,9 +200,7 @@ export function execStubPart1(
       // ⚠相手トラッシュは今回のスコープ外＝fail-closed のまま（候補0で降りる）。
       if (tgt.owner !== 'self') return done({ ...ctx, lastProcessedCards: [] });
       const cands = transferToHandTrashCandidates(tgt, ctx);
-      const count = typeof tgt.count === 'number' ? tgt.count
-        : tgt.count === 'ALL' ? cands.length
-        : 1;
+      const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
       return selectOrInteract(cands, count, tgt.upToCount ?? false, 'self_trash',
         { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
         false);
@@ -1529,7 +1528,10 @@ export function execStubPart1(
     if (!specLG) return done(addLog(ctx, '[未実装] アタックフェイズ中のパワーダウン（payload なし）'));
     // 消費側（`BattleScreen`）は「自シグニ1体につき N」で読むので、単価を1体あたりへ正規化する。
     const perOneLG = Math.abs(specLG.delta) / (specLG.per || 1);
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_phase_power_down_per_signi: perOneLG } },
+    const keyLG = stub.attackPhasePowerDownUntilOppTurnEnd
+      ? 'lrig_attack_phase_power_down_per_signi_until_opp_turn'
+      : 'lrig_attack_phase_power_down_per_signi';
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, [keyLG]: perOneLG } },
       `アタックフェイズ中：相手シグニパワー自シグニ×-${perOneLG}付与`));
   }
   // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM: 対戦相手のシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる
@@ -4226,7 +4228,9 @@ export function execStubPart1(
     if (!specL) return done(addLog(ctx, '[未実装] ルリグリミット修正（payload なし）'));
     const ownerL: Owner = specL.owner === 'opponent' ? 'opponent' : 'self';
     const stL = ownerL === 'opponent' ? ctx.otherState : ctx.ownerState;
-    const nextL: PlayerState = { ...stL, lrig_limit_mod: (stL.lrig_limit_mod ?? 0) + specL.delta };
+    const keyL = specL.untilOwnEnergyPhaseEnd
+      ? 'lrig_limit_mod_until_own_energy_phase_end' : 'lrig_limit_mod';
+    const nextL: PlayerState = { ...stL, [keyL]: (stL[keyL] ?? 0) + specL.delta };
     const ctxL = ownerL === 'opponent' ? { ...ctx, otherState: nextL } : { ...ctx, ownerState: nextL };
     return done(addLog(ctxL,
       `${ownerL === 'opponent' ? '対戦相手の' : ''}リミット${specL.delta > 0 ? '+' : ''}${specL.delta}（エナフェイズ終了まで）`));

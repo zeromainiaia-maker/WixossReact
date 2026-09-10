@@ -3156,6 +3156,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const glaDuration = a.permanent ? 'このゲームの間、'
         : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        : a.duration === 'UNTIL_OWN_ENERGY_PHASE_END' ? '次のあなたのエナフェイズ終了時まで、'
         : glaIsContinuous ? ''
         : 'ターン終了時まで、';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
@@ -3167,6 +3168,7 @@ function actionJa(a?: Action, effectType?: string): string {
         const glaSpan = a.permanent ? 'このゲームの間'
           : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで'
           : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで'
+          : a.duration === 'UNTIL_OWN_ENERGY_PHASE_END' ? '次のあなたのエナフェイズ終了時まで'
           : glaIsContinuous ? ''
           : 'ターン終了時まで';
         return glaSpan
@@ -5433,7 +5435,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
         const lc = a.lrigLimitChange;
         if (!lc) return '【※ペイロード欠落】ルリグリミット修正（engine は何もしない）';
-        return `次の${lc.owner === 'opponent' ? '対戦相手' : 'あなた'}のエナフェイズ終了時まで、${lc.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグのリミットを${lc.delta > 0 ? '＋' : '－'}${Math.abs(lc.delta)}する`;
+        return `${lc.untilOwnEnergyPhaseEnd ? '次の' : ''}${lc.owner === 'opponent' ? '対戦相手' : 'あなた'}のエナフェイズ終了時まで、${lc.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグのリミットを${lc.delta > 0 ? '＋' : '－'}${Math.abs(lc.delta)}する`;
       }
       if (a.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
         const tu = a.trashUnderPlace;
@@ -5518,7 +5520,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN' && a.powerPerUnit) {
         const pu = a.powerPerUnit;
-        return `次の対戦相手のターン終了時まで、アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ${pu.per}体につき${pu.delta < 0 ? '－' : '＋'}${Math.abs(pu.delta)}する`;
+        const span = a.attackPhasePowerDownUntilOppTurnEnd ? '次の対戦相手のターン終了時まで、' : 'ターン終了時まで、';
+        return `${span}アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ${pu.per}体につき${pu.delta < 0 ? '－' : '＋'}${Math.abs(pu.delta)}する`;
       }
       if (a.id === 'OPP_SIGNI_ENERGY_TO_DECK_BOTTOM') {
         return '次の対戦相手のターン終了時まで、対戦相手のシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる';

@@ -591,8 +591,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //     「対戦相手」が**別の文に**出るだけで自分の＋Nが相手の＋Nになっていた（`WXDi-P16-002-E1`）。
   if (t.match(/エナフェイズ終了時まで.*リミット/)) {
     const limSpec = parseLrigLimitChangeSpec(t);
+    // 🆕2026-09-10 第247＝この STUB id は原文「次のあなたのエナフェイズ終了時まで」と live 7効果で
+    //   **1:1**（例外0を実測）＝期限印を無条件で付ける。旧実装は印が無く `lrig_limit_mod` へ落ちて
+    //   **ターン終了時に消えていた**（受け皿の名前が嘘＝CLAUDE.md の既知の罠）。
     return { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
-      ...(limSpec ? { lrigLimitChange: limSpec } : {}) } as StubAction;
+      ...(limSpec ? { lrigLimitChange: { ...limSpec, untilOwnEnergyPhaseEnd: true } } : {}) } as StubAction;
   }
 
   // ---- このターン、あなたはダメージを受けない・敗北しない ----

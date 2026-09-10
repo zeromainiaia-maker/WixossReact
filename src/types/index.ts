@@ -1341,6 +1341,8 @@ export interface PlayerState {
   lrig_opp_act_cost_plus?: number;                 // WXDi-P15-033: 相手起動能力コスト増加
   lrig_opp_act_cost_plus_until_opp_turn?: number;  // 同：次の対戦相手ターン終了時まで
   lrig_attack_phase_power_down_per_signi?: number; // WX24-P2-030: アタックフェイズ中の相手パワーダウン
+  lrig_attack_phase_power_down_per_signi_until_opp_turn?: number; // 同：次の対戦相手ターン終了時まで
+  lrig_limit_mod_until_own_energy_phase_end?: number; // WX24-P3-005/007: 次の自分のエナフェイズ終了時まで
   opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
   /**
