@@ -15222,7 +15222,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               // ⚠**行き先はエナゾーン**なので「トラッシュ」と書き分ける（§5.3 `O-67`）。ラベルに出さないと
               //   ①プレイヤーにコストが見えない ②同名の【起】を2つ持つカードで撃ち分けられない（§4.4 罠8m）。
               eff.cost.fieldBanish ? `場の${eff.cost.fieldBanish.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldBanish.count}体バニッシュ` : null,
-              eff.cost.fieldDown ? `場のシグニ${eff.cost.fieldDown.count}体ダウン` : null,
+              // ⚠`excludeSelf`（「**他の**シグニ」）をラベルに出す＝`fieldTrash`／`fieldBanish` と同じ書き分け。
+              //   出さないと ①プレイヤーに「自分は払わない」ことが見えない ②同名の【起】を撃ち分けられない（§4.4-8m）。
+              eff.cost.fieldDown ? `場の${eff.cost.fieldDown.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldDown.count}体ダウン` : null,
               eff.cost.lrigDown ? fmtLrigDownCostLabel(eff.cost.lrigDown) : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';

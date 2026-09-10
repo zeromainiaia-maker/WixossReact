@@ -54369,6 +54369,292 @@ scenarios.v170SpellTrashExileActivatesTrap = {
 order.push('v170SpellTrashExileActivatesTrap');
 
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-185`＝`SPDi43-06-E2`「【起】**アップ状態の他のシグニ１体をダウンする**」の
+//   `cost.fieldDown.excludeSelf` が **UI の2箇所**で効くか（第244バッチで各1行を足した）。
+//   ①提示ゲート＝`src/screens/battle/signiActivateGate.ts:240`（自分のゾーンを候補から外す）
+//   ②自動支払い＝`src/screens/BattleScreen.tsx:13828`（自分をダウンさせない）
+//   🔑**headless（engine の任意コスト経路）は golden 済み**＝ここで返すのは UI の2行だけ。
+// 観測点＝①**自分しかアップしていない盤面では【起】が一覧に出ない**（＝自分を候補に数えていない）
+//         ②他にアップが居れば出て、撃つと**他のシグニだけがダウンし効果元自身はアップのまま**。
+// 🔑**対の反転は1ビットだけ**（§4.4-25f／§4.4-3）＝盤面は同じで `signi_down[1]` だけを反転する
+//   （カードを抜くと「そもそも候補が居ない」別経路になり excludeSelf を測れない）。
+// ⚠ラベルは `【起】場のシグニ1体ダウン`＝`fieldDown` は `excludeSelf` を文言に出さない
+//   （`fieldTrash`／`fieldBanish` は「他の」を出す＝表示だけの非対称。挙動には影響しない）。
+// ⚠本文は `CONDITIONAL{HAS_CARD_IN_FIELD《ゆかゆか☆さんさんきらきら》}` つき＝盤面に居ないので
+//   **コストだけ払って本文は不発**になる（観測したいのはコスト側なので都合がよい）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V185_LRIG = 'WD01-001#8700';       // タマヨリヒメ（限定なしの汎用ルリグ）
+const V185_SELF = 'SPDi43-06#8701';      // 大罠　Ｙリコーダーガン（Lv3・限定なし・観測対象の【起】持ち）
+const V185_OTHER = 'WX01-053#8702';      // 極剣　ゴッドイーター（バニラ＝副作用なしの「他のシグニ」）
+
+const v185Spec = (otherIsDown) => ({
+  hostSet: {
+    'field.lrig': [V185_LRIG],
+    'field.signi': [[V185_SELF], [V185_OTHER], null],
+    // 🔑ここが唯一の反転ビット＝`true` なら「アップは効果元だけ」＝【起】は出てはいけない。
+    'field.signi_down': [false, otherIsDown, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む。
+    deck: ['WD01-013#8710', 'WD01-013#8711', 'WD01-013#8712'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    // §4.4-25i＝両者のルリグを同じカードにしない（`getByAltText` が相手側を掴む）。
+    'field.lrig': ['WD03-002#8790'],
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** 盤面が載るまで再注入する（§4.4-34＝注入は1発で決まらない／§4.4-49＝判定前に自分の盤面か見る）。 */
+async function v185EnsureBoard(page, H, spec, otherIsDown) {
+  const top = (st, zi) => {
+    const z = st?.host?.fieldSigni?.[zi];
+    return Array.isArray(z) ? z[z.length - 1] : z ?? null;
+  };
+  const ok = (st) => top(st, 0) === V185_SELF && top(st, 1) === V185_OTHER
+    && (st?.host?.signiDown ?? [])[0] === false
+    && (st?.host?.signiDown ?? [])[1] === otherIsDown;
+  let st = await H.queryState();
+  for (let r = 0; r < 4 && !ok(st); r++) {
+    H.log(`再注入(${r})… field=${JSON.stringify(st?.host?.fieldSigni)} down=${JSON.stringify(st?.host?.signiDown)}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    st = await H.queryState();
+  }
+  return { ok: ok(st), st };
+}
+
+async function driveV185(page, H, o) {
+  const { tag, expectOffered, spec, otherIsDown } = o;
+  await H.ensureMain();
+  const prep = await v185EnsureBoard(page, H, spec, otherIsDown);
+  if (!prep.ok) {
+    return { pass: false, detail: `前提崩れ＝盤面が載らない（field=${JSON.stringify(prep.st?.host?.fieldSigni)} down=${JSON.stringify(prep.st?.host?.signiDown)}）` };
+  }
+  H.log(`開始 field=${JSON.stringify(prep.st?.host?.fieldSigni)} down=${JSON.stringify(prep.st?.host?.signiDown)} phase=${prep.st?.turnPhase}`);
+
+  // 効果元（ゾーン0）のアクション一覧を読む。§4.4-18＝場のシグニは StackModal 側。
+  const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+  H.log(`  ${tag} modalVisible=${opened.modalVisible} labels=${JSON.stringify(opened.labels)}`);
+  if (!opened.modalVisible) {
+    return { pass: false, detail: `前提崩れ＝効果元のモーダルが開かない（opened=${opened.opened}）` };
+  }
+  const actIdx = opened.labels.findIndex(l => (l ?? '').startsWith('【起】'));
+
+  if (!expectOffered) {
+    // 対照＝アップなのは効果元だけ。excludeSelf を見ていなければ「自分をダウンして払える」と誤判定して出る。
+    return actIdx < 0
+      ? { pass: true, detail: `対照＝アップが効果元だけの盤面では【起】が提示されない（labels=${JSON.stringify(opened.labels)}／down=${JSON.stringify(prep.st?.host?.signiDown)}）` }
+      : { pass: false, detail: `🔴旧挙動＝効果元自身を fieldDown の候補に数えて【起】が出た（labels=${JSON.stringify(opened.labels)}）` };
+  }
+  if (actIdx < 0) {
+    return { pass: false, detail: `他にアップのシグニが居るのに【起】が提示されない（labels=${JSON.stringify(opened.labels)}）` };
+  }
+  // §4.4-37＝**画面に出る文字列**も観測点にする＝`excludeSelf` はコストラベルにも出る
+  //   （`fieldTrash`／`fieldBanish` と同じ「他の」。出ないと「自分は払わない」がプレイヤーに見えない）。
+  if (opened.labels[actIdx] !== '【起】場の他のシグニ1体ダウン') {
+    return { pass: false, detail: `コストラベルが原文の「他のシグニ」を出していない（label=${JSON.stringify(opened.labels[actIdx])}）` };
+  }
+
+  // 提示された＝撃って「誰がダウンしたか」を見る（②自動支払いの1行）。
+  const modal = page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').first();
+  await modal.locator(`[data-testid="card-action-${actIdx}"]`).click({ timeout: 2000 }).catch(() => {});
+  let fired = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    if (!fired) {
+      // §4.4-8b＝確定ボタンは `isEnabled()` を見てから押す（灰色を押し続けない）。
+      const fire = page.getByTestId('signiact-fire').first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1500 }).catch(() => {});
+        fired = true;
+      }
+    } else {
+      // 本文は条件不成立で不発＝残る対話は無いが、出たら閉じる（§4.4-7b）。
+      await H.clickTextOrBtn(['決定', 'OK', 'はい', '閉じる']);
+    }
+    const st = await H.queryState();
+    const down = st?.host?.signiDown ?? [];
+    H.log(`  ${tag}[${s}] fired=${fired} down=${JSON.stringify(down)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (fired && down[0] === true) {
+      return { pass: false, detail: `🔴旧挙動＝効果元自身をコストに払った（down=${JSON.stringify(down)}）` };
+    }
+    if (fired && down[1] === true) {
+      return { pass: true, detail: `他のシグニ（ゾーン1）だけがダウンし、効果元（ゾーン0）はアップのまま（down=${JSON.stringify(down)}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未確認（fired=${fired} down=${JSON.stringify(fin?.host?.signiDown)}）` };
+}
+
+scenarios.v185FieldDownExcludesSelfOffered = {
+  title: 'V-185(1): SPDi43-06-E2＝他にアップのシグニが居れば【起】が出て、他のシグニだけがダウンする（効果元は払わない）',
+  spec: v185Spec(false),
+  async drive(page, H) {
+    return driveV185(page, H, { tag: 'v185Offered', expectOffered: true, spec: this.spec, otherIsDown: false });
+  },
+};
+scenarios.v185FieldDownExcludesSelfBlocked = {
+  title: 'V-185(2): 対照＝アップが効果元だけなら【起】は提示されない（excludeSelf を見ずに自分を候補へ数えていないか）',
+  spec: v185Spec(true),
+  async drive(page, H) {
+    return driveV185(page, H, { tag: 'v185Blocked', expectOffered: false, spec: this.spec, otherIsDown: true });
+  },
+};
+order.push('v185FieldDownExcludesSelfOffered');
+order.push('v185FieldDownExcludesSelfBlocked');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-184`＝`WXK10-063-E1`「あなたの**ドライブ状態の**シグニ１体が対戦相手のライフクロス
+//   １枚をクラッシュしたとき」が実ブラウザでも発火するか。
+//   第241バッチで `src/screens/BattleScreen.tsx:13528` の `battleOppLifeCrashSourceMatches(…, op)` へ
+//   **クラッシュ元の `PlayerState`（`op`）を渡す1行**を足した。
+//   🔴渡さないと `oppLifeCrashSourceMatches` は **fail-closed で永久に発火しない**
+//     （`triggerCollect.ts:84-87`＝`crasherState` が無ければ `isDrive` 判定ごと false）。
+//   🔑**headless は golden 済み**（engine collector の両方向 ＋ `lifeCrashTriggers.ts` の純関数3方向
+//     ＋ BattleScreen の呼び出し文字列 assert）＝残る未検証は「その1行が実行時に正しい `op` を渡すか」だけ。
+// 観測点＝**効果スタックに `WXK10-063-E1` が載るか**（載れば収集経路が通った）。
+//   ⚠盤面差分では見えない＝本文は `STUB{CENTER_LRIG_DISMOUNT}` の**任意**（「降りてもよい」）なので、
+//     断れば盤面は1ミリも動かない（§4.4-4＝機構が動いた証拠を必須条件にする）。
+// 🔑**対の反転は1ビットだけ**＝`lrig_riding_signi` にクラッシュ元を載せるかどうかだけを変える
+//   （盤面・攻撃手順は同一）。⚠witness＝**どちらの巡でも相手ライフが実際に減ったこと**を必須にする
+//   （減っていなければ「発火しない」ではなく「クラッシュしていない」＝別のことを測っている）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V184_LRIG = 'WDK01-001#8800';      // レイラ＝フルスロットル（`WXK10-063` は「レイラ限定」）
+const V184_WATCHER = 'WXK10-063#8801';   // 観測者＝コードライド　ウンパン（【自】の持ち主）
+const V184_CRASHER = 'WXK10-063#8802';   // クラッシュ元（同名別インスタンス＝`triggerScope:'any_ally'`）
+
+const v184Spec = (drive) => ({
+  hostSet: {
+    'field.lrig': [V184_LRIG],
+    'field.signi': [[V184_WATCHER], [V184_CRASHER], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD01-013#8810', 'WD01-013#8811', 'WD01-013#8812'],
+    actions_done: [], game_actions_done: [],
+    // 🔑ここが唯一の反転ビット＝ドライブ状態（ルリグが乗機シグニに乗っている）かどうか。
+    lrig_riding_signi: drive ? [V184_CRASHER] : [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#8890'],
+    // ⚠正面を空にしてバトルを起こさず素通りさせる（§4.4-8e）＝観測したいのはライフクラッシュ。
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // ⚠手札を空にしてガード応答を挟ませない。
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+/** 盤面（＋ドライブ状態）が載るまで再注入する（§4.4-34／§4.4-49）。 */
+async function v184EnsureBoard(page, H, spec, drive) {
+  const top = (st, zi) => {
+    const z = st?.host?.fieldSigni?.[zi];
+    return Array.isArray(z) ? z[z.length - 1] : z ?? null;
+  };
+  const ok = (st) => top(st, 0) === V184_WATCHER && top(st, 1) === V184_CRASHER
+    && ((st?.host?.lrigRidingSigni ?? []).includes(V184_CRASHER)) === drive
+    && (st?.guest?.life ?? 0) >= 1;
+  let st = await H.queryState();
+  for (let r = 0; r < 4 && !ok(st); r++) {
+    H.log(`再注入(${r})… field=${JSON.stringify(st?.host?.fieldSigni)} riding=${JSON.stringify(st?.host?.lrigRidingSigni)} guestLife=${st?.guest?.life}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    st = await H.queryState();
+  }
+  return { ok: ok(st), st };
+}
+
+async function driveV184(page, H, o) {
+  const { tag, expectFire, spec, drive } = o;
+  await H.closeModals();
+  const prep = await v184EnsureBoard(page, H, spec, drive);
+  if (!prep.ok) {
+    return { pass: false, detail: `前提崩れ＝盤面が載らない（field=${JSON.stringify(prep.st?.host?.fieldSigni)} riding=${JSON.stringify(prep.st?.host?.lrigRidingSigni)} guestLife=${prep.st?.guest?.life}）` };
+  }
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const lifeBase = prep.st?.guest?.life ?? 0;
+  H.log(`開始 riding=${JSON.stringify(prep.st?.host?.lrigRidingSigni)} guestLife=${lifeBase} phase=${prep.st?.turnPhase}`);
+
+  let attacked = false, crashed = false, sawTrigger = false, seenStacks = [], settled = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    // §4.4-8d＝一度立てたフラグは下げない（クラッシュ後の回収で判定が戻るのを防ぐ）。
+    crashed ||= (st?.guest?.life ?? lifeBase) < lifeBase;
+    const stackIds = [...(st?.stackQueue ?? []), ...(st?.stackPending ?? [])];
+    if (stackIds.length) seenStacks = [...new Set([...seenStacks, ...stackIds])];
+    sawTrigger ||= stackIds.includes('WXK10-063-E1');
+
+    let did = null;
+    if (!attacked) {
+      // アタッカー＝中央（ゾーン1）。§4.4-58＝アタック宣言は `exact: true` で掴む
+      //   （`exact:false` は常設の「ルリグアタックへ」「アタックフェイズへ」にも当たる）。
+      const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-1');
+      if (opened.modalVisible && opened.labels.includes('アタック')) {
+        did = await H.clickBtn('アタック', { exact: true });
+        if (did) attacked = true;
+      } else if (s === 0) {
+        H.log(`  ${tag} PROBE modal=${opened.modalVisible} labels=${JSON.stringify(opened.labels)}`);
+      }
+    } else {
+      // ライフクラッシュ確認・任意【自】の応答だけを押す（§4.4-53＝`stdStep` はフェイズを飛ばすので使わない）。
+      did = await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', 'ガードしない', '発動しない', 'しない', '決定', 'OK', 'はい']);
+    }
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | atk=${attacked} guestLife=${st?.guest?.life}/${lifeBase} crashed=${crashed} stack=${JSON.stringify(stackIds)} trig=${sawTrigger} pEff=${st?.pendingEffect ?? '-'}`);
+    if (crashed && sawTrigger) break;
+    // 対照側の早期打ち切り＝クラッシュ後に「スタックも対話も空」が続いたらそれ以上は変わらない
+    //   （§4.4-13＝ログは数百ms遅れるので数ティックぶん待ってから確定する）。
+    settled = (crashed && stackIds.length === 0 && !st?.pendingEffect && !did) ? settled + 1 : 0;
+    if (!expectFire && settled >= 6) break;
+  }
+
+  const fin = await H.queryState();
+  crashed ||= (fin?.guest?.life ?? lifeBase) < lifeBase;
+  if (!attacked) return { pass: false, detail: `前提崩れ＝アタックを宣言できなかった（guestLife=${fin?.guest?.life}）` };
+  if (!crashed) return { pass: false, detail: `前提崩れ＝相手ライフがクラッシュしていない（guestLife ${lifeBase}→${fin?.guest?.life}）` };
+
+  if (expectFire) {
+    return sawTrigger
+      ? { pass: true, detail: `ドライブ状態のシグニのクラッシュで【自】が収集された（stack に WXK10-063-E1／guestLife ${lifeBase}→${fin?.guest?.life}）` }
+      : { pass: false, detail: `🔴旧挙動＝ドライブ状態なのに発火しない（crasherState 未伝播の fail-closed／観測した stack=${JSON.stringify(seenStacks)}）` };
+  }
+  return sawTrigger
+    ? { pass: false, detail: `🔴対照が崩れた＝ドライブ状態でないクラッシュ元でも発火した（stack=${JSON.stringify(seenStacks)}）` }
+    : { pass: true, detail: `対照＝ドライブ状態でなければ発火しない（クラッシュは起きている＝guestLife ${lifeBase}→${fin?.guest?.life}／観測した stack=${JSON.stringify(seenStacks)}）` };
+}
+
+scenarios.v184DriveCrasherFires = {
+  title: 'V-184(1): WXK10-063-E1＝ドライブ状態のシグニが相手ライフをクラッシュ→【自】が収集される（crasherState 伝播）',
+  spec: v184Spec(true),
+  async drive(page, H) {
+    return driveV184(page, H, { tag: 'v184Drive', expectFire: true, spec: this.spec, drive: true });
+  },
+};
+scenarios.v184NonDriveCrasherSilent = {
+  title: 'V-184(2): 対照＝ドライブ状態でないシグニのクラッシュでは発火しない（1ビットだけ反転）',
+  spec: v184Spec(false),
+  async drive(page, H) {
+    return driveV184(page, H, { tag: 'v184Plain', expectFire: false, spec: this.spec, drive: false });
+  },
+};
+// §4.4-51＝盤面（相手ライフ）を減らす巡は order の後ろに置く。
+order.push('v184DriveCrasherFires');
+order.push('v184NonDriveCrasherSilent');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

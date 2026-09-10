@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-10 — 第253バッチ（§5.1 実機返済）：`V-184`／`V-185` を返済＝実機シナリオ4本を `order` に常設、UI ラベル1件を修正
+
+🏁**§5.1 の残2件を同日に返済＝実機 worklist は残0。** どちらも「headless は golden 済みで、残る未検証は
+`src/screens/` に足した1〜2行だけ」という型（§2.2＝`src/screens/` を触った回は実機まで必須）。
+
+### `V-185`＝`SPDi43-06-E2`「【起】アップ状態の**他の**シグニ1体をダウンする」（`cost.fieldDown.excludeSelf`）
+
+- **観測点**＝①アップが効果元だけの盤面で**【起】が一覧に出ない** ②他にアップが居れば出て、撃つと
+  **他のシグニだけがダウンし効果元はアップのまま**（`down=[false,true,false]`）。
+- **1ビット反転**＝盤面は同一で `signi_down[1]` だけを変える（カードを抜くと「候補が居ない」別経路になる）。
+- **反転確認（軸ごとに1本ずつ＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 60）**：
+  - `signiActivateGate.ts:240` の1行を殺す → **対照が赤**（`labels=["【起】場のシグニ1体ダウン"]`＝自分を候補に数えて提示された）。
+  - `BattleScreen.tsx:13828` の1行を殺す → **本題が赤**（`down=[true,false,false]`＝効果元自身をコストに払った）。
+- 🔑**その場で直した表示バグ1件**＝`cost.fieldDown` だけコストラベルに `excludeSelf`（「**他の**」）を出しておらず、
+  `【起】場のシグニ1体ダウン` と表示していた（`fieldTrash`／`fieldBanish` は元から「他の」を出す＝片肺）。
+  **挙動は正しく画面だけが嘘**なので盤面 assert では永久に緑＝シナリオ側で**ラベル文字列を1行 assert**するようにした。
+
+### `V-184`＝`WXK10-063-E1`「あなたの**ドライブ状態の**シグニ1体が対戦相手のライフクロス1枚をクラッシュしたとき」
+
+- **真因（第241バッチで修正済みの1行）**＝`BattleScreen.tsx:13528` が `battleOppLifeCrashSourceMatches(…, op)` へ
+  **クラッシュ元の `PlayerState` を渡していなかった**＝`triggerCollect.ts:84-87` が **fail-closed** で永久に発火しない。
+- **観測点**＝**効果スタックに `WXK10-063-E1` が載るか**。⚠盤面差分では見えない＝本文は
+  `STUB{CENTER_LRIG_DISMOUNT}` の**任意**（「降りてもよい」）なので、断れば盤面は1ミリも動かない。
+- **1ビット反転**＝`lrig_riding_signi` にクラッシュ元を載せるかどうかだけ。**witness＝どちらの巡でも相手ライフが実際に減ったこと**
+  （減っていなければ「発火しない」ではなく「クラッシュしていない」＝別のことを測っている）。
+- **反転確認**＝`…, battleCardMap, op)` から `op` を外す → **本題が赤**（`stack=[]`＝ドライブ状態なのに1件も収集されない）。
+
+### 常設したシナリオ（`scripts/verifyBattleDrive.mjs` の `order`）
+
+`v184DriveCrasherFires` / `v184NonDriveCrasherSilent` / `v185FieldDownExcludesSelfOffered` / `v185FieldDownExcludesSelfBlocked`
+＝**4本を1回で回して 24秒**（`node scripts/verifyBattleDrive.mjs v184DriveCrasherFires v184NonDriveCrasherSilent v185FieldDownExcludesSelfOffered v185FieldDownExcludesSelfBlocked`）。
+
+### 踏んだ罠（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) に 63／64 として採番）
+
+- 🔴**Playwright 更新でブラウザ実体が消えており、全シナリオが `Executable doesn't exist` で即 FAIL**＝
+  `npx playwright install chromium` で復旧。**§4.4-25b「新しいシナリオを書く前に既存の1本を回す」が3秒で切り分けた。**
+- 🔑**`scripts/` だけの変更は `distIsFresh()` の走査対象外**（`src`/`public` のみ）＝**再ビルド無しで即回せる**（1本 3〜9秒）。
+
+### ゲート
+
+`npm run gates` **全緑**＝typecheck ／ golden **3909 PASS / 0 FAIL** ／ smoke 10744 OK（CRASH/HANG/INVARIANT 0）／
+fuzz 0 ／ census 高シグナル 1 / BASELINE 1 ／ census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／
+manual-fields 0 ／ lint 0 errors（254 warnings＝据置）。
+
 ## 2026-09-10 — 第252バッチ（§5.3 索引 G・7項目の棚卸し＋配線）：3効果修正／棚卸し7項目完了
 
 🔥**第251 の失敗（棚卸しの報告が最終レポート生成前に消えた）を構造的に潰した回**＝指示書で
