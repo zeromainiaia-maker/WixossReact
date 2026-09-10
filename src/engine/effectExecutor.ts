@@ -1081,11 +1081,135 @@ export function applyEffectLeaveSelfDeckBottomSubstitute(
   };
 }
 
+/**
+ * 🆕`selfDown`（§5.3 `O-299` 第260バッチ・2026-09-11・`WXDi-CP02-TK01A-E2`）＝
+ * 「【常】：**アップ状態の**このシグニが**バトルか対戦相手の効果によって**場を離れる場合、
+ *  代わりにこのシグニをダウンしてもよい。」
+ *
+ * 🔴**旧実装はバトル経路にしか無かった**（`BattleScreen.tsx` の `leaveReplaceDown`）＝
+ *   原文が並記している「対戦相手の**効果によって**」の側が**恒久 no-op** だった（守りが働かない過小実行）。
+ * ⚠**アップ状態でなければ成立しない**（原文「アップ状態のこのシグニが」）＝既にダウンしていたら置換できない。
+ */
+export function applyEffectLeaveSelfDownSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  if (state.field.signi_down?.[zone] === true) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  for (const eff of declaredContinuousEffects(victimNum, state, ctx.cardMap)) {
+    if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+    if ((eff.action as import('../types/effects').StubAction).id !== 'BATTLE_LEAVE_REPLACE_WITH_DOWN') continue;
+    if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, victimNum)) continue;
+    const down = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
+    down[zone] = true;
+    const nextState: PlayerState = { ...state, field: { ...state.field, signi_down: down as [boolean, boolean, boolean] } };
+    const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+    return {
+      ctx: addLog(setOwnerState(victimOwner, nextState, ctx), `${name}は場を離れる代わりにダウンする`),
+      replaced: true,
+    };
+  }
+  return { ctx, replaced: false };
+}
+
+/**
+ * 🆕`selfExile`（§5.3 `O-299` 第260バッチ・`WXK05-024-E2`）＝
+ * 「【常】：このシグニが場を離れる場合、代わりにこのシグニを**ゲームから除外する**。」
+ *
+ * 🔴**旧実装は二重に外していた**＝①バトル経路にしか無い ②**除外をトラッシュで近似**していた
+ *   （`BATTLE_LEAVE_REPLACE_WITH_EXILE` のハンドラ注記が「≈トラッシュ近似」と明記）。
+ *   トラッシュとの差は実害がある（トラッシュからの回収・蘇生が効くかどうか）。
+ * ⚠原文に「してもよい」が無いので **`mandatory`**。
+ * ⚠**場は離れる**（除外される）ので、場に残れる軸より後ろへ並べる。
+ */
+export function applyEffectLeaveSelfExileSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  for (const eff of declaredContinuousEffects(victimNum, state, ctx.cardMap)) {
+    if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+    if ((eff.action as import('../types/effects').StubAction).id !== 'BATTLE_LEAVE_REPLACE_WITH_EXILE') continue;
+    if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, victimNum)) continue;
+    // ⚠**行き先だけを差し替える**＝下敷き／チャーム／アクセの後始末は `removeFromField` の共通規約に従う。
+    const removed = removeFromField(victimNum, state);
+    const nextState: PlayerState = { ...removed, excluded: [...(removed.excluded ?? []), victimNum] };
+    const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+    return {
+      ctx: addLog(setOwnerState(victimOwner, nextState, ctx), `${name}は場を離れる代わりにゲームから除外される`),
+      replaced: true,
+    };
+  }
+  return { ctx, replaced: false };
+}
+
+/**
+ * 🆕`resonaSelfTrash`（§5.3 `O-299` 第260バッチ・`WXEX2-32-E1`）＝
+ * 「【常】：**あなたのターンの間**、あなたの＜宇宙＞のレゾナ１体が**対戦相手の効果によって**場を離れる場合、
+ *  代わりに**このシグニ**を場からトラッシュに置いてもよい。」
+ *
+ * 🔑**`downProtector` と同族**＝宣言者が自分を対価にして別のカードを守る形。違いは対価が
+ *   「ダウン」ではなく「宣言者自身をトラッシュ」で、victim 側に**レゾナ限定**が付くこと。
+ * ⚠**宣言者と victim は別のシグニ**（宣言者自身が victim のときは守らない＝原文の「あなたの…レゾナ1体が」）。
+ * ⚠期間条件（「あなたのターンの間」）は `activeCondition` が持つ＝ここでは判定だけ通す。
+ */
+export function applyEffectLeaveResonaSelfTrashSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const victimZone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (victimZone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  const victimCard = ctx.cardMap.get(getCardNum(victimNum));
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const declarer = state.field.signi[zi]?.at(-1);
+    if (!declarer || declarer === victimNum) continue;
+    for (const eff of declaredContinuousEffects(declarer, state, ctx.cardMap)) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.id !== 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, declarer)) continue;
+      // 🔴**victim はレゾナ限定**＝落とすと「＜宇宙＞でない普通のシグニ」まで守る過剰実行になる。
+      if (victimCard?.Type !== 'レゾナ') continue;
+      if (!(victimCard?.CardClass ?? '').includes('宇宙')) continue;
+      const removed = removeFromField(declarer, state);
+      const nextState: PlayerState = { ...removed, trash: [...removed.trash, declarer] };
+      const vName = victimCard?.CardName ?? victimNum;
+      const dName = ctx.cardMap.get(getCardNum(declarer))?.CardName ?? declarer;
+      return {
+        ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+          `${dName}を場からトラッシュに置き、${vName}の場離れを置換`),
+        replaced: true,
+      };
+    }
+  }
+  return { ctx, replaced: false };
+}
+
 export type LeaveSubstituteAxisId =
   | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'downProtector'
   | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom'
   // 🆕§5.3 `O-299`（2026-09-10）＝宣言は live に在るのに**どの collector も読んでいなかった**2形。
-  | 'underCardsTrash' | 'selfDeckBottom';
+  | 'underCardsTrash' | 'selfDeckBottom'
+  // 🆕§5.3 `O-299`（2026-09-11 第260バッチ）＝**バトル経路にしか無かった置換を効果離場へ持ち上げた**3軸。
+  //   原文はどれも「（対戦相手の効果によって）**場を離れる場合**」＝バトルに限らない。
+  | 'selfDown' | 'selfExile' | 'resonaSelfTrash';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -1206,6 +1330,13 @@ export function collectLeaveSubstituteOptions(
   //   （自動 policy は先頭から採るので、先に置くとタダで済む置換があるのに札を捨ててしまう）。
   push('underCardsTrash', 'optional', '代わりにこのシグニの下のカードをトラッシュに置く',
     applyEffectLeaveUnderCardsTrashSubstitute(victimNum, victimOwner, ctx));
+  // 🆕§5.3 `O-299`（2026-09-11 第260バッチ）＝**場に残れる**置換なので `selfDeckBottom` 等より前。
+  //   ⚠`selfDown` は資源を払わないが、盤面をまったく変えない軸（`selfAbility`／`powerReduction`）
+  //   よりは損（ダウンする）なので、有料軸と同じ位置に置く。
+    push('selfDown', 'optional', '代わりにこのシグニをダウンする',
+    applyEffectLeaveSelfDownSubstitute(victimNum, victimOwner, ctx));
+  push('resonaSelfTrash', 'optional', '代わりに宣言者のシグニを場からトラッシュに置く',
+    applyEffectLeaveResonaSelfTrashSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
     // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
     //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。
@@ -1240,6 +1371,9 @@ export function collectLeaveSubstituteOptions(
   //   ⚠**場は離れる**ので、場に残れる軸（上の6本）より後ろに置く。
   push('selfDeckBottom', 'optional', '代わりにこれをデッキの一番下に置く',
     applyEffectLeaveSelfDeckBottomSubstitute(victimNum, victimOwner, ctx));
+  // 🆕§5.3 `O-299`（2026-09-11 第260バッチ）＝**場は離れる**行き先変更なので最後尾の group へ。
+  push('selfExile', 'mandatory', '代わりにこれをゲームから除外する',
+    applyEffectLeaveSelfExileSubstitute(victimNum, victimOwner, ctx));
   push('noAbilityDeckBottom', 'mandatory', '代わりにデッキの一番下に置く',
     applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx));
   return out;

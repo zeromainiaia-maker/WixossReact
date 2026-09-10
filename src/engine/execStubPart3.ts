@@ -4087,17 +4087,27 @@ export function execStubPart3(
   if (stub.id === 'BANISH_THRESHOLD_BOOST_7_15') {
     return done(addLog(ctx, 'バニッシュ閾値書き換え（オリハルティア・execBanish側処理）'));
   }
-  // BATTLE_LEAVE_REPLACE_WITH_DOWN: バトル・相手効果による場離れをダウンに置換（任意）（BattleScreen側処理）
+  // BATTLE_LEAVE_REPLACE_WITH_DOWN: 「アップ状態のこのシグニが**バトルか対戦相手の効果によって**
+  //   場を離れる場合、代わりにこのシグニをダウンしてもよい」（`WXDi-CP02-TK01A-E2`）の**【常】宣言**。
+  // 🆕§5.3 `O-299` 第260バッチ（2026-09-11）＝**読み手が2つになった**＝
+  //   ①バトル経路＝`BattleScreen.tsx` の `leaveReplaceDown`（従来からある）
+  //   ②効果による離場＝`collectLeaveSubstituteOptions` の `selfDown` 軸（今回追加）。
+  //   🔴従来は①しか無く、原文が並記している「対戦相手の**効果によって**」の側が**恒久 no-op** だった。
   if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN') {
-    return done(addLog(ctx, '場離れ代替ダウン（BattleScreen側処理）'));
+    return done(addLog(ctx, '場離れ代替ダウン（【常】宣言・判定は selfDown 軸／バトル経路は BattleScreen）'));
   }
   // BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY: バニッシュ代わりにダウン＋下1枚＋エナ1枚トラッシュ（WXDi-P06-034・BattleScreen側処理）
   if (stub.id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY') {
     return done(addLog(ctx, 'バニッシュ代替（ダウン＋下/エナトラッシュ）（BattleScreen側処理）'));
   }
-  // BATTLE_LEAVE_REPLACE_WITH_EXILE: 場を離れる代わりにゲームから除外（≈トラッシュ近似・WXK05-024・BattleScreen側処理）
+  // BATTLE_LEAVE_REPLACE_WITH_EXILE: 「このシグニが場を離れる場合、代わりにこのシグニを
+  //   **ゲームから除外する**」（`WXK05-024-E2`）の**【常】宣言**。
+  // 🆕§5.3 `O-299` 第260バッチ（2026-09-11）＝効果による離場は
+  //   `collectLeaveSubstituteOptions` の `selfExile` 軸が読む（原文に「してもよい」が無いので強制）。
+  //   🔴従来はバトル経路にしか無く、しかも**除外をトラッシュで近似**していた
+  //   （トラッシュとの差は実害がある＝回収・蘇生が効くかどうか）。`selfExile` 軸は `excluded` へ入れる。
   if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE') {
-    return done(addLog(ctx, '場離れ代替除外（BattleScreen側処理）'));
+    return done(addLog(ctx, '場離れ代替除外（【常】宣言・判定は selfExile 軸／バトル経路は BattleScreen）'));
   }
   // BANISH_SUBSTITUTE (F-3): バニッシュ時の任意身代わり置換（CONTINUOUS宣言・BattleScreen側で対話処理）
   if (stub.id === 'BANISH_SUBSTITUTE') {

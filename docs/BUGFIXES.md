@@ -1,5 +1,109 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第260バッチ（PLAN §5.3 **索引 A**）：🏁`O-298` をクローズ／`O-299` を 残8 → **残5**
+
+索引 A の残2項目を取った。**`O-298` は残4のうち3件が真バグ・1件は軸違い**、**`O-299` は8件中3件を funnel へ持ち上げた**。
+
+### 1. 🏁`O-298`（自分の任意コストの「空払い」）＝残4の実測は **(a) 1 / (b) 3**
+
+| effectId | 判定 | 真因と直し方 |
+|---|---|---|
+| `WXK10-080-E1` | (b) | 🔴**任意コストが空だった**（`costColors:[]` と `costText` だけ＝払うものが1つも宣言されていない）＋対象が支払いを跨がない |
+| `WXDi-P16-048-E1` | (b) | `CHOOSE` の枝の中で3点契約が抜けていた（対象0体でも手札を捨てられる） |
+| `WX16-029-TRAP` ＋ `WX17-044-TRAP` | (b) | 【トラップ】はアタック中とはかぎらない＝アタッカー0体でもコストを払わされていた |
+| `WX26-CP1-006-E1` | (a) | **`O-298` の軸では穴ではない**（ルリグ候補は常に1体）＝別軸を `O-326` で登録 |
+
+#### ①`WXK10-080-E1`＝**コストの踏み倒し**（MANUAL・手書き）
+
+原文「あなたの＜水獣＞のシグニ１体を対象とし、手札から＜水獣＞のシグニを**２枚公開**してもよい。そうした場合、〜＋5000」。
+🔴旧 live の `STUB{OPTIONAL_COST}` は **`costColors:[]` と `costText` しか持っていなかった**＝
+`canPayOptionalCost` が常に真／`optionalCostPaySteps` が空 ⇒ **手札に＜水獣＞が1枚も無くても「支払う」を選べて＋5000が通る**。
+✅受け皿は既存の `OptionalCostSpec.handReveal`（可否 `execUtils.ts:674`／支払い `:879`＝`REVEAL`。**捨てるのではなく公開**なので手札は減らない）。
+
+🔴**もう1つの穴**＝旧実装は「対象とし」を `POWER_MODIFY{delta:0}` の no-op で代用し、帰結を `targetsLastProcessed` で受けていた。
+`lastProcessedCards` は**支払いインタラクションの resume を跨いで生存しない**（`freezeStoredTargets` の冒頭注記）＝支払ったあとに空振りする。
+⇒ **3点契約**（`SELECT_TARGET_ONLY{abortIfNoCandidate}` → `STORE_LAST_PROCESSED_TARGETS` → コスト → `targetsStored`）へ組み直した。
+
+#### ②`WXDi-P16-048-E1`＝`CHOOSE` の枝の中の空払い（MANUAL・手書き）
+
+枝②は `[OPTIONAL_COST, CONDITIONAL]` だけで、**帰結の対象候補を1度も見ずに支払いを提示**していた。3点契約へ組み直し、
+ゲートも `IS_MY_TURN` から正準形の `PAID_ADDITIONAL_COST` へ直した。他の2枝は原文どおりなので触っていない。
+
+#### ③`WX16-029-TRAP`／`WX17-044-TRAP`＝【トラップ】はアタック中とはかぎらない（parser 規則1本）
+
+🔴**真因**＝【トラップ】は `STUB{ACTIVATE_TRAP}`（「あなたの【トラップ】１つを発動する」型の効果）からも撃てるので、
+`NEGATE_ATTACK{attackingOnly}` の候補（＝いま宣言中のアタッカー）が**0体のことがある**。
+`execNegateAttack` は `cands.length === 0` で降りるが、**その前にコストを払わされている**。
+
+✅**受け皿は既存の `TargetFilter.isAttacking`**（`execUtils.ts:2001` の `fieldCandidates` が `pending_signi_battle.zoneIndex` で判定）。
+`SELECT_TARGET_ONLY` は同じ `fieldCandidates` を通るので **engine は0行**で閉じた。
+
+🔴🔑**ここだけ3点契約ではなく「1点の事前ゲート」にした**＝`NegateAttackAction` は `targetsStored`/`fixedCardNums` を
+**持たないし読まない**（`FREEZABLE` にも無い）ので、`O96_STORABLE_OUTCOMES` へ足すと
+**「フィールドは付いたが engine が無視する」無言 no-op**になる（同配列のコメントにある2条件ルール）。
+⇒ `STORE` も `targetsStored` も刻まず、`SELECT_TARGET_ONLY{filter:{isAttacking:true}, abortIfNoCandidate:true}` だけを前に置く。
+対象の同一性は `attackingOnly` が担保する（アタッカーは解決中に変わらない）。
+
+⚠**`WX16-029` は `_held_fresh`、`WX17-044` は `_partial_fresh` に回った**（構造が変わる＋同カードに MANUAL 効果がある）＝
+`node scripts/heldReview.mjs --adopt WX16-029` と `npx tsx scripts/syncManualLive.ts WX17-044` が要った。
+
+#### ④`WX26-CP1-006-E1`＝**軸が違うので `O-326` へ分離**
+
+原文「追加で対戦相手のルリグ１体を対象とし、手札から＜プリオケ＞のカードを１枚捨ててもよい。そうした場合、それをダウンする。」
+**相手のセンタールリグは常に1体いる**ので `SELECT_TARGET_ONLY{abortIfNoCandidate}` では何も止まらない。
+実際の払い損は「**既にダウンしている**」ときで、これは `O-298` の「候補0体」とは別の軸。
+⚠`SELECT_TARGET_ONLY` の LRIG 枝は **`filter` を1つも適用しない**（`cands = lrigTop ? [lrigTop] : []`）＝`isUp` を書いても無視される。
+⚠シグニ側の `DOWN` も同様にダウン済みを候補から外していない＝**軸を作るなら両方に効かせる**。
+
+### 2. `O-299`（離場置換）＝**バトル経路にしか無かった3軸を funnel へ持ち上げた**（残8 → 残5）
+
+共通の壊れ方＝宣言は live に `CONTINUOUS` の STUB として在るのに、**読み手が `BattleScreen` のバトル解決だけ**で、
+原文「（対戦相手の効果によって）**場を離れる場合**」の**効果側が恒久 no-op**。
+逆翻訳も `census:stubs` A群（ハンドラの有無）も緑なので**どの計器にも映らない**型。
+
+| 軸 | effectId | 内容 |
+|---|---|---|
+| `selfDown`（任意） | `WXDi-CP02-TK01A-E2` | アップ状態なら離場をダウンで置換。**ダウン済みでは成立しない**（タダの身代わりを作らない） |
+| `selfExile`（強制） | `WXK05-024-E2` | 離場を**ゲームから除外**へ。🔴旧実装の**「≈トラッシュ近似」も同時に直した**（`excluded` へ入れる＝回収・蘇生が効かない） |
+| `resonaSelfTrash`（任意） | `WXEX2-32-E1` | 宣言者が自分をトラッシュして**＜宇宙＞レゾナ**を守る。`downProtector` と同族。victim の限定を落とすと普通のシグニまで守る過剰実行 |
+
+🔑**並びの規約を守った**＝場に残れる軸（`selfDown`／`resonaSelfTrash`）は `selfDeckBottom` より前、
+**場は離れる**行き先変更（`selfExile`）は最後尾の group へ。自動 policy は先頭から採るので、順序が意味を持つ。
+
+⚠🔴**残っている重複**＝`BattleScreen.tsx` は同じ意味を自前で持ったまま（`leaveReplaceDown` ほか）。
+**funnel へ委譲するのが残作業**で、そこを触る回は `src/screens/` を触るので §2.2 により実機まで必須。
+今回は**劣化軸を新設したのではなく**、同じ funnel に**フル忠実度の軸**を足した（登録票が指示した方向）。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3935 PASS / 0 FAIL**（3929 → +6）／smoke CRASH・HANG・INVARIANT 0／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／manual-fields 0／lint 0 errors・254 warnings。**ratchet の較正なし**。
+- **live の per-effect 差分＝4 effectId**（`WXK10-080-E1`／`WXDi-P16-048-E1`／`WX16-029-TRAP`／`WX17-044-TRAP`）。`O-299` の3軸は live を変えない（engine のみ）。
+- **反転確認は6通り実行した**＝①`handReveal` を抜くと `got=undefined` ②`NEGATE_ATTACK` の parser 規則を止めると `WX17-044-TRAP` が FAIL
+  ③〜⑤`selfDown`／`selfExile`／`resonaSelfTrash` の3軸を funnel から外すと3本とも `got=0` で FAIL。
+- ⚠**既存 golden を1本更新した**＝`(d) WXK10-080` は木の形（`POWER_MODIFY{delta:0}` が index 0）を読んでいた。
+  **元の意図（＋5000 が「選んだ1体」だけに乗る）はそのまま**で、参照先を3点契約の形へ直した。
+- `npm run regen` 後の逆翻訳（§5-14 の証跡）＝
+  - `WXK10-080-E1`：`あなたの＜水獣＞のシグニ1体を対象とする。そして手札から＜水獣＞のシグニを2枚公開してもよい。そして（コストを支払った場合）なら、それのパワーを＋5000する（ターン終了時まで）`
+  - `WX16-029-TRAP`：`【トラップアイコン】対戦相手のアタックしているシグニ1体を対象とする。そして手札から＜トリック＞のシグニを1枚捨ててもよい。〜`
+
+### ⑤実機は不要と判定（§2.2）
+
+触ったのは `src/engine/`・`src/data/`・`public/data/`・`scripts/` で、🔑**`src/screens/` は1行も触っていない**。
+新しいアクション型・条件型・`PlayerState` キーも足していない（`LeaveSubstituteAxisId` の**列挙値3つ**と、
+既存 funnel と同じ形の apply 関数3本／parser 規則1本）。消費地点は同じ変更内の funnel で、golden が**反転つき**で固定している。
+🔴**ただし `O-299` の `BattleScreen` 委譲は残作業**＝そこを取る回は実機まで必須（登録票に明記した）。
+
+### 🏁 索引 A は **残1項目**（`O-299` 残5）
+
+機構 worklist は **26 → 26項目**（`O-298` をクローズし `O-326` を新設したので差し引き0＝**A 1／B 0／G 25**）。
+
+🔴🔑**教訓＝「同じ項目の中に別の軸が混ざっている」**。`O-298` の残4は「空払い」で束ねられていたが、
+`WX26-CP1-006-E1` だけは**候補は在るのに帰結が既に成立している**という別の空振りだった。
+⇒ **1件ずつ「なぜ空振りするのか」を言葉にする**と、軸が違うものが落ちる（束ねたまま機構を作ると過剰になる）。
+🔑**受け皿は「同じ概念の別名」で探す**＝`NEGATE_ATTACK` の事前ゲートは新機構ではなく、
+既存の `TargetFilter.isAttacking`（`fieldCandidates`）で engine 0行のまま閉じた。
 ## 2026-09-11 — 第259バッチ（PLAN §5.3 **索引 B を残0**）：🏁`O-294`／`O-302`／`O-303`／`O-295` を4件ともクローズ
 
 **索引 B の4項目を実測した結果、登録票が正しかったのは2件だけだった。** 4件それぞれの結論：

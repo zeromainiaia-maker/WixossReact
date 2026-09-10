@@ -2139,15 +2139,21 @@ test('(b) WX17-001: center lrig self-except effect immunity', () => {
 // PLAN §6.3 sub-case (d): an intervening optional step must not broaden a
 // designated target to every signi.
 test('(d) WXK10-080: +5000 is applied only to the selected Aquatic Beast', () => {
+  // 🆕**§5.3 `O-298` 第260バッチ（2026-09-11）で木の形が変わった**＝対象宣言の代用だった
+  //   `POWER_MODIFY{delta:0}` を捨て、3点契約
+  //   （`SELECT_TARGET_ONLY{abortIfNoCandidate}` → `STORE_LAST_PROCESSED_TARGETS` → コスト → `targetsStored`）へ。
+  //   **このテストの元の意図（＋5000 が「選んだ1体」だけに乗る）はそのまま**で、参照する場所だけ直す。
   const aquatic = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('水獣')).map(c => c.CardNum);
   ok(aquatic.length >= 2, 'Aquatic Beast fixtures');
   const eff = mergeManualEffects('WXK10-080', effectsMap.get('WXK10-080') ?? []).find(e => e.effectId === 'WXK10-080-E1');
   ok(!!eff, 'WXK10-080-E1 manual effect');
   const seq = eff!.action as SequenceAction;
-  const select = seq.steps[0] as { target?: { count?: number } };
-  eq(select.target?.count, 1, 'designation is count:1');
-  const buff = (seq.steps[2] as { then: EffectAction }).then;
-  const r = run(buff, { ...mkCtx({ signi: [aquatic[0], aquatic[1], null] }, {}, 'WXK10-080'), lastProcessedCards: [aquatic[0]] });
+  const select = seq.steps[0] as unknown as { id?: string; selectTarget?: { count?: number; filter?: { story?: string } } };
+  eq(select.id, 'SELECT_TARGET_ONLY', 'designation step');
+  eq(select.selectTarget?.count, 1, 'designation is count:1');
+  eq(select.selectTarget?.filter?.story, '水獣', 'designation keeps the ＜水獣＞ restriction');
+  const buff = (seq.steps[3] as { then: EffectAction }).then;
+  const r = run(buff, { ...mkCtx({ signi: [aquatic[0], aquatic[1], null] }, {}, 'WXK10-080'), storedTargetCards: [aquatic[0]] });
   const plus = (r.ownerState.temp_power_mods ?? []).filter(m => m.delta === 5000);
   eq(plus.length, 1, `only one +5000 mod: ${JSON.stringify(plus)}`);
   eq(plus[0]?.cardNum, aquatic[0], 'the selected first candidate receives +5000');
@@ -75546,6 +75552,96 @@ test('O-298 スコープ: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 族は触らな�
   ok(!s.includes('SELECT_TARGET_ONLY'), '🔴この族へ事前確定を挿入している（二重選択になる）');
 });
 
+// ── §5.3 `O-298` 残4（第260バッチ・2026-09-11）＝**MANUAL の2件**。
+//   MANUAL は `applyO96OptionalCostTargetFirst` を通らない（parser 出力ではない）ので、
+//   3点契約は**手で書く**しかない＝ここで live の形と挙動の両方を固定する。
+test('§5.3 O-298 WXK10-080-E1: 空の任意コストを handReveal で塞ぎ、対象は支払いを跨いで固定する', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXK10-080')?.find(e => e.effectId === 'WXK10-080-E1');
+  ok(!!eff, 'live に WXK10-080-E1 が無い');
+  const seq = eff!.action as unknown as { steps: Array<Record<string, unknown>> };
+  const iSel = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  const iPay = seq.steps.findIndex(x => x.id === 'OPTIONAL_COST');
+  ok(iSel >= 0 && iSel < iPay, '🔴支払いを問う前に対象を確定する（3点契約）');
+  eq((seq.steps[iSel] as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, true,
+    '候補0体なら支払いを提示せずに降りる');
+  // 🔴**旧 live は `costColors:[]` と `costText` だけ＝払うものが1つも無かった**（コストの踏み倒し）。
+  const pay = seq.steps[iPay] as { handReveal?: { count?: number; filter?: Record<string, unknown> } };
+  eq(pay.handReveal?.count, 2, '原文「手札から＜水獣＞のシグニを2枚公開」が任意コストとして宣言されていない');
+  eq(pay.handReveal?.filter?.story, '水獣', '公開するカードの限定（＜水獣＞）が落ちている');
+  const gate = seq.steps[iPay + 1] as { condition?: { type?: string }; then?: Record<string, unknown> };
+  eq(gate.condition?.type, 'PAID_ADDITIONAL_COST', 'did-it ゲートが正準形でない');
+  eq(gate.then?.targetsStored, true, '🔴帰結が targetsStored でない＝支払いの resume を跨いで対象が消える');
+  ok(!JSON.stringify(eff!.action).includes('"delta":0'), '対象宣言の代用だった delta:0 の no-op が残っている');
+
+  // 挙動＝＜水獣＞が場に1体も居なければ支払いプロンプトを出さない。
+  const none = mkCtx({ signi: [null, null, null] }, {});
+  const rNo = executeAction(eff!.action as EffectAction, none) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rNo.done && !rNo.pending, '🔴対象が居ないのに支払いプロンプトが出た（コストの空払い）');
+}));
+
+test('§5.3 O-298 WXDi-P16-048-E1: CHOOSE の枝の中でも支払い前に対象を確定する', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P16-048')?.find(e => e.effectId === 'WXDi-P16-048-E1');
+  ok(!!eff, 'live に WXDi-P16-048-E1 が無い');
+  const ch = eff!.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const branch = ch.choices[1].action as unknown as { steps: Array<Record<string, unknown>> };
+  const iSel = branch.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  const iPay = branch.steps.findIndex(x => x.id === 'OPTIONAL_COST');
+  ok(iSel >= 0 && iSel < iPay, '🔴枝の中で支払いが対象宣言より先に来ている（コストの空払い）');
+  eq((branch.steps[iSel] as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, true, '候補0体なら降りる');
+  const gate = branch.steps[iPay + 1] as { condition?: { type?: string }; then?: Record<string, unknown> };
+  eq(gate.condition?.type, 'PAID_ADDITIONAL_COST', 'did-it ゲートが正準形でない');
+  eq(gate.then?.targetsStored, true, '🔴帰結が targetsStored でない');
+  // 対照＝他の2枝は原文どおりのまま（触っていない）。
+  eq((ch.choices[0].action as { type: string }).type, 'GRANT_KEYWORD', '①【シャドウ】の枝を壊している');
+  eq((ch.choices[2].action as { type: string }).type, 'TRASH', '③手札を捨てさせる枝を壊している');
+
+  // 挙動＝パワー8000以下の相手シグニが居なければ支払いプロンプトを出さない。
+  const highOnly = findCard(c => c.Type === 'シグニ' && Number(c.Power ?? 0) > 8000);
+  const none = mkCtx({}, { signi: [highOnly, null, null] });
+  const rNo = executeAction(ch.choices[1].action as EffectAction, none) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rNo.done && !rNo.pending, '🔴対象が居ないのに支払いプロンプトが出た（コストの空払い）');
+}));
+
+test('§5.3 O-298 NEGATE_ATTACK: アタッカーが居なければ【トラップ】のコストを払わせない（2効果）', () => withSavedCursor(() => {
+  // 🔴**【トラップ】はアタック中とはかぎらない**＝`STUB{ACTIVATE_TRAP}`（「あなたの【トラップ】1つを
+  //   発動する」型の効果）からも撃てる。旧 live は `[OPTIONAL_COST, ゲート, NEGATE_ATTACK{attackingOnly}]`
+  //   で、アタッカーが居なくても**先にコストを払わせてから** `cands.length === 0` で降りていた。
+  // 🔑**受け皿は既存の `TargetFilter.isAttacking`**（`fieldCandidates` が `pending_signi_battle` で判定）＝
+  //   `SELECT_TARGET_ONLY` は同じ関数を通るので **engine は0行**。
+  // ⚠**3点契約ではなく1点の事前ゲート**＝`NegateAttackAction` は `targetsStored`/`fixedCardNums` を
+  //   持たず `FREEZABLE` にも無いので、`targetsStored` を刻むと**engine が無視する無言 no-op**になる。
+  const guardOf = (cardNum: string, effectId: string) => {
+    const eff = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    if (!eff) throw new Error(`${effectId}: live effect not found`);
+    const json = JSON.stringify(eff.action);
+    return { eff, json };
+  };
+  for (const [cardNum, effectId] of [['WX16-029', 'WX16-029-TRAP'], ['WX17-044', 'WX17-044-TRAP']] as const) {
+    const { json } = guardOf(cardNum, effectId);
+    const iSel = json.indexOf('SELECT_TARGET_ONLY');
+    const iPay = json.indexOf('OPTIONAL_COST');
+    ok(iSel >= 0 && iSel < iPay, `${effectId}: 🔴支払いを問う前にアタッカーの有無を見ていない`);
+    ok(json.includes('"isAttacking":true'), `${effectId}: 宣言が「アタックしているシグニ」に絞られていない`);
+    ok(json.includes('"abortIfNoCandidate":true'), `${effectId}: 候補0体でも支払いを提示してしまう`);
+    ok(json.includes('"attackingOnly":true'), `${effectId}: 帰結側の attackingOnly が落ちている`);
+    // 🔴**`targetsStored` を刻んではいけない**（engine が読まない型）。
+    ok(!json.includes('"targetsStored"'), `${effectId}: NEGATE_ATTACK へ engine が無視する targetsStored が付いた`);
+    ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), `${effectId}: 読み手の無い STORE ステップが入っている`);
+  }
+
+  // 挙動＝アタッカーが居なければ支払いプロンプトを出さずに降りる。
+  const { eff } = guardOf('WX16-029', 'WX16-029-TRAP');
+  const idle = mkCtx({}, { signi: [SIGNI, null, null] });
+  const rNo = executeAction(eff.action as EffectAction, idle) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rNo.done && !rNo.pending, '🔴アタッカーが居ないのに支払いプロンプトが出た（コストの空払い）');
+
+  // 対照＝アタック宣言中なら対象宣言（＝支払いより先）から始まる。
+  const attacking = mkCtx({}, { signi: [SIGNI, null, null] });
+  attacking.otherState = { ...attacking.otherState, pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
+  const rYes = executeAction(eff.action as EffectAction, attacking) as unknown as { done: boolean; pending?: { type: string } };
+  ok(!rYes.done, 'アタッカーが居るのに何も起きない（過小実行へ倒れている）');
+}));
+
 // ══════════════════════════════════════════════════════════════════════════════
 // §5.3 `O-299`（2026-09-10）＝離場置換の宣言のうち、**どの collector も読んでいなかった2形**を
 // funnel（`collectLeaveSubstituteOptions`）の軸として配線した。
@@ -75557,6 +75653,76 @@ test('O-298 スコープ: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 族は触らな�
 //   - `LEAVE_FIELD_TO_DECK_BOTTOM`（`WXDi-P08-046-E1`）はアクションとしてなら動くが、
 //     **`CONTINUOUS` の宣言なので誰も呼ばない**。
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ── §5.3 `O-299` 第260バッチ（2026-09-11）＝**バトル経路にしか無かった置換を効果離場へ持ち上げた3軸。**
+// 🔴共通の壊れ方＝宣言は live に `CONTINUOUS` の STUB として在るのに、読み手が `BattleScreen` の
+//   バトル解決だけで、原文「（対戦相手の効果によって）**場を離れる場合**」の**効果側が恒久 no-op**。
+//   逆翻訳も `census:stubs` A群（ハンドラの有無）も緑なので**どの計器にも映らない**型。
+test('§5.3 O-299 selfDown: アップ状態なら効果離場をダウンで置換する（WXDi-CP02-TK01A）', () => withSavedCursor(() => {
+  const victim = 'WXDi-CP02-TK01A';
+  const decl = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-CP02-TK01A-E2');
+  ok(!!decl && decl.effectType === 'CONTINUOUS', '宣言が【常】でなくなっている');
+  eq((decl!.action as StubAction).id, 'BATTLE_LEAVE_REPLACE_WITH_DOWN', '受け皿の STUB id が変わっている');
+
+  const up = mkCtx({}, { signi: [victim, null, null] });
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', up).filter(o => o.axis === 'selfDown');
+  eq(opts.length, 1, '🔴アップ状態なのに効果離場の置換候補が出ない（バトル経路にしか無い）');
+  eq(opts[0].kind, 'optional', '原文「ダウンしてもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', up);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0]?.at(-1), victim, '🔴victim が場に残っていない');
+  eq(applied.ctx.otherState.field.signi_down?.[0], true, '代わりにダウンしていない');
+
+  // 🔴**既にダウンしていたら成立しない**（原文「アップ状態のこのシグニが」）＝タダで離場を無効化させない。
+  const down = mkCtx({}, { signi: [victim, null, null], down: [true, false, false] });
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', down).filter(o => o.axis === 'selfDown').length, 0,
+    '🔴ダウン済みでも置換できてしまう（無限の身代わり）');
+  eq(applyEffectLeaveSubstitutes(victim, 'opponent', down).replaced, false, 'ダウン済みでは置換しない');
+}));
+
+test('§5.3 O-299 selfExile: 効果離場をトラッシュではなくゲーム外へ送る（WXK05-024）', () => withSavedCursor(() => {
+  const victim = 'WXK05-024';
+  const decl = effectsMap.get(victim)?.find(e => e.effectId === 'WXK05-024-E2');
+  eq((decl!.action as StubAction).id, 'BATTLE_LEAVE_REPLACE_WITH_EXILE', '受け皿の STUB id が変わっている');
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const trashBefore = ctx.otherState.trash.length;
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', ctx).filter(o => o.axis === 'selfExile');
+  eq(opts.length, 1, '🔴効果離場の置換候補が出ない（バトル経路にしか無い）');
+  eq(opts[0].kind, 'mandatory', "原文に「してもよい」が無いので強制");
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0], null, '場からは離れる（除外なので残らない）');
+  ok((applied.ctx.otherState.excluded ?? []).includes(victim), '🔴ゲーム外（excluded）へ行っていない');
+  eq(applied.ctx.otherState.trash.length, trashBefore,
+    '🔴トラッシュへ落ちている（旧実装の「≈トラッシュ近似」に戻っている＝回収・蘇生が効いてしまう）');
+}));
+
+test('§5.3 O-299 resonaSelfTrash: 宣言者が自分を捨てて＜宇宙＞レゾナを守る（WXEX2-32）', () => withSavedCursor(() => {
+  const declarer = 'WXEX2-32';
+  const decl = effectsMap.get(declarer)?.find(e => e.effectId === 'WXEX2-32-E1');
+  eq((decl!.action as StubAction).id, 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE', '受け皿の STUB id が変わっている');
+  const cosmoResona = findCard(c => c.Type === 'レゾナ' && (c.CardClass ?? '').includes('宇宙'));
+  const plainSigni = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('宇宙'));
+
+  const mk = (victim: string) => {
+    const c = mkCtx({}, { signi: [victim, declarer, null] });
+    return { ...c, isOwnerTurn: false } as ExecCtx;   // victim 側のターン＝原文「あなたのターンの間」
+  };
+  const good = mk(cosmoResona);
+  const opts = collectLeaveSubstituteOptions(cosmoResona, 'opponent', good).filter(o => o.axis === 'resonaSelfTrash');
+  eq(opts.length, 1, '🔴＜宇宙＞レゾナを守る置換候補が出ない');
+  eq(opts[0].kind, 'optional', '原文「置いてもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(cosmoResona, 'opponent', good);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0]?.at(-1), cosmoResona, '🔴守られた側が場に残っていない');
+  eq(applied.ctx.otherState.field.signi[1], null, '宣言者が場から居なくなっていない');
+  ok(applied.ctx.otherState.trash.includes(declarer), '宣言者がトラッシュへ行っていない');
+
+  // 🔴**victim はレゾナかつ＜宇宙＞に限る**＝落とすと普通のシグニまで守る過剰実行。
+  const bad = mk(plainSigni);
+  eq(collectLeaveSubstituteOptions(plainSigni, 'opponent', bad).filter(o => o.axis === 'resonaSelfTrash').length, 0,
+    '🔴＜宇宙＞レゾナでない victim まで守っている');
+}));
 test('O-299 離場置換 underCardsTrash: 「代わりに下のカードをトラッシュ」で場に残る（WXDi-P05-038）', () => {
   const victim = 'WXDi-P05-038';
   const declaration = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-P05-038-E1')?.action as StubAction;

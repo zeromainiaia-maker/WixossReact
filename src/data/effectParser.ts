@@ -12225,6 +12225,40 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     }
     return { ...action, steps: nextStubSteps } as SequenceAction;
   }
+  // 🆕**§5.3 `O-298` 残4（第260バッチ・2026-09-11）＝帰結が `NEGATE_ATTACK{attackingOnly}` の形。**
+  //   原文「**アタックしているシグニ１体を対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それは**
+  //   このアタックでダメージを与えない」（`WX16-029-TRAP` / `WX17-044-TRAP`＝全CSVでこの2枚だけ）。
+  // 🔴**空払いが起きる**＝【トラップ】は「あなたの【トラップ】１つを発動する」型の効果
+  //   （`STUB{ACTIVATE_TRAP}`）からも撃てるので、**アタック中とはかぎらない**。
+  //   アタッカーが居ない状態で撃つと `execNegateAttack` は `cands.length === 0` で降りるが、
+  //   **その前にコスト（＜トリック＞のシグニを1枚捨てる／《青》）を払わされている**。
+  // ✅**受け皿は既存**＝`TargetFilter.isAttacking`（`execUtils.ts:2001` の `fieldCandidates` が
+  //   `pending_signi_battle.zoneIndex` で判定）。`SELECT_TARGET_ONLY` は同じ `fieldCandidates` を
+  //   通るので、**engine は0行**で「アタッカーが居なければ支払いを提示しない」が成り立つ。
+  // 🔴🔑**ここだけ3点契約ではなく「1点の事前ゲート」で足りる**＝`NegateAttackAction` は
+  //   `targetsStored`/`fixedCardNums` を**持たないし読まない**（`FREEZABLE` にも無い）ので、
+  //   `O96_STORABLE_OUTCOMES` へ足すと**「フィールドは付いたが engine が無視する」無言 no-op**になる
+  //   （同配列のコメントにある2条件ルール）。⇒ **`STORE` も `targetsStored` も刻まない。**
+  //   対象の同一性は `attackingOnly` が担保する（アタッカーは解決中に変わらない）。
+  if (outcome.type === 'NEGATE_ATTACK' && (outcome as { attackingOnly?: boolean }).attackingOnly
+      && outcome.target?.type === 'SIGNI') {
+    const guardTarget: EffectTarget = {
+      ...outcome.target,
+      filter: { ...(outcome.target.filter ?? {}), isAttacking: true },
+    };
+    const guardSteps: EffectAction[] = [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: guardTarget, abortIfNoCandidate: true } as StubAction,
+      cost,
+      gateReplacement(gate),
+    ];
+    const nextGuardSteps = [...steps];
+    if (wrapped) {
+      nextGuardSteps.splice(costIdx, 2, { ...wrapped, then: { type: 'SEQUENCE', steps: guardSteps } as SequenceAction });
+    } else {
+      nextGuardSteps.splice(costIdx, 2, ...guardSteps);
+    }
+    return { ...action, steps: nextGuardSteps } as SequenceAction;
+  }
   if (!O96_STORABLE_OUTCOMES.includes(outcome.type)) return action;
   // 🆕**第4バッチで「ガード軸だけ」の暫定ガードを外した**（第1バッチの絞り込みには意味的な根拠が無く、
   //   一度に20効果を載せないためのサンプリングだった）。engine 側は `SELECT_TARGET_ONLY` と

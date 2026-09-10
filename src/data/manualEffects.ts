@@ -4948,8 +4948,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   manual へ写すと §6.4 O-40／O-42 の「parser 出力と実体同一な影武者コピー」を新規に作ることになる
   //   （`npx tsx scripts/censusManualDrift.ts` の「削除候補」に即座に載る＝以後その効果だけ parser 改善が届かない）。
   //   live 側は `syncManualLive.ts --condition-only` で既に条件を受け取っており、`PARTIAL` の温存で維持される。
+  // ── WXDi-P16-048 ／ 原文②「対戦相手のパワー8000以下のシグニ１枚を対象とし、手札を１枚捨ててもよい。
+  //   そうした場合、それをバニッシュする。」（§5.3 `O-298` 第260バッチ・2026-09-11）
+  // 🔴**旧 live は `CHOOSE` の枝の中で3点契約が抜けていた**＝`[OPTIONAL_COST, CONDITIONAL]` だけで、
+  //   **帰結の対象候補を1度も見ずに支払いを提示する**＝相手にパワー8000以下が1体も居なくても
+  //   手札を1枚捨てられて空振りする（`O-298` の「コストの空払い」）。
+  // ✅受け皿は既存の3点契約（`SELECT_TARGET_ONLY{abortIfNoCandidate}` → `STORE` → コスト → `targetsStored`）。
+  //   `BANISH` は `FREEZABLE` の最初から入っている型。
+  // ⚠**ゲートは `PAID_ADDITIONAL_COST` に直す**＝旧 `IS_MY_TURN` は executor の look-ahead
+  //   （Pattern④＝コストの直後が `CONDITIONAL`）が読む did-it ゲートの見た目だが、
+  //   3点契約では**コストと `CONDITIONAL` が隣り合ったまま**なので `PAID_ADDITIONAL_COST` が正準形
+  //   （`applyO96OptionalCostTargetFirst` が生成するのもこの形）。
+  // ⚠**engine は0行。** 他の2枝（①【シャドウ】／③手札を見ないで捨てさせる）は原文どおりなので触らない。
   "WXDi-P16-048": [
-    {"effectId":"WXDi-P16-048-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"夢限少女","operator":"gte","value":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}}}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}}}],"upTo":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    {"effectId":"WXDi-P16-048-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"夢限少女","operator":"gte","value":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"}},{"choiceId":"c1","label":"対戦相手のパワー8000以下のシグニ1体を対象とし、手札を1枚捨ててもよい。そうした場合、それをバニッシュする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false},"targetsStored":true}}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}}}],"upTo":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
   // §6.3 E-2 第2波: 対戦相手のセンタールリグへ2能力をゲーム中恒久付与する。
   "WXK03-001": [
@@ -5322,8 +5334,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // PLAN §6.3 sub-case (d): designation survives the intervening optional reveal.
   // The zero-delta POWER_MODIFY is the existing count:1 field selector/recorder;
   // OPTIONAL_COST is an honest approximation of revealing two <Aquatic Beast> signi.
+  // ── WXK10-080 ／ 原文【自】：このシグニがアタックしたとき、あなたの＜水獣＞のシグニ１体を対象とし、
+  //   手札から＜水獣＞のシグニを**２枚公開**してもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。
+  //   （§5.3 `O-298` 第260バッチ・2026-09-11）
+  // 🔴**旧 live は任意コストが空だった**＝`OPTIONAL_COST` に `costColors:[]` と `costText` しか無く、
+  //   **払うものが1つも宣言されていない**＝`canPayOptionalCost` が常に真／`optionalCostPaySteps` が空。
+  //   ⇒ **手札に＜水獣＞が1枚も無くても「支払う」を選べて＋5000が通る**（コストの踏み倒し）。
+  //   ✅受け皿は既存の `OptionalCostSpec.handReveal`（可否 `execUtils.ts:674`／支払い `:879`＝`REVEAL`。
+  //   **捨てるのではなく公開**なので原文どおり手札は減らない）。
+  // 🔴**もう1つの穴＝対象が支払いを跨がない**＝旧実装は「対象とし」を `POWER_MODIFY{delta:0}` の
+  //   no-op で代用し、帰結を `targetsLastProcessed` で受けていた。`lastProcessedCards` は
+  //   **支払いインタラクションの resume を跨いで生存しない**（`freezeStoredTargets` の冒頭注記）＝
+  //   支払ったあとに対象が空になって黙って空振りする。⇒ **3点契約**
+  //   （`SELECT_TARGET_ONLY{abortIfNoCandidate}` → `STORE_LAST_PROCESSED_TARGETS` → コスト →
+  //   `targetsStored`）へ組み直した。`POWER_MODIFY` は `FREEZABLE` に入っているので焼き込みが効く。
+  // ⚠**engine は0行**（既存の軸だけで組んである）。
   "WXK10-080": [
-    {"effectId":"WXK10-080-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"水獣"}},"delta":0},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"costText":"手札から＜水獣＞のシグニを2枚公開してもよい"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"targetsLastProcessed":true,"delta":5000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK10-080-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"水獣"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"handReveal":{"count":2,"filter":{"cardType":"シグニ","story":"水獣"}},"costText":"手札から＜水獣＞のシグニを2枚公開してもよい"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"targetsStored":true,"delta":5000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // BET gives one selected signi a temporary CONT protection ability. The
