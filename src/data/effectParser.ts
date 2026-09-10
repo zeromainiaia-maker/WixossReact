@@ -13375,6 +13375,94 @@ function replaceFirstLegacyReveal(action: EffectAction, replacement: RevealUntil
  *   （同 `:10690` / `:11165` が `pending.thenAction.asDown` を読む）の両方が消費する。
  *   ⇒ `SEARCH.then` / `REVEAL_AND_PICK.then` / `ADD_TO_FIELD{source}` のどの形でも効く。
  */
+/**
+ * 「〜1体を対象とし、対戦相手が〜を支払わないかぎり、それを〜する」を
+ * **支払い前に対象を確定する形**へ正準化する（2026-09-10・§5.3 `O-288`）。
+ *
+ * 🔴**真因**＝原文は「対象を決めてから相手が支払いを判断する」順だが、engine の先取り分岐
+ *   （`effectExecutor.ts:5871` 前後）は**支払いプロンプトを先に出し、拒否枝で初めて対象を選ぶ**。
+ *   ⇒ **相手が支払いを判断する時点の情報量が原文と違う**（どのシグニが狙われているか分からない）。
+ * ✅**engine 側の軸は 2026-09-10 第247 で実装済み**＝`freezeStoredTargets()` が
+ *   `conditional.then` / `conditional.else` に噛んでおり、`targetsStored:true` のアクションへ
+ *   `ctx.storedTargetCards` を焼き込む。**`targetsStored` が無いアクションには何もしない＝opt-in。**
+ *   ⇒ **ここでやるのは JSON 側の配線だけ**（新しい engine 機構は不要）。
+ *
+ * 変換＝`SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL{IS_MY_TURN, then:X}]`
+ *   → `SEQUENCE[STUB{SELECT_TARGET_ONLY, selectTarget:X.target}, STUB{STORE_LAST_PROCESSED_TARGETS},
+ *               STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL{..., then:{...X, targetsStored:true}}]`
+ *
+ * 🔴**原文の語順で判定する**＝「対象とし」が「しないかぎり」**より前**にある場合だけ変換する。
+ *   逆順（支払いを先に問う原文）や、対象句が無い形は**現状が正しい**ので触らない。
+ * ⚠**入力はその効果のアビリティブロック**（`abilityBlockTextOf`）＝カード全文で判定すると
+ *   同じカードの別能力の「対象とし」を巻き込む（`normalizeAddToFieldAsDown` と同じ罠）。
+ * ⚠**`then` に対象が無い／`count` が 1 でない形は対象外**＝焼き込む個体が定まらない。
+ */
+function normalizeOpponentPayPreTarget(action: EffectAction, fullText: string): void {
+  // 🔴**`abilityBlockTextOf` は使わない**（2026-09-10 に実測して書き直した）＝あの関数は内部で
+  //   パーサーを再実行してブロック境界を求めるため、**この正準化から呼ぶと再入する**。
+  //   実測＝同じカードを `parseCardEffects` に 2回通すと **1回目 true / 2回目 false** に化け、
+  //   `build:effects` 経由では**1件も当たらなかった**（`npm run golden` も緑のまま＝黙って効かない）。
+  // ⇒ **文単位の自己完結走査**にする＝「。」で割り、**同じ文の中で「を対象とし」が
+  //   「〜ないかぎり」より前に来る**文が1つでもあれば対象と見なす。
+  // ⚠**活用語尾を書き落とさない**＝「支払**わ**ないかぎり」で語幹が変わる。
+  //   初版は `/(?:支払|捨て)ないかぎり/` と書いて**15効果すべてに1件も当たらなかった**（黙って0件）。
+  const ordered = fullText.split('。').some(sent => {
+    const iU = sent.indexOf('ないかぎり');
+    if (iU < 0) return false;
+    const iT = sent.indexOf('を対象とし');
+    return iT >= 0 && iT < iU;
+  });
+  if (!ordered) return;
+
+  // 🔴**構造キーだけを辿る**（`normalizeAddToFieldAsDown` と同じ理由＝総当たり再帰は build を止める）。
+  const KEYS = ['steps', 'then', 'else', 'action', 'choices', 'abilities', 'effect',
+    'continuation', 'thenAction', 'afterSearch'] as const;
+  const seen = new WeakSet<object>();
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (seen.has(node as object)) return;
+    seen.add(node as object);
+    if (Array.isArray(node)) { for (const x of node) walk(x); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'SEQUENCE' && Array.isArray(rec.steps)) {
+      const steps = rec.steps as Record<string, unknown>[];
+      const iPay = steps.findIndex(a => a?.type === 'STUB' && a.id === 'OPPONENT_PAY_OPTIONAL');
+      if (iPay >= 0) {
+        const already = steps.some((a, i) => i < iPay && a?.type === 'STUB' && a.id === 'SELECT_TARGET_ONLY');
+        const cond = steps[iPay + 1];
+        const then = cond?.type === 'CONDITIONAL' ? cond.then as Record<string, unknown> | undefined : undefined;
+        // ⚠**対象の在処はアクション型で違う**＝`BANISH`/`DOWN`/`POWER_MODIFY` は `target`、
+        //   `TRANSFER_TO_DECK`/`TRANSFER_TO_HAND` は `source`。片方だけ見ると
+        //   `WXDi-P12-008-E3`（デッキの一番下に置く）のような形を静かに取り逃がす。
+        const tgt = (then?.target ?? then?.source) as Record<string, unknown> | undefined;
+        // 🔴**番兵に `targetsStored` を使わない**（2026-09-10 に実測）＝この `then` ノードは
+        //   パーサー内部のメモ化で**パース間・効果間に共有される**。1回目に立てた印を
+        //   2回目が「処理済み」と読んで**挿入だけスキップする**ため、live が
+        //   「`targetsStored` は在るのに `SELECT_TARGET_ONLY` が無い」**半端な状態**になっていた
+        //   （`freezeStoredTargets` は空の stored を見て据置＝無言で効かない）。
+        //   ⇒ 番兵は**この steps 配列に `SELECT_TARGET_ONLY` が在るか**（＝`already`）だけにする。
+        // 🔴**共有ノードを直接書き換えない**＝複製して差し替える（他カードへ漏れないように）。
+        // 🔴**場の可視ゾーンだけを事前確定する**（2026-09-10 に `WXK06-047-E1` で偽陽性を実測）。
+        //   あの原文は「対戦相手は、**自分のシグニ**1体を対象とし、それをデッキの一番上に置かないかぎり
+        //   **手札を1枚**デッキの一番下に置く」＝「対象とし」は**相手が回避のために選ぶ札**であって、
+        //   罰則が触るのは**相手の手札**（非公開）。**見えない札を事前に指すのは無意味かつ誤り**。
+        //   ⇒ 型を場のカードに限る（`HAND_CARD`/`DECK_CARD`/`LIFE_CLOTH` は入れない）。
+        const PRE_TARGETABLE = ['SIGNI', 'LRIG', 'CENTER_LRIG_OR_SIGNI'];
+        if (!already && tgt && tgt.owner === 'opponent' && tgt.count === 1
+            && PRE_TARGETABLE.includes(tgt.type as string)) {
+          (cond as Record<string, unknown>).then = { ...then, targetsStored: true };
+          steps.splice(iPay, 0,
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(tgt)),
+              abortIfNoCandidate: true } as unknown as Record<string, unknown>,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as unknown as Record<string, unknown>);
+        }
+      }
+    }
+    for (const k of KEYS) if (k in rec) walk(rec[k]);
+  };
+  walk(action);
+}
+
 function normalizeAddToFieldAsDown(action: EffectAction, blockText: string): void {
   if (!/ダウン状態で場に出/.test(blockText)) return;
   // 🔴**構造キーだけを辿る**＝`Object.values` の総当たり再帰にすると
@@ -30028,6 +30116,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (/ダウン状態で場に出/.test(`${card.EffectText ?? ''}${card.BurstText ?? ''}`)) {
       normalizeAddToFieldAsDown(e.action, abilityBlockTextOf(card, e.effectId));
     }
+    // 🆕§5.3 `O-288`（2026-09-10）＝支払い前の対象確定。
+    // ⚠**ここで `abilityBlockTextOf` を呼んではいけない**（再入して黙って効かなくなる＝関数の頭に詳述）。
+    normalizeOpponentPayPreTarget(e.action, `${card.EffectText ?? ''}。${card.BurstText ?? ''}`);
     e.action = dropEmptyLookAndReorder(e.action);
   }
 

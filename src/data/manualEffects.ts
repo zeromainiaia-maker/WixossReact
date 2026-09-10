@@ -2383,7 +2383,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、**対戦相手が手札を３枚捨てないかぎり**、ターン終了時まで、それのパワーを－8000する。」を得る。
   // 🔴旧 live＝付与も【ゲート】限定も回避コストも消え、**その場で相手シグニを無条件に－8000**していた。
   'WXDi-P15-083': [
-    {"effectId":"WXDi-P15-083-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","inGateZone":true},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P15-083-E1-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPPONENT_PAY_OPTIONAL","opponentHandDiscard":3},{"type":"CONDITIONAL","condition":{"type":"OPPONENT_NOT_PAID"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P15-083-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","inGateZone":true},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P15-083-E1-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPPONENT_PAY_OPTIONAL","opponentHandDiscard":3},{"type":"CONDITIONAL","condition":{"type":"OPPONENT_NOT_PAID"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000,"duration":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // WXEX2-69 ／ 原文【常】：あなたのターンの間、**これにアクセされている＜調理＞のシグニ**のパワーを＋3000し、それは
@@ -8600,6 +8600,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: {
         type: 'SEQUENCE',
         steps: [
+          // 🆕2026-09-10 §5.3 `O-288`＝**支払いを問う前に対象を確定する**。
+          //   原文は「対戦相手のシグニ1体を**対象とし**、対戦相手が《無》を支払わないかぎり」＝
+          //   相手は「どのシグニが狙われているか」を見てから払うかを決める。
+          //   ⚠**parser 側は同日に汎用ノーマライザ（`normalizeOpponentPayPreTarget`）で直したが、
+          //   この効果は `parseStatus:'MANUAL'` なので収穫マージが不可侵にする**＝手で同じ形に揃える。
+          {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+            abortIfNoCandidate: true,
+          },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
           { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無'] },
           {
             type: 'CONDITIONAL',
@@ -8608,6 +8619,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               type: 'REMOVE_ABILITIES',
               target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
               until: 'UNTIL_END_OF_TURN',
+              targetsStored: true,
             },
           },
         ],

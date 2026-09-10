@@ -25954,13 +25954,21 @@ test('parse 「対戦相手は《無》を支払わないかぎり、手札を�
 // X が無条件実行されていた（26カード27効果の過剰実行）。
 test('parse 文中形「<対象節>、対戦相手が《無》×3を支払わないかぎり、それをバニッシュする」→ ゲート化（WX25-P1-038）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-ENE', Type: 'アーツ', EffectText: '対戦相手のパワー12000以下のシグニ１体を対象とし、対戦相手が《無》《無》《無》を支払わないかぎり、それをバニッシュする。' } as unknown as CardData)[0];
-  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; costColors?: string[]; then?: { type: string; target?: { owner: string; filter?: { powerRange?: { max?: number } } } } }[] };
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; costColors?: string[]; then?: { type: string; targetsStored?: boolean; target?: { owner: string; filter?: { powerRange?: { max?: number } } } } }[] };
   eq(seq.type, 'SEQUENCE', 'SEQUENCE');
-  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', '対象節が前置きでもゲート化する（従来は無条件バニッシュ）');
-  eq(seq.steps[0]?.costColors?.length, 3, '《無》×3');
-  eq(seq.steps[1]?.then?.type, 'BANISH', 'then=BANISH');
-  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '対象は対戦相手のシグニ');
-  eq(seq.steps[1]?.then?.target?.filter?.powerRange?.max, 12000, '対象節の powerRange が then 側へ保たれる');
+  // 🆕2026-09-10 §5.3 `O-288`＝**位置固定をやめて id で引く**。支払いを問う前に
+  //   `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` が入るので `steps[0]` は動く。
+  //   🔑この assert が落ちたのは「腐り」＝旧実装の並びを契約にしていたため（実装ミスではない）。
+  const iPay = seq.steps.findIndex(x => x.id === 'OPPONENT_PAY_OPTIONAL');
+  const iSel = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  ok(iPay >= 0, '対象節が前置きでもゲート化する（従来は無条件バニッシュ）');
+  ok(iSel >= 0 && iSel < iPay, '🔴支払いを問う前に対象を確定する（O-288）');
+  eq(seq.steps[iPay]?.costColors?.length, 3, '《無》×3');
+  const cond = seq.steps[iPay + 1];
+  eq(cond?.then?.type, 'BANISH', 'then=BANISH');
+  eq(cond?.then?.target?.owner, 'opponent', '対象は対戦相手のシグニ');
+  eq(cond?.then?.target?.filter?.powerRange?.max, 12000, '対象節の powerRange が then 側へ保たれる');
+  eq(cond?.then?.targetsStored, true, '🔴本体は事前に確定した個体を引く（新規選択に戻らない）');
 });
 test('parse 手札捨て型「対戦相手が手札をN枚捨てないかぎり、X」→ opponentHandDiscard（WXDi-P05-014 / WXDi-P07-024）', () => {
   const draw = parseCardEffects({ CardNum: 'TEST-LXI-HAND', Type: 'シグニ', EffectText: '【出】：対戦相手が手札を１枚捨てないかぎり、あなたはカードを２枚引く。' } as unknown as CardData)[0];
@@ -25970,22 +25978,30 @@ test('parse 手札捨て型「対戦相手が手札をN枚捨てないかぎり�
   eq(dseq.steps[1]?.then?.type, 'DRAW', 'then=DRAW');
   const down = parseCardEffects({ CardNum: 'TEST-LXI-HAND2', Type: 'シグニ', EffectText: '【出】《青》《無》：対戦相手のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、それをダウンする。' } as unknown as CardData)[0];
   const dnseq = down.action as unknown as { steps: { id?: string; opponentHandDiscard?: number; then?: { type: string } }[] };
-  eq(dnseq.steps[0]?.opponentHandDiscard, 3, '手札3枚捨てで回避');
-  eq(dnseq.steps[1]?.then?.type, 'DOWN', 'then=DOWN');
+  // 🆕O-288＝こちらは**対象節がある**ので事前確定の2ステップが前に入る（1件目のドロー型は対象が無いので不変）。
+  const iPay2 = dnseq.steps.findIndex(x => x.id === 'OPPONENT_PAY_OPTIONAL');
+  ok(dnseq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY') === iPay2 - 2, '事前確定2ステップが支払いの直前にある');
+  eq(dnseq.steps[iPay2]?.opponentHandDiscard, 3, '手札3枚捨てで回避');
+  eq(dnseq.steps[iPay2 + 1]?.then?.type, 'DOWN', 'then=DOWN');
 });
 test('parse 併記型「手札を１枚捨てるか《無》を支払わないかぎり」→ costColors と opponentHandDiscard の両方（WXDi-P05-TK01A 系）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-BOTH', Type: 'シグニ', EffectText: '【出】：対戦相手のシグニ１体を対象とし、対戦相手が手札を１枚捨てるか《無》を支払わないかぎり、それをバニッシュする。' } as unknown as CardData)[0];
   const seq = e.action as unknown as { steps: { id?: string; costColors?: string[]; opponentHandDiscard?: number }[] };
-  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化');
-  eq(seq.steps[0]?.costColors?.length, 1, '《無》×1 も選べる');
-  eq(seq.steps[0]?.opponentHandDiscard, 1, '手札1枚捨ても選べる');
+  const iPay3 = seq.steps.findIndex(x => x.id === 'OPPONENT_PAY_OPTIONAL');   // 🆕O-288 で位置が動く
+  ok(iPay3 >= 0, 'ゲート化');
+  eq(seq.steps[iPay3]?.costColors?.length, 1, '《無》×1 も選べる');
+  eq(seq.steps[iPay3]?.opponentHandDiscard, 1, '手札1枚捨ても選べる');
 });
 test('parse ガード⑥＝引用「」の内側のクローズは外側へホイストしない（WX24-P1-071 / WX24-P2-073 / WX25-P3-091）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-QUOTE', Type: 'アーツ', EffectText: 'あなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、それをバニッシュする。」を得る。' } as unknown as CardData)[0];
   const act = e.action as unknown as { type: string; effect?: { action?: { type: string; steps?: { id?: string }[] } } };
   eq(act.type, 'GRANT_EFFECT', '付与そのものはゲートされない（相手が捨てても付与は起きる）');
   eq(act.effect?.action?.type, 'SEQUENCE', '付与される能力の内側がゲート化される');
-  eq(act.effect?.action?.steps?.[0]?.id, 'OPPONENT_PAY_OPTIONAL', '内側に OPPONENT_PAY_OPTIONAL');
+  // 🆕O-288＝内側にも事前確定が入る（引用の中も原文の語順は同じ）。位置固定をやめて id で引く。
+  ok((act.effect?.action?.steps ?? []).some(x => x.id === 'OPPONENT_PAY_OPTIONAL'), '内側に OPPONENT_PAY_OPTIONAL');
+  ok((act.effect?.action?.steps ?? []).findIndex(x => x.id === 'SELECT_TARGET_ONLY')
+     < (act.effect?.action?.steps ?? []).findIndex(x => x.id === 'OPPONENT_PAY_OPTIONAL'),
+     '🔴引用の内側でも支払いより先に対象を確定する');
 });
 // ── タスク12(lxi) 第4波（2026-07-31）＝tail-splice：前置きのアクションは外に出し末尾の帰結だけ包む ──
 test('parse 第4波 tail-splice：前置きの「カードを１枚引き、」はゲートの外・帰結だけ包む（WX24-P2-022）', () => {
@@ -37030,22 +37046,32 @@ test('task12 exceed本体A: 差分ドローは0枚/境界/不足を untilHandCou
   ok(!JSON.stringify(reverse).includes('"untilHandCount":5'), '逆向きの多い場合→エナは拾わない');
 });
 
-test('task12 exceed本体B: 相手手札3枚discardなら回避、skipならbanish対象選択', () => {
+test('task12 exceed本体B: 対象を先に確定し、相手手札3枚discardなら回避／skipならその個体をbanish', () => {
+  // 🆕2026-09-10 §5.3 `O-288` で**順序が変わった**＝原文「対戦相手のシグニ1体を対象とし、対戦相手が
+  //   手札を3枚捨てないかぎり、それをバニッシュする」どおり、**支払いを問う前に対象を確定する**。
+  // 🔑この assert が落ちたのは「腐り」＝旧実装（支払いが先・拒否枝で初めて対象選択）を契約にしていたため。
+  //   ⚠**skip 後にもう一度 SELECT_TARGET が出ないこと**が今回の修正の核＝出るなら焼き込みが効いていない。
   const effect = effectsMap.get('WX24-P4-018')!.find(e => e.effectId === 'WX24-P4-018-E2')!;
   const target = fresh();
-  const ctx = mkCtx({}, { signi: [target], hand: 3 });
-  const offered = executeEffect(effect, ctx);
-  ok(!offered.done && offered.pending.type === 'CHOOSE', '相手へ支払い選択');
-  if (offered.done || offered.pending.type !== 'CHOOSE') return;
-  const discarded = finish(resumeOpponentPayOptional('discard', [], offered.pending, {
-    ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
-  }), ctx);
+  const other = fresh();
+  const ctx = mkCtx({}, { signi: [target, other], hand: 3 });
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '🔴まず対象選択（支払いより先）');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  const picked = resumeSelectTarget([target], first.pending, {
+    ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs,
+  });
+  ok(!picked.done && picked.pending.type === 'CHOOSE', '対象確定のあとに相手へ支払い選択');
+  if (picked.done || picked.pending.type !== 'CHOOSE') return;
+  const payCtx = { ...ctx, ownerState: picked.ownerState, otherState: picked.otherState, logs: picked.logs };
+  const discarded = finish(resumeOpponentPayOptional('discard', [], picked.pending, payCtx), ctx);
   eq(discarded.otherState.hand.length, 0, '3枚捨てて回避');
   ok(discarded.otherState.field.signi.some(stack => stack?.includes(target)), '支払い時はbanishしない');
-  const skipped = resumeOpponentPayOptional('skip', [], offered.pending, {
-    ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
-  });
-  ok(!skipped.done && skipped.pending.type === 'SELECT_TARGET' && skipped.pending.count === 1, '不払い時だけbanish選択');
+  const skipped = finish(resumeOpponentPayOptional('skip', [], picked.pending, payCtx), ctx);
+  ok(!skipped.otherState.field.signi.some(stack => stack?.includes(target)),
+     '🔴不払い時は**先に選んだ個体**がbanishされる');
+  ok(skipped.otherState.field.signi.some(stack => stack?.includes(other)),
+     '🔴反転: 選ばなかったシグニは残る（新規選択に戻っていない）');
 });
 
 test('task12 exceed本体C: 任意クラッシュの両枝でbanish数が1/2', () => {
@@ -74765,6 +74791,95 @@ test('第247 contract: 一点物9効果の修正の核が live に載ってい�
   has('WX25-CP1-039', 'WX25-CP1-039-E1', ['"isUp":true']);
   // 「してもよい」の任意性（旧＝強制エナチャージ）
   has('WX26-CP1-048', 'WX26-CP1-048-E2', ['"opponentResponds":true', '"choiceId":"skip"']);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-288` 本体消化（2026-09-10・Claude 自力）＝軸は第247 で入れた。ここは JSON 側の配線。
+// 🔑**parser の汎用ノーマライザ1本**（`normalizeOpponentPayPreTarget`）＋ MANUAL 2件の手当てで
+//   live の事前対象化を **7 → 29効果**にした。effectId アンカーは1件も使っていない。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('O-288 本体: 「〜を対象とし、対戦相手が〜しないかぎり」は支払いより先に対象を確定する（live 全数）', () => {
+  // 🔴**全数走査で固定する**＝1件ずつ列挙すると次に増えた効果が黙って漏れる。
+  //   判定は**原文の文単位の語順**（同じ文の中で「を対象とし」が「ないかぎり」より前）。
+  // ⚠**除外3件は偽陽性**＝原文の「対象とし」が罰則の対象を指していない：
+  //   `WDK10-001-E2`（対戦相手が**自分の**エナを選ぶ＝`opponentSelects` の軸）／
+  //   `WXK06-047-E1`（罰則が触るのは相手の**手札**＝非公開札は事前に指せない）／
+  //   `WX25-CP1-001-E1`（罰則は「対戦相手にダメージを与える」＝対象そのものが無い）。
+  const EXPECTED_FALSE_POSITIVES = ['WDK10-001-E2', 'WXK06-047-E1', 'WX25-CP1-001-E1'];
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  let pre = 0;
+  const missing: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const j = JSON.stringify(e);
+      const iPay = j.indexOf('OPPONENT_PAY_OPTIONAL');
+      if (iPay < 0) continue;
+      const iSel = j.indexOf('SELECT_TARGET_ONLY');
+      if (iSel >= 0 && iSel < iPay) { pre++; continue; }
+      const t = srcText[e.effectId] ?? '';
+      const ordered = t.split('。').some(sent => {
+        const iU = sent.indexOf('ないかぎり');
+        if (iU < 0) return false;
+        const iT = sent.indexOf('を対象とし');
+        return iT >= 0 && iT < iU;
+      });
+      if (ordered) missing.push(e.effectId);
+    }
+  }
+  eq(pre, 29, '事前対象化されている live 効果数（2026-09-10 実測。7→29）');
+  eq(missing.sort().join(','), [...EXPECTED_FALSE_POSITIVES].sort().join(','),
+     '🔴文型に該当するのに事前対象化されていない効果＝偽陽性3件だけ（増えたら配線漏れ）');
+});
+
+test('O-288 本体: 事前確定した効果は「選択→保存→支払い」の順で、本体が保存対象を引く', () => {
+  // 🔑**順序と `targetsStored` は対**＝片方だけだと
+  //   ①順序だけ＝支払い後に**新規選択へ戻る**（対象が2回選ばれる）
+  //   ②`targetsStored` だけ＝`freezeStoredTargets` が空の stored を見て**据置＝無言で効かない**
+  //   （実際 2026-09-10 の build で「`targetsStored` は在るのに STUB が無い」半端な live を作ってしまった）。
+  let checked = 0;
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const j = JSON.stringify(e);
+      const iPay = j.indexOf('OPPONENT_PAY_OPTIONAL');
+      const iSel = j.indexOf('SELECT_TARGET_ONLY');
+      if (iPay < 0 || iSel < 0 || iSel > iPay) continue;
+      const iStore = j.indexOf('STORE_LAST_PROCESSED_TARGETS');
+      ok(iStore > iSel && iStore < iPay, `🔴${e.effectId}: 保存が「選択→支払い」の間に無い`);
+      ok(j.includes('"targetsStored":true'), `🔴${e.effectId}: 本体が保存対象を引いていない`);
+      checked++;
+    }
+  }
+  eq(checked, 29, '検査した効果数');
+});
+
+test('O-288 本体: 非公開ゾーン・相手が選ぶ形は事前対象化しない（偽陽性の再発防止）', () => {
+  // 🔴`WXK06-047-E1` で実測した偽陽性＝原文「対戦相手は、**自分のシグニ**1体を対象とし、それをデッキの
+  //   一番上に置かないかぎり**手札を1枚**デッキの一番下に置く」。
+  //   「対象とし」は**相手が回避のために選ぶ札**で、罰則が触るのは**相手の手札**（非公開）。
+  //   ⇒ ノーマライザは対象型を `SIGNI`/`LRIG`/`CENTER_LRIG_OR_SIGNI` に限っている。
+  for (const eid of ['WXK06-047-E1', 'WDK10-001-E2']) {
+    const e = findEffectDeep(effectsMap.get(eid.replace(/-E\d+$/, '')) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    ok(!j.includes('SELECT_TARGET_ONLY'), `🔴${eid}: 非公開札・相手選択の形を事前対象化してはいけない`);
+  }
+});
+
+test('O-288 本体: MANUAL 2件も同じ形に揃っている（収穫マージが不可侵にするので手当てが要る）', () => {
+  // 🔴parser の汎用規則は `parseStatus:'MANUAL'` の効果へ届かない（収穫マージが効果単位で不可侵にする）。
+  //   ⇒ `manualEffects.ts` を手で直して `syncManualLive.ts` で配送した2件をここで固定する。
+  for (const [num, eid] of [
+    ['WXDi-P16-062', 'WXDi-P16-062-E1'], ['WXDi-P15-083', 'WXDi-P15-083-E1-GRANT'],
+  ] as const) {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    const iSel = j.indexOf('SELECT_TARGET_ONLY');
+    const iPay = j.indexOf('OPPONENT_PAY_OPTIONAL');
+    ok(iSel >= 0 && iSel < iPay, `🔴${eid}: MANUAL 側の事前対象化が落ちている`);
+    ok(j.includes('"targetsStored":true'), `🔴${eid}: MANUAL 側の targetsStored が落ちている`);
+  }
 });
 
 if (listMode) {
