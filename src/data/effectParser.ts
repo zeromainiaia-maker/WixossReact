@@ -11978,7 +11978,14 @@ function hasStoredTargetBinding(node: unknown): boolean {
   const obj = node as Record<string, unknown>;
   if (obj.type === 'STUB' && (obj.id === 'SELECT_TARGET_ONLY' || obj.id === 'STORE_LAST_PROCESSED_TARGETS')) return true;
   if (obj.targetsStored || obj.targetsLastProcessed || obj.targetsTriggerSource || obj.thisCardOnly) return true;
-  return Object.values(obj).some(hasStoredTargetBinding);
+  // 🆕🔴**§5.3 `O-298`（2026-09-10）＝引用能力の中は見ない。**
+  //   `GRANT_EFFECT.effect` / `GRANT_*.abilities` は**別の効果**で、その照応（`targetsStored` /
+  //   `thisCardOnly` 等）は外側の「コストと対象の対」とは無関係。
+  //   ⚠見ていたせいで `WX24-P2-018-E1`（「＜龍獣＞1体を対象とし《赤》を支払ってもよい。そうした場合、
+  //   それは『【自】…【アサシン】を得る』を得る」）が**引用側の `thisCardOnly` で fail-closed に落ち**、
+  //   支払い前の対象確定が丸ごと効かなかった（＝場に＜龍獣＞が居なくても支払いを提示していた）。
+  //   🔑引用能力自体は `applyO96Nested` が `abilities` へ降りて別途処理する（二重配線にならない）。
+  return Object.entries(obj).some(([k, v]) => k !== 'effect' && k !== 'abilities' && hasStoredTargetBinding(v));
 }
 
 /**
@@ -12086,7 +12093,13 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   const wrapped = carrier.type === 'CONDITIONAL' && !(carrier as import('../types/effects').ConditionalAction).else
     ? carrier as import('../types/effects').ConditionalAction : undefined;
   const cost = (wrapped?.then ?? carrier) as StubAction;
-  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST') return action;
+  // 🆕**§5.3 `O-298`（2026-09-10）＝`OPTIONAL_TRASH_ENERGY_CLASS` も同じ「自分の任意コスト」。**
+  //   engine の同分岐は**帰結の対象候補を1度も見ずに支払いを提示する**ので、候補0体でも払えて空振りする
+  //   （実測＝`WXK04-038-E1` は相手にレベル1以下が居なくても `pay:エナ＜植物＞を選択して発動` が出た）。
+  //   ✅同分岐は `freezeStoredTargets(thenOTEC, cur)` を通しているので、
+  //   **`SELECT_TARGET_ONLY` → `STORE` → コスト**の並びへ直せばそのまま効く。
+  const O96_COST_CARRIER_IDS = ['OPTIONAL_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+  if (cost.type !== 'STUB' || !O96_COST_CARRIER_IDS.includes(cost.id)) return action;
   // 🆕**第4バッチ（`O-188` 第2・2026-09-01）で許可リスト方式へ広げた。**
   //   旧＝「エナ軸 か handDiscard 軸の**どちらか一方だけ**」の排他 XOR。`O-190` 第1バッチで
   //   `OPTIONAL_COST` の payload に `fieldTrash` / `selfTrash` / `handReveal` / `underAnySigniTrash` が
@@ -12123,7 +12136,11 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   // 🔴**`costText` は軸に数えない**＝表示専用なので、これだけの payload は「構造化された支払いが無い」＝
   //   支払いを提示できない。数えると `WXK10-080-E2` のような**払えないコストで帰結を出す**形になる。
   const COST_AXIS_EXCLUDED = ['type', 'id', 'costText'];
-  if (!Object.keys(cost).some(k => !COST_AXIS_EXCLUDED.includes(k))) return action;
+  // ⚠**`OPTIONAL_TRASH_ENERGY_CLASS` は payload に軸を持たない**（クラスと枚数は engine が
+  //   アビリティ原文から読む）ので、この「軸が1つも無い」ガードだけ免除する。
+  //   🔴免除するのは**この id のときだけ**＝素の `OPTIONAL_COST` は従来どおり fail-closed のまま。
+  if (cost.id !== 'OPTIONAL_TRASH_ENERGY_CLASS'
+      && !Object.keys(cost).some(k => !COST_AXIS_EXCLUDED.includes(k))) return action;
 
   const gate = (nestedGateIdx >= 0
     ? (steps[nestedGateIdx] as SequenceAction).steps[0]

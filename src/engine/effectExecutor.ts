@@ -967,9 +967,101 @@ export function applyEffectBanishSubstitute(
  *   「代わりにデッキの一番下に置かれる」＝**強制**
  * - `powerReduction`（`WX06-019`）／`banishSubstitute`（F-3 8枚）／`replaceBanish`（`WX25-P1-056`）＝**任意**
  */
+/**
+ * §5.3 `O-299`（2026-09-10）＝「代わりに**このシグニの下のカード**をトラッシュに置く」離場置換。
+ *
+ * 🔴**直す前は真 no-op だった**＝宣言は `CONTINUOUS` の STUB として live に在るのに、
+ *   **どの collector もその id を読んでいなかった**（`census:stubs` A群は緑＝ハンドラ自体は在るため）。
+ *   - `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER`（`WXDi-P05-038-E1`）はハンドラが
+ *     「（BattleScreen側処理）」とログするだけで、**BattleScreen に消費が無かった**（grep で0件）。
+ *   - `RISE_LEAVE_DISCARD_STACK`（`WXEX2-09-E1`＝ルリグ側の宣言）は「ライズ/スタック系」の
+ *     まとめログへ落ちていた。
+ * 🔑**engine の funnel（`applyEffectLeaveSubstitutes`）に軸として足すのが正しい置き場**＝
+ *   「対戦相手の効果によって」「場を離れる」の限定は funnel の呼び出し元と `victimOwner` が構造で担保する。
+ *
+ * 対応する2つの宣言：
+ * - **自己宣言**＝`REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER`（原文「下にカードが１枚以上あるこのシグニが…
+ *   代わりにこのシグニの下からすべてのカードをトラッシュに置いてもよい」）。
+ * - **場全体への宣言**＝`RISE_LEAVE_DISCARD_STACK`（原文「アタックフェイズの間、自身の下にカードが
+ *   ３枚以上ある《ライズアイコン》を持つあなたのシグニが…代わりにその下からすべてのカードを…」）。
+ *   ⚠**宣言者はルリグ**なので、シグニだけでなく `field.lrig` も走査する。
+ *
+ * ⚠**下のカードが0枚なら成立しない**（原文が「下にカードが〜ある」と要求している＝
+ *   0枚で成立させると**コスト0で離場を無効化**できてしまう＝`isImplementedSubstituteCost` と同じ戒め）。
+ */
+export function applyEffectLeaveUnderCardsTrashSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zi = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zi < 0) return { ctx, replaced: false };
+  const stack = state.field.signi[zi] ?? [];
+  const under = stack.slice(0, -1);
+  if (under.length === 0) return { ctx, replaced: false };
+
+  const declares = (holder: string, id: string) =>
+    declaredContinuousEffects(holder, state, ctx.cardMap).some(eff =>
+      eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
+      && (eff.action as import('../types/effects').StubAction).id === id);
+
+  const selfDeclared = declares(victimNum, 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER');
+  const riseDeclared = (ctx.currentPhase ?? '').startsWith('ATTACK')
+    && under.length >= 3
+    && matchesFilter(ctx.cardMap.get(getCardNum(victimNum)), { hasIcon: 'ライズ' })
+    && [
+      ...state.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+    ].some(n => declares(n, 'RISE_LEAVE_DISCARD_STACK'));
+  if (!selfDeclared && !riseDeclared) return { ctx, replaced: false };
+
+  const nextSigni = [...state.field.signi];
+  nextSigni[zi] = [victimNum];
+  const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+  return {
+    ctx: addLog(setOwnerState(victimOwner,
+      { ...state, field: { ...state.field, signi: nextSigni }, trash: [...state.trash, ...under] }, ctx),
+      `${name}は場を離れる代わりに下のカード${under.length}枚をトラッシュに置いた`),
+    replaced: true,
+  };
+}
+
+/**
+ * §5.3 `O-299`（2026-09-10）＝「代わりに**これをデッキの一番下**に置く」離場置換（`WXDi-P08-046-E1`）。
+ *
+ * 🔴**直す前は真 no-op**＝`LEAVE_FIELD_TO_DECK_BOTTOM` のハンドラは**アクションとして呼ばれれば**
+ *   デッキ下へ移すが、この効果は `CONTINUOUS` の宣言なので**誰も呼ばない**。
+ * ⚠**行き先が変わるだけで場は離れる**＝他の軸（場に残れるもの）より**後ろ**に置く。
+ * 🔑既存の `noAbilityDeckBottom`（`WXEX2-30`＝相手側が宣言する妨害）と**向きが逆**＝こちらは自衛。
+ */
+export function applyEffectLeaveSelfDeckBottomSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  const declared = declaredContinuousEffects(victimNum, state, ctx.cardMap).some(eff =>
+    eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
+    && (eff.action as import('../types/effects').StubAction).id === 'LEAVE_FIELD_TO_DECK_BOTTOM');
+  if (!declared) return { ctx, replaced: false };
+  const removed = removeFromField(victimNum, state);
+  const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+  return {
+    ctx: addLog(setOwnerState(victimOwner, { ...removed, deck: [...removed.deck, victimNum] }, ctx),
+      `${name}は場を離れる代わりにデッキの一番下へ`),
+    replaced: true,
+  };
+}
+
 export type LeaveSubstituteAxisId =
   | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'downProtector'
-  | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
+  | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom'
+  // 🆕§5.3 `O-299`（2026-09-10）＝宣言は live に在るのに**どの collector も読んでいなかった**2形。
+  | 'underCardsTrash' | 'selfDeckBottom';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -1086,6 +1178,10 @@ export function collectLeaveSubstituteOptions(
   // §5.3 `O-202`（2026-09-02）＝宣言者が自分をダウンして身代わりになる。⚠無料の軸より後ろに置く。
   push('downProtector', 'optional', '代わりに宣言者のシグニをダウンする',
     applyEffectLeaveDownProtectorSubstitute(victimNum, victimOwner, ctx));
+  // 🆕§5.3 `O-299`（2026-09-10）＝下のカードを対価にする軸。⚠**無料の軸より後ろ**
+  //   （自動 policy は先頭から採るので、先に置くとタダで済む置換があるのに札を捨ててしまう）。
+  push('underCardsTrash', 'optional', '代わりにこのシグニの下のカードをトラッシュに置く',
+    applyEffectLeaveUnderCardsTrashSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
     // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
     //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。
@@ -1116,6 +1212,10 @@ export function collectLeaveSubstituteOptions(
     push('replaceBanish', 'optional', '代わりにそのシグニをバニッシュする',
       applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx));
   }
+  // 🆕§5.3 `O-299`（2026-09-10）＝自衛の「代わりにデッキの一番下へ」。
+  //   ⚠**場は離れる**ので、場に残れる軸（上の6本）より後ろに置く。
+  push('selfDeckBottom', 'optional', '代わりにこれをデッキの一番下に置く',
+    applyEffectLeaveSelfDeckBottomSubstitute(victimNum, victimOwner, ctx));
   push('noAbilityDeckBottom', 'mandatory', '代わりにデッキの一番下に置く',
     applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx));
   return out;

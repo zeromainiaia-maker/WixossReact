@@ -19571,13 +19571,24 @@ test('O-188 第2バッチ 据置契約: 専用 STUB id は固定形へ変えな�
     }
   }
   // ②`OPTIONAL_COST` ではない専用 STUB id（engine 側に別経路がある）。
+  // 🆕**2026-09-10（§5.3 `O-298`）＝`OPTIONAL_TRASH_ENERGY_CLASS` は据置をやめた**（残るは `OPTIONAL_TRASH_SELF` だけ）。
+  //   🔑根拠は engine の実測＝あの分岐は**帰結の対象候補を見ずに支払いを提示する**（候補0体でも払えて空振り）が、
+  //   `freezeStoredTargets(thenOTEC, cur)` は通しているので**並べ替えるだけで正しく効く**
+  //   （`WXK04-038-E1` / `WXDi-CP02-065-E1` で「対象を取れない：この効果は何もしない」を確認）。
+  //   ⚠上のコメントどおり**据置契約は「いま壊れる」ことの assert であって永久の仕様ではない**。
   for (const [num, eid, stub] of [
     ['WXDi-P04-033', 'WXDi-P04-033-E1', 'OPTIONAL_TRASH_SELF'],
-    ['WXDi-CP02-065', 'WXDi-CP02-065-E1', 'OPTIONAL_TRASH_ENERGY_CLASS'],
   ] as const) {
     const json = JSON.stringify(o96Live(num, eid).action);
     ok(json.includes(stub), `${eid}: 専用 STUB id（${stub}）のまま据え置く`);
     ok(!json.includes('SELECT_TARGET_ONLY'), `${eid}: 専用 STUB id の形へ対象宣言を足さない`);
+  }
+  // 解禁した側＝`OPTIONAL_TRASH_ENERGY_CLASS` は「選択→保存→コスト」の並びになる。
+  for (const [num, eid] of [['WXDi-CP02-065', 'WXDi-CP02-065-E1']] as const) {
+    const steps = (o96Live(num, eid).action as SequenceAction).steps as (EffectAction & { id?: string })[];
+    eq(steps[0].id, 'SELECT_TARGET_ONLY', `${eid}: 先頭が対象宣言`);
+    eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${eid}: 宣言対象を保存`);
+    eq(steps[2].id, 'OPTIONAL_TRASH_ENERGY_CLASS', `${eid}: 保存後に任意コスト（専用 STUB id は維持）`);
   }
 });
 
@@ -26026,8 +26037,14 @@ test('parse 2文型引用付与（支払いコスト形・WX24-P2-018）→ OPTI
   const e = parseCardEffects({ CardNum: 'TEST-QG2A', Type: 'ルリグ', EffectText: '【自】：あなたのアタックフェイズ開始時、あなたの＜龍獣＞のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手が《無》《無》《無》を支払わないかぎり、ターン終了時まで、このシグニは【アサシン】を得る。」を得る。' } as unknown as CardData)[0];
   const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; then?: { type: string; target?: { owner: string; filter?: { story?: string } }; effect?: CardEffect } }[] };
   eq(seq.type, 'SEQUENCE', 'SEQUENCE');
-  eq(seq.steps[0]?.id, 'OPTIONAL_COST', 'S1=OPTIONAL_COST（コスト温存）');
-  const ge = seq.steps[1]?.then as { type: string; target?: { owner: string; filter?: { story?: string } }; effect?: CardEffect };
+  // 🆕2026-09-10 §5.3 `O-298`＝**位置固定をやめて id で引く**（`O-288` の先例と同じ）。
+  //   支払いを問う前に `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` が入るので `steps[0]` は動く。
+  //   🔑この assert が落ちたのは「腐り」＝旧実装の並びを契約にしていたため（実装ミスではない）。
+  const iPayQG = seq.steps.findIndex(x => x.id === 'OPTIONAL_COST');
+  const iSelQG = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  ok(iPayQG >= 0, 'S1=OPTIONAL_COST（コスト温存）');
+  ok(iSelQG >= 0 && iSelQG < iPayQG, '🔴支払いを問う前に対象を確定する（O-298＝引用能力の中を見ない）');
+  const ge = seq.steps[iPayQG + 1]?.then as { type: string; target?: { owner: string; filter?: { story?: string } }; effect?: CardEffect };
   eq(ge?.type, 'GRANT_EFFECT', 'S2=GRANT_EFFECT（従来は STUB GRANT_QUOTED_AUTO_ABILITY でルリグ自身へ即付与）');
   eq(ge?.target?.filter?.story, '龍獣', '対象節（S1）の＜龍獣＞filter が target へ運ばれる');
   eq(ge?.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '内側【自】が CardEffect へ展開される');
@@ -47823,7 +47840,9 @@ test('§6.4 離場置換: 強制2軸／任意3軸の分類が live の原文と�
   // §6.4 O-10（続き507）＝シグニ自身の「代わりに（ターン終了時まで、）この能力を失う」も強制軸。
   const mandatoryAxes = ['EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY', 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM'];
   // §6.4 O-10（続き511）＝コスト付きの自己能力喪失も原文は「支払っ**てもよい**」＝任意軸。
-  const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH', 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY'];
+  // 🆕§5.3 `O-299`（2026-09-10）で配線した3宣言も任意軸（原文は3件とも「〜てもよい」）。
+  const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH', 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
+    'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER', 'RISE_LEAVE_DISCARD_STACK', 'LEAVE_FIELD_TO_DECK_BOTTOM'];
   for (const axis of mandatoryAxes) {
     const ids = declarers(axis);
     ok(ids.length > 0, `${axis}: 宣言カードが live に居る`);
@@ -74996,7 +75015,10 @@ test('O-288 本体: 「〜を対象とし、対戦相手が〜しないかぎり
       if (ordered) missing.push(e.effectId);
     }
   }
-  eq(pre, 29, '事前対象化されている live 効果数（2026-09-10 実測。7→29）');
+  // 🆕2026-09-10（§5.3 `O-298`）＝**29 → 30 は較正**（退化ではない）＝`WX24-P2-018-E1` が
+  //   O-298 で事前対象化され、その**引用能力の中に `OPPONENT_PAY_OPTIONAL` がある**ので
+  //   この全数走査（JSON 文字列で id を探す）にも新しく載る。O-288 側の配線は1件も変わっていない。
+  eq(pre, 30, '事前対象化されている live 効果数（2026-09-10 実測。7→29→30）');
   eq(missing.sort().join(','), [...EXPECTED_FALSE_POSITIVES].sort().join(','),
      '🔴文型に該当するのに事前対象化されていない効果＝偽陽性3件だけ（増えたら配線漏れ）');
 });
@@ -75019,7 +75041,7 @@ test('O-288 本体: 事前確定した効果は「選択→保存→支払い」
       checked++;
     }
   }
-  eq(checked, 29, '検査した効果数');
+  eq(checked, 30, '検査した効果数（2026-09-10 O-298 で +1＝引用能力に OPPONENT_PAY_OPTIONAL を持つ効果）');
 });
 
 test('O-288 本体: 非公開ゾーン・相手が選ぶ形は事前対象化しない（偽陽性の再発防止）', () => {
@@ -75277,6 +75299,151 @@ test('第252 O-315 WXK01-045-E1: このターンに場に出た相手シグニ�
   const noHistory = { ...opponent, signi_placed_origin_this_turn: [] } as PlayerState;
   eq(fieldCandidates(noHistory, liveTargets.actual.filter ?? {}, cardMap as Map<string, CardData>).length, 0,
     '反転: 場にいてもこのターンの配置履歴がなければ候補にならない');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-298`（2026-09-10）＝**自分**の任意コストも支払い前に対象を確定する。
+// 🔴**真因は「コストの空払い」**＝`STUB{OPTIONAL_COST}` / `STUB{OPTIONAL_TRASH_ENERGY_CLASS}` の分岐は
+//   帰結の対象候補を1度も見ずに支払いを提示するので、**候補0体でも払えてしまい何も起きない**。
+//   （`O-288` は相手が払う側＝情報量の問題だったが、こちらは**資源が消える**ので実害が一段重い。）
+// ✅**受け皿も規則も既存**＝`applyO96OptionalCostTargetFirst`（§5.3 `O-96`）が同じ変換を持っていた。
+//   閉じたのは**その規則が届いていなかった2つの穴**＝
+//   ①コスト運搬 STUB が `OPTIONAL_COST` 決め打ちで `OPTIONAL_TRASH_ENERGY_CLASS` を見ていない
+//   ②`hasStoredTargetBinding` が**引用能力の中**まで見て fail-closed に落ちる。
+// ══════════════════════════════════════════════════════════════════════════════
+test('O-298 自分の任意コスト: 対象候補が居なければ支払いを提示しない（コストの空払いを止める・WXK04-038-E1）', () => {
+  const eff = effectsMap.get('WXK04-038')?.find(e => e.effectId === 'WXK04-038-E1');
+  ok(!!eff, 'live に WXK04-038-E1 が無い');
+  const seq = eff!.action as unknown as { type: string; steps: { type: string; id?: string; then?: { targetsStored?: boolean } }[] };
+  const iSel = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  const iPay = seq.steps.findIndex(x => x.id === 'OPTIONAL_TRASH_ENERGY_CLASS');
+  ok(iSel >= 0 && iSel < iPay, '🔴支払いを問う前に対象を確定する（O-298＝O-96 をこの id へ広げた）');
+  eq(seq.steps[iPay + 1]?.then?.targetsStored, true, '本体は事前に確定した個体を引く（新規選択へ戻らない）');
+
+  // 🔑**構造だけでなく挙動で固定する**＝原文フィルタ（レベル1以下）に当たる相手シグニが居ない盤面。
+  //   旧実装は `pay:エナ＜植物＞を選択して発動(available=true)` を出していた（＝エナを捨てて空振り）。
+  const PLANT = 'WX01-047';                   // ＜植物＞のシグニ＝コスト用
+  const noTarget = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WX05-018', null, null] });  // 相手は Lv5 だけ
+  noTarget.ownerState.energy = [PLANT, PLANT];
+  const rNo = executeAction(eff!.action as EffectAction, noTarget) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rNo.done && !rNo.pending, '🔴対象が居ないのに支払いプロンプトが出た（コストの空払い）');
+
+  const withTarget = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WD01-013', null, null] });  // Lv1 が居る
+  withTarget.ownerState.energy = [PLANT, PLANT];
+  const rYes = executeAction(eff!.action as EffectAction, withTarget) as unknown as { done: boolean; pending?: { type: string } };
+  eq(rYes.pending?.type, 'SELECT_TARGET', '対象が居るときは（支払いより先に）対象選択から始まる');
+});
+
+test('O-298 引用能力スコープ: `GRANT_EFFECT.effect` の中の照応で fail-closed に落ちない（WX24-P2-018-E1）', () => {
+  // 🔴`hasStoredTargetBinding` が引用能力（別の効果）の `thisCardOnly` まで見ていたため、
+  //   外側の「＜龍獣＞1体を対象とし《赤》を支払ってもよい」が**丸ごと据置**されていた。
+  const eff = effectsMap.get('WX24-P2-018')?.find(e => e.effectId === 'WX24-P2-018-E1');
+  ok(!!eff, 'live に WX24-P2-018-E1 が無い');
+  const seq = eff!.action as unknown as { steps: { id?: string; then?: { targetsStored?: boolean; effect?: unknown } }[] };
+  const iSel = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  const iPay = seq.steps.findIndex(x => x.id === 'OPTIONAL_COST');
+  ok(iSel >= 0 && iSel < iPay, '🔴引用能力を持つ効果で事前対象化が効いていない');
+  ok(!!seq.steps[iPay + 1]?.then?.effect, '引用能力（付与される【自】）はそのまま残っている');
+});
+
+test('O-298 偽陽性ガード: 同じカードの別能力の「対象とし」に引きずられない（WX05-028-E1 は素のまま）', () => {
+  // 🔑O-96 は**効果単位の原文**（`currentSourceTexts`）で判定する＝E2 の「対戦相手のシグニ1体を対象とし…
+  //   支払ってもよい」に E1（「《白》を支払ってもよい。そうした場合、**このシグニ**のパワーを＋3000」）が
+  //   引きずられない。⚠カード全文で判定する実装へ変えると、ここが赤くなる。
+  const card = cardMap.get('WX05-028');
+  ok(!!card, 'WX05-028 が CSV に無い');
+  const e = parseCardEffects(card!).find(x => x.effectId === 'WX05-028-E1');
+  const s = JSON.stringify(e?.action ?? {});
+  ok(!s.includes('SELECT_TARGET_ONLY'), '🔴効果元自身が対象の形まで事前確定が入った（O-298 の偽陽性）');
+});
+
+test('O-298 スコープ: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 族は触らない（自前で対象確定と事前チェックを持つ）', () => {
+  // 🔴あの STUB は「対象選択して発動」を1つで扱う別設計で、`targetAvailableTOSOC` の事前チェックを持つ
+  //   （`effectExecutor.ts` の同分岐）。ここで先取りすると**対象選択が二重**になる（live 86効果）。
+  const eff = effectsMap.get('WD06-001')?.find(e => e.effectId === 'WD06-001-E2');
+  ok(!!eff, 'live に WD06-001-E2 が無い');
+  const s = JSON.stringify(eff!.action);
+  ok(s.includes('TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'), '族の代表が変わっていない');
+  ok(!s.includes('SELECT_TARGET_ONLY'), '🔴この族へ事前確定を挿入している（二重選択になる）');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-299`（2026-09-10）＝離場置換の宣言のうち、**どの collector も読んでいなかった2形**を
+// funnel（`collectLeaveSubstituteOptions`）の軸として配線した。
+// 🔴**直す前は3効果とも真 no-op**＝宣言は `CONTINUOUS` の STUB として live に在るのに読み手が居らず、
+//   `census:stubs` A群（ハンドラの有無）も緑・逆翻訳も原文どおりに見える＝**どの計器にも映らない**型。
+//   - `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER`（`WXDi-P05-038-E1`）はハンドラが「（BattleScreen側処理）」と
+//     ログするだけで、**BattleScreen に消費が無かった**（grep 0件＝ログが嘘をついていた）。
+//   - `RISE_LEAVE_DISCARD_STACK`（`WXEX2-09-E1`＝ルリグ宣言）は「ライズ/スタック系」のまとめログ行き。
+//   - `LEAVE_FIELD_TO_DECK_BOTTOM`（`WXDi-P08-046-E1`）はアクションとしてなら動くが、
+//     **`CONTINUOUS` の宣言なので誰も呼ばない**。
+// ══════════════════════════════════════════════════════════════════════════════
+test('O-299 離場置換 underCardsTrash: 「代わりに下のカードをトラッシュ」で場に残る（WXDi-P05-038）', () => {
+  const victim = 'WXDi-P05-038';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  // 【ライズ】なので下にカードがある盤面が本来の姿＝スタックを直接組む。
+  ctx.otherState.field.signi[0] = ['WD01-013#u1', 'WD01-013#u2', victim];
+  const trashBefore = ctx.otherState.trash.length;
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx);
+  const opt = options.filter(o => o.axis === 'underCardsTrash');
+  eq(opt.length, 1, '下にカードがあれば置換候補が出る');
+  eq(opt[0].kind, 'optional', '原文「トラッシュに置いてもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx);
+  ok(applied.replaced, '離場が置換される');
+  const zone = applied.ctx.otherState.field.signi[0] ?? [];
+  eq(zone.join(','), victim, '🔴下のカードだけが取り除かれ、victim は場に残る');
+  eq(applied.ctx.otherState.trash.length, trashBefore + 2, '下の2枚がトラッシュへ');
+});
+
+test('O-299 離場置換 underCardsTrash: 下にカードが無ければ成立しない（コスト0で離場を無効化しない）', () => {
+  // 🔴**0枚で成立させると「タダで離場を無効化」できる**＝`isImplementedSubstituteCost` と同じ戒め。
+  const victim = 'WXDi-P05-038';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });   // スタックは victim 1枚だけ
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', ctx).filter(o => o.axis === 'underCardsTrash').length, 0,
+     '下が0枚なら候補にしない');
+  eq(applyEffectLeaveSubstitutes(victim, 'opponent', ctx).replaced, false, '置換もしない');
+});
+
+test('O-299 離場置換 underCardsTrash: ルリグ宣言（WXEX2-09）はアタックフェイズ＋下3枚以上＋ライズ持ちだけ', () => {
+  // 原文＝「アタックフェイズの間、自身の下にカードが３枚以上ある《ライズアイコン》を持つあなたのシグニが
+  //   対戦相手の効果によって場を離れる場合、代わりにその下からすべてのカードをトラッシュに置いてもよい」。
+  // ⚠**宣言者はルリグ**＝`field.lrig` を走査しないと読めない（シグニだけ見る実装では永久に成立しない）。
+  const riseSigni = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【ライズ】'));
+  const mk = (underCount: number, phase: string) => {
+    const ctx = mkCtx({}, { signi: [riseSigni, null, null], lrig: ['WXEX2-09'] });
+    ctx.otherState.field.signi[0] = [...Array.from({ length: underCount }, (_, i) => `WD01-013#u${i}`), riseSigni];
+    (ctx as unknown as { currentPhase: string }).currentPhase = phase;
+    return ctx;
+  };
+  eq(collectLeaveSubstituteOptions(riseSigni, 'opponent', mk(3, 'ATTACK_SIGNI')).filter(o => o.axis === 'underCardsTrash').length, 1,
+     'アタックフェイズ＋下3枚＝成立する');
+  eq(collectLeaveSubstituteOptions(riseSigni, 'opponent', mk(2, 'ATTACK_SIGNI')).filter(o => o.axis === 'underCardsTrash').length, 0,
+     '下が2枚なら成立しない（原文の「３枚以上」）');
+  eq(collectLeaveSubstituteOptions(riseSigni, 'opponent', mk(3, 'MAIN')).filter(o => o.axis === 'underCardsTrash').length, 0,
+     'メインフェイズでは成立しない（原文の「アタックフェイズの間」）');
+});
+
+test('O-299 離場置換 selfDeckBottom: 「代わりにこれをデッキの一番下」（WXDi-P08-046）', () => {
+  const victim = 'WXDi-P08-046';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const deckBefore = ctx.otherState.deck.length;
+  const opt = collectLeaveSubstituteOptions(victim, 'opponent', ctx).filter(o => o.axis === 'selfDeckBottom');
+  eq(opt.length, 1, '宣言があれば候補が出る');
+  eq(opt[0].kind, 'optional', '原文「置いてもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx);
+  ok(applied.replaced, '離場が置換される');
+  ok(!applied.ctx.otherState.field.signi.some(z => z?.at(-1) === victim), '場からは離れる（行き先だけが変わる）');
+  eq(applied.ctx.otherState.deck.length, deckBefore + 1, 'デッキが1枚増える');
+  eq(applied.ctx.otherState.deck.at(-1), victim, '🔴デッキの**一番下**（末尾）に置かれる');
+});
+
+test('O-299 離場置換: 宣言を持たないシグニには新軸が成立しない（非退化）', () => {
+  const plain = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('代わりに'));
+  const ctx = mkCtx({}, { signi: [plain, null, null] });
+  ctx.otherState.field.signi[0] = ['WD01-013#u1', 'WD01-013#u2', 'WD01-013#u3', plain];
+  const axes = collectLeaveSubstituteOptions(plain, 'opponent', ctx).map(o => o.axis);
+  ok(!axes.includes('underCardsTrash'), '下にカードがあるだけでは置換しない');
+  ok(!axes.includes('selfDeckBottom'), '宣言なしでデッキ下へ逃がさない');
 });
 
 if (listMode) {

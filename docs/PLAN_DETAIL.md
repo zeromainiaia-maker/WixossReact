@@ -808,6 +808,17 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
 
+- **2026-09-10（第253バッチ・Opus 5＝§5.1 実機返済 ＋ PLAN §2/§3/§5 の整理・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝今回直したのは **UI の表示ラベル1件と実機の未検証2件**で、どの計器もこの層を見ていない（§3）。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7＝実質枯渇**｜**機構 worklist 32項目**（索引 A 4／B 4／G 24・据置）｜
+  🏁**実機 残0**（2 → 0＝`V-184`／`V-185` を返済し、シナリオ4本を `order` へ常設）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3909 PASS**（据置）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  🖥**実機＝4本 ALL PASS（24秒）**＋**反転確認3軸**（`signiActivateGate.ts:240` ／ `BattleScreen.tsx:13828` ／ `battleOppLifeCrashSourceMatches` の `op`）が
+  **それぞれ対応する対照だけを赤にした**。
+  📄**PLAN の行数**＝877行/125,123字 → **517行/80,582字**（-36%）（§2 221→91・§5 491→283。退避先は PLAN_DETAIL）。
+
 - **2026-09-10（第246〜第252バッチ・Opus 5＝自力28効果 ＋ Codex 委譲46効果・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜
   **census 高シグナル 1 / BASELINE 1**（据置）。

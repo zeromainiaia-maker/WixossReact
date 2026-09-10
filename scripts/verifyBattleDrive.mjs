@@ -54655,6 +54655,148 @@ scenarios.v184NonDriveCrasherSilent = {
 order.push('v184DriveCrasherFires');
 order.push('v184NonDriveCrasherSilent');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-186`＝§5.3 `O-299`（2026-09-10）で配線した離場置換の新軸を実機で確かめる。
+// 🔴**engine 側の穴**＝宣言（`CONTINUOUS` の STUB）は live に在るのに**どの collector も読んでいなかった**
+//   ＝相手の効果で場を離れるとき置換が1度も起きない**真 no-op**（`census:stubs` A群は緑・逆翻訳も正しい）。
+// 🔑**実機で見るのは「engine の funnel が実戦の離場経路から呼ばれているか」**＝
+//   golden は `collectLeaveSubstituteOptions` を直接叩くので、**呼ばれていなくても必ず緑**（§4.4 冒頭の型）。
+// 観測点＝`WXDi-P08-046`（【常】「このシグニが場を離れる場合、代わりにこれをデッキの一番下に置いてもよい」）が
+//   相手効果のバニッシュを受けたとき **エナ／トラッシュではなくデッキの一番下**へ行くか。
+// ⚠**対照は同じ操作で1ビットだけ反転**＝宣言を持たないバニラシグニに差し替える（通常どおりエナへ行く）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V186_DECK_BOTTOM = 'WXDi-P08-046#8901';   // 【常】場を離れる場合、代わりにデッキの一番下へ
+const V186_PLAIN = 'WX01-053#8902';             // 宣言を持たないバニラ＝対照
+
+const v186Spec = (victim) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8900'],
+    'field.signi': [[victim], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む（末尾＝デッキの一番下の観測点）。
+    deck: ['WD01-013#8910', 'WD01-013#8911', 'WD01-013#8912'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#8990'],
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: {
+    // ⚠**ホストのターンにする**＝`active:'cpu'` だと CPU の自動進行がスタックへ割り込む（§4.4 の b22 で実測済み）。
+    active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    // 相手（CPU）のアーツが**こちらのシグニをバニッシュする**＝「対戦相手の効果によって場を離れる」を作る。
+    effectStack: oppArtsStack(
+      { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+      'V186-BANISH-E1'),
+  },
+});
+
+async function driveV186(page, H, o) {
+  const { tag, victim, expectDeckBottom } = o;
+  await H.closeModals();
+  // §4.4-49＝判定の瞬間に「自分が張った盤面か」を見る（見ないと両方向に嘘をつく）。
+  let st = await H.queryState();
+  for (let r = 0; r < 4 && !(st?.host?.fieldSigni ?? []).some(z => (z ?? []).includes?.(victim)); r++) {
+    H.log(`再注入(${r})… field=${JSON.stringify(st?.host?.fieldSigni)} stack=${st?.stackLen}`);
+    await injectScenario(page, o.spec);
+    await page.waitForTimeout(1500);
+    st = await H.queryState();
+  }
+  if (!(st?.host?.fieldSigni ?? []).some(z => (z ?? []).includes?.(victim))) {
+    return { pass: false, detail: `前提崩れ＝盤面が載らない（field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+  }
+  H.log(`開始 field=${JSON.stringify(st?.host?.fieldSigni)} deckBottom=${st?.host?.deckBottom} energy=${st?.host?.energy} stack=${st?.stackLen}`);
+
+  let left = false, settled = 0;
+  const dest = { deckBottom: false, energy: false, trash: false };
+  let stuckV186 = 0, reloadedV186 = false;
+  const pickedV186 = new Set();
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    const cur = await H.queryState();
+    const onField = (cur?.host?.fieldSigni ?? []).some(z => (z ?? []).includes?.(victim));
+    left ||= !onField;   // §4.4-8d＝sticky（後続処理で戻っても判定は下げない）
+    // 対話が出ていれば進める（置換の可否を問われる形＝任意軸）。§4.4-58＝応答は対話中だけ押す。
+    let did = null;
+    if (cur?.pendingEffect || (cur?.stackLen ?? 0) > 0) {
+      // ⚠**相手の BANISH は対象選択を挟む**（`pEff=SELECT_TARGET`）＝候補を1つ押してから確定する。
+      //   §4.4-2c＝候補セルはトグルなので押した testid を覚えて未選択のものだけを押す。
+      if ((cur?.pendingCandidates ?? []).length > 0) {
+        const cells = page.locator('[data-testid^="pick-"]');
+        const n = await cells.count();
+        for (let i = 0; i < n && !did; i++) {
+          const tid = await cells.nth(i).getAttribute('data-testid');
+          if (!tid || pickedV186.has(tid)) continue;
+          if (!(await cells.nth(i).isVisible().catch(() => false))) continue;
+          await cells.nth(i).click({ timeout: 1500 }).catch(() => {});
+          pickedV186.add(tid); did = `pick:${tid}`;
+        }
+        if (!did) did = await clickDecideNofM(page);
+      }
+      if (!did) did = await H.clickTextOrBtn(['代わりに', '発動する', 'はい', '決定', 'OK', 'エナに送る']);
+    }
+    // ⚠**注入したスタックは「解決が始まらない」ことがある**（対話が1つも出ない＝押す先が無い）。
+    //   実測＝置換の対話が出る側は即解決したのに、対照側は `stack=1 / pEff=null` のまま21秒動かなかった。
+    //   ⇒ 数ティック無反応なら**1度だけリロード**して解決を起こす（盤面は Supabase 側なので失われない）。
+    if (!did && (cur?.stackLen ?? 0) > 0 && !cur?.pendingEffect) {
+      stuckV186 += 1;
+      if (stuckV186 === 3 && !reloadedV186) { reloadedV186 = true; await page.reload().catch(() => {}); await page.waitForTimeout(2500); }
+    } else { stuckV186 = 0; }
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | onField=${onField} left=${left} deckBottom=${cur?.host?.deckBottom} energy=${JSON.stringify(cur?.host?.energyCards)} trash=${JSON.stringify(cur?.host?.trashCards)} stack=${cur?.stackLen ?? '-'} pEff=${cur?.pendingEffect ?? '-'}`);
+    // 🔴**行き先はピークで確定させる**（§4.4-8d／§4.4-25d）＝このカードは
+    //   `【自】：このシグニが場を離れたとき、あなたのデッキをシャッフルしてもよい` を**別に**持っており、
+    //   押し続けると**置換の後で**デッキがシャッフルされて観測点が消える（実測でトラッシュへ移った）。
+    //   ⇒ 離場を観測したティックの行き先を記録し、そこで判定を閉じる。
+    dest.deckBottom ||= String(cur?.host?.deckBottom ?? '') === victim;
+    dest.energy ||= (cur?.host?.energyCards ?? []).includes(victim);
+    dest.trash ||= (cur?.host?.trashCards ?? []).includes(victim);
+    settled = (left && (dest.deckBottom || dest.energy || dest.trash)) ? settled + 1 : 0;
+    if (settled >= 1) {
+      const inDeckBottom = dest.deckBottom;
+      const inEnergy = dest.energy;
+      const inTrash = dest.trash;
+      if (expectDeckBottom) {
+        if (inDeckBottom && !inEnergy && !inTrash) {
+          return { pass: true, detail: `相手効果の離場が置換された＝デッキの一番下へ（deckBottom=${cur?.host?.deckBottom}／エナ・トラッシュには無い）` };
+        }
+        return { pass: false, detail: `🔴旧挙動＝置換されずに通常の行き先へ（観測ピーク: deckBottom=${dest.deckBottom} energy=${dest.energy} trash=${dest.trash}）` };
+      }
+      if (inDeckBottom) {
+        return { pass: false, detail: `🔴対照が崩れた＝宣言の無いシグニまでデッキの一番下へ送られた（deckBottom=${cur?.host?.deckBottom}）` };
+      }
+      return (inEnergy || inTrash)
+        ? { pass: true, detail: `対照＝宣言が無ければ通常どおり（energy=${JSON.stringify(cur?.host?.energyCards)} trash=${JSON.stringify(cur?.host?.trashCards)}）` }
+        : { pass: false, detail: `前提崩れ＝バニッシュ自体が起きていない（field=${JSON.stringify(cur?.host?.fieldSigni)}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未確認（left=${left} deckBottom=${fin?.host?.deckBottom} stack=${fin?.stackLen}）` };
+}
+
+scenarios.v186LeaveSubstituteDeckBottom = {
+  title: 'V-186(1): WXDi-P08-046＝相手効果で場を離れる代わりにデッキの一番下へ（O-299 の新軸が実戦経路から呼ばれるか）',
+  spec: v186Spec(V186_DECK_BOTTOM),
+  async drive(page, H) {
+    return driveV186(page, H, { tag: 'v186DeckBottom', victim: V186_DECK_BOTTOM, expectDeckBottom: true, spec: this.spec });
+  },
+};
+scenarios.v186LeaveSubstitutePlainControl = {
+  title: 'V-186(2): 対照＝宣言を持たないシグニは通常どおりエナ／トラッシュへ（1ビットだけ反転）',
+  spec: v186Spec(V186_PLAIN),
+  async drive(page, H) {
+    return driveV186(page, H, { tag: 'v186Plain', victim: V186_PLAIN, expectDeckBottom: false, spec: this.spec });
+  },
+};
+order.push('v186LeaveSubstituteDeckBottom');
+order.push('v186LeaveSubstitutePlainControl');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
