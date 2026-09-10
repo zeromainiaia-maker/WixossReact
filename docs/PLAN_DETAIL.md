@@ -325,7 +325,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 |---|---|---|
 | `O-298` | **15効果**（`STUB{OPTIONAL_COST}`→`CONDITIONAL` かつ `STORE_LAST_PROCESSED_TARGETS` 無しの187効果のうち、**原文で対象が任意コストより前に来る**もの） | **自分の任意コストで「対象を先に確定する」軸が無い**＝engine は `STUB{任意コスト}` の直後の `CONDITIONAL` を組にして先取りする（`effectExecutor.ts:5530-5535` ほか）ので、原文「〜1体を対象とし、…を支払ってもよい」が**支払ってから対象を選ぶ**順に化ける。🔴**`O-288` は「相手が払う」側**＝こちらは自分側で分岐が別（`5530` 系と `5871` 系） |
 | `O-299` | 🔥**残8**（2026-09-11 に全件 triage 済み＝下の登録票を読む。**登録時の「21効果」は母集団の切り方が違う**＝当時は「バニッシュされる場合」も混ぜて数えていた） | **置換効果（「代わりに」）の受け皿が足りない**＝受け皿そのものは `collectLeaveSubstituteOptions` の軸列で在る。**残っているのは「バトル経路にしか無い置換処理を、効果による離場の全経路へ持ち上げる」1点**（下記） |
-| `O-300` | **20効果（上限）**（`GRANT_LRIG_ABILITY` 132効果のうち原文に「ルリグ1体を対象とし」があるもの） | **`GRANT_LRIG_ABILITY` が対象を選ばない**＝プレイヤー共通の付与ストアへ入れる（`effectExecutor.ts:9779-9818`）ので、原文「あなたの**レベル3の**ルリグ1体を対象とし」の対象指定とフィルタが落ちる。⚠**20件すべてが穴とは限らない**（センタールリグ1体しか居ない盤面では差が出ない） |
+| 🏁`O-300` | **クローズ済**（2026-09-11・第257バッチ）＝実測 母集団113効果/112カード のうち `GRANT_LRIG_ABILITY` 持ちは **20**、その内訳は **(a) 穴ではない12 ／ (b) レベル資格の欠落8＝全部修正 ／ (c) 0** | 🔴**登録票は3点とも stale だった**＝①真因の行番号（`:9779-9818` は `execAttachAcce`。本体は `:10058`）②**「対象を選ばない」は的外れ**＝付与先はプレイヤー単位のストア1箇所なので選ばせないこと自体に実害は無く、**実害は原文のレベル資格が落ちて正当な対象が居なくても付与が通ること**（過剰実行）③**20件全部が穴ではない**。✅**受け皿は既存**＝`CardEffect.condition` の `LRIG_LEVEL`＋`canUseArtsCondition`（`src/screens/battle/battleUtils.ts:24` → UI の `artsUseGate.ts:337` と実行入口 `BattleScreen.tsx:7381` の両方が呼ぶ）。**`src/engine/` は1行も触らず `effectParser.ts` 23行で閉じた。** ⚠**罠2つ**＝`GrantLrigAbilityAction.targetedCenter` は**表示専用**（型コメントに `engine挙動は既定と同一`）／`LRIG_LEVEL{allFieldLrigs:true}` は **`.every()`＝全ルリグが満たす判定で存在判定ではない**（`execUtils.ts:2710`）。全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-11 `O-300` ブロック |
 | `O-301` | **10効果**（原文「次の（あなたの／対戦相手の）アタックフェイズ・ルリグアタックステップ」23効果のうち `INSTALL_DELAYED_TRIGGER` が無いもの） | **「次の〜フェイズ開始時に」の遅延が無く解決時に即実行**する。⚠受け皿（`INSTALL_DELAYED_TRIGGER`＋`ON_ATTACK_PHASE_START`）は実在＝**JSON の書き方の問題**が大半のはずだが、`ON_LRIG_ATTACK_STEP_START` 相当の timing が無いものは機構が要る |
 
 ⚠**新しく母集団2桁の項目が出たらここへ足す。**
@@ -835,6 +835,17 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
+
+- **2026-09-11（第256バッチ・Codex 実装 → Opus 5 検証＝索引 A `O-299` の残18を全件 triage・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  ⚠**3計器が動かないのは想定どおり**＝直したのは離場置換の payload 化と**逆翻訳の忠実性**で、どの計器もこの層を見ていない。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 32項目**（A 4／B 4／G 24。**`O-299` は残8＝全件が (c) 機構待ち**）｜
+  🏁**実機 残0**（今回は §2.2 により実機不要と判定＝`src/screens/` 無傷・新軸なし）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3923 PASS**（3918 → codex +4 → 検証 +1）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  🆕**held 9枚 → 2枚**（`_partial_fresh` / `_idset_fresh` はともに 0）。**ratchet の較正なし。**
+  📈**live の per-effect 差分＝ちょうど4 effectId**（申告と機械照合で一致）。**Codex 差し戻し0・是正2**（どちらも逆翻訳の忠実性）。
+
 
 - **2026-09-10（第253〜第255バッチ・Opus 5＝実機返済 ＋ PLAN 整理 ＋ 索引 A の `O-298`/`O-299`・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 3 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。

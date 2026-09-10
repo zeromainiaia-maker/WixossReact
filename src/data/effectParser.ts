@@ -24414,6 +24414,29 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // GRANT_EFFECT の rawText 展開（アーツ経路）。短絡で展開が飛ばないよう両方を必ず評価する
   const geSub = expandGrantEffectRawTexts(action, card.CardNum);
   const glaUnknownSub = glaSub || geSub;
+  // §5.3 O-300: 「あなたのレベルN以上のセンタールリグ1体／レベルNのルリグ1体を対象とし、
+  // …能力を得る」は、正当な付与先がいない盤面では解決してはならない。
+  // `GRANT_LRIG_ABILITY` はプレイヤー単位のストアへ積むため対象選択自体は不要だが、従来は
+  // 対象のレベル資格まで落ち、Lv1センターでも無条件に付与していた。
+  // 🔑受け皿は既存の `CardEffect.condition: LRIG_LEVEL`。印刷済み【使用条件】が先に載る
+  // ドリームチーム系は AND へ追記し、`FIELD_LRIG_COLOR_COUNT` を上書きしない。
+  // ⚠「レベルN」は既存 manual 3件と同じく資格の下限として gte を使う（上限ではない）。
+  // ⚠GRANT を持たない同文型（WXDi-D04-011 等）へ波及させないため、木の実体でも絞る。
+  const targetedLrigLevelM = withoutPrintedUseCondition.match(
+    /^あなたのレベル([０-９\d]+)(?:以上)?の(?:センター)?ルリグ[１1]体を対象とし[、,]/,
+  );
+  const hasLrigLevelCondition = (c?: Condition): boolean => c?.type === 'LRIG_LEVEL'
+    || ((c?.type === 'AND' || c?.type === 'OR') && c.conditions.some(hasLrigLevelCondition));
+  if (targetedLrigLevelM && grantLrigAbilityNodes(action).length > 0 && !hasLrigLevelCondition(condition)) {
+    const targetLevelCondition: Condition = {
+      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(targetedLrigLevelM[1]),
+    };
+    condition = condition?.type === 'AND'
+      ? { ...condition, conditions: [...condition.conditions, targetLevelCondition] }
+      : condition
+        ? { type: 'AND', conditions: [condition, targetLevelCondition] }
+        : targetLevelCondition;
+  }
   // 後置文「このアーツによってあなたのルリグが得た能力は、使用タイミング《…》を得る」を granted abilities の timing に反映
   if (/得た能力は、?使用タイミング《メインフェイズアイコン》《アタックフェイズアイコン》を得る/.test(stripped)) {
     const applyTiming = (a: EffectAction) => {

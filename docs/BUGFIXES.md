@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引A `O-300`（`GRANT_LRIG_ABILITY` の対象レベル資格）
+
+`npm run census:population -- "ルリグ[１1]体を対象とし" --json GRANT_LRIG_ABILITY` を再実測し、母集団は **113効果 / 112カード、OK 20 / MISS 93**。OK 20を原文と live JSON で全件 triage した結果は **(a) 穴ではない12 / (b) レベル制限欠落8 / (c) 受け皿なし0** だった。登録票の stale 3点（executor 行番号、対象選択ではなく資格フィルタが実害、20件全部が穴ではない）を追認した。
+
+- (b) のレベル2以上5件（`WX24-P3-001/003/005/007/009-E1`）は既存 `condition: LRIG_LEVEL{self,gte,2}` を生成。
+- (b) のレベル3 Dream Team 3件（`WXDi-D09-H11-E1` / `WXDi-P06-002-E1` / `WXDi-P07-001-E1`）は既存 `FIELD_LRIG_COLOR_COUNT` を消さず、`AND` に `LRIG_LEVEL{self,gte,3}` を追加。
+- 既に manual で同じ資格を持つ `WXDi-D03/D05/D06-011-E1` と、同文型だが別効果の `WXDi-D04-011-E1` へ parser が二重適用しないよう、既存 condition 木に `LRIG_LEVEL` がある場合は追加しない。
+- golden は各群について下限成立／下限−1不成立／同じ盤面でレベルだけ上げる対照を追加。Dream Team は3体3色条件を外す対照も維持し、`canUseArtsCondition` の実使用ゲートまで固定した。
+- `npm run regen` 後、8件すべての逆翻訳に「センタールリグがレベル2以上／レベル3以上の場合」が出ることを確認。baseline `740b7e82a` との per-effect JSON 差分は上記8 effectIdだけ。
+- 条件以外では、既存 held の `WX24-P3-005-E1` にあった付与能力の期限修正（`UNTIL_OPP_TURN_END` → 原文どおり `UNTIL_OWN_ENERGY_PHASE_END`）を同時採用した。
+
+### 🔍 Claude 側の独立検証（CODEX_GUIDE §7）＝差し戻し0・**是正0**
+
+**機械検証は全項目一致**＝ベースライン `740b7e82a` と全 `effects_*.json` を effectId 単位で突き合わせ、
+**変化はちょうど8 effectId**。`npm run gates` を独立実行して**全緑**を追認
+（golden **3925 PASS**（3923 → +2）／smoke 10744・CRASH/HANG/INVARIANT 0／fuzz 0／
+census 高シグナル **1 / BASELINE 1**／`census:stubs` A群・C群 0／`census:enginetext` A🔴 0行／
+`census:costtext` A🔴 0規則／manual-fields 0／lint **0 errors / 254 warnings**。**ratchet の較正なし**）。
+
+🔑**最も重要な追認＝ゲートが実経路に届いていること**（昨日の `O-299` で踏んだ「funnel を直接叩く golden は
+呼ばれていなくても緑」型の罠に当たっていないか）。**当たっていない**＝
+`condition` → **`canUseArtsCondition`**（`src/screens/battle/battleUtils.ts:24`）→
+**UI 側の可否ゲート（`artsUseGate.ts:337`）と実行入口（`BattleScreen.tsx:7381`）の両方**が呼ぶ。
+対象8件は **アーツ5＋ピース3** で、どちらもこの経路を通る（`BattleScreen.tsx:7379` のコメントが
+「UI 側だけだと別経路＝カットイン等から素通りする」と明記しており、二重に張ってある）。
+🔑**`src/engine/` は1行も触っていない**＝直したのは `effectParser.ts` の23行だけ。
+
+**⭐Codex が Claude の見立てを1件訂正した（正しい訂正）**＝指示書で受け皿候補に挙げた
+`LRIG_LEVEL{allFieldLrigs:true}` は、`execUtils.ts:2710` で **`.every()`＝全ルリグが満たす判定**であって
+**存在判定ではない**と実コードで示し、使わなかった。⇒ センター基準の `LRIG_LEVEL` を採った。
+
+**⭐3回連続で外していた §5-14 を、今回は証跡つきで満たした**＝
+「足したキー名 → `docs/decompile_sheet*.txt` から grep した実際の行」を報告に貼れ、と指示書の必須項目にしたところ、
+**8件すべての実行が提出された**（Claude も現物を確認）。golden も `decompiledLineOf` で固定されている。
+⇒ **§5-14 は「指示書に書く」だけでは3回とも守られなかったが、「証跡を貼れ」にしたら守られた。**
+
+**判断の追認2件**
+- **`gte` か `eq` か**＝原文「レベル**３の**ルリグ」を `gte 3` にした件は、**`manualEffects.ts` に
+  「⚠`eq 3` ではなく `gte 3` にする＝原文は対象の資格であって上限ではない」と理由つきで先に書かれていた**決定に従っている。整合的。
+- **`WX24-P3-005-E1` の期限訂正**（自主申告）＝原文「次のあなたのエナフェイズ終了時まで」を引いて正しいことを確認。
+
+⚠**既知の近似として残すもの**＝ピース3件の原文は「あなたのレベル３の**ルリグ**1体」で、文面上はアシストも
+対象になり得る。しかし **`GRANT_LRIG_ABILITY` の付与先はそもそもセンター側ストア1箇所**なので
+**アシストへの付与は表現できない**（対象選択を作っても行き先が無い）。センター基準のゲートは既存 MANUAL 3件と
+同じ扱いで、**ゲートが1つも無い旧状態よりは確実に原文に近い**。
+
+**⑤実機は不要と判定**（§2.2）＝触ったのは `src/data/` `public/data/` `scripts/` だけで **`src/screens/` は無傷**、
+**新しい型・機構も足していない**（既存 `condition` / `LRIG_LEVEL` / `canUseArtsCondition` への配線のみ）。
+その経路が実際に呼ばれることは上記のとおり呼び出し元を読んで確認した。⇒ `V-nn` の登録もしない。
+
+### 🏁 `O-300` はクローズ（`(c)` が0）
+
+**残件なし**＝(b) 8件は全部採用、(c) 0件。索引 A は **残3項目**（`O-298` 残4／`O-299` 残8／`O-301`）。
+
 ## 2026-09-11 — 第256バッチ（§5.3 索引 A `O-299` 残18）：全件 triage、既存 funnel の未配線2効果を修正
 
 着手時に `npm run regen` 後、原文 regex `場を離れる場合[^。]*代わりに` を効果単位で再計測し、

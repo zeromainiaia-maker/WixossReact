@@ -45673,11 +45673,23 @@ test('続き388 母集団33枚: raw先頭節は同じ3体3色条件を生成し�
     lrig: ['WX19-001'],
     assistL: [batch387AssistByColor.青],
   });
+  const o300Level3Cards = new Set(['WXDi-D09-H11', 'WXDi-P06-002', 'WXDi-P07-001']);
   for (const cardNum of batch388RawCards) {
     const raw = parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === `${cardNum}-E1`)!;
-    batch387AssertCondition(raw, batch388Condition);
-    ok(evalUseCondition(raw.condition!, yes, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体3色=true`);
-    ok(!evalUseCondition(raw.condition!, noTwoColors, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体2色=false`);
+    const expected = o300Level3Cards.has(cardNum)
+      ? { type: 'AND', conditions: [batch388Condition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 3 }] } as Condition
+      : batch388Condition;
+    batch387AssertCondition(raw, expected);
+    // このテストは歴史的に POOL cursor を隔離していないため、追加の mkState/findCard で
+    // 後続テストの標本をずらさない。既存盤面を浅く複製し、センターだけ差し替える。
+    const qualifiedYes = o300Level3Cards.has(cardNum)
+      ? { ...yes, field: { ...yes.field, lrig: ['WD01-002'] } }
+      : yes;
+    const qualifiedTwoColors = o300Level3Cards.has(cardNum)
+      ? { ...noTwoColors, field: { ...noTwoColors.field, lrig: ['WD01-002'] } }
+      : noTwoColors;
+    ok(evalUseCondition(raw.condition!, qualifiedYes, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体3色=true`);
+    ok(!evalUseCondition(raw.condition!, qualifiedTwoColors, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体2色=false`);
     ok(!evalUseCondition(raw.condition!, noTwoLrigThreeColors, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 2体3色=false`);
   }
 });
@@ -45964,7 +45976,7 @@ const batch390SatisfyingState = (cardNum: string): PlayerState => {
     return mkState({ lrig: [center], assistL: [assists[0].CardNum], assistR: [assists[1].CardNum] });
   }
   return mkState({
-    lrig: [batch387CenterByColor.白],
+    lrig: ['WD01-002'],
     assistL: [batch387AssistByColor.赤],
     assistR: [batch387AssistByColor.青],
   });
@@ -75576,6 +75588,92 @@ test('O-299 離場置換: 宣言を持たないシグニには新軸が成立し
   ok(!axes.includes('underCardsTrash'), '下にカードがあるだけでは置換しない');
   ok(!axes.includes('selfDeckBottom'), '宣言なしでデッキ下へ逃がさない');
 });
+
+test('O-300 GRANT_LRIG_ABILITY: レベル2以上のセンター対象5件を既存LRIG_LEVELでfail-closedにする', () => withSavedCursor(() => {
+  const cases = [
+    ['WX24-P3-001', 'WX24-P3-001-E1'], ['WX24-P3-003', 'WX24-P3-003-E1'],
+    ['WX24-P3-005', 'WX24-P3-005-E1'], ['WX24-P3-007', 'WX24-P3-007-E1'],
+    ['WX24-P3-009', 'WX24-P3-009-E1'],
+  ] as const;
+  const level1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const level2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const opponent = mkState({});
+  for (const [cardNum, effectId] of cases) {
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    eq(JSON.stringify(effect.condition), JSON.stringify({
+      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 2,
+    }), `${effectId}: 生成JSONの対象資格`);
+    ok(evalUseCondition(effect.condition!, mkState({ lrig: [level2] }), opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: ちょうど下限Lv2なら成立`);
+    ok(!evalUseCondition(effect.condition!, mkState({ lrig: [level1] }), opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: 下限-1のLv1では不成立`);
+    ok(canUseArtsCondition([effect], mkState({ lrig: [level2] }), opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: 実使用ゲートもLv2なら通す`);
+    ok(!canUseArtsCondition([effect], mkState({ lrig: [level1] }), opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: 実使用ゲートはLv1を拒否する`);
+    const sameBoard = mkState({ lrig: [level1] });
+    ok(!evalUseCondition(effect.condition!, sameBoard, opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: 対照の初期盤面は不成立`);
+    sameBoard.field.lrig = [level2];
+    ok(evalUseCondition(effect.condition!, sameBoard, opponent, cardMap, cardNum, 'MAIN'),
+      `${effectId}: 同じ盤面でレベルだけ上げると成立`);
+    ok(decompiledLineOf(effectId).includes('あなたのセンタールリグがレベル2以上の場合'),
+      `${effectId}: 逆翻訳にレベル2以上のゲートが現れる`);
+  }
+}));
+
+test('O-300 GRANT_LRIG_ABILITY: Dream Team 3件は既存条件を保ち、Lv3条件をAND合成する', () => withSavedCursor(() => {
+  const cases = [
+    ['WXDi-D09-H11', 'WXDi-D09-H11-E1'],
+    ['WXDi-P06-002', 'WXDi-P06-002-E1'],
+    ['WXDi-P07-001', 'WXDi-P07-001-E1'],
+  ] as const;
+  const centerTemplate = cardMap.get(findCard(c => c.Type === 'ルリグ'))!;
+  const assistTemplate = [...cardMap.values()].find(c => c.Type === 'アシストルリグ')!;
+  const testCardMap = new Map(cardMap);
+  testCardMap.set('__O300_CENTER_LV2__', { ...centerTemplate, CardNum: '__O300_CENTER_LV2__', Level: '2', Color: '白' });
+  testCardMap.set('__O300_CENTER_LV3__', { ...centerTemplate, CardNum: '__O300_CENTER_LV3__', Level: '3', Color: '白' });
+  testCardMap.set('__O300_ASSIST_RED__', { ...assistTemplate, CardNum: '__O300_ASSIST_RED__', Color: '赤' });
+  testCardMap.set('__O300_ASSIST_BLUE__', { ...assistTemplate, CardNum: '__O300_ASSIST_BLUE__', Color: '青' });
+  testCardMap.set('__O300_ASSIST_WHITE__', { ...assistTemplate, CardNum: '__O300_ASSIST_WHITE__', Color: '白' });
+  const opponent = mkState({});
+  for (const [cardNum, effectId] of cases) {
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    ok(effect.condition?.type === 'AND', `${effectId}: conditionを上書きせずAND合成する`);
+    if (effect.condition?.type !== 'AND') continue;
+    const colorCondition = effect.condition.conditions.find(c => c.type === 'FIELD_LRIG_COLOR_COUNT');
+    const levelCondition = effect.condition.conditions.find(c => c.type === 'LRIG_LEVEL');
+    ok(!!colorCondition, `${effectId}: 既存FIELD_LRIG_COLOR_COUNTを保持`);
+    eq(JSON.stringify(levelCondition), JSON.stringify({
+      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 3,
+    }), `${effectId}: 生成JSONのLv3対象資格`);
+    if (!levelCondition) continue;
+    const atMinimum = mkState({
+      lrig: ['__O300_CENTER_LV3__'], assistL: ['__O300_ASSIST_RED__'], assistR: ['__O300_ASSIST_BLUE__'],
+    });
+    const below = mkState({
+      lrig: ['__O300_CENTER_LV2__'], assistL: ['__O300_ASSIST_RED__'], assistR: ['__O300_ASSIST_BLUE__'],
+    });
+    ok(evalUseCondition(effect.condition, atMinimum, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 3体3色かつちょうど下限Lv3なら成立`);
+    ok(!evalUseCondition(effect.condition, below, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 3体3色でも下限-1のLv2では不成立`);
+    ok(canUseArtsCondition([effect], atMinimum, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 実使用ゲートもLv3なら通す`);
+    ok(!canUseArtsCondition([effect], below, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 実使用ゲートはLv2を拒否する`);
+    below.field.lrig = ['__O300_CENTER_LV3__'];
+    ok(evalUseCondition(effect.condition, below, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 同じ盤面でセンターのレベルだけ上げると成立`);
+    const colorFail = mkState({
+      lrig: ['__O300_CENTER_LV3__'], assistL: ['__O300_ASSIST_WHITE__'], assistR: ['__O300_ASSIST_WHITE__'],
+    });
+    ok(!evalUseCondition(effect.condition, colorFail, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 既存の3体3色条件も失われていない`);
+    ok(decompiledLineOf(effectId).includes('あなたのセンタールリグがレベル3以上'),
+      `${effectId}: 逆翻訳にレベル3以上のゲートが現れる`);
+  }
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
