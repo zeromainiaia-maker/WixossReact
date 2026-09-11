@@ -4933,6 +4933,29 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK06-055": [
     {"effectId":"WXK06-055-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":3},{"color":"無","count":1}],"costScaling":[{"direction":"reduce","counts":[{"kind":"zone","zone":"trash","owner":"self","filter":{"cardType":"シグニ","cardClass":"龍獣"}}],"per":5,"amount":[{"color":"黒","count":1}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"WXK06-055-E1-c1","label":"トラッシュから＜龍獣＞のシグニを2枚まで手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","story":"龍獣"}}}},{"choiceId":"WXK06-055-E1-c2","label":"対戦相手のすべてのシグニをバニッシュする","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}},{"choiceId":"WXK06-055-E1-c3","label":"対戦相手はエナゾーンが6枚になるようにトラッシュに置く","action":{"type":"STUB","id":"OPP_ENERGY_REDUCE_TO_N","value":6}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // ═══ §5.3 `O-325`（2026-09-11 第269バッチ）＝「〜と共通するクラスを持つ」の参照元2軸 ═══
+  // 🔑**受け皿は2つとも既に在った**（登録票の「受け皿が無い」は stale）＝
+  //   `TargetFilter.classMatchesDiscardSigni`（コストで捨てたシグニ基準）と
+  //   `TargetFilter.classMatchesAnyFieldSigni`（自分の場のいずれかのシグニ基準）。
+  //   parser がこの修飾句をトラッシュ／相手シグニ経路で落としていたので、原文どおりの JSON を手で書く。
+  // ⚠**同型が2枚以下なので速いレーン**（§2.0）＝`WXK10-038-E1`（同じ形）が既に MANUAL の先例。
+  "WXK10-056": [
+    // 【出】手札からシグニを１枚捨てる：あなたのトラッシュから**この方法で捨てたシグニと共通するクラスを持つ**
+    //   レベル２以下のシグニ１枚を対象とし、それを手札に加える。
+    // 🔴旧 live はクラス一致が丸ごと落ちて「トラッシュのレベル2以下のシグニ**なら何でも**」＝過剰実行だった。
+    {"effectId":"WXK10-056-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"handDiscardSigni":{"count":1}},"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":2},"classMatchesDiscardSigni":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX25-P1-058": [
+    // 【自】：このシグニがアタックしたとき、あなたの場に《紡ぎし冒険の扉　アト＝トレ》がいる場合、
+    //   **あなたの場にあるいずれかのシグニと共通するクラスを持つ**対戦相手のシグニ１体を対象とし、
+    //   《緑》を支払ってもよい。そうした場合、それをバニッシュする。
+    // 🔴旧 live はクラス一致が落ちて「相手の**任意の**シグニ1体」だった＝過剰実行。
+    // 🔑**宣言（`optionalCostTarget`）と帰結（`BANISH`）の両方に載せる**＝
+    //   宣言側が無いと**対象が居なくても支払いを提示する**（§5.3 `O-326` と同じ空払い）。
+    //   ⚠宣言側の解決は `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` が**候補側の state** を渡すので、
+    //     engine 側で caster の場を先に潰す（`resolveClassMatchesAnyFieldSigni`）。
+    {"effectId":"WX25-P1-058-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"紡ぎし冒険の扉　アト＝トレ"}},"then":{"type":"STUB","id":"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST","costColors":["緑"],"optionalCostTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","classMatchesAnyFieldSigni":true}}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","classMatchesAnyFieldSigni":true},"upToCount":false}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
   "WXK10-057": [
     {"effectId":"WXK10-057-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"BOUNCE","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],

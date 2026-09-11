@@ -28801,6 +28801,104 @@ const O327_WIRED_SHAPES = new Map<string, string>([
   ['TRASH|DECK_CARD|N', '選択なし＝デッキの上から N 枚（誰も選ばない）'],
 ]);
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-325`（2026-09-11 第269バッチ）＝「〜と**共通するクラスを持つ**」の参照元2軸。
+// 🔑**受け皿は2つとも既に在った**（登録票の「受け皿が無い」は stale）＝
+//   `classMatchesDiscardSigni`（コストで捨てたシグニ基準）／`classMatchesAnyFieldSigni`（自分の場基準）。
+//   parser がこの修飾句を落としていたので、原文どおりの JSON を `manualEffects.ts` へ手書きした。
+// 🔴**engine 側で1つ直した**＝`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は候補が相手フィールドなので
+//   `resolveDynamicFilter` へ **`otherState` を `ownerSt` として**渡す（`placedThisTurn` 等の対象側キーがそれを要求する）。
+//   そのままだと「**あなたの**場のいずれかのシグニ」が**相手の場**を数える意味反転になるので、
+//   caster 側のキーだけ共有述語 `resolveClassMatchesAnyFieldSigni` で**先に潰してから**渡す形にした。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-325 ①WXK10-056-E2: コストで捨てたシグニと共通するクラスだけがトラッシュから拾える', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WXK10-056') ?? []).find(e => e.effectId === 'WXK10-056-E2');
+  ok(!!live, 'WXK10-056-E2 が live にある'); if (!live) return;
+  const src = (live.action as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>).source;
+  eq(src.filter?.classMatchesDiscardSigni, true, '捨てたシグニ基準のクラス一致が live に届く');
+  eq(live.parseStatus, 'MANUAL', '手書き定義であることを刻む');
+
+  // 同クラス2枚＋別クラス1枚をトラッシュに置く（候補 > 選択数にして選択UIの候補集合を見る）。
+  const cls = '悪魔';
+  const same = [...cardMap.values()].filter(c => isSigni(c) && Number(c.Level) <= 2
+    && (c.CardClass ?? '').includes(cls)).slice(0, 2).map(c => c.CardNum);
+  const other = [...cardMap.values()].find(c => isSigni(c) && Number(c.Level) <= 2
+    && !(c.CardClass ?? '').includes(cls))!.CardNum;
+  ok(same.length === 2 && !!other, 'テスト用のカードが揃う');
+  const run056 = (discardClass: string | undefined) => {
+    const ctx = mkCtx({}, {}, 'WXK10-056');
+    ctx.ownerState = { ...ctx.ownerState, trash: [...same, other], last_discarded_signi_class: discardClass };
+    return executeAction(live.action, ctx);
+  };
+  const r = run056(`精像：${cls}`);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '候補が2枚以上あるので対象選択になる');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq([...r.pending.candidates].sort().join(','), [...same].sort().join(','),
+    '候補は「捨てたシグニと共通するクラス」だけ（別クラスが混ざると過剰実行）');
+  // ⚠**対照＝参照（捨てたクラス）が読めないときは「制限なし」へフォールバックする**（既知の据置）。
+  //   🔴**これは fail-open**＝別クラスの札まで候補に出る。**直せない理由がある**＝
+  //   `last_discarded_signi_class` を書いているのは `src/screens/` の支払い経路だけなので、
+  //   ここを空ヒットへ倒すと engine 内で支払う経路でこのキーを持つ4効果が丸ごと no-op になる（§5-2″）。
+  //   ⇒ **記録側を engine へ寄せるのが先**（PLAN §5.3 `O-328`）。ここはその日まで現状を固定する。
+  const none = run056(undefined);
+  ok(!none.done && none.pending.type === 'SELECT_TARGET'
+    && none.pending.candidates.length === 3,
+    '参照不能時は従来どおり絞り込まない（この行が落ちたら O-328 が動いたということ＝両方まとめて直す）');
+}));
+
+test('§5.3 O-325 ②WX25-P1-058-E2: 自分の場と共通するクラスの相手シグニだけを対象にする', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX25-P1-058') ?? []).find(e => e.effectId === 'WX25-P1-058-E2');
+  ok(!!live, 'WX25-P1-058-E2 が live にある'); if (!live) return;
+  const json = JSON.stringify(live.action);
+  ok(json.includes('"optionalCostTarget"'), '宣言（optionalCostTarget）が live にある＝対象が居なければ支払いを提示しない');
+  eq((json.match(/"classMatchesAnyFieldSigni":true/g) ?? []).length, 2,
+    '宣言と帰結（BANISH）の両方にクラス一致が載る（片方だけだと支払いか実行のどちらかが広い）');
+
+  // 自分の場に置くシグニのクラス集合と、相手の 同クラス / 別クラス の2体を用意する。
+  const allyCls = '迷宮';
+  const ally = [...cardMap.values()].find(c => isSigni(c) && (c.CardClass ?? '').includes(allyCls))!.CardNum;
+  const oppSame = [...cardMap.values()].find(c => isSigni(c) && c.CardNum !== ally
+    && (c.CardClass ?? '').includes(allyCls))!.CardNum;
+  // ⚠**対照用の相手シグニは「効果元のクラスとも重ならない」ものを選ぶ**＝
+  //   効果元 `WX25-P1-058`（奏械：迷宮）自身が自分の場に居るので、`迷宮` だけを避けても `奏械` で当たる
+  //   （初回実行でこれを踏んだ＝対照が PASS せず「宣言が効いていない」に見えた）。
+  const srcClasses = (cardMap.get('WX25-P1-058')?.CardClass ?? '').split(/[：:／/・,\s]+/).filter(Boolean);
+  const noShare = (c: CardData) => srcClasses.every(k => !(c.CardClass ?? '').includes(k));
+  const oppOther = [...cardMap.values()].find(c => isSigni(c) && noShare(c))!.CardNum;
+  const lrig = [...cardMap.values()].find(c => c.CardName === '紡ぎし冒険の扉　アト＝トレ')!.CardNum;
+  ok(!!ally && !!oppSame && !!oppOther && !!lrig, 'テスト用のカードが揃う');
+
+  // ⚠支払いは《緑》＝**エナは緑のカードで置く**（クラス用の `ally` を流用すると pay が available にならない）。
+  const greenEnergy = [...cardMap.values()].find(c => (c.Color ?? '') === '緑')!.CardNum;
+  const run058 = (myFieldSigni: string | null, oppField: (string | null)[] = [oppSame, oppOther, null]) => {
+    const ctx = mkCtx({ signi: ['WX25-P1-058', myFieldSigni, null] },
+      { signi: oppField }, 'WX25-P1-058');
+    ctx.ownerState = { ...ctx.ownerState, energy: [greenEnergy, greenEnergy],
+      field: { ...ctx.ownerState.field, lrig: [lrig] } };
+    return { ctx, result: executeAction(live.action, ctx) };
+  };
+  // ① 自分の場に＜迷宮＞が居る＝支払いを提示し、対象は同クラスの相手シグニだけ
+  const { ctx: ctxHit, result: hit } = run058(ally);
+  ok(!hit.done && hit.pending.type === 'CHOOSE', '共通クラスの対象が居るので任意コストの CHOOSE が開く');
+  if (hit.done || hit.pending.type !== 'CHOOSE') return;
+  const pay = hit.pending.options.find(o => o.id === 'pay');
+  ok(pay?.available === true, '《緑》を払える盤面では pay が available');
+  const afterPay = resumeOptionalCost('pay', [greenEnergy], hit.pending, ctxAfter(hit, ctxHit));
+  ok(!afterPay.done && afterPay.pending.type === 'SELECT_TARGET', '支払い後にバニッシュ対象の選択になる');
+  if (afterPay.done || afterPay.pending.type !== 'SELECT_TARGET') return;
+  eq(afterPay.pending.candidates.join(','), oppSame,
+    'バニッシュ候補は「自分の場と共通するクラス」だけ（別クラスが混ざると過剰実行）');
+
+  // ② 🔴**対照**＝自分の場に共通クラスが1体も居なければ**支払いを提示しない**（§5.3 O-326 と同じ空払い防止）
+  const { result: miss } = run058(null, [oppOther, null, null]);
+  ok(miss.done || miss.pending.type !== 'CHOOSE',
+    '🔴共通クラスの相手シグニが居ないのに任意コストを提示した（宣言側のクラス一致が効いていない）');
+  // 🔑**同じ盤面で相手シグニだけ差し替えると提示される**＝この対照が「常に提示しない」で通っていないことの証明。
+  const { result: back } = run058(null, [oppSame, null, null]);
+  ok(!back.done && back.pending.type === 'CHOOSE',
+    '同じ盤面で相手シグニを共通クラスへ差し替えたら提示される（対照に判別力がある）');
+}));
+
 test('§5.3 O-327 トリップワイヤ: live の opponentSelects は配線済みの形にしか載っていない', () => {
   const shapeOf = (node: Record<string, unknown>): string => {
     const t = (node.target ?? node.source) as { type?: string; count?: unknown } | undefined;

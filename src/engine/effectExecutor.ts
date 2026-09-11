@@ -3478,12 +3478,45 @@ function resolveDiscardLevelFilter(
   if (filter.levelLtDiscardSigni && lvlOk) out = { ...out, level: { ...(typeof out.level === 'object' ? out.level : {}), max: lvl - 1 } };
   if (offset !== undefined && lvlOk) out = { ...out, level: lvl + offset };
   // クラス関係: 捨てたシグニと共通するクラス（CardClass の「：」以降トークンを OR 展開して story へ）
+  // ⚠🔴**2026-09-11（§5.3 `O-325`）＝ここを fail-closed へ倒しかけたが戻した。**
+  //   「参照が読めないなら空ヒット」は一見正しいが、**`last_discarded_signi_class` を書いているのは
+  //   `src/screens/` の支払い経路だけ**（`BattleScreen.tsx` / `trashActivateCost.ts`）なので、
+  //   engine 内で支払う経路では**常に未記録**＝このキーを持つ4効果が丸ごと no-op へ裏返る（§5-2″ の形）。
+  //   ⇒ **記録側を engine へ寄せるまでは「参照不能なら制限なし」を維持する**（既存 golden 続き377n が固定）。
   if (filter.classMatchesDiscardSigni) {
     const cc = casterState.last_discarded_signi_class ?? '';
     const tokens = cc.split(/[/／]/).map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean);
     if (tokens.length > 0) out = { ...out, story: tokens.length === 1 ? tokens[0] : tokens };
   }
   return out;
+}
+
+/**
+ * 「あなたの場にあるいずれかのシグニと**共通するクラスを持つ**」（`TargetFilter.classMatchesAnyFieldSigni`）を
+ * `cardClass`（配列＝OR）へ潰す共有述語。§5.3 `O-325`（2026-09-11）で `resolveDynamicFilter` から切り出した。
+ * 🔴**`allyState` は「クラスの出どころ＝効果の持ち主」**であって「対象の持ち主」ではない。
+ *   `resolveDynamicFilter` の `ownerSt` は**呼び出し元によって対象側が入る**ことがあるので、
+ *   そういう呼び出し元（`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`）は**この関数を先に自分で呼んで**潰す。
+ * 🔴**場に自シグニが1体も居ない／クラスが読めないときは空ヒットへ倒す**（fail-closed）＝
+ *   潰さずに残すと `matchesFilter` が未知キーとして黙って素通りし**無条件成立**になる。
+ */
+function resolveClassMatchesAnyFieldSigni(
+  filter: import('../types/effects').TargetFilter,
+  allyState: import('../types').PlayerState | undefined,
+  cardMap: Map<string, import('../types').CardData>,
+): import('../types/effects').TargetFilter {
+  if (!filter.classMatchesAnyFieldSigni) return filter;
+  const { classMatchesAnyFieldSigni: _cmafs, ...rest } = filter;
+  const allyClasses = new Set<string>();
+  for (const stack of (allyState?.field.signi ?? [])) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const c of `${cardMap.get(getCardNum(top))?.CardClass ?? ''}`
+      .split(/[：:／/・,\s]+/).map(v => v.trim()).filter(Boolean)) allyClasses.add(c);
+  }
+  return allyClasses.size > 0
+    ? { ...rest, cardClass: [...allyClasses] }
+    : { ...rest, cardNum: '__dynamic_filter_reference_unavailable__' };
 }
 
 function resolveDynamicFilter(
@@ -3723,20 +3756,12 @@ function resolveDynamicFilter(
     }
   }
   // 🆕classMatchesAnyFieldSigni（2026-08-31）＝**自分の場のいずれかのシグニと共通するクラスを持つ**。
-  //   自分の場のクラス集合を集めて `cardClass`（配列＝OR）へ潰す。
-  //   🔴場に自シグニが1体も居ない／クラスが読めないときは**空ヒット**へ倒す（fail-closed）＝
-  //   潰さずに残すと `matchesFilter` が未知キーとして黙って素通りし**無条件成立**になる。
-  if (result.classMatchesAnyFieldSigni) {
-    const { classMatchesAnyFieldSigni: _cmafs, ...rest } = result;
-    const allyClasses = new Set<string>();
-    for (const stack of (ownerSt?.field.signi ?? [])) {
-      const top = stack?.at(-1);
-      if (!top) continue;
-      for (const c of `${cardMap.get(getCardNum(top))?.CardClass ?? ''}`
-        .split(/[：:／/・,\s]+/).map(v => v.trim()).filter(Boolean)) allyClasses.add(c);
-    }
-    result = allyClasses.size > 0 ? { ...rest, cardClass: [...allyClasses] } : noMatch(rest);
-  }
+  // 🔴🆕**2026-09-11（§5.3 `O-325`）＝解決は `resolveClassMatchesAnyFieldSigni` 1本に集約した。**
+  //   理由＝**この関数は呼び出し元によって `ownerSt` に「対象の持ち主」が入る**
+  //   （`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は候補が相手フィールドなので `otherState` を渡す）。
+  //   そのままだと「**あなたの**場のいずれかのシグニ」が**相手の場**を数える意味反転になるので、
+  //   呼び出し側が「誰の場か」を決めて**先に潰してから**この関数へ渡す形にする。
+  if (result.classMatchesAnyFieldSigni) result = resolveClassMatchesAnyFieldSigni(result, ownerSt, cardMap);
   // 🆕powerEqTrigger: トリガー元（無ければ直前に処理したカード）と**同じ**実効パワーへ解決する。
   //   ⚠参照不能なら `powerRange:{min:1,max:0}` の空ヒットへ倒す（fail-closed）＝限定が消えない。
   if (result.powerEqTrigger) {
@@ -6300,8 +6325,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
           const toHWTOSOC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const declaredTargetTOSOC = stub.optionalCostTarget;
-          const declaredFilterTOSOC = declaredTargetTOSOC?.filter
-            ? resolveDynamicFilter(declaredTargetTOSOC.filter, cur.otherState, cur.cardMap, cur.ownerState,
+          // 🔴§5.3 `O-325`＝**「あなたの場のいずれかのシグニと共通するクラス」は効果の持ち主の場で潰す。**
+          //   この呼び出しは候補が相手フィールドなので `resolveDynamicFilter` へ `otherState` を
+          //   `ownerSt` として渡している（`placedThisTurn` 等の**対象側**キーがそれを要求する）＝
+          //   caster 側のキーだけ**先に**潰してから渡さないと意味が反転する。
+          const declaredRawFilterTOSOC = declaredTargetTOSOC?.filter
+            ? resolveClassMatchesAnyFieldSigni(declaredTargetTOSOC.filter, cur.ownerState, cur.cardMap)
+            : undefined;
+          const declaredFilterTOSOC = declaredRawFilterTOSOC
+            ? resolveDynamicFilter(declaredRawFilterTOSOC, cur.otherState, cur.cardMap, cur.ownerState,
                 cur.lastProcessedCards, cur.effectivePowers, cur.sourceCardNum, cur.triggeringCardNum, undefined, cur.fieldSigniExtraColors, cur.allColorSigniNums)
             : undefined;
           const targetAvailableTOSOC = declaredTargetTOSOC?.type === 'LRIG'

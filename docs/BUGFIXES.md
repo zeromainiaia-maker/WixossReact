@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-325`：「〜と共通するクラスを持つ」の参照元2軸（9効果を triage → 2件修正）
+
+登録票は「**受け皿が無い**（参照カードを基準にした動的比較）」と書いていたが、🔴**2軸とも受け皿は既に在った**
+（`TargetFilter.classMatchesDiscardSigni`＝コストで捨てたシグニ基準／`classMatchesAnyFieldSigni`＝自分の場基準）。
+**parser がこの修飾句を落としていた**のが実体で、逆翻訳にも出ないので計器に映らなかった。
+
+### 母集団（②）＝`npm run census:population -- "と共通するクラスを持つ"`＝**9効果 / 9カード**
+
+| 分類 | 件数 | 効果 |
+|---|---|---|
+| **(a) 既に正しい** | 4 | `WXK10-023-E1`／`WXK10-029-E2`／`WXK10-033-E2`（`classMatchesDiscardSigni` 済み）／`WXDi-P00-021-E2`（`classMatchesAnyFieldSigni` 済み） |
+| **(b) 修正** | **2** | `WXK10-056-E2`（トラッシュから拾う側にクラス一致が無く「レベル2以下のシグニなら何でも」＝過剰実行）／`WX25-P1-058-E2`（相手シグニの対象にクラス一致が無く「相手の任意の1体」＝過剰実行） |
+| **(c) 見送り** | 3 | `PR-K070-E1`＝基準が**エナから払ったカード**（`last_discarded_signi_*` は手札捨てのみ）／`WX25-P1-089-E1`＝「エナに**それと**共通するクラスのシグニが**ない**場合」＝**対象を基準にした否定条件**の軸が無い／`WX25-P1-093-E1`＝**宣言した対象を基準にコストを絞る**軸が無い |
+
+⚠**登録票の12効果は上限**＝`census:population` の実測は9で、うち4は既に正しかった。
+
+### 修正
+
+- `manualEffects.ts` に2効果を原文どおり手書き（§2.0 速いレーン＝同型2枚以下。`WXK10-038-E1` が同形の先例）。
+  `npx tsx scripts/syncManualLive.ts WXK10-056 WX25-P1-058` で live へ同期した（**`build:effects` だけでは届かない**）。
+- 🔴**engine を1箇所直した**＝`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は候補が相手フィールドなので
+  `resolveDynamicFilter` へ **`otherState` を `ownerSt` として**渡している（`placedThisTurn` 等の**対象側**キーがそれを要求する）。
+  そのままだと「**あなたの**場のいずれかのシグニと共通するクラス」が**相手の場**を数える**意味反転**になる。
+  ⇒ **共有述語 `resolveClassMatchesAnyFieldSigni` を切り出し**、caster 側のキーだけ**先に潰してから**渡す形にした
+  （`resolveDynamicFilter` も同じ述語を呼ぶ＝同じ意味が2箇所に別々に書かれない）。
+- `WX25-P1-058-E2` は**宣言（`optionalCostTarget`）と帰結（`BANISH`）の両方**にクラス一致を載せた＝
+  宣言側が無いと**対象が居なくても支払いを提示する**（§5.3 `O-326` と同じ空払い）。
+
+### 回帰検証
+
+- golden 2本＝①捨てたクラスと共通する札だけが候補（別クラスは候補外）②自分の場と共通するクラスの相手シグニだけ＋
+  **共通クラスが居なければ支払いを提示しない**＋**同じ盤面で相手シグニを差し替えると提示される**（対照の判別力の証明）。
+- 🔴**反転確認**＝engine の caster 側 pre-resolution を外すと②が
+  「共通クラスの相手シグニが居ないのに任意コストを提示した」で FAIL（実測・復元済み）。
+- ⚠**テスト作成中に1つ踏んだ**＝対照盤面の相手シグニを「`迷宮` 以外」で選んだが、**効果元自身が `奏械：迷宮`**
+  なので `奏械` で当たってしまい対照が成立しなかった。⇒ **効果元のクラス集合を全部外した**カードを選ぶ実装にした。
+- `npm run gates` 全緑：golden **3954 PASS / 0 FAIL**（3952 → +2）、smoke 10744 / 全0、fuzz 0、census 1 / BASELINE 1、
+  stubs A/C 0、enginetext A 0行、costtext A 0規則、manual-fields 0、lint 0 errors / 254 warnings。
+  **per-effect diff＝2件**（`WXK10-056-E2`／`WX25-P1-058-E2`）。
+- **⑤実機は不要と判定**（§2.2）＝`src/screens/` 無触・**新しい型／機構なし**（既存キーの解決地点を直しただけ）。
+  支払い提示ゲートは golden ②が反転つきで固定している。
+
+### 🔴この作業で見つけた別の穴＝`O-328` として登録（索引B）
+
+**`last_discarded_signi_class` / `last_discarded_signi_level` を書いているのは `src/screens/` の支払い経路だけ**
+（`BattleScreen.tsx:13930` / `trashActivateCost.ts:309`）。engine 内で支払う経路では**常に未記録**になり、
+`resolveDiscardLevelFilter` が「参照不能なら**制限なし**」へ倒れるので、**クラス／レベル制限が黙って消える**。
+⚠**一度 fail-closed（空ヒット）へ倒しかけたが戻した**＝既存 golden（続き377n）が
+「参照不能時は絞り込まない」を**意図的に固定**しており、記録側を直さずに倒すと**9効果が丸ごと no-op へ裏返る**（§5-2″）。
+⇒ **記録側を engine へ寄せるのが先**。母集団＝**9効果**（`classMatchesDiscardSigni` 5／`levelLteDiscardSigni` 2／
+`levelEqDiscardSigniOffset` 2／`levelLtDiscardSigni` 1）。
+
 ## 2026-09-11 — PLAN §5.3 索引A `O-327`：`opponentSelects` の未配線分岐は**いま実害0**＝トリップワイヤで固定
 
 第267で「`opponentSelects` を宣言できる action 配下で `selectOrInteract` の第8引数を省略している分岐が
