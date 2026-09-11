@@ -1,5 +1,41 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-297`：ON_BANISH のトリガー元シグニのゾーンにあるゲートを判定
+
+`WXDi-P16-074-E2` は「同じシグニゾーンに【ゲート】があるあなたのシグニ」がバニッシュされたときだけ発火する原文だが、旧 live は `FIELD_HAS_GATE{self}` で自分の場のどこかにゲートがあれば発火していた。
+
+### 修正
+
+- `triggerCondition.banishedFromGateZone` を追加し、`collectBanishTriggers` がバニッシュ直前に保存した `banishedZone` と `prevOwnerState.own_gate_zones` を照合する。`prevOwnerState` が無い場合を含め、ゾーンを確定できなければ非発火とした。
+- バニッシュされたカード自身・自分フィールド watcher・相手フィールド watcher の3ループすべてで同じ条件を消費する。
+- `WXDi-P16-074-E2` の MANUAL 定義だけを新キーへ移し、`npx tsx scripts/syncManualLive.ts WXDi-P16-074` で live に同期した。`parseStatus:'MANUAL'` は維持した。
+- decompiler に同キーの表現を追加し、`npm run regen` 後の逆翻訳を「同じシグニゾーンに【ゲート】があるあなたのシグニがバニッシュされたとき」にした。
+
+### 母集団・配送確認
+
+- `同じシグニゾーンに【ゲート】がある` は **20効果 / 16カード**。同じゲートゾーンのシグニがバニッシュされる文型は `WXDi-P16-074-E2` の **1効果だけ**で、残り19効果は `SAME_ZONE_HAS_GATE`、`filter.inGateZone` 等の別軸だった。
+- live の `FIELD_HAS_GATE` は **10効果 / 10カード**。対象以外の9効果は変更していない（うち `WXDi-P15-079-E1` はゲートゾーン限定配置の成立条件、ほかは場全体のゲート条件）。
+- baseline `9cd0e7980` との全 effects JSON の再帰 per-effect 比較で、変化集合は **`WXDi-P16-074-E2` の1件だけ**。
+- `docs/decompile_sheet8.txt:9037` に新しい逆翻訳が現れることを確認した。
+
+### 回帰検証
+
+- golden を3本追加し、各テストで3 collector ループを通した：①同じゾーンのゲートで発火、②別ゾーンだけにゲートがあると非発火、③ `prevOwnerState` 無しで非発火。新キーを一時的に外して同期すると②を含む **0 PASS / 3 FAIL**、復元後は **3 PASS / 0 FAIL**。
+- `npm run gates` 全緑：golden **3946 PASS / 0 FAIL**（baseline 3943 → +3）、smoke **10744 / CRASH・HANG・INVARIANT 全0**、fuzz 0、census 高シグナル **1 / BASELINE 1**、stubs A/C 0、enginetext A **0行 / 0ハンドラ**、costtext A 0規則、manual-fields 0、lint **0 errors / 254 warnings**。
+- 🔴**実機（Claude 引き継ぎ・`V-190` 2本＝`order` に常設）＝両方 PASS。**
+  新しい `triggerCondition` キーを足した回なので §2.2 で実機まで回した。**観測点は相手の手札枚数**＝
+  ①`o297GateZoneBanishFires`（【ゲート】と同じ zone1 の味方 P3000 が P12000 とバトルしてバニッシュ）→ 相手手札 2 → 1
+  ②`o297OtherZoneGateSilent`（【ゲート】は zone2＝victim と別ゾーン）→ 2 のまま。
+  🔑**アプリ経路だけが持つ risk を狙った**＝バトル解決の `collectBanishTriggers` 呼び出しが
+  **`prevOwnerState`（バニッシュ直前の状態）を渡していなければ新キーは fail-closed で永久に非発火**になる。
+  golden は pure collector を直接叩くので、この配線は観測できない。
+- 🔴🔑**実機の反転確認は「engine 側を外す」でやること**（2026-09-11 に踏んだ罠）＝
+  **`public/data/effects_*.json` を書き換えて旧挙動へ戻す方法は、実機では反転しなかった**
+  （`dist` には旧 JSON が入っていたのに挙動は新しいまま＝ブラウザ／アセット側のキャッシュを疑う）。
+  ⇒ **`triggerCollect.ts` の新キー判定を一時的に無効化**して再実行したところ、
+  対照②が期待どおり **FAIL（別ゾーンのゲートで発火）**した＝**シナリオに判別力があることを確認できた。**
+  ⚠**live JSON を書き換える反転確認を「反転しなかったから判別力が無い」と読むと、正しいシナリオを捨てる。**
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-323`：処理成功時だけ消費する `usageLimit`
 
 原文「このターンにこの能力で～していない場合」は、誘発した回数ではなく**その能力で指定処理が実際に起きた回数**を数える。

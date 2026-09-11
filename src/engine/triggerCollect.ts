@@ -1627,6 +1627,8 @@ export function collectBanishTriggers(
       && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
     if (eff.triggerCondition?.banishedHadCharm
       && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+    if (eff.triggerCondition?.banishedFromGateZone
+      && (banishedZone < 0 || !prevOwnerState?.own_gate_zones?.includes(banishedZone))) continue;
     // activeCondition チェック（「対戦相手のターンの間」等）
     const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
     if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
@@ -1659,6 +1661,7 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, myAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedFromGateZone && (banishedZone < 0 || !prevOwnerState?.own_gate_zones?.includes(banishedZone))) continue;
       // 🆕§5.3 `O-62`：「**アクセされている**あなたのシグニ1体が…」（`WX15-003-E1`）。
       //   `banishedHadCharm` と同じ規約＝除去直前の盤面で判定し、`prevOwnerState` 不明時は非発火。
       if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
@@ -1717,6 +1720,7 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedFromGateZone && (banishedZone < 0 || !prevOwnerState?.own_gate_zones?.includes(banishedZone))) continue;
       // 🆕§5.3 `O-62`：「**アクセされている**あなたのシグニ1体が…」（`WX15-003-E1`）。
       //   `banishedHadCharm` と同じ規約＝除去直前の盤面で判定し、`prevOwnerState` 不明時は非発火。
       if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;

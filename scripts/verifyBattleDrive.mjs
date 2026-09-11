@@ -50551,6 +50551,109 @@ scenarios.o323AbortKeepsUsageFree = {
 order.push('o323SuccessCommitsUsage');
 order.push('o323AbortKeepsUsageFree');
 
+// V-190＝§5.3 `O-297` 第265バッチ（2026-09-11）で **新しい `triggerCondition` キー**
+//   （`banishedFromGateZone`）を足した回の実機（§2.2 の「新しい型・機構を足した回は実機まで」）。
+// 🔴**engine 側（`collectBanishTriggers` の3ループ）は golden が反転つきで固定済み。**
+//   ここで確かめるのは **アプリのバトル経路が `prevOwnerState`（＝バニッシュ直前の状態）を渡しているか**＝
+//   渡っていなければ新キーは fail-closed で**永久に非発火**になる（golden は pure collector を直接叩くので気付けない）。
+// 🔑§4.4-3／§4.4-68＝**1ビットだけ反転した対照**を同じ巡に置く＝【ゲート】が
+//   ①**バニッシュされたシグニと同じゾーン**（発火）②**別のゾーン**（非発火）。
+//   ⚠**旧実装（`FIELD_HAS_GATE{self}`＝場のどこかにゲート）では②でも発火する**＝②が判別力そのもの。
+// ⚠ゾーン対応は host zone i ↔ opp zone (2−i)＝victim を host zone1 に置くので相手も zone1。
+const o297Spec = (gateZone) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9401'],
+    'field.lrig_down': false,
+    // zone0＝watcher（コードアンチ マドカ//THE DOOR）／zone1＝victim（小剣 ククリ P3000）。
+    'field.signi': [['WXDi-P16-074#9400'], ['WD01-013#9402'], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_acce': [null, null, null],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 🔑**1ビットの反転はここだけ**＝【ゲート】が victim と同じ zone1 か、watcher 側の zone0 か。
+    'own_gate_zones': [gateZone],
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD01-013#9410', 'WD01-013#9411', 'WD01-013#9412'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9490'],
+    // host zone1 の正面＝guest zone1。P12000 なので victim（P3000）が必ず負ける。
+    'field.signi': [null, ['WD05-009#9491'], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_acce': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 🔑観測点＝この2枚が1枚に減るか（【自】の「対戦相手は手札を1枚捨てる」）。
+    hand: ['WD01-013#9492', 'WD01-013#9493'],
+    energy: [], trash: [], blocked_actions: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveO297(page, H, o) {
+  const { tag, spec, expectFire } = o;
+  const VICTIM = 'WD01-013#9402';
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(VICTIM); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const gHand0 = before?.guest?.hand ?? 0;
+  H.log(`開始 hostField=${JSON.stringify(before?.host?.fieldSigni)} gateZones=${JSON.stringify(before?.host?.ownGateZones ?? '-')} guestHand=${gHand0}`);
+  // §4.4-66＝観測点は sticky に持つ（後続の描画で消えても判定できるように）。
+  let victimLeft = false, discarded = false, modalOpened = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+    if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+      await atkBtn.click().catch(() => {}); did = 'btn:アタック';
+    }
+    // §4.4-2c＝ゾーンの行動一覧はトグルなので、開いたら二度押さない。
+    if (!did && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-1');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    const st = await H.queryState();
+    if (!(st?.host?.fieldSigni?.[1] ?? [])?.includes?.(VICTIM)) victimLeft = true;
+    if ((st?.guest?.hand ?? gHand0) < gHand0) discarded = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | victimLeft=${victimLeft} discarded=${discarded} guestHand=${st?.guest?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (victimLeft && (discarded || s >= 8)) break;
+  }
+  const fin = await H.queryState();
+  if (!victimLeft) {
+    return { pass: false, detail: `バトルバニッシュ自体が未確認＝観測不能（hostField=${JSON.stringify(fin?.host?.fieldSigni)} guestHand=${fin?.guest?.hand}）` };
+  }
+  if (expectFire) {
+    return discarded
+      ? { pass: true, detail: `【ゲート】と同じゾーンのシグニがバニッシュ→対戦相手の手札が1枚減った（guestHand ${gHand0} → ${fin?.guest?.hand}）＝アプリのバトル経路でも prevOwnerState が渡っている` }
+      : { pass: false, detail: `🔴発火しない＝バトル経路で prevOwnerState（own_gate_zones）が届いていない疑い（guestHand ${gHand0} → ${fin?.guest?.hand}）` };
+  }
+  return discarded
+    ? { pass: false, detail: `🔴別ゾーンのゲートで発火した＝旧 FIELD_HAS_GATE（場のどこかにゲート）と同じ過剰実行（guestHand ${gHand0} → ${fin?.guest?.hand}）` }
+    : { pass: true, detail: `【ゲート】が別ゾーンなら発火しない（guestHand ${gHand0} のまま）＝ゾーン限定が効いている` };
+}
+
+scenarios.o297GateZoneBanishFires = {
+  title: 'V-190(1): O-297 【ゲート】と同じシグニゾーンの味方がバニッシュ→相手が手札を1枚捨てる',
+  spec: o297Spec(1),
+  async drive(page, H) { return driveO297(page, H, { tag: 'o297On', spec: this.spec, expectFire: true }); },
+};
+scenarios.o297OtherZoneGateSilent = {
+  title: 'V-190(2): 対照＝【ゲート】が別ゾーン（watcher 側）なら発火しない（旧 FIELD_HAS_GATE なら発火する）',
+  spec: o297Spec(2),
+  async drive(page, H) { return driveO297(page, H, { tag: 'o297Off', spec: this.spec, expectFire: false }); },
+};
+order.push('o297GateZoneBanishFires');
+order.push('o297OtherZoneGateSilent');
+
 order.push('v183FreeGrowUnrestricted');
 order.push('v183FreeGrowSameLrigTypeExact');
 order.push('v183FreeGrowScopeBlocksPartialType');

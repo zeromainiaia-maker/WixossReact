@@ -8,31 +8,29 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- **セッション（2026-09-11・第264バッチ・Opus 5 ＋ Codex）＝🏁**`O-323` をクローズ**（索引 G 残25 → 残24）**
+- **セッション（2026-09-11・第264〜第265バッチ・Opus 5 ＋ Codex）＝🏁**`O-323`／`O-297` をクローズ**（索引 G 残25 → 残23）**
   ユーザー指示＝「索引 G を既定の codex と codex-work に投げ、利用上限になったら Claude が引き継ぐ」。
-  **1件目は既定 `~/.codex` へ投入**（実装＝Codex／実測・検証・実機・簿記＝Claude）。
-  🔴**②母集団の実測で登録票が2重に stale だった**＝登録は「1効果」だが実測 **2効果**（`WX24-P2-050-E1` ＋ `WX25-P3-061-E1`）で、
-  **壊れ方が逆向き**（前者＝素の `once_per_turn` で**過小実行**／後者＝`usageLimit` 自体が無く**過剰実行**。
-  さらに《虚幸の閻魔姫　ウリス》の在場条件も JSON から落ちていた）。
-  **受け皿**＝新値 `usageLimit:'once_per_turn_on_success'`。**収集時は消費せず、解決の成功 leaf で `actions_done` へ確定する**
-  （既存 did-it 契約＝`lastProcessedCards` を流用。`mkLimitOk` の30箇所超の既存分岐は1つも触っていない）。
-  🔴**実機2本 PASS（`V-189`＝`order` 常設13本へ）＋実機の反転確認も FAIL を確認**（旧値へ戻すと「場には出たのに記録されない」）。
+  **既定 `~/.codex` → `.codex-work` の交互・逐次**で回している（**同時走行はしない**＝同じ作業ツリーで
+  `build:effects`／gates が競合して差分の出所が混ざるため）。役割＝**実装 Codex／実測・検証・実機・簿記 Claude**。
+  **①`O-323`**＝新値 `usageLimit:'once_per_turn_on_success'`。**収集時は消費せず、解決の成功 leaf で `actions_done` へ確定**。
+  実測で登録票が stale（1効果ではなく**2効果**で、**壊れ方が逆向き**＝過小実行と過剰実行が1項目に同居）。
+  **②`O-297`**＝`triggerCondition.banishedFromGateZone`。`collectBanishTriggers` の**3ループすべて**で
+  `prevOwnerState.own_gate_zones` と `banishedZone` を照合（旧 `FIELD_HAS_GATE{self}`＝場のどこかにゲート、は過剰実行）。
+  🔴**実機4本すべて PASS**（`V-189` 2本／`V-190` 2本＝`order` 常設は15本へ）。
 
-  🔴🔑**教訓①＝`usageLimit` のような「既存の値集合」に値を足すときは、読む側の `!== 'once_per_turn'` を全部数える。**
-  この書き方の分岐では**新値が「無制限」に落ちる**（fail-open）。今回は到達経路を2つに限定し、
-  **新値を持つ live 効果の集合そのものを golden で ratchet** した＝別 timing へ無監査で広がると赤くなる。
-  🔴🔑**教訓②＝golden と実機の risk は別物**＝`BattleScreen.tsx:5231` は `wrapSigniAutoPayGate` で
-  **action を包んでから** `executeEffect` を呼ぶ。マークが `SEQUENCE`/`CONDITIONAL` を越えて leaf に届かないと
-  **アプリでだけ永久に消費されない**。golden は包まない経路しか通らないので、**この1点を狙って実機を書いた**。
-  ⚠**教訓③＝live JSON を一時的に書き換えて反転確認したら、戻した後に値を読み直す**＝
-  `git checkout` → `build:effects` では**値の書き換えは held に落ちて live へ戻らない**（`heldReview --adopt` が要る）。
+  🔴🔑**教訓①＝実機の反転確認は「live JSON を旧構造へ戻す」ではなく「engine の判定行を一時的に外す」でやる**
+  （[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-70 に採番）＝`dist/data/*.json` が旧 JSON でも挙動は新しいままで反転しなかった。
+  **「反転しない＝判別力が無い」と読むと、正しいシナリオを捨てる。**
+  🔴🔑**教訓②＝既存の値集合（`usageLimit` 等）に値を足すときは、読む側の `!== 'once_per_turn'` を全部数える**
+  ＝この書き方の分岐では**新値が「無制限」に落ちる**（fail-open）。今回は到達経路を2つに限定し、
+  **新値を持つ live 効果の集合そのものを golden で ratchet** した。
+  🔑**教訓③＝golden と実機の risk は別物**＝`O-323` は `wrapSigniAutoPayGate` が **action を包んでから**
+  `executeEffect` を呼ぶ経路、`O-297` は**バトル解決が `prevOwnerState` を渡しているか**＝どちらも golden からは見えない。
 
-  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **24項目**（A 0／B 0／**G 24**）｜🏁**実機 残0**。
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **23項目**（A 0／B 0／**G 23**）｜🏁**実機 残0**。
 
   **次の一手**
-  ① 🔥**索引 G を1件ずつ Codex へ投げ続ける**（既定 `~/.codex` と `.codex-work` を**交互・逐次**に使う＝
-     同じ作業ツリーで2本同時に走らせると `build:effects`／gates が競合して差分の出所が混ざる）。
-     **投入済みの指示書**＝`O-297`（ON_BANISH のトリガー元ゾーン）／`O-326`（空払いの事前ゲート）。
+  ① 🔥**索引 G を1件ずつ Codex へ投げ続ける**（交互・逐次）。**指示書作成済み**＝`O-326`（空払いの事前ゲート）。
   ② ⚠**索引 A/B が空のままなので、母集団2桁の項目が出たら必ず §5.3 索引 A へ足す**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -202,7 +200,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件**（2026-09-10 返済） | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**24項目**（上限 約90効果）＝索引 **A 0**・**B 0**・**G 24項目/上限90効果** | 新しい型・評価器・engine が要るもの＝**いまの本線** | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**23項目**（上限 約89効果）＝索引 **A 0**・**B 0**・**G 23項目/上限89効果** | 新しい型・評価器・engine が要るもの＝**いまの本線** | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🔥**123効果**（うち系統 6件・残りは一点物）。⚠**候補プールは残7＝実質枯渇** | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | **④** | **§5.5 低優先・保留** | **7件** | CPU AI／逆翻訳テール／リリース判定ほか | — |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
@@ -284,11 +282,12 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🏁**残0**（2026-09-11＝第264で `V-189`、第263で `V-187`／`V-188` を**同じ巡で返済**／2026-09-10＝第253で `V-184`／`V-185`、第255で `V-186`）＝**13本を `order` に常設**
+🏁**残0**（2026-09-11＝第265で `V-190`、第264で `V-189`、第263で `V-187`／`V-188` を**同じ巡で返済**／2026-09-10＝第253で `V-184`／`V-185`、第255で `V-186`）＝**15本を `order` に常設**
 （`v184DriveCrasherFires` / `v184NonDriveCrasherSilent` / `v185FieldDownExcludesSelfOffered` / `v185FieldDownExcludesSelfBlocked`
 ／`v186LeaveSubstituteDeckBottom` / `v186LeaveSubstitutePlainControl` / 🆕`v187LeaveToTrashWindowBattle` / `v187LeaveToTrashWindowAbledControl`
 ／`v187LeaveToTrashWindowOffControl` / `v188SecondMainFacedownFlip` / `v188SecondMainFacedownBlocked`
-／🆕`o323SuccessCommitsUsage` / `o323AbortKeepsUsageFree`）。
+／`o323SuccessCommitsUsage` / `o323AbortKeepsUsageFree`
+／🆕`o297GateZoneBanishFires` / `o297OtherZoneGateSilent`）。
 🔑**`V-189` は「アプリ経路だけが包む」型の返済**＝`BattleScreen.tsx:5231` は `wrapSigniAutoPayGate` で **action を包んでから** `executeEffect` を呼ぶので、
 成功時消費のマーカーが `SEQUENCE`/`CONDITIONAL` を越えて leaf へ届かないと**永久に消費されない**（golden は包まない経路しか通らない）。
 🔑**`V-186` は「golden では原理的に緑になる」型の返済**＝golden は funnel（`collectLeaveSubstituteOptions`）を直接叩くので、
@@ -369,7 +368,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-🔥**残24項目 / 上限90効果。** ⚠**単発の集まりなので、着手は1件ずつ**（`O-317`／`O-322` は互いに無関係な効果を束ねただけ）。
+🔥**残23項目 / 上限89効果。** ⚠**単発の集まりなので、着手は1件ずつ**（`O-317`／`O-322` は互いに無関係な効果を束ねただけ）。
 ⚠🔴**`O-318`〜`O-322` の9効果は登録時の理由が1行しか残っておらず、着手前に再 triage が要る**（各登録票に明記）。
 
 | ID | 母集団 | 何が無いか |
@@ -380,7 +379,6 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | `O-291` | 🆕**S-2 実測 1効果＝登録どおり**（`WXK11-020-E1`・MANUAL） | **`STRIP_OPP_ENA_MULTI_ENA` の後半**＝「対戦相手のエナゾーンのカードは対戦相手の効果を受けない」。消費地点は `costs.ts:1233` と `artsUseGate.ts:71` の2箇所だけで【マルチエナ】剥奪しか実装していない |
 | `O-292` | 🆕**S-2 実測 3効果＝登録どおり**（`WXDi-CP01-006-E2`/`-007-E2`/`-008-E2`） | **通常効果からのコラボ**＝起動コスト「コラボライバー1人とのコラボ」。実行機構は `STUB{INTERNAL_DO_COLLAB}` にしかなく、`execStubPart3.ts:1311-1314` が「通常効果からの生成元が無い」と明記している |
 | `O-296` | 🆕 **live 4効果中1件**（`WXDi-D09-H15-E1`）＋**原文にあって JSON に無い2件**（`WX11-051-BURST` / `WXDi-P01-039-E1`） | **`SET_BASE_LEVEL.until` が `'END_OF_TURN'` しか取れない**＝原文「次の対戦相手のターン終了時まで、基本レベルは3になり基本パワーは12000になる」の前半だけが**恒久化**する（隣の `POWER_SET` は `UNTIL_OPP_TURN_END` を持てるので**同じ文の2つのアクションで寿命が食い違う**）。🔑`O-293`（「次のエナフェイズ終了まで」）と**同じ「寿命の語彙が足りない」族**＝まとめて取ると安い |
-| `O-297` | 🆕 **1効果**（`WXDi-P16-074-E2`） | **ON_BANISH のトリガー元シグニのゾーンを参照する軸が無い**＝原文「**同じシグニゾーンに【ゲート】がある**あなたのシグニ1体がバニッシュされたとき」。⚠**受け皿は2つ在るがどちらも軸が違う**＝`SAME_ZONE_HAS_GATE`（`execUtils.ts:2858`）は **`sourceCardNum`＝効果元**のゾーンしか見ず、`filter.inGateZone`（`effectEngine.ts:1207`）は**いま場に在るシグニ**の状態フィルタ＝**バニッシュ後のトリガー元**には当たらない（`prevOwnerState` が要る）。🔑**`FIELD_HAS_GATE` を使う live 10効果のうち 9件は原文が「あなたの場に【ゲート】がある場合」＝正しい**（誤用はこの1件だけ） |
 | `O-308` | **6効果**（2026-09-09 第239バッチで Codex が「条件型が無い」と申告した分をまとめた） | **AUTO の発動条件に使える `Condition` 型が5つ足りない**＝①**正面のシグニが凍結状態**（`WXDi-D05-017-E1`。`FRONT_SIGNI` は **`ActiveCondition` 側にしか無い**＝`effectEngine.ts:99`）②**左右の隣接ゾーンにダウン状態の＜X＞がいる**（`WXDi-P11-060-E1`/`-E2`）③**このターンにコストか効果で自分のエナへカードが置かれた**（`WXDi-CP02-086-E1`。既存 `SELF_DECK_TO_ENERGY_THIS_TURN` は**デッキ由来だけ**）④**＜X＞限定のパワー合計**（`WXDi-P10-055-E1`。`FIELD_LEVEL_SUM{metric:'power'}` は全シグニ合計のみ）⑤**同じシグニゾーンに【マジックボックス】がある**（`WX24-P3-066-E1`。`SAME_ZONE_HAS_GATE/SEED/TRAP` の兄弟が無い）。🔑**条件側には STUB の道が無い**（`COND_STUB` は `execUtils.ts:2413` で無条件成立）＝**型＋`CONDITION_TYPES`＋`evalCondition`＋`checkActiveCondition`＋golden＋parser の6箇所**を必ず揃える（CLAUDE.md）。⚠**5つは互いに独立**＝1つずつ取ってよい（①③⑤は既存の兄弟条件のコピーで済む見込み） |
 | `O-309` | **5効果**（`WXK06-025-E2`／`WXK10-044-E1`／`WXK10-091-E1`／`WXK06-028-E1`／`WXEX2-12-E4`） | **「対戦相手が選ぶ」の配線が一部の型・分岐にしか無い**＝`opponentSelects` は `BANISH`/`BOUNCE`/`SEND_TO_ENERGY`/`TRASH`/`TRANSFER_TO_DECK` の**型宣言には在る**が、🔴**Claude 実測（2026-09-09）＝`execTransferToDeck` の `HAND_CARD` 分岐は `selectOrInteract(..., false, …)` と第8引数がハードコード**で `opponentSelects` を無視する。⇒ **これは大機構ではなく「型は在るが分岐だけ抜けている」型**（今セッション4回踏んだ形）＝**1分岐ずつ潰せる**。⚠`SEARCH` の応答者（`WXK10-091-E1`＝相手デッキを相手が探す）と「置く順番を相手が決める」（`WXK06-028-E1`）は別軸で、そちらは新設が要る |
 | `O-310` | **4効果**（`WX24-P4-022-E3`／`WXEX2-08-E4`／`WD20-006-E1`／`WXK07-018-E1`） | **両プレイヤー・複数ゾーンを横断した候補 pool が作れない**＝「対戦相手のシグニゾーン**と**エナゾーンから各色1枚まで」「両プレイヤーのエナから2枚」「自分と相手のシグニを1体ずつ」。`owner:'any'` は**同じゾーン種**の両側までで、**ゾーン種を跨いだ1つの選択**にできない。⚠`fieldCandidatesByOwner('any')` の拡張ではなく**選択 UI（`TargetScope`）側の新設**が要る |
@@ -467,16 +465,16 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-11（第264バッチ・Opus 5 ＋ Codex＝🏁`O-323` クローズ・索引 G 残24・本ブロックが直近の正）**
+- **2026-09-11（第264〜第265バッチ・Opus 5 ＋ Codex＝🏁`O-323`／`O-297` クローズ・索引 G 残23・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置・実測）。
-  ⚠**3計器が動かないのは想定どおり**＝直したのは**使用制限を数える軸**で、原文の語彙は live に出ている層。
-  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 24項目**（A 0／B 0／G 24。25 → 24）｜
-  🏁**実機 残0**（`V-189` を同じ巡で返済＝`order` 常設は13本へ）｜除外リスト 125効果。
-  🔧**ゲート（全緑 ✅）**＝**golden 3943 PASS**（3940 → 3943）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  ⚠**3計器が動かないのは想定どおり**＝直したのは**使用制限の数え方**と**トリガー元のゾーン参照**で、原文の語彙は live に出ている層。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 23項目**（A 0／B 0／G 23。25 → 23）｜
+  🏁**実機 残0**（`V-189`／`V-190` を同じ巡で返済＝`order` 常設は15本へ）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3946 PASS**（3940 → 3946）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
   census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
-  **ratchet の較正なし。golden の反転確認3通り＋実機の反転確認1本**（live を旧 `once_per_turn` へ戻すと成功側シナリオが FAIL）。
-  📈**live の per-effect 差分＝2 effectId**（`WX24-P2-050-E1`／`WX25-P3-061-E1`）。
-  🔴**実機2本 PASS**＝`o323SuccessCommitsUsage`／`o323AbortKeepsUsageFree`。
+  **ratchet の較正なし。golden の反転確認は2バッチとも取得**（`O-297` は新キーを外すと 0 PASS / 3 FAIL）。
+  📈**live の per-effect 差分＝3 effectId**（`WX24-P2-050-E1`／`WX25-P3-061-E1`／`WXDi-P16-074-E2`）。
+  🔴**実機4本 PASS**＝`o323SuccessCommitsUsage`／`o323AbortKeepsUsageFree`／`o297GateZoneBanishFires`／`o297OtherZoneGateSilent`。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

@@ -8629,7 +8629,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['ON_BANISH'],
       triggerScope: 'any_ally',
       usageLimit: 'once_per_turn',
-      condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
+      triggerCondition: { banishedFromGateZone: true },
       action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
       duration: 'INSTANT',
       mandatory: true,

@@ -57936,6 +57936,64 @@ test('O-62 engine: banishedNotByOwnEffect は自分の効果でだけ落とす�
   eq(fire(false, undefined), false, 'アクセが付いていなければ発火しない（banishedHadAcce）');
 }));
 
+// §5.3 `O-297`＝ON_BANISH の「同じシグニゾーンに【ゲート】がある」は、watcher の場全体ではなく
+// 被バニッシュシグニの**離場直前のゾーン**を見る。self／自分側 watcher／相手側 watcher の3経路を対称に固定する。
+const o297Fires = (
+  ctx: TrigCtx,
+  banishedCardNum: string,
+  banishedPlayerId: string,
+  afterHost: PlayerState,
+  afterGuest: PlayerState,
+  before?: PlayerState,
+) => hasEffect(collectBanishTriggers(ctx, banishedCardNum, banishedPlayerId, afterHost, afterGuest, before).entries, 'WXDi-P16-074-E2');
+
+test('O-297 ON_BANISH: 被バニッシュシグニと同じゾーンにゲートがあれば3収集ループすべてで発火', () => {
+  const live = (effectsMap.get('WXDi-P16-074') ?? []).find(e => e.effectId === 'WXDi-P16-074-E2');
+  eq(live?.triggerCondition?.banishedFromGateZone, true, 'live に除去直前のゲートゾーン条件が届く');
+  ok(live?.condition === undefined, '場全体を見る FIELD_HAS_GATE 条件を残さない');
+  const decompiled = decompiledLineOf('WXDi-P16-074-E2');
+  ok(decompiled.includes('同じシグニゾーンに【ゲート】があるあなたのシグニがバニッシュされたとき'),
+    '逆翻訳が被バニッシュシグニとゲートの同居を描く');
+  ok(!decompiled.includes('あなたの場に【ゲート】がある場合'), '逆翻訳に旧い場全体条件を残さない');
+
+  const hostBefore = mkState({ signi: [SIGNI_L2, null, 'WXDi-P16-074'] }); hostBefore.own_gate_zones = [0];
+  const hostAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); hostAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, HOST, hostAfter, mkState({}), hostBefore), true, '自分側 watcher ループ');
+
+  const selfBefore = mkState({ signi: ['WXDi-P16-074', null, null] }); selfBefore.own_gate_zones = [0];
+  const selfAfter = mkState({}); selfAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), 'WXDi-P16-074', HOST, selfAfter, mkState({}), selfBefore), true, 'バニッシュされたカード自身のループ');
+
+  const guestBefore = mkState({ signi: [SIGNI_L2, null, 'WXDi-P16-074'] }); guestBefore.own_gate_zones = [0];
+  const guestAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); guestAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, GUEST, mkState({}), guestAfter, guestBefore), true, '相手側 watcher ループ');
+});
+
+test('O-297 ON_BANISH: ゲートが別ゾーンなら3収集ループすべてで非発火', () => {
+  const hostBefore = mkState({ signi: [SIGNI_L2, null, 'WXDi-P16-074'] }); hostBefore.own_gate_zones = [1];
+  const hostAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); hostAfter.own_gate_zones = [1];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, HOST, hostAfter, mkState({}), hostBefore), false, '自分側 watcher は別ゾーンで非発火');
+
+  const selfBefore = mkState({ signi: ['WXDi-P16-074', null, null] }); selfBefore.own_gate_zones = [1];
+  const selfAfter = mkState({}); selfAfter.own_gate_zones = [1];
+  eq(o297Fires(trigCtx(HOST, HOST), 'WXDi-P16-074', HOST, selfAfter, mkState({}), selfBefore), false, 'バニッシュされたカード自身も別ゾーンで非発火');
+
+  const guestBefore = mkState({ signi: [SIGNI_L2, null, 'WXDi-P16-074'] }); guestBefore.own_gate_zones = [1];
+  const guestAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); guestAfter.own_gate_zones = [1];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, GUEST, mkState({}), guestAfter, guestBefore), false, '相手側 watcher も別ゾーンで非発火');
+});
+
+test('O-297 ON_BANISH: prevOwnerState 不明なら3収集ループすべてで fail-closed', () => {
+  const hostAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); hostAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, HOST, hostAfter, mkState({})), false, '自分側 watcher は前状態なしで非発火');
+
+  const selfAfter = mkState({}); selfAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), 'WXDi-P16-074', HOST, selfAfter, mkState({})), false, 'バニッシュされたカード自身も前状態なしで非発火');
+
+  const guestAfter = mkState({ signi: [null, null, 'WXDi-P16-074'] }); guestAfter.own_gate_zones = [0];
+  eq(o297Fires(trigCtx(HOST, HOST), SIGNI_L2, GUEST, mkState({}), guestAfter), false, '相手側 watcher も前状態なしで非発火');
+});
+
 // §5.3 `O-66`④（2026-08-25）＝「このターン終了時、〈本文〉」の遅延が落ちて**即時実行**になっていた。
 // 旧実装は遅延設置への変換を**本文が `CHOOSE` のときだけ**に限っており、実測24文のうち遅延が生きて
 // いたのは4件だけだった。⚠**無条件に広げると5効果が退化する**ので3つのガードを置いている。

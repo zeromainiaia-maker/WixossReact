@@ -5904,6 +5904,9 @@ function effJa(e: Eff): string {
       const pref = e.triggerCondition?.turnOwner === 'self' ? 'あなたのメインフェイズの間、' : 'メインフェイズの間、';
       s = `${pref}${s}`;
     }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedFromGateZone) {
+      s = `同じシグニゾーンに【ゲート】がある${s}`;
+    }
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedHadCharm) {
       s = `【チャーム】が付いている${s}`;
     }

@@ -7103,6 +7103,7 @@ export interface CardEffect {
     banishedNotFront?: boolean;                        // ON_SIGNI_BANISH_BATTLE/_OPPONENT の被バニッシュシグニ限定「正面**以外**の」（WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」）。banishedFilter（カード属性/ゾーン状態）とは別軸＝アタッカーの正面ゾーン（対戦相手視点のミラーゾーン）と被バニッシュゾーンの一致判定。犠牲/リダイレクトで実際の被バニッシュ位置が変わった場合も対応
     banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
     banishedHadCharm?: boolean;                        // ON_BANISH watcher の被バニッシュシグニに【チャーム】が付いていた場合のみ（WXDi-P11-TK05）。除去直前の signi_charms で判定し、prevOwnerState 不明時は保守的に非発火
+    banishedFromGateZone?: boolean;                    // ON_BANISH watcher の被バニッシュシグニが【ゲート】のあるシグニゾーンにいた場合のみ（WXDi-P16-074）。除去直前の own_gate_zones で判定し、prevOwnerState 不明時は保守的に非発火
     banishedByOwnEffect?: boolean;                     // ON_BANISH watcher の「あなたの効果によって」＝watcher 所有者の効果起因のみ（バトル/ルール処理・原因不明では非発火）
     /**
      * ON_BANISH watcher の**否定形**「あなたの効果**以外**によってバニッシュされたとき」（§5.3 `O-62`・`WX15-003-E1`）。
