@@ -1275,7 +1275,9 @@ function condJa(c?: any): string {
         ? `あなたの公開領域にある${filterJa(c.subjectFilter)}${nounPZ(c.subjectFilter)}がすべて${filterJa(c.filter)}${nounPZ(c.filter)}である`
         : `${c.owner === 'opponent' ? '対戦相手' : 'あなた'}の公開領域に${filterJa(c.subjectFilter)}${filterJa(c.filter)}${nounPZ(c.subjectFilter)}が${numJa(c.minCount ?? 1)}枚以上ある`;
     }
-    case 'THIS_CARD_FROM_ZONE_THIS_TURN': return `このターンにこのシグニが${(c.zones ?? []).map((z: string) => ({ hand: '手札', deck: 'デッキ', trash: 'トラッシュ', energy: 'エナゾーン' } as Record<string, string>)[z] ?? z).join('か')}から場に出ていた`;
+    // 🆕`anySigni`＝主語が「あなたのシグニが1体以上」（§5.3 `O-319`・第273）。**主語を書き分けないと
+    //   逆翻訳が「このシグニ」と嘘をつく**（原文より狭い条件に読めてしまう）。
+    case 'THIS_CARD_FROM_ZONE_THIS_TURN': return `このターンに${c.anySigni ? 'あなたのシグニが1体以上' : 'このシグニが'}${(c.zones ?? []).map((z: string) => ({ hand: '手札', deck: 'デッキ', trash: 'トラッシュ', energy: 'エナゾーン' } as Record<string, string>)[z] ?? z).join('か')}から場に出ていた`;
     case 'TRIGGER_SOURCE_MATCHES': return `それが${filterJa(c.filter)}カードである`;
     case 'HAND_DISCARDED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手が' : 'あなたが'}手札から${c.filter ? filterJa(c.filter) : ''}カードを${numJa(c.minCount ?? 1)}枚以上捨てていた`;
     // ── §3 タスク6「代わりに」B1残
@@ -4977,6 +4979,11 @@ function actionJa(a?: Action, effectType?: string): string {
         //     パワーと無関係な文（追加トラッシュ／デッキに加える 等）まで入っており、
         //     engine は9本のリテラルに当たらなければ**ログだけ出して何もしない**無言 no-op だった。
         DEFERRED_CONDITIONAL_CLAUSE_UNPARSED: '【未実装】条件つきの効果（条件節を構造化できていない）',
+        // 🆕§5.3 `O-320` 第273バッチ（2026-09-11・`SP26-002-E1`）＝旧 `SUPPRESS_LIFE_BURST_ON_CRASH` は
+        //   **原文が除外しているライフバーストだけを封じる**真逆の実装だった。受け皿（トリガー収集 funnel の
+        //   全域ゲート）が無いので明示 defer にしてある。
+        DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS:
+          '【未実装】このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない',
         // 🆕§5.3 `O-60` 第75（2026-09-05）＝「〜がめくれるまで公開する」の停止条件が読めなかった文型。
         //   ⚠engine の catch-all（カード全文 regex）を撤去したので、**名前のある穴**として宣言する。
         DEFERRED_DECK_REVEAL_UNTIL_UNPARSED: '【未実装】デッキの上から条件を満たすカードがめくれるまで公開する',

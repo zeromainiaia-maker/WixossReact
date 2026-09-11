@@ -11368,6 +11368,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX15-001": [
     {"effectId":"WX15-001-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"武勇","hasRiseIcon":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+
+  // ── 2026-09-11 第273バッチ（§5.3 `O-319` 再 triage）
+  // WXDi-P09-045-E1 ／ 原文「【自】：このシグニがアタックしたとき、**このターンにあなたのシグニが１体以上
+  //   トラッシュから場に出ていた**場合、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。
+  //   そうした場合、ターン終了時まで、それのパワーを－10000する。」
+  // 🔴旧 live＝**発動条件が丸ごと落ちていた**＝トラッシュ蘇生が1度も起きていないターンでも
+  //   《黒》1つで −10000 が撃てた（このカードの「トラッシュから戻ってくる」E2 と噛み合う設計が消えていた）。
+  // 🔑受け皿は既存 `signi_placed_origin_this_turn` で**すでに在った**＝読み方（主語）だけが無かったので
+  //   `THIS_CARD_FROM_ZONE_THIS_TURN` に `anySigni` を足した（既存3効果の「このシグニ」限定は据置）。
+  // ⚠**兄弟3効果と同じ形にする**＝効果レベルの `condition` ではなく**アクション側の `CONDITIONAL`**
+  //   （`WXDi-P07-089-E1` と同型）。収集地点ごとの `condition` 対応差に依存しない。
+  // ⚠`STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}` ＋ `CONDITIONAL{IS_MY_TURN}` は**did-it ゲートの定型**
+  //   （支払われたときだけ後段が走る）なので**触らない**。
+  "WXDi-P09-045": [
+    {"effectId":"WXDi-P09-045-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_ZONE_THIS_TURN","zones":["trash"],"anySigni":true},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST","costColors":["黒"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":-10000}}]}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
 };
 
 /**

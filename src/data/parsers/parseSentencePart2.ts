@@ -543,7 +543,18 @@ export function parseSentencePart2(t: string): EffectAction | null {
     //   この typed 受け皿に届かず、`STUB{LRIG_LIMIT_MODIFY}`（engine がカード全文を読む）へ落ちていた。
     const limitVerbM = t.match(/(?:対戦相手の)?センタールリグのリミットは([１-９\d]+)(増え|減る)/);
     const limitSignM = t.match(/(?:対戦相手の)?センタールリグのリミットを([＋－+-])([１-９\d]+)する/);
-    if (limitVerbM || limitSignM) {
+    // 🆕🔴**§5.3 `O-318`（2026-09-11 第273バッチ）＝「エナフェイズ終了時まで」は `parseSentencePart3` へ譲る。**
+    //   下のコメント②が「②の正確な期間を表す語彙は `until` に無い」と書いていたのは**2026-09-10 まで**の話で、
+    //   `O-293` が `STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END, lrigLimitChange.untilOwnEnergyPhaseEnd}`
+    //   ＋ `lrig_limit_mod_until_own_energy_phase_end`（境界 `main-phase-start`）を**受け皿ごと新設した**。
+    //   🔴それでもこの2効果（`WXDi-P05-025-E2`／`WXDi-P13-004B-E3`）が直らなかったのは、
+    //     **part2 が part3 より先に走って `END_OF_TURN`（＝ターン終了時に消える）で確定させていた**から
+    //     ＝原文どおりなら**次の自分のエナフェイズ終了まで**続く修正が、**払ったターンの終わりに消えていた**。
+    //   ⚠**譲る条件は part3 の規則とまったく同じ綴りにする**（`/エナフェイズ終了時まで.*リミット/`）＝
+    //     ずらすと part3 も受けずに**規則ごと落ちて無言 no-op** になる。
+    if (/エナフェイズ終了時まで.*リミット/.test(t)) {
+      // part3 の `LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` が payload つきで受ける。
+    } else if (limitVerbM || limitSignM) {
       const delta = limitVerbM
         ? parseNum(limitVerbM[1]) * (limitVerbM[2] === '増え' ? 1 : -1)
         : parseNum(limitSignM![2]) * ('＋+'.includes(limitSignM![1]) ? 1 : -1);
@@ -557,8 +568,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
       //   🔴旧実装は②も `NEXT_TURN` にしていたので、`WXDi-P05-025-E2`／`WXDi-P13-004B-E3`／`WXDi-P16-002-E1`
       //     （どれも「次のあなたのエナフェイズ終了時まで、…リミットを＋N**する**」）が
       //     **払ったターンには1も効かず**、次のターンのメインフェイズから効き始める形になっていた。
-      //   ⚠**②の正確な期間（自分の次のエナフェイズ終了時まで）を表す語彙は `until` に無い**＝
-      //     `END_OF_TURN`（＝`lrig_limit_mod`。ターン終了時にリセット）へ**短い側に倒す**。
+      //   🗑**②のうち「エナフェイズ終了時まで」は上の分岐で part3 へ譲った**（`O-318`・第273バッチ）＝
+      //     ここへは届かない。旧注記「②の正確な期間を表す語彙は `until` に無い」は**失効**している
+      //     （`O-293` が `untilOwnEnergyPhaseEnd` を受け皿ごと新設した）。
+      //   ⚠**それ以外の「〜終了時まで」は依然として `END_OF_TURN`（短い側）へ倒す**＝
       //     長い側（`PERMANENT`）は消えない修正になるので選ばない。
       const until: LrigLimitModifyAction['until'] =
         /次の[^、。]*の間/.test(t) ? 'NEXT_TURN'

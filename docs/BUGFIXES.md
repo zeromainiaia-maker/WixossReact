@@ -1,5 +1,84 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G 第273バッチ＝再 triage で4項目を消化（`O-318` 3→1／`O-319` 3→2／`O-320` 5→4）＋ 索引B に `O-329` を新設
+
+**この回の入口は「登録票が主張する受け皿の不在を grep で検証する」**（第271の教訓①）。
+**4件のうち3件は受け皿が既に在り**、1件は**parser が原文と真逆の意味を吐いていた**。
+🔑**新しい機構は1つも作っていない**（足したのは既存条件型の**読み方の軸**1つだけ）。
+
+### ① `WXDi-P05-025-E2` ほか3効果 ＝「次のあなたのエナフェイズ終了時まで」が**払ったターンの終わりに消えていた**
+
+| | |
+|---|---|
+| 原文 | 【出】：**次のあなたのエナフェイズ終了時まで**、あなたのセンタールリグのリミットを＋２する。 |
+| 🔴旧 live | `LRIG_LIMIT_MODIFY{until:'END_OF_TURN'}`（逆翻訳も「（**ターン終了時まで**）」） |
+| 真因 | **`parseSentencePart2` が `parseSentencePart3` より先に走る**（`effectParser.ts:7278-7279`）＝`O-293`（2026-09-10）が受け皿 `STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}` ＋ `lrig_limit_mod_until_own_energy_phase_end` を新設したのに、**part2 の「センタールリグのリミット±N」規則が先に `END_OF_TURN` で確定させて**いた |
+| 影響 | **3効果**（`WXDi-P05-025-E2` / `WXDi-P13-004B-E3` / `WXDi-P16-002-E1`）＝**自分のターン終了時にリミット＋2が消える**＝相手ターン中はレベルの高いシグニを置けない |
+| 修正 | part2 の当該ブロックに `/エナフェイズ終了時まで.*リミット/` の**譲り**を1本足した（part3 の規則と**同じ綴り**にしてある＝ずらすと**両方が受けず無言 no-op** になる） |
+| 検証 | `npm run gates`（全緑）／`npm run regen` → 逆翻訳が「次のあなたのエナフェイズ終了時まで」へ／live 差分は**3効果ちょうど** |
+| 反転確認 | あり＝`WX25-P2-014-E2` の相手側「次の**メインフェイズの間**」が `NEXT_TURN` のままであることを golden で固定（巻き込んでいない） |
+
+🔴**stale だった golden を2本直した**＝どちらも「語彙が無いので短い側へ倒す」という**当時の近似を契約として固定**していたもの
+（`§5.3 O-60 第58` の2本）。🔑**近似を golden に書くときは「いつ解けるか」を書く**＝
+書いてあったので**解けたことがその場で分かった**（`O-293` の登録票がそれを指していた）。
+
+⚠**残る近似**＝`WXDi-P13-004B-E3` の「**このシグニが場にあるかぎり**」が落ちている（live 1効果。
+`lrig_limit_mod_until_own_energy_phase_end` は**誰が立てたか**を持たない単一の数値なので、
+シグニが場を離れても＋2が残る）。**期限は原文どおりに縮んだので、残りは1効果ぶんの過剰**＝索引G `O-320` に記録。
+
+### ② `WXDi-P09-045-E1` ＝**発動条件が丸ごと落ちていた**（`O-319`）
+
+| | |
+|---|---|
+| 原文 | 【自】：このシグニがアタックしたとき、**このターンにあなたのシグニが１体以上トラッシュから場に出ていた場合**、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。 |
+| 🔴旧 live | ゲートなし＝**蘇生が1度も起きていないターンでも**《黒》1つで −10000 が撃てた |
+| ✅受け皿 | **既に在った**＝`signi_placed_origin_this_turn`（`"<instanceId>:<zone>"`）。足りなかったのは**読み方（主語）**だけ |
+| 修正 | `THIS_CARD_FROM_ZONE_THIS_TURN` に **`anySigni`** を追加（型＋`evalCondition`＋逆翻訳＋golden）。`manualEffects.ts` に `WXDi-P09-045-E1` を手書き |
+| 検証 | `npm run gates`（全緑）／`npm run regen` → 逆翻訳が「あなたのシグニが1体以上トラッシュから場に出ていたなら」へ |
+| 反転確認 | あり＝`anySigni` なしは従来どおり「このシグニ」限定であること・ゾーン違い/記録なしで**不成立**（無条件成立に落ちていない）を golden で両方向 |
+
+🔑**兄弟3効果（`WX25-P1-108-E1` / `WX25-P2-061-E1` / `WXDi-P07-089-E1`）は既に正しかった**＝
+**同じ原文フレーズでも主語だけが違う1件**が取り残される形。⇒ `census:population` は**フレーズだけでなく主語で割る**。
+⚠**形は兄弟と揃えた**＝効果レベルの `condition` ではなく**アクション側の `CONDITIONAL`**
+（`condition` は収集地点ごとに評価の有無が違う＝`evalUseCondition` を呼ばない地点がある）。
+
+### ③ `SP26-002-E1` ＝**原文が「除外している」ものだけを封じていた**（`O-320`）
+
+| | |
+|---|---|
+| 原文 | このターン、すべての領域にある**【ライフバースト】以外の**対戦相手のシグニの**トリガー能力は発動しない**。 |
+| 🔴旧 live | `STUB{SUPPRESS_LIFE_BURST_ON_CRASH}`＝`suppress_life_burst: true`＝**相手のライフバーストを封じる** |
+| 実害 | **真逆**＝原文が守ると言っているものだけを消し、原文が消すと言っているもの（【出】【自】《トラップ》…）は**何も消していなかった** |
+| 修正 | parser の規則を `STUB{DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS}` へ（**嘘をやめて明示 defer**）＋ `decompileEffects.ts` の `miscStubMap` に日本語訳 |
+| 検証 | `npm run gates`（全緑・`census:stubs` A群の**無言 no-op 0 / C群 0** は維持）／`npm run regen` → 逆翻訳が「【未実装】…」へ |
+
+⚠**受け皿を作らなかった理由**＝「全領域・全トリガー種・ただし LB は除く」のゲートは
+**`triggerCollect` の収集 funnel 全体**に要る（既存 `suppress_signi_on_play_this_turn` は【出】だけ）。**live 1効果**なので明示 defer。
+
+### ④ `WXDi-P08-044-E2` ＝**既に正しい**と確定（`O-318` から落とす）
+
+`STUB{REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER, leaveUnderCardsTrash{victimScope:'self',count:2,minUnderCards:2,thenDownVictim:true}}` は原文どおり。
+登録票が「要確認」と書いていた「**対戦相手の効果によって**」は
+`applyEffectLeaveUnderCardsTrashSubstitute` の **`victimOwner !== 'opponent'` で構造的に担保**されており、
+「〜してもよい」も `collectLeaveSubstituteOptions` が `kind:'optional'` で登録している。⇒ **修正不要。**
+
+### ⑤ 🆕`O-329` を索引B に新設＝**「このアーツは対戦相手のターンにしか使用できない」が5効果とも効いていない**
+
+🔴**`evalUseCondition` は `IS_OPPONENT_TURN` を `return true`（プレースホルダ）にしている**（`execUtils.ts:3239`）。
+ターン判定は**収集側が `condHas` で別途行う**約束だが、**アーツの提示ゲート（`canUseArtsCondition` →
+`artsUseGate.ts:337` ほか5箇所）はその判定を持っていない**。
+⇒ `condition:{IS_OPPONENT_TURN}` と書いてある `WX15-006-E1`（MANUAL）**でも使用条件は効いていない**。
+残り4効果は `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}`（**読み手が1人もいない** actionId）に落ちている。
+**母集団 5効果**＝索引B（3〜8効果）。`src/screens/` を貫くので**⑤実機まで必須**。
+
+### 完了判定（§2.2）
+
+**触ったのは `src/data/`（parser・manualEffects）／`src/engine/execUtils.ts`／`src/types/effects.ts`／
+`scripts/`（golden・decompiler）／`public/data/` のみ＝④まで（実機不要）。**
+`src/screens/` は1行も触っておらず、足したのは**既存条件型の読み方の軸1つ**（新しい型・機構ではない）。
+検証＝`npm run gates` 全緑（golden 3962/3962）／`npm run regen` → 逆翻訳を3件とも目視／live 差分は**5効果ちょうど**。
+
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-318` を再 triage して2件消化（5 → 残3）
 
 登録票は「**残り4効果は理由が『遅延・履歴・置換機構が足りない』の1行しか残っていない＝着手前に再 triage が必須**」

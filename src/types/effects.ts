@@ -659,7 +659,13 @@ export type Condition =
    * 実体は `signi_placed_origin_this_turn`（`"<instanceId>:<zone>"`）。
    * ⚠既存 `THIS_CARD_FROM_NON_HAND_THIS_TURN` は「手札以外」の一括なので**エナ限定**を表せなかった。
    */
-  | { type: 'THIS_CARD_FROM_ZONE_THIS_TURN'; zones: Array<'hand' | 'deck' | 'trash' | 'energy'> }
+  /**
+   * 🆕`anySigni`＝**主語が「このシグニ」ではなく「あなたのシグニが1体以上」**（§5.3 `O-319`・第273バッチ・
+   * `WXDi-P09-045-E1`「このターンにあなたのシグニが**１体以上**トラッシュから場に出ていた場合」）。
+   * 🔑同じ store（`signi_placed_origin_this_turn`）の**読み方だけ**が違う＝`sourceCardNum` で絞らない。
+   * ⚠**省略時は従来どおり「このシグニ」限定**（既存3効果の意味を変えない）。
+   */
+  | { type: 'THIS_CARD_FROM_ZONE_THIS_TURN'; zones: Array<'hand' | 'deck' | 'trash' | 'energy'>; anySigni?: boolean }
   /**
    * 🆕**トリガー元カードが〈filter〉に一致する場合**（2026-08-31 続き748・`WXK05-065-E1`
    * 「このシグニに【アクセ】が付いたとき、**それがレベル２以下の【アクセ】の場合**」）。

@@ -1560,9 +1560,17 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手はあなたのルリグデッキからカード[１-９\d０-９]*枚を見ないで選び/))
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
-  // ---- このターン、〜ライフバーストは発動しない ----
+  // ---- このターン、すべての領域にある対戦相手のシグニのトリガー能力は発動しない ----
+  // 🆕🔴**§5.3 `O-320` 再 triage（2026-09-11 第273バッチ）＝`SUPPRESS_LIFE_BURST_ON_CRASH` は真逆だった。**
+  //   原文（`SP26-002-E1`・live 1効果）は「**【ライフバースト】以外**の対戦相手のシグニのトリガー能力は
+  //   発動しない（【出】【自】《トラップアイコン》…）」＝**ライフバーストは除外されている側**なのに、
+  //   旧実装は `suppress_life_burst`（＝相手のライフバーストを封じる）を立てていた＝
+  //   🔴**原文が守ると言っているものだけを消し、原文が消すと言っているものは何も消していなかった。**
+  // ⚠**受け皿はまだ無い**＝トリガー収集の funnel 全体（`triggerCollect`）に「全領域・全トリガー種・
+  //   ただし LB は除く」のゲートが要る（既存 `suppress_signi_on_play_this_turn` は【出】だけ）。
+  //   1効果のために収集 funnel を貫くのは割に合わないので、**嘘をやめて明示 defer**（`DEFERRED_*`）。
   if (t.match(/このターン、すべての領域にある.*シグニのトリガー能力は発動しない/))
-    return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS' } as StubAction;
 
   // ---- 追加で《色》を支払っていた場合 ----
   if (t.match(/追加で《[白赤青緑黒無][^》]*》を支払っていた場合/))

@@ -3,26 +3,12 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +LRIG +PAID_ADDITIONAL_COST +STUB×2 -IS_MY_TURN ［1枚］
-WX26-CP1-006
---- WX26-CP1-006
-  原文: 対戦相手のシグニ１体を対象とし、それをダウンする。カードを２枚引き、手札を１枚デッキの一番下に置く。《リコレクトアイコン》［４枚以上］その後、追加で対戦相手のルリグ１体を対象とし、手札から＜プリオケ＞のカードを１枚捨ててもよい。そうした場合、それをダウンする。,-
-  - [0].action.steps[3].handDiscard.count = 1
-  - [0].action.steps[3].handDiscard.filter.story = "プリオケ"
-  - [0].action.steps[4].condition.type = "IS_MY_TURN"
-  - [0].action.steps[4].then.type = "DOWN"
-  - [0].action.steps[4].then.target.type = "LRIG"
-  - [0].action.steps[4].then.target.owner = "opponent"
-  - [0].action.steps[4].then.target.count = 1
-  ~ [0].action.steps[3].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [0].action.steps[3].selectTarget.type = "LRIG"
-  + [0].action.steps[3].selectTarget.owner = "opponent"
-  + [0].action.steps[3].selectTarget.count = 1
-  + [0].action.steps[3].selectTarget.filter.isUp = true
-  …（他 15 行）
-
-## （type増減なし＝値/構造変更） ［1枚］
-WXK07-018
+## （type増減なし＝値/構造変更） ［2枚］
+SP26-002 WXK07-018
+--- SP26-002
+  原文: このアーツは対戦相手のターンにしか使用できない。このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない。,-
+  ~ [0].action.steps[1].id : "SUPPRESS_LIFE_BURST_ON_CRASH" → "DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS"
 --- WXK07-018
   原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
   + [0].action.steps[0].asDown = true
+

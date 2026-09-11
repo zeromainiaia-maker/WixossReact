@@ -1058,6 +1058,16 @@ test('census 第9弾 新設条件型: HAND_DISCARDED_THIS_TURN / SELF_DECK_TO_TR
   ok(fz(['energy'], [`${lv1}:energy`]), 'エナ由来で成立');
   ok(!fz(['energy'], [`${lv1}:trash`]), '🔴トラッシュ由来では不成立（「手札以外」の一括ではない）');
   ok(!fz(['energy'], []), '記録が無ければ不成立');
+  // 🆕`anySigni`＝主語が「あなたのシグニが1体以上」（§5.3 `O-319`・第273・`WXDi-P09-045-E1`）。
+  const fzAny = (zones: string[], origins: string[]) => {
+    const ctx = mkCtx({ signi: [lv1, null, null] }, {}, lv1);
+    ctx.ownerState = { ...ctx.ownerState, signi_placed_origin_this_turn: origins };
+    return evalCondition({ type: 'THIS_CARD_FROM_ZONE_THIS_TURN', zones, anySigni: true } as unknown as Condition, ctx);
+  };
+  ok(fzAny(['trash'], [`${lv2}:trash`]), '🔴別のシグニがトラッシュから出ていても成立（主語が「あなたのシグニ」）');
+  ok(!fz(['trash'], [`${lv2}:trash`]), '🔴反転: anySigni なしは従来どおり「このシグニ」限定');
+  ok(!fzAny(['trash'], [`${lv2}:energy`]), 'ゾーンが違えば不成立（fail-closed）');
+  ok(!fzAny(['trash'], []), '記録が無ければ不成立（無条件成立に落ちていない）');
 
   // ⑤ TRIGGER_SOURCE_MATCHES＝トリガー元カードの属性で分岐（発火するかどうかとは別軸）
   const ts = (filter: Record<string, unknown>, trg?: string) => {
@@ -68982,9 +68992,15 @@ test('§5.3 O-60 第58: ルリグリミット修正は payload の向きと量�
   const w16 = (effectsMap.get('WXDi-P16-002') ?? []).find(e => e.effectId === 'WXDi-P16-002-E1');
   ok(!!w16, 'WXDi-P16-002-E1 が live にある');
   if (w16) {
+    // 🆕**2026-09-11 第273（§5.3 `O-318`）＝受け皿が typed `LRIG_LIMIT_MODIFY` から
+    //   `STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}` へ移った**（原文「次のあなたのエナフェイズ終了時まで」）。
+    //   向きと量の契約はそのまま `lrigLimitChange` の中で見る。
     const gate = ((w16.action as SequenceAction).steps[2] as unknown as { then?: Record<string, unknown> }).then;
-    eq(gate?.owner, 'self', '原文どおり「あなたの」センタールリグ（旧は opponent に化けていた）');
-    eq(gate?.delta, 2, '＋2');
+    eq(gate?.id, 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END', '期限つきの受け皿へ載っている');
+    const spec16 = gate?.lrigLimitChange as Record<string, unknown> | undefined;
+    eq(spec16?.owner, 'self', '原文どおり「あなたの」センタールリグ（旧は opponent に化けていた）');
+    eq(spec16?.delta, 2, '＋2');
+    eq(spec16?.untilOwnEnergyPhaseEnd, true, '🔴期限印（無いとターン終了時に消える）');
   }
   // 🔴旧＝相手側の一致があると**自分側の分岐を丸ごと飛ばす**構造だったので、自分＋1／相手−2 を
   //   両方書いた `WX25-P2-014-E2` は**自分の＋1が消え**、相手の−2は後続ステップと**二重**に掛かっていた。
@@ -69019,14 +69035,14 @@ test('§5.3 O-60 第58: 「次の〜終了時まで」は NEXT_TURN ではない
   //   「次の〜**終了時まで**」＝**いま**効き始めてそこまで続く。旧実装は後者も `NEXT_TURN`（＝
   //   `pending_lrig_limit_mod`＝次のターンのメインフェイズから）にしていたので、
   //   `WXDi-P05-025-E2` などは**払ったターンには1も効かなかった**。
-  const cases: Array<[string, string, string]> = [
-    ['WXDi-P05-025', 'WXDi-P05-025-E2', 'END_OF_TURN'],   // 「次のあなたのエナフェイズ終了時まで」
-    ['WXDi-P13-004B', 'WXDi-P13-004B-E3', 'END_OF_TURN'], // 同上
-    ['WX16-Re19', 'WX16-Re19-E2', 'NEXT_TURN'],           // 「次の対戦相手のメインフェイズ**の間**」
-  ];
-  for (const [card, effectId, want] of cases) {
-    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
-    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+  // 🆕**2026-09-11 第273（§5.3 `O-318`）＝「エナフェイズ終了時まで」の2件はこの型を離れた。**
+  //   `END_OF_TURN` は当時「語彙が無いので短い側へ倒す」近似だったが、`O-293` が
+  //   `STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}` ＋ `lrig_limit_mod_until_own_energy_phase_end` を
+  //   新設したので、いまは**原文どおりの期限**で載る（この test が固定していたのは近似のほう）。
+  //   ⇒ ここに残す契約は「**『次の〜の間』だけが `NEXT_TURN`**」の1本。
+  const wx16 = (effectsMap.get('WX16-Re19') ?? []).find(e => e.effectId === 'WX16-Re19-E2');
+  ok(!!wx16, 'WX16-Re19-E2 が live にある');
+  if (wx16) {
     let found: string | undefined;
     const visit = (n: unknown): void => {
       if (!n || typeof n !== 'object') return;
@@ -69035,8 +69051,14 @@ test('§5.3 O-60 第58: 「次の〜終了時まで」は NEXT_TURN ではない
       if (rec.type === 'LRIG_LIMIT_MODIFY') found = rec.until as string;
       Object.values(rec).forEach(visit);
     };
-    visit(eff.action);
-    eq(found, want, `${effectId} の期間`);
+    visit(wx16.action);
+    eq(found, 'NEXT_TURN', '「次の対戦相手のメインフェイズ**の間**」は NEXT_TURN のまま');
+  }
+  // 🔑反転確認＝「終了時まで」の2件に `LRIG_LIMIT_MODIFY` が残っていない（part2 に取り戻されていない）。
+  for (const [card, effectId] of [['WXDi-P05-025', 'WXDi-P05-025-E2'], ['WXDi-P13-004B', 'WXDi-P13-004B-E3']] as const) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    ok(!JSON.stringify(eff).includes('"LRIG_LIMIT_MODIFY"'), `🔴${effectId}: 近似の型へ戻っている`);
   }
 });
 
@@ -75645,7 +75667,52 @@ test('第247 §5.3 O-293: 「次のあなたのエナフェイズ終了時まで
     };
     effs.forEach(e => walk(e, e.effectId));
   }
-  eq(hits.length, 7, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
+  // 🆕**10＝2026-09-11 第273バッチ（§5.3 `O-318`）で3効果が合流した**（`WXDi-P05-025-E2` /
+  //   `WXDi-P13-004B-E3` / `WXDi-P16-002-E1`）＝どれも `parseSentencePart2` の
+  //   「センタールリグのリミット±N」規則が **part3 より先に**走って `LRIG_LIMIT_MODIFY{until:'END_OF_TURN'}`
+  //   で確定させており、**払ったターンの終わりに修正が消えていた**。7＝2026-09-10 第247。
+  eq(hits.length, 10, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
+});
+
+test('第273 §5.3 O-319: WXDi-P09-045-E1 は「このターンにあなたのシグニがトラッシュから場に出ていた」ゲートを持つ', () => {
+  // 🔴旧 live＝**発動条件が丸ごと落ちていた**＝蘇生が1度も起きていないターンでも《黒》1つで −10000 が撃てた。
+  // ⚠形は兄弟3効果（`WXDi-P07-089-E1` 等）と同じ**アクション側の `CONDITIONAL`**（効果レベルの
+  //   `condition` は収集地点ごとに対応差がある）。
+  const e = findEffectDeep(effectsMap.get('WXDi-P09-045') ?? [], 'WXDi-P09-045-E1');
+  ok(!!e, 'WXDi-P09-045-E1 が live にある'); if (!e) return;
+  const gate = e.action as import('../src/types/effects').ConditionalAction;
+  eq(gate.type, 'CONDITIONAL', '最外がゲート');
+  eq((gate.condition as { type: string }).type, 'THIS_CARD_FROM_ZONE_THIS_TURN', '条件型');
+  eq(JSON.stringify((gate.condition as { zones: string[] }).zones), '["trash"]', 'ゾーンはトラッシュ');
+  eq((gate.condition as { anySigni?: boolean }).anySigni, true,
+     '🔴anySigni が無いと「このシグニ自身」限定になり、原文の「あなたのシグニが1体以上」より狭くなる');
+  // did-it ゲート（支払われたときだけ後段が走る定型）を壊していない。
+  const steps = (gate.then as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', '任意コストの定型は据置');
+});
+
+test('第273 §5.3 O-318: 「次のあなたのエナフェイズ終了時まで…リミットを＋N」は part2 の END_OF_TURN に落ちない', () => {
+  // 🔴**part2（`LRIG_LIMIT_MODIFY`）が part3（`STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}`）より先に走る**ため、
+  //   `O-293` が受け皿（`lrig_limit_mod_until_own_energy_phase_end`）を新設したあとも、この3効果だけは
+  //   **`until:'END_OF_TURN'`＝ターン終了時に消える**ままだった（`O-293` の生成地点は part3 の1本だけ）。
+  // 🔑**反転側も固定する**＝「終了時まで」でも**エナフェイズではない**ものは従来どおり part2 が受ける。
+  for (const [num, eid] of [
+    ['WXDi-P05-025', 'WXDi-P05-025-E2'], ['WXDi-P13-004B', 'WXDi-P13-004B-E3'],
+    ['WXDi-P16-002', 'WXDi-P16-002-E1'],
+  ] as const) {
+    const e = findEffectDeep(effectsMap.get(num) ?? [], eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    const j = JSON.stringify(e);
+    ok(j.includes('"LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"'), `🔴${eid}: part3 の受け皿へ届いていない`);
+    ok(j.includes('"untilOwnEnergyPhaseEnd":true'), `🔴${eid}: 期限印が無い`);
+    ok(!j.includes('"LRIG_LIMIT_MODIFY"'), `🔴${eid}: part2 の END_OF_TURN 版が残っている`);
+  }
+  // 反転確認＝「次の対戦相手のメインフェイズの間」は part2 のまま（`NEXT_TURN`）。
+  const rev = findEffectDeep(effectsMap.get('WX25-P2-014') ?? [], 'WX25-P2-014-E2')!;
+  const revSteps = (rev.action as SequenceAction).steps;
+  eq((revSteps[0] as StubAction).id, 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END', '自分側＝エナフェイズ終了まで');
+  eq((revSteps[1] as import('../src/types/effects').LrigLimitModifyAction).until, 'NEXT_TURN',
+     '🔴反転: 相手側の「次のメインフェイズの間」は part2 のまま（巻き込んでいない）');
 });
 
 test('第247 engine O-293: リミット増は自分の次のエナフェイズ境界まで生き、そこで消える', () => withSavedCursor(() => {

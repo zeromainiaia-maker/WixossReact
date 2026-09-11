@@ -3134,8 +3134,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_non_hand_this_turn?.includes(ctx.sourceCardNum) ?? false);
     // 🆕「このターンにこのシグニが〈zone〉から場に出ていた場合」（2026-08-31 続き748・`WXDi-P06-070-E1`）。
     case 'THIS_CARD_FROM_ZONE_THIS_TURN': {
-      if (!ctx.sourceCardNum) return false;
       const origins = ctx.ownerState.signi_placed_origin_this_turn ?? [];
+      // 🆕`anySigni`＝「あなたのシグニが**1体以上**〈zone〉から場に出ていた場合」（§5.3 `O-319`・第273バッチ）。
+      //   ⚠entry は `"<instanceId>:<zone>"` なので**末尾一致**で読む（instanceId には `#N` が付く）。
+      if (cond.anySigni) return cond.zones.some(z => origins.some(e => e.endsWith(`:${z}`)));
+      if (!ctx.sourceCardNum) return false;
       return cond.zones.some(z => origins.includes(`${ctx.sourceCardNum}:${z}`));
     }
     // 🆕トリガー元カードの属性で分岐する（2026-08-31 続き748・`WXK05-065-E1`）。
