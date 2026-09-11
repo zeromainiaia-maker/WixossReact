@@ -19865,10 +19865,16 @@ test('O-188 第2バッチ 据置契約: 専用 STUB id は固定形へ変えな�
 // 🔴`execFreeze`/`execDown` の `LRIG` 分岐は `targetsStored`/`fixedCardNums` を**読まず**
 //   `lrig.at(-1)` へ即適用する＝固定形へ変えても**挙動は1ビットも変わらない**（意味のない差分になる）。
 // ⚠この契約は「対象が一意」を根拠にしている＝アシストルリグを対象に取る文型が現れたら見直す。
+// 🔴🆕**2026-09-11（§5.3 `O-326`）＝`WX26-CP1-006-E1` はこの契約から外した。**
+//   理由＝**第3の実害が見つかった**＝(a)(b) はどちらも起きないが、
+//   **(c)「帰結が既に成立している」＝相手センタールリグが既にダウン済みでも支払いを提示する**（払い損）。
+//   ⇒ 宣言を `filter:{isUp:true}` ＋ `abortIfNoCandidate` で前に積み、**支払い前に降りる**形へ変えた
+//     （`§5.3 O-326` のテスト3本が両方向＋反転で固定している）。
+//   🔑**`FREEZE` 側（`WXDi-P02-040-E2`）は据置のまま**＝同じ軸（既に凍結済み）は `isFrozen` の別項目で、
+//     今回の母集団（`OPTIONAL_COST` ＋ LRIG `DOWN`＝3効果）には入っていない。**まとめて広げない。**
 test('O-96 据置契約: ルリグ対象は固定形へ変えない（対象が一意＝照応の欠陥が生じない）', () => {
   for (const [cardNum, effectId, outcome] of [
     ['WXDi-P02-040', 'WXDi-P02-040-E2', 'FREEZE'],
-    ['WX26-CP1-006', 'WX26-CP1-006-E1', 'DOWN'],
   ] as const) {
     const json = JSON.stringify(o96Live(cardNum, effectId).action);
     ok(json.includes(`"type":"${outcome}"`), `${effectId}: 帰結は ${outcome}`);
@@ -75817,6 +75823,87 @@ test('§5.3 O-298 NEGATE_ATTACK: アタッカーが居なければ【トラッ�
   attacking.otherState = { ...attacking.otherState, pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
   const rYes = executeAction(eff.action as EffectAction, attacking) as unknown as { done: boolean; pending?: { type: string } };
   ok(!rYes.done, 'アタッカーが居るのに何も起きない（過小実行へ倒れている）');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-326`（2026-09-11）＝候補は在るが、任意コストの唯一の帰結が既に成立している空払いを止める。
+// 🔴`O-298`（候補0体）とは別軸＝センタールリグ自体は常に候補に在るが、既にダウン済みなら
+//   支払い後の `execDown` が no-op になる。既存 `TargetFilter.isUp` を宣言に明示し、O-96 の
+//   3点契約＋`abortIfNoCandidate` で支払い前に止める。
+// ══════════════════════════════════════════════════════════════════════════════
+function openO326InnocentCall(lrigDown: boolean) {
+  const effect = effectsMap.get('WX26-CP1-006')?.find(e => e.effectId === 'WX26-CP1-006-E1');
+  if (!effect || effect.action.type !== 'SEQUENCE') throw new Error('WX26-CP1-006-E1 live sequence missing');
+  const steps = effect.action.steps as Array<EffectAction & { id?: string }>;
+  const iSelect = steps.findIndex(step => step.type === 'STUB' && step.id === 'SELECT_TARGET_ONLY');
+  if (iSelect < 0) throw new Error('WX26-CP1-006-E1 O-96 target declaration missing');
+  const guarded = { type: 'SEQUENCE', steps: steps.slice(iSelect) } as SequenceAction;
+  const lrig = findCard(card => card.Type === 'ルリグ');
+  const prioque = findCard(card => card.CardNum !== lrig && matchesFilter(card, { story: 'プリオケ' }));
+  const ctx = mkCtx({ hand: 0 }, {}, 'WX26-CP1-006');
+  ctx.ownerState.hand = [prioque];
+  ctx.otherState.field = { ...ctx.otherState.field, lrig: [lrig], lrig_down: lrigDown };
+  const selected = executeAction(guarded, ctx);
+  if (selected.done) return { effect, guarded, lrig, prioque, ctx, selected, payOffer: selected };
+  if (selected.pending.type !== 'SELECT_TARGET') throw new Error(`O-326 target prompt missing: ${selected.pending.type}`);
+  const payOffer = resumeSelectTarget([lrig], selected.pending, ctxAfter(selected, ctx));
+  return { effect, guarded, lrig, prioque, ctx, selected, payOffer };
+}
+
+test('§5.3 O-326 ①アップ状態: 対象宣言→任意コスト→支払い後に対戦相手ルリグをダウン', () => withSavedCursor(() => {
+  for (const [cardNum, effectId, actionOf] of [
+    ['WX26-CP1-006', 'WX26-CP1-006-E1', (e: CardEffect) => e.action],
+    ['WX25-CP1-004', 'WX25-CP1-004-E1', (e: CardEffect) =>
+      (e.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices.find(choice => choice.choiceId === 'c1')?.action],
+  ] as const) {
+    const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live effect missing`);
+    const json = JSON.stringify(effect ? actionOf(effect) : null);
+    const iSelect = json.indexOf('SELECT_TARGET_ONLY');
+    const iStore = json.indexOf('STORE_LAST_PROCESSED_TARGETS');
+    const iPay = json.indexOf('OPTIONAL_COST');
+    const iDown = json.lastIndexOf('"type":"DOWN"');
+    ok(iSelect >= 0 && iSelect < iStore && iStore < iPay && iPay < iDown,
+      `${effectId}: O-96 の宣言→store→支払い→DOWN 契約になっていない`);
+    ok(json.includes('"selectTarget":{"type":"LRIG","owner":"opponent","count":1,"filter":{"isUp":true}}'),
+      `${effectId}: LRIG 宣言がアップ状態へ絞られていない`);
+    ok(json.includes('"abortIfNoCandidate":true'), `${effectId}: 帰結成立済みでも支払いへ進む`);
+  }
+  const line = decompiledLineOf('WX26-CP1-006-E1');
+  // ⚠**連結した部分文字列で書かない**＝`filterJa` は所有者と名詞の**間**に状態を挟むので、
+  //   実際の出力は「対戦相手の**アップ状態の**ルリグ1体を対象とする」になる（`対戦相手のルリグ` では当たらない）。
+  ok(line.includes('対戦相手のアップ状態のルリグ1体を対象とする'),
+    `WX26-CP1-006-E1: isUp つきの対象宣言が逆翻訳に現れない（line=${line}）`);
+
+  const opened = openO326InnocentCall(false);
+  ok(!opened.payOffer.done && opened.payOffer.pending.type === 'CHOOSE',
+    'アップ状態の相手ルリグがいるのに任意コストを提示しない');
+  if (opened.payOffer.done || opened.payOffer.pending.type !== 'CHOOSE') return;
+  const discardOffer = resumeOptionalCost('pay', [], opened.payOffer.pending, ctxAfter(opened.payOffer, opened.ctx));
+  ok(!discardOffer.done && discardOffer.pending.type === 'SELECT_TARGET', '＜プリオケ＞を捨てる選択へ進まない');
+  if (discardOffer.done || discardOffer.pending.type !== 'SELECT_TARGET') return;
+  const paid = resumeSelectTarget([opened.prioque], discardOffer.pending, ctxAfter(discardOffer, opened.ctx));
+  ok(paid.done, '支払い後の DOWN が完了しない');
+  eq(paid.otherState.field.lrig_down, true, '支払ったのに対戦相手ルリグがダウンしない');
+  ok(paid.ownerState.trash.includes(opened.prioque), '支払った＜プリオケ＞がトラッシュへ行かない');
+}));
+
+test('§5.3 O-326 ②既にダウン: 任意コストを提示せず手札を維持', () => withSavedCursor(() => {
+  const opened = openO326InnocentCall(true);
+  ok(opened.selected.done && !('pending' in opened.selected),
+    '🔴相手ルリグが既にダウンしているのに支払いプロンプトを提示した');
+  eq(opened.selected.ownerState.hand.join('|'), opened.prioque, '帰結成立済みなのに＜プリオケ＞を失った');
+  eq(opened.selected.otherState.field.lrig_down, true, '既存のダウン状態を壊した');
+}));
+
+test('§5.3 O-326 ③支払い拒否: did-it ゲートが後段 DOWN を止める', () => withSavedCursor(() => {
+  const opened = openO326InnocentCall(false);
+  ok(!opened.payOffer.done && opened.payOffer.pending.type === 'CHOOSE', '任意コストの pay/skip が開かない');
+  if (opened.payOffer.done || opened.payOffer.pending.type !== 'CHOOSE') return;
+  const skipped = resumeOptionalCost('skip', [], opened.payOffer.pending, ctxAfter(opened.payOffer, opened.ctx));
+  ok(skipped.done, 'skip 後に効果が完了しない');
+  eq(skipped.otherState.field.lrig_down, false, '🔴支払いを断ったのに後段 DOWN が走った');
+  eq(skipped.ownerState.hand.join('|'), opened.prioque, '支払い拒否で手札が減った');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -12335,18 +12335,27 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   // 場のシグニを指す型だけ `SIGNI` を要求する（ゾーンから選ぶ型は上で出処を検証済み）。
   // 🆕`SIGNI_ATTACK_BAN` は **`LRIG` 対象**を取りうる（`O-222`）＝engine が確定した対象の Type で
   //   シグニ ban／ルリグ ban を仕分けるので、ここで `SIGNI` を強制しない。
+  // §5.3 `O-326`: DOWN の LRIG 対象だけ O-96 の3点契約へ載せる。
+  // 原文が対象宣言→任意コスト→DOWN の順で、宣言時にアップ状態へ絞れば、既にダウン済みの
+  // センタールリグしかいない盤面では abortIfNoCandidate が支払い前に止められる。
+  // ⚠DOWN 以外の LRIG 帰結へは広げない（本項目は DOWN 専用）。
+  const lrigDownTarget = outcome.type === 'DOWN' && declaredTarget.type === 'LRIG';
   if (outcome.type !== 'TRANSFER_TO_HAND' && outcome.type !== 'ADD_TO_FIELD' && !zoneOutcomeOk
       && outcome.type !== 'SIGNI_ATTACK_BAN'
-      && declaredTarget.type !== 'SIGNI') return action;
+      && declaredTarget.type !== 'SIGNI' && !lrigDownTarget) return action;
+
+  const payableOutcomeTarget: EffectTarget = lrigDownTarget
+    ? { ...declaredTarget, filter: { ...(declaredTarget.filter ?? {}), isUp: true } }
+    : declaredTarget;
 
   const selectTargetStep: EffectAction = {
-    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: declaredTarget, abortIfNoCandidate: true,
+    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: payableOutcomeTarget, abortIfNoCandidate: true,
   } as StubAction;
   const storeTargetStep: EffectAction = { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction;
   const paidGate: EffectAction = {
     ...gate,
     condition: { type: 'PAID_ADDITIONAL_COST' },
-    then: { ...outcome, targetsStored: true } as EffectAction,
+    then: { ...outcome, ...(lrigDownTarget ? { target: payableOutcomeTarget } : {}), targetsStored: true } as EffectAction,
   };
   const fixedSteps: EffectAction[] = [selectTargetStep, storeTargetStep, cost, gateReplacement(paidGate)];
 
@@ -29655,13 +29664,13 @@ function repairSemanticBatch247(effects: CardEffect[]): void {
         if (!lrigChoice) break;
         lrigChoice.action = { type: 'SEQUENCE', steps: [
           { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
-            type: 'LRIG', owner: 'opponent', count: 1,
+            type: 'LRIG', owner: 'opponent', count: 1, filter: { isUp: true },
           }, abortIfNoCandidate: true },
           { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
           { type: 'STUB', id: 'OPTIONAL_COST', costText: '手札から＜ブルアカ＞のカードを１枚捨ててもよい',
             handDiscard: { count: 1, filter: { story: 'ブルアカ' } } },
           { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: {
-            type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 }, targetsStored: true,
+            type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1, filter: { isUp: true } }, targetsStored: true,
           } },
         ] };
         break;

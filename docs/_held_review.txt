@@ -3,11 +3,26 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［2枚］
-WX24-P2-050 WXK07-018
---- WX24-P2-050
-  原文: 【自】：アタックフェイズの間、対戦相手のエナゾーンにカード１枚が置かれたとき、対戦相手のエナゾーンにカードが３枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く。【自】：このシグニがアタックしたとき、あなたの場に《熾炎舞　遊月・参》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、あなたのエナ
-  ~ [0].usageLimit : "once_per_turn" → "once_per_turn_on_success"
+## +LRIG +PAID_ADDITIONAL_COST +STUB×2 -IS_MY_TURN ［1枚］
+WX26-CP1-006
+--- WX26-CP1-006
+  原文: 対戦相手のシグニ１体を対象とし、それをダウンする。カードを２枚引き、手札を１枚デッキの一番下に置く。《リコレクトアイコン》［４枚以上］その後、追加で対戦相手のルリグ１体を対象とし、手札から＜プリオケ＞のカードを１枚捨ててもよい。そうした場合、それをダウンする。,-
+  - [0].action.steps[3].handDiscard.count = 1
+  - [0].action.steps[3].handDiscard.filter.story = "プリオケ"
+  - [0].action.steps[4].condition.type = "IS_MY_TURN"
+  - [0].action.steps[4].then.type = "DOWN"
+  - [0].action.steps[4].then.target.type = "LRIG"
+  - [0].action.steps[4].then.target.owner = "opponent"
+  - [0].action.steps[4].then.target.count = 1
+  ~ [0].action.steps[3].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[3].selectTarget.type = "LRIG"
+  + [0].action.steps[3].selectTarget.owner = "opponent"
+  + [0].action.steps[3].selectTarget.count = 1
+  + [0].action.steps[3].selectTarget.filter.isUp = true
+  …（他 15 行）
+
+## （type増減なし＝値/構造変更） ［1枚］
+WXK07-018
 --- WXK07-018
   原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
   + [0].action.steps[0].asDown = true

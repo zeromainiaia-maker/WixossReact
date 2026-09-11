@@ -284,6 +284,15 @@ export function execStubPart1(
     }
     // ⚠センタールリグだけを候補にする（`GRANT_KEYWORD` の同型分岐と同じ近似＝アシストは対象外）。
     const lrigTopSTO = state.field.lrig.at(-1);
+    // §5.3 `O-326`: LRIG はセンター1体固定でも、状態フィルタは対象資格として評価する。
+    // 旧実装は lrigTop の有無だけを見ていたため `filter.isUp` を明示しても、既にダウン済みの
+    // ルリグを候補に残し、後続の任意コストを払わせてから DOWN が空振りしていた。
+    // ⚠省略時は従来どおり候補にする。SIGNI 側と同じく明示された isUp/isDown だけを読む。
+    const lrigIsDownSTO = state.field.lrig_down ?? false;
+    const lrigStateMatchesSTO = !!lrigTopSTO
+      && (selectFilter?.isUp === undefined || selectFilter.isUp === !lrigIsDownSTO)
+      && (selectFilter?.isDown === undefined || selectFilter.isDown === lrigIsDownSTO);
+    const lrigCandsSTO = lrigStateMatchesSTO && lrigTopSTO ? [lrigTopSTO] : [];
     // 🔑`owner:'any'`（修飾語なし「シグニ１体を対象とし」）は `ownerState` が**相手側へ潰す**ので、
     //   両フィールドから候補を集める（`fieldCandidatesByOwner` の規約に合わせる・§6.4 O-34(a)）。
     //   ⚠live に `SELECT_TARGET_ONLY{owner:'any'}` は従来0件＝この分岐は純粋な追加。
@@ -291,9 +300,9 @@ export function execStubPart1(
       ? fieldCandidatesByOwner('any', selectFilter, ctx) : null;
     let cands = anySTO ? anySTO.cands
       : tgt.type === 'LRIG'
-        ? (lrigTopSTO ? [lrigTopSTO] : [])
+        ? lrigCandsSTO
         : fieldCandidates(state, selectFilter, ctx.cardMap, ctx.effectivePowers);
-    if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigTopSTO) cands = [lrigTopSTO, ...cands];
+    if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigCandsSTO.length > 0) cands = [...lrigCandsSTO, ...cands];
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
     }

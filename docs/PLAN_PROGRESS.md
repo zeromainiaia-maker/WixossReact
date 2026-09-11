@@ -1,5 +1,30 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-11・第264〜第265バッチ・Opus 5 ＋ Codex）＝🏁**`O-323`／`O-297` をクローズ**（索引 G 残25 → 残23）**
+  ユーザー指示＝「索引 G を既定の codex と codex-work に投げ、利用上限になったら Claude が引き継ぐ」。
+  **既定 `~/.codex` → `.codex-work` の交互・逐次**で回している（**同時走行はしない**＝同じ作業ツリーで
+  `build:effects`／gates が競合して差分の出所が混ざるため）。役割＝**実装 Codex／実測・検証・実機・簿記 Claude**。
+  **①`O-323`**＝新値 `usageLimit:'once_per_turn_on_success'`。**収集時は消費せず、解決の成功 leaf で `actions_done` へ確定**。
+  実測で登録票が stale（1効果ではなく**2効果**で、**壊れ方が逆向き**＝過小実行と過剰実行が1項目に同居）。
+  **②`O-297`**＝`triggerCondition.banishedFromGateZone`。`collectBanishTriggers` の**3ループすべて**で
+  `prevOwnerState.own_gate_zones` と `banishedZone` を照合（旧 `FIELD_HAS_GATE{self}`＝場のどこかにゲート、は過剰実行）。
+  🔴**実機4本すべて PASS**（`V-189` 2本／`V-190` 2本＝`order` 常設は15本へ）。
+
+  🔴🔑**教訓①＝実機の反転確認は「live JSON を旧構造へ戻す」ではなく「engine の判定行を一時的に外す」でやる**
+  （[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-70 に採番）＝`dist/data/*.json` が旧 JSON でも挙動は新しいままで反転しなかった。
+  **「反転しない＝判別力が無い」と読むと、正しいシナリオを捨てる。**
+  🔴🔑**教訓②＝既存の値集合（`usageLimit` 等）に値を足すときは、読む側の `!== 'once_per_turn'` を全部数える**
+  ＝この書き方の分岐では**新値が「無制限」に落ちる**（fail-open）。今回は到達経路を2つに限定し、
+  **新値を持つ live 効果の集合そのものを golden で ratchet** した。
+  🔑**教訓③＝golden と実機の risk は別物**＝`O-323` は `wrapSigniAutoPayGate` が **action を包んでから**
+  `executeEffect` を呼ぶ経路、`O-297` は**バトル解決が `prevOwnerState` を渡しているか**＝どちらも golden からは見えない。
+
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **23項目**（A 0／B 0／**G 23**）｜🏁**実機 残0**。
+
+  **次の一手**
+  ① 🔥**索引 G を1件ずつ Codex へ投げ続ける**（交互・逐次）。**指示書作成済み**＝`O-326`（空払いの事前ゲート）。
+  ② ⚠**索引 A/B が空のままなので、母集団2桁の項目が出たら必ず §5.3 索引 A へ足す**。
+
 - **セッション（2026-09-11・第264バッチ・Opus 5 ＋ Codex）＝🏁**`O-323` をクローズ**（索引 G 残25 → 残24）**
   ユーザー指示＝「索引 G を既定の codex と codex-work に投げ、利用上限になったら Claude が引き継ぐ」。
   **1件目は既定 `~/.codex` へ投入**（実装＝Codex／実測・検証・実機・簿記＝Claude）。
