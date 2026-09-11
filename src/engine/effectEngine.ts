@@ -7710,6 +7710,44 @@ export function collectForcePlaceFrontZones(
  * 「このシグニとのバトルによって」だが StubAction に bySource を持たないため、新語彙は足さず
  * battlingHolderNum と holder instance の一致を追加ガードにする。
  */
+/**
+ * 🆕`OPP_SIGNI_LEAVE_TO_TRASH`（§5.3 `O-299` 第261バッチ・2026-09-11・`WXDi-P04-037-E1`）＝
+ * 「【常】：**対戦相手のターンの間**、対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる。」
+ *
+ * 🔴**旧実装は宣言を1度も読んでいなかった**＝この効果は `CONTINUOUS` なので `executeAction` を通らず、
+ *   同名 STUB のハンドラ2本（`execStubPart2`＝`banish_redirect` を立てる／`execStubPart3`＝対象を選んで
+ *   トラッシュする**能動効果**）は**どちらも呼ばれない**。⇒ 真 no-op（`census:stubs` A群は
+ *   「ハンドラが在る」ので緑・逆翻訳も原文どおり＝**どの計器にも映らない**型）。
+ *
+ * 🔑**宣言者は「離場させた側」**＝原文の「対戦相手」は宣言者から見た相手なので、
+ *   funnel では `ctx.ownerState`（効果のコントローラー）側を走査する。
+ *   ⚠victim の盤面を守る既存軸（`downProtector` 等）とは**走査する側が逆**。
+ * ⚠期間（「対戦相手のターンの間」）は `activeCondition` が持つ＝`isOwnerTurn` は**宣言者視点**で渡す。
+ */
+export function collectOppSigniLeaveToTrash(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  effectivePowers?: Map<string, number>,
+): boolean {
+  const candidates: string[] = [
+    ...ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(ownerState.field.lrig.at(-1) ? [ownerState.field.lrig.at(-1)!] : []),
+    ...activeKeyAbilitySources(ownerState),
+  ];
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_SIGNI_LEAVE_TO_TRASH') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn, effectivePowers)) continue;
+      return true;
+    }
+  }
+  return false;
+}
 export function collectFrozenBanishOverrides(
   ownerState: PlayerState,
   otherState: PlayerState,

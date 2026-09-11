@@ -75658,6 +75658,95 @@ test('§5.3 O-298 NEGATE_ATTACK: アタッカーが居なければ【トラッ�
 // 🔴共通の壊れ方＝宣言は live に `CONTINUOUS` の STUB として在るのに、読み手が `BattleScreen` の
 //   バトル解決だけで、原文「（対戦相手の効果によって）**場を離れる場合**」の**効果側が恒久 no-op**。
 //   逆翻訳も `census:stubs` A群（ハンドラの有無）も緑なので**どの計器にも映らない**型。
+// ── §5.3 `O-299` 第261バッチ（2026-09-11）＝**「離場させた側」が宣言する行き先の差し替え**2軸と、
+//   バニッシュ限定だったアクセ対価を全離場へ広げた1軸。
+// 🔑**走査する側が既存軸と逆**＝`downProtector` 等は victim の盤面の守り手を探すが、こちらは
+//   原文「**対戦相手の**シグニが場を離れる場合」＝宣言は `ctx.ownerState`（効果のコントローラー）側にある。
+test('§5.3 O-299 acceExile: アクセ対価はバニッシュ以外の離場でも払える（WXDi-P09-TK03A）', () => withSavedCursor(() => {
+  const acce = 'WXDi-P09-TK03A';
+  const decl = effectsMap.get(acce)?.find(e => e.effectId === 'WXDi-P09-TK03A-E1');
+  eq((decl!.action as StubAction).id, 'ACCE_BANISH_SUBSTITUTE', '受け皿の STUB id が変わっている');
+  const victim = SIGNI;
+  const mk = () => {
+    const c = mkCtx({}, { signi: [victim, null, null] });
+    c.otherState.field.signi_acce = [[acce], null, null];
+    return { ...c, effectsMap } as ExecCtx;
+  };
+
+  // 🔴**非バニッシュの離場**（`isBanish` を渡さない）でも候補が出る。
+  const leaveCtx = mk();
+  const leaveOpts = collectLeaveSubstituteOptions(victim, 'opponent', leaveCtx).filter(o => o.axis === 'acceExile');
+  eq(leaveOpts.length, 1, '🔴バニッシュ以外の離場でアクセ対価が出ない（バニッシュ限定に戻っている）');
+  eq(leaveOpts[0].kind, 'optional', '原文「除外してもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', leaveCtx);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0]?.at(-1), victim, '🔴victim が場に残っていない');
+  ok((applied.ctx.otherState.excluded ?? []).includes(acce), 'アクセがゲーム外へ行っていない');
+  eq(applied.ctx.otherState.field.signi_down?.[0], true, '「そうした場合、そのシグニをダウンする」の代償が落ちている');
+
+  // 対照＝バニッシュ経路（従来から動いていた側）を壊していない。
+  const banishOpts = collectLeaveSubstituteOptions(victim, 'opponent', mk(), { isBanish: true })
+    .filter(o => o.axis === 'banishSubstitute' && o.key.includes('acce'));
+  eq(banishOpts.length, 1, '🔴バニッシュ枝のアクセ対価が消えた');
+
+  // 🔴**アクセが無ければ成立しない**（タダで離場を無効化させない）。
+  const bare = mkCtx({}, { signi: [victim, null, null] });
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', bare).filter(o => o.axis === 'acceExile').length, 0,
+    'アクセが無いのに置換候補が出ている');
+}));
+
+test('§5.3 O-299 frozenLeaveToTrash: 凍結した相手シグニの行き先をトラッシュへ倒す（WXEX1-30）', () => withSavedCursor(() => {
+  const declarer = 'WXEX1-30';
+  const decl = effectsMap.get(declarer)?.find(e => e.effectId === 'WXEX1-30-E1');
+  eq((decl!.action as StubAction).id, 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE', '受け皿の STUB id が変わっている');
+  const victim = SIGNI;
+  const mk = (frozen: boolean) => {
+    const c = mkCtx({ signi: [declarer, null, null] }, { signi: [victim, null, null] });
+    c.otherState.field.signi_frozen = [frozen, false, false];
+    return { ...c, effectsMap } as ExecCtx;
+  };
+
+  const frozenCtx = mk(true);
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', frozenCtx).filter(o => o.axis === 'frozenLeaveToTrash');
+  eq(opts.length, 1, '🔴凍結シグニなのに行き先の差し替えが出ない（バトル経路にしか無い）');
+  eq(opts[0].kind, 'mandatory', "原文に「してもよい」が無いので強制");
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', frozenCtx);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0], null, '場からは離れる（行き先を変えるだけ）');
+  ok(applied.ctx.otherState.trash.includes(victim), '🔴トラッシュへ行っていない');
+
+  // 🔴**凍結していなければ成立しない**（落とすと相手シグニの行き先を無条件で倒す過剰実行）。
+  const upCtx = mk(false);
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', upCtx).filter(o => o.axis === 'frozenLeaveToTrash').length, 0,
+    '🔴凍結していない相手シグニまでトラッシュへ倒している');
+}));
+
+test('§5.3 O-299 oppLeaveToTrash: 相手ターン中だけ行き先をトラッシュへ倒す（WXDi-P04-037）', () => withSavedCursor(() => {
+  const declarer = 'WXDi-P04-037';
+  const decl = effectsMap.get(declarer)?.find(e => e.effectId === 'WXDi-P04-037-E1');
+  eq((decl!.action as StubAction).id, 'OPP_SIGNI_LEAVE_TO_TRASH', '受け皿の STUB id が変わっている');
+  eq(decl!.activeCondition?.type, 'TURN_OWNER', '期間（対戦相手のターンの間）の activeCondition が落ちている');
+  const victim = SIGNI;
+  const mk = (isOwnerTurn: boolean) => ({
+    ...mkCtx({ signi: [declarer, null, null] }, { signi: [victim, null, null] }),
+    effectsMap, isOwnerTurn,
+  } as ExecCtx);
+
+  // 宣言者から見て「対戦相手のターン」＝宣言者のターンではない。
+  const oppTurn = mk(false);
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', oppTurn).filter(o => o.axis === 'oppLeaveToTrash');
+  eq(opts.length, 1, '🔴相手ターン中なのに行き先の差し替えが出ない（CONTINUOUS 宣言が読まれていない）');
+  eq(opts[0].kind, 'mandatory', "原文に「してもよい」が無いので強制");
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', oppTurn);
+  ok(applied.replaced, '離場が置換される');
+  ok(applied.ctx.otherState.trash.includes(victim), '🔴トラッシュへ行っていない');
+
+  // 🔴**自分のターンでは効かない**（期間を落とすと常時発動の過剰実行）。
+  const myTurn = mk(true);
+  eq(collectLeaveSubstituteOptions(victim, 'opponent', myTurn).filter(o => o.axis === 'oppLeaveToTrash').length, 0,
+    '🔴「対戦相手のターンの間」の期間条件が効いていない');
+}));
+
 test('§5.3 O-299 selfDown: アップ状態なら効果離場をダウンで置換する（WXDi-CP02-TK01A）', () => withSavedCursor(() => {
   const victim = 'WXDi-CP02-TK01A';
   const decl = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-CP02-TK01A-E2');

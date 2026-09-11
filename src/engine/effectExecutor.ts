@@ -19,7 +19,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -762,18 +762,30 @@ export function collectEffectBanishSubstituteChoices(
   // 付与ストアと同じ理由で `ctx.effectsMap` には依存できない（代入されるのは BattleScreen の1経路だけ）。
   // 実アプリでは CardData.effects に live JSON が載っている（App.tsx）ので、そちらを優先フォールバックにする。
   const localEffects = new Map<string, CardEffect[]>();
+  const putLocal = (num: string) => {
+    localEffects.set(num, [
+      ...(ctx.effectsMap?.get(num)
+        ?? ctx.effectsMap?.get(getCardNum(num))
+        ?? ctx.cardMap.get(getCardNum(num))?.effects
+        ?? []),
+      ...(state.granted_effects?.[getCardNum(num)] ?? []),
+      ...(state.granted_effects_until_opp_turn?.[getCardNum(num)] ?? []),
+    ]);
+  };
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
     if (!top) continue;
     // ⚠付与ストアも足す（続き432）＝`GRANT_EFFECT` で F-3 身代わりを付与された瞬間に落ちないため。
-    localEffects.set(top, [
-      ...(ctx.effectsMap?.get(top)
-        ?? ctx.effectsMap?.get(getCardNum(top))
-        ?? ctx.cardMap.get(getCardNum(top))?.effects
-        ?? []),
-      ...(state.granted_effects?.[getCardNum(top)] ?? []),
-      ...(state.granted_effects_until_opp_turn?.[getCardNum(top)] ?? []),
-    ]);
+    putLocal(top);
+  }
+  // 🆕🔴**【アクセ】自身の宣言も載せる**（§5.3 `O-299` 第261バッチ・2026-09-11）。
+  //   `collectBanishSubstitutes` は `exile_acce` を出すのに `effectsMap.get(acceNum)` を引くが、
+  //   ここで組む `localEffects` は**シグニの最上面しか入れていなかった**＝engine 経路（効果による
+  //   バニッシュ／離場）では `ACCE_BANISH_SUBSTITUTE` が**1度も引けず恒久 no-op** だった。
+  //   ⚠BattleScreen は本物の `effectsMap` を渡すのでバトル経路だけは動いていた＝
+  //   **「バトルでは効くのに効果では効かない」型**（`O-299` の共通の壊れ方そのもの）。
+  for (const slot of state.field.signi_acce ?? []) {
+    for (const acceNum of slot ?? []) putLocal(acceNum);
   }
   const rank = (o: BanishSubstituteOption): number =>
     o.kind === 'pay_cost' ? (o.costType === 'trashStackSpell' ? 0 : 1) : 2;
@@ -1202,6 +1214,81 @@ export function applyEffectLeaveResonaSelfTrashSubstitute(
   return { ctx, replaced: false };
 }
 
+/**
+ * 🆕**「離場させた側」が宣言する行き先の差し替え**（§5.3 `O-299` 第261バッチ・2026-09-11）。
+ *
+ * 🔑**既存軸と走査する側が逆**＝`downProtector` などは victim の盤面にいる守り手を探すが、
+ *   こちらは原文が「**対戦相手の**シグニが場を離れる場合」＝宣言者から見た相手が victim なので、
+ *   宣言は `ctx.ownerState`（効果のコントローラー）側にある。
+ * ⚠**場には残らない**＝行き先を変えるだけなので、場に残れる軸より必ず後ろへ並べる。
+ * ⚠**既定の行き先が何であれトラッシュへ倒す**（原文「代わりにトラッシュに置かれる」）＝
+ *   バニッシュ（→エナ）でも手札戻し（→手札）でも一律トラッシュ。
+ */
+function applyEffectLeaveToTrashRedirect(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  eligible: boolean,
+  reason: string,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent' || !eligible) return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  const removed = removeFromField(victimNum, state);
+  const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+  return {
+    ctx: addLog(setOwnerState(victimOwner, { ...removed, trash: [...removed.trash, victimNum] }, ctx),
+      `${name}は場を離れる代わりにトラッシュへ（${reason}）`),
+    replaced: true,
+  };
+}
+
+/**
+ * 🆕`frozenLeaveToTrash`（§5.3 `O-299` 第261バッチ・`WXEX1-30-E1`）＝
+ * 「【常】：対戦相手の**凍結状態の**シグニが場を離れる場合、代わりにトラッシュに置かれる。」
+ *
+ * 🔴**旧実装はバトル経路にしか無かった**（`collectFrozenBanishOverrides` の呼び出しは
+ *   `BattleScreen.tsx` のバトル解決2箇所だけ）＝原文「**場を離れる場合**」の効果側が恒久 no-op。
+ * 🔑**collector は既存のものを再利用する**（並行する劣化軸を作らない＝第255/256 の教訓）。
+ * ⚠**victim が凍結していること**が条件＝落とすと相手シグニの行き先を無条件でトラッシュへ倒す過剰実行。
+ */
+export function applyEffectLeaveFrozenToTrashSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  if (state.field.signi_frozen?.[zone] !== true) return { ctx, replaced: false };
+  const declarer = ownerState('self', ctx);
+  const { frozenLeaveToTrash } = collectFrozenBanishOverrides(
+    declarer, state, ctx.isOwnerTurn ?? true, ctx.cardMap, ctx.effectsMap ?? new Map(), '', ctx.effectivePowers);
+  return applyEffectLeaveToTrashRedirect(victimNum, victimOwner, ctx, frozenLeaveToTrash, '凍結シグニの行き先変更');
+}
+
+/**
+ * 🆕`oppLeaveToTrash`（§5.3 `O-299` 第261バッチ・`WXDi-P04-037-E1`）＝
+ * 「【常】：**対戦相手のターンの間**、対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる。」
+ *
+ * 🔴**旧実装は宣言を1度も読んでいなかった**（`CONTINUOUS` なので同名 STUB のハンドラ2本はどちらも
+ *   呼ばれない＝真 no-op）。期間（「対戦相手のターンの間」）は `activeCondition` が持つ。
+ */
+export function applyEffectLeaveOppToTrashSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const declarer = ownerState('self', ctx);
+  const eligible = collectOppSigniLeaveToTrash(
+    declarer, ownerState(victimOwner, ctx), ctx.isOwnerTurn ?? true, ctx.cardMap,
+    ctx.effectsMap ?? new Map(), ctx.effectivePowers);
+  return applyEffectLeaveToTrashRedirect(victimNum, victimOwner, ctx, eligible, '相手ターン中の行き先変更');
+}
+
 export type LeaveSubstituteAxisId =
   | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'downProtector'
   | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom'
@@ -1209,7 +1296,10 @@ export type LeaveSubstituteAxisId =
   | 'underCardsTrash' | 'selfDeckBottom'
   // 🆕§5.3 `O-299`（2026-09-11 第260バッチ）＝**バトル経路にしか無かった置換を効果離場へ持ち上げた**3軸。
   //   原文はどれも「（対戦相手の効果によって）**場を離れる場合**」＝バトルに限らない。
-  | 'selfDown' | 'selfExile' | 'resonaSelfTrash';
+  | 'selfDown' | 'selfExile' | 'resonaSelfTrash'
+  // 🆕§5.3 `O-299`（2026-09-11 第261バッチ）＝**離場させた側**が宣言する「行き先の差し替え」2軸と、
+  //   バニッシュ限定だったアクセ対価を全離場へ広げた1軸。
+  | 'acceExile' | 'frozenLeaveToTrash' | 'oppLeaveToTrash';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -1366,6 +1456,22 @@ export function collectLeaveSubstituteOptions(
   } else {
     push('replaceBanish', 'optional', '代わりにそのシグニをバニッシュする',
       applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx));
+    // 🆕§5.3 `O-299`（2026-09-11 第261バッチ）＝**アクセ対価はバニッシュ限定ではない**
+    //   （`WXDi-P09-TK03A-E1`「これにアクセされているシグニが**場を離れる場合**、代わりにこれを
+    //   ゲームから除外してもよい。そうした場合、そのシグニをダウンする」）。
+    // 🔑**既存の choice 列挙と apply をそのまま使う**＝`exile_acce` だけを取り出して非バニッシュ枝へ回す。
+    //   ⚠他の kind（`sacrifice`／`trash_charm`／`pay_cost`）は原文が「バニッシュされる場合」なので出さない。
+    for (const choice of collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)
+      .filter(c => c.kind === 'exile_acce')) {
+      out.push({
+        axis: 'acceExile',
+        key: `acceExile:${choice.sourceNum}:${choice.acceNum}`,
+        kind: 'optional',
+        label: `代わりに${ctx.cardMap.get(getCardNum(choice.acceNum))?.CardName ?? choice.acceNum}をゲームから除外する（このシグニはダウンする）`,
+        autoEligible: true,
+        resultCtx: applyEffectBanishSubstituteChoice(victimNum, victimOwner, choice, ctx),
+      });
+    }
   }
   // 🆕§5.3 `O-299`（2026-09-10）＝自衛の「代わりにデッキの一番下へ」。
   //   ⚠**場は離れる**ので、場に残れる軸（上の6本）より後ろに置く。
@@ -1374,6 +1480,12 @@ export function collectLeaveSubstituteOptions(
   // 🆕§5.3 `O-299`（2026-09-11 第260バッチ）＝**場は離れる**行き先変更なので最後尾の group へ。
   push('selfExile', 'mandatory', '代わりにこれをゲームから除外する',
     applyEffectLeaveSelfExileSubstitute(victimNum, victimOwner, ctx));
+  // 🆕§5.3 `O-299`（2026-09-11 第261バッチ）＝**離場させた側**が宣言する行き先の差し替え。
+  //   ⚠**場には残らない**ので、場に残れる軸をすべて試したあとに置く（守りが優先される）。
+  push('frozenLeaveToTrash', 'mandatory', '代わりにトラッシュに置かれる（凍結）',
+    applyEffectLeaveFrozenToTrashSubstitute(victimNum, victimOwner, ctx));
+  push('oppLeaveToTrash', 'mandatory', '代わりにトラッシュに置かれる（相手ターン中）',
+    applyEffectLeaveOppToTrashSubstitute(victimNum, victimOwner, ctx));
   push('noAbilityDeckBottom', 'mandatory', '代わりにデッキの一番下に置く',
     applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx));
   return out;

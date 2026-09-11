@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第261バッチ（PLAN §5.3 索引A `O-299`）：離場置換に3軸を追加し 残5 → **残2**
+
+`O-299` の共通の壊れ方は「**置換処理がバトル経路にしか無い**」。第260 で3軸（`selfDown`／`selfExile`／
+`resonaSelfTrash`）を `collectLeaveSubstituteOptions` へ持ち上げたのに続き、今回は**残り3効果**を消化した。
+
+### 1. `acceExile`（`WXDi-P09-TK03A-E1`）＝アクセ対価はバニッシュ限定ではない
+
+原文「これにアクセされているシグニが**場を離れる場合**、代わりにこれをゲームから除外してもよい。そうした場合、そのシグニをダウンする。」
+funnel は `exile_acce` を **`opts.isBanish` の枝でしか列挙していなかった**ので、非バニッシュの離場では出なかった。
+⇒ 非バニッシュ枝でも `collectEffectBanishSubstituteChoices` を回し、**`kind === 'exile_acce'` だけ**を取り出す。
+⚠他の kind（`sacrifice`／`trash_charm`／`pay_cost`）は原文が「バニッシュされる場合」なので出さない。
+
+#### 🔴 同時に engine 経路の既存バグを1件直した（`localEffects` にアクセが入っていない）
+
+`collectEffectBanishSubstituteChoices` は `localEffects` を自前で組んで `collectBanishSubstitutes` へ渡すが、
+**その map にはシグニの最上面しか入っていなかった**。`exile_acce` の判定は `effectsMap.get(acceNum)` を引くので、
+**engine 経路（効果によるバニッシュ／離場）では `ACCE_BANISH_SUBSTITUTE` が1度も引けず恒久 no-op** だった。
+`BattleScreen` は本物の `effectsMap` を渡すので**バトル経路だけ動いていた**＝`O-299` の共通の壊れ方そのもの。
+⇒ `putLocal()` に切り出し、`state.field.signi_acce` の各札も載せる。
+
+### 2. `frozenLeaveToTrash`（`WXEX1-30-E1`）＝凍結した相手シグニの行き先をトラッシュへ
+
+原文「【常】：対戦相手の**凍結状態の**シグニが場を離れる場合、代わりにトラッシュに置かれる。」（強制）。
+`collectFrozenBanishOverrides` は既に在ったが、**呼び出しが `BattleScreen.tsx` のバトル解決2箇所だけ**だった。
+⇒ funnel に `frozenLeaveToTrash` 軸を足し、**collector は既存のものを再利用**（並行する劣化軸を作らない）。
+⚠**victim が凍結していること**を必ず見る（落とすと相手シグニの行き先を無条件でトラッシュへ倒す過剰実行）。
+
+### 3. `oppLeaveToTrash`（`WXDi-P04-037-E1`）＝相手ターン中の行き先変更
+
+原文「【常】：**対戦相手のターンの間**、対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる。」（強制）。
+🔴**宣言を1度も読んでいなかった**＝`CONTINUOUS` なので `executeAction` を通らず、同名 STUB のハンドラ2本
+（`execStubPart2`＝`banish_redirect` を立てる／`execStubPart3`＝対象を選んでトラッシュする**能動効果**）は
+**どちらも呼ばれない**。⇒ 新 collector `collectOppSigniLeaveToTrash`（`effectEngine.ts`）＋ funnel 軸。
+期間は `activeCondition{TURN_OWNER opponent}` が持つ。
+
+🔑**走査する側が既存軸と逆**＝`downProtector` 等は victim の盤面の守り手を探すが、
+この2軸は原文が「**対戦相手の**シグニが場を離れる場合」＝**宣言は離場させた側（`ctx.ownerState`）にある**。
+`checkActiveCondition` の `isOwnerTurn` も**宣言者視点**（`ctx.isOwnerTurn` をそのまま）で渡す。
+⚠**場には残らない**（行き先を変えるだけ）ので、場に残れる軸をすべて試したあとに並べる。
+
+### 残2の実測（どちらも登録票より重かった）
+
+- 🔥**`WX24-P4-002-E1`＝3軸すべてが外れている。** live は `STUB{OPP_SIGNI_LEAVE_TO_TRASH}` を**ACTIVATED のステップ**
+  として持ち、`execStubPart2` が `banish_redirect:true` を立てるだけ。①期間「このターンと次のターン」→
+  **turn-end で消えるので1ターンしか効かない**（過小）②「能力を持たない」フィルタが**無い**（過剰）
+  ③**バニッシュ限定**で「場を離れる場合」全体ではない（過小）。**期間＋フィルタつきの window** が要る。
+- 🔥**`WXDi-P00-038-E1`＝live が別物。** `SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]` で、
+  **置換も裏向きも1つも無い**（しかも `CONTINUOUS` なので全部 no-op）。`O-314`（複数ターンにまたがる遅延状態）と同族。
+
+🔴🔑**この2件を今回やらなかった理由**＝どちらも `BattleScreen.tsx` の既存フラグ（`banish_redirect`）と**二重になる**。
+funnel 側だけ足すと「バトルでは古い挙動・効果では新しい挙動」という**並行する劣化軸**になる（登録票が禁じている形）。
+⇒ **`BattleScreen` の委譲とセットで取る**＝そこは `src/screens/` を触るので §2.2 により実機まで必須。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3938 PASS / 0 FAIL**（3935 → +3）／smoke CRASH・HANG・INVARIANT 0／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／manual-fields 0／lint 0 errors・254 warnings。**ratchet の較正なし**。
+- **live の per-effect 差分＝0**（engine のみ／JSON は1バイトも変えていない）。
+  ⇒ 🔴**この型はどの計器にも映らない**（逆翻訳・census・`census:stubs` A群はどれも「ハンドラが在るか」しか見ない）。
+- **反転確認は4通り実行した**＝①`localEffects` からアクセを外すと `acceExile` が `got=0` で FAIL
+  ②〜④3軸を funnel から外すと3本とも `got=0` で FAIL。
+- golden は各軸について**成立する盤面と成立しない盤面の対照**を張った
+  （アクセ無し／凍結していない／自分のターン）＝**タダで離場を無効化する**方向へ倒れていないことを固定。
+
+### ⑤実機は不要と判定（§2.2）
+
+触ったのは `src/engine/` の2ファイルと `scripts/goldenTest.ts` だけ。🔑**`src/screens/` は1行も触っていない。**
+新しいアクション型・条件型・`PlayerState` キーも足していない（`LeaveSubstituteAxisId` の**列挙値3つ**、
+既存 funnel と同形の apply 関数2本、既存 collector と同形の collector 1本）。
+🔴**ただし残2は実機まで必須**＝`BattleScreen` の委譲を伴うため（登録票に明記した）。
+
+### 索引 A は **残1項目**（`O-299` 残2）
+
+機構 worklist は **26項目**（A 1／B 0／G 25）で据置。
+
+🔴🔑**教訓＝「バトルでは効くのに効果では効かない」は engine 内部にもある。**
+`O-299` の共通の壊れ方は `BattleScreen` と engine の分業だと思っていたが、今回の `localEffects` は
+**engine の中で組んだ縮小版 map** が原因だった（本物の `effectsMap` を渡す BattleScreen だけ動いていた）。
+⇒ **「同じ判定関数に、呼び出し側ごとに違う map を渡している」箇所を疑う。**
+🔑**走査の向きを間違えると永久に成立しない**＝「守る側の宣言」と「離場させた側の宣言」は別物で、
+後者は victim の盤面をいくら探しても見つからない。**原文の「対戦相手の」が誰から見た相手かを最初に決める。**
 ## 2026-09-11 — 第260バッチ（PLAN §5.3 **索引 A**）：🏁`O-298` をクローズ／`O-299` を 残8 → **残5**
 
 索引 A の残2項目を取った。**`O-298` は残4のうち3件が真バグ・1件は軸違い**、**`O-299` は8件中3件を funnel へ持ち上げた**。
