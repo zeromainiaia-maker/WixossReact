@@ -946,6 +946,12 @@ export interface PlayerState {
   eichi_level_options?: Record<string, number[]>;
   // COPY_SIGNI: このターン、フィールドシグニが別のカードとして扱われる（field_cardNum → copy_source_cardNum）
   card_identity_overrides?: Record<string, string>;
+  // 🆕§5.3 `O-306`（2026-09-11）＝「宣言されたカード名のカードは《X》になる」の**規則**（**変身する側**の state に載る）。
+  //   ⚠上の `card_identity_overrides`（instance 単位の差し替え）と違い、**その領域へ後から来たカードにも効く**。
+  //   実効の差し替えは `engine/nameIdentityRules.ts` の `effectiveIdentityOverrides` が毎回合成する。
+  //   `zones`＝'all'（すべての領域）／'field'（場にあるカードだけ）。寿命でフィールドを2本に分ける：
+  name_identity_rules_this_turn?: Array<{ cardName: string; toCardNum: string; zones: 'all' | 'field' }>; // このターン（turn-end で失効）
+  name_identity_rules?: Array<{ cardName: string; toCardNum: string; zones: 'all' | 'field' }>;           // このゲームの間
   // 「このターンと次のターンの間、〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
   // ⚠**場に出す側**に載る。寿命は turnsRemaining のカウントダウン（`clearTurnEndScopedState`）。
   // ⚠旧 `signi_deploy_power_limit`（DEPLOY_RESTRICT のパワー版）もここへ統合した＝旧フィールドは

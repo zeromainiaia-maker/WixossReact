@@ -6989,6 +6989,13 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 ### `O-306` — 宣言したカード名のカードを「このターン」全領域で別名カードへ変更する期限つき規則が無い
 
+> 🏁**2026-09-11 第278バッチでクローズ**＝登録票の見立てどおり**規則として持つ**形にした。
+> 変身する側の `PlayerState.name_identity_rules_this_turn`（登録表で turn-end 失効）／`name_identity_rules`（このゲームの間）に
+> `{cardName, toCardNum, zones}` を積み、実効の差し替えは純関数 `effectiveIdentityOverrides`（`src/engine/nameIdentityRules.ts`）が
+> **読むたびに**合成する（読み手＝`BattleScreen` の `battleCardMap`／augmented `effectsMap`、`effectEngine` のパワー基準値、E1 の名前一掃）。
+> 🔑**同族 `WXK03-002-E2`（「このゲームの間、対戦相手の場にある」）も同時に是正**＝live に `value:'field'` が無く全領域を変身させていた。
+> 🔑**同じカードの E1（《サーバント》を含むカードの一掃）も印刷名を読んでいた**＝E2 と組み合わせても一掃できなかった。全文は BUGFIXES.md。
+
 **規模／母集団**＝1効果（`WXEX2-10-E2`）。2026-09-09 第234バッチ後半の re-triage（`.codex-work` の利用上限で
 中断した第234バッチの残24効果を検証中に発見）。
 

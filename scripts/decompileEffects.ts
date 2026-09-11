@@ -4340,6 +4340,16 @@ function actionJa(a?: Action, effectType?: string): string {
             : '対象の対戦相手のシグニ1体';
         return `${scope}を《サーバント　ＺＥＲＯ》にする`;
       }
+      // 🆕§5.3 `O-306`（2026-09-11）＝宣言名の変身**規則**。期限（`until`）と領域（`value:'field'`）を payload から描く
+      //   （旧表示は handler コメントの `declared_card_name と一致する…` で、**場限定が欠けていても逆翻訳に映らなかった**）。
+      if (a.id === 'DECLARED_NAME_TO_SERVANT_ZERO') {
+        const periodDN = a.until === 'END_OF_TURN' ? 'このターン' : 'このゲームの間';
+        const zoneDN = a.value === 'field' ? '場にある' : 'すべての領域にある';
+        return `${periodDN}、対戦相手の${zoneDN}宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる`;
+      }
+      if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'opp_public_signi') {
+        return 'シグニのカード名１つを宣言する（候補＝対戦相手の場・エナ・トラッシュのシグニ名）';
+      }
       // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）。
       // 🆕**payload から描く**（§5.3 `O-60` 第9バッチ・2026-08-29）＝旧実装は `currentCardText` から
       //   【シード】を含む開花クレーズを**切り出して**いたので、**JSON が枚数も対象も持っていなくても

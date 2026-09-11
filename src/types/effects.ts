@@ -6691,6 +6691,8 @@ export interface StubAction {
   // DECLARE_CLASS: 宣言できるクラスを原文が列挙している場合の候補（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。
   // 省略時は従来どおり盤面/手札/トラッシュから動的収集する。列挙があるのに無制限に宣言させるのは過剰実行なので明示で絞る。
   declareOptions?: string[];
+  /** `DECLARE_CARD_NAME` の候補の出所（§5.3 `O-306`）。'opp_public_signi'＝対戦相手の場・エナ・トラッシュのシグニ名。省略時は自分の手札の名前。 */
+  declareNamePool?: 'opp_public_signi';
   /**
    * 🆕`DECLARE_CLASS` の候補を**直前に処理したカード**（`lastProcessedCards`）に限る
    * （2026-08-31 続き759・`WD08-008-E1`「この方法でトラッシュに置いたカードの中に、共通するクラスを持つ

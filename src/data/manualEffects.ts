@@ -219,6 +219,35 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
      "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
+  // ── WXEX2-10（カーニバル　－ＱＢ－）E2 ＝§5.3 `O-306`（2026-09-11）
+  //   原文＝【起】《ターン１回》《赤×0》：シグニのカード名１つを宣言する。このターン、対戦相手の
+  //         すべての領域にある宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる。
+  // 🔴旧 live は `SEQUENCE[STUB{DECLARE_CARD_NAME}×2]` ＝**宣言を2回するだけで何も変身しない**。
+  // 🔑受け皿＝`DECLARED_NAME_TO_SERVANT_ZERO{until:'END_OF_TURN'}`（規則として相手に置く・ターン終了で失効）。
+  // ⚠宣言の候補は相手の公開領域のシグニ名（`declareNamePool`）。コスト・回数・タイミングは旧 live のまま。
+  "WXEX2-10": [
+    {"effectId":"WXEX2-10-E2","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"赤","count":0}]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"opp_public_signi"},
+       {"type":"STUB","id":"DECLARED_NAME_TO_SERVANT_ZERO","until":"END_OF_TURN"}]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ── WXK03-002（カーニバル　†ＭＡＩＳ†）E2 ＝§5.3 `O-306` の同族（2026-09-11）
+  //   原文＝【出】：シグニのカード名１つを宣言する。このゲームの間、対戦相手の場にある宣言されたカード名の
+  //         カードは《サーバントＺＥＲＯ》になる。
+  // 🔴旧 live は `DECLARED_NAME_TO_SERVANT_ZERO` に **`value:'field'` が無く**、手札・デッキ・エナ・トラッシュまで変身させていた
+  //   （しかも発動時点のスナップショット＝後から場に出たカードは変身しなかった）。
+  // ⚠旧 live の形は `effectParser.ts` の個別補正（`case 'WXK03-002-E2'`）が作っている＝parser 側は据置。
+  "WXK03-002": [
+    {"effectId":"WXK03-002-E2","effectType":"AUTO","timing":["ON_PLAY"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"opp_public_signi"},
+       {"type":"STUB","id":"DECLARED_NAME_TO_SERVANT_ZERO","value":"field"}]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
   // ── WXEX1-09（コード・ピルルク　APEX）E2
   //   原文＝【起】《アタックフェイズアイコン》《コインアイコン》×４：対戦相手の、場かエナゾーンから
   //         レベル１のシグニ１枚を対象とし、それをトラッシュに置く。

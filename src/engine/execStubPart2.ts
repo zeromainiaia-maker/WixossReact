@@ -5,6 +5,7 @@ import type {
   EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, TransferToHandAction, EnergyChargeAction, Owner, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { textHasKeyword } from '../utils/keywords';
+import { effectiveCardOf, nameRuleScopeCards } from './nameIdentityRules';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
@@ -1137,7 +1138,10 @@ export function execStubPart2(
   if (stub.id === 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY') {
     const specTABN = stub.trashAllByName;
     if (!specTABN) return done(addLog(ctx, '名前一致の一掃：対象の指定が無いため何もしない'));
-    const hitTABN = (cn: string) => (ctx.cardMap.get(getCardNum(cn))?.CardName ?? '').includes(specTABN.nameContains);
+    // 🆕§5.3 `O-306`＝**実効カード**の名前で判定する（`card_identity_overrides` ＋ 宣言名の変身規則）。
+    //   🔴旧＝`getCardNum` で instance を剥がして**印刷名**を読んでいた＝同じカード（`WXEX2-10`）の E2 で
+    //   《サーバント　ＺＥＲＯ》になったカードを**一掃できなかった**（コンボの本体が恒久 no-op）。
+    const hitTABN = (cn: string) => (effectiveCardOf(cn, ctx.otherState, ctx.cardMap)?.CardName ?? '').includes(specTABN.nameContains);
     let newOtherTABN = ctx.otherState;
     let countTABN = 0;
     if (specTABN.zones.includes('field')) {
@@ -1709,34 +1713,32 @@ export function execStubPart2(
     const newSMiko = { ...ctx.ownerState, keyword_grants: grants };
     return done(addLog({ ...ctx, ownerState: newSMiko }, `みこみこ親衛隊を${ctx.cardMap.get(mikoNum)?.CardName ?? mikoNum}から取り除く`));
   }
-  // DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手のカードをサーバントZEROに（WXEX2-10）
-  // value:'field' 指定時は相手の「場」のみを対象にする（WXK03-002 カーニバル †MAIS† は場限定）。
+  // DECLARED_NAME_TO_SERVANT_ZERO: 宣言したカード名の対戦相手のカードを《サーバント　ＺＥＲＯ》として扱う規則を置く（value:'field' で場だけ／until:'END_OF_TURN' でこのターンだけ）
+  // 🆕§5.3 `O-306`（2026-09-11）＝**発動時点のスナップショットから「規則」へ置き換えた。**
+  //   🔴旧＝一致した instance を `card_identity_overrides` へ**永続で**書いていた＝
+  //     ①「このターン」（`WXEX2-10-E2`）でも**ターンを跨いで ZERO のまま** ②発動後にその領域へ来たカード
+  //     （引いた札・場に出た札）は変身しない ③`WXK03-002-E2`（原文「対戦相手の**場にある**」）は live に
+  //     `value` が無く、**手札・デッキ・エナ・トラッシュまで**変身させていた。
+  //   ⇒ 規則（宣言名→変身先・領域）を**変身する側の state** に積み、実効の差し替えは
+  //     `effectiveIdentityOverrides`（`nameIdentityRules.ts`）が読むたびに合成する。
+  //   寿命＝`name_identity_rules_this_turn`（turn-end で失効＝`turnScopedState.ts` の登録表）／`name_identity_rules`（このゲームの間）。
   if (stub.id === 'DECLARED_NAME_TO_SERVANT_ZERO') {
     const SERVANT_ZERO_DN = 'WXDi-P07-TK01-A';
     const declaredDN = ctx.ownerState.declared_card_name ?? '';
-    if (!declaredDN) return done(addLog(ctx, '宣言されたカード名がない（DECLARED_NAME_TO_SERVANT_ZERO）'));
-    const fieldOnlyDN = stub.value === 'field';
-    // 相手の対象領域で名前が一致するカードを収集（既定: 全領域 / value:'field': 場のみ）
-    const allOppCardsDN: string[] = fieldOnlyDN
-      ? ctx.otherState.field.signi.flatMap(z => z ?? [])
-      : [
-        ...(ctx.otherState.hand ?? []),
-        ...(ctx.otherState.energy ?? []),
-        ...(ctx.otherState.trash ?? []),
-        ...(ctx.otherState.deck ?? []),
-        ...ctx.otherState.field.signi.flatMap(z => z ?? []),
-      ];
-    const matchedDN = allOppCardsDN.filter(cn => {
-      const overrideId = ctx.otherState.card_identity_overrides?.[cn] ?? ctx.cardMap.get(cn)?.CardNum;
-      const name = ctx.cardMap.get(overrideId ?? cn)?.CardName ?? ctx.cardMap.get(cn)?.CardName ?? '';
-      return name === declaredDN;
-    });
-    if (matchedDN.length === 0) return done(addLog(ctx, `「${declaredDN}」一致カードなし（DECLARED_NAME_TO_SERVANT_ZERO）`));
-    const identOverDN = { ...(ctx.otherState.card_identity_overrides ?? {}) };
-    for (const cn of matchedDN) identOverDN[cn] = SERVANT_ZERO_DN;
-    const newSOtherDN: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverDN };
+    if (!declaredDN) return done(addLog(ctx, '宣言されたカード名がない（サーバントZERO化なし）'));
+    if (!ctx.cardMap.has(SERVANT_ZERO_DN)) {
+      return done(addLog(ctx, '《サーバント　ＺＥＲＯ》のカードデータが無い（サーバントZERO化なし）'));
+    }
+    const zonesDN: 'all' | 'field' = stub.value === 'field' ? 'field' : 'all';
+    const ruleDN = { cardName: declaredDN, toCardNum: SERVANT_ZERO_DN, zones: zonesDN };
+    const thisTurnDN = stub.until === 'END_OF_TURN';
+    const newSOtherDN: PlayerState = thisTurnDN
+      ? { ...ctx.otherState, name_identity_rules_this_turn: [...(ctx.otherState.name_identity_rules_this_turn ?? []), ruleDN] }
+      : { ...ctx.otherState, name_identity_rules: [...(ctx.otherState.name_identity_rules ?? []), ruleDN] };
+    const nowDN = nameRuleScopeCards(newSOtherDN, zonesDN)
+      .filter(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === declaredDN).length;
     return done(addLog({ ...ctx, otherState: newSOtherDN },
-      `「${declaredDN}」${matchedDN.length}枚をサーバントZERO（WXDi-P07-TK01-A）に`));
+      `${thisTurnDN ? 'このターン' : 'このゲームの間'}、対戦相手の${zonesDN === 'field' ? '場' : 'すべての領域'}にある「${declaredDN}」は《サーバント　ＺＥＲＯ》になる（現在${nowDN}枚）`));
   }
   // === バッチ7: バニッシュ・トラッシュ・条件効果 ===
   // BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ

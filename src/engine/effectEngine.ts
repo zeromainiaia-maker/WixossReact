@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
+import { effectiveIdentityOverrides } from './nameIdentityRules';
 import type {
   CardEffect,
   ActiveCondition,
@@ -2161,7 +2162,8 @@ export function calcFieldPowers(
   for (const [k, v] of buildLevelMods(opState, myState, effectsMap, cardMap)) levelMods.set(k, v);
 
   const collectBase = (state: PlayerState) => {
-    const identityOverrides = state.card_identity_overrides ?? {};
+    // 🆕§5.3 `O-306`＝宣言名の変身規則も合成する（変身後のパワーは変身先カードの印刷値）。
+    const identityOverrides = effectiveIdentityOverrides(state, cardMap);
     for (const stack of state.field.signi) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];

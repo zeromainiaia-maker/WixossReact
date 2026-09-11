@@ -1150,6 +1150,32 @@ export function execStubPart1(
   }
   // カード名宣言（手札のカード名から選択）
   if (stub.id === 'DECLARE_CARD_NAME') {
+    // 🆕§5.3 `O-306`（2026-09-11）＝「**シグニの**カード名１つを宣言する」→ 対戦相手のカードを変身させる形
+    //   （`WXEX2-10-E2`／`WXK03-002-E2`）は、候補を**対戦相手の公開領域（場・エナ・トラッシュ）のシグニ名**から作る。
+    //   🔴旧＝自分の手札の名前（最大4つ）＝**相手のカードを指せない候補**しか出なかった。
+    //   ⚠**隠された領域（手札・デッキ）は覗かない**（`DECLARE_CARD_NAME_LOCK` と同じ規約）。
+    //   ⚠候補0なら**前回の宣言を消す**＝後続の変身規則が古い名前で立たない。
+    if (stub.declareNamePool === 'opp_public_signi') {
+      const oppDCN = ctx.otherState;
+      const namesPoolDCN = [...new Set(
+        [...oppDCN.field.signi.flatMap(s => s ?? []), ...oppDCN.energy, ...oppDCN.trash]
+          .map(cn => ctx.cardMap.get(getCardNum(cn)))
+          .filter(c => (c?.Type ?? '').startsWith('シグニ'))
+          .map(c => c!.CardName)
+          .filter((n): n is string => !!n),
+      )];
+      if (namesPoolDCN.length === 0) {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_card_name: undefined } },
+          '宣言できるシグニのカード名が無い（対戦相手の場・エナ・トラッシュ）'));
+      }
+      return needsInteraction(addLog(ctx, 'シグニのカード名を宣言'), {
+        type: 'CHOOSE', count: 1,
+        options: namesPoolDCN.map(name => ({
+          id: 'name_' + name, label: name, available: true,
+          action: ({ type: 'STUB', id: 'INTERNAL_DECLARE_CARD_NAME', value: name } as StubAction) as EffectAction,
+        })),
+      });
+    }
     const handNames = [...new Set(
       ctx.ownerState.hand.map(cn => ctx.cardMap.get(cn)?.CardName).filter(Boolean) as string[]
     )];

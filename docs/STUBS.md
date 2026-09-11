@@ -120,8 +120,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SOUL_OP` | 20 | 20 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 🆕🔴**§5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`。原文 regex を全部撤去して payload で分岐する。**   旧実装は `sourceAbilityText(c… |
 | `LOOK_OPP_LIFE_TOP` | 17 | 15 | WD06-006, WD06-018, WDK09-017 | 指定されたゾーンの上から N 枚を見る（公開する）。 |
 | `COPY_LRIG_NAME_ABILITY` | 16 | 16 | WX24-P4-011, WX24-P4-012, WX24-P4-013 | ルリグトラッシュのルリグ名を現在のルリグに追加する（能力コピーは |
-| `DECLARE_CARD_NAME` | 16 | 15 | PR-257, WX10-068, WX11-037 | カード名宣言（手札のカード名から選択） |
 | `GAIN_ABILITY_THIS_GAME` | 16 | 15 | WX08-015, WX10-011, WX24-P4-036 | このゲームの間、グロウ不可・キーワード付与・特定カード名の使用禁止などの常在効果を得る |
+| `DECLARE_CARD_NAME` | 15 | 15 | PR-257, WX10-068, WX11-037 | カード名宣言（手札のカード名から選択） |
 | `ARTS_COST_REDUCTION_BY_CENTER_LRIG` | 14 | 14 | WX11-015, WXK05-002, WXK05-004 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
 | `STEAL_OPP_TRASH_PUPPET` | 13 | 11 | WDK17-001, WDK17-007, WDK17-012 | 対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（WDK17-007）。 |
 | `REMOVE_VIRUS` | 11 | 11 | WD19-001, WX15-028, WX15-040 | ウイルス除去：**個数は payload で決まる**（§5.3 `O-60` 第11バッチ・2026-08-29）。 🔴旧実装は**カード全文**を3本の regex で読み直しており、しかも**既定値が「全部」**だった   （もう… |
@@ -268,6 +268,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SIGNI_FLIP_FACEDOWN` | 3 | 3 | WXDi-P01-040, WXDi-P05-037, WXDi-P09-009 | 自シグニ（または相手lastProcessed）を裏向きにする |
 | `ALL_OPP_SIGNI_SERVANT_ZERO` | 2 | 2 | WX17-005, WXK04-005 | ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07… |
 | `COPY_TARGET_POWER` | 2 | 2 | WXDi-P02-079, WXDi-P09-051 | 対象シグニのパワーを自シグニの基本パワーにする |
+| `DECLARED_NAME_TO_SERVANT_ZERO` | 2 | 2 | WXEX2-10, WXK03-002 | 宣言したカード名の対戦相手のカードを《サーバント　ＺＥＲＯ》として扱う規則を置く（value:'field' で場だけ／until:'END_OF_TURN' でこのターンだけ） |
 | `EXTRA_GUARD_COST_FROM_HAND` | 2 | 2 | WDK04-001, WX19-001 | ガード系（engine: ガードコスト処理未実装） |
 | `FACE_DOWN_OPP_SIGNI` | 2 | 2 | WXDi-P07-010, WXDi-P09-034 | 相手シグニを対象選択→裏向きにする |
 | `FIELD_ENERGY_SIGNI_GAIN_COLOR` | 2 | 2 | WXDi-P06-040, WXDi-P12-010 | CONTINUOUS効果はeffectEngineで処理済み（no-op） |
@@ -309,7 +310,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_TRASH_TO_ENERGY` | 1 | 1 | WX14-029 | このカードをトラッシュからエナゾーンに置く。 |
 | `COPY_ABILITY` | 1 | 1 | WXDi-P04-035 | このシグニはその能力を得る |
 | `DECLARE_COLOR_COND_ENERGY_TRASH` | 1 | 1 | SPDi43-22 | 色を宣言し、エナから宣言色のカードを任意でトラッシュ |
-| `DECLARED_NAME_TO_SERVANT_ZERO` | 1 | 1 | WXK03-002 | declared_card_name と一致する相手のカードをサーバントZEROに（WXEX2-10） |
 | `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | 手札の青シグニを捨て→相手手札の同パワーシグニを捨てさせる |
 | `DRAW_BY_CHARM_COUNT` | 1 | 1 | WX18-038 | 🆕§5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（原文「対戦相手の場にある【チャーム】の数に   １を加えた枚数のカードを引く」）。旧実装は①**自分の**場のチャームを数え②**+1もしない**③チャーム0で … |
 | `ENERGY_TO_TRASH` | 1 | 1 | WXDi-P06-069 | エナゾーンからカード1枚選んでトラッシュ（SELECT→INTERNAL） |

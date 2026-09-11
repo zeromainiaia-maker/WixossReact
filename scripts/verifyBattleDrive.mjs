@@ -55925,6 +55925,139 @@ scenarios.o307SplitLrigDeckEmptyPile = {
 order.push('o307SplitLrigDeckPickArts');
 order.push('o307SplitLrigDeckEmptyPile');
 
+// §5.1 `V-196`（§5.3 `O-306`・2026-09-11）＝`WXEX2-10`（カーニバル　－ＱＢ－）
+//   E2【起】《ターン１回》《赤×0》「シグニのカード名１つを宣言する。このターン、対戦相手のすべての領域にある
+//     宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる」
+//   E1【自】「このルリグがアタックしたとき、対戦相手の場とエナゾーンからカード名に《サーバント》を含むすべてのカードをトラッシュに置く」
+// 🔴旧 live＝E2 は宣言を2回するだけ（何も変身しない）／E1 は印刷名で判定（変身しても一掃できない）。
+// 🔑**golden では届かない層**＝①`BattleScreen` の `battleCardMap`／`effectsMap` が規則を合成して
+//   **相手の場のシグニの表示パワーが 1,000 に変わる**こと ②画面から渡る `ctx.cardMap` で E1 が変身後の名前に当たること。
+// ⚠名前の CHOOSE はボタン限定・完全一致で押す（§4.4-2b）。⚠ゾーンは開いているときに再クリックしない（§4.4-80）。
+const O306_KUKURI = 'WD01-013#9811';      // 小剣　ククリ（P3000）＝宣言する名前
+const O306_KUKURI_ENA = 'WD01-013#9813';  // 同名・エナ＝「すべての領域」の観測点
+const O306_LOMAIL = 'WD01-009#9812';      // 甲冑　ローメイル＝別名の対照（変身も一掃もされない）
+const o306Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WXEX2-10#9801'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [], 'lrig_deck': [], 'actions_done': [], 'game_actions_done': [],
+    'name_identity_rules_this_turn': [], 'name_identity_rules': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9810'],
+    'field.signi': [[O306_KUKURI], [O306_LOMAIL], null], 'field.signi_down': [false, false, false], 'field.check': null,
+    // ⚠ガード候補を空にしてアタックを決定的に進める／ライフは固定（ルーム再利用のずれ対策）
+    'hand': [], 'energy': [O306_KUKURI_ENA], 'trash': [], 'lrig_deck': [],
+    'life_cloth': ['WD01-011#9814', 'WD01-011#9815'],
+    'actions_done': [], 'game_actions_done': [],
+    'name_identity_rules_this_turn': [], 'name_identity_rules': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const o306DomPowers = async (page) => {
+  const texts = await Promise.all([0, 1, 2].map(i => page.getByTestId(`op-signi-zone-${i}`).innerText().catch(() => '')));
+  return texts.map(t => t.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-');
+};
+/** @param declare true＝E2 でククリを宣言してからアタック／false＝宣言せずにアタック（対照） */
+const driveO306 = (declare) => async function (page, H) {
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ phase: before?.turnPhase, lrigTop: before?.host?.lrigTop, gField: before?.guest?.fieldSigni, gEnergy: before?.guest?.energyCards, gTrash: before?.guest?.trashCards, rules: before?.guest?.nameIdentityRulesThisTurn }));
+  if (before?.host?.lrigTop !== 'WXEX2-10#9801') return { pass: false, detail: `注入前提不成立（lrigTop=${before?.host?.lrigTop}）` };
+  await H.ensureMain();
+  await page.waitForTimeout(800);
+  const pow0 = await o306DomPowers(page);
+  // ⚠**表示パワーを決め打ちしない**＝初回実行で ククリ 6,000／ローメイル 15,000（印刷値 3000／12000 に +3000）と出た。
+  //   変身で入れ替わるのは**印刷値だけ**なので、判定は「宣言後にククリだけが下がる」で書く（修整の出所に依存しない）。
+  const toNum = (s) => (s && s !== '-' ? Number(s.replace(/,/g, '')) : NaN);
+  H.log('DOM パワー（開始）:', JSON.stringify(pow0), 'guest.powerMods:', JSON.stringify(before?.guest?.powerMods));
+  if (!Number.isFinite(toNum(pow0[0])) || !Number.isFinite(toNum(pow0[1]))) return { pass: false, detail: `前提崩れ＝相手ゾーンのパワーが読めない（${JSON.stringify(pow0)}）` };
+  let domAfter = pow0;
+  if (declare) {
+    let activated = false; let fired = false; let declared = false;
+    await H.clickTestId('my-lrig-slot-center');
+    for (let s = 0; s < 30 && !declared; s++) {
+      await page.waitForTimeout(600);
+      let did = null;
+      if (!activated) {
+        const actBtn = page.getByRole('button', { name: /【起】/ }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; activated = true; }
+        else did = await H.clickTestId('my-lrig-slot-center');
+      } else if (!fired) {
+        did = await H.clickBtn('発動', { exact: true }); if (did) fired = true;
+      } else {
+        did = await H.clickBtn('小剣　ククリ', { exact: true });
+      }
+      const st = await H.queryState();
+      H.log(`  o306decl[${s}] -> ${did ?? 'なし'} | act=${activated} fired=${fired} rules=${JSON.stringify(st?.guest?.nameIdentityRulesThisTurn)} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      if ((st?.guest?.nameIdentityRulesThisTurn ?? []).some(r => r.cardName === '小剣　ククリ') && !st?.pendingEffect) declared = true;
+    }
+    if (!declared) return { pass: false, detail: '🔴宣言しても規則（name_identity_rules_this_turn）が立たなかった' };
+    // 印刷値 3000 → サーバントZERO 1000＝**少なくとも 2,000 下がる**（クラスが変わって修整が外れればもっと下がる）。
+    for (let k = 0; k < 12; k++) {
+      await page.waitForTimeout(500);
+      domAfter = await o306DomPowers(page);
+      if (toNum(domAfter[0]) <= toNum(pow0[0]) - 2000) break;
+    }
+    const stAfterDecl = await H.queryState();
+    H.log('DOM パワー（宣言後）:', JSON.stringify(domAfter), 'guest.powerMods:', JSON.stringify(stAfterDecl?.guest?.powerMods));
+    if (!(toNum(domAfter[0]) <= toNum(pow0[0]) - 2000)) return { pass: false, detail: `🔴規則は立ったのに場のククリの表示パワーが下がらない（画面の合成が規則を見ていない）: ${JSON.stringify(pow0)}→${JSON.stringify(domAfter)}` };
+    if (domAfter[1] !== pow0[1]) return { pass: false, detail: `⚠別名のローメイルまで表示パワーが変わった: ${JSON.stringify(pow0)}→${JSON.stringify(domAfter)}` };
+  }
+  // ルリグアタック（MAIN → アタックフェイズ → ルリグアタックステップ）
+  let attacked = false;
+  for (let s = 0; s < 60 && !attacked; s++) {
+    await page.waitForTimeout(400);
+    const st = await H.queryState();
+    if (st?.turnPhase === 'ATTACK_LRIG') {
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+      const visible = async () => !!(await atk.count()) && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+      if (!(await visible())) {
+        await H.clickTestId('my-lrig-slot-center');
+        for (let k = 0; k < 20 && !(await visible()); k++) await page.waitForTimeout(150);
+      }
+      if (await visible()) { await atk.click({ timeout: 2000 }).catch(() => {}); attacked = true; H.log('  ルリグアタック'); }
+      continue;
+    }
+    const adv = await advancePhaseV20(H);
+    H.log(`  adv[${s}] phase=${st?.turnPhase} -> ${adv ?? 'なし'}`);
+  }
+  if (!attacked) return { pass: false, detail: 'ルリグアタックまで到達できなかった' };
+  // 行き先は sticky に記録する（§4.4-66）
+  const sawTrash = []; let settled = 0;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(500);
+    const st = await H.queryState();
+    for (const n of (st?.guest?.trashCards ?? [])) if (!sawTrash.includes(n)) sawTrash.push(n);
+    let did = null;
+    if (st?.pendingEffect || (st?.stackLen ?? 0) > 0) did = await H.stdStep(['発動順序を確定', '決定', 'OK', 'ガードしない']);
+    H.log(`  o306atk[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} gTrash=${JSON.stringify(st?.guest?.trashCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (s >= 4 && settled >= 4) break;
+  }
+  const kukuriField = sawTrash.includes(O306_KUKURI);
+  const kukuriEna = sawTrash.includes(O306_KUKURI_ENA);
+  const lomail = sawTrash.includes(O306_LOMAIL);
+  if (declare) {
+    if (!kukuriField || !kukuriEna) return { pass: false, detail: `🔴変身したククリ（場・エナ）が一掃されていない（trash=${JSON.stringify(sawTrash)}）` };
+    if (lomail) return { pass: false, detail: `⚠別名のローメイルまで一掃された（trash=${JSON.stringify(sawTrash)}）` };
+    return { pass: true, detail: `宣言→規則→DOM パワー ${pow0[0]}→${domAfter[0]}（ローメイル ${pow0[1]} 不変）→ルリグアタックで場とエナのククリだけがトラッシュ` };
+  }
+  if (kukuriField || kukuriEna || lomail) return { pass: false, detail: `🔴宣言していないのに一掃された（trash=${JSON.stringify(sawTrash)}）` };
+  return { pass: true, detail: `対照＝宣言なし→ククリ ${pow0[0]} のまま・ルリグアタックでも何もトラッシュされない（trash=${JSON.stringify(sawTrash)}）` };
+};
+scenarios.o306DeclaredNameServantZeroSwept = {
+  title: 'V-196 O-306(1): WXEX2-10＝E2 でククリを宣言→表示パワー 1,000→ルリグアタックの E1 で場とエナのククリだけが一掃',
+  spec: o306Spec(),
+  drive: driveO306(true),
+};
+scenarios.o306NoDeclarationNothingSwept = {
+  title: 'V-196 O-306(2) 対照: 同じ盤面で宣言せずにルリグアタック＝何も一掃されない',
+  spec: o306Spec(),
+  drive: driveO306(false),
+};
+order.push('o306DeclaredNameServantZeroSwept');
+order.push('o306NoDeclarationNothingSwept');
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
@@ -56333,6 +56466,10 @@ try {
         keyPieceExtra: s.field?.key_piece_extra ?? [],
         keyPlaceLimit: s.key_place_limit ?? null,
         identityOverrides: s.card_identity_overrides ?? {},
+        // 🆕§5.3 `O-306`（2026-09-11）＝「宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる」の規則。
+        //   ⚠**`identityOverrides` には出ない**（規則は読むたびに合成される）＝変身の有無はこの2列で見る。
+        nameIdentityRulesThisTurn: s.name_identity_rules_this_turn ?? [],
+        nameIdentityRules: s.name_identity_rules ?? [],
         // 🆕§5.3 `O-226`（2026-09-06・`V-162`）＝「この【起】を使用したのがN回目か」の台帳。
         //   🔴**キーが CardNum か instance id かは engine の `ctx.sourceCardNum` 次第**で、
         //   注入して「4→5回目」を作るときにどちらで積むかが変わる＝観測できないと当て推量になる。

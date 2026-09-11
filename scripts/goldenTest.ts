@@ -13,6 +13,7 @@ import { join } from 'path';
 import { execFileSync } from 'child_process';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
+import { effectiveIdentityOverrides } from '../src/engine/nameIdentityRules';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
@@ -5911,7 +5912,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 56, 'PlayerState の命名規約由来フィールド数（🆕56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 57, 'PlayerState の命名規約由来フィールド数（🆕57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5926,7 +5927,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 31, '命名規約外のターン限定フィールド数（🆕31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加＝原文「次のあなたのエナフェイズ終了時まで」の受け皿。境界は main-phase-start＝**次に自分が ENERGY を出て MAIN へ入るとき**。30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 87, '型由来38件＋命名規約外27件の母集団（🆕87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 88, '型由来38件＋命名規約外27件の母集団（🆕88＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn` を新設（境界 turn-end）。87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -22652,6 +22653,69 @@ test('§5.3 O-307: OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH＝相手が2
   eq(rAuto.otherState.lrig_trash.length, 1, 'オートパイロットでアーツ1枚が置かれていない');
   const rEmpty = run(stub, mkCtx({}, {}));
   eq((rEmpty.lastProcessedCards ?? []).length, 0, '空デッキで lastProcessedCards が残っている');
+}));
+test('§5.3 O-306: 宣言名の変身規則＝このターン／このゲームの間・全領域／場だけ・後から来たカードにも効く（WXEX2-10-E2／WXK03-002-E2）', () => withSavedCursor(() => {
+  const ZERO = 'WXDi-P07-TK01-A';
+  ok((cardMap.get(ZERO)?.CardName ?? '').includes('サーバント'), '前提：サーバントZERO のカードデータ');
+  const sigA = findCard(c => isSigni(c) && c.Level === '1' && !c.CardName.includes('サーバント'));
+  const nameA = cardMap.get(sigA)!.CardName;
+  const sigB = findCard(c => isSigni(c) && c.Level === '2' && c.CardName !== nameA && !c.CardName.includes('サーバント'));
+  const A1 = `${sigA}#301`, A2 = `${sigA}#302`, B1 = `${sigB}#303`;
+  // (0) live の形＝旧 `DECLARE_CARD_NAME`×2（何も変身しない）／場限定の欠落に戻っていない
+  const s10 = JSON.stringify(effectsMap.get('WXEX2-10')?.find(e => e.effectId === 'WXEX2-10-E2')?.action ?? null);
+  ok(s10.includes('"declareNamePool":"opp_public_signi"') && s10.includes('"id":"DECLARED_NAME_TO_SERVANT_ZERO"')
+    && s10.includes('"until":"END_OF_TURN"'), `WXEX2-10-E2 live: ${s10}`);
+  eq((s10.match(/"DECLARE_CARD_NAME"/g) ?? []).length, 1, '🔴宣言が2回並ぶ旧形に戻っている');
+  const s002 = JSON.stringify(effectsMap.get('WXK03-002')?.find(e => e.effectId === 'WXK03-002-E2')?.action ?? null);
+  ok(s002.includes('"value":"field"') && !s002.includes('"until"'), `WXK03-002-E2 live（場だけ・このゲームの間）: ${s002}`);
+  const declare = { type: 'STUB', id: 'DECLARE_CARD_NAME', declareNamePool: 'opp_public_signi' } as unknown as EffectAction;
+  // (a) 宣言の候補＝相手の公開領域（場・エナ・トラッシュ）のシグニ名。隠された手札は覗かない
+  const ctxD = mkCtx({}, { signi: [null, null, null] });
+  Object.assign(ctxD.otherState, { trash: [A1], hand: [B1], energy: [] });
+  const rD = executeEffect({ effectId: 't', effectType: 'AUTO', action: declare, duration: 'INSTANT', mandatory: true } as CardEffect, ctxD);
+  ok(!rD.done, '宣言の対話が出ていない');
+  const pD = (rD as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  eq(JSON.stringify(pD.options.map(o => o.label)), JSON.stringify([nameA]), '候補が「相手の公開領域のシグニ名」になっていない');
+  // 候補0 → 前回の宣言を消す（後続の規則が古い名前で立たない）
+  const ctxD0 = mkCtx({}, { signi: [null, null, null] });
+  Object.assign(ctxD0.otherState, { trash: [], hand: [B1], energy: [] });
+  Object.assign(ctxD0.ownerState, { declared_card_name: 'stale' });
+  eq(run(declare, ctxD0).ownerState.declared_card_name, undefined, '候補0なのに前回の宣言が残っている');
+  // (b) このターン・すべての領域（WXEX2-10）
+  const ctxR = mkCtx({}, { signi: [null, null, null] });
+  Object.assign(ctxR.ownerState, { declared_card_name: nameA });
+  Object.assign(ctxR.otherState, { hand: [A1], deck: [A2, B1] });
+  const rR = run({ type: 'STUB', id: 'DECLARED_NAME_TO_SERVANT_ZERO', until: 'END_OF_TURN' } as unknown as EffectAction, ctxR);
+  eq(rR.otherState.name_identity_rules_this_turn?.length, 1, 'このターンの規則が置かれていない');
+  eq(rR.otherState.name_identity_rules, undefined, '⚠このゲームの間の列へ入っている');
+  eq(Object.keys(rR.otherState.card_identity_overrides ?? {}).length, 0, '⚠旧スナップショット（card_identity_overrides）へ書いている');
+  const ovR = effectiveIdentityOverrides(rR.otherState, cardMap);
+  eq(ovR[A1], ZERO, '手札の同名カードが変身していない');
+  eq(ovR[A2], ZERO, 'デッキの同名カードが変身していない');
+  eq(ovR[B1], undefined, '⚠別名のカードまで変身している');
+  // 後から場へ来たカードにも効く（手札→場）
+  const moved = { ...rR.otherState, hand: [], field: { ...rR.otherState.field, signi: [[A1], null, null] } } as PlayerState;
+  eq(effectiveIdentityOverrides(moved, cardMap)[A1], ZERO, '🔴場へ移ったカードが元に戻った（スナップショット型の穴）');
+  // ターン終了で失効（両プレイヤーに掛かる登録表）
+  const ended = clearTurnEndScopedState(moved);
+  eq(ended.name_identity_rules_this_turn, undefined, '🔴ターン終了で「このターン」の規則が消えない');
+  eq(effectiveIdentityOverrides(ended, cardMap)[A1], undefined, 'ターン終了後も変身したまま');
+  // (c) このゲームの間・場だけ（WXK03-002）
+  const ctxF = mkCtx({}, { signi: [A2, null, null] });
+  Object.assign(ctxF.ownerState, { declared_card_name: nameA });
+  Object.assign(ctxF.otherState, { hand: [A1] });
+  const rF = run({ type: 'STUB', id: 'DECLARED_NAME_TO_SERVANT_ZERO', value: 'field' } as unknown as EffectAction, ctxF);
+  const ovF = effectiveIdentityOverrides(rF.otherState, cardMap);
+  eq(ovF[A2], ZERO, '場の同名カードが変身していない');
+  eq(ovF[A1], undefined, '🔴場限定なのに手札まで変身している（旧 live の過剰）');
+  eq(effectiveIdentityOverrides(clearTurnEndScopedState(rF.otherState), cardMap)[A2], ZERO, '⚠「このゲームの間」の規則がターン終了で消えた');
+  // (d) E1「カード名に《サーバント》を含むすべてのカードをトラッシュ」は変身後の名前で当たる
+  const ctxT = mkCtx({}, { signi: [A1, B1, null] });
+  Object.assign(ctxT.otherState, { energy: [A2], name_identity_rules_this_turn: [{ cardName: nameA, toCardNum: ZERO, zones: 'all' }] });
+  const rT = run({ type: 'STUB', id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY',
+    trashAllByName: { nameContains: 'サーバント', zones: ['field', 'energy'] } } as unknown as EffectAction, ctxT);
+  ok(rT.otherState.trash.includes(A1) && rT.otherState.trash.includes(A2), `🔴変身したカード（場・エナ）が一掃されていない: trash=${JSON.stringify(rT.otherState.trash)}`);
+  ok(!rT.otherState.trash.includes(B1), '⚠変身していないカードまで一掃された');
 }));
 test('PLAY_MILLED_SIGNI_DELAYED_TRASH: ミルされたシグニを場に出し、ターン終了時トラッシュを予約（§6.4 A群・WXDi-P09-079）', () => withSavedCursor(() => {
   const stub = { type: 'STUB', id: 'PLAY_MILLED_SIGNI_DELAYED_TRASH' } as unknown as EffectAction;

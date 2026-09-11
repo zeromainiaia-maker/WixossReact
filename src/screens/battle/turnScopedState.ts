@@ -62,6 +62,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   holograph_reveal_replace_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'holograph reveal replacement for the current turn' },
   // 「代わりに〜、ターン終了時まで、この能力を失う」で自壊した効果（§6.4 O-10）は当該ターンだけ無効。
   lost_ability_effect_ids_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-disabled replacement abilities, restored at the turn boundary' },
+  // 🆕§5.3 `O-306`＝「このターン、宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる」の規則（変身する側に載る）。
+  name_identity_rules_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'declared-name identity rule lasting for the current turn' },
   // 「あなたの効果によってシグニのアタックは無効にならない」（§6.4 O-10 続き510）も当該ターンだけ。
   own_effects_cannot_negate_signi_attack_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-negation immunity granted for the current turn' },
   // パワー－の倍率（「代わりに３倍－される」§6.4 O-10）も、付与されたターンだけ有効。
