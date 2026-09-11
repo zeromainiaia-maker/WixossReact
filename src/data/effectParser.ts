@@ -23841,6 +23841,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       ? { type: 'AND', conditions: [extractedTriggerCondition, mergedCondition] }
       : extractedTriggerCondition;
   }
+  // §5.3 `O-323`：ターン内の「この能力で実際に処理していない」条件と並ぶ、指定カードの在場条件。
+  // 「がいて、」は一般の STATE_CONDITION_CLAUSES（「がいる場合」）へ入らないため、能力ブロックから
+  // CardEffect.condition へ持ち上げる。カード名ではなく文型で絞り、collector の既存 HAS_CARD_IN_FIELD を使う。
+  const didItNamedFieldM = effectType === 'AUTO'
+    ? block.match(/あなたの場に《([^》]+)》がいて、このターンにこの能力で[^。]*(?:て|で)いない場合/)
+    : null;
+  if (didItNamedFieldM) {
+    const namedFieldCondition: Condition = {
+      type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: didItNamedFieldM[1] },
+    };
+    mergedCondition = mergedCondition
+      ? { type: 'AND', conditions: [mergedCondition, namedFieldCondition] }
+      : namedFieldCondition;
+  }
 
   // 「この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない」（WX05-013-E2）は
   // **使用条件ではなく使用タイミングそのもの**＝【起】を守備側の応答窓（ON_OPP_SIGNI_ATTACK）へ載せ替える。
@@ -23856,8 +23870,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (costStr.includes('《ターン２回》')) usageLimit = 'twice_per_turn';
     else if (costStr.includes('《ターン１回》')) usageLimit = 'once_per_turn';
     else if (costStr.includes('《ゲーム１回》')) usageLimit = 'once_per_game';
-    // WX24-P2-050 の文章型ターン1回：「このターンにこの能力でカードをトラッシュに置いていない場合」。
-    else if (/このターンにこの能力でカードをトラッシュに置いていない場合/.test(block)) usageLimit = 'once_per_turn';
+    // §5.3 `O-323`：文章型のターン内制限は「誘発した回」ではなく、この能力による処理の成功時だけ消費する。
+    // 目的語・処理動詞を固定しない＝「カードをトラッシュに置いていない」「シグニを場に出していない」を同じ意味で扱う。
+    else if (effectType === 'AUTO' && /このターンにこの能力で[^。]*(?:て|で)いない場合/.test(block)) {
+      usageLimit = 'once_per_turn_on_success';
+    }
   }
 
   // 無言フォールバックがあった効果は AUTO を PARTIAL に降格（UNKNOWN/既存PARTIALはそのまま）

@@ -2058,9 +2058,14 @@ export function collectLeaveFieldTriggers(
   return { entries, usedHostIds, usedGuestIds };
 }
 
-/** usageLimit（once/twice_per_turn）チェッカ。actionsDone（永続）＋used（今回の収集内）の出現回数で判定し、許可時は used に積む。 */
+/** usageLimit チェッカ。通常値は収集時、on_success は解決成功時に消費する。 */
 function mkLimitOk(actionsDone: string[] | undefined, used: string[]) {
   return (eff: CardEffect): boolean => {
+    // §5.3 `O-323`：同一ターンの成功履歴だけを見る。収集時の used へは積まず、
+    // effectExecutor が対象処理の成功直後に actions_done へ確定する。
+    if (eff.usageLimit === 'once_per_turn_on_success') {
+      return !(actionsDone ?? []).includes(eff.effectId);
+    }
     if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
     const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
     const n = (actionsDone ?? []).filter(id => id === eff.effectId).length + used.filter(id => id === eff.effectId).length;

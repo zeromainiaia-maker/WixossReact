@@ -50419,6 +50419,138 @@ order.push('v187LeaveToTrashWindowBattle');
 order.push('v187LeaveToTrashWindowAbledControl');
 order.push('v187LeaveToTrashWindowOffControl');
 
+// V-189＝§5.3 `O-323` 第264バッチ（2026-09-11）で**新機構**（`usageLimit:'once_per_turn_on_success'`）を
+//   足した回の実機（§2.2 の「新しい型・機構を足した回は実機まで」）。
+// 🔴**engine 側（収集は `mkLimitOk`／記録は `effectExecutor` の成功マーカー）は golden が反転つきで固定済み。**
+//   ここで確かめるのは **アプリ経路で `actions_done` へ実際に届くか**＝
+//   ①`BattleScreen` の解決 choke point（`:5231`）は `wrapSigniAutoPayGate` で **action を包んでから**
+//   `executeEffect` を呼ぶので、マークが SEQUENCE/CONDITIONAL を越えて leaf に届かないと**永久に消費されない**
+//   ②`result.ownerState` が persist されないと記録が消える。**どちらも golden からは観測できない。**
+// ⚠§4.4-67＝`trash`/`energy` は枚数なので、実体は `trashCards`/`fieldSigni` で見る。
+// ⚠§4.4-65＝注入した `effect_stack` は解決が始まらないことがある＝数ティック無反応なら1度だけ reload。
+// 🔑§4.4-3／§4.4-68＝**1ビットだけ反転した対照**を同じ巡に置く（候補あり＝記録される／候補0＝記録されない）。
+const o323Spec = (withCandidate) => ({
+  hostSet: {
+    'field.lrig': ['WD05-001#9301'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_acce': [null, null, null],
+    'field.signi_traps': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [],
+    // 《黒》×1 を払えるエナ（WD05-010＝廃悪の象徴 ベルゼ・黒）。
+    energy: ['WD05-010#9302', 'WD05-010#9303'],
+    // 🔑**1ビットの反転はここだけ**＝レベル1の＜悪魔＞（WD05-013＝小悪の象徴 コオニ・能力なし）が
+    //   トラッシュに居るか居ないか。居なければ `SELECT_TARGET_ONLY{abortIfNoCandidate}` で宣言ごと降りる。
+    trash: withCandidate ? ['WD05-013#9304'] : [],
+    lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD05-014#9305', 'WD05-014#9306', 'WD05-014#9307'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD05-001#9390'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_acce': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], blocked_actions: [],
+  },
+  top: {
+    active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    effectStack: o190EffectStack('WX25-P3-061', 'WX25-P3-061#9300', 'WX25-P3-061-E1'),
+  },
+});
+
+async function driveO323(page, H, o) {
+  const { tag, spec, expectCommit } = o;
+  const EFF = 'WX25-P3-061-E1';
+  const CAND = 'WD05-013#9304';
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !((before?.stackLen ?? 0) > 0 || before?.pendingEffect); r++) {
+    H.log(`再注入(${r})… stack=${before?.stackLen ?? '-'} pEff=${before?.pendingEffect ?? '-'}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log(`開始 stack=${before?.stackLen ?? '-'} trashCards=${JSON.stringify(before?.host?.trashCards)} actionsDone=${JSON.stringify(before?.host?.actionsDone)}`);
+  let picked = false, paid = false, energyClicked = 0, reloaded = false, quiet = 0;
+  // §4.4-66＝観測点は sticky に持つ（後続の描画で消えても判定できるように）。
+  let sawCommit = false, sawOnField = false;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!picked) {
+      const p0 = page.getByTestId('pick-0').first();
+      if (await p0.count() && await p0.isVisible().catch(() => false)) {
+        await p0.click().catch(() => {}); did = 'pick-0'; picked = true;
+      }
+    }
+    // ⚠《黒》×1 ちょうどなので**1枚だけ**選ぶ（2枚選ぶと支払いボタンが disabled のまま＝初回実行で踏んだ）。
+    if (!did && picked && !paid && energyClicked < 1) {
+      const e = page.getByTestId(`optcost-energy-${energyClicked}`).first();
+      if (await e.count() && await e.isVisible().catch(() => false)) {
+        await e.click().catch(() => {}); energyClicked++; did = `optcost-energy-${energyClicked - 1}`;
+      }
+    }
+    if (!did && picked && !paid) {
+      const payBtn = page.getByTestId('optcost-pay').first();
+      if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+        await payBtn.click().catch(() => {}); did = 'optcost-pay'; paid = true;
+      }
+    }
+    if (!did && picked && !paid) {
+      const t = await H.clickTextOrBtn(['支払う', '支払って場に出す']);
+      if (t) { did = t; paid = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const done = st?.host?.actionsDone ?? [];
+    if (done.includes(EFF)) sawCommit = true;
+    if ((st?.host?.fieldSigni ?? []).some(z => (z ?? []).includes?.(CAND))) sawOnField = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | picked=${picked} paid=${paid} onField=${sawOnField} commit=${sawCommit} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} actionsDone=${JSON.stringify(done)}`);
+    // §4.4-65＝数ティック無反応なら1度だけ reload して解決を起こす。
+    if (!did) { quiet++; } else { quiet = 0; }
+    if (quiet >= 4 && !reloaded) { reloaded = true; quiet = 0; await page.reload(); await page.waitForTimeout(2500); H.log('  reload(1回だけ)'); }
+    if (expectCommit && sawCommit && sawOnField) break;
+    if (!expectCommit && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect && s >= 3) break;
+  }
+  const fin = await H.queryState();
+  const done = fin?.host?.actionsDone ?? [];
+  if (done.includes(EFF)) sawCommit = true;
+  if (expectCommit) {
+    if (!sawOnField) {
+      return { pass: false, detail: `本体が走っていない＝観測不能（fieldSigni=${JSON.stringify(fin?.host?.fieldSigni)} picked=${picked} paid=${paid} actionsDone=${JSON.stringify(done)}）` };
+    }
+    return sawCommit
+      ? { pass: true, detail: `成功（場出し）を観測し、actions_done へ ${EFF} が記録された＝アプリ経路でも成功時消費が届く（actionsDone=${JSON.stringify(done)}）` }
+      : { pass: false, detail: `🔴場には出たのに actions_done に ${EFF} が無い＝成功マーカーが BattleScreen 経路（wrapSigniAutoPayGate で包まれた action）に届いていない疑い（actionsDone=${JSON.stringify(done)}）` };
+  }
+  if (sawOnField) {
+    return { pass: false, detail: `対照のはずが場に出た＝候補0の注入に失敗している（fieldSigni=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  }
+  return sawCommit
+    ? { pass: false, detail: `🔴候補0で何も起きていないのに actions_done へ ${EFF} が記録された＝旧 once_per_turn と同じ「空振りでも打ち切る」挙動（actionsDone=${JSON.stringify(done)}）` }
+    : { pass: true, detail: `候補0＝宣言ごと降り、actions_done に ${EFF} は記録されない（同一ターンに再誘発できる／actionsDone=${JSON.stringify(done)}）` };
+}
+
+scenarios.o323SuccessCommitsUsage = {
+  title: 'V-189(1): O-323 成功時消費＝トラッシュの＜悪魔＞Lv1を選んで《黒》を払い場に出すと actions_done へ記録される',
+  spec: o323Spec(true),
+  async drive(page, H) { return driveO323(page, H, { tag: 'o323On', spec: this.spec, expectCommit: true }); },
+};
+scenarios.o323AbortKeepsUsageFree = {
+  title: 'V-189(2): 対照＝候補0（トラッシュに＜悪魔＞Lv1が無い）なら actions_done へ記録されない',
+  spec: o323Spec(false),
+  async drive(page, H) { return driveO323(page, H, { tag: 'o323Off', spec: this.spec, expectCommit: false }); },
+};
+order.push('o323SuccessCommitsUsage');
+order.push('o323AbortKeepsUsageFree');
+
 order.push('v183FreeGrowUnrestricted');
 order.push('v183FreeGrowSameLrigTypeExact');
 order.push('v183FreeGrowScopeBlocksPartialType');

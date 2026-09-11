@@ -5891,6 +5891,62 @@ const DID_IT_GATED_TYPES = new Set<string>([
   'REVEAL', 'TAKE_FROM_UNDER_SIGNI', 'REMOVE_CHARM', 'ADD_TO_FIELD', 'FIELD_SIGNI_TO_ACCE',
 ]);
 
+// §5.3 `O-323`：成功時消費の usageLimit が観測できるアクション型。
+// 既存の「そうした場合」ゲートと同じ lastProcessedCards 契約を使い、TRASH だけはこの用途に限って加える
+// （TRASH を DID_IT_GATED_TYPES 自体へ足すと、既存の「そうした場合」全体の挙動が変わるため分離する）。
+const SUCCESS_USAGE_ACTION_TYPES = new Set<string>([...DID_IT_GATED_TYPES, 'TRASH']);
+type SuccessUsageMarkedAction = EffectAction & { _successUsageEffectId?: string };
+type SuccessUsageMarkerStub = StubAction & { successUsageEffectId: string };
+
+/** SEQUENCE/CONDITIONAL の形を保ったまま、成功を記録できる leaf だけを内部マークする。 */
+function markSuccessUsageActions(action: EffectAction, effectId: string): EffectAction {
+  if (SUCCESS_USAGE_ACTION_TYPES.has(action.type)) {
+    return { ...action, _successUsageEffectId: effectId } as SuccessUsageMarkedAction;
+  }
+  if (action.type === 'SEQUENCE') {
+    return { ...action, steps: action.steps.map(step => markSuccessUsageActions(step, effectId)) };
+  }
+  if (action.type === 'CONDITIONAL') {
+    return {
+      ...action,
+      then: markSuccessUsageActions(action.then, effectId),
+      ...(action.else ? { else: markSuccessUsageActions(action.else, effectId) } : {}),
+    };
+  }
+  return action;
+}
+
+function commitSuccessfulUsage<T extends ExecResult>(result: T, effectId: string): T {
+  if (!(result.lastProcessedCards?.length)) return result;
+  if ((result.ownerState.actions_done ?? []).includes(effectId)) return result;
+  return {
+    ...result,
+    ownerState: {
+      ...result.ownerState,
+      actions_done: [...(result.ownerState.actions_done ?? []), effectId],
+    },
+  } as T;
+}
+
+/** 対話を跨ぐ leaf は、その leaf 自身の continuation の末尾で成功を確定する。 */
+function executeSuccessUsageMarkedAction(
+  action: SuccessUsageMarkedAction,
+  effectId: string,
+  ctx: ExecCtx,
+): ExecResult {
+  const { _successUsageEffectId: _drop, ...plainAction } = action;
+  const result = executeAction(plainAction as EffectAction, { ...ctx, lastProcessedCards: [] });
+  if (result.done) return commitSuccessfulUsage(result, effectId);
+  const marker: SuccessUsageMarkerStub = {
+    type: 'STUB', id: 'INTERNAL_COMMIT_SUCCESS_USAGE', successUsageEffectId: effectId,
+  };
+  const inner = result.pending.continuation;
+  const continuation: EffectAction = inner
+    ? { type: 'SEQUENCE', steps: [inner, marker] }
+    : marker;
+  return { ...result, pending: { ...result.pending, continuation } };
+}
+
 const OPTIONAL_COST_STUB_IDS = new Set([
   'OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS',
 ]);
@@ -10261,6 +10317,10 @@ function execSetCardCostReplacement(a: import('../types/effects').SetCardCostRep
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
+  const successUsageEffectId = (action as SuccessUsageMarkedAction)._successUsageEffectId;
+  if (successUsageEffectId) {
+    return executeSuccessUsageMarkedAction(action as SuccessUsageMarkedAction, successUsageEffectId, ctx);
+  }
   switch (action.type) {
     case 'DRAW':                    return execDraw(action as DrawAction, ctx);
     case 'LOOK_AT_DECK_AND_LIFE':   return execLookAtDeckAndLife(action as import('../types/effects').LookAtDeckAndLifeAction, ctx);
@@ -11172,6 +11232,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       //   （置換の列挙・適用と同じ場所に閉じておく／`execStubPart*` は effectExecutor を
       //     import できない＝循環参照になるため）。
       const stub = action as StubAction;
+      if (stub.id === 'INTERNAL_COMMIT_SUCCESS_USAGE') {
+        const effectId = (stub as SuccessUsageMarkerStub).successUsageEffectId;
+        return commitSuccessfulUsage(done(ctx), effectId);
+      }
       if (stub.id === 'INTERNAL_LEAVE_SUB_ASK') return execLeaveSubAsk(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_DECIDE') return execLeaveSubDecide(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_NOOP') return done(ctx);
@@ -11207,7 +11271,10 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   const markedCtx = holographEffect
     ? { ...idCtx, ownerState: { ...idCtx.ownerState, is_holograph_this_effect: true } }
     : idCtx;
-  const result = executeAction(effect.action, markedCtx);
+  const action = effect.usageLimit === 'once_per_turn_on_success'
+    ? markSuccessUsageActions(effect.action, effect.effectId)
+    : effect.action;
+  const result = executeAction(action, markedCtx);
   if (!result.done || !holographEffect) return result;
   return { ...result, ownerState: { ...result.ownerState, is_holograph_this_effect: undefined } };
 }

@@ -127,6 +127,8 @@ export type EffectTiming =
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
+  /** この能力で対象の処理が実際に成功した回だけ、ターン中の使用済みとして記録する。 */
+  | 'once_per_turn_on_success'
   | 'twice_per_turn'   // ターンに2回（《ターン２回》）
   | 'once_per_game'    // ゲームに1回
   | 'once_per_trigger' // トリガー1回につき1回

@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-323`：処理成功時だけ消費する `usageLimit`
+
+原文「このターンにこの能力で～していない場合」は、誘発した回数ではなく**その能力で指定処理が実際に起きた回数**を数える。
+旧 live は `WX24-P2-050-E1` を素の `once_per_turn` にして空振りでも消費し、`WX25-P3-061-E1` は
+`usageLimit` 自体と《虚幸の閻魔姫　ウリス》の在場条件を両方落としていた。
+
+### 修正
+
+- `UsageLimit` に `once_per_turn_on_success` を追加。parser はカード番号・目的語・処理動詞ではなく
+  「このターンにこの能力で…して／でいない場合」の文型から生成する。
+- `WX25-P3-061-E1` の「あなたの場に《…》がいて、」は、既存の
+  `HAS_CARD_IN_FIELD{owner:'self', filter:{cardName}}` へ載せた（新条件型は作っていない）。
+- `triggerCollect.mkLimitOk` は新値を `actions_done` で抑止するが、収集時の `usedIds` へは積まない。
+  対象2効果の経路は `collectOppEnergyAddedTriggers` と `collectLeaveFieldTriggers`。
+- 解決側は既存 `execSequence` の did-it 契約（`lastProcessedCards`）を流用し、対象 leaf の成功直後にだけ
+  `actions_done` へ effectId を記録する。`TRASH` はこの用途専用集合にだけ加え、既存の
+  `DID_IT_GATED_TYPES`（「そうした場合」全体）の意味は変えていない。対話を跨ぐ場合も内部 continuation の末尾で確定する。
+- 新値の live 母集団は golden で上記2 effectId に ratchet。別 timing の旧 `usageLimit` 分岐へ
+  新値が無監査で入って fail-open になることを防ぐ。
+
+### 母集団・生成物
+
+- `census:population -- "このターンにこの能力で"`＝**2効果 / 2カード**。
+  「このターンにこの効果で」「このターンにこの方法で」は各0。
+- 広めの「この能力／効果／方法で…していない場合」＝13効果を目視し、残り11件は同一解決内の
+  成否分岐・追跡であってターン内使用制限ではないためスコープ外。
+- baseline `c395cbe65` との全 effects JSON の per-effect 比較＝**変更2件だけ**：
+  `WX24-P2-050-E1` は usageLimit 変更、`WX25-P3-061-E1` は同 usageLimit とカード名条件の追加。
+- `npm run regen` 済み。`docs/decompile_sheet9.txt:8066` に
+  `《once_per_turn_on_success》` と《虚幸の閻魔姫　ウリス》条件が出現し、
+  `:1646` は WX24 の原文相当「このターンにこの能力で…置いていない場合」を維持。
+- held / partial / idset は **1 / 0 / 0**（held は既存 `WXK07-018` のみ）。
+
+### 回帰検証
+
+- golden を3本追加し、①成功時は2回目を抑止 ②条件不成立・候補0・コスト未払いは未消費で再誘発
+  ③同じ空振り盤面で新値を素の `once_per_turn` へ戻すと再誘発 assert が FAIL する、を固定。
+- `npm run gates` 全緑：golden **3943 PASS / 0 FAIL**（3940 → +3）、smoke **10744 / 全0**、fuzz 全0、
+  census 高シグナル **1 / BASELINE 1**、stubs A/C 0、enginetext A 0行/0ハンドラ、costtext A 0規則、
+  manual-fields 0、lint **0 errors / 254 warnings**。ratchet 調整なし。
+- 🔴**実機（Claude 引き継ぎ・`V-189` 2本＝`order` に常設）＝両方 PASS。**
+  新機構を足した回なので §2.2 で実機まで回した。**観測点は `actions_done`**＝
+  ①`o323SuccessCommitsUsage`（トラッシュの＜悪魔＞Lv1を選び《黒》を払って場に出す）で
+  `actions_done` に `WX25-P3-061-E1` が入る ②`o323AbortKeepsUsageFree`（候補0）は入らない。
+  🔑**アプリ経路だけが持つ risk を狙って書いた**＝`BattleScreen.tsx:5231` は
+  `wrapSigniAutoPayGate` で **action を包んでから** `executeEffect` を呼ぶので、
+  成功マーカーが `SEQUENCE`/`CONDITIONAL` を越えて leaf へ届かないと**永久に消費されない**
+  （golden は包まない経路しか通らないので観測できない）。
+- 🔴**反転確認（実機）＝live の `WX25-P3-061-E1` を素の `once_per_turn` へ戻すと
+  `o323SuccessCommitsUsage` は FAIL**（「場には出たのに `actions_done` に無い」）＝シナリオに判別力がある。
+- ⚠**Claude 側で1件踏んだ罠**＝`git checkout -- public/data/effects_*.json` で戻したあと `build:effects` を回すと、
+  **`WX24-P2-050-E1` の変更は収穫マージで held に落ちて live へ戻らない**（値の書き換えは純粋上位集合ではない）。
+  ⇒ `node scripts/heldReview.mjs --adopt WX24-P2-050` で採用し直した。**live JSON を一時的に書き換える検証をしたら、
+  戻した後に必ず値を読み直す。**
+
 ## 2026-09-11 — 第262〜第263バッチ：🏁`O-299` をクローズ（**`BattleScreen` 委譲込み・実機まで**）→ **索引 A 残0**
 
 ユーザー承認＝「`BattleScreen` 委譲込みで実機まで回す1バッチとして取ってよい」。残2件を消化した。

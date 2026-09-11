@@ -20,7 +20,7 @@ PlayerState のキー: 358
    100 読 /  15 書  coins
      3 読 /  14 書  opp_virus_removed_just
      7 読 /  12 書  pending_banish_substitute
-   287 読 /  11 書  actions_done
+   289 読 /  11 書  actions_done
      2 読 /  11 書  self_optional_effect_taken
     11 読 /  10 書  pending_crash_source_card_nums
     27 読 /  10 書  granted_effects

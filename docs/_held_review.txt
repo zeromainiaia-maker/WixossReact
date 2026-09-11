@@ -3,26 +3,11 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +SIGNI +STUB ［1枚］
-WX16-029
---- WX16-029
-  原文: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニをエナゾーンから【トラップ】としてあなたのシグニゾーンに設置してもよい。《トラップアイコン》：アタックしているシグニ１体を対象とし、手札から＜トリック＞のシグニを１枚捨ててもよい。そうした場合、それはこのアタックであなたにダメージを与えない。,：あなたのデッキから＜トリック＞のシグニ１
-  - [2].action.steps[0].handDiscard.count = 1
-  - [2].action.steps[0].handDiscard.filter.cardType = "シグニ"
-  - [2].action.steps[0].handDiscard.filter.story = "トリック"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "NEGATE_ATTACK"
-  - [2].action.steps[1].then.target.type = "SIGNI"
-  - [2].action.steps[1].then.target.owner = "opponent"
-  - [2].action.steps[1].then.target.count = 1
-  - [2].action.steps[1].then.attackingOnly = true
-  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [2].action.steps[0].selectTarget.type = "SIGNI"
-  + [2].action.steps[0].selectTarget.owner = "opponent"
-  …（他 15 行）
-
-## （type増減なし＝値/構造変更） ［1枚］
-WXK07-018
+## （type増減なし＝値/構造変更） ［2枚］
+WX24-P2-050 WXK07-018
+--- WX24-P2-050
+  原文: 【自】：アタックフェイズの間、対戦相手のエナゾーンにカード１枚が置かれたとき、対戦相手のエナゾーンにカードが３枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く。【自】：このシグニがアタックしたとき、あなたの場に《熾炎舞　遊月・参》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、あなたのエナ
+  ~ [0].usageLimit : "once_per_turn" → "once_per_turn_on_success"
 --- WXK07-018
   原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
   + [0].action.steps[0].asDown = true

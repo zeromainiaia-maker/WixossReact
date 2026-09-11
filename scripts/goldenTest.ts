@@ -13938,7 +13938,7 @@ test('ON_OPP_ENERGY_ADDED: 相手エナ1枚増加・閾値・アタックフェ�
   eq(hasEff(collectOppEnergyAddedTriggers({ ...trigCtx(HOST), turnPhase: 'ATTACK' }, event, host, guest).entries,
     'WX24-P2-050-E1'), false, "'ATTACK' は TurnPhase に無い値＝発火しない（不正値の再混入検知）");
   eq(fired1.entries[0]?.triggeringCardNum, placed, '置かれたカード自身を保持');
-  eq(fired1.usedHostIds.join(','), 'WX24-P2-050-E1', 'once_per_turn 消費IDを返す');
+  eq(fired1.usedHostIds.length, 0, '成功時消費型は収集時には消費IDを返さない');
   const usedHost = { ...host, actions_done: ['WX24-P2-050-E1'] };
   eq(hasEff(collectOppEnergyAddedTriggers(attackCtx, event, usedHost, guest).entries, 'WX24-P2-050-E1'), false, '使用済みなら再発火しない');
   eq(hasEff(collectOppEnergyAddedTriggers(trigCtx(HOST), event, host, guest).entries, 'WX24-P2-050-E1'), false, 'メインフェイズでは非発火');
@@ -13974,6 +13974,125 @@ test('ON_OPP_ENERGY_ADDED「そのカード」: 置かれた相手エナ自身�
   eq(r.otherState.trash.includes(placed), true, '置かれたカードをトラッシュへ');
   ok(untouched.every(n => r.otherState.energy.includes(n)), '他の相手エナは残る');
 });
+
+// §5.3 O-323：「このターンにこの能力で～していない場合」は誘発回数ではなく、
+// 宣言された処理が実際に成功した回数で制限する。失敗→再誘発と成功→抑止の両側に加え、
+// 旧 once_per_turn へ戻すと失敗側が反転することを同じ盤面で固定する。
+test('O-323 parser/live: 2効果だけが成功時消費型になり、ウリス名条件も payload 化される', () => {
+  const targets = [
+    ['WX24-P2-050', 'WX24-P2-050-E1'],
+    ['WX25-P3-061', 'WX25-P3-061-E1'],
+  ] as const;
+  for (const [cardNum, effectId] of targets) {
+    const live = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const freshEffect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    eq(live.usageLimit, 'once_per_turn_on_success', `${effectId}: live の成功時消費型`);
+    eq(freshEffect.usageLimit, 'once_per_turn_on_success', `${effectId}: fresh parser の成功時消費型`);
+  }
+  const population = [...effectsMap.values()].flat()
+    .filter(e => e.usageLimit === 'once_per_turn_on_success').map(e => e.effectId).sort();
+  eq(population.join(','), 'WX24-P2-050-E1,WX25-P3-061-E1',
+    '新値の live 母集団は監査済みの2効果だけ（別 timing の fail-open を防ぐ ratchet）');
+  const live25 = effectsMap.get('WX25-P3-061')!.find(e => e.effectId === 'WX25-P3-061-E1')!;
+  const fresh25 = parseCardEffects(cardMap.get('WX25-P3-061')!).find(e => e.effectId === 'WX25-P3-061-E1')!;
+  for (const [label, eff] of [['live', live25], ['fresh', fresh25]] as const) {
+    eq(JSON.stringify(eff.condition), JSON.stringify({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: '虚幸の閻魔姫　ウリス' },
+    }), `WX25-P3-061-E1: ${label} の既存 HAS_CARD_IN_FIELD 条件`);
+  }
+});
+
+test('O-323 WX24: 条件空振り後は再誘発、トラッシュ成功後は同一ターンの2回目を抑止', () => withSavedCursor(() => {
+  const effectId = 'WX24-P2-050-E1';
+  const eff = effectsMap.get('WX24-P2-050')!.find(e => e.effectId === effectId)!;
+  const sourceState = mkState({ signi: ['WX24-P2-050', null, null] });
+  const guest2 = mkState({ energy: 2 });
+  const placed2 = guest2.energy.at(-1)!;
+  const event2 = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [placed2] }];
+  const collectCtx = { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' };
+
+  const first = collectOppEnergyAddedTriggers(collectCtx, event2, sourceState, guest2);
+  eq(hasEff(first.entries, effectId), true, '1回目は誘発する');
+  eq(first.usedHostIds.length, 0, '収集時には未消費');
+  const failCtx = { ...mkCtx({}, {}), ownerState: sourceState, otherState: guest2,
+    sourceCardNum: 'WX24-P2-050', triggeringCardNum: placed2, currentPhase: 'ATTACK_SIGNI' } as ExecCtx;
+  const failed = executeEffect(eff, failCtx);
+  eq(failed.otherState.energy.includes(placed2), true, 'エナ2枚なので実際のトラッシュは0枚');
+  eq((failed.ownerState.actions_done ?? []).includes(effectId), false, '空振りでは未消費');
+  eq(hasEff(collectOppEnergyAddedTriggers(collectCtx, event2, failed.ownerState, failed.otherState).entries, effectId), true,
+    '空振り後の同一ターン2回目も再誘発できる');
+
+  const guest3 = mkState({ energy: 3 });
+  const placed3 = guest3.energy.at(-1)!;
+  const success = executeEffect(eff, { ...failCtx, ownerState: failed.ownerState, otherState: guest3,
+    triggeringCardNum: placed3 } as ExecCtx);
+  eq(success.otherState.trash.includes(placed3), true, '条件成立時はトリガー元を実際にトラッシュ');
+  eq((success.ownerState.actions_done ?? []).includes(effectId), true, '実処理成功時だけ消費');
+  const event3 = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [placed3] }];
+  eq(hasEff(collectOppEnergyAddedTriggers(collectCtx, event3, success.ownerState, guest3).entries, effectId), false,
+    '成功後の同一ターン2回目は誘発しない');
+
+  const legacy = { ...eff, usageLimit: 'once_per_turn' as const };
+  const legacyMap = new Map(effectsMap);
+  legacyMap.set('WX24-P2-050', effectsMap.get('WX24-P2-050')!.map(e => e.effectId === effectId ? legacy : e));
+  const legacyFirst = collectOppEnergyAddedTriggers({ ...collectCtx, effectsMap: legacyMap }, event2, sourceState, guest2);
+  eq(legacyFirst.usedHostIds.join(','), effectId, '反転対照: 素の once_per_turn は空振り前の収集だけで消費する');
+  const legacyConsumed = { ...sourceState, actions_done: legacyFirst.usedHostIds };
+  eq(hasEff(collectOppEnergyAddedTriggers({ ...collectCtx, effectsMap: legacyMap }, event2, legacyConsumed, guest2).entries, effectId), false,
+    '反転対照: 素の once_per_turn へ戻すと空振り後の再誘発が FAIL する');
+}));
+
+test('O-323 WX25: ウリス条件、候補0・コスト未払い後の再誘発、場出し成功後の抑止', () => withSavedCursor(() => {
+  const effectId = 'WX25-P3-061-E1';
+  const eff = effectsMap.get('WX25-P3-061')!.find(e => e.effectId === effectId)!;
+  const leaver = 'WX02-044'; // Lv1＜悪魔＞
+  const target = 'WD05-013'; // Lv1＜悪魔＞・黒
+  const blackEnergy = 'WD05-014';
+  const mkWatcher = (withUris: boolean, withTarget: boolean): PlayerState => {
+    const st = mkState({ signi: ['WX25-P3-061', null, null], trash: 0, energy: 0,
+      lrig: withUris ? ['WX25-P3-027'] : [] });
+    st.trash = withTarget ? [target] : [];
+    st.energy = [blackEnergy];
+    return st;
+  };
+  const fire = (st: PlayerState) => collectLeaveFieldTriggers(
+    trigCtx(HOST), leaver, [], HOST, st, mkState({}), HOST,
+  );
+
+  eq(hasEff(fire(mkWatcher(false, true)).entries, effectId), false, '《虚幸の閻魔姫　ウリス》不在なら誘発しない');
+  const noCandidate = mkWatcher(true, false);
+  const noCandidateCollected = fire(noCandidate);
+  eq(hasEff(noCandidateCollected.entries, effectId), true, 'ウリス在場なら候補0でも誘発機会はある');
+  eq(noCandidateCollected.usedHostIds.length, 0, 'ON_LEAVE_FIELD 収集時には未消費');
+  const noCandidateCtx = { ...mkCtx({}, {}), ownerState: noCandidate, otherState: mkState({}),
+    sourceCardNum: 'WX25-P3-061' } as ExecCtx;
+  const noCandidateResult = executeEffect(eff, noCandidateCtx);
+  eq(noCandidateResult.done, true, '候補0は対話なしで完了');
+  eq((noCandidateResult.ownerState.actions_done ?? []).includes(effectId), false, '候補0では未消費');
+  eq(hasEff(fire(noCandidateResult.ownerState).entries, effectId), true, '候補0の後も同一ターンに再誘発できる');
+
+  const unpaidState = mkWatcher(true, true);
+  const unpaidCtx = { ...mkCtx({}, {}), ownerState: unpaidState, otherState: mkState({}),
+    sourceCardNum: 'WX25-P3-061' } as ExecCtx;
+  const selectOffer = executeEffect(eff, unpaidCtx);
+  eq(selectOffer.done, false, '対象選択を提示');
+  const selected = resumeSelectTarget([target], selectOffer.pending as never, ctxAfter(selectOffer, unpaidCtx));
+  eq(selected.done, false, '任意コストを提示');
+  const skipped = resumeOptionalCost('skip', [], selected.pending as never, ctxAfter(selected, unpaidCtx));
+  eq(skipped.ownerState.trash.includes(target), true, '未払いなら対象はトラッシュに残る');
+  eq((skipped.ownerState.actions_done ?? []).includes(effectId), false, 'コスト未払いでは未消費');
+  eq(hasEff(fire(skipped.ownerState).entries, effectId), true, 'コスト未払い後も同一ターンに再誘発できる');
+
+  const paidState = mkWatcher(true, true);
+  const paidCtx = { ...unpaidCtx, ownerState: paidState } as ExecCtx;
+  const paidOffer = executeEffect(eff, paidCtx);
+  const paidSelected = resumeSelectTarget([target], paidOffer.pending as never, ctxAfter(paidOffer, paidCtx));
+  const paid = finish(resumeOptionalCost('pay', [blackEnergy], paidSelected.pending as never,
+    ctxAfter(paidSelected, paidCtx)), paidCtx);
+  eq(fieldTops(paid.ownerState).includes(target), true, '支払い時は対象を実際にダウン状態で場へ出す');
+  eq((paid.ownerState.actions_done ?? []).includes(effectId), true, '場出し成功時だけ消費');
+  eq(hasEff(fire(paid.ownerState).entries, effectId), false, '成功後の同一ターン2回目は誘発しない');
+}));
 
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
 test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火', () => {
