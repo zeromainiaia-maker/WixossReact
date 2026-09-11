@@ -4308,7 +4308,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // lrig_abilities_disabled のリセットは clearTurnEndScopedState のレジストリへ集約（§6.4 O-10 続き509）。
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
@@ -4367,7 +4367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
           banish_redirect_battle_target_nums: undefined,
@@ -4812,7 +4812,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_end_field_trash_targets: undefined,
         turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined,
-        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         last_discarded_signi_class: undefined,      // §5.3 `O-328`: レベルと同じ寿命へ揃える
         cancel_current_signi_attack: undefined, cancel_current_lrig_attack: undefined,
@@ -4837,7 +4837,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 相手側も同じく clearTurnEndScopedState に集約（§6.4 O-3）。
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
         negate_coin_abilities: undefined,
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
         banish_redirect_battle_target_nums: undefined,
@@ -7742,6 +7742,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums],
         coins: Math.max(0, my.coins - coinCost),
         coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + coinCost, // COINS_PAID_THIS_TURN
+        // 🆕🔴**§5.3 `O-321`①（2026-09-11 第276）＝ピースの使用履歴を残す。**
+        //   旧＝`executeArts` だけが `turn_arts_used_names` を積んでおり、**ピースはどこにも記録されなかった**＝
+        //   `WXDi-P11-046-E2`（「このターンにあなたがピースを使用していた場合」）は**恒久 no-op** だった
+        //   （条件型も filter も live に在るのに、読む先が永久に空）。
+        //   ⚠**`turn_arts_used*` へは混ぜない**＝アーツとピースは別のカード種別（`types/index.ts` の項）。
+        ...(isPiece ? { turn_pieces_used_names: [...(my.turn_pieces_used_names ?? []), card.CardName] } : {}),
       });
       // ON_COIN_PAID（C1 配線・キープレイのコイン支払）: extraEntries 経由で反応【自】を積む。
       const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
@@ -12934,7 +12940,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 次ターンプレイヤーが保持する UNTIL_OPP_TURN_END 状態をここで失効させる。
       const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(huEndState)),
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
@@ -12986,7 +12992,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
       })), true));
       // §6.4 O-3: CPU のターン終了も人間の2経路と**同じ `resolveTurnHandover`** を通す。
       // ⚠🔴従来ここは無条件で `activeUserId: user.id`＝**CPU が取った追加ターンも、人間が予約した

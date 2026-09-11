@@ -3,57 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +ENERGY_PLACED_THIS_TURN +SEQUENCE ［2枚］
-WXDi-CP02-009 WXK04-038
---- WXDi-CP02-009
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたのエナゾーンにカードが２枚以上置かれていた場合、あなたのシグニ１体を対象とし、《緑》《無》を支払ってもよい。そうした場合、ターン終了時まで、それは【Ｓランサー】を得る。【起】《ゲーム１回》《緑×0》：【エナチャージ３】をする。その後、あなたのエナゾーンからカードを１枚まで対象とし、それを手札に加える。
-  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "self"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.explicitTarget = true
-  - [0].action.steps[0].abortIfNoCandidate = true
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "OPTIONAL_COST"
-  - [0].action.steps[2].costColors[0] = "緑"
-  - [0].action.steps[2].costColors[1] = "無"
-  …（他 38 行）
---- WXK04-038
-  原文: 【自】《ターン１回》：このシグニがアタックしたとき、対戦相手のレベル１以下のシグニ１体を対象とし、このターンにあなたのエナゾーンに＜植物＞のシグニが１枚以上置かれていた場合、あなたのエナゾーンから＜植物＞のシグニ１枚をトラッシュに置いてもよい。そうした場合、それを手札に戻す。,-
-  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "opponent"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.level.max = 1
-  - [0].action.steps[0].abortIfNoCandidate = true
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "OPTIONAL_TRASH_ENERGY_CLASS"
-  …（他 42 行）
-
-## +CONDITIONAL +ENERGY_PLACED_THIS_TURN +IS_MY_TURN -PAID_ADDITIONAL_COST ［1枚］
-WXDi-CP02-086
---- WXDi-CP02-086
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンにコストか効果によってカードが１枚以上あなたのエナゾーンに置かれていた場合、対戦相手のパワー5000以下のシグニ１体を対象とし、あなたのエナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置いてもよい。そうした場合、それをバニッシュする。【絆自】《ターン１回》：このシグニが対戦相手のライフクロス１枚をクラッシ
-  - [0].action.steps[2].id = "OPTIONAL_COST"
-  - [0].action.steps[2].energyTrash.count = 1
-  - [0].action.steps[2].energyTrash.filter.story = "ブルアカ"
-  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[2].condition.type = "ENERGY_PLACED_THIS_TURN"
-  + [0].action.steps[2].condition.owner = "self"
-  + [0].action.steps[2].condition.minCount = 1
-  + [0].action.steps[2].condition.causes[0] = "cost"
-  + [0].action.steps[2].condition.causes[1] = "effect"
-  + [0].action.steps[2].then.type = "STUB"
-  + [0].action.steps[2].then.id = "OPTIONAL_COST"
-  + [0].action.steps[2].then.energyTrash.count = 1
-  …（他 2 行）
-
 ## （type増減なし＝値/構造変更） ［1枚］
 WXK07-018
 --- WXK07-018

@@ -1584,6 +1584,15 @@ export interface PlayerState {
    *   何が置かれたか・何によって置かれたかを持たない。読み書きは `src/engine/energyPlacement.ts`。
    */
   energy_placed_this_turn?: string[];
+  /**
+   * 🆕**このターンに使用したピースのカード名**（§5.3 `O-321`①・2026-09-11 第276バッチ・`WXDi-P11-046-E2`）。
+   * 🔴**`turn_arts_used_names` へ混ぜない**＝アーツとピースは**別のカード種別**なので、
+   *   無条件の `ARTS_USED_THIS_TURN`（live 9効果）や `minCount`/`exactCount`（同3効果）に
+   *   ピースを数えさせてはいけない。**`filter` つきの条件だけがこの列を併せて読む。**
+   * ⚠**寿命は `turn_arts_used_names` と完全に同じ**＝クリア地点（`BattleScreen.tsx` の6箇所）で
+   *   **必ず同じ行に並べて書く**（別々に書くと片方だけがターンを跨ぐ）。golden がこの並びを機械で強制する。
+   */
+  turn_pieces_used_names?: string[];
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
   // 【ルリグバリア】【シグニバリア】は field.free_zone にトークンカードとして設置する
   // （旧 lrig_barrier / signi_barrier 数値カウンタは廃止。execUtils の barrier ヘルパー参照）

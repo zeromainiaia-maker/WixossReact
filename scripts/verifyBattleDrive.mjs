@@ -21164,6 +21164,7 @@ const o329Spec = (turnPhase, active) => ({
     'field.signi': [['WD01-013#9335'], null, null],
     'field.signi_down': [false, false, false],
     'field.check': null,
+    'lrig_deck': [],   // 🔴§4.4-1＝CORE_TOP_FIELDS は前シナリオから引き継がれる
     'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
   },
   top: { active, turn_phase: turnPhase, turn_count: 2 },
@@ -55557,6 +55558,10 @@ const o321Spec = () => ({
     'field.signi': [null, null, null],
     'field.signi_down': [false, false, false],
     'field.check': null,
+    // 🔴**`lrig_deck` を明示的に空にする**（§4.4-1）＝CORE_TOP_FIELDS なので**前シナリオのアーツが残る**。
+    //   残っていると `ATTACK_ARTS_OP` で CPU がそれを撃ち、**スタックが1件立つ**＝
+    //   「この【自】が立った」と誤読して対照が赤くなる（実際に2回フレークで踏んだ）。
+    'lrig_deck': [],
     'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
   },
   // ⚠**エナフェイズから始める**＝手札の「エナチャージ」アクションは `turn_phase === 'ENERGY'` でしか出ない
@@ -55599,15 +55604,26 @@ const driveO321 = (charge) => async function (page, H) {
   // アタックフェイズへ進む＝`ON_ATTACK_PHASE_START` の【自】が走る窓。
   // ⚠**「MAIN でない＝進んだ」と判定しない**＝開始が `ENERGY` なので初回から真になる（§4.4-5）。
   //   `ATTACK*` に入ったことを必須条件にする。
-  let reached = false; let pending = null; let stackSeen = 0;
+  // ⚠**アタックフェイズに入ったらそこで止める**＝`ON_ATTACK_PHASE_START` の窓だけを見る。
+  //   先へ進めると**別のトリガー**（相手の【自】・ライフバースト等）がスタックに載り、
+  //   `stackLen > 0` を「この【自】が立った」と誤読する（1度フレークで踏んだ＝§4.4-4）。
+  let reached = false; let pending = null; let stackSeen = 0; let sinceReached = 0;
   for (let s = 0; s < 30; s++) {
     await page.waitForTimeout(500);
     const st = await H.queryState();
+    const wasReached = reached;
     if (/^ATTACK/.test(st?.turnPhase ?? '')) reached = true;
-    if (st?.pendingEffect) pending = st.pendingEffect;
-    stackSeen = Math.max(stackSeen, st?.stackLen ?? 0);
-    if (reached && (pending || stackSeen > 0)) break;
-    if (reached && s > 12) break;
+    // 🔴**アタックフェイズへ入る「前」の観測は捨てる**＝注入直後は**前シナリオの対話が残っていることがある**
+    //   （クライアントが書き戻すまでの窓）。これを拾うと対照が「条件が効いていない」と赤くなる
+    //   （フレークで3回踏んだ）。⇒ **`reached` になってからの値だけを判定に使う。**
+    if (wasReached) {
+      if (st?.pendingEffect) pending = st.pendingEffect;
+      stackSeen = Math.max(stackSeen, st?.stackLen ?? 0);
+      if (pending || stackSeen > 0) break;
+      if (++sinceReached > 8) break;
+      continue;
+    }
+    if (reached) continue;   // 到達した最初のティックは観測に使わない（遷移の途中を拾わない）
     // ⚠**ENERGY→GROW→MAIN のラベルは `advancePhaseV20` の一覧に無い**（あちらは MAIN 以降用）＝
     //   `PHASE_BTN`（`uiConstants.ts`）どおりに補う。無いと ENERGY で永久に止まる（第275 で踏んだ）。
     if (!(await advancePhaseV20(H))) {
@@ -55615,6 +55631,17 @@ const driveO321 = (charge) => async function (page, H) {
         if (await H.clickBtn(label, { exact: true })) break;
       }
     }
+  }
+  // 🔴**後始末＝立てた対話をここで畳む**（§4.4-1）＝未解決の `pendingEffect` を残したまま返すと、
+  //   **次のシナリオの注入直後にクライアントが書き戻して**盤面が化ける
+  //   （対照が「条件が効いていない」と赤くなるフレークを2回踏んだ）。
+  for (let k = 0; k < 8; k++) {
+    const st = await H.queryState();
+    if (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!(await H.clickTextOrBtn(['スキップ', '選ばない', '支払わない', 'いいえ', '決定', '発動順序を確定', 'OK']))) {
+      await H.stdStep();
+    }
+    await page.waitForTimeout(400);
   }
   const fin = await H.queryState();
   H.log('結果:', JSON.stringify({ phase: fin?.turnPhase, pending, stackSeen, ledger: fin?.host?.energyPlacedThisTurn }));
@@ -55641,6 +55668,165 @@ scenarios.o321EnergyPlacedGateBlocked = {
 };
 order.push('o321EnergyPlacedGateFires');
 order.push('o321EnergyPlacedGateBlocked');
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-321`①（2026-09-11 第276バッチ）＝「このターンにあなたが**ピース**を使用していた場合」。
+//
+// 🔴**直す前は恒久 no-op だった**＝条件型（`ARTS_USED_THIS_TURN{filter:{cardType:[ピース…]}}`）も
+//   live の JSON も在ったが、**読む先の `turn_arts_used_names` にピースを積む地点が1つも無かった**
+//   （`executeArts` だけが積む）＝この【自】は一度も発動しなかった。
+//   ⚠**golden も緑だった**＝旧 test が「本番が絶対に作らない state」（ピース名を `turn_arts_used_names` へ）を
+//     自分で作って成立方向を assert していた。**実機だけがこの嘘を割れる。**
+// 🔑**1ビット反転**＝盤面も操作も同じで、**ピースを使うかどうか**だけを変える。
+const O321B_SIGNI = 'WXDi-P11-046#9602';   // 【自】アタック時：ピース使用済みなら相手のシグニゾーンを1つ指定
+const O321B_PIECE = 'WXDi-P12-004#9603';   // ディソナンス（《無》×1・メイン・使用条件なし）
+const o321bSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9601'],
+    'field.lrig_down': false,
+    'field.signi': [[O321B_SIGNI], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'lrig_deck': [O321B_PIECE],
+    'lrig_trash': [],
+    'hand': [],
+    'energy': ['WD01-013#9604'],
+    'trash': [],                                   // ピース本体の回収効果は空振りでよい（見るのは履歴だけ）
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-001#9610'],
+    'field.lrig_down': false,
+    'field.signi': [['WD01-013#9611'], null, null],  // 指定先のシグニゾーン
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': [],   // 🔴§4.4-1＝前シナリオのアーツが残ると CPU が撃ってスタックが立つ
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/**
+ * シグニでアタックする。⚠**`my-signi-zone-N` はトグル**（§4.4-2c）＝毎ティック押すと
+ * 開閉を繰り返して「アタック」が一度も見えない（実測＝127秒かけて1度も押せなかった）。
+ * ⇒ **先にボタンが見えているかを確かめ、見えていないときだけゾーンを押す。**
+ */
+async function o321AttackSigni(page, H, zoneIndex) {
+  const attack = () => page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+  const tryClick = async () => {
+    const b = attack();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click({ timeout: 2000 }).catch(() => {});
+      return true;
+    }
+    return false;
+  };
+  if (await tryClick()) return true;
+  await H.clickTestId(`my-signi-zone-${zoneIndex}`);
+  await page.waitForTimeout(400);
+  return await tryClick();
+}
+
+/** @param usePiece true＝先にピースを使う（履歴が立つ）／false＝使わない（対照） */
+const driveO321Piece = (usePiece) => async function (page, H) {
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ phase: before?.turnPhase, lrigDeck: before?.host?.lrigDeckCards, pieces: before?.host?.piecesUsedThisTurn }));
+  if ((before?.host?.lrigDeckCards ?? []).length !== 1) {
+    return { pass: false, detail: `注入前提不成立（lrigDeck=${JSON.stringify(before?.host?.lrigDeckCards)}）` };
+  }
+  if (usePiece) {
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(600);
+    await H.clickTestId('zone-card-0');
+    // ⚠**手順は先例（`pieceUse` シナリオ）と同じ綴りにする**＝
+    //   `card-action-*[ピースを使用]` → `keycost-energy-0` → **ボタン「使用」（exact）**。
+    //   ラベルを勝手に増やすと「押せた風」で素通りする（§4.4-2b）。
+    let clicked = false; let energyPicked = false; let used = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      if (!clicked) {
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click({ timeout: 2000 }).catch(() => {}); clicked = true; did = 'action:ピースを使用';
+        }
+      } else if (!energyPicked) {
+        did = await H.clickTestId('keycost-energy-0'); if (did) energyPicked = true;
+      } else if (!used) {
+        did = await H.clickBtn('使用', { exact: true }); if (did) used = true;
+      } else {
+        did = await H.clickBtn('発動順序を確定', { exact: true });
+      }
+      const st = await H.queryState();
+      H.log(`  piece[${s}] -> ${did ?? 'なし'} | used=${used} pieces=${JSON.stringify(st?.host?.piecesUsedThisTurn)} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if ((st?.host?.piecesUsedThisTurn ?? []).length > 0 && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0) break;
+    }
+    await page.waitForTimeout(600);
+    const afterPiece = await H.queryState();
+    H.log('ピース使用後:', JSON.stringify({ pieces: afterPiece?.host?.piecesUsedThisTurn, arts: afterPiece?.host?.artsUsedThisTurn, lrigTrash: afterPiece?.host?.lrigTrashCards }));
+    // 🔴**ここが `src/screens/`（`executeKeyPiece`）の記録地点そのもの**。
+    if ((afterPiece?.host?.piecesUsedThisTurn ?? []).length !== 1) {
+      return { pass: false, detail: `🔴ピースを使ったのに履歴が立たない（pieces=${JSON.stringify(afterPiece?.host?.piecesUsedThisTurn)}）` };
+    }
+    // ⚠アーツ側の列へ混ぜていない（無条件の `ARTS_USED_THIS_TURN` を巻き込まない）。
+    if ((afterPiece?.host?.artsUsedThisTurn ?? []).length !== 0) {
+      return { pass: false, detail: `🔴ピースがアーツ使用履歴へ混ざっている（arts=${JSON.stringify(afterPiece?.host?.artsUsedThisTurn)}）` };
+    }
+  }
+  // シグニでアタック＝`ON_ATTACK_SIGNI` の【自】が走る窓。
+  // ⚠**アタックしたあとはフェイズを進めない**＝同じティックで「ルリグアタックへ」を押すと
+  //   【自】が立つ瞬間を跨いでしまう（観測の取りこぼし＝§4.4-5 の近縁）。
+  // ⚠**`ATTACK_ARTS_OP` は非ターンプレイヤー（CPU）が抜ける**＝こちらからは押せないので、
+  //   反復予算を厚めに取る（30 では稀に抜ける前に尽きた＝実測25秒で `ATTACK_ARTS_OP` のまま）。
+  let attacked = false; let reached = false; let pending = null; let stackSeen = 0; let sinceAttack = 0;
+  for (let s = 0; s < 50; s++) {
+    await page.waitForTimeout(400);
+    const st = await H.queryState();
+    if (/^ATTACK/.test(st?.turnPhase ?? '')) reached = true;
+    if (st?.pendingEffect) pending = st.pendingEffect;
+    stackSeen = Math.max(stackSeen, st?.stackLen ?? 0);
+    if (pending || stackSeen > 0) break;
+    if (attacked) { if (++sinceAttack > 8) break; continue; }
+    if (st?.turnPhase === 'ATTACK_SIGNI') {
+      if (await o321AttackSigni(page, H, 0)) { attacked = true; continue; }
+    }
+    const adv = (await advancePhaseV20(H)) ?? (await H.clickBtn('メインフェイズへ', { exact: true }));
+    H.log(`  atk[${s}] phase=${st?.turnPhase} adv=${adv ?? 'なし'} attacked=${attacked}`);
+  }
+  // 🔴後始末（§4.4-1）＝未解決の対話を残さない（次シナリオの注入を汚す）。
+  for (let k = 0; k < 8; k++) {
+    const st = await H.queryState();
+    if (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!(await H.clickTextOrBtn(['スキップ', '選ばない', 'いいえ', '決定', '発動順序を確定', 'OK']))) {
+      await H.stdStep();
+    }
+    await page.waitForTimeout(400);
+  }
+  const fin = await H.queryState();
+  H.log('結果:', JSON.stringify({ phase: fin?.turnPhase, attacked, pending, stackSeen, pieces: fin?.host?.piecesUsedThisTurn }));
+  if (!reached || !attacked) return { pass: false, detail: `アタックまで到達できなかった（phase=${fin?.turnPhase} attacked=${attacked}）` };
+  const fired = !!pending || stackSeen > 0;
+  if (usePiece) {
+    if (!fired) return { pass: false, detail: `🔴ピースを使ったのに【自】が1度も立たない（pieces=${JSON.stringify(fin?.host?.piecesUsedThisTurn)}）` };
+    return { pass: true, detail: `ピース使用→履歴→アタックで【自】が立った（pending=${pending} stack=${stackSeen}）` };
+  }
+  if (fired) return { pass: false, detail: `🔴ピースを使っていないのに【自】が立った（条件が効いていない）` };
+  return { pass: true, detail: `ピース未使用＝【自】は立たない（phase=${fin?.turnPhase}）` };
+};
+
+scenarios.o321PieceUsedGateFires = {
+  title: 'O-321①(1): ピースを使うと `turn_pieces_used_names` が立ち、アタック時の【自】が発動する（旧＝恒久 no-op）',
+  spec: o321bSpec(),
+  drive: driveO321Piece(true),
+};
+scenarios.o321PieceUsedGateBlocked = {
+  title: 'O-321①(2) 対照: 同じ盤面でピースを使わない＝【自】は立たない',
+  spec: o321bSpec(),
+  drive: driveO321Piece(false),
+};
+order.push('o321PieceUsedGateFires');
+order.push('o321PieceUsedGateBlocked');
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
@@ -55871,6 +56057,11 @@ try {
         //   ⚠**枚数（`energy`）では答えられない**＝置いたあと同じターンに払えば消えるし、
         //     ルール処理で置かれた分と効果で置かれた分を区別できない（§4.4-71＝engine が読む state を観測面に足す）。
         energyPlacedThisTurn: s.energy_placed_this_turn ?? [],
+        // 🆕§5.3 `O-321`①（2026-09-11 第276）＝このターンに使用したピース名。
+        //   ⚠**`turn_arts_used_names` とは別の列**（アーツとピースは別のカード種別）＝
+        //     片方だけ見ると「ピースを使ったのに記録が無い」と「そもそも使えていない」を取り違える。
+        piecesUsedThisTurn: s.turn_pieces_used_names ?? [],
+        artsUsedThisTurn: s.turn_arts_used_names ?? [],
         life: (s.life_cloth ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
@@ -56053,6 +56244,11 @@ try {
         //   ⚠**枚数（`energy`）では答えられない**＝置いたあと同じターンに払えば消えるし、
         //     ルール処理で置かれた分と効果で置かれた分を区別できない（§4.4-71＝engine が読む state を観測面に足す）。
         energyPlacedThisTurn: s.energy_placed_this_turn ?? [],
+        // 🆕§5.3 `O-321`①（2026-09-11 第276）＝このターンに使用したピース名。
+        //   ⚠**`turn_arts_used_names` とは別の列**（アーツとピースは別のカード種別）＝
+        //     片方だけ見ると「ピースを使ったのに記録が無い」と「そもそも使えていない」を取り違える。
+        piecesUsedThisTurn: s.turn_pieces_used_names ?? [],
+        artsUsedThisTurn: s.turn_arts_used_names ?? [],
         zoneBlocks: s.signi_zone_blocks ?? [],
         zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],
         signiVirus: s.field?.signi_virus ?? [0, 0, 0],

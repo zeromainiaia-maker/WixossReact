@@ -6779,17 +6779,24 @@ test('§6.4 O-16 live: ゾーン限定のアタック禁止3効果が指定ゾ�
 });
 
 test('O-321 WXDi-P11-046-E2: このターンのピース使用履歴だけで発火する', () => {
+  // 🔴🆕**2026-09-11 第276＝この test は「本番が絶対に作らない state」を自分で作って緑になっていた。**
+  //   旧版は**ピースのカード名を `turn_arts_used_names` へ手で入れて**「成立方向 OK」と言っていたが、
+  //   その列へピースを積む地点は engine にも `src/screens/` にも1つも無く（`executeArts` だけが積む）、
+  //   実機では**この【自】は一度も発動しなかった**（恒久 no-op）。
+  //   ⇒ いまは `executeKeyPiece` が `turn_pieces_used_names` を積み、`evalCondition` が
+  //     **`filter` つきのときだけ**両方を母集団にする。**判定は本番が書く列で行う。**
+  //   🔑教訓＝**テストが state を手で作るときは「本番のどこがその列を書くか」を1つ挙げられること**。
   const eff = effectsMap.get('WXDi-P11-046')!.find(e => e.effectId === 'WXDi-P11-046-E2')!;
   eq(JSON.stringify(eff.condition), JSON.stringify({ type: 'ARTS_USED_THIS_TURN', owner: 'self',
-    filter: { cardType: ['ピース', 'リレーピース'] } }), 'ピース限定の履歴条件');
+    filter: { cardType: ['ピース', 'リレーピース', 'ピース/クラフト'] } }), 'ピース限定の履歴条件');
   const pieceNum = findCard(c => c.Type === 'ピース');
   const artsNum = findCard(c => c.Type === 'アーツ');
   const pieceName = cardMap.get(pieceNum)!.CardName;
   const artsName = cardMap.get(artsNum)!.CardName;
   const cond = eff.condition!;
-  const hit = mkCtx({}, {}); hit.ownerState.turn_arts_used_names = [pieceName]; hit.ownerState.turn_arts_used = true;
+  const hit = mkCtx({}, {}); hit.ownerState.turn_pieces_used_names = [pieceName];
   const miss = mkCtx({}, {}); miss.ownerState.turn_arts_used_names = [artsName]; miss.ownerState.turn_arts_used = true;
-  ok(evalCondition(cond, hit), '成立方向: ピース使用済みなら成立');
+  ok(evalCondition(cond, hit), '成立方向: ピース使用済みなら成立（本番が書く列を読む）');
   ok(!evalCondition(cond, miss), '反転確認: アーツだけの使用では不成立');
 });
 
@@ -75686,6 +75693,88 @@ test('第247 §5.3 O-293: 「次のあなたのエナフェイズ終了時まで
   //   で確定させており、**払ったターンの終わりに修正が消えていた**。7＝2026-09-10 第247。
   eq(hits.length, 10, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
 });
+
+test('第276 §5.3 O-321①: 「このターンにピースを使用していた場合」が実際に読める（旧＝恒久 no-op）', () => withSavedCursor(() => {
+  // 🔴旧＝条件型も filter も live に在ったが、読む先の `turn_arts_used_names` は
+  //   **`executeArts` だけが積む**＝ピースは1件も入らない＝**この【自】は一度も発動しなかった**。
+  const e = (effectsMap.get('WXDi-P11-046') ?? []).find(x => x.effectId === 'WXDi-P11-046-E2');
+  ok(!!e, 'WXDi-P11-046-E2 が live にある'); if (!e) return;
+  const cond = e.condition as { type: string; filter?: { cardType?: string[] } };
+  eq(cond?.type, 'ARTS_USED_THIS_TURN', '条件型');
+  eq(JSON.stringify(cond?.filter?.cardType), '["ピース","リレーピース","ピース/クラフト"]',
+     '🔴`ピース/クラフト` が抜けると CSV の Type 3値のうち1つを取りこぼす');
+
+  const pieceCard = findCard(c => c.Type === 'ピース');
+  const artsCard = findCard(c => c.Type === 'アーツ');
+  const ctx = mkCtx({}, {});
+  const withNames = (arts: string[], pieces: string[]) => ({
+    ...ctx,
+    ownerState: { ...ctx.ownerState, turn_arts_used_names: arts, turn_pieces_used_names: pieces, turn_arts_used: arts.length > 0 },
+  });
+  const pieceName = cardMap.get(pieceCard)!.CardName;
+  const artsName = cardMap.get(artsCard)!.CardName;
+  const pieceCond = e.condition!;
+  ok(evalCondition(pieceCond, withNames([], [pieceName])), '🔴ピースを使ったのに成立しない（台帳を読んでいない）');
+  ok(!evalCondition(pieceCond, withNames([artsName], [])), '🔴アーツを使っただけで成立している');
+  ok(!evalCondition(pieceCond, withNames([], [])), '何も使っていなければ不成立');
+
+  // 🔴**反転＝ピースは「アーツを使用した」側には混ざらない**（別のカード種別）。
+  const plain = { type: 'ARTS_USED_THIS_TURN', owner: 'self' } as unknown as Condition;
+  ok(!evalCondition(plain, withNames([], [pieceName])), '🔴無条件版がピースを数えている');
+  const nth = { type: 'ARTS_USED_THIS_TURN', owner: 'self', exactCount: 1 } as unknown as Condition;
+  ok(!evalCondition(nth, withNames([], [pieceName])), '🔴exactCount がピースを数えている（「N枚目のアーツ」が狂う）');
+  ok(evalCondition(nth, withNames([artsName], [pieceName])), 'アーツ1枚＋ピース1枚なら「1枚目のアーツ」は成立');
+}));
+
+test('第276 §5.3 O-321① guard: ピース使用履歴はアーツ使用履歴と必ず同じ行でクリアされる', () => {
+  // 🔴**唯一の壊れ方は「片方だけクリアし忘れてターンを跨ぐ」**＝
+  //   `turn_arts_used_names` のクリアは `BattleScreen.tsx` に**6箇所**あり、
+  //   新しいクリア地点が足されたときに片方だけ書かれるのを機械で止める。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8').split(/\r?\n/);
+  const bad: string[] = [];
+  let clears = 0;
+  for (let i = 0; i < src.length; i++) {
+    if (!/turn_arts_used_names:\s*undefined/.test(src[i])) continue;
+    clears++;
+    if (!/turn_pieces_used_names:\s*undefined/.test(src[i])) bad.push(`L${i + 1}`);
+  }
+  eq(clears, 6, 'アーツ使用履歴のクリア地点数（増減したら両方書けているか確かめる）');
+  eq(bad.length, 0, `🔴ピース使用履歴を一緒にクリアしていない行: ${bad.join(', ')}`);
+});
+
+test('第276 §5.3 O-315①/O-321②: 登録票 stale の2件は既に配線済み（契約として固定する）', () => withSavedCursor(() => {
+  // 🔑**再 triage で「もう直っている」と判定した項目は、その場で golden を張ってから落とす**＝
+  //   張らずに落とすと、次の人がまた同じ2件を triage する（第271〜第276で4回繰り返した）。
+
+  // ① `WXK01-045-E1`＝「**このターンに場に出た**対戦相手のシグニ1体を対象とし」。
+  //   受け皿は `TargetFilter.placedThisTurn`（`execUtils.ts` の候補生成層＝**候補側 state** の
+  //   `signi_placed_origin_this_turn` を読む）。
+  const e45 = (effectsMap.get('WXK01-045') ?? []).find(x => x.effectId === 'WXK01-045-E1');
+  ok(!!e45, 'WXK01-045-E1 が live にある');
+  ok(!!e45 && JSON.stringify(e45).includes('"placedThisTurn":true'), '🔴「このターンに場に出た」の限定が落ちている');
+  const A = fresh(), B = fresh();
+  const base = mkCtx({}, { signi: [A, B, null] });
+  const placed = { ...base.otherState, signi_placed_origin_this_turn: [`${A}:hand`] };
+  const cands = fieldCandidates(placed, { cardType: 'シグニ', placedThisTurn: true }, base.cardMap,
+    base.effectivePowers, base.allColorSigniNums, base.fieldSigniExtraColors);
+  eq(JSON.stringify(cands), JSON.stringify([A]), '🔴このターンに出た1体だけが候補（全体に広がっていない）');
+  const none = fieldCandidates(base.otherState, { cardType: 'シグニ', placedThisTurn: true }, base.cardMap,
+    base.effectivePowers, base.allColorSigniNums, base.fieldSigniExtraColors);
+  eq(none.length, 0, '🔴記録が無いのに候補が出た（fail-open に落ちている）');
+
+  // ② `WXDi-P13-085-E1`＝「あなたの**《ディソナアイコン》のカード**の効果によって対戦相手のデッキから…」。
+  //   受け皿は `triggerCondition.milledSourceFilter`（`triggerCollect.ts` が `last_effect_mill_source` を
+  //   `matchesFilter` に当てる。原因不明なら**非発火**）。
+  const e85 = (effectsMap.get('WXDi-P13-085') ?? []).find(x => x.effectId === 'WXDi-P13-085-E1');
+  ok(!!e85, 'WXDi-P13-085-E1 が live にある'); if (!e85) return;
+  eq(JSON.stringify(e85.triggerCondition?.milledSourceFilter), '{"isDisona":true}', '🔴発生源の限定が落ちている');
+  eq(e85.triggerCondition?.milledDeckOwner, 'opponent', '相手のデッキ限定');
+  // `isDisona` の判定は `Story === 'Dissona'`＝ディソナ以外の札では成立しない（原因限定が効いている）。
+  const disona = findCard(c => (c.Story ?? '') === 'Dissona');
+  const plain = findCard(c => (c.Story ?? '') !== 'Dissona' && c.Type === 'シグニ');
+  ok(matchesFilter(cardMap.get(disona), { isDisona: true }), 'ディソナ札は一致する');
+  ok(!matchesFilter(cardMap.get(plain), { isDisona: true }), '🔴ディソナでない札まで一致している');
+}));
 
 test('第275 §5.3 O-321/O-315/O-308③: 「このターンにエナゾーンに置かれていた」条件が live 3効果に載る', () => {
   // 🔴旧 live は**条件が丸ごと落ちていた**＝エナに1枚も置いていないターンでも任意コストを払えた（過剰実行）。

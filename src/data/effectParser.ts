@@ -23010,11 +23010,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.replace(/、?このターンにあなたがアーツを使用していた場合(?:、)?/, '、').replace(/^、/, '');
   }
 
-  // 「このターンにあなたがピースを使用していた場合」＝アーツ／ピース共通の使用履歴を
-  // cardType で絞る。専用カウンタを増やさず、既存 `turn_arts_used_names` を唯一の台帳にする。
+  // 「このターンにあなたがピースを使用していた場合」＝アーツ／ピース共通の使用履歴を cardType で絞る。
+  // 🆕🔴**2026-09-11 第276（§5.3 `O-321`①）＝この注記は嘘だった**＝旧コメントは
+  //   「既存 `turn_arts_used_names` を唯一の台帳にする」と書いていたが、
+  //   **その台帳へピースを積む地点が1つも無かった**（`executeArts` だけが積む）＝**恒久 no-op**。
+  //   いまは `executeKeyPiece` が `turn_pieces_used_names` を積み、`evalCondition` が
+  //   **`filter` つきのときだけ**両方を母集団にする。
+  // ⚠**`ピース/クラフト` を落とさない**＝CSV の `Type` は3値（`ピース` / `リレーピース` / `ピース/クラフト`）で、
+  //   `matchesFilter` の `cardType` は**完全一致**（`isPieceCardType` と同じ集合を書く）。
   if (actionText && /このターンにあなたがピースを使用していた場合/.test(actionText)) {
     const pieceCond: Condition = { type: 'ARTS_USED_THIS_TURN', owner: 'self',
-      filter: { cardType: ['ピース', 'リレーピース'] } };
+      filter: { cardType: ['ピース', 'リレーピース', 'ピース/クラフト'] } };
     extractedTriggerCondition = extractedTriggerCondition
       ? { type: 'AND', conditions: [extractedTriggerCondition, pieceCond] }
       : pieceCond;

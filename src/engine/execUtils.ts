@@ -2527,9 +2527,20 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).signi_left_by_opp_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'ARTS_USED_THIS_TURN': {
       const artsSt = st(cond.owner);
+      // 🆕🔴**§5.3 `O-321`①（2026-09-11 第276）＝`filter` つきのときだけ「使用したピース」も母集団に入れる。**
+      //   原文「このターンにあなたが**ピース**を使用していた場合」（`WXDi-P11-046-E2`）は
+      //   `ARTS_USED_THIS_TURN{filter:{cardType:[ピース…]}}` として live に在ったが、
+      //   🔴**読む先の `turn_arts_used_names` にピースは1件も積まれない**（`executeArts` だけが積む）＝恒久 no-op だった。
+      //   ⚠**無条件版・`minCount`/`exactCount`・`color` へは混ぜない**＝アーツとピースは別のカード種別で、
+      //     「このターンに使用した**2枚目のアーツ**」（`WXK01-042-E1`）にピースを数えさせると過剰実行になる。
+      //   🔑**`filter` を持つ live 効果はこの1件だけ**（2026-09-11 実測＝21件中1件）なので、
+      //     母集団を広げても他の効果の意味は変わらない。
       const usedNames = artsSt.turn_arts_used_names ?? [];
+      const filterPool = cond.filter
+        ? [...usedNames, ...(artsSt.turn_pieces_used_names ?? [])]
+        : usedNames;
       const filteredNames = cond.filter
-        ? usedNames.filter(name => [...ctx.cardMap.values()].some(card => card.CardName === name && matchesFilter(card, cond.filter)))
+        ? filterPool.filter(name => [...ctx.cardMap.values()].some(card => card.CardName === name && matchesFilter(card, cond.filter)))
         : usedNames;
       // exactCount＝「それがこのターンにあなたが使用したN枚目のアーツだった場合」（WXK01-042）。
       // ⚠minCount（N以上）で近似すると **N+1枚目以降でも発火する過剰実行**になるので別軸にしてある。
