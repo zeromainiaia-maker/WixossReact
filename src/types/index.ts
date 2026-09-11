@@ -180,8 +180,21 @@ export interface SigniDeployBan {
   cardNames?: string[];
   /** このパワー以上のシグニだけを禁止する（「パワーN以上のシグニを新たに場に出せない」）。 */
   powerGte?: number;
-  /** この出自の配置だけを禁止する。'signi_or_spell_effect'＝「自分の、シグニとスペルの効果によって」。 */
-  bySource?: 'signi_or_spell_effect';
+  /**
+   * この出自の配置だけを禁止する。'signi_or_spell_effect'＝「自分の、シグニとスペルの効果によって」。
+   * 🆕`'normal_summon'`＝**手札からの通常召喚**（2026-09-12・§5.3 `O-314`・`WXK05-001-E2`
+   * 「この方法で追加されたターンのメインフェイズの間、あなたは手札からシグニを場に出せない」）。
+   * ⚠**近似**＝`DeployPlacementSource` は「手札から」を運ばないので、**効果による手札からの配置は止まらない**
+   *   （原文はそれも禁じる）。過少側の近似で、過剰実行にはならない。
+   */
+  bySource?: 'signi_or_spell_effect' | 'normal_summon';
+  /**
+   * 🆕**この ban は「次のターン」から効く**（2026-09-12・§5.3 `O-314`・`WXK05-001-E2`）＝
+   * 追加ターンだけを縛るので、**張ったターンには掛けてはいけない**。
+   * ⚠`turnsRemaining` のカウントダウンは従来どおり＝`{turnsRemaining:2, fromNextTurn:true}` で
+   *   「このターンは無効／次のターン（＝追加ターン）だけ有効」になる（ターン終了時に `fromNextTurn` が落ちる）。
+   */
+  fromNextTurn?: boolean;
   /** ログ表示用の由来。 */
   label?: string;
 }
@@ -697,7 +710,10 @@ export interface PlayerState {
   //   自分が次にメインフェイズへ入る1点（`clearMainPhaseScopedState`）で消える。相手ターン中も有効。
   // 🆕'OPP_EFFECT'（§5.3 O-295）＝**対戦相手の効果による**ダメージだけ。消費は execLifeCrash 1点で、
   //   hasActivePreventDamageWindow（'ALL'/'LRIG'）には当たらない＝アタックのダメージは通す。
-  prevent_damage_windows?: { scope: 'ALL' | 'LRIG' | 'OPP_EFFECT'; expires: 'END_OF_ATTACK' | 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE' }[];
+  // 🆕`sourcePowerGte`（§5.3 `O-317`・2026-09-12・`WX25-P2-008-E1`「このターン、あなたは**パワー12000以上の
+  //   シグニによって**ダメージを受けない」）＝この window は**ダメージ源のパワーが分かっていて**かつ
+  //   その値が閾値以上のときだけ当たる。⚠パワー不明の経路では当たらない（fail-closed＝無条件の無敵にしない）。
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG' | 'OPP_EFFECT'; expires: 'END_OF_ATTACK' | 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE'; sourcePowerGte?: number }[];
   /**
    * 「次のあなたのメインフェイズまで、このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3）。
    * 印刷リミットを**置き換える**（`lrig_limit_mod` の加算とは別軸）＝`computeEffectiveLrigLimit` の

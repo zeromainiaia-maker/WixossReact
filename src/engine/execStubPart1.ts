@@ -1081,13 +1081,28 @@ export function execStubPart1(
   // ⚠**§6.4 O-41 以降、保存先は `DECLARE_NUMBER` と同じ `declared_number`**（ガード制限の巻き添えは解消済み）＝
   //   残る違いは `numberChoices` で選択肢を絞れる点だけ。
   if (stub.id === 'DECLARE_NUMBER_PLAIN') {
-    const choices = stub.numberChoices?.length ? [...new Set(stub.numberChoices)] : [1, 2, 3, 4, 5];
+    // 🆕§5.3 `O-312`（2026-09-12）＝`numberChoicesFrom`＝上限を盤面から決める
+    //   （原文「**対戦相手のセンタールリグのレベル以下の**数字１つを宣言する」）。
+    //   🔴静的な `numberChoices` では書けない（上限が実行時に動く）。
+    //   ⚠参照ルリグのレベルが読めなければ `[1]` だけを提示（fail-closed＝最小値へ倒す）。
+    const declLimitState = stub.numberChoicesFrom === 'opp_center_lrig_level' ? ctx.otherState
+      : stub.numberChoicesFrom === 'self_center_lrig_level' ? ctx.ownerState
+      : null;
+    const declLimitLrig = declLimitState?.field.lrig.at(-1);
+    const declLimitLv = declLimitLrig
+      ? parseInt(ctx.cardMap.get(getCardNum(declLimitLrig))?.Level ?? '', 10) : NaN;
+    const declMax = declLimitState === null ? 5
+      : Number.isFinite(declLimitLv) ? Math.max(1, Math.min(5, declLimitLv)) : 1;
+    const base = stub.numberChoices?.length ? [...new Set(stub.numberChoices)] : [1, 2, 3, 4, 5];
+    const choices = base.filter(n => n <= declMax);
     const options = choices.map(n => ({
       id: `numplain_${n}`, label: `${n}を宣言`,
       action: ({ type: 'STUB', id: 'SET_DECLARED_NUMBER_PLAIN', value: n } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), { type: 'CHOOSE', options, count: 1 });
+    // 🆕§5.3 `O-314`＝`declaredBy:'opponent'`（「**対戦相手は**数字1つを宣言する」）＝クリックするのは相手。
+    return needsInteraction(addLog(ctx, `${stub.declaredBy === 'opponent' ? '対戦相手が' : ''}数字を宣言してください（${choices.join('/')}）`),
+      { type: 'CHOOSE', options, count: 1, ...(stub.declaredBy === 'opponent' ? { opponentResponds: true } : {}) });
   }
   if (stub.id === 'SET_DECLARED_NUMBER_PLAIN') {
     const valP = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
@@ -1109,12 +1124,22 @@ export function execStubPart1(
   // （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じレベルを持つすべてのシグニを捨てさせる」）
   if (stub.id === 'TK3_DECLARE_DISCARD') {
     if (stub.value === undefined || stub.value === null) {
-      const options = [1, 2, 3, 4, 5].map(n => ({
+      // 🆕§5.3 `O-312`（2026-09-12）＝`numberChoicesFrom`＝「**対戦相手のセンタールリグのレベル以下の**
+      //   数字１つを宣言する」（`WXDi-D09-P04-E3`）。⚠読めなければ `[1]`（fail-closed）。
+      const tk3LimitState = stub.numberChoicesFrom === 'opp_center_lrig_level' ? ctx.otherState
+        : stub.numberChoicesFrom === 'self_center_lrig_level' ? ctx.ownerState
+        : null;
+      const tk3LimitLrig = tk3LimitState?.field.lrig.at(-1);
+      const tk3LimitLv = tk3LimitLrig
+        ? parseInt(ctx.cardMap.get(getCardNum(tk3LimitLrig))?.Level ?? '', 10) : NaN;
+      const tk3Max = tk3LimitState === null ? 5
+        : Number.isFinite(tk3LimitLv) ? Math.max(1, Math.min(5, tk3LimitLv)) : 1;
+      const options = [1, 2, 3, 4, 5].filter(n => n <= tk3Max).map(n => ({
         id: `tk3_${n}`, label: `${n}を宣言`,
-        action: ({ type: 'STUB', id: 'TK3_DECLARE_DISCARD', value: n } as StubAction) as EffectAction,
+        action: ({ ...stub, value: n } as StubAction) as EffectAction,
         available: true,
       }));
-      return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), { type: 'CHOOSE', options, count: 1 });
+      return needsInteraction(addLog(ctx, `数字を宣言してください（1〜${tk3Max}）`), { type: 'CHOOSE', options, count: 1 });
     }
     const lvlTK3 = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
     // 「対戦相手の手札を見て」: 手札全体を閲覧専用モーダルで公開し、確認後に捨てさせる（TK3_DISCARD_BY_LEVEL）。
@@ -1122,7 +1147,10 @@ export function execStubPart1(
       type: 'REVEAL_CARDS',
       cards: [...ctx.otherState.hand],
       title: `対戦相手の手札（宣言レベル${lvlTK3}のシグニを捨てさせる）`,
-      continuation: ({ type: 'STUB', id: 'TK3_DISCARD_BY_LEVEL', value: lvlTK3 } as StubAction) as EffectAction,
+      continuation: ({
+        type: 'STUB', id: 'TK3_DISCARD_BY_LEVEL', value: lvlTK3,
+        declareDiscardFilter: stub.declareDiscardFilter,
+      } as StubAction) as EffectAction,
     });
   }
   // TK3_DISCARD_BY_LEVEL: REVEAL_CARDS 確認後、宣言レベルのシグニを相手手札からすべて捨てさせる
@@ -1130,8 +1158,10 @@ export function execStubPart1(
     const lvlTD = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
     const oppHandTD = ctx.otherState.hand;
     const discardTD = oppHandTD.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return c?.Type === 'シグニ' && parseInt(c?.Level ?? '0', 10) === lvlTD;
+      const c = ctx.cardMap.get(getCardNum(cn));
+      if (c?.Type !== 'シグニ' || parseInt(c?.Level ?? '0', 10) !== lvlTD) return false;
+      // 🆕§5.3 `O-312`＝「**《ガードアイコン》を持たず**〜すべてのシグニ」（`declareDiscardFilter:{noGuard:true}`）。
+      return !stub.declareDiscardFilter || matchesFilter(c, stub.declareDiscardFilter);
     });
     if (discardTD.length === 0) {
       return done(addLog(ctx, `対戦相手の手札にLv${lvlTD}のシグニなし`));

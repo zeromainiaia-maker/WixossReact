@@ -1,5 +1,47 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-12・第282バッチ・Opus 5 単独）＝🏁`O-292`・🏁`O-296`・🏁`O-309`・🏁`O-310`・🏁`O-311` の5項目をクローズ（索引G 13→8、🆕`O-330`/`O-331` を登録して 10項目・30効果/24カード）。**
+
+  **取り方**＝ユーザー指定の5項目を横断で1バッチ。互いに無関係（束ねたのは固定費のため）。
+
+  🔴**5項目とも登録票の前提が崩れた**（着手前・実装中の実測で確定）＝
+  ①`O-292`＝**「コラボ」の意味そのものが誤読**＝公式 FAQ では「呼ぶ」は**ライバートークンを得る**、
+  「コラボする」は**トークンを取り除く**。engine・既存 golden 3本・【ガード】代替（`O-230`）が揃って
+  **アシストルリグを場に出していた**（呼ぶ5効果＋コラボする4効果）。
+  ②`O-296`＝登録1件 → **実測8効果**。`until` 無しの AUTO `SET_BASE_LEVEL` は**何もしていない**／
+  🔴`POWER_SET` は **`duration` を読んでいない**（登録票の「隣の POWER_SET は持てる」が誤り）／
+  `BLOCK_ACTION{SET_LEVEL_1}` は読み手ゼロ。
+  ③`O-309`/`O-310`＝「新機構」の大半は**受け皿が既にあり列挙側だけ**（`SEARCH` pending の `deckOwner`/`opponentResponds`、
+  `applyDirectAction` の EXILE/TRASH は最初から両者のエナを探す）。
+  ④`O-311`＝carrier は作らず、**参照が生きているうちに具体値へ焼く** `STUB{BAKE_LAST_PROCESSED_REFS}` 1本で閉じた。
+
+  **直したもの**＝`liver_tokens`＋`EffectCost.collab`（提示ゲート・モーダル・支払い・CPU・ガード代替・盤面表示）／
+  `SET_BASE_LEVEL.until` 3種（`base_level_overrides_until_opp_turn`・`FieldGrant{kind:'baseLevel'}`・対象選択）／`POWER_SET.duration`／
+  `SearchAction.opponentResponds`／`AddToFieldAction.opponentSelects`／`TargetScope` の `both_energy`・`opp_field_energy`／
+  `FIELD_SIGNI_TO_CHECK_ZONE` の選択＋`asDown`／`LOOK_PICK_CHAIN` の `then:'acce'`／新 STUB 5本／
+  `victimFilter:'chosenByOnPlay'`。MANUAL 20効果＋parser 1規則。
+
+  **作業中に見つけて直した別件**＝🔴`execTrash` の場のシグニ分岐**だけ** `frontOfSelf` を読んでいなかった
+  （兄弟5ハンドラは読む＝新設 golden の反転確認が捕まえた）／🔴`applyContinuousBaseLevelOverride` が `new Map(cardMap)` で
+  **`InstanceMap` のフォールバックを落とし**、instanceId キーの基本レベル上書きが当たらなかった。
+
+  🔑**教訓**＝①**ルールの語の意味は公式 FAQ で確かめる**（engine・golden・コメントが同じ誤読で一致していた＝どの計器も緑）
+  ②**期間キーは「engine が読むか」まで確かめる**（`POWER_SET.duration` は型にも JSON にもあって読み手ゼロ）
+  ③**対話を跨ぐ参照は carrier を作る前に「焼き込み」を検討する**（STUB 1本で済んだ）。
+
+  🔧**検証**＝`npm run gates` 全緑（golden **3992 PASS**＝新設6本／smoke 10748 OK／fuzz 0／census 高シグナル 1/1 据置／
+  stubs A群・C群 0／enginetext・costtext A群 0／lint 0 errors）。**反転確認5本**（殺すと FAIL）。逆翻訳22効果を目視（描き漏れ2件をその場で修正）。
+  🔴**実機 `V-200`（2本）／`V-201`／`V-202` PASS**＝トークン1個で撃てて0へ・0個では出ない／両者のエナが候補に並ぶ／
+  相手の探索が CPU へ回り同じレベルだけを出す。⚠**`src/screens/` と新しい型・機構を触った回**なので実機は必須（§2.2）。
+
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **10項目**（🏁A 0／🏁B 0／**G 10**＝13−5＋新規2）｜🏁**実機 残0**。
+
+  **次の一手**
+  ① 🔥**索引 G を上から**（`O-312` → `O-313` → …）。⚠`O-312`（動的な値を上限・一致条件へ渡す）は、
+  `BAKE_LAST_PROCESSED_REFS` の兄弟（焼き込み）で足りる軸がないか先に確かめる。
+  ② 🔑**着手の1手目は登録票の反証**＝第280〜第282 で取った11項目のうち**10項目で前提が誤っていた**。
+  ③ ⚠**ルールの語（コラボ・ベット・リコレクト等）が絡む項目は、engine を読む前に公式 FAQ で意味を確かめる。**
+
 - **セッション（2026-09-11・第281バッチ・Opus 5 単独）＝🏁`O-325`・🏁`O-291`・🏁`O-290` を3項目まとめてクローズ（索引G 16→13項目・9効果/6カード）。**
 
   **取り方**＝第280と同じ横断バッチ。⚠ただし3項目は**互いに無関係**で、束ねた理由は

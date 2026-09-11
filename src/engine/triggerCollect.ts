@@ -5234,6 +5234,9 @@ export function collectTurnTriggers(
   }
 
   // 相手フィールドシグニ（any_opp / any でこちらのターンにも反応するカード）
+  // 🆕§5.3 `O-313`（2026-09-12）＝`triggerCondition.anyTurn`（原文「**各**ターン終了時」）は
+  //   `scope:'self'` のままここでも拾う。🔴無いと「各ターン」の**半分（相手のターン境界）が恒久 no-op**
+  //   ＝live 13効果すべてがその状態だった（`triggerScope` を `'any'` にしても自分側の loop が落とすので直せない）。
   for (const stack of opState.field.signi) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
@@ -5241,7 +5244,7 @@ export function collectTurnTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const scope = eff.triggerScope ?? 'self';
-      if (scope !== 'any_opp' && scope !== 'any') continue;
+      if (scope !== 'any_opp' && scope !== 'any' && !eff.triggerCondition?.anyTurn) continue;
       if (!limitOkOp(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({

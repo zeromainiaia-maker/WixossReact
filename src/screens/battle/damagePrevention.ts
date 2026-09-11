@@ -1,6 +1,7 @@
 import type { PlayerState } from '../../types';
 
-export type DamageSourceContext = { type: 'lrig' | 'signi'; level?: number };
+/** 🆕`power`＝ダメージ源シグニの**実効パワー**（§5.3 `O-317`・`PREVENT_DAMAGE.sourcePowerGte` の判定に使う）。 */
+export type DamageSourceContext = { type: 'lrig' | 'signi'; level?: number; power?: number };
 
 export function consumeNextDamagePrevention(
   state: PlayerState,

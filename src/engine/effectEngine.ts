@@ -8477,7 +8477,10 @@ export function applyContinuousBaseLevelOverride(
         if (eff.effectType !== 'CONTINUOUS') continue;
         if (eff.action?.type !== 'SET_BASE_LEVEL') continue;
         if (!checkActiveCondition(eff.activeCondition, state, opp, myTurn, cardMap, top)) continue;
-        overrides.push({ cn: top, level: (eff.action as import('../types/effects').SetBaseLevelAction).value });
+        // ⚠`value` は `valueRef` を書いた効果だけ省略可（§5.3 `O-312`）＝【常】宣言は静的な値しか扱わない。
+        const sblLv = (eff.action as import('../types/effects').SetBaseLevelAction).value;
+        if (typeof sblLv !== 'number') continue;
+        overrides.push({ cn: top, level: sblLv });
       }
     }
   };

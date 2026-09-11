@@ -237,9 +237,20 @@ export function advancePreventDamageWindows(
 export function hasActivePreventDamageWindow(
   state: PlayerState,
   scope: 'ALL' | 'LRIG',
+  /**
+   * 🆕**ダメージ源のパワー**（§5.3 `O-317`・2026-09-12・`WX25-P2-008-E1`）。
+   * `sourcePowerGte` を持つ window は、**この値が渡っていて**かつ閾値以上のときだけ当たる。
+   * ⚠**渡らない経路（ルリグアタック・効果ダメージ）では当たらない**＝fail-closed
+   *   （原文は「シグニによって」なので、パワーの分からないダメージまで止めたら過剰実行）。
+   */
+  sourcePower?: number,
 ): boolean {
-  return (state.prevent_damage_windows ?? []).some(w =>
-    w.expires !== 'NEXT_TURN_START' && (w.scope === 'ALL' || w.scope === scope));
+  return (state.prevent_damage_windows ?? []).some(w => {
+    if (w.expires === 'NEXT_TURN_START') return false;
+    if (w.scope !== 'ALL' && w.scope !== scope) return false;
+    if (w.sourcePowerGte !== undefined) return sourcePower !== undefined && sourcePower >= w.sourcePowerGte;
+    return true;
+  });
 }
 
 /** 単体選択されたシグニに対する「パワー0以下による消滅だけ」バニッシュ先変更。 */

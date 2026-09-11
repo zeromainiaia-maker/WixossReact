@@ -272,8 +272,10 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
  * ⚠固定リセット値のレジストリ（`resetBoundary`）では表せない**カウントダウン**なので個別に扱う。
  */
 function advanceSigniDeployBans(bans: PlayerState['signi_deploy_bans']): PlayerState['signi_deploy_bans'] {
+  // 🆕§5.3 `O-314`（2026-09-12）＝`fromNextTurn`（「次のターンから効く」予約）は**ここで解除する**＝
+  //   `{turnsRemaining:2, fromNextTurn:true}` は「このターンは無効／次のターンだけ有効」になる（`WXK05-001-E2`）。
   const next = (bans ?? [])
-    .map(ban => ({ ...ban, turnsRemaining: ban.turnsRemaining - 1 }))
+    .map(ban => ({ ...ban, turnsRemaining: ban.turnsRemaining - 1, fromNextTurn: undefined }))
     .filter(ban => ban.turnsRemaining > 0);
   return next.length > 0 ? next : undefined;
 }

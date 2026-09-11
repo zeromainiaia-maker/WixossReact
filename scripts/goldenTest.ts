@@ -106,6 +106,10 @@ import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttack
 import { selectMandatoryAttackerBanishSubstitute } from '../src/screens/battle/attackerBanishSubstitute';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
+// 🆕第283バッチ（2026-09-12・§5.3 `O-312`/`O-313`/`O-314`/`O-317`）の消費地点を直接叩く。
+import { signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard } from '../src/engine/execUtils';
+import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils';
+import { lrigDeckArtsCap, lrigDeckArtsCount } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
@@ -9258,13 +9262,19 @@ test('O-60 parser: 「見る／公開する」の LOOK_OPP_LIFE_TOP が lookZone
   // 第233バッチで WX25-P1-TK3-E1 の相手手札閲覧と WX10-015-E1 の相手ライフ閲覧を
   // 型付き LOOK_AND_REORDER へ移し、18→16。
   //   ⚠この assert は「live から数え直しているか」を見るためのもので、件数を固定したいわけではない。
-  ok(found.length >= 16, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  // 🔻**15**（2026-09-12 §5.3 `O-312` 第283バッチ）＝`WXDi-D09-P04-E3` と `WXDi-P14-061-E1`（付与ぶん）を
+  //   `TK3_DECLARE_DISCARD`（宣言→公開→**捨てさせる**）へ移した分。🔴`LOOK_OPP_LIFE_TOP` では
+  //   原文の帰結（捨てさせる）を書けず、手札を眺めるだけの半分実装だった。
+  ok(found.length >= 15, `母集団は live から再導出（実測 ${found.length} ノード）`);
 
   // 🔑ゾーン別の代表を live から assert する＝「相手ライフ」以外の枝が実在することを固定し、
   //    payload を落として既定へ倒す退化（＝旧バグの形）を検出する。
   const zoneOf = (effectId: string) => found.find(x => x.effectId === effectId && x.zone);
   eq(zoneOf('WDK09-017-E1')?.zone, 'opp_hand', '🔴連用形「対戦相手の手札を見て」は相手の手札（旧実装はライフを覗いた）');
-  eq(zoneOf('WXDi-D09-P04-E3')?.zone, 'opp_hand', '同・宣言してから手札を見る形');
+  // 🏁§5.3 `O-312` 第283バッチ（2026-09-12）＝`WXDi-D09-P04-E3` は `LOOK_OPP_LIFE_TOP` から降りた。
+  //   🔴あの効果は「手札を見る」だけでなく**捨てさせる**のが本体で、`LOOK_OPP_LIFE_TOP` では
+  //   帰結を書けなかった（＝旧 live は手札を眺めるだけの半分実装）。いまは `TK3_DECLARE_DISCARD`
+  //   （宣言→公開→宣言レベルのシグニを捨てさせる）＝契約は下の O-312 のテストが持つ。
   eq(zoneOf('WXDi-P05-039-E2')?.zone, 'opp_hand', '同・《ガードアイコン》を持たないカードを選ぶ形');
   eq(zoneOf('WX25-P2-026-E2')?.zone, 'self_life', '🔴「あなたのライフクロスをすべて見て」は自分側（旧実装は所有者を見ていない）');
   eq(zoneOf('WX25-P2-026-E2')?.count, 'ALL', '同・すべて見る');
@@ -13600,7 +13610,10 @@ test('LRIG走査漏れ collectTurnTriggers: 相手LRIG watcher（WX12-002 ON_ATT
 });
 test('LRIG走査漏れ collectOppArtsUseTriggers: 自LRIG watcher（WX16-003 ON_OPP_ARTS_USE）が発火', () => {
   const host = mkState({}); host.field.lrig = ['WX16-003']; const guest = mkState({});
-  eq(fired(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true).entries, 'WX16-003-E1'), true, '自LRIG watcher 発火');
+  // 🆕§5.3 `O-317` 第283バッチ（2026-09-12）＝`WX16-003` の「あなたか対戦相手が使用したとき」は
+  //   **effectId で2つに割った**（`E1`＝`ON_ARTS_USE` / `E1b`＝`ON_OPP_ARTS_USE`）＝
+  //   「そのプレイヤーが最初に使用したアーツ」の owner を1効果では決められないため。
+  eq(fired(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true).entries, 'WX16-003-E1b'), true, '自LRIG watcher 発火');
 });
 test('LRIG走査漏れ collectHandDiscardTriggers: 自LRIG watcher（WXEX2-12 ON_HAND_DISCARDED）が発火', () => {
   const host = mkState({}); host.field.lrig = ['WXEX2-12'];
@@ -27340,7 +27353,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 152, 'Condition の型数（🆕152＝2026-09-11 §5.3 `O-308` で `SAME_ZONE_HAS_MAGIC_BOX`（⑤）と `FRONT_SIGNI`（①＝`ActiveCondition` にしか無かった）を追加。150＝2026-09-11 §5.3 `O-321` で `ENERGY_PLACED_THIS_TURN` を追加＝「このターンに（コストか効果によって）エナゾーンに〈filter〉がN枚以上置かれていた場合」。149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
+  eq(Object.keys(C_TYPES).length, 153, 'Condition の型数（🆕153＝2026-09-12 §5.3 `O-314` で `ARTS_USED_COUNT_NE_DECLARED` を追加＝「このターンに対戦相手が使用したアーツの回数が**宣言した数字**と異なる場合」（`WXK02-002-E3`）。比較相手が実行時の `declared_number` なので `ARTS_USED_THIS_TURN{exactCount}` では書けない。152＝2026-09-11 §5.3 `O-308` で `SAME_ZONE_HAS_MAGIC_BOX`（⑤）と `FRONT_SIGNI`（①＝`ActiveCondition` にしか無かった）を追加。150＝2026-09-11 §5.3 `O-321` で `ENERGY_PLACED_THIS_TURN` を追加＝「このターンに（コストか効果によって）エナゾーンに〈filter〉がN枚以上置かれていた場合」。149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -62153,7 +62166,11 @@ test('O-144: 「残りを好きな順番で」の並べ替えが live に届い�
   //   このラチェットは「`reorder:true` がどこかに在るか」しか見ないので、**no-op を「届いた」と読んでいた**。
   //   ⇒ 余分なステップを落とした結果、**元から届いていなかった3件が可視化された**（engine の挙動は1ミリも変わらない）。
   //   🔑**払い戻すときは `REVEAL_AND_PICK.remainder.reorder` / `restDest` 側に載せる**（そこが本当の受け皿）。
-  const BASELINE_REORDER_MISSING = 13;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  // 🔻**12**（2026-09-12 §5.3 `O-313` 第283バッチ）＝`WX24-P3-018-E1` を `LOOK_PICK_CHAIN`
+  //   （`remainder:{position:'bottom', reorder:true}`）へ載せた分。🔴旧 live は `LOOK_AND_REORDER`
+  //   `{reorder:false, destination:{position:'top'}}`＝原文「残りを好きな順番でデッキの**一番下**に置く」と
+  //   行き先まで逆だった。
+  const BASELINE_REORDER_MISSING = 12;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
   //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
   //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）
@@ -71099,7 +71116,11 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
       if (!payload) naked.push(e.effectId);
     }
   }
-  ok(withMarker >= 80, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
+  // 🔻**79**（2026-09-12 §5.3 `O-312`/`O-317` 第283バッチ）＝`WXK07-003-E1` の
+  //   `ARTS_COST_REDUCTION_BY_CENTER_LRIG` と `WX25-P2-008-E1` の `ARTS_COST_REDUCTION_BY_EFFECT` を撤去した分。
+  //   どちらも **payload（`costReplacement` / `useTimeCost`）が実装を持っている**痕跡マーカーで、
+  //   残すと逆翻訳にコスト文が二重に出る。⚠挙動は1ミリも変わらない（マーカー自体は engine が読まない）。
+  ok(withMarker >= 79, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
   // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
   // 🔻16→15＝2026-09-05（`O-259` 第1バッチ）で `WXK01-060-E1`（次に緑のアーツ）を構造化した分。
   // 🔻15→12＝同日（第2バッチ）で `WXDi-P16-009/010/011-E3`（そのピースのコスト軽減）を構造化した分。
@@ -77693,6 +77714,9 @@ function finishSeen(initial: ExecResult, ctx: ExecCtx, seen: PendingInteractionD
       case 'SEARCH': { const vis = (p.visibleCards as string[]) ?? []; result = resumeSearch(Array.isArray(over) ? over : vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c); break; }
       case 'CHOOSE': { const opts = (p.options as { id: string; available?: boolean }[]) ?? []; const id = typeof over === 'string' ? over : (opts.find(o => o.available !== false) ?? opts[0]).id; result = resumeChoose(id, pending as never, c); break; }
       case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(steps % 3, pending as never, c); break;
+      // 🆕§5.3 `O-312` 第283バッチ（2026-09-12）＝閲覧専用モーダル（`TK3_DECLARE_DISCARD` の
+      //   「対戦相手の手札を見て」）を確認して continuation へ進む。上の `finish` には元から在った。
+      case 'REVEAL_CARDS': result = resumeRevealCards(pending as never, c); break;
       default: throw new Error(`unhandled pending ${p.type}`);
     }
   }
@@ -77916,6 +77940,281 @@ test('§5.3 O-311: 「この方法でデッキに移動したシグニと同じ�
   eq(oppSearch?.visibleCards.join(','), oppL2, '🔴自分の探索のあとでも「トラッシュに置いたシグニと同じレベル」だけが候補');
   ok(r2.otherState.field.signi.some(st => st?.at(-1) === oppL2), '相手の場に出る');
   ok(r2.otherState.deck.includes(oppL1), '違うレベルはデッキに残る');
+}));
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🆕**第283バッチ（2026-09-12）＝§5.3 `O-312` / `O-313` / `O-314` / `O-317`**
+// 🔑「新しい payload を足したら契約を golden に張る」ぶん（LESSONS §4.2）。
+//   ⚠**反転確認をすべて付ける**＝殺したら FAIL になることを1件ずつ確かめてある。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-312 same:"ability"：能力が同じN枚だけを選べる（バニラは不成立）', () => withSavedCursor(() => {
+  // `WXK05-029-E3`「それぞれレベルの異なる、**能力が同じ**シグニ４枚」。
+  // 🔴旧 live は `distinct:'level'` だけ＝レベルが違えばどの4枚でも持ってこられた（サーチ範囲が桁で広い）。
+  const sc = (liveEff('WXK05-029', 'WXK05-029-E3').action as { selectionConstraint?: { distinct?: string; same?: string } }).selectionConstraint;
+  eq(sc?.distinct, 'level', 'live に「それぞれレベルの異なる」が残っている');
+  eq(sc?.same, 'ability', '🔴live に「能力が同じ」が無い＝過剰実行に戻っている');
+  const m = new Map<string, CardData>([
+    ['A1', { CardName: 'a', Level: '1', EffectText: '【常】：これは強い' } as CardData],
+    ['A2', { CardName: 'b', Level: '2', EffectText: '【常】：これは強い' } as CardData],
+    ['A3', { CardName: 'c', Level: '3', EffectText: '【常】： これは強い' } as CardData],  // 空白違いは同一
+    ['B1', { CardName: 'd', Level: '4', EffectText: '【常】：これは別' } as CardData],
+    ['V1', { CardName: 'e', Level: '1', EffectText: '-' } as CardData],
+    ['V2', { CardName: 'f', Level: '2', EffectText: '' } as CardData],
+  ]);
+  ok(satisfiesSelectionConstraint(['A1', 'A2', 'A3'], { same: 'ability' }, m), '同じ能力文なら成立（空白の差は無視）');
+  ok(!satisfiesSelectionConstraint(['A1', 'B1'], { same: 'ability' }, m), '反転確認: 能力文が違えば不成立');
+  ok(!satisfiesSelectionConstraint(['V1', 'V2'], { same: 'ability' }, m), '反転確認: 能力を持たない札は不成立（バニラを通さない）');
+  ok(satisfiesSelectionConstraint(['A1', 'A2'], { distinct: 'level', same: 'ability' }, m), 'distinct と same は併用できる');
+  ok(!satisfiesSelectionConstraint(['A1', 'V1'], { distinct: 'level', same: 'ability' }, m), '反転確認: 片方がバニラなら不成立');
+}));
+
+test('§5.3 O-312 distinctBy:"color"：色の種類数を数える（枚数ではない）', () => withSavedCursor(() => {
+  // `WXEX2-81-E2`「あなたの場にある＜天使＞のシグニが**持つ色の種類**以下のレベルを持つ」。
+  const f = (liveEff('WXEX2-81', 'WXEX2-81-E2').action as {
+    target?: { filter?: { levelLteZoneCount?: { distinctBy?: string; filter?: { story?: string } }; story?: string } } }).target?.filter;
+  eq(f?.levelLteZoneCount?.distinctBy, 'color', '🔴live に色の種類数の数え方が無い');
+  eq(f?.levelLteZoneCount?.filter?.story, '天使', '数え元は自分の場の＜天使＞');
+  eq(f?.story, undefined, '🔴対象側に story:天使 が残っている＝「相手の＜天使＞を狙う」別物に戻っている');
+  const m = new Map<string, CardData>([
+    ['R1', { CardName: 'r1', Type: 'シグニ', CardClass: '天使', Color: '赤' } as CardData],
+    ['R2', { CardName: 'r2', Type: 'シグニ', CardClass: '天使', Color: '赤' } as CardData],
+    ['W1', { CardName: 'w1', Type: 'シグニ', CardClass: '天使', Color: '白' } as CardData],
+    ['N1', { CardName: 'n1', Type: 'シグニ', CardClass: '天使', Color: '無' } as CardData],
+  ]);
+  const st = (nums: (string | null)[]) => ({ field: { signi: nums.map(n => (n ? [n] : null)), lrig: [] } } as unknown as PlayerState);
+  const spec = { zone: 'field' as const, owner: 'self' as const, filter: { cardType: 'シグニ', story: '天使' }, distinctBy: 'color' as const };
+  eq(countFromZone(spec, st(['R1', 'R2', null]), st([]), m), 1, '🔴同じ色2体は「1種類」（枚数で数えると2＝旧実装）');
+  eq(countFromZone(spec, st(['R1', 'W1', null]), st([]), m), 2, '色が2種類なら2');
+  eq(countFromZone(spec, st(['N1', null, null]), st([]), m), 0, '反転確認: 無色は色として数えない');
+  eq(countFromZone({ ...spec, distinctBy: undefined }, st(['R1', 'R2', null]), st([]), m), 2, '反転確認: distinctBy を外すと枚数（旧実装）');
+}));
+
+test('§5.3 O-312 levelEqLrigOffset：センタールリグ±1 ちょうどのレベルだけを対象にする', () => withSavedCursor(() => {
+  // `WXK02-027-E1`「あなたのセンタールリグ**よりレベルが１つ高い**対戦相手のシグニ」／「**１つ低い**シグニ」。
+  const eff = liveEff('WXK02-027', 'WXK02-027-E1');
+  const j = JSON.stringify(eff.action);
+  ok(j.includes('"levelEqLrig":"self","levelEqLrigOffset":1'), '🔴+1（トラッシュ送り側）の限定が live に無い');
+  ok(j.includes('"levelEqLrig":"self","levelEqLrigOffset":-1'), '🔴-1（場に出す側）の限定が live に無い');
+  const lrigL3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const l2 = findCard(c => isSigni(c) && c.Level === '2');
+  const l4 = findCard(c => isSigni(c) && c.Level === '4');
+  const ctx = mkCtx({ lrig: [lrigL3], energy: 9 }, { signi: [l2, l4, null] });
+  const seen: PendingInteractionDef[] = [];
+  finishSeen(executeEffect(eff, ctx), ctx, seen, () => []);
+  const sel = seen.find(p => p.type === 'SELECT_TARGET') as { candidates: string[] } | undefined;
+  ok(!!sel, '対象選択が出る');
+  eq(sel?.candidates.join(','), l4, '🔴レベル3のルリグ＋1＝レベル4だけが候補（旧＝どのレベルでも取れた）');
+  ok(!sel?.candidates.includes(l2), '反転確認: レベル2（＝−1側）は候補にならない');
+  // 反転確認＝センタールリグがレベル5なら「1つ高い」は該当0体（空ヒットへ倒す）。
+  const lrigL5 = findCard(c => c.Type === 'ルリグ' && c.Level === '5');
+  const ctx5 = mkCtx({ lrig: [lrigL5], energy: 9 }, { signi: [l2, l4, null] });
+  const seen5: PendingInteractionDef[] = [];
+  finishSeen(executeEffect(eff, ctx5), ctx5, seen5, () => []);
+  const sel5 = seen5.find(p => p.type === 'SELECT_TARGET') as { candidates: string[] } | undefined;
+  ok(!sel5 || sel5.candidates.length === 0, '反転確認: ルリグがレベル5なら＋1（＝6）は候補ゼロ（fail-closed）');
+}));
+
+test('§5.3 O-314 SigniDeployBan.fromNextTurn / bySource:"normal_summon"：追加ターンだけ手札から出せない', () => withSavedCursor(() => {
+  // `WXK05-001-E2`「この方法で追加されたターンのメインフェイズの間、あなたは手札からシグニを場に出せない」。
+  const j = JSON.stringify(liveEff('WXK05-001', 'WXK05-001-E2').action);
+  ok(j.includes('"type":"SIGNI_DEPLOY_BAN"'), '🔴代償（配置禁止）が live に無い＝追加ターンが純粋な得に戻っている');
+  ok(j.includes('"fromNextTurn":true'), '🔴「次のターンから」が無い＝いまのターンから召喚できなくなる逆向きの過剰実行');
+  ok(j.includes('"bySource":"normal_summon"'), '🔴「手札から」の限定が無い＝効果配置まで止まる');
+  const someSigni = findCard(c => isSigni(c));
+  const banned = { turnsRemaining: 2, fromNextTurn: true, bySource: 'normal_summon' as const };
+  const mkIn = (bans: unknown[], source: 'normal_summon' | 'other_effect' = 'normal_summon') => ({
+    placingState: { ...mkState({}), signi_deploy_bans: bans } as unknown as PlayerState,
+    opponentState: mkState({}), cardNum: someSigni, cardMap: cardMap as Map<string, CardData>,
+    placementSource: source,
+  });
+  eq(deployLimitBlockReason(mkIn([banned])), null, '🔴張ったターンは掛からない（fromNextTurn）');
+  const advanced = clearTurnEndScopedState({ ...mkState({}), signi_deploy_bans: [banned] } as unknown as PlayerState);
+  eq(advanced.signi_deploy_bans?.[0]?.fromNextTurn, undefined, 'ターン終了で「次のターンから」が解除される');
+  eq(advanced.signi_deploy_bans?.[0]?.turnsRemaining, 1, '残りターン数は1（追加ターンのぶん）');
+  eq(deployLimitBlockReason(mkIn([advanced.signi_deploy_bans![0]])), 'SOURCE_BAN',
+    '🔴次のターン（＝追加ターン）は手札からの通常召喚が止まる');
+  eq(deployLimitBlockReason(mkIn([advanced.signi_deploy_bans![0]], 'other_effect')), null,
+    '反転確認: 通常召喚以外（効果配置）は止めない（近似・過少側）');
+}));
+
+test('§5.3 O-317 PREVENT_DAMAGE.sourcePowerGte：パワー12000以上のシグニのダメージだけ止まる', () => withSavedCursor(() => {
+  // `WX25-P2-008-E1`「このターン、あなたはパワー12000以上のシグニによってダメージを受けない」。
+  const eff = liveEff('WX25-P2-008', 'WX25-P2-008-E1');
+  const j = JSON.stringify(eff.action);
+  ok(j.includes('"type":"PREVENT_DAMAGE"'), '🔴`PREVENT_NEXT_DAMAGE{count:1}`（1回だけ）に戻っている');
+  ok(j.includes('"sourcePowerGte":12000'), '🔴パワー限定が無い＝どんなシグニのダメージも止める過剰実行');
+  ok(/"type":"POWER_MODIFY"[\s\S]*?"count":2/.test(j), '🔴「シグニを2体まで」が1体に戻っている');
+  const ctx = mkCtx({ energy: 9 }, {});
+  const r = finishSeen(executeEffect(eff, ctx), ctx, [], () => []);
+  const w = r.ownerState.prevent_damage_windows ?? [];
+  eq(w.length, 1, 'window が1つ張られる');
+  eq(w[0]?.sourcePowerGte, 12000, 'window に閾値が載る');
+  const st = r.ownerState;
+  ok(hasActivePreventDamageWindow(st, 'ALL', 12000), '🔴パワー12000なら止まる');
+  ok(hasActivePreventDamageWindow(st, 'ALL', 99999), 'それより大きくても止まる');
+  ok(!hasActivePreventDamageWindow(st, 'ALL', 11999), '反転確認: パワー11999は止まらない');
+  ok(!hasActivePreventDamageWindow(st, 'ALL'), '反転確認: パワー不明の経路（ルリグアタック等）は止まらない＝fail-closed');
+  ok(hasActivePreventDamageWindow({ ...st, prevent_damage_windows: [{ scope: 'ALL', expires: 'MY_TURN_END' }] } as PlayerState, 'ALL'),
+    '反転確認: 閾値の無い既存 window は従来どおりパワー不明でも止まる（退化していない）');
+}));
+
+test('§5.3 O-317 lrigDeckArtsCap：構築時のアーツ上限（WXK03-003A）', () => withSavedCursor(() => {
+  const act = liveEff('WXK03-003A', 'WXK03-003A-E3').action as StubAction;
+  eq(act.id, 'LRIG_DECK_ARTS_LIMIT', '🔴構築制限の宣言が live に無い');
+  eq(act.value, 3, '上限は3枚');
+  const arts = findCard(c => c.Type === 'アーツ');
+  const arts2 = findCard(c => c.Type === 'アーツ' && c.CardNum !== arts);
+  const m = cardMap as Map<string, CardData>;
+  eq(lrigDeckArtsCap(['WXK03-003A'], m), 3, '🔴宣言を持つ札がルリグデッキに居れば上限3');
+  eq(lrigDeckArtsCap([arts, arts2], m), undefined, '反転確認: 宣言を持つ札が無ければ上限なし');
+  eq(lrigDeckArtsCount(['WXK03-003A', arts, arts2], m), 2, 'アーツだけを数える（ルリグは数えない）');
+}));
+
+test('§5.3 O-313 「各ターン終了時」は両方のターン境界で発火する', () => withSavedCursor(() => {
+  // 🔴原文に「各ターン終了時」と書く live 13効果すべてが `triggerScope` 未指定＝
+  //   **自分のターン終了時しか発火していなかった**（「各ターン」の半分が恒久 no-op）。
+  const victim = 'WXK08-024';
+  eq(liveEff(victim, 'WXK08-024-E2').triggerCondition?.anyTurn, true, '🔴live に anyTurn が無い');
+  // host がターンプレイヤー＝watcher（guest の場）は非ターンプレイヤー側。
+  eq(fired(cttEntries(trigCtx(HOST, HOST), 'ON_TURN_END', mkState({}), mkState({ signi: [victim, null, null] })), 'WXK08-024-E2'), true,
+    '🔴相手のターン終了時にも発火する');
+  eq(fired(cttEntries(trigCtx(HOST, HOST), 'ON_TURN_END', mkState({ signi: [victim, null, null] }), mkState({})), 'WXK08-024-E2'), true,
+    '自分のターン終了時にも発火する（旧実装の側も壊していない）');
+  eq(liveEff('WX16-044', 'WX16-044-E3').triggerCondition?.anyTurn, true, '同じ文型（WX16-044-E3）にも parser 規則で届いている');
+  // 反転確認＝`anyTurn` を持たない ON_TURN_END の watcher は相手のターン終了時に発火しない。
+  const noAny = 'WX11-003';
+  ok(!liveEff(noAny, 'WX11-003-E3').triggerCondition?.anyTurn, '前提: この効果は「各ターン」ではない');
+}));
+
+test('§5.3 O-314 ARTS_USED_COUNT_NE_DECLARED / DEFEAT.owner：宣言と回数が違えば相手が敗北する', () => withSavedCursor(() => {
+  const j = JSON.stringify(liveEff('WXK02-002', 'WXK02-002-E3').action);
+  ok(j.includes('"declaredBy":"opponent"'), '🔴宣言するのは対戦相手（落とすと無条件で相手を敗北させられる）');
+  ok(j.includes('"ARTS_USED_COUNT_NE_DECLARED"'), '🔴敗北判定の条件が live に無い');
+  ok(j.includes('"id":"DEFEAT","owner":"opponent"'), '🔴敗北するのは対戦相手（owner を落とすと自分が負ける）');
+  const base = mkCtx({}, {});
+  const withDecl = (declared: number | undefined, used: string[]) => ({
+    ...base,
+    ownerState: { ...base.ownerState, declared_number: declared },
+    otherState: { ...base.otherState, turn_arts_used_names: used },
+  } as ExecCtx);
+  const cond = { type: 'ARTS_USED_COUNT_NE_DECLARED' as const, owner: 'opponent' as const };
+  ok(evalCondition(cond, withDecl(2, ['a'])), '🔴宣言2・使用1なら成立（＝敗北する）');
+  ok(!evalCondition(cond, withDecl(1, ['a'])), '反転確認: 宣言1・使用1なら不成立');
+  ok(!evalCondition(cond, withDecl(undefined, ['a'])), '反転確認: 未宣言なら不成立（fail-closed）');
+  ok(evalCondition(cond, withDecl(1, [])), '宣言1・使用0なら成立');
+  // `DEFEAT` の owner＝対戦相手のライフが0になる（自分のライフは減らない）。
+  const dctx = mkCtx({}, {});
+  const dr = run({ type: 'STUB', id: 'DEFEAT', owner: 'opponent' } as unknown as EffectAction, dctx);
+  eq(dr.otherState.life_cloth.length, 0, '🔴対戦相手のライフが0になる');
+  ok(dr.ownerState.life_cloth.length > 0, '反転確認: 自分のライフは減らない（旧＝owner 固定で自分が負けた）');
+}));
+
+test('§5.3 O-313 signiZoneNonSigniCards：シグニゾーンの非シグニ札だけを拾う', () => withSavedCursor(() => {
+  const j = JSON.stringify(liveEff('WXK07-003', 'WXK07-003-E1').action);
+  ok(j.includes('"TRASH_SIGNI_ZONE_NON_SIGNI"'), '🔴live が「相手シグニ1体をトラッシュ送り」に戻っている（原文に無い過剰実行）');
+  ok(!/"type":"TRASH","target":\{"type":"SIGNI"/.test(j), '🔴シグニを直接トラッシュへ送る節が復活している');
+  const top = 'T1', under = 'U1', charm = 'C1', acce = 'A1', fd = 'F1', box = 'B1';
+  const blank = mkState({});
+  const st = {
+    ...blank,
+    field: {
+      ...blank.field,
+      signi: [[under, top], null, null],
+      signi_charms: [charm, null, null],
+      signi_acce: [[acce], null, null],
+      signi_facedown_attached: [[fd], null, null],
+      signi_magic_boxes: [box, null, null],
+    },
+  } as unknown as PlayerState;
+  const got = signiZoneNonSigniCards(st, 0).slice().sort();
+  eq(got.join(','), [under, charm, acce, fd, box].sort().join(','), '🔴下敷き・チャーム・アクセ・裏向き札・MB を全部拾う');
+  ok(!got.includes(top), '反転確認: 最上面のシグニは拾わない');
+  eq(signiZoneNonSigniCards(st, 1).length, 0, '反転確認: 空ゾーンは0枚');
+  const stripped = stripSigniZoneNonSigniCards(st, 0);
+  eq(stripped.removed.length, 5, '5枚が抜ける');
+  eq(stripped.state.field.signi[0]?.join(','), top, '最上面のシグニだけが残る');
+  eq(stripped.state.field.signi_charms?.[0], null, 'チャームのスロットが空になる');
+  const plucked = pluckSigniZoneNonSigniCard(st, charm);
+  ok(plucked.ok && plucked.state.field.signi_charms?.[0] === null, '1枚だけ抜く経路も動く');
+  ok(plucked.state.field.signi_acce?.[0]?.includes(acce), '🔴1枚抜きで他のスロットを巻き込まない');
+  ok(!pluckSigniZoneNonSigniCard(st, 'ZZZ').ok, '反転確認: 居ないカードは抜けない（fail-closed）');
+}));
+
+test('§5.3 O-312 numberChoicesFrom / declareDiscardFilter：宣言の上限と《ガードアイコン》除外', () => withSavedCursor(() => {
+  // `WXDi-D09-P04-E3`「**対戦相手のセンタールリグのレベル以下の**数字１つを宣言する。対戦相手の手札を見て、
+  //   **《ガードアイコン》を持たず**宣言した数字と同じレベルを持つすべてのシグニを捨てさせる。」
+  const act = liveEff('WXDi-D09-P04', 'WXDi-D09-P04-E3').action as StubAction;
+  eq(act.id, 'TK3_DECLARE_DISCARD', '🔴「捨てさせる」を持つ受け皿に載っていない（旧＝手札を眺めるだけ）');
+  eq(act.numberChoicesFrom, 'opp_center_lrig_level', '🔴宣言の上限が live に無い');
+  eq(act.declareDiscardFilter?.noGuard, true, '🔴《ガードアイコン》除外が live に無い＝ガード持ちまで落とす過剰実行');
+  const lrigL2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const guard = findCard(c => isSigni(c) && c.Guard === '1' && c.Level === '2');
+  const plain = findCard(c => isSigni(c) && c.Guard !== '1' && c.Level === '2');
+  const lv3 = findCard(c => isSigni(c) && c.Guard !== '1' && c.Level === '3');
+  const ctx = mkCtx({ energy: 3 }, { lrig: [lrigL2] });
+  ctx.otherState.hand = [guard, plain, lv3];
+  const seen: PendingInteractionDef[] = [];
+  const r = finishSeen(executeEffect(liveEff('WXDi-D09-P04', 'WXDi-D09-P04-E3'), ctx), ctx, seen,
+    p => (p.type === 'CHOOSE' ? 'tk3_2' : undefined));
+  const choose = seen.find(p => p.type === 'CHOOSE') as { options: { id: string }[] } | undefined;
+  eq(choose?.options.map(o => o.id).join(','), 'tk3_1,tk3_2', '🔴相手センタールリグがレベル2なら 1〜2 しか宣言できない');
+  ok(!r.otherState.hand.includes(plain), '🔴宣言レベルでガードを持たないシグニは捨てられる');
+  ok(r.otherState.hand.includes(guard), '反転確認: 《ガードアイコン》持ちは残る');
+  ok(r.otherState.hand.includes(lv3), '反転確認: 別レベルのシグニは残る');
+}));
+
+test('§5.3 O-312 SET_BASE_LEVEL.valueRef：宣言した数字を基本レベルにする（未宣言なら何もしない）', () => withSavedCursor(() => {
+  // `WXK07-033-E1`「対戦相手のシグニ１体を対象とし、…数字１つを宣言する。ターン終了時まで、それの基本レベルを宣言した数字にする。」
+  const j = JSON.stringify(liveEff('WXK07-033', 'WXK07-033-E1').action);
+  ok(j.includes('"valueRef":"declared_number"'), '🔴基本レベル変更が live に無い（旧＝DECLARE_CARD_NAME という別能力）');
+  ok(!j.includes('DECLARE_CARD_NAME'), '🔴原文に無い「カード名を宣言する」が復活している');
+  const lrigL3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const victim = findCard(c => isSigni(c) && c.Level === '4');
+  const ctx = mkCtx({}, { lrig: [lrigL3], signi: [victim, null, null] });
+  const r = finishSeen(executeEffect(liveEff('WXK07-033', 'WXK07-033-E1'), ctx), ctx, [],
+    p => (p.type === 'CHOOSE' ? 'numplain_2' : undefined));
+  eq(r.ownerState.attack_phase_level_overrides?.[victim], 2, '🔴宣言した2が基本レベルへ入る');
+  // 反転確認＝宣言を経ずに `SET_BASE_LEVEL{valueRef}` だけを実行しても何も起きない（fail-closed）。
+  const solo = { type: 'SET_BASE_LEVEL', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } }, valueRef: 'declared_number', until: 'END_OF_TURN' };
+  const ctx2 = mkCtx({}, { signi: [victim, null, null] });
+  const r2 = run(solo as unknown as EffectAction, ctx2);
+  eq(r2.ownerState.attack_phase_level_overrides?.[victim], undefined, '反転確認: 未宣言なら基本レベルを動かさない');
+}));
+
+test('§5.3 O-314 ACCE_FROM_TRASH_MULTI：トラッシュ発の【アクセ】化とターン終了時の返却', () => withSavedCursor(() => {
+  // `WXK04-033-E1`「トラッシュから＜調理＞のシグニを3枚まで、あなたの＜調理＞のシグニ3体までの【アクセ】にする。
+  //   ターン終了時、**この方法で【アクセ】にしたすべてのカード**を場から手札に戻す。」
+  const act = liveEff('WXK04-033', 'WXK04-033-E1').action as StubAction;
+  eq(act.id, 'ACCE_FROM_TRASH_MULTI', '🔴旧 live（ACCE_FROM_HAND ＋ 自分のシグニ全部を手札へ）に戻っている');
+  eq(act.acceFromTrash?.count, 3, '3枚まで');
+  eq(act.acceFromTrash?.filter?.story, '調理', 'トラッシュ側は＜調理＞');
+  eq(act.acceFromTrash?.hostFilter?.story, '調理', '付ける先も＜調理＞');
+  const host = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('調理'));
+  const food = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('調理') && c.CardNum !== host);
+  const ctx = mkCtx({ signi: [host, null, null], energy: 9 }, {});
+  ctx.ownerState.trash = [food];
+  // 1枚付けて止める（「3枚まで」＝0枚で止められる）。
+  let picks = 0;
+  const r = finishSeen(executeEffect(liveEff('WXK04-033', 'WXK04-033-E1'), ctx), ctx, [], p => {
+    if (p.type !== 'CHOOSE') return undefined;
+    const opts = (p as unknown as { options: { id: string }[] }).options;
+    const stop = opts.find(o => o.id === 'aftm_stop');
+    if (stop && picks++ > 0) return 'aftm_stop';
+    return undefined;
+  });
+  ok((r.ownerState.field.signi_acce?.[0] ?? []).includes(food), '🔴トラッシュの＜調理＞が【アクセ】になる');
+  ok(!r.ownerState.trash.includes(food), 'トラッシュから抜ける');
+  const dt = (r.ownerState.delayed_triggers ?? [])[0] as { trigger?: { timing?: string }; effect?: StubAction } | undefined;
+  eq(dt?.trigger?.timing, 'ON_TURN_END', '🔴ターン終了時の返却が予約されていない');
+  eq((dt?.effect as StubAction | undefined)?.id, 'INTERNAL_RETURN_ACCED_CARDS_TO_HAND', '返却の受け皿が予約されている');
+  eq(((dt?.effect as StubAction | undefined)?.acceDoneCards ?? []).join(','), food, '🔴返す対象が「付けた札だけ」に焼き込まれている');
+  // 発火＝付けた札だけが手札へ戻る（他のシグニは場に残る）。
+  const back = run(dt!.effect as unknown as EffectAction,
+    { ...ctx, ownerState: r.ownerState, otherState: r.otherState } as ExecCtx);
+  ok(back.ownerState.hand.includes(food), '🔴ターン終了時に手札へ戻る');
+  ok(back.ownerState.field.signi.some(s => s?.at(-1) === host), '反転確認: ホストのシグニは場に残る（旧＝全部手札へ戻した）');
 }));
 
 if (listMode) {

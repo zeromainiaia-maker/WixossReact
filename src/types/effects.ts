@@ -236,8 +236,11 @@ export interface CountFromZone {
   /**
    * 「それぞれレベルの異なる」: filter 後のカードをレベルの異なる種類数として数える。
    * 🆕`'name'`＝**カード名の種類数**（「＜X＞のシグニが合計N**種類**ある場合」`WXDi-CP01-031-E1`）。
+   * 🆕`'color'`＝**持つ色の種類数**（2026-09-12・§5.3 `O-312`・`WXEX2-81-E2`
+   *   「あなたの場にある＜天使＞のシグニが持つ色の種類以下のレベルを持つ」）。
+   *   ⚠**多色カードは全色を数える**（`splitColors`）＝無色（`無`）は色として数えない。
    */
-  distinctBy?: 'level' | 'name';
+  distinctBy?: 'level' | 'name' | 'color';
 }
 
 // ===== 発動条件 =====
@@ -479,6 +482,17 @@ export type Condition =
   | { type: 'SIGNI_LEFT_BY_OPP_EFFECT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; filter?: TargetFilter; minCount?: number; exactCount?: number } // このターンに owner がアーツ／ピースを使用した履歴。filter 省略時は従来互換
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
+  /**
+   * 🆕**このターンに owner が使用したアーツの回数が、この効果で宣言された数字と異なる**
+   * （2026-09-12・§5.3 `O-314`・`WXK02-002-E3`「ターン終了時、このターンに対戦相手が使用したアーツの回数が
+   * 宣言した数字と異なる場合、対戦相手はゲームに敗北する」）。
+   * 🔴**`ARTS_USED_THIS_TURN{exactCount}` では書けない**＝比較相手が**実行時の宣言値**（`declared_number`）で、
+   *   JSON に焼き込める定数ではない。
+   * ⚠**宣言が無ければ成立させない**（fail-closed）＝宣言を経ていない経路で敗北させない。
+   * ⚠読む `declared_number` は**効果の持ち主**の state（宣言したのが対戦相手でも保存先は持ち主側＝
+   *   `SET_DECLARED_NUMBER_PLAIN` の規約）。数えるアーツ回数は `owner` 側。
+   */
+  | { type: 'ARTS_USED_COUNT_NE_DECLARED'; owner: Owner }
   // 🆕`color`＝「このターンにあなたが**赤の**スペルを使用していた場合」（§5.3 `O-269`・2026-09-06）。
   //   ⚠**アーツ側（`ARTS_USED_THIS_TURN.color`）とは判定源が違う**＝あちらは `turn_arts_used_colors`
   //   という専用キーだが、`SPELL_USED_THIS_TURN` は `actions_done` の `'USE_SPELL'` マーカーを数える。
@@ -832,6 +846,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
   PAID_COLORS_INCLUDE_ALL: true, COST_ENERGY_TRASHED_COLOR: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
+  ARTS_USED_COUNT_NE_DECLARED: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, ENERGY_PLACED_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
   COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true, FIELD_LEVEL_SUM: true,
@@ -1521,11 +1536,28 @@ export interface TargetFilter {
   // 指定位置にルリグがいなければ空ヒット（WXDi-P15-005 の固定3段用）。
   colorMatchesLrigIndex?: number;
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level' | 'cost_hand_to_energy_level' | 'cost_energy_trash_level_sum'; // 直前コストの既存 last_* 記録とレベルが一致するか
+  /**
+   * 🆕**`levelEqualsVar` の一致値へ足すオフセット**（2026-09-12・§5.3 `O-312`・`WXEX2-54-E2`
+   * 「そのシグニより**レベルが１つ低い**＜遊具＞のシグニ」＝`field_trash_level` に `-1`）。
+   * ⚠`levelEqualsVar` が無いと意味を持たない（単独では無視される）。
+   * ⚠**参照値が読めない（記録なし）／足した結果が 1〜5 の外なら空ヒット**（fail-closed）＝
+   *   `levelEqualsVar` 単体の既存挙動（未記録は `level:-1`＝該当なし）と同じ向き。
+   */
+  levelEqualsVarOffset?: number;
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
   levelLteLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数以下のレベル。0枚ならlevel.max=0
   levelEqLastProcessedLevelSum?: boolean; // 直前に処理したカードの表記レベル合計と一致
   levelEqLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベルと一致。参照不能時は空ヒット
+  /**
+   * 🆕**`levelEqLrig` の一致値へ足すオフセット**（2026-09-12・§5.3 `O-312`・`WXK02-027-E1`
+   * 「あなたのセンタールリグより**レベルが１つ高い**対戦相手のシグニ」＝`+1` ／「**１つ低い**」＝`-1`）。
+   * ⚠`levelEqLrig` が無いと意味を持たない（単独では無視される）。
+   * ⚠**足した結果が 1〜5 の外なら空ヒット**（レベル0・レベル6のシグニは存在しない）＝
+   *   センタールリグがレベル5なら「1つ高い」は該当0体（fail-closed）。
+   * 🔑先例＝`levelEqDiscardSigniOffset`（捨てたシグニ基準の同じ軸）。
+   */
+  levelEqLrigOffset?: number;
   levelLteLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベル以下。参照不能時は空ヒット
   levelEqSelf?: boolean; // 効果元カード（付与先ルリグを含む）の表記レベルと一致。参照不能時は空ヒット
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。resolveDynamicFilterがpowerRange.maxへ解決）
@@ -1946,8 +1978,14 @@ export interface SelectionConstraint {
    *   受け取らないので実効パワーを見られない。強化中のシグニでは実際の卓と食い違いうる**近似**だが、
    *   **制約が1つも無い現状（どの3体でも取れる）よりは厳密に狭い**ので入れる。
    *   ⚠**パワー不明（`Power` が数値でない＝「-」等）は不成立**へ倒す（fail-closed）。
+   * 🆕`'ability'`＝「**能力が同じ**シグニN枚」（2026-09-12・§5.3 `O-312`・`WXK05-029-E3`
+   *   「それぞれレベルの異なる、能力が同じシグニ４枚」）。
+   * 🔴**比較するのは `EffectText`＋`LifeBurst`＋`BurstText` の正規化文字列**＝カード名・レベル・パワーが
+   *   違っても「書かれている能力」が同一なら成立（同名異レベルのサイクル札がこの形）。
+   * ⚠**能力を持たないカード（`EffectText` が空／`-`）は不成立**へ倒す（fail-closed。`same:'power'` と同じ規約）＝
+   *   バニラ4枚を「能力が同じ」で通さない。
    */
-  same?: 'name' | 'level' | 'power';
+  same?: 'name' | 'level' | 'power' | 'ability';
   sharedColor?: 'all' | 'none';
   /**
    * 🆕**選択集合の全カードが1つ以上のクラスを共有すること**（2026-09-10・§5.3 `O-287`）＝
@@ -3716,7 +3754,8 @@ export interface RearrangeSigniAction {
 export interface SetBaseLevelAction {
   type: 'SET_BASE_LEVEL';
   target: EffectTarget;  // 通常は自分（このシグニ）。count:1=効果元シグニ
-  value: number;         // 設定する基本レベル
+  /** 設定する基本レベル。⚠`valueRef` を書いたときだけ省略できる（実行時に解決する）。 */
+  value?: number;
   /**
    * 一時的な基本レベル変更の期間（省略＝CONTINUOUS の恒常宣言）。
    * - `'END_OF_TURN'`＝`attack_phase_level_overrides`（turn-end で両者から消える）
@@ -3729,6 +3768,14 @@ export interface SetBaseLevelAction {
    * ⚠`target` が `thisCardOnly`（または省略相当）なら効果元、それ以外は選択（`owner:'any'` の「シグニ１体を対象とし」）。
    */
   until?: 'END_OF_TURN' | 'UNTIL_OPP_TURN_END' | 'NEXT_TURN';
+  /**
+   * 🆕**設定する基本レベルを実行時に解決する**（2026-09-12・§5.3 `O-312`・`WXK07-033-E1`
+   * 「ターン終了時まで、それの基本レベルを**宣言した数字**にする」）。
+   * 指定時は `value` を無視して `PlayerState.declared_number`（`DECLARE_NUMBER_PLAIN` の保存先）を読む。
+   * ⚠**未宣言／1〜5 の外なら何もしない**（fail-closed）＝宣言を経ていない経路で基本レベルを勝手に動かさない。
+   * ⚠`until:'NEXT_TURN'`（場レベル grant）では使えない（静的な `value` が要る）。
+   */
+  valueRef?: 'declared_number';
 }
 
 // コストなしでグロウする
@@ -3910,6 +3957,17 @@ export interface PreventDamageAction {
    *   `hasActivePreventDamageWindow(state,'LRIG'|'ALL')` には**当たらない**。
    */
   scope?: 'ALL' | 'LRIG' | 'OPP_EFFECT';
+  /**
+   * 🆕**ダメージ源のシグニのパワー下限**（2026-09-12・§5.3 `O-317`・`WX25-P2-008-E1`
+   * 「このターン、あなたは**パワー12000以上のシグニによって**ダメージを受けない」）。
+   * 🔴**旧 live は `PREVENT_NEXT_DAMAGE{count:1}`**＝①**1回しか効かない**（原文は「このターン」＝回数無制限）
+   *   ②**パワー限定が無い**＝どんなシグニのダメージも止める、の**両方向に外していた**
+   *   （既存の `PREVENT_NEXT_DAMAGE.sourcePowerLte` は向きが逆で流用できない）。
+   * ⚠**実効パワーで判定する**（バフ込み）＝判定地点は `hasActivePreventDamageWindow` の呼び出し元が
+   *   アタッカーのパワーを渡す1本。渡されなければ**この window は当たらない**（fail-closed＝
+   *   パワーを知らない経路で無条件の無敵にしない）。
+   */
+  sourcePowerGte?: number;
   /**
    * 「次のあなたのメインフェイズまで」（`WXK01-002-E2`・§6.4 O-3 続き492）＝**ターン境界を跨ぐ**期間。
    * `EffectDuration` にはこの長さが無いので専用フラグで表し、`until` より優先する。
@@ -4175,8 +4233,17 @@ export interface SigniDeployBanAction {
   turns: number;
   /** 直前に対象化／処理したカードと**同じ名前**のシグニに限定する（「それと同じ名前のシグニ」）。 */
   namesFromTargets?: boolean;
-  /** 配置の出自で限定する（「自分の、シグニとスペルの効果によって」）。 */
-  bySource?: 'signi_or_spell_effect';
+  /**
+   * 配置の出自で限定する（「自分の、シグニとスペルの効果によって」）。
+   * 🆕`'normal_summon'`＝**手札からの通常召喚**（§5.3 `O-314`・`WXK05-001-E2`）。
+   */
+  bySource?: 'signi_or_spell_effect' | 'normal_summon';
+  /**
+   * 🆕**次のターンから効く**（§5.3 `O-314`・`WXK05-001-E2`「この方法で追加されたターンのメインフェイズの間、
+   * あなたは手札からシグニを場に出せない」）＝`turns:2` と併せて「張ったターンは無効・次のターンだけ有効」。
+   * 🔴これが無いと**追加ターンを得たターン（＝いまのターン）から召喚できなくなる**過剰実行になる。
+   */
+  fromNextTurn?: boolean;
 }
 
 /**
@@ -5730,6 +5797,51 @@ export interface StubAction {
   virusRemovedSoFar?: number;
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
+  /**
+   * 🆕**`DECLARE_NUMBER_PLAIN` で提示する数字の上限を盤面から決める**（2026-09-12・§5.3 `O-312`）＝
+   * 原文「**対戦相手のセンタールリグのレベル以下の**数字１つを宣言する」（`WXDi-D09-P04-E3` /
+   * `WXK07-033-E1` / `WXDi-P14-061-E1` が付与する能力）。
+   * 🔴**`numberChoices`（静的な配列）では書けない**＝上限は実行時のルリグのレベルで動く。
+   * 提示するのは `1〜min(5, 参照レベル)`。⚠**参照レベルが読めなければ `[1]` だけを提示する**
+   *   （fail-closed＝宣言を通さないと効果全体が消えるので、最小値へ倒す）。
+   * ⚠`numberChoices` と併記したら**そちらを絞り込みに使う**（交差）。
+   */
+  numberChoicesFrom?: 'self_center_lrig_level' | 'opp_center_lrig_level';
+  /**
+   * 🆕**`TK3_DECLARE_DISCARD` が捨てさせる側の絞り込み**（2026-09-12・§5.3 `O-312`・`WXDi-D09-P04-E3`）＝
+   * 原文「**《ガードアイコン》を持たず**宣言した数字と同じレベルを持つすべてのシグニを捨てさせる」＝`{ noGuard: true }`。
+   * 🔴省略＝従来どおり「宣言レベルのシグニ全部」＝**ガードアイコン持ちまで落とす過剰実行**になるので、
+   *   原文に「持たず」がある札では必ず書く。
+   */
+  declareDiscardFilter?: TargetFilter;
+  /**
+   * 🆕**数字を宣言するのが対戦相手**（2026-09-12・§5.3 `O-314`・`WXK02-002-E3`
+   * 「**対戦相手は**数字１つを宣言する。ターン終了時、このターンに対戦相手が使用したアーツの回数が
+   * 宣言した数字と異なる場合、対戦相手はゲームに敗北する」）。
+   * 🔴**これを落とすと効果の意味が反転する**＝宣言するのが効果の持ち主だと、
+   *   相手のアーツ回数と必ず違う数字を選べる＝**無条件で相手を敗北させる**過剰実行になる。
+   * ⚠**保存先は変わらない**（効果の持ち主の `declared_number`）＝反転するのは「誰がクリックするか」だけ
+   *   （`pendingRespondsOpponent` の規約）。
+   */
+  declaredBy?: 'opponent';
+  /**
+   * 🆕**`ACCE_FROM_TRASH_MULTI` の本体**（2026-09-12・§5.3 `O-314`・`WXK04-033-E1`
+   * 「あなたのトラッシュから対象の＜調理＞のシグニを３枚まで、対象のあなたの＜調理＞のシグニ３体までの
+   * 【アクセ】にする。ターン終了時、**この方法で【アクセ】にしたすべてのカード**を場から手札に戻す」）。
+   *
+   * 🔴**旧 live は別物だった**＝`SEQUENCE[STUB{ACCE_FROM_HAND}, BOUNCE{SIGNI owner:self count:'ALL'}]`＝
+   *   ①**手札発**（原文はトラッシュ発）②**自分のシグニ全部を即座に手札へ戻す**（原文はターン終了時に
+   *   「この方法でアクセにしたカードだけ」）＝**自壊級の過剰実行**だった。
+   * 🔑**戻す対象の追跡は「遅延トリガーへ焼き込む」**（`INSTALL_DELAYED_TRIGGER` を STUB 自身が積む）＝
+   *   `storedTargetCards` は設置と発火で ExecCtx が別物なので使えない（型定義の `attackerFixedFromStored` と同じ理由）。
+   */
+  acceFromTrash?: { count: number; filter?: TargetFilter; hostFilter?: TargetFilter };
+  /** `ACCE_FROM_TRASH_MULTI` のループ状態＝残り枚数。省略＝`acceFromTrash.count` から始める。 */
+  acceRemaining?: number;
+  /** `ACCE_FROM_TRASH_MULTI` のループ状態＝ここまでに【アクセ】にしたカード（ターン終了時に手札へ戻す分）。 */
+  acceDoneCards?: string[];
+  /** `INTERNAL_ACCE_PICK_HOST` が運ぶ、いま付けようとしているトラッシュのカード。 */
+  acceStagedCard?: string;
   /**
    * `LOOK_OPP_LIFE_TOP`：**どのゾーンの何枚を見る（公開する）か**（§5.3 `O-60` 第1バッチ・2026-08-26）。
    *
@@ -7293,6 +7405,16 @@ export interface CardEffect {
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）
     placedOnGateZone?: boolean;                       // 「対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき」（WXK10-044）＝トリガー元シグニの持ち主の own_gate_zones に当該ゾーンが含まれる場合のみ発火（同上。⚠WXK迷宮のゲート設置が未配線の間は発火しない＝旧 ON_PLAY self 幻覚よりは正直な no-op）
     lrigAttackGuarded?: boolean;
+    /**
+     * 🆕**「各ターン終了時／開始時」＝どちらのターンの境界でも発火する**（2026-09-12・§5.3 `O-313`・
+     * `WXK08-024-E2` ほか）。
+     * 🔴**`triggerScope` では書けない**＝`collectTurnTriggers` は
+     *   **自分の場のシグニは `scope==='self'` しか拾わず／相手の場のシグニは `'any'|'any_opp'` しか拾わない**ので、
+     *   どちらを書いても片方のターン境界で落ちる。実測＝原文に「各ターン終了時」と書く **live 13効果すべてが
+     *   `triggerScope` 未指定＝自分のターン終了時にしか発火していなかった**（原文の半分が恒久 no-op）。
+     * ⚠これは `triggerScope` の**追加条件**＝`'self'` のまま、相手ターン境界の収集でも拾われるようになる。
+     */
+    anyTurn?: boolean;
     /**
      * 🆕「このシグニが**対戦相手の**、能力か効果の対象になったとき」（2026-08-31・
      * `WX24-P4-102-E1` / `WX25-P2-055-E2`）。`ON_TARGETED` 専用。

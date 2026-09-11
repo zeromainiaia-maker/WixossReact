@@ -93,6 +93,8 @@ function matchedDeployBan(p: DeployLimitInput): SigniDeployBan | null {
     ?? p.cardMap.get(p.cardNum.split('#')[0])?.CardName;
   return bans.find(ban => {
     if (ban.turnsRemaining <= 0) return false;
+    // 🆕§5.3 `O-314`＝「次のターンから」の予約はこのターンは効かない（`advanceSigniDeployBans` が落とす）。
+    if (ban.fromNextTurn) return false;
     if (ban.cardNames && !(name && ban.cardNames.includes(name))) return false;
     if (ban.bySource && p.placementSource !== ban.bySource) return false;
     if (ban.powerGte !== undefined && deployPower(p) < ban.powerGte) return false;

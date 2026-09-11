@@ -12,6 +12,7 @@ import {
   matchesFilter,
   resolveHandCardPick, handCardPickLabel,
   fieldCandidatesByOwner, energyCandidatesForOwner, movableTrashCandidates, oppZoneMoveBlocked,
+  signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard,
 } from './execUtils';
 import { collectMultiAcceLimits } from './effectEngine';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
@@ -1105,7 +1106,7 @@ export function execStubPart3(
     const targets = [next.signi ? 'シグニ' : '', next.lrig ? 'センタールリグ' : ''].filter(Boolean).join('・');
     return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手の${targets}アタックを${next.remaining}回目まで自動無効化`));
   }
-  // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
+  // NEGATE_COIN_ABILITY: このターン、対戦相手はコイン能力（ベット）を発動できない（`negate_coin_abilities`）
   if (stub.id === 'NEGATE_COIN_ABILITY') {
     const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
     return done(addLog({ ...ctx, otherState: newOtherNCA }, 'このターン、対戦相手のコイン能力（ベット）を発動できない'));
@@ -1696,12 +1697,16 @@ export function execStubPart3(
   }
   // DEFEAT: 敗北処理 - ライフクロスを0にしてゲーム終了を誘発
   if (stub.id === 'DEFEAT') {
-    if (ctx.ownerState.prevent_defeat) {
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_defeat: undefined } },
+    // 🆕§5.3 `O-314`（2026-09-12）＝`owner` を読む（「**対戦相手は**ゲームに敗北する」`WXK02-002-E3`）。
+    //   🔴旧は `ctx.ownerState` 固定＝相手を敗北させる原文が**自分の敗北**に化けていた。
+    const defeatOwner: Owner = stub.owner ?? 'self';
+    const defeatState = ownerState(defeatOwner, ctx);
+    if (defeatState.prevent_defeat) {
+      return done(addLog(setOwnerState(defeatOwner, { ...defeatState, prevent_defeat: undefined }, ctx),
         '敗北無効（PREVENT_DEFEAT発動）'));
     }
-    const newOwnerDEFEAT: PlayerState = { ...ctx.ownerState, life_cloth: [] };
-    return done(addLog({ ...ctx, ownerState: newOwnerDEFEAT }, '敗北（ライフクロス0）'));
+    return done(addLog(setOwnerState(defeatOwner, { ...defeatState, life_cloth: [] }, ctx),
+      `${defeatOwner === 'opponent' ? '対戦相手が' : ''}敗北（ライフクロス0）`));
   }
   // REPEAT_N_TIMES / REPEAT_EFFECT（§6.4 O-32 で本体は撤去）
   // 🔴**旧実装はカード全文の regex を読んで自分でN回ぶん実行する O-20 クラスの受け皿**だった＝
@@ -5692,6 +5697,205 @@ export function execStubPart3(
     const newOtherODN: PlayerState = { ...ctx.otherState, cancel_current_signi_attack: true };
     return done(addLog({ ...ctx, ownerState: newOwnerODN, otherState: newOtherODN },
       `${costColorsPay.map(c => `《${c}》`).join('')}を支払い、アタックを無効にした`));
+  }
+
+  // 🆕§5.3 `O-314`（2026-09-12）＝**トラッシュから最大N枚を自分のシグニの【アクセ】にし、
+  //   ターン終了時に「この方法でアクセにしたカードだけ」を手札へ戻す**（`WXK04-033-E1`）。
+  // 🔴旧 live は `SEQUENCE[ACCE_FROM_HAND, BOUNCE{SIGNI self ALL}]`＝**自分の場のシグニ全部を即手札へ**
+  //   戻す自壊級の過剰実行だった（原文は「この方法でアクセにしたすべてのカード」＝付けた札だけ）。
+  // 🔑戻す対象は**遅延トリガーへ焼き込む**（`storedTargetCards` は設置と発火で ExecCtx が別物）。
+  if (stub.id === 'ACCE_FROM_TRASH_MULTI') {
+    const spec = stub.acceFromTrash ?? { count: 1 };
+    const remaining = stub.acceRemaining ?? spec.count;
+    const doneCards = stub.acceDoneCards ?? [];
+    const finish = (c: ExecCtx): ExecResult => {
+      if (doneCards.length === 0) return done(addLog(c, '【アクセ】にしたカードなし'));
+      // ターン終了時に「この方法でアクセにしたカードだけ」を手札へ戻す予約（カード番号を焼き込む）。
+      const install: StubAction = { type: 'STUB', id: 'INTERNAL_RETURN_ACCED_CARDS_TO_HAND', acceDoneCards: doneCards };
+      const dt = {
+        type: 'INSTALL_DELAYED_TRIGGER' as const, duration: 'THIS_TURN' as const, once: true,
+        sourceCardNum: c.sourceCardNum,
+        trigger: { timing: 'ON_TURN_END' }, effect: install as EffectAction,
+      };
+      return done(addLog({
+        ...c,
+        ownerState: { ...c.ownerState, delayed_triggers: [...(c.ownerState.delayed_triggers ?? []), dt] },
+        lastProcessedCards: doneCards,
+      }, `${doneCards.length}枚を【アクセ】にした（ターン終了時に手札へ戻す）`));
+    };
+    if (remaining <= 0) return finish(ctx);
+    const pool = ctx.ownerState.trash.filter(cn =>
+      !doneCards.includes(cn) && (!spec.filter || matchesFilter(ctx.cardMap.get(getCardNum(cn)), spec.filter)));
+    const hosts = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+      const host = stack?.at(-1);
+      if (!host) return [];
+      if (spec.hostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(host)), spec.hostFilter)) return [];
+      return canAttachSelf(host, i) ? [host] : [];
+    });
+    if (pool.length === 0 || hosts.length === 0) return finish(ctx);
+    const opts = [
+      ...pool.map(cn => ({
+        id: `aftm_${cn}`, label: ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn,
+        action: ({ ...stub, id: 'INTERNAL_ACCE_PICK_HOST', acceStagedCard: cn, acceRemaining: remaining, acceDoneCards: doneCards } as StubAction) as EffectAction,
+        available: true,
+      })),
+      // 「３枚まで」＝0枚で止められる。
+      { id: 'aftm_stop', label: 'ここまでにする',
+        action: ({ ...stub, acceRemaining: 0, acceDoneCards: doneCards } as StubAction) as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `トラッシュから【アクセ】にするカードを選ぶ（残り${remaining}枚）`),
+      { type: 'CHOOSE', options: opts, count: 1 });
+  }
+  if (stub.id === 'INTERNAL_ACCE_PICK_HOST') {
+    const spec = stub.acceFromTrash ?? { count: 1 };
+    const staged = stub.acceStagedCard;
+    if (!staged) return done(addLog(ctx, '【アクセ】にするカードが選ばれていない'));
+    const hosts = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+      const host = stack?.at(-1);
+      if (!host) return [];
+      if (spec.hostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(host)), spec.hostFilter)) return [];
+      return canAttachSelf(host, i) ? [{ host, zone: i }] : [];
+    });
+    if (hosts.length === 0) {
+      return execStubPart3({ ...stub, id: 'ACCE_FROM_TRASH_MULTI', acceRemaining: 0 }, ctx, exec);
+    }
+    const opts = hosts.map(({ host, zone }) => ({
+      id: `aph_${zone}`, label: `${ctx.cardMap.get(getCardNum(host))?.CardName ?? host}に付ける`,
+      action: ({ ...stub, id: 'INTERNAL_ACCE_ATTACH_TO_ZONE', value: zone } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, `${ctx.cardMap.get(getCardNum(staged))?.CardName ?? staged}をどのシグニの【アクセ】にしますか？`),
+      { type: 'CHOOSE', options: opts, count: 1 });
+  }
+  if (stub.id === 'INTERNAL_ACCE_ATTACH_TO_ZONE') {
+    const staged = stub.acceStagedCard;
+    const zone = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? ''), 10);
+    if (!staged || !Number.isFinite(zone)) return done(addLog(ctx, '【アクセ】化：対象が不明'));
+    if (!ctx.ownerState.trash.includes(staged)) return done(addLog(ctx, '【アクセ】化：カードがトラッシュに無い'));
+    const slots = cloneAcceSlots(ctx.ownerState.field);
+    slots[zone] = [...(slots[zone] ?? []), staged];
+    const next: PlayerState = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.filter(cn => cn !== staged),
+      field: { ...ctx.ownerState.field, signi_acce: slots },
+    };
+    const ctx2 = addLog({ ...ctx, ownerState: next },
+      `${ctx.cardMap.get(getCardNum(staged))?.CardName ?? staged}を【アクセ】にした`);
+    return execStubPart3({
+      ...stub, id: 'ACCE_FROM_TRASH_MULTI',
+      acceStagedCard: undefined,
+      acceRemaining: (stub.acceRemaining ?? 1) - 1,
+      acceDoneCards: [...(stub.acceDoneCards ?? []), staged],
+    }, ctx2, exec);
+  }
+  if (stub.id === 'INTERNAL_RETURN_ACCED_CARDS_TO_HAND') {
+    // ⚠**場に残っているぶんだけ**を戻す（ホストが離れて既にトラッシュへ行った札は戻さない）。
+    const want = stub.acceDoneCards ?? [];
+    const slots = cloneAcceSlots(ctx.ownerState.field);
+    const moved: string[] = [];
+    for (let z = 0; z < slots.length; z++) {
+      const keep = (slots[z] ?? []).filter(cn => {
+        if (!want.includes(cn)) return true;
+        moved.push(cn);
+        return false;
+      });
+      slots[z] = keep.length > 0 ? keep : null;
+    }
+    if (moved.length === 0) return done(addLog(ctx, '【アクセ】として場に残っているカードが無い'));
+    const next: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi_acce: slots },
+      hand: [...ctx.ownerState.hand, ...moved],
+    };
+    return done(addLog({ ...ctx, ownerState: next, lastProcessedCards: moved },
+      `この方法で【アクセ】にした${moved.length}枚を手札に戻した`));
+  }
+  // 🆕§5.3 `O-313`（2026-09-12）＝**シグニゾーン1つの「シグニではないカード」全部をトラッシュへ**
+  //   （`WXK07-003-E1`「対戦相手のシグニゾーン１つにある、シグニではないすべてのカードをトラッシュに置く」）。
+  // 🔴**旧 live はこの文を `TRASH{SIGNI owner:opponent count:1}` にしていた**＝
+  //   原文に1文字も無い「相手シグニ1体をトラッシュ送り」を無料で撃つ**過剰実行**だった
+  //   （付属札・下敷き・裏向き札には一切触っていなかった）。
+  // ⚠**候補は「抜けるカードが1枚以上あるゾーン」だけ**＝空ゾーンを選ばせて空振りさせない。
+  if (stub.id === 'TRASH_SIGNI_ZONE_NON_SIGNI') {
+    const tsznOwner: Owner = stub.owner ?? 'opponent';
+    const tsznState = ownerState(tsznOwner, ctx);
+    const tsznZones = [0, 1, 2].filter(z => signiZoneNonSigniCards(tsznState, z).length > 0);
+    if (tsznZones.length === 0) {
+      return done(addLog(ctx, 'シグニゾーンの非シグニ札：対象のゾーンが無い'));
+    }
+    if (stub.value === undefined || stub.value === null) {
+      if (tsznZones.length === 1) {
+        return execStubPart3({ ...stub, value: tsznZones[0] }, ctx, exec);
+      }
+      const tsznOpts = tsznZones.map(z => ({
+        id: `tszn_${z}`, label: `シグニゾーン${z + 1}（${signiZoneNonSigniCards(tsznState, z).length}枚）`,
+        action: ({ ...stub, value: z } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, 'どのシグニゾーンの非シグニ札をトラッシュに置きますか？'),
+        { type: 'CHOOSE', options: tsznOpts, count: 1 });
+    }
+    const tsznIdx = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value), 10);
+    const tsznRes = stripSigniZoneNonSigniCards(tsznState, tsznIdx);
+    if (tsznRes.removed.length === 0) return done(addLog(ctx, 'シグニゾーンの非シグニ札：そのゾーンには無い'));
+    const tsznNext: PlayerState = { ...tsznRes.state, trash: [...tsznRes.state.trash, ...tsznRes.removed] };
+    const tsznNames = tsznRes.removed.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('、');
+    return done({
+      ...addLog(setOwnerState(tsznOwner, tsznNext, ctx),
+        `シグニゾーン${tsznIdx + 1}のシグニではないカード${tsznRes.removed.length}枚をトラッシュに置いた（${tsznNames}）`),
+      lastProcessedCards: tsznRes.removed,
+    });
+  }
+  // 🆕§5.3 `O-313`（2026-09-12）＝**シグニゾーンにある「カード」1枚を手札に戻す**
+  //   （`WXK08-024-E2`「各ターン終了時、対戦相手のシグニゾーンからカード１枚を対象とし、それを手札に戻してもよい」）。
+  // 🔴**旧 live は `BOUNCE{SIGNI}`**＝**最上面のシグニしか候補にならず**、原文の「カード」
+  //   （付属札・下敷き・裏向き札）を1枚も戻せなかった。
+  // 🔑最上面のシグニを選んだときは **`BOUNCE` へ委譲する**＝離場のトリガー・付属札の処理を
+  //   自前の state 編集で取りこぼさない。非シグニ札だけをここで直接動かす。
+  if (stub.id === 'BOUNCE_SIGNI_ZONE_CARD') {
+    const bszOwner: Owner = stub.owner ?? 'opponent';
+    const bszState = ownerState(bszOwner, ctx);
+    const bszTops = bszState.field.signi
+      .map(stack => stack?.at(-1))
+      .filter((n): n is string => !!n);
+    const bszOthers = [0, 1, 2].flatMap(z => signiZoneNonSigniCards(bszState, z));
+    if (bszTops.length === 0 && bszOthers.length === 0) {
+      return done(addLog(ctx, 'シグニゾーンのカード：候補が無い'));
+    }
+    const bszLabel = (cn: string) => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn;
+    const bszOpts = [
+      ...bszTops.map(cn => ({
+        id: `bsz_s_${cn}`, label: `${bszLabel(cn)}（シグニ）`,
+        action: ({ type: 'BOUNCE', target: { type: 'SIGNI', owner: bszOwner, count: 1 }, fixedCardNums: [cn] } as EffectAction),
+        available: true,
+      })),
+      ...bszOthers.map(cn => ({
+        id: `bsz_o_${cn}`, label: `${bszLabel(cn)}（付属札・下敷き等）`,
+        action: ({ type: 'STUB', id: 'INTERNAL_SIGNI_ZONE_CARD_TO_HAND', owner: bszOwner, value: cn } as StubAction) as EffectAction,
+        available: true,
+      })),
+      // 原文「手札に戻して**もよい**」＝戻さない肢を必ず出す。
+      {
+        id: 'bsz_skip', label: '戻さない',
+        action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+        available: true,
+      },
+    ];
+    return needsInteraction(addLog(ctx, `${bszOwner === 'opponent' ? '対戦相手' : 'あなた'}のシグニゾーンから手札に戻すカードを選ぶ`),
+      { type: 'CHOOSE', options: bszOpts, count: 1 });
+  }
+  if (stub.id === 'INTERNAL_SIGNI_ZONE_CARD_TO_HAND') {
+    const iszOwner: Owner = stub.owner ?? 'opponent';
+    const iszState = ownerState(iszOwner, ctx);
+    const iszCard = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+    const iszRes = pluckSigniZoneNonSigniCard(iszState, iszCard);
+    if (!iszRes.ok) return done(addLog(ctx, 'シグニゾーンのカード：選んだカードが見つからない'));
+    const iszNext: PlayerState = { ...iszRes.state, hand: [...iszRes.state.hand, iszCard] };
+    return done({
+      ...addLog(setOwnerState(iszOwner, iszNext, ctx),
+        `${ctx.cardMap.get(getCardNum(iszCard))?.CardName ?? iszCard}を手札に戻した`),
+      lastProcessedCards: [iszCard],
+    });
   }
 
   return null;

@@ -202,18 +202,33 @@ function anyOfJa(list: any[]): string {
   return list.map((s: any) => `${filterJa(s)}${([] as string[]).concat(s.cardType ?? []).join('か') || 'カード'}`).join('か');
 }
 
+/** 🆕`SelectionConstraint.same` の訳語（§5.3 `O-312`＝`'ability'` を足した）。 */
+function sameConstraintJa(same: string): string {
+  if (same === 'ability') return '能力が同じ';
+  const noun = same === 'level' ? 'レベル' : same === 'name' ? '名前' : same === 'power' ? 'パワー' : 'クラス';
+  return `共通する${noun}を持つ`;
+}
+
 function countFromZoneJa(spec: any): string {
   const zone = ({ field: '場', lrig_field: 'ルリグ場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下', check: 'チェックゾーン' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
   const noun = spec?.filter
     ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || (spec?.zone === 'lrig_field' ? 'ルリグ' : 'カード')}`
     : 'カード';
   const owner = ownerJa(spec?.owner);
+  // 🆕§5.3 `O-312`（2026-09-12）＝`distinctBy` を描く。🔴描かないと `distinctBy:'color'`（色の種類数）が
+  //   「枚数」に見え、原文（「＜天使＞のシグニが持つ**色の種類**」）と食い違ったまま気付けない。
+  const cntUnit = spec?.distinctBy === 'color' ? 'が持つ色の種類'
+    : spec?.distinctBy === 'level' ? 'のレベルの種類'
+    : spec?.distinctBy === 'name' ? 'の種類'
+    : spec?.sumBy === 'power' ? 'のパワーの合計'
+    : spec?.sumBy === 'level' ? 'のレベルの合計'
+    : 'の枚数';
   const base = spec?.zone === 'deck' ? `${owner}デッキの枚数`
     : spec?.zone === 'charm' ? `${owner}場にある【チャーム】の枚数`
     : spec?.zone === 'lrig_field' ? `${owner}場にいる${noun}の数`
     // `under`＝効果元スタックの下段（§5.3 `O-141`）。所有者は効果元で決まるので owner を出さない。
     : spec?.zone === 'under' ? `${zone}にある${noun}の枚数`
-    : `${owner}${zone}にある${noun}の枚数`;
+    : `${owner}${zone}にある${noun}${cntUnit}`;
   return `${base}${spec?.unitSize ? `÷${spec.unitSize}` : ''}${spec?.per && spec.per !== 1 ? `×${spec.per}` : ''}`;
 }
 
@@ -313,7 +328,12 @@ function filterJa(f?: any): string {
   if (typeof f.level === 'number') parts.push(`レベル${f.level}の`);
   else if (f.level?.max != null) parts.push(`レベル${f.level.max}以下の`);
   else if (f.level?.min != null) parts.push(`レベル${f.level.min}以上の`);
-  if (f.levelEqualsVar === 'field_trash_level') parts.push('この方法でトラッシュしたシグニと同じレベルの');
+  // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqualsVarOffset`（「そのシグニより**レベルが１つ低い**」）。
+  //   🔑描かないと「同じレベル」に見えて原文照合で気付けない（payload を足したら逆翻訳もその payload から組む）。
+  const lvVarOff = typeof f.levelEqualsVarOffset === 'number' && f.levelEqualsVarOffset !== 0
+    ? `より${Math.abs(f.levelEqualsVarOffset)}つ${f.levelEqualsVarOffset > 0 ? '高い' : '低い'}`
+    : 'と同じ';
+  if (f.levelEqualsVar === 'field_trash_level') parts.push(`この方法でトラッシュしたシグニ${lvVarOff}レベルの`);
   else if (f.levelEqualsVar === 'charm_trash_count') parts.push('トラッシュしたチャーム枚数と同じレベルの');
   else if (f.levelEqualsVar === 'cost_hand_to_energy_level') parts.push('この方法でエナゾーンに置いたシグニと同じレベルの');
   else if (f.levelEqualsVar === 'cost_energy_trash_level_sum') parts.push('この方法でトラッシュに置いたシグニのレベルの合計と同じレベルの');
@@ -323,7 +343,7 @@ function filterJa(f?: any): string {
   if (f.powerLteRevealedSigniLevelSum != null) parts.push(`パワーが「この方法で公開したシグニのレベルの合計×${f.powerLteRevealedSigniLevelSum}」以下の`);
   if (f.powerLteZoneCount) parts.push(`パワーが「${countFromZoneJa(f.powerLteZoneCount)}」以下の`);
   if (f.powerLteLastProcessedCount != null) parts.push(`パワーが「この方法で処理したカードの枚数×${f.powerLteLastProcessedCount}」以下の`);
-  if (f.levelLteZoneCount) parts.push(`レベルが${countFromZoneJa(f.levelLteZoneCount)}以下の`);
+  if (f.levelLteZoneCount) parts.push(`レベルが${countFromZoneJa(f.levelLteZoneCount)}以下の`);  // distinctBy は countFromZoneJa が描く
   if (f.levelLteFieldVirusCount) parts.push('レベルが場にある【ウィルス】の数以下の');
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
@@ -377,8 +397,12 @@ function filterJa(f?: any): string {
   if (f.levelEqLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelEqLastProcessedCount)}と同じレベルの`);
   if (f.levelLteLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelLteLastProcessedCount)}以下のレベルを持つ`);
   if (f.levelEqLastProcessedLevelSum) parts.push('この方法で処理したカードのレベル合計と同じレベルの');
-  if (f.levelEqLrig === 'self') parts.push('あなたのセンタールリグと同じレベルの');
-  if (f.levelEqLrig === 'opponent') parts.push('対戦相手のセンタールリグと同じレベルの');
+  // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqLrigOffset`（「センタールリグより**レベルが１つ高い／低い**」）。
+  const lrigLvOff = typeof f.levelEqLrigOffset === 'number' && f.levelEqLrigOffset !== 0
+    ? `より${Math.abs(f.levelEqLrigOffset)}つ${f.levelEqLrigOffset > 0 ? '高い' : '低い'}`
+    : 'と同じ';
+  if (f.levelEqLrig === 'self') parts.push(`あなたのセンタールリグ${lrigLvOff}レベルの`);
+  if (f.levelEqLrig === 'opponent') parts.push(`対戦相手のセンタールリグ${lrigLvOff}レベルの`);
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
   if (f.levelLtDiscardSigni) parts.push('この方法で捨てたシグニより低いレベルを持つ');
   if (f.levelEqDiscardSigniOffset !== undefined) parts.push(`この方法で捨てたシグニよりレベルが${f.levelEqDiscardSigniOffset}つ高い`);
@@ -585,14 +609,19 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     // 🆕2026-08-30＝`same`（選択集合の**全カードで同一**の軸）を描いていなかった＝
     //   「共通するレベルを持つ2体」が**ただの2体**に見えて原文照合で気付けなかった（`WXK11-042-E2`）。
     //   ⚠`distinct` の**逆**なので訳語を取り違えないこと。
-    : t.selectionConstraint?.same ? `共通する${t.selectionConstraint.same === 'level' ? 'レベル' : t.selectionConstraint.same === 'name' ? '名前' : t.selectionConstraint.same === 'power' ? 'パワー' : 'クラス'}を持つ`
+    : t.selectionConstraint?.same ? sameConstraintJa(t.selectionConstraint.same)
     : '';
+  // 🆕§5.3 `O-312`（2026-09-12）＝`distinct` と `same` は**併記されうる**（`WXK05-029-E3`
+  //   「それぞれレベルの異なる、**能力が同じ**シグニ４枚」）。🔴上の三項は排他なので、
+  //   distinct が先に当たると `same` が丸ごと消えて「どの4枚でもよい」に見える。
+  const alsoSame = t.selectionConstraint?.distinct && t.selectionConstraint?.same
+    ? sameConstraintJa(t.selectionConstraint.same) : '';
   // 動的数：盤面/ゾーンの枚数（`countFromZone`）＝「あなたの＜原子＞のシグニ1体につき1体まで」
   //   （2026-08-28 Sheet1 バッチ・`WX07-027-BURST`）。⚠描かないと「1体まで」に見え、
   //   **上限が盤面で決まることが原文照合で消える**（engine は `resolveCountRef` で実数を使う）。
   if (t.countFromZone) {
     const perJa = countFromZonePerJa(t.countFromZone, counter, !!t.upToCount);
-    return `${own}${setConstraint}${filterJa(t.filter)}${u}を${perJa}`.trim();
+    return `${own}${setConstraint}${alsoSame}${filterJa(t.filter)}${u}を${perJa}`.trim();
   }
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
@@ -649,10 +678,14 @@ function constraintJa(c?: import('../src/types/effects').SelectionConstraint): s
   if (c?.sharedClass === 'all') return '共通するクラスを持つ';   // 🆕§5.3 `O-287`
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
-  if (c?.distinct === 'class') return '共通するクラスを持たない';
-  if (c?.distinct === 'level') return 'それぞれレベルの異なる';
-  if (c?.distinct === 'name') return 'それぞれ名前の異なる';
-  return '';
+  // 🆕§5.3 `O-312`（2026-09-12）＝`distinct` と `same` は**併記されうる**（`WXK05-029-E3`
+  //   「それぞれレベルの異なる、**能力が同じ**シグニ４枚」）。🔴片方で早期 return すると
+  //   もう片方が丸ごと消えて「どの4枚でもよい」に見える（サーチ範囲が桁で違う）。
+  const sameJa = c?.same ? sameConstraintJa(c.same) : '';
+  if (c?.distinct === 'class') return `共通するクラスを持たない${sameJa}`;
+  if (c?.distinct === 'level') return `それぞれレベルの異なる${sameJa}`;
+  if (c?.distinct === 'name') return `それぞれ名前の異なる${sameJa}`;
+  return sameJa;
 }
 
 function costScalingSigniJa(filter?: any): string {
@@ -1066,6 +1099,9 @@ function condJa(c?: any): string {
       if (artsCondition.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(artsCondition.exactCount)}枚目のアーツだった`;
       return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsCondition.color ? `${artsCondition.color}の` : ''}${usedNoun}を${(artsCondition.minCount ?? 1) > 1 ? `${numJa(artsCondition.minCount!)}回以上` : ''}使用していた`;
     }
+    // 🆕§5.3 `O-314`（2026-09-12・`WXK02-002-E3`）＝アーツ使用回数 ≠ 宣言値。
+    case 'ARTS_USED_COUNT_NE_DECLARED':
+      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用したアーツの回数が宣言した数字と異なる`;
     case 'SPELL_USED_THIS_TURN':
       // exactCount＝「N枚目のスペルだった場合」＝**ちょうどN枚目**（minCount の「N枚以上」とは別物）。
       if (c.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(c.exactCount)}枚目のスペルだった`;
@@ -2780,10 +2816,12 @@ function actionJa(a?: Action, effectType?: string): string {
       const untilSBL = a.until === 'END_OF_TURN' ? 'ターン終了時まで、'
         : a.until === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
         : a.until === 'NEXT_TURN' ? '次のターンの間、' : '';
+      // 🆕§5.3 `O-312`＝`valueRef:'declared_number'`（「基本レベルを**宣言した数字**にする」）。
+      const valSBL = a.valueRef === 'declared_number' ? '宣言した数字' : String(a.value);
       if (a.until === 'NEXT_TURN' && a.target?.count === 'ALL') {
-        return `${untilSBL}${ownerJa(a.target?.owner)}場にあるシグニの基本レベルは${a.value}になる（後から場に出たシグニにも適用）`;
+        return `${untilSBL}${ownerJa(a.target?.owner)}場にあるシグニの基本レベルは${valSBL}になる（後から場に出たシグニにも適用）`;
       }
-      return `${untilSBL}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
+      return `${untilSBL}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${valSBL}にする`;
     }
     case 'REVEAL_UNTIL': {
       const stop = a.stopCondition;
@@ -3036,6 +3074,10 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${periodPD}${whoPD}は対戦相手の効果によってダメージを受けない`;
       if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
         return `${periodPD}${whoPD}は対戦相手のルリグによってダメージを受けない`;
+      // 🆕§5.3 `O-317`（2026-09-12）＝`sourcePowerGte`（「**パワーN以上のシグニによって**」`WX25-P2-008-E1`）。
+      //   🔴描かないと「あらゆるダメージを受けない」に見え、限定が入ったことが原文照合に映らない。
+      if (a.sourcePowerGte !== undefined)
+        return `${periodPD}${whoPD}はパワー${a.sourcePowerGte}以上のシグニによってダメージを受けない`;
       return `${periodPD}${whoPD}はダメージを受けない`;
     }
     case 'ZONE_MOVE_IMMUNITY': {
@@ -3087,9 +3129,12 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'SIGNI_DEPLOY_BAN': {
       // 「このターンと次のターンの間、対戦相手は〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）
       const whoDB = a.owner === 'opponent' ? '対戦相手' : 'あなた';
-      const whenDB = (a.turns ?? 1) >= 2 ? 'このターンと次のターンの間' : 'このターン';
+      // 🆕§5.3 `O-314`＝`fromNextTurn`（次のターンだけ）／`bySource:'normal_summon'`（手札から）。
+      const whenDB = a.fromNextTurn ? '次のターンの間'
+        : (a.turns ?? 1) >= 2 ? 'このターンと次のターンの間' : 'このターン';
       const scopeDB = a.namesFromTargets ? 'それと同じ名前の'
         : a.bySource === 'signi_or_spell_effect' ? '自分の、シグニとスペルの効果によって'
+        : a.bySource === 'normal_summon' ? '手札から'
         : '';
       return `${whenDB}、${whoDB}は${scopeDB}シグニを新たに場に出せない`;
     }
@@ -4096,6 +4141,19 @@ function actionJa(a?: Action, effectType?: string): string {
       // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
       if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
+      // 🆕§5.3 `O-312`/`O-314`（2026-09-12）＝宣言の上限（`numberChoicesFrom`）と宣言者（`declaredBy`）を描く。
+      //   🔴描かないと「上限なしの数字宣言」「宣言するのは効果の持ち主」に見え、意味が反転して読める。
+      if (a.id === 'TK3_DECLARE_DISCARD') {
+        const capJa = a.numberChoicesFrom === 'opp_center_lrig_level' ? '対戦相手のセンタールリグのレベル以下の'
+          : a.numberChoicesFrom === 'self_center_lrig_level' ? 'あなたのセンタールリグのレベル以下の' : '';
+        const noGuardJa = a.declareDiscardFilter?.noGuard ? '《ガードアイコン》を持たず' : '';
+        return `${capJa}数字1つを宣言する。対戦相手の手札を見て、${noGuardJa}宣言した数字と同じレベルを持つすべてのシグニを捨てさせる`;
+      }
+      if (a.id === 'DECLARE_NUMBER_PLAIN' && (a.numberChoicesFrom || a.declaredBy)) {
+        const capJa2 = a.numberChoicesFrom === 'opp_center_lrig_level' ? '対戦相手のセンタールリグのレベル以下の'
+          : a.numberChoicesFrom === 'self_center_lrig_level' ? 'あなたのセンタールリグのレベル以下の' : '';
+        return `${a.declaredBy === 'opponent' ? '対戦相手は' : ''}${capJa2}数字1つを宣言する`;
+      }
       // DECLARE_NUMBER_PLAIN: ガード制限を伴わない汎用の数字宣言（タスク12(xlvi)(c)）
       if (a.id === 'DECLARE_NUMBER_PLAIN') return a.numberChoices?.length
         ? `${[1, 2, 3, 4, 5].filter((n: number) => !a.numberChoices.includes(n)).join('・')}以外の数字1つを宣言する`
@@ -5038,10 +5096,26 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-317` 第283バッチ（2026-09-12・`WXK03-003A`）＝**構築時**のルリグデッキのアーツ上限
+        //   （実行時の制限ではない＝判定は `src/utils/deckBuildLimits.ts` のデッキ編集側だけ）。
+        LRIG_DECK_ARTS_LIMIT: 'このカードをルリグデッキに入れる場合、あなたのルリグデッキにはアーツを3枚までしか入れられない',
+        // 🆕§5.3 `O-314` 第283バッチ（2026-09-12・`WXK04-033-E1`）＝トラッシュ発の複数【アクセ】化＋ターン終了時の返却。
+        INTERNAL_ACCE_PICK_HOST: '【アクセ】にするカードを付けるシグニを選ぶ',
+        INTERNAL_ACCE_ATTACH_TO_ZONE: '選んだシグニの【アクセ】にする',
+        INTERNAL_RETURN_ACCED_CARDS_TO_HAND: 'この方法で【アクセ】にしたすべてのカードを場から手札に戻す',
+        // 🆕§5.3 `O-313` 第283バッチ（2026-09-12・`WXK07-003-E1`）＝シグニゾーン1つの非シグニ札を全部トラッシュへ。
+        TRASH_SIGNI_ZONE_NON_SIGNI:
+          '対戦相手のシグニゾーン1つにある、シグニではないすべてのカード（裏向きのカード・付いているカード・下にあるカード）をトラッシュに置く',
+        // 🆕§5.3 `O-313` 第283バッチ（2026-09-12・`WXK08-024-E2`）＝シグニゾーンの「カード」1枚を手札へ。
+        //   ⚠最上面のシグニを選んだときは `BOUNCE` へ委譲する（離場処理を取りこぼさないため）。
+        BOUNCE_SIGNI_ZONE_CARD:
+          '対戦相手のシグニゾーンからカード1枚（シグニ・付いているカード・下にあるカード・裏向きのカード）を対象とし、それを手札に戻してもよい',
+        INTERNAL_SIGNI_ZONE_CARD_TO_HAND: '選んだシグニゾーンのカード1枚を手札に戻す',
         // 🆕§5.3 `O-299` 第262バッチ（2026-09-11・`WXDi-P00-038-E1`）＝離場を裏向きで置換し、
         //   **次の次の自分のメインフェイズ開始時**に（同じゾーンが空なら）表向きへ戻す【常】宣言。
         //   判定は `collectLeaveSubstituteOptions` の `selfFacedown` 軸＋
         //   `resolveSecondMainFacedownReturns`（`BattleScreen` のメインフェイズ開始で1回ずつ数える）。
+        DEFEAT: 'あなたはゲームに敗北する',
         SELF_LEAVE_FACEDOWN_SECOND_MAIN:
           'このシグニが場を離れる場合、代わりにこれを裏向きにしてもよい。そうした場合、次の次のあなたのメインフェイズ開始時、これと同じシグニゾーンにシグニがない場合、これを表向きにし、対戦相手は手札を2枚捨てる',
         // 🆕§5.3 `O-283`（2026-09-08）＝「カードを使う」ではなく「**ルリグの能力**を使う」経路。
@@ -5399,6 +5473,17 @@ function actionJa(a?: Action, effectType?: string): string {
       // ⚠`genStubsMd.mjs` のハンドラ抽出は `stub.id === '[A-Z0-9_]+'` なので**日本語入りの id は拾えない**＝
       //   固定キーの `miscStubMap` にも並べられない。id から色を読んで文を組む。
       // 🆕§5.3 `O-283`（2026-09-08）＝範囲と上限を payload から描く（落とすと「どのルリグの何を使うか」が消える）。
+      // 🆕§5.3 `O-314`＝payload（枚数・トラッシュ側／ホスト側の条件）から描く（固定文にしない）。
+      if (a.id === 'ACCE_FROM_TRASH_MULTI') {
+        const spec = a.acceFromTrash;
+        // ⚠`filterJa` は `cardType` を描かない規約＝名詞は呼び出し側で足す（足さないと「＜調理＞の**を**」になる）。
+        const srcJaAFTM = `${spec?.filter ? filterJa(spec.filter) : ''}${spec?.filter?.cardType ?? 'カード'}`;
+        const hostJaAFTM = `${spec?.hostFilter ? filterJa(spec.hostFilter) : ''}${spec?.hostFilter?.cardType ?? 'シグニ'}`;
+        return `あなたのトラッシュから${srcJaAFTM}を${spec?.count ?? 1}枚まで、あなたの${hostJaAFTM}${spec?.count ?? 1}体までの【アクセ】にする。ターン終了時、この方法で【アクセ】にしたすべてのカードを場から手札に戻す`;
+      }
+      // 🆕§5.3 `O-314`（2026-09-12）＝`DEFEAT` の `owner`（「**対戦相手は**ゲームに敗北する」）。
+      //   🔴固定文のままだと「あなたが敗北する」と読め、意味が正反対に見える。
+      if (a.id === 'DEFEAT') return `${a.owner === 'opponent' ? '対戦相手' : 'あなた'}はゲームに敗北する`;
       if (a.id === 'USE_OWN_LRIG_ABILITY_FREE') {
         const scopeJa = a.lrigAbilityScope === 'all_lrigs' ? 'あなたのルリグ' : 'このルリグ';
         const limJa = a.maxExceed === undefined ? 'エクシード能力' : `エクシードの値が${a.maxExceed}以下の能力`;
@@ -6482,6 +6567,11 @@ function effJa(e: Eff): string {
     }
     // ON_OPP_ARTS_USE の主語（既定＝「効果を受けたとき」／any_opp＝「対戦相手が使用したとき」／
     //   ON_ARTS_USE と併記＝「あなたか対戦相手が使用したとき」WX16-003＝1文にまとめる＝ON_ARTS_USE 側は空にする）
+    // 🆕§5.3 `O-313`（2026-09-12）＝`triggerCondition.anyTurn`（原文「**各**ターン終了時」）。
+    //   🔴描かないと「あなたのターン終了時」と読め、**発火範囲が半分の旧実装と逆翻訳が同じ**になる。
+    if ((t === 'ON_TURN_END' || t === 'ON_TURN_START') && e.triggerCondition?.anyTurn) {
+      s = `各ターン${t === 'ON_TURN_END' ? '終了' : '開始'}時`;
+    }
     if (t === 'ON_OPP_ARTS_USE') {
       if (e.timing?.includes('ON_ARTS_USE')) s = 'あなたか対戦相手がアーツを使用したとき';
       else if (e.triggerScope === 'any_opp') s = '対戦相手がアーツを使用したとき';

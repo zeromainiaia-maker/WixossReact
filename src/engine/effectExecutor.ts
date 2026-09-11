@@ -1853,11 +1853,22 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     : tgt.filter?.levelEqualsVar === 'cost_energy_trash_level_sum'
     ? { ...tgt.filter, levelEqualsVar: undefined, level: typeof ctx.ownerState.last_cost_energy_trash_level_sum === 'number' ? ctx.ownerState.last_cost_energy_trash_level_sum : -1 }
     : tgt.filter;
+  // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqualsVarOffset`。**この前解決は `resolveDynamicFilter` の重複経路**
+  //   （`execBanish` だけにある）なので、オフセットを同じ向きで掛けないとここだけ素通りする。
+  //   ⚠1〜5 の外は空ヒット（`level:-1`）へ倒す＝共通解決器の `noMatch` と同じ向き。
+  const preResolvedShifted: import('../types/effects').TargetFilter | undefined =
+    preResolvedFilter !== tgt.filter && tgt.filter?.levelEqualsVarOffset !== undefined
+      && typeof preResolvedFilter?.level === 'number'
+      ? (() => {
+          const shifted = preResolvedFilter.level as number + tgt.filter!.levelEqualsVarOffset!;
+          return { ...preResolvedFilter, levelEqualsVarOffset: undefined, level: shifted < 1 || shifted > 5 ? -1 : shifted };
+        })()
+      : preResolvedFilter;
   // colorMatchesLrig / levelLteFieldVirusCount / powerLtSelf等の動的フィルタを解決（activatorはctx.ownerState固定）
-  const colorUsesTargetLrig = !!(preResolvedFilter?.colorMatchesLrig || preResolvedFilter?.colorNotMatchesLrig);
+  const colorUsesTargetLrig = !!(preResolvedShifted?.colorMatchesLrig || preResolvedShifted?.colorNotMatchesLrig);
   const filterOwnerSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const filterOtherSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.ownerState : ctx.otherState;
-  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, filterOwnerSt, ctx.cardMap, filterOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, ctx.fieldSigniExtraColors, ctx.allColorSigniNums);
+  let resolvedFilter = resolveDynamicFilter(preResolvedShifted, filterOwnerSt, ctx.cardMap, filterOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, ctx.fieldSigniExtraColors, ctx.allColorSigniNums);
   // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
   // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
@@ -2744,10 +2755,16 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
  */
 function applyTimedBaseLevel(cardNum: string, a: import('../types/effects').SetBaseLevelAction, ctx: ExecCtx): ExecCtx {
   const key = a.until === 'UNTIL_OPP_TURN_END' ? 'base_level_overrides_until_opp_turn' : 'attack_phase_level_overrides';
-  const store = { ...(ctx.ownerState[key] ?? {}), [cardNum]: a.value };
+  // 🆕§5.3 `O-312`（2026-09-12）＝`valueRef:'declared_number'`（「基本レベルを**宣言した数字**にする」
+  //   `WXK07-033-E1`）。⚠未宣言／1〜5 の外は**何もしない**（fail-closed）。
+  const lv = a.valueRef === 'declared_number' ? ctx.ownerState.declared_number : a.value;
   const name = ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
+  if (typeof lv !== 'number' || !Number.isFinite(lv) || lv < 1 || lv > 5) {
+    return addLog(ctx, `${name}の基本レベル変更：参照する数字が未宣言のため何もしない`);
+  }
+  const store = { ...(ctx.ownerState[key] ?? {}), [cardNum]: lv };
   return addLog({ ...ctx, ownerState: { ...ctx.ownerState, [key]: store } },
-    `${name}の基本レベルを${a.value}に変更（${key === 'attack_phase_level_overrides' ? 'ターン終了時まで' : '次の対戦相手のターン終了時まで'}）`);
+    `${name}の基本レベルを${lv}に変更（${key === 'attack_phase_level_overrides' ? 'ターン終了時まで' : '次の対戦相手のターン終了時まで'}）`);
 }
 
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
@@ -3725,7 +3742,7 @@ function resolveDynamicFilter(
   // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
   // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。
   if (result.levelEqDiscardLevelSum || result.levelEqualsVar) {
-    const { levelEqDiscardLevelSum: _ds, levelEqualsVar: variable, ...rest } = result;
+    const { levelEqDiscardLevelSum: _ds, levelEqualsVar: variable, levelEqualsVarOffset: varOffset, ...rest } = result;
     const value = _ds
       ? ownerSt.last_activated_discard_level_sum
       : variable === 'charm_trash_count'
@@ -3735,7 +3752,12 @@ function resolveDynamicFilter(
           : variable === 'cost_hand_to_energy_level'
             ? ownerSt.last_cost_hand_to_energy_level
             : ownerSt.last_cost_energy_trash_level_sum;
-    result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
+    // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqualsVarOffset`（「そのシグニより**レベルが１つ低い**」
+    //   `WXEX2-54-E2`）。⚠足した結果が 1〜5 の外なら空ヒット（レベル0・6のシグニは存在しない）。
+    const shifted = value == null || !Number.isFinite(value) ? null : value + (varOffset ?? 0);
+    result = shifted == null || shifted < 1 || shifted > 5
+      ? noMatch(rest)
+      : { ...rest, level: shifted };
   }
   if (result.levelEqLastProcessed || result.nameEqLastProcessed
       || result.levelEqLastProcessedCount || result.levelLteLastProcessedCount || result.levelEqLastProcessedLevelSum) {
@@ -3770,14 +3792,18 @@ function resolveDynamicFilter(
     }
   }
   if (result.levelEqLrig || result.levelLteLrig) {
-    const { levelEqLrig, levelLteLrig, ...rest } = result;
+    const { levelEqLrig, levelLteLrig, levelEqLrigOffset: lrigOffset, ...rest } = result;
     const side = levelEqLrig ?? levelLteLrig!;
     const state = side === 'self' ? ownerSt : otherSt;
     const lrig = state?.field.lrig.at(-1);
     const level = lrig ? parseInt(cardMap.get(getCardNum(lrig))?.Level ?? '', 10) : NaN;
+    // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqLrigOffset`（「センタールリグより**レベルが１つ高い／低い**」
+    //   `WXK02-027-E1`）。⚠オフセットは一致側（`levelEqLrig`）だけに掛ける＝`levelLteLrig` は上限のまま。
+    //   ⚠足した結果が 1〜5 の外なら空ヒット（センタールリグがレベル5なら「1つ高い」は該当0体）。
+    const eqLevel = level + (levelEqLrig ? (lrigOffset ?? 0) : 0);
     result = !isNaN(level)
       ? (levelEqLrig
-          ? { ...rest, level }
+          ? (eqLevel < 1 || eqLevel > 5 ? noMatch(rest) : { ...rest, level: eqLevel })
           : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: level } })
       : noMatch(rest);
   }
@@ -10838,10 +10864,13 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       //   （`WX19-067-E1`／`WXK07-081-E1`／`WX11-051-E1`）③「次のターンの間、対戦相手の場にあるシグニの基本レベルは１」
       //   （`WX11-051-BURST`）の3形が**どれも何もしなかった**（②③は読み手の無い `BLOCK_ACTION{SET_LEVEL_1}` だった）。
       const sbl = action as import('../types/effects').SetBaseLevelAction;
-      if (!sbl.until || typeof sbl.value !== 'number') return done(ctx);
+      // 🆕§5.3 `O-312`＝`valueRef` 指定時は `value` の代わりに実行時の宣言値を読む（`applyTimedBaseLevel`）。
+      if (!sbl.until || (sbl.valueRef === undefined && typeof sbl.value !== 'number')) return done(ctx);
       const tgtSBL = sbl.target;
       if (sbl.until === 'NEXT_TURN') {
         // ⚠場全体のみ（「場に出たあとでレベルが１になる」＝後から出たシグニにも効く＝場レベル grant）。
+        // ⚠`valueRef`（実行時解決）はここでは使えない＝場レベル grant は静的な値を予約する。
+        if (typeof sbl.value !== 'number') return done(addLog(ctx, '基本レベル変更（次のターンの間）：値が静的でないので何もしない'));
         if (!tgtSBL || tgtSBL.type !== 'SIGNI' || tgtSBL.count !== 'ALL' || tgtSBL.owner === 'any') {
           return done(addLog(ctx, '基本レベル変更（次のターンの間）：場全体の指定が無いので何もしない'));
         }
@@ -11008,6 +11037,8 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
         ban.label = names.join('・');
       }
       if (sdb.bySource) ban.bySource = sdb.bySource;
+      // 🆕§5.3 `O-314`＝「次のターンから効く」予約（`WXK05-001-E2` の追加ターン限定）。
+      if (sdb.fromNextTurn) ban.fromNextTurn = true;
       const sdbOwner: Owner = sdb.owner === 'opponent' ? 'opponent' : 'self';
       const sdbState = ownerState(sdbOwner, ctx);
       const newSdbState: PlayerState = {
@@ -11015,10 +11046,12 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
         signi_deploy_bans: [...(sdbState.signi_deploy_bans ?? []), ban],
       };
       const scopeSdb = ban.cardNames ? `《${ban.cardNames.join('》《')}》と同じ名前の`
+        : ban.bySource === 'normal_summon' ? '手札から'
         : ban.bySource ? 'シグニとスペルの効果では' : '';
+      const periodSdb = ban.fromNextTurn ? '次のターンの間'
+        : sdb.turns >= 2 ? 'このターンと次のターンの間' : 'このターン';
       return done(addLog(setOwnerState(sdbOwner, newSdbState, ctx),
-        `${sdb.turns >= 2 ? 'このターンと次のターンの間' : 'このターン'}、`
-        + `${sdbOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeSdb}シグニを新たに場に出せない`));
+        `${periodSdb}、${sdbOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeSdb}シグニを新たに場に出せない`));
     }
     case 'ADD_EXTRA_ATTACK_PHASE': {
       // 「（このターンの最初の／次の）アタックフェイズの後に、追加のアタックフェイズを加える」（§6.4 O-3）。
@@ -11371,13 +11404,18 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       const sPD = ownerState(tgtOwnerPD, ctx);
       const newSPD: PlayerState = {
         ...sPD,
-        prevent_damage_windows: [...(sPD.prevent_damage_windows ?? []), { scope: scopePD, expires: expiresPD }],
+        prevent_damage_windows: [...(sPD.prevent_damage_windows ?? []), {
+          scope: scopePD, expires: expiresPD,
+          // 🆕§5.3 `O-317`＝「パワーN以上のシグニによって」の限定を window に載せる（落とすと無条件の無敵）。
+          ...(pd.sourcePowerGte !== undefined ? { sourcePowerGte: pd.sourcePowerGte } : {}),
+        }],
       };
       const periodJaPD = pd.untilNextMainPhase ? '次のあなたのメインフェイズまで'
         : pd.until === 'NEXT_TURN' ? '次のターンの間'
           : pd.until === 'END_OF_ATTACK' ? 'そのアタックで' : 'このターン';
+      const srcJaPD = pd.sourcePowerGte !== undefined ? `パワー${pd.sourcePowerGte}以上のシグニによる` : '';
       return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
-        `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
+        `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${srcJaPD}${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
     }
     case 'ZONE_MOVE_IMMUNITY': {
       // 「（このターンと次のターンの間、）対戦相手の効果によって〈ゾーン〉のカードは移動しない」

@@ -21417,6 +21417,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // トリガー句限定（直後が読点＝トリガー）。「対戦相手のターン終了時まで」（持続期間）は
         // 別効果の duration であり誤爆させない（WX24-P2-059＝トリガーは「あなたのターン終了時」self）。
         if (/対戦相手のターン(?:終了|開始)時(?:に)?[、,]/.test(actionText)) extractedTriggerScope = 'any_opp';
+        // 🆕§5.3 `O-313`（2026-09-12）＝「**各**ターン終了時／開始時」＝**どちらのターン境界でも**発火する。
+        // 🔴`triggerScope` では書けない（自分側 loop は `'self'` しか・相手側 loop は `'any'|'any_opp'` しか拾わない）＝
+        //   実測 live 13効果すべてが**自分のターン終了時しか発火していなかった**。
+        if (/各ターン(?:終了|開始)時(?:に)?[、,]/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), anyTurn: true };
+        }
       }
       // ON_MAIN_PHASE_START も同じく主語で scope を決める（「対戦相手のメインフェイズ開始時」＝any_opp・1件）。
       if (timing[0] === 'ON_MAIN_PHASE_START') {

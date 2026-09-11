@@ -9145,7 +9145,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
-    if (hasActivePreventDamageWindow(state, 'ALL')) {
+    // 🆕§5.3 `O-317`＝`sourcePowerGte` を持つ window は**ダメージ源のパワー**を見る（`WX25-P2-008-E1`）。
+    if (hasActivePreventDamageWindow(state, 'ALL', damageSource?.power)) {
       appendBattleLogs([`ダメージ無効（このターンダメージを受けない）`]);
       return { newState: state, crashed: null, prevented: true };
     }
@@ -10329,7 +10330,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum, isSLancer ? 'Sランサー' : 'ランサー');
+            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, isSLancer ? 'Sランサー' : 'ランサー');
             if (crashOpponentInstead) {
               // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」＝
               // 置換した側（防御側）から見た「対戦相手」＝**アタックしている自分**のライフを割る。
@@ -10585,7 +10586,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum);
         if (firstCrashOpp) {
           // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」（WX25-P3-004）。
           // ⚠置換した側から見た「対戦相手」＝**アタックしている自分**なので、割れるのは自分のライフ。

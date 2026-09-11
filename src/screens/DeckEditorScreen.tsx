@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { CardData, Deck } from '../types';
 import { isLrigCard } from '../types';
+import { lrigDeckArtsCap, lrigDeckArtsCount } from '../utils/deckBuildLimits';
 
 const MAIN_MAX = 40;
 const LB_MAX = 20;
@@ -143,6 +144,16 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const addCard = (card: CardData) => {
     if (isLrigCard(card)) {
       if (countInLrigByName(card.CardName) >= LRIG_COPY_MAX) return;
+      // 🆕§5.3 `O-317`（2026-09-12・`WXK03-003A`）＝**カードが課す構築時のアーツ上限**。
+      //   ⚠判定は JSON の宣言（`STUB{LRIG_DECK_ARTS_LIMIT}`）だけを読む（原文 regex を UI 層に書かない）。
+      if (card.Type === 'アーツ') {
+        const artsCap = lrigDeckArtsCap(current.lrigDeck, cardMap);
+        if (artsCap !== undefined && lrigDeckArtsCount(current.lrigDeck, cardMap) >= artsCap) return;
+      } else {
+        // 上限を課す札を**後から**入れる場合も、既に上限を超えていたら入れられない。
+        const capAfter = lrigDeckArtsCap([...current.lrigDeck, card.CardNum], cardMap);
+        if (capAfter !== undefined && lrigDeckArtsCount(current.lrigDeck, cardMap) > capAfter) return;
+      }
       if (isTeamPieceCard(card) && teamPieceCount >= TEAM_PIECE_MAX) return;
       if (isExtraLrigCard(card)) {
         if (extraLrigCount >= LRIG_EXTRA_MAX) return;

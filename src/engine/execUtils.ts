@@ -345,6 +345,112 @@ export function zoneCardsOf(
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
 }
 
+/**
+ * 🆕**シグニゾーン1つの中身のうち「シグニではないカード」**（2026-09-12・§5.3 `O-313`）。
+ *
+ * 🔴**この軸は既存の受け皿に無かった**＝engine は**種類ごとの専用アクション**
+ *   （`REMOVE_CHARM` / `TAKE_FROM_UNDER_SIGNI` / `OPEN_MAGIC_BOX`）に割れており、原文
+ *   「対戦相手のシグニゾーン１つにある、**シグニではないすべてのカード**をトラッシュに置く
+ *   （裏向きのカードとシグニに付いているカードと下にあるカードをトラッシュに置く）」（`WXK07-003-E1`）を
+ *   1つの処理として書けなかった。
+ *
+ * 拾うのは原文の括弧書きどおりの3系統＝
+ *   **裏向き**（`facedown_signi` / `signi_traps` / `signi_magic_boxes` / `signi_seeds` / `signi_facedown_attached`）／
+ *   **付いている**（`signi_charms` / `signi_acce` / `signi_facedown_attached`）／
+ *   **下にある**（`field.signi[zone]` の最上面より下）。
+ * ⚠**`signi_soul` は含めない**＝【ソウル】はルリグ札で行き先が**ルリグトラッシュ**（トラッシュではない）＝
+ *   同じ処理に混ぜると行き先を間違える。
+ */
+export function signiZoneNonSigniCards(state: PlayerState, zoneIdx: number): string[] {
+  const f = state.field;
+  const stack = f.signi[zoneIdx] ?? [];
+  const under = stack.length > 1 ? stack.slice(0, -1) : [];
+  const slot = (arr: (string | null)[] | undefined): string[] => {
+    const v = arr?.[zoneIdx];
+    return v ? [v] : [];
+  };
+  const slots = (arr: (string[] | null)[] | undefined): string[] => [...(arr?.[zoneIdx] ?? [])];
+  return [
+    ...slot(f.facedown_signi), ...slot(f.signi_traps), ...slot(f.signi_magic_boxes), ...slot(f.signi_seeds),
+    ...slot(f.signi_charms), ...slots(f.signi_acce), ...slots(f.signi_facedown_attached),
+    ...under,
+  ];
+}
+
+/**
+ * `signiZoneNonSigniCards` で拾ったカードを**そのゾーンから抜いた** `PlayerState` を返す
+ * （行き先は呼び出し側が決める＝`WXK07-003-E1` はトラッシュ）。
+ * ⚠`field.signi[zone]` は**最上面だけを残す**（下敷きを抜く）＝スタックが空になることはない。
+ */
+export function stripSigniZoneNonSigniCards(state: PlayerState, zoneIdx: number): { state: PlayerState; removed: string[] } {
+  const removed = signiZoneNonSigniCards(state, zoneIdx);
+  if (removed.length === 0) return { state, removed };
+  const f = state.field;
+  const clearSlot = <T>(arr: T[] | undefined, empty: T): T[] | undefined => {
+    if (!arr) return arr;
+    const next = [...arr];
+    next[zoneIdx] = empty;
+    return next;
+  };
+  const stack = f.signi[zoneIdx] ?? [];
+  const nextSigni = [...f.signi];
+  if (stack.length > 1) nextSigni[zoneIdx] = [stack[stack.length - 1]];
+  return {
+    state: {
+      ...state,
+      field: {
+        ...f,
+        signi: nextSigni,
+        facedown_signi: clearSlot(f.facedown_signi, null),
+        signi_traps: clearSlot(f.signi_traps, null),
+        signi_magic_boxes: clearSlot(f.signi_magic_boxes, null),
+        signi_seeds: clearSlot(f.signi_seeds, null),
+        signi_charms: clearSlot(f.signi_charms, null),
+        signi_acce: clearSlot(f.signi_acce, null),
+        signi_facedown_attached: clearSlot(f.signi_facedown_attached, null),
+      },
+    },
+    removed,
+  };
+}
+
+/**
+ * 🆕**シグニゾーンの「シグニではないカード」1枚だけを抜く**（2026-09-12・§5.3 `O-313`・`WXK08-024-E2`）。
+ * どのスロットに居るかを自分で探す（呼び出し側はカード instanceId だけを持てばよい）。
+ * ⚠見つからなければ `ok:false` で state を変えない（fail-closed）。
+ */
+export function pluckSigniZoneNonSigniCard(state: PlayerState, cardNum: string): { state: PlayerState; ok: boolean } {
+  const f = state.field;
+  const single = (['facedown_signi', 'signi_traps', 'signi_magic_boxes', 'signi_seeds', 'signi_charms'] as const);
+  for (const key of single) {
+    const arr = f[key];
+    const idx = arr?.findIndex(v => v === cardNum) ?? -1;
+    if (arr && idx >= 0) {
+      const next = [...arr]; next[idx] = null;
+      return { state: { ...state, field: { ...f, [key]: next } }, ok: true };
+    }
+  }
+  const multi = (['signi_acce', 'signi_facedown_attached'] as const);
+  for (const key of multi) {
+    const arr = f[key];
+    const idx = arr?.findIndex(slot => (slot ?? []).includes(cardNum)) ?? -1;
+    if (arr && idx >= 0) {
+      const next = [...arr];
+      const rest = (next[idx] ?? []).filter(v => v !== cardNum);
+      next[idx] = rest.length > 0 ? rest : null;
+      return { state: { ...state, field: { ...f, [key]: next } }, ok: true };
+    }
+  }
+  // 下敷き（最上面より下）。最上面は「シグニ」なので対象外＝BOUNCE へ委譲する側が扱う。
+  const zIdx = f.signi.findIndex(stack => (stack ?? []).slice(0, -1).includes(cardNum));
+  if (zIdx >= 0) {
+    const nextSigni = [...f.signi];
+    nextSigni[zIdx] = (f.signi[zIdx] ?? []).filter((v, i, a) => !(v === cardNum && i < a.length - 1));
+    return { state: { ...state, field: { ...f, signi: nextSigni } }, ok: true };
+  }
+  return { state, ok: false };
+}
+
 /** CountFromZone の唯一の解決器。動的対象上限と動的 action 枚数の双方が同じ盤面定義を使う。 */
 /**
  * 🆕**「そのゾーンの状態」を指す `TargetFilter` の語彙**（§5.3 `O-280`・2026-09-08）。
@@ -416,6 +522,11 @@ export function countFromZone(
     : fromZone.distinctBy === 'name'
     ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.CardName ?? '')
       .filter(name => name !== '')).size
+    // 🆕`'color'`＝**持つ色の種類数**（§5.3 `O-312`・`WXEX2-81-E2`「＜天使＞のシグニが持つ色の種類」）。
+    //   多色カードは全色を数える（`splitColors`）＝`無`（無色）は色として数えない。
+    : fromZone.distinctBy === 'color'
+    ? new Set(matchedCards.flatMap(cardNum => splitColors(cardMap.get(getCardNum(cardNum))?.Color ?? ''))
+      .filter(color => color !== '' && color !== '無')).size
     : matchedCards.length;
   const matched = fromZone.maxCount === undefined ? rawMatched : Math.min(rawMatched, Math.max(0, fromZone.maxCount));
   // unitSize<=0 は無制限・既定1へ倒さず fail-closed。既存 per は乗数のまま維持する。
@@ -2607,6 +2718,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (cond.filter) return filteredNames.length > 0;
       return artsSt.turn_arts_used === true;
     }
+    case 'ARTS_USED_COUNT_NE_DECLARED': {
+      // 🆕§5.3 `O-314`（2026-09-12・`WXK02-002-E3`）＝アーツ使用回数 ≠ 宣言値。
+      // ⚠**宣言が無ければ false**（fail-closed）＝宣言を経ていない経路で相手を敗北させない。
+      const declared = ctx.ownerState.declared_number;
+      if (typeof declared !== 'number' || !Number.isFinite(declared)) return false;
+      return (st(cond.owner).turn_arts_used_names ?? []).length !== declared;
+    }
     case 'NO_OTHER_ARTS_USED_THIS_TURN':
       return (ctx.ownerState.turn_arts_used_names ?? []).filter(name => name !== cond.exceptCardName).length === 0;
     case 'SPELL_USED_THIS_TURN': {
@@ -4144,6 +4262,19 @@ export function satisfiesSelectionConstraint(
   if (constraint.same === 'power') {
     const values = cards.map(c => `${c?.Power ?? ''}`);
     if (values.some(v => !/^\d+$/.test(v))) return false;
+    if (new Set(values).size !== 1) return false;
+  }
+  // 🆕`same:'ability'`＝「**能力が同じ**シグニN枚」（§5.3 `O-312`・`WXK05-029-E3`）。
+  // 比較は `EffectText`＋`LifeBurst`＋`BurstText` の正規化文字列（空白と全角空白を落とす）。
+  // ⚠**能力を持たない札（空／`-`）は不成立**へ倒す（fail-closed）＝バニラ4枚を通さない。
+  if (constraint.same === 'ability') {
+    const norm = (c: CardData | undefined): string => {
+      const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
+        .map(t => t.replace(/[\s　]/g, '')).map(t => (t === '-' ? '' : t));
+      return parts.join('');
+    };
+    const values = cards.map(norm);
+    if (values.some(v => v.replace(//g, '') === '')) return false;
     if (new Set(values).size !== 1) return false;
   }
   if (constraint.distinct === 'level') {
