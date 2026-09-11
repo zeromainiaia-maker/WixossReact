@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
-import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
+import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
@@ -2617,11 +2617,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
+      // 🆕`includeLrigs`＝**ゾーン状態つきでもルリグを数える**（2026-09-11・§5.3 `O-319`・
+      //   `WXDi-P14-040-E1`「凍結状態のルリグとシグニが合計3体以上」）。状態は `matchesLrigStateFilter` が見る。
+      //   ⚠3つの評価器（`checkActiveCondition` / `evalConditionForContinuous` / ここ）で必ず揃える。
+      if (cond.includeLrigs
+        || (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf)) {
         for (const fst of fieldStates) {
-          for (const ln of lrigZoneTops(fst.field)) {
-            if (ln && matchesFilter(ctx.cardMap.get(ln), hcifFilter)) matchedNums.push(ln);
-          }
+          lrigZoneTops(fst.field).forEach((ln, li) => {
+            if (!ln || !matchesFilter(ctx.cardMap.get(ln), hcifFilter)) return;
+            if (cond.includeLrigs && !matchesLrigStateFilter(fst, li, cond.filter)) return;
+            matchedNums.push(ln);
+          });
           // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
           // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
           const key = fst.field.key_piece;

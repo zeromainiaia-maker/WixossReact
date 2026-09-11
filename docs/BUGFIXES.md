@@ -1,5 +1,84 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-316`／`O-319` をクローズ・`O-320` 4→1＝「ルリグ側がセンター固定」族を3項目まとめて（9効果）
+
+**着手の形**＝索引 G の3項目は同じ族（PLAN §1 の「次の一手」②）だったので**横断で1バッチにした**。
+🔑**固定費（探索・full gates・簿記）はバッチ回数に比例し、効果数には比例しない**（§2.6）。
+
+### 🔴登録票の前提が2つとも誤っていた（実測で確定）
+
+| 登録票の主張 | 実測 | 結論 |
+|---|---|---|
+| 「レベル３のルリグ１体を対象」＝センター＋アシストから選ぶ軸が無い | **全6,712枚にレベル3のアシストルリグは1枚も無い**（アシストはレベル1が118枚／レベル2が222枚だけ） | **センター固定が正しい**＝新機構は不要（`O-316`・`O-320` の各1件） |
+| `UP.targetsTriggerSource` はシグニ専用でアタックしたアシストルリグを扱えない | `effectExecutor.execUp` は**第251バッチで LRIG 分岐（center/左右アシスト）を実装済み**。`REMOVE_ABILITIES` も `lrigZoneTops` を見る | **既に配線済み**（`WXDi-P03-035-E1`） |
+
+⇒ **この族に残っていた真の穴は `allFieldLrigs` が MANUAL 6効果へ届いていなかったこと**だけだった（§6.4 `O-39` の収穫マージ凍結）。
+
+### 修正1：`LRIG_LEVEL.allFieldLrigs` が MANUAL 6効果に届いていなかった（`O-316` / `O-319`）
+
+- 原文「【使用条件】【チーム】＜X＞**＆全員レベル１以上**」＝母集団 **8効果**。AUTO の2件（`WXDi-D07-011-E1` / `WXDi-P16-002-E1`）は
+  parser が `allFieldLrigs:true` を出していて正しく、**MANUAL の6件だけが `LRIG_LEVEL{gte 1}`＝センターしか見ない**まま凍っていた。
+- さらに `WXDi-D03-011` / `-D05-011` / `-D06-011` / `-D04-011` は、過去バッチで「レベル3のルリグを対象」を使用条件へ足したときに
+  🔴**`LRIG_LEVEL{gte 1}` を `gte 3` へ「置き換えて」おり、「＆全員レベル１以上」が丸ごと消えていた**（原文は別々の2条件）。
+- 修正＝`manualEffects.ts` の6効果に `allFieldLrigs:true` を足し、上記4件は **AND で2本並べる**形へ戻した → `syncManualLive.ts` で live へ。
+- 🔑**受け皿（`allFieldLrigs`）は3評価器とも実装済み**＝engine 変更ゼロ。
+
+### 修正2：「凍結状態の**ルリグとシグニ**が合計3体以上」（`O-319` `WXDi-P14-040-E1`）
+
+- 🔴**parser にこの文型の規則が無く、条件が丸ごと落ちて無条件発火**していた（相手が誰も凍っていなくても《無》×3 で【アサシン】が取れた）。
+- 🔑**死角の理由**＝`HAS_CARD_IN_FIELD` のルリグゾーン走査は `isFrozen` 等が付いていると**まるごとスキップ**する（ゾーン状態が
+  `field.signi_frozen[zi]` にしか無かったため＝正しい防御）。だが凍結は**ルリグにも起きる**（`field.lrig_frozen` /
+  `assist_lrig_{l,r}_frozen`）ので、この原文は**シグニ側にもルリグ側にも乗らなかった**。
+- 修正＝`HAS_CARD_IN_FIELD.includeLrigs` を新設（型2箇所）＋ `effectEngine.matchesLrigStateFilter`（ルリグ枠の状態フィルタ。
+  **シグニ専用の状態キーが1つでも付いていたら false＝fail-closed**）＋ **3評価器**（`checkActiveCondition` /
+  `evalConditionForContinuous` / `execUtils.evalCondition`）へ配線 ＋ parser 規則1本 ＋ `decompileEffects` の文。
+- ⚠`filter` に `cardType:'シグニ'` を**載せない**（載せるとルリグ側が `matchesFilter` で落ちて合算にならない）＝golden で固定。
+
+### 修正3：「この方法で捨てたシグニのパワーの**半分以下**」（`O-320` `WDK10-015-E1`）
+
+- ⚠**登録票がカード番号の取り違え**（`WXK10-015` のキー配置コストと混同＝`O-290` 同族と書いてあった）。真の穴は別。
+- 🔴旧 live は **フィルタなしの `BANISH`**＝手札を捨てなくても、どんな高パワーのシグニでも落とせる過剰効果だった。
+- 修正＝`TargetFilter.powerLteLastProcessedHalf` を新設（`resolveDynamicFilter` で `powerRange.max = pw/2` へ解決）＋ `parserUtils` の規則1本。
+- ⚠**参照不能なら空ヒット（fail-closed）**＝既存 `powerLteLastProcessed` の fail-open を真似ると「捨てなかった＝制限なし」に化ける。
+
+### 修正4：`WXEX2-13-E1` のデッキ検索が丸ごと無かった（`O-320`）
+
+- 🔴旧 live は `SEQUENCE[SHUFFLE_DECK, STUB{TRIGGER_LIFE_BURST}]`＝検索が無いので `TRIGGER_LIFE_BURST` が `lastProcessedCards` 不在で
+  `?? ctx.sourceCardNum` へ落ち、**効果元シグニ自身の【ライフバースト】を撃っていた**。
+- 🔑**受け皿は全部在った**＝`SEARCH{from:deck, filter:{hasLifeBurst}}` は `WD06-018-BURST` / `WX16-Re08-E1` が既に使っており、
+  `resumeSearch` は選んだカードを `lastProcessedCards` へ載せてから `then` を実行する＝`STUB{TRIGGER_LIFE_BURST}` にそのまま繋がる。
+  ⇒ **engine 変更ゼロ**で `manualEffects.ts` に1枚（母集団1＝速いレーン）。golden は E2E（`field.check` が検索結果になる）で固定。
+- ⚠登録票が指していた `STUB{TRAP_OPERATION,trapOp:'to_check'}` の `trapSource` 拡張は**不要だった**（別経路）。
+- ⚠**デッキから抜かないのは族に合わせた意図的な据置**＝`TRIGGER_LIFE_BURST` は `field.check` へ載せるだけで元ゾーンから除かない
+  （`WX13-032-E2` / `WXEX1-11-E2` も同じ形）。ここだけ抜くと族の中で挙動が割れる。
+
+### 修正5：`SPDi43-22-E1` の真バグ2件（`O-320`。登録票の「本体は正しい」は誤り）
+
+1. 🔴**parser の catch-all が条件節を飲み込んでカード名を捨てていた**＝`parseSentencePart4.ts` の
+   `/場に《.+》がいる場合.*色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/` → `STUB{DECLARE_COLOR_COND_ENERGY_TRASH}`。
+   engine 側もカード名を見ないので、**《VOGUE3-EXTREMEサンガ》が場に居なくても発動**する過剰発火だった。
+   修正＝正規表現から条件節を外し、先頭条件節は `tryWrapLeadingStateCond` が `CONDITIONAL{HAS_CARD_IN_FIELD{cardName}}` で包む形へ。
+   併せて `effectExecutor` の任意コスト先取り `OPT_IDS_WRAP` にこの STUB を追加＝**ゲート不成立のとき「そうした場合」の本体もスキップ**する
+   （足さないと条件を満たさなくても【シャドウ】が付く＝同分岐のコメント (b) そのものに戻る）。
+2. 🔴**`INTERNAL_DCCE_TRASH_COLOR` が宣言色を `declared_color` へ刻んでいなかった**（`INTERNAL_SET_DECLARED_COLOR` は刻む＝**この経路だけ**）。
+   そのため【シャドウ:{"declaredColor":true}】の判定（`utils/keywords.ts` の `scope.declaredColor`）が**常に false**＝
+   **シャドウが一度も効かない恒久 no-op**だった。修正＝宣言を先に state へ刻む（原文は「色1つを宣言し、〜置いてもよい」＝
+   宣言が先なので**エナ不在で早期 return する枝でも刻む**）。
+- ⚠**残る1点**＝「**追加で宣言した色を得る**」＝シグニ側に追加色の state ストアが無く（`lrig_extra_colors` はあるが
+  `collectFieldSigniExtraColors` は `effectsMap` 走査で決める形）、期限 `UNTIL_OPP_TURN_END` の掃除も要る＝`O-320` に残す。
+
+### 影響枚数・検証
+
+- **9効果 / 9カード**（`WXDi-D01-011` `WXDi-D02-19LAT` `WXDi-D03-011` `WXDi-D04-011` `WXDi-D05-011` `WXDi-D06-011` `WXDi-P14-040`
+  `WDK10-015` `WXEX2-13` `SPDi43-22`）。
+- 検証＝`npm run gates`（全緑）／`npm run golden -- --only "O-319"` `--only "O-320"`／`npm run regen` の逆翻訳を9件とも目視。
+- **反転確認あり**＝`includeLrigs` なしでは同じ盤面でルリグを数えない／`powerLteLastProcessedHalf` は参照不能で空ヒット／
+  `WXEX2-13-E1` は `field.check` が効果元自身にならない、を golden で両方向に固定。
+- 🆕**golden の罠を1つ踏んだ**＝`findCard` は **CardNum（string）** を返すのに `.CardNum` を生やしてしまい、`undefined` が黙って通った。
+  `npm run typecheck` は `scripts/` を見ない（CLAUDE.md・`O-147`）ので**golden を実際に走らせるまで気づけない**。テストにコメントで残した。
+- **実機不要**（`src/screens/` は未変更。触ったのは `src/types/` `src/engine/` `src/data/` `scripts/` ＋ `public/data/`＝PLAN §2.2 の機械判定）。
+  ⚠ただし `includeLrigs` は**新しい条件キー**なので、3評価器の一致を golden で担保した。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-308` をクローズ＝【自】の発動条件が丸ごと落ちていた5効果＋`evalCondition` の状態フィルタ素通り3効果（第279バッチ・実機 `V-197`）
 
 | 効果 | 原文の条件 | 旧 live | 🔴実害 |

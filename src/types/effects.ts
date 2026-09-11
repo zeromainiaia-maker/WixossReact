@@ -269,7 +269,7 @@ export type ActiveCondition =
   // 🆕`negate`（2026-09-05・§5.3 `O-238`）＝`Condition` 側にだけ在って**この `ActiveCondition` 側に無かった**。
   //   「あなたの場に他にシグニがないかぎり」（`WXDi-P01-040-E1`）の受け皿。両評価器（`checkActiveCondition` /
   //   `evalConditionForContinuous` / `execUtils.evalCondition`）に実装済み。
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean }
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean; includeLrigs?: boolean }
   | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // シグニゾーンに裏向きの【トラップ】がある／ない。🆕minCount（2026-08-31・Condition 側と対で更新）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner; operator?: CompareOp; value?: number }
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist'; filter?: TargetFilter /* 🆕O-308④ 合計に数えるシグニを絞る（target:'signi' 専用） */ }
@@ -524,7 +524,7 @@ export type Condition =
   //   （`WX25-CP1-020-E2` 3/7枚・`WXDi-P16-012-E3` 5枚）。本文の直前ステップを見る `LAST_PROCESSED_COUNT_GTE`
   //   とは参照先が違う（あちらは効果の実行結果・こちらはコスト支払い＝`last_cost_trashed_cards`）。
   | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number; distinctColors?: boolean }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean; includeLrigs?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
   | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // field.signi_traps の存在条件。negate=true は「場に【トラップ】がない場合」。🆕minCount＝「【トラップ】がN枚以上ある場合」（省略=1・2026-08-31 `WX20-040-E2`）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist'; filter?: TargetFilter /* 🆕O-308④ 合計に数えるシグニを絞る（target:'signi' 専用） */ }
@@ -1719,6 +1719,14 @@ export interface TargetFilter {
   levelLteHandCount?: boolean; // レベルが効果使用者の現在の手札枚数以下。0枚なら level.max=0
   levelLteUnderSelfCount?: boolean; // レベルが効果元シグニの下にあるカード枚数以下。効果元不在は空ヒット、0枚なら level.max=0
   powerLteLastProcessed?: boolean; // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー以下 → powerRange.max に解決（「ダウンしたそのシグニのパワー以下」WD04-018）
+  /**
+   * パワーが直前に処理したシグニ（`lastProcessedCards[0]`）の実効パワーの**半分以下** → `powerRange.max` に解決。
+   * 「パワーが**この方法で捨てたシグニのパワーの半分以下**の対戦相手のシグニ」（`WDK10-015-E1`・§5.3 `O-320`）。
+   * 🔑既存 `powerLteSelfHalf` は**効果元自身**のパワー基準＝この札の「捨てた札」基準には使えない。
+   * ⚠**参照不能なら空ヒット（fail-closed）**＝捨てなかったターンに「どの相手シグニでもバニッシュ」へ化けない
+   *   （`powerLteLastProcessed` は fail-open でフィルタごと落ちる。こちらは `powerLtLastProcessed` と同じ向き）。
+   */
+  powerLteLastProcessedHalf?: boolean;
   powerLtLastProcessed?: boolean;  // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー未満 → powerRange.max:N-1 に解決（「その後、そのシグニよりパワーの低い」＝場に出たシグニ基準。参照不能なら空ヒット。WXDi-P08-031）
   levelLteLastProcessed?: boolean; // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル以下 → level.max に解決（「この方法で場に出たシグニのレベル以下」WX25-P1-039 等）
   levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）

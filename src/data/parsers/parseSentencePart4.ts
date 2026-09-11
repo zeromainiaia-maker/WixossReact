@@ -2289,8 +2289,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // 🔴従来ここに `CONDITIONAL_POWER_BONUS` へ落とす行があった＝**コメントは正しい意味を書いているのに
   //   受け皿がパワー修正の catch-all** なので、原文どおりの節が丸ごと無言 no-op だった（`WX26-CP1-057-E2`）。
 
-  // ---- 場に《X》がいる場合、色を宣言し、エナゾーンから宣言した色を持つカードをトラッシュに置いてもよい ----
-  if (t.match(/場に《.+》がいる場合.*色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/))
+  // ---- 色を宣言し、エナゾーンから宣言した色を持つカードをトラッシュに置いてもよい ----
+  // 🔴🆕**2026-09-11（§5.3 `O-320`）＝正規表現から「場に《X》がいる場合」を外した。**
+  //   旧規則は `場に《.+》がいる場合.*色.*宣言し…` と**条件節ごと飲み込んでカード名を捨てて**おり、
+  //   engine 側（`execStubPart2.ts` の `DECLARE_COLOR_COND_ENERGY_TRASH`）も条件を評価しないので、
+  //   `SPDi43-22-E1` は《VOGUE3-EXTREMEサンガ》が場に居なくても発動する**過剰発火**だった。
+  //   外したことで先頭条件節は `tryWrapLeadingStateCond` が `CONDITIONAL{HAS_CARD_IN_FIELD}` で包む
+  //   （＝「そうした場合」の本体ごとゲートに入る）。⚠live 母集団はこの1効果だけ（実測）。
+  if (t.match(/色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/))
     return { type: 'STUB', id: 'DECLARE_COLOR_COND_ENERGY_TRASH' } as StubAction;
 
   // ---- 手札から白/赤/青/緑/黒のカードをN枚捨ててもよい ----

@@ -361,6 +361,7 @@ function filterJa(f?: any): string {
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');
+  if (f.powerLteLastProcessedHalf) parts.push('パワーがこの方法で処理したシグニのパワーの半分以下の');
   if (f.levelLteHandDiff) parts.push('あなたと対戦相手の手札の枚数の差以下のレベルを持つ');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
@@ -1078,6 +1079,12 @@ function condJa(c?: any): string {
         const inner = condJa({ ...c, negate: undefined });
         return inner.endsWith('いる') ? `${inner.slice(0, -2)}いない`
           : inner.endsWith('ある') ? `${inner.slice(0, -2)}ない` : `${inner}ではない`;
+      }
+      // 🆕`includeLrigs`＝ルリグ枠とシグニ枠の**合算**（2026-09-11・§5.3 `O-319`）。
+      //   ⚠既定の枝は filter に cardType が無いと「シグニ」を補って出すので、**合算だと嘘になる**＝先に畳む。
+      if (c.includeLrigs) {
+        const stateJa = c.filter?.isFrozen ? '凍結状態の' : c.filter?.isDown ? 'ダウン状態の' : c.filter?.isUp ? 'アップ状態の' : '';
+        return `${ownerJa(c.owner)}場に${stateJa}ルリグとシグニが合計${numJa(c.minCount ?? 1)}体以上いる`;
       }
       // 「場に《X》がいる」（X はルリグ名等の特定カード名）＝名前のみのフィルタは「シグニ」を付けない
       if (c.filter?.cardName && !c.filter?.cardType && !c.filter?.story && !c.filter?.color)

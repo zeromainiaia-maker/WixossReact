@@ -981,21 +981,30 @@ export function execStubPart2(
     });
   }
   // INTERNAL_DCCE_TRASH_COLOR: 宣言色のエナ1枚をトラッシュ
+  // 🔴🆕**2026-09-11（§5.3 `O-320`）＝宣言した色を `declared_color` へ刻むようにした。**
+  //   それまで**この経路だけが宣言を state に残していなかった**（`INTERNAL_SET_DECLARED_COLOR` は刻む）。
+  //   結果、`SPDi43-22-E1` の【シャドウ:{"declaredColor":true}】は `protectedOwnerState.declared_color` が
+  //   常に undefined ＝ `keywords.ts:427` が必ず false を返し、**シャドウが一度も効かない恒久 no-op**だった。
+  //   ⚠刻むのは**エナを捨てられたときだけではない**＝原文は「色1つを宣言し、〜置いてもよい」＝
+  //     宣言は先に確定する。だからエナ不在で早期 return する枝でも先に刻む。
   if (stub.id === 'INTERNAL_DCCE_TRASH_COLOR') {
     const colorDCCE = typeof stub.value === 'string' ? stub.value : '';
-    const matchingDCCE = ctx.ownerState.energy.filter(cn => {
-      const c = ctx.cardMap.get(cn);
+    const declaredCtxDCCE: ExecCtx = colorDCCE
+      ? { ...ctx, ownerState: { ...ctx.ownerState, declared_color: colorDCCE } }
+      : ctx;
+    const matchingDCCE = declaredCtxDCCE.ownerState.energy.filter(cn => {
+      const c = declaredCtxDCCE.cardMap.get(cn);
       return c?.Color?.includes(colorDCCE) ?? false;
     });
-    if (matchingDCCE.length === 0) return done(addLog(ctx, `${colorDCCE}エナなし`));
+    if (matchingDCCE.length === 0) return done(addLog(declaredCtxDCCE, `${colorDCCE}を宣言（${colorDCCE}エナなし）`));
     if (matchingDCCE.length === 1) {
       const cn = matchingDCCE[0];
-      const newOwnerDCCE: PlayerState = { ...ctx.ownerState, energy: ctx.ownerState.energy.filter(c => c !== cn), trash: [...ctx.ownerState.trash, cn] };
-      return done(addLog({ ...ctx, ownerState: newOwnerDCCE }, `${colorDCCE}エナ→トラッシュ`));
+      const newOwnerDCCE: PlayerState = { ...declaredCtxDCCE.ownerState, energy: declaredCtxDCCE.ownerState.energy.filter(c => c !== cn), trash: [...declaredCtxDCCE.ownerState.trash, cn] };
+      return done(addLog({ ...declaredCtxDCCE, ownerState: newOwnerDCCE }, `${colorDCCE}を宣言／${colorDCCE}エナ→トラッシュ`));
     }
     return selectOrInteract(matchingDCCE, 1, false, 'self_energy',
       ({ type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 1 } } as TrashAction) as EffectAction,
-      undefined, addLog(ctx, `${colorDCCE}エナを1枚選んでトラッシュ`));
+      undefined, addLog(declaredCtxDCCE, `${colorDCCE}を宣言／${colorDCCE}エナを1枚選んでトラッシュ`));
   }
   // TRASHED_CARD_TO_HAND_OR_ENERGY → 手札選択後処理
   if (stub.id === 'INTERNAL_TRASH_TO_HAND') {

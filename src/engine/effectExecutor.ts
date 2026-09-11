@@ -3844,6 +3844,22 @@ function resolveDynamicFilter(
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw } }
       : rest;
   }
+  // 🆕`powerLteLastProcessedHalf`（2026-09-11・§5.3 `O-320`・`WDK10-015-E1`）＝
+  //   「パワーが**この方法で捨てたシグニのパワーの半分以下**の対戦相手のシグニ」。
+  //   🔴従来この語彙が無く live は**フィルタなしの `BANISH`**＝手札を捨てなくても／どれだけパワーが高くても
+  //     相手シグニ1体をバニッシュできる過剰効果だった。
+  //   ⚠**参照不能なら空ヒット（fail-closed）**＝`powerLteLastProcessed` の fail-open を真似ると
+  //     「捨てなかった＝制限なし」に化ける（この札が壊れていた形そのもの）。
+  //   ⚠`Math.floor` は掛けない＝`powerLteSelfHalf` と同じく `max: pw / 2` の閉区間で比較する
+  //     （パワーは1000刻みなので端数は出ないが、判定式を2つにしない）。
+  if (result.powerLteLastProcessedHalf) {
+    const { powerLteLastProcessedHalf: _plph, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const pw = ref ? (effectivePowers?.get(ref) ?? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '0', 10)) : undefined;
+    result = (pw !== undefined && !isNaN(pw))
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw / 2 } }
+      : { ...rest, powerRange: { min: 1, max: 0 } };
+  }
   // powerLtLastProcessed: 直前に処理したシグニ（場に出た/公開した＝lastProcessedCards[0]）の実効パワー"未満"（「その後、そのシグニよりパワーの低い」）。
   // Lte と異なり、参照不能（配置0体・非シグニ等）なら到達不能 powerRange で空ヒット＝対象なし（「そのシグニ」が存在しないため）。
   if (result.powerLtLastProcessed) {
@@ -6031,7 +6047,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     if (step.type === 'CONDITIONAL') {
       const wrapCond = step as ConditionalAction;
       const wrapStub = wrapCond.then as import('../types/effects').StubAction;
-      const OPT_IDS_WRAP = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+      // 🆕`DECLARE_COLOR_COND_ENERGY_TRASH` を追加（2026-09-11・§5.3 `O-320`・`SPDi43-22-E1`）＝
+      //   parser がこの STUB の catch-all から「場に《X》がいる場合」を外して `CONDITIONAL` へ出したので、
+      //   **ゲート不成立のときに対の「そうした場合」本体（＝【シャドウ】付与）もスキップする**必要がある。
+      //   🔴足さないと「条件を満たさなくても本体が実行される」＝この分岐のコメント (b) そのものに戻る。
+      const OPT_IDS_WRAP = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS',
+        'DECLARE_COLOR_COND_ENERGY_TRASH'];
       if (wrapStub?.type === 'STUB' && OPT_IDS_WRAP.includes(wrapStub.id) && !wrapCond.else) {
         if (evalCondition(wrapCond.condition, cur)) {
           // ゲート成立＝包みを解いて「STUB が直下ステップ」の正準形に直し、Pattern ④/⑤ へ委譲する

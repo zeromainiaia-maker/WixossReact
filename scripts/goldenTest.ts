@@ -52930,6 +52930,148 @@ test('stage2 batch3 E2E: 相手の場に凍結シグニがある場合だけ引�
   eq(run(effect.action, no).ownerState.hand.length, no.ownerState.hand.length, '凍結なし=引かない');
 }));
 
+// ── §5.3 `O-319`（2026-09-11）＝「凍結状態の**ルリグとシグニ**が合計N体以上」＝`HAS_CARD_IN_FIELD.includeLrigs` ──
+// 🔴従来この文型の規則が無く**条件が丸ごと落ちて無条件発火**していた（相手が誰も凍っていなくても
+//   《無》×3 の任意コストで【アサシン】が取れた）。既定のルリグ走査は `isFrozen` 付きだと丸ごとスキップする
+//   ＝シグニ側にもルリグ側にも乗らない死角だった。
+test('O-319: WXDi-P14-040-E1 は凍結ルリグ＋シグニの合計で発動条件を判定する', () => {
+  const eff = (effectsMap.get('WXDi-P14-040') ?? []).find(e => e.effectId === 'WXDi-P14-040-E1');
+  ok(!!eff, 'WXDi-P14-040-E1 live effect');
+  const step0 = (eff?.action as { steps?: Array<Record<string, unknown>> })?.steps?.[0] as
+    { type?: string; condition?: { type?: string; includeLrigs?: boolean; minCount?: number; filter?: { isFrozen?: boolean; cardType?: string } }; then?: { id?: string } };
+  eq(step0?.type, 'CONDITIONAL', '任意コストが条件で包まれている（無条件発火ではない）');
+  eq(step0?.then?.id, 'OPTIONAL_COST', '包まれているのは任意コスト');
+  eq(step0?.condition?.type, 'HAS_CARD_IN_FIELD', '');
+  eq(step0?.condition?.includeLrigs, true, 'ルリグ枠も数える');
+  eq(step0?.condition?.minCount, 3, '合計3体以上');
+  eq(step0?.condition?.filter?.isFrozen, true, '凍結状態');
+  eq(step0?.condition?.filter?.cardType, undefined, '⚠cardType:シグニ を載せるとルリグ側が落ちて合算にならない');
+});
+
+// `includeLrigs` の評価器3本（`evalCondition` / `checkActiveCondition` / `evalConditionForContinuous`）を
+// 同じ盤面で突き合わせる。⚠片方だけ実装すると同じ盤面で条件の真偽が食い違う（PLAN §4.2 の両評価器規約）。
+test('O-319: includeLrigs はルリグ枠の凍結を数え、シグニ枠と合算する', () => withSavedCursor(() => {
+  const cond = { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { isFrozen: true }, includeLrigs: true, minCount: 3 } as unknown as Condition;
+  // ⚠`findCard` は **CardNum（string）** を返す（CardData ではない）＝`.CardNum` を生やすと undefined に化ける。
+  //   `npm run typecheck` は `scripts/` を見ないので（CLAUDE.md・`O-147`）**golden を実際に走らせるまで気づけない**。
+  const lrigNum = findCard(c => c.Type === 'ルリグ');
+  const assistNum = findCard(c => c.Type === 'アシストルリグ');
+  const mkFrozen = (signiFrozen: boolean[], lrigF: boolean, lF: boolean, rF: boolean): ExecCtx => {
+    const ctx = mkCtx({ signi: [fresh(), null, null] }, { signi: [fresh(), fresh(), fresh()] }, undefined);
+    ctx.otherState.field.signi_frozen = signiFrozen;
+    ctx.otherState.field.lrig = [lrigNum];
+    ctx.otherState.field.assist_lrig_l = [assistNum];
+    ctx.otherState.field.assist_lrig_r = [assistNum];
+    ctx.otherState.field.lrig_frozen = lrigF;
+    ctx.otherState.field.assist_lrig_l_frozen = lF;
+    ctx.otherState.field.assist_lrig_r_frozen = rF;
+    return ctx;
+  };
+  // シグニ2体＋アシスト1体＝3体で成立／シグニ2体だけ（ルリグ非凍結）では不成立＝ルリグ分が効いている。
+  const hit = mkFrozen([true, true, false], false, true, false);
+  const miss = mkFrozen([true, true, false], false, false, false);
+  eq(evalCondition(cond, hit), true, '凍結シグニ2＋凍結アシスト1＝3体で成立');
+  eq(evalCondition(cond, miss), false, '凍結シグニ2体だけなら不成立');
+  // センタールリグの凍結も1体として数える。
+  eq(evalCondition(cond, mkFrozen([true, true, false], true, false, false)), true, 'センタールリグの凍結も数える');
+  // ⚠`includeLrigs` が無ければルリグ枠は `isFrozen` 付きで走査されない（既定の防御が生きている）。
+  const bare = { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { isFrozen: true }, minCount: 3 } as unknown as Condition;
+  eq(evalCondition(bare, hit), false, 'includeLrigs なしではルリグを数えない（既定の防御）');
+}));
+
+// ── §5.3 `O-320`（2026-09-11）＝「この方法で捨てたシグニのパワーの**半分以下**」＝`powerLteLastProcessedHalf` ──
+// 🔴従来この語彙が無く live の `BANISH` は**フィルタなし**＝手札を捨てなくても、相手のどんな高パワーシグニでも
+//   バニッシュできる過剰効果だった。基準は効果元自身ではなく**直前に捨てた札**（`powerLteSelfHalf` では書けない）。
+test('O-320: WDK10-015-E1 のバニッシュは「捨てたシグニのパワーの半分以下」に絞られる', () => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WDK10-015-E1');
+  ok(!!eff, 'WDK10-015-E1 live effect');
+  const banish = (eff?.action as { steps?: Array<{ type?: string; target?: { filter?: TargetFilter } }> })?.steps?.[1];
+  eq(banish?.type, 'BANISH', '');
+  eq(banish?.target?.filter?.powerLteLastProcessedHalf, true, 'パワー上限フィルタが載る（無制限バニッシュではない）');
+});
+
+test('O-320: powerLteLastProcessedHalf は直前に捨てた札の半分で絞り、参照不能なら空ヒット', () => withSavedCursor(() => {
+  // ⚠動的フィルタは `matchesFilter` では判定できない（`resolveDynamicFilter` が実行時に解決する）＝
+  //   **盤面を作って実行し、誰がバニッシュされたかを見る**（既存の動的フィルタ群と同じ確かめ方）。
+  const refNum = findCard(c => isSigni(c) && c.Power === '12000');
+  const lowNum = findCard(c => isSigni(c) && c.Power === '3000');
+  const highNum = findCard(c => isSigni(c) && c.Power === '12000' && c.CardNum !== refNum);
+  const banish = {
+    type: 'BANISH',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerLteLastProcessedHalf: true } },
+  } as unknown as EffectAction;
+  const mk = (withRef: boolean): ExecCtx => {
+    const ctx = mkCtx({ signi: [fresh(), null, null] }, { signi: [lowNum, highNum, null] }, undefined);
+    ctx.lastProcessedCards = withRef ? [refNum] : [];
+    return ctx;
+  };
+  // 基準12000 → 半分6000以下は lowNum(3000) だけ＝候補1体なので選択を挟まず確定する。
+  const hit = run(banish, mk(true));
+  const survivors = hit.otherState.field.signi.map(st => st?.at(-1) ?? null);
+  ok(!survivors.includes(lowNum), 'パワー3000（12000の半分以下）はバニッシュされる');
+  ok(survivors.includes(highNum), 'パワー12000（半分を超える）は残る');
+  // 捨てていない＝参照不能なら候補0（fail-closed）＝盤面は1体も動かない。
+  const miss = run(banish, mk(false));
+  const afterMiss = miss.otherState.field.signi.map(st => st?.at(-1) ?? null);
+  ok(afterMiss.includes(lowNum) && afterMiss.includes(highNum),
+    '⚠捨てていないターンは空ヒット（fail-closed）＝無制限バニッシュに化けない');
+}));
+
+// ── §5.3 `O-320`（2026-09-11）＝`SPDi43-22-E1` の2つの真バグ ──
+// ①parser の catch-all `DECLARE_COLOR_COND_ENERGY_TRASH` が「場に《X》がいる場合」を**飲み込んで捨てて**おり、
+//   engine 側も条件を見ないので《VOGUE3-EXTREMEサンガ》不在でも発動する過剰発火だった。
+// ②`INTERNAL_DCCE_TRASH_COLOR` が宣言色を `declared_color` へ刻んでおらず、【シャドウ:{declaredColor}】の
+//   判定（`keywords.ts` の `scope.declaredColor`）が**常に false**＝シャドウが一度も効かない恒久 no-op だった。
+test('O-320: SPDi43-22-E1 の宣言＋エナトラッシュは《X》が場にいる条件で包まれる', () => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'SPDi43-22-E1');
+  ok(!!eff, 'SPDi43-22-E1 live effect');
+  const step0 = (eff?.action as { steps?: Array<Record<string, unknown>> })?.steps?.[0] as
+    { type?: string; condition?: { type?: string; filter?: { cardName?: string } }; then?: { id?: string } };
+  eq(step0?.type, 'CONDITIONAL', '条件で包まれている（無条件発火ではない）');
+  eq(step0?.condition?.type, 'HAS_CARD_IN_FIELD', '');
+  eq(step0?.condition?.filter?.cardName, 'VOGUE3-EXTREMEサンガ', '原文のカード名が落ちていない');
+  eq(step0?.then?.id, 'DECLARE_COLOR_COND_ENERGY_TRASH', '包まれているのは宣言＋エナトラッシュ');
+});
+
+test('O-320: INTERNAL_DCCE_TRASH_COLOR は宣言色を declared_color へ刻む', () => withSavedCursor(() => {
+  const redEnergy = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const ctx = mkCtx({ signi: [fresh(), null, null] }, {}, undefined);
+  ctx.ownerState.energy = [redEnergy];
+  const after = run({ type: 'STUB', id: 'INTERNAL_DCCE_TRASH_COLOR', value: '赤' } as unknown as EffectAction, ctx);
+  eq(after.ownerState.declared_color, '赤', '宣言色が state に残る（【シャドウ:declaredColor】の判定元）');
+  ok(!after.ownerState.energy.includes(redEnergy), '宣言色のエナ1枚がトラッシュへ');
+  // ⚠エナが無くても宣言は成立する（原文は「色1つを宣言し、〜置いてもよい」＝宣言が先）。
+  const ctx2 = mkCtx({ signi: [fresh(), null, null] }, {}, undefined);
+  ctx2.ownerState.energy = [];
+  const after2 = run({ type: 'STUB', id: 'INTERNAL_DCCE_TRASH_COLOR', value: '青' } as unknown as EffectAction, ctx2);
+  eq(after2.ownerState.declared_color, '青', 'エナ不在でも宣言は残る');
+}));
+
+// ── §5.3 `O-320`（2026-09-11）＝`WXEX2-13-E1` のデッキ検索が丸ごと無かった ──
+// 🔴旧 live は `SEQUENCE[SHUFFLE_DECK, STUB{TRIGGER_LIFE_BURST}]`＝検索が無いので
+//   `TRIGGER_LIFE_BURST` が `lastProcessedCards` 不在で `?? ctx.sourceCardNum` へ落ち、
+//   **効果元シグニ自身の【ライフバースト】を撃っていた**（原文と無関係なカードが発動する）。
+test('O-320: WXEX2-13-E1 はデッキから LB 持ちを探し、そのカードの LB を撃つ（効果元自身ではない）', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WXEX2-13-E1');
+  ok(!!eff, 'WXEX2-13-E1 live effect');
+  const act = eff?.action as { type?: string; from?: { location?: string }; filter?: TargetFilter; then?: { id?: string }; afterSearch?: { type?: string } };
+  eq(act?.type, 'SEARCH', '検索が消えていない');
+  eq(act?.from?.location, 'deck', 'デッキから探す');
+  eq(act?.filter?.hasLifeBurst, true, '【ライフバースト】を持つカード');
+  eq(act?.filter?.cardType, undefined, '⚠原文は「カード」＝シグニ限定ではない');
+  eq(act?.then?.id, 'TRIGGER_LIFE_BURST', '探したカードの LB を撃つ');
+  eq(act?.afterSearch?.type, 'SHUFFLE_DECK', 'デッキをシャッフルする');
+  // E2E＝検索で選んだカードが `lastProcessedCards` に載って `TRIGGER_LIFE_BURST` へ渡ることを確かめる
+  // （載らないと効果元自身へ落ちる＝直した当のバグ）。
+  const lbCard = findCard(c => isSigni(c) && !!c.LifeBurst && !!c.BurstText);
+  const sourceNum = findCard(c => isSigni(c) && !!c.BurstText && c.CardNum !== lbCard);
+  const ctx = mkCtx({ signi: [sourceNum, null, null] }, {}, sourceNum);
+  ctx.ownerState.deck = [lbCard, ...fill(10)];
+  const after = run(eff!.action, ctx);
+  eq(after.ownerState.field.check, lbCard, '検索で選んだカードの LB が発動する（効果元自身ではない）');
+  ok(after.ownerState.field.check !== sourceNum, '⚠効果元シグニ自身へ落ちていない（旧実装のバグ）');
+}));
+
 // ④「〜がある場合、代わりに」＝置換（従来は条件節が落ちて**2回捨てる**過剰実行だった）。
 test('stage2 batch3: 凍結条件の「代わりに」は then/else の置換になる（WX25-P2-088-E1）', () => {
   const effect = (effectsMap.get('WX25-P2-088') ?? []).find(e => e.effectId === 'WX25-P2-088-E1');

@@ -229,11 +229,16 @@ export function checkActiveCondition(
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
-        if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
-          for (const ln of lrigZoneTops(state.field)) {
+      // 🆕`includeLrigs`＝**ゾーン状態つきでもルリグを数える**（2026-09-11・§5.3 `O-319`・
+      //   `WXDi-P14-040-E1`「凍結状態のルリグとシグニが合計3体以上」）。状態は `matchesLrigStateFilter` が見る。
+        if (cond.includeLrigs
+          || (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf)) {
+          lrigZoneTops(state.field).forEach((ln, li) => {
             const c = ln ? cardMap.get(ln) : undefined;
-            if (ln && matchesFilter(c, cond.filter)) record(ln, c);
-          }
+            if (!ln || !matchesFilter(c, cond.filter)) return;
+            if (cond.includeLrigs && !matchesLrigStateFilter(state, li, cond.filter)) return;
+            record(ln, c);
+          });
         }
       }
       const count = distinctColorSet?.size ?? distinctNameSet?.size ?? distinctLevelSet?.size ?? distinctClassSet?.size ?? matched;
@@ -1242,6 +1247,41 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
   return true;
 }
 
+/**
+ * ルリグ枠（center=0 / assist_l=1 / assist_r=2＝`lrigZoneTops` の並び）の**状態**フィルタ評価。
+ * `matchesStateFilter` のルリグ版で、`HAS_CARD_IN_FIELD.includeLrigs` からだけ呼ぶ。
+ *
+ * 🔴**なぜ要るか**（2026-09-11・§5.3 `O-319`）＝`HAS_CARD_IN_FIELD` のルリグゾーン走査は
+ * `isFrozen`/`crossState`/`isAwakened`/`isPuppet` が付いていると**まるごとスキップ**する。
+ * ゾーン状態が `field.signi_frozen[zi]` などシグニ配列にしか無かったためで、正しい防御だった。
+ * だが凍結は**ルリグにも起きる**（`field.lrig_frozen` / `assist_lrig_{l,r}_frozen`＝
+ * `FREEZE{target:'LRIG'}` が書く）ので、「凍結状態の**ルリグとシグニ**が合計3体以上」
+ * （`WXDi-P14-040-E1`）は**どちらの走査にも乗らず条件が丸ごと落ちていた**＝無条件発火。
+ *
+ * ⚠**シグニ専用の状態キーが1つでも付いていたら `false`（fail-closed）**＝ルリグには意味が無いので
+ * 「素通り＝無条件成立」に倒さない（PLAN §4.2 の穴）。
+ */
+export function matchesLrigStateFilter(state: PlayerState, lrigIdx: number, filter: TargetFilter | undefined): boolean {
+  if (!filter) return true;
+  // ルリグ枠に存在しない概念のゾーン状態＝この枠は該当しない（過剰成立を作らない）。
+  if (filter.crossState !== undefined || filter.isAwakened !== undefined || filter.isPuppet !== undefined
+    || filter.isArmored !== undefined || filter.hasCharm !== undefined || filter.hasAcce !== undefined
+    || filter.hasSoul !== undefined || filter.hasUnderCards !== undefined || filter.hasAttachedOrUnder !== undefined
+    || filter.infected !== undefined || filter.isDrive !== undefined || filter.inGateZone !== undefined
+    || filter.isAttacking !== undefined || filter.adjacentToSelf !== undefined
+    || filter.centerZoneOnly !== undefined || filter.zoneSide !== undefined) return false;
+  const frozen = lrigIdx === 0 ? (state.field.lrig_frozen ?? false)
+    : lrigIdx === 1 ? (state.field.assist_lrig_l_frozen ?? false)
+    : (state.field.assist_lrig_r_frozen ?? false);
+  if (filter.isFrozen !== undefined && filter.isFrozen !== frozen) return false;
+  const down = lrigIdx === 0 ? (state.field.lrig_down ?? false)
+    : lrigIdx === 1 ? (state.field.assist_lrig_l_down ?? false)
+    : (state.field.assist_lrig_r_down ?? false);
+  if (filter.isDown !== undefined && filter.isDown !== down) return false;
+  if (filter.isUp !== undefined && filter.isUp !== !down) return false;
+  return true;
+}
+
 /** active な場レベル grant のうち、現在そのシグニへ適用されるものを返す。filter/zone/condition は毎回評価する。 */
 export function activeFieldGrantsForSigni(
   ownerState: PlayerState,
@@ -1593,6 +1633,19 @@ function evalConditionForContinuous(
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
+      // 🆕`includeLrigs`（§5.3 `O-319`）＝**シグニとルリグを合算して minCount と比べる**。
+      //   ⚠既定のルリグ走査は「1体でも居れば true」の早期 return だが、合算では**件数を足してから**比べる。
+      if (cond.includeLrigs) {
+        let lrigHits = 0;
+        for (const state of hcifStates) {
+          lrigZoneTops(state.field).forEach((ln, li) => {
+            if (!ln || !matchesFilter(cardMap.get(ln), cond.filter)) return;
+            if (!matchesLrigStateFilter(state, li, cond.filter)) return;
+            lrigHits++;
+          });
+        }
+        return matchedNums.length + lrigHits >= (cond.minCount ?? 1);
+      }
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
         return hcifStates.some(state => lrigZoneTops(state.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter)));
       }

@@ -3846,6 +3846,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   isFrozen 状態フィルタ＝execUtils が signi_frozen を走査・実装済）。従来は無条件発火（WXDi-P02-065/071 等）。
   [/(あなた|対戦相手)の場に凍結状態のシグニが([０-９\d]+)体以上ある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isFrozen: true }, minCount: parseNum(g[1]) })],
+  // 🆕「(あなた|対戦相手)の場に凍結状態の**ルリグとシグニ**が合計N体以上いる場合」（2026-09-11・§5.3 `O-319`・
+  //   `WXDi-P14-040-E1`）＝**ルリグ枠とシグニ枠を跨いで合算する**軸。`includeLrigs` が3評価器のルリグ走査を開く。
+  //   ⚠`cardType:'シグニ'` は**載せない**（載せるとルリグ側が matchesFilter で落ちて合算にならない）。
+  //   🔴従来はこの形の規則が無く**条件が丸ごと落ちて無条件発火**していた（相手が誰も凍っていなくても
+  //     《無》《無》《無》の任意コストで【アサシン】が取れた）。
+  [/(あなた|対戦相手)の場に凍結状態のルリグとシグニが合計([０-９\d]+)体以上いる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { isFrozen: true }, includeLrigs: true, minCount: parseNum(g[1]) })],
   // 🆕「(あなた|対戦相手)の場に凍結状態のシグニがある場合」＝上の無冠詞形（1体以上）。2026-08-22 段2 第3バッチ。
   //   従来は**この形の規則だけが無く**、条件が丸ごと落ちて無条件発火の過剰効果だった
   //   （`WXK02-086-E1` のドロー／`WXDi-P09-065-E1` の相手手札公開／`WX25-P2-088-E1` の「代わりに」置換）。

@@ -3,6 +3,24 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
+WXDi-P14-040
+--- WXDi-P14-040
+  原文: 【自】：このシグニがアタックしたとき、対戦相手の場に凍結状態のルリグとシグニが合計３体以上いる場合、《無》《無》《無》を支払ってもよい。そうした場合、ターン終了時まで、このシグニは【アサシン】を得る。【出】：センタールリグではない対戦相手のルリグ１体を対象とし、それを凍結する。【起】《ターン１回》アップ状態のシグニ１体をダウンする：対戦相手のシグニ１体を対象
+  - [0].action.steps[0].id = "OPTIONAL_COST"
+  - [0].action.steps[0].costColors[0] = "無"
+  - [0].action.steps[0].costColors[1] = "無"
+  - [0].action.steps[0].costColors[2] = "無"
+  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[0].condition.owner = "opponent"
+  + [0].action.steps[0].condition.filter.isFrozen = true
+  + [0].action.steps[0].condition.includeLrigs = true
+  + [0].action.steps[0].condition.minCount = 3
+  + [0].action.steps[0].then.type = "STUB"
+  + [0].action.steps[0].then.id = "OPTIONAL_COST"
+  …（他 3 行）
+
 ## （type増減なし＝値/構造変更） ［1枚］
 WXK07-018
 --- WXK07-018
