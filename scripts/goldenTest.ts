@@ -28845,6 +28845,61 @@ test('§5.3 O-325 ①WXK10-056-E2: コストで捨てたシグニと共通する
   ok(none.done, '参照不能時は候補0＝対象選択が起きない（fail-closed）');
 }));
 
+// ═══ §5.3 索引G `O-318`（2026-09-11）＝`PR-305-E1` は「バトルした相手のシグニ」をデッキ下へ置く ═══
+// 原文【自】：あなたのターンの間、このシグニがバトルしたとき、手札を１枚捨ててもよい。そうした場合、
+//   そのバトル終了時に**このシグニがバトルしたそのシグニ**を場から**デッキの一番下**に置く。
+// 🔴旧 live＝`source.owner:'self'`＝**自分のシグニ**をデッキ下へ＝**原文と真逆の自傷**。
+// ⚠🔴**「向きだけ」直すと旧挙動より強い過剰実行になる**（バトルしていない相手シグニまで選べる）＝
+//   `TRANSFER_TO_DECK.targetsTriggerSource` を足して**バトル相手へ固定**した（fail-closed）。
+test('§5.3 O-318: PR-305-E1 はバトル相手だけをデッキの一番下へ置く（自傷ではない）', () => withSavedCursor(() => {
+  const live = (effectsMap.get('PR-305') ?? []).find(e => e.effectId === 'PR-305-E1');
+  ok(!!live, 'PR-305-E1 が live にある'); if (!live) return;
+  const json = JSON.stringify(live.action);
+  ok(json.includes('"owner":"opponent"'), '対象は対戦相手のシグニ（旧 live は self ＝自傷だった）');
+  ok(json.includes('"targetsTriggerSource":true'), 'バトル相手へ固定する（任意の相手シグニを選べない）');
+
+  // engine＝トリガー元（バトル相手）だけが候補になる。対照＝もう1体の相手シグニは候補外。
+  const victim = fresh(); const bystander = fresh();
+  const base = mkCtx({}, { signi: [victim, bystander, null] });
+  const ctx = { ...base, triggeringCardNum: victim } as ExecCtx;
+  const act = { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, targetsTriggerSource: true, shuffle: false, position: 'bottom' } as EffectAction;
+  // ⚠**判定は候補集合で書く**＝候補が必要数ちょうどでも engine は `SELECT_TARGET` を立てる（既定の挙動）。
+  //   「対話が立たないこと」を痕跡にすると engine が正しくても赤くなる（`V-191` と同じ読み違い）。
+  const r = executeAction(act, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '対象選択が立つ');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq([...r.pending.candidates].join(','), victim, '候補はバトル相手だけ（bystander は混ざらない）');
+  // 🔴**fail-closed の対照**＝トリガー元が読めなければ候補0＝1体も選ばせない。
+  //   ここが「絞らない」に倒れると、旧 live（自傷）を直すつもりで**もっと強い過剰実行**になる。
+  const noTrig = executeAction(act, { ...base, triggeringCardNum: undefined, sourceCardNum: undefined } as ExecCtx);
+  ok(noTrig.done, '候補0なので対話は立たない');
+  if (!noTrig.done) return;
+  eq((noTrig.otherState.field.signi.flat().filter(Boolean) as string[]).length, 2, '相手の場は動かない');
+}));
+
+// ═══ §5.3 索引G `O-318`（2026-09-11）＝`WXEX1-72-E2` は1点を与えず、バーストを止めるだけ ═══
+// 原文【出】：このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードの
+//   **ライフバーストは発動しない**。
+// 🔴旧 live＝`LIFE_CRASH{owner:'opponent',count:1,triggerBurst:true}`＝
+//   **「バーストを止める予約」が「ライフを1枚クラッシュする」に化けていた**＝原文に無い1点。
+// 🔑**同じ巡で直した `WX25-P3-032-E2` と完全に同型**＝**予約が、対象の処理そのものに化ける**型。
+//   ⇒ この2本はセットで見張る（片方だけ戻ると同じ壊れ方がもう一度入る）。
+test('§5.3 O-318: WXEX1-72-E2 はライフをクラッシュせず、バーストだけを止める', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WXEX1-72') ?? []).find(e => e.effectId === 'WXEX1-72-E2');
+  ok(!!live, 'WXEX1-72-E2 が live にある'); if (!live) return;
+  const json = JSON.stringify(live.action);
+  ok(!json.includes('"LIFE_CRASH"'), '原文に無いライフクラッシュを持たない');
+  ok(json.includes('"SUPPRESS_LIFE_BURST_ON_CARD"'), 'バースト抑止を宣言する');
+
+  const base = mkCtx({}, {});
+  const lifeBefore = base.otherState.life_cloth.length;
+  const r = executeAction(live.action, base);
+  ok(r.done, '対話を挟まず解決する');
+  if (!r.done) return;
+  eq(r.otherState.life_cloth.length, lifeBefore, '相手のライフは1枚も減らない');
+  eq(r.otherState.suppress_life_burst, true, '相手のライフバーストが抑止される');
+}));
+
 // ═══ §5.3 索引G `O-320`（2026-09-11）＝`WXDi-P05-086` の2文目【常】が丸ごと落ちていた ═══
 // 原文（2文目）【常】：**このカードがデッキかトラッシュにあるかぎり**、あなたの効果１つによってこのカードを
 //   参照する場合、**レベル１のシグニとして扱って**もよい。

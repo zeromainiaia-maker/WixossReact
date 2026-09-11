@@ -7917,6 +7917,14 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     // 任意コスト前に固定した対象だけをデッキへ（タスク12(liii)＝「それのレベル１につき…そうした場合、
     // それをデッキの一番下に置く」。コストのレベル倍率と本体が同じ1体を指す必要がある）
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    // 🆕**§5.3 索引G `O-318`（2026-09-11）＝「そのシグニ」＝トリガー元だけを対象にする**（`PR-305-E1`）。
+    //   🔑`ON_SIGNI_BATTLE` の `triggeringCardNum` には**バトル相手**が入る（`BattleScreen.tsx:11088`）。
+    //   🔴**fail-closed**＝読めなければ候補0。ここを「絞らない」に倒すと**バトルしていない相手シグニまで
+    //   デッキへ送れる**＝旧 live（`owner:'self'` の自傷）を直すつもりで**もっと強い過剰実行**を作ってしまう。
+    if (a.targetsTriggerSource) {
+      const autoTTD = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+      cands = autoTTD ? cands.filter(n => n === autoTTD) : [];
+    }
     if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
     const scope: TargetScope = anyTTD ? anyTTD.scope : src.owner === 'self' ? 'self_field' : 'opp_field';

@@ -3170,6 +3170,14 @@ export interface TransferToDeckAction {
   optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
   opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
   targetsStored?: boolean;            // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象（SIGNI 経路）
+  /**
+   * 🆕「**そのシグニ**」＝トリガー元（`ctx.triggeringCardNum` → `ctx.sourceCardNum`）だけを対象にする
+   * （§5.3 索引G `O-318`・2026-09-11・`PR-305-E1`「このシグニがバトルしたそのシグニを場からデッキの一番下に置く」）。
+   * 🔑`ON_SIGNI_BATTLE` の `triggeringCardNum` には**バトル相手**が入る（`BattleScreen.tsx:11088`）。
+   * 🔴**fail-closed**＝トリガー元が読めなければ候補0。ここを「絞らない」に倒すと
+   *   **バトルしていない相手シグニまでデッキへ送れる**新しい過剰実行になる。
+   */
+  targetsTriggerSource?: boolean;
   fixedCardNums?: string[];           // インタラクション生成時に固定済みの対象instanceId
   /**
    * 🆕**置く順番を対戦相手が決める**（2026-09-01 続き760・`WXDi-P09-002-E1`

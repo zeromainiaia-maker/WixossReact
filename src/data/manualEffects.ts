@@ -5232,9 +5232,33 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     // 「そのレゾナ」＝出現条件で今場に出た＜宇宙＞レゾナ。全シグニ保護ではない。
     {"effectId":"WXEX1-58-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"from":["ルリグ"],"sourceOwner":"opponent","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"宇宙","fromZones":["field"]}}
   ],
+  // 🆕§5.3 索引G `O-318`（2026-09-11）／ PR-305 ＝原文【自】：あなたのターンの間、このシグニがバトルしたとき、
+  //   手札を１枚捨ててもよい。そうした場合、そのバトル終了時に**このシグニがバトルしたそのシグニ**を
+  //   場から**デッキの一番下**に置く。
+  // 🔴旧 live＝`TRANSFER_TO_DECK{source:{owner:'self'}}`＝**自分のシグニ**をデッキの一番下へ置いていた＝
+  //   **原文と真逆の自傷**（コストを払って自分の場を減らすだけのカードになっていた）。
+  // ⚠🔴**「向きだけ」直してはいけない**＝`owner:'opponent'` にするだけだと**バトルしていない相手シグニまで**
+  //   選べる＝旧挙動より**強い過剰実行**になる。⇒ 同じ巡で `TRANSFER_TO_DECK.targetsTriggerSource` を足し、
+  //   `ON_SIGNI_BATTLE` の `triggeringCardNum`（＝**バトル相手**。`BattleScreen.tsx:11088`）へ固定した。
+  // ⚠**残る近似＝「そのバトル終了時に」の遅延が無い**（即時にデッキへ送る）＝バトルの帰結より先に場を離れる。
+  //   受け皿（バトル終了時の遅延）が無いので索引 G に据置。
+  "PR-305": [
+    {"effectId":"PR-305-E1","effectType":"AUTO","timing":["ON_SIGNI_BATTLE"],"triggerCondition":{"turnOwner":"self"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true,"shuffle":false,"position":"bottom"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
   "WXEX1-72": [
     // 「そのレゾナ」＝出現条件で今場に出た＜遊具＞レゾナ。対戦相手の効果だけでなくバトル/ルール処理のバニッシュも防ぐ。
-    {"effectId":"WXEX1-72-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"keyword":"バニッシュされない","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"遊具","fromZones":["field"]}}
+    {"effectId":"WXEX1-72-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"keyword":"バニッシュされない","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"遊具","fromZones":["field"]}},
+    // 🆕§5.3 索引G `O-318`（2026-09-11）／ 原文【出】：このターン、**次にクラッシュされる**対戦相手の
+    //   ライフクロスの一番上のカードの**ライフバーストは発動しない**。
+    // 🔴旧 live＝`LIFE_CRASH{owner:'opponent',count:1,triggerBurst:true}`＝
+    //   **「バーストを止める予約」が「ライフを1枚クラッシュする」に化けていた**＝原文に無い1点を与える過剰実行。
+    //   🔑**同じ巡で直した `WX25-P3-032-E2` と完全に同型**＝**置換／抑止の予約が、対象の処理そのものに化ける**型。
+    //   ⇒ この言い回し（「次に〜される場合」「〜は発動しない」）を見たら**まず live に `LIFE_CRASH` が
+    //   紛れていないか**を疑う（逆翻訳にも「1枚クラッシュする」としか出ないので原文と並べないと分からない）。
+    // ✅受け皿は実装済み＝`SUPPRESS_LIFE_BURST_ON_CARD`（`execStubPart1.ts:1790` が `otherState.suppress_life_burst`）。
+    // ⚠**残る近似＝「次に」（1回だけ）がターン継続になる**（フラグが boolean で回数を持たない）。
+    {"effectId":"WXEX1-72-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-P05-009": [
     {
