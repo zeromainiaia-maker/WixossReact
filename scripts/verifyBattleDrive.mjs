@@ -55258,6 +55258,165 @@ scenarios.v186LeaveSubstitutePlainControl = {
 order.push('v186LeaveSubstituteDeckBottom');
 order.push('v186LeaveSubstitutePlainControl');
 
+
+// ── §5.3 `O-328` / `V-191`：「この方法で捨てたシグニと共通するクラスを持つ」が【出】経路で解決されるか ──
+// 🔴**旧挙動**＝【出】のコスト支払い（`BattleScreen.executeSigniOnPlayCost`）が
+//   `last_discarded_signi_class` を**一度も書いていなかった**ので、`resolveDiscardLevelFilter` が
+//   「参照不能＝制限なし」へ倒れ、**クラス制限が黙って消えて**トラッシュのどのシグニでも拾えた
+//   （原文より広い＝過剰実行。JSON も逆翻訳も正しく見えるのでどの計器にも映らない）。
+//   ⚠`classMatchesDiscardSigni` を持つ live 5効果は**全部【出】**＝この経路だけが本番だった。
+// 🔑**観測点は「候補集合の中身」**＝①別クラスの札が候補に混ざっていないか ②期待の札が候補に残っているか
+//   ③選んだ札が実際に手札へ入るか。⚠**候補の件数では書けない**（§4.4-71）＝
+//   **コストで捨てた札自身がトラッシュに残り、同じクラス・Lv2以下なので必ず候補に入る**ので、
+//   旧挙動3件・新挙動2件で**どちらも複数**になる（初回実行で件数判定にして誤って赤を出した）。
+// 🔑**1ビット反転**＝盤面は同一で、**捨てる札のクラスだけ**を天使／アームで入れ替える（§4.4-25f）。
+const V191_SRC     = 'WXK10-056#9100'; // 兄妹の原童話 アリョーヌ（Lv2黒・限定なし）【出】手札からシグニ1枚捨てる
+const V191_ANGEL   = 'WX04-060#9101';  // 史実の改善 サリエ（Lv1・精像：天使・効果なし）＝捨て札A
+const V191_ARM     = 'WD01-013#9102';  // 小剣 ククリ（Lv1・精武：アーム・効果なし）＝捨て札B
+const V191_T_ANGEL = 'WX04-057#9103';  // 突然の壊乱 ウリエ（Lv2・精像：天使・効果なし）＝トラッシュの天使
+const V191_T_ARM   = 'WD01-012#9104';  // 中剣 フランベル（Lv2・精武：アーム・効果なし）＝トラッシュのアーム
+
+// ⚠**銀行役も埋め札も「副作用なし」で選ぶ**（§4.4-35b）＝5枚とも `EffectText` が `-`・`Restriction` が `-`。
+//   効果元だけは【自】（他のシグニがコストで場からトラッシュ）も持つが、この巡では場から落とさないので発火しない。
+const v191Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9110'],   // 満月の巫女 タマヨリヒメ（Lv4・リミット11＝Lv2 を出せる／限定なし）
+    'field.signi': [null, null, null], // 空きゾーンが要る（§4.4-8i＝占有ゾーンには出せない）
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_down': false,
+    hand: [V191_SRC, V191_ANGEL, V191_ARM],
+    energy: [], trash: [V191_T_ANGEL, V191_T_ARM], lrig_trash: [], lrig_deck: [], coins: 0,
+    // §4.4-22＝`deck: []` はリフレッシュを誘発するので数枚積む。⚠**観測対象と別クラス**（精像：悪魔）にする。
+    deck: ['WXK01-085#9120', 'WXK01-085#9121', 'WXK01-085#9122', 'WXK01-085#9123'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#9190'],
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV191(page, H, o) {
+  const { tag, discard, expectPickup, expectLeft, spec } = o;
+  await H.closeModals();
+  // §4.4-49＝判定の瞬間に「自分が張った盤面か」を見る。⚠手札だけでなくトラッシュの中身まで見る
+  //   （候補集合そのものが観測対象なので、片方しか載っていない盤面は結論を両方向に嘘にする）。
+  const loaded = (x) => (x?.host?.handCards ?? []).includes(V191_SRC)
+    && (x?.host?.trashCards ?? []).includes(V191_T_ANGEL)
+    && (x?.host?.trashCards ?? []).includes(V191_T_ARM);
+  let st = await H.queryState();
+  for (let r = 0; r < 4 && !loaded(st); r++) {
+    H.log(`再注入(${r})… hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    st = await H.queryState();
+  }
+  if (!loaded(st)) {
+    return { pass: false, detail: `前提崩れ＝盤面が載らない（hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)}）` };
+  }
+  H.log(`開始 hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)} 捨てる=${discard}`);
+
+  await H.ensureMain();
+  H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false, costPicked = false, settled = 0, maxCand = 0, candsSeen = false, classFiltered = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    const cur = await H.queryState();
+    maxCand = Math.max(maxCand, (cur?.pendingCandidates ?? []).length);
+    let did = null;
+    // §4.4-58＝文字列名なら `exact: true` が効く（盤面に常設の「アタック…」型に当たらないようにする）。
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+      await summonBtn.click({ timeout: 1500 }).catch(() => {}); did = 'btn:召喚'; summoned = true;
+    }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    // 【出】コストの手札セルは**1回だけ**押す（§4.4-57＝トグルなので毎ティック押すと選択が外れ、
+    // 「発動する」が永久に有効にならない）。⚠**複合属性セレクタは当たらない**（§4.4-32）ので
+    // testid で全部引いてから `data-card-num`（ここでは instance id）で選ぶ。
+    if (!did && !costPicked) {
+      const cells = page.locator('[data-testid^="onplaycost-hand-"]');
+      const n = await cells.count();
+      for (let i = 0; i < n && !did; i++) {
+        if ((await cells.nth(i).getAttribute('data-card-num')) !== discard) continue;
+        if (!(await cells.nth(i).isVisible().catch(() => false))) continue;
+        await cells.nth(i).click({ timeout: 1500 }).catch(() => {});
+        costPicked = true; did = `cost:${discard}`;
+      }
+    }
+    // 🔴**確定ボタンのラベルは「発動」**（`SigniOnPlayCostModal.tsx:828`）＝
+    //   `clickTextOrBtn` は**部分一致**なので `'発動する'` で探すと**一生当たらない**（初回実行で15ティック空振りした）。
+    //   ⚠§4.4-8b＝ヘルパーは `disabled` を見ないので、**`isEnabled()` を自分で確かめてから押す**
+    //   （未選択で灰色のボタンを「押せた」と報告し続ける形を避ける）。§4.4-58＝文字列名なら `exact: true` が効く。
+    if (!did) {
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1500 }).catch(() => {}); did = 'btn:発動';
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+
+    const hand = cur?.host?.handCards ?? [];
+    const trash = cur?.host?.trashCards ?? [];
+    const onField = JSON.stringify(cur?.host?.fieldSigni ?? []).includes(V191_SRC);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 召喚=${onField} 捨て済=${costPicked} hand=${JSON.stringify(hand)} trash=${JSON.stringify(trash)} cand=${maxCand} 記録クラス=${cur?.host?.lastDiscardedSigniClass ?? '-'} 記録Lv=${cur?.host?.lastDiscardedSigniLevel ?? '-'} cands=${JSON.stringify(cur?.pendingCandidates ?? [])} pEff=${cur?.pendingEffect ?? '-'} stack=${cur?.stackLen ?? '-'}`);
+
+    // 🔴**判定は「候補集合」で書く**（§4.4-3b＝旧実装でも必ず残る痕跡）。
+    //   ⚠**件数では書けない**＝§4.4-71＝**コストで捨てた札自身もトラッシュに残り、同じクラス・Lv2以下なので
+    //   必ず候補に入る**。旧挙動は「Lv2以下のシグニ全部」＝3件、新挙動は「捨てクラスだけ」＝2件で、
+    //   **どちらも複数**になる（初回実行で `maxCand>=2` を旧挙動と読んで誤って赤にした）。
+    const cands = cur?.pendingCandidates ?? [];
+    if (cands.length > 0 && !candsSeen) {
+      candsSeen = true;
+      if (cands.includes(expectLeft)) {
+        return { pass: false, detail: `🔴旧挙動＝候補に別クラスの ${expectLeft} が混ざった（候補=${JSON.stringify(cands)}）` };
+      }
+      if (!cands.includes(expectPickup)) {
+        return { pass: false, detail: `🔴絞りすぎ＝期待の ${expectPickup} が候補から消えた（候補=${JSON.stringify(cands)}）` };
+      }
+      classFiltered = true;
+      // 候補が正しいことを見たら**実際に手札へ入るところまで**押し切る（§4.4-47＝ゲートと着地は別の観測面）。
+      const clicked = await clickPendingInstance(page, H, expectPickup);
+      H.log(`  ${tag}: 候補=${JSON.stringify(cands)} → ${expectPickup} を選択（${clicked ?? '掴めず'}）`);
+    }
+    if (classFiltered && hand.includes(expectPickup)) {
+      return (trash.includes(expectLeft) && !hand.includes(expectLeft))
+        ? { pass: true, detail: `候補が「捨てたクラス」だけに絞られ、選んだ ${expectPickup} が手札へ（別クラスの ${expectLeft} はトラッシュに残る）` }
+        : { pass: false, detail: `🔴別クラスの札まで動いた（hand=${JSON.stringify(hand)} trash=${JSON.stringify(trash)}）` };
+    }
+    // §4.4-5＝「起きなかった」判定は**効果が走り出したことを観測してから**。
+    // 🔴ここが FAIL する形＝**fail-closed へ倒しすぎた側の事故**（記録が書かれず候補0へ倒れた）。
+    settled = (onField && costPicked && !cur?.pendingEffect && !(cur?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) {
+      return { pass: false, detail: `🔴解決したのに候補が1度も出ていない＝捨てクラスが記録されず候補0へ倒れた疑い（記録クラス=${cur?.host?.lastDiscardedSigniClass ?? '-'} hand=${JSON.stringify(hand)} trash=${JSON.stringify(trash)}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未確認（召喚=${JSON.stringify(fin?.host?.fieldSigni)} hand=${JSON.stringify(fin?.host?.handCards)} trash=${JSON.stringify(fin?.host?.trashCards)} cand=${maxCand}）` };
+}
+
+scenarios.v191DiscardClassAngel = {
+  title: 'V-191(1): WXK10-056-E2＝【出】で＜天使＞を捨てると、トラッシュの＜天使＞だけを回収する【旧実装はクラス制限が消えていた】',
+  spec: v191Spec(),
+  async drive(page, H) {
+    return driveV191(page, H, { tag: 'v191Angel', discard: V191_ANGEL, expectPickup: V191_T_ANGEL, expectLeft: V191_T_ARM, spec: this.spec });
+  },
+};
+scenarios.v191DiscardClassArm = {
+  title: 'V-191(2): 対照＝同じ盤面で＜アーム＞を捨てると回収先も＜アーム＞へ入れ替わる（捨て札のクラスだけを1ビット反転）',
+  spec: v191Spec(),
+  async drive(page, H) {
+    return driveV191(page, H, { tag: 'v191Arm', discard: V191_ARM, expectPickup: V191_T_ARM, expectLeft: V191_T_ANGEL, spec: this.spec });
+  },
+};
+order.push('v191DiscardClassAngel');
+order.push('v191DiscardClassArm');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -55530,6 +55689,11 @@ try {
         // 🆕§5.3 `O-152`（2026-09-04）＝「効果による手札捨て」の直前フラグ。
         //   `ON_HAND_DISCARDED` は **executor が立てて BattleScreen の watcher が消化する**2段構えなので、
         //   **立っているのに消化されない**のか**そもそも立たない**のかはここでしか切り分けられない。
+        // 🆕§5.3 `O-328`（2026-09-11・`V-191`）＝「この方法で捨てたシグニ」の記録そのもの。
+        //   🔴**これが無いと「記録されていない」のか「記録は在るのに絞りが効かない」のかを実機で切り分けられない**
+        //   （初回実行で候補2件を見たとき、engine を疑うか UI を疑うかが決まらなかった）。
+        lastDiscardedSigniClass: s.last_discarded_signi_class ?? null,
+        lastDiscardedSigniLevel: s.last_discarded_signi_level ?? null,
         handDiscardedJust: s.hand_discarded_just ?? null,
         handDiscardedJustByOpp: s.hand_discarded_just_by_opp ?? null,
         // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。

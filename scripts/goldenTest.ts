@@ -28835,16 +28835,38 @@ test('§5.3 O-325 ①WXK10-056-E2: コストで捨てたシグニと共通する
   if (r.done || r.pending.type !== 'SELECT_TARGET') return;
   eq([...r.pending.candidates].sort().join(','), [...same].sort().join(','),
     '候補は「捨てたシグニと共通するクラス」だけ（別クラスが混ざると過剰実行）');
-  // ⚠**対照＝参照（捨てたクラス）が読めないときは「制限なし」へフォールバックする**（既知の据置）。
-  //   🔴**これは fail-open**＝別クラスの札まで候補に出る。**直せない理由がある**＝
-  //   `last_discarded_signi_class` を書いているのは `src/screens/` の支払い経路だけなので、
-  //   ここを空ヒットへ倒すと engine 内で支払う経路でこのキーを持つ4効果が丸ごと no-op になる（§5-2″）。
-  //   ⇒ **記録側を engine へ寄せるのが先**（PLAN §5.3 `O-328`）。ここはその日まで現状を固定する。
+  // 🆕🔴**対照＝参照（捨てたクラス）が読めないときは「空ヒット」へ倒す**（§5.3 `O-328`・2026-09-11 に反転）。
+  //   旧実装は fail-open＝**別クラスの札まで候補に出る**（原文より広い＝過剰実行）。
+  //   反転できた理由＝**記録側の穴を先に塞いだ**＝`classMatchesDiscardSigni` を持つ live 5効果は
+  //   全部【出】で、その支払い地点（`BattleScreen.executeSigniOnPlayCost`）だけが
+  //   `last_discarded_signi_class` を書いていなかった。⚠**この2つは必ずセットで動かす**
+  //   （engine だけ倒すと5効果が丸ごと no-op へ裏返る＝§5-2″）。
   const none = run056(undefined);
-  ok(!none.done && none.pending.type === 'SELECT_TARGET'
-    && none.pending.candidates.length === 3,
-    '参照不能時は従来どおり絞り込まない（この行が落ちたら O-328 が動いたということ＝両方まとめて直す）');
+  ok(none.done, '参照不能時は候補0＝対象選択が起きない（fail-closed）');
 }));
+
+// §5.3 `O-328`（2026-09-11）＝**記録側の回帰**。engine を fail-closed へ倒した以上、
+// `classMatchesDiscardSigni` を持つ効果の支払い地点が `last_discarded_signi_class` を
+// 書かなくなったら**効果が丸ごと no-op になる**が、golden も逆翻訳も緑のままになる。
+// ⇒ live 側の母集団（class 参照＝全件【出】）と、記録地点の実在を両方 assert する。
+test('§5.3 O-328: classMatchesDiscardSigni の母集団は全件【出】で、その支払い地点が捨てクラスを記録する', () => {
+  const withClass: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      if (JSON.stringify(e).includes('"classMatchesDiscardSigni"')) {
+        withClass.push(e.effectId);
+        eq((e.timing ?? []).join(','), 'ON_PLAY',
+          `${e.effectId} は【出】（記録地点が executeSigniOnPlayCost の1本だけで足りる前提）`);
+      }
+    }
+  }
+  ok(withClass.length >= 5, `母集団が5効果以上ある（実測 ${withClass.length}）`);
+  // 🔴**記録地点そのものを見る**＝ここが消えると上の前提が黙って崩れる（§5-2″）。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const onPlayBody = screen.slice(screen.indexOf('const executeSigniOnPlayCost'));
+  ok(/last_discarded_signi_class:\s*discardNums\.length > 0/.test(onPlayBody),
+    'executeSigniOnPlayCost が捨てたシグニの CardClass を記録する（O-328 の本丸）');
+});
 
 test('§5.3 O-325 ②WX25-P1-058-E2: 自分の場と共通するクラスの相手シグニだけを対象にする', () => withSavedCursor(() => {
   const live = (effectsMap.get('WX25-P1-058') ?? []).find(e => e.effectId === 'WX25-P1-058-E2');
@@ -45659,12 +45681,12 @@ test('続き377n: WXK10-029-E2 はコストで捨てたシグニと共通クラ�
   ok(r.pending.visibleCards.includes(same), '共通クラスの札は候補');
   ok(!r.pending.visibleCards.includes(diff), '別クラスの札は候補外（従来は何でも拾えた）');
 
-  // 対照＝捨てクラスが記録されていない場合は絞り込まない（参照不能時のフォールバックは従来どおり）。
+  // 🆕🔴**対照＝捨てクラスが記録されていなければ1枚も拾えない**（§5.3 `O-328`・2026-09-11 に fail-open から反転）。
+  //   旧契約は「記録が無ければクラス制限なし」＝**公開札から何でも拾えた**（原文より広い＝過剰実行）。
+  //   反転の前提は記録側＝`BattleScreen.executeSigniOnPlayCost` が捨てクラスを書くようになったこと。
   const ctx2: ExecCtx = { ...base, ownerState: { ...base.ownerState, deck: [same, diff, filler, ...base.ownerState.deck] } };
   const r2 = runEffect(effect.action, ctx2);
-  ok(!r2.done && r2.pending.type === 'SEARCH', '記録なしでも選択待ち');
-  if (r2.done || r2.pending.type !== 'SEARCH') return;
-  ok(r2.pending.visibleCards.includes(diff), '記録が無ければクラス制限なし（無言 no-op にしない）');
+  ok(r2.done, '記録なしでは候補0（fail-closed）');
 }));
 
 

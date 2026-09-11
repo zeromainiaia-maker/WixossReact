@@ -3458,6 +3458,9 @@ function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキをシャッフル'));
 }
 
+/** 動的 filter の参照先が読めないときに「どのカードにも当たらない」へ倒すための sentinel。 */
+const DYNAMIC_FILTER_REFERENCE_UNAVAILABLE = '__dynamic_filter_reference_unavailable__';
+
 // levelLteDiscardSigni:「この方法で捨てたシグニのレベル以下」を caster（効果実行者）の
 // last_discarded_signi_level で level.max に解決。対象オーナーに依らず常にキャスター側の値を読むため、
 // resolveDynamicFilter とは別に ctx.ownerState を明示で渡すこの関数で前処理する。
@@ -3473,20 +3476,29 @@ function resolveDiscardLevelFilter(
   let out: import('../types/effects').TargetFilter = { ...rest };
   const lvl = casterState.last_discarded_signi_level;
   const lvlOk = lvl != null && !isNaN(lvl);
-  // レベル関係: ≤（Lte）/ <（Lt）/ ＝捨てレベル+offset（Eq）。参照不能なら制限なしへフォールバック
+  // レベル関係: ≤（Lte）/ <（Lt）/ ＝捨てレベル+offset（Eq）
   if (filter.levelLteDiscardSigni && lvlOk) out = { ...out, level: { ...(typeof out.level === 'object' ? out.level : {}), max: lvl } };
   if (filter.levelLtDiscardSigni && lvlOk) out = { ...out, level: { ...(typeof out.level === 'object' ? out.level : {}), max: lvl - 1 } };
   if (offset !== undefined && lvlOk) out = { ...out, level: lvl + offset };
   // クラス関係: 捨てたシグニと共通するクラス（CardClass の「：」以降トークンを OR 展開して story へ）
-  // ⚠🔴**2026-09-11（§5.3 `O-325`）＝ここを fail-closed へ倒しかけたが戻した。**
-  //   「参照が読めないなら空ヒット」は一見正しいが、**`last_discarded_signi_class` を書いているのは
-  //   `src/screens/` の支払い経路だけ**（`BattleScreen.tsx` / `trashActivateCost.ts`）なので、
-  //   engine 内で支払う経路では**常に未記録**＝このキーを持つ4効果が丸ごと no-op へ裏返る（§5-2″ の形）。
-  //   ⇒ **記録側を engine へ寄せるまでは「参照不能なら制限なし」を維持する**（既存 golden 続き377n が固定）。
+  let classOk = true;
   if (filter.classMatchesDiscardSigni) {
     const cc = casterState.last_discarded_signi_class ?? '';
     const tokens = cc.split(/[/／]/).map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean);
     if (tokens.length > 0) out = { ...out, story: tokens.length === 1 ? tokens[0] : tokens };
+    else classOk = false;
+  }
+  // 🆕🔴**§5.3 `O-328`（2026-09-11）＝参照不能を fail-open から fail-closed へ反転した。**
+  //   旧実装は「捨て札の記録が読めないなら絞り込まない」＝**クラス／レベル制限が黙って消える**
+  //   （原文より広い＝過剰実行。JSON も逆翻訳も正しく見えるので計器に一切映らない）。
+  //   🔑**倒せるようになった理由＝記録側の穴を先に塞いだから。**
+  //   `handDiscardSigni` を支払う経路は engine には無く `src/screens/` の3地点だけで、
+  //   そのうち【出】（`BattleScreen.executeSigniOnPlayCost`）だけが `last_discarded_signi_class` を
+  //   書いていなかった＝この9効果のうち class 参照5件は**全部【出】**なので丸ごと素通りしていた。
+  //   ⇒ 記録を足した上でここを倒す。**順序を逆にすると5効果が no-op へ裏返る**（§5-2″）。
+  if (!classOk
+      || ((filter.levelLteDiscardSigni || filter.levelLtDiscardSigni || offset !== undefined) && !lvlOk)) {
+    return { ...out, cardNum: DYNAMIC_FILTER_REFERENCE_UNAVAILABLE };
   }
   return out;
 }
@@ -3516,7 +3528,7 @@ function resolveClassMatchesAnyFieldSigni(
   }
   return allyClasses.size > 0
     ? { ...rest, cardClass: [...allyClasses] }
-    : { ...rest, cardNum: '__dynamic_filter_reference_unavailable__' };
+    : { ...rest, cardNum: DYNAMIC_FILTER_REFERENCE_UNAVAILABLE };
 }
 
 function resolveDynamicFilter(
@@ -3549,7 +3561,7 @@ function resolveDynamicFilter(
   // カード名で照合）。省略時は従来どおり候補 owner の state を参照する。
   const declarationState = declaredRefSt ?? ownerSt;
   const noMatch = (rest: import('../types/effects').TargetFilter): import('../types/effects').TargetFilter =>
-    ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
+    ({ ...rest, cardNum: DYNAMIC_FILTER_REFERENCE_UNAVAILABLE });
   if (result.levelEqDeclaredNumber) {
     const { levelEqDeclaredNumber: _dn, ...rest } = result;
     // declared_number（ガード制限を伴わない汎用宣言）を優先し、旧来の DECLARE_NUMBER 保存先へフォールバック。

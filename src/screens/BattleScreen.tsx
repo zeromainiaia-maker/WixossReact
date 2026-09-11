@@ -4334,6 +4334,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           is_boosting_this_effect: undefined,         // BOOST: ターン終了時の安全クリア
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
+          // 🆕§5.3 `O-328`＝クラス側も**レベルと同じ寿命**にする。旧実装はこのキーだけ
+          //   どのターン境界でも消えず、前のターンの支払いで書いたクラスが残って
+          //   `classMatchesDiscardSigni` を**別のクラスで**絞り込みうる状態だった。
+          last_discarded_signi_class: undefined,
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
           cancel_current_lrig_attack: undefined,      // 同上（ルリグアタック版・`WXDi-P09-036-E1`）
         })));
@@ -4808,6 +4812,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_plant_down_count: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
+        last_discarded_signi_class: undefined,      // §5.3 `O-328`: レベルと同じ寿命へ揃える
         cancel_current_signi_attack: undefined, cancel_current_lrig_attack: undefined,
       })));
       // 相手のアップ処理
@@ -14575,6 +14580,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_level: discardNums.length > 0
           ? (() => { const lv = parseInt(battleCardMap.get(getCardNum(discardNums[0]))?.Level ?? '', 10); return isNaN(lv) ? placedState.last_discarded_signi_level : lv; })()
           : placedState.last_discarded_signi_level,
+        // 🆕🔴**§5.3 `O-328`（2026-09-11）＝ここが `last_discarded_signi_class` を一度も書いていなかった。**
+        //   `classMatchesDiscardSigni`（「この方法で捨てたシグニと共通するクラスを持つ」）を持つ live 5効果は
+        //   **全部が【出】＝この支払い地点だけを通る**（`WXK10-023-E1`/`-029-E2`/`-033-E2`/`-038-E1`/`-056-E2`）。
+        //   書かれないまま `resolveDiscardLevelFilter` が「参照不能＝制限なし」へ倒れていたので、
+        //   **クラス制限が黙って消えた候補集合**（原文より広い＝過剰実行）になっていた。JSON も逆翻訳も正しく見える。
+        //   ⚠レベル側と同じ規約＝**この支払いで捨てていれば1枚目で上書き、捨てていなければ据置**。
+        last_discarded_signi_class: discardNums.length > 0
+          ? (battleCardMap.get(getCardNum(discardNums[0]))?.CardClass ?? placedState.last_discarded_signi_class)
+          : placedState.last_discarded_signi_class,
         // 「直前の能力コスト」の記録なので**この支払い分で上書き**する（ACTIVATED 経路 9626 と同じ規約）。
         // 従来は支払い前 state へ追記していたため前の能力のコストが残り、COST_TRASHED_MATCHES／
         // colorMatchesCostTrashed が古い支払いで誤成立しうる状態だった（§3タスク6 C で顕在化）。

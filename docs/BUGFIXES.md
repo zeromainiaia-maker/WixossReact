@@ -1,5 +1,77 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引B `O-328`：「この方法で捨てたシグニ」参照の記録地点（9効果・実機 `V-191`）
+
+🔴**真因＝【出】のコスト支払いだけが `last_discarded_signi_class` を一度も書いていなかった。**
+`classMatchesDiscardSigni`（「この方法で捨てたシグニと共通するクラスを持つ」）を持つ live 5効果は
+**全部が【出】**なので、engine の `resolveDiscardLevelFilter` が毎回「参照不能＝制限なし」へ倒れ、
+**クラス制限が黙って消えて**トラッシュ／デッキのどのシグニでも拾えていた（原文より広い＝**過剰実行**）。
+⚠**JSON にも逆翻訳にも1バイトも現れない**＝golden・smoke・fuzz・census は全部緑のまま。
+
+### 登録票の訂正（着手前の実測）
+
+登録票は「記録地点が `src/screens/` にしか無い＝**engine 内で支払う経路では常に未記録**」と書き、
+**①記録を engine 側へ寄せる**を本体としていたが、🔴**engine に `handDiscardSigni` を支払う経路は存在しない**
+（`grep -rn "handDiscardSigni" src/engine/` は `triggerCollect.ts`＝**コスト表示の収集**のみ）。
+支払いは `src/screens/` の**3地点だけ**で、内訳は次のとおり＝**穴は1地点**だった。
+
+| 支払い地点 | level | class |
+|---|---|---|
+| `BattleScreen.tsx` 【起】（シグニ起動） | ○ | ○ |
+| `battle/trashActivateCost.ts`（トラッシュ【起】） | ○ | ○ |
+| 🔴`BattleScreen.executeSigniOnPlayCost`【出】 | ○ | **✗ 書いていない** |
+
+⇒ **engine へ寄せる作業は不要**。🔑**「受け皿が無い」型の登録票は、着手前に支払い側を全数 grep して割る**
+（`O-325` に続き**2回連続で登録票が stale**だった）。
+
+### 母集団（②）＝live 実測 **9効果**
+
+| キー | 件数 | timing | 状態 |
+|---|---|---|---|
+| `classMatchesDiscardSigni` | **5** | **全部 ON_PLAY** | 🔴**壊れていた**（`WXK10-023-E1`／`-029-E2`／`-033-E2`／`-038-E1`／`-056-E2`） |
+| `levelLteDiscardSigni` | 2 | ON_PLAY 1／MAIN 1 | 無傷（level は3地点とも記録済み） |
+| `levelLtDiscardSigni` | 1 | MAIN | 同上 |
+| `levelEqDiscardSigniOffset` | 2 | ON_PLAY | 同上（`WXK10-033-E2` は class と重複） |
+
+### 修正（3点）
+
+1. **`src/screens/BattleScreen.tsx`（`executeSigniOnPlayCost`）** に `last_discarded_signi_class` の記録を追加。
+   レベル側と同じ規約＝**この支払いで捨てていれば1枚目で上書き、捨てていなければ据置**。
+2. **ターン境界2地点**（`doPhaseAdvance` / 手札上限経由）に `last_discarded_signi_class: undefined` を追加。
+   🔴旧実装は**このキーだけどのターン境界でも消えず**、前のターンの支払いで書いたクラスが残って
+   `classMatchesDiscardSigni` を**別のクラスで**絞りうる状態だった（level は元から両方でクリアされていた）。
+3. **`src/engine/effectExecutor.ts`（`resolveDiscardLevelFilter`）** を **fail-open → fail-closed** へ反転。
+   参照不能なら `cardNum: '__dynamic_filter_reference_unavailable__'`（`resolveDynamicFilter` の `noMatch` と同じ sentinel。
+   3箇所に散っていたリテラルを `DYNAMIC_FILTER_REFERENCE_UNAVAILABLE` の定数へ寄せた）。
+   🔑**順序が本質**＝**記録側を先に塞いだから倒せた**。逆順で倒すと5効果が丸ごと no-op へ裏返る（§5-2″）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden 全件・typecheck・lint・smoke・fuzz・census 各種）。
+- **golden**＝既存 `続き377n` の対照2本（`WXK10-056` / `WXK10-029-E2`）を**反転**＝「参照不能なら絞り込まない」→
+  「**参照不能なら候補0**」。⚠この2本は旧実装の据置を意図的に固定していたので、**倒したら必ず一緒に動かす**。
+  ＋🆕**記録地点そのものを見る golden**（`§5.3 O-328`）＝①`classMatchesDiscardSigni` の母集団が全件 ON_PLAY であること
+  ②`executeSigniOnPlayCost` が捨てクラスを記録していること、を assert。
+  🔴**engine を fail-closed へ倒した以上、記録側が消えると「効果が丸ごと no-op」になるのに golden も逆翻訳も緑**になる＝
+  **前提そのものを assert する**。反転確認＝記録行を外すとこの golden だけが落ちる（実測）。
+- **実機 `V-191`(1)(2) PASS**（`src/screens/` を触ったので §2.2 により**実機まで必須**と判定）。
+  盤面は同一で**捨てる札のクラスだけ**を天使／アームで反転＝**回収先も入れ替わる**ことを確認。
+  **反転確認**＝記録行を外し engine のゲートを `false &&` で無効化すると、**両方とも「候補に別クラスが混ざった」で赤**
+  （候補3件）。復元後に両方 PASS を取り直した（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-70 の手順）。
+
+### 踏んだ罠（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-71 へ登録）
+
+🔴**「候補が何件か」で絞り込みを判定してはいけない**＝**コストで捨てた札自身がトラッシュに残り、
+同じクラス・Lv2以下なので必ず候補に入る**。旧挙動3件・新挙動2件で**どちらも複数**になるため、
+初版の `maxCand >= 2` 判定は **engine が直っているのに赤を出した**。
+⇒ 判定は件数ではなく**集合の中身**（外れるべき札が入っていないか／残るべき札が残っているか）。
+🔑**切り分けの決め手は「engine が読んでいる state を観測面に足す」**＝`H.queryState()` に
+`lastDiscardedSigniClass` / `lastDiscardedSigniLevel` を出した1回で、
+「記録されていない」のか「記録は在るのに絞りが効かない」のかが確定した（推測での往復を止められる）。
+⚠**確定ボタンのラベルは「発動」**（`SigniOnPlayCostModal.tsx`）＝`clickTextOrBtn` は**部分一致**なので
+`'発動する'` で探すと一生当たらない（15ティック空振りした）。
+
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-325`：「〜と共通するクラスを持つ」の参照元2軸（9効果を triage → 2件修正）
 
 登録票は「**受け皿が無い**（参照カードを基準にした動的比較）」と書いていたが、🔴**2軸とも受け皿は既に在った**
