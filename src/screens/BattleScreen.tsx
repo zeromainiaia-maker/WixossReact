@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -63,7 +63,7 @@ import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from './battle/delayedTrigger';
-import { resolveTurnEndFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
+import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, isPhaseSkipped } from './battle/attackStepPhase';
 import { resolveTurnHandover } from './battle/turnHandover';
@@ -4566,6 +4566,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (nextPhase === 'MAIN') {
           // §6.4 O-3: 「次のあなたのメインフェイズまで」の予約はここで失効させる（唯一の失効地点）。
           newMyState = clearMainPhaseScopedState(newMyState);
+          // 🆕§5.3 `O-299` 第262バッチ（2026-09-11）＝**「次の次のあなたのメインフェイズ開始時」の裏向き復帰**
+          //   （`WXDi-P00-038-E1`）。**自分のメインフェイズ開始を通るたびに1減らす**のがここ＝
+          //   既存 `INSTALL_DELAYED_TRIGGER` は「次の1回」までしか表せない（`O-314`）ので予約側で数える。
+          // ⚠**表向きになった分だけ**「対戦相手は手札を2枚捨てる」を出す（ゾーンが埋まっていて
+          //   表向きにできなかった予約では捨てさせない＝原文の条件）。
+          const smFacedown = resolveSecondMainFacedownReturns(newMyState);
+          if (smFacedown.flipped.length > 0 || smFacedown.state !== newMyState) {
+            newMyState = smFacedown.state;
+          }
+          if (smFacedown.flipped.length > 0) {
+            appendBattleLogs([`裏向きシグニ${smFacedown.flipped.length}体を表向きにした`]);
+          }
+          if (smFacedown.discard > 0) {
+            // 🔑**手札を捨てさせるのは effect_stack へ載せる**＝直接 state を書くと
+            //   「どれを捨てるか」の選択（相手の応答）と【自】の誘発を飛ばしてしまう。
+            const smEntry: StackEntry = {
+              id: crypto.randomUUID(),
+              playerId: bs.active_user_id ?? user.id,
+              cardNum: smFacedown.flipped[0] ?? 'WXDi-P00-038',
+              effectId: 'WXDi-P00-038-E1-FLIP',
+              label: '裏向きから戻ったシグニの効果（対戦相手は手札を2枚捨てる）',
+              effect: {
+                effectId: 'WXDi-P00-038-E1-FLIP', effectType: 'AUTO', timing: ['ON_MAIN_PHASE_START'],
+                action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: smFacedown.discard } },
+                duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+              } as CardEffect,
+            };
+            const baseStackSM = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackSM
+              ? pushToStack(baseStackSM, [smEntry])
+              : initStack(bs.active_user_id ?? user.id, [smEntry]);
+          }
           const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op, 'MAIN');
           foldTurnUsed(mpsRes);
           const mpsEntries = mpsRes.entries;
@@ -10195,6 +10227,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const redirectBanish =
             isShoot ||
             myS.banish_redirect === true ||
+            // 🆕§5.3 `O-299` 第262バッチ（2026-09-11）＝**期間＋フィルタつきの行き先変更**（`WX24-P4-002-E1`③）。
+            //   🔑**述語は engine と共有する唯一の1本**（`leaveToTrashWindowApplies`）＝効果経路
+            //   （`banishDestination` / `collectLeaveSubstituteOptions`）と同じ判定を通す。
+            //   ⚠`banish_redirect`（無期限・無フィルタ）とは別物なので**両方を並べる**。
+            leaveToTrashWindowApplies(myS, opS, opTopCardNum, battleCardMap) ||
             // ACTIVATED/AUTO で選んだ個体だけに適用する単体置換。
             isSelectedBanishRedirect(myS, opTopCardNum) ||
             isSelectedBattleBanishRedirect(myS, opTopCardNum) ||
@@ -10490,6 +10527,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 【シュート】とパワー0専用選択はアタッカー自身のバトル敗北には適用しない。
           const redirectMyBanish =
             opS.banish_redirect === true ||
+            // 🆕§5.3 `O-299` 第262バッチ＝上の `redirectBanish` の myS↔opS ミラー（O-49 の規約どおり対で書く）。
+            leaveToTrashWindowApplies(opS, myS, myTopNum, battleCardMap) ||
             isSelectedBanishRedirect(opS, myTopNum) ||
             isSelectedBattleBanishRedirect(opS, myTopNum) ||
             (opS.banish_redirect_by_source_nums ?? []).includes(opTopCardNum) ||

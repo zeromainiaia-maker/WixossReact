@@ -127,6 +127,46 @@ export function resolveTurnEndFacedownReturns(state: PlayerState): TurnEndFacedo
   };
 }
 
+/**
+ * 🆕**「次の次のあなたのメインフェイズ開始時」の裏向き復帰**（§5.3 `O-299` 第262バッチ・`WXDi-P00-038-E1`）。
+ *
+ * 自分のメインフェイズ開始を通るたびに呼ぶ。`mainPhasesRemaining` を1減らし、**0 になった予約だけ**を解決する。
+ * 🔑**「同じシグニゾーンにシグニがない場合」だけ表向きになる**（埋まっていたら裏向きのまま据置＝原文どおり）。
+ * ⚠**表向きになった分だけ**「対戦相手は手札をN枚捨てる」が起きる（`discard` に合計を返す）＝
+ *   埋まっていて表向きにできなかった予約で捨てさせると過剰実行。
+ */
+export function resolveSecondMainFacedownReturns(
+  state: PlayerState,
+): { state: PlayerState; flipped: string[]; discard: number } {
+  const pending = state.pending_second_main_facedown_returns ?? [];
+  if (pending.length === 0) return { state, flipped: [], discard: 0 };
+  const signi = [...state.field.signi] as (string[] | null)[];
+  const facedown = [...(state.field.facedown_signi ?? [null, null, null])] as (string | null)[];
+  const flipped: string[] = [];
+  const rest: NonNullable<PlayerState['pending_second_main_facedown_returns']> = [];
+  let discard = 0;
+  for (const target of pending) {
+    const remaining = target.mainPhasesRemaining - 1;
+    if (remaining > 0) { rest.push({ ...target, mainPhasesRemaining: remaining }); continue; }
+    // 予約が消えている（別経路で表向きになった／取り除かれた）ら黙って落とす。
+    if (facedown[target.zoneIndex] !== target.cardNum) continue;
+    if (signi[target.zoneIndex]?.length) continue;   // ゾーンが埋まっている＝原文の条件を満たさない
+    signi[target.zoneIndex] = [target.cardNum];
+    facedown[target.zoneIndex] = null;
+    flipped.push(target.cardNum);
+    discard += target.oppDiscard;
+  }
+  return {
+    state: {
+      ...state,
+      field: { ...state.field, signi, facedown_signi: facedown },
+      pending_second_main_facedown_returns: rest.length > 0 ? rest : undefined,
+    },
+    flipped,
+    discard,
+  };
+}
+
 /** 次の対戦相手アタックフェイズ開始時、元ゾーンが空の予約対象だけを表向きにする。 */
 export function resolveOpponentAttackFacedownReturns(state: PlayerState): TurnEndFacedownResolution {
   const pending = state.pending_opponent_attack_facedown_returns ?? [];

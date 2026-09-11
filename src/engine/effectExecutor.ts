@@ -19,7 +19,8 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { moveFieldSigniFacedown } from './facedownSigni';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, leaveToTrashWindowApplies, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -1283,11 +1284,62 @@ export function applyEffectLeaveOppToTrashSubstitute(
 ): { ctx: ExecCtx; replaced: boolean } {
   if (victimOwner !== 'opponent') return { ctx, replaced: false };
   const declarer = ownerState('self', ctx);
+  const victimState = ownerState(victimOwner, ctx);
+  // ①【常】宣言（`WXDi-P04-037-E1`）と ②期間つき window（`WX24-P4-002-E1`③）の**どちらでも成立する**。
+  //   ⚠②は `leaveToTrashWindowApplies`＝**バトル経路と共有する唯一の述語**（片側だけ読むと軸がずれる）。
   const eligible = collectOppSigniLeaveToTrash(
-    declarer, ownerState(victimOwner, ctx), ctx.isOwnerTurn ?? true, ctx.cardMap,
-    ctx.effectsMap ?? new Map(), ctx.effectivePowers);
+    declarer, victimState, ctx.isOwnerTurn ?? true, ctx.cardMap,
+    ctx.effectsMap ?? new Map(), ctx.effectivePowers)
+    || leaveToTrashWindowApplies(declarer, victimState, victimNum, ctx.cardMap);
   return applyEffectLeaveToTrashRedirect(victimNum, victimOwner, ctx, eligible, '相手ターン中の行き先変更');
 }
+
+/**
+ * 🆕`selfFacedown`（§5.3 `O-299` 第262バッチ・2026-09-11・`WXDi-P00-038-E1`）＝
+ * 「【常】：**対戦相手のターンの間**、このシグニが場を離れる場合、代わりにこれを**裏向きにしてもよい**。
+ *  そうした場合、**次の次のあなたのメインフェイズ開始時**、これと同じシグニゾーンにシグニがない場合、
+ *  これを表向きにし、対戦相手は手札を２枚捨てる。」
+ *
+ * 🔴**旧 live は別物だった**（置換も裏向きも無い `SEQUENCE`＝`CONTINUOUS` なので全部 no-op）。
+ * 🔑**受け皿の半分は既存**＝`moveFieldSigniFacedown`（`facedownSigni.ts`）が「同じゾーンの裏向き枠へ移す」。
+ *   足したのは**「次の次」を数える予約**（`pending_second_main_facedown_returns`）だけ。
+ * ⚠**裏向き枠が埋まっていたら成立しない**（`moveFieldSigniFacedown` が空振りを返す）＝置換もしない。
+ */
+export function applyEffectLeaveSelfFacedownSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  for (const eff of declaredContinuousEffects(victimNum, state, ctx.cardMap)) {
+    if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.id !== 'SELF_LEAVE_FACEDOWN_SECOND_MAIN') continue;
+    if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, victimNum)) continue;
+    const moved = moveFieldSigniFacedown(state, victimNum);
+    if (!moved.target) return { ctx, replaced: false };   // 裏向き枠が埋まっている＝置換できない
+    const nextState: PlayerState = {
+      ...moved.state,
+      pending_second_main_facedown_returns: [
+        ...(moved.state.pending_second_main_facedown_returns ?? []),
+        { cardNum: victimNum, zoneIndex: moved.target.zoneIndex, mainPhasesRemaining: 2, oppDiscard: 2 },
+      ],
+    };
+    const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+    return {
+      ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+        `${name}は場を離れる代わりに裏向きになる（次の次の自分のメインフェイズ開始時に表向き）`),
+      replaced: true,
+    };
+  }
+  return { ctx, replaced: false };
+}
+
 
 export type LeaveSubstituteAxisId =
   | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'downProtector'
@@ -1299,7 +1351,9 @@ export type LeaveSubstituteAxisId =
   | 'selfDown' | 'selfExile' | 'resonaSelfTrash'
   // 🆕§5.3 `O-299`（2026-09-11 第261バッチ）＝**離場させた側**が宣言する「行き先の差し替え」2軸と、
   //   バニッシュ限定だったアクセ対価を全離場へ広げた1軸。
-  | 'acceExile' | 'frozenLeaveToTrash' | 'oppLeaveToTrash';
+  | 'acceExile' | 'frozenLeaveToTrash' | 'oppLeaveToTrash'
+  // 🆕§5.3 `O-299`（2026-09-11 第262バッチ）＝離場を「裏向き」で置換し、次の次の自メイン開始時に戻す。
+  | 'selfFacedown';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -1427,6 +1481,10 @@ export function collectLeaveSubstituteOptions(
     applyEffectLeaveSelfDownSubstitute(victimNum, victimOwner, ctx));
   push('resonaSelfTrash', 'optional', '代わりに宣言者のシグニを場からトラッシュに置く',
     applyEffectLeaveResonaSelfTrashSubstitute(victimNum, victimOwner, ctx));
+  // 🆕§5.3 `O-299`（2026-09-11 第262バッチ）＝**場（のゾーン）には残る**（裏向きになるだけ）ので、
+  //   行き先を変える軸より前に置く。
+  push('selfFacedown', 'optional', '代わりにこれを裏向きにする',
+    applyEffectLeaveSelfFacedownSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
     // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
     //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。

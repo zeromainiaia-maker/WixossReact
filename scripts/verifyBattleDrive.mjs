@@ -50193,6 +50193,232 @@ scenarios.v183FreeGrowScopeBlocksPartialType = {
     });
   },
 };
+// ═════════════════════════════════════════════════════════════════════════════
+// V-187 / V-188＝§5.3 `O-299` 第262バッチ（2026-09-11）で `src/screens/` を触った2箇所の実機。
+// 🔴**この2箇所は golden から観測できない**＝①バトル解決の行き先判定（`BattleScreen.tsx` の
+//   `redirectBanish`／`redirectMyBanish`）②メインフェイズ開始の遅延解決（`doPhaseAdvance`）。
+//   engine 側は golden で反転つきに固定してあるので、ここで確かめるのは**画面側の配線だけ**。
+// ⚠§4.4-1＝`field.check` / `key_piece` / `free_zone` / `beat_zone` は前シナリオが残るので明示クリア。
+// ⚠§4.4-3＝負方向（「エナへ行く」）の対照を同じ巡に置く（1ビットだけ反転＝victim の能力の有無）。
+
+const v187Spec = (guestFront, withWindow) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8701'],
+    'field.lrig_down': false,
+    // zone0（正面＝guest zone2）に P12000 の攻撃者を置く＝力比べで必ず勝つ。
+    'field.signi': [['WD05-009#8702'], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD01-013#8710', 'WD01-013#8711', 'WD01-013#8712'],
+    actions_done: [], game_actions_done: [],
+    // 🔑**観測点そのもの**＝この window があるときだけ「能力を持たない相手シグニ」の行き先が
+    //   エナ→トラッシュへ倒れる（`WX24-P4-002-E1`③ が積むのと同じ形）。
+    leave_to_trash_windows: withWindow ? [{ turnsRemaining: 2, requiresNoAbilities: true }] : undefined,
+    banish_redirect: undefined,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8790'],
+    'field.signi': [null, null, [guestFront + '#8791']],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_acce': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], blocked_actions: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV187(page, H, o) {
+  const { tag, spec, victim, expectTrash, why } = o;
+  const victimId = victim + '#8791';
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[2] ?? []).includes?.(victimId); r++) {
+    H.log(`再注入(${r})… guest zone2=${JSON.stringify(before?.guest?.fieldSigni?.[2])}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const gTrash0 = before?.guest?.trash ?? 0;
+  const gEnergy0 = before?.guest?.energy ?? 0;
+  H.log(`開始 guest zone2=${JSON.stringify(before?.guest?.fieldSigni?.[2])} trash=${gTrash0} energy=${gEnergy0}`);
+  // §4.4-66＝行き先は**毎ティック sticky に記録**し、離場を観測した時点で判定を閉じる。
+  let landed = null;
+  let modalOpened = false;
+  for (let step = 0; step < 20 && !landed; step++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !landed) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック';
+      }
+    }
+    // §4.4-2c＝ゾーンの行動一覧はトグルなので、開いたら二度押さない。
+    if (!did && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-0');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    const st = await H.queryState();
+    const stillOnField = (st?.guest?.fieldSigni?.[2] ?? [])?.includes?.(victimId);
+    const inTrash = (st?.guest?.trashCards ?? []).includes(victimId);
+    const inEnergy = (st?.guest?.energyCards ?? []).includes(victimId);
+    if (!stillOnField && (inTrash || inEnergy)) landed = inTrash ? 'trash' : 'energy';
+    H.log(`  ${tag}[${step}] -> ${did ?? 'なし'} | onField=${stillOnField} trash=${inTrash} energy=${inEnergy} landed=${landed ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+  }
+  if (!landed) {
+    const fin = await H.queryState();
+    return { pass: false, detail: `バトルバニッシュ自体が未確認（guest zone2=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} trash=${JSON.stringify(fin?.guest?.trashCards)} energy=${JSON.stringify(fin?.guest?.energyCards)}）` };
+  }
+  const want = expectTrash ? 'trash' : 'energy';
+  return landed === want
+    ? { pass: true, detail: `${why}＝${victimId} の行き先は ${landed}（期待どおり）` }
+    : { pass: false, detail: `${why} のはずが行き先は ${landed}（期待 ${want}）＝BattleScreen のバトル解決が共有述語 leaveToTrashWindowApplies を読んでいない疑い` };
+}
+
+scenarios.v187LeaveToTrashWindowBattle = {
+  title: 'V-187(1): leave_to_trash_windows あり＋能力を持たない相手シグニ＝バトルバニッシュの行き先がトラッシュ（O-299）',
+  spec: v187Spec('WD01-013', true),
+  async drive(page, H) {
+    return driveV187(page, H, { tag: 'v187On', spec: this.spec, victim: 'WD01-013', expectTrash: true,
+      why: 'window あり＋victim は能力を持たない（WD01-013）' });
+  },
+};
+scenarios.v187LeaveToTrashWindowAbledControl = {
+  title: 'V-187(2): 対照＝同じ window でも「能力を持つ」相手シグニはエナへ（フィルタが効いている）',
+  spec: v187Spec('WD01-016', true),
+  async drive(page, H) {
+    return driveV187(page, H, { tag: 'v187Abled', spec: this.spec, victim: 'WD01-016', expectTrash: false,
+      why: 'window はあるが victim は能力を持つ（WD01-016）＝requiresNoAbilities で除外される' });
+  },
+};
+scenarios.v187LeaveToTrashWindowOffControl = {
+  title: 'V-187(3): 対照＝window なしなら能力を持たない相手シグニもエナへ（旧挙動）',
+  spec: v187Spec('WD01-013', false),
+  async drive(page, H) {
+    return driveV187(page, H, { tag: 'v187Off', spec: this.spec, victim: 'WD01-013', expectTrash: false,
+      why: 'window が無い（宣言していない）' });
+  },
+};
+// V-188＝§5.3 `O-299` 第262バッチ（`WXDi-P00-038-E1`）の**メインフェイズ開始で解決する側**。
+// 🔴engine 側（「次の次」を数える／ゾーンが埋まっていたら戻さない）は golden が反転つきで固定済み。
+//   ここで確かめるのは **`doPhaseAdvance` が予約を1回ずつ消化して表向きに戻すか**だけ（画面側の配線）。
+// ⚠§4.4-3＝「戻る」側と「戻らない（ゾーンが埋まっている）」側を同じ巡に置く。
+const v188Spec = (occupied) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8801'],
+    'field.lrig_down': false,
+    // 裏向き枠に1枚。zone0 が空なら戻れる／埋まっていれば戻れない（原文の条件）。
+    'field.signi': occupied ? [['WD01-012#8803'], null, null] : [null, null, null],
+    'field.facedown_signi': ['WD01-013#8802', null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD01-013#8810', 'WD01-013#8811', 'WD01-013#8812'],
+    actions_done: [], game_actions_done: [],
+    // 🔑**観測点そのもの**＝残り1回＝**次に自分のメインフェイズへ入った瞬間**に解決する。
+    pending_second_main_facedown_returns: [{ cardNum: 'WD01-013#8802', zoneIndex: 0, mainPhasesRemaining: 1, oppDiscard: 2 }],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8890'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 「対戦相手は手札を2枚捨てる」の観測点＝2枚減るか。
+    hand: ['WD01-013#8891', 'WD01-013#8892', 'WD01-013#8893'],
+    energy: [], trash: [], blocked_actions: [],
+  },
+  // 🔑**GROW から入る**＝そこから MAIN へ進む遷移が `doPhaseAdvance` の解決地点を通る。
+  top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+});
+
+async function driveV188(page, H, o) {
+  const { tag, spec, expectFlip, why } = o;
+  const target = 'WD01-013#8802';
+  let before = await H.queryState();
+  for (let r = 0; r < 4; r++) {
+    const fd = await v14QueryBattleState(page);
+    if (fd?.host?.facedownSigni?.[0] === target) break;
+    H.log(`再注入(${r})… facedown=${JSON.stringify(fd?.host?.facedownSigni)}`);
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const gHand0 = before?.guest?.hand ?? 0;
+  H.log(`開始 guestHand=${gHand0} phase=${before?.turnPhase}`);
+  // §4.4-66＝観測は sticky に取る（後続の操作で盤面が動いても判定を壊さない）。
+  let sawFlip = false;
+  let sawMain = false;
+  let handAfterFlip = null;
+  for (let step = 0; step < 20; step++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    const st = await H.queryState();
+    if (st?.turnPhase === 'MAIN') sawMain = true;
+    const fd = await v14QueryBattleState(page);
+    const onField = (fd?.host?.fieldSigni?.[0] ?? [])?.includes?.(target);
+    const stillFacedown = fd?.host?.facedownSigni?.[0] === target;
+    if (onField && !stillFacedown) sawFlip = true;
+    if (sawFlip && handAfterFlip === null && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+      handAfterFlip = st?.guest?.hand ?? null;
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', 'しない']);
+    if (!did && st?.turnPhase !== 'MAIN') {
+      did = await H.clickTextOrBtn(['メインフェイズへ', 'メインへ', '次のフェイズ', 'フェイズ進行']);
+    }
+    H.log(`  ${tag}[${step}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} sawMain=${sawMain} onField=${onField} facedown=${stillFacedown} sawFlip=${sawFlip} gHand=${st?.guest?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (sawMain && (sawFlip ? handAfterFlip !== null : step > 8)) break;
+  }
+  if (!sawMain) return { pass: false, detail: `メインフェイズへ入れなかった（解決地点を通っていない）` };
+  if (expectFlip) {
+    if (!sawFlip) return { pass: false, detail: `${why} のはずが表向きに戻らなかった＝doPhaseAdvance が resolveSecondMainFacedownReturns を通していない疑い` };
+    const discarded = handAfterFlip !== null && handAfterFlip <= gHand0 - 2;
+    return discarded
+      ? { pass: true, detail: `${why}＝表向きに戻り、対戦相手の手札が ${gHand0}→${handAfterFlip}（2枚捨てた）` }
+      : { pass: false, detail: `表向きには戻ったが「対戦相手は手札を2枚捨てる」が起きていない（gHand ${gHand0}→${handAfterFlip ?? '-'}）` };
+  }
+  const finHand = (await H.queryState())?.guest?.hand ?? null;
+  return sawFlip
+    ? { pass: false, detail: `${why} のはずが表向きに戻ってしまった（「同じシグニゾーンにシグニがない場合」の条件が効いていない）` }
+    : { pass: true, detail: `${why}＝裏向きのまま据置で、手札も減っていない（gHand ${gHand0}→${finHand}）` };
+}
+
+scenarios.v188SecondMainFacedownFlip = {
+  title: 'V-188(1): 裏向き復帰＝自分のメインフェイズ開始で表向きに戻り、対戦相手が手札を2枚捨てる（O-299）',
+  spec: v188Spec(false),
+  async drive(page, H) {
+    return driveV188(page, H, { tag: 'v188Flip', spec: this.spec, expectFlip: true,
+      why: '同じシグニゾーンが空いている' });
+  },
+};
+scenarios.v188SecondMainFacedownBlocked = {
+  title: 'V-188(2): 対照＝同じシグニゾーンが埋まっていれば裏向きのまま（手札も減らない）',
+  spec: v188Spec(true),
+  async drive(page, H) {
+    return driveV188(page, H, { tag: 'v188Blocked', spec: this.spec, expectFlip: false,
+      why: '同じシグニゾーンが埋まっている' });
+  },
+};
+order.push('v188SecondMainFacedownFlip');
+order.push('v188SecondMainFacedownBlocked');
+
+order.push('v187LeaveToTrashWindowBattle');
+order.push('v187LeaveToTrashWindowAbledControl');
+order.push('v187LeaveToTrashWindowOffControl');
+
 order.push('v183FreeGrowUnrestricted');
 order.push('v183FreeGrowSameLrigTypeExact');
 order.push('v183FreeGrowScopeBlocksPartialType');

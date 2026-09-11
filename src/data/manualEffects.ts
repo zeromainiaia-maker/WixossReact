@@ -878,6 +878,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P04-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"あなたのトラッシュをすべてデッキに加えてシャッフルする","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"choiceId":"c1","label":"対戦相手のトラッシュをすべてデッキに加えてシャッフルする","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true}}]},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
+  // ── WXDi-P00-038 ／ 原文【常】：対戦相手のターンの間、このシグニが場を離れる場合、代わりにこれを
+  //   **裏向きにしてもよい**。そうした場合、**次の次のあなたのメインフェイズ開始時**、これと同じ
+  //   シグニゾーンにシグニがない場合、これを表向きにし、対戦相手は手札を２枚捨てる。
+  //   （§5.3 `O-299` 第262バッチ・2026-09-11）
+  // 🔴**旧 live は別物だった**＝`SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]` で、
+  //   **離場の置換も裏向きも1つも無い**（しかも `CONTINUOUS` なので `executeAction` を通らず全部 no-op）。
+  //   ⇒ 原文の主眼（守り）が丸ごと消えたうえ、副次の「2枚捨てさせる」だけが**無条件で起きる形**に見えていた。
+  // ✅**受け皿の半分は既存**＝`moveFieldSigniFacedown`（`facedownSigni.ts`）。今回足したのは
+  //   「次の次」を数える予約（`pending_second_main_facedown_returns`）と funnel 軸 `selfFacedown` だけ。
+  // ⚠**期間は `activeCondition{TURN_OWNER opponent}` が持つ**（原文「対戦相手のターンの間」）。
+  // ⚠**裏向き枠が埋まっていたら置換できない**＝1ゾーンに裏向きは1枚まで（既存の規約）。
+  'WXDi-P00-038': [
+    {"effectId":"WXDi-P00-038-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"SELF_LEAVE_FACEDOWN_SECOND_MAIN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   // ── WXDi-P04-007 ／ 原文【起】《ゲーム１回》《白×0》：「**次の対戦相手のターンの、メインフェイズと
   //   アタックフェイズの間**、あなたのシグニは【シャドウ】を得る。」（§5.3 `O-301` 第258バッチ・2026-09-11）
   // 🔴旧 live＝`GRANT_KEYWORD{duration:'PERMANENT'}`＝**ゲーム終了まで永続**する過剰実行だった

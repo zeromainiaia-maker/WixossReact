@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
-import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, type BanishedCardAttrs } from './effectEngine';
+import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
@@ -1085,6 +1085,11 @@ export function banishDestination(
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }
   if (opponent.banish_redirect === true) {
+    return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
+  }
+  // 🆕§5.3 `O-299` 第262バッチ（2026-09-11）＝**期間＋フィルタつきの行き先変更**（`WX24-P4-002-E1`③）。
+  //   ⚠`banish_redirect`（無期限フラグ）とは別物＝**同じ述語をバトル経路も読む**（`leaveToTrashWindowApplies`）。
+  if (opts?.cardMap && leaveToTrashWindowApplies(opponent, removed, num, opts.cardMap)) {
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }
   if (opponent.banish_redirect_to_hand === true) {

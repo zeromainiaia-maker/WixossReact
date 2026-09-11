@@ -652,6 +652,16 @@ export interface PlayerState {
    * ⚠**ctx ではなく state に置く**＝ゾーン選択の対話 pause を跨いで残す必要があるため。
    */
   last_summoned_resonas?: string[];
+  /**
+   * 🆕**「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」**の予約
+   * （§5.3 `O-299` 第262バッチ・`WX24-P4-002-E1`③）。**宣言した側（＝離場させる側）の state に載る。**
+   * 🔑**判定は `leaveToTrashWindowApplies`（`effectEngine.ts`）1本**＝バトル経路（`BattleScreen`）と
+   *   効果経路（`banishDestination` / `collectLeaveSubstituteOptions`）が**同じ述語を読む**。
+   *   ⚠ここを増やすときは3つの読み手すべてを対で更新する（片側だけだと「バトルでは効くのに
+   *   効果では効かない」型＝`O-299` の共通の壊れ方に戻る）。
+   * ⚠`turnsRemaining` はグローバルターン終了ごとに1減る（`clearTurnEndScopedState`）。
+   */
+  leave_to_trash_windows?: Array<{ turnsRemaining: number; requiresNoAbilities?: boolean }>;
   // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
   // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
   // NEXT_TURN_START は予約（消費側は無視）→次のグローバルターン開始時に NEXT_TURN_END へ昇格→その終了時に消滅。
@@ -1362,6 +1372,17 @@ export interface PlayerState {
   // delayed_triggers はターン境界で消えるため、二重遅延の1段目／2段目を専用の永続フィールドで持つ。
   turn_end_facedown_all?: Array<{ sourceCardNum: string; returnTiming: 'NEXT_OPP_ATTACK_PHASE_START' }>;
   pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
+  /**
+   * 🆕**「代わりにこれを裏向きにしてもよい。そうした場合、次の次のあなたのメインフェイズ開始時、
+   *  これと同じシグニゾーンにシグニがない場合、これを表向きにし、対戦相手は手札を２枚捨てる」**
+   * （§5.3 `O-299` 第262バッチ・2026-09-11・`WXDi-P00-038-E1`）。
+   * 🔴**旧 live は別物だった**＝`SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]` で、
+   *   **置換も裏向きも1つも無い**（しかも `CONTINUOUS` なので `executeAction` を通らず全部 no-op）。
+   * ⚠**「次の次」は `mainPhasesRemaining` で数える**＝自分のメインフェイズ開始を通るたびに1減らし、
+   *   0 になった回に解決する（既存 `INSTALL_DELAYED_TRIGGER` は「次の1回」までしか表せない＝`O-314`）。
+   * ⚠**同じゾーンが埋まっていたら表向きにしない**（裏向きのまま据置＝原文の条件）。
+   */
+  pending_second_main_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; mainPhasesRemaining: number; oppDiscard: number }>;
   // §6.4 O-9(b)：「**各**アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
   // 対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」（`WXDi-P07-010-E2`）。
   // ⚠**繰り返す**ゲート＝一度きりの `pending_*` と違い、支払われるまで毎アタックフェイズ残る

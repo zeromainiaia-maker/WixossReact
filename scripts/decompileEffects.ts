@@ -4947,6 +4947,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-299` 第262バッチ（2026-09-11・`WXDi-P00-038-E1`）＝離場を裏向きで置換し、
+        //   **次の次の自分のメインフェイズ開始時**に（同じゾーンが空なら）表向きへ戻す【常】宣言。
+        //   判定は `collectLeaveSubstituteOptions` の `selfFacedown` 軸＋
+        //   `resolveSecondMainFacedownReturns`（`BattleScreen` のメインフェイズ開始で1回ずつ数える）。
+        SELF_LEAVE_FACEDOWN_SECOND_MAIN:
+          'このシグニが場を離れる場合、代わりにこれを裏向きにしてもよい。そうした場合、次の次のあなたのメインフェイズ開始時、これと同じシグニゾーンにシグニがない場合、これを表向きにし、対戦相手は手札を2枚捨てる',
         // 🆕§5.3 `O-283`（2026-09-08）＝「カードを使う」ではなく「**ルリグの能力**を使う」経路。
         //   ⚠上限（`maxExceed`）と範囲（`lrigAbilityScope`）は下の動的分岐で描く（固定文にしない）。
         // 🆕§5.3 `O-280`③（2026-09-08）＝相手が手札を伏せて2束に分け、こちらが束を選ぶ秘匿 interaction。

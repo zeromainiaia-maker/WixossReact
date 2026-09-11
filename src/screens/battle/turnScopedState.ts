@@ -367,6 +367,22 @@ function advancePowerModsUntilNextOwnTurn(
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 🆕**「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」の期間**
+ * （§5.3 `O-299` 第262バッチ・2026-09-11・`WX24-P4-002-E1`③「このターンと次のターンの間」）。
+ * 🔴**旧実装は `banish_redirect`（boolean）で、turn-end で消える＝1ターンしか効かなかった**（過小）。
+ * ⚠グローバルターン終了ごとに1減らし、0 になったものを落とす（`advancePreventDamageWindows` と同じ作法）。
+ */
+function advanceLeaveToTrashWindows(
+  windows: PlayerState['leave_to_trash_windows'],
+): PlayerState['leave_to_trash_windows'] {
+  if (!Array.isArray(windows)) return undefined;
+  const next = windows
+    .map(w => ({ ...w, turnsRemaining: (w.turnsRemaining ?? 0) - 1 }))
+    .filter(w => w.turnsRemaining > 0);
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
@@ -415,6 +431,7 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     field_keyword_grants_active: undefined,
     field_keyword_grants_next_opp_turn: undefined,
     prevent_damage_windows: advancePreventDamageWindows(state.prevent_damage_windows),
+    leave_to_trash_windows: advanceLeaveToTrashWindows(state.leave_to_trash_windows),
     cost_modifiers: advanceCostModifiers(state.cost_modifiers),
     // ⚠パワー配置制限（旧 `signi_deploy_power_limit`）もここへ統合した＝原文は「このターンと次のターン」なのに
     //   **どこでもクリアされておらず永続していた**（§6.4 O-3 続き487 で発見）。

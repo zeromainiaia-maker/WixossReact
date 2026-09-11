@@ -1,5 +1,74 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — 第262〜第263バッチ：🏁`O-299` をクローズ（**`BattleScreen` 委譲込み・実機まで**）→ **索引 A 残0**
+
+ユーザー承認＝「`BattleScreen` 委譲込みで実機まで回す1バッチとして取ってよい」。残2件を消化した。
+
+### 1. `WX24-P4-002-E1`③＝**3軸すべてが外れていた**（期間・フィルタ・バニッシュ限定）
+
+原文「**このターンと次のターンの間**、**能力を持たない**対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる。」
+🔴旧 live は `STUB{OPP_SIGNI_LEAVE_TO_TRASH}` が `banish_redirect:true` を立てるだけで、
+①turn-end で消えるので**1ターンしか効かない**（過小）②「能力を持たない」フィルタが**無い**（過剰）
+③**バニッシュ限定**で「場を離れる場合」全体ではない（過小）。
+
+**直し方（5点）**
+1. parser（`parseSentencePart3.ts`）が原文から **`StubAction.leaveToTrashWindow{turns, requiresNoAbilities}`** を載せる。
+   ⚠`WXDi-P04-037-E1`（【常】・期間は `activeCondition` が持つ）は payload なしのまま＝**同じ STUB を2つの意味で使い分ける**。
+2. `PlayerState.leave_to_trash_windows`（`turnsRemaining` の減算式）を宣言者の state に積む。
+3. 🔑**述語は `leaveToTrashWindowApplies`（`effectEngine.ts`）1本**にした。
+4. **読み手は4箇所**＝`banishDestination`（効果経路）／funnel の `oppLeaveToTrash` 軸（非バニッシュ離場）／
+   `BattleScreen` の**攻撃側 `redirectBanish` と防御側 `redirectMyBanish`**（O-49 の対称規約どおり対で書く）。
+5. 失効は `clearTurnEndScopedState` で1ターンにつき1減（`advancePreventDamageWindows` と同じ作法）。
+
+⚠**「能力を持たない」の定義は1本に寄せた**＝`matchesFilter({noAbilities:true})` ∪ `abilities_removed`。
+自前で `EffectText` を見ると **CSV が素のシグニを `-` で持つ**規約や「解析済み効果が1件でもあれば能力あり」を落として基準がずれる。
+（同じアーツの②が `REMOVE_ABILITIES` で能力を奪うので、**その時点で**能力が無い個体も含めるのが原文どおり。）
+
+### 2. `WXDi-P00-038-E1`＝**live が別物だった**（置換も裏向きも1つも無い）
+
+原文「【常】：対戦相手のターンの間、このシグニが場を離れる場合、代わりにこれを**裏向きにしてもよい**。
+そうした場合、**次の次のあなたのメインフェイズ開始時**、これと同じシグニゾーンにシグニがない場合、これを表向きにし、対戦相手は手札を２枚捨てる。」
+🔴旧 live＝`SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]`＝
+**原文の主眼（守り）が丸ごと消え**、副次の「2枚捨てさせる」だけが無条件に見える形だった（しかも `CONTINUOUS` なので全部 no-op）。
+
+**直し方**＝MANUAL で `CONTINUOUS STUB{SELF_LEAVE_FACEDOWN_SECOND_MAIN}` ＋ `activeCondition{TURN_OWNER opponent}` に書き直し、
+- funnel 軸 `selfFacedown`（任意）＝`moveFieldSigniFacedown`（**既存**）で同じゾーンの裏向き枠へ移し、予約を積む。
+- 新 `PlayerState.pending_second_main_facedown_returns`（`mainPhasesRemaining`／`oppDiscard`）。
+  🔑**「次の次」は自メイン開始のたびに1減らして数える**（既存 `INSTALL_DELAYED_TRIGGER` は「次の1回」までしか表せない＝`O-314`）。
+- `resolveSecondMainFacedownReturns`（`facedownSigni.ts`）を `doPhaseAdvance` の `nextPhase === 'MAIN'` で呼ぶ。
+- 🔑**「対戦相手は手札を2枚捨てる」は `effect_stack` へ載せる**＝直接 state を書くと**どれを捨てるかの選択と【自】の誘発**を飛ばす。
+- ⚠**表向きにできた分だけ捨てさせる**（ゾーンが埋まっていて戻れなかった予約では捨てさせない＝原文の条件）。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3940 PASS / 0 FAIL**（3938 → +2）／smoke CRASH・HANG・INVARIANT 0／fuzz 0／
+  census 高シグナル 1 / BASELINE 1／`census:stubs` A群・C群 0／`census:enginetext` A🔴 **0行**／
+  `census:costtext` A🔴 **0規則**／manual-fields 0／lint 0 errors・254 warnings。**ratchet の較正なし**。
+- **live の per-effect 差分＝2 effectId**（`WX24-P4-002-E1`／`WXDi-P00-038-E1`）。
+- **golden の反転確認は3通り**＝①`BattleScreen` の共有述語を外すと `got=1`（4箇所→3箇所）で FAIL
+  ②「次の次」を「次」にすると `got=1` で FAIL ③ゾーンが埋まっていても戻すと `got=1` で FAIL。
+- 🔴**実機5本すべて PASS**（`V-187` 3本＋`V-188` 2本・`order` に常設）＝
+  - `v187LeaveToTrashWindowBattle`：window あり＋能力なし victim → **行き先 trash**
+  - `v187LeaveToTrashWindowAbledControl`：window あり＋**能力あり** victim → **energy**（フィルタが効いている）
+  - `v187LeaveToTrashWindowOffControl`：window **なし** → **energy**（旧挙動）
+  - `v188SecondMainFacedownFlip`：自メイン開始で表向きに戻り、**対戦相手の手札 3→1**
+  - `v188SecondMainFacedownBlocked`：同じゾーンが埋まっていれば**裏向きのまま・手札も減らない**
+- 🔴**実機の反転確認も実行した**＝`BattleScreen` の2箇所を旧挙動へ戻すと
+  `v187LeaveToTrashWindowBattle` が「行き先は energy（期待 trash）」、`v188SecondMainFacedownFlip` が
+  「表向きに戻らなかった」で**両方 FAIL**＝**シナリオに判別力がある**ことを確認した（§4.4-3 の要求）。
+
+### 🏁 索引 A は **残0**／実機 `V-nn` も **残0**
+
+機構 worklist は **25項目**（A 0／B 0／G 25）。
+
+🔴🔑**教訓①＝「同じ STUB id を2つの意味で使い分ける」ときは payload の有無で分ける。**
+`OPP_SIGNI_LEAVE_TO_TRASH` は【常】宣言（期間は `activeCondition`）とアーツの1ステップ（期間は payload）の両方で使う。
+**ハンドラ側に「どちらのカードか」を書かない**＝parser が原文から payload を出し、engine は payload の有無だけを見る。
+🔴🔑**教訓②＝「共有述語を N 箇所が読む」形にすると `O-299` の壊れ方が構造的に起きなくなる。**
+`O-299` の共通の壊れ方は「バトル経路にしか無い」だったが、根は**同じ意味を2箇所に別々に書いたこと**。
+今回は `leaveToTrashWindowApplies` 1本を4箇所が読む形にし、**golden がその箇所数（2箇所＝BattleScreen の攻守）を assert する**。
+⇒ 片側だけ足す／外すと**必ず golden が落ちる**。
+🔑**教訓③＝実機の反転確認は「シナリオの判別力」の証明**（§4.4-3）。今回は旧挙動へ戻して両方 FAIL することまで見た。
 ## 2026-09-11 — 第261バッチ（PLAN §5.3 索引A `O-299`）：離場置換に3軸を追加し 残5 → **残2**
 
 `O-299` の共通の壊れ方は「**置換処理がバトル経路にしか無い**」。第260 で3軸（`selfDown`／`selfExile`／

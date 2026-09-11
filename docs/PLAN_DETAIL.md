@@ -330,11 +330,11 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 ⚠**新しく母集団2桁の項目が出たらここへ足す。**
 
-##### 🔥 `O-299` 登録票（2026-09-11・第256で triage → 第260/第261 で6軸を消化・**着手前にここを読む**）
+##### 🏁 `O-299` 登録票（**クローズ済**・2026-09-11 第263バッチ／第256 triage → 第260・第261・第262 で9軸を消化）
 
 **母集団の切り方**＝`npm run census:population -- "場を離れる場合[^。]*代わりに"`＝**24効果 / 24カード**（効果単位）。
-**うち22効果は決着済み**＝engine が置換候補を出す（第255で3件＋第256で2件＋既に正しい8件＋既存3件＋**第260で3軸**＋**第261で3軸**）。
-🔥**残2は全部 (c)＝新しい state 機構が要る。**
+**24効果すべて決着済み**＝engine が置換候補を出す（第255で3件＋第256で2件＋既に正しい8件＋既存3件＋**第260で3軸**＋**第261で3軸**＋**第262で2件**）。
+🏁**残0。** 最後の2件は新しい state 機構（期間＋フィルタ window／「次の次」を数える裏向き予約）で閉じた。
 
 🔑**共通の欠落は1つ**＝**「置換処理がバトル経路にしか無い」**。
 `BattleScreen.tsx` 側にダウン置換・除外置換・凍結の行き先変更が実装されているが、**バトルによる離場からしか呼ばれない**。
@@ -351,11 +351,11 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | 🏁`WXDi-P09-TK03A-E1` | アクセされたシグニが離場→代わりに**これを除外**しダウン | **第261で消化**＝非バニッシュ枝にも `exile_acce` を回す `acceExile` 軸を追加。🔴**同時に engine 経路の既存バグを1件直した**＝`collectEffectBanishSubstituteChoices` が組む `localEffects` に**シグニ最上面しか入っておらず**、`effectsMap.get(acceNum)` が引けずに `ACCE_BANISH_SUBSTITUTE` が**バニッシュ枝でも恒久 no-op** だった（BattleScreen は本物の `effectsMap` を渡すのでバトル経路だけ動いていた） |
 | 🏁`WXEX1-30-E1` | 相手の**凍結**シグニが離場→代わりにトラッシュへ | **第261で消化**＝`frozenLeaveToTrash` 軸を追加（強制）。**collector は既存の `collectFrozenBanishOverrides` を再利用**（並行する劣化軸を作らない）。⚠victim が凍結していることを必ず見る |
 | 🏁`WXDi-P04-037-E1` | 相手ターン中、相手シグニが離場→代わりにトラッシュへ | **第261で消化**＝`oppLeaveToTrash` 軸＋新 collector `collectOppSigniLeaveToTrash`（強制）。期間は `activeCondition{TURN_OWNER opponent}` が持つ。🔑**走査するのは `ctx.ownerState`（離場させた側）**＝既存の守り軸とは向きが逆 |
-| 🔥`WX24-P4-002-E1` | このターンと次のターン、**能力を失った**相手シグニが離場→代わりにトラッシュ | 🔴**第261の実測＝3軸すべてが外れている**＝live は `STUB{OPP_SIGNI_LEAVE_TO_TRASH}` を**ACTIVATED のステップ**として持ち、`execStubPart2` が `banish_redirect:true` を立てるだけ。①期間「このターンと次のターン」→ **turn-end で消えるので1ターンしか効かない**（過小）②「能力を持たない」フィルタが**無い**（過剰）③**バニッシュ限定**で「場を離れる場合」全体ではない（過小）。⇒ **期間＋フィルタつきの window（`PlayerState` の2スロット式）**が要る。⚠**`banish_redirect` と二重になる**ので、`BattleScreen` を funnel へ委譲するのとセットでないと劣化軸になる |
-| 🔥`WXDi-P00-038-E1` | 相手ターン中に離場→代わりに**裏向きにする**（次の次のメイン開始時に表へ戻り相手が2枚捨てる） | 🔴**第261の実測＝live が別物**＝`SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]` で、**置換も裏向きも1つも無い**（しかも `CONTINUOUS` なので `executeAction` を通らず全部 no-op）。裏向き領域自体は `facedownSigni.ts` に在るが、**離場置換＋「次の次のメインフェイズ」復帰**を束ねる受け皿が無い。🔑`O-314`（複数ターンにまたがる遅延状態）と**同族**＝先に `O-314` を読む。**8件で最も重い＝最後に取る** |
+| 🏁`WX24-P4-002-E1` | このターンと次のターン、**能力を失った**相手シグニが離場→代わりにトラッシュ | **第262で消化**＝新 payload `StubAction.leaveToTrashWindow` ＋ `PlayerState.leave_to_trash_windows`（2スロットではなく `turnsRemaining` の減算式）。🔑**述語は `leaveToTrashWindowApplies` 1本**＝`banishDestination`（効果経路）／funnel（非バニッシュ離場）／`BattleScreen` の攻撃側・防御側の**4箇所が同じものを読む**＝`O-299` の共通の壊れ方（片側だけ）を構造的に断った。「能力を持たない」は `matchesFilter({noAbilities:true})` ∪ `abilities_removed`。実機 `V-187`（3本）で確認 |
+| 🏁`WXDi-P00-038-E1` | 相手ターン中に離場→代わりに**裏向きにする**（次の次のメイン開始時に表へ戻り相手が2枚捨てる） | **第262で消化**＝funnel 軸 `selfFacedown`（`moveFieldSigniFacedown` は既存）＋新 `pending_second_main_facedown_returns`（`mainPhasesRemaining` を自メイン開始のたびに1減らす）＋`resolveSecondMainFacedownReturns`。**「対戦相手は手札を2枚捨てる」は effect_stack へ載せる**（直接 state を書くと選択と【自】を飛ばす）。⚠**表向きにできた分だけ捨てさせる**（ゾーンが埋まっていたら捨てさせない）。実機 `V-188`（2本）で確認 |
 
-**取る順の推奨（残2）**＝`WX24-P4-002-E1`（期間＋フィルタ window）→ `WXDi-P00-038-E1`（`O-314` と同族・単独で重い）。
-🔴🔑**どちらも `BattleScreen.tsx` の既存フラグと二重になる**＝**funnel への委譲とセットで取る**（そうしないと劣化軸になる）。§2.2 により実機まで必須。
+🔴🔑**残っている別軸の宿題**＝`BattleScreen.tsx` には `banish_redirect` ほかの**バトル専用の置換フラグ**がまだ多数ある。
+第262 で新設した軸は**共有述語 1本を4箇所が読む**形にしたので同じ壊れ方はしないが、**既存フラグ群の funnel 委譲は未着手**（新規 `O-nn` を立てるほどの実害はまだ観測していないので登録していない）。
 
 🔑**2026-09-07 に `O-269` をクローズ**（スペル使用の色記録）。**登録時の見立て「母集団16」は過大**で、
 着手して実測したら**14件は別名の受け皿で配線済み**（`triggerFilter.color`／`ARTS_USED_THIS_TURN.color`／
@@ -835,6 +835,18 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
+
+- **2026-09-11（第261バッチ・Opus 5 単独＝`O-299` を残2へ・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置・実測）｜**台帳 残 OPEN 0**（据置・実測）｜**census 高シグナル 1 / BASELINE 1**（据置・実測）。
+  🔴**3計器がどれも動かないのは構造的**＝今回の修正は **live JSON を1バイトも変えない**（engine のみ）。
+  逆翻訳・census・`census:stubs` A群はどれも「受け皿（ハンドラ）が在るか」しか見ないので、
+  **「ハンドラは在るが呼び出し側が居ない」型は原理的に映らない**。⇒ 進捗は在庫（§5.3 の索引）で読む。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 26項目**（**A 1**／B 0／G 25・据置）｜
+  🏁**実機 残0**｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3938 PASS**（3935 → 3938）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  **ratchet の較正なし。反転確認は4通り実行**（`localEffects` からアクセを外す／3軸をそれぞれ funnel から外す）。
+  📈**live の per-effect 差分＝0**（engine のみ）。
 
 - **2026-09-11（第260バッチ・Opus 5 単独＝索引 A を残1へ・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置・実測）｜**台帳 残 OPEN 0**（据置・実測）｜**census 高シグナル 1 / BASELINE 1**（据置・実測）。

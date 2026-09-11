@@ -7724,6 +7724,37 @@ export function collectForcePlaceFrontZones(
  *   ⚠victim の盤面を守る既存軸（`downProtector` 等）とは**走査する側が逆**。
  * ⚠期間（「対戦相手のターンの間」）は `activeCondition` が持つ＝`isOwnerTurn` は**宣言者視点**で渡す。
  */
+/**
+ * 🆕**「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」の唯一の述語**
+ * （§5.3 `O-299` 第262バッチ・2026-09-11・`WX24-P4-002-E1`③）。
+ *
+ * 🔑**バトル経路（`BattleScreen`）と効果経路（`banishDestination` / `collectLeaveSubstituteOptions`）が
+ *   この1本を読む**＝片側だけに書くと「バトルでは効くのに効果では効かない」型に戻る（`O-299` の共通の壊れ方）。
+ *
+ * ⚠**「能力を持たない」は印刷能力だけでは足りない**＝同じアーツの②が `REMOVE_ABILITIES` で能力を奪うので、
+ *   `abilities_removed` に載っている個体も「能力を持たない」に含める（原文の括弧書き
+ *   「このアーツの使用後に場に出たシグニにもこの効果の影響を与える」＝**その時点で**判定する）。
+ */
+export function leaveToTrashWindowApplies(
+  declarer: PlayerState,
+  victimState: PlayerState,
+  victimNum: string,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const windows = declarer.leave_to_trash_windows ?? [];
+  if (windows.length === 0) return false;
+  const baseVictim = victimNum.includes('#') ? victimNum.slice(0, victimNum.indexOf('#')) : victimNum;
+  const card = cardMap.get(baseVictim);
+  // 🔑**「能力を持たない」の定義は1本に寄せる**＝`matchesFilter({noAbilities:true})`（同ファイル）。
+  //   自前で `EffectText` を見ると **CSV が素のシグニを `'-'` で持つ**規約や
+  //   「解析済み効果が1件でもあれば能力あり」を落として基準がずれる。
+  const printedNoAbilities = !!card && matchesFilter(card, { noAbilities: true });
+  const lostAbilities = (victimState.abilities_removed ?? []).includes(victimNum)
+    || (victimState.abilities_removed ?? []).includes(baseVictim);
+  const hasNoAbilities = printedNoAbilities || lostAbilities;
+  return windows.some(w => w.turnsRemaining > 0 && (!w.requiresNoAbilities || hasNoAbilities));
+}
+
 export function collectOppSigniLeaveToTrash(
   ownerState: PlayerState,
   otherState: PlayerState,

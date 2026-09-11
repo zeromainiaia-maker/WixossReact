@@ -8,33 +8,33 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- **セッション（2026-09-11・第261バッチ・Opus 5 単独）＝`O-299`（離場置換）を 残5 → **残2**にした**
-  ユーザー指示は「`O-299` を行う」。共通の壊れ方は**「置換処理がバトル経路にしか無い」**で、
-  第260 の3軸に続き**残り3効果**を `collectLeaveSubstituteOptions` の軸として消化した。
-  **①`acceExile`（`WXDi-P09-TK03A-E1`）**＝`exile_acce` が `isBanish` の枝でしか列挙されていなかった。
-  **②`frozenLeaveToTrash`（`WXEX1-30-E1`）**＝collector は在ったが呼び出しが `BattleScreen` の2箇所だけ。
-  **③`oppLeaveToTrash`（`WXDi-P04-037-E1`）**＝`CONTINUOUS` の宣言を読む collector が無く真 no-op。
+- **セッション（2026-09-11・第262〜第263バッチ・Opus 5 単独）＝🏁**`O-299` をクローズし、§5.3 索引 A を残0**にした**
+  ユーザー承認＝「`BattleScreen` 委譲込みで実機まで回す1バッチとして取ってよい」。残2件を消化した。
+  **①`WX24-P4-002-E1`③**＝🔴**3軸すべてが外れていた**（期間が1ターンしか効かない／「能力を持たない」フィルタが無い／
+  バニッシュ限定）。新 payload `leaveToTrashWindow` ＋ `PlayerState.leave_to_trash_windows` ＋
+  🔑**共有述語 `leaveToTrashWindowApplies` 1本を4箇所が読む**形（`banishDestination`／funnel／`BattleScreen` 攻守）。
+  **②`WXDi-P00-038-E1`**＝🔴**live が別物だった**（置換も裏向きも無い）。funnel 軸 `selfFacedown` ＋
+  `pending_second_main_facedown_returns`（「次の次」を自メイン開始のたびに数える）＋ `doPhaseAdvance` での解決。
+  「対戦相手は手札を2枚捨てる」は**`effect_stack` へ載せる**（直接 state を書くと選択と【自】を飛ばす）。
+  🔴**実機5本すべて PASS**（`V-187` 3本／`V-188` 2本＝`order` に常設）＋**実機の反転確認も両方 FAIL** を確認した。
 
-  🔴🔑**教訓①＝「バトルでは効くのに効果では効かない」は engine の中にもある。**
-  `acceExile` を直す途中で、`collectEffectBanishSubstituteChoices` が組む `localEffects` に
-  **シグニ最上面しか入っていない**ことが分かった＝`effectsMap.get(acceNum)` が引けず、
-  **`ACCE_BANISH_SUBSTITUTE` は engine 経路ではバニッシュ枝でも恒久 no-op** だった
-  （`BattleScreen` は本物の `effectsMap` を渡すのでバトル経路だけ動いていた）。
-  ⇒ **「同じ判定関数に、呼び出し側ごとに違う map を渡している」箇所を疑う。**
-  🔴🔑**教訓②＝走査の向きを間違えると永久に成立しない。**「守る側の宣言」（`downProtector` 等）と
-  「**離場させた側**の宣言」（今回の2軸）は別物で、後者は victim の盤面をいくら探しても見つからない。
-  ⇒ **原文の「対戦相手の」が誰から見た相手かを最初に決める。**
-  🔑**この型は live JSON を1バイトも変えない**＝逆翻訳・census・`census:stubs` A群のどれにも映らない。
+  🔴🔑**教訓①＝同じ STUB id を2つの意味で使い分けるときは payload の有無で分ける。**
+  `OPP_SIGNI_LEAVE_TO_TRASH` は【常】宣言（期間は `activeCondition`）とアーツの1ステップ（期間は payload）の両方で使う。
+  **ハンドラに「どちらのカードか」を書かない**＝parser が原文から payload を出し、engine は payload の有無だけを見る。
+  🔴🔑**教訓②＝「共有述語を N 箇所が読む」形にすると `O-299` の壊れ方が構造的に起きなくなる。**
+  `O-299` の共通の壊れ方は「バトル経路にしか無い」だったが、根は**同じ意味を2箇所に別々に書いたこと**。
+  今回は述語1本を4箇所が読む形にし、**golden がその箇所数（BattleScreen の攻守2箇所）を assert する**
+  ＝片側だけ足す／外すと必ず落ちる。
+  🔑**教訓③＝実機の反転確認は「シナリオの判別力」の証明**（DRIVE_TRAPS §4.4-3）。旧挙動へ戻して両方 FAIL まで見た。
 
-  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **26項目**（**A 1**／B 0／G 25）｜実機 **残0**。
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **25項目**（🏁**A 0**／B 0／**G 25**）｜🏁**実機 残0**。
 
   **次の一手**
-  ① 🔥**`O-299` 残2**＝`WX24-P4-002-E1`（**3軸すべてが外れている**＝期間1ターンしか効かない／
-     「能力を持たない」フィルタが無い／バニッシュ限定）→ `WXDi-P00-038-E1`（live が別物・`O-314` と同族）。
-     🔴**どちらも `BattleScreen.tsx` の `banish_redirect` と二重になる**＝**funnel への委譲とセットで取る**
-     （片側だけ足すと並行する劣化軸になる）。**§2.2 により実機まで必須。**
-  ② A が空いたら**索引 G（残25項目 / 上限92効果）**＝速いレーンが既定・**着手は1件ずつ**。
-     ⚠`O-318`〜`O-322` の9効果は登録理由が1行しか無いので**再 triage が先**。
+  ① 🔥**索引 G（残25項目 / 上限92効果）へ移る**＝速いレーンが既定（§2.0）・**着手は1件ずつ**。
+     ⚠**`O-318`〜`O-322` の9効果は登録理由が1行しか残っていない**＝**再 triage が先**（各登録票に明記）。
+     🔑**同族はまとめて取ると安い**＝`O-296`（`SET_BASE_LEVEL.until`）と `O-293` は「寿命の語彙が足りない」族、
+     `O-311`／`O-312`／`O-304` は「参照値を後段へ渡す」族、`O-314`／`O-318` は「複数ターンの遅延」族。
+  ② ⚠**索引 A/B が空いたので、新しい母集団2桁の項目が出たら必ず §5.3 索引 A へ足す**（この節が空のまま埋もれない）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -281,13 +281,14 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 
 ### 5.1 実機で確かめる（`V-nn`）★①＝溜める前に返す
 
-> ⚠**着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む**（番号つきの罠 98項）。
+> ⚠**着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む**（番号つきの罠 101項）。
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🏁**残0**（2026-09-10＝第253で `V-184`／`V-185`、第255で `V-186` を**いずれも同じ巡で返済**）＝**6本を `order` に常設した**
+🏁**残0**（2026-09-11＝第263で `V-187`／`V-188` を**同じ巡で返済**／2026-09-10＝第253で `V-184`／`V-185`、第255で `V-186`）＝**11本を `order` に常設**
 （`v184DriveCrasherFires` / `v184NonDriveCrasherSilent` / `v185FieldDownExcludesSelfOffered` / `v185FieldDownExcludesSelfBlocked`
-／`v186LeaveSubstituteDeckBottom` / `v186LeaveSubstitutePlainControl`）。
+／`v186LeaveSubstituteDeckBottom` / `v186LeaveSubstitutePlainControl` / 🆕`v187LeaveToTrashWindowBattle` / `v187LeaveToTrashWindowAbledControl`
+／`v187LeaveToTrashWindowOffControl` / `v188SecondMainFacedownFlip` / `v188SecondMainFacedownBlocked`）。
 🔑**`V-186` は「golden では原理的に緑になる」型の返済**＝golden は funnel（`collectLeaveSubstituteOptions`）を直接叩くので、
 **funnel が実戦の離場経路から呼ばれていなくても通る**。実機で初めて「代わりに〜」の対話が出ることを確認した。
 
@@ -354,13 +355,8 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 
-🔥**残1項目 / 上限2効果**（2026-09-11 第261バッチ＝`O-299` を 残5 → **残2**。第260＝🏁`O-298` クローズ／残8 → 残5）。
+🏁**残0**（2026-09-11 第263バッチで `O-299` をクローズ）。⚠**新しく母集団2桁の項目が出たらここへ足す。**
 
-| ID | 母集団 | 何が無いか |
-|---|---|---|
-| `O-299` | 🔥**残2**（2026-09-11 第261バッチで**離場させた側の宣言2軸＋アクセ対価の全離場化**を追加＝母集団24効果は据置。内訳は **(a) 既に正しく動く8 ／ (b) 配線済み14 ／ (c) 機構が要る2**） | **離場置換（「代わりに」）の受け皿**＝`collectLeaveSubstituteOptions` の軸列。✅第260で `selfDown`／`selfExile`／`resonaSelfTrash`、第261で `acceExile`／`frozenLeaveToTrash`／`oppLeaveToTrash` を追加（**`src/screens/` は無傷・engine のみ**）。🔥**残2は `WX24-P4-002-E1`（期間＋フィルタ付きの行き先変更）と `WXDi-P00-038-E1`（裏向き置換＋「次の次のメインフェイズ」復帰）**＝どちらも新しい state 機構が要る。⚠**どちらも `BattleScreen.tsx` の既存フラグ（`banish_redirect`）と二重になる**ので、**funnel への委譲とセットでないと劣化軸になる**＝そこを触る回は §2.2 により実機まで必須。内訳は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `O-299` 登録票 |
-
-⚠**新しく母集団2桁の項目が出たらここへ足す。**
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -470,17 +466,17 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-11（第261バッチ・Opus 5 単独＝`O-299` を残2へ・本ブロックが直近の正）**
+- **2026-09-11（第262〜第263バッチ・Opus 5 単独＝🏁`O-299` クローズ・索引 A 残0・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置・実測）｜**台帳 残 OPEN 0**（据置・実測）｜**census 高シグナル 1 / BASELINE 1**（据置・実測）。
-  🔴**3計器がどれも動かないのは構造的**＝今回の修正は **live JSON を1バイトも変えない**（engine のみ）。
-  逆翻訳・census・`census:stubs` A群はどれも「受け皿（ハンドラ）が在るか」しか見ないので、
-  **「ハンドラは在るが呼び出し側が居ない」型は原理的に映らない**。⇒ 進捗は在庫（§5.3 の索引）で読む。
-  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 26項目**（**A 1**／B 0／G 25・据置）｜
-  🏁**実機 残0**｜除外リスト 125効果。
-  🔧**ゲート（全緑 ✅）**＝**golden 3938 PASS**（3935 → 3938）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  ⚠**3計器が動かないのは想定どおり**＝直したのは**置換の期間・フィルタ・遅延の解決地点**で、
+  どれも「原文の語彙は live に出ている」層＝census も台帳も見ていない。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 25項目**（🏁**A 0**／B 0／G 25。26 → 25）｜
+  🏁**実機 残0**（`V-187`／`V-188` を同じ巡で返済＝`order` 常設は11本へ）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3940 PASS**（3938 → 3940）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
   census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
-  **ratchet の較正なし。反転確認は4通り実行**（`localEffects` からアクセを外す／3軸をそれぞれ funnel から外す）。
-  📈**live の per-effect 差分＝0**（engine のみ）。
+  **ratchet の較正なし。golden の反転確認3通り＋実機の反転確認2本**（`BattleScreen` を旧挙動へ戻すと両シナリオが FAIL）。
+  📈**live の per-effect 差分＝2 effectId**（`WX24-P4-002-E1`／`WXDi-P00-038-E1`）。
+  🔴**実機5本 PASS**＝`v187LeaveToTrashWindowBattle`／`…AbledControl`／`…OffControl`／`v188SecondMainFacedownFlip`／`…Blocked`。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

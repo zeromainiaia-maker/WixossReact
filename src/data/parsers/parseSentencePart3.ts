@@ -491,8 +491,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のシグニが場を離れる場合トラッシュに置かれる ----
+  // 🆕§5.3 `O-299` 第262バッチ（2026-09-11）＝**期間とフィルタを payload に載せる。**
+  //   `WXDi-P04-037-E1`＝【常】（期間は `activeCondition{TURN_OWNER}` が持つ）＝payload なし。
+  //   `WX24-P4-002-E1`③＝アーツの1ステップ＝「**このターンと次のターンの間**、**能力を持たない**」
+  //   ⇒ `leaveToTrashWindow{turns:2, requiresNoAbilities:true}`。
+  //   🔴payload が無いと engine は `banish_redirect` の**バニッシュ限定・1ターン・無フィルタ**へ落ちる。
   if (t.match(/対戦相手のシグニが場を離れる場合.*トラッシュに置かれる/)) {
-    return { type: 'STUB', id: 'OPP_SIGNI_LEAVE_TO_TRASH' } as StubAction;
+    const twoTurnsOSLT = /このターンと次のターン/.test(t);
+    const noAbilOSLT = /能力を持たない対戦相手のシグニが場を離れる場合/.test(t);
+    return {
+      type: 'STUB', id: 'OPP_SIGNI_LEAVE_TO_TRASH',
+      ...(twoTurnsOSLT || noAbilOSLT
+        ? { leaveToTrashWindow: { turns: twoTurnsOSLT ? 2 : 1, ...(noAbilOSLT ? { requiresNoAbilities: true } : {}) } }
+        : {}),
+    } as StubAction;
   }
 
   // ---- 【常】能力の効果でパワーはプラスされない ----

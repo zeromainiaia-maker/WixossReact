@@ -807,8 +807,20 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: { ...removedOSTDN, deck: newOtherDeckOSTDN } },
       `${ctx.cardMap.get(targetOSTDN)?.CardName ?? targetOSTDN}→相手デッキ上から${nthOSTDN + 1}番目`));
   }
-  // 相手シグニが退場時にエナではなくトラッシュへ（フラグ設定）
+  // OPP_SIGNI_LEAVE_TO_TRASH: 「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」。
+  // 🆕§5.3 `O-299` 第262バッチ（2026-09-11）＝**payload があれば期間つき window を積む。**
+  //   🔴旧実装は `banish_redirect:true` だけ＝①turn-end で消える（原文「このターンと次のターン」＝過小）
+  //   ②「能力を持たない」フィルタが無い（過剰）③**バニッシュ限定**で「場を離れる場合」全体ではない（過小）。
+  //   ⚠**payload が無い形は従来どおり**（live で action として来るのは `WX24-P4-002-E1`③ だけ＝防御的に残す）。
   if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+    const winOSLT = stub.leaveToTrashWindow;
+    if (winOSLT) {
+      const nextOSLT: PlayerState = { ...ctx.ownerState,
+        leave_to_trash_windows: [...(ctx.ownerState.leave_to_trash_windows ?? []),
+          { turnsRemaining: Math.max(1, winOSLT.turns), ...(winOSLT.requiresNoAbilities ? { requiresNoAbilities: true } : {}) }] };
+      return done(addLog({ ...ctx, ownerState: nextOSLT },
+        `${winOSLT.turns}ターンの間、${winOSLT.requiresNoAbilities ? '能力を持たない' : ''}対戦相手のシグニが場を離れる場合は代わりにトラッシュへ`));
+    }
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, banish_redirect: true } },
       '相手シグニのバニッシュ先→トラッシュに変更'));
   }

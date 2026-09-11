@@ -25,7 +25,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -133,7 +133,7 @@ import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, h
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
-import { resolveTurnEndFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
+import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
@@ -75745,6 +75745,110 @@ test('§5.3 O-299 oppLeaveToTrash: 相手ターン中だけ行き先をトラッ
   const myTurn = mk(true);
   eq(collectLeaveSubstituteOptions(victim, 'opponent', myTurn).filter(o => o.axis === 'oppLeaveToTrash').length, 0,
     '🔴「対戦相手のターンの間」の期間条件が効いていない');
+}));
+
+test('§5.3 O-299 leaveToTrashWindow: 期間2ターン＋「能力を持たない」限定で行き先を倒す（WX24-P4-002）', () => withSavedCursor(() => {
+  // 🔴**旧 live は `banish_redirect:true` を立てるだけ**で3軸すべて外していた＝
+  //   ①turn-end で消えるので1ターンしか効かない ②「能力を持たない」フィルタが無い
+  //   ③バニッシュ限定で「場を離れる場合」全体ではない。
+  const eff = effectsMap.get('WX24-P4-002')?.find(e => e.effectId === 'WX24-P4-002-E1');
+  ok(!!eff, 'live に WX24-P4-002-E1 が無い');
+  const step = (eff!.action as SequenceAction).steps[2] as unknown as
+    { id?: string; leaveToTrashWindow?: { turns?: number; requiresNoAbilities?: boolean } };
+  eq(step.id, 'OPP_SIGNI_LEAVE_TO_TRASH', '③のステップが変わっている');
+  eq(step.leaveToTrashWindow?.turns, 2, '🔴期間「このターンと次のターン」が payload に無い（1ターンに潰れる）');
+  eq(step.leaveToTrashWindow?.requiresNoAbilities, true, '🔴「能力を持たない」限定が payload に無い（全シグニへ及ぶ）');
+
+  // 宣言を実行すると window が積まれ、`banish_redirect`（無期限・無フィルタ）は立たない。
+  const declared = run(step as unknown as EffectAction, mkCtx({}, {}));
+  eq((declared.ownerState.leave_to_trash_windows ?? []).length, 1, 'window が積まれていない');
+  eq(declared.ownerState.leave_to_trash_windows?.[0]?.turnsRemaining, 2, '残りターン数が2でない');
+  eq(declared.ownerState.banish_redirect, undefined,
+    '🔴旧フラグ（無期限・無フィルタ・バニッシュ限定）も同時に立てている＝並行する劣化軸');
+
+  // 述語＝「能力を持たない」だけに効く。印刷能力を持つシグニは対象外。
+  const vanilla = findCard(c => isSigni(c) && matchesFilter(c, { noAbilities: true }));
+  const abled = findCard(c => isSigni(c) && !matchesFilter(c, { noAbilities: true }));
+  const declarer = declared.ownerState;
+  const victimState = mkState({ signi: [vanilla, abled, null] });
+  ok(leaveToTrashWindowApplies(declarer, victimState, vanilla, cardMap as Map<string, CardData>),
+    '🔴能力を持たないシグニに効いていない');
+  ok(!leaveToTrashWindowApplies(declarer, victimState, abled, cardMap as Map<string, CardData>),
+    '🔴能力を持つシグニまでトラッシュへ倒している（フィルタが落ちている）');
+  // ⚠同じアーツの②が能力を奪った個体も「能力を持たない」に含む（原文はその時点で判定する）。
+  ok(leaveToTrashWindowApplies(declarer, { ...victimState, abilities_removed: [abled] }, abled, cardMap as Map<string, CardData>),
+    '🔴REMOVE_ABILITIES で能力を失った個体が対象外になっている');
+
+  // 期間＝グローバルターン終了ごとに1減り、2ターン目の終了で消える。
+  const afterOne = clearTurnEndScopedState(declarer);
+  eq(afterOne.leave_to_trash_windows?.[0]?.turnsRemaining, 1, '🔴1ターンで消えている（旧 banish_redirect と同じ寿命）');
+  const afterTwo = clearTurnEndScopedState(afterOne);
+  eq(afterTwo.leave_to_trash_windows, undefined, '2ターン目の終了で失効していない（永続化）');
+
+  // 🔑**効果経路（非バニッシュの離場）でも効く**＝原文「場を離れる場合」。
+  const leaveCtx = { ...mkCtx({}, { signi: [vanilla, null, null] }), ownerState: declarer } as ExecCtx;
+  const opts = collectLeaveSubstituteOptions(vanilla, 'opponent', leaveCtx).filter(o => o.axis === 'oppLeaveToTrash');
+  eq(opts.length, 1, '🔴バニッシュ以外の離場に効いていない（バニッシュ限定に戻っている）');
+  const applied = applyEffectLeaveSubstitutes(vanilla, 'opponent', leaveCtx);
+  ok(applied.replaced && applied.ctx.otherState.trash.includes(vanilla), 'トラッシュへ行っていない');
+
+  // 🔴**バトル経路と効果経路が同じ述語を読む**（片側だけだと O-299 の共通の壊れ方に戻る）。
+  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((battleSrc.match(/leaveToTrashWindowApplies\(/g) ?? []).length, 2,
+    'バトル経路の攻撃側／防御側の両方で共有述語を読んでいない（O-49 の対称規約）');
+  const utilsSrc = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  ok(utilsSrc.includes('leaveToTrashWindowApplies('), 'banishDestination（効果経路）が共有述語を読んでいない');
+}));
+
+test('§5.3 O-299 selfFacedown: 離場を裏向きで置換し、次の次の自メイン開始時に戻す（WXDi-P00-038）', () => withSavedCursor(() => {
+  // 🔴**旧 live は別物だった**＝`SEQUENCE[RULE_REMINDER_TEXT, CONDITIONAL{IS_MY_TURN}→TRASH{相手手札2}]` で、
+  //   離場の置換も裏向きも1つも無く（`CONTINUOUS` なので全部 no-op）、原文の主眼（守り）が消えていた。
+  const victim = 'WXDi-P00-038';
+  const decl = effectsMap.get(victim)?.find(e => e.effectId === 'WXDi-P00-038-E1');
+  eq(decl?.effectType, 'CONTINUOUS', '【常】宣言でなくなっている');
+  eq((decl!.action as StubAction).id, 'SELF_LEAVE_FACEDOWN_SECOND_MAIN', '受け皿の STUB id が変わっている');
+  eq(decl!.activeCondition?.type, 'TURN_OWNER', '期間（対戦相手のターンの間）が落ちている');
+
+  // 相手のターン中（victim 側から見て非ターンプレイヤー＝効果主のターン）に離場させる。
+  const ctx = { ...mkCtx({}, { signi: [victim, null, null] }), effectsMap, isOwnerTurn: true } as ExecCtx;
+  const opts = collectLeaveSubstituteOptions(victim, 'opponent', ctx).filter(o => o.axis === 'selfFacedown');
+  eq(opts.length, 1, '🔴裏向き置換の候補が出ない');
+  eq(opts[0].kind, 'optional', '原文「裏向きにしてもよい」＝任意軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx);
+  ok(applied.replaced, '離場が置換される');
+  eq(applied.ctx.otherState.field.signi[0], null, 'シグニとしては場から降りる（裏向きになる）');
+  eq(applied.ctx.otherState.field.facedown_signi?.[0], victim, '🔴同じゾーンの裏向き枠へ移っていない');
+  ok(!applied.ctx.otherState.trash.includes(victim), 'トラッシュへ落ちている（置換になっていない）');
+  const reserved = applied.ctx.otherState.pending_second_main_facedown_returns ?? [];
+  eq(reserved.length, 1, '復帰の予約が積まれていない');
+  eq(reserved[0].mainPhasesRemaining, 2, '🔴「次の次」ではなく「次」になっている');
+  eq(reserved[0].oppDiscard, 2, '「対戦相手は手札を2枚捨てる」が落ちている');
+
+  // 1回目の自メイン開始＝まだ戻らない。2回目で戻り、そのときだけ捨てさせる。
+  const first = resolveSecondMainFacedownReturns(applied.ctx.otherState);
+  eq(first.flipped.length, 0, '🔴1回目のメインフェイズ開始で戻っている（「次の次」ではない）');
+  eq(first.discard, 0, '戻っていないのに捨てさせている');
+  eq(first.state.pending_second_main_facedown_returns?.[0]?.mainPhasesRemaining, 1, '残り回数が減っていない');
+  const second = resolveSecondMainFacedownReturns(first.state);
+  eq(second.flipped.join(','), victim, '2回目のメインフェイズ開始で表向きにならない');
+  eq(second.state.field.signi[0]?.at(-1), victim, '同じシグニゾーンへ戻っていない');
+  eq(second.discard, 2, '表向きになったのに「手札を2枚捨てる」が出ない');
+  eq(second.state.pending_second_main_facedown_returns, undefined, '予約が消えていない');
+
+  // 🔴**同じシグニゾーンが埋まっていたら表向きにしない**（原文の条件）＝捨てさせもしない。
+  const other = findCard(c => isSigni(c) && c.CardNum !== victim);
+  const occupied = {
+    ...first.state,
+    field: { ...first.state.field, signi: [[other], null, null] as PlayerState['field']['signi'] },
+  } as PlayerState;
+  const blocked = resolveSecondMainFacedownReturns(occupied);
+  eq(blocked.flipped.length, 0, '🔴ゾーンが埋まっているのに表向きにしている');
+  eq(blocked.discard, 0, '🔴表向きにできていないのに手札を捨てさせている（過剰実行）');
+
+  // 🔑**BattleScreen のメインフェイズ開始で解決される**（engine 側に呼び出し地点が無いと恒久 no-op）。
+  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battleSrc.includes('resolveSecondMainFacedownReturns('), '🔴BattleScreen が復帰を解決していない');
+  ok(battleSrc.includes("effectId: 'WXDi-P00-038-E1-FLIP'"), '手札を捨てさせる分が effect_stack へ載っていない');
 }));
 
 test('§5.3 O-299 selfDown: アップ状態なら効果離場をダウンで置換する（WXDi-CP02-TK01A）', () => withSavedCursor(() => {

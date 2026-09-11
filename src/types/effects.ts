@@ -4801,6 +4801,15 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /**
+   * 🆕**「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」**
+   * （§5.3 `O-299` 第262バッチ・2026-09-11・`WX24-P4-002-E1`③）。
+   * 🔴**旧実装は `banish_redirect:true` を立てるだけ**で、①期間が turn-end で消える（原文は
+   *   「このターンと次のターン」＝過小）②「能力を持たない」フィルタが無い（過剰）
+   *   ③**バニッシュ限定**で「場を離れる場合」全体ではない（過小）＝3軸すべて外していた。
+   * ⚠**`turns` はグローバルターン数**（「このターンと次のターン」＝2）。
+   */
+  leaveToTrashWindow?: { turns: number; requiresNoAbilities?: boolean };
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /**
    * `MAGIC_BOX_REVEAL` で表向きにしてシグニにする中身の条件と上限。
