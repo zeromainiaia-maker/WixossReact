@@ -28770,6 +28770,75 @@ test('§5.3 O-309: HAND_CARD の opponentSelects なしは使用者応答のま�
   if (result.done || result.pending.type !== 'SELECT_TARGET') return;
   ok(result.pending.opponentResponds !== true, 'opponentSelects なしは相手側の選択 UI に載らない');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-327`（2026-09-11 第268バッチ）＝**`opponentSelects` が「配線済みの形」にしか載っていないこと**を
+// live からゼロ導出して固定するトリップワイヤ。
+// 🔴**背景**＝`opponentSelects` を宣言できる action 配下で、対話を作る `selectOrInteract` の
+//   **第8引数を省略している分岐が 19 箇所**残っている（第267で全数を数えた）。
+//   その分岐へ載ると **効果の使用者が相手の札を選ぶ**＝プレイヤー有利側への過剰実行になり、
+//   🔑**JSON も逆翻訳も正しく見えるので、どの計器にも映らない。**
+// 🔑**いま live の 89 ノードは全部「配線済み or そもそも選択が起きない」形**（第268で実測）＝
+//   **実害は 0 件**なので、19箇所を機械的に書き換える作業はしない（§5-26＝件数を目標にしない）。
+//   代わりに「**新しいカードが未配線の形へ載った瞬間に赤くする**」ここを置く（§5-27 のトリップワイヤ形）。
+// ⚠**このテストが落ちたら**＝落ちた形の executor 分岐へ
+//   `const oppResponds = !!a.opponentSelects && <src|tgt>.owner === 'opponent';` を渡して配線し、
+//   「あり→`opponentResponds:true`／なし→立たない」の対照2本（上の `O-309` の形）を足してから
+//   この許容リストへ追記する。**先に許容リストへ足して黙らせない。**
+const O327_WIRED_SHAPES = new Map<string, string>([
+  ['BANISH|SIGNI|N', 'effectExecutor.ts execBanish（oppResponds を渡す）'],
+  ['BOUNCE|SIGNI|N', 'effectExecutor.ts execBounce'],
+  ['SEND_TO_ENERGY|SIGNI|N', 'effectExecutor.ts execSendToEnergy'],
+  ['TRASH|SIGNI|N', 'effectExecutor.ts execTrash（場のシグニ）'],
+  ['TRASH|ENERGY_CARD|N', 'effectExecutor.ts execTrash（エナ）'],
+  ['TRANSFER_TO_DECK|SIGNI|N', 'effectExecutor.ts execTransferToDeck（場のシグニ）'],
+  ['TRANSFER_TO_DECK|HAND_CARD|N', 'effectExecutor.ts execTransferToDeck（手札。§5.3 O-309 第267 で配線）'],
+  ['ADD_TO_LIFE|fromTrash|N', 'effectExecutor.ts execAddToLife（トラッシュ）'],
+  ['STUB:SELECT_TARGET_ONLY|SIGNI|ALL', 'execStubPart1.ts SELECT_TARGET_ONLY（場のシグニ）'],
+  // ── 以下は「そもそも選択が起きない」形＝旗は無害（配線の要否が生じない）──
+  ['TRASH|SIGNI|ALL', '選択なし＝候補を全部トラッシュする（upToCount 無し）'],
+  ['TRASH|ENERGY_CARD|ALL', '選択なし＝候補を全部トラッシュする（upToCount 無し）'],
+  ['TRASH|DECK_CARD|N', '選択なし＝デッキの上から N 枚（誰も選ばない）'],
+]);
+
+test('§5.3 O-327 トリップワイヤ: live の opponentSelects は配線済みの形にしか載っていない', () => {
+  const shapeOf = (node: Record<string, unknown>): string => {
+    const t = (node.target ?? node.source) as { type?: string; count?: unknown } | undefined;
+    const head = node.type === 'STUB' ? `STUB:${String(node.id)}` : String(node.type);
+    const zone = node.type === 'ADD_TO_LIFE'
+      ? (node.fromTrash ? 'fromTrash' : node.fromEnergy ? 'fromEnergy' : node.fromHand ? 'fromHand'
+        : node.fromTop ? 'fromTop' : node.fromBottom ? 'fromBottom' : 'field')
+      : String((t?.type ?? (node.selectTarget as { type?: string } | undefined)?.type) ?? '-');
+    const rawCount = t?.count ?? (node.selectTarget as { count?: unknown } | undefined)?.count;
+    // `{$ref:…}` は実行時に数値へ解決される＝`N` と同じ分岐を通る。
+    const count = rawCount === 'ALL' ? 'ALL' : 'N';
+    return `${head}|${zone}|${count}`;
+  };
+  const found = new Map<string, string[]>();
+  const walkNode = (n: unknown, onNode: (o: Record<string, unknown>) => void): void => {
+    if (!n || typeof n !== 'object') return;
+    onNode(n as Record<string, unknown>);
+    for (const v of Object.values(n as Record<string, unknown>)) walkNode(v, onNode);
+  };
+  for (const [, effs] of effectsMap) {
+    for (const eff of effs) {
+      walkNode(eff, node => {
+        if (node.opponentSelects !== true) return;
+        const key = shapeOf(node);
+        if (!found.has(key)) found.set(key, []);
+        found.get(key)!.push(eff.effectId);
+      });
+    }
+  }
+  // 🔴**空振り防止**＝走査が壊れて0件になると「全部通った」に見える（§5-21 の単独負方向テストと同じ罠）。
+  const total = [...found.values()].reduce((n, ids) => n + ids.length, 0);
+  ok(total >= 50, `opponentSelects の走査が空振りしている（total=${total}）＝テストが何も検査していない`);
+  for (const [shape, ids] of found) {
+    ok(O327_WIRED_SHAPES.has(shape),
+      `§5.3 O-327: 未配線の形へ opponentSelects が載った＝${shape}（例 ${ids.slice(0, 3).join(', ')}）`
+      + '／executor の該当分岐へ第8引数を渡し、対照2本を足してから許容リストへ追記すること');
+  }
+});
 test('WX25-P3-104-E1: 他の毒牙がいる時だけLv2以下1体をpower0限定リストへ保持', () => {
   const eff = (effectsMap.get('WX25-P3-104') ?? []).find(e => e.effectId === 'WX25-P3-104-E1');
   ok(!!eff, 'E1'); if (!eff) return;

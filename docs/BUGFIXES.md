@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引A `O-327`：`opponentSelects` の未配線分岐は**いま実害0**＝トリップワイヤで固定
+
+第267で「`opponentSelects` を宣言できる action 配下で `selectOrInteract` の第8引数を省略している分岐が
+**19箇所**ある」と数え、母集団2桁として索引 A へ登録した。**着手して②母集団を実測したところ、
+その19箇所を通る live 効果は1件も無かった**＝**現時点の実害は 0 件**。
+
+### 実測（②）
+
+- **live で `opponentSelects` を宣言しているノード＝89**（全 `public/data/effects_*.json` を再帰走査）。
+- **形（action型 × ゾーン × count）で畳むと 12 形**。内訳＝
+  **配線済み 9 形**（`BANISH/SIGNI`・`BOUNCE/SIGNI`・`SEND_TO_ENERGY/SIGNI`・`TRASH/SIGNI`・`TRASH/ENERGY_CARD`・
+  `TRANSFER_TO_DECK/SIGNI`・`TRANSFER_TO_DECK/HAND_CARD`〔第267で配線〕・`ADD_TO_LIFE(fromTrash)`・
+  `SELECT_TARGET_ONLY/SIGNI`）＋**選択が起きない 3 形**（`TRASH/SIGNI/ALL`・`TRASH/ENERGY_CARD/ALL`＝
+  どちらも `upToCount` 無し＝全部処理／`TRASH/DECK_CARD`＝デッキの上から N 枚）。
+- ⇒ **19箇所を機械的に書き換える作業はしない**（§5-26＝件数を目標にしない。
+  0件の実害のために engine を19箇所触るほうが退行リスクが高い）。
+
+### 入れたもの＝トリップワイヤ（`scripts/goldenTest.ts`）
+
+- **live から毎回ゼロ導出**して「`opponentSelects` が載っている形」を集め、**許容リストに無い形が現れたら FAIL**
+  （§5-27 の形＝人の記憶ではなくゲートで守る）。失敗メッセージに**直し方**（該当分岐へ
+  `const oppResponds = !!a.opponentSelects && <src|tgt>.owner === 'opponent';` を渡し、対照2本を足してから
+  許容リストへ追記）を書いてある。
+- 🔴**空振り防止**＝走査が壊れて0件になると「全部通った」に見えるので、**総数 ≥ 50 を先に assert** している。
+- 🔴**反転確認**＝live の1効果の `source` を未配線の形（`LRIG_TRASH_CARD`）へ差し替えると
+  `未配線の形へ opponentSelects が載った＝TRANSFER_TO_DECK|LRIG_TRASH_CARD|N（例 WXK10-044-E1）` で FAIL する（実測・復元済み）。
+
+### ゲート
+
+`npm run gates` 全緑：golden **3952 PASS / 0 FAIL**（3951 → +1）、smoke 10744 / 全0、fuzz 0、
+census 高シグナル 1 / BASELINE 1、stubs A/C 0、enginetext A 0行、costtext A 0規則、manual-fields 0、
+lint 0 errors / 254 warnings。**live JSON の変更なし**（挙動は1ビットも変わらない＝計器の設置のみ）。
+**⑤実機は不要**（`src/screens/` 無触・engine 無変更）。
+
+🔑**教訓＝「母集団2桁」は着手前に必ず割る。** `19箇所` は**コードの箇所数**であって**効果数ではない**。
+PLAN §5.3 の「規模」と「母集団」の混同（登録票の注意書き）と同じ形を、今回は**登録した当日に自分で踏みかけた**。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-309`：`TRANSFER_TO_DECK/HAND_CARD` の相手選択を配線
 
 `WXK10-044-E1` の原文は「対戦相手は手札を1枚デッキの一番下に置く」だが、旧 live は
