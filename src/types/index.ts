@@ -1577,6 +1577,13 @@ export interface PlayerState {
   // このターンに **このプレイヤーの効果によって** 対戦相手のカードがデッキに移動した累計枚数（OPP_CARDS_MOVED_TO_DECK_THIS_TURN。WXK06-071）。ターン境界でリセット
   opp_cards_moved_to_deck_this_turn?: number;
   self_deck_to_energy_this_turn?: number;
+  /**
+   * 🆕**このターンにこのプレイヤーのエナゾーンへ置かれた札の台帳**（§5.3 `O-321`/`O-315`/`O-308`③・
+   * 2026-09-11 第275バッチ）。エントリは **`"<instanceId>:<cause>"`**（`effect` / `cost` / `rule`）。
+   * 🔴**`self_deck_to_energy_this_turn` では答えられない**＝あちらは**デッキ由来の枚数だけ**で、
+   *   何が置かれたか・何によって置かれたかを持たない。読み書きは `src/engine/energyPlacement.ts`。
+   */
+  energy_placed_this_turn?: string[];
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
   // 【ルリグバリア】【シグニバリア】は field.free_zone にトークンカードとして設置する
   // （旧 lrig_barrier / signi_barrier 数値カウンタは廃止。execUtils の barrier ヘルパー参照）

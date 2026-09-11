@@ -36,6 +36,7 @@ import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
+import { countEnergyPlacedThisTurn } from '../src/engine/energyPlacement';
 import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -5910,7 +5911,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 55, 'PlayerState の命名規約由来フィールド数（🆕55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 56, 'PlayerState の命名規約由来フィールド数（🆕56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5925,7 +5926,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 31, '命名規約外のターン限定フィールド数（🆕31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加＝原文「次のあなたのエナフェイズ終了時まで」の受け皿。境界は main-phase-start＝**次に自分が ENERGY を出て MAIN へ入るとき**。30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 86, '型由来38件＋命名規約外27件の母集団（🆕86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 87, '型由来38件＋命名規約外27件の母集団（🆕87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -27202,7 +27203,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 149, 'Condition の型数（🆕149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
+  eq(Object.keys(C_TYPES).length, 150, 'Condition の型数（🆕150＝2026-09-11 §5.3 `O-321` で `ENERGY_PLACED_THIS_TURN` を追加＝「このターンに（コストか効果によって）エナゾーンに〈filter〉がN枚以上置かれていた場合」。149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -75686,6 +75687,83 @@ test('第247 §5.3 O-293: 「次のあなたのエナフェイズ終了時まで
   eq(hits.length, 10, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
 });
 
+test('第275 §5.3 O-321/O-315/O-308③: 「このターンにエナゾーンに置かれていた」条件が live 3効果に載る', () => {
+  // 🔴旧 live は**条件が丸ごと落ちていた**＝エナに1枚も置いていないターンでも任意コストを払えた（過剰実行）。
+  // ⚠**由来（`causes`）は原文に書いてあるときだけ立てる**＝「コストか効果によって」と書いていない2効果は
+  //   ルール処理（エナフェイズのチャージ／「エナに送る」／バトルバニッシュ）も数えるのが原文どおり。
+  // ⚠**JSON 文字列の regex で条件を取り出さない**＝`filter` が入れ子なので `[^}]*` が途中で閉じる
+  //   （第275 で1度踏んだ）。ツリーを歩いて拾う。
+  const find = (num: string, eid: string) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid);
+    ok(!!e, `${eid} が live にある`);
+    let hit: Record<string, unknown> | null = null;
+    const walk = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      const o = v as Record<string, unknown>;
+      if (o.type === 'ENERGY_PLACED_THIS_TURN') hit = o;
+      Object.values(o).forEach(walk);
+    };
+    walk(e);
+    ok(!!hit, `🔴${eid}: 条件が落ちている（無条件に成立する）`);
+    return hit as Record<string, unknown> | null;
+  };
+  const a = find('WXDi-CP02-086', 'WXDi-CP02-086-E1');
+  eq(a?.minCount, 1, 'CP02-086: 1枚以上');
+  eq(JSON.stringify(a?.causes), '["cost","effect"]', '🔴CP02-086: 原文「コストか効果によって」＝ルール処理は数えない');
+  const b = find('WXK04-038', 'WXK04-038-E1');
+  eq(b?.minCount, 1, 'WXK04-038: 1枚以上');
+  eq(JSON.stringify(b?.filter), '{"story":"植物","cardType":"シグニ"}', '🔴WXK04-038: ＜植物＞のシグニ限定');
+  eq(b?.causes, undefined, '🔴WXK04-038: 原文が由来を書いていない＝全部数える');
+  const c = find('WXDi-CP02-009', 'WXDi-CP02-009-E1');
+  eq(c?.minCount, 2, '🔴CP02-009: 2枚以上（1枚に退化していない）');
+  eq(c?.filter, undefined, 'CP02-009: カード種別の限定なし');
+});
+
+test('第275 §5.3 O-321 engine: executeAction の funnel がエナゾーンへの配置を台帳へ記録する', () => withSavedCursor(() => {
+  // 🔑**記録の式は1つだけ**＝`energy: [...state.energy, …]` は engine だけで69箇所あるので、
+  //   全アクションが通る `executeAction` の入口で before/after を差分する。
+  const A = fresh(), B = fresh();
+  const ctx = mkCtx({ hand: [A] }, {});
+  ctx.ownerState = { ...ctx.ownerState, hand: [A], deck: [B, ...ctx.ownerState.deck] };
+  const r = run({ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } as unknown as EffectAction, ctx);
+  const ledger = r.ownerState.energy_placed_this_turn ?? [];
+  eq(ledger.length, 1, '🔴デッキ→エナ1枚で台帳が1件（0なら funnel が効いていない）');
+  eq(ledger[0], `${B}:effect`, 'エントリは "<instanceId>:effect"');
+  // 🔴反転＝エナが動かないアクションでは1件も増えない（何でも記録する形に落ちていない）。
+  const rDraw = run({ type: 'DRAW', owner: 'self', count: 1 } as unknown as EffectAction, mkCtx({}, {}));
+  eq((rDraw.ownerState.energy_placed_this_turn ?? []).length, 0, '🔴ドローで台帳が増えている');
+  // 🔑入れ子（SEQUENCE）で二重計上しない＝`executeAction` は各ステップでも呼ばれる。
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState = { ...ctx2.ownerState, deck: [B, ...ctx2.ownerState.deck] };
+  const rSeq = run({ type: 'SEQUENCE', steps: [{ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 }] } as unknown as EffectAction, ctx2);
+  eq((rSeq.ownerState.energy_placed_this_turn ?? []).length, 1, '🔴入れ子で同じ札を2件積んでいる');
+  ok(!!A, 'ダミーが引けている');
+}));
+
+test('第275 §5.3 O-321: countEnergyPlacedThisTurn の由来フィルタと fail-closed', () => {
+  const st = { ...mkState(), energy_placed_this_turn: ['X:effect', 'Y:cost', 'Z:rule'] };
+  eq(countEnergyPlacedThisTurn(st), 3, 'causes 省略＝全部数える（原文が由来を書いていないとき）');
+  eq(countEnergyPlacedThisTurn(st, { causes: ['cost', 'effect'] }), 2, '🔴「コストか効果によって」はルール処理を数えない');
+  eq(countEnergyPlacedThisTurn(st, { causes: ['rule'] }), 1, 'ルール処理だけ');
+  // 🔴**絞り込みを求められたのに判定材料が無ければ0**（素通りさせると「何を置いても成立」に化ける）。
+  eq(countEnergyPlacedThisTurn(st, { filter: { story: '植物' } }), 0, '🔴filter ありで cardMap 無しは fail-closed');
+});
+
+test('第275 §5.3 O-321 guard: `src/screens/` のエナゾーンへの書き込みは必ず台帳を通る', () => {
+  // 🔴**この台帳が壊れる典型は「新しい書き込み地点が足されて記録だけ漏れる」**
+  //   （DRIVE_TRAPS の冒頭＝手札捨て台帳が3種類に割れていた実例と同じ形）。
+  //   ⇒ `energy: [...` を書いたら**8行以内に `recordEnergyPlacements(`** が居ることを機械で強制する。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8').split(/\r?\n/);
+  const missing: string[] = [];
+  for (let i = 0; i < src.length; i++) {
+    if (!/energy:\s*\[\.\.\./.test(src[i])) continue;
+    const window = src.slice(Math.max(0, i - 8), i + 2).join('\n');
+    if (!window.includes('recordEnergyPlacements(')) missing.push(`L${i + 1}: ${src[i].trim().slice(0, 80)}`);
+  }
+  eq(missing.length, 0, `🔴台帳を通らないエナゾーン書き込み: ${missing.join(' / ')}`);
+});
+
 test('第274 §5.3 O-329: 「このアーツは対戦相手のターンにしか使用できない」が availability へ載る（5効果）', () => {
   // 🔴旧＝この先頭文は `extractUseCondition` の接尾辞パターンに当たらず本文へ流れ、
   //   `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}`（**読み手が1人もいない** actionId）に
@@ -76178,24 +76256,44 @@ test('第252 O-315 WXK01-045-E1: このターンに場に出た相手シグニ�
 test('O-298 自分の任意コスト: 対象候補が居なければ支払いを提示しない（コストの空払いを止める・WXK04-038-E1）', () => {
   const eff = effectsMap.get('WXK04-038')?.find(e => e.effectId === 'WXK04-038-E1');
   ok(!!eff, 'live に WXK04-038-E1 が無い');
-  const seq = eff!.action as unknown as { type: string; steps: { type: string; id?: string; then?: { targetsStored?: boolean } }[] };
-  const iSel = seq.steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
-  const iPay = seq.steps.findIndex(x => x.id === 'OPTIONAL_TRASH_ENERGY_CLASS');
+  // 🆕**2026-09-11 第275（§5.3 `O-321`）＝本体は `CONDITIONAL{ENERGY_PLACED_THIS_TURN}` の中へ入った**
+  //   （原文「このターンにあなたのエナゾーンに＜植物＞のシグニが1枚以上置かれていた場合」）。
+  //   O-298 の契約（対象を先に確定する）はその中でそのまま成立していることを見る。
+  const gate = eff!.action as unknown as { type: string; steps: { type: string; condition?: { type: string }; then?: { steps: { type: string; id?: string; then?: { targetsStored?: boolean } }[] } }[] };
+  const gateStep = gate.steps[0];
+  eq(gateStep?.type, 'CONDITIONAL', 'ゲートが最外（条件が落ちていない）');
+  eq(gateStep?.condition?.type, 'ENERGY_PLACED_THIS_TURN', '条件型');
+  const steps = gateStep!.then!.steps;
+  const iSel = steps.findIndex(x => x.id === 'SELECT_TARGET_ONLY');
+  const iPay = steps.findIndex(x => x.id === 'OPTIONAL_TRASH_ENERGY_CLASS');
   ok(iSel >= 0 && iSel < iPay, '🔴支払いを問う前に対象を確定する（O-298＝O-96 をこの id へ広げた）');
-  eq(seq.steps[iPay + 1]?.then?.targetsStored, true, '本体は事前に確定した個体を引く（新規選択へ戻らない）');
+  eq(steps[iPay + 1]?.then?.targetsStored, true, '本体は事前に確定した個体を引く（新規選択へ戻らない）');
 
   // 🔑**構造だけでなく挙動で固定する**＝原文フィルタ（レベル1以下）に当たる相手シグニが居ない盤面。
   //   旧実装は `pay:エナ＜植物＞を選択して発動(available=true)` を出していた（＝エナを捨てて空振り）。
   const PLANT = 'WX01-047';                   // ＜植物＞のシグニ＝コスト用
+  // 🆕ゲートを通すために台帳へ1件入れる（`"<instanceId>:<cause>"`）。
+  const placedPlant = [`${PLANT}:effect`];
   const noTarget = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WX05-018', null, null] });  // 相手は Lv5 だけ
-  noTarget.ownerState.energy = [PLANT, PLANT];
+  noTarget.ownerState = { ...noTarget.ownerState, energy: [PLANT, PLANT], energy_placed_this_turn: placedPlant };
   const rNo = executeAction(eff!.action as EffectAction, noTarget) as unknown as { done: boolean; pending?: { type: string } };
   ok(rNo.done && !rNo.pending, '🔴対象が居ないのに支払いプロンプトが出た（コストの空払い）');
 
   const withTarget = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WD01-013', null, null] });  // Lv1 が居る
-  withTarget.ownerState.energy = [PLANT, PLANT];
+  withTarget.ownerState = { ...withTarget.ownerState, energy: [PLANT, PLANT], energy_placed_this_turn: placedPlant };
   const rYes = executeAction(eff!.action as EffectAction, withTarget) as unknown as { done: boolean; pending?: { type: string } };
   eq(rYes.pending?.type, 'SELECT_TARGET', '対象が居るときは（支払いより先に）対象選択から始まる');
+
+  // 🔴**反転確認（§5.3 `O-321`）＝台帳が空なら1つも起きない**（旧 live は無条件に撃てた）。
+  const noLedger = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WD01-013', null, null] });
+  noLedger.ownerState = { ...noLedger.ownerState, energy: [PLANT, PLANT] };
+  const rGate = executeAction(eff!.action as EffectAction, noLedger) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rGate.done && !rGate.pending, '🔴このターンにエナへ＜植物＞が置かれていないのに対象選択が始まった');
+  // 🔑**別クラスでは通らない**＝filter が効いている（「何を置いても成立」に落ちていない）。
+  const wrongClass = mkCtx({ energy: 0, signi: [null, null, null] }, { signi: ['WD01-013', null, null] });
+  wrongClass.ownerState = { ...wrongClass.ownerState, energy: [PLANT, PLANT], energy_placed_this_turn: ['WD01-013:effect'] };
+  const rWrong = executeAction(eff!.action as EffectAction, wrongClass) as unknown as { done: boolean; pending?: { type: string } };
+  ok(rWrong.done && !rWrong.pending, '🔴＜植物＞以外を置いただけで成立している（filter が効いていない）');
 });
 
 test('O-298 引用能力スコープ: `GRANT_EFFECT.effect` の中の照応で fail-closed に落ちない（WX24-P2-018-E1）', () => {

@@ -49,6 +49,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
+import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
@@ -4461,8 +4462,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const enaChargeN = newMyState.game_energy_phase_charge ?? 0;
         if (nextPhase === 'ENERGY' && enaChargeN > 0 && newMyState.deck.length > 0) {
           const charged = newMyState.deck.slice(0, enaChargeN);
-          newMyState = { ...newMyState, deck: newMyState.deck.slice(charged.length),
-            energy: [...newMyState.energy, ...charged] };
+          // 🆕§5.3 `O-321` 第275＝エナゾーンへの配置は必ず台帳へ（`cause:'rule'`＝ルール処理）。
+          newMyState = recordEnergyPlacements({ ...newMyState, deck: newMyState.deck.slice(charged.length),
+            energy: [...newMyState.energy, ...charged] }, charged, 'rule');
           appendBattleLogs([`エナフェイズ開始【エナチャージ${charged.length}】（このゲーム）`]);
         }
         // HASTARLIQ: →ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
@@ -4988,7 +4990,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = { ...my, hand: handWithout, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
         appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
       } else {
-        newMyState = { ...my, hand: handWithout, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        // 🆕§5.3 `O-321` 第275＝「エナに送る」はルール処理（`cause:'rule'`）。
+        newMyState = recordEnergyPlacements({ ...my, hand: handWithout, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] }, [cardNum], 'rule');
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
@@ -5019,7 +5022,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = { ...my, field: { ...my.field, signi: newSigni }, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
         appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
       } else {
-        newMyState = { ...my, field: { ...my.field, signi: newSigni }, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        // 🆕§5.3 `O-321` 第275＝同上（場からの「エナに送る」もルール処理）。
+        newMyState = recordEnergyPlacements({ ...my, field: { ...my.field, signi: newSigni }, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] }, [cardNum], 'rule');
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
@@ -7110,7 +7114,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const firstGrowEnaN = newMyState.game_first_grow_energy_charge ?? 0;
       if (firstGrowEnaN > 0 && (newMyState.lrig_grow_count_this_turn ?? 0) === 1 && newMyState.deck.length > 0) {
         const charged = newMyState.deck.slice(0, firstGrowEnaN);
-        newMyState = { ...newMyState, deck: newMyState.deck.slice(charged.length), energy: [...newMyState.energy, ...charged] };
+        // 🆕§5.3 `O-321` 第275＝台帳へ（`cause:'rule'`）。
+        newMyState = recordEnergyPlacements({ ...newMyState, deck: newMyState.deck.slice(charged.length), energy: [...newMyState.energy, ...charged] }, charged, 'rule');
         logs.push(`このターン最初のグロウ：【エナチャージ${charged.length}】（このゲーム）`);
       }
       appendBattleLogs(logs);
@@ -10055,13 +10060,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (newOpCharms[sacZone]) { f3Extra.push(newOpCharms[sacZone]!); newOpCharms[sacZone] = null; }
               if (newOpAcce[sacZone])   { f3Extra.push(...newOpAcce[sacZone]!); newOpAcce[sacZone] = null; }
             }
-            newOpState = {
+            // 🆕§5.3 `O-321` 第275＝身代わりバニッシュもエナへ置かれる（`cause:'rule'`＝バトル由来）。
+            newOpState = recordEnergyPlacements({
               ...opS,
               energy: [...opS.energy, ...sacStack],
               trash: f3Extra.length > 0 ? [...opS.trash, ...f3Extra] : opS.trash,
               field: { ...opS.field, signi: f3Signi, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
               banish_substitute_choice: undefined, pending_banish_substitute: undefined,
-            };
+            }, sacStack, 'rule');
             appendBattleLogs([`身代わり：${opCardName}の代わりに${battleCardMap.get(f3SacrificeNum)?.CardName ?? f3SacrificeNum}をバニッシュ`]);
           } else if (f3SubstituteApplied && f3PayCost) {
             // コスト払い型: victim は場に残り、誰もバニッシュされない（コストを支払う）
@@ -10692,11 +10698,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               oppSigniMZA[oppZiMZA] = null;
               const oppDownMZA = [...(newOpState.field.signi_down ?? [false, false, false])];
               oppDownMZA[oppZiMZA] = false;
-              newOpState = {
+              // 🆕§5.3 `O-321` 第275＝バトルバニッシュ（追加ゾーン）＝`cause:'rule'`。
+              newOpState = recordEnergyPlacements({
                 ...newOpState,
                 energy: [...newOpState.energy, ...oppStackMZA],
                 field: { ...newOpState.field, signi: oppSigniMZA, signi_down: oppDownMZA },
-              };
+              }, oppStackMZA, 'rule');
               appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}をバニッシュ（追加ゾーン・ダメージなし）`]);
             } else {
               appendBattleLogs([`${myCardName}（${myPowerMZA}）vs ${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}（${oppPowerMZA}）：追加ゾーンバトル負け`]);
@@ -10734,11 +10741,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           oppSigniAZA[oppZiAZA] = null;
           const oppDownAZA = [...(newOpState.field.signi_down ?? [false, false, false])];
           oppDownAZA[oppZiAZA] = false;
-          newOpState = {
+          // 🆕§5.3 `O-321` 第275＝バトルバニッシュ（隣ゾーン追加バトル）＝`cause:'rule'`。
+          newOpState = recordEnergyPlacements({
             ...newOpState,
             energy: [...newOpState.energy, ...oppStackAZA],
             field: { ...newOpState.field, signi: oppSigniAZA, signi_down: oppDownAZA },
-          };
+          }, oppStackAZA, 'rule');
           appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopAZA)?.CardName ?? oppTopAZA}をバニッシュ（英知=10隣ゾーン追加バトル）`]);
         }
       }
@@ -11797,7 +11805,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ? removed
               : energyToBottomP0
                 ? { ...removed, deck: [...removed.deck, topNum] }
-                : { ...removed, energy: [...removed.energy, topNum] };
+                // 🆕§5.3 `O-321` 第275＝エナへ行った分だけ台帳へ（`cause:'rule'`＝ルール処理のバニッシュ）。
+                //   ⚠**置き換え先が別ゾーンの分岐（トラッシュ／手札／除外／デッキ下）では記録しない**。
+                : recordEnergyPlacements({ ...removed, energy: [...removed.energy, topNum] }, [topNum], 'rule');
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
         appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
@@ -11860,9 +11870,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (mut.type === 'BANISH') {
           const removed = removeFromField(num, targetState);
           // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
+          // 🆕§5.3 `O-321` 第275＝【常】効果によるバニッシュ＝`cause:'effect'`。
           const withBanished: import('../types').PlayerState = removed.opp_signi_energy_to_deck_bottom === true
             ? { ...removed, deck: [...removed.deck, num] }
-            : { ...removed, energy: [...removed.energy, num] };
+            : recordEnergyPlacements({ ...removed, energy: [...removed.energy, num] }, [num], 'effect');
           if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
           appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
           const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
@@ -12299,12 +12310,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const charged = cpuSt.hand[0];
         const chargedCard = battleCardMap.get(charged);
         appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
-        const newCpuSt: PlayerState = {
+        // 🆕§5.3 `O-321` 第275＝CPU の「エナに送る」も同じ台帳へ（人間側と非対称にしない）。
+        const newCpuSt: PlayerState = recordEnergyPlacements({
           ...cpuSt,
           hand: cpuSt.hand.slice(1),
           energy: [...cpuSt.energy, charged],
           actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
-        };
+        }, [charged], 'rule');
         cpuAtGrowStart = newCpuSt;
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: newCpuSt }));
         // 少し待ってGROWへ進む
@@ -14610,7 +14622,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : undefined,
       });
       // handToEnergy コスト（手札→エナ）は funnel の控除**後**のエナに積む
-      if (isHandToEnergy) paid = { ...paid, energy: [...paid.energy, ...handPickedNums] };
+      // 🆕§5.3 `O-321` 第275＝**コストとして**置かれた分（`cause:'cost'`）＝原文「コストか効果によって」の「コスト」側。
+      if (isHandToEnergy) paid = recordEnergyPlacements({ ...paid, energy: [...paid.energy, ...handPickedNums] }, handPickedNums, 'cost');
       const payLogs: string[] = [];
       const underAnyCost = cost?.underAnySigniTrash;
       if (underAnyCost) {

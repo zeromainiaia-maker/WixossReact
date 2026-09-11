@@ -20,6 +20,7 @@ import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCos
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost';
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
+import { countEnergyPlacedThisTurn } from './energyPlacement';
 import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -3284,6 +3285,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(ctx.ownerState.opp_cards_moved_to_deck_this_turn ?? 0, cond.operator, cond.value);
     case 'SELF_DECK_TO_ENERGY_THIS_TURN':
       return cmp(ctx.ownerState.self_deck_to_energy_this_turn ?? 0, cond.operator, cond.value);
+    // 🆕§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275）＝「このターンにエナゾーンへ置かれた」台帳を読む。
+    //   ⚠**`causes` 省略＝全部数える**（原文が由来を書いていないときはルール処理も含む）。
+    //   ⚠**`filter` を渡すのに判定材料（cardMap）が無ければ数えない**（fail-closed）＝
+    //     素通りさせると「＜植物＞が置かれていた場合」が**何を置いても成立**する条件に化ける。
+    case 'ENERGY_PLACED_THIS_TURN': {
+      const stEP = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+      const nEP = countEnergyPlacedThisTurn(stEP, {
+        causes: cond.causes, filter: cond.filter,
+        cardMap: ctx.cardMap, matches: matchesFilter, getCardNum,
+      });
+      return nEP >= (cond.minCount ?? 1);
+    }
     case 'SELECTED_COLOR':
       return (ctx.ownerState.story_overrides?.['__selected_colors__']?.split(',') ?? []).includes(cond.color);
     case 'BEAT_ZONE_COUNT':

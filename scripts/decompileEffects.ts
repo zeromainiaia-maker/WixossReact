@@ -1284,6 +1284,21 @@ function condJa(c?: any): string {
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN': return 'このターンにこのシグニが効果によってダウン状態からアップしていた';
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;
     case 'SELF_DECK_TO_ENERGY_THIS_TURN': return `このターンにあなたのデッキからカードが${numJa((c as { value: number }).value)}枚以上エナゾーンに移動していた`;
+    // 🆕§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275）＝由来と絞り込みを**両方**描く
+    //   （どちらかを落とすと逆翻訳が原文より広い／狭い条件に読める）。
+    case 'ENERGY_PLACED_THIS_TURN': {
+      const causesEP = (c as { causes?: string[] }).causes;
+      const byEP = causesEP && causesEP.length > 0
+        ? (causesEP.includes('cost') && causesEP.includes('effect') && !causesEP.includes('rule')
+            ? 'コストか効果によって'
+            : `${causesEP.map(x => ({ cost: 'コスト', effect: '効果', rule: 'ルール処理' } as Record<string, string>)[x] ?? x).join('か')}によって`)
+        : '';
+      const fEP = (c as { filter?: TargetFilter }).filter;
+      // ⚠**`cardType` を「カード」で潰さない**＝原文が「＜植物＞の**シグニ**」なら逆翻訳もシグニと書く。
+      const nounEP = fEP?.cardType ? String(fEP.cardType) : 'カード';
+      const whatEP = fEP ? `${filterJa({ ...fEP, cardType: undefined })}${nounEP}` : 'カード';
+      return `このターン${byEP}あなたのエナゾーンに${whatEP}が${numJa((c as { minCount?: number }).minCount ?? 1)}枚以上置かれていた`;
+    }
     case 'SELECTED_COLOR': return `${(c as { color: string }).color}を選んだ`;
     // 🆕§5.3 `O-143`＝チェックゾーンの枚数（`field.check` ＋ `field.check_rest` の合計）。
     // 🆕filter＝「チェックゾーンにあるスペルが」のようにカード種別で絞る（落とすと逆翻訳から限定が消える）。

@@ -133,6 +133,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   deck_to_trash_cards_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'own deck-to-trash card list for the current turn' },
   // 自分のデッキからエナへ置いた累計は、ターン単位の条件カウンタ。
   self_deck_to_energy_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-energy total for the current turn' },
+  // 🆕§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275）＝「このターンにエナゾーンへ置かれた札」の台帳。
+  //   ⚠**`self_deck_to_energy_this_turn` と二重に持つ**のは意図的＝あちらは枚数だけの既存契約で、
+  //     読み手（`SELF_DECK_TO_ENERGY_THIS_TURN`）が別に居る。統合はしない（意味が違う）。
+  energy_placed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'cards placed into this player energy zone during the current turn' },
   // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」は、課されたターンだけ有効。
   signi_attack_bans_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'attack bans imposed on the attacker for the current turn' },
   // 追加アタックフェイズのキューは、加えたターンの中で消化する（未消化でもターンを跨がせない）。

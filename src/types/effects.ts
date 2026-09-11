@@ -487,6 +487,16 @@ export type Condition =
   | { type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' } // このターンに効果元シグニ（sourceCardNum）が効果によってダウン→アップしていた場合（upped_from_down_this_turn）。WX14-070「代わりに－7000」
   | { type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'; operator: CompareOp; value: number } // このターンに **あなたの効果によって** 対戦相手のカードがデッキに移動した累計枚数（opp_cards_moved_to_deck_this_turn）。WXK06-071「1枚以上→－5000／4枚以上→代わりに－12000」の多段閾値
   | { type: 'SELF_DECK_TO_ENERGY_THIS_TURN'; operator: CompareOp; value: number }
+  /**
+   * 🆕**「このターンに（コストか効果によって）あなたのエナゾーンに〈filter〉のカードがN枚以上置かれていた場合」**
+   * （§5.3 `O-321`/`O-315`/`O-308`③・2026-09-11 第275バッチ）。
+   * 実体は `energy_placed_this_turn`（`"<instanceId>:<cause>"`）＝読み書きは `src/engine/energyPlacement.ts`。
+   * 🔴**既存 `SELF_DECK_TO_ENERGY_THIS_TURN` では表せない**＝あちらは**デッキ由来の枚数だけ**で、
+   *   何が置かれたか（`filter`）も何によって置かれたか（`causes`）も持たない。
+   * ⚠**`causes` 省略＝全部数える**（原文が由来を書いていないときはルール処理も含むのが正しい）。
+   *   原文が「**コストか効果によって**」と書いているときだけ `causes:['cost','effect']` を立てる。
+   */
+  | { type: 'ENERGY_PLACED_THIS_TURN'; owner: Owner; minCount?: number; filter?: TargetFilter; causes?: Array<'effect' | 'cost' | 'rule'> }
   | { type: 'SELECTED_COLOR'; color: string }
   | { type: 'BEAT_ZONE_COUNT'; operator: CompareOp; value: number; thisWay?: boolean }
   /**
@@ -812,7 +822,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   PAID_COLORS_INCLUDE_ALL: true, COST_ENERGY_TRASHED_COLOR: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
-  SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
+  SELF_DECK_TO_ENERGY_THIS_TURN: true, ENERGY_PLACED_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
   COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true, FIELD_LEVEL_SUM: true,
   HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
   TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,

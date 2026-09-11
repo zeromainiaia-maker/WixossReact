@@ -55526,6 +55526,122 @@ order.push('v191DiscardClassArm');
 // ⚠**単体実行だと前のシナリオの盤面が残って注入が効かないことがある**（§4.4-73）＝この順で並べる。
 order.push('o329OppTurnOnlyBlockedOnOwnTurn');
 order.push('o329OppTurnOnlyUsableOnOppTurn');
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275バッチ）＝
+//   「このターンにあなたのエナゾーンにカードがN枚以上置かれていた場合」の台帳（`energy_placed_this_turn`）。
+//
+// 🔴**直す前は条件が丸ごと落ちていた**＝エナに1枚も置いていないターンでも任意コストを払えた（過剰実行）。
+// 🔑**実機で確かめるのは engine ではなく `src/screens/` の記録地点**＝golden は engine の funnel
+//   （`executeAction` の before/after 差分）を直接叩けるが、**「エナチャージ」ボタン（`BattleScreen.tsx`）が
+//   台帳へ書くかどうかは実機からしか観測できない**（§2.2＝`src/screens/` を触った回は⑤必須）。
+// ⚠**1ビット反転**＝盤面も操作も同じで、**「手札をエナチャージしたかどうか」だけ**を変える（§4.4-3）。
+//   台帳には**注入で1件だけ**入れてあり（＝このターンの序盤に既に1枚置かれていた想定）、
+//   `minCount:2` なので**エナチャージ1回で 1→2 になって初めて成立する**。
+const O321_LRIG = 'WXDi-CP02-009';   // シロコ（Lv3緑）＝【自】アタックフェイズ開始時の条件つき効果
+const o321Spec = () => ({
+  hostSet: {
+    'field.lrig': [`${O321_LRIG}#9401`],
+    'field.lrig_down': false,
+    'field.signi': [['WD01-013#9402'], null, null],   // 【Ｓランサー】を得る対象
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WD01-013#9403'],                        // これをエナチャージする（＝2件目）
+    'energy': ['WX01-047#9404', 'WD01-013#9405'],     // 《緑》＋《無》＝支払い可能にしておく
+    // 🔑**このターンの序盤に1枚置かれていた**想定を注入する（エナフェイズのチャージ相当＝`cause:'rule'`）。
+    'energy_placed_this_turn': ['WD01-013#9400:rule'],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#9406'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  // ⚠**エナフェイズから始める**＝手札の「エナチャージ」アクションは `turn_phase === 'ENERGY'` でしか出ない
+  //   （`getMyHandCardActions`）。MAIN から始めると**ボタンが無いだけ**なのに「機構が動かない」と読み違える。
+  top: { active: 'host', turn_phase: 'ENERGY', turn_count: 2 },
+});
+
+/**
+ * @param charge true＝手札1枚をエナチャージしてから進む（台帳 1→2＝条件成立）
+ *               false＝チャージせずに進む（台帳 1 のまま＝条件不成立）
+ */
+const driveO321 = (charge) => async function (page, H) {
+  const before = await H.queryState();
+  H.log('注入直後:', JSON.stringify({ phase: before?.turnPhase, ledger: before?.host?.energyPlacedThisTurn, lrig: before?.host?.lrigTop, hand: before?.host?.handCards }));
+  if ((before?.host?.energyPlacedThisTurn ?? []).length !== 1) {
+    return { pass: false, detail: `注入が効いていない（台帳=${JSON.stringify(before?.host?.energyPlacedThisTurn)}・期待1件）` };
+  }
+  if (charge) {
+    let charged = false;
+    for (let s = 0; s < 10 && !charged; s++) {
+      await page.waitForTimeout(400);
+      await H.clickTestId('my-hand-card-0');
+      await page.waitForTimeout(400);
+      const btn = page.locator('[data-testid^="card-action-"][data-action-label="エナチャージ"]').first();
+      if (await btn.count() && await btn.isVisible().catch(() => false)) {
+        await btn.click({ timeout: 2000 }).catch(() => {});
+        charged = true;
+      }
+    }
+    if (!charged) return { pass: false, detail: '手札の「エナチャージ」アクションに到達できなかった（エナフェイズでないか、既に使用済み）' };
+    await page.waitForTimeout(900);
+    const afterCharge = await H.queryState();
+    H.log('チャージ後の台帳:', JSON.stringify(afterCharge?.host?.energyPlacedThisTurn));
+    // 🔴**ここが `src/screens/` の記録地点そのもの**＝2件になっていなければ台帳へ書いていない。
+    if ((afterCharge?.host?.energyPlacedThisTurn ?? []).length !== 2) {
+      return { pass: false, detail: `🔴「エナチャージ」が台帳へ記録していない（台帳=${JSON.stringify(afterCharge?.host?.energyPlacedThisTurn)}）` };
+    }
+  }
+  await H.ensureMain();
+  // アタックフェイズへ進む＝`ON_ATTACK_PHASE_START` の【自】が走る窓。
+  // ⚠**「MAIN でない＝進んだ」と判定しない**＝開始が `ENERGY` なので初回から真になる（§4.4-5）。
+  //   `ATTACK*` に入ったことを必須条件にする。
+  let reached = false; let pending = null; let stackSeen = 0;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(500);
+    const st = await H.queryState();
+    if (/^ATTACK/.test(st?.turnPhase ?? '')) reached = true;
+    if (st?.pendingEffect) pending = st.pendingEffect;
+    stackSeen = Math.max(stackSeen, st?.stackLen ?? 0);
+    if (reached && (pending || stackSeen > 0)) break;
+    if (reached && s > 12) break;
+    // ⚠**ENERGY→GROW→MAIN のラベルは `advancePhaseV20` の一覧に無い**（あちらは MAIN 以降用）＝
+    //   `PHASE_BTN`（`uiConstants.ts`）どおりに補う。無いと ENERGY で永久に止まる（第275 で踏んだ）。
+    if (!(await advancePhaseV20(H))) {
+      for (const label of ['グロウフェイズへ', 'メインフェイズへ']) {
+        if (await H.clickBtn(label, { exact: true })) break;
+      }
+    }
+  }
+  const fin = await H.queryState();
+  H.log('結果:', JSON.stringify({ phase: fin?.turnPhase, pending, stackSeen, ledger: fin?.host?.energyPlacedThisTurn }));
+  // 🔑**「進めた」ことを必須条件にする**（§4.4-5＝クリック前から成立している条件で判定しない）。
+  if (!reached) return { pass: false, detail: `アタックフェイズへ進めなかった（phase=${fin?.turnPhase}）` };
+  const fired = !!pending || stackSeen > 0;
+  if (charge) {
+    if (!fired) return { pass: false, detail: `🔴エナへ2枚置いたのに【自】が1度も立たない（台帳=${JSON.stringify(fin?.host?.energyPlacedThisTurn)}）` };
+    return { pass: true, detail: `エナチャージで台帳 1→2＝【自】が立った（pending=${pending} stack=${stackSeen}）` };
+  }
+  if (fired) return { pass: false, detail: `🔴エナへ1枚しか置いていないのに【自】が立った（条件が効いていない／台帳=${JSON.stringify(fin?.host?.energyPlacedThisTurn)}）` };
+  return { pass: true, detail: `チャージなし＝台帳1件のまま【自】は立たない（phase=${fin?.turnPhase}）` };
+};
+
+scenarios.o321EnergyPlacedGateFires = {
+  title: 'O-321(1): 手札をエナチャージして台帳 1→2＝「このターンにエナへ2枚以上置かれていた場合」の【自】が立つ',
+  spec: o321Spec(),
+  drive: driveO321(true),
+};
+scenarios.o321EnergyPlacedGateBlocked = {
+  title: 'O-321(2) 対照: 同じ盤面・同じ操作でエナチャージだけ外す＝台帳1件のまま【自】は立たない',
+  spec: o321Spec(),
+  drive: driveO321(false),
+};
+order.push('o321EnergyPlacedGateFires');
+order.push('o321EnergyPlacedGateBlocked');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -55751,6 +55867,10 @@ try {
         // 🆕§5.3 `O-147`（2026-09-05）＝【ライズ】の材料をエナから引く形（`WXK05-035`）の観測点。
         //   枚数だけだと「どの札が下へ重なったか」が見えない。
         energyCards: s.energy ?? [],
+        // 🆕§5.3 `O-321`（2026-09-11 第275）＝「このターンにエナゾーンへ置かれた札」の台帳。
+        //   ⚠**枚数（`energy`）では答えられない**＝置いたあと同じターンに払えば消えるし、
+        //     ルール処理で置かれた分と効果で置かれた分を区別できない（§4.4-71＝engine が読む state を観測面に足す）。
+        energyPlacedThisTurn: s.energy_placed_this_turn ?? [],
         life: (s.life_cloth ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
@@ -55929,6 +56049,10 @@ try {
         //   注入して「4→5回目」を作るときにどちらで積むかが変わる＝観測できないと当て推量になる。
         lrigActivationCount: s.lrig_activation_count ?? {},
         energyCards: s.energy ?? [],
+        // 🆕§5.3 `O-321`（2026-09-11 第275）＝「このターンにエナゾーンへ置かれた札」の台帳。
+        //   ⚠**枚数（`energy`）では答えられない**＝置いたあと同じターンに払えば消えるし、
+        //     ルール処理で置かれた分と効果で置かれた分を区別できない（§4.4-71＝engine が読む state を観測面に足す）。
+        energyPlacedThisTurn: s.energy_placed_this_turn ?? [],
         zoneBlocks: s.signi_zone_blocks ?? [],
         zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],
         signiVirus: s.field?.signi_virus ?? [0, 0, 0],

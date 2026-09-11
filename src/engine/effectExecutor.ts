@@ -34,6 +34,7 @@ import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import { collectReturnableAssistLrigTops } from './assistLrig';
 import { acceCardsAt, cloneAcceSlots } from '../utils/acce';
+import { diffEnergyPlacements, recordEnergyPlacements } from './energyPlacement';
 
 // いま**アタックを宣言していてバトル未解決**のシグニ（`pending_signi_battle` のゾーン頂点）。無ければ undefined。
 // 「対戦相手のアタックしているシグニ」の解決と、進行中アタックの無効化先の判定に使う（Opusタスク12(cx)）。
@@ -10368,7 +10369,32 @@ function execSetCardCostReplacement(a: import('../types/effects').SetCardCostRep
 
 // ===== メイン実行関数 =====
 
+/**
+ * 🆕🔴**§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275バッチ）＝エナゾーンへの配置を1箇所で台帳へ記録する。**
+ *
+ * 🔴**なぜ funnel を作ったか**＝`energy: [...state.energy, …]` は engine だけで **69箇所**ある。
+ *   そこへ1行ずつ記録を足す形は、この repo が何度も踏んだ「**同じ式を2箇所以上に書く**」型
+ *   （[DRIVE_TRAPS.md](../../docs/DRIVE_TRAPS.md) の冒頭＝台帳の書き漏れが3種類に割れていた実例）そのもの。
+ *   ⇒ **全アクションが必ず通る `executeAction` の入口で before/after を差分する**（記録の式は1つだけ）。
+ * ⚠**`executeAction` は入れ子で呼ばれる**（`SEQUENCE` の各ステップ）＝外側も内側の追加を「新規」と見るので、
+ *   `recordEnergyPlacements` 側で**エントリ単位の重複除去**をしている（`energyPlacement.ts` の近似の項）。
+ * ⚠**ここで拾えるのは `cause:'effect'` だけ**＝コスト支払い・エナフェイズのチャージ・「エナに送る」・
+ *   バトルバニッシュは `src/screens/` の各地点が `cost` / `rule` で記録する（原文の「コストか効果によって」を
+ *   由来で切り分けられるようにするため）。
+ */
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
+  const result = executeActionInner(action, ctx);
+  const ownerPlaced = diffEnergyPlacements(ctx.ownerState, result.ownerState);
+  const otherPlaced = diffEnergyPlacements(ctx.otherState, result.otherState);
+  if (ownerPlaced.length === 0 && otherPlaced.length === 0) return result;
+  return {
+    ...result,
+    ownerState: recordEnergyPlacements(result.ownerState, ownerPlaced, 'effect'),
+    otherState: recordEnergyPlacements(result.otherState, otherPlaced, 'effect'),
+  };
+}
+
+function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
   const successUsageEffectId = (action as SuccessUsageMarkedAction)._successUsageEffectId;
   if (successUsageEffectId) {
     return executeSuccessUsageMarkedAction(action as SuccessUsageMarkedAction, successUsageEffectId, ctx);
