@@ -6823,7 +6823,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hasIgnoreLrigRestriction(my, effectsMap, 'arts', card))) return;
         const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
         const eff = effs.find(e => e.effectType === 'ACTIVATED');
-        if (!canUseArtsCondition(effs, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
+        if (!canUseArtsCondition(effs, my, op, battleCardMap, instanceId, bs.turn_phase, isMyTurn, effectivePowers)) return;
         const maxCost = eff ? findCounterSpellMaxCost(eff.action) : undefined;
         if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
         const dummyEff: import('../types/effects').CardEffect = eff ?? {
@@ -7416,7 +7416,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ⚠実行入口にも同じゲートを置く（UI 側だけだと別経路＝カットイン等から素通りする・§6.4 O-3）
     if (cardNameUseBlocked(my, card.CardName, card.Type)) return;
     if (!canUseArtsCondition(
-      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, p.effectivePowers)) return;
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, isMyTurn, p.effectivePowers)) return;
     setLoading(true);
     try {
       const cardNum = card.CardNum;
@@ -7596,7 +7596,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
     if (loading) return;
     if (!canUseArtsCondition(
-      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, effectivePowers,
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, isMyTurn, effectivePowers,
     )) return;
 
     // WXDi-P13-003A is a piece whose resolution turns the same physical instance into
@@ -8479,7 +8479,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs.pending_spell || loading) return;
     if (candidate.kind !== 'effect') return;
     if (!canUseArtsCondition(
-      [candidate.effect], my, op, battleCardMap, candidate.instanceId, bs.turn_phase, effectivePowers)) return;
+      [candidate.effect], my, op, battleCardMap, candidate.instanceId, bs.turn_phase, isMyTurn, effectivePowers)) return;
     setLoading(true);
     closeCutin();
     try {
@@ -9130,7 +9130,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
         undefined, undefined, undefined, undefined, undefined, colorlessPayableColorsOf(cardNum, effectsMap));
       const condOk = canUseArtsCondition(
-        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
+        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, isMyTurn, effectivePowers,
       );
       if (canUse && canAfford && condOk) {
         actions.push({

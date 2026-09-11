@@ -334,7 +334,8 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
     !cardNameUseBlocked(my, card.CardName, card.Type) &&
     !isArtsUseBlockedFor(my, payer.blockedSelf) &&
     timingOk &&
-    canUseArtsCondition(effectsMap.get(cardNum) ?? [], my, op, cardMap, cardNum, turnPhase, p.effectivePowers) &&
+    // 🆕§5.3 `O-329`＝`isMyTurn` を渡す（「対戦相手のターンにしか使用できない」の実効ゲート）。
+    canUseArtsCondition(effectsMap.get(cardNum) ?? [], my, op, cardMap, cardNum, turnPhase, isMyTurn, p.effectivePowers) &&
     (affordable || affordableWithUseTimePay);
 
   return {

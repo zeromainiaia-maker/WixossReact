@@ -5290,7 +5290,6 @@ const BLOCK_ACTION_LABELS: Record<string, string> = {
   USE_ARTS: 'アーツ使用封じ',
   ARTS_AND_SPELL: 'アーツ・スペル使用封じ',
   ARTS_LIMIT_1: 'アーツ使用1回制限',
-  USE_ARTS_EXCEPT_OPP_TURN: '自分のターン以外アーツ使用封じ',
   GROW: 'グロウ封じ',
   SELF_SIGNI_TRASH: '自シグニトラッシュ封じ',
   ATTACK_SIGNI_SELF: 'シグニアタック封じ（自）',

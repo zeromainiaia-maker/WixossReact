@@ -3,11 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［2枚］
-SP26-002 WXK07-018
---- SP26-002
-  原文: このアーツは対戦相手のターンにしか使用できない。このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない。,-
-  ~ [0].action.steps[1].id : "SUPPRESS_LIFE_BURST_ON_CRASH" → "DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS"
+## （type増減なし＝値/構造変更） ［1枚］
+WXK07-018
 --- WXK07-018
   原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《緑×1》減る。あなたのシグニ１体と対戦相手のシグニ１体を対象とし、それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す。,-
   + [0].action.steps[0].asDown = true

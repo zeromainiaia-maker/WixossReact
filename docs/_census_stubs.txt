@@ -22,16 +22,16 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      2件   2枚  DEFERRED_COLOR_QUALIFIED_USE_BLOCK  [生ID露出 2]
         カード: PR-471, WXK09-037
-        生成: src\data\parsers\parseSentencePart2.ts:527
+        生成: src\data\parsers\parseSentencePart2.ts:531
      2件   2枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WX25-P2-003, WXDi-P05-004
-        生成: src\data\effectParser.ts:25782 / src\data\effectParser.ts:25791
+        生成: src\data\effectParser.ts:25801 / src\data\effectParser.ts:25810
      2件   2枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
         カード: WX25-P1-071, WXDi-P06-006
         生成: src\data\parsers\parseSentencePart3.ts:191 / src\data\parsers\parseSentencePart3.ts:465
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:24245
+        生成: src\data\effectParser.ts:24247
      1件   1枚  DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY
         カード: WX09-032
         生成: src\data\parsers\parseSentencePart2.ts:268
@@ -43,7 +43,7 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
         生成: src\data\effectParser.ts:16389
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
-        生成: src\data\parsers\parseSentencePart2.ts:2941
+        生成: src\data\parsers\parseSentencePart2.ts:2945
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
         生成: src\data\effectParser.ts:16392
@@ -70,7 +70,7 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
         生成: src\data\parsers\parseSentencePart4.ts:2033
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10988
+        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10992
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2265
@@ -119,16 +119,16 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
 ==============================================================================
     34件  33枚  OPTIONAL_ACTIVATE
         カード: WD06-018, WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046 …他27枚
-        消費: src\engine\effectExecutor.ts:6852 / src\engine\effectExecutor.ts:6869 / src\engine\triggerCollect.ts:529
+        消費: src\engine\effectExecutor.ts:6851 / src\engine\effectExecutor.ts:6868 / src\engine\triggerCollect.ts:529
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:6446 / src\engine\effectExecutor.ts:6451
+        消費: src\engine\effectExecutor.ts:6445 / src\engine\effectExecutor.ts:6450
      7件   7枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018 …他1枚
         消費(ペイロードキー): src\engine\effectEngine.ts:2231
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
-        消費: src\engine\effectExecutor.ts:6227
+        消費: src\engine\effectExecutor.ts:6226
      5件   5枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
         消費: src\screens\battle\allZoneBurst.ts:24 / src\screens\battle\allZoneBurst.ts:42
@@ -158,7 +158,7 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
         消費: src\screens\battle\artsUseGate.ts:42
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:6475
+        消費: src\engine\effectExecutor.ts:6474
      2件   2枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8278 / src\engine\effectEngine.ts:8296
@@ -185,16 +185,16 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
         消費: src\engine\effectEngine.ts:8123
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:10511
+        消費: src\engine\effectExecutor.ts:10510
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:10513
+        消費: src\engine\effectExecutor.ts:10512
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
-        消費: src\engine\effectExecutor.ts:6056
+        消費: src\engine\effectExecutor.ts:6055
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
@@ -212,7 +212,7 @@ live JSON の STUB id 種類 : 594（総ノード 3368 件）
         消費: src\engine\refresh.ts:30
      1件   1枚  RIDE_USABLE_IN_ATTACK_PHASE
         カード: WXK03-059
-        消費: src\screens\battle\battleUtils.ts:149
+        消費: src\screens\battle\battleUtils.ts:172
      1件   1枚  SELF_LEAVE_FACEDOWN_SECOND_MAIN
         カード: WXDi-P00-038
         消費: src\engine\effectExecutor.ts:1322

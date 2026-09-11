@@ -21128,6 +21128,112 @@ scenarios.v103SplitToBottom = {
   drive: v103SplitDrive('v103SplitToBottom', 'bottom'),
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-329`（2026-09-11 第274バッチ）＝「このアーツは対戦相手のターンにしか使用できない」の提示ゲート
+//
+// 🔴**直す前は live 5効果とも1つも効いていなかった**＝原文の先頭文は
+//   `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}`（**読み手が1人もいない** actionId）になっており、
+//   使用条件はどこにも載っていなかった。`condition:{IS_OPPONENT_TURN}` と書いてある MANUAL 効果でも
+//   `evalCondition` が `IS_OPPONENT_TURN` を **`return true`（プレースホルダ）**にしているので同じく素通りしていた。
+// ⇒ parser が availability（`condition`）へ持ち上げ、`canUseArtsCondition` が `isOwnerTurn` で弾くようにした。
+//
+// ⚠**§4.4-3「負方向テストは必ず対照とセット」**＝「使用が出ない」だけでは
+//   **ルリグデッキが開いていないだけ**でも緑になる。⇒ 同じ盤面・同じ操作で
+//   **制限の無い白アーツ（`WX21-007`・《白》×1・アタックフェイズ）には「使用」が出る**ことを同じ巡で確かめる。
+// ⚠**§4.4-1**＝`field.check` と CORE フィールドは両サイド明示クリア。
+// 🔑**反転確認**＝`canUseArtsCondition` のターン判定を外すと `o329OppTurnOnlyBlockedOnOwnTurn` が赤になる
+//   （自分のターンに「使用」が出る）。`o329OppTurnOnlyUsableOnOppTurn` は緑のまま＝過少側へ倒れていないことも分かる。
+const O329_RESTRICTED_ARTS = 'WX24-P2-032';   // アンステイブル・シールド（対戦相手のターンにしか使用できない）
+const O329_CONTROL_ARTS = 'WX21-007';         // アンチ・ディフェンス（同じ白・アタックフェイズ・制限なし）
+const o329Spec = (turnPhase, active) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9329'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': [`${O329_RESTRICTED_ARTS}#9330`, `${O329_CONTROL_ARTS}#9331`],
+    'hand': [],
+    // 《白》×1《無》×1 を賄う（両アーツとも**コストでは落ちない**＝落ちる理由をターン判定1本に絞る）。
+    'energy': ['WD01-009#9332', 'WD01-013#9333'],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#9334'],
+    'field.lrig_down': false,
+    'field.signi': [['WD01-013#9335'], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active, turn_phase: turnPhase, turn_count: 2 },
+});
+
+/** ルリグデッキを開き、指定カードの詳細を出して「使用」アクションの有無を返す（詳細は閉じて戻る）。 */
+async function o329ProbeArts(page, H, cardNum) {
+  const opened = await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(700);
+  const zoneCard = page.locator(`[data-testid^="zone-card-"][data-card-num="${cardNum}"]`).first();
+  if (!(await zoneCard.count())) return { ok: false, detail: `${cardNum} がルリグデッキ一覧に出ない（dk=${opened ?? 'なし'}）` };
+  await zoneCard.click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const detail = page.getByTestId('card-detail-modal').first();
+  // 🔑**「詳細が開いた」を必須条件にする**（§4.4-4＝盤面/不在だけを見る判定は偽陽性）。
+  if (!(await detail.count()) || !(await detail.isVisible().catch(() => false))) {
+    return { ok: false, detail: `${cardNum} のカード詳細が開かない＝「使用が出ない」を判定できない` };
+  }
+  const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]');
+  const hasUse = (await use.count()) > 0 && await use.first().isVisible().catch(() => false);
+  const labels = await page.locator('[data-testid^="card-action-"]').evaluateAll(
+    els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+  await detail.click({ timeout: 2000, position: { x: 5, y: 5 } }).catch(() => {});
+  await page.waitForTimeout(400);
+  return { ok: true, hasUse, labels };
+}
+
+scenarios.o329OppTurnOnlyBlockedOnOwnTurn = {
+  title: 'O-329（WX24-P2-032＝「対戦相手のターンにしか使用できない」が**自分のアタックフェイズでは提示されない**／同盤面の無制限アーツは提示される）',
+  spec: o329Spec('ATTACK_ARTS', 'host'),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log('開始状態:', JSON.stringify({ phase: st0?.turnPhase, active: st0?.active, hostEnergy: st0?.host?.energy, hostLrigDeck: st0?.host?.lrigDeck, hostLrig: st0?.host?.lrigTop }));
+    const restricted = await o329ProbeArts(page, H, O329_RESTRICTED_ARTS);
+    H.log('制限アーツ:', JSON.stringify(restricted));
+    if (!restricted.ok) return { pass: false, detail: restricted.detail };
+    const control = await o329ProbeArts(page, H, O329_CONTROL_ARTS);
+    H.log('対照アーツ:', JSON.stringify(control));
+    if (!control.ok) return { pass: false, detail: control.detail };
+    // 🔑対照が先＝これが false なら「そもそも提示経路が死んでいる」＝本題の判定に意味が無い。
+    if (!control.hasUse) {
+      return { pass: false, detail: `対照（${O329_CONTROL_ARTS}・制限なし）にも「使用」が出ない＝提示経路かコストの問題（labels=${JSON.stringify(control.labels)}）` };
+    }
+    if (restricted.hasUse) {
+      return { pass: false, detail: `🔴${O329_RESTRICTED_ARTS} が**自分のターン**に使用できてしまう（labels=${JSON.stringify(restricted.labels)}）` };
+    }
+    return { pass: true, detail: `自分のアタックフェイズ＝制限アーツは「使用」なし（labels=${JSON.stringify(restricted.labels)}）／対照アーツは「使用」あり` };
+  },
+};
+
+scenarios.o329OppTurnOnlyUsableOnOppTurn = {
+  title: 'O-329 対照（同じ盤面・同じ札でターンだけ反転＝**対戦相手のアタックフェイズ**では提示される＝過少側へ倒れていない）',
+  // ⚠**相手ターンは `active:'cpu'`**（`'guest'` だと注入が効かず CPU がそのままターンを回してしまい、
+  //   観測時には `MAIN`／host 手番へ戻っている＝先例 `v75AltCostSpec` / `WXK11-001` と同じ綴り）。
+  spec: o329Spec('ATTACK_ARTS_OP', 'cpu'),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log('開始状態:', JSON.stringify({ phase: st0?.turnPhase, hostEnergy: st0?.host?.energy, hostLrigDeck: st0?.host?.lrigDeck, hostLrig: st0?.host?.lrigTop }));
+    const restricted = await o329ProbeArts(page, H, O329_RESTRICTED_ARTS);
+    const st1 = await H.queryState();
+    H.log('探索後の phase:', st1?.turnPhase);
+    H.log('制限アーツ（相手ターン）:', JSON.stringify(restricted));
+    if (!restricted.ok) return { pass: false, detail: restricted.detail };
+    if (!restricted.hasUse) {
+      return { pass: false, detail: `🔴${O329_RESTRICTED_ARTS} が**対戦相手のターン**でも使用できない＝過少側へ倒れている（labels=${JSON.stringify(restricted.labels)}）` };
+    }
+    return { pass: true, detail: `対戦相手のアタックフェイズ＝制限アーツに「使用」あり（labels=${JSON.stringify(restricted.labels)}）` };
+  },
+};
+
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55416,6 +55522,10 @@ scenarios.v191DiscardClassArm = {
 };
 order.push('v191DiscardClassAngel');
 order.push('v191DiscardClassArm');
+// 🆕§5.3 `O-329`（2026-09-11 第274）＝**2本セットで回す**（負方向＋対照。§4.4-74）。
+// ⚠**単体実行だと前のシナリオの盤面が残って注入が効かないことがある**（§4.4-73）＝この順で並べる。
+order.push('o329OppTurnOnlyBlockedOnOwnTurn');
+order.push('o329OppTurnOnlyUsableOnOppTurn');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

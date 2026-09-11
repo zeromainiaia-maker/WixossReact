@@ -1,6 +1,6 @@
 // バトル画面の汎用ヘルパー（ID採番・シャッフル・リフレッシュ/ドロー・じゃんけん等）。BattleScreen.tsx から Stage 0 で抽出。
 import type { CardData, PlayerState } from '../../types';
-import type { CardEffect } from '../../types/effects';
+import type { CardEffect, Condition } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
 import { evalUseCondition } from '../../engine/execUtils';
 import { applyRefreshState } from '../../engine/refresh';
@@ -20,7 +20,27 @@ export const isPieceCardType = (type?: string | null): boolean =>
 
 // CPU専用プレイヤーID（MatchmakingScreenと共有）
 export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
-/** Evaluate an ARTS ACTIVATED use condition identically at discovery and execution time. */
+/**
+ * 条件ツリーに `IS_MY_TURN` / `IS_OPPONENT_TURN` が含まれるか。
+ *
+ * 🔴**`evalCondition` はこの2つを `return true`（プレースホルダ）にしている**（`execUtils.ts:3236-3239`）＝
+ *   「実行時はオーナー視点しか無いので、ターン判定は**収集側**が行う」という約束。
+ * ⚠**`AND` の中だけを辿る**（`triggerCollect.ts` の同名ヘルパと同じ規約）＝`OR` の枝に入っていたら
+ *   「そのターンでなくても別の枝で成立しうる」ので**ゲートしない**（fail-open 側に倒す）。
+ */
+const condHasTurnGate = (c: Condition | undefined, t: 'IS_MY_TURN' | 'IS_OPPONENT_TURN'): boolean =>
+  !!c && (c.type === t || (c.type === 'AND' && (c.conditions ?? []).some(cc => condHasTurnGate(cc, t))));
+
+/**
+ * Evaluate an ARTS ACTIVATED use condition identically at discovery and execution time.
+ *
+ * 🆕🔴**§5.3 `O-329`（2026-09-11 第274バッチ）＝`isOwnerTurn` を必須にした。**
+ *   原文「このアーツは**対戦相手のターンにしか使用できない**」は live 5効果あるのに、
+ *   **1つも効いていなかった**＝`evalUseCondition` が `IS_OPPONENT_TURN` を常時 true にしており、
+ *   その代わりの `condHas` 判定が**アーツの提示ゲートには無かった**
+ *   （収集側＝`triggerCollect` / `BattleScreen` の【自】収集にはある）。
+ * ⚠**引数を任意にしない**＝既定値を置くと新しい呼び出し元が黙って素通りする（この穴の再発）。
+ */
 export function canUseArtsCondition(
   effects: readonly CardEffect[],
   ownerState: PlayerState,
@@ -28,11 +48,14 @@ export function canUseArtsCondition(
   cardMap: Map<string, CardData>,
   sourceCardNum: string,
   currentPhase: string,
+  isOwnerTurn: boolean,
   effectivePowers?: Map<string, number>,
 ): boolean {
   const effect = effects.find(e => e.effectType === 'ACTIVATED');
-  return !effect?.condition
-    || evalUseCondition(effect.condition, ownerState, oppState, cardMap, sourceCardNum, currentPhase, effectivePowers);
+  if (!effect?.condition) return true;
+  if (condHasTurnGate(effect.condition, 'IS_OPPONENT_TURN') && isOwnerTurn) return false;
+  if (condHasTurnGate(effect.condition, 'IS_MY_TURN') && !isOwnerTurn) return false;
+  return evalUseCondition(effect.condition, ownerState, oppState, cardMap, sourceCardNum, currentPhase, effectivePowers);
 }
 export const CPU_ACTION_DELAY = 900; // CPU行動の遅延ms（オンライン感を出す）
 

@@ -28404,12 +28404,16 @@ test('levelGtLastProcessed e2e: 1体目を場に出し、それよりレベル�
 // ＝使用条件文が CHOOSE ヘッダに前置される型。従来は CHOOSE が組まれず①②が丸ごと消え、①内の
 // 「このアーツをルリグデッキに戻す」が TRANSFER_TO_DECK{SIGNI}（場のシグニをデッキへ）に幻覚化していた。
 test('WXK11-003 parser: 前置使用条件＋CHOOSE 2択（①コスト増×2種+自アーツ戻し／②センタールリグ動的アタック制限）', () => {
+  // 🆕**2026-09-11 第274（§5.3 `O-329`）＝前置文は availability（`condition`）へ移った。**
+  //   旧＝`SEQUENCE[BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}, CHOOSE]`＝**読み手のいない actionId** が
+  //   第1要素に居た（使用条件は1つも効いていなかった）。いまは `CHOOSE` が直接 action になる。
   const e1 = parseCardEffects(cardMap.get('WXK11-003')!)[0];
-  const seq = e1.action as unknown as { type: string; steps: [unknown, { type: string; choices: { action: unknown }[] }] };
-  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
-  eq(seq.steps[1].type, 'CHOOSE', '第2要素は CHOOSE');
-  const c0 = JSON.stringify(seq.steps[1].choices[0].action);
-  const c1 = JSON.stringify(seq.steps[1].choices[1].action);
+  ok(!!e1.condition && JSON.stringify(e1.condition).includes('IS_OPPONENT_TURN'),
+     '🔴前置の使用条件が availability に載っている');
+  const seq = e1.action as unknown as { type: string; choices: { action: unknown }[] };
+  eq(seq.type, 'CHOOSE', 'action は CHOOSE そのもの（前置文を剥がしたので SEQUENCE で包まない）');
+  const c0 = JSON.stringify(seq.choices[0].action);
+  const c1 = JSON.stringify(seq.choices[1].action);
   ok(c0.includes('"targetCardType":"アーツ"') && c0.includes('"targetCardType":"スペル"'), '①はアーツ・スペル両方の COST_INCREASE');
   ok(c0.includes('UNTIL_END_OF_TURN'), '①はこのターン限定');
   ok(c0.includes('RETURN_SELF_ARTS_TO_LRIG_DECK'), '①は自アーツのルリグデッキ戻し');
@@ -32245,10 +32249,13 @@ test('PLAN §6.3 B-group A lock-in: arts restrictions/choices and Dokuga power t
   const merged = (card: string) => mergeManualEffects(card, effectsMap.get(card) ?? []);
   const wx20 = merged('WX20-021').find(e => e.effectId === 'WX20-021-E1')!;
   const k11 = merged('WXK11-003').find(e => e.effectId === 'WXK11-003-E1')!;
+  // 🆕**2026-09-11 第274（§5.3 `O-329`）＝opponent-turn-only は `BLOCK_ACTION` ではなく `condition`。**
+  //   旧 `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}` は**読み手が1人もいない** actionId で、
+  //   この lock-in はその「効いていない宣言が在ること」を固定していた。
   for (const [eff, chooseCount, fromCount] of [[wx20, 2, 3], [k11, 1, 2]] as const) {
-    const seq = eff.action as SequenceAction;
-    eq(seq.steps[0]?.type, 'BLOCK_ACTION', `${eff.effectId}: opponent-turn-only block`);
-    const choose = seq.steps[1] as Extract<EffectAction, { type: 'CHOOSE' }>;
+    ok(!!eff.condition && JSON.stringify(eff.condition).includes('IS_OPPONENT_TURN'),
+       `${eff.effectId}: opponent-turn-only は availability に載る`);
+    const choose = eff.action as Extract<EffectAction, { type: 'CHOOSE' }>;
     eq(choose.type, 'CHOOSE', `${eff.effectId}: choice retained`);
     eq(choose.choose_count, chooseCount, `${eff.effectId}: choose_count`);
     eq(choose.from_count, fromCount, `${eff.effectId}: from_count`);
@@ -46781,10 +46788,15 @@ test('続き392 WX24-D4-08-E1: ルリグ＋シグニ合計2体までの次回ア
 }));
 
 test('続き392 WX24-P2-032-E1: ルリグ＋シグニ合計2体までが能力を失う', () => withSavedCursor(() => {
+  // 🆕**2026-09-11 第274（§5.3 `O-329`）＝「このアーツは対戦相手のターンにしか使用できない」は
+  //   `condition` へ移った**ので、本文は `REMOVE_ABILITIES` 単体になる。
+  //   旧＝`SEQUENCE[BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}, REMOVE_ABILITIES]`＝第1要素は
+  //   **読み手が1人もいない** actionId で、使用条件は1つも効いていなかった。
   const effect = parseCardEffects(cardMap.get('WX24-P2-032')!).find(e => e.effectId === 'WX24-P2-032-E1')!;
-  eq(effect.action.type, 'SEQUENCE', '使用ターン制限＋能力喪失');
-  const remove = (effect.action as SequenceAction).steps.find(step => step.type === 'REMOVE_ABILITIES') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;
-  ok(!!remove, 'REMOVE_ABILITIES step');
+  ok(!!effect.condition && JSON.stringify(effect.condition).includes('IS_OPPONENT_TURN'),
+     '🔴使用ターン制限が availability に載っている');
+  const remove = effect.action as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;
+  eq(remove.type, 'REMOVE_ABILITIES', '本文は能力喪失そのもの');
   eq(remove.target.type, 'CENTER_LRIG_OR_SIGNI', 'ルリグ＋シグニの単一候補プール');
   eq(remove.target.count, 2, '合計2体（count:1退化防止）');
   eq(remove.target.upToCount, true, '2体まで');
@@ -75673,6 +75685,61 @@ test('第247 §5.3 O-293: 「次のあなたのエナフェイズ終了時まで
   //   で確定させており、**払ったターンの終わりに修正が消えていた**。7＝2026-09-10 第247。
   eq(hits.length, 10, 'STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END} を持つ live 効果数（増えたら期限印の付け忘れを疑う）');
 });
+
+test('第274 §5.3 O-329: 「このアーツは対戦相手のターンにしか使用できない」が availability へ載る（5効果）', () => {
+  // 🔴旧＝この先頭文は `extractUseCondition` の接尾辞パターンに当たらず本文へ流れ、
+  //   `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}`（**読み手が1人もいない** actionId）に
+  //   なっていた＝使用条件が1つも効かず、**自分のターンにも撃てた**。
+  const ids: Array<[string, string]> = [
+    ['SP26-002', 'SP26-002-E1'], ['WX15-006', 'WX15-006-E1'], ['WX20-021', 'WX20-021-E1'],
+    ['WX24-P2-032', 'WX24-P2-032-E1'], ['WXK11-003', 'WXK11-003-E1'],
+  ];
+  const hasTurnGate = (c: unknown): boolean => {
+    if (!c || typeof c !== 'object') return false;
+    const o = c as { type?: string; conditions?: unknown[] };
+    return o.type === 'IS_OPPONENT_TURN' || (o.type === 'AND' && (o.conditions ?? []).some(hasTurnGate));
+  };
+  for (const [num, eid] of ids) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid);
+    ok(!!e, `${eid} が live にある`); if (!e) continue;
+    ok(hasTurnGate(e.condition), `🔴${eid}: condition に IS_OPPONENT_TURN が無い（使用条件が効かない）`);
+    ok(!JSON.stringify(e).includes('USE_ARTS_EXCEPT_OPP_TURN'),
+       `🔴${eid}: 読み手のいない actionId が残っている`);
+  }
+  // 🔑構造を壊していない＝選択肢つき2枚は CHOOSE のまま（前置文を剥がしたせいで①②が消えていない）。
+  for (const [num, eid, want] of [['WX20-021', 'WX20-021-E1', 2], ['WXK11-003', 'WXK11-003-E1', 1]] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const a = e.action as ChooseAction;
+    eq(a.type, 'CHOOSE', `${eid}: CHOOSE のまま`);
+    eq(a.choose_count, want, `${eid}: 選択数`);
+  }
+});
+
+test('第274 §5.3 O-329: canUseArtsCondition がターンで弾く（反転確認つき）', () => withSavedCursor(() => {
+  // 🔴`evalCondition` は `IS_MY_TURN`/`IS_OPPONENT_TURN` を **`return true`（プレースホルダ）**にしている
+  //   （ターン判定は収集側の仕事）。⇒ 提示ゲート側が `condHasTurnGate` で判定しないと**素通り**する。
+  const ctx = mkCtx({}, {});
+  const mk = (condition: unknown): CardEffect[] => ([{
+    effectId: 'T-E1', effectType: 'ACTIVATED', timing: ['ATTACK'],
+    action: { type: 'DRAW', owner: 'self', count: 1 },
+    duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    ...(condition ? { condition } : {}),
+  } as unknown as CardEffect]);
+  const call = (condition: unknown, isOwnerTurn: boolean) =>
+    canUseArtsCondition(mk(condition), ctx.ownerState, ctx.otherState, ctx.cardMap, 'T', 'ATTACK', isOwnerTurn);
+
+  ok(!call({ type: 'IS_OPPONENT_TURN' }, true), '🔴自分のターンには撃てない（旧はここが true だった）');
+  ok(call({ type: 'IS_OPPONENT_TURN' }, false), '🔴反転: 相手のターンなら撃てる（過少側へ倒れていない）');
+  ok(!call({ type: 'IS_MY_TURN' }, false), '鏡側＝IS_MY_TURN は相手ターンに弾く');
+  ok(call({ type: 'IS_MY_TURN' }, true), '🔴反転: 自分のターンなら撃てる');
+  ok(call(undefined, true), '条件が無ければ常に使える');
+  // AND の中でも読む（`extractUseCondition` の条件と合流した形）。
+  ok(!call({ type: 'AND', conditions: [{ type: 'IS_OPPONENT_TURN' }, { type: 'IS_MY_TURN' }] }, true),
+     'AND の中の IS_OPPONENT_TURN も読む');
+  // ⚠OR の枝は**ゲートしない**（別の枝で成立しうる）＝`triggerCollect` の condHas と同じ規約。
+  ok(call({ type: 'OR', conditions: [{ type: 'IS_OPPONENT_TURN' }] }, true),
+     '🔴OR の枝は弾かない（fail-open 側＝規約どおり）');
+}));
 
 test('第273 §5.3 O-319: WXDi-P09-045-E1 は「このターンにあなたのシグニがトラッシュから場に出ていた」ゲートを持つ', () => {
   // 🔴旧 live＝**発動条件が丸ごと落ちていた**＝蘇生が1度も起きていないターンでも《黒》1つで −10000 が撃てた。

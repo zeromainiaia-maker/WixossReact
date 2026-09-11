@@ -434,10 +434,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
-  // ---- このアーツは対戦相手のターンにしか使用できない ----
-  if (t.match(/このアーツは対戦相手のターンにしか使用できない/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'USE_ARTS_EXCEPT_OPP_TURN', until: 'PERMANENT' };
-  }
+  // 🗑**「このアーツは対戦相手のターンにしか使用できない」の受け皿は撤去した**
+  //   （§5.3 `O-329`・2026-09-11 第274バッチ）＝旧実装は
+  //   `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}` を吐いていたが、
+  //   🔴**この actionId の読み手は1人もいなかった**（`effectExecutor.ts` の表示ラベルだけ）＝
+  //   使用条件が1つも効かないまま `blocked_actions` に永久のゴミが1件積まれるだけだった。
+  //   いまは `parseArtsEffect` が**先頭文を availability（`condition:{IS_OPPONENT_TURN}`）へ持ち上げる**ので
+  //   ここへは届かない。⚠**「読み手のいない actionId」を復活させない**＝
+  //   同じ文がアーツ以外で出てきたら `UNKNOWN`（＝census に映る穴）へ倒す。
 
   // ---- このシグニには（N枚まで/好きな枚数）アクセを付けることができる ----
   if (t.match(/このシグニには.*【アクセ】を付けることができる/)) {

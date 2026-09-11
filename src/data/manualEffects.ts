@@ -705,6 +705,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   （`collectBanishTriggers`。従来バニッシュだけ読む地点が無く**設置しても永久に発火しなかった**）
   //   ②`trigger.notByOwnEffect`（`cause.ownerId` が設置者本人なら発火しない）。
   // ⚠使用条件は `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}` ではなく `condition:{IS_OPPONENT_TURN}`（提示ゲートが読む形）。
+  // 🆕🔴**2026-09-11 第274（§5.3 `O-329`）＝このコメントは書かれた時点では嘘だった**＝
+  //   `canUseArtsCondition` は `evalUseCondition` しか呼んでおらず、`evalCondition` は
+  //   `IS_OPPONENT_TURN` を `return true`（プレースホルダ）にしていたので**この形でも効いていなかった**。
+  //   いまは `canUseArtsCondition` が `isOwnerTurn` を受け取って `condHasTurnGate` で判定する＝**本当に読む**。
   'WX15-006': [
     {"effectId":"WX15-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"condition":{"type":"IS_OPPONENT_TURN"},"action":{"type":"SEQUENCE","steps":[{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_BANISH","notByOwnEffect":true,"triggerFilter":{"cardType":"シグニ"}},"effect":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_BANISH","notByOwnEffect":true,"triggerFilter":{"cardType":"シグニ"}},"effect":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引B `O-329` をクローズ＝「このアーツは対戦相手のターンにしか使用できない」が5効果とも1つも効いていなかった（第274バッチ・実機 `V-192`）
+
+第273の再 triage で見つけた項目。**live 5効果すべてで使用条件が素通りしており、自分のターンにも撃てた**（過剰許可）。
+
+### 真因（2本ある）
+
+| # | 何が起きていたか |
+|---|---|
+| ① | **先頭文が本文へ流れていた**＝`extractUseCondition` が受けるのは「〜**場合に**しか使用できない」型の**接尾辞**だけで、「このアーツは**対戦相手のターンに**しか使用できない。」という**先頭文**は当たらない。結果 `parseSentencePart2.ts:439` が `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}` を吐いていたが、🔴**この actionId の読み手は1人もいなかった**（`effectExecutor.ts` の表示ラベルだけ）＝`blocked_actions` に永久のゴミが1件積まれるだけ |
+| ② | **「正しい形」でも効いていなかった**＝`evalCondition` は `IS_MY_TURN` / `IS_OPPONENT_TURN` を **`return true`（プレースホルダ）**にしており（`execUtils.ts:3236-3239`）、ターン判定は**収集側が `condHas` で行う**約束。🔴**アーツの提示ゲート（`canUseArtsCondition`）にはその判定が無かった**＝`condition:{IS_OPPONENT_TURN}` を書いてある `WX15-006-E1`（MANUAL）**でも効いていなかった** |
+
+⚠**`manualEffects.ts:707` に「使用条件は `condition:{IS_OPPONENT_TURN}`（提示ゲートが読む形）」というコメントがあった**が、
+**書かれた時点から嘘だった**（読み手が居ない）。⇒ **コメントの「〜が読む形」は grep で裏を取る。**
+
+### 修正（3点）
+
+1. **parser**＝`parseArtsEffect`（`effectParser.ts`）が**先頭1文だけ**を剥がして `condition` へ合流させる（`AND` の中でもよい）。
+   これで `BLOCK_ACTION` は生成されなくなったので、**`parseSentencePart2` の規則と `effectExecutor` の表示ラベルを撤去**した
+   （同じ文がアーツ以外で出たら `UNKNOWN`＝census に映る穴へ倒す）。`effectParser.ts` の CHOOSE 前置特例からもアーツ側の枝を外した。
+2. **提示ゲート**＝`canUseArtsCondition`（`battleUtils.ts`）に **`isOwnerTurn` を必須引数**で足し、
+   `condHasTurnGate(cond,'IS_OPPONENT_TURN') && isOwnerTurn → false`（`IS_MY_TURN` は鏡）を**1箇所**に置いた。呼び出しは6箇所。
+   ⚠**任意引数にしない**＝既定値を置くと新しい呼び出し元が黙って素通りする（この穴の再発）。
+   ⚠**`OR` の枝はゲートしない**（別の枝で成立しうる）＝`triggerCollect.ts` の同名ヘルパと同じ規約。
+3. **live**＝5効果が `condition:{IS_OPPONENT_TURN}` を持つ形へ（`CHOOSE` 構造は保ったまま）。
+
+### 検証
+
+- `npm run gates` 全緑（**golden 3964 PASS**）。**新設 golden 2本**＝live 5効果の契約／`canUseArtsCondition` の**両方向＋鏡＋`AND`／`OR` 規約**。
+- **stale な golden 3本を更新**＝いずれも `SEQUENCE[BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}, …]` という
+  **「効いていない宣言が在ること」を契約として固定**していた（`PLAN §6.3 B-group A lock-in` ほか）。
+- `npm run regen` → 5効果とも逆翻訳の冒頭が「**対戦相手のターンの間、**」になった。
+- 🔴**実機 `V-192` PASS（2本セット）**＝`o329OppTurnOnlyBlockedOnOwnTurn`（自分のアタックフェイズでは「使用」が出ない／
+  **同じ盤面の制限なしアーツ `WX21-007` には出る**）／`o329OppTurnOnlyUsableOnOppTurn`（相手のアタックフェイズでは出る）。
+  **反転確認あり**＝ゲートの2行を外すと**負方向だけが赤**（対照は緑のまま＝判別力がある）。`order` に常設。
+
+### 実機で踏んだ罠（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-72〜74 に採番）
+
+- 🔴**`SKIP_BUILD=0` した回は古い `dist` を掴む**＝症状が「行動ボタンが0本」なのでゲート・コスト・限定を疑って時間を溶かした（2回踏んだ）。**判定は次の実行で行う。**
+- 🔴**相手ターンの注入は `active:'cpu'`**（`'guest'` だと注入が効かず、観測時には CPU がターンを回しきって `MAIN`／host 手番へ戻っている）。
+- 🔑**「提示されない」は対照とセットで**＝アーツは使えないとボタンが**0本**になるので、「使用が無い」は**ルリグデッキが開いていないだけ**でも成立する。
+
+### 完了判定（§2.2）
+
+**`src/screens/` を触ったので⑤実機まで**＝上記2本で返済済み（`V-192` は同じ巡でクローズ）。
+
+
 ## 2026-09-11 — PLAN §5.3 索引G 第273バッチ＝再 triage で4項目を消化（`O-318` 3→1／`O-319` 3→2／`O-320` 5→4）＋ 索引B に `O-329` を新設
 
 **この回の入口は「登録票が主張する受け皿の不在を grep で検証する」**（第271の教訓①）。

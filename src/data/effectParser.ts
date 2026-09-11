@@ -18431,7 +18431,9 @@ function parseActionTextInner(text: string): EffectAction {
   {
     // 🆕§6.4 O-4 続き499＝「このピースはあなたの場にルリグが３体いなくても使用できる。」も同型の前置文。
     //   🔴放置すると CHOOSE が組まれず①②③が**全部その場で実行**される（`WXDi-P16-TK01-E1`）。
-    const preHeadM = text.trim().match(/^((?:このアーツは対戦相手のターンにしか使用できない|このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる)。)(以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
+    // 🗑**アーツ側の前置文は `parseArtsEffect` が availability へ持ち上げるので、ここへは届かない**
+    //   （§5.3 `O-329`・第274バッチ）＝残すのは「このピースは…いなくても使用できる。」の1本だけ。
+    const preHeadM = text.trim().match(/^((?:このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる)。)(以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
     if (preHeadM && /[①②③④⑤]/.test(preHeadM[2]) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const preAct = parseSingleSentence(preHeadM[1].replace(/。$/, ''));
       const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]), !!preHeadM[4]);
@@ -24419,7 +24421,17 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   const printedLifeM = STATE_HOIST_BATCH1_CARDS.has(card.CardNum)
     ? withoutPrintedUseCondition.match(/^(?:【使用条件】あなたの場に[^。]+のルリグがいる)?あなたのライフクロスが([０-９\d]+)枚(以上|以下)?の場合、(.+)$/s)
     : null;
-  const extractedUse = extractUseCondition(printedLifeM ? printedLifeM[3] : withoutPrintedUseCondition);
+  // 🆕🔴**§5.3 `O-329`（2026-09-11 第274バッチ）＝先頭文「このアーツは対戦相手のターンにしか
+  //   使用できない。」を availability（`condition`）へ持ち上げる。**
+  //   🔴旧＝この文は `extractUseCondition` の接尾辞パターン（「〜**場合に**しか使用できない」）に
+  //     当たらないので本文へ流れ、`parseSentencePart2.ts` が
+  //     `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN, until:'PERMANENT'}` という**読み手が1人もいない**
+  //     actionId を吐いていた（`effectExecutor.ts` の表示ラベルだけ）＝**使用条件が1つも効かず**、
+  //     自分のターンにも撃てた（live 5効果）。
+  //   ⚠**`。` 区切りの先頭1文だけ**に限定する（過剰マッチ防止）。本文は残りをそのまま使う。
+  const preUseBody0 = printedLifeM ? printedLifeM[3] : withoutPrintedUseCondition;
+  const oppTurnOnlyM = preUseBody0.match(/^このアーツは対戦相手のターンにしか使用できない。([\s\S]+)$/);
+  const extractedUse = extractUseCondition(oppTurnOnlyM ? oppTurnOnlyM[1] : preUseBody0);
   // 既存のライフ条件持ち上げ対象は本バッチ外。従来どおりライフ条件だけを維持し、
   // 新テーブルによる条件追加（同時に別の可用条件を変更すること）を避ける。
   const applicablePrintedUseCondition = printedLifeM ? undefined : printedUseCondition;
@@ -24431,6 +24443,13 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   if (printedLifeM) {
     const lifeCond: Condition = { type: 'LIFE_COUNT', owner: 'self', operator: printedLifeM[2] === '以上' ? 'gte' : printedLifeM[2] === '以下' ? 'lte' : 'eq', value: parseNum(printedLifeM[1]) };
     condition = condition ? { type: 'AND', conditions: [condition, lifeCond] } : lifeCond;
+  }
+  // 🆕§5.3 `O-329`＝持ち上げた「対戦相手のターンにしか使用できない」を `condition` へ合流させる。
+  //   ⚠**提示ゲート側が `condHas` で読む**（`evalCondition` は `IS_OPPONENT_TURN` を常時 true にする
+  //     プレースホルダなので、条件木に**在ること**が契約＝`AND` の中でもよい）。
+  if (oppTurnOnlyM) {
+    const oppTurnCond: Condition = { type: 'IS_OPPONENT_TURN' };
+    condition = condition ? { type: 'AND', conditions: [condition, oppTurnCond] } : oppTurnCond;
   }
   const cleaned = extractedUse.cleaned;
   // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
