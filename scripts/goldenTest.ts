@@ -28845,6 +28845,86 @@ test('§5.3 O-325 ①WXK10-056-E2: コストで捨てたシグニと共通する
   ok(none.done, '参照不能時は候補0＝対象選択が起きない（fail-closed）');
 }));
 
+// ═══ §5.3 索引G `O-320`（2026-09-11）＝`WXDi-P05-086` の2文目【常】が丸ごと落ちていた ═══
+// 原文（2文目）【常】：**このカードがデッキかトラッシュにあるかぎり**、あなたの効果１つによってこのカードを
+//   参照する場合、**レベル１のシグニとして扱って**もよい。
+// 🔴旧 live＝この【常】が `E1` の `SEQUENCE` 末尾に `STUB{RULE_REMINDER_TEXT}` として紛れ込み、
+//   **逆翻訳にも1文字も出ない無言の欠落**だった。
+// ✅受け皿は最初から在った（`collectDeckTrashLevel1Nums` の①分岐）＝そこには
+//   「**生成側は現在0**だが受け皿として温存する」と書いてあり、**この1枚が唯一の生成元**だった。
+test('§5.3 O-320: WXDi-P05-086 はデッキ／トラッシュでレベル1シグニとして扱われる', () => withSavedCursor(() => {
+  const live = effectsMap.get('WXDi-P05-086') ?? [];
+  const cont = live.find(e => e.effectId === 'WXDi-P05-086-E2');
+  ok(!!cont, '【常】が独立した効果として live にある'); if (!cont) return;
+  eq(cont.effectType, 'CONTINUOUS', '【常】は CONTINUOUS');
+  ok(JSON.stringify(cont.action).includes('TREAT_AS_LEVEL1_IN_DECK_TRASH'), '受け皿の宣言を持つ');
+  // 🔴**旧挙動の痕跡**＝E1 の中にルール注記として紛れ込んでいた形。ここが戻ったら【常】がまた消える。
+  const act = live.find(e => e.effectId === 'WXDi-P05-086-E1');
+  ok(!!act && !JSON.stringify(act.action).includes('RULE_REMINDER_TEXT'),
+    'E1 から RULE_REMINDER_TEXT が外れている');
+
+  // 収集器が実際に拾うか＝デッキとトラッシュの両方。対照＝宣言を持たない札は拾わない。
+  const other = findCard(c => isSigni(c) && c.CardNum !== 'WXDi-P05-086');
+  const owner = mkState({}); const opp = mkState({});
+  owner.deck = ['WXDi-P05-086', other];
+  owner.trash = ['WXDi-P05-086'];
+  const got = collectDeckTrashLevel1Nums(owner, opp, effectsMap, cardMap as Map<string, CardData>);
+  ok(got.has('WXDi-P05-086'), 'デッキ／トラッシュの自身を拾う');
+  ok(!got.has(other), '宣言を持たない札は拾わない（一律レベル1に化けない）');
+}));
+
+// ═══ §5.3 索引G `O-319`（2026-09-11）＝`PR-422-E1`「パワー０以下のこのシグニがバニッシュされたとき敗北する」 ═══
+// 🔴旧 live＝`AUTO/ON_BANISH → STUB{DEFEAT}` で**条件が丸ごと落ちていた**＝**どんな形でバニッシュされても即敗北**
+//   （`DEFEAT` は `execStubPart3.ts:1607` で実際に `life_cloth: []` にする＝負ける）。
+// 🔴**engine にも穴があった**＝`collectBanishTriggers` の `eff.condition` 評価が
+//   **`triggerScope !== 'self'` のブロックの中にしか無く**、自分自身の ON_BANISH では一度も評価されなかった
+//   ＝JSON に条件を足すだけでは**無言で素通り**する。
+//   🔑**露出しなかった理由は母集団0**（実測＝self scope の ON_BANISH 109効果で condition / usageLimit を
+//   持つものは 0）＝**「計器が緑」は「穴が無い」ではない**の実例。
+// ⚠**`withSavedCursor` で包む**＝`goldenTest.ts:155` の POOL カーソルはテスト間で共有される可変状態で、
+//   包まずに `mkState` を呼ぶと**後続テストが引くカードがずれて無関係な2本が落ちた**（実測）。
+test('§5.3 O-319: PR-422-E1 はパワー0以下のときだけ敗北する（self scope の condition が評価される）', () => withSavedCursor(() => {
+  const live = (effectsMap.get('PR-422') ?? []).find(e => e.effectId === 'PR-422-E1');
+  ok(!!live, 'PR-422-E1 が live にある'); if (!live) return;
+  ok(!!live.condition, '条件が載っている（旧 live は無条件＝常に敗北だった）');
+  const host = mkState({}); const guest = mkState({});
+  // 🔑**パワーの出どころは `ctx.effectivePowers`**＝バニッシュ直前の実効パワーを渡す経路でのみ成立する。
+  const low = { ...trigCtx(HOST, HOST), effectivePowers: new Map([['PR-422', 0]]) };
+  eq(has(cbtEntries(low, 'PR-422', HOST, host, guest), 'PR-422-E1'), true, 'パワー0なら敗北トリガーが立つ');
+  // 🔴**対照＝旧挙動の痕跡**＝印刷パワー（7867）のままなら立たない。ここが true に戻ったら無条件敗北の再発。
+  const high = { ...trigCtx(HOST, HOST), effectivePowers: new Map([['PR-422', 7867]]) };
+  eq(has(cbtEntries(high, 'PR-422', HOST, host, guest), 'PR-422-E1'), false, '印刷パワーでは立たない');
+}));
+
+// ═══ §5.3 索引G `O-317`（2026-09-11）＝`WX25-P3-032-E2` は「クラッシュ先の置換」であってクラッシュではない ═══
+// 原文＝【起】《ゲーム１回》ルミナス《黒×0》：このターン、**次にアタックによって**対戦相手のライフクロスの
+//   一番上のカードが**クラッシュされる場合**、チェックゾーンに置かれる**代わりにトラッシュに置かれる**。
+//   そのカードのライフバーストは発動しない。
+// 🔴旧 live＝`SEQUENCE[LIFE_CRASH{owner:'opponent',count:1,triggerBurst:true}, …]`＝
+//   **原文に1文字も無い「無料で相手のライフを1枚クラッシュする」**を実行していた
+//   （＝**置換の予約**が、置換される側の処理そのものに化けていた）＝重大な過剰実行。
+// ✅受け皿は2つとも実装済みだった（`CRASH_TO_TRASH_INSTEAD` / `SUPPRESS_LIFE_BURST_ON_CARD`）＝
+//   登録票の「機構が無い」は stale で、**JSON を原文どおりに書き直すだけ**で閉じた（§2.0 速いレーン）。
+test('§5.3 O-317: WX25-P3-032-E2 はライフをクラッシュせず、クラッシュ先をトラッシュへ置換する', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WX25-P3-032') ?? []).find(e => e.effectId === 'WX25-P3-032-E2');
+  ok(!!live, 'WX25-P3-032-E2 が live にある'); if (!live) return;
+  const json = JSON.stringify(live.action);
+  // 🔴**旧挙動の痕跡そのもの**＝ここが戻ったら「無料で1点」が復活したということ。
+  ok(!json.includes('"LIFE_CRASH"'), '原文に無いライフクラッシュを持たない');
+  ok(json.includes('"CRASH_TO_TRASH_INSTEAD"'), 'クラッシュ先の置換を宣言する');
+  ok(json.includes('"SUPPRESS_LIFE_BURST_ON_CARD"'), 'ライフバーストの抑止を宣言する');
+
+  const base = mkCtx({}, {});
+  const lifeBefore = base.otherState.life_cloth.length;
+  const r = executeAction(live.action, base);
+  ok(r.done, '対話を挟まず解決する');
+  if (!r.done) return;
+  // 🔑**盤面が動かないことこそが正**＝この効果は予約だけを置く（旧実装はここで相手ライフが1枚減った）。
+  eq(r.otherState.life_cloth.length, lifeBefore, '相手のライフは1枚も減らない');
+  eq(r.ownerState.crash_to_trash_instead, true, '攻撃側にクラッシュ先置換のフラグが立つ');
+  eq(r.otherState.suppress_life_burst, true, '相手のライフバーストが抑止される');
+}));
+
 // §5.3 `O-328`（2026-09-11）＝**記録側の回帰**。engine を fail-closed へ倒した以上、
 // `classMatchesDiscardSigni` を持つ効果の支払い地点が `last_discarded_signi_class` を
 // 書かなくなったら**効果が丸ごと no-op になる**が、golden も逆翻訳も緑のままになる。

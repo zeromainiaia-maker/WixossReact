@@ -4478,8 +4478,52 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P3-007": [
     {"effectId":"WX25-P3-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":3},{"type":"TRANSFER_TO_HAND","source":{"type":"ENERGY_CARD","owner":"self","count":3,"upToCount":true}},{"type":"RECOLLECT_GATE","minArts":4},{"type":"STUB","id":"OPTIONAL_COST","costText":"《リコレクトアイコン》［４枚以上］追加でエクシード３を支払ってもよい","exceed":3},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","once":true,"trigger":{"timing":"ON_ATTACK_PHASE_START"},"effect":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":8000,"duration":"UNTIL_OPP_TURN_END"},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"targetsStored":true,"keyword":"Sランサー","duration":"UNTIL_OPP_TURN_END"}]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 🆕§5.3 索引G `O-320`（2026-09-11）／ WXDi-P05-086 ＝**2文目の【常】が丸ごと落ちていた**。
+  //   原文（2文目）【常】：**このカードがデッキかトラッシュにあるかぎり**、あなたの効果１つによって
+  //   このカードを参照する場合、**レベル１のシグニとして扱って**もよい。
+  // 🔴旧 live＝この【常】が `E1` の `SEQUENCE` の末尾に `STUB{RULE_REMINDER_TEXT}`（＝ルール注記）として
+  //   紛れ込み、**逆翻訳にも1文字も出ない無言の欠落**だった（【常】は本来 `E1` とは別効果）。
+  // ✅**受け皿は最初から在った**＝`collectDeckTrashLevel1Nums` の①分岐
+  //   （`effectEngine.ts:8272`＝**デッキ/トラッシュのカード自身**が宣言する形／`deckTrashLevel1Filter` 無し）。
+  //   🔑そこには「**生成側は現在0（live に1件も無い）**が、受け皿として温存する」とコメントがあり、
+  //   **まさにこの1枚が唯一の生成元**だった（登録票の「領域をまたぐ属性の読み替えが無い」は stale）。
+  // ⚠**残る近似＝原文の「扱って**もよい**」（任意）が強制になる**＝①分岐の設計がそうなっている（`WXDi-P01-039-E1` も同様）。
+  'WXDi-P05-086': [
+    {"effectId":"WXDi-P05-086-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"宇宙"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardName":"羅星姫　イクリプス"}},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P05-086-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_LEVEL1_IN_DECK_TRASH"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // 🆕§5.3 索引G `O-319`（2026-09-11）／ PR-422 ３－遊 §タカラトミーたそ§（精武：遊具・Lv3・印刷パワー7867）
+  //   原文【自】：**パワー０以下の**このシグニがバニッシュされたとき、あなたはゲームに敗北する。
+  // 🔴旧 live＝`AUTO/ON_BANISH → STUB{DEFEAT}` で**条件が丸ごと落ちていた**＝
+  //   このシグニが**どんな形でバニッシュされても即敗北**していた（`DEFEAT` は `execStubPart3.ts:1607` で
+  //   実際に `life_cloth: []` にする＝無言 no-op ではなく**そのまま負ける**）。
+  // ✅受け皿は既存の `SELF_POWER_GTE` に `operator` があるので `'lte'` で「0以下」を表せる
+  //   （`execUtils.ts:3102`＝`cmp(effectivePowers.get(src) ?? 印刷パワー, operator, value)`）。
+  // 🔴**ただし engine 側にも穴があった**＝`collectBanishTriggers` の条件評価が
+  //   `triggerScope !== 'self'` のブロック内にしか無く、**自分自身の ON_BANISH では評価されない**。
+  //   同じ巡で `triggerCollect.ts` の2行を scope の外へ出した（母集団0なので回帰なし）。
+  // ⚠**パワーの出どころは `ctx.effectivePowers`**＝バニッシュ前の実効パワーを渡す経路でのみ成立する。
+  //   読めなければ印刷パワー 7867 へフォールバックして**成立しない**＝安全側（旧＝常に敗北）に倒れる。
+  "PR-422": [
+    {"effectId":"PR-422-E1","effectType":"AUTO","timing":["ON_BANISH"],"condition":{"type":"SELF_POWER_GTE","value":0,"operator":"lte"},"action":{"type":"STUB","id":"DEFEAT"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
   "WX25-P3-032": [
     {"effectId":"WX25-P3-032-E1","effectType":"AUTO","timing":["ON_OPP_POWER_DECREASED"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT","owner":"opponent","operator":"gte","value":2},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1},"opponentSelects":true}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerCondition":{"turnOwner":"self","powerDecreaseSourceStory":"毒牙"},"usageLimit":"twice_per_turn"},
+    // 🆕§5.3 索引G `O-317`（2026-09-11）／ 原文【起】《ゲーム１回》ルミナス《黒×0》：このターン、**次にアタックによって**
+    //   対戦相手のライフクロスの一番上のカードが**クラッシュされる場合**、チェックゾーンに置かれる**代わりにトラッシュ**に置かれる。
+    //   そのカードのライフバーストは発動しない。
+    // 🔴旧 live＝`SEQUENCE[LIFE_CRASH{owner:'opponent',count:1,triggerBurst:true}, …]`＝
+    //   **原文に1文字も無い「無料で相手のライフを1枚クラッシュする」**を実行していた
+    //   （＝**置換の予約**が、置換される側の処理そのものに化けていた）＝重大な過剰実行。
+    // ✅**受け皿は2つとも実装済み**＝`CRASH_TO_TRASH_INSTEAD`（`ownerState.crash_to_trash_instead` を立て、
+    //   `BattleScreen.tsx:13531` が**相手視点で `op.` として**読む＝攻撃側が持つフラグ）／
+    //   `SUPPRESS_LIFE_BURST_ON_CARD`（`otherState.suppress_life_burst`＝`execStubPart1.ts:1790`）。
+    // ⚠**残る近似＝「次に」（1回だけ）がターン継続になる**＝どちらのフラグも boolean で回数を持たない。
+    //   同族の `WX19-034-E1`（「そのアタックの間」）も同じ近似で運用中。【起】《ゲーム１回》なので影響は限定的。
+    // ⚠**コスト「ルミナス」は旧 live にも無い**＝原文で**この1枚だけ**の語彙（§5.3 索引 G に据置）。
+    {"effectId":"WX25-P3-032-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CRASH_TO_TRASH_INSTEAD"},{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   "WX25-P3-040": [
     {"effectId":"WX25-P3-040-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","story":"天使"},"pickCount":2,"pickUpTo":true,"remainder":{"location":"deck","position":"bottom","reorder":true},"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},

@@ -859,6 +859,18 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
   **ratchet の較正なし。反転確認は6通り実行**（`handReveal` 抜き／parser 規則の停止／funnel の3軸をそれぞれ外す）。
   📈**live の per-effect 差分＝4 effectId**（`WXK10-080-E1`／`WXDi-P16-048-E1`／`WX16-029-TRAP`／`WX17-044-TRAP`）。
 
+- **2026-09-11（第270バッチ・Opus 5 単独＝🏁`O-328` クローズ＝索引 B 残0・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置・うち mech 1＝即着手可能 0）｜**台帳 残 OPEN 0**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）。⚠**3計器が動かないのは停滞ではない**＝今回直した5効果は
+  **JSON も逆翻訳も正しく見える型**（記録側の欠落）なので、**どの計器も原理的に映さない**。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 22項目**（🏁**A 0**／🏁**B 0**／G 22）｜
+  🏁**実機 残0**（`V-191` を同じ巡で返済＝`order` 常設は17本へ）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3955 PASS**（3954 → 3955）／smoke 10744 OK ／ fuzz 0 ／ census 1 / BASELINE 1 ／
+  census:stubs A群 0 ／ census:enginetext A🔴 0行 ／ census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors / 254 warnings。
+  **ratchet の較正なし。反転確認あり（golden・実機の2軸）。**
+  📈**live の per-effect 差分＝0**（今回は `src/` だけ＝effects JSON は1バイトも動いていない）。
+  🔴**実機2本 PASS**＝`v191DiscardClassAngel`／`v191DiscardClassArm`（反転確認で両方が赤になることを確認済み）。
+
 - **2026-09-11（第264〜第269バッチ・Opus 5 ＋ Codex＝🏁`O-323`／`O-297`／`O-326`／`O-327` クローズ・`O-309` 残4・`O-325` 残3・🆕`O-328`・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置・実測）。
   📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 23項目**（🏁**A 0**／**B 1**／G 22）｜

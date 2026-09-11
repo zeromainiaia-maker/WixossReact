@@ -1,6 +1,6 @@
 # effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
 
-解決 0 / 棄却カード 0 / 未解決 43
+解決 0 / 棄却カード 0 / 未解決 44
 
 SKIP(件数不一致) PR-426: curated 3 vs parser 2
 SKIP(件数不一致) SP38-005: curated 2 vs parser 1
@@ -27,6 +27,7 @@ SKIP(件数不一致) WXDi-CP02-103: curated 2 vs parser 1
 SKIP(件数不一致) WXDi-P01-049: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P05-034: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P05-060: curated 2 vs parser 1
+SKIP(件数不一致) WXDi-P05-086: curated 2 vs parser 1
 SKIP(件数不一致) WXDi-P07-060: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P08-048: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P15-003: curated 2 vs parser 1

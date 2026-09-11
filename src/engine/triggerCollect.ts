@@ -1607,12 +1607,19 @@ export function collectBanishTriggers(
         if (Object.keys(restFilter).length > 0
           && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), restFilter)) continue;
       }
-      // condition/usageLimit は field 走査側と同じ条件で評価（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
-      const ownerStateForCond = banishedOwnerIsMe ? myAfterState : opAfterState;
-      const otherStateForCond = banishedOwnerIsMe ? opAfterState : myAfterState;
-      if (eff.condition && !evalUseCondition(eff.condition, ownerStateForCond, otherStateForCond, ctx.cardMap, banishedCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-      if (!(banishedOwnerIsMe ? limitOkMy : limitOkOp)(eff)) continue;
     }
+    // 🆕🔴**§5.3 索引G `O-319`（2026-09-11）＝`condition` / `usageLimit` は `triggerScope` に依らず評価する。**
+    //   旧実装はこの2行が **`selfScope !== 'self'` のブロックの中**にあったため、
+    //   **自分自身の ON_BANISH（＝既定 scope）では条件が一度も評価されなかった**
+    //   ＝JSON に条件を書いても**無言で素通り**する（型にも逆翻訳にも現れない）。
+    //   🔑**露出しなかった理由＝母集団が 0 だったから**（実測＝self scope の ON_BANISH 109効果のうち
+    //   `condition` / `usageLimit` を持つものは 0）。`PR-422-E1` に条件を足す前に塞ぐ必要があった。
+    //   ⚠`mkLimitOk` は `usageLimit` が無ければ**副作用なしで true**（`triggerCollect.ts:2073`）＝
+    //   109効果へ広げても回帰しない。
+    const ownerStateForCond = banishedOwnerIsMe ? myAfterState : opAfterState;
+    const otherStateForCond = banishedOwnerIsMe ? opAfterState : myAfterState;
+    if (eff.condition && !evalUseCondition(eff.condition, ownerStateForCond, otherStateForCond, ctx.cardMap, banishedCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!(banishedOwnerIsMe ? limitOkMy : limitOkOp)(eff)) continue;
     // 🆕「**バトル以外によって**バニッシュされたとき」（2026-08-31 §5.2・`WXDi-D06-013-E1`）。
     //   バトル経路だけが `battleAttackerNum` を渡すので、それが在るときは発火しない。
     if (eff.triggerCondition?.notByBattle && battleAttackerNum !== undefined) continue;

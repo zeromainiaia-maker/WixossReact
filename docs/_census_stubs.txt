@@ -1,14 +1,14 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 593（総ノード 3363 件）
+live JSON の STUB id 種類 : 593（総ノード 3364 件）
 逆翻訳シートの [STUB:…] 総数: 334  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 30 種 / 33 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 30 種 / 33 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 37 種 / 119 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 37 種 / 120 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 563 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 341 種
@@ -70,7 +70,7 @@ live JSON の STUB id 種類 : 593（総ノード 3363 件）
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10920
+        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10964
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2265
@@ -156,6 +156,9 @@ live JSON の STUB id 種類 : 593（総ノード 3363 件）
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
         消費: src\engine\effectExecutor.ts:6475
+     2件   2枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
+        カード: WXDi-P01-039, WXDi-P05-086
+        消費: src\engine\effectEngine.ts:8278 / src\engine\effectEngine.ts:8296
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
@@ -219,9 +222,6 @@ live JSON の STUB id 種類 : 593（総ノード 3363 件）
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:8334
-     1件   1枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
-        カード: WXDi-P01-039
-        消費: src\engine\effectEngine.ts:8278 / src\engine\effectEngine.ts:8296
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53
