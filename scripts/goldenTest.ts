@@ -28945,6 +28945,9 @@ const O327_WIRED_SHAPES = new Map<string, string>([
   ['TRASH|ENERGY_CARD|N', 'effectExecutor.ts execTrash（エナ）'],
   ['TRANSFER_TO_DECK|SIGNI|N', 'effectExecutor.ts execTransferToDeck（場のシグニ）'],
   ['TRANSFER_TO_DECK|HAND_CARD|N', 'effectExecutor.ts execTransferToDeck（手札。§5.3 O-309 第267 で配線）'],
+  // 🆕§5.3 `O-309`②（2026-09-12 第282）＝「対戦相手は手札からシグニ１枚を場に出してもよい」（`WXK06-025-E2`）。
+  //   配線＝`execAddToField` の `selectOrInteract` 第8引数（`oppPicksAF`）。対照は golden「§5.3 O-309」の②（正面が空なら何も起きない）。
+  ['ADD_TO_FIELD|HAND_CARD|N', 'effectExecutor.ts execAddToField（相手の手札から相手が選ぶ。§5.3 O-309 第282 で配線）'],
   ['ADD_TO_LIFE|fromTrash|N', 'effectExecutor.ts execAddToLife（トラッシュ）'],
   ['STUB:SELECT_TARGET_ONLY|SIGNI|ALL', 'execStubPart1.ts SELECT_TARGET_ONLY（場のシグニ）'],
   // ── 以下は「そもそも選択が起きない」形＝旗は無害（配線の要否が生じない）──
@@ -37134,71 +37137,29 @@ test('task12(xxix) BET choices: 条件成立/不成立を両方向で盤面固�
   } finally { cursor = savedCursor; }
 });
 
-test('task12(lv) COLLAB: アシスト実戦ゾーン配置→共通【出】collector→任意コスト選択', () => {
+test('§5.3 O-292: 「コラボライバーN人を呼ぶ」はライバートークンを得るだけ（アシストルリグを場に出さない）', () => {
   const savedCursor = cursor;
   try {
+    // 🔴🆕**2026-09-12 に旧 test「COLLAB: アシスト実戦ゾーン配置→共通【出】collector」を置き換えた。**
+    //   公式 FAQ（`WXDi-CP01-005`/`-006`）＝「この効果を発動したら、『ライバートークン』を2つ得ます。それは
+    //   『コラボライバー1人とコラボする』という効果で使用することができます。使用したトークンはゲームから取り除かれます。」
+    //   ⇒ 旧 test が固定していた「ルリグデッキのアシストルリグを場へ出し、その【出】を積む」は**原文に無い過剰実行**だった。
     const assist = 'WXDi-D06-006';
     const before = mkState({ assistL: [], assistR: [] });
     before.lrig_deck = [assist];
-    const collab = executeEffect({
-      effectId: 'golden-collab',
-      effectType: 'AUTO',
-      // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝人数は payload で渡す**（旧は engine が
-      //   `sourceCardNum` の原文に「`コラボライバー` ∧ `呼ぶ`」を当てて決めていた）。
-      //   `WXDi-CP01-006` の原文は「【出】：コラボライバー２人を呼ぶ。」＝ count 2。
+    const call = (ownerState: PlayerState) => executeEffect({
+      effectId: 'golden-collab', effectType: 'AUTO',
       action: { type: 'STUB', id: 'COLLAB', collabCall: { count: 2 } },
-      duration: 'INSTANT',
-      mandatory: true,
-    } as CardEffect, {
-      ...mkCtx({}, {}, 'WXDi-CP01-006'),
-      ownerState: before,
-    });
-    ok(collab.done, '強制COLLABは配置まで完了');
-    eq(collab.ownerState.field.assist_lrig_l.at(-1), assist, 'assist_lrig_lへ実配置');
-    eq(collab.ownerState.field.signi.filter(Boolean).length, 0, 'シグニゾーンには置かない');
-    eq(collab.lastProcessedCards?.join(','), assist, '配置アシストをtrigger収集へsurface');
-
-    const collected = collectPlacedSelfOnPlayTriggers(
-      trigCtx(), assist, collab.ownerState, collab.otherState, 'host',
-      { placedByEffect: true, sourceIsSigni: false },
-    );
-    const entry = collected.entries.find(e => e.effectId === 'WXDi-D06-006-E1');
-    ok(!!entry, 'コスト付き【出】を1件積む');
-    eq(collected.entries.filter(e => e.effectId === 'WXDi-D06-006-E1').length, 1, '重複して積まない');
-    const seq = entry!.effect.action as SequenceAction;
-    eq(seq.type, 'SEQUENCE', '任意コスト包み');
-    eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST', '先頭にOPTIONAL_COST');
-
-    const collabOnPlayCtx: ExecCtx = {
-      ...mkCtx({}, {}, assist),
-      ownerState: {
-        ...collab.ownerState,
-        hand: collab.ownerState.hand.slice(0, 2),
-        deck: collab.ownerState.deck.slice(0, 4),
-        trash: [],
-      },
-    };
-    const offered = executeEffect(entry!.effect, collabOnPlayCtx);
-    ok(!offered.done && offered.pending.type === 'CHOOSE', '支払い選択で停止');
-    if (!offered.done && offered.pending.type === 'CHOOSE') {
-      eq(offered.pending.options.map(o => o.id).join(','), 'pay,skip', '支払う/スキップを提示');
-    }
-    eq(offered.ownerState.hand.length, 2, '選択前に手札コストも効果の3枚ドローも動かない');
-    eq(offered.ownerState.trash.length, 0, '選択前に捨て札なし');
-    if (!offered.done && offered.pending.type === 'CHOOSE') {
-      const paid = finish(
-        resumeChoose('pay', offered.pending, {
-          ...collabOnPlayCtx,
-          ownerState: offered.ownerState,
-          otherState: offered.otherState,
-          logs: offered.logs,
-        }),
-        collabOnPlayCtx,
-      );
-      eq(paid.ownerState.hand.length, 4, '手札1枚を払ってから3枚引く（2-1+3）');
-      eq(paid.ownerState.trash.length, 1, '手札コスト1枚がトラッシュへ移る');
-      eq(paid.ownerState.deck.length, 1, '効果で3枚引く');
-    }
+      duration: 'INSTANT', mandatory: true,
+    } as CardEffect, { ...mkCtx({}, {}, 'WXDi-CP01-006'), ownerState });
+    const collab = call(before);
+    ok(collab.done, 'COLLAB は対話なしで完了');
+    eq(collab.ownerState.liver_tokens ?? 0, 2, 'ライバートークンを2つ得る');
+    eq(collab.ownerState.field.assist_lrig_l.length, 0, '🔴アシストルリグを場に出さない（旧は assist_lrig_l へ配置していた）');
+    eq(collab.ownerState.lrig_deck.join(','), assist, 'ルリグデッキは不変');
+    eq((collab.lastProcessedCards ?? []).length, 0, '【出】の収集へ渡すカードは無い');
+    const again = call(collab.ownerState);
+    eq(again.ownerState.liver_tokens ?? 0, 4, 'トークンは累積する');
   } finally {
     cursor = savedCursor;
   }
@@ -37296,26 +37257,45 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
   }
 });
 
-test('task12(lv) INTERNAL_DO_COLLAB: 任意COLLAB枝も配置カードをsurfaceする', () => {
+test('§5.3 O-292: 「コラボライバーN人とコラボする」はライバートークンを取り除く（足りなければ何もしない）', () => {
   const savedCursor = cursor;
   try {
+    // 🔴🆕2026-09-12 に旧 test「INTERNAL_DO_COLLAB: 任意COLLAB枝も配置カードをsurfaceする」を置き換えた
+    //   （旧はアシストルリグを場へ出す誤読を固定していた）。
     const assist = 'WXDi-D06-006';
-    const before = mkState({ assistL: [], assistR: [] });
-    before.lrig_deck = [assist];
-    const result = executeEffect({
-      effectId: 'golden-internal-collab',
-      effectType: 'AUTO',
-      action: { type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: 1 },
-      duration: 'INSTANT',
-      mandatory: true,
-    } as CardEffect, {
-      ...mkCtx({}, {}, 'WXDi-CP01-005'),
-      ownerState: before,
-    });
-    ok(result.done, 'INTERNAL_DO_COLLAB完了');
-    eq(result.ownerState.field.assist_lrig_l.at(-1), assist, 'assist_lrig_lへ実配置');
-    eq(result.ownerState.field.signi.filter(Boolean).length, 0, 'シグニゾーンには置かない');
-    eq(result.lastProcessedCards?.join(','), assist, 'CHOOSE resume後も配置アシストをsurface');
+    const run1 = (tokens: number) => {
+      const before = mkState({ assistL: [], assistR: [] });
+      before.lrig_deck = [assist];
+      before.liver_tokens = tokens;
+      return executeEffect({
+        effectId: 'golden-internal-collab', effectType: 'AUTO',
+        action: { type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: 1 },
+        duration: 'INSTANT', mandatory: true,
+      } as CardEffect, { ...mkCtx({}, {}, 'WXDi-CP01-005'), ownerState: before });
+    };
+    const paid = run1(2);
+    ok(paid.done, 'INTERNAL_DO_COLLAB完了');
+    eq(paid.ownerState.liver_tokens, 1, 'トークンを1つ取り除く');
+    eq(paid.ownerState.field.assist_lrig_l.length, 0, '🔴アシストルリグを場に出さない');
+    const none = run1(0);
+    eq(none.ownerState.liver_tokens ?? 0, 0, 'トークンが無ければ負数にしない（fail-closed）');
+
+    // 提示ゲート＝`cost.collab` はトークン所持数で撃てる／撃てないが決まる（踏み倒しの反転確認）。
+    for (const effectId of ['WXDi-CP01-006-E2', 'WXDi-CP01-007-E2', 'WXDi-CP01-008-E2']) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const live = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      eq(live?.cost?.collab, 1, `🔴${effectId}: コストはライバートークン1個（旧は none:true＝無コスト）`);
+      eq(live?.cost?.none, undefined, `${effectId}: 無コスト印が残っていない`);
+      if (!live) continue;
+      const gate = (tokens: number) => {
+        const my = mkState({ lrig: [cardNum] });
+        my.liver_tokens = tokens;
+        my.energy = Array.from({ length: 4 }, () => 'WX03-035');
+        return canActivateLrigEffect(live, { my, op: mkState({}), phase: 'MAIN', effectsMap, cardMap, blockedSelf: new Set<string>() }, cardNum);
+      };
+      eq(gate(1), true, `${effectId}: トークン1個なら撃てる`);
+      eq(gate(0), false, `🔴${effectId}: トークンが無ければ撃てない`);
+    }
   } finally {
     cursor = savedCursor;
   }
@@ -53766,7 +53746,10 @@ test('段2-18 据置契約: 語彙の無い残り2効果は誤った近似語彙
     ok(p06.includes('"FIELD_ATTACHED_COUNT"') && p06.includes('"include":"both"'), '場全体attached/under ORを表現する');
     ok(p06.includes('"else"'), '「代わりに」は else 枝（2連 SEQUENCE にしない）');
   }
-  ok(raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"source":{"type":"SIGNI"'), '相手手札処理の語彙が無い間は誤本体を勝手に別語彙へ変えない');
+  // 🏁§5.3 `O-311`（2026-09-12）＝相手の手札を処理する受け皿（`OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM`）ができたので据置を解除した
+  //   （旧契約＝「語彙が無い間は誤本体を勝手に別語彙へ変えない」。原文は**手札**、旧本体は**場のシグニ**だった）。
+  ok(raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM"'), '相手の手札を見ないで3枚選び1枚をデッキの下へ');
+  ok(!raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"source":{"type":"SIGNI"'), '🔴場のシグニを対象にする旧本体が残っている');
 });
 
 
@@ -63420,7 +63403,9 @@ test('census 2026-08-30 A群: ゲームから除外を保持し、場の自身�
   eq(energy.action.type, 'EXILE', 'エナ1枚は TRASH でなく EXILE');
   if (energy.action.type === 'EXILE') {
     eq(energy.action.target.type, 'ENERGY_CARD', 'エナ対象を保持');
-    eq(energy.action.target.owner, 'self', '既存 owner:self を別軸で変えない');
+    // 🔄**据置を解除**（2026-09-12・§5.3 `O-310`）＝原文「エナゾーンにあるカード１枚」は持ち主の指定なし＝**両者のエナ**。
+    //   旧契約（「既存 owner:self を別軸で変えない」）は `owner:'any'` の受け皿が無かった間の近似の固定だった。
+    eq(energy.action.target.owner, 'any', '持ち主の指定なし＝両者のエナ（§5.3 O-310）');
     eq(energy.action.target.count, 1, '1枚を保持');
   }
   const selfCost = find('WXK06-031', 'WXK06-031-E2').cost;
@@ -69725,21 +69710,20 @@ test('§5.3 O-60 第58: コラボは payload の人数で呼ぶ／ガードの�
     }
   }
   eq(bareCollab, 0, 'payload が無い COLLAB は live に無い');
-  // 実挙動＝payload の人数だけアシストルリグを場へ出す。
+  // 実挙動＝payload の人数だけライバートークンを得る（§5.3 `O-292`＝旧はアシストルリグを場へ出していた）。
   const ctx = mkCtx({}, {});
   const assists = [...cardMap.entries()].filter(([, c]) => c.Type === 'アシストルリグ').slice(0, 3).map(([n]) => n);
   ok(assists.length >= 3, 'アシストルリグの標本が取れる');
   if (assists.length < 3) return;
   ctx.ownerState.lrig_deck = [...assists];
   const r = run({ type: 'STUB', id: 'COLLAB', collabCall: { count: 2 } } as unknown as EffectAction, ctx);
-  const placed = (r.ownerState.field.assist_lrig_l?.length ?? 0) + (r.ownerState.field.assist_lrig_r?.length ?? 0);
-  eq(placed, 2, '2人を呼んだ');
-  eq(r.ownerState.lrig_deck.length, 1, 'ルリグデッキから2枚出た');
+  eq(r.ownerState.liver_tokens ?? 0, 2, '2人を呼んだ＝ライバートークン2個');
+  eq(r.ownerState.lrig_deck.length, 3, '🔴ルリグデッキから1枚も出ない（O-292）');
   // 反転＝payload なしは何もしない（旧はここで「コラボしますか？」の対話が開いていた）。
   const bareCtx = mkCtx({}, {});
   bareCtx.ownerState.lrig_deck = [...assists];
   const bare = run({ type: 'STUB', id: 'COLLAB' } as unknown as EffectAction, bareCtx);
-  eq(bare.ownerState.lrig_deck.length, 3, 'payload なしでは1人も呼ばない（fail-closed）');
+  eq(bare.ownerState.liver_tokens ?? 0, 0, 'payload なしでは1人も呼ばない（fail-closed）');
   ok(bare.done, 'payload なしでは対話も出さない');
 }));
 
@@ -77683,6 +77667,255 @@ test('O-300 GRANT_LRIG_ABILITY: Dream Team 3件は既存条件を保ち、Lv3条
     ok(decompiledLineOf(effectId).includes('あなたのセンタールリグがレベル3以上'),
       `${effectId}: 逆翻訳にレベル3以上のゲートが現れる`);
   }
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-296` / `O-309` / `O-310` / `O-311`（2026-09-12・第282バッチ）
+// ══════════════════════════════════════════════════════════════════════════════
+/** `finish` と同じ既定の選択で最後まで進めつつ、途中の pending を `seen` に積む（`pick` で個別に選択を上書きできる）。 */
+function finishSeen(initial: ExecResult, ctx: ExecCtx, seen: PendingInteractionDef[],
+  pick?: (p: PendingInteractionDef) => string[] | string | undefined): ExecResult {
+  let result = initial;
+  let steps = 0;
+  while (!result.done) {
+    if (++steps > 40) throw new Error('autopilot hang');
+    const pending = result.pending as PendingInteractionDef;
+    seen.push(pending);
+    const c: ExecCtx = {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      lastProcessedCards: result.lastProcessedCards,
+      storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards,
+    };
+    const over = pick?.(pending);
+    const p = pending as Record<string, unknown> & { type: string };
+    switch (p.type) {
+      case 'SELECT_TARGET': { const cands = (p.candidates as string[]) ?? []; result = resumeSelectTarget(Array.isArray(over) ? over : cands.slice(0, Math.min((p.count as number) ?? 1, cands.length)), pending as never, c); break; }
+      case 'SEARCH': { const vis = (p.visibleCards as string[]) ?? []; result = resumeSearch(Array.isArray(over) ? over : vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c); break; }
+      case 'CHOOSE': { const opts = (p.options as { id: string; available?: boolean }[]) ?? []; const id = typeof over === 'string' ? over : (opts.find(o => o.available !== false) ?? opts[0]).id; result = resumeChoose(id, pending as never, c); break; }
+      case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(steps % 3, pending as never, c); break;
+      default: throw new Error(`unhandled pending ${p.type}`);
+    }
+  }
+  return result;
+}
+const liveEff = (cardNum: string, effectId: string): CardEffect => {
+  const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+  if (!e) throw new Error(`${effectId} が live に無い`);
+  return e;
+};
+
+test('§5.3 O-296: 「次の対戦相手のターン終了時まで、基本レベルは３・基本パワーは12000」はターン終了で消えず持ち主の次ターン開始で消える', () => withSavedCursor(() => {
+  const src = 'WXDi-D09-H15';
+  const eff = liveEff(src, 'WXDi-D09-H15-E1');
+  const ctx = mkCtx({ signi: [src, null, null], energy: 0 }, {}, src);
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.base_level_overrides_until_opp_turn?.[src], 3, '🔴基本レベル3が長期ストアへ（旧＝until 無しで何もしなかった）');
+  const basePw = parseInt(cardMap.get(src)?.Power ?? '0', 10);
+  ok((r.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === src && m.delta === 12000 - basePw),
+    '🔴基本パワー12000が長期ストアへ（旧＝temp_power_mods でターン終了に消えた）');
+  ok(!(r.ownerState.temp_power_mods ?? []).some(m => m.cardNum === src), 'ターン限定のストアには置かない');
+  eq(applyContinuousBaseLevelOverride(cardMap, r.ownerState, r.otherState, effectsMap, true).get(src)?.Level, '3', 'レベル参照の funnel に反映される');
+  eq(clearTurnEndScopedState(r.ownerState).base_level_overrides_until_opp_turn?.[src], 3, 'ターン終了では消えない（相手ターンを跨ぐ）');
+  eq(clearUntilOppTurnEffects(r.ownerState).base_level_overrides_until_opp_turn, undefined, '持ち主の次ターン開始で消える');
+  const withEnergy = run(eff.action, mkCtx({ signi: [src, null, null], energy: 1 }, {}, src));
+  eq(withEnergy.ownerState.base_level_overrides_until_opp_turn?.[src], undefined, '反転：エナがあれば基本レベルは変わらない');
+  // 同じ「POWER_SET が duration を読まない」穴を持っていた3効果（MANUAL）も長期ストアへ行く形になっている。
+  for (const [cardNum, effectId] of [['WXDi-CP01-031', 'WXDi-CP01-031-E1'], ['SPDi44-08', 'SPDi44-08-E2'], ['WX25-P1-018', 'WX25-P1-018-E2']] as const) {
+    ok(JSON.stringify(liveEff(cardNum, effectId).action).includes('"type":"POWER_SET"') &&
+      /"type":"POWER_SET"[^{}]*(\{[^{}]*(\{[^{}]*\}[^{}]*)*\}[^{}]*)*"duration":"UNTIL_OPP_TURN_END"/.test(JSON.stringify(liveEff(cardNum, effectId).action)),
+      `${effectId}: POWER_SET が UNTIL_OPP_TURN_END を持つ`);
+  }
+}));
+
+test('§5.3 O-296: 「基本レベルを１にする」は対象を選ばせ／「次のターンの間」は後から出たシグニにも効く場レベル grant', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WX19-067', 'WX19-067-E1'], ['WXK07-081', 'WXK07-081-E1'], ['WX11-051', 'WX11-051-E1'], ['WX11-051', 'WX11-051-BURST']] as const) {
+    const json = JSON.stringify(liveEff(cardNum, effectId).action);
+    ok(json.includes('"SET_BASE_LEVEL"'), `${effectId}: SET_BASE_LEVEL へ移った`);
+    ok(!json.includes('SET_LEVEL_1'), `🔴${effectId}: 読み手の無い BLOCK_ACTION{SET_LEVEL_1} が残っている`);
+  }
+  const hi = findCard(c => isSigni(c) && c.Level === '3');
+  const r = run(liveEff('WX19-067', 'WX19-067-E1').action, mkCtx({}, { signi: [hi, null, null] }, 'WX19-067'));
+  eq(r.ownerState.attack_phase_level_overrides?.[hi], 1, '選んだシグニの基本レベルが1（ターン終了まで）');
+  eq(applyContinuousBaseLevelOverride(cardMap, r.ownerState, r.otherState, effectsMap, true).get(hi)?.Level, '1', 'レベル参照に反映');
+
+  const burst = liveEff('WX11-051', 'WX11-051-BURST').action as import('../src/types/effects').ChooseAction;
+  const bctx = { ...mkCtx({}, { signi: [hi, null, null] }, 'WX11-051'), isOwnerTurn: false } as ExecCtx;
+  const br = run(burst.choices[1].action, bctx);
+  ok((br.otherState.field_grants_next_opp_turn ?? []).some(g => g.kind === 'baseLevel' && g.level === 1),
+    '相手ターン中のバースト＝相手 state の「次の相手ターン」予約へ baseLevel grant');
+  eq(applyContinuousBaseLevelOverride(cardMap, br.ownerState, br.otherState, effectsMap, false).get(hi)?.Level, '3', '予約中（まだ次のターンではない）は効かない');
+  const promoted = clearTurnEndScopedState(br.otherState);
+  const late = findCard(c => isSigni(c) && c.CardNum !== hi && c.Level === '2');
+  const withLate = { ...promoted, field: { ...promoted.field, signi: [[hi], [late], null] } } as PlayerState;
+  const m = applyContinuousBaseLevelOverride(cardMap, br.ownerState, withLate, effectsMap, true);
+  eq(m.get(hi)?.Level, '1', '次のターンの間は基本レベル1');
+  eq(m.get(late)?.Level, '1', '🔴後から場に出たシグニも基本レベル1（per-card ストアでは効かない）');
+  eq((clearTurnEndScopedState(withLate).field_grants_active ?? []).some(g => g.kind === 'baseLevel'), false, '次のターンの終わりに消える');
+}));
+
+test('§5.3 O-309: 相手が自分のデッキを探す（WXK10-091-E1）／相手が手札から出す（WXK06-025-E2）／置く順番は相手が選ぶ（WXK06-028-E1）', () => withSavedCursor(() => {
+  // ① 探すのは対戦相手、デッキも対戦相手、候補はトラッシュに置いたシグニのレベル以下。
+  const lv3 = findCard(c => isSigni(c) && c.Level === '3');
+  const seen1: PendingInteractionDef[] = [];
+  const c1 = mkCtx({}, { signi: [SIGNI_L2, null, null], deckTop: [lv3, SIGNI_L1] }, 'WXK10-091');
+  const r1 = finishSeen(executeEffect(liveEff('WXK10-091', 'WXK10-091-E1'), c1), c1, seen1);
+  const s1 = seen1.find(p => p.type === 'SEARCH') as (PendingInteractionDef & { type: 'SEARCH' }) | undefined;
+  ok(!!s1, '探索で止まる');
+  eq(s1?.opponentResponds, true, '🔴探すのは対戦相手（旧＝使用者が自分のデッキを探していた）');
+  eq(s1?.deckOwner, 'opponent', 'デッキの持ち主は対戦相手');
+  ok(pendingRespondsOpponent(s1), 'BattleScreen が応答者を相手にする');
+  ok(!!s1?.visibleCards.includes(SIGNI_L1) && !s1?.visibleCards.includes(lv3), '候補はレベル2以下（レベル3は外れる）');
+  ok(r1.otherState.field.signi.some(st => st?.at(-1) === SIGNI_L1), '対戦相手の場に出る');
+  ok(!r1.ownerState.field.signi.some(st => st?.at(-1) === SIGNI_L1), '🔴自分の場には出ない');
+  const seen1b: PendingInteractionDef[] = [];
+  const c1b = mkCtx({}, { deckTop: [SIGNI_L1] }, 'WXK10-091');
+  finishSeen(executeEffect(liveEff('WXK10-091', 'WXK10-091-E1'), c1b), c1b, seen1b);
+  ok(!seen1b.some(p => p.type === 'SEARCH'), '反転：トラッシュに置けなければ探さない');
+
+  // ② 正面をトラッシュに置いたときだけ、対戦相手が自分の手札から選んで出す。
+  const src25 = 'WXK06-025';
+  const seen2: PendingInteractionDef[] = [];
+  const c2 = mkCtx({ signi: [src25, null, null] }, { signi: [null, null, SIGNI] }, src25);
+  c2.otherState.hand = [SIGNI_L1];
+  const r2 = finishSeen(executeEffect(liveEff(src25, 'WXK06-025-E2'), c2), c2, seen2);
+  ok(r2.otherState.trash.includes(SIGNI), '正面のシグニをトラッシュに置いた');
+  const pick2 = seen2.find(p => p.type === 'SELECT_TARGET' && (p as { candidates: string[] }).candidates.includes(SIGNI_L1));
+  eq((pick2 as { opponentResponds?: boolean } | undefined)?.opponentResponds, true, '🔴手札から選ぶのは対戦相手');
+  ok(r2.otherState.field.signi.some(st => st?.at(-1) === SIGNI_L1), '相手の場に出た');
+  const seen2b: PendingInteractionDef[] = [];
+  const c2b = mkCtx({ signi: [src25, null, null] }, { signi: [SIGNI, null, null] }, src25);
+  c2b.otherState.hand = [SIGNI_L1];
+  const r2b = finishSeen(executeEffect(liveEff(src25, 'WXK06-025-E2'), c2b), c2b, seen2b);
+  ok(r2b.otherState.hand.includes(SIGNI_L1) && !r2b.otherState.trash.includes(SIGNI), '反転：正面が空なら何も起きない（正面以外は対象外）');
+
+  // ③ 置く順番は相手が非公開で選ぶ（コストの無い相手応答の CHOOSE）。
+  const c3 = mkCtx({}, {}, 'WXK06-028');
+  c3.otherState.trash = [SIGNI, SIGNI_L1];
+  const seen3: PendingInteractionDef[] = [];
+  const r3 = finishSeen(executeEffect(liveEff('WXK06-028', 'WXK06-028-E1'), c3), c3, seen3);
+  const ch3 = seen3.find(p => p.type === 'CHOOSE') as { opponentResponds?: boolean; costlessOpponentChoice?: boolean } | undefined;
+  eq(ch3?.opponentResponds, true, '🔴順番を選ぶのは対戦相手');
+  eq(ch3?.costlessOpponentChoice, true, 'コストの無い相手応答（無いと BattleScreen が支払いとして潰す）');
+  eq(r3.otherState.deck.slice(0, 2).join(','), `${SIGNI},${SIGNI_L1}`, '選んだ順で一番上に置く');
+  eq(r3.otherState.trash.length, 0, 'トラッシュから抜ける');
+  const c3b = mkCtx({}, {}, 'WXK06-028');
+  c3b.otherState.trash = [SIGNI, SIGNI_L1];
+  const r3b = finishSeen(executeEffect(liveEff('WXK06-028', 'WXK06-028-E1'), c3b), c3b, [], p => p.type === 'CHOOSE' ? 'second' : undefined);
+  eq(r3b.otherState.deck[0], SIGNI_L1, '反転：もう一方を選べば一番上が入れ替わる');
+}));
+
+test('§5.3 O-310: 両者のエナから選ぶ（WXEX2-08-E4／WD20-006-E1）／相手のシグニゾーン＋エナを色ごとに（WX24-P4-022-E3）／それぞれダウンで出し直す（WXK07-018-E1）', () => withSavedCursor(() => {
+  const c1 = mkCtx({ energy: 0 }, { energy: 0 }, 'WXEX2-08');
+  c1.ownerState.energy = [SIGNI];
+  c1.otherState.energy = [SIGNI_L1];
+  const seen1: PendingInteractionDef[] = [];
+  const r1 = finishSeen(executeEffect(liveEff('WXEX2-08', 'WXEX2-08-E4'), c1), c1, seen1, p => p.type === 'SELECT_TARGET' ? [SIGNI_L1] : undefined);
+  const sel1 = seen1[0] as { targetScope?: string; candidates?: string[] } | undefined;
+  eq(sel1?.targetScope, 'both_energy', '両者のエナが1つの候補');
+  ok(!!sel1?.candidates?.includes(SIGNI) && !!sel1?.candidates?.includes(SIGNI_L1), '🔴自分のエナも相手のエナも選べる（旧＝自分のみ）');
+  ok(!r1.otherState.energy.includes(SIGNI_L1) && (r1.otherState.excluded ?? []).includes(SIGNI_L1), '選んだ相手のエナが除外される');
+  ok(JSON.stringify(liveEff('WD20-006', 'WD20-006-E1').action).includes('"type":"ENERGY_CARD","owner":"any","count":2'),
+    '🔴WD20-006-E1: 「エナゾーンにあるカード２枚」の手順がある（旧＝丸ごと無かった）');
+
+  const white = findCard(c => isSigni(c) && c.Color === '白');
+  const ownWhite = findCard(c => isSigni(c) && c.Color === '白' && c.CardNum !== white);
+  const red = findCard(c => c.Color === '赤' && c.CardNum !== white);
+  const c2 = mkCtx({ signi: [ownWhite, null, null] }, { signi: [white, null, null], energy: 0 }, 'WX24-P4-022');
+  c2.otherState.energy = [red];
+  c2.otherState.hand = [];
+  const seen2: PendingInteractionDef[] = [];
+  const r2 = finishSeen(executeEffect({ effectId: 't', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+    action: { type: 'STUB', id: 'OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND', value: '白,赤' } } as unknown as CardEffect, c2), c2, seen2);
+  eq(seen2.filter(p => (p as { targetScope?: string }).targetScope === 'opp_field_energy').length, 2, '色ごとに1回ずつ選ぶ（単一プール）');
+  ok(r2.otherState.hand.includes(white) && r2.otherState.hand.includes(red), '場の白シグニもエナの赤カードも手札に戻る');
+  ok(r2.ownerState.field.signi.some(st => st?.at(-1) === ownWhite), '🔴自分のシグニは戻らない（旧＝BOUNCE{owner:self}）');
+  const act022 = JSON.stringify(liveEff('WX24-P4-022', 'WX24-P4-022-E3').action);
+  ok(act022.includes('"OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND"') && act022.includes('白,赤,青,緑,黒'), 'live は5色を1つずつ');
+
+  const c3 = mkCtx({ signi: [SIGNI, null, null] }, { signi: [null, SIGNI_L1, null] }, 'WXK07-018');
+  const deckLen = c3.ownerState.deck.length;
+  const r3 = run(liveEff('WXK07-018', 'WXK07-018-E1').action, c3);
+  eq(r3.ownerState.field.signi_down?.[0], true, '自分のシグニがダウン状態で出し直される');
+  eq(r3.otherState.field.signi_down?.[1], true, '相手のシグニもダウン状態で出し直される');
+  ok(r3.ownerState.field.signi[0]?.at(-1) === SIGNI && r3.otherState.field.signi[1]?.at(-1) === SIGNI_L1, '同じゾーンに戻る');
+  eq(r3.ownerState.deck.length, deckLen, '🔴デッキの一番上を場に出さない（旧＝ADD_TO_FIELD source 無し）');
+}));
+
+test('§5.3 O-311: 見ないで選んだ手札（WXDi-P00-037）／見た4枚を場とアクセへ（WXK04-003-E2）／【出】で選んだシグニだけ守る（WXDi-P10-052）', () => withSavedCursor(() => {
+  const c1 = mkCtx({}, { hand: 5 }, 'WXDi-P00-037');
+  const hand0 = [...c1.otherState.hand];
+  const seen1: PendingInteractionDef[] = [];
+  const r1 = finishSeen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM', value: 3 } } as unknown as CardEffect, c1), c1, seen1);
+  const sel1 = seen1[0] as { candidates?: string[]; targetScope?: string } | undefined;
+  eq(sel1?.candidates?.length, 3, '見ないで選んだ3枚だけが候補（残りの手札は見えない）');
+  ok((sel1?.candidates ?? []).every(n => hand0.includes(n)), '候補は相手の手札');
+  eq(r1.otherState.hand.length, 4, '1枚が手札から抜ける');
+  eq(r1.otherState.deck.at(-1), sel1?.candidates?.[0], '選んだ1枚が相手デッキの一番下');
+
+  const cooks = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('調理')).map(c => c.CardNum);
+  ok(cooks.length >= 4, '＜調理＞の標本');
+  if (cooks.length >= 4) {
+    const [host, pl, ac1, ac2] = cooks;
+    const nonCook = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理'));
+    const nonCookField = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理') && c.CardNum !== nonCook);
+    const c2 = mkCtx({ signi: [host, nonCookField, null], deckTop: [pl, ac1, ac2, nonCook] }, {}, 'WXK04-003');
+    const r2 = run(liveEff('WXK04-003', 'WXK04-003-E2').action, c2);
+    ok(r2.ownerState.field.signi[2]?.at(-1) === pl, '1段目＝＜調理＞のシグニを空きゾーンに出す');
+    const acce = (r2.ownerState.field.signi_acce ?? []).flat().filter(Boolean);
+    ok(acce.includes(ac1) && acce.includes(ac2), '🔴2段目＝残りの＜調理＞を＜調理＞のシグニの【アクセ】にする（旧＝どちらの段も無かった）');
+    ok(!acce.length || !((r2.ownerState.field.signi_acce ?? [])[1] ?? []).length, '＜調理＞でないシグニには付けない');
+    ok(r2.ownerState.trash.includes(nonCook), '残りはトラッシュ');
+    ok(![pl, ac1, ac2, nonCook].some(n => r2.ownerState.deck.includes(n)), '見た4枚はデッキに残らない');
+  }
+
+  const src = 'WXDi-P10-052';
+  const seen3: PendingInteractionDef[] = [];
+  const c3 = mkCtx({ signi: [src, SIGNI, SIGNI_L1] }, {}, src);
+  const r3 = finishSeen(executeEffect(liveEff(src, 'WXDi-P10-052-E1'), c3), c3, seen3);
+  ok(!((seen3[0] as { candidates?: string[] } | undefined)?.candidates ?? [src]).includes(src), '「他の」シグニから選ぶ');
+  eq(r3.ownerState.on_play_chosen_signi?.[src], SIGNI, '選んだシグニを記録する');
+  ok(collectBanishSubstitutes(r3.ownerState, r3.otherState, false, cardMap, effectsMap, SIGNI).some(o => o.sourceNum === src),
+    '選んだシグニは身代わりで守れる');
+  ok(!collectBanishSubstitutes(r3.ownerState, r3.otherState, false, cardMap, effectsMap, SIGNI_L1).some(o => o.sourceNum === src),
+    '🔴選んでいないシグニは守らない（旧＝otherAny）');
+  ok(!collectBanishSubstitutes(mkState({ signi: [src, SIGNI, SIGNI_L1] }), mkState(), false, cardMap, effectsMap, SIGNI).some(o => o.sourceNum === src),
+    '反転：【出】で選んでいなければ誰も守らない（fail-closed）');
+}));
+
+test('§5.3 O-311: 「この方法でデッキに移動したシグニと同じパワー」（WX24-P4-048-E2）と「そのシグニと同じレベル」（WXEX2-29-E3）は対話を跨いでも失われない', () => withSavedCursor(() => {
+  const X = SIGNI;
+  const p = cardMap.get(X)!.Power;
+  const sameP = findCard(c => isSigni(c) && c.Power === p && c.CardNum !== X);
+  const diffP = findCard(c => isSigni(c) && c.Power !== p && parseInt(c.Power || '0', 10) > 0);
+  const g1 = findCard(c => c.Color === '緑');
+  const g2 = findCard(c => c.Color === '緑' && c.CardNum !== g1);
+  const c1 = mkCtx({ energy: 0 }, { signi: [sameP, diffP, null] }, 'WX24-P4-048');
+  c1.ownerState.trash = [X];
+  c1.ownerState.energy = [g1, g2];
+  const seen1: PendingInteractionDef[] = [];
+  const r1 = finishSeen(executeEffect(liveEff('WX24-P4-048', 'WX24-P4-048-E2'), c1), c1, seen1);
+  eq(r1.ownerState.deck.at(-1), X, 'トラッシュのシグニをデッキの一番下へ');
+  const sendSel = seen1.find(q => q.type === 'SELECT_TARGET' && (q as { candidates: string[] }).candidates.includes(sameP)) as { candidates: string[] } | undefined;
+  ok(!!sendSel && !sendSel.candidates.includes(diffP), '🔴支払いの後でも「同じパワー」の相手シグニだけが候補');
+  ok(r1.otherState.energy.includes(sameP), '同じパワーの相手シグニをエナゾーンへ（旧＝自分のデッキからエナチャージ）');
+  ok(r1.otherState.field.signi.some(st => st?.at(-1) === diffP), '違うパワーのシグニは残る');
+
+  const oppL2 = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== SIGNI_L2);
+  const oppL1 = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== SIGNI_L1);
+  const ownL2 = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== SIGNI_L2 && c.CardNum !== oppL2);
+  const c2 = mkCtx({}, { signi: [SIGNI_L2, null, null] }, 'WXEX2-29');
+  c2.ownerState.deck = [ownL2];
+  c2.otherState.deck = [oppL1, oppL2];
+  const seen2: PendingInteractionDef[] = [];
+  // 自分の探索では**何も選ばない**＝`lastProcessedCards` が空に置き換わる（焼き込みが無ければ相手の探索がレベルを失う）。
+  const r2 = finishSeen(executeEffect(liveEff('WXEX2-29', 'WXEX2-29-E3'), c2), c2, seen2,
+    q => q.type === 'SEARCH' && !(q as { opponentResponds?: boolean }).opponentResponds ? [] : undefined);
+  const oppSearch = seen2.find(q => q.type === 'SEARCH' && (q as { opponentResponds?: boolean }).opponentResponds) as { visibleCards: string[] } | undefined;
+  ok(!!oppSearch, '🔴対戦相手も自分のデッキから探す（旧＝自分だけ）');
+  eq(oppSearch?.visibleCards.join(','), oppL2, '🔴自分の探索のあとでも「トラッシュに置いたシグニと同じレベル」だけが候補');
+  ok(r2.otherState.field.signi.some(st => st?.at(-1) === oppL2), '相手の場に出る');
+  ok(r2.otherState.deck.includes(oppL1), '違うレベルはデッキに残る');
 }));
 
 if (listMode) {

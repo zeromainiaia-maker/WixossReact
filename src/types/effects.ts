@@ -1235,6 +1235,13 @@ export interface EffectCost {
    *   除外はどこにも戻らない。⚠これが無いまま本体だけを組むと**コストを踏み倒して撃てる**。
    */
   exileLrigFromLrigDeck?: { count: number; story?: string };
+  /**
+   * 🆕「コラボライバーN人とコラボする」（ルリグ【起】コスト・§5.3 `O-292`・`WXDi-CP01-006`/`-007`/`-008`）。
+   * ＝**ライバートークン（`PlayerState.liver_tokens`）をN個取り除く**（公式 FAQ）。
+   * 🔴旧＝parser が `none:true` に倒しており、トークンを持たなくても撃てる踏み倒しだった。
+   * ⚠3地点セット＝提示ゲート `canActivateLrigEffect`／モーダル `LrigGrantedModal`／支払い `performLrigActivated`。
+   */
+  collab?: number;
   removeOppVirus?: number; // 対戦相手の場の【ウィルス】N個を取り除く
   none?: boolean;         // コストなしの任意効果（発動するかの確認のみ）
   // ─ v0.276 追加: 全捨て型コスト ─
@@ -1731,6 +1738,13 @@ export interface TargetFilter {
   levelLteLastProcessed?: boolean; // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル以下 → level.max に解決（「この方法で場に出たシグニのレベル以下」WX25-P1-039 等）
   levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）
   levelGtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベルより高い → level.min:N+1 に解決（「その後、…それよりレベルの高い」＝直前配置シグニ基準。参照不能なら空ヒット。WXEX2-28）
+  /**
+   * 🆕パワーが直前に処理したカードの**パワーと同じ**（§5.3 `O-311`・`WX24-P4-048-E2`
+   * 「この方法でデッキに移動したシグニと同じパワーの対戦相手のシグニ」）。
+   * ⚠`STUB{BAKE_LAST_PROCESSED_REFS}` が `powerRange{min=max=p}` へ焼く前提（任意コストの対話を跨ぐと参照が消える）。
+   *   焼かれずに `resolveDynamicFilter` まで来たら参照不能＝空ヒット（fail-closed）。
+   */
+  powerEqLastProcessed?: boolean;
   levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
   /**
    * 🆕直前に処理したシグニの**レベル＋N**（2026-08-31 続き748・`SP07-011-E2`
@@ -2614,6 +2628,13 @@ export interface AddToFieldAction {
    */
   opponentSelectsZone?: boolean;
   /**
+   * 🆕true = **場に出すカードを対戦相手自身が選ぶ**（§5.3 `O-309`②・`WXK06-025-E2`
+   * 「対戦相手は手札からシグニ１枚を場に出してもよい」）。`source.owner:'opponent'` の `HAND_CARD` と組で使う。
+   * 🔴旧＝相手の手札を**効果の使用者が見て選んでいた**（非公開情報の閲覧＋選択者の取り違え）。
+   * ⚠配置ゾーンまで相手に選ばせるなら `opponentSelectsZone` も立てる（別軸）。
+   */
+  opponentSelects?: boolean;
+  /**
    * 🆕**【ゲート】があるシグニゾーンにだけ出す**（2026-09-01 続き760・`WXDi-P15-079-E1`）。
    * 🔑候補ゾーンを `own_gate_zones` へ絞る＝該当ゾーンが空いていなければ**出せない**。
    * ⚠**ゾーン選択UIを出さない**（`SELECT_SIGNI_ZONE` は `src/screens/` の管轄で全空きゾーンを見せる）＝
@@ -2721,6 +2742,14 @@ export interface SearchAction {
   then: EffectAction;
   // サーチ完了後に行う処理（SHUFFLE_DECK など）
   afterSearch?: EffectAction;
+  /**
+   * 🆕**探す主体を対戦相手にする**（§5.3 `O-309`①／`O-311`）＝`from.owner:'opponent'` と組で使い、
+   * 相手のデッキを**相手自身が**見て選ぶ（`WXK10-091-E1`「対戦相手は自分のデッキから…探して場に出し」／
+   * `WXEX2-29-E3`「各プレイヤーは自分のデッキから…探して場に出し」の相手側）。
+   * 🔴旧＝応答者の軸が無く、live は `from.owner:'self'`＝**主語が逆**（自分のデッキから自分の場へ出していた）。
+   * ⚠ctx の視点は反転しない（`opponentResponds` は「誰がクリックするか」だけ）＝pending に `deckOwner` も立てる。
+   */
+  opponentResponds?: boolean;
 }
 
 export interface SequenceAction {
@@ -3403,7 +3432,12 @@ export interface LookPickChainStage {
   //   「その中から〈X〉を N枚まで**このシグニの下に置き**、残りを好きな順番でデッキの一番下に置く」。
   //   🔴受け皿が無い間はこの文型が `LOOK_AND_REORDER` 単独へ落ち、**選択段が丸ごと消えて全部デッキ下**だった。
   //   消費は `lookPickThenAction` → `PLACE_UNDER_SOURCE_SIGNI{fromLocation:'deck'}`。
-  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under';
+  // 🆕`acce`＝公開札を**あなたのシグニの【アクセ】にする**（§5.3 `O-311`・`WXK04-003-E2`
+  //   「その後、好きな枚数の＜調理＞のシグニをあなたの＜調理＞のシグニの【アクセ】にする」）。
+  //   消費は `lookPickThenAction` → `STUB{INTERNAL_ASK_ACCE_HOST, acceHostFilter}`（1枚ずつホストを選ぶ既存経路）。
+  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under' | 'acce';
+  /** 🆕`then:'acce'` 限定＝【アクセ】を付けるホストの絞り込み（例＝＜調理＞のシグニ）。 */
+  acceHostFilter?: TargetFilter;
   /**
    * 🆕`then:'field'` 限定＝**【ゲート】があるシグニゾーンへ出す**（2026-09-01 続き760・`WXDi-P15-079-E1`
    * 「その中からシグニ１枚を**【ゲート】があるあなたのシグニゾーンに出し**」）。
@@ -3683,7 +3717,18 @@ export interface SetBaseLevelAction {
   type: 'SET_BASE_LEVEL';
   target: EffectTarget;  // 通常は自分（このシグニ）。count:1=効果元シグニ
   value: number;         // 設定する基本レベル
-  until?: 'END_OF_TURN'; // 起動効果で一時的に基本レベルを変更する場合（attack_phase_level_overrides に反映）
+  /**
+   * 一時的な基本レベル変更の期間（省略＝CONTINUOUS の恒常宣言）。
+   * - `'END_OF_TURN'`＝`attack_phase_level_overrides`（turn-end で両者から消える）
+   * - 🆕`'UNTIL_OPP_TURN_END'`＝「次の対戦相手のターン終了時まで」（§5.3 `O-296`・`WXDi-D09-H15-E1`）＝
+   *   `base_level_overrides_until_opp_turn`（効果の持ち主の次ターン開始時に `clearUntilOppTurnEffects` が消す）
+   * - 🆕`'NEXT_TURN'`＝「次のターンの間、〈対象〉の場にあるシグニの基本レベルは N になる」（`WX11-051-BURST`②）＝
+   *   `target.count:'ALL'` のときだけ場レベル grant（`FieldGrant{kind:'baseLevel'}`）を予約する＝**後から出たシグニにも効く**。
+   * 🔴旧＝`'END_OF_TURN'` しか取れず、`until` の無い AUTO は `effectExecutor` が**何もしない**（CONTINUOUS 扱い）ので
+   *   `WXDi-D09-H15-E1` の「基本レベルは３になり」は**一度も効いていなかった**。
+   * ⚠`target` が `thisCardOnly`（または省略相当）なら効果元、それ以外は選択（`owner:'any'` の「シグニ１体を対象とし」）。
+   */
+  until?: 'END_OF_TURN' | 'UNTIL_OPP_TURN_END' | 'NEXT_TURN';
 }
 
 // コストなしでグロウする
@@ -4255,6 +4300,13 @@ export interface FieldSigniToCheckZoneAction {
   type: 'FIELD_SIGNI_TO_CHECK_ZONE';
   /** 往復させるシグニ（`owner:'self'` ＋ `filter`）。 */
   target: EffectTarget;
+  /**
+   * 🆕true＝**ダウン状態で**場に出し直す（§5.3 `O-310`・`WXK07-018-E1`「それらをダウン状態で場に出す」）。
+   * ⚠`target.count` が数値なら**対象を選ばせる**（`'ALL'` は従来どおり条件に合う全体）。
+   */
+  asDown?: boolean;
+  /** 内部用：選択後の再入で候補を固定する（`applyDirectAction` が選んだ1体を載せる）。JSON には書かない。 */
+  fixedCardNums?: string[];
 }
 
 /**
@@ -4899,6 +4951,11 @@ export interface StubAction {
    */
   leaveToTrashWindow?: { turns: number; requiresNoAbilities?: boolean };
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /**
+   * 🆕`BAKE_LAST_PROCESSED_REFS` の本体（§5.3 `O-311`）＝実行直前に `lastProcessedCards[0]` のレベル／パワーで
+   * `levelEqLastProcessed`／`powerEqLastProcessed` を具体値へ焼いてから実行する（対話を跨いでも参照が消えない）。
+   */
+  bakeThen?: EffectAction;
   /**
    * `MAGIC_BOX_REVEAL` で表向きにしてシグニにする中身の条件と上限。
    * §5.3 `O-313`・`WX24-P3-018-E1`＝「中身が＜トリック＞のシグニである
@@ -6799,7 +6856,7 @@ export interface StubAction {
     pattern: 'self_sacrifice_other' | 'protect_other_sacrifice_self';
     sacrificeClass?: string;                  // self_sacrifice_other: 犠牲にする他シグニのクラス（例: '電機'）。省略時=任意の他シグニ
     sacrificeFilter?: TargetFilter;           // self_sacrifice_other: 身代わりに差し出す側の対象条件
-    victimFilter?: 'riseIcon' | 'otherAny';   // protect_other_sacrifice_self: 守る対象（'riseIcon'=《ライズアイコン》持ち / 'otherAny'=このシグニ以外の任意の自シグニ）
+    victimFilter?: 'riseIcon' | 'otherAny' | 'chosenByOnPlay'; // 🆕'chosenByOnPlay'＝このシグニの【出】能力で選んだシグニだけ（§5.3 `O-311`・`WXDi-P10-052-E2`）   // protect_other_sacrifice_self: 守る対象（'riseIcon'=《ライズアイコン》持ち / 'otherAny'=このシグニ以外の任意の自シグニ）
     victimTarget?: EffectTarget;              // protect_other_sacrifice_self: 守られる側の対象条件
     oppTurnOnly?: boolean;                     // 対戦相手のターンの間のみ有効（CP01-032/P10-052）
   };

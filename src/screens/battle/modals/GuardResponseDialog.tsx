@@ -153,7 +153,8 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                       ⚠ 追加で手札1枚か《無》×1を支払わないとガードできません（自動消費）
                     </p>
                   )}
-                  {guardAltCollab && my.energy.length >= guardAltCollab.colorless && (
+                  {guardAltCollab && my.energy.length >= guardAltCollab.colorless
+                    && (my.liver_tokens ?? 0) >= guardAltCollab.collab && (
                     <button onClick={() => handleGuardWithCollabAlternative(guardAltCollab.colorless, guardAltCollab.collab)} disabled={loading}
                       data-testid="guard-alt-collab"
                       style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #d08bd0',

@@ -11,6 +11,7 @@ import {
   isOwnTrashMoveLocked,
   matchesFilter,
   resolveHandCardPick, handCardPickLabel,
+  fieldCandidatesByOwner, energyCandidatesForOwner, movableTrashCandidates, oppZoneMoveBlocked,
 } from './execUtils';
 import { collectMultiAcceLimits } from './effectEngine';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
@@ -1268,67 +1269,157 @@ export function execStubPart3(
   //   原文と無関係にアシストルリグを場へ出す対話を開いていた。
   //   ⇒ その文型は parser が `DEFERRED_GUARD_ALT_COST_COLLAB` へ分ける（§5.3 `O-230`）。
   // ⚠**payload が無い宣言は何もしない**（fail-closed）。
+  // 🔴🆕**§5.3 `O-292`（2026-09-12）＝「呼ぶ」はライバートークンを得るだけ**（公式 FAQ `WXDi-CP01-005`/`-006`
+  //   「この効果を発動したら、『ライバートークン』を2つ得ます。…使用したトークンはゲームから取り除かれます。」）。
+  //   🔴旧実装は**ルリグデッキのアシストルリグを空きアシストゾーンへ出していた**＝原文に無い配置で盤面を変え、
+  //   そのアシストルリグの【出】まで BattleScreen が発火していた（過剰実行）。トークンは場に置かれない。
   if (stub.id === 'COLLAB') {
     const specCL = stub.collabCall;
     if (!specCL) return done(addLog(ctx, '[未実装] コラボライバーを呼ぶ（payload なし）'));
-    const callCount = specCL.count;
-    if (callCount > 0) {
-      const lrigDk = ctx.ownerState.lrig_deck;
-      const assistInDk = lrigDk.filter(cn => {
-        const c = ctx.cardMap.get(getCardNum(cn));
-        return c?.Type === 'アシストルリグ';
-      });
-      if (assistInDk.length === 0) return done(addLog(ctx, 'コラボライバーなし'));
-      let ns: PlayerState = { ...ctx.ownerState };
-      let placed = 0;
-      const placedIds: string[] = [];
-      for (const instanceId of assistInDk) {
-        if (placed >= callCount) break;
-        const lf = ns.field.assist_lrig_l ?? [];
-        const rt = ns.field.assist_lrig_r ?? [];
-        const newDk = ns.lrig_deck.filter(x => x !== instanceId);
-        if (lf.length === 0) {
-          ns = { ...ns, lrig_deck: newDk, field: { ...ns.field, assist_lrig_l: [instanceId] } };
-          placedIds.push(instanceId);
-          placed++;
-        } else if (rt.length === 0) {
-          ns = { ...ns, lrig_deck: newDk, field: { ...ns.field, assist_lrig_r: [instanceId] } };
-          placedIds.push(instanceId);
-          placed++;
-        } else {
-          break;
-        }
-      }
-      return done(addLog({ ...ctx, ownerState: ns, lastProcessedCards: placedIds }, `コラボライバー${placed}人を呼んだ`));
-    }
-    return done(addLog(ctx, 'コラボライバーを呼ぶ人数が0'));
+    if (specCL.count <= 0) return done(addLog(ctx, 'コラボライバーを呼ぶ人数が0'));
+    const tokensCL = (ctx.ownerState.liver_tokens ?? 0) + specCL.count;
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, liver_tokens: tokensCL } },
+      `コラボライバー${specCL.count}人を呼んだ（ライバートークン${tokensCL}個）`));
   }
   // 🔴🆕**「コラボしてもよい」の任意召喚フォールバックは撤去した**（§5.3 `O-60` 第58バッチ・2026-09-03）。
   //   `WXDi-CP01-005-E1`（【ガード】の代替コスト）だけがここへ落ちており、**原文と無関係に
   //   アシストルリグを場へ出す対話**を開いていた。いまは parser が `DEFERRED_GUARD_ALT_COST_COLLAB`
   //   へ分けるので、この枝に来る効果は無い（§5.3 `O-230`）。
   //   ⚠**復活させないこと**＝「コラボする」はガード時の支払い手段であって、能力の効果ではない。
-  // INTERNAL_DO_COLLAB: コラボ実行（アシストルリグ1人を配置）
-  // ⚠**2026-09-03（第58バッチ）以降、生成元は無い**（唯一の producer だった「コラボしてもよい」
-  //   フォールバックを撤去したため）。**残しているのは実行部として正しく、golden が挙動を固定しており、
-  //   `O-230`（ガードの代替コストとしての「コラボする」）を実装するときの受け皿になるため。**
-  if (stub.id === 'INTERNAL_DO_COLLAB') {
-    const assistInDkIDC = ctx.ownerState.lrig_deck.filter(cn => {
-      const c = ctx.cardMap.get(getCardNum(cn));
-      return c?.Type === 'アシストルリグ';
-    });
-    if (assistInDkIDC.length === 0) return done(addLog(ctx, 'コラボライバーなし'));
-    const toPlaceIDC = assistInDkIDC[0];
-    const newDkIDC = ctx.ownerState.lrig_deck.filter(x => x !== toPlaceIDC);
-    let newFieldIDC = ctx.ownerState.field;
-    if ((ctx.ownerState.field.assist_lrig_l?.length ?? 0) === 0) {
-      newFieldIDC = { ...newFieldIDC, assist_lrig_l: [toPlaceIDC] };
-    } else {
-      newFieldIDC = { ...newFieldIDC, assist_lrig_r: [toPlaceIDC] };
+  // BAKE_LAST_PROCESSED_REFS: 直前に処理したカードのレベル／パワーを後続アクションへ具体値として焼き込んでから実行する
+  // 🆕§5.3 `O-311`（2026-09-12）＝`lastProcessedCards` は**対話（探索・任意コスト・ゾーン選択）を跨ぐと置き換わる**ので、
+  //   「そのシグニと同じレベル」（`WXEX2-29-E3`＝自分の探索のあとで相手の探索が参照を失う）や
+  //   「この方法でデッキに移動したシグニと同じパワー」（`WX24-P4-048-E2`＝任意コストの支払い後に参照を失う）を
+  //   後段で読むと空振りする。⇒ **参照が生きているうちに** `levelEqLastProcessed`／`powerEqLastProcessed` を
+  //   `level`／`powerRange` の具体値へ置き換える（状態の carrier を増やさない）。
+  // ⚠参照不能（直前に何も処理していない）なら**到達不能な値**を焼く＝fail-closed（「何でも当たる」に化けさせない）。
+  if (stub.id === 'BAKE_LAST_PROCESSED_REFS') {
+    const innerBLP = stub.bakeThen;
+    if (!innerBLP) return done(addLog(ctx, '焼き込み：後続アクションなし'));
+    const refBLP = ctx.lastProcessedCards?.[0];
+    const cardBLP = refBLP ? ctx.cardMap.get(getCardNum(refBLP)) : undefined;
+    const lvBLP = cardBLP ? parseInt(cardBLP.Level ?? '', 10) : NaN;
+    const pwBLP = cardBLP ? parseInt(cardBLP.Power ?? '', 10) : NaN;
+    const bakeBLP = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(bakeBLP);
+      if (!node || typeof node !== 'object') return node;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = bakeBLP(v);
+      if (out.levelEqLastProcessed === true) {
+        delete out.levelEqLastProcessed;
+        out.level = Number.isNaN(lvBLP) ? -1 : lvBLP;
+      }
+      if (out.powerEqLastProcessed === true) {
+        delete out.powerEqLastProcessed;
+        out.powerRange = Number.isNaN(pwBLP) ? { min: 1, max: 0 } : { min: pwBLP, max: pwBLP };
+      }
+      return out;
+    };
+    return exec(bakeBLP(innerBLP) as EffectAction, addLog(ctx, cardBLP
+      ? `${cardBLP.CardName}（レベル${Number.isNaN(lvBLP) ? '-' : lvBLP}・パワー${Number.isNaN(pwBLP) ? '-' : pwBLP}）を基準にする`
+      : '基準となるカードが無い（以後の対象は無し）'));
+  }
+  // OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND: 対戦相手のシグニゾーンかエナゾーンから、色ごとにカードを1枚まで対象とし手札に戻す
+  // 🆕§5.3 `O-310`（2026-09-12・`WX24-P4-022-E3`）＝`value` は色の並び（「白、赤、青、緑、黒についても同様に行う」）。
+  //   1色ずつ「シグニゾーン＋エナゾーン」を**1つの候補プール**（`opp_field_energy`）で選ばせ、選んだ札をその場で戻す。
+  //   ⚠原文は全色の対象を先に決めてから一度に戻す＝1色ずつ戻すのは近似（同じ札を2色で選べない点は一致。
+  //     戻した直後の離場誘発の解決順だけが前後しうる）。
+  // ⚠シグニ側は `fieldCandidatesByOwner`（効果耐性の合流点）＋`selectOrInteract` のシャドウ判定、エナ側はエナ保護を通す。
+  if (stub.id === 'OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND') {
+    const colorsOFE = String(stub.value ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    if (colorsOFE.length === 0) return done(addLog(ctx, '色の指定なし（OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND）'));
+    const [colorOFE, ...restOFE] = colorsOFE;
+    const nextOFE: EffectAction | undefined = restOFE.length > 0
+      ? ({ type: 'STUB', id: 'OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND', value: restOFE.join(',') } as StubAction) as EffectAction
+      : undefined;
+    const fieldOFE = fieldCandidatesByOwner('opponent', { color: colorOFE }, ctx).cands;
+    const energyOFE = oppZoneMoveBlocked('energy', 'opponent', ctx) ? []
+      : energyCandidatesForOwner('opponent', ctx.otherState, { color: colorOFE }, ctx.cardMap, ctx);
+    const candsOFE = [...fieldOFE, ...energyOFE];
+    const logOFE = addLog(ctx, `対戦相手のシグニゾーンかエナゾーンから${colorOFE}のカードを１枚まで対象とする`);
+    if (candsOFE.length === 0) return nextOFE ? exec(nextOFE, logOFE) : done(logOFE);
+    return selectOrInteract(candsOFE, 1, true, 'opp_field_energy',
+      ({ type: 'STUB', id: 'INTERNAL_OPP_FIELD_OR_ENERGY_TO_HAND' } as StubAction) as EffectAction, nextOFE, logOFE);
+  }
+  // OPP_TRASH_TO_DECK_TOP_OPP_ORDERS: 対戦相手のトラッシュからカードをN枚まで対象としデッキの一番上に置く（置く順番は対戦相手が非公開で選ぶ）
+  // 🆕§5.3 `O-309`③（2026-09-12・`WXK06-028-E1`）＝原文の括弧書き「（置く順番は対戦相手が選ぶ）」＋公式 FAQ
+  //   「対戦相手が選び、その順番は非公開です」。旧 live の `TRANSFER_TO_DECK{position:'top'}` は**使用者の選択順**で積んでいた。
+  // ⚠候補は `movableTrashCandidates`（相手トラッシュの保護の合流点）。
+  if (stub.id === 'OPP_TRASH_TO_DECK_TOP_OPP_ORDERS') {
+    const maxOTD = Math.max(1, parseInt(String(stub.value ?? '2'), 10) || 2);
+    const candsOTD = movableTrashCandidates('opponent', ctx.otherState, undefined, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    if (candsOTD.length === 0) return done(addLog(ctx, '対戦相手のトラッシュに対象なし'));
+    return selectOrInteract(candsOTD, Math.min(maxOTD, candsOTD.length), true, 'opp_trash',
+      ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction,
+      ({ type: 'STUB', id: 'INTERNAL_OPP_ORDERS_DECK_TOP' } as StubAction) as EffectAction, ctx);
+  }
+  // INTERNAL_OPP_ORDERS_DECK_TOP: 選ばれた相手トラッシュの札の置く順番を対戦相手に選ばせる（2枚のときだけ対話）
+  if (stub.id === 'INTERNAL_OPP_ORDERS_DECK_TOP') {
+    const pickedOOD = (ctx.lastProcessedCards ?? []).filter(n => ctx.otherState.trash.includes(n));
+    if (pickedOOD.length === 0) return done(ctx);
+    if (pickedOOD.length === 1) {
+      return exec(({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TOP_PLACE', revealed: pickedOOD } as StubAction) as EffectAction, ctx);
     }
-    const newOwnerIDC: PlayerState = { ...ctx.ownerState, lrig_deck: newDkIDC, field: newFieldIDC };
-    return done(addLog({ ...ctx, ownerState: newOwnerIDC, lastProcessedCards: [toPlaceIDC] },
-      `コラボ: ${ctx.cardMap.get(getCardNum(toPlaceIDC))?.CardName ?? toPlaceIDC}を召喚`));
+    const nameOOD = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+    const [aOOD, bOOD, ...restOOD] = pickedOOD;
+    // ⚠応答者は相手＝コストの無い選択なので `costlessOpponentChoice`（無いと BattleScreen が相手の支払いとして扱い潰れる）。
+    return needsInteraction(addLog(ctx, '対戦相手がデッキの一番上に置く順番を選ぶ（非公開）'), {
+      type: 'CHOOSE', count: 1, opponentResponds: true, costlessOpponentChoice: true,
+      options: [
+        { id: 'first', label: `《${nameOOD(aOOD)}》を一番上にする`, available: true,
+          action: ({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TOP_PLACE', revealed: [aOOD, bOOD, ...restOOD] } as StubAction) as EffectAction },
+        { id: 'second', label: `《${nameOOD(bOOD)}》を一番上にする`, available: true,
+          action: ({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TOP_PLACE', revealed: [bOOD, aOOD, ...restOOD] } as StubAction) as EffectAction },
+      ],
+    });
+  }
+  // INTERNAL_OPP_DECK_TOP_PLACE: 相手トラッシュの札を `revealed` の順（先頭＝一番上）で相手デッキの一番上へ置く
+  if (stub.id === 'INTERNAL_OPP_DECK_TOP_PLACE') {
+    const orderODP = (stub.revealed ?? []).filter(n => ctx.otherState.trash.includes(n));
+    if (orderODP.length === 0) return done(ctx);
+    const newOtherODP: PlayerState = {
+      ...ctx.otherState,
+      trash: ctx.otherState.trash.filter(n => !orderODP.includes(n)),
+      deck: [...orderODP, ...ctx.otherState.deck],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherODP, lastProcessedCards: orderODP },
+      `対戦相手のトラッシュのカード${orderODP.length}枚を対戦相手のデッキの一番上に置いた（順番は対戦相手が決めた・非公開）`));
+  }
+  // OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM: 対戦相手の手札をN枚まで見ないで選び、それらを見て1枚を対戦相手のデッキの一番下に置く
+  // 🆕§5.3 `O-311`（2026-09-12・`WXDi-P00-037-E1`）＝「見ないで選ぶ」は engine では**無作為**（`TRASH{HAND_CARD, blind}` と同じ規約）。
+  //   選んだN枚だけを使用者に見せて1枚を選ばせる＝**残りの手札は見せない**（候補は `candidates` にだけ載る）。
+  if (stub.id === 'OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM') {
+    const nOHB = Math.max(1, parseInt(String(stub.value ?? '3'), 10) || 3);
+    const pickedOHB = shuffle([...ctx.otherState.hand]).slice(0, nOHB);
+    if (pickedOHB.length === 0) return done(addLog(ctx, '対戦相手の手札が無い'));
+    return needsInteraction(addLog(ctx, `対戦相手の手札を${pickedOHB.length}枚見ないで選んだ`), {
+      type: 'SELECT_TARGET', candidates: pickedOHB, count: 1, optional: false, targetScope: 'opp_hand',
+      thenAction: ({ type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'opponent', count: 1 }, shuffle: false, position: 'bottom' } as TransferToDeckAction) as EffectAction,
+    });
+  }
+  // RECORD_ON_PLAY_CHOSEN_SIGNI: 【出】で選んだシグニを効果元ごとに記録する（「このシグニの【出】能力で選んだシグニ」の受け皿）
+  // 🆕§5.3 `O-311`（2026-09-12・`WXDi-P10-052-E1`）＝直前の `SELECT_TARGET_ONLY` が `lastProcessedCards` に残した1体を記録する。
+  //   読み手＝`collectBanishSubstitutes` の `victimFilter:'chosenByOnPlay'`（E2）。
+  if (stub.id === 'RECORD_ON_PLAY_CHOSEN_SIGNI') {
+    const chosenRC = ctx.lastProcessedCards?.[0];
+    const srcRC = ctx.sourceCardNum;
+    if (!chosenRC || !srcRC) return done(addLog(ctx, '【出】で選んだシグニの記録：対象なし'));
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, on_play_chosen_signi: { ...(ctx.ownerState.on_play_chosen_signi ?? {}), [srcRC]: chosenRC } },
+    }, `${ctx.cardMap.get(getCardNum(chosenRC))?.CardName ?? chosenRC}を選んだ`));
+  }
+  // INTERNAL_DO_COLLAB: 「コラボライバーN人とコラボする」＝ライバートークンをN個取り除く（§5.3 `O-292`）。
+  // 🔴旧＝**ルリグデッキのアシストルリグを場へ出していた**（「コラボ＝アシストルリグ召喚」という誤読）。
+  // ⚠いまの生成元は無い（ルリグ【起】は `cost.collab`、【ガード】の代替は `handleGuardWithCollabAlternative` が
+  //   支払いの場で直接減らす）。残すのは値つき STUB が将来来たときに**配置へ化けない**ための受け皿。
+  // ⚠足りなければ何もしない（fail-closed＝トークンを負数にしない）。
+  if (stub.id === 'INTERNAL_DO_COLLAB') {
+    const needIDC = Math.max(1, parseInt(String(stub.value ?? '1')) || 1);
+    const haveIDC = ctx.ownerState.liver_tokens ?? 0;
+    if (haveIDC < needIDC) return done(addLog(ctx, `コラボできない（ライバートークン${haveIDC}個）`));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, liver_tokens: haveIDC - needIDC } },
+      `コラボライバー${needIDC}人とコラボ（ライバートークン残り${haveIDC - needIDC}個）`));
   }
   // GATE: ゲート効果（ログのみ）
   // GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）

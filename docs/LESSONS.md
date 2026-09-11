@@ -597,6 +597,29 @@
   `energyCandidates` の呼び出し7箇所すべてを置き換えた。⚠**条件の判定（`ENERGY_HAS_CARD` 等）には掛けない**
   （「エナに〈X〉がある場合」は「効果を受けない」とは無関係で、掛けると条件が偽に化ける）。
 
+- 🔴🆕**ルールの語（コラボ・ベット・リコレクト等）の意味は、engine を読む前に公式 FAQ で確かめる**（2026-09-12・第282・`O-292`）。
+  「コラボライバー2人を呼ぶ」は**ライバートークンを2つ得る**、「コラボする」は**トークンを取り除く**（`WXDi-CP01-005`/`-006` の FAQ）。
+  ところが engine・既存 golden 3本・【ガード】代替（`O-230`）・登録票は**揃って「アシストルリグを場に出す」と読んでいた**。
+  🔴**この形はどの計器にも映らない**＝engine と golden と逆翻訳が同じ誤読で一致するので全部緑になる。
+  ⇒ **原文が語を定義していない（括弧書きの注釈が無い）ときは、カード詳細ページの Q&A を先に引く**
+  （`takaratomy.co.jp/products/wixoss/library/card/card_list.php?card=card_detail&card_no=<番号>`）。
+- 🔴🆕**期間・寿命のキーは「型にある／JSON にある」ではなく「engine が読むか」で判定する**（同・`O-296`）＝
+  `POWER_SET.duration:'UNTIL_OPP_TURN_END'` は型にも live JSON にもあったのに、`execPowerSet` と直接適用の両方が
+  **`temp_power_mods` 固定**で読み手ゼロ＝「次の対戦相手のターン終了時まで」が宣言したターンの終わりに消えていた。
+  登録票はこれを「持てる」と書いて**別の穴の比較対象**に使っていた。⇒ **`grep -n "<キー>" src/engine/` で読み手を1つ挙げてから使う。**
+- 🔑🆕**対話を跨ぐ参照は、carrier（状態の持ち回し）を作る前に「焼き込み」を検討する**（同・`O-311`）＝
+  `lastProcessedCards` は探索・任意コスト・ゾーン選択の resume で置き換わるが、**置き換わる前に**フィルタの
+  `levelEqLastProcessed`／`powerEqLastProcessed` を `level`／`powerRange` の具体値へ書き換えてから後段を実行すれば、
+  状態も resume 経路も増やさずに済む（`STUB{BAKE_LAST_PROCESSED_REFS}` 1本・2効果）。⚠**参照不能は到達不能値を焼く**（fail-closed）。
+- 🔴🆕**フィルタキーを「各ハンドラが個別に剥がして解決する」族は、兄弟の1本だけ読み手が無いことがある**（同・`O-309`②）＝
+  `frontOfSelf` は BANISH/BOUNCE/DOWN/TRANSFER_TO_DECK/REMOVE_ABILITIES が各自で解決していたのに **TRASH だけ無く**、
+  `matchesFilter` が黙って無視して相手の全シグニが候補だった。**気付けたのは新設 golden の反転確認（正面が空なら何も起きない）だけ**。
+  ⇒ **この族のキーを新しい型へ載せたら、そのハンドラに解決があるかを grep で確かめ、反転確認を必ず書く。**
+- 🔴🆕**派生クラスの Map を写すときは `new Map(x)` ではなく `x.constructor` で写す**（同・`applyContinuousBaseLevelOverride`）＝
+  本番の `cardMap` は `InstanceMap`（instanceId → CardNum へフォールバック）なので、素の `Map` へ写すと
+  **instanceId キーの読み書きが静かに外れる**（基本レベルの一時上書きが本番盤面で当たらなかった）。
+  §4.1「派生クラスで挙動が変わる引数を素の型で渡さない」の**写す側**の形。
+
 ### 4.2x コマンドの「緑」を信じる前に（2026-09-08 実測）
 
 - 🔴**パイプの終了コードは最後のコマンドのもの**＝`cmd | tail -n; echo $?` は **`tail` の成否**しか見ていない。

@@ -41,6 +41,19 @@ export type FieldGrant =
     }
   | {
       /**
+       * 🆕場レベルの基本レベル上書き（§5.3 `O-296`・`WX11-051-BURST`②
+       * 「次のターンの間、対戦相手の場にあるシグニの基本レベルは１になる（場に出たあとでレベルが１になる）」）。
+       * ⚠per-card の `attack_phase_level_overrides` では**後から場に出たシグニに効かない**＝括弧書きが死ぬ。
+       * 読み手＝`applyContinuousBaseLevelOverride`（その state の場のシグニへ当てる）。
+       */
+      kind: 'baseLevel';
+      level: number;
+      filter?: import('./effects').TargetFilter;
+      zone?: number;
+      condition?: FieldGrantCondition;
+    }
+  | {
+      /**
        * 場／ゾーンレベルの能力喪失（§6.4 O-16）。「（指定した）シグニゾーンにあるシグニは能力を失い、
        * 新たに得られない」＝**そのゾーンに現在／将来いるシグニ**が対象。
        * ⚠per-card の `abilities_removed` とは別物＝あちらは「適用時点でそこにいたシグニ」を instanceId で
@@ -274,6 +287,21 @@ export interface PlayerState {
   last_effect_used_card?: string | null;
   energy: string[];
   coins: number;
+  /**
+   * 🆕**ライバートークンの所持数**（§5.3 `O-292`・2026-09-12）。
+   * 公式 FAQ（`WXDi-CP01-005`/`-006`）＝「コラボライバー2人を呼ぶ」は「『ライバートークン』を2つ得ます。
+   *   それは『コラボライバー1人とコラボする』という効果で使用することができます。使用したトークンはゲームから取り除かれます。」
+   * ⚠**アシストルリグではない**＝旧実装はルリグデッキのアシストルリグを場へ出しており、原文と無関係に盤面を変えていた。
+   * 書き手＝`STUB{COLLAB}`（呼ぶ）／読み手＝`lrigActivateGate`・`GuardResponseDialog`（所持数の検算）／
+   * 消費＝`performLrigActivated`（`cost.collab`）・`handleGuardWithCollabAlternative`。
+   */
+  liver_tokens?: number;
+  /**
+   * 🆕「このシグニの【出】能力で選んだシグニ」の記録（§5.3 `O-311`・`WXDi-P10-052`）＝効果元 instanceId → 選んだ instanceId。
+   * 書き手＝`STUB{RECORD_ON_PLAY_CHOSEN_SIGNI}`（E1）／読み手＝`collectBanishSubstitutes` の `victimFilter:'chosenByOnPlay'`（E2）。
+   * ⚠効果元が再び【出】で選べば上書きされる。効果元が場を離れれば E2（【常】）自体が消えるので掃除は不要。
+   */
+  on_play_chosen_signi?: Record<string, string>;
   field: {
     lrig: string[];
     signi: (string[] | null)[];
@@ -939,6 +967,12 @@ export interface PlayerState {
   power_minus_multipliers_this_turn?: Record<string, number>;
   // 基本レベルの一時変更（CardNum → 扱うレベル。SET_BASE_LEVEL/CHANGE_BASE_LEVEL 等が単一値で書く）
   attack_phase_level_overrides?: Record<string, number>;
+  /**
+   * 🆕「次の対戦相手のターン終了時まで、〈シグニ〉の基本レベルは N になる」（§5.3 `O-296`・`WXDi-D09-H15-E1`）。
+   * 効果の持ち主の state に置き、持ち主の次ターン開始時に `clearUntilOppTurnEffects` が消す
+   * （`power_mods_until_opp_turn` と同じ寿命）。読み手＝`applyContinuousBaseLevelOverride`。
+   */
+  base_level_overrides_until_opp_turn?: Record<string, number>;
   // 【英知】条件の判定でだけ「このシグニのレベルは１であり２であり３である」のように**同時に複数値**として
   // 扱う指定（CardNum → 取りうるレベル群）。英知の合計は単一値ではなく**取りうる合計の集合**になり、
   // 「例えばレベル２と３の＜英知＞のシグニがある場合、【英知＝６】【＝７】【＝８】はすべて条件を満たす」
@@ -1783,7 +1817,11 @@ export type TargetScope =
   | 'self_lrig_under'
   | 'self_assist_lrig'
   // 場のキー（`field.key_piece` ＋ `key_piece_extra`）。「対戦相手のキー１枚を対象とし」（§6.4 O-17）。
-  | 'self_key' | 'opp_key';
+  | 'self_key' | 'opp_key'
+  // 🆕§5.3 `O-310`＝両者のエナ（「エナゾーンにあるカード１枚を対象とし」＝持ち主の指定なし）。
+  | 'both_energy'
+  // 🆕§5.3 `O-310`＝相手のシグニゾーン**と**エナゾーンを跨いだ単一プール（`WX24-P4-022-E3`）。
+  | 'opp_field_energy';
 
 import type { EffectAction, SelectionConstraint } from './effects';
 

@@ -148,6 +148,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               both_field:  '自分または相手のシグニから',
               self_energy: 'エナから',
               opp_energy:  '相手のエナから',
+              both_energy: '自分または相手のエナから',             // §5.3 `O-310`
+              opp_field_energy: '相手のシグニゾーンかエナゾーンから', // §5.3 `O-310`
               // 手札＋エナを跨いだ単一プール（タスク12(lxi) 第11波・`WXK06-067-E1`）
               self_hand_energy: '手札とエナから合計',
               opp_hand_energy:  '相手の手札とエナから合計',

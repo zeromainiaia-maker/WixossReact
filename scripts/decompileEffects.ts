@@ -360,6 +360,8 @@ function filterJa(f?: any): string {
   if (f.levelLtOwnLrig) parts.push('あなたのセンタールリグより低いレベルを持つ');
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
+  // 🆕§5.3 `O-311`＝「この方法でデッキに移動したシグニと同じパワーの」（`WX24-P4-048-E2`）。描かないと限定が監査面から消える。
+  if (f.powerEqLastProcessed) parts.push('この方法で処理したシグニと同じパワーの');
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');
   if (f.powerLteLastProcessedHalf) parts.push('パワーがこの方法で処理したシグニのパワーの半分以下の');
   if (f.levelLteHandDiff) parts.push('あなたと対戦相手の手札の枚数の差以下のレベルを持つ');
@@ -912,6 +914,7 @@ function costJa(c?: any): string {
       ? 'トラッシュにあるこのカードをゲームから除外する'
       : `トラッシュにある${c.trashExile.selectionConstraint?.distinct === 'name' ? 'それぞれ名前の異なる' : ''}${filterJa(c.trashExile.filter)}${([] as string[]).concat(c.trashExile.filter?.cardType ?? []).join('か') || 'カード'}${c.trashExile.count ?? 1}枚をゲームから除外する`);
   }
+  if (c.collab) parts.push(`コラボライバー${c.collab}人とコラボする（ライバートークン${c.collab}個を取り除く）`);
   if (c.exileLrigFromLrigDeck) parts.push(`ルリグデッキにある${c.exileLrigFromLrigDeck.story ? `＜${c.exileLrigFromLrigDeck.story}＞の` : ''}ルリグ${c.exileLrigFromLrigDeck.count}枚をゲームから除外する`);
   if (c.selfPowerDown != null) parts.push(`このシグニのパワーを${c.selfPowerDown}減らす`);
   if (c.selfToDeckBottom) parts.push('このシグニをデッキの一番下に置く');
@@ -1818,6 +1821,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const restFilter = filterJa({ ...sourceFilter, nonColorless: undefined });
         const noun = sourceFilter.cardType === 'シグニ' ? 'シグニ' : 'カード';
         const count = typeof a.source.count === 'number' ? a.source.count : 1;
+        // 🆕§5.3 `O-309`②＝`opponentSelects`＝**選ぶのも対戦相手**（「対戦相手は手札からシグニ１枚を場に出してもよい」）。
+        //   ⚠落とすと「使用者が相手の手札を見て選ぶ」と同じ文になる（非公開情報の閲覧かどうかが逆翻訳から消える）。
+        if (a.opponentSelects) {
+          return `対戦相手は手札から${nonColorless}${restFilter}${noun}${count}枚を${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出${a.optional ? 'してもよい' : 'す'}${supAF}`;
+        }
         return `対戦相手の手札を見て${nonColorless}${restFilter}${noun}${count}枚を選び、対戦相手はそれを${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       }
       if (a.source?.fromLeftFieldUnder)
@@ -2027,6 +2035,11 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}ルリグトラッシュからすべてのルリグをこのカードの下に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;
     case 'SEARCH': {
+      // 🆕§5.3 `O-309`①／`O-311`＝相手が**自分の**デッキを探す形（`opponentResponds`）。落とすと「あなたが相手のデッキを探す」と同じ文になる。
+      if (a.opponentResponds) {
+        const innerOR = actionJa({ ...a, opponentResponds: undefined, from: { ...(a.from ?? {}), owner: 'self' } } as Action, effectType);
+        return `対戦相手は${innerOR.replace(/^あなたの/, '自分の')}`;
+      }
       // cardType フィルタを名詞に反映（「カード」だとスペルも引けるように誤読されるため）
       const ct = a.filter?.cardType;
       const noun = ct ? ([] as string[]).concat(ct).join('か') : 'カード';
@@ -2625,7 +2638,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出し」（落とすと空きゾーンならどこでもよいと読める）。
       const destVerb = (t: string, gate?: boolean) => t === 'field' && gate ? '【ゲート】があるあなたのシグニゾーンに出し'
         : t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : t === 'under' ? 'このシグニの下に置き' : 'トラッシュに置き';
-      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then, s.gateZoneOnly)}`;
+      // 🆕§5.3 `O-311`＝`then:'acce'`＝公開札を**あなたの〈ホスト〉シグニの【アクセ】にする**（`WXK04-003-E2`）。
+      const stageDestJa = (s: any) => s.then === 'acce'
+        ? `あなたの${filterJa(s.acceHostFilter)}シグニの【アクセ】にし`
+        : destVerb(s.then, s.gateZoneOnly);
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${stageDestJa(s)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
@@ -2756,8 +2773,17 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${charmJa}を${a.toOther ? '他の' : ''}${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'SET_BASE_LEVEL': {
-      const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
-      return `${a.until === 'END_OF_TURN' ? 'ターン終了時まで、' : ''}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
+      // §5.3 `O-296`＝期間は3種（ターン終了時まで／次の対戦相手のターン終了時まで／次のターンの間）。
+      //   ⚠対象を選ぶ形（`owner:'any'`／`'opponent'`、`filter.cardType`）は「このシグニ」と描かない。
+      const thisOnlySBL = !!a.target?.filter?.thisCardOnly
+        || (a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner) && !a.target?.filter?.cardType);
+      const untilSBL = a.until === 'END_OF_TURN' ? 'ターン終了時まで、'
+        : a.until === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        : a.until === 'NEXT_TURN' ? '次のターンの間、' : '';
+      if (a.until === 'NEXT_TURN' && a.target?.count === 'ALL') {
+        return `${untilSBL}${ownerJa(a.target?.owner)}場にあるシグニの基本レベルは${a.value}になる（後から場に出たシグニにも適用）`;
+      }
+      return `${untilSBL}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
     }
     case 'REVEAL_UNTIL': {
       const stop = a.stopCondition;
@@ -3133,7 +3159,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${a.owner === 'opponent' ? '対戦相手' : 'あなた'}は手札を${a.count}枚チェックゾーンに置く`;
     case 'FIELD_SIGNI_TO_CHECK_ZONE':
       // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
-      return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;
+      return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを${a.asDown ? 'ダウン状態で' : ''}場に出す`;
     case 'LEVEL_MODIFY': {
       // 🆕§5.3 `O-142`＝「それのレベルをこの方法で公開されたシグニの**レベルと同じだけ**－する」。
       if (a.deltaPerLastProcessedCount) {
@@ -3368,6 +3394,22 @@ function actionJa(a?: Action, effectType?: string): string {
         ? 'このシグニには好きな枚数の【アクセ】を付けることができる'
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
       if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
+      // 🆕§5.3 `O-309`〜`O-311`（2026-09-12）＝payload を持つ新 STUB は payload から文を組む（固定文にしない）。
+      if (a.id === 'BAKE_LAST_PROCESSED_REFS') {
+        return a.bakeThen ? actionJa(a.bakeThen, effectType) : '【※ペイロード欠落】直前に処理したカードを基準に後続を行う';
+      }
+      if (a.id === 'OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND') {
+        const colorsJa = String(a.value ?? '').split(',').filter(Boolean);
+        return colorsJa.length === 0 ? '【※ペイロード欠落】対戦相手のシグニゾーンかエナゾーンから色ごとにカードを手札に戻す'
+          : `対戦相手のシグニゾーンかエナゾーンから、${colorsJa.map(c => `${c}のカード`).join('、')}をそれぞれ１枚まで対象とし、それらを手札に戻す`;
+      }
+      if (a.id === 'OPP_TRASH_TO_DECK_TOP_OPP_ORDERS') {
+        return `対戦相手のトラッシュからカードを${numJa(Number(a.value ?? 2))}枚まで対象とし、それらをデッキの一番上に置く（置く順番は対戦相手が選ぶ）`;
+      }
+      if (a.id === 'OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM') {
+        return `対戦相手の手札を${numJa(Number(a.value ?? 3))}枚まで見ないで選び、それらを見て１枚をデッキの一番下に置く`;
+      }
+      if (a.id === 'RECORD_ON_PLAY_CHOSEN_SIGNI') return '（そのシグニを「このシグニの【出】能力で選んだシグニ」とする）';
       // §6.4 O-35（続き530）＝**コストを払って**トラッシュのスペルを使う（`USE_SPELL_FROM_TRASH` は払わない別物）。
       // 🆕§5.3 `O-259` 第3（2026-09-05）＝領域（`value2`）・軽減・コスト不要も描く。
       //   🔴**id は領域を表していない**（`'opp_trash'` を足した時点からそう）＝**領域の正は `value2`**。
@@ -3679,6 +3721,10 @@ function actionJa(a?: Action, effectType?: string): string {
           return `${oppTurn}このシグニがバニッシュされる場合、代わりにあなたの他の${cls}シグニ１体をバニッシュしてもよい`;
         }
         if (bs.pattern === 'protect_other_sacrifice_self') {
+          // 🆕§5.3 `O-311`＝【出】で選んだ1体だけを守る（`WXDi-P10-052-E2`）。
+          if (bs.victimFilter === 'chosenByOnPlay') {
+            return `${oppTurn}このシグニの【出】能力で選んだシグニがバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい`;
+          }
           const vf = bs.victimFilter === 'riseIcon' ? '《ライズアイコン》を持つ' : '';
           const other = bs.victimFilter === 'riseIcon' ? '' : '他の';
           return `${oppTurn}${vf}あなたの${other}シグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい`;

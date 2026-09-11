@@ -5413,35 +5413,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        // COLLAB: コラボライバー呼び出しで配置されたアシストルリグ自身の【出】を、
-        // 効果配置シグニと同じ共通 collector に載せる。任意コスト/任意発動・条件・使用制限・
-        // 【出】封じをここで統一し、raw effect の直積みによるコスト踏み倒しを防ぐ。
-        if ((entry.effect.action as import('../types/effects').StubAction)?.type === 'STUB' &&
-            (entry.effect.action as import('../types/effects').StubAction)?.id === 'COLLAB') {
-          const collabOnPlayEntries: StackEntry[] = [];
-          for (const instanceId of result.lastProcessedCards ?? []) {
-            const controllerState = entry.playerId === bs.host_id ? hostState : guestState;
-            const otherState = entry.playerId === bs.host_id ? guestState : hostState;
-            const controllerBefore = entry.playerId === bs.host_id ? bs.host_state : bs.guest_state;
-            const collected = pureCollectPlacedSelfOnPlayTriggers(
-              mkTrigCtx(), instanceId, controllerState, otherState, entry.playerId,
-              { placedByEffect: true, sourceIsSigni: false, placedFromZone: detectPlacedFromZone(controllerBefore, instanceId, controllerState) },
-            );
-            collabOnPlayEntries.push(...collected.entries);
-            if (collected.usedHostIds.length > 0) {
-              hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...collected.usedHostIds] };
-            }
-            if (collected.usedGuestIds.length > 0) {
-              guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...collected.usedGuestIds] };
-            }
-          }
-          if (collabOnPlayEntries.length > 0) {
-            const baseStackC = stackAcc ?? null;
-            stackAcc = baseStackC
-              ? pushToStack(baseStackC, collabOnPlayEntries)
-              : initStack(stack.turnPlayerId, collabOnPlayEntries);
-          }
-        }
+        // 🏁§5.3 `O-292`（2026-09-12）＝ここにあった「COLLAB で配置したアシストルリグ自身の【出】を集める」分岐は撤去した。
+        //   「コラボライバーを呼ぶ」は**ライバートークンを得るだけ**で、カードは場に出ない（公式 FAQ）。
 
         // 開花（ON_BLOOM）トリガーは上の detectBloomedSigni / collectBloomTriggers で収集済み。
         // ルール上「開花」は「場に出た」扱いではないため、ここで ON_PLAY（出現時）は発火させない。
@@ -5782,39 +5755,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        // 任意COLLABは CHOOSE→INTERNAL_DO_COLLAB の resume でここへ完了するため、
-        // resolveStackNext 側の COLLAB 専用ブロックには戻らない。配置札を同じ共通 collector へ載せる。
-        const sourceEffect = (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
-          .find(e => e.effectId === pe.effectId);
-        if ((sourceEffect?.action as import('../types/effects').StubAction | undefined)?.type === 'STUB'
-            && (sourceEffect?.action as import('../types/effects').StubAction).id === 'COLLAB') {
-          const collabOnPlayEntries: StackEntry[] = [];
-          for (const instanceId of result.lastProcessedCards ?? []) {
-            const latestHost = hostAcc;
-            const latestGuest = guestAcc;
-            const controllerState = pe.sourcePlayerId === bs.host_id ? latestHost : latestGuest;
-            const otherState = pe.sourcePlayerId === bs.host_id ? latestGuest : latestHost;
-            const controllerBefore = pe.sourcePlayerId === bs.host_id ? bs.host_state : bs.guest_state;
-            const collected = pureCollectPlacedSelfOnPlayTriggers(
-              mkTrigCtx(), instanceId, controllerState, otherState, pe.sourcePlayerId,
-              { placedByEffect: true, sourceIsSigni: false, placedFromZone: detectPlacedFromZone(controllerBefore, instanceId, controllerState) },
-            );
-            collabOnPlayEntries.push(...collected.entries);
-            if (collected.usedHostIds.length > 0) {
-              hostAcc = { ...latestHost, actions_done: [...(latestHost.actions_done ?? []), ...collected.usedHostIds] };
-            }
-            if (collected.usedGuestIds.length > 0) {
-              guestAcc = { ...latestGuest, actions_done: [...(latestGuest.actions_done ?? []), ...collected.usedGuestIds] };
-            }
-          }
-          if (collabOnPlayEntries.length > 0) {
-            const turnPlayerId = bs.active_user_id ?? user.id;
-            const baseStackC = (stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null;
-            stackAcc = baseStackC
-              ? pushToStack(baseStackC, collabOnPlayEntries)
-              : initStack(turnPlayerId, collabOnPlayEntries);
-          }
-        }
+        // 🏁§5.3 `O-292`（2026-09-12）＝「任意COLLAB の resume で配置したアシストルリグの【出】を集める」分岐は撤去した
+        //   （コラボはライバートークンの増減だけで、カードは場に出ない＝公式 FAQ）。
 
         if (result.trapActivated) {
           const ta = collectTrapActivateTriggers(pe.sourcePlayerId, hostState, guestState);
@@ -13080,6 +13022,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleGuardWithCollabAlternative = async (colorless: number, collab: number) => {
     if (!my.field.lrig_attacked || loading) return;
     if (my.energy.length < colorless) return;
+    // 🆕§5.3 `O-292`＝コラボ＝ライバートークンを取り除く（提示側 `GuardResponseDialog` と同じ検算）。
+    if ((my.liver_tokens ?? 0) < collab) return;
     setLoading(true);
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
@@ -13089,18 +13033,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const attackerId = isHost ? bs.guest_id : bs.host_id;
       const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
       guardTriggers.push(...attackGuard.entries);
-      // コラボ本体は既存の実行部へ委譲する（アシストルリグ1人を場へ）。
-      guardTriggers.push({
-        id: generateUUID(), playerId: user.id, cardNum: my.field.lrig.at(-1) ?? '', effectId: 'O230-GUARD-COLLAB',
-        label: `【ガード】の代替コスト：コラボライバー${collab}人とコラボ`,
-        effect: {
-          effectId: 'O230-GUARD-COLLAB', effectType: 'ACTIVATED' as const, duration: 'INSTANT' as const,
-          mandatory: true, parseStatus: 'MANUAL' as const,
-          action: { type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: String(collab) },
-        } as unknown as import('../types/effects').CardEffect,
-      });
+      // 🔴§5.3 `O-292`＝旧はここで `STUB{INTERNAL_DO_COLLAB}` をスタックへ積み、**アシストルリグを場へ出していた**。
+      //   コラボはコストの支払い＝**支払いの場でトークンを減らす**（効果の解決を待たない）。
       const newMyState: PlayerState = {
         ...my,
+        liver_tokens: (my.liver_tokens ?? 0) - collab,
         energy: my.energy.slice(colorless),
         trash: [...my.trash, ...paid],
         field: { ...my.field, lrig_attacked: false },
@@ -15015,11 +14952,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ⚠**提示ゲートと同じ関数**（`effectiveCoinCost`）＝写経すると請求だけ満額になる。
       const coinCostLg = effectiveCoinCost(effect, my);
       if (coinCostLg > 0 && (my.coins ?? 0) < coinCostLg) { setLoading(false); return; }
+      // 🆕§5.3 `O-292`＝「コラボライバーN人とコラボする」＝ライバートークンN個を取り除く。
+      //   ⚠提示ゲート（`canActivateLrigEffect`）・モーダル（`LrigGrantedModal`）と対＝足りなければ発動を中止する。
+      const collabCostLg = effect.cost?.collab ?? 0;
+      if (collabCostLg > 0 && (my.liver_tokens ?? 0) < collabCostLg) { setLoading(false); return; }
       let paid: import('../types').PlayerState = lgPay.applyTo({
         ...my,
         hand: newHand,
         coins: coinCostLg > 0 ? Math.max(0, (my.coins ?? 0) - coinCostLg) : my.coins,
         coins_paid_this_turn: coinCostLg > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostLg : my.coins_paid_this_turn,
+        ...(collabCostLg > 0 ? { liver_tokens: (my.liver_tokens ?? 0) - collabCostLg } : {}),
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         // ⚠エナ由来（`lgEnergyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
         ...handDiscardHistoryRecord(my, [...discardedHandNums, ...lgDiscardAllCards]),
@@ -15415,6 +15357,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}${eff.cost?.exceedColors?.length ? `（${eff.cost.exceedColors.join('と')}のカード）` : ''}`);
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
           if (eff.cost?.coin) costPartsMA.push(`コイン${eff.cost.coin}`);
+          // §5.3 `O-292`＝コラボ（ライバートークン）。⚠同じルリグに【起】が並ぶので撃ち分けのためにラベルへ出す。
+          if (eff.cost?.collab) costPartsMA.push(`コラボ${eff.cost.collab}`);
           if (hdSigniMA) costPartsMA.push(`手札${fmtHandDiscardSigniLabel(hdSigniMA)}シグニ×${hdSigniMA.count}`);
           if (dgMA) costPartsMA.push(`手札${dgMA.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')}`);
           if (eff.cost?.discardAll) costPartsMA.push('手札すべて捨て');

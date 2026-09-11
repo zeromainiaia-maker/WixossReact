@@ -3974,6 +3974,46 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 「通常効果からの生成元が無い」と自分でコメントしている**。`signiActivateGate.ts:180-247` の起動コスト可否判定にも
 コラボの検査が無い。**取り方**＝`EffectCost` に `collab` を足して可否判定と支払いの両方へ配線する。
 
+🏁**2026-09-12（第282バッチ）にクローズ。** 全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-12。
+■🔴**登録票の「取り方」は半分だけ正しかった**＝`cost.collab` の配線は要ったが、**「コラボ」の意味そのものを誤読していた**。
+公式 FAQ（`WXDi-CP01-005`/`-006`）＝「コラボライバー2人を呼ぶ」は**『ライバートークン』を2つ得る**／「コラボする」は
+**トークンを1つ取り除く**。engine の `STUB{COLLAB}` と `INTERNAL_DO_COLLAB`、【ガード】代替（`O-230`）、既存 golden 3本は
+揃って**アシストルリグを場に出す**形だった＝**計器はどれも緑**（engine・golden・コメントが同じ誤読で一致）。
+■**消化＝9効果**（呼ぶ5＋コラボする4）。実機 `V-200`（2本・反転確認あり）。
+
+### 🏁`O-296`／`O-309`／`O-310`／`O-311`（2026-09-12 第282バッチでクローズ）
+
+- `O-296`＝登録1件 → **実測8効果**。🔴`POWER_SET` は **`duration` を engine が読んでいなかった**（登録票の前提が誤り）。
+  `SET_BASE_LEVEL.until` を3種へ広げ、場全体の「次のターンの間」は `FieldGrant{kind:'baseLevel'}`（後から出たシグニにも効く）。
+  🔑**`O-293`（エナフェイズ終了まで）と同族**だったが、受け皿は別々（ストア1本・grant 1種）で足りた。
+- `O-309`＝①②は**受け皿が既にあり列挙側だけ**（`SEARCH` pending の `deckOwner`/`opponentResponds`、`selectOrInteract` の第8引数）。
+  ③だけ新 STUB（相手がコストの無い CHOOSE で順番を選ぶ）。実機 `V-202`（相手の探索が CPU へ回る）。
+- `O-310`＝両者のエナは `applyDirectAction` の EXILE/TRASH が**最初から両者を探していた**＝列挙だけの穴。
+  ゾーンを跨ぐ単一プールは新 `TargetScope` 1つ＋STUB 1本（シャドウ判定は場の候補だけ）。実機 `V-201`。
+  ⚠**近似**＝`WX24-P4-022-E3` は色ごとに選んで**その場で戻す**（原文は全色の対象を決めてから一度に戻す）。
+- `O-311`＝**carrier は作らなかった**。`STUB{BAKE_LAST_PROCESSED_REFS}`＝参照が生きているうちに
+  `levelEqLastProcessed`／`powerEqLastProcessed` を具体値へ焼く（参照不能は到達不能値）。
+  🔑**登録票の `WXEX2-54-E2`（E2E で `lastProcessedCards` が空）は `O-312` 側の効果**＝この族には入れていない。
+
+### 🆕`O-330`＝チェックゾーン経由の出し直しが「新しいシグニ」にならない（live 2効果・2026-09-12 登録）
+
+**母集団（実測）**＝`FIELD_SIGNI_TO_CHECK_ZONE` を持つ live 2効果（`WXK07-018-E1`＝今回 MANUAL 化／＜遊具＞の `count:'ALL'` 形1件）。
+**症状**＝`FIELD_SIGNI_TO_CHECK_ZONE` は往復を1アクションに畳み、**ダウン／凍結／アタック済みの記録だけ**を落とす。
+原文の「チェックゾーンに置き、場に出す」は**場を離れて出直す**ので、①付属札（チャーム・アクセ・下のカード）はトラッシュへ行く
+②パワー修整・付与キーワード・能力喪失は消える ③【出】能力が発動する——はずだが、①②は**実装を読んで引き継いでいると確認**、
+③は**未確認**（コメントは「BattleScreen が `lastProcessedCards` から【出】を発火する」と書くが、instanceId が変わらないので
+盤面差分の【出】収集に載らない可能性がある）。
+**取り方**＝③を実機で先に観測（`WXK07-018-E1` で【出】持ちのシグニを往復させる）→ 必要なら「離場＋再配置」の funnel
+（`removeFromField` → `PLACE_SIGNI_ON_FIELD`）へ寄せる。⚠`O-147`（畳む処理は4つ同時に壊れる）を先に読む。
+
+### 🆕`O-331`＝「次のあなたのターンのターン終了時まで、基本レベルを１にする」が1ターン短い（live 1効果・2026-09-12 登録）
+
+**母集団（実測）**＝`STUB{CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN}` の live 1効果（`WXK07-032-E2`）。
+**症状**＝書き先が `attack_phase_level_overrides`（turn-end で消える）＝**次の自分のターンまで届かない**
+（`turnScopedState.ts` の同ストアのコメントに既知の近似として書かれていたが索引に無かった）。
+**取り方**＝`SET_BASE_LEVEL.until` へ `'UNTIL_NEXT_OWN_TURN_END'` を足し、`SigniAttackBan.turnsRemaining` と同じ規約の
+寿命ストアを1本（`power_mods_until_next_own_turn` が先例）。対象選択は `O-296` で足した経路をそのまま使える。
+
 ---
 
 ## 2026-09-01 整理：PLAN §5.3 機構 worklist 登録票の全文（PLAN 本体は索引表だけを残した）
@@ -7321,6 +7361,22 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-11・第281バッチ後・PLAN §6 から退避）
+
+- **2026-09-11（第281バッチ・Opus 5 単独＝🏁`O-325`・🏁`O-291`・🏁`O-290` クローズ・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）。⚠**今回の9効果はどの計器にも映らない形**＝
+  ①**修飾句が丸ごと落ちた過剰効果**（`PR-K070-E1` のクラス縛り／`WX25-P1-093-E1` のエナ支払い）＝
+  語彙照合では「実装済み」としか出ない ②**JSON にも engine にも宣言が無い**（キー3枚の第1文＝
+  effectId として切り出されないので `_effect_srctext.json` にも無い） ③**live にあるのに画面が呼ばない**
+  （`WDK16-05T/05H/05S` の `SELF_PLAY_RESTRICT`）。⇒ **実機だけが割れる層が3件あった。**
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**機構 worklist 13項目 / 上限43効果**
+  （🏁A 0／🏁B 0／G 13項目・43効果）｜🏁**実機 残0**（`V-198`／`V-199` を同じ巡で返済）。
+  🔧**ゲート（全緑 ✅）**＝**golden 3986 PASS**（第280 の 3981 → 3986＝**新設5本**）／smoke 10745 OK ／ fuzz 0 ／
+  census 1 / BASELINE 1 ／ census:stubs A群 無言 no-op 0・C群 0 ／ census:enginetext A群 0・costtext A群 0（据置）／ lint 0 errors。
+  **ratchet の較正なし**（途中で2つ動かしたのは `PR-K070-E1` の `mandatory` 書き換えミス＝旧 live の値へ戻して解消）。
+  **新設 golden 5本・実機4本はすべて反転確認あり。**
 
 ### 恒久指標アーカイブ（2026-09-11・第276バッチ後・PLAN §6 から退避）
 

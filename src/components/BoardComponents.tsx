@@ -1046,6 +1046,10 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       <Stat label="トラッシュ"  value={state.trash.length}      testId={isMe ? 'my-trash' : 'op-trash'} onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: true })} />
       <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
       <Stat label="コイン"      value={state.coins} color="#cc8800" />
+      {/* 🆕§5.3 `O-292`＝ライバートークン（「コラボライバーN人を呼ぶ」で得て「コラボする」で使う）。持っているときだけ出す。 */}
+      {(state.liver_tokens ?? 0) > 0 && (
+        <Stat label="ライバー" value={state.liver_tokens ?? 0} color="#d08bd0" testId={isMe ? 'my-liver-tokens' : 'op-liver-tokens'} />
+      )}
     </div>
   );
 

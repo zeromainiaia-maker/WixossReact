@@ -1,18 +1,18 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 362
+PlayerState のキー: 365
 🔴 書きあり・読み 0: 0
 
 
 ## 参考：書き込みの多い順（上位40）
-  1475 読 / 102 書  energy
-  1226 読 /  72 書  deck
-  3695 読 /  70 書  field
-  1621 読 /  65 書  trash
-  1782 読 /  61 書  hand
-   201 読 /  39 書  lrig_deck
-    53 読 /  38 書  temp_power_mods
+  1488 読 / 102 書  energy
+  1230 読 /  72 書  deck
+  3698 読 /  69 書  field
+  1631 読 /  65 書  trash
+  1783 読 /  61 書  hand
+   197 読 /  36 書  lrig_deck
+    53 読 /  36 書  temp_power_mods
    173 読 /  23 書  lrig_trash
    121 読 /  23 書  keyword_grants
    155 読 /  21 書  life_cloth
@@ -20,7 +20,7 @@ PlayerState のキー: 362
    100 読 /  15 書  coins
      3 読 /  14 書  opp_virus_removed_just
      7 読 /  12 書  pending_banish_substitute
-   289 読 /  11 書  actions_done
+   285 読 /  11 書  actions_done
      2 読 /  11 書  self_optional_effect_taken
     11 読 /  10 書  pending_crash_source_card_nums
     27 読 /  10 書  granted_effects
@@ -32,7 +32,6 @@ PlayerState のキー: 362
      2 読 /   7 書  banish_redirect_battle_target_nums
      2 読 /   7 書  banish_redirect_power0_target_nums
      4 読 /   7 書  prevent_defeat
-     9 読 /   7 書  attack_phase_level_overrides
     16 読 /   7 書  lrig_riding_signi
     16 読 /   7 書  lrig_upkeep_condition
      6 読 /   7 書  is_betting_this_effect
@@ -41,6 +40,7 @@ PlayerState のキー: 362
     14 読 /   6 書  temp_level_mods
      1 読 /   6 書  draw_limit
      4 読 /   6 書  signi_color_overrides
+     9 読 /   6 書  attack_phase_level_overrides
     15 読 /   6 書  card_identity_overrides
      4 読 /   6 書  signi_deploy_count_limit
      1 読 /   6 書  acce_just_done

@@ -2275,15 +2275,19 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   // `TRASH`＝エナからトラッシュへ、で近似していた＝除外ではないので相手はトラッシュから回収できる）。
   if (tgt.type === 'ENERGY_CARD') {
     // 🆕同上＝エナからの除外も保護の対象（意味照合 段2）。
-    if (oppZoneMoveBlocked('energy', tgt.owner, ctx)) return done(addLog(ctx, 'エナ保護により効果なし'));
-    const estate = ownerState(tgt.owner, ctx);
-    const ecands = energyCandidatesForOwner(tgt.owner, estate, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    // 🆕§5.3 `O-310`（2026-09-12・`WXEX2-08-E4`）＝`owner:'any'`（「エナゾーンにあるカード１枚を対象とし」＝持ち主の指定なし）は
+    //   **両者のエナ**から選ぶ。🔴旧＝`ownerState('any')` が相手側へ潰れるので、live は `owner:'self'` に倒していた。
+    //   ⚠除外の直接適用（`applyDirectAction` の EXILE）は `'any'` のとき両者のエナを探す＝列挙と適用が揃っている。
+    const eownersEX: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner];
+    if (eownersEX.every(o => oppZoneMoveBlocked('energy', o, ctx))) return done(addLog(ctx, 'エナ保護により効果なし'));
+    const ecands = eownersEX.flatMap(o => oppZoneMoveBlocked('energy', o, ctx) ? []
+      : energyCandidatesForOwner(o, ownerState(o, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones));
     if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
     // 🔴`resolveNum` は `{$ref:…}` を **0 に潰す**（＝無言 no-op）ので `resolveCountRef` を使う（続き742-2）。
     //   `WXK11-004-E1`「あなたのセンタールリグのレベル**１につき**対戦相手のエナゾーンにあるカードを
     //   １枚まで対象とし…ゲームから除外する」は `{$ref:'center_lrig_level'}` が要る。
     const ecount = tgt.count === 'ALL' ? ecands.length : Math.min(resolveCountRef(tgt.count, ctx), ecands.length);
-    const escope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
+    const escope: TargetScope = tgt.owner === 'any' ? 'both_energy' : tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     return selectOrInteract(ecands, ecount, tgt.upToCount ?? false, escope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
   }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
@@ -2732,6 +2736,20 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, actionForSelect, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
+/**
+ * 🆕§5.3 `O-296`＝一時的な基本レベル変更を**期間ごとのストア**へ書く（`SET_BASE_LEVEL` 本体と SELECT_TARGET の再入が共有）。
+ * - `'UNTIL_OPP_TURN_END'` → `base_level_overrides_until_opp_turn`（効果の持ち主の次ターン開始時に消える）
+ * - それ以外（`'END_OF_TURN'`）→ `attack_phase_level_overrides`（turn-end で両者から消える）
+ * ⚠置き場は**効果の持ち主の state**（対象が相手シグニでも）＝`applyContinuousBaseLevelOverride` は両者を読む。
+ */
+function applyTimedBaseLevel(cardNum: string, a: import('../types/effects').SetBaseLevelAction, ctx: ExecCtx): ExecCtx {
+  const key = a.until === 'UNTIL_OPP_TURN_END' ? 'base_level_overrides_until_opp_turn' : 'attack_phase_level_overrides';
+  const store = { ...(ctx.ownerState[key] ?? {}), [cardNum]: a.value };
+  const name = ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
+  return addLog({ ...ctx, ownerState: { ...ctx.ownerState, [key]: store } },
+    `${name}の基本レベルを${a.value}に変更（${key === 'attack_phase_level_overrides' ? 'ターン終了時まで' : '次の対戦相手のターン終了時まで'}）`);
+}
+
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   const value = resolveNum(a.value);
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
@@ -2744,13 +2762,17 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
 
   function applyPowerSet(targets: string[], c: ExecCtx): ExecCtx {
     let cur = c;
+    // 🔴§5.3 `O-296`（2026-09-12）＝**`duration` を読んでいなかった**＝「次の対戦相手のターン終了時まで、
+    //   基本パワーは N になる」（`WXDi-D09-H15-E1`／`WXDi-CP01-031-E1`／`SPDi44-08-E2`／`WX25-P1-018-E2`）が
+    //   **宣言したターンの終わりに消え**、守りたい相手ターンに効いていなかった。長期ストアは POWER_MODIFY と同じ。
+    const psKey = a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
     for (const cardNum of targets) {
       const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(cardNum, cur) : tgtOwner;
       const s = ownerState(own, cur);
       const base = parseInt(cur.cardMap.get(cardNum)?.Power ?? '0') || 0;
-      const mods = [...(s.temp_power_mods ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: value - base }];
-      cur = addLog(setOwnerState(own, { ...s, temp_power_mods: mods }, cur),
-        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワーを${value}に`);
+      const mods = [...(s[psKey] ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: value - base }];
+      cur = addLog(setOwnerState(own, { ...s, [psKey]: mods }, cur),
+        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワーを${value}に${psKey === 'power_mods_until_opp_turn' ? '（次の対戦相手のターン終了時まで）' : ''}`);
     }
     return cur;
   }
@@ -2833,8 +2855,20 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       trashFilter = rest;
       trashExcludeSelf = true;
     }
+    // 🆕§5.3 `O-309`②（2026-09-12・`WXK06-025-E2`「正面のシグニ１体を対象とし、それをトラッシュに置いてもよい」）＝
+    //   `frontOfSelf` を効果元の正面（相手ゾーン 2-zi）の1体へ絞る。🔴**BANISH/BOUNCE/DOWN/TRANSFER_TO_DECK/REMOVE_ABILITIES は
+    //   各ハンドラで解決していたのに TRASH だけ読み手が無く**、`matchesFilter` が黙って無視＝相手の全シグニが候補だった
+    //   （golden の反転確認「正面が空なら何も起きない」が捕まえた）。⚠正面が空なら候補0（fail-closed）。
+    let trashFrontRestrict: string[] | null = null;
+    if (trashFilter?.frontOfSelf) {
+      const { frontOfSelf: _f, ...rest } = trashFilter;
+      trashFilter = rest;
+      const frontNumT = tgt.owner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : null;
+      trashFrontRestrict = frontNumT ? [frontNumT] : [];
+    }
     const allSigCands0 = fieldCandidates(state, trashFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     let allSigCands = trashThisCardRestrict ? allSigCands0.filter(n => trashThisCardRestrict!.includes(n)) : allSigCands0;
+    if (trashFrontRestrict) allSigCands = allSigCands.filter(n => trashFrontRestrict!.includes(n));
     if (trashExcludeSelf && ctx.sourceCardNum) allSigCands = allSigCands.filter(n => n !== ctx.sourceCardNum);
     const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
     let cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
@@ -3062,7 +3096,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       resolvedFilter = rest;
       triggerRestrict = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : [];
     }
-    let cands = energyCandidatesForOwner(tgt.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    // 🆕§5.3 `O-310`（2026-09-12・`WD20-006-E1`「エナゾーンにあるカード２枚を対象とし」）＝`owner:'any'` は**両者のエナ**。
+    //   ⚠直接適用（`applyDirectAction` の TRASH/ENERGY_CARD）は両者を探す＝列挙だけ足せば揃う。相手エナの保護もそこで見る。
+    let cands = tgt.owner === 'any'
+      ? (['self', 'opponent'] as Owner[]).flatMap(o => oppZoneMoveBlocked('energy', o, ctx) ? []
+        : energyCandidatesForOwner(o, ownerState(o, ctx), resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones))
+      : energyCandidatesForOwner(tgt.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
     // 🆕**任意コストの前に宣言した対象だけをトラッシュへ**（§5.3 `O-96` 第9バッチ・2026-09-02）＝
     //   「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
@@ -3878,6 +3917,17 @@ function resolveDynamicFilter(
     result = (maxAlly !== undefined && maxAlly > 0)
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: maxAlly - 1 } }
       : rest;
+  }
+  // 🆕§5.3 `O-311`＝`powerEqLastProcessed`（「この方法でデッキに移動したシグニと**同じパワー**の」）。
+  //   ⚠本来は `STUB{BAKE_LAST_PROCESSED_REFS}` が対話の前に具体値へ焼く。ここへ焼かれずに来たら
+  //     直前の札のパワーちょうどへ解き、**参照不能なら空ヒット**（fail-closed＝「何でも当たる」に化けさせない）。
+  if (result.powerEqLastProcessed) {
+    const { powerEqLastProcessed: _pe, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const pw = ref ? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '', 10) : NaN;
+    result = !Number.isNaN(pw)
+      ? { ...rest, powerRange: { min: pw, max: pw } }
+      : { ...rest, powerRange: { min: 1, max: 0 } };
   }
   if (result.powerLteLastProcessed) {
     const { powerLteLastProcessed: _p, ...rest } = result;
@@ -4751,7 +4801,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
   // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
-  return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+  // 🆕§5.3 `O-309`②＝「対戦相手は手札からシグニ１枚を場に出してもよい」は**相手が自分の手札から選ぶ**（`opponentSelects`）。
+  const oppPicksAF = !!a.opponentSelects && srcDefined.owner === 'opponent' && srcDefined.type === 'HAND_CARD';
+  return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, oppPicksAF, { selectionConstraint: src.selectionConstraint });
 }
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
@@ -5973,6 +6025,10 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     ...(a.handOrFieldAsDown ? { handOrFieldAsDown: true } : {}),
     afterAction: a.afterSearch,
     selectionConstraint: resolvedSelectionConstraint,
+    // 🆕§5.3 `O-309`①／`O-311`＝相手が**自分の**デッキを探す（応答者＝相手／デッキの持ち主＝相手）。
+    //   ⚠`opponentResponds` を立てた SEARCH だけに限る＝既存の「相手のデッキを自分が探す」形の応答者を変えない。
+    ...(a.opponentResponds ? { opponentResponds: true } : {}),
+    ...(a.opponentResponds && a.from.owner === 'opponent' ? { deckOwner: 'opponent' as const } : {}),
   });
 }
 
@@ -8546,8 +8602,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under', owner: Owner, gateZoneOnly?: boolean): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under' | 'acce', owner: Owner, gateZoneOnly?: boolean, acceHostFilter?: import('../types/effects').TargetFilter): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
+  // 🆕§5.3 `O-311`（`WXK04-003-E2`）＝公開札を1枚ずつ「どのシグニの【アクセ】にするか」へ回す。
+  //   ⚠`resumeSearch` の `INTERNAL_ASK_ACCE_HOST` 分岐がピック枚数ぶん展開し、デッキから抜いて付ける（対話を跨いでも continuation を落とさない）。
+  if (then === 'acce') return { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST', ...(acceHostFilter ? { acceHostFilter } : {}) } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
   if (then === 'trap') return { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction;
@@ -8644,7 +8703,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       visibleCards: cands,
       maxPick: stageMax,
       ...(stage.pickUpTo ? { optional: true } : {}),
-      thenAction: lookPickThenAction(stage.then, owner, stage.gateZoneOnly),
+      thenAction: lookPickThenAction(stage.then, owner, stage.gateZoneOnly, stage.acceHostFilter),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
       // §6.4 O-2: 「対戦相手は自分のデッキの上から〜見て」＝相手のデッキを相手自身が掘る。
@@ -10773,14 +10832,37 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'REARRANGE_SIGNI':                return execRearrangeSigni(action as import('../types/effects').RearrangeSigniAction, ctx);
     case 'SET_BASE_LEVEL': {
-      // until:END_OF_TURN は【起】等で一時的に基本レベルを変更（CHANGE_BASE_LEVEL STUB と同じ attack_phase_level_overrides を使用）。
+      // `until` あり＝一時変更。`until` 無しは CONTINUOUS＝`applyContinuousBaseLevelOverride`（cardMap 上書き）で反映する。
+      // 🔴§5.3 `O-296`（2026-09-12）＝旧は **`END_OF_TURN` ∧ 効果元自身** しか扱えず、
+      //   ①「次の対戦相手のターン終了時まで」（`WXDi-D09-H15-E1`）②「シグニ１体を対象とし…基本レベルを１にする」
+      //   （`WX19-067-E1`／`WXK07-081-E1`／`WX11-051-E1`）③「次のターンの間、対戦相手の場にあるシグニの基本レベルは１」
+      //   （`WX11-051-BURST`）の3形が**どれも何もしなかった**（②③は読み手の無い `BLOCK_ACTION{SET_LEVEL_1}` だった）。
       const sbl = action as import('../types/effects').SetBaseLevelAction;
-      if (sbl.until === 'END_OF_TURN' && ctx.sourceCardNum && typeof sbl.value === 'number') {
-        const newOv = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [ctx.sourceCardNum]: sbl.value };
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOv } },
-          `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}の基本レベルを${sbl.value}に変更（ターン終了時まで）`));
+      if (!sbl.until || typeof sbl.value !== 'number') return done(ctx);
+      const tgtSBL = sbl.target;
+      if (sbl.until === 'NEXT_TURN') {
+        // ⚠場全体のみ（「場に出たあとでレベルが１になる」＝後から出たシグニにも効く＝場レベル grant）。
+        if (!tgtSBL || tgtSBL.type !== 'SIGNI' || tgtSBL.count !== 'ALL' || tgtSBL.owner === 'any') {
+          return done(addLog(ctx, '基本レベル変更（次のターンの間）：場全体の指定が無いので何もしない'));
+        }
+        const rSBL = reserveFieldGrant(tgtSBL, { kind: 'baseLevel', level: sbl.value, filter: tgtSBL.filter }, 'next', ctx);
+        return done(addLog(rSBL.ctx, rSBL.reserved
+          ? `次のターンの間、${tgtSBL.owner === 'opponent' ? '対戦相手' : 'あなた'}の場にあるシグニの基本レベルは${sbl.value}になる`
+          : '基本レベル変更：対象の場が無い'));
       }
-      return done(ctx); // CONTINUOUS。基本レベルは applyContinuousBaseLevelOverride（cardMap上書き）で反映
+      if (!tgtSBL || tgtSBL.filter?.thisCardOnly) {
+        if (!ctx.sourceCardNum) return done(ctx);
+        return done(applyTimedBaseLevel(ctx.sourceCardNum, sbl, ctx));
+      }
+      const { cands: candsSBL, scope: scopeSBL } = fieldCandidatesByOwner(tgtSBL.owner, tgtSBL.filter, ctx);
+      if (candsSBL.length === 0) return done(addLog(ctx, '基本レベル変更：対象シグニなし'));
+      if (tgtSBL.count === 'ALL') {
+        let curSBL = ctx;
+        for (const cn of candsSBL) curSBL = applyTimedBaseLevel(cn, sbl, curSBL);
+        return done(curSBL);
+      }
+      // ⚠`resolveNum` は `{$ref:…}` を 0 に潰す（C2 トリップワイヤ）＝枚数は `resolveCountRef` で解く。
+      return selectOrInteract(candsSBL, resolveCountRef(tgtSBL.count, ctx), tgtSBL.upToCount ?? false, scopeSBL, sbl as EffectAction, undefined, ctx);
     }
     case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
@@ -11154,19 +11236,33 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       //   「場を離れて出直す」＝アップした新しいシグニとして場に出る＝アタック済みの記録も落ちる。
       // ⚠`lastProcessedCards` に載せる＝呼び出し側（BattleScreen）がここから【出】を発火する
       //   （`ADD_TO_FIELD` と同じ受け渡し）。
+      // 🆕§5.3 `O-310`（2026-09-12・`WXK07-018-E1`）＝**数を指定した形**（「あなたのシグニ１体と対戦相手のシグニ１体を対象とし、
+      //   それらをそれぞれのチェックゾーンに置き、それらをダウン状態で場に出す」）は**選ばせ**、`asDown` ならダウン状態で出す。
+      //   🔴旧 live＝`ADD_TO_FIELD{owner:'self'}`（source 無し）＝**自分のデッキの一番上を場に出す**過剰実行だった。
+      //   ⚠候補は `fieldCandidatesByOwner`（シャドウ・効果耐性・`excludeSelf` の合流点）。選択後は `applyDirectAction` が
+      //     `fixedCardNums:[選んだ1体]` でここへ再入して即適用する。
       const fsc = action as import('../types/effects').FieldSigniToCheckZoneAction;
       const fscOwner: Owner = (fsc.target?.owner === 'opponent') ? 'opponent' : 'self';
       const fscState = ownerState(fscOwner, ctx);
+      const pickFSC = typeof fsc.target?.count === 'number' && !fsc.fixedCardNums
+        ? new Set(fieldCandidatesByOwner(fscOwner, fsc.target.filter, ctx).cands) : null;
       const zonesFSC = [0, 1, 2].filter(zi => {
         const top = fscState.field.signi[zi]?.at(-1);
         if (!top) return false;
+        if (fsc.fixedCardNums) return fsc.fixedCardNums.includes(top);
+        if (pickFSC) return pickFSC.has(top);
         return !fsc.target?.filter || matchesFilter(ctx.cardMap.get(getCardNum(top)), fsc.target.filter);
       });
       if (zonesFSC.length === 0) return done(addLog(ctx, 'チェックゾーンに置くシグニなし'));
+      if (pickFSC && typeof fsc.target?.count === 'number') {
+        const candsFSC = zonesFSC.map(zi => fscState.field.signi[zi]!.at(-1)!);
+        return selectOrInteract(candsFSC, Math.min(fsc.target.count, candsFSC.length), fsc.target.upToCount ?? false,
+          fscOwner === 'self' ? 'self_field' : 'opp_field', fsc as EffectAction, undefined, ctx);
+      }
       const topsFSC = zonesFSC.map(zi => fscState.field.signi[zi]!.at(-1)!);
       const downFSC = [...(fscState.field.signi_down ?? [false, false, false])];
       const frozenFSC = [...(fscState.field.signi_frozen ?? [false, false, false])];
-      for (const zi of zonesFSC) { downFSC[zi] = false; frozenFSC[zi] = false; }
+      for (const zi of zonesFSC) { downFSC[zi] = !!fsc.asDown; frozenFSC[zi] = false; }
       const newFSC: PlayerState = {
         ...fscState,
         field: { ...fscState.field, signi_down: downFSC, signi_frozen: frozenFSC },
@@ -11386,6 +11482,19 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'INTERNAL_LEAVE_SUB_NOOP') return done(ctx);
       // 「〜1枚**まで**」の CHOOSE に出す「何もしない」枝の受け皿（engine 内部専用・parser は生成しない）。
       if (stub.id === 'INTERNAL_NOOP') return done(ctx);
+      // §5.3 `O-310`＝`OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND` で選んだ1枚を、置き場に応じて手札へ戻す
+      //   （場＝`BOUNCE` の直接適用＝離場置換を通す／エナ＝`TRANSFER_TO_HAND{ENERGY_CARD}` の直接適用）。
+      if (stub.id === 'INTERNAL_OPP_FIELD_OR_ENERGY_TO_HAND') {
+        const cnOFE = ctx.lastProcessedCards?.[0];
+        if (!cnOFE) return done(ctx);
+        if (ctx.otherState.field.signi.some(st => st?.at(-1) === cnOFE)) {
+          return applyDirectAction({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction, cnOFE, ctx);
+        }
+        if (ctx.otherState.energy.includes(cnOFE)) {
+          return applyDirectAction({ type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } } as EffectAction, cnOFE, ctx);
+        }
+        return done(ctx);
+      }
       if (stub.id === 'INTERNAL_LEAVE_SUB_RESUME_SELECT') {
         const r = (stub as unknown as { leaveSubResume?: { selected: string[]; pending: PendingInteractionDef & { type: 'SELECT_TARGET' } } }).leaveSubResume;
         return r ? resumeSelectTarget(r.selected, r.pending, ctx) : done(ctx);
@@ -13817,9 +13926,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         : psA.target.owner as Owner;
       const psS = ownerState(psOwner, ctx);
       const psBase = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '0') || 0;
-      const psMods = [...(psS.temp_power_mods ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: psValue - psBase }];
-      return done(addLog(setOwnerState(psOwner, { ...psS, temp_power_mods: psMods }, ctx),
+      // §5.3 `O-296`＝`duration` を読む（execPowerSet と同じ規約。落とすと相手ターンに効かない）。
+      const psKeyD = psA.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+      const psMods = [...(psS[psKeyD] ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: psValue - psBase }];
+      return done(addLog(setOwnerState(psOwner, { ...psS, [psKeyD]: psMods }, ctx),
         `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のパワーを${psValue}に`));
+    }
+    case 'SET_BASE_LEVEL': {
+      // 🆕§5.3 `O-296`＝外部 SELECT_TARGET 経由で選ばれたシグニの基本レベルを一時変更する（`SET_BASE_LEVEL` 本体と同じ）。
+      //   ⚠case が無いと default→本体を再実行して同じ SELECT_TARGET を再発行する（STORY_CHANGE の注記と同じ）。
+      return done(applyTimedBaseLevel(cardNum, action as import('../types/effects').SetBaseLevelAction, ctx));
     }
     case 'STORY_CHANGE': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニのストーリーを書き換える。execStoryChange と同じ。
@@ -13832,6 +13948,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const scOverrides = { ...(scS.story_overrides ?? {}), [cardNum]: scA.newStory };
       return done(addLog(setOwnerState(scOwner, { ...scS, story_overrides: scOverrides }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}のストーリーを${scA.newStory}に変更`));
+    }
+    case 'FIELD_SIGNI_TO_CHECK_ZONE': {
+      // 🆕§5.3 `O-310`＝選んだ1体だけを往復させる（本体へ `fixedCardNums` で再入＝選択UIを二度出さない）。
+      return executeAction({ ...(action as import('../types/effects').FieldSigniToCheckZoneAction), fixedCardNums: [cardNum] } as EffectAction, ctx);
     }
     default:
       // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す

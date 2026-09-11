@@ -131,7 +131,10 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                       ? selectedLrigGrantedFieldBanish.size <= lgFieldZoneCost.count
                       : selectedLrigGrantedFieldBanish.size === lgFieldZoneCost.count)
                     && [...selectedLrigGrantedFieldBanish].every(zi => lgFbSelectableZones.includes(zi)));
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk;
+              // 🆕§5.3 `O-292`＝ライバートークン（提示ゲート `canActivateLrigEffect` と同じ軸）。
+              const lgCollabCost = eff.cost?.collab ?? 0;
+              const lgCollabOk = lgCollabCost === 0 || (my.liver_tokens ?? 0) >= lgCollabCost;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -160,6 +163,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                             lgLrigDownCost ? fmtLrigDownCostLabel(lgLrigDownCost) : null,
                             lgFieldBanishCost ? `場から${lgFieldBanishCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(lgFieldBanishCost.filter)}シグニ${lgFieldBanishCost.count}体をバニッシュ` : null,
                             lgFieldTrashCost ? `場から${lgFieldTrashCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(lgFieldTrashCost.filter)}シグニ${lgFieldTrashCost.count}体${lgFieldUpTo ? 'まで' : ''}をトラッシュ` : null,
+                            lgCollabCost > 0 ? `コラボライバー${lgCollabCost}人とコラボ（ライバートークン${my.liver_tokens ?? 0}個）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {lgLrigDownCost && !lgLrigDownOk && (

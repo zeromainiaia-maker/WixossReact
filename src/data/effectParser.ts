@@ -1144,8 +1144,9 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   //   手札とエナの2枚を**踏み倒して撃てた**。いまは上の `multiZoneExile` が正しい形で拾う。
   // 【トラップ】であるこのカードを公開するコスト → none（特殊コスト）
   if (/【トラップ】であるこのカードを公開する/.test(costStr)) cost.none = true;
-  // コラボコスト → none（ゲーム実装外コスト）
-  if (/コラボライバー/.test(costStr)) cost.none = true;
+  // 🔴§5.3 `O-292`（2026-09-12）＝「コラボライバーN人とコラボする」は**ライバートークンN個**を払うコスト（公式 FAQ）。
+  //   旧＝`none:true`（「ゲーム実装外コスト」）に倒しており、トークンを持たなくても撃てた。
+  { const collabM = costStr.match(/コラボライバー([０-９\d]+)人とコラボする/); if (collabM) cost.collab = parseNum(collabM[1]); }
   // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝受け皿を作ったのでガードを解いた。**
   //   旧＝`fieldTrash` が `count:number` しか持てず「すべて」を表せないため、この綴りを含むコストは
   //   **意図的に `undefined` を返して `costUnparsed` に倒していた**（部分採用＝

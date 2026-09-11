@@ -7297,6 +7297,10 @@ export function collectBanishSubstitutes(
           const excludeSourceFromVictims = bs.victimTarget?.filter?.excludeSelf ?? true;
           if (excludeSourceFromVictims && sourceNum === victimNum) continue;
           if (bs.victimFilter === 'riseIcon' && !hasRiseIcon(victimNum)) continue;
+          // 🆕§5.3 `O-311`＝「このシグニの【出】能力で選んだシグニ」（`WXDi-P10-052-E2`）＝**選んだ1体だけ**を守る。
+          //   🔴旧＝`otherAny`（他の味方シグニ全部）に近似しており、選んでいないシグニまで身代わりで守れた。
+          //   ⚠記録が無い（【出】で選んでいない）なら誰も守らない（fail-closed）。
+          if (bs.victimFilter === 'chosenByOnPlay' && state.on_play_chosen_signi?.[sourceNum] !== victimNum) continue;
           if (!victimCard) continue;
           result.push({ kind: 'sacrifice', sourceNum, sacrificeNum: sourceNum });
         }
@@ -8484,15 +8488,34 @@ export function applyContinuousBaseLevelOverride(
   //   従来この store の読み手は `EICHI_LEVEL_SUM` の1箇所だけで、レベル参照の funnel（cardMap 上書き）に
   //   載っていなかった＝「基本レベルを1にする」がフィルタにもレベル比較にも一切効かない**ほぼ死んだ store**だった。
   // ⚠CONTINUOUS 宣言（上の scan）より**後**に適用する＝一時変更が恒久宣言を上書きする（後勝ち）。
+  // 🆕§5.3 `O-296`＝場レベル grant（`FieldGrant{kind:'baseLevel'}`＝「次のターンの間、対戦相手の場にあるシグニの
+  //   基本レベルは１になる」`WX11-051-BURST`）＝**その state の場にいまいるシグニ**へ当てる（後から出たシグニにも効く）。
+  for (const [state, opp] of [[ownerState, otherState], [otherState, ownerState]] as const) {
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const grant of activeFieldGrantsForSigni(state, opp, top, cardMap)) {
+        if (grant.kind === 'baseLevel') overrides.push({ cn: top, level: grant.level });
+      }
+    }
+  }
   for (const state of [ownerState, otherState]) {
     for (const [cn, level] of Object.entries(state.attack_phase_level_overrides ?? {})) {
       if (typeof level === 'number') overrides.push({ cn, level });
     }
+    // 🆕§5.3 `O-296`＝「次の対戦相手のターン終了時まで」（`WXDi-D09-H15-E1`）。寿命は `clearUntilOppTurnEffects`。
+    for (const [cn, level] of Object.entries(state.base_level_overrides_until_opp_turn ?? {})) {
+      if (typeof level === 'number') overrides.push({ cn, level });
+    }
   }
   if (overrides.length === 0) return cardMap;
-  const newMap = new Map(cardMap);
+  // 🔴§5.3 `O-296`＝**写し先の型を保つ**。本番の `cardMap` は `InstanceMap`（instanceId → CardNum へフォールバックする
+  //   派生クラス）で、素の `new Map` へ写すと**フォールバックが消え**、instanceId（`WX..#3`）キーの上書きが
+  //   1つも当たらない（LESSONS §4.1「派生クラスで挙動が変わる引数を素の型で渡さない」）。
+  const MapCtorBL = cardMap.constructor as new (src: Map<string, CardData>) => Map<string, CardData>;
+  const newMap = new MapCtorBL(cardMap);
   for (const { cn, level } of overrides) {
-    const card = newMap.get(cn);
+    const card = newMap.get(cn) ?? newMap.get(baseNumOf(cn));
     if (card) newMap.set(cn, { ...card, Level: String(level) });
   }
   return newMap;

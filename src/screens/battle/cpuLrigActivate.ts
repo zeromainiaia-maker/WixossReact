@@ -47,6 +47,7 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   'energyTrashColorAll', // 指定色をすべて（選択不要）
   'charmTrash',          // 自分の場のチャームを先頭から自動
   'exileLrigFromLrigDeck', // ルリグデッキから自動（gate が枚数を検算している）
+  'collab',              // ライバートークンN個（gate が所持数を検算・実行側が deduct）＝§5.3 `O-292`
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */

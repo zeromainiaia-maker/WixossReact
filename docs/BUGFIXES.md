@@ -1,5 +1,66 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — PLAN §5.3 索引G `O-292`／`O-296`／`O-309`／`O-310`／`O-311` を5項目まとめてクローズ（30効果／24カード）
+
+**着手の形**＝ユーザー指定の5項目を横断で1バッチ。互いに無関係で、束ねたのは固定費（full gates・実機・簿記）のため。
+
+### 🔴5項目とも登録票の前提が崩れた
+
+| ID | 登録票 | 実測 |
+|---|---|---|
+| `O-292` | 「通常効果からのコラボ（`INTERNAL_DO_COLLAB` に生成元が無い）」＝コラボ＝アシストルリグの配置と読んでいた | 🔴**「コラボ」の意味そのものが誤読**。公式 FAQ（`WXDi-CP01-005`/`-006`）＝「コラボライバー2人を呼ぶ」は**『ライバートークン』を2つ得る**、「コラボする」は**トークンを1つ取り除く**。engine は「呼ぶ」でルリグデッキのアシストルリグを場へ出し、【ガード】の代替（`O-230`）でもアシストルリグを出していた＝**呼ぶ5効果＋コラボする4効果の9効果すべて**。既存 golden 3本も同じ誤読を固定していた |
+| `O-296` | 「`SET_BASE_LEVEL.until` が `END_OF_TURN` しか取れない（1件）。隣の `POWER_SET` は `UNTIL_OPP_TURN_END` を持てる」 | 実測**8効果**。①`until` の無い AUTO の `SET_BASE_LEVEL` は **CONTINUOUS 扱いで何もしていなかった**（基本レベル3が一度も成立しない）②🔴**`POWER_SET` は engine が `duration` を読んでいなかった**＝「持てる」は誤り（4効果がターン終了で消えていた）③`BLOCK_ACTION{SET_LEVEL_1}` は**読み手ゼロ**（4効果・`O-270` の同族） |
+| `O-309` | 「新機構が3つ」 | ①`SEARCH` pending には `deckOwner`／`opponentResponds` の**受け皿が既にあり** `execSearch` が立てていないだけ ②`selectOrInteract` の第8引数を渡すだけ ③だけ新しい STUB |
+| `O-310` | 「`fieldCandidatesByOwner('any')` の拡張ではなく `TargetScope` 側の新設が要る」 | 両者のエナは `applyDirectAction` の EXILE/TRASH が**最初から両者を探していた**＝**列挙側だけ**の穴。ゾーンを跨ぐ単一プールもシャドウ判定込みで既存の選択に載った |
+| `O-311` | 「`lastProcessedCards`／`storedTargetCards` は直前ステップ限定＝carrier が要る」 | **carrier は作らなかった**。参照が生きているうちに具体値へ焼く `STUB{BAKE_LAST_PROCESSED_REFS}` 1本で2効果が閉じ、残りは既存の `LOOK_PICK_CHAIN`＋`INTERNAL_ASK_ACCE_HOST`／`SELECT_TARGET_ONLY`＋記録 STUB で足りた |
+
+### 修正1：`O-292`＝ライバートークン（9効果／5カード）
+
+- 新設 `PlayerState.liver_tokens`。`STUB{COLLAB}`（呼ぶ）はトークンを N 個足すだけ（旧＝アシストルリグを配置し、BattleScreen がその【出】まで積んでいた＝2分岐とも撤去）。
+- 新設 `EffectCost.collab`＝**3地点セット**（提示ゲート `canActivateLrigEffect`／`LrigGrantedModal`／`performLrigActivated`）＋CPU allowlist（`cpuLrigActivate.ts`）＋ボタンラベル「コラボN」。parser は旧 `cost.none` を `cost.collab` へ（`WXDi-CP01-006/007/008-E2`＝`heldReview --adopt`）。
+- 【ガード】代替（`WXDi-CP01-005-E1`）＝提示と支払いの両方でトークン数を検算し、支払いの場で減らす（旧＝スタックへ `INTERNAL_DO_COLLAB` を積みアシストルリグを出していた）。`INTERNAL_DO_COLLAB` 自体もトークン消費へ（fail-closed）。
+- 盤面に「ライバー N」を表示（`BoardComponents.tsx`・持っているときだけ）。
+
+### 修正2：`O-296`＝基本レベル／基本パワーの期間（8効果）
+
+- `SET_BASE_LEVEL.until` を3種へ：`END_OF_TURN`（既存ストア）／🆕`UNTIL_OPP_TURN_END`（`base_level_overrides_until_opp_turn`＝持ち主の次ターン開始で `clearUntilOppTurnEffects` が消す）／🆕`NEXT_TURN`（場全体＝`FieldGrant{kind:'baseLevel'}` を `reserveFieldGrant` で予約＝**後から場に出たシグニにも効く**）。対象を選ぶ形（`owner:'any'`/`'opponent'`）は `selectOrInteract` → `applyDirectAction` の新 case。
+- `POWER_SET` の `duration:'UNTIL_OPP_TURN_END'` を `power_mods_until_opp_turn` へ（`execPowerSet`／直接適用の両方）。
+- MANUAL＝`WXDi-D09-H15-E1`／`SPDi44-08-E2`／`WX25-P1-018-E2`／`WX19-067-E1`／`WXK07-081-E1`／`WX11-051-E1`／`WX11-051-BURST`（`WXDi-CP01-031-E1` は engine だけで直る）。
+
+### 修正3：`O-309`＝「対戦相手が選ぶ／探す」の残り（3効果）
+
+- `SearchAction.opponentResponds`＝`execSearch` が pending に `opponentResponds`＋`deckOwner` を立てる（`WXK10-091-E1`＝旧は**主語が逆**で自分のデッキから自分の場へ）。
+- `AddToFieldAction.opponentSelects`＝相手の手札から**相手が**選ぶ（`WXK06-025-E2`＝旧は使用者が相手の手札を見て選んでいた＋先頭が `STUB{BANISH}`＋「そうした場合」が常時真）。`O-327` の許容リストへ `ADD_TO_FIELD|HAND_CARD|N` を追記（配線と対照を足してから）。
+- 🆕`STUB{OPP_TRASH_TO_DECK_TOP_OPP_ORDERS}`＝使用者が2枚まで選び、**相手がコストの無い CHOOSE で順番を選ぶ**（`WXK06-028-E1`・原文の括弧書き＋FAQ「その順番は非公開」）。
+
+### 修正4：`O-310`＝持ち主・ゾーンを跨いだ対象（4効果）
+
+- `execExile`／`execTrash` の ENERGY_CARD が `owner:'any'` で両者のエナを列挙（新 `TargetScope` `both_energy`）＝`WXEX2-08-E4`／`WD20-006-E1`（旧 live は**「エナゾーンにあるカード２枚」の手順が丸ごと無かった**）。
+- 🆕`STUB{OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND}`＋新 `TargetScope` `opp_field_energy`（`selectOrInteract` のシャドウ判定は場の候補だけに掛ける）＝`WX24-P4-022-E3`（旧＝`BOUNCE{owner:'self'}`＝**自分のシグニを戻す**真逆の自損）。
+- `FIELD_SIGNI_TO_CHECK_ZONE` に選択（`target.count` が数値）と `asDown` ＝`WXK07-018-E1`（旧＝source 無しの `ADD_TO_FIELD`＝**自分のデッキの一番上を場に出す**過剰実行）。
+
+### 修正5：`O-311`＝「見た／選んだ集合」を後段へ渡す（6効果）
+
+- 🆕`STUB{BAKE_LAST_PROCESSED_REFS}`＝`levelEqLastProcessed`／🆕`powerEqLastProcessed` を**対話の前に具体値へ焼く**（参照不能は到達不能値＝fail-closed）＝`WXEX2-29-E3`（自分の探索のあとで相手の探索がレベルを失う＋旧は相手側の探索が無かった）／`WX24-P4-048-E2`（任意コストの支払い後に「同じパワー」を失う＋旧は帰結が自分のデッキからエナチャージ）。
+- 🆕`STUB{OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM}`＝`WXDi-P00-037-E1`（旧＝相手の**場のシグニ**をデッキの下へ）。
+- `LOOK_PICK_CHAIN` の `then:'acce'`（→ 既存 `INTERNAL_ASK_ACCE_HOST`）＝`WXK04-003-E2`（旧＝見てデッキの上に戻すだけ）。
+- 🆕`STUB{RECORD_ON_PLAY_CHOSEN_SIGNI}`＋`PlayerState.on_play_chosen_signi`＋`victimFilter:'chosenByOnPlay'`＝`WXDi-P10-052-E1/E2`（旧＝他の味方シグニ全部を身代わりで守れた）。
+
+### 作業中に見つけて直した別件
+
+- 🔴**`execTrash` の場のシグニ分岐だけ `frontOfSelf` を読んでいなかった**＝BANISH/BOUNCE/DOWN/TRANSFER_TO_DECK/REMOVE_ABILITIES は各ハンドラで解決しているのに、`matchesFilter` が黙って無視して**相手の全シグニが候補**だった。live 該当は今回の `WXK06-025-E2` だけ＝**新設 golden の反転確認（正面が空なら何も起きない）が捕まえた**。
+- 🔴**`applyContinuousBaseLevelOverride` が `new Map(cardMap)` で派生クラスを落としていた**＝本番の `InstanceMap`（instanceId → CardNum へのフォールバック）が素の `Map` になり、instanceId キーの基本レベル上書き（`newMap.get(instanceId)`）が当たらなかった。写し先の型を保つ形へ。
+- 逆翻訳の描き漏れ2件＝`ADD_TO_FIELD` の `opponentSelects`（「使用者が相手の手札を見て選ぶ」と同じ文になっていた）／`filterJa` の `powerEqLastProcessed`。
+
+### 影響枚数・検証
+
+- **30効果／24カード**（MANUAL 20効果＋parser 1規則（コラボのコスト 3効果）＋engine のみ7効果＝「呼ぶ」5・`WXDi-CP01-031-E1`・ガード代替）。
+- 検証＝`npm run gates` 全緑（golden **3992 PASS**＝3986 → +6本・旧3本を書き換え／smoke 10748 OK／fuzz 0／census 高シグナル 1/1 据置／`census:stubs` A群・C群 0／enginetext・costtext A群 0／lint 0 errors）。`npm run regen` の逆翻訳を22効果目視。
+- 🔴**反転確認5本**（`scripts` ではなく一時的に `false &&` で殺して golden が FAIL することを確認し、戻した）＝コラボ提示ゲート／`POWER_SET` の期間／TRASH の正面限定／レベルの焼き込み／選んだシグニだけ守る。
+- 🔴**実機 PASS 4本**＝`V-200`（トークン1個で「【起】コラボ1」を撃ってトークン0へ／対照＝トークン0では出ない）／`V-201`（候補に自分と相手のエナが並び、相手のエナを除外できる）／`V-202`（相手の探索が CPU へ回り、同じレベル2だけを相手の場へ出す）。
+- ⚠**ラチェット・契約**＝`O-327` 許容リスト +1（配線＋対照を足してから）／C2 `$ref` トリップワイヤが私の `resolveNum` を捕まえた（`resolveCountRef` へ直した＝リスト変化なし）／据置契約2本を解除（`WXDi-P00-037-E1` の手札処理・`WXEX2-08-E4` の `owner`）。
+- 近似（登録して残す）＝`O-330`（チェックゾーン経由の出し直しで付属札・修整を引き継ぎ、出し直した【出】の発火も未確認）／`O-331`（`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` の1ターン短い寿命・既知のコメントを索引化）。`WX24-P4-022-E3` は1色ずつ戻す近似（登録票に記載）。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-325`／`O-291`／`O-290` を3項目まとめてクローズ（9効果／6カード）
 
 **着手の形**＝第280と同じく**索引を横断して1バッチ**にした。⚠ただし3項目は互いに無関係で、束ねたのは

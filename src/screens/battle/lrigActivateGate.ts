@@ -128,6 +128,9 @@ export function canActivateLrigEffect(
   if (my.blocked_actions?.includes(eff.effectId)) return false;
   // 《コインアイコン》＝所持枚数が足りないと払えない（実行側もここと対で deduct する）。
   if (effectiveCoinCost(eff, my) > (my.coins ?? 0)) return false;
+  // 🆕§5.3 `O-292`＝「コラボライバーN人とコラボする」＝ライバートークンN個（`performLrigActivated` が deduct）。
+  //   🔴旧＝parser が `cost.none` に倒しており、トークンが無くても撃てた。
+  if ((eff.cost?.collab ?? 0) > (my.liver_tokens ?? 0)) return false;
   // エクシード＝ルリグトラッシュへ送れる下札が足りないと払えない。
   if ((eff.cost?.exceed ?? 0) > exceedPayableCount(my)) return false;
   // 🆕**色指定**（`WX10-001`「エクシード１（白のカード）」）＝その色の下札が無ければ提示しない。

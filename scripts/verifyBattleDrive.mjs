@@ -56295,6 +56295,256 @@ scenarios.o290KeyCoinPrintedBlocked = {
 order.push('o290KeyCoinReducedPlaceable');
 order.push('o290KeyCoinPrintedBlocked');
 
+// §5.1 `V-200`（§5.3 `O-292`・2026-09-12）＝**「コラボライバー１人とコラボする」はライバートークンを払うコスト**。
+// 🔴旧 live＝parser が `cost.none` に倒しており、トークンが無くても撃てた
+//   （公式 FAQ＝「『ライバートークン』を2つ得ます。…使用したトークンはゲームから取り除かれます」）。
+// 🔑`src/screens/` の3地点（提示ゲート `canActivateLrigEffect`／`LrigGrantedModal`／`performLrigActivated`）を**実際に通す**＝
+//   ①トークン1個なら「【起】コラボ1」が出て撃てて0個へ減る ②0個なら出ない。
+// ⚠`WXDi-CP01-007-E2` を使う＝コストがコラボだけ（エナ選択が要らない）。同じルリグの E3（《黒×0》）は
+//   「【起】コストなし」で並ぶ＝**対照ではこれが見えたことを「行動一覧が開いた」証拠にする**（§4.4-3）。
+// ⚠相手の場は空＝効果（パワー－8000）は対象なしで終わる＝**支払いだけ**を観測する。
+const v200Spec = (tokens) => ({
+  hostSet: {
+    'field.lrig': ['WXDi-CP01-007#32001'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [],
+    'liver_tokens': tokens, 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-001#32006'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'lrig_deck': [], 'hand': [], 'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/** @param tokens 1＝本命（撃ててトークン0へ）／0＝対照（提示されない） */
+const driveV200 = (tokens) => async function (page, H) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ lrigTop: before?.host?.lrigTop, liverTokens: before?.host?.liverTokens }));
+  if ((before?.host?.liverTokens ?? -1) !== tokens) {
+    return { pass: false, detail: 'inject-precondition-failed liverTokens=' + before?.host?.liverTokens };
+  }
+  const collabBtn = () => page.getByRole('button', { name: /【起】コラボ1/ }).first();
+  const costlessBtn = () => page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+  let offered = false;
+  let listOpened = false;
+  for (let s = 0; s < 12 && !offered; s++) {
+    if (s % 4 === 0) {
+      const img = page.getByAltText('とこ', { exact: false }).first();
+      if (await img.count()) await img.click({ force: true, timeout: 1200 }).catch(() => {});
+    }
+    await page.waitForTimeout(500);
+    if (await collabBtn().count() && await collabBtn().isVisible().catch(() => false)) offered = true;
+    if (await costlessBtn().count() && await costlessBtn().isVisible().catch(() => false)) listOpened = true;
+    if (!tokens && listOpened && s >= 5) break;
+  }
+  H.log('offered:', offered, 'listOpened:', listOpened);
+  let paid = false;
+  if (tokens > 0 && offered) {
+    await collabBtn().click({ timeout: 1200 }).catch(() => {});
+    for (let s = 0; s < 20 && !paid; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1200 }).catch(() => {});
+        did = '発動';
+      }
+      if (!did) did = await H.clickTextOrBtn(['OK', '決定']);
+      const st = await H.queryState();
+      H.log(`  v200[${s}] -> ${did ?? 'なし'} | liverTokens=${st?.host?.liverTokens} actions=${(st?.host?.actionsDone ?? []).join(',')} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if ((st?.host?.liverTokens ?? -1) === 0 && (st?.host?.actionsDone ?? []).includes('WXDi-CP01-007-E2')) paid = true;
+    }
+  }
+  for (let k = 0; k < 4; k++) {
+    if (!(await H.clickTextOrBtn(['閉じる', 'キャンセル', '戻る']))) break;
+    await page.waitForTimeout(300);
+  }
+  if (tokens > 0) {
+    if (!offered) return { pass: false, detail: '🔴トークン1個なのに「【起】コラボ1」が出ない（提示ゲートかラベルが cost.collab を読んでいない）' };
+    if (!paid) return { pass: false, detail: '🔴撃てたがトークンが減らない／発動が記録されない（performLrigActivated が collab を払っていない）' };
+    return { pass: true, detail: 'トークン1個→「【起】コラボ1」を撃ってトークン0へ' };
+  }
+  if (!listOpened) return { pass: false, detail: '観測不能：ルリグの行動一覧が開いていない（「【起】コストなし」が見えない）' };
+  if (offered) return { pass: false, detail: '🔴トークン0なのに「【起】コラボ1」が出た（旧＝cost.none で踏み倒せた）' };
+  return { pass: true, detail: '対照＝トークン0では「【起】コラボ1」が出ない（同じ一覧の「【起】コストなし」は出ている）' };
+};
+scenarios.o292CollabCostPaid = {
+  title: 'V-200 O-292(1): WXDi-CP01-007-E2＝ライバートークン1個で「コラボする」【起】を撃つとトークンが0になる',
+  spec: v200Spec(1),
+  drive: driveV200(1),
+};
+scenarios.o292CollabCostBlocked = {
+  title: 'V-200 O-292(2) 対照: トークン0では「コラボする」【起】が提示されない',
+  spec: v200Spec(0),
+  drive: driveV200(0),
+};
+order.push('o292CollabCostPaid');
+order.push('o292CollabCostBlocked');
+
+// §5.1 `V-201`（§5.3 `O-310`・2026-09-12）＝**「エナゾーンにあるカード１枚を対象とし」は両者のエナが1つの候補**（`WXEX2-08-E4`）。
+// 🔴旧 live＝`owner:'self'`＝自分のエナしか選べなかった。🔑新スコープ `both_energy` は **UI（候補の描画）が golden で守れない層**。
+// ⚠同名の【起】「エクシード1」が2つ並ぶ（E3／E4）＝E3 を `actions_done` に入れて**E4 だけを出す**（§4.4-8m）。
+// 🔑判定は ①候補に自分のエナと相手のエナが**両方**並ぶ（旧挙動との差分）②相手のエナを選ぶと相手の除外領域へ移る。
+const V201_MY_EN = 'WD01-013#33003';
+const V201_OP_EN = 'WD02-013#33004';
+scenarios.o310BothEnergyExile = {
+  title: 'V-201 O-310: WXEX2-08-E4＝エナゾーンのカード1枚を対象に取るとき、自分と相手のエナが両方候補に並び、相手のエナを除外できる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-001#33002', 'WXEX2-08#33001'], 'field.lrig_down': false,
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': [V201_MY_EN], 'trash': [], 'excluded': [],
+      'actions_done': ['WXEX2-08-E3'], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-001#33006'], 'field.lrig_down': false,
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'lrig_deck': [], 'hand': [], 'energy': [V201_OP_EN], 'excluded': [],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始:', JSON.stringify({ lrigTop: before?.host?.lrigTop, myEnergy: before?.host?.energyCards, opEnergy: before?.guest?.energyCards }));
+    let sawBoth = false;
+    let picked = false;
+    let excluded = false;
+    for (let s = 0; s < 30 && !excluded; s++) {
+      await page.waitForTimeout(600);
+      const st = await H.queryState();
+      const cands = Array.isArray(st?.pendingCandidates) ? st.pendingCandidates : [];
+      if (cands.includes(V201_MY_EN) && cands.includes(V201_OP_EN)) sawBoth = true;
+      let did = null;
+      if (cands.length > 0 && !picked) {
+        did = await clickPendingInstance(page, H, V201_OP_EN);
+        if (did) picked = true;
+      }
+      if (!did && picked) did = await clickDecideNofM(page);
+      if (!did && cands.length === 0 && !picked) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+          await fire.click({ timeout: 1200 }).catch(() => {});
+          did = '発動';
+        }
+      }
+      if (!did && cands.length === 0 && !picked) {
+        const act = page.getByRole('button', { name: /【起】エクシード/ }).first();
+        if (await act.count() && await act.isVisible().catch(() => false)) {
+          await act.click({ timeout: 1200 }).catch(() => {});
+          did = '【起】エクシード';
+        }
+      }
+      if (!did && cands.length === 0 && !picked && s % 4 === 0) {
+        const img = page.getByAltText('不敗・遊月', { exact: false }).first();
+        if (await img.count()) { await img.click({ force: true, timeout: 1200 }).catch(() => {}); did = 'LRIGクリック'; }
+      }
+      const opEx = st?.guest?.excludedCards ?? [];
+      if (opEx.includes(V201_OP_EN) && !(st?.guest?.energyCards ?? []).includes(V201_OP_EN)) excluded = true;
+      H.log(`  v201[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(cands)} sawBoth=${sawBoth} picked=${picked} opEx=${JSON.stringify(opEx)}`);
+    }
+    for (let k = 0; k < 4; k++) {
+      if (!(await H.clickTextOrBtn(['閉じる', 'キャンセル', '戻る']))) break;
+      await page.waitForTimeout(300);
+    }
+    if (!sawBoth) return { pass: false, detail: '🔴候補に自分のエナと相手のエナが両方並ばない（旧＝自分のエナだけ／both_energy が描画されていない）' };
+    if (!excluded) return { pass: false, detail: '🔴相手のエナを選んだが除外されない（picked=' + picked + '）' };
+    return { pass: true, detail: '自分と相手のエナが1つの候補に並び、選んだ相手のエナが除外された' };
+  },
+};
+order.push('o310BothEnergyExile');
+
+// §5.1 `V-202`（§5.3 `O-309`①／`O-311`・2026-09-12）＝**「各プレイヤーは自分のデッキから…同じレベルのシグニを探して場に出す」の相手側**（`WXEX2-29-E3`）。
+// 🔴旧 live＝自分しか探しておらず、相手側の探索が丸ごと無かった。🔑**応答者が相手（CPU）へ回る経路**は golden では
+//   `pendingRespondsOpponent` までしか見られない＝実際に CPU が相手の SEARCH を選んで相手の場へ出すかは実機でしか分からない。
+// ⚠自分のデッキにはレベル2を置かない＝自分の探索は起きない（相手の探索だけを観測する）。
+// 🔑判定＝相手の場に**トラッシュに置いたシグニと同じレベル2**の札が出て、レベル1の札は相手のデッキに残る。
+const V202_SRC = 'WXEX2-29#34001';
+const V202_VICTIM = 'WD02-012#34003';   // レベル2（トラッシュに置かれる）
+const V202_OP_L2 = 'WD05-012#34005';    // レベル2（相手が探して出すはずの札）
+const V202_OP_L1 = 'WD02-013#34004';    // レベル1（出てはいけない）
+scenarios.o311EachPlayerSearchOpp = {
+  title: 'V-202 O-309/O-311: WXEX2-29-E3＝相手（CPU）も自分のデッキからトラッシュに置いたシグニと同じレベルのシグニを探して場に出す',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#34008'], 'field.lrig_down': false,
+      'field.signi': [[V202_SRC], null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': ['WD01-013#34002', 'WD01-013#34009'], 'trash': [],
+      'deck': ['WD03-013#34010', 'WD05-013#34011', 'WD01-013#34012', 'WD03-013#34013'],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-001#34006'], 'field.lrig_down': false,
+      'field.signi': [[V202_VICTIM], null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': [V202_OP_L1, V202_OP_L2, 'WD03-013#34014', 'WD05-013#34015'],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始:', JSON.stringify({ hostSigni: before?.host?.fieldSigni, guestSigni: before?.guest?.fieldSigni }));
+    let picked = false;
+    let fired = false;
+    let placed = false;
+    for (let s = 0; s < 40 && !placed; s++) {
+      await page.waitForTimeout(600);
+      const st = await H.queryState();
+      const cands = Array.isArray(st?.pendingCandidates) ? st.pendingCandidates : [];
+      let did = null;
+      if (!picked && cands.includes(V202_VICTIM)) {
+        did = await clickPendingInstance(page, H, V202_VICTIM);
+        if (did) picked = true;
+      }
+      if (!did && picked && cands.includes(V202_VICTIM)) did = await clickDecideNofM(page);
+      if (!did && !fired) {
+        const fire = page.getByTestId('signiact-fire').first();
+        if (await fire.count() && await fire.isVisible().catch(() => false)) {
+          if (await fire.isEnabled().catch(() => false)) {
+            await fire.click({ timeout: 1200 }).catch(() => {});
+            did = '発動'; fired = true;
+          } else {
+            const en = page.getByTestId('signiactcost-energy-0').first();
+            if (await en.count() && await en.isVisible().catch(() => false)) { await en.click({ timeout: 1200 }).catch(() => {}); did = 'エナ選択'; }
+          }
+        }
+      }
+      if (!did && !fired) {
+        const act = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await act.count() && await act.isVisible().catch(() => false)) { await act.click({ timeout: 1200 }).catch(() => {}); did = '【起】'; }
+      }
+      if (!did && !fired && s % 4 === 0) did = await H.clickTestId('my-signi-zone-0');
+      const gTops = (st?.guest?.fieldSigni ?? []).map(z => (Array.isArray(z) ? z.at(-1) : z) ?? null);
+      if (gTops.includes(V202_OP_L2)) placed = true;
+      H.log(`  v202[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(cands)} gSigni=${JSON.stringify(gTops)} gTrash=${JSON.stringify(st?.guest?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+    }
+    await page.waitForTimeout(800);
+    const fin = await H.queryState();
+    const gTops = (fin?.guest?.fieldSigni ?? []).map(z => (Array.isArray(z) ? z.at(-1) : z) ?? null);
+    const hTops = (fin?.host?.fieldSigni ?? []).map(z => (Array.isArray(z) ? z.at(-1) : z) ?? null);
+    H.log('結果:', JSON.stringify({ gTops, hTops, gTrash: fin?.guest?.trashCards }));
+    for (let k = 0; k < 4; k++) {
+      if (!(await H.clickTextOrBtn(['閉じる', 'キャンセル', '戻る']))) break;
+      await page.waitForTimeout(300);
+    }
+    if (!(fin?.guest?.trashCards ?? []).includes(V202_VICTIM)) return { pass: false, detail: '前提未成立：相手のシグニがトラッシュに置かれていない（fired=' + fired + ' picked=' + picked + '）' };
+    if (!placed) return { pass: false, detail: '🔴相手（CPU）が自分のデッキから探して場に出していない（旧＝相手側の探索が丸ごと無かった／応答者が相手へ回っていない）' };
+    if (gTops.includes(V202_OP_L1)) return { pass: false, detail: '🔴レベル1の札まで出た＝「同じレベル」の限定が相手の探索に届いていない' };
+    if (hTops.some(n => n && n !== V202_SRC)) return { pass: false, detail: '🔴自分の場に余計なシグニが出た（自分のデッキにレベル2は無い）' };
+    return { pass: true, detail: '相手（CPU）が自分のデッキから同じレベル2のシグニを探して相手の場へ出した（レベル1は出ない）' };
+  },
+};
+order.push('o311EachPlayerSearchOpp');
+
 
 
 
@@ -56562,6 +56812,9 @@ try {
         lrigTop: (s.field?.lrig ?? []).at(-1) ?? null,
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
+        // 🆕§5.3 `O-292`（2026-09-12）＝ライバートークン（「コラボライバーN人を呼ぶ」で得て「コラボする」で使う）。
+        //   ⚠**カードではない**＝ルリグデッキ／アシストゾーンの枚数では観測できない（旧実装はアシストルリグを場に出していた）。
+        liverTokens: s.liver_tokens ?? 0,
         signiFrozen: s.field?.signi_frozen ?? null,
         // 🆕§5.3 `O-236`（2026-09-04）＝ルリグのアタック上限まわり（`V-151` の観測点）。
         fieldLrigDown: s.field?.lrig_down ?? null,
