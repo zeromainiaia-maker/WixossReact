@@ -7001,6 +7001,12 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 ### `O-307` — 相手の非公開ルリグデッキを2束に分けて片方だけ見る秘匿分割 interaction が無い
 
+> 🏁**2026-09-11 第277バッチでクローズ**＝**新しい pending 型は要らなかった**。既存3部品の合成
+> （①`opp_lrig_deck`×`opponentResponds` の SELECT_TARGET＝`OPP_LRIG_DECK_TO_LRIG_TRASH` と同じ慣例で相手が分割
+> ②効果使用者の CHOOSE＝見出しは枚数だけ ③選んだ束のアーツを候補に SELECT_TARGET → 既存 APPLY）で
+> `OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH`（`execStubPart1.ts`）を作り、`manualEffects.ts` で live へ。
+> ⚠下の「pending/UI が存在しない」は**登録時の見立てで、実際は受け皿が揃っていた**（全文は BUGFIXES.md）。
+
 **規模／母集団**＝1効果（`WXEX2-12-E4`）。2026-09-09 第234バッチ後半の re-triage で発見（`O-306` と同じ巡）。
 
 原文＝「対戦相手は自分のルリグデッキを裏向きで2つの束に分ける。あなたはどちらかの束を見て、その中からアーツ1枚を

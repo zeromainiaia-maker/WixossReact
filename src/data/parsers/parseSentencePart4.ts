@@ -470,6 +470,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction;
 
   // ---- ルリグデッキを分ける/束から選ぶ ----
+  // ⚠🔴**この STUB は原文と無関係**（相手トラッシュから唱える機構）。live 1効果（`WXEX2-12-E4`）は
+  //   `manualEffects.ts` の `OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH` が上書きしている（§5.3 `O-307`）。
+  //   2文で1つの interaction なので、parser で直すなら**2文目を吸収する**形が要る（同型が増えたら）。
   if (t.match(/ルリグデッキを裏向きで[１-９\d０-９]+つの束に分ける/) ||
       t.match(/どちらかの束を見て.*アーツ[１-９\d０-９]*枚をルリグトラッシュに置く/))
     return { type: 'STUB', id: 'CAST_FROM_OPP_TRASH' } as StubAction;

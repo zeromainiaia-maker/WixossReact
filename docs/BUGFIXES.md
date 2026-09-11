@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-307` をクローズ＝秘匿二分割（`WXEX2-12-E4`）を既存部品の合成で実装（第277バッチ・実機 `V-195`）
+
+原文＝【起】エクシード５：対戦相手は自分のルリグデッキを裏向きで２つの束に分ける。あなたはどちらかの束を見て、その中からアーツ１枚をルリグトラッシュに置く。
+
+| | |
+|---|---|
+| 旧 live | `SEQUENCE[STUB{CAST_FROM_OPP_TRASH}, STUB{CAST_FROM_OPP_TRASH}]`（`parseStatus:'AUTO'`） |
+| 🔴真因 | `parseSentencePart4.ts` の規則が**2文とも**「相手トラッシュのスペルを使う」STUB へ落としていた＝**原文と無関係な別効果** |
+| 実害 | エクシード５を払っても**相手のルリグデッキは1枚も動かない**。相手トラッシュにスペルがあれば `execStubPart2.ts:3722` の分岐で**それを使う別効果**になる（1枚） |
+
+**修正**＝`STUB{OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH}`（`execStubPart1.ts`）を `manualEffects.ts` で live へ（**1ステップ**＝2文で1つの interaction）。
+🔑**登録票は「pending/UI 自体が存在しない」と書いていたが、新しい pending 型は要らなかった**＝既存3部品の合成で原文の情報公開範囲がそのまま出る：
+①分割＝`opp_lrig_deck` × `opponentResponds` の SELECT_TARGET（`OPP_LRIG_DECK_TO_LRIG_TRASH` と同じ慣例＝**応答者だけに中身が見える**・0枚の束も可）
+②束の選択＝効果使用者の CHOOSE（**見出しは枚数だけ**＝裏向きのまま選ぶ）
+③選んだ束のアーツだけを候補に SELECT_TARGET → 移動は既存 `INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY`。
+⚠**`src/screens/` は1行も触っていない**（応答者の再計算は `pendingRespondsOpponent` が resume ごとに行う）。
+⚠**CPU が応答者のときは束A＝全部・束B＝0枚になる**（CPU の SELECT_TARGET 自動応答が `count` 枚を選ぶ）＝合法だが弱い分割。
+⚠**parser の規則は据置**（注記だけ足した）＝live 1効果で、直すなら「2文目を吸収する」形が要る。
+
+### 検証
+
+- `npm run gates` 全緑（**golden 3972 PASS**・+1）／smoke 10745 全0。
+- **新設 golden 1本**＝live の形／分割の応答者と候補／束の中身が選択前に見えない／束Bを選ぶと束Bのアーツだけが候補／
+  アーツの無い束は不発／**0枚の束でも後続が消えない**／オートパイロット完走・空デッキ不発。
+  **反転確認あり**＝ハンドラの入口を外すと「分割の対話が出ていない」で FAIL。
+- live A/B＝**`WXEX2-12` の1カードだけ**／逆翻訳は該当1行だけ（`[STUB:…相手トラッシュからスペル選択]` → 原文どおり）。
+- ⚠`build:effects` だけでは届かず `_held_fresh.json` に保留された＝`syncManualLive.ts WXEX2-12` で同期。
+- 実機要否＝**必須**（`src/engine/` に新しい機構＝PLAN §2.2）。**実機 `V-195` PASS（2本セット）**＝
+  `o307SplitLrigDeckPickArts`（CPU が分割 → host に「束A（3枚）/束B（0枚）」→ 束Aのアーツ1枚だけが相手ルリグトラッシュへ・ルリグは動かない）／
+  `o307SplitLrigDeckEmptyPile`（対照＝0枚の束を選ぶと何も置かれない）。
+  **実機の反転確認あり**（DRIVE_TRAPS §4.4-70 の作法）＝ハンドラの入口を外して再ビルドすると
+  `o307SplitLrigDeckPickArts` が「🔴束の選択（CHOOSE）が host に来なかった」で赤。戻して2本とも PASS を取り直した。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-321`① をクローズ＋`O-315`①/`O-321`② を「配線済み」と確定（第276バッチ・実機 `V-194`）
 
 前バッチで割った「ターン内履歴」3軸の残りを取った。**1件は恒久 no-op の真バグ、2件は登録票 stale**。

@@ -55827,6 +55827,104 @@ scenarios.o321PieceUsedGateBlocked = {
 order.push('o321PieceUsedGateFires');
 order.push('o321PieceUsedGateBlocked');
 
+// §5.1 `V-195`（§5.3 `O-307`・2026-09-11）＝`WXEX2-12-E4`【起】エクシード５
+//   「対戦相手は自分のルリグデッキを裏向きで２つの束に分ける。あなたはどちらかの束を見て、その中からアーツ１枚をルリグトラッシュに置く」。
+// 🔴旧 live は `STUB{CAST_FROM_OPP_TRASH}`×2（相手トラッシュのスペルを使う別効果）＝相手のルリグデッキは1枚も動かなかった。
+// 🔑**golden では届かない層**＝①分割の SELECT_TARGET が**応答者（CPU）へ回る**こと ②その後の CHOOSE が**効果使用者（host）へ戻る**こと
+//   （`BattleScreen.tsx` の `pendingRespondsOpponent` による応答者の再計算）。
+// ⚠CPU 応答者は SELECT_TARGET で `count` 枚（＝ルリグデッキ全部）を選ぶ＝**束A が全部・束B が0枚**になる（決定的）。
+// ⚠CHOOSE は `H.clickBtn`（ボタン限定・前方一致）で押す（§4.4-2b）。`H.stdStep` は束の選択の前に使わない。
+const o307Spec = () => ({
+  hostSet: {
+    // 下5枚＋センター WXEX2-12（エクシード５を払える）
+    'field.lrig': ['WD01-001#9951', 'WD01-001#9952', 'WD01-002#9953', 'WD01-002#9954', 'WD01-003#9955', 'WXEX2-12#9901'],
+    'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'lrig_trash': [], 'lrig_deck': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9960'], 'field.signi': [null, null, null], 'field.check': null,
+    // アーツ2枚（WD01-006 / WD01-007）＋ルリグ1枚（WD01-002）＝「アーツだけが候補」を1ビットで示す
+    'lrig_deck': ['WD01-006#9961', 'WD01-002#9962', 'WD01-007#9963'],
+    'lrig_trash': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/** @param pile 'A'＝CPU が全部入れた束を見る／'B'＝0枚の束を見る（対照） */
+const driveO307 = (pile) => async function (page, H) {
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ phase: before?.turnPhase, lrigTop: before?.host?.lrigTop, under: before?.host?.lrigUnder, gDeck: before?.guest?.lrigDeckCards, gTrash: before?.guest?.lrigTrashCards }));
+  if ((before?.guest?.lrigDeckCards ?? []).length !== 3 || (before?.guest?.lrigTrashCards ?? []).length !== 0) {
+    return { pass: false, detail: `注入前提不成立（gDeck=${JSON.stringify(before?.guest?.lrigDeckCards)} gTrash=${JSON.stringify(before?.guest?.lrigTrashCards)}）` };
+  }
+  await H.ensureMain();
+  await H.clickTestId('my-lrig-slot-center');
+  let activated = false; let fired = false; let chooseLabels = null; let chosen = false; let settled = 0;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!activated) {
+      const actBtn = page.getByRole('button', { name: /【起】エクシード/ }).first();
+      if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】エクシード'; activated = true; }
+      else did = await H.clickTestId('my-lrig-slot-center');
+    } else if (!fired) {
+      did = await H.clickBtn('発動', { exact: true }); if (did) fired = true;
+    } else if (!chosen) {
+      const btns = page.getByRole('button', { name: /^束[AB]（/ });
+      if (await btns.count()) {
+        chooseLabels = await btns.allInnerTexts().catch(() => null);
+        did = await H.clickBtn(`束${pile}（`, { exact: false }); if (did) chosen = true;
+      }
+    } else {
+      did = await H.stdStep(['決定', '確定', 'OK']);
+    }
+    const st = await H.queryState();
+    H.log(`  o307${pile}[${s}] -> ${did ?? 'なし'} | act=${activated} fired=${fired} chosen=${chosen} labels=${JSON.stringify(chooseLabels)} under=${st?.host?.lrigUnder} gDeck=${JSON.stringify(st?.guest?.lrigDeckCards)} gTrash=${JSON.stringify(st?.guest?.lrigTrashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (chosen) {
+      settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+  }
+  // 🔴後始末（§4.4-1）＝未解決の対話を残さない
+  for (let k = 0; k < 6; k++) {
+    const st = await H.queryState();
+    if (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!(await H.clickTextOrBtn(['決定', 'スキップ', '選ばない', 'OK']))) await H.stdStep();
+    await page.waitForTimeout(400);
+  }
+  const fin = await H.queryState();
+  const gTrash = fin?.guest?.lrigTrashCards ?? [];
+  const gDeck = fin?.guest?.lrigDeckCards ?? [];
+  if (!chosen) return { pass: false, detail: `🔴束の選択（CHOOSE）が host に来なかった（act=${activated} fired=${fired} labels=${JSON.stringify(chooseLabels)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  // 前提＝CPU（応答者）が分割した＝束A＋束B の枚数が相手ルリグデッキの枚数と一致
+  const sizes = (chooseLabels ?? []).map(t => Number((t.match(/（(\d+)枚）/) ?? [])[1]));
+  if (sizes.length !== 2 || sizes[0] + sizes[1] !== 3) return { pass: false, detail: `束の枚数が合わない（labels=${JSON.stringify(chooseLabels)}）` };
+  if (gDeck.includes('WD01-002#9962') === false || gTrash.includes('WD01-002#9962')) {
+    return { pass: false, detail: `🔴アーツでないカード（ルリグ）が動いた（gDeck=${JSON.stringify(gDeck)} gTrash=${JSON.stringify(gTrash)}）` };
+  }
+  const pileSize = pile === 'A' ? sizes[0] : sizes[1];
+  if (pileSize === 0) {
+    return gTrash.length === 0
+      ? { pass: true, detail: `対照＝0枚の束を見た＝何も置かれない（labels=${JSON.stringify(chooseLabels)} gTrash=[]）` }
+      : { pass: false, detail: `🔴0枚の束を見たのにルリグトラッシュへ置かれた（gTrash=${JSON.stringify(gTrash)}）` };
+  }
+  const movedArts = gTrash.filter(n => n === 'WD01-006#9961' || n === 'WD01-007#9963');
+  return (gTrash.length === 1 && movedArts.length === 1 && gDeck.length === 2)
+    ? { pass: true, detail: `束${pile}（${pileSize}枚）を見てアーツ1枚が相手のルリグトラッシュへ（${movedArts[0]}・gDeck 3→2）` }
+    : { pass: false, detail: `🔴アーツ1枚だけが置かれていない（labels=${JSON.stringify(chooseLabels)} gDeck=${JSON.stringify(gDeck)} gTrash=${JSON.stringify(gTrash)}）` };
+};
+scenarios.o307SplitLrigDeckPickArts = {
+  title: 'V-195 O-307(1): WXEX2-12-E4＝相手（CPU）が2束に分け、host が束を選んで中のアーツ1枚を相手ルリグトラッシュへ',
+  spec: o307Spec(),
+  drive: driveO307('A'),
+};
+scenarios.o307SplitLrigDeckEmptyPile = {
+  title: 'V-195 O-307(2) 対照: 同じ盤面で0枚の束を選ぶ＝何も置かれない（束の区別が効いている）',
+  spec: o307Spec(),
+  drive: driveO307('B'),
+};
+order.push('o307SplitLrigDeckPickArts');
+order.push('o307SplitLrigDeckEmptyPile');
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);

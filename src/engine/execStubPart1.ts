@@ -2730,6 +2730,55 @@ export function execStubPart1(
       lastProcessedCards: movedOLD,
     }, `対戦相手は${movedOLD.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキからルリグトラッシュに置いた`));
   }
+  // OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH: 対戦相手は自分のルリグデッキを裏向きで2つの束に分け、あなたはどちらかの束を見てアーツ1枚をルリグトラッシュに置く
+  //   （§5.3 `O-307`・2026-09-11・`WXEX2-12-E4`）。
+  // 🔴旧 live は `STUB{CAST_FROM_OPP_TRASH}`×2＝「相手トラッシュのスペルを使う」という**原文と無関係な別効果**だった。
+  // 🔑**新しい pending 型は足さない**＝既存3部品の合成で原文の情報公開範囲がそのまま出る：
+  //   ①分割＝`opp_lrig_deck` × `opponentResponds` の SELECT_TARGET（`OPP_LRIG_DECK_TO_LRIG_TRASH` と同じ慣例＝
+  //     **応答者だけに中身が見える**）。選んだカードが束A、残りが束B。0枚の束も作れる（`optional`）。
+  //   ②束の選択＝効果使用者の CHOOSE。**見出しは枚数だけ**＝中身を見ないで選ぶ（裏向き）。
+  //   ③選んだ束の中のアーツだけを候補に SELECT_TARGET → 移動は既存 `INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY`。
+  // ⚠**ctx の視点は反転しない**＝候補も適用先も `ctx.otherState`（`opponentResponds` は「誰がクリックするか」だけ）。
+  if (stub.id === 'OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH') {
+    const deckSPL = ctx.otherState.lrig_deck ?? [];
+    if (deckSPL.length === 0) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手のルリグデッキにカードがない（束に分けられない）'));
+    }
+    return selectOrInteract(deckSPL, deckSPL.length, true, 'opp_lrig_deck',
+      { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction,
+      { type: 'STUB', id: 'INTERNAL_LRIG_PILES_CHOOSE' } as StubAction,
+      addLog(ctx, '対戦相手はルリグデッキを裏向きで2つの束に分ける（選んだカードが束A・残りが束B）'), true);
+  }
+  // INTERNAL_LRIG_PILES_CHOOSE: 対戦相手が分けた2つの束のどちらを見るかを効果使用者が選ぶ（O-307 の2段目）
+  // ⚠束A＝直前の SELECT_TARGET の選択（`resumeSelectTarget` が `lastProcessedCards = selected` を渡す）。
+  //   0枚選択でも continuation は走る（`stripDidItConditional` は CONDITIONAL{IS_MY_TURN} だけを剥がす）。
+  if (stub.id === 'INTERNAL_LRIG_PILES_CHOOSE') {
+    const deckLPC = ctx.otherState.lrig_deck ?? [];
+    const pickedLPC = new Set((ctx.lastProcessedCards ?? []).filter(n => deckLPC.includes(n)));
+    const pileA = deckLPC.filter(n => pickedLPC.has(n));
+    const pileB = deckLPC.filter(n => !pickedLPC.has(n));
+    const lookPile = (pileCards: string[]): EffectAction =>
+      ({ type: 'STUB', id: 'INTERNAL_LRIG_PILE_PICK_ARTS', pileCards } as StubAction as EffectAction);
+    return needsInteraction(addLog({ ...ctx, lastProcessedCards: [] }, `対戦相手は束A${pileA.length}枚・束B${pileB.length}枚に分けた`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'lrig_pile_a', label: `束A（${pileA.length}枚）を見る`, action: lookPile(pileA), available: true },
+        { id: 'lrig_pile_b', label: `束B（${pileB.length}枚）を見る`, action: lookPile(pileB), available: true },
+      ],
+    });
+  }
+  // INTERNAL_LRIG_PILE_PICK_ARTS: 選んだ束を見て、その中からアーツ1枚を対戦相手のルリグトラッシュに置く（O-307 の3段目）
+  if (stub.id === 'INTERNAL_LRIG_PILE_PICK_ARTS') {
+    const deckLPP = ctx.otherState.lrig_deck ?? [];
+    const pileLPP = (stub.pileCards ?? []).filter(n => deckLPP.includes(n));
+    const nameOf = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+    const seen = addLog({ ...ctx, lastProcessedCards: [] },
+      pileLPP.length ? `束を見る：${pileLPP.map(nameOf).join('・')}` : '選んだ束は0枚');
+    const artsLPP = pileLPP.filter(n => (ctx.cardMap.get(getCardNum(n))?.Type ?? '').includes('アーツ'));
+    if (artsLPP.length === 0) return done(pileLPP.length ? addLog(seen, '束の中にアーツがない') : seen);
+    return selectOrInteract(artsLPP, 1, false, 'opp_lrig_deck',
+      { type: 'STUB', id: 'INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY' } as StubAction, undefined, seen, false);
+  }
   // EXILE_FROM_CHECK_ZONE: この効果が使わせたカードは、チェックゾーンから移動する代わりにゲームから除外される
   //   原文＝「（このターン、）**それが**チェックゾーンから別の領域に移動される場合、代わりに
   //   **ゲームから除外**される」（§5.3 `O-260`・2026-09-05・7効果）。

@@ -6575,6 +6575,7 @@ export interface StubAction {
   pickQueue?: string[]; // INTERNAL_HAND_OR_ENERGY: 「手札に加えるかエナゾーンに置く」を1枚ずつ問う残りのカード
   pileTrashCards?: string[]; // INTERNAL_RESOLVE_PILES: トラッシュへ置く明示instanceId群
   pileHandCards?: string[];  // INTERNAL_RESOLVE_PILES: 手札へ加える明示instanceId群
+  pileCards?: string[];      // INTERNAL_LRIG_PILE_PICK_ARTS: 効果使用者が選んだ束（対戦相手のルリグデッキの instanceId 群。§5.3 `O-307`）
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   /**
    * `TRAP_OP` / `TRAP_OPERATION`：カード全文を読み直さず、parser が一致した**文の操作**を渡す

@@ -204,6 +204,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
      "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
+  // ── WXEX2-12（アロス・ピルルク　ACRO）E4 ＝§5.3 `O-307`（2026-09-11）
+  //   原文＝【起】エクシード５：対戦相手は自分のルリグデッキを裏向きで２つの束に分ける。
+  //         あなたはどちらかの束を見て、その中からアーツ１枚をルリグトラッシュに置く。
+  // 🔴旧 live は `SEQUENCE[STUB{CAST_FROM_OPP_TRASH}×2]` ＝**相手トラッシュのスペルをコストなしで使う**別効果
+  //   （parser の `parseSentencePart4.ts` が2文とも同じ STUB へ落としていた）。
+  // 🔑受け皿は既存部品の合成＝`OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH`（`execStubPart1.ts`）。
+  // ⚠2文で1つの interaction なので **1ステップ**にする（SEQUENCE に2つ並べると2回分割させる）。
+  // ⚠コスト（エクシード５）は旧 live で既に正しいので触らない。
+  "WXEX2-12": [
+    {"effectId":"WXEX2-12-E4","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"exceed":5},
+     "action":{"type":"STUB","id":"OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH"},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   // ── WXEX1-09（コード・ピルルク　APEX）E2
   //   原文＝【起】《アタックフェイズアイコン》《コインアイコン》×４：対戦相手の、場かエナゾーンから
   //         レベル１のシグニ１枚を対象とし、それをトラッシュに置く。

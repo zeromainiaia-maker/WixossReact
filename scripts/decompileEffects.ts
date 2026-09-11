@@ -5285,6 +5285,8 @@ function actionJa(a?: Action, effectType?: string): string {
         // ⚠`PLAY_MILLED_SIGNI_DELAYED_TRASH` はここに書かない＝**上の :1591 に既に専用分岐がある**
         //   （二重に置くと到達不能な死語彙になる）。
         OPP_LRIG_DECK_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く',
+        // §5.3 `O-307`（2026-09-11・`WXEX2-12-E4`）＝相手が伏せて2束に分け、使用者が片方だけ見てアーツ1枚を落とす。
+        OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキを裏向きで２つの束に分ける。あなたはどちらかの束を見て、その中からアーツ１枚をルリグトラッシュに置く',
         // §6.4 O-35（続き530）＝公開したカードはデッキの一番上に残る（`REVEAL_BOTH_DECK_TOPS` は一番下へ回す別文型）。
         REVEAL_EACH_PLAYER_DECK_TOP: '各プレイヤーは自分のデッキの一番上のカードを公開する',
         // ライフバースト抑制の2 STUB。従来は STUBS.md のハンドラ直前コメント（実装語彙

@@ -22587,6 +22587,72 @@ test('OPP_LRIG_DECK_TO_LRIG_TRASH: 対戦相手が自分のルリグデッキか
   eq(rEmpty.otherState.lrig_trash.length, beforeLrigTrash, 'ルリグデッキが空なのに動いた');
   eq((rEmpty.lastProcessedCards ?? []).length, 0, '空振りなのに lastProcessedCards が残っている');
 }));
+test('§5.3 O-307: OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH＝相手が2束に分け、使用者が片方を見てアーツ1枚をルリグトラッシュへ（WXEX2-12-E4）', () => withSavedCursor(() => {
+  // (0) live の形＝旧 `CAST_FROM_OPP_TRASH`×2（相手トラッシュのスペルを使う別効果）に戻っていない
+  const liveE4 = effectsMap.get('WXEX2-12')?.find(e => e.effectId === 'WXEX2-12-E4');
+  const liveE4s = JSON.stringify(liveE4?.action ?? null);
+  ok(liveE4s.includes('OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH'), `live が新しい受け皿を指していない: ${liveE4s}`);
+  ok(!liveE4s.includes('CAST_FROM_OPP_TRASH'), '🔴live に原文と無関係な CAST_FROM_OPP_TRASH が残っている');
+  eq((liveE4?.cost as { exceed?: number } | undefined)?.exceed, 5, 'エクシード５のコストが落ちた');
+  const stub = { type: 'STUB', id: 'OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH' } as unknown as EffectAction;
+  const ARTS1 = 'WD01-006#1', ARTS2 = 'WD01-007#2', LRIG1 = 'WD01-002#3', LRIG2 = 'WD01-003#4';
+  ok((cardMap.get('WD01-006')?.Type ?? '').includes('アーツ') && !(cardMap.get('WD01-002')?.Type ?? '').includes('アーツ'), '前提：カード種別');
+  const mk = () => {
+    const c = mkCtx({}, {});
+    (c.otherState as { lrig_deck: string[] }).lrig_deck = [ARTS1, LRIG1, ARTS2, LRIG2];
+    return c;
+  };
+  // (a) 1段目＝**対戦相手が**分割する（応答者・候補＝相手ルリグデッキ全体・0枚の束も可）
+  const ctxA = mk();
+  const r1 = executeEffect({ effectId: 't', effectType: 'AUTO', action: stub, duration: 'INSTANT', mandatory: true } as CardEffect, ctxA);
+  ok(!r1.done, '分割の対話が出ていない');
+  const p1 = (r1 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+  eq(p1.type, 'SELECT_TARGET', '分割は SELECT_TARGET');
+  ok(!!p1.opponentResponds, '🔴分割するのは対戦相手（opponentResponds）');
+  eq(p1.targetScope, 'opp_lrig_deck', '候補は相手のルリグデッキ');
+  eq(p1.candidates.length, 4, '候補はルリグデッキ全体');
+  ok(p1.optional, '0枚の束を作れない');
+  // 束A＝{ARTS1, LRIG1}／束B＝{ARTS2, LRIG2}
+  const c1: ExecCtx = { ...ctxA, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+  const r2 = resumeSelectTarget([ARTS1, LRIG1], p1, c1);
+  ok(!r2.done, '束の選択が出ていない');
+  const p2 = (r2 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  eq(p2.type, 'CHOOSE', '束の選択は CHOOSE');
+  ok(!p2.opponentResponds, '🔴束を選ぶのは効果使用者（opponentResponds を立てない）');
+  ok(p2.options.every(o => !/WD01|アーツ|ルリグ/.test(o.label)), `⚠束の中身が選択前に見えている: ${p2.options.map(o => o.label).join(' / ')}`);
+  // (b) 束Bを選ぶ → 候補は束Bのアーツだけ（束Aのアーツ・ルリグは候補に出ない）
+  const c2: ExecCtx = { ...c1, ownerState: r2.ownerState, otherState: r2.otherState, logs: r2.logs, lastProcessedCards: r2.lastProcessedCards };
+  const r3 = resumeChoose('lrig_pile_b', p2, c2);
+  ok(!r3.done, 'アーツ選択が出ていない');
+  const p3 = (r3 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+  eq(JSON.stringify(p3.candidates), JSON.stringify([ARTS2]), '候補が「選んだ束の中のアーツ」になっていない');
+  ok(!p3.opponentResponds, '🔴アーツを選ぶのは効果使用者');
+  const c3: ExecCtx = { ...c2, ownerState: r3.ownerState, otherState: r3.otherState, logs: r3.logs };
+  const r4 = resumeSelectTarget([ARTS2], p3, c3);
+  ok(r4.done, '完了していない');
+  ok(r4.otherState.lrig_trash.includes(ARTS2), '選んだアーツが相手のルリグトラッシュへ入っていない');
+  ok(!r4.otherState.lrig_deck.includes(ARTS2), 'ルリグデッキから抜けていない');
+  eq(r4.otherState.lrig_deck.length, 3, '⚠1枚以外も動いた');
+  ok(!r4.otherState.trash.includes(ARTS2) && !r4.ownerState.lrig_trash.includes(ARTS2), '⚠行先／適用先の取り違え');
+  // (c) 束Aにアーツが無い（相手がアーツを全部束Bへ寄せた）→ 束Aを選ぶと何も置かれない
+  const r2c = resumeSelectTarget([LRIG1, LRIG2], p1, c1);
+  const p2c = (r2c as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  const r3c = resumeChoose('lrig_pile_a', p2c, { ...c1, ownerState: r2c.ownerState, otherState: r2c.otherState, logs: r2c.logs, lastProcessedCards: r2c.lastProcessedCards });
+  ok(r3c.done, 'アーツの無い束で対話が出た');
+  eq(r3c.otherState.lrig_deck.length, 4, 'アーツの無い束なのに何かが動いた');
+  // (d) 0枚の束（相手が何も選ばない）＝束A 0枚／束B 全部 → 束Bからアーツを取れる
+  const r2d = resumeSelectTarget([], p1, c1);
+  ok(!r2d.done, '⚠0枚選択で後続（束の選択）が消えた');
+  const p2d = (r2d as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  const r3d = resumeChoose('lrig_pile_b', p2d, { ...c1, ownerState: r2d.ownerState, otherState: r2d.otherState, logs: r2d.logs, lastProcessedCards: r2d.lastProcessedCards });
+  const p3d = (r3d as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+  eq(JSON.stringify([...(p3d?.candidates ?? [])].sort()), JSON.stringify([ARTS1, ARTS2].sort()), '束B（全部）のアーツが候補に出ていない');
+  // (e) オートパイロットで最後まで通る／ルリグデッキが空なら不発
+  const rAuto = run(stub, mk());
+  eq(rAuto.otherState.lrig_trash.length, 1, 'オートパイロットでアーツ1枚が置かれていない');
+  const rEmpty = run(stub, mkCtx({}, {}));
+  eq((rEmpty.lastProcessedCards ?? []).length, 0, '空デッキで lastProcessedCards が残っている');
+}));
 test('PLAY_MILLED_SIGNI_DELAYED_TRASH: ミルされたシグニを場に出し、ターン終了時トラッシュを予約（§6.4 A群・WXDi-P09-079）', () => withSavedCursor(() => {
   const stub = { type: 'STUB', id: 'PLAY_MILLED_SIGNI_DELAYED_TRASH' } as unknown as EffectAction;
   const milled = `${findCard(c => isSigni(c) && c.Level === '1')}#55`;
