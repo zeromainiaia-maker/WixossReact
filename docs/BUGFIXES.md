@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-308` をクローズ＝【自】の発動条件が丸ごと落ちていた5効果＋`evalCondition` の状態フィルタ素通り3効果（第279バッチ・実機 `V-197`）
+
+| 効果 | 原文の条件 | 旧 live | 🔴実害 |
+|---|---|---|---|
+| `WXDi-D05-017-E1` | このシグニの**正面のシグニが凍結状態**の場合 | 条件なし | アタックフェイズ開始時に毎回《青青無》の提示 → 【アサシン】 |
+| `WXDi-P11-060-E1` / `-E2` | このシグニの**左か右にダウン状態の＜ウェポン＞／＜アーム＞** | 条件なし | アタックのたびに発動 |
+| `WXDi-P10-055-E1` | **＜天使＞のシグニのパワーの合計が20000以上** | 条件なし | アタックフェイズ開始時に毎回発動 |
+| `WX24-P3-066-E1` | **同じシグニゾーンに【マジックボックス】** | 条件なし＋②の「そうした場合」が `CONDITIONAL{IS_MY_TURN}` | MB が無くても選択肢が出る。②は**表向きにするのを断ってもバニッシュ** |
+| `WXK01-051-E1` / `WXK01-072-E1` | 場に**ドライブ状態の**シグニがある場合 | `HAS_CARD_IN_FIELD{isDrive}`（JSON は正しい） | `evalCondition` が `isDrive` を素通り＝ライフバースト封じ／バニッシュが無条件 |
+| `PR-384-E2` | 場に**アクセされている**シグニがある場合にしか使用できない | `HAS_CARD_IN_FIELD{hasAcce}`（JSON は正しい） | `evalUseCondition`（＝`evalCondition`）で読む地点では `hasAcce` を素通り |
+
+**真因は3つ。**
+1. **parser が条件節を落とし、受け皿もそれぞれ欠けていた**（5効果）＝①`FRONT_SIGNI` は `ActiveCondition` にしか無く【自】の発動条件（`Condition`）で書けない
+   ②`TargetFilter.adjacentToSelf` は `POWER_MODIFY` でしか消費されない ④`FIELD_LEVEL_SUM` にクラスの絞り込みが無い ⑤`SAME_ZONE_HAS_*` に【マジックボックス】の兄弟が無い。
+2. **`OPEN_MAGIC_BOX` は `DID_IT_GATED_TYPES`（`effectExecutor.ts`）に無い**＝「しない」を選ぶと `lastProcessedCards` が空になるだけで、直後の `IS_MY_TURN` は常時真。
+   同じ STUB を使う兄弟3効果（`WX24-P3-069-E1` ほか）は `LAST_PROCESSED_HAS_BURST` で正しかった。
+3. **`HAS_CARD_IN_FIELD` の3評価器のうち `evalCondition`（`execUtils.ts`）だけが状態キーを5つ手書き**（crossState/isFrozen/isAwakened/isPuppet/hasCharm）＝
+   `checkActiveCondition`／`evalConditionForContinuous` は `matchesStateFilter` を呼ぶのに、こちらは `isDown`／`hasAcce`／`isDrive` などを素通り。
+   🔑**見つけた経路＝`isDown`＋`adjacentToSelf` を条件で使う前に「live で同じ状態キーを `HAS_CARD_IN_FIELD` に書いている効果」を全数で引いた**（影響範囲の実測が発見器になった）。
+
+**修正**
+- 型＝`Condition` に `FRONT_SIGNI`（`ActiveCondition` と同形）／`SAME_ZONE_HAS_MAGIC_BOX`（両 union）。`FIELD_LEVEL_SUM.filter?`（両 union）。`CONDITION_TYPES` 152・`ACTIVE_CONDITION_TYPES` 71。
+- `execUtils.evalCondition`＝`HAS_CARD_IN_FIELD` の手書き5キーを `matchesStateFilter` 1呼び出しへ置換＋`adjacentToSelf`（効果元のゾーンから `zi±1`・相手側は不成立）／`FIELD_LEVEL_SUM` の filter／`FRONT_SIGNI`・`SAME_ZONE_HAS_MAGIC_BOX` の case。
+- `effectEngine.checkActiveCondition` と `evalConditionForContinuous`＝`adjacentToSelf`（同じ式）・`FIELD_LEVEL_SUM` の filter・`SAME_ZONE_HAS_MAGIC_BOX`。ルリグゾーン走査の除外に `adjacentToSelf` を追加。
+- `manualEffects.ts`＝5効果（本体は旧 live のまま、トップレベル `condition` を足す。`WX24-P3-066-E1` ②のゲートは `LAST_PROCESSED_COUNT_GTE{1}`）→ `syncManualLive` → `build:effects`。
+- `decompileEffects.ts`＝`SAME_ZONE_HAS_MAGIC_BOX` の文／`FIELD_LEVEL_SUM` に filter を描く／`FRONT_SIGNI` の文から「かぎり」を外す（【自】側で「あるかぎり場合、」になるため。【常】側は `actCond` が語尾を付けるので出力不変）。
+  ⚠**副次変化1行**＝`WXDi-P13-069-E2`（付与【常】の AND 条件）が「あるかぎり**かつ**…であるかぎり」→「ある**かつ**…であるかぎり」（二重の「かぎり」が1つに）。
+
+**影響**＝発動条件の是正5効果＋状態フィルタの是正3効果（JSON 無変更）。live の JSON 差分は5効果だけ。
+
+**検証**
+- golden 全件 **3974 PASS**（新設1本＝`§5.3 O-308 2026-09-11: 【自】の発動条件4種…`：両評価器の真偽表・`hasAcce` の素通り是正・live の条件・②で「しない」ならバニッシュしない／「する」ならバニッシュ・`collectAttackerSelfTriggers` の収集。型数の期待値 70→71／150→152）。
+  **反転確認**＝`execUtils` の隣接判定を `false &&` で殺すと `[Condition] 隣の＜ウェポン＞がアップ` が FAIL。
+- `npm run gates` 全緑（smoke 10745 OK／fuzz 0／census 1/1／census:stubs・enginetext・costtext 据置／lint 0 errors）。
+- 実機（`src/engine/` ＋新しい型＝§2.2 で必須）＝**`V-197` PASS 2本セット**
+  `node scripts/verifyBattleDrive.mjs o308AdjacentDownWeaponFires o308AdjacentUpWeaponSilent`
+  ＝左隣にダウン状態の `WXDi-P11-057`（＜ウェポン＞）→ `WXDi-P11-060` のシグニアタックで E1 が立つ／アップの対照は立たない。
+  **反転確認**＝`matchesStateFilter` の呼び出しを殺すと**対照が赤**（アップでも立つ＝旧 live の症状を再現）、戻すと2本とも PASS。
+  ⚠`H.findLog(カード名)` はアタック宣言のログにも当たるので判定に使わない（DRIVE_TRAPS 81）。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-306` をクローズ＝宣言名の変身を「規則」にした（`WXEX2-10-E2`＋同族 `WXK03-002-E2`・E1 の名前一掃も是正／第278バッチ・実機 `V-196`）
 
 原文＝`WXEX2-10-E2`【起】《ターン１回》《赤×0》：シグニのカード名１つを宣言する。このターン、対戦相手のすべての領域にある宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる。

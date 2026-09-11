@@ -2600,26 +2600,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           if (!stack || stack.length === 0) return false;
           const top = stack[stack.length - 1];
           if (cond.excludeSelf && srcNum && top === srcNum) return false;
-          // ゾーン状態（クロス/凍結）はCardDataに無いのでmatchesFilterと別に判定する
-          if (cond.filter?.crossState !== undefined) {
-            const isCross = fst.field.cross_state?.[zoneIdx] ?? false;
-            if (cond.filter.crossState !== isCross) return false;
-          }
-          if (cond.filter?.isFrozen !== undefined) {
-            const isFrozen = (fst.field.signi_frozen?.[zoneIdx] ?? false);
-            if (cond.filter.isFrozen !== isFrozen) return false;
-          }
-          if (cond.filter?.isAwakened !== undefined) {
-            const isAwk = (fst.awakened_signi ?? []).includes(top);
-            if (cond.filter.isAwakened !== isAwk) return false;
-          }
-          if (cond.filter?.isPuppet !== undefined) {
-            const isPuppet = (fst.field.puppet_signi ?? []).includes(top);
-            if (cond.filter.isPuppet !== isPuppet) return false;
-          }
-          if (cond.filter?.hasCharm !== undefined) {
-            const hasCharm = (fst.field.signi_charms?.[zoneIdx] ?? null) !== null;
-            if (cond.filter.hasCharm !== hasCharm) return false;
+          // ゾーン状態（クロス/凍結/ダウン/アクセ/ドライブ…）は CardData に無いので matchesFilter と別に判定する。
+          // 🆕§5.3 `O-308`②（2026-09-11）＝**`checkActiveCondition` と同じ `matchesStateFilter` へ寄せた**。
+          //   🔴旧実装は crossState/isFrozen/isAwakened/isPuppet/hasCharm の5キーだけを手書きしており、
+          //   `isDown`／`hasAcce`／`isDrive` などは**黙って素通り＝無条件成立**だった（live＝`PR-384-E2`
+          //   「アクセされているシグニがある場合」／`WXK01-051-E1`・`WXK01-072-E1`「ドライブ状態のシグニがある場合」）。
+          if (!matchesStateFilter(fst, zoneIdx, cond.filter)) return false;
+          // 🆕`adjacentToSelf`＝「このシグニの左か右に」（`WXDi-P11-060-E1/E2`）。効果元が同じ側の場に居なければ不成立（fail-closed）。
+          if (cond.filter?.adjacentToSelf) {
+            const srcZiAdj = srcNum ? fst.field.signi.findIndex(z => z?.at(-1) === srcNum) : -1;
+            if (srcZiAdj < 0 || Math.abs(zoneIdx - srcZiAdj) !== 1) return false;
           }
           // 「場にパワーN以上のシグニ」＝印字値ではなく CONTINUOUS/一時修整込みの実効パワーで判定する。
           return matchesFilter(ctx.cardMap.get(top), hcifFilter, ctx.effectivePowers?.get(top));
@@ -2627,7 +2617,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
         for (const fst of fieldStates) {
           for (const ln of lrigZoneTops(fst.field)) {
             if (ln && matchesFilter(ctx.cardMap.get(ln), hcifFilter)) matchedNums.push(ln);
@@ -2756,6 +2746,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const sum = (state: PlayerState): number => {
         const nums = cond.target === 'signi'
           ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+            // 🆕§5.3 `O-308`④＝「あなたの場にある＜天使＞のシグニのパワーの合計」＝合計に数えるシグニを filter で絞る。
+            .filter(n => !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter, ctx.effectivePowers?.get(n)))
           : cond.lrigRole === 'assist'
             ? [state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n)
             : cond.lrigRole === 'center'
@@ -2956,6 +2948,34 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const ziTrap = s.field.signi.findIndex(z => z?.at(-1) === srcTrap);
       if (ziTrap < 0) return false;
       return (s.field.signi_traps?.[ziTrap] ?? null) != null;
+    }
+    case 'SAME_ZONE_HAS_MAGIC_BOX': {
+      // 🆕§5.3 `O-308`⑤＝このシグニと同じシグニゾーンに【マジックボックス】がある場合（`checkActiveCondition` 側と同じ式）。
+      const srcMB = ctx.sourceCardNum;
+      if (!srcMB) return false;
+      const ziMB = s.field.signi.findIndex(z => z?.at(-1) === srcMB);
+      if (ziMB < 0) return false;
+      return (s.field.signi_magic_boxes?.[ziMB] ?? null) != null;
+    }
+    case 'FRONT_SIGNI': {
+      // 🆕§5.3 `O-308`①＝このシグニの正面（相手ゾーン 2-zi）のシグニが filter を満たす場合（`checkActiveCondition` 側と同じ式）。
+      //   🔴`ActiveCondition` にしか無かったので、【自】の発動条件「正面のシグニが凍結状態の場合」が書けず**無条件発動**だった。
+      const srcFS = ctx.sourceCardNum;
+      if (!srcFS) return false;
+      const ziFS = s.field.signi.findIndex(z => z?.at(-1) === srcFS);
+      if (ziFS < 0) return false;
+      const frontZiFS = 2 - ziFS;
+      const frontNumFS = o.field.signi[frontZiFS]?.at(-1);
+      if (!frontNumFS) return false; // 正面が空＝不成立
+      if (cond.filter && (!matchesFilter(ctx.cardMap.get(getCardNum(frontNumFS)), cond.filter, ctx.effectivePowers?.get(frontNumFS))
+          || !matchesStateFilter(o, frontZiFS, cond.filter))) return false;
+      if (cond.compareToSelf) {
+        const valFS = (num: string): number => cond.compareToSelf!.key === 'level'
+          ? (parseInt(ctx.cardMap.get(getCardNum(num))?.Level ?? '', 10) || 0)
+          : (ctx.effectivePowers?.get(num) ?? (parseInt((ctx.cardMap.get(getCardNum(num))?.Power ?? '').replace(/[^0-9]/g, ''), 10) || 0));
+        if (!cmp(valFS(frontNumFS), cond.compareToSelf.operator, valFS(srcFS))) return false;
+      }
+      return true;
     }
     case 'LRIG_TYPE_COUNT':
       // 🆕§5.3 `O-194`＝センタールリグのルリグタイプ数（`checkActiveCondition` 側と同じ式）。

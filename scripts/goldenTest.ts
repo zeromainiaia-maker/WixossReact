@@ -27336,11 +27336,11 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 70, 'ActiveCondition の型数（🆕70＝2026-09-06 §5.3 `O-259` 第12 で `LRIG_LEVEL_CMP_OPP`（センタールリグのレベル比較）を追加＝`Condition` 側には既にあったが、常在の宣言（`EXTRA_USE_TIMING`）からは使えなかった。69＝2026-09-02 §5.3 `O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
+  eq(Object.keys(AC_TYPES).length, 71, 'ActiveCondition の型数（🆕71＝2026-09-11 §5.3 `O-308`⑤ で `SAME_ZONE_HAS_MAGIC_BOX` を追加（兄弟 `SAME_ZONE_HAS_TRAP` と両評価器を揃える）。70＝2026-09-06 §5.3 `O-259` 第12 で `LRIG_LEVEL_CMP_OPP`（センタールリグのレベル比較）を追加＝`Condition` 側には既にあったが、常在の宣言（`EXTRA_USE_TIMING`）からは使えなかった。69＝2026-09-02 §5.3 `O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 150, 'Condition の型数（🆕150＝2026-09-11 §5.3 `O-321` で `ENERGY_PLACED_THIS_TURN` を追加＝「このターンに（コストか効果によって）エナゾーンに〈filter〉がN枚以上置かれていた場合」。149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
+  eq(Object.keys(C_TYPES).length, 152, 'Condition の型数（🆕152＝2026-09-11 §5.3 `O-308` で `SAME_ZONE_HAS_MAGIC_BOX`（⑤）と `FRONT_SIGNI`（①＝`ActiveCondition` にしか無かった）を追加。150＝2026-09-11 §5.3 `O-321` で `ENERGY_PLACED_THIS_TURN` を追加＝「このターンに（コストか効果によって）エナゾーンに〈filter〉がN枚以上置かれていた場合」。149＝2026-09-08 §5.3 `O-286` で `COST_ENERGY_TRASHED_COLOR`（追加コストでエナからトラッシュへ置いた色）を追加＝`PAID_COLORS_INCLUDE_ALL`（基本コストで払ったエナの色）とは読み元が別。148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -66026,6 +66026,117 @@ test('索引A 2026-09-02: O-194 新条件型 SAME_ZONE_HAS_TRAP / LRIG_TYPE_COUN
   ok(evalCondition(gte2, mkCtx({ lrig: [lrig2] }, {}, self)), '[Condition] 2タイプ → true');
   ok(!evalCondition(gte2, mkCtx({ lrig: [lrig1] }, {}, self)), '[Condition] 1タイプ → false');
   ok(!evalCondition(gte2, mkCtx({ lrig: [] }, {}, self)), '[Condition] ルリグ不在 → false');
+}));
+
+test('§5.3 O-308 2026-09-11: 【自】の発動条件4種（正面凍結／左右のダウン＜X＞／＜X＞のパワー合計／同ゾーン【マジックボックス】）が評価器と収集器で効く', () => withSavedCursor(() => {
+  // 🔴旧 live は5効果とも**発動条件が丸ごと落ちて無条件発動**だった（逆翻訳にも条件が1文字も無かった）。
+  //   条件側には STUB の道が無い（`COND_STUB` は無条件成立）ので、型＋両評価器＋golden を揃えた（LESSONS §4.2）。
+  const cm = cardMap as Map<string, CardData>;
+  const self = SIGNI_L2;
+  const other = mkState({});
+
+  // ── ⑤ SAME_ZONE_HAS_MAGIC_BOX（WX24-P3-066-E1）──
+  const mbCond = { type: 'SAME_ZONE_HAS_MAGIC_BOX' } as const;
+  const mbSame = mkState({ signi: [self, null, null] }); mbSame.field.signi_magic_boxes = [fresh(), null, null];
+  const mbOther = mkState({ signi: [self, null, null] }); mbOther.field.signi_magic_boxes = [null, null, fresh()];
+  const mbNone = mkState({ signi: [self, null, null] });
+  for (const [ownSt, want, label] of [[mbSame, true, '同じゾーン'], [mbOther, false, '別ゾーン'], [mbNone, false, 'MBなし']] as [PlayerState, boolean, string][]) {
+    eq(checkActiveCondition(mbCond, ownSt, other, true, cm, self), want, `[Active] MB ${label}`);
+    eq(evalCondition(mbCond, { ...mkCtx({}, {}, self), ownerState: ownSt }), want, `[Condition] MB ${label}`);
+  }
+  eq(evalCondition(mbCond, { ...mkCtx({}, {}, undefined), ownerState: mbSame }), false, '[Condition] 効果元不明は fail-closed');
+
+  // ── ① FRONT_SIGNI{isFrozen}（WXDi-D05-017-E1）──
+  const frontCond = { type: 'FRONT_SIGNI', filter: { isFrozen: true } } as const;
+  const oppSigni = fresh();
+  const me0 = mkState({ signi: [self, null, null] });                    // 効果元 zi=0 → 正面は相手 zi=2
+  const frontFrozen = mkState({ signi: [null, null, oppSigni] }); frontFrozen.field.signi_frozen = [false, false, true];
+  const frontThawed = mkState({ signi: [null, null, oppSigni] });
+  const sameZiFrozen = mkState({ signi: [oppSigni, null, null] }); sameZiFrozen.field.signi_frozen = [true, false, false];
+  for (const [oppSt, want, label] of [[frontFrozen, true, '正面が凍結'], [frontThawed, false, '正面が凍結でない'],
+    [sameZiFrozen, false, '凍結しているのは正面ではない（同じ添字）'], [mkState({}), false, '正面が空']] as [PlayerState, boolean, string][]) {
+    eq(checkActiveCondition(frontCond, me0, oppSt, true, cm, self), want, `[Active] ${label}`);
+    eq(evalCondition(frontCond, { ...mkCtx({}, {}, self), ownerState: me0, otherState: oppSt }), want, `[Condition] ${label}`);
+  }
+
+  // ── ② HAS_CARD_IN_FIELD{isDown, adjacentToSelf}（WXDi-P11-060-E1/E2）──
+  const p11Name = cm.get('WXDi-P11-060')?.CardName;
+  const weapon = findCard(c => isSigni(c) && /ウェポン/.test(c.CardClass ?? '') && c.CardName !== p11Name);
+  const selfAdj = findCard(c => isSigni(c) && !/ウェポン/.test(c.CardClass ?? ''));
+  const adjCond = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'ウェポン', isDown: true, adjacentToSelf: true } } as const;
+  const withDown = (signi: (string | null)[], down: boolean[]) => { const s = mkState({ signi }); s.field.signi_down = down; return s; };
+  for (const [ownSt, oppSt, want, label] of [
+    [withDown([weapon, selfAdj, null], [true, false, false]), other, true, '隣にダウン状態の＜ウェポン＞'],
+    [withDown([weapon, selfAdj, null], [false, false, false]), other, false, '隣の＜ウェポン＞がアップ'],
+    [withDown([weapon, null, selfAdj], [true, false, false]), other, false, 'ダウン状態の＜ウェポン＞が隣ではない（左端と右端）'],
+    [withDown([null, selfAdj, null], [false, false, false]), withDown([weapon, null, null], [true, false, false]), false, '相手の場のダウン状態の＜ウェポン＞は数えない'],
+  ] as [PlayerState, PlayerState, boolean, string][]) {
+    eq(checkActiveCondition(adjCond, ownSt, oppSt, true, cm, selfAdj), want, `[Active] ${label}`);
+    eq(evalCondition(adjCond, { ...mkCtx({}, {}, selfAdj), ownerState: ownSt, otherState: oppSt }), want, `[Condition] ${label}`);
+  }
+  // 🔴同時に直した穴＝`evalCondition` の HAS_CARD_IN_FIELD は `hasAcce`／`isDrive`／`isDown` を**素通り**させていた
+  //   （live＝`PR-384-E2` / `WXK01-051-E1` / `WXK01-072-E1`）。`checkActiveCondition` と同じ答えになることを見る。
+  const acceCond = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasAcce: true } } as const;
+  const plain = mkState({ signi: [self, null, null] });
+  const acced = mkState({ signi: [self, null, null] }); acced.field.signi_acce = [[fresh()], null, null];
+  eq(evalCondition(acceCond, { ...mkCtx({}, {}, self), ownerState: plain }), false, '🔴[Condition] アクセの無いシグニだけでは不成立（旧＝成立）');
+  eq(evalCondition(acceCond, { ...mkCtx({}, {}, self), ownerState: acced }), true, '[Condition] アクセされたシグニがあれば成立');
+  eq(checkActiveCondition(acceCond, plain, other, true, cm, self), false, '[Active] 同じ盤面で同じ答え');
+
+  // ── ④ FIELD_LEVEL_SUM{filter}（WXDi-P10-055-E1）──
+  const angel = findCard(c => isSigni(c) && /天使/.test(c.CardClass ?? ''));
+  const nonAngel = findCard(c => isSigni(c) && !/天使/.test(c.CardClass ?? '') && c.Level === '2');
+  const sumCond = { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', metric: 'power', operator: 'gte', value: 20000, filter: { story: '天使' } } as const;
+  const twoCtx = { ...mkCtx({ signi: [angel, nonAngel, null] }, {}, self), effectivePowers: new Map([[angel, 15000], [nonAngel, 15000]]) };
+  eq(evalCondition(sumCond, twoCtx), false, '＜天使＞以外のパワーを合計に数えない');
+  eq(evalCondition({ ...sumCond, filter: undefined }, twoCtx), true, '対照：filter が無ければ 30000 で成立（filter が効いている証拠）');
+  eq(evalCondition(sumCond, { ...twoCtx, effectivePowers: new Map([[angel, 20000], [nonAngel, 0]]) }), true, '＜天使＞だけで 20000 → 成立');
+  const angelLv = parseInt(cm.get(angel)?.Level ?? '0', 10);
+  const lvCond = { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'eq', value: angelLv, filter: { story: '天使' } } as const;
+  const lvState = mkState({ signi: [angel, nonAngel, null] });
+  eq(checkActiveCondition(lvCond, lvState, other, true, cm, self), true, '[Active] filter つきは＜天使＞のレベルだけを合計');
+  eq(checkActiveCondition({ ...lvCond, filter: undefined }, lvState, other, true, cm, self), false, '[Active] 対照：filter 無しは他のシグニも足す');
+
+  // ── live と収集器 ──
+  const effOf = (num: string, id: string) => (effectsMap.get(num) ?? []).find(e => e.effectId === id)!;
+  eq(effOf('WX24-P3-066', 'WX24-P3-066-E1').condition?.type, 'SAME_ZONE_HAS_MAGIC_BOX', 'WX24-P3-066-E1: 同ゾーン【マジックボックス】の発動条件');
+  eq(effOf('WXDi-D05-017', 'WXDi-D05-017-E1').condition?.type, 'FRONT_SIGNI', 'WXDi-D05-017-E1: 正面凍結の発動条件');
+  eq(JSON.stringify(effOf('WXDi-P10-055', 'WXDi-P10-055-E1').condition), JSON.stringify(sumCond), 'WXDi-P10-055-E1: ＜天使＞のパワー合計20000以上');
+  for (const [id, cls] of [['WXDi-P11-060-E1', 'ウェポン'], ['WXDi-P11-060-E2', 'アーム']] as const) {
+    eq(JSON.stringify(effOf('WXDi-P11-060', id).condition), JSON.stringify({ ...adjCond, filter: { ...adjCond.filter, story: cls } }), `${id}: 左右のダウン状態の＜${cls}＞`);
+  }
+  // ⑤②の「そうした場合」＝`OPEN_MAGIC_BOX` は did-it ゲートの対象型ではない（`DID_IT_GATED_TYPES`）ので、
+  //   🔴旧 live の `CONDITIONAL{IS_MY_TURN}` は**表向きにするのを断ってもバニッシュ**していた。
+  const e066 = effOf('WX24-P3-066', 'WX24-P3-066-E1');
+  ok(!JSON.stringify(e066.action).includes('"IS_MY_TURN"'), 'WX24-P3-066-E1: IS_MY_TURN プレースホルダが残っていない');
+  const findNode = (node: unknown, pred: (x: { type?: string; condition?: { type?: string } }) => boolean): EffectAction | null => {
+    if (!node || typeof node !== 'object') return null;
+    if (Array.isArray(node)) { for (const v of node) { const hit = findNode(v, pred); if (hit) return hit; } return null; }
+    if (pred(node as { type?: string })) return node as EffectAction;
+    for (const v of Object.values(node)) { const hit = findNode(v, pred); if (hit) return hit; }
+    return null;
+  };
+  const mbGate = findNode(e066.action, x => x.type === 'CONDITIONAL' && x.condition?.type === 'LAST_PROCESSED_COUNT_GTE');
+  ok(!!mbGate, 'WX24-P3-066-E1: ②は「表向きにした」ときだけ後段へ進む');
+  const src066 = 'WX24-P3-066';
+  const oppT = fresh();
+  const mkMB = () => {
+    const c = mkCtx({ signi: [src066, null, null] }, { signi: [oppT, null, null] }, src066);
+    c.ownerState.field.signi_magic_boxes = [fresh(), null, null];
+    return { ...c, storedTargetCards: [oppT] } as ExecCtx;
+  };
+  const skipRun = run({ type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_OPEN_MB_SKIP' } as EffectAction, mbGate!] }, mkMB());
+  ok(skipRun.otherState.field.signi.some(s => s?.includes(oppT)), '🔴断ったらバニッシュしない（旧＝バニッシュした）');
+  const doRun = run({ type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_OPEN_MB_DO', value: 0 } as EffectAction, mbGate!] }, mkMB());
+  ok(!doRun.otherState.field.signi.some(s => s?.includes(oppT)), '表向きにしてトラッシュへ置いたらバニッシュする');
+
+  // 収集器（ON_ATTACK_SIGNI）が発動条件を見ていること＝E1 は＜ウェポン＞、E2 は＜アーム＞を要求する。
+  const trig = { hostId: 'host', guestId: 'guest', activeUserId: 'host', turnPhase: 'ATTACK', effectsMap, cardMap: cm, genId: () => 'o308' };
+  const p11 = 'WXDi-P11-060';
+  const collected = (ownSt: PlayerState) => collectAttackerSelfTriggers(trig, ownSt, mkState({}), p11, 'host', undefined)
+    .map(entry => entry.effectId).sort().join(',');
+  eq(collected(withDown([weapon, p11, null], [true, false, false])), 'WXDi-P11-060-E1', '隣にダウン状態の＜ウェポン＞ → E1 だけ');
+  eq(collected(withDown([weapon, p11, null], [false, false, false])), '', '🔴隣の＜ウェポン＞がアップなら何も収集しない（旧＝E1/E2 とも無条件）');
 }));
 
 test('索引A 2026-09-02: O-194 CONTINUOUS BLOCK_ACTION の条件評価に効果元が渡っている', () => withSavedCursor(() => {

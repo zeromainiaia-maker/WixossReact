@@ -981,6 +981,7 @@ function condJa(c?: any): string {
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'SAME_ZONE_HAS_SEED': return '同じシグニゾーンに【シード】がある';
     case 'SAME_ZONE_HAS_TRAP': return '同じシグニゾーンに【トラップ】がある';
+    case 'SAME_ZONE_HAS_MAGIC_BOX': return 'このシグニと同じシグニゾーンに【マジックボックス】がある';
     case 'LRIG_TYPE_COUNT': return `${ownerJa(c.owner)}センタールリグのルリグタイプが${numJa(c.value)}つ${opJa(c.operator)}`;
     // ⚠**「アタックした」を落とさない**（2026-08-30 Claude 検証）＝
     //   「このターンにシグニが4回以上」だけだと**何が4回なのか**が読めず、原文照合で差が見えない。
@@ -993,11 +994,11 @@ function condJa(c?: any): string {
       const fc = c as { filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: string } };
       if (fc.compareToSelf) {
         const keyJa = fc.compareToSelf.key === 'level' ? 'レベル' : 'パワー';
-        if (fc.compareToSelf.operator === 'eq') return `このシグニの${keyJa}が正面のシグニと同じであるかぎり`;
-        return `このシグニより${keyJa}の${fc.compareToSelf.operator === 'gt' ? '高い' : '低い'}シグニがこの正面にあるかぎり`;
+        if (fc.compareToSelf.operator === 'eq') return `このシグニの${keyJa}が正面のシグニと同じである`;
+        return `このシグニより${keyJa}の${fc.compareToSelf.operator === 'gt' ? '高い' : '低い'}シグニがこの正面にある`;
       }
       const st = fc.filter?.isFrozen ? '凍結状態の' : fc.filter?.isDown ? 'ダウン状態の' : fc.filter?.isUp ? 'アップ状態の' : '';
-      return `このシグニの正面に${st}${filterJa({ ...fc.filter, isFrozen: undefined, isDown: undefined, isUp: undefined })}シグニがあるかぎり`;
+      return `このシグニの正面に${st}${filterJa({ ...fc.filter, isFrozen: undefined, isDown: undefined, isUp: undefined })}シグニがある`;
     }
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
     // 🆕§5.3 `O-65`：`DURING_ATTACK_PHASE` の対（【常】のメインフェイズ限定）。
@@ -1035,7 +1036,7 @@ function condJa(c?: any): string {
         ? (c.lrigRole === 'assist' ? 'アシストルリグ' : c.lrigRole === 'center' ? 'センタールリグ' : 'ルリグ')
         : 'シグニ';
       const metric = c.metric === 'power' ? 'パワー' : 'レベル';
-      const subject = `${ownerJa(c.owner)}場にある${target}の${metric}の合計`;
+      const subject = `${ownerJa(c.owner)}場にある${c.filter ? filterJa(c.filter) : ''}${target}の${metric}の合計`;
       if (c.parity) return `${subject}が${c.parity === 'odd' ? '奇数' : '偶数'}`;
       return c.compareTo === 'opponent'
         ? `${subject}が対戦相手の場にある${target}の${metric}の合計${opJa(c.operator)}`

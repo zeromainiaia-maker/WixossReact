@@ -56058,6 +56058,91 @@ scenarios.o306NoDeclarationNothingSwept = {
 order.push('o306DeclaredNameServantZeroSwept');
 order.push('o306NoDeclarationNothingSwept');
 
+// §5.1 `V-197`（§5.3 `O-308`②・2026-09-11）＝`WXDi-P11-060-E1`（爆砲　タマ//メモリア）
+//   【自】「このシグニがアタックしたとき、このシグニの左か右にダウン状態の＜ウェポン＞のシグニがある場合、
+//     対戦相手のパワー5000以下のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それをバニッシュする」
+// 🔴旧 live＝発動条件が丸ごと落ちて**アタックするたびに無条件で発動**していた（O-308 の5効果とも同型）。
+// 🔑**golden では届かない層**＝`BattleScreen` のシグニアタック経路が `collectAttackerSelfTriggers` へ
+//   **注入盤面の `signi_down`（隣のシグニの状態）と効果元の instance id** を渡しているか
+//   （golden は collector を直接叩くので、画面側が別の盤面を渡していても緑になる）。
+// ⚠隣の＜ウェポン＞は `WXDi-P11-057`（自身の【自】は**それが**アタックしたときだけ＝観測を汚さない）。
+// ⚠相手の正面はバニラの `WD01-013`（ククリ・P3000）＝E1 の対象候補で、バトルでも何も誘発しない（対照の空振りを保証）。
+const O308_TAMA = 'WXDi-P11-060#30801';
+const O308_WEAPON = 'WXDi-P11-057#30802';
+const o308Spec = (weaponDown) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#30804'], 'field.lrig_down': false,
+    'field.signi': [[O308_WEAPON], [O308_TAMA], null], 'field.signi_down': [weaponDown, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': ['WD01-013#30805'], 'trash': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-001#30806'], 'field.lrig_down': false,
+    'field.signi': [null, ['WD01-013#30803'], null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': [],   // §4.4-1＝前シナリオのアーツが残ると CPU が撃ってスタックが立つ
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/** @param weaponDown true＝隣の＜ウェポン＞がダウン（発動する）／false＝アップ（対照＝発動しない） */
+const driveO308 = (weaponDown) => async function (page, H) {
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ phase: before?.turnPhase, host: before?.host?.fieldSigni }));
+  if (!JSON.stringify(before?.host ?? {}).includes(O308_TAMA)) {
+    return { pass: false, detail: `注入前提不成立（host=${JSON.stringify(before?.host?.fieldSigni)}）` };
+  }
+  // 手順は `driveO321Piece` と同じ＝アタックしたらフェイズを進めない（§4.4-5 の近縁）。
+  let attacked = false; let reached = false; let pending = null; let stackSeen = 0; let sinceAttack = 0;
+  for (let s = 0; s < 50; s++) {
+    await page.waitForTimeout(400);
+    const st = await H.queryState();
+    if (/^ATTACK/.test(st?.turnPhase ?? '')) reached = true;
+    if (st?.pendingEffect) pending = st.pendingEffect;
+    stackSeen = Math.max(stackSeen, st?.stackLen ?? 0);
+    if (pending || stackSeen > 0) break;
+    if (attacked) { if (++sinceAttack > 8) break; continue; }
+    if (st?.turnPhase === 'ATTACK_SIGNI') {
+      if (await o321AttackSigni(page, H, 1)) { attacked = true; continue; }
+    }
+    const adv = (await advancePhaseV20(H)) ?? (await H.clickBtn('メインフェイズへ', { exact: true }));
+    H.log(`  atk[${s}] phase=${st?.turnPhase} adv=${adv ?? 'なし'} attacked=${attacked}`);
+  }
+  // ⚠発動の判別に `H.findLog(カード名)` を使わない＝アタック宣言のログにもカード名が出る（対照でも当たった実測）。
+  // 🔴後始末（§4.4-1）＝未解決の対話を残さない（次シナリオの注入を汚す）。
+  for (let k = 0; k < 8; k++) {
+    const st = await H.queryState();
+    if (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!(await H.clickTextOrBtn(['スキップ', '選ばない', 'いいえ', '決定', '発動順序を確定', 'OK']))) {
+      await H.stdStep();
+    }
+    await page.waitForTimeout(400);
+  }
+  const fin = await H.queryState();
+  H.log('結果:', JSON.stringify({ phase: fin?.turnPhase, attacked, pending, stackSeen }));
+  if (!reached || !attacked) return { pass: false, detail: `アタックまで到達できなかった（phase=${fin?.turnPhase} attacked=${attacked}）` };
+  const fired = !!pending || stackSeen > 0;
+  if (weaponDown) {
+    if (!fired) return { pass: false, detail: '🔴隣にダウン状態の＜ウェポン＞があるのに【自】が立たない（収集器に渡る盤面が注入盤面と違う）' };
+    return { pass: true, detail: `隣の＜ウェポン＞がダウン→アタックで E1 が立った（pending=${pending} stack=${stackSeen}）` };
+  }
+  if (fired) return { pass: false, detail: `🔴隣の＜ウェポン＞がアップなのに【自】が立った（発動条件が効いていない＝旧 live の無条件発動）pending=${pending}` };
+  return { pass: true, detail: `対照＝隣の＜ウェポン＞がアップ→アタックしても【自】は立たない（phase=${fin?.turnPhase}）` };
+};
+scenarios.o308AdjacentDownWeaponFires = {
+  title: 'V-197 O-308(1): WXDi-P11-060-E1＝左隣にダウン状態の＜ウェポン＞→シグニアタックで【自】が立つ',
+  spec: o308Spec(true),
+  drive: driveO308(true),
+};
+scenarios.o308AdjacentUpWeaponSilent = {
+  title: 'V-197 O-308(2) 対照: 同じ盤面で隣の＜ウェポン＞がアップ＝【自】は立たない（旧＝無条件発動）',
+  spec: o308Spec(false),
+  drive: driveO308(false),
+};
+order.push('o308AdjacentDownWeaponFires');
+order.push('o308AdjacentUpWeaponSilent');
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);

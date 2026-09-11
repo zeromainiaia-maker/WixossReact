@@ -218,13 +218,18 @@ export function checkActiveCondition(
           const c = cardMap.get(top);
           if (!matchesFilter(c, cond.filter)) return;
           if (!matchesStateFilter(state, zi, cond.filter)) return;
+          // 🆕§5.3 `O-308`②＝`adjacentToSelf`（「このシグニの左か右に」）。`evalCondition` 側と同じ式＝効果元が同じ側の場に居なければ不成立。
+          if (cond.filter?.adjacentToSelf) {
+            const srcZiAdj = sourceCardNum ? state.field.signi.findIndex(z => z?.at(-1) === sourceCardNum) : -1;
+            if (srcZiAdj < 0 || Math.abs(zi - srcZiAdj) !== 1) return;
+          }
           record(top, c);
         });
       // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened/isPuppet はシグニ専用）
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
-        if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
+        if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
           for (const ln of lrigZoneTops(state.field)) {
             const c = ln ? cardMap.get(ln) : undefined;
             if (ln && matchesFilter(c, cond.filter)) record(ln, c);
@@ -257,6 +262,8 @@ export function checkActiveCondition(
       const sum = (state: PlayerState): number => {
         const nums = cond.target === 'signi'
           ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+            // 🆕§5.3 `O-308`④＝合計に数えるシグニを filter で絞る（`evalCondition` 側と同じ式）。
+            .filter(n => !cond.filter || matchesFilter(cardMap.get(n), cond.filter))
           : cond.lrigRole === 'assist'
             ? [state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n)
             : cond.lrigRole === 'center'
@@ -714,6 +721,14 @@ export function checkActiveCondition(
       const ziTrap = ownerState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum);
       if (ziTrap < 0) return false;
       return (ownerState.field.signi_traps?.[ziTrap] ?? null) != null;
+    }
+
+    case 'SAME_ZONE_HAS_MAGIC_BOX': {
+      // 🆕§5.3 `O-308`⑤＝このシグニと同じシグニゾーンに【マジックボックス】があるかぎり（`evalCondition` 側と同じ式）。
+      if (!sourceCardNum) return false;
+      const ziMB = ownerState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum);
+      if (ziMB < 0) return false;
+      return (ownerState.field.signi_magic_boxes?.[ziMB] ?? null) != null;
     }
 
     case 'LRIG_TYPE_COUNT': {
@@ -1559,7 +1574,13 @@ function evalConditionForContinuous(
           if (!stack?.length) return false;
           const top = stack[stack.length - 1];
           if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
-          if (matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter)) matchedNums.push(top);
+          if (!matchesFilter(cardMap.get(top), cond.filter) || !matchesStateFilter(hcifState, zi, cond.filter)) return false;
+          // 🆕§5.3 `O-308`②＝`adjacentToSelf`（他の2評価器と同じ式）。
+          if (cond.filter?.adjacentToSelf) {
+            const srcZiAdj = sourceCardNum ? hcifState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum) : -1;
+            if (srcZiAdj < 0 || Math.abs(zi - srcZiAdj) !== 1) return false;
+          }
+          matchedNums.push(top);
         });
       }
       if (cond.distinctColors) return new Set(matchedNums.flatMap(n => splitFieldColors(cardMap.get(n)?.Color))).size >= (cond.minCount ?? 1);
@@ -1572,7 +1593,7 @@ function evalConditionForContinuous(
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet && !cond.filter?.adjacentToSelf) {
         return hcifStates.some(state => lrigZoneTops(state.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter)));
       }
       return false;

@@ -6987,6 +6987,12 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   ⚠**実機は不要と判定**（`src/screens/` 不変更）。🔴**ただし新機構に多段対話が2つある**ので、
   UI 層まで見るなら §5.1 へ `V-nn` を足す。**live の A/B 差分＝15カード**（巻き添え0）。
 
+### `O-308` — AUTO の発動条件に使える `Condition` 型が足りない（索引 G）
+
+> 🏁**2026-09-11 第279バッチでクローズ**＝残る4つ（①正面凍結 ②左右のダウン＜X＞ ④＜X＞限定のパワー合計 ⑤同ゾーン【マジックボックス】）を1バッチで。
+> 受け皿＝①`FRONT_SIGNI` を `Condition` へ ②`HAS_CARD_IN_FIELD.filter.adjacentToSelf` を3評価器で消費 ④`FIELD_LEVEL_SUM.filter` ⑤`SAME_ZONE_HAS_MAGIC_BOX`（新設）。③は第275 の `ENERGY_PLACED_THIS_TURN`。
+> 🔑**同時に是正**＝`evalCondition` の `HAS_CARD_IN_FIELD` が状態キーを素通り（`PR-384-E2`／`WXK01-051-E1`／`WXK01-072-E1`）／`WX24-P3-066-E1` ②の did-it ゲート（`OPEN_MAGIC_BOX` は `DID_IT_GATED_TYPES` 外）。全文は BUGFIXES.md・実機 `V-197`。
+
 ### `O-306` — 宣言したカード名のカードを「このターン」全領域で別名カードへ変更する期限つき規則が無い
 
 > 🏁**2026-09-11 第278バッチでクローズ**＝登録票の見立てどおり**規則として持つ**形にした。
@@ -7289,6 +7295,22 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-11・第276バッチ後・PLAN §6 から退避）
+
+- **2026-09-11（第276バッチ・Opus 5 単独＝🏁`O-321` クローズ・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 1 / 863**（据置・うち mech 1＝即着手可能 0）｜**台帳 残 OPEN 0**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）。⚠**3計器が動かないのは停滞ではない**＝今回の本命は
+  **型も payload も live JSON も正しく見えるのに恒久 no-op**（受け皿へ書く人が居ない）型で、
+  **golden すら緑だった**（旧 test が本番の作らない state を自作していた）＝**実機だけが割れた**。
+  📦**在庫**＝🔥**実装キュー 123効果**（据置）｜**候補プール 7**｜**機構 worklist 21項目 / 上限64効果**
+  （🏁A 0／🏁B 0／G 21項目・64効果）｜
+  🏁**実機 残0**（`V-194` を同じ巡で返済＝`order` 常設は23本）｜除外リスト 125効果。
+  🔧**ゲート（全緑 ✅）**＝**golden 3971 PASS**（3968 → 3971＝新設3本）／smoke 10745 OK ／ fuzz 0 ／
+  census 1 / BASELINE 1 ／ census:stubs A群 無言 no-op 0・C群 0 ／ census:enginetext A🔴 0行 ／
+  census:costtext A🔴 0規則 ／ manual field loss 0 ／ lint 0 errors。
+  **ratchet の較正なし。新設 golden 3本・実機2本はすべて反転確認あり。**
+  ⚠**既存 golden 1本を更新した**＝「本番が絶対に作らない state」で緑だった test を、**本番が書く列**で判定する形へ。
 
 ### 恒久指標アーカイブ（2026-09-09・第235バッチ後・PLAN §6 から退避）
 

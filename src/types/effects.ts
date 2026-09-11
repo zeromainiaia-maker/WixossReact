@@ -272,7 +272,7 @@ export type ActiveCondition =
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean }
   | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // シグニゾーンに裏向きの【トラップ】がある／ない。🆕minCount（2026-08-31・Condition 側と対で更新）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner; operator?: CompareOp; value?: number }
-  | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
+  | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist'; filter?: TargetFilter /* 🆕O-308④ 合計に数えるシグニを絞る（target:'signi' 専用） */ }
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number }
   // 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）。`Condition` 側と同型・
   // 同実装（空盤面 false＝1体以上必須）。⚠**両 union に同じ型を置いたら評価器も両方に実装する**
@@ -349,6 +349,8 @@ export type ActiveCondition =
   // 🆕§5.3 `O-194`＝このシグニと同じシグニゾーンに【トラップ】があるかぎり（`WD23-039-A-E1`）。
   // ⚠`HAS_TRAP_IN_FIELD` は**場のどこかに**トラップがあるかを見る別軸＝そちらでは過剰実行になる。
   | { type: 'SAME_ZONE_HAS_TRAP' }
+  // 🆕§5.3 `O-308`⑤＝このシグニと同じシグニゾーンに【マジックボックス】があるかぎり（`field.signi_magic_boxes`）。
+  | { type: 'SAME_ZONE_HAS_MAGIC_BOX' }
   // 🆕§5.3 `O-194`＝センタールリグの**ルリグタイプ数**の閾値（`PR-472-E2`「ルリグタイプが２つ以上であるかぎり」）。
   // ルリグタイプは `CardClass` の `/` 区切り（例＝`タマ/イオナ` は2種）。ルリグ不在は 0（fail-closed）。
   | { type: 'LRIG_TYPE_COUNT'; owner: Owner; operator: CompareOp; value: number }
@@ -525,7 +527,7 @@ export type Condition =
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
   | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // field.signi_traps の存在条件。negate=true は「場に【トラップ】がない場合」。🆕minCount＝「【トラップ】がN枚以上ある場合」（省略=1・2026-08-31 `WX20-040-E2`）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
-  | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
+  | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist'; filter?: TargetFilter /* 🆕O-308④ 合計に数えるシグニを絞る（target:'signi' 専用） */ }
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
   | { type: 'ALL_SELF_SIGNI_DOWN' }
@@ -766,6 +768,11 @@ export type Condition =
   | { type: 'SAME_ZONE_HAS_GATE' }                            // このシグニと同じシグニゾーンにTHE DOOR【ゲート】がある場合（own_gate_zones）
   | { type: 'SAME_ZONE_HAS_SEED' }                            // このシグニと同じシグニゾーンに【シード】がある場合（signi_seeds）
   | { type: 'SAME_ZONE_HAS_TRAP' }                            // このシグニと同じシグニゾーンに【トラップ】がある場合（signi_traps）
+  // 🆕§5.3 `O-308`⑤＝このシグニと同じシグニゾーンに【マジックボックス】がある場合（`WX24-P3-066-E1`）。
+  | { type: 'SAME_ZONE_HAS_MAGIC_BOX' }
+  // 🆕§5.3 `O-308`①＝`ActiveCondition` の `FRONT_SIGNI` と同じ意味を【自】の発動条件でも使う
+  //   （`WXDi-D05-017-E1`「このシグニの正面のシグニが凍結状態の場合」）。⚠両評価器で同じ式（正面が空なら不成立）。
+  | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'LRIG_TYPE_COUNT'; owner: Owner; operator: CompareOp; value: number } // センタールリグのルリグタイプ数（CardClass の `/` 区切り）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                  // 指定プレイヤーの場にTHE DOOR【ゲート】がある場合（own_gate_zones が非空）
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
@@ -805,7 +812,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
-  LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, SAME_ZONE_HAS_TRAP: true, LRIG_TYPE_COUNT: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
+  LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, SAME_ZONE_HAS_TRAP: true, SAME_ZONE_HAS_MAGIC_BOX: true, LRIG_TYPE_COUNT: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, HAND_DISCARDED_THIS_TURN: true,
   OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true, PAID_COLORS_INCLUDE_ALL: true,
@@ -848,7 +855,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
   TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true, LAST_PROCESSED_POWER_LTE: true,
   ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
-  HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, SAME_ZONE_HAS_TRAP: true, LRIG_TYPE_COUNT: true,
+  HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, SAME_ZONE_HAS_TRAP: true, SAME_ZONE_HAS_MAGIC_BOX: true, FRONT_SIGNI: true, LRIG_TYPE_COUNT: true,
   FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,
   FIELD_SIGNI_ALL_DISTINCT_CLASS: true, FIELD_SIGNI_SHARE_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
   LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
@@ -1576,7 +1583,8 @@ export interface TargetFilter {
    * 🔴これが無いと `owner:'self'/count:'ALL'` へ潰れて**自分の全シグニ（自分自身を含む）**に効く＝過剰実装だった
    * （2026-08-18 続き562・`V-73` 実機検証で発見＝単独配置でも自分に＋3000 が乗っていた）。
    * ⚠**効果元自身は「隣」ではない**（`zi` は含めない）。効果元が場のシグニでなければ候補ゼロ＝no-op。
-   * ⚠**現状の消費地点は `calcFieldPowers` の CONTINUOUS `POWER_MODIFY`（`count:'ALL'`）だけ**＝
+   * 🆕**条件 `HAS_CARD_IN_FIELD.filter` でも読む**（2026-09-11 §5.3 `O-308`②＝3つの評価器が効果元のゾーンから `zi±1` を判定）。
+   * ⚠**アクション側の消費地点は `calcFieldPowers` の CONTINUOUS `POWER_MODIFY`（`count:'ALL'`）だけ**＝
    *   `matchesFilter`／`matchesStateFilter` は**ゾーン隣接を判定できない**（効果元のゾーンを受け取らない）ので、
    *   対象宣言（`SELECT_TARGET` 等）でこのキーを使うと**黙って無視されて過剰選択**になる。使うなら消費地点を先に足すこと
    *   （live で CONTINUOUS 以外に付いていないことは golden が見張っている）。

@@ -204,6 +204,62 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
      "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
+  // ── §5.3 `O-308`（2026-09-11）＝【自】の発動条件が丸ごと落ちて**無条件発動**していた5効果。
+  //   本体（対象宣言・任意コスト・帰結）は旧 live のまま＝**トップレベル `condition` を足しただけ**
+  //   （`collectAttackerSelfTriggers` / `collectPhaseBoundaryTriggers` が `evalUseCondition` で評価する）。
+  //   受け皿＝①`FRONT_SIGNI`（`ActiveCondition` にしか無かった型を `Condition` へ）②`HAS_CARD_IN_FIELD.filter.adjacentToSelf`
+  //   ④`FIELD_LEVEL_SUM.filter` ⑤`SAME_ZONE_HAS_MAGIC_BOX`（新設）。
+  // ── WX24-P3-066（小罠　ファイヤートーチ）E1 ⑤
+  //   原文＝【自】：このシグニがアタックしたとき、このシグニと同じシグニゾーンに【マジックボックス】がある場合、以下の２つから１つを選ぶ。
+  //         ①対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。
+  //         ②対戦相手のパワー5000以下のシグニ１体を対象とし、このシグニと同じシグニゾーンにある【マジックボックス】１つを表向きにしトラッシュに置いてもよい。そうした場合、それをバニッシュする。
+  // 🔴②の「そうした場合」も壊れていた＝`OPEN_MAGIC_BOX` は did-it ゲートの対象型ではない（`effectExecutor.ts` の `DID_IT_GATED_TYPES`）ので、
+  //   旧 live の `CONDITIONAL{IS_MY_TURN}` は**表向きにするのを断ってもバニッシュ**した。
+  //   ⇒ `LAST_PROCESSED_COUNT_GTE{1}`（`INTERNAL_OPEN_MB_DO` は公開したMBを、`_SKIP` は空を `lastProcessedCards` に置く）。
+  "WX24-P3-066": [
+    {"effectId":"WX24-P3-066-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "condition":{"type":"SAME_ZONE_HAS_MAGIC_BOX"},
+     "action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+       {"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":2000}},"upToCount":false}}},
+       {"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[
+         {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}},
+         {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+         {"type":"STUB","id":"OPEN_MAGIC_BOX"},
+         {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},
+          "then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // ── WXDi-D05-017（羅星　ジャコビニ）E1 ①
+  //   原文＝【自】：あなたのアタックフェイズ開始時、このシグニの正面のシグニが凍結状態の場合、《青》《青》《無》を支払ってもよい。
+  //         そうした場合、ターン終了時まで、このシグニは【アサシン】を得る。
+  "WXDi-D05-017": [
+    {"effectId":"WXDi-D05-017-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],
+     "condition":{"type":"FRONT_SIGNI","filter":{"isFrozen":true}},
+     "action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["青","青","無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"}}]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // ── WXDi-P10-055（紅天　プロメウス）E1 ④
+  //   原文＝【自】：あなたのアタックフェイズ開始時、あなたの場にある＜天使＞のシグニのパワーの合計が20000以上の場合、
+  //         対戦相手のパワー10000以下のシグニ１体を対象とし、《赤》《無》を支払ってもよい。そうした場合、それをバニッシュする。
+  "WXDi-P10-055": [
+    {"effectId":"WXDi-P10-055-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],
+     "condition":{"type":"FIELD_LEVEL_SUM","owner":"self","target":"signi","metric":"power","operator":"gte","value":20000,"filter":{"story":"天使"}},
+     "action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["赤","無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // ── WXDi-P11-060（爆砲　タマ//メモリア）E1/E2 ②
+  //   原文＝【自】：このシグニがアタックしたとき、このシグニの左か右にダウン状態の＜ウェポン＞（E2＝＜アーム＞）のシグニがある場合、…《無》を支払ってもよい。そうした場合、…
+  "WXDi-P11-060": [
+    {"effectId":"WXDi-P11-060-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"ウェポン","isDown":true,"adjacentToSelf":true}},
+     "action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    {"effectId":"WXDi-P11-060-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"アーム","isDown":true,"adjacentToSelf":true}},
+     "action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesLrig":true}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["無"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesLrig":true}},"targetsStored":true}}]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
   // ── WXEX2-12（アロス・ピルルク　ACRO）E4 ＝§5.3 `O-307`（2026-09-11）
   //   原文＝【起】エクシード５：対戦相手は自分のルリグデッキを裏向きで２つの束に分ける。
   //         あなたはどちらかの束を見て、その中からアーツ１枚をルリグトラッシュに置く。
