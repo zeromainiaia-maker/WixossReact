@@ -428,6 +428,13 @@ export type Condition =
   // WXDi-P09-039/WXDi-P15-053/068/072/073（従来は条件節ごと落ちて**無条件発火**していた＝Opusタスク12(cxvi)）。
   | { type: 'COINS_PAID_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
   /**
+   * 🆕「**このゲームの間に**あなたが《コイン》を**得ていない**場合」（§5.3 `O-318`・`WXDi-P07-006-E1`）。
+   * 🔴**`coins`（現在値）では代用できない**＝得たあとに払えば0へ戻り、最初から得ていない場合と区別できない。
+   * 読み手は `coins_gained_this_game`（書き手は `applyCoinGain` の1本）。
+   * ⚠**ゲーム開始時に持っているコイン（ルリグの印刷値）は「得た」ではない**。
+   */
+  | { type: 'NO_COIN_GAINED_THIS_GAME'; owner: Owner }
+  /**
    * 「それが**このターンでN回目**である場合」（`WX05-042`・§6.4 O-11）。
    * `signi_downed_this_turn` の台帳を `filter` で絞って数える（＜植物＞のシグニ限定など）。
    * ⚠**数だけの器にしない**＝クラス/色の限定が原文側にあるので filter を持たせる。
@@ -841,7 +848,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   HAND_COUNT: true, HAND_COUNT_FILTER: true, HAND_DIFF: true, IS_SELF_IN_SIDE_ZONE: true, LIFE_COUNT: true,
   LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
-  COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
+  COINS_PAID_THIS_TURN: true, NO_COIN_GAINED_THIS_GAME: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
   SIGNI_LEFT_BY_OPP_EFFECT: true,
   SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
   PAID_COLORS_INCLUDE_ALL: true, COST_ENERGY_TRASHED_COLOR: true,
@@ -1241,6 +1248,17 @@ export interface EffectCost {
   // fromThis＝「このシグニの下」限定（続き417）／filter＝下カードの絞り込み（続き422）。
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  /**
+   * 🆕**「あなたのシグニに付いているカード１枚か、あなたのシグニの下にあるカード１枚をトラッシュに置く」**
+   * （2026-09-12・§5.3 `O-313`・`WXK10-018-E2`・母集団 実測1効果/1カード）。
+   * 🔴**`underAnySigniTrash` では足りない**＝あちらは**下にあるカード**だけ。原文は
+   *   **付いているカード**（チャーム／アクセ／【トラップ】／マジックボックス／シード／裏向き付け）も選べる。
+   * 🔑候補の定義は `signiZoneNonSigniCards` の1本に集約する（【ソウル】だけは行き先が
+   *   ルリグトラッシュなので**含まない**）。
+   * ⚠**判定（提示ゲート）と支払い（UI・引き落とし）で同じ関数を使う**＝
+   *   写経すると「提示されるのに払えない」／「払わずに撃てる」の片側穴になる。
+   */
+  attachedOrUnderTrash?: { count: number };
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
   trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
@@ -3763,11 +3781,15 @@ export interface SetBaseLevelAction {
    *   `base_level_overrides_until_opp_turn`（効果の持ち主の次ターン開始時に `clearUntilOppTurnEffects` が消す）
    * - 🆕`'NEXT_TURN'`＝「次のターンの間、〈対象〉の場にあるシグニの基本レベルは N になる」（`WX11-051-BURST`②）＝
    *   `target.count:'ALL'` のときだけ場レベル grant（`FieldGrant{kind:'baseLevel'}`）を予約する＝**後から出たシグニにも効く**。
+   * - 🆕`'UNTIL_NEXT_OWN_TURN_END'`＝「**次のあなたの**ターンのターン終了時まで」（§5.3 `O-331`・`WXK07-032-E2`）＝
+   *   `base_level_overrides_until_next_own_turn`（`turnEnds` カウントダウン＝`clearTurnEndScopedState` が毎ターン1減らす）。
+   *   🔴**`'END_OF_TURN'` で代用すると1ターン短い**（旧 `STUB{CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN}` がそれだった）。
+   *   🔴**`'UNTIL_OPP_TURN_END'` で代用してもまだ短い**＝あちらは相手ターン終了で切れる（`O-186` の教訓）。
    * 🔴旧＝`'END_OF_TURN'` しか取れず、`until` の無い AUTO は `effectExecutor` が**何もしない**（CONTINUOUS 扱い）ので
    *   `WXDi-D09-H15-E1` の「基本レベルは３になり」は**一度も効いていなかった**。
    * ⚠`target` が `thisCardOnly`（または省略相当）なら効果元、それ以外は選択（`owner:'any'` の「シグニ１体を対象とし」）。
    */
-  until?: 'END_OF_TURN' | 'UNTIL_OPP_TURN_END' | 'NEXT_TURN';
+  until?: 'END_OF_TURN' | 'UNTIL_OPP_TURN_END' | 'NEXT_TURN' | 'UNTIL_NEXT_OWN_TURN_END';
   /**
    * 🆕**設定する基本レベルを実行時に解決する**（2026-09-12・§5.3 `O-312`・`WXK07-033-E1`
    * 「ターン終了時まで、それの基本レベルを**宣言した数字**にする」）。
@@ -6733,6 +6755,21 @@ export interface StubAction {
    * ⚠リフレッシュはこの効果の処理中には起こさない（原文の但し書き）＝デッキが尽きたら取れる分だけ取る。
    */
   millEachRepeatOnName?: { count: number; name: string };
+  /**
+   * 🆕**REPEAT_BODY_WHILE（§5.3 `O-322`・2026-09-12・`WXDi-CP01-033-E1`）＝
+   * 「そのカードが《X》の場合、**この効果を繰り返す**」の制御フロー。**
+   *
+   * `body` は**この効果の本体まるごと**で、その中の再帰点に `STUB{REPEAT_BODY_SELF}` を置く。
+   * ハンドラは実行前に `REPEAT_BODY_SELF` を**自分自身（`maxRepeats` を1減らしたもの）へ差し替える**。
+   * 🔴**`body` の中に自分自身を直接入れない**＝JSON が無限に入れ子になる。差し替えは実行時に行う。
+   * 🔑**判定点は「繰り返しの合図」の位置で決まる**＝原文の「**その**カードが《X》の場合」は
+   *   本体が引いた1枚を指すので、再帰点を包む `CONDITIONAL` は
+   *   `SEQUENCE{snapshotLastProcessedForConditionals:true}` の中に置いて**引いた直後の照応先**で判定する。
+   *   ⚠これを怠ると、途中の `POWER_MODIFY` 等が `lastProcessedCards` を**自分が修整したシグニ**へ
+   *     書き換えてしまい、条件が永久に成立しない（＝繰り返しが1度も起きない）。
+   * ⚠**`maxRepeats` は無限ループの安全網**＝`body` が盤面を動かさなくなっても必ず止まる。既定60。
+   */
+  repeatBodyWhile?: { body: EffectAction; maxRepeats?: number };
   /**
    * `INTERNAL_ASK_ACCE_HOST`（§6.4 O-11）＝デッキから探したカードを【アクセ】にする際の
    * **ホスト側**（付け先シグニ）の絞り込み。「あなたの＜調理＞のシグニ1体を対象とし、〜それの【アクセ】にし」。

@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — PLAN §5.3 索引G の残り8項目を全消化（`O-313`／`O-317`／`O-318`／`O-320`／`O-322`／`O-330`／`O-331`／`O-332`）
+
+**着手の形**＝ユーザー指定「索引 G をすべて行う」＝残8項目（10効果／9カード）を1バッチ。
+**実測**＝**新機構が本当に要ったのは1項目だけ**（`O-333` として分離＝遡及的な能力無効化）。残り7項目は
+**既存の受け皿の兄弟キー1本**か**parser が読めていない句1本**で閉じた。
+
+| ID | 真因（1行） | 影響 | 検証 |
+|---|---|---|---|
+| 🏁`O-332` | `census:goldentypes` の未カバー1件＝`HAND_TO_CHECK_ZONE` の**型名が golden に1度も無い**（挙動は別テストが E2E で通していたが計器からは無検証に見えた） | 1効果/1カード | `golden -- --only "O-332"`（型の契約を新規2本＝置き先 `check_rest`・主語・照応・ターン終了掃除の両方向） |
+| 🏁`O-331` | 「**次のあなたの**ターンのターン終了時まで基本レベルを1にする」が `attack_phase_level_overrides`（turn-end で消える）へ書かれ**1ターン短かった** | 1効果/1カード | `SET_BASE_LEVEL.until:'UNTIL_NEXT_OWN_TURN_END'` ＋ `base_level_overrides_until_next_own_turn`（`turnEnds` カウントダウン）。golden で3ターン分の寿命を両方向 |
+| 🏁`O-330` | `FIELD_SIGNI_TO_CHECK_ZONE` が往復を畳んで**ダウン／凍結／アタック済みしか落としていなかった**＝①付属札が残る ②パワー修整・付与キーワード・能力喪失が instanceId 越しに復活 ③**【出】が一度も発火しない** | 2効果/2カード | `removeFromField` funnel ＋ 新設 `clearOnFieldAcquiredState` ＋ `signi_replayed_this_turn`（**追記ログの差分**で `detectPlacedSigni` が読む）。golden で3軸＋再発火しないことを固定 |
+| 🏁`O-318` | 「このゲームの間にコインを得ていない場合」の条件型が無く**条件節ごと落ちて無条件発火**。さらに「このゲーム、コインを得られない」が **engine の `GAIN_COIN` の1箇所でしか効かず**グロウ／アシスト／`GAIN_COIN_AND_DISCARD` の獲得は素通り | 1効果/1カード（＋獲得 funnel 4地点） | 新設 `src/engine/coinGain.ts`（`applyCoinGain` 1本）＋ `Condition.NO_COIN_GAINED_THIS_GAME`。golden で上限・禁止・「得た」記録の3軸 |
+| 🏁`O-320` | 「**追加で宣言した色を得る**」が JSON に1つも出ておらず**恒久 no-op**（【シャドウ:{declaredColor}】は「宣言色を持つ相手から狙われない」＝**別の帰結**） | 1効果/1カード | `signi_extra_colors_until_opp_turn` ＋ `STUB{GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END}` ＋ `collectFieldSigniExtraColors` の読み口。golden で実効色の funnel まで |
+| 🏁`O-322` | ①`WXDi-CP01-033-E1`＝**＜バーチャル＞のゲートが落ちて無条件に＋5000**／繰り返しが真 no-op ②`WXDi-P14-061-E1`＝**条件が無く常に覚醒**しようとし、対象が効果元（＝スペル）なので**恒久 no-op** | 2効果/2カード | `STUB{REPEAT_BODY_WHILE}`（再帰点 `REPEAT_BODY_SELF` を実行時に自分自身へ差し替え・`maxRepeats` で必ず止まる）＋`SELECT_TARGET_ONLY`→`targetsLastProcessed` の照応。golden で繰り返しの回数と止まることを両方向 |
+| 🏁`O-313` | 【起】コスト「シグニに**付いている**カード1枚か**下にある**カード1枚をトラッシュ」を parser が読めず `costUnparsed:true`＝**どの提示ゲートにも出ずカードごと使えなかった** | 1効果/1カード | `EffectCost.attachedOrUnderTrash` ＋ 新設 `src/screens/battle/attachedOrUnderCost.ts`（提示ゲート・支払いUI・引き落としが**同じ関数**を通る）。**実機 `V-207` を同じ巡で返済**（本命＋対照） |
+| 🏁`O-317` | 「このターンの**前のターンに発動した**コイン技を無効にする」が**前提条件を1つも見ず**「このターン相手はコイン能力を使えない」を立てていた＝**原文に無い妨害** | 1効果/1カード | `coin_ability_used_this_turn`／`_last_turn`（2スロット式）を新設し発動地点4つで記録。**帰結は近似のまま `PARTIAL`**＝残りは `O-333` へ分離 |
+
+### 🔴実機（`V-207`）が UI 層の穴を1件見つけた
+
+提示ゲート・支払いUI・引き落としを揃えても、**【起】ボタンのコストラベルに新しいキーを足し忘れると
+「コストなし」と表示される**（実機のラベル一覧が `["【起】コストなし", ...]` を返して発覚）。
+⚠**選択UIの素の `div` は role を持たない**＝ドライバから掴めないので `data-testid` を付けた。
+⚠**候補クリックはトグル**＝毎ステップ押すと選択が外れる（初回実装で16手すべて未選択のままだった）。
+⚠このカードは `-E3`（`trash_key`）の【起】も持つので、**「【起】ボタンが1つでもあるか」では対照を判定できない**
+＝ラベル本文で見分ける（初回はこれで偽の「提示されている」を読んだ）。
+
+### 計器の動き
+
+- `census:goldentypes` **未カバー 1 → 0**（CLAUDE.md の「現在 未カバー0」は実測1だった＝是正）。
+- `census`（語彙センサス）**高シグナル 2 → 1（＝ベースライン据置）**＝`WXK07-032-E2` が STUB 免除を外れて可視化された分を、
+  **`"upToCount":true` を「任意(してもよい)」の対応語彙へ足す較正**で払い戻した（`upToTarget`／`pickUpTo` と**同じ概念の綴り違い**で、
+  engine は `selectOrInteract(..., optional=upToCount ...)` で実際に辞退を許している）。⚠**この1語で落ちたのは1件だけ**＝masking ではない。
+- golden ラチェット3本を更新＝`convention.length` 57→**59**／`registered.length` 88→**90**（`signi_replayed_this_turn`／`coin_ability_used_this_turn`）、
+  `Condition` 型数 153→**154**（`NO_COIN_GAINED_THIS_GAME`）。**いずれも新設ぶんの加算**（較正ではない）。
+- ゲート＝**`npm run gates` 全緑**（golden 4017/4017・smoke 10751/0・fuzz 0・census・census:stubs・manual-fields・census:enginetext・census:costtext・lint）。
+
+### 検証
+
+```
+npm run gates                 # 全緑
+node scripts/verifyBattleDrive.mjs o313AttachedCostPays o313AttachedCostNoCandidate   # 2/2 PASS
+```
+
+### ⑤実機の要否（§2.2 の機械判定）
+
+**`src/screens/` を触った回**（`BattleScreen.tsx`／`signiActivateGate.ts`／`SigniActivatedModal.tsx`／
+`turnScopedState.ts`／`untilOppTurn.ts`／新設 `attachedOrUnderCost.ts`）＝**実機まで必須**。
+`V-207` として同じ巡で返済した（`order` に常設）。
+
+---
+
 ## 2026-09-12 — PLAN §5.3 索引G `O-312`／`O-313`／`O-314`／`O-315`／`O-317` を5項目まとめて消化（19効果／18カード＋系統13効果）
 
 **着手の形**＝ユーザー指定の5項目を横断で1バッチ。**「登録票の反証」を1手目にした**（PLAN §1 次の一手②）。

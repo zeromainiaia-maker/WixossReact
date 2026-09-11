@@ -931,6 +931,20 @@ export interface PlayerState {
   energy_color_substitutes?: { from: string[]; to: string }[];
   // このターンにアタックしたシグニのCardNum一覧（ターン終了時リセット）
   attacked_signi_ids?: string[];
+  /**
+   * 🆕**「チェックゾーンを経由して場に出し直した」シグニの追記ログ**
+   * （2026-09-12・§5.3 `O-330`・`FIELD_SIGNI_TO_CHECK_ZONE`）。
+   *
+   * 🔴**なぜ配列に積むのか**＝【出】の収集は `detectPlacedSigni`（**盤面差分**）で、往復は同じ
+   *   instanceId が同じゾーンに戻るので**差分に1件も出ない**（＝原文の「その後、それらを場に出す」で
+   *   【出】が一度も発火しなかった）。ここへ**追記**し、`detectPlacedSigni` が
+   *   「before の長さ以降の新規エントリ」だけを読む（`detectPowerDecrease` と同じ作法）。
+   * ⚠**真偽フラグや上書き配列にしない**＝上書きだと「同じシグニを2回出し直す」が差分に出ず、
+   *   持続フラグだと**後続の無関係な効果解決でもう一度【出】が発火する**（両方向に壊れる）。
+   * ⚠**`_this_turn` 命名**＝`TURN_SCOPED_STATE_FIELDS` の規約抽出に載せてターン終了で捨てる。
+   */
+  signi_replayed_this_turn?: string[];
+
   // 絆を獲得したカード名一覧（ゲーム中に失われない。【絆】アイコン能力の発動条件として参照）
   bonds?: string[];
   /**
@@ -989,6 +1003,24 @@ export interface PlayerState {
    * （`power_mods_until_opp_turn` と同じ寿命）。読み手＝`applyContinuousBaseLevelOverride`。
    */
   base_level_overrides_until_opp_turn?: Record<string, number>;
+  /**
+   * 🆕**「次の対戦相手のターン終了時まで、このシグニは追加で〈色〉を得る」**
+   * （2026-09-12・§5.3 `O-320`・`SPDi43-22-E1`「追加で宣言した色を得る」）。
+   * 🔴**`lrig_extra_colors` では代用できない**＝あれはルリグ側。シグニ側の追加色は
+   *   `collectFieldSigniExtraColors` が **`effectsMap` を走査して決める**形しか持っておらず、
+   *   **実行時に宣言した色**（`declared_color`）を受ける口が1つも無かった。
+   * ⚠寿命は `clearUntilOppTurnEffects`（持ち主の次ターン開始時）＝`keyword_grants_until_opp_turn` と同じ。
+   */
+  signi_extra_colors_until_opp_turn?: Record<string, string[]>;
+  /**
+   * 🆕「**次のあなたの**ターンのターン終了時まで、〈シグニ〉の基本レベルは N になる」
+   * （§5.3 `O-331`・`WXK07-032-E2`）。
+   * 🔴**`base_level_overrides_until_opp_turn` で代用すると1ターン短い**＝あちらは持ち主の次ターン開始時に消える。
+   * ⚠寿命は**グローバルターン終了の回数**（`turnEnds`）で数える＝`clearTurnEndScopedState` が毎回1減らし、
+   *   0 になったエントリを落とす（`abilities_removed_until_next_own_turn` と同じ規約）。
+   * 読み手＝`applyContinuousBaseLevelOverride`（cardMap 上書きの funnel）。
+   */
+  base_level_overrides_until_next_own_turn?: Record<string, { level: number; turnEnds: number }>;
   // 【英知】条件の判定でだけ「このシグニのレベルは１であり２であり３である」のように**同時に複数値**として
   // 扱う指定（CardNum → 取りうるレベル群）。英知の合計は単一値ではなく**取りうる合計の集合**になり、
   // 「例えばレベル２と３の＜英知＞のシグニがある場合、【英知＝６】【＝７】【＝８】はすべて条件を満たす」
@@ -1352,6 +1384,15 @@ export interface PlayerState {
   replace_opp_power_plus?: boolean;
   // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
   coin_use_restriction?: string;
+  /**
+   * 🆕**このターンに《コイン》を払う能力（＝コイン技）を発動したか**
+   * （2026-09-12・§5.3 `O-317`・`WX16-002-E4`「このターンの**前のターンに発動した**コイン技を無効にする」）。
+   * ⚠**ベット／アンコール／グロウコストは数えない**＝あれは「能力の発動」ではない。
+   * ⚠寿命はターン終了で `coin_ability_used_last_turn` へ写す（`life_crashed_last_turn` と同じ2スロット式）。
+   */
+  coin_ability_used_this_turn?: boolean;
+  /** 🆕直前のグローバルターンに発動したコイン技があったか（上のターン終了時の写し）。 */
+  coin_ability_used_last_turn?: boolean;
   // NEGATE_COIN_ABILITY: このターン、このプレイヤーはコイン能力（ベット）を発動できない
   negate_coin_abilities?: boolean;
   // MULTI_ACCE_LIMIT: このシグニには複数のアクセを付けられない（最大1個）
@@ -1396,6 +1437,14 @@ export interface PlayerState {
    */
   game_guard_alt_energy_and_guard_card?: { energyCount: number; guardCardCount: number };
   game_no_coin_gain?: boolean;                     // WXDi-P07-006: このゲームコイン獲得禁止
+  /**
+   * 🆕**このゲームの間に《コイン》を1枚でも得たか**（2026-09-12・§5.3 `O-318`・`WXDi-P07-006-E1`
+   * 「このゲームの間にあなたが《コイン》を得ていない場合」）。
+   * 🔴**`coins`（現在値）では代用できない**＝**払ったコインと区別できない**（得て使えば0に戻る）。
+   * ⚠**開始時に持っているコインは「得た」ではない**（ルリグの印刷値＝初期状態）＝ここでは立てない。
+   * ⚠**書き手は `applyCoinGain` の1本だけ**（engine の `GAIN_COIN` / STUB も、UI 層のグロウ／アシストも）。
+   */
+  coins_gained_this_game?: boolean;
   game_opp_extra_guard_hand_or_colorless?: number; // WXDi-P05-005: 相手ガード時追加コスト（手札N枚か《無》）
   game_guard_alt_hand?: number;                    // WXDi-P06-006: ガード代替（手札N枚捨て）
   guard_alt_hand_until_opp_turn?: number;           // WX24-P4-026: 次の対戦相手ターン終了時までのガード代替

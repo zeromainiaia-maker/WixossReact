@@ -8035,6 +8035,13 @@ export function collectFieldSigniExtraColors(
     const topNum = stack[stack.length - 1];
     const extraColors: string[] = [];
 
+    // 🆕**§5.3 `O-320`（2026-09-12）＝実行時に宣言した色の追加分**（`SPDi43-22-E1`「追加で宣言した色を得る」）。
+    // 🔴ここまでの分岐はすべて **`effectsMap` の静的な宣言**から色を決めており、
+    //   **実行時に決まる色を受ける口が1つも無かった**（＝原文の「宣言した色」は一度も付かなかった）。
+    for (const c of (state.signi_extra_colors_until_opp_turn?.[topNum] ?? [])) {
+      if (!extraColors.includes(c)) extraColors.push(c);
+    }
+
     // ALL_ZONE_BLACK: すべての領域で黒でもある
     const allZoneBlack = [...(effectsMap.get(topNum) ?? [])].some(eff => {
       if (eff.effectType !== 'CONTINUOUS') return false;
@@ -8509,6 +8516,11 @@ export function applyContinuousBaseLevelOverride(
     // 🆕§5.3 `O-296`＝「次の対戦相手のターン終了時まで」（`WXDi-D09-H15-E1`）。寿命は `clearUntilOppTurnEffects`。
     for (const [cn, level] of Object.entries(state.base_level_overrides_until_opp_turn ?? {})) {
       if (typeof level === 'number') overrides.push({ cn, level });
+    }
+    // 🆕§5.3 `O-331`＝「**次のあなたの**ターンのターン終了時まで」（`WXK07-032-E2`）。
+    //   寿命は `clearTurnEndScopedState` の `turnEnds` カウントダウン（`O-186` と同じ規約）。
+    for (const [cn, entry] of Object.entries(state.base_level_overrides_until_next_own_turn ?? {})) {
+      if (entry && typeof entry.level === 'number') overrides.push({ cn, level: entry.level });
     }
   }
   if (overrides.length === 0) return cardMap;

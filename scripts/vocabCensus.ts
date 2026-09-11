@@ -1390,8 +1390,12 @@ const PATTERNS: Pattern[] = [
     //     ＝`extraOk` で判定する（キーの部分一致では枝の中身まで見られない）
     //   ③`PLAY_FREE_FROM_TRASH`＝`execPlayFreeFromTrash` が **SEARCH（0枚選択可）** で解決する
     //     ＝型そのものが「使用してもよい」（辞退）を内包する（`WX09-012-E2`）。
+    //   ④`"upToCount":true`＝**対象選択そのものを0体にできる**（「シグニ１体を対象とし、…してもよい」＝`WXK07-032-E2`）。
+    //     🔑**既出の `upToTarget` / `pickUpTo` と同じ概念の綴り違い**で、
+    //     engine は `selectOrInteract(..., optional=upToCount ...)` で実際に辞退を許している
+    //     （`deltaFromZone` を「数量比例」へ足したのと同じ**較正**）。
     keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', '"pickUpTo":true', 'mayChoose',
-      '"upTo":true', 'PLAY_FREE_FROM_TRASH'],
+      '"upTo":true', '"upToCount":true', 'PLAY_FREE_FROM_TRASH'],
     extraOk: js => js.includes('"CHOOSE"') && js.includes('"steps":[]'),
   },
   {

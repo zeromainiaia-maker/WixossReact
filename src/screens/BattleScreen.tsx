@@ -15,6 +15,8 @@ import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, 
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectLeftFieldSigniToTrash, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countMovedToDeckFromField, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
+import { applyCoinGain } from '../engine/coinGain';
+import { payAttachedOrUnderTrash } from './battle/attachedOrUnderCost';
 import { detectEnergyAddedWithSource, detectTrashAdded, detectPlacedFromZone } from '../engine/boardDiff';
 import { hasApplicableLancer, hasKeyword, hasBanishResist } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
@@ -6989,6 +6991,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const coinGain = parseInt(card.Coin) || 0;
       // フリーグロウ（ゲット・グロウ等）はグロウコストのコインを支払わず、通常グロウ枠も消費しない（横グロウ）
       const growCoinCost = wasFreeGrow ? 0 : parseCoinCost(card.GrowCost);
+      // 🆕**§5.3 `O-318`（2026-09-12）＝グロウで得るコインも `applyCoinGain` を通す。**
+      // 🔴旧はここで直に足しており、**「このゲーム、あなたは《コイン》を得られない」が素通り**していた
+      //   （禁止は engine の `GAIN_COIN` の1箇所でしか効いていなかった）。⚠支払いを先に引いてから獲得を当てる。
+      const growCoinsAfter = applyCoinGain(
+        { ...growBase, coins: Math.max(0, growBase.coins - growCoinCost) }, coinGain).state;
       let newMyState: PlayerState = consumeFreeGrowThisTurn(growPay.applyTo({
         ...growBase,
         lrig_deck: newLrigDeck,
@@ -7007,7 +7014,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : growBase.hand,
         trash: [...growBase.trash, ...paidNums, ...(growPayValidExec ? growPayNums : [])],
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
-        coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
+        // ⚠**state 丸ごとを spread しない**（この後ろに書くと上のキーを全部巻き戻す）＝2キーだけ取る。
+        coins: growCoinsAfter.coins ?? 0,
+        coins_gained_this_game: growCoinsAfter.coins_gained_this_game,
         coins_paid_this_turn: (growBase.coins_paid_this_turn ?? 0) + growCoinCost, // COINS_PAID_THIS_TURN（支払いのみ・coinGain は数えない）
       }));
       // 代替シグニ（GROW_COST_SUBSTITUTE_TRASH_SIGNI）はカード番号で除く＝funnel の index 控除のあとに当てる
@@ -7145,6 +7154,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...newMyState,
             coins: (newMyState.coins ?? 0) - eff.cost!.coin!,
             coins_paid_this_turn: (newMyState.coins_paid_this_turn ?? 0) + eff.cost!.coin!,
+            // 🆕§5.3 `O-317`＝CPU がコインだけで自動発動した【出】コイン技も履歴へ。
+            coin_ability_used_this_turn: true,
           };
           appendBattleLogs([`《コイン》×${eff.cost!.coin}を支払って【出】効果を発動`]);
           autoPaidOnPlay.push(eff);
@@ -7841,12 +7852,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const sideKey = side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
       const currentStack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
       const assistCoinGain = parseInt(card.Coin) || 0;
+      // 🆕**§5.3 `O-318`＝アシストルリグの印刷コインも `applyCoinGain` を通す**（同上）。
+      const assistCoinsAfter = applyCoinGain(my, assistCoinGain).state;
       const newMyState: PlayerState = assistGrowPay.applyTo({
         ...my,
         lrig_deck: newLrigDeck,
         field: { ...my.field, [sideKey]: [...currentStack, instanceId] },
         trash: [...my.trash, ...paidNums],
-        coins: Math.min(5, my.coins + assistCoinGain),
+        // ⚠**state 丸ごとを spread しない**（上のキーを巻き戻す）＝2キーだけ取る。
+        coins: assistCoinsAfter.coins ?? 0,
+        coins_gained_this_game: assistCoinsAfter.coins_gained_this_game,
         // 🆕**「次に」＝1回きり**（§5.3 `O-180`）＝アシストグロウを1回行ったらここで消す。
         //   ⚠落とすと「このターン中は何度でもルリグタイプ無視＋コスト減」に化ける。
         next_assist_grow_mods: undefined,
@@ -13872,6 +13887,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: newHand,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         coins_paid_this_turn: coinCostAct > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostAct : my.coins_paid_this_turn, // COINS_PAID_THIS_TURN
+        // 🆕§5.3 `O-317`＝コイン技（《コイン》を払う能力）の発動履歴。ベット／アンコール／グロウは含めない。
+        coin_ability_used_this_turn: coinCostAct > 0 ? true : my.coin_ability_used_this_turn,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
         trash: [...my.trash, ...paidNums, ...energyTrashCards, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
         // ⚠エナ由来（`energyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
@@ -13930,6 +13947,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = {
           ...underPaid.state,
           last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...underPaid.moved],
+        };
+      }
+      // 🆕§5.3 `O-313`（2026-09-12・`WXK10-018-E2`）＝「シグニに**付いている**カード1枚か
+      //   **下にある**カード1枚をトラッシュに置く」。
+      // ⚠**提示ゲート（`signiActivateGate`）と支払いUI（`SigniActivatedModal`）と同じ関数**を通す。
+      // ⚠選択 state は `underTrashKeys` を共用するが、**中身はカードの instanceId**
+      //   （`underSelfTrash` の `"<zone>:<index>"` キーとは別物）。
+      if (effect.cost?.attachedOrUnderTrash) {
+        const attachedPaid = payAttachedOrUnderTrash(paid, underTrashKeys, effect.cost.attachedOrUnderTrash.count);
+        if (!attachedPaid) return;
+        paid = {
+          ...attachedPaid.state,
+          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...attachedPaid.moved],
         };
       }
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
@@ -14540,6 +14570,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         reduce_next_on_play_cost: undefined,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
+        // 🆕§5.3 `O-317`＝コイン技の発動履歴（【出】コストの《コイン》も能力の発動）。
+        coin_ability_used_this_turn: coinCostOPC > 0 ? true : placedState.coin_ability_used_this_turn,
         trash: [...placedState.trash, ...paidNums, ...discardNums],
         // 🔴**旧実装はこの経路だけ台帳を1つも書いていなかった**（`V-101`②で実機再現）＝
         //   `WXDi-CP02-055` は同じカードの【出】コストで＜ブルアカ＞を捨てて【自】が読むのに、
@@ -14962,6 +14994,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: newHand,
         coins: coinCostLg > 0 ? Math.max(0, (my.coins ?? 0) - coinCostLg) : my.coins,
         coins_paid_this_turn: coinCostLg > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostLg : my.coins_paid_this_turn,
+        // 🆕§5.3 `O-317`＝ルリグ【起】のコイン技も同じ履歴へ。
+        coin_ability_used_this_turn: coinCostLg > 0 ? true : my.coin_ability_used_this_turn,
         ...(collabCostLg > 0 ? { liver_tokens: (my.liver_tokens ?? 0) - collabCostLg } : {}),
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         // ⚠エナ由来（`lgEnergyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
@@ -15240,6 +15274,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
               eff.cost.down_self ? 'ダウン' : null,
               eff.cost.underSelfTrash ? `このシグニの下${eff.cost.underSelfTrash.count}枚トラッシュ` : null,
+              // 🆕§5.3 `O-313`（2026-09-12）＝「付いているカードか下にあるカード」。
+              //   🔴**ラベルに出さないと「コストなし」と表示される**＝プレイヤーに踏み倒しに見える（§4.4-8m）。
+              eff.cost.attachedOrUnderTrash ? `付いているカード/下のカード${eff.cost.attachedOrUnderTrash.count}枚トラッシュ` : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
               eff.cost.bounceSelf ? 'このシグニを手札に戻す' : null,

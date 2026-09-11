@@ -42,6 +42,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   attack_not_negated_by_self_effect_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi immunity to self-inflicted attack negation lasts for the current turn' },
   // 🆕§5.3 `O-233`＝相手効果でシグニが場を離れた累計も、ターン単位の条件カウンタ。
   signi_left_by_opp_effect_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'signi that left the field by opponent effects during the current turn' },
+  // 🆕§5.3 `O-330`＝チェックゾーン往復で出し直したシグニの追記ログ（`detectPlacedSigni` が差分で読む）。
+  //   ⚠**ターンを跨がせない**＝跨ぐと次ターンの最初の効果解決で before/after の長さ差が出ず無害だが、
+  //     ログが際限なく伸びるだけなので毎ターン捨てる。
+  signi_replayed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'signi replayed through the check zone during the current turn (read as a diff by detectPlacedSigni)' },
   // 🆕§5.3 `O-185`＝「このターン、あなたはそれらを使用してもよい」の許可は、そのターンだけ。
   trash_spells_usable_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'permission to use the named trash spells lasts for the current turn' },
   // 🆕§5.3 `O-246`＝「1枚多く公開してもよい」の権利も、そのターンだけ。
@@ -87,6 +91,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_by_signi_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi life crash total for the current turn' },
   // ライフクラッシュ累計は終了時に last_turn へ写し、現在ターン分を破棄する。
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
+  // 🆕§5.3 `O-317`＝コイン技の発動履歴も終了時に last_turn へ写して現在ターン分を破棄する（2スロット式）。
+  coin_ability_used_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'coin-ability activation flag copied to coin_ability_used_last_turn at the boundary' },
   // 🆕§5.3 `O-275`（2026-09-08）＝原因を「対戦相手の効果」に限定した累計。last_turn 版は要らない（原文が無い）。
   life_crashed_by_opp_effect_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crashes caused by opponent effects during the current turn' },
   // 🆕**§5.3 `O-239`（2026-09-04）**＝チェックゾーンへ置かれたライフクロスの**順序**と、
@@ -194,8 +200,9 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // 🔴基本レベルの一時上書き（`SET_BASE_LEVEL{until:END_OF_TURN}`／`CHANGE_BASE_LEVEL` 系）も
   //   型コメントは「一時変更」なのに**失効地点が1つも無く永続していた**（§6.4 O-10 続き509 で発見。
   //   `signi_deploy_power_limit`／`negated_attacks` と同じクラス）。
-  //   ⚠`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` だけは原文が「次の自ターン終了まで」＝ここでは1ターン短くなるが、
-  //     **無期限よりは近い**（2ターン軸が要るなら `SigniAttackBan.turnsRemaining` と同じ規約で足す）。
+  //   🏁**§5.3 `O-331`（2026-09-12）＝「次の自ターン終了まで」の1件はここから外した**＝
+  //     `SET_BASE_LEVEL{until:'UNTIL_NEXT_OWN_TURN_END'}` → `base_level_overrides_until_next_own_turn`
+  //     （`turnEnds` カウントダウン）へ移した。この store はもう「このターン」の軸だけを持つ。
   attack_phase_level_overrides: { boundaries: ['turn-end'], reset: undefined, reason: 'temporary base-level overrides last until the end of the turn' },
   // 🔴宣言数字によるガード制限（`DECLARE_NUMBER`）も手書きクリアが turn-end の一部経路にしか無かった
   //   （§6.4 O-10 続き512 で登録）。⚠宣言するのはターンプレイヤー・読むのは防御側なので、
@@ -364,6 +371,25 @@ function advanceUntilNextOwnTurn(
   return { next: Object.keys(next).length > 0 ? next : undefined, survivors };
 }
 
+/**
+ * 🆕**`UNTIL_NEXT_OWN_TURN_END` の基本レベル上書きを1ターン進める**（2026-09-12・§5.3 `O-331`）。
+ * ⚠`advanceUntilNextOwnTurn`（`Record<string, number>`）とは値の形が違う（`{level, turnEnds}`）ので別関数。
+ * ⚠T3 トリップワイヤは全 turn-end フィールドへ番兵値を入れるので、object 以外が来る前提で守る。
+ */
+function advanceBaseLevelUntilNextOwnTurn(
+  map: PlayerState['base_level_overrides_until_next_own_turn'],
+): PlayerState['base_level_overrides_until_next_own_turn'] {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return undefined;
+  const next: Record<string, { level: number; turnEnds: number }> = {};
+  for (const [cardNum, entry] of Object.entries(map)) {
+    if (!entry || typeof entry.level !== 'number' || typeof entry.turnEnds !== 'number') continue;
+    const left = entry.turnEnds - 1;
+    if (left <= 0) continue;          // このターン終了で失効
+    next[cardNum] = { level: entry.level, turnEnds: left };
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /** 🆕`UNTIL_NEXT_OWN_TURN_END` のパワー修整を1ターン進める（§5.3 `O-186`）。 */
 function advancePowerModsUntilNextOwnTurn(
   mods: PlayerState['power_mods_until_next_own_turn'],
@@ -394,6 +420,8 @@ function advanceLeaveToTrashWindows(
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
+  // 🆕§5.3 `O-317`（2026-09-12）＝コイン技の発動履歴を「前のターン」スロットへ写す。
+  const coinAbilityLastTurn = state.coin_ability_used_this_turn === true ? true : undefined;
   const reset = resetBoundary(state, 'turn-end');
   const nextOpponentTurnGrants = normalizeFieldGrants(
     state.field_grants_next_opp_turn,
@@ -411,6 +439,7 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
       ? { trash: [...reset.trash, ...checkRest], field: { ...reset.field, check_rest: [] } }
       : {}),
     life_crashed_last_turn: lifeCrashedLastTurn,
+    coin_ability_used_last_turn: coinAbilityLastTurn,
     // §6.4 O-3: `abilities_removed`／`keyword_abilities_removed` の失効は上の登録（resetBoundary）が行う。
     // ⚠**旧実装は turn-end 4経路のうち2本（手札上限の捨て札を挟む confirmEndDiscard 側）でしか
     //   手書きクリアしておらず**、最も普通の経路（捨て札なしでターンが終わる）では「ターン終了時まで
@@ -426,6 +455,8 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     ])],
     abilities_removed_until_next_own_turn: advanceUntilNextOwnTurn(state.abilities_removed_until_next_own_turn).next,
     power_mods_until_next_own_turn: advancePowerModsUntilNextOwnTurn(state.power_mods_until_next_own_turn),
+    // 🆕§5.3 `O-331`＝「次のあなたのターンのターン終了時まで」の基本レベル上書き。
+    base_level_overrides_until_next_own_turn: advanceBaseLevelUntilNextOwnTurn(state.base_level_overrides_until_next_own_turn),
     abilities_removed_next_turn: undefined,
     // ⚠ルリグ側の能力喪失も同じ2スロット式（段2 第45バッチ・`RemoveAbilitiesAction.alsoCenterLrig`）。
     //   `lrig_abilities_disabled` 自身の失効は上の turn-end 登録が行う＝ここは予約の昇格だけ。

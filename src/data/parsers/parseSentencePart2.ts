@@ -1537,9 +1537,23 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'PREVENT_SELF_MOVE_BY_OPP' } as StubAction;
   }
 
-  // ---- 基本レベルを変更（ターン終了時まで）----
-  if (t.match(/次のあなたのターン.*基本レベルを.*にしてもよい/)) {
-    return { type: 'STUB', id: 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN' } as StubAction;
+  // ---- 基本レベルを変更（次のあなたのターンのターン終了時まで）----
+  // 🆕**§5.3 `O-331`（2026-09-12）＝`STUB{CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN}` を typed 化した。**
+  // 🔴旧 STUB の書き先は `attack_phase_level_overrides`（turn-end で消える）＝**1ターン短かった**
+  //   （原文「次のあなたのターンのターン終了時まで」＝自ターン終了→相手ターン終了→次の自ターン終了）。
+  // ⚠`UNTIL_OPP_TURN_END` へ寄せても**まだ短い**（`O-186` の教訓）＝専用ストアの `turnEnds` で数える。
+  // ⚠「して**もよい**」＝`upToCount:true`（0体を選べる）。落とすと強制になる。
+  if (t.match(/次のあなたのターン.*基本レベルを.*にして/)) {
+    // ⚠`toHalf` は漢数字を見ない＝数字だけを拾い、読めなければ**この規則を見送る**（fail-closed）。
+    const mLvNT = t.match(/基本レベルを([０-９0-9]+)に/);
+    const lvNT = mLvNT ? parseNum(mLvNT[1]) : NaN;
+    if (!Number.isFinite(lvNT) || lvNT < 1 || lvNT > 5) return null;
+    return {
+      type: 'SET_BASE_LEVEL',
+      target: { type: 'SIGNI', owner: 'any', count: 1, upToCount: /にしてもよい/.test(t) },
+      value: lvNT,
+      until: 'UNTIL_NEXT_OWN_TURN_END',
+    } as EffectAction;
   }
 
   // ---- 対戦相手はアンコールとベットができない ----

@@ -6,7 +6,7 @@ import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
-  matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
+  matchesFilter, getCardNum, removeFromField, clearOnFieldAcquiredState, fieldCandidates, handCandidates,
   trashCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot, splitColors,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
@@ -20,6 +20,7 @@ import {
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
 import { moveFieldSigniFacedown } from './facedownSigni';
+import { applyCoinGain } from './coinGain';
 import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, leaveToTrashWindowApplies, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
@@ -2750,10 +2751,13 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
 /**
  * 🆕§5.3 `O-296`＝一時的な基本レベル変更を**期間ごとのストア**へ書く（`SET_BASE_LEVEL` 本体と SELECT_TARGET の再入が共有）。
  * - `'UNTIL_OPP_TURN_END'` → `base_level_overrides_until_opp_turn`（効果の持ち主の次ターン開始時に消える）
+ * - 🆕`'UNTIL_NEXT_OWN_TURN_END'` → `base_level_overrides_until_next_own_turn`（§5.3 `O-331`＝
+ *   `nextOwnTurnEndSpan` 回のグローバルターン終了を跨ぐ。`UNTIL_OPP_TURN_END` へ寄せると1ターン短い）
  * - それ以外（`'END_OF_TURN'`）→ `attack_phase_level_overrides`（turn-end で両者から消える）
  * ⚠置き場は**効果の持ち主の state**（対象が相手シグニでも）＝`applyContinuousBaseLevelOverride` は両者を読む。
  */
 function applyTimedBaseLevel(cardNum: string, a: import('../types/effects').SetBaseLevelAction, ctx: ExecCtx): ExecCtx {
+  const untilNextOwnSBL = a.until === 'UNTIL_NEXT_OWN_TURN_END';
   const key = a.until === 'UNTIL_OPP_TURN_END' ? 'base_level_overrides_until_opp_turn' : 'attack_phase_level_overrides';
   // 🆕§5.3 `O-312`（2026-09-12）＝`valueRef:'declared_number'`（「基本レベルを**宣言した数字**にする」
   //   `WXK07-033-E1`）。⚠未宣言／1〜5 の外は**何もしない**（fail-closed）。
@@ -2761,6 +2765,14 @@ function applyTimedBaseLevel(cardNum: string, a: import('../types/effects').SetB
   const name = ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
   if (typeof lv !== 'number' || !Number.isFinite(lv) || lv < 1 || lv > 5) {
     return addLog(ctx, `${name}の基本レベル変更：参照する数字が未宣言のため何もしない`);
+  }
+  if (untilNextOwnSBL) {
+    // 🆕§5.3 `O-331`＝寿命はグローバルターン終了の回数で数える（`O-186` の `power_mods_until_next_own_turn` と同じ規約）。
+    const spanSBL = nextOwnTurnEndSpan(ctx);
+    const storeNO = { ...(ctx.ownerState.base_level_overrides_until_next_own_turn ?? {}),
+      [cardNum]: { level: lv, turnEnds: spanSBL } };
+    return addLog({ ...ctx, ownerState: { ...ctx.ownerState, base_level_overrides_until_next_own_turn: storeNO } },
+      `${name}の基本レベルを${lv}に変更（次のあなたのターンのターン終了時まで）`);
   }
   const store = { ...(ctx.ownerState[key] ?? {}), [cardNum]: lv };
   return addLog({ ...ctx, ownerState: { ...ctx.ownerState, [key]: store } },
@@ -9805,10 +9817,12 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
 }
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
+  // 🆕§5.3 `O-318`（2026-09-12）＝獲得は `applyCoinGain` の1本に寄せた（禁止判定と「得た」記録を同時に持つ）。
   const s = ownerState(a.owner, ctx);
-  if (s.game_no_coin_gain) return done(addLog(ctx, 'コイン獲得禁止（このゲーム）'));
-  const gained = Math.min(a.count, 5 - s.coins);
-  const newS: PlayerState = { ...s, coins: Math.min(5, s.coins + a.count) };
+  const { state: newS, gained } = applyCoinGain(s, a.count);
+  if (gained === 0) {
+    return done(addLog(ctx, s.game_no_coin_gain ? 'コイン獲得禁止（このゲーム）' : 'コインは上限（これ以上得られない）'));
+  }
   return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));
 }
 
@@ -11292,16 +11306,37 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
         return selectOrInteract(candsFSC, Math.min(fsc.target.count, candsFSC.length), fsc.target.upToCount ?? false,
           fscOwner === 'self' ? 'self_field' : 'opp_field', fsc as EffectAction, undefined, ctx);
       }
+      // 🆕🔴**§5.3 `O-330`（2026-09-12）＝ここは「離場＋再配置」でなければならない。**
+      //   旧実装は**ダウン／凍結／アタック済みの記録しか落としておらず**、
+      //   ①付属札（チャーム・アクセ・下のカード・ソウル・裏向き付け）が**そのまま残り**
+      //   ②パワー修整・付与キーワード・能力喪失も**instanceId で引くので復活し**
+      //   ③【出】が**一度も発火しなかった**（`detectPlacedSigni` は盤面差分＝同じ id が同じゾーンに戻る）。
+      //   ⇒ ①は `removeFromField`（全離脱経路の funnel）／②は `clearOnFieldAcquiredState`／
+      //     ③は `signi_replayed_this_turn` への追記で閉じる。
+      // ⚠**チェックゾーンの滞在は畳んだまま**（即座に戻るので `check_rest` へは積まない）＝
+      //   「チェックゾーンに置かれたとき」を見る効果は live に無い。出たら別途足す。
       const topsFSC = zonesFSC.map(zi => fscState.field.signi[zi]!.at(-1)!);
-      const downFSC = [...(fscState.field.signi_down ?? [false, false, false])];
-      const frozenFSC = [...(fscState.field.signi_frozen ?? [false, false, false])];
-      for (const zi of zonesFSC) { downFSC[zi] = !!fsc.asDown; frozenFSC[zi] = false; }
-      const newFSC: PlayerState = {
-        ...fscState,
-        field: { ...fscState.field, signi_down: downFSC, signi_frozen: frozenFSC },
-        // 場を離れて出直すので「このターンにアタックした」記録は落ちる（＝再びアタックできる）。
-        attacked_signi_ids: (fscState.attacked_signi_ids ?? []).filter(id => !topsFSC.includes(id)),
-      };
+      let newFSC: PlayerState = fscState;
+      for (const zi of zonesFSC) {
+        const topFSC = fscState.field.signi[zi]!.at(-1)!;
+        // ① 離場（付属札・下のカード・ソウル・裏向き付けの行き先はこの funnel が持つ）。
+        newFSC = removeFromField(topFSC, newFSC);
+        // ② 場に居たあいだに得た per-card の状態を落とす。
+        newFSC = clearOnFieldAcquiredState(newFSC, topFSC);
+        // 再配置＝**同じゾーンへ**（原文は置き直す場所を選ばせない）。`asDown` ならダウン状態で出す。
+        const signiFSC = [...newFSC.field.signi];
+        signiFSC[zi] = [topFSC];
+        const downFSC = [...(newFSC.field.signi_down ?? [false, false, false])];
+        const frozenFSC = [...(newFSC.field.signi_frozen ?? [false, false, false])];
+        downFSC[zi] = !!fsc.asDown;
+        frozenFSC[zi] = false;
+        newFSC = {
+          ...newFSC,
+          field: { ...newFSC.field, signi: signiFSC, signi_down: downFSC, signi_frozen: frozenFSC },
+          // ③ 【出】の収集は `detectPlacedSigni` が**この追記ログの差分**で読む。
+          signi_replayed_this_turn: [...(newFSC.signi_replayed_this_turn ?? []), topFSC],
+        };
+      }
       const namesFSC = topsFSC.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
       return done({
         ...addLog(setOwnerState(fscOwner, newFSC, ctx),

@@ -1100,6 +1100,15 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
     const uasM = costStr.match(/あなたのシグニの下からカード(?:を)?(?:(?:([０-９\d]+)枚合計)|(?:合計([０-９\d]+)枚)|(?:([０-９\d]+)枚))(?:を)?トラッシュに置く/);
     if (uasM) cost.underAnySigniTrash = { count: parseNum(uasM[1] ?? uasM[2] ?? uasM[3]) };
   }
+  // 🆕「あなたのシグニに**付いている**カード1枚か、あなたのシグニの**下にある**カード1枚をトラッシュに置く」
+  //   → attachedOrUnderTrash（2026-09-12・§5.3 `O-313`・`WXK10-018-E2`・母集団 実測1効果/1カード）。
+  // 🔴旧は**この句をどの規則も読めず `costUnparsed:true`**＝【起】がどの提示ゲートにも出ず、
+  //   カード全体が使えなかった（fail-closed の過少＝踏み倒しではない）。
+  // ⚠上の `underAnySigniTrash`（「下からカードを合計N枚」）とは**候補集合が別**（付属札を含む）。
+  if (!cost.attachedOrUnderTrash) {
+    const aouM = costStr.match(/あなたのシグニに付いているカード([０-９\d]+)枚か[、,]?あなたのシグニの下にあるカード([０-９\d]+)枚をトラッシュに置く/);
+    if (aouM && parseNum(aouM[1]) === parseNum(aouM[2])) cost.attachedOrUnderTrash = { count: parseNum(aouM[1]) };
+  }
   // あなたの【アクセ】N枚をトラッシュに置く → acceTrash
   if (!cost.acceTrash) {
     const acceM = costStr.match(/あなたの【アクセ】([０-９\d]+)枚をトラッシュに置く/);
@@ -3665,6 +3674,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   engine は `coins_paid_this_turn`（支払いのみ加算・ターン境界で0）を見る COINS_PAID_THIS_TURN で判定する。
   [/このターンにあなたが《コイン(?:アイコン)?》を合計([０-９\d]+)枚以上支払っていた場合/,
     g => ({ type: 'COINS_PAID_THIS_TURN', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
+  // 🆕「このゲームの間にあなたが《コイン》を得ていない場合」（§5.3 `O-318`・`WXDi-P07-006-E1`）。
+  //   🔴従来は条件節ごと落ちて**無条件発火**＝**何度でもコイン5枚を得られる**過剰効果だった
+  //     （2文目「このゲームの間、あなたは《コイン》を得られない」は実装済みだったので、実害は
+  //      「既にコインを得ている状態でも使える」＝原文が禁じた使い方が通ること）。
+  //   engine は `coins_gained_this_game`（書き手は `applyCoinGain` の1本）を見る。
+  [/このゲームの間にあなたが《コイン(?:アイコン)?》を得ていない場合/,
+    () => ({ type: 'NO_COIN_GAINED_THIS_GAME', owner: 'self' })],
   // 「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（§5c 文型バッチ・WXK09 ＜電機＞系6効果）。
   //   レベル帯の**各レベルごとに**N枚以上を要求する条件＝`ENERGY_EACH_LEVEL_FILTER_GTE`（engine 実装済み・
   //   従来は `WXK09-083-E1` だけ wrap() でカード名指定していた）。条件節ごと落ちて無条件発火＝過剰効果だった。
@@ -16675,6 +16691,58 @@ function markRemainderReorder(text: string, action: EffectAction): EffectAction 
   return action;
 }
 
+/**
+ * 🆕**「そのカードが《X》の場合、この効果を繰り返す」を while ループへ組む**
+ * （2026-09-12・§5.3 `O-322`・`WXDi-CP01-033-E1`・母集団 実測1効果/1カード）。
+ *
+ * 🔴**旧＝`STUB{DEFERRED_REPEAT_ON_REVEALED_NAME}`（`execStub.ts` のログだけ）＝真 no-op。**
+ *   さらにその前は `CONDITIONAL_POWER_BONUS` に落ちており、**原文に無い ＋5000 を条件抜きで上乗せ**していた。
+ * 🔑**繰り返しの本体は「この効果」＝直前までの全ステップ**（原文の「この効果」は能力ブロック全体を指す）。
+ *   ⇒ 最終ステップ `CONDITIONAL{cond, then:UNKNOWN{'この効果を繰り返す'}}` を
+ *     `STUB{REPEAT_BODY_WHILE, repeatBodyWhile:{condition: cond, body: SEQUENCE[それ以前のステップ]}}` へ置き換える。
+ * ⚠**カード単位の後段で走らせる**＝繰り返しの合図（最終文）と本体（前の文）が別の文に分かれている。
+ * ⚠**AUTO の完全解析だけに当てる**（`markRemainderReorder` ほかと同じ規約）。
+ */
+function wireRepeatThisEffect(text: string, action: EffectAction): EffectAction {
+  if (!/この効果を繰り返す/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = action.steps;
+  if (steps.length < 2) return action;
+  const last = steps[steps.length - 1];
+  if (last?.type !== 'CONDITIONAL') return action;
+  const cond = last as import('../types/effects').ConditionalAction;
+  const then = cond.then as { type?: string; raw?: string } | undefined;
+  if (then?.type !== 'UNKNOWN' || !/この効果を繰り返す/.test(then.raw ?? '')) return action;
+  // 🔴**条件が評価できない形（`IS_MY_TURN` への化け）なら組まない**＝
+  //   `evalCondition` が `return true` へ落ちるので**無条件の無限ループ**になる（`maxRepeats` で止まるが原文と別物）。
+  if (!cond.condition || cond.condition.type === 'IS_MY_TURN') return action;
+  // 🔑**判定点は「引いた直後」**＝この効果は ①1枚処理する ②その1枚を見て帰結する ③その1枚を見て繰り返す、の形。
+  //   ②が `POWER_MODIFY` 等で `lastProcessedCards` を**自分が修整したシグニ**へ書き換えるので、
+  //   ③を素直に後ろへ置くと**条件が永久に成立しない**（＝繰り返しが1度も起きない）。
+  //   ⇒ ②③をまとめて `SEQUENCE{snapshotLastProcessedForConditionals:true}` に入れ、
+  //     **①の直後の照応先**で両方のゲートを解決する。
+  // ⚠**①以外が全部 `CONDITIONAL` のときだけ組む**（fail-closed）＝snapshot は直下の `CONDITIONAL` しか解決しない。
+  const recorder = steps[0];
+  const gates = steps.slice(1);
+  if (!gates.every(st => st.type === 'CONDITIONAL')) return action;
+  const body: EffectAction = {
+    type: 'SEQUENCE',
+    steps: [
+      recorder,
+      {
+        type: 'SEQUENCE',
+        snapshotLastProcessedForConditionals: true,
+        steps: [
+          ...gates.slice(0, -1),
+          // 再帰点＝`REPEAT_BODY_WHILE` が実行前に自分自身へ差し替える目印。
+          { ...cond, then: { type: 'STUB', id: 'REPEAT_BODY_SELF' } } as unknown as EffectAction,
+        ],
+      } as unknown as EffectAction,
+    ],
+  } as unknown as EffectAction;
+  return { type: 'STUB', id: 'REPEAT_BODY_WHILE', repeatBodyWhile: { body } } as unknown as EffectAction;
+}
+
 function rewritePowerModPerCountPayload(text: string, action: EffectAction): EffectAction {
   if (!containsPowerModPerCount(action)) return action;
   const t = text.trim();
@@ -19712,7 +19780,7 @@ function parseActionTextInner(text: string): EffectAction {
     //   `REVEAL_AND_PICK`（公開して条件一致なら帰結）として既に別経路で正しく解けており、ここへ引き込むと
     //   その構造を壊す。ミル結果を受ける `WXEX1-41-E2` の**アイコン綴りだけ**を列挙で1本足す
     //   （実測でこの綴りは1文だけ）。落とすと条件が消えて「それをバニッシュする」が無条件に走る。
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|あなたの登録者数が[０-９\d]+万人を達成していて、この方法で.+た場合、|(?:《[^》]+》)+を支払った場合、|それが【ライフバースト】を(?:持たない|持つ)場合、|それが[^、。]+の場合、|そのカードが《[^》]+アイコン》を持つカードの場合、|(?:選択した色に)?[白赤青緑黒]を含む場合、)/);
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|あなたの登録者数が[０-９\d]+万人を達成していて、この方法で.+た場合、|(?:《[^》]+》)+を支払った場合、|それが【ライフバースト】を(?:持たない|持つ)場合、|それが[^、。]+の場合、|そのカードが《[^》]+アイコン》を持つカードの場合、|そのカードが(?:＜[^＞]+＞の)?シグニの場合、|そのカードが《[^》]+》の場合、|(?:選択した色に)?[白赤青緑黒]を含む場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       // 先頭「それが」形は新設 alternation（従来は thenM 非マッチ＝parseSingleSentence 直行だった）。
@@ -30484,6 +30552,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // 上2つと同じ規約＝完全に解析できている AUTO の既存受け皿にだけ当てる。
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = markRemainderReorder(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-322`（2026-09-12）＝「そのカードが《X》の場合、この効果を繰り返す」の while ループ。
+    effect.action = wireRepeatThisEffect(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // §5.3 `O-77`（2026-08-29）＝`STUB{LRIG_UNDER_CARD_OP}` の catch-all から「場／トラッシュ →デッキ」を引き剥がす。
   for (const effect of effects) {

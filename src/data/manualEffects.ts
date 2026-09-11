@@ -11768,10 +11768,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴付与ぶんも旧 live は `SEQUENCE[DECLARE_NUMBER, LOOK_OPP_LIFE_TOP]`＝**「捨てさせる」が丸ごと無い**。
   // 🔑🔺**`O-312` の母集団は「カード単位」ではなく「効果単位」で3件**（`census:population` 実測）＝
   //   付与される能力の中まで同じ受け皿へ載せないと、**同じ穴が引用の中だけ残る**。
-  // ⚠**後半（「《コードハート　ピルルク//フェゾーネ》の場合、それは覚醒する」）は直していない**＝
-  //   `AWAKEN_SIGNI` が効果元（＝スペル）を対象にして空振りする件は `O-322` に残す（別軸）。
+  // 🆕🏁**後半（「それが《コードハート　ピルルク//フェゾーネ》の場合、それは覚醒する」）は
+  //   2026-09-12・第284バッチ（§5.3 `O-322`）で閉じた。**
+  // 🔴旧＝裸の `AWAKEN_SIGNI`＝①**条件が無く常に覚醒**しようとし ②対象が `ctx.sourceCardNum`＝
+  //   **このスペル自身**（場に居ない）なので `fieldTargets` が空＝**恒久 no-op**、の二重の外し。
+  // 🔑**「それ」は3箇所とも同じ1体**（対象宣言→能力付与→覚醒）＝`SELECT_TARGET_ONLY` で先に宣言し、
+  //   以後は `targetsLastProcessed` / `LAST_PROCESSED_MATCHES` で同じ `lastProcessedCards` を見る
+  //   （`GRANT_EFFECT{targetsLastProcessed}` は `lastProcessedCards` を書き換えないので後段まで生きる）。
+  // ⚠`explicitTarget` は宣言ステップ側へ移す（ON_TARGETED の発火元は「対象とし」の1点）。
   "WXDi-P14-061": [
-    {"effectId":"WXDi-P14-061-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"青"},"upToCount":false,"explicitTarget":true},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P14-061-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"TK3_DECLARE_DISCARD","numberChoicesFrom":"opp_center_lrig_level","declareDiscardFilter":{"noGuard":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}},{"type":"AWAKEN_SIGNI"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"}
+    {"effectId":"WXDi-P14-061-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"青"},"upToCount":false,"explicitTarget":true}},{"type":"GRANT_EFFECT","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"青"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P14-061-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"STUB","id":"TK3_DECLARE_DISCARD","numberChoicesFrom":"opp_center_lrig_level","declareDiscardFilter":{"noGuard":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardName":"コードハート　ピルルク//フェゾーネ"}},"then":{"type":"AWAKEN_SIGNI","targetsLastProcessed":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // ── §5.3 `O-313`（シグニゾーン内の「非シグニ札」を対象にできない）─────────────
@@ -11838,9 +11844,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // `WX16-002-E4`：【出】／**【起】**オーネスト《コインアイコン》《コインアイコン》：
   //   ターン終了時まで、このターンの前のターンに発動したコイン技を無効にする。
   // 🔴旧 live は `ON_PLAY`（＝【出】）だけ＝**【起】の経路が無く、グロウした瞬間の1回しか撃てなかった**。
-  // ⚠**本体（コイン技の無効化）は近似のまま**＝`NEGATE_COIN_ABILITY` は「このターン相手はコイン能力を
-  //   発動できない」を立てるだけで、原文の「**前のターンに発動した**コイン技を（遡って）無効にする」ではない。
-  //   遡及的な無効化の機構は無い（`O-317` の残件として PLAN に残す）＝だから `PARTIAL` を刻む。
+  // 🆕**2026-09-12（第284バッチ）＝前提条件だけ是正した**＝
+  //   旧は**条件を1つも見ず**「このターン相手はコイン能力（ベット）を使えない」を無条件に立てていた
+  //   （＝相手が前のターンにコイン技を撃っていなくても妨害が通る＝原文に無い過剰実行）。
+  //   いまは `coin_ability_used_last_turn`（コイン技の発動履歴・2スロット式）が立っているときだけ効く。
+  // ⚠**帰結は近似のまま**＝原文は「**発動した**コイン技を（遡って）無効にする」で、
+  //   既に解決した能力の帰結を取り消す機構は engine に無い（どの state をどの能力が書いたかを残していない）。
+  //   ⇒ 残件は §5.3 `O-333` として登録した＝だから `PARTIAL` のまま。
   "WX16-002": [
     // ⚠**`-E4`（【出】側）は manual に置かない**＝parser の出力と実体同一で、
     //   `O-42` トリップワイヤが「影武者コピー」として検出する（parser 改善が永久に届かなくなる形）。

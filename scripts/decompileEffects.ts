@@ -898,6 +898,8 @@ function costJa(c?: any): string {
     parts.push(`このシグニの下から${kind}${c.underSelfTrash.count}枚をトラッシュに置く`);
   }
   if (c.underAnySigniTrash) parts.push(`あなたのシグニの下からカードを合計${c.underAnySigniTrash.count}枚トラッシュに置く`);
+  // 🆕§5.3 `O-313`（2026-09-12・`WXK10-018-E2`）＝付いているカード／下にあるカードのどちらでもよい。
+  if (c.attachedOrUnderTrash) parts.push(`あなたのシグニに付いているカードか下にあるカードを${c.attachedOrUnderTrash.count}枚トラッシュに置く`);
   if (c.removeOppVirus != null) parts.push(`対戦相手の場の【ウィルス】${c.removeOppVirus}個を取り除く`);
   // §3タスク6 C: 能力スコープの任意コスト代替（WX07-027-E2）。宣言のみで engine 未実装だが原文を保つ。
   if (c.costSubstitute) {
@@ -2815,13 +2817,16 @@ function actionJa(a?: Action, effectType?: string): string {
         || (a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner) && !a.target?.filter?.cardType);
       const untilSBL = a.until === 'END_OF_TURN' ? 'ターン終了時まで、'
         : a.until === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        // 🆕§5.3 `O-331`＝「次のあなたのターンのターン終了時まで」（`WXK07-032-E2`）。
+        : a.until === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターンのターン終了時まで、'
         : a.until === 'NEXT_TURN' ? '次のターンの間、' : '';
       // 🆕§5.3 `O-312`＝`valueRef:'declared_number'`（「基本レベルを**宣言した数字**にする」）。
       const valSBL = a.valueRef === 'declared_number' ? '宣言した数字' : String(a.value);
       if (a.until === 'NEXT_TURN' && a.target?.count === 'ALL') {
         return `${untilSBL}${ownerJa(a.target?.owner)}場にあるシグニの基本レベルは${valSBL}になる（後から場に出たシグニにも適用）`;
       }
-      return `${untilSBL}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${valSBL}にする`;
+      // ⚠`upToCount`（「して**もよい**」＝0体を選べる）は文末で描き分ける（落とすと強制と読めない）。
+      return `${untilSBL}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${valSBL}にする${a.target?.upToCount ? '（してもよい）' : ''}`;
     }
     case 'REVEAL_UNTIL': {
       const stop = a.stopCondition;

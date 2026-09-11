@@ -25,6 +25,12 @@ export function detectBanishedSigni(before: PlayerState, after: PlayerState): st
 /**
  * 効果で新たに場に出たシグニ（各ゾーン最前面で、before のフィールドに存在しなかった instanceId）を検出。
  * 効果配置経路の any_ally ON_PLAY 発火（G144/G145/WX11-054「他のシグニが効果で場に出たとき」）用。
+ *
+ * 🆕**§5.3 `O-330`（2026-09-12）＝チェックゾーンを経由して出し直したシグニも「場に出た」**。
+ * 🔴**あれは盤面差分に1件も出ない**＝同じ instanceId が同じゾーンへ戻るので、
+ *   原文「その後、それらを場に出す」の【出】が**一度も発火していなかった**。
+ * ⚠**追記ログの差分で読む**（`detectPowerDecrease` と同じ作法）＝`before` の長さ以降の新規エントリだけ。
+ *   持続フラグとして読むと、**後続の無関係な効果解決でもう一度【出】が発火する**（過剰へ裏返る）。
  */
 export function detectPlacedSigni(before: PlayerState, after: PlayerState): string[] {
   const beforeOnField = new Set<string>();
@@ -33,6 +39,11 @@ export function detectPlacedSigni(before: PlayerState, after: PlayerState): stri
   for (const stack of after.field.signi) {
     const top = stack?.at(-1);
     if (top && !beforeOnField.has(top)) result.push(top);
+  }
+  const replayedBefore = (before.signi_replayed_this_turn ?? []).length;
+  for (const cn of (after.signi_replayed_this_turn ?? []).slice(replayedBefore)) {
+    // ⚠出し直したあとに更に場を離れているなら「場に出た」扱いにしない（同一解決内の後続ステップ）。
+    if (!result.includes(cn) && after.field.signi.some(stack => stack?.at(-1) === cn)) result.push(cn);
   }
   return result;
 }

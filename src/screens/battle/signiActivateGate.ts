@@ -6,6 +6,7 @@ import { countAcce } from '../../utils/acce';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
+import { canPayAttachedOrUnderTrash } from './attachedOrUnderCost';
 import { energyTrashCostSatisfied, handDiscardSigniAffordable, trashExileAffordable } from './costs';
 import { multiZoneExileAffordable } from './multiZoneExileCost';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
@@ -216,6 +217,10 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
       my, zoneIndex, e.cost.underSelfTrash.count, cardMap,
       e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,
     )) &&
+    // 🆕§5.3 `O-313`（2026-09-12）＝「シグニに**付いている**カード1枚か**下にある**カード1枚をトラッシュ」。
+    //   ⚠支払いUI・引き落としと**同じ関数**（`canPayAttachedOrUnderTrash` / `payAttachedOrUnderTrash`）を通す。
+    !(e.cost?.attachedOrUnderTrash
+      && !canPayAttachedOrUnderTrash(my, e.cost.attachedOrUnderTrash.count)) &&
     // fieldTrash: 場からトラッシュ可能なシグニ（excludeSelf=自身を除く）が必要数いないと支払えない
     !(e.cost?.fieldTrash && [0, 1, 2].filter(zi => {
       const ftTop = my.field.signi[zi]?.at(-1);

@@ -4569,12 +4569,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           return { type: 'SEQUENCE', steps: kwSteps } as EffectAction;
         }
       }
-      return withCollectivePower({
+      // 🆕**§5.3 `O-320`（2026-09-12）＝「…を得、**追加で宣言した色を得る**」の後半を落とさない**
+      //   （`SPDi43-22-E1`・母集団 実測1効果/1カード）。
+      // 🔴キーワード抽出は `【シャドウ:{…}】` だけを取って**残りの節を捨てていた**＝
+      //   【シャドウ:{declaredColor}】は「宣言色を持つ相手シグニからアタックされない」で、
+      //   **自分が宣言色を得るのは別の帰結**（自分の色を参照する効果に効く）＝丸ごと恒久 no-op だった。
+      // ⚠受け皿は `STUB{GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END}`（`declared_color` が無ければ何もしない）。
+      const withDeclaredColorGain = (grant: EffectAction): EffectAction =>
+        /追加で宣言した色を得る/.test(t)
+          ? ({ type: 'SEQUENCE', steps: [grant, { type: 'STUB', id: 'GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END' }] } as EffectAction)
+          : grant;
+      return withDeclaredColorGain(withCollectivePower({
         type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur,
         ...(nextTurnOwner ? { nextTurnOwner } : {}),
         ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
         ...(fieldCondition ? { fieldCondition } : {}),
-      });
+      }));
     }
   }
 

@@ -15,5 +15,6 @@ export function clearUntilOppTurnEffects(state: PlayerState): PlayerState {
     treated_as_resona_until_opp_turn: undefined, // §5.3 `O-203`（レゾナとしても扱う）
     lrig_opp_act_cost_plus_until_opp_turn: undefined,
     base_level_overrides_until_opp_turn: undefined, // §5.3 `O-296`（次の対戦相手のターン終了時まで基本レベルはNになる）
+    signi_extra_colors_until_opp_turn: undefined, // §5.3 `O-320`（追加で宣言した色を得る）
   };
 }

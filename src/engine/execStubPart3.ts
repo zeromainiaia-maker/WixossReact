@@ -337,23 +337,10 @@ export function execStubPart3(
       type: 'CHOOSE', options: optsCBL, count: 1,
     });
   }
-  // CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: シグニ1体の基本レベルを1にしてもよい（次の自ターン終了まで）
-  if (stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN') {
-    if (ctx.lastProcessedCards?.length) {
-      const targetCBLUNT = ctx.lastProcessedCards[0];
-      const newOvCBLUNT = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [targetCBLUNT]: 1 };
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOvCBLUNT } },
-        `${ctx.cardMap.get(targetCBLUNT)?.CardName ?? targetCBLUNT}の基本レベルを1に変更`));
-    }
-    const allSigniCBLUNT = [...ctx.ownerState.field.signi, ...ctx.otherState.field.signi]
-      .flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-    if (allSigniCBLUNT.length === 0) return done(addLog(ctx, '対象シグニなし（CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN）'));
-    const contCBLUNT: StubAction = { type: 'STUB', id: 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN' };
-    return needsInteraction(addLog(ctx, 'シグニを選択（基本レベルを1にしてもよい）'), {
-      type: 'SELECT_TARGET', candidates: allSigniCBLUNT, count: 1, optional: true,
-      targetScope: 'self_field', thenAction: contCBLUNT as EffectAction,
-    });
-  }
+  // 🏁**§5.3 `O-331`（2026-09-12）＝`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` のハンドラは撤去した。**
+  //   `SET_BASE_LEVEL{until:'UNTIL_NEXT_OWN_TURN_END'}` へ typed 化し、parser の生成元も無くなった。
+  // 🔴撤去した理由＝このハンドラは書き先が `attack_phase_level_overrides`（turn-end で消える）で、
+  //   原文「**次のあなたの**ターンのターン終了時まで」より**1ターン短かった**（`O-186` と同じ形の過小）。
   // COPY_CARD: このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides）
   if (stub.id === 'COPY_CARD') {
     const srcCC = ctx.sourceCardNum;
@@ -1106,10 +1093,20 @@ export function execStubPart3(
     const targets = [next.signi ? 'シグニ' : '', next.lrig ? 'センタールリグ' : ''].filter(Boolean).join('・');
     return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手の${targets}アタックを${next.remaining}回目まで自動無効化`));
   }
-  // NEGATE_COIN_ABILITY: このターン、対戦相手はコイン能力（ベット）を発動できない（`negate_coin_abilities`）
+  // NEGATE_COIN_ABILITY: 前のターンに発動されたコイン技を無効にする（近似＝このターン相手はコイン能力を使えない）
+  // 🆕**§5.3 `O-317`（2026-09-12）＝原文の前提条件を足した。**
+  // 🔴旧は**前提条件が1つも無く**、相手が前のターンにコイン技を1つも発動していなくても
+  //   「このターン相手はコイン能力（ベット）を使えない」を立てていた＝**原文に無い恒久の妨害**。
+  // ⚠**帰結は近似のまま**＝原文は「発動**した**コイン技を（遡って）無効にする」で、
+  //   既に解決した能力の帰結を取り消す機構は engine に無い（provenance が state に残らない）。
+  //   ⇒ 残件は §5.3 の別項目として登録してある。ここは**前提条件の是正だけ**。
   if (stub.id === 'NEGATE_COIN_ABILITY') {
+    if (!ctx.otherState.coin_ability_used_last_turn) {
+      return done(addLog(ctx, '前のターンに発動されたコイン技が無い（無効化する対象なし）'));
+    }
     const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
-    return done(addLog({ ...ctx, otherState: newOtherNCA }, 'このターン、対戦相手のコイン能力（ベット）を発動できない'));
+    return done(addLog({ ...ctx, otherState: newOtherNCA },
+      '前のターンに発動されたコイン技を無効にする（近似＝このターン、対戦相手はコイン能力を発動できない）'));
   }
   // NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
   if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {

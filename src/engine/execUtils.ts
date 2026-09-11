@@ -2628,6 +2628,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // このターンに支払った《コイン》の累計（支払いのみ・獲得は数えない）。Opusタスク12(cxvi)
     case 'COINS_PAID_THIS_TURN':
       return cmp(st(cond.owner).coins_paid_this_turn ?? 0, cond.operator, cond.value);
+    // 🆕§5.3 `O-318`＝「このゲームの間にあなたが《コイン》を得ていない場合」（`WXDi-P07-006-E1`）。
+    // ⚠**`coins === 0` で代用しない**＝得て払った後と、最初から得ていない場合を区別できない。
+    case 'NO_COIN_GAINED_THIS_GAME':
+      return st(cond.owner).coins_gained_this_game !== true;
     case 'SIGNI_DOWNED_COUNT_THIS_TURN': {
       // 台帳（`signi_downed_this_turn`）を filter で絞って数える。記録は `recordSigniDownedThisTurn` の1本。
       const downed = st(cond.owner).signi_downed_this_turn ?? [];
@@ -3875,6 +3879,52 @@ export function evalUseCondition(
 }
 
 // ===== フィールドからカードを除去する（バニッシュ/バウンス共通） =====
+
+/**
+ * 🆕**「場を離れて出直した」シグニから、場に居たあいだに得た per-card の状態を落とす**
+ * （2026-09-12・§5.3 `O-330`・`FIELD_SIGNI_TO_CHECK_ZONE`）。
+ *
+ * 🔴**なぜ要るか**＝これらのストアは**instanceId で引く**ので、同じ instanceId が場へ戻ると
+ *   パワー修整も付与キーワードも能力喪失も**そのまま復活する**。往復を1アクションに畳んだ実装は
+ *   ダウン／凍結／アタック済みしか落としておらず、原文の「新しいシグニとして出る」になっていなかった。
+ * ⚠**付属札（チャーム・アクセ・下のカード・ソウル・裏向き付け）は `removeFromField` が落とす**＝
+ *   ここでは触らない（二重に処理すると行き先が2回積まれる）。
+ * ⚠**ゾーンに属する状態（ウィルス・`field_grants_*`）は落とさない**＝あれはシグニではなくゾーンの持ち物。
+ */
+export function clearOnFieldAcquiredState(state: PlayerState, cardNum: string): PlayerState {
+  // ⚠**空になっても `undefined` へ潰さない**＝既存の読み手・golden が `[]`（長さ0）を見ている。
+  const dropArr = (a: string[] | undefined): string[] | undefined =>
+    a?.length ? a.filter(n => n !== cardNum) : a;
+  const dropMods = <T extends { cardNum: string }>(a: T[] | undefined): T[] | undefined => {
+    if (!a?.length) return a;
+    const next = a.filter(m => m.cardNum !== cardNum);
+    return next.length > 0 ? next : undefined;
+  };
+  const dropKey = <V>(r: Record<string, V> | undefined): Record<string, V> | undefined => {
+    if (!r || !(cardNum in r)) return r;
+    const next = { ...r };
+    delete next[cardNum];
+    return Object.keys(next).length > 0 ? next : undefined;
+  };
+  return {
+    ...state,
+    temp_power_mods: dropMods(state.temp_power_mods),
+    power_mods_until_opp_turn: dropMods(state.power_mods_until_opp_turn),
+    power_mods_until_next_own_turn: dropMods(state.power_mods_until_next_own_turn),
+    keyword_grants: dropKey(state.keyword_grants),
+    keyword_grants_until_opp_turn: dropKey(state.keyword_grants_until_opp_turn),
+    keyword_abilities_removed: dropKey(state.keyword_abilities_removed),
+    abilities_removed: dropArr(state.abilities_removed),
+    abilities_removed_next_turn: dropArr(state.abilities_removed_next_turn),
+    abilities_removed_until_next_own_turn: dropKey(state.abilities_removed_until_next_own_turn),
+    granted_abilities_removed: dropArr(state.granted_abilities_removed),
+    attack_phase_level_overrides: dropKey(state.attack_phase_level_overrides),
+    base_level_overrides_until_opp_turn: dropKey(state.base_level_overrides_until_opp_turn),
+    base_level_overrides_until_next_own_turn: dropKey(state.base_level_overrides_until_next_own_turn),
+    // 場を離れて出直したので「このターンにアタックした」記録も落ちる（＝再びアタックできる）。
+    attacked_signi_ids: dropArr(state.attacked_signi_ids),
+  };
+}
 
 export function removeFromField(cardNum: string, state: PlayerState): PlayerState {
   const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);

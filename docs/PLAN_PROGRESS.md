@@ -1,5 +1,59 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-12・第283バッチ・Opus 5 単独）＝🏁`O-312`・🏁`O-314`・🏁`O-315` をクローズ／`O-313` 4→1・`O-317` 4→1（索引G 10→8項目・19効果/18カード＋系統13効果）。**
+
+  **取り方**＝ユーザー指定の5項目を横断で1バッチ。**1手目は登録票の反証**（前回の「次の一手②」をそのまま実行）。
+
+  🔴**2項目は登録票が完全に stale＝1バイトも書かずにクローズ**＝
+  ①`O-315`（`WXEX2-39-E3`）は `triggerCondition.trashSourceStoryIncludesCost` が
+  **live・`triggerCollect.ts:4297`・golden（第252バッチ）の3点に揃っていた**。
+  ②`O-314`① の `WXDi-P00-038-E1` も第262バッチ（`O-299`）で実装済み。
+  🔴**残り3項目も「新機構が要る」は誤り**＝`O-312` は**6効果とも既存キーの兄弟で足りた**
+  （`numberChoicesFrom` / `declareDiscardFilter` / `SET_BASE_LEVEL.valueRef` / `distinctBy:'color'` /
+  `levelEqLrigOffset` / `levelEqualsVarOffset` / `same:'ability'`）。
+  **登録票の「軸ごとに専用キーを増やす形が限界に来ている」という結論そのものが外れていた。**
+
+  🔴**旧 live が原文に無いことをしていた4件**（過剰実行）＝
+  `WXK04-033-E1`＝**自分の場のシグニ全部をその場で手札へ戻す**（原文はターン終了時に「アクセにした札だけ」）／
+  `WXK07-003-E1`＝**相手シグニ1体を無料でトラッシュ送り**（原文は「シグニゾーン1つの非シグニ札」）／
+  `WXEX2-81-E2`＝**相手の＜天使＞を狙う**（＜天使＞は自分側の数え元でレベル上限）／
+  `WXK02-027-E1`＝level 限定が両方なく**どんなレベルでも取れる**。
+  逆に `WXK02-002-E3`（敗北判定なし）・`WXK05-001-E2`（代償なし）・`WX16-003-E1`（条件・二択なし）は**本文が丸ごと欠落**していた。
+
+  🔴**作業中に見つけた系統バグ**＝原文に「**各ターン終了時**」と書く **live 13効果すべて**が
+  **非ターンプレイヤー側の場に居るあいだ1度も発火していなかった**（「各ターン」の半分が恒久 no-op）。
+  🔑**`triggerScope` では直せない**＝`collectTurnTriggers` は自分側を `'self'` しか・相手側を `'any'|'any_opp'` しか拾わず、
+  **どちらの値にしても逆側で落ちる**。⇒ `triggerCondition.anyTurn` を新設＋parser 規則1本＋MANUAL 2件で **13/13**。
+
+  **直したもの**（新設はすべて既存の受け皿の兄弟）＝`TargetFilter.levelEqLrigOffset` / `levelEqualsVarOffset` ／
+  `CountFromZone.distinctBy:'color'` ／ `SelectionConstraint.same:'ability'` ／ `SetBaseLevelAction.valueRef` ／
+  `StubAction.numberChoicesFrom` / `declareDiscardFilter` / `declaredBy` / `acceFromTrash` ／
+  `Condition.ARTS_USED_COUNT_NE_DECLARED` ／ `PreventDamageAction.sourcePowerGte` ／
+  `SigniDeployBan.fromNextTurn` / `bySource:'normal_summon'` ／ `triggerCondition.anyTurn` ／
+  `STUB{DEFEAT}` の `owner` ／新 STUB 5本（`TRASH_SIGNI_ZONE_NON_SIGNI` / `BOUNCE_SIGNI_ZONE_CARD` /
+  `ACCE_FROM_TRASH_MULTI` ＋内部2本）／新ヘルパー `signiZoneNonSigniCards` 系3本 ／
+  新モジュール `src/utils/deckBuildLimits.ts`（構築時のアーツ上限）。MANUAL 20効果＋parser 規則1本。
+
+  🔑**教訓**＝①**登録票は着手前に grep で反証する**（第280〜283 で取った16項目のうち**14項目で前提が誤っていた**）
+  ②**`triggerScope` は「誰の場か」の軸で「どちらのターンか」を表せない**＝2つの loop が別フィルタを持つ構造は**別キーで足す**
+  ③**payload を足したら逆翻訳もその payload から組む**＝今回 `distinctBy:'color'` は「枚数」、`levelEqLrigOffset` は「同じレベル」、
+  `same:'ability'` は**丸ごと消えて**描かれていた（`constraintJa` の三項が**排他**で `distinct` と `same` の併記が落ちる）。
+
+  🔧**検証**＝`npm run gates` 全緑（golden **4004 PASS**＝新設12本／smoke 10751 OK／fuzz 0／census 高シグナル 1/1 据置／
+  stubs A群・C群 0／enginetext・costtext A群 0／deadstate 0／lint 0 errors）。
+  **反転確認**＝新設12本すべてに反転 assert を埋め、うち3本は**実装を殺して FAIL することを実測**した。逆翻訳19効果を目視（描き漏れ5件を修正）。
+  🔴⚠**実機は回せていない**（Playwright＋ログイン＋VERIFY_DECK が要る環境）＝`src/screens/` を触った回なので §2.2 のとおり必須
+  ⇒ **§5.1 に `V-203`〜`V-206` として登録した（次の巡の1手目で返す）**。
+
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **8項目**（🏁A 0／🏁B 0／**G 8**＝10−3＋新規1）｜🔥**実機 残4**（`V-203`〜`V-206`）。
+
+  **次の一手**
+  ① 🔥**①実機（§5.1 `V-203`〜`V-206`）を先に返す**＝§5.3 より優先（§5 の並び順）。寝かせると「バグかシナリオの腐りか」の切り分けが高くつく。
+  ② 🔑**着手の1手目は登録票の反証**（16項目中14項目で前提が誤っていた＝もはや例外ではなく既定）。
+  ③ ⚠**索引 G の残り**＝`O-313`（`WXK10-018-E2` のコスト＝`src/screens/battle/costs.ts` の3点セット）と
+  `O-317`（`WX16-002-E4` の遡及的な無効化＝機構が無い）は**どちらも engine の外**。
+  **`O-318`／`O-320`／`O-322` は登録時の理由が1行しか残っていない＝再 triage が要る**（登録票に明記）。
+
 - **セッション（2026-09-12・第282バッチ・Opus 5 単独）＝🏁`O-292`・🏁`O-296`・🏁`O-309`・🏁`O-310`・🏁`O-311` の5項目をクローズ（索引G 13→8、🆕`O-330`/`O-331` を登録して 10項目・30効果/24カード）。**
 
   **取り方**＝ユーザー指定の5項目を横断で1バッチ。互いに無関係（束ねたのは固定費のため）。

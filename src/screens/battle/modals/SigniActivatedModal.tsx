@@ -9,6 +9,7 @@ import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
+import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../attachedOrUnderCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
@@ -172,6 +173,16 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                 my, actUnderZone, selectedSigniActivatedUnderTrash, actUnderTrashCost.count, battleCardMap,
                 actUnderTrashCost.filter, actUnderTrashCost.selectionConstraint,
               ) !== null);
+              // 🆕§5.3 `O-313`（2026-09-12・`WXK10-018-E2`）＝「シグニに**付いている**カード1枚か
+              //   **下にある**カード1枚をトラッシュ」。
+              // ⚠**選択 state は `selectedSigniActivatedUnderTrash` を共用する**（同じ効果に両方の
+              //   コストが載ることは無い＝live 実測）。ただし**中身の型が違う**＝
+              //   `underSelfTrash` は `"<zone>:<index>"` キー／こちらは**カードの instanceId**。
+              //   どちらを見るかは `eff.cost` の側で決まるので取り違えない。
+              const actAttachedCost = eff.cost?.attachedOrUnderTrash;
+              const actAttachedCandidates = actAttachedCost ? attachedOrUnderCostCandidates(my) : [];
+              const actAttachedOk = !actAttachedCost || payAttachedOrUnderTrash(
+                my, selectedSigniActivatedUnderTrash, actAttachedCost.count) !== null;
               // beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき）
               const actBeatCost = analyzeBeatSigniCost(my, pendingSigniActivated.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
               const actBeatNeedSelect = beatSigniCostCount(eff.cost?.beat_signi) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
@@ -180,7 +191,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               // 支払い関数に判定させる（centerOnly / level の条件を UI 側で写経しない）。タスク12(cviii)
               const actLrigDownCost = eff.cost?.lrigDown;
               const actLrigDownOk = !actLrigDownCost || payLrigDownCost(my, actLrigDownCost, battleCardMap) !== null;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actBeatSelectOk && actLrigDownOk;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actAttachedOk && actBeatSelectOk && actLrigDownOk;
 
               return (
                 <>
@@ -216,6 +227,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
                             actTrashExileCost?.self ? 'このカードをゲームから除外' : actTrashExileCost ? `トラッシュから${actTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                             actUnderTrashCost ? `このシグニの下から${actUnderTrashCost.count}枚トラッシュ` : null,
+                            actAttachedCost ? `シグニに付いているカードか下にあるカードを${actAttachedCost.count}枚トラッシュ` : null,
                             actFieldBanishCost ? `場から${actFieldBanishCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldBanishCost.filter)}シグニ${actFieldBanishCost.count}体をバニッシュ` : null,
                             actLrigDownCost ? fmtLrigDownCostLabel(actLrigDownCost) : null,
                           ].filter(Boolean).join('・') || 'なし'}
@@ -253,6 +265,44 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                                   if (!firstName || c?.CardName !== firstName) return prev;
                                 }
                                 next.add(key); return next;
+                              })}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                              </div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {actAttachedCost && (
+                    <>
+                      <p style={{ color: actAttachedOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        シグニに付いているカード／下にあるカードをトラッシュ:
+                        {' '}{selectedSigniActivatedUnderTrash.size} / {actAttachedCost.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {actAttachedCandidates.map(candidate => {
+                          const c = battleCardMap.get(getCardNum(candidate));
+                          const isSel = selectedSigniActivatedUnderTrash.has(candidate);
+                          return (
+                            <div key={candidate}
+                              // ⚠**実機ドライバが掴める印を付ける**＝素の `div` は role が無く
+                              //   `stdStep` から見えない（§5.3 `O-313` の実機で踏んだ）。
+                              data-testid={`aou-cand-${candidate}`}
+                              onClick={() => setSelectedSigniActivatedUnderTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(candidate)) { next.delete(candidate); return next; }
+                                if (next.size >= actAttachedCost.count) return prev;
+                                next.add(candidate); return next;
                               })}
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,

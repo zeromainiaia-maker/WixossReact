@@ -21,6 +21,7 @@ import {
   trapIconEffectOf,
 } from './execUtils';
 import { allAcceCards } from '../utils/acce';
+import { applyCoinGain } from './coinGain';
 import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
 import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import {
@@ -677,8 +678,10 @@ export function execStubPart2(
     if (!specGCAD) return done(addLog(ctx, '[GAIN_COIN_AND_DISCARD: 枚数なし（未指定）]'));
     const coinCountGCAD = specGCAD.coin;
     const discardCountGCAD = specGCAD.discard;
-    // コイン付与
-    const ctxCoinGCAD = addLog({ ...ctx, ownerState: { ...ctx.ownerState, coins: (ctx.ownerState.coins ?? 0) + coinCountGCAD } }, `コイン+${coinCountGCAD}`);
+    // コイン付与（🆕§5.3 `O-318`＝獲得は `applyCoinGain` の1本＝「このゲーム得られない」も「得た」記録もここで効く。
+    //   🔴旧はここで直に `coins` を足しており、**上限5枚も獲得禁止も無視**していた）。
+    const gainGCAD = applyCoinGain(ctx.ownerState, coinCountGCAD);
+    const ctxCoinGCAD = addLog({ ...ctx, ownerState: gainGCAD.state }, `コイン+${gainGCAD.gained}`);
     // 手札がなければそのまま終了
     if (ctxCoinGCAD.ownerState.hand.length === 0) return done(ctxCoinGCAD);
     // インタラクティブ捨て（SELECT_TARGET）
@@ -1005,6 +1008,24 @@ export function execStubPart2(
     return selectOrInteract(matchingDCCE, 1, false, 'self_energy',
       ({ type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 1 } } as TrashAction) as EffectAction,
       undefined, addLog(declaredCtxDCCE, `${colorDCCE}を宣言／${colorDCCE}エナを1枚選んでトラッシュ`));
+  }
+  // GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END: 次の対戦相手のターン終了時まで、このシグニは追加で宣言した色を得る
+  // 🆕**§5.3 `O-320`（2026-09-12）・`SPDi43-22-E1`「〜【シャドウ:{declaredColor}】を得、**追加で宣言した色を得る**」。
+  // 🔴**旧はこの文が JSON に1つも出ておらず、恒久 no-op だった**＝【シャドウ:{declaredColor}】は
+  //   「相手の**宣言色を持つ**シグニからアタックされない」で、自分が宣言色を得るのは**別の帰結**。
+  // ⚠**宣言が無ければ何もしない**（fail-closed）＝`declared_color` は `INTERNAL_DCCE_TRASH_COLOR` が刻む。
+  //   宣言を経ていない経路で勝手に色を足さない。
+  // ⚠置き場は**効果元シグニの持ち主の state**＝`collectFieldSigniExtraColors` は各 state の場だけを見る。
+  if (stub.id === 'GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END') {
+    const colorGDC = ctx.ownerState.declared_color;
+    const srcGDC = ctx.sourceCardNum;
+    if (!colorGDC || !srcGDC) return done(addLog(ctx, '[GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END: 宣言色または効果元なし]'));
+    const prevGDC = ctx.ownerState.signi_extra_colors_until_opp_turn ?? {};
+    const curGDC = prevGDC[srcGDC] ?? [];
+    if (curGDC.includes(colorGDC)) return done(addLog(ctx, `既に${colorGDC}を得ている`));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState,
+      signi_extra_colors_until_opp_turn: { ...prevGDC, [srcGDC]: [...curGDC, colorGDC] } } },
+      `${ctx.cardMap.get(getCardNum(srcGDC))?.CardName ?? srcGDC}は追加で${colorGDC}を得る（次の対戦相手のターン終了時まで）`));
   }
   // TRASHED_CARD_TO_HAND_OR_ENERGY → 手札選択後処理
   if (stub.id === 'INTERNAL_TRASH_TO_HAND') {
@@ -2201,6 +2222,37 @@ export function execStubPart2(
       ],
     });
   }
+  // REPEAT_BODY_WHILE: 条件を満たすかぎり、この効果の本体をもう一度実行して再判定する
+  // 🆕**§5.3 `O-322`（2026-09-12）・`WXDi-CP01-033-E1`「そのカードが《コード２４３４　町田ちま》の場合、
+  //   この効果を繰り返す」。**
+  // 🔴旧＝`STUB{DEFERRED_REPEAT_ON_REVEALED_NAME}`＝`execStub.ts` のログだけの既定処理へ落ちる**真 no-op**。
+  // ⚠**判定を先・実行を後**＝ここへ来た時点の `lastProcessedCards`（＝直前に処理したカード）で判定し、
+  //   成立したときだけ本体を回す。逆にすると原文が1周多く回る。
+  // ⚠**`maxRepeats` は無限ループの安全網**＝デッキが尽きる等で本体が盤面を動かさなくなると
+  //   条件が永久に成立し続ける（`lastProcessedCards` が据え置かれる）。再入のたびに1減らす。
+  if (stub.id === 'REPEAT_BODY_WHILE') {
+    const specRBW = stub.repeatBodyWhile;
+    if (!specRBW) return done(addLog(ctx, '[REPEAT_BODY_WHILE: パラメータなし（未指定）]'));
+    const leftRBW = specRBW.maxRepeats ?? 60;
+    // 再帰点（`STUB{REPEAT_BODY_SELF}`）を「1回ぶん寿命を減らした自分自身」へ差し替える。
+    // 上限に達したらそこで打ち切る（何もしない SEQUENCE へ差し替える）。
+    const selfRBW: EffectAction = leftRBW > 0
+      ? ({ ...stub, repeatBodyWhile: { ...specRBW, maxRepeats: leftRBW - 1 } } as StubAction as EffectAction)
+      : ({ type: 'SEQUENCE', steps: [] } as EffectAction);
+    const substRBW = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(substRBW);
+      if (!node || typeof node !== 'object') return node;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'REPEAT_BODY_SELF') return selfRBW;
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(o)) out[k] = substRBW(v);
+      return out;
+    };
+    return exec(substRBW(specRBW.body) as EffectAction, ctx);
+  }
+  // REPEAT_BODY_SELF: 繰り返しの再帰点（`REPEAT_BODY_WHILE` が実行前に自分自身へ差し替える目印）
+  // ⚠差し替えられずにここへ来たら**何もしない**（fail-closed）＝上限到達か、単体で書かれた壊れた JSON。
+  if (stub.id === 'REPEAT_BODY_SELF') return done(ctx);
   // REVEALED_CARD_COLOR_DISCARD: 公開カードの色と同じ色の手札カードを捨てる
   if (stub.id === 'REVEALED_CARD_COLOR_DISCARD') {
     const revCardRCCD = ctx.lastProcessedCards?.[0];
