@@ -7752,7 +7752,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     }
 
     if (src.count === 'ALL') return done({ ...applyHandToDeck(cands, ctx), lastProcessedCards: cands });
-    return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx);
+    const oppResponds = !!a.opponentSelects && src.owner === 'opponent';
+    return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx, oppResponds);
   }
 
   // ENERGY_CARD: エナゾーンからデッキへ戻す（§6.4 O-35・続き529）。

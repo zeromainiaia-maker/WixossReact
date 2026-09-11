@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-309`：`TRANSFER_TO_DECK/HAND_CARD` の相手選択を配線
+
+`WXK10-044-E1` の原文は「対戦相手は手札を1枚デッキの一番下に置く」だが、旧 live は
+`TRANSFER_TO_DECK{source:{type:'SIGNI',owner:'opponent'}}` で**場のシグニを移動**し、さらに
+`opponentSelects` も無いため**効果使用者が選ぶ**二軸の過剰実行だった。加えて engine の
+`execTransferToDeck/HAND_CARD` は、型にある `opponentSelects` を `selectOrInteract` の第8引数へ
+渡していなかった。既存機構を流用し、`owner:'opponent'` のときだけ `opponentResponds` を立てた。
+
+### 5効果の triage
+
+| 分類 | effectId | 判定 |
+|---|---|---|
+| **(b) 修正** | `WXK10-044-E1` | live を `HAND_CARD/opponent/count:1/position:'bottom'/opponentSelects:true` に手動刻印し、欠落していた engine 引数を配線 |
+| **(c) 見送り** | `WXK10-091-E1` | `SearchAction` に探索主体／応答者の軸が無く、`execSearch` の `SEARCH` pending にも `opponentResponds` が無い |
+| **(c) 見送り** | `WXK06-025-E2` | `ADD_TO_FIELD` は配置ゾーン用 `opponentSelectsZone` しかなく、相手が手札の札を選ぶ軸と任意を決める軸が無い |
+| **(c) 見送り** | `WXK06-028-E1` | 既存 `orderChosenBy:'opponent'` は `SIGNI/count:'ALL'` 専用。この効果には「使用者が相手トラッシュから対象2枚までを選ぶ→相手がその順番を決める」の二段階継続が要る |
+| **(c) 見送り** | `WXEX2-12-E4` | live は `STUB CAST_FROM_OPP_TRASH` 2本で原文の秘匿二分割と別物。`O-307` 本体なので無変更 |
+
+### 配線監査・波及
+
+- `effectExecutor.ts` の実読取は、`BANISH` 1／`BOUNCE` 1／`SEND_TO_ENERGY` 1／`TRASH` 2／
+  `ADD_TO_LIFE` 3／`TRANSFER_TO_DECK` 3（今回の `HAND_CARD` を含む）の **11箇所**。
+  `execStubPart1.ts` の `SELECT_TARGET_ONLY` にも1箇所ある。
+- `opponentSelects` を宣言できる action 配下で、対話を作る `selectOrInteract` が第8引数を
+  hardcode／省略する箇所は **投入時20箇所 → 修正後19箇所**。残りは
+  `BANISH` 3（totalPower／totalLevel／ALL+upTo）、`SEND_TO_ENERGY` 1（totalLevel）、
+  `TRASH` 3（SIGNI／HAND／ENERGY の ALL+upTo）、`ADD_TO_LIFE` 1（fromHand）、
+  `TRANSFER_TO_DECK` 7（LRIG_TRASH、TRASH×4、ENERGY、SIGNI thisCardOnly optional）、
+  `SELECT_TARGET_ONLY` 4（TRASH／ENERGY／LRIG_TRASH／SEED）。加えて `SELECT_TARGET_ONLY/HAND_CARD` は
+  対話以前に未対応 no-op。いずれもこの5効果の本命ではないため変更していない。
+- 同じ欠落分岐を既に通っていた `WXK06-044-E1`（各プレイヤーが手札1枚をデッキ下へ置き1枚引く）も、
+  相手側の手札選択が正しい応答者へ波及修正された。live JSON 自体の変更は無い。
+
+### 回帰・配送確認
+
+- golden 2本＝① `opponentSelects:true` なら `pending.opponentResponds:true`、②キー無しなら
+  相手応答にならない。第8引数を一時的に外す反転では①だけが `expected=true got=undefined` で FAIL、
+  ②は PASS（実測）。共有カードプールのカーソルは `withSavedCursor` で隔離した。
+- `npm run build:effects` → `npm run regen` を実行。逆翻訳は
+  `WXK10-044-E1: ...対戦相手のカード(手札)1枚をデッキの一番下に置く（相手が選ぶ）`。
+- baseline `f347dbc98` との全 live JSON の effectId 単位比較で、変化集合は
+  **`WXK10-044-E1` の1件だけ**（`SIGNI→HAND_CARD`、`filter` 削除、`opponentSelects:true` 追加、
+  `parseStatus:AUTO→MANUAL`）。
+- `npm run gates` 全緑：golden **3951 PASS / 0 FAIL**（3949 → +2）、smoke 10744 / 全0、fuzz 0、
+  census 高シグナル 1 / BASELINE 1、stubs A/C 0、enginetext A 0行、costtext A 0規則、manual-fields 0、
+  lint 0 errors / 254 warnings。
+- `src/screens/`、型宣言、parser、decompiler は無変更。commit／push、PLAN／PLAN_PROGRESS 編集なし。
+- **⑤実機は不要と判定**（§2.2）＝**`src/screens/` 無触**・**新しい型／機構なし**（既存 `opponentSelects` を
+  既存分岐へ渡しただけ）。応答者の切り替えは golden ①②が反転つきで固定している。
+- 🔴**Claude の検証（引き継ぎ側）**＝`npm run gates` を再実行して全緑（golden **3951**）、
+  per-effect diff が **`WXK10-044-E1` の1件**であることを機械確認した。engine の差分は**1行**で、
+  他の分岐の既定（省略＝自分が選ぶ）を1つも変えていない。
+- 🔥🔴**このバッチの最大の収穫は修正1件ではなく「未配線 19箇所の全数」**＝
+  `opponentSelects` を宣言できる action 配下で `selectOrInteract` の第8引数を省略している分岐が
+  **19箇所**残っている（内訳は上記）。**母集団2桁なので §5.3 索引 A へ `O-327` として登録した。**
+  ⚠**19箇所すべてが実害とはかぎらない**（その分岐を通る live 効果に `opponentSelects` が載っていなければ
+  現時点では無害）＝**着手時に「分岐 × その分岐を通る live 効果」で実測し直す。**
+- ⚠**未検証の疑い（今回は触っていない）**＝`triggerCondition.placedOnGateZone` は
+  `triggerCollect.ts:4879` で**トリガー元の持ち主自身の `own_gate_zones`** を見る。
+  `WXK10-044-E1` は「**対戦相手の**シグニが【ゲート】があるシグニゾーンに出たとき」なので、
+  **相手が自分でゲートを置いていないと成立しない**読みになる。原文の意図（自分のゲートの正面か、
+  相手自身のゲートか）は**カードの規則を確かめないと決められない**ので、**判定を保留した**。
+  🔑**「分からないから直さない」を明示する**＝直したふりをするより、次の人が測り直せる形で残す。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-326`：帰結が既に成立しているときの空払いを事前に止める
 
 原文「追加で**対戦相手のルリグ１体を対象とし**、手札から＜プリオケ＞のカードを１枚捨てても**よい**。

@@ -28732,6 +28732,44 @@ test('batch11 opponentSelects: 相手エナ選択と新入口2種が opponentRes
   );
   eq(deckPending.opponentResponds, true, 'TRANSFER_TO_DECK は相手応答');
 });
+test('§5.3 O-309: HAND_CARD の opponentSelects ありは相手応答になる', () => withSavedCursor(() => {
+  const result = executeEffect({
+    effectId: 'GOLDEN-O-309-OPPONENT', effectType: 'AUTO',
+    action: {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      shuffle: false, position: 'bottom', opponentSelects: true,
+    },
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, mkCtx({}, { hand: 2 }));
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', '相手手札2枚なら選択待ちになる');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(result.pending.opponentResponds, true, 'opponentSelects ありは相手側の選択 UI に載る');
+
+  const live = effectsMap.get('WXK10-044')?.find(e => e.effectId === 'WXK10-044-E1');
+  ok(!!live, 'WXK10-044-E1 が live にある');
+  if (!live) return;
+  const action = live.action as Extract<EffectAction, { type: 'TRANSFER_TO_DECK' }>;
+  eq(action.type, 'TRANSFER_TO_DECK', 'live は TRANSFER_TO_DECK');
+  eq(action.source.type, 'HAND_CARD', 'live の移動元は相手の手札');
+  eq(action.source.owner, 'opponent', 'live の移動元 owner は opponent');
+  eq(action.position, 'bottom', 'live はデッキ下へ置く');
+  eq(action.opponentSelects, true, 'live に opponentSelects が届く');
+}));
+test('§5.3 O-309: HAND_CARD の opponentSelects なしは使用者応答のまま', () => withSavedCursor(() => {
+  const result = executeEffect({
+    effectId: 'GOLDEN-O-309-SELF', effectType: 'AUTO',
+    action: {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      shuffle: false, position: 'bottom',
+    },
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, mkCtx({}, { hand: 2 }));
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', '相手手札2枚なら選択待ちになる');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  ok(result.pending.opponentResponds !== true, 'opponentSelects なしは相手側の選択 UI に載らない');
+}));
 test('WX25-P3-104-E1: 他の毒牙がいる時だけLv2以下1体をpower0限定リストへ保持', () => {
   const eff = (effectsMap.get('WX25-P3-104') ?? []).find(e => e.effectId === 'WX25-P3-104-E1');
   ok(!!eff, 'E1'); if (!eff) return;

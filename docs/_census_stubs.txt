@@ -70,7 +70,7 @@ live JSON の STUB id 種類 : 593（総ノード 3363 件）
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10896
+        生成: src\data\effectParser.ts:16683 / src\data\manualEffects.ts:10897
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2265
@@ -179,10 +179,10 @@ live JSON の STUB id 種類 : 593（総ノード 3363 件）
         消費: src\engine\effectEngine.ts:8123
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:10458
+        消費: src\engine\effectExecutor.ts:10459
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:10460
+        消費: src\engine\effectExecutor.ts:10461
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
