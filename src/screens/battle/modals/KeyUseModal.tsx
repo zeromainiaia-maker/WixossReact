@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
+import { keyPlaceCoinCostOf, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { isPieceCardType } from '../battleUtils';
 import type { BattleModalCtx } from './types';
@@ -34,7 +34,9 @@ export function KeyUseModal(p: KeyUseModalProps) {
               display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const card = pendingKeyCard;
-              const coinNeeded = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
+              // 🆕§5.3 `O-290`（2026-09-11）＝配置コインの payload（`SELF_PLACE_COIN_COST`）を通す。
+              //   🔴**`BattleScreen` の「キーにセット」提示ゲートと必ず同じ1本**（`keyPlaceCoinCostOf`）を使う。
+              const coinNeeded = keyPlaceCoinCostOf(card, effectsMap, my, op, battleCardMap);
               // ⚠ピースの EffectText 由来の条件つき軽減（`WXDi-P16-003`〜`007`＝タスク12(xciv) α）を通す。
               //   `BattleScreen` の「キーにセット」ゲートと**同じ式**でなければ、出せるのに払えない／
               //   印刷コストで請求される食い違いになる。

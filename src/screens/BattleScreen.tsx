@@ -154,7 +154,7 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
-import { handDiscardHistoryRecord } from './battle/costs';
+import { handDiscardHistoryRecord, keyPlaceCoinCostOf } from './battle/costs';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeDamagedJust, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
@@ -9117,14 +9117,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ⚠ピースは Timing に文言が入るので影響なし＝壊れていたのはキーだけ。
       const timingRaw = cardData.Timing ?? '';
       const timing = timingRaw === '-' ? '' : timingRaw;
-      const canUse =
+      // 🆕🔴§5.3 `O-290`（2026-09-11）＝**キーの配置ゲートでも `canSelfPlay` を見る。**
+      //   `SELF_PLAY_RESTRICT` は `WDK16-05T/05H/05S`（センタールリグ名）と `PR-K060`（エナの色3種類以上）が
+      //   持っているのに、`canSelfPlay` の呼び出しが `handleSummonSigni`（シグニの通常召喚）にしか無く
+      //   **キー配置経路では一度も呼ばれていなかった**＝誰がセンターでもキーを出せる恒久 no-op だった。
+      //   ⚠この時点でキーはまだルリグデッキにあり `my.field` に含まれない＝「あなたの場に…」は当該カードを
+      //     除いて評価される（シグニ召喚側と同じ規約）。
+      const selfPlaceOk = canSelfPlay(baseEffectsMap.get(cardNum), my, op, battleCardMap);
+      const canUse = selfPlaceOk && (
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ')) ||
         // 🔴CSV Timing が「アタックフェイズ」のピース14枚は、従来 MAIN/GROW しか許していないため
         //   **永久に使えなかった**（メイン+アタック11／アタックのみ3）。
         (isPieceCard && isMyTurn && timing.includes('アタックフェイズ')
-          && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS'));
-      const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
+          && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS')));
+      // 🆕§5.3 `O-290`（2026-09-11）＝**キーの配置コインは payload 込みで計算する**
+      //   （`WXK10-015`/`WXK11-012`「センタールリグが＜にじさんじ＞の場合、このキーを場に出すための
+      //   コストは《コイン×0》になる」）。🔴**`KeyUseModal` と必ず同じ1本を通す**＝片方だけだと
+      //   「一覧では出せるのに払えない／印刷コストで請求される」食い違いになる。
+      const coinNeeded = keyPlaceCoinCostOf(cardData, effectsMap, my, op, battleCardMap);
       // ⚠ピースにも EffectText 由来の条件つきコスト軽減がある（`WXDi-P16-003`〜`007`＝「場に〔色〕のルリグが
       //   2体以上いるかぎり、1体につき《色×1》減る」＝タスク12(xciv) α）。ここと `KeyUseModal` の両方で
       //   同じ式を通さないと「一覧では使えるのに払えない／印刷コストで請求される」食い違いになる。

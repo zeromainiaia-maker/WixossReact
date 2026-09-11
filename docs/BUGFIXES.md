@@ -1,5 +1,83 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-11 — PLAN §5.3 索引G `O-325`／`O-291`／`O-290` を3項目まとめてクローズ（9効果／6カード）
+
+**着手の形**＝第280と同じく**索引を横断して1バッチ**にした。⚠ただし3項目は互いに無関係で、束ねたのは
+**固定費（full gates・実機・簿記）を1回で済ませるため**（受け皿が同じだった第280とは理由が違う）。
+
+### 🔴3項目とも「受け皿が無い」という登録票の判断が誤っていた
+
+| ID | 登録票 | 実測 |
+|---|---|---|
+| `O-325` | 「参照元がまだ無い軸＝**新しい参照キーが要る**」 | 半分正しい。要ったのは**既存 `classMatchesDiscardSigni` の兄弟2つ**（参照元を差し替えるだけ）。3件目の `WX25-P1-089-E1` は**専用 STUB で実装済み**＝登録票が stale |
+| `O-291` | 「消費地点は2箇所だけで【マルチエナ】剥奪しか実装していない」 | 正しい。ただし**先例が完全な形で存在**＝`isTrashImmuneByOpponent` ＋ `trashCandidatesForOwner`（§6.4 `O-10`）を写すだけ |
+| `O-290` | 「**3カード**」 | 🔴**実測6カード**。`WDK16-05T/05H/05S` の `SELF_PLAY_RESTRICT` は **live にあるのに `canSelfPlay` がキー配置経路で呼ばれず恒久 no-op**（誰がセンターでもキーを出せた）＝登録票がこの3枚を数え落としていた |
+
+### 修正1：`O-325`＝「〈参照カード〉と共通するクラスを持つ」残2件
+
+- `PR-K070-E1`＝🔴クラス修飾が**丸ごと落ちて**おり「無色以外のレベル3以下なら何でも探せる」過剰効果だった。
+  新設 `TargetFilter.classMatchesCostTrashed`（参照元＝`last_cost_trashed_cards`＝**支払い全般が記録される**。
+  手札捨て専用の `last_discarded_signi_class` では届かない軸）。
+- `WX25-P1-093-E1`＝🔴**エナのコスト支払いが丸ごと落ちて**おり、「このシグニをダウンする」だけで
+  相手のパワー8000以下を1体バニッシュできた。`WX25-CP1-082-E1` と同型の
+  `SELECT_TARGET_ONLY{abortIfNoCandidate} → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST → targetsStored` へ。
+  新設 `TargetFilter.classMatchesLastProcessed`（参照元＝`lastProcessedCards[0]`）。
+  ⚠`storedTargetCards` は `resolveDynamicFilter` へ渡っていないので**このステップ順でしか解けない**。
+- 🔑共有述語 `resolveClassMatchesRefs` に畳んだ（3つの兄弟で**クラス名トークンの取り方を必ず同じにする**）。
+  ⚠**参照不能はどれも空ヒット（fail-closed）**＝`O-328` が同じ向きに倒したのと揃えた。
+- 🏁`WX25-P1-089-E1` は **`STUB{UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS}` がクラス比較込みで実装済み**と実測で確定
+  （近似1点＝原文「1枚を対象とし」に対し実装は最初の1枚を自動選択）。
+
+### 修正2：`O-291`＝「対戦相手のエナゾーンにあるカードは対戦相手の効果を受けない」
+
+- 🔴後半は **engine のどこにも無かった**（`STUB` が宣言だけして誰も読まない形）。
+- `isEnergyImmuneByOpponent` ＋ `energyCandidatesForOwner` を新設し、**エナから動かす7経路を1本の funnel へ**
+  （`execTrash` の ENERGY_CARD／`extraZones`／`EXILE`／`ADD_TO_FIELD`／`TRANSFER_TO_HAND`／`ADD_TO_LIFE{fromEnergy}`／配置 resume）。
+- 🔴🔑**向きを1度間違えて golden が捕まえた**＝先例 `trashCandidatesForOwner` を写して
+  `owner === 'self' ? otherState : ownerState` としたが、それだと**宣言者自身も相手エナを触れなくなる**。
+  正しくは **`owner === 'self'` のときだけ**（＝いま効果を撃っている本人が自分のエナを触る場面）。
+  ⚠**トラッシュ版（`WX12-023`）は原文が「効果を受けない」＝主語なし**なので両向きで正しい＝
+  **原文の主語の有無で向きが変わる**。写すときはここを必ず読み比べる。
+
+### 修正3：`O-290`＝キーを場に出すときの条件とコスト（軸2つ）
+
+- **軸B 配置ゲート（4枚）**＝`canSelfPlay` の呼び出しを**キー配置の提示ゲート**（`BattleScreen.tsx`）にも通した。
+  `PR-K060` は JSON に宣言すら無かったので MANUAL で `SELF_PLAY_RESTRICT` を足した
+  （🔑受け皿は `ENERGY_COUNT_FILTER{distinctColor}`＝3評価器とも実装済み。
+  ⚠`ENERGY_COLOR_TYPES` は **`ActiveCondition` 側にしか無い**同義型＝union をまたいで2つある）。
+- **軸A コスト置換（2枚）**＝新設 `SELF_PLACE_COIN_COST`（【常】）＋ `keyPlaceCoinCostOf`（`costs.ts`）。
+  🔴UI 2地点（提示ゲートと `KeyUseModal`）が `parseCoinCost(card.Cost)` で**印刷コインを直読み**しており、
+  「このキーを場に出すためのコストは《コイン×0》になる」は JSON にも engine にも無かった。
+  🔑**原文を読むのは parser だけ**にして UI は payload を読むだけにした（`census:costtext` A群を増やさない）。
+
+### 作業中に見つけて直した別件
+
+- 🔴**`optionalCostPaySteps` の `down_self` が `isUp` を見ていなかった**＝《ダウン》コストは
+  **アップ状態でしか払えない**のに、live 14効果すべてで**ダウン状態でも「払えた」ことになっていた**。
+  `fieldDown` 側は最初から `isUp: true` を立てており、**兄弟の片方だけ穴が空いていた**形。
+- 🔴**逆翻訳に `down_self` を描いていなかった**＝`OPTIONAL_COST{energyTrash}` の枝だけ描画が無く、
+  engine は払っているのに**逆翻訳からダウンが消えていた**（速いレーンの検証は逆翻訳の目視なので致命的）。
+
+### 影響枚数・検証
+
+- **9効果 / 6カード**（`PR-K070` `WX25-P1-093` `WXK11-020` `PR-K060` `WXK10-015` `WXK11-012`
+  ＋ `WDK16-05T/05H/05S` は JSON 無変更で配線だけ）。
+- 検証＝`npm run gates` 全緑（golden **3986 PASS**＝新設5本）／`npm run regen` の逆翻訳を6件とも目視。
+- ⚠**計器の変化はすべて可視化**＝`_vocab_census` の「原文該当」が数カ所増えたのは、
+  **キー3枚の第1文が effectId として live に登場した**ため（それまで JSON に無く、どの計器にも数えられていなかった）。
+  **高シグナルは全カテゴリ 0 のまま**／`census:enginetext` A群 0・`census:costtext` A群 0 も据置
+  （`keyPlaceCoinCostOf` は原文を読まず payload だけを見る＝A群を増やさない設計）。
+- 🔴**実機 `V-198` PASS（2本・反転確認あり）**＝指定ルリグなら「キーにセット」が出る／別ルリグでは出ない。
+  🔴**実機 `V-199` PASS（2本・反転確認あり）**＝センターが＜にじさんじ＞ならコイン0でセットまで通る／
+  別ルリグではコイン不足で提示されない。
+- ⚠**ラチェットを2つ動かして1度 FAIL した**＝`PR-K070-E1` の `mandatory` を旧 live の `false` から
+  `true` に書き換えてしまい、「段階2 mandatory 集合」と「任意cost【出】の母集団」が同時に動いた。
+  **コストのある【出】は発動しないことを選べる**（付録B）＝`mandatory: false` が正しい。
+  🔑**MANUAL で書き直すときは旧 live のトップレベル項目（`mandatory`/`duration`/`triggerScope`）を必ず引き継ぐ。**
+- ⚠**実機シナリオを1度 FAIL させた**＝確定ボタンのラベルを `セットする` と推測したが実装は **`セット`**。
+  **ラベルは実装（`KeyUseModal.tsx`）から取る**。⚠提示ゲート側は「キーにセット」＝前方一致だと両方に当たるので
+  `exact: true` で完全一致にし、モーダル側を先に探す（DRIVE_TRAPS §4.4-2b）。
+
 ## 2026-09-11 — PLAN §5.3 索引G `O-316`／`O-319` をクローズ・`O-320` 4→1＝「ルリグ側がセンター固定」族を3項目まとめて（9効果）
 
 **着手の形**＝索引 G の3項目は同じ族（PLAN §1 の「次の一手」②）だったので**横断で1バッチにした**。

@@ -1781,6 +1781,26 @@ export interface TargetFilter {
   levelLtDiscardSigni?: boolean;  // 捨てたシグニより低いレベル → level.max = 捨てレベル-1（「この方法で捨てたシグニより低いレベルを持つ」WXEX2-37）
   levelEqDiscardSigniOffset?: number; // 捨てたシグニのレベル+offset に一致 → level = 捨てレベル+offset（「レベルがNつ高い」WDK13-013=+1/WXK10-033=+2）
   classMatchesDiscardSigni?: boolean; // 捨てたシグニ（caster.last_discarded_signi_class）と共通するクラスを持つ → story に捨てクラストークンをOR展開（WXK10-033「それと共通するクラスを持つ」）
+  /**
+   * 🆕**このコストでトラッシュに置いたカードと共通するクラスを持つ**（2026-09-11・§5.3 `O-325`・`PR-K070-E1`
+   * 「エナゾーンからカード１枚をトラッシュに置く：…**この方法でトラッシュに置いたカードと**共通するクラスを持つ…」）。
+   * 参照元は `caster.last_cost_trashed_cards`（**コスト支払いのたびに上書きされる**＝手札捨て専用の
+   * `last_discarded_signi_class` では届かない軸。エナ／場／トラッシュのどこから払っても記録される）。
+   * 🔑`classMatchesDiscardSigni` の兄弟で、`resolveDynamicFilter` が `story`（配列＝OR）へ潰す。
+   * 🔴**参照不能なら空ヒット（fail-closed）**＝潰さずに残すと `matchesFilter` が未知キーとして素通りし
+   *   「どのシグニでも探せる」過剰効果になる（`O-328` が `classMatchesDiscardSigni` で反転させたのと同じ向き）。
+   */
+  classMatchesCostTrashed?: boolean;
+  /**
+   * 🆕**直前に処理した／対象に取ったカードと共通するクラスを持つ**（2026-09-11・§5.3 `O-325`・`WX25-P1-093-E1`
+   * 「対戦相手のパワー8000以下のシグニ1体を対象とし、あなたのエナゾーンから**それと**共通するクラスを持つシグニ1枚を…」）。
+   * 参照元は `ctx.lastProcessedCards[0]`＝`SELECT_TARGET_ONLY` が固定した対象。
+   * ⚠**`storedTargetCards` は `resolveDynamicFilter` に渡っていない**ので、
+   *   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS` の**直後**（＝まだ `lastProcessedCards` が対象のまま）に
+   *   このフィルタを使うステップを置く。後段で別の処理が走ると参照が上書きされる。
+   * 🔴**参照不能なら空ヒット（fail-closed）**（兄弟2つと同じ向き）。
+   */
+  classMatchesLastProcessed?: boolean;
   // B2 動的閾値: パワーが「この方法で公開したシグニのレベルの合計×N」以下 → powerRange.max に解決（数値=乗数N。WX17-028「×1000」）。
   // 直前の REVEAL_DECK_TOP が ownerState.last_revealed_signi_level_sum に記録した合計を読む。
   powerLteRevealedSigniLevelSum?: number;
@@ -2131,6 +2151,7 @@ export type EffectAction =
   | PlaceLrigsUnderCenterAction
   | StubAction
   | SelfPlayRestrictAction
+  | SelfPlaceCoinCostAction
   | GainBondAction
   | MILLAction
   | UnknownAction;
@@ -2254,6 +2275,27 @@ export interface SelfPlayRestrictAction {
    */
   exceptSourceCardNames?: string[];
   rawText?: string; // 逆翻訳・原文照合用
+}
+
+/**
+ * 🆕**このカード自身を場に出すためのコインコストを置き換える【常】**（2026-09-11・§5.3 `O-290`）。
+ * 原文＝「あなたのセンタールリグが＜にじさんじ＞の場合、この**キーを場に出すためのコストは**《コイン×0》になる」
+ * （`WXK10-015` / `WXK11-012`）。
+ *
+ * 🔴**なぜ payload が要るか**＝通常キープレイの経路は **UI 2地点**（`BattleScreen` の「キーにセット」提示ゲートと
+ * `KeyUseModal`）が `parseCoinCost(card.Cost)` で**印刷コインを直読み**しており、この文は JSON にも
+ * 載っていなかった＝**軽減が丸ごと存在しなかった**（コイン1枚が常に要る）。
+ * 🔑**原文を読むのは parser だけ**にする（`census:costtext` の A群を増やさない）＝UI は
+ * `keyPlaceCoinCostOf(cardNum, effectsMap, …)` を呼んで payload を読むだけにする。
+ * ⚠既存の `PLACE_KEY_FROM_LRIG_DECK.coinReduction` とは**別軸**＝あちらは「**他の**キーを出す効果」が
+ *   軽減する形（`WXK03-014-E3`）で、こちらは**自分自身の**配置コストの置き換え。
+ */
+export interface SelfPlaceCoinCostAction {
+  type: 'SELF_PLACE_COIN_COST';
+  /** 置き換え後のコイン枚数（原文「《コイン×0》になる」＝0）。 */
+  coinCost: number;
+  /** 成立条件。省略＝無条件。⚠読めない条件を付けられなかったカードは省略＝**常に軽減**なので付け忘れない。 */
+  condition?: Condition;
 }
 
 export interface BounceAction {

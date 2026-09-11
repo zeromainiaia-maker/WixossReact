@@ -999,9 +999,14 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.lrigDown ? [{
       type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN', lrigDown: spec.lrigDown,
     } as EffectAction] : []),
+    // 🆕🔴**2026-09-11（§5.3 `O-325`）＝`isUp: true` を足した。**
+    //   《ダウン》コストは**アップ状態でしか払えない**（ダウン中のものはダウンできない）のに、
+    //   ここは状態を見ておらず**ダウン状態でも「払えた」ことになっていた**（live 14効果すべて）。
+    //   ⚠原文に「アップ状態の」と明記があるのは2件だけだが、残る12件も原文は《ダウン》コスト＝
+    //     ルール上アップ限定なので同じ（`fieldDown` 側は最初から `isUp: true` を立てている）。
     ...(spec.down_self ? [{
       type: 'DOWN',
-      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true, isUp: true } },
     } as EffectAction] : []),
     ...(spec.selfToEnergy ? [{
       type: 'SEND_TO_ENERGY',
@@ -2205,6 +2210,57 @@ export function movableTrashCandidates(
   const declarerState = owner === 'self' ? ctx.otherState : ctx.ownerState;
   if (declarerState && isTrashImmuneByOpponent(declarerState, cardMap, ctx.effectsMap)) return [];
   return trashCandidates(state, filter, cardMap, allZoneClassOverrides);
+}
+
+/**
+ * 🆕**「対戦相手のエナゾーンにあるカードは対戦相手の効果を受けない」**（2026-09-11・§5.3 `O-291`・`WXK11-020-E1`）。
+ * `isTrashImmuneByOpponent`（§6.4 `O-10`・`WX12-023` のトラッシュ版）と**完全に同じ形**の兄弟。
+ *
+ * 🔴**向きを間違えると真逆になる**＝宣言するのは `WXK11-020` のコントローラーで、守られるのは
+ * **その対戦相手のエナ**、止めるのは**その対戦相手自身の効果**。だから「対象の持ち主 `owner` の**対面**の場」に
+ * この【常】があるかを見る（`trashCandidatesForOwner` の `declarerState` と同じ式）。
+ * ⇒ 相手が自分のエナを操作しようとした瞬間に候補0になる。自分（宣言者）がその相手エナを触るのは自由。
+ *
+ * 🔑**旧実装は前半（【マルチエナ】剥奪）しか無かった**＝消費地点は `costs.ts:1233` と `artsUseGate.ts:71` の
+ * 2箇所だけで、**後半の「効果を受けない」は engine のどこにも無かった**（`STUB` が宣言だけして誰も読まない形）。
+ */
+export function isEnergyImmuneByOpponent(
+  declarerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap?: Map<string, CardEffect[]>,
+): boolean {
+  const sources = [
+    ...declarerState.field.signi.flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
+    ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
+  ];
+  for (const num of sources) {
+    const base = getCardNum(num);
+    const effs = effectsMap?.get(num) ?? effectsMap?.get(base) ?? cardMap.get(base)?.effects ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as { type?: string; id?: string };
+      if (act.type === 'STUB' && act.id === 'STRIP_OPP_ENA_MULTI_ENA') return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * エナ候補の funnel（`trashCandidatesForOwner` と同じ役割）。
+ * 🔑**エナから何かを動かす経路はすべてここを通す**＝executor ごとに1行書くと必ず片側だけ穴が空く。
+ * ⚠**条件の判定（`ENERGY_HAS_CARD` 等）では使わない**＝「エナに〈X〉がある場合」は
+ *   「効果を受けない」とは無関係で、保護を掛けると条件が偽に化ける。
+ */
+export function energyCandidatesForOwner(
+  owner: Owner, state: PlayerState, filter: TargetFilter | undefined,
+  cardMap: Map<string, CardData>, ctx: ExecCtx, allZoneClassOverrides?: Record<string, string>,
+): string[] {
+  // 🔴🔑**止まるのは `owner === 'self'` のときだけ**＝**いま効果を撃っている本人が自分のエナを触る**場面。
+  //   原文は「対戦相手のエナゾーンにあるカードは**対戦相手の**効果を受けない」＝宣言者から見た相手の、
+  //   **その相手自身の**効果だけを止める。⚠`owner === 'opponent'` まで止めると
+  //   **宣言者自身が相手エナを触れなくなる**（自分で自分の札を無力化する真逆の実装）＝golden で両方向に固定した。
+  if (owner === 'self' && ctx.otherState && isEnergyImmuneByOpponent(ctx.otherState, cardMap, ctx.effectsMap)) return [];
+  return energyCandidates(state, filter, cardMap, allZoneClassOverrides);
 }
 
 export function energyCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {

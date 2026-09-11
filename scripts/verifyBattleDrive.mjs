@@ -56143,6 +56143,159 @@ scenarios.o308AdjacentUpWeaponSilent = {
 order.push('o308AdjacentDownWeaponFires');
 order.push('o308AdjacentUpWeaponSilent');
 
+// §5.1 `V-198`（§5.3 `O-290`・2026-09-11）＝**キーを場に出すときの条件**（`SELF_PLAY_RESTRICT`）。
+// 🔴**enforcement は `src/screens/` にしか無い層**＝golden は `canSelfPlay` を直接叩けるので、
+//   **画面がその関数を呼んでいなくても緑**になる。実際、旧 live は呼び出しが `handleSummonSigni`
+//   （シグニの通常召喚）にしか無く、キー配置経路では一度も呼ばれていなかった＝配置制限が恒久 no-op。
+// 🔑判定は**本命と対照の差分**＝「ルリグデッキに『キーにセット』ボタンが出るか」だけを見る。
+//   ⚠「ボタンが0本」はルリグデッキが開いていないだけでも成立する（`V-192` の罠）＝
+//     **同じ手順で本命が出ることを先に確かめてから**対照の不在を主張する。
+// ⚠`WDK16-05T` の配置条件は「センタールリグが《月ノ美兎　レベル４》」＝本命は `WDK16-01T`（月ノ美兎 Lv4）。
+//   🔴**`WDK16-01`（末尾 T 無し）は存在しないカード番号**＝注入が空振りして対照と同じ結果になる。
+// ⚠印刷コストは《青》×1《赤》×1（コインではない）＝エナに青1・赤1・無色1を置く。
+const V198_KEY = 'WDK16-05T#31001';
+const v198Spec = (lrigNum) => ({
+  hostSet: {
+    'field.lrig': [lrigNum + '#31002'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'lrig_deck': [V198_KEY], 'lrig_trash': [], 'hand': [],
+    'energy': ['WD03-010#31003', 'WD02-010#31004', 'WD01-013#31005'],
+    'coins': 3, 'trash': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-001#31006'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'lrig_deck': [], 'hand': [], 'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/** @param expectOffered true＝指定ルリグ（出せる）／false＝対照＝別ルリグ（出せない） */
+const driveV198 = (expectOffered) => async function (page, H) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ phase: before?.turnPhase, lrigTop: before?.host?.lrigTop, lrigDeck: before?.host?.lrigDeckCards }));
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('キー(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  let offered = false;
+  for (let s = 0; s < 6 && !offered; s++) {
+    await page.waitForTimeout(400);
+    const btn = page.getByRole('button', { name: 'キーにセット', exact: false }).first();
+    if (await btn.count() && await btn.isVisible().catch(() => false)) offered = true;
+  }
+  H.log('key-set-offered:', offered);
+  // 🔴後始末（§4.4-1）＝モーダルを閉じて次シナリオの注入を汚さない（押さないので盤面は動かない）。
+  for (let k = 0; k < 4; k++) {
+    if (!(await H.clickTextOrBtn(['閉じる', 'キャンセル', '戻る']))) break;
+    await page.waitForTimeout(300);
+  }
+  if (expectOffered) {
+    if (!offered) return { pass: false, detail: '🔴指定ルリグ（月ノ美兎 Lv4）なのに「キーにセット」が出ない（配置ゲートが過剰に効いている）' };
+    return { pass: true, detail: '指定ルリグ→「キーにセット」が提示された' };
+  }
+  if (offered) return { pass: false, detail: '🔴別のルリグなのに「キーにセット」が出た（SELF_PLAY_RESTRICT が画面に届いていない＝旧 live の恒久 no-op）' };
+  return { pass: true, detail: '対照＝別のルリグでは「キーにセット」が提示されない' };
+};
+scenarios.o290KeyPlaceGateOffered = {
+  title: 'V-198 O-290(1): WDK16-05T＝センタールリグが《月ノ美兎　レベル４》なら「キーにセット」が出る',
+  spec: v198Spec('WDK16-01T'),
+  drive: driveV198(true),
+};
+scenarios.o290KeyPlaceGateBlocked = {
+  title: 'V-198 O-290(2) 対照: 別のルリグでは「キーにセット」が出ない（旧＝誰がセンターでも出せた）',
+  spec: v198Spec('WD03-002'),
+  drive: driveV198(false),
+};
+order.push('o290KeyPlaceGateOffered');
+order.push('o290KeyPlaceGateBlocked');
+
+// §5.1 `V-199`（§5.3 `O-290`・2026-09-11）＝**キーの配置コインが payload で 0 になるか**
+//   （`WXK10-015`「あなたのセンタールリグが＜にじさんじ＞の場合、このキーを場に出すためのコストは
+//     《コインアイコン×0》になる」／印刷は《コイン》×1）。
+// 🔴**UI 2地点（提示ゲートと `KeyUseModal`）が印刷コインを直読みしていた**＝この軽減は
+//   JSON にも engine にも無かった。🔑**コイン0で注入する**＝軽減が効かなければ提示もセットもできない。
+const V199_KEY = 'WXK10-015#31101';
+const v199Spec = (lrigNum) => ({
+  hostSet: {
+    'field.lrig': [lrigNum + '#31102'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'lrig_deck': [V199_KEY], 'lrig_trash': [], 'hand': [],
+    'energy': [], 'coins': 0, 'trash': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-001#31106'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'lrig_deck': [], 'hand': [], 'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/** @param niji true＝センターが＜にじさんじ＞（コイン0で出せる）／false＝対照＝別ルリグ（コイン1が要る） */
+const driveV199 = (niji) => async function (page, H) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log('開始:', JSON.stringify({ lrigTop: before?.host?.lrigTop, coins: before?.host?.coins, lrigDeck: before?.host?.lrigDeckCards }));
+  if ((before?.host?.coins ?? -1) !== 0) {
+    return { pass: false, detail: 'inject-precondition-failed coins=' + before?.host?.coins + '（0でないと軽減の有無を割れない）' };
+  }
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('キー(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  let offered = false;
+  for (let s = 0; s < 6 && !offered; s++) {
+    await page.waitForTimeout(400);
+    const btn = page.getByRole('button', { name: 'キーにセット', exact: false }).first();
+    if (await btn.count() && await btn.isVisible().catch(() => false)) offered = true;
+  }
+  // 🔑本命は**セットまで**見る（提示だけだと `KeyUseModal` 側の直読みが残っていても緑になる）。
+  let placed = false;
+  if (offered && niji) {
+    for (let s = 0; s < 10 && !placed; s++) {
+      await page.waitForTimeout(400);
+      // ⚠**確定ボタンのラベルは「セット」**（`KeyUseModal.tsx`＝ピースは「使用」）。
+      //   提示ゲート側のボタンは「キーにセット」で、**前方一致だと両方に当たる**（§4.4-2b）＝
+      //   `exact: true` で完全一致にし、**モーダル側（「セット」）を先に探す**。
+      //   🔴ここを `['セットする','決定','OK']` と書いて1度 FAIL させた＝**ラベルは実装から取る**。
+      const did = (await H.clickBtn('セット', { exact: true }))
+        ?? (await H.clickBtn('キーにセット', { exact: true }));
+      const st = await H.queryState();
+      H.log('  set[' + s + '] -> ' + (did ?? 'なし') + ' | coins=' + (st?.host?.coins ?? '-') + ' keyPiece=' + (st?.host?.keyPiece ?? '-'));
+      if (st?.host?.keyPiece) placed = true;
+    }
+  }
+  for (let k = 0; k < 4; k++) {
+    if (!(await H.clickTextOrBtn(['閉じる', 'キャンセル', '戻る']))) break;
+    await page.waitForTimeout(300);
+  }
+  const fin = await H.queryState();
+  H.log('結果:', JSON.stringify({ offered, placed, coins: fin?.host?.coins, keyPiece: fin?.host?.keyPiece }));
+  if (niji) {
+    if (!offered) return { pass: false, detail: '🔴センターが＜にじさんじ＞でコイン0なのに「キーにセット」が出ない（提示ゲートが payload を読んでいない）' };
+    if (!placed) return { pass: false, detail: '🔴提示は出たがセットできない（KeyUseModal 側が印刷コインを直読みしている）coins=' + fin?.host?.coins };
+    if ((fin?.host?.coins ?? 0) !== 0) return { pass: false, detail: '🔴コインが減った coins=' + fin?.host?.coins + ' ＝軽減が効いていない' };
+    return { pass: true, detail: 'センター＜にじさんじ＞＝コイン0のままキーを場に出せた' };
+  }
+  if (offered) return { pass: false, detail: '🔴別のルリグ（コイン1が必要）なのにコイン0で「キーにセット」が出た＝軽減が無条件に効いている' };
+  return { pass: true, detail: '対照＝別のルリグではコイン不足で「キーにセット」が提示されない' };
+};
+scenarios.o290KeyCoinReducedPlaceable = {
+  title: 'V-199 O-290(3): WXK10-015＝センターが＜にじさんじ＞ならコイン0でキーを場に出せる',
+  spec: v199Spec('WXK08-006'),
+  drive: driveV199(true),
+};
+scenarios.o290KeyCoinPrintedBlocked = {
+  title: 'V-199 O-290(4) 対照: 別のルリグではコイン1が要る＝コイン0では出せない',
+  spec: v199Spec('WD03-002'),
+  drive: driveV199(false),
+};
+order.push('o290KeyCoinReducedPlaceable');
+order.push('o290KeyCoinPrintedBlocked');
+
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);

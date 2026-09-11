@@ -1474,7 +1474,7 @@ function continuousPowerDelta(
 }
 
 // CONTINUOUS効果向け条件評価（ExecCtx 不要、PlayerState + cardMap のみ使用）
-function evalConditionForContinuous(
+export function evalConditionForContinuous(
   cond: Condition,
   ownerState: PlayerState,
   otherState: PlayerState,

@@ -3,8 +3,9 @@ import type { PlayerState, CardData } from '../../types';
 import type {
   BetCostSpec, CardEffect, CostReplacementTerm, CostReplacementWhen, CostScalingCount, CostScalingTerm,
   EncoreCostSpec, TargetFilter,
+  Condition,
 } from '../../types/effects';
-import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
+import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition, evalConditionForContinuous } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { fieldCandidates, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
@@ -517,6 +518,38 @@ export function costScalingOf(
   const terms = (effectsMap.get(getCardNum(cardNum)) ?? [])
     .flatMap(effect => effect.cost?.costScaling ?? []).filter(term => !isDeclaredChooseTerm(term));
   return terms.length > 0 ? terms : undefined;
+}
+
+/**
+ * 🆕**このカードを場に出すための実効コインコスト**（2026-09-11・§5.3 `O-290`）。
+ * 既定は印刷値（`Cost` ＋ `GrowCost` の《コイン》）で、`SELF_PLACE_COIN_COST` の【常】が
+ * 条件を満たしていればその値に置き換える。
+ *
+ * 🔴**キー配置は UI 2地点が印刷コインを直読みしていた**（`BattleScreen` の「キーにセット」提示ゲートと
+ * `KeyUseModal`）＝`WXK10-015` / `WXK11-012` の「あなたのセンタールリグが＜にじさんじ＞の場合、
+ * このキーを場に出すためのコストは《コイン×0》になる」は**どこにも実装されていなかった**。
+ * 🔑**2地点とも必ずこの1本を通す**＝片方だけだと「一覧では出せるのに払えない／印刷コストで請求される」
+ * 食い違いになる（同ファイルの `computeArtsEffectiveCost` と同じ規約）。
+ * ⚠**原文はここで読まない**（`census:costtext` の A群を増やさない）＝判定は payload と `Condition` だけ。
+ * ⚠複数の宣言があれば**最も安い値**を採る（重ね掛けではなく置き換えなので `Math.min`）。
+ */
+export function keyPlaceCoinCostOf(
+  card: CardData,
+  effectsMap: Map<string, CardEffect[]>,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  const printed = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
+  let best = printed;
+  for (const eff of effectsMap.get(getCardNum(card.CardNum)) ?? []) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as { type?: string; coinCost?: number; condition?: Condition };
+    if (act?.type !== 'SELF_PLACE_COIN_COST' || typeof act.coinCost !== 'number') continue;
+    if (act.condition && !evalConditionForContinuous(act.condition, ownerState, otherState, cardMap, card.CardNum)) continue;
+    best = Math.min(best, act.coinCost);
+  }
+  return Math.max(0, best);
 }
 
 /** 🆕§5.3 `O-251`＝「選んだ数だけ増える」項だけ。`ArtsModal` の宣言 UI が使う。 */

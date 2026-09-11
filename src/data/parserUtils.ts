@@ -1613,6 +1613,11 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: Re
   // engine は `resolveDiscardLevelFilter` が caster の `last_discarded_signi_class` で解決する（SEARCH 経路は実装済み）。
   // ⚠落とすと `WXK10-029-E2` は**公開3枚から何でも2枚拾える**過剰効果になる（コストで捨てたクラスの縛りが消える）。
   { re: /^(?:この能力の)?(?:コスト|この方法)で捨てたシグニと共通するクラスを持(?:つ|ち)/, apply: (_m, a) => { a.filter.classMatchesDiscardSigni = true; return true; } },
+  // 🆕「この方法で**トラッシュに置いた**カードと共通するクラスを持つ」＝`classMatchesCostTrashed`
+  //   （2026-09-11・§5.3 `O-325`・`PR-K070-E1`）。⚠**「捨てた」（手札）と「トラッシュに置いた」（エナ等）は別軸**＝
+  //   参照元も `last_discarded_signi_class`（手札専用）と `last_cost_trashed_cards`（支払い全般）で違う。
+  //   🔴落とすと `PR-K070-E1` は**デッキから無色以外のレベル3以下なら何でも探せる**過剰効果になる。
+  { re: /^(?:この能力の)?(?:コスト|この方法)でトラッシュに置いたカードと共通するクラスを持(?:つ|ち)/, apply: (_m, a) => { a.filter.classMatchesCostTrashed = true; return true; } },
   // 選択集合の相互差異（§6.2 段2 第42バッチ）。⚠**参照比較の規則より後ろに置く**＝上の
   // 「センタールリグと共通する色を持たない」は `と` を含む別トークンで、先着優先の `.find` が拾う。
   { re: /^(?:それぞれ)?共通する色を持たない/, apply: (_m, a) => { a.selectionConstraint = { sharedColor: 'none' }; return true; } },

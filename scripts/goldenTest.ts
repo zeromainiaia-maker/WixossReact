@@ -31,7 +31,7 @@ import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColo
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 // 🆕§5.3 索引C 第9巡（2026-09-02）＝O-206 / O-177 / O-84 / O-114 / O-186 の消費地点を直接叩く。
-import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex } from '../src/screens/battle/costs';
+import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex, keyPlaceCoinCostOf, parseCoinCost } from '../src/screens/battle/costs';
 import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSuppress';
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
@@ -53072,6 +53072,154 @@ test('O-320: WXEX2-13-E1 はデッキから LB 持ちを探し、そのカード
   ok(after.ownerState.field.check !== sourceNum, '⚠効果元シグニ自身へ落ちていない（旧実装のバグ）');
 }));
 
+// ── §5.3 `O-325`（2026-09-11）＝「〈参照カード〉と共通するクラスを持つ」の残り2件 ──
+// 🔴どちらも**修飾句が丸ごと落ちた過剰効果**だった（`PR-K070-E1`＝無色以外のレベル3以下なら何でも探せる／
+//   `WX25-P1-093-E1`＝エナのコスト支払いごと消えてダウンだけでバニッシュできる）。
+test('O-325: PR-K070-E1 はコストでトラッシュに置いたカードと共通クラスのシグニしか探せない', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'PR-K070-E1');
+  ok(!!eff, 'PR-K070-E1 live effect');
+  const act = eff?.action as { type?: string; filter?: TargetFilter };
+  eq(act?.type, 'SEARCH', '');
+  eq(act?.filter?.classMatchesCostTrashed, true, 'クラス縛りが載る（何でも探せる状態ではない）');
+  // E2E＝`last_cost_trashed_cards` のクラスでデッキ候補が絞られることを確かめる。
+  const paid = findCard(c => isSigni(c) && !!c.CardClass && c.CardClass.includes('：'));
+  const paidClass = (cardMap.get(paid) as CardData).CardClass;
+  const sameClass = findCard(c => isSigni(c) && c.CardNum !== paid && c.CardClass === paidClass
+    && (c.Color ?? '') !== '無' && parseInt(c.Level ?? '9', 10) <= 3);
+  const otherClass = findCard(c => isSigni(c) && c.CardClass !== paidClass && !!c.CardClass
+    && (c.Color ?? '') !== '無' && parseInt(c.Level ?? '9', 10) <= 3);
+  const mk = (withPaid: boolean): ExecCtx => {
+    const ctx = mkCtx({ signi: [fresh(), null, null] }, {}, undefined);
+    ctx.ownerState.deck = [sameClass, otherClass, ...fill(8)];
+    ctx.ownerState.last_cost_trashed_cards = withPaid ? [paid] : [];
+    return ctx;
+  };
+  const r1 = executeEffect(eff!, mk(true));
+  const pending = (r1 as { pending?: { visibleCards?: string[] } }).pending;
+  ok(!!pending?.visibleCards, 'SEARCH の候補提示になる');
+  ok(pending!.visibleCards!.includes(sameClass), '共通クラスのシグニは候補');
+  ok(!pending!.visibleCards!.includes(otherClass), '⚠別クラスのシグニは候補外（旧実装はここが素通りだった）');
+  // 参照不能（コストの記録が無い）＝空ヒット（fail-closed）。
+  const r2 = run(eff!.action, mk(false));
+  eq(r2.ownerState.hand.length, mk(false).ownerState.hand.length, '参照不能なら1枚も手札に加わらない');
+}));
+
+test('O-325: WX25-P1-093-E1 はエナのコスト支払いを取り戻し、クラスも対象基準で絞る', () => {
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WX25-P1-093-E1');
+  ok(!!eff, 'WX25-P1-093-E1 live effect');
+  const steps = (eff?.action as { steps?: Array<Record<string, unknown>> })?.steps ?? [];
+  eq((steps[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY', '先に対象を固定する');
+  eq((steps[1] as { id?: string })?.id, 'STORE_LAST_PROCESSED_TARGETS', '');
+  const cost = steps[2] as { id?: string; energyTrash?: { count?: number; filter?: TargetFilter }; down_self?: boolean };
+  eq(cost?.id, 'OPTIONAL_COST', '');
+  eq(cost?.energyTrash?.count, 1, '🔴エナのコスト支払いが復活している（旧 live は丸ごと落ちていた）');
+  eq(cost?.energyTrash?.filter?.classMatchesLastProcessed, true, 'エナ側は対象と共通クラスのシグニ限定');
+  eq(cost?.down_self, true, 'アップ状態のこのシグニをダウンする');
+  const banish = steps[3] as { then?: { type?: string; targetsStored?: boolean } };
+  eq(banish?.then?.type, 'BANISH', '');
+  eq(banish?.then?.targetsStored, true, '⚠固定した対象をバニッシュする（選び直しではない）');
+});
+
+// ── §5.3 `O-291`（2026-09-11）＝`WXK11-020-E1` の後半「対戦相手の効果を受けない」 ──
+// 🔴旧実装は前半（【マルチエナ】剥奪）しか無く、消費地点は `costs.ts` と `artsUseGate.ts` の2箇所だけ＝
+//   **後半は engine のどこにも無かった**（STUB が宣言だけして誰も読まない形）。
+// 🔴**向きを間違えると真逆になる**＝守られるのは「宣言者の相手のエナ」で、止めるのは「その相手自身の効果」。
+test('O-291: 相手エナは相手自身の効果を受けない／宣言者からは触れる', () => withSavedCursor(() => {
+  const guard = 'WXK11-020';
+  ok(!!(effectsMap.get(guard) ?? []).find(e => e.effectId === 'WXK11-020-E1'), 'WXK11-020-E1 live effect');
+  const trashOwnEnergy = {
+    type: 'TRASH',
+    target: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false },
+  } as unknown as EffectAction;
+  // 視点＝いま効果を撃っているのは「守られる側」のプレイヤー（ownerState）で、
+  // 宣言カード `WXK11-020` は**その対面**（otherState）の場にいる。
+  const mkVictim = (guardOnField: boolean): ExecCtx => {
+    const ctx = mkCtx({ signi: [fresh(), null, null] }, { signi: [guardOnField ? guard : fresh(), null, null] }, undefined);
+    ctx.ownerState.energy = fill(3);
+    ctx.effectsMap = effectsMap;
+    return ctx;
+  };
+  const blocked = mkVictim(true);
+  const before = blocked.ownerState.energy.length;
+  eq(run(trashOwnEnergy, blocked).ownerState.energy.length, before, '相手が場に居る＝自分のエナを自分の効果で動かせない');
+  const free = mkVictim(false);
+  const beforeFree = free.ownerState.energy.length;
+  eq(run(trashOwnEnergy, free).ownerState.energy.length, beforeFree - 1, '宣言カードが無ければ通常どおり動く（反転確認）');
+  // 宣言者の側から相手エナを触るのは自由＝原文は「**対戦相手の**効果を受けない」だけを禁じている。
+  const trashOppEnergy = {
+    type: 'TRASH',
+    target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1, upToCount: false },
+  } as unknown as EffectAction;
+  const declarer = mkCtx({ signi: [guard, null, null] }, { signi: [fresh(), null, null] }, undefined);
+  declarer.otherState.energy = fill(3);
+  declarer.effectsMap = effectsMap;
+  const beforeOpp = declarer.otherState.energy.length;
+  eq(run(trashOppEnergy, declarer).otherState.energy.length, beforeOpp - 1,
+    '⚠宣言者自身は相手エナを動かせる（向きを取り違えると自分の効果まで止まる）');
+}));
+
+// ── §5.3 `O-290`（2026-09-11）＝キーを場に出すときの条件とコスト ──
+// 🔴軸B＝`SELF_PLAY_RESTRICT` は `WDK16-05T/05H/05S` の JSON に既に在ったのに、`canSelfPlay` の呼び出しが
+//   シグニの通常召喚にしか無く**キー配置経路では一度も呼ばれていなかった**＝誰がセンターでも出せる恒久 no-op。
+// 🔴軸A＝「このキーを場に出すためのコストは《コイン×0》になる」は JSON にも engine にも無く、
+//   UI 2地点が `parseCoinCost(card.Cost)` で印刷コインを直読みしていた＝軽減が存在しなかった。
+test('O-290: キーの配置ゲート（SELF_PLAY_RESTRICT）が条件どおりに効く', () => withSavedCursor(() => {
+  const cases: Array<[string, string]> = [
+    ['WDK16-05T', '月ノ美兎'], ['WDK16-05H', '樋口楓'], ['WDK16-05S', '静凛'],
+  ];
+  for (const [keyNum, lrigName] of cases) {
+    const effs = effectsMap.get(keyNum) ?? [];
+    ok(effs.some(e => (e.action as { type?: string }).type === 'SELF_PLAY_RESTRICT'), `${keyNum}: 配置制限が live に在る`);
+    const okLrig = findCard(c => c.Type === 'ルリグ' && (c.CardName ?? '').includes(lrigName) && c.Level === '4');
+    const ngLrig = findCard(c => c.Type === 'ルリグ' && !(c.CardName ?? '').includes(lrigName) && c.Level === '4');
+    const mk = (lrig: string): [PlayerState, PlayerState] => {
+      const my = mkState({ signi: [fresh(), null, null], lrig: [lrig] });
+      return [my, mkState({})];
+    };
+    const [myOk, opOk] = mk(okLrig);
+    eq(canSelfPlay(effs, myOk, opOk, cardMap as Map<string, CardData>), true, `${keyNum}: 指定ルリグなら出せる`);
+    const [myNg, opNg] = mk(ngLrig);
+    eq(canSelfPlay(effs, myNg, opNg, cardMap as Map<string, CardData>), false,
+      `${keyNum}: ⚠別のルリグでは出せない（旧実装はここが素通りだった）`);
+  }
+  // PR-K060＝エナの色が3種類以上（`ENERGY_COUNT_FILTER{distinctColor}`）。
+  const pk = effectsMap.get('PR-K060') ?? [];
+  ok(pk.some(e => (e.action as { type?: string }).type === 'SELF_PLAY_RESTRICT'), 'PR-K060: 配置制限が live に在る');
+  const colorSigni = (col: string) => findCard(c => isSigni(c) && (c.Color ?? '') === col);
+  const mkEna = (colors: string[]): [PlayerState, PlayerState] => {
+    const my = mkState({ signi: [fresh(), null, null] });
+    my.energy = colors.map(colorSigni);
+    return [my, mkState({})];
+  };
+  const [my3, op3] = mkEna(['白', '赤', '青']);
+  eq(canSelfPlay(pk, my3, op3, cardMap as Map<string, CardData>), true, 'PR-K060: エナ3色なら出せる');
+  const [my2, op2] = mkEna(['白', '赤']);
+  eq(canSelfPlay(pk, my2, op2, cardMap as Map<string, CardData>), false, 'PR-K060: エナ2色では出せない（反転確認）');
+}));
+
+test('O-290: キーの配置コインは SELF_PLACE_COIN_COST を通す（UI 2地点が読む1本）', () => withSavedCursor(() => {
+  for (const keyNum of ['WXK10-015', 'WXK11-012']) {
+    const card = cardMap.get(keyNum) as CardData;
+    ok(!!card, `${keyNum} CardData`);
+    eq(parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost), 1, `${keyNum}: 印刷コストは《コイン》×1`);
+    // 🔑型名を明示しておく＝`npm run census:goldentypes`（golden 型カバレッジ）に
+    //   `SELF_PLACE_COIN_COST` が「未カバー」として出続けないようにする。
+    const spccEff = (effectsMap.get(keyNum) ?? []).find(e => (e.action as { type?: string }).type === 'SELF_PLACE_COIN_COST');
+    ok(!!spccEff, `${keyNum}: SELF_PLACE_COIN_COST の宣言が live に在る`);
+    eq((spccEff?.action as { coinCost?: number })?.coinCost, 0, `${keyNum}: 置換後のコインは0`);
+    const nijiLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('にじさんじ'));
+    const otherLrig = findCard(c => c.Type === 'ルリグ' && !(c.CardClass ?? '').includes('にじさんじ'));
+    const mk = (lrig: string): [PlayerState, PlayerState] =>
+      [mkState({ signi: [fresh(), null, null], lrig: [lrig] }), mkState({})];
+    const [myN, opN] = mk(nijiLrig);
+    eq(keyPlaceCoinCostOf(card, effectsMap, myN, opN, cardMap as Map<string, CardData>), 0,
+      `${keyNum}: センターが＜にじさんじ＞ならコイン0`);
+    const [myO, opO] = mk(otherLrig);
+    eq(keyPlaceCoinCostOf(card, effectsMap, myO, opO, cardMap as Map<string, CardData>), 1,
+      `${keyNum}: ⚠別のルリグなら印刷どおりコイン1（反転確認）`);
+  }
+}));
+
 // ④「〜がある場合、代わりに」＝置換（従来は条件節が落ちて**2回捨てる**過剰実行だった）。
 test('stage2 batch3: 凍結条件の「代わりに」は then/else の置換になる（WX25-P2-088-E1）', () => {
   const effect = (effectsMap.get('WX25-P2-088') ?? []).find(e => e.effectId === 'WX25-P2-088-E1');
@@ -53355,9 +53503,15 @@ test('段2-10 A/B4: （アップ状態の）このシグニのDOWNは効果元�
     'WX11-025-E2', 'WXDi-P06-049-E1', 'WXDi-P09-054-E1', 'WXDi-P15-092-E1',
     'WXDi-P16-078-E1', 'WXDi-CP02-073-E2', 'WXDi-CP02-075-E2', 'WXDi-CP02-081-E2',
     'WX24-P1-069-E1', 'WX24-P3-077-E1', 'WX25-P2-085-E1', 'WX25-CP1-066-E3',
-    'WX25-CP1-070-E2', 'WX25-P1-093-E1', 'WX24-P2-093-E1',
+    'WX25-CP1-070-E2', 'WX24-P2-093-E1',
     'WXDi-CP01-029-E3',
   ];
+  // 🆕2026-09-11（§5.3 `O-325`）＝`WX25-P1-093-E1` をこの母集団から外した。
+  //   原文は「エナゾーンから**それと共通するクラスを持つ**シグニ1枚をトラッシュに置き**アップ状態のこのシグニを
+  //   ダウンして**もよい」＝**エナ支払いと対**の任意コストで、旧 live は**エナ側が丸ごと落ちて**
+  //   素の `DOWN{thisCardOnly}` だけになっていた（＝ダウンするだけでバニッシュできる過剰効果）。
+  //   いまは `STUB{OPTIONAL_COST, energyTrash, down_self}` で、`optionalCostPaySteps` が
+  //   `DOWN{thisCardOnly, isUp}` へ展開する＝**同じ契約を engine 側で満たす**（O-325 の専用テストが固定）。
   // 🆕2026-09-02（§5.3 `O-202`）＝`WXEX2-28-E1` をこの母集団から外した。
   //   あれは素の `DOWN{thisCardOnly}` ではなく**離場置換の宣言**（「＜ウェポン＞が相手の効果で場を離れる場合、
   //   代わりにアップ状態のこのシグニをダウンしてもよい」）＝CONTINUOUS の素 DOWN は恒久 no-op だった。

@@ -7,11 +7,11 @@ import type { ExecCtx, ExecResult
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
-  trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
+  trashCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot, splitColors,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
-  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
+  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy, energyCandidatesForOwner,
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
@@ -2277,7 +2277,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     // 🆕同上＝エナからの除外も保護の対象（意味照合 段2）。
     if (oppZoneMoveBlocked('energy', tgt.owner, ctx)) return done(addLog(ctx, 'エナ保護により効果なし'));
     const estate = ownerState(tgt.owner, ctx);
-    const ecands = energyCandidates(estate, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const ecands = energyCandidatesForOwner(tgt.owner, estate, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
     // 🔴`resolveNum` は `{$ref:…}` を **0 に潰す**（＝無言 no-op）ので `resolveCountRef` を使う（続き742-2）。
     //   `WXK11-004-E1`「あなたのセンタールリグのレベル**１につき**対戦相手のエナゾーンにあるカードを
@@ -2854,7 +2854,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // ⚠**適用側（`applyDirectAction` の TRASH/SIGNI 分岐）にも同じ `extraZones` の分岐が要る**＝
     //   片方だけだと「選ばせるのに何も起きない」無言 no-op になる。
     if (tgt.extraZones?.includes('energy')) {
-      cands = [...cands, ...energyCandidates(state, trashFilter, ctx.cardMap, ctx.treatAsClassAllZones)];
+      cands = [...cands, ...energyCandidatesForOwner(tgt.owner, state, trashFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)];
     }
     // SELF_TRASH_PREVENT（WX07-033・§6.1）: 自分（owner:self）の効果で自シグニをトラッシュに置く場合、
     // 「自分でトラッシュに置けない」シグニを候補から除外する（相手効果によるトラッシュは対象外）。
@@ -3062,7 +3062,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       resolvedFilter = rest;
       triggerRestrict = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : [];
     }
-    let cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    let cands = energyCandidatesForOwner(tgt.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
     // 🆕**任意コストの前に宣言した対象だけをトラッシュへ**（§5.3 `O-96` 第9バッチ・2026-09-02）＝
     //   「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
@@ -3505,6 +3505,35 @@ function resolveDiscardLevelFilter(
 }
 
 /**
+ * CardClass（「精生：龍獣/精武：アーム」形）から**クラス名トークン**を取り出す。
+ * `classMatchesDiscardSigni` が `resolveDiscardLevelFilter` の中で書いていた式を、
+ * 兄弟2つ（`classMatchesCostTrashed` / `classMatchesLastProcessed`）と共有するために切り出した（§5.3 `O-325`）。
+ * ⚠**「：」以降だけを取る**（「精生」は種族の大分類でクラス名ではない）＝3つの兄弟で必ず同じ式にする。
+ */
+function cardClassTokens(cc: string | undefined): string[] {
+  return `${cc ?? ''}`.split(/[/／]/).map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean);
+}
+
+/**
+ * 「〈参照カード〉と**共通するクラスを持つ**」を `story`（配列＝OR）へ潰す共有述語（§5.3 `O-325`・2026-09-11）。
+ * 🔴**参照が1枚も無い／クラスが読めないときは空ヒットへ倒す（fail-closed）**＝潰さずに残すと
+ *   `matchesFilter` が未知キーとして黙って素通りし**絞り込みが消える**（原文より広い＝過剰実行）。
+ */
+function resolveClassMatchesRefs(
+  filter: import('../types/effects').TargetFilter,
+  refNums: readonly string[] | undefined,
+  cardMap: Map<string, import('../types').CardData>,
+): import('../types/effects').TargetFilter {
+  const tokens = new Set<string>();
+  for (const cn of refNums ?? []) {
+    for (const t of cardClassTokens(cardMap.get(getCardNum(cn))?.CardClass)) tokens.add(t);
+  }
+  return tokens.size > 0
+    ? { ...filter, story: tokens.size === 1 ? [...tokens][0] : [...tokens] }
+    : { ...filter, cardNum: DYNAMIC_FILTER_REFERENCE_UNAVAILABLE };
+}
+
+/**
  * 「あなたの場にあるいずれかのシグニと**共通するクラスを持つ**」（`TargetFilter.classMatchesAnyFieldSigni`）を
  * `cardClass`（配列＝OR）へ潰す共有述語。§5.3 `O-325`（2026-09-11）で `resolveDynamicFilter` から切り出した。
  * 🔴**`allyState` は「クラスの出どころ＝効果の持ち主」**であって「対象の持ち主」ではない。
@@ -3775,6 +3804,20 @@ function resolveDynamicFilter(
   //   そのままだと「**あなたの**場のいずれかのシグニ」が**相手の場**を数える意味反転になるので、
   //   呼び出し側が「誰の場か」を決めて**先に潰してから**この関数へ渡す形にする。
   if (result.classMatchesAnyFieldSigni) result = resolveClassMatchesAnyFieldSigni(result, ownerSt, cardMap);
+  // 🆕`classMatchesCostTrashed`（§5.3 `O-325`・`PR-K070-E1`）＝**このコストでトラッシュに置いたカード**基準。
+  //   ⚠参照は `ownerSt` ではなく**支払者＝効果のオーナー**だが、この関数の `ownerSt` は呼び出し元によって
+  //     対象側が入ることがある（`resolveClassMatchesAnyFieldSigni` の注記と同じ罠）。
+  //     `last_cost_trashed_cards` は**両側の state から読めない**ので、対象側が入る呼び出し元では
+  //     参照0＝空ヒットに倒れる（過剰実行にはならない）。live は `PR-K070-E1` の SEARCH 1件で `ownerSt` は支払者。
+  if (result.classMatchesCostTrashed) {
+    const { classMatchesCostTrashed: _cmct, ...restCMCT } = result;
+    result = resolveClassMatchesRefs(restCMCT, ownerSt?.last_cost_trashed_cards, cardMap);
+  }
+  // 🆕`classMatchesLastProcessed`（§5.3 `O-325`・`WX25-P1-093-E1`）＝**直前に対象へ取ったカード**基準。
+  if (result.classMatchesLastProcessed) {
+    const { classMatchesLastProcessed: _cmlp, ...restCMLP } = result;
+    result = resolveClassMatchesRefs(restCMLP, lastProcessedCards, cardMap);
+  }
   // 🆕powerEqTrigger: トリガー元（無ければ直前に処理したカード）と**同じ**実効パワーへ解決する。
   //   ⚠参照不能なら `powerRange:{min:1,max:0}` の空ヒットへ倒す（fail-closed）＝限定が消えない。
   if (result.powerEqTrigger) {
@@ -4247,7 +4290,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     } else {
       const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
-      cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+      cands = energyCandidatesForOwner(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     }
     // 🆕**任意コストの前に宣言した対象だけを手札へ**（§5.3 `O-96` 第12バッチ・2026-09-02）＝
     //   「あなたのエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
@@ -4439,7 +4482,7 @@ function zoneTargetCandidates(src: EffectTarget, tgtOwner: Owner, ctx: ExecCtx):
     if (src.filter?.thisCardOnly) {
       return (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     }
-    return energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    return energyCandidatesForOwner(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
   }
   // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）＝ルリグトラッシュ**
   //   （「あなたのルリグトラッシュから〈修飾〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
@@ -4769,7 +4812,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
       energyFilter = Object.keys(rest).length > 0 ? rest : undefined;
       selfOnly = true;
     }
-    let cands = energyCandidates(state, energyFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    let cands = energyCandidatesForOwner(a.owner, state, energyFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (selfOnly) cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     if (cands.length === 0) return done({ ...addLog(ctx, 'エナゾーンに該当カードがないためライフクロスに加えられない'), lastProcessedCards: [] });
     // thisCardOnly＝選ぶ余地が無いので選択UIを出さず即適用（`execTransferToHand` の TRASH_CARD 側と同規約）
@@ -10468,6 +10511,9 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'PLACE_LRIGS_UNDER_CENTER': return execPlaceLrigsUnderCenter(action as import('../types/effects').PlaceLrigsUnderCenterAction, ctx);
     case 'COUNTER_SPELL':           return done(ctx); // 打ち消しログはBattleScreen側でスペル名付きで出力
     case 'SELF_PLAY_RESTRICT':      return done(ctx); // CONTINUOUS 出撃制限。実 enforcement は handleSummonSigni の canSelfPlay（executor では no-op）
+    // 🆕§5.3 `O-290`（2026-09-11）＝自分自身の配置コインコストの置き換え【常】。
+    //   実 enforcement は UI のキー配置2地点（`keyPlaceCoinCostOf`）＝executor では no-op。
+    case 'SELF_PLACE_COIN_COST':    return done(ctx);
     case 'COST_REDUCTION': {
       // 次に使用するスペルのコスト軽減（WX04-008）: フラグに積み、BattleScreenのスペル使用コスト計算で消費。
       const cr = action as import('../types/effects').CostReductionAction;
@@ -12363,7 +12409,7 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
         ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums,
       );
       const candidates = a.swapSourceLocation === 'energy'
-        ? energyCandidates(srcState, resolvedSourceFilter, ctx.cardMap, ctx.treatAsClassAllZones)
+        ? energyCandidatesForOwner(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)
         : movableTrashCandidates(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
       const scope: TargetScope = a.swapSourceLocation === 'energy'
         ? (srcOwner === 'self' ? 'self_energy' : 'opp_energy')

@@ -11203,9 +11203,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠選んだ手札は**捨てない**（公開するだけ）＝あちらとの違い。
   // ══════════════════════════════════════════════════════════════════════════════
 
+  // 🆕**2026-09-11・§5.3 `O-290`＝第1文（配置ゲート）を足した**＝原文「このキーはあなたのエナゾーンにある
+  //   カードが持つ色が合計３種類以上ある場合にしか新たに場に出せない。」は **JSON に宣言すら無かった**
+  //   （キーの第1文は effectId として切り出されない＝CSV 全文が正本）。
+  // 🔑**受け皿は2つとも既存**＝`SELF_PLAY_RESTRICT` ＋ `ENERGY_COUNT_FILTER{distinctColor}`（3評価器とも実装済み）。
+  //   ⚠`ENERGY_COLOR_TYPES` は **`ActiveCondition` 側にしか無い**型で、`SELF_PLAY_RESTRICT.condition` は
+  //     `Condition` 側＝**同じ意味の型が union をまたいで2つある**。ここは `Condition` 側の正準形を使う。
   // PR-K060 ／ 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード４：…
   // ⚠付与される側（`abilities[]`）は parser も生成する層なので `parseStatus:'AUTO'` のまま（§6.4 `O-40`）。
   "PR-K060": [
+    {"effectId":"PR-K060-E1","effectType":"CONTINUOUS","action":{"type":"SELF_PLAY_RESTRICT","rawText":"このキーはあなたのエナゾーンにあるカードが持つ色が合計３種類以上ある場合にしか新たに場に出せない。","condition":{"type":"ENERGY_COUNT_FILTER","owner":"self","filter":{},"operator":"gte","value":3,"distinctColor":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"PR-K060-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-K060-E2-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":4},"action":{"type":"DECLARE_ICON_REVEAL_CHECK","declare":["icon"],"outcomes":[{"matched":0,"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}],"rawText":"【起】《アタックフェイズアイコン》エクシード４：あなたの手札を１枚選ぶ。対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つを宣言する。そのカードを公開し、それが宣言されたアイコンを持つカードではない場合、対戦相手のすべてのシグニをトラッシュに置く。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
@@ -11512,6 +11519,68 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠`filter` に `cardType:'シグニ'` を**載せない**＝原文は「【ライフバースト】を持つ**カード**」。
   "WXEX2-13": [
     {"effectId":"WXEX2-13-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"any_ally","triggerFilter":{"story":"水獣"},"usageLimit":"once_per_turn","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"hasLifeBurst":true},"maxCount":1,"then":{"type":"STUB","id":"TRIGGER_LIFE_BURST"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-325`（2026-09-11）＝「〈参照カード〉**と**共通するクラスを持つ」の残り2件。
+  // 🔑engine 側の受け皿は**この巡で新設した2キー**（`classMatchesDiscardSigni` の兄弟）＝
+  //   `classMatchesCostTrashed`（`last_cost_trashed_cards` 基準）／`classMatchesLastProcessed`（直前の対象基準）。
+  //   どちらも `resolveDynamicFilter` が `story`（配列＝OR）へ潰し、**参照不能なら空ヒット（fail-closed）**。
+  // ⚠**MANUAL にしたのは母集団が各1効果だから**（§2.0 の速いレーン）。parser 側にも
+  //   `classMatchesCostTrashed` の語彙は足してあるので、同型が増えたら AUTO で拾える。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // PR-K070 ／ 原文：【出】エナゾーンからカード１枚をトラッシュに置く：あなたのデッキから、
+  //   **この方法でトラッシュに置いたカードと共通するクラスを持つ**無色ではないレベル３以下のシグニ１枚を
+  //   探して公開し手札に加え、デッキをシャッフルする。
+  // 🔴旧 live はこの修飾句が**丸ごと落ちて**おり、**無色以外のレベル3以下なら何でも探せる**過剰効果だった。
+  // ⚠**`mandatory: false` を守る**＝**コストのある【出】は発動しないことを選べる**（付録B の規約）。
+  //   `true` に書き換えると golden の2つのラチェット（段階2 mandatory 集合／任意cost【出】の母集団）が
+  //   同時に動く＝**旧 live の値を必ず引き継ぐ**（実測で1回踏んだ）。
+  // ⚠参照元は `last_discarded_signi_class`（**手札捨て専用**）では届かない＝払うのは**エナ**なので
+  //   `last_cost_trashed_cards`（支払い全般が記録される）を見る `classMatchesCostTrashed` を使う。
+  "PR-K070": [
+    {"effectId":"PR-K070-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrash":{"count":1}},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":3},"nonColorless":true,"classMatchesCostTrashed":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX25-P1-093 ／ 原文：【自】：あなたのアタックフェイズ開始時、対戦相手のパワー8000以下のシグニ１体を対象とし、
+  //   あなたのエナゾーンから**それと共通するクラスを持つ**シグニ１枚をトラッシュに置きアップ状態のこのシグニを
+  //   ダウンしてもよい。そうした場合、それをバニッシュする。
+  // 🔴旧 live は**エナのコスト支払いが丸ごと落ちて**おり、「このシグニをダウンする」だけで
+  //   相手のパワー8000以下を1体バニッシュできる過剰効果だった（クラス縛りも消えていた）。
+  // 🔑構造は `WX25-CP1-082-E1` と同型＝**先に対象を固定してからコストを提示する**
+  //   （`SELECT_TARGET_ONLY{abortIfNoCandidate}` → `STORE_LAST_PROCESSED_TARGETS` → 任意コスト → `targetsStored`）。
+  // ⚠`classMatchesLastProcessed` は `lastProcessedCards[0]` を見る＝**このステップ順でしか解けない**
+  //   （`storedTargetCards` は `resolveDynamicFilter` へ渡っていない）。順序を入れ替えると参照が空になり
+  //   fail-closed で**支払えなくなる**（＝効果が丸ごと不発）。
+  "WX25-P1-093": [
+    {"effectId":"WX25-P1-093-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardType":"シグニ","classMatchesLastProcessed":true}},"down_self":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-290`（2026-09-11）＝**キーを場に出すときの条件とコスト**。実測6カード（登録3は過小）。
+  // 🔴**軸が2つある**：
+  //   軸B 配置ゲート（4枚）＝`PR-K060`（エナの色3種類以上）＋ `WDK16-05T/05H/05S`（センタールリグ名）。
+  //     `WDK16-05*` は **JSON に `SELF_PLAY_RESTRICT` が既に在る**のに、`canSelfPlay` の呼び出しが
+  //     `handleSummonSigni`（シグニの通常召喚）にしか無く**キー配置経路では一度も呼ばれていなかった**
+  //     ＝恒久 no-op（誰がセンターでもキーを出せた）。この巡でキー配置ゲートにも通した。
+  //   軸A コスト置換（2枚）＝`WXK10-015`/`WXK11-012`。UI 2地点が `parseCoinCost(card.Cost)` で
+  //     **印刷コインを直読み**しており、原文の「《コイン×0》になる」は JSON にも engine にも無かった。
+  //     新設 `SELF_PLACE_COIN_COST` を `keyPlaceCoinCostOf`（`costs.ts`）が読む。
+  // ⚠**この3枚の第1文は effectId として切り出されていない**（`_effect_srctext.json` に無い＝CSV 全文が正本）。
+  //   だから parser 規則ではなく MANUAL で足す（同型が増えたら parser へ移す）。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // WXK10-015 ／ 原文第1文：あなたのセンタールリグが＜にじさんじ＞の場合、このキーを場に出すためのコストは
+  //   《コインアイコン×0》になる。 ⚠印刷コストは《コイン》×1（CSV `Cost`）。
+  "WXK10-015": [
+    {"effectId":"WXK10-015-E1","effectType":"CONTINUOUS","action":{"type":"SELF_PLACE_COIN_COST","coinCost":0,"condition":{"type":"LRIG_STORY","owner":"self","story":"にじさんじ"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXK11-012 ／ 原文第1文：あなたのセンタールリグが＜にじさんじ＞の場合、このキーを場に出すためのコストは
+  //   《コイン×0》になる。（`WXK10-015` と綴りだけ違う同文）
+  "WXK11-012": [
+    {"effectId":"WXK11-012-E1","effectType":"CONTINUOUS","action":{"type":"SELF_PLACE_COIN_COST","coinCost":0,"condition":{"type":"LRIG_STORY","owner":"self","story":"にじさんじ"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 };
 

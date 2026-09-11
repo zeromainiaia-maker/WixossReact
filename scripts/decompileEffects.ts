@@ -381,6 +381,10 @@ function filterJa(f?: any): string {
   if (f.levelLtDiscardSigni) parts.push('この方法で捨てたシグニより低いレベルを持つ');
   if (f.levelEqDiscardSigniOffset !== undefined) parts.push(`この方法で捨てたシグニよりレベルが${f.levelEqDiscardSigniOffset}つ高い`);
   if (f.classMatchesDiscardSigni) parts.push('この方法で捨てたシグニと共通するクラスを持つ');
+  // 🆕§5.3 `O-325`（2026-09-11）＝兄弟2つ。⚠描画を足さないと**修飾句が落ちていても逆翻訳が正しく見える**
+  //   （速いレーンの検証は逆翻訳の目視なので致命的）。
+  if (f.classMatchesCostTrashed) parts.push('この方法でトラッシュに置いたカードと共通するクラスを持つ');
+  if (f.classMatchesLastProcessed) parts.push('それと共通するクラスを持つ');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   // 🆕**否定側**（2026-09-09 第242バッチ）＝`hasGuard:false` は engine が `matchesFilter` で効かせているのに
   //   逆翻訳では**絞り込みが丸ごと消えて**いた（`WXDi-P11-076-E1`「《ガードアイコン》を持たないシグニを2枚まで」が
@@ -3886,7 +3890,13 @@ function actionJa(a?: Action, effectType?: string): string {
             : scET?.distinct ? `それぞれ${scET.distinct === 'level' ? 'レベル' : scET.distinct === 'name' ? '名前' : 'クラス'}の異なる`
             : '';
           const countET = a.energyTrash.count === 'ALL' ? '好きな枚数' : `${a.energyTrash.count}枚`;
-          return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}を${countET}トラッシュに置いてもよい`;
+          // 🆕§5.3 `O-325`（2026-09-11）＝`down_self` を併記する（`WX25-P1-093-E1`
+          //   「…トラッシュに置き**アップ状態のこのシグニをダウンして**もよい」）。
+          //   ⚠engine（`optionalCostPaySteps`）は `down_self` を払っているのに、
+          //     この枝だけ描画が無く**逆翻訳からダウンが消えていた**（原文照合が効かない死角）。
+          const downET = a.down_self ? 'アップ状態のこのシグニをダウンし' : '';
+          return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}を${countET}トラッシュに置き${downET}てもよい`
+            .replace('に置きてもよい', 'に置いてもよい');
         }
         if (a.handReveal) {
           const fHR = a.handReveal.filter ? filterJa(a.handReveal.filter) : '';
@@ -5711,6 +5721,13 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.never) return 'このシグニは新たに場に出すことができない';
       if (a.condition) return `${condJa(a.condition)}場合にしかこのシグニは新たに場に出すことができない`;
       return 'このシグニは新たに場に出すことができない';
+    }
+    // 🆕§5.3 `O-290`（2026-09-11）＝自分自身の配置コインコストの置き換え【常】。
+    //   ⚠`SELF_PLAY_RESTRICT` と同じ理由で**条件を必ず併記する**＝条件が落ちていても
+    //     「コインが0になる」とだけ出ると逆翻訳が正しく見えてしまう（`O-194` の家系）。
+    case 'SELF_PLACE_COIN_COST': {
+      const spccCond = a.condition ? `${condJa(a.condition)}の場合、` : '';
+      return `${spccCond}このカードを場に出すためのコストは《コイン×${a.coinCost}》になる`;
     }
     default: return `[アクション:${a.type}]`;
   }
