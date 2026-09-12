@@ -33,6 +33,46 @@ npm run verify:browser   # dev起動→/verify.html を Chromium で開く→結
 
 ---
 
+# 通し対戦スモーク（verifyFullMatch.mjs）＝リリースゲート
+
+**盤面を一切注入せず**、実デッキで最初から**勝敗が付くまで**回す別ドライバ（2026-09-13新設・§5.1 `V-213`）。
+
+```bash
+node scripts/verifyFullMatch.mjs            # CPU 1本 → PvP 1本
+node scripts/verifyFullMatch.mjs cpu        # CPU 通し対戦だけ（約4分）
+node scripts/verifyFullMatch.mjs pvp        # PvP 通し対戦だけ（claude1 host / claude2 guest・約33分）
+```
+
+🔴**`verifyBattleDrive.mjs` では代替できない**＝あちらは**盤面を注入して1つの効果を観測する**道具で、
+**ターンを最後まで回さない**。ここで初めて通るのは
+**通しの進行・決着判定・リフレッシュ（ライフ-1）・手札上限の捨て・ライフバースト・ガード応答・PvP の realtime 同期**。
+
+**判定**＝`battle_states.global_phase === 'FINISHED'` かつ `winner_id` が付くこと。
+🔴**「例外が出ない」だけでは PASS にしない**＝一番あり得る壊れ方は**決着せずに詰まる**ことなので、
+**盤面が `STUCK_SEC`（既定60秒）動かなかったら FAIL** として明示的に検出する。
+
+**env スイッチ**＝`MATCH_TIMEOUT_SEC`（1本の上限・既定2700）／`STUCK_SEC`（既定60）／`SKIP_BUILD=1`／`HEADED=1`。
+前提は `verifyBattleDrive.mjs` と同じ（`verify-accounts.json` / `.env.local` / デッキ「VERIFY_DECK」）。
+
+## 自動運転を書くときの3つの罠（実測で全部踏んだ）
+
+1. 🔴**「クリックできた」を進捗と数えない**＝**盤面が1ビットも動かないクリックが実在する**
+   （アタック済みルリグのカード詳細に「アタック」が残る等）。数えると**手詰まり検出をすり抜けて空転**する
+   （実測 **1,351手 / 900秒**）。⇒ **DB 行の指紋で測り、指紋が変わらない手は3回で封印**する。
+2. 🔴**逆に「state のフラグを見て自粛する」のも間違い**＝`lrig_has_attacked` を見てスキップしたら
+   **T4 以降1度もアタックしなくなり**、ライフが動かないまま**50ターン超の消化試合**になった（DB の読みが盤面と1手ずれる）。
+   ⇒ **常に試して、効かない手は 1. の封印に任せる。**
+3. 🔴**開きっぱなしのカード詳細が全画面オーバーレイでボタンを覆う**＝`isVisible`／`isEnabled` は真のまま
+   **クリックだけが interception で落ちる**＝「押しているのに進まない」に見える。
+   しかも**相手ターン中に残ると `LifeBurstCheckModal` を覆い、`host_state.field.check` が残って
+   CPU 側のループが `BattleScreen.tsx:526` で永久停止**する。⇒ **どのフェイズでも詰まったらまず畳む。**
+
+⚠**固定ラベル表だけでは絶対に抜けられない窓が3つある**＝①`CHOOSE` の選択肢は**カード固有の日本語**で testid も無い
+（`z-index: 4000〜` のモーダル内のボタンを総当たり）②`EndDiscardModal` は**枚数ぴったり選ぶまで確定が disabled**
+③`PhaseConfirmDialogs` は「戻る／このまま進む」＝**「戻る」を押すと永久に進まない**。
+
+---
+
 # フル BattleScreen 実機 driver（verifyBattleDrive.mjs）
 
 上記ハーネスの「非カバー」だった React state 密結合部（実ログイン→CPU戦→盤面注入→効果を**実 UI クリックで発火**→観測）を駆動する別ドライバ。`scripts/verifyBattleDrive.mjs`。**前掲の限界 1・2・3 はすべて達成済み。**

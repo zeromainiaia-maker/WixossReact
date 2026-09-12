@@ -1,5 +1,31 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁`V-213`＝**リリースゲートの通し対戦スモークを道具にした**（第296バッチ）
+
+**新規＝`scripts/verifyFullMatch.mjs`**（`node scripts/verifyFullMatch.mjs [cpu|pvp]`・全文は [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)）。
+**盤面を一切注入せず**、実デッキで最初から**勝敗が付くまで**回す。判定は
+**`battle_states.global_phase === 'FINISHED'` かつ `winner_id` が付くこと**で、
+🔴**「例外が出ない」だけでは PASS にしない**（一番あり得る壊れ方は**決着せずに詰まる**こと）＝
+**盤面が60秒動かなかったら FAIL**として明示的に検出する。
+
+**結果＝両方 PASS。** CPU **8ターン / 177手 / 232s**、PvP **56ターン / 1122手 / 1943s**。
+console error は対戦に無関係な2件のみ（deck 一覧 fetch の CORS）。**engine のバグは1件も出なかった。**
+
+🔑**`verifyBattleDrive.mjs` では代替できない**＝あちらは盤面注入で**1つの効果**を観測する道具で、**ターンを最後まで回さない**。
+今回初めて通ったのは **通しの進行・決着判定・リフレッシュ（ライフ-1）・手札上限の捨て・ライフバースト・ガード応答・PvP の realtime 同期**。
+
+**ドライバ側で踏んだ罠3つ**（製品バグではない。全文は VERIFY_BROWSER.md／[LESSONS.md](./LESSONS.md) §4.2x）
+1. 🔴**「クリックできた」を進捗と数えた**＝盤面が動かないのに押せる UI があり、**手詰まり検出をすり抜けて 1,351手 空転**した。
+   ⇒ **DB 行の指紋で測り、指紋が変わらない手は3回で封印**。
+2. 🔴**逆に `lrig_has_attacked` を見てアタックを自粛したら T4 以降1度も攻撃せず**、50ターン超の消化試合になった。
+   ⇒ **常に試して 1. の封印に任せる。**
+3. 🔴**開きっぱなしのカード詳細がボタンを覆う**（`isVisible`/`isEnabled` は真のままクリックだけ落ちる）。
+   相手ターン中に残ると `LifeBurstCheckModal` を覆い、`host_state.field.check` が残って
+   **CPU ループが `BattleScreen.tsx:526` で永久停止**した。⇒ **詰まったらまず畳む。**
+
+**検証**＝`npm run gates` 全緑（golden 4046 PASS・smoke 10754 OK・lint 0 errors）／通し対戦 CPU・PvP とも PASS。
+⚠**ゲートには同梱しない**（CPU 4分＋PvP 33分＋ライブ Supabase が要る）＝**リリース前に手で1回**回す運用。
+
 ## 2026-09-12 — 🏁`O-350`＝**重め fuzz でしか出ない無限再帰 2種**（CRASH 14 → 0・第295バッチ）
 
 **真因1（`src/engine/execStubPart2.ts`・`USE_OWN_LRIG_ABILITY_FREE`）**＝候補列挙が
