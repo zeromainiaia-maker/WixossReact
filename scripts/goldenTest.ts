@@ -34,6 +34,7 @@ import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrig
 import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex, keyPlaceCoinCostOf, parseCoinCost } from '../src/screens/battle/costs';
 import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSuppress';
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
+import { collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { applyCoinGain } from '../src/engine/coinGain';
 import { coinLedger, collectCoinNegationRemovals, isCoinAbility, negateCoinAbility } from '../src/engine/coinAbilityNegation';
@@ -46564,7 +46565,8 @@ test('続き388 母集団33枚: raw先頭節は同じ3体3色条件を生成し�
   for (const cardNum of batch388RawCards) {
     const raw = parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === `${cardNum}-E1`)!;
     const expected = o300Level3Cards.has(cardNum)
-      ? { type: 'AND', conditions: [batch388Condition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 3 }] } as Condition
+      // 🆕第286（2026-09-12）＝「レベル３の」は `eq`（「以上」が無い形）＝§5.0 実装キュー。
+      ? { type: 'AND', conditions: [batch388Condition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'eq', value: 3 }] } as Condition
       : batch388Condition;
     batch387AssertCondition(raw, expected);
     // このテストは歴史的に POOL cursor を隔離していないため、追加の mkState/findCard で
@@ -73016,12 +73018,23 @@ test('catch-all A4 WXDi-P11-041-E2: アーム/ウェポンのOR候補から合�
 
 test('catch-all A5 WXDi-D09-H15-E2: 赤カード OR ＜宝石＞シグニの合計2枚で固定相手をバニッシュ', () => withSavedCursor(() => {
   const effect = catchAllLive('WXDi-D09-H15', 'WXDi-D09-H15-E2');
-  const red = 'WX01-039', gem = 'WXK11-019', victim = 'WD04-009';
+  // 🆕**§5.0 実装キュー 第286（2026-09-12）＝対象に「このシグニのレベル以下」が入った**ので
+  //   標本を**レベル2以下**へ差し替えた（効果元 `WXDi-D09-H15` の表記レベルは 2）。
+  //   ⚠旧標本 `WD04-009`（レベル4）は**原文では最初から対象外**＝テストが上限の欠落を固定していた。
+  const red = 'WX01-039', gem = 'WXK11-019';
+  const victim = 'WD01-012';            // 中剣 フランベル（レベル2）＝上限ちょうど
+  const tooHigh = 'WD04-009';           // 幻獣 セイリュ（レベル4）＝上限超え
   const base = mkCtx({ hand: 0 }, { signi: [victim] }, 'WXDi-D09-H15');
   base.ownerState.hand = [red, gem];
   const paid = finishPayingCosts(executeEffect(effect, base), base);
   eq(paid.ownerState.hand.length, 0, 'A5 正: ORの両側から1枚ずつでも払える');
   ok(paid.otherState.energy.includes(victim), 'A5 正: 固定相手をバニッシュ');
+  // 🔴反転確認＝上限を超える相手しか居なければ**支払いも起きない**（`abortIfNoCandidate`）。
+  const highBase = mkCtx({ hand: 0 }, { signi: [tooHigh] }, 'WXDi-D09-H15');
+  highBase.ownerState.hand = [red, gem];
+  const notPaid = finishPayingCosts(executeEffect(effect, highBase), highBase);
+  eq(notPaid.ownerState.hand.length, 2, 'A5 🔴レベル上限を超える相手なのに手札コストを払っている');
+  ok(notPaid.otherState.field.signi.some(z => z?.at(-1) === tooHigh), 'A5 🔴上限を超える相手をバニッシュしている');
 }));
 
 test('catch-all A6 WX25-CP1-065-E1: ＜ブルアカ＞1枚を任意で捨て、固定相手だけ-2000', () => withSavedCursor(() => {
@@ -77882,6 +77895,7 @@ test('O-300 GRANT_LRIG_ABILITY: Dream Team 3件は既存条件を保ち、Lv3条
   const testCardMap = new Map(cardMap);
   testCardMap.set('__O300_CENTER_LV2__', { ...centerTemplate, CardNum: '__O300_CENTER_LV2__', Level: '2', Color: '白' });
   testCardMap.set('__O300_CENTER_LV3__', { ...centerTemplate, CardNum: '__O300_CENTER_LV3__', Level: '3', Color: '白' });
+  testCardMap.set('__O300_CENTER_LV4__', { ...centerTemplate, CardNum: '__O300_CENTER_LV4__', Level: '4', Color: '白' });
   testCardMap.set('__O300_ASSIST_RED__', { ...assistTemplate, CardNum: '__O300_ASSIST_RED__', Color: '赤' });
   testCardMap.set('__O300_ASSIST_BLUE__', { ...assistTemplate, CardNum: '__O300_ASSIST_BLUE__', Color: '青' });
   testCardMap.set('__O300_ASSIST_WHITE__', { ...assistTemplate, CardNum: '__O300_ASSIST_WHITE__', Color: '白' });
@@ -77893,8 +77907,13 @@ test('O-300 GRANT_LRIG_ABILITY: Dream Team 3件は既存条件を保ち、Lv3条
     const colorCondition = effect.condition.conditions.find(c => c.type === 'FIELD_LRIG_COLOR_COUNT');
     const levelCondition = effect.condition.conditions.find(c => c.type === 'LRIG_LEVEL');
     ok(!!colorCondition, `${effectId}: 既存FIELD_LRIG_COLOR_COUNTを保持`);
+    // 🆕**§5.0 実装キュー 第286（2026-09-12）＝`operator` を `gte` → `eq` へ改めた。**
+    //   原文「あなたの**レベル３の**ルリグ１体を対象とし」＝ちょうどレベル3だけが対象資格で、
+    //   🔴**レベル4の Diva ルリグは実在する**（`WXDi-P13-003B` / `WXDi-P16-001B` ＋ `SPDi47-01`〜`05` の7枚）
+    //   ＝`gte` のままだと原文では対象が取れない盤面でピースが通る（過剰実行）。
+    //   ⚠「レベルN**以上**の」と書く5効果（`WX24-P3-001/003/005/007/009-E1`）は従来どおり `gte`。
     eq(JSON.stringify(levelCondition), JSON.stringify({
-      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 3,
+      type: 'LRIG_LEVEL', owner: 'self', operator: 'eq', value: 3,
     }), `${effectId}: 生成JSONのLv3対象資格`);
     if (!levelCondition) continue;
     const atMinimum = mkState({
@@ -77914,13 +77933,21 @@ test('O-300 GRANT_LRIG_ABILITY: Dream Team 3件は既存条件を保ち、Lv3条
     below.field.lrig = ['__O300_CENTER_LV3__'];
     ok(evalUseCondition(effect.condition, below, opponent, testCardMap, cardNum, 'MAIN'),
       `${effectId}: 同じ盤面でセンターのレベルだけ上げると成立`);
+    // 🔴反転確認（第286）＝**レベル4では不成立**（`gte` のままだと通ってしまう）。
+    const above = mkState({
+      lrig: ['__O300_CENTER_LV4__'], assistL: ['__O300_ASSIST_RED__'], assistR: ['__O300_ASSIST_BLUE__'],
+    });
+    ok(!evalUseCondition(effect.condition, above, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 🔴レベル4のセンターでも通っている（原文はちょうどレベル3）`);
+    ok(!canUseArtsCondition([effect], above, opponent, testCardMap, cardNum, 'MAIN'),
+      `${effectId}: 🔴実使用ゲートがレベル4を通している`);
     const colorFail = mkState({
       lrig: ['__O300_CENTER_LV3__'], assistL: ['__O300_ASSIST_WHITE__'], assistR: ['__O300_ASSIST_WHITE__'],
     });
     ok(!evalUseCondition(effect.condition, colorFail, opponent, testCardMap, cardNum, 'MAIN'),
       `${effectId}: 既存の3体3色条件も失われていない`);
-    ok(decompiledLineOf(effectId).includes('あなたのセンタールリグがレベル3以上'),
-      `${effectId}: 逆翻訳にレベル3以上のゲートが現れる`);
+    ok(decompiledLineOf(effectId).includes('あなたのセンタールリグがレベル3である'),
+      `${effectId}: 逆翻訳に「レベル3である」ゲートが現れる（「以上」は原文に無い）`);
   }
 }));
 
@@ -78807,6 +78834,152 @@ test('§5.3 O-322 WXDi-P14-061-E1: 対象の1体へ能力を付与し、《ピ�
     ok((r2.ownerState.awakened_signi ?? []).includes(pilulk),
       '🔴《ピルルク//フェゾーネ》なのに覚醒していない（旧＝効果元＝スペルを対象にして空振り）');
   }
+}));
+
+// ═══ PLAN §5.0 実装キュー（2026-09-12 第286バッチ）＝残14効果のうち「対象資格の脱落」3系統 ═══
+//   🔴この3つはどれも **JSON にキーが1つ無いだけ**で、逆翻訳・census・smoke・fuzz が全部緑のまま
+//     「原文に無い盤面で通る／原文に無いカードを選べる」過剰実行になっていた。
+
+test('§5.0 第286 (a): levelLteSelf＝「このシグニのレベル以下の」で候補を絞る（WXDi-D09-H15-E2）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-D09-H15') ?? []).find(e => e.effectId === 'WXDi-D09-H15-E2');
+  ok(!!eff, 'WXDi-D09-H15-E2 が live にある'); if (!eff) return;
+  const json = JSON.stringify(eff.action);
+  // 🔴**刻む先は `selectTarget`**＝本体 `BANISH` は `targetsStored:true`（宣言で選んだ札をそのまま使う）ので、
+  //   本体側だけに刻んでも候補は絞られない（＝支払わせてから空振りする）。
+  const head = (eff.action as { steps?: { id?: string; selectTarget?: { filter?: Record<string, unknown> } }[] }).steps?.[0];
+  eq(head?.selectTarget?.filter?.levelLteSelf, true, '🔴対象宣言に levelLteSelf が無い（相手の任意1体を選べる）');
+  ok(json.includes('"targetsStored":true'), '本体が宣言した対象を使っていない');
+
+  // 実挙動＝効果元（`WXDi-D09-H15` の表記レベルは 2）以下のシグニだけが候補。
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const ctx = mkCtx({ signi: ['WXDi-D09-H15', null, null] }, { signi: [lv1, lv2, lv4] }, 'WXDi-D09-H15');
+  const r = executeEffect(eff, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '対象選択が立つ');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  const cands = r.pending.candidates.slice().sort().join(',');
+  eq(cands, [lv1, lv2].sort().join(','), '🔴レベル4のシグニまで候補に出ている（上限が効いていない）');
+
+  // 反転＝上限を超えるシグニしか居なければ、abortIfNoCandidate で**支払いを問う前に**降りる。
+  const r0 = executeEffect(eff, mkCtx({ signi: ['WXDi-D09-H15', null, null] }, { signi: [lv4, null, null] }, 'WXDi-D09-H15'));
+  ok(r0.done, '🔴候補0なのに先へ進んでいる（手札2枚のコストを問われる）');
+}));
+
+test('§5.0 第286 (b): 任意コストの候補判定に本体側の絞りを写す（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）', () => {
+  // 🔴engine（`effectExecutor` の同 STUB 分岐）は `optionalCostTarget.filter` で「対象なし」を判定する＝
+  //   ここが無いと**絞りを満たすシグニが1体も居なくても支払いを問われ、払った後に空振りする**。
+  const cases: [string, string][] = [
+    ['WXDi-P06-032', 'WXDi-P06-032-E1'],   // レベルが自分の白ルリグの数以下
+    ['WXK05-059', 'WXK05-059-E2'],         // このシグニよりパワーの低い
+    ['WXK10-062', 'WXK10-062-E2'],         // 同上
+    ['WXK07-030', 'WXK07-030-E1'],         // そのシグニ（トリガー元）よりパワーの低い
+  ];
+  for (const [card, effectId] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    const steps = (eff.action as { steps?: EffectAction[] }).steps ?? [];
+    const head = steps[0] as { id?: string; optionalCostTarget?: EffectTarget } | undefined;
+    const body = (steps[1] as { then?: { target?: EffectTarget } } | undefined)?.then?.target;
+    eq(head?.id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', `${effectId}: 先頭が任意コスト STUB ではない`);
+    eq(JSON.stringify(head?.optionalCostTarget?.filter), JSON.stringify(body?.filter),
+      `🔴${effectId}: 候補判定の filter が本体と食い違う（支払いを問うてから空振りする）`);
+    ok(Object.keys(head?.optionalCostTarget?.filter ?? {}).some(k => k !== 'cardType'),
+      `🔴${effectId}: 候補判定に絞りが無い`);
+  }
+  // 反転＝`CHOOSE` の**別の枝**の絞りを写さない（`WXDi-P07-049-E1` の任意コスト枝は原文どおり無制限）。
+  const fp = (effectsMap.get('WXDi-P07-049') ?? []).find(e => e.effectId === 'WXDi-P07-049-E1');
+  ok(!!fp, 'WXDi-P07-049-E1 が live にある');
+  ok(!JSON.stringify(fp?.action ?? {}).includes('optionalCostTarget'),
+    '🔴別の枝（レベル1バニッシュ）の絞りを任意コスト枝へ写している');
+});
+
+test('§5.0 第286 (c): 「レベル３のルリグ１体を対象」はちょうどレベル3（以上ではない）', () => {
+  // 🔴Diva 系にもレベル4のルリグが実在する（`WXDi-P13-003B` / `WXDi-P16-001B` / `SPDi47-01`〜`05`）＝
+  //   `gte` のままだと**原文では対象が取れない盤面でピースが通る**（過剰実行）。
+  const exact = ['WXDi-D03-011-E1', 'WXDi-D04-011-E1', 'WXDi-D05-011-E1', 'WXDi-D06-011-E1',
+    'WXDi-D09-H11-E1', 'WXDi-P06-002-E1', 'WXDi-P07-001-E1'];
+  const atLeast = ['WX24-P3-001-E1', 'WX24-P3-003-E1', 'WX24-P3-005-E1', 'WX24-P3-007-E1', 'WX24-P3-009-E1'];
+  const lrigLevelOps = (effectId: string): string[] => {
+    const card = effectId.replace(/-E\d+$/, '');
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    const out: string[] = [];
+    const visit = (c: unknown): void => {
+      if (!c || typeof c !== 'object') return;
+      const rec = c as Record<string, unknown>;
+      // `allFieldLrigs`（「全員レベル1以上」）は別条件なので混ぜない。
+      if (rec.type === 'LRIG_LEVEL' && !rec.allFieldLrigs) out.push(`${rec.operator}${rec.value}`);
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff?.condition);
+    return out;
+  };
+  for (const id of exact) eq(lrigLevelOps(id).join(','), 'eq3', `🔴${id}: レベル3の対象資格が「以上」になっている`);
+  for (const id of atLeast) {
+    const ops = lrigLevelOps(id);
+    ok(ops.length === 1 && ops[0].startsWith('gte'), `🔴${id}: 原文「レベルN以上」なのに eq へ倒れている（${ops.join(',')}）`);
+  }
+});
+
+test('§5.0 第286 (d): 覚醒中だけ【アサシン】を得る（WX25-P3-057-E1b）', () => withSavedCursor(() => {
+  const src = 'WX25-P3-057';
+  const eff = (effectsMap.get(src) ?? []).find(e => e.effectId === 'WX25-P3-057-E1b');
+  ok(!!eff, '🔴WX25-P3-057-E1b が live に無い（覚醒しても【アサシン】が付かない）'); if (!eff) return;
+  eq(eff.effectType, 'CONTINUOUS', '宣言型（CONTINUOUS）でないと collectKeywords が読まない');
+  eq(JSON.stringify(eff.activeCondition), JSON.stringify({ type: 'IS_SELF_AWAKENED' }), '覚醒条件が無い');
+
+  const kw = (awakened: boolean): string[] => {
+    const my = mkState({ signi: [src, null, null] });
+    const state = awakened ? ({ ...my, awakened_signi: [src] } as PlayerState) : my;
+    const got = collectContinuousGrantedKeywords(state, mkState({}), true,
+      effectsMap as Map<string, CardEffect[]>, cardMap as Map<string, CardData>);
+    return got[src] ?? [];
+  };
+  // 反転確認＝覚醒していなければ付かない（付いたら「覚醒状態であるかぎり」が死んでいる）。
+  eq(kw(false).includes('アサシン'), false, '🔴覚醒していないのに【アサシン】が付いている');
+  eq(kw(true).includes('アサシン'), true, '🔴覚醒しているのに【アサシン】が付かない');
+}));
+
+test('§5.0 第286 (e): 選んだシグニ以外を禁止したうえで「可能ならばアタック」を強制する（WXDi-P08-030-E1）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P08-030') ?? []).find(e => e.effectId === 'WXDi-P08-030-E1');
+  ok(!!eff, 'WXDi-P08-030-E1 が live にある'); if (!eff) return;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"SIGNI_ATTACK_BAN"') && json.includes('"exceptTargetsStored":true'),
+    '選んだシグニ以外のアタック禁止が無い');
+  // 🔑原文前半「選んだシグニで**可能ならば**アタックしなければならず」＝全体強制で足りる
+  //   （`collectForcedAttackZones` が禁止ゾーンを外すので、実質「選んだシグニだけ」に縮む）。
+  ok(json.includes('"FORCE_SIGNI_ATTACK"'), '🔴強制アタックが無い（選ばせるだけで強制していない）');
+
+  // 実挙動＝相手 state に must_attack_signi が立ち、禁止の例外リストは保存対象だけ。
+  const a = fresh(), b = fresh();
+  const r = run(eff.action, mkCtx({ signi: ['WXDi-P08-030', null, null] }, { signi: [a, b, null] }, 'WXDi-P08-030'));
+  eq(r.otherState.must_attack_signi, true, '🔴強制フラグが相手側に立っていない');
+  eq(r.otherState.must_attack_infected_only ?? false, false, '感染限定に化けている（原文に無い限定）');
+  const bans = r.otherState.signi_attack_bans_this_turn ?? [];
+  eq(bans.length, 1, '🔴アタック禁止が相手側に1件記録されていない');
+  // 例外リスト＝相手自身が選んだシグニ（`opponentSelects` でオートパイロットが全件選ぶ）。
+  eq((bans[0]?.exceptCardNums ?? []).slice().sort().join(','), [a, b].sort().join(','),
+    '🔴禁止の例外が「選んだシグニ」になっていない（＝強制と禁止の対象が食い違う）');
+
+  // 🔴**この項目の主張そのもの**＝「全体強制 ＋ 他を禁止」が
+  //   `collectForcedAttackZones`（`src/screens/battle/signiAttackGate.ts`＝React 非依存の純関数）で
+  //   **選んだシグニのゾーンだけ**に縮むことを、UI と同じ関数で確かめる
+  //   （ここが縮まないなら `FORCE_SIGNI_ATTACK` を足しただけでは原文にならない＝新機構が要ることになる）。
+  const c = fresh();
+  const r3 = run(eff.action, mkCtx({ signi: ['WXDi-P08-030', null, null] }, { signi: [a, b, c] }, 'WXDi-P08-030'));
+  const scan = (st: PlayerState): number[] => collectForcedAttackZones({
+    attacker: st, defender: r3.ownerState,
+    effectsMap: effectsMap as Map<string, CardEffect[]>, cardMap: cardMap as Map<string, CardData>,
+  });
+  // 3体とも選ばれた盤面（オートパイロットが全件選ぶ）＝3ゾーンとも強制。
+  eq(scan(r3.otherState).slice().sort().join(','), '0,1,2', '選ばれた3体が強制対象になっていない');
+  // 例外リストを1体に狭める＝残り2体は**禁止されるので強制対象から落ちる**（＝原文の「可能ならば」）。
+  const narrowed: PlayerState = {
+    ...r3.otherState,
+    signi_attack_bans_this_turn: (r3.otherState.signi_attack_bans_this_turn ?? [])
+      .map(ban => ({ ...ban, exceptCardNums: [a] })),
+  };
+  eq(scan(narrowed).join(','), '0', '🔴禁止されたシグニまで「アタックしなければならない」に残っている');
 }));
 
 if (listMode) {

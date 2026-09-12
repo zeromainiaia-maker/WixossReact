@@ -339,3 +339,124 @@ WX25-P1-005-E1 :: 2026-09-10 :: §5.3 O-288＝支払いを問う前に対象を�
 WX25-P1-040-E1 :: 2026-09-10 :: §5.3 O-288＝支払いを問う前に対象を確定（parser 汎用ノーマライザ1本／MANUAL 2件は手当て）
 SPDi43-07-E2 :: 2026-09-10 :: §5.3 O-288＝支払いを問う前に対象を確定（parser 汎用ノーマライザ1本／MANUAL 2件は手当て）
 WXDi-P15-083-E1 :: 2026-09-10 :: §5.3 O-288＝支払いを問う前に対象を確定（parser 汎用ノーマライザ1本／MANUAL 2件は手当て）
+
+# ── 第286バッチ（2026-09-12）＝実装キュー残123の全数再照合。live JSON x 原文 x 逆翻訳 x engine 消費地点を1件ずつ確認。
+#    🔴在庫123のうち109件は「§5.3 の O-nn をクローズした回が直していたのに fixed.txt へ書き漏らしていた」分だった。
+#    残14件（真に未修正）は同バッチで実装するか §5.3 へ O-nn で登録する。
+WX03-002-E1 :: 2026-09-12 :: 第286＝STALE再確認＝filter.cardClassExclude:"天使" が live に在る
+WX05-005-E3 :: 2026-09-12 :: 第286＝STALE再確認＝timing が ATTACK_ARTS になっている
+WX05-030-E1 :: 2026-09-12 :: 第286＝STALE再確認＝filter.nameEqLastProcessed が live に在る
+WX06-019-E1 :: 2026-09-12 :: 第286＝STALE再確認＝「他の」「相手効果起因」「場を離れる」は findEffectLeavePowerReductionSubstitute が3点とも実装（payload ではなく構造で除外）
+WX07-039-E1 :: 2026-09-12 :: 第286＝STALE再確認＝frontOfSelf ＋ ExecCtx.sourceLeftZoneIdx（§5.3 O-272）で離場後も解ける・golden 2本
+WX09-028-E1 :: 2026-09-12 :: 第286＝STALE再確認＝triggerCondition.discardCauseCardTypes ＋ byWatcherEffect
+WX10-028-E2 :: 2026-09-12 :: 第286＝STALE再確認＝selectTarget.filter.cardType:"レゾナ"
+WX13-054-E1 :: 2026-09-12 :: 第286＝STALE再確認＝余分な count:0 の LOOK_AND_REORDER は無い
+WX16-029-E1 :: 2026-09-12 :: 第286＝STALE再確認＝WX16-029-TRAP が独立した効果として live に在る
+WX16-031-BURST :: 2026-09-12 :: 第286＝STALE再確認＝execTransferToHand が transferGroups を upToCount:true で展開する
+WX16-067-E2 :: 2026-09-12 :: 第286＝STALE再確認＝CHOOSE に －1 側（levelRange.min:2）と story:"英知" の両方が在る
+WX17-063-E1 :: 2026-09-12 :: 第286＝STALE再確認＝filter.hasIcon:"トラップ"
+WX18-033-E2 :: 2026-09-12 :: 第286＝STALE再確認＝filter.hasIcon:"トラップ"
+WX18-038-BURST :: 2026-09-12 :: 第286＝STALE再確認＝DRAW_BY_CHARM_COUNT は otherState のチャーム数＋1（execStubPart2.ts:594）
+WX19-064-BURST :: 2026-09-12 :: 第286＝STALE再確認＝filter.hasIcon:"トラップ"
+WXDi-P03-016-E3 :: 2026-09-12 :: 第286＝STALE再確認＝付与先と UP{LRIG,count:1} はいずれもセンタールリグ（§5.3 O-316/O-320 の結論）
+WXEX2-12-E2 :: 2026-09-12 :: 第286＝STALE再確認＝ガードステップは hand_discarded_just を立てないので ON_HAND_DISCARDED は発火しない（FP）
+WXK06-005-E1-G :: 2026-09-12 :: 第286＝STALE再確認＝useSpellCostMultiplier:2 が live に在る
+PR-K077-sub-E1 :: 2026-09-12 :: 第286＝STALE再確認＝handDiscard.filter.levelEqTrigger が live に在る
+WXK08-005 :: 2026-09-12 :: 第286＝FP＝原文第1文「アタックフェイズの間、…レベルが低いかぎり《アタックフェイズアイコン》を得る」が E2-G2 の condition:LRIG_LEVEL_CMP_OPP(lt) そのもの＝過剰ではなく正しい表現
+SPDi44-04-E2 :: 2026-09-12 :: 第286＝§5.3 O-324＝selectionConstraint.distinct:"class"（TRANSFER_TO_HAND が src.selectionConstraint を渡す）
+WX25-P1-026-E2 :: 2026-09-12 :: 第286＝§5.3 O-324＝selectionConstraint.distinct:"class"
+WX25-P1-092-E1 :: 2026-09-12 :: 第286＝§5.3 O-324＝condition:FIELD_SIGNI_ALL_DISTINCT_CLASS
+WX25-P1-096-E1 :: 2026-09-12 :: 第286＝FP＝原文に「それと」が無い（隣の WX25-P1-093 は「それと」を明記）＝選ぶ2枚同士の相互条件で distinct:"class" が正しい
+WXK10-056-E2 :: 2026-09-12 :: 第286＝§5.3 O-325＝filter.classMatchesDiscardSigni
+PR-K070-E1 :: 2026-09-12 :: 第286＝§5.3 O-325＝filter.classMatchesCostTrashed
+WX25-P1-058-E2 :: 2026-09-12 :: 第286＝§5.3 O-325＝filter.classMatchesAnyFieldSigni（対象側と任意コスト側の両方）
+WX25-P1-093-E1 :: 2026-09-12 :: 第286＝§5.3 O-325＝energyTrash.filter.classMatchesLastProcessed
+WXDi-D05-017-E1 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:FRONT_SIGNI{isFrozen}
+WXDi-P11-060-E1 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:HAS_CARD_IN_FIELD{story:ウェポン,isDown,adjacentToSelf}
+WXDi-P11-060-E2 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:HAS_CARD_IN_FIELD{story:アーム,isDown,adjacentToSelf}
+WXDi-CP02-086-E1 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:ENERGY_PLACED_THIS_TURN{causes:[cost,effect]}
+WXDi-P10-055-E1 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:FIELD_LEVEL_SUM{metric:power,filter:{story:天使}}
+WX24-P3-066-E1 :: 2026-09-12 :: 第286＝§5.3 O-308＝condition:SAME_ZONE_HAS_MAGIC_BOX
+WXEX2-12-E4 :: 2026-09-12 :: 第286＝§5.3 O-307＝STUB{OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH}
+WXK06-025-E2 :: 2026-09-12 :: 第286＝§5.3 O-309＝TRASH{frontOfSelf,optional} ＋ ADD_TO_FIELD{opponentSelects,opponentSelectsZone}
+WXK06-028-E1 :: 2026-09-12 :: 第286＝§5.3 O-309＝STUB{OPP_TRASH_TO_DECK_TOP_OPP_ORDERS}
+WXK10-044-E1 :: 2026-09-12 :: 第286＝§5.3 O-309＝source を HAND_CARD へ是正＋opponentSelects
+WXK10-091-E1 :: 2026-09-12 :: 第286＝§5.3 O-309＝SEARCH{deckOwner:opponent,opponentResponds} ＋ ADD_TO_FIELD{owner:opponent,suppressOnPlay}
+WXEX2-08-E4 :: 2026-09-12 :: 第286＝§5.3 O-310＝EXILE{ENERGY_CARD, owner:"any"}
+WXK07-018-E1 :: 2026-09-12 :: 第286＝§5.3 O-310＝FIELD_SIGNI_TO_CHECK_ZONE を両者ぶん（asDown）
+WD20-006-E1 :: 2026-09-12 :: 第286＝§5.3 O-310＝TRASH{ENERGY_CARD, owner:"any", count:2} を追加
+WX24-P4-022-E3 :: 2026-09-12 :: 第286＝§5.3 O-310＝STUB{OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND}
+WXEX2-29-E3 :: 2026-09-12 :: 第286＝§5.3 O-311＝STUB{BAKE_LAST_PROCESSED_REFS} で両者ぶんの SEARCH を焼く（E1 も FREEZE{isTriggerSource} 済み）
+WXK04-003-E2 :: 2026-09-12 :: 第286＝§5.3 O-311＝LOOK_PICK_CHAIN の2段（field / acce+acceHostFilter）＋remainder:trash
+WXDi-P00-037-E1 :: 2026-09-12 :: 第286＝§5.3 O-311＝STUB{OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM}
+WXDi-P10-052-E2 :: 2026-09-12 :: 第286＝§5.3 O-311＝banishSubstitute.victimFilter:"chosenByOnPlay"（on_play_chosen_signi で照合）
+WX24-P4-048-E2 :: 2026-09-12 :: 第286＝§5.3 O-311＝BAKE_LAST_PROCESSED_REFS ＋ powerEqLastProcessed（対象側とコスト側の両方）
+WXEX2-54-E2 :: 2026-09-12 :: 第286＝§5.3 O-312＝filter.levelEqualsVar:"field_trash_level" ＋ Offset:-1
+WXEX2-81-E2 :: 2026-09-12 :: 第286＝§5.3 O-312＝filter.levelLteZoneCount{distinctBy:"color"}
+WXK02-027-E1 :: 2026-09-12 :: 第286＝§5.3 O-312＝filter.levelEqLrig ＋ Offset ±1 を両ステップに
+WXK05-029-E3 :: 2026-09-12 :: 第286＝§5.3 O-312＝selectionConstraint.same:"ability"
+WXK07-033-E1 :: 2026-09-12 :: 第286＝§5.3 O-312＝DECLARE_NUMBER_PLAIN{numberChoicesFrom} ＋ SET_BASE_LEVEL{valueRef:"declared_number"}
+WXDi-D09-P04-E3 :: 2026-09-12 :: 第286＝§5.3 O-312＝STUB{TK3_DECLARE_DISCARD}（E1 の -6000 も if/else ＋ owner:opponent へ是正済み）
+WXK07-003-E1 :: 2026-09-12 :: 第286＝§5.3 O-313＝STUB{TRASH_SIGNI_ZONE_NON_SIGNI}
+WXK10-018-E2 :: 2026-09-12 :: 第286＝§5.3 O-313＝cost.attachedOrUnderTrash（実機 V-207 で返済）
+WXK08-024-E2 :: 2026-09-12 :: 第286＝§5.3 O-313＝STUB{BOUNCE_SIGNI_ZONE_CARD}
+WX24-P3-018-E1 :: 2026-09-12 :: 第286＝§5.3 O-313＝STUB{MAGIC_BOX_REVEAL}{count,filter}
+WXK02-002-E3 :: 2026-09-12 :: 第286＝§5.3 O-314＝INSTALL_DELAYED_TRIGGER{ON_TURN_END} ＋ ARTS_USED_COUNT_NE_DECLARED
+WXK04-033-E1 :: 2026-09-12 :: 第286＝§5.3 O-314＝STUB{ACCE_FROM_TRASH_MULTI}（付けた札だけを焼いた ON_TURN_END 遅延）
+WXK05-001-E2 :: 2026-09-12 :: 第286＝§5.3 O-314＝SIGNI_DEPLOY_BAN{fromNextTurn,bySource:"normal_summon"}
+WXDi-P00-038-E1 :: 2026-09-12 :: 第286＝§5.3 O-299/O-314＝STUB{SELF_LEAVE_FACEDOWN_SECOND_MAIN}
+WXEX2-39-E3 :: 2026-09-12 :: 第286＝§5.3 O-315＝triggerCondition.trashSourceStoryIncludesCost（第252で実装済み。E1 も count:ALL/upToCount 済み）
+WXK01-045-E1 :: 2026-09-12 :: 第286＝§5.3 O-315/O-321＝optionalCostTarget.filter.placedThisTurn（対象側と本体の両方）
+WXK04-038-E1 :: 2026-09-12 :: 第286＝§5.3 O-315＝condition:ENERGY_PLACED_THIS_TURN{filter:{story:植物}}
+WXDi-P03-035-E1 :: 2026-09-12 :: 第286＝§5.3 O-316＝UP / REMOVE_ABILITIES に targetsTriggerSource ＋ triggerFilter.color:"白"
+WXDi-D09-H15-E1 :: 2026-09-12 :: 第286＝§5.3 O-296＝SET_BASE_LEVEL.until:"UNTIL_OPP_TURN_END"
+WX16-Re20-E1 :: 2026-09-12 :: 第286＝§5.3 O-294＝ADD_TO_FIELD.abilitiesRemoved は markPlacedAbilitiesRemoved が消費（stale クローズ）
+WXK11-012 :: 2026-09-12 :: 第286＝§5.3 O-290＝SELF_PLACE_COIN_COST{coinCost:0}
+WXDi-P07-004-sub-E1 :: 2026-09-12 :: 第286＝§5.3 O-288＝SELECT_TARGET_ONLY→STORE→OPPONENT_PAY_OPTIONAL→targetsStored の順に是正
+WXDi-P16-048-E1 :: 2026-09-12 :: 第286＝§5.3 O-298＝選択肢②も対象を先に確定してから任意コストへ
+WX14-003-E2 :: 2026-09-12 :: 第286＝§5.3 O-317＝STUB{IGNORE_LRIG_RESTRICTION_ARTS}{ignoreRestrictionScopes:[signi],ignoreRestrictionSigni:{levelEq:5}}
+WX16-002-E4 :: 2026-09-12 :: 第286＝§5.3 O-317＝【起】経路 WX16-002-E4b（ACTIVATED/MAIN）が live に在る
+WX16-003-E1 :: 2026-09-12 :: 第286＝§5.3 O-317＝ARTS_USED_THIS_TURN{exactCount:1} ＋ CHOOSE（エナの＜英知＞／デッキトップ）
+WXEX2-10-E2 :: 2026-09-12 :: 第286＝§5.3 O-306＝STUB{DECLARED_NAME_TO_SERVANT_ZERO}{until:END_OF_TURN}
+WXK03-003A :: 2026-09-12 :: 第286＝§5.3 O-317＝WXK03-003A-E3 STUB{LRIG_DECK_ARTS_LIMIT,value:3}（消費は utils/deckBuildLimits.ts）
+WX25-P2-008-E1 :: 2026-09-12 :: 第286＝§5.3 O-317＝PREVENT_DAMAGE{sourcePowerGte:12000,until:UNTIL_END_OF_TURN} ＋ count:2/upToCount
+WX25-P3-032-E2 :: 2026-09-12 :: 第286＝§5.3 O-317＝STUB{CRASH_TO_TRASH_INSTEAD} ＋ SUPPRESS_LIFE_BURST_ON_CARD（即クラッシュを撤去）
+PR-422-E1 :: 2026-09-12 :: 第286＝再照合＝condition:SELF_POWER_GTE{operator:lte,value:0}
+PR-469-E3 :: 2026-09-12 :: 第286＝再照合＝CHOOSE.noRepeat:true（永続 taken_choice_keys）
+PR-K060 :: 2026-09-12 :: 第286＝再照合＝PR-K060-E1 SELF_PLAY_RESTRICT{ENERGY_COUNT_FILTER,distinctColors>=3}
+SPDi43-22-E1 :: 2026-09-12 :: 第286＝再照合＝HAS_CARD_IN_FIELD{cardName} ＋ STUB{GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END}（execStubPart2.ts:1019）
+WDK10-015-E1 :: 2026-09-12 :: 第286＝再照合＝filter.powerLteLastProcessedHalf
+WX24-P2-050-E1 :: 2026-09-12 :: 第286＝再照合＝usageLimit:"once_per_turn_on_success"
+WXDi-CP01-006-E2 :: 2026-09-12 :: 第286＝再照合＝cost.collab:1（E3 の回避も OPPONENT_PAY_OPTIONAL{opponentHandDiscardFilter:{hasGuard}} で実装済み）
+WXDi-CP01-008-E2 :: 2026-09-12 :: 第286＝再照合＝cost.collab:1
+WXDi-CP01-033-E1 :: 2026-09-12 :: 第286＝再照合＝STUB{REPEAT_BODY_WHILE} に LAST_PROCESSED_MATCHES{story:バーチャル} と再帰条件
+WXDi-CP02-009-E1 :: 2026-09-12 :: 第286＝再照合＝condition:ENERGY_PLACED_THIS_TURN{minCount:2}
+WXDi-D02-19LAT-E1 :: 2026-09-12 :: 第286＝再照合＝LRIG_LEVEL{allFieldLrigs:true}
+WXDi-P05-025-E2 :: 2026-09-12 :: 第286＝再照合＝STUB{LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END}{untilOwnEnergyPhaseEnd}
+WXDi-P05-086-E1 :: 2026-09-12 :: 第286＝再照合＝WXDi-P05-086-E2 STUB{TREAT_AS_LEVEL1_IN_DECK_TRASH}（ctx.deckTrashLevel1Nums で消費）
+WXDi-P07-006-E1 :: 2026-09-12 :: 第286＝再照合＝condition:NO_COIN_GAINED_THIS_GAME（§5.3 O-318）
+WXDi-P08-044-E2 :: 2026-09-12 :: 第286＝再照合＝STUB{REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER}{minUnderCards:2,thenDownVictim}
+WXDi-P09-045-E1 :: 2026-09-12 :: 第286＝再照合＝condition:THIS_CARD_FROM_ZONE_THIS_TURN{zones:[trash],anySigni}
+WXDi-P11-046-E2 :: 2026-09-12 :: 第286＝再照合＝condition:ARTS_USED_THIS_TURN{filter:{cardType:[ピース…]}}
+WXDi-P13-085-E1 :: 2026-09-12 :: 第286＝再照合＝triggerCondition.milledSourceFilter{isDisona}
+WXDi-P14-040-E1 :: 2026-09-12 :: 第286＝再照合＝HAS_CARD_IN_FIELD{isFrozen,includeLrigs,minCount:3}（E2 も FREEZE{LRIG,assistLrigOnly}）
+WXDi-P14-061-E1 :: 2026-09-12 :: 第286＝再照合＝GRANT_EFFECT{targetsLastProcessed} ＋ TK3_DECLARE_DISCARD ＋ AWAKEN_SIGNI{targetsLastProcessed}
+WXDi-P16-074-E2 :: 2026-09-12 :: 第286＝再照合＝triggerCondition.banishedFromGateZone
+WXEX1-72-E2 :: 2026-09-12 :: 第286＝再照合＝LIFE_CRASH を撤去して SUPPRESS_LIFE_BURST_ON_CARD のみ
+WXEX2-13-E1 :: 2026-09-12 :: 第286＝再照合＝SEARCH{filter:{hasLifeBurst}} → TRIGGER_LIFE_BURST（lastProcessedCards が入る）
+WXK03-026-E4 :: 2026-09-12 :: 第286＝再照合＝§5.3 O-303 で入れ替え枝が zone_moved_just を積まなくなった（過剰発火の解消）
+WXK06-029-E2 :: 2026-09-12 :: 第286＝再照合＝同上（E3 も CHOOSE で自分/相手を選べる）
+WXK10-015 :: 2026-09-12 :: 第286＝再照合＝WXK10-015-E1 SELF_PLACE_COIN_COST{coinCost:0}
+WX12-010-E3 :: 2026-09-12 :: 第286＝再照合＝resumeRearrangeSigni が rearrMoved を lastProcessedCards に載せる（§6.4 O-8(b)）＝STORE→targetsStored で「移動したもの」だけに絞れている
+WXDi-CP01-007-E2 :: 2026-09-12 :: 第286＝再照合＝cost.collab:1
+WX24-P2-055-sub-E1 :: 2026-09-12 :: 第286＝再照合＝triggerCondition.crashedByKeywords:["ランサー","Ｓランサー"]
+WX25-P3-019-sub-E1 :: 2026-09-12 :: 第286＝再照合＝CHOOSE{opponentResponds} の回避肢（OPP_LRIG_DECK_TO_LRIG_TRASH）
+WX25-P3-091-sub-E1 :: 2026-09-12 :: 第286＝再照合＝SELECT_TARGET_ONLY→STORE→OPPONENT_PAY_OPTIONAL→targetsStored（§5.3 O-288）
+
+# ── 第286バッチ（2026-09-12）＝同バッチで実装した分 ──
+WXDi-D09-H11-E1 :: 2026-09-12 :: 第286＝「レベル３のルリグ１体を対象」を LRIG_LEVEL{operator:"eq"} へ（parser の「以上」有無で分岐・同型7効果を一括／golden「§5.0 第286 (c)」）
+WXDi-P06-002-E1 :: 2026-09-12 :: 第286＝同上（LRIG_LEVEL eq3）
+WXDi-D09-H15-E2 :: 2026-09-12 :: 第286＝新キー TargetFilter.levelLteSelf を対象宣言へ（resolveDynamicFilter ＋ execStubPart1 の2箇所で消費／golden「§5.0 第286 (a)」）
+WXDi-P06-032-E1 :: 2026-09-12 :: 第286＝applyOptionalCostTargetBackfill（本体の絞りを optionalCostTarget へ写す・同型4効果／golden「§5.0 第286 (b)」）
+WXDi-P08-030-E1 :: 2026-09-12 :: 第286＝FORCE_SIGNI_ATTACK を1ステップ追加（「可能ならば」が禁止ゾーンを外すので保存対象だけの強制に縮む／golden「§5.0 第286 (e)」）
+WXDi-P04-007-E3 :: 2026-09-12 :: 第286＝再照合で修正済み＝duration:NEXT_TURN + nextTurnOwner:opponent ＋ execGrantKeyword が count:ALL で reserveFieldGrant を通す（後から出たシグニにも効く）

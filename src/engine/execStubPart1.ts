@@ -268,6 +268,22 @@ export function execStubPart1(
         ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: sourcePower / 2 } }
         : rest;
     }
+    // 🆕**§5.0 実装キュー（2026-09-12 第286）＝`levelLteSelf`（「このシグニのレベル以下の」`WXDi-D09-H15-E2`）。**
+    // 🔴`matchesFilter` はこのキーを**黙って無視する**（解決に効果元が要る）ので、対象宣言では
+    //   `powerLteSelfHalf` と同じ規約で**ここで剥がして level.max へ畳む**。
+    //   落とすと「相手の任意1体」が候補に出る過剰実行になる（§5.3 `O-272` と同じ壊れ方）。
+    // ⚠基準は `ctx.cardMap` の `Level`＝**基本レベル上書き適用後**（同カード E1 の
+    //   `SET_BASE_LEVEL{UNTIL_OPP_TURN_END}` が乗る）。参照不能ならフラグを外すだけ（fail-open＝
+    //   `resolveDynamicFilter` の `levelLtSelf` と同じ歴史的規約に揃える）。
+    if (selectFilter?.levelLteSelf) {
+      const { levelLteSelf: _lte, ...restLLS } = selectFilter;
+      const sourceLevel = ctx.sourceCardNum
+        ? Number.parseInt(ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.Level ?? '', 10)
+        : Number.NaN;
+      selectFilter = Number.isFinite(sourceLevel)
+        ? { ...restLLS, level: { ...(typeof restLLS.level === 'object' ? restLLS.level : {}), max: sourceLevel } }
+        : restLLS;
+    }
     if (selectFilter?.levelMatchesUnderSourceSigni) {
       const { levelMatchesUnderSourceSigni: _under, ...rest } = selectFilter;
       const host = ctx.sourceCardNum

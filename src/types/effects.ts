@@ -1586,6 +1586,20 @@ export interface TargetFilter {
   powerGtSelf?: boolean;  // 効果元シグニの実効パワーより高い（「このシグニよりパワーの高い」。resolveDynamicFilterがpowerRange.min:N+1へ解決。WXK04-029）
   levelLtSelf?: boolean;  // 効果元シグニのレベルより低い（「このシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WXK11-018）
   levelGtSelf?: boolean;  // 効果元シグニのレベルより高い（「このシグニよりレベルの高い」。resolveDynamicFilterがlevel.min:N+1へ解決）
+  /**
+   * 🆕**効果元シグニのレベル以下**（「このシグニのレベル以下の対戦相手のシグニ１体を対象とし」
+   * `WXDi-D09-H15-E2`・2026-09-12 第286）＝`resolveDynamicFilter` が `level.max:N` へ解決する。
+   * 🔴**`levelLtSelf`（より低い）では表せない**＝境界が1つずれる（同レベルが対象に入る／入らない）。
+   * ⚠**基準は「実効基本レベル」**＝`ctx.cardMap` は `applyContinuousBaseLevelOverride` を通った写しなので、
+   *   同じカードの `SET_BASE_LEVEL{until:'UNTIL_OPP_TURN_END'}`（`WXDi-D09-H15-E1`＝基本レベルを3にする）が
+   *   そのまま基準へ乗る。**印字レベルを直読みしないこと。**
+   * ⚠**参照不能（効果元が場にいない／レベルが読めない）ならフラグを外すだけ**＝`levelLtSelf` と同じ
+   *   歴史的 fail-open に揃える（この語彙の唯一の利用元は効果元が場にいる【自】）。
+   * 🔴**`matchesFilter` はこのキーを黙って無視する**（解決に効果元が要るため）＝
+   *   `resolveDynamicFilter` を通らない経路（`STUB{SELECT_TARGET_ONLY}`）では
+   *   **ハンドラ側で剥がして絞る**規約（`powerLteSelfHalf` と同じ＝`execStubPart1.ts`）。
+   */
+  levelLteSelf?: boolean;
   powerLtTrigger?: boolean; // トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）よりパワーが低い（「そのシグニよりパワーの低い」。resolveDynamicFilterがpowerRange.max:N-1へ解決。WXK11-020）
   powerLteTrigger?: boolean; // トリガー元シグニのパワー以下（「そのシグニのパワー以下の」。resolveDynamicFilterがpowerRange.maxへ解決。WXEX1-42/WXEX1-53/WDK12-001）
   /**

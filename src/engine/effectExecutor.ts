@@ -3848,14 +3848,19 @@ function resolveDynamicFilter(
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), min: selfPower + 1 } }
       : { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtSelf ? selfPower - 1 : result.powerLteSelfHalf ? selfPower / 2 : selfPower } };
   }
-  // levelLtSelf / levelGtSelf: 効果元シグニのレベルを基準に level へ解決（「このシグニより低い/高いレベルを持つ」）
-  if ((result.levelLtSelf || result.levelGtSelf) && sourceCardNum) {
+  // levelLtSelf / levelGtSelf / levelLteSelf: 効果元シグニのレベルを基準に level へ解決
+  // （「このシグニより低い/高いレベルを持つ」「このシグニのレベル以下の」）
+  // 🆕`levelLteSelf`（2026-09-12 第286・`WXDi-D09-H15-E2`）＝**境界が `levelLtSelf` と1つ違う**（同レベルを含む）。
+  // ⚠基準は `cardMap` の `Level`＝**基本レベル上書き（`applyContinuousBaseLevelOverride`）適用後**の写しなので、
+  //   同カード `WXDi-D09-H15-E1` の `SET_BASE_LEVEL{UNTIL_OPP_TURN_END}` がそのまま効く。
+  if ((result.levelLtSelf || result.levelGtSelf || result.levelLteSelf) && sourceCardNum) {
     const selfLevel = parseInt(cardMap.get(getCardNum(sourceCardNum))?.Level ?? '', 10);
-    const { levelLtSelf: _la, levelGtSelf: _lb, ...rest } = result;
+    const { levelLtSelf: _la, levelGtSelf: _lb, levelLteSelf: _lc, ...rest } = result;
     result = !isNaN(selfLevel)
       ? (result.levelGtSelf
           ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: selfLevel + 1 } }
-          : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: selfLevel - 1 } })
+          : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}),
+              max: result.levelLteSelf ? selfLevel : selfLevel - 1 } })
       : rest;
   }
   // powerLtTrigger / powerLteTrigger: トリガー元シグニ（被バニッシュ/場に出た/アタッカー/ダウンした）のパワーを基準に

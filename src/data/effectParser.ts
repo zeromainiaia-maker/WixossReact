@@ -14690,6 +14690,39 @@ function applyPlacedThisTurnOptionalTarget(text: string, parsed: EffectAction): 
   return parsed;
 }
 
+/**
+ * 🆕**PLAN §5.0 実装キュー（2026-09-12 第286）＝任意コストを問う前の候補判定に、本体側の絞りを引き継ぐ。**
+ *
+ * 正準形は `SEQUENCE[STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}, CONDITIONAL{IS_MY_TURN(＝did-it ゲート), then:〈本体〉}]`。
+ * engine（`effectExecutor` の `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 分岐）は
+ * **`optionalCostTarget.filter` で「対象が1体も居ない」を判定して支払いを問わずに降りる**ので、
+ * ここが無いと **絞りを満たすシグニが1体も居なくても支払いを問われ、払った後に空振りする**（過剰請求）。
+ *
+ * 🔴**母集団の実測（2026-09-12）**＝`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` を持つ live 113効果のうち、
+ *   「本体に絞りがあるのに `optionalCostTarget` が無い」のは **5効果**で、うち4効果が真のバグだった：
+ *   `WXDi-P06-032-E1`（レベルが自分の白ルリグ数以下）／`WXK05-059-E2`・`WXK10-062-E2`（このシグニよりパワーが低い）／
+ *   `WXK07-030-E1`（そのシグニよりパワーが低い）。
+ *   ⚠残1件 `WXDi-P07-049-E1` は**偽陽性**＝`CHOOSE` の別の枝（「レベル1のシグニをバニッシュ」）の絞りを
+ *   拾っただけで、任意コストの枝は原文どおり無制限。**だからこの関数は `steps.length === 2` の素の形だけを見る。**
+ *
+ * 🔑`applyPrintedPowerScope` が同じ引き継ぎを**表記パワー限定で**持っていた（あちらは「刻む」側、ここは「写す」側）。
+ * ⚠**`cardType` だけの filter は写さない**（絞りが無いのと同じ＝無意味な差分を live に作らない）。
+ */
+function applyOptionalCostTargetBackfill(parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE' || parsed.steps.length !== 2) return parsed;
+  const head = parsed.steps[0] as StubAction | undefined;
+  if (head?.type !== 'STUB' || head.id !== 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || head.optionalCostTarget) return parsed;
+  const gate = parsed.steps[1];
+  if (gate?.type !== 'CONDITIONAL') return parsed;
+  const body = gate.then as EffectAction & { target?: EffectTarget; targetsStored?: boolean };
+  const bodyTarget = body?.target;
+  if (!bodyTarget || bodyTarget.type !== 'SIGNI' || bodyTarget.owner !== 'opponent') return parsed;
+  const keys = Object.keys(bodyTarget.filter ?? {}).filter(k => k !== 'cardType');
+  if (keys.length === 0) return parsed;
+  head.optionalCostTarget = JSON.parse(JSON.stringify(bodyTarget)) as EffectTarget;
+  return parsed;
+}
+
 function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
   const groups = parseExplicitSelectionGroups(text);
   if (!groups) {
@@ -24599,16 +24632,26 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // 対象のレベル資格まで落ち、Lv1センターでも無条件に付与していた。
   // 🔑受け皿は既存の `CardEffect.condition: LRIG_LEVEL`。印刷済み【使用条件】が先に載る
   // ドリームチーム系は AND へ追記し、`FIELD_LRIG_COLOR_COUNT` を上書きしない。
-  // ⚠「レベルN」は既存 manual 3件と同じく資格の下限として gte を使う（上限ではない）。
+  // 🆕🔴**2026-09-12 第286＝「以上」が無い形は `eq` にする**（PLAN §5.0 実装キュー
+  //   `WXDi-D09-H11-E1` / `WXDi-P06-002-E1`）。旧実装は**両形とも `gte`** で、
+  //   「⚠『レベルN』は既存 manual 3件と同じく資格の下限として gte を使う」という当時のコメントは
+  //   **原文の読み違いだった**＝原文「あなたの**レベル３の**ルリグ１体を対象とし」は
+  //   ちょうどレベル3だけが対象資格で、**レベル4のセンターでは対象が取れない**（＝何も起きない）。
+  // 📊**母集団（`census:population` 実測）**＝「以上」なし **7効果**（`WXDi-D03/D04/D05/D06-011-E1` は
+  //   MANUAL で同じ値を手書きしているので**そちらも同時に直した**）／「以上」あり **5効果**
+  //   （`WX24-P3-001/003/005/007/009-E1`＝こちらは従来どおり `gte`）。
+  // ⚠**レベル4の Diva ルリグは実在する**（`WXDi-P13-003B` `WXDi-P16-001B` ＋ `SPDi47-01`〜`05` の7枚）
+  //   ＝`gte` のままだと**原文に無い盤面で通る過剰実行**になる。
   // ⚠GRANT を持たない同文型（WXDi-D04-011 等）へ波及させないため、木の実体でも絞る。
   const targetedLrigLevelM = withoutPrintedUseCondition.match(
-    /^あなたのレベル([０-９\d]+)(?:以上)?の(?:センター)?ルリグ[１1]体を対象とし[、,]/,
+    /^あなたのレベル([０-９\d]+)(以上)?の(?:センター)?ルリグ[１1]体を対象とし[、,]/,
   );
   const hasLrigLevelCondition = (c?: Condition): boolean => c?.type === 'LRIG_LEVEL'
     || ((c?.type === 'AND' || c?.type === 'OR') && c.conditions.some(hasLrigLevelCondition));
   if (targetedLrigLevelM && grantLrigAbilityNodes(action).length > 0 && !hasLrigLevelCondition(condition)) {
     const targetLevelCondition: Condition = {
-      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(targetedLrigLevelM[1]),
+      type: 'LRIG_LEVEL', owner: 'self',
+      operator: targetedLrigLevelM[2] ? 'gte' : 'eq', value: parseNum(targetedLrigLevelM[1]),
     };
     condition = condition?.type === 'AND'
       ? { ...condition, conditions: [...condition.conditions, targetLevelCondition] }
@@ -30400,6 +30443,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // 🆕§5.3 `O-288`（2026-09-10）＝支払い前の対象確定。
     // ⚠**ここで `abilityBlockTextOf` を呼んではいけない**（再入して黙って効かなくなる＝関数の頭に詳述）。
     normalizeOpponentPayPreTarget(e.action, `${card.EffectText ?? ''}。${card.BurstText ?? ''}`);
+    // 🆕**PLAN §5.0 実装キュー（2026-09-12 第286）＝任意コストの候補判定に本体側の絞りを写す。**
+    // 🔴**呼ぶ場所が肝**＝動的レベル／パワーの filter（`levelLteZoneCount` / `powerLtSelf` ほか）を刻むのは
+    //   後段のノーマライザなので、parse パイプラインの途中で呼ぶと**まだ絞りが無い木**を見て空振りする
+    //   （実測＝`WXDi-P06-032-E1` だけ写らなかった）。**効果が完成した後の後処理ループで1回**呼ぶ。
+    e.action = applyOptionalCostTargetBackfill(e.action);
     e.action = dropEmptyLookAndReorder(e.action);
   }
 

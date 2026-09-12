@@ -14173,3 +14173,149 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   新語彙 `levelLtOwnLrig` を足した回なので §2.2 の「新しい型・機構」に該当させた。
   🔁**live A/B 差分＝5効果**（`WX07-032-E1` / `WX09-037-E1` / `WX10-031-E1` / `WX11-006-E3` / `WX11-025-BURST`）。
   🧾**`manualEffects.ts`**＝991 → 996カード。**`OPTIONAL_TRASH_ENERGY_CLASS` の live 利用＝37 → 36効果**（誤配線1件を外した）。
+
+---
+
+## 2026-09-12 登録：`O-334`〜`O-340`（第286バッチ＝PLAN §5.0 実装キューの全数再照合で残った「真に機構が要る」7効果）
+
+> **経緯**＝第286バッチで §5.0 実装キューの**残123効果を全数再照合**した（live JSON × 効果単位の原文 ×
+> 逆翻訳 × engine の消費地点を1件ずつ）。**109効果は既に直っていた**（§5.3 の `O-nn` をクローズした回が
+> 直していたのに `semantic_bug_fixed.txt` へ書き漏らしていた分）。**7効果を同バッチで実装**し、
+> **残る7効果がここ**＝どれも「受け皿の別名を探しても無い」ことを grep で確かめた機構待ち。
+> 🔑**第284〜285の教訓（「新機構が要る」は9項目中9項目とも過大評価だった）を踏まえ、登録票には
+> 「何を grep して無いと判断したか」を必ず書いた。** 着手する人は**まずその grep をやり直すこと。**
+
+### `O-334` — 「このシグニのアタックは**対戦相手の**効果によって無効にならない」per-signi 免疫が無い
+
+**規模／母集団**＝S ／ **1効果**（`WX25-P3-057-E1` が覚醒中に得る3つのうちの1つ）。
+`census:population -- "アタックは対戦相手の効果によって無効に"` の実測で1効果／1カード。
+
+**何が無いか**＝既存の受け皿は**2つとも向きが違う**（grep で確認済み）：
+- `own_effects_cannot_negate_signi_attack_this_turn`（`src/types/index.ts:1641`／`execStubPart3.ts:4821`）
+  ＝**プレイヤー単位**で「**自分の**効果では無効にできない」（`WX24-P4-016-E3`）。
+- `attack_not_negated_by_self_effect_this_turn`（`src/types/index.ts:1343`）
+  ＝**カード単位**だが「**そのシグニ自身の**効果」限定（`WXDi-P05-068-E1`／`O-241`）。
+
+**取り方の見立て**＝無効化の書き込み地点は `execNegateAttack`（`effectExecutor.ts:9395-9417`＝
+`negated_attacks` へ積む）と `applyDirectAction` の `attackingOnly` 分岐の2本。
+**被害側（victim）の宣言を読む必要がある**が、🔴**`ctx.effectsMap` は BattleScreen のどの生成地点でも
+代入されていない**（`O-333` で踏んだ罠）＝executor 内で被害側の【常】を走査してはいけない。
+⇒ **BattleScreen が計算している保護集合の family（`otherProtectedSigniNums` / `otherEffectImmuneNums` …）に
+1本足して ctx で渡す**のが既存の型どおり。⚠**`src/screens/` を触るので §2.2 で⑤実機まで必須。**
+
+**罠**＝`WX25-P3-057` は【常】の条件が「覚醒状態であるかぎり」＝`IS_SELF_AWAKENED`（`effectEngine.ts:590`）。
+第286で**【アサシン】側だけ**を `WX25-P3-057-E1b`（`CONTINUOUS GRANT_KEYWORD`）で実装済みなので、
+**同じ `activeCondition` を使う2本目の宣言**として足せる（条件の評価器は既にある）。
+
+### `O-335` — 「シグニゾーン以外の自分の領域」のカードが相手効果でトラッシュ／デッキへ移動しない保護
+
+**規模／母集団**＝M ／ **2効果**（`WXK03-011-E1` の後半／`WXDi-P16-002-E1` の②）。
+
+**何が無いか**＝🔴**型は既に `'deck' | 'trash' | 'life'` まで持っているのに、消費地点が `'hand'` と `'energy'`
+しか見ていない**＝`OppMoveImmunityZone`（`src/types/effects.ts:4042`）に対して
+`activeOppMoveImmunityZones` の呼び出しは **`effectExecutor.ts:3044 / 3145 / 13049 / 13082 / 13118 / 13180` の
+6箇所すべてが `'hand'` か `'energy'` のリテラル**（grep 実測）。
+⇒ **`zones` に `'deck'` を書いても誰も読まない死にキーになる**（`census:deadstate` と同型）。
+
+**取り方の見立て**＝①デッキ／トラッシュ／ライフを**移動元**にする funnel を洗い出す
+（`TRASH{DECK_CARD}`＝`MILL` 系／`TRANSFER_TO_DECK{source:TRASH_CARD}`／`EXILE` ほか）
+②その funnel で `activeOppMoveImmunityZones(victimState).includes('deck')` を見る
+③`WXK03-011-E1` は**【常】宣言**（`CONTINUOUS`）なので、`ZONE_MOVE_IMMUNITY` の**期間つき state 書き込み**
+（`opp_move_immunity{turnsRemaining}`・`effectExecutor.ts:11469`）には乗らない
+＝**宣言走査（`oppMoveProtectedZones` に CONTINUOUS を足す）が別に要る**。
+
+**罠**＝`WXDi-P16-002-E1` の①③は第286で確認済み（`allFieldLrigs`／`untilOwnEnergyPhaseEnd` は live に在る）＝
+**残っているのは②だけ**。①③まで直そうとしないこと。
+
+### `O-336` — 相手エナゾーンのカードが「対戦相手の効果を受けない」（ゾーン単位の効果免疫）
+
+**規模／母集団**＝M ／ **1効果**（`WXK11-020-E1` の後半）。
+
+**何が無いか**＝`collectEffectImmuneSigni`（`effectEngine.ts`）／`ownEffectImmuneNums`・`otherEffectImmuneNums`
+（`BattleScreen.tsx:5229` で ctx へ入る）は**場のシグニ専用**。**エナゾーンのカードを免疫にする軸が無い**
+（`grep -rn "EffectImmune" src/` の全ヒットが field 前提）。
+前半（【マルチエナ】剥奪）だけが `STUB{STRIP_OPP_ENA_MULTI_ENA}` で実装済み＝消費は
+`src/screens/battle/costs.ts:1233` と `artsUseGate.ts:71` の2箇所。
+
+**取り方の見立て**＝エナを動かす funnel（`execTrash` の `ENERGY_CARD` 分岐／`applyDirectAction` の
+EXILE・TRASH／`TRANSFER_TO_HAND` の `ENERGY_CARD` 分岐／`SEND_TO_ENERGY` の逆流）を
+`activeOppMoveImmunityZones` と**同じ形**で1本の述語にまとめてから、宣言側（【常】）を走査する。
+🔑**`O-335` と受け皿が近い**（どちらも「ゾーン単位の保護を宣言から読む」）＝**まとめて取ると安い**。
+
+**罠**＝原文「**対戦相手の**効果を受けない」は、このカードの持ち主から見た相手＝
+**相手自身が自分のエナを触る効果まで止まる**（自エナのトラッシュを対価にする効果が撃てなくなる）。
+⚠**「誰の効果か」を反転させやすい**（続き411 の教訓）＝`causeOwnerId` 側で判定すること。
+
+### `O-337` — 「【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない」抑止
+
+**規模／母集団**＝M ／ **1効果**（`SP26-002-E1`）。
+
+**何が無いか**＝**トリガー能力を一括で止める受け皿が1つも無い**
+（`grep -rn "trigger_abilities_blocked\|triggers_suppressed\|suppress_trigger" src/` が**0ヒット**）。
+live は `STUB{DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS}`＝**明示 defer**（`census:stubs` A群の🔴側には出ない）。
+
+**取り方の見立て**＝収集側（`src/engine/triggerCollect.ts`）の**入口1本**で落とすのが正しい
+（消費地点を各 collector に写経すると必ず漏れる）。⚠**原文が除外しているのは【ライフバースト】だけ**＝
+「～したとき」「～時」「【出】」「【自】」「《トラップアイコン》」は**全部止める**（カード注記がそう定義している）。
+⚠**すべての領域**（場・手札・エナ・トラッシュ・デッキ・ライフ）が対象＝
+場のシグニだけ止めると《トラップアイコン》やトラッシュ発動が素通りする。
+
+**罠**＝🔴**旧 live は `STUB{SUPPRESS_LIFE_BURST_ON_CRASH}` で、原文が明示的に除外している
+【ライフバースト】だけを止めていた**（意味がほぼ反転）。**いま是正して defer 印になっている**ので、
+**「実装済みに見える」誤読をしないこと**（`DEFERRED_` 接頭辞が唯一の目印）。
+
+### `O-338` — 「《X》《X》《X》か《X》《X》を支払う際、代わりに〜してもよい」＝エナ支払いの代替
+
+**規模／母集団**＝M ／ **1効果**（`WX09-032-E1`）。
+
+**何が無いか**＝live は `STUB{DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY}`（`CONTINUOUS`・**明示 defer**）。
+**支払い時に「代替肢」を提示する機構が無い**＝コスト層は
+`src/data/keywordCosts.ts`（原文を読む唯一の場所）→ `EffectCost` の payload →
+`src/screens/battle/costs.ts` が読むだけ、という一方向の経路しか持っていない（`census:costtext` の
+`BASELINE_COST_RULES=0` はこの経路を守るゲート）。**「支払う際に別の払い方を選ぶ」窓は無い。**
+
+**取り方の見立て**＝①`EffectCost` ではなく**支払い UI 側の代替肢**として持つ
+（`computeArtsEffectiveCost` と同じ層に「代替肢の列挙」を足す）②宣言は【常】なので
+`opp_move_immunity` と同じ「宣言走査」型。⚠**`src/screens/` を触るので⑤実機まで必須。**
+
+**罠**＝🔴**`census:costtext` の A群ゲートに引っかかる形で書かないこと**＝
+**UI 層で `card.EffectText` を新しく regex で読んだ瞬間に `npm run gates` が exit 1 する**（再発防止ゲート）。
+代替肢の条件（「《緑》×3 か ×2」）は**必ず payload へ**。
+
+### `O-339` — 「そのバトル終了時に」の遅延＋バトル相手の焼き込み
+
+**規模／母集団**＝S ／ **1効果**（`PR-305-E1` の②。①＝`targetsTriggerSource` は第286で確認済みで実装されている）。
+
+**何が無いか**＝タイミングそのものは在る（`ON_ATTACK_END`＝`src/types/effects.ts:63`・
+`triggerCollect.ts:2452 collectAttackEndTriggers`。`INSTALL_DELAYED_TRIGGER` から張った例も
+`triggerCollect.ts:277` に在る）。🔴**足りないのは「バトル相手を遅延本体へ運ぶ」carrier**＝
+遅延トリガーの `effect` は**JSON のスナップショット**で、発火時の `ExecCtx` は別物なので
+`targetsTriggerSource` は**そのとき新たに引き金を引いたカード**に束縛され直す（＝別のシグニを送る）。
+
+**取り方の見立て**＝`O-311` の結論（「carrier は作らない・参照が生きているうちに具体値へ焼く」）に従い、
+`STUB{BAKE_LAST_PROCESSED_REFS}` で**バトル相手のカード番号を `fixedCardNums` へ焼いてから**
+`INSTALL_DELAYED_TRIGGER{trigger:{timing:'ON_ATTACK_END'}}` を張る。
+
+**罠**＝現状は**即時実行**＝バトルのダメージ処理より**先に**相手をデッキ送りにするので、
+**そのシグニはバニッシュされずに済む**（原文はバトル終了後なので、バニッシュされていれば何も起きない）。
+⇒ **「デッキ下へ送る」が強いのではなく「バトルから逃がしている」のが誤り。** 反転確認はそこで取る。
+
+### `O-340` — 「このシグニが場にあるかぎり」を伴う期間つきリミット修整（発生源に紐づく修整）
+
+**規模／母集団**＝S ／ **1効果**（`WXDi-P13-004B-E3`）。
+`census:population -- "このシグニが場にあるかぎり"` の実測で1効果／1カード。
+
+**何が無いか**＝`lrig_limit_mod_until_own_energy_phase_end`（`src/types/index.ts:1469`）は**ただの数値**で、
+**誰が立てた修整かを持っていない**＝読み手（`src/screens/battle/lrigLimit.ts:59`）は合計するだけ。
+失効はターン境界だけ（`turnScopedState.ts:245`＝`main-phase-start`）。
+⇒ **発生源のシグニが場を離れても +2 がエナフェイズまで残る**（過剰実行）。
+
+**取り方の見立て**＝`Record<発生源カード番号, delta>` の**並行ストア**を足し、
+`computeEffectiveLrigLimit` が**その発生源がいま場にいる分だけ**合計する。
+⚠**既存の数値キーは消さない**（発生源を持たない書き手が他にいる）。
+⚠`src/screens/battle/lrigLimit.ts` は純関数なので golden から import できるが、
+**`src/screens/` を触る回は §2.2 で⑤実機まで必須**。
+
+**罠**＝原文は「次のあなたのエナフェイズ終了時まで、**このシグニが場にあるかぎり**」＝**2つの寿命の AND**
+（短い方で切れる）。⚠**どちらか片方に寄せない**＝場に残っていてもエナフェイズで切れる／
+エナフェイズ前でも場を離れたら切れる、の両方向を golden で固定する。

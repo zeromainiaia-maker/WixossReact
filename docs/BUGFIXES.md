@@ -1,5 +1,100 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — PLAN §5.0 実装キューの残123効果を全数処理（第286バッチ・109件は「未修正」ではなく「未記録」だった）
+
+**着手の形**＝ユーザー指定「§5.0 実装キュー（triage 済みの確定バグ）の**残123効果**をすべて処理する」。
+
+### 結論（3行）
+
+| | 効果 | 中身 |
+|---|---|---|
+| **既に直っていた（記録漏れ）** | **109** | §5.3 の `O-nn` をクローズした回が直していたのに `semantic_bug_fixed.txt` へ書き漏らしていた分 |
+| **このバッチで実装** | **6** | 下の「修正1〜5」 |
+| 🔥**機構待ち（§5.3 へ登録）** | **8** | `O-334`〜`O-340`（新設7項目。登録票は PLAN_DETAIL.md） |
+
+🔴🔑**真因＝在庫カウンタが数えていたのは「未修正」ではなく「未記録」**。
+`semanticAuditBugList.mjs` は `triaged.txt` の `:: BUG ::` から `semantic_bug_fixed.txt` を引くだけなので、
+**第274〜285 の機構バッチ（`O-287`〜`O-333` のクローズ）が直した effectId を誰も書き足していなかった**。
+⇒ 残123 のうち **109効果（89%）は live を読めばその場で直っていた**。
+
+### 再照合のやり方（次に同じことをする人向け）
+
+**1件ずつ4点を突き合わせた**＝①triage の判定文 ②**効果単位の原文**（`docs/_effect_srctext.json`）
+③**逆翻訳**（`docs/decompile_sheet*.txt` の `  <effectId>:` 行）④**live JSON**（`public/data/effects_*.json`）。
+⚠**判定文だけで「直った／直っていない」を決めない**＝実際に
+**deferred=STALE と書かれていた20件のうち1件（`WX09-032-E1`）は成立していなかった**し、
+逆に**deferred=MECH の32件のうち26件は直っていた**。
+🔑**「受け皿が payload に無い」だけでは未修正の証拠にならない**＝
+`WX06-019-E1` の「あなたの**他の**＜水獣＞」は `excludeSelf` ではなく
+`findEffectLeavePowerReductionSubstitute` の `if (top === victimNum) continue` という**構造**で実装されていた。
+
+### 修正1：「レベル３のルリグ１体を対象」は**ちょうど**レベル3（7効果）
+
+| | |
+|---|---|
+| 真因 | `effectParser.ts` の `O-300` 規則が「レベルN**以上**の」と「レベルNの」を**同じ `gte`** で生成していた（当時のコメント「資格の下限として gte を使う」が原文の読み違い） |
+| 影響 | **7効果／7カード**（`WXDi-D03/D04/D05/D06-011-E1` は MANUAL・`WXDi-D09-H11-E1`／`WXDi-P06-002-E1`／`WXDi-P07-001-E1` は AUTO）。🔴**Diva 系にもレベル4のルリグが7枚実在する**（`WXDi-P13-003B`／`WXDi-P16-001B`／`SPDi47-01`〜`05`）＝`gte` のままだと**原文では対象が取れない盤面でピースが通る** |
+| 直し方 | 正規表現の `(?:以上)?` を捕獲群にして `operator: m[2] ? 'gte' : 'eq'`。MANUAL 4件は `manualEffects.ts` を直して `syncManualLive.ts` で live へ。AUTO 3件は `heldReview.mjs --adopt` |
+| 検証 | `golden --only "§5.0 第286 (c)"`（7効果が `eq3` ／「以上」形の5効果 `WX24-P3-001/003/005/007/009-E1` は `gte` のまま）＋既存2本の期待値更新（**レベル4で不成立**の反転確認を追加） |
+
+### 修正2：`TargetFilter.levelLteSelf` 新設（`WXDi-D09-H15-E2`）
+
+| | |
+|---|---|
+| 真因 | 原文「**このシグニのレベル以下の**対戦相手のシグニ１体を対象とし」の上限が丸ごと落ち、**相手の任意1体**を選べた |
+| 影響 | 1効果／1カード（`census:population -- "このシグニのレベル以下"` の実測） |
+| 直し方 | 新キー `levelLteSelf`（`levelLtSelf` では境界が1つずれる）。🔑**消費は2箇所**＝`resolveDynamicFilter`（本体 funnel）と `execStubPart1` の `STUB{SELECT_TARGET_ONLY}`（対象宣言）。**`matchesFilter` はこのキーを黙って無視する**ので、対象宣言側で剥がして `level.max` へ畳まないと候補が絞られない（`frontOfSelf`＝`O-272` と同じ壊れ方） |
+| 罠 | 🔴**刻む先は `selectTarget`**＝本体 `BANISH` は `targetsStored:true`（宣言で選んだ札をそのまま使う）ので、**本体側だけに刻んでも候補は絞られない**（払わせてから空振り）。⚠基準は `ctx.cardMap` の `Level`＝**基本レベル上書き適用後**なので、同カード `E1` の `SET_BASE_LEVEL{UNTIL_OPP_TURN_END}`（基本レベル3）がそのまま効く |
+| ⚠parser には規則を置いていない | この文型が通る正準化経路を実測で特定できず（`applyLeadingSelfComparison` も `applyDroppedTargetDesignation` も不発）、**検証できない規則は置かない**方針で `manualEffects.ts` に手書き（母集団1効果＝速いレーン） |
+| 検証 | `golden --only "§5.0 第286 (a)"`（レベル1/2は候補・レベル4は候補外／候補0なら**支払いを問う前に**降りる）＋既存 `catch-all A5` の標本をレベル2へ差し替え（**旧標本はレベル4＝原文では最初から対象外**＝テストが上限の欠落を固定していた） |
+
+### 修正3：任意コストの候補判定に本体側の絞りを写す（4効果）
+
+| | |
+|---|---|
+| 真因 | `SEQUENCE[STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}, CONDITIONAL{did-it, then:本体}]` で、**本体の target には絞りがあるのに `optionalCostTarget` が無い**。engine はこの payload で「対象が1体も居ない」を判定して支払いを問わずに降りるので、**絞りを満たす相手が居なくても支払いを問われ、払った後に空振り**していた |
+| 影響 | **4効果**（`WXDi-P06-032-E1`／`WXK05-059-E2`／`WXK10-062-E2`／`WXK07-030-E1`）。live の同 STUB 113効果を全数走査して「本体に絞りあり ∧ `optionalCostTarget` 無し」を数えた結果は5件で、**1件（`WXDi-P07-049-E1`）は偽陽性**＝`CHOOSE` の別の枝の絞りを拾っただけ |
+| 直し方 | `applyOptionalCostTargetBackfill`（`effectParser.ts`）＝**`steps.length === 2` の素の形だけ**を見て本体 target を写す。⚠`cardType` だけの filter は写さない |
+| 罠 | 🔴**呼ぶ場所が肝**＝動的 filter（`levelLteZoneCount`／`powerLtSelf` ほか）を刻むのは後段のノーマライザなので、parse パイプラインの途中で呼ぶと**まだ絞りが無い木**を見て空振りする（実測＝`WXDi-P06-032-E1` だけ写らなかった）。⇒ **`parseCardEffects` の後処理ループで1回**呼ぶ |
+| 検証 | `golden --only "§5.0 第286 (b)"`（4効果とも候補判定と本体の filter が JSON 一致・偽陽性1件には付けない反転確認）。live A/B 差分＝**ちょうど4効果** |
+
+### 修正4：`WX25-P3-057-E1b`＝覚醒中だけ【アサシン】を得る
+
+| | |
+|---|---|
+| 真因 | 原文 E1 は覚醒中に**3つ**（【アサシン】／アタックが相手効果で無効にならない／ターン終了時に自分をバニッシュ）を得るのに、live は**3つ目だけ**。**このカードの勝ち筋（E2 で手札0のとき覚醒→アサシン）が丸ごと成立していなかった** |
+| 直し方 | `CONTINUOUS GRANT_KEYWORD{アサシン}` ＋ `activeCondition: IS_SELF_AWAKENED`（どちらも既存＝`collectKeywords` が読む／`effectEngine.ts:590`）。⚠絞りは `target.count:1`（収集器が「発生源自身だけ」に落とす）が担い、`filter.thisCardOnly` は**逆翻訳のため**に書く（無いと「あなたのシグニ1体に与える」という嘘になる） |
+| 残り | 🔴**2つ目（アタックが対戦相手の効果で無効にならない）は未実装**＝既存2キーはどちらも「**自分の**効果」向き ⇒ §5.3 `O-334` へ登録 |
+| 検証 | `golden --only "§5.0 第286 (d)"`（覚醒していなければ付かない／覚醒していれば付く の両方向） |
+
+### 修正5：`WXDi-P08-030-E1`＝「選んだシグニで可能ならばアタックしなければならない」
+
+| | |
+|---|---|
+| 真因 | 後半（選んだシグニ以外のアタック禁止）だけが実装され、**前半の強制が丸ごと落ちていた**（PLAN_DETAIL の「⚠残した近似＝強制アタック」がこれ） |
+| 🔑**新機構は要らなかった** | `must_attack_signi` は「**可能ならば**アタックしなければならない」で、`collectForcedAttackZones`（`src/screens/battle/signiAttackGate.ts`）が **`signiAttackBlockReason` が非 null のゾーンを外す**。他のシグニを禁止してある盤面では**全体強制 ≡ 選んだシグニだけへの強制**に自動で縮む ⇒ 既存 `FORCE_SIGNI_ATTACK` を1ステップ足すだけ（§5.3 `O-317` の登録票が書いていた「保存対象だけの攻撃強制が無い」という見立ては誤り） |
+| 検証 | `golden --only "§5.0 第286 (e)"`＝相手側に `must_attack_signi` が立つ／禁止の例外が「選んだシグニ」と一致／🔴**UI と同じ純関数 `collectForcedAttackZones` を import して**、例外を1体に狭めると強制ゾーンが 3 → 1 に縮むことまで固定した |
+
+### 併せて確定したこと（実装不要）
+
+- **`WXDi-P04-007-E3`**＝「解決時の場のシグニだけに個別付与する」という判定は**誤り**。`execGrantKeyword` は `duration:'NEXT_TURN'` ＋ `target.count:'ALL'` で**既に `reserveFieldGrant` を通している**（`field_grants_next_opp_turn`）＝後から場に出たシグニにも効く。
+- **`WXK08-005` / `WX25-P1-096-E1`**＝偽陽性と確定（前者は原文第1文「アタックフェイズの間、…レベルが低いかぎり《アタックフェイズアイコン》を得る」が `LRIG_LEVEL_CMP_OPP(lt)` そのもの／後者は原文に「それと」が無く、選ぶ2枚同士の相互条件＝`distinct:'class'` が正しい）。
+
+### 検証
+
+- `npm run gates` **全緑**（typecheck／golden **4025 PASS**（+5本）／smoke 10752 OK／fuzz 0／census 高シグナル **1/1 据置**／`census:stubs` A・C群 0／`manual-fields` 0／`census:enginetext` A群 **0**／`census:costtext` A群 **0**／lint 0 errors）。
+- `npm run census:deadstate` **0件**／`census:orphanmanual` A・B・C群 **0**（D群4＝build 後の fixer が毎回生成＝凍っていない）。
+- `npm run regen` の**逆翻訳を目視**＝変更5効果とも原文どおり（`WX25-P3-057-E1b`「このシグニは【アサシン】を持つ」／`WXDi-D09-H15-E2`「このシグニのレベル以下の」／`WXDi-D09-H11-E1`「レベル3である場合」）。⚠**`decompileEffects.ts` の `filterJa` に `levelLteSelf` の描画を足した**（足さないと**実装は入っているのに逆翻訳が「上限なし」と嘘をつく**）。
+- **⑤実機は不要と判定**（§2.2）＝触ったのは `src/data/` `src/engine/` `public/data/` `scripts/` `docs/` だけで **`src/screens/` は1バイトも変更していない**。新しいアクション型・条件型も足していない（`levelLteSelf` は `TargetFilter` の語彙で、消費2箇所とも golden が `executeEffect` 経由で固定）。強制アタックの UI 層依存は `collectForcedAttackZones` を golden から import して固定した。
+
+### 🔑教訓
+
+1. 🔴**機構項目（§5.3 `O-nn`）をクローズする回は、その機構が閉じた effectId を必ず `semantic_bug_fixed.txt` へ書く。** 書かないと在庫カウンタが膨らみ続け、**次の担当が「直っているもの」を何度も読み直す**（今回は89%がそれだった）。
+2. 🔴**「受け皿が無い」は消費地点を読むまで書かない。** 第284〜285 に続き、第286でも2件が誤り（`must_attack_signi` の「可能ならば」／`reserveFieldGrant`）。
+3. 🔑**`matchesFilter` が黙って無視する動的 filter は、対象宣言（`STUB{SELECT_TARGET_ONLY}`）側でも剥がす。** `resolveDynamicFilter` だけに入れると**候補は絞られないのに本体だけ絞られる**。
+4. 🔑**`parseStatus` が MANUAL のカードは `build:effects` では live へ届かない**＝`npx tsx scripts/syncManualLive.ts <CardNum>`（目印は `docs/_partial_fresh.json`。`_held_fresh` 側は `heldReview.mjs --adopt`）。
+5. 🔑**修正が逆翻訳に出ているかまで見る。** 今回2件（`levelLteSelf` の未描画／`thisCardOnly` 無しの「あなたのシグニ1体」）は、JSON は正しいのに**逆翻訳だけが嘘**になっていた。
+
 ## 2026-09-12 — PLAN §5.3 `O-333` をクローズ（索引 G 残0＝機構 worklist が空になった）
 
 **着手の形**＝ユーザー指定「`O-333` を行う」。**第284で「defer が妥当」と判断して残した最後の1項目**。

@@ -362,6 +362,9 @@ function filterJa(f?: any): string {
   if (f.powerGtSelf) parts.push('このシグニよりパワーの高い');
   if (f.levelLtSelf) parts.push('このシグニより低いレベルを持つ');
   if (f.levelGtSelf) parts.push('このシグニよりレベルの高い');
+  // 🆕**§5.0 実装キュー 第286（2026-09-12）＝`levelLteSelf`（「このシグニのレベル以下の」`WXDi-D09-H15-E2`）。**
+  //   🔴描かないと逆翻訳が「対戦相手のシグニ1体を対象とする」＝**上限が無いという嘘**になる（実装は入っているのに）。
+  if (f.levelLteSelf) parts.push('このシグニのレベル以下の');
   if (f.powerLtAnyAlly) parts.push('あなたのいずれかのシグニよりパワーの低い');
   if (f.powerLtPrinted) parts.push('表記されているパワーよりパワーの低い');
   if (f.powerGtPrinted) parts.push('表記されているパワーよりパワーの高い');

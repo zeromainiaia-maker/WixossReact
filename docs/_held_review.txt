@@ -3,66 +3,15 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +LAST_PROCESSED_MATCHES ［1枚］
-WXDi-P13-054
---- WXDi-P13-054
-  原文: 【自】《ターン１回》：このシグニが対戦相手の、能力か効果の対象になったとき、あなたのデッキの一番上のカードをトラッシュに置く。そのカードがシグニの場合、《黒》《無》を支払ってもよい。そうした場合、そのカードをダウン状態で場に出す。【出】《黒》《無》《無》：対戦相手のシグニ１体を対象とし、それをバニッシュする。,：あなたのトラッシュから《ガードアイコン》を持た
-  - [0].action.steps[1].id = "OPTIONAL_COST"
-  - [0].action.steps[1].costColors[0] = "黒"
-  - [0].action.steps[1].costColors[1] = "無"
-  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.type = "STUB"
-  + [0].action.steps[1].then.id = "OPTIONAL_COST"
-  + [0].action.steps[1].then.costColors[0] = "黒"
-  + [0].action.steps[1].then.costColors[1] = "無"
-
-## +CONDITIONAL×2 +LAST_PROCESSED_MATCHES×2 +UNKNOWN -STUB ［1枚］
-WXDi-CP01-033
---- WXDi-CP01-033
-  原文: 【出】：あなたのデッキの一番下のカードをトラッシュに置く。そのカードが＜バーチャル＞のシグニの場合、次の対戦相手のターン終了時まで、このシグニのパワーを＋5000する。そのカードが《コード２４３４　町田ちま》の場合、この効果を繰り返す。,：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.thisCardOnly = true
-  - [0].action.steps[1].delta = 5000
-  - [0].action.steps[1].duration = "UNTIL_OPP_TURN_END"
-  - [0].action.steps[2].id = "DEFERRED_REPEAT_ON_REVEALED_NAME"
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.story = "バーチャル"
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  …（他 11 行）
-
-## +CONDITIONAL +IS_MY_TURN +STUB -NEGATE_ATTACK -SIGNI ［1枚］
-WXDi-CP02-033
---- WXDi-CP02-033
-  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のシグニ１体がアタックしたとき、あなたはデッキの一番上のカードをチェックゾーンに置く。そのカードがアタックしたそのシグニと同じレベルのシグニの場合、そのアタックを無効にする。そのカードをチェックゾーンからトラッシュに置く。」を得る。【出】《青》：あなたのデッキの上からカードを５枚見る。それらのカードを好
-  - [0].action.abilities[0].action.steps[1].target.type = "SIGNI"
-  - [0].action.abilities[0].action.steps[1].target.owner = "opponent"
-  - [0].action.abilities[0].action.steps[1].target.count = 1
-  - [0].action.abilities[0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.abilities[0].action.steps[1].target.filter.levelEqLastProcessed = true
-  ~ [0].action.abilities[0].action.steps[1].type : "NEGATE_ATTACK" → "CONDITIONAL"
-  + [0].action.abilities[0].action.steps[1].condition.type = "IS_MY_TURN"
-  + [0].action.abilities[0].action.steps[1].then.type = "STUB"
-  + [0].action.abilities[0].action.steps[1].then.id = "NEGATE_THAT_ATTACK"
-  ~ [0].action.abilities[0].parseStatus : "AUTO" → "PARTIAL"
-
-## +CONDITIONAL +IS_MY_TURN ［1枚］
-WD06-008
---- WD06-008
-  原文: 数字１つを宣言する。あなたのライフクロスの一番上を公開する。そのカードがあなたの宣言した数字と同じレベルのシグニの場合、このターン、あなたのライフクロスはクラッシュされない。このターン終了時、あなたのライフクロスの一番上のカードをトラッシュに置く。,-
-  - [0].action.steps[2].id = "LIFE_CRASH_PREVENTION"
-  - [0].action.steps[2].lifeCrashPrevention.scope = "ALL"
-  - [0].action.steps[2].lifeCrashPrevention.protects = "self"
-  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[2].condition.type = "IS_MY_TURN"
-  + [0].action.steps[2].then.type = "STUB"
-  + [0].action.steps[2].then.id = "LIFE_CRASH_PREVENTION"
-  + [0].action.steps[2].then.lifeCrashPrevention.scope = "ALL"
-  + [0].action.steps[2].then.lifeCrashPrevention.protects = "self"
-  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+## （type増減なし＝値/構造変更） ［3枚］
+WXDi-D09-H11 WXDi-P06-002 WXDi-P07-001
+--- WXDi-D09-H11
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のライフクロス１枚をクラッシュする。対戦相手がそのカードのライフバーストを使用することを選んだ場合、《無》《無》を支払ってもよい。そうした場合、そのカードのライフ
+  ~ [0].condition.conditions[1].operator : "gte" → "eq"
+--- WXDi-P06-002
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手の手札を見て１枚選び、捨てさせる。次の対戦相手のアップフェイズに、対戦相手が《無》《無》《無》を支払わないかぎり、対戦相手のセンタールリグはアップしない。』,-
+  ~ [0].condition.conditions[1].operator : "gte" → "eq"
+--- WXDi-P07-001
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のライフクロス１枚を手札に加えさせる。その後、あなたの手札からシグニを１枚まで場に出す。そのシグニの【出】能力は発動しない。』,-
+  ~ [0].condition.conditions[1].operator : "gte" → "eq"
 
