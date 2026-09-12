@@ -14207,45 +14207,62 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 第286で**【アサシン】側だけ**を `WX25-P3-057-E1b`（`CONTINUOUS GRANT_KEYWORD`）で実装済みなので、
 **同じ `activeCondition` を使う2本目の宣言**として足せる（条件の評価器は既にある）。
 
-### `O-335` — 「シグニゾーン以外の自分の領域」のカードが相手効果でトラッシュ／デッキへ移動しない保護
+### 🏁`O-335` — 「シグニゾーン以外の自分の領域」の移動保護（2026-09-12 第289でクローズ）
 
-**規模／母集団**＝M ／ **2効果**（`WXK03-011-E1` の後半／`WXDi-P16-002-E1` の②）。
+**結論**＝**登録票は stale だった**。「消費地点が `'hand'` と `'energy'` しか見ていない」は誤りで、
+**2026-09-07（意味照合 段2・`WXK10-004-E1`）で5領域とも配線済み**だった（`oppZoneMoveBlocked('deck'…)`＝
+`effectExecutor.ts` の `DECK_CARD` 分岐／`movableTrashCandidates`＝トラッシュから出る全経路の funnel／
+`oppMoveImmunityBlocksCrash`＝効果によるライフクラッシュ）。残っていたのは**宣言が live に出ていない**分だけ。
 
-**何が無いか**＝🔴**型は既に `'deck' | 'trash' | 'life'` まで持っているのに、消費地点が `'hand'` と `'energy'`
-しか見ていない**＝`OppMoveImmunityZone`（`src/types/effects.ts:4042`）に対して
-`activeOppMoveImmunityZones` の呼び出しは **`effectExecutor.ts:3044 / 3145 / 13049 / 13082 / 13118 / 13180` の
-6箇所すべてが `'hand'` か `'energy'` のリテラル**（grep 実測）。
-⇒ **`zones` に `'deck'` を書いても誰も読まない死にキーになる**（`census:deadstate` と同型）。
+**直したもの（2効果）**
+- `WXK03-011-E1`＝`parseSentencePart2.ts` の `/あなたは対戦相手の効果によってダメージを受けず/` が**文全体を飲んで**
+  STUB 1本を返し、**後半（移動しない）が無言で落ちていた**。⇒ `effectParser.ts` の後段パス
+  `applyNonFieldMoveImmunityTail` で **`-E1b`（`PREVENT_NON_FIELD_MOVE_BY_OPP`）を末尾に足す**（受け皿は既存）。
+- `WXDi-P16-002-E1`＝`zones` の判定が `エナゾーン`／`手札` しか見ておらず **`デッキ` が落ちていた**。
+  ⇒ **主語（「〜にあるカードは」の前）に出たデッキだけ**を数える（全文で見ると `WXEX2-06-E3` の
+  「**デッキとトラッシュに**移動しない」＝**移動先**を拾って過剰保護になる。反転確認で実測した）。
 
-**取り方の見立て**＝①デッキ／トラッシュ／ライフを**移動元**にする funnel を洗い出す
-（`TRASH{DECK_CARD}`＝`MILL` 系／`TRANSFER_TO_DECK{source:TRASH_CARD}`／`EXILE` ほか）
-②その funnel で `activeOppMoveImmunityZones(victimState).includes('deck')` を見る
-③`WXK03-011-E1` は**【常】宣言**（`CONTINUOUS`）なので、`ZONE_MOVE_IMMUNITY` の**期間つき state 書き込み**
-（`opp_move_immunity{turnsRemaining}`・`effectExecutor.ts:11469`）には乗らない
-＝**宣言走査（`oppMoveProtectedZones` に CONTINUOUS を足す）が別に要る**。
+**残った軸は `O-341` へ**（移動先の限定・位相の限定）。
 
-**罠**＝`WXDi-P16-002-E1` の①③は第286で確認済み（`allFieldLrigs`／`untilOwnEnergyPhaseEnd` は live に在る）＝
-**残っているのは②だけ**。①③まで直そうとしないこと。
+### 🏁`O-336` — 相手エナゾーンの効果免疫（2026-09-12 第289で「実装済み」と確認してクローズ）
 
-### `O-336` — 相手エナゾーンのカードが「対戦相手の効果を受けない」（ゾーン単位の効果免疫）
+**結論**＝**前日の `O-291`（2026-09-11）で実装済みだった**。登録票の「`grep -rn "EffectImmune" src/` の
+全ヒットが field 前提」は**別名を見落としていた**＝受け皿の名前は `EffectImmune` ではなく
+**`isEnergyImmuneByOpponent`**（`execUtils.ts`）で、funnel は **`energyCandidatesForOwner`**（エナから出る
+経路9地点すべてがこれを通る）。golden も `O-291: 相手エナは相手自身の効果を受けない／宣言者からは触れる`
+が**反転確認つき**で張ってある（向きの取り違えまで固定済み）。
 
-**規模／母集団**＝M ／ **1効果**（`WXK11-020-E1` の後半）。
+🔑**教訓**＝「受け皿が無い」と書くときは**概念名ではなく関数名の候補を複数 grep する**
+（`Immune` / `Locked` / `Blocked` / `CandidatesForOwner` …）。1語で引いて0件だったから無い、は成り立たない。
 
-**何が無いか**＝`collectEffectImmuneSigni`（`effectEngine.ts`）／`ownEffectImmuneNums`・`otherEffectImmuneNums`
-（`BattleScreen.tsx:5229` で ctx へ入る）は**場のシグニ専用**。**エナゾーンのカードを免疫にする軸が無い**
-（`grep -rn "EffectImmune" src/` の全ヒットが field 前提）。
-前半（【マルチエナ】剥奪）だけが `STUB{STRIP_OPP_ENA_MULTI_ENA}` で実装済み＝消費は
-`src/screens/battle/costs.ts:1233` と `artsUseGate.ts:71` の2箇所。
+### 🆕`O-341` — ゾーン保護の「移動先」と「位相」の軸が受け皿に無い
 
-**取り方の見立て**＝エナを動かす funnel（`execTrash` の `ENERGY_CARD` 分岐／`applyDirectAction` の
-EXILE・TRASH／`TRANSFER_TO_HAND` の `ENERGY_CARD` 分岐／`SEND_TO_ENERGY` の逆流）を
-`activeOppMoveImmunityZones` と**同じ形**で1本の述語にまとめてから、宣言側（【常】）を走査する。
-🔑**`O-335` と受け皿が近い**（どちらも「ゾーン単位の保護を宣言から読む」）＝**まとめて取ると安い**。
+**規模／母集団**＝M ／ **移動先軸 6効果**（`WXK03-011-E1b`／`WXDi-P16-002-E1`／`WXEX2-06-E3`／
+`WXK10-083-E1`／`WX19-047-E1`／`WX19-047-E2` が「**トラッシュ（とデッキ）に**移動しない」と書いている）
+＋ **位相軸 1効果**（`WXDi-P16-002-E1` の「**グロウフェイズ以外で**」）。
+実測＝`npm run census:population -- "移動しない"`（20効果/19カード）を1件ずつ読んで分類した（2026-09-12）。
 
-**罠**＝原文「**対戦相手の**効果を受けない」は、このカードの持ち主から見た相手＝
-**相手自身が自分のエナを触る効果まで止まる**（自エナのトラッシュを対価にする効果が撃てなくなる）。
-⚠**「誰の効果か」を反転させやすい**（続き411 の教訓）＝`causeOwnerId` 側で判定すること。
+**何が無いか**
+- `OppMoveImmunityZone` は**移動元のゾーンしか持たない**＝「トラッシュとデッキに移動しない」と
+  「他の領域に移動しない」（`WXEX2-22-E1`／`WXK10-004-E1`）を**区別できない**。
+  ⇒ いまは**除外（ゲームから除外）まで止まる**＝移動先を限定している6効果は**過剰実行**。
+- 位相の限定を持てない＝`ZONE_MOVE_IMMUNITY` にも宣言型 STUB にもフェイズ欄が無い。
+  ⚠**2経路が非対称**＝`oppZoneMoveBlocked` は `ctx.currentPhase` を持つが、
+  `activeOppMoveImmunityZones(state)` と `collectProtectedZones(state, …)` は**フェイズを受け取らない**。
 
+**取り方の見立て**＝payload に `destinations?: ('trash'|'deck'|'hand'|'energy'|'field'|'exile')[]` と
+`exceptPhases?: TurnPhase[]` を足し、`oppZoneMoveBlocked(zone, tgtOwner, ctx, dest)` へ移動先を渡す。
+🔴**重いのはトラッシュ側**＝`movableTrashCandidates` は「候補0」で表す方式なので、**移動先ごとに候補を
+出し分ける**必要があり、呼び出し元（`trashCandidates` の7地点＋`PLACE_UNDER_SIGNI`／`ATTACH_CHARM`／
+トラッシュ直操作 STUB 5種）まで波及する。
+
+**罠**
+- 🔴**payload の無い既存宣言は「全方向・全位相」を既定にする**（退化させない）。
+- ⚠**逆翻訳の固定文言も一緒に直す**＝`decompileEffects.ts` の `PREVENT_NON_FIELD_MOVE_BY_OPP` は
+  `WXEX2-22-E1` の原文（「クラッシュ以外の」）を焼き込んでおり、第289で**別カードに当てた瞬間に嘘になった**
+  （engine はクラッシュを元から通すので、いまは「（ライフクラッシュを除く）」に直してある）。
+- ⚠**移動先の「デッキ」と保護領域の「デッキ」を混同しない**（第289で実測＝全文 regex だと `WXEX2-06-E3` が
+  自分のデッキまで保護して過剰になる）。
 ### `O-337` — 「【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない」抑止
 
 **規模／母集団**＝M ／ **1効果**（`SP26-002-E1`）。

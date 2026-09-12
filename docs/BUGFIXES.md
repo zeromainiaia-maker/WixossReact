@@ -1,5 +1,75 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — §5.3 `O-335` を実装・`O-336` は「実装済み」と確認してクローズ（第289バッチ・索引G 残8→6効果）
+
+**着手の形**＝ユーザー指定「`O-335`・`O-336` を行う」（PLAN §5.3 索引G）。
+🔴🔑**登録票は2件とも stale だった**＝第286が「受け皿が無い」と書いた根拠の grep を着手の1手目でやり直したら、
+**どちらも受け皿は既に在った**。第280〜289 で**連続10項目**この形（§2.1 ② の「登録票の反証」を先にやる理由）。
+
+### `O-336`＝相手エナゾーンの効果免疫（`WXK11-020-E1` 後半）→ 🏁**実装済み・修正不要**
+
+| | |
+|---|---|
+| 登録票の主張 | 「`grep -rn "EffectImmune" src/` の全ヒットが field 前提＝エナをゾーン単位で免疫にする軸が無い」 |
+| 実測 | **前日（2026-09-11）の `O-291` で実装済み**＝`isEnergyImmuneByOpponent`（`execUtils.ts`）＋ funnel の `energyCandidatesForOwner`。エナから出る経路 **9地点すべて**がこの funnel を通る（`grep` で全数確認）。golden も `O-291: 相手エナは相手自身の効果を受けない／宣言者からは触れる` が**向きの反転確認つき**で張ってある |
+| 教訓 | 🔑**受け皿の「概念名」1語で 0 件でも「無い」とは言えない**＝実体の名前は `EffectImmune` ではなく `EnergyImmuneByOpponent`。**命名パターン**（`Immune`/`Locked`/`Blocked`/`Protected`/`CandidatesForOwner`）で引く（[LESSONS.md](./LESSONS.md) §4.5 へ登録） |
+
+### `O-335`＝「シグニゾーン以外の自分の領域」の移動保護 → 🏁**宣言側の2つの穴を実装**
+
+**登録票の主張の反証**＝「`OppMoveImmunityZone` の `deck`/`trash`/`life` は型だけ在って消費0」は誤り。
+**2026-09-07（意味照合 段2・`WXK10-004-E1`）で5領域とも配線済み**だった＝
+`oppZoneMoveBlocked('deck'…)`（`effectExecutor.ts` の `DECK_CARD` 分岐）／`movableTrashCandidates`
+（トラッシュから出る**全経路の funnel**）／`oppMoveImmunityBlocksCrash`（効果によるライフクラッシュ）。
+⇒ **残っていたのは「宣言が live に出ていない」分だけ**だった。
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `WXK03-011-E1`（レイラ＝クレジット・キー） | 原文は【常】1文に**2つの宣言**（「ダメージを受けず」＋「シグニゾーン以外のあなたの領域にあるカードは…トラッシュとデッキに移動しない」）。`parseSentencePart2.ts` の `/あなたは対戦相手の効果によってダメージを受けず/` が**先に当たって文全体を飲み**、後半が**無言で落ちていた**（逆翻訳も「ダメージを受けない」だけ＝engine と表示が同じ嘘で一致し、どの計器にも映らなかった） | `effectParser.ts` に後段パス `applyNonFieldMoveImmunityTail` を新設し、**`-E1b`（`STUB{PREVENT_NON_FIELD_MOVE_BY_OPP}`）を末尾へ push**。受け皿は既存（`collectProtectedZones` が payload 無しなら hand/energy/deck/trash/life を保護）＝**新しい型は足していない** |
+| `WXDi-P16-002-E1`（D-(A)LIVE!!・ピース） | `ZONE_MOVE_IMMUNITY` の `zones` を組む判定が `エナゾーン`／`手札` しか見ておらず、原文「あなたの**デッキ**と手札とエナゾーンにあるカードは」の**デッキが落ちていた** | **主語（「〜にあるカードは」の前）に出たデッキだけ**を数えて `zones` へ追加 |
+
+🔴🔑**「デッキ」を全文 regex で見てはいけない**（反転確認で実測）＝`WXEX2-06-E3` は
+「あなたの手札とエナゾーンにあるカードは…**デッキとトラッシュに**移動しない」＝**デッキは移動先**であって
+保護される領域ではない。全文で見る実装に差し替えたら **`WXEX2-06-E3` の zones が `deck,energy,hand` に化けた**
+（golden が赤くなることで検出）。
+
+⚠**`push` の順番を変えない**（energy → hand → **deck**）＝`buildEffectsJson.isPureSuperset` は配列を**添字パス**で
+突き合わせるので、先頭へ挿すと既存リーフが変わって **live に届かない**（held 行き）。
+
+### 併せて直した逆翻訳の嘘（LESSONS §4.3 の第3の系統）
+
+`decompileEffects.ts` の `PREVENT_NON_FIELD_MOVE_BY_OPP` の固定文言は `WXEX2-22-E1` の原文
+（「**クラッシュ以外の**対戦相手の効果によって」）を焼き込んでおり、**同じ STUB を使う `WXK03-011-E1b` に
+当てた瞬間に嘘になった**（原文にクラッシュの除外は無い）。しかも **engine 側にクラッシュの除外は存在しない**
+（`oppMoveImmunityBlocksCrash` は期間つきの `opp_move_immunity` しか読まない＝この宣言型は元からクラッシュを通す）。
+⇒ 文言を **「場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない（ライフクラッシュを除く）」** に訂正。
+
+### 🔴🆕 反転確認の手順で踏んだ罠（新しい教訓・[LESSONS.md](./LESSONS.md) §4.5 へ登録）
+
+**parser を壊して `build:effects` しても live は戻らない。** 収穫マージは `isPureSuperset`
+（既存リーフを1つも失わない かつ 増える）のときだけ採用するので、**リーフを減らす方向は絶対に live へ伝わらない**。
+⇒ 反転確認のために parser を1行壊したところ、**赤くするために入った誤った `deck` が live に焼き付き、
+parser を戻しても消えなかった**。**`git checkout -- public/data/` で live を HEAD へ戻してから `build:effects` を
+回し直し、変更カードを機械で数えて 2 件だけであることを確認した**（minified 1行なのでテキスト diff は使えない）。
+🔑**live 側だけを外科的に壊す反転**（該当 effectId を JSON から抜いて golden を回し、コピーから復元）は安全で速い。
+
+### 反転確認（2軸とも実測）
+
+- ①`/デッキ/` を**全文**に当てる → `WXEX2-06-E3` が `deck,energy,hand` に化けて **golden 赤**（過剰保護の検出）。
+- ②live から `WXK03-011-E1b` を抜く → **golden 赤**（「後半の宣言が live に無い」）。
+- どちらも**片方だけが赤くなる**＝2本のテストに別々の判別力がある。
+
+### 残した軸（§5.3 へ `O-341` を新設）
+
+**移動先の限定**（「トラッシュとデッキに移動しない」＝母集団6効果。いまは**除外まで止まる**過剰実行）と
+**位相の限定**（「グロウフェイズ以外で」＝1効果）は受け皿に軸が無い。登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `O-341`。
+
+🔧**検証**＝`npm run gates` 全緑（golden **4028 PASS**＝新規2本／smoke／fuzz／census 据置／stubs A・C群 0／
+enginetext・costtext A群 0／manual-fields／deadstate／orphanmanual／lint 0 errors）。`npm run regen` 済み。
+live の変更は **2カードのみ**（`WXK03-011` / `WXDi-P16-002`）を機械で確認。
+⑤**実機の要否**＝触ったのは `src/data/`（parser）と `scripts/`（decompiler・golden）だけで **`src/engine/` も
+`src/screens/` も触っていない**＝**§2.2 により④ゲートまでで足りる（実機不要）**。
+📦**在庫**＝§5.0 実装キュー 残 **8 → 5 効果**（`semantic_bug_fixed.txt` へ3行追記）／§5.3 索引G **8 → 6効果**。
+
 ## 2026-09-12 — PLAN §5.1 実機 `V-204`／`V-206` を返済（第288バッチ・§5.1 残0・実機が `DeckEditorScreen` の穴を1件出した）
 
 **着手の形**＝ユーザー指定「`V-204` `V-206` を行う」。第283バッチが登録して4巡寝かせた `V-203`〜`V-206` の**残り2件**を返済＝**§5.1 は残0**。

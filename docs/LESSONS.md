@@ -849,6 +849,21 @@
   ⚠**計器自身も嘘をつきうる**＝`censusManualDrift` は `buildEffectsJson` が**マージ後に重ねる印字キーワードコスト**を
   再現しておらず、乖離57効果のうち **36効果（63%）が偽陽性**だった。**乖離を読む前に計器の再現忠実度を疑う。**
 
+- 🆕🔴🔑**parser を壊して `build:effects` しても live は戻らない＝反転確認で live が汚れる**
+  （2026-09-12・§5.3 `O-335` で実測）＝収穫マージは **`isPureSuperset`（既存リーフを1つも失わない かつ 増える）**
+  のときだけ採用するので、**リーフを減らす方向の変更は絶対に live へ伝わらない**。
+  ⇒ parser を1行変えて「赤くなるか」を見る反転確認をやると、**赤くするために足した誤った値が live に焼き付き、
+  parser を戻しても消えない**（実測＝`WXEX2-06-E3` の `zones` に誤って `deck` が入り、戻しても残った）。
+  🔑**正しい手順**＝反転を測ったら **`git checkout -- public/data/`（＋`docs/_held_fresh.json` ほか3本）で live を
+  HEAD へ戻してから `npm run build:effects` を回し直す**。最後に**変更カードを機械で数えて意図した件数だけか確認する**
+  （出力は minified 1行なのでテキスト diff は役に立たない＝`git show HEAD:<file>` と JSON で突き合わせる）。
+  🔑**live 側だけを外科的に壊す反転**（該当 effectId を JSON から抜いて golden を回し、コピーから復元）は安全で速い。
+
+- 🆕🔑**「受け皿が無い」は関数名の候補を複数 grep してから書く**（2026-09-12・§5.3 `O-336`）＝
+  登録票は `grep -rn "EffectImmune" src/` が field 前提のヒットしか返さないことを根拠に「エナ用の軸は無い」と
+  書いていたが、**実体は前日に `isEnergyImmuneByOpponent` という別名で入っていた**（funnel は `energyCandidatesForOwner`）。
+  ⇒ **概念名1語で0件だったから無い、は成り立たない**（`Immune` / `Locked` / `Blocked` / `Protected` /
+  `CandidatesForOwner` のように**受け皿の命名パターン**で引く）。§5.3 の登録票は**着手の1手目で必ず反証する**。
 ### 4.6 Codex へ委譲するときの作法
 
 - ⚠**Codex は実行できない**（サンドボックスのネットワーク遮断）＝**起案だけさせて、実行・判定は必ず引き取る。** 指示書の冒頭でそれを明言する。

@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 603（総ノード 3370 件）
+live JSON の STUB id 種類 : 603（総ノード 3371 件）
 逆翻訳シートの [STUB:…] 総数: 323  うち生ID露出 4 箇所（3 種）
 
 ■ 仕分け結果
@@ -43,7 +43,7 @@ live JSON の STUB id 種類 : 603（総ノード 3370 件）
         生成: src\data\effectParser.ts:16458
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
-        生成: src\data\parsers\parseSentencePart2.ts:2959
+        生成: src\data\parsers\parseSentencePart2.ts:2968
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
         生成: src\data\effectParser.ts:16461

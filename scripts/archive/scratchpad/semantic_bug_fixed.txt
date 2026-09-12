@@ -460,3 +460,6 @@ WXDi-D09-H15-E2 :: 2026-09-12 :: 第286＝新キー TargetFilter.levelLteSelf �
 WXDi-P06-032-E1 :: 2026-09-12 :: 第286＝applyOptionalCostTargetBackfill（本体の絞りを optionalCostTarget へ写す・同型4効果／golden「§5.0 第286 (b)」）
 WXDi-P08-030-E1 :: 2026-09-12 :: 第286＝FORCE_SIGNI_ATTACK を1ステップ追加（「可能ならば」が禁止ゾーンを外すので保存対象だけの強制に縮む／golden「§5.0 第286 (e)」）
 WXDi-P04-007-E3 :: 2026-09-12 :: 第286＝再照合で修正済み＝duration:NEXT_TURN + nextTurnOwner:opponent ＋ execGrantKeyword が count:ALL で reserveFieldGrant を通す（後から出たシグニにも効く）
+WXK03-011-E1 :: 2026-09-12 :: §5.3 O-335＝後半「シグニゾーン以外のあなたの領域…移動しない」を -E1b（PREVENT_NON_FIELD_MOVE_BY_OPP）として分離（第289バッチ）
+WXDi-P16-002-E1 :: 2026-09-12 :: §5.3 O-335＝ZONE_MOVE_IMMUNITY の zones に deck を追加（主語の領域だけ数える）（第289バッチ）
+WXK11-020-E1 :: 2026-09-12 :: §5.3 O-336＝2026-09-11 の O-291（isEnergyImmuneByOpponent / energyCandidatesForOwner）で実装済みと実測確認（第289バッチ）

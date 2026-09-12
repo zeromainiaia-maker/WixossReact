@@ -4316,7 +4316,14 @@ function actionJa(a?: Action, effectType?: string): string {
         //   載っているが、ここでは総称で出す（原文の並びは live JSON を見る）。
         DAMAGE_REPLACE_BY_COST: 'あなたがダメージを受ける場合、代わりにコストを支払ってもよい',
         REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY: 'あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う',
-        PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、クラッシュ以外の対戦相手の効果によって他の領域に移動しない',
+        // 🔴**「クラッシュ以外の」を書かない**（2026-09-12・§5.3 `O-335`）＝この宣言型は
+        //   `collectProtectedZones` が hand/energy/deck/trash/life を保護集合へ入れるだけで、
+        //   **効果によるライフクラッシュは元から通す**（`oppMoveImmunityBlocksCrash` は期間つきの
+        //   `opp_move_immunity` しか読まない）＝クラッシュの除外は engine 側に存在しない。
+        // ⚠旧文言は `WXEX2-22-E1` の原文をそのまま焼き込んでおり、同じ STUB を使う
+        //   `WXK03-011-E1b`（原文にクラッシュの除外は無い）に当てると**逆翻訳だけが嘘をつく**
+        //   （LESSONS §4.3 の第3の系統）。
+        PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない（ライフクラッシュを除く）',
         PREVENT_ZONE_MOVE_BY_OPP: '対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない',
         // §6.4 O-3 続き493 の明示 defer＝「次の対戦相手のターン終了時、〜」の**遅延本体**（予約機構が未実装）。
         DEFERRED_NEXT_OPP_TURN_END_BODY: '［未実装：次の対戦相手のターン終了時に行う本文の予約］',

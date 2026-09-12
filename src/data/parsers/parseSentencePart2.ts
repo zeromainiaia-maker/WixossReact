@@ -2241,6 +2241,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
       else {
         if (/エナゾーン/.test(t)) zones.push('energy');
         if (/手札/.test(t)) zones.push('hand');
+        // 🆕**「デッキ」は主語（「〜にあるカードは」の前）に出たときだけ数える**
+        //   （2026-09-12・§5.3 `O-335`・`WXDi-P16-002-E1`「あなたの**デッキ**と手札とエナゾーンにあるカードは」）。
+        // 🔴**全文で `/デッキ/` を見ると移動先を拾って過剰保護になる**＝`WXEX2-06-E3` は
+        //   「あなたの手札とエナゾーンにあるカードは…**デッキとトラッシュに**移動しない」＝
+        //   デッキは**移動先**であって保護される領域ではない。
+        // ⚠**push の順番を変えない**（energy → hand → deck）＝`buildEffectsJson` の `isPureSuperset` は
+        //   配列を**添字パス**で突き合わせるので、先頭へ挿すと既存リーフが変わって live に届かない。
+        const zoneSubject = t.match(/([^。、]*)にあるカードは/)?.[1] ?? '';
+        if (/デッキ/.test(zoneSubject) && !/対戦相手/.test(zoneSubject)) zones.push('deck');
         // ⚠**「トラッシュにある」を足してはいけない**（2026-09-07 に実測で踏んだ）＝
         //   「**対戦相手の**トラッシュにあるカードは**対戦相手の**効果によって移動しない」（`WX24-P4-007` ほか2枚）は
         //   **相手の自分自身への封じ**＝別の受け皿（`STUB{LOCK_OPP_TRASH_MOVE}`）が持っている。

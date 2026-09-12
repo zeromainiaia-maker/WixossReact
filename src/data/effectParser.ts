@@ -26380,6 +26380,51 @@ ${card.BurstText ?? ''}`;
 }
 
 /**
+ * 🆕**§5.3 `O-335`（2026-09-12）＝「ダメージを受けず」の regex が同じ文の後半を飲んでいた分を補う。**
+ *
+ * 🔴原文（`WXK03-011-E1`＝レイラ＝クレジット）は**2つの【常】宣言**を1文で書いている：
+ *   「あなたは対戦相手の効果によってダメージを受けず、**シグニゾーン以外のあなたの領域にあるカードは、
+ *     対戦相手の効果によってトラッシュとデッキに移動しない**。」
+ *   `parseSentencePart2.ts` の `/あなたは対戦相手の効果によってダメージを受けず/` が**先に当たって
+ *   STUB 1本を返す**ので、後半は**無言で落ちていた**（逆翻訳も「ダメージを受けない」だけ＝
+ *   engine と表示が同じ嘘で一致し、どの計器にも映らなかった）。
+ *
+ * 🔑**受け皿は既存の `PREVENT_NON_FIELD_MOVE_BY_OPP`**（`collectProtectedZones` が payload 無しなら
+ *   hand/energy/deck/trash/life の5領域を保護する）＝**新しい型は要らない**。「シグニゾーン以外の
+ *   あなたの領域」は既存の「場以外のあなたの領域」（`WXEX2-22-E1`）と同じ近似で足りる。
+ * ⚠**兄弟は末尾へ push する**（`applyMissingActionTailsBatch2026Aug30` と同じ規約）＝
+ *   `buildEffectsJson.isPureSuperset` は配列を**添字パス**で突き合わせるので、先頭へ挿すと live に届かない。
+ * ⚠**移動先（トラッシュとデッキ）の限定は表せない**＝現行の受け皿は「そのゾーンから出る移動」を
+ *   すべて止める（除外まで止まる）。移動先の軸は §5.3 へ別項目で登録した。
+ * ⚠母集団は実測1効果（`census:population -- "あなたは対戦相手の効果によってダメージを受けず"`）。
+ */
+function applyNonFieldMoveImmunityTail(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  const siblings: CardEffect[] = [];
+  for (const effect of effects) {
+    if (effect.effectType !== 'CONTINUOUS') continue;
+    const act = effect.action as StubAction;
+    if (act?.type !== 'STUB' || act.id !== 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') continue;
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    if (!/(?:シグニゾーン|場)以外の(?:あなたの)?領域[^。]*?(?:トラッシュとデッキ|デッキとトラッシュ|トラッシュ|デッキ|他の領域)に移動しない/.test(source)) continue;
+    siblings.push({
+      effectId: `${effect.effectId}b`,
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP' } as StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'AUTO',
+    });
+  }
+  for (const sibling of siblings) {
+    if (!effects.some(e => e.effectId === sibling.effectId)) effects.push(sibling);
+  }
+}
+
+/**
  * census 2026-08-30: 対象名詞句に印字された静的 filter が既存アクションから落ちた4文型を補う。
  *
  * いずれも受け皿は既存の `TargetFilter` / `ADD_TO_FIELD` に揃っている。今回の監査対象だけに
@@ -30519,6 +30564,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDurationsBatch40(card, effects);
   applyAnaphoraBatch2026Aug30(card, effects);
   applyMissingActionTailsBatch2026Aug30(card, effects);
+  applyNonFieldMoveImmunityTail(card, effects);
   applyMissingTargetFiltersBatch2026Aug30(card, effects);
   applyIdentityCostTriggerBatch2026Aug30(card, effects);
   applyKeywordChoiceGrantBatch2026Aug30(card, effects);

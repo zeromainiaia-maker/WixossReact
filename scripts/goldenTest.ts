@@ -26,7 +26,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -72706,6 +72706,75 @@ test('意味照合 段2 WXK10-004-E1: 場以外の5領域が対戦相手の効�
   const selfCtx = { ...selfBase, ownerState: { ...selfBase.ownerState, ...guarded(['trash']) } } as ExecCtx;
   ok(finish(executeAction(selfExile, selfCtx), selfCtx).ownerState.trash.length < selfCtx.ownerState.trash.length,
     '自分の効果で自分のトラッシュは動かせる');
+}));
+
+// ── 🆕§5.3 `O-335`（2026-09-12・第289バッチ）＝宣言側の2つの穴 ────────────────────────
+// 🔴**消費地点は 2026-09-07 に5領域とも配線済みだった**（すぐ上のテストが守っている）＝
+//   残っていたのは**宣言が live に出ていない**分だけ。登録票（`PLAN_DETAIL.md` の `O-335`）が書いていた
+//   「消費地点が hand と energy しか見ていない」は**着手時点で stale**（grep で反証した）。
+test('§5.3 O-335 WXK03-011-E1b: 「シグニゾーン以外のあなたの領域」の宣言が live に出る', () => withSavedCursor(() => {
+  // 原文「【常】：あなたは対戦相手の効果によってダメージを受けず、**シグニゾーン以外のあなたの領域にある
+  //   カードは、対戦相手の効果によってトラッシュとデッキに移動しない**。」
+  // 🔴旧 live は前半の STUB 1本だけ＝`/あなたは対戦相手の効果によってダメージを受けず/` が文を飲んでいた。
+  const effs = effectsMap.get('WXK03-011') ?? [];
+  eq((effs.find(e => e.effectId === 'WXK03-011-E1')?.action as StubAction)?.id, 'PREVENT_DAMAGE_FROM_OPP_EFFECTS',
+    '前半（ダメージ）はそのまま');
+  const tail = effs.find(e => e.effectId === 'WXK03-011-E1b');
+  ok(!!tail, '🔴後半（移動しない）の宣言が live に無い');
+  eq((tail!.action as StubAction).id, 'PREVENT_NON_FIELD_MOVE_BY_OPP', '受け皿は既存の宣言型 STUB（新しい型を足さない）');
+  // 🔑**キーは `activeKeyAbilitySources` 経由で走査される**＝場に置いて初めて保護集合に出る。
+  const holder = mkState();
+  holder.field.key_piece = 'WXK03-011';
+  const zones = collectProtectedZones(holder, cardMap as Map<string, CardData>, effectsMap);
+  for (const z of ['hand', 'energy', 'deck', 'trash', 'life']) {
+    ok(zones.includes(z as never), `${z} が保護される（シグニゾーン以外のあなたの領域）`);
+  }
+  eq(collectProtectedZones(mkState(), cardMap as Map<string, CardData>, effectsMap).length, 0,
+    '反転確認: キーが場に無ければ1領域も保護されない');
+  // E2E＝宣言を ctx へ載せると、相手の効果によるデッキ削りとトラッシュ除外が実際に止まる。
+  const mill = { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 3 } } as unknown as EffectAction;
+  const open = mkCtx({}, { trash: 4 }, 'WXK03-011');
+  ok(finish(executeAction(mill, open), open).otherState.deck.length < open.otherState.deck.length,
+    '反転確認: 保護が無ければデッキを削れる');
+  const shut = { ...mkCtx({}, { trash: 4 }, 'WXK03-011'), otherProtectedZones: zones } as ExecCtx;
+  eq(finish(executeAction(mill, shut), shut).otherState.deck.length, shut.otherState.deck.length,
+    '🔴デッキが削られない');
+  const exileTrash = { type: 'EXILE', target: { type: 'TRASH_CARD', owner: 'opponent', count: 2 } } as unknown as EffectAction;
+  const shutT = { ...mkCtx({}, { trash: 4 }, 'WXK03-011'), otherProtectedZones: zones } as ExecCtx;
+  eq(finish(executeAction(exileTrash, shutT), shutT).otherState.trash.length, shutT.otherState.trash.length,
+    '🔴トラッシュから除外されない');
+}));
+
+test('§5.3 O-335 WXDi-P16-002-E1: 保護される領域は主語の「デッキと手札とエナゾーン」', () => withSavedCursor(() => {
+  // 原文「…グロウフェイズ以外であなたの**デッキ**と手札とエナゾーンにあるカードは対戦相手の効果によって
+  //   トラッシュに移動しない。」🔴旧 live の `zones` は `['energy','hand']`＝**デッキだけ落ちていた**。
+  const zonesOf = (cardNum: string, effectId: string): string[] => {
+    const found: string[] = [];
+    const walk = (a: unknown): void => {
+      if (!a || typeof a !== 'object') return;
+      const act = a as { type?: string; zones?: string[]; steps?: unknown[]; then?: unknown; action?: unknown };
+      if (act.type === 'ZONE_MOVE_IMMUNITY' && Array.isArray(act.zones)) found.push(...act.zones);
+      for (const st of act.steps ?? []) walk(st);
+      if (act.then) walk(act.then);
+      if (act.action) walk(act.action);
+    };
+    walk(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action);
+    return found;
+  };
+  eq([...zonesOf('WXDi-P16-002', 'WXDi-P16-002-E1')].sort().join(','), 'deck,energy,hand',
+    '🔴主語のデッキが保護領域に載っていない');
+  // 🔴**反転確認（偽陽性の側）**＝`WXEX2-06-E3` は「あなたの手札とエナゾーンにあるカードは…
+  //   **デッキとトラッシュに**移動しない」＝デッキは**移動先**なので保護領域に数えてはいけない。
+  //   全文で `/デッキ/` を見る実装だとここが `deck,energy,hand` に化ける（過剰保護）。
+  eq([...zonesOf('WXEX2-06', 'WXEX2-06-E3')].sort().join(','), 'energy,hand',
+    '🔴移動先のデッキを保護領域に数えている（過剰保護）');
+  // 期間つき（`ZONE_MOVE_IMMUNITY`）は `opp_move_immunity` を通って消費される＝デッキ削りが止まる。
+  const mill = { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 3 } } as unknown as EffectAction;
+  const base = mkCtx({}, {}, 'WXDi-P16-002');
+  const shut = { ...base, otherState: { ...base.otherState,
+    opp_move_immunity: [{ zones: ['energy', 'hand', 'deck'], turnsRemaining: 2 }] } } as ExecCtx;
+  eq(finish(executeAction(mill, shut), shut).otherState.deck.length, shut.otherState.deck.length,
+    '🔴デッキ保護が効いていない');
 }));
 
 // ── 意味照合 段2（2026-09-07）＝`WXDi-P13-089-E3` 3領域から1枚ずつ除外するコスト ──
