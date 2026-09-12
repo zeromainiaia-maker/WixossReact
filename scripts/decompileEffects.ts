@@ -3097,7 +3097,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
       const zonesJa = a.zones.map((z: string) => ZONE_JA[z] ?? z).join('と');
       const periodJa = a.turns >= 2 ? 'このターンと次のターンの間、' : 'このターン、';
-      return `${periodJa}${a.excludeCrash ? 'クラッシュ以外の' : ''}対戦相手の効果によって${a.owner === 'opponent' ? '対戦相手' : 'あなた'}の${zonesJa}にあるカードは移動しない`;
+      const DEST_JA: Record<string, string> = { trash: 'トラッシュ', deck: 'デッキ', hand: '手札', energy: 'エナゾーン', field: '場', exile: 'ゲーム外' };
+      const destJa = a.destinations?.length ? `${a.destinations.map((d: string) => DEST_JA[d] ?? d).join('と')}に` : '他の領域に';
+      const phaseJa = a.exceptPhases?.includes('GROW') ? 'グロウフェイズ以外で、' : '';
+      return `${periodJa}${phaseJa}${a.excludeCrash ? 'クラッシュ以外の' : ''}対戦相手の効果によって${a.owner === 'opponent' ? '対戦相手' : 'あなた'}の${zonesJa}にあるカードは${destJa}移動しない`;
     }
     case 'SET_LRIG_BASE_LIMIT':
       return `${a.untilNextMainPhase ? '次のあなたのメインフェイズまで、' : ''}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のルリグの基本リミットは${a.value}になる`;
@@ -3721,6 +3724,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'BANISH_REDIRECT_POWER0_TRASH') return 'このターン、パワーが0以下のシグニがバニッシュされる場合、エナゾーンの代わりにトラッシュに置かれる';
       // WX24-P4-016-E3（タスク12(xxiii)残・engine未実装の正直STUB＝旧GRANT_KEYWORD幻覚の是正）
       if (a.id === 'DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF') return 'このターン、あなたの効果によってシグニのアタックは無効にならない';
+      if (a.id === 'PREVENT_ATTACK_NEGATION_BY_OPP') return 'このシグニのアタックは対戦相手の効果によって無効にならない';
       if (a.id === 'MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC') return 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る';
       if (a.id === 'DOUBLE_POWER_MINUS_THIS_TURN') return 'このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される';
       // DISCARD_OR_PENALTY: 「〈条件〉のカードをN枚捨てないかぎり手札をM枚捨てる」
@@ -4308,6 +4312,19 @@ function actionJa(a?: Action, effectType?: string): string {
       };
       if (preventDmgMap[a.id]) return preventDmgMap[a.id];
       // 保護系STUB（対戦相手の効果によって〜されない・engine実装済み）の原文意味文。条件/duration は周辺の activeCondition 側で描画。
+      if (a.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP' || a.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
+        const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
+        const DEST_JA: Record<string, string> = { trash: 'トラッシュ', deck: 'デッキ', hand: '手札', energy: 'エナゾーン', field: '場', exile: 'ゲーム外' };
+        const rule = a.zoneMoveImmunity;
+        const zones = rule?.zones?.length
+          ? rule.zones.map((z: string) => ZONE_JA[z] ?? z).join('と')
+          : a.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP' ? '場以外のあなたの領域' : 'あなたの手札／エナゾーン';
+        const subject = rule?.zones?.length ? `あなたの${zones}` : zones;
+        const dest = rule?.destinations?.length
+          ? rule.destinations.map((d: string) => DEST_JA[d] ?? d).join('と') : '他の領域';
+        const phase = rule?.exceptPhases?.includes('GROW') ? 'グロウフェイズ以外で、' : '';
+        return `${phase}${subject}にあるカードは、対戦相手の効果によって${dest}に移動しない${rule?.excludeCrash ? '（ライフクラッシュを除く）' : ''}`;
+      }
       const preventProtectMap: Record<string, string> = {
         PREVENT_ABILITY_CHANGE_BY_OPP: 'あなたの＜古代兵器＞のシグニは対戦相手の効果によって、能力を失わず新たに能力を得られない',
         PREVENT_ABILITY_GAIN_BY_OPP: 'このシグニは対戦相手の効果によって新たに能力を得られない',
@@ -4326,8 +4343,6 @@ function actionJa(a?: Action, effectType?: string): string {
         // ⚠旧文言は `WXEX2-22-E1` の原文をそのまま焼き込んでおり、同じ STUB を使う
         //   `WXK03-011-E1b`（原文にクラッシュの除外は無い）に当てると**逆翻訳だけが嘘をつく**
         //   （LESSONS §4.3 の第3の系統）。
-        PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない（ライフクラッシュを除く）',
-        PREVENT_ZONE_MOVE_BY_OPP: '対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない',
         // §6.4 O-3 続き493 の明示 defer＝「次の対戦相手のターン終了時、〜」の**遅延本体**（予約機構が未実装）。
         DEFERRED_NEXT_OPP_TURN_END_BODY: '［未実装：次の対戦相手のターン終了時に行う本文の予約］',
         PREVENT_OPP_POWER_PLUS: '対戦相手の【常】能力の効果によって、シグニのパワーは＋（プラス）されない',
@@ -5160,11 +5175,8 @@ function actionJa(a?: Action, effectType?: string): string {
         //     パワーと無関係な文（追加トラッシュ／デッキに加える 等）まで入っており、
         //     engine は9本のリテラルに当たらなければ**ログだけ出して何もしない**無言 no-op だった。
         DEFERRED_CONDITIONAL_CLAUSE_UNPARSED: '【未実装】条件つきの効果（条件節を構造化できていない）',
-        // 🆕§5.3 `O-320` 第273バッチ（2026-09-11・`SP26-002-E1`）＝旧 `SUPPRESS_LIFE_BURST_ON_CRASH` は
-        //   **原文が除外しているライフバーストだけを封じる**真逆の実装だった。受け皿（トリガー収集 funnel の
-        //   全域ゲート）が無いので明示 defer にしてある。
-        DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS:
-          '【未実装】このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない',
+        SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN:
+          'このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない',
         // 🆕§5.3 `O-60` 第75（2026-09-05）＝「〜がめくれるまで公開する」の停止条件が読めなかった文型。
         //   ⚠engine の catch-all（カード全文 regex）を撤去したので、**名前のある穴**として宣言する。
         DEFERRED_DECK_REVEAL_UNTIL_UNPARSED: '【未実装】デッキの上から条件を満たすカードがめくれるまで公開する',
@@ -5736,7 +5748,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
         const lc = a.lrigLimitChange;
         if (!lc) return '【※ペイロード欠落】ルリグリミット修正（engine は何もしない）';
-        return `${lc.untilOwnEnergyPhaseEnd ? '次の' : ''}${lc.owner === 'opponent' ? '対戦相手' : 'あなた'}のエナフェイズ終了時まで、${lc.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグのリミットを${lc.delta > 0 ? '＋' : '－'}${Math.abs(lc.delta)}する`;
+        return `${lc.untilOwnEnergyPhaseEnd ? '次の' : ''}${lc.owner === 'opponent' ? '対戦相手' : 'あなた'}のエナフェイズ終了時まで、${lc.whileSourceInField ? 'このシグニが場にあるかぎり、' : ''}${lc.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグのリミットを${lc.delta > 0 ? '＋' : '－'}${Math.abs(lc.delta)}する`;
       }
       if (a.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
         const tu = a.trashUnderPlace;

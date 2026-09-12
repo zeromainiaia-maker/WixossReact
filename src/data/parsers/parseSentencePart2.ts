@@ -1166,7 +1166,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 場以外のカードが対戦相手の効果で移動しない ----
   if (t.match(/場以外のあなたの領域.*クラッシュ以外の対戦相手の効果.*他の領域に移動しない/)) {
-    return { type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP' } as StubAction;
+    return {
+      type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP',
+      zoneMoveImmunity: { zones: ['hand', 'energy', 'deck', 'trash', 'life'], excludeCrash: true },
+    } as StubAction;
   }
 
   // ---- 感染シグニのパワーを「そのシグニのレベル1につき」減少 ----
@@ -2233,7 +2236,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   `execLifeCrash`／`EXILE` の hand・energy 分岐。
   // ⚠「**クラッシュ以外の**対戦相手の効果によって」（`WXEX2-22-E1`）は `excludeCrash` で表す。
   {
-    const movesJa = /(?:他の領域|トラッシュ|デッキとトラッシュ)に移動しない/;
+    const movesJa = /(?:他の領域|トラッシュ|デッキ|デッキとトラッシュ|トラッシュとデッキ)に移動しない/;
     if (/対戦相手の効果(?:によって|は)/.test(t) && movesJa.test(t)
         && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス/.test(t)) {
       const zones: import('../../types/effects').OppMoveImmunityZone[] = [];
@@ -2256,12 +2259,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
         //   ここへ流すと自分側の保護に化ける。
       }
       if (zones.length > 0) {
+        const destinations: import('../../types/effects').OppMoveDestination[] | undefined =
+          /(?:デッキとトラッシュ|トラッシュとデッキ)に移動しない/.test(t) ? ['deck', 'trash']
+            : /トラッシュに移動しない/.test(t) ? ['trash']
+              : /デッキに移動しない/.test(t) ? ['deck'] : undefined;
+        const exceptPhases: import('../../types').TurnPhase[] | undefined =
+          /グロウフェイズ以外/.test(t) ? ['GROW'] : undefined;
         // 「このターンと次のターンの間」「次の対戦相手のターン（終了時まで）」＝2ターン。
         const turns = /このターンと次のターンの間|次の対戦相手のターン/.test(t) ? 2
           : /このターン/.test(t) ? 1 : 0;
         if (turns > 0) {
           const immunity = {
             type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones, turns,
+            ...(destinations ? { destinations } : {}),
+            ...(exceptPhases ? { exceptPhases } : {}),
             // 「クラッシュ以外の対戦相手の効果によって」＝効果によるクラッシュは素通しする。
             ...(/クラッシュ以外の対戦相手の効果/.test(t) ? { excludeCrash: true as const } : {}),
           } as ZoneMoveImmunityAction;
@@ -2280,7 +2291,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
           return immunity;
         }
         // 期間の指定が無い＝【常】（場にあるかぎり）＝宣言型のまま。
-        return { type: 'STUB', id: 'PREVENT_ZONE_MOVE_BY_OPP' } as StubAction;
+        return {
+          type: 'STUB', id: 'PREVENT_ZONE_MOVE_BY_OPP',
+          zoneMoveImmunity: { zones, ...(destinations ? { destinations } : {}), ...(exceptPhases ? { exceptPhases } : {}) },
+        } as StubAction;
       }
     }
   }

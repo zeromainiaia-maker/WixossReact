@@ -21,7 +21,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
@@ -58,6 +58,7 @@ import {
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
+import { collectSuppressedSigniTriggerNums, triggerEffectsForCollection } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { payFieldTrashCost } from '../src/screens/battle/fieldTrashCost';
@@ -115,7 +116,7 @@ import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils'
 import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
-import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
+import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf, oppZoneMoveBlocked } from '../src/engine/execUtils';
 import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { collectSpecificCardCostReductions } from '../src/engine/effectEngine';
@@ -5920,7 +5921,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 59, 'PlayerState の命名規約由来フィールド数（🆕59＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`（チェックゾーン往復で出し直したシグニの追記ログ＝`detectPlacedSigni` が差分で読む）、`O-317`/`O-333` で `coin_abilities_used_this_turn`（コイン技の発動台帳・2スロット式）を新設。57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 60, 'PlayerState の命名規約由来フィールド数（🆕59＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`（チェックゾーン往復で出し直したシグニの追記ログ＝`detectPlacedSigni` が差分で読む）、`O-317`/`O-333` で `coin_abilities_used_this_turn`（コイン技の発動台帳・2スロット式）を新設。57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5932,10 +5933,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 31, '命名規約外のターン限定フィールド数（🆕31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加＝原文「次のあなたのエナフェイズ終了時まで」の受け皿。境界は main-phase-start＝**次に自分が ENERGY を出て MAIN へ入るとき**。30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 32, '命名規約外のターン限定フィールド数（🆕32＝2026-09-12 O-340 で発生源付きのリミット修整を追加。31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 90, '型由来38件＋命名規約外27件の母集団（🆕90＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`、`O-317`/`O-333` で `coin_abilities_used_this_turn` を新設（どちらも境界 turn-end）。88＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn` を新設（境界 turn-end）。87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 92, '型由来と命名規約外を合わせたターン限定フィールド数（🆕91＝2026-09-12 O-340 で発生源付きリミット修整を新設。90＝第290バッチ時点）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -29045,6 +29046,219 @@ test('§5.3 O-318: PR-305-E1 はバトル相手だけをデッキの一番下へ
   eq((noTrig.otherState.field.signi.flat().filter(Boolean) as string[]).length, 2, '相手の場は動かない');
 }));
 
+// ═══ §5.3 索引G `O-339`（登録票 stale）＝PR-305-E1 の ON_SIGNI_BATTLE はバトル解決後に収集される ═══
+// `BattleScreen.resolvePendingSigniBattleFor` はバトルのバニッシュ／ライフ処理後に
+// ON_SIGNI_BATTLE を ON_ATTACK_END と同じ収集区間で積む。したがって本文に遅延トリガーを重ねてはいけない。
+// ここではその帰結を実行で固定する＝バトルで生き残った相手だけがデッキ下へ行き、
+// バトルで既に場を離れた相手には何も起きない。
+test('§5.3 O-339: PR-305-E1 はバトル解決後の相手生存時だけデッキ下へ送る', () => withSavedCursor(() => {
+  const live = (effectsMap.get('PR-305') ?? []).find(e => e.effectId === 'PR-305-E1');
+  ok(!!live, 'PR-305-E1 が live にある'); if (!live) return;
+  const steps = live.action.type === 'SEQUENCE' ? live.action.steps : [];
+  const paid = steps.find(s => s.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }> | undefined;
+  const move = paid?.then;
+  ok(move?.type === 'TRANSFER_TO_DECK', '支払い成立後の本体がデッキ下移動');
+  if (move?.type !== 'TRANSFER_TO_DECK') return;
+
+  const victim = fresh(); const bystander = fresh();
+  const survived = executeAction(move, {
+    ...mkCtx({}, { signi: [victim, bystander, null] }), triggeringCardNum: victim,
+  } as ExecCtx);
+  ok(!survived.done && survived.pending.type === 'SELECT_TARGET', '生存したバトル相手だけを候補にする');
+  if (!survived.done && survived.pending.type === 'SELECT_TARGET') {
+    eq([...survived.pending.candidates].join(','), victim, 'bystander は候補に混ざらない');
+  }
+
+  const vanishedBase = mkCtx({}, { signi: [null, bystander, null], trash: 0 });
+  const vanished = executeAction(move, {
+    ...vanishedBase,
+    otherState: { ...vanishedBase.otherState, trash: [victim] },
+    triggeringCardNum: victim,
+  } as ExecCtx);
+  ok(vanished.done, 'バトルで既に離場した相手には対話が立たない');
+  if (!vanished.done) return;
+  eq(vanished.otherState.deck.includes(victim), false, '離場済みのシグニをデッキへ引き抜かない');
+  eq(vanished.otherState.trash.includes(victim), true, 'バトルの帰結を保つ');
+}));
+
+// ═══ §5.3 索引G `O-340`＝エナフェイズ期限 ∩ 発生源が場にいる期間 ═══
+test('§5.3 O-340: WXDi-P13-004B-E3 のリミット+2は発生源離場とエナ期限の短い方で切れる', () => withSavedCursor(() => {
+  const live = findEffectDeep(effectsMap.get('WXDi-P13-004B') ?? [], 'WXDi-P13-004B-E3');
+  const freshEffect = findEffectDeep(parseCardEffects(cardMap.get('WXDi-P13-004B')!), 'WXDi-P13-004B-E3');
+  ok(!!live && !!freshEffect, 'live/fresh の両方に対象効果がある');
+  if (!live || !freshEffect) return;
+  const liveAction = live.action as StubAction;
+  const freshAction = freshEffect.action as StubAction;
+  eq(liveAction.lrigLimitChange?.whileSourceInField, true, 'live が発生源条件を payload に持つ');
+  eq(freshAction.lrigLimitChange?.whileSourceInField, true, 'fresh parser も発生源条件を生成する');
+
+  const source = 'WXDi-P13-004B#o340';
+  const applied = executeAction(live.action, mkCtx({ signi: [source, null, null] }, {}, source));
+  ok(applied.done, '発生源付きリミット修整を適用できる');
+  if (!applied.done) return;
+  eq(applied.ownerState.lrig_limit_mod_until_own_energy_phase_end, undefined,
+    '発生源を持たない従来ストアに混ぜない');
+  eq(applied.ownerState.lrig_limit_mod_until_own_energy_phase_end_by_source?.[source], 2,
+    '発生源 instanceId ごとに +2 を保持する');
+
+  const withoutRule = {
+    ...applied.ownerState,
+    lrig_limit_mod_until_own_energy_phase_end_by_source: undefined,
+  };
+  const basePresent = computeEffectiveLrigLimit(withoutRule, applied.otherState, cardMap, effectsMap, true);
+  eq(computeEffectiveLrigLimit(applied.ownerState, applied.otherState, cardMap, effectsMap, true), basePresent + 2,
+    '発生源が場にいる間は +2');
+
+  const sourceLeft = {
+    ...applied.ownerState,
+    field: { ...applied.ownerState.field, signi: [null, null, null] as PlayerState['field']['signi'] },
+  };
+  const sourceLeftBase = {
+    ...sourceLeft,
+    lrig_limit_mod_until_own_energy_phase_end_by_source: undefined,
+  };
+  eq(computeEffectiveLrigLimit(sourceLeft, applied.otherState, cardMap, effectsMap, true),
+    computeEffectiveLrigLimit(sourceLeftBase, applied.otherState, cardMap, effectsMap, true),
+    'エナ期限前でも発生源が離場すれば +2 は消える');
+
+  const expired = clearMainPhaseScopedState(applied.ownerState);
+  eq(expired.lrig_limit_mod_until_own_energy_phase_end_by_source, undefined,
+    '発生源が場に残っていても次の自分メインフェイズ開始で失効する');
+  eq(computeEffectiveLrigLimit(expired, applied.otherState, cardMap, effectsMap, true), basePresent,
+    'エナフェイズ期限後はリミットの計算値に残らない');
+
+  const noSource = executeAction(live.action, mkCtx({}, {}));
+  ok(noSource.done, '発生源不明時は対話を立てない');
+  if (noSource.done) eq(noSource.ownerState.lrig_limit_mod_until_own_energy_phase_end_by_source, undefined,
+    '発生源不明を無条件の +2 へ拡大しない');
+}));
+
+// ═══ §5.3 索引G `O-334`＝覚醒中のこのシグニのアタックは相手効果で無効にならない ═══
+test('§5.3 O-334: WX25-P3-057-E1c は覚醒中の相手効果だけを per-signi で防ぐ', () => withSavedCursor(() => {
+  const live = findEffectDeep(effectsMap.get('WX25-P3-057') ?? [], 'WX25-P3-057-E1c');
+  const freshMerged = findEffectDeep(
+    mergeManualEffects('WX25-P3-057', parseCardEffects(cardMap.get('WX25-P3-057')!)),
+    'WX25-P3-057-E1c',
+  );
+  ok(!!live && !!freshMerged, 'live と fresh+MANUAL 合成の両方に宣言がある');
+  if (!live || !freshMerged) return;
+  eq((live.action as StubAction).id, 'PREVENT_ATTACK_NEGATION_BY_OPP', 'live の宣言 id');
+  eq(freshMerged.activeCondition?.type, 'IS_SELF_AWAKENED', '覚醒中だけ有効');
+
+  const source = 'WX25-P3-057';
+  const defenderAwake = {
+    ...mkState({ signi: [source, null, null] }),
+    awakened_signi: [source],
+  } as PlayerState;
+  const defenderAsleep = { ...defenderAwake, awakened_signi: [] } as PlayerState;
+  const awakeSet = collectAttackNegationProtectedSigni(defenderAwake, mkState({}), cardMap, effectsMap, true);
+  const asleepSet = collectAttackNegationProtectedSigni(defenderAsleep, mkState({}), cardMap, effectsMap, true);
+  ok(awakeSet.has(source), '覚醒中は保護集合に入る');
+  ok(!asleepSet.has(source), '未覚醒は同じ盤面で保護されない');
+
+  const action = {
+    type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true,
+  } as EffectAction;
+  const attacking = { ...defenderAwake, pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
+  const blocked = executeAction(action, {
+    ...mkCtx({}, {}), otherState: attacking, otherAttackNegationProtectedNums: awakeSet,
+  } as ExecCtx);
+  ok(blocked.done && !blocked.otherState.cancel_current_signi_attack,
+    '相手効果は進行中のアタックを無効にできない');
+
+  const unblocked = executeAction(action, {
+    ...mkCtx({}, {}), otherState: attacking, otherAttackNegationProtectedNums: asleepSet,
+  } as ExecCtx);
+  ok(unblocked.done && !!unblocked.otherState.cancel_current_signi_attack,
+    '覚醒条件を外すと同じ直接適用経路で無効化される');
+
+  const bulk = executeAction({
+    type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+  } as EffectAction, {
+    ...mkCtx({}, {}), otherState: defenderAwake, otherAttackNegationProtectedNums: awakeSet,
+  } as ExecCtx);
+  ok(bulk.done && !(bulk.otherState.negated_attacks ?? []).includes(source),
+    '候補一括経路でも保護シグニを negated_attacks に積まない');
+
+  const selfAction = {
+    type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'self', count: 1 }, attackingOnly: true,
+  } as EffectAction;
+  const selfAttacking = { ...attacking };
+  const selfAllowed = executeAction(selfAction, {
+    ...mkCtx({}, {}), ownerState: selfAttacking, otherAttackNegationProtectedNums: awakeSet,
+  } as ExecCtx);
+  ok(selfAllowed.done && !!selfAllowed.ownerState.cancel_current_signi_attack,
+    '自分の効果による無効化まで防がない');
+}));
+
+// ═══ §5.3 索引G `O-337`＝全領域の相手シグニトリガーを LB 以外抑止 ═══
+test('§5.3 O-337: SP26-002-E1 は全領域のシグニ AUTO を止め LIFE_BURST は通す', () => withSavedCursor(() => {
+  const live = findEffectDeep(effectsMap.get('SP26-002') ?? [], 'SP26-002-E1');
+  const freshEffect = findEffectDeep(parseCardEffects(cardMap.get('SP26-002')!), 'SP26-002-E1');
+  ok(!!live && !!freshEffect, 'live/fresh の両方に対象効果がある');
+  if (!live || !freshEffect) return;
+  eq((live.action as StubAction).id, 'SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN', 'live が DEFERRED でない');
+  eq((freshEffect.action as StubAction).id, 'SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN', 'fresh parser も実装 id を生成');
+
+  const applied = executeAction(live.action, mkCtx({}, {}));
+  ok(applied.done && applied.otherState.signi_trigger_abilities_suppressed_this_turn === true,
+    '対戦相手側にこのターンの抑止フラグを立てる');
+  if (!applied.done) return;
+
+  const zoneState = {
+    ...applied.otherState,
+    deck: ['WX01-046#deck'], hand: ['WX01-046#hand'], energy: ['WX01-046#energy'],
+    trash: ['WX01-046#trash'], life_cloth: ['WX01-046#life'],
+    field: { ...applied.otherState.field, signi: [['WX01-046#field'], null, null] },
+  } as PlayerState;
+  const suppressedNums = collectSuppressedSigniTriggerNums(zoneState, applied.ownerState);
+  for (const zone of ['deck', 'hand', 'energy', 'trash', 'life', 'field']) {
+    ok(suppressedNums.has(`WX01-046#${zone}`), `${zone} の instanceId も同じ収集ゲートに入る`);
+  }
+
+  const mixedCard = 'WD01-009';
+  const mixedCtx = { ...trigCtx(HOST, HOST), suppressedSigniTriggerNums: new Set([mixedCard]) } as TrigCtx;
+  const filtered = triggerEffectsForCollection(mixedCtx, mixedCard);
+  ok(filtered.some(e => e.effectType === 'LIFE_BURST'), '【ライフバースト】は明示除外として残る');
+  ok(!filtered.some(e => e.effectType === 'AUTO'), '同じシグニの AUTO トリガーは収集対象から落ちる');
+
+  const onPlayCard = 'WD01-014';
+  const watcherState = mkState({ signi: [onPlayCard, null, null] });
+  const ownOnPlayOpts = { placedByEffect: false, sourceIsSigni: false };
+  const normalEntries = collectPlacedSelfOnPlayTriggers(
+    trigCtx(HOST, HOST), onPlayCard, watcherState, mkState({}), HOST, ownOnPlayOpts,
+  ).entries;
+  const blockedEntries = collectPlacedSelfOnPlayTriggers(
+    { ...mixedCtx, suppressedSigniTriggerNums: new Set([onPlayCard]) }, onPlayCard, watcherState, mkState({}), HOST, ownOnPlayOpts,
+  ).entries;
+  ok(normalEntries.some(e => e.effectId === 'WD01-014-E1'), '対照：抑止なしなら【出】を収集');
+  ok(!blockedEntries.some(e => e.effectId === 'WD01-014-E1'), '実 collector で【出】がスタックに積まれない');
+
+  const expired = clearTurnEndScopedState(zoneState);
+  eq(expired.signi_trigger_abilities_suppressed_this_turn, undefined, 'ターン終了で抑止は失効する');
+
+  // 🔴**《トラップアイコン》も止める**（原文の注記が「トリガー能力である」と明示している）。
+  // `effsOf` の AUTO フィルタでは止まらない＝`TRAP_ICON` は `effectType:'AUTO'` ではなく、
+  // 収集ではなく `trapIconEffectOf` から直接 exec されるため（第291バッチで消費地点を4つ足した）。
+  const trapRun = (suppressed: boolean) => {
+    const victim = 'WD01-014'; // パワー1000＝WX16-064-TRAP（パワー2000以下を全バニッシュ）の的
+    const ctxT = mkCtx({}, { signi: [victim, null, null] }, 'WX16-064');
+    (ctxT.ownerState.field as { signi_traps: (string | null)[] }).signi_traps = ['WX16-064', null, null];
+    const withFlag = suppressed
+      ? { ...ctxT, ownerState: { ...ctxT.ownerState, signi_trigger_abilities_suppressed_this_turn: true } }
+      : ctxT;
+    return run({ type: 'STUB', id: 'ACTIVATE_TRAP' } as StubAction as EffectAction, withFlag);
+  };
+  const trapFree = trapRun(false);
+  ok((trapFree.otherState.field.signi.flat().filter(Boolean) as string[]).length === 0,
+    '対照：抑止が無ければ《トラップアイコン》は解決してパワー2000以下をバニッシュする');
+  const trapBlocked = trapRun(true);
+  eq((trapBlocked.otherState.field.signi[0] ?? []).at(-1), 'WD01-014',
+    '🔴抑止中なのに《トラップアイコン》が解決している');
+  ok((trapBlocked.ownerState.field.signi_traps ?? []).every(t => t === null),
+    '【トラップ】自体はめくれる（止まるのは能力の発動だけ）');
+}));
+
 // ═══ §5.3 索引G `O-318`（2026-09-11）＝`WXEX1-72-E2` は1点を与えず、バーストを止めるだけ ═══
 // 原文【出】：このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードの
 //   **ライフバーストは発動しない**。
@@ -43002,7 +43216,13 @@ test('§6.4 O-3: 期間つき移動不可はターン数カウントダウンで
   //   （`WXK10-083-E1` の原文は「このターンと次のターンの間」）。
   const r = runEff('WXK10-083', 'WXK10-083-E1');
   const s0 = r.ownerState as PlayerState;
-  eq(JSON.stringify(s0.opp_move_immunity), JSON.stringify([{ zones: ['energy'], turnsRemaining: 2 }]), '2ターンぶん積む');
+  // 🆕**2026-09-12（§5.3 `O-341`）＝規則に移動先が載った**ので、完全一致ではなく軸ごとに見る。
+  //   原意は「**2ターンぶん**積む」＝`turnsRemaining` が本題（ここを緩めない）。
+  eq((s0.opp_move_immunity ?? []).length, 1, '規則は1本だけ積む');
+  eq(JSON.stringify((s0.opp_move_immunity ?? [])[0]?.zones), JSON.stringify(['energy']), '保護する移動元はエナゾーン');
+  eq((s0.opp_move_immunity ?? [])[0]?.turnsRemaining, 2, '2ターンぶん積む');
+  // `WXK10-083` の原文は「**トラッシュに**移動しない」＝移動先が載っていないと除外まで止める過剰実行に戻る。
+  eq(JSON.stringify((s0.opp_move_immunity ?? [])[0]?.destinations), JSON.stringify(['trash']), '移動先の限定も積む（O-341）');
   eq(JSON.stringify(activeOppMoveImmunityZones(s0)), JSON.stringify(['energy']), '張ったターンから有効');
   const s1 = clearTurnEndScopedState(s0);
   eq(JSON.stringify(activeOppMoveImmunityZones(s1)), JSON.stringify(['energy']), '次のターンも有効');
@@ -79149,6 +79369,87 @@ test('§5.5 第290: 付与ログに生 JSON が出ない＋state は符号化の
     ok(grants.includes(c.encoded),
       `🔴state の符号化キーワードまで書き換わった（${c.effectId}）: ${JSON.stringify(grants)}`);
   }
+}));
+
+
+// ═══ §5.3 索引G `O-341`＝ゾーン保護の「移動先」と「位相」 ═══
+// 🔴**症状**＝`OppMoveImmunityZone` が**移動元のゾーンしか持たない**ため、
+//   「トラッシュ**と**デッキ**に**移動しない」と「**他の領域に**移動しない」を区別できず、
+//   移動先を限定している6効果（7効果）が**除外（ゲームから除外）まで止める過剰実行**になっていた。
+// 🔑**payload 無しの宣言は従来どおり全方向・全位相**（退化させない）＝下の対照で固定する。
+test('§5.3 O-341: ゾーン保護は移動先と位相で絞れる（payload 無しは全方向・全位相）', () => withSavedCursor(() => {
+  // ── ① live × fresh の payload が原文どおりか（§5-29＝live 読みだけで閉じない）──
+  const expected: Record<string, { zones: string[]; destinations?: string[]; exceptPhases?: string[] }> = {
+    'WX19-047-E1':    { zones: ['energy'], destinations: ['trash'] },                       // エナ→トラッシュ
+    'WX19-047-E2':    { zones: ['hand'], destinations: ['trash'] },                         // 手札→トラッシュ
+    'WXK03-011-E1b':  { zones: ['hand', 'energy', 'deck', 'trash', 'life'], destinations: ['trash', 'deck'] },
+    'WXK10-083-E1':   { zones: ['energy'], destinations: ['trash'] },
+    'WXDi-P16-002-E1': { zones: ['energy', 'hand', 'deck'], destinations: ['trash'], exceptPhases: ['GROW'] },
+    'WXEX2-06-E3':    { zones: ['energy', 'hand'], destinations: ['deck', 'trash'] },
+  };
+  const ruleOf = (eff: CardEffect | undefined): { zones?: string[]; destinations?: string[]; exceptPhases?: string[] } | undefined => {
+    let found: { zones?: string[]; destinations?: string[]; exceptPhases?: string[] } | undefined;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as Record<string, unknown>;
+      if (o.type === 'ZONE_MOVE_IMMUNITY' && Array.isArray(o.zones)) found ??= o as never;
+      if (o.zoneMoveImmunity && typeof o.zoneMoveImmunity === 'object') found ??= o.zoneMoveImmunity as never;
+      Object.values(o).forEach(walk);
+    };
+    walk(eff); return found;
+  };
+  for (const [effectId, want] of Object.entries(expected)) {
+    const cardNum = effectId.replace(/-(E\d+\w*|BURST|TRAP)$/, '');
+    const liveRule = ruleOf(findEffectDeep(effectsMap.get(cardNum) ?? [], effectId));
+    const freshRule = ruleOf(findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId));
+    ok(!!liveRule, `${effectId}: live に保護規則が無い`);
+    ok(!!freshRule, `${effectId}: fresh parser が保護規則を出さない（parser 退行）`);
+    if (!liveRule || !freshRule) continue;
+    for (const rule of [liveRule, freshRule]) {
+      eq((rule.zones ?? []).slice().sort().join(','), want.zones.slice().sort().join(','), `${effectId}: 保護する移動元`);
+      eq((rule.destinations ?? []).slice().sort().join(','), (want.destinations ?? []).slice().sort().join(','), `${effectId}: 🔴移動先の限定が原文と違う`);
+      eq((rule.exceptPhases ?? []).join(','), (want.exceptPhases ?? []).join(','), `${effectId}: 位相の限定が原文と違う`);
+    }
+  }
+
+  // ── ② engine：移動先で通し分ける ──
+  const base = mkCtx({}, {});
+  const ctxWith = (rules: unknown[], phase: string) =>
+    ({ ...base, otherProtectedZoneRules: rules, currentPhase: phase } as unknown as ExecCtx);
+  const trashOnly = [{ zones: ['energy'], destinations: ['trash'] }];
+  ok(oppZoneMoveBlocked('energy', 'opponent', ctxWith(trashOnly, 'MAIN'), 'trash'), 'エナ→トラッシュは止まる');
+  ok(!oppZoneMoveBlocked('energy', 'opponent', ctxWith(trashOnly, 'MAIN'), 'deck'), '🔴エナ→デッキまで止めている（過剰実行）');
+  ok(!oppZoneMoveBlocked('energy', 'opponent', ctxWith(trashOnly, 'MAIN'), 'exile'), '🔴除外まで止めている（この項目の元の症状）');
+
+  // ── ③ engine：位相で通し分ける ──
+  const exceptGrow = [{ zones: ['deck'], destinations: ['trash'], exceptPhases: ['GROW'] }];
+  ok(oppZoneMoveBlocked('deck', 'opponent', ctxWith(exceptGrow, 'MAIN'), 'trash'), 'グロウフェイズ以外では止まる');
+  ok(!oppZoneMoveBlocked('deck', 'opponent', ctxWith(exceptGrow, 'GROW'), 'trash'), '🔴グロウフェイズでも止めている');
+
+  // ── ④ 対照：payload 無しの宣言は全方向・全位相（既存効果を退化させない）──
+  const legacy = [{ zones: ['hand'] }];
+  for (const [dest, phase] of [['trash', 'MAIN'], ['deck', 'GROW'], ['exile', 'ATTACK_SIGNI']] as const) {
+    ok(oppZoneMoveBlocked('hand', 'opponent', ctxWith(legacy, phase), dest),
+      `payload 無しの保護が ${dest}/${phase} で外れた（既存効果の退化）`);
+  }
+
+  // ── ⑤ E2E：実際のアクションで止まる／止まらない（§5-5d）──
+  const e2e = (rules: unknown[]) => {
+    const c = mkCtx({}, { hand: 2 });
+    const withRules = { ...c, otherProtectedZoneRules: rules, currentPhase: 'MAIN' } as unknown as ExecCtx;
+    const before = c.otherState.trash.length;
+    const after = run({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as EffectAction, withRules);
+    return Object.assign(after, { trashBefore: before });
+  };
+  const blocked = e2e([{ zones: ['hand'], destinations: ['trash'] }]);
+  eq(blocked.otherState.hand.length, 2, '🔴手札→トラッシュの保護が実アクションで効いていない');
+  const passed = e2e([{ zones: ['hand'], destinations: ['deck'] }]);
+  // ⚠**空振り防止**＝「止まらない」を `done` の有無で誤魔化さない＝**実際に1枚減っている**ことを見る
+  //   （§5-21＝単独の負方向テストは何も検証していなくても緑になる）。
+  eq(passed.otherState.hand.length, 1,
+    '🔴デッキ行きだけを保護する宣言がトラッシュまで止めている（過剰実行）');
+  eq(passed.otherState.trash.length, passed.trashBefore + 1, 'トラッシュ側にも1枚増えている（移動が実際に起きた）');
 }));
 
 if (listMode) {

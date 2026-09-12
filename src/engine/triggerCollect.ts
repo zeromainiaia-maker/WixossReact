@@ -39,6 +39,8 @@ export interface TrigCtx {
   effectsMap: Map<string, CardEffect[]>;
   cardMap: Map<string, CardData>;
   effectivePowers?: Map<string, number>;
+  /** トリガー収集を止めるプレイヤーの物理ゾーンにあるシグニ instanceId。 */
+  suppressedSigniTriggerNums?: ReadonlySet<string>;
   genId: () => string;
 }
 
@@ -88,8 +90,49 @@ export function oppLifeCrashSourceMatches(
   return matchesFilter(cardMap.get(getCardNum(crashSourceCardNum)), effect.triggerFilter);
 }
 
-const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
-  ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
+/**
+ * すべてのトリガー collector が通る効果参照の choke point。
+ * 抑止中のシグニは AUTO だけを除き、原文で除外された LIFE_BURST は残す。
+ */
+const effsOf = (ctx: TrigCtx, n: string): CardEffect[] => {
+  const base = getCardNum(n);
+  const effects = (Map.prototype.get.call(ctx.effectsMap, n) as CardEffect[] | undefined)
+    ?? (Map.prototype.get.call(ctx.effectsMap, base) as CardEffect[] | undefined)
+    ?? [];
+  const suppressed = ctx.suppressedSigniTriggerNums;
+  if (!suppressed?.has(n) && !suppressed?.has(base)) return effects;
+  const type = ctx.cardMap.get(base)?.Type ?? '';
+  if (!type.includes('シグニ') && !type.includes('レゾナ')) return effects;
+  return effects.filter(effect => effect.effectType !== 'AUTO');
+};
+export const triggerEffectsForCollection = effsOf;
+
+/** 抑止フラグが立つプレイヤーの物理ゾーンから、トリガー発生源になりうる instanceId を集める。 */
+export function collectSuppressedSigniTriggerNums(...states: PlayerState[]): Set<string> {
+  const out = new Set<string>();
+  for (const state of states) {
+    if (!state.signi_trigger_abilities_suppressed_this_turn) continue;
+    const nums = [
+      ...state.deck, ...state.lrig_deck, ...state.hand, ...state.life_cloth,
+      ...state.trash, ...state.lrig_trash, ...state.energy, ...(state.excluded ?? []),
+      ...state.field.lrig, ...state.field.signi.flatMap(stack => stack ?? []),
+      ...(state.field.assist_lrig_l ?? []), ...(state.field.assist_lrig_r ?? []),
+      ...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? []),
+      ...(state.field.key_piece ? [state.field.key_piece] : []), ...(state.field.key_piece_extra ?? []),
+      ...(state.field.signi_charms ?? []).filter((n): n is string => !!n),
+      ...(state.field.signi_facedown_attached ?? []).flatMap(stack => stack ?? []),
+      ...(state.field.signi_acce ?? []).flatMap(stack => stack ?? []),
+      ...(state.field.signi_soul ?? []).filter((n): n is string => !!n),
+      ...(state.field.signi_traps ?? []).filter((n): n is string => !!n),
+      ...(state.field.signi_magic_boxes ?? []).filter((n): n is string => !!n),
+      ...(state.field.signi_seeds ?? []).filter((n): n is string => !!n),
+      ...(state.field.facedown_signi ?? []).filter((n): n is string => !!n),
+      ...(state.field.free_zone ?? []), ...(state.field.beat_zone ?? []),
+    ];
+    for (const num of nums) out.add(num);
+  }
+  return out;
+}
 
 /** triggerCondition の原因主体限定を、能力の持ち主（controllerId）視点で評価する。 */
 const effectCauseMatches = (eff: CardEffect, controllerId: string, causeOwnerId?: string): boolean => {
@@ -295,7 +338,7 @@ export function collectLrigFlipTriggers(
   const beforeIdentity = beforeState.card_identity_overrides?.[instanceId] ?? getCardNum(instanceId);
   const afterIdentity = afterState.card_identity_overrides?.[instanceId] ?? getCardNum(instanceId);
   if (beforeIdentity === afterIdentity) return [];
-  return (ctx.effectsMap.get(afterIdentity) ?? [])
+  return (effsOf(ctx, afterIdentity) ?? [])
     .filter(effect => effect.effectType === 'AUTO' && effect.timing?.includes('ON_LRIG_FLIP'))
     .map(effect => ({
       id: ctx.genId(), playerId: ownerId, cardNum: instanceId, effectId: effect.effectId,
@@ -743,7 +786,7 @@ export function collectTargetedTriggers(
     const watcherIsTurn = ctx.activeUserId === watcherId;
     const limitOk = mkLimitOk(watcherState.actions_done, watcherIsHost ? usedHostIds : usedGuestIds);
     for (const topNum of ownFieldSources(watcherState)) {
-      for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      for (const eff of (effsOf(ctx, topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TARGETED')) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope === 'self') {
@@ -1047,7 +1090,7 @@ export function collectPowerZeroTriggers(
     // ownFieldSources = 場シグニ最上段＋センタールリグ最上段。field.signi のみ走査だと
     // LRIG が watcher の ON_SIGNI_POWER_ZERO_OR_LESS が構造的に絶対発火しなかった（続き95/96・WX22-013/WXDi-P14-009）。
     for (const topNum of ownFieldSources(watcherState)) {
-      for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      for (const eff of (effsOf(ctx, topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_POWER_ZERO_OR_LESS')) continue;
         const scope = eff.triggerScope ?? 'any';
         if (scope === 'self' && topNum !== zeroedCardNum) continue;
@@ -1115,7 +1158,7 @@ export function collectArmorTriggers(
   const usedGuestIds: string[] = [];
   const limitOkOwner = mkLimitOk(ownerStateAfter.actions_done, armoredPlayerId === ctx.hostId ? usedHostIds : usedGuestIds);
   // このシグニ自身の ON_BLOOD_CRYSTAL_ARMOR (scope=self)
-  for (const eff of (ctx.effectsMap.get(armoredCardNum) ?? [])) {
+  for (const eff of (effsOf(ctx, armoredCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'self') continue;
@@ -1130,7 +1173,7 @@ export function collectArmorTriggers(
   }
   // フィールド上の全シグニ＋ルリグの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
   for (const topNum of ownFieldSources(ownerStateAfter)) {
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
@@ -1172,7 +1215,7 @@ export function collectDeckTrashSelfTriggers(
   causeSourceCardNum?: string, byEffectCause = true,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
-  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+  for (const eff of (effsOf(ctx, trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
@@ -1269,7 +1312,7 @@ export function collectAnyZoneTrashSelfTriggers(
   causeSourceCardNum?: string, byEffectCause = true, ownerState?: PlayerState, otherState?: PlayerState,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
-  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+  for (const eff of (effsOf(ctx, trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     // 場/デッキ以外（手札・エナ・シグニの下）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
@@ -1421,7 +1464,7 @@ export function collectTrashTriggers(
   }
   // フィールド上シグニ＋ルリグのON_TRASHフィールドトリガー（ally_banished等）
   for (const topNum of ownFieldSources(ownerState)) {
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
@@ -1462,7 +1505,7 @@ export function collectTrashTriggers(
   const watcherIsTurnPlayer = ctx.activeUserId === watcherPlayerId;
   const limitOkWatcher = mkLimitOk(watcherState.actions_done, watcherPlayerId === ctx.hostId ? usedHostIds : usedGuestIds);
   for (const topNum of ownFieldSources(watcherState)) {
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
@@ -1573,7 +1616,7 @@ export function collectBanishTriggers(
       const otherAfter = banishedOwnerIsMe ? opAfterState : myAfterState;
       const hostCard = ctx.cardMap.get(getCardNum(banishedCardNum));
       const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
-      for (const acceNum of acceNums) for (const eff of (ctx.effectsMap.get(acceNum) ?? [])) {
+      for (const acceNum of acceNums) for (const eff of (effsOf(ctx, acceNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
         const g = eff.action as GrantAcceHostAbilityAction;
         if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
@@ -1592,7 +1635,7 @@ export function collectBanishTriggers(
   }
 
   // 1. バニッシュされたカード自身の ON_BANISH 効果
-  for (const eff of (ctx.effectsMap.get(banishedCardNum) ?? [])) {
+  for (const eff of (effsOf(ctx, banishedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
     if (!mainPhaseGateOk(eff, ctx, banishedPlayerId)) continue;
     const selfScope = eff.triggerScope ?? 'self';
@@ -1655,7 +1698,7 @@ export function collectBanishTriggers(
   // 2. 自分フィールド上シグニ＋ルリグのトリガー
   const isMyTurn = ctx.activeUserId === meId;
   for (const topNum of ownFieldSources(myAfterState)) {
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
@@ -1714,7 +1757,7 @@ export function collectBanishTriggers(
   // 3. 相手フィールド上シグニ＋ルリグのトリガー
   const isOpTurn = ctx.activeUserId === opId;
   for (const topNum of ownFieldSources(opAfterState)) {
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
       const scope = eff.triggerScope ?? 'self';
       // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
@@ -1893,7 +1936,7 @@ export function collectLeaveFieldTriggers(
   const selfLimitOk = mkLimitOk(ownerStateAfter.actions_done, leftIsHost ? usedHostIds : usedGuestIds);
   // self スコープ（このシグニ自身の離脱）視点のターン。turnOwner／leftStateFilter 判定に使う。
   const selfIsTurn = ctx.activeUserId === leftPlayerId;
-  for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
+  for (const eff of (effsOf(ctx, getCardNum(leftCardNum)) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     // duringAttackPhase（「アタックフェイズの間、…が場を離れたとき」WX24-P3-053/WXK02-031 等）＝アタックフェイズ中の離脱のみ発火。
@@ -1949,9 +1992,9 @@ export function collectLeaveFieldTriggers(
     // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WX25-P2-049-E1
     // 「ターン終了時まで、このルリグは『【自】あなたのシグニ1体が場を離れたとき…』を得る」）。
     const watcherEffs = topNum === lrigTop
-      ? [...(ctx.effectsMap.get(getCardNum(topNum)) ?? []),
+      ? [...(effsOf(ctx, getCardNum(topNum)) ?? []),
          ...grantedStoreWatchers(ownerStateAfter, 'ON_LEAVE_FIELD', ['any_ally', 'any']).map(w => w.effect)]
-      : (ctx.effectsMap.get(getCardNum(topNum)) ?? []);
+      : (effsOf(ctx, getCardNum(topNum)) ?? []);
     for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
       const scope = eff.triggerScope ?? 'self';
@@ -2004,7 +2047,7 @@ export function collectLeaveFieldTriggers(
     ...(oppLrigTop ? [oppLrigTop] : []),
   ];
   for (const topNum of oppWatcherNums) {
-    for (const eff of (ctx.effectsMap.get(getCardNum(topNum)) ?? [])) {
+    for (const eff of (effsOf(ctx, getCardNum(topNum)) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
       if (eff.triggerScope !== 'any_opp' && eff.triggerScope !== 'any') continue;
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
@@ -2117,7 +2160,7 @@ export function collectDrawTriggers(
   for (const topNum of ownFieldSources(drawerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DRAW')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       // drawBySourceStory: このドローの原因が指定＜story＞シグニの効果である場合のみ発火（WX20-026-E3）。
@@ -2172,7 +2215,7 @@ export function collectOppDrawTriggers(
   for (const topNum of ownFieldSources(reactorState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DRAW')) continue;
       if (eff.triggerScope !== 'any_opp') continue;
       const pr = eff.triggerCondition?.drawPhaseRestriction;
@@ -2221,7 +2264,7 @@ export function collectMillTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
@@ -2346,7 +2389,7 @@ export function collectCharmToTrashTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CHARM_TO_TRASH')) continue;
       const scope = eff.triggerScope ?? 'any';
       const relevant = scope === 'any_ally' ? charmsFromControllerField
@@ -2402,7 +2445,7 @@ export function collectMagicBoxFlippedTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (!accept(eff, topNum)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
@@ -2602,7 +2645,7 @@ export function collectAbilityActivatedTriggers(
   for (const topNum of ownFieldSources(watcherState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ABILITY_ACTIVATED')) continue;
       // 自分自身の発動には反応しない（「他の能力」）。
       if (activated.effect.effectId === eff.effectId) continue;
@@ -2645,7 +2688,7 @@ export function collectCoinGainedTriggers(
   for (const topNum of ownFieldSources(watcherState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_COIN_GAINED')) continue;
       const scope = eff.triggerScope ?? 'any';
       const relevant = scope === 'self' || scope === 'any_ally' ? gainedBySelf
@@ -2684,7 +2727,7 @@ export function collectAcceToTrashTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_TO_TRASH')) continue;
       const scope = eff.triggerScope ?? 'any';
       const relevant = scope === 'any_ally' || scope === 'self' ? acceFromControllerField
@@ -2728,7 +2771,7 @@ export function collectAttachedTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       // scope self＝「このシグニに」＝トリガー元自身が付与先の場合のみ。それ以外は自分の場の付与すべて。
       const scope = eff.triggerScope ?? 'self';
@@ -2781,7 +2824,7 @@ export function collectEnergyToTrashTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
       if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       if (relevantCount(eff) < (eff.triggerCondition?.minCount ?? 1)) continue;
@@ -2850,7 +2893,7 @@ export function collectRefreshTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REFRESH')) continue;
       if (!kizunaOk(ctx, eff, controllerState, topNum)) continue;
       const owner = eff.triggerCondition?.refreshedOwner ?? 'any';
@@ -2911,7 +2954,7 @@ export function collectPowerDecreaseTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_POWER_DECREASED')) continue;
       if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
@@ -2975,7 +3018,7 @@ export function collectMoveToDeckTriggers(
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MOVED_TO_DECK')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
@@ -3024,7 +3067,7 @@ export function collectFreezeTriggers(
     const watcherIsTurn = watcherId === ctx.activeUserId;
     const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
     for (const topNum of ownFieldSources(watcherState)) {
-      for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      for (const eff of (effsOf(ctx, topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_FROZEN')) continue;
         const scope = eff.triggerScope ?? 'any_opp';
         const to = eff.triggerCondition?.turnOwner;
@@ -3594,7 +3637,7 @@ export function collectSigniCrashTotalTriggers(
   if (removed.has(signiNum)) return { entries, usedOncePerTurnIds };
   // 「このシグニが」＝当のシグニが場に居ることが前提（スタック頂点のみ）。
   if (!ownFieldSources(controllerState).includes(signiNum)) return { entries, usedOncePerTurnIds };
-  for (const eff of (ctx.effectsMap.get(signiNum) ?? [])) {
+  for (const eff of (effsOf(ctx, signiNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_CRASHED_LIFE_TOTAL')) continue;
     if (total < (eff.triggerCondition?.crashedTotalThisTurn ?? 1)) continue;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, signiNum)) continue;
@@ -3635,7 +3678,7 @@ export function collectOppResourceLossTriggers(
   const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   for (const topNum of ownFieldSources(controllerState)) {
     if (removed.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_OR_ENERGY_LOST_BY_OPP')) continue;
       const minCount = eff.triggerCondition?.minCount ?? 1;
       // どちらか一方でも閾値に達していれば発火（OR）。両方起きても entry は1つ＝この1回の走査で畳まれる。
@@ -3782,7 +3825,7 @@ export function collectSelfEventTriggers(
   // FROZEN_LOSES_ABILITIES: 相手ルリグにこの常在があれば自分の凍結シグニのAUTOは発火しない
   const opLrigTop = opState.field.lrig.at(-1);
   const frozenLosesAbilities = opLrigTop
-    ? (ctx.effectsMap.get(opLrigTop) ?? []).some(e =>
+    ? (effsOf(ctx, opLrigTop) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' &&
         (e.action as StubAction)?.type === 'STUB' &&
         (e.action as StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
@@ -3795,7 +3838,7 @@ export function collectSelfEventTriggers(
     if (!topNum) continue;
     if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
     if (myAbilitiesRemovedSelf.has(topNum)) continue;
-    for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+    for (const eff of effsOf(ctx, topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
       // 🆕`O-64`：「対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき」
@@ -3833,8 +3876,8 @@ export function collectSelfEventTriggers(
     // 「あなたのライフがクラッシュされたとき」等はプレイヤー自身が主語なので scope は self。
     // 外すと WXDi-P12-030-E2（レイラ・ザ・クラック）が構造どおりでも恒久 no-op になる。
     const srcEffects = srcNum === selfEventLrigTop
-      ? [...(ctx.effectsMap.get(srcNum) ?? []), ...grantedStoreWatchers(myState, timing, ['self']).map(w => w.effect)]
-      : (ctx.effectsMap.get(srcNum) ?? []);
+      ? [...(effsOf(ctx, srcNum) ?? []), ...grantedStoreWatchers(myState, timing, ['self']).map(w => w.effect)]
+      : (effsOf(ctx, srcNum) ?? []);
     for (const eff of srcEffects) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
@@ -3851,7 +3894,7 @@ export function collectSelfEventTriggers(
   // トラッシュからの自己復活（WX11-026 ヘスチア等）：ADD_TO_FIELD source:TRASH_CARD の AUTO のみ対象。
   if (timing === 'ON_LIFE_CRASHED') {
     for (const trashInstance of myState.trash) {
-      for (const eff of ctx.effectsMap.get(trashInstance) ?? []) {
+      for (const eff of effsOf(ctx, trashInstance) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         const act = eff.action as AddToFieldAction;
         if (act.type !== 'ADD_TO_FIELD' || act.source?.type !== 'TRASH_CARD') continue;
@@ -3868,7 +3911,7 @@ export function collectSelfEventTriggers(
   // timing だけ一致する一般のトラッシュカードは拾わず、発生源ゾーンを明記する action に限定する。
   if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' || timing === 'ON_GUARD') {
     for (const trashInstance of myState.trash) {
-      for (const eff of ctx.effectsMap.get(trashInstance) ?? []) {
+      for (const eff of effsOf(ctx, trashInstance) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing) || !containsSelfTrashExile(eff.action)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, trashInstance, ctx.turnPhase, ctx.effectivePowers)) continue;
         if (!limitOk(eff)) continue;
@@ -4028,7 +4071,7 @@ export function collectZoneMovedTriggers(
     for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
       const topNum = fieldState.field.signi[zi]?.at(-1);
       if (!topNum) continue;
-      for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+      for (const eff of effsOf(ctx, topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ZONE_MOVED')) continue;
         const causeLimited = !!(eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect);
         if (causeLimitedOnly && !causeLimited) continue;
@@ -4072,7 +4115,7 @@ export function collectDriveBecameTriggers(
     for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
       const topNum = fieldState.field.signi[zi]?.at(-1);
       if (!topNum) continue;
-      for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+      for (const eff of effsOf(ctx, topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BECOMES_DRIVE')) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope === 'self' && topNum !== becameNum) continue;
@@ -4125,7 +4168,7 @@ export function collectBeatBecameTriggers(
   };
   if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedIds };
   // 1. なったカード自身（self scope。beat_zone 在中なので effectsMap から直接引く）
-  for (const eff of ctx.effectsMap.get(becameNum) ?? []) {
+  for (const eff of effsOf(ctx, becameNum) ?? []) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     if (!consumeLimit(eff)) continue;
@@ -4135,7 +4178,7 @@ export function collectBeatBecameTriggers(
   for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
     const topNum = ownerState.field.signi[zi]?.at(-1);
     if (!topNum || topNum === becameNum) continue;
-    for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+    for (const eff of effsOf(ctx, topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
@@ -4173,9 +4216,9 @@ export function collectOppLifeCrashedTriggers(
   const crasherLrigTop = crasherState.field.lrig.at(-1);
   for (const watcher of sources) {
     const watcherEffs = watcher === crasherLrigTop
-      ? [...(ctx.effectsMap.get(watcher) ?? []),
+      ? [...(effsOf(ctx, watcher) ?? []),
          ...grantedStoreWatchers(crasherState, 'ON_OPP_LIFE_CRASHED', ['self', 'any_ally', 'any']).map(w => w.effect)]
-      : (ctx.effectsMap.get(watcher) ?? []);
+      : (effsOf(ctx, watcher) ?? []);
     for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
       if (!oppLifeCrashSourceMatches(eff, watcher, crashSourceCardNum, ctx.cardMap, crasherState)) continue;
@@ -4215,7 +4258,7 @@ export function collectPlayerDamagedTriggers(
     ...activeKeyAbilitySources(watcherState),
   ].filter((n): n is string => !!n);
   for (const watcher of sources) {
-    for (const eff of ctx.effectsMap.get(watcher) ?? []) {
+    for (const eff of effsOf(ctx, watcher) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAYER_DAMAGED')) continue;
       if (!limitOk(eff)) continue;
       entries.push({
@@ -4290,7 +4333,7 @@ export function collectHandDiscardTriggers(
   const costSrcClass = costSourceNum ? (ctx.cardMap.get(costSourceNum)?.CardClass ?? '') : '';
   if (asCost) {
     for (const cn of discardedNums) {
-      for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
+      for (const eff of (effsOf(ctx, cn) ?? [])) {
         if (eff.effectType !== 'AUTO') continue;
         const discardedAsCost = eff.timing?.includes('ON_DISCARDED_AS_COST');
         const trashCostOrStory = eff.timing?.includes('ON_TRASH')
@@ -4315,7 +4358,7 @@ export function collectHandDiscardTriggers(
   for (const stack of myState.field.signi) {
     const topNum = stack?.at(-1);
     if (!topNum) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
       if (!meetsMinCount(eff)) continue;
       // any_opp＝「対戦相手が捨てたとき」＝discarder 自身の場では発火しない（相手フィールド path で拾う）。
@@ -4343,7 +4386,7 @@ export function collectHandDiscardTriggers(
   // BLOCK_OWN_SIGNI_AUTO はシグニ限定なので LRIG には適用しない。
   const myLrigHD = myState.field.lrig.at(-1);
   if (myLrigHD) {
-    for (const eff of (ctx.effectsMap.get(myLrigHD) ?? [])) {
+    for (const eff of (effsOf(ctx, myLrigHD) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
       if (!meetsMinCount(eff)) continue;
       if (eff.triggerScope === 'any_opp') continue; // 相手が捨てたとき＝discarder 自身の LRIG では発火しない
@@ -4375,7 +4418,7 @@ export function collectHandDiscardTriggers(
     for (const { num: topNum, isLrig } of oppSources) {
       if (!topNum) continue;
       if (oppBlocked && !isLrig) continue;
-      for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      for (const eff of (effsOf(ctx, topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
         if (!meetsMinCount(eff)) continue;
         if (eff.triggerScope !== 'any' && eff.triggerScope !== 'any_opp') continue;
@@ -4473,7 +4516,7 @@ export function collectOppArtsUseTriggers(
   // ownFieldSources = 場シグニ＋センタールリグ。signi のみ走査だと LRIG watcher が発火しなかった
   // （続き96・ON_OPP_ARTS_USE self の WX16-003）。姉妹関数 collectArtsUseTriggers は元から lrig 対応済み。
   for (const topNum of ownFieldSources(myState)) {
-    for (const eff of ctx.effectsMap.get(topNum) ?? []) {
+    for (const eff of effsOf(ctx, topNum) ?? []) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
       // §5.3 O-113: 「あなたの〈フィルタ〉のシグニ1体が対戦相手のアーツの**効果を受けたとき**」。
@@ -4522,7 +4565,7 @@ export function collectArtsUseTriggers(
     ...casterState.field.signi.map(s => s?.at(-1)),
   ].filter((n): n is string => !!n);
   for (const srcNum of sources) {
-    for (const eff of (ctx.effectsMap.get(srcNum) ?? [])) {
+    for (const eff of (effsOf(ctx, srcNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ARTS_USE')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       // triggerFilter: 使用したアーツの色条件（「あなたが緑のアーツを使用したとき」WXK01-043）。
@@ -4602,7 +4645,7 @@ export function collectAttackerSelfTriggers(
 ): StackEntry[] {
   const attackerCard = ctx.cardMap.get(getCardNum(attackerNum));
   const crossOk = isCrossZoneActive(myState, attackerNum, ctx.cardMap);
-  return (ctx.effectsMap.get(attackerNum) ?? [])
+  return (effsOf(ctx, attackerNum) ?? [])
     .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
     .filter(e => !e.triggerCondition?.attackedNotFront || sideAttack === true)
     .filter(e => !e.crossOnly || crossOk)
@@ -4728,7 +4771,7 @@ export function collectFieldTriggers(
   // 場に出たとき…』を得る」（WDK12-001-E3）や ON_ATTACK_SIGNI any_opp の付与（WX15-016-E1 ほか7件）が
   // 構造は正しいまま恒久 no-op になる。scope の絞りは各ループ側の既存ゲートがそのまま担う。
   const watcherEffects = (state: PlayerState, topNum: string, isLrig: boolean): CardEffect[] => {
-    const printed = ctx.effectsMap.get(topNum) ?? [];
+    const printed = effsOf(ctx, topNum) ?? [];
     if (!isLrig) return printed;
     return [...printed, ...grantedStoreWatchers(state, event, ['any_ally', 'any_opp', 'any']).map(w => w.effect)];
   };
@@ -4747,7 +4790,7 @@ export function collectFieldTriggers(
   // watcher 自身がトラッシュにいるため、自己回収 action を持つ該当カードだけを追加走査する。
   if (event === 'ON_PLAY') {
     for (const num of myState.trash) {
-      if ((ctx.effectsMap.get(num) ?? []).some(e =>
+      if ((effsOf(ctx, num) ?? []).some(e =>
         e.effectType === 'AUTO'
         && e.timing?.includes('ON_PLAY')
         && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
@@ -4817,7 +4860,7 @@ export function collectFieldTriggers(
   const oppAutoBlocked = myState.blocked_actions?.includes('BLOCK_OPP_SIGNI_AUTO');
   const myLrigTop = myState.field.lrig.at(-1);
   const frozenLosesAbilitiesOnMyLrig = myLrigTop
-    ? (ctx.effectsMap.get(myLrigTop) ?? []).some(e =>
+    ? (effsOf(ctx, myLrigTop) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' &&
         (e.action as StubAction)?.type === 'STUB' &&
         (e.action as StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
@@ -4897,7 +4940,7 @@ export function collectFieldTriggers(
   // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ON_PLAYトリガーでアーツ自己回収）
   if (event === 'ON_PLAY') {
     for (const artsNum of (myState.lrig_trash ?? [])) {
-      for (const eff of (ctx.effectsMap.get(artsNum) ?? [])) {
+      for (const eff of (effsOf(ctx, artsNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
         const act = eff.action as StubAction;
         if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
@@ -4930,7 +4973,7 @@ export function collectBloomTriggers(
   const limitOkSelf = mkLimitOk(myState.actions_done, ownerIsHost ? usedHostIds : usedGuestIds);
   const cn = getCardNum(bloomedInstanceId);
   const cardName = ctx.cardMap.get(cn)?.CardName ?? cn;
-  for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
+  for (const eff of (effsOf(ctx, cn) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOM')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     if (!limitOkSelf(eff)) continue;
@@ -5134,7 +5177,7 @@ export function collectTurnTriggers(
     const topNum = stack[stack.length - 1];
     if (ownAutoBlockedTurn) continue;
     if (myAbilitiesRemovedTurn.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (!kizunaOk(ctx, eff, myState, topNum)) continue;
@@ -5176,7 +5219,7 @@ export function collectTurnTriggers(
     for (const kw of (myGrantsKT[topNumKT] ?? [])) {
       const tokenCardKT = KEYWORD_TOKEN_MAP[kw];
       if (!tokenCardKT) continue;
-      for (const eff of (ctx.effectsMap.get(tokenCardKT) ?? [])) {
+      for (const eff of (effsOf(ctx, tokenCardKT) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         if (!limitOkMy(eff)) continue;
         const cardNameKT = ctx.cardMap.get(topNumKT)?.CardName ?? topNumKT;
@@ -5196,7 +5239,7 @@ export function collectTurnTriggers(
     if (!tokenCardPK || ownAutoBlockedTurn) continue;
     const hostPK = myState.field.lrig.at(-1);
     if (!hostPK) continue;
-    for (const eff of (ctx.effectsMap.get(tokenCardPK) ?? [])) {
+    for (const eff of (effsOf(ctx, tokenCardPK) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (!limitOkMy(eff)) continue;
       entries.push({
@@ -5210,7 +5253,7 @@ export function collectTurnTriggers(
   // 自分のルリグ
   const myLrigNum = myState.field.lrig.at(-1);
   if (myLrigNum) {
-    for (const eff of (ctx.effectsMap.get(myLrigNum) ?? [])) {
+    for (const eff of (effsOf(ctx, myLrigNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, true, ctx.cardMap, myLrigNum)) continue;
       if (!limitOkMy(eff)) continue;
@@ -5241,7 +5284,7 @@ export function collectTurnTriggers(
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     if (opAbilitiesRemovedTurn.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of (effsOf(ctx, topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp' && scope !== 'any' && !eff.triggerCondition?.anyTurn) continue;
@@ -5274,7 +5317,7 @@ export function collectTurnTriggers(
   // WX12-002/WX19-002/WX21-001 等11枚）。own側ルリグと同じく activeCondition で発火可否を担保する。
   const opLrigNumTurn = opState.field.lrig.at(-1);
   if (opLrigNumTurn) {
-    for (const eff of (ctx.effectsMap.get(opLrigNumTurn) ?? [])) {
+    for (const eff of (effsOf(ctx, opLrigNumTurn) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp' && scope !== 'any') continue;
@@ -5293,7 +5336,7 @@ export function collectTurnTriggers(
   // 一般のトラッシュ能力は走査しない＝自己回収 action を持つカードだけ限定走査
   // （collectFieldTriggers の placedFromTrash 走査と同型ゲート）。
   for (const num of opState.trash) {
-    for (const eff of (ctx.effectsMap.get(num) ?? [])) {
+    for (const eff of (effsOf(ctx, num) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp' && scope !== 'any') continue;
@@ -5311,7 +5354,7 @@ export function collectTurnTriggers(
 
   // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER）
   for (const artsNum of (myState.lrig_trash ?? [])) {
-    for (const eff of (ctx.effectsMap.get(artsNum) ?? [])) {
+    for (const eff of (effsOf(ctx, artsNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const act = eff.action as StubAction;
       if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;

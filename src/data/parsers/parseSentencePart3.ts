@@ -608,7 +608,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
     //   **1:1**（例外0を実測）＝期限印を無条件で付ける。旧実装は印が無く `lrig_limit_mod` へ落ちて
     //   **ターン終了時に消えていた**（受け皿の名前が嘘＝CLAUDE.md の既知の罠）。
     return { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
-      ...(limSpec ? { lrigLimitChange: { ...limSpec, untilOwnEnergyPhaseEnd: true } } : {}) } as StubAction;
+      ...(limSpec ? { lrigLimitChange: {
+        ...limSpec,
+        untilOwnEnergyPhaseEnd: true,
+        ...(/\u3053\u306e\u30b7\u30b0\u30cb\u304c\u5834\u306b\u3042\u308b\u304b\u304e\u308a/.test(t) ? { whileSourceInField: true } : {}),
+      } } : {}) } as StubAction;
   }
 
   // ---- このターン、あなたはダメージを受けない・敗北しない ----

@@ -76,8 +76,15 @@ export interface ExecCtx {
   // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
   // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
   otherProtectedZones?: import('../types/effects').OppMoveImmunityZone[];
+  /** §5.3 O-341: 移動先・位相を失わない【常】ゾーン保護規則。 */
+  otherProtectedZoneRules?: import('../types/effects').OppMoveImmunityRule[];
   // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手の効果で能力を失えないシグニ（otherState のカード番号）
   otherProtectedSigniNums?: string[];
+  /**
+   * §5.3 `O-334`：対戦相手の効果によるアタック無効化を受けない otherState のシグニ。
+   * 能力の activeCondition を BattleScreen 側で評価した保護集合を渡す。
+   */
+  otherAttackNegationProtectedNums?: Set<string>;
   // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_BOUNCE_AND_DOWN_BY_OPP
   otherDownProtectedNums?: string[];
   // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手シグニのバウンス保護（場→手札に戻せないシグニ）
@@ -848,13 +855,13 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       ? owners.filter(owner => !!ctx.sourceCardNum && ownerState(owner, ctx).trash.includes(ctx.sourceCardNum))
         .map(() => ctx.sourceCardNum!)
       : owners.flatMap(owner => movableTrashCandidates(
-        owner, ownerState(owner, ctx), spec.trashExile!.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+        owner, ownerState(owner, ctx), spec.trashExile!.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'exile',
       ));
     if (matching.length < spec.trashExile.count) return false;
   }
   if (spec.trashToDeckBottom) {
     const matching = movableTrashCandidates(
-      'self', ctx.ownerState, spec.trashToDeckBottom.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+      'self', ctx.ownerState, spec.trashToDeckBottom.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'deck');
     if (matching.length < spec.trashToDeckBottom.count) return false;
   }
   if (spec.fieldTrash) {
@@ -2295,12 +2302,23 @@ export function trashCandidates(state: PlayerState, filter: TargetFilter | undef
  */
 export function oppZoneMoveBlocked(
   zone: import('../types/effects').OppMoveImmunityZone, tgtOwner: Owner, ctx: ExecCtx,
+  destination?: import('../types/effects').OppMoveDestination,
 ): boolean {
   if (tgtOwner !== 'opponent') return false;
-  if (ctx.otherProtectedZones?.includes(zone)) return true;
+  const applies = (entry: import('../types/effects').OppMoveImmunityRule): boolean => {
+    if (!entry.zones.includes(zone)) return false;
+    if (entry.exceptPhases?.length) {
+      if (!ctx.currentPhase || entry.exceptPhases.includes(ctx.currentPhase as TurnPhase)) return false;
+    }
+    if (destination && entry.destinations?.length && !entry.destinations.includes(destination)) return false;
+    return true;
+  };
+  if (ctx.otherProtectedZoneRules?.some(applies)) return true;
+  // 旧 ctx は規則を持たず集合だけを渡す。新規則があるときは集合へ二重に潰さない。
+  if (!ctx.otherProtectedZoneRules && ctx.otherProtectedZones?.includes(zone)) return true;
   for (const entry of ctx.otherState?.opp_move_immunity ?? []) {
     if (entry.turnsRemaining <= 0) continue;
-    if (entry.zones.includes(zone)) return true;
+    if (applies(entry)) return true;
   }
   return false;
 }
@@ -2308,13 +2326,14 @@ export function oppZoneMoveBlocked(
 export function movableTrashCandidates(
   owner: Owner, state: PlayerState, filter: TargetFilter | undefined,
   cardMap: Map<string, CardData>, ctx: ExecCtx, allZoneClassOverrides?: Record<string, string>,
+  destination?: import('../types/effects').OppMoveDestination,
 ): string[] {
   if (isOwnTrashMoveLocked(owner, ctx)) return [];
   // 🆕**「対戦相手の効果によって〈トラッシュ〉のカードは他の領域に移動しない」**（2026-09-07・意味照合 段2
   //   `WXK10-004-E1`＝「場以外のあなたの領域」）。🔴従来この保護は `hand`/`energy` の2つしか無く、
   //   **トラッシュは1件も守られていなかった**。⚠ここは**トラッシュから動かす全経路の funnel**
   //   （除外／手札へ／エナへ／デッキへ）＝1点で塞ぐ。ロックと同じく**候補0**で表す。
-  if (oppZoneMoveBlocked('trash', owner, ctx)) return [];
+  if (oppZoneMoveBlocked('trash', owner, ctx, destination)) return [];
   // §6.4 O-10（続き514）＝「対戦相手のトラッシュ…にあるカードは…効果を受けない」（`WX12-023`）。
   // 🔑**宣言者は `owner` の対面**＝`owner==='self'` なら相手の場、`'opponent'` なら効果主の場を見る。
   // ⚠ロックと同じく候補0で表す＝アクションは「対象がない」で自然に no-op する（盤面を巻き戻さない）。

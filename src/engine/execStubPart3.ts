@@ -1352,7 +1352,7 @@ export function execStubPart3(
       ? ({ type: 'STUB', id: 'OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND', value: restOFE.join(',') } as StubAction) as EffectAction
       : undefined;
     const fieldOFE = fieldCandidatesByOwner('opponent', { color: colorOFE }, ctx).cands;
-    const energyOFE = oppZoneMoveBlocked('energy', 'opponent', ctx) ? []
+    const energyOFE = oppZoneMoveBlocked('energy', 'opponent', ctx, 'hand') ? []
       : energyCandidatesForOwner('opponent', ctx.otherState, { color: colorOFE }, ctx.cardMap, ctx);
     const candsOFE = [...fieldOFE, ...energyOFE];
     const logOFE = addLog(ctx, `対戦相手のシグニゾーンかエナゾーンから${colorOFE}のカードを１枚まで対象とする`);
@@ -1366,7 +1366,7 @@ export function execStubPart3(
   // ⚠候補は `movableTrashCandidates`（相手トラッシュの保護の合流点）。
   if (stub.id === 'OPP_TRASH_TO_DECK_TOP_OPP_ORDERS') {
     const maxOTD = Math.max(1, parseInt(String(stub.value ?? '2'), 10) || 2);
-    const candsOTD = movableTrashCandidates('opponent', ctx.otherState, undefined, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    const candsOTD = movableTrashCandidates('opponent', ctx.otherState, undefined, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'deck');
     if (candsOTD.length === 0) return done(addLog(ctx, '対戦相手のトラッシュに対象なし'));
     return selectOrInteract(candsOTD, Math.min(maxOTD, candsOTD.length), true, 'opp_trash',
       ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction,
@@ -4156,6 +4156,13 @@ export function execStubPart3(
     const newRemovedSOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), ...oppTopsSOS])];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, abilities_removed: newRemovedSOS } },
       '相手フィールドの全シグニの能力を消去'));
+  }
+  // §5.3 O-337：対戦相手の全領域のシグニトリガーを、LB 以外このターン抑止する。
+  if (stub.id === 'SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN') {
+    return done(addLog({
+      ...ctx,
+      otherState: { ...ctx.otherState, signi_trigger_abilities_suppressed_this_turn: true },
+    }, 'このターン、対戦相手のシグニのトリガー能力（ライフバースト以外）は発動しない'));
   }
   // END_ATTACK_IF_EXTRA_TURN: 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ）
   if (stub.id === 'END_ATTACK_IF_EXTRA_TURN') {

@@ -6006,13 +6006,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   （`effectEngine.ts:590`＝`awakened_signi` を見る ActiveCondition）。
   // ⚠**`target.count:1` でフィルタ無し**＝収集器は「`count:1` なら発生源自身だけ」に絞る
   //   （`filter.thisCardOnly` は `matchesFilter` が黙って無視するので**付けても効かない**）。
-  // 🔴**残る1つ（「アタックは対戦相手の効果によって無効にならない」）は未実装のまま**＝
-  //   既存の受け皿は2つとも向きが違う（`own_effects_cannot_negate_signi_attack_this_turn`＝
-  //   プレイヤー単位で**自分の**効果／`attack_not_negated_by_self_effect_this_turn`＝カード単位で
-  //   **自分自身の**効果）。**相手の効果からの per-signi 免疫**は消費地点が `src/screens/` 側の
-  //   保護集合（`otherProtectedSigniNums` の family）に要る＝PLAN §5.3 `O-334` へ登録した。
+  // §5.3 `O-334`：残る1つも同じ `IS_SELF_AWAKENED` の宣言として `-E1c` に分離。
+  // BattleScreen が保護集合を作り、NEGATE_ATTACK の候補絞り込みと直接適用の両経路で読む。
   "WX25-P3-057": [{"effectId":"WX25-P3-057-E1","effectType":"AUTO","timing":["ON_TURN_END"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_AWAKENED"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX25-P3-057-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_AWAKENED"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+    {"effectId":"WX25-P3-057-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_AWAKENED"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX25-P3-057-E1c","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_AWAKENED"},"action":{"type":"STUB","id":"PREVENT_ATTACK_NEGATION_BY_OPP"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX09-019": [{"effectId":"WX09-019-E2","effectType":"AUTO","timing":["ON_LIFE_CRASHED"],"triggerScope":"self","condition":{"type":"SELF_POWER_GTE","value":18000},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ"},"upToCount":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX09-027": [{"effectId":"WX09-027-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BANISH_THRESHOLD_BOOST_7_15"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
 

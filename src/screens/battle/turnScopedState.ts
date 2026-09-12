@@ -85,6 +85,7 @@ const CONVENTION_TURN_SCOPED_STATE = {
   spell_negated_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next eligible spell negation, expiring at turn end' },
   // 自シグニの【出】抑止は、付与されたターンだけ有効。
   suppress_signi_on_play_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'own signi on-play suppression for the current turn' },
+  signi_trigger_abilities_suppressed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'all-zone signi trigger suppression except life burst for the current turn' },
   // エナの無色・能力喪失は、付与された現在ターンだけ有効。
   energy_colorless_ability_loss_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'energy color/ability override for the current turn' },
   // シグニ別ライフクラッシュ累計は、ターン終了時トリガーまで読んだ後に破棄する。
@@ -243,6 +244,7 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // 同じ期間のドローフェイズ置換（次のドローフェイズは次のメインフェイズより前なので必ず1回使える）。
   draw_phase_replacement: { boundaries: ['main-phase-start'], reset: undefined, reason: 'draw-phase replacement lasting until the owner next enters MAIN' },
   lrig_limit_mod_until_own_energy_phase_end: { boundaries: ['main-phase-start'], reset: undefined, reason: 'lrig limit modifier lasting until the owner next leaves ENERGY for MAIN' },
+  lrig_limit_mod_until_own_energy_phase_end_by_source: { boundaries: ['main-phase-start'], reset: undefined, reason: 'source-bound lrig limit modifiers expire at the same energy-phase boundary' },
 } as const satisfies Partial<Record<keyof PlayerState, TurnScopedSpec>>;
 
 /** ターン限定フィールドの唯一の実行時レジストリ。各フィールドは上のどちらかに1回だけ現れる。 */

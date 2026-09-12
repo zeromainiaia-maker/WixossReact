@@ -4332,12 +4332,25 @@ export function collectDrawLimits(
  * 保護されているゾーン（'hand' | 'energy'）を動的に返す。
  * state のフィールド上シグニとキーピースを走査する。
  */
-export function collectProtectedZones(
+function moveImmunityRuleApplies(
+  rule: import('../types/effects').OppMoveImmunityRule,
+  currentPhase?: TurnPhase,
+  destination?: import('../types/effects').OppMoveDestination,
+): boolean {
+  if (rule.exceptPhases?.length) {
+    if (!currentPhase || rule.exceptPhases.includes(currentPhase)) return false;
+  }
+  return !destination || !rule.destinations?.length || rule.destinations.includes(destination);
+}
+
+/** §5.3 O-341: 移動先・位相を潰さずに【常】宣言と期間つき予約を集める。 */
+export function collectProtectedZoneRules(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-): import('../types/effects').OppMoveImmunityZone[] {
-  const result = new Set<import('../types/effects').OppMoveImmunityZone>();
+  currentPhase?: TurnPhase,
+): import('../types/effects').OppMoveImmunityRule[] {
+  const result: import('../types/effects').OppMoveImmunityRule[] = [];
   const candidates: string[] = [];
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
@@ -4356,10 +4369,17 @@ export function collectProtectedZones(
         // §6.4 O-20: カード全文だと**別能力**の保護ゾーンまで拾う
         // （`WXK10-083-E1` はエナ限定なのに E2 の「手札」を拾って手札まで保護していた）。
         // ここは ctx を持たない走査側なので、効果ごとにその効果を生んだブロックだけを読む。
-        const card = cardMap.get(cn);
-        const txt = card ? abilityBlockTextOf(card, eff.effectId) : '';
-        if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
-        if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
+        let rule = act.zoneMoveImmunity;
+        if (!rule) {
+          const card = cardMap.get(cn);
+          const txt = card ? abilityBlockTextOf(card, eff.effectId) : '';
+          const zones: import('../types/effects').OppMoveImmunityZone[] = [];
+          if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) zones.push('energy');
+          if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) zones.push('hand');
+          // 旧 payload 無し宣言は、従来どおり全方向・全位相として扱う。
+          rule = { zones };
+        }
+        if (rule.zones.length && moveImmunityRuleApplies(rule, currentPhase)) result.push(rule);
       }
       // PREVENT_NON_FIELD_MOVE_BY_OPP: 「場以外のあなたの領域」＝手札・エナ・デッキ・トラッシュ・ライフ。
       // 🔴**2026-09-07 まで hand/energy の2つしか足しておらず、デッキ・トラッシュ・ライフは
@@ -4367,13 +4387,30 @@ export function collectProtectedZones(
       // ⚠クラッシュの扱いは**payload**（`zoneMoveImmunity.excludeCrash`）で持つ＝原文 regex を engine で読まない
       //   （`census:enginetext` A群を増やさない）。payload が無い旧 live は安全側＝クラッシュも止める。
       if (act.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP') {
-        for (const z of ((act as { zoneMoveImmunity?: { zones?: import('../types/effects').OppMoveImmunityZone[] } })
-          .zoneMoveImmunity?.zones ?? ['hand', 'energy', 'deck', 'trash', 'life'])) result.add(z);
+        const rule = act.zoneMoveImmunity ?? { zones: ['hand', 'energy', 'deck', 'trash', 'life'] };
+        if (moveImmunityRuleApplies(rule, currentPhase)) result.push(rule);
       }
     }
   }
   // 期間つき予約（`ZONE_MOVE_IMMUNITY`＝アーツ/【出】で張るぶん）も同じ集合に合流させる。
-  for (const zone of activeOppMoveImmunityZones(state)) result.add(zone);
+  for (const entry of state.opp_move_immunity ?? []) {
+    if (entry.turnsRemaining > 0 && moveImmunityRuleApplies(entry, currentPhase)) result.push(entry);
+  }
+  return result;
+}
+
+export function collectProtectedZones(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  currentPhase?: TurnPhase,
+  destination?: import('../types/effects').OppMoveDestination,
+): import('../types/effects').OppMoveImmunityZone[] {
+  const result = new Set<import('../types/effects').OppMoveImmunityZone>();
+  for (const rule of collectProtectedZoneRules(state, cardMap, effectsMap, currentPhase)) {
+    if (!moveImmunityRuleApplies(rule, currentPhase, destination)) continue;
+    for (const zone of rule.zones) result.add(zone);
+  }
   return [...result];
 }
 
@@ -4386,10 +4423,13 @@ export function collectProtectedZones(
  */
 export function activeOppMoveImmunityZones(
   state: PlayerState,
+  currentPhase?: TurnPhase,
+  destination?: import('../types/effects').OppMoveDestination,
 ): import('../types/effects').OppMoveImmunityZone[] {
   const out = new Set<import('../types/effects').OppMoveImmunityZone>();
   for (const entry of state.opp_move_immunity ?? []) {
     if (entry.turnsRemaining <= 0) continue;
+    if (!moveImmunityRuleApplies(entry, currentPhase, destination)) continue;
     for (const z of entry.zones) out.add(z);
   }
   return [...out];
@@ -4973,6 +5013,32 @@ export function collectAbilityProtectedSigni(
     }
   }
   return [...protectedNums];
+}
+
+/**
+ * `PREVENT_ATTACK_NEGATION_BY_OPP`：対戦相手の効果でアタックを無効にされないシグニを返す。
+ * 保護対象側の場の【常】を走査し、activeCondition 成立中の発生源自身だけを集める。
+ */
+export function collectAttackNegationProtectedSigni(
+  state: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): Set<string> {
+  const protectedNums = new Set<string>();
+  for (const stack of state.field.signi) {
+    const sourceNum = stack?.at(-1);
+    if (!sourceNum) continue;
+    const base = sourceNum.includes('#') ? sourceNum.slice(0, sourceNum.indexOf('#')) : sourceNum;
+    for (const eff of (effectsMap.get(sourceNum) ?? effectsMap.get(base) ?? [])) {
+      const act = eff.action as import('../types/effects').StubAction;
+      if (eff.effectType !== 'CONTINUOUS' || act.type !== 'STUB' || act.id !== 'PREVENT_ATTACK_NEGATION_BY_OPP') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      protectedNums.add(sourceNum);
+    }
+  }
+  return protectedNums;
 }
 
 /**

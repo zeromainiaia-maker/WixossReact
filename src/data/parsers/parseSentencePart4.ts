@@ -1569,11 +1569,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   発動しない（【出】【自】《トラップアイコン》…）」＝**ライフバーストは除外されている側**なのに、
   //   旧実装は `suppress_life_burst`（＝相手のライフバーストを封じる）を立てていた＝
   //   🔴**原文が守ると言っているものだけを消し、原文が消すと言っているものは何も消していなかった。**
-  // ⚠**受け皿はまだ無い**＝トリガー収集の funnel 全体（`triggerCollect`）に「全領域・全トリガー種・
-  //   ただし LB は除く」のゲートが要る（既存 `suppress_signi_on_play_this_turn` は【出】だけ）。
-  //   1効果のために収集 funnel を貫くのは割に合わないので、**嘘をやめて明示 defer**（`DEFERRED_*`）。
+  // §5.3 `O-337`：収集側の全 effectsMap 参照を `effsOf` に集約し、AUTO だけを落とす。
+  // LIFE_BURST は effectType が別なので、原文どおりそのまま通る。
   if (t.match(/このターン、すべての領域にある.*シグニのトリガー能力は発動しない/))
-    return { type: 'STUB', id: 'DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS' } as StubAction;
+    return { type: 'STUB', id: 'SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN' } as StubAction;
 
   // ---- 追加で《色》を支払っていた場合 ----
   if (t.match(/追加で《[白赤青緑黒無][^》]*》を支払っていた場合/))

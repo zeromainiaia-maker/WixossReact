@@ -66,6 +66,19 @@ function applyTrapToHand(selected: string[], ctx: ExecCtx): ExecCtx & { lastProc
   return { ...addLog({ ...ctx, ownerState: state }, `${parts || '0枚'}を手札へ`), lastProcessedCards: takenTraps };
 }
 
+/**
+ * §5.3 `O-337`：《トラップアイコン》は**トリガー能力**（`SP26-002` の注記がそう定義している）＝
+ * 「このターン、すべての領域にある【ライフバースト】以外の対戦相手のシグニのトリガー能力は発動しない」の
+ * 抑止下では**発動しない**。
+ * 🔴**`triggerCollect.ts` の `effsOf` では止まらない**＝`TRAP_ICON` 効果は
+ * `effectType:'AUTO'` ではなく `'TRAP_ICON'` で、しかも収集ではなく `trapIconEffectOf` から直接 exec される。
+ * ⚠**止めるのは「発動」だけ**＝`trapIconEffectOf`（持っているかの判定）は変えない
+ * （候補列挙や「トラップ能力を持つカード」の判定まで裏返すと別の意味になる）。
+ */
+function trapIconSuppressed(ctx: ExecCtx): boolean {
+  return ctx.ownerState.signi_trigger_abilities_suppressed_this_turn === true;
+}
+
 export function execStubPart2(
   stub: StubAction,
   ctx: ExecCtx,
@@ -2618,6 +2631,10 @@ export function execStubPart2(
     // TRAP_ICON効果を解析して実行
     // 🆕**§5.3 `O-240`**＝native が無ければ全領域付与（`GRANT_ALL_ZONE_TRAP_ICON`）を見る funnel を通す。
     const trapIconEffAT = trapIconEffectOf(trapCardAT, loggedCtxAT);
+    if (trapIconEffAT && trapIconSuppressed(loggedCtxAT)) {
+      return done(addLog({ ...loggedCtxAT, trapActivated: true },
+        '《トラップアイコン》はこのターン発動しない（トリガー能力抑止）'));
+    }
     if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedCtxAT, trapActivated: true });
     return done({ ...loggedCtxAT, trapActivated: true });
   }
@@ -2825,6 +2842,10 @@ export function execStubPart2(
         const trapIconAC = trapIconEffectOf(checkedAC, ctx);
         const nameAC = ctx.cardMap.get(getCardNum(checkedAC))?.CardName ?? checkedAC;
         if (!trapIconAC) return done(addLog(ctx, `${nameAC}: トラップアイコン能力なし`));
+        if (trapIconSuppressed(ctx)) {
+          return done(addLog({ ...ctx, trapActivated: true },
+            `${nameAC}の《トラップアイコン》はこのターン発動しない（トリガー能力抑止）`));
+        }
         return exec(trapIconAC.action, addLog({ ...ctx, sourceCardNum: checkedAC, trapActivated: true },
           `チェックゾーンの${nameAC}の《トラップアイコン》を発動`));
       }
@@ -2846,6 +2867,10 @@ export function execStubPart2(
       // 🆕**§5.3 `O-240`**＝付与された《トラップアイコン》も同じ funnel から取る。
       const trapIconAT = trapIconEffectOf(selectedAT, ctx);
       if (!trapIconAT) return done(addLog(ctx, `${targetDataAT?.CardName ?? selectedAT}: トラップアイコン能力なし`));
+      if (trapIconSuppressed(ctx)) {
+        return done(addLog({ ...ctx, trapActivated: true },
+          `${targetDataAT?.CardName ?? selectedAT}の《トラップアイコン》はこのターン発動しない（トリガー能力抑止）`));
+      }
       return exec(trapIconAT.action, addLog({ ...ctx, sourceCardNum: selectedAT, trapActivated: true },
         `場の${targetDataAT?.CardName ?? selectedAT}のトラップアイコンを発動`));
     }
@@ -3006,6 +3031,10 @@ export function execStubPart2(
       const cdGTA = ctx.cardMap.get(getCardNum(pickedGTA));
       const iconGTA = trapIconEffectOf(pickedGTA, ctx);
       if (!iconGTA) return done(addLog(ctx, `${cdGTA?.CardName ?? pickedGTA}: トラップアイコン能力なし`));
+      if (trapIconSuppressed(ctx)) {
+        return done(addLog({ ...ctx, trapActivated: true },
+          `${cdGTA?.CardName ?? pickedGTA}の《トラップアイコン》はこのターン発動しない（トリガー能力抑止）`));
+      }
       return exec(iconGTA.action, addLog({ ...ctx, trapActivated: true },
         `${cdGTA?.CardName ?? pickedGTA}のトラップ能力を得て発動`));
     }

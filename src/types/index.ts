@@ -541,6 +541,12 @@ export interface PlayerState {
   energy_colorless_ability_loss_this_turn?: boolean;
   /** このターン、このプレイヤーのシグニ自身の【出】能力を収集しない。 */
   suppress_signi_on_play_this_turn?: boolean;
+  /**
+   * §5.3 `O-337`：このターン、このプレイヤーの全領域のシグニの
+   * トリガー能力（AUTO／【出】／【自】／《トラップアイコン》）を収集しない。
+   * LIFE_BURST は明示的に除外し、従来どおり発動する。
+   */
+  signi_trigger_abilities_suppressed_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
   // 次の自分のターン開始時に must_attack_signi へ昇格する予約
@@ -917,7 +923,7 @@ export interface PlayerState {
    *   動かす全経路の funnel）／`TRASH{DECK_CARD}`（ミル）／`execLifeCrash`（効果によるクラッシュ）／
    *   `EXILE` の hand・energy 分岐。⚠**ダメージによるクラッシュは対象外**（ルール処理＝効果ではない）。
    */
-  opp_move_immunity?: { zones: import('./effects').OppMoveImmunityZone[]; turnsRemaining: number; excludeCrash?: true }[];
+  opp_move_immunity?: (import('./effects').OppMoveImmunityRule & { turnsRemaining: number })[];
   // このターンのメインフェイズ／アタックフェイズの間、**自分の効果では**自分のトラッシュにある
   // カードを他の領域へ移動できない（LOCK_OPP_TRASH_MOVE＝タスク12(lxxiii)）。
   // ⚠止めるのは所有者**自身**の効果だけ＝相手の効果によるトラッシュ回収（STEAL_OPP_TRASH_PUPPET 等）は通す。
@@ -1467,6 +1473,11 @@ export interface PlayerState {
   lrig_attack_phase_power_down_per_signi?: number; // WX24-P2-030: アタックフェイズ中の相手パワーダウン
   lrig_attack_phase_power_down_per_signi_until_opp_turn?: number; // 同：次の対戦相手ターン終了時まで
   lrig_limit_mod_until_own_energy_phase_end?: number; // WX24-P3-005/007: 次の自分のエナフェイズ終了時まで
+  /**
+   * §5.3 `O-340`：次の自分のエナフェイズ終了時まで、発生源が場にある間だけ効くリミット修整。
+   * キーは発生源の instanceId。場を離れた記録は期限まで残っても計算時に無視する。
+   */
+  lrig_limit_mod_until_own_energy_phase_end_by_source?: Record<string, number>;
   opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
   /**

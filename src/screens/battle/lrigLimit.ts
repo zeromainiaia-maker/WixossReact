@@ -51,12 +51,17 @@ export function computeEffectiveLrigLimit(
   const oppDeclaredDelta = collectOppDeclaredLrigLimitDelta(
     otherState, state, cardMap, effectsMap, !isOwnerTurn,
   );
+  const fieldTopNums = new Set(state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
+  const sourceBoundDelta = Object.entries(
+    state.lrig_limit_mod_until_own_energy_phase_end_by_source ?? {},
+  ).reduce((sum, [sourceNum, delta]) => sum + (fieldTopNums.has(sourceNum) ? delta : 0), 0);
 
   return (selfBaseOverride ?? basicOverride ?? copiedLimit ?? parseLimit(center?.Limit))
     + ((state.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((state.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (state.lrig_limit_mod ?? 0)
     + (state.lrig_limit_mod_until_own_energy_phase_end ?? 0)
+    + sourceBoundDelta
     + (state.game_lrig_limit_bonus ?? 0)
     + limitUpperBonus
     + continuousDelta

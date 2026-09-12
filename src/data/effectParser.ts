@@ -26413,7 +26413,13 @@ ${card.BurstText ?? ''}`;
     siblings.push({
       effectId: `${effect.effectId}b`,
       effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP' } as StubAction,
+      action: {
+        type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP',
+        zoneMoveImmunity: {
+          zones: ['hand', 'energy', 'deck', 'trash', 'life'],
+          destinations: ['trash', 'deck'],
+        },
+      } as StubAction,
       duration: 'PERMANENT',
       mandatory: true,
       parseStatus: 'AUTO',

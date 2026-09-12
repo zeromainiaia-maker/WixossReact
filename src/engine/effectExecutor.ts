@@ -21,7 +21,7 @@ export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
 import { moveFieldSigniFacedown } from './facedownSigni';
 import { applyCoinGain } from './coinGain';
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, leaveToTrashWindowApplies, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, oppMoveImmunityBlocksCrash, isEffectDamagePreventedByOpp, collectFrozenBanishOverrides, collectOppSigniLeaveToTrash, leaveToTrashWindowApplies, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -2273,7 +2273,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   if (tgt.type === 'HAND_CARD') {
     // 🆕除外も「他の領域への移動」＝保護の対象（意味照合 段2）。🔴従来この分岐には保護判定が無く、
     //   「手札は移動しない」宣言中でも**除外だけは通っていた**。
-    if (oppZoneMoveBlocked('hand', tgt.owner, ctx)) return done(addLog(ctx, '手札保護により効果なし'));
+    if (oppZoneMoveBlocked('hand', tgt.owner, ctx, 'exile')) return done(addLog(ctx, '手札保護により効果なし'));
     const hstate = ownerState(tgt.owner, ctx);
     const hcands = hstate.hand;
     if (hcands.length === 0) return done({ ...addLog(ctx, '除外できる手札がない'), lastProcessedCards: [] });
@@ -2291,8 +2291,8 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     //   **両者のエナ**から選ぶ。🔴旧＝`ownerState('any')` が相手側へ潰れるので、live は `owner:'self'` に倒していた。
     //   ⚠除外の直接適用（`applyDirectAction` の EXILE）は `'any'` のとき両者のエナを探す＝列挙と適用が揃っている。
     const eownersEX: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner];
-    if (eownersEX.every(o => oppZoneMoveBlocked('energy', o, ctx))) return done(addLog(ctx, 'エナ保護により効果なし'));
-    const ecands = eownersEX.flatMap(o => oppZoneMoveBlocked('energy', o, ctx) ? []
+    if (eownersEX.every(o => oppZoneMoveBlocked('energy', o, ctx, 'exile'))) return done(addLog(ctx, 'エナ保護により効果なし'));
+    const ecands = eownersEX.flatMap(o => oppZoneMoveBlocked('energy', o, ctx, 'exile') ? []
       : energyCandidatesForOwner(o, ownerState(o, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones));
     if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
     // 🔴`resolveNum` は `{$ref:…}` を **0 に潰す**（＝無言 no-op）ので `resolveCountRef` を使う（続き742-2）。
@@ -2312,7 +2312,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     ? trashOwners.filter(owner => !!ctx.sourceCardNum && ownerState(owner, ctx).trash.includes(ctx.sourceCardNum))
       .map(() => ctx.sourceCardNum!)
     : trashOwners.flatMap(owner => movableTrashCandidates(
-      owner, ownerState(owner, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+      owner, ownerState(owner, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'exile',
     ));
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
   const scope: TargetScope = tgt.owner === 'any' ? 'both_trash'
@@ -3041,7 +3041,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
-      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || activeOppMoveImmunityZones(c.otherState).includes('hand'))) {
+      if (oppZoneMoveBlocked('hand', tgt.owner, c, 'trash')) {
         return addLog(c, '手札保護により効果なし');
       }
       const remaining = [...s.hand];
@@ -3128,7 +3128,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // 🆕§5.3 `O-310`（2026-09-12・`WD20-006-E1`「エナゾーンにあるカード２枚を対象とし」）＝`owner:'any'` は**両者のエナ**。
     //   ⚠直接適用（`applyDirectAction` の TRASH/ENERGY_CARD）は両者を探す＝列挙だけ足せば揃う。相手エナの保護もそこで見る。
     let cands = tgt.owner === 'any'
-      ? (['self', 'opponent'] as Owner[]).flatMap(o => oppZoneMoveBlocked('energy', o, ctx) ? []
+      ? (['self', 'opponent'] as Owner[]).flatMap(o => oppZoneMoveBlocked('energy', o, ctx, 'trash') ? []
         : energyCandidatesForOwner(o, ownerState(o, ctx), resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones))
       : energyCandidatesForOwner(tgt.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
@@ -3142,7 +3142,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
-      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(c.otherState).includes('energy'))) {
+      if (oppZoneMoveBlocked('energy', tgt.owner, c, 'trash')) {
         return addLog(c, 'エナ保護により効果なし');
       }
       const newS: PlayerState = {
@@ -3210,7 +3210,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.type === 'DECK_CARD') {
     // 🆕「対戦相手の効果によって〈デッキ〉のカードは他の領域に移動しない」（意味照合 段2・`WXK10-004-E1`）。
-    if (oppZoneMoveBlocked('deck', tgt.owner, ctx)) return done(addLog(ctx, 'デッキ保護により効果なし'));
+    if (oppZoneMoveBlocked('deck', tgt.owner, ctx, 'trash')) return done(addLog(ctx, 'デッキ保護により効果なし'));
     const count = tgt.count === 'ALL' ? state.deck.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
       + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     const took = state.deck.slice(0, count);
@@ -3264,7 +3264,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgt.owner === 'opponent' ? 'opp_hand' : 'self_hand';
   } else if (tgt.type === 'TRASH_CARD') {
-    cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'energy');
     scope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   } else {
     cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
@@ -4283,7 +4283,7 @@ function transferToHandTrashCandidates(src: EffectTarget, ctx: ExecCtx): string[
     cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
   } else {
     const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
-    cands = movableTrashCandidates(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    cands = movableTrashCandidates(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'hand');
   }
   if (src.fromLeftFieldUnder) {
     const allowed = new Set(ctx.leftFieldUnderCards ?? []);
@@ -4556,7 +4556,7 @@ function zoneTargetCandidates(src: EffectTarget, tgtOwner: Owner, ctx: ExecCtx):
   const otherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
   if (src.type === 'TRASH_CARD') {
-    let cands = movableTrashCandidates(tgtOwner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    let cands = movableTrashCandidates(tgtOwner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'field');
     // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
@@ -7881,7 +7881,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'TRASH_CARD') {
-    const cands = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    const cands = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'deck');
     // 「好きな枚数」は0〜全件の選択。optional×ALL の全件実行／全件スキップとは別形。
     if (src.count === 'ALL' && src.upToCount) {
       if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
@@ -7940,7 +7940,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'HAND_CARD') {
-    const cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const cands = oppZoneMoveBlocked('hand', src.owner, ctx, 'deck')
+      ? [] : handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
     const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
 
@@ -7971,7 +7972,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンからデッキの一番下に置く」＝§5.3 `O-55`）。
     // ⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので、剥がさないと**エナ全部が候補**になる
     //   （`execAddToField`／`execAddToLife`／`execTransferToHand` の ENERGY_CARD 分岐と同規約）。
-    let candsEN = state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
+    let candsEN = oppZoneMoveBlocked('energy', src.owner, ctx, 'deck')
+      ? [] : state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
     if (src.filter?.thisCardOnly) {
       candsEN = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
       if (candsEN.length === 0) return done({ ...ctx, lastProcessedCards: [] });
@@ -8339,9 +8341,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
       ) ? [ctx.sourceCardNum] : [];
     } else {
       // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 【チャーム】化もトラッシュからの領域移動。
-      charmCands = isOwnTrashMoveLocked(charmOwner, ctx)
-        ? []
-        : charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+      charmCands = movableTrashCandidates(
+        charmOwner, charmSrc, a.charm.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'field');
     }
     charmFromLocation = 'trash';
   } else {
@@ -9340,7 +9341,7 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
       // ON_LEAVE_FIELD では発火元は既に場を離れ、直前の下カードはルール処理でトラッシュにある。
       // StackEntry→ExecCtx で運ばれた既存スナップショットとの積集合だけを候補にする。
       const allowed = new Set(ctx.leftFieldUnderCards ?? []);
-      cands = movableTrashCandidates('self', ctx.ownerState, a.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)
+      cands = movableTrashCandidates('self', ctx.ownerState, a.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'field')
         .filter(cn => allowed.has(cn));
       scope = 'self_trash';
     }
@@ -9387,6 +9388,9 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     //   ⚠`target.type:'SIGNI'` の既存効果は候補にルリグが入らないので挙動は変わらない。
     const atkLrig = attackingLrigOf(state);
     cands = cands.filter(n => n === attackingSigniOf(state) || (!!atkLrig && n === atkLrig));
+  }
+  if (tgtOwner === 'opponent' && ctx.otherAttackNegationProtectedNums?.size) {
+    cands = cands.filter(n => !ctx.otherAttackNegationProtectedNums!.has(n));
   }
   if (cands.length === 0) return done(ctx);
   // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝`attackingOnly` は選択UIを開かずに即適用する。**
@@ -11466,7 +11470,13 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       const sZMI = ownerState(tgtOwnerZMI, ctx);
       const newZMI: PlayerState = {
         ...sZMI,
-        opp_move_immunity: [...(sZMI.opp_move_immunity ?? []), { zones: zmi.zones, turnsRemaining: zmi.turns, ...(zmi.excludeCrash ? { excludeCrash: true as const } : {}) }],
+        opp_move_immunity: [...(sZMI.opp_move_immunity ?? []), {
+          zones: zmi.zones,
+          turnsRemaining: zmi.turns,
+          ...(zmi.destinations ? { destinations: zmi.destinations } : {}),
+          ...(zmi.exceptPhases ? { exceptPhases: zmi.exceptPhases } : {}),
+          ...(zmi.excludeCrash ? { excludeCrash: true as const } : {}),
+        }],
       };
       const ZONE_JA_ZMI: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
       const zonesJaZMI = zmi.zones.map(z => ZONE_JA_ZMI[z] ?? z).join('と');
@@ -12597,7 +12607,7 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
       );
       const candidates = a.swapSourceLocation === 'energy'
         ? energyCandidatesForOwner(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)
-        : movableTrashCandidates(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+        : movableTrashCandidates(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'field');
       const scope: TargetScope = a.swapSourceLocation === 'energy'
         ? (srcOwner === 'self' ? 'self_energy' : 'opp_energy')
         : (srcOwner === 'self' ? 'self_trash' : 'opp_trash');
@@ -13046,7 +13056,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
             if (owner === 'opponent'
-                && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
+                && oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
               return done(addLog(ctx, 'エナ保護により効果なし'));
             }
             const newEnergyXZ = [...s.energy]; newEnergyXZ.splice(ei, 1);
@@ -13063,6 +13073,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const s = ownerState(owner, ctx);
         const di = s.deck.indexOf(cardNum);
         if (di >= 0) {
+          if (oppZoneMoveBlocked('deck', owner, ctx, 'trash')) return done(addLog(ctx, 'デッキ保護により効果なし'));
           const newDeck = [...s.deck]; newDeck.splice(di, 1);
           // V-83（2026-08-24）＝選択解決後の1枚ずつ経路（`SEARCH`→`then:TRASH{DECK_CARD}`／`LOOK_PICK_CHAIN` の
           // trash ステージ）も**同じ理由で発生源を記録する**（上の inline 経路と揃える）。
@@ -13079,7 +13090,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
             // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（inline版と同じ保護）
-            if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
+            if (oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
               return done(addLog(ctx, 'エナ保護により効果なし'));
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
@@ -13115,7 +13126,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const hi = s.hand.indexOf(cardNum);
         if (hi >= 0) {
           // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（即時適用パスと同じ保護）
-          if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('hand') || activeOppMoveImmunityZones(ctx.otherState).includes('hand'))) {
+          if (oppZoneMoveBlocked('hand', owner, ctx, 'trash')) {
             return done(addLog(ctx, '手札保護により効果なし'));
           }
           const newHand = [...s.hand];
@@ -13162,6 +13173,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const s = ownerState(o, ctx);
           const hi = s.hand.indexOf(cardNum);
           if (hi >= 0) {
+            if (oppZoneMoveBlocked('hand', o, ctx, 'exile')) return done(addLog(ctx, '手札保護により効果なし'));
             const newHand = [...s.hand]; newHand.splice(hi, 1);
             return done(addLog(setOwnerState(o, { ...s, hand: newHand, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
               `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札からゲームから除外`));
@@ -13176,8 +13188,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const s = ownerState(o, ctx);
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
-            if (o === 'opponent'
-                && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
+            if (oppZoneMoveBlocked('energy', o, ctx, 'exile')) {
               return done(addLog(ctx, 'エナ保護により効果なし'));
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
@@ -13201,6 +13212,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const s = ownerState(o, ctx);
         const ti = s.trash.indexOf(cardNum);
         if (ti >= 0) {
+          if (oppZoneMoveBlocked('trash', o, ctx, 'exile')) return done(addLog(ctx, 'トラッシュ保護により効果なし'));
           const newTrash = [...s.trash]; newTrash.splice(ti, 1);
           return done(addLog(setOwnerState(o, { ...s, trash: newTrash, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
@@ -13612,6 +13624,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
+      if (tgtOwner === 'opponent' && ctx.otherAttackNegationProtectedNums?.has(cardNum)) {
+        return done(addLog(ctx, 'このシグニのアタックは対戦相手の効果によって無効にならない'));
+      }
       // 対象が**いま宣言中のアタッカー**なら、事前登録（negated_attacks＝アタック宣言時に見る）では止まらない。
       // 進行中のアタックは Phase2（resolvePendingSigniBattleFor）が見る cancel_current_signi_attack で落とす（Opusタスク12(cx)）。
       if (cardNum === attackingSigniOf(s)) {
@@ -13960,6 +13975,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const tdOwner: Owner = tdA.source.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : tdA.source.owner;
       let tdCtx = ctx;
       const tdS = ownerState(tdOwner, ctx);
+      if (tdS.hand.includes(cardNum) && oppZoneMoveBlocked('hand', tdOwner, ctx, 'deck')) return done(addLog(ctx, '手札保護により効果なし'));
+      if (tdS.energy.includes(cardNum) && oppZoneMoveBlocked('energy', tdOwner, ctx, 'deck')) return done(addLog(ctx, 'エナ保護により効果なし'));
+      if (tdS.trash.includes(cardNum) && oppZoneMoveBlocked('trash', tdOwner, ctx, 'deck')) return done(addLog(ctx, 'トラッシュ保護により効果なし'));
       let tdNew = { ...tdS };
       if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
         const sub = applyEffectLeaveSubstitutes(cardNum, tdOwner, ctx);

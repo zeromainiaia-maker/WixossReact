@@ -4359,6 +4359,22 @@ export function execStubPart1(
     if (!specL) return done(addLog(ctx, '[未実装] ルリグリミット修正（payload なし）'));
     const ownerL: Owner = specL.owner === 'opponent' ? 'opponent' : 'self';
     const stL = ownerL === 'opponent' ? ctx.otherState : ctx.ownerState;
+    if (specL.whileSourceInField) {
+      // 「このシグニが場にあるかぎり」は発生源が自分の場にある効果だけの軸。
+      // 発生源が取れない／他人のリミットを修整する未定義の組み合わせは fail-closed にする。
+      const sourceL = ctx.sourceCardNum;
+      if (ownerL !== 'self' || !sourceL) return done(addLog(ctx, '発生源付きリミット修整：発生源なし'));
+      const bySourceL = stL.lrig_limit_mod_until_own_energy_phase_end_by_source ?? {};
+      const nextL: PlayerState = {
+        ...stL,
+        lrig_limit_mod_until_own_energy_phase_end_by_source: {
+          ...bySourceL,
+          [sourceL]: (bySourceL[sourceL] ?? 0) + specL.delta,
+        },
+      };
+      return done(addLog({ ...ctx, ownerState: nextL },
+        `リミット${specL.delta > 0 ? '+' : ''}${specL.delta}（${sourceL}が場にある間／エナフェイズ終了まで）`));
+    }
     const keyL = specL.untilOwnEnergyPhaseEnd
       ? 'lrig_limit_mod_until_own_energy_phase_end' : 'lrig_limit_mod';
     const nextL: PlayerState = { ...stL, [keyL]: (stL[keyL] ?? 0) + specL.delta };

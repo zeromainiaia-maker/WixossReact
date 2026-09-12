@@ -4022,6 +4022,10 @@ export interface ZoneMoveImmunityAction {
   type: 'ZONE_MOVE_IMMUNITY';
   owner: Owner;
   zones: OppMoveImmunityZone[];
+  /** 省略時は従来どおり全移動先を保護する。 */
+  destinations?: OppMoveDestination[];
+  /** ここに列挙したフェイズでは保護しない。省略時は全フェイズ。 */
+  exceptPhases?: import('./index').TurnPhase[];
   /** 有効なグローバルターン数。「このターンと次のターンの間」＝2。 */
   turns: number;
   /**
@@ -4040,6 +4044,19 @@ export interface ZoneMoveImmunityAction {
  * ⚠**`'life'` はクラッシュ以外の移動も含む**（`excludeCrash` で crash だけ外す）。
  */
 export type OppMoveImmunityZone = 'hand' | 'energy' | 'deck' | 'trash' | 'life';
+
+/** 相手効果によるゾーン移動保護が区別する移動先。 */
+export type OppMoveDestination = 'trash' | 'deck' | 'hand' | 'energy' | 'field' | 'exile';
+
+/** 【常】宣言と期間つき予約が共有する「移動元×移動先×位相」の規則。 */
+export interface OppMoveImmunityRule {
+  zones: OppMoveImmunityZone[];
+  /** 省略＝全方向（既存 payload 無し宣言との後方互換）。 */
+  destinations?: OppMoveDestination[];
+  /** 省略＝全位相。 */
+  exceptPhases?: import('./index').TurnPhase[];
+  excludeCrash?: true;
+}
 
 /**
  * 「このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3 続き492）。
@@ -5044,6 +5061,8 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /** PREVENT_*_MOVE_BY_OPP の移動元・移動先・例外フェイズ。省略時は既存の全方向・全位相。 */
+  zoneMoveImmunity?: OppMoveImmunityRule;
   /**
    * 🆕**「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」**
    * （§5.3 `O-299` 第262バッチ・2026-09-11・`WX24-P4-002-E1`③）。
@@ -5129,6 +5148,11 @@ export interface StubAction {
     delta: number;
     /** 次の自分のエナフェイズ終了まで保持する（省略時は従来どおり lrig_limit_mod）。 */
     untilOwnEnergyPhaseEnd?: boolean;
+    /**
+     * §5.3 `O-340`：「このシグニが場にあるかぎり」。
+     * 数値ストアではなく発生源 instanceId 付きの並行ストアへ書き、読み手が在席を確認する。
+     */
+    whileSourceInField?: boolean;
   };
   /**
    * 🆕**`POWER_MOD_BY_*`（「〈数え上げ〉N につき ±M」）の単価**（§5.3 `O-60` 第59バッチ・2026-09-03）。
