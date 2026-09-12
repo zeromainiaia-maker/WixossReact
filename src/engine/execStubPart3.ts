@@ -2918,17 +2918,38 @@ export function execStubPart3(
     //   新しいカードがここへ落ちたら**ログだけ**が出る＝`census:stubs` A群🔴 が拾って気づける。
     return done(addLog(ctx, `相手選択（解析不可: ${stub.id}）`));
   }
-  // DO_THREE_THINGS: 3〜4つの処理を動的解析して実行
+  // OPP_LRIG_UNDER_TO_LRIG_TRASH: 対戦相手のセンタールリグの下からカードを対象とし、相手のルリグトラッシュへ。
+  // 表示: OPP_LRIG_UNDER_TO_LRIG_TRASH: 対戦相手のセンタールリグの下からカードを対象とし、それらをルリグトラッシュに置く
+  //
+  // 🆕🔴**2026-09-13（§5.3 `O-349`③）＝2点直した。parser が繋がって初めて実害が出る形だった。**
+  //   （それまで `WD23-012-A-E1`③ は `STUB{DEFERRED_OPP_LRIG_UNDER_TO_TRASH}`＝**宣言だけの no-op** で、
+  //     このハンドラは **live 0件＝一度も走っていなかった**。⚠**live 0 のハンドラは検証されていない。**）
+  //   ①🔴**「N枚まで」なのに選ばせていなかった**＝下から機械的に N 枚取っていた。
+  //     原文（`WD23-012-A-E1`③）は「カードを**２枚まで対象とし**」＝**0〜N枚をプレイヤーが選ぶ**。
+  //   ②🔴**下が N 枚未満だと丸ごと no-op だった**（`stack.length <= count` で早期 return）＝
+  //     「２枚**まで**」なので**1枚しか無ければ1枚取れる**のが原文。過少実行だった。
+  // ⚠**センターの下だけ**（原文が「センタールリグの下から」と明示）＝アシストは含めない。
+  // ⚠**行き先は相手のルリグトラッシュ**＝自分側の対（`LRIG_UNDER_TRASH_ANY`・`execStubPart1.ts:936`）と
+  //   持ち主が違う。ここを取り違えると自分のルリグトラッシュが増える。
   if (stub.id === 'OPP_LRIG_UNDER_TO_LRIG_TRASH') {
-    const stack = ctx.otherState.field.lrig;
-    const count = typeof stub.value === 'number' ? stub.value : 1;
-    if (stack.length <= count) return done(addLog(ctx, '対戦相手のセンタールリグの下に対象なし'));
-    const under = stack.slice(-1 - count, -1);
+    const poolOLU = ctx.otherState.field.lrig.slice(0, -1);
+    if (poolOLU.length === 0) return done(addLog(ctx, '対戦相手のセンタールリグの下にカードがない'));
+    const maxOLU = typeof stub.value === 'number' ? stub.value : 1;
+    const contOLU: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_LRIG_UNDER_TRASHED' };
+    return selectOrInteract(poolOLU, Math.min(maxOLU, poolOLU.length), true, 'opp_lrig_under',
+      contOLU as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_OPP_LRIG_UNDER_TRASHED: 上で選んだ相手ルリグ下のカードを、相手のルリグトラッシュへ移す。
+  if (stub.id === 'INTERNAL_OPP_LRIG_UNDER_TRASHED') {
+    const selectedOLU = ctx.lastProcessedCards ?? [];
+    if (selectedOLU.length === 0) return done(addLog(ctx, '対戦相手のルリグの下からは選ばなかった'));
+    const movedOLU = new Set(selectedOLU);
     return done(addLog({ ...ctx, otherState: {
       ...ctx.otherState,
-      field: { ...ctx.otherState.field, lrig: [...stack.slice(0, -1 - count), stack.at(-1)!] },
-      lrig_trash: [...ctx.otherState.lrig_trash, ...under],
-    } }, `対戦相手のセンタールリグの下から${count}枚をルリグトラッシュへ`));
+      field: { ...ctx.otherState.field, lrig: ctx.otherState.field.lrig.filter(n => !movedOLU.has(n)) },
+      lrig_trash: [...ctx.otherState.lrig_trash, ...selectedOLU],
+    }, lastProcessedCards: selectedOLU },
+      `対戦相手のセンタールリグの下から${selectedOLU.length}枚をルリグトラッシュへ`));
   }
   // HAND_EXCESS_TO_ENERGY: 手札がN枚（value、既定5）より多い場合、差分を手札からエナゾーンへ（WDK08-Y08）
   if (stub.id === 'HAND_EXCESS_TO_ENERGY') {

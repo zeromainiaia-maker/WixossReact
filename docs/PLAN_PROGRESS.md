@@ -1,5 +1,21 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-13・第297バッチ・Opus 5 単独）** **直近＝2026-09-13（第297バッチ）＝`O-345` の確認済み真バグ4件のうち2件を修正。** `census:numberdrift` を **77 → 75** へ払い戻した。
+  🔑**着手の1手目に受け皿を grep したら、2件とも既に在った**（LESSONS §4.1 の「まず受け皿を疑う」が2件連続で当たり）＝**engine は1行も触っていない**。
+  - `WXDi-P13-048-E2`＝コストが「エナから好きな**1枚**」に落ちていた（原文は**《ディソナアイコン》3枚**）。真因は payload 欠落ではなく **engine が原文 regex で読んでいた**こと＝`＜X＞`（CardClass）前提の句が `《ディソナアイコン》の` に当たらず既定値へ。⇒ **regex を足さず** `OPTIONAL_COST{energyTrash:{count:3, filter:{isDisona:true}}}` へ寄せた。
+  - `WXDi-P08-053-E1`＝**対象宣言が丸ごと無く**、付与先が `owner:"any"` のフィルタ無し＝**自分のシグニにも「アタックできない」を付けられた**。⇒ `SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS`→`targetsStored` の既存イディオムへ。
+  
+  | 軸 | いまの値 |
+  |---|---|
+  | 🔥**次に取るもの** | ①**`O-345` の残2件**（どちらも遅いレーン＝payload+engine+golden。受け皿の実測は [PLAN_DETAIL.md](./PLAN_DETAIL.md)） → ②**`O-348`**（索引A・型つき22種） → ③**`O-343`** |
+  | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（据置） |
+  | 📦**在庫** | 機構 worklist 🔥**8項目**／実機 🏁**0**／実装キュー 🏁**0** |
+  | 🔧**ゲート** | `npm run gates` 全緑・**golden 4048 PASS**（+2＝`O-345` の反転2本）・**census:numberdrift 75＝BASELINE 75**（-2 払い戻し） |
+  
+  🆕🔴**`CONDITIONAL{IS_MY_TURN}` を「怪しい」と読まない**＝あれは「そうした場合」の**正規エンコード**（`effectExecutor.ts:7242` の did-it ゲート）。今回1件で危うく壊すところだった。
+  🆕🔑**「原文の数値が落ちている」の真因は payload 欠落とは限らない**＝**engine が原文 regex で読んでいて、その regex が原文の記法（`《アイコン》` vs `＜クラス＞`）に当たっていない**形がある。**当たらない regex は既定値へ静かに落ちる**（`O-350` 第58バッチの教訓と同型）。
+  🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
+
 - **セッション（2026-09-13・第296バッチ・Opus 5 単独）** **直近＝2026-09-13（第296バッチ）＝🏁`V-213` を返済＝🚀リリースゲートの実機スモーク（通し対戦）を「道具」にして両方 PASS。** これで **§5.1 実機は残0**。
   🔑**新規＝`scripts/verifyFullMatch.mjs`**（`node scripts/verifyFullMatch.mjs [cpu|pvp]`）＝**盤面を一切注入せず**実デッキで最初から**勝敗が付くまで**回す。
   **結果＝CPU 8ターン/232s・PvP 56ターン/1943s、どちらも `global_phase=FINISHED` ＋ `winner_id` で決着**（console error 0／2件は CORS の deck fetch＝対戦に無関係）。

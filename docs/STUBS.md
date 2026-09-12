@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 604 |
-| 　└ ハンドラ実装あり | 535 |
-| 　└ フォールバック（execStub 未処理） | 69 |
-| 総 STUB ノード件数 | 3372 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 351 |
+| JSON で使用中の STUB id 種類 | 602 |
+| 　└ ハンドラ実装あり | 534 |
+| 　└ フォールバック（execStub 未処理） | 68 |
+| 総 STUB ノード件数 | 3371 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 353 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -63,7 +63,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM` | 1 | 1 | WXDi-P00-063 |  |
 | `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` | 1 | 1 | WXDi-P09-065 |  |
 | `DEFERRED_OPP_LRIG_LEVEL_MODIFY` | 1 | 1 | SP38-005 |  |
-| `DEFERRED_OPP_LRIG_UNDER_TO_TRASH` | 1 | 1 | WD23-012-A |  |
 | `DEFERRED_OPP_SPLIT_HAND_TWO_PILES` | 1 | 1 | WX25-P2-022 |  |
 | `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
 | `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` | 1 | 1 | WX24-P4-085 |  |
@@ -103,17 +102,17 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（118 種）
+### execStubPart1.ts（117 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 672 | 623 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
-| `STORE_LAST_PROCESSED_TARGETS` | 504 | 480 | WD12-009, WD15-001, WD19-007 |  |
-| `SELECT_TARGET_ONLY` | 491 | 467 | WD12-009, WD15-001, WD19-007 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
+| `OPTIONAL_COST` | 673 | 624 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
+| `STORE_LAST_PROCESSED_TARGETS` | 505 | 481 | WD12-009, WD15-001, WD19-007 |  |
+| `SELECT_TARGET_ONLY` | 492 | 468 | WD12-009, WD15-001, WD19-007 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 115 | 112 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `OPPONENT_PAY_OPTIONAL` | 81 | 73 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 59 | 58 | WD10-006, WD12-006, WD17-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
-| `OPTIONAL_TRASH_ENERGY_CLASS` | 34 | 34 | WDK08-Y14, WX24-P2-091, WX24-P3-062 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `OPTIONAL_TRASH_ENERGY_CLASS` | 33 | 33 | WDK08-Y14, WX24-P2-091, WX24-P3-062 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `DECLARE_NUMBER` | 27 | 26 | WD06-008, WD13-008, WDK09-011 |  |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | 登録者数を N 万人得る |
 | `RULE_REMINDER_TEXT` | 21 | 21 | SP26-003, PR-469, SPDi47-05 | ゲームプレイに影響しない説明テキストは無音でスキップ。 ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の   キーセット可否ゲートと配置先（`hasUnlim… |
@@ -156,7 +155,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `STRIP_ATTACHED_AND_UNDER` | 3 | 3 | WX18-029, WX19-064, WXDi-P07-041 | STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)・`WX19-064-E1` 選択肢③）: 「シグニ１体を対象とし、**それに付いているすべてのカード**と、**下に置かれているすべてのカード**を  トラッシュ… |
 | `TK3_DECLARE_DISCARD` | 3 | 3 | WD03-006, WXDi-D09-P04, WXDi-P14-061 | 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる |
 | `TRASH_ALL_SIGNI_AND_KEY` | 3 | 3 | WX07-017, WX16-033, WXEX2-21 | 🆕🔴**§5.3 `O-60` 第59バッチ（2026-09-03）＝原文 regex を撤去して payload で決める。**   旧実装は `sourceAbilityText(ctx)` に `各プレイヤー\|すべてのシグニ`… |
-| `UNKNOWN_NESTED` | 3 | 3 | WX24-P2-060, WXDi-P04-033, WXDi-P12-061 | 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動） |
 | `BANISH_FROM_GAME` | 2 | 2 | WX13-040, WX14-064 | ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件） |
 | `CRASH_LIFE_TO_HAND` | 2 | 2 | WX24-P2-048, WXDi-P07-001 | ライフクロスの一番上を手札に加える 🆕**どちらのライフかは payload（既存の汎用 `owner`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。 🔴旧実装は `EffectText + BurstText… |
 | `DISCARD_IF_ATTACKED_THIS_TURN` | 2 | 2 | WX12-047, WX12-048 | このターンにこのシグニがアタックしていた場合、手札を1枚捨てる |
@@ -472,6 +470,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `NEGATE_THAT_ATTACK` | 2 | 2 | WXEX2-17, WXDi-D06-010 | 現在のアタックを無効化 |
 | `OPP_DECLARE_COLOR` | 2 | 2 | WXEX1-07, WXK09-037 | 相手が色を宣言（5色CHOOSE opponentResponds→INTERNAL_SET_OPP_DECLARED_COLOR） |
 | `OPP_DRAW_LIMIT` | 2 | 2 | WXDi-P05-039, WXDi-P16-005 | 対戦相手のターン開始時、そのターンのドローを1枚に制限（triggerScope: any_opp で相手ターン発動） |
+| `OPP_LRIG_UNDER_TO_LRIG_TRASH` | 2 | 2 | WD23-012-A, WXK11-002 | 対戦相手のセンタールリグの下からカードを対象とし、それらをルリグトラッシュに置く |
 | `OPTIONAL_RETURN_SELF_ARTS_FIRST_USE` | 2 | 1 | WX24-P3-036 | 同名アーツの当ターン初回使用時だけ、 |
 | `PEEP_HAND` | 2 | 2 | PR-K070, WX24-P4-105 | 相手の手札を覗き見（ログに枚数と名前を表示） |
 | `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER` | 2 | 2 | WXDi-P05-038, WXDi-P08-044 |  |
@@ -595,7 +594,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_FIELD_OR_ENERGY_PER_COLOR_TO_HAND` | 1 | 1 | WX24-P4-022 | 対戦相手のシグニゾーンかエナゾーンから、色ごとにカードを1枚まで対象とし手札に戻す |
 | `OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM` | 1 | 1 | WXDi-P00-037 | 対戦相手の手札をN枚まで見ないで選び、それらを見て1枚を対戦相手のデッキの一番下に置く |
 | `OPP_LRIG_ATTACK_COST` | 1 | 1 | WX25-P2-014 | コストアップ系（engine: コスト計算未実装） |
-| `OPP_LRIG_UNDER_TO_LRIG_TRASH` | 1 | 1 | WXK11-002 | DO_THREE_THINGS: 3〜4つの処理を動的解析して実行 |
 | `OPP_REVEAL_HAND_AND_LRIG_DECK` | 1 | 1 | WX15-001 | 公開ログ |
 | `OPP_REVEAL_LRIG_DECK` | 1 | 1 | WXDi-P09-039 | 公開ログ |
 | `OPP_REVEAL_TOP_AND_HAND` | 1 | 1 | WXDi-D09-P14 | 公開ログ |
@@ -656,7 +654,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 351 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 353 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -820,6 +818,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N` | 0 | 0 |  | 選択した相手手札をデッキ下へ |
 | `INTERNAL_OPP_HAND_TO_DECK_TOP` | 0 | 0 |  |  |
 | `INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY` | 0 | 0 |  |  |
+| `INTERNAL_OPP_LRIG_UNDER_TRASHED` | 0 | 0 |  | 上で選んだ相手ルリグ下のカードを、相手のルリグトラッシュへ移す。 |
 | `INTERNAL_OPP_ORDERS_DECK_TOP` | 0 | 0 |  | 選ばれた相手トラッシュの札の置く順番を対戦相手に選ばせる（2枚のときだけ対話） |
 | `INTERNAL_OPP_PAY_COST` | 0 | 0 |  |  |
 | `INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE` | 0 | 0 |  |  |
@@ -1007,6 +1006,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRASH_ALL_CHARMS_DRAW_CHARGE` | 0 | 0 |  | 場の全チャームをトラッシュ→同枚数ドロー+エナチャ |
 | `TRASH_ATTACHED_OR_UNDER_CARD` | 0 | 0 |  | シグニに付いているカードまたは下のカード1枚をトラッシュ |
 | `TRASH_UNDER_SPELLS_POWER_MINUS` | 0 | 0 |  | このシグニの下スペルを任意枚数トラッシュ→相手シグニに-5000×枚数（WXDi-P10-040） |
+| `UNKNOWN_NESTED` | 0 | 0 |  | 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動） |
 | `USE_CONDITION_TEXT` | 0 | 0 |  | ゲームプレイに影響しない説明テキストは無音でスキップ。 ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の   キーセット可否ゲートと配置先（`hasUnlim… |
 | `USE_SPELL_FROM_TRASH` | 0 | 0 |  |  |
 | `WEAPON_SIGNI_PREVENT_DOWN` | 0 | 0 |  |  |

@@ -1898,6 +1898,10 @@ export type TargetScope =
   | 'self_lrig_deck' | 'opp_lrig_deck'
   | 'self_lrig_trash' | 'opp_lrig_trash'
   | 'self_lrig_under'
+  // 🆕**相手のセンタールリグの下**（2026-09-13・§5.3 `O-349`③・`WD23-012-A-E1`③
+  //   「対戦相手のセンタールリグの下からカードを２枚まで対象とし、それらをルリグトラッシュに置く」）。
+  //   ⚠**行き先は相手のルリグトラッシュ**＝自分側 (`self_lrig_under`) と持ち主が違う。
+  | 'opp_lrig_under'
   | 'self_assist_lrig'
   // 場のキー（`field.key_piece` ＋ `key_piece_extra`）。「対戦相手のキー１枚を対象とし」（§6.4 O-17）。
   | 'self_key' | 'opp_key'

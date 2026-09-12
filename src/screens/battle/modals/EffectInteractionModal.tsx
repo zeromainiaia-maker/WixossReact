@@ -158,6 +158,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               self_lrig_trash: 'ルリグトラッシュから',
               opp_lrig_trash: '相手のルリグトラッシュから',
               self_assist_lrig: '自分のアシストルリグから',
+              // 🆕§5.3 `O-349`③（2026-09-13）＝相手のセンタールリグの下。
+              opp_lrig_under: '相手のルリグの下から',
               self_trash:  'トラッシュから',
               opp_trash:   '相手のトラッシュから',
               both_trash:  'いずれかのトラッシュから',

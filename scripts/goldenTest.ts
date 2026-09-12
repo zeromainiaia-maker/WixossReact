@@ -73744,10 +73744,18 @@ test('O-D 一点物 A2 WX13-036-E3: 相手の手札1枚と相手のシグニ1体
     eq(action.steps.length, 2, `${freshParse ? 'fresh' : 'live'}: 手札捨て＋シグニトラッシュ`);
     ok(JSON.stringify(action.steps[0]).includes('"type":"HAND_CARD","owner":"opponent","count":1'),
       '🔴丸ごと欠けていた「対戦相手は手札を1枚捨て」');
-    // 🔴**元の `TRASH{SIGNI}` は1バイトも変えない**＝限定を足したり `targetsStored` を挟んだりしない。
+    // 🔴**元の `TRASH{SIGNI}` に限定を足したり `targetsStored` を挟んだりしない**（据置の中身は下2つ）。
+    // 🆕**2026-09-13（§5.3 `O-346`）＝`opponentSelects` だけは live に足した。**
+    //   原文「**対戦相手は自分のシグニ１体を対象とし**」＝**選ぶのは相手**なのに指定が無く、
+    //   **使用者が相手のいちばん重いシグニを落とせた**＝過剰だった。
+    //   🔑この軸は据置の理由（限定の追加／対話を跨ぐ対象保持）と**無関係**＝engine は
+    //   `oppRespondsField`（`effectExecutor.ts:2998`）で対話1回のうちに解決する。
+    //   ⚠**fresh（parser 出力）はまだ旧形**＝parser 規則は未着手（母集団の実測は §5.3 `O-346`）。
     eq(JSON.stringify(action.steps[1]),
-      '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}',
-      `${freshParse ? 'fresh' : 'live'}: 既存ステップは無改変`);
+      freshParse
+        ? '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}'
+        : '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}',
+      `${freshParse ? 'fresh: parser は未対応（旧形のまま）' : 'live: 選択者だけを足す'}`);
     // 🔴**`storedTargetCards` を跨がせる3段構成へ戻さない**（第219の検証で実測＝
     //   `freezeStoredTargets` は素の SEQUENCE では呼ばれず、対話の後に候補が全体へ開く＝過剰実行）。
     ok(!JSON.stringify(action).includes('targetsStored'),
@@ -75150,6 +75158,79 @@ test('§5.3 O-345: WXDi-P08-053-E1 は相手のレベル2以下だけを対象�
   eq(body.then.target.owner, 'opponent', '🔴自分のシグニには付かない（旧は "any"）');
   eq(body.then.target.filter?.level?.max, 2, '🔴レベル2以下に限る');
 }));
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-346` / `O-347`（2026-09-13）＝選択者の取り違え／`UNKNOWN_NESTED` の二重積み
+// ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-346: WX13-036-E3 は相手のシグニを「相手に」選ばせる', () => withSavedCursor(() => {
+  const e3 = effectsMap.get('WX13-036')!.find(e => e.effectId === 'WX13-036-E3')!;
+  const steps = (e3.action as unknown as { steps: { type: string; target: { type: string; owner: string }; opponentSelects?: boolean }[] }).steps;
+  // 原文＝「**対戦相手は自分のシグニ１体を対象とし**、手札を１枚捨て、それをトラッシュに置く」。
+  // 🔴旧 live は選択者の指定が無く＝**使用者が相手のシグニを選べた**（＝相手のいちばん重いシグニを落とせる）。
+  const signi = steps.find(s => s.target?.type === 'SIGNI')!;
+  eq(signi.target.owner, 'opponent', '対象は対戦相手のシグニ');
+  eq(signi.opponentSelects, true, '🔴選ぶのは対戦相手（旧は使用者が選べた＝過剰）');
+  // ⚠手札側には足さない＝`HAND_CARD` は既定で相手が選ぶ（足すと二重指定）。
+  const hand = steps.find(s => s.target?.type === 'HAND_CARD')!;
+  eq(hand.opponentSelects, undefined, '手札は既定で相手が選ぶので明示しない');
+}));
+
+test('§5.3 O-347: UNKNOWN_NESTED を落として任意トラッシュを1回だけ聞く（3効果）', () => withSavedCursor(() => {
+  // 🔴`UNKNOWN_NESTED` は parser の**失敗マーカー**なのに engine 側にハンドラ（自シグニを任意トラッシュ）が
+  //   付いており、`OPTIONAL_TRASH_SELF` と並ぶと**原文に1回しかない任意トラッシュを2回聞いていた**。
+  for (const [card, id] of [
+    ['WX24-P2-060', 'WX24-P2-060-E1'], ['WXDi-P04-033', 'WXDi-P04-033-E1'], ['WXDi-P12-061', 'WXDi-P12-061-E1'],
+  ] as const) {
+    const act = JSON.stringify(effectsMap.get(card)!.find(e => e.effectId === id)!.action);
+    ok(!act.includes('UNKNOWN_NESTED'), `🔴${id}: 失敗マーカーが残っていない`);
+    eq((act.match(/OPTIONAL_TRASH_SELF/g) ?? []).length, 1, `${id}: 任意トラッシュは1回だけ`);
+  }
+  // 🔴**「対象とし」の宣言を支払いより前へ出すのは、この巡では据置**（§5.3 `O-352` へ登録）。
+  //   `OPTIONAL_TRASH_SELF` は `O-188` 第2バッチの据置契約で固定形のままで、根拠は engine の実測＝
+  //   あの分岐は `freezeStoredTargets(conditional.then, cur)` を**通していない**
+  //   （解禁済みの `OPTIONAL_TRASH_ENERGY_CLASS`（`O-298`）との差はそこ）。
+  //   ⇒ 3効果とも**正準形2ステップ**（`OPTIONAL_TRASH_SELF` ＋「そうした場合」）に揃える。
+  for (const [card, id] of [
+    ['WX24-P2-060', 'WX24-P2-060-E1'], ['WXDi-P04-033', 'WXDi-P04-033-E1'], ['WXDi-P12-061', 'WXDi-P12-061-E1'],
+  ] as const) {
+    const steps = (effectsMap.get(card)!.find(e => e.effectId === id)!.action as unknown as { steps: Record<string, unknown>[] }).steps;
+    eq(steps.length, 2, `🔴${id}: 正準形は2ステップ`);
+    eq((steps[0] as { id?: string }).id, 'OPTIONAL_TRASH_SELF', `${id}: 先頭は任意トラッシュ`);
+    ok(!JSON.stringify(steps).includes('targetsStored'),
+      `🔴${id}: 据置契約＝対話を跨ぐ targetsStored を使わない`);
+  }
+}));
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-349`③（2026-09-13）＝相手のセンタールリグの下 → 相手のルリグトラッシュ
+// ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-349③: WD23-012-A-E1③ は相手ルリグ下を実際に剥がす（旧は明示 defer の no-op）', () => withSavedCursor(() => {
+  const e1 = effectsMap.get('WD23-012-A')!.find(e => e.effectId === 'WD23-012-A-E1')!;
+  const third = (e1.action as unknown as { choices: { action: { type: string; id?: string; value?: number } }[] }).choices[2].action;
+  // (a) live 形＝明示 defer をやめて実装済み id へ。枚数は payload（engine に原文 regex を書かない規約）。
+  ok(!JSON.stringify(third).includes('DEFERRED_'), '🔴宣言だけの no-op ではない');
+  eq(third.id, 'OPP_LRIG_UNDER_TO_LRIG_TRASH', '相手ルリグ下→相手ルリグトラッシュ');
+  eq(third.value, 2, '🔴「２枚まで」＝枚数は payload（原文の数字）');
+
+  // (b) E2E＝相手のセンタールリグの下2枚が**相手の**ルリグトラッシュへ行く。
+  //   ⚠自分側の対（`LRIG_UNDER_TRASH_ANY`）と**持ち主が違う**のがこの実装の要点。
+  const under1 = 'WD01-002#9', under2 = 'WD01-003#9', center = 'WD03-005#9';
+  const ctx = mkCtx({}, {});
+  ctx.otherState = { ...ctx.otherState, field: { ...ctx.otherState.field, lrig: [under1, under2, center] }, lrig_trash: [] };
+  const myLrigTrashBefore = ctx.ownerState.lrig_trash.length;
+  const r = finish(run(third as EffectAction, ctx), ctx);
+  eq(r.otherState.field.lrig.length, 1, '🔴下の2枚が剥がれてセンターだけ残る');
+  eq(r.otherState.field.lrig[0], center, 'センタールリグは残る');
+  eq(r.otherState.lrig_trash.length, 2, '🔴行き先は**相手の**ルリグトラッシュ');
+  eq(r.ownerState.lrig_trash.length, myLrigTrashBefore, '🔴自分のルリグトラッシュは増えない（持ち主を取り違えない）');
+
+  // (c) 下が空なら何も起きない（空振りで盤面を触らない）。
+  const empty = mkCtx({}, {});
+  empty.otherState = { ...empty.otherState, field: { ...empty.otherState.field, lrig: [center] } };
+  const r2 = finish(run(third as EffectAction, empty), empty);
+  eq(r2.otherState.field.lrig.length, 1, '下が無ければセンターに触らない');
+  ok(r2.logs.some(l => l.includes('下にカードがない')), '空振りはログで宣言する');
+}));
+
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // §5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」（自分側の効果も遮断する耐性）

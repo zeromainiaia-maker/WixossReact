@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 `O-346`／`O-347`／`O-349`③（第298バッチ）
+
+🔴🔑**この回の主産物は「登録票の『受け皿が無い』が3件連続で外れた」こと**＝
+**うち1件は自分で重複実装を作りかけ、golden の `O-21` ゲートに止められた。**
+
+**① `O-346`（`WX13-036-E3`）＝選択者の取り違え**
+原文「**対戦相手は自分のシグニ１体を対象とし**、手札を１枚捨て、それをトラッシュに置く」に対し、
+live は `TRASH{SIGNI owner:"opponent"}` に選択者の指定が無く＝**使用者が相手のいちばん重いシグニを落とせた**（過剰）。
+🔴**登録票の「型に `chosenByOpponent` が無い／`src/screens/` を触るので実機必須」は両方とも誤り**＝
+`TrashAction.opponentSelects`（`src/types/effects.ts:2558`）が**型にも消費地点にも在り**
+（`effectExecutor.ts:2998`・live 実績＝`WDK17-009-E2`／`SPDi43-01-E1`）、**1行で直り実機も不要**だった。
+⚠手札側には足さない＝`HAND_CARD` は既定で相手が選ぶ（`effectExecutor.ts:3110`）。
+🔧**母集団を初実測**＝`npm run census:population -- "対戦相手は自分の"` で **121効果 / 115カード**、
+`opponentSelects` **OK 69 / MISS 52**。⚠**MISS はバグ数ではない**（先頭の `PR-195-E3` は別の正準形で配線済み）。
+
+**② `O-347`（3効果）＝任意トラッシュを2回聞いていた 🏁クローズ**
+`UNKNOWN_NESTED` は **parser の失敗マーカー**（`parseSentencePart3.ts:2163` ほか）なのに
+engine 側にハンドラ（自シグニを任意トラッシュ）が付いており、`OPTIONAL_TRASH_SELF` と並ぶと
+**原文に1回しかない任意トラッシュを2回聞いていた**（1回目で断ると2回目にもう一度聞かれる＝実質やり直せる）。
+⇒ 3効果から `UNKNOWN_NESTED` の1ステップを落として正準形2ステップへ。**engine は触らない。**
+🔴**同時に見えた「対象宣言が支払いより後」は直さず `O-352` へ登録**＝`OPTIONAL_TRASH_SELF` は
+`O-188` 第2バッチの**据置契約**で固定形のままで、根拠は**あの分岐だけ `freezeStoredTargets` を通していない**こと
+（解禁済みの `OPTIONAL_TRASH_ENERGY_CLASS`（`O-298`）との差はそこ）。契約を破らずに登録した。
+
+**③ `O-349`③（`WD23-012-A-E1`③）＝相手ルリグ下の除去 🏁実装**
+原文「**対戦相手の**センタールリグの下からカードを**２枚まで**対象とし、それらをルリグトラッシュに置く」。
+🔴**登録票の「engine が `ownerState` 固定で相手ルリグ下を触れない」は誤り**＝
+**同じ id のハンドラ `OPP_LRIG_UNDER_TO_LRIG_TRASH` が `execStubPart3.ts` に既に在った**。
+parser が `DEFERRED_OPP_LRIG_UNDER_TO_TRASH`（明示 defer）を出していただけで、**live 0＝一度も走っていなかった**。
+⚠**気づかずに `execStubPart1` へ重複ハンドラを書き、golden の `O-21`
+（「同じ STUB id の後発ハンドラが到達不能になっていない」）に止められた。**
+繋いだうえで**既存ハンドラのバグ2つ**を直した＝
+①原文が「N枚**まで**」なのに**選ばせず**機械的に N 枚取っていた
+②下が N 枚未満だと `stack.length <= count` で**丸ごと no-op**（「まで」なので1枚でも取れるのが原文）。
+実装＝`TargetScope` に `'opp_lrig_under'` を新設（自分側 `self_lrig_under` の対）＋
+`EffectInteractionModal` の `scopeDesc` に説明＋parser を実装 id へ＋`decompileEffects` が**枚数を描く**。
+🔧**`DEFERRED_*` の全数も訂正＝3種/4効果 → 実測 28種/31効果**（登録票はその回に見つけた3件だけの数字だった）。
+
+**検証**＝`npm run gates` 全緑（**golden 4051 PASS**＝+3）／**逆翻訳を4カード目視して原文一致を確認**／
+**反転確認 ✅**（live を旧形へ戻すと該当 golden が FAIL）／
+🆕**実機 `node scripts/verifyBattleDrive.mjs o349OppLrigUnder` が2回連続 PASS**＝
+新設 scope のピッカーが**下2枚だけを候補に出し**（センタールリグは候補外）、
+**相手の**ルリグトラッシュが 0→2、**自分側は据置**（持ち主の取り違えなし）。既定 order へ常駐させた。
+⚠`O-346`／`O-347` は `src/data` と `public/data` だけ＝実機不要。`O-349`③ は `src/screens/` を触ったので実機必須（§2.2）。
+
 ## 2026-09-13 — §5.3 `O-345`＝数値ドリフトの確認済み真バグ2件（第297バッチ）
 
 🔑**着手の1手目に受け皿を grep したら、2件とも既に在った**（LESSONS §4.1）＝**engine は1行も触っていない**。

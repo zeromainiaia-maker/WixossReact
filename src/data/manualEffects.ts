@@ -4370,6 +4370,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX13-019-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"then":"hand","pickNoun":"カード"},{"pickCount":1,"then":"energy","pickNoun":"カード"}],"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX13-036": [
+    // 🆕**§5.3 `O-346`（2026-09-13）＝「対戦相手は自分のシグニ１体を対象とし」＝選択者の指定。**
+    //   原文＝【起】《ターン１回》ターン終了時まで、このシグニのパワーを20000減らす：
+    //         **対戦相手は自分のシグニ１体を対象とし**、手札を１枚捨て、それをトラッシュに置く。
+    // 🔴旧 live は `TRASH{SIGNI owner:"opponent"}` に選択者の指定が無く＝**使用者が相手のシグニを選べた**
+    //   （原文は相手が選ぶ＝いちばん惜しくないシグニを出せる）＝過剰。
+    // 🔑🔴**登録票の「型に受け皿が無い（`chosenByOpponent` が要る）」は誤り**＝
+    //   `TrashAction.opponentSelects`（`src/types/effects.ts:2558`）が**型にも消費地点にも既に在る**
+    //   （`effectExecutor.ts:2998` の `oppRespondsField`。live 実績＝`WDK17-009-E2` / `SPDi43-01-E1`）。
+    //   ⇒ **新しい型も `src/screens/` の変更も要らない＝実機不要。**
+    // ⚠**手札側には足さない**＝`HAND_CARD` は既定で相手が選ぶ（`effectExecutor.ts:3110`）。二重指定になる。
+    {"effectId":"WX13-036-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"selfPowerDown":20000},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},
+       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}
+     ]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
     {"effectId":"WX13-036-E1","effectType":"AUTO","timing":["ON_OPP_POWER_DECREASED"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"delta":0,"deltaFromOppPowerDecrease":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"byOwnEffect":true}},
   ],
   "WX14-074": [
@@ -11969,6 +11985,70 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
                 "keyword":"アタックできない","duration":"UNTIL_END_OF_TURN","targetsStored":true}}
      ]},
      "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-347`（2026-09-13）＝`UNKNOWN_NESTED` と `OPTIONAL_TRASH_SELF` の二重積み（3効果）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔴**`UNKNOWN_NESTED` は本来 parser の失敗マーカー**（`parseSentencePart3.ts:2163` /
+  //   `parseSentencePart4.ts:1279` の「入れ子を解析できなかった」フォールバック）なのに、
+  //   engine 側（`execStubPart1.ts:2615`）に**「自シグニを任意でトラッシュに置く」ハンドラが付いている**。
+  //   その結果 `SEQUENCE[UNKNOWN_NESTED, OPTIONAL_TRASH_SELF, CONDITIONAL{IS_MY_TURN}]` の3効果は
+  //   **原文に1回しかない任意トラッシュを2回聞く**（1回目で置くと2回目は「場にない」で素通り、
+  //   1回目で断ると2回目にもう一度聞かれる＝実質やり直せる）。
+  // 🔑正準形は `SEQUENCE[STUB{OPTIONAL_TRASH_SELF}, CONDITIONAL{IS_MY_TURN, then:<本体>}]`
+  //   （`OPTIONAL_TRASH_SELF` のハンドラが**後続の CONDITIONAL の then を pay 肢に畳む**＝
+  //   `effectExecutor.ts:6621`）。⇒ **`UNKNOWN_NESTED` の1ステップを落とすだけ。engine は触らない。**
+  // 🆕**同じ3効果で2つ目のバグも見えたが、この巡では直さない**＝「〈対象〉を対象とし、このシグニを…
+  //   置いてもよい。そうした場合、〜」の**宣言が支払いより後**（下2件）。原文は**対象が取れないなら
+  //   支払わせない**（§5.3 `O-129`。ゲートは `effectExecutor.ts:7222`）ので、候補0でも自分のシグニを
+  //   失って空振りしえる。
+  // 🔴**だが `OPTIONAL_TRASH_SELF` は golden の据置契約（`O-188` 第2バッチ）で固定形のまま**＝
+  //   解禁済みの `OPTIONAL_TRASH_ENERGY_CLASS`（`O-298`）と違い、**あの分岐は
+  //   `freezeStoredTargets(conditional.then, cur)` を通していない**（`effectExecutor.ts:6621`）＝
+  //   対話を跨ぐと `targetsStored` の対象が保てず、**候補が全体へ開く（過剰）か 0 になる（過少）**。
+  //   ⇒ **先に engine 側へ `freezeStoredTargets` を入れる遅いレーンの作業**（§5.3 `O-352` へ登録）。
+  //   ここでは登録済みの欠陥＝**二重プロンプトだけ**を直す。
+
+  // ── WX24-P2-060 E1（原文＝対戦相手のパワー5000以下のシグニ１体を対象とし、
+  //    このシグニを場からトラッシュに置いてもよい。そうした場合、それを手札に戻す）
+  "WX24-P2-060": [
+    {"effectId":"WX24-P2-060-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"OPTIONAL_TRASH_SELF"},
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+        "then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,
+                                          "filter":{"cardType":"シグニ","powerRange":{"max":5000}}},
+                "optional":false}}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXDi-P04-033 E1（原文＝あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、
+  //    このシグニを場からトラッシュに置いてもよい。そうした場合、それを手札に加える）
+  // ⚠**対象は自分のトラッシュのシグニ**＝`TRASH_CARD owner:'self'`。
+  //   🔑「このシグニを場からトラッシュに置く」支払いで**トラッシュが1枚増える**ので、
+  //     宣言を先にしないと**支払ったカード自身を回収先に選べてしまう**（原文にない選択肢）。
+  "WXDi-P04-033": [
+    {"effectId":"WXDi-P04-033-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"OPTIONAL_TRASH_SELF"},
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+        "then":{"type":"TRANSFER_TO_HAND",
+                "source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","hasGuard":true}}}}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXDi-P12-061 E1（原文＝このシグニを場からトラッシュに置いてもよい。そうした場合、カードを２枚引く）
+  // ⚠こちらは**対象宣言が無い**原文なので `UNKNOWN_NESTED` を落とすだけ。
+  "WXDi-P12-061": [
+    {"effectId":"WXDi-P12-061-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"OPTIONAL_TRASH_SELF"},
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"DRAW","owner":"self","count":2}}
+     ]},
+     "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 };
 

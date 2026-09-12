@@ -3516,6 +3516,12 @@ function actionJa(a?: Action, effectType?: string): string {
         ? 'このシグニには好きな枚数の【アクセ】を付けることができる'
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
       if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
+      // 🆕§5.3 `O-349`③（2026-09-13）＝**枚数を描く**。既定ラベルだと原文の「２枚まで」が消えて
+      //   原文照合が効かなくなる（`census:numberdrift` の趣旨）。
+      if (a.id === 'OPP_LRIG_UNDER_TO_LRIG_TRASH') {
+        const nOLU = typeof a.value === 'number' ? a.value : 1;
+        return `対戦相手のセンタールリグの下からカードを${nOLU}枚まで対象とし、それらを対戦相手のルリグトラッシュに置く`;
+      }
       // 🆕§5.3 `O-309`〜`O-311`（2026-09-12）＝payload を持つ新 STUB は payload から文を組む（固定文にしない）。
       if (a.id === 'BAKE_LAST_PROCESSED_REFS') {
         return a.bakeThen ? actionJa(a.bakeThen, effectType) : '【※ペイロード欠落】直前に処理したカードを基準に後続を行う';

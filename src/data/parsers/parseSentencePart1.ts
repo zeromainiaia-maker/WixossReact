@@ -2258,11 +2258,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //      **相手のエクシード剥がし**（§6.4 O-11・`WD23-012-A` ③）----
   // 🔴下の「トラッシュに置く（直接除去）」フォールバックがこの文を食い、
   //   **相手の場のシグニ1体をトラッシュする別物**（過剰実行）になっていた。
-  // ⚠engine のルリグ下操作（`INTERNAL_CONSUME_LRIG_UNDER`／`SOUL_OP` ほか）は
-  //   **すべて `ctx.ownerState` 固定**で相手側のスタックを触れない＝機構が要る。
-  //   実装が入るまでは**明示 defer**（無言の no-op ではなく宣言された no-op）にする。
-  if (/対戦相手の(?:センター)?ルリグの下から(?:カード)?を?[０-９\d]+枚(?:まで)?を?対象とし、?それらを(?:ルリグ)?トラッシュに置く/.test(t)) {
-    return { type: 'STUB', id: 'DEFERRED_OPP_LRIG_UNDER_TO_TRASH' } as StubAction;
+  // 🆕🏁**2026-09-13（§5.3 `O-349`③）＝明示 defer をやめて実装した。**
+  //   旧コメント＝「engine のルリグ下操作はすべて `ctx.ownerState` 固定で相手側のスタックを触れない」。
+  //   🔑実測すると足りなかったのは**相手側の口だけ**で、器はすべて在った＝
+  //   自分側の対（`LRIG_UNDER_TRASH_ANY` / `INTERNAL_LRIG_UNDER_TRASHED`・`execStubPart1.ts:936`）と
+  //   汎用の選択 UI（`selectOrInteract` の `targetScope` は候補配列を描くだけ）。
+  //   ⇒ `TargetScope` に `'opp_lrig_under'` を足し、`OPP_LRIG_UNDER_TO_LRIG_TRASH` を新設した。
+  // ⚠**枚数は payload（`value`）で渡す**＝engine に原文 regex を書かない（`census:enginetext` の規約）。
+  const oppLrigUnderM = t.match(/対戦相手の(?:センター)?ルリグの下から(?:カード)?を?([０-９\d]+)枚(?:まで)?を?対象とし、?それらを(?:ルリグ)?トラッシュに置く/);
+  if (oppLrigUnderM) {
+    const nOLU = parseInt(oppLrigUnderM[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    return { type: 'STUB', id: 'OPP_LRIG_UNDER_TO_LRIG_TRASH', value: Number.isFinite(nOLU) ? nOLU : 2 } as StubAction;
   }
 
   // ---- トラッシュに置く（直接除去）----
