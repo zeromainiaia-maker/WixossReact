@@ -51,6 +51,7 @@ const results = await Promise.all([
   // 増えたら exit 1（UI 層で新しく原文 regex を書いた＝payload 化と逆）／減っても exit 1（基準の下げ忘れ）。
   run('census-costtext', 'census:costtext'),
   run('census-payloadkeys', 'census:payloadkeys'),
+  run('census-numberdrift', 'census:numberdrift'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

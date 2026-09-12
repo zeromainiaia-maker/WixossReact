@@ -33,7 +33,8 @@
     "census:enginetext": "tsx scripts/censusEngineText.ts",
     "census:costtext": "tsx scripts/censusCostText.ts",
     "census:orphanmanual": "tsx scripts/censusOrphanManual.ts",
-    "census:payloadkeys": "tsx scripts/censusPayloadKeys.ts"
+    "census:payloadkeys": "tsx scripts/censusPayloadKeys.ts",
+    "census:numberdrift": "node scripts/censusNumberDrift.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
