@@ -16,6 +16,7 @@ import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrow
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectLeftFieldSigniToTrash, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countMovedToDeckFromField, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { applyCoinGain } from '../engine/coinGain';
+import { coinLedger } from '../engine/coinAbilityNegation';
 import { payAttachedOrUnderTrash } from './battle/attachedOrUnderCost';
 import { detectEnergyAddedWithSource, detectTrashAdded, detectPlacedFromZone } from '../engine/boardDiff';
 import { hasApplicableLancer, hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -4315,7 +4316,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
-          negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
           deck_signi_level_override: undefined,       // デッキシグニレベルオーバーライドをリセット
           reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
@@ -4370,7 +4370,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opNextTurnState = handover.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-          negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
@@ -4811,7 +4810,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
         crash_to_trash_instead: undefined, negate_opp_attacks: undefined,
         all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
-        negate_coin_abilities: undefined, coin_condition_signi_instances: undefined,
+        coin_condition_signi_instances: undefined,
         deck_signi_level_override: undefined,
         reduce_next_on_play_cost: undefined, optional_discard_guard_enabled: undefined,
         turn_end_field_trash_targets: undefined,
@@ -4841,7 +4840,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         // 相手側も同じく clearTurnEndScopedState に集約（§6.4 O-3）。
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-        negate_coin_abilities: undefined,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
@@ -7154,8 +7152,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...newMyState,
             coins: (newMyState.coins ?? 0) - eff.cost!.coin!,
             coins_paid_this_turn: (newMyState.coins_paid_this_turn ?? 0) + eff.cost!.coin!,
-            // 🆕§5.3 `O-317`＝CPU がコインだけで自動発動した【出】コイン技も履歴へ。
-            coin_ability_used_this_turn: true,
+            // 🆕§5.3 `O-317`/`O-333`＝CPU がコインだけで自動発動した【出】コイン技も同じ台帳へ。
+            coin_abilities_used_this_turn: [...(newMyState.coin_abilities_used_this_turn ?? []), ...coinLedger(eff)],
           };
           appendBattleLogs([`《コイン》×${eff.cost!.coin}を支払って【出】効果を発動`]);
           autoPaidOnPlay.push(eff);
@@ -13887,8 +13885,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: newHand,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         coins_paid_this_turn: coinCostAct > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostAct : my.coins_paid_this_turn, // COINS_PAID_THIS_TURN
-        // 🆕§5.3 `O-317`＝コイン技（《コイン》を払う能力）の発動履歴。ベット／アンコール／グロウは含めない。
-        coin_ability_used_this_turn: coinCostAct > 0 ? true : my.coin_ability_used_this_turn,
+        // 🆕§5.3 `O-317`/`O-333`＝コイン技（《コイン》を払う能力）の発動台帳。ベット／アンコール／グロウは含めない。
+        //   ⚠**`effectId` を積む**＝無効化する側が宣言を引き直して引き算するため（boolean では足りない）。
+        coin_abilities_used_this_turn: coinCostAct > 0
+          ? [...(my.coin_abilities_used_this_turn ?? []), ...coinLedger(effect)]
+          : my.coin_abilities_used_this_turn,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
         trash: [...my.trash, ...paidNums, ...energyTrashCards, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
         // ⚠エナ由来（`energyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
@@ -14570,8 +14571,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         reduce_next_on_play_cost: undefined,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
-        // 🆕§5.3 `O-317`＝コイン技の発動履歴（【出】コストの《コイン》も能力の発動）。
-        coin_ability_used_this_turn: coinCostOPC > 0 ? true : placedState.coin_ability_used_this_turn,
+        // 🆕§5.3 `O-317`/`O-333`＝コイン技の発動台帳（【出】コストの《コイン》も能力の発動）。
+        coin_abilities_used_this_turn: coinCostOPC > 0
+          ? [...(placedState.coin_abilities_used_this_turn ?? []), ...coinLedger(costEffect)]
+          : placedState.coin_abilities_used_this_turn,
         trash: [...placedState.trash, ...paidNums, ...discardNums],
         // 🔴**旧実装はこの経路だけ台帳を1つも書いていなかった**（`V-101`②で実機再現）＝
         //   `WXDi-CP02-055` は同じカードの【出】コストで＜ブルアカ＞を捨てて【自】が読むのに、
@@ -14994,8 +14997,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: newHand,
         coins: coinCostLg > 0 ? Math.max(0, (my.coins ?? 0) - coinCostLg) : my.coins,
         coins_paid_this_turn: coinCostLg > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostLg : my.coins_paid_this_turn,
-        // 🆕§5.3 `O-317`＝ルリグ【起】のコイン技も同じ履歴へ。
-        coin_ability_used_this_turn: coinCostLg > 0 ? true : my.coin_ability_used_this_turn,
+        // 🆕§5.3 `O-317`/`O-333`＝ルリグ【起】のコイン技も同じ台帳へ。
+        coin_abilities_used_this_turn: coinCostLg > 0
+          ? [...(my.coin_abilities_used_this_turn ?? []), ...coinLedger(effect)]
+          : my.coin_abilities_used_this_turn,
         ...(collabCostLg > 0 ? { liver_tokens: (my.liver_tokens ?? 0) - collabCostLg } : {}),
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         // ⚠エナ由来（`lgEnergyTrash*`）は台帳に載せない（手札から捨てた分だけ）。

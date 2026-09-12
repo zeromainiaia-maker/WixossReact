@@ -91,8 +91,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_by_signi_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi life crash total for the current turn' },
   // ライフクラッシュ累計は終了時に last_turn へ写し、現在ターン分を破棄する。
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
-  // 🆕§5.3 `O-317`＝コイン技の発動履歴も終了時に last_turn へ写して現在ターン分を破棄する（2スロット式）。
-  coin_ability_used_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'coin-ability activation flag copied to coin_ability_used_last_turn at the boundary' },
+  // 🆕§5.3 `O-317`/`O-333`＝コイン技の発動台帳も終了時に last_turn へ写して現在ターン分を破棄する（2スロット式）。
+  coin_abilities_used_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'coin-ability activation ledger copied to coin_abilities_used_last_turn at the boundary' },
   // 🆕§5.3 `O-275`（2026-09-08）＝原因を「対戦相手の効果」に限定した累計。last_turn 版は要らない（原文が無い）。
   life_crashed_by_opp_effect_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crashes caused by opponent effects during the current turn' },
   // 🆕**§5.3 `O-239`（2026-09-04）**＝チェックゾーンへ置かれたライフクロスの**順序**と、
@@ -420,8 +420,10 @@ function advanceLeaveToTrashWindows(
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
-  // 🆕§5.3 `O-317`（2026-09-12）＝コイン技の発動履歴を「前のターン」スロットへ写す。
-  const coinAbilityLastTurn = state.coin_ability_used_this_turn === true ? true : undefined;
+  // 🆕§5.3 `O-317`/`O-333`（2026-09-12）＝コイン技の発動台帳を「前のターン」スロットへ写す。
+  //   ⚠**`effectId` まで写す**＝無効化する側が `effectsMap` から宣言を読み直して引き算するため。
+  const coinAbilityLastTurn = state.coin_abilities_used_this_turn?.length
+    ? [...state.coin_abilities_used_this_turn] : undefined;
   const reset = resetBoundary(state, 'turn-end');
   const nextOpponentTurnGrants = normalizeFieldGrants(
     state.field_grants_next_opp_turn,
@@ -439,7 +441,7 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
       ? { trash: [...reset.trash, ...checkRest], field: { ...reset.field, check_rest: [] } }
       : {}),
     life_crashed_last_turn: lifeCrashedLastTurn,
-    coin_ability_used_last_turn: coinAbilityLastTurn,
+    coin_abilities_used_last_turn: coinAbilityLastTurn,
     // §6.4 O-3: `abilities_removed`／`keyword_abilities_removed` の失効は上の登録（resetBoundary）が行う。
     // ⚠**旧実装は turn-end 4経路のうち2本（手札上限の捨て札を挟む confirmEndDiscard 側）でしか
     //   手書きクリアしておらず**、最も普通の経路（捨て札なしでターンが終わる）では「ターン終了時まで

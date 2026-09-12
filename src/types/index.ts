@@ -1385,16 +1385,23 @@ export interface PlayerState {
   // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
   coin_use_restriction?: string;
   /**
-   * 🆕**このターンに《コイン》を払う能力（＝コイン技）を発動したか**
-   * （2026-09-12・§5.3 `O-317`・`WX16-002-E4`「このターンの**前のターンに発動した**コイン技を無効にする」）。
+   * 🆕**このターンに発動した《コイン》を払う能力（＝コイン技）の台帳**
+   * （2026-09-12・§5.3 `O-317`/`O-333`・`WX16-002-E4`「このターンの**前のターンに発動した**コイン技を無効にする」）。
+   * 中身は `CoinAbilityLedgerEntry`＝**`effectId` ＋ 発動時に畳んだ引き算指示**。
+   * 🔴**boolean では足りない**（`O-317` の初版はそれだった）＝無効化は「**どの能力の何を**取り消すか」を要求する。
+   * 🔴**`effectId` だけにして無効化時に `effectsMap` から引き直す形にもしない**＝
+   *   `ctx.effectsMap` は BattleScreen のどの `ExecCtx` 生成地点でも代入されていないので
+   *   **golden は緑・実機は丸ごと no-op** になる（続き296 の dead flag の罠。実装中に一度踏んだ）。
    * ⚠**ベット／アンコール／グロウコストは数えない**＝あれは「能力の発動」ではない。
-   * ⚠寿命はターン終了で `coin_ability_used_last_turn` へ写す（`life_crashed_last_turn` と同じ2スロット式）。
+   * ⚠寿命はターン終了で `coin_abilities_used_last_turn` へ写す（`life_crashed_last_turn` と同じ2スロット式）。
    */
-  coin_ability_used_this_turn?: boolean;
-  /** 🆕直前のグローバルターンに発動したコイン技があったか（上のターン終了時の写し）。 */
-  coin_ability_used_last_turn?: boolean;
-  // NEGATE_COIN_ABILITY: このターン、このプレイヤーはコイン能力（ベット）を発動できない
-  negate_coin_abilities?: boolean;
+  coin_abilities_used_this_turn?: import('../engine/coinAbilityNegation').CoinAbilityLedgerEntry[];
+  /** 🆕直前のグローバルターンに発動したコイン技の台帳（上のターン終了時の写し）。 */
+  coin_abilities_used_last_turn?: import('../engine/coinAbilityNegation').CoinAbilityLedgerEntry[];
+  // 🗑**`negate_coin_abilities` は撤去した**（2026-09-12・§5.3 `O-333`）＝
+  //   `STUB{NEGATE_COIN_ABILITY}` の近似実装が立てるだけの**書き手1・読み手4**のフラグで、
+  //   「対戦相手はコイン能力（ベット）を発動できない」と書くカードは**live に1枚も無い**（実測）。
+  //   原文は「発動**した**コイン技を無効にする」＝これから使えなくする効果ではない。
   // MULTI_ACCE_LIMIT: このシグニには複数のアクセを付けられない（最大1個）
   multi_acce_limit?: boolean;
   // CENTER_LRIG_COLOR_CHANGE_BLACK: このターン、センタールリグが追加で得た色（ACTIVATED効果）

@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { isCoinAbility } from '../../engine/coinAbilityNegation';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { collectLrigGrantedEffects, isKizunaActive } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
@@ -52,7 +53,9 @@ export interface LrigActivateGateInput {
  * ⚠**0未満にはしない**。
  */
 export function effectiveCoinCost(eff: CardEffect, my: PlayerState): number {
-  const base = eff.cost?.coin ?? 0;
+  // ⚠**「コイン技」の判定は `isCoinAbility` 1本**（2026-09-12・§5.3 `O-333`）＝
+  //   同じ定義を3箇所に写経していた（ここ／`gameUseAllowance`／台帳の記録）。
+  const base = isCoinAbility(eff) ? (eff.cost?.coin ?? 0) : 0;
   if (base === 0) return 0;
   return Math.max(0, base - (my.next_coin_ability_cost_reduction ?? 0));
 }
@@ -70,7 +73,7 @@ export function gameUseAllowance(
 ): number {
   const stories = my.coin_ability_extra_game_uses ?? [];
   if (stories.length === 0) return 1;
-  if ((eff.cost?.coin ?? 0) === 0) return 1;
+  if (!isCoinAbility(eff)) return 1;   // ⚠判定は `isCoinAbility` 1本（§5.3 `O-333`）
   const cls = cardMap.get(getCardNum(sourceCardNum))?.CardClass ?? '';
   return stories.some(st => cls.includes(st)) ? 2 : 1;
 }

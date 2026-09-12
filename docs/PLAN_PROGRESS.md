@@ -1,5 +1,60 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-12・第284バッチ・Opus 5 単独）＝🏁索引 G の残8項目を全消化（`O-313`／`O-317`／`O-318`／`O-320`／`O-322`／`O-330`／`O-331`／`O-332`）＝10効果/9カード。🆕`O-333` を新設。実機 `V-207` を同じ巡で返済。**
+
+  **取り方**＝ユーザー指定「索引 G をすべて行う」＝残8項目を1バッチ。**1手目は登録票の反証**（前回の次の一手②をそのまま実行）。
+
+  🔴**「新機構が要る」と書かれた8項目のうち、本当に新機構が要ったのは1つだけ**（`O-333`＝遡及的な能力無効化）。
+  残り7項目は**既存の受け皿の兄弟キー1本**か**parser が読めていない句1本**で閉じた
+  （`O-331`＝`SET_BASE_LEVEL.until` に1値／`O-320`＝`collectFieldSigniExtraColors` に state 由来の1ループ／
+  `O-313`＝既存 `signiZoneNonSigniCards` を使う `EffectCost` キー1つ）。
+
+  🔴**旧 live が原文と違うことをしていた6件**＝
+  `WXDi-CP01-033-E1`＝**＜バーチャル＞のゲートが落ちて無条件に＋5000**（繰り返しは真 no-op）／
+  `WXDi-P14-061-E1`＝**条件なしで常に覚醒しようとし、対象が効果元＝スペルなので恒久 no-op**／
+  `WXDi-P07-006-E1`＝**条件節ごと落ちて無条件発火**（しかも「このゲーム得られない」は engine の1箇所でしか効かず
+  グロウ／アシスト／`GAIN_COIN_AND_DISCARD` の獲得が素通り）／
+  `SPDi43-22-E1`＝「**追加で宣言した色を得る**」が JSON に1つも出ず恒久 no-op／
+  `WXK07-032-E2`＝基本レベル1が**1ターン短かった**／
+  `WX16-002-E4`＝**前提条件を1つも見ず**「このターン相手はコイン能力を使えない」を立てていた（原文に無い妨害）。
+
+  🔴🔑**`O-330` は「畳んだ処理が3軸同時に壊れる」の実例**（`O-147` と同型）＝`FIELD_SIGNI_TO_CHECK_ZONE` は
+  往復を1アクションに畳んで**ダウン／凍結／アタック済みしか落としていなかった**＝①付属札が残る
+  ②パワー修整・付与キーワード・能力喪失が instanceId 越しに復活する
+  ③**【出】が一度も発火しない**（`detectPlacedSigni` は盤面差分＝同じ id が同じゾーンに戻ると差分に出ない）。
+  ⇒ 離場は `removeFromField` funnel を通し、③は `signi_replayed_this_turn` への**追記ログの差分**で解いた
+  （持続フラグにすると後続の無関係な解決で【出】が再発火する＝両方向に壊れる）。
+
+  **直したもの**＝`SetBaseLevelAction.until:'UNTIL_NEXT_OWN_TURN_END'`＋`base_level_overrides_until_next_own_turn` ／
+  新設 `clearOnFieldAcquiredState`＋`signi_replayed_this_turn`（`detectPlacedSigni` が差分で読む）／
+  新設 `src/engine/coinGain.ts`（`applyCoinGain`＝獲得の funnel 1本）＋`Condition.NO_COIN_GAINED_THIS_GAME` ／
+  `signi_extra_colors_until_opp_turn`＋`STUB{GAIN_DECLARED_COLOR_UNTIL_OPP_TURN_END}` ／
+  `STUB{REPEAT_BODY_WHILE}`／`REPEAT_BODY_SELF`（再帰点を実行時に自分自身へ差し替え・`maxRepeats` で必ず止まる）／
+  `EffectCost.attachedOrUnderTrash`＋新設 `src/screens/battle/attachedOrUnderCost.ts`（提示ゲート・支払いUI・引き落としが同じ関数を通る）／
+  `coin_ability_used_this_turn`／`_last_turn`（2スロット式）。parser 規則4本、STUB 3本、golden 新設10本。
+
+  🔑**教訓**＝①**登録票は着手前に grep で反証する**（第280〜284 で取った24項目のうち**21項目で前提が誤っていた**）
+  ②**計器の穴は「型名が出ていない」だけのこともある**（`O-332`＝挙動は E2E で通っていたが型名が golden に1度も無かった）
+  ③🔴**実機がまた UI 層の穴を1件見つけた**＝提示ゲート・支払いUI・引き落としを揃えても
+  **【起】ボタンのコストラベルに新しいキーを足し忘れると「コストなし」と表示される**（§4.4-8m の再来）。
+  ⚠選択UIの素の `div` は role を持たないのでドライバから掴めない＝`data-testid` を付ける／候補クリックは**トグル**。
+
+  🔧**検証**＝`npm run gates` 全緑（golden **4017 PASS**＝新設10本／smoke 10751 OK／fuzz 0／census 高シグナル **1/1 据置**／
+  stubs A群・C群 0／enginetext・costtext A群 0／manual-fields 0／lint 0 errors）。
+  `census:goldentypes` **未カバー 1 → 0**。golden ラチェット3本を新設ぶんで加算（57→59／88→90／153→154）。
+  ✅**実機 `V-207` は同じ巡で返済**＝`o313AttachedCostPays` / `o313AttachedCostNoCandidate` の **2/2 PASS**（`order` に常設）。
+  **反転確認**＝新設 golden すべてに反転 assert を埋めた（0枚支払い成立／持続フラグ読み／繰り返しが止まらない、等）。
+
+  📦**在庫**＝実装キュー **123効果**（据置）｜機構 worklist **1項目**（🏁A 0／🏁B 0／**G 1**＝8−8＋新規1）｜🏁**実機 残0**。
+
+  **次の一手**
+  ① 🔑**着手の1手目は登録票の反証**（24項目中21項目で前提が誤っていた＝既定）。
+  ② ⚠**索引 G の残り1項目（`O-333`）は defer が妥当**＝要るのは「どの state をどの能力が書いたか」の provenance で、
+  **全書き込み地点に印を付ける横断作業**。効果1件のために払うコストではない＝**同型が増えるまで待つ**（登録票に根拠を書いた）。
+  ③ 🔥**3計器は全部 0/底**（Sheet1 要対応 **0/863**／台帳 残 OPEN **0**／census 高シグナル **1**＝ベースライン）＝
+  **計器が指す在庫はもう無い**。次は §5.2 round4 の**未監査カード**（`node scripts/archive/semanticAuditGap.mjs`）か
+  §5.0 の実装キュー（`node scripts/archive/semanticAuditBugList.mjs`）から取る。
+
 - **セッション（2026-09-12・第283バッチ・Opus 5 単独）＝🏁`O-312`・🏁`O-314`・🏁`O-315` をクローズ／`O-313` 4→1・`O-317` 4→1（索引G 10→8項目・19効果/18カード＋系統13効果）。**
 
   **取り方**＝ユーザー指定の5項目を横断で1バッチ。**1手目は登録票の反証**（前回の「次の一手②」をそのまま実行）。

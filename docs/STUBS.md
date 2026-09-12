@@ -7,7 +7,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-09-11）
+## サマリー（最終生成: 2026-09-12）
 
 | 区分 | 値 |
 |---|---:|
@@ -468,7 +468,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LIMIT_OPP_SIGNI_ATTACKS_ONCE` | 2 | 2 | WX13-005A, WXDi-P11-TK02 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `LRIG_RIDE_SIGNI` | 2 | 2 | WXEX2-11, WXK01-038 | センタールリグがすべての乗機シグニに乗る（ドライブ状態） |
 | `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` | 2 | 2 | WXDi-P00-015, WXDi-P00-068 | 対象の自シグニを他のシグニゾーンへ移動（同処理） |
-| `NEGATE_COIN_ABILITY` | 2 | 1 | WX16-002 | 前のターンに発動されたコイン技を無効にする（近似＝このターン相手はコイン能力を使えない） |
+| `NEGATE_COIN_ABILITY` | 2 | 1 | WX16-002 | このターンの前のターンに発動されたコイン技を無効にする |
 | `NEGATE_THAT_ATTACK` | 2 | 2 | WXEX2-17, WXDi-D06-010 | 現在のアタックを無効化 |
 | `OPP_DECLARE_COLOR` | 2 | 2 | WXEX1-07, WXK09-037 | 相手が色を宣言（5色CHOOSE opponentResponds→INTERNAL_SET_OPP_DECLARED_COLOR） |
 | `OPP_DRAW_LIMIT` | 2 | 2 | WXDi-P05-039, WXDi-P16-005 | 対戦相手のターン開始時、そのターンのドローを1枚に制限（triggerScope: any_opp で相手ターン発動） |

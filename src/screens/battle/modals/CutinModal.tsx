@@ -55,7 +55,7 @@ export function CutinModal(p: CutinModalProps) {
     computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
       costReplacementOf(card.CardNum, effectsMap));
   // 🆕§5.3 `O-245`（2026-09-04）＝カットインのベットもアーツ経路（`coin_use_restriction` の対象）。
-  const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities || !coinPayableFor(my, 'arts');
+  const betBlocked = isActionBlocked('BET') || !coinPayableFor(my, 'arts');
   // ルリグデッキ由来（＝アーツ本体）の実効コスト（タスク12(lxxxvii)）。
   // 従来はここだけ **CSV の `Cost` 列＋`specificCardCostReductions`** で出しており、
   // `computeArtsEffectiveCost`（EffectText 由来の条件つき軽減）・`applyContinuousCostDecreases`

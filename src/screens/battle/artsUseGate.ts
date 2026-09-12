@@ -285,7 +285,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   const betSpec = betOptionsOf(cardNum, effectsMap);
   const betCoinMin = betSpec.variable ? 1 : Math.min(...betSpec.options, Infinity);
   // 🆕§5.3 `O-245`（2026-09-04）＝`coin_use_restriction`（コインはスペルとシグニにしか払えない）。
-  const betCost = !isActionBlocked('BET') && !my.negate_coin_abilities && coinPayableFor(my, 'arts')
+  const betCost = !isActionBlocked('BET') && coinPayableFor(my, 'arts')
     && Number.isFinite(betCoinMin) && my.coins >= betCoinMin
     ? computeCostReplacement(card, my, cardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
         costReplacementOf(cardNum, effectsMap))

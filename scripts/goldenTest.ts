@@ -36,6 +36,7 @@ import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSu
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { applyCoinGain } from '../src/engine/coinGain';
+import { coinLedger, collectCoinNegationRemovals, isCoinAbility, negateCoinAbility } from '../src/engine/coinAbilityNegation';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
 import { countEnergyPlacedThisTurn } from '../src/engine/energyPlacement';
@@ -5918,7 +5919,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 59, 'PlayerState の命名規約由来フィールド数（🆕59＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`（チェックゾーン往復で出し直したシグニの追記ログ＝`detectPlacedSigni` が差分で読む）、`O-317` で `coin_ability_used_this_turn`（コイン技の発動履歴・2スロット式）を新設。57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 59, 'PlayerState の命名規約由来フィールド数（🆕59＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`（チェックゾーン往復で出し直したシグニの追記ログ＝`detectPlacedSigni` が差分で読む）、`O-317`/`O-333` で `coin_abilities_used_this_turn`（コイン技の発動台帳・2スロット式）を新設。57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5933,7 +5934,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 31, '命名規約外のターン限定フィールド数（🆕31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加＝原文「次のあなたのエナフェイズ終了時まで」の受け皿。境界は main-phase-start＝**次に自分が ENERGY を出て MAIN へ入るとき**。30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 90, '型由来38件＋命名規約外27件の母集団（🆕90＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`、`O-317` で `coin_ability_used_this_turn` を新設（どちらも境界 turn-end）。88＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn` を新設（境界 turn-end）。87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 90, '型由来38件＋命名規約外27件の母集団（🆕90＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`、`O-317`/`O-333` で `coin_abilities_used_this_turn` を新設（どちらも境界 turn-end）。88＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn` を新設（境界 turn-end）。87＝2026-09-11 §5.3 `O-321` で `energy_placed_this_turn` を新設（境界 turn-end）。86＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を新設。85＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設。84＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設。83＝83＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設。82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -69330,7 +69331,7 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   // 🆕2026-09-04 の初回実測は 6件。**同日に1件払い戻して 5件**＝`draw_on_opp_power_zero` を
   //   `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner}` へ寄せてキーごと撤去した。
   //   🆕さらに `coin_use_restriction` も払い戻して **4件**（`costs.coinPayableFor` を新設し、
-  //   `negate_coin_abilities` と同じ4入口＋グロウ／キーの可否判定で読むようにした）。
+  //   旧 `negate_coin_abilities`（2026-09-12 `O-333` で撤去）と同じ4入口＋グロウ／キーの可否判定で読むようにした）。
   //   🆕さらに `reduce_next_on_play_cost` も払い戻して **3件**（`costs.applyNextOnPlayCostReduction` を新設し、
   //   `SigniOnPlayCostModal` が枚数と色文字列の**両方**をそこから作るようにした＋支払い時に1回で消費）。
   //   🆕さらに `grid_reveal_plus_one_this_turn` もキーごと撤去して **2件**（受け皿が無いので明示 defer＝`O-246`）。
@@ -78552,12 +78553,102 @@ test('§5.3 O-314 ACCE_FROM_TRASH_MULTI：トラッシュ発の【アクセ】�
 // ══════════════════════════════════════════════════════════════════════════════
 // 🆕**第284バッチ（2026-09-12）＝§5.3 索引G の残り（`O-322`）**
 // ══════════════════════════════════════════════════════════════════════════════
-// 🆕**§5.3 `O-317`（2026-09-12・第284バッチ）＝`WX16-002-E4`「このターンの**前のターンに発動した**
-//   コイン技を無効にする」の前提条件。**
-// 🔴旧＝前提条件が1つも無く、相手が前のターンにコイン技を撃っていなくても
-//   「このターン相手はコイン能力（ベット）を使えない」が立っていた＝**原文に無い妨害**。
-// ⚠**帰結は近似のまま**（遡及的な無効化の機構は無い＝`O-333` に登録）＝ここが固定するのは前提条件だけ。
-test('§5.3 O-317 NEGATE_COIN_ABILITY: 前のターンにコイン技が発動されていなければ何も起きない', () => withSavedCursor(() => {
+// 🆕**§5.3 `O-333`（2026-09-12・第285バッチ）＝`WX16-002-E4`「このターンの**前のターンに発動した**
+//   コイン技を無効にする」の帰結まで実装した。**
+// 🔴旧①（第283 以前）＝前提条件が1つも無く「このターン相手はコイン能力（ベット）を使えない」を立てるだけ
+//   ＝**原文と別の効果**（これから使えなくする／もう使ったものを消す）。
+// 🔴旧②（第284）＝前提条件だけ足したが帰結は同じ近似のまま。
+// 🔑**いまの形**＝台帳（`coin_abilities_used_last_turn`）の `effectId` から**その能力の宣言を引き直し**、
+//   置いたはずのものを両者の state から**引き算する**（`src/engine/coinAbilityNegation.ts`）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-333 isCoinAbility: 《コイン》を払う能力だけを数える（ベット／グロウは含めない）', () => withSavedCursor(() => {
+  ok(isCoinAbility(mkAct('T', { cost: { coin: 1 } })), '《コイン》1のコストが数えられていない');
+  ok(!isCoinAbility(mkAct('T', { cost: { coin: 0 } })), 'coin:0 を数えている');
+  ok(!isCoinAbility(mkAct('T', { cost: { energy: [{ color: '赤', count: 1 }] } })), 'エナだけの能力を数えている');
+  ok(!isCoinAbility(mkAct('T', {})), 'コスト無しを数えている');
+  // 🔑live で実際に「コイン技」と呼べる効果数＝この定義の母集団（`O-333` の実測 179効果）。
+  const liveCoin = [...effectsMap.values()].flat().filter(e => isCoinAbility(e));
+  ok(liveCoin.length > 100, `live のコイン技が極端に少ない（${liveCoin.length}）＝定義が壊れた疑い`);
+}));
+
+test('§5.3 O-333 collectCoinNegationRemovals: 相手ターンを跨ぐ宣言だけを引き算対象にする', () => withSavedCursor(() => {
+  const of = (action: unknown) => collectCoinNegationRemovals(
+    mkAct('T', { cost: { coin: 1 }, action: action as never }));
+
+  // ① 跨ぐもの＝長期ストアへ行くパワー修整／次のターンの付与／次のターンの行動封じ ほか。
+  eq(of({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 3000,
+    duration: 'UNTIL_OPP_TURN_END' })[0]?.powerModDeltas?.[0], 3000, 'UNTIL_OPP_TURN_END のパワー修整を拾えない');
+  eq(of({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 'シャドウ',
+    duration: 'UNTIL_OPP_TURN_END' })[0]?.keywords?.[0], 'シャドウ', 'UNTIL_OPP_TURN_END の付与を拾えない');
+  eq(of({ type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'MAIN_PHASE', until: 'NEXT_TURN' })[0]?.blockedActions?.[0], 'MAIN_PHASE', '次ターンの行動封じを拾えない');
+  eq(of({ type: 'FORCE_SIGNI_ATTACK', targetOwner: 'opponent', duration: 'NEXT_TURN' })[0]?.flags?.length, 2,
+    '次ターンの強制アタックを拾えない');
+  eq(of({ type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones: ['energy', 'hand'], turns: 2 })[0]
+    ?.oppMoveImmunityZones?.[0]?.length, 2, '2ターンぶんの移動免疫を拾えない');
+  eq(of({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN', scope: 'LRIG' })[0]
+    ?.preventDamageScopes?.[0], 'LRIG', '次ターンのダメージ防止を拾えない');
+
+  // ② 🔴**跨がないものは拾わない**（拾うと「もう消えている宣言」を探して無関係なものを落とす）。
+  eq(of({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 3000,
+    duration: 'UNTIL_END_OF_TURN' }).length, 0, '🔴このターン限定のパワー修整まで引き算対象にしている');
+  eq(of({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 'ランサー',
+    duration: 'UNTIL_END_OF_TURN' }).length, 0, '🔴このターン限定の付与まで対象にしている');
+  eq(of({ type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'USE_ARTS', until: 'TURN' }).length, 0, '🔴このターン限定の封じまで対象にしている');
+  eq(of({ type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones: ['hand'], turns: 1 }).length, 0,
+    '🔴1ターンだけの移動免疫まで対象にしている');
+  // 🔴**盤面が動いた帰結は対象外**（もう起きたことは戻せない＝引き算指示を作らない）。
+  eq(of({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }).length, 0,
+    '🔴バニッシュを「取り消せる宣言」として扱っている');
+  eq(of({ type: 'DRAW', owner: 'self', count: 1 }).length, 0, '🔴ドローを取り消し対象にしている');
+  eq(of({ type: 'GAIN_LRIG_TYPE', owner: 'self', from: 'opponent_center_lrig', turns: 'GAME' }).length, 0,
+    '🔴ゲーム中続く宣言を対象にしている（落として戻す2段が無いので過剰になる）');
+
+  // ③ STUB は id を名指ししたものだけ（汎用の木歩きでは宣言が読めない）。
+  eq(of({ type: 'STUB', id: 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN' })[0]?.blockedActions?.length, 3,
+    '次ターンのアーツ・スペル・起動封じを拾えない');
+  eq(of({ type: 'STUB', id: 'RULE_REMINDER_TEXT' }).length, 0, '🔴名指ししていない STUB を対象にしている');
+}));
+
+test('§5.3 O-333 negateCoinAbility: 置いた宣言を両者の state から引き算する（境界でキー名が変わっても当たる）', () => withSavedCursor(() => {
+  const eff = mkAct('T-COIN', { cost: { coin: 1 }, action: { type: 'SEQUENCE', steps: [
+    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 3000, duration: 'UNTIL_OPP_TURN_END' },
+    { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_ARTS', until: 'NEXT_TURN' },
+    { type: 'FORCE_SIGNI_ATTACK', targetOwner: 'opponent', duration: 'NEXT_TURN' },
+  ] } as never });
+
+  // 発動者（activator）＝長期パワー修整を自分に。被害者（victim）＝行動封じと強制アタック。
+  const activator: PlayerState = { ...mkState({}),
+    power_mods_until_opp_turn: [{ cardNum: SIGNI, delta: 3000 }, { cardNum: SIGNI_P3000, delta: 5000 }] };
+  // 🔑**`blocked_actions` は境界で `':NEXT_TURN'` が外れる**＝active 綴りでも当たることを見る。
+  const victim: PlayerState = { ...mkState({}),
+    blocked_actions: ['USE_ARTS', 'USE_SPELL'], must_attack_signi: true, must_attack_infected_only: true };
+
+  const r = negateCoinAbility(collectCoinNegationRemovals(eff), activator, victim);
+  ok(r.removed >= 3, `引き算が当たっていない（removed=${r.removed}）`);
+  eq((r.activator.power_mods_until_opp_turn ?? []).length, 1, '🔴パワー修整が落ちていない');
+  eq((r.activator.power_mods_until_opp_turn ?? [])[0]?.delta, 5000,
+    '🔴無関係な別 delta のエントリまで落としている');
+  eq((r.victim.blocked_actions ?? []).join(','), 'USE_SPELL',
+    '🔴この能力が置いた封じだけを落とせていない（境界で接尾辞が外れた綴りに当たらない）');
+  eq(r.victim.must_attack_signi, undefined, '🔴強制アタックが解除されていない');
+  eq(r.victim.must_attack_infected_only, undefined, '感染限定フラグも一緒に落ちるべき');
+
+  // 🔴**反転確認＝予約側（`:NEXT_TURN` 付き・`_next_turn` フラグ）にも当たる**（境界の前に無効化する経路）。
+  const reserved: PlayerState = { ...mkState({}),
+    blocked_actions: ['USE_ARTS:NEXT_TURN'], must_attack_signi_next_turn: true };
+  const r2 = negateCoinAbility(collectCoinNegationRemovals(eff), mkState({}), reserved);
+  eq(r2.victim.blocked_actions, undefined, '🔴予約綴り（`:NEXT_TURN`）に当たらない');
+  eq(r2.victim.must_attack_signi_next_turn, undefined, '🔴次ターン予約のフラグに当たらない');
+
+  // 🔴**反転確認＝何も置いていない state では何も落とさない**（空振りが副作用を持たない）。
+  const empty = negateCoinAbility(collectCoinNegationRemovals(eff), mkState({}), mkState({}));
+  eq(empty.removed, 0, '🔴対象が無いのに引き算したと報告している');
+}));
+
+test('§5.3 O-333 WX16-002-E4: 台帳の effectId から宣言を引き直して相手のコイン技を取り消す', () => withSavedCursor(() => {
   // 【出】と【起】の2経路があり、どちらも同じ受け皿を指す。
   const ids = effectsMap.get('WX16-002')!.filter(e => JSON.stringify(e.action).includes('NEGATE_COIN_ABILITY'))
     .map(e => e.effectId);
@@ -78565,25 +78656,54 @@ test('§5.3 O-317 NEGATE_COIN_ABILITY: 前のターンにコイン技が発動�
     '🔴【出】と【起】の両経路が揃っていない（旧＝グロウした瞬間の1回しか撃てなかった）');
 
   const act = { type: 'STUB', id: 'NEGATE_COIN_ABILITY' } as unknown as EffectAction;
-  // ① 相手が前のターンにコイン技を発動していない＝何も立たない。
-  const none = run(act, mkCtx({}, {}, SIGNI));
-  eq(none.otherState.negate_coin_abilities, undefined,
-    '🔴前のターンにコイン技が無いのに妨害が立っている（原文に無い過剰実行）');
 
-  // ② 発動していた＝近似の帰結が立つ。
-  const ctx = mkCtx({}, {}, SIGNI);
-  const used = run(act, { ...ctx, otherState: { ...ctx.otherState, coin_ability_used_last_turn: true } } as ExecCtx);
-  eq(used.otherState.negate_coin_abilities, true, '前のターンのコイン技を無効にできていない');
+  // ① 前のターンにコイン技が1つも無い＝何も起きない（fail-closed）。
+  const base = mkCtx({}, {}, SIGNI);
+  const none = run(act, { ...base,
+    otherState: { ...base.otherState, blocked_actions: ['USE_ARTS'], must_attack_signi: true } } as ExecCtx);
+  eq((none.otherState.blocked_actions ?? []).join(','), 'USE_ARTS',
+    '🔴前のターンにコイン技が無いのに他の効果の宣言まで落としている');
+  eq(none.otherState.must_attack_signi, true, '🔴無関係なフラグを落としている');
 
-  // ③ 履歴は2スロット式＝このターンの発動がターン終了時に「前のターン」へ写り、翌ターン終了で消える。
-  const marked = { ...mkState({}), coin_ability_used_this_turn: true } as PlayerState;
+  // ② live のコイン技（`WX15-003-E3`＝次のターン、相手はアーツ・スペル・【起】を使えず強制アタック）を
+  //    相手が前のターンに撃った状態を作り、無効化する。
+  const victimEff = liveEff('WX15-003', 'WX15-003-E3');
+  ok(isCoinAbility(victimEff), '前提: WX15-003-E3 はコイン技');
+  const ctx2 = mkCtx({}, {}, SIGNI);
+  // 撃たれた側（＝無効化する自分）に宣言が載り、撃った側（相手）の台帳に effectId が残っている。
+  const fired = { ...ctx2,
+    ownerState: { ...ctx2.ownerState,
+      blocked_actions: ['USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN', 'USE_ACT:NEXT_TURN'],
+      must_attack_signi_next_turn: true },
+    otherState: { ...ctx2.otherState, coin_abilities_used_last_turn: coinLedger(victimEff) },
+  } as ExecCtx;
+  const negated = run(act, fired);
+  eq(negated.ownerState.blocked_actions, undefined,
+    '🔴相手のコイン技が置いた行動封じが取り消されていない（帰結が近似のまま）');
+  eq(negated.ownerState.must_attack_signi_next_turn, undefined, '🔴強制アタックが取り消されていない');
+
+  // ③ 🔴**反転確認＝台帳に載っていない効果は取り消さない**（同じ宣言でも別の効果が置いたものは残る）。
+  const otherFired = { ...fired,
+    otherState: { ...ctx2.otherState,
+      coin_abilities_used_last_turn: coinLedger(liveEff('WX15-004', 'WX15-004-E3')) } } as ExecCtx;
+  const kept = run(act, otherFired);
+  eq((kept.ownerState.blocked_actions ?? []).length, 3,
+    '🔴別のコイン技の台帳で、この効果が置いていない宣言まで落としている');
+
+  // ④ 台帳は2スロット式＝このターンの発動がターン終了時に「前のターン」へ写り、翌ターン終了で消える。
+  const marked = { ...mkState({}), coin_abilities_used_this_turn: coinLedger(victimEff) } as PlayerState;
   const t1 = clearTurnEndScopedState(marked);
-  eq(t1.coin_ability_used_last_turn, true, '🔴ターン終了時に「前のターン」へ写っていない');
-  eq(t1.coin_ability_used_this_turn, undefined, '現ターン分が残っている');
-  eq(clearTurnEndScopedState(t1).coin_ability_used_last_turn, undefined,
+  eq((t1.coin_abilities_used_last_turn ?? []).map(e => e.effectId).join(','), 'WX15-003-E3',
+    '🔴ターン終了時に「前のターン」へ写っていない');
+  eq(t1.coin_abilities_used_this_turn, undefined, '現ターン分が残っている');
+  eq(clearTurnEndScopedState(t1).coin_abilities_used_last_turn, undefined,
     '🔴2ターン前の発動まで「前のターン」に残っている');
-}));
 
+  // ⑤ 🏁**`negate_coin_abilities`（ベット禁止フラグ）は撤去した**＝原文に無い別の効果だった。
+  //    ⚠ここで固定するのは「あのフラグへ戻していないこと」＝近似への逆戻りを golden で止める。
+  ok(!Object.prototype.hasOwnProperty.call(negated.otherState, 'negate_coin_abilities'),
+    '🔴撤去した `negate_coin_abilities` へ戻っている（原文に無いベット禁止）');
+}));
 
 test('§5.3 O-322 WXDi-CP01-033-E1: ＜バーチャル＞のときだけ＋5000し、《町田ちま》なら効果を繰り返す', () => withSavedCursor(() => {
   const eff = liveEff('WXDi-CP01-033', 'WXDi-CP01-033-E1');

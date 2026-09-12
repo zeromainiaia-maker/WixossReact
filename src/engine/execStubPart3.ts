@@ -15,6 +15,7 @@ import {
   signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard,
 } from './execUtils';
 import { collectMultiAcceLimits } from './effectEngine';
+import { negateCoinAbility } from './coinAbilityNegation';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
 import { acceCardsAt, cloneAcceSlots, countAcce, findAcceZone } from '../utils/acce';
 
@@ -1093,20 +1094,40 @@ export function execStubPart3(
     const targets = [next.signi ? 'シグニ' : '', next.lrig ? 'センタールリグ' : ''].filter(Boolean).join('・');
     return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手の${targets}アタックを${next.remaining}回目まで自動無効化`));
   }
-  // NEGATE_COIN_ABILITY: 前のターンに発動されたコイン技を無効にする（近似＝このターン相手はコイン能力を使えない）
-  // 🆕**§5.3 `O-317`（2026-09-12）＝原文の前提条件を足した。**
-  // 🔴旧は**前提条件が1つも無く**、相手が前のターンにコイン技を1つも発動していなくても
-  //   「このターン相手はコイン能力（ベット）を使えない」を立てていた＝**原文に無い恒久の妨害**。
-  // ⚠**帰結は近似のまま**＝原文は「発動**した**コイン技を（遡って）無効にする」で、
-  //   既に解決した能力の帰結を取り消す機構は engine に無い（provenance が state に残らない）。
-  //   ⇒ 残件は §5.3 の別項目として登録してある。ここは**前提条件の是正だけ**。
+  // NEGATE_COIN_ABILITY: このターンの前のターンに発動されたコイン技を無効にする
+  // 🏁**§5.3 `O-333`（2026-09-12・第285バッチ）＝帰結まで実装した。**
+  // 🔴旧①（第283 以前）＝**前提条件が1つも無く**「このターン相手はコイン能力（ベット）を使えない」を
+  //   立てるだけ＝**原文と別の効果**（これから使えなくする／もう使ったものを消す）。
+  // 🔴旧②（第284）＝前提条件だけ足したが帰結は同じ近似のまま。
+  // 🔑**いまの形**＝台帳（`coin_abilities_used_last_turn`）が**発動時に畳んだ引き算指示**を持っており、
+  //   置いたはずのものを両者の state から**引き算する**（詳細と限界は `coinAbilityNegation.ts` の冒頭）。
+  // 🔴**`effectsMap` から宣言を引き直す形にしない**＝`ctx.effectsMap` は BattleScreen のどの
+  //   `ExecCtx` 生成地点でも代入されていない（続き296 の dead flag の罠）。実装中に一度踏んだ。
+  // ⚠**原文に所有者の限定が無い**＝「前のターンに発動したコイン技」は**どちらのプレイヤーのものも**対象。
+  //   通常の手番では前のターンは対戦相手のターンなので実質相手側だけが当たるが、追加ターンを挟むと
+  //   自分のコイン技も対象になる＝原文どおり両側の台帳を見る。
+  // ⚠**取り消せるのは「続いている宣言」だけ**＝既に動いた盤面（カードの移動・バニッシュ）は戻らない。
   if (stub.id === 'NEGATE_COIN_ABILITY') {
-    if (!ctx.otherState.coin_ability_used_last_turn) {
-      return done(addLog(ctx, '前のターンに発動されたコイン技が無い（無効化する対象なし）'));
+    let ctxNCA = ctx;
+    let negatedNCA = 0;
+    let removedNCA = 0;
+    // 相手側の台帳＝発動者は otherState／その対戦相手は ownerState。
+    for (const entryNCA of ctxNCA.otherState.coin_abilities_used_last_turn ?? []) {
+      const rNCA = negateCoinAbility(entryNCA.removals ?? [], ctxNCA.otherState, ctxNCA.ownerState);
+      ctxNCA = { ...ctxNCA, otherState: rNCA.activator, ownerState: rNCA.victim };
+      negatedNCA++; removedNCA += rNCA.removed;
     }
-    const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
-    return done(addLog({ ...ctx, otherState: newOtherNCA },
-      '前のターンに発動されたコイン技を無効にする（近似＝このターン、対戦相手はコイン能力を発動できない）'));
+    // 自分側の台帳＝発動者は ownerState／その対戦相手は otherState。
+    for (const entryNCA of ctxNCA.ownerState.coin_abilities_used_last_turn ?? []) {
+      const rNCA = negateCoinAbility(entryNCA.removals ?? [], ctxNCA.ownerState, ctxNCA.otherState);
+      ctxNCA = { ...ctxNCA, ownerState: rNCA.activator, otherState: rNCA.victim };
+      negatedNCA++; removedNCA += rNCA.removed;
+    }
+    if (negatedNCA === 0) {
+      return done(addLog(ctxNCA, '前のターンに発動されたコイン技が無い（無効化する対象なし）'));
+    }
+    return done(addLog(ctxNCA,
+      `前のターンに発動されたコイン技${negatedNCA}件を無効にした（取り消した宣言${removedNCA}件）`));
   }
   // NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
   if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {

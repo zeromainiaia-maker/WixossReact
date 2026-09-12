@@ -170,7 +170,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 ? Array.from({ length: Math.max(0, Math.min(5, my.coins) - betReservedForEncore) }, (_, i) => i + 1)
                 : betSpec.options;
               // 🆕§5.3 `O-245`（2026-09-04）＝コインはスペルとシグニにしか払えない宣言（`coin_use_restriction`）。
-              const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities || !coinPayableFor(my, 'arts');
+              const betBlocked = isActionBlocked('BET') || !coinPayableFor(my, 'arts');
               const canBet = !betBlocked && betOptions.some(n => n > 0 && n + betReservedForEncore <= my.coins);
               const canEncore = !!encoreCostForCard && (encoreCoins === 0 || my.coins >= encoreCoins + betAmount)
                 && encoreTextPayable && !isActionBlocked('ENCORE');

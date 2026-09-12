@@ -265,7 +265,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                   {(() => {
                     const betSpecSp = betOptionsOf(spellCard.CardNum, effectsMap);
                     if (!betSpecSp.variable && betSpecSp.options.length === 0) return null;
-                    const betBlockedSp = isActionBlocked('BET') || !!my.negate_coin_abilities;
+                    const betBlockedSp = isActionBlocked('BET');
                     const betOptionsSp = betSpecSp.variable
                       ? Array.from({ length: Math.min(5, my.coins) }, (_, i) => i + 1)
                       : betSpecSp.options;
