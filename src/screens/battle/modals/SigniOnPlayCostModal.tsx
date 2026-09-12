@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, applyNextOnPlayCostReduction } from '../costs';
+import { isEnergyPaymentSelectionValid, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, applyNextOnPlayCostReduction } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -49,7 +49,7 @@ interface SigniOnPlayCostModalProps {
 }
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, selectedSigniOnPlayTrashToDeck, setSelectedSigniOnPlayTrashToDeck, selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
     <>
@@ -184,8 +184,12 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
                 ? true
-                : selectedSigniOnPlayCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+                : isEnergyPaymentSelectionValid({
+                  selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                });
               const coinOk = coinNeeded === 0 || (pState.coins ?? 0) >= coinNeeded;
               const filterLabel = (f?: import('../../../types/effects').TargetFilter) => {
                 if (!f) return '';

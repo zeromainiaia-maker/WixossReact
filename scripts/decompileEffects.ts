@@ -5126,6 +5126,13 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         return '【※ペイロード欠落】置くものが未指定（engine は何もしない）';
       }
+      if (a.id === 'ENERGY_COST_SUBSTITUTE_WHOLE') {
+        const sub = a.energyCostSubstitute;
+        if (!sub) return '【※ペイロード欠落】エナコスト一括代替の色・個数・カード名が未指定（支払いUIは何もしない）';
+        const groups = sub.counts.map(count => Array.from({ length: count }, () => `《${sub.color}》`).join('')).join('か');
+        const note = sub.excludeColorless ? '。（この能力で《無》を支払うことは置き換えられない）' : '';
+        return `あなたが${groups}を支払う際、代わりにあなたのエナゾーンからカード名に《${sub.nameContains}》を含むカード１枚をトラッシュに置いてもよい${note}`;
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

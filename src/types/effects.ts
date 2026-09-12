@@ -894,6 +894,21 @@ export interface EnergyCost {
   count: number;
 }
 
+/**
+ * エナコストの指定色N個を、エナゾーンのカード1枚をトラッシュすることでまとめて置き換える宣言。
+ * §5.3 `O-338`（`WX09-032-E1`）＝1枚を1色として扱う色読み替えとは別の支払い方。
+ */
+export interface WholeEnergyCostSubstituteSpec {
+  /** まとめて置き換えられる色。 */
+  color: EnergyCost['color'];
+  /** 置き換えられる要求個数（原文の「3個か2個」など）。 */
+  counts: number[];
+  /** 代替コストとしてトラッシュできるエナのカード名部分一致。 */
+  nameContains: string;
+  /** 《無》部分は置き換えないという明示（未指定も安全側で置き換えない）。 */
+  excludeColorless?: boolean;
+}
+
 /** 「〜N体／枚につき《色×M》減る／増える」の、盤面で数える対象。 */
 export type CostScalingCount =
   | { kind: 'zone'; zone: 'field' | 'energy' | 'trash' | 'lrig_trash' | 'life_cloth' | 'hand'; owner: Owner; filter?: TargetFilter }
@@ -5072,6 +5087,11 @@ export interface StubAction {
    * ⚠**`turns` はグローバルターン数**（「このターンと次のターン」＝2）。
    */
   leaveToTrashWindow?: { turns: number; requiresNoAbilities?: boolean };
+  /**
+   * §5.3 `O-338`＝指定色2/3個などの要求を、エナゾーンの指定名カード1枚で丸ごと置換する。
+   * 消費＝`collectEnergyCostSubstitutes` → `isEnergyPaymentSelectionValid`。
+   */
+  energyCostSubstitute?: WholeEnergyCostSubstituteSpec;
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /**
    * 🆕`BAKE_LAST_PROCESSED_REFS` の本体（§5.3 `O-311`）＝実行直前に `lastProcessedCards[0]` のレベル／パワーで

@@ -8311,6 +8311,39 @@ export function collectGrowCostSubstitute(
 }
 
 /**
+ * `ENERGY_COST_SUBSTITUTE_WHOLE` の常在宣言と、現在エナゾーンにある代替可能カードを収集する。
+ * §5.3 `O-338`＝payload だけを読み、カード原文は再解析しない。
+ */
+export function collectEnergyCostSubstitutes(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): Array<{
+  spec: import('../types/effects').WholeEnergyCostSubstituteSpec;
+  sourceCardNum: string;
+  eligibleEnergyInstIds: Set<string>;
+}> {
+  const result: Array<{
+    spec: import('../types/effects').WholeEnergyCostSubstituteSpec;
+    sourceCardNum: string;
+    eligibleEnergyInstIds: Set<string>;
+  }> = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of effectsMap.get(top) ?? []) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ENERGY_COST_SUBSTITUTE_WHOLE' || !act.energyCostSubstitute) continue;
+      const eligibleEnergyInstIds = new Set(ownerState.energy.filter(instId =>
+        (cardMap.get(instId)?.CardName ?? '').includes(act.energyCostSubstitute!.nameContains)));
+      result.push({ spec: act.energyCostSubstitute, sourceCardNum: top, eligibleEnergyInstIds });
+    }
+  }
+  return result;
+}
+
+/**
  * GUARD_ALTERNATIVE_COST: ガード時に《ガードアイコン》を持つカードを捨てる代わりに
  * エナゾーンから指定クラスのシグニ1枚をトラッシュに置いてもよい。
  * @returns { signiClass: string; sourceCardNum: string } | null

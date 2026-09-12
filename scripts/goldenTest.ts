@@ -27,7 +27,7 @@ import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserU
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
-import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
+import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction, collectEnergyCostSubstitutes } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 // 🆕§5.3 索引C 第9巡（2026-09-02）＝O-206 / O-177 / O-84 / O-114 / O-186 の消費地点を直接叩く。
@@ -132,7 +132,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -74771,15 +74771,16 @@ test('§5.3 O-276: WX06-019-E1 の身代わりは instance id の victim でも�
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §5.3 `O-277`（2026-09-08）＝代替コストが「エナ1組」を丸ごと置き換える形は明示 defer
+// §5.3 `O-277`（2026-09-08）／`O-338`（2026-09-12）＝「エナ1組」の一括代替
 // ══════════════════════════════════════════════════════════════════════════════
-test('§5.3 O-277: 複数エナ1組の代替コストは DEFERRED_ で宣言し、単発置換の族は巻き込まない', () => withSavedCursor(() => {
+test('§5.3 O-277/O-338: 複数エナ1組の代替は専用payloadで宣言し、単発置換の族は巻き込まない', () => withSavedCursor(() => {
   const actOf = (card: string, effId: string) =>
     JSON.stringify(effectsMap.get(card)!.find(e => e.effectId === effId)!.action);
 
-  // 🔴本命＝無言 no-op（`OPTIONAL_COST{costText}` の生文字列）ではなく明示 defer になっている。
+  // 🔴本命＝旧 defer を専用payloadへ配送し、無言 no-op に戻していない。
   const wx09 = actOf('WX09-032', 'WX09-032-E1');
-  ok(wx09.includes('DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY'), '🔴WX09-032-E1: 機構不在を宣言している');
+  ok(wx09.includes('ENERGY_COST_SUBSTITUTE_WHOLE'), '🔴WX09-032-E1: 専用の一括代替payloadが無い');
+  ok(!wx09.includes('DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY'), '🔴WX09-032-E1: 実装後も defer のまま');
   ok(!wx09.includes('"id":"OPTIONAL_COST"'), '🔴WX09-032-E1: 計器に映らない無言 no-op へ戻っていない');
 
   // ⚠**単発の《色》を置き換える族は実装済み**＝この defer 規則で巻き込まない（全部 live から読む）。
@@ -74790,14 +74791,14 @@ test('§5.3 O-277: 複数エナ1組の代替コストは DEFERRED_ で宣言し�
   ok(actOf('WDK16-01T', 'WDK16-01T-E1').includes('ENERGY_COLOR_SUBSTITUTE_'), 'WDK16-01T-E1: 従来どおり');
   ok(actOf('WXK10-015', 'WXK10-015-E2').includes('ENERGY_COLOR_SUBSTITUTE_'), 'WXK10-015-E2: 従来どおり');
 
-  // (b) 巻き添え0件＝この defer id は live で1効果だけ。
+  // (b) 巻き添え0件＝この専用 id は live で1効果だけ。
   const spread: string[] = [];
   for (const [, effs] of effectsMap) {
     for (const e of effs) {
-      if (JSON.stringify(e.action).includes('DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY')) spread.push(e.effectId);
+      if (JSON.stringify(e.action).includes('ENERGY_COST_SUBSTITUTE_WHOLE')) spread.push(e.effectId);
     }
   }
-  eq(spread.join(','), 'WX09-032-E1', '🔴この defer は live 1効果だけに当たる');
+  eq(spread.join(','), 'WX09-032-E1', '🔴一括代替の専用規則は live 1効果だけに当たる');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -79451,6 +79452,105 @@ test('§5.3 O-341: ゾーン保護は移動先と位相で絞れる（payload �
     '🔴デッキ行きだけを保護する宣言がトラッシュまで止めている（過剰実行）');
   eq(passed.otherState.trash.length, passed.trashBefore + 1, 'トラッシュ側にも1枚増えている（移動が実際に起きた）');
 }));
+
+// ═══ §5.3 索引G `O-338`＝緑2/3個をエナの《オサキ》1枚で一括代替 ═══
+test('§5.3 O-338: WX09-032-E1 は一括代替payloadを fresh/live と逆翻訳に保持', () => {
+  for (const freshParse of [true, false]) {
+    const pool = freshParse ? parseCardEffects(cardMap.get('WX09-032')!) : (effectsMap.get('WX09-032') ?? []);
+    const effect = findEffectDeep(pool, 'WX09-032-E1');
+    ok(!!effect, `${freshParse ? 'fresh' : 'live'}: WX09-032-E1 が無い`);
+    const action = effect?.action as StubAction | undefined;
+    eq(action?.id, 'ENERGY_COST_SUBSTITUTE_WHOLE', `${freshParse ? 'fresh' : 'live'}: defer のまま`);
+    eq(JSON.stringify(action?.energyCostSubstitute),
+      JSON.stringify({ color: '緑', counts: [3, 2], nameContains: 'オサキ', excludeColorless: true }),
+      `${freshParse ? 'fresh' : 'live'}: 原文の代替条件が payload に揃っていない`);
+  }
+  eq(decompiledLineOf('WX09-032-E1'),
+    'WX09-032-E1: 【常】あなたが《緑》《緑》《緑》か《緑》《緑》を支払う際、代わりにあなたのエナゾーンからカード名に《オサキ》を含むカード１枚をトラッシュに置いてもよい。（この能力で《無》を支払うことは置き換えられない）',
+    '逆翻訳が原文の一括代替条件を描けていない');
+});
+
+test('§5.3 O-338: 【起】/スペル共通の支払い判定はオサキ1枚で緑2/3だけを置換する', () => withSavedCursor(() => {
+  const osaki = findCard(c => c.CardName.includes('オサキ'));
+  const greenA = findCard(c => c.Color.includes('緑') && !c.CardName.includes('オサキ'));
+  const greenB = findCard(c => c.Color.includes('緑') && c.CardNum !== greenA && !c.CardName.includes('オサキ'));
+  const state = { ...mkState({ signi: ['WX09-032', null, null], energy: 0 }), energy: [osaki, greenA, greenB] } as PlayerState;
+  const wholeSubstitutes = collectEnergyCostSubstitutes(state, cardMap, effectsMap);
+  eq(wholeSubstitutes.length, 1, '場の《幻獣 コサキ》から代替宣言を収集できない');
+  ok(wholeSubstitutes[0]?.eligibleEnergyInstIds.has(osaki), 'エナの《オサキ》が代替候補に入らない');
+  ok(!wholeSubstitutes[0]?.eligibleEnergyInstIds.has(greenA), 'カード名が違うエナまで代替候補になる');
+
+  const valid = (selectedEnergyNums: string[], baseCost: string) => isEnergyPaymentSelectionValid({
+    selectedEnergyNums, cards: [...cardMap.values()], baseCost, wholeSubstitutes,
+  });
+  ok(valid([osaki], '《緑》×２'), '🔴緑2をオサキ1枚で置換できない');
+  ok(valid([osaki], '《緑》×１《緑》×１'), '🔴同色コストが複数項目に分かれると緑2を置換できない');
+  ok(valid([osaki], '《緑》×３'), '🔴緑3をオサキ1枚で置換できない');
+  ok(valid([greenA, greenB], '《緑》×２'), '通常の緑2枚払いが退化した');
+  ok(!valid([greenA], '《緑》×２'), '🔴名前条件を外して任意の緑1枚で置換できてしまう');
+  ok(!valid([osaki], '《緑》×１《無》×１'), '🔴対象外の緑1個まで一括置換している');
+  ok(!valid([osaki], '《緑》×２《無》×１'), '🔴《無》までオサキ1枚で置換している');
+  ok(valid([osaki, greenA], '《緑》×２《無》×１'), '緑2だけを置換し、残る《無》を別の1枚で払えない');
+
+  // 対照＝宣言元が場を離れた同じ盤面では、オサキ1枚払いは成立しない。
+  const withoutSource = collectEnergyCostSubstitutes(
+    { ...state, field: { ...state.field, signi: [null, null, null] } }, cardMap, effectsMap);
+  ok(!isEnergyPaymentSelectionValid({
+    selectedEnergyNums: [osaki], cards: [...cardMap.values()], baseCost: '《緑》×２',
+    wholeSubstitutes: withoutSource,
+  }), '🔴宣言元が場を離れても代替が残る');
+
+  // 支払いE2E＝UIと同じ選択を実行funnelへ渡すと、オサキと《無》分の1枚だけがエナからトラッシュへ動く。
+  const payment = planEnergyPayment(state, buildEnergyPayPool(state, {
+    turnPhase: 'MAIN', isMyTurn: true, effectsMap,
+  }), new Set([0, 1]));
+  const after = payment.applyTo({ ...state, trash: [...state.trash, ...payment.paidNums] });
+  eq(after.energy.join(','), greenB, '一括代替の支払い後に選んだ2枚だけがエナから除かれない');
+  ok(after.trash.includes(osaki) && after.trash.includes(greenA), '一括代替カードと《無》分がトラッシュへ移らない');
+}));
+
+
+// 🔑**6窓を共有ヘルパへ寄せた分の番人**（第291バッチ）＝代替宣言が無いときは
+//   `isEnergyPaymentSelectionValid` が**旧判定（枚数一致 ＋ `canAffordGrowCost`）と完全に一致**する。
+//   ⚠これが崩れると、コサキと無関係な支払い窓が全部壊れる（この項目でいちばん怖い退化）。
+test('§5.3 O-338: 代替が無ければ共有ヘルパは旧判定と一致する（6窓を寄せた分の番人）', () => {
+  const cards = [...cardMap.values()] as CardData[];
+  const cases: { cost: string; picks: number }[] = [
+    { cost: '《緑》×2', picks: 2 }, { cost: '《緑》×3', picks: 3 },
+    { cost: '《緑》×2', picks: 1 }, { cost: '《緑》×2', picks: 3 },
+    { cost: '《無》×1', picks: 1 }, { cost: '《緑》×1《無》×1', picks: 2 },
+  ];
+  const pool = [...cardMap.keys()].filter(n => (cardMap.get(n)?.Color ?? '') === '緑').slice(0, 6);
+  ok(pool.length >= 3, '緑のカードが引けていない（比較が空振りする）');
+  let compared = 0;
+  for (const c of cases) {
+    const selected = pool.slice(0, c.picks);
+    const total = parseGrowCost(c.cost).reduce((sum, item) => sum + item.count, 0);
+    const legacy = selected.length === total
+      && canAffordGrowCost(selected, cards, c.cost, undefined, undefined, undefined, undefined, undefined, undefined);
+    const shared = isEnergyPaymentSelectionValid({
+      selectedEnergyNums: selected, cards, baseCost: c.cost,
+    });
+    eq(shared, legacy, `🔴代替なしで判定が変わった（cost=${c.cost} / ${c.picks}枚）`);
+    compared++;
+  }
+  ok(compared === cases.length, '比較が空振りしている');
+});
+
+// 寄せた6窓が実際に共有ヘルパを呼んでいること（呼び出しを戻すと赤くなる文字列 assert）。
+test('§5.3 O-338: 支払い窓が共有ヘルパを経由している（8窓）', () => {
+  const files = [
+    'SigniActivatedModal', 'SpellCastModal', 'EnergyActivatedModal', 'HandActivatedModal',
+    'KeyActivatedModal', 'AssistActivatedModal', 'LrigGrantedModal', 'SigniOnPlayCostModal',
+  ];
+  for (const f of files) {
+    const src = fs.readFileSync(join(root, 'src/screens/battle/modals', `${f}.tsx`), 'utf-8');
+    ok(src.includes('isEnergyPaymentSelectionValid('),
+      `🔴${f} が共有ヘルパを呼んでいない（代替肢が出ない窓に戻っている）`);
+    ok(src.includes('wholeSubstitutes:'),
+      `🔴${f} が代替肢を渡していない（ヘルパは呼ぶが常に旧判定になる）`);
+  }
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

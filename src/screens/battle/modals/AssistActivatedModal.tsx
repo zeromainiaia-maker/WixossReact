@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, isMultiEna } from '../costs';
+import { isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -19,7 +19,7 @@ interface AssistActivatedModalProps {
 }
 
 export function AssistActivatedModal(p: AssistActivatedModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost, selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard, executeAssistActivated } = p;
   return (
     <>
@@ -38,7 +38,13 @@ export function AssistActivatedModal(p: AssistActivatedModalProps) {
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => myEnergyPayPool[i].cardNum);
-              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
+              const energyOk = energyTotal === 0 || isEnergyPaymentSelectionValid({
+                selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs, extraColorMap: myEnergyExtraColors,
+                banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                wholeSubstitutes: myWholeEnergySubstitutes,
+              });
               const virusNeededAssist = eff.cost?.removeOppVirus ?? 0;
               const virusOkAssist = virusNeededAssist === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAssist;
               const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded && virusOkAssist;

@@ -3,7 +3,7 @@ import type { PlayerState, CardData } from '../../types';
 import type {
   BetCostSpec, CardEffect, CostReplacementTerm, CostReplacementWhen, CostScalingCount, CostScalingTerm,
   EncoreCostSpec, TargetFilter,
-  Condition,
+  Condition, WholeEnergyCostSubstituteSpec,
 } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition, evalConditionForContinuous } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
@@ -1561,6 +1561,80 @@ export function canAffordWithExtraCost(
     }
   }
   return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay, colorlessPayableColors);
+}
+
+export interface WholeEnergyCostSubstituteOption {
+  spec: WholeEnergyCostSubstituteSpec;
+  sourceCardNum: string;
+  eligibleEnergyInstIds: ReadonlySet<string>;
+}
+
+function removeWholeSubstituteColor(cost: string, color: string, count: number): string {
+  let remaining = count;
+  const reduced = parseGrowCost(cost).flatMap(item => {
+    if (item.color !== color || remaining <= 0) return [item];
+    const removed = Math.min(item.count, remaining);
+    remaining -= removed;
+    return item.count > removed ? [{ ...item, count: item.count - removed }] : [];
+  });
+  return reduced.map(item => `《${item.color}》×${item.count}`).join('') || 'なし';
+}
+
+/**
+ * UIで選んだエナが、通常払いまたは「指定色N個を指定名1枚で丸ごと置換」で成立するかを判定する。
+ * §5.3 `O-338`＝選択枚数の緩和と色判定をこの1本へ集約し、各モーダルは結果だけを使う。
+ */
+export function isEnergyPaymentSelectionValid(p: {
+  selectedEnergyNums: string[];
+  cards: CardData[];
+  baseCost: string;
+  extraCosts?: { color: string; count: number }[];
+  keywordGrants?: Record<string, string[]>;
+  allMulti?: boolean;
+  stripped?: boolean;
+  colorlessOverrides?: string[];
+  colorSubs?: { from: string[]; to: string }[];
+  extraColorMap?: Map<string, string>;
+  trashSubWilds?: Set<string>;
+  trashSubColors?: Map<string, string>;
+  extraWildCount?: number;
+  banColorlessPay?: boolean;
+  colorlessPayableColors?: string[];
+  wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
+}): boolean {
+  const extraCosts = p.extraCosts ?? [];
+  const baseItems = parseGrowCost(p.baseCost);
+  const normalRequired = Math.max(0,
+    baseItems.reduce((sum, item) => sum + item.count, 0)
+      + extraCosts.reduce((sum, item) => sum + item.count, 0)
+      - (p.extraWildCount ?? 0));
+  const afford = (selected: string[], cost: string) => canAffordWithExtraCost(
+    selected, p.cards, cost, extraCosts, p.keywordGrants, p.allMulti, p.stripped,
+    p.colorlessOverrides, p.colorSubs, p.extraColorMap, p.trashSubWilds,
+    p.trashSubColors, p.extraWildCount, p.banColorlessPay, p.colorlessPayableColors,
+  );
+  if (p.selectedEnergyNums.length === normalRequired && afford(p.selectedEnergyNums, p.baseCost)) return true;
+
+  // 別の代替（キー2色分）との同時利用は、どの色を置換したかを現在のpayloadが運べないため安全側で扱わない。
+  if ((p.extraWildCount ?? 0) > 0) return false;
+  for (const option of p.wholeSubstitutes ?? []) {
+    if (option.spec.excludeColorless && option.spec.color === '無') continue;
+    const replaceCount = baseItems
+      .filter(item => item.color === option.spec.color)
+      .reduce((sum, item) => sum + item.count, 0);
+    if (!option.spec.counts.includes(replaceCount)) continue;
+    const expectedSelected = normalRequired - replaceCount + 1;
+    if (p.selectedEnergyNums.length !== expectedSelected) continue;
+    const reducedCost = removeWholeSubstituteColor(p.baseCost, option.spec.color, replaceCount);
+    for (let i = 0; i < p.selectedEnergyNums.length; i++) {
+      const candidate = p.selectedEnergyNums[i];
+      if (!option.eligibleEnergyInstIds.has(candidate)) continue;
+      const remaining = p.selectedEnergyNums.filter((_, index) => index !== i);
+      // 《無》や追加コストは reducedCost / extraCosts に残す＝代替カード1枚では置き換えない。
+      if (afford(remaining, reducedCost)) return true;
+    }
+  }
+  return false;
 }
 
 /**

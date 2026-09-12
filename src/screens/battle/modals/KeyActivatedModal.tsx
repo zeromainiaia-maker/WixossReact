@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, isMultiEna } from '../costs';
+import { isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { getCardNum } from '../../../engine/execUtils';
@@ -22,7 +22,7 @@ interface KeyActivatedModalProps {
 }
 
 export function KeyActivatedModal(p: KeyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingKeyActivated, setPendingKeyActivated, selectedKeyActivatedCost, setSelectedKeyActivatedCost, selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard, executeKeyActivated } = p;
   // 🆕§5.3 `O-68`②（2026-09-02）＝「ルリグデッキからクラフトではないアーツN枚をルリグトラッシュに置く」の選択。
   //   ⚠選択 state はここに閉じる（他のキー【起】コストと違って BattleScreen 側で使わないため）。
@@ -46,7 +46,12 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedKeyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
-              const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
+              const energyOk = energyTotal === 0 || isEnergyPaymentSelectionValid({
+                selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                wholeSubstitutes: myWholeEnergySubstitutes,
+              });
               // 🆕§5.3 `O-68`②＝ルリグデッキのアーツ徴収。候補は `matchesTrashArtsFromLrigDeckCost` 1本
               //   （engine の支払い可否と同じ関数＝UI と engine で候補がズレない）。
               const artsCost = eff.cost?.trashArtsFromLrigDeck;

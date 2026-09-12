@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
-import { energyCostToString, canAffordGrowCost, isMultiEna } from '../costs';
+import { energyCostToString, isEnergyPaymentSelectionValid, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -17,7 +17,7 @@ interface HandActivatedModalProps {
 }
 
 export function HandActivatedModal(p: HandActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost, executeHandActivated } = p;
   return (
     <>
@@ -40,8 +40,12 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
               const energyCostStr = energyCostToString(energyCosts);
               const selectedNums = [...selectedHandActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const isValid = energyTotal === 0 ||
-                (selectedHandActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                isEnergyPaymentSelectionValid({
+                  selectedEnergyNums: selectedNums, cards: battleCards, baseCost: energyCostStr,
+                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs, extraColorMap: myEnergyExtraColors,
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                });
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

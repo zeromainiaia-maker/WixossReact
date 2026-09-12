@@ -7,7 +7,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, isEnergyPaymentSelectionValid, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { getCardNum } from '../../../engine/effectExecutor';
@@ -33,7 +33,7 @@ interface LrigGrantedModalProps {
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish, executeLrigGranted } = p;
   // 🆕§5.3 `O-118`（2026-09-02）＝エクシードで「どのカードを置くか」の選択。
   //   🔴旧＝この経路には選択UIが無く**下から機械的に**払っていた（色指定は貪欲に満たすだけ）＝
@@ -74,8 +74,12 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const selectedNums = [...selectedLrigGrantedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAffordEnergy = energyTotal === 0
                 ? true
-                : selectedLrigGrantedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+                : isEnergyPaymentSelectionValid({
+                  selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                });
               const totalExceedAvail = (my.field.lrig.length - 1)
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);

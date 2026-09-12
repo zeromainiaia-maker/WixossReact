@@ -8,14 +8,15 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-12。** 符号化キーワードの生 JSON 露出を全表示経路で除去（§5.5）＋ §5.3 索引G の5項目を処理。
+**直近＝2026-09-12。** §5.3 索引G の6項目（`O-334`/`O-337`/`O-338`/`O-339`/`O-340`/`O-341`）を全処理。
+PLAN から日記文と教訓を追い出して worklist に戻した（734行 → 449行）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**§5.1 実機 `V-209`／`V-210`** → ②**§5.3 索引G `O-338`** → ③**§5.5 の残り** → ④**§5.2 round5 の判断** |
-| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（いずれも据置） |
-| 📦**在庫** | 機構 worklist **1項目**／実機 **残2**／実装キュー **残0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4035 PASS**（詳細は §6） |
+| 🔥**次に取るもの** | ①**§5.1 実機 `V-209`〜`V-211`** → ②**§5.3 `O-342`**（代替肢が8窓にしか出ていない） → ③**§5.5 の残り** → ④**§5.2 round5 の判断** |
+| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（据置＝どの計器も見ていない形を直した回のため） |
+| 📦**在庫** | 機構 worklist **1項目**（`O-342`）／実機 **残3**／実装キュー **残0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4039 PASS**（詳細は §6） |
 
 🔴**着手の1手目は「登録票／本文の数字」の反証**＝「受け皿が無い」は**連続12項目**外れており、
 §5.5 の数字も測り直したら2項目とも stale だった。**実測が食い違ったら、実装せずに記述のほうを直す。**
@@ -251,11 +252,12 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🔥**残2**（`src/screens/` を触ったので §2.2 の機械判定により実機が要る）。
+🔥**残3**（`src/screens/` を触ったので §2.2 の機械判定により実機が要る）。
 
 | ID | 観測点 | 状況 |
 |---|---|---|
 | `V-209` | **`WX25-P3-057-E1c`（§5.3 `O-334`）＝覚醒中のシグニのアタックが「対戦相手の効果」では無効にされないこと**。配線＝`BattleScreen.tsx:5173` の `collectAttackNegationProtectedSigni` → `ExecCtx.otherAttackNegationProtectedNums`。**確認の要点**＝①覚醒中は相手のアタック無効化がこのシグニに当たらない ②**対照＝覚醒していなければ従来どおり無効にできる** ③**自分の**効果での無効化は従来どおり通る（原文は「対戦相手の」限定） | **未実施**。headless は golden 済み（`§5.3 O-334`＝覚醒/非覚醒の両方向） |
+| `V-211` | **`WX09-032-E1`（§5.3 `O-338`）＝エナの《オサキ》1枚で《緑》×2／×3 を丸ごと払えること**。配線＝`src/screens/battle/costs.ts` の `isEnergyPaymentSelectionValid` を8窓が共有。**確認の要点**＝①場に《幻獣 コサキ》＋エナに《オサキ》を含む札1枚で、緑2/緑3 の【起】・スペルが**オサキ1枚の選択だけで決定できる** ②**対照**＝非オサキ1枚では決定不可／コサキを場から外すと代替が消える ③**対照**＝《緑》×2＋《無》×1 はオサキ1枚だけでは不成立（無色は置き換えられない） | **未実施**。headless は golden 済み（payload／判定／E2E／8窓の配線 assert） |
 | `V-210` | **`WXDi-P13-004B-E3`（§5.3 `O-340`）＝リミット+2 が「発生源が場にある」と「次のエナフェイズ終了まで」の短い方で切れること**。配線＝`src/screens/battle/lrigLimit.ts` の `computeEffectiveLrigLimit` が発生源紐づけストアを読む。**確認の要点**＝①出したターンはリミット+2 ②**発生源のシグニが場を離れた瞬間に +2 が消える** ③場に残っていてもエナフェイズ境界で消える | **未実施**。headless は golden 済み（純関数 `computeEffectiveLrigLimit` を両方向で assert） |
 
 🏁**返済済みの全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「§5.1 実機返済の完了報告」と [BUGFIXES.md](./BUGFIXES.md)。**
@@ -334,7 +336,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-338` | M | 「〈エナ1組〉を支払う際、代わりに〜してもよい」＝支払い時に代替肢を提示する窓（コスト層は一方向） |
+| `O-342` | M | エナ支払いの一括代替（`isEnergyPaymentSelectionValid`）が**8窓にしか配線されていない**＝残る21呼び出し（`BattleScreen` の提示/実行ゲート8／`artsUseGate` 2／`spellUseGate` 1／`ArtsModal` 1／`GrowModal` 3／`CutinModal` 3／`AssistGrowModal` 2／`PhaseConfirmDialogs` 1）では代替肢が出ない |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -404,8 +406,8 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 - **2026-09-12 時点（本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**。
-  📦**在庫**＝**機構 worklist 1項目**（§5.3 索引G `O-338`）｜**実機 残2**（§5.1 `V-209`／`V-210`）｜**実装キュー 残0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4035 PASS**／smoke 10752 OK／fuzz 0／census 1 / BASELINE 1／
+  📦**在庫**＝**機構 worklist 1項目**（§5.3 索引G `O-342`）｜**実機 残3**（§5.1 `V-209`〜`V-211`）｜**実装キュー 残0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4039 PASS**／smoke 10754 OK／fuzz 0／census 1 / BASELINE 1／
   census:stubs A群 0・C群 0／census:enginetext A群 0／census:costtext A群 0規則／census:deadstate 0／
   check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）。
   📐**その他のラチェット**＝同型★ **2グループ / 4枚**（`node scripts/groupSimilar.mjs --all`）／

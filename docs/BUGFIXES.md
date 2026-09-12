@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — §5.3 `O-338` エナコスト一括代替を【起】／スペルへ配送（第291バッチ後半・1効果）
+
+### 真因
+
+`WX09-032-E1`（《幻獣 コサキ》）は `DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY` のままで、通常のエナ支払い UI は「選択枚数＝要求エナ総数」を先に要求していた。既存の `collectEnergyTrashSubstituteInfo` は1枚を1色として読む機構、`collectGrowCostSubstitute`／`collectGuardAlternativeCost` は専用窓だけの機構なので、「《緑》2個または3個の要求全体を《オサキ》1枚で置換」は表せなかった。登録票の「代替窓が無い」は stale だが、通常支払い用の一括代替 funnel が無いという核心は正しかった。
+
+### 修正
+
+- parser が `ENERGY_COST_SUBSTITUTE_WHOLE` と `{ color:'緑', counts:[3,2], nameContains:'オサキ', excludeColorless:true }` を生成し、live JSON へ採用した。UI／engine に `EffectText` regex は追加していない。
+- `collectEnergyCostSubstitutes` が場の宣言とエナゾーン内の候補だけを payload から収集し、`isEnergyPaymentSelectionValid` が通常払い／一括代替の枚数・色・残存《無》／追加コストを一箇所で判定する。
+- 支払い窓は **8窓**を共有 funnel へ寄せた＝`SigniActivatedModal` / `SpellCastModal`（codex）＋
+  `EnergyActivated` / `HandActivated` / `KeyActivated` / `AssistActivated` / `LrigGranted` / `SigniOnPlayCost`（Claude）。
+  ⚠**`TrashActivatedModal` は元から枚数チェックを持たない別形**なので触っていない（寄せると判定が厳しくなる）。
+  🔥**未接続の残り**＝`BattleScreen` の提示/実行ゲート8／`artsUseGate` 2／`spellUseGate` 1／
+  `ArtsModal` 1／`GrowModal` 3／`CutinModal` 3／`AssistGrowModal` 2／`PhaseConfirmDialogs` 1 ＝ §5.3 `O-342` に登録した。
+- 🔑**8窓を寄せた分の番人を golden に2本置いた**＝①**代替宣言が無ければ共有ヘルパは旧判定と完全一致**
+  （崩れるとコサキと無関係な支払い窓が全部壊れる。枚数一致を外す反転で赤くなることを確認）
+  ②**8窓が実際にヘルパと `wholeSubstitutes` を経由している**ことの文字列 assert。
+- golden は fresh/live payload、逆翻訳、緑2・緑3・同色分割、通常払い、名前違い、対象外個数、《無》残存、宣言元離場の対照、選択カードが実際にエナからトラッシュへ動く E2E を固定した。代替経路を一時無効化すると `PASS 1 / FAIL 1` へ反転することも確認した。
+
+### 検証
+
+- `npm run build:effects` → 採用後に再実行し、`docs/_held_fresh.json` / `_partial_fresh.json` / `_idset_fresh.json` は **0 / 0 / 0**。`npm run regen` 後の逆翻訳は原文と一致。
+- 全ゲートの最終値は本項目の作業報告に記載。
+
 ## 2026-09-12 — 符号化キーワードの生 JSON が対戦ログ／逆翻訳へ漏れていた（第290バッチ・live 54効果/51枚・逆翻訳85枚→0）
 
 **着手の形**＝ユーザー決定「**すべてのカードが完全に正しく動くことが目標なので、低優先にしている作業も含めて全部行う**」

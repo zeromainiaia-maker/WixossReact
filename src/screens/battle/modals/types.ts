@@ -8,6 +8,7 @@ import type { ActiveCostMod } from '../../../engine/effectEngine';
 import type { ResonaSummonCandidate } from '../resonaSummon';
 import type { EnergyPayEntry } from '../energyPaySource';
 import type { ArtsPayerCtx } from '../artsUseGate';
+import type { WholeEnergyCostSubstituteOption } from '../costs';
 
 // カットイン候補（スペルカットイン/カットイン起動効果の出所つきカード）
 export interface EffectCutinCandidate {
@@ -60,6 +61,8 @@ export interface BattleModalCtx {
    */
   myEnergyPayPool: EnergyPayEntry[];
   myEnergyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
+  /** 指定色N個をエナの指定名カード1枚でまとめて置換する常在宣言（§5.3 `O-338`）。 */
+  myWholeEnergySubstitutes: WholeEnergyCostSubstituteOption[];
   myLrigNameAliases: string[];
   myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
   isActionBlocked: (actionId: string) => boolean;

@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } f
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, energyCostToString, isEnergyPaymentSelectionValid, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../attachedOrUnderCost';
@@ -42,7 +42,7 @@ interface SigniActivatedModalProps {
 }
 
 export function SigniActivatedModal(p: SigniActivatedModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
   return (
     <>
@@ -88,10 +88,17 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const selectedNums = [...selectedSigniActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 && actCostExtra === 0
                 ? true
-                : selectedSigniActivatedCost.size === adjustedTotal &&
-                  (actCostExtra > 0
-                    ? canAffordWithExtraCost(selectedNums, battleCards, costStr, actExtraCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount)
-                    : canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount));
+                : isEnergyPaymentSelectionValid({
+                    selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                    extraCosts: actExtraCosts, keywordGrants: my.keyword_grants,
+                    allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                    colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                    extraColorMap: myEnergyExtraColors,
+                    trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                    trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                    extraWildCount: keySubCount,
+                    wholeSubstitutes: myWholeEnergySubstitutes,
+                  });
               const actDiscardVar = eff.cost?.discardVariable;
               const discardVarOk = actDiscardVar
                 ? (selectedSigniActivatedDiscardVar.size >= actDiscardVar.min)
@@ -351,7 +358,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           const isTrashWild = myEnergyTrashSubInfo.wildcardInstIds.has(num);
                           const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
-                          const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
+                          const isWholeSub = myWholeEnergySubstitutes.some(option => option.eligibleEnergyInstIds.has(num));
+                          const borderColor = isSel ? '#f44336' : isWholeSub ? '#00bcd4' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                           return (
                             // V-04（§5.1・2026-08-24）＝**シグニ【起】だけ testid が無く、同名エナを決定論的に
                             // 選べなかった**（PLAN が「踏むなら testid 追加が先」と名指ししていた地点）。
@@ -381,12 +389,12 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                                   <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
                                 </div>
                               )}
-                              {!isSel && (isTrashWild || trashColor || isWild) && (
+                              {!isSel && (isWholeSub || isTrashWild || trashColor || isWild) && (
                                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-                                  backgroundColor: isTrashWild ? 'rgba(76,175,80,0.85)' : trashColor ? 'rgba(156,39,176,0.85)' : 'rgba(255,204,0,0.85)',
+                                  backgroundColor: isWholeSub ? 'rgba(0,188,212,0.9)' : isTrashWild ? 'rgba(76,175,80,0.85)' : trashColor ? 'rgba(156,39,176,0.85)' : 'rgba(255,204,0,0.85)',
                                   textAlign: 'center' }}>
                                   <span style={{ fontSize: 7, fontWeight: 'bold', color: '#fff' }}>
-                                    {isTrashWild ? '代替' : trashColor ? trashColor : 'マルチ'}
+                                    {isWholeSub ? '一括代替' : isTrashWild ? '代替' : trashColor ? trashColor : 'マルチ'}
                                   </span>
                                 </div>
                               )}

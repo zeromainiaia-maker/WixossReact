@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { collectAcceCostReduction } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, energyCostToString, isMultiEna } from '../costs';
+import { isEnergyPaymentSelectionValid, energyCostToString, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -18,7 +18,7 @@ interface EnergyActivatedModalProps {
 }
 
 export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyPayPool } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, myEnergyPayPool } = p.ctx;
   const { pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost, executeEnergyActivated } = p;
   return (
     <>
@@ -58,8 +58,13 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
               const selectedNums = [...selectedEnergyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAfford = energyTotal === 0
                 ? true
-                : selectedEnergyActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase);
+                : isEnergyPaymentSelectionValid({
+                  selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs, extraColorMap: myEnergyExtraColors,
+                  banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                });
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>

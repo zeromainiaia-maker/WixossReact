@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { parseGrowCost, canAffordWithExtraCost, canAffordWithOneWildCostSlot, isMultiEna, betOptionsOf, optionalDiscardCostOf, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { parseGrowCost, canAffordWithOneWildCostSlot, isEnergyPaymentSelectionValid, isMultiEna, betOptionsOf, optionalDiscardCostOf, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
 import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
@@ -29,7 +29,7 @@ interface SpellCastModalProps {
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool, myArtsPayerCtx } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool, myArtsPayerCtx } = p.ctx;
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
@@ -90,9 +90,15 @@ export function SpellCastModal(p: SpellCastModalProps) {
               // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として支払ってもよい」（`WXDi-P06-066-E1`）。
               //   ⚠**枚数（`totalReq`）は変わらない**＝色指定が1つ任意色になるだけ。提示ゲートと同じ関数。
               const isValid = totalReq === 0 ||
-                (selectedSpellCost.size === totalReq &&
-                  canAffordWithOneWildCostSlot(effSpellCost, !!my.next_spell_wild_cost_slot, cost =>
-                    canAffordWithExtraCost(selectedNums, battleCards, cost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
+                canAffordWithOneWildCostSlot(effSpellCost, !!my.next_spell_wild_cost_slot, cost =>
+                  isEnergyPaymentSelectionValid({
+                    selectedEnergyNums: selectedNums, cards: battleCards, baseCost: cost,
+                    extraCosts: allExtraSpellCosts, keywordGrants: my.keyword_grants,
+                    allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                    colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                    extraColorMap: myEnergyExtraColors,
+                    wholeSubstitutes: myWholeEnergySubstitutes,
+                  }));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -226,6 +232,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                           const card = battleCardMap.get(num);
                           const isSel = selectedSpellCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
+                          const isWholeSub = myWholeEnergySubstitutes.some(option => option.eligibleEnergyInstIds.has(num));
                           return (
                             <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} data-testid={`spellcost-energy-${i}`} onClick={() => toggleSpellCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
@@ -234,7 +241,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
                                 overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
-                                border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                                border: isSel ? C.borderMulliganSel : isWholeSub ? '1px solid #00bcd4' : isWild ? '1px solid #ffcc00' : C.borderCard }}>
                               {card
                                 ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
                                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -244,10 +251,12 @@ export function SpellCastModal(p: SpellCastModalProps) {
                                     <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
                                   </div>
                               }
-                              {isWild && !isSel && (
+                              {(isWholeSub || isWild) && !isSel && (
                                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
-                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                                  backgroundColor: isWholeSub ? 'rgba(0,188,212,0.9)' : 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: isWholeSub ? '#fff' : '#000' }}>
+                                    {isWholeSub ? '一括代替' : 'マルチ'}
+                                  </span>
                                 </div>
                               )}
                               {isSel && (
