@@ -1,5 +1,63 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — §5.1 実機 `V-209`〜`V-212` を全返済（第293バッチ・実機シナリオ8本・src 変更なし）
+
+### 何をしたか
+
+第291〜292バッチで実装した4機構（§5.3 索引G `O-334` / `O-338` / `O-340` / `O-342`）は
+**すべて `src/screens/` を触った**＝§2.2 の機械判定で実機が必須だった。golden は純関数を直接叩くので、
+**BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか**は実機でしか見えない。
+`scripts/verifyBattleDrive.mjs` に**8本**（本命4＋対照4）を足し、`order` に常駐させた。
+
+| シナリオ id | 観測点（実 UI） |
+|---|---|
+| `v209AwakenedAttackNotNegatedByOpp` / `v209NonAwakenedAttackIsNegated` | 相手の `NEGATE_ATTACK{count:ALL}` を `effect_stack` 注入で解決 → **覚醒中は `host.negated_attacks` が空**／覚醒を外すと積まれる |
+| `v210LimitPlusTwoWhileSourceInField` / `v210LimitExpiresAtOwnMainPhaseStart` | **召喚ゲート**（`card-action-*` に「召喚」が出るか）で、+2 の着弾・発生源離場・エナフェイズ期限を見た |
+| `v211OsakiAloneCoversGreenCost` / `v211OsakiDoesNotCoverColorless` | 支払い窓の「発動する」活殺＋**エナから減るのがオサキ1枚だけ**／《無》は置き換えられない |
+| `v212ArtsOfferedWithOsakiSubstitute` / `v212ArtsNotOfferedWithoutOsaki` | ルリグデッキの《緑》×３ アーツに「使用」が出るか（提示ゲート） |
+
+**影響枚数**＝実機で押さえたカード5枚（`WX25-P3-057` / `WXDi-P13-004B` / `WX09-032` ＋ 支払い側の
+`WX09-053` / `WX02-040` / `WD04-008`）。⚠**`src/` は1バイトも変えていない**（`gates` 全緑を確認済み）。
+
+### 反転確認（2ラウンド・これが本体）
+
+- **A＝機構を丸ごと落とす**（`sourceBoundDelta`→0／`ctx.otherAttackNegationProtectedNums`→`undefined`／
+  `SpellCastModal` と `artsUseGate` の `wholeSubstitutes`→`undefined`）
+  ⇒ **本命6本が赤・対照2本は緑のまま**（対照は機構に依存しないので緑が正しい）。
+- **B＝`O-340` の2つの寿命を片方ずつ殺す**（`fieldTopNums` 判定を外す／`boundaries: []`）
+  ⇒ `v210…WhileSourceInField` は④「発生源離場後に Lv3 が置けた」、`v210…ExpiresAt…` は
+  「期限跨ぎでストアが残る」で、**狙った assert が赤**になった。
+
+### 検証コマンド
+
+```
+node scripts/verifyBattleDrive.mjs v209AwakenedAttackNotNegatedByOpp v209NonAwakenedAttackIsNegated   v210LimitPlusTwoWhileSourceInField v210LimitExpiresAtOwnMainPhaseStart   v211OsakiAloneCoversGreenCost v211OsakiDoesNotCoverColorless   v212ArtsOfferedWithOsakiSubstitute v212ArtsNotOfferedWithoutOsaki
+npm run gates
+```
+**3回連続でバッチ全緑**（1回だけ `v210…WhileSourceInField` が「盤面は動いたのに【出】が走らない」で落ちたので、
+盤面とストアの両方を待って**召喚からやり直すリトライ**を入れた＝DRIVE_TRAPS 94）。
+
+### 踏んだ罠（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) 92〜94 に登録）
+
+- **92**＝「提示されているか」は `[data-testid="card-detail-modal"] [data-testid^="card-action-"]` の
+  `data-action-label` 列で読む（押せないものは disabled ではなく**そもそも出ない**）。
+  MAIN の手札シグニは `エナチャージ` が ENERGY 限定なので `[]` か `["召喚"]` の2値。
+  支払いモーダルのエナセルは index ではなく `img[alt=カード名]` で掴む。
+- **93**＝1ターン内で「次の自分のメインフェイズ開始」を踏むには GROW へ戻して「メインフェイズへ」を押す
+  （CPU の1ターンを回さずに 8 秒。⚠**発生源が場に残っていること**を同じ巡で assert しないと判別力ゼロ）。
+- **94**＝盤面クリックは通ったのに【出】が走らないバッチ位置依存（4回中1回）。
+
+### 観測面の追加（`queryState`＝DRIVE_TRAPS §4.4-71）
+
+`awakenedSigni`（`awakened_signi`）と `lrigLimitModBySource`
+（`lrig_limit_mod_until_own_energy_phase_end_by_source`）。どちらも無いと
+「保護が効いた／そもそも覚醒していない」「場にいないから消えた／期限で消えた」を切り分けられない。
+
+### 実機に乗せなかった軸（golden が押さえている）
+
+①`V-209` ③「**自分の**効果での無効化は通る」②`V-212` ③「CPU も同じ盤面で撃てる」。
+どちらも**実 UI に押す場所が無い**ので、実機化すると観測点が間接的になり判別力が落ちる。
+
 ## 2026-09-12 — §5.3 `O-342` エナ支払いの一括代替を「提示ゲート」へ通す（第292バッチ・配線のみ）
 
 ### 真因＝機構は在ったが実戦では一度も到達しなかった

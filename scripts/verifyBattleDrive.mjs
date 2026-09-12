@@ -57467,6 +57467,617 @@ scenarios.v204LrigDeckArtsCapBlocksFourth = {
 };
 order.push('v204LrigDeckArtsCapBlocksFourth');
 
+// ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
+// 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
+// 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。
+
+/**
+ * §5.1 `V-209`（§5.3 `O-334`）の共通ドライバ（覚醒／未覚醒で共有）。
+ * `WX25-P3-057-E1c`【常】「このシグニのアタックは**対戦相手の**効果によって無効にならない」。
+ * 🔴**観測点は `host.negated_attacks` に効果元が積まれるか**＝配線は
+ *   `BattleScreen.tsx:5189` の `collectAttackNegationProtectedSigni(otherState, …)` →
+ *   `ExecCtx.otherAttackNegationProtectedNums` → `execNegateAttack` の候補フィルタ。
+ * ⚠**相手の無効化は `effect_stack` を注入して作る**（CPU に撃たせる経路が無い＝`O-113` と同じ手）。
+ * 🔑**「相手の効果が本当に解決された」証拠をログで取る**（§4.4-4）＝
+ *   覚醒側は候補が0件になって `execNegateAttack` が**ログを1行も書かずに return** するので、
+ *   盤面だけ見ると「スタックが走らなかった」と見分けが付かない。`shiftQueue` が必ず書く
+ *   `[相手] <entry.label>` を必須条件にする。
+ */
+async function driveV209(page, H, awakened) {
+  const SRC = 'WX25-P3-057#1';
+  const tag = awakened ? 'v209awake' : 'v209asleep';
+  const st0 = await H.queryState();
+  H.log(`開始 awakened=${JSON.stringify(st0?.host?.awakenedSigni)} signi=${JSON.stringify(st0?.host?.fieldSigni)}`
+    + ` negated=${JSON.stringify(st0?.host?.negatedAttacks)} stack=${st0?.stackLen} queue=${JSON.stringify(st0?.stackQueue)}`);
+  if (!JSON.stringify(st0?.host?.fieldSigni ?? []).includes(SRC)) {
+    return { pass: false, detail: `前提崩れ＝効果元 ${SRC} が場に無い（signi=${JSON.stringify(st0?.host?.fieldSigni)}）` };
+  }
+  if (awakened !== (st0?.host?.awakenedSigni ?? []).includes(SRC)) {
+    return { pass: false, detail: `前提崩れ＝覚醒状態の注入が効いていない（awakened_signi=${JSON.stringify(st0?.host?.awakenedSigni)} / 期待=${awakened}）` };
+  }
+  let resolvedSeen = false, settled = 0;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const did = await H.stdStep();
+    const st = await H.queryState();
+    const logs = st?.logTail ?? [];
+    if (logs.some(l => String(l).includes('相手アーツ（注入）'))) resolvedSeen = true;
+    const negated = st?.host?.negatedAttacks ?? [];
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | negated=${JSON.stringify(negated)} resolved=${resolvedSeen}`
+      + ` stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logs=${JSON.stringify(logs.slice(-3))}`);
+    settled = (!(st?.stackLen > 0) && !st?.pendingEffect) ? settled + 1 : 0;
+    if (settled < 4) continue;
+    if (!resolvedSeen) continue;   // 相手の効果がまだ解決されていない＝判定に入らない
+    const hit = negated.includes(SRC);
+    if (awakened) {
+      return hit
+        ? { pass: false, detail: `🔴覚醒中なのに対戦相手の効果でアタックが無効化された（negated_attacks=${JSON.stringify(negated)}）` }
+        : { pass: true, detail: `覚醒中は対戦相手の NEGATE_ATTACK が効果元に当たらない（negated_attacks=${JSON.stringify(negated)} ／ 相手の効果は解決済み）` };
+    }
+    return hit
+      ? { pass: true, detail: `対照＝覚醒していなければ同じ相手の効果で無効化される（negated_attacks=${JSON.stringify(negated)}）` }
+      : { pass: false, detail: `🔴対照が成立しない＝未覚醒でも無効化されなかった（保護集合が常時効いている疑い。negated_attacks=${JSON.stringify(negated)}）` };
+  }
+  const fin = await H.queryState();
+  return {
+    pass: false,
+    detail: `判定に至らず（resolved=${resolvedSeen} negated=${JSON.stringify(fin?.host?.negatedAttacks)}`
+      + ` stack=${fin?.stackLen ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）`,
+  };
+}
+
+/** `V-209` の盤面（覚醒の有無だけを1ビット反転する）。 */
+const v209Spec = (awakened) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [['WX25-P3-057#1'], null, null],
+    'field.signi_down': [false, false, false],
+    // 🔑1ビット反転はここだけ（盤面・相手の効果・フェイズはすべて同一）。
+    'awakened_signi': awakened ? ['WX25-P3-057#1'] : [],
+    'negated_attacks': [],
+    hand: [], energy: [], lrig_deck: [], actions_done: [],
+    'field.signi_traps': [null, null, null], 'field.check': null,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#3'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+    'field.signi_traps': [null, null, null], 'field.check': null,
+  },
+  top: {
+    // ⚠**ホストのターンにする**（`O-113` と同じ理由＝`active:'cpu'` だと CPU の自動進行が割り込む）。
+    active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    // 相手（CPU）の効果で「自分のシグニすべてのアタックを無効にする」＝`count:'ALL'` の一括登録経路。
+    effectStack: oppArtsStack(
+      { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } },
+      'V209-OPP-NEGATE-E1',
+    ),
+  },
+});
+
+scenarios.v209AwakenedAttackNotNegatedByOpp = {
+  title: 'V-209 O-334(1): WX25-P3-057-E1c＝覚醒中は対戦相手の効果でアタックが無効にならない',
+  spec: v209Spec(true),
+  async drive(page, H) { return driveV209(page, H, true); },
+};
+scenarios.v209NonAwakenedAttackIsNegated = {
+  title: 'V-209 O-334(2) 対照: 覚醒していなければ同じ相手の効果で無効化される（覚醒の1ビットだけ反転）',
+  spec: v209Spec(false),
+  async drive(page, H) { return driveV209(page, H, false); },
+};
+order.push('v209AwakenedAttackNotNegatedByOpp');
+order.push('v209NonAwakenedAttackIsNegated');
+
+// ── 共通ヘルパー（`V-210` / `V-211` / `V-212` が共有）───────────────────────────────
+/**
+ * 手札／ルリグデッキのカードを開いて、**カード詳細モーダルの行動ラベル列**を返す。
+ * 🔴**「ボタンが0本」を根拠にしない**（§4.4-8 の系）＝モーダルが開いていなければ `null` を返し、
+ *   呼び出し側は「開いたのにそのラベルが無い」だけを負の証拠に使う。
+ */
+async function openCardActions(page, H, selector) {
+  const el = page.locator(selector).first();
+  if (!(await el.count()) || !(await el.isVisible().catch(() => false))) return null;
+  await el.click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(900);
+  const modal = page.getByTestId('card-detail-modal').first();
+  if (!(await modal.count()) || !(await modal.isVisible().catch(() => false))) return null;
+  return await page.$$eval(
+    '[data-testid="card-detail-modal"] [data-testid^="card-action-"]',
+    els => els.map(e => e.getAttribute('data-action-label') ?? e.textContent ?? ''),
+  );
+}
+
+/**
+ * §5.1 `V-210`（§5.3 `O-340`）＝`WXDi-P13-004B-E3`【出】
+ * 「次のあなたのエナフェイズ終了時まで、**このシグニが場にあるかぎり**、センタールリグのリミットを＋２」。
+ * 🔴**2つの寿命の AND**（短い方で切れる）＝この1本目は「発生源が場にいる側」を見る。
+ * 🔑**観測点は召喚ゲートそのもの**（`BattleScreen.tsx:8753` の `fieldSigniTotal + Lv <= lrigLimit`）＝
+ *   `computeEffectiveLrigLimit` が発生源紐づけストアを読んでいなければ**ボタンが出ない**。
+ * ⚠**リミットの余白は `lrig_limit_mod` で絞る**（＝別スロット）。印字リミット11のままだと
+ *   場のシグニ3体（最大 Lv4×3＝12）でも「+2 が無いと置けない」盤面を作れず、判別力がゼロになる。
+ */
+scenarios.v210LimitPlusTwoWhileSourceInField = {
+  title: 'V-210 O-340(1): WXDi-P13-004B-E3＝【出】で+2→リミット超過の召喚が通り、発生源が場を離れると通らなくなる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#2'],       // 満月の巫女 タマヨリヒメ（Lv4・印字リミット11）
+      'lrig_limit_mod': -5,               // ⚠**別スロット**＝実効リミットを 6 に絞る（+2 の判別力を作る）
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      // 手札＝①発生源(Lv3) ②Lv4（3+4=7＞6＝+2 が無いと出せない） ③Lv3（対照・離場後は 4+3=7＞6）
+      //       ④Lv2（対照の positive 側＝離場後でも 4+2=6≦6 で出せる＝§4.4-3）
+      hand: ['WXDi-P13-004B#30', 'WX01-053#31', 'WD01-010#32', 'WD01-012#33'],
+      energy: [], lrig_deck: [], trash: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const SRC = 'WXDi-P13-004B#30';
+    const summon = async (cardNum, zoneIdx) => {
+      const labels = await openCardActions(page, H, `[data-testid^="my-hand-card-"][data-card-num="${cardNum}"]`);
+      if (!labels) return { ok: false, labels: null, why: 'カード詳細モーダルが開かなかった' };
+      if (!labels.some(l => String(l).startsWith('召喚'))) return { ok: false, labels, why: '召喚ボタンが無い' };
+      const btn = page.locator('[data-testid="card-detail-modal"] [data-action-label^="召喚"]').first();
+      await btn.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(900);
+      const zone = page.getByTestId(`summon-zone-${zoneIdx}`).first();
+      if (!(await zone.count()) || !(await zone.isEnabled().catch(() => false))) {
+        return { ok: false, labels, why: `summon-zone-${zoneIdx} が押せない（リミット超過で disabled）` };
+      }
+      await zone.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      return { ok: true, labels };
+    };
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} signi=${JSON.stringify(st0?.host?.fieldSigni)}`
+      + ` limitMod=${st0?.host?.lrigLimitMod} bySource=${JSON.stringify(st0?.host?.lrigLimitModBySource)}`);
+    if (st0?.host?.lrigLimitMod !== -5) {
+      return { pass: false, detail: `前提崩れ＝リミット絞り（lrig_limit_mod:-5）が入っていない（${st0?.host?.lrigLimitMod}）` };
+    }
+
+    // ① 発生源(Lv3)を zone0 へ召喚 → 【出】が +2 を積む
+    // ⚠🔴**クリックが通っても【出】が走らない差がある**（バッチの位置依存で 1/4 再現＝§4.4-92）═
+    //   **盤面（`field.signi`）とストアの両方**を見て、未着弾なら**召喚をもう一度打つ**。
+    let afterPlay = null, s1 = null;
+    for (let attempt = 0; attempt < 2 && !afterPlay; attempt++) {
+      const cur = await H.queryState();
+      if (!JSON.stringify(cur?.host?.fieldSigni ?? []).includes(SRC)) {
+        await H.closeModals();
+        s1 = await summon('WXDi-P13-004B', 0);
+        if (!s1.ok) return { pass: false, detail: `前提崩れ＝発生源を召喚できない（${s1.why} / labels=${JSON.stringify(s1.labels)}）` };
+      }
+      for (let k = 0; k < 16; k++) {
+        await page.waitForTimeout(700);
+        await H.stdStep();
+        const st = await H.queryState();
+        if (Object.keys(st?.host?.lrigLimitModBySource ?? {}).length > 0
+          && !(st?.stackLen > 0) && !st?.pendingEffect) { afterPlay = st; break; }
+      }
+      if (!afterPlay) H.log(`  ①【出】が走らなかった（attempt=${attempt}）═召喚からやり直す`);
+    }
+    if (!afterPlay) afterPlay = await H.queryState();
+    H.log(`  ①召喚後 signi=${JSON.stringify(afterPlay?.host?.fieldSigni)} bySource=${JSON.stringify(afterPlay?.host?.lrigLimitModBySource)}`
+      + ` limitModPlain=${afterPlay?.host?.lrigLimitMod}`);
+    const store = afterPlay?.host?.lrigLimitModBySource ?? {};
+    const total = Object.values(store).reduce((sum, v) => sum + (v ?? 0), 0);
+    if (total !== 2) {
+      return { pass: false, detail: `🔴【出】が発生源紐づけストアへ +2 を積んでいない（bySource=${JSON.stringify(store)}）` };
+    }
+    if ((afterPlay?.host?.lrigLimitMod ?? 0) !== -5) {
+      return { pass: false, detail: `🔴発生源を持たない従来スロットへ混ぜている（lrig_limit_mod=${afterPlay?.host?.lrigLimitMod}）` };
+    }
+    await H.closeModals();
+
+    // ② 本命＝+2 があるので Lv4（合計7＞素のリミット6）が置ける
+    const s2 = await summon('WX01-053', 1);
+    if (!s2.ok) {
+      return { pass: false, detail: `🔴+2 が召喚ゲートに届いていない＝合計7のLv4が置けない（${s2.why} / labels=${JSON.stringify(s2.labels)}）` };
+    }
+    await page.waitForTimeout(1200);
+    await H.closeModals();
+    const st2 = await H.queryState();
+    H.log(`  ②Lv4召喚後 signi=${JSON.stringify(st2?.host?.fieldSigni)} bySource=${JSON.stringify(st2?.host?.lrigLimitModBySource)}`);
+    if (!JSON.stringify(st2?.host?.fieldSigni ?? []).includes('WX01-053#31')) {
+      return { pass: false, detail: `🔴Lv4 が場に出ていない（signi=${JSON.stringify(st2?.host?.fieldSigni)}）` };
+    }
+
+    // ③ 発生源だけを場から外す（ストアは残す＝「発生源が場にいるか」の1ビットだけを反転）
+    await H.patchPlayerState('host', { 'field.signi': [null, ['WX01-053#31'], null] });
+    let st3 = null;
+    for (let k = 0; k < 12; k++) {
+      await page.waitForTimeout(700);
+      st3 = await H.queryState();
+      if (!JSON.stringify(st3?.host?.fieldSigni ?? []).includes(SRC)) break;
+    }
+    H.log(`  ③発生源離場 signi=${JSON.stringify(st3?.host?.fieldSigni)} bySource=${JSON.stringify(st3?.host?.lrigLimitModBySource)}`);
+    if (JSON.stringify(st3?.host?.fieldSigni ?? []).includes(SRC)) {
+      return { pass: false, detail: `前提崩れ＝発生源を場から外せなかった（signi=${JSON.stringify(st3?.host?.fieldSigni)}）` };
+    }
+    if (Object.keys(st3?.host?.lrigLimitModBySource ?? {}).length === 0) {
+      return { pass: false, detail: `前提崩れ＝ストアごと消えている（「発生源が場にいるか」を測れていない。bySource=${JSON.stringify(st3?.host?.lrigLimitModBySource)}）` };
+    }
+    await H.closeModals();
+
+    // ④ 対照（negative）＝Lv3 は 4+3=7＞6 で出せない
+    const s4 = await summon('WD01-010', 0);
+    if (s4.labels === null) {
+      return { pass: false, detail: '対照の判定不能＝Lv3 のカード詳細モーダルが開かなかった（§4.4-8）' };
+    }
+    if (s4.ok) {
+      return { pass: false, detail: `🔴発生源が場を離れたのに +2 が残っている＝合計7のLv3が置けた（labels=${JSON.stringify(s4.labels)}）` };
+    }
+    await H.closeModals();
+
+    // ⑤ 対照の positive 側（§4.4-3）＝Lv2 は 4+2=6≦6 で出せる（召喚経路そのものは生きている）
+    const s5 = await openCardActions(page, H, '[data-testid^="my-hand-card-"][data-card-num="WD01-012"]');
+    await H.closeModals();
+    if (s5 === null) {
+      return { pass: false, detail: '対照の positive 判定不能＝Lv2 のカード詳細モーダルが開かなかった' };
+    }
+    if (!s5.some(l => String(l).startsWith('召喚'))) {
+      return { pass: false, detail: `🔴判別力ゼロ＝リミット内の Lv2 まで召喚できない（召喚経路が別の理由で死んでいる。labels=${JSON.stringify(s5)}）` };
+    }
+    return {
+      pass: true,
+      detail: `【出】が発生源紐づけで +2（bySource=${JSON.stringify(store)}）→ 合計7のLv4が置け、`
+        + `発生源を場から外すと同じ合計7のLv3は置けず（ストアは残存＝${JSON.stringify(st3?.host?.lrigLimitModBySource)}）、`
+        + `リミット内のLv2は置ける`,
+    };
+  },
+};
+order.push('v210LimitPlusTwoWhileSourceInField');
+
+/**
+ * §5.1 `V-210`（2本目）＝**もう一方の寿命**（次の自分のエナフェイズ終了＝`clearMainPhaseScopedState`）。
+ * 🔑**発生源が場に残っていても切れる**ことを見る＝1本目と AND の反対側。
+ * ⚠**失効地点は `doPhaseAdvance` の「→MAIN 移行時」1点**（`BattleScreen.tsx:4587`）＝
+ *   GROW へ戻して「メインフェイズへ」を実 UI で押せば、CPU の1ターンを回さずに同じ経路を踏める。
+ */
+scenarios.v210LimitExpiresAtOwnMainPhaseStart = {
+  title: 'V-210 O-340(2) 対照: 発生源が場に残っていてもエナフェイズ期限（→MAIN 移行）で+2が切れる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#2'],
+      'lrig_limit_mod': -5,
+      'field.signi': [['WXDi-P13-004B#30'], null, null],
+      'field.signi_down': [false, false, false],
+      // 既に +2 が立っている状態から始める（【出】の解決は1本目が見ている）。
+      'lrig_limit_mod_until_own_energy_phase_end_by_source': { 'WXDi-P13-004B#30': 2 },
+      hand: ['WX01-053#31'],
+      energy: [], lrig_deck: [], trash: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 signi=${JSON.stringify(st0?.host?.fieldSigni)} bySource=${JSON.stringify(st0?.host?.lrigLimitModBySource)}`);
+    if (Object.keys(st0?.host?.lrigLimitModBySource ?? {}).length === 0) {
+      return { pass: false, detail: `前提崩れ＝発生源紐づけストアの注入が効いていない（${JSON.stringify(st0?.host?.lrigLimitModBySource)}）` };
+    }
+    // ① 期限前＝合計7のLv4が置ける（positive 側＝§4.4-3）
+    const before = await openCardActions(page, H, '[data-testid^="my-hand-card-"][data-card-num="WX01-053"]');
+    await H.closeModals();
+    if (before === null) return { pass: false, detail: '前提崩れ＝カード詳細モーダルが開かなかった' };
+    if (!before.some(l => String(l).startsWith('召喚'))) {
+      return { pass: false, detail: `前提崩れ＝期限前なのに合計7のLv4が置けない（labels=${JSON.stringify(before)}）` };
+    }
+    // ② 自分のメインフェイズ開始を実 UI で踏む（GROW→MAIN＝失効の唯一の地点）
+    await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(900);
+    let crossed = null;
+    for (let k = 0; k < 10; k++) {
+      await H.clickTextOrBtn(['メインフェイズへ']);
+      await page.waitForTimeout(900);
+      crossed = await H.queryState();
+      H.log(`  →MAIN[${k}] phase=${crossed?.turnPhase} bySource=${JSON.stringify(crossed?.host?.lrigLimitModBySource)}`);
+      if (crossed?.turnPhase === 'MAIN' && Object.keys(crossed?.host?.lrigLimitModBySource ?? {}).length === 0) break;
+    }
+    if (crossed?.turnPhase !== 'MAIN') {
+      return { pass: false, detail: `前提崩れ＝MAIN へ入れなかった（phase=${crossed?.turnPhase}）` };
+    }
+    if (Object.keys(crossed?.host?.lrigLimitModBySource ?? {}).length > 0) {
+      return { pass: false, detail: `🔴エナフェイズ期限を跨いでも発生源紐づけストアが残っている（bySource=${JSON.stringify(crossed?.host?.lrigLimitModBySource)}）` };
+    }
+    if (!JSON.stringify(crossed?.host?.fieldSigni ?? []).includes('WXDi-P13-004B#30')) {
+      return { pass: false, detail: `判別力ゼロ＝発生源が場から消えている（「場に残っていても切れる」を測れていない。signi=${JSON.stringify(crossed?.host?.fieldSigni)}）` };
+    }
+    // ③ 期限後＝同じ盤面・同じカードで置けなくなる
+    await H.closeModals();
+    const after = await openCardActions(page, H, '[data-testid^="my-hand-card-"][data-card-num="WX01-053"]');
+    await H.closeModals();
+    if (after === null) return { pass: false, detail: '判定不能＝期限後のカード詳細モーダルが開かなかった' };
+    if (after.some(l => String(l).startsWith('召喚'))) {
+      return { pass: false, detail: `🔴期限切れ後も +2 が召喚ゲートへ効いている（labels=${JSON.stringify(after)}）` };
+    }
+    return {
+      pass: true,
+      detail: `発生源が場に残ったまま（signi=${JSON.stringify(crossed?.host?.fieldSigni)}）→MAIN 移行で +2 が失効し、`
+        + `期限前に置けた合計7のLv4が置けなくなった（bySource=${JSON.stringify(st0?.host?.lrigLimitModBySource)}→${JSON.stringify(crossed?.host?.lrigLimitModBySource)}）`,
+    };
+  },
+};
+order.push('v210LimitExpiresAtOwnMainPhaseStart');
+
+// ── §5.1 `V-211` / `V-212`（§5.3 `O-338` / `O-342`）＝エナ支払いの一括代替 ───────────────
+// `WX09-032-E1`【常】「あなたが《緑》《緑》《緑》か《緑》《緑》を支払う際、代わりにあなたのエナゾーンから
+//   カード名に《オサキ》を含むカード１枚をトラッシュに置いてもよい。（この能力で《無》を支払うことは
+//   置き換えられない）」。
+// 🔑**V-211＝支払い窓**（`isEnergyPaymentSelectionValid`＝8窓が共有）／
+//   **V-212＝提示ゲート**（`canAffordEnergyCostWithSubstitutes`＝A群6地点が共有）。
+// ⚠**エナのセルは index ではなく `img[alt=カード名]` で狙う**＝`buildEnergyPayPool` の並びに依存しない
+//   （§4.4-2c のトグル罠と組み合わさると「押したつもりで外している」が読めなくなる）。
+const OSAKI = 'WX01-033';       // 幻獣神　オサキ（カード名に《オサキ》を含む唯一のカード）
+const OSAKI_NAME = '幻獣神　オサキ';
+const NON_OSAKI = 'WX01-088';   // 幻獣　オウル（緑・バニラ）＝非オサキの緑
+const NON_OSAKI_NAME = '幻獣　オウル';
+
+/** 支払いセル（`spellcost-energy-*`）を**カード名**で掴む。 */
+const spellCostCell = (page, cardName) =>
+  page.locator(`[data-testid^="spellcost-energy-"]:has(img[alt="${cardName}"])`).first();
+
+async function castButtonEnabled(page) {
+  const b = page.getByRole('button', { name: /^発動する/ }).first();
+  if (!(await b.count()) || !(await b.isVisible().catch(() => false))) return null;
+  return await b.isEnabled().catch(() => false);
+}
+
+/** スペルを手札から開いて支払いモーダルまで進める（`発動` を押すところまで）。 */
+async function openSpellCastModal(page, H, cardNum) {
+  const labels = await openCardActions(page, H, `[data-testid^="my-hand-card-"][data-card-num="${cardNum}"]`);
+  if (!labels) return { ok: false, why: 'カード詳細モーダルが開かなかった', labels: null };
+  if (!labels.some(l => String(l).startsWith('発動'))) return { ok: false, why: '発動ボタンが無い', labels };
+  const btn = page.locator('[data-testid="card-detail-modal"] [data-action-label^="発動"]').first();
+  await btn.click({ timeout: 2000 }).catch(() => {});
+  await page.waitForTimeout(1100);
+  const cell = page.locator('[data-testid^="spellcost-energy-"]').first();
+  if (!(await cell.count())) return { ok: false, why: '支払いモーダルが開かなかった', labels };
+  return { ok: true, labels };
+}
+
+scenarios.v211OsakiAloneCoversGreenCost = {
+  title: 'V-211 O-338(1): 緑×2 のスペルがエナの《オサキ》1枚だけで決定できる（非オサキ1枚では決定不可）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WX09-032#1'], null, null],    // 幻獣 コサキ＝代替の宣言元
+      'field.signi_down': [false, false, false],
+      energy: ['WX01-033#10', 'WX01-088#11'],          // オサキ1枚＋非オサキ緑1枚
+      hand: ['WX09-053#20'],                           // 多幸（スペル・《緑》×２・限定なし）
+      lrig_deck: [], trash: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 energy=${JSON.stringify(st0?.host?.energyCards)} hand=${JSON.stringify(st0?.host?.handCards)}`
+      + ` signi=${JSON.stringify(st0?.host?.fieldSigni)}`);
+    const open = await openSpellCastModal(page, H, 'WX09-053');
+    if (!open.ok) return { pass: false, detail: `前提崩れ＝支払い窓まで進めない（${open.why} / labels=${JSON.stringify(open.labels)}）` };
+
+    // ① 対照（negative）＝非オサキ1枚では決定できない
+    await spellCostCell(page, NON_OSAKI_NAME).click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    const withNonOsaki = await castButtonEnabled(page);
+    H.log(`  ①非オサキ1枚のみ選択 -> 発動する enabled=${withNonOsaki}`);
+    if (withNonOsaki === null) return { pass: false, detail: '判定不能＝「発動する」ボタンが見つからない' };
+    if (withNonOsaki) {
+      return { pass: false, detail: '🔴非オサキ1枚（緑1個ぶん）で《緑》×２ が成立した＝カード名条件が効いていない' };
+    }
+    // ② 選択を外して《オサキ》1枚だけにする（§4.4-2c＝押し直しはトグル）
+    await spellCostCell(page, NON_OSAKI_NAME).click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    await spellCostCell(page, OSAKI_NAME).click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    const withOsaki = await castButtonEnabled(page);
+    H.log(`  ②オサキ1枚のみ選択 -> 発動する enabled=${withOsaki}`);
+    if (!withOsaki) {
+      return { pass: false, detail: '🔴《オサキ》1枚だけでは決定できない＝一括代替が支払い窓に届いていない' };
+    }
+    // ③ 実際に撃って、エナから減るのが《オサキ》1枚だけであることを見る
+    await page.getByRole('button', { name: /^発動する/ }).first().click({ timeout: 2000 }).catch(() => {});
+    let fin = null;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v211osaki-${s}.png`, fullPage: true });
+      const did = await H.stdStep();
+      fin = await H.queryState();
+      H.log(`  v211[${s}] -> ${did ?? 'なし'} | energy=${JSON.stringify(fin?.host?.energyCards)}`
+        + ` trash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'}`);
+      const ena = fin?.host?.energyCards ?? [];
+      if (!ena.includes('WX01-033#10') && ena.includes('WX01-088#11')) {
+        if ((fin?.stackLen ?? 0) > 0 || fin?.pendingEffect) continue;
+        if (!(fin?.host?.trashCards ?? []).includes('WX01-033#10')) {
+          return { pass: false, detail: `🔴《オサキ》がトラッシュへ置かれていない（trash=${JSON.stringify(fin?.host?.trashCards)}）` };
+        }
+        return {
+          pass: true,
+          detail: `非オサキ1枚では決定不可／《オサキ》1枚だけで《緑》×２ が決定でき、`
+            + `支払いで動いたのはオサキ1枚だけ（energy=${JSON.stringify(st0?.host?.energyCards)}→${JSON.stringify(ena)}`
+            + ` trash=${JSON.stringify(fin?.host?.trashCards)}）`,
+        };
+      }
+    }
+    return {
+      pass: false,
+      detail: `支払いが完了しなかった（energy=${JSON.stringify(fin?.host?.energyCards)}`
+        + ` trash=${JSON.stringify(fin?.host?.trashCards)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）`,
+    };
+  },
+};
+order.push('v211OsakiAloneCoversGreenCost');
+
+scenarios.v211OsakiDoesNotCoverColorless = {
+  title: 'V-211 O-338(2) 対照: 《緑》×２《無》×３ はオサキ1枚では不成立（《無》は置き換えられない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WX09-032#1'], null, null],
+      'field.signi_down': [false, false, false],
+      energy: ['WX01-033#10', 'WX01-088#11', 'WX01-088#12', 'WX01-088#13'],
+      hand: ['WX02-040#20'],                           // 着植（スペル・《緑》×２《無》×３・限定なし）
+      lrig_deck: [], trash: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 energy=${JSON.stringify(st0?.host?.energyCards)} hand=${JSON.stringify(st0?.host?.handCards)}`);
+    const open = await openSpellCastModal(page, H, 'WX02-040');
+    if (!open.ok) return { pass: false, detail: `前提崩れ＝支払い窓まで進めない（${open.why} / labels=${JSON.stringify(open.labels)}）` };
+
+    // ① 本題（negative）＝オサキ1枚だけでは《無》×３ が残るので決定できない
+    await spellCostCell(page, OSAKI_NAME).click({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    const osakiOnly = await castButtonEnabled(page);
+    H.log(`  ①オサキ1枚のみ -> 発動する enabled=${osakiOnly}`);
+    if (osakiOnly === null) return { pass: false, detail: '判定不能＝「発動する」ボタンが見つからない' };
+    if (osakiOnly) {
+      return { pass: false, detail: '🔴《無》×３ までオサキ1枚で置き換わった（原文の「《無》を支払うことは置き換えられない」に反する）' };
+    }
+    // ② positive 側（§4.4-3）＝オサキ＋残り3枚（＝緑2を置換＋無3を実払い）なら決定できる
+    const cells = page.locator('[data-testid^="spellcost-energy-"]');
+    const n = await cells.count();
+    for (let i = 0; i < n; i++) {
+      const alt = await cells.nth(i).locator('img').first().getAttribute('alt').catch(() => null);
+      if (alt === OSAKI_NAME) continue;              // 既に選んである（押し直すと外れる＝§4.4-2c）
+      await cells.nth(i).click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(350);
+    }
+    await page.waitForTimeout(700);
+    const allFour = await castButtonEnabled(page);
+    H.log(`  ②オサキ＋残り3枚 -> 発動する enabled=${allFour}`);
+    if (!allFour) {
+      return { pass: false, detail: '🔴判別力ゼロ＝緑2を置換して《無》×３ を実払いする組み合わせでも決定できない（代替そのものが死んでいる）' };
+    }
+    return {
+      pass: true,
+      detail: `《オサキ》1枚だけでは《緑》×２《無》×３ は成立せず（＝《無》は置き換えられない）、`
+        + `オサキ＋残り3枚（緑2を置換し《無》×３を実払い）では成立する（energy=${JSON.stringify(st0?.host?.energyCards)}）`,
+    };
+  },
+};
+order.push('v211OsakiDoesNotCoverColorless');
+
+/**
+ * §5.1 `V-212`（§5.3 `O-342`）＝**提示ゲート**が一括代替を見ること。
+ * 🔴**支払い窓（`V-211`）が直っても提示ゲートは別配線**＝アーツの「使用」ボタンは
+ *   `artsUseGate.checkArtsUse` の `usable`（= `affordable` を含む）でしか出ない。
+ *   第291バッチ時点では `canAffordEnergyCostWithSubstitutes` を通っていなかったので、
+ *   **払えるのに一覧から消えていた**。
+ * 🔑1ビット反転＝**エナの1枚が《オサキ》かどうか**だけ（枚数・場・フェイズ・アーツは同一）。
+ */
+const v212Spec = (withOsaki) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [['WX09-032#1'], null, null],      // 幻獣 コサキ＝代替の宣言元
+    'field.signi_down': [false, false, false],
+    energy: withOsaki ? ['WX01-033#10', 'WX01-088#11'] : ['WX01-088#11', 'WX01-088#12'],
+    lrig_deck: ['WD04-008#20'],                        // 付和雷同（アーツ・《緑》×３・限定なし・メイン可）
+    hand: [], trash: [], actions_done: [],
+    'field.signi_traps': [null, null, null], 'field.check': null,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#3'],
+    'field.signi': [['WX01-053#40'], null, null],      // パワー15000＝付和雷同の対象がある盤面
+    'field.signi_down': [false, false, false],
+    hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+    'field.signi_traps': [null, null, null], 'field.check': null,
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV212(page, H, withOsaki) {
+  const tag = withOsaki ? 'v212osaki' : 'v212noosaki';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 energy=${JSON.stringify(st0?.host?.energyCards)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`
+    + ` signi=${JSON.stringify(st0?.host?.fieldSigni)}`);
+  if ((st0?.host?.energyCards ?? []).length !== 2) {
+    return { pass: false, detail: `前提崩れ＝エナが2枚でない（${JSON.stringify(st0?.host?.energyCards)}）` };
+  }
+  if (withOsaki !== (st0?.host?.energyCards ?? []).some(n => String(n).startsWith('WX01-033'))) {
+    return { pass: false, detail: `前提崩れ＝《オサキ》の1ビット反転が効いていない（energy=${JSON.stringify(st0?.host?.energyCards)} / 期待=${withOsaki}）` };
+  }
+  let labels = null;
+  for (let s = 0; s < 12; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    if (!(await page.getByTestId('zone-card-0').first().count())) {
+      const opened = await H.clickTestId('my-lrig-dk');
+      H.log(`  ${tag}[${s}] ルリグDK -> ${opened ?? 'なし'}`);
+      continue;
+    }
+    labels = await openCardActions(page, H, '[data-testid="zone-card-0"]');
+    H.log(`  ${tag}[${s}] アーツ詳細 labels=${JSON.stringify(labels)}`);
+    if (labels !== null) break;
+  }
+  if (labels === null) {
+    return { pass: false, detail: `判定不能＝アーツのカード詳細モーダルが開かなかった（body=${await H.body()}）` };
+  }
+  const offered = labels.some(l => String(l).startsWith('使用'));
+  await H.closeModals();
+  if (withOsaki) {
+    return offered
+      ? { pass: true, detail: `エナ＝《オサキ》1枚＋緑1枚で《緑》×３ のアーツが提示された（行動=${JSON.stringify(labels)}）` }
+      : { pass: false, detail: `🔴提示ゲートが一括代替を見ていない＝払えるのに「使用」が出ない（行動=${JSON.stringify(labels)}）` };
+  }
+  return offered
+    ? { pass: false, detail: `🔴対照が成立しない＝非オサキ2枚でも《緑》×３ のアーツが提示された（行動=${JSON.stringify(labels)}）` }
+    : { pass: true, detail: `対照＝非オサキ2枚では《緑》×３ のアーツは提示されない（行動=${JSON.stringify(labels)}）` };
+}
+
+scenarios.v212ArtsOfferedWithOsakiSubstitute = {
+  title: 'V-212 O-342(1): エナの《オサキ》1枚で《緑》×３ のアーツが提示ゲートを通る',
+  spec: v212Spec(true),
+  async drive(page, H) { return driveV212(page, H, true); },
+};
+scenarios.v212ArtsNotOfferedWithoutOsaki = {
+  title: 'V-212 O-342(2) 対照: 非オサキ2枚では《緑》×３ のアーツは提示されない（オサキの1ビットだけ反転）',
+  spec: v212Spec(false),
+  async drive(page, H) { return driveV212(page, H, false); },
+};
+order.push('v212ArtsOfferedWithOsakiSubstitute');
+order.push('v212ArtsNotOfferedWithoutOsaki');
+
+
 
 
 
@@ -57848,6 +58459,14 @@ try {
         //   `STUB{RIDE_ON}` は**これが空でないと即スキップ**するので、「乗ったか」も「二重に乗らないか」もここで見る。
         lrigRidingSigni: s.lrig_riding_signi ?? [],
         negatedAttacks: s.negated_attacks ?? [],
+        // 🆕§5.1 `V-209`（§5.3 `O-334`・2026-09-12）＝覚醒状態のシグニ一覧。
+        //   🔴**これが観測面に無いと「保護が効いた」と「そもそも覚醒していない」を切り分けられない**
+        //   （`IS_SELF_AWAKENED` は注入したこのキーだけを見る＝§4.4-71）。
+        awakenedSigni: s.awakened_signi ?? [],
+        // 🆕§5.1 `V-210`（§5.3 `O-340`・2026-09-12）＝**発生源に紐づく**リミット修整。
+        //   ⚠既存の `lrigLimitMod` / `pendingLrigLimitMod` とは**別のスロット**＝
+        //   混ぜると「発生源が離場しても残る」旧バグと「そもそも載っていない」が同じ絵になる。
+        lrigLimitModBySource: s.lrig_limit_mod_until_own_energy_phase_end_by_source ?? null,
         // 🆕§5.1 `V-203`（2026-09-12 第287）＝ダメージ防止ウィンドウ。
         //   🔴**`sourcePowerGte` を持つ window は「ダメージ源のパワーが渡っているか」で成否が変わる**＝
         //   盤面差分（ライフが減ったか）だけでは「window が無い」と「パワーが渡っていない」を区別できない。

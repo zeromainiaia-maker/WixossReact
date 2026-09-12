@@ -801,6 +801,40 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 - 逆翻訳器: `scripts/decompileEffects.ts`、グルーピング: `scripts/group{Similar,BySentence}.mjs`（`--all` で全10シート統合）
 - 監査: `scripts/behaviorAudit.ts`（`npm run audit`/`audit:html`/`audit:queue`）
 
+### §5.1 実機返済の完了報告（`V-209`〜`V-212`・2026-09-12 第293バッチ・全件返済済み）
+
+**登録元**＝第291〜292バッチ（§5.3 索引G `O-334` / `O-338` / `O-340` / `O-342`）。4件とも `src/screens/` を触った回で、
+golden は**純関数を直接叩いている**ので「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」は
+実機でしか見えなかった。**実機シナリオ8本**（本命4＋対照4）を `order` に常駐させた。
+
+| `V-nn` | シナリオ id | 何を実 UI で見たか |
+|---|---|---|
+| `V-209` | `v209AwakenedAttackNotNegatedByOpp` / `v209NonAwakenedAttackIsNegated` | 相手（CPU）の `NEGATE_ATTACK{SIGNI, owner:opponent, count:ALL}` を `effect_stack` 注入で解決させ、**覚醒中は `host.negated_attacks` が空のまま**／**覚醒を外すと同じ効果で積まれる**。1ビット反転＝`awakened_signi` だけ |
+| `V-210` | `v210LimitPlusTwoWhileSourceInField` / `v210LimitExpiresAtOwnMainPhaseStart` | **召喚ゲートそのもの**で見た＝【出】解決後に合計7（素のリミット6）の Lv4 が置け、**発生源だけを場から外すと**同じ合計7の Lv3 は置けず**リミット内の Lv2 は置ける**。2本目は **GROW→MAIN を実 UI で踏んで**「発生源が場に残ったまま」+2 が失効することを見た |
+| `V-211` | `v211OsakiAloneCoversGreenCost` / `v211OsakiDoesNotCoverColorless` | 支払い窓で**非オサキ1枚→「発動する」disabled／オサキ1枚→enabled**、実際に撃って**エナから減ったのはオサキ1枚だけ**。2本目は《緑》×２《無》×３ が**オサキ1枚では成立せず**、オサキ＋3枚なら成立する |
+| `V-212` | `v212ArtsOfferedWithOsakiSubstitute` / `v212ArtsNotOfferedWithoutOsaki` | **提示ゲート**＝ルリグデッキの《緑》×３ アーツに「使用」が出るか。オサキ1枚＋緑1枚で出る／非オサキ2枚では出ない |
+
+🔑**反転確認を2ラウンド回した**（DRIVE_TRAPS §4.4-3 / §4.4-3b）。
+- **ラウンドA（機構を丸ごと落とす）**＝`sourceBoundDelta` を 0 ／ `ctx.otherAttackNegationProtectedNums` を `undefined` ／
+  `SpellCastModal` と `artsUseGate` の `wholeSubstitutes` を `undefined`。⇒ **本命6本が赤・対照2本は緑のまま**
+  （対照は機構に依存しないので緑が正しい）。
+- **ラウンドB（`O-340` の2つの寿命を片方ずつ殺す）**＝`fieldTopNums` の判定を外す（常に加算）／
+  `lrig_limit_mod_until_own_energy_phase_end_by_source` の `boundaries` を空にする。
+  ⇒ `v210LimitPlusTwoWhileSourceInField` は**④（発生源離場後に Lv3 が置けた）**で、
+  `v210LimitExpiresAtOwnMainPhaseStart` は**期限跨ぎでストアが残る**で、それぞれ**狙った assert が赤**になった。
+
+🔑**観測面を2つ足した**（`queryState`＝DRIVE_TRAPS §4.4-71）＝`awakenedSigni` / `lrigLimitModBySource`。
+どちらも無いと「保護が効いた」と「そもそも覚醒していない」／「発生源が場にいないから消えた」と「期限で消えた」を切り分けられない。
+
+⚠**実機に乗せなかった軸2つ**（どちらも golden が押さえている）＝
+①`V-209` ③「**自分の**効果での無効化は従来どおり通る」（golden の `selfAllowed` ケース）
+②`V-212` ③「CPU 戦でも CPU が同じ盤面で撃てる」（golden `§5.3 O-342: CPUはエナ順に依存せずオサキを選び実支払いへ渡す`）。
+理由＝どちらも**実 UI に「押す場所」が無い**（自分の無効化アーツを持つ盤面／CPU の思考ルーチン）ので、
+実機化すると観測点が間接的になり判別力が落ちる。
+
+🆕**新しい罠を3つ登録**＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の **92**（提示の有無は `data-action-label` 列で読む）・
+**93**（1ターン内で「次の自分のメインフェイズ開始」を踏む手）・**94**（盤面は動いたのに【出】が走らないバッチ位置依存＝リトライで解消）。
+
 ### §5.1 実機返済の完了報告（`V-203`〜`V-208`・2026-09-12・全件返済済み）
 
 🏁**過去の返済**＝第288バッチで `V-204` と `V-206` を返済（第283バッチで登録した `V-203`〜`V-206` を全部返した）。
