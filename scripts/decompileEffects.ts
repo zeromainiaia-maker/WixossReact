@@ -1505,6 +1505,34 @@ function condJa(c?: any): string {
     //   ⚠色を落とすと5つの分岐が同じ文になり、**どの色でどれが起きるか**が原文照合から消える。
     case 'COST_ENERGY_TRASHED_COLOR':
       return `これの使用コストとして追加で${c.color}のカードがトラッシュに置かれていた`;
+    // 🆕§5.5（2026-09-12）＝`条件:` の生英語 ID 露出 9種/17箇所を日本語化した。
+    //   🔴**engine 側はどれも実装済み**（`execUtils.evalCondition` / `effectEngine.checkActiveCondition`）＝
+    //   ここは**逆翻訳の表示だけ**の穴だが、原文照合が主軸の検査なので生 ID が出ると照合が効かない。
+    //   ⚠`census:stubs` C群の `raw` は `[STUB:` しか数えないので、**条件側は増えてもゲートが緑のまま通っていた**
+    //   （同じ回に C群の判定を `[条件:` へ広げてラチェットを張った）。
+    case 'FIELD_SIGNI_SHARE_CLASS':
+      return `${ownerJa(c.owner)}場に${c.color ? `${c.color}の` : ''}シグニが${numJa(c.count)}体あり、それらが共通するクラスを持つ`;
+    case 'THIS_CARD_IS_CHARMED': return 'このシグニに【チャーム】が付いている';
+    case 'THIS_CARD_HAS_SOUL': return 'このシグニに【ソウル】が付いている';
+    case 'LRIG_IS_DRIVE_STATE': return 'このルリグがドライブ状態';
+    case 'OPP_USING_TEAM_PIECE': return '対戦相手が【使用条件】【チーム】を持つピースを使用しようとしている';
+    // ⚠主語なので `ownerJa`（「あなたの」＝連体修飾）は使えない＝原文は「あなたが〜得ていない場合」。
+    case 'NO_COIN_GAINED_THIS_GAME':
+      return `このゲームの間に${c.owner === 'opponent' ? '対戦相手が' : 'あなたが'}《コインアイコン》を得ていない`;
+    case 'APPEARANCE_COST_SAME_NAME':
+      return `この出現条件で同じ名前のシグニ${numJa(c.count)}体をトラッシュに置いていた`;
+    case 'PAID_COLORS_INCLUDE_ALL':
+      return `このカードの使用コストで${(c.colors ?? []).map((x: string) => `《${x}》`).join('')}すべてが支払われている`;
+    // ⚠`byEffect`（効果によって）と `filter`（バニッシュした側のシグニの限定）は**別軸**＝両方載ることがある。
+    case 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN': {
+      const by = c.byEffect ? `${ownerJa(c.owner) || 'あなたの'}効果によって` : '';
+      const cls = Array.isArray(c.filter?.cardClass)
+        ? `${c.filter.cardClass.map((s: string) => `＜${s}＞`).join('か')}のシグニが`
+        : c.filter && Object.keys(c.filter).some(k => k !== 'cardType')
+          ? `${ownerJa(c.owner) || 'あなたの'}${filterJa(c.filter)}シグニが` : '';
+      const subj = by || (cls ? `${cls.startsWith('＜') ? ownerJa(c.owner) || 'あなたの' : ''}${cls}` : '');
+      return `このターンに${subj}対戦相手のシグニを${numJa(c.value)}体${opJa(c.operator)}バニッシュしていた`;
+    }
     default: return `[条件:${c.type}]`;
   }
 }

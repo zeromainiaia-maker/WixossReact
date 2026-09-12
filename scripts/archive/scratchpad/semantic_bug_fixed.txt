@@ -463,3 +463,8 @@ WXDi-P04-007-E3 :: 2026-09-12 :: 第286＝再照合で修正済み＝duration:NE
 WXK03-011-E1 :: 2026-09-12 :: §5.3 O-335＝後半「シグニゾーン以外のあなたの領域…移動しない」を -E1b（PREVENT_NON_FIELD_MOVE_BY_OPP）として分離（第289バッチ）
 WXDi-P16-002-E1 :: 2026-09-12 :: §5.3 O-335＝ZONE_MOVE_IMMUNITY の zones に deck を追加（主語の領域だけ数える）（第289バッチ）
 WXK11-020-E1 :: 2026-09-12 :: §5.3 O-336＝2026-09-11 の O-291（isEnergyImmuneByOpponent / energyCandidatesForOwner）で実装済みと実測確認（第289バッチ）
+WX09-032-E1 :: 2026-09-12 :: §5.3 O-338/O-342＝DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY を STUB{ENERGY_COST_SUBSTITUTE_WHOLE, energyCostSubstitute:{緑,[3,2],nameContains:オサキ}} へ実体化し提示ゲートへ配線（第291後半〜292／golden 3箇所）
+SP26-002-E1 :: 2026-09-12 :: §5.3 O-337＝DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS を STUB{SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN} へ実体化＋《トラップアイコン》の発動地点4つにもゲート（第291前半／golden 2箇所）
+PR-305-E1 :: 2026-09-12 :: §5.3 O-339＝登録票 stale（ON_SIGNI_BATTLE はバニッシュ処理の後に積まれるので遅延を重ねてはいけない）。①は targetsTriggerSource:true で実装済み・帰結を golden で固定（第291前半）
+WX25-P3-057 :: 2026-09-12 :: §5.3 O-334＝-E1c（STUB{PREVENT_ATTACK_NEGATION_BY_OPP}＋collectAttackNegationProtectedSigni）を新設＝【アサシン】(-E1b) と併せ覚醒中の常在2つが揃った（第291前半／golden 1箇所）
+WXDi-P13-004B-E3 :: 2026-09-12 :: §5.3 O-340＝lrigLimitChange に untilOwnEnergyPhaseEnd＋whileSourceInField を載せ、発生源別ストアで「場にあるかぎり」を評価（第291前半／golden 2箇所）

@@ -234,6 +234,21 @@ let totalStubTags = 0;
   }
 }
 
+// 🆕E群（§5.5・2026-09-12）＝`[条件:<生英語ID>]` の露出。
+// 🔴**なぜ別枠が要るか**＝上の C群の `raw` は `[STUB:` しか数えず、しかも候補を **live の STUB id 集合**
+//   （`allIds`）で絞る。**条件型は別の名前空間**なので、`decompileEffects.ts` の `condJa` の `default` に
+//   落ちた条件は**何箇所増えても C群に出ず `npm run gates` が緑のまま通っていた**（実測 9種/17箇所）。
+// ⚠STUB と違い条件側に `STUB` の道は無い（`COND_STUB` は `execUtils` が `return true`＝無条件成立）＝
+//   生 ID が出ている条件は通例「engine 未実装」ではなく**逆翻訳の表示だけ**の穴だが、
+//   原文照合が主軸の検査なので**生 ID が出ると照合そのものが効かない**。
+// 直し方＝`scripts/decompileEffects.ts` の `condJa` に `case` を足して **`npm run regen`**
+//   （この計器は逆翻訳シートの実出力を読むので、再生成しないと直らない）。
+const condExposure = new Map<string, number>();
+for (const m of sheetText.matchAll(/\[条件:([A-Za-z][A-Za-z0-9_]*)\]/g)) {
+  condExposure.set(m[1], (condExposure.get(m[1]) ?? 0) + 1);
+}
+const condTotal = [...condExposure.values()].reduce((a, b) => a + b, 0);
+
 // ── 4) 仕分け ──
 type Row = {
   id: string; count: number; cards: string[];
@@ -318,6 +333,10 @@ p(`      └ 無言の no-op（DEFERRED_ でない＝要対応）           : ${
 p(`  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : ${declarative.length} 種 / ${declarative.reduce((a, r) => a + r.count, 0)} 件`);
 p(`  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : ${holeDisplay.length} 種 / ${holeDisplay.reduce((a, r) => a + r.raw, 0)} 箇所`);
 p(`  D 健全（実装あり＋日本語表示）                          : ${healthy.length} 種`);
+p(`  E 表示だけの穴（条件側 \`[条件:…]\` の生ID露出）          : ${condExposure.size} 種 / ${condTotal} 箇所`);
+for (const [id, n] of [...condExposure].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+  p(`      露出${String(n).padStart(3)}箇所  ${id}`);
+}
 p(`  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : ${deadIds.length} 種`);
 p('');
 
@@ -386,5 +405,15 @@ if (holeDisplay.length > 0) {
   console.error(`\n❌ 逆翻訳に生の英語 ID が出る STUB が ${holeDisplay.length} 種 / ${holeDisplay.reduce((a, r) => a + r.raw, 0)} 箇所`);
   for (const r of holeDisplay.slice(0, 10)) console.error(`   - ${r.id}（${r.cards.slice(0, 4).join(', ')}）`);
   console.error('   ハンドラ直前コメントに日本語説明を書く（→ genStubsMd.mjs）か miscStubMap に足して、npm run regen。');
+  process.exit(1);
+}
+
+// ── 🆕E群もゲート化（§5.5・2026-09-12）＝`[条件:<生英語ID>]` の露出 ──
+// **9種/17箇所を日本語化して 0 にした**ので、以後は**増えたら止める**。
+// ⚠C群と違って `live の id 集合` で絞らない＝`condJa` の `default` に落ちた条件型がそのまま出る。
+if (condExposure.size > 0) {
+  console.error(`\n❌ 逆翻訳に生の英語 ID が出る条件が ${condExposure.size} 種 / ${condTotal} 箇所`);
+  for (const [id, n] of [...condExposure].slice(0, 10)) console.error(`   - ${id}（${n} 箇所）`);
+  console.error('   scripts/decompileEffects.ts の condJa に case を足して、npm run regen。');
   process.exit(1);
 }

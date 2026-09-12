@@ -1,5 +1,75 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — §5.5 の全数再測と stale の訂正＋`条件:` の生英語ID露出を日本語化（第294バッチ）
+
+### 何をしたか
+
+ユーザー指示「§5.5 を行う。まずは現状を把握するため各種数値の測り直しを行い、残り作業を明確にする」に対し、
+**§5.5 の7項目と、ゲート外の計器を全部回して実測**した。**実装は1件だけ**（下記②）で、
+**この回の主産物は「数字の訂正」**＝PLAN の記述が5箇所 stale だった。
+
+### ① 🔴§5.0 実装キューは「残0」ではなく**残5効果**だった（記録漏れ）
+
+| 軸 | 値 |
+|---|---|
+| 真因 | **`O-nn` をクローズしても、その機構を待っていた effectId は在庫から引かれない**＝`semantic_bug_deferred.txt` の `MECH` 行は設計上「在庫から引かない」ので、**実装した回に `semantic_bug_fixed.txt` へ書かないと永久に残る** |
+| 影響 | **5効果**（`WX09-032-E1`／`SP26-002-E1`／`PR-305-E1`／`WX25-P3-057`／`WXDi-P13-004B-E3`） |
+| 実態 | **5件とも第291〜292バッチで既に実装済み**。live JSON・engine 消費点・golden を1件ずつ照合した（下表） |
+| 検証 | `node scripts/archive/semanticAuditBugList.mjs` ＝ **残5 → 🏁残0** |
+
+- `WX09-032-E1`＝`DEFERRED_COST_SUBSTITUTE_MULTI_ENERGY` → `STUB{ENERGY_COST_SUBSTITUTE_WHOLE, energyCostSubstitute}` へ実体化（`O-338`/`O-342`・engine=`effectEngine.ts`・golden 3箇所）。
+- `SP26-002-E1`＝`DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS` → `STUB{SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN}`（`O-337`・engine=`execStubPart3.ts`・golden 2箇所）。
+- `PR-305-E1`＝`O-339` は**登録票 stale**（`ON_SIGNI_BATTLE` はバニッシュ処理の後に積まれるので遅延を重ねてはいけない）。①は `targetsTriggerSource:true` で実装済み・golden で帰結を固定。
+- `WX25-P3-057`＝`-E1c`（`STUB{PREVENT_ATTACK_NEGATION_BY_OPP}`＋`collectAttackNegationProtectedSigni`）新設で覚醒中の常在2つが揃った（`O-334`・golden 1箇所）。
+- `WXDi-P13-004B-E3`＝`lrigLimitChange` に `untilOwnEnergyPhaseEnd`＋`whileSourceInField`（`O-340`・golden 2箇所）。
+
+🔑**運用へ還元**＝PLAN §5.0 に「**`O-nn` をクローズした回に、登録票が引用している effectId を `semantic_bug_fixed.txt` へ必ず書く**」を明記した。
+
+### ② 実装＝`条件:` の生英語 ID 露出 9種 / 17箇所を日本語化し、**E群ラチェット**を張った
+
+| 軸 | 値 |
+|---|---|
+| 真因 | **`census:stubs` C群の `raw` は `[STUB:` しか数えず、しかも候補を live の STUB id 集合（`allIds`）で絞る**＝**条件型は別の名前空間なので、`decompileEffects.ts` の `condJa` の `default` に落ちた条件は何箇所増えても C群に出ず `npm run gates` が緑のまま通っていた** |
+| 影響 | **9種 / 17箇所**（`FIELD_SIGNI_SHARE_CLASS` 5／`THIS_CARD_IS_CHARMED` 4／`OPP_SIGNI_BANISHED_COUNT_THIS_TURN` 2／`THIS_CARD_HAS_SOUL`／`PAID_COLORS_INCLUDE_ALL`／`OPP_USING_TEAM_PIECE`／`NO_COIN_GAINED_THIS_GAME`／`LRIG_IS_DRIVE_STATE`／`APPEARANCE_COST_SAME_NAME`）。⚠**9種すべて engine 実装済み**＝無言バグではなく**逆翻訳の表示だけ**の穴だが、**原文照合が主軸の検査なので生 ID が出ると照合そのものが効かない** |
+| 直し方 | `scripts/decompileEffects.ts` の `condJa` に9 `case`（payload を落とさない＝`color`/`count`/`filter`/`byEffect`/`colors`/`operator` を全部出す）＋ `scripts/censusStubs.ts` に **E群**（`[条件:<ID>]` の全数走査＋ratchet）。⚠`D` は既に「健全」で使われているので `E` にした |
+| 検証 | `npm run regen` → 露出 **17 → 0箇所**／`npm run gates` **全緑（golden 4044 PASS）** |
+| 反転確認 | ✅ `LRIG_IS_DRIVE_STATE` の `case` を1本外して `regen` → **`censusStubs` が exit 1**（「1種/1箇所」）。復元して exit 0 |
+| 実機 | **不要**＝触ったのは `scripts/` のみ（`src/` 非改変）＝§2.2 の機械判定で④まで |
+
+- ⚠**助詞の取り違えを1件直した**＝`NO_COIN_GAINED_THIS_GAME` は**主語**なので `ownerJa`（「あなたの」＝連体修飾）が使えない（原文は「あなたが〜得ていない場合」）。
+- 効果＝**逆翻訳の英語ID漏れ 313カード/340箇所/211種 → 299カード/323箇所/202種**。
+
+### ③ 測り直して stale と判明した PLAN の記述（実装せず記述を直した）
+
+| PLAN の記載 | 実測 |
+|---|---|
+| §5 全体像 ①実機「🔥2件（`V-209`/`V-210`）」 | 🏁**残0**（§5.1 本文が正しく、表だけ古かった） |
+| §5.5「CPU AI (g)＝(a)〜(f) は消化済み」 | **(a)〜(g) 全消化で `O-1` はクローズ済み**（(g) v1＝`cpuBoardEval.ts`・実機 `V-82` PASS）。残るのは**盤面評価 v2＝任意の品質向上**（挙動の正しさの穴ではない） |
+| §5.5 逆翻訳テール内訳「日本語ラベル STUB 284箇所／生英語ID は STUB 側10種前後」 | **319箇所**／**3種4箇所で全部 `DEFERRED_*`（意図的 defer）**＝**無言の穴は無い** |
+| §5.5「デッキ操作系184／パワー修正系165／手札系102」 | 🔴**`docs/_stub_leak_classification.txt` が 2026-07-12 のまま2か月放置された数字**＝実測は **52／16／45**（3〜10倍の過大）。生成し直してコミットした |
+| §5.5「原文と JSON 構造がズレた混線テール」を別項目として立てていた | **逆翻訳テールと同じ323箇所の別の切り口**＝独立した在庫ではないので**1項目に統合**した |
+
+### ④ ゲート外の計器＝**どれも実バグ0**（§5.5 末尾に「計器の空振り」節として常駐させた）
+
+- 🔴**`census:timing` 4効果/2クラスタ＝live は正しい**。該当2枚（`WXK10-052-E1`／`WXDi-P09-079-E1`）は `manualEffects.ts` に
+  `ON_CARD_MILLED_FROM_DECK` ＋ `milledCardFilter` で実装済み。**この計器は `parseCardEffects` だけを呼び `mergeManualEffects` を通さない**
+  （`timingCensus.ts:15`）＝**manual で正した効果は永久にここに出続ける。** ⇒ **「受け皿が無い」の空振りは連続13項目目。**
+- **`census:wiring` miss 33セル**＝抜き取り6件すべて**別の正準形で配線済み**（`powerRange`→`FIELD_SIGNI_POWER_COUNT`／
+  `eachDistinctLevel`→`TRASHED_DISTINCT_LEVELS_GTE`／`levelExact × BLOCK_ACTION`→`actionId:"GUARD_LV2_3"`（`guard.ts:59` が消費）／
+  `excludeCardName`→`beat_signi.excludeSelf`）。**★「穴がほぼ確実」印は実測でそうならない。**
+- `census:goldentypes` 未カバー0／`census:deadstate` 0／`census:enginetext` A群0／`census:costtext` A群0規則／`census:orphanmanual` A・B・C群0。
+- `semanticAuditGap` ＝**未監査 0 / 6,032（全11シート 100%）**。
+
+### いまの残り作業（§5.5 の5件のみ）
+
+1. 🔥**逆翻訳の表示品質テール 299カード/323箇所**（engine は動く＝無言バグではない）
+2. **リリース判定**（fuzz 重め＋実機 PvP/CPU 通し対戦）
+3. **CPU 盤面評価 v2**（任意）
+4. `doPhaseAdvance` pure 抽出＝**「やらない」既定**
+5. BEHAVIOR_AUDIT キュー＝⛔休眠（高シグナル23件・枯渇済み）
+
+＋ **§5.2 round5 を回すかの判断**（意味照合は「受け皿の名前を知らない穴」を拾える唯一の発見器だが、全11シート監査済み）。
+
 ## 2026-09-12 — §5.1 実機 `V-209`〜`V-212` を全返済（第293バッチ・実機シナリオ8本・src 変更なし）
 
 ### 何をしたか

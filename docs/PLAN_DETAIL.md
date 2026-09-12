@@ -994,6 +994,20 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
 
+### 恒久指標（退避）2026-09-12 第294バッチ 前（＝第293バッチ直後の値）
+
+- **2026-09-12 時点（本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**。
+  📦**在庫**＝**機構 worklist 🏁0**（索引 A/B/G すべて残0）｜**実機 🏁0**（`V-209`〜`V-212` を第293バッチで全返済）｜**実装キュー 残0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4044 PASS**／**実機 `verifyBattleDrive` の新規8本 PASS**（3回連続バッチ緑）／smoke 10754 OK／fuzz 0／census 1 / BASELINE 1／
+  census:stubs A群 0・C群 0／census:enginetext A群 0／census:costtext A群 0規則／census:deadstate 0／
+  check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）。
+  📐**その他のラチェット**＝同型★ **2グループ / 4枚**（`node scripts/groupSimilar.mjs --all`）／
+  逆翻訳の英語ID漏れ **313カード / 340箇所**（`node scripts/_stubLeakScan.mjs`）／
+  逆翻訳の生 JSON 漏れ **0**。
+  ⚠**3計器が動かないことを「停滞」と読まない**＝どの計器も見ていない形（表示層・機構待ち）を直した回は据置になる。
+
+
 - **2026-09-12（第284バッチ・Opus 5 単独＝🏁索引 G の残8項目を全消化・本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**（据置）｜**台帳 残 OPEN 0**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）。
   ⚠**今回の10効果はどの計器にも映らない形**＝①**畳んだ処理が期間・付属札・【出】発火の3軸を同時に落としていた**
