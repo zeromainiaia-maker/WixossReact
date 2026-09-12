@@ -75047,6 +75047,66 @@ test('§5.3 O-283: ルリグのエクシード能力をコストなしで使う�
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-350`（2026-09-12）＝**無償使用の無限再帰**（fuzz 重めでのみ出た CRASH 2種）
+// ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-350: USE_OWN_LRIG_ABILITY_FREE は自分自身を候補にせず、付与された能力を候補に含める', () => withSavedCursor(() => {
+  const e3 = effectsMap.get('WX22-014')!.find(e => e.effectId === 'WX22-014-E3')!;
+
+  // (a) 🔴**自己除外**＝センターが `WX22-014` 自身で、印字のエクシード能力が E3 しか無い盤面。
+  //   旧実装は E3 自身を候補に入れ、「候補が1つなら CHOOSE を挟まず即実行」分岐と噛み合って
+  //   **確定で無限再帰**した（`npm run fuzz -- --games 2000 --moves 80` で CRASH 14件）。
+  const ownerA = mkState({});
+  ownerA.field.lrig = ['WX22-014'];
+  const mapA = new Map<string, CardEffect[]>();
+  mapA.set('WX22-014', effectsMap.get('WX22-014') ?? []);
+  const ctxA = { ...mkCtx({}, {}, 'WX22-014'), ownerState: ownerA, otherState: mkState({}),
+    effectsMap: mapA } as ExecCtx;
+  const rA = finish(executeEffect(e3, ctxA), ctxA);
+  ok(rA.logs.some(l => l.includes('使用できるルリグの能力がない')),
+    '🔴解決中の能力自身は候補にならない（旧はここで自己再帰して stack overflow）');
+
+  // (b) 🔴**付与されたエクシード能力は候補に入る**＝(a) の自己除外だけだとこのカードは恒久 no-op。
+  //   相方はキー `WX22-006`《差し伸べし者　タウィル》で、`GRANT_LRIG_ABILITY` が
+  //   **エクシード２の【起】を2本センタールリグへ付ける**（印字側は E3 自身しか無い）。
+  const ownerB = mkState({});
+  ownerB.field.lrig = ['WX22-014'];
+  ownerB.field.key_piece = 'WX22-006';
+  const mapB = new Map<string, CardEffect[]>();
+  mapB.set('WX22-014', effectsMap.get('WX22-014') ?? []);
+  mapB.set('WX22-006', effectsMap.get('WX22-006') ?? []);
+  const ctxB = { ...mkCtx({}, {}, 'WX22-014'), ownerState: ownerB, otherState: mkState({}),
+    effectsMap: mapB, isOwnerTurn: true } as ExecCtx;
+  const rB = executeEffect(e3, ctxB);
+  eq(rB.done, false, '🔴候補が複数あるので選択が立つ');
+  const pendB = (rB as { pending: { type: string; options?: { id: string; label: string }[] } }).pending;
+  eq(pendB.type, 'CHOOSE', '「能力１つを」＝選ばせる');
+  const idsB = (pendB.options ?? []).map(o => o.label).join(' / ');
+  eq((pendB.options ?? []).length, 2, `🔴候補はキー由来の2本だけ（E3 自身は入らない）: ${idsB}`);
+  ok(!idsB.includes('エクシード1'), '🔴エクシード1（＝E3 自身）は候補に出ない');
+}));
+
+test('§5.3 O-350: CROSS_ZONE_TRIPLE… は候補の居ないゾーンを飛ばしても段が進む', () => withSavedCursor(() => {
+  const e2 = effectsMap.get('WX21-028')!.find(e => e.effectId === 'WX21-028-E2')!;
+  // 🔴相手の 場／エナ／トラッシュ が空だと、旧実装は「飛ばした印」の空文字を
+  //   読み手側の `filter(Boolean)` が捨てるため**同じ段に無限再入**した
+  //   （`npm run fuzz -- --games 2000 --moves 80` で CRASH 10件／`WX21-028-E2`）。
+  const otherC = mkState({ energy: 0, trash: 0 });
+  const ctxC = { ...mkCtx({}, {}, 'WX21-028'), ownerState: mkState({}), otherState: otherC } as ExecCtx;
+  const rC = finish(executeEffect(e2, ctxC), ctxC);
+  eq(rC.done, true, '🔴3ゾーンとも空でも完了する（旧は stack overflow）');
+  ok(!rC.logs.some(l => l.includes('から1枚を対象にする')), '候補の無いゾーンでは選択を立てない');
+
+  // 途中のゾーンだけが空でも段が進む（エナだけ空＝場とトラッシュからは取れる）。
+  const oppSigniD = findCard(c => isSigni(c));
+  const otherD = mkState({ signi: [oppSigniD, null, null], energy: 0, trash: 2 });
+  const ctxD = { ...mkCtx({}, {}, 'WX21-028'), ownerState: mkState({}), otherState: otherD } as ExecCtx;
+  const rD = finish(executeEffect(e2, ctxD), ctxD);
+  eq(rD.done, true, '🔴途中のゾーンが空でも完了する');
+  eq(rD.logs.filter(l => l.includes('から1枚を対象にする')).length, 2,
+    '🔴空のエナだけを飛ばし、場とトラッシュの2段は選択が立つ');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
 // §5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」（自分側の効果も遮断する耐性）
 // ══════════════════════════════════════════════════════════════════════════════
 test('§5.3 O-284: WX17-001-E1 は自分の他カードの効果も遮断し、自身の能力だけを通す', () => withSavedCursor(() => {

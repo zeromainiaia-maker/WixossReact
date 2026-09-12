@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — 🏁`O-350`＝**重め fuzz でしか出ない無限再帰 2種**（CRASH 14 → 0・第295バッチ）
+
+**真因1（`src/engine/execStubPart2.ts`・`USE_OWN_LRIG_ABILITY_FREE`）**＝候補列挙が
+「`ACTIVATED` かつ `cost.exceed` がある能力」なので**発動中の `WX22-014-E3` 自身が候補に入り**、
+「候補が1つなら `CHOOSE` を挟まず即実行する」分岐と噛み合って**確定で自己再帰**した。
+⇒ `ctx.sourceEffectId` 一致を候補から外し、`ExecCtx.freeLrigAbilityChain`（この解決チェーンで無償使用した
+effectId 列）で**相互再帰 A→B→A** も止めた。
+
+🔴**自己除外だけだとカードが恒久 no-op になる**＝`WX22-014`（共闘の鍵主　ウムル＝フィーラ）の
+**印字のエクシード能力は E3 自身しか無い**。原文「このルリグのエクシード能力１つ」が指すのは相方のキー
+`WX22-006`《差し伸べし者　タウィル》が `GRANT_LRIG_ABILITY` で**センターへ付ける エクシード２の【起】2本**。
+⇒ 候補源に**付与ストア**を足した（`collectGrantedLrigEffects`＝人間 UI／CPU と同じ funnel）。
+
+**真因2（`src/engine/execStubPart3.ts`・`CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM`・`WX21-028-E2`）**
+＝候補の居ないゾーンを飛ばす印の**空文字を、読み手が `filter(Boolean)` で捨てて段数にしていた**＝
+**段が進まず同じゾーンへ無限再入**（1段目が空だと `[''].join(',')` が falsy になり `value2` ごと消える）。
+⇒ **段は `stub.value`（数値）で持ち、`value2` には実際に選べた対象だけを積む**形へ分離。
+⚠**真因1を直して初めて露出した**（CRASH 14 → 10 → 0）。
+
+**影響枚数**＝真因1 が 2効果 / 2カード（`WX22-014-E3`・`WX21-Re04-E1`。挙動が変わるのは前者）、
+真因2 が 1効果 / 1カード（`WX21-028-E2`）。**どちらもゲーム全体を落とす CRASH** なので影響は枚数より広い。
+
+**検証**＝`npm run gates` 全緑（**golden 4046 PASS**＝+2）／`npm run smoke` 10754 OK／
+🔴**`npm run fuzz -- --games 2000 --moves 80` を 6シード（12648430 / 1 / 7 / 99 / 4242 / 777777・計12,000ゲーム）で CRASH 0。**
+**反転確認 ✅**＝①自己除外を外すと golden が「候補 2 → 3（E3 自身が混ざる）」で FAIL
+②段カウンタを旧式へ戻すと golden が `Maximum call stack size exceeded` で FAIL。
+**実機は不要と判定**（PLAN §2.2）＝触ったのは `src/engine/` のみ（`src/screens/` は funnel を import しただけ）。
+
+🔑**教訓**＝ゲート同梱の `npm run fuzz` は `200ゲーム × 40手`＝**盤面が育たないと踏めない再帰は映らない**。
+**engine の再入経路（ハンドラが自分で `exec` を呼び直す分岐）を触った回は重めを1回回す**（[LESSONS.md](./LESSONS.md) §4.2x）。
+
 ## 2026-09-12 — 🏁**PLAN §5.5 を廃止**＝全項目を観測して §5.3／§5.1／LESSONS へ移設（第294バッチ 続き）
 
 ### なぜ節ごと無くしたか

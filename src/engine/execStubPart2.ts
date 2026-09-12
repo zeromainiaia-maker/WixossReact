@@ -24,6 +24,8 @@ import { allAcceCards } from '../utils/acce';
 import { applyCoinGain } from './coinGain';
 import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
 import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
+// 🆕§5.3 `O-350`＝`USE_OWN_LRIG_ABILITY_FREE` の候補に**付与されたエクシード能力**を含めるための funnel。
+import { collectGrantedLrigEffects } from '../screens/battle/lrigActivateGate';
 import {
   markTurnEndFacedownTrashIfOccupied,
   moveFieldSigniFacedown,
@@ -3850,18 +3852,44 @@ export function execStubPart2(
     ].filter((n): n is string => !!n);
     type CandUOLA = { lrigNum: string; effect: import('../types/effects').CardEffect };
     const candsUOLA: CandUOLA[] = [];
+    // 🆕🔴**§5.3 `O-350`（2026-09-12）＝自己除外＋再入チェーン。**
+    //   `WX22-014-E3` は**自分自身がエクシード能力**なので、除外しないと候補に自分が入り、
+    //   さらに「候補が1つなら CHOOSE を挟まず即実行する」分岐と噛み合って**確定で無限再帰**した
+    //   （`npm run fuzz -- --games 2000 --moves 80` で `Maximum call stack size exceeded` × 14）。
+    //   ⚠**軽い fuzz（ゲート同梱）では出ない**＝キーが場に無い盤面で E3 が撃てる局面が要る。
+    const chainUOLA = ctx.freeLrigAbilityChain ?? [];
+    const seenUOLA = new Set<string>();
+    const pushCandUOLA = (lrigNum: string, e: import('../types/effects').CardEffect): void => {
+      if (e.effectType !== 'ACTIVATED') return;
+      const exceed = e.cost?.exceed;
+      // 🔴**エクシード能力に限る**＝`exceed` が無い【起】まで拾うと「コストなしで何でも撃てる」になる。
+      if (exceed === undefined) return;
+      if (stub.maxExceed !== undefined && exceed > stub.maxExceed) return;
+      // 🔴**いま解決中の能力自身は候補にしない**（＝「他のエクシード能力１つ」）。
+      if (e.effectId && e.effectId === ctx.sourceEffectId) return;
+      if (e.effectId && chainUOLA.includes(e.effectId)) return;
+      if (e.effectId && seenUOLA.has(e.effectId)) return;
+      if (e.effectId) seenUOLA.add(e.effectId);
+      candsUOLA.push({ lrigNum, effect: e });
+    };
     for (const lrigNum of lrigNumsUOLA) {
       const base = getCardNum(lrigNum);
       const effs = ctx.effectsMap?.get(lrigNum) ?? ctx.effectsMap?.get(base)
         ?? ctx.cardMap.get(base)?.effects
         ?? (ctx.cardMap.get(base) ? parseCardEffects(ctx.cardMap.get(base)!) : []);
-      for (const e of effs) {
-        if (e.effectType !== 'ACTIVATED') continue;
-        const exceed = e.cost?.exceed;
-        // 🔴**エクシード能力に限る**＝`exceed` が無い【起】まで拾うと「コストなしで何でも撃てる」になる。
-        if (exceed === undefined) continue;
-        if (stub.maxExceed !== undefined && exceed > stub.maxExceed) continue;
-        candsUOLA.push({ lrigNum, effect: e });
+      for (const e of effs) pushCandUOLA(lrigNum, e);
+    }
+    // 🆕🔴**付与されたエクシード能力も「このルリグのエクシード能力」**（2026-09-12・§5.3 `O-350`）。
+    //   `WX22-014`（共闘の鍵主　ウムル＝フィーラ）の相方は**キー `WX22-006`《差し伸べし者　タウィル》**で、
+    //   あちらが `GRANT_LRIG_ABILITY` で**エクシード２の【起】を2本センタールリグへ付ける**＝
+    //   E3 が無償で撃つ相手は印字能力ではなく**この付与分**（印字側は E3 自身しか無い）。
+    //   ⇒ 自己除外だけを足すと **E3 が恒久 no-op** になる（LESSONS「恒久 no-op は下流のバグを隠す」）。
+    //   🔑収集は人間／CPU と同じ funnel（`collectGrantedLrigEffects`＝付与ストア3源をまとめる）を使う。
+    const centerLrigUOLA = ctx.ownerState.field.lrig.at(-1);
+    if (centerLrigUOLA && ctx.effectsMap) {
+      for (const e of collectGrantedLrigEffects(
+        ctx.ownerState, ctx.otherState, ctx.isOwnerTurn ?? true, ctx.effectsMap, ctx.cardMap)) {
+        pushCandUOLA(centerLrigUOLA, e);
       }
     }
     // 再入（CHOOSE で選ばれた1本）＝carriedCardNum/carriedEffectId で1件へ絞る。
@@ -3881,6 +3909,13 @@ export function execStubPart2(
     const runUOLA = (c: CandUOLA, base: ExecCtx): ExecResult => exec(freeOf(c), {
       ...addLog(base, `${base.cardMap.get(getCardNum(c.lrigNum))?.CardName ?? c.lrigNum}の能力をコストなしで使用`),
       sourceCardNum: c.lrigNum, sourceEffectId: c.effect.effectId,
+      // 🔴**§5.3 `O-350`**＝この解決チェーンで無償使用した能力を積む（相互再帰の停止）。
+      //   ⚠`ctx.sourceEffectId` も入れる＝再入した先では自分がチェーンの一員になる。
+      freeLrigAbilityChain: [
+        ...chainUOLA,
+        ...(ctx.sourceEffectId ? [ctx.sourceEffectId] : []),
+        ...(c.effect.effectId ? [c.effect.effectId] : []),
+      ],
     });
     if (candsUOLA.length === 1) return runUOLA(candsUOLA[0], ctx);
     // 🔴**複数あるなら選ばせる**（「能力**１つ**を」）＝先頭を勝手に撃つと別の能力に化ける。

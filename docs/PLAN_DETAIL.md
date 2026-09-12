@@ -994,6 +994,25 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
 
+### 恒久指標（退避）2026-09-12 第295バッチ 前（＝第294バッチ直後の値）
+
+- **2026-09-12 時点**＝第294バッチ（§5.5 の全数再測）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**（未監査 **0 / 6,032**＝全11シート 100% 監査済）｜**census 高シグナル 1 / BASELINE 1**。
+  📦**在庫**＝**機構 worklist 🔥9項目**（`O-348` 索引A／`O-343`・`O-345` 索引B／`O-344`・`O-346`・`O-347`・`O-349`・`O-350` 索引G／`O-351` 索引E）｜**実機 🔥1件**（`V-213`）｜**実装キュー 🏁0**｜🏁**§5.5 は廃止**（2026-09-12＝全項目を移設。「低優先」という置き場が測り直せない数字の溜まり場になっていた）。
+  🔧**ゲート（全緑 ✅）**＝**golden 4044 PASS**（据置）／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1／
+  🆕🔴**fuzz 重め（`--games 2000 --moves 80`）＝CRASH 14件**（`WX22-014-E3` の自己再帰＝`O-350`。seed 12648430）＝**ゲート同梱の軽い fuzz では出ない**／
+  census:stubs A群 0・C群 0・🆕**E群（条件側の生ID露出）0**・🆕**F群（STUB ラベルへの内部識別子の漏れ）0**（今回 56箇所/32 id → 0）／
+  census:enginetext A群 0行 0ハンドラ（miss 0）⚠**この 0 は部分的に見かけだけ＝`O-343`**（B群56行のうち18行以上が実は SELF_TEXT）／
+  census:costtext A群 0規則（真 worklist 0カード・死に規則 0本）／🆕**census:payloadkeys 未判定 56種 / 145ノード＝BASELINE 56**／
+  🆕**census:numberdrift 77効果＝BASELINE 77**（⚠精度＝真バグ20%/表示45%/偽陽性35%＝件数をバグ数と読まない）／census:deadstate 0／
+  check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）／typecheck 0。
+  📐**その他のラチェット**＝同型★ **2グループ / 4枚**（`node scripts/groupSimilar.mjs --all`）／
+  🆕**逆翻訳の英語ID漏れ 299カード / 323箇所 / 209種**（`node scripts/_stubLeakScan.mjs`＝**340箇所から -17**。
+  内訳は 日本語ラベル STUB 319／`DEFERRED_*` 4／**条件側 0**／**内部識別子の漏れ 0**）／逆翻訳の生 JSON 漏れ **0**／golden 型カバレッジ 未カバー **0**。
+  🔑**ゲート外の計器（在庫ではない）**＝census:timing **4効果**（live は manual で実装済み＝計器が fresh parser しか見ない）／
+  census:wiring **miss 33セル**（抜き取り6件すべて別の正準形で配線済み）／`_bqTriage` 高シグナル **23件**（⛔休眠・枯渇済み）。
+  ⚠**3計器が動かないことを「停滞」と読まない**＝どの計器も見ていない形（表示層・機構待ち）を直した回は据置になる。
+
 ### 恒久指標（退避）2026-09-12 第294バッチ 前（＝第293バッチ直後の値）
 
 - **2026-09-12 時点（本ブロックが直近の正）**
@@ -14399,6 +14418,42 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 🔑**3件まとめて1バッチで取る**＝固定費（探索・配送・ゲート・簿記）は**バッチ回数に比例**し、効果数には比例しない。
 ⚠**無言 no-op ではない**（`census:stubs` A群🔴 が0を保証＝`DEFERRED_` 命名の効果は「宣言済み」枠に入る）。
 
+### 🏁`O-350` — 🔴無償使用の**無限再帰**（CRASH）＝**2026-09-12 第295バッチでクローズ**
+
+**結果＝`npm run fuzz -- --games 2000 --moves 80` の CRASH 14 → 0**（seed 12648430 / 1 / 7 / 99 / 4242 / 777777 の6本＝計12,000ゲームで 0）。
+🔴**真因は2つあった**（登録票に書いてあったのは①だけ。②は①を直したら露出した＝14 → **10** → 0）。
+
+**① `USE_OWN_LRIG_ABILITY_FREE` の自己除外なし**（`execStubPart2.ts`）
+候補列挙が「`ACTIVATED` かつ `cost.exceed` がある能力」なので **`WX22-014-E3` 自身が候補に入り**、
+「候補が1つなら `CHOOSE` を挟まず即実行する」分岐と噛み合って**確定で自己再帰**した。
+⇒ `ctx.sourceEffectId` と一致する候補を外し、さらに **`ExecCtx.freeLrigAbilityChain`**（この解決チェーンで
+無償使用した effectId の列）を足して**相互再帰（A→B→A）も止める**。
+
+🔑🔴**登録票の「取り方」どおりに自己除外だけを足すと、このカードは恒久 no-op になる。**
+`WX22-014`（共闘の鍵主　ウムル＝フィーラ）の**印字のエクシード能力は E3 自身しか無い**＝候補が永久に0。
+原文「このルリグのエクシード能力１つ」が指しているのは、相方のキー **`WX22-006`《差し伸べし者　タウィル》**が
+`GRANT_LRIG_ABILITY` で**センタールリグへ付ける エクシード２の【起】2本**のほう。
+⇒ 候補源に**付与ストア**を足した（`collectGrantedLrigEffects`＝人間 UI／CPU と同じ funnel＝
+`collectLrigGrantedEffects` ＋ `lrig_granted_auto_effects` ＋ `..._until_opp_turn` の3源）。
+
+**② `CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM` の段カウンタが「飛ばした印」を捨てる**（`execStubPart3.ts`・`WX21-028-E2`）
+候補の居ないゾーンは**空文字を1段として積んで**飛ばす設計だったのに、読み手が `value2.split(',').filter(Boolean)` で
+**その空文字を捨てて**段数にしていた＝**段が進まず同じゾーンへ無限に再入**した
+（しかも1段目が空だと `[''].join(',')` が falsy な `''` になり `value2` ごと消える）。
+⇒ **段は `stub.value`（数値）で数え、`value2` には実際に選べた対象だけを積む**形へ分離した。
+⚠**相手の 場／エナ／トラッシュ のどれかが空なら必ず踏む**＝盤面が育つ重め fuzz でしか出なかっただけ。
+
+**検証**＝`npm run gates` 全緑（**golden 4046 PASS**＝+2）／`npm run smoke` 10754 OK／重め fuzz 6シード CRASH 0。
+**反転確認 ✅**＝①自己除外を外すと golden (b) が `候補 2 → 3`（E3 自身が混ざる）で FAIL／
+②段カウンタを旧式へ戻すと golden が `Maximum call stack size exceeded` で FAIL。
+⚠**実機は不要と判定**（§2.2）＝触ったのは `src/engine/` のみ（`src/screens/` からは funnel を import しただけ）。
+
+🆕🔑**教訓＝「軽い fuzz が緑」は「再帰しない」の証拠ではない。**
+ゲート同梱の `npm run fuzz` は `200ゲーム × 40手`で、今回の2件はどちらも**盤面が育たないと踏めない**。
+⇒ **engine の再入経路（ハンドラが自分で `exec` を呼び直す分岐）を触った回は `--games 2000 --moves 80` を1回回す。**
+
+<details><summary>（クローズ前の登録票・原文）</summary>
+
 ### 🆕`O-350` — 🔴`USE_OWN_LRIG_ABILITY_FREE` が**自分自身を候補に含めて無限再帰**（CRASH）
 
 **規模 S。母集団＝実測 2効果 / 2カード**（`USE_OWN_LRIG_ABILITY_FREE` の live 件数）。
@@ -14416,6 +14471,8 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 **取り方**＝①候補から**発動中の効果自身**を外す（`sourceEffectId`／`sourceCardNum` の両方で照合）
 ②念のため再入の深さに上限を置く ③**golden に「自分だけが候補のとき候補0になる」反転を1本張る**
 ④**`npm run fuzz -- --games 2000 --moves 80` を回して CRASH 0 を確認**（軽い fuzz では検証にならない）。
+
+</details>
 
 ### 🆕`O-351` — STUB ラベルが原文を忠実に説明しているかの**検出器が無い**（索引 E・計器の較正）
 

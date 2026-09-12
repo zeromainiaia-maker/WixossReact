@@ -2481,7 +2481,13 @@ export function execStubPart3(
     const specCZ = stub.crossZoneTriple;
     if (!specCZ) return done(addLog(ctx, '[3ゾーン対象: 内容が無いため何もしない]'));
     const pickedCZ: string[] = stub.value2 ? stub.value2.split(',').filter(Boolean) : [];
-    const stageCZ = pickedCZ.length;
+    // 🆕🔴**§5.3 `O-350`（2026-09-12）＝段数は「選べた枚数」と別に数える。**
+    //   旧実装は `value2` の要素数を段数にしつつ、**空文字（＝候補が居ないゾーンを飛ばした印）を
+    //   `filter(Boolean)` で捨てていた**＝飛ばしても段が進まず**同じ段を無限に再入**した
+    //   （`''.join(',')` が falsy な `''` になるので、1段目が空なら `value2` ごと消える）。
+    //   ⇒ `npm run fuzz -- --games 2000 --moves 80` で `Maximum call stack size exceeded` × 10。
+    //   ⚠**相手の場・エナ・トラッシュのどれかが空**なら必ず踏む（＝軽い fuzz でも運次第で出る形）。
+    const stageCZ = typeof stub.value === 'number' ? stub.value : pickedCZ.length;
     // ── 段0〜2＝相手の 場／エナ／トラッシュ から1枚ずつ宣言する。
     if (stageCZ < 3) {
       const zonesCZ: Array<{ cands: string[]; scope: TargetScope; label: string }> = [
@@ -2492,12 +2498,12 @@ export function execStubPart3(
       const zCZ = zonesCZ[stageCZ];
       // ⚠**候補が無いゾーンは飛ばす**（原文「1枚を対象とし」＝居なければその枠は取れない）。
       if (zCZ.cands.length === 0) {
-        return exec({ ...stub, value2: [...pickedCZ, ''].join(',') } as StubAction as EffectAction, ctx);
+        return exec({ ...stub, value: stageCZ + 1, value2: pickedCZ.join(',') } as StubAction as EffectAction, ctx);
       }
       return needsInteraction(addLog(ctx, `${zCZ.label}から1枚を対象にする`), {
         type: 'SELECT_TARGET', candidates: zCZ.cands, count: 1, optional: false, targetScope: zCZ.scope,
         thenAction: ({ type: 'STUB', id: 'INTERNAL_CZT_PICKED', crossZoneTriple: specCZ,
-          value2: pickedCZ.join(',') } as StubAction) as EffectAction,
+          value: stageCZ, value2: pickedCZ.join(',') } as StubAction) as EffectAction,
       });
     }
     // ── 段3＝コスト（エナから指定色の＜story＞のシグニを1枚ずつデッキへ）。
@@ -2539,12 +2545,15 @@ export function execStubPart3(
   }
   // INTERNAL_CZT_PICKED: `CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM` の各段の確定（選んだ1枚を積んで再入）。
   if (stub.id === 'INTERNAL_CZT_PICKED') {
-    // ⚠**空文字も1段として積む**（候補が居ないゾーンを飛ばした印）＝段数を「配列長」で数えているため。
-    const prevCZP = stub.value2 ? stub.value2.split(',') : [];
-    const gotCZP = ctx.lastProcessedCards?.[0] ?? '';
+    // 🔴**§5.3 `O-350`**＝段は `value` で数え、`value2` には**実際に選べた対象だけ**を積む
+    //   （旧は空文字を段の印として `value2` へ積んでいたが、読み手が `filter(Boolean)` で捨てていた）。
+    const prevCZP = stub.value2 ? stub.value2.split(',').filter(Boolean) : [];
+    const stagePrevCZP = typeof stub.value === 'number' ? stub.value : prevCZP.length;
+    const gotCZP = ctx.lastProcessedCards?.[0];
     return exec({ type: 'STUB', id: 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM',
       crossZoneTriple: stub.crossZoneTriple,
-      value2: [...prevCZP, gotCZP].join(','),
+      value: stagePrevCZP + 1,
+      value2: [...prevCZP, ...(gotCZP ? [gotCZP] : [])].join(','),
     } as StubAction as EffectAction, ctx);
   }
   if (stub.id === 'REVEAL_COUNT_PLUS_ONE_OPTIONAL') {
