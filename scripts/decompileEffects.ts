@@ -1602,9 +1602,15 @@ function actionJa(a?: Action, effectType?: string): string {
       const hostFilJaAA = a.targetFilter ? filterJa(a.targetFilter) : '';
       // 🆕repeatWhilePossible＝「好きな枚数を好きな数のシグニの【アクセ】にする」（落とすと1×1に読める）。
       const cntJaAA = a.repeatWhilePossible ? ['好きな枚数の', '好きな数の'] : ['', ''];
-      const tailAA = a.repeatWhilePossible ? '' : '1枚を、あなたの場の';
+      // 🆕§5.5（2026-09-12・第294バッチ後半）＝装着先の持ち主は **`targetSigniOwner` から描く**。
+      //   🔴旧実装は `'あなたの場の'` を**具体値で焼き込んで**おり、`targetSigniOwner` を一度も読んでいなかった
+      //   （live 34件は全部 `self` なので**たまたま合っていただけ**＝`opponent` が来たら黙って嘘になる）。
+      //   ⚠これは LESSONS「既定値が具体値なら原文に無い値の焼き込みを疑う」そのもの＝`npm run census:payloadkeys` が
+      //   「live に在るのに逆翻訳が一度も言及しないキー」として出した。
+      const hostOwnerJaAA = ownerJa(a.targetSigniOwner ?? 'self') || 'あなたの';
+      const tailAA = a.repeatWhilePossible ? '' : `1枚を、${hostOwnerJaAA}場の`;
       if (a.repeatWhilePossible) {
-        return `${srcJaAA}から${cntJaAA[0]}${acceFilJaAA}シグニを、あなたの場の${cntJaAA[1]}${hostFilJaAA}シグニの【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
+        return `${srcJaAA}から${cntJaAA[0]}${acceFilJaAA}シグニを、${hostOwnerJaAA}場の${cntJaAA[1]}${hostFilJaAA}シグニの【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
       }
       void tailAA;
       // 🆕**`optional` と `targetsLastProcessed` を描く**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
@@ -1612,7 +1618,7 @@ function actionJa(a?: Action, effectType?: string): string {
       //   原文「それをこの方法で場に出したシグニの【アクセ】にしても**よい**」の
       //   ①**任意である**こと ②**装着先が直前に出したシグニに固定**であること が両方消えていた。
       const hostJaAA = (a.targetsLastProcessed || a.targetsStored)
-        ? 'この方法で場に出したシグニ' : `あなたの場の${hostFilJaAA}シグニ1体`;
+        ? 'この方法で場に出したシグニ' : `${hostOwnerJaAA}場の${hostFilJaAA}シグニ1体`;
       return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、${hostJaAA}の【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'FIELD_SIGNI_TO_ACCE': {
@@ -2058,10 +2064,32 @@ function actionJa(a?: Action, effectType?: string): string {
       //   🔴**JSON も engine も正しいのに逆翻訳だけが「0枚」と嘘をつく**形＝原文照合が効かなくなる
       //   （`PR-238`＝原文「ルリグトラッシュに置かれたカード１枚につき…５枚」／
       //    `WX25-CP1-087`＝原文「それらのシグニ１体につき…１枚」の2枚3箇所が「0枚」と出ていた）。
-      if (a.countPerStoredTargets !== undefined)
-        return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から、この方法で対象にしたカード1枚につき${numJa(a.countPerStoredTargets)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
-      // optional＝原文「〜トラッシュに置いてもよい」（続き417 で任意デッキミルをここへ寄せた）
-      return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
+      // 🆕🔴**MILL の「枚数の出どころ」は6キーある**（2026-09-12・§5.5 第294バッチ後半）。
+      //   初版は `count` しか描かず、**8カード9箇所が全部嘘**だった＝
+      //   `countPerStoredTargets`/`countPerLastProcessed`/`countPerSourceLevel` は `count:0` なので「**0枚**」、
+      //   `untilFilter` は `count:999` なので「**999枚**」、`alsoOpponent` は**相手側のミルが丸ごと消える**。
+      //   🔑**JSON も engine も正しいのに逆翻訳だけが嘘をつく**形＝原文照合（主軸の検査）が効かなくなり、
+      //   読んだ人が「実バグだ」と誤判定して**偽の worklist を作る**（私も最初そう読んだ）。
+      //   ⚠**新しい枚数キーを足したら必ずここにも足す**（`npm run census:payloadkeys` のラチェットが守る）。
+      {
+        // 「各プレイヤーは自分のデッキから」＝`alsoOpponent`（`owner` 側＋相手側の両方）。
+        const who = a.alsoOpponent ? '各プレイヤーは自分の' : ownerJa(a.owner);
+        const where = `デッキの${a.fromBottom ? '下' : '上'}から`;
+        const tail = `トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
+        // ① 対象にしたカード1枚につき（`storedTargetCards.length × per`＝`effectExecutor.ts:10001`）
+        if (a.countPerStoredTargets !== undefined)
+          return `${who}${where}、この方法で対象にしたカード1枚につき${numJa(a.countPerStoredTargets)}枚${tail}`;
+        // ② この方法で処理したカード1枚につき（`lastProcessedCards.length × per`）
+        if (a.countPerLastProcessed !== undefined)
+          return `${who}${where}、この方法で処理したカード1枚につき${numJa(a.countPerLastProcessed)}枚${tail}`;
+        // ③ 効果元のレベル1につき（`WXDi-P02-034` の付与先＝「このシグニのレベル１につき」）
+        if (a.countPerSourceLevel !== undefined)
+          return `${who}${where}、このシグニのレベル1につき${numJa(a.countPerSourceLevel)}枚${tail}`;
+        // ④ 条件を満たすカードがN枚置かれるまで（`count` は 999 の番兵＝描かない）
+        if (a.untilFilter !== undefined)
+          return `${who}${where}${filterJa(a.untilFilter)}カードが${numJa(a.untilCount ?? 1)}枚トラッシュに置かれるまでカードを${tail}`;
+        return `${who}${where}${numJa(a.count)}枚${tail}`;
+      }
     // 🆕`upToCount`＝原文「N枚**まで**」（2026-09-06・§5.2 round4 O-A triage・`WX07-026-E1`）。
     //   ⚠描かないと「1枚固定 → 0〜N の選択」に直したこと自体が逆翻訳から読めない（LESSONS §4.2）。
     case 'LIFE_CRASH': return a.triggerBurst === false
