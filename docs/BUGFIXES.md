@@ -1,5 +1,67 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — PLAN §5.1 実機 `V-203`／`V-205` を返済（第287バッチ・実機が `SigniSummonZoneModal` の穴を1件出した）
+
+**着手の形**＝ユーザー指定「§5.1 実機で確かめる（`V-nn`）★①＝溜める前に返す を行う」。
+第283バッチが登録して**4巡寝かせた** `V-203`〜`V-206` のうち **2件を返済**（残2＝`V-204`／`V-206`）。
+🔑**環境は障害ではなかった**＝既存 PLAYING ルームの再利用で **1本 1〜9秒**（第283 が書いた「回せなかった」理由は解消済み）。
+
+### 返済1：`V-203`＝「パワー12000以上のシグニによってダメージを受けない」（`WX25-P2-008-E1`）
+
+| | |
+|---|---|
+| 触った地点（第283） | `BattleScreen.tsx` の `crashOneLife` へ `damageSource.power` を渡す3行 ＋ `battleUtils.hasActivePreventDamageWindow(state, scope, sourcePower)` |
+| なぜ golden で足りないか | 述語を直接叩けるので**画面がパワーを渡していなくても緑**（`V-198` と同じ型） |
+| シナリオ | `v203PowerGtePreventsDamage`（本命）／`v203PowerBelowThresholdCrashes`（対照）＝**盤面は完全に同一**で、注入する window の `sourcePowerGte` だけを **12000／20000** で振る |
+| 🔑1ビット反転の作り方 | **攻撃者は替えられない**＝バニラのレベル4シグニは**全部パワー15000**で、12000 未満のバニラは Lv3 しかない（レベルも一緒に動く＝DRIVE_TRAPS §4.4-25f）⇒ **閾値側で振った**（新トラップ §4.4-87） |
+| ⚠原因の限定 | 同じターンの**ルリグアタック**でもライフは減り、そちらは `power` を持たない（`sourcePowerGte` つき window では fail-closed で通る）＝**「極剣　ゴッドイーターがライフをクラッシュ」の行**を witness にした（新トラップ §4.4-86） |
+| 反転確認（2通り＝対照の本数ぶん） | ①`crashOneLife` の `damageSource?.power` を落とす → **本命だけ赤**（「`damageSource.power` が渡っていない疑い」と正しく診断）／②`hasActivePreventDamageWindow` の閾値比較を `return true` にする → **対照だけ赤**。どちらも1行の逆置換で復元（§4.4-61） |
+
+### 返済2：`V-205`＝追加ターンのメインでは手札から召喚できない（`WXK05-001-E2`）
+
+| | |
+|---|---|
+| 触った地点（第283） | `turnScopedState.advanceSigniDeployBans`（`fromNextTurn` をターン境界で落とす）＋`SigniDeployBan.bySource:'normal_summon'` |
+| シナリオ | `v205ExtraTurnDeployBanBlocks`（ban 有効）／`v205ExtraTurnDeployBanNotYetActive`（`fromNextTurn:true`＝まだ効かない）＝**`fromNextTurn` の1ビットだけ**を振る（`turnsRemaining` は両方 2） |
+| 判定 | 「召喚ボタンが出るか」では**見ない**（§4.4-47）＝配置ゾーンモーダルまで開き、**`summon-zone-*` の enabled／disabled** と**最後まで置き切れたか**の両方で見る |
+
+🔴🔑**この実機が UI 層の穴を1件出した（その場で修正）**
+
+| | |
+|---|---|
+| 真因 | `SigniSummonZoneModal` が `deployLimitBlockReason` の**3つの理由だけ**（`POWER_LIMIT`／`COUNT_LIMIT`／`ZONE_LEVEL_RESTRICT`）を `isDisabled` に入れていた |
+| 症状 | `SOURCE_BAN`（この項目の本題）・`NAME_BAN`・`ALL_BAN`・`ONLY_BY_NAMED_EFFECT` は**ゾーンボタンが enabled のまま**で、`handleSummonSigni` が**無言 `return`**＝**押しても何も起きず理由も出ない**（実機の初回実行が `zones=[true,true,true] placed=false` で落ちて発覚） |
+| 影響 | 手札からの通常召喚を禁止する live の全効果（`signi_deploy_bans` を張る形すべて）。**禁止自体は効いていた**＝engine は正しく、**画面だけが嘘**（§4.4-64／§4.4-37 と同型） |
+| 直し方 | **「null でなければ置けない」という関数の契約どおり `deployBlock !== null` で落とす**（列挙式に戻さない＝新しい理由が増えても自動で落ちる）。枠線・ラベル色の条件も同じ式へ揃え、ラベルに理由（`この出し方は禁止`／`同名は出せない`／`新たに出せない`／`出撃条件を満たさない`）を出した |
+| 反転確認 | **実測済み**＝修正前の実機が `zones=[true,true,true]` で FAIL（＝このシナリオに判別力がある）→ 修正後 `zones=[false,false,false]` で PASS |
+
+### 併せて直したドライバ側の2件（どちらも新トラップへ登録）
+
+- 🔴**手札は `my-hand-card-N` の testid で開く**（§4.4-84）＝`img[alt=カード名]` は常設ストリップと二重に描かれて掴めず、**20ティック／80秒まるごと空振り**した。probe 1回（§4.4-35）で即断できた。
+- 🔴**witness を `H.findLog`（DOM の innerText）で取ると単体 PASS・一括 FAIL のフレークになる**（§4.4-85）＝ログ欄の表示件数とスクロール位置に依存する。⇒ **`H.queryState().logTail`（DB 側 `game_logs`）から探す**ように変えた（4本連続実行で再現した1件がこれで消えた）。
+
+### 観測面の追加（§4.4-71 の作法）
+
+`H.queryState()` に2つ足した＝**`preventDamageWindows`**（`scope/expires/>=N`）と **`signiDeployBans`**（`turnsRemaining/next/bySource`）。
+🔴どちらも**盤面差分では切り分けられない軸**＝前者は「window が無い」と「パワーが渡っていない」、
+後者は「まだ効いていない（正しい）」と「配線されていない」が同じ絵になる。
+
+### 検証
+
+- **実機 4/4 PASS**（`v203PowerGtePreventsDamage` 9s ／ `v203PowerBelowThresholdCrashes` 1s ／ `v205ExtraTurnDeployBanBlocks` 5s ／ `v205ExtraTurnDeployBanNotYetActive` 5s）。**4本連続でも全緑**（§4.4-54 の位置依存を確認）。`order` に常設した。
+- `npm run gates` **全緑**（typecheck／golden 4025 PASS／smoke 10752／fuzz 0／census 高シグナル 1/1／stubs A・C群 0／manual-fields 0／enginetext・costtext A群 0／lint 0 errors）。
+
+### 残り
+
+🔥**`V-204`／`V-206` は未着手**（PLAN §5.1 に残す）。
+- `V-204` は**デッキ編集画面**＝`verifyBattleDrive.mjs` は PLAYING ルーム前提なので**ハーネスの新設が要る**
+  （`rooms.status` を一時的に PLAYING 以外へ落として戻す／一時デッキを作って消す、のどちらか）。
+- `V-206` は**スペル使用＋アクセ化の対話ループ＋ターン終了時の遅延**で1本に3段の対話が入る。
+  ⚠**`WXK04-033` はアーツではなくスペル**で `Restriction` が「エルドラ限定」＝センタールリグを＜エルドラ＞
+  （`WX02-010` エルドラ×マークⅢ＝効果なし・リミット8）にしないと「発動」が出ない（§4.4-8k）。
+  ＜調理＞のバニラは `WD18-010`(Lv3緑) / `WD18-012`(Lv2緑) / `WXK04-077`(Lv3青) / `WXK04-079`(Lv2青) の4枚＝
+  **ホストを場・アクセ元をトラッシュに置く材料は揃っている**（青エナ4枚は `WX01-075` で足りる）。
+
 ## 2026-09-12 — PLAN §5.0 実装キューの残123効果を全数処理（第286バッチ・109件は「未修正」ではなく「未記録」だった）
 
 **着手の形**＝ユーザー指定「§5.0 実装キュー（triage 済みの確定バグ）の**残123効果**をすべて処理する」。

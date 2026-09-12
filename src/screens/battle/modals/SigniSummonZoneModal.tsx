@@ -239,16 +239,23 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                 });
                 const overPowerLimit = deployBlock === 'POWER_LIMIT';
                 const overCountLimit = deployBlock === 'COUNT_LIMIT';
-                // 🆕`ZONE_LEVEL_RESTRICT`＝そのゾーンだけ置けない（他ゾーンは置ける）＝ボタン単位で落とす。
-                //   ⚠旧はこのモーダルに判定が無く、押せてしまってから `handleSummonSigni` が黙って弾いていた。
-                const zoneLevelBlocked = deployBlock === 'ZONE_LEVEL_RESTRICT';
+                // 🆕🔴**§5.1 `V-205`（2026-09-12 第287・実機が出した穴）＝`deployLimitBlockReason` の
+                //   **どの理由でも**ゾーンを落とす。** 旧実装は `POWER_LIMIT` / `COUNT_LIMIT` /
+                //   `ZONE_LEVEL_RESTRICT` の3つだけを見ていたので、`SOURCE_BAN`（`WXK05-001-E2` の
+                //   「追加ターンのメインフェイズの間、手札からシグニを場に出せない」）・`NAME_BAN`・`ALL_BAN`・
+                //   `ONLY_BY_NAMED_EFFECT` は**ボタンが押せるまま**で、`handleSummonSigni` が**無言 `return`**
+                //   していた＝**押しても何も起きず理由も出ない**（DRIVE_TRAPS §4.4-47／§4.4-64 と同型）。
+                // 🔑理由の網羅はここで列挙しない＝**「null でなければ置けない」**が `deployLimitBlockReason` の契約。
+                //   新しい理由が増えても自動で落ちる（列挙式に戻すと同じ穴が再発する）。
+                const deployBanned = deployBlock !== null;
+                // ⚠`ZONE_LEVEL_RESTRICT`（そのゾーンだけ置けない）は `deployBanned` に含まれる＝`zoneIndex` 付きで問うている。
                 // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）:
                 // 「新たに配置できない」ゾーン。《無》×N の支払い回避つきはエナが足りれば選べる（払って配置）。
                 // ⚠**空きゾーン型ライズは「新たに配置」なので対象**（場型ライズだけが上乗せ＝対象外）。
                 const zoneBlock = riseOnField ? undefined : findSigniZoneBlock(my, zi);
                 const zoneBlockCost = zoneBlock?.colorless ?? 0;
                 const zoneBlocked = !!zoneBlock && !resolveSigniZonePlacement(my, zi).allowed;
-                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked || zoneBlocked || zoneLevelBlocked ||
+                const isDisabled = loading || overLimit || deployBanned || forcedBlocked || zoneBlocked ||
                   (riseReq
                     ? (!riseConditionMet || !riseMaterialsAvailable || !riseMaterialsReady
                       || !riseFieldAvailable || !riseFieldReady)
@@ -264,14 +271,14 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                     disabled={isDisabled}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 8,
-                      border: zoneUnusable ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit || overCountLimit || zoneBlocked || zoneLevelBlocked) ? `1px solid ${C.danger}` : C.borderUI,
+                      border: zoneUnusable ? `1px solid ${C.textFaint}` : (overLimit || deployBanned || zoneBlocked) ? `1px solid ${C.danger}` : C.borderUI,
                       backgroundColor: isDisabled ? C.disabled : C.bgButton,
                       color: isDisabled ? C.textFaint : C.text,
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
                     <span>ゾーン{zi + 1}{riseReq ? (riseConditionMet ? ' (ライズ可)' : riseMultiField ? ' (未選択)' : ' (条件不一致)') : (zoneBlocked ? ' (配置禁止)' : forcedBlocked ? ' (正面強制)' : isOccupied ? ' (使用中)' : '')}</span>
-                    <span style={{ fontSize: 11, color: zoneUnusable ? C.textFaint : (overLimit || overPowerLimit || overCountLimit || zoneBlocked) ? C.danger : C.textDim }}>
+                    <span style={{ fontSize: 11, color: zoneUnusable ? C.textFaint : (overLimit || deployBanned || zoneBlocked) ? C.danger : C.textDim }}>
                       {riseReq
                         ? (!riseFieldAvailable ? '下敷き不足'
                           : !riseConditionMet ? (riseMultiField ? '下敷きに選ぶ' : '—')
@@ -279,7 +286,12 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                               : !riseMaterialsAvailable ? '材料不足'
                                 : !riseMaterialsReady ? '材料を選択'
                                   : 'ライズ')
-                        : (zoneBlocked ? (zoneBlockCost > 0 ? `《無》×${zoneBlockCost}不足` : '配置禁止') : forcedBlocked ? '正面のみ' : isOccupied ? '—' : overCountLimit ? '配置数制限' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : zoneBlockCost > 0 ? `《無》×${zoneBlockCost}を支払う` : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
+                        : (zoneBlocked ? (zoneBlockCost > 0 ? `《無》×${zoneBlockCost}不足` : '配置禁止') : forcedBlocked ? '正面のみ' : isOccupied ? '—' : overCountLimit ? '配置数制限' : overPowerLimit ? 'パワー制限'
+                          : deployBlock === 'SOURCE_BAN' ? 'この出し方は禁止'
+                            : deployBlock === 'NAME_BAN' ? '同名は出せない'
+                              : deployBlock === 'ALL_BAN' ? '新たに出せない'
+                                : deployBlock === 'ONLY_BY_NAMED_EFFECT' ? '出撃条件を満たさない'
+                                  : overLimit ? 'リミット超過' : zoneBlockCost > 0 ? `《無》×${zoneBlockCost}を支払う` : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
                     </span>
                   </button>
                 );

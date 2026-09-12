@@ -1079,6 +1079,171 @@ async function driveO60PlaceUnder(page, H, spec) {
   return { pass: false, detail: `決着せず（field=${JSON.stringify(fin?.host?.fieldSigni)}）` };
 }
 
+/**
+ * §5.1 `V-203`（2026-09-12・第287バッチ）の共通ドライバ（防ぐ側／通す側で共有）。
+ *
+ * CPU（guest）の**正面なしシグニアタック**が host のライフを削るかを見る。
+ * 🔴**`H.stdStep()` を呼ばない**（§4.4-53）＝フェイズ進行ボタンまで押すので、CPU が宣言する前に
+ *   フェイズを飛ばして「ライフが減らなかった＝防げた」という**偽の緑**を作る。
+ * ⚠**前提（witness）＝攻撃が実際に起きたか**を相手シグニのダウンで確かめる（§4.4-31）。
+ * ⚠**基準は spec の固定値**（`injectScenario` が `life_cloth` を7枚のフィラーへ張り直す＝§4.4-1）。
+ *   1回目の観測時点で既に減っていると差分がゼロに見えるので、7 を固定の基準にする（§4.4 冒頭の B22 と同じ作法）。
+ * ⚠**ライフが減る側は `field.check`（ライフバースト確認）が立つ**＝押して消化してから返す（§4.4-1 の後始末）。
+ */
+async function driveV203(page, H, { tag, expectCrash }) {
+  const LIFE_BASE = 7;
+  const st0 = await H.queryState();
+  H.log(`開始 hostLife=${st0?.host?.life}（基準${LIFE_BASE}） window=${JSON.stringify(st0?.host?.preventDamageWindows)}`
+    + ` guestSigni=${JSON.stringify(st0?.guest?.fieldSigni)} phase=${st0?.turnPhase} active=${st0?.activeUser?.slice(0, 8)}`);
+  if ((st0?.host?.preventDamageWindows ?? []).length === 0) {
+    return { pass: false, detail: `前提崩れ＝ダメージ防止ウィンドウが盤面に載っていない（${JSON.stringify(st0?.host?.preventDamageWindows)}）` };
+  }
+  let attacked = false;       // witness（sticky＝§4.4-8d）
+  let minLife = LIFE_BASE;    // ピーク（§4.4-66）
+  let preventLog = null;
+  let crashLog = null;        // 「シグニのアタックで削られた」ことの witness
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const st = await H.queryState();
+    // 🔴応答系ラベルは**対話中だけ**押す（§4.4-58）＝盤面常設の文言に当たって settled が永久に来ない。
+    const busy = (st?.stackLen ?? 0) > 0 || !!st?.pendingEffect || !!st?.host?.fieldCheck;
+    let did = null;
+    if (busy) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    if ((st?.guest?.signiDown ?? [])[0] === true) attacked = true;
+    minLife = Math.min(minLife, st?.host?.life ?? LIFE_BASE);
+    // 🔴**witness は DOM テキストではなく `logTail`（DB 側の `game_logs`）で取る**（§4.4-13／§4.4-16）＝
+    //   `H.findLog` は `document.body.innerText` を読むので、ログ欄の表示件数やスクロール位置に依存し、
+    //   **単体 PASS・一括だけ FAIL** の位置依存フレークになる（実測でこの1行が原因だった）。
+    preventLog = preventLog ?? ((st?.logTail ?? []).find(l => /ダメージ無効/.test(l)) ?? null);
+    // 🔴**削られた原因を「シグニのアタック」に限定する**＝同じターンの**ルリグアタック**でもライフは減り、
+    //   そちらは `damageSource.power` を持たない（＝`sourcePowerGte` つき window では fail-closed で通る）。
+    //   原因を見ないと、対照が**ルリグアタックのぶんで緑になる**（本題を1ビットも検証しない）。
+    // ⚠カード名の全角スペースは `\s*` で吸収する（§4.4-17）。
+    crashLog = crashLog ?? ((st?.logTail ?? []).find(l => /極剣\s*ゴッドイーター.*ライフ.*クラッシュ/.test(l)) ?? null);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life}/${LIFE_BASE}(min ${minLife})`
+      + ` atk=${attacked} check=${st?.host?.fieldCheck ?? '-'} preventLog=${!!preventLog}`
+      + ` phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+    if (!attacked) continue;                 // 攻撃が起きるまでは判定しない（§4.4-5）
+    const crashed = minLife < LIFE_BASE;
+    if (expectCrash) {
+      if (!crashed || !crashLog) continue;   // まだ削られていない／原因がシグニのアタックと確定しない＝待つ
+      // 後始末＝ライフバースト確認を消化してから返す（§4.4-1）。
+      for (let k = 0; k < 6; k++) {
+        const cur = await H.queryState();
+        if (!cur?.host?.fieldCheck) break;
+        await H.clickTextOrBtn(['エナに送る', 'しない', 'スキップ']);
+        await page.waitForTimeout(600);
+      }
+      return {
+        pass: true,
+        detail: `閾値（>=20000）に届かないパワー15000の**シグニのアタック**がライフを削った`
+          + `（hostLife ${LIFE_BASE}→${minLife}／原因ログ「${crashLog}」）`,
+      };
+    }
+    if (crashed) {
+      return {
+        pass: false,
+        detail: `🔴パワー15000（>=12000）のアタックでライフが減った（hostLife ${LIFE_BASE}→${minLife}）`
+          + `＝${preventLog ? 'window は当たっているのに削られている' : '`crashOneLife` に damageSource.power が渡っていない疑い'}`,
+      };
+    }
+    // 攻撃は起きた・ライフは減っていない＝もう少し待ってから確定（§4.4-13）。
+    if (s >= 8) {
+      if (!preventLog) {
+        return { pass: false, detail: `ライフは減っていないが防止ログが1行も出ていない＝アタックが解決していない疑い（phase=${st?.turnPhase}）` };
+      }
+      if (crashLog) {
+        return { pass: false, detail: `🔴防止ログは出ているのにクラッシュログも出ている（両方走っている）＝「${crashLog}」` };
+      }
+      return {
+        pass: true,
+        detail: `パワー15000（>=12000）のアタックでライフが減らない（hostLife=${minLife}／防止ログ「${preventLog}」／相手シグニはダウン＝アタックは実際に起きた）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return {
+    pass: false,
+    detail: `未完了（atk=${attacked} hostLife=${fin?.host?.life}/${LIFE_BASE} phase=${fin?.turnPhase} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）`,
+  };
+}
+
+/**
+ * §5.1 `V-205`（2026-09-12・第287バッチ）の共通ドライバ（縛られる側／縛られない側で共有）。
+ *
+ * 手札の Lv1 シグニを通常召喚し、**最後まで置き切るか**を見る。
+ * 🔴**「召喚ボタンが出るか」では判定しない**（§4.4-47）＝`handleSummonSigni` は無言 `return` なので
+ *   ボタンは出るのに置けない形がある。⇒ `summon-zone-*` の **enabled/disabled** と
+ *   **実際に場に載ったか**の両方を見る。
+ * ⚠手札カードは画面下部の常設ストリップとモーダルで二重に出る＝`clickModalImage`（`.last()`）で掴む。
+ */
+async function driveV205(page, H, { tag, expectPlaced }) {
+  const st0 = await H.queryState();
+  H.log(`開始 bans=${JSON.stringify(st0?.host?.signiDeployBans)} hand=${JSON.stringify(st0?.host?.handCards)}`
+    + ` field=${JSON.stringify(st0?.host?.fieldSigni)} phase=${st0?.turnPhase}`);
+  if ((st0?.host?.signiDeployBans ?? []).length === 0) {
+    return { pass: false, detail: `前提崩れ＝配置禁止が盤面に載っていない（${JSON.stringify(st0?.host?.signiDeployBans)}）` };
+  }
+  if (!(st0?.host?.handCards ?? []).some(c => String(c).startsWith('WD01-013'))) {
+    return { pass: false, detail: `前提崩れ＝召喚する札が手札に無い（${JSON.stringify(st0?.host?.handCards)}）` };
+  }
+  await H.ensureMain();
+  let summonSeen = false;      // 「召喚」ラベルを1度でも見たか（sticky）
+  let zoneModalSeen = false;   // 配置ゾーンモーダルを1度でも見たか（sticky）
+  let zoneEnabled = null;      // ゾーンボタンの enabled 状況（最後に観測した値）
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const st = await H.queryState();
+    const placed = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(c => String(c).startsWith('WD01-013#50')));
+    // ① 配置ゾーンモーダルが出ていれば、そこで enabled を読む（押すのは enabled のときだけ＝§4.4-19）。
+    const zoneBtns = page.locator('[data-testid^="summon-zone-"]');
+    const zoneCount = await zoneBtns.count().catch(() => 0);
+    if (zoneCount > 0) {
+      zoneModalSeen = true;
+      const states = [];
+      for (let i = 0; i < zoneCount; i++) {
+        const b = zoneBtns.nth(i);
+        states.push(await b.isEnabled().catch(() => false));
+      }
+      zoneEnabled = states;
+      const idx = states.findIndex(Boolean);
+      if (idx >= 0) await zoneBtns.nth(idx).click({ timeout: 2000 }).catch(() => {});
+      H.log(`  ${tag}[${s}] zoneModal zones=${JSON.stringify(states)} placed=${placed}`);
+    } else {
+      // ② 手札カードを開いて「召喚」を押す。
+      //   ⚠**手札は `my-hand-card-0` の testid で開く**（既存シナリオの定石）＝
+      //     `img[alt=カード名]` は画面下部の常設ストリップと二重に出て掴めない（実測で 80秒空振り）。
+      let did = await H.clickBtn('召喚', { exact: true });
+      if (did) summonSeen = true;
+      if (!did) did = await H.clickTestId('my-hand-card-0');
+      H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | summonSeen=${summonSeen} zoneModalSeen=${zoneModalSeen}`
+        + ` field=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+    }
+    if (placed) {
+      if (expectPlaced) {
+        return { pass: true, detail: `fromNextTurn の予約は張ったターンには効かない＝通常召喚が通った（field=${JSON.stringify(st?.host?.fieldSigni)} / zones=${JSON.stringify(zoneEnabled)}）` };
+      }
+      return { pass: false, detail: `🔴ban が有効なのに手札から場に出せた（field=${JSON.stringify(st?.host?.fieldSigni)} / zones=${JSON.stringify(zoneEnabled)}）` };
+    }
+    // ③ 置けない側の判定＝**モーダルまで到達したうえで**全ゾーンが disabled であること（§4.4-74）。
+    if (!expectPlaced && zoneModalSeen && Array.isArray(zoneEnabled) && zoneEnabled.length > 0
+        && !zoneEnabled.some(Boolean) && s >= 3) {
+      return {
+        pass: true,
+        detail: `ban が有効なターンは配置ゾーンが全て disabled＝手札から場に出せない（zones=${JSON.stringify(zoneEnabled)} field=${JSON.stringify(st?.host?.fieldSigni)}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return {
+    pass: false,
+    detail: `未完了（summonSeen=${summonSeen} zoneModalSeen=${zoneModalSeen} zones=${JSON.stringify(zoneEnabled)}`
+      + ` field=${JSON.stringify(fin?.host?.fieldSigni)} bans=${JSON.stringify(fin?.host?.signiDeployBans)}）`,
+  };
+}
+
 const scenarios = {
   // ── 🆕§5.3 `O-333`（2026-09-12・第285バッチ）＝コイン技の遡及的な無効化 ─────────────
   // 原文（`WX16-002-E4`／`-E4b`）＝「【出】／【起】オーネスト《コイン》《コイン》：
@@ -1239,6 +1404,145 @@ const scenarios = {
       }
       const fin = await H.queryState();
       return { pass: false, detail: `未完了（activated=${activated} 相手mods=${JSON.stringify(fin?.guest?.powerModsUntilOppTurn)}）` };
+    },
+  },
+
+  // ── 🆕§5.1 `V-203`（2026-09-12・第287バッチ）＝「パワー12000以上のシグニによるダメージを受けない」──
+  // 原文（`WX25-P2-008-E1`）＝「このターン、あなたはパワー12000以上のシグニによってダメージを受けない。」
+  // 🔴**触った地点**＝`BattleScreen.tsx` の `crashOneLife` へ `power` を渡す3行 ＋
+  //   `battleUtils.hasActivePreventDamageWindow(state, scope, sourcePower)`。
+  // 🔴**golden では原理的に緑になる**＝述語を直接叩けるので、**画面がパワーを渡していなくても通る**
+  //   （`V-198` と同じ型）。判定は「相手シグニのアタックでライフが減るか」だけ。
+  // 🔑**1ビット反転は「攻撃者」ではなく「閾値」**＝バニラのレベル4シグニは全部パワー15000で、
+  //   12000 未満のバニラは Lv3 しかない（レベルも一緒に動く＝§4.4-25f）。⇒ **盤面は完全に同一にして
+  //   window の `sourcePowerGte` だけを 12000／20000 で振る**。
+  //   ・`>=12000` なら 15000 の攻撃は止まる（本命）
+  //   ・`>=20000` なら 15000 の攻撃は通る（対照）＝閾値を比較せず「window があれば止める」実装を落とす
+  //   ・どちらの場合も **`power` が渡っていなければ本命が赤**（`sourcePowerGte` つき window は fail-closed）
+  // ⚠**前提（witness）＝アタックが実際に起きたこと**を必ず確かめる（§4.4-31）＝
+  //   相手シグニがダウンしたか。これが無いと「ライフが減らなかった」は**CPU が攻撃しなかっただけ**でも成立する。
+  // ⚠**`H.stdStep()` を呼ばない**（§4.4-53）＝フェイズ進行ボタンも押すので、CPU の宣言前に飛ばして偽の緑を作る。
+  v203PowerGtePreventsDamage: {
+    title: 'V-203 WX25-P2-008-E1（パワー12000以上のシグニのアタックではライフが減らない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        // 🔴guest zone0 の正面は **host zone2**（§4.4-8e）＝そこを空けて「正面なしアタック」にする。
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'prevent_damage_windows': [{ scope: 'ALL', expires: 'MY_TURN_END', sourcePowerGte: 12000 }],
+        hand: [], energy: [], lrig_deck: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        // 極剣　ゴッドイーター（Lv4・パワー15000・**バニラ**＝副作用で観測を汚さない＝§4.4-35b）。
+        'field.signi': [['WX01-053#1'], null, null],
+        'field.signi_down': [false, false, false],
+        hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      return await driveV203(page, H, { tag: 'v203prevent', expectCrash: false });
+    },
+  },
+
+  // 対照＝**盤面を1ビットも変えず**、window の閾値だけを 20000 にする（攻撃者は 15000 のまま）。
+  // 🔴これが無いと「window があれば何でも止める」実装（＝パワーを比較していない）でも本命だけは緑になる。
+  v203PowerBelowThresholdCrashes: {
+    title: 'V-203 対照：閾値（20000）に届かないパワーのアタックはライフを削る',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'prevent_damage_windows': [{ scope: 'ALL', expires: 'MY_TURN_END', sourcePowerGte: 20000 }],
+        hand: [], energy: [], lrig_deck: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        'field.signi': [['WX01-053#1'], null, null],
+        'field.signi_down': [false, false, false],
+        hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      return await driveV203(page, H, { tag: 'v203crash', expectCrash: true });
+    },
+  },
+
+  // ── 🆕§5.1 `V-205`（2026-09-12・第287バッチ）＝追加ターンのメインでは手札から召喚できない ──────
+  // 原文（`WXK05-001-E2`）＝「【起】リスタート《コイン》エクシード４：あなたはこのターンの次に、追加の１ターンを
+  //   得る。**この方法で追加されたターンのメインフェイズの間、あなたは手札からシグニを場に出せない。**」
+  // 🔴**触った地点**＝`turnScopedState.advanceSigniDeployBans`（`fromNextTurn` をターン境界で落とす）と
+  //   `SigniDeployBan.bySource:'normal_summon'`。
+  // 🔑**1ビット反転は `fromNextTurn` だけ**＝`{turnsRemaining:2, bySource:'normal_summon'}` を
+  //   ①`fromNextTurn:true` つき（＝張ったターン＝**縛られない**）②無し（＝追加ターン相当＝**縛られる**）
+  //   で振る。`turnsRemaining` も揃えてあるので、動くのは本当にこの1ビットだけ（§4.4-60）。
+  // ⚠**「召喚ボタンが出るか」で判定しない**（§4.4-47）＝`handleSummonSigni` は**無言 `return`** なので、
+  //   ボタンは出るのに何も起きない形がありうる。**配置ゾーンモーダルまで開き、最後まで置き切って盤面で見る。**
+  v205ExtraTurnDeployBanBlocks: {
+    title: 'V-205 WXK05-001-E2（ban が有効なターンは手札からシグニを場に出せない）',
+    spec: {
+      hostSet: {
+        // WD01-004（コード・ピルルク・Lv4）＝リミット十分。手札の Lv1 を出す想定。
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        // `fromNextTurn` **無し**＝この ban はいま効いている（＝追加ターンのメイン相当）。
+        'signi_deploy_bans': [{ turnsRemaining: 2, bySource: 'normal_summon', label: '追加ターン' }],
+        energy: ['WD01-013#40', 'WD01-013#41', 'WD01-013#42'],
+        lrig_deck: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      // 小剣　ククリ（Lv1・バニラ・限定なし）＝召喚できる札（§4.4-8k）。
+      handPrepend: ['WD01-013#50'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 4 },
+    },
+    async drive(page, H) {
+      return await driveV205(page, H, { tag: 'v205block', expectPlaced: false });
+    },
+  },
+
+  // 対照＝同じ ban に `fromNextTurn:true` を付けるだけ（＝張ったターンなので**まだ効かない**）。
+  // 🔴これが無いと「ban を常に効かせる（＝`fromNextTurn` を読み落とす）」実装でも本命だけは緑になる
+  //   ＝原文の「**この方法で追加されたターンの**メインフェイズの間」が死ぬ。
+  v205ExtraTurnDeployBanNotYetActive: {
+    title: 'V-205 対照：fromNextTurn の予約は張ったターンには効かない（召喚できる）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'signi_deploy_bans': [{ turnsRemaining: 2, fromNextTurn: true, bySource: 'normal_summon', label: '追加ターン' }],
+        energy: ['WD01-013#40', 'WD01-013#41', 'WD01-013#42'],
+        lrig_deck: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      handPrepend: ['WD01-013#50'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 4 },
+    },
+    async drive(page, H) {
+      return await driveV205(page, H, { tag: 'v205allow', expectPlaced: true });
     },
   },
 
@@ -21529,7 +21833,7 @@ const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
 // freezetrigger は続き41（Opus）で ON_SIGNI_FROZEN の resume 経路を配線して修正・単体PASS確認済み＝既定 order に復帰。
 // ⚠バッチ末尾の「自分ターン系」は既知の batch 限定状態汚染で FAIL しうる（driver 側の分離強化は別 follow-up）＝
 // FAIL が出たら該当を単体（`node scripts/verifyBattleDrive.mjs <id>`）で再実行して切り分けること。
-const order = ['v91refreshonce', 'wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'spellColorMarker', 'ontargeted', 'ontargeted2', 'ontargeted3', 'ontargeted4', 'ontargeted5', 'ontargetedUsageLimit', 'banishbyeffect', 'charmToTrash', 'charmToTrashBattle', 'exceedCost', 'exceedCostPay', 'lrigundermoved', 'keywordgained', 'powerzero', 'freezetrigger', 'freezetriggerUsageLimit', 'wd07012', 'cpugrow', 'cpugrowblocked', 'lrigGrowAnyOpp', 'lrigGrowAnyOppP03046', 'wxk10068banish', 'lrigattackstepstart', 'lrigAttackStepStartUsageLimit', 'beatBecomeSelfWDK14017', 'placedFront', 'placedFrontNegative', 'drawBySourceStory', 'leaveFieldToHand', 'oppDraw', 'refreshTrigger', 'oppPowerDecreased', 'energyToTrash', 'outsideDrawPhase', 'handDiscard', 'deployRestrict', 'acceAttach', 'acceSelfScope', 'acceOtherScope', 'onPlayAnyOpp', 'freezeLrig', 'negateAttackLrig', 'blockDrawByEffect', 'exileHandBlind', 'delayedAttackTrigger', 'revealDeckTopBanish', 'installDelayedTriggerFire', 'installByEffectFreeze', 'optionalTrashEnergyClassAttack', 'craftTokenPlace', 'craftEnergyCP02087', 'craftTurnEndP03078', 'craftHandSpellP05068', 'craftArtsBetK07105', 'g144DownTrigger', 'g145ByEffectTrigger', 'f3PayCostWX10033', 'f3SacrificeWX12024', 'powerModifyPerEnergy', 'artsUsedThisTurnGate', 'oppDirectAttackNegate', 'lookReorderCanTrash', 'o51ReorderRemainder', 'beatMultiCandidateSelect', 'onPlayUsageLimit', 'onTargetedForcedBypass', 'onTargetedSourceSigniBanish', 'trashCounterOpp', 'lrigGrowUsageLimit', 'powerzeroUsageLimit', 'wx24p2018GrantFire', 'oppDrawOwnEffectOnly', 'battleLevel4Filter', 'artsUseGreenFilter', 'oppPayEnergyInsufficient', 'lbOwnerReversal', 'sequenceContinuationAcrossGate', 'wdk14013TrashPicker', 'meltFactVirusRemoval', 'mugenQFlip', 'mayuEncounterFreeGrow', 'zoneBlockUnconditional', 'zoneBlockColorlessInsufficient', 'zoneBlockColorlessSufficient', 'zoneBlockMultiZones', 'vacatedZoneBlockFollowsActualZone', 'lxivMultiTargetPayBanishesBoth', 'lxivMultiTargetSkipBanishesNone', 'lxvGateTruePromptsChoose', 'lxvGateFalseSilentSkip', 'lxWX12020ScaledDiscardDelta', 'lxWX12020EmptyHandSkipsPicker', 'secondWaveEnergyBranch', 'energyLeftAnyZoneTrigger', 'doubleCrashUpTrigger', 'oppResourceLossChoose', 'spellUnderMemoriaPlace', 'spellUnderMemoriaSkip', 'aboveSelfSelfBuffStopped', 'wxdip03057DownUnderRed', 'trashMoveLockAllowsWhenUnlocked', 'wxk06067CrossZoneStubFires', 'wx22025SigniTrashBranch', 'wx22025SigniTrashUnavailable', 'spdi4302AvoidedNoChoose', 'wxex225SkipAutoTrashesTrigger', 'wxdip08007SkipRemovesAbilities', 'wxdip08007PaySpares', 'wx17040ConditionsFalseNoop', 'wx17040ConditionsTrueExecuteAll', 'centerZoneOnlyPicker', 'lxvGateTrueSkipNoBody', 'opponentPayOptionalBothBranchesCoexist', 'lrigDownGrowColorSubstituteFires', 'lrigDownCenterOnlyUnwired', 'lrigDownCenterOnlyPays', 'lrigDownLevelLrigActivated', 'noAbilityDeckBottomAttackPhase', 'noAbilityDeckBottomMainPhaseNoop', 'oppDiscardGateReachesDiscard', 'wd16016BurstOpponentDiscard', 'lxWXDiP03089SingleTargetedFire', 'v11EffectDeployCountFlagBlocked', 'v11EffectDeployNoLimitControl', 'v11EffectDeployContinuousBlocked', 'v11CpuDeployCountContinuousBlocked', 'v11CpuDeployCountNoLimitControl', 'v11CpuDeployPowerLimitWithControl', 'v12CpuCannotAttackGranted', 'v12CpuCannotAttackGrantedControl', 'v12CpuPowerCapWithControl', 'v12GrantedBattleBanishOnce', 'v12GrantedSpellUseMinus4000', 'v12PrintedEnergyChargeControl', 'v12GrantedEnergyChargeTwice', 'v12GrantedEnergyChargeThirdBlocked', 'o141UnderCount', 'o141UnderCountOne', 'o142LevelSame', 'o142LevelSameLv1', 'o143CheckCount', 'o143CheckCountOne', 'o313AttachedCostPays', 'o313AttachedCostNoCandidate', 'o333CoinNegatePays', 'o333CoinNegateNoLedger']; // lrigDownGrowColorSubstituteFires（2026-08-05・Sonnet・PLAN§7「(xxxvi)のグロウ支払いUI」）＝続き206で配線されたグロウ支払い経路のエナ代替（wildcardInstIds/colorOverrideMap）が実選択でも機能するかを実機確認。WX16-Re06（印刷色「白」・エナゾーンにあるかぎりセンタールリグの色として代替可）を**緑の**センタールリグ（WD04-004→WD04-003・GrowCost《緑×1》）のエナに置き、素の色一致では絶対に払えない組み合わせでグロウが成立する（lrigTop変化・WX16-Re06がエナ→トラッシュへ移動）ことを2回連続PASSで確認・既定orderに追加。 // lxvGateTrueSkipNoBody/opponentPayOptionalBothBranchesCoexist（2026-08-05・Sonnet・PLAN§7残り＝タスク12(xi)＋併記型(c)）＝(xi)はlxvGateTruePromptsChoose/lxvGateFalseSilentSkipが未検証のまま残していた「ゲート成立→CHOOSE出現→あえてスキップ」branchをWXDi-P02-077-E1で追加確認（エナ無傷・【ランサー】も付与されない＝コスト踏み倒しバグは再発なし）。併記型(c)は当時「liveで併記型が載っているのは現状0」で保留だったが`WXDi-P08-007-E3`が現在costColors＋opponentHandDiscardを同時に持つ実例として存在＝pending_effect.interaction.optionsを直読みし、同一CHOOSEにid='pay'（costColors付き）とid='discard'が同時に存在することを実機ランタイムで確認。各2回連続PASSで既定orderに追加。⚠併せて確認したON_LRIG_GROW④横グロウ経路は既存の`lrigGrowUsageLimit`（続き141・既定order内）が同じE2E（ゲット・グロウ経由の2回目ON_LRIG_GROW不発火）をすでに実機確認済みと判明＝新規シナリオ不要。**新規実バグ発見（既定order外・意図的FAIL＝`lrigDownCenterOnlyUnwired`）**＝lrigDownコストの限定(a)(b)（続き218）を調査中、【起】ACTIVATED効果の`cost.lrigDown`が`executeSigniActivated`（BattleScreen.tsx）にもSigniActivatedModal.tsxにも一切配線されていないと判明＝センタールリグを事前にダウン済みにしてもWXK10-037-E2の【起】ボタンがenabledのまま押せ、コスト無視でSEARCHが実行された（2回連続再現）。詳細はPLAN§3新規登録行参照。 // wx17040ConditionsFalseNoop/wx17040ConditionsTrueExecuteAll/centerZoneOnlyPicker（2026-08-05・Sonnet・PLAN§7タスク12(lxiii)(a)(b)）＝`WX17-040-E1`（スペル「以下の3つから3つまで選ぶ」・①②はchoice.condition〔HAND_COMPARE_OPP／ENERGY_COMPARE_OPP〕でCHOOSEのavailable自体が決まる・③はch.condition無しで常にavailable:trueだが action内側のCONDITIONALが条件を持つ）と`WXDi-P02-065-E2`（centerZoneOnly:trueのSELECT_TARGETフィルタ）を実機確認。wx17040ConditionsFalseNoopは3条件すべて不成立にして①②ボタンがdisabled・③は選べるが対象選択にすら進まず静かに無効果（hHand/hEnergy/gField無変化）を確認。wx17040ConditionsTrueExecuteAllは3条件すべて成立にして①②がenabled・3つとも選択→確定するとドロー＋エナチャージ＋（SELECT_TARGETを経て）バニッシュが全実行されることを確認。centerZoneOnlyPickerは対戦相手の場を左中右すべて埋めた状態で召喚し、SELECT_TARGETの候補が中央（zone1）の1体だけに絞られ、確定後は中央のシグニだけが凍結されることを確認（従来「左右も選べた」の逆＝正しく絞られていることの確認）。各2回連続PASSで既定orderに追加。 // spdi4302AvoidedNoChoose/wxex225SkipAutoTrashesTrigger/wxdip08007SkipRemovesAbilities/wxdip08007PaySpares（2026-08-05・Sonnet・PLAN§7「残る実機検証項目」＝SPDi43-02-E1「回避時に選択肢CHOOSEが出ないこと」とWXEX2-25-E1／WXDi-P08-007-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」）＝いずれも「owner=guest（CPU・受動的watcherとして置くだけ）にし『対戦相手』=hostが応答者になるよう設計する」新パターン（wx22025と同型）で解決。spdi4302AvoidedNoChooseはhostが「支払う」（costColors非搭載STUBの無料pay枝＝(ci)と同型）で回避すると、続くCHOOSE(選択肢1/2)が一度も出現しないことを確認（原文どおりの「手札を2枚捨てる」回避枝はSELECT_TARGET{targetScope:'opp_hand'}のviewer相対バグ＝後述の新規発見バグを踏むため迂回）。wxex225SkipAutoTrashesTriggerはWD08-001の【起】《ダウン》でhost自身の信号をbyEffectで場に出し、guestのWXEX2-25が誘発→hostが「支払わない」を選ぶと、追加のSELECT_TARGETなしにその信号が自動でhostトラッシュへ戻る（targetsTriggerSource正常動作）ことを確認。wxdip08007SkipRemovesAbilities/wxdip08007PaySparesはhostが自分のシグニでアタック→guestのWXDi-P08-007が誘発→「支払わない」で追加選択UIなしにアタッカー自身が能力喪失（targetsTriggerSource正常）／《無》×1を支払うと能力喪失を回避、の対を確認。各2回連続PASSで既定orderに追加。⚠**新規実バグ発見（Opusタスク12(cv)への追記登録）**＝`wxex225DiscardAvoids`（既定order外・意図的FAIL）でhostが原文どおり「手札を1枚捨てる」を選ぶと、続くSELECT_TARGET{targetScope:'opp_hand'}の候補描画（`EffectInteractionModal.tsx:234`）がownerState相対の真の対象（host自身の手札）ではなくviewer(host)相対の`op.hand`（guestの手札）を表示し、候補との一致が一つも無く「決定 (0/1)」が永久disabledでソフトロックする（2回連続再現）。`spdi4302AvoidedNoChoose`でも同型のソフトロックを一度観測（原文の「手札を2枚捨てる」枝を避けて「支払う」枝で迂回）＝(cv)はLB「相手に選ばせる」型で発見されたが、**OPPONENT_PAY_OPTIONALのopponentHandDiscard回避コスト（応答者=viewer自身の手札が真の対象になるケース全般）でも同根のソフトロックが起きることを新たに確認**＝影響範囲がhandSpec持ち33効果超へ拡大する疑い。 // wx22025SigniTrashBranch/wx22025SigniTrashUnavailable（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第3波 WX22-025-E3）＝相手側CHOOSE4択のうち未検証だった「自分のシグニを1体トラッシュに置く」枝を実機確認。**新パターン＝guest（CPU）をアタッカー＝効果オーナーにすることで「対戦相手」＝host（driver操作アカウント）が応答者になり、respondPlayerIdがCPU_PLAYER_ID以外になってCPU自動応答がbailoutし、host自身の画面にCHOOSEモーダルが実際に描画される**（既存のLB所有者反転トリックが使えない非LIFE_BURST効果向けの代替手段＝`wxk06067CrossZoneStubFires`の「構造的に到達不能」を回避する糸口）。wx22025SigniTrashBranchはhostが自分の場から明示的にsigniTrash枝を選び、SELECT_TARGETで自分のシグニを選んでBANISHではなくTRASHが解決しライフクロスは無傷（LIFE_CRASHはOPPONENT_PAY_OPTIONALのcontinuation設計上'skip'以外の枝では発火しないことをコード読解でも確認）。wx22025SigniTrashUnavailableはhostの場が空だとボタンがdisabledになることを確認（この場合の直接攻撃による通常戦闘ダメージは本効果と無関係）。各2回連続PASSで既定orderに追加。 // wxk06067CrossZoneStubFires（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第11波 WXK06-067-E1）＝【起】《青》＋自身トラッシュでOPPONENT_PAY_OPTIONAL{opponentHandOrEnergyToDeckTop:2}（手札とエナを跨いだ単一プールのクロスゾーンpicker＝プロジェクト初）が発火することを実機確認。costColors非搭載のためOpusタスク12(ci)と同型の穴でCPU自動応答が常に無料'pay'枝（options配列の先頭かつ常時available）を選び、guestの場/手札/エナが一切変化しないことを2回連続PASSで確認・既定orderに追加。⚠**クロスゾーンpicker本体（handOrEnergyToDeckTop枝）のUI描画自体（`EffectInteractionModal.tsx`の`self_hand_energy`/`opp_hand_energy`スコープ・「手札とエナから合計」表示・`inter.candidates`経由で(cv)のようなop.hand直接参照バグは無いことをコード読解で確認済み）は、本カードが非LIFE_BURSTのため`secondWaveEnergyBranch`等が使うLB所有者反転トリックが使えず、単一アカウントdriverでは構造的に到達不能**＝低優先で保留（(ci)修正後にownerId反転可能なLB型カードが見つかれば改めて検証）。 // trashMoveLockAllowsWhenUnlocked（2026-08-05・Sonnet・PLAN§7タスク12(lxxiii)対照）＝WD05-018（トラッシュのシグニ1枚を手札に加える・《無》×2）でlock_trash_move_this_turnフラグが無い通常時は普通に動くことを2回連続PASSで確認・既定orderに追加。⚠対の`trashMoveLockBlocksSelfEffect`（フラグありでMAINフェイズでも普通に動いてしまう＝ロック機構が実UI経路で丸ごと不発）は実バグとしてOpusタスク12(cvii)へ登録・意図的FAILとして既定order外のまま保持（詳細はPLAN§3(cvii)）。 // spellUnderMemoriaPlace/spellUnderMemoriaSkip（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P11-063-E2）＝スペル《無心の豪圧》がバニッシュ解決後に自身をメモリア（幻怪姫エクス等3種）の下に置いてもよい選択（STUB TRAP_OPERATIONの「の下に置いてもよい」分岐＝part1の同名STUBに食われて長期間到達不能だった経路）をUIで初実走。置く→ホストに+2000（hostZone0=[スペル,メモリア]）、スキップ→トラッシュのままで+2000は乗らないの両方を各2回連続PASSで確認・既定orderに追加。 // aboveSelfSelfBuffStopped/wxdip03057DownUnderRed（2026-08-05・Sonnet・PLAN§7タスク16「【常】版4枚の自己バフ停止」）＝WXK08-086/WXDi-P03-057/WXDi-P05-050の「このカードの上にあるシグニのパワーを＋N」（aboveSelf）が単独配置（下にカードなし＝スタック長1）では一切適用されない（effectEngine.ts:1562のstack.length<2ガード）ことを確認＝従来の自己バフ退行は再発していない。対照実験としてWXDi-P03-057の【起】《ダウン》で他の赤シグニ(WD02-009)の下に潜らせると、そのホストの表示パワーが12,000→14,000（aboveSelf+2000）へ実際に上がることも確認（CONTINUOUS/PERMANENTのaboveSelfはtemp_power_modsに書かれない純計算値のためDOM表示で判定）。各2回連続PASSで既定orderに追加（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P13-051-E3）＝「対戦相手の効果1つによって、あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき」誘発（`collectOppResourceLossTriggers`のエナ経路）をWXDi-D07-013（【出】mandatory・対戦相手のエナ1枚をトラッシュ）×WXDi-P13-051（watcher・CHOOSE「引く/エナチャージ」）で実機確認。誘発後CPU（guest）がCHOOSEを自動選択（ドロー/エナチャージいずれか）することを含め2回連続PASSで既定orderに追加。手札喪失経路・「1つの相手効果が両方やる場合は1回だけ」は未個別実機（低優先＝`collectOppResourceLossTriggers`は中央diffで両方を1本のentryへ畳む設計・コード読解で確認済み）。 // doubleCrashUpTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WX05-020-E1）＝【ダブルクラッシュ】直接注入で1アタックにguestライフを2枚同時クラッシュ（原文①の足し方）→「1ターンに合計2枚以上クラッシュ」条件が成立しE1（アップ）が発火してsigni_downがfalseへ復帰することを実機確認。2回連続PASSで既定orderに追加。②のE2（アタック1枚+アーツ被効果1枚の足し方）・ターンまたぎリセットは未個別実機（低優先）。 // energyLeftAnyZoneTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P06-038-E1）＝「あなたのエナゾーンから効果によってカード1枚が他の領域に移動したとき」＝トラッシュ以外（手札）行きでも`energyLeftToAnyZone`triggerConditionで発火することをWXEX1-42（自身のエナから植物シグニ1枚を手札へ）の召喚で実機確認。2回連続PASSで既定orderに追加。 // secondWaveEnergyBranch（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第2波(a)）＝WX15-033-BURSTのOPPONENT_PAY_OPTIONALに手札枝＋エナ枝が並ぶケースをLB経由（所有者反転でdriver自身がCHOOSEを受ける）で実機確認。手札1枚(<2)で「手札を2枚捨てる」枝はdisabled、エナ3枚(≥2)で「エナゾーンから2枚」枝をあえて選択→自分のエナがちょうど2枚トラッシュされ対象シグニは場に残存を2回連続PASSで確認・既定orderに追加。WXK05-001-E1も同一OPPONENT_PAY_OPTIONALコードパスのため個別実機は任意。ALL枝（WX24-P4-023-E3・該当0枚で枝非表示）は未個別検証のまま残（低優先）。 // lxWX12020ScaledDiscardDelta/lxWX12020EmptyHandSkipsPicker（2026-08-05・Sonnet・PLAN§7タスク12(lx)(a)）＝WX12-020-E3の「アタック時にまず相手1体を対象選択→次に手札を好きな枚数(upToCount)捨てる→POWER_MODIFY(targetsStored,deltaPerLastProcessedCount)で捨てた枚数×-6000がその1体だけに乗る」を実機確認。手札0枚だとピッカー自体が出ずdelta=0で素通り・クラッシュしないことも確認。各2回連続PASSで既定orderに追加。⚠同バッチのlxWXDiP03089SingleTargetedFire（タスク12(lx)(b)＝POWER_MODIFY{targetsStored}は再選択なし）は「再選択が消えたこと」自体は確認できたが、ON_TARGETED watcherが期待の1回ではなく0回しか発火しない別バグを発見（Opusタスク12(civ)へ登録）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // lxivMultiTargetPayBanishesBoth/lxivMultiTargetSkipBanishesNone/lxvGateTruePromptsChoose/lxvGateFalseSilentSkip（2026-08-05・Sonnet・PLAN§7タスク12(lxiv)(lxv)）＝「対象ピッカー前置」（SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→OPTIONAL_COST→CONDITIONAL(IS_MY_TURN)→BANISH{targetsStored}）と「条件つき任意コストのゲート」（CONDITIONAL{gate}→STUB OPTIONAL_COST の包み形）を実機確認。WXDi-P02-043-E1で対象2体まで選択→支払う→両方バニッシュ／支払わない→どちらも残存、WXDi-P02-077-E1で手札6枚以上ならCHOOSE出現→支払う→ランサー付与／5枚以下は「任意コストの条件を満たさない（スキップ）」で静かに不発、を各2回連続PASSで確認・既定orderに追加。⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られたBANISH自体もselectOrInteract経由の再確認SELECT_TARGET（候補2件でも確認クリックが要る）を要求する＝対象確定は支払い前後で計2回。また対象ピッカー自身がupToCount:true由来の「スキップ」ボタンを持つため、H.stdStep()の汎用フォールバック（デフォルトlabelsに'スキップ'を含む）に委譲するとpick-Nがまだ描画されていない一瞬にそちらを誤クリックし0件確定で終わるレースが実機で再現した＝この2シナリオではH.stdStep()を使わず明示的なラベルのみで進行する。 // zoneBlockUnconditional/zoneBlockColorlessInsufficient/zoneBlockColorlessSufficient/zoneBlockMultiZones/vacatedZoneBlockFollowsActualZone（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第10波(a)(b)+タスク12(lxxvi)）＝「シグニを新たに配置できないゾーン」（`BLOCK_OPP_ZONE_PLACEMENT`/`signi_zone_blocks`・`signiZoneBlock.ts`）のDOM描画（`(配置禁止)`ラベル・`《無》×N不足`・disabled）と実際の配置阻止/コスト徴収を実機確認。vacatedZoneBlockFollowsActualZoneはWX08-032-E1を実際にキャスト→guest zone2のシグニをバニッシュ→`signi_zone_vacated_just`経由の禁止ゾーンがzone2に正しく付き**zone1へフォールバックしない**ことを実配線で確認（state注入だけでは検証できない回帰点）。各2回連続PASSで既定orderに追加。 // wdk14013TrashPicker/meltFactVirusRemoval/mugenQFlip/mayuEncounterFreeGrow（2026-08-04・Sonnet・PLAN§6.3 H/I′(b)(c)(d)(e)）＝各2回連続PASSで既定orderに追加。(a)ガード追加《無》N枚徴収（guardExtraColorlessSufficient/Insufficient）はルーム再利用バッチだと前シナリオのguestルリグダウン状態が残りCPUが再アタックせずFAILする既知制約のため既定order外・単体実行専用のまま。 // oppPayEnergyInsufficient/lbOwnerReversal/sequenceContinuationAcrossGate（2026-08-04・Sonnet・PLAN§7タスク12(lxi)本消化(a)(d)(e)）＝WX25-P1-038-E1のOPPONENT_PAY_OPTIONAL availableゲート（エナ不足→skip→banish）、WX24-P2-071-BURSTのLB所有者反転（支払い側が常にLB所有者の対戦相手になること）、WX24-P1-023-E1の内側ゲート解決後もREVEAL_AND_PICKが中断を跨いで続行することを新規検証・各2回連続PASSで既定orderに追加。同バッチの(a)対照実験(oppPayEnergySufficient)と(b)(oppDiscardGateBareBug)は逆に実バグを検出（Opusタスク12(cii)＝CPU自動応答のCHOOSEはcostColors付きpay選択時にエナinstanceIdを渡さず常に「コスト支払いエラー: エナ不足」で空振り／Opusタスク12(ci)＝costColors非搭載のOPPONENT_PAY_OPTIONALは無条件で無料payを選択肢に積むためCPUが最優先で選び discard/energyTrash 等の回避コストが実質死んでいる）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // oppDrawOwnEffectOnly（2026-07-17・続き170・Sonnet・PLAN§3タスク1・Opusタスク12(xxi)続き162の反転検証）＝`collectOppDrawTriggers`に`drawByDrawerOwnEffect`triggerConditionが追加されPR-423にフラグ付与された修正の反転確認。旧・意図的FAIL（host自身の効果でguestが引いただけでPR-423が誤発火）が2回連続PASS（guestドロー後もPR-423生存・guest.life無傷）＝実バグ解消を確認・既定orderに追加。 // wx24p2018GrantFire（2026-07-16・続き164・Opus・タスク1）＝引用付与の対象-コスト分離2文型の完全経路（E1発火→《赤》支払い→対象＜龍獣＞選択→内側【自】付与→アタック→相手不払い→アサシン付与）。旧・意図的FAIL（ルリグ自身へ即付与）が parser 修正＋JSON採用で反転・2回連続PASS＝既定orderに追加。 // powerzeroUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(c)）＝R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit新規シナリオ。WD11-013（【出】対戦相手シグニ-1000・コストなし）を2枚手札に用意しguest場のP1000シグニ2体を順に0化＝1枚目でwatcher（アイン＝テトロド）が発火してドロー、2枚目では《ターン1回》のため発火せず手札据え置きを確認。3回連続PASS＝既定orderに追加。 // lrigGrowUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(b)）＝タスク12(vi-5)（続き135・Opusで二面コレクタのusageLimit書き戻しを一括修正済み）の反転検証。旧FAILの真因はengineではなくdriver側＝ゲット・グロウ横グロウで開くグロウ先カード（タマヨリヒメ）の【出】効果コスト確認モーダル（SigniOnPlayCostModal）をスペル用testId（spellcost-energy-0）で探していたため永久に「なし」を繰り返しグロウ完了判定（lrigTop変化）に到達できなかった（続き132の「driverでlrigTopが変化せず再現不能」の真因＝旧記録の想定と異なりengine不具合ではなかった）。修正＝候補クリック後は正しいtestId（onplaycost-energy-0）とスキップボタンで処理。修正後2回連続PASS（usageLimit正しく機能＝ゲット・グロウ経由の2回目ON_LRIG_GROWで発火せず）＝既定orderに追加。 // trashCounterOpp（2026-07-15・続き141・Sonnet・PLAN§3タスク1(a)）＝タスク12(iv)（続き135・Opusでapplydirect Actionの手札カウンタ3種書き戻しを修正済み）の反転検証。FRESH=1新規ルーム/既存ルーム再利用の両方で計3回連続PASS（guest.hand_trashed_by_opp_this_turn=1を確認）＝実バグ解消を確認・既定orderに追加。⚠旧handPrependを`hand`直接指定へ変更（続き139のblockDrawByEffect/exileHandBlindと同型の残留ランダム手札混入対策）。 // onTargetedForcedBypass（続き137・Opus・タスク12(xx)）＝targetsTriggerSource/targetsLastProcessedの選択UIなし自動対象化がcollectTargetedTriggersを素通りしON_TARGETEDが発火しなかった実バグ（続き127でSonnetが再現・登録）。execPowerModifyがautoTargetedCardsをExecResultにsurfaceし、resolveStackNextのdone分岐で「対戦相手の場のautoTargetedCards」をON_TARGETED収集にかける修正。WX12-010（ON_ATTACK_SIGNI any_opp+targetsTriggerSource -2000）×WXDi-P03-067（ON_TARGETED self=DRAW×1）で、guest空手札注入→CPUアタック→POWER_MODIFY成立→ON_TARGETEDでguestが1枚ドロー（gHand=1）を確認。修正前はPOWER_MODIFYだけ成立しhand=0のまま。⚠計測はdelta不可（CPUアタックが注入直後に完結）＝空手札注入の絶対値判定。 // onPlayUsageLimit（続き135・Opus・タスク12(x)）＝collectFieldTriggers に usageLimit ガードが存在せず「味方のシグニが場に出るたびに◯◯（ターン1回）」型32枚が同一ターンの複数召喚で毎回発火していた実バグの回帰。WX24-P1-046-E1（＜地獣＞2体召喚）で1回だけ発火（hDeck -1・actions_done に effectId 1件）を2回連続PASS確認。修正前は actions_done に effectId が入ること自体があり得ない（書き戻し機構が無かった）ため、このシナリオは修正の有無を確実に切り分ける。 // beatMultiCandidateSelect（続き129・Sonnet・PLAN§7「ビート機構Phase1-7」残）＝`analyzeBeatSigniCost`/`actBeatNeedSelect`（SigniActivatedModal.tsx）の複数候補ゾーン選択UIは実装済みだったが実機未検証だった。WXK08-026を候補2体（小剣ククリ/羅植姫アキナナ）と共に配置→候補の一方（小剣ククリ）だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを2回連続PASSで確認＝新規バグなし・既定orderに追加。lookReorderCanTrash（続き128・Sonnet・PLAN§7.2「対話UIの残実装」）＝EffectInteractionModal.tsxのLOOK_AND_REORDER canTrash UI（「トラッシュ」トグル→「決定」確定）は実装済みだったが実機未検証だった。WX20-037召喚→デッキ上3枚を見て1枚トラッシュ選択→確定でhTrash+1・hDeck-1を2回連続PASSで確認＝既定orderに追加。queryStateのsideOf()に`deck`（deck.length）フィールドを新規追加。onTargetedForcedBypass（続き127・Sonnet・PLAN§7「ON_TARGETED forced単一対象follow-up」）＝`targetsTriggerSource`の選択UIなし自動解決が`collectTargetedTriggers`を素通りしON_TARGETEDが発火しない実バグをWX12-010×WXDi-P03-067の組で実機再現（FRESH=1含め2回連続再現）＝Opusタスク12(xx)へ登録・意図的FAIL回帰として既定order外のまま（修正後にPASSへ反転させ追加する）。oppDirectAttackNegate（続き126・Sonnet・PLAN§7「その他の実機検証待ち」＝WX04-004-E2守備側アタック無効化）＝正面が空のシグニアタックに対しSTUB(OPP_DIRECT_ATTACK_NEGATE)がCHOOSE(pay/skip)→TRASH(HAND_CARD,美巧)→エナ支払いでcancel_current_signi_attackを立てるフローを実機で新規検証・2回連続PASS（hLife 6→6で無効化を確認）＝既定orderに追加。queryStateのsideOf()に`life`（life_cloth.length）フィールドを新規追加（今後のシナリオでも life 増減の判定に使える）。f3SacrificeWX12024（旧f3SacrificeWX12024Bug）＝✅続き117（Opus・タスク12(xv)）でWX12-024-E1をSTUB BANISH_SUBSTITUTE化し身代わりモーダルの実発火を2回連続PASS確認＝既定orderに復帰。craftArtsBetK07105＝✅続き122（Sonnet）で再検証したところ engine修正（続き117）後は H.stdStep() の pick-0 ハンドリングだけで手札ピッカーも問題なく解決し2回連続PASS＝「driverのHAND_CARDピッカー未クリック」という旧コメントの想定は誤りと判明（当時はengine未修正でSELECT_TARGETに到達すらしていなかった）＝既定orderに追加。自分ターン系→CPUターンの順。craftTokenPlace（続き113・Sonnet・PLAN§6.4「クラフトトークンの実機配置検証」）＝WX25-CP1-066の`ADD_TO_FIELD{cardName:'雷ちゃん'}`（`execAddToField`の「ゲーム外からトークン生成」分岐＝`effectExecutor.ts:1170`）が実機で正しく`WX25-CP1-TK1A`（CardData_TK.csv）へ解決され場に出ることを確認・2回連続PASSで既定orderに追加。⚠原文の「あなたの場に《雷ちゃん》がない場合」条件がJSONに無い（無条件実行）点はPLAN§6.4に既知の「場存在条件」近似として既に記載済み＝新規発見ではない。driverの肝＝(a)discardコストの手札ピッカーはSigniActivatedModal内蔵（`pick-0`ではなく`img[alt=カード名]`クリック）で、しかも同名imgが画面下部の手札ストリップにもDOM順で先に存在するため`.first()`だと誤って背景オーバーレイのキャンセルを誘発する＝`.last()`（createPortalで後から追加される側）を使う。(b)配置先ゾーンが2つ空くとSELECT_SIGNI_ZONEの「ゾーンN」ボタンクリックが要る。revealDeckTopBanish/installDelayedTriggerFire（続き112・Sonnet・PLAN§7 B2/B3）＝WX17-028のREVEAL_DECK_TOP+動的閾値バニッシュとWX25-CP1-069のINSTALL_DELAYED_TRIGGER実発火（ライフクラッシュ経由）を新規検証・各2回連続PASSで既定orderに追加。B3はcrasherFilterが「クラッシュ源を追跡せず場に該当シグニがいるかで代用」という既知の近似（PLAN B3欄に明記）だが今回の検証目的（設置→同ターン内発火の一気通貫）はこの近似のままでも確認可能。installByEffectFreeze/optionalTrashEnergyClassAttack（続き112・Sonnet・PLAN§7「機構④誤parse3枚」）＝WXDi-P07-044-E2（any_ally+byEffect ADD_TO_FIELD watcher）とWX25-P3-062-E2（OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELD lrig名条件）を新規検証・各2回連続PASSで既定orderに追加＝機構④誤parse3枚（WXDi-P07-044/WX25-P3-062/WX25-P2-009）のうち実機検証待ちだった2枚が決着（WX25-P2-009は別途未配線STUB・機構待ちのまま§6.3送り）。freezeLrig/negateAttackLrig/blockDrawByEffect（続き79・Sonnet）＝続き76のパターンB(FREEZE/NEGATE_ATTACKのLRIG対象)・パターンC(BLOCK_ACTION DRAW_OR_ADD_TO_HAND_BY_EFFECT)を実機PASS確認＝既定orderに追加。exileHandBlind/delayedAttackTrigger（続き81・Sonnet）＝FAILの原因はいずれもengine/parserではなくテストドライバ側の不具合（詳細BUGFIXES）と判明・driver修正後2回連続PASS確認＝既定orderに追加。trashCounterOppは調査の結果、resumeSelectTarget→applyDirectAction のTRASH/HAND_CARD分岐がhand_trashed_by_opp_this_turn等3フィールドの更新を欠く実engineバグ（count:1でSELECT_TARGET経由するTRASH全般に影響）と確定＝修正はOpusタスク12へ登録・既定order外のまま（PLAN§3参照）。oppPowerDecreased/energyToTrash/outsideDrawPhase/handDiscard は続き61（Opus）でresume経路取りこぼしを collectBoardDiffTriggers 統合で修正し実機PASS確認済み＝既定orderに復帰。deployRestrict は続き62（Opus）で配置数制限（DEPLOY_RESTRICT count分岐）を実装し実機PASS（BUGFIXES/PLAN§6.3参照）。charmToTrash/exceedCost/ontargeted2 は続き64（Sonnet）でR42/R44/ON_TARGETED①を新規検証・単体PASS。acceAttach（R45① ON_ACCE_ATTACH host条件）は続き65（Opus）で execAttachAcce fromHand経路の2段chaining実装と battleCardNums への signi_acce 走査追加の2バグを修正し実機PASS（2回連続・deterministic）＝既定orderに追加。ontargeted2は5回中4回PASSで軽微なタイミングフレークあり＝ontargetedと同一コードパスのためengine側の問題ではないと判断。ontargeted3/4/5（続き72・Sonnet）＝ON_TARGETED残り3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を個別検証・単体PASS（3件とも再現確認）。ontargeted3はGRANT_KEYWORDのexcludeSelf未実装、ontargeted5はREMOVE_ABILITIES target.ownerが原文と逆（'opponent'だが原文は自己参照）という2件の実データ疑義を発見＝修正はせずOpusタスク12へ登録（PLAN§7参照）。lrigGrowAnyOpp（続き73・Sonnet）＝ON_LRIG_GROW残②（WXDi-P13-047・any_opp）を検証・2回連続PASS＝guest自身のターン中のグロウでも発火＝原文「あなたのターンの間」のturnOwnerゲートが未実装という実データ疑義を発見＝修正はせずOpusタスク12へ登録。lrigGrowAnyOppP03046（続き73・Sonnet）＝ON_LRIG_GROW残②のもう1枚（WXDi-P03-046・SELECT_TARGET要のTRANSFER_TO_HAND）を検証・2回連続PASS＝R38/R43/R46/R39系統のresume経路取りこぼしバグには該当しない（トリガー元＝CPU自動グロウが対話不要で完了し、watcher側のSELECT_TARGETはhost自身の新規interactionとして正常に処理されるため）。ontargetedUsageLimit/charmToTrashBattle（続き74でFAIL→続き75・Opusでengine修正→実機PASS）＝前者は collectTargetedTriggers が usedHostIds/usedGuestIds を返し呼び出し元が actions_done へ書き戻すよう修正（《ターン1回》が毎回発火していた）・後者は resolvePendingSigniBattleFor に collectCharmToTrashTriggers を配線（バトルバニッシュでのチャーム喪失が一度も収集されていなかった）＝既定orderに追加")
+const order = ['v91refreshonce', 'wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'spellColorMarker', 'ontargeted', 'ontargeted2', 'ontargeted3', 'ontargeted4', 'ontargeted5', 'ontargetedUsageLimit', 'banishbyeffect', 'charmToTrash', 'charmToTrashBattle', 'exceedCost', 'exceedCostPay', 'lrigundermoved', 'keywordgained', 'powerzero', 'freezetrigger', 'freezetriggerUsageLimit', 'wd07012', 'cpugrow', 'cpugrowblocked', 'lrigGrowAnyOpp', 'lrigGrowAnyOppP03046', 'wxk10068banish', 'lrigattackstepstart', 'lrigAttackStepStartUsageLimit', 'beatBecomeSelfWDK14017', 'placedFront', 'placedFrontNegative', 'drawBySourceStory', 'leaveFieldToHand', 'oppDraw', 'refreshTrigger', 'oppPowerDecreased', 'energyToTrash', 'outsideDrawPhase', 'handDiscard', 'deployRestrict', 'acceAttach', 'acceSelfScope', 'acceOtherScope', 'onPlayAnyOpp', 'freezeLrig', 'negateAttackLrig', 'blockDrawByEffect', 'exileHandBlind', 'delayedAttackTrigger', 'revealDeckTopBanish', 'installDelayedTriggerFire', 'installByEffectFreeze', 'optionalTrashEnergyClassAttack', 'craftTokenPlace', 'craftEnergyCP02087', 'craftTurnEndP03078', 'craftHandSpellP05068', 'craftArtsBetK07105', 'g144DownTrigger', 'g145ByEffectTrigger', 'f3PayCostWX10033', 'f3SacrificeWX12024', 'powerModifyPerEnergy', 'artsUsedThisTurnGate', 'oppDirectAttackNegate', 'lookReorderCanTrash', 'o51ReorderRemainder', 'beatMultiCandidateSelect', 'onPlayUsageLimit', 'onTargetedForcedBypass', 'onTargetedSourceSigniBanish', 'trashCounterOpp', 'lrigGrowUsageLimit', 'powerzeroUsageLimit', 'wx24p2018GrantFire', 'oppDrawOwnEffectOnly', 'battleLevel4Filter', 'artsUseGreenFilter', 'oppPayEnergyInsufficient', 'lbOwnerReversal', 'sequenceContinuationAcrossGate', 'wdk14013TrashPicker', 'meltFactVirusRemoval', 'mugenQFlip', 'mayuEncounterFreeGrow', 'zoneBlockUnconditional', 'zoneBlockColorlessInsufficient', 'zoneBlockColorlessSufficient', 'zoneBlockMultiZones', 'vacatedZoneBlockFollowsActualZone', 'lxivMultiTargetPayBanishesBoth', 'lxivMultiTargetSkipBanishesNone', 'lxvGateTruePromptsChoose', 'lxvGateFalseSilentSkip', 'lxWX12020ScaledDiscardDelta', 'lxWX12020EmptyHandSkipsPicker', 'secondWaveEnergyBranch', 'energyLeftAnyZoneTrigger', 'doubleCrashUpTrigger', 'oppResourceLossChoose', 'spellUnderMemoriaPlace', 'spellUnderMemoriaSkip', 'aboveSelfSelfBuffStopped', 'wxdip03057DownUnderRed', 'trashMoveLockAllowsWhenUnlocked', 'wxk06067CrossZoneStubFires', 'wx22025SigniTrashBranch', 'wx22025SigniTrashUnavailable', 'spdi4302AvoidedNoChoose', 'wxex225SkipAutoTrashesTrigger', 'wxdip08007SkipRemovesAbilities', 'wxdip08007PaySpares', 'wx17040ConditionsFalseNoop', 'wx17040ConditionsTrueExecuteAll', 'centerZoneOnlyPicker', 'lxvGateTrueSkipNoBody', 'opponentPayOptionalBothBranchesCoexist', 'lrigDownGrowColorSubstituteFires', 'lrigDownCenterOnlyUnwired', 'lrigDownCenterOnlyPays', 'lrigDownLevelLrigActivated', 'noAbilityDeckBottomAttackPhase', 'noAbilityDeckBottomMainPhaseNoop', 'oppDiscardGateReachesDiscard', 'wd16016BurstOpponentDiscard', 'lxWXDiP03089SingleTargetedFire', 'v11EffectDeployCountFlagBlocked', 'v11EffectDeployNoLimitControl', 'v11EffectDeployContinuousBlocked', 'v11CpuDeployCountContinuousBlocked', 'v11CpuDeployCountNoLimitControl', 'v11CpuDeployPowerLimitWithControl', 'v12CpuCannotAttackGranted', 'v12CpuCannotAttackGrantedControl', 'v12CpuPowerCapWithControl', 'v12GrantedBattleBanishOnce', 'v12GrantedSpellUseMinus4000', 'v12PrintedEnergyChargeControl', 'v12GrantedEnergyChargeTwice', 'v12GrantedEnergyChargeThirdBlocked', 'o141UnderCount', 'o141UnderCountOne', 'o142LevelSame', 'o142LevelSameLv1', 'o143CheckCount', 'o143CheckCountOne', 'o313AttachedCostPays', 'o313AttachedCostNoCandidate', 'o333CoinNegatePays', 'o333CoinNegateNoLedger', 'v203PowerGtePreventsDamage', 'v203PowerBelowThresholdCrashes', 'v205ExtraTurnDeployBanBlocks', 'v205ExtraTurnDeployBanNotYetActive']; // lrigDownGrowColorSubstituteFires（2026-08-05・Sonnet・PLAN§7「(xxxvi)のグロウ支払いUI」）＝続き206で配線されたグロウ支払い経路のエナ代替（wildcardInstIds/colorOverrideMap）が実選択でも機能するかを実機確認。WX16-Re06（印刷色「白」・エナゾーンにあるかぎりセンタールリグの色として代替可）を**緑の**センタールリグ（WD04-004→WD04-003・GrowCost《緑×1》）のエナに置き、素の色一致では絶対に払えない組み合わせでグロウが成立する（lrigTop変化・WX16-Re06がエナ→トラッシュへ移動）ことを2回連続PASSで確認・既定orderに追加。 // lxvGateTrueSkipNoBody/opponentPayOptionalBothBranchesCoexist（2026-08-05・Sonnet・PLAN§7残り＝タスク12(xi)＋併記型(c)）＝(xi)はlxvGateTruePromptsChoose/lxvGateFalseSilentSkipが未検証のまま残していた「ゲート成立→CHOOSE出現→あえてスキップ」branchをWXDi-P02-077-E1で追加確認（エナ無傷・【ランサー】も付与されない＝コスト踏み倒しバグは再発なし）。併記型(c)は当時「liveで併記型が載っているのは現状0」で保留だったが`WXDi-P08-007-E3`が現在costColors＋opponentHandDiscardを同時に持つ実例として存在＝pending_effect.interaction.optionsを直読みし、同一CHOOSEにid='pay'（costColors付き）とid='discard'が同時に存在することを実機ランタイムで確認。各2回連続PASSで既定orderに追加。⚠併せて確認したON_LRIG_GROW④横グロウ経路は既存の`lrigGrowUsageLimit`（続き141・既定order内）が同じE2E（ゲット・グロウ経由の2回目ON_LRIG_GROW不発火）をすでに実機確認済みと判明＝新規シナリオ不要。**新規実バグ発見（既定order外・意図的FAIL＝`lrigDownCenterOnlyUnwired`）**＝lrigDownコストの限定(a)(b)（続き218）を調査中、【起】ACTIVATED効果の`cost.lrigDown`が`executeSigniActivated`（BattleScreen.tsx）にもSigniActivatedModal.tsxにも一切配線されていないと判明＝センタールリグを事前にダウン済みにしてもWXK10-037-E2の【起】ボタンがenabledのまま押せ、コスト無視でSEARCHが実行された（2回連続再現）。詳細はPLAN§3新規登録行参照。 // wx17040ConditionsFalseNoop/wx17040ConditionsTrueExecuteAll/centerZoneOnlyPicker（2026-08-05・Sonnet・PLAN§7タスク12(lxiii)(a)(b)）＝`WX17-040-E1`（スペル「以下の3つから3つまで選ぶ」・①②はchoice.condition〔HAND_COMPARE_OPP／ENERGY_COMPARE_OPP〕でCHOOSEのavailable自体が決まる・③はch.condition無しで常にavailable:trueだが action内側のCONDITIONALが条件を持つ）と`WXDi-P02-065-E2`（centerZoneOnly:trueのSELECT_TARGETフィルタ）を実機確認。wx17040ConditionsFalseNoopは3条件すべて不成立にして①②ボタンがdisabled・③は選べるが対象選択にすら進まず静かに無効果（hHand/hEnergy/gField無変化）を確認。wx17040ConditionsTrueExecuteAllは3条件すべて成立にして①②がenabled・3つとも選択→確定するとドロー＋エナチャージ＋（SELECT_TARGETを経て）バニッシュが全実行されることを確認。centerZoneOnlyPickerは対戦相手の場を左中右すべて埋めた状態で召喚し、SELECT_TARGETの候補が中央（zone1）の1体だけに絞られ、確定後は中央のシグニだけが凍結されることを確認（従来「左右も選べた」の逆＝正しく絞られていることの確認）。各2回連続PASSで既定orderに追加。 // spdi4302AvoidedNoChoose/wxex225SkipAutoTrashesTrigger/wxdip08007SkipRemovesAbilities/wxdip08007PaySpares（2026-08-05・Sonnet・PLAN§7「残る実機検証項目」＝SPDi43-02-E1「回避時に選択肢CHOOSEが出ないこと」とWXEX2-25-E1／WXDi-P08-007-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」）＝いずれも「owner=guest（CPU・受動的watcherとして置くだけ）にし『対戦相手』=hostが応答者になるよう設計する」新パターン（wx22025と同型）で解決。spdi4302AvoidedNoChooseはhostが「支払う」（costColors非搭載STUBの無料pay枝＝(ci)と同型）で回避すると、続くCHOOSE(選択肢1/2)が一度も出現しないことを確認（原文どおりの「手札を2枚捨てる」回避枝はSELECT_TARGET{targetScope:'opp_hand'}のviewer相対バグ＝後述の新規発見バグを踏むため迂回）。wxex225SkipAutoTrashesTriggerはWD08-001の【起】《ダウン》でhost自身の信号をbyEffectで場に出し、guestのWXEX2-25が誘発→hostが「支払わない」を選ぶと、追加のSELECT_TARGETなしにその信号が自動でhostトラッシュへ戻る（targetsTriggerSource正常動作）ことを確認。wxdip08007SkipRemovesAbilities/wxdip08007PaySparesはhostが自分のシグニでアタック→guestのWXDi-P08-007が誘発→「支払わない」で追加選択UIなしにアタッカー自身が能力喪失（targetsTriggerSource正常）／《無》×1を支払うと能力喪失を回避、の対を確認。各2回連続PASSで既定orderに追加。⚠**新規実バグ発見（Opusタスク12(cv)への追記登録）**＝`wxex225DiscardAvoids`（既定order外・意図的FAIL）でhostが原文どおり「手札を1枚捨てる」を選ぶと、続くSELECT_TARGET{targetScope:'opp_hand'}の候補描画（`EffectInteractionModal.tsx:234`）がownerState相対の真の対象（host自身の手札）ではなくviewer(host)相対の`op.hand`（guestの手札）を表示し、候補との一致が一つも無く「決定 (0/1)」が永久disabledでソフトロックする（2回連続再現）。`spdi4302AvoidedNoChoose`でも同型のソフトロックを一度観測（原文の「手札を2枚捨てる」枝を避けて「支払う」枝で迂回）＝(cv)はLB「相手に選ばせる」型で発見されたが、**OPPONENT_PAY_OPTIONALのopponentHandDiscard回避コスト（応答者=viewer自身の手札が真の対象になるケース全般）でも同根のソフトロックが起きることを新たに確認**＝影響範囲がhandSpec持ち33効果超へ拡大する疑い。 // wx22025SigniTrashBranch/wx22025SigniTrashUnavailable（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第3波 WX22-025-E3）＝相手側CHOOSE4択のうち未検証だった「自分のシグニを1体トラッシュに置く」枝を実機確認。**新パターン＝guest（CPU）をアタッカー＝効果オーナーにすることで「対戦相手」＝host（driver操作アカウント）が応答者になり、respondPlayerIdがCPU_PLAYER_ID以外になってCPU自動応答がbailoutし、host自身の画面にCHOOSEモーダルが実際に描画される**（既存のLB所有者反転トリックが使えない非LIFE_BURST効果向けの代替手段＝`wxk06067CrossZoneStubFires`の「構造的に到達不能」を回避する糸口）。wx22025SigniTrashBranchはhostが自分の場から明示的にsigniTrash枝を選び、SELECT_TARGETで自分のシグニを選んでBANISHではなくTRASHが解決しライフクロスは無傷（LIFE_CRASHはOPPONENT_PAY_OPTIONALのcontinuation設計上'skip'以外の枝では発火しないことをコード読解でも確認）。wx22025SigniTrashUnavailableはhostの場が空だとボタンがdisabledになることを確認（この場合の直接攻撃による通常戦闘ダメージは本効果と無関係）。各2回連続PASSで既定orderに追加。 // wxk06067CrossZoneStubFires（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第11波 WXK06-067-E1）＝【起】《青》＋自身トラッシュでOPPONENT_PAY_OPTIONAL{opponentHandOrEnergyToDeckTop:2}（手札とエナを跨いだ単一プールのクロスゾーンpicker＝プロジェクト初）が発火することを実機確認。costColors非搭載のためOpusタスク12(ci)と同型の穴でCPU自動応答が常に無料'pay'枝（options配列の先頭かつ常時available）を選び、guestの場/手札/エナが一切変化しないことを2回連続PASSで確認・既定orderに追加。⚠**クロスゾーンpicker本体（handOrEnergyToDeckTop枝）のUI描画自体（`EffectInteractionModal.tsx`の`self_hand_energy`/`opp_hand_energy`スコープ・「手札とエナから合計」表示・`inter.candidates`経由で(cv)のようなop.hand直接参照バグは無いことをコード読解で確認済み）は、本カードが非LIFE_BURSTのため`secondWaveEnergyBranch`等が使うLB所有者反転トリックが使えず、単一アカウントdriverでは構造的に到達不能**＝低優先で保留（(ci)修正後にownerId反転可能なLB型カードが見つかれば改めて検証）。 // trashMoveLockAllowsWhenUnlocked（2026-08-05・Sonnet・PLAN§7タスク12(lxxiii)対照）＝WD05-018（トラッシュのシグニ1枚を手札に加える・《無》×2）でlock_trash_move_this_turnフラグが無い通常時は普通に動くことを2回連続PASSで確認・既定orderに追加。⚠対の`trashMoveLockBlocksSelfEffect`（フラグありでMAINフェイズでも普通に動いてしまう＝ロック機構が実UI経路で丸ごと不発）は実バグとしてOpusタスク12(cvii)へ登録・意図的FAILとして既定order外のまま保持（詳細はPLAN§3(cvii)）。 // spellUnderMemoriaPlace/spellUnderMemoriaSkip（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P11-063-E2）＝スペル《無心の豪圧》がバニッシュ解決後に自身をメモリア（幻怪姫エクス等3種）の下に置いてもよい選択（STUB TRAP_OPERATIONの「の下に置いてもよい」分岐＝part1の同名STUBに食われて長期間到達不能だった経路）をUIで初実走。置く→ホストに+2000（hostZone0=[スペル,メモリア]）、スキップ→トラッシュのままで+2000は乗らないの両方を各2回連続PASSで確認・既定orderに追加。 // aboveSelfSelfBuffStopped/wxdip03057DownUnderRed（2026-08-05・Sonnet・PLAN§7タスク16「【常】版4枚の自己バフ停止」）＝WXK08-086/WXDi-P03-057/WXDi-P05-050の「このカードの上にあるシグニのパワーを＋N」（aboveSelf）が単独配置（下にカードなし＝スタック長1）では一切適用されない（effectEngine.ts:1562のstack.length<2ガード）ことを確認＝従来の自己バフ退行は再発していない。対照実験としてWXDi-P03-057の【起】《ダウン》で他の赤シグニ(WD02-009)の下に潜らせると、そのホストの表示パワーが12,000→14,000（aboveSelf+2000）へ実際に上がることも確認（CONTINUOUS/PERMANENTのaboveSelfはtemp_power_modsに書かれない純計算値のためDOM表示で判定）。各2回連続PASSで既定orderに追加（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P13-051-E3）＝「対戦相手の効果1つによって、あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき」誘発（`collectOppResourceLossTriggers`のエナ経路）をWXDi-D07-013（【出】mandatory・対戦相手のエナ1枚をトラッシュ）×WXDi-P13-051（watcher・CHOOSE「引く/エナチャージ」）で実機確認。誘発後CPU（guest）がCHOOSEを自動選択（ドロー/エナチャージいずれか）することを含め2回連続PASSで既定orderに追加。手札喪失経路・「1つの相手効果が両方やる場合は1回だけ」は未個別実機（低優先＝`collectOppResourceLossTriggers`は中央diffで両方を1本のentryへ畳む設計・コード読解で確認済み）。 // doubleCrashUpTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WX05-020-E1）＝【ダブルクラッシュ】直接注入で1アタックにguestライフを2枚同時クラッシュ（原文①の足し方）→「1ターンに合計2枚以上クラッシュ」条件が成立しE1（アップ）が発火してsigni_downがfalseへ復帰することを実機確認。2回連続PASSで既定orderに追加。②のE2（アタック1枚+アーツ被効果1枚の足し方）・ターンまたぎリセットは未個別実機（低優先）。 // energyLeftAnyZoneTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P06-038-E1）＝「あなたのエナゾーンから効果によってカード1枚が他の領域に移動したとき」＝トラッシュ以外（手札）行きでも`energyLeftToAnyZone`triggerConditionで発火することをWXEX1-42（自身のエナから植物シグニ1枚を手札へ）の召喚で実機確認。2回連続PASSで既定orderに追加。 // secondWaveEnergyBranch（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第2波(a)）＝WX15-033-BURSTのOPPONENT_PAY_OPTIONALに手札枝＋エナ枝が並ぶケースをLB経由（所有者反転でdriver自身がCHOOSEを受ける）で実機確認。手札1枚(<2)で「手札を2枚捨てる」枝はdisabled、エナ3枚(≥2)で「エナゾーンから2枚」枝をあえて選択→自分のエナがちょうど2枚トラッシュされ対象シグニは場に残存を2回連続PASSで確認・既定orderに追加。WXK05-001-E1も同一OPPONENT_PAY_OPTIONALコードパスのため個別実機は任意。ALL枝（WX24-P4-023-E3・該当0枚で枝非表示）は未個別検証のまま残（低優先）。 // lxWX12020ScaledDiscardDelta/lxWX12020EmptyHandSkipsPicker（2026-08-05・Sonnet・PLAN§7タスク12(lx)(a)）＝WX12-020-E3の「アタック時にまず相手1体を対象選択→次に手札を好きな枚数(upToCount)捨てる→POWER_MODIFY(targetsStored,deltaPerLastProcessedCount)で捨てた枚数×-6000がその1体だけに乗る」を実機確認。手札0枚だとピッカー自体が出ずdelta=0で素通り・クラッシュしないことも確認。各2回連続PASSで既定orderに追加。⚠同バッチのlxWXDiP03089SingleTargetedFire（タスク12(lx)(b)＝POWER_MODIFY{targetsStored}は再選択なし）は「再選択が消えたこと」自体は確認できたが、ON_TARGETED watcherが期待の1回ではなく0回しか発火しない別バグを発見（Opusタスク12(civ)へ登録）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // lxivMultiTargetPayBanishesBoth/lxivMultiTargetSkipBanishesNone/lxvGateTruePromptsChoose/lxvGateFalseSilentSkip（2026-08-05・Sonnet・PLAN§7タスク12(lxiv)(lxv)）＝「対象ピッカー前置」（SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→OPTIONAL_COST→CONDITIONAL(IS_MY_TURN)→BANISH{targetsStored}）と「条件つき任意コストのゲート」（CONDITIONAL{gate}→STUB OPTIONAL_COST の包み形）を実機確認。WXDi-P02-043-E1で対象2体まで選択→支払う→両方バニッシュ／支払わない→どちらも残存、WXDi-P02-077-E1で手札6枚以上ならCHOOSE出現→支払う→ランサー付与／5枚以下は「任意コストの条件を満たさない（スキップ）」で静かに不発、を各2回連続PASSで確認・既定orderに追加。⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られたBANISH自体もselectOrInteract経由の再確認SELECT_TARGET（候補2件でも確認クリックが要る）を要求する＝対象確定は支払い前後で計2回。また対象ピッカー自身がupToCount:true由来の「スキップ」ボタンを持つため、H.stdStep()の汎用フォールバック（デフォルトlabelsに'スキップ'を含む）に委譲するとpick-Nがまだ描画されていない一瞬にそちらを誤クリックし0件確定で終わるレースが実機で再現した＝この2シナリオではH.stdStep()を使わず明示的なラベルのみで進行する。 // zoneBlockUnconditional/zoneBlockColorlessInsufficient/zoneBlockColorlessSufficient/zoneBlockMultiZones/vacatedZoneBlockFollowsActualZone（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第10波(a)(b)+タスク12(lxxvi)）＝「シグニを新たに配置できないゾーン」（`BLOCK_OPP_ZONE_PLACEMENT`/`signi_zone_blocks`・`signiZoneBlock.ts`）のDOM描画（`(配置禁止)`ラベル・`《無》×N不足`・disabled）と実際の配置阻止/コスト徴収を実機確認。vacatedZoneBlockFollowsActualZoneはWX08-032-E1を実際にキャスト→guest zone2のシグニをバニッシュ→`signi_zone_vacated_just`経由の禁止ゾーンがzone2に正しく付き**zone1へフォールバックしない**ことを実配線で確認（state注入だけでは検証できない回帰点）。各2回連続PASSで既定orderに追加。 // wdk14013TrashPicker/meltFactVirusRemoval/mugenQFlip/mayuEncounterFreeGrow（2026-08-04・Sonnet・PLAN§6.3 H/I′(b)(c)(d)(e)）＝各2回連続PASSで既定orderに追加。(a)ガード追加《無》N枚徴収（guardExtraColorlessSufficient/Insufficient）はルーム再利用バッチだと前シナリオのguestルリグダウン状態が残りCPUが再アタックせずFAILする既知制約のため既定order外・単体実行専用のまま。 // oppPayEnergyInsufficient/lbOwnerReversal/sequenceContinuationAcrossGate（2026-08-04・Sonnet・PLAN§7タスク12(lxi)本消化(a)(d)(e)）＝WX25-P1-038-E1のOPPONENT_PAY_OPTIONAL availableゲート（エナ不足→skip→banish）、WX24-P2-071-BURSTのLB所有者反転（支払い側が常にLB所有者の対戦相手になること）、WX24-P1-023-E1の内側ゲート解決後もREVEAL_AND_PICKが中断を跨いで続行することを新規検証・各2回連続PASSで既定orderに追加。同バッチの(a)対照実験(oppPayEnergySufficient)と(b)(oppDiscardGateBareBug)は逆に実バグを検出（Opusタスク12(cii)＝CPU自動応答のCHOOSEはcostColors付きpay選択時にエナinstanceIdを渡さず常に「コスト支払いエラー: エナ不足」で空振り／Opusタスク12(ci)＝costColors非搭載のOPPONENT_PAY_OPTIONALは無条件で無料payを選択肢に積むためCPUが最優先で選び discard/energyTrash 等の回避コストが実質死んでいる）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // oppDrawOwnEffectOnly（2026-07-17・続き170・Sonnet・PLAN§3タスク1・Opusタスク12(xxi)続き162の反転検証）＝`collectOppDrawTriggers`に`drawByDrawerOwnEffect`triggerConditionが追加されPR-423にフラグ付与された修正の反転確認。旧・意図的FAIL（host自身の効果でguestが引いただけでPR-423が誤発火）が2回連続PASS（guestドロー後もPR-423生存・guest.life無傷）＝実バグ解消を確認・既定orderに追加。 // wx24p2018GrantFire（2026-07-16・続き164・Opus・タスク1）＝引用付与の対象-コスト分離2文型の完全経路（E1発火→《赤》支払い→対象＜龍獣＞選択→内側【自】付与→アタック→相手不払い→アサシン付与）。旧・意図的FAIL（ルリグ自身へ即付与）が parser 修正＋JSON採用で反転・2回連続PASS＝既定orderに追加。 // powerzeroUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(c)）＝R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit新規シナリオ。WD11-013（【出】対戦相手シグニ-1000・コストなし）を2枚手札に用意しguest場のP1000シグニ2体を順に0化＝1枚目でwatcher（アイン＝テトロド）が発火してドロー、2枚目では《ターン1回》のため発火せず手札据え置きを確認。3回連続PASS＝既定orderに追加。 // lrigGrowUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(b)）＝タスク12(vi-5)（続き135・Opusで二面コレクタのusageLimit書き戻しを一括修正済み）の反転検証。旧FAILの真因はengineではなくdriver側＝ゲット・グロウ横グロウで開くグロウ先カード（タマヨリヒメ）の【出】効果コスト確認モーダル（SigniOnPlayCostModal）をスペル用testId（spellcost-energy-0）で探していたため永久に「なし」を繰り返しグロウ完了判定（lrigTop変化）に到達できなかった（続き132の「driverでlrigTopが変化せず再現不能」の真因＝旧記録の想定と異なりengine不具合ではなかった）。修正＝候補クリック後は正しいtestId（onplaycost-energy-0）とスキップボタンで処理。修正後2回連続PASS（usageLimit正しく機能＝ゲット・グロウ経由の2回目ON_LRIG_GROWで発火せず）＝既定orderに追加。 // trashCounterOpp（2026-07-15・続き141・Sonnet・PLAN§3タスク1(a)）＝タスク12(iv)（続き135・Opusでapplydirect Actionの手札カウンタ3種書き戻しを修正済み）の反転検証。FRESH=1新規ルーム/既存ルーム再利用の両方で計3回連続PASS（guest.hand_trashed_by_opp_this_turn=1を確認）＝実バグ解消を確認・既定orderに追加。⚠旧handPrependを`hand`直接指定へ変更（続き139のblockDrawByEffect/exileHandBlindと同型の残留ランダム手札混入対策）。 // onTargetedForcedBypass（続き137・Opus・タスク12(xx)）＝targetsTriggerSource/targetsLastProcessedの選択UIなし自動対象化がcollectTargetedTriggersを素通りしON_TARGETEDが発火しなかった実バグ（続き127でSonnetが再現・登録）。execPowerModifyがautoTargetedCardsをExecResultにsurfaceし、resolveStackNextのdone分岐で「対戦相手の場のautoTargetedCards」をON_TARGETED収集にかける修正。WX12-010（ON_ATTACK_SIGNI any_opp+targetsTriggerSource -2000）×WXDi-P03-067（ON_TARGETED self=DRAW×1）で、guest空手札注入→CPUアタック→POWER_MODIFY成立→ON_TARGETEDでguestが1枚ドロー（gHand=1）を確認。修正前はPOWER_MODIFYだけ成立しhand=0のまま。⚠計測はdelta不可（CPUアタックが注入直後に完結）＝空手札注入の絶対値判定。 // onPlayUsageLimit（続き135・Opus・タスク12(x)）＝collectFieldTriggers に usageLimit ガードが存在せず「味方のシグニが場に出るたびに◯◯（ターン1回）」型32枚が同一ターンの複数召喚で毎回発火していた実バグの回帰。WX24-P1-046-E1（＜地獣＞2体召喚）で1回だけ発火（hDeck -1・actions_done に effectId 1件）を2回連続PASS確認。修正前は actions_done に effectId が入ること自体があり得ない（書き戻し機構が無かった）ため、このシナリオは修正の有無を確実に切り分ける。 // beatMultiCandidateSelect（続き129・Sonnet・PLAN§7「ビート機構Phase1-7」残）＝`analyzeBeatSigniCost`/`actBeatNeedSelect`（SigniActivatedModal.tsx）の複数候補ゾーン選択UIは実装済みだったが実機未検証だった。WXK08-026を候補2体（小剣ククリ/羅植姫アキナナ）と共に配置→候補の一方（小剣ククリ）だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを2回連続PASSで確認＝新規バグなし・既定orderに追加。lookReorderCanTrash（続き128・Sonnet・PLAN§7.2「対話UIの残実装」）＝EffectInteractionModal.tsxのLOOK_AND_REORDER canTrash UI（「トラッシュ」トグル→「決定」確定）は実装済みだったが実機未検証だった。WX20-037召喚→デッキ上3枚を見て1枚トラッシュ選択→確定でhTrash+1・hDeck-1を2回連続PASSで確認＝既定orderに追加。queryStateのsideOf()に`deck`（deck.length）フィールドを新規追加。onTargetedForcedBypass（続き127・Sonnet・PLAN§7「ON_TARGETED forced単一対象follow-up」）＝`targetsTriggerSource`の選択UIなし自動解決が`collectTargetedTriggers`を素通りしON_TARGETEDが発火しない実バグをWX12-010×WXDi-P03-067の組で実機再現（FRESH=1含め2回連続再現）＝Opusタスク12(xx)へ登録・意図的FAIL回帰として既定order外のまま（修正後にPASSへ反転させ追加する）。oppDirectAttackNegate（続き126・Sonnet・PLAN§7「その他の実機検証待ち」＝WX04-004-E2守備側アタック無効化）＝正面が空のシグニアタックに対しSTUB(OPP_DIRECT_ATTACK_NEGATE)がCHOOSE(pay/skip)→TRASH(HAND_CARD,美巧)→エナ支払いでcancel_current_signi_attackを立てるフローを実機で新規検証・2回連続PASS（hLife 6→6で無効化を確認）＝既定orderに追加。queryStateのsideOf()に`life`（life_cloth.length）フィールドを新規追加（今後のシナリオでも life 増減の判定に使える）。f3SacrificeWX12024（旧f3SacrificeWX12024Bug）＝✅続き117（Opus・タスク12(xv)）でWX12-024-E1をSTUB BANISH_SUBSTITUTE化し身代わりモーダルの実発火を2回連続PASS確認＝既定orderに復帰。craftArtsBetK07105＝✅続き122（Sonnet）で再検証したところ engine修正（続き117）後は H.stdStep() の pick-0 ハンドリングだけで手札ピッカーも問題なく解決し2回連続PASS＝「driverのHAND_CARDピッカー未クリック」という旧コメントの想定は誤りと判明（当時はengine未修正でSELECT_TARGETに到達すらしていなかった）＝既定orderに追加。自分ターン系→CPUターンの順。craftTokenPlace（続き113・Sonnet・PLAN§6.4「クラフトトークンの実機配置検証」）＝WX25-CP1-066の`ADD_TO_FIELD{cardName:'雷ちゃん'}`（`execAddToField`の「ゲーム外からトークン生成」分岐＝`effectExecutor.ts:1170`）が実機で正しく`WX25-CP1-TK1A`（CardData_TK.csv）へ解決され場に出ることを確認・2回連続PASSで既定orderに追加。⚠原文の「あなたの場に《雷ちゃん》がない場合」条件がJSONに無い（無条件実行）点はPLAN§6.4に既知の「場存在条件」近似として既に記載済み＝新規発見ではない。driverの肝＝(a)discardコストの手札ピッカーはSigniActivatedModal内蔵（`pick-0`ではなく`img[alt=カード名]`クリック）で、しかも同名imgが画面下部の手札ストリップにもDOM順で先に存在するため`.first()`だと誤って背景オーバーレイのキャンセルを誘発する＝`.last()`（createPortalで後から追加される側）を使う。(b)配置先ゾーンが2つ空くとSELECT_SIGNI_ZONEの「ゾーンN」ボタンクリックが要る。revealDeckTopBanish/installDelayedTriggerFire（続き112・Sonnet・PLAN§7 B2/B3）＝WX17-028のREVEAL_DECK_TOP+動的閾値バニッシュとWX25-CP1-069のINSTALL_DELAYED_TRIGGER実発火（ライフクラッシュ経由）を新規検証・各2回連続PASSで既定orderに追加。B3はcrasherFilterが「クラッシュ源を追跡せず場に該当シグニがいるかで代用」という既知の近似（PLAN B3欄に明記）だが今回の検証目的（設置→同ターン内発火の一気通貫）はこの近似のままでも確認可能。installByEffectFreeze/optionalTrashEnergyClassAttack（続き112・Sonnet・PLAN§7「機構④誤parse3枚」）＝WXDi-P07-044-E2（any_ally+byEffect ADD_TO_FIELD watcher）とWX25-P3-062-E2（OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELD lrig名条件）を新規検証・各2回連続PASSで既定orderに追加＝機構④誤parse3枚（WXDi-P07-044/WX25-P3-062/WX25-P2-009）のうち実機検証待ちだった2枚が決着（WX25-P2-009は別途未配線STUB・機構待ちのまま§6.3送り）。freezeLrig/negateAttackLrig/blockDrawByEffect（続き79・Sonnet）＝続き76のパターンB(FREEZE/NEGATE_ATTACKのLRIG対象)・パターンC(BLOCK_ACTION DRAW_OR_ADD_TO_HAND_BY_EFFECT)を実機PASS確認＝既定orderに追加。exileHandBlind/delayedAttackTrigger（続き81・Sonnet）＝FAILの原因はいずれもengine/parserではなくテストドライバ側の不具合（詳細BUGFIXES）と判明・driver修正後2回連続PASS確認＝既定orderに追加。trashCounterOppは調査の結果、resumeSelectTarget→applyDirectAction のTRASH/HAND_CARD分岐がhand_trashed_by_opp_this_turn等3フィールドの更新を欠く実engineバグ（count:1でSELECT_TARGET経由するTRASH全般に影響）と確定＝修正はOpusタスク12へ登録・既定order外のまま（PLAN§3参照）。oppPowerDecreased/energyToTrash/outsideDrawPhase/handDiscard は続き61（Opus）でresume経路取りこぼしを collectBoardDiffTriggers 統合で修正し実機PASS確認済み＝既定orderに復帰。deployRestrict は続き62（Opus）で配置数制限（DEPLOY_RESTRICT count分岐）を実装し実機PASS（BUGFIXES/PLAN§6.3参照）。charmToTrash/exceedCost/ontargeted2 は続き64（Sonnet）でR42/R44/ON_TARGETED①を新規検証・単体PASS。acceAttach（R45① ON_ACCE_ATTACH host条件）は続き65（Opus）で execAttachAcce fromHand経路の2段chaining実装と battleCardNums への signi_acce 走査追加の2バグを修正し実機PASS（2回連続・deterministic）＝既定orderに追加。ontargeted2は5回中4回PASSで軽微なタイミングフレークあり＝ontargetedと同一コードパスのためengine側の問題ではないと判断。ontargeted3/4/5（続き72・Sonnet）＝ON_TARGETED残り3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を個別検証・単体PASS（3件とも再現確認）。ontargeted3はGRANT_KEYWORDのexcludeSelf未実装、ontargeted5はREMOVE_ABILITIES target.ownerが原文と逆（'opponent'だが原文は自己参照）という2件の実データ疑義を発見＝修正はせずOpusタスク12へ登録（PLAN§7参照）。lrigGrowAnyOpp（続き73・Sonnet）＝ON_LRIG_GROW残②（WXDi-P13-047・any_opp）を検証・2回連続PASS＝guest自身のターン中のグロウでも発火＝原文「あなたのターンの間」のturnOwnerゲートが未実装という実データ疑義を発見＝修正はせずOpusタスク12へ登録。lrigGrowAnyOppP03046（続き73・Sonnet）＝ON_LRIG_GROW残②のもう1枚（WXDi-P03-046・SELECT_TARGET要のTRANSFER_TO_HAND）を検証・2回連続PASS＝R38/R43/R46/R39系統のresume経路取りこぼしバグには該当しない（トリガー元＝CPU自動グロウが対話不要で完了し、watcher側のSELECT_TARGETはhost自身の新規interactionとして正常に処理されるため）。ontargetedUsageLimit/charmToTrashBattle（続き74でFAIL→続き75・Opusでengine修正→実機PASS）＝前者は collectTargetedTriggers が usedHostIds/usedGuestIds を返し呼び出し元が actions_done へ書き戻すよう修正（《ターン1回》が毎回発火していた）・後者は resolvePendingSigniBattleFor に collectCharmToTrashTriggers を配線（バトルバニッシュでのチャーム喪失が一度も収集されていなかった）＝既定orderに追加")
 // 🏁2026-09-04（`O-152`）＝FAIL 再現用に `order` から外していたが、**修正して PASS したので既定へ戻す**。
 order.push('o143CheckPlace');
 // タスク12(cix)＝コスト経路の「この方法でダウンしたルリグ」参照。golden では原理的に守れない（engine ハーネスは
@@ -57211,6 +57515,16 @@ try {
         //   `STUB{RIDE_ON}` は**これが空でないと即スキップ**するので、「乗ったか」も「二重に乗らないか」もここで見る。
         lrigRidingSigni: s.lrig_riding_signi ?? [],
         negatedAttacks: s.negated_attacks ?? [],
+        // 🆕§5.1 `V-203`（2026-09-12 第287）＝ダメージ防止ウィンドウ。
+        //   🔴**`sourcePowerGte` を持つ window は「ダメージ源のパワーが渡っているか」で成否が変わる**＝
+        //   盤面差分（ライフが減ったか）だけでは「window が無い」と「パワーが渡っていない」を区別できない。
+        preventDamageWindows: (s.prevent_damage_windows ?? [])
+          .map(w => `${w.scope}/${w.expires}${w.sourcePowerGte !== undefined ? `/>=${w.sourcePowerGte}` : ''}`),
+        // 🆕§5.1 `V-205`（2026-09-12 第287）＝シグニ配置禁止。
+        //   🔴**`fromNextTurn` は「張ったターンには効かない」予約**＝これを観測面に出さないと
+        //   「まだ効いていない（正しい）」と「配線されていない」を切り分けられない（§4.4-71）。
+        signiDeployBans: (s.signi_deploy_bans ?? [])
+          .map(b => `${b.turnsRemaining}${b.fromNextTurn ? '/next' : ''}${b.bySource ? `/${b.bySource}` : ''}`),
         blockedActions: s.blocked_actions ?? [],
         // V-85（§5.1・2026-08-24）＝数字宣言の計器。`declared_number` は宣言値そのもの、
         // `declared_guard_restrict_level(s)` は `GUARD_LV_DECLARED` が解決した「ガードできないレベル」。

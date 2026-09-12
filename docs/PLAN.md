@@ -8,55 +8,46 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- **セッション（2026-09-12・第286バッチ・Opus 5 単独）＝🏁**§5.0 実装キューの残123効果を全数処理**＝候補プールが **0** になった。**
+- **セッション（2026-09-12・第286＋287バッチ・Opus 5 単独）＝①**§5.0 実装キューの残123効果を全数処理**（候補プール 0）②**実機 `V-203`／`V-205` を返済**（§5.1 残4→2）。**
 
-  **取り方**＝ユーザー指定「§5.0 実装キュー（triage 済みの確定バグ）の**残123効果**をすべて処理する」。
+  **① 第286＝§5.0 実装キューの残123効果を全数処理。**
+  🔴**最大の発見＝在庫カウンタが数えていたのは「未修正」ではなく「未記録」だった**＝
+  残123のうち **109効果（89%）は既に直っていた**（第274〜285 の機構バッチが直した effectId を
+  `semantic_bug_fixed.txt` へ書き足していなかっただけ）。⇒ **機構項目をクローズする回は、閉じた effectId を
+  必ず消化ファイルへ書く。** 📊内訳＝既に直っていた **109**／このバッチで実装 **6**／機構待ち **8**
+  （§5.3 索引G へ `O-334`〜`O-340` を新設・登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
+  **実装した6効果**＝「レベル３のルリグ１体を対象」を `eq` へ（同型7効果を一括）／新キー `TargetFilter.levelLteSelf`／
+  `applyOptionalCostTargetBackfill`（同型4効果）／`WX25-P3-057-E1b`＝覚醒中の【アサシン】／
+  `WXDi-P08-030-E1` に `FORCE_SIGNI_ATTACK` を1ステップ。
+  🔑**「新機構が要る」は今回も2件が誤り**＝`must_attack_signi` は「可能ならば」なので他を禁止してあれば自動で縮む／
+  `execGrantKeyword` は `NEXT_TURN`＋`count:'ALL'` で既に `reserveFieldGrant` を通していた。
+  🔑**新しい動的 filter は2箇所で消費する**（`resolveDynamicFilter` と `execStubPart1` の対象宣言）。
+  🔑**`parseStatus` が MANUAL のカードは `build:effects` では live へ届かない**＝`syncManualLive.ts` を回す。
 
-  🔴**最大の発見＝在庫カウンタが数えていたのは「未修正」ではなく「未記録」だった。**
-  残123のうち **109効果（89%）は既に直っていた**＝第274〜285 の機構バッチ（`O-287`〜`O-333` のクローズ）が
-  直した effectId を **`semantic_bug_fixed.txt` へ誰も書き足していなかった**だけ。
-  ⇒ **機構項目をクローズする回は、閉じた effectId を必ず消化ファイルへ書く**（これが次の担当の再読を消す）。
+  **② 第287＝実機 `V-203`／`V-205` を返済**（4巡寝かせていた分。**環境は障害ではなかった**＝1本 1〜9秒）。
+  🔴🔑**`V-205` が UI 層の穴を1件出した（その場で修正）**＝`SigniSummonZoneModal` は
+  `deployLimitBlockReason` の**3つの理由だけ**を見てゾーンを落としていたので、`SOURCE_BAN`（追加ターンの召喚禁止）・
+  `NAME_BAN`・`ALL_BAN`・`ONLY_BY_NAMED_EFFECT` は**ボタンが押せるまま**で `handleSummonSigni` が**無言 `return`**
+  ＝**押しても何も起きず理由も出ない**（禁止自体は効いていた＝engine は正しく画面だけが嘘）。
+  ⇒ **「null でなければ置けない」という契約どおり `deployBlock !== null` で落とす**（列挙式に戻さない）。
+  🔑**`V-203` の1ビット反転は「攻撃者」ではなく「window の閾値」**（バニラの Lv4 シグニは全部パワー15000）＝
+  盤面を同一にして `sourcePowerGte` を 12000／20000 で振った。**反転確認は対照の本数ぶん2通り**用意した。
+  ⚠**ドライバ側も2件直した**＝手札は `my-hand-card-N`（`img[alt]` では掴めず80秒空振り）／
+  witness は `H.findLog`（DOM）ではなく **`queryState().logTail`（DB）**で取る（一括実行だけ赤くなるフレークの真因）。
+  **新トラップ §4.4-84〜88 を [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) へ採番**（112項 → 117項）。
 
-  📊**内訳**＝**既に直っていた 109**（うち偽陽性2・stale 再確認19）／**このバッチで実装 6**／
-  🔥**機構待ち 8**（§5.3 索引G へ `O-334`〜`O-340` を新設・登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
-
-  **再照合のやり方**＝1件ずつ4点を突き合わせた＝①triage の判定文 ②**効果単位の原文**（`docs/_effect_srctext.json`）
-  ③**逆翻訳**（`docs/decompile_sheet*.txt`）④**live JSON**。⚠**判定文だけで決めない**＝
-  `STALE` と書かれた20件のうち1件は成立せず、逆に `MECH` と書かれた32件のうち**26件は直っていた**。
-  🔑**「payload にキーが無い」は未修正の証拠にならない**（`WX06-019-E1` の「他の」は `excludeSelf` ではなく
-  `if (top === victimNum) continue` という**構造**で実装されていた）。
-
-  **実装した6効果**＝①「レベル３のルリグ１体を対象」を `eq` へ（parser の「以上」有無で分岐・**同型7効果**を一括。
-  🔴Diva にもレベル4のルリグが7枚実在する＝`gte` は過剰実行）②新キー `TargetFilter.levelLteSelf`
-  （`WXDi-D09-H15-E2`）③任意コストの候補判定に本体の絞りを写す `applyOptionalCostTargetBackfill`（**同型4効果**）
-  ④`WX25-P3-057-E1b`＝覚醒中の【アサシン】⑤`WXDi-P08-030-E1` に `FORCE_SIGNI_ATTACK` を1ステップ。
-
-  🔑🔴**「新機構が要る」は今回も2件が誤りだった**＝⑤は **`must_attack_signi` が「可能ならば」**なので
-  `collectForcedAttackZones` が禁止ゾーンを外し、**全体強制が自動で「選んだシグニだけ」に縮む**（新機構ゼロ）。
-  `WXDi-P04-007-E3` も **`execGrantKeyword` が `NEXT_TURN`＋`count:'ALL'` で既に `reserveFieldGrant` を通していた**。
-
-  🔑**新しい動的 filter は2箇所で消費する**＝`resolveDynamicFilter`（本体）と `execStubPart1` の
-  `STUB{SELECT_TARGET_ONLY}`（対象宣言）。**`matchesFilter` は黙って無視する**ので、宣言側を落とすと
-  **候補が絞られないまま支払わせて空振り**する（`frontOfSelf`＝`O-272` と同じ壊れ方）。
-
-  🔑**`parseStatus` が MANUAL のカードは `build:effects` では live へ届かない**＝`syncManualLive.ts` を回す
-  （今回6枚がこれで初めて live に入った。目印は `docs/_partial_fresh.json`）。
-
-  🔧**検証**＝`npm run gates` 全緑（golden **4025 PASS**＝+5本／smoke 10752／fuzz 0／census 高シグナル **1/1 据置**／
-  stubs A・C群 0／enginetext・costtext A群 0／manual-fields 0／lint 0 errors）。
-  `census:deadstate` **0**／`census:orphanmanual` A・B・C群 **0**。`npm run regen` の逆翻訳を5効果とも目視
-  （⚠`decompileEffects.ts` に `levelLteSelf` の描画を足した＝**実装は入っているのに逆翻訳が嘘をつく**形を潰した）。
-  ✅**⑤実機は不要と判定**＝`src/screens/` は1バイトも変更していない（§2.2）。強制アタックの UI 層依存だけは
-  `collectForcedAttackZones` を golden から import して**3ゾーン → 1ゾーンに縮む**ことまで固定した。
+  🔧**検証**＝`npm run gates` 全緑（golden **4025 PASS**／smoke 10752／fuzz 0／census 高シグナル **1/1 据置**／
+  stubs A・C群 0／enginetext・costtext A群 0／manual-fields 0／deadstate 0／orphanmanual A・B・C群 0／lint 0 errors）。
+  ✅**実機 4/4 PASS**（4本連続でも全緑＝位置依存なし。`order` に常設）。
 
   📦**在庫**＝🏁**実装キュー 残8効果・候補プール0**（全部 §5.3 登録済み）｜🔥**機構 worklist 7項目/8効果**
-  （索引G `O-334`〜`O-340`）｜🔥**実機 残4**（`V-203`〜`V-206`＝第283 登録ぶん・**3巡寝かせたまま**）。
+  （索引G `O-334`〜`O-340`）｜🔥**実機 残2**（`V-204`＝デッキ編集画面＝**ハーネス新設が要る**／`V-206`＝3段の対話）。
 
   **次の一手**
-  ① 🔥**①実機（§5.1 `V-203`〜`V-206`）**＝§5 の並び順どおり最優先。**4巡寝かせた**ので切り分けがさらに高くなっている。
-  ② 🔥次に **§5.3 索引G の `O-334`〜`O-340`**（`O-335` と `O-336` は「ゾーン単位の保護を宣言から読む」で**受け皿が近い＝まとめて取ると安い**）。
+  ① 🔥**実機の残2**＝`V-206`（材料は洗い出し済み＝BUGFIXES の末尾に書いた）→ `V-204`（ハーネス新設）。
+  ② 🔥**§5.3 索引G `O-334`〜`O-340`**（`O-335` と `O-336` は「ゾーン単位の保護を宣言から読む」で**受け皿が近い＝まとめて取ると安い**）。
   ③ または **§5.2 round5 の未監査カード**（`node scripts/archive/semanticAuditGap.mjs`）。
-  ④ 🔑**着手の1手目は登録票の反証**（第280〜286 で取った32項目のうち**24項目で前提が誤っていた**）。
+  ④ 🔑**着手の1手目は登録票の反証**（第280〜287 で取った項目のうち大半で前提が誤っていた）。
   ⑤ 3計器は据置（Sheet1 要対応 **0/863**／台帳 残 OPEN **0**／census 高シグナル **1**＝ベースライン）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -316,25 +307,39 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 
 ### 5.1 実機で確かめる（`V-nn`）★①＝溜める前に返す
 
-> ⚠**着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む**（番号つきの罠 112項）。
+> ⚠**着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む**（番号つきの罠 117項）。
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🔥**残4**（🆕**2026-09-12 第283バッチ（`O-312`/`O-313`/`O-314`/`O-317`）で `V-203`〜`V-206` を登録**＝
-🔴**この回は実機を回せていない**（`verifyBattleDrive.mjs` は Playwright ＋ ログイン ＋ VERIFY_DECK が要る）。
-`src/screens/` を触ったので §2.2 のとおり実機は必須＝**次の巡の1手目で返す**。
-🔴⚠**2026-09-12 訂正**＝第284・第285 は**その回に自分が作った `V-207`／`V-208` だけ**を同じ巡で返し、
-**この4件には手を付けていない**（`verifyBattleDrive.mjs` に対応シナリオが1件も無い）。
-それなのに両回の在庫欄に「実機 残0」と書いていた＝**訂正した**。
-🔑**環境はもう障害ではない**（第284・第285 で実測 4/4 PASS）＝登録時の「回せなかった」理由は解消している。
-⚠**3巡寝かせた**ので、FAIL したときの切り分け（(a) シナリオの腐り／(b) engine のバグ）が高くなっている。
+🔥**残2**（`V-204` / `V-206`。🆕**2026-09-12 第287バッチで `V-203` と `V-205` を返済**）。
+第283バッチ（`O-312`/`O-313`/`O-314`/`O-317`）で `V-203`〜`V-206` を登録したが**その回は実機を回せておらず**、
+第284・第285 もその回に作った `V-207`／`V-208` だけを返していた（＝4巡寝かせた）。
+🔑**環境は障害ではない**（第287 で実測＝既存ルーム再利用で1本 1〜9秒）。
+🔴**残2の内訳**＝`V-204` は**デッキ編集画面**（`verifyBattleDrive.mjs` は PLAYING ルーム前提なので**ハーネスの新設が要る**
+＝`rooms.status` を一時的に PLAYING 以外へ落として戻す／一時デッキを作って消す、のどちらかが必要）。
+`V-206` は**スペル使用＋アクセ化の対話ループ＋ターン終了時の遅延**＝1本で3段の対話を跨ぐ（⚠`WXK04-033` は
+**アーツではなくスペル**で `Restriction` が「エルドラ限定」＝センタールリグを＜エルドラ＞にしないと「発動」が出ない＝§4.4-8k）。
 
 | ID | 触った地点 | 観測点（本命／対照） |
 |---|---|---|
-| `V-203` | `BattleScreen.tsx`（`crashOneLife` へ `power` を渡す 3行）＋`battleUtils.hasActivePreventDamageWindow` | `WX25-P2-008-E1`＝**パワー12000以上のシグニのアタックでライフが減らない／11999のシグニでは減る**。⚠golden は述語を直接叩くので**画面がパワーを渡していなくても緑**（`V-198` と同じ型） |
 | `V-204` | `DeckEditorScreen.tsx`＋`src/utils/deckBuildLimits.ts` | `WXK03-003A`＝**ルリグデッキに入れた状態でアーツ4枚目のボタンが効かない／抜くと入る**。⚠`addCard` は `return` するだけなので**画面に理由が出ない**＝枚数表示の差分で見る |
-| `V-205` | `turnScopedState.advanceSigniDeployBans`（`fromNextTurn`） | `WXK05-001-E2`＝**撃ったターンは手札から召喚できる／追加ターンでは召喚ボタンが出ない／その次のターンで戻る**（3点）。⚠`deployLimitBlockReason` は理由文を返すが `handleSummonSigni` は無言 `return` |
 | `V-206` | `execStubPart3.ACCE_FROM_TRASH_MULTI`（対話ループ＋`ON_TURN_END` 遅延） | `WXK04-033-E1`＝**トラッシュの＜調理＞が【アクセ】になり、ターン終了時に「付けた札だけ」が手札へ戻る／ホストのシグニは場に残る**。⚠旧 live は自分の場のシグニ全部を即手札へ戻していた＝**対照は「他のシグニが残るか」** |
+
+🏁**`V-203`／`V-205`（2026-09-12 第287バッチ）を返済済み**＝`v203PowerGtePreventsDamage` /
+`v203PowerBelowThresholdCrashes` / `v205ExtraTurnDeployBanBlocks` / `v205ExtraTurnDeployBanNotYetActive` を `order` に常設。
+🔑**`V-203` の1ビット反転は「攻撃者」ではなく「window の閾値」**＝バニラのレベル4シグニは**全部パワー15000**で
+12000 未満のバニラは Lv3 しかない（レベルも一緒に動く＝§4.4-25f）。⇒ **盤面を完全に同一にして
+`sourcePowerGte` を 12000／20000 で振った**。反転確認は2通り用意した（§4.4-60）＝
+①`crashOneLife` の `damageSource?.power` を落とすと**本命だけ赤**（対照は緑のまま）
+②`hasActivePreventDamageWindow` の閾値比較を `return true` にすると**対照だけ赤**。
+⚠**削られた原因を「シグニのアタック」に限定する**＝同じターンの**ルリグアタック**でもライフは減り、
+そちらは `power` を持たない（fail-closed で通る）＝原因ログを見ないと**対照がルリグアタックのぶんで緑になる**。
+🔴🔑**`V-205` が UI 層の穴を1件出した**＝`SigniSummonZoneModal` は `deployLimitBlockReason` の
+**3つの理由だけ**（`POWER_LIMIT`／`COUNT_LIMIT`／`ZONE_LEVEL_RESTRICT`）を見てゾーンを落としていたので、
+`SOURCE_BAN`（この項目の本題）・`NAME_BAN`・`ALL_BAN`・`ONLY_BY_NAMED_EFFECT` は
+**ボタンが押せるまま**で `handleSummonSigni` が**無言 `return`** していた＝**押しても何も起きず理由も出ない**。
+⇒ **「null でなければ置けない」という契約どおり `deployBlock !== null` で落とす**ようにした（列挙式に戻さない）。
+⚠**`fromNextTurn` の1ビットだけを振った**（`turnsRemaining` は両方 2）＝動くのは本当にこの1ビットだけ。
 
 🏁**`V-208`（2026-09-12 第285・§5.3 `O-333`）は同じ巡で返済済み**＝`BattleScreen.tsx`（コイン技台帳の記録4地点＋
 撤去した `negate_coin_abilities` の読み手4地点）／`lrigActivateGate`（コイン技の判定を `isCoinAbility` へ集約）。
