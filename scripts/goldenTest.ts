@@ -112,7 +112,7 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 // 🆕第283バッチ（2026-09-12・§5.3 `O-312`/`O-313`/`O-314`/`O-317`）の消費地点を直接叩く。
 import { signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard } from '../src/engine/execUtils';
 import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils';
-import { lrigDeckArtsCap, lrigDeckArtsCount } from '../src/utils/deckBuildLimits';
+import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
@@ -78429,6 +78429,36 @@ test('§5.3 O-317 lrigDeckArtsCap：構築時のアーツ上限（WXK03-003A）'
   eq(lrigDeckArtsCap(['WXK03-003A'], m), 3, '🔴宣言を持つ札がルリグデッキに居れば上限3');
   eq(lrigDeckArtsCap([arts, arts2], m), undefined, '反転確認: 宣言を持つ札が無ければ上限なし');
   eq(lrigDeckArtsCount(['WXK03-003A', arts, arts2], m), 2, 'アーツだけを数える（ルリグは数えない）');
+}));
+
+// 🆕§5.1 `V-204`（2026-09-12・第288バッチ）＝**「入れられるか」の判定を1本にまとめた**あとの契約。
+// 🔴実機で踏んだ穴＝`O-317` のアーツ上限は `addCard` にしか無く、**＋ボタンは押せるのに無言 `return`**
+//   （`V-205` の `SigniSummonZoneModal` と同型）。⇒ `deckAddBlockReason` が唯一の判定になり、
+//   UI はその戻り値で活殺する。**ここが緑なら「押せるのに入らない」は構造的に起きない。**
+test('§5.1 V-204 deckAddBlockReason：構築制限の判定は1本（アーツ上限3／反転確認つき）', () => withSavedCursor(() => {
+  const m = cardMap as Map<string, CardData>;
+  const a1 = findCard(c => c.Type === 'アーツ');
+  const a2 = findCard(c => c.Type === 'アーツ' && c.CardNum !== a1);
+  const a3 = findCard(c => c.Type === 'アーツ' && c.CardNum !== a1 && c.CardNum !== a2);
+  const a4 = findCard(c => c.Type === 'アーツ' && ![a1, a2, a3].includes(c.CardNum));
+  const card = (n: string) => m.get(n) as CardData;
+  // ① 上限を課す札が居れば4枚目のアーツは入らない。
+  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2, a3] }, m), 'LRIG_ARTS_CAP',
+    '🔴WXK03-003A が居るのにアーツ4枚目が入る');
+  // ② 反転確認＝その1枚を抜くだけで入る（盤面の他の3枚は同一）。
+  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: [a1, a2, a3] }, m), null,
+    '反転確認: 上限を課す札が無ければ同じ4枚目が入る');
+  // ③ 3枚目までは入る（上限そのものを off-by-one で読んでいない）。
+  eq(deckAddBlockReason(card(a3), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2] }, m), null,
+    '3枚目までは入る（>= ではなく > で判定していないか）');
+  // ④ 上限を課す札を**後から**入れる向き＝既にアーツが4枚あれば入らない。
+  eq(deckAddBlockReason(card('WXK03-003A'), { mainDeck: [], lrigDeck: [a1, a2, a3, a4] }, m), 'LRIG_ARTS_OVER_CAP',
+    '🔴アーツ4枚のデッキに上限札を後入れできてしまう');
+  // ⑤ 同名1枚まで（ルリグデッキ）／⑥ メインは同名4枚まで＝旧 canAdd が見ていた軸も同じ1本が見る。
+  eq(deckAddBlockReason(card(a1), { mainDeck: [], lrigDeck: [a1] }, m), 'COPY_MAX', 'ルリグデッキは同名1枚まで');
+  const sig = findCard(c => c.Type === 'シグニ' && c.LifeBurst !== '1');
+  eq(deckAddBlockReason(card(sig), { mainDeck: Array(4).fill(sig), lrigDeck: [] }, m), 'COPY_MAX', 'メインは同名4枚まで');
+  eq(deckAddBlockReason(card(sig), { mainDeck: Array(40).fill(sig), lrigDeck: [] }, m), 'MAIN_MAX', 'メインは40枚まで');
 }));
 
 test('§5.3 O-313 「各ターン終了時」は両方のターン境界で発火する', () => withSavedCursor(() => {

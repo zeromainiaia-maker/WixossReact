@@ -57134,6 +57134,339 @@ scenarios.o311EachPlayerSearchOpp = {
 };
 order.push('o311EachPlayerSearchOpp');
 
+// ── 🆕§5.1 `V-206`（2026-09-12・第288バッチ）＝`WXK04-033-E1`（ＩＣＥ　ＳＴＯＲＭ）────────────
+// 原文「あなたのトラッシュから対象の＜調理＞のシグニを３枚まで、対象のあなたの＜調理＞のシグニ３体までの
+//   【アクセ】にする。ターン終了時、この方法で【アクセ】にしたすべてのカードを場から手札に戻す。
+//   （【アクセ】はシグニ１体に１枚までしか付けられない）」
+// 🔴**触った地点**＝`execStubPart3.ACCE_FROM_TRASH_MULTI`（＋`INTERNAL_ACCE_PICK_HOST` /
+//   `INTERNAL_ACCE_ATTACH_TO_ZONE` / `INTERNAL_RETURN_ACCED_CARDS_TO_HAND`）＝§5.3 `O-314`。
+//   旧 live は `SEQUENCE[ACCE_FROM_HAND, BOUNCE{SIGNI self ALL}]`＝**自分の場のシグニを全部即手札へ**戻す
+//   自壊級の過剰実行だった。⇒ **対照は「他のシグニが場に残るか」**（PLAN §5.1）。
+// ⚠**アーツではなくスペル**＝`Restriction` が「エルドラ限定」なので、センタールリグを＜エルドラ＞に
+//   しないと CardModal に「発動」が出ない（§4.4-8k）。⇒ `WX13-014`（エルドラ×マークⅣＰＬＵＳ・
+//   Lv4・Limit12・**能力なし**）を置く。
+// 🔑**1本で3段の対話を跨ぐ**＝①スペルのコスト支払い《青》×4 ②「トラッシュのどの札か」→「どのシグニに
+//   付けるか」のループ ③ターン終了時の遅延トリガー。**どれが落ちても全部落ちる**ので観測点を4つ張る：
+//   ・本命 ＝ 付けた2枚**だけ**が手札へ戻る
+//   ・対照A＝ 3体のシグニは**場に残る**（旧 live の全バウンスが無い）
+//   ・対照B＝ **この効果以外で付いた【アクセ】**（zone2 の `WD01-013#60`）は**戻らない**
+//            ＝「この方法で」を無視して signi_acce を全部掃除する実装を落とす
+//   ・対照C＝ トラッシュ側の候補に**非＜調理＞（`WD01-013#12`）が出ない**（`filter` が効いている）
+//   ・対照D＝ ホスト側の候補に**既に【アクセ】が付いた zone2 が出ない**（「シグニ１体に１枚まで」）
+// ⚠**選択肢は DOM 文言ではなく `pendingOptions` の id で読む**（`aftm_*` / `aph_*`）＝ラベルはカード名
+//   なので盤面の常設テキストと衝突しうる（§4.4-58）。押すときだけラベルを使う。
+scenarios.v206AcceFromTrashReturnsOnlyAcced = {
+  title: 'V-206 WXK04-033-E1（トラッシュの＜調理＞を【アクセ】化→ターン終了時に「付けた札だけ」が手札へ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX13-014#1'],                  // エルドラ×マークⅣＰＬＵＳ（＜エルドラ＞・能力なし）
+      // zone0/zone1＝＜調理＞かつ【アクセ】無し（＝ホスト候補）／zone2＝＜調理＞だが既に【アクセ】あり（候補外）
+      'field.signi': [['WXK04-077#1'], ['WXK04-079#1'], ['WD18-010#1']],
+      'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, ['WD01-013#60']],   // 対照B＝この効果**以外**で付いた【アクセ】
+      // 対照C＝トラッシュに非＜調理＞（小剣　ククリ）を混ぜる＝候補に出たら filter が死んでいる。
+      'trash': ['WD18-012#10', 'WD18-014#11', 'WD01-013#12'],
+      'energy': ['WXK04-079#20', 'WXK04-079#21', 'WXK04-079#22', 'WXK04-079#23'],  // 《青》×4
+      hand: [], lrig_deck: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    handPrepend: ['WXK04-033#30'],                   // ＩＣＥ　ＳＴＯＲＭ（スペル・《青》×4・エルドラ限定）
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      hand: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const PRE_ACCE = 'WD01-013#60';      // 対照B＝この効果以外で付いている【アクセ】
+    const NON_STORY = 'WD01-013#12';     // 対照C＝トラッシュの非＜調理＞
+    const st0 = await H.queryState();
+    H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} trash=${JSON.stringify(st0?.host?.trashCards)}`
+      + ` acce=${JSON.stringify(st0?.host?.fieldAcce)} signi=${JSON.stringify(st0?.host?.fieldSigni)}`
+      + ` energy=${st0?.host?.energy} phase=${st0?.turnPhase}`);
+    if (!(st0?.host?.handCards ?? []).some(c => String(c).startsWith('WXK04-033'))) {
+      return { pass: false, detail: `前提崩れ＝スペルが手札に無い（${JSON.stringify(st0?.host?.handCards)}）` };
+    }
+    if (!JSON.stringify(st0?.host?.fieldAcce ?? []).includes(PRE_ACCE)) {
+      return { pass: false, detail: `前提崩れ＝対照B（既存の【アクセ】${PRE_ACCE}）が盤面に載っていない（${JSON.stringify(st0?.host?.fieldAcce)}）` };
+    }
+    await H.ensureMain();
+    const labelOf = (o) => String(o).slice(String(o).indexOf(':') + 1).replace(/\(disabled\)$/, '');
+    const clickOpt = async (label) => {
+      const b = page.getByRole('button', { name: label, exact: true }).last();
+      if (!(await b.count()) || !(await b.isVisible().catch(() => false))) return null;
+      if (!(await b.isEnabled().catch(() => false))) return null;
+      try { await b.click({ timeout: 2000 }); return 'opt:' + label; }
+      catch (e) { H.log(`  (opt「${label}」click失敗: ${String(e.message).split('\n')[0]})`); return null; }
+    };
+    let opened = false, cast = false, turnEnded = false;
+    const paidCells = new Set();
+    let trashOptSnap = null, hostOptSnap = null;   // 観測点（sticky＝§4.4-8d）
+    let accedCards = [];                           // この効果で【アクセ】にした札（fieldAcce から実測）
+    for (let s = 0; s < 44; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v206-${s}.png`, fullPage: true });
+      const st = await H.queryState();
+      const opts = st?.pendingOptions ?? [];
+      if (!trashOptSnap && opts.some(o => String(o).startsWith('aftm_'))) trashOptSnap = opts;
+      if (!hostOptSnap && opts.some(o => String(o).startsWith('aph_'))) hostOptSnap = opts;
+      // zone0/zone1 に付いた札＝この効果の成果（zone2 の既存アクセは数えない）
+      const acce = st?.host?.fieldAcce ?? [];
+      const nowAcced = [...(acce[0] ?? []), ...(acce[1] ?? [])];
+      for (const cn of nowAcced) if (!accedCards.includes(cn)) accedCards.push(cn);
+
+      let did = null;
+      // ① 対話（CHOOSE）を最優先＝トラッシュの札 → 付ける先 の順（§4.4-8n）。
+      const pickTrash = opts.find(o => String(o).startsWith('aftm_') && !String(o).startsWith('aftm_stop'));
+      const pickHost = opts.find(o => String(o).startsWith('aph_'));
+      if (pickHost) did = await clickOpt(labelOf(pickHost));
+      else if (pickTrash) did = await clickOpt(labelOf(pickTrash));
+      // ② スペルを撃つ（手札を開く→発動→《青》×4→発動する）。
+      if (!did && !cast) {
+        if (!opened) { const o = await H.clickTestId('my-hand-card-0'); if (o) { opened = true; did = o; } }
+        if (!did) {
+          const cell = [0, 1, 2, 3].find(i => !paidCells.has(i));
+          const e = cell === undefined ? null : page.getByTestId(`spellcost-energy-${cell}`).first();
+          if (e && await e.count() && await e.isVisible().catch(() => false)) {
+            await e.click().catch(() => {}); paidCells.add(cell); did = `spellcost-energy-${cell}`;
+          }
+        }
+        if (!did && paidCells.size >= 4) { const c = await H.clickBtn('発動する', { exact: false }); if (c) { cast = true; did = c; } }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+      }
+      // ③ 効果が閉じたらフェイズを歩いてターン終了まで進める（遅延トリガー＝ON_TURN_END を実際に踏む）。
+      //   🔴**MAIN で「ターン終了」は出ない**（§4.4-8g／`uiConstants.ts` の PHASE_NEXT_LABEL）＝
+      //     MAIN→`アタックフェイズへ`→`ルリグアタックへ`→`エンドフェイズへ`→`ターン終了` と歩く。
+      //     初回実装でこれを踏み、12ティック目以降 30ティックまるごと空振りした。
+      if (!did && cast && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && accedCards.length >= 2 && !turnEnded) {
+        const adv = await H.clickBtn('ターン終了', { exact: true });
+        if (adv) { turnEnded = true; did = adv; }
+        else {
+          // ⚠MAIN の次は `ATTACK_SIGNI` ではなく **`ATTACK_ARTS`（アーツステップ）**（§4.4-8q）＝
+          //   `アーツ終了→相手へ` を挟まないと 30ティック空振りする（実測）。
+          did = await H.clickTextOrBtn([
+            'このまま進む', 'アタックフェイズへ', 'アーツ終了→相手へ', 'アーツ終了',
+            'ルリグアタックへ', 'エンドフェイズへ',
+          ]);
+        }
+      }
+      // ④ ライフバースト確認などが覆ったら消化（§4.4-1）。
+      if (!did && (st?.host?.fieldCheck || st?.pendingEffect)) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+      if (!did) did = await H.stdStep();
+
+      const hand = st?.host?.handCards ?? [];
+      H.log(`  v206[${s}] -> ${did ?? 'なし'} | cast=${cast}(cells=${paidCells.size}) acced=${JSON.stringify(accedCards)}`
+        + ` acce=${JSON.stringify(acce)} hand=${JSON.stringify(hand)} signi=${JSON.stringify(st?.host?.fieldSigni)}`
+        + ` turnEnded=${turnEnded} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(opts)}`);
+
+      if (!turnEnded) continue;
+      // ── 判定（ターン終了を押した後）──────────────────────────────
+      const returned = accedCards.filter(cn => hand.includes(cn));
+      if (returned.length < accedCards.length) continue;   // まだ遅延トリガーが走っていない
+      const signi = JSON.stringify(st?.host?.fieldSigni ?? []);
+      const acceJ = JSON.stringify(acce);
+      // 対照A＝3体とも場に残っている（旧 live は自分のシグニ全部を手札へ戻していた）
+      for (const host of ['WXK04-077#1', 'WXK04-079#1', 'WD18-010#1']) {
+        if (!signi.includes(host)) {
+          return { pass: false, detail: `🔴自分のシグニ ${host} が場から消えた＝旧 live の「自分のシグニ全部を手札へ」に戻っている（signi=${signi}）` };
+        }
+      }
+      // 対照B＝この効果以外で付いた【アクセ】は戻らない
+      if (!acceJ.includes(PRE_ACCE)) {
+        return { pass: false, detail: `🔴この効果で付けていない【アクセ】${PRE_ACCE} まで場から消えた＝「この方法で」が効いていない（acce=${acceJ}）` };
+      }
+      if (hand.includes(PRE_ACCE)) {
+        return { pass: false, detail: `🔴この効果で付けていない【アクセ】${PRE_ACCE} が手札に戻った（hand=${JSON.stringify(hand)}）` };
+      }
+      // 本命＝付けた札は zone0/zone1 から消えて手札にある
+      if (acceJ.includes(accedCards[0]) || acceJ.includes(accedCards[1])) {
+        return { pass: false, detail: `🔴【アクセ】にした札が場に残ったまま手札にも増えている＝複製（acce=${acceJ} hand=${JSON.stringify(hand)}）` };
+      }
+      // 対照C/D＝候補の絞り込み
+      const tj = JSON.stringify(trashOptSnap ?? []);
+      if (tj.includes(NON_STORY)) {
+        return { pass: false, detail: `🔴トラッシュ候補に非＜調理＞（${NON_STORY}）が出ていた＝filter が効いていない（候補=${tj}）` };
+      }
+      const hj = JSON.stringify(hostOptSnap ?? []);
+      if (hj.includes('aph_2')) {
+        return { pass: false, detail: `🔴既に【アクセ】が付いた zone2 がホスト候補に出ていた＝「シグニ１体に１枚まで」が効いていない（候補=${hj}）` };
+      }
+      return {
+        pass: true,
+        detail: `【アクセ】にした${accedCards.length}枚（${JSON.stringify(accedCards)}）だけがターン終了時に手札へ戻り、`
+          + `自分のシグニ3体は場に残り、この効果以外の【アクセ】${PRE_ACCE} も残った`
+          + `（hand=${JSON.stringify(hand)} acce=${acceJ} signi=${signi} / トラッシュ候補=${tj} ホスト候補=${hj}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return {
+      pass: false,
+      detail: `未完了（cast=${cast} cells=${paidCells.size} acced=${JSON.stringify(accedCards)} turnEnded=${turnEnded}`
+        + ` hand=${JSON.stringify(fin?.host?.handCards)} acce=${JSON.stringify(fin?.host?.fieldAcce)}`
+        + ` trash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}`
+        + ` logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）`,
+    };
+  },
+};
+order.push('v206AcceFromTrashReturnsOnlyAcced');
+
+// ── 🆕§5.1 `V-204`（2026-09-12・第288バッチ）＝`WXK03-003A`（夢限　-Ｐ-）の**構築時**のアーツ上限 ──
+// 原文「このカードをルリグデッキに入れる場合、あなたのルリグデッキにはアーツを**３枚まで**しか入れられない。」
+// 🔴**触った地点**＝`src/utils/deckBuildLimits.ts`（`lrigDeckArtsCap` / `deckAddBlockReason`）＋
+//   `DeckEditorScreen.tsx`（＋ボタンの活殺と `addCard`）＝§5.3 `O-317`。
+// 🔴**これは engine のどの funnel にも乗らない**＝golden/smoke/fuzz が原理的に守れない層で、
+//   しかも**対戦画面の外**にある。⇒ `verifyBattleDrive` のハーネスを1つ広げた（`noInject`）：
+//   ①自分のルームの `status` を退避して PLAYING 以外へ落とす（App.tsx が BATTLE へ自動復帰するのを止める）
+//   ②検証専用のデッキ行を REST で作る ③デッキ編成→編集画面を歩く ④**必ず `finally` で片付ける**。
+// 🔑**1ビット反転は「`WXK03-003A` がルリグデッキに在るか」だけ**＝盤面（他の3枚のアーツ）は同一のまま、
+//   本命（在る＝4枚目が入らない）→ 抜く → 対照（無い＝同じ4枚目が入る）を**同じ実行の中で**振る。
+// ⚠**「＋を押せたか」では判定しない**＝`addCard` は無言 `return` なので、**DB の `decks.lrig_deck`**
+//   （`onUpdate` が書く唯一の真実）で見る。⚠加えて**ボタンの disabled** も観測点に入れる
+//   （V-205 の `SigniSummonZoneModal` と同じ契約＝「入れられないなら押せない」）。
+scenarios.v204LrigDeckArtsCapBlocksFourth = {
+  title: 'V-204 WXK03-003A（ルリグデッキのアーツ上限3＝4枚目は入らない／抜くと入る）',
+  noInject: true,
+  async drive(page, H) {
+    const LIMITER = 'WXK03-003A';                             // 夢限　-Ｐ-（アーツ上限3を課すルリグ）
+    const ARTS3 = ['WX01-010', 'WX01-014', 'WX01-018'];       // 先に入れておくアーツ3枚（同名重複なし）
+    const FOURTH = 'WX01-023';                                // 4枚目のアーツ（大器晩成）
+    const DECK_NAME = `VERIFY_V204_${Date.now()}`;
+    // ── DB 操作（すべて in-page＝ログイン済みトークンを使う）───────────────────
+    const pauseRooms = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const res = await fetch(`${SUPA_URL}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id,status`, { headers: h });
+      const rooms = (await res.json()) ?? [];
+      for (const r of rooms) {
+        if (r.status !== 'PLAYING') continue;
+        await fetch(`${SUPA_URL}/rest/v1/rooms?id=eq.${r.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'FINISHED' }) });
+      }
+      return rooms.filter(r => r.status === 'PLAYING').map(r => r.id);
+    }, { SUPA_URL, ANON });
+    const resumeRooms = (ids) => page.evaluate(async ({ SUPA_URL, ANON, ids }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      for (const id of ids) {
+        await fetch(`${SUPA_URL}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) });
+      }
+      return ids.length;
+    }, { SUPA_URL, ANON, ids });
+    const createDeck = (name, lrigDeck) => page.evaluate(async ({ SUPA_URL, ANON, name, lrigDeck }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+      const res = await fetch(`${SUPA_URL}/rest/v1/decks`, { method: 'POST', headers: h,
+        body: JSON.stringify([{ user_id: uid, name, main_deck: [], lrig_deck: lrigDeck, sort_order: 999 }]) });
+      const row = (await res.json())?.[0];
+      return row?.id ?? null;
+    }, { SUPA_URL, ANON, name, lrigDeck });
+    const readDeck = (id) => page.evaluate(async ({ SUPA_URL, ANON, id }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+      const res = await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}&select=lrig_deck`, { headers: h });
+      return (await res.json())?.[0]?.lrig_deck ?? null;
+    }, { SUPA_URL, ANON, id });
+    const deleteDeck = (id) => page.evaluate(async ({ SUPA_URL, ANON, id }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+      await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}`, { method: 'DELETE', headers: h });
+      return true;
+    }, { SUPA_URL, ANON, id });
+
+    let paused = [];
+    let deckId = null;
+    try {
+      paused = await pauseRooms();
+      deckId = await createDeck(DECK_NAME, [LIMITER, ...ARTS3]);
+      H.log(`ルーム退避=${JSON.stringify(paused)} 検証デッキ=${deckId}（${DECK_NAME}）`);
+      if (!deckId) return { pass: false, detail: '前提崩れ＝検証用デッキを作成できなかった（RLS/認証）' };
+
+      // ── デッキ編成 → 検証デッキ → カード追加タブ ───────────────────────────
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: `${SHOT}/v204-00-start.png`, fullPage: true });
+      const toList = await H.clickTextOrBtn(['デッキ編成']);
+      if (!toList) {
+        return { pass: false, detail: `前提崩れ＝START 画面に到達していない（対戦画面へ自動復帰した疑い。body=${await H.body()}）` };
+      }
+      await page.waitForTimeout(1500);
+      const openDeck = await H.clickTextOrBtn([DECK_NAME]);
+      if (!openDeck) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない（body=${await H.body()}）` };
+      await page.waitForTimeout(1200);
+      await H.clickTextOrBtn(['カード追加']);
+      await page.waitForTimeout(600);
+      const searchBox = page.getByPlaceholder('カード名・番号で検索').first();
+      const searchFor = async (num) => {
+        await searchBox.fill(num);
+        await page.waitForTimeout(900);
+      };
+      const addBtnState = async (num) => {
+        const b = page.getByTestId(`search-add-${num}`).first();
+        if (!(await b.count()) || !(await b.isVisible().catch(() => false))) return null;
+        return await b.isEnabled().catch(() => false);
+      };
+
+      // ── ① 本命＝上限を課す札が在る状態で4枚目のアーツを足そうとする ────────────
+      await searchFor(FOURTH);
+      await page.screenshot({ path: `${SHOT}/v204-01-blocked.png`, fullPage: true });
+      const enabledBlocked = await addBtnState(FOURTH);
+      if (enabledBlocked === null) return { pass: false, detail: `前提崩れ＝検索に ${FOURTH} の行が出ない` };
+      await page.getByTestId(`search-add-${FOURTH}`).first().click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const afterBlocked = await readDeck(deckId);
+      H.log(`① 上限つき: ＋enabled=${enabledBlocked} lrig_deck=${JSON.stringify(afterBlocked)}`);
+      if ((afterBlocked ?? []).includes(FOURTH)) {
+        return { pass: false, detail: `🔴${LIMITER} が入っているのにアーツ4枚目（${FOURTH}）が入った＝上限が効いていない（lrig_deck=${JSON.stringify(afterBlocked)}）` };
+      }
+      if (enabledBlocked === true) {
+        return { pass: false, detail: `🔴上限に達しているのに＋ボタンが押せる状態だった（押しても無言 return＝理由も出ない。V-205 の SigniSummonZoneModal と同型）` };
+      }
+
+      // ── ② 1ビット反転＝上限を課す札だけを抜く（他の3枚はそのまま）──────────────
+      await searchFor(LIMITER);
+      const rm = page.getByTestId(`search-remove-${LIMITER}`).first();
+      if (!(await rm.count())) return { pass: false, detail: `前提崩れ＝検索に ${LIMITER} の行が出ない` };
+      await rm.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const afterRemove = await readDeck(deckId);
+      H.log(`② 上限札を抜いた: lrig_deck=${JSON.stringify(afterRemove)}`);
+      if ((afterRemove ?? []).includes(LIMITER)) {
+        return { pass: false, detail: `前提崩れ＝${LIMITER} を抜けなかった（lrig_deck=${JSON.stringify(afterRemove)}）` };
+      }
+
+      // ── ③ 対照＝同じ4枚目が今度は入る ────────────────────────────────
+      await searchFor(FOURTH);
+      await page.screenshot({ path: `${SHOT}/v204-02-allowed.png`, fullPage: true });
+      const enabledAllowed = await addBtnState(FOURTH);
+      await page.getByTestId(`search-add-${FOURTH}`).first().click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const afterAllowed = await readDeck(deckId);
+      H.log(`③ 上限札なし: ＋enabled=${enabledAllowed} lrig_deck=${JSON.stringify(afterAllowed)}`);
+      if (!(afterAllowed ?? []).includes(FOURTH)) {
+        return { pass: false, detail: `🔴${LIMITER} を抜いてもアーツ4枚目（${FOURTH}）が入らない＝上限と無関係の理由で止まっている（enabled=${enabledAllowed} lrig_deck=${JSON.stringify(afterAllowed)}）` };
+      }
+      return {
+        pass: true,
+        detail: `${LIMITER} が在るとアーツ4枚目（${FOURTH}）は＋が disabled で入らず（lrig_deck=${JSON.stringify(afterBlocked)}）、`
+          + `${LIMITER} を抜くだけで同じ4枚目が入った（enabled=${enabledAllowed} lrig_deck=${JSON.stringify(afterAllowed)}）`,
+      };
+    } finally {
+      // 🔴**片付けを飛ばさない**＝ルームを PLAYING に戻さないと後続シナリオが全部「注入失敗」になる。
+      if (deckId) await deleteDeck(deckId).catch(() => {});
+      if (paused.length) await resumeRooms(paused).catch(() => {});
+      H.log(`片付け＝検証デッキ削除・ルーム復帰（${JSON.stringify(paused)}）`);
+    }
+  },
+};
+order.push('v204LrigDeckArtsCapBlocksFourth');
+
 
 
 
@@ -57733,9 +58066,16 @@ try {
       try {
         console.log(`\n=== シナリオ ${id}: ${sc.title} ===`);
         await H.closeModals();
-        const inj = await injectScenario(page, sc.spec);
-        console.log('注入:', JSON.stringify(inj));
-        if (inj.error) { r = { pass: false, detail: '注入失敗: ' + inj.error, sec: 0 }; break; }
+        // 🆕**盤面を持たないシナリオ**（2026-09-12・§5.1 `V-204`＝デッキ編集画面）＝`noInject:true`。
+        //   `injectScenario` は PLAYING ルームの `battle_states` を書くので、対戦画面の外を確かめる
+        //   シナリオには適用できない（「PLAYINGルームなし」で必ず注入失敗になる）。
+        //   ⚠**ルームの status を触るのは drive 側の責任**（必ず `finally` で PLAYING へ戻すこと）。
+        if (sc.noInject) console.log('注入: スキップ（noInject＝対戦盤面を使わないシナリオ）');
+        else {
+          const inj = await injectScenario(page, sc.spec);
+          console.log('注入:', JSON.stringify(inj));
+          if (inj.error) { r = { pass: false, detail: '注入失敗: ' + inj.error, sec: 0 }; break; }
+        }
         // 毎シナリオ直前に reload してコンポーネントツリーを再マウント（続き105＝クライアント側残留状態対策）。
         // App.tsx 起動時ロジックが PLAYING ルームを検出して BattleScreen へ復帰＝直前の注入 DB 書き込みは活きる。
         await page.reload({ waitUntil: 'networkidle' });

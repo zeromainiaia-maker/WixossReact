@@ -191,7 +191,7 @@ live JSON の STUB id 種類 : 603（総ノード 3370 件）
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
      1件   1枚  LRIG_DECK_ARTS_LIMIT
         カード: WXK03-003A
-        消費: src\utils\deckBuildLimits.ts:24
+        消費: src\utils\deckBuildLimits.ts:43 / src\utils\deckBuildLimits.ts:60
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
         消費: src\engine\effectExecutor.ts:6219

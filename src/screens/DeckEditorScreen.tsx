@@ -1,29 +1,16 @@
 import { useState, useMemo } from 'react';
 import type { CardData, Deck } from '../types';
 import { isLrigCard } from '../types';
-import { lrigDeckArtsCap, lrigDeckArtsCount } from '../utils/deckBuildLimits';
-
-const MAIN_MAX = 40;
-const LB_MAX = 20;
-const LRIG_MAX = 10;
-const LRIG_EXTRA_MAX = 2;
-const COPY_MAX = 4;
-const LRIG_COPY_MAX = 1;
-
-const SPECIAL_EXTRA_CARD_NUMS = ['PR-470B', 'WX13-005B', 'WX13-006B', 'WX14-006B'];
-const TEAM_PIECE_MAX = 1;
+import {
+  deckAddBlockReason, isExtraLrigCard,
+  MAIN_MAX, LRIG_MAX, LRIG_EXTRA_MAX,
+} from '../utils/deckBuildLimits';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
 //  → https://ik.imagekit.io/xxxx/tr:w-72,h-100,q-40/WX01-001.webp
 const getThumbUrl = (imgUrl: string) =>
   imgUrl.replace(/(https:\/\/ik\.imagekit\.io\/[^/]+\/)/, '$1tr:w-72,h-100,q-40/');
-
-const isExtraLrigCard = (card: CardData) =>
-  card.Type === 'ピース' || card.Type === 'リレーピース' || SPECIAL_EXTRA_CARD_NUMS.includes(card.CardNum);
-
-const isTeamPieceCard = (card: CardData) =>
-  /^【使用条件】【(ドリーム)?チーム】/.test(card.EffectText ?? '');
 
 interface Props {
   deck: Deck;
@@ -91,10 +78,6 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
   const regularLrigCount = current.lrigDeck.length - extraLrigCount;
 
-  const teamPieceCount = useMemo(() =>
-    current.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isTeamPieceCard(c); }).length,
-    [current.lrigDeck, cardMap]);
-
   const types = useMemo(() => [...new Set(cards.map(c => c.Type).filter(Boolean))].sort(), [cards]);
   const colors = useMemo(() => {
     const COLOR_ORDER = ['無', '白', '緑', '赤', '青', '黒'];
@@ -130,47 +113,25 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
     return true;
   }), [cards, search, filterType, filterColor, filterLevel, filterClass]);
 
-  const lbCount = useMemo(
-    () => current.mainDeck.filter(n => cardMap.get(n)?.LifeBurst === '1').length,
-    [current.mainDeck, cardMap],
-  );
-
   const countInMainByName = (cardName: string) =>
     current.mainDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
 
   const countInLrigByName = (cardName: string) =>
     current.lrigDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
 
+  // 🆕§5.1 `V-204`（2026-09-12）＝**「入れられるか」の判定は `deckAddBlockReason` の1本だけ**。
+  //   🔴以前は同じ規則が addCard／検索行の canAdd／デッキ行の canAdd の**3箇所**に写経されており、
+  //     `O-317` のアーツ上限は addCard にしか無かった＝**＋ボタンは押せるのに無言 `return`**（V-205 と同型）。
+  //   ⚠ここを列挙式のコピーに戻さない（ボタンの活殺と実際の可否が必ずズレる）。
+  const addBlockReason = (card: CardData) => deckAddBlockReason(card, current, cardMap);
+
   const addCard = (card: CardData) => {
-    if (isLrigCard(card)) {
-      if (countInLrigByName(card.CardName) >= LRIG_COPY_MAX) return;
-      // 🆕§5.3 `O-317`（2026-09-12・`WXK03-003A`）＝**カードが課す構築時のアーツ上限**。
-      //   ⚠判定は JSON の宣言（`STUB{LRIG_DECK_ARTS_LIMIT}`）だけを読む（原文 regex を UI 層に書かない）。
-      if (card.Type === 'アーツ') {
-        const artsCap = lrigDeckArtsCap(current.lrigDeck, cardMap);
-        if (artsCap !== undefined && lrigDeckArtsCount(current.lrigDeck, cardMap) >= artsCap) return;
-      } else {
-        // 上限を課す札を**後から**入れる場合も、既に上限を超えていたら入れられない。
-        const capAfter = lrigDeckArtsCap([...current.lrigDeck, card.CardNum], cardMap);
-        if (capAfter !== undefined && lrigDeckArtsCount(current.lrigDeck, cardMap) > capAfter) return;
-      }
-      if (isTeamPieceCard(card) && teamPieceCount >= TEAM_PIECE_MAX) return;
-      if (isExtraLrigCard(card)) {
-        if (extraLrigCount >= LRIG_EXTRA_MAX) return;
-      } else {
-        if (regularLrigCount >= LRIG_MAX) return;
-      }
-      const updated = { ...current, lrigDeck: [...current.lrigDeck, card.CardNum] };
-      setCurrent(updated);
-      onUpdate(updated);
-    } else {
-      if (current.mainDeck.length >= MAIN_MAX) return;
-      if (countInMainByName(card.CardName) >= COPY_MAX) return;
-      if (card.LifeBurst === '1' && lbCount >= LB_MAX) return;
-      const updated = { ...current, mainDeck: [...current.mainDeck, card.CardNum] };
-      setCurrent(updated);
-      onUpdate(updated);
-    }
+    if (addBlockReason(card) !== null) return;
+    const updated = isLrigCard(card)
+      ? { ...current, lrigDeck: [...current.lrigDeck, card.CardNum] }
+      : { ...current, mainDeck: [...current.mainDeck, card.CardNum] };
+    setCurrent(updated);
+    onUpdate(updated);
   };
 
   const removeCard = (cardNum: string, from: 'main' | 'lrig') => {
@@ -237,15 +198,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
     const card = cardMap.get(cardNum);
     const bg = getCardBg(card?.Color ?? '');
     const hasLB = card?.LifeBurst === '1';
-    const lrig = from === 'lrig';
-    const nameCount = lrig ? countInLrigByName(card?.CardName ?? '') : countInMainByName(card?.CardName ?? '');
-    const copyMax = lrig ? LRIG_COPY_MAX : COPY_MAX;
-    const extra = lrig && card && isExtraLrigCard(card);
-    const canAdd = card != null && nameCount < copyMax && (
-      lrig
-        ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
-        : current.mainDeck.length < MAIN_MAX && !(hasLB && lbCount >= LB_MAX)
-    );
+    const canAdd = card != null && addBlockReason(card) === null;
     const variants = card ? (variantMap.get(card.CardName) ?? []) : [];
     const hasVariants = variants.length > 1;
     // 表示用カード（artOverridesで絵柄が差し替えられている場合はそちらを使用）
@@ -399,16 +352,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             {filteredCards.slice(0, 200).map(card => {
               const lrig = isLrigCard(card);
               const nameCount = lrig ? countInLrigByName(card.CardName) : countInMainByName(card.CardName);
-              const copyMax = lrig ? LRIG_COPY_MAX : COPY_MAX;
-              const extra = lrig && isExtraLrigCard(card);
-              const teamPiece = lrig && isTeamPieceCard(card);
-              const canAdd = nameCount < copyMax && (
-                lrig
-                  ? (teamPiece ? teamPieceCount < TEAM_PIECE_MAX : true) &&
-                    (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
-                  : current.mainDeck.length < MAIN_MAX &&
-                    (!card.LifeBurst || card.LifeBurst !== '1' || lbCount < LB_MAX)
-              );
+              const canAdd = addBlockReason(card) === null;
               const bg = getCardBg(card.Color);
               const hasLB = card.LifeBurst === '1';
               return (
@@ -438,13 +382,16 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                     )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                    {/* §5.1 `V-204`＝実機シナリオが「押せるのに入らない」を観測できるよう安定セレクタを置く。 */}
                     <button
+                      data-testid={`search-add-${card.CardNum}`}
                       onClick={e => { e.stopPropagation(); addCard(card); }}
                       disabled={!canAdd}
                       style={cardBtnStyle(canAdd ? 'add' : 'disabled')}
                     >＋</button>
                     {nameCount > 0 && <span style={{ fontSize: '12px', color: '#5533aa', fontWeight: 'bold', minWidth: '28px', textAlign: 'center' }}>×{nameCount}</span>}
                     <button
+                      data-testid={`search-remove-${card.CardNum}`}
                       onClick={e => { e.stopPropagation(); removeCard(card.CardNum, lrig ? 'lrig' : 'main'); }}
                       disabled={nameCount === 0}
                       style={cardBtnStyle(nameCount > 0 ? 'remove' : 'disabled')}
