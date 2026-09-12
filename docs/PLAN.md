@@ -13,10 +13,10 @@ PLAN から日記文と教訓を追い出して worklist に戻した（734行 �
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**§5.1 実機 `V-209`〜`V-211`** → ②**§5.3 `O-342`**（代替肢が8窓にしか出ていない） → ③**§5.5 の残り** → ④**§5.2 round5 の判断** |
+| 🔥**次に取るもの** | ①**§5.1 実機 `V-209`〜`V-212`** → ②**§5.5 の残り** → ③**§5.2 round5 の判断** |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（据置＝どの計器も見ていない形を直した回のため） |
-| 📦**在庫** | 機構 worklist **1項目**（`O-342`）／実機 **残3**／実装キュー **残0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4039 PASS**（詳細は §6） |
+| 📦**在庫** | 機構 worklist 🏁**0**／実機 **残4**／実装キュー **残0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4044 PASS**（詳細は §6） |
 
 🔴**着手の1手目は「登録票／本文の数字」の反証**＝「受け皿が無い」は**連続12項目**外れており、
 §5.5 の数字も測り直したら2項目とも stale だった。**実測が食い違ったら、実装せずに記述のほうを直す。**
@@ -188,7 +188,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🔥**2件**（`V-209`／`V-210`） | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**1項目**（`O-338`） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🏁**0項目** | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0**（残りは全部 §5.3 登録済み） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | **④** | **§5.5 低優先・保留** | **7件** | CPU AI／逆翻訳テール／リリース判定ほか | — |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
@@ -252,11 +252,12 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🔥**残3**（`src/screens/` を触ったので §2.2 の機械判定により実機が要る）。
+🔥**残4**（`src/screens/` を触ったので §2.2 の機械判定により実機が要る）。
 
 | ID | 観測点 | 状況 |
 |---|---|---|
 | `V-209` | **`WX25-P3-057-E1c`（§5.3 `O-334`）＝覚醒中のシグニのアタックが「対戦相手の効果」では無効にされないこと**。配線＝`BattleScreen.tsx:5173` の `collectAttackNegationProtectedSigni` → `ExecCtx.otherAttackNegationProtectedNums`。**確認の要点**＝①覚醒中は相手のアタック無効化がこのシグニに当たらない ②**対照＝覚醒していなければ従来どおり無効にできる** ③**自分の**効果での無効化は従来どおり通る（原文は「対戦相手の」限定） | **未実施**。headless は golden 済み（`§5.3 O-334`＝覚醒/非覚醒の両方向） |
+| `V-212` | **§5.3 `O-342`＝提示ゲートが一括代替を見ること**。配線＝`canAffordEnergyCostWithSubstitutes` を A群6地点（`spellUseGate` / `artsUseGate` 2 / `BattleScreen` 3）が共有。**確認の要点**＝①エナが《オサキ》1枚＋緑1枚のとき、緑×3 のスペルが**一覧で選べる**（第291時点では出なかった） ②**対照**＝非オサキ2枚では出ない ③**CPU 戦でも CPU が同じ盤面で撃てる**（提示だけ通って実行候補から消えない） | **未実施**。headless は golden 済み（`checkSpellUse` 実物への E2E ＋ CPU の支払い内訳） |
 | `V-211` | **`WX09-032-E1`（§5.3 `O-338`）＝エナの《オサキ》1枚で《緑》×2／×3 を丸ごと払えること**。配線＝`src/screens/battle/costs.ts` の `isEnergyPaymentSelectionValid` を8窓が共有。**確認の要点**＝①場に《幻獣 コサキ》＋エナに《オサキ》を含む札1枚で、緑2/緑3 の【起】・スペルが**オサキ1枚の選択だけで決定できる** ②**対照**＝非オサキ1枚では決定不可／コサキを場から外すと代替が消える ③**対照**＝《緑》×2＋《無》×1 はオサキ1枚だけでは不成立（無色は置き換えられない） | **未実施**。headless は golden 済み（payload／判定／E2E／8窓の配線 assert） |
 | `V-210` | **`WXDi-P13-004B-E3`（§5.3 `O-340`）＝リミット+2 が「発生源が場にある」と「次のエナフェイズ終了まで」の短い方で切れること**。配線＝`src/screens/battle/lrigLimit.ts` の `computeEffectiveLrigLimit` が発生源紐づけストアを読む。**確認の要点**＝①出したターンはリミット+2 ②**発生源のシグニが場を離れた瞬間に +2 が消える** ③場に残っていてもエナフェイズ境界で消える | **未実施**。headless は golden 済み（純関数 `computeEffectiveLrigLimit` を両方向で assert） |
 
@@ -332,11 +333,10 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-🔥**残1項目 / 1効果**。**登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の同 ID を着手前に読む。**
+🏁**残0**。⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-342` | M | 🔴**エナ支払いの一括代替が「提示ゲート」に入っていない＝実戦では到達しない**（`spellUseGate.ts:128` ほか**プール判定6地点**が代替を知らないので、エナが「オサキ1枚＋緑1枚」だと緑×3のスペルが一覧に出ず、配線済みの8窓へ入れない）。残る選択窓17呼び出しも未接続＝**実測 計23呼び出し** |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -406,8 +406,8 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 - **2026-09-12 時点（本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**。
-  📦**在庫**＝**機構 worklist 1項目**（§5.3 索引G `O-342`）｜**実機 残3**（§5.1 `V-209`〜`V-211`）｜**実装キュー 残0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4039 PASS**／smoke 10754 OK／fuzz 0／census 1 / BASELINE 1／
+  📦**在庫**＝**機構 worklist 🏁0**（索引 A/B/G すべて残0）｜**実機 残4**（§5.1 `V-209`〜`V-212`）｜**実装キュー 残0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4044 PASS**／smoke 10754 OK／fuzz 0／census 1 / BASELINE 1／
   census:stubs A群 0・C群 0／census:enginetext A群 0／census:costtext A群 0規則／census:deadstate 0／
   check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）。
   📐**その他のラチェット**＝同型★ **2グループ / 4枚**（`node scripts/groupSimilar.mjs --all`）／

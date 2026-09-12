@@ -57,7 +57,7 @@ import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -4945,8 +4945,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return (gCoin === 0 || my.coins >= gCoin) &&
             // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
             // ＝原文「あなたが《X》を支払う際」はグロウコストを含む（タスク12(xxxvi)・続き206）。
-            canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
-              undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+            canAffordEnergyCostWithSubstitutes({
+              poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards,
+              baseCost: applyGrowCostReduction(card.GrowCost, growRed), keywordGrants: my.keyword_grants,
+              allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+              colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+              trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+              trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+              banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+              wholeSubstitutes: myWholeEnergySubstitutes,
+            });
         });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);
@@ -6981,13 +6989,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const growPayValidExec = !!growPayOptExec && growPayNums.length === growPayOptExec.handDiscard.count
         && growPayIdxExec.every(i => growPayCandidateHandIndices(growBase, growPayOptExec, battleCardMap).includes(i));
       const growPayReductions = growPayValidExec && growPayOptExec ? growPayOptExec.reduction : [];
-      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, [
+      const growCostStrExec = applyGrowCostReduction(card.GrowCost, [
         ...collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap, card.CardNum),
         ...growPayReductions,
-      ]));
+      ]);
+      const costItemsExec = parseGrowCost(growCostStrExec);
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
+      // `O-342`＝通常の一括代替とグロウ専用代替が同時に成立する盤面では、選択した《オサキ》を
+      // 一括代替として優先する。ここを見ずに下の専用代替も自動適用すると、2枚を二重に支払う。
+      const growPayerExec = buildArtsPayerCtx({
+        actor: growBase, opponent: growOp, isActorTurn: p.isActorTurn,
+        turnPhase: bs.turn_phase, cardMap: battleCardMap, effectsMap,
+      });
+      const selectedGrowNumsExec = [...costIndices].map(i => growPool[i]?.cardNum).filter((n): n is string => !!n);
+      const usesWholeGrowSubstitute = costIndices.size < totalReqExec && isEnergyPaymentSelectionValid({
+        selectedEnergyNums: selectedGrowNumsExec, cards: battleCards, baseCost: growCostStrExec,
+        keywordGrants: growBase.keyword_grants, allMulti: growPayerExec.enaAllMulti,
+        stripped: growPayerExec.enaMultiStripped, colorlessOverrides: growPayerExec.colorlessOverrides,
+        colorSubs: growPayerExec.colorSubs, extraColorMap: growPayerExec.energyExtraColors,
+        trashSubWilds: growPayerExec.energyTrashSubInfo.wildcardInstIds,
+        trashSubColors: growPayerExec.energyTrashSubInfo.colorOverrideMap,
+        banColorlessPay: growBase.cannot_pay_colorless_this_attack_phase,
+        wholeSubstitutes: growPayerExec.wholeEnergySubstitutes,
+        requiredSelectionCount: totalReqExec,
+      });
       let growSubSigniPaid: string | null = null;
-      if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
+      if (!usesWholeGrowSubstitute && growSubInfoExec && costIndices.size === totalReqExec - 1) {
         const subSigni = growPay.energyAfter.find(cn => {
           const c = battleCardMap.get(cn);
           return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(growSubInfoExec.signiClass);
@@ -9026,7 +9053,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
       const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       // コスト支払い可能か（簡易チェック：エナで賄えるか）
-      const costOk = canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase);
+      const costOk = canAffordEnergyCostWithSubstitutes({
+        poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards, baseCost: cardData.Cost,
+        extraCosts: [], keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti,
+        stripped: myEnaMultiStripped, colorlessOverrides: myColorlessOverrides,
+        colorSubs: myColorSubs, extraColorMap: myEnergyExtraColors,
+        banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+        wholeSubstitutes: myWholeEnergySubstitutes,
+      });
       if (canUse && condOk && costOk) {
         actions.push({
           label: '使用',
@@ -9118,8 +9152,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 🆕**《無》コストの許可色**（意味照合 段2・`PR-K048`＝「このキーを場に出すための《無》コストは
       //   白か赤か青でしか支払えない」）。🔴ここと `KeyUseModal` の**両方**に入れないと
       //   「一覧では使えるのに払えない」食い違いになる（上の軽減と同じ理由）。
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
-        undefined, undefined, undefined, undefined, undefined, colorlessPayableColorsOf(cardNum, effectsMap));
+      const canAfford = my.coins >= coinNeeded && canAffordEnergyCostWithSubstitutes({
+        poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards, baseCost: pieceEffCost,
+        keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+        colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+        colorlessPayableColors: colorlessPayableColorsOf(cardNum, effectsMap),
+        wholeSubstitutes: myWholeEnergySubstitutes,
+      });
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, isMyTurn, effectivePowers,
       );
@@ -11965,15 +12004,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
       const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
       const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
+      const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
       const choice = pickCpuSigniActivated({
         actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
         phase, energyPoolNums: energyPoolCardNums(pool),
         alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
         effectivePowers: powers,
         // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
-        isAffordable: (selectedNums, costStr) => canAffordGrowCost(
-          selectedNums, cards, costStr, actorState.keyword_grants, undefined, stripped,
-        ),
+        isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
+          selectedEnergyNums: selectedNums, cards, baseCost: costStr,
+          keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
+        }),
+        wholeSubstitutes,
       });
       if (!choice) return false;
       appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
@@ -12012,6 +12054,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
       const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
       const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
+      const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
       const blockedSelf = calcContinuousBlockedActions(
         actorState, huSt, true, effectsMap, battleCardMap, powers).forSelf;
       const choice = pickCpuLrigActivated({
@@ -12019,9 +12062,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         phase, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
         alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
         effectivePowers: powers,
-        isAffordable: (selectedNums, costStr) => canAffordGrowCost(
-          selectedNums, cards, costStr, actorState.keyword_grants, undefined, stripped,
-        ),
+        isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
+          selectedEnergyNums: selectedNums, cards, baseCost: costStr,
+          keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
+        }),
+        wholeSubstitutes,
       });
       if (!choice) return false;
       const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
@@ -12066,11 +12111,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
         payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
         // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
-        isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
-          selectedNums, battleCards, costStr, extraCosts, actorState.keyword_grants,
-          payer.enaAllMulti, payer.enaMultiStripped,
-          payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
-          undefined, undefined, undefined, actorState.cannot_pay_colorless_this_attack_phase),
+        isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
+          selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
+          keywordGrants: actorState.keyword_grants, allMulti: payer.enaAllMulti,
+          stripped: payer.enaMultiStripped, colorlessOverrides: payer.colorlessOverrides,
+          colorSubs: payer.colorSubs, extraColorMap: payer.energyExtraColors,
+          banColorlessPay: actorState.cannot_pay_colorless_this_attack_phase,
+          wholeSubstitutes: payer.wholeEnergySubstitutes,
+        }),
       });
       if (!choice) return false;
       appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
@@ -12340,6 +12388,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cpuEnaMultiStrippedGrow = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
         const cpuGrowPool = buildEnergyPayPool(cpuSt, { turnPhase: 'GROW', isMyTurn: true, effectsMap });
         const cpuGrowPoolNums = energyPoolCardNums(cpuGrowPool);
+        const cpuGrowWholeSubstitutes = collectEnergyCostSubstitutes(cpuSt, battleCardMap, effectsMap);
         // 候補は人間と同じ gate。コストは**払える1枚目**を選ぶ（決定論・盤面評価はしない）。
         for (const growCard of listGrowCandidates({ my: cpuSt, cardMap: battleCardMap, effectsMap })) {
           // 🆕**§5.3 `O-219`**＝グロウ先ごとに軽減が変わる（人間UIと同じ関数・同じ引数で読む）。
@@ -12350,9 +12399,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const costIndices = selectEnergyIndicesForCost({
             poolNums: cpuGrowPoolNums, cards, costStr: growCostStr,
             // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
-            isAffordable: (selectedNums, costStr) => canAffordGrowCost(
-              selectedNums, cards, costStr, cpuSt.keyword_grants, undefined, cpuEnaMultiStrippedGrow,
-            ),
+            isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
+              selectedEnergyNums: selectedNums, cards, baseCost: costStr,
+              keywordGrants: cpuSt.keyword_grants, stripped: cpuEnaMultiStrippedGrow,
+              wholeSubstitutes: cpuGrowWholeSubstitutes,
+            }),
+            wholeSubstitutes: cpuGrowWholeSubstitutes,
           });
           if (!costIndices) continue;
           appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
@@ -12631,11 +12683,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actor: newCpuSt, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
           payer: cpuSpellPayer, turnPhase: 'MAIN', pendingSpell: !!bs.pending_spell,
           alreadyUsedNums: newCpuSt.cpu_used_card_nums_this_turn ?? [],
-          isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
-            selectedNums, battleCards, costStr, extraCosts, newCpuSt.keyword_grants,
-            cpuSpellPayer.enaAllMulti, cpuSpellPayer.enaMultiStripped,
-            cpuSpellPayer.colorlessOverrides, cpuSpellPayer.colorSubs, cpuSpellPayer.energyExtraColors,
-            undefined, undefined, undefined, newCpuSt.cannot_pay_colorless_this_attack_phase),
+          isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
+            selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
+            keywordGrants: newCpuSt.keyword_grants, allMulti: cpuSpellPayer.enaAllMulti,
+            stripped: cpuSpellPayer.enaMultiStripped,
+            colorlessOverrides: cpuSpellPayer.colorlessOverrides,
+            colorSubs: cpuSpellPayer.colorSubs, extraColorMap: cpuSpellPayer.energyExtraColors,
+            banColorlessPay: newCpuSt.cannot_pay_colorless_this_attack_phase,
+            wholeSubstitutes: cpuSpellPayer.wholeEnergySubstitutes,
+          }),
         });
         if (cpuSpellChoice) {
           appendBattleLogs([`[CPU] スペルを発動: ${cpuSpellChoice.card.CardName}`]);

@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { collectGrowCostReductions, collectGrowCostSubstitute, collectGrowPayOptions, growPayCandidateHandIndices } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna, coinPayableFor } from '../costs';
+import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, parseGrowCost, isMultiEna, coinPayableFor } from '../costs';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 import { freeGrowAppliesTo } from '../growLogic';
 import { getCardNum } from '../../../engine/execUtils';
@@ -30,7 +30,7 @@ interface GrowModalProps {
 }
 
 export function GrowModal(p: GrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard, growPayDiscard, toggleGrowPayDiscard } = p;
   return (
     <>
@@ -87,7 +87,16 @@ export function GrowModal(p: GrowModalProps) {
                     ) || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
                     // 🆕§5.3 `O-245`（2026-09-04）＝グロウはルリグ＝`coin_use_restriction` の対象。
                     const coinOk = growCoinNeeded === 0 || (my.coins >= growCoinNeeded && coinPayableFor(my, 'lrig'));
-                    const enaOkFor = (cost: string) => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+                    const enaOkFor = (cost: string) => canAffordEnergyCostWithSubstitutes({
+                      poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards, baseCost: cost,
+                      keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                      colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                      extraColorMap: myEnergyExtraColors,
+                      trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                      trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                      banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                      wholeSubstitutes: myWholeEnergySubstitutes,
+                    });
                     const canAfford = isFreeGrow || (coinOk && (enaOkFor(growCostR) || enaOkFor(growCostRPaid)));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
@@ -181,8 +190,17 @@ export function GrowModal(p: GrowModalProps) {
               }) : [];
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
-              const isValidNormal = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+              const isValidNormal = isEnergyPaymentSelectionValid({
+                selectedEnergyNums: selectedNums, cards: battleCards, baseCost: reducedGrowCost,
+                keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                extraColorMap: myEnergyExtraColors,
+                trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                wholeSubstitutes: myWholeEnergySubstitutes,
+                requiredSelectionCount: totalReq,
+              });
               const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
                 selectedGrowCost.size === totalReq - 1 && (() => {
                   const subSigniId = growSubEnaSigni[0];

@@ -4,7 +4,7 @@ import {
   type ActiveCostMod,
   calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition,
   collectAllZoneBlackCardNums, collectArtsThresholdCostReductions, collectColorlessOverrides,
-  collectConvertEnergyColors, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo,
+  collectConvertEnergyColors, collectEnergyColorSubs, collectEnergyCostSubstitutes, collectEnergyTrashSubstituteInfo,
   collectFieldEnergySigniColorGains, collectLrigNameAliases, collectOppTurnArtsCostReductions,
   collectSpecificCardCostReductions, hasAllCardsColorBlack,
 } from '../../engine/effectEngine';
@@ -13,8 +13,9 @@ import { canUseArtsCondition } from './battleUtils';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyNextArtsCostReduction, applySpecificCardCostReduction,
-  canAffordGrowCost, canAffordWithExtraCost, colorlessPayableColorsOf, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
+  canAffordEnergyCostWithSubstitutes, colorlessPayableColorsOf, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
   energyCostToString, isEnaMultiStripped, betOptionsOf, coinPayableFor,
+  type WholeEnergyCostSubstituteOption,
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
 import { effectiveLrigClass, meetsRestriction } from './growLogic';
@@ -74,6 +75,8 @@ export interface ArtsPayerCtx {
   colorSubs: { from: string[]; to: string }[];
   energyExtraColors: Map<string, string>;
   energyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
+  /** 指定色N個の要求全体を、対象エナ1枚で置き換える常在宣言。 */
+  wholeEnergySubstitutes: WholeEnergyCostSubstituteOption[];
   /** `calcActiveCostMods(...).forMy` ＋ 相手が持つ NEXT_OPP_TURN のコスト増加。 */
   costModsForMy: ActiveCostMod[];
   lrigNameAliases: string[];
@@ -193,6 +196,7 @@ export function buildArtsPayerCtx(p: {
     colorSubs: collectEnergyColorSubs(actor, cardMap, effectsMap),
     energyExtraColors: collectEnergyExtraColors(actor, opponent, isActorTurn, effectsMap, cardMap),
     energyTrashSubInfo: collectEnergyTrashSubstituteInfo(actor, cardMap, effectsMap),
+    wholeEnergySubstitutes: collectEnergyCostSubstitutes(actor, cardMap, effectsMap),
     costModsForMy: [...mods.forMy, ...toMods(opponent.opp_cost_up_until_opp_turn)],
     lrigNameAliases: collectLrigNameAliases(actor, cardMap, effectsMap, opponent),
     artsThresholdReductions: [
@@ -296,14 +300,25 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   // 🆕**《無》コストの許可色**（意味照合 段2・`WX19-004-E1`＝「このアーツの使用コストに含まれる《無》
   //   コストは、白か黒でしか支払えない」）。⚠**提示ゲートと支払いモーダルの両方**に入れる（§4.2 の3地点）。
   const colorlessColorsArts = colorlessPayableColorsOf(cardNum, effectsMap);
-  const affordWith = (cost: string) => canAffordWithExtraCost(
-    poolNums, cards, cost, extraCosts, my.keyword_grants, payer.enaAllMulti, payer.enaMultiStripped,
-    payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
-    undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessColorsArts);
+  const affordWith = (cost: string) => canAffordEnergyCostWithSubstitutes({
+    poolNums, cards, baseCost: cost, extraCosts, keywordGrants: my.keyword_grants,
+    allMulti: payer.enaAllMulti, stripped: payer.enaMultiStripped,
+    colorlessOverrides: payer.colorlessOverrides, colorSubs: payer.colorSubs,
+    extraColorMap: payer.energyExtraColors,
+    banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+    colorlessPayableColors: colorlessColorsArts,
+    wholeSubstitutes: payer.wholeEnergySubstitutes,
+  });
   const affordable = altCostStr !== null
-    ? canAffordGrowCost(poolNums, cards, altCostStr, my.keyword_grants, payer.enaAllMulti, payer.enaMultiStripped,
-        payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
-        undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessColorsArts)
+    ? canAffordEnergyCostWithSubstitutes({
+        poolNums, cards, baseCost: altCostStr, keywordGrants: my.keyword_grants,
+        allMulti: payer.enaAllMulti, stripped: payer.enaMultiStripped,
+        colorlessOverrides: payer.colorlessOverrides, colorSubs: payer.colorSubs,
+        extraColorMap: payer.energyExtraColors,
+        banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+        colorlessPayableColors: colorlessColorsArts,
+        wholeSubstitutes: payer.wholeEnergySubstitutes,
+      })
     : (affordWith(reducedCost) || (betCost !== null && affordWith(betCost)));
   // 使用時の任意支払い（`useTimeCost.ts`）で下がりうる**最良コスト**＝いま盤面にある候補を上限まで払った額。
   // ⚠固定形（`perUnit:false`）は候補が上限に届かなければ `applyUseTimeCostReduction` が 0 回に落ちる＝

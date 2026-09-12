@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { collectGrowCostReductions } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyGrowCostReduction, canAffordGrowCost, parseGrowCost, isMultiEna } from '../costs';
+import { applyGrowCostReduction, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, parseGrowCost, isMultiEna } from '../costs';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -23,7 +23,7 @@ interface AssistGrowModalProps {
 }
 
 export function AssistGrowModal(p: AssistGrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showAssistGrowModal, setShowAssistGrowModal, pendingAssistGrowCard, setPendingAssistGrowCard, pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost, getAssistGrowCandidates, executeAssistGrow } = p;
   return (
     <>
@@ -45,7 +45,16 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
                     const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum));
-                    const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+                    const canAfford = canAffordEnergyCostWithSubstitutes({
+                      poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards, baseCost: growCostRA,
+                      keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                      colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                      extraColorMap: myEnergyExtraColors,
+                      trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                      trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                      banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                      wholeSubstitutes: myWholeEnergySubstitutes,
+                    });
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum} data-testid={`assistgrow-cand-${card.CardNum}`}
@@ -94,7 +103,16 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 const selectedNums = [...selectedAssistGrowCost].map(i => myEnergyPayPool[i].cardNum);
                 const canAfford = energyTotal === 0
                   ? true
-                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+                  : isEnergyPaymentSelectionValid({
+                      selectedEnergyNums: selectedNums, cards: battleCards, baseCost: growCost,
+                      keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                      colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                      extraColorMap: myEnergyExtraColors,
+                      trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                      trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                      banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                      wholeSubstitutes: myWholeEnergySubstitutes,
+                    });
                 return (
                   <>
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>

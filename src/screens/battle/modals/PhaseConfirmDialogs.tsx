@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectGrowCostReductions, resolveForcedSigniAttack } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyGrowCostReduction, canAffordGrowCost } from '../costs';
+import { applyGrowCostReduction, canAffordEnergyCostWithSubstitutes } from '../costs';
 import { energyPoolCardNums } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -30,7 +30,7 @@ interface PhaseConfirmDialogsProps {
 }
 
 export function PhaseConfirmDialogs(p: PhaseConfirmDialogsProps) {
-  const { my, op, isMyTurn, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyPayPool } = p.ctx;
+  const { my, op, isMyTurn, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, myEnergyPayPool } = p.ctx;
   const { showEnergySkipConfirm, setShowEnergySkipConfirm, showGrowSkipConfirm, setShowGrowSkipConfirm,
     showUpkeepPayConfirm, showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm,
     showMustAttackWarning, setShowMustAttackWarning, showRemoveBlockedWarn, setShowRemoveBlockedWarn,
@@ -92,7 +92,13 @@ export function PhaseConfirmDialogs(p: PhaseConfirmDialogsProps) {
             </p>
             <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 12px' }}>
               {growCandidates
-                .filter(c => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(c.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, c.CardNum)), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs))
+                .filter(c => canAffordEnergyCostWithSubstitutes({
+                  poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards,
+                  baseCost: applyGrowCostReduction(c.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, c.CardNum)),
+                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                }))
                 .map(c => c.CardName)
                 .join('・')}
             </p>

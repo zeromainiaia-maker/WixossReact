@@ -1580,6 +1580,83 @@ function removeWholeSubstituteColor(cost: string, color: string, count: number):
   return reduced.map(item => `《${item.color}》×${item.count}`).join('') || 'なし';
 }
 
+interface EnergyCostAffordanceContext {
+  cards: CardData[];
+  baseCost: string;
+  extraCosts?: { color: string; count: number }[];
+  keywordGrants?: Record<string, string[]>;
+  allMulti?: boolean;
+  stripped?: boolean;
+  colorlessOverrides?: string[];
+  colorSubs?: { from: string[]; to: string }[];
+  extraColorMap?: Map<string, string>;
+  trashSubWilds?: Set<string>;
+  trashSubColors?: Map<string, string>;
+  extraWildCount?: number;
+  banColorlessPay?: boolean;
+  colorlessPayableColors?: string[];
+  wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
+  /** 既存窓が別計算している選択枚数。未指定なら baseCost＋extraCosts－extraWildCount。 */
+  requiredSelectionCount?: number;
+}
+
+function canAffordEnergyNums(
+  energyNums: string[], cost: string, p: EnergyCostAffordanceContext,
+): boolean {
+  return canAffordWithExtraCost(
+    energyNums, p.cards, cost, p.extraCosts ?? [], p.keywordGrants, p.allMulti, p.stripped,
+    p.colorlessOverrides, p.colorSubs, p.extraColorMap, p.trashSubWilds,
+    p.trashSubColors, p.extraWildCount, p.banColorlessPay, p.colorlessPayableColors,
+  );
+}
+
+/**
+ * 指定されたエナ列が、一括代替を1枚使って残りの請求を払えるか。
+ * `requiredSelectionCount` は選択窓だけが渡す。プール判定は余剰札を含むので枚数を拘束しない。
+ * §5.3 `O-342`＝提示ゲートと支払い検算の代替式をこの1箇所で共有する。
+ */
+function canAffordUsingWholeEnergySubstitute(
+  energyNums: string[], p: EnergyCostAffordanceContext, requiredSelectionCount?: number,
+): boolean {
+  // 別の代替（キー2色分）との同時利用は、どの色を置換したかを現在のpayloadが運べないため安全側で扱わない。
+  if ((p.extraWildCount ?? 0) > 0) return false;
+  const baseItems = parseGrowCost(p.baseCost);
+  const extraCosts = p.extraCosts ?? [];
+  const normalRequired = p.requiredSelectionCount ?? Math.max(0,
+    baseItems.reduce((sum, item) => sum + item.count, 0)
+      + extraCosts.reduce((sum, item) => sum + item.count, 0));
+
+  for (const option of p.wholeSubstitutes ?? []) {
+    if (option.spec.excludeColorless && option.spec.color === '無') continue;
+    const replaceCount = baseItems
+      .filter(item => item.color === option.spec.color)
+      .reduce((sum, item) => sum + item.count, 0);
+    if (!option.spec.counts.includes(replaceCount)) continue;
+    if (requiredSelectionCount !== undefined
+        && requiredSelectionCount !== normalRequired - replaceCount + 1) continue;
+    const reducedCost = removeWholeSubstituteColor(p.baseCost, option.spec.color, replaceCount);
+    for (let i = 0; i < energyNums.length; i++) {
+      if (!option.eligibleEnergyInstIds.has(energyNums[i])) continue;
+      const remaining = energyNums.filter((_, index) => index !== i);
+      // 《無》や追加コストは reducedCost / extraCosts に残す＝代替カード1枚では置き換えない。
+      if (canAffordEnergyNums(remaining, reducedCost, p)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * プール全体から、通常払いまたは「指定色N個を指定名1枚で丸ごと置換」で払えるかを判定する。
+ * 選択枚数を要求しない提示ゲート専用の入口。選択済みエナの検算は
+ * `isEnergyPaymentSelectionValid` を使う。
+ */
+export function canAffordEnergyCostWithSubstitutes(p: EnergyCostAffordanceContext & {
+  poolNums: string[];
+}): boolean {
+  if (canAffordEnergyNums(p.poolNums, p.baseCost, p)) return true;
+  return canAffordUsingWholeEnergySubstitute(p.poolNums, p);
+}
+
 /**
  * UIで選んだエナが、通常払いまたは「指定色N個を指定名1枚で丸ごと置換」で成立するかを判定する。
  * §5.3 `O-338`＝選択枚数の緩和と色判定をこの1本へ集約し、各モーダルは結果だけを使う。
@@ -1601,40 +1678,17 @@ export function isEnergyPaymentSelectionValid(p: {
   banColorlessPay?: boolean;
   colorlessPayableColors?: string[];
   wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
+  requiredSelectionCount?: number;
 }): boolean {
   const extraCosts = p.extraCosts ?? [];
   const baseItems = parseGrowCost(p.baseCost);
-  const normalRequired = Math.max(0,
+  const normalRequired = p.requiredSelectionCount ?? Math.max(0,
     baseItems.reduce((sum, item) => sum + item.count, 0)
       + extraCosts.reduce((sum, item) => sum + item.count, 0)
       - (p.extraWildCount ?? 0));
-  const afford = (selected: string[], cost: string) => canAffordWithExtraCost(
-    selected, p.cards, cost, extraCosts, p.keywordGrants, p.allMulti, p.stripped,
-    p.colorlessOverrides, p.colorSubs, p.extraColorMap, p.trashSubWilds,
-    p.trashSubColors, p.extraWildCount, p.banColorlessPay, p.colorlessPayableColors,
-  );
-  if (p.selectedEnergyNums.length === normalRequired && afford(p.selectedEnergyNums, p.baseCost)) return true;
-
-  // 別の代替（キー2色分）との同時利用は、どの色を置換したかを現在のpayloadが運べないため安全側で扱わない。
-  if ((p.extraWildCount ?? 0) > 0) return false;
-  for (const option of p.wholeSubstitutes ?? []) {
-    if (option.spec.excludeColorless && option.spec.color === '無') continue;
-    const replaceCount = baseItems
-      .filter(item => item.color === option.spec.color)
-      .reduce((sum, item) => sum + item.count, 0);
-    if (!option.spec.counts.includes(replaceCount)) continue;
-    const expectedSelected = normalRequired - replaceCount + 1;
-    if (p.selectedEnergyNums.length !== expectedSelected) continue;
-    const reducedCost = removeWholeSubstituteColor(p.baseCost, option.spec.color, replaceCount);
-    for (let i = 0; i < p.selectedEnergyNums.length; i++) {
-      const candidate = p.selectedEnergyNums[i];
-      if (!option.eligibleEnergyInstIds.has(candidate)) continue;
-      const remaining = p.selectedEnergyNums.filter((_, index) => index !== i);
-      // 《無》や追加コストは reducedCost / extraCosts に残す＝代替カード1枚では置き換えない。
-      if (afford(remaining, reducedCost)) return true;
-    }
-  }
-  return false;
+  if (p.selectedEnergyNums.length === normalRequired
+      && canAffordEnergyNums(p.selectedEnergyNums, p.baseCost, p)) return true;
+  return canAffordUsingWholeEnergySubstitute(p.selectedEnergyNums, p, p.selectedEnergyNums.length);
 }
 
 /**

@@ -72,6 +72,8 @@ export function pickCpuMainSpell(p: {
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards, costStr: check.effectiveCost,
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
+      wholeSubstitutes: payer.wholeEnergySubstitutes,
+      extraCosts: check.extraCosts,
     });
     if (!costIndices) continue;
     candidates.push({ card, handIndex, check, costIndices });

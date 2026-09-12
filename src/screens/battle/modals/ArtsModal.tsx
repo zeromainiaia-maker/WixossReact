@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { colorlessPayableColorsOf, computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor, applyCostScalingTerms, declaredChooseScalingOf, declaredChooseMaxOf } from '../costs';
+import { colorlessPayableColorsOf, computeCostReplacement, costReplacementOf, isEnergyPaymentSelectionValid, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor, applyCostScalingTerms, declaredChooseScalingOf, declaredChooseMaxOf } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -40,7 +40,7 @@ interface ArtsModalProps {
 }
 
 export function ArtsModal(p: ArtsModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, myWholeEnergySubstitutes, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, declaredArtsChooseCount, setDeclaredArtsChooseCount, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, executeArts, toggleArtsCostCard } = p;
   return (
     <>
@@ -147,8 +147,20 @@ export function ArtsModal(p: ArtsModalProps) {
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0)
                 + encoreDiscardNeed;
-              const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(pendingArtsCard.CardNum, effectsMap)) &&
+              const energyValid = isEnergyPaymentSelectionValid({
+                selectedEnergyNums: selectedNums, cards: battleCards, baseCost: effectiveCostAfterPay,
+                extraCosts: [...extraArtsCosts, ...boostExtraEna], keywordGrants: my.keyword_grants,
+                allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                extraColorMap: myEnergyExtraColors,
+                trashSubWilds: myEnergyTrashSubInfo.wildcardInstIds,
+                trashSubColors: myEnergyTrashSubInfo.colorOverrideMap,
+                extraWildCount: keySubCount,
+                banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                colorlessPayableColors: colorlessPayableColorsOf(pendingArtsCard.CardNum, effectsMap),
+                wholeSubstitutes: myWholeEnergySubstitutes,
+                requiredSelectionCount: totalReq,
+              }) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);

@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — §5.3 `O-342` エナ支払いの一括代替を「提示ゲート」へ通す（第292バッチ・配線のみ）
+
+### 真因＝機構は在ったが実戦では一度も到達しなかった
+
+第291で `O-338`（`ENERGY_COST_SUBSTITUTE_WHOLE` payload ＋ `isEnergyPaymentSelectionValid`）を実装し
+支払い窓8つへ配線したが、**「いま発動できるか」を決める提示ゲートが代替を知らなかった**：
+
+```ts
+// src/screens/battle/spellUseGate.ts:127
+const affordable = canAffordWithOneWildCostSlot(effectiveCost, …, cost =>
+  canAffordWithExtraCost(energyPoolCardNums(payer.energyPayPool), …));
+```
+
+⇒ エナが「《オサキ》1枚＋緑1枚」で《緑》×3 のスペルは**一覧に出ない**＝`SpellCastModal` に入れず、
+**配線済みの検算が実行されない**。`costs.ts` 自身が書いている規約
+**「提示と支払い検算は同じ関数を通す＝片肺にしない」**が、この機構で破れていた。
+
+### 修正
+
+- `costs.ts` に**プール版** `canAffordEnergyCostWithSubstitutes` を新設し、選択版 `isEnergyPaymentSelectionValid` と
+  **判定式を共有**（`canAffordEnergyNums` ／ `canAffordUsingWholeEnergySubstitute` の2本に括り出し）。
+  🔑**プールに選択版を使ってはいけない**＝あれは選択枚数の一致を要求するので、渡すとほぼ常に false ＝**全提示が消える**。
+- **A群（プール判定）6地点**＝`spellUseGate` 1／`artsUseGate` 2／`BattleScreen` 3 を新ヘルパへ。
+- **B群（選択の妥当性）15地点**を共有判定へ。**旧判定に残したのは2地点だけ**＝
+  `GrowModal` の**グロウ専用代替**（`collectGrowCostSubstitute`＝二重適用を避ける）と
+  `TrashActivatedModal`（**元から枚数チェックを持たない別形**＝寄せると判定が厳しくなる退化）。
+- **CPU**（`cpuActivate` ほか4ファイル）＝**代替札を種にして実際の支払い内訳を組む**経路を追加。
+  🔴これが無いと**エナの並び順によって CPU がオサキを選べず、提示だけ通って実行候補から消える**。
+
+### 検証
+
+- `npm run gates` 全緑＝**golden 4044 PASS**（新規5本）／smoke 10754／fuzz 0／census 1・BASELINE 1／
+  stubs A・C群 0／enginetext・costtext **A群 0**／deadstate 0／manual-fields 0／orphanmanual 0／lint 0 errors。
+- 🔥**到達性の E2E**＝`§5.3 O-342: オサキ1枚＋緑1枚なら緑3スペルの提示ゲートへ到達する`
+  ＝合成した《緑》×3 スペルを**実物の `checkSpellUse`** に通す。対照2つ（非オサキ2枚では不成立／
+  場の《幻獣 コサキ》を外すと不成立）。**この1本がこの項目の主張そのもの。**
+- **反転確認**＝`canAffordUsingWholeEnergySubstitute` を `return false` にすると**3本が赤**
+  （到達性／`O-338` の判定／CPU の内訳）。
+- **退化の番人**＝①代替宣言が無ければプール版は旧関数と全任意引数で一致 ②A群6地点が代替を渡している
+  ③B群の配線本数（選択版／プール版／旧判定の残数）をファイル単位で固定＝**寄せ忘れも寄せすぎも赤**。
+
 ## 2026-09-12 — §5.3 `O-338` エナコスト一括代替を【起】／スペルへ配送（第291バッチ後半・1効果）
 
 ### 真因

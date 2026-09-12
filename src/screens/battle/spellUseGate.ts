@@ -6,7 +6,7 @@ import { hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyMeltFactPreUseCost, applySpecificCardCostReduction,
-  canAffordWithExtraCost, canAffordWithOneWildCostSlot, computeArtsEffectiveCost, costReplacementOf, costScalingOf, parseGrowCost, removeNColorFromCost,
+  canAffordEnergyCostWithSubstitutes, canAffordWithOneWildCostSlot, computeArtsEffectiveCost, costReplacementOf, costScalingOf, parseGrowCost, removeNColorFromCost,
 } from './costs';
 import { energyPoolCardNums } from './energyPaySource';
 import { meetsRestriction } from './growLogic';
@@ -125,10 +125,14 @@ export function checkSpellUse(p: {
   // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として支払ってもよい」（`next_spell_wild_cost_slot`）。
   //   ⚠**提示（ここ）と支払い検算（`SpellCastModal`）は同じ関数**を通す（片肺にしない）。
   const affordable = canAffordWithOneWildCostSlot(effectiveCost, !!my.next_spell_wild_cost_slot, cost =>
-    canAffordWithExtraCost(
-      energyPoolCardNums(payer.energyPayPool), p.cards, cost, extraCosts, my.keyword_grants,
-      payer.enaAllMulti, payer.enaMultiStripped, payer.colorlessOverrides, payer.colorSubs,
-      payer.energyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
+    canAffordEnergyCostWithSubstitutes({
+      poolNums: energyPoolCardNums(payer.energyPayPool), cards: p.cards, baseCost: cost, extraCosts,
+      keywordGrants: my.keyword_grants, allMulti: payer.enaAllMulti, stripped: payer.enaMultiStripped,
+      colorlessOverrides: payer.colorlessOverrides, colorSubs: payer.colorSubs,
+      extraColorMap: payer.energyExtraColors,
+      banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+      wholeSubstitutes: payer.wholeEnergySubstitutes,
+    }));
 
   // DISONA_RESTRICTION: このターン《ディソナアイコン》ではないスペルを使用できない
   const dissonaBlocked = !!my.dissona_only_spells_this_turn && card.Story !== 'Dissona';

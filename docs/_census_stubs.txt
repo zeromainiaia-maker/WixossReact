@@ -146,7 +146,7 @@ live JSON の STUB id 種類 : 604（総ノード 3372 件）
         消費: src\engine\effectExecutor.ts:489
      2件   2枚  EXTRA_USE_TIMING
         カード: SP38-005, WX16-Re20
-        消費: src\screens\battle\artsUseGate.ts:42
+        消費: src\screens\battle\artsUseGate.ts:43
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
         消費: src\engine\effectExecutor.ts:6638

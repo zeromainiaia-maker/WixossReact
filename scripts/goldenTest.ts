@@ -132,7 +132,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -79535,6 +79535,162 @@ test('§5.3 O-338: 代替が無ければ共有ヘルパは旧判定と一致す�
     compared++;
   }
   ok(compared === cases.length, '比較が空振りしている');
+});
+
+test('§5.3 O-342: オサキ1枚＋緑1枚なら緑3スペルの提示ゲートへ到達する', () => withSavedCursor(() => {
+  const osakiNum = findCard(c => c.CardName.includes('オサキ'));
+  const greenNums = [...cardMap.values()]
+    .filter(c => c.Color.includes('緑') && !c.CardName.includes('オサキ'))
+    .map(c => c.CardNum);
+  ok(greenNums.length >= 2, '対照用の非オサキ緑カードが2枚ない');
+
+  const template = [...cardMap.values()].find(c => c.Type === 'スペル')!;
+  const spell: CardData = {
+    ...template, CardNum: 'TEST-O342-SPELL', CardName: 'O-342 到達性テスト', Type: 'スペル',
+    Color: '緑', Cost: '《緑》×3', Restriction: '', Timing: 'メインフェイズ', Story: '',
+  };
+  const runtimeCards = new InstanceMap<CardData>(cardMap);
+  runtimeCards.set(spell.CardNum, spell);
+  const runtimeEffects = new InstanceMap<CardEffect[]>(effectsMap);
+  runtimeEffects.set(spell.CardNum, [{
+    effectId: 'TEST-O342-SPELL-E1', effectType: 'ACTIVATED', action: { type: 'DRAW', count: 1 },
+  } as CardEffect]);
+  const opponent = mkState({});
+  const affordable = (actor: PlayerState) => {
+    const payer = buildArtsPayerCtx({
+      actor, opponent, isActorTurn: true, turnPhase: 'MAIN',
+      cardMap: runtimeCards, effectsMap: runtimeEffects,
+    });
+    return checkSpellUse({
+      card: spell, my: actor, op: opponent, isMyTurn: true, turnPhase: 'MAIN', pendingSpell: false,
+      cards: [...runtimeCards.values()], cardMap: runtimeCards, effectsMap: runtimeEffects, payer,
+    }).affordable;
+  };
+
+  const source = 'WX09-032#o342-source';
+  const osaki = `${osakiNum}#o342-pay`;
+  const greenA = `${greenNums[0]}#o342-green-a`;
+  const greenB = `${greenNums[1]}#o342-green-b`;
+  const withSource = { ...mkState({ signi: [source, null, null], energy: 0 }), hand: [spell.CardNum], energy: [osaki, greenA] } as PlayerState;
+  ok(affordable(withSource), '🔥オサキ1枚＋緑1枚で緑3スペルが提示ゲートを通らない');
+  ok(!affordable({ ...withSource, energy: [greenA, greenB] }), '🔴非オサキ2枚でも一括代替が成立している');
+  ok(!affordable({ ...withSource, field: { ...withSource.field, signi: [null, null, null] } }),
+    '🔴場の《幻獣 コサキ》を外しても一括代替が提示ゲートに残る');
+}));
+
+test('§5.3 O-342: 代替宣言なしのプール判定は旧関数と全任意引数で一致する', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()] as CardData[];
+  const green = findCard(c => c.Color.includes('緑'));
+  const red = findCard(c => c.Color.includes('赤'));
+  const colorless = findCard(c => c.Color === '無');
+  const cases: Array<{
+    label: string; poolNums: string[]; baseCost: string; extraCosts?: { color: string; count: number }[];
+    extraColorMap?: Map<string, string>; trashSubWilds?: Set<string>; trashSubColors?: Map<string, string>;
+    extraWildCount?: number; banColorlessPay?: boolean; colorlessPayableColors?: string[];
+  }> = [
+    { label: '通常', poolNums: [green], baseCost: '《緑》×1' },
+    { label: '追加コスト', poolNums: [green, red], baseCost: '《緑》×1', extraCosts: [{ color: '赤', count: 1 }] },
+    { label: '追加色', poolNums: [colorless], baseCost: '《緑》×1', extraColorMap: new Map([[colorless, '緑']]) },
+    { label: 'trash wild', poolNums: [colorless], baseCost: '《赤》×1', trashSubWilds: new Set([colorless]) },
+    { label: 'trash color', poolNums: [colorless], baseCost: '《赤》×1', trashSubColors: new Map([[colorless, '赤']]) },
+    { label: '追加wild', poolNums: [], baseCost: '《赤》×1', extraWildCount: 1 },
+    { label: '無色全面禁止', poolNums: [colorless], baseCost: '《無》×1', banColorlessPay: true },
+    { label: '無色許可色', poolNums: [green], baseCost: '《無》×1', colorlessPayableColors: ['赤'] },
+  ];
+  for (const c of cases) {
+    const legacy = canAffordWithExtraCost(
+      c.poolNums, allCards, c.baseCost, c.extraCosts ?? [], undefined, undefined, undefined,
+      undefined, undefined, c.extraColorMap, c.trashSubWilds, c.trashSubColors,
+      c.extraWildCount, c.banColorlessPay, c.colorlessPayableColors,
+    );
+    const shared = canAffordEnergyCostWithSubstitutes({ cards: allCards, ...c });
+    eq(shared, legacy, `🔴代替宣言なしのプール判定が旧関数と不一致（${c.label}）`);
+  }
+}));
+
+test('§5.3 O-342: A群6地点はプール版ヘルパへ代替宣言を渡す', () => {
+  const spell = fs.readFileSync(join(root, 'src/screens/battle/spellUseGate.ts'), 'utf8');
+  const arts = fs.readFileSync(join(root, 'src/screens/battle/artsUseGate.ts'), 'utf8');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const sliceFrom = (src: string, anchor: string, length: number) => {
+    const start = src.indexOf(anchor);
+    ok(start >= 0, `配線assertのアンカーが消えた: ${anchor}`);
+    return src.slice(start, start + length);
+  };
+  const sites = [
+    ['spellUseGate.affordable', sliceFrom(spell, 'const affordable =', 900)],
+    ['artsUseGate.affordWith', sliceFrom(arts, 'const affordWith =', 900)],
+    ['artsUseGate.altCost', sliceFrom(arts, 'const affordable = altCostStr', 900)],
+    ['BattleScreen.grow', sliceFrom(battle, 'const hasAffordable = growCandidates.some', 1700)],
+    ['BattleScreen.spellCraft', sliceFrom(battle, 'const costOk =', 900)],
+    ['BattleScreen.keyPiece', sliceFrom(battle, 'const canAfford = my.coins >= coinNeeded', 1000)],
+  ] as const;
+  for (const [label, src] of sites) {
+    ok(src.includes('canAffordEnergyCostWithSubstitutes({'), `🔴${label} がプール版ヘルパを経由していない`);
+    ok(src.includes('wholeSubstitutes:'), `🔴${label} が代替宣言をプール版ヘルパへ渡していない`);
+  }
+});
+
+test('§5.3 O-342: CPUはエナ順に依存せずオサキを選び実支払いへ渡す', () => withSavedCursor(() => {
+  const osakiBase = findCard(c => c.CardName.includes('オサキ'));
+  const greenBase = findCard(c => c.Color.includes('緑') && !c.CardName.includes('オサキ'));
+  const source = 'WX09-032#o342-cpu-source';
+  const green = `${greenBase}#o342-cpu-green`;
+  const osaki = `${osakiBase}#o342-cpu-osaki`;
+  // 非オサキを先頭に置く。通常の先頭からの貪欲選択では2枚を足しても緑3を払えない。
+  const state = { ...mkState({ signi: [source, null, null], energy: 0 }), energy: [green, osaki] } as PlayerState;
+  const runtimeCards = new InstanceMap<CardData>(cardMap);
+  const runtimeEffects = new InstanceMap<CardEffect[]>(effectsMap);
+  const wholeSubstitutes = collectEnergyCostSubstitutes(state, runtimeCards, runtimeEffects);
+  const selected = selectEnergyIndicesForCost({
+    poolNums: state.energy, cards: [...cardMap.values()], costStr: '《緑》×3', wholeSubstitutes,
+    isAffordable: selectedEnergyNums => isEnergyPaymentSelectionValid({
+      selectedEnergyNums, cards: [...cardMap.values()], baseCost: '《緑》×3', wholeSubstitutes,
+    }),
+  });
+  ok(!!selected, 'CPUが一括代替で払える内訳を作れない');
+  eq([...selected!].join(','), '1', 'CPUがオサキ1枚ではなくエナの並び順どおりに選んだ');
+
+  const payment = planEnergyPayment(state, buildEnergyPayPool(state, {
+    turnPhase: 'MAIN', isMyTurn: true, effectsMap: runtimeEffects,
+  }), selected!);
+  const after = payment.applyTo({ ...state, trash: [...state.trash, ...payment.paidNums] });
+  eq(after.energy.join(','), green, 'CPUの実支払いでオサキだけがエナから除かれない');
+  eq(after.trash.at(-1), osaki, 'CPUが選んだオサキがトラッシュへ移らない');
+
+  const withoutWhole = selectEnergyIndicesForCost({
+    poolNums: state.energy, cards: [...cardMap.values()], costStr: '《緑》×3',
+    isAffordable: selectedEnergyNums => isEnergyPaymentSelectionValid({
+      selectedEnergyNums, cards: [...cardMap.values()], baseCost: '《緑》×3',
+    }),
+  });
+  eq(withoutWhole, null, '対照：代替宣言なしでもCPUが不足エナを払えている');
+}));
+
+test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化回避1地点だけ旧判定に残す', () => {
+  const specs = [
+    ['src/screens/BattleScreen.tsx', 6, 3, 0],
+    ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
+    ['src/screens/battle/modals/CutinModal.tsx', 1, 2, 0],
+    ['src/screens/battle/modals/AssistGrowModal.tsx', 1, 1, 0],
+    ['src/screens/battle/modals/ArtsModal.tsx', 1, 0, 0],
+    ['src/screens/battle/modals/KeyUseModal.tsx', 1, 0, 0],
+    ['src/screens/battle/modals/PhaseConfirmDialogs.tsx', 0, 1, 0],
+    ['src/screens/battle/modals/TrashActivatedModal.tsx', 0, 0, 1],
+  ] as const;
+  const callCount = (src: string, name: string) =>
+    (src.match(new RegExp(`${name}\\s*\\(\\s*\\{`, 'g')) ?? []).length;
+  for (const [path, selectionCount, poolCount, rawCount] of specs) {
+    const src = fs.readFileSync(join(root, path), 'utf8');
+    eq(callCount(src, 'isEnergyPaymentSelectionValid'), selectionCount,
+      `🔴${path}: 選択版ヘルパの呼び出し数が変わった`);
+    eq(callCount(src, 'canAffordEnergyCostWithSubstitutes'), poolCount,
+      `🔴${path}: プール版ヘルパの呼び出し数が変わった`);
+    const raw = (src.match(/\b(?:canAffordGrowCost|canAffordWithExtraCost)\s*\(/g) ?? []).length;
+    eq(raw, rawCount, `🔴${path}: 旧判定の残数が変わった`);
+    ok((src.match(/wholeSubstitutes\s*[:,]/g) ?? []).length >= selectionCount + poolCount,
+      `🔴${path}: 共有ヘルパへ代替宣言を渡していない呼び出しがある`);
+  }
 });
 
 // 寄せた6窓が実際に共有ヘルパを呼んでいること（呼び出しを戻すと赤くなる文字列 assert）。

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, colorlessPayableColorsOf, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction, coinPayableFor } from '../costs';
+import { canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, colorlessPayableColorsOf, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction, coinPayableFor } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -48,7 +48,7 @@ interface CutinModalProps {
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, op, isMyTurn, effectsMap, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { bs, user, my, op, isMyTurn, effectsMap, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myWholeEnergySubstitutes, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
   const betReplacedCostOf = (card: { CardNum: string; CardName?: string; Cost: string }): string | null =>
@@ -172,8 +172,26 @@ export function CutinModal(p: CutinModalProps) {
                             const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(candidate.card.CardNum, effectsMap))
-                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(candidate.card.CardNum, effectsMap)));
+                              : canAffordEnergyCostWithSubstitutes({
+                                  poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards,
+                                  baseCost: costStr, extraCosts: extraArtsCosts, keywordGrants: my.keyword_grants,
+                                  allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                                  extraColorMap: myEnergyExtraColors,
+                                  banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                                  colorlessPayableColors: colorlessPayableColorsOf(candidate.card.CardNum, effectsMap),
+                                  wholeSubstitutes: myWholeEnergySubstitutes,
+                                })
+                                || (betCostCand !== null && canAffordEnergyCostWithSubstitutes({
+                                  poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards,
+                                  baseCost: `${betCostCand}${addColorless}`, extraCosts: extraArtsCosts,
+                                  keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti,
+                                  stripped: myEnaMultiStripped, colorlessOverrides: myColorlessOverrides,
+                                  colorSubs: myColorSubs, extraColorMap: myEnergyExtraColors,
+                                  banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                                  colorlessPayableColors: colorlessPayableColorsOf(candidate.card.CardNum, effectsMap),
+                                  wholeSubstitutes: myWholeEnergySubstitutes,
+                                }));
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
@@ -257,8 +275,17 @@ export function CutinModal(p: CutinModalProps) {
                 underCostModal.filter, underCostModal.selectionConstraint,
               ) !== null);
               const isValid = underOkModal && exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
-                (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase, colorlessPayableColorsOf(pendingCutinCard.card.CardNum, effectsMap))));
+                isEnergyPaymentSelectionValid({
+                  selectedEnergyNums: selectedNums, cards: battleCards, baseCost: cutinCostStrModal,
+                  extraCosts: extraArtsCosts, keywordGrants: my.keyword_grants,
+                  allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                  colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                  extraColorMap: myEnergyExtraColors,
+                  banColorlessPay: my.cannot_pay_colorless_this_attack_phase,
+                  colorlessPayableColors: colorlessPayableColorsOf(pendingCutinCard.card.CardNum, effectsMap),
+                  wholeSubstitutes: myWholeEnergySubstitutes,
+                  requiredSelectionCount: totalReq,
+                }));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

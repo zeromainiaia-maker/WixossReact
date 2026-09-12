@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { keyPlaceCoinCostOf, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
+import { keyPlaceCoinCostOf, parseGrowCost, isEnergyPaymentSelectionValid, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { isPieceCardType } from '../battleUtils';
 import type { BattleModalCtx } from './types';
@@ -20,7 +20,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myWholeEnergySubstitutes, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -52,8 +52,14 @@ export function KeyUseModal(p: KeyUseModalProps) {
               const effKeyCostReduced = applySpecificCardCostReduction(effKeyCost, card.CardName, specificCardCostReductions);
               const energyTotal = parseGrowCost(effKeyCostReduced).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCostReduced, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
-                undefined, undefined, undefined, undefined, undefined, colorlessPayableColorsOf(card.CardNum, effectsMap)));
+              const energyOk = energyTotal === 0 || isEnergyPaymentSelectionValid({
+                selectedEnergyNums: selectedNums, cards: battleCards, baseCost: effKeyCostReduced,
+                keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
+                colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
+                colorlessPayableColors: colorlessPayableColorsOf(card.CardNum, effectsMap),
+                wholeSubstitutes: myWholeEnergySubstitutes,
+                requiredSelectionCount: energyTotal,
+              });
               // 🆕§5.3 `O-245`（2026-09-04）＝キー／ピースは `coin_use_restriction` の対象。
               const canAfford = energyOk && my.coins >= coinNeeded && (coinNeeded === 0 || coinPayableFor(my, 'key'));
               return (

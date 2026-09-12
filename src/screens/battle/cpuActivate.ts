@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { energyCostToString, parseGrowCost } from './costs';
+import { energyCostToString, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
 import { listActivatableSigniEffects } from './signiActivateGate';
 
 /**
@@ -98,6 +98,10 @@ export function selectEnergyIndicesForCost(p: {
   cards: CardData[];
   costStr: string;
   isAffordable: (selectedNums: string[], costStr: string) => boolean;
+  /** 一括代替候補を先に試す。可否そのものは `isAffordable` が決める。 */
+  wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
+  /** 一括代替後にも残る追加コストを、色優先の自動選択へ含める。 */
+  extraCosts?: readonly { color: string; count: number }[];
 }): Set<number> | null {
   const { poolNums, cards, costStr, isAffordable } = p;
   if (costStr === '') return new Set();
@@ -105,21 +109,53 @@ export function selectEnergyIndicesForCost(p: {
     const base = num.indexOf('#') > 0 ? num.slice(0, num.indexOf('#')) : num;
     return cards.find(c => c.CardNum === base)?.Color ?? '無';
   };
-  const selected = new Set<number>();
-  const isSat = () => isAffordable([...selected].map(i => poolNums[i]), costStr);
-  // ①コストに出てくる色を先に充当する（色指定を無色エナで潰さない）。
-  // ⚠色の取り出しも `parseGrowCost`（人間の支払い判定と同じ解析器）を通す＝
-  //   自前の regex を書くと《色》×N 以外の綴りで黙って空になる（続き551 に golden が検出した壊れ方）。
-  for (const { color, count } of parseGrowCost(costStr)) {
-    if (color === '無') continue;
-    for (let n = 0; n < count && !isSat(); n++) {
-      const idx = poolNums.findIndex((num, i) => !selected.has(i) && colorOf(num).includes(color));
-      if (idx >= 0) selected.add(idx); else break;
+  const trySelection = (seed?: { index: number; option: WholeEnergyCostSubstituteOption }): Set<number> | null => {
+    const selected = new Set<number>();
+    if (seed) selected.add(seed.index);
+    const isSat = () => isAffordable([...selected].map(i => poolNums[i]), costStr);
+    if (isSat()) return selected;
+    // ①コストに出てくる色を先に充当する（色指定を無色エナで潰さない）。
+    // ⚠色の取り出しも `parseGrowCost`（人間の支払い判定と同じ解析器）を通す＝
+    //   自前の regex を書くと《色》×N 以外の綴りで黙って空になる（続き551 に golden が検出した壊れ方）。
+    const baseItems = parseGrowCost(costStr);
+    const remainingBaseItems = baseItems.filter(item => {
+      if (!seed || item.color !== seed.option.spec.color) return true;
+      const replaceCount = baseItems
+        .filter(base => base.color === seed.option.spec.color)
+        .reduce((sum, base) => sum + base.count, 0);
+      return !seed.option.spec.counts.includes(replaceCount);
+    });
+    // 一括代替が置き換えるのは `baseCost` の指定色だけ。使用時追加コストは必ず残す。
+    const wanted = [...remainingBaseItems, ...(p.extraCosts ?? [])];
+    for (const { color, count } of wanted) {
+      if (color === '無') continue;
+      for (let n = 0; n < count && !isSat(); n++) {
+        const idx = poolNums.findIndex((num, i) => !selected.has(i) && colorOf(num).includes(color));
+        if (idx >= 0) selected.add(idx); else break;
+      }
+    }
+    // ②残りは先頭から足していく（《無》スロット・マルチエナでの充当はここで埋まる）。
+    for (let i = 0; i < poolNums.length && !isSat(); i++) selected.add(i);
+    return isSat() ? selected : null;
+  };
+
+  // `O-342`＝通常の色優先より先に、適用可能な一括代替札を1枚選んだ経路を試す。
+  // これが無いとエナの並び順によって CPU がオサキを選べず、提示だけ通って実行候補から消える。
+  const baseItems = parseGrowCost(costStr);
+  const tried = new Set<number>();
+  for (const option of p.wholeSubstitutes ?? []) {
+    const replaceCount = baseItems
+      .filter(item => item.color === option.spec.color)
+      .reduce((sum, item) => sum + item.count, 0);
+    if (!option.spec.counts.includes(replaceCount)) continue;
+    for (let index = 0; index < poolNums.length; index++) {
+      if (tried.has(index) || !option.eligibleEnergyInstIds.has(poolNums[index])) continue;
+      tried.add(index);
+      const selected = trySelection({ index, option });
+      if (selected) return selected;
     }
   }
-  // ②残りは先頭から足していく（《無》スロット・マルチエナでの充当はここで埋まる）。
-  for (let i = 0; i < poolNums.length && !isSat(); i++) selected.add(i);
-  return isSat() ? selected : null;
+  return trySelection();
 }
 
 export interface CpuActivatedChoice {
@@ -151,6 +187,7 @@ export function pickCpuSigniActivated(p: {
   /** このターン CPU が既に撃った effectId（同じ効果を撃ち直さない）。 */
   alreadyActivated: readonly string[];
   isAffordable: (selectedNums: string[], costStr: string) => boolean;
+  wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
   effectivePowers?: Map<string, number>;
   contBlockedSelf?: Set<string>;
 }): CpuActivatedChoice | null {
@@ -168,6 +205,7 @@ export function pickCpuSigniActivated(p: {
       const costIndices = selectEnergyIndicesForCost({
         poolNums: p.energyPoolNums, cards, costStr: activatedEnergyCostStr(effect),
         isAffordable: p.isAffordable,
+        wholeSubstitutes: p.wholeSubstitutes,
       });
       if (!costIndices) continue;
       return { zoneIndex, cardNum, effect, costIndices };

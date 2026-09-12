@@ -1,7 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { activatedEnergyCostStr, selectEnergyIndicesForCost } from './cpuActivate';
-import { applyNextLrigActCostReduction } from './costs';
+import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
 import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
   listActivatableInheritedLrigEffects, listActivatableLrigEffects,
@@ -87,6 +87,7 @@ export function pickCpuLrigActivated(p: {
   /** このターン CPU が既に撃った effectId（シグニ【起】と共通の台帳）。 */
   alreadyActivated: readonly string[];
   isAffordable: (selectedNums: string[], costStr: string) => boolean;
+  wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
   effectivePowers?: Map<string, number>;
 }): CpuLrigActivatedChoice | null {
   const gateInput = {
@@ -111,6 +112,7 @@ export function pickCpuLrigActivated(p: {
       //   （写経すると「人間だけ安い」片肺になる）。
       costStr: applyNextLrigActCostReduction(activatedEnergyCostStr(effect), p.actor.next_lrig_act_cost_reduction),
       isAffordable: p.isAffordable,
+      wholeSubstitutes: p.wholeSubstitutes,
     });
     if (!costIndices) continue;
     return { effect, costIndices };
