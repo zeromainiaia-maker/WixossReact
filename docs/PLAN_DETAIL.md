@@ -801,6 +801,130 @@ triage で偽陽性と判定したら、**その場で `semanticAuditExtract.mjs
 - 逆翻訳器: `scripts/decompileEffects.ts`、グルーピング: `scripts/group{Similar,BySentence}.mjs`（`--all` で全10シート統合）
 - 監査: `scripts/behaviorAudit.ts`（`npm run audit`/`audit:html`/`audit:queue`）
 
+### §5.1 実機返済の完了報告（`V-203`〜`V-208`・2026-09-12・全件返済済み）
+
+🏁**過去の返済**＝第288バッチで `V-204` と `V-206` を返済（第283バッチで登録した `V-203`〜`V-206` を全部返した）。
+第283バッチ（`O-312`/`O-313`/`O-314`/`O-317`）で `V-203`〜`V-206` を登録したが**その回は実機を回せておらず**、
+第284・第285 もその回に作った `V-207`／`V-208` だけを返していた（＝4巡寝かせた）。
+🔑**環境は障害ではない**（第287・第288 で実測＝既存ルーム再利用で1本 16〜23秒）。
+
+🏁**`V-204`／`V-206`（2026-09-12 第288バッチ）を返済済み**＝`v204LrigDeckArtsCapBlocksFourth` /
+`v206AcceFromTrashReturnsOnlyAcced` を `order` に常設（各2回連続 PASS・一括でも PASS）。
+🆕🔴**`V-204` のためにハーネスを1つ広げた＝`noInject:true`**（§4.4-90）＝`injectScenario` は
+**PLAYING ルームの `battle_states`** を書くので、**対戦画面の外**（デッキ編集）は原理的に注入できなかった。
+⇒ ランナーは `sc.noInject` なら注入を飛ばし、**drive 側が**①自分のルームの `status` を退避して PLAYING から落とす
+（落とさないと `App.tsx` が起動時に PLAYING を見つけて**必ず BATTLE へ自動復帰**する）②検証用デッキを REST で作る
+③**`try/finally` で必ず片付ける**（戻し忘れると後続シナリオが全部「注入失敗」で赤）。
+🔴🔑**`V-204` が UI 層の穴を1件出した**（`V-205` と同型＝§4.4-88／§4.4-91）＝構築ルールの判定が
+**`addCard` の早期 return／検索行の `canAdd`／デッキ行の `canAdd` の3箇所に写経**されており、
+`O-317` のアーツ上限は **`addCard` にしか無かった**＝**＋ボタンは押せるのに無言 `return`**（理由も出ない）。
+デッキ行の `canAdd` は**【チーム】ピースの上限も見ていなかった**。⇒ **`src/utils/deckBuildLimits.ts` に
+`deckAddBlockReason`（null なら入れられる）を新設して判定を1本化**し、UI はその戻り値で活殺する。
+反転確認は2通り（§4.4-60）＝①検索行の `canAdd` を `true` に戻すと**「押せる状態だった」で赤**
+②`lrigDeckArtsCap` を `undefined` 固定にすると**「4枚目が入った」で赤**（＝2つの軸が別々に効いている）。
+golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockReason`＝上限3／反転／後入れ／同名・40枚）。
+🔑**`V-206` は1本で3段の対話を跨いだ**（スペルのコスト《青》×4 → 「トラッシュの札」→「付ける先」のループ →
+`ON_TURN_END` の遅延トリガー）。観測点は5つ張った＝**本命**＝付けた2枚**だけ**が手札へ戻る／
+**対照A**＝自分のシグニ3体は場に残る（旧 live は**自分の場のシグニ全部を即手札へ**戻す自壊級の過剰実行だった）／
+**対照B**＝**この効果以外で付いた【アクセ】は戻らない**（「この方法で」を無視した全掃除を落とす）／
+**対照C**＝トラッシュ候補に非＜調理＞が出ない／**対照D**＝既に【アクセ】が付いたゾーンはホスト候補に出ない。
+⚠`WXK04-033` は**アーツではなくスペル**で `Restriction` が「エルドラ限定」＝センタールリグを
+＜エルドラ＞（`WX13-014`＝能力なし Lv4）にしないと「発動」が出ない（§4.4-8k）。
+🔴🔑**`ON_TURN_END` を実機で踏むには `PHASE_BTN` の表どおりにフェイズを歩く**（§4.4-89）＝
+**MAIN の次は `ATTACK_SIGNI` ではなく `ATTACK_ARTS`**。MAIN で「ターン終了」を押そうとして
+**30ティック／27秒まるごと無音で空振りした**（存在しないボタンなので disabled ログすら出ない）。
+
+🏁**`V-203`／`V-205`（2026-09-12 第287バッチ）を返済済み**＝`v203PowerGtePreventsDamage` /
+`v203PowerBelowThresholdCrashes` / `v205ExtraTurnDeployBanBlocks` / `v205ExtraTurnDeployBanNotYetActive` を `order` に常設。
+🔑**`V-203` の1ビット反転は「攻撃者」ではなく「window の閾値」**＝バニラのレベル4シグニは**全部パワー15000**で
+12000 未満のバニラは Lv3 しかない（レベルも一緒に動く＝§4.4-25f）。⇒ **盤面を完全に同一にして
+`sourcePowerGte` を 12000／20000 で振った**。反転確認は2通り用意した（§4.4-60）＝
+①`crashOneLife` の `damageSource?.power` を落とすと**本命だけ赤**（対照は緑のまま）
+②`hasActivePreventDamageWindow` の閾値比較を `return true` にすると**対照だけ赤**。
+⚠**削られた原因を「シグニのアタック」に限定する**＝同じターンの**ルリグアタック**でもライフは減り、
+そちらは `power` を持たない（fail-closed で通る）＝原因ログを見ないと**対照がルリグアタックのぶんで緑になる**。
+🔴🔑**`V-205` が UI 層の穴を1件出した**＝`SigniSummonZoneModal` は `deployLimitBlockReason` の
+**3つの理由だけ**（`POWER_LIMIT`／`COUNT_LIMIT`／`ZONE_LEVEL_RESTRICT`）を見てゾーンを落としていたので、
+`SOURCE_BAN`（この項目の本題）・`NAME_BAN`・`ALL_BAN`・`ONLY_BY_NAMED_EFFECT` は
+**ボタンが押せるまま**で `handleSummonSigni` が**無言 `return`** していた＝**押しても何も起きず理由も出ない**。
+⇒ **「null でなければ置けない」という契約どおり `deployBlock !== null` で落とす**ようにした（列挙式に戻さない）。
+⚠**`fromNextTurn` の1ビットだけを振った**（`turnsRemaining` は両方 2）＝動くのは本当にこの1ビットだけ。
+
+🏁**`V-208`（2026-09-12 第285・§5.3 `O-333`）は同じ巡で返済済み**＝`BattleScreen.tsx`（コイン技台帳の記録4地点＋
+撤去した `negate_coin_abilities` の読み手4地点）／`lrigActivateGate`（コイン技の判定を `isCoinAbility` へ集約）。
+観測点＝**本命**＝相手が前のターンに撃った `WXDi-P07-045-E3`（【起】《コイン》：次の対戦相手のターン終了時まで＋3000）の
+**長期パワー修整が消える**（実測ログ＝`coins 5→3` でコストも払われ、`powerModsUntilOppTurn` が `[…3000]→[]`）。
+**対照**＝相手の台帳が空なら**同じ宣言が1つも落ちない**（＝台帳を見ずに長期ストアを掃除する実装を落とす）。
+🔴**反転確認を同じ巡で入れてある**＝**無関係な宣言（自分の `must_attack_signi`）が残ること**を本命の中で assert した
+（残らなければ「無条件の掃除」＝別のバグ）。
+⚠🔴**被害者役の選び方が罠**＝`WX15-003-E3`（次のターン相手の【起】を封じる）を選ぶと
+**無効化する側の【起】も封じられて撃てない**（chicken-and-egg。初回実装でこれを踏んで16手すべて空振りした）。
+
+🏁**`V-207`（2026-09-12 第284・§5.3 `O-313`）は同じ巡で返済済み**＝`BattleScreen.tsx`（【起】コストラベル＋引き落とし）／
+`signiActivateGate`（提示）／`SigniActivatedModal`（選択UI）／新設 `src/screens/battle/attachedOrUnderCost.ts`。
+観測点＝**本命**＝`WXK10-018-E2` で【チャーム】を1枚選んで撃つと **charms が空になり trash が+1・手札が+1**
+（🔴**引けただけで PASS にしない**＝コストが減っていなければ踏み倒し／**場から消えて trash に無い**ならカードの蒸発）。
+**対照**＝付属札も下のカードも1枚も無いと**「付いているカード/下のカード」ラベルの【起】が一覧に出ない**
+（⚠このカードは `-E3`＝`trash_key` の【起】も持つので、**「【起】ボタンが1つでもあるか」では判定できない**＝ラベル本文で見分ける）。
+
+🏁**返済済み**（🆕**2026-09-12 第284で `V-207` を同じ巡で返済**＝`o313AttachedCostPays` / `o313AttachedCostNoCandidate` を `order` に常設。
+🔑**この実機が UI 層の穴を1件見つけた**＝提示ゲート・支払いUI・引き落としを揃えても
+**【起】ボタンのコストラベルに新しいキーを足し忘れると「コストなし」と表示される**（§4.4-8m の再来）。
+⚠**選択UIの素の `div` は role を持たない**＝ドライバから掴めないので `data-testid` を付けた。
+⚠**候補クリックはトグル**＝毎ステップ押すと選択が外れる（初回実装で16手すべて未選択のままだった）。
+／2026-09-12＝第282で `V-200`／`V-201`／`V-202`／2026-09-11＝第281で `V-198`／`V-199`、第279で `V-197`、第265で `V-190`、第264で `V-189`、第263で `V-187`／`V-188` を**同じ巡で返済**／2026-09-10＝第253で `V-184`／`V-185`、第255で `V-186`）＝**21本＋第282の4本を `order` に常設**
+（`v184DriveCrasherFires` / `v184NonDriveCrasherSilent` / `v185FieldDownExcludesSelfOffered` / `v185FieldDownExcludesSelfBlocked`
+／`v186LeaveSubstituteDeckBottom` / `v186LeaveSubstitutePlainControl` / 🆕`v187LeaveToTrashWindowBattle` / `v187LeaveToTrashWindowAbledControl`
+／`v187LeaveToTrashWindowOffControl` / `v188SecondMainFacedownFlip` / `v188SecondMainFacedownBlocked`
+／`o323SuccessCommitsUsage` / `o323AbortKeepsUsageFree`
+／`o297GateZoneBanishFires` / `o297OtherZoneGateSilent`
+／`v191DiscardClassAngel` / `v191DiscardClassArm`
+／`o329OppTurnOnlyBlockedOnOwnTurn` / `o329OppTurnOnlyUsableOnOppTurn`
+／`o321EnergyPlacedGateFires` / `o321EnergyPlacedGateBlocked`
+／`o321PieceUsedGateFires` / `o321PieceUsedGateBlocked`
+／`o307SplitLrigDeckPickArts` / `o307SplitLrigDeckEmptyPile`
+／`o306DeclaredNameServantZeroSwept` / `o306NoDeclarationNothingSwept`
+／`o308AdjacentDownWeaponFires` / `o308AdjacentUpWeaponSilent`
+／`o290KeyPlaceGateOffered` / `o290KeyPlaceGateBlocked` / `o290KeyCoinReducedPlaceable` / `o290KeyCoinPrintedBlocked`
+／🆕`o292CollabCostPaid` / `o292CollabCostBlocked` / `o310BothEnergyExile` / `o311EachPlayerSearchOpp`）。
+🔑**`V-200`〜`V-202`（`O-292`／`O-310`／`O-311`）は「新しい型・スコープ・応答者の経路」型**＝golden は
+`canActivateLrigEffect`／`pendingRespondsOpponent` までしか見られない。判定は**提示の有無＋支払い後の状態**（`V-200`）／
+**候補集合に両者のエナが並ぶか**（`V-201`）／**相手（CPU）の場に同じレベルだけが出るか**（`V-202`）。
+🔑**`V-198`／`V-199`（`O-290`）は「enforcement が `src/screens/` にしか無い」型**＝golden は `canSelfPlay` /
+`keyPlaceCoinCostOf` を直接叩けるので**画面がその関数を呼んでいなくても緑**になる。判定は
+**「ルリグデッキに『キーにセット』が出るか」＋「コイン0のままセットまで通るか」**の差分。
+⚠**提示だけを見ない**＝`KeyUseModal` 側の直読みが残っていても提示は出る（実際 1度目の実機はそこで FAIL した）。
+**反転確認＝別ルリグ／コイン不足では提示が出ない**（本命と同じ手順で確かめてから対照の不在を主張する＝`V-192` の罠）。
+🔑**`V-197`（`O-308`②）は「収集器に渡る盤面が注入盤面と同じか」を割る型**＝golden は `collectAttackerSelfTriggers` を直接叩くので、
+画面側がアタック宣言後の別の state を渡していても緑になる。判定は**同じ spec の本命（隣がダウン）と対照（アップ）の差分**で、
+`pendingEffect`／`stackLen` を見る（⚠`H.findLog(カード名)` はアタック宣言のログにも当たる＝DRIVE_TRAPS 81）。
+**反転確認＝`matchesStateFilter` の呼び出しを殺すと対照が赤**（アップでも立つ＝旧 live の無条件発動を再現）。
+🔑**`V-196`（`O-306`）は「画面の合成 funnel が規則を見ているか」を DOM で割る型**＝規則は `card_identity_overrides` に出ないので、
+`H.queryState()` に `nameIdentityRulesThisTurn` / `nameIdentityRules` を足し、**変身は `op-signi-zone-N` の表示パワーの差分**で見る
+（⚠決め打ちすると盤面の修整で前提から落ちる）。E1 の一掃は `trashCards` を sticky に記録して判定（§4.4-66）。
+**反転確認＝funnel が規則を合成しないようにすると、規則は立つのに表示パワーが 6,000 のまま**で本命が赤（§4.4-70）。
+🔑**`V-195`（`O-307`）は「応答者が途中で入れ替わる」型の返済**＝分割（相手＝CPU）→ 束の選択（host）→ アーツ選択（host）と
+**1つの効果の中で応答者が2回替わる**。engine は `opponentResponds` を立てるだけで、**誰に出すかは `BattleScreen.tsx` が resume ごとに
+`pendingRespondsOpponent` で決め直す**＝golden からは届かない。束の CHOOSE は `H.clickBtn('束A（')`（ボタン限定・前方一致＝§4.4-2b）で押す。
+**反転確認＝ハンドラの入口を外すと PickArts が「束の選択が host に来なかった」で赤**（§4.4-70）。
+🔑**`V-194`（`O-321`①）は「型も payload も live JSON も正しく見えるのに恒久 no-op」型の返済**＝
+`ARTS_USED_THIS_TURN{filter:{cardType:[ピース…]}}` の**読む先へピースを書く人が1人も居なかった**。
+⚠**既存 golden も緑だった**（旧 test が「本番が絶対に作らない state」を自分で作っていた）＝**実機だけが割れた。**
+🔑**`V-193`（`O-321`）は「golden では原理的に届かない層」の返済**＝engine 側の記録 funnel は golden から直接叩けるが、
+**「エナチャージ」ボタン（`src/screens/`）が台帳へ書くかどうか**は実機からしか観測できない。
+**反転確認＝`evalCondition` を `return true` に倒すと対照だけが赤**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-70 の作法）。
+🔑**`V-192`（`O-329`）は「行動ボタンが1つも描画されない」型**＝ルリグデッキのアーツは使えないと
+**ボタンが0本**になるので、「使用が出ない」は**ルリグデッキが開いていないだけ**でも成立する。
+⇒ 同じ盤面に**制限なしの同色アーツ**を1枚足し、**そちらに「使用」が出ること**を先に判定する対照にした
+（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-74）。**反転確認＝ゲートの2行を外すと負方向だけが赤になる**（対照は緑のまま）。
+🔑**`V-191` は「engine が読む state を観測面に足して初めて切り分いた」型**＝候補が絞れない原因が
+**記録側（`src/screens/`）**か**参照側（engine）**か、盤面差分だけでは永久に決まらなかった
+（`H.queryState()` に `lastDiscardedSigniClass` を出した1回で確定）。
+🔑**`V-189` は「アプリ経路だけが包む」型の返済**＝`BattleScreen.tsx:5231` は `wrapSigniAutoPayGate` で **action を包んでから** `executeEffect` を呼ぶので、
+成功時消費のマーカーが `SEQUENCE`/`CONDITIONAL` を越えて leaf へ届かないと**永久に消費されない**（golden は包まない経路しか通らない）。
+🔑**`V-186` は「golden では原理的に緑になる」型の返済**＝golden は funnel（`collectLeaveSubstituteOptions`）を直接叩くので、
+**funnel が実戦の離場経路から呼ばれていなくても通る**。実機で初めて「代わりに〜」の対話が出ることを確認した。
+
 ### §5.1 実機返済の完了報告（`V-176`〜`V-183`・2026-09-07〜2026-09-08・全件返済済み）
 
 🏁**残0**（2026-09-08 実測・2回目）＝**索引 G の巡で登録した `V-182` / `V-183` も同日に返済した**。
@@ -14175,6 +14299,15 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   🧾**`manualEffects.ts`**＝991 → 996カード。**`OPTIONAL_TRASH_ENERGY_CLASS` の live 利用＝37 → 36効果**（誤配線1件を外した）。
 
 ---
+
+## 2026-09-12：§5.0 実装キューの全数再照合（第286バッチ・PLAN §5.0 から退避）
+
+🆕🔴**2026-09-12 第286＝この節の残123効果を全数再照合した（live JSON × 効果単位の原文 × 逆翻訳 × engine の消費地点）。**
+| 内訳 | 効果 | 中身 |
+|---|---|---|
+| **既に直っていた（記録漏れ）** | **109** | §5.3 の `O-nn` をクローズした回が直していたのに `semantic_bug_fixed.txt` へ書き漏らしていた分（うち偽陽性2件・stale 再確認19件を含む） |
+| **第286で実装** | **6** | `LRIG_LEVEL` の `eq`／`levelLteSelf`／`optionalCostTarget` の写し／`FORCE_SIGNI_ATTACK` 追加ほか（BUGFIXES.md 2026-09-12） |
+| 🔥**機構待ち（登録済み）** | **8** | §5.3 索引G `O-334`〜`O-340`（`WX25-P3-057` は【アサシン】側だけ実装済み） |
 
 ## 2026-09-12 登録：`O-334`〜`O-340`（第286バッチ＝PLAN §5.0 実装キューの全数再照合で残った「真に機構が要る」7効果）
 
