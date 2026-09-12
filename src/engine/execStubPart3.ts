@@ -32,6 +32,7 @@ export function execStubPart3(
   };
   // WDK07-E15: REVEAL_AND_PICK passes the picked deck card in
   // lastProcessedCards. Attach that exact card to the effect source itself.
+  // 表示: この方法で公開したカードをこのシグニの【アクセ】にする
   if (stub.id === 'INTERNAL_ACCE_PICKED_TO_SELF') {
     const picked = ctx.lastProcessedCards?.[0];
     const host = ctx.sourceCardNum;
@@ -123,6 +124,8 @@ export function execStubPart3(
     return done(addLog(ctx, '[ENERGY_COLOR_SUBSTITUTE: effectEngineで動的処理中]'));
   }
   // エナ代替系（effectEngine.collectEnergyTrashSubstituteInfoで動的計算）
+  // 表示: ENERGY_COLOR_SUBSTITUTE_TRASH: エナコストを支払う代わりに、エナゾーンからカードをトラッシュに置いて支払う
+  // 表示: ENERGY_SUBSTITUTE_TRASH_SIGNI: エナコストを支払う代わりに、エナゾーンからシグニをトラッシュに置いて支払う
   if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
       || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
     return done(addLog(ctx, `[エナ代替: ${stub.id}（UIで処理済み）]`));
@@ -298,12 +301,16 @@ export function execStubPart3(
       `${fieldName}が${trashName}と同じカードになる（ターン終了時まで）`));
   }
   // ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み
+  // 表示: このシグニはすべてのクラスを持つ
   if (stub.id === 'ALL_CLASS') return done(addLog(ctx, '[ALL_CLASS: effectEngineで処理]'));
   // ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み
+  // 表示: このシグニはすべての色を得る
   if (stub.id === 'ALL_COLOR') return done(addLog(ctx, '[ALL_COLOR: effectEngineで処理]'));
   // ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み
+  // 表示: このシグニはすべての領域で黒でもある
   if (stub.id === 'ALL_ZONE_BLACK') return done(addLog(ctx, '[ALL_ZONE_BLACK: effectEngineで処理]'));
   // ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
+  // 表示: あなたのすべてのカードは黒でもある
   if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
   // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照）
   // 🆕**ルリグタイプは payload（`gainedLrigType`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
@@ -343,6 +350,7 @@ export function execStubPart3(
   // 🔴撤去した理由＝このハンドラは書き先が `attack_phase_level_overrides`（turn-end で消える）で、
   //   原文「**次のあなたの**ターンのターン終了時まで」より**1ターン短かった**（`O-186` と同じ形の過小）。
   // COPY_CARD: このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides）
+  // 表示: ターン終了時まで、このシグニは対象にしたカードとレベル以外が同じカードになる
   if (stub.id === 'COPY_CARD') {
     const srcCC = ctx.sourceCardNum;
     // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝任意コストの前に宣言した対象を先に読む。**
@@ -506,6 +514,7 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerLBD }, 'このターン次のライフバーストは2回発動する'));
   }
   // TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）
+  // 表示: この方法で処理したカードの【ライフバースト】を発動する
   if (stub.id === 'TRIGGER_LIFE_BURST') {
     const cardTLB = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cardTLB) return done(addLog(ctx, 'TRIGGER_LIFE_BURST: カードなし'));
@@ -768,6 +777,7 @@ export function execStubPart3(
   // ⚠`:NEXT_TURN` 接尾辞つきで積む＝`clearTurnEndScopedState` が接尾辞つきだけを跨がせ、
   //   `activateTurnStartScopedState` が**そのプレイヤーのターン開始時**に接尾辞を外して active にする
   //   （既存 `BLOCK_OPP_SPELL_ACT_NEXT_TURN` と同じ2スロット規約。接尾辞なしで積むと自分のターン中に効く）。
+  // 表示: 次のターンの間、対戦相手はアーツとスペルと【起】能力を使用できない
   if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN') {
     const newBlockedBOASANT = [...new Set([
       ...(ctx.otherState.blocked_actions ?? []),
@@ -1130,6 +1140,7 @@ export function execStubPart3(
       `前のターンに発動されたコイン技${negatedNCA}件を無効にした（取り消した宣言${removedNCA}件）`));
   }
   // NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
+  // 表示: このターン、対戦相手のすべての【常】能力は発動しない
   if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
     const newOtherNAOE: PlayerState = { ...ctx.otherState, all_cont_effects_negated: true };
     return done(addLog({ ...ctx, otherState: newOtherNAOE },
@@ -1491,6 +1502,7 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerOG }, `あなたのゾーン${ownGateIdx + 1}に【ゲート】を置いた`));
   }
   // PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
+  // 表示: この方法で処理したカードを【マジックボックス】として設置する
   if (stub.id === 'PLACE_MAGIC_BOX') {
     const cardPMB = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardPMB) return done(addLog(ctx, '【マジックボックス】設置：カードなし'));
@@ -2241,6 +2253,7 @@ export function execStubPart3(
     });
   }
   // DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_number に保存（§6.4 O-41 で改名）
+  // 表示: パワーの値1つを宣言する
   if (stub.id === 'DECLARE_NUMBER_POWER') {
     const setDNP = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
     const optsDNP = [3000, 5000, 7000, 10000, 12000, 15000].map(n => ({
@@ -3926,6 +3939,7 @@ export function execStubPart3(
       `${ctx.cardMap.get(cnIRTZ)?.CardName ?? cnIRTZ}をゾーン${srcIdxIRTZ+1}→${dstIdxIRTZ+1}に移動`));
   }
   // GRANT_CONDITIONAL_ASSASSIN_ABILITY: 条件付きアサシンをkeyword_grantsに付与
+  // 表示: 対象のシグニは「正面に凍結状態のシグニがあるかぎり【アサシン】を得る」を得る
   if (stub.id === 'GRANT_CONDITIONAL_ASSASSIN_ABILITY') {
     const cnGCAA = ctx.sourceCardNum;
     if (!cnGCAA) return done(addLog(ctx, 'ソースカードなし'));
@@ -3960,6 +3974,7 @@ export function execStubPart3(
     });
   }
   // NEGATE_ABILITY: 対象シグニの能力を無効化（abilities_removedに追加）
+  // 表示: 対象にしたシグニの能力を失わせる
   if (stub.id === 'NEGATE_ABILITY') {
     const targetNA = ctx.lastProcessedCards?.[0];
     if (targetNA) {
@@ -4218,6 +4233,7 @@ export function execStubPart3(
     return done(addLog(ctx, '場離れ代替ダウン（【常】宣言・判定は selfDown 軸／バトル経路は BattleScreen）'));
   }
   // BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY: バニッシュ代わりにダウン＋下1枚＋エナ1枚トラッシュ（WXDi-P06-034・BattleScreen側処理）
+  // 表示: バニッシュされる代わりに、アップ状態のこのシグニをダウンし、このシグニの下からカード1枚とあなたのエナゾーンからカード1枚をトラッシュに置く
   if (stub.id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY') {
     return done(addLog(ctx, 'バニッシュ代替（ダウン＋下/エナトラッシュ）（BattleScreen側処理）'));
   }
@@ -4753,6 +4769,7 @@ export function execStubPart3(
   // 直前に処理／固定したカード（`storedTargetCards` → `lastProcessedCards` の順）へ
   // `attack_phase_level_overrides` を書く。読み手は `applyContinuousBaseLevelOverride`（cardMap 上書き）1本。
   // ⚠既存の `SET_BASE_LEVEL{until:'END_OF_TURN'}` は **`ctx.sourceCardNum` 固定**で「それ」を指せない。
+  // 表示: この方法で対象にしたシグニの基本レベルを記録して参照する
   if (stub.id === 'SET_STORED_BASE_LEVEL') {
     const targetsSSBL = (ctx.storedTargetCards?.length ? ctx.storedTargetCards : ctx.lastProcessedCards) ?? [];
     if (targetsSSBL.length === 0) return done(addLog(ctx, '基本レベル変更：対象が確定していない'));
@@ -4764,6 +4781,7 @@ export function execStubPart3(
   }
   // RETURN_TO_HAND_AT_TURN_END（§6.4 O-10・続き509）＝「ターン終了時、それを場から手札に戻す」。
   // 予約だけを積み、解決は `screens/battle/turnEndHandReturn.ts` の funnel（ターン終了2経路で同じ関数）。
+  // 表示: ターン終了時、それを場から手札に戻す
   if (stub.id === 'RETURN_TO_HAND_AT_TURN_END') {
     const targetsRTH = (ctx.storedTargetCards?.length ? ctx.storedTargetCards : ctx.lastProcessedCards) ?? [];
     if (targetsRTH.length === 0) return done(addLog(ctx, 'ターン終了時の手札戻し：対象が確定していない'));
@@ -4788,6 +4806,7 @@ export function execStubPart3(
   //   ここで `field.lrig` へ直接 push すると**グロウ時トリガー（【出】）・リミット再計算・コイン獲得が
   //   丸ごと落ちる**（GROW_FREE が「BattleScreen 処理」なのと同じ理由）。
   // ⚠裏面 CardNum は**ペイロードから読む**（原文の再パースをしない規約）。
+  // 表示: チェックゾーンにあるこのカードを裏返し、コストを支払わずにグロウする
   if (stub.id === 'CHECK_ZONE_FLIP_FREE_GROW') {
     if (ctx.ownerState.lrig_grew_this_turn) {
       return done(addLog(ctx, 'このターンに既にグロウしているため何も起きない'));
@@ -4815,6 +4834,7 @@ export function execStubPart3(
   // 🔑**対象はいま使用中のピース1枚だけ**（応答窓が開いている＝その1枚しか候補が無い）＝
   //   ここでは「打ち消した」フラグだけを**ピースを使った側**（`otherState`）に立て、
   //   実際の除外と解決スキップは窓を閉じる `resolvePendingPiece` が行う（窓の id を知っているのはそちら）。
+  // 表示: 【使用条件】【チーム】を持つ対戦相手のピース1枚を対象とし、それの効果を打ち消す（打ち消されたピースはゲームから除外される）
   if (stub.id === 'COUNTER_TEAM_PIECE_AND_EXILE') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, piece_use_countered: true } },
       '対戦相手のピースの効果を打ち消す（ゲームから除外）'));
@@ -5305,6 +5325,7 @@ export function execStubPart3(
   // MARK_PLACED_DELAYED_EXILE: この解決で**場に出したカード**（lastProcessedCards）を遅延除外対象にする
   // （「この方法で場に出た《X》が場を離れる場合、代わりにゲームから除外される」＝§6.4 O-4・`WXDi-P13-004A-E1`）。
   // ⚠`MARK_SELF_DELAYED_EXILE` は**効果元自身**を見る別軸＝ここは「出したカード」なので流用できない。
+  // 表示: この方法で場に出したカードが場を離れる場合、代わりにゲームから除外する
   if (stub.id === 'MARK_PLACED_DELAYED_EXILE') {
     const placedMPDE = (ctx.lastProcessedCards ?? [])
       .filter(n => ctx.ownerState.field.signi.some(stack => stack?.includes(n)));
@@ -5542,6 +5563,7 @@ export function execStubPart3(
   }
 
   // BattleScreen側処理済みSTUB（execStub呼び出し時はログのみ）
+  // 表示: 対戦相手のセンタールリグの基本リミットは5になる
   if (stub.id === 'OPP_CENTER_LRIG_LIMIT_SET_5') return done(addLog(ctx, '相手センタールリグの基本リミットを5に変更（BattleScreen側処理）'));
   if (stub.id === 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE') return done(addLog(ctx, 'エナゾーン以外のカードは白になる（effectEngine collectFieldSigniExtraColors処理）'));
   if (stub.id === 'ENERGY_NON_COLORLESS_ALL_COLORS') return done(addLog(ctx, 'エナゾーンの非無色カードはすべての色を持つ（effectEngine collectEnergyColorSubstitutes処理）'));

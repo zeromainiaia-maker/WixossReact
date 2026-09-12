@@ -249,6 +249,34 @@ for (const m of sheetText.matchAll(/\[条件:([A-Za-z][A-Za-z0-9_]*)\]/g)) {
 }
 const condTotal = [...condExposure.values()].reduce((a, b) => a + b, 0);
 
+// 🆕F群（§5.5・2026-09-12）＝**STUB ラベルに内部実装の識別子が漏れている**箇所。
+// 🔴**真因**＝`genStubsMd.mjs` はハンドラ直前コメントを**そのまま** `docs/STUBS.md` の説明欄に入れ、
+//   その説明欄が `decompileEffects.ts` 経由で逆翻訳の `[STUB:…]` ラベルになる。⇒ **実装メモ
+//   （engine 関数名・`lastProcessedCards[0]` のような内部変数名・`keyword_grants` のような state キー・
+//   `§5.3 O-60 第58バッチ` のような PLAN 参照）がそのままカードの逆翻訳に出る**（実測 56箇所/32 id）。
+//   ⚠**engine は正しく動いている**＝無言バグではないが、**原文照合（このプロジェクトの主軸の検査）が
+//   効かなくなる**。しかも2件は**別 id の説明が付く誤帰属**だった（`SET_STORED_BASE_LEVEL`／
+//   `CHECK_ZONE_FLIP_FREE_GROW`＝共有コメントから隣の id のラベルを拾っていた）。
+// 直し方＝**コメントを消さずに `// 表示: <カードが何をするかの日本語>` を1行足す**
+//   （`genStubsMd.mjs` の `descriptionForId` が `表示:` を最優先で採る。複数 id を捌く共有コメントでは
+//   `// 表示: <ID>: <日本語>` と id を明示）→ `node scripts/genStubsMd.mjs` → **`npm run regen`**。
+// ⚠**パターンを増やすときは原文に出る語を入れない**（「トラッシュ」等は正当なラベルに出る）。
+const INTERNAL_IDENT = [
+  /effectEngine\.|effectExecutor\.|execStub|triggerCollect|BattleScreen|execUtils/,  // engine 関数/ファイル名
+  /lastProcessed|storedTarget|ctx\./,                                                // 内部変数名
+  /§\d|BUGFIXES|続き\d|第\d+バッチ|O-\d+|🏁/,                                        // ドキュメント参照
+  /[a-z]+_[a-z_]{2,}\b/,                                                             // snake_case の state キー
+  /[a-zA-Z]+\.[a-z]+[A-Z][a-zA-Z]*/,                                                 // payload の `x.fooBar`
+];
+const identExposure = new Map<string, number>();
+for (const m of sheetText.matchAll(/\[STUB:([^\]]*)\]/g)) {
+  const lab = m[1];
+  if (!INTERNAL_IDENT.some(re => re.test(lab))) continue;
+  const key = lab.slice(0, 60);
+  identExposure.set(key, (identExposure.get(key) ?? 0) + 1);
+}
+const identTotal = [...identExposure.values()].reduce((a, b) => a + b, 0);
+
 // ── 4) 仕分け ──
 type Row = {
   id: string; count: number; cards: string[];
@@ -337,6 +365,10 @@ p(`  E 表示だけの穴（条件側 \`[条件:…]\` の生ID露出）        
 for (const [id, n] of [...condExposure].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
   p(`      露出${String(n).padStart(3)}箇所  ${id}`);
 }
+p(`  F 表示だけの穴（STUB ラベルに内部実装の識別子）          : ${identExposure.size} 種 / ${identTotal} 箇所`);
+for (const [lab, n] of [...identExposure].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))) {
+  p(`      露出${String(n).padStart(3)}箇所  ${lab}`);
+}
 p(`  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : ${deadIds.length} 種`);
 p('');
 
@@ -415,5 +447,16 @@ if (condExposure.size > 0) {
   console.error(`\n❌ 逆翻訳に生の英語 ID が出る条件が ${condExposure.size} 種 / ${condTotal} 箇所`);
   for (const [id, n] of [...condExposure].slice(0, 10)) console.error(`   - ${id}（${n} 箇所）`);
   console.error('   scripts/decompileEffects.ts の condJa に case を足して、npm run regen。');
+  process.exit(1);
+}
+
+// ── 🆕F群もゲート化（§5.5・2026-09-12）＝STUB ラベルへの内部実装の識別子の漏れ ──
+// **56箇所/32 id を `表示:` 規約で 0 にした**ので、以後は**増えたら止める**。
+// ⚠新しい STUB ハンドラを足して**実装メモだけを書く**と、その実装メモがカードの逆翻訳に出るのでここで落ちる。
+if (identExposure.size > 0) {
+  console.error(`
+❌ STUB ラベルに内部実装の識別子が漏れている箇所が ${identExposure.size} 種 / ${identTotal} 箇所`);
+  for (const [lab, n] of [...identExposure].slice(0, 10)) console.error(`   - ${lab}（${n} 箇所）`);
+  console.error('   ハンドラ直前に `// 表示: <日本語>` を足して node scripts/genStubsMd.mjs → npm run regen。');
   process.exit(1);
 }

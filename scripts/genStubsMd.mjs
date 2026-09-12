@@ -61,6 +61,32 @@ for (const part of ['execStubPart1', 'execStubPart2', 'execStubPart3']) {
  *      コメントは、ラベルの無い id にも当てはまる＝`SWAP_OPTIONAL` が実例）。
  */
 function descriptionForId(lines, id, knownIds) {
+  // 🆕🔴**`表示:` 行が最優先**（§5.5・2026-09-12）＝**実装コメントと表示ラベルを分離する規約**。
+  //   なぜ要るか＝この関数はハンドラ直前コメントを**そのまま**説明欄に入れ、その説明欄が
+  //   `decompileEffects.ts` 経由で逆翻訳の `[STUB:…]` ラベルになる。⇒ **実装メモ（engine 関数名・
+  //   `lastProcessedCards[0]` のような内部変数名・snake_case の state キー・`§5.3 O-60 第58バッチ` の
+  //   ような PLAN 参照）がそのままカードの逆翻訳に出る**＝原文照合が効かない（実測 56箇所/32 id）。
+  //   ⚠コメントを書き換えて消すと**開発側の情報が失われる**ので、消さずに**表示用の1行を足す**。
+  //   書き方＝ハンドラ直前に `// 表示: <カードが何をするかの日本語>` を1行足すだけ
+  //   （複数 id を捌く共有コメントでは `// 表示: <ID>: <日本語>` と id を明示する）。
+  //   ラチェット＝`censusStubs.ts` の F群（内部識別子を含むラベルが増えたら exit 1）。
+  const shown = [];
+  for (const line of lines) {
+    const m = line.match(/^表示[:：]\s*(.+)$/);
+    if (!m) continue;
+    const body = m[1].trim();
+    // `表示: <ID>: <日本語>` 形は、その id のときだけ採る。
+    const at = body.search(/[:：]/);
+    if (at > 0) {
+      const head = body.slice(0, at).split(/[\s\/／、]+/).map(s => s.trim()).filter(Boolean);
+      if (head.length > 0 && head.every(h => knownIds.has(h))) {
+        if (head.includes(id)) shown.push(body.slice(at + 1).trim());
+        continue;
+      }
+    }
+    shown.push(body);
+  }
+  if (shown.length > 0) return shown.join(' ');
   // ラベル部（最初の `:` の前）が **既知 id だけ**で組まれているときにラベルとみなす。
   // ⚠実際の綴りは3通りある＝`ID: 説明` ／ `ID1 / ID2 / ID3: 説明` ／ `ID (STUB版): 説明`。
   //   固定の `^[A-Z][A-Z0-9_]*:` だけだと後ろ2つを取りこぼす（`OPP_DECLARE_CHOICE` `BANISH` が実例）。

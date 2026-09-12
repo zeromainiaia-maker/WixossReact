@@ -14357,6 +14357,72 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 | **第286で実装** | **6** | `LRIG_LEVEL` の `eq`／`levelLteSelf`／`optionalCostTarget` の写し／`FORCE_SIGNI_ATTACK` 追加ほか（BUGFIXES.md 2026-09-12） |
 | 🔥**機構待ち（登録済み）** | **8** | §5.3 索引G `O-334`〜`O-340`（`WX25-P3-057` は【アサシン】側だけ実装済み） |
 
+## 2026-09-12 登録：`O-343`／`O-344`（第294バッチ＝§5.5 の再測中に出た「計器の死角」と、そこに隠れていた実バグ）
+
+**登録元**＝第294バッチ。§5.5 の逆翻訳テールを抜き取り8枚で目視したとき、
+`[STUB:CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み]`（`WXK05-029-E1`）を追ったことが入口。
+🔑**「表示品質の穴」を1件追ったら、その裏に計器が映さない実バグがあった**＝
+**§5.5 を「表示だけだから後回し」と扱うのは危険**（表示が嘘をついている箇所は、原文照合という主軸の検査が
+そこだけ効いていないので、実バグの隠れ場所になる）。
+
+### 🆕`O-343` — `census:enginetext` の A/B 分類に死角があり、A群 0 は部分的に見かけだけ
+
+**規模 M。母集団＝実測 B群56行のうち 18行以上（`docs/_census_enginetext.txt` で `<… + <STUB_ID>…>` のラベルが付く行）。**
+
+🔴**何が起きているか**＝`censusEngineText.ts:170` の `isSelf` は
+**代入行の前後3行を `sourceCardNum|sourceCard|srcCard|ctx.sourceCard` で文字列照合するだけ**
+（＋`isAbilityFunnel`）。⇒ **「場を走査して『この STUB を宣言しているカード』を見つけ、
+そのカード自身の原文を読む」形は、変数名がループ変数（`top` / `card` / `cn`）なので B（OTHER_CARD＝正当寄り）に落ちる。**
+だが**そのカードは定義上「効果元自身」**なので、本来は A（SELF_TEXT）である。
+
+**実例**＝`effectEngine.ts:7479 <fn:collectAllColorSigni>`＝
+```ts
+const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
+const reqM = txt.match(/([０-９\d]+)種類以上/);        // 外れたら required = 10 の既定値
+const nameFilterM = txt.match(/カード名に《([^》]+)》を含む/);
+```
+`top` は直前のループで **`act.id === 'ALL_COLOR'` を宣言している場のシグニ**＝効果元自身。
+
+🔑**同族が少なくとも18行**＝`collectDownProtectedSigni`／`collectPowerProtectedSigni`／
+`collectTrashFieldProtectedSigni`／`collectAbilityGainProtectedSigni`／`collectFieldSigniExtraColors`／
+`collectLrigNameAliases`／`collectOppGuardExtraColorlessCost`／`collectAbilityProtectedSigni`／
+`GRANT_UNDER_LRIG_AUTO_ABILITY`／`GRANT_ABILITY_UNTIL_OPP_TURN`／`INTERNAL_LAYER_COPY_APPLY`／
+`ACCE_SIGNI_GRANT_ABILITY`／`INTERNAL_DECLARE_DECK_TOP_ICON` ほか。
+⚠**`collectAllColorSigni`／`collectAllClassSigni`／`collectTreatAsClassAllZones`／`collectGrowCostSubstitute` は
+ラベルに STUB id が付かない**（門が `stub.id === '…'` ではなく `act.id !== 'ALL_COLOR'` なので門検出に引っかからない）
+＝**18行は下限**。
+
+**取り方**
+1. **まず分類を直す**（`censusEngineText.ts`）＝「同じ関数内で `act.id === '<ID>'` / `act.id !== '<ID>'` の
+   門を通った後、その門で見つけたカードの原文を読んでいる」を A へ入れる。⚠**`BASELINE_SELF_TEXT` を
+   実測値へ上げることになる**＝**「較正」であって退化ではないと1行書く**（第56バッチと同じ形。
+   engine のコードは1行も増えていない）。
+2. **そのうえで A群を payload 化する**（`O-60` と同じ型）。
+🔑**罠の記録は計器ごとではなく横断で読む**＝これは `census:enginetext` 第56バッチ（`sourceAbilityText` funnel を
+初版から数えていなかった）と `census:costtext` の罠③（原文を引数で受け取る関数）と**同一の罠の3度目**。
+
+### 🆕`O-344` — 【常】の宣言型 STUB が `activeCondition` を持たず、条件が engine の regex にしか無い
+
+**規模 S。母集団＝実測 2効果/2カード**（`WXK05-029-E1`／`WX22-025-E1`＝`ALL_COLOR`）。
+**測り直す**＝`node scripts/archive/censusMechPopulation.mjs --id O-344` ではなく
+**live JSON を直接読む**＝`ALL_COLOR` / `ALL_CLASS` / `ALL_ZONE_BLACK` の STUB ノードに
+`activeCondition` があるか（無ければこの項目）。
+
+🔴**何が壊れているか**＝`WXK05-029-E1` の原文は
+「**あなたのトラッシュにカード名に《サーバント》を含むシグニが１０種類以上あるかぎり**、このシグニはすべての色を得る」
+なのに、live は `{"effectType":"CONTINUOUS","action":{"type":"STUB","id":"ALL_COLOR"},"duration":"PERMANENT"}` だけ＝
+**`activeCondition` が無い。** 条件は `collectAllColorSigni` が**カード原文を regex で読み直して**復元している
+（`種類以上` と `カード名に《X》を含む`）。
+⇒ ①**逆翻訳に条件が出ない**ので原文照合が効かない ②**regex が外れると `required = 10` の既定値に落ちる**
+（`census:enginetext` の miss と同じ形で、外れても可視化されない） ③parser 改善が届かない。
+
+**取り方**＝`O-60` の型どおり。①`activeCondition` に `TRASH_DISTINCT_NAMES_GTE`（または既存の同義条件）を載せる
+→ ②`collectAllColorSigni` から regex を撤去して `checkActiveCondition` に委ねる → ③逆翻訳に条件が出るのを確認
+→ ④golden で「条件を満たさないと色を得ない」の反転を固定。
+⚠**条件側に `STUB` の道は無い**（`COND_STUB` は `return true`＝無条件成立）＝
+**型＋`CONDITION_TYPES`＋`evalCondition`＋`checkActiveCondition`＋golden＋parser の6箇所**を揃える。
+🔑**`O-343` の分類を直すとこの項目は A群として計器に出る**＝`O-343` を先に取ると `O-344` が自動で列挙される。
+
 ## 2026-09-12 登録：`O-334`〜`O-340`（第286バッチ＝PLAN §5.0 実装キューの全数再照合で残った「真に機構が要る」7効果）
 
 > **経緯**＝第286バッチで §5.0 実装キューの**残123効果を全数再照合**した（live JSON × 効果単位の原文 ×

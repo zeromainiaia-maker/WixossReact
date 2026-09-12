@@ -654,6 +654,7 @@ export function execStubPart2(
   //   旧の `true` は**そのターンの相手のバーストを全部止める**過剰実行だった。
   // ⚠フラグは**クラッシュされる側（`otherState`）**に立つので、`colorNotMatchesLrig` の基準ルリグも
   //   その側のセンタールリグ＝`lifeBurstSuppressedByTurnFlag` がフラグの持ち主基準で解決する。
+  // 表示: 条件を満たす対戦相手のライフクロスの【ライフバースト】は発動しない
   if (stub.id === 'SUPPRESS_LIFEBURST_COLOR_CONDITION') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, suppress_life_burst: { colorNotMatchesLrig: true } } },
       'ライフバースト発動抑制（センタールリグと共通する色を持たないカードのみ）'));
@@ -1136,6 +1137,7 @@ export function execStubPart2(
   // ⚠既存の `OPP_LRIG_DECK_TO_LRIG_TRASH` は**相手が自分で選ぶ**（`opponentResponds`）別文型＝流用できない。
   //   こちらは「見ないで選び」＝ランダム。公開したうえで**ルリグでないときだけ**ルリグトラッシュへ送る。
   // ⚠行先は相手の `lrig_trash`（ルリグデッキのカードはルリグトラッシュへ行く）。
+  // 表示: 対戦相手のルリグデッキからカードを1枚見ないで選び公開する。それがルリグでない場合、それをルリグトラッシュに置く
   if (stub.id === 'OPP_LRIG_DECK_BLIND_REVEAL') {
     const deckOBR = ctx.otherState.lrig_deck ?? [];
     if (deckOBR.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手のルリグデッキにカードがない'));
@@ -1785,6 +1787,7 @@ export function execStubPart2(
   }
   // === バッチ7: バニッシュ・トラッシュ・条件効果 ===
   // BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
+  // 表示: この方法で処理したカード（無ければこのカード自身）をバニッシュする
   if (stub.id === 'BANISH') {
     const cnBAN = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnBAN) return done(addLog(ctx, 'バニッシュ対象なし'));
@@ -1802,6 +1805,7 @@ export function execStubPart2(
     return done(addLog(ctx, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}はフィールドにない`));
   }
   // TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
+  // 表示: この方法で処理したカード（無ければこのカード自身）をトラッシュに置く
   if (stub.id === 'TRASH') {
     const cnTRS = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnTRS) return done(addLog(ctx, 'トラッシュ対象なし'));
@@ -2177,6 +2181,7 @@ export function execStubPart2(
     });
   }
   // PLACE_SIGNI_UNDER_SIGNI: シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下）
+  // 表示: シグニをあなたの場のシグニの下に置く
   if (stub.id === 'PLACE_SIGNI_UNDER_SIGNI') {
     const cardToPlacePSUS = ctx.lastProcessedCards?.[0];
     if (!cardToPlacePSUS || !ctx.sourceCardNum) return done(addLog(ctx, '対象なし（PLACE_SIGNI_UNDER_SIGNI）'));
@@ -2502,6 +2507,7 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerIST, trapSetOwners: [...(ctx.trapSetOwners ?? []), 'self'] }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
   }
   // TRAP_TO_HAND: signi_trapsのカードを手札へ（全枚または選択）
+  // 表示: 【トラップ】1つを対象とし、それを手札に戻す
   if (stub.id === 'RETURN_TRAP_TO_HAND_ONE') {
     const traps = (ctx.ownerState.field.signi_traps ?? []).filter(Boolean) as string[];
     if (traps.length === 0) return done({ ...addLog(ctx, '戻せるトラップがない'), lastProcessedCards: [] });
@@ -2520,6 +2526,7 @@ export function execStubPart2(
   // 🆕§5.0 実装キュー 第222バッチ＝`WX19-064-E1` 選択肢②「【トラップ】１つを対象とし、それをトラッシュに置く」。
   //   `RETURN_TRAP_TO_HAND_ONE`（手札へ戻す）の完全な対で、行き先だけトラッシュにする。
   //   ⚠**活性化はしない**（`ACTIVATE_TRAP` とは別物＝トラップ効果を発動させずにただ捨てる）。
+  // 表示: 【トラップ】1つを対象とし、それをトラッシュに置く
   if (stub.id === 'TRASH_TRAP_ONE') {
     const trapsTTO = (ctx.ownerState.field.signi_traps ?? []).filter(Boolean) as string[];
     if (trapsTTO.length === 0) return done({ ...addLog(ctx, 'トラッシュに置ける【トラップ】がない'), lastProcessedCards: [] });
@@ -3585,6 +3592,8 @@ export function execStubPart2(
   //   「使用する際に〈X〉を置いていた場合、代わりにKつ選ぶ」は `CHOOSE{additionalCostChoose}` が受け皿
   //   （支払いは前段の `STUB{OPTIONAL_COST, energyTrash}` が提示し、成否は `self_optional_effect_taken`）。
   // アーツ条件系（engine: アーツ使用条件未実装）
+  // 表示: ARTS_IMMOVABLE: このアーツはあなたのルリグトラッシュから移動しない
+  // 表示: ACCE_COST_REDUCTION: このシグニにアクセするためのエナゾーンにあるシグニの【起】能力の使用コストは減る
   if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
   }
@@ -3890,6 +3899,7 @@ export function execStubPart2(
     });
   }
   // フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ
+  // 表示: PLAY_FREE: この方法で処理したカードをコストを支払わずに使用する
   if (stub.id === 'PLAY_FREE' || stub.id === 'CAST_FROM_OPP_TRASH'
       || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
       || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
@@ -4495,6 +4505,7 @@ export function execStubPart2(
   }
   // GRANT_CHOSEN_ABILITY_FROM_PLAY: 【出】で選んだ能力（keyword_grants記録済み）を常在で参照
   // このCONTINUOUS効果はexecStubではなくeffectEngine側でkeyword_grantsを参照するため、ここでは何もしない
+  // 表示: 【出】能力で選んだ能力を、このシグニが場にあるかぎり得る
   if (stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY') {
     // keyword_grants に同カードの付与済みキーワードがあれば継続（effectEngineで動的参照）
     return done(ctx);

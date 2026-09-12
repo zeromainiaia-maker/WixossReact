@@ -52,10 +52,10 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:8302 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
   effectEngine.ts:8522 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
   effectExecutor.ts:8492 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
-  execStubPart1.ts:1251 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
-  execStubPart2.ts:4558 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
-  execStubPart2.ts:4654 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
-  execStubPart3.ts:3506 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
+  execStubPart1.ts:1253 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
+  execStubPart2.ts:4569 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+  execStubPart2.ts:4665 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart3.ts:3519 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:1470 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1472 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   execUtils.ts:1474 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;

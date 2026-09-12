@@ -60,13 +60,64 @@
 - `census:goldentypes` 未カバー0／`census:deadstate` 0／`census:enginetext` A群0／`census:costtext` A群0規則／`census:orphanmanual` A・B・C群0。
 - `semanticAuditGap` ＝**未監査 0 / 6,032（全11シート 100%）**。
 
-### いまの残り作業（§5.5 の5件のみ）
+### ⑤ 追加実装＝逆翻訳テールを抜き取り検証したら、その裏に計器の死角と実バグが出た
 
-1. 🔥**逆翻訳の表示品質テール 299カード/323箇所**（engine は動く＝無言バグではない）
-2. **リリース判定**（fuzz 重め＋実機 PvP/CPU 通し対戦）
-3. **CPU 盤面評価 v2**（任意）
-4. `doPhaseAdvance` pure 抽出＝**「やらない」既定**
-5. BEHAVIOR_AUDIT キュー＝⛔休眠（高シグナル23件・枯渇済み）
+🔴🔑**この節がこのバッチの一番重要な発見**＝**§5.5 を「表示品質だから後回し」と扱うのは危険**。
+**表示が嘘をついている箇所は、原文照合というこのプロジェクトの主軸の検査がそこだけ効いていない**＝
+実バグの隠れ場所になる。決定論的に等間隔で**8枚だけ**抜き取って原文と並べたら、
+faithful だったのは2枚で、**3枚が内部実装メモの漏れ、2枚が「実バグに見える表示」**だった。
+
+**(a) `MILL` の `countPerStoredTargets` を逆翻訳が取り落として「0枚」と嘘をついていた**
+
+| 軸 | 値 |
+|---|---|
+| 真因 | `decompileEffects.ts` の `case 'MILL'` が `count`（既定 0）しか描かず、**`countPerStoredTargets`（`effectExecutor.ts:10001`＝`storedTargetCards.length × per` 枚）を描いていなかった** |
+| 影響 | **2カード / 3箇所**（`PR-238`＝原文「ルリグトラッシュに置かれたカード１枚につき…５枚」／`WX25-CP1-087`＝原文「それらのシグニ１体につき…１枚」）＝どちらも**「デッキの上から0枚トラッシュに置く」**と出ていた |
+| 実態 | 🔑**JSON も engine も正しい**＝逆翻訳だけが嘘をつく形（`fromLeftFieldUnder` の前例と同型）。読んだ人は実バグだと判断するので、**偽の worklist を生む** |
+| 検証 | `npm run regen` → 両カードが原文どおりに出る |
+
+**(b) 🆕`表示:` 規約を新設＝STUB ラベルへの内部実装の識別子の漏れ 56箇所 / 32 id → 🏁0**
+
+| 軸 | 値 |
+|---|---|
+| 真因 | `genStubsMd.mjs` が**ハンドラ直前コメントをそのまま** `docs/STUBS.md` の説明欄に入れ、その説明欄が `decompileEffects.ts` 経由で逆翻訳の `[STUB:…]` ラベルになる。⇒ **実装メモがそのままカードの逆翻訳に出る** |
+| 影響 | **56箇所 / 32 id**＝engine 関数名（`effectEngine.collectAllColorSigniで動的処理済み`）／内部変数名（`lastProcessedCards[0]`）／state キー（`keyword_grants`・`all_cont_effects_negated`・`abilities_removed`）／PLAN 参照（`§5.3 O-60 第58バッチ`）。⚠さらに**2件は別 id の説明が付く誤帰属**だった（`SET_STORED_BASE_LEVEL`／`CHECK_ZONE_FLIP_FREE_GROW`＝共有コメントから隣の id のラベルを拾っていた） |
+| 直し方 | 🔑**コメントを消さない**（開発側の情報が失われる）＝**`// 表示: <カードが何をするかの日本語>` を1行足す**だけ。`genStubsMd.mjs` の `descriptionForId` が `表示:` を**最優先**で採る（複数 id を捌く共有コメントは `// 表示: <ID>: <日本語>` と id を明示）。32 id 分を原文照合して書いた |
+| 検証 | `node scripts/genStubsMd.mjs` → `npm run regen` → **56 → 0箇所**／逆翻訳の英語ID漏れ **340 → 323箇所** |
+| 反転確認 | ✅ `ALL_COLOR` の `表示:` を1本外して regen → **`censusStubs` が exit 1**（「1種/2箇所」）。復元して exit 0 |
+| ラチェット | 🆕**`census:stubs` F群**（`gates` 同梱・増えたら exit 1）＝**新しい STUB ハンドラを足して実装メモだけを書くと落ちる** |
+
+**(c) 🆕`O-343` 登録＝`census:enginetext` の A/B 分類に死角があり「A群 0」は部分的に見かけだけ**
+
+`censusEngineText.ts:170` の `isSelf` は**代入行の前後3行を `sourceCardNum|sourceCard|srcCard|ctx.sourceCard` で
+文字列照合するだけ**（＋`isAbilityFunnel`）。⇒ **「場を走査して『この STUB を宣言しているカード』を見つけ、
+そのカード自身の原文を読む」形は、変数名がループ変数（`top`/`card`/`cn`）なので B（正当寄り）に落ちる**が、
+**そのカードは定義上「効果元自身」＝本来 A**。**実測 B群56行のうち18行以上**（`collectDownProtectedSigni`／
+`collectPowerProtectedSigni`／`collectAbilityGainProtectedSigni`／`collectFieldSigniExtraColors` ほか）。
+⚠`collectAllColorSigni` 等は門が `act.id !== 'ALL_COLOR'` で `stub.id === '…'` ではないため門検出にも掛からず、
+**18行は下限**。🔑**これは第56バッチ（`sourceAbilityText` funnel を初版から数えていなかった）と
+`census:costtext` の罠③（原文を引数で受け取る関数）と同一の罠の3度目**＝**罠の記録は計器ごとではなく横断で読む。**
+
+**(d) 🆕`O-344` 登録＝【常】宣言型 STUB が `activeCondition` を持たず、条件が engine の regex にしか無い（実バグ）**
+
+`WXK05-029-E1` の原文は「**あなたのトラッシュにカード名に《サーバント》を含むシグニが１０種類以上あるかぎり**、
+このシグニはすべての色を得る」だが、live は `{"effectType":"CONTINUOUS","action":{"type":"STUB","id":"ALL_COLOR"}}` だけ＝
+**`activeCondition` が無い。** 条件は `collectAllColorSigni` が**カード原文を regex で読み直して**復元しており、
+**外れると `required = 10` の既定値に落ちる**（外れても可視化されない）。実測 **2効果/2カード**。
+🔑**`O-343` の分類を直すとこの型が A群として自動で列挙される**＝`O-343` を先に取る。
+
+### いまの残り作業
+
+**§5.3 機構 worklist（今回 0 → 2項目）**
+1. 🔥**`O-343`**（索引B・計器の較正＝これを直すと `O-344` 型が自動で列挙される）
+2. **`O-344`**（索引G・2効果/2カード）
+
+**§5.5 低優先 5件**
+3. **逆翻訳の表示品質テール 299カード/323箇所**（engine は動く＝無言バグではない。ただし上記(c)(d)の通り**実バグの隠れ場所**）
+4. **リリース判定**（fuzz 重め＋実機 PvP/CPU 通し対戦）
+5. **CPU 盤面評価 v2**（任意）
+6. `doPhaseAdvance` pure 抽出＝**「やらない」既定**
+7. BEHAVIOR_AUDIT キュー＝⛔休眠（高シグナル23件・枯渇済み）
 
 ＋ **§5.2 round5 を回すかの判断**（意味照合は「受け皿の名前を知らない穴」を拾える唯一の発見器だが、全11シート監査済み）。
 

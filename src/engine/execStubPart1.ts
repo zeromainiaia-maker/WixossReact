@@ -1034,6 +1034,7 @@ export function execStubPart1(
   // 🔴**【ウィルス】とは別のカウンタ**＝ウィルスは `field.signi_virus`（シグニゾーン単位）だが、
   //   【みこみこ親衛隊】は「**対戦相手が**得る」＝**プレイヤー単位**。
   //   旧 live は `GRANT_KEYWORD`（シグニへのキーワード付与）に化けており engine のどこにも消費が無かった。
+  // 表示: 【みこみこ親衛隊】を1つ得る
   if (stub.id === 'GAIN_MIKOMIKO_GUARD') {
     const nGMG = typeof stub.value === 'number' ? stub.value : 1;
     // 効果の主語は「対戦相手は〜を得る」＝効果オーナーから見た other 側が得る。
@@ -1044,6 +1045,7 @@ export function execStubPart1(
   // REMOVE_MIKOMIKO_GUARD: 対戦相手の【みこみこ親衛隊】を好きな数取り除く（§5.3 `O-148`・2026-09-02）
   // ⚠**取り除いた数を `lastProcessedCount` へ載せる**＝後段の「1つにつき－8000」が読む。
   //   カードではなく個数なので `lastProcessedCards` ではなくこちらを使う（`O-148` の先行バッチと同じ規約）。
+  // 表示: 対戦相手の【みこみこ親衛隊】を好きな数取り除く
   if (stub.id === 'REMOVE_MIKOMIKO_GUARD') {
     const haveRMG = ctx.otherState.mikomiko_guards ?? 0;
     if (haveRMG === 0) {
@@ -1991,6 +1993,7 @@ export function execStubPart1(
   //   （もう1つの消費地点 `effectExecutor` の既定は「1」＝2地点で食い違っていた）。
   // `'any'`（好きな数）は、0個で終了できる1個ずつの対話ループで処理する。
   // ⚠**payload 省略時は1個**（fail-closed＝旧既定「全部」の逆）。
+  // 表示: 【ウィルス】を取り除く
   if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const totalVirus = virusArr.reduce((s, v) => s + v, 0);
@@ -2063,6 +2066,7 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwnerIRVN, otherState: newOther, lastProcessedCount: removed }, `ウイルス${removed}つを取り除く`));
   }
   // REMOVE_VIRUS_TARGET_ZONE: lastProcessedCards[0]と同じゾーンのウィルスを1個除去（WX15-064型）
+  // 表示: この方法で対象にしたシグニと同じゾーンにある【ウィルス】1つを取り除く
   if (stub.id === 'REMOVE_VIRUS_TARGET_ZONE') {
     const targetNumRVTZ = ctx.lastProcessedCards?.[0];
     if (!targetNumRVTZ) return done(addLog(ctx, 'REMOVE_VIRUS_TARGET_ZONE: 対象カードが不明'));
@@ -3188,6 +3192,7 @@ export function execStubPart1(
   //   になっていた。⚠**この family は計器に `live 0` と出ていた**（`if` の最後の id でグループ化されるため）が、
   //   実際は `DECK_REVEAL_UNTIL` が **live 4効果**で動いていた＝**id ごとに数え直すこと。**
   // ⚠**payload が無ければ何もしない**（fail-closed）。
+  // 表示: DECK_REVEAL_UNTIL: 条件を満たすカードが公開されるまでデッキの上からカードを公開する
   if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
     const specRU = stub.deckRevealUntil;
     if (!specRU) return done(addLog(ctx, '[DECK_REVEAL_UNTIL: 公開条件が無いため何もしない＝未実装]'));
@@ -3606,6 +3611,7 @@ export function execStubPart1(
   }
   // クラス/色宣言
   // DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存
+  // 表示: クラス1つを宣言する
   if (stub.id === 'DECLARE_CLASS') {
     // stub.valueに宣言クラスが入っている場合→保存して完了
     if (typeof stub.value === 'string') {
@@ -4585,6 +4591,7 @@ export function execStubPart1(
       `${ctx.cardMap.get(targetIOFTE)?.CardName ?? targetIOFTE}→相手エナゾーンへ`));
   }
   // MOVE_TO_OTHER_SIGNI_ZONE: 自シグニを他のシグニゾーンへ移動（してもよい）＝既定は空きゾーンのみ・moveSelfZone.allowSwap で占有ゾーンとの入れ替えも選べる
+  // 表示: このシグニを他のシグニゾーンに配置する（すでにシグニがあるゾーンには配置できない）
   if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
     const srcMov = ctx.sourceCardNum;
     if (!srcMov) return done(addLog(ctx, 'ゾーン移動：ソースカードなし'));

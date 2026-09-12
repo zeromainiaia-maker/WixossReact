@@ -2053,6 +2053,13 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.useDeclaredCount) return `${ownerJa(a.owner)}デッキの上から宣言した数字に等しい枚数のカードをトラッシュに置く`;
       if (a.countIsLastProcessedLevelSum) return `この方法で${a.lastProcessedLevelVerbJa ?? '場に出たシグニ'}のレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
+      // 🆕§5.5（2026-09-12）＝`countPerStoredTargets`（`effectExecutor.ts:10001`＝
+      //   `storedTargetCards.length × per` 枚）を**描いていなかった**ので `count`（既定 0）だけが出ていた。
+      //   🔴**JSON も engine も正しいのに逆翻訳だけが「0枚」と嘘をつく**形＝原文照合が効かなくなる
+      //   （`PR-238`＝原文「ルリグトラッシュに置かれたカード１枚につき…５枚」／
+      //    `WX25-CP1-087`＝原文「それらのシグニ１体につき…１枚」の2枚3箇所が「0枚」と出ていた）。
+      if (a.countPerStoredTargets !== undefined)
+        return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から、この方法で対象にしたカード1枚につき${numJa(a.countPerStoredTargets)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
       // optional＝原文「〜トラッシュに置いてもよい」（続き417 で任意デッキミルをここへ寄せた）
       return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
     // 🆕`upToCount`＝原文「N枚**まで**」（2026-09-06・§5.2 round4 O-A triage・`WX07-026-E1`）。
