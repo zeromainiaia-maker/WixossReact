@@ -336,7 +336,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-342` | M | エナ支払いの一括代替（`isEnergyPaymentSelectionValid`）が**8窓にしか配線されていない**＝残る21呼び出し（`BattleScreen` の提示/実行ゲート8／`artsUseGate` 2／`spellUseGate` 1／`ArtsModal` 1／`GrowModal` 3／`CutinModal` 3／`AssistGrowModal` 2／`PhaseConfirmDialogs` 1）では代替肢が出ない |
+| `O-342` | M | 🔴**エナ支払いの一括代替が「提示ゲート」に入っていない＝実戦では到達しない**（`spellUseGate.ts:128` ほか**プール判定6地点**が代替を知らないので、エナが「オサキ1枚＋緑1枚」だと緑×3のスペルが一覧に出ず、配線済みの8窓へ入れない）。残る選択窓17呼び出しも未接続＝**実測 計23呼び出し** |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
