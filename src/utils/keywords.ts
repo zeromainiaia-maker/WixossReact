@@ -199,6 +199,76 @@ export function decodeLancerKeyword(keyword: string): LancerScope | null {
   }
 }
 
+/**
+ * 表示用ラベル＝符号化キーワード（`シャドウ:{…}` / `アサシン:{…}` / `ランサー:{…}`）を原文の括弧表記へ戻す。
+ * 🔴**人が読む場所は全部ここを通す**（engine の対戦ログ・トリガー選択肢・逆翻訳シート）＝
+ *   2026-09-12 第290 まで `addLog` が符号化文字列を素通しし、**対戦ログに
+ *   `シャドウ:{"levelLte":2}：<カード名>` と生 JSON が出ていた**（live 54効果／51枚）。
+ * ⚠**符号化されていない素の名前はそのまま返す**（'シャドウ' / 'ランサー' / 'ダブルクラッシュ' …）＝
+ *   `:` を含まない文字列は即返しなので、キーワード以外のログ文言に掛けても安全。
+ * 🔑**出力は `parseShadowScopeText` / `parseAssassinScopeText` が読み戻せる表記にする**
+ *   （golden が live 全件で往復を assert している＝新しいスコープキーを足したらここも足す）。
+ */
+export function keywordDisplayLabel(kw: string): string {
+  if (!kw.includes(':')) return kw;
+  if (kw.startsWith(SHADOW_PREFIX)) {
+    const scope = decodeShadowKeyword(kw);
+    const inner = scope ? describeShadowScope(scope) : '';
+    return inner ? `シャドウ（${inner}）` : 'シャドウ';
+  }
+  if (kw.startsWith(ASSASSIN_PREFIX)) {
+    const scope = decodeAssassinKeyword(kw);
+    const inner = scope ? describeAssassinScope(scope) : '';
+    return inner ? `アサシン（${inner}）` : 'アサシン';
+  }
+  if (kw.startsWith(LANCER_PREFIX)) {
+    const scope = decodeLancerKeyword(kw);
+    const inner = scope?.powerLte !== undefined ? `パワー${scope.powerLte}以下` : '';
+    return inner ? `ランサー（${inner}）` : 'ランサー';
+  }
+  return kw;
+}
+
+/** ShadowScope → 「【シャドウ（X）】」の X（`parseShadowScopeText` の逆写像）。 */
+function describeShadowScope(s: ShadowScope): string {
+  const parts: string[] = [];
+  if (s.levelLte !== undefined) parts.push(`レベル${s.levelLte}以下`);
+  if (s.levelGte !== undefined) parts.push(`レベル${s.levelGte}以上`);
+  if (s.levelEq !== undefined) parts.push(`レベル${s.levelEq}`);
+  // パワー系は原文が排他（自分基準を先に見る＝parse 側と同じ順序）。
+  if (s.selfPowerHalfLte) parts.push('パワーがこのシグニのパワーの半分以下');
+  else if (s.selfPowerLte) parts.push('このシグニのパワー以下');
+  else if (s.powerLte !== undefined) parts.push(`パワー${s.powerLte}以下`);
+  if (s.powerEq !== undefined) parts.push(`パワー${s.powerEq}`);
+  if (s.artsCostLte !== undefined) parts.push(`コストの合計が${s.artsCostLte}以下のアーツ`);
+  if (s.declaredColor) parts.push('宣言された色');
+  if (s.selfColor) parts.push('このシグニが持つ色');
+  if (s.lrigTrashArtsColor) parts.push('あなたのルリグトラッシュにあるアーツが持つ色');
+  if (s.color) parts.push(s.color);
+  if (s.downerLrigLevel) parts.push('この方法でダウンしたルリグと同じレベル');
+  if (s.declaredNumberPowerEq) parts.push('この方法で宣言した数字と同じパワー');
+  if (s.underSigniLevelEq) parts.push('このシグニの下にあるシグニと同じレベル');
+  // ⚠`cardType` は独立した語ではなく他条件の修飾（「宣言された色の**シグニ**」）。
+  //   単独のときだけ語になり、`selfPowerHalfLte` のときは parse 側が補った値なので付け足さない。
+  if (s.cardType) {
+    if (parts.length === 0) return s.cardType;
+    if (!s.selfPowerHalfLte) return `${parts.join('かつ')}の${s.cardType}`;
+  }
+  return parts.join('かつ');
+}
+
+/** AssassinScope → 「【アサシン（X）】」の X（`parseAssassinScopeText` の逆写像）。 */
+function describeAssassinScope(s: AssassinScope): string {
+  const frozen = s.isFrozen ? '凍結状態の' : '';
+  if (s.powerLte !== undefined) return `${frozen}パワー${s.powerLte}以下のシグニ`;
+  if (s.powerGte !== undefined) return `${frozen}パワー${s.powerGte}以上のシグニ`;
+  if (s.levelLte !== undefined) return `${frozen}レベル${s.levelLte}以下のシグニ`;
+  // ⚠`selfHandLte` は**アタック側の状態条件**（原文「あなたの手札がN枚以下であるかぎり」）＝
+  //   相手シグニの絞り込みではないので `parseAssassinScopeText` には逆向きの規則が無い。
+  if (s.selfHandLte !== undefined) return `あなたの手札が${s.selfHandLte}枚以下`;
+  return s.isFrozen ? '凍結状態のシグニ' : '';
+}
+
 /** バトルでバニッシュした相手シグニに対して、いずれかのランサー制限が適用されるか。 */
 export function hasApplicableLancer(keywords: Iterable<string>, defenderPower: number): boolean {
   for (const keyword of keywords) {

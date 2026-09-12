@@ -11,7 +11,7 @@
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner, TriggerOriginZone } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
-import { normalizeKeywordName } from '../utils/keywords';
+import { normalizeKeywordName, keywordDisplayLabel } from '../utils/keywords';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
 import { grantedStoreWatchers } from './grantedStore';
@@ -5616,7 +5616,7 @@ export function collectKeywordGainedTriggers(
         const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
         entries.push({
           id: ctx.genId(), playerId: gainOwnerId, cardNum: topNum, effectId: eff.effectId,
-          label: `${cardName} の【自】効果（味方が【${gain.keyword}】を得たとき）`, effect: eff,
+          label: `${cardName} の【自】効果（味方が【${keywordDisplayLabel(gain.keyword)}】を得たとき）`, effect: eff,
           triggeringCardNum: gain.cardNum, triggeringKeyword: gain.keyword,
         });
       }

@@ -138,7 +138,7 @@ import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '.
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
-import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
+import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, keywordDisplayLabel, normalizeKeywordName, parseAssassinScopeText, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
@@ -79079,6 +79079,76 @@ test('§5.0 第286 (e): 選んだシグニ以外を禁止したうえで「可�
       .map(ban => ({ ...ban, exceptCardNums: [a] })),
   };
   eq(scan(narrowed).join(','), '0', '🔴禁止されたシグニまで「アタックしなければならない」に残っている');
+}));
+
+
+// ===== §5.5 第290＝符号化キーワードを人が読む場所へ生 JSON で出さない =====
+// 🔴**発見の経緯**＝PLAN §5.5「生JSON漏れ72件」を再測したら 85枚に増えており、
+//   うち **live 54効果（シャドウ/アサシン/ランサーの非 CONTINUOUS 付与）は `addLog` を通る**＝
+//   **対戦ログに `シャドウ:{"levelLte":2}：<カード名>` と出ていた**（engine の挙動自体は正しい＝表示だけ）。
+// 🔑**この番人が守るのは2つ**＝①表示に `{` を出さない ②**符号化の実体は変えない**
+//   （ラベルは表示専用。`keyword_grants` には符号化文字列がそのまま入り続ける）。
+test('§5.5 第290: 符号化キーワードは表示ラベルへ戻る（live 全件・往復）', () => {
+  const encoded = new Set<string>();
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    const o = n as Record<string, unknown>;
+    if (typeof o.keyword === 'string' && /^(シャドウ|アサシン|ランサー):/.test(o.keyword)) encoded.add(o.keyword);
+    Object.values(o).forEach(walk);
+  };
+  effectsMap.forEach(effs => effs.forEach(e => walk(e)));
+  // 2026-09-12 実測＝distinct 36種 / 54効果 / 51枚。走査が壊れたら痩せるので下限を張る。
+  ok(encoded.size >= 30, `符号化キーワードの母集団が痩せている（${encoded.size}種）＝走査が壊れた疑い`);
+
+  for (const kw of encoded) {
+    const label = keywordDisplayLabel(kw);
+    ok(!label.includes('{') && !label.includes('"'),
+      `🔴表示ラベルに生 JSON が残る: ${kw} → ${label}`);
+    // 往復＝ラベルの括弧内を原文パーサへ通すと同じスコープに戻る（＝日本語が原文の言い回しと一致している）。
+    const inner = label.match(/^(?:シャドウ|アサシン|ランサー)（(.+)）$/)?.[1];
+    if (!inner) continue;
+    if (kw.startsWith('シャドウ:')) {
+      const back = parseShadowScopeText(inner);
+      ok(!!back, `🔴シャドウのラベルが原文表記に戻らない: ${kw} → ${inner}`);
+      if (back) eq(JSON.stringify(back), kw.slice('シャドウ:'.length), `🔴往復でスコープが変わる: ${kw} → ${inner}`);
+    } else if (kw.startsWith('アサシン:')) {
+      // ⚠`selfHandLte` は**アタック側の状態条件**＝相手シグニの絞り込みではないので原文パーサに逆規則が無い。
+      if (kw.includes('selfHandLte')) continue;
+      const back = parseAssassinScopeText(inner);
+      ok(!!back, `🔴アサシンのラベルが原文表記に戻らない: ${kw} → ${inner}`);
+      if (back) eq(JSON.stringify(back), kw.slice('アサシン:'.length), `🔴往復でスコープが変わる: ${kw} → ${inner}`);
+    }
+  }
+
+  // 素の名前は素通し（ラベル化がキーワード名を壊さない）。
+  eq(keywordDisplayLabel('シャドウ'), 'シャドウ', '無条件シャドウが化けた');
+  eq(keywordDisplayLabel('ダブルクラッシュ'), 'ダブルクラッシュ', '符号化していない名前が化けた');
+});
+
+test('§5.5 第290: 付与ログに生 JSON が出ない＋state は符号化のまま', () => withSavedCursor(() => {
+  // 🔑live の **thisCardOnly 付与**を2系統（シャドウ／ランサー）で通す＝
+  //   ログの生成地点（`effectExecutor.ts` の GRANT_KEYWORD 各分岐）が表示ラベルを通すことを確かめる。
+  const cases: { card: string; effectId: string; label: string; encoded: string }[] = [
+    { card: 'WXDi-P07-045', effectId: 'WXDi-P07-045-E2', label: 'シャドウ（パワー10000以下）', encoded: 'シャドウ:{"powerLte":10000}' },
+    { card: 'WX24-P1-072',  effectId: 'WX24-P1-072-E1',  label: 'ランサー（パワー5000以下）',  encoded: 'ランサー:{"powerLte":5000}' },
+  ];
+  for (const c of cases) {
+    const eff = (effectsMap.get(c.card) ?? []).find(e => e.effectId === c.effectId);
+    ok(!!eff, `${c.effectId} が live にある`); if (!eff) continue;
+    const r = run(eff.action, mkCtx({ signi: [c.card, null, null] }, { signi: [fresh(), null, null] }, c.card));
+    const logs = (r.logs ?? []).join(' / ');
+    ok(!logs.includes('{"'), `🔴対戦ログに生 JSON が出ている（${c.effectId}）: ${logs}`);
+    ok(logs.includes(c.label), `🔴表示ラベルがログに出ていない（${c.effectId}）: ${logs}`);
+    // 🔑**反転確認**＝表示を変えただけで、判定に使う符号化文字列は state にそのまま入っている。
+    // ⚠付与先ストアは duration で分岐する（`UNTIL_OPP_TURN_END` は `keyword_grants_until_opp_turn`）＝両方見る。
+    const grants = [
+      ...Object.values(r.ownerState.keyword_grants ?? {}).flat(),
+      ...Object.values(r.ownerState.keyword_grants_until_opp_turn ?? {}).flat(),
+    ];
+    ok(grants.includes(c.encoded),
+      `🔴state の符号化キーワードまで書き換わった（${c.effectId}）: ${JSON.stringify(grants)}`);
+  }
 }));
 
 if (listMode) {

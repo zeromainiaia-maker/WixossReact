@@ -1,4 +1,5 @@
 import type { Owner, PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import { keywordDisplayLabel } from '../utils/keywords';
 import { parseCardEffects } from '../data/effectParser';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } from './deployLimit';
@@ -3410,7 +3411,7 @@ export function execStubPart1(
           const grantsMapGA = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
           grantsMapGA[centerGA] = [...new Set([...(grantsMapGA[centerGA] ?? []), g.keyword])];
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsMapGA } };
-          logsGA.push(`センタールリグに${g.keyword}付与（このゲーム）`);
+          logsGA.push(`センタールリグに${keywordDisplayLabel(g.keyword)}付与（このゲーム）`);
           break;
         }
         case 'blockCardName':

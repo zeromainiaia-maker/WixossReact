@@ -25,7 +25,7 @@ import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { parseUseTimeCostReductionText } from '../src/data/keywordCosts';
-import { decodeLancerKeyword } from '../src/utils/keywords';
+import { keywordDisplayLabel } from '../src/utils/keywords';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Eff = any;
@@ -2139,11 +2139,14 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${sourceJa}${maxJa}${constraintJa(a.selectionConstraint)}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
-      const lancerScope = typeof a.keyword === 'string' ? decodeLancerKeyword(a.keyword) : null;
-      const kw = lancerScope?.powerLte !== undefined
-        ? `ランサー（パワー${lancerScope.powerLte}以下のシグニ）`
-        : a.keyword;
-      const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/^ランサー:.*/, 'ランサー') : String(a.keyword ?? '');
+      // 🔴符号化キーワード（`シャドウ:{…}`/`アサシン:{…}`/`ランサー:{…}`）は **engine のログと同じ
+      //   `keywordDisplayLabel` で日本語へ戻す**（2026-09-12 第290＝旧実装はランサーだけを特別扱いし、
+      //   シャドウ／アサシンは生 JSON のまま逆翻訳に出ていた＝85枚）。
+      const kw = typeof a.keyword === 'string' ? keywordDisplayLabel(a.keyword) : a.keyword;
+      // ⚠`kwBase` は**原文を引くための素の名前**（`restoreLeadDuration` の regex に埋める）＝
+      //   スコープ部を全部落とす。旧実装はランサーしか落とさず、シャドウ／アサシンでは
+      //   `【シャドウ:{"levelLte":2}…】` という当たらない regex になって**持続の語を復元し損ねていた**。
+      const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/:.*$/, '') : String(a.keyword ?? '');
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN'
           ? a.appliesThisTurn
@@ -2451,7 +2454,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : byLevelJa ? `${byLevelJa}カードの` : '';
       return `${protectionDurationJa}${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
     }
-    case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
+    case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${keywordDisplayLabel(String(a.keyword ?? ''))}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return a.thisCardOnly
       ? `このシグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`
       : `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
@@ -5652,7 +5655,7 @@ function actionJa(a?: Action, effectType?: string): string {
         const one = (g: import('../src/types/effects').GameGrantSpec): string => {
           switch (g.kind) {
             case 'noGrow': return g.player === 'opponent' ? '対戦相手はグロウできない' : 'あなたはグロウできない';
-            case 'centerLrigKeyword': return `あなたのセンタールリグは【${g.keyword}】を得る`;
+            case 'centerLrigKeyword': return `あなたのセンタールリグは【${keywordDisplayLabel(String(g.keyword ?? ''))}】を得る`;
             case 'blockCardName': return `あなたは《${g.cardName}》を使用できない`;
             case 'suppressLifeBurst': return 'あなたのライフバーストは発動しない';
             case 'mainPhaseDrawIfHandLte':

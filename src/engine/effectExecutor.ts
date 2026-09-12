@@ -30,7 +30,7 @@ import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 // ⚠`gain_trap_ability` の候補判定（`hasTrapAbilityCard`）用＝`execStubPart2` と同じ経路。
 import { execStub } from './execStub';
-import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
+import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved, keywordDisplayLabel } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import { collectReturnableAssistLrigTops } from './assistLrig';
@@ -5680,7 +5680,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       const grants = { ...(s[gkey] ?? {}) };
       grants[cn] = [...new Set([...(grants[cn] ?? []), a.keyword])];
       cur = addLog(setOwnerState(owner, { ...s, [gkey]: grants }, cur),
-        `${a.keyword}：${cur.cardMap.get(cn)?.CardName ?? cn}`);
+        `${keywordDisplayLabel(a.keyword)}：${cur.cardMap.get(cn)?.CardName ?? cn}`);
     }
     return done(cur);
   }
@@ -5698,7 +5698,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     const grants = { ...(s[gkey] ?? {}) };
     grants[autoNum] = [...new Set([...(grants[autoNum] ?? []), a.keyword])];
     return done(addLog(setOwnerState(owner, { ...s, [gkey]: grants }, ctx),
-      `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${a.keyword}」を付与`));
+      `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${keywordDisplayLabel(a.keyword)}」を付与`));
   }
   const tgt = a.target;
   if (a.duration === 'NEXT_TURN') {
@@ -5707,7 +5707,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     }, a.nextTurnOwner, ctx);
     if (reservation.reserved) {
       ctx = addLog(reservation.ctx,
-        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニが【${a.keyword}】を得る`);
+        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニが【${keywordDisplayLabel(a.keyword)}】を得る`);
       if (!a.appliesThisTurn) return done(ctx);
     }
   }
@@ -5720,7 +5720,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       kind: 'keyword', keyword: a.keyword, filter: tgt.filter, condition: a.fieldCondition,
     }, ctx);
     if (activeGK.applied) {
-      return done(addLog(activeGK.ctx, `このターン、条件を満たす場のシグニが【${a.keyword}】を得る`));
+      return done(addLog(activeGK.ctx, `このターン、条件を満たす場のシグニが【${keywordDisplayLabel(a.keyword)}】を得る`));
     }
   }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
@@ -5732,7 +5732,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     const prevPK = state.player_keywords ?? [];
     const newStatePK: PlayerState = { ...state, player_keywords: [...prevPK, a.keyword] };
     return done(addLog(setOwnerState(tgtOwner, newStatePK, ctx),
-      `${tgtOwner === 'opponent' ? '対戦相手' : 'あなた'}は【${a.keyword}】1つを得た`));
+      `${tgtOwner === 'opponent' ? '対戦相手' : 'あなた'}は【${keywordDisplayLabel(a.keyword)}】1つを得た`));
   }
 
   const abilityGainBlocked = tgtOwner === 'opponent' ? new Set(ctx.otherAbilityGainProtectedNums ?? []) : new Set<string>();
@@ -5806,8 +5806,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 
     return addLog(setOwnerState(tgtOwner, newS, c),
       grantable.length > 0
-        ? `${grantable.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に「${a.keyword}」を付与`
-        : `【${a.keyword}】は新たに得られない`);
+        ? `${grantable.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に「${keywordDisplayLabel(a.keyword)}」を付与`
+        : `【${keywordDisplayLabel(a.keyword)}】は新たに得られない`);
   }
 
   // 「レベルの合計がN以下になるように好きな数」: count:'ALL' の自動全付与より先に
@@ -13772,18 +13772,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!gkOwner) return done(ctx);
       const gkS = ownerState(gkOwner, ctx);
       if (isKeywordAbilityRemoved(cardNum, gkA.keyword, gkS.keyword_abilities_removed)) {
-        return done(addLog(ctx, `【${gkA.keyword}】は新たに得られない`));
+        return done(addLog(ctx, `【${keywordDisplayLabel(gkA.keyword)}】は新たに得られない`));
       }
       if (gkA.duration === 'UNTIL_OPP_TURN_END') {
         const gkGrantsOpp = { ...(gkS.keyword_grants_until_opp_turn ?? {}) };
         gkGrantsOpp[cardNum] = [...new Set([...(gkGrantsOpp[cardNum] ?? []), gkA.keyword])];
         return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants_until_opp_turn: gkGrantsOpp }, ctx),
-          `${gkA.keyword}（次の相手ターン終了まで）：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+          `${keywordDisplayLabel(gkA.keyword)}（次の相手ターン終了まで）：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
       }
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
       gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
       return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
-        `${gkA.keyword}：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+        `${keywordDisplayLabel(gkA.keyword)}：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'GRANT_EFFECT': {
       const geA = action as GrantEffectAction;

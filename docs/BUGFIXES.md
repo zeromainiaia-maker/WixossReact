@@ -1,5 +1,76 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-12 — 符号化キーワードの生 JSON が対戦ログ／逆翻訳へ漏れていた（第290バッチ・live 54効果/51枚・逆翻訳85枚→0）
+
+**着手の形**＝ユーザー決定「**すべてのカードが完全に正しく動くことが目標なので、低優先にしている作業も含めて全部行う**」
+⇒ PLAN §5.5（低優先・保留）を worklist として開いた。
+
+### 真因
+
+`GRANT_KEYWORD.keyword` は `シャドウ:{"levelLte":2}` という**符号化文字列**（`encodeShadowKeyword`／
+`encodeAssassinKeyword`／`encodeLancerKeyword`）で、engine は `decode*` で復元して判定に使う**正式な表現**。
+🔴**判定側は全経路で正しく動いていた**が、**表示側にフォーマッタが1つも無かった**＝
+`addLog` がこの文字列を**素通し**し、**対戦ログにそのまま出ていた**。
+
+```
+翠英姫　ママ//メモリアに「シャドウ:{"powerLte":10000}」を付与     ← 実測（反転確認時の FAIL メッセージ）
+```
+
+| 軸 | 実測 |
+|---|---|
+| 母集団（ログに出る） | **live 54効果 / 51枚**＝シャドウ・アサシン・ランサーの**非 CONTINUOUS** 付与（AUTO 25 / ACTIVATED 16 / SONG_ICON 1 ほか） |
+| 母集団（逆翻訳に出る） | **85枚 / 92箇所 / 18キー種**（【シャドウ】77・【アサシン】15。**PLAN の旧記載は「72件・2026-08-07 観測」＝1か月で増えていた**） |
+| 挙動への影響 | **無し**（`decodeShadowKeyword` / `decodeAssassinKeyword` / `hasApplicableAssassin` は正しく効いている） |
+
+🔑**なぜ1か月見えなかったか**＝**どの計器もこの形を見ていない**。
+`census:stubs` C群は **`[STUB:<生ID>` しか数えない**（`censusStubs.ts:9` の「軸2 表示」）／
+`census:enginetext` は engine の regex だけ／**golden・smoke・fuzz はログ文字列を assert していなかった**。
+さらに PLAN §5.5 の項目は**観測日の数字を本文に書き写しただけ**で再測手段が紐づいていない。
+
+### 直し方
+
+**`src/utils/keywords.ts` に `keywordDisplayLabel(kw)` を新設**＝`parseShadowScopeText` /
+`parseAssassinScopeText` の**逆写像**（`describeShadowScope` / `describeAssassinScope`）。
+**`:` を含まない文字列は即返す**ので、素のキーワード名や無関係なログ文言に掛けても安全。
+
+**人が読む場所を全部そこへ通した**：
+
+| ファイル | 地点 |
+|---|---|
+| `src/engine/effectExecutor.ts` | 付与ログ9地点（`${a.keyword}：<カード名>` / `「${a.keyword}」を付与` / `【${a.keyword}】を得る` / `【${gkA.keyword}】は新たに得られない` / `（次の相手ターン終了まで）` ほか） |
+| `src/engine/execStubPart1.ts` | `センタールリグに${g.keyword}付与（このゲーム）` |
+| `src/engine/triggerCollect.ts` | トリガー選択肢ラベル `味方が【${gain.keyword}】を得たとき` |
+| `scripts/decompileEffects.ts` | `GRANT_KEYWORD` / `GRANT_FIELD_SHADOW` / `centerLrigKeyword` |
+
+🔑**同じ家族の潜在バグを1件巻き込みで直した**＝`decompileEffects.ts` の `kwBase`（原文を引く
+`restoreLeadDuration` の regex に埋める素の名前）は **`^ランサー:.*` しか落としていなかった**ので、
+シャドウ／アサシンでは `【シャドウ:{"levelLte":2}[^】]*】` という**原文に絶対当たらない regex** になり、
+**持続の語を復元し損ねていた**。⇒ `/:.*$/` へ一般化。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **4030 PASS**（**新規2本**）／smoke 10752／fuzz 0／census 1 / BASELINE 1 ／
+  stubs A・C群 0 ／ enginetext・costtext A群 0 ／ deadstate 0 ／ manual-fields 0 ／ orphanmanual 0 ／ lint 0 errors。
+- `npm run regen` 後に再測＝**逆翻訳の生 JSON 漏れ 85枚 → 0枚**。
+- **golden の番人2本**
+  - `§5.5 第290: 符号化キーワードは表示ラベルへ戻る（live 全件・往復）`
+    ＝live の符号化キーワード**全36種**について ①ラベルに `{` `"` が出ない ②**ラベルの括弧内を原文パーサへ通すと同じスコープに戻る**
+    （＝日本語が原文の言い回しと一致している）。⚠`selfHandLte` だけは**アタック側の状態条件**で原文パーサに逆規則が無いので除外。
+  - `§5.5 第290: 付与ログに生 JSON が出ない＋state は符号化のまま`
+    ＝`WXDi-P07-045-E2`（シャドウ）と `WX24-P1-072-E1`（ランサー）を実行し、ログに `{"` が出ないこと・
+    表示ラベルが出ること・**`keyword_grants` には符号化文字列がそのまま入っていること**（表示専用であることの反転確認）。
+- **反転確認**＝`keywordDisplayLabel` を素通しへ戻すと2本とも赤くなり、FAIL に**症状そのもの**が出る。
+- ⑤**実機不要**＝触ったのは `src/engine/` `src/utils/` `scripts/` だけ（`src/screens/` 不触・新しい型/機構なし＝PLAN §2.2 の機械判定）。
+
+### 教訓
+
+🔑**「engine も同じ文字列を読んでいる＝意味は正しい」で調査を止めない。**
+[LESSONS.md](./LESSONS.md) §4.3 の「受け皿は ①どこで読むか ②どこで消えるか の2つを揃えて初めて動くと言える」に対し、
+今回抜けていたのは **③どこで表示するか**。**符号化した値は、人が読む出口の数だけ復号地点が要る。**
+
+🔑**PLAN 本文に書き写した数字は必ず腐る**＝§5.5 の2項目とも stale だった（823→**313**／72→**85**＝**増えていた**）。
+**項目には「測り直すコマンド」を必ず添える**（今回2項目に添えた）。
+
 ## 2026-09-12 — §5.3 `O-335` を実装・`O-336` は「実装済み」と確認してクローズ（第289バッチ・索引G 残8→6効果）
 
 **着手の形**＝ユーザー指定「`O-335`・`O-336` を行う」（PLAN §5.3 索引G）。
