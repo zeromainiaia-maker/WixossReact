@@ -994,6 +994,24 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
 
+### 恒久指標（退避）2026-09-13 第297バッチ 前（＝第296バッチ直後の値）
+
+- **2026-09-13 時点**＝第296バッチ（`V-213`＝リリースゲートの通し対戦スモーク）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**（未監査 **0 / 6,032**）｜**census 高シグナル 1 / BASELINE 1**（3つとも据置＝実機を回しただけの回）。
+  📦**在庫**＝**機構 worklist 🔥8項目**（`O-348` 索引A／`O-343`・`O-345` 索引B／`O-344`・`O-346`・`O-347`・`O-349` 索引G／`O-351` 索引E）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4046 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1／
+  **fuzz 重め（`--games 2000 --moves 80`）CRASH 0**（6シード＝第295バッチで実測）／
+  🆕🚀**通し対戦スモーク（`node scripts/verifyFullMatch.mjs`）＝CPU・PvP とも PASS**
+  （CPU **8ターン / 177手 / 232s**、PvP **56ターン / 1122手 / 1943s**。どちらも `global_phase=FINISHED`＋`winner_id`）／
+  census:stubs A群 0・C群 0・E群 0・F群 0／
+  census:enginetext A群 0行 0ハンドラ（miss 0）⚠**この 0 は部分的に見かけだけ＝`O-343`**／
+  census:costtext A群 0規則／**census:payloadkeys 未判定 56種 / 145ノード＝BASELINE 56**（据置）／
+  **census:numberdrift 77効果＝BASELINE 77**（据置）／census:deadstate 0／
+  check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）／typecheck 0。
+  📐**その他のラチェット**＝同型★ **2グループ / 4枚**／**逆翻訳の英語ID漏れ 299カード / 323箇所 / 209種**（据置）／逆翻訳の生 JSON 漏れ **0**／golden 型カバレッジ 未カバー **0**。
+  🔑**ゲート外の計器（在庫ではない）**＝census:timing **4効果**／census:wiring **miss 33セル**／`_bqTriage` 高シグナル **23件**（⛔休眠）。
+  ⚠**通し対戦スモークはゲートに同梱しない**（CPU 4分＋PvP 33分＋ライブ Supabase が要る）＝**リリース前に手で1回**。
+
 ### 恒久指標（退避）2026-09-13 第296バッチ 前（＝第295バッチ直後の値）
 
 - **2026-09-12 時点**＝第295バッチ（`O-350`＝再帰 CRASH 2種）
@@ -14531,6 +14549,45 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 - `WXDi-P13-048-E2`＝原文「エナゾーンから《ディソナアイコン》のカード**３枚**をトラッシュに置いてもよい」が `STUB{OPTIONAL_TRASH_ENERGY_CLASS}`（**payload なし**）＝枚数もアイコン限定も無く**コストが軽い**。
 - `WXK03-023-E1`＝原文の条件2つ（「**２枚以上**置いていた場合」「**４枚**置いていた場合」）が JSON に無く、`DRAW 1` ×2 と `BANISH` が**無条件実行**＝過剰。
 - `WXDi-P08-053-E1`＝付与先が `GRANT_KEYWORD{target owner:"any"}`＝原文「**対戦相手の**レベル２以下のシグニ」に対して**自分のシグニも選べる**（レベル条件も欠落）。
+
+**🏁2026-09-13（第297バッチ）＝4件のうち2件を完了。着手の1手目に受け皿を grep したら、2件とも既に在った。**
+
+| # | 効果 | 状態 | 実測した受け皿 |
+|---|---|---|---|
+| 2 | `WXDi-P13-048-E2` | 🏁**完了** | `OPTIONAL_COST{energyTrash:{count,filter}}`＋`filter.isDisona`（`matchesFilter` が CSV `Story==='Dissona'` で判定）＝**engine 無改造** |
+| 4 | `WXDi-P08-053-E1` | 🏁**完了** | `SELECT_TARGET_ONLY` →`STORE_LAST_PROCESSED_TARGETS` →`targetsStored`（先例 `WD15-001-E2`/`WDK01-007-E1`）＝**engine 無改造** |
+| 1 | `WX19-007-E2` | 🔥**残（遅いレーン）** | **無い**＝下記 |
+| 3 | `WXK03-023-E1` | 🔥**残（遅いレーン）** | **無い**＝下記 |
+
+🔑**#2 の真因は「payload が無い」ではなく「engine が原文 regex で読んでいる」**＝
+`OPTIONAL_TRASH_ENERGY_CLASS` は `effectExecutor.ts:6559` の
+`/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/` でクラスと枚数を取る。
+原文は **`《ディソナアイコン》の`**＝`＜X＞`（CardClass）ではないので**句ごとマッチせず**、
+**枚数は既定の1枚・クラス絞りなし**＝「エナから好きなカード1枚」に落ちていた。
+⚠**regex を足して直さない**（`census:enginetext` の規約）＝**構造化 payload を持つ `OPTIONAL_COST` へ寄せた。**
+🔑**#4 は「`CONDITIONAL{IS_MY_TURN}` が怪しい」が偽陽性**＝あれは「そうした場合」の正規エンコード
+（`effectExecutor.ts:7242` の did-it ゲート）。**触ってはいけない。** 真バグは①対象宣言が丸ごと無い
+②付与先が `owner:"any"` のフィルタ無し＝**自分のシグニにも付けられた** ③レベル条件が**効果元側**に付いていた
+（このカードがレベル2なので**たまたま成立していた**＝`census:numberdrift` が拾ったのはここ）。
+
+**残2件が遅いレーンな理由（受け皿を実測した結果）**
+- `WX19-007-E2`（原文＝「**対戦相手の**センタールリグがレベル４以上の場合、あなたのルリグデッキから
+  《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》にグロウコストを支払わずにグロウする」）
+  ＝現 live は `STUB{CONDITIONAL_FREE_GROW}`＝**`free_grow_this_turn = true` を立てるだけ**
+  （`execStubPart2.ts:4413`）。条件もグロウ先の名前指定も無く、**実際にグロウもしない**（過剰かつ過少）。
+  🔑条件側は既存で足りる（`LRIG_LEVEL{owner:'opponent', operator:'gte', value:4}` ＋ 効果の `condition`）。
+  🔴**足りないのはアクション側**＝「ルリグデッキの**名前指定**の1枚へ無償でその場グロウ」。
+  近い先例は `GROW_CENTER_IF_LEVEL_LTE_OPP`（`execStubPart3.ts:5397`）だが**`lrig_deck.at(0)` 決め打ち**で名前を選べない。
+  ⇒ **payload（`growFromLrigDeck:{cardNames[]}`）＋ engine ＋ golden が要る。**
+- `WXK03-023-E1`（原文＝「使用コストとして追加であなたのシグニの下からカードを合計４枚までトラッシュに置いてもよい。
+  …**２枚以上**置いていた場合、追加でカードを１枚引く。**４枚**置いていた場合、追加で…バニッシュする」）
+  ＝現 live は `STUB{OPTIONAL_COST, costText:"…"}`＝**`costText` は engine がほぼ読まない生文字列**
+  （消費は `effectExecutor.ts:6861` の1カード専用チェックのみ）＝**追加コストが丸ごと踏み倒され**、
+  `DRAW`×2 と `BANISH` が**無条件実行**されている（過剰）。
+  🔑判定側の受け皿は在る＝`COST_TRASHED_MATCHES{minCount}`（`last_cost_trashed_cards` を見る）。
+  🔴**足りないのは支払い側**＝`OPTIONAL_COST` に**「シグニの下から合計N枚まで」**が無い
+  （`lrigUnderCost` は**ルリグの下**専用。`TAKE_FROM_UNDER_SIGNI` は**アクション**でコスト記録に載らない）。
+  ⇒ **payload（`signiUnderCost:{count, upTo}`）＋ engine ＋ `last_cost_trashed_cards` への記録 ＋ golden が要る。**
 
 **偽陽性の型（還元済み＝`denoise` に入れた or 判定表に書いた）**
 - 🔑**「代わりに－N」を「－M したうえで追加で－(N−M)」と表現する等価変換**（`WX08-032-BURST` ほか4件）＝**合計は一致する**。

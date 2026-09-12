@@ -11907,6 +11907,69 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P2-008": [
     {"effectId":"WX25-P2-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":3}],"useTimeCost":{"source":"lrig_deck_arts","filter":{"cardType":"アーツ"},"max":1,"perUnit":false,"reduction":[{"color":"無","count":3}]}},"action":{"type":"SEQUENCE","steps":[{"type":"PREVENT_DAMAGE","owner":"self","until":"UNTIL_END_OF_TURN","scope":"ALL","sourcePowerGte":12000},{"type":"RECOLLECT_GATE","minArts":4},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":2,"upToCount":true,"explicitTarget":true,"filter":{"cardType":"シグニ"}},"delta":10000}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
   ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-345`（2026-09-13）＝数値ドリフトから確定した真バグ（原文の数値が live に無い）
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ── WXDi-P13-048（羅星　ノヴァ）E2
+  //   原文＝【自】：このシグニがアタックしたとき、あなたの場に《王手の一歩　ヒラナ》がいる場合、
+  //         あなたのエナゾーンから《ディソナアイコン》のカード**３枚**をトラッシュに置いてもよい。
+  //         そうした場合、ターン終了時まで、このシグニは【アサシン】を得る。
+  // 🔴旧 live は `STUB{OPTIONAL_TRASH_ENERGY_CLASS}`（**payload なし**）＝コストが原文より軽かった。
+  //   あのハンドラは**原文 regex**（`effectExecutor.ts:6559`
+  //   `/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/`）で
+  //   クラスと枚数を取るが、この原文は **`《ディソナアイコン》の`**＝`＜X＞`（CardClass）ではないので
+  //   **句ごとマッチせず**、枚数は既定の **1枚**・クラス絞りは **無し**に落ちていた
+  //   ＝「**エナから好きなカード1枚**」で【アサシン】が付く（原文は「ディソナ3枚」）。
+  // 🔑受け皿は既に在った＝`OPTIONAL_COST{energyTrash:{count,filter}}`（`filter.isDisona` は
+  //   `matchesFilter` が CSV の `Story==='Dissona'` で判定する）。**engine は1行も触らない。**
+  // ⚠**包み形（`CONDITIONAL{ゲート, then: STUB}` ＋ 直後の `CONDITIONAL{IS_MY_TURN}`）は正しいので保つ**
+  //   ＝`OPTIONAL_COST` も `OPT_IDS_WRAP`（`effectExecutor.ts:6198`）に入っており、
+  //   ゲート不成立なら「そうした場合」の本体ごと読み飛ばす契約がそのまま効く。
+  "WXDi-P13-048": [
+    {"effectId":"WXDi-P13-048-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"王手の一歩　ヒラナ"}},
+        "then":{"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":3,"filter":{"isDisona":true}}}},
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+        "then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},
+                "keyword":"アサシン","duration":"UNTIL_END_OF_TURN"}}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  // ── WXDi-P08-053（羅星　ノヴァ//メモリア・レベル2）E1
+  //   原文＝【自】：対戦相手のアタックフェイズ開始時、**対戦相手のレベル２以下のシグニを１体まで対象とし**、
+  //         このシグニを場から手札に戻してもよい。そうした場合、ターン終了時まで、
+  //         **それ**は「【常】：アタックできない。」を得る。
+  // 🔴旧 live は「対象」を1つも表していなかった＝3点で外していた：
+  //   ①**対象宣言が無い**（原文の「対戦相手のレベル２以下のシグニを１体まで対象とし」が丸ごと落ちている）
+  //   ②付与先が `GRANT_KEYWORD{target:{owner:'any', count:1}}`＝**フィルタ無しの任意の1体**
+  //     ＝**自分のシグニにも、レベル3以上の相手シグニにも**「アタックできない」を付けられた（過剰）。
+  //   ③手札に戻す側（＝効果元自身）に `level:{max:2}` が付いていた＝**原文のレベル条件の付け先違い**。
+  //     ⚠このカード自身がレベル2なので**たまたま成立していた**だけ（`census:numberdrift` はここを拾った）。
+  // 🔑受け皿は既に在った＝`SELECT_TARGET_ONLY` →`STORE_LAST_PROCESSED_TARGETS` → `targetsStored`
+  //   （先例＝`WD15-001-E2` / `WDK01-007-E1`）。**engine は1行も触らない。**
+  // ⚠`BOUNCE` は `DID_IT_GATED_TYPES`（`effectExecutor.ts:6083`）に入っているので、
+  //   戻さなかった（＝空振り）ときは直後の `CONDITIONAL{IS_MY_TURN}`＝「そうした場合」が正しく落ちる。
+  // ⚠`abortIfNoCandidate` は付けない＝原文は「１体**まで**」＝相手に候補が居なくても
+  //   「このシグニを手札に戻す」こと自体は選べる（付けると効果ごと止まって過少になる）。
+  "WXDi-P08-053": [
+    {"effectId":"WXDi-P08-053-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY",
+        "selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":true,
+                        "filter":{"cardType":"シグニ","level":{"max":2}}},
+        "abortIfNoCandidate":false},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+       {"type":"BOUNCE","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+        "then":{"type":"GRANT_KEYWORD",
+                "target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},
+                "keyword":"アタックできない","duration":"UNTIL_END_OF_TURN","targetsStored":true}}
+     ]},
+     "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"},
+  ],
 };
 
 

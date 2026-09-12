@@ -75107,6 +75107,51 @@ test('§5.3 O-350: CROSS_ZONE_TRIPLE… は候補の居ないゾーンを飛ば�
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-345`（2026-09-13）＝数値ドリフトから確定した真バグ（原文の数値が live に無い）
+// ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-345: WXDi-P13-048-E2 のコストは「ディソナ3枚」（旧は payload なしで任意1枚）', () => withSavedCursor(() => {
+  const e2 = effectsMap.get('WXDi-P13-048')!.find(e => e.effectId === 'WXDi-P13-048-E2')!;
+  const steps = (e2.action as unknown as { steps: { condition?: { type: string }; then?: Record<string, unknown> }[] }).steps;
+  const gate = steps[0];
+  eq(gate.condition?.type, 'HAS_CARD_IN_FIELD', 'ゲートは《王手の一歩　ヒラナ》の在場');
+  const stub = gate.then as unknown as { type: string; id: string; energyTrash?: { count: number; filter?: { isDisona?: boolean } } };
+  // 🔴旧 live は `OPTIONAL_TRASH_ENERGY_CLASS`（payload なし）＝あのハンドラは**原文 regex** で
+  //   クラスと枚数を取るが、原文が `《ディソナアイコン》の`（＝`＜X＞` の CardClass ではない）ため
+  //   句ごとマッチせず**枚数は既定の1枚・クラス絞りなし**に落ちていた＝コストが原文より軽い。
+  eq(stub.id, 'OPTIONAL_COST', '🔴構造化 payload を持つ受け皿へ寄せる');
+  eq(stub.energyTrash?.count, 3, '🔴3枚（旧は既定の1枚）');
+  eq(stub.energyTrash?.filter?.isDisona, true, '🔴《ディソナアイコン》に限る（旧は無制限）');
+  // 「そうした場合」の包み形は保つ＝`OPTIONAL_COST` も `OPT_IDS_WRAP` に入っている。
+  eq(steps[1].condition?.type, 'IS_MY_TURN', '「そうした場合」ゲートを残す');
+}));
+
+test('§5.3 O-345: WXDi-P08-053-E1 は相手のレベル2以下だけを対象にし、付与先を選び直せない', () => withSavedCursor(() => {
+  const e1 = effectsMap.get('WXDi-P08-053')!.find(e => e.effectId === 'WXDi-P08-053-E1')!;
+  const steps = (e1.action as unknown as { steps: Record<string, unknown>[] }).steps;
+  // (a) 対象宣言＝「対戦相手のレベル２以下のシグニを１体まで対象とし」。旧 live にはこれが無かった。
+  const sel = steps[0] as unknown as { id: string; selectTarget: { owner: string; upToCount?: boolean; filter?: { level?: { max?: number } } } };
+  eq(sel.id, 'SELECT_TARGET_ONLY', '🔴対象宣言がある');
+  eq(sel.selectTarget.owner, 'opponent', '🔴対象は対戦相手のシグニ');
+  eq(sel.selectTarget.filter?.level?.max, 2, '🔴レベル2以下');
+  eq(sel.selectTarget.upToCount, true, '「1体まで」＝0体でもよい');
+  eq((steps[1] as { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', '任意コストを跨いで対象を固定する');
+  // (b) 手札に戻すのは**効果元自身**＝レベル条件を付けない（旧はここに level.max:2 が付いていた＝付け先違い）。
+  const bounce = steps[2] as unknown as { type: string; optional?: boolean; target: { owner: string; filter?: Record<string, unknown> } };
+  eq(bounce.type, 'BOUNCE', '3手目はこのシグニを手札に戻す');
+  eq(bounce.target.owner, 'self', '戻すのは自分（効果元）');
+  eq(bounce.target.filter?.thisCardOnly, true, '🔴「このシグニ」に限る');
+  eq(bounce.target.filter?.level, undefined, '🔴レベル条件は対象側に付く（効果元には付かない）');
+  eq(bounce.optional, true, '「戻してもよい」');
+  // (c) 付与先＝宣言した対象。旧 live は `owner:"any"` のフィルタ無し1体＝**自分のシグニにも付けられた**。
+  const body = steps[3] as unknown as { condition: { type: string }; then: { type: string; targetsStored?: boolean; target: { owner: string; filter?: { level?: { max?: number } } } } };
+  eq(body.condition.type, 'IS_MY_TURN', '「そうした場合」ゲート');
+  eq(body.then.type, 'GRANT_KEYWORD', '「アタックできない」を得る');
+  eq(body.then.targetsStored, true, '🔴宣言した対象へ付与する（選び直せない）');
+  eq(body.then.target.owner, 'opponent', '🔴自分のシグニには付かない（旧は "any"）');
+  eq(body.then.target.filter?.level?.max, 2, '🔴レベル2以下に限る');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
 // §5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」（自分側の効果も遮断する耐性）
 // ══════════════════════════════════════════════════════════════════════════════
 test('§5.3 O-284: WX17-001-E1 は自分の他カードの効果も遮断し、自身の能力だけを通す', () => withSavedCursor(() => {

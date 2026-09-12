@@ -103,7 +103,7 @@ console.log('明細 → docs/_census_number_drift.txt');
 // ── ラチェット ──
 // 🔴**0 を目標にしない**（偽陽性が 35% 含まれる＝0 にはできない）。
 //   止めるのは「**増えた**」場合＝parser/decompiler の変更で原文と逆翻訳のズレが広がった回。
-const BASELINE = 77;  // 2026-09-12 第294バッチ（MILL 系6キー＋ATTACH_ACCE を描画した後の実数）
+const BASELINE = 75;  // 2026-09-13 第297バッチ（§5.3 `O-345` の真バグ2件を修正して払い戻し＝77→75）
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');

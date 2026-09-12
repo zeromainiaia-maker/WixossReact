@@ -1,5 +1,44 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 `O-345`＝数値ドリフトの確認済み真バグ2件（第297バッチ）
+
+🔑**着手の1手目に受け皿を grep したら、2件とも既に在った**（LESSONS §4.1）＝**engine は1行も触っていない**。
+
+**① `WXDi-P13-048-E2`（紅天姫　テッペン//ディソナ）＝コストが原文より軽かった**
+原文「あなたのエナゾーンから《ディソナアイコン》のカード**３枚**をトラッシュに置いてもよい」に対し、
+live は `STUB{OPTIONAL_TRASH_ENERGY_CLASS}`（payload なし）＝実際は**エナから好きなカード1枚**で【アサシン】が付いていた。
+🔴**真因は payload 欠落ではなく「engine が原文 regex で読んでいる」こと**＝`effectExecutor.ts:6559` の
+`/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/` は
+`＜X＞`（CardClass）前提なので、`《ディソナアイコン》の` に**句ごとマッチせず**
+**枚数は既定の1枚・クラス絞りなし**へ静かに落ちていた。
+⇒ **regex は足さず**（`census:enginetext` の規約）、構造化 payload を持つ
+`OPTIONAL_COST{energyTrash:{count:3, filter:{isDisona:true}}}` へ寄せた（`isDisona` は `matchesFilter` が CSV `Story==='Dissona'` で判定）。
+⚠**包み形**（`CONDITIONAL{ゲート, then:STUB}` ＋ 直後の `CONDITIONAL{IS_MY_TURN}`）は正しいので保った＝
+`OPTIONAL_COST` も `OPT_IDS_WRAP`（`effectExecutor.ts:6198`）に入っており、ゲート不成立で本体ごと読み飛ばす契約が効く。
+
+**② `WXDi-P08-053-E1`（羅星　ノヴァ//メモリア）＝対象が丸ごと無く、自分のシグニにも付けられた**
+原文「**対戦相手のレベル２以下のシグニを１体まで対象とし**、このシグニを場から手札に戻してもよい。
+そうした場合、…**それ**は「【常】：アタックできない。」を得る」に対し、live は3点で外していた＝
+①**対象宣言が無い** ②付与先が `GRANT_KEYWORD{target:{owner:'any',count:1}}`＝**フィルタ無しの任意1体**
+（＝**自分のシグニにも、レベル3以上の相手シグニにも**付けられた＝過剰）
+③レベル条件が**手札に戻す側（効果元自身）**に付いていた＝付け先違い
+（⚠このカード自身がレベル2なので**たまたま成立していた**。`census:numberdrift` が拾ったのはここ）。
+⇒ 既存イディオム `SELECT_TARGET_ONLY` →`STORE_LAST_PROCESSED_TARGETS` →`targetsStored` へ
+（先例 `WD15-001-E2` / `WDK01-007-E1`）。`BOUNCE` は `DID_IT_GATED_TYPES` にあるので
+「戻さなかった」ときに「そうした場合」が正しく落ちる。
+
+🔑🔴**危うく壊すところだった偽陽性**＝`CONDITIONAL{IS_MY_TURN}` は**「そうした場合」の正規エンコード**
+（`effectExecutor.ts:7242` の did-it ゲート）。**条件として読んで書き換えてはいけない。**
+
+**影響枚数**＝2効果 / 2カード。**残2件は遅いレーン**（`WX19-007-E2`＝名前指定の無償グロウ payload／
+`WXK03-023-E1`＝シグニの下からの任意コスト payload。受け皿の実測は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `O-345`）。
+
+**検証**＝`npm run gates` 全緑（**golden 4048 PASS**＝+2）。**逆翻訳を目視して原文一致を確認**
+（①「《ディソナアイコン》を持つカードを3枚トラッシュに置いてもよい」②「対戦相手のレベル2以下のシグニ1体までを対象とする…**それは**【アタックできない】を得る」）。
+**反転確認 ✅**＝live を旧形へ戻すと golden 2本とも FAIL。
+🔧**`census:numberdrift` ラチェットを 77 → 75 へ払い戻し**（計器が改善を検出して FAIL したので実数へ下げた）。
+**実機は不要と判定**（PLAN §2.2）＝触ったのは `src/data/` と `public/data/` のみ（新しい型・機構なし）。
+
 ## 2026-09-13 — 🏁`V-213`＝**リリースゲートの通し対戦スモークを道具にした**（第296バッチ）
 
 **新規＝`scripts/verifyFullMatch.mjs`**（`node scripts/verifyFullMatch.mjs [cpu|pvp]`・全文は [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)）。
