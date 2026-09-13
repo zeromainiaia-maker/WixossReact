@@ -1,7 +1,7 @@
 ===== STUB ラベル忠実性センサス（`[STUB:…]` のラベルが原文を説明しているか） =====
 生成: npm run census:stublabel   標本: node scripts/censusStubLabel.mjs --show 20 [--group A|B]
 
-逆翻訳シートの [STUB:…] 総数: 308
+逆翻訳シートの [STUB:…] 総数: 302
 🔴A群 ラベルの語彙・数値が原文に無い       : 10 箇所
 🔴B群 ラベルが内容を説明していない         : 0 箇所
 🔴C群 ラベルに識別子が漏れている（F群の死角）: 0 箇所

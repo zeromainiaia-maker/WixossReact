@@ -107,7 +107,7 @@ console.log('明細 → docs/_census_number_drift.txt');
 //   この計器はカードの**逆翻訳**に原文の数値が出るかを見るので、`[STUB:…]` のラベルが
 //   「WX09-027(オリハルティア)の常在マーカー。」のように**中身を書いていないと、原文の数値がまるごと落ちる**。
 //   ⇒ **ラベル整備（`census:stublabel` B/C群）はこの計器の払い戻しでもある。**
-const BASELINE = 70; // 2026-09-13 O-348 バッチB＝fireCondition の「3回以上」で1件払い戻し
+const BASELINE = 68; // 2026-09-13 O-348 バッチC＝scale/deckRevealUntil の数値描画で2件払い戻し
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');

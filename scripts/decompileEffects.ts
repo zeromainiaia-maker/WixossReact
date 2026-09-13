@@ -2616,6 +2616,14 @@ function actionJa(a?: Action, effectType?: string): string {
           && a.steps[2]?.type === 'STUB' && a.steps[2].id === 'FLIP_FACE_DOWN_SIGNI') {
         return `${actionJa(a.steps[1]).replace(/にする$/, 'にしてもよい')}。${actionJa(a.steps[2])}`;
       }
+      // 🆕`O-348` バッチC＝「めくれるまで公開してもよい」。OPTIONAL_ACTIVATE は制御用なので、
+      // 公開本体へ任意性を戻して1文にする（payload の停止条件・行き先は DECK_REVEAL_UNTIL 側が描く）。
+      if (a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'OPTIONAL_ACTIVATE'
+          && a.steps[1]?.type === 'STUB' && a.steps[1].id === 'DECK_REVEAL_UNTIL') {
+        const revealJa = actionJa(a.steps[1]).replace('公開する', '公開してもよい');
+        const restJa = a.steps.slice(2).map(step => actionJa(step, effectType)).filter(Boolean);
+        return [revealJa, ...restJa].join('。そして');
+      }
       // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
       // 🆕**同じ宣言を2度描かない**（§5.4 表示バッチ・2026-09-06 第188バッチ）＝
       //   「このゲームの間、あなたは以下の能力を得る。『【常】：手札の上限は２増える…』」は parser が
@@ -3700,7 +3708,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
       if (a.id === 'GUARD_ALT_HAND_REPLACE') return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに手札を${a.count ?? 1}枚捨ててもよい`;
       if (a.id === 'HOLOGRAPH_REVEAL_REPLACE') return 'ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりにあなたはデッキの上からカードを3枚見て、それらを好きな順番でデッキの上に戻してからデッキの一番上を公開する';
-      if (a.id === 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY') return 'あなたのクロス状態のシグニ1体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う';
+      if (a.id === 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY') {
+        if (!a.leaveVictimFilter) return '【※ペイロード欠落】守るシグニの条件が未指定（engine はすべてのシグニを対象にする）';
+        return `あなたの${filterJa(a.leaveVictimFilter)}シグニ1体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う`;
+      }
       // 英知条件でのレベル読み替え（実装済み＝collectAttackPhaseLevelOverrides→eichi_level_options）。
       // 旧ラベルは STUBS.md 由来の「ダメージ特殊」で、内容と無関係な誤表示だった。
       if (a.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') return '【英知】条件の判定でこのシグニのレベルを原文どおりの複数値として扱う';
@@ -3764,16 +3775,22 @@ function actionJa(a?: Action, effectType?: string): string {
         const bonus = typeof a.value === 'number' ? a.value : (parseInt(String(a.value ?? '5000'), 10) || 5000);
         return `デッキの上から${cnt}枚を見て、1枚を裏向きでシグニゾーンに置き、残りを好きな順番でデッキの一番下に置く。次のあなたのメインフェイズ開始時、そのカードを表向きにしてもよい（そうした場合、場にあるかぎりパワー＋${bonus}／しなかった場合、手札に加える）`;
       }
-      // N回目までアタック自動無効化（WX10-018/WX17-006/SP27-016）＝engine は原文の「一度目か二度目」等を
-      // 実行時に読み取る（execStubPart3）。逆翻訳は原文の該当文をそのまま抽出して描画。
+      // 🆕`O-348` バッチC＝N回目までのアタック自動無効化を payload から描く。
+      // 旧実装は currentCardText の原文を切り出していたため、count が誤っていても正しく見えていた。
       if (a.id === 'NEGATE_NTH_ATTACK') {
-        const nm = currentCardText.match(/この(?:ターン|ゲーム)[^。]*?度目[^。]*?アタックを無効にする/);
-        if (nm) return nm[0];
+        const spec = a.negateNthAttack;
+        if (!spec) return '【※ペイロード欠落】無効にするアタックの回数・種別が未指定（engine は何もしない）';
+        const attackKind = spec.signi && spec.lrig ? 'シグニかセンタールリグ'
+          : spec.signi ? 'シグニ' : spec.lrig ? 'センタールリグ' : '【※対象種別なし】';
+        const ordinals = ['一度目', '二度目', '三度目', '四度目', '五度目'];
+        const through = Array.from({ length: spec.count }, (_, i) => ordinals[i] ?? `${i + 1}度目`).join('か');
+        return `このターン、対戦相手の${attackKind}がアタックしたとき、そのアタックがこのターン${through}の場合、そのアタックを無効にする`;
       }
-      // ガード喪失条件（WX12-025/034/036）＝ルリグ名がカードごとに異なるため原文から該当文を抽出
+      // 🆕`O-348` バッチC＝ガード喪失条件を lrigClass payload から描く。
       if (a.id === 'GUARD_LOSS_UNLESS_LRIG') {
-        const gl = currentCardText.match(/あなたのセンタールリグが＜[^＞]+＞でないかぎり、手札にあるこのシグニは【ガード】を失う/);
-        if (gl) return gl[0];
+        return a.lrigClass
+          ? `あなたのセンタールリグが＜${a.lrigClass}＞でないかぎり、手札にあるこのシグニは【ガード】を失う`
+          : '【※ペイロード欠落】必要なセンタールリグのクラスが未指定（engine はガードを失わせない）';
       }
       // 付与引用（「…」の能力を得る）＝原文から引用能力を抽出して描画（テキスト検出型）。
       // 本物の付与カード（原文に「【自/常/起/出】…」を得る がある）は引用能力を表示、誤パース等で引用が無い場合は従来フォールバック。
@@ -3870,7 +3887,8 @@ function actionJa(a?: Action, effectType?: string): string {
           // ⚠逆翻訳に出さないと原文照合で絞り込みの脱落を検出できない（PLAN 教訓⑩）。
           const lvl = pp.levelLteTrigger ? 'そのシグニのレベル以下の' : filterJa(pp.filter);
           const opt = pp.optional ? '出してもよい' : '出す';
-          return `対戦相手のトラッシュから${lvl}シグニ${n}枚を対象とし、それを傀儡状態であなたの場に${opt}（離場時は持ち主のトラッシュへ）`;
+          const suppress = a.suppressOnPlay ? '。この方法で場に出たシグニの【出】能力は発動しない' : '';
+          return `対戦相手のトラッシュから${lvl}シグニ${n}枚を対象とし、それを傀儡状態であなたの場に${opt}（離場時は持ち主のトラッシュへ）${suppress}`;
         }
         return '対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（ベット時2枚／非ベット1枚。離場時は持ち主のトラッシュへ）';
       }
@@ -4119,6 +4137,14 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.fieldTrapTrash) {
           const otherFT = a.fieldTrapTrash.excludeSource ? '他の' : '';
           return `${headOC}あなたの場にある${otherFT}【トラップ】${a.fieldTrapTrash.count}枚をトラッシュに置き${costJaOC ? `、${costJaOC}を支払っ` : ''}てもよい`;
+        }
+        // 🆕`O-348` バッチC＝場のシグニをデッキの一番下へ置く任意コスト。
+        // fieldTrash と同じ候補軸だが行き先が異なるので、汎用「コストを支払う」へ潰さない。
+        if (a.fieldToDeckBottom) {
+          const spec = a.fieldToDeckBottom;
+          const other = spec.excludeSelf ? '他の' : '';
+          const filter = spec.filter ? filterJa(spec.filter) : '';
+          return `${headOC}あなたの${other}${filter}シグニ${numJa(spec.count)}体を場からデッキの一番下に置いてもよい`;
         }
         // 場のシグニを任意コストにする形。payload を描かないと WX20-022-E1 が
         // 「コストを支払ってもよい」に潰れ、アーム/ウェポン限定を逆翻訳で監査できない。
@@ -4465,7 +4491,11 @@ function actionJa(a?: Action, effectType?: string): string {
             // 🆕**§5.0（2026-09-08）＝`trapFilter` の限定を描く**（`WX19-025-E1`＝
             //   「その中から**《トラップアイコン》を持つカード**1枚を」）。落とすと限定が逆翻訳から消える。
             : `その中から${a.trapFilter?.hasIcon ? `《${a.trapFilter.hasIcon}アイコン》を持つ` : ''}カード1枚を`;
-          return `${source}チェックゾーンに置${a.upToCount ? 'いてもよい' : 'く'}${a.trapRemainder === 'hand' ? '、残りを手札に加える' : ''}`;
+          // 🆕`O-348` バッチC＝trapCheckRest は通常のバースト確認枠ではなく、ターン終了まで
+          // check_rest に留める軸。WXK02-035 は原文の「場に出さない場合、即時トラッシュ」と engine がずれるため、
+          // 原文へ寄せず実際の寿命を描いて欠落を可視化する。
+          const restLifetime = a.trapCheckRest ? '（バースト確認をせずチェックゾーンに留まり、ターン終了時にトラッシュに置く）' : '';
+          return `${source}チェックゾーンに置${a.upToCount ? 'いてもよい' : 'く'}${restLifetime}${a.trapRemainder === 'hand' ? '、残りを手札に加える' : ''}`;
         }
         if (a.trapOp === 'from_check') return 'そのカードをチェックゾーンからトラッシュに置く';
         if (a.trapOp === 'under_signi') return `このスペルをチェックゾーンから${a.trapHostNames?.length ? a.trapHostNames.map(n => `《${n}》`).join('か') : 'あなたのシグニ'}1体の下に置いてもよい`;
@@ -4558,12 +4588,26 @@ function actionJa(a?: Action, effectType?: string): string {
       };
       if (blockContinuousMap[a.id]) return blockContinuousMap[a.id];
       // 能力/色 継承系STUB（CONTINUOUS・activeCondition なし・engine実装済み）の原文意味文。各1枚＝原文の該当文を丸写し。
+      const underSigniGrantIds = new Set([
+        'GRANT_UNDER_SIGNI_ALL_ABILITIES',
+        'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE',
+        'GRANT_UNDER_SIGNI_CONSTANT_ABILITY',
+      ]);
+      // 🆕`O-348` バッチC＝下のシグニから得る能力の種別・絞り込み・【英知】限定を payload から描く。
+      if (underSigniGrantIds.has(a.id)) {
+        const spec = a.underAbilityGrant;
+        if (!spec) return '【※ペイロード欠落】下のシグニから得る能力の種別が未指定（engine は何も付与しない）';
+        const kindJa: Record<string, string> = { CONTINUOUS: '【常】', AUTO: '【自】', ACTIVATED: '【起】' };
+        const kinds = spec.kinds.map((kind: string) => kindJa[kind] ?? `【${kind}】`).join('と');
+        const { excludeCardName, ...filterRest } = spec.filter ?? {};
+        const underFilter = `${excludeCardName ? `《${excludeCardName}》以外の` : ''}${filterJa(filterRest)}`;
+        const abilities = spec.eichiOnly ? `${kinds}の【英知】能力`
+          : `${kinds}${spec.kinds.length > 1 ? 'の' : ''}能力`;
+        return `このシグニはこのカードの下にある${underFilter}シグニの${abilities}${spec.grantRestriction ? 'と、限定条件' : ''}を得る`;
+      }
       const grantUnderMap: Record<string, string> = {
         GRANT_UNDER_LRIG_ACTIVATE_ABILITY: 'このルリグはこのカードの下にあるルリグの【起】能力を持つ',
         GRANT_UNDER_LRIG_AUTO_ABILITY: 'このルリグはこのカードの下にあるルリグの【自】能力を持つ',
-        GRANT_UNDER_SIGNI_ALL_ABILITIES: 'このシグニはこのカードの下にある《荒ぶる海洋 §ポセイドナ§》以外の＜天使＞のシグニの【常】と【自】と【起】の能力と、限定条件を得る',
-        GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 'このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る',   // `O-65`：フェイズ限定は activeCondition 側が描く
-        GRANT_UNDER_SIGNI_CONSTANT_ABILITY: 'このシグニはこのカードの下にあるシグニの【常】の【英知】能力を得る',
         INHERIT_UNDER_SIGNI_COLOR: 'このシグニはこのカードの下にある＜天使＞のシグニが持つ色を得る',
         GAIN_LRIG_COLOR: 'このシグニはあなたの場にいるルリグが持つ色を得る',
         GAIN_ADDITIONAL_LRIG_TYPE: 'あなたのセンタールリグが＜タウィル＞か＜ウムル＞であるかぎり、それは追加で＜タウィル/ウムル＞を得る',
@@ -4602,12 +4646,21 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
       if (a.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') return 'ターン終了時、この方法で場に出したレゾナをルリグデッキに戻す';
-      // レゾナ場出し（SUMMON_RESONA_FROM_LRIG_DECK・engine実装済み）＝
-      // 「あなたのルリグデッキから（…の）レゾナ（N枚）を（その）出現条件を無視して場に出す」。
-      // レゾナの条件（レベル/色/クラス/枚数）はカードごとに異なるため currentCardText から抽出。
+      // 🆕`O-348` バッチC＝レゾナの条件・枚数・上限・【出】抑止を payload から描く。
+      // 旧実装は currentCardText を切り出していたため、payload が違っても原文どおりに見えていた。
       if (a.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
-        const m = currentCardText.match(/あなたのルリグデッキから[^。：]*?レゾナ[^。：]*?出現条件を無視して場に出す/);
-        if (m) return m[0];
+        const spec = a.resonaSummon;
+        if (!spec) return '【※ペイロード欠落】ルリグデッキから出すレゾナの枚数・条件が未指定（engine は候補を1枚だけ出す）';
+        const { story, ...filterRest } = spec.filter ?? {};
+        const storyJa = Array.isArray(story)
+          ? `${story.map((name: string) => `＜${name}＞`).join('か')}の`
+          : story ? `＜${story}＞の` : '';
+        const filter = `${filterJa(filterRest)}${storyJa}`;
+        const amount = spec.count === 'ALL' ? '好きな枚数の' : '';
+        const count = spec.count === 'ALL' ? '' : `${numJa(spec.count)}枚${spec.upTo ? 'まで' : ''}`;
+        const suppress = (a.suppressOnPlay || spec.suppressOnPlay)
+          ? '。この方法で場に出たレゾナの【出】能力は発動しない' : '';
+        return `あなたのルリグデッキから${amount}${filter}レゾナ${count}を出現条件を無視して場に出す${suppress}`;
       }
       // 歌のカケラ使用（SONG_FRAGMENT・engine実装済み）＝コスト句は別途描画され、本体は
       // 「このルリグ/シグニはそのカードの【歌のカケラ】を使用する」。currentCardText から抽出。
@@ -5316,6 +5369,53 @@ function actionJa(a?: Action, effectType?: string): string {
         const note = sub.excludeColorless ? '。（この能力で《無》を支払うことは置き換えられない）' : '';
         return `あなたが${groups}を支払う際、代わりにあなたのエナゾーンからカード名に《${sub.nameContains}》を含むカード１枚をトラッシュに置いてもよい${note}`;
       }
+      // 🆕`O-348` バッチC＝停止条件・公開枚数・公開後の行き先を deckRevealUntil payload から描く。
+      if (a.id === 'DECK_REVEAL_UNTIL') {
+        const spec = a.deckRevealUntil;
+        if (!spec) return '【※ペイロード欠落】デッキ公開の停止条件と行き先が未指定（engine は何もしない）';
+        const stop = spec.until === 'declaredName'
+          ? '宣言したカードがめくれるまで'
+          : `${spec.signiLevel !== undefined ? `レベル${spec.signiLevel}の` : ''}${spec.signiClass ? `＜${spec.signiClass}＞の` : ''}シグニが${(spec.count ?? 1) > 1 ? `${numJa(spec.count)}枚` : ''}めくれるまで`;
+        const base = `あなたのデッキの上から${stop}公開する`;
+        if (spec.allTo === 'trash') return `${base}。公開したカードをトラッシュに置く`;
+        if (spec.allTo === 'deckBottomShuffled') return `${base}。公開したカードをシャッフルしてデッキの一番下に置く`;
+        if (spec.hitTo === 'hand') {
+          const rest = spec.restTo === 'trash' ? 'トラッシュに置く'
+            : spec.restTo === 'deckBottom' ? 'デッキの一番下に置く'
+            : spec.restTo === 'deckBottomShuffled' ? 'シャッフルしてデッキの一番下に置く'
+            : '【※行き先未指定】';
+          return `${base}。条件を満たしたカードを手札に加え、残りを${rest}`;
+        }
+        return `${base}。【※公開後の行き先未指定＝engine は公開札を動かさない】`;
+      }
+      // 🆕`O-348` バッチC＝追加使用タイミングの種類を payload から描く。
+      if (a.id === 'EXTRA_USE_TIMING') {
+        const timing = a.extraUseTiming?.timing;
+        const icon = timing === 'ATTACK_ARTS' ? '《アタックフェイズアイコン》'
+          : timing === 'MAIN' ? '《メインフェイズアイコン》' : timing ? `《${timing}》` : '【※タイミング未指定】';
+        return `このアーツは追加で${icon}を持つ`;
+      }
+      // 🆕`O-348` バッチC＝【ガード】の代替コストを guardAltCost payload から描く。
+      if (a.id === 'GUARD_ALTERNATIVE_COST') {
+        const spec = a.guardAltCost;
+        if (!spec) return '【※ペイロード欠落】【ガード】の代替コストが未指定（engine は代替を認めない）';
+        if (spec.kind === 'energy_trash_class') {
+          return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、あなたのエナゾーンから＜${spec.signiClass}＞のシグニ1枚をトラッシュに置いてもよい`;
+        }
+        const colorless = spec.colorless === 1 ? '《無》' : `《無×${spec.colorless}》`;
+        return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、${colorless}を支払いコラボライバー${numJa(spec.collab)}人とコラボしてもよい`;
+      }
+      // 🆕`O-348` バッチC＝自ルリグの色と、体数ぶん繰り返す本体を payload から再帰描画する。
+      if (a.id === 'PER_OWN_LRIG_COLOR_SCALE') {
+        if (!a.scaleColor || !a.scaleAction) return '【※ペイロード欠落】数えるルリグの色または繰り返す本体が未指定（engine は何もしない）';
+        return `あなたの場にいる${a.scaleColor}のルリグ1体につき${actionJa(a.scaleAction)}`;
+      }
+      // 🆕`O-348` バッチC＝同パワー場出しのクラス限定と【出】抑止を payload から描く。
+      if (a.id === 'PLACE_TRASH_SIGNI_FACING_SAME_POWER') {
+        const cardClass = typeof a.value === 'string' && a.value ? `＜${a.value}＞の` : '';
+        const suppress = a.suppressOnPlay ? '。この方法で場に出たシグニの【出】能力は発動しない' : '';
+        return `あなたのトラッシュから対戦相手の場にあるシグニ1体と同じパワーの${cardClass}シグニを1枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す${suppress}`;
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
@@ -5376,10 +5476,6 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕§5.3 `O-229`（2026-09-04）＝デッキの一番上とエナゾーンにある効果元自身の入れ替え。
         SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
           'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
-        // 🆕§5.3 `O-84`（2026-09-02）＝「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」。
-        //   条件は effect の `activeCondition` 側に載る（この文は「何を足すか」だけを言う）。
-        //   消費＝`screens/battle/artsUseGate.ts` の `collectExtraUseTimings`。
-        EXTRA_USE_TIMING: 'このカードは追加で使用タイミングを持つ',
         // 🆕§5.3 `O-230`（2026-09-03・`O-60` 第58バッチで分離）＝【ガード】の代替コストとしての「コラボする」。
         //   🔴機構待ち＝`WXDi-CP01-005-E1` 1件。旧実装は `STUB{COLLAB}` の「コラボしてもよい」枝に落ちて
         //     **原文と無関係にアシストルリグを場へ出す対話**が開いていた。
@@ -5560,8 +5656,6 @@ function actionJa(a?: Action, effectType?: string): string {
         //   ここへ落ちるのは `lifeCrashPrevention` を持たない宣言だけで、そのとき消費側は宣言ごと無視する
         //   （fail-closed）。**「防いでいるように見えて実際は何もしない」ことを表示でも隠さない。**
         LIFE_CRASH_PREVENTION: '【※ペイロード欠落】ライフクロスのクラッシュ防止（消費側は無視する＝効果なし）',
-        // §6.4 O-32（続き501）
-        PLACE_TRASH_SIGNI_FACING_SAME_POWER: 'あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーのシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す',
         // ⚠engine 本体は §6.4 O-32 で撤去済み（正準形は `REPEAT`）。残るのは `WX22-016-E1` の
         //   「このアーツの効果を一度繰り返す」1件だけで、§6.4 O-29 の機構待ち＝**未実装**であることを表示する。
         REPEAT_N_TIMES: '【未実装】この効果を繰り返す（反復の正準形は REPEAT。§6.4 O-29 待ち）',
@@ -5570,7 +5664,6 @@ function actionJa(a?: Action, effectType?: string): string {
         STRIP_ATTACHED_AND_UNDER: 'それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く',
         USE_SEARCHED_SPELL_OR_TRASH: 'それをコストを支払わずに使用するかトラッシュに置く',
         DECK_SIGNI_LEVEL_OVERRIDE_ALL: 'このターン、あなたのデッキにあるシグニのレベルは指定値になる',
-        PER_OWN_LRIG_COLOR_SCALE: 'あなたの場にいる指定色のルリグ１体につき、以下を繰り返す',
         DECLARED_ICON_HAND_DISCARD_BANISH: '対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手がアイコンを１つ宣言し、あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする',
         // §6.4 O-3（続き491）＝ターン/メインフェイズのスキップ（どちらも engine 実装済み）。
         SKIP_NEXT_TURN: '次のあなたのターンをスキップする',

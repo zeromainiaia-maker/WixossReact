@@ -80274,6 +80274,24 @@ test('O-349 配線: WXK09-037 が場にあると相手側の封じ集合へ入�
   const empty = calcContinuousBlockedActions(mkState({}), op, true, effectsMap, cardMap as Map<string, CardData>);
   ok(!empty.forOther.has('USE_ARTS_UNLESS_COLOR_DECLARED'), '反転確認: 場に無ければ封じない');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// `O-348` バッチC＝WDK13-017-E1「デッキを上からシグニが2枚めくれるまで公開してもよい」。
+// 🔴任意ゲートが無いと、能力を解決した時点で必ずデッキを公開してトラッシュへ送る過剰実行になる。
+// ══════════════════════════════════════════════════════════════════════════════
+test('O-348 C WDK13-017-E1: デッキ公開は OPTIONAL_ACTIVATE で辞退できる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WDK13-017')!.find(e => e.effectId === 'WDK13-017-E1')!;
+  const steps = (eff.action as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'OPTIONAL_ACTIVATE', '🔴「公開してもよい」の任意ゲート');
+  eq((steps[1] as StubAction).id, 'DECK_REVEAL_UNTIL', '任意ゲートの直後に公開本体が続く');
+
+  const ctx = mkCtx({}, {}, 'WDK13-017');
+  ctx.ownerState.deck = [SIGNI_L1, SIGNI_L2, SIGNI_L4];
+  const r = executeEffect(eff, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE', '公開前に「発動する／発動しない」を選べる');
+  eq(ctx.ownerState.deck.join(','), [SIGNI_L1, SIGNI_L2, SIGNI_L4].join(','), '選択前はデッキを動かさない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

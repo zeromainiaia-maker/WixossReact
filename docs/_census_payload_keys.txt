@@ -2,38 +2,12 @@
 生成: npm run census:payloadkeys   1キーの内訳: --key <キー名>
 
 live JSON の payload キー: 573種
-  描かなくてよいと登録済み（IGNORED）: 5種
-  🔴逆翻訳が一度も言及しない        : 34種 / 87ノード
+  描かなくてよいと登録済み（IGNORED）: 6種
+  🔴逆翻訳が一度も言及しない        : 21種 / 21ノード
 
 ⚠候補出しであって判定ではない＝1キーずつ「落とすと原文のどの語が説明できなくなるか」で判定する。
   意味を持つキー → decompileEffects.ts に描画を足す／実装の都合 → IGNORED に理由つきで登録。
 
-    20ノード  20枚  placesToField  [STUB]
-        例: WD12-007-E1, WD23-001-E-E2, WDK17-001-E2, WDK17-012-E2
-    11ノード  11枚  resonaSummon  [STUB]
-        例: WD12-007-E1, WD23-001-E-E2, WX07-050-E1, WX10-028-BURST
-     6ノード   2枚  scaleAction  [STUB]
-        例: WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1
-     6ノード   2枚  scaleColor  [STUB]
-        例: WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1
-     4ノード   4枚  deckRevealUntil  [STUB]
-        例: WDK04-006-E1, WDK13-017-E1, WX22-021-E2, WXK10-031-E1
-     3ノード   3枚  lrigClass  [STUB]
-        例: WX12-025-E2, WX12-034-E2, WX12-036-E2
-     3ノード   3枚  negateNthAttack  [STUB]
-        例: SP27-016-E1, WX10-018-E1, WX17-006-E1
-     3ノード   3枚  underAbilityGrant  [STUB]
-        例: WX19-027-E2, WX21-024-E2, WXK08-048-E1
-     2ノード   2枚  extraUseTiming  [STUB]
-        例: SP38-005-E2, WX16-Re20-E2
-     2ノード   2枚  fieldToDeckBottom  [STUB]
-        例: WX24-P2-052-E2, WX24-P2-074-E1
-     2ノード   2枚  guardAltCost  [STUB]
-        例: WX24-P2-026-E1, WXDi-CP01-005-E1
-     2ノード   2枚  leaveVictimFilter  [STUB]
-        例: SPDi44-08-E2, WX25-P1-018-E2
-     2ノード   2枚  trapCheckRest  [STUB]
-        例: WXDi-P11-006-E1, WXK02-035-E2
      1ノード   1枚  declareFromLastProcessed  [STUB]
         例: WD08-008-E1
      1ノード   1枚  downUpSigniChoose  [STUB]

@@ -36,6 +36,9 @@ const IGNORED = new Map<string, string>([
   ['explicitTarget', '内部マーカー（原文が対象を明示していたか）＝対象は filter/count 側が描く'],
   // CONDITIONAL の判定用に lastProcessed を退避するかの実装都合。
   ['snapshotLastProcessedForConditionals', '実装都合（CONDITIONAL 判定用の lastProcessed 退避）'],
+  // parser が STUB を配置処理と識別し、後続の「【出】能力は発動しない」を同ノードの suppressOnPlay へ畳むための印。
+  // live の実行時には参照されず、「場に出す」と【出】抑止は action 本体／suppressOnPlay が描くため固有の対応語は無い。
+  ['placesToField', 'parser内部の配置アンカー（後続の【出】抑止を suppressOnPlay へ畳むため）＝live実行時は参照されず、「場に出す」と抑止は別payloadが描くので固有の対応語が無い'],
   // 型の識別子そのもの。
   ['type', '型の識別子'], ['id', '型の識別子'],
 ]);
@@ -107,7 +110,7 @@ console.log(`明細 → docs/_census_payload_keys.txt`);
 // 🔴**0 を目標にしない**＝意味を持たないキーは IGNORED に落とすのが正で、そちらは件数に出ない。
 //   ここで止めるのは「**未判定のキーが増えた**」場合＝新しい payload を足して描画を忘れた回。
 //   払い戻したら BASELINE を実測値へ下げる（下げ忘れも exit 1 で気づく）。
-const BASELINE = 34;  // 2026-09-13 O-348 バッチB＝型つき12キー（12ノード）を payload から描画した後の実数
+const BASELINE = 21;  // 2026-09-13 O-348 バッチC＝STUB側13キー（66ノード）を描画／理由付きIGNOREDへ仕分けた後の実数
 if (undrawn.length > BASELINE) {
   console.error(`\n[census:payloadkeys] 🔴 GATE FAIL: 未判定の payload キーが基準 ${BASELINE} を超えた（現在 ${undrawn.length}）`);
   for (const [k, v] of undrawn.slice(0, 10)) console.error(`   - ${k}（${v.n}ノード / ${v.cards.size}枚・例 ${v.ids[0]}）`);
