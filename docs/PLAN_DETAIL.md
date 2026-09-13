@@ -14447,6 +14447,30 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 | **第286で実装** | **6** | `LRIG_LEVEL` の `eq`／`levelLteSelf`／`optionalCostTarget` の写し／`FORCE_SIGNI_ATTACK` 追加ほか（BUGFIXES.md 2026-09-12） |
 | 🔥**機構待ち（登録済み）** | **8** | §5.3 索引G `O-334`〜`O-340`（`WX25-P3-057` は【アサシン】側だけ実装済み） |
 
+## 2026-09-13 登録：`O-355`（第301バッチ＝`O-354` の残り）
+
+### 🆕`O-355` — サーチしたカードが【アクセ】になる前に一瞬だけ手札を経由する（索引 G）
+
+**規模 S。母集団＝実測 1効果**（`WX17-033-E1`。測り方＝`grep -rn "ATTACH_SEARCHED_AS_ACCE" public/data/`）。
+
+**原文**＝「【出】：あなたのデッキの上からカードを３枚見て《アクセアイコン》を持つシグニ１枚を
+このシグニの【アクセ】にする。残りを好きな順番でデッキの一番下に置く。」＝**手札を経由しない。**
+
+**現 live**＝`SEQUENCE[LOOK_PICK_CHAIN{revealCount:3, stages:[{filter:{cardType:'シグニ',hasIcon:'アクセ'},
+pickCount:1, then:'hand'}]}, STUB{ATTACH_SEARCHED_AS_ACCE}]`。
+ハンドラ（`execStubPart1.ts`）は **`ctx.ownerState.hand.includes(searchedASAA)` を必須条件**にしており、
+手札に無ければ「サーチカードが手札にない」で**何もしない**。⇒ **手札経由は仕様ではなく実装の都合。**
+
+**何が問題か**＝解決の途中で**そのカードが一瞬だけ手札に存在する**＝
+「カードが手札に加わったとき」系のトリガーや手札枚数を見る【常】が**原文に無い反応をしうる**。
+⚠**現在の母集団1効果で実害が出ることは確かめていない**（＝潜在）。
+
+**取り方**＝`LOOK_PICK_CHAIN` の `stages[].then` に「手札を経由せず【アクセ】にする」行き先を足すか、
+`ATTACH_SEARCHED_AS_ACCE` 側を `lastProcessedCards` だけで完結させる（手札条件を外す）。
+🔴**直したら3つ一緒に返す**＝①ラベルの「（手札経由近似）」を消す ②`node scripts/genStubsMd.mjs` → `npm run regen`
+③`census:stublabel` の `BASELINE_B` を **1 → 0** へ下げる。
+⚠**engine を直さずにラベルだけ消さない**＝消すと**この逸脱が逆翻訳から見えなくなる**（B群に残してある理由）。
+
 ## 2026-09-13 登録：`O-353` / `O-354`（第300バッチ＝🏁`O-351` クローズの副産物）
 
 **登録元**＝`npm run census:stublabel`（§5.3 `O-351` で新設した STUB ラベル忠実性センサス）の初回実測。
@@ -14475,7 +14499,20 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 **宣言は「名前を言う」だけ**で、自分のデッキの中身を見るわけではない。**カードプール全体の名前**から選ばせる
 （＝デッキ構築時に自分が入れた名前は分かっている、という現実の宣言と同じ）。
 
-### 🆕`O-354` — `census:stublabel` B群 17箇所 / C群 26箇所の払い戻し（索引 E・ラベル整備）
+### 🏁`O-354` — `census:stublabel` B群 17箇所 / C群 26箇所の払い戻し（索引 E・ラベル整備）
+
+> 🏁**2026-09-13（第301バッチ）＝クローズ。B群 17→1・C群 26→0。索引 E は残0。**
+> 🔑**この回いちばんの収穫は「ラベル整備は `census:numberdrift` の払い戻しでもある」**＝
+> B/C を返したら numberdrift が **75→72** へ勝手に下がった（ラベルが中身を書いていないと原文の数値が逆翻訳から落ちる）。
+> 🔑**「engine: 〜未実装」ラベルは5系統すべて stale だった**＝実体は `effectEngine.ts` 側に既に在った。
+> ⇒ **コメントの「engine が未実装」を信じない**（`grep -rn "<ID>" src/` を打つ）。
+> 🔴**ハンドラが無い5箇所は `decompileEffects.ts` 側**＝`GRANT_ALL_ZONE_LIFEBURST` は逆翻訳が自分で組み立てており、
+> 原文 regex が外れた4効果が最終フォールバックに落ちて生 ID を出していた ⇒ **payload から描く分岐**へ置き換え。
+> ⚠**B群に1件だけ残した**＝`ATTACH_SEARCHED_AS_ACCE` の「（手札経由近似）」は**engine の実逸脱**なので、
+> ラベルから消すと逆翻訳から見えなくなる。**直すのは engine 側**＝`O-355` として索引 G へ登録した。
+> 全文は BUGFIXES.md 2026-09-13（第301バッチ）。
+
+**（以下は登録時の記述）**
 
 **規模 S。母集団＝実測 B群 17箇所 / C群 26箇所**（`npm run census:stublabel`・明細 `docs/_census_stub_label.txt`・
 標本は `node scripts/censusStubLabel.mjs --show 30 --group B`）。

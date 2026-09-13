@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 3373 件）
-逆翻訳シートの [STUB:…] 総数: 315  うち生ID露出 1 箇所（1 種）
+逆翻訳シートの [STUB:…] 総数: 309  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 26 種 / 28 件
@@ -28,7 +28,7 @@ live JSON の STUB id 種類 : 601（総ノード 3373 件）
      2件   2枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
         カード: WX25-P1-071, WXDi-P06-006
         生成: src\data\parsers\parseSentencePart3.ts:191 / src\data\parsers\parseSentencePart3.ts:465
-     1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
+     1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE
         カード: SPDi43-05
         生成: src\data\effectParser.ts:24430
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM

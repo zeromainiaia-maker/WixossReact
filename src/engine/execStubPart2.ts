@@ -433,6 +433,8 @@ export function execStubPart2(
 
   // 自シグニパワーの2倍を全相手シグニにマイナス
   // DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに生ID `SELECT_TARGET` が漏れていた。
+  // 表示: 対象のシグニが受ける、あなたの効果によるパワーのマイナスを2倍にする
   if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
     // ⚠**対象は `storedTargetCards` も見る**（§6.4 O-28）＝`SELECT_TARGET_ONLY → STORE` の正準形から来る
     //   経路では `lastProcessedCards` が後続で上書きされうる。
@@ -1684,6 +1686,8 @@ export function execStubPart2(
   //
   // ⚠🔴**旧実装は「対戦相手のシグニ」を効果元シグニと取り違えて、自分の場のこのカード自身を自分のデッキ下へ
   //   送っていた**（しかも `!!EffectText` 判定は CSV の `-` を「能力あり」と読むので常に no-op ＝表に出なかった）。
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに生ID・カード番号・Markdown 強調がそのまま漏れていた（実装メモは上に残す）。
+  // 表示: アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる
   if (stub.id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM') return done(ctx);
   // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 凍結状態のシグニが退場するとトラッシュへ
   if (stub.id === 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE') {
@@ -4089,6 +4093,9 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: newOther }, `${ctx.cardMap.get(targetNum)?.CardName ?? targetNum}パワー${delta}`));
   }
   // レベル修正（engine: ベースレベル変更システム未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧「レベル修正（engine: ベースレベル変更システム未実装）」は **stale**
+  //   ＝実体は `effectEngine.ts` の `calcSigniLevels`（実効レベル計算）。ここはログのみ。
+  // 表示: このシグニのレベルが、指定されたカードの枚数1つにつき増減する
   if (stub.id === 'LEVEL_MOD_PER_COUNT') {
     return done(addLog(ctx, '[LEVEL_MOD_PER_COUNT: effectEngineで処理]'));
   }
@@ -4410,6 +4417,12 @@ export function execStubPart2(
     return done(addLog(ctx, '[全シグニパワーマイナス防止: effectEngineで動的処理]'));
   }
   // グロウコスト変更（engine: グロウコスト処理未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝表示ラベルを**実装に合わせた**（原文に合わせない）。
+  //   🔴`CONDITIONAL_FREE_GROW` は `free_grow_this_turn` を立てるだけで、**原文の条件もグロウ先の名前指定も
+  //     持たず、実際にグロウもしない**（§5.3 `O-345` の残バグ＝`WX19-007-E2`）。
+  //   ⇒ ここで原文どおりのラベルを書くと**逆翻訳が engine の欠落を隠す**＝原文照合がそこだけ効かなくなる。
+  // 表示: GROW_COST_ZERO: このターン、グロウコストを支払わずにグロウできるようになる
+  // 表示: CONDITIONAL_FREE_GROW: このターン、グロウコストを支払わずにグロウできるようになる
   if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW') {
     const newOwnerGCZ: PlayerState = { ...ctx.ownerState, free_grow_this_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerGCZ }, 'グロウコスト0（次のグロウは無料）'));
@@ -4467,6 +4480,11 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerRPAC }, `次の【出】能力コスト軽減（${specRPAC.color}×${specRPAC.count}）`));
   }
   // ガード系（engine: ガードコスト処理未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝表示ラベルを実装に合わせた（旧「ガード系（engine: ガードコスト処理未実装）」は
+  //   **stale**＝実体は `effectEngine`＋`GuardResponseDialog` に在る。ここは AUTO/ACTIVATED で来た場合のログのみ）。
+  // 表示: EXTRA_GUARD_COST_FROM_HAND: 対戦相手は、手札から《ガードアイコン》を持つカードを追加で1枚捨てないかぎり【ガード】ができない
+  // 表示: GUARD_ALTERNATIVE_COST: あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、指定されたコストを支払ってもよい
+  // 表示: OPTIONAL_TRADE_GUARD_SIGNI: 手札のシグニ1枚を捨てることで【ガード】の代わりにしてもよい
   if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
     return done(addLog(ctx, `[ガードコスト: ${stub.id}]`));
   }
@@ -4564,6 +4582,9 @@ export function execStubPart2(
   // 能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック）
   // GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRASH_ACTIVATE_ABILITY
   // → collectGrantedFromUnderSigni / collectLrigGrantedEffectsで処理済み
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに生ID群（`GRANT_UNDER_SIGNI_*` ほか）と engine ファイル名が漏れていた。
+  // 表示: GRANT_LRIG_ABILITY: あなたのルリグは指定された能力を得る
+  // 表示: GRANT_LRIG_TRASH_ACTIVATE_ABILITY: あなたのルリグトラッシュにあるカードの【起】能力を使用できるようになる
   if (stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
       || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'

@@ -4109,14 +4109,37 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         return `${headOC}${costJaOC || 'コスト'}を支払ってもよい`;
       }
-      const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
-        ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
-        : '';
-      const extra = `${burstExtra}${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
+      // 🆕🔴**§5.3 `O-354`（2026-09-13）＝`burstExtra` を撤去した。**
+      //   旧実装はこれを最終フォールバック `[STUB:${a.id}${extra}]` に渡していたので、
+      //   **逆翻訳に生の英語 ID `GRANT_ALL_ZONE_LIFEBURST` がそのまま出ていた**（live 5効果中 4効果）。
+      //   ⚠`census:stubs` C群は「ID の直後が `$`/`:`/空白」のときしか拾わないので、
+      //     `ID（…` 形のこれは**F群も C群も 0 のまま素通りしていた**。
+      //   ⇒ 下に payload から描く専用分岐を置いた。
+      const extra = `${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
       // 🆕**§5.3 `O-239`（2026-09-04）＝そのターンの N 枚目までにチェックゾーンへ置かれたライフクロスへの
       //   【ライフバースト】付与。** ⚠payload から書く（原文をもう一度読まない）。
       if (a.id === 'GRANT_BURST_TO_NTH_CHECKED_LIFE') {
         return `このターン、${a.burstMaxOrdinal ?? 1}枚目までにあなたのチェックゾーンに置かれたライフクロスは【ライフバースト】「${a.burstAction ? actionJa(a.burstAction) : '？'}」を得る`;
+      }
+      // 🆕**§5.3 `O-354`（2026-09-13）＝相手エナの枚数調整は `value` から描く。**
+      //   🔴固定文だと「**何枚に**するのか」が逆翻訳から消える（engine は `stub.value ?? 6` を使う）。
+      if (a.id === 'OPP_ENERGY_REDUCE_TO_N') {
+        const oerN = typeof a.value === 'number' ? a.value : 6;
+        return `対戦相手は、自分のエナゾーンにあるカードが${oerN}枚になるように、エナゾーンからカードをトラッシュに置く`;
+      }
+      // 🆕**§5.3 `O-354`（2026-09-13）＝全領域への【ライフバースト】付与を payload から描く。**
+      //   🔴旧実装は下（`currentCardText` の regex）でしか描けず、**当たらない4効果は生 ID が露出**していた
+      //     （原文の「〜を持つ」/「〜を得る」の揺れ、「ライフクロスとチェックゾーンにある」のような別表記）。
+      //   ⚠**payload が無いときは engine の既定を描く**＝`grantedAllZoneBurstAction`（`allZoneBurst.ts`）は
+      //     `burstAction` が無いと**「対戦相手のシグニ1体をバニッシュする」を焼き込む**。
+      //     原文をそのまま描くと**その焼き込みが逆翻訳から消える**（`O-60` 第59バッチの罠②と同じ形）。
+      if (a.id === 'GRANT_ALL_ZONE_LIFEBURST') {
+        const gazSubj = `${a.burstFilter ? filterJa(a.burstFilter) : ''}カード`;
+        const gazBody = a.burstAction
+          ? actionJa(a.burstAction)
+          : '対戦相手のシグニ1体を対象とし、それをバニッシュする（※ペイロード欠落＝engine の既定値）';
+        return `あなたのすべての領域にある${a.burstAdditive ? '' : '【ライフバースト】を持たない'}${gazSubj}は`
+          + `【ライフバースト】「${gazBody}」を得る${a.burstAdditive ? '（既にある【ライフバースト】に追加する）' : ''}`;
       }
       // 🆕**§5.3 `O-240`（2026-09-04）＝全領域への《トラップアイコン》付与。**
       //   ⚠**payload から書く**（`GRANT_ALL_ZONE_LIFEBURST` 側は `currentCardText` を regex で読んでいるが、
@@ -4742,11 +4765,8 @@ function actionJa(a?: Action, effectType?: string): string {
         if (!bInner) return 'このターンの全領域【ライフバースト】付与（内容が無いため何も起きない）';
         return `このターン、あなたのすべての領域にある${bFilt}カードは${bAdd}【ライフバースト】「${bInner}」を持つ`;
       }
-      // 全領域ライフバースト付与（GRANT_ALL_ZONE_LIFEBURST・engine実装済み）＝「あなたのすべての領域にある（…の）カードは【ライフバースト】…を持つ」。
-      if (a.id === 'GRANT_ALL_ZONE_LIFEBURST') {
-        const m = currentCardText.match(/あなたのすべての領域にある[^。]*?【ライフバースト】[^。]*?を持つ/);
-        if (m) return m[0];
-      }
+      // 🏁**§5.3 `O-354`（2026-09-13）＝`GRANT_ALL_ZONE_LIFEBURST` の原文 regex 分岐は撤去した。**
+      //   上に payload から描く分岐を置いたのでここには到達しない（規約＝原文をもう一度読まない）。
       // アタッカー正面へ配置（MOVE_TO_ATTACKER_FRONT・engine実装済み）＝「（正面にシグニがない場合、）このシグニをアタックした（その）シグニの正面に配置してもよい」。
       if (a.id === 'MOVE_TO_ATTACKER_FRONT') {
         const m = currentCardText.match(/(?:[^。]*?正面にシグニがない場合、)?このシグニをアタックした(?:その)?シグニの正面に配置してもよい/);
@@ -5213,6 +5233,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-354`（2026-09-13・`SPDi43-05-E2`）＝明示 defer（`O-349` の残1効果）。
+        //   🔴逆翻訳に**生の英語 ID がそのまま**出ていた（ハンドラが無いので `STUBS.md` 経由の説明も無い）。
+        //   ⚠**「未実装」と明記する**＝原文どおりに描くと、効いていないことが逆翻訳から消える。
+        DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE:
+          '次の対戦相手のターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ1体がアタックしたとき、'
+          + 'あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ1枚をトラッシュに置いてもよい。'
+          + 'そうした場合、そのアタックを無効にする」を得る（未実装＝コストが「場∪エナの単一プール」の機構待ち）',
         // 🆕§5.3 `O-317` 第283バッチ（2026-09-12・`WXK03-003A`）＝**構築時**のルリグデッキのアーツ上限
         //   （実行時の制限ではない＝判定は `src/utils/deckBuildLimits.ts` のデッキ編集側だけ）。
         LRIG_DECK_ARTS_LIMIT: 'このカードをルリグデッキに入れる場合、あなたのルリグデッキにはアーツを3枚までしか入れられない',

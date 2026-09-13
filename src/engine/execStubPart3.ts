@@ -114,6 +114,10 @@ export function execStubPart3(
     return selectOrInteract(rideCandIROA, 1, false, 'self_field', noopIROA as EffectAction, contIROA as EffectAction, ctx);
   }
   // ライズ/スタック系（engine: ライズシステム未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧「ライズ/スタック系（engine: ライズシステム未実装）」は **stale**
+  //   ＝実体は `effectEngine.ts` の離場置換＋`BattleScreen`。ここはログのみ。
+  // 表示: RISE_BANISH_SUBSTITUTE: 《ライズアイコン》を持つこのシグニがバニッシュされる場合、代わりにその下からカードをトラッシュに置いてもよい
+  // 表示: RISE_LEAVE_DISCARD_STACK: 《ライズアイコン》を持つこのシグニが場を離れるとき、その下のカードをトラッシュに置く
   if (stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
       || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
       || stub.id === 'COOKING_BANISH_SUBSTITUTE' || stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
@@ -760,6 +764,10 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOtherOSA }, '相手シグニは合計1回しかアタックできない'));
   }
   // アタック制限系（engine: アタック制限システム未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝表示ラベルを実装に合わせた（旧「アタック制限系（engine: アタック制限システム未実装）」は
+  //   **stale**＝実体は `effectEngine.ts` の宣言読み取り＋`signiAttackGate.ts`。ここはフォールバックのログのみ）。
+  // 表示: ONE_ATTACK_PER_TURN: このシグニは各ターンに一度しかアタックできない
+  // 表示: ODD_LEVEL_SIGNI_CANT_ATTACK: レベルが奇数の対戦相手のシグニは「アタックできない」を得る
   if (stub.id === 'ONE_ATTACK_PER_TURN' || stub.id === 'ODD_LEVEL_SIGNI_CANT_ATTACK'
       || stub.id === 'ATTACK_COUNT_BY_POWER'
       || stub.id === 'ADJACENT_ZONE_ATTACK'
@@ -892,6 +900,10 @@ export function execStubPart3(
     return done(addLog(ctx, '[配置制限: OPP_ZONE_PLACEMENT_RESTRICT（CONTINUOUS）]'));
   }
   // コストアップ系（engine: コスト計算未実装）
+  // 🆕§5.3 `O-354`（2026-09-13）＝表示ラベルを実装に合わせた（旧「コストアップ系（engine: コスト計算未実装）」は
+  //   **stale**＝実体は `effectEngine.ts` の宣言読み取り＋`spellUseGate.ts` / `BattleScreen`。ここはログのみ）。
+  // 表示: FIRST_SPELL_COST_UP: 各ターン、対戦相手が最初に使用するスペルの使用コストが《無×1》増える
+  // 表示: OPP_LRIG_ATTACK_COST: 対戦相手は《無》を支払わないかぎりルリグでアタックできない
   if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST'
       || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
     return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
@@ -935,6 +947,8 @@ export function execStubPart3(
     });
   }
   // OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルが「CONT効果（effectEngineで処理）」＝engine ファイル名だけで内容が無かった。
+  // 表示: 対戦相手のトラッシュにあるカードは色とクラスを失う
   if (stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') {
     return done(addLog(ctx, '[OPP_TRASH_LOSE_COLOR_AND_CLASS: effectEngineで処理]'));
   }
@@ -1753,6 +1767,8 @@ export function execStubPart3(
     return done(addLog(ctx, `[反復未実装: ${stub.id}]`));
   }
   // PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに内部変数名 `sourceCardNum` が漏れていた。
+  // 表示: このシグニがあるシグニゾーンに【貯菌】カウンターを1つ置く
   if (stub.id === 'PLACE_CHOKKIN') {
     if (!ctx.sourceCardNum) return done(addLog(ctx, 'チョッキン設置先不明'));
     let ziPC = -1;
@@ -1766,6 +1782,8 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerPC }, `【貯菌】×${chokkinPC[ziPC]}（ゾーン${ziPC + 1}）`));
   }
   // ADD_RESONANCE_CONDITION: ルリグデッキのレゾナにアタックフェイズタイミングを追加（effectEngineで処理）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに engine ファイル名 `effectEngine` が漏れていた。
+  // 表示: あなたのルリグデッキにあるレゾナを、アタックフェイズにも場に出せるようになる
   if (stub.id === 'ADD_RESONANCE_CONDITION') {
     return done(addLog(ctx, '[ADD_RESONANCE_CONDITION: effectEngineで処理済み]'));
   }
@@ -3419,6 +3437,8 @@ export function execStubPart3(
   // INTERNAL_KIYOHIME_CHOOSE: WDK08-L14 紅蓮の使い魔 清姫。
   //   【自】アタック時、以下の3つから1つを選ぶ。血晶武装状態の場合は代わりに3つまで選ぶ（同じ選択肢を2回以上選んでもよい）。
   //   ①対戦相手の全シグニ-1000（ターン終了時まで） ②相手シグニ1体（パワー4000以下）をバニッシュ ③2枚引き2枚捨て
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルがカード番号だけの「WDK08-L14 紅蓮の使い魔 清姫。」で、何をするかが書かれていなかった。
+  // 表示: 以下の3つから1つを選ぶ（血晶武装状態なら代わりに3つまで選び、同じ選択肢を2回以上選んでもよい）。①ターン終了時まで対戦相手のすべてのシグニのパワーを－1000する ②対戦相手のシグニ1体を対象とし、それのパワーが4000以下の場合それをバニッシュする ③カードを2枚引き、手札を2枚捨てる
   if (stub.id === 'INTERNAL_KIYOHIME_CHOOSE') {
     const srcKIY = ctx.sourceCardNum;
     const isArmoredKIY = (() => {
@@ -4210,6 +4230,8 @@ export function execStubPart3(
     }, 'このターン、対戦相手のシグニのトリガー能力（ライフバースト以外）は発動しない'));
   }
   // END_ATTACK_IF_EXTRA_TURN: 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに生の timing 名 `ATTACK_SIGNI`/`ATTACK_LRIG` が漏れていた。
+  // 表示: このターンが効果によって追加されたターンである場合、このアタックフェイズを終了する
   if (stub.id === 'END_ATTACK_IF_EXTRA_TURN') {
     if (!ctx.ownerState.extra_turn) return done(addLog(ctx, '追加ターンでない → スキップ'));
     const newBlockedEAIET = [...new Set([...(ctx.ownerState.blocked_actions ?? []), 'ATTACK_SIGNI', 'ATTACK_LRIG'])];
@@ -4250,6 +4272,9 @@ export function execStubPart3(
   }
   // BANISH_THRESHOLD_BOOST_7_15: WX09-027(オリハルティア)の常在マーカー。
   // 実体は execBanish が自場のオリハルティア存在を検出して 7000→15000 に書き換える（no-op）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルはカード番号だけの「WX09-027(オリハルティア)の常在マーカー。」で、
+  //   カードが何をするかが1文字も書かれていなかった。
+  // 表示: あなたの場にある他のシグニの「パワー7000以下のシグニ1体をバニッシュする」が「パワー15000以下のシグニ1体をバニッシュする」になる
   if (stub.id === 'BANISH_THRESHOLD_BOOST_7_15') {
     return done(addLog(ctx, 'バニッシュ閾値書き換え（オリハルティア・execBanish側処理）'));
   }
@@ -4587,6 +4612,8 @@ export function execStubPart3(
   // → execStub.tsではDECLARE_NUMBERが既に実装済み（docs/STUBS.md ✅）のため不要
 
   // OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに内部変数名 `stub.value` とカード番号が漏れていた。
+  // 表示: 対戦相手は、自分のエナゾーンにあるカードが指定の枚数になるように、エナゾーンからカードをトラッシュに置く
   if (stub.id === 'OPP_ENERGY_REDUCE_TO_N') {
     const target = typeof stub.value === 'number' ? stub.value : 6;
     const opp = ctx.otherState;
@@ -4922,6 +4949,8 @@ export function execStubPart3(
   }
 
   // LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS: ルリグトラッシュの全ルリグをこのカードの下に、アーツをルリグデッキへ（WX05-001, WXEX2-84）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルにカード番号 `WX05-001, WXEX2-84` が漏れていた。
+  // 表示: あなたのルリグトラッシュからすべてのルリグをこのカードの下に置き、対象のアーツをルリグデッキに加える
   if (stub.id === 'LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS') {
     const lrigTrash = ctx.ownerState.lrig_trash ?? [];
     const lrigNums = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
@@ -5319,6 +5348,9 @@ export function execStubPart3(
   }
   // OPTIONAL_RETURN_SELF_ARTS_FIRST_USE: 同名アーツの当ターン初回使用時だけ、
   // 使用済みの自身をルリグデッキへ戻す任意選択を提示する。
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルは実装コメントの**1行目だけ**を拾って
+  //   「同名アーツの当ターン初回使用時だけ、」で切れていた。
+  // 表示: このターンにあなたがこのカードを使用したのが一度目の場合、このカードをルリグデッキに戻してもよい
   if (stub.id === 'OPTIONAL_RETURN_SELF_ARTS_FIRST_USE') {
     const src = ctx.sourceCardNum;
     const cardName = src ? ctx.cardMap.get(getCardNum(src))?.CardName : undefined;
@@ -5658,12 +5690,16 @@ export function execStubPart3(
   }
 
   // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次に自分が使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルにカード番号 `WX04-008` が漏れていた。
+  // 表示: 次にあなたが使用するスペルは対戦相手の効果によって打ち消されない
   if (stub.id === 'GRANT_NEXT_SPELL_UNCOUNTERABLE') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, next_spell_uncounterable: true } },
       '次に使用するスペルは対戦相手の効果で打ち消されない'));
   }
 
   // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに生ID `NEGATE_ATTACK_ON_TRIGGER` が漏れていた（live 6箇所）。
+  // 表示: そのアタックを無効にする
   if (stub.id === 'SET_CANCEL_ATTACK_FLAG') {
     // §6.4 O-10（続き510）＝「このターン、あなたの効果によってシグニのアタックは無効にならない」
     // （`WX24-P4-016-E3`）。⚠**フラグの持ち主＝効果を使う側**なので `ownerState` を見る。
@@ -5720,6 +5756,8 @@ export function execStubPart3(
 
   // OPP_DIRECT_ATTACK_NEGATE: 相手シグニが正面なしでアタックしたとき、コスト（costColorsのエナ＋＜美巧＞シグニ1枚捨て）を
   // 支払ってそのアタックを無効にしてもよい（WX04-004-E2）。owner=守備側。支払い不能なら発動しない。
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに内部変数名 `costColors` が漏れ、末尾も「を コスト緑無」で壊れていた。
+  // 表示: 対戦相手のシグニが正面にシグニがない状態でアタックしたとき、コストを支払ってそのアタックを無効にしてもよい
   if (stub.id === 'OPP_DIRECT_ATTACK_NEGATE') {
     const costColorsODN = stub.costColors ?? ['緑', '無'];
     const hasBikoODN = ctx.ownerState.hand.some(n => {

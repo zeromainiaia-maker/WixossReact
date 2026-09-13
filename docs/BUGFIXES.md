@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁§5.3 `O-354` クローズ＝STUB ラベル 43箇所の払い戻し（第301バッチ）
+
+🔴🔑**この回の主産物は「ラベル整備は `census:numberdrift` の払い戻しでもある」と分かったこと**＝
+**`census:stublabel` B群17→1・C群26→0 を返したら、`census:numberdrift` が 75→72 へ勝手に下がった。**
+⇒ **`[STUB:…]` のラベルが中身を書いていないと、そのカードの原文の数値がまるごと逆翻訳から落ちる。**
+（例＝`WX09-027-E1` のラベルは「WX09-027(オリハルティア)の常在マーカー。」で、
+原文の **7000／15000** がどこにも出ていなかった。）
+
+### ① B群 17 → 1（ラベルが内容を説明していない）
+
+🔑**最大の発見＝「engine: 〜未実装」ラベルが全部 stale だった。**
+`ガード系（engine: ガードコスト処理未実装）` `アタック制限系（engine: アタック制限システム未実装）`
+`コストアップ系（engine: コスト計算未実装）` `レベル修正（engine: ベースレベル変更システム未実装）`
+`ライズ/スタック系（engine: ライズシステム未実装）`＝**5系統すべて、実体は `effectEngine.ts` の宣言読み取り
+＋ `signiAttackGate` / `spellUseGate` / `GuardResponseDialog` / `BattleScreen` に既に在る**
+（`execStubPart*` のハンドラは AUTO/ACTIVATED で来た場合の**ログだけのフォールバック**）。
+⇒ **「engine が未実装」と書いてあるコメントを信じない**＝`grep -rn "<ID>" src/` を打つと消費地点が出る。
+
+⚠**残した1件は意図的な真陽性**＝`ATTACH_SEARCHED_AS_ACCE`（`WX17-033-E1`）の「（手札経由近似）」。
+engine は探したカードを**いったん手札へ入れてから**【アクセ】にする（`ownerState.hand.includes(...)` が必須条件）が、
+原文「デッキの上からカードを3枚見て…シグニ1枚をこのシグニの【アクセ】にする」は手札を経由しない。
+🔴**ラベルから「近似」を消すと、その逸脱が逆翻訳から見えなくなる**＝直すのは engine 側（→ `O-355`）。
+
+### ② C群 26 → 0（ラベルに内部識別子が漏れている＝`census:stubs` F群の死角）
+
+**3形とも実在した**＝①カード番号（`WX04-008` `WX09-027` `WXK04-030` `WXEX2-84` `WDK08-L14` `PR-470A/B`）
+②ドットの無い camelCase（`costColors` `sourceCardNum` `fetchCardName` `stub.value`）
+③生の英語 ID（`NEGATE_ATTACK_ON_TRIGGER` が **6箇所**／`ATTACK_SIGNI`／`SELECT_TARGET`／`effectEngine`）。
+
+**直し方は2通りだった**
+- **ハンドラがある 20箇所**＝ハンドラ直前に **`// 表示: <日本語>` を1行足す**（実装コメントは消さない）
+  → `node scripts/genStubsMd.mjs` → `npm run regen`。複数 id を捌く共有コメントは `// 表示: <ID>: <日本語>`。
+- 🔴**ハンドラが無い 5箇所は `decompileEffects.ts` 側だった**＝
+  - `GRANT_ALL_ZONE_LIFEBURST`（4箇所）＝**逆翻訳が自分で組み立てていた**。原文 regex
+    `/あなたのすべての領域にある…を持つ/` が当たった1効果だけ日本語になり、**外れた4効果は
+    最終フォールバック `[STUB:${a.id}${extra}]` に落ちて生 ID が出ていた**（原文の「を持つ」/「を得る」の揺れ、
+    「ライフクロスとチェックゾーンにある」という別表記が原因）。⇒ **payload から描く分岐**に置き換え、
+    原文 regex 分岐は撤去した（規約＝原文をもう一度読まない）。
+  - `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE`（`SPDi43-05-E2`）＝ハンドラが無い明示 defer なので
+    `STUBS.md` 経由の説明が存在せず、**生 ID がそのまま出ていた**。`miscStubMap` に**「（未実装）」まで書いて**登録した。
+
+🔑**副産物＝焼き込まれた既定値が1つ見えた。** `grantedAllZoneBurstAction`（`allZoneBurst.ts`）は
+`burstAction` が無いと**「対戦相手のシグニ1体をバニッシュする」を焼き込む**。live で payload 無しなのは
+`WD14-001-E3` だけで、そのカードの原文がたまたまバニッシュなので**合っていた**（`O-60` 第59バッチの罠②と同じ形）。
+⇒ 逆翻訳に **`（※ペイロード欠落＝engine の既定値）`** と出るようにして、次に増えたら気づけるようにした。
+
+### ③ 検証
+
+`npm run gates` 全緑（golden 4060 PASS）。**ラチェットを3本払い戻した**＝
+`census:stublabel` **B 17→1 / C 26→0**、`census:numberdrift` **75→72**。A群は **11 で据置**。
+**反転確認**＝あり＝`docs/decompile_sheet*.txt` の該当11効果を原文と目視照合した（BUGFIXES の①②に引用）。
+
+**⑤実機の要否＝不要と判定**（§2.2）。触ったのは `src/engine/`（コメント行のみ）と `scripts/`（逆翻訳）だけで、
+**`src/screens/` も live JSON も型も1行も変えていない**＝engine の挙動は1ビットも動いていない（索引 E の性質）。
+
 ## 2026-09-13 — 🏁§5.3 `O-351` クローズ＝**STUB ラベル忠実性センサスを新設**（第300バッチ）
 
 🔴🔑**この回の主産物は計器そのもの**（`npm run census:stublabel`・`scripts/censusStubLabel.mjs`）。

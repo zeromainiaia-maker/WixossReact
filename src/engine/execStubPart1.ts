@@ -522,6 +522,8 @@ export function execStubPart1(
   // 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。
   // PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので
   // fetchCardName の名指しが必須（検証是正＝旧・同名フェッチは常に不発で自シグニが消えるだけだった）。
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルに内部変数名 `fetchCardName`・カード番号・Markdown 強調が漏れていた。
+  // 表示: このシグニをルリグデッキに戻し、あなたのルリグデッキから指定されたカードを場に出す
   if (stub.id === 'SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME') {
     const source = ctx.sourceCardNum;
     const sourceName = source ? ctx.cardMap.get(getCardNum(source))?.CardName : undefined;
@@ -1545,6 +1547,8 @@ export function execStubPart1(
   // INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。
   //   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手のシグニ1体をバニッシュ」を
   //   ターン終了時まで付与する。granted_effects（instanceId単位）に積むと effectsMap マージ経由でアタックトリガー収集が拾う。
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルがカード番号だけの「WXK04-030 血晶の紅雨。」で、何をするかが書かれていなかった。
+  // 表示: ターン終了時まで、あなたの血晶武装状態のすべてのシグニは「【自】：このシグニがアタックしたとき、自身のパワー以下の対戦相手のシグニ1体を対象とし、それをバニッシュする」を得る
   if (stub.id === 'INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED') {
     const armoredTops = ctx.ownerState.field.signi.flatMap((s, i) =>
       (ctx.ownerState.field.signi_armor?.[i] && s?.at(-1)) ? [s.at(-1)!] : []);
@@ -3254,6 +3258,9 @@ export function execStubPart1(
   // OPP_REVEAL_SPELL_USE_FREE: 対戦相手のデッキを上からスペルがめくれるまで公開し、
   // めくれたスペルをあなたが手札にあるかのようにコストなし・限定条件無視で使用してもよい。
   // 残り（公開した非スペル）はデッキに戻してシャッフル。使用しなかった場合は相手トラッシュへ。（WX04-015）
+  // 🆕§5.3 `O-354`（2026-09-13）＝旧ラベルは上の実装コメントの**1行目だけ**を拾って
+  //   「対戦相手のデッキを上からスペルがめくれるまで公開し、」で切れていた（読点で終わる＝文になっていない）。
+  // 表示: 対戦相手はデッキを上からスペルがめくれるまで公開し、あなたはそのスペルをコストを支払わず限定を無視して使用してもよい（使用しなかった場合、そのスペルは対戦相手のトラッシュに置かれる）
   if (stub.id === 'OPP_REVEAL_SPELL_USE_FREE') {
     const deckORS = [...ctx.otherState.deck];
     const revealedORS: string[] = [];
