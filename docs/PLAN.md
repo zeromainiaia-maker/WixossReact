@@ -26,7 +26,7 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-356`**（索引A・452ノード／まず計器を作る） → ②**`O-348`** の残り21キー → ③**`O-343`**（索引B） |
+| 🔥**次に取るもの** | ①**`O-356`** の**①群**（payload あり 11 id / 104ノード＝逆翻訳を直すだけで閉じる） → ②**`O-348`** の残り21キー → ③**`O-356`** の②群（三点セット） |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
 | 📦**在庫** | 機構 worklist 🔥**8項目**（`O-343`〜`O-346`・`O-348`・`O-353`・`O-356`・🆕`O-357`）／実機 🏁**0**／実装キュー 🏁**0** |
 | 🔧**ゲート** | `npm run gates` 全緑・**golden 4066 PASS**（+1・反転確認あり）・`census:payloadkeys` **34 → 21種**・`census:numberdrift` **70 → 68** |
@@ -347,7 +347,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
 | `O-348` | M | **逆翻訳が描き落としている payload キー 残 21種 / 21ノード**（`npm run census:payloadkeys`・BASELINE 21）。🏁**型つき22種/58ノード（第303/304）と `[STUB]` 側の母集団2桁13キー/66ノード（第305）はクローズ済み**（実バグ3件）。🔥**残は全部「1キー＝1ノード」の21件**＝`declareFromLastProcessed` / `downUpSigniChoose` / `fetchCardName` / `handDiscardGroups` / `leaveToTrashWindow` / `loseAbilityAfterUse` / `lrigAttackLimit` / `moveSelfZone` ほか。🔴**判定の罠2つ**＝①**STUB ラベルが総称で概念だけ触れていても、payload の値を区別していないなら穴**（`deckRevealUntil` 型）②**逆翻訳が原文どおりに読めても、`currentCardText` の原文エコーなら穴**（`O-356`）＝**`grep -n "<STUB_ID>" scripts/decompileEffects.ts` を必ず打つ** |
-| 🆕`O-356` | L | 🔴**逆翻訳が原文を regex で切り出してそのまま返している＝原文照合が構造的に死んでいる箇所**。実測（2026-09-13・`O-348` の着手中に発見）＝`scripts/decompileEffects.ts` の `currentCardText.match(/…/)` が **101箇所 / 101 STUB id**、うち **live に出るのは 88 id＝452ノード / 420カード**。🔑**原文をコピーしているので、payload や engine が何であろうと逆翻訳は必ず原文と一致する**＝**主軸の検査（原文 × 逆翻訳の目視照合）がそのカードでだけ無効**。しかも `census:payloadkeys` は「キー名が出てこない」としか見ないので**この形は見えない**（`resonaSummon` はこれで消えていた）。**取り方**＝`§5.3 O-60` の各バッチと同じ「payload から描く」移行（先例コメントがファイル内に複数ある）。⚠**置き換えると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（engine の欠落が初めて見える）。⚠**全部が悪ではない**（引用文をそのまま与える `GRANT_QUOTED_*` 等は正当寄り）＝**候補出しであって判定ではない**。🔑**着手の1手目は専用計器（`census:srcecho` 相当）を作ってラチェットを張ること**（`census:enginetext` / `census:costtext` / `census:stublabel` と同じ形） |
+| `O-356` | L | 🔴**逆翻訳が原文を regex で切り出して戻り値に乗せている＝原文照合が構造的に死んでいる箇所**。🆕**計器を新設した＝`npm run census:srcecho`**（`scripts/censusSrcEcho.mjs`・明細 `docs/_census_src_echo.txt`／1 id は `--id <STUB_ID>`・群は `--group A`）。**ラチェットは `gates` 同梱＝A群の id 数が増減したら exit 1**（数えるのは行数ではなく **id 数**＝払い戻しの単位が「1 id を payload 化する」だから）。🔧**母集団を訂正＝A群 56 id / 129行 / live 308ノード / 296カード**（登録時の見立て「88 id / 452ノード / 420カード」は**過大**だった＝`a.id ===` の粗い窓で数えたため隣の分岐の行を数えていた）。🔴🔑**着手前に必ず読む＝A群は「すぐ直せる側」と「三点セットが要る側」で重さが桁違い**（実測）＝**①payload あり 11 id / 104ノード**（`OPTIONAL_TRASH_ENERGY_CLASS` 33／`COPY_LRIG_NAME_ABILITY` 16／`DESIGNATE_SIGNI_ZONE` 15／`DEPLOY_RESTRICT` 9 ほか）＝**逆翻訳を直すだけで閉じる＝ここから取る**／**②payload なし 36 id / 204ノード**（`ARTS_COST_REDUCTION_BY_EFFECT` 59／`DECLARE_NUMBER` 27／`TRASH_AT_TURN_END` 17／`RIDE_ON` 11／`SONG_FRAGMENT` 11 ほか）＝**parser が構造化していない**ので逆翻訳だけ直しても描くものが無い＝**parser＋engine＋decompiler の三点セット**／**③live 0 が 9 id＝触らない・消さない**（parser に生成元が無い安全網）。⚠**置換すると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（engine の欠落が初めて見える）＝**原文へ寄せて隠さない**。⚠**全部が悪ではない**＝引用そのものが中身の `GRANT_QUOTED_*` は `ALLOWED` に理由つき登録済み（2 id） |
 
 #### 索引 B. 母集団 3〜8効果
 

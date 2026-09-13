@@ -53,6 +53,11 @@ const results = await Promise.all([
   run('census-payloadkeys', 'census:payloadkeys'),
   run('census-numberdrift', 'census:numberdrift'),
   run('census-stublabel', 'census:stublabel'),
+  // 🆕§5.3 `O-356`（2026-09-13）＝**逆翻訳が原文を regex で切り出してそのまま返す箇所**の ratchet。
+  // ⚠この形は `census:payloadkeys`（キー名しか見ない）にも `census:stublabel`（原文そのものは満点）にも
+  //   映らず、golden/smoke/fuzz も緑のまま**原文 × 逆翻訳の照合だけが無効**になる。
+  // 増えたら exit 1（逆翻訳で新しく原文 regex を書いた）／減っても exit 1（基準の下げ忘れ）。
+  run('census-srcecho', 'census:srcecho'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

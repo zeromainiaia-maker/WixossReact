@@ -35,7 +35,8 @@
     "census:orphanmanual": "tsx scripts/censusOrphanManual.ts",
     "census:payloadkeys": "tsx scripts/censusPayloadKeys.ts",
     "census:numberdrift": "node scripts/censusNumberDrift.mjs",
-    "census:stublabel": "node scripts/censusStubLabel.mjs"
+    "census:stublabel": "node scripts/censusStubLabel.mjs",
+    "census:srcecho": "node scripts/censusSrcEcho.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
