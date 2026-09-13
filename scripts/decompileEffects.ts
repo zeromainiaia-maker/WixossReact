@@ -4820,6 +4820,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'opp_public_signi') {
         return 'シグニのカード名１つを宣言する（候補＝対戦相手の場・エナ・トラッシュのシグニ名）';
       }
+      if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'all_cards') {
+        return 'カード名１つを宣言する';
+      }
       if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'self_deck') {
         const zonesDN = a.declareNameZones?.length ? a.declareNameZones : ['deck'];
         const zoneDN = zonesDN.map((zone: string) => zone === 'deck' ? 'デッキ' : zone === 'hand' ? '手札' : '場').join('・');

@@ -133,6 +133,7 @@ import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consum
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
+import { declareNameCandidates } from './battle/declareNameCandidates';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import {
@@ -662,7 +663,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             }
         }
       } else if (inter.type === 'CHOOSE') {
-        if (inter.multiSelect) {
+        if (inter.namePool) {
+          // 全カード名宣言は options が空。CPU は決定論的な名前昇順の先頭候補を宣言する。
+          selected = declareNameCandidates(
+            new Map(cards.map(card => [card.CardNum, card] as const)), inter.namePool, '', 1);
+        } else if (inter.multiSelect) {
           // 複数選択: 利用可能な選択肢からcount個（upToならcount個まで）選択
           const avail = inter.options.filter(o => o.available);
           // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝**選択肢の数より多く選べる**ので、
@@ -878,7 +883,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [myDeckData, bs]);
 
   const battleCardMap = useMemo(() => {
-    const base = new InstanceMap(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c] as [string, CardData]));
+    // namePool の候補検索と resume 時の妥当性検証に限り、全カードデータを同じ ctx 経路へ載せる。
+    // pending 自体には候補を積まないため、永続化サイズは増えない。
+    const needsAllCardNames = bs?.pending_effect?.interaction.type === 'CHOOSE'
+      && bs.pending_effect.interaction.namePool?.source === 'all_cards';
+    const baseCards = needsAllCardNames ? cards : cards.filter(c => battleCardNums.has(c.CardNum));
+    const base = new InstanceMap(baseCards.map(c => [c.CardNum, c] as [string, CardData]));
     if (!bs) return base;
     const localIsHost = user.id === bs.host_id;
     const myState = localIsHost ? bs.host_state : bs.guest_state;
@@ -895,8 +905,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return new InstanceMap(resolved);
   }, [cards, battleCardNums, bs, user.id]);
 
-  // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）
-  const battleCards = useMemo(() => [...battleCardMap.values()], [battleCardMap]);
+  // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）。宣言UI用に全カードを載せた間も
+  // effectsMap の構築対象は従来どおり対戦に関係するカードだけに保つ。
+  const battleCards = useMemo(() => [...battleCardMap.entries()]
+    .filter(([key]) => battleCardNums.has(getCardNum(key)))
+    .map(([, card]) => card), [battleCardMap, battleCardNums]);
 
   // CONTINUOUS 効果マップ（ベース: カードデータのみ、静的）
   const baseEffectsMap = useMemo(

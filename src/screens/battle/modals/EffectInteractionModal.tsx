@@ -7,6 +7,7 @@ import { C } from '../../../components/BoardComponents';
 import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effectInteractionSelection';
+import { declareNameCandidates } from '../declareNameCandidates';
 import type { BattleModalCtx } from './types';
 import type { EffectAction } from '../../../types/effects';
 
@@ -42,6 +43,7 @@ interface EffectInteractionModalProps {
 
 export function EffectInteractionModal(p: EffectInteractionModalProps) {
   const [selectedOptionalCostChoiceId, setSelectedOptionalCostChoiceId] = useState<string | null>(null);
+  const [declareNameQuery, setDeclareNameQuery] = useState('');
   /**
    * 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）専用の**回数**マップ。
    * ⚠共有の `selectedMultiChoiceIds` は `Set<string>`＝**同じ選択肢を1回しか持てない**ので、
@@ -411,6 +413,54 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       ? `決定 (合計${selectedPowerSum}/${inter.totalPowerMax})`
                       : `決定 (${effectSelectedNums.length}/${maxPick})`}
                   </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        // 全カードプールからのカード名宣言。候補は pending に積まず、表示時だけ純関数で組み立てる。
+        if (inter.type === 'CHOOSE' && inter.namePool) {
+          const candidates = declareNameCandidates(battleCardMap, inter.namePool, declareNameQuery, 100);
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '16px', width: 'min(94vw, 460px)', maxHeight: '82vh',
+                  display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>カード名１つを宣言してください</p>
+                <input
+                  data-testid="declare-name-search"
+                  value={declareNameQuery}
+                  onChange={e => setDeclareNameQuery(e.target.value)}
+                  placeholder="カード名を検索"
+                  autoFocus
+                  style={{ padding: '10px 12px', borderRadius: 8, border: C.borderUI,
+                    backgroundColor: C.bgApp, color: C.text, fontSize: 14 }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', minHeight: 60 }}>
+                  {candidates.length === 0
+                    ? <p style={{ color: C.textFaint, fontSize: 12, textAlign: 'center' }}>一致するカード名がありません</p>
+                    : candidates.map(name => (
+                      <button key={name}
+                        data-testid={`declare-name-opt-${name}`}
+                        disabled={loading}
+                        onClick={() => {
+                          handleEffectInteraction([name]);
+                          setDeclareNameQuery('');
+                        }}
+                        style={{ padding: '10px 8px', borderRadius: 8, border: 'none',
+                          backgroundColor: C.bgButton, color: C.text, fontSize: 13, fontWeight: 'bold',
+                          cursor: loading ? 'default' : 'pointer' }}>
+                        {name}
+                      </button>
+                    ))}
                 </div>
               </div>
             </div>,

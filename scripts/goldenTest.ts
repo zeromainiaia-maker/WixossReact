@@ -95,6 +95,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../sr
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
+import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
 import { payFieldBanishCost } from '../src/screens/battle/fieldBanishCost';
@@ -80566,6 +80567,137 @@ test('O-353 WXK09-001-E3 E2E: deck＋hand＋field の有色シグニ名だけを
   ok(named.ignoreRestriction, '宣言した名前のシグニだけ限定条件を無視');
   ok(!different.levelZero, '🔴別名のシグニは基本レベル0にならない');
   ok(!different.ignoreRestriction, '別名のシグニは限定条件を無視しない');
+}));
+
+test('O-353 Part B live: 宣言プール14件を self 6 / all 6 / opponent公開2 に分類する', () => {
+  const counts = { self_deck: 0, all_cards: 0, opp_public_signi: 0, unspecified: 0 };
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
+    }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && rec.id === 'DECLARE_CARD_NAME') {
+      const pool = rec.declareNamePool;
+      if (pool === 'self_deck' || pool === 'all_cards' || pool === 'opp_public_signi') counts[pool]++;
+      else counts.unspecified++;
+    }
+    for (const value of Object.values(rec)) visit(value);
+  };
+  for (const effects of effectsMap.values()) visit(effects);
+  eq(JSON.stringify(counts),
+    '{"self_deck":6,"all_cards":6,"opp_public_signi":2,"unspecified":0}',
+    'Part A と O-306 を維持し、残る6件だけ all_cards に刻印');
+});
+
+const o353Card = (cardNum: string, cardName: string, type: string): CardData => ({
+  CardNum: cardNum, CardName: cardName, Type: type,
+} as CardData);
+
+test('O-353 Part B 候補純関数: query は前方一致でなく部分一致する', () => {
+  const cards = new Map<string, CardData>([
+    ['a', o353Card('a', '満月の巫女　タマヨリヒメ', 'ルリグ')],
+    ['b', o353Card('b', 'コードアート', 'シグニ')],
+  ]);
+  eq(JSON.stringify(declareNameCandidates(cards, { source: 'all_cards' }, 'タマ', 10)),
+    '["満月の巫女　タマヨリヒメ"]', '名前の途中にある query でも候補へ出す');
+});
+
+test('O-353 Part B 候補純関数: 同名カードを重複させない', () => {
+  const cards = new Map<string, CardData>([
+    ['a', o353Card('a', '同じ名前', 'シグニ')],
+    ['b', o353Card('b', '同じ名前', 'シグニ')],
+  ]);
+  eq(JSON.stringify(declareNameCandidates(cards, { source: 'all_cards' }, '', 10)),
+    '["同じ名前"]', '収録違いの同名カードを1候補に畳む');
+});
+
+test('O-353 Part B 候補純関数: TargetFilter でシグニだけに絞る', () => {
+  const cards = new Map<string, CardData>([
+    ['a', o353Card('a', 'シグニ名', 'シグニ')],
+    ['b', o353Card('b', 'スペル名', 'スペル')],
+  ]);
+  eq(JSON.stringify(declareNameCandidates(cards, { source: 'all_cards', filter: { cardType: 'シグニ' } }, '', 10)),
+    '["シグニ名"]', '既存 matchesFilter の cardType を適用');
+});
+
+test('O-353 Part B 候補純関数: 名前昇順の先頭 limit 件で打ち切る', () => {
+  const cards = new Map<string, CardData>([
+    ['c', o353Card('c', 'う', 'シグニ')],
+    ['a', o353Card('a', 'あ', 'シグニ')],
+    ['b', o353Card('b', 'い', 'シグニ')],
+  ]);
+  eq(JSON.stringify(declareNameCandidates(cards, { source: 'all_cards' }, '', 2)),
+    '["あ","い"]', 'Map の挿入順によらず名前昇順で limit を適用');
+});
+
+test('O-353 Part B 候補純関数: 空 query でも先頭 limit 件を返す', () => {
+  const cards = new Map<string, CardData>([
+    ['a', o353Card('a', 'あ', 'シグニ')],
+    ['b', o353Card('b', 'い', 'シグニ')],
+  ]);
+  eq(JSON.stringify(declareNameCandidates(cards, { source: 'all_cards' }, '', 1)),
+    '["あ"]', '検索入力前も候補を表示する');
+});
+
+test('O-353 Part B pending: WX19-026-E1 は options 空の namePool CHOOSE を返す', () => withSavedCursor(() => {
+  const named = findCard(c => !!c.CardName && c.CardNum !== 'WX19-026');
+  const ctx = mkCtx({ signi: ['WX19-026', null, null], deckTop: [], hand: 0 }, { deckTop: [named], hand: 0 }, 'WX19-026');
+  ctx.ownerState.hand = [named];
+  const effect = effectsMap.get('WX19-026')!.find(e => e.effectId === 'WX19-026-E1')!;
+  const opened = executeEffect(effect, ctx);
+  ok(!opened.done && opened.pending.type === 'CHOOSE', '宣言用 CHOOSE が開く');
+  if (opened.done || opened.pending.type !== 'CHOOSE') return;
+  eq(opened.pending.options.length, 0, '永続化する pending に6,666件の options を積まない');
+  const pendingBytes = Buffer.byteLength(JSON.stringify(opened.pending), 'utf8');
+  ok(pendingBytes < 4096, `namePool CHOOSE は4KiB未満（実測 ${pendingBytes} bytes）`);
+  eq((opened.pending as PendingInteractionDef & { namePool?: { source?: string } }).namePool?.source,
+    'all_cards', '候補の出所だけを pending に載せる');
+}));
+
+test('O-353 Part B resume: カード名文字列で WX19-026-E1 が当たる／外れる', () => withSavedCursor(() => {
+  const hitCard = findCard(c => !!c.CardName && c.CardNum !== 'WX19-026');
+  const hitName = cardMap.get(hitCard)!.CardName;
+  const missCard = findCard(c => !!c.CardName && c.CardName !== hitName && c.CardNum !== 'WX19-026');
+  const missName = cardMap.get(missCard)!.CardName;
+  const effect = effectsMap.get('WX19-026')!.find(e => e.effectId === 'WX19-026-E1')!;
+
+  const resolve = (declaredName: string) => {
+    const ctx = mkCtx({ signi: ['WX19-026', null, null], down: [true, false, false], hand: 0 },
+      { deckTop: [hitCard], hand: 0 }, 'WX19-026');
+    ctx.ownerState.hand = [hitCard, missCard];
+    const opened = executeEffect(effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', '宣言用 CHOOSE が開く');
+    if (opened.done || opened.pending.type !== 'CHOOSE') throw new Error('宣言用 CHOOSE が開かなかった');
+    return finish(resumeChoose(declaredName, opened.pending, execCtxFrom(opened, ctx)), ctx);
+  };
+
+  const hit = resolve(hitName);
+  eq(hit.ownerState.declared_card_name, hitName, '返したカード名そのものを宣言名に保存');
+  ok(hit.otherState.trash.includes(hitCard), '一致時は相手デッキトップをトラッシュ');
+  ok(hit.ownerState.field.signi_down[0] === false, '一致時はこのシグニをアップ');
+
+  const miss = resolve(missName);
+  eq(miss.ownerState.declared_card_name, missName, '不一致でも有効なカード名は宣言名に保存');
+  eq(miss.otherState.deck[0], hitCard, '不一致時は相手デッキトップを動かさない');
+  ok(miss.ownerState.field.signi_down[0] === true, '不一致時はこのシグニをアップしない');
+}));
+
+test('O-353 Part B fail-closed: 空文字・未知名は continuation も実行しない', () => withSavedCursor(() => {
+  const known = findCard(c => !!c.CardName);
+  const pending = {
+    type: 'CHOOSE', count: 1, options: [], namePool: { source: 'all_cards' },
+    continuation: { type: 'DRAW', count: 1 },
+  } as unknown as PendingInteractionDef;
+  const resolve = (value: string) => {
+    const ctx = mkCtx({ hand: 0 }, {});
+    ctx.ownerState.hand = [];
+    return finish(resumeChoose(value, pending, ctx), ctx);
+  };
+  eq(resolve('').ownerState.hand.length, 0, '空文字では何も起こらない');
+  eq(resolve(`${cardMap.get(known)!.CardName}__存在しない`).ownerState.hand.length, 0,
+    'cardMap に存在しない名前では何も起こらない');
 }));
 
 // ── §5.3 `O-343` 第314バッチ＝engine 原文 regex を既存 STUB の payload へ移す ──

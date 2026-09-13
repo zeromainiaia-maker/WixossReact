@@ -29973,6 +29973,29 @@ function stampSelfDeckDeclareNamePool(sourceText: string, action: EffectAction):
   return action;
 }
 
+/**
+ * `O-353` Part B：宣言直後に相手のデッキトップ／手札を当てる文型だけ、候補を全カードプールへ配線する。
+ * 効果単位の原文で絞り、既に別のプールが刻まれた宣言は上書きしない。付与能力の入れ子にも再帰して届かせる。
+ */
+function stampAllCardsDeclareNamePool(sourceText: string, action: EffectAction): EffectAction {
+  const declaresBeforeOpponentHiddenCards = /(?:あなたは)?カード名[１1一]つを宣言する。(?:その後、)?対戦相手(?:は(?:自分の)?デッキ|の手札)/.test(sourceText);
+  if (!declaresBeforeOpponentHiddenCards) return action;
+
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'DECLARE_CARD_NAME' && obj.declareNamePool === undefined) {
+      obj.declareNamePool = 'all_cards';
+    }
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else visit(value);
+    }
+  };
+  visit(action);
+  return action;
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -30868,6 +30891,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = stampSelfDeckDeclareNamePool(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    effect.action = stampAllCardsDeclareNamePool(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕🔴**§5.3 `O-352`（2026-09-13）＝正準形への `abortIfNoCandidate` 刻印は「全 pass のいちばん最後」**
   //   （説明は `stampAbortOnCanonicalOptionalCost` 側）。

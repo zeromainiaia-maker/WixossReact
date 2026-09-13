@@ -7056,9 +7056,10 @@ export interface StubAction {
    * `DECLARE_CARD_NAME` の候補の出所。
    * - `opp_public_signi`＝対戦相手の場・エナ・トラッシュのシグニ名（§5.3 `O-306`）
    * - `self_deck`＝自分のデッキを基点に `declareNameZones` の領域から集めたカード名（`O-353`）
+   * - `all_cards`＝UI が全カードプールから検索候補を組む（`O-353` Part B）
    * 省略時は従来どおり自分の手札の名前（最大4種）。
    */
-  declareNamePool?: 'opp_public_signi' | 'self_deck';
+  declareNamePool?: 'opp_public_signi' | 'self_deck' | 'all_cards';
   /** `declareNamePool:'self_deck'` の収集領域。省略時は `['deck']`。領域×絞り込みを enum で掛け算しないための直交軸。 */
   declareNameZones?: ('deck' | 'hand' | 'field')[];
   /** 宣言候補のカード絞り込み（`cardType:'シグニ'`／`nonColorless:true` 等）。 */

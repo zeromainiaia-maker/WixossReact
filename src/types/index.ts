@@ -1910,7 +1910,7 @@ export type TargetScope =
   // 🆕§5.3 `O-310`＝相手のシグニゾーン**と**エナゾーンを跨いだ単一プール（`WX24-P4-022-E3`）。
   | 'opp_field_energy';
 
-import type { EffectAction, SelectionConstraint } from './effects';
+import type { EffectAction, SelectionConstraint, TargetFilter } from './effects';
 
 export type PendingInteractionDef =
   | {
@@ -1970,6 +1970,8 @@ export type PendingInteractionDef =
       type: 'CHOOSE';
       options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[]; coinCost?: number }>;
       count: number;
+      /** 🆕候補を UI 側が `battleCardMap` から組む宣言（`options` は空）。§5.3 `O-353` Part B。 */
+      namePool?: { source: 'all_cards'; filter?: TargetFilter };
       continuation?: EffectAction;
       opponentResponds?: boolean; // true = 対戦相手が選択するインタラクション（例:「対戦相手は支払ってもよい」）
       /**

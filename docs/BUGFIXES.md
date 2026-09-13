@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁§5.3 `O-353` クローズ＝カード名宣言の候補を全カードプールから選べるようにした（第315バッチ・Codex 委譲＋Claude 引き継ぎ）
+
+- **真因**＝`STUB{DECLARE_CARD_NAME}`（`src/engine/execStubPart1.ts`）の既定枝が候補を
+  **自分の手札のカード名・先頭4つ（`.slice(0,4)`）**に固定していた。原文はどれも「カード名１つを宣言する」＝
+  **カードプール全体**（実測 **6,666種**）から宣言する形で、用途は「**相手の**デッキトップ／手札を当てる」。
+  ⇒ **自分の手札の名前しか出ないと当たるはずがなく、6効果が実質死んでいた。**
+- **影響**＝**6効果 / 6カード**（`WX10-068-E1`（`GRANT_FIELD_SIGNI_ABILITY` の中）／`WX13-048-E1`／`WX19-026-E1`／
+  `WX19-062-E1`／`WXK09-039-E1`／`PR-257-sub-E3`（`GRANT_LRIG_ABILITY` の中））。
+- 🔑**帰結側は6効果とも実装済みだった**（`nameEqDeclaredName` を読む `REVEAL_AND_PICK` の filter／
+  `LAST_PROCESSED_MATCHES`／`TRASH{HAND_CARD, filter}`）＝**足りなかったのは候補プールと UI だけ**。
+- 🔴**設計＝`PendingInteractionDef` に 6,666件の `options` を積まない**（pending は Supabase へ**永続化**される＝
+  1回の宣言で数MBを書く）。⇒ `CHOOSE` には **`namePool:{source:'all_cards', filter?}` だけ**を載せ、
+  候補は UI が `battleCardMap` から組む。
+  - `resumeChoose` に専用枝＝**返るのは option id ではなく宣言されたカード名**。
+    ⚠これが無いと `pending.options.find` が外れて `opts.length===0` の枝へ落ち、**無言で何も起きない真 no-op** になる。
+  - **未知名・空文字は fail-closed**（`ctx.cardMap` に在る名前だけ受ける）。
+  - CPU 経路（`BattleScreen` の自動行動）は**決定論的に名前昇順の先頭候補**を宣言する。
+- 🔑**判定ロジックは React 非依存の純関数へ**＝`src/screens/battle/declareNameCandidates.ts`
+  （部分一致検索・重複名除去・`TargetFilter` 絞り・`limit` 打ち切り・名前昇順）。**golden 6本で網羅**した。
+- **刻印**＝AUTO は parser の最終 pass（効果単位の原文で絞る／カード番号は焼き込まない）、MANUAL は
+  `manualEffects.ts` ＋ `syncManualLive`。⚠**Part A の `self_deck` 刻印を上書きしない**ガード付き。
+  **live 全走査の結果＝`self_deck` 6 / `all_cards` 6 / `opp_public_signi` 2 / 未指定 0。**
+  ⚠**既定枝（手札4種）は安全網として残した**＝live の未指定は 0 なので現状は通らない。
+  新しいカードが未指定で来たら `census:stublabel` A群に「⚠手札」として出る。
+- **検証コマンド**＝`npm run regen` → `npm run gates` 全緑（**golden 4089 PASS**）。
+  `census:stublabel` A群 **7 → 4**（BASELINE も 4 へ）。
+- ✅**実機（`V-215`・§2.2 により `src/screens/` を触ったので必須）**＝
+  `node scripts/verifyBattleDrive.mjs v215DeclareAllCardsHit v215DeclareAllCardsMiss` で **2/2 PASS**。
+  ①一致＝相手デッキトップをトラッシュ＋自身アップ ②**対照**＝**盤面のどこにも無い名前**（《太陽の巫女　タマヨリヒメ》）を
+  検索して宣言でき、かつ不発。🔑**②が「全カードプールが UI に届いている」ことの証拠**。
+- 🔴**実機が2つの不備を出した（golden は緑のまま）**＝どちらもシナリオ側だが**実機でしか出ない形**：
+  1. SEARCH（`REVEAL_AND_PICK`）で**公開カードを選ばず「決定」だけ押し続け、永久に解決しなかった**
+     ⇒ 既存の `H.stdStep`（`pick-0` を先に押す規約）へ寄せた。
+  2. **1シナリオ内で盤面をリセットして2回試す形**にしていたため、`patchPlayerState` の read-modify-write が
+     クライアントの自動コミットに**上書きされ**、2回目の前提盤面が載らなかった
+     ⇒ `driveB22` と同じ「**spec を持つ別シナリオ2本**」へ分割（注入は framework に任せる）。
+- ⚠**運用**＝Codex は**2アカウントとも利用上限**（`.codex-work` 9/14 00:58／既定 9/14 02:20 リセット）。
+  実装完了直前で停止したため **Claude が引き継ぎ**、実機・採番修正・簿記まで完遂した。
+  🔴**採番の訂正**＝Codex が付けた `V-365` は §5.1 の連番（最後は `V-214`）と無関係だったので **`V-215` へ統一**した。
+
 ## 2026-09-13 — 🏁§5.3 `O-343` クローズ＝`census:enginetext` の `miss` を割り直し、真の miss 2件を payload 化（第314バッチ・Codex 委譲）
 
 ### (1) 🔧計器の精密化＝`miss` 延べ **45（11ハンドラ）→ 9（2ハンドラ）**

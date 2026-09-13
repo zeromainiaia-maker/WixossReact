@@ -58454,6 +58454,119 @@ order.push('v212ArtsNotOfferedWithoutOsaki');
 
 
 
+// V-215＝§5.3 `O-353` Part B・第315バッチ。
+// `WX19-026-E1` の実アタック経路で、全カード名検索UI→カード名文字列の resume→
+// `REVEAL_AND_PICK{nameEqDeclaredName}` の一致／不一致を同じシナリオ内で対照にする。
+// V-215＝§5.3 `O-353` Part B・第315バッチ。
+// `WX19-026-E1` の実アタック経路で、全カード名検索UI→カード名文字列の resume→
+// `REVEAL_AND_PICK{nameEqDeclaredName}` の一致／不一致を**2シナリオの対照**で確かめる。
+// 🔴**1シナリオ内で盤面をリセットして2回試す形にしない**（第315で実測＝`patchPlayerState` の
+//   read-modify-write がクライアントの自動コミットに上書きされ、2回目の前提盤面が載らなかった）。
+//   `driveB22` と同じく**spec を持つ別シナリオ2本**にして、注入は framework に任せる。
+const V215_SOURCE = 'WX19-026#36502';
+const V215_TOP = 'WD01-013#36592';          // 小剣　ククリ（＝宣言の的）
+const V215_HIT_NAME = '小剣　ククリ';
+// 対戦ゾーンのどこにも無い名前＝自分の手札候補ではなく全カードプール検索であることも確認する。
+const V215_MISS_NAME = '太陽の巫女　タマヨリヒメ';
+
+const v215DeclareSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#36501'], 'field.lrig_down': false,
+    'field.signi': [null, [V215_SOURCE], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], lrig_deck: [], coins: 0,
+    deck: ['WD01-014#36510', 'WD01-014#36511', 'WD01-014#36512'],
+    actions_done: [], game_actions_done: [], attacked_signi_ids: [],
+    pending_signi_battle: null, pending_lrig_attack: null,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#36590'],
+    'field.signi': [null, ['WD01-016#36591'], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [],
+    // 後ろ2枚はトップが動いたかを順序でも観測するための番兵。
+    deck: [V215_TOP, 'WD01-014#36593', 'WD01-014#36594'],
+    life_cloth: ['WD01-014#36595', 'WD01-014#36596'], blocked_actions: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV365Declare(page, H, declaredName, expectHit, tag) {
+  const pre = await H.queryState();
+  if ((pre?.guest?.deckCards ?? [])[0] !== V215_TOP
+      || !(pre?.host?.fieldSigni?.[1] ?? []).includes(V215_SOURCE)
+      || (pre?.host?.signiDown ?? [])[1] !== false) {
+    return { pass: false, detail: `${tag}: 前提盤面が載らない（host=${JSON.stringify(pre?.host?.fieldSigni)} down=${JSON.stringify(pre?.host?.signiDown)} guestDeck=${JSON.stringify(pre?.guest?.deckCards)}）` };
+  }
+
+  let modalOpened = false, attacked = false, declared = false;
+  for (let step = 0; step < 28; step++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const search = page.getByTestId('declare-name-search').first();
+    if (!declared && await search.count() && await search.isVisible().catch(() => false)) {
+      await search.fill(declaredName);
+      const option = page.getByTestId(`declare-name-opt-${declaredName}`).first();
+      await option.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
+      if (!(await option.count()) || !(await option.isVisible().catch(() => false))) {
+        return { pass: false, detail: `${tag}: 検索「${declaredName}」の候補ボタンが出ない（全カードプールが UI に届いていない）` };
+      }
+      await option.click({ timeout: 2000 }).catch(() => {});
+      declared = true;
+      did = `declare:${declaredName}`;
+    }
+    const cur = await H.queryState();
+    const busy = !!cur?.pendingEffect || (cur?.stackLen ?? 0) > 0;
+    if (!did && !attacked && !busy && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-1');
+      if (opened) { modalOpened = true; did = opened; }
+    }
+    if (!did && !attacked && !busy && modalOpened) {
+      const attack = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await attack.count() && await attack.isVisible().catch(() => false)) {
+        await attack.click({ timeout: 2000 }).catch(() => {});
+        attacked = true;
+        did = 'btn:アタック';
+      }
+    }
+    // 🔴宣言の後は REVEAL_AND_PICK の SEARCH が開く＝**公開カードを選んでから**決定する。
+    //   `clickTextOrBtn(['決定'])` だけだと 0枚選択のまま押し続けて永久に解決しない（第315で実測）。
+    if (!did && attacked) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+
+    const st = await H.queryState();
+    const topTrashed = (st?.guest?.trashCards ?? []).includes(V215_TOP);
+    const topStayed = (st?.guest?.deckCards ?? [])[0] === V215_TOP;
+    const sourceDown = (st?.host?.signiDown ?? [])[1] === true;
+    const settled = declared && !st?.pendingEffect && !(st?.stackLen > 0);
+    H.log(`  ${tag}[${step}] -> ${did ?? 'なし'} | declared=${declared} topTrashed=${topTrashed} topStayed=${topStayed} sourceDown=${sourceDown} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (settled && (expectHit ? (topTrashed && !sourceDown) : (topStayed && sourceDown))) {
+      return { pass: true, detail: expectHit
+        ? `${declaredName} が一致し、${V215_TOP} はトラッシュへ移動・${V215_SOURCE} はアップ状態`
+        : `${declaredName} は不一致で、${V215_TOP} はデッキトップのまま・${V215_SOURCE} はダウン状態` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `${tag}: 判定に至らず（attacked=${attacked} declared=${declared} guestDeck=${JSON.stringify(fin?.guest?.deckCards)} guestTrash=${JSON.stringify(fin?.guest?.trashCards)} down=${JSON.stringify(fin?.host?.signiDown)}）` };
+}
+
+scenarios.v215DeclareAllCardsHit = {
+  title: 'V-215① O-353 Part B: WX19-026 アタック時に全カード名検索で相手デッキトップ名を宣言＝一致でトップをトラッシュ＋自身アップ',
+  spec: v215DeclareSpec(),
+  drive: (page, H) => driveV365Declare(page, H, V215_HIT_NAME, true, 'v215Hit'),
+};
+
+scenarios.v215DeclareAllCardsMiss = {
+  title: 'V-215② O-353 Part B 対照: 盤面のどこにも無い別のカード名を宣言＝不発（トップは動かず自身はダウンのまま）',
+  spec: v215DeclareSpec(),
+  drive: (page, H) => driveV365Declare(page, H, V215_MISS_NAME, false, 'v215Miss'),
+};
+
+order.push('v215DeclareAllCardsHit', 'v215DeclareAllCardsMiss');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

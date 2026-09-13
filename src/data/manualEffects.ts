@@ -591,7 +591,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX13-048-E1","effectType":"AUTO","timing":["ON_PLAY"],
      "cost":{"handDiscardSigni":{"count":1,"story":"水獣"}},
      "action":{"type":"SEQUENCE","steps":[
-       {"type":"STUB","id":"DECLARE_CARD_NAME"},
+       {"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"all_cards"},
        {"type":"REVEAL_DECK_TOP","owner":"opponent","count":1},
        {"type":"CONDITIONAL",
         "condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"nameEqDeclaredName":true}},

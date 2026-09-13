@@ -12284,6 +12284,23 @@ export function resumeSearch(
   ctx: ExecCtx,
 ): ExecResult {
   const ids = Array.isArray(choiceId) ? choiceId : [choiceId];
+  // 🆕§5.3 `O-353` Part B＝namePool の CHOOSE は option ID ではなく宣言したカード名そのものを返す。
+  // 🔴空文字・未知名は continuation も動かさず fail-closed。pending に全カード名を永続化しないための専用経路。
+  if (pending.namePool && !pending.options.some(o => o.id === ids[0])) {
+    const declaredName = ids.length === 1 ? ids[0] : '';
+    const knownName = declaredName.length > 0
+      && [...ctx.cardMap.values()].some(card => card.CardName === declaredName);
+    if (!knownName) return done(ctx);
+    // 既存枝へ合流させ、ネスト対話と外側 continuation の合成規約を一箇所に保つ。
+    return resumeChoose(declaredName, {
+      ...pending,
+      namePool: undefined,
+      options: [{
+        id: declaredName, label: declaredName, available: true,
+        action: { type: 'STUB', id: 'INTERNAL_DECLARE_CARD_NAME', value: declaredName } as import('../types/effects').StubAction,
+      }],
+    }, ctx);
+  }
   const opts = ids.map(id => pending.options.find(o => o.id === id)).filter((o): o is NonNullable<typeof o> => !!o);
   if (opts.length === 0) {
     // upTo=true で0個選択した場合（スキップ相当）

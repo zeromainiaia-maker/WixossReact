@@ -1201,6 +1201,17 @@ export function execStubPart1(
   }
   // カード名宣言（手札のカード名から選択）
   if (stub.id === 'DECLARE_CARD_NAME') {
+    // 🆕§5.3 `O-353` Part B（2026-09-13）＝「カード名１つを宣言する」は全カードプールから検索する。
+    // 🔴pending は永続化されるため、6,666種類の option は載せず候補の出所だけを UI へ渡す。
+    if (stub.declareNamePool === 'all_cards') {
+      return needsInteraction(addLog(ctx, 'カード名を宣言（全カードプールから選択）'), {
+        type: 'CHOOSE', count: 1, options: [],
+        namePool: {
+          source: 'all_cards',
+          ...(stub.declareNameFilter ? { filter: stub.declareNameFilter } : {}),
+        },
+      });
+    }
     // 🆕§5.3 `O-306`（2026-09-11）＝「**シグニの**カード名１つを宣言する」→ 対戦相手のカードを変身させる形
     //   （`WXEX2-10-E2`／`WXK03-002-E2`）は、候補を**対戦相手の公開領域（場・エナ・トラッシュ）のシグニ名**から作る。
     //   🔴旧＝自分の手札の名前（最大4つ）＝**相手のカードを指せない候補**しか出なかった。
