@@ -26954,6 +26954,202 @@ scenarios.v71PuppetLeftFieldReturnsToTrueOwnerTrash = {
 };
 
 order.push('v71PuppetFilterPicksOnlyEligibleCard', 'v71PuppetLeftFieldReturnsToTrueOwnerTrash');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V-214（§5.3 `O-356` 第309バッチ）＝engine の対話を変えた2点を実機で見る。
+//   ①【歌のカケラ】`SONG_FRAGMENT`＝コストでエナの【歌のカケラ】を置いたあと、ハンドラが**もう1枚**トラッシュしていた。
+//     🔴golden は ctx（`effectsMap` / `sourceEffectId`）を手で組んでいる＝**実アプリのスタック解決経路で載っているか**は実機でしか分からない。
+//   ②【マジックボックス】設置 `PLACE_MAGIC_BOX`＝「設置してもよい」なのにゾーン選択に辞退肢が無かった。
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** `battle_states` の host 側を生で読む（`signi_magic_boxes` は `H.queryState` に無い）。 */
+async function v214RawHost(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return null;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+    const s = (await r2.json())?.[0]?.host_state ?? {};
+    return { magicBoxes: s.field?.signi_magic_boxes ?? [null, null, null], deck: s.deck ?? [], trash: s.trash ?? [] };
+  }, { SUPA_URL, ANON });
+}
+
+// ── ① SONG_FRAGMENT ──
+// エナ＝【歌のカケラ】2枚。コストで払うのは `WX26-CP1-078`（カケラ＝カードを2枚引く）。
+// もう1枚 `WX26-CP1-069`（カケラ＝パワー10000以下の相手シグニ1体をバニッシュ）は**相手の場が空なので何も起きない**。
+//   新挙動＝払った 078 のカケラを使う → **手札+2・069 はエナに残る**
+//   旧挙動＝払ったあと 069 を追加でトラッシュして 069 のカケラを使う → **手札±0・エナ0枚**
+scenarios.v214SongFragmentNoDoubleTrash = {
+  title: 'V-214① SPDi47-01【起】【歌のカケラ】＝コストで置いた1枚のカケラを使い、エナからもう1枚トラッシュしない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['SPDi47-01#9700'], 'field.lrig_down': false,
+      'field.signi': [null, null, null], 'field.check': null,
+      'energy': ['WX26-CP1-078#9701', 'WX26-CP1-069#9702'],
+      'hand': [], 'trash': [],
+      'deck': ['WD01-013#9703', 'WD01-016#9704', 'WD01-013#9705', 'WD01-016#9706'],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9710'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log(`開始 lrig=${JSON.stringify(before?.host?.lrigTop ?? before?.host?.lrig)} energy=${JSON.stringify(before?.host?.energyCards)} hand=${before?.host?.hand} phase=${before?.turnPhase ?? before?.phase}`);
+    await H.ensureMain();
+    let probed = false, opened = false, picked = false, fired = false, sawRun = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      const st = await H.queryState();
+      if (st?.pendingEffect || (st?.stackLen ?? 0) > 0) sawRun = true;
+      let did = null;
+      if (!fired) {
+        const trashCell = page.locator('[data-testid^="lrigact-energytrash-"][data-card-num="WX26-CP1-078"]').first();
+        if (await trashCell.count() && await trashCell.isVisible().catch(() => false)) {
+          opened = true;
+          if (!picked) { await trashCell.click({ timeout: 1200 }).catch(() => {}); picked = true; did = 'pick:WX26-CP1-078'; }
+          else {
+            const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await fire.count() && await fire.isEnabled().catch(() => false)) {
+              await fire.click({ timeout: 1200 }).catch(() => {}); fired = true; did = 'btn:発動';
+            }
+          }
+        } else {
+          const lrigImg = page.getByAltText('プリンセス・ネージュ', { exact: false }).first();
+          const names = await page.getByRole('button', { name: /^【起】/ }).evaluateAll(els => els.map(e => (e.textContent ?? '').trim())).catch(() => []);
+          if (!probed) { probed = true; H.log(`  PROBE 【起】labels=${JSON.stringify(names)}`); }
+          const idx = names.findIndex(n => /カケラ|エナ/.test(n));
+          if (names.length) {
+            await page.getByRole('button', { name: /^【起】/ }).nth(idx >= 0 ? idx : 0).click({ timeout: 1200 }).catch(() => {});
+            did = `btn:${names[idx >= 0 ? idx : 0]}`;
+          } else if (await lrigImg.count()) {
+            await lrigImg.click({ force: true, timeout: 1200 }).catch(() => {}); did = 'lrigImg';
+          }
+        }
+      } else {
+        did = await H.stdStep();
+      }
+      const now = await H.queryState();
+      H.log(`  v214sf[${s}] -> ${did ?? 'なし'} | opened=${opened} picked=${picked} fired=${fired} energy=${JSON.stringify(now?.host?.energyCards)} hand=${now?.host?.hand} trash=${JSON.stringify(now?.host?.trashCards)} pEff=${now?.pendingEffect ?? '-'} stack=${now?.stackLen ?? '-'}`);
+      const energy = now?.host?.energyCards ?? [];
+      const trash = now?.host?.trashCards ?? [];
+      const paidCost = trash.includes('WX26-CP1-078#9701');
+      if (fired && paidCost && !now?.pendingEffect && !((now?.stackLen ?? 0) > 0) && s >= 3) {
+        const keptOther = energy.includes('WX26-CP1-069#9702');
+        const drew = (now?.host?.hand ?? 0) - (before?.host?.hand ?? 0);
+        const detail = `コストで 078 を支払い（trash=${JSON.stringify(trash)}）／069 がエナに残る=${keptOther}（energy=${JSON.stringify(energy)}）／手札 ${before?.host?.hand}→${now?.host?.hand}（+${drew}）`;
+        if (keptOther && drew === 2) return { pass: true, detail: `🟢払った 078 のカケラ（2枚引く）を使い、エナからもう1枚トラッシュしない：${detail}` };
+        if (!keptOther) return { pass: false, detail: `🔴旧挙動＝エナからもう1枚トラッシュした（実アプリの ctx に effectsMap/sourceEffectId が載っていない疑い）：${detail}` };
+        return { pass: false, detail: `カケラの効果が払った 078 のものではない（引いた枚数 ${drew}）：${detail}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} picked=${picked} fired=${fired} sawRun=${sawRun} energy=${JSON.stringify(fin?.host?.energyCards)} hand=${fin?.host?.hand} trash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// ── ② PLACE_MAGIC_BOX ──
+// `WX24-P3-089-E2`【起】このシグニを場からトラッシュに置く：デッキの一番上を見て【マジックボックス】として設置してもよい。
+//   辞退側＝「設置しない」が**ゾーンの選択肢と並んで**出て、押すと MB が置かれない。
+//   対照＝同じ盤面でゾーン1を選ぶと MB が置かれる（＝機構自体は動いている）。
+function v214MagicBoxSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9720'], 'field.lrig_down': false,
+      'field.signi': [['WX24-P3-089#9721'], null, null], 'field.signi_magic_boxes': [null, null, null],
+      'field.check': null, 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9722', 'WD01-016#9723', 'WD01-013#9724'],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9730'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveV214MagicBox(page, H, decline) {
+  const tag = decline ? 'v214mbSkip' : 'v214mbPlace';
+  const raw0 = await v214RawHost(page);
+  H.log(`開始 magicBoxes=${JSON.stringify(raw0?.magicBoxes)} deckTop=${raw0?.deck?.[0]}`);
+  if ((raw0?.magicBoxes ?? []).some(Boolean)) return { pass: false, detail: `前提崩れ＝開始時に MB が既にある ${JSON.stringify(raw0?.magicBoxes)}` };
+  await H.ensureMain();
+  let activated = false, fired = false, sawSkip = false, sawZone = false, chosen = null, probed = false, zoneOpened = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(800);
+    const st = await H.queryState();
+    let did = null;
+    // 選択肢の段＝「設置しない」とゾーン選択が並ぶ CHOOSE
+    const btnNames = await page.getByRole('button').evaluateAll(els => els.map(e => (e.textContent ?? '').trim())).catch(() => []);
+    const skipVisible = btnNames.includes('設置しない');
+    const zoneVisible = btnNames.some(n => /^ゾーン\d/.test(n) && /設置|上書き/.test(n));
+    if (skipVisible || zoneVisible) {
+      if (!probed) { probed = true; H.log(`  PROBE 選択肢=${JSON.stringify(btnNames.filter(n => /設置|ゾーン/.test(n)))}`); }
+      sawSkip ||= skipVisible; sawZone ||= zoneVisible;
+      if (!chosen) {
+        if (decline && skipVisible) {
+          await page.getByRole('button', { name: '設置しない', exact: true }).first().click({ timeout: 1200 }).catch(() => {});
+          chosen = '設置しない'; did = 'btn:設置しない';
+        } else if (!decline && zoneVisible) {
+          const zbtn = page.getByRole('button', { name: /^ゾーン1/ }).first();
+          await zbtn.click({ timeout: 1200 }).catch(() => {});
+          chosen = 'ゾーン1'; did = 'btn:ゾーン1';
+        }
+      }
+    } else if (!activated) {
+      const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+      if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) {
+        await actBtn.click({ timeout: 1200 }).catch(() => {}); activated = true; did = 'btn:【起】';
+      } else if (!zoneOpened) {
+        await H.clickTestId('my-signi-zone-0').catch(() => {}); zoneOpened = true; did = 'zone0';
+      } else {
+        zoneOpened = false;
+      }
+    } else if (!fired) {
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1200 }).catch(() => {}); fired = true; did = 'btn:発動';
+      }
+    } else if (!chosen && (st?.pendingEffect || (st?.stackLen ?? 0) > 0)) {
+      did = await H.stdStep();
+    }
+    const raw = await v214RawHost(page);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | activated=${activated} fired=${fired} sawSkip=${sawSkip} sawZone=${sawZone} chosen=${chosen} mb=${JSON.stringify(raw?.magicBoxes)} trash=${JSON.stringify(raw?.trash)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (chosen && !st?.pendingEffect && !((st?.stackLen ?? 0) > 0)) {
+      const placed = (raw?.magicBoxes ?? []).some(Boolean);
+      const costPaid = (raw?.trash ?? []).includes('WX24-P3-089#9721');
+      const base = `sawSkip=${sawSkip} sawZone=${sawZone} costPaid=${costPaid} mb=${JSON.stringify(raw?.magicBoxes)}`;
+      if (!costPaid) return { pass: false, detail: `前提崩れ＝【起】のコスト（このシグニをトラッシュ）が払われていない：${base}` };
+      if (decline) {
+        return sawSkip && sawZone && !placed
+          ? { pass: true, detail: `🟢「設置しない」がゾーンと並んで出て、選ぶと MB は置かれない：${base}` }
+          : { pass: false, detail: `🔴辞退できない／置かれた：${base}` };
+      }
+      return sawSkip && placed && raw.magicBoxes[0]
+        ? { pass: true, detail: `🟢対照＝ゾーン1を選ぶと MB が置かれる（辞退肢も出ている）：${base}` }
+        : { pass: false, detail: `対照が置かれない：${base}` };
+    }
+  }
+  const fin = await v214RawHost(page);
+  return { pass: false, detail: `未完了（activated=${activated} fired=${fired} sawSkip=${sawSkip} sawZone=${sawZone} chosen=${chosen} mb=${JSON.stringify(fin?.magicBoxes)}）` };
+}
+scenarios.v214MagicBoxSkipDeclines = {
+  title: 'V-214② WX24-P3-089【起】＝【マジックボックス】設置に「設置しない」が出て、選ぶと置かれない',
+  spec: v214MagicBoxSpec(),
+  async drive(page, H) { return driveV214MagicBox(page, H, true); },
+};
+scenarios.v214MagicBoxPlaceControl = {
+  title: 'V-214② 対照＝同じ盤面でゾーン1を選ぶと【マジックボックス】が置かれる',
+  spec: v214MagicBoxSpec(),
+  async drive(page, H) { return driveV214MagicBox(page, H, false); },
+};
+order.push('v214SongFragmentNoDoubleTrash', 'v214MagicBoxSkipDeclines', 'v214MagicBoxPlaceControl');
 // ── V-71 END ──
 
 // ── §7 V-70（続き546・タスク12(cxix)＝ON_HAND_ADDED の owner 2軸）──

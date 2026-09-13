@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.1 `V-214` 返済＝実機で【歌のカケラ】と【マジックボックス】を確認／実機が出した実バグ1件を修正（第310バッチ）
+
+- **観測した2点**（第309で engine の対話を変えた箇所）
+  1. `v214SongFragmentNoDoubleTrash`＝`SPDi47-01-E1` を実 UI で起動し、エナの【歌のカケラ】2枚のうち `WX26-CP1-078` をコストで払う
+     ⇒ **払ったカードのカケラ（2枚引く）が使われ、もう1枚（`WX26-CP1-069`）はエナに残る**（手札 0→2）。
+     🔑実アプリのスタック解決経路でも `effectsMap` / `sourceEffectId` が ctx に載っていることを確認できた（golden は ctx を手で組んでいた）。
+  2. `v214MagicBoxSkipDeclines` / `v214MagicBoxPlaceControl`＝`WX24-P3-089-E2` の【起】で MB 設置の選択肢に
+     「ゾーン1〜3に設置」と**「設置しない」**が並ぶ。辞退すると置かれず、対照でゾーン1を選ぶと置かれる。
+- 🐛**実機が出した実バグ（第309以前からの穴）**＝**【マジックボックス】をゾーンに設置しても、実アプリでは何も置かれなかった。**
+  - **真因**＝`INTERNAL_SET_MAGIC_BOX` は置くカードを `ctx.lastProcessedCards[0]` から読んでいたが、実アプリは CHOOSE の解決を
+    **別の ExecCtx で再開**し（`BattleScreen.handleEffectInteraction`）、そこでは `lastProcessedCards` を復元しない ⇒ 毎回「カードなし」。
+  - **golden が緑だった理由**＝オートパイロット（`run()`）は同じ ctx のまま再開するので、実アプリの再開経路を通らない。
+  - **修正**＝`PLACE_MAGIC_BOX` の選択肢に**置くカードを payload で運ぶ**（`value: "ゾーン:カード"`）。数値だけの旧形は従来どおり `lastProcessedCards`。
+  - **影響**＝`PLACE_MAGIC_BOX` を持つ live 5効果（`WX24-P3-067-E1` / `WX24-P3-070-E1` / `WX24-P3-072-E1` / `WX24-P3-089-E2` / `WX24-P4-064-E1`）。
+- **UI の掴み手**＝ルリグ【起】の支払いモーダル（`LrigGrantedModal`）のエナトラッシュ欄に `lrigact-energytrash-${i}` と `data-card-num` を追加
+  （シグニ【起】の `signiact-energytrash-${i}` と同じ形。無いとコストに払うカードを実機で指定できない）。
+- **検証**＝実機3本 PASS（修正後に2回）。**反転確認**＝①【歌のカケラ】の分岐を外すと `v214SongFragmentNoDoubleTrash` が赤（エナ0枚・手札+0）
+  ②「設置しない」を外すと `v214MagicBoxSkipDeclines` が赤（辞退肢が出ない）。反転は入れた行だけを戻して PASS を取り直した。
+  golden に「`lastProcessedCards` の無い再開 ctx でも MB が置かれる」を追加。`npm run gates` 全緑（golden **4068 PASS**）。
+- **実機を回した理由**（§2.2）＝`src/screens/`（`LrigGrantedModal`）と engine の対話を変えた回。
+
 ## 2026-09-13 — 🏁§5.3 `O-356` クローズ＝原文エコー A群 44 → 0 id／engine の実バグ3件を修正・4項目を登録（第309バッチ）
 
 - **真因**＝`scripts/decompileEffects.ts` の44 id の分岐が**原文を regex で切り出して逆翻訳に貼っていた**。

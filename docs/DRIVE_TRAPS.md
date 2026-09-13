@@ -640,3 +640,11 @@
    `summon-zone-N` を押して**シグニは場に出ている**のに、ON_PLAY が積むストアが空（`{}`）のまま 12ティック進んだ。
    ⇒ **「盤面」と「効果が積んだ state」の両方を待ち、未着弾なら召喚からやり直す**（リトライ1回で解消）。
    🔑**単発では再現しない＝1回の緑を根拠にしない**（同じバッチを3回回して安定を確認した）。
+95. 🔴🆕**CHOOSE の選択肢は「別の ExecCtx で再開される」＝`lastProcessedCards` に頼る選択肢は実アプリでだけ空振りする**
+   （2026-09-13・`V-214`）＝`INTERNAL_SET_MAGIC_BOX` は置くカードを `ctx.lastProcessedCards[0]` から読んでいたが、
+   `BattleScreen.handleEffectInteraction` は再開 ctx に `lastProcessedCards` を載せない＝**ゾーンを選んでも「カードなし」で何も置かれない**。
+   🔑**golden の `run()` は同じ ctx のまま再開するので構造的に緑**（§4.4 冒頭の「クランプする側しか通らない」の変種）。
+   ⇒ **選択肢の action が参照する値は payload で運ぶ**（`value: "ゾーン:カード"`）。golden で守るなら**`lastProcessedCards` の無い ctx で選択肢の action を実行する**。
+   🔑**対照（置く側）を同じ巡で書いたから見つかった**＝辞退側だけなら「置かれない」で緑のまま通っていた（§4.4-3 の実例）。
+96. 🔴🆕**PowerShell の `>` で書いた実機ログは UTF-16 になり、bash の grep が1行も当たらない**（2026-09-13・`V-214`）＝
+   「結果が空」に見えて**実行が失敗したと誤読する**。⇒ **`Get-Content <log> | Select-String` で読む**（または bash 側でリダイレクトする）。

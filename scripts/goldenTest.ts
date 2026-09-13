@@ -71872,6 +71872,13 @@ test('§5.3 O-356: 歌のカケラの二重トラッシュ／MB 設置の辞退�
     duration: 'INSTANT', mandatory: true } as CardEffect, mbCtx);
   const mbOpts = ((mbRes as { pending?: { options?: { id: string }[] } }).pending?.options ?? []).map(o => o.id);
   ok(mbOpts.includes('skip'), '🔴「設置してもよい」＝辞退肢がある');
+  // 🆕`V-214`（実機で発見）＝実アプリは CHOOSE の解決を**別の ExecCtx で再開**し `lastProcessedCards` を復元しない。
+  //   ⇒ 選択肢の action を**`lastProcessedCards` の無い ctx**で実行しても置けること（置くカードは payload で運ぶ）。
+  const mbZone0 = ((mbRes as { pending?: { options?: { id: string; action: EffectAction }[] } }).pending?.options ?? []).find(o => o.id === 'zone_0');
+  ok(!!mbZone0, 'ゾーン1に設置する選択肢がある');
+  const mbResumeCtx = mkCtx({}, {}, 'WX24-P4-064');
+  const mbPlaced = run(mbZone0!.action, mbResumeCtx);
+  eq(mbPlaced.ownerState.field.signi_magic_boxes?.[0], SIGNI_L1, '🔴lastProcessedCards の無い再開 ctx でも、選んだゾーンに MB が置かれる');
   // ③ OPP_DRAW_LIMIT
   const withMin = run({ type: 'STUB', id: 'OPP_DRAW_LIMIT', oppHandMin: 2 } as EffectAction, mkCtx({}, { hand: 1 }));
   eq(withMin.otherState.draw_limit, undefined, '手札条件つき（WXDi-P05-039）＝相手の手札が1枚なら制限しない');

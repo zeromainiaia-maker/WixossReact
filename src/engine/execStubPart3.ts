@@ -1533,7 +1533,12 @@ export function execStubPart3(
       const label = existingMB
         ? `ゾーン${zi + 1}（既存MBを上書き）`
         : `ゾーン${zi + 1}に設置`;
-      return { id: `zone_${zi}`, label, action: ({ type: 'STUB', id: 'INTERNAL_SET_MAGIC_BOX', value: zi } as StubAction) as EffectAction, available: true };
+      // 🆕`V-214`（2026-09-13）＝**置くカードを選択肢の payload に入れる**（`ゾーン:カード`）。
+      //   🔴旧＝`value: zi` だけで、`INTERNAL_SET_MAGIC_BOX` は置くカードを `ctx.lastProcessedCards[0]` から読んでいた。
+      //   実アプリは CHOOSE の解決を**別の ExecCtx で再開**し（`BattleScreen.handleEffectInteraction`）、
+      //   そこでは `lastProcessedCards` を復元しない＝**ゾーンを選んでも「カードなし」で何も置かれなかった**（実機で発見）。
+      //   golden のオートパイロットは同じ ctx のまま再開するので緑だった。
+      return { id: `zone_${zi}`, label, action: ({ type: 'STUB', id: 'INTERNAL_SET_MAGIC_BOX', value: `${zi}:${cardPMB}` } as StubAction) as EffectAction, available: true };
     });
     // 🆕§5.3 `O-356`（2026-09-13）＝「設置しない」を足した。原文はどれも「設置**してもよい**」／「１枚**まで**」なのに
     //   ゾーン選択に辞退肢が無く、`WX24-P3-089-E2` / `WX24-P4-064-E1`（デッキの一番上を見て設置してもよい）は
@@ -1545,8 +1550,11 @@ export function execStubPart3(
   }
   // INTERNAL_SET_MAGIC_BOX: ゾーン確定後の実設置処理
   if (stub.id === 'INTERNAL_SET_MAGIC_BOX') {
-    const zoneIdxSMB: number = (typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'))) as number;
-    const cardSMB = ctx.lastProcessedCards?.[0] ?? null;
+    // 🆕`V-214`＝`value` は `ゾーン:カード`（置くカードを payload で運ぶ）。数値だけの旧形は `lastProcessedCards` を見る。
+    const rawSMB = String(stub.value ?? '0');
+    const sepSMB = rawSMB.indexOf(':');
+    const zoneIdxSMB: number = parseInt(sepSMB >= 0 ? rawSMB.slice(0, sepSMB) : rawSMB, 10);
+    const cardSMB = (sepSMB >= 0 ? rawSMB.slice(sepSMB + 1) : '') || (ctx.lastProcessedCards?.[0] ?? null);
     if (!cardSMB) return done(addLog(ctx, 'INTERNAL_SET_MAGIC_BOX：カードなし'));
     const currentMBs = [...(ctx.ownerState.field.signi_magic_boxes ?? [null, null, null])] as (string | null)[];
     const newTrashSMB = [...ctx.ownerState.trash];

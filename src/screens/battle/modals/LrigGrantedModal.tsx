@@ -323,6 +323,9 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                           const isSel = selectedLrigGrantedEnergyTrash.has(i);
                           return (
                             <div key={i}
+                              // 🆕実機ドライバ用の掴み手（`V-214`・2026-09-13）＝シグニ【起】の `signiact-energytrash-${i}` と同じ形。
+                              //   無いと「どのカードをコストに払ったか」を実機で指定できない（index はエナの並びに依存する）。
+                              data-testid={`lrigact-energytrash-${i}`} data-card-num={getCardNum(num)}
                               onClick={() => matches && setSelectedLrigGrantedEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
