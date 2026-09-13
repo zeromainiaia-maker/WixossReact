@@ -145,7 +145,7 @@ live JSON の STUB id 種類 : 599（総ノード 3371 件）
         消費: src\engine\effectExecutor.ts:6643
      2件   2枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-086
-        消費: src\engine\effectEngine.ts:8464 / src\engine\effectEngine.ts:8482
+        消費: src\engine\effectEngine.ts:8469 / src\engine\effectEngine.ts:8487
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
@@ -160,7 +160,7 @@ live JSON の STUB id 種類 : 599（総ノード 3371 件）
         消費: src\engine\effectExecutor.ts:1414
      1件   1枚  ENERGY_COST_SUBSTITUTE_WHOLE
         カード: WX09-032
-        消費: src\engine\effectEngine.ts:8337
+        消費: src\engine\effectEngine.ts:8342
      1件   1枚  FLIP_SELF_ON_TARGETED
         カード: WX25-CP1-060
         消費: src\screens\battle\targetDodgeFlip.ts:46
@@ -169,7 +169,7 @@ live JSON の STUB id 種類 : 599（総ノード 3371 件）
         消費: src\engine\execUtils.ts:1657
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
-        消費: src\engine\effectEngine.ts:8276
+        消費: src\engine\effectEngine.ts:8281
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
         消費: src\engine\effectExecutor.ts:10716
@@ -217,7 +217,7 @@ live JSON の STUB id 種類 : 599（総ノード 3371 件）
         消費: src\engine\execUtils.ts:2279
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:8520
+        消費: src\engine\effectEngine.ts:8525
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

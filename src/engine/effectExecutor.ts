@@ -11825,6 +11825,17 @@ export function resumeSelectTarget(
     if (pending.continuation) return executeAction(pending.continuation, cur);
     return done(cur);
   }
+  // selfTrashCost は「このシグニを場からトラッシュに置いた場合」の支払いが前提。
+  // 解決前に効果元が場を離れていれば、対象だけを無償でバニッシュしてはならない。
+  if (selected.length > 0
+      && pending.thenAction.type === 'BANISH'
+      && (pending.thenAction as BanishAction).selfTrashCost
+      && (!cur.sourceCardNum
+        || !cur.ownerState.field.signi.some(s => s?.at(-1) === cur.sourceCardNum))) {
+    const skipped = { ...cur, lastProcessedCards: [] };
+    const cont = pending.continuation ? stripDidItConditional(pending.continuation) : undefined;
+    return cont ? executeAction(cont, skipped) : done(skipped);
+  }
   // §6.4 離場置換の対話化（続き430）＝**移動を1つも適用する前に**被害側へまとめて問う。
   // ⚠この per-card ループは pause すると残りの選択を落とす（ADD_TO_FIELD 等が個別に特例回避して
   //   いるのがその証拠）。だから「ループの途中で聞く」のではなく、**ここで全部聞いてから**

@@ -6696,10 +6696,15 @@ export function collectEffectImmuneSigni(
 
         // 🆕**§5.3 `O-284`（2026-09-08）＝「自身以外の効果を受けない」の identity 例外。**
         //   ⚠`exceptSource`（型限定）では表せない＝同じ型の**別カード**まで通してしまう。
-        //   ⚠instance id（`CardNum#N`）で来る経路があるので base 化して比べる。
-        //   ⚠`getCardNum` はこのファイルに import が無いのでインスタンス ID の `#N` はここで落とす。
-        if (gp.exceptSelfSource && sourceCardNum
-            && sourceCardNum.split('#')[0] === sourceNum.split('#')[0]) continue;
+        //   ⚠両方に instance id（`CardNum#N`）がある実機形は完全一致で比べる。
+        //     base 化だけで比べると、同名の別コピー（#1 / #2）まで「自身」に化けて素通りする。
+        //     片方が base 番号だけの旧経路では互換のため base 比較へフォールバックする。
+        const sourceHasInstance = sourceCardNum?.includes('#') ?? false;
+        const holderHasInstance = sourceNum.includes('#');
+        const isSelfSource = !!sourceCardNum && (sourceHasInstance && holderHasInstance
+          ? sourceCardNum === sourceNum
+          : sourceCardNum.split('#')[0] === sourceNum.split('#')[0]);
+        if (gp.exceptSelfSource && isSelfSource) continue;
 
         // この解決中のソース種別が耐性対象に含まれるか判定
         const blocked = gp.fromAll

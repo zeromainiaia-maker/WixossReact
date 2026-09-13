@@ -16333,6 +16333,25 @@ test('WX21-052-E1-G: GRANT_FIELD_SIGNI_ABILITY 付与でも triggerScope は「�
   }, 'ON_TURN_END', owner, empty).entries;
   ok(!ownEnd.some(e => e.effectId === 'WX21-052-E1-G'), '自分のターン終了時には発火しない（triggerScope:any_opp の反転確認）');
 }));
+test('O-348 WX21-052-E1-G: selfTrashCost は効果元を場から払えない場合バニッシュしない', () => withSavedCursor(() => {
+  const eff = findEffectDeep(effectsMap.get('WX21-052') ?? [], 'WX21-052-E1-G')!;
+  const victim = findCard(c => isSigni(c) && Number(c.Power || 0) <= 5000 && c.CardNum !== 'WX21-052');
+
+  const paid = run(eff.action, mkCtx(
+    { signi: ['WX21-052', null, null] },
+    { signi: [victim, null, null] },
+    'WX21-052',
+  ));
+  eq(paid.ownerState.field.signi[0], null, '支払える場合は効果元を場からトラッシュに置く');
+  eq(paid.otherState.field.signi[0], null, 'コストを支払った場合だけ対象をバニッシュする');
+
+  const unpaid = run(eff.action, mkCtx(
+    {},
+    { signi: [victim, null, null] },
+    'WX21-052',
+  ));
+  ok(!!unpaid.otherState.field.signi[0], '効果元が場にいなければ対象をバニッシュしない');
+}));
 
 // §5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（STUB{DRAW_BY_CHARM_COUNT}）。
 // 原文「対戦相手の場にある【チャーム】の数に１を加えた枚数のカードを引く」。旧実装は
@@ -75447,6 +75466,16 @@ test('§5.3 O-284: WX17-001-E1 は自分の他カードの効果も遮断し、�
   // (c) **自身の能力**は通す（通さないと E2 が自分に効かない）。
   eq(immuneOf('WX17-001').has('WX17-001'), false, '🔴自身の能力は例外＝遮断しない');
   eq(immuneOf('WX17-001#1').has('WX17-001'), false, 'instance id でも自身と判定する');
+  // O-348: 両者に instance id がある実機形では、同じカード番号の別コピーを「自身」に含めない。
+  const instanceHolder = mkState({});
+  instanceHolder.field.lrig = ['WX17-001#1'];
+  const instanceEffects = new InstanceMap(localMap);
+  const instanceCards = new InstanceMap(cardMap as Map<string, CardData>);
+  const immuneFromCopy = (sourceCardNum: string) => collectEffectImmuneSigni(
+    instanceHolder, mkState({}), instanceCards, instanceEffects, true, 'ルリグ', sourceCardNum,
+  );
+  eq(immuneFromCopy('WX17-001#1').has('WX17-001#1'), false, '同じインスタンス自身の能力は通す');
+  ok(immuneFromCopy('WX17-001#2').has('WX17-001#1'), '同名の別コピーからの効果は遮断する');
   // (d) 🔴**自分側の集合を計算して ctx へ渡す配線が `BattleScreen` に在る**
   //   （`sourceOwner:'any'` と書いても、片側専用の呼び出ししか無ければ実機では効かない＝`O-284` の本体）。
   const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');

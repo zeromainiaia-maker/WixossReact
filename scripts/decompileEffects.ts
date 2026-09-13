@@ -1296,7 +1296,11 @@ function condJa(c?: any): string {
     case 'THIS_CARD_HAS_ATTACHED': return `このシグニにカードが${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}付いている`;
     case 'ZONE_SUM_COUNT': {
       const zonesJa = c.zones.map(z => countFromZoneJa(z)).join('と');
-      return `${zonesJa}の合計が${numJa(c.value)}${opJa(c.operator)}`;
+      const acrossJa = c.distinctAcrossZones === 'name'
+        ? '（同名カードは1種類として、領域をまたいで重複なく数える）'
+        : c.distinctAcrossZones === 'level'
+          ? '（同じレベルは1種類として、領域をまたいで重複なく数える）' : '';
+      return `${zonesJa}${acrossJa}の合計が${numJa(c.value)}${opJa(c.operator)}`;
     }
     case 'CENTER_LRIG_ATTACKED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグがアタックしてい${c.negate ? 'なかった' : 'た'}`;
     case 'THIS_CARD_HAS_UNDER': {
@@ -1559,6 +1563,12 @@ function rearrangeSigniJa(a: any): string {
       : `${fieldText}と、${sourceText}を対象とし、それらの場所を入れ替える`;
     return `${body}${a.suppressOnPlay ? '。この方法で場に出たシグニの【出】能力は発動しない' : ''}`;
   }
+  if (a.swapWithLastProcessed) {
+    // 🔴`suppressOnPlay` を落とすと原文「そのシグニの【出】能力は発動しない」が消える
+    //   （上の swapSourceTarget 分岐は描いていたのに、この分岐だけ落ちていた＝`WXDi-P08-037-E2`）。
+    return `直前に処理したシグニと${targetJa(a.target)}の場所を入れ替える${a.optional ? '（してもよい）' : ''}`
+      + `${a.suppressOnPlay ? '。そのシグニの【出】能力は発動しない' : ''}`;
+  }
   return `${targetJa(a.target)}とこのシグニの場所を入れ替える${a.optional ? '（してもよい）' : ''}`;
 }
 
@@ -1586,9 +1596,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'DRAW_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につきカードを${a.drawPerLevel}枚引く`;
     case 'ENERGY_CHARGE_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につき【エナチャージ${a.chargePerLevel}】をする`;
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきデッキの一番上のカードを${a.chargePerUnit}枚エナゾーンに置く`;
-    case 'BANISH': return a.targetsStored ? 'それをバニッシュする' : a.opponentSelects
-      ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
-      : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
+    case 'BANISH': {
+      const banishJa = a.targetsStored ? 'それをバニッシュする' : a.opponentSelects
+        ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
+        : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
+      return a.selfTrashCost
+        ? `このシグニを場からトラッシュに置いてもよい。そうした場合、${banishJa.replace(/（してもよい）$/, '')}`
+        : banishJa;
+    }
     // 🆕**2026-08-31 続き752**＝`targetsLastProcessed`（「**それ**を手札に戻す」）を描く。
     //   落とすと「別のシグニを選べる」実装と同じ文になり、過剰実行が原文照合に映らない（`WX25-P1-002-E1`）。
     case 'BOUNCE': return `${a.targetsLastProcessed ? 'それ（直前に処理したシグニ）' : targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
@@ -1624,7 +1639,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FIELD_SIGNI_TO_ACCE': {
       const srcFilJaFSA = a.sourceFilter ? filterJa(a.sourceFilter) : '';
       const hostFilJaFSA = a.targetFilter ? filterJa(a.targetFilter) : '';
-      return `場の${srcFilJaFSA}シグニ1体を、他の${hostFilJaFSA}シグニ1体の【アクセ】にする`;
+      const sourceJaFSA = a.sourceThisCard ? 'このシグニ' : `場の${srcFilJaFSA}シグニ1体`;
+      const hostJaFSA = a.sourceThisCard
+        ? `${ownerJa(a.targetSigniOwner)}${hostFilJaFSA}シグニ1体`
+        : `他の${hostFilJaFSA}シグニ1体`;
+      const reattachJaFSA = a.reattachPreviousAcceOptional
+        ? '。それまでこのシグニの【アクセ】だったカード1枚を、あなたのシグニ1体の【アクセ】にしてもよい'
+        : '';
+      return `${sourceJaFSA}を、${hostJaFSA}の【アクセ】にする${reattachJaFSA}`;
     }
     // BLOOD_CRYSTAL_ARMOR: シグニ1体を血晶武装する（指定領域から同名カードをそのシグニの下に置き血晶武装状態にする）
     case 'BLOOD_CRYSTAL_ARMOR': {
@@ -2369,7 +2391,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const trigJaIDT = a.trigger?.timing === 'ON_OPP_LIFE_CRASHED'
         ? '対戦相手のライフクロス1枚をクラッシュしたとき'
         : (timingJa[a.trigger?.timing] ?? a.trigger?.timing ?? '');
-      return `このターン、${subjIDT}${trigJaIDT}、${actionJa(a.effect)}`;
+      const fireJaIDT = a.fireCondition?.type === 'SIGNI_DOWNED_COUNT_THIS_TURN'
+        ? `${ownerJa(a.fireCondition.owner)}${filterJa(a.fireCondition.filter)}シグニがこのターンにダウンした回数が${numJa(a.fireCondition.value)}回${opJa(a.fireCondition.operator)}になっている場合、`
+        : a.fireCondition ? `${condJa(a.fireCondition)}場合、` : '';
+      return `このターン、${subjIDT}${trigJaIDT}、${fireJaIDT}${actionJa(a.effect)}`;
     }
     case 'REMOVE_ABILITIES': {
       // action内 until が curated JSON で落ちている場合、原文の「能力を失い/失う」文から期間注記を復元（§5b・タスクA）
@@ -2466,6 +2491,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return timedProtection(`${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`);
+      }
+      if (a.fromAll && a.exceptSelfSource) {
+        return timedProtection('このカードは自身以外の効果を受けない');
       }
       // 例外なしの fromAll＝「〜の効果を受けない」。`from` が空なので下の軸トークン分岐へ落ちると
       // 軸リストが空になり **「対戦相手の効果によってない」** という壊れた文になっていた（3効果）。
@@ -2706,6 +2734,9 @@ function actionJa(a?: Action, effectType?: string): string {
         ? `。追加コストを支払っていた場合、代わりに${numJa(a.additionalCostChoose.thenChooseCount)}つ${a.additionalCostChoose.thenUpTo ? 'まで' : ''}選ぶ`
         : '';
       const allowRepeatCh = a.allowRepeat ? '。同じ選択肢を2回以上選んでもよい' : '';
+      const virusCh = a.preUseVirusChoose
+        ? `。このスペルの使用時に対戦相手の場の【ウィルス】を${numJa(a.preUseVirusChoose.minRemoved)}つ以上取り除いていた場合、代わりに${numJa(a.preUseVirusChoose.thenChooseCount)}つ${a.preUseVirusChoose.thenUpTo ? 'まで' : 'を'}選ぶ`
+        : '';
       // 🔴**誰が選ぶか**を書かないと原文照合できない（§5.3 `O-60` 第14バッチ）＝「対戦相手は以下の2つから
       //   1つを選び、あなたはそれを行う」は**選ぶ主体が相手**であることが効果の要点。
       //   `opponentResponds` を落とすと「あなたが選ぶ」と読めてしまい、逆翻訳が原文と真逆になる。
@@ -2713,7 +2744,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕noRepeat＝「まだ選んでいないもの」（このゲーム中に選んだ選択肢は二度と選べない）。
       //   落とすと毎回同じ選択肢を取れる強い効果に読める（`WXDi-P11-003`）。
       const noRepCh = a.noRepeat ? 'まだ選んでいないもの' : '';
-      return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}${additionalCostCh}${allowRepeatCh}【${chOpts.join(' / ')}】`;
+      return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}${additionalCostCh}${allowRepeatCh}${virusCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
@@ -2804,6 +2835,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const rapCnt = a.revealCount ?? a.count;
       const rapFilter = a.filter ?? a.pickFilter;
       const pickN = a.pickCount === 'ALL' ? (a.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
+      if (a.opponentChoosesPileToTrash) {
+        return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚見て、そのうち${pickN}を表向きの束にし、残りを裏向きの束にする。対戦相手は一方の束を選んでトラッシュに置き、あなたはもう一方の束を手札に加える`;
+      }
       // anyOf 単独なら「スペルか＜原子＞のシグニ」がそのまま名詞句になる＝pickNoun を後置しない
       const filterStr = rapFilter?.anyOf && Object.keys(rapFilter).length === 1
         ? anyOfJa(rapFilter.anyOf)
@@ -3021,7 +3055,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.team && a.level !== undefined) {
         return `あなたの＜${a.team}＞のレベル${a.level}のルリグ1体を対象とし、それをルリグデッキに戻す（下のカードは場に残す）`;
       }
-      return '《アタックフェイズアイコン》を持たずグロウコストが《無×0》ではないあなたのアシストルリグ1体を対象とし、それをルリグデッキに戻す';
+      return `${a.withoutAttackPhaseIcon ? '《アタックフェイズアイコン》を持たず' : ''}${a.excludeColorlessZeroGrowCost ? 'グロウコストが《無×0》ではない' : ''}あなたのアシストルリグ1体を対象とし、それをルリグデッキに戻す`;
     case 'MUTUAL_DISCARD_AND_DRAW': return a.drawMax
       ? 'あなたと対戦相手は手札をすべて捨て、捨てられた枚数のうち最も大きい数に等しい枚数を双方が引く'
       : 'あなたと対戦相手は手札をすべて捨てる';
@@ -3155,6 +3189,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // bySource＝バニッシュ元の限定（続き217）。無いと「常時・全バニッシュ」に読めてしまう。
       const src = a.bySource === 'battle_with_this' ? 'このシグニとのバトルによって'
         : a.bySource === 'by_this' ? (a.byEffectOnly ? 'このシグニの効果によって' : 'このシグニによって') : '';
+      // `battleOnly`＝「バトルによってバニッシュされる場合」だけ置換する軸（`WXDi-P15-078-E2`）。
+      //   ⚠`bySource` が在るときはそちらのほうが具体的（「このシグニとのバトルによって」）なので
+      //     上書きしない＝**軸を足すときに既存の語を消さない**。
+      const cause = src || (a.battleOnly ? 'バトルによって' : '');
       // 🆕consumeOnce＝「次に1回だけ」（§5.3 `O-210`）。無いと「このターン中は何体でも」に読めてしまう。
       const once = a.consumeOnce ? '次に' : '';
       // whenPowerZero＝バニッシュされる側の限定（続き218）。無いと「全バニッシュ」に読めてしまう。
@@ -3170,9 +3208,9 @@ function actionJa(a?: Action, effectType?: string): string {
       ].join('');
       const victim = a.frontOnly ? `このシグニの正面の${attr}シグニ` : `対戦相手の${attr}シグニ`;
       return a.redirectTo === 'exile'
-        ? `このターン、${p0}${victim}が${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
-        : src || p0 || attr
-          ? `${once}${p0}${victim}が${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+        ? `このターン、${p0}${victim}が${cause}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
+        : cause || p0 || attr
+          ? `${once}${p0}${victim}が${cause}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
           : `${victim}のバニッシュ先をトラッシュに変更する`;
     }
     case 'COST_INCREASE': {

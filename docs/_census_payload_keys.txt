@@ -3,7 +3,7 @@
 
 live JSON の payload キー: 573種
   描かなくてよいと登録済み（IGNORED）: 5種
-  🔴逆翻訳が一度も言及しない        : 46種 / 99ノード
+  🔴逆翻訳が一度も言及しない        : 34種 / 87ノード
 
 ⚠候補出しであって判定ではない＝1キーずつ「落とすと原文のどの語が説明できなくなるか」で判定する。
   意味を持つキー → decompileEffects.ts に描画を足す／実装の都合 → IGNORED に理由つきで登録。
@@ -34,22 +34,12 @@ live JSON の payload キー: 573種
         例: SPDi44-08-E2, WX25-P1-018-E2
      2ノード   2枚  trapCheckRest  [STUB]
         例: WXDi-P11-006-E1, WXK02-035-E2
-     1ノード   1枚  battleOnly  [BANISH_REDIRECT]
-        例: WXDi-P15-078-E2
      1ノード   1枚  declareFromLastProcessed  [STUB]
         例: WD08-008-E1
-     1ノード   1枚  distinctAcrossZones  [ZONE_SUM_COUNT]
-        例: WXDi-CP01-031-E1
      1ノード   1枚  downUpSigniChoose  [STUB]
         例: SPDi43-23-E1
-     1ノード   1枚  exceptSelfSource  [GRANT_PROTECTION]
-        例: WX17-001-E1
-     1ノード   1枚  excludeColorlessZeroGrowCost  [RETURN_ASSIST_LRIG_TO_DECK]
-        例: WXDi-P05-010-E3
      1ノード   1枚  fetchCardName  [STUB]
         例: PR-470A-E2
-     1ノード   1枚  fireCondition  [INSTALL_DELAYED_TRIGGER]
-        例: WX05-042-E1
      1ノード   1枚  handDiscardGroups  [STUB]
         例: WXDi-D09-P15-E1
      1ノード   1枚  leaveToTrashWindow  [STUB]
@@ -62,14 +52,8 @@ live JSON の payload キー: 573種
         例: WXK03-042-E1
      1ノード   1枚  oppActivateCostUntilOppTurnEnd  [STUB]
         例: WXDi-P15-033-E2
-     1ノード   1枚  opponentChoosesPileToTrash  [REVEAL_AND_PICK]
-        例: WXDi-P05-015-E2
      1ノード   1枚  powerPlusBanishedPower  [STUB]
         例: WX24-P2-049-E2
-     1ノード   1枚  preUseVirusChoose  [CHOOSE]
-        例: WX15-067-E1
-     1ノード   1枚  reattachPreviousAcceOptional  [FIELD_SIGNI_TO_ACCE]
-        例: SP27-015-E1
      1ノード   1枚  refreshLifeMoveReplace  [STUB]
         例: WX24-P3-009-E1
      1ノード   1枚  repeatBodyWhile  [STUB]
@@ -78,25 +62,17 @@ live JSON の payload キー: 573種
         例: WXDi-D04-011-E1
      1ノード   1枚  selfEnergyToDeckBottom  [STUB]
         例: WXDi-P02-044-E1
-     1ノード   1枚  selfTrashCost  [BANISH]
-        例: WX21-052-E1
      1ノード   1枚  sideAttackEmptyZoneAsFront  [STUB]
         例: WX16-021-E1
      1ノード   1枚  skipArtsReturn  [STUB]
         例: WXEX2-84-E1
-     1ノード   1枚  sourceThisCard  [FIELD_SIGNI_TO_ACCE]
-        例: SP27-015-E1
      1ノード   1枚  stripSelf  [STUB]
         例: WXDi-P07-041-E2
      1ノード   1枚  swapOptional  [STUB]
         例: WXDi-P10-047-E1
-     1ノード   1枚  swapWithLastProcessed  [REARRANGE_SIGNI]
-        例: WXDi-P08-037-E2
      1ノード   1枚  trashedCardUpTo  [STUB]
         例: WX24-P3-007-E1
      1ノード   1枚  triggeringSigniTrash  [STUB]
         例: WD22-007-G-E1
      1ノード   1枚  variableEnergyTrashLevelBounce  [STUB]
         例: WX25-CP1-040-E2
-     1ノード   1枚  withoutAttackPhaseIcon  [RETURN_ASSIST_LRIG_TO_DECK]
-        例: WXDi-P05-010-E3
