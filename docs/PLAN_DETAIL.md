@@ -7732,6 +7732,15 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-13・第313バッチ後・PLAN §6 から退避）
+
+- **2026-09-13 時点（本ブロックが直近の正）**＝第313バッチ（Codex 委譲＝🏁`O-353` Part A）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  📦**在庫**＝**機構 worklist 🔥11項目**（**索引A 🏁0**／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4074 PASS**／smoke 10754 OK／fuzz 200ゲーム 0／census 1 / BASELINE 1。
+  🔧**`census:enginetext` A群 22行 / 21ハンドラ（`BASELINE_SELF_TEXT = 22`）＝第312の較正**（合計147行・C 95行は不変）。⚠**`miss` は門 id を束ねるハンドラ群で過大**＝取る前に triage。
+  🆕**払い戻し**＝`census:numberdrift` **65 → 64**（第312）／`census:stublabel` A群 **10 → 7**（第313＝宣言候補の領域をラベルに描いた）。
+
 ### 恒久指標アーカイブ（2026-09-13・第312バッチ後・PLAN §6 から退避）
 
 - **2026-09-13 時点（本ブロックが直近の正）**＝第312バッチ（Codex 委譲＝`O-345` 真バグ#3 ＋ `O-343` 較正）

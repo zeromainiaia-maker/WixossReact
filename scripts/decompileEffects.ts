@@ -4664,10 +4664,23 @@ function actionJa(a?: Action, effectType?: string): string {
           : `${kinds}${spec.kinds.length > 1 ? 'の' : ''}能力`;
         return `このシグニはこのカードの下にある${underFilter}シグニの${abilities}${spec.grantRestriction ? 'と、限定条件' : ''}を得る`;
       }
+      if (a.id === 'INHERIT_UNDER_SIGNI_COLOR') {
+        const spec = a.inheritUnderSigniColor;
+        return spec
+          ? `このシグニはこのカードの下にある＜${spec.story}＞のシグニが持つ色を得る`
+          : '【※ペイロード欠落】下のどのクラスから色を得るか未指定（engine は色を得ない）';
+      }
+      if (a.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+        const spec = a.lrigTypeGain;
+        if (!spec) return '【※ペイロード欠落】追加するルリグタイプ・色・リミット未指定（engine は何も追加しない）';
+        const fw = (n: number) => String(n).replace(/\d/g, d => String.fromCharCode(d.charCodeAt(0) + 0xFEE0));
+        const limit = spec.limitDelta ? `このルリグのリミットは${fw(spec.limitDelta)}増え、` : '';
+        const gains = [...(spec.colors ?? []), ...spec.types.map((type: string) => `＜${type}＞`)].join('と');
+        return `${limit}このルリグは追加で${gains}を得る`;
+      }
       const grantUnderMap: Record<string, string> = {
         GRANT_UNDER_LRIG_ACTIVATE_ABILITY: 'このルリグはこのカードの下にあるルリグの【起】能力を持つ',
         GRANT_UNDER_LRIG_AUTO_ABILITY: 'このルリグはこのカードの下にあるルリグの【自】能力を持つ',
-        INHERIT_UNDER_SIGNI_COLOR: 'このシグニはこのカードの下にある＜天使＞のシグニが持つ色を得る',
         GAIN_LRIG_COLOR: 'このシグニはあなたの場にいるルリグが持つ色を得る',
         GAIN_ADDITIONAL_LRIG_TYPE: 'あなたのセンタールリグが＜タウィル＞か＜ウムル＞であるかぎり、それは追加で＜タウィル/ウムル＞を得る',
       };

@@ -5913,6 +5913,8 @@ export interface StubAction {
    * - `optionalEnergyTrash`＝`OPTIONAL_TRASH_ENERGY_CLASS` のクラス・枚数・行き先（アビリティ原文由来）
    * - `gainColor` / `gainColorDissonaOnly` / `gainColorUnsupportedFilter`＝`FIELD_ENERGY_SIGNI_GAIN_COLOR`
    * - `treatAsClass`＝`TREAT_AS_CLASS_ALL_ZONES` / `protectColor`＝`PREVENT_SIGNI_ABILITY_LOSS_BY_OPP`
+   * - `lrigTypeGain`＝`LRIG_LIMIT_UP_AND_COLOR_GAIN` の追加タイプ・色・リミット増分
+   * - `inheritUnderSigniColor`＝`INHERIT_UNDER_SIGNI_COLOR` が参照する下敷きシグニのクラス
    * - `oppHandMin`＝`OPP_DRAW_LIMIT` の「対戦相手の手札がN枚以上ある場合」（parser が文から刻む）
    */
   optionalEnergyTrash?: { story?: string; count: number; toHand?: boolean };
@@ -5921,6 +5923,8 @@ export interface StubAction {
   gainColorUnsupportedFilter?: boolean;
   treatAsClass?: string;
   protectColor?: string;
+  lrigTypeGain?: { types: string[]; colors?: string[]; limitDelta?: number };
+  inheritUnderSigniColor?: { story: string };
   oppHandMin?: number;
   /**
    * 🆕**`TK3_DECLARE_DISCARD` が捨てさせる側の絞り込み**（2026-09-12・§5.3 `O-312`・`WXDi-D09-P04-E3`）＝

@@ -78,7 +78,7 @@ const onlyIds = (() => {
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
-const BASELINE_SELF_TEXT = 22;   // 🆕🔴**2026-09-13（§5.3 `O-343`）＝0 → 22 は「較正」であって退化ではない**＝engine のコードは1行も増えていない。旧 `isSelf` は**代入行の前後3行を変数名で照合するだけ**だったので、「場/キー枠を走査して **その STUB を宣言しているカード**を見つけ、そのカード自身の原文を読む」形（変数名が `top`/`card`/`cn`）が**全部 B に落ちていた**。いまは ID 門で選ばれた変数を関数スコープで追跡して A に入れる。⚠**A群を payload 化すれば 22 → 0 へ戻せる**（`O-60` と同じ型）。／（以下は履歴）🏁2026-09-13 `O-356` 払い戻し④で 1 → 0（`OPTIONAL_TRASH_ENERGY_CLASS` を payload 化）／その前に 0 → 1 の較正（funnel の検出が引数名 `ctx` に依存していた）／第71で 9→7・第72で 7→6・第73で 6→5・第74で 5→2・第75で 2→1・第76で 1→0。
+const BASELINE_SELF_TEXT = 20;   // 🆕🏁**2026-09-13（§5.3 `O-343` 第314バッチ）22 → 20 は「消化（payload 化）」であって較正ではない**＝`LRIG_LIMIT_UP_AND_COLOR_GAIN` と `INHERIT_UNDER_SIGNI_COLOR` の原文 regex を data 層の payload へ移した。／（以下は履歴）🆕🔴同日 0 → 22 は「較正」であって退化ではない＝ID 門で選ばれた宣言元カードの原文参照を A に入れた。🏁同日 `O-356` 払い戻し④で 1 → 0（`OPTIONAL_TRASH_ENERGY_CLASS` を payload 化）／その前に 0 → 1 の較正（funnel の検出が引数名 `ctx` に依存していた）／第71で 9→7・第72で 7→6・第73で 6→5・第74で 5→2・第75で 2→1・第76で 1→0。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
@@ -90,6 +90,48 @@ type Row = {
 };
 const rows: Row[] = [];
 const gateSelectedSelfRows: Array<{ file: string; line: number; ids: string[] }> = [];
+
+/** 現在行を囲う最も内側の `{ ... }` の開始行。閉じた兄弟ブロックまで門を遡らないための下限。 */
+function innermostOpenBlockStart(lines: string[], lineIndex: number): number {
+  let closed = 0;
+  for (let j = lineIndex; j >= 0; j--) {
+    const line = lines[j];
+    for (let p = line.length - 1; p >= 0; p--) {
+      if (line[p] === '}') closed++;
+      else if (line[p] === '{') {
+        if (closed > 0) closed--;
+        else return j;
+      }
+    }
+  }
+  return Math.max(0, lineIndex - 500);
+}
+
+/** `openLine` の最初の `{` と対になる `}` の行。リテラル探索を次の兄弟ブロックへ漏らさない。 */
+function matchingBlockEnd(lines: string[], openLine: number): number {
+  let depth = 0;
+  let opened = false;
+  for (let j = openLine; j < lines.length; j++) {
+    for (const c of lines[j]) {
+      if (c === '{') { depth++; opened = true; }
+      else if (c === '}' && opened) {
+        depth--;
+        if (depth === 0) return j;
+      }
+    }
+  }
+  return Math.min(lines.length, openLine + 250);
+}
+
+function containingHandler(lines: string[], lineIndex: number): string {
+  for (let j = lineIndex; j >= 0 && j > lineIndex - 500; j--) {
+    const cs = lines[j].match(/^\s*case\s+'([A-Za-z0-9_]+)'\s*:/);
+    if (cs) return 'case:' + cs[1];
+    const fn = lines[j].trim().match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
+    if (fn) return 'fn:' + fn[1];
+  }
+  return '(top)';
+}
 
 /**
  * ID 門で選ばれた効果宣言元カードの原文参照かを、関数内のデータフローで判定する。
@@ -231,6 +273,8 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     const trimmed = lines[i].trim();
     const isComment = /^(\/\/|\*|\/\*)/.test(trimmed);
 
+    const selfGateIds = isComment ? [] : gateSelectedSourceText(lines, i);
+
     // ── 到達条件（gates）の収集 ──
     // ⚠**素朴に「直近の `stub.id === 'X'`」だけを見ると母集団が化ける**（初版がこれで誤検出した）＝
     //   ディスパッチャの分岐の**内側**に `stubN.id === 'Y' && contN.id === 'Z'` のような入れ子の門があり、
@@ -246,7 +290,7 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     // 🔴**後方へ1回だけ走査し、ディスパッチャ（`stub.id === 'X'`）に当たったら必ず打ち切る**。
     //   打ち切らずに固定幅の窓で拾うと、**直前の兄弟ハンドラの `if (stub.id === 'PREV')` を門として
     //   数えてしまう**（`LOOK_OPP_LIFE_TOP` が `REVEAL_EACH_PLAYER_DECK_TOP` との AND に化けた）。
-    let handler = '(top)';
+    let handler = containingHandler(lines, i);
     // 🆕🔴**1行に収まらない門も全部拾う**（§5.3 `O-60` 第63バッチ・2026-09-04＝**計器の較正**）。
     //   ①**`||` で折り返した `if`**＝後方走査は「`stub.id === 'X'` を含む行」で打ち切るので、
     //     `if (stub.id === 'A' || stub.id === 'B' ||⏎    stub.id === 'C') {` は **C しか拾えなかった**
@@ -275,7 +319,11 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
       }
       return disp;
     };
-    for (let j = i; j >= 0 && j > i - 500; j--) {
+    // 🔴同じ関数の前半にある、すでに閉じた別ループの門を背負わせない。
+    // 現在行を囲う最内ブロックまでで打ち切り、宣言元カードのデータフローで確定した門は
+    // 下でその行専用の `sourceAction` 門として置き換える。
+    const scopeStart = innermostOpenBlockStart(lines, i);
+    for (let j = i; j >= scopeStart; j--) {
       const dispatcher = scanIds(lines[j]);
       if (dispatcher) {
         // 直上が `||`／`&&` で折り返しているなら、その行の門も同じ条件式の一部として拾う。
@@ -283,10 +331,11 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
         handler = [...(gates.get('stub') ?? [])].join('|');
         break;
       }
-      const cs = lines[j].match(/^\s*case\s+'([A-Za-z0-9_]+)'\s*:/);
-      if (cs) { handler = 'case:' + cs[1]; break; }
-      const fn = lines[j].match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
-      if (fn) { handler = 'fn:' + fn[1]; break; }
+    }
+    if (selfGateIds.length) {
+      gates.clear();
+      gates.set('sourceAction', new Set(selfGateIds));
+      handler = containingHandler(lines, i);
     }
     // 入れ子の門があるならラベルにも出す（母集団はそちらで絞る）
     const nested = [...gates.entries()].filter(([v]) => v !== 'stub');
@@ -294,17 +343,17 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
 
     // 読んでいるカードが「効果元自身」か（代入行の前後3行で判定）
     const win = lines.slice(Math.max(0, i - 3), i + 2).join('\n');
-    const selfGateIds = isComment ? [] : gateSelectedSourceText(lines, i);
     const isSelf = isAbilityFunnel || selfGateIds.length > 0 || /sourceCardNum|sourceCard\b|srcCard\b|ctx\.sourceCard/.test(win);
     const varName = lines[i].match(/const\s+(\w+)\s*=/)?.[1] ?? null;
 
     // その変数に適用している regex / includes リテラルを、ハンドラ末尾まで走査して収集
     const literals: string[] = [];
     if (varName) {
-      for (let k = i + 1; k < Math.min(lines.length, i + 250); k++) {
+      const scopeEnd = matchingBlockEnd(lines, scopeStart);
+      for (let k = i + 1; k < Math.min(lines.length, i + 250, scopeEnd + 1); k++) {
         if (/stub\.id\s*===\s*'/.test(lines[k])) break;                    // 次のハンドラで打ち切り
         if (/^(export\s+)?function\s/.test(lines[k])) break;
-        const re = new RegExp('\\b' + varName + '\\b\\s*\\.\\s*(match|search|split)\\s*\\(/');
+        const re = new RegExp('\\b' + varName + '\\b\\s*\\.\\s*(match|matchAll|search|split)\\s*\\(/');
         if (re.test(lines[k])) {
           const src = extractRegexLiteral(lines[k], lines[k].search(re));
           if (src) literals.push('re:' + src);
@@ -376,47 +425,71 @@ for (const p of [...Array.from({ length: 11 }, (_, i) => `public/data/CardData_S
 const baseNum = (n: string) => n.replace(/-[A-Z]+\d*$/, '');
 const textOf = (n: string) => cardText.get(n) ?? cardText.get(baseNum(n)) ?? '';
 
-// ── 4) ハンドラ単位に畳んで miss を測る ─────────────────────────────────────
-type H = { handler: string; lines: Row[]; literals: string[]; effects: number; cards: string[]; missCards: string[]; gates: Map<string, Set<string>> };
+// ── 4) ソース行単位で miss を測り、表示だけハンドラ単位に畳む ─────────────────
+type RowMeasure = { row: Row; effects: number; cards: string[]; missCards: string[]; gateLabel: string; routeKey: string };
+type H = { handler: string; rows: RowMeasure[]; literals: string[]; effects: number; cards: string[]; missCards: string[] };
 const selfRows = rows.filter(r => r.cls === 'SELF_TEXT');
-const handlers = new Map<string, H>();
-for (const r of selfRows) {
-  if (!handlers.has(r.handler)) handlers.set(r.handler, { handler: r.handler, lines: [], literals: [], effects: 0, cards: [], missCards: [], gates: new Map() });
-  const h = handlers.get(r.handler)!;
-  h.lines.push(r);
-  for (const l of r.literals) if (!h.literals.includes(l)) h.literals.push(l);
-  for (const [v, ids] of r.gates) {
-    if (!h.gates.has(v)) h.gates.set(v, new Set());
-    for (const id of ids) h.gates.get(v)!.add(id);
-  }
-}
-for (const h of handlers.values()) {
-  // 母集団＝gates の **変数ごとに OR（union）→ 変数どうしは AND（intersection）**
+const measureRow = (row: Row): RowMeasure => {
+  // 母集団＝この行自身の gates を **変数ごとに OR（union）→ 変数どうしは AND（intersection）**。
   let pop: Set<string> | null = null;
   let popEffects = 0;
-  for (const [, ids] of h.gates) {
+  for (const [, ids] of row.gates) {
     const u = new Set<string>();
     let n = 0;
     for (const id of ids) { for (const c of liveCards.get(id) ?? []) u.add(c); n += liveCount.get(id) ?? 0; }
     pop = pop === null ? u : new Set([...pop].filter(c => u.has(c)));
     popEffects = popEffects === 0 ? n : Math.min(popEffects, n);
   }
-  h.effects = popEffects;
-  h.cards = [...(pop ?? new Set<string>())].sort();
-  for (const c of h.cards) {
+  const cards = [...(pop ?? new Set<string>())].sort();
+  const missCards: string[] = [];
+  for (const c of cards) {
     const t = textOf(c);
     // 🔴**miss ＝ 抽出したリテラルが「1本も」当たらない**（`some` ではなく `every`）。
     //   ハンドラは同じ意味の言い回しを複数の regex で受けるのが普通なので、「1本外れた」を miss に
     //   すると母集団がまるごと赤くなって計器として使えない（初版がこれで 359 件を誤検出した）。
     //   1本も当たらない＝engine は原文から何も読めず**既定値へ落ちている**＝確実に危ない。
-    const miss = h.literals.length > 0 && h.literals.every(l => {
+    const miss = row.literals.length > 0 && row.literals.every(l => {
       try {
         if (l.startsWith('str:')) return !t.includes(l.slice(4));
         return !new RegExp(l.slice(3)).test(t);
       } catch { return false; }
     });
-    if (miss) h.missCards.push(c);
+    if (miss) missCards.push(c);
   }
+  const gateParts = [...row.gates.entries()].map(([v, ids]) => `${v}=${[...ids].sort().join('|')}`);
+  return {
+    row,
+    effects: popEffects,
+    cards,
+    missCards,
+    gateLabel: gateParts.join(' & ') || '(門なし)',
+    routeKey: gateParts.sort().join('&'),
+  };
+};
+
+const rowMeasures = selfRows.map(measureRow);
+const handlers = new Map<string, H>();
+for (const rm of rowMeasures) {
+  const r = rm.row;
+  if (!handlers.has(r.handler)) handlers.set(r.handler, { handler: r.handler, rows: [], literals: [], effects: 0, cards: [], missCards: [] });
+  const h = handlers.get(r.handler)!;
+  h.rows.push(rm);
+  for (const l of r.literals) if (!h.literals.includes(l)) h.literals.push(l);
+}
+for (const h of handlers.values()) {
+  const seenRoutes = new Set<string>();
+  const cards = new Set<string>();
+  const misses = new Set<string>();
+  for (const rm of h.rows) {
+    if (!seenRoutes.has(rm.routeKey)) {
+      h.effects += rm.effects;
+      seenRoutes.add(rm.routeKey);
+    }
+    for (const c of rm.cards) cards.add(c);
+    for (const c of rm.missCards) misses.add(c);
+  }
+  h.cards = [...cards].sort();
+  h.missCards = [...misses].sort();
 }
 
 // ── 5) 出力 ─────────────────────────────────────────────────────────────────
@@ -433,21 +506,22 @@ if (onlyIds) {
   for (const onlyId of onlyIds) {
   const h = handlers.get(onlyId)!;
   console.log(`=== ${onlyId} ===`);
-  console.log(`読み出し地点: ${h.lines.map(l => `${l.file}:${l.line}`).join(', ')}`);
+  console.log(`読み出し地点: ${h.rows.map(({ row }) => `${row.file}:${row.line}`).join(', ')}`);
   console.log(`live: ${h.effects}効果 / ${h.cards.length}カード`);
-  console.log(`適用リテラル(${h.literals.length}):`);
-  for (const l of h.literals) console.log(`  ${l}`);
-  console.log(`\n--- カード別 当たり外れ ---`);
-  for (const c of h.cards) {
-    const t = textOf(c);
-    const hits = h.literals.map(l => {
-      try {
-        const ok = l.startsWith('str:') ? t.includes(l.slice(4)) : new RegExp(l.slice(3)).test(t);
-        return `${ok ? 'o' : 'X'} ${l}`;
-      } catch { return `? ${l}`; }
-    });
-    console.log(`\n[${c}] ${t.replace(/\s+/g, ' ').slice(0, 200)}`);
-    for (const x of hits) console.log(`    ${x}`);
+  for (const rm of h.rows) {
+    console.log(`\n--- ${rm.row.file}:${rm.row.line} / 門 ${rm.gateLabel} / live ${rm.effects}効果 / miss ${rm.missCards.length} ---`);
+    for (const l of rm.row.literals) console.log(`  ${l}`);
+    for (const c of rm.cards) {
+      const t = textOf(c);
+      const hits = rm.row.literals.map(l => {
+        try {
+          const ok = l.startsWith('str:') ? t.includes(l.slice(4)) : new RegExp(l.slice(3)).test(t);
+          return `${ok ? 'o' : 'X'} ${l}`;
+        } catch { return `? ${l}`; }
+      });
+      console.log(`\n[${c}] ${t.replace(/\s+/g, ' ').slice(0, 200)}`);
+      for (const x of hits) console.log(`    ${x}`);
+    }
   }
   console.log('');
   }
@@ -464,18 +538,22 @@ out += `B  OTHER_CARD（他カードの属性判定）      : ${nOther}行\n`;
 out += `C  COMMENT                              : ${nComment}行\n`;
 out += `合計 ${rows.length}行\n\n`;
 out += `## A群ランキング（miss降順→live効果数降順）\n`;
-out += `miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの\n`;
-out += `      ＝いま既定値へフォールバックしている＝**現に壊れている可能性が高い**\n\n`;
+out += `miss = 各ソース行について、その行の門から来る live カードへ、その行自身の regex/includes が1本も当たらないもの\n`;
+out += `      ＝別の門・別の行のリテラルを混ぜない。既定値へ落ちる、または既定枝を通るため要確認\n\n`;
 out += `| ハンドラ | 行 | live効果 | liveカード | リテラル | miss |\n|---|---|---|---|---|---|\n`;
 for (const h of ranked) {
-  out += `| ${h.handler} | ${h.lines.map(l => `${l.file}:${l.line}`).join(' ')} | ${h.effects} | ${h.cards.length} | ${h.literals.length} | ${h.missCards.length} |\n`;
+  out += `| ${h.handler} | ${h.rows.map(({ row }) => `${row.file}:${row.line}`).join(' ')} | ${h.effects} | ${h.cards.length} | ${h.literals.length} | ${h.missCards.length} |\n`;
 }
 out += `\n## A群 明細\n`;
 for (const h of ranked) {
   out += `\n### ${h.handler}  (live ${h.effects}効果 / ${h.cards.length}カード / miss ${h.missCards.length})\n`;
-  for (const l of h.lines) out += `  ${l.file}:${l.line}  ${l.snippet}\n`;
-  for (const l of h.literals) out += `    lit ${l}\n`;
-  if (h.missCards.length) out += `    miss: ${h.missCards.join(', ')}\n`;
+  for (const rm of h.rows) {
+    const r = rm.row;
+    out += `  ${r.file}:${r.line}  [門 ${rm.gateLabel}] live ${rm.effects}効果 / ${rm.cards.length}カード / miss ${rm.missCards.length}\n`;
+    out += `    ${r.snippet}\n`;
+    for (const l of r.literals) out += `    lit ${l}\n`;
+    if (rm.missCards.length) out += `    miss [門 ${rm.gateLabel}]: ${rm.missCards.join(', ')}\n`;
+  }
 }
 out += `\n## B群（他カードの属性判定＝正当寄り）\n`;
 for (const r of rows.filter(x => x.cls === 'OTHER_CARD')) out += `  ${r.file}:${r.line} <${r.handler}> ${r.snippet}\n`;
@@ -485,6 +563,7 @@ writeFileSync(join(root, 'docs/_census_enginetext.txt'), out, 'utf-8');
 console.log(`[census:enginetext] A🔴 SELF_TEXT ${nSelf}行 / ${handlers.size}ハンドラ・B ${nOther}行・C ${nComment}行（明細 docs/_census_enginetext.txt）`);
 console.log(`[census:enginetext] ID門→宣言元原文の較正規則: ${gateSelectedSelfRows.length}行に命中`);
 for (const r of gateSelectedSelfRows) console.log(`  ${r.file}:${r.line} <= ${r.ids.join('|')}`);
+console.log(`[census:enginetext] 行単位 miss 規則: ${rowMeasures.length}行 / 門つき ${rowMeasures.filter(r => r.row.gates.size > 0).length}行 / live ${rowMeasures.filter(r => r.cards.length > 0).length}行に適用`);
 const missTotal = ranked.filter(h => h.missCards.length > 0);
 console.log(`[census:enginetext] regex が実際に外れているハンドラ: ${missTotal.length}（miss カード計 ${missTotal.reduce((s, h) => s + h.missCards.length, 0)}）`);
 console.log(`  上位: ${ranked.slice(0, 8).map(h => `${h.handler}(miss${h.missCards.length}/live${h.effects})`).join(', ')}`);

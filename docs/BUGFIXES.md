@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁§5.3 `O-343` クローズ＝`census:enginetext` の `miss` を割り直し、真の miss 2件を payload 化（第314バッチ・Codex 委譲）
+
+### (1) 🔧計器の精密化＝`miss` 延べ **45（11ハンドラ）→ 9（2ハンドラ）**
+
+- **真因**＝`scripts/censusEngineText.ts` の門（`x.id === 'ID'`）の集約が**囲っているブロックでスコープされず**、
+  同じ関数の**すでに閉じた別ループの門**まで背負っていた。さらにリテラルが**ハンドラ群でプール**されるので、
+  **「A の門から来たカード」に「B の行のリテラル」を当てて miss と数えていた。**
+- **実害**＝A群ランキングをそのまま worklist にすると**存在しない作業を36件作る**。
+  実例＝`collectLrigNameAliases` は **live 20 / miss 19** と出ていたが、17枚は別文型
+  （「ルリグトラッシュにあるレベル３の＜X＞と**同じカード名としても扱う**」＝`COPY_LRIG_NAME_ABILITY` 側）で、
+  リテラル `追加で＜X＞を得る` はそもそも当たらなくてよかった。**割り直し後の miss は 0。**
+- **直し方**＝①波括弧の深さで門を最内ブロックに限る（`innermostOpenBlockStart`）②リテラル探索を同じブロックで打ち切る
+  （`matchingBlockEnd`）③**miss をソース行単位で測る**（表示だけハンドラ単位に畳む）。
+  🔑**副産物**＝リテラル収集が `matchAll` を見ていなかった穴も塞がった。
+- 🔑**精密化の証拠＝A 22行 / B 30行 / C 95行 / 合計147行 が前後で不変**（分類は1行も動いていない）。
+- **残 miss 9件は全部「偽陽性」と判定**＝`collectOppGuardExtraColorlessCost` の8枚はトップレベルが
+  `ACTIVATED`/`AUTO`（CONTINUOUS 専用の原文枝へ到達しない）か `activeCondition` が構造化済み（同じく到達しない）／
+  `WX22-025` は条件 regex が外れたときの既定枝が正しい。
+
+### (2) 🐛残った真の miss 2件は**どちらも実バグ**だった（engine の原文 regex を撤去して payload 化）
+
+- `WX22-014`《永らえし使　リワト》＝原文「【常】：あなたの場に《差し伸べし者　タウィル》がいるかぎり、
+  **このルリグのリミットは１増え**、このルリグは追加で**白と**＜タウィル＞を得る。」
+  🔴**真因は regex ではなく候補集め**＝`collectLrigColorAndLimitMods` の候補が
+  **場のシグニ＋キー枠だけで、センタールリグ自身が入っていなかった**＝条件成立中も
+  **「白」も「リミット+1」も一切反映されない**（＜タウィル＞は別関数 `collectLrigNameAliases` が拾えていた）。
+  ⇒ 候補に `state.field.lrig.at(-1)` を足し、タイプ・色・リミットを `lrigTypeGain` payload から読む。
+  ⚠**二重計上しないことを確認済み**＝同ループの `LRIG_LIMIT_MODIFY` で新たに入る live は `WX22-002`（`owner:'opponent'`＝自己側枝は素通り）と
+  `WX25-P2-014`（`ACTIVATED`＝`CONTINUOUS` 判定で除外）だけ。
+- `WXEX2-81`＝engine の regex が「**この**下にある＜X＞のシグニが持つ色を得る」を期待していたが、
+  原文は「**このカード**の下にある」＝**外れてクラス絞りが空文字になり、下にある非＜天使＞のカードの色まで得ていた**（過剰）。
+  ⇒ `inheritUnderSigniColor` payload から読む（**空文字フォールバックを撤去**）。
+- 🔑**原文 regex は data 層（`src/data/sourceTextPayloads.ts`）だけが持ち、engine は payload を読むだけ**
+  （`O-356` で作った経路）。**payload 欠落時は fail-closed**（原文にも既定値にも倒さない）。
+- **反転確認**＝golden 6本（payload 生成2／engine 正方向2／payload 欠落の負方向2）で **PASS 0 / FAIL 6 → PASS 6 / FAIL 0**。
+- **検証コマンド**＝`npm run regen` → `npm run gates` 全緑（golden **4080** PASS）。
+  `census:enginetext` **A 22 → 20行 / 19ハンドラ**（`BASELINE_SELF_TEXT = 20`＝**消化**であって較正ではない）・合計 **147 → 144行**。
+- **実機**＝**不要**（§2.2＝`src/screens/` 非変更）。
+
+### (3) 🔎検証で新しい実バグを1件見つけた（`O-364` として登録・**未修正**）
+
+`collectLrigColorAndLimitMods` の**相手側の候補は `otherState.field.signi` だけ**で、
+**相手のセンタールリグもキー枠も入っていない**＝`owner:'opponent'` の `LRIG_LIMIT_MODIFY` を**ルリグが宣言しても誰も読まない**。
+実例＝`WX22-002-E1`「【常】：対戦相手のターンの間、**対戦相手のセンタールリグのリミットは１減る**」が**恒久 no-op**。
+⚠自分側は本バッチで対称化したので、**相手側だけが非対称に残っている**。
+🔴**どの計器にも映らない**（原文を読んでいないので `census:enginetext` にも出ず、golden/smoke/fuzz も緑）。
+
+### (4) ⚠運用
+
+`.codex-work` が**利用上限**に達した（リセット 9/14 00:58）ため、**既定の `~/.codex` へ投げ直して完遂**した。
+上限で止まった時点の作業ツリーは clean で、取り込むべき中途半端な差分は無かった。
+
+## 2026-09-13 — §5.3 `O-343` 第2段前段：`census:enginetext` の miss を門・行単位へ割り直し／2効果を payload 化（第314バッチ）
+
+- **Part 1（計器の精密化）**：`scripts/censusEngineText.ts` の gate 後方走査を現在行の最内ブロックへ制限し、ID門で宣言元を追跡できた行はその行自身の門だけへ置換。母集団・リテラル・miss をソース行単位で測り、ハンドラ表示だけを集約する形へ変更した。明細には各行の門と、その門から出た miss カードを併記する。
+- **不変量**：較正済み分類は A 22行 / 21ハンドラ・B 30行・C 95行・合計147行のまま。旧 miss は11ハンドラ・延べ45カード、割り直し後は3ハンドラ・10カード。`collectLrigNameAliases` は miss 19→0で、残存カードなし。
+- **登録票の訂正**：`WX22-014` は `GAIN_ADDITIONAL_LRIG_TYPE` ではなく `LRIG_LIMIT_UP_AND_COLOR_GAIN` 門。タイプ抽出 regex は既に「白と」を許容しており、＜タウィル＞取得は真の miss ではなかった。一方、色・リミット収集の候補にセンタールリグ自身が入っておらず、白とリミット+1は実際には反映されていなかった。
+- **Part 2（2ハンドラ）**：`LRIG_LIMIT_UP_AND_COLOR_GAIN` に `lrigTypeGain{types,colors,limitDelta}`、`INHERIT_UNDER_SIGNI_COLOR` に `inheritUnderSigniColor{story}` を刻む文型規則を `src/data/sourceTextPayloads.ts` へ追加。各1効果だけに命中した。engine の原文 regex を撤去し、payload 欠落時は fail-closed。`WXEX2-81` は旧文型差（「この下」対「このカードの下」）でクラスが空になり、下の全カードの色を得ていたのを＜天使＞だけへ修正した。
+- **逆翻訳**：2キーを payload から描画。`WX22-014-E1` は条件に続いて「このルリグのリミットは１増え、このルリグは追加で白と＜タウィル＞を得る」、`WXEX2-81-E1` は「このシグニはこのカードの下にある＜天使＞のシグニが持つ色を得る」と原文一致。
+- **反転確認**：追加 golden 6本は修正前 PASS 0 / FAIL 6、修正後 PASS 6 / FAIL 0。payload 欠落の対照ではタイプ・色・リミットを一切得ないことも固定した。
+- **未変更の miss**：ガード追加コスト8カードは、非CONTINUOUS 4件または `activeCondition` 構造化済みCONTINUOUS 4件で原文解析枝へ到達しない偽陽性。`WX22-025` は無条件の「すべての色」で、既定枝が正しい。live 0 の3ハンドラにも触れていない。
+- **払い戻し**：A群 22→20は2行の原文読みを payload 化した**消化であって較正ではない**。Bも原文読み1行撤去で30→29、C 95不変、合計147→144。`BASELINE_SELF_TEXT` と自己テストを20へ下げた。
+- **検証**：`npm run regen` → `npm run gates` 全緑（golden 4080/4080、smoke 10754 OK・全0、fuzz 200ゲーム・全0、高シグナル1/BASELINE 1、`census:payloadkeys` 0種/0ノード、`census:numberdrift` 64、`census:stublabel` A/B/C=7/0/0、lint 0 errors/既存256 warnings）。`src/screens/` は無変更、commit/push は未実施。
+
 ## 2026-09-13 — §5.3 `O-353` Part A：カード名宣言の候補を自分のデッキへ配線（第313バッチ）
 
 - **真因**：`DECLARE_CARD_NAME` の既定枝は自分の手札のカード名を最大4種だけ候補にしていたため、直後に自分のデッキを公開・探索する効果が、デッキにしかない名前を宣言できずほぼ空振りしていた。

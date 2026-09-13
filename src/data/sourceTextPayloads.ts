@@ -3,11 +3,14 @@
  *
  * 旧実装では次の STUB の意味を engine がカード原文から毎回読み直しており、逆翻訳も原文を貼っていた
  * （＝原文照合がその STUB で構造的に効かなかった）。ここで**engine が読んでいたのと同じ原文へ同じ regex**を
- * 当てて payload にし、engine は payload だけを読む＝**挙動は変えない**。
+ * 当てて payload にし、engine は payload だけを読む。第314バッチでは、門別 miss の実測で残った
+ * `INHERIT_UNDER_SIGNI_COLOR` の文型差と、明示指定された `LRIG_LIMIT_UP_AND_COLOR_GAIN` も同じ型へ移した。
  *   - `OPTIONAL_TRASH_ENERGY_CLASS` → `optionalEnergyTrash`（アビリティ原文＝`abilityBlockTextOf`）
  *   - `FIELD_ENERGY_SIGNI_GAIN_COLOR` → `gainColor` / `gainColorDissonaOnly` / `gainColorUnsupportedFilter`（カード原文）
  *   - `TREAT_AS_CLASS_ALL_ZONES` → `treatAsClass`（カード原文）
  *   - `PREVENT_SIGNI_ABILITY_LOSS_BY_OPP` → `protectColor`（カード原文）
+ *   - `LRIG_LIMIT_UP_AND_COLOR_GAIN` → `lrigTypeGain`（追加タイプ・色・リミット増分）
+ *   - `INHERIT_UNDER_SIGNI_COLOR` → `inheritUnderSigniColor`（下敷きシグニのクラス）
  *
  * 🔴**`parseCardEffects` の中から呼んではいけない**＝`abilityBlockTextOf` は未キャッシュのカードで
  *   `parseCardEffects` を呼ぶので、parser の末尾から呼ぶと再入して終わらない。
@@ -24,6 +27,8 @@ export const SOURCE_TEXT_PAYLOAD_KEYS: Record<string, string[]> = {
   FIELD_ENERGY_SIGNI_GAIN_COLOR: ['gainColor', 'gainColorDissonaOnly', 'gainColorUnsupportedFilter'],
   TREAT_AS_CLASS_ALL_ZONES: ['treatAsClass'],
   PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: ['protectColor'],
+  LRIG_LIMIT_UP_AND_COLOR_GAIN: ['lrigTypeGain'],
+  INHERIT_UNDER_SIGNI_COLOR: ['inheritUnderSigniColor'],
 };
 
 /** engine が旧実装で読んでいた原文・regex をそのまま当てて payload を作る。 */
@@ -59,6 +64,22 @@ export function sourceTextPayloadFor(stubId: string, card: CardData, effectId: s
   if (stubId === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
     const m = cardText.match(/あなたの他の([^の]+?)のシグニは対戦相手の効果によって能力を失わない/);
     return m ? { protectColor: m[1] } : {};
+  }
+  if (stubId === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+    const gainM = cardText.match(/追加で(?:([白赤青緑黒]+)と)?＜([^＞]+)＞を得る/);
+    if (!gainM) return {};
+    const limitM = cardText.match(/リミットは([０-９\d]+)増え/);
+    return {
+      lrigTypeGain: {
+        types: [gainM[2]],
+        ...(gainM[1] ? { colors: [...gainM[1]].filter(c => '白赤青緑黒'.includes(c)) } : {}),
+        ...(limitM ? { limitDelta: parseInt(toHalfWidthDigits(limitM[1]), 10) } : {}),
+      },
+    };
+  }
+  if (stubId === 'INHERIT_UNDER_SIGNI_COLOR') {
+    const m = cardText.match(/この(?:カード|シグニ)の下にある＜([^＞]+)＞のシグニが持つ色を得る/);
+    return m ? { inheritUnderSigniColor: { story: m[1] } } : {};
   }
   return {};
 }

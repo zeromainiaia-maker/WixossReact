@@ -5450,12 +5450,9 @@ export function collectLrigNameAliases(
       continue;
     }
 
-    // LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグが追加でタイプを得る（例：＜タウィル＞）
+    // LRIG_LIMIT_UP_AND_COLOR_GAIN: 追加タイプは parser が刻んだ payload だけから得る。
     if (act.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
-      const txt = lrigCard?.EffectText ?? '';
-      const typeMatches = [...txt.matchAll(/追加で(?:[白赤青緑黒]と)?＜([^＞]+)＞を得る/g)];
-      for (const m of typeMatches) {
-        const t = m[1];
+      for (const t of act.lrigTypeGain?.types ?? []) {
         if (t && !aliases.includes(t)) aliases.push(t);
       }
       continue;
@@ -5857,7 +5854,6 @@ export function collectLrigColorAndLimitMods(
   otherState: PlayerState,
   isOwnerTurn: boolean,
 ): { extraColors: string[]; limitDelta: number } {
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const extraColors = new Set<string>();
   let limitDelta = 0;
   const candidates: string[] = [];
@@ -5866,6 +5862,9 @@ export function collectLrigColorAndLimitMods(
     if (top) candidates.push(top);
   }
   candidates.push(...activeKeyAbilitySources(state));
+  // LRIG_LIMIT_UP_AND_COLOR_GAIN はセンタールリグ自身が持つ常在能力。
+  const centerLrig = state.field.lrig.at(-1);
+  if (centerLrig && !candidates.includes(centerLrig)) candidates.push(centerLrig);
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -5882,23 +5881,16 @@ export function collectLrigColorAndLimitMods(
 
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
-      const txt = cardMap.get(cn)?.EffectText ?? '';
 
       if (act.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK') {
         extraColors.add('黒');
       }
 
       if (act.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
-        // "リミットはN増え、追加でXと＜ストーリー＞を得る"
-        const limitM = txt.match(/リミットは([０-９\d]+)増え/);
-        if (limitM) limitDelta += parseInt(toHW(limitM[1]));
-        // 色の部分: "追加で白と" → 白
-        const colorM = txt.match(/追加で([白赤青緑黒]+)と/);
-        if (colorM) {
-          for (const col of ['白','赤','青','緑','黒'].filter(c => colorM[1].includes(c))) {
-            extraColors.add(col);
-          }
-        }
+        const spec = act.lrigTypeGain;
+        if (!spec) continue; // payload 欠落時は原文や既定値へ倒さない
+        limitDelta += spec.limitDelta ?? 0;
+        for (const col of spec.colors ?? []) extraColors.add(col);
       }
     }
   }
@@ -8137,21 +8129,17 @@ export function collectFieldSigniExtraColors(
     }
 
     // INHERIT_UNDER_SIGNI_COLOR: スタック下の天使シグニの色を得る
-    const hasInheritUnder = [...(effectsMap.get(topNum) ?? [])].some(eff => {
+    const inheritUnderSpec = [...(effectsMap.get(topNum) ?? [])].map(eff => {
       if (eff.effectType !== 'CONTINUOUS') return false;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) return false;
       const act = eff.action as import('../types/effects').StubAction;
-      return act.type === 'STUB' && act.id === 'INHERIT_UNDER_SIGNI_COLOR';
-    });
-    if (hasInheritUnder && stack.length > 1) {
+      return act.type === 'STUB' && act.id === 'INHERIT_UNDER_SIGNI_COLOR' ? act.inheritUnderSigniColor : false;
+    }).find((spec): spec is NonNullable<import('../types/effects').StubAction['inheritUnderSigniColor']> => !!spec);
+    if (inheritUnderSpec && stack.length > 1) {
       // スタック下のカード（天使）の色を得る
-      const card = cardMap.get(topNum);
-      const txt = card?.EffectText ?? '';
-      const classM = txt.match(/この下にある＜([^＞]+)＞のシグニが持つ色を得る/);
-      const targetClass = classM?.[1] ?? '';
       for (const underCn of stack.slice(0, -1)) {
         const underCard = cardMap.get(underCn);
-        if (!targetClass || (underCard?.CardClass ?? '').includes(targetClass)) {
+        if ((underCard?.CardClass ?? '').includes(inheritUnderSpec.story)) {
           const underColor = underCard?.Color ?? '';
           // Color列は連結形式のため1文字ずつ分解
           for (const c of [...underColor].filter(s => '白赤青緑黒'.includes(s))) {

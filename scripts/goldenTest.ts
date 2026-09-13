@@ -27,7 +27,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectLrigColorAndLimitMods, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction, collectEnergyCostSubstitutes } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -69077,9 +69077,9 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   //   engine のコードは1行も増えていない。payload 化すれば 1 → 0 へ戻せる。
   // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。
   // 🆕2026-09-13 `O-343`＝ID門で選ばれた宣言元カードの原文参照22行を A へ較正。
-  // engine のコードは1行も増えておらず、退化ではない。
-  ok(/const BASELINE_SELF_TEXT = 22;/.test(census),
-    'BASELINE_SELF_TEXT が較正後の実測 22');
+  // 🏁同日第314バッチ＝2行を payload 化して消化したため 22 → 20。
+  ok(/const BASELINE_SELF_TEXT = 20;/.test(census),
+    'BASELINE_SELF_TEXT が消化後の実測 20');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -80567,6 +80567,78 @@ test('O-353 WXK09-001-E3 E2E: deck＋hand＋field の有色シグニ名だけを
   ok(!different.levelZero, '🔴別名のシグニは基本レベル0にならない');
   ok(!different.ignoreRestriction, '別名のシグニは限定条件を無視しない');
 }));
+
+// ── §5.3 `O-343` 第314バッチ＝engine 原文 regex を既存 STUB の payload へ移す ──
+test('O-343 WX22-014: LRIG_LIMIT_UP_AND_COLOR_GAIN のタイプ・色・リミットを payload 化', () => {
+  const card = cardMap.get('WX22-014')!;
+  const fresh = parseCardEffects(card);
+  fillSourceTextPayloads(card, fresh);
+  const stub = findStubId(fresh.find(e => e.effectId === 'WX22-014-E1')?.action, ['LRIG_LIMIT_UP_AND_COLOR_GAIN']);
+  eq(JSON.stringify((stub as StubAction | undefined)?.lrigTypeGain),
+    '{"types":["タウィル"],"colors":["白"],"limitDelta":1}',
+    '原文「リミットは１増え、追加で白と＜タウィル＞」を構造化');
+});
+
+test('O-343 WXEX2-81: INHERIT_UNDER_SIGNI_COLOR の対象クラスを payload 化', () => {
+  const card = cardMap.get('WXEX2-81')!;
+  const fresh = parseCardEffects(card);
+  fillSourceTextPayloads(card, fresh);
+  const stub = findStubId(fresh.find(e => e.effectId === 'WXEX2-81-E1')?.action, ['INHERIT_UNDER_SIGNI_COLOR']);
+  eq(JSON.stringify((stub as StubAction | undefined)?.inheritUnderSigniColor), '{"story":"天使"}',
+    '原文「このカードの下にある＜天使＞」を構造化');
+});
+
+test('O-343 WX22-014 engine: payload から＜タウィル＞・白・リミット+1を得る', () => {
+  const tawil = findCard(c => c.CardName === '差し伸べし者　タウィル');
+  const sourceEffect = effectsMap.get('WX22-014')!.find(e => e.effectId === 'WX22-014-E1')!;
+  const localEffects = new Map<string, CardEffect[]>([['WX22-014', [sourceEffect]]]);
+  const state = mkState({ lrig: ['WX22-014'], signi: [tawil, null, null] });
+  const aliases = collectLrigNameAliases(state, cardMap, localEffects, mkState({}));
+  ok(aliases.includes('タウィル'), 'payload のルリグタイプを得る');
+  const mods = collectLrigColorAndLimitMods(state, cardMap, localEffects, mkState({}), true);
+  ok(mods.extraColors.includes('白'), 'payload の追加色を得る');
+  eq(mods.limitDelta, 1, 'payload のリミット増分を得る');
+});
+
+test('O-343 WX22-014 対照: payload 欠落ではタイプ・色・リミットを得ない', () => {
+  const bare: CardEffect = {
+    ...effectsMap.get('WX22-014')!.find(e => e.effectId === 'WX22-014-E1')!,
+    action: { type: 'STUB', id: 'LRIG_LIMIT_UP_AND_COLOR_GAIN' } as StubAction,
+  };
+  const localEffects = new Map<string, CardEffect[]>([['WX22-014', [bare]]]);
+  const state = mkState({ lrig: ['WX22-014'] });
+  ok(!collectLrigNameAliases(state, cardMap, localEffects, mkState({})).includes('タウィル'),
+    'payload 欠落で原文 regex へ戻らない');
+  const mods = collectLrigColorAndLimitMods(state, cardMap, localEffects, mkState({}), true);
+  eq(JSON.stringify(mods), '{"extraColors":[],"limitDelta":0}', 'payload 欠落は fail-closed');
+});
+
+test('O-343 WXEX2-81 engine: 下の＜天使＞だけから色を得る', () => {
+  const angel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('天使')
+    && [...(c.Color ?? '')].some(x => '白赤青緑黒'.includes(x)));
+  const angelColor = [...(cardMap.get(angel)?.Color ?? '')].find(x => '白赤青緑黒'.includes(x))!;
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('天使')
+    && [...(c.Color ?? '')].some(x => '白赤青緑黒'.includes(x) && x !== angelColor));
+  const otherColor = [...(cardMap.get(other)?.Color ?? '')].find(x => '白赤青緑黒'.includes(x) && x !== angelColor)!;
+  const state = mkState({});
+  state.field.signi = [[angel, other, 'WXEX2-81'], null, null];
+  const colors = collectFieldSigniExtraColors(state, cardMap, effectsMap, mkState({}), true).get('WXEX2-81') ?? [];
+  ok(colors.includes(angelColor), `＜天使＞の色 ${angelColor} を得る`);
+  ok(!colors.includes(otherColor), `対照：＜天使＞ではないカードの色 ${otherColor} は得ない`);
+});
+
+test('O-343 WXEX2-81 対照: payload 欠落では下のカードから色を得ない', () => {
+  const under = findCard(c => isSigni(c) && [...(c.Color ?? '')].some(x => '白赤青緑黒'.includes(x)));
+  const sourceEffect: CardEffect = {
+    ...effectsMap.get('WXEX2-81')!.find(e => e.effectId === 'WXEX2-81-E1')!,
+    action: { type: 'STUB', id: 'INHERIT_UNDER_SIGNI_COLOR' } as StubAction,
+  };
+  const localEffects = new Map<string, CardEffect[]>([['WXEX2-81', [sourceEffect]]]);
+  const state = mkState({});
+  state.field.signi = [[under, 'WXEX2-81'], null, null];
+  eq(collectFieldSigniExtraColors(state, cardMap, localEffects, mkState({}), true).get('WXEX2-81'), undefined,
+    'payload 欠落で原文 regex へ戻らない');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
