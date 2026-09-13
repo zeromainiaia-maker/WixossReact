@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 索引G 4項目クローズ（`O-364` / `O-359` / `O-361` / `O-363`・第318バッチ・Codex 委譲＋Claude 引き継ぎ）
+
+### 🔴 まず訂正＝`O-364` の登録票が誤りだった
+
+`WX22-002-E1`「【常】：対戦相手のターンの間、対戦相手のセンタールリグのリミットは１減る。」を
+**「恒久 no-op」と登録していたが、実際は `src/screens/battle/lrigLimit.ts` の
+`collectOppDeclaredLrigLimitDelta` という2本目の funnel が拾っていた。**
+🔑**原因＝私（Claude）が `src/engine/` しか grep せずに登録した**（[LESSONS.md](./LESSONS.md) §4.1）。
+⇒ **消費地点は engine と screens の両方を見る。**
+
+- **直し方**＝`collectLrigColorAndLimitMods` の**相手側候補に「相手のセンタールリグ」と `activeKeyAbilitySources(otherState)`** を足して
+  **一本化**し、`computeEffectiveLrigLimit` 側の `oppDeclaredDelta` 加算を**撤去**した。
+  🔴**撤去しないと −1 が −2 になる**（候補を広げた瞬間に二重計上になる）。
+  `collectOppDeclaredLrigLimitDelta` は**互換ヘルパとして残す**（既存 golden 3本が参照）。
+- **golden（Claude が追加）**＝`computeEffectiveLrigLimit` を直接呼び、①相手ターンに victim が **−1**
+  ②**対照**＝宣言者のターンなら素の値 ③宣言者が居なければ素の値 ④**宣言者自身は減らない**。
+  🔑`computeEffectiveLrigLimit` は **`src/screens/` の React 非依存の純関数**なので golden から import できる（`CLAUDE.md` の規約）。
+  **反転確認**＝一本化を戻すと **expected=10 got=11**（＝−1 が消える）で FAIL、復元で PASS。
+
+### 🏁 `O-359`＝`WXDi-P07-086-E1`《演算》の基本パワー上書きが真 no-op だった
+
+原文＝「シグニ１体を対象とする。**２～２０の数字１つを宣言し、ターン終了時まで、それの基本パワーを
+「この方法で宣言した数字×1000」にする。**」
+🔴旧 live＝`SEQUENCE[SELECT_TARGET_ONLY, STUB{DECLARE_NUMBER_POWER}]`＝
+**固定6値（3000〜15000）を提示して `declared_number` に入れるだけ**で、**基本パワーを変える処理が無い**。
+- **受け皿は既存**＝`POWER_SET`（live **226効果**）＋ `valueRef:'declared_number'` の先例（`SET_BASE_LEVEL`・`O-312`）＋
+  `DECLARE_NUMBER_RANGE.numberChoices`（第308）。**新しいアクション型は0。**
+- **直し方**＝`numberChoices:[2..20]` ＋ `POWER_SET{targetsStored, valueRef:'declared_number', multiplier:1000, duration:'UNTIL_END_OF_TURN'}`。
+- **逆翻訳**＝「2～20の数字1つを宣言する。そしてターン終了時まで、それの基本パワーを宣言した数字×1000にする」＝原文一致。
+
+### 🏁 `O-361`＝【マルチエナ】喪失の宣言が別 id に落ちていた
+
+原文（`WX19-002-E1`）＝「【常】：対戦相手のエナゾーンにあるカードは【マルチエナ】を失い、新たに得られない。」
+🔑**受け皿は完全に既存**＝`isEnaMultiStripped`（`src/screens/battle/costs.ts`）が
+**CONTINUOUS の `STUB{STRIP_OPP_ENA_MULTI_ENA}`** を読み、`isMultiEna` の `stripped` に落ちる。
+🔴parser が `REMOVE_OPP_MULTI_ENA` / `REMOVE_OPP_MULTI_ENA_ONLY` を吐いており、
+**その engine ハンドラは「相手の複数色エナをトラッシュする」別物**だった。
+- **直し方**＝**parser の張り替えだけ**（`WX19-002-E1` と `WXK03-002-E1` の2効果とも同じ文型）。
+  🔑**旧2 id は live 0 になるがハンドラは消さない**（`CLAUDE.md`＝安全網）。
+- **`src/screens/` は非変更。**
+
+### 🏁 `O-363`＝原文エコー撤去で見えた小さな食い違い3件
+
+1. **`WDK08-Y14-E1`（誤パース）**＝原文の任意コストは「**手札から**＜水獣＞のシグニ２枚を**公開**」なのに、
+   live は `OPTIONAL_TRASH_ENERGY_CLASS`＝「**エナから**＜水獣＞を**トラッシュ**」を要求する**別物**だった。
+   ⇒ `SELECT_TARGET_ONLY{ENERGY_CARD, upToCount}` ＋ `OPTIONAL_COST{handReveal:{count:2, filter}}`（**受け皿は既存**）へ。
+2. **`WX15-001-E3`（過剰実行）**＝原文「自分のルリグデッキからカードを**３枚選び**公開する」に対し
+   engine は**ルリグデッキを全部公開**していた。⇒ `oppLrigDeckReveal:{count:3, upToCount:true, selectedBy:'opponent'}`。
+3. **`WXDi-P03-053-E1`（限定の欠落）**＝原文「**シグニの能力かシグニの効果で**対象を選ぶ際」の限定を
+   engine が持たず、**ルリグ・アーツの効果でも強制対象**にしていた。⇒ `forceTargetSourceCardTypes:['シグニ']`。
+   🔑**他2枚（`WX25-CP1-060` / `WXDi-P11-040`）の原文は「能力か効果で」＝限定が無い**ので**据え置きが正解**（原文を読んで確認）。
+
+### 検証
+
+- **検証コマンド**＝`npm run build:effects` → `npm run regen` → `npm run gates` 全緑（**golden 4105 PASS**）。
+  `census:numberdrift` **59 → 57**（`WXDi-P07-086` の「2～20／×1000」と `WX15-001` の「3枚」が逆翻訳に出た＝BASELINE も 57 へ）。
+- ✅**実機（`V-218`・§2.2 により `src/screens/` を触ったので必須）**＝
+  `node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc` で **2/2 PASS**。
+  🔑**同一アクション（対戦相手のシグニ1体をバニッシュ）のシグニ（`WD04-009-E2`）とアーツ（`WD07-008-E1`）を効果元にした**＝
+  **差が出るのは「効果元の種別」だけ**という対照。①シグニ＝候補が《コードメイズ　ヒメジジョ》だけに絞られる ②アーツ＝2体とも出る。
+  ⚠**盤面のカード画像も同じ `alt` で出る**ので絶対数では判定できない（絞られていても「2 / 1」になる）＝**相対比較**にした。
+- ⚠**運用**＝`.codex-work` が**再び利用上限**（823k トークン消費・リセット 7:01）＝**実装完了直前で停止**。
+  Claude が引き継いで `O-364` の golden 追加・反転確認・実機・ラチェット・簿記を完遂した。
+
 ## 2026-09-14 — 🏁§5.3 `O-344` クローズ＝【常】宣言型 STUB の条件・値を live JSON へ（19効果・第317バッチ）
 
 - **母集団**＝**実測19効果**（PLAN の数字が正。登録票の「2効果」は古い）＝

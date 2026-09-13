@@ -1304,7 +1304,7 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newSLTH }, 'ライフクロス1枚を手札に加えた'));
   }
   // OPP_TRASH_TO_DECK_TOP は line 1211 の handler で処理済み（dead code 削除）
-  // REMOVE_OPP_MULTI_ENA / REMOVE_OPP_MULTI_ENA_ONLY: 相手の複数色エナをトラッシュへ
+  // この2 id は parser から生成されず、生成されれば原文の「能力を失う」と食い違ってエナをトラッシュする安全網。
   if (stub.id === 'REMOVE_OPP_MULTI_ENA' || stub.id === 'REMOVE_OPP_MULTI_ENA_ONLY') {
     const sROME = ctx.otherState;
     const multiColorROME = sROME.energy.filter(cn => (ctx.cardMap.get(cn)?.Color ?? '').includes('/'));

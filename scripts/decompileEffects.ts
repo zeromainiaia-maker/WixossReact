@@ -1840,9 +1840,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // CONTINUOUS の POWER_SET で count≠ALL は engine 上「このシグニのみ」に解決される（effectEngine 参照）
       const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
         && (a.target?.owner === 'self' || a.target?.owner === 'any');
-      const tgt = thisOnly ? 'このシグニの基本パワー' : `${targetJa(a.target)}のパワー`;
+      const tgt = a.targetsStored ? 'それの基本パワー'
+        : thisOnly ? 'このシグニの基本パワー' : `${targetJa(a.target)}のパワー`;
       const dur = a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、' : '';
-      return `${dur}${tgt}を${a.value}にする`;
+      const value = a.valueRef === 'declared_number'
+        ? `宣言した数字${a.multiplier !== undefined && a.multiplier !== 1 ? `×${a.multiplier}` : ''}`
+        : String(a.value);
+      return `${dur}${tgt}を${value}にする`;
     }
     case 'POWER_MODIFY_PER_HAND_COUNT': {
       const dHand = a.deltaPerCard ?? a.delta ?? 0;
@@ -5125,9 +5129,10 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 対象を自身へ強制（FORCE_TARGET_SELF・engine実装済み）＝「（対戦相手のターンの間、）対戦相手は、…対象を選ぶ際、可能ならばこのシグニを対象とする」。
       if (a.id === 'FORCE_TARGET_SELF') {
-        // 🆕§5.3 `O-356`＝原文を貼らない。期間（相手ターン）は `activeCondition` が前置で描く。
-        //   ⚠engine（`collectForcedTargets`）は「シグニの能力か効果で」の限定を持たない＝どの対象選択にも効く。
-        return '対戦相手は、能力か効果で対象を選ぶ際、可能ならばこのシグニを対象とする';
+        // 期間（相手ターン）は `activeCondition` が前置で描く。発生源限定は payload から描く。
+        const source = a.forceTargetSourceCardTypes?.length === 1 && a.forceTargetSourceCardTypes[0] === 'シグニ'
+          ? 'シグニの能力かシグニの効果で' : '能力か効果で';
+        return `対戦相手は、${source}対象を選ぶ際、可能ならばこのシグニを対象とする`;
       }
       // 手札1枚選ぶ（CHOOSE_HAND_CARD・engine実装済み）＝「あなたの手札をN枚選ぶ」（後続の宣言当ては別描画）。
       if (a.id === 'CHOOSE_HAND_CARD') {
@@ -5198,6 +5203,11 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕§5.3 `O-356`＝原文を貼らず engine の挙動を描く（engine は選ばせずに全部を公開する）。
         if (a.id === 'OPP_REVEAL_LRIG_DECK') return '対戦相手はルリグデッキをすべて公開する';
         if (a.id === 'OPP_REVEAL_TOP_AND_HAND') return '対戦相手はデッキの一番上と手札を公開する';
+        if (a.id === 'OPP_REVEAL_HAND_AND_LRIG_DECK' && a.oppLrigDeckReveal) {
+          const spec = a.oppLrigDeckReveal;
+          const shortage = spec.upToCount ? `（${numJa(Math.max(0, spec.count - 1))}枚以下しかない場合はすべて公開する）` : '';
+          return `対戦相手は自分の手札を公開し、その後、自分のルリグデッキからカードを${numJa(spec.count)}枚選び公開する${shortage}`;
+        }
         return '対戦相手は手札とルリグデッキをすべて公開する';
       }
       // ライフバースト二度発動（LIFE_BURST_DOUBLE）＝「（このターン、）（次に）あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する」を原文抽出。
@@ -5919,7 +5929,9 @@ function actionJa(a?: Action, effectType?: string): string {
         // 消費地点＝`effectExecutor` の任意コスト分岐（ルリグの下1枚をルリグトラッシュへ置いて支払う）
         OPTIONAL_LRIG_UNDER_COST: 'このルリグの下からカード１枚をルリグトラッシュに置いてもよい。そうした場合、以下を行う',
         // 消費地点＝`BattleScreen`（エナ支払い・エナ数え上げの2地点）
-        STRIP_OPP_ENA_MULTI_ENA: '対戦相手のエナゾーンにあるカードは【マルチエナ】を失い、対戦相手の効果を受けない',
+        STRIP_OPP_ENA_MULTI_ENA: a.oppEnaMultiStrip?.effectImmunity
+          ? '対戦相手のエナゾーンにあるカードは【マルチエナ】を失い、対戦相手の効果を受けない'
+          : '対戦相手のエナゾーンにあるカードは【マルチエナ】を失う',
         // 消費地点＝`execUtils`（トラッシュのカードの能力・効果耐性の判定）
         TRASH_ABILITY_LOSS_AND_IMMUNITY: '対戦相手のトラッシュとルリグトラッシュにあるカードは能力を失い、効果を受けない',
       };

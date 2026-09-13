@@ -58777,6 +58777,88 @@ scenarios.v217LoseColorCondOff = {
 
 order.push('v217LoseColorCondOn', 'v217LoseColorCondOff');
 
+// V-218＝§5.3 `O-363`③・第318バッチ（`FORCE_TARGET_SELF` の「シグニの能力かシグニの効果で」限定）。
+// 原文（`WXDi-P03-053`）＝「【常】：対戦相手のターンの間、対戦相手は、**シグニの能力かシグニの効果で**
+//   対象を選ぶ際、可能ならばこのシグニを対象とする。」
+// 🔴engine は限定を持たず、**ルリグ・アーツの効果でも強制対象**にしていた（過剰）。
+// 🔑**実機で見るのは `BattleScreen` の1行**＝`collectForcedTargets` へ効果元のカード種別を渡す配線。
+//   ⚠`battleCardMap.get(getCardNum(entry.cardNum))?.Type` が undefined へ倒れると
+//     **限定札の強制が丸ごと消える**（過少）＝純関数 golden では捕まらない。
+// 🔑**同一アクションのシグニ／アーツを使う**＝差が出るのは「効果元の種別」だけ、という対照にする。
+const V218_FORCED = 'WXDi-P03-053#3801';     // コードメイズ ヒメジジョ（限定つき FORCE_TARGET_SELF）
+const V218_OTHER = 'WD01-013#3802';          // 小剣 ククリ（強制されない側の候補）
+const V218_SIGNI_SRC = 'WD04-009#3810';      // シグニ：対戦相手のシグニ1体をバニッシュ
+const V218_ARTS_SRC = 'WD07-008#3811';       // アーツ：**同一アクション**
+
+const v218Spec = (srcInst, srcNum, srcEffId) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#3800'], 'field.lrig_down': false,
+    'field.signi': [[V218_SIGNI_SRC], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], coins: 0,
+    deck: ['WD01-014#3820', 'WD01-014#3821', 'WD01-014#3822'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#3890'],
+    // 🔑強制対象（限定つき）と、強制されない別のシグニを並べる＝**絞られたか**が候補数で分かる。
+    'field.signi': [[V218_FORCED], [V218_OTHER], null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], blocked_actions: [],
+  },
+  // ⚠`activeCondition{TURN_OWNER:'opponent'}`＝**宣言者（guest）から見た相手のターン**＝host のターン。
+  top: {
+    active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    effectStack: o190EffectStack(srcNum, srcInst, srcEffId),
+  },
+});
+
+async function driveV218(page, H, expectForced, tag) {
+  const pre = await H.queryState();
+  H.log(`開始 guestField=${JSON.stringify(pre?.guest?.fieldSigni)} stack=${pre?.stackLen}`);
+  for (let step = 0; step < 18; step++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    // 対象選択が開いたら候補の顔ぶれを見る（`pick-*` は SELECT_TARGET の候補ボタン）。
+    const forcedVisible = await page.getByAltText('コードメイズ　ヒメジジョ', { exact: true }).count();
+    const otherVisible = await page.getByAltText('小剣　ククリ', { exact: true }).count();
+    H.log(`  ${tag}[${step}] pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} 候補: ヒメジジョ=${forcedVisible} ククリ=${otherVisible}`);
+    if (st?.pendingEffect === 'SELECT_TARGET') {
+      // 🔑**盤面のカード画像も同じ alt で出る**ので絶対数では判定できない（第318で実測＝
+      //   絞られていても「ヒメジジョ=2 ククリ=1」になる＝盤面1枚＋モーダル1枚）。
+      //   ⇒ **相対比較**にする＝絞られていればモーダルにククリが出ないぶん枚数が減る。
+      const onlyForced = forcedVisible > 0 && otherVisible < forcedVisible;
+      const bothShown = forcedVisible > 0 && otherVisible === forcedVisible;
+      if (expectForced) {
+        return onlyForced
+          ? { pass: true, detail: '🔑シグニの効果＝強制が効き、候補が《コードメイズ　ヒメジジョ》だけに絞られた' }
+          : { pass: false, detail: `${tag}: シグニの効果なのに絞られていない（ヒメジジョ=${forcedVisible} ククリ=${otherVisible}）＝限定の配線が効果元の種別を拾えていない` };
+      }
+      return bothShown
+        ? { pass: true, detail: '🔴対照＝アーツの効果では強制されず、候補が2体とも出る（原文の「シグニの能力かシグニの効果で」限定が効いている）' }
+        : { pass: false, detail: `${tag}: アーツの効果なのに絞られた（ヒメジジョ=${forcedVisible} ククリ=${otherVisible}）＝限定が engine に届いていない` };
+    }
+    await H.stdStep(['決定', 'OK', 'はい']);
+  }
+  return { pass: false, detail: `${tag}: 対象選択に到達できなかった` };
+}
+
+scenarios.v218ForceTargetSigniSrc = {
+  title: 'V-218① O-363③: シグニの効果で対象を選ぶと FORCE_TARGET_SELF が効き候補が1体に絞られる',
+  spec: v218Spec(V218_SIGNI_SRC, 'WD04-009', 'WD04-009-E2'),
+  drive: (page, H) => driveV218(page, H, true, 'v218Signi'),
+};
+
+scenarios.v218ForceTargetArtsSrc = {
+  title: 'V-218② O-363③ 対照: 同一アクションでも効果元がアーツなら強制されない（候補2体）',
+  spec: v218Spec(V218_ARTS_SRC, 'WD07-008', 'WD07-008-E1'),
+  drive: (page, H) => driveV218(page, H, false, 'v218Arts'),
+};
+
+order.push('v218ForceTargetSigniSrc', 'v218ForceTargetArtsSrc');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

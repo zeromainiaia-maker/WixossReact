@@ -45,12 +45,6 @@ export function computeEffectiveLrigLimit(
   const continuousDelta = collectLrigColorAndLimitMods(
     state, cardMap, effectsMap, otherState, isOwnerTurn,
   ).limitDelta;
-  // ⚠**相手の場が宣言する `LRIG_LIMIT_MODIFY{owner:'opponent'}` はここでしか拾えない**（続き407）。
-  //   `collectLrigColorAndLimitMods` は「その state 自身の場が宣言する owner:'self'」しか集計しないので、
-  //   `WX22-002-E1`（「対戦相手のターンの間、対戦相手のセンタールリグのリミットは1減る」）が丸ごと落ちていた。
-  const oppDeclaredDelta = collectOppDeclaredLrigLimitDelta(
-    otherState, state, cardMap, effectsMap, !isOwnerTurn,
-  );
   const fieldTopNums = new Set(state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
   const sourceBoundDelta = Object.entries(
     state.lrig_limit_mod_until_own_energy_phase_end_by_source ?? {},
@@ -64,14 +58,13 @@ export function computeEffectiveLrigLimit(
     + sourceBoundDelta
     + (state.game_lrig_limit_bonus ?? 0)
     + limitUpperBonus
-    + continuousDelta
-    + oppDeclaredDelta;
+    + continuousDelta;
 }
 
 /**
  * 相手（declarerState）の場が CONTINUOUS `LRIG_LIMIT_MODIFY{owner:'opponent'}` で宣言する、
- * **こちら（victimState）のリミット増減**を集める。`collectLrigColorAndLimitMods` は
- * 「自分の場が宣言する owner:'self'」しか見ないため、対面からの宣言はこの関数でしか拾えない。
+ * **こちら（victimState）のリミット増減**を単独で集める互換ヘルパ。
+ * 実効リミット本体は、全発生源を一括収集する `collectLrigColorAndLimitMods` を使う。
  * `activeCondition`（例: `TURN_OWNER opponent`＝「対戦相手のターンの間」）は宣言側視点で評価する。
  */
 export function collectOppDeclaredLrigLimitDelta(

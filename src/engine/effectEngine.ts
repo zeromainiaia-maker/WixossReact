@@ -4761,6 +4761,7 @@ export function collectForcedTargets(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   isOwnerTurn: boolean,
+  effectSourceCardType?: string,
 ): string[] {
   const result: string[] = [];
   for (const stack of state.field.signi) {
@@ -4771,6 +4772,8 @@ export function collectForcedTargets(
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB' && act.id === 'FORCE_TARGET_SELF') {
+        if (act.forceTargetSourceCardTypes
+            && (!effectSourceCardType || !act.forceTargetSourceCardTypes.includes(effectSourceCardType as import('../types/effects').CardTypeFilter))) continue;
         result.push(topNum);
         break;
       }
@@ -5925,6 +5928,10 @@ export function collectLrigColorAndLimitMods(
     const top = stack?.at(-1);
     if (top) otherCandidates.push(top);
   }
+  // 自分側と同じく、相手のルリグ／有効なキーも常在能力の発生源になる。
+  otherCandidates.push(...activeKeyAbilitySources(otherState).filter(cn => !otherCandidates.includes(cn)));
+  const otherCenterLrig = otherState.field.lrig.at(-1);
+  if (otherCenterLrig && !otherCandidates.includes(otherCenterLrig)) otherCandidates.push(otherCenterLrig);
   for (const cn of otherCandidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;

@@ -2534,7 +2534,14 @@ export interface PowerModifyAction {
 export interface PowerSetAction {
   type: 'POWER_SET';
   target: EffectTarget;
-  value: NumberOrRef;
+  /** 固定値。`valueRef` を使う場合だけ省略できる。 */
+  value?: NumberOrRef;
+  /** 宣言した数字を実行時に読む。未宣言なら何もしない（fail-closed）。 */
+  valueRef?: 'declared_number';
+  /** `value` / `valueRef` を基本パワーへ直す倍率。省略時は1。 */
+  multiplier?: number;
+  /** 先行する対象宣言で `storedTargetCards` に固定したシグニだけへ適用する。 */
+  targetsStored?: boolean;
   // ⚠**engine は読まない（逆翻訳の表示専用）**。`execPowerSet` は `temp_power_mods` に書くだけで、
   //   あのバケツは**ターン終了時にリセットされる**ので即時 POWER_SET は常に「ターン終了時まで」。
   //   常設（【常】）の基本パワー変更は `calcContinuousSigniMutations` の別経路なのでここは通らない。
@@ -5095,6 +5102,16 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /**
+   * `STRIP_OPP_ENA_MULTI_ENA` の追加範囲。剥奪自体は id が宣言し、`effectImmunity` は
+   * `WXK11-020` 型の「そのエナは対戦相手の効果を受けない」まで含む場合だけ立てる。
+   * 省略時に耐性を付けないことで、単なる「【マルチエナ】を失う」文型を過剰実行しない。
+   */
+  oppEnaMultiStrip?: { effectImmunity?: boolean };
+  /** `OPP_REVEAL_HAND_AND_LRIG_DECK` で相手が自分のルリグデッキから選んで公開する上限と選択者。 */
+  oppLrigDeckReveal?: { count: number; upToCount?: boolean; selectedBy: 'opponent' };
+  /** `FORCE_TARGET_SELF` が強制対象化する効果の発生源カード種別。省略時は従来どおり種別を問わない。 */
+  forceTargetSourceCardTypes?: CardTypeFilter[];
   /** PREVENT_*_MOVE_BY_OPP の移動元・移動先・例外フェイズ。省略時は既存の全方向・全位相。 */
   zoneMoveImmunity?: OppMoveImmunityRule;
   /**

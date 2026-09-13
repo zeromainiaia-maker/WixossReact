@@ -3,19 +3,3 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +LRIG_LEVEL ［1枚］
-WX19-007
---- WX19-007
-  原文: 【出】：シグニ１体を対象とし、それを手札に戻す。【出】《白》：対戦相手のセンタールリグがレベル４以上の場合、あなたのルリグデッキから《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》にグロウコストを支払わずにグロウする。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得
-  - [1].action.id = "CONDITIONAL_FREE_GROW"
-  ~ [1].action.type : "STUB" → "CONDITIONAL"
-  + [1].action.condition.type = "LRIG_LEVEL"
-  + [1].action.condition.owner = "opponent"
-  + [1].action.condition.operator = "gte"
-  + [1].action.condition.value = 4
-  + [1].action.then.type = "STUB"
-  + [1].action.then.id = "CONDITIONAL_FREE_GROW"
-  + [1].action.then.growFromLrigDeck.cardNames[0] = "炎・タマヨリヒメ・伍"
-  + [1].action.then.growFromLrigDeck.cardNames[1] = "炎・タマヨリヒメ・伍改"
-  + [1].action.then.growFromLrigDeck.free = true
-

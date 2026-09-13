@@ -2380,8 +2380,9 @@ export function isEnergyImmuneByOpponent(
     const effs = effectsMap?.get(num) ?? effectsMap?.get(base) ?? cardMap.get(base)?.effects ?? [];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      const act = eff.action as { type?: string; id?: string };
-      if (act.type === 'STUB' && act.id === 'STRIP_OPP_ENA_MULTI_ENA') return true;
+      const act = eff.action as { type?: string; id?: string; oppEnaMultiStrip?: { effectImmunity?: boolean } };
+      if (act.type === 'STUB' && act.id === 'STRIP_OPP_ENA_MULTI_ENA'
+        && act.oppEnaMultiStrip?.effectImmunity === true) return true;
     }
   }
   return false;

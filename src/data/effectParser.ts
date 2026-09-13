@@ -12032,7 +12032,7 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
 //   ⇒ **第2バッチでこの限定を外し、`TRASH_CARD`/`owner:'self'`/`transferGroups` 無しの全体へ広げる**
 //   （一度に20効果を載せないための暫定ガードであることを、外す人が分かるように明記しておく）。
 // 🔴既に固定済みの効果へ二重適用しない（O-96 欠陥署名③④をそのままガードにする）。
-const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /を対象とし[、,][^。]*?てもよい。そうした場合[、,]/;
+const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /(?:を対象とし|エナゾーンから[^。,]*?[０-９\d]+枚まで対象とし)[、,][^。]*?てもよい。そうした場合[、,]/;
 
 // 帰結として `targetsStored` を載せてよい型＝**型に `targetsStored` があり、かつ
 // `freezeStoredTargets` の FREEZABLE（`src/engine/effectExecutor.ts`）にも入っているもの**。

@@ -2660,6 +2660,21 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
 
   // ---- 宣言した数字でパワー変更 ----
+  {
+    const declaredPowerM = t.match(/^([０-９\d]+)～([０-９\d]+)の数字[０-９\d]*つを宣言し、ターン終了時まで、それの基本パワーを「(?:この方法で)?宣言した数字×([０-９\d]+)」にする$/);
+    if (declaredPowerM) {
+      const lo = parseNum(declaredPowerM[1]);
+      const hi = parseNum(declaredPowerM[2]);
+      const multiplier = parseNum(declaredPowerM[3]);
+      const numberChoices = lo <= hi ? Array.from({ length: hi - lo + 1 }, (_, i) => lo + i) : [];
+      return { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+        { type: 'STUB', id: 'DECLARE_NUMBER_RANGE', numberChoices },
+        { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' } },
+          targetsStored: true, valueRef: 'declared_number', multiplier, duration: 'UNTIL_END_OF_TURN' },
+      ] } as SequenceAction;
+    }
+  }
   if (t.match(/宣言した数字.*×.*パワー/) || t.match(/[０-９\d～]*の数字.*宣言し.*パワー/))
     return { type: 'STUB', id: 'DECLARE_NUMBER_POWER' } as StubAction;
 

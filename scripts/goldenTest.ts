@@ -118,8 +118,8 @@ import { signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonS
 import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils';
 import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
-import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
-import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf, oppZoneMoveBlocked } from '../src/engine/execUtils';
+import { collectForcedTargets, collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
+import { isEnergyImmuneByOpponent, isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf, oppZoneMoveBlocked } from '../src/engine/execUtils';
 import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { collectSpecificCardCostReductions } from '../src/engine/effectEngine';
@@ -135,7 +135,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -21892,6 +21892,12 @@ test('型網羅 LRIG_LIMIT_MODIFY: 相手の場が宣言する owner:opponent �
   const cm = cardMap as Map<string, CardData>;
   const base = computeEffectiveLrigLimit(victim, bare, cm, effectsMap, false);
   // activeCondition = TURN_OWNER opponent（宣言側から見て「対戦相手のターン」＝victim のターン）
+  eq(collectLrigColorAndLimitMods(victim, cm, effectsMap, declarer, true).limitDelta, -1,
+    'engine の収集器自身が相手センタールリグ上の宣言を拾う');
+  eq(collectLrigColorAndLimitMods(victim, cm, effectsMap, declarer, false).limitDelta, 0,
+    '宣言側のターンでは TURN_OWNER:opponent が不成立');
+  eq(collectLrigColorAndLimitMods(victim, cm, effectsMap, bare, true).limitDelta, 0,
+    '相手センタールリグ上に宣言元が無ければ0');
   eq(computeEffectiveLrigLimit(victim, declarer, cm, effectsMap, true), base - 1, 'victim のターンなら1減る');
   eq(computeEffectiveLrigLimit(victim, declarer, cm, effectsMap, false), base, '宣言側のターンでは減らない');
   eq(collectOppDeclaredLrigLimitDelta(bare, victim, cm, effectsMap, false), 0, '宣言者がいなければ0');
@@ -79389,6 +79395,156 @@ test('§5.3 O-312 SET_BASE_LEVEL.valueRef：宣言した数字を基本レベル
   eq(r2.ownerState.attack_phase_level_overrides?.[victim], undefined, '反転確認: 未宣言なら基本レベルを動かさない');
 }));
 
+test('§5.3 O-359: 2～20を宣言し、対象の基本パワーを宣言値×1000にする（WXDi-P07-086）', () => withSavedCursor(() => {
+  const card = cardMap.get('WXDi-P07-086');
+  if (!card) throw new Error('WXDi-P07-086 が cardMap に無い');
+  const fresh = parseCardEffects(card).find(e => e.effectId === 'WXDi-P07-086-E1');
+  const freshJson = JSON.stringify(fresh?.action ?? {});
+  ok(freshJson.includes('"id":"DECLARE_NUMBER_RANGE"'), 'fresh パース: 範囲宣言の既存経路へ載っていない');
+  ok(freshJson.includes('"numberChoices":[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]'),
+    'fresh パース: 2～20の範囲が payload に無い');
+  ok(freshJson.includes('"type":"POWER_SET"') && freshJson.includes('"valueRef":"declared_number"')
+    && freshJson.includes('"multiplier":1000'), 'fresh パース: 宣言値×1000の基本パワー上書きが無い');
+
+  const effect = liveEff('WXDi-P07-086', 'WXDi-P07-086-E1');
+  const victim = findCard(c => isSigni(c) && c.Power !== '7000');
+  const ctx = mkCtx({}, { signi: [victim, null, null] }, 'WXDi-P07-086');
+  const seen: PendingInteractionDef[] = [];
+  const resolved = finishSeen(executeEffect(effect, ctx), ctx, seen, pending => {
+    if (pending.type === 'SELECT_TARGET') return [victim];
+    if (pending.type === 'CHOOSE') return 'dnr_7';
+    return undefined;
+  });
+  const base = Number(cardMap.get(victim)?.Power ?? 0);
+  ok(resolved.otherState.temp_power_mods?.some(m => m.cardNum === victim && m.delta === 7000 - base) ?? false,
+    '7を宣言すると対象の基本パワーが7000になる');
+  const noDeclaration = run({ type: 'POWER_SET', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+    filter: { cardType: 'シグニ' } }, valueRef: 'declared_number', multiplier: 1000 } as unknown as EffectAction,
+  mkCtx({}, { signi: [victim, null, null] }));
+  eq(noDeclaration.otherState.temp_power_mods?.length ?? 0, 0, '宣言値が無ければ基本パワーは変わらない（fail-closed）');
+  const legacy = run({ type: 'POWER_SET', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+    filter: { cardType: 'シグニ' } }, value: 5000 } as EffectAction, mkCtx({}, { signi: [victim, null, null] }));
+  ok(legacy.otherState.temp_power_mods?.some(m => m.cardNum === victim && m.delta === 5000 - base) ?? false,
+    'valueRef を持たない既存 POWER_SET は固定値の従来挙動を維持する');
+}));
+
+test('§5.3 O-361: 相手エナの【マルチエナ】を失わせ、支払い色として使えなくする', () => {
+  for (const cardNum of ['WX19-002', 'WXK03-002']) {
+    const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`);
+    eq((fresh?.action as { type?: string; id?: string } | undefined)?.id, 'STRIP_OPP_ENA_MULTI_ENA',
+      `${cardNum}-E1 fresh パース: 正しい常在消費地点へ張り替わる`);
+  }
+
+  const payer = mkState({});
+  const declarer = mkState({});
+  declarer.field.lrig = ['WX19-002'];
+  const stripped = isEnaMultiStripped(payer, declarer, true, effectsMap, cardMap);
+  eq(stripped, true, '相手センタールリグの WX19-002 が剥奪を宣言する');
+  eq(isEnaMultiStripped(payer, mkState({}), true, effectsMap, cardMap), false,
+    '宣言元が無ければ剥奪されない');
+  const allCards = [...cardMap.values()];
+  const printed = allCards.find(c => c.EffectText?.includes('：【マルチエナ】'))!;
+  ok(isMultiEna(printed.CardNum, allCards), '対照: 印字マルチエナは通常時 true');
+  eq(isMultiEna(printed.CardNum, allCards, undefined, undefined, stripped), false,
+    '剥奪中は印字マルチエナを支払い色として使えない');
+
+  eq(isEnergyImmuneByOpponent(declarer, cardMap, effectsMap), false,
+    'WX19-002 は原文に無い「相手の効果を受けない」を付与しない');
+  const wxk11 = mkState({});
+  wxk11.field.lrig = ['WXK11-020'];
+  const effectsWithManual = new Map(effectsMap);
+  effectsWithManual.set('WXK11-020', mergeManualEffects('WXK11-020', effectsMap.get('WXK11-020') ?? []));
+  eq(isEnergyImmuneByOpponent(wxk11, cardMap, effectsWithManual), true,
+    '既存 WXK11-020 のエナ耐性は維持する');
+});
+
+test('§5.3 O-363①: WDK08-Y14 は手札の＜水獣＞2枚公開を任意コストにして対象エナを手札へ戻す', () => withSavedCursor(() => {
+  const card = cardMap.get('WDK08-Y14')!;
+  const fresh = parseCardEffects(card).find(e => e.effectId === 'WDK08-Y14-E1')!;
+  const json = JSON.stringify(fresh.action);
+  ok(json.includes('"id":"SELECT_TARGET_ONLY"') && json.includes('"type":"ENERGY_CARD"'),
+    'fresh パース: エナの対象宣言が無い');
+  ok(json.includes('"id":"OPTIONAL_COST"') && json.includes('"handReveal":{"count":2')
+    && json.includes('"story":"水獣"'), 'fresh パース: 手札の＜水獣＞2枚公開が任意コストでない');
+  ok(!json.includes('OPTIONAL_TRASH_ENERGY_CLASS'), '原文に無いエナトラッシュ任意コストが残る');
+
+  const waters = waterSigniDistinctNames(3);
+  const ctx = mkCtx({ energy: 0 }, {}, 'WDK08-Y14');
+  ctx.ownerState.energy = [waters[0]];
+  ctx.ownerState.hand = waters.slice(1);
+  const trashBefore = [...ctx.ownerState.trash];
+  const seen: PendingInteractionDef[] = [];
+  const result = finishSeen(executeEffect(fresh, ctx), ctx, seen, pending => {
+    if (pending.type === 'SELECT_TARGET' && pending.targetScope === 'self_energy') return [waters[0]];
+    if (pending.type === 'SELECT_TARGET' && pending.targetScope === 'self_hand') return waters.slice(1);
+    if (pending.type === 'CHOOSE') return 'pay';
+    return undefined;
+  });
+  ok(result.ownerState.hand.includes(waters[0]), '手札2枚を公開すると対象エナを手札へ加える');
+  eq(result.ownerState.energy.includes(waters[0]), false, '対象はエナに残らない');
+  eq(JSON.stringify(result.ownerState.trash), JSON.stringify(trashBefore),
+    '公開コストでエナをトラッシュしない');
+  eq(result.ownerState.hand.length, 3, '公開した2枚は手札に残る');
+}));
+
+test('§5.3 O-363②: WX15-001 は相手が自分のルリグデッキから上限3枚を選んで公開する', () => withSavedCursor(() => {
+  const fresh = parseCardEffects(cardMap.get('WX15-001')!).find(e => e.effectId === 'WX15-001-E3')!;
+  const stub = fresh.action as import('../src/types/effects').StubAction;
+  eq(JSON.stringify(stub.oppLrigDeckReveal), JSON.stringify({ count: 3, upToCount: true, selectedBy: 'opponent' }),
+    'fresh パース: 公開上限3枚・選択者が payload に無い');
+
+  const nums = [...cardMap.keys()].filter(n => n !== 'WX15-001').slice(0, 5);
+  const many = mkCtx({}, {}, 'WX15-001');
+  many.otherState.lrig_deck = [...nums];
+  const first = executeEffect(fresh, many);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '4枚以上なら公開する3枚を選ばせる');
+  if (!first.done && first.pending.type === 'SELECT_TARGET') {
+    eq(first.pending.count, 3, '公開選択は3枚だけ');
+    eq(first.pending.opponentResponds, true, '選ぶのは対戦相手');
+  }
+  const selected = nums.slice(0, 3);
+  const revealed3 = finishSeen(first, many, [], pending => pending.type === 'SELECT_TARGET' ? selected : undefined);
+  eq(JSON.stringify(revealed3.lastProcessedCards), JSON.stringify(selected), '選んだ3枚だけを公開記録へ残す');
+  const logs3 = revealed3.logs.join('\n');
+  for (const n of selected) ok(logs3.includes(cardMap.get(n)?.CardName ?? n), `${n} は公開ログに載る`);
+  for (const n of nums.slice(3)) ok(!logs3.includes(cardMap.get(n)?.CardName ?? n), `${n} は公開していない`);
+
+  const two = mkCtx({}, {}, 'WX15-001');
+  two.otherState.lrig_deck = nums.slice(0, 2);
+  const revealed2 = executeEffect(fresh, two);
+  ok(revealed2.done, '2枚以下なら選択を挟まずすべて公開する');
+  eq(JSON.stringify(revealed2.lastProcessedCards), JSON.stringify(nums.slice(0, 2)), '2枚なら2枚とも公開する');
+}));
+
+test('§5.3 O-363③: FORCE_TARGET_SELF は限定札だけシグニの能力・効果に絞る', () => {
+  const restrictedNum = 'WXDi-P03-053';
+  const restricted = parseCardEffects(cardMap.get(restrictedNum)!).find(e => e.effectId === `${restrictedNum}-E1`)!;
+  eq(JSON.stringify((restricted.action as import('../src/types/effects').StubAction).forceTargetSourceCardTypes),
+    JSON.stringify(['シグニ']), 'fresh パース: 「シグニの能力かシグニの効果」の限定が payload に無い');
+  const defender = mkState({ signi: [restrictedNum, null, null] });
+  const attacker = mkState({});
+  const restrictedMap = new Map(effectsMap);
+  restrictedMap.set(restrictedNum, [restricted]);
+  eq(collectForcedTargets(defender, attacker, cardMap, restrictedMap, false, 'シグニ').includes(restrictedNum), true,
+    'シグニの効果では強制対象になる');
+  eq(collectForcedTargets(defender, attacker, cardMap, restrictedMap, false, 'ルリグ').includes(restrictedNum), false,
+    'ルリグの効果では強制対象にならない');
+  eq(collectForcedTargets(defender, attacker, cardMap, restrictedMap, false, 'アーツ').includes(restrictedNum), false,
+    'アーツの効果では強制対象にならない');
+
+  for (const cardNum of ['WX25-CP1-060', 'WXDi-P11-040']) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`)!;
+    eq((effect.action as import('../src/types/effects').StubAction).forceTargetSourceCardTypes, undefined,
+      `${cardNum}-E1 は原文に発生源限定が無い`);
+    const state = mkState({ signi: [cardNum, null, null] });
+    const map = new Map(effectsMap); map.set(cardNum, [effect]);
+    eq(collectForcedTargets(state, attacker, cardMap, map, false, 'ルリグ').includes(cardNum), true,
+      `${cardNum}-E1 はルリグ効果でも従来どおり強制する`);
+    eq(collectForcedTargets(state, attacker, cardMap, map, false, 'アーツ').includes(cardNum), true,
+      `${cardNum}-E1 はアーツ効果でも従来どおり強制する`);
+  }
+});
+
 test('§5.3 O-314 ACCE_FROM_TRASH_MULTI：トラッシュ発の【アクセ】化とターン終了時の返却', () => withSavedCursor(() => {
   // `WXK04-033-E1`「トラッシュから＜調理＞のシグニを3枚まで、あなたの＜調理＞のシグニ3体までの【アクセ】にする。
   //   ターン終了時、**この方法で【アクセ】にしたすべてのカード**を場から手札に戻す。」
@@ -80999,6 +81155,39 @@ test('O-344 LEVEL_REFERENCE_OVERRIDE: 7効果すべてが許容レベル範囲�
   // 🔴`WX17-061` は 1〜3＝**1〜4 へ潰していない**（原文の数値を読んでいる証拠）。
   const wx17061 = rows.find(r => r.card === 'WX17-061');
   eq(JSON.stringify(wx17061 && [wx17061.min, wx17061.max]), JSON.stringify([1, 3]), 'WX17-061 は 1〜3');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-364`＝`WX22-002-E1`「【常】：対戦相手のターンの間、対戦相手のセンタールリグのリミットは１減る。」
+// 🔴**登録票の「恒久 no-op」は誤りだった**＝`src/screens/battle/lrigLimit.ts` に
+//   `collectOppDeclaredLrigLimitDelta` という**2本目の funnel** が在り、そこでは拾えていた。
+//   ⇒ 第318バッチで `collectLrigColorAndLimitMods` の**相手側候補にセンタールリグとキー枠を足して一本化**し、
+//   `computeEffectiveLrigLimit` 側の二重加算を撤去した。**合計が −1 のまま（−2 にならない）ことが要**。
+// ══════════════════════════════════════════════════════════════════════════════
+test('O-364 WX22-002-E1: 相手ターンに victim のリミットが −1（一本化後も二重に引かない）', () => {
+  const baseLrig = findCard(c => c.Type === 'ルリグ' && /^\d+$/.test(c.Limit ?? '') && c.CardNum !== 'WX22-002');
+  const baseLimit = parseInt(cardMap.get(baseLrig)?.Limit ?? '0', 10);
+  ok(baseLimit > 0, 'リミットを持つ素のルリグが見つかる');
+  // 宣言者＝`WX22-002` をセンタールリグに置く。victim＝素のルリグ。
+  const declarer: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: ['WX22-002'] } };
+  const victim: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: [baseLrig] } };
+
+  // 🔑`activeCondition{TURN_OWNER:'opponent'}`＝**宣言者から見て「対戦相手のターン」**＝victim のターン。
+  //   `computeEffectiveLrigLimit(victim, declarer, …, isOwnerTurn)` の `isOwnerTurn` は victim 視点。
+  const onOppTurn = computeEffectiveLrigLimit(victim, declarer, cardMap, effectsMap, true);
+  eq(onOppTurn, baseLimit - 1, '🔴相手ターンに victim のリミットが −1（二重に引いて −2 にならない）');
+
+  // 🔴対照①＝宣言者のターン（victim から見て自分のターンでない）なら条件不成立で素の値。
+  const onOwnTurn = computeEffectiveLrigLimit(victim, declarer, cardMap, effectsMap, false);
+  eq(onOwnTurn, baseLimit, '🔴対照＝宣言者のターンなら減らない');
+
+  // 🔴対照②＝宣言者が `WX22-002` を持たなければ減らない。
+  const bare: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: [baseLrig] } };
+  eq(computeEffectiveLrigLimit(victim, bare, cardMap, effectsMap, true), baseLimit, '宣言者が居なければ素の値');
+
+  // 🔑宣言者自身のリミットは減らない（`owner:'opponent'` なので自分側の枝は通らない）。
+  eq(computeEffectiveLrigLimit(declarer, victim, cardMap, effectsMap, false),
+    parseInt(cardMap.get('WX22-002')?.Limit ?? '0', 10), '宣言者自身のリミットは変わらない');
 });
 
 if (listMode) {

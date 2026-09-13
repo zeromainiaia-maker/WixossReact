@@ -3649,6 +3649,29 @@ export function execStubPart3(
       const topName = ctx.cardMap.get(ctx.otherState.deck[0] ?? '')?.CardName ?? 'なし';
       return done(addLog(ctx, `相手のデッキ上（${topName}）+手札（${handNames || 'なし'}）を公開`));
     }
+    const revealSpec = stub.oppLrigDeckReveal;
+    if (revealSpec) {
+      if (stub.value === 'selected') {
+        const selected = (ctx.lastProcessedCards ?? []).filter(n => ctx.otherState.lrig_deck.includes(n));
+        const names = selected.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('、');
+        return done(addLog({ ...ctx, lastProcessedCards: selected },
+          `相手のルリグデッキから${selected.length}枚を公開：${names || 'なし'}`));
+      }
+      const revealedHand = addLog(ctx, `相手の手札を公開：${handNames || 'なし'}`);
+      const candidates = [...ctx.otherState.lrig_deck];
+      const count = Math.min(revealSpec.count, candidates.length);
+      if (count === 0) return done({ ...addLog(revealedHand, '相手のルリグデッキにカードなし'), lastProcessedCards: [] });
+      if (revealSpec.upToCount && candidates.length <= revealSpec.count) {
+        const names = candidates.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('、');
+        return done(addLog({ ...revealedHand, lastProcessedCards: candidates },
+          `相手のルリグデッキを${candidates.length}枚すべて公開：${names}`));
+      }
+      return selectOrInteract(candidates, count, false, 'opp_lrig_deck',
+        { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction,
+        { ...stub, value: 'selected' } as StubAction,
+        addLog(revealedHand, `相手はルリグデッキから公開するカードを${count}枚選ぶ`),
+        revealSpec.selectedBy === 'opponent');
+    }
     return done(addLog(ctx, `相手の手札（${handNames || 'なし'}）+ルリグデッキ（${lrigNames || 'なし'}）を公開`));
   }
   // === バッチ14: シグニ移動・エナ操作・複数対象系 ===

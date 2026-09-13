@@ -2779,14 +2779,28 @@ function applyTimedBaseLevel(cardNum: string, a: import('../types/effects').SetB
     `${name}の基本レベルを${lv}に変更（${key === 'attack_phase_level_overrides' ? 'ターン終了時まで' : '次の対戦相手のターン終了時まで'}）`);
 }
 
+function powerSetValue(a: PowerSetAction, ctx: ExecCtx): number | null {
+  const raw = a.valueRef === 'declared_number' ? ctx.ownerState.declared_number : a.value;
+  if (raw === undefined) return null;
+  const value = resolveNum(raw);
+  const multiplier = a.multiplier ?? 1;
+  if (!Number.isFinite(value) || !Number.isFinite(multiplier)) return null;
+  return value * multiplier;
+}
+
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
-  const value = resolveNum(a.value);
+  const value = powerSetValue(a, ctx);
+  if (value === null) return done(addLog(ctx, '基本パワー変更：参照する数字が未宣言のため何もしない'));
+  const resolvedValue = value;
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドが候補（タスク12(lii)）。
   // 単体適用は applyDirectAction の POWER_SET が選択カードの所属側で解決する（既存実装）。
   // excludeSelf（「**他の**シグニ1体を対象とし」＝`WX20-074-E1`）は
   // `fieldCandidatesByOwner`（`execUtils.ts`）の合流点で落ちる（§5.2 Sheet3 バッチ6 で集約）。
-  const { cands, scope: psScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
+  const { cands: rawCands, scope: psScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
+  const cands = a.targetsStored
+    ? rawCands.filter(n => (ctx.storedTargetCards ?? []).includes(n))
+    : rawCands;
   if (cands.length === 0) return done(ctx);
 
   function applyPowerSet(targets: string[], c: ExecCtx): ExecCtx {
@@ -2799,14 +2813,14 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
       const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(cardNum, cur) : tgtOwner;
       const s = ownerState(own, cur);
       const base = parseInt(cur.cardMap.get(cardNum)?.Power ?? '0') || 0;
-      const mods = [...(s[psKey] ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: value - base }];
+      const mods = [...(s[psKey] ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: resolvedValue - base }];
       cur = addLog(setOwnerState(own, { ...s, [psKey]: mods }, cur),
-        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワーを${value}に${psKey === 'power_mods_until_opp_turn' ? '（次の対戦相手のターン終了時まで）' : ''}`);
+        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワーを${resolvedValue}に${psKey === 'power_mods_until_opp_turn' ? '（次の対戦相手のターン終了時まで）' : ''}`);
     }
     return cur;
   }
 
-  if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
+  if (a.targetsStored || a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
 
   const count = resolveNum(a.target.count);
   // 「このシグニ」: sourceCardNum が候補に含まれていれば自動適用。
@@ -14074,7 +14088,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'POWER_SET': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニのパワーを固定値に（delta = value - 表記パワー）。execPowerSet と同じ。
       const psA = action as PowerSetAction;
-      const psValue = resolveNum(psA.value);
+      const psValue = powerSetValue(psA, ctx);
+      if (psValue === null) return done(addLog(ctx, '基本パワー変更：参照する数字が未宣言のため何もしない'));
       const psOwner: Owner = psA.target.owner === 'any'
         ? (ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
         : psA.target.owner as Owner;

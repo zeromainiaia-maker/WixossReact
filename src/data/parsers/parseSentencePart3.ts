@@ -810,7 +810,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 可能ならばこのシグニを対象とする（強制ターゲット） ----
   if (t.match(/可能ならばこのシグニを対象とする/)) {
-    return { type: 'STUB', id: 'FORCE_TARGET_SELF' } as StubAction;
+    return {
+      type: 'STUB', id: 'FORCE_TARGET_SELF',
+      ...(/シグニの能力かシグニの効果で/.test(t) ? { forceTargetSourceCardTypes: ['シグニ' as const] } : {}),
+    } as StubAction;
   }
 
   // ---- （デッキ／トラッシュから）エナゾーンに置かれたとき、このカードをエナゾーンから手札に加えてもよい ----

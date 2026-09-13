@@ -8,42 +8,39 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-14（第317バッチ）＝🏁`O-344` クローズ**（【常】宣言型 STUB の条件・値を live JSON へ・**19効果**）。
-🔑**母集団は PLAN の 19効果が正**（登録票の「2効果」は古い）＝`LOSE_COLOR_ALL_ZONES` 8／`LEVEL_REFERENCE_OVERRIDE` 7／`ALL_COLOR` 2／`ALL_CLASS` 1／`ALL_ZONE_BLACK` 1。
-**うち原文に条件・値があるのは16効果**（`ALL_CLASS`／`ALL_ZONE_BLACK`／`WX22-025-E3` は**原文が無条件＝条件なしが正しい**）。
+**直近＝2026-09-14（第318バッチ・Codex 委譲＋Claude 引き継ぎ）＝🏁索引G の4項目クローズ**（`O-364` / `O-359` / `O-361` / `O-363`）。
+🔴🔑**主産物＝`O-364` の登録票が誤りだった**＝「恒久 no-op」ではなく、**`src/screens/battle/lrigLimit.ts` に2本目の funnel が在って拾えていた**。
+私が `src/engine/` しか grep せずに登録したのが原因（[LESSONS.md](./LESSONS.md) §4.1）。⇒ **一本化**して二重計上を防いだ。
 
-- 🐛**3系統とも engine が live JSON を1バイトも見ずにカード原文を読み直していた**＝
-  ①**`LOSE_COLOR_ALL_ZONES`（8効果）**＝`collectColorlessOverrides` が宣言を `txt.includes('すべての領域で色を失う')` で検出し、
-  条件を `/…＜([^＞]+)＞のルリグが**３体**いない/` で復元（**体数が焼き込み**）。**regex が外れると無条件で色喪失**へ倒れる。
-  ②**`ALL_COLOR`（2効果）**＝`collectAllColorSigni` が種類数とカード名を原文 regex で読み、外れると **`required = 10`** の既定値へ。
-  🔴**その既定値は無条件の札にも掛かっていた**＝`WX22-025-E3`（原文「このシグニはすべての色を得る」）が
-  「トラッシュにシグニ10種類以上」を勝手に要求されていた＝**過少実行**（これが `census:enginetext` の miss 1 の正体）。
-  ③**`LEVEL_REFERENCE_OVERRIDE`（7効果）**＝許容レベル範囲を engine が原文から読み、外れると**上書きが丸ごと消える**。
-- 🔑**受け皿は3つとも既存だった**＝`LRIG_TEAM_COUNT` / `TRASH_HAS_CARD{distinctName}` は**両 union・両評価器とも実装済み**
-  （条件の6点セットは1つも要らなかった）。`TargetFilter.cardName` が**部分一致**なので「カード名に《X》を含む」もそのまま表せた。
-- 🔴**parser に「条件を捨てる」1行が埋まっていた**＝`if (… id === 'ALL_COLOR') activeCondition = undefined;`。
-  理由は「専用 collector が原文から読むので二重ゲートになる」だったが、**その collector を `activeCondition` を読む側へ直したので撤去**した。
-- 🐛**同じバッチで実バグを2件追加で見つけた**：
-  1. 🔴**`LRIG_TEAM_COUNT` の2つの評価器が食い違っていた**＝`checkActiveCondition` は `Team.split('・').includes(team)`、
-     `evalCondition` は `Team.includes(team)`。⇒ **チーム名自体が `・` を含む2件**（`アンシエント・サプライズ`／`デウス・エクス・マキナ`）は
-     前者で**必ず不一致**＝条件が永久に成立しなかった。**実測＝`Team` 列は9種すべて単一名**。⇒ `lrigTeamMatches` 1本に寄せた。
-  2. 🔴**「すべての領域で」がエナに1度も届いていなかった**＝`colorlessOverrides` の**唯一の消費地点は `costs.ts` のエナ色判定**なのに、
-     collector は**場のシグニしか集めていなかった**（恒久 no-op）。**実機 `V-217` で発覚**（条件を直しても支払い可否が反転しなかった）。
-- ✅**実機 `V-217` を同バッチで返済＝2シナリオとも PASS**（`node scripts/verifyBattleDrive.mjs v217LoseColorCondOn v217LoseColorCondOff`）。
-  ①チーム2体以下＝条件成立＝エナの同名カードが色を失い**「エナ不足」で《白》×1 を払えない** ②3体そろえば払える。
+| 項目 | 実測した受け皿 | 直し方 |
+|---|---|---|
+| 🏁`O-364`（`WX22-002-E1`） | 🔴**「無い」は誤り**＝`collectOppDeclaredLrigLimitDelta`（`src/screens/`）が既に拾っていた | `collectLrigColorAndLimitMods` の**相手側候補にセンタールリグとキー枠**を足して一本化し、`computeEffectiveLrigLimit` 側の**二重加算を撤去**（−2 にしない） |
+| 🏁`O-359`（`WXDi-P07-086-E1`） | `POWER_SET`（live 226効果）＋ `valueRef:'declared_number'` の先例＋ `DECLARE_NUMBER_RANGE` | `numberChoices:[2..20]` ＋ `POWER_SET{targetsStored, valueRef, multiplier:1000, UNTIL_END_OF_TURN}`。**新型0** |
+| 🏁`O-361`（`WX19-002-E1`） | 🔑**完全に既存**＝`isEnaMultiStripped` が `STUB{STRIP_OPP_ENA_MULTI_ENA}` を読む | parser の張り替えだけ。**2効果とも**（`WXK03-002-E1` も同文型）。旧2 id は live 0 になるがハンドラは安全網として残す |
+| 🏁`O-363`（3件） | ①`OPTIONAL_COST{handReveal}` 既存 ②枚数軸を追加 ③種別限定を追加 | ①`WDK08-Y14-E1` の誤パース（**エナのトラッシュ**を要求していた）を `handReveal{count:2}` へ ②`oppLrigDeckReveal{count:3,upToCount,selectedBy:'opponent'}` ③`forceTargetSourceCardTypes:['シグニ']` |
+
+- 🔑**`O-363③` は限定のある1枚にだけ payload を足した**＝他2枚（`WX25-CP1-060` / `WXDi-P11-040`）の原文は
+  「**能力か効果**で対象を選ぶ際」＝**限定が無いので据え置きが正解**（原文を読んで確かめた）。
+- ✅**実機 `V-218` を同バッチで返済＝2シナリオとも PASS**（`node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc`）。
+  🔑**同一アクションのシグニ／アーツを効果元にして対照を作った**＝差が出るのは「効果元の種別」だけ。
+  ①シグニの効果＝候補が《コードメイズ　ヒメジジョ》だけに絞られる ②アーツの効果＝絞られず2体とも出る。
+- 🔑**`O-364` の観測は golden で網羅した**＝`computeEffectiveLrigLimit` は **`src/screens/` の React 非依存の純関数**なので
+  golden から import できる（`CLAUDE.md` の規約）。−1 になること／宣言者のターンでは減らないこと／宣言者が居なければ素の値／
+  **宣言者自身は減らない**の4点を固定し、一本化を戻すと **−1 が −0 に化ける**（実測 expected=10 got=11）反転も取った。
+- ⚠**`.codex-work` が再び利用上限**（823k トークン消費・リセット 7:01）＝**実装完了直前で停止**したので
+  Claude が引き継ぎ、`O-364` の golden 追加・反転確認・実機・ラチェット・簿記を完遂した。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-364`**（相手センタールリグのリミット宣言が恒久 no-op＝engine のみ・実機不要） → ②**`O-346`**（MISS 52件の1件ずつ判定） → ③**`O-357`**〜**`O-363`**（索引G の1効果もの） |
+| 🔥**次に取るもの** | ①**`O-346`**（「対戦相手は自分の〜を対象とし」MISS 52件の1件ずつ判定） → ②**`O-357`**（任意登場を辞退したときの契約） → ③**`O-358`**（配置ゾーンの「シグニのない」限定） |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置） |
-| 📦**在庫** | 機構 worklist 🔥**8項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`〜`O-364` 索引G）／実機 🏁**0**（`V-217` 返済済み）／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4099 PASS**・実機 `V-217` **2/2 PASS**・`census:enginetext` **20 → 19**・`census:numberdrift` **63 → 59** |
+| 📦**在庫** | 機構 worklist 🔥**5項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`・`O-358`・`O-360`・`O-362` 索引G）／実機 🏁**0**（`V-218` 返済済み）／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4105 PASS**・実機 `V-218` **2/2 PASS**・`census:numberdrift` **59 → 57** |
 
-🆕🔴**「二重配線になるから条件を載せない」は疑う**＝専用 collector が `activeCondition` を**読んでいない**なら二重にならない。
-今回その1行が**条件を捨て続け、既定値が無条件の札にまで掛かっていた**（`WX22-025-E3`）。
-🆕🔴**同じ条件型の評価器が2つあるなら照合式は1本に寄せる**＝`LRIG_TEAM_COUNT` は式が違い、**チーム名に `・` を含む2件だけ永久に不成立**だった。
-🆕🔴**live JSON を読む golden だけでは反転しない**（CODEX_GUIDE §5-29）＝収穫マージが live を温存するので、**parser を退行させても緑のまま**。`parseCardEffects` を直接呼ぶ assert を必ず1本置く。
-🆕🔑**実機は「条件が効くか」だけでなく「そもそも消費地点に届くか」を暴く**＝今回 `V-217` が恒久 no-op を1件出した。
+🆕🔴**「受け皿が無い」の grep は `src/engine/` だけでは足りない**＝`O-364` は **`src/screens/` に2本目の funnel** が在った。
+**消費地点は engine と screens の両方を見る**（この登録票は私が書いて私が外した）。
+🆕🔑**同じ意味の funnel が2本あったら「片方を消す」ではなく「一本化して二重計上を殺す」**＝
+今回 `computeEffectiveLrigLimit` は両方を足していたので、候補を広げた瞬間に **−2** になりかねなかった。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -212,7 +209,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件** | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**8項目**（**索引A/B/E 🏁0**／`O-346`/`O-357`〜`O-364` 索引G） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**5項目**（**索引A/B/E 🏁0**／`O-346`/`O-357`/`O-358`/`O-360`/`O-362` 索引G） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0効果**（2026-09-12 に全数照合） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
 | — | §5.4 構造混線 | 🏁**0** | 新しく見つけたときだけ足す | — |
@@ -283,10 +280,11 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🏁**残0**（`V-209`〜`V-212` は第293バッチ、**`V-213` は第296バッチ**、**`V-214` は第310バッチ**、**`V-215` は第315バッチ**、**`V-216` は第316バッチ**、**`V-217` は第317バッチ**で返済）。
+🏁**残0**（`V-209`〜`V-212` は第293バッチ、**`V-213` は第296バッチ**、**`V-214` は第310バッチ**、**`V-215` は第315バッチ**、**`V-216` は第316バッチ**、**`V-217` は第317バッチ**、**`V-218` は第318バッチ**で返済）。
 > 🆕`V-215`＝`O-353` Part B の全カード名宣言（`node scripts/verifyBattleDrive.mjs v215DeclareAllCardsHit v215DeclareAllCardsMiss`）＝**一致／不一致の2シナリオとも PASS**。
 > 🆕`V-216`＝`O-345` の名前指定つき無償グロウ（`node scripts/verifyBattleDrive.mjs v216FreeGrowNamedOnly`）＝**候補が指定2枚だけ・囮は出ない・エナ0枚のままグロウ成立**で PASS。
 > 🆕`V-217`＝`O-344` の全領域色喪失（`node scripts/verifyBattleDrive.mjs v217LoseColorCondOn v217LoseColorCondOff`）＝**条件成立で「エナ不足」／チーム3体で支払える**の両方向 PASS。
+> 🆕`V-218`＝`O-363`③ の強制対象の種別限定（`node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc`）＝**シグニの効果では絞られ／アーツでは絞られない**の両方向 PASS。
 
 ⚠**新しい観測点はここへ `V-<次番号>` で足す**（機構項目は §5.3 へ）。
 🚀**リリースゲートの通し対戦スモークは道具になった**＝`node scripts/verifyFullMatch.mjs`（`cpu` / `pvp` で片方だけも可）。
@@ -366,19 +364,15 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-**残8項目。**（🏁**2026-09-14 に `O-344` をクローズ**＝母集団は実測19効果だった／🏁2026-09-13 にクローズ＝`O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12） ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
+**残5項目。**（🏁**2026-09-14 に `O-344`／`O-359`／`O-361`／`O-363`／`O-364` をクローズ**＝母集団は実測19効果だった／🏁2026-09-13 にクローズ＝`O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12） ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
 | 🆕`O-358` | S | **配置ゾーン指定に「シグニのない」限定が無い**（`WXDi-P11-009-E3`・**実測 1効果**）。原文＝「**シグニのない**対戦相手のシグニゾーン１つを指定する」に対し、engine（`execStubPart2.ts:3533`）は**3ゾーンすべてを `available:true` で提示**する＝**シグニが居るゾーンも指定できる**（過剰）。payload（`DESIGNATE_SIGNI_ZONE`）にも軸が無いので逆翻訳からも消えている（第306バッチで payload 化したときに可視化された）。🔑**受け皿の有無を先に grep する**＝`zoneOptsDSZ` の `available` を埋める軸（空きゾーン限定）が他の STUB に既に在るかを確かめてから足す |
 | 🆕`O-357` | S | **任意登場を「辞退したとき」のアクション契約が無い**（`WXK02-035-E2`・**実測 1効果**）。原文＝「デッキの一番下のカードをチェックゾーンに置く。それがシグニの場合、それを場に出してもよい。**場に出さない場合、それをトラッシュに置く。**」に対し、engine は `field.check_rest` に置いたまま**ターン終了時まで残す**（即時トラッシュにしない）＝**過少実行**。⚠**逆翻訳は engine の挙動どおりに描いてある**（原文に寄せると欠落が隠れる＝`O-354` の教訓）ので、直したら逆翻訳の注記も戻すこと。🔑**受け皿の有無を先に grep する**＝`declineAction` / `restDestination` 相当の軸が `ADD_TO_FIELD` の任意形に既に在るかを確かめてから機構を足す |
-| 🆕`O-364` | S | **「対戦相手のセンタールリグのリミットは１減る」が恒久 no-op**（`WX22-002-E1`・**実測 1効果**・2026-09-13 第314の検証で発見）。🔴**真因**＝`collectLrigColorAndLimitMods`（`effectEngine.ts:5897`）の**相手側の候補が `otherState.field.signi` だけ**で、**相手のセンタールリグもキー枠も入っていない**＝`owner:'opponent'` の `LRIG_LIMIT_MODIFY` をルリグが宣言しても**誰も読まない**。⚠自分側は第314で `state.field.lrig.at(-1)` を足して対称化済み＝**相手側だけが非対称に残っている**。🔑**直し方は自分側と同じ1行**（＋`activeKeyAbilitySources(otherState)` も要るか実測する）。⚠**どの計器にも映らない**（原文を読んでいないので `census:enginetext` にも出ない・golden/smoke/fuzz も緑）＝**反転を固定する golden を必ず張る** |
 | `O-346` | M | 🔧**母集団を実測＝121効果 / 115カード**（`npm run census:population -- "対戦相手は自分の"`。`opponentSelects` **OK 69 / MISS 52**）。🔴**「型に受け皿が無い」は誤りだった**＝`TrashAction.opponentSelects` は型にも消費地点にも在り、`WX13-036-E3` は2026-09-13 に修正済み・**実機不要**。⚠**MISS 52 はバグ数ではない**（別の正準形で配線済みが混ざる）＝残作業は「52件を1件ずつ判定」＋parser 規則 |
-| 🆕`O-359` | S | **「N～Mの数字を宣言し、基本パワーを『宣言した数字×1000』にする」が無い**（`WXDi-P07-086-E1`・**実測 1効果**・2026-09-13 第308で発見）。原文＝「２～２０の数字１つを宣言し、ターン終了時まで、それの基本パワーを『この方法で宣言した数字×1000』にする」に対し、live は `SEQUENCE[SELECT_TARGET_ONLY, STUB{DECLARE_NUMBER_POWER}]`＝engine は**固定の6値（3000〜15000）を提示して `declared_number` に入れるだけ**で、**対象の基本パワーを変える処理が無い**（真 no-op）。🔑**受け皿を先に grep する**＝範囲は第308で `DECLARE_NUMBER_RANGE.numberChoices` が読めるようになった／基本パワーの時限上書きは `SET_BASE_POWER` 系の `valueRef` 相当が既に在るか（`SET_BASE_LEVEL.valueRef:'declared_number'` は `O-312` で在る）を確かめてから足す |
 | `O-360` | M | **アクセにする系3効果が engine と別物**（実測3効果・第309で発見）。`ACCE_FROM_TRASH`＝原文「トラッシュから＜調理＞のシグニ１枚を対象とし、それを**このシグニの**【アクセ】にする」（`WDK07-E11-E2`）に対し engine は**トラッシュにある効果元自身**を付けようとする＝効果元は場に居るので**恒久 no-op**／`ACCE_FROM_HAND`＝「デッキの上から２枚見て、その中から＜調理＞のシグニ１枚を**それの**【アクセ】にする」（`WXK05-039-E1`）に対し engine は**効果元自身**を手札/エナから探す＝恒久 no-op／`ACCE_TO_ENERGY`＝「トラッシュから《アクセアイコン》を持つシグニ１枚を…エナゾーンに置く」（`WD18-009-E2`）に対し engine は**場の【アクセ】を全部エナへ**。🔑`AttachAcceAction` の `fromEnergy`／`fromLrigDeck` と同じ2段選択に「トラッシュから」「公開札から」を足すのが最短（除去は `applyDirectAction` の `ATTACH_ACCE` と対で足す）。逆翻訳は engine の挙動どおりに描いてある |
-| `O-361` | S | **【常】「対戦相手のエナゾーンにあるカードは【マルチエナ】を失い、新たに得られない」の消費地点が無い**（`WX19-002-E1`・実測1効果・第309で発見）。`REMOVE_OPP_MULTI_ENA` は STUB ハンドラ（相手の**多色エナをトラッシュ**する別物）しか無く、【常】としてはどこも読まない＝真 no-op。🔑エナ支払いの【マルチエナ】判定の funnel に「相手の【マルチエナ】を無効」を足す＝`src/screens/` を触る＝実機まで必須 |
 | `O-362` | M | **期間の食い違い3件**（第309で発見）。①`DOUBLE_OWN_POWER_MINUS`＝`double_power_minus_targets` に**解除地点が無い**（`turnScopedState.ts` にも `BattleScreen` のターン終了リセットにも無い）＝「このターン」の2倍化が**ターンを越えて残る**（実測6効果）②`LIFE_BURST_DOUBLE`＝フラグを次の1回で消費する＝原文「このターン、あなたのライフバーストが発動する場合」（`WD23-006-E-E1`）は**2回目以降が倍化されない**③`REMOVE_SIGNI_ZONE`＝`signi_zone_blocks` はターン終了時に解除＝原文「次の対戦相手のターン終了時まで」（`WXDi-P09-003-E1`）は**相手ターンに配置できてしまう**。⚠リセットは `src/screens/` 側＝実機まで必須 |
-| `O-363` | S | **原文エコー撤去で見えた小さな食い違い**（各1効果・第309で発見）＝①`WDK08-Y14-E1` の誤パース＝原文「手札から＜水獣＞のシグニを２枚公開してもよい。そうした場合、それを手札に加える」なのに live は `OPTIONAL_TRASH_ENERGY_CLASS`（**エナのトラッシュ**を要求）②`OPP_REVEAL_HAND_AND_LRIG_DECK`＝原文「ルリグデッキからカードを３枚選び公開する」（`WX15-001-E3`）に対し engine は**ルリグデッキを全部公開**③`FORCE_TARGET_SELF`＝原文「**シグニの**能力かシグニの効果で対象を選ぶ際」（`WXDi-P03-053-E1`）の限定を engine が持たない |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -461,12 +455,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（過去に計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態になった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-14 時点（本ブロックが直近の正）**＝第317バッチ（🏁`O-344` クローズ＋実機 `V-217` 返済）
+- **2026-09-14 時点（本ブロックが直近の正）**＝第318バッチ（🏁索引G 4項目クローズ＋実機 `V-218` 返済）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
-  📦**在庫**＝**機構 worklist 🔥8項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`〜`O-364` 索引G）｜**実機 🏁0**｜**実装キュー 🏁0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4099 PASS**／smoke 10754 OK／fuzz 200ゲーム 0／census 1 / BASELINE 1。
-  ✅**実機**＝`V-217` **2シナリオとも PASS**（`v217LoseColorCondOn` / `v217LoseColorCondOff`）。
-  🆕**払い戻し**＝`census:enginetext` A群 **20 → 19行**（`collectAllColorSigni` の原文 regex 撤去＝**消化**）／`census:numberdrift` **63 → 59**。
+  📦**在庫**＝**機構 worklist 🔥5項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`・`O-358`・`O-360`・`O-362` 索引G）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4105 PASS**／smoke 10754 OK／fuzz 200ゲーム 0／census 1 / BASELINE 1。
+  ✅**実機**＝`V-218` **2シナリオとも PASS**（`v218ForceTargetSigniSrc` / `v218ForceTargetArtsSrc`）。
+  🆕**払い戻し**＝`census:numberdrift` **59 → 57**（`WXDi-P07-086` の「2～20／×1000」と `WX15-001` の「3枚」が逆翻訳に出た）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

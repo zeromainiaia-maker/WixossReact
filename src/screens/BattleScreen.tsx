@@ -5293,7 +5293,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
       if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.targetScope === 'opp_field') {
-        const forcedNums = collectForcedTargets(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
+        const effectSourceCardType = battleCardMap.get(getCardNum(entry.cardNum))?.Type;
+        const forcedNums = collectForcedTargets(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, effectSourceCardType);
         const forcedInCands = forcedNums.filter(n => result.done === false && result.pending.type === 'SELECT_TARGET' && result.pending.candidates.includes(n));
         if (forcedInCands.length > 0 && result.done === false && result.pending.type === 'SELECT_TARGET' && forcedInCands.length < result.pending.candidates.length) {
           const pend = result.pending;

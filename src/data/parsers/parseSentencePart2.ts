@@ -418,6 +418,19 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
+  // ---- エナの対象を先に宣言し、手札から同系統のシグニを公開する任意コスト ----
+  // 「対象とし」の復元と支払いを跨ぐ固定は effectParser の O-96 三点契約が担う。
+  {
+    const revealForEnergyM = t.match(
+      /あなたのエナゾーンから＜([^＞]+)＞のシグニを[０-９\d]+枚まで対象とし[、,]手札から＜([^＞]+)＞のシグニを([０-９\d]+)枚公開してもよい/);
+    if (revealForEnergyM) {
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        handReveal: { count: parseNum(revealForEnergyM[3]), filter: { cardType: 'シグニ', story: revealForEnergyM[2] } },
+      } as StubAction;
+    }
+  }
+
   // ---- 手札からシグニを公開する／公開してもよい（N枚／N枚まで／好きな枚数・名前が異なる）----
   //   従来は「N枚まで公開してもよい」限定で、「公開する」（必須形）・「好きな枚数」・「それぞれ名前が異なる」は
   //   bare REVEAL に潰れ、source/filter/count が丸ごと脱落＝engine が lastProcessedCards を記録せず「この方法で
@@ -668,9 +681,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SIGNI_SERVANT_ZERO' } as StubAction;
   }
 
-  // ---- 対戦相手のエナの【マルチエナ】を除去 ----
+  // ---- 対戦相手のエナの【マルチエナ】を失わせる（常在の支払い判定へ接続） ----
   if (t.match(/対戦相手のエナゾーンにあるカードは【マルチエナ】を失い/)) {
-    return { type: 'STUB', id: 'REMOVE_OPP_MULTI_ENA' } as StubAction;
+    return { type: 'STUB', id: 'STRIP_OPP_ENA_MULTI_ENA' } as StubAction;
   }
 
   // ---- ゲームに敗北しない（条件付き）----
@@ -1322,7 +1335,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 対戦相手のエナゾーンのカードがマルチエナを失う ----
   if (t.match(/対戦相手のエナゾーンにあるカードは【マルチエナ】を失う/)) {
-    return { type: 'STUB', id: 'REMOVE_OPP_MULTI_ENA_ONLY' } as StubAction;
+    return { type: 'STUB', id: 'STRIP_OPP_ENA_MULTI_ENA' } as StubAction;
   }
 
   // ---- 対戦相手の効果でこのシグニのパワーは－されない ----
@@ -2086,7 +2099,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 対戦相手の手札とルリグデッキを公開させる ----
   if (t.match(/対戦相手は自分の手札を公開し.*ルリグデッキからカードを.*選び公開する/)) {
-    return { type: 'STUB', id: 'OPP_REVEAL_HAND_AND_LRIG_DECK' } as StubAction;
+    const countM = t.match(/ルリグデッキからカードを([０-９\d]+)枚選び公開する/);
+    return {
+      type: 'STUB', id: 'OPP_REVEAL_HAND_AND_LRIG_DECK',
+      ...(countM ? { oppLrigDeckReveal: { count: parseNum(countM[1]), upToCount: true, selectedBy: 'opponent' as const } } : {}),
+    } as StubAction;
   }
 
   // ---- 特定センタールリグのとき、トラッシュからエナゾーンに置く ----
