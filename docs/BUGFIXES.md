@@ -1,5 +1,63 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 `O-344` クローズ＝【常】宣言型 STUB の条件・値を live JSON へ（19効果・第317バッチ）
+
+- **母集団**＝**実測19効果**（PLAN の数字が正。登録票の「2効果」は古い）＝
+  `LOSE_COLOR_ALL_ZONES` 8 ／ `LEVEL_REFERENCE_OVERRIDE` 7 ／ `ALL_COLOR` 2 ／ `ALL_CLASS` 1 ／ `ALL_ZONE_BLACK` 1。
+  **うち原文に条件・値があるのは16効果**＝`ALL_CLASS`（`WX21-021`）／`ALL_ZONE_BLACK`（`WDA-F02-17`）／`ALL_COLOR` の `WX22-025-E3` は
+  **原文が無条件**なので「条件なし」が正しい（＝偽陽性3件）。
+- **真因（3系統とも同じ形）**＝**engine が live JSON を1バイトも見ず、カード原文を regex で読み直していた**。
+  1. 🔴**`LOSE_COLOR_ALL_ZONES`（8効果）**＝`collectColorlessOverrides` が宣言を `txt.includes('すべての領域で色を失う')` で検出し、
+     条件を `/あなたの場に＜([^＞]+)＞のルリグが**３体**いない/` で復元（**体数が焼き込み**）。
+     **regex が外れると `result.push(topNum)`＝無条件で色喪失**へ倒れる（過剰実行）。
+  2. 🔴**`ALL_COLOR`（2効果）**＝`collectAllColorSigni` が種類数（`([０-９d]+)種類以上`）とカード名を原文から読み、
+     外れると **`required = 10` / 名前限定なし**の既定値へ。
+     ⚠**その既定値は無条件の札にも掛かっていた**＝`WX22-025-E3`（原文「このシグニはすべての色を得る」）が
+     「トラッシュにシグニ10種類以上」を勝手に要求されていた＝**過少実行**（`census:enginetext` の miss 1 の正体）。
+  3. 🔴**`LEVEL_REFERENCE_OVERRIDE`（7効果）**＝`getLevelReferenceOverride` が許容レベル範囲を原文から読み、
+     外れると `null`＝**上書きが丸ごと消える**（過少実行）。⚠`WX17-061` は **1〜3**＝固定値へ潰していないことの証拠。
+- 🔑**受け皿は3つとも既存だった**＝`LRIG_TEAM_COUNT` ／ `TRASH_HAS_CARD{minCount, distinctName}` は
+  **`ActiveCondition`/`Condition` の両 union・`checkActiveCondition`/`evalCondition` の両評価器とも実装済み**
+  （条件の6点セットは1つも要らなかった）。`TargetFilter.cardName` が**部分一致**なので「カード名に《X》を含む」もそのまま表せた。
+- 🔴**parser に「条件を捨てる」1行が埋まっていた**＝`if (resolvedAction.id === 'ALL_COLOR') activeCondition = undefined;`。
+  理由は「専用 collector が原文から条件を読むので二重ゲートになる」だったが、
+  **その collector が `activeCondition` を読んでいなかった**ので二重にならない。collector を直したうえで撤去した。
+- **直し方**＝parser が条件・値を刻み（`LRIG_TEAM_COUNT{lt,N}` / `TRASH_HAS_CARD{distinctName}` / `levelReferenceOverride{min,max}`）、
+  engine は **宣言を `effectsMap` から、条件を `checkActiveCondition` から、値を payload から**読む。
+  ⚠**payload / `effectsMap` が無ければ何もしない（fail-closed）**＝原文 regex へのフォールバックは置かない。
+
+### 🐛 同じバッチで見つけた実バグ2件
+
+1. 🔴**`LRIG_TEAM_COUNT` の2つの評価器が食い違っていた**＝
+   `checkActiveCondition`（`effectEngine`）は `Team.split('・').includes(team)`、`evalCondition`（`execUtils`）は `Team.includes(team)`。
+   ⇒ **チーム名自体が `・` を含む2件**（`アンシエント・サプライズ` / `デウス・エクス・マキナ`）は前者で**必ず不一致**＝条件が永久に成立しなかった。
+   **実測＝`Team` 列の値は9種すべて単一のチーム名**（`・` 区切りのリストは1件も無い）。
+   ⇒ `lrigTeamMatches`（完全一致 **または** `・` 区切りの1要素）へ寄せ、**両評価器が同じ式を呼ぶ**ようにした。
+   ⚠`includes` には戻さない（`サプライズ` が `アンシエント・サプライズ` に当たる＝過剰）。
+2. 🔴**「すべての領域で色を失う」がエナゾーンに1度も届いていなかった**＝
+   `colorlessOverrides` の**唯一の消費地点は `costs.ts` のエナ色判定**（`isColorless`）なのに、
+   collector は**場のシグニだけを走査**していた＝**恒久 no-op**。**実機 `V-217` で発覚**（条件を直しても支払い可否が反転しなかった）。
+   ⇒ 場に加えて **`ps.energy` も走査**し、`effectsMap` は**インスタンス id と素のカード番号の両方**で引くようにした
+   （経路によって `InstanceMap` と素の `Map` が混ざるため）。
+
+### 検証
+
+- **検証コマンド**＝`npm run build:effects` → `npm run regen` → `npm run gates` 全緑（**golden 4099 PASS**）。
+  `census:enginetext` A群 **20 → 19行**（`collectAllColorSigni` の原文 regex 撤去＝**消化**）／`census:numberdrift` **63 → 59**。
+- **反転確認**＝**3系統それぞれで実施**。①parser の「条件捨て」を復活 → FAIL 1 ②`collectColorlessOverrides` の条件判定を殺す → FAIL 1
+  ③`levelReferenceOverride` の刻みを殺す → FAIL 1。いずれも復元で PASS。
+- 🔴**live JSON を読む golden だけでは反転しない**（CODEX_GUIDE §5-29）＝収穫マージは fresh が純粋上位集合でなければ live を温存するので、
+  **parser を退行させても live は正しいまま＝緑で通る**（本バッチで実際に踏んだ）。⇒ **`parseCardEffects` を直接呼ぶ assert を1本置いた。**
+- 🔴**既存 golden 2本を訂正**＝①`collectColorlessOverrides` へ `effectsMap` を渡す（**元の意図は1文字も変えていない**）
+  ②「`ALL_COLOR` へ一般条件を二重配線しない」という**据置契約そのものが誤り**だったので撤回（CODEX_GUIDE §5-17＝**緑の golden は正しさの証明ではない**）。
+- ✅**実機（`V-217`・§2.2 により `src/screens/` を触ったので必須）**＝
+  `node scripts/verifyBattleDrive.mjs v217LoseColorCondOn v217LoseColorCondOff` で **2/2 PASS**。
+  ①＜CardJockey＞2体以下＝条件成立＝エナの同名カードが色を失い**「エナ不足」で《白》×1 を払えない**
+  ②3体そろえば払える（グロウ実行まで到達）。
+- 🔴**実機シナリオで踏んだ3つ**＝①グロウボタンは **`turn_phase === 'GROW'`** のときだけ出る
+  ②**チーム3体は「センター＋アシストL/R」で数える**＝センターを別チームにすると**最大2体にしかならず対照が作れない**
+  ③**支払えないと候補は選べず第2フェイズに進まない**＝観測点は「実行ボタンが押せない」ではなく**「エナ不足表示で到達しない」**。
+
 ## 2026-09-14 — 🏁§5.3 `O-345` クローズ＝`WX19-007-E2` の無償グロウが「過剰かつ過少」だった（第316バッチ・索引B 残0）
 
 - **原文**＝「【出】《白》：**対戦相手のセンタールリグがレベル４以上の場合**、あなたのルリグデッキから

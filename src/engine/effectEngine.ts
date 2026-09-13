@@ -293,7 +293,7 @@ export function checkActiveCondition(
     case 'LRIG_TEAM_COUNT': {
       const field = (cond.owner === 'self' ? ownerState : otherState).field;
       const count = lrigZoneTops(field).filter((n): n is string => !!n)
-        .filter(n => (cardMap.get(n)?.Team ?? '').replace(/･/g, '・').split('・').includes(cond.team)).length;
+        .filter(n => lrigTeamMatches(cardMap.get(n)?.Team, cond.team)).length;
       return compare(count, cond.operator, cond.value);
     }
     // 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）。
@@ -4179,47 +4179,71 @@ export function collectBlockLowCostSpellCount(
  * 色を失うカードのCardNumセットを返す。
  * ownerState/otherState 両方のフィールドを走査して、それぞれのプレイヤー視点で返す。
  */
+/**
+ * 🆕**`LRIG_TEAM_COUNT` のチーム名照合（2026-09-14・§5.3 `O-344`）＝両評価器の唯一の式。**
+ *
+ * 🔴**2つの評価器が食い違っていた**＝`checkActiveCondition`（`effectEngine`）は
+ *   `Team.split('・').includes(team)`、`evalCondition`（`execUtils`）は `Team.includes(team)` だった。
+ *   ⇒ **チーム名そのものが `・` を含む2件**（`アンシエント・サプライズ` / `デウス・エクス・マキナ`）は
+ *   前者で**必ず不一致**になり、条件が永久に成立しなかった。
+ * 🔑**実測（2026-09-14）＝`Team` 列の値は9種すべて単一のチーム名**で、`・` 区切りのリストは1件も無い。
+ *   それでも将来の複数所属に備えて「完全一致 **または** `・` 区切りの1要素」を許す。
+ * ⚠`includes` には戻さない（`サプライズ` が `アンシエント・サプライズ` に当たる＝過剰）。
+ */
+export function lrigTeamMatches(rawTeam: string | undefined, team: string): boolean {
+  const full = (rawTeam ?? '').replace(/･/g, '・').trim();
+  if (!full || !team) return false;
+  return full === team || full.split('・').includes(team);
+}
+
 export function collectColorlessOverrides(
   ownerState: PlayerState,
   otherState: PlayerState,
   cardMap: Map<string, CardData>,
+  effectsMap?: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn = true,
 ): { ownerColorless: string[]; otherColorless: string[] } {
-  function getColorlessForPlayer(ps: PlayerState): string[] {
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝宣言も条件も JSON から読む。**
+  // 🔴**旧実装は live JSON を1バイトも見ていなかった**＝
+  //   ①宣言の検出が `txt.includes('すべての領域で色を失う')`（原文そのもの）
+  //   ②条件が `/あなたの場に＜([^＞]+)＞のルリグが３体いない/` の原文 regex で、**「３体」が焼き込み**
+  //   ⇒ regex が外れると `result.push(topNum)`＝**無条件で色を失う**（過剰実行）に倒れ、
+  //     しかも `activeCondition` が live に無いので**逆翻訳にも条件が出ない**（原文照合が効かない）。
+  // ⇒ 宣言は `STUB{LOSE_COLOR_ALL_ZONES}`、条件は `activeCondition`（`LRIG_TEAM_COUNT`）で読む。
+  // ⚠**`effectsMap` が無い呼び出し（旧シグネチャ）では何も落とさない**＝
+  //   「原文 regex へフォールバック」はしない（それをやると穴が残り続ける）。
+  function getColorlessForPlayer(ps: PlayerState, opp: PlayerState, myTurn: boolean): string[] {
     const result: string[] = ps.energy_colorless_ability_loss_this_turn ? [...ps.energy] : [];
-    for (const stack of ps.field.signi) {
-      if (!stack || stack.length === 0) continue;
-      const topNum = stack[stack.length - 1];
-      const card = cardMap.get(topNum);
-      if (!card) continue;
-      // カードのEffectTextに「すべての領域で色を失う」が含まれているか確認
-      const txt = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
-      if (!txt.includes('すべての領域で色を失う')) continue;
-      // 「あなたの場に＜チーム名＞のルリグが３体いないかぎり」条件チェック
-      const teamM = txt.match(/あなたの場に＜([^＞]+)＞のルリグが３体いない/);
-      if (!teamM) { result.push(topNum); continue; }
-      const teamName = teamM[1];
-      // フィールドのルリグ（センター + アシスト左右）でチーム名一致カードを数える
-      const lrigNums = [
-        ps.field.lrig.at(-1),
-        ps.field.assist_lrig_l?.at(-1),
-        ps.field.assist_lrig_r?.at(-1),
-      ].filter((n): n is string => !!n);
-      const teamCount = lrigNums.filter(n => {
-        const lc = cardMap.get(n);
-        return lc && (
-          (lc.Team ?? '').includes(teamName) ||
-          (lc.Story ?? '').includes(teamName) ||
-          (lc.CardClass ?? '').includes(teamName) ||
-          (lc.CardName ?? '').includes(teamName)
-        );
-      }).length;
-      if (teamCount < 3) result.push(topNum);
+    if (!effectsMap) return result;
+    // 🔴🆕**「すべての領域で」はエナゾーンも走査する**（2026-09-14・§5.3 `O-344` 第317バッチ）。
+    //   **旧実装は場のシグニだけを見ていた**が、`colorlessOverrides` の**唯一の消費地点は
+    //   `costs.ts` のエナ色判定**（`isColorless`）＝**場のカード番号を返しても誰も使わない**。
+    //   ⇒ 原文「このカードはすべての領域で色を失う」が**エナに1度も届いていなかった**（恒久 no-op）。
+    //   実機 `V-217` で発覚（条件を直しても支払い可否が反転しなかった）。
+    // ⚠**場も引き続き走査する**＝場のシグニ自身を無色として読む消費地点が将来増えても壊さない。
+    const zones: string[] = [
+      ...ps.field.signi.flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : [])),
+      ...ps.energy,
+    ];
+    for (const cardNum of zones) {
+      // ⚠**インスタンス id と素のカード番号の両方で引く**＝`effectsMap` は経路によって
+      //   `InstanceMap`（インスタンス解決あり）だったり素の `Map`（カード番号キー）だったりする。
+      //   片方だけだと「実機では効くのに golden では効かない」型の無言のズレになる。
+      for (const eff of effectsMap.get(cardNum) ?? effectsMap.get(cardNum.split('#')[0]) ?? []) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'LOSE_COLOR_ALL_ZONES') continue;
+        // ⚠条件の評価は**その宣言を持つプレイヤー視点**（相手側を数えるときは自他を入れ替える）。
+        if (!checkActiveCondition(eff.activeCondition, ps, opp, myTurn, cardMap, cardNum)) continue;
+        if (!result.includes(cardNum)) result.push(cardNum);
+        break;
+      }
     }
     return result;
   }
   return {
-    ownerColorless: getColorlessForPlayer(ownerState),
-    otherColorless: getColorlessForPlayer(otherState),
+    ownerColorless: getColorlessForPlayer(ownerState, otherState, isOwnerTurn),
+    otherColorless: getColorlessForPlayer(otherState, ownerState, !isOwnerTurn),
   };
 }
 
@@ -7455,9 +7479,17 @@ export function collectAllColorSigni(
   ownerState: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
+  otherState?: PlayerState,
+  isOwnerTurn = true,
 ): Set<string> {
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝条件は `activeCondition` から読む。**
+  // 🔴**旧実装はカード原文の regex（`([０-９\d]+)種類以上` / `カード名に《X》を含む`）で条件を復元**しており、
+  //   ①`activeCondition` が live に無いので**逆翻訳に条件が出ない**（原文照合が効かない）
+  //   ②外れると `required = 10` / `nameFilter = ''` の**既定値**へ落ちる。
+  //   ⚠その既定値は**無条件の札にも掛かる**＝`WX22-025-E3`（原文「このシグニはすべての色を得る」＝条件なし）は
+  //     「トラッシュにシグニが10種類以上」を勝手に要求されていた＝**過少実行**（これが A群 miss 1 の正体）。
+  // 🔑受け皿は既存＝`TRASH_HAS_CARD{filter, minCount, distinctName}` は両 union・両評価器とも実装済み。
   const result = new Set<string>();
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   for (const stack of ownerState.field.signi) {
     const top = stack?.at(-1);
     if (!top) continue;
@@ -7466,17 +7498,9 @@ export function collectAllColorSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'ALL_COLOR') continue;
-      const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
-      const reqM = txt.match(/([０-９\d]+)種類以上/);
-      const required = reqM ? parseInt(toHW(reqM[1])) : 10;
-      const nameFilterM = txt.match(/カード名に《([^》]+)》を含む/);
-      const nameFilter = nameFilterM?.[1] ?? '';
-      const distinctNames = new Set(ownerState.trash.filter(cn => {
-        const c = cardMap.get(cn);
-        if (!c || c.Type !== 'シグニ') return false;
-        return !nameFilter || (c.CardName ?? '').includes(nameFilter);
-      }).map(cn => cardMap.get(cn)?.CardName ?? cn));
-      if (distinctNames.size >= required) result.add(top);
+      // ⚠`activeCondition` が無い＝原文に条件が無い（`WX22-025-E3`）＝常に成立でよい。
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState ?? ownerState, isOwnerTurn, cardMap, top)) continue;
+      result.add(top);
     }
   }
   return result;
@@ -8036,7 +8060,7 @@ export function collectAllColorSigniForField(
   const result = new Set<string>();
 
   // ALL_COLOR CONT: 条件付き全色（collectAllColorSigniと同ロジック）
-  const allColorSigni = collectAllColorSigni(state, effectsMap, cardMap);
+  const allColorSigni = collectAllColorSigni(state, effectsMap, cardMap, _otherState, _isOwnerTurn);
   for (const cn of allColorSigni) result.add(cn);
 
   // ALL_ZONE_BLACK CONT: このシグニはすべての領域で黒でもある（フィールドでも黒として扱う）

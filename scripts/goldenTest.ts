@@ -27,7 +27,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectLrigColorAndLimitMods, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectLrigColorAndLimitMods, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectAllColorSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction, collectEnergyCostSubstitutes } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -2010,14 +2010,16 @@ test('O-161/O-95/O-102 反転: 効果元比較・ルリグ比較・既存受け�
 test('PLAN §6.3 WXDi-P16-092: チームルリグ3体未満だけ全領域色喪失', () => {
   const target = 'WXDi-P16-092';
   const teamLrig = findCard(c => c.Type === 'ルリグ' && [c.Team, c.Story, c.CardClass, c.CardName].some(v => (v ?? '').includes('アンシエント・サプライズ')));
+  // 🆕§5.3 `O-344`（2026-09-14）＝`collectColorlessOverrides` は宣言も条件も **live JSON** から読むので
+  //   `effectsMap` が要る。⚠**元の意図（2体以下で色喪失／3体で保持）は1文字も変えていない。**
   const under = mkState({ signi: [target, null, null] });
   under.field.lrig = [teamLrig];
-  ok(collectColorlessOverrides(under, mkState({}), cardMap).ownerColorless.includes(target), '2体以下なら色喪失');
+  ok(collectColorlessOverrides(under, mkState({}), cardMap, effectsMap, true).ownerColorless.includes(target), '2体以下なら色喪失');
   const full = mkState({ signi: [target, null, null] });
   full.field.lrig = [teamLrig];
   full.field.assist_lrig_l = [teamLrig];
   full.field.assist_lrig_r = [teamLrig];
-  ok(!collectColorlessOverrides(full, mkState({}), cardMap).ownerColorless.includes(target), '3体なら色保持');
+  ok(!collectColorlessOverrides(full, mkState({}), cardMap, effectsMap, true).ownerColorless.includes(target), '3体なら色保持');
 });
 
 test('PLAN §6.3 WX20-028-E2: 2枚不発／3枚で全アクセ・相手エナ・相手シグニを一括トラッシュ', () => withSavedCursor(() => {
@@ -59137,8 +59139,17 @@ test('段2 第46バッチ 複合ANDとエナ色種類数: 各条件の成立・�
 }));
 
 test('段2 第46バッチ 偽陽性／据置: 専用実行器と新機構待ちを部分配線しない', () => {
+  // 🆕🔴**§5.3 `O-344`（2026-09-14・第317バッチ）＝この据置契約は撤回した。**
+  //   旧 assert は `eq(allColor.activeCondition, undefined, 'ALL_COLOR専用collectorへ一般条件を二重配線しない')`。
+  //   🔴**「二重配線になる」という前提が誤り**＝専用 collector（`collectAllColorSigni`）が
+  //   **カード原文の regex で条件を復元していた**だけで、`activeCondition` を読んでいなかった。
+  //   その結果 ①逆翻訳に条件が出ない ②regex が外れると `required = 10` の既定値に落ち、
+  //   **原文に条件が無い `WX22-025-E3` にまで「トラッシュにシグニ10種類以上」を課していた**（過少実行）。
+  //   ⇒ collector を `checkActiveCondition` を読む側へ直したので、条件は**載せるのが正しい**。
+  //   🔑**緑の golden は正しさの証明ではない**（CODEX_GUIDE §5-17）＝この1本が誤りを1年固定していた。
   const allColor = b43Live('WXK05-029-E1');
-  eq(allColor.activeCondition, undefined, 'ALL_COLOR専用collectorへ一般条件を二重配線しない');
+  eq((allColor.activeCondition as unknown as { type?: string } | undefined)?.type, 'TRASH_HAS_CARD',
+    '原文「トラッシュに…10種類以上あるかぎり」を activeCondition として持つ');
   ok(JSON.stringify(allColor).includes('ALL_COLOR'), 'ALL_COLOR専用実行器を維持');
   // WXEX1-40-E1 は §5.2 Sheet3 バッチ1で CONTINUOUS を閾値別に分割できる受け皿を
   // engine 実測したため据置契約から外した。残る3件は引き続き部分条件を採用しない。
@@ -69079,8 +69090,10 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。
   // 🆕2026-09-13 `O-343`＝ID門で選ばれた宣言元カードの原文参照22行を A へ較正。
   // 🏁同日第314バッチ＝2行を payload 化して消化したため 22 → 20。
-  ok(/const BASELINE_SELF_TEXT = 20;/.test(census),
-    'BASELINE_SELF_TEXT が消化後の実測 20');
+  // 🆕🏁2026-09-14 `O-344`＝20 → 19。`collectAllColorSigni` の原文 regex を撤去し
+  //   `activeCondition`（`TRASH_HAS_CARD`）から読むようにした＝**消化**であって較正ではない。
+  ok(/const BASELINE_SELF_TEXT = 19;/.test(census),
+    'BASELINE_SELF_TEXT が消化後の実測 19');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -80833,6 +80846,159 @@ test('O-345 WX19-007-E2 UI: グロウ候補が指定した2枚だけに絞られ
   // 🔴対照＝名前限定は**他の判定を緩めない**（レベルが合わないカードは名前を指定しても出ない）。
   const bogus = listGrowCandidates({ my, cardMap, effectsMap, freeGrowFilter: 'plus1', restrictNames: ['黄金の巫女　タマヨリヒメ'] });
   eq(bogus.length, 0, '名前を指定してもレベル+1でなければ候補にならない');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-344`＝【常】の宣言型 STUB が `activeCondition` を持たず、原文の条件・値が engine の regex にしかない。
+// 🔴3系統とも **engine が live JSON を1バイトも見ずにカード原文を読み直していた**＝
+//   ①逆翻訳に条件・値が出ない（原文照合が効かない）②regex が外れると既定値へ倒れる。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('O-344 LOSE_COLOR_ALL_ZONES: 8効果すべてが activeCondition を持つ（チーム名と体数は原文から）', () => {
+  const rows: Array<{ card: string; team: string; value: number }> = [];
+  for (const [cardNum, effs] of effectsMap) {
+    for (const eff of effs) {
+      const act = eff.action as unknown as { type?: string; id?: string };
+      if (eff.effectType !== 'CONTINUOUS' || act.type !== 'STUB' || act.id !== 'LOSE_COLOR_ALL_ZONES') continue;
+      const cond = eff.activeCondition as unknown as { type?: string; team?: string; operator?: string; value?: number } | undefined;
+      ok(!!cond, `${cardNum}: activeCondition が無い（engine が原文 regex で復元する形に戻っている）`);
+      eq(cond?.type, 'LRIG_TEAM_COUNT', `${cardNum}: 条件型`);
+      eq(cond?.operator, 'lt', `${cardNum}: 「N体いないかぎり」＝N 未満`);
+      rows.push({ card: cardNum, team: cond?.team ?? '', value: cond?.value ?? -1 });
+    }
+  }
+  eq(rows.length, 8, 'live 8効果');
+  ok(rows.every(r => r.value === 3), '原文どおり全件 3 体');
+  eq(new Set(rows.map(r => r.team)).size, 8, '🔑チーム名は8種すべて別（原文から読んでいる証拠）');
+});
+
+test('O-344 LOSE_COLOR_ALL_ZONES engine: チームルリグが揃えば色を失わない（両方向）', () => {
+  const ctx = mkCtx({ signi: ['WXDi-P16-086', null, null], hand: 0 }, { hand: 0 }, 'WXDi-P16-086');
+  // ＜CardJockey＞のルリグ（`WXDi-P16-086` 自身と同チーム）を 3 体そろえられる札を live から拾う。
+  const teamLrigs = [...cardMap.entries()]
+    .filter(([, c]) => c.Type === 'ルリグ' && (c.Team ?? '').includes('CardJockey'))
+    .map(([n]) => n).slice(0, 3);
+  ok(teamLrigs.length === 3, '＜CardJockey＞のルリグが3枚以上ある');
+
+  const run = (lrigs: string[]) => {
+    const st = { ...ctx.ownerState, field: { ...ctx.ownerState.field, lrig: lrigs.slice(0, 1),
+      assist_lrig_l: lrigs.slice(1, 2), assist_lrig_r: lrigs.slice(2, 3) } };
+    return collectColorlessOverrides(st, ctx.otherState, cardMap, effectsMap, true).ownerColorless;
+  };
+  ok(run([]).includes('WXDi-P16-086'), '🔴ルリグ0体＝条件成立＝色を失う');
+  ok(run(teamLrigs.slice(0, 2)).includes('WXDi-P16-086'), '2体でも条件成立＝色を失う');
+  ok(!run(teamLrigs).includes('WXDi-P16-086'), '🔴対照＝3体そろえば色を失わない');
+});
+
+test('O-344 LOSE_COLOR_ALL_ZONES: 「すべての領域で」はエナゾーンにも効く（実機 V-217 の観測点）', () => {
+  // 🔴**`colorlessOverrides` の唯一の消費地点は `costs.ts` のエナ色判定**＝
+  //   collector が**場のカード番号しか返さない**と、原文「すべての領域で色を失う」が
+  //   **エナに1度も届かない**（恒久 no-op）。実機 `V-217` で発覚した。
+  const teamLrigs = [...cardMap.entries()]
+    .filter(([, c]) => c.Type === 'ルリグ' && (c.Team ?? '').includes('CardJockey'))
+    .map(([n]) => n).slice(0, 3);
+  ok(teamLrigs.length === 3, '＜CardJockey＞のルリグが3枚ある');
+  const ENERGY_INST = 'WXDi-P16-086#3702';
+  const mk = (lrigs: string[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.field.lrig = lrigs.slice(0, 1);
+    st.field.assist_lrig_l = lrigs.slice(1, 2);
+    st.field.assist_lrig_r = lrigs.slice(2, 3);
+    st.energy = [ENERGY_INST];
+    return st;
+  };
+  const off = collectColorlessOverrides(mk([]), mkState({}), cardMap, effectsMap, true).ownerColorless;
+  ok(off.includes(ENERGY_INST), '🔴チームルリグ0体＝条件成立＝エナにある同カードが無色になる');
+  const on = collectColorlessOverrides(mk(teamLrigs), mkState({}), cardMap, effectsMap, true).ownerColorless;
+  ok(!on.includes(ENERGY_INST), '🔴対照＝3体そろえばエナでも色を保つ');
+});
+
+test('O-344 ALL_COLOR: 条件つきと無条件を取り違えない', () => {
+  const conditional = effectsMap.get('WXK05-029')!.find(e => e.effectId === 'WXK05-029-E1')!;
+  const cond = conditional.activeCondition as unknown as { type?: string; minCount?: number; distinctName?: boolean; filter?: { cardName?: string } } | undefined;
+  eq(cond?.type, 'TRASH_HAS_CARD', '原文「トラッシュに…10種類以上あるかぎり」が条件として載る');
+  eq(cond?.minCount, 10, '種類数は原文から');
+  eq(cond?.distinctName, true, '🔑「種類」＝名前の異なる数（枚数ではない）');
+  eq(cond?.filter?.cardName, 'サーバント', 'カード名の部分一致');
+
+  // 🔴原文に条件が無い札は `activeCondition` を持たない＝旧実装は既定値（10種類）を勝手に課していた。
+  const unconditional = effectsMap.get('WX22-025')!.find(e => e.effectId === 'WX22-025-E3')!;
+  eq(unconditional.activeCondition, undefined, '🔴無条件の札に条件を付けない（原文「このシグニはすべての色を得る」）');
+});
+
+test('O-344 ALL_COLOR engine: 無条件の札は空トラッシュでも全色／条件つきの札は種類数で切り替わる', () => {
+  // 無条件（`WX22-025-E3`）＝トラッシュが空でも全色。🔴旧実装は既定 10 種類を要求して**外れていた**。
+  const uncond = mkCtx({ signi: ['WX22-025', null, null], hand: 0 }, { hand: 0 }, 'WX22-025');
+  uncond.ownerState.trash = [];
+  ok(collectAllColorSigni(uncond.ownerState, effectsMap, cardMap, uncond.otherState, true).has('WX22-025'),
+    '🔴無条件の札はトラッシュが空でも全色を得る');
+
+  // 条件つき（`WXK05-029-E1`）＝《サーバント》を含むシグニ名が 10 種類そろって初めて成立。
+  const servants = [...cardMap.entries()]
+    .filter(([, c]) => c.Type === 'シグニ' && (c.CardName ?? '').includes('サーバント'))
+    .map(([n]) => n);
+  const distinct: string[] = [];
+  const seen = new Set<string>();
+  for (const n of servants) {
+    const nm = cardMap.get(n)!.CardName!;
+    if (seen.has(nm)) continue;
+    seen.add(nm); distinct.push(n);
+    if (distinct.length >= 10) break;
+  }
+  ok(distinct.length >= 10, '《サーバント》を含むシグニ名が10種類以上ある');
+  const condCtx = mkCtx({ signi: ['WXK05-029', null, null], hand: 0 }, { hand: 0 }, 'WXK05-029');
+  condCtx.ownerState.trash = distinct.slice(0, 9);
+  ok(!collectAllColorSigni(condCtx.ownerState, effectsMap, cardMap, condCtx.otherState, true).has('WXK05-029'),
+    '🔴対照＝9種類では成立しない');
+  condCtx.ownerState.trash = distinct.slice(0, 10);
+  ok(collectAllColorSigni(condCtx.ownerState, effectsMap, cardMap, condCtx.otherState, true).has('WXK05-029'),
+    '10種類で成立する');
+});
+
+test('O-344 fresh パース: parser 側で条件・値が生成される（規則を外すと赤くなる）', () => {
+  // 🔴**live JSON を読む assert だけでは反転しない**（CODEX_GUIDE §5-29）＝収穫マージは
+  //   fresh が純粋上位集合でなければ live を温存するので、**parser を退行させても live は正しいまま**。
+  //   第317バッチで実際にこれを踏んだ（条件捨てを復活させても golden 5本が緑のままだった）。
+  //   ⇒ **`parseCardEffects` を直接呼ぶ assert を必ず1本置く。**
+  const fresh = (card: string, effId: string) => {
+    const e = parseCardEffects(cardMap.get(card)!).find(x => x.effectId === effId);
+    if (!e) throw new Error(`${effId} not found in fresh`);
+    return e;
+  };
+  const loseColor = fresh('WXDi-P16-086', 'WXDi-P16-086-E2');
+  eq(JSON.stringify(loseColor.activeCondition),
+    JSON.stringify({ type: 'LRIG_TEAM_COUNT', owner: 'self', team: 'CardJockey', operator: 'lt', value: 3 }),
+    'fresh: 「＜X＞のルリグが3体いないかぎり」が activeCondition になる');
+
+  const allColor = fresh('WXK05-029', 'WXK05-029-E1');
+  eq(JSON.stringify(allColor.activeCondition),
+    JSON.stringify({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', cardName: 'サーバント' }, minCount: 10, distinctName: true }),
+    'fresh: 「トラッシュに…10種類以上あるかぎり」が activeCondition になる（捨てられていない）');
+  eq(fresh('WX22-025', 'WX22-025-E3').activeCondition, undefined,
+    'fresh: 原文に条件が無い札には条件を付けない');
+
+  const lvo = fresh('WX17-061', 'WX17-061-E1').action as unknown as { levelReferenceOverride?: { min: number; max: number } };
+  eq(JSON.stringify(lvo.levelReferenceOverride), JSON.stringify({ min: 1, max: 3 }),
+    'fresh: 許容レベル範囲が payload に載る');
+});
+
+test('O-344 LEVEL_REFERENCE_OVERRIDE: 7効果すべてが許容レベル範囲を payload に持つ', () => {
+  const rows: Array<{ card: string; min: number; max: number }> = [];
+  for (const [cardNum, effs] of effectsMap) {
+    for (const eff of effs) {
+      const act = eff.action as unknown as { type?: string; id?: string; levelReferenceOverride?: { min: number; max: number } };
+      if (eff.effectType !== 'CONTINUOUS' || act.type !== 'STUB' || act.id !== 'LEVEL_REFERENCE_OVERRIDE') continue;
+      ok(!!act.levelReferenceOverride, `${cardNum}: levelReferenceOverride が無い（engine が原文 regex で読む形に戻っている）`);
+      rows.push({ card: cardNum, min: act.levelReferenceOverride!.min, max: act.levelReferenceOverride!.max });
+    }
+  }
+  eq(rows.length, 7, 'live 7効果');
+  // 🔑**固定値と範囲が混在する**＝どちらかへ潰していないことの証拠。
+  ok(rows.some(r => r.min === r.max), '「レベル4として扱う」型がある');
+  ok(rows.some(r => r.min !== r.max), '「1～4いずれか」型がある');
+  // 🔴`WX17-061` は 1〜3＝**1〜4 へ潰していない**（原文の数値を読んでいる証拠）。
+  const wx17061 = rows.find(r => r.card === 'WX17-061');
+  eq(JSON.stringify(wx17061 && [wx17061.min, wx17061.max]), JSON.stringify([1, 3]), 'WX17-061 は 1〜3');
 });
 
 if (listMode) {

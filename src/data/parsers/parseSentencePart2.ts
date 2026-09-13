@@ -691,8 +691,19 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- レベル参照オーバーライド ----
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝許容レベル範囲を payload に載せる。**
+  // 🔴旧実装は裸の STUB を返し、engine（`getLevelReferenceOverride`）が
+  //   `card.EffectText` を regex で読み直していた＝**live JSON を1バイトも見ていなかった**。
+  //   ⇒ ①逆翻訳にレベルが出ない ②engine の regex が外れると**上書きが丸ごと消える**（過少）。
   if (t.match(/(?:あなたの)?能力か効果.*レベルを参照する場合.*として扱ってもよい/)) {
-    return { type: 'STUB', id: 'LEVEL_REFERENCE_OVERRIDE' } as StubAction;
+    // 「レベルＮとして扱ってもよい」＝単一値／「Ｎ～Ｍいずれかのレベル１つとして扱ってもよい」＝範囲。
+    const lvSingle = t.match(/レベルを参照する場合、レベル([０-９\d]+)として扱ってもよい/);
+    const lvRange = t.match(/レベルを参照する場合、([０-９\d]+)～([０-９\d]+)いずれかのレベル/);
+    const lvSpec = lvSingle
+      ? { min: parseNum(lvSingle[1]), max: parseNum(lvSingle[1]) }
+      : lvRange ? { min: parseNum(lvRange[1]), max: parseNum(lvRange[2]) } : null;
+    return { type: 'STUB', id: 'LEVEL_REFERENCE_OVERRIDE',
+      ...(lvSpec ? { levelReferenceOverride: lvSpec } : {}) } as StubAction;
   }
 
   // ---- 下にあるルリグの【起】/【自】能力を持つ ----

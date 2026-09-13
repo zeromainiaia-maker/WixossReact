@@ -1251,9 +1251,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     const opS = localIsHost ? bs.guest_state : bs.host_state;
-    return collectColorlessOverrides(myS, opS, battleCardMap).ownerColorless;
-   
-  }, [bs, battleCardMap, user.id]);
+    // 🆕§5.3 `O-344`＝宣言（`STUB{LOSE_COLOR_ALL_ZONES}`）と条件（`activeCondition`）を live JSON から読む。
+    // ⚠`isMyTurn` はこの hook より後で宣言されるのでここで組む（式は 2699 行と同じ）。
+    return collectColorlessOverrides(myS, opS, battleCardMap, effectsMap, bs.active_user_id === user.id).ownerColorless;
+  }, [bs, battleCardMap, effectsMap, user.id]);
 
   // PREVENT_ZONE_MOVE_BY_OPP はresolveStackNext内でotherProtectedZonesとして動的計算
 

@@ -78,7 +78,7 @@ const onlyIds = (() => {
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
-const BASELINE_SELF_TEXT = 20;   // 🆕🏁**2026-09-13（§5.3 `O-343` 第314バッチ）22 → 20 は「消化（payload 化）」であって較正ではない**＝`LRIG_LIMIT_UP_AND_COLOR_GAIN` と `INHERIT_UNDER_SIGNI_COLOR` の原文 regex を data 層の payload へ移した。／（以下は履歴）🆕🔴同日 0 → 22 は「較正」であって退化ではない＝ID 門で選ばれた宣言元カードの原文参照を A に入れた。🏁同日 `O-356` 払い戻し④で 1 → 0（`OPTIONAL_TRASH_ENERGY_CLASS` を payload 化）／その前に 0 → 1 の較正（funnel の検出が引数名 `ctx` に依存していた）／第71で 9→7・第72で 7→6・第73で 6→5・第74で 5→2・第75で 2→1・第76で 1→0。
+const BASELINE_SELF_TEXT = 19;   // 🆕🏁**2026-09-14（§5.3 `O-344` 第317バッチ）20 → 19 は「消化（payload 化）」**＝`collectAllColorSigni` の原文 regex（種類数・カード名）を撤去し `activeCondition`（`TRASH_HAS_CARD`）から読むようにした。／（以下は履歴）🏁2026-09-13 第314で 22 → 20（`LRIG_LIMIT_UP_AND_COLOR_GAIN`／`INHERIT_UNDER_SIGNI_COLOR` を payload 化）。🆕🔴同日 0 → 22 は「較正」であって退化ではない＝ID 門で選ばれた宣言元カードの原文参照を A に入れた。🏁同日 `O-356` 払い戻し④で 1 → 0。／第71で 9→7・第72で 7→6・第73で 6→5・第74で 5→2・第75で 2→1・第76で 1→0。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

@@ -8492,20 +8492,23 @@ function execAttachFacedownFromHand(a: AttachFacedownFromHandAction, ctx: ExecCt
  * 「レベルを参照する場合、レベル４として扱ってもよい」→ { min:4, max:4 }
  * 「レベルを参照する場合、１～４いずれかのレベル１つとして扱ってもよい」→ { min:1, max:4 }
  */
-function getLevelReferenceOverride(card: import('../types').CardData | undefined): { min: number; max: number } | null {
-  const txt = card?.EffectText ?? '';
-  if (!txt.includes('レベルを参照する場合')) return null;
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-  // 「レベルＮとして扱ってもよい」
-  const single = txt.match(/レベルを参照する場合、レベル([０-９\d]+)として扱ってもよい/);
-  if (single) {
-    const lv = parseInt(toHW(single[1]));
-    return { min: lv, max: lv };
-  }
-  // 「Ｎ～Ｍいずれかのレベル１つとして扱ってもよい」
-  const range = txt.match(/レベルを参照する場合、([０-９\d]+)～([０-９\d]+)いずれかのレベル/);
-  if (range) {
-    return { min: parseInt(toHW(range[1])), max: parseInt(toHW(range[2])) };
+function getLevelReferenceOverride(
+  cardNum: string | undefined,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]> | undefined,
+): { min: number; max: number } | null {
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝宣言も範囲も live JSON から読む。**
+  // 🔴**旧実装は `card.EffectText` の regex だけで判定していた**＝
+  //   ①宣言（`STUB{LEVEL_REFERENCE_OVERRIDE}`）を1バイトも見ていない
+  //   ②範囲が原文にしか無いので**逆翻訳にレベルが出ない**（原文照合が効かない）
+  //   ③regex が外れると `null`＝**上書きが丸ごと消える**（過少実行）。
+  // ⚠**payload が無ければ上書きしない（fail-closed）**＝原文へのフォールバックは置かない。
+  if (!cardNum || !effectsMap) return null;
+  for (const eff of effectsMap.get(cardNum) ?? []) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.type !== 'STUB' || act.id !== 'LEVEL_REFERENCE_OVERRIDE') continue;
+    const spec = act.levelReferenceOverride;
+    if (spec) return { min: spec.min, max: spec.max };
   }
   return null;
 }
@@ -8571,8 +8574,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     if (targetLevel !== null) {
       const overridable = visible.filter(n => {
         if (pickable.includes(n)) return false;
-        const card = ctx.cardMap.get(n);
-        const override = getLevelReferenceOverride(card);
+        const override = getLevelReferenceOverride(n, ctx.effectsMap);
         return override !== null && targetLevel >= override.min && targetLevel <= override.max;
       });
       if (overridable.length > 0) pickable = [...pickable, ...overridable];

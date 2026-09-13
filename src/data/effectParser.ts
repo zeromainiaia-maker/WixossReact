@@ -2203,6 +2203,43 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝「あなたのトラッシュにカード名に《X》を含むシグニがN種類以上あるかぎり、」。**
+  // 🔴これが落ちていたせいで `ALL_COLOR`（`WXK05-029-E1`）は `activeCondition` を持たず、
+  //   engine（`collectAllColorSigni`）が**原文 regex で条件を復元**していた＝逆翻訳に条件が出ない。
+  //   さらに regex が外れると **`required = 10` / 名前限定なし**の既定値へ落ち、
+  //   **原文に条件が無い札（`WX22-025-E3`）にまで「トラッシュにシグニ10種類以上」を要求**していた（過少実行）。
+  // 🔑受け皿は既存＝`TRASH_HAS_CARD{filter, minCount, distinctName}`（両 union・両評価器とも実装済み）。
+  //   `TargetFilter.cardName` は**部分一致**なので「カード名に《X》を含む」をそのまま表せる。
+  const trashDistinctNameM = text.match(/^あなたのトラッシュにカード名に《([^》]+)》を含むシグニが([０-９\d]+)種類以上あるかぎり、/);
+  if (trashDistinctNameM) return {
+    condition: {
+      type: 'TRASH_HAS_CARD', owner: 'self',
+      filter: { cardType: 'シグニ', cardName: trashDistinctNameM[1] },
+      minCount: parseNum(trashDistinctNameM[2]),
+      distinctName: true,
+    },
+    rest: text.slice(trashDistinctNameM[0].length), conditionFound: true,
+  };
+
+  // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝「あなたの場に＜X＞のルリグがN体いないかぎり、」。**
+  // 🔴これが落ちていたせいで `LOSE_COLOR_ALL_ZONES`（live 8効果）は `activeCondition` を持たず、
+  //   engine（`collectColorlessOverrides`）が**原文 regex で条件を復元**していた＝
+  //   ①逆翻訳に条件が出ない（原文照合が効かない）②regex が外れると**無条件で色喪失**へ倒れる。
+  // ⚠**体数は原文から読む**（旧 engine regex は「３体」を焼き込んでいた）。
+  // 🔑受け皿は既存＝`LRIG_TEAM_COUNT` は `ActiveCondition`/`Condition` の両 union にあり、
+  //   `checkActiveCondition`（`effectEngine`）と `evalCondition`（`execUtils`）の両方が実装済み。
+  const lrigTeamAbsentM = text.match(/^(あなた|対戦相手)の場に＜([^＞]+)＞のルリグが([０-９\d]+)体いないかぎり、/);
+  if (lrigTeamAbsentM) return {
+    condition: {
+      type: 'LRIG_TEAM_COUNT',
+      owner: lrigTeamAbsentM[1] === '対戦相手' ? 'opponent' : 'self',
+      team: lrigTeamAbsentM[2],
+      operator: 'lt',
+      value: parseNum(lrigTeamAbsentM[3]),
+    },
+    rest: text.slice(lrigTeamAbsentM[0].length), conditionFound: true,
+  };
+
   // 段2-8: 「場のカード」を主語にした常在条件。値（閾値・名前・色）は必ず原文から読む。
   const fieldNoAbilitiesM = text.match(/^(あなた|対戦相手)の場に能力を持たないシグニが(?:([０-９\d]+)体以上)?あるかぎり、/);
   if (fieldNoAbilitiesM) return {
@@ -23462,9 +23499,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else activeCondition = { type: 'AND', conditions: parsedConds };
     // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
     resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
-    // ALL_COLOR は専用 collector が原文から条件を直接読み、同じ種類数を評価済み。
-    // 一般 activeCondition を重ねると専用実行器との二重ゲートになるため、受け皿へ昇格しない。
-    if (resolvedAction.type === 'STUB' && resolvedAction.id === 'ALL_COLOR') activeCondition = undefined;
+    // 🆕🏁**§5.3 `O-344`（2026-09-14・第317バッチ）＝`ALL_COLOR` の条件を捨てるのをやめた。**
+    // 🔴旧コード＝`if (… id === 'ALL_COLOR') activeCondition = undefined;`
+    //   理由は「専用 collector が原文から条件を直接読むので二重ゲートになる」だったが、その collector
+    //   （`collectAllColorSigni`）を **`activeCondition` を読む側へ直した**ので、捨てる理由が消えた。
+    // 🔑捨てていた実害＝①`activeCondition` が live に無いので**逆翻訳に条件が出ない**（原文照合が効かない）
+    //   ②collector の原文 regex が外れると **`required = 10`/名前限定なしの既定値**へ落ち、
+    //   **原文に条件が無い `WX22-025-E3` にまで「トラッシュにシグニ10種類以上」を要求**していた（過少実行）。
     // 「基本パワーはNになり、B」では既存 parser が B だけを残していた。
     // B の形（GRANT_KEYWORD / GRANT_PROTECTION / 引用 STUB）を変えず、CONTINUOUS collector が
     // activeCondition と同時評価できる POWER_SET を前置する。

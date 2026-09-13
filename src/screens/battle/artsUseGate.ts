@@ -193,7 +193,8 @@ export function buildArtsPayerCtx(p: {
     energyPayPool: buildEnergyPayPool(actor, { turnPhase: p.turnPhase, isMyTurn: isActorTurn, effectsMap }),
     enaAllMulti: collectEnaAllMulti(actor, opponent, isActorTurn, effectsMap, cardMap),
     enaMultiStripped: isEnaMultiStripped(actor, opponent, !isActorTurn, effectsMap, cardMap),
-    colorlessOverrides: collectColorlessOverrides(actor, opponent, cardMap).ownerColorless,
+    // 🆕§5.3 `O-344`＝宣言と条件を live JSON から読むので `effectsMap` と手番が要る。
+    colorlessOverrides: collectColorlessOverrides(actor, opponent, cardMap, effectsMap, isActorTurn).ownerColorless,
     colorSubs: collectEnergyColorSubs(actor, cardMap, effectsMap),
     energyExtraColors: collectEnergyExtraColors(actor, opponent, isActorTurn, effectsMap, cardMap),
     energyTrashSubInfo: collectEnergyTrashSubstituteInfo(actor, cardMap, effectsMap),

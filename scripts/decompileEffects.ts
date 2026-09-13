@@ -1123,8 +1123,10 @@ function condJa(c?: any): string {
       if (c.distinctClasses)
         return `${ownerJa(c.owner)}トラッシュにあるシグニが持つクラスが合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「トラッシュにカード名に《X》を含むカードがある」（WX20-065）
+      // 🆕§5.3 `O-344`（2026-09-14）＝**`distinctName` を落とさない**＝この枝が先に return するため、
+      //   `WXK05-029-E1`（原文「…シグニが１０**種類**以上あるかぎり」）が「10**枚**以上」と描かれていた。
       if (c.filter?.cardName)
-        return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
+        return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
       return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return c.minCount && c.minCount > 1 ? `このターンにシグニが${numJa(c.minCount)}体以上場から手札に戻っていた` : 'このターンにシグニが場から手札に戻っていた';
     case 'ARTS_USED_THIS_TURN': {
@@ -3842,7 +3844,15 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'GRANT_ABILITY_INNER_TEXT') return 'このカードに記載された継続能力を付与する（テキスト検出型。原文参照）';
       if (a.id === 'GUARD_EXTRA_COST_BY_OPP' || a.id === 'OPP_GUARD_COST_COLORLESS') return '対戦相手が【ガード】する際に追加コスト（無色エナ）を要求する';
-      if (a.id === 'LEVEL_REFERENCE_OVERRIDE' || a.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT') return 'レベル参照を上書きする（テキスト記載のレベルとして扱う）';
+      // 🆕🏁§5.3 `O-344`（2026-09-14）＝許容レベル範囲を payload から描く。
+      //   🔴旧ラベルは「テキスト記載のレベルとして扱う」＝**何レベルなのかが逆翻訳に出ていなかった**
+      //     （engine が `card.EffectText` を regex で読んでいた時代の文言）。
+      if (a.id === 'LEVEL_REFERENCE_OVERRIDE' || a.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT') {
+        const lro = a.levelReferenceOverride;
+        if (!lro) return 'レベル参照を上書きする（※ペイロード欠落＝engine は上書きしない）';
+        const lroJa = lro.min === lro.max ? `レベル${lro.min}` : `${lro.min}～${lro.max}いずれかのレベル1つ`;
+        return `あなたの能力か効果1つによってこのカードのレベルを参照する場合、${lroJa}として扱ってもよい`;
+      }
       if (a.id === 'POWER_MOD_BY_HAND_COUNT') return '手札N枚につき対戦相手のシグニのパワーを±する（テキスト記載の値）';
       // 🆕§5.3 `O-60` 第5バッチ（2026-08-26）＝**寿命を payload から描く**
       //   （旧表示「対戦相手の場のシグニ数に応じて…」は engine の regex の話で、**原文と無関係**だった）。
@@ -4867,13 +4877,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const n = (a as { count?: number }).count;
         return `対戦相手は【${kw}】${numJa(n ?? 1)}つを失う`;
       }
-      // 全領域で色を失う（LOSE_COLOR_ALL_ZONES・CONTINUOUS・engine実装済み）＝
-      // 「（あなたの場に＜X＞のルリグがN体いないかぎり、）このカードはすべての領域で色を失う」。
-      // 条件は 【常】に前置描画されないため条件ごと currentCardText から抽出。
+      // 全領域で色を失う（LOSE_COLOR_ALL_ZONES・CONTINUOUS・engine実装済み）。
+      // 🆕🏁§5.3 `O-344`（2026-09-14）＝**条件は `activeCondition` に載った**ので、
+      //   【常】の前置（《…かぎり》）として自動で描かれる。ここは本体だけを書く。
+      //   🔴旧ラベルは「条件は engine が原文から判定する＝逆翻訳に出ない」という**欠落の告知**だった。
       if (a.id === 'LOSE_COLOR_ALL_ZONES') {
-        // 🆕§5.3 `O-356`＝原文を貼らない。⚠条件（「＜X＞のルリグが３体いないかぎり」）は engine が
-        //   `collectColorlessOverrides` でカード原文から読んでおり payload に無い＝逆翻訳には描けない（§5.3 `O-344`）。
-        return 'このカードはすべての領域で色を失う（条件つきの場合、条件は engine が原文から判定する＝逆翻訳に出ない・§5.3 O-344）';
+        return 'このカードはすべての領域で色を失う';
       }
       // マジックボックスを開く（OPEN_MAGIC_BOX・engine実装済み）＝後続のバニッシュ等は別描画、本体は
       // 「（このシグニと同じシグニゾーンにある）【マジックボックス】N つを表向きにしトラッシュに置く（いてもよい）」。currentCardText から抽出。

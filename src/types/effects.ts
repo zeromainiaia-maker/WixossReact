@@ -7068,6 +7068,14 @@ export interface StubAction {
    * ⚠engine は予約（`pending_effect_grow`）を積むだけ＝実グロウは `BattleScreen.executeGrow` の正規経路。
    */
   growFromLrigDeck?: { cardNames: string[]; free?: boolean };
+  /**
+   * 🆕**`LEVEL_REFERENCE_OVERRIDE` の許容レベル範囲**（2026-09-14・§5.3 `O-344`）。
+   * 原文＝「…レベルを参照する場合、**レベル４**として扱ってもよい」→ `{min:4,max:4}`／
+   * 「**１～４いずれか**のレベル１つとして扱ってもよい」→ `{min:1,max:4}`。
+   * 🔴**payload が無ければ上書きしない（fail-closed）**＝旧実装は engine が
+   *   `card.EffectText` を regex で読み直しており、**live JSON を1バイトも見ていなかった**。
+   */
+  levelReferenceOverride?: { min: number; max: number };
   /** `declareNamePool:'self_deck'` の収集領域。省略時は `['deck']`。領域×絞り込みを enum で掛け算しないための直交軸。 */
   declareNameZones?: ('deck' | 'hand' | 'field')[];
   /** 宣言候補のカード絞り込み（`cardType:'シグニ'`／`nonColorless:true` 等）。 */

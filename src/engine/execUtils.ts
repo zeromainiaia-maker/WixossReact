@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
-import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
+import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, lrigTeamMatches, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
@@ -2954,7 +2954,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // 場のルリグ（センター＋アシストL/R）のうち Team が一致する数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021）
       const fLTC = st(cond.owner).field;
       const lrigNumsLTC = [fLTC.lrig.at(-1), fLTC.assist_lrig_l?.at(-1), fLTC.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);
-      const cntLTC = lrigNumsLTC.filter(n => (ctx.cardMap.get(getCardNum(n))?.Team ?? '').includes(cond.team)).length;
+      // 🆕§5.3 `O-344`＝照合式は `effectEngine.lrigTeamMatches` 1本に寄せた（両評価器の食い違いを解消）。
+      const cntLTC = lrigNumsLTC.filter(n => lrigTeamMatches(ctx.cardMap.get(getCardNum(n))?.Team, cond.team)).length;
       return cmp(cntLTC, cond.operator, cond.value);
     }
     case 'FIELD_LEVEL_SUM': {

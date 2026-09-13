@@ -58669,6 +58669,114 @@ scenarios.v216FreeGrowNamedOnly = {
 };
 order.push('v216FreeGrowNamedOnly');
 
+// V-217＝§5.3 `O-344`・第317バッチ（`LOSE_COLOR_ALL_ZONES`）。
+// 原文（`WXDi-P16-086` ほか8枚）＝「**あなたの場に＜X＞のルリグが３体いないかぎり**、
+//   このカードはすべての領域で色を失う。」
+// 🔴旧実装（`collectColorlessOverrides`）は **live JSON を1バイトも見ず**、
+//   宣言を `txt.includes('すべての領域で色を失う')`、条件を `/…＜([^＞]+)＞のルリグが３体いない/` の
+//   原文 regex で復元していた＝**条件 regex が外れると無条件で色喪失**へ倒れる。
+// 🔑観測点＝**エナの色判定**（`colorlessOverrides` → `costs.ts` の `isColorless`）。
+//   エナに置いた同名カードで《白》×1 のグロウコストを払えるかが、条件の成否で反転する。
+// ⚠`src/screens/`（`BattleScreen` / `artsUseGate`）へ引数を足した回なので §2.2 により実機必須。
+const V217_SIGNI = 'WXDi-P16-086#3701';      // コードアート L・マイク（白・チーム CardJockey）
+const V217_ENERGY = 'WXDi-P16-086#3702';     // 同名カードをエナに（色判定はカード番号で効く）
+const V217_GROW_TO = 'WXDi-D04-003#3703';    // MC.LION-2ndVerse（Lv2 LION・グロウコスト《白》×1）
+// センター用は Lv1（グロウ先が Lv2 になるように）。アシストは体数合わせなので Lv3 でよい。
+const V217_TEAM_LRIGS = ['WXDi-D04-002#3711', 'SPDi43-12#3712', 'SPDi43-13#3713']; // ＜CardJockey＞×3
+
+const v217Spec = (teamLrigCount) => ({
+  hostSet: {
+    // 🔑**センターも＜CardJockey＞にする**＝チーム3体は「センター＋アシストL/R」で数えるので、
+    //   センターが別チームだと**最大2体にしかならず対照が作れない**（第317で実測）。
+    //   `WXDi-D04-002`（Lv1 LION）→ グロウ先 `WXDi-D04-003`（Lv2・《白》×1）。
+    'field.lrig': [V217_TEAM_LRIGS[0]], 'field.lrig_down': false,
+    'field.assist_lrig_l': teamLrigCount >= 2 ? [V217_TEAM_LRIGS[1]] : [],
+    'field.assist_lrig_r': teamLrigCount >= 3 ? [V217_TEAM_LRIGS[2]] : [],
+    'field.signi': [[V217_SIGNI], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 🔑**エナはこの1枚だけ**＝これが「白」と数えられるかどうかがそのまま観測になる。
+    hand: [], energy: [V217_ENERGY], trash: [], lrig_trash: [], coins: 0,
+    lrig_deck: [V217_GROW_TO],
+    deck: ['WD01-014#3720', 'WD01-014#3721', 'WD01-014#3722'],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#3790'],
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [], energy: [], trash: [], lrig_trash: [], blocked_actions: [],
+  },
+  // 🔑**グロウボタンは `turn_phase === 'GROW'` のときだけ出る**（`BattleScreen` のフェイズ帯）。
+  //   ⚠`MAIN` で注入すると導線が無く永久に待つ（第317で実測）。
+  top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+});
+
+async function driveV217(page, H, expectPayable, tag) {
+  const pre = await H.queryState();
+  H.log(`開始 lrig=${JSON.stringify(pre?.host?.lrigTop ?? pre?.host?.lrig)} energy=${JSON.stringify(pre?.host?.energyCards)} field=${JSON.stringify(pre?.host?.fieldSigni)}`);
+  // ⚠`ensureMain()` は呼ばない（グロウボタンは `turn_phase === 'GROW'` のときだけ出る）。
+  for (let step = 0; step < 14; step++) {
+    await page.waitForTimeout(700);
+    const growBtn = page.getByRole('button', { name: /^グロウ$/ }).first();
+    if (await growBtn.count() && await growBtn.isVisible().catch(() => false)) {
+      await growBtn.click({ timeout: 1500 }).catch(() => {});
+      await page.waitForTimeout(900);
+    }
+    const cand = page.getByAltText('MC.LION-2ndVerse', { exact: true }).first();
+    if (!(await cand.count()) || !(await cand.isVisible().catch(() => false))) {
+      H.log(`  ${tag}[${step}] グロウ候補がまだ出ない`);
+      continue;
+    }
+    // 🔑**観測点は「候補が支払える状態か」**＝支払えないと候補は選べず「エナ不足」と表示される。
+    //   ⚠`grow-execute`（第2フェイズ）は**選べたときにしか現れない**ので、
+    //     「押せない」ではなく「そこまで進めない」で判定する（第317で実測）。
+    const shortage = await page.getByText('エナ不足', { exact: false }).count();
+    await cand.click({ timeout: 1500 }).catch(() => {});
+    await page.waitForTimeout(900);
+    const exec = page.getByTestId('grow-execute').first();
+    const reached = (await exec.count()) > 0 && await exec.isVisible().catch(() => false);
+    const enabled = reached && await exec.isEnabled().catch(() => false);
+    H.log(`  ${tag}[${step}] エナ不足表示=${shortage} / 第2フェイズ到達=${reached} / 実行ボタン活性=${enabled}（期待 payable=${expectPayable}）`);
+
+    if (expectPayable) {
+      // ⚠第2フェイズに着いただけでは実行ボタンは非活性＝**エナを1枚選ぶ**まで払っていない（第317で実測）。
+      const enaCell = page.locator('[data-testid^="growcost-energy-"]').first();
+      await enaCell.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
+      if (await enaCell.count() && await enaCell.isVisible().catch(() => false)) {
+        await enaCell.click({ timeout: 1500 }).catch(() => {});
+        await page.waitForTimeout(600);
+      }
+      const enabledAfterPay = reached && await exec.isEnabled().catch(() => false);
+      H.log(`  ${tag}[${step}] エナ選択後の実行ボタン活性=${enabledAfterPay}`);
+      if (reached && enabledAfterPay) {
+        return { pass: true, detail: 'チームルリグ3体＝条件不成立＝エナの同名カードは白のまま＝《白》×1 を支払える（グロウ実行まで到達）' };
+      }
+      return { pass: false, detail: `${tag}: 支払えるはずが到達=${reached} 活性=${enabledAfterPay}（エナ不足表示=${shortage}）` };
+    }
+    if (!reached && shortage > 0) {
+      return { pass: true, detail: '🔑チームルリグ2体以下＝条件成立＝エナの同名カードが色を失い「エナ不足」で《白》×1 を支払えない' };
+    }
+    return { pass: false, detail: `${tag}: 支払えないはずが到達=${reached} 活性=${enabled}（エナ不足表示=${shortage}）＝色喪失条件が効いていない` };
+  }
+  return { pass: false, detail: `${tag}: グロウ候補に到達できなかった` };
+}
+
+scenarios.v217LoseColorCondOn = {
+  title: 'V-217① O-344: ＜CardJockey＞のルリグが1体＝条件成立＝エナの同名カードが色を失い《白》を払えない',
+  spec: v217Spec(1),
+  drive: (page, H) => driveV217(page, H, false, 'v217On'),
+};
+
+scenarios.v217LoseColorCondOff = {
+  title: 'V-217② O-344 対照: ＜CardJockey＞のルリグが3体＝条件不成立＝色を保ち《白》を払える',
+  spec: v217Spec(3),
+  drive: (page, H) => driveV217(page, H, true, 'v217Off'),
+};
+
+order.push('v217LoseColorCondOn', 'v217LoseColorCondOff');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

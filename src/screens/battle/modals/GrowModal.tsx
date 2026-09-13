@@ -292,7 +292,9 @@ export function GrowModal(p: GrowModalProps) {
                       const isSel = selectedGrowCost.has(i);
                       const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                       return (
-                        <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleGrowCostCard(i)}
+                        // 🆕§5.1 `V-217`（2026-09-14）＝実機シナリオがエナ1枚を選ぶための掴み手。
+                        //   ⚠盤面にも同名カードが出るので alt では特定できない（`data-testid` が要る）。
+                        <div key={i} data-testid={`growcost-energy-${i}`} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleGrowCostCard(i)}
                           onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                           onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                           onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

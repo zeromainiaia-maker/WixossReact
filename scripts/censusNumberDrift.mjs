@@ -108,7 +108,7 @@ console.log('明細 → docs/_census_number_drift.txt');
 //   この計器はカードの**逆翻訳**に原文の数値が出るかを見るので、`[STUB:…]` のラベルが
 //   「WX09-027(オリハルティア)の常在マーカー。」のように**中身を書いていないと、原文の数値がまるごと落ちる**。
 //   ⇒ **ラベル整備（`census:stublabel` B/C群）はこの計器の払い戻しでもある。**
-const BASELINE = 63; // 2026-09-14 §5.3 `O-345` クローズ＝WX19-007-E2 の「対戦相手のセンタールリグがレベル４以上の場合」を条件として payload 化し逆翻訳に出したため 64→63。以前＝64（O-345 真バグ#3）
+const BASELINE = 59; // 2026-09-14 §5.3 `O-344` クローズ＝レベル参照の許容範囲（1〜4／レベル4 ほか）とトラッシュ種類数を payload/条件へ載せて逆翻訳に出したため 63→59。以前＝63（O-345）
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');
