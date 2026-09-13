@@ -8230,9 +8230,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   engine がカード全文 regex で枝分かれしていた。
   // ⚠`ADD_TO_FIELD` は `source` を省くと**デッキの一番上**を出す（＝チェックゾーンに置いた札とは別のカード）。
   //   `source:{CHECK_CARD}` を明示する（この経路は第43バッチで `execAddToField` に追加した）。
-  // ⚠**近似1件**＝原文「場に出さない場合、それをトラッシュに置く」は**即時**だが、ここでは
-  //   `check_rest` に残し `clearTurnEndScopedState` の**ターン終了時トラッシュ**に委ねている
-  //   （行き先は同じ。ターン中はチェックゾーンに見えたままになる）。
+  // 🆕§5.3 `O-357`＝任意配置後の `lastProcessedCards` は、配置時は1枚・辞退時は0枚になる。
+  //   既存 `LAST_PROCESSED_COUNT_GTE` の否定側から `TRAP_OPERATION{from_check}` を呼び、
+  //   辞退した札を check_rest から**即時**トラッシュへ置く（ターン終了時まで残す旧近似を解消）。
   'WXK02-035': [
     {
       effectId: 'WXK02-035-E2',
@@ -8246,11 +8246,90 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           {
             type: 'ADD_TO_FIELD', owner: 'self', optional: true,
             source: { type: 'CHECK_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+            targetsLastProcessed: true,
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+            then: { type: 'SEQUENCE', steps: [] },
+            else: { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'from_check', trapSource: 'check', trapCheckRest: true },
           },
         ],
       } as unknown as import('../types/effects').EffectAction,
       duration: 'INSTANT',
       mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // ── §5.3 索引G `O-360` ───────────────────────────────────────────────────
+  // WDK07-E11-E2：効果元は場にいるため、旧 ACCE_FROM_TRASH が「トラッシュにある効果元自身」を
+  // 探す経路は恒久 no-op。トラッシュの＜調理＞を先に選び、既存の公開札アクセ経路へ渡す。
+  'WDK07-E11': [
+    {
+      effectId: 'WDK07-E11-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      cost: { energy: [{ color: '青', count: 1 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '調理' } },
+          },
+          { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST', acceHostFilter: { thisCardOnly: true } },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK05-039-E1：選んだ＜調理＞を storedTargetCards に固定し、デッキ上2枚の閲覧・
+  // ＜調理＞1枚のアクセ化・残りのデッキ下送りを LOOK_PICK_CHAIN で一続きに処理する。
+  'WXK05-039': [
+    {
+      effectId: 'WXK05-039-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { down_self: true },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '調理' } },
+          },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          {
+            type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 2,
+            stages: [{
+              filter: { cardType: 'シグニ', story: '調理' }, pickCount: 1,
+              then: 'acce', acceHostTargetsStored: true,
+            }],
+            remainder: { location: 'deck', position: 'bottom', reorder: true },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WD18-009-E2：原文は対象を取った後に「このシグニがアクセされていた場合」を判定する。
+  // 既存 triggerCondition.banishedHadAcce は発火自体を止める watcher 用で、流用すると対象を取らない別挙動になる。
+  // 除去直前のアクセ状態を解決時まで運ぶ機構が無いため、場の全アクセをエナへ送る旧 ACCE_TO_ENERGY から明示 defer へ退避する。
+  'WD18-009': [
+    {
+      effectId: 'WD18-009-E2',
+      effectType: 'AUTO',
+      timing: ['ON_BANISH'],
+      action: { type: 'STUB', id: 'DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED' },
+      duration: 'INSTANT',
+      mandatory: true,
       parseStatus: 'MANUAL',
     },
   ],

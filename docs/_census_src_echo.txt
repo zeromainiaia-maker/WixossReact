@@ -5,7 +5,7 @@
   🔴A ECHO  （原文が戻り値に乗る＝本命の worklist）: 0行 / 0id / live 0ノード / 0カード
     うち原文を返してよいと登録済み（ALLOWED）     : 10行 / 2id
   B READ/GUARD（原文を読むが戻り値には乗らない）  : 10行
-  C COMMENT （コメント）                          : 35行
+  C COMMENT （コメント）                          : 34行
 
 ⚠候補出しであって判定ではない＝1件ずつ「payload から同じ意味を組み立てられるか」で判定する。
   組み立てられる → payload から描く分岐へ置換／組み立て不能（引用そのものが中身） → ALLOWED に理由つきで登録。
@@ -19,10 +19,10 @@
   scripts/decompileEffects.ts:124  [(非STUB＝汎用ヘルパー)]  const scope = currentEffectText || currentCardText;
   scripts/decompileEffects.ts:125  [(非STUB＝汎用ヘルパー)]  for (const sent of scope.split(/[。\n]/)) {
   scripts/decompileEffects.ts:2259  [SEARCH]  if (a.maxCount?.$ref === 'last_processed_count' && /捨てたカード[１1]枚につき/.test(currentCardText)) {
-  scripts/decompileEffects.ts:3834  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
-  scripts/decompileEffects.ts:3842  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
-  scripts/decompileEffects.ts:5375  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
-  scripts/decompileEffects.ts:6516  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
-  scripts/decompileEffects.ts:6517  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
-  scripts/decompileEffects.ts:6981  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
-  scripts/decompileEffects.ts:6982  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;
+  scripts/decompileEffects.ts:3852  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
+  scripts/decompileEffects.ts:3860  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
+  scripts/decompileEffects.ts:5399  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
+  scripts/decompileEffects.ts:6542  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
+  scripts/decompileEffects.ts:6543  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
+  scripts/decompileEffects.ts:7007  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+  scripts/decompileEffects.ts:7008  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;

@@ -4769,6 +4769,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   // ⚠**`TRASH_CARD` / `ENERGY_CARD` の候補を作った後**でしか効かない（`DECK_CARD` は「デッキの上から
   //   N枚を見て」の別文型で、対象宣言を跨がない）。
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  // §5.3 `O-357`＝直前にチェックゾーンへ置いた「それ」だけを任意配置の候補にする。
+  // check_rest に以前から別札があっても、同じ効果の先頭ステップが記録した個体ID以外は選べない。
+  if (a.targetsLastProcessed) cands = cands.filter(n => (ctx.lastProcessedCards ?? []).includes(n));
   if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
 
   // 場に出す：空きゾーンに配置（呼び出し元が担当できないため自動的に最初の空きへ）
@@ -8666,11 +8669,15 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under' | 'acce', owner: Owner, gateZoneOnly?: boolean, acceHostFilter?: import('../types/effects').TargetFilter): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under' | 'acce', owner: Owner, gateZoneOnly?: boolean, acceHostFilter?: import('../types/effects').TargetFilter, acceHostTargetsStored?: boolean): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   // 🆕§5.3 `O-311`（`WXK04-003-E2`）＝公開札を1枚ずつ「どのシグニの【アクセ】にするか」へ回す。
   //   ⚠`resumeSearch` の `INTERNAL_ASK_ACCE_HOST` 分岐がピック枚数ぶん展開し、デッキから抜いて付ける（対話を跨いでも continuation を落とさない）。
-  if (then === 'acce') return { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST', ...(acceHostFilter ? { acceHostFilter } : {}) } as EffectAction;
+  if (then === 'acce') return {
+    type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST',
+    ...(acceHostFilter ? { acceHostFilter } : {}),
+    ...(acceHostTargetsStored ? { targetsStored: true } : {}),
+  } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
   if (then === 'trap') return { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction;
@@ -8767,7 +8774,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       visibleCards: cands,
       maxPick: stageMax,
       ...(stage.pickUpTo ? { optional: true } : {}),
-      thenAction: lookPickThenAction(stage.then, owner, stage.gateZoneOnly, stage.acceHostFilter),
+      thenAction: lookPickThenAction(stage.then, owner, stage.gateZoneOnly, stage.acceHostFilter, stage.acceHostTargetsStored),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
       // §6.4 O-2: 「対戦相手は自分のデッキの上から〜見て」＝相手のデッキを相手自身が掘る。

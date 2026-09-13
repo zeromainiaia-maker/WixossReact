@@ -1498,6 +1498,10 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newSPFDNOT }, '次の相手ターン最初のダメージを無効'));
   }
   // === バッチ5: アクセ・デッキ・パワー補足 ===
+  // 表示: バニッシュ時、トラッシュの《アクセアイコン》を持つシグニ1枚を対象とし、効果元がアクセされていた場合だけエナゾーンに置く（除去直前状態の解決時持ち回りは未実装）
+  if (stub.id === 'DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED') {
+    return done(addLog(ctx, '[未実装] バニッシュ前のアクセ状態を参照するトラッシュ→エナ'));
+  }
   // ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ
   if (stub.id === 'ACCE_TO_ENERGY' || stub.id === 'PLACE_ACCE_SIGNI_TO_ENERGY') {
     const sATE = ctx.ownerState;
@@ -2961,11 +2965,20 @@ export function execStubPart2(
         `${ctx.cardMap.get(getCardNum(cardToCheck))?.CardName ?? cardToCheck}をチェックゾーンへ`));
     }
     if (stub.trapOp === 'from_check') {
-      const checked = ctx.ownerState.field.check;
+      // `trapCheckRest` は、同じ効果の `to_check` が **check_rest の末尾へ積んだ札**を取る印。
+      // 間の任意配置は `targetsLastProcessed` でその札だけを候補にするため、辞退時は check_rest を
+      // 変更せず、末尾が同一個体のまま保たれる。通常の `field.check` が同時にあっても巻き込まない。
+      const fromRest = !!stub.trapCheckRest;
+      const checked = fromRest
+        ? (ctx.ownerState.field.check_rest?.at(-1) ?? null)
+        : (ctx.ownerState.field.check ?? ctx.ownerState.field.check_rest?.at(-1) ?? null);
       if (!checked) return done(addLog(ctx, 'チェックゾーン：カードなし'));
+      const newField = !fromRest && ctx.ownerState.field.check === checked
+        ? { ...ctx.ownerState.field, check: null }
+        : { ...ctx.ownerState.field, check_rest: (ctx.ownerState.field.check_rest ?? []).slice(0, -1) };
       return done(addLog({
         ...ctx,
-        ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, checked], field: { ...ctx.ownerState.field, check: null } },
+        ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, checked], field: newField },
         lastProcessedCards: [checked],
       }, `${ctx.cardMap.get(getCardNum(checked))?.CardName ?? checked}をチェックゾーンからトラッシュへ`));
     }
@@ -3528,19 +3541,28 @@ export function execStubPart2(
   //   自分のゾーンを指定する。**保存先を間違えると読み手（target.owner 側の state）と食い違って空振りする。**
   if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
     const ownerDSZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
+    const stateDSZ = ownerDSZ === 'self' ? ctx.ownerState : ctx.otherState;
     // 「シグニゾーンを**２つまで**指定し」（`WX25-P3-014-E2`）＝複数選択。既定は1つ。
     const countDSZ = Math.max(1, Math.min(3, stub.count ?? 1));
     const zoneOptsDSZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `ゾーン${zi + 1}を指定`,
-      action: ({ type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi, owner: ownerDSZ } as StubAction) as EffectAction,
-      available: true,
+      action: ({
+        type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi, owner: ownerDSZ,
+        ...(stub.requireEmptyZone ? { requireEmptyZone: true } : {}),
+      } as StubAction) as EffectAction,
+      available: !stub.requireEmptyZone || !(stateDSZ.field.signi[zi]?.length),
     }));
     // ⚠**前回の指定を持ち越さない**＝同じカードを再使用したときに古いゾーンが混ざると、
     //   指定していないゾーンにまで効果が乗る（`designated_zones` は追記式なので必ずここで空にする）。
     const clearedDSZ = ownerDSZ === 'self'
       ? { ...ctx, ownerState: { ...ctx.ownerState, designated_zones: [], designated_zone: undefined } }
       : { ...ctx, otherState: { ...ctx.otherState, designated_zones: [], designated_zone: undefined } };
+    // 全ゾーンが占有中なら選べる候補は0。available:false だけの CHOOSE を開くと確定不能になるため、
+    // 指定なし（後段の BLOCK_OPP_ZONE_PLACEMENT も fail-closed）で即完了する。
+    if (!zoneOptsDSZ.some(option => option.available)) {
+      return done(addLog(clearedDSZ, '指定できる空きシグニゾーンがない'));
+    }
     return needsInteraction(addLog(clearedDSZ, `指定する${ownerDSZ === 'self' ? '自分の' : '相手'}シグニゾーンを選択`), {
       type: 'CHOOSE', options: zoneOptsDSZ, count: countDSZ,
       ...(countDSZ > 1 ? { multiSelect: true, upTo: true } : {}),
@@ -3551,6 +3573,10 @@ export function execStubPart2(
     const zoneIdxIDZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const ownerIDZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
     const stIDZ = ownerIDZ === 'self' ? ctx.ownerState : ctx.otherState;
+    // UI の available は表示制御にすぎないため、外部から占有ゾーンIDを返されても限定を迂回させない。
+    if (stub.requireEmptyZone && stIDZ.field.signi[zoneIdxIDZ]?.length) {
+      return done(addLog(ctx, `${ownerIDZ === 'self' ? '自分の' : '相手'}ゾーン${zoneIdxIDZ + 1}はシグニがいるため指定できない`));
+    }
     const zonesIDZ = [...new Set([...(stIDZ.designated_zones ?? []), zoneIdxIDZ])];
     const nextIDZ = { ...stIDZ, designated_zones: zonesIDZ, designated_zone: undefined };
     const ctxIDZ = ownerIDZ === 'self' ? { ...ctx, ownerState: nextIDZ } : { ...ctx, otherState: nextIDZ };

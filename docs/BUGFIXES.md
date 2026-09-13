@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — §5.3 索引G バッチ1 続き（`O-358` / `O-357` / `O-360`）
+
+- **`O-358` / `WXDi-P11-009-E3`**：`DESIGNATE_SIGNI_ZONE.requireEmptyZone` を parser・型・executor・逆翻訳へ配線した。
+  占有ゾーンを `available:false` にし、3ゾーン全占有なら確定不能な対話を開かず完了する。未指定の既存効果は3ゾーンとも従来どおり選択可能。
+- **`O-357` / `WXK02-035-E2`**：デッキ下からチェックした同一札を `lastProcessedCards` で場出し候補へ固定し、辞退時は
+  `check_rest` 末尾の当該札だけを即時トラッシュへ送る。無関係な `field.check` や以前の `check_rest` を巻き込まない。
+- **`O-360` / `WDK07-E11-E2`**：トラッシュの＜調理＞1枚を選び、`INTERNAL_ASK_ACCE_HOST` の既存
+  `thisCardOnly` 消費経路で効果元自身へアクセする形にした。`ACCE_FROM_TRASH_MULTI` は `thisCardOnly` を消費せず、
+  ターン終了時回収まで付く別機構なので流用していない。
+- **`O-360` / `WXK05-039-E1`**：対象の＜調理＞を `storedTargetCards` に固定し、`LOOK_PICK_CHAIN` で上2枚から
+  ＜調理＞1枚を選んでその対象だけへアクセ、残りを好きな順番でデッキ下へ置く形にした。
+  この実消化により `O-144` の未到達ラチェットを **12→11** へ下げた。
+- **`O-360` / `WD18-009-E2`**：旧 `ACCE_TO_ENERGY` は場のアクセ全部を送る別物。既存 `banishedHadAcce` も
+  発火条件用で、原文の「対象を取った後に除去直前のアクセ状態を判定」とは段階が違う。1効果のために状態持ち回り機構を新設せず、
+  `DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED` へ改名して過剰実行を停止し、逆翻訳に未実装理由を明示した。
+
+### 検証
+
+- fresh parser・live JSON・実行 E2E を追加。`O-358` は executor と parser、`O-357` は辞退時 `else`、採用した
+  `O-360` 2効果はトラッシュ除去／保存ホスト限定を一時的に外す反転確認でそれぞれ FAIL を確認し、復元後 PASS。
+- `npm run build:effects` → `node scripts/heldReview.mjs` → `npm run regen` を実行し、live 差分は上記5効果だけ。
+  `npm run gates` は初回、実消化で `O-144` が **12→11** になったラチェットだけを検出したため基準を払い戻した。
+
 ## 2026-09-14 — 🏁§5.3 索引G 4項目クローズ（`O-364` / `O-359` / `O-361` / `O-363`・第318バッチ・Codex 委譲＋Claude 引き継ぎ）
 
 ### 🔴 まず訂正＝`O-364` の登録票が誤りだった

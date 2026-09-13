@@ -2601,6 +2601,22 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
+      // §5.3 `O-357`＝チェックゾーンからの任意配置を辞退したら即時トラッシュへ置く形。
+      // 先頭の trapCheckRest 単体は通常「ターン終了時にトラッシュ」だが、この並びでは後段が
+      // 即時に回収するため、その旧寿命注記を描くと engine の修正後も欠落が隠れてしまう。
+      if (a.steps.length === 3
+          && a.steps[0]?.type === 'STUB' && a.steps[0].id === 'TRAP_OPERATION'
+          && a.steps[0].trapOp === 'to_check' && a.steps[0].trapCheckRest
+          && a.steps[1]?.type === 'ADD_TO_FIELD' && a.steps[1].optional
+          && a.steps[1].source?.type === 'CHECK_CARD'
+          && a.steps[1].targetsLastProcessed
+          && a.steps[2]?.type === 'CONDITIONAL'
+          && a.steps[2].condition?.type === 'LAST_PROCESSED_COUNT_GTE'
+          && a.steps[2].else?.type === 'STUB' && a.steps[2].else.id === 'TRAP_OPERATION'
+          && a.steps[2].else.trapOp === 'from_check' && a.steps[2].else.trapCheckRest) {
+        const putInCheck = actionJa({ ...a.steps[0], trapCheckRest: false } as any, effectType);
+        return `${putInCheck}。それがシグニの場合、それを場に出してもよい。場に出さない場合、それをトラッシュに置く`;
+      }
       // 対象12件の追加コスト2形。内部では OPTIONAL_COST と PAID_ADDITIONAL_COST を
       // 分けて持つが、逆翻訳は原文の「この方法で支払った/捨てた場合」に戻す。
       // 「〈コスト〉を支払わないかぎり、X」（§6.4 O-30）＝機構は任意コストと同じだが原文の語順が逆。
@@ -2857,6 +2873,8 @@ function actionJa(a?: Action, effectType?: string): string {
       //     （`filterJa` は名詞の前に付く修飾語を返す関数で、自己言及の軸は修飾語ではない）。
       const stageDestJa = (s: any) => s.then !== 'acce'
         ? destVerb(s.then, s.gateZoneOnly)
+        : s.acceHostTargetsStored
+          ? 'それの【アクセ】にし'
         : s.acceHostFilter?.thisCardOnly
           ? 'このシグニの【アクセ】にし'
           : `あなたの${filterJa(s.acceHostFilter)}シグニの【アクセ】にし`;
@@ -4092,6 +4110,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'SELECT_TARGET_ONLY') {
         return `${a.selectTarget ? targetJa(a.selectTarget) : '対象'}を対象とする`;
       }
+      if (a.id === 'INTERNAL_ASK_ACCE_HOST') {
+        if (a.targetsStored) return 'それを先に対象としたシグニの【アクセ】にする';
+        if (a.acceHostFilter?.thisCardOnly) return 'それをこのシグニの【アクセ】にする';
+        return `それをあなたの${filterJa(a.acceHostFilter)}シグニ1体の【アクセ】にする`;
+      }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // 🆕§5.3 `O-348`（2026-09-13）＝**原文エコー（`costText`）より payload を優先する**。
         //   🔴`costText` は原文をそのまま持っているので逆翻訳がいつも正しく見える＝
@@ -4718,7 +4741,7 @@ function actionJa(a?: Action, effectType?: string): string {
         return `このルリグはあなたのルリグトラッシュにあるレベル${numJa(lnc.level)}の＜${lnc.story}＞と同じカード名としても扱い、そのルリグの${lncKinds}能力を得る`;
       }
       // シグニゾーン指定（DESIGNATE_SIGNI_ZONE・engine実装済み）＝「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」。
-      // 「シグニのない」「対戦相手の」前置はカードごとに異なるため currentCardText から抽出。
+      // 限定・所有者・個数は payload だけから描き、原文を読み直さない。
       if (a.id === 'DESIGNATE_SIGNI_ZONE') {
         // §6.4 O-16: **どちらのゾーンを何個**指定したかは JSON の `owner` / `count` が持つ
         // （＝`designated_zones` の保存先と個数）。原文抜粋だけを返すと `owner:'self'` と既定（相手）、
@@ -4728,12 +4751,13 @@ function actionJa(a?: Action, effectType?: string): string {
         //   🔴**原文に合わせて「無いときは前置しない」にしてはいけない**＝engine は相手ゾーンを指定させるので、
         //     前置を消すと逆翻訳が engine の実挙動より曖昧になる（`O-354` の教訓の逆向き）。
         const ownerJaDSZ = a.owner === 'self' ? 'あなたの' : '対戦相手の';
+        const emptyJaDSZ = a.requireEmptyZone ? 'シグニのない' : '';
         const countDSZ = typeof a.count === 'number' && a.count > 1 ? a.count : 1;
         // 語順が2通り＝「シグニゾーン１つを指定する」／「シグニゾーンを２つまで指定し」。
         // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
         //   ⚠`owner` が無い宣言は原文にも所有者の限定が無い（`WX10-051`「シグニゾーン１つを指定する。」）＝
         //     既定で「対戦相手の」を足すと**原文に無い限定を書く**ことになるので、無いときは前置しない。
-        return `${ownerJaDSZ}シグニゾーンを${numJa(countDSZ)}つ${countDSZ > 1 ? 'まで' : ''}指定する`;
+        return `${emptyJaDSZ}${ownerJaDSZ}シグニゾーンを${numJa(countDSZ)}つ${countDSZ > 1 ? 'まで' : ''}指定する`;
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
       if (a.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') return 'ターン終了時、この方法で場に出したレゾナをルリグデッキに戻す';
@@ -5696,6 +5720,8 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】このゲームの間に得る引用能力（宣言を1つも構造化できなかった）',
         DEFERRED_GRANT_ALL_ZONE_TRAP_ICON:
           '【未実装】あなたのすべての領域にある《トラップアイコン》を持たない＜トリック＞のカードは《トラップアイコン》「カードを1枚引くか【エナチャージ1】をする。」を得る',
+        DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED:
+          '【未実装】あなたのトラッシュから《アクセアイコン》を持つシグニ1枚を対象とし、このシグニがアクセされていた場合、それをエナゾーンに置く',
         // 🆕§5.3 `O-227`（2026-09-04・`O-60` 第68バッチで2件目）＝**期間つきのプレイヤー付与**が無い。
         //   ⚠`GRANT_PLAYER_ABILITY` は `permanent:true` 固定＝載せるとゲーム中ずっと効く過大実行（`WX25-P2-004-E1`）。
         DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL:

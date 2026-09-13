@@ -2698,6 +2698,8 @@ export interface AddToLifeAction {
 
 export interface AddToFieldAction {
   targetsTriggerSource?: boolean;
+  /** 直前ステップが処理したカードだけを場に出す（チェックゾーンへ置いた「それ」等）。 */
+  targetsLastProcessed?: boolean;
   type: 'ADD_TO_FIELD'; // 直前に選んだカードをフィールドへ（コスト不要で出す）
   owner: Owner;
   source?: EffectTarget; // トラッシュ・エナ・手札など出処が明示される場合
@@ -3532,6 +3534,8 @@ export interface LookPickChainStage {
   then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under' | 'acce';
   /** 🆕`then:'acce'` 限定＝【アクセ】を付けるホストの絞り込み（例＝＜調理＞のシグニ）。 */
   acceHostFilter?: TargetFilter;
+  /** `then:'acce'` 限定＝先行の対象宣言で `storedTargetCards` に固定したシグニだけをホストにする。 */
+  acceHostTargetsStored?: boolean;
   /**
    * 🆕`then:'field'` 限定＝**【ゲート】があるシグニゾーンへ出す**（2026-09-01 続き760・`WXDi-P15-079-E1`
    * 「その中からシグニ１枚を**【ゲート】があるあなたのシグニゾーンに出し**」）。
@@ -5176,9 +5180,9 @@ export interface StubAction {
    * 「〈対象〉を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それを**〜」の帰結が
    * 型付き action ではなく STUB のときに使う（`COPY_CARD` / `TRAP_OPERATION`）。
    *
-   * 🔴**消費するのは `O220_FREEZABLE_STUB_IDS`（`effectExecutor.ts`）に載せた id だけ**＝
-   *   載せずにフィールドだけ付けると `targetsStored:false` に落とされて限定が消え、
-   *   **全候補へ当たる**（過剰実行）。型に生えているからといって他の STUB へ付けない。
+   * 🔴通常は `O220_FREEZABLE_STUB_IDS`（`effectExecutor.ts`）に載せた id だけが消費する。
+   * `INTERNAL_ASK_ACCE_HOST` だけは公開札を先に対象としたホストへ付けるため、ハンドラ自身が
+   * `storedTargetCards` と照合する。どちらにも配線せずフィールドだけ付けると限定が消える。
    */
   targetsStored?: boolean;
   fixedCardNums?: string[];
@@ -6823,6 +6827,11 @@ export interface StubAction {
   /** 支払えば配置できる《無》の枚数（「《無》×5 を支払わないかぎり…配置できない」）。省略＝無条件禁止。 */
   zoneBlockColorless?: number;
   /**
+   * `DESIGNATE_SIGNI_ZONE` で**シグニのないゾーンだけ**を候補にする（§5.3 `O-358`）。
+   * 省略時は従来どおり占有中を含む全3ゾーン。候補が0なら対話を開かず、指定なしで完了する。
+   */
+  requireEmptyZone?: boolean;
+  /**
    * 禁止するゾーンの**供給源**（タスク12(lxxvi)）。省略＝`'designated'`（直前の `DESIGNATE_SIGNI_ZONE`）。
    * - `'vacated'`＝「**それがあった**シグニゾーン」＝直前に場を離れたシグニのゾーン（`WX08-032-E1`）。
    *   `signi_zone_vacated_just` を読む＝**直前ステップが場からの除去であること**が前提。
@@ -7035,6 +7044,7 @@ export interface StubAction {
    *   バースト確認モーダルが開き、`BattleScreen` の各種ブロック条件（アタック不可・スタック停止…）に
    *   引っかかって**盤面が固まる**。原文が「置いてもよい（ターン終了時にトラッシュに置かれる）」＝
    *   バースト確認を伴わない形はこのフラグを立てて `field.check_rest` へ置く。
+   * `from_check` では、同じフラグが「直前の `to_check` が末尾へ積んだ札を `check_rest` から取る」ことを示す。
    */
   trapCheckRest?: boolean;
   /** `count` が「N枚まで／好きな枚数」という上限であること。既存語彙名をStubActionでも共有する。 */

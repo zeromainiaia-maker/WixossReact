@@ -23,8 +23,8 @@ miss = 各ソース行について、その行の門から来る live カード�
 | fn:collectLrigNameAliases + GAIN_ADDITIONAL_LRIG_TYPE | effectEngine.ts:5506 effectEngine.ts:5531 | 1 | 1 | 2 | 0 |
 | fn:collectOppLrigAttackExtraCost + OPP_LRIG_ATTACK_COST | effectEngine.ts:5862 | 1 | 1 | 1 | 0 |
 | fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH | effectEngine.ts:7020 | 1 | 1 | 1 | 0 |
-| GRANT_ABILITY_UNTIL_OPP_TURN | execStubPart2.ts:4648 | 1 | 1 | 4 | 0 |
-| ACCE_SIGNI_GRANT_ABILITY | execStubPart3.ts:3593 | 0 | 0 | 1 | 0 |
+| GRANT_ABILITY_UNTIL_OPP_TURN | execStubPart2.ts:4674 | 1 | 1 | 4 | 0 |
+| ACCE_SIGNI_GRANT_ABILITY | execStubPart3.ts:3595 | 0 | 0 | 1 | 0 |
 | fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:7211 | 0 | 0 | 1 | 0 |
 | fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6099 | 0 | 0 | 1 | 0 |
 | fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6854 | 0 | 0 | 1 | 0 |
@@ -106,7 +106,7 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit re:あなたの＜([^＞]+)＞のシグニを場から移動させない
 
 ### GRANT_ABILITY_UNTIL_OPP_TURN  (live 1効果 / 1カード / miss 0)
-  execStubPart2.ts:4648  [門 sourceAction=GRANT_ABILITY_UNTIL_OPP_TURN] live 1効果 / 1カード / miss 0
+  execStubPart2.ts:4674  [門 sourceAction=GRANT_ABILITY_UNTIL_OPP_TURN] live 1効果 / 1カード / miss 0
     const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
     lit str:ランサー
     lit str:アサシン
@@ -114,7 +114,7 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit str:シャドウ
 
 ### ACCE_SIGNI_GRANT_ABILITY  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3593  [門 sourceAction=ACCE_SIGNI_GRANT_ABILITY] live 0効果 / 0カード / miss 0
+  execStubPart3.ts:3595  [門 sourceAction=ACCE_SIGNI_GRANT_ABILITY] live 0効果 / 0カード / miss 0
     const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
     lit re:【([^】]+)】
 
@@ -146,7 +146,7 @@ miss = 各ソース行について、その行の門から来る live カード�
   effectEngine.ts:5271 <fn:getCrossConditionText> const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
   effectEngine.ts:7363 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
   execStubPart1.ts:1298 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
-  execStubPart2.ts:4744 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart2.ts:4770 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execUtils.ts:1482 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1484 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   execUtils.ts:1486 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;

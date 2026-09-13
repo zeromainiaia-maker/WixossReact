@@ -79,6 +79,7 @@ export function execStubPart3(
       const top = stack?.at(-1);
       if (!top) return [];
       if (!canAttachSelf(top, i)) return [];
+      if (stub.targetsStored && !(ctx.storedTargetCards ?? []).includes(top)) return [];
       if (acceHostSelfAAH && getCardNum(top) !== getCardNum(ctx.sourceCardNum ?? '')) return [];
       if (acceHostFilterAAH && !matchesFilter(ctx.cardMap.get(getCardNum(top)), acceHostFilterAAH)) return [];
       return [top];
@@ -104,6 +105,7 @@ export function execStubPart3(
       deck: ctx.ownerState.deck.filter(c => c !== acceATH),
       hand: ctx.ownerState.hand.filter(c => c !== acceATH),
       energy: ctx.ownerState.energy.filter(c => c !== acceATH),
+      trash: ctx.ownerState.trash.filter(c => c !== acceATH),
       field: { ...ctx.ownerState.field, signi_acce: acceSlotsATH },
       acce_just_done: hostATH,
     };

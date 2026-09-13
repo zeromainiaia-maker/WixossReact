@@ -62858,7 +62858,8 @@ test('O-144: 「残りを好きな順番で」の並べ替えが live に届い�
   //   （`remainder:{position:'bottom', reorder:true}`）へ載せた分。🔴旧 live は `LOOK_AND_REORDER`
   //   `{reorder:false, destination:{position:'top'}}`＝原文「残りを好きな順番でデッキの**一番下**に置く」と
   //   行き先まで逆だった。
-  const BASELINE_REORDER_MISSING = 12;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  // 🔻**11**（2026-09-14 §5.3 `O-360`）＝`WXK05-039-E1` を `LOOK_PICK_CHAIN{remainder.reorder:true}` へ載せた実消化。
+  const BASELINE_REORDER_MISSING = 11;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
   //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
   //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）
@@ -81188,6 +81189,199 @@ test('O-364 WX22-002-E1: 相手ターンに victim のリミットが −1（一
   // 🔑宣言者自身のリミットは減らない（`owner:'opponent'` なので自分側の枝は通らない）。
   eq(computeEffectiveLrigLimit(declarer, victim, cardMap, effectsMap, false),
     parseInt(cardMap.get('WX22-002')?.Limit ?? '0', 10), '宣言者自身のリミットは変わらない');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.3 索引G バッチ1: O-358 / O-357
+// ─────────────────────────────────────────────────────────────────────────────
+test('O-358 parser/live: 「シグニのない」指定は fresh と live の両方で requireEmptyZone を持つ', () => {
+  const live = (effectsMap.get('WXDi-P11-009') ?? []).find(e => e.effectId === 'WXDi-P11-009-E3');
+  const parsed = parseCardEffects(cardMap.get('WXDi-P11-009')!).find(e => e.effectId === 'WXDi-P11-009-E3');
+  ok(!!live, 'WXDi-P11-009-E3 が live に無い');
+  ok(!!parsed, 'WXDi-P11-009-E3 が fresh parse に無い');
+  eq(findStubById(live!.action, 'DESIGNATE_SIGNI_ZONE')?.requireEmptyZone, true,
+    'live の DESIGNATE_SIGNI_ZONE に requireEmptyZone が無い');
+  // §5-29: live は収穫マージで温存されうるため、fresh parser を独立に固定する。
+  eq(findStubById(parsed!.action, 'DESIGNATE_SIGNI_ZONE')?.requireEmptyZone, true,
+    'fresh parser が「シグニのない」を落としている');
+  eq(decompiledLineOf('WXDi-P11-009-E3'),
+    'WXDi-P11-009-E3: 【起】（メイン起動）：《once_per_game》〈《黒×0》〉シグニのない対戦相手のシグニゾーンを1つ指定する。そしてこのターンと次のターンの間、対戦相手は《無》×5を支払わないかぎり指定されたシグニゾーンにシグニを新たに配置できない',
+    'requireEmptyZone を含む逆翻訳が原文どおりでない');
+});
+
+test('O-358 E2E: 占有ゾーンを選べず、従来効果は全ゾーン選べ、候補0では対話を開かない', () => withSavedCursor(() => {
+  const occupiedL = SIGNI_L1;
+  const occupiedR = SIGNI_L2;
+  const ctx = mkCtx({}, { signi: [occupiedL, null, occupiedR] }, 'WXDi-P11-009');
+  const restricted = executeAction({ type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE', requireEmptyZone: true } as EffectAction, ctx);
+  ok(!restricted.done, '空きゾーンがあるのに指定対話が開かなかった');
+  if (restricted.done) return;
+  eq(restricted.pending.type, 'CHOOSE', '指定対話が CHOOSE でない');
+  if (restricted.pending.type !== 'CHOOSE') return;
+  eq(JSON.stringify(restricted.pending.options.map(o => o.available)), JSON.stringify([false, true, false]),
+    '占有ゾーンと空きゾーンの available が正しくない');
+
+  // 対照: requireEmptyZone を持たない既存効果の意味を変えない。
+  const legacy = executeAction({ type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE' } as EffectAction, ctx);
+  ok(!legacy.done, '従来のゾーン指定が対話を開かなかった');
+  if (!legacy.done && legacy.pending.type === 'CHOOSE') {
+    eq(JSON.stringify(legacy.pending.options.map(o => o.available)), JSON.stringify([true, true, true]),
+      'requireEmptyZone 無しの既存効果まで占有ゾーンを除外した');
+  } else {
+    ok(false, '従来のゾーン指定が CHOOSE でない');
+  }
+
+  const full = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] }, 'WXDi-P11-009');
+  full.otherState.designated_zones = [1];
+  const noCandidate = executeAction(
+    { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE', requireEmptyZone: true } as EffectAction,
+    full,
+  );
+  ok(noCandidate.done, '全ゾーン占有時に確定不能な対話を開いた');
+  if (!noCandidate.done) return;
+  eq(JSON.stringify(noCandidate.otherState.designated_zones ?? []), '[]',
+    '候補0なのに以前の指定ゾーンを持ち越した');
+}));
+
+test('O-357 E2E: 場出し／辞退の両方で直前にチェックした同一札だけを処理する', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXK02-035') ?? []).find(e => e.effectId === 'WXK02-035-E2');
+  ok(!!effect, 'WXK02-035-E2 が live に無い');
+  if (!effect) return;
+  const actionTree = effect.action as unknown as { type?: string; steps?: Array<Record<string, unknown>> };
+  eq(actionTree.type, 'SEQUENCE', 'WXK02-035-E2 が3ステップ列でない');
+  eq(actionTree.steps?.length, 3, 'WXK02-035-E2 が3ステップちょうどでない');
+  eq(actionTree.steps?.[1]?.targetsLastProcessed, true, '場出し候補が直前にチェックした札へ限定されていない');
+  const otherwise = actionTree.steps?.[2]?.else as Record<string, unknown> | undefined;
+  eq(otherwise?.trapOp, 'from_check', '辞退時のチェックゾーン→トラッシュが無い');
+  eq(otherwise?.trapCheckRest, true, '辞退時に通常の field.check を誤って取る形になっている');
+  eq(decompiledLineOf('WXK02-035-E2'),
+    'WXK02-035-E2: 【自】このシグニが場に出たとき：〈《青×1》〉あなたのデッキの一番下のカードをチェックゾーンに置く。それがシグニの場合、それを場に出してもよい。場に出さない場合、それをトラッシュに置く',
+    '3ステップ専用の逆翻訳が原文どおりでない');
+
+  const checked = SIGNI_L1;
+  const olderCheckRest = SIGNI_L2;
+  const unrelatedBurstCheck = SIGNI_L3;
+  const makeCtx = (): ExecCtx => {
+    const base = mkCtx({ signi: [SIGNI, SIGNI_P12000, null] }, {}, 'WXK02-035');
+    return {
+      ...base,
+      ownerState: {
+        ...base.ownerState,
+        deck: [SIGNI_P3000, checked],
+        trash: [],
+        field: {
+          ...base.ownerState.field,
+          signi: [[SIGNI], [SIGNI_P12000], null],
+          check: unrelatedBurstCheck,
+          check_rest: [olderCheckRest],
+        },
+      },
+    } as ExecCtx;
+  };
+
+  const playCtx = makeCtx();
+  const offered = executeAction(effect.action, playCtx);
+  ok(!offered.done, 'シグニを場に出す任意選択が開かなかった');
+  if (offered.done) return;
+  eq(offered.pending.type, 'SELECT_TARGET', '場出しの対話が SELECT_TARGET でない');
+  if (offered.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(offered.pending.candidates), JSON.stringify([checked]),
+    '以前から check/check_rest にある別札まで場出し候補へ混ざった');
+  const played = finish(
+    resumeSelectTarget([checked], offered.pending, ctxAfter(offered, playCtx)),
+    playCtx,
+  );
+  ok(played.done, '場出し選択後に効果が完了しなかった');
+  if (!played.done) return;
+  ok(played.ownerState.field.signi.some(stack => stack?.at(-1) === checked), '選んだ札が場に出なかった');
+  eq(played.ownerState.trash.includes(checked), false, '場に出した札がトラッシュにも複製された');
+  eq((played.ownerState.field.check_rest ?? []).includes(checked), false, '場に出した札が check_rest に残った');
+  eq(JSON.stringify(played.ownerState.field.check_rest ?? []), JSON.stringify([olderCheckRest]),
+    '以前から check_rest にある札を巻き込んだ');
+  eq(played.ownerState.field.check, unrelatedBurstCheck, '無関係な field.check を巻き込んだ');
+
+  const skipCtx = makeCtx();
+  const declined = executeAction(effect.action, skipCtx);
+  ok(!declined.done, '辞退できる任意選択が開かなかった');
+  if (declined.done || declined.pending.type !== 'SELECT_TARGET') return;
+  const trashed = finish(
+    resumeSelectTarget([], declined.pending, ctxAfter(declined, skipCtx)),
+    skipCtx,
+  );
+  ok(trashed.done, '辞退後に効果が完了しなかった');
+  if (!trashed.done) return;
+  ok(trashed.ownerState.trash.includes(checked), '辞退した札が即時トラッシュへ行かなかった');
+  eq((trashed.ownerState.field.check_rest ?? []).includes(checked), false, '辞退した札が check_rest に残った');
+  eq(JSON.stringify(trashed.ownerState.field.check_rest ?? []), JSON.stringify([olderCheckRest]),
+    '辞退時に以前から check_rest にある札を取った');
+  eq(trashed.ownerState.field.check, unrelatedBurstCheck, '辞退時に無関係な field.check を取った');
+}));
+
+test('O-360 WDK07-E11-E2 E2E: トラッシュの＜調理＞1枚を効果元自身のアクセにする', () => withSavedCursor(() => {
+  const source = 'WDK07-E11';
+  const acce = 'WX15-058';
+  const otherHost = 'WXK05-039';
+  const effect = liveEff(source, 'WDK07-E11-E2');
+  const ctx = mkCtx({ signi: [source, otherHost, null], hand: 0, trash: 0, energy: 0 }, {}, source);
+  ctx.ownerState.trash = [acce];
+
+  let result = executeAction(effect.action, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', 'トラッシュの＜調理＞を選ぶ対話が開く');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify([acce]), '対象はトラッシュの＜調理＞1枚');
+  result = resumeSelectTarget([acce], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', 'アクセ先を確定する対話が開く');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify([source]),
+    '「このシグニ」だけがアクセ先（同じ場の別シグニを混ぜない）');
+  result = finish(resumeSelectTarget([source], result.pending, ctxAfter(result, ctx)), ctx);
+  ok(result.done, 'アクセ後に効果が完了する');
+  if (!result.done) return;
+  ok((result.ownerState.field.signi_acce?.[0] ?? []).includes(acce), '選んだ札が効果元のアクセになる');
+  ok(!result.ownerState.trash.includes(acce), 'アクセにした札がトラッシュに残らない');
+  eq((result.ownerState.field.signi_acce?.[1] ?? []).includes(acce), false, '別のシグニには付かない');
+}));
+
+test('O-360 WXK05-039-E1 E2E: 上2枚の＜調理＞を選んだ対象のアクセにし、残りをデッキ下へ置く', () => withSavedCursor(() => {
+  const source = 'WXK05-039';
+  const target = 'WX15-057';
+  const picked = 'WX15-058';
+  const nonCooking = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理'));
+  const tail = [SIGNI_L1, SIGNI_L2];
+  const effect = liveEff(source, 'WXK05-039-E1');
+  const ctx = mkCtx({ signi: [source, target, null], hand: 0, trash: 0, energy: 0 }, {}, source);
+  ctx.ownerState.deck = [picked, nonCooking, ...tail];
+
+  let result = executeAction(effect.action, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', '最初に＜調理＞のホストを対象にする');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  ok(result.pending.candidates.includes(source) && result.pending.candidates.includes(target),
+    '同じ場の＜調理＞2体が最初の対象候補になる');
+  result = resumeSelectTarget([target], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'SEARCH', 'デッキ上2枚から＜調理＞を選ぶ対話が開く');
+  if (result.done || result.pending.type !== 'SEARCH') return;
+  eq(JSON.stringify(result.pending.visibleCards), JSON.stringify([picked]), '上2枚のうち＜調理＞だけを選べる');
+  result = resumeSearch([picked], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', '公開札のアクセ先を確定する対話が開く');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify([target]),
+    'アクセ先は最初に対象とした「それ」だけ（効果元へ逸れない）');
+  result = finish(resumeSelectTarget([target], result.pending, ctxAfter(result, ctx)), ctx);
+  ok(result.done, 'アクセ後に効果が完了する');
+  if (!result.done) return;
+  ok((result.ownerState.field.signi_acce?.[1] ?? []).includes(picked), '公開した＜調理＞が対象のアクセになる');
+  ok(!result.ownerState.deck.includes(picked), 'アクセにした札がデッキに残らない');
+  eq(result.ownerState.deck.at(-1), nonCooking, '選ばなかった公開札をデッキの一番下へ置く');
+}));
+
+test('O-360 WD18-009-E2: 解決時条件を落とす過剰実装を避け、機構不足を明示 defer する', () => {
+  const effect = liveEff('WD18-009', 'WD18-009-E2');
+  eq(effect.action.type, 'STUB', '未実装を別 action に見せかけない');
+  eq((effect.action as StubAction).id, 'DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED',
+    '場のアクセ全部を送る ACCE_TO_ENERGY へ戻っている');
+  ok(decompiledLineOf('WD18-009-E2').includes('【未実装】') &&
+    decompiledLineOf('WD18-009-E2').includes('このシグニがアクセされていた場合'),
+  '逆翻訳が解決時条件の機構不足を隠している');
 });
 
 if (listMode) {
