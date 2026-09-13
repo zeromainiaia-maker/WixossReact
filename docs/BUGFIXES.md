@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 `O-356` 払い戻し②＝`ARTS_COST_REDUCTION_BY_EFFECT` の原文エコー撤去（第307バッチ）
+
+- **真因**＝`scripts/decompileEffects.ts` のコストマーカー分岐（`ARTS_COST_REDUCTION_BY_EFFECT` / `_BY_CENTER_LRIG` / `CONDITIONAL_ARTS_COST`）が
+  **原文の「使用コスト」文と「使用する際」文を切り出して貼っていた**＝payload が何であっても逆翻訳は原文と一致した。
+  さらに `costJa` は `useTimeCost` を**意図的に描いていなかった**（golden `O-254` がそれを例外として固定していた）。
+- 🔴**前回の分類の誤り**＝PLAN は「②payload なし＝三点セット」に入れていたが、**STUB ノード単体**で数えていた。
+  実測で **58カード全部が効果の `cost` 側に payload を持っていた**（`useTimeCost` 32 ／ `costReplacement` 25 ／
+  `costReplacement`＋`optionalDiscardCost` 1）。同じ分岐を使う他の2 id（13＋8効果）も全部 `costReplacement` を持っていた。
+  ⇒ **parser・engine は触らず、逆翻訳だけで閉じた。**
+- **直したこと**
+  1. `useTimeCostJa` を新設し、`costJa` から payload で描く（source／filter／max／perUnit／reduction。**行き先は engine の `payUseTimeCost` に合わせた**＝手札→トラッシュ、キー→ルリグトラッシュ 等）。
+  2. マーカー分岐＝payload あり → 空文字／無し → `【※コスト未構造化】[STUB:…]`（**原文は貼らない**）。
+  3. **マーカーを包むだけの `CONDITIONAL`（else 無し）も空文字**にした＝しないと「〉そうした場合、。」「〜なら、。」が **25効果**に残った（HEAD 0件 → 変更後 25件 → 0件を確認）。
+- **影響**＝逆翻訳 **59行**。二重表示の解消（`WX09-Re02-E1` のコスト文2回／`WX21-071-E1` の「そうした場合、そうした場合、」／ベット系10枚の原文ベット文の重複）、
+  `WX25-P2-008-E1`（マーカー撤去済みで**コストがどこにも出ていなかった**）に `useTimeCost` が出るようになった。
+  **原文と payload の食い違いは0件**（59行を全部目視）＝engine の欠落は見つからなかった。
+- **計器の較正**
+  - golden `O-254`＝例外リスト `['useTimeCost']` → **`[]`**（例外0を守る門へ）。
+  - `census:numberdrift`＝原文エコー撤去で `落ち=0` が **8件**表に出た（全部《赤×0》→「なし」の等価表現）。
+    エナ色の `×0` を正規化で除外（**《コイン×0》は別軸なので除外しない**＝一度広く書いて2件を黙って隠したので絞った）。**68 → 67（較正）**。
+- **ラチェット**＝`census:srcecho` **BASELINE_ECHO_IDS 46 → 45**（live **237 → 178ノード**）。
+- **検証**＝`npm run gates` 全緑（golden **4066 PASS**）。**実機不要**（§2.2＝`scripts/` だけ。`src/` は1行も触っていない）。反転確認＝「、。」の件数（25 → 0）と numberdrift の《コイン×0》2件の復帰で、ガードが効いていることを確認した。
+
 ## 2026-09-13 — §5.3 `O-356` 着手＝原文エコー計器の新設と払い戻し①（第306バッチ）
 
 🔴🔑**この回の主産物は3つ**＝①**計器を作った**（`npm run census:srcecho`）②**自分の登録票が過大だったので訂正した**

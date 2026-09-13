@@ -8,31 +8,26 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-13（第306バッチ）＝`O-356` に着手＝原文エコー計器を新設し、払い戻し① 10 id**（A群 **56 → 46 id**）。
-⚠**codex は2アカウントとも利用上限**だったので、フォールバック順どおり **Claude が実装して最後まで回した**。
-🔴🔑**この回の主産物は3つ**＝
-①**計器を作った**（`npm run census:srcecho`）＝**ラチェットは A群の id 数**（行数ではなく id 数＝
-払い戻しの単位が「1 id を payload 化する」だから）。**注入テストで実際に止まることを確認済み。**
-②**自分が前セッションで書いた登録票が過大だったので訂正した**（88 id / 452ノード → **56 id / 308ノード**
-＝`a.id ===` の粗い窓で**隣の分岐の行まで数えていた**）。
-③**計器を作る過程で `census:enginetext` の死角を塞いだ。**
-- 🔴**③**＝検出が **`sourceAbilityText(ctx)` という「引数名つきリテラル」**だったので、
-  `sourceAbilityText(cur)` と書かれた `OPTIONAL_TRASH_ENERGY_CLASS`（live **33ノード / 33カード**）が
-  **初版から一度も数えられていなかった**（A群 0＝「engine は原文を読まない」に見えていた）。
-  ⇒ **funnel は関数名で数える。呼び出し側の変数名に依存しない。** `BASELINE_SELF_TEXT` **0 → 1（較正）**。
-- 🔑**着手前に A群を「重さ」で割ったのが最大の収穫**＝**①payload あり 11 id / 104ノード**（逆翻訳だけで閉じる）／
-  **②payload なし 36 id / 204ノード**（**parser が構造化していない**＝三点セット）／**③live 0 が 9 id**（触らない）。
-  ⇒ **登録票に書いた「payload から描く移行」は、A群の3分の2には適用できない。**
-- 🔑**engine の欠落が可視化された2件**は**原文へ寄せずそのまま描いた** → **`O-358`** 登録。
-- ⚠**自分で踏んだ罠**＝python のヒアドキュメントで TS を書き換えると **`\b` がバックスペース文字に化け、
-  黙って何にも当たらない regex**になる（**嘘の FAIL** が出た）。⇒ **編集後は制御文字を全ファイル走査する。**
+**直近＝2026-09-13（第307バッチ）＝`O-356` 払い戻し②＝`ARTS_COST_REDUCTION_BY_EFFECT`（live 59ノード / 58カード）の原文エコーを撤去**（A群 **46 → 45 id**・live **237 → 178ノード**）。
+🔴🔑**主産物＝前回の「②payload なし＝三点セット」の分類が、この id では誤りだった。**
+**STUB ノード単体に payload が無い**ことだけを見て分類していたが、**58カード全部が効果の `cost` 側に payload を持っていた**
+（`useTimeCost` 32 ／ `costReplacement` 25 ／ `costReplacement`＋`optionalDiscardCost` 1）。
+⇒ **parser も engine も触らず、逆翻訳だけで閉じた**（三点セットの見立ては1桁重かった）。
+- 🔧**やったこと**＝`costJa` に `useTimeCostJa` を足して payload から描く（行き先は engine の `payUseTimeCost` に合わせた）／
+  マーカー分岐は「payload あり → 空文字、無し → `【※コスト未構造化】` だけ」にした（原文を貼らない）／
+  **マーカーを包むだけの `CONDITIONAL` も空にした**（そうしないと「そうした場合、。」が **25効果**に残った）。
+- 🔑**原文エコーを外して見えたこと**＝二重表示の解消（`WX09-Re02` はコスト文が本文に2回出ていた／
+  `WX21-071` は「そうした場合、そうした場合、」）。`WX25-P2-008-E1` は**マーカーが無かったので本文にもコストが出ていなかった**が、今は〈〉に出る。
+- 🔧**計器の較正2件**＝①golden `O-254` の例外 `useTimeCost` を撤去（例外0）②`census:numberdrift` にエナの《X×0》＝「なし」の等価表現を教えた
+  （原文エコー撤去で**8件が表に出た**＝全部 `落ち=0`。⚠《コイン×0》は別軸なので除外しない）＝**68 → 67（較正）**。
+- ⚠**engine の欠落は今回は見えなかった**（59行を全部読んだ＝原文と payload の食い違い0）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-348`** の残り19キー（各1ノード） → ②**`O-356`** の②群（36 id・三点セット＝母集団の大きい `ARTS_COST_REDUCTION_BY_EFFECT` 59 から） → ③**`O-343`**（索引B） |
+| 🔥**次に取るもの** | ①**`O-348`** の残り19キー（各1ノード） → ②**`O-356`** の残り（**着手前に効果の `cost` と兄弟ノードの payload を数え直す**＝`DECLARE_NUMBER` 27 から） → ③**`O-343`**（索引B） |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
 | 📦**在庫** | 機構 worklist 🔥**9項目**（`O-343`〜`O-346`・`O-348`・`O-353`・`O-356`・`O-357`・🆕`O-358`）／実機 🏁**0**／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4066 PASS**・🆕`census:srcecho` **56 → 46 id**・`census:payloadkeys` **21 → 19種**・`census:enginetext` **0 → 1（較正）** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4066 PASS**・`census:srcecho` **46 → 45 id**・`census:numberdrift` **68 → 67（較正）** |
 
 🆕🔴**「受け皿が無い」は連続17項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
 🆕🔴**据置契約も同じく stale になる**＝`O-188` の `OPTIONAL_TRASH_SELF` 据置は解除した（②の据置は残0）。
@@ -350,7 +345,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
 | `O-348` | M | **逆翻訳が描き落としている payload キー 残 21種 / 21ノード**（`npm run census:payloadkeys`・BASELINE 21）。🏁**型つき22種/58ノード（第303/304）と `[STUB]` 側の母集団2桁13キー/66ノード（第305）はクローズ済み**（実バグ3件）。🔥**残は全部「1キー＝1ノード」の21件**＝`declareFromLastProcessed` / `downUpSigniChoose` / `fetchCardName` / `handDiscardGroups` / `leaveToTrashWindow` / `loseAbilityAfterUse` / `lrigAttackLimit` / `moveSelfZone` ほか。🔴**判定の罠2つ**＝①**STUB ラベルが総称で概念だけ触れていても、payload の値を区別していないなら穴**（`deckRevealUntil` 型）②**逆翻訳が原文どおりに読めても、`currentCardText` の原文エコーなら穴**（`O-356`）＝**`grep -n "<STUB_ID>" scripts/decompileEffects.ts` を必ず打つ** |
-| `O-356` | L | 🔴**逆翻訳が原文を regex で切り出して戻り値に乗せている＝原文照合が構造的に死んでいる箇所**。🆕**計器 `npm run census:srcecho`**（`scripts/censusSrcEcho.mjs`・明細 `docs/_census_src_echo.txt`／1 id は `--id <STUB_ID>`・群は `--group A`）。**ラチェットは `gates` 同梱＝A群の id 数**（🔑行数ではなく **id 数**＝払い戻しの単位が「1 id を payload 化する」だから）。🔧**実測＝A群 残 46 id / 102行 / live 237ノード / 233カード**（新設時 56 id・**登録時の見立て 88 id/452ノードは過大だった**＝粗い窓で隣の分岐まで数えていた）。🔴🔑**着手前に必ず読む＝A群は重さが桁違いの2つに割れる**（実測）＝**①payload あり（残1 id）**＝逆翻訳を直すだけで閉じる＝🏁**2026-09-13 第306バッチで10 id を消化**（残は `OPTIONAL_TRASH_ENERGY_CLASS` 33ノードだけで、これは engine も原文を読むので②扱い）／**②payload なし 36 id / 204ノード**（`ARTS_COST_REDUCTION_BY_EFFECT` 59／`DECLARE_NUMBER` 27／`TRASH_AT_TURN_END` 17／`RIDE_ON` 11／`SONG_FRAGMENT` 11 ほか）＝**parser が構造化していない**ので逆翻訳だけ直しても描くものが無い＝**parser＋engine＋decompiler の三点セット**＝**ここからは1 id ずつ**／**③live 0 が 9 id＝触らない・消さない**（parser に生成元が無い安全網）。⚠**置換すると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（第306で2件出た）＝**原文へ寄せて隠さない**。⚠**期間・寿命は原文の期間句ではなく engine の実装から描く**（第306の `DEPLOY_RESTRICT` が実例）。⚠**全部が悪ではない**＝引用そのものが中身の `GRANT_QUOTED_*` は `ALLOWED` に理由つき登録済み（2 id） |
+| `O-356` | L | 🔴**逆翻訳が原文を regex で切り出して戻り値に乗せている＝原文照合が構造的に死んでいる箇所**。🆕**計器 `npm run census:srcecho`**（`scripts/censusSrcEcho.mjs`・明細 `docs/_census_src_echo.txt`／1 id は `--id <STUB_ID>`・群は `--group A`）。**ラチェットは `gates` 同梱＝A群の id 数**（🔑行数ではなく **id 数**＝払い戻しの単位が「1 id を payload 化する」だから）。🔧**実測＝A群 残 45 id / 98行 / live 178ノード / 175カード**（新設時 56 id・**登録時の見立て 88 id/452ノードは過大だった**＝粗い窓で隣の分岐まで数えていた）。🔴🔑**着手前に必ず読む＝A群は重さが桁違いの2つに割れる**（実測）＝**①payload あり（残1 id）**＝逆翻訳を直すだけで閉じる＝🏁**第306バッチで10 id・第307バッチで `ARTS_COST_REDUCTION_BY_EFFECT` 59ノードを消化**（残は `OPTIONAL_TRASH_ENERGY_CLASS` 33ノードだけで、これは engine も原文を読むので②扱い）／**②payload なし 35 id / 145ノード**（`DECLARE_NUMBER` 27／`TRASH_AT_TURN_END` 17／`RIDE_ON` 11／`SONG_FRAGMENT` 11 ほか）＝**parser が構造化していない**ので逆翻訳だけ直しても描くものが無い＝**parser＋engine＋decompiler の三点セット**＝**ここからは1 id ずつ**。🔴**ただし「payload なし」は STUB ノード単体で数えた分類**＝第307で `ARTS_COST_REDUCTION_BY_EFFECT` は**58カード全部が効果の `cost` 側に payload を持っていた**（三点セットではなく逆翻訳だけで閉じた）⇒ **取る前に効果の `cost` と兄弟ノードの payload を数え直す**／**③live 0 が 9 id＝触らない・消さない**（parser に生成元が無い安全網）。⚠**置換すると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（第306で2件出た）＝**原文へ寄せて隠さない**。⚠**期間・寿命は原文の期間句ではなく engine の実装から描く**（第306の `DEPLOY_RESTRICT` が実例）。⚠**全部が悪ではない**＝引用そのものが中身の `GRANT_QUOTED_*` は `ALLOWED` に理由つき登録済み（2 id） |
 
 #### 索引 B. 母集団 3〜8効果
 

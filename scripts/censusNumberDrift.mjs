@@ -50,6 +50,7 @@ const denoise = (s) => {
   t = t.replace(/英知=[0-9]+/g, '');                // 「英知=10」→「英知…が10であるかぎり」と別表記になる
   t = t.replace(/エクシード[0-9]+/g, '');           // 「エクシード2」→〈エクシード2〉だが表記揺れがある
   t = t.replace(/icon_txt[a-z_0-9]*/g, '');         // 🔴CSV に残った画像ファイル名（`icon_txt_turn_02`）＝原文ではない
+  t = t.replace(/([赤青緑白黒無])×0(?![0-9])/g, '$1×'); // 🆕O-356＝エナの《赤×0》は逆翻訳で「なし」と描く等価表現（原文エコー撤去で8件が表に出た）。⚠《コイン×0》は別軸なので除外しない
   t = t.replace(/[0-9]+/g, (m) => m === '1' ? '' : m); // 🔑「1」は既定値で逆翻訳が省く＝最大のノイズ源
   return t;
 };
@@ -107,7 +108,7 @@ console.log('明細 → docs/_census_number_drift.txt');
 //   この計器はカードの**逆翻訳**に原文の数値が出るかを見るので、`[STUB:…]` のラベルが
 //   「WX09-027(オリハルティア)の常在マーカー。」のように**中身を書いていないと、原文の数値がまるごと落ちる**。
 //   ⇒ **ラベル整備（`census:stublabel` B/C群）はこの計器の払い戻しでもある。**
-const BASELINE = 68; // 2026-09-13 O-348 バッチC＝scale/deckRevealUntil の数値描画で2件払い戻し
+const BASELINE = 67; // 2026-09-13 O-356 払い戻し②＝較正（エナの《X×0》＝「なし」の等価表現を除外）。原文エコー撤去で表に出た8件と既存の WX21-035 が消えた（《コイン×0》の2件は別軸なので残す）。以前＝68（O-348 バッチC）
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');

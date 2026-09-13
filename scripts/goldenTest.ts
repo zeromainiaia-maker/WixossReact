@@ -71624,7 +71624,7 @@ test('§5.3 O-253: 逆翻訳の対象ゾーン名に LRIG_DECK_CARD がある（
 // 🔴**未対応キーは「黙って消える」**＝逆翻訳だけを見ると「そんな支払いは無い」に読める。
 //   実測で埋めた穴＝`fieldTrashAll`（1効果・意味照合台帳が「コスト未実装」と誤って OPEN にしていた当のカード）
 //   ＋印字キーワードコスト `encoreCost`(32) / `betOptions`(68) / `boostCost`(5) / `optionalDiscardCost`(2)。
-test('§5.3 O-254: costJa が live の全コストキーを描く（useTimeCost だけが意図的な例外）', () => {
+test('§5.3 O-254: costJa が live の全コストキーを描く（例外なし）', () => {
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   const start = dec.indexOf('function costJa(');
   const end = dec.indexOf('\nfunction ', start + 10);
@@ -71634,9 +71634,10 @@ test('§5.3 O-254: costJa が live の全コストキーを描く（useTimeCost 
   for (const [, effs] of effectsMap) {
     for (const e of effs) for (const k of Object.keys(e.cost ?? {})) seen.set(k, (seen.get(k) ?? 0) + 1);
   }
-  // ⚠`useTimeCost` は `STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を復元しているので
-  //   costJa では描かない（両方描くと二重に出る）。それ以外に例外を増やさない。
-  const EXPECTED_EXCEPTIONS = ['useTimeCost'];
+  // 🏁2026-09-13 §5.3 `O-356`＝最後の例外 `useTimeCost` も costJa が payload から描くようになった
+  //   （旧＝`STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を切り出して貼っていた＝原文エコー）。
+  //   ⚠**例外を増やさない**＝原文を貼って「描いたことにする」形へ戻すと、原文照合がそのカードで死ぬ。
+  const EXPECTED_EXCEPTIONS: string[] = [];
   const missing = [...seen].filter(([k]) => !body.includes('c.' + k)).map(([k, n]) => `${k}(${n})`).sort();
   eq(missing.join(','), EXPECTED_EXCEPTIONS.map(k => `${k}(${seen.get(k)})`).join(','),
      '🔴新しいコストキーを足したら costJa にも1行足す（さもないと逆翻訳が計器として嘘をつく）');

@@ -24,7 +24,6 @@ import Papa from 'papaparse';
 import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
-import { parseUseTimeCostReductionText } from '../src/data/keywordCosts';
 import { keywordDisplayLabel } from '../src/utils/keywords';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -823,6 +822,38 @@ function costReplacementJa(terms: any[]): string {
   }).join('。');
 }
 
+/**
+ * 🆕§5.3 `O-356`＝使用時の任意支払いによる軽減（`useTimeCost`）を payload から描く。
+ * 🔴旧＝`STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が**原文の支払い文を切り出して貼っていた**ので、
+ *   payload の source／filter／max／perUnit／reduction が何であっても逆翻訳は原文と一致した（照合が死んでいた）。
+ * ⚠行き先は engine（`src/screens/battle/useTimeCost.ts` の `payUseTimeCost`）に合わせる＝原文の語ではない。
+ */
+function useTimeCostJa(u: any): string {
+  const f = u.filter ?? {};
+  const isSigniZone = u.source === 'signi_down' || u.source === 'signi_trash';
+  const unit = isSigniZone ? '体' : '枚';
+  const desc = [
+    f.color ? `${f.color}の` : '',
+    f.story?.length ? `${f.story.map((s: string) => `＜${s}＞`).join('か')}の` : '',
+    f.hasGuard ? '【ガード】を持つ' : '',
+    f.minPower != null ? `パワー${f.minPower}以上の` : '',
+    f.maxLevel != null ? `レベル${f.maxLevel}以下の` : '',
+    f.cardType ?? 'カード',
+  ].join('');
+  const qty = u.max === 'ANY' ? '好きな数' : `${u.max}${unit}${u.perUnit ? 'まで' : ''}`;
+  const pay = ({
+    hand: `手札から${desc}を${qty}捨てて`,
+    signi_down: `あなたのアップ状態の${desc}を${qty}ダウンして`,
+    signi_trash: `あなたの${desc}を${qty}場からトラッシュに置いて`,
+    lrig_deck_arts: `ルリグデッキから${desc}を${qty}ルリグトラッシュに置いて`,
+    life_cloth: `ライフクロスを${qty}トラッシュに置いて`,
+    key: `あなたの場のキーを${qty}ルリグトラッシュに置いて`,
+  } as Record<string, string>)[u.source] ?? `〈支払い元:${u.source}〉を${qty}支払って`;
+  const red = (u.reduction ?? []).map((e: any) => `《${e.color}×${e.count}》`).join('');
+  const effect = u.perUnit ? `この方法で支払った1${unit}につき使用コストは${red}減る` : `そうした場合、使用コストは${red}減る`;
+  return `使用する際、${pay}もよい（${effect}）`;
+}
+
 function costJa(c?: any): string {
   if (!c) return '';
   const parts: string[] = [];
@@ -962,8 +993,7 @@ function costJa(c?: any): string {
   //   「使用する際に〜を捨ててもよい。そうした場合コストは《X》になる」。
   // 🔴これらは `EffectCost` に payload として載っている（`printedKeywordCosts`）のに
   //   `costJa` が1つも描いておらず、**逆翻訳だけを見ると「そんな支払いは無い」に読めた**（実測107効果）。
-  // ⚠`useTimeCost` はここでは描かない＝`STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を
-  //   復元しており、両方描くと二重に出る（その分岐のコメント参照）。
+  // 🆕§5.3 `O-356`＝`useTimeCost` もここで payload から描く（旧＝STUB 分岐が原文の支払い文を貼っていた）。
   if (c.encoreCost) {
     const enc = [
       ...(c.encoreCost.energy ?? []).map((e: any) => `《${e.color}×${e.count}》`),
@@ -980,6 +1010,7 @@ function costJa(c?: any): string {
       : `ベット（コイン${(c.betOptions.options ?? []).join('か')}）`);
   }
   if (c.boostCost) parts.push(`ブースト（${c.boostCost.map((e: any) => `《${e.color}×${e.count}》`).join('')}）`);
+  if (c.useTimeCost) parts.push(useTimeCostJa(c.useTimeCost));
   if (c.optionalDiscardCost) {
     const groups = (c.optionalDiscardCost.groups ?? [])
       .map((g: any) => `${g.color ? `《${g.color}》の` : ''}${g.story ? `＜${g.story}＞の` : ''}シグニ${g.count}枚`).join('と');
@@ -2755,6 +2786,13 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}${additionalCostCh}${allowRepeatCh}${virusCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
+      // 🆕§5.3 `O-356`＝コスト痕跡マーカーを包むだけの CONDITIONAL は丸ごと描かない。
+      //   マーカーは空文字になった（コストは `costJa` が payload から描く＝条件も `costReplacement.when` 側に在る）ので、
+      //   包みを描くと「そうした場合、。」「〜なら、。」と接続句だけが残る（実測25効果）。
+      if (!a.else && currentEffectHasCostPayload && a.then?.type === 'STUB'
+          && ['ARTS_COST_REDUCTION_BY_EFFECT', 'ARTS_COST_REDUCTION_BY_CENTER_LRIG', 'CONDITIONAL_ARTS_COST'].includes(a.then.id)) {
+        return '';
+      }
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
         return `そうした場合、${actionJa(a.then)}`;
@@ -3740,24 +3778,14 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-252`＝**payload が描けているなら原文貼り付けはしない**（二重表示＋計器の嘘）。
       if (a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' && currentEffectHasCostReplacement) return '';
       if (a.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' || a.id === 'CONDITIONAL_ARTS_COST') {
-        const costSents = currentCardText.split('。')
-          .map(s => s.trim())
-          .filter(s => /使用コスト/.test(s) && /(減る|減り|増える|増え[、]|になる)/.test(s));
-        // タスク12(lxxxv)：支払いステップを action から落とした31枚は、支払い文が action に無い。
-        // 逆翻訳で「支払いが消えた」と読めてしまうので、**使用時に払う**ことを明示して復元する
-        // （実際の支払いUIは `src/screens/battle/useTimeCost.ts` ＋ SpellCastModal / ArtsModal）。
-        // 🆕**payload が1つも無いなら「未構造化」と明示する**（2026-09-05・§5.3 `O-259`・実測16効果）＝
-        //   この分岐は原文をそのまま貼るので、**何も実装できていない効果でも実装済みに見える**
-        //   （`O-252` と同じ罠の「payload が空の側」）。⚠**payload がある効果には付けない**
-        //   ＝`useTimeCost` は下の復元が正しい表示、`costScaling`/`costReplacement` は別の枝が描く。
+        // 🆕§5.3 `O-356`（2026-09-13）＝**原文のコスト文を切り出して貼るのをやめた**。
+        //   旧実装は payload が何であっても原文と一致する文を返しており、原文照合がこの3 id で構造的に死んでいた。
+        //   実測＝live の3 id（59＋13＋8効果）は**全部 cost 側に payload がある**＝コストは `costJa` が
+        //   `costScaling` / `costReplacement` / `useTimeCost` / `optionalDiscardCost` から描く＝マーカーは空文字。
+        // 🆕**payload が1つも無いなら「未構造化」と明示する**（2026-09-05・§5.3 `O-259`）＝原文は貼らない。
         const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';
-        if (costSents.length > 0 && parseUseTimeCostReductionText(currentCardText)) {
-          const paySent = currentCardText.split('。').map(s => s.trim())
-            .find(s => /を使用する際/.test(s));
-          if (paySent) return `${costUnstructured}（使用時に支払う）${paySent}。${costSents.join('。')}`;
-        }
-        if (costSents.length > 0) return `${costUnstructured}${costSents.join('。')}`;
-        // 抽出不能（コスト色無視/エナコスト代替/グロウコスト/ライフ枚数条件等の別記述）は従来マーカーにフォールバック
+        if (!costUnstructured) return '';
+        return `${costUnstructured}[STUB:このカードの使用コストが変わる（payload 無し＝engine は何もしない）]`;
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
