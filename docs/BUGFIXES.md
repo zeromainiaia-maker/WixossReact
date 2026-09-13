@@ -1,5 +1,80 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 `O-352` クローズ ／ `O-349` 色限定つき使用封じ（第299バッチ）
+
+🔴🔑**この回の主産物は「据置契約の根拠が実測で誤りだった」が2件続いたこと**＝
+**`O-352`（`freezeStoredTargets` を通していない）／`O-349`（`BLOCK_ACTION` に色の絞りが無い）はどちらも
+engine を1行も触らずに閉じた。** ⇒ **据置の理由文は、着手時に必ず engine を動かして確かめる。**
+
+### ① 🏁`O-352`＝「対象宣言を支払いより前へ」＋**候補0なら払わせない**（live 51効果）
+
+**(a) 登録票の前提は誤りだった**＝`OPTIONAL_TRASH_SELF` の分岐（`effectExecutor.ts:6609`）は確かに
+`freezeStoredTargets` を呼んでいないが、**自己トラッシュの支払いは必ず `SELECT_TARGET`（`thisCardOnly` の
+1候補）で対話に入る**ので、そこで `execSequence` が**残りステップを凍結する**（`:7191`）。
+実測（golden の一時プローブ）＝pay 肢の continuation は `BANISH{targetsStored:false, fixedCardNums:["<宣言した札>"]}`
+になっており、**宣言した対象はちゃんと届いていた**。⇒ `O-188` 第2バッチの**据置契約を解除**（②の据置は残0）。
+
+**(b) 本当の欠陥は「候補0でも支払いを提示する」**＝`WX06-CB01-E1`（「対戦相手のパワー3000以下のシグニ１体を
+対象とし、このシグニを場からトラッシュに置いてもよい。そうした場合、それをバニッシュする」）は
+**相手にパワー3000以下が1体も居なくても** `pay:このシグニをトラッシュして発動` が `available:true` で出て、
+払うと**自分のシグニだけが消えて何も起きない**（払い損＝`O-129`／`O-298` と同じ欠陥）。
+🔴**真因は「規約が pass ごとに守られていた」こと**＝`applyO96OptionalCostTargetFirst` は
+`abortIfNoCandidate` を刻むのに、`applyLegacyTradeStubCost`（B9）／`applyTargetLevelScaling`／
+`applyTotalLevelSelectionWiring`／`repairSemanticBatch246` は刻まず、**実測 49効果**が素通りしていた。
+⇒ **組み立て地点ごとに直すのをやめ、正準形そのものへ後段で1回刻む**
+（`stampAbortOnCanonicalOptionalCost`＝`parseCardEffects` の**全 pass の最後**。
+🔑`repairSemanticBatch*` が「そうした場合」ゲートを `PAID_ADDITIONAL_COST` へ差し替えて
+**正準形をそこで初めて完成させる**効果がある（`WXDi-P16-049-E1`②枝）ので、ここでなければ届かない）。
+⚠**「N体まで」（`upToCount`）には刻まない**＝原文が0体を選べるので候補が居なくても支払いは選べる
+（先例 `WXDi-P08-053`／`WX13-056-E1`）。live 実測＝刻印 221 / 除外（`upToCount`）7 / **未刻印 0**。
+
+**(c) 宣言が支払いより後だった2効果**（`O-347` で据置にしたぶん）を正準形へ＝
+`WX24-P2-060-E1`（相手パワー5000以下を手札へ）／`WXDi-P04-033-E1`（自分のトラッシュの《ガードアイコン》を手札へ）。
+実測した旧挙動＝**支払いを先に聞き、払ったあとで候補0が判明して無言で終わる**（自分のシグニだけ消える）。
+⚠`WXDi-P12-061-E1` は原文に「対象とし」が無いので**2ステップのまま**（宣言する対象が無い）。
+
+**影響＝live 52効果**（内訳＝`abortIfNoCandidate` の刻印だけ 49／正準形へ組み替え 2／
+`WX18-033-E2` は**キー順だけ**の churn＝収穫マージがカード単位で fresh を採った巻き込み・意味は同一）。
+
+### ② 🏁`O-349` の色限定つき使用封じ（2効果）＝明示 defer を解消
+
+🔴**据置の理由「`BLOCK_ACTION` は actionId しか持たずカードの色で絞る機構が無い」は誤り**＝
+`isSpellUseBlockedFor`（`src/screens/battle/spellUseGate.ts`）は**前からカードを受け取って**
+`PLAY_COLORLESS`（無色のスペル封じ）／`BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）を判定していた。
+⇒ **新機構は要らず、actionId を増やして同じ経路へ載せるだけ**で足りた。
+
+- **原文2形（`npm run census:population` で全数＝2効果）**
+  ①`PR-471-E1`②「次の対戦相手のターンの間、対戦相手は**無色ではない**、アーツとスペルを使用できない」
+  ②`WXK09-037-E2`【常】「対戦相手は**宣言された色を持たず無色ではない**、アーツとスペルを使用できない」
+- **実装**＝`USE_{ARTS,SPELL}_UNLESS_COLORLESS` / `USE_{ARTS,SPELL}_UNLESS_COLOR_DECLARED` の4 actionId ＋
+  判定 1本（`isColorQualifiedUseBlocked`＝`src/engine/blockAction.ts`）を
+  `isArtsUseBlockedFor`（第3引数に `card` を追加）と `isSpellUseBlockedFor` の両方から呼ぶ。
+  逆翻訳（`decompileEffects.ts` の `predMap`）とログラベルも同じ巡で足した。
+- 🔴**①と②を1つの id にまとめない**＝まとめると未宣言のとき②が①に化けて
+  **「相手はアーツもスペルも一切使えない」恒久の全面封じ**（原文は宣言色と無色は使える）になる。
+  ②は**未宣言なら制限を課さない**（fail-closed。先例＝`collectOppEnergyColorRestriction`）。
+- ⚠**アーツとスペルで2本に割る**＝封じ判定は actionId の**完全一致**（旧 `ARTS_AND_SPELL` が死 id だった理由）。
+
+### ③ 🔥`O-349` の残り1効果は「新機構が1つ」＝先送り（理由を実測で確定）
+
+`SPDi43-05-E2`（`DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE`）＝**受け皿4つのうち3つは既に在った**＝
+器（`GRANT_LRIG_ABILITY`＋`timing:['ON_ATTACK_SIGNI','ON_ATTACK_LRIG']`・先例 `WXDi-P09-036-E1`）／
+帰結（`NEGATE_ATTACK{CENTER_LRIG_OR_SIGNI, attackingOnly}`）／レベル束縛（`levelEqTrigger`）。
+🔴**足りないのは「コストが場∪エナの単一候補プール」だけ**（`OptionalCostSpec` は `fieldTrash` と
+`energyTrash` が別軸）＝**`WXK10-018-E2` と同じ family**（旧 §6.4 `O-11` の残した近似(b)）＝**2効果で1機構**。
+⇒ PLAN §5.3 `O-349` に「回避案（`CHOOSE` でゾーンを2枝に割る）」まで書いて残した。
+
+**検証**＝`npm run gates` 全緑（**golden 4058 PASS**＝+7）／`npm run regen` で逆翻訳を目視
+（`WX24-P2-060-E1`／`WXDi-P04-033-E1`／`WXK09-037-E2`／`PR-471-E1` の4件が原文一致）／
+**反転確認 ✅**＝①`abortIfNoCandidate` を外すと「候補0でも支払いを提示」へ戻ることを golden が assert
+②`declared_color` を消すと黒アーツが使えるようになる（②が全面封じへ倒れていないことの対）／
+🆕**実機 2本が2回連続 PASS**＝`node scripts/verifyBattleDrive.mjs o349ColorUseBlockBlocksOffColor
+o349ColorUseBlockUnrestrictedBeforeDeclare`（宣言色「白」のとき**黒のアーツだけ「使用」が消え**、
+白と無色は残る／未宣言なら黒も使える）。既定 order へ常駐させた。
+⚠**実機の要否**（§2.2）＝`O-352` は `src/data` と `public/data` だけ＝④まででよい。
+`O-349` は **`src/screens/battle/artsUseGate.ts`（提示ゲート）を触った**ので実機必須。
+
+
 ## 2026-09-13 — §5.3 `O-346`／`O-347`／`O-349`③（第298バッチ）
 
 🔴🔑**この回の主産物は「登録票の『受け皿が無い』が3件連続で外れた」こと**＝

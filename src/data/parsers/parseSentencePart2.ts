@@ -530,13 +530,26 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   のどちらのチェックにも当たらない＝**誰も読まない死 actionId**（live 5効果が真 no-op）。
   //   `USE_ARTS` と `USE_SPELL` の**2本に割る**＝どちらも live に消費地点がある。
   // ⚠語順は両方ある（「アーツとスペル」／「スペルとアーツ」）。
-  // 🆕⚠**色で限定された使用封じは受けない**（§6.4 O-11・続き532・`PR-471`②
-  //   「対戦相手は**無色ではない、**アーツとスペルを使用できない」）。
-  //   `BLOCK_ACTION` は actionId しか持たず**カードの色で絞る機構が無い**ので、素の2本を積むと
-  //   **無色のアーツ／スペルまで封じる過剰実行**になる（既存の `BLOCK_NON_WHITE_SPELL` も engine では
-  //   ログだけの no-op ＝この層は未実装）。実装が入るまでは明示 defer。
+  // 🆕🏁**§5.3 `O-349`（2026-09-13）＝色限定つきの使用封じを実装した**（旧＝明示 defer の no-op）。
+  // 🔴旧コメントの理由「`BLOCK_ACTION` は actionId しか持たずカードの色で絞る機構が無い」は**誤り**＝
+  //   `isSpellUseBlockedFor` は前から **カードを受け取って** `PLAY_COLORLESS`（無色のスペル封じ）と
+  //   `BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）を判定していた＝**色の軸は既に在った**。
+  //   ⇒ actionId を2形ぶん増やし、`isColorQualifiedUseBlocked`（`src/engine/blockAction.ts`）で読む。
+  // 原文は2形（live 実測 2効果）：
+  //   ①「無色ではない、〜使用できない」（`PR-471-E1`②・次の相手ターンの間）＝**無色だけ使える**
+  //   ②「宣言された色を持たず無色ではない、〜使用できない」（`WXK09-037-E2`・【常】）＝**宣言色 か 無色**
+  // ⚠**②を①へ寄せない**＝未宣言のときに「無色以外を全部封じる」過剰実行になる（②は宣言前は無制限）。
+  // ⚠**アーツとスペルで2本に割る**（すぐ下の素の形と同じ規約＝封じ判定は actionId の完全一致）。
   if (/(?:無色ではない|[白赤青緑黒]の)[、,]?(?:アーツとスペル|スペルとアーツ)を使用できない/.test(t)) {
-    return { type: 'STUB', id: 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK' } as StubAction;
+    const declaredCQ = /宣言された色/.test(t);
+    const ownerCQ: Owner = (t.includes('あなたは') && !t.includes('対戦相手')) ? 'self' : 'opponent';
+    const tgtCQ = { type: 'PLAYER' as const, owner: ownerCQ, count: 1 };
+    const untilCQ = blockUntilFromText(t);
+    const idsCQ = declaredCQ
+      ? ['USE_ARTS_UNLESS_COLOR_DECLARED', 'USE_SPELL_UNLESS_COLOR_DECLARED']
+      : ['USE_ARTS_UNLESS_COLORLESS', 'USE_SPELL_UNLESS_COLORLESS'];
+    return { type: 'SEQUENCE', steps: idsCQ.map(actionId => (
+      { type: 'BLOCK_ACTION', target: tgtCQ, actionId, until: untilCQ } as EffectAction)) };
   }
   if (t.match(/(?:アーツとスペル|スペルとアーツ)を使用できない/)) {
     const owner: Owner = (t.includes('あなたはアーツ') || (t.includes('あなたは') && !t.includes('対戦相手'))) ? 'self' : 'opponent';

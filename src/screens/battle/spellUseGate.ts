@@ -1,6 +1,7 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { collectBlockLowCostSpellCount, collectFirstSpellCostUp } from '../../engine/effectEngine';
+import { isColorQualifiedUseBlocked } from '../../engine/blockAction';
 import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
 import { cardNameUseBlocked } from './cardNameUseBlock';
@@ -23,8 +24,8 @@ import { meetsRestriction } from './growLogic';
 /**
  * スペルを使用できない状態か（§6.4 O-18・続き513）。
  *
- * 🔴**封じの軸は3つある**＝`USE_SPELL`／`PLAY_COLORLESS`（無色のスペル封じ）／
- * `BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）。**ボタン生成側と実行入口の両方**からこの1関数を呼ぶ
+ * 🔴**封じの軸は4つある**＝`USE_SPELL`／`PLAY_COLORLESS`（無色のスペル封じ）／
+ * `BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）／🆕色限定つき封じ（§5.3 `O-349`）。**ボタン生成側と実行入口の両方**からこの1関数を呼ぶ
  * （片方だけだと「押しても無反応」か「UI を迂回して使える」になる）。
  */
 export function isSpellUseBlockedFor(
@@ -33,7 +34,10 @@ export function isSpellUseBlockedFor(
   const isActionBlocked = (id: string) => (my.blocked_actions?.some(a => a === id) ?? false) || blockedSelf.has(id);
   return isActionBlocked('USE_SPELL')
     || (isActionBlocked('PLAY_COLORLESS') && card?.Color === '無')
-    || (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card?.Color?.includes('白'));
+    || (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card?.Color?.includes('白'))
+    // 🆕**§5.3 `O-349`（2026-09-13）＝4軸目**＝「無色ではない、アーツとスペルを使用できない」／
+    //   「宣言された色を持たず無色ではない、〜」（`isColorQualifiedUseBlocked` が2形を1本で判定）。
+    || isColorQualifiedUseBlocked('spell', my, isActionBlocked, card);
 }
 
 /**

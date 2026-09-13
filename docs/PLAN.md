@@ -8,24 +8,22 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-13（第298バッチ）＝`O-346` / `O-347` / `O-349` を処理。** 🏁**`O-347` はクローズ**、`O-346`・`O-349` は**登録票の数字を実測で訂正**して残りを縮小した。
-🔴🔑**この回の主産物は「登録票の「受け皿が無い」が3件連続で外れた」こと**＝**うち1件は私自身が重複実装を作りかけ、golden の `O-21` ゲート（同じ STUB id の後発ハンドラが到達不能）に止められた。**
-- **`O-346`**＝「`chosenByOpponent` を新設」は不要だった＝`TrashAction.opponentSelects` が**型にも消費地点にも既に在る**（`effectExecutor.ts:2998`・live 実績あり）。`WX13-036-E3` を1行で修正＝**実機不要**（登録票の「`src/screens/` を触るので実機必須」も誤り）。🔧**母集団を初実測＝121効果**（OK 69 / MISS 52。⚠MISS はバグ数ではない）。
-- **`O-347`**＝`UNKNOWN_NESTED`（parser の**失敗マーカー**なのに engine にハンドラが付いている）を3効果から落とし、任意トラッシュの**二重プロンプト**を解消。🏁クローズ。
-- **`O-349`③**＝「engine が `ownerState` 固定で相手ルリグ下を触れない」も誤り＝**同じ id のハンドラが `execStubPart3.ts:2922` に既に在った**（parser が繋いでいなかっただけ＝**live 0 で一度も走っていない＝未検証**だった）。繋いだうえで**そのハンドラのバグ2つ**（「N枚**まで**」なのに選ばせない／下が N 枚未満だと丸ごと no-op）を直した。
+**直近＝2026-09-13（第299バッチ）＝`O-352` を🏁クローズ、`O-349` を**残1効果**まで縮小。**
+🔴🔑**この回の主産物は「golden の据置契約の理由文が、実測すると2件とも誤りだった」こと**＝
+**どちらも engine を1行も触らずに閉じた。⇒ 据置を解くかは「理由文を読む」ではなく「その分岐を走らせて観測する」で決める**（詳細は [LESSONS.md](./LESSONS.md) §4.1）。
+- **`O-352`**＝真の欠陥は「宣言が支払いより後」ではなく**「候補0でもコストを払える（払い損）」**で、`O-129` の規約が**組み立て pass ごと**にしか実装されていなかった＝**live 49効果**が素通り。正準形へ**後段で1回**刻む形（`stampAbortOnCanonicalOptionalCost`）にして**違反0**をラチェット化。
+- **`O-349`**＝色限定つき使用封じ2効果を実装（明示 defer 解消）。受け皿は**スペル側のゲートに既に在った**（`PLAY_COLORLESS` / `BLOCK_NON_WHITE_SPELL`）＝actionId を4本足すだけで足りた。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-348`**（索引A・型つき22種） → ②**`O-343`** → ③**`O-352`**（`O-347` の続き＝`freezeStoredTargets`） |
-| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（据置） |
-| 📦**在庫** | 機構 worklist 🔥**8項目**（`O-343`〜`O-346`・`O-348`・`O-349`・`O-351`・`O-352`）／実機 🏁**0**／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4051 PASS**（+3）・実機 `o349OppLrigUnder` **2回連続 PASS**（既定 order へ常駐） |
+| 🔥**次に取るもの** | ①**`O-348`**（索引A・型つき22種） → ②**`O-343`** → ③**`O-345`**（索引B） |
+| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝今回の51効果は AUTO の payload 追加でどの計器にも映らない） |
+| 📦**在庫** | 機構 worklist 🔥**7項目**（`O-343`〜`O-346`・`O-348`・`O-349`・`O-351`）／実機 🏁**0**／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4058 PASS**（+7）・実機 `o349ColorUseBlock{BlocksOffColor,UnrestrictedBeforeDeclare}` **各2回連続 PASS**（既定 order へ常駐） |
 
-🆕🔴**「受け皿が無い」は連続15項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
-🆕🔴**新しい STUB id を作る前に `grep -rn "<id>" src/engine/`**＝今回それを怠って重複ハンドラを書き、
-`O-21` ゲート（「同じ STUB id の後発ハンドラが到達不能になっていない」）に救われた。**あのゲートが無ければ黙って死にコードになっていた。**
-🆕🔑**`live 0` のハンドラは「実装済み」ではなく「未検証」**＝`OPP_LRIG_UNDER_TO_LRIG_TRASH` は繋いだ瞬間にバグ2つが出た。
-🆕🔴**golden の「据置契約」は勝手に破らない**＝`O-188` の `OPTIONAL_TRASH_SELF` 据置には engine 側の根拠があり（`freezeStoredTargets` 未通過）、並べ替えを撤回して `O-352` に登録した。
+🆕🔴**「受け皿が無い」は連続17項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
+🆕🔴**据置契約も同じく stale になる**＝`O-188` の `OPTIONAL_TRASH_SELF` 据置は解除した（②の据置は残0）。
+🆕🔑**規約は「組み立て地点ごと」ではなく「正準形へ後段で1回」刻む**＝pass が増えても構造で守られる（ラチェットは件数ではなく**違反0**）。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -194,7 +192,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件** | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**8項目**（`O-348` 索引A／`O-343`/`O-345`/`O-346` 索引B／`O-344`/`O-349`/`O-352` 索引G／`O-351` 索引E） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**7項目**（`O-348` 索引A／`O-343`/`O-345`/`O-346` 索引B／`O-344`/`O-349` 索引G／`O-351` 索引E） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0効果**（2026-09-12 に全数照合） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
 | — | §5.4 構造混線 | 🏁**0** | 新しく見つけたときだけ足す | — |
@@ -357,8 +355,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 |---|---|---|
 | `O-344` | M | 【常】の宣言型 STUB が `activeCondition` を持たず、**原文の条件が engine の regex にしか無い**＝逆翻訳に条件が出ず、regex が外れると既定値に落ちる。🔧**母集団を訂正＝2効果 → 実測19効果**（`LOSE_COLOR_ALL_ZONES` 8／`LEVEL_REFERENCE_OVERRIDE` 7／他4）。⚠**潜在**＝現行カードでは regex が当たっている |
 | `O-346` | M | 🔧**母集団を実測＝121効果 / 115カード**（`npm run census:population -- "対戦相手は自分の"`。`opponentSelects` **OK 69 / MISS 52**）。🔴**「型に受け皿が無い」は誤りだった**＝`TrashAction.opponentSelects` は型にも消費地点にも在り、`WX13-036-E3` は2026-09-13 に修正済み・**実機不要**。⚠**MISS 52 はバグ数ではない**（別の正準形で配線済みが混ざる）＝残作業は「52件を1件ずつ判定」＋parser 規則 |
-| `O-349` | S | **明示 defer 残2種/3効果**＝色限定つき使用封じ（`BLOCK_ACTION` に色の絞りが無い・2効果・⚠UI ゲートも要るので実機必須）／場∪エナ横断選択＋アタック無効（1）。🏁**相手ルリグ下の操作は 2026-09-13 に実装済み**（`opp_lrig_under` 新設）。🔧**`DEFERRED_*` の全数は 3種/4効果ではなく実測 28種/31効果**（登録票が stale だった） |
-| `O-352` | S | `OPTIONAL_TRASH_SELF` の分岐が **`freezeStoredTargets` を通していない**（`effectExecutor.ts:6621`）＝「〈対象〉を対象とし、このシグニを置いてもよい。そうした場合〜」で**宣言を支払いより前に出せない**（`O-188` 第2バッチの据置契約の根拠）。解禁済みの `OPTIONAL_TRASH_ENERGY_CLASS`（`O-298`）と同じ手当てを入れれば **3効果**（`WX24-P2-060-E1`／`WXDi-P04-033-E1` ほか）が §5.3 `O-129` の規約へ乗る |
+| `O-349` | S | **明示 defer 残1効果**＝`DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE`（`SPDi43-05-E2`）。🏁**相手ルリグ下（2026-09-13 第298）／色限定つき使用封じ 2効果（同日 第299・実機2本 PASS）は実装済み**。🔑**残は受け皿4つ中3つが既に在る**（器・`NEGATE_ATTACK{CENTER_LRIG_OR_SIGNI,attackingOnly}`・`levelEqTrigger`）＝**足りないのは「コストが場∪エナの単一プール」1つだけ**（`WXK10-018-E2` と同じ family＝2効果で1機構）。🔧`DEFERRED_*` 全数＝実測 **26種/28箇所** |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -432,7 +429,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 |---|---|
 | payload キー未描画 56種/145ノード | **§5.3 索引A `O-348`**（型つき22種/58ノード＝取り落ち確定／STUB 34種/87ノード） |
 | `[STUB:…]` マーカー 323箇所 | **§5.3 索引E `O-351`**＝🔴**件数ではなく「検出器が無い」問題に置き換えた**（299カードのうち **271カードはどの計器も無言**） |
-| 明示 defer 3種/4効果（索引に無かった） | **§5.3 索引G `O-349`** |
+| 明示 defer（`DEFERRED_*`＝26種/28箇所。残1効果） | **§5.3 索引G `O-349`** |
 | リリース判定（fuzz 重め） | 🏁**CRASH 0**（2026-09-12＝`O-350` で再帰2種を修正。seed 12648430/1/7/99/4242/777777 の6本で 0） |
 | リリース判定（実機 PvP/CPU 通し対戦） | 🏁**両方 PASS**（2026-09-13＝`node scripts/verifyFullMatch.mjs`。CPU 8ターン／PvP 56ターンで決着） |
 | CPU 盤面評価 v2 ／ `doPhaseAdvance` pure 抽出 ／ BEHAVIOR_AUDIT キュー | **§5.3 末尾「根拠つき defer」**（3件とも着手不要と実測で判定） |
@@ -443,19 +440,24 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（過去に計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態になった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-13 時点（本ブロックが直近の正）**＝第298バッチ（`O-346`／`O-347`／`O-349`③）
+- **2026-09-13 時点（本ブロックが直近の正）**＝第299バッチ（`O-352` クローズ／`O-349` 色限定つき使用封じ）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
-  📦**在庫**＝**機構 worklist 🔥8項目**（`O-348` 索引A／`O-343`・`O-345`・`O-346` 索引B／`O-344`・`O-349`・`O-352` 索引G／`O-351` 索引E）｜**実機 🏁0**｜**実装キュー 🏁0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4051 PASS**（+3）／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1／
-  🆕**実機 `o349OppLrigUnder` 2回連続 PASS**（既定 order へ常駐＝新設 `TargetScope:'opp_lrig_under'` の番人）／
-  fuzz 重め 6シード CRASH 0（第295）／通し対戦スモーク CPU・PvP とも PASS（第296）／
+  ⚠**3本とも動かないのは正常**＝今回の51効果は AUTO の payload 追加（`abortIfNoCandidate`）と
+  明示 defer の解消で、**どの計器も「原文に在るのに live に無い語」を見る計器ではない**（§3 の但し書き）。
+  📦**在庫**＝**機構 worklist 🔥7項目**（`O-348` 索引A／`O-343`・`O-345`・`O-346` 索引B／`O-344`・`O-349` 索引G／`O-351` 索引E）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4058 PASS**（+7）／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1／
+  🆕**実機 `o349ColorUseBlockBlocksOffColor` / `o349ColorUseBlockUnrestrictedBeforeDeclare` 各2回連続 PASS**
+  （既定 order へ常駐＝色限定つき使用封じの番人。正方向と対照の対）／
+  実機 `o349OppLrigUnder` 常駐（第298）／fuzz 重め 6シード CRASH 0（第295）／
+  通し対戦スモーク CPU・PvP とも PASS（第296）／
   census:stubs A群 0・C群 0・E群 0・F群 0／census:enginetext A群 0行（miss 0）⚠**部分的に見かけだけ＝`O-343`**／
   census:costtext A群 0規則／**census:payloadkeys 未判定 56種 / 145ノード＝BASELINE 56**（据置）／
   **census:numberdrift 75効果＝BASELINE 75**（据置）／census:deadstate 0／
   check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）／typecheck 0。
   📐**その他のラチェット**＝同型★ **2グループ / 4枚**／逆翻訳の生 JSON 漏れ **0**／golden 型カバレッジ 未カバー **0**／
-  🔧**`DEFERRED_*` の全数＝28種 / 31効果**（`grep -o 'DEFERRED_[A-Z_]*' public/data/effects_*.json | sort | uniq -c`。
-  ⚠`O-349` の登録票が「3種/4効果」と書いていたのは**その回に見つけた3件だけ**の数字だった）。
+  🆕**正準形「宣言→保存→任意コスト→`PAID_ADDITIONAL_COST`」の `abortIfNoCandidate` 違反 0**
+  （刻印 221 / `upToCount` 除外 7。golden `O-352` がラチェット＝**件数ではなく違反0**）／
+  🔧**`DEFERRED_*` の全数＝26種 / 28箇所**（`grep -oh 'DEFERRED_[A-Z_]*' public/data/effects_*.json | sort | uniq -c`）。
   🔑**ゲート外の計器（在庫ではない）**＝census:timing **4効果**／census:wiring **miss 33セル**／`_bqTriage` 高シグナル **23件**（⛔休眠）。
   ⚠**通し対戦スモークはゲートに同梱しない**（CPU 4分＋PvP 33分＋ライブ Supabase）＝**リリース前に手で1回**。
 

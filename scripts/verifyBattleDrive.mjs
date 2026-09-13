@@ -21956,6 +21956,107 @@ order.push('assistAttackBoth', 'fezoneDoubleCostPay', 'sYokusenkiSpellPay');
 // §5.3 `O-349`③（2026-09-13）＝新設した `TargetScope:'opp_lrig_under'` のピッカーは
 // **実機でしか描けているか分からない**（engine だけなら golden で足りる）。2回連続 PASS で既定 order に常駐。
 order.push('o349OppLrigUnder');
+
+// ── §5.3 `O-349`（2026-09-13）＝色限定つきの「アーツとスペルを使用できない」──────────────
+// `WXK09-037-E2`【常】「対戦相手はこのシグニの【出】能力で**宣言された色を持たず無色ではない**、
+//   アーツとスペルを使用できない」。この巡で明示 defer（`DEFERRED_COLOR_QUALIFIED_USE_BLOCK`）を解消し、
+//   専用 actionId（`USE_ARTS_UNLESS_COLOR_DECLARED` / `USE_SPELL_UNLESS_COLOR_DECLARED`）＋
+//   `isColorQualifiedUseBlocked`（`src/engine/blockAction.ts`）で判定するようにした。
+// 🔴**実機が要る理由**＝判定を足したのは **`src/screens/battle/artsUseGate.ts`（提示ゲート）**＝§2.2 の
+//   「`src/screens/` を触った回は実機まで必須」に当たる。golden は純関数（判定式）だけを固定できるが、
+//   **「アーツ一覧で実際に『使用』が消えるか」は UI を通さないと分からない**（提示経路は3入口ある）。
+// 🔑観測は `o329ProbeArts`（O-329 で作った「ルリグデッキを開いて『使用』の有無を読む」プローブ）を流用する。
+// ⚠**対照を2枚置く**＝①宣言色（白）②無色 は使えるままでなければならない（片方でも消えたら過剰実行）。
+// ⚠**§4.4-1**＝`field.check` と CORE フィールドは両サイド明示クリア。
+const O349_BLOCKER = 'WXK09-037';          // 紡槍　アークエナジェ（【常】が色限定つき使用封じを張る側）
+const O349_ALLOWED_DECLARED = 'WX21-007';  // アンチ・ディフェンス（白・《白》×1・アタックフェイズ）＝宣言色
+const O349_ALLOWED_COLORLESS = 'WDA-F02-08'; // ダブル・チャクラム（無色・《無》×1）＝無色は常に使える
+const O349_BLOCKED = 'WXK01-033';          // ブラインド・パニッシュ（黒・《黒》×1）＝宣言色を持たず無色でもない
+const o349Spec = (declaredColor) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9401'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': [`${O349_ALLOWED_DECLARED}#9402`, `${O349_ALLOWED_COLORLESS}#9403`, `${O349_BLOCKED}#9404`],
+    'hand': [],
+    // 白2枚＋黒2枚＝3枚のアーツすべてが**コストでは落ちない**（落ちる理由を色限定の封じ1本に絞る）。
+    'energy': ['WD01-009#9405', 'WD01-013#9406', 'WD05-009#9407', 'WD05-010#9408'],
+    // 🔑宣言された色は**使う側（制限される側）自身の state** に入る（`INTERNAL_SET_OPP_DECLARED_COLOR`）。
+    'declared_color': declaredColor,
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#9409'],
+    'field.lrig_down': false,
+    // 封じを張る側＝相手の場に `WXK09-037`。
+    'field.signi': [[`${O349_BLOCKER}#9410`], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': [], 'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+async function o349Probe(page, H) {
+  const allowedDeclared = await o329ProbeArts(page, H, O349_ALLOWED_DECLARED);
+  H.log('宣言色（白）:', JSON.stringify(allowedDeclared));
+  const allowedColorless = await o329ProbeArts(page, H, O349_ALLOWED_COLORLESS);
+  H.log('無色:', JSON.stringify(allowedColorless));
+  const blocked = await o329ProbeArts(page, H, O349_BLOCKED);
+  H.log('黒（封じ対象）:', JSON.stringify(blocked));
+  return { allowedDeclared, allowedColorless, blocked };
+}
+
+scenarios.o349ColorUseBlockBlocksOffColor = {
+  title: 'O-349（WXK09-037-E2＝宣言色「白」のとき**黒のアーツに「使用」が出ない**／白と無色は出る）',
+  spec: o349Spec('白'),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log('開始状態:', JSON.stringify({ phase: st0?.turnPhase, active: st0?.active, hostEnergy: st0?.host?.energy, hostLrigDeck: st0?.host?.lrigDeck, opSigni: st0?.guest?.fieldSigni }));
+    const r = await o349Probe(page, H);
+    if (!r.allowedDeclared.ok || !r.allowedColorless.ok || !r.blocked.ok) {
+      return { pass: false, detail: `プローブ失敗（${[r.allowedDeclared, r.allowedColorless, r.blocked].map(x => x.detail ?? 'ok').join(' / ')}）` };
+    }
+    // 🔑対照が先＝ここが false なら「そもそも提示経路が死んでいる」＝本題の判定に意味が無い。
+    if (!r.allowedDeclared.hasUse) {
+      return { pass: false, detail: `🔴宣言色（白）の ${O349_ALLOWED_DECLARED} にも「使用」が出ない＝過剰実行（原文は宣言色は使える）labels=${JSON.stringify(r.allowedDeclared.labels)}` };
+    }
+    if (!r.allowedColorless.hasUse) {
+      return { pass: false, detail: `🔴無色の ${O349_ALLOWED_COLORLESS} に「使用」が出ない＝過剰実行（原文は無色は使える）labels=${JSON.stringify(r.allowedColorless.labels)}` };
+    }
+    if (r.blocked.hasUse) {
+      return { pass: false, detail: `🔴黒の ${O349_BLOCKED} が使用できてしまう＝色限定つき封じが効いていない labels=${JSON.stringify(r.blocked.labels)}` };
+    }
+    return { pass: true, detail: `宣言色（白）と無色には「使用」あり／黒には無し（blocked labels=${JSON.stringify(r.blocked.labels)}）` };
+  },
+};
+
+scenarios.o349ColorUseBlockUnrestrictedBeforeDeclare = {
+  title: 'O-349 対照（未宣言なら封じない＝黒のアーツにも「使用」が出る／恒久の全面封じへ倒れていない）',
+  spec: o349Spec(null),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log('開始状態（宣言なし）:', JSON.stringify({ phase: st0?.turnPhase, active: st0?.active, hostEnergy: st0?.host?.energy, opSigni: st0?.guest?.fieldSigni }));
+    const r = await o349Probe(page, H);
+    if (!r.allowedDeclared.ok || !r.blocked.ok) {
+      return { pass: false, detail: `プローブ失敗（${[r.allowedDeclared, r.blocked].map(x => x.detail ?? 'ok').join(' / ')}）` };
+    }
+    if (!r.allowedDeclared.hasUse) {
+      return { pass: false, detail: `対照（白）にも「使用」が出ない＝提示経路かコストの問題 labels=${JSON.stringify(r.allowedDeclared.labels)}` };
+    }
+    // 🔴**未宣言なら制限は課されない**（fail-closed）＝ここが赤なら「宣言前から全面封じ」になっている。
+    if (!r.blocked.hasUse) {
+      return { pass: false, detail: `🔴未宣言なのに黒の ${O349_BLOCKED} が使えない＝宣言前から封じている labels=${JSON.stringify(r.blocked.labels)}` };
+    }
+    return { pass: true, detail: '未宣言では白も黒も「使用」あり（宣言前は無制限）' };
+  },
+};
+
+// §5.3 `O-349`（2026-09-13）＝色限定つき使用封じの提示ゲート（`src/screens/` を触ったので実機必須）。
+//   正方向（黒が消える）と対照（未宣言なら消えない）の2本。各2回連続 PASS で既定 order に常駐。
+order.push('o349ColorUseBlockBlocksOffColor', 'o349ColorUseBlockUnrestrictedBeforeDeclare');
 // 段2 第44バッチ（2026-08-26 続き676）＝`powerLteSelf` の実機観測。SELECT_TARGET ピッカーの候補絞り込みは
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
 

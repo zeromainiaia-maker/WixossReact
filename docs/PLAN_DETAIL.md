@@ -994,6 +994,24 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 
 ## 恒久指標アーカイブ（2026-09-10 第238〜第245バッチ）
 
+### 恒久指標（退避）2026-09-13 第299バッチ 前（＝第298バッチ直後の値）
+
+- **2026-09-13 時点（本ブロックが直近の正）**＝第298バッチ（`O-346`／`O-347`／`O-349`③）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  📦**在庫**＝**機構 worklist 🔥8項目**（`O-348` 索引A／`O-343`・`O-345`・`O-346` 索引B／`O-344`・`O-349`・`O-352` 索引G／`O-351` 索引E）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4051 PASS**（+3）／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1／
+  🆕**実機 `o349OppLrigUnder` 2回連続 PASS**（既定 order へ常駐＝新設 `TargetScope:'opp_lrig_under'` の番人）／
+  fuzz 重め 6シード CRASH 0（第295）／通し対戦スモーク CPU・PvP とも PASS（第296）／
+  census:stubs A群 0・C群 0・E群 0・F群 0／census:enginetext A群 0行（miss 0）⚠**部分的に見かけだけ＝`O-343`**／
+  census:costtext A群 0規則／**census:payloadkeys 未判定 56種 / 145ノード＝BASELINE 56**（据置）／
+  **census:numberdrift 75効果＝BASELINE 75**（据置）／census:deadstate 0／
+  check:manual-fields 0／census:orphanmanual A・B・C群 0／lint 0 errors（warning 255）／typecheck 0。
+  📐**その他のラチェット**＝同型★ **2グループ / 4枚**／逆翻訳の生 JSON 漏れ **0**／golden 型カバレッジ 未カバー **0**／
+  🔧**`DEFERRED_*` の全数＝28種 / 31効果**（`grep -o 'DEFERRED_[A-Z_]*' public/data/effects_*.json | sort | uniq -c`。
+  ⚠`O-349` の登録票が「3種/4効果」と書いていたのは**その回に見つけた3件だけ**の数字だった）。
+  🔑**ゲート外の計器（在庫ではない）**＝census:timing **4効果**／census:wiring **miss 33セル**／`_bqTriage` 高シグナル **23件**（⛔休眠）。
+  ⚠**通し対戦スモークはゲートに同梱しない**（CPU 4分＋PvP 33分＋ライブ Supabase）＝**リリース前に手で1回**。
+
 ### 恒久指標（退避）2026-09-13 第298バッチ 前（＝第297バッチ直後の値）
 
 - **2026-09-13 時点**＝第297バッチ（`O-345` 真バグ2件）
@@ -14456,20 +14474,44 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 ⚠**0 を目標にしない**（`IGNORED` 側は件数に出ない）。**ラチェットは `gates` 同梱＝未判定キーが増えたら exit 1。**
 **実績**＝`MILL` の枚数キー6つ（8カード9箇所が「0枚」「999枚」）と `ATTACH_ACCE.targetSigniOwner`（`'あなたの場の'` の焼き込み）はここから出た。
 
-### 🆕`O-349` — 明示 defer 3種 / 4効果（**宣言済みの no-op**＝機構が無いことを宣言してある）
+### `O-349` — 明示 defer（**宣言済みの no-op**＝機構が無いことを宣言してある）｜**残 1効果**
 
-**規模 S。母集団＝実測 3種 / 4効果 / 4カード**（測り直す＝`grep -o 'DEFERRED_[A-Z_]*' public/data/effects_*.json | sort -u`）。
-🔴**PLAN_DETAIL にしか書かれておらず §5.3 索引に無かった**＝**worklist から見えていなかった**
-（`O-337`／`O-339` と同じ失敗形。**索引に行が無い項目は存在しないのと同じ**）。
+**母集団＝実測 26種 / 28箇所**（`grep -oh 'DEFERRED_[A-Z_]*' public/data/effects_*.json | sort | uniq -c`）。
+🔴**登録票の「3種/4効果」はその回に見つけた3件だけの数字だった**（2026-09-13 に訂正）＝
+**この項目は「この3件」ではなく `DEFERRED_*` 全体の受け皿**として読む。
 
-| STUB id | 効果 | 何が無いか |
+| STUB id | 効果 | 状態 |
 |---|---|---|
-| `DEFERRED_COLOR_QUALIFIED_USE_BLOCK` | **2**（`PR-471-E1`／`WXK09-037-E2`） | **色限定つき使用封じ**＝原文「宣言された色を持たず無色ではない、アーツとスペルを使用できない」。`BLOCK_ACTION` に**色の絞り**が無い |
-| `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` | **1**（`SPDi43-05-E2`） | 原文「あなたの**場かエナゾーンから**そのルリグかシグニと**同じレベル**のシグニ1枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする」＝**ソース側の場∪エナ横断選択**（既存 `wrapFieldOrEnergy` は行き先側で向きが逆）＋**アタッカーのレベルを実行時に束縛** |
-| `DEFERRED_OPP_LRIG_UNDER_TO_TRASH` | **1**（`WD23-012-A-E1`） | 原文「**対戦相手の**センタールリグの下からカードを2枚まで対象とし、それらをルリグトラッシュに置く」＝engine が `ownerState` 固定で**相手ルリグ下を触れない** |
+| ~~`DEFERRED_OPP_LRIG_UNDER_TO_TRASH`~~ | 1（`WD23-012-A-E1`） | 🏁**2026-09-13 第298バッチで実装**（`TargetScope:'opp_lrig_under'` 新設。受け皿は既に在った） |
+| ~~`DEFERRED_COLOR_QUALIFIED_USE_BLOCK`~~ | 2（`PR-471-E1`②／`WXK09-037-E2`） | 🏁**2026-09-13 第299バッチで実装**（下記） |
+| `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` | **1**（`SPDi43-05-E2`） | 🔥**残**＝新機構が1つだけ足りない（下記の実測） |
 
-🔑**3件まとめて1バッチで取る**＝固定費（探索・配送・ゲート・簿記）は**バッチ回数に比例**し、効果数には比例しない。
-⚠**無言 no-op ではない**（`census:stubs` A群🔴 が0を保証＝`DEFERRED_` 命名の効果は「宣言済み」枠に入る）。
+**🏁色限定つき使用封じ（2効果）＝2026-09-13 にクローズ**
+🔴**据置の理由「`BLOCK_ACTION` は actionId しか持たずカードの色で絞る機構が無い」は誤りだった**＝
+`isSpellUseBlockedFor` は**前からカードを受け取って** `PLAY_COLORLESS`（無色のスペル封じ）と
+`BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）を判定していた＝**色の軸は既に在った**。
+⇒ 専用 actionId 4本（`USE_{ARTS,SPELL}_UNLESS_COLORLESS` / `..._UNLESS_COLOR_DECLARED`）＋
+`isColorQualifiedUseBlocked`（`src/engine/blockAction.ts`）で読む形にした。**原文2形を1つに寄せない**
+（①無色だけ使える ②宣言色 か 無色 が使える＝**②は未宣言なら無制限**。寄せると未宣言時に全面封じへ化ける）。
+
+**🔥残＝`DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE`（`SPDi43-05-E2`・1効果）の実測（2026-09-13）**
+原文＝【起】《ゲーム１回》…：次の対戦相手のターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ１体が
+アタックしたとき、**あなたの場かエナゾーンから**そのルリグかシグニと**同じレベル**のシグニ１枚をトラッシュに
+置いてもよい。そうした場合、そのアタックを無効にする。」を得る。
+🔑**受け皿を4つ数えたら3つは既に在った**（LESSONS §4.1）＝
+①器＝`GRANT_LRIG_ABILITY{abilities:[{timing:['ON_ATTACK_SIGNI','ON_ATTACK_LRIG'], triggerScope:'any_opp'}]}`
+（**先例 `WXDi-P09-036-E1`** が「対戦相手のシグニかルリグ1体がアタックしたとき…そのアタックを無効にする」で実在）
+②帰結＝`NEGATE_ATTACK{target:{type:'CENTER_LRIG_OR_SIGNI',owner:'opponent',count:1},attackingOnly:true}`（同先例）
+③レベル束縛＝`TargetFilter.levelEqTrigger`（`effectExecutor.ts:3916` が `triggeringCardNum` で解く＝アタッカー）
+④期間＝`duration:'UNTIL_OPP_TURN_END'`
+🔴**足りないのは④ではなく「コストが場∪エナの単一候補プール」だけ**＝`OptionalCostSpec` には
+`fieldTrash` と `energyTrash` が**別軸で**あり、**ゾーンを跨ぐ OR の軸が無い**。
+⚠**これは既知の family**＝`WXK10-018-E2`（「シグニに付いているカード**か**下にあるカード」）も同じ理由で
+`costUnparsed`＝提示すらされない（旧 §6.4 `O-11` の残した近似(b)）。**2効果で1つの機構。**
+🔑**新機構を足さずに済む案（次の巡の候補）**＝`CHOOSE` で**ゾーンを2枝に割る**
+（①`OPTIONAL_COST{fieldTrash:{count:1,filter:{levelEqTrigger:true}}}` ②同 `energyTrash`）＋各枝に
+`CONDITIONAL{PAID_ADDITIONAL_COST, then:NEGATE_ATTACK}`。⚠**UX が1段増える**（先にゾーンを選ぶ）ので、
+`canAffordOptionalCostSpec` による枝の `available` が正しく出るかを実機で見るまで「等価」と言わない。
 
 ### 🏁`O-350` — 🔴無償使用の**無限再帰**（CRASH）＝**2026-09-12 第295バッチでクローズ**
 

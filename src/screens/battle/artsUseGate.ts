@@ -8,6 +8,7 @@ import {
   collectFieldEnergySigniColorGains, collectLrigNameAliases, collectOppTurnArtsCostReductions,
   collectSpecificCardCostReductions, hasAllCardsColorBlack,
 } from '../../engine/effectEngine';
+import { isColorQualifiedUseBlocked } from '../../engine/blockAction';
 import { getCardNum } from '../../engine/effectExecutor';
 import { canUseArtsCondition } from './battleUtils';
 import { cardNameUseBlocked } from './cardNameUseBlock';
@@ -257,11 +258,19 @@ export interface ArtsUseCheck {
 /**
  * アーツを使用できない状態か（§6.4 O-10・続き512）。
  * `ARTS_LIMIT_1` は `actions_done` の `'USE_ARTS'` 回数で数える。
+ *
+ * 🆕**§5.3 `O-349`（2026-09-13）＝`card` を受けて色限定つきの封じも見る**
+ * （「無色ではない、アーツとスペルを使用できない」／「宣言された色を持たず無色ではない、〜」）。
+ * ⚠**`card` 省略時は色限定の封じを見ない**＝「いま1枚も使えないか」を聞く用途（`performArts` の
+ *   早期 return など）では対象カードが決まっていないため。**カードが決まる入口では必ず渡す。**
  */
-export function isArtsUseBlockedFor(my: PlayerState, blockedSelf: Set<string>): boolean {
+export function isArtsUseBlockedFor(
+  my: PlayerState, blockedSelf: Set<string>, card?: { Color?: string },
+): boolean {
   const isActionBlocked = (id: string) => (my.blocked_actions?.some(a => a === id) ?? false) || blockedSelf.has(id);
   return isActionBlocked('USE_ARTS')
-    || (isActionBlocked('ARTS_LIMIT_1') && (my.actions_done ?? []).filter(a => a === 'USE_ARTS').length >= 1);
+    || (isActionBlocked('ARTS_LIMIT_1') && (my.actions_done ?? []).filter(a => a === 'USE_ARTS').length >= 1)
+    || (!!card && isColorQualifiedUseBlocked('arts', my, isActionBlocked, card));
 }
 
 /** アーツ1枚の使用可否と実効コスト。**提示側と CPU の両方がこれだけを見る**。 */
@@ -347,7 +356,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
     meetsRestriction(card.Restriction, payer.lrigClass, payer.ignoreRestriction) &&
     // カード名指定の使用封じ（ターン内 blacklist ／ゲーム内 NAME_BAN ／アーツ名 whitelist）（§6.4 O-3）
     !cardNameUseBlocked(my, card.CardName, card.Type) &&
-    !isArtsUseBlockedFor(my, payer.blockedSelf) &&
+    !isArtsUseBlockedFor(my, payer.blockedSelf, card) &&
     timingOk &&
     // 🆕§5.3 `O-329`＝`isMyTurn` を渡す（「対戦相手のターンにしか使用できない」の実効ゲート）。
     canUseArtsCondition(effectsMap.get(cardNum) ?? [], my, op, cardMap, cardNum, turnPhase, isMyTurn, p.effectivePowers) &&

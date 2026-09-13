@@ -7409,7 +7409,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const useKeySub = sel.useKeySub ?? false;
     const boosting = sel.boosting ?? false;
     const useCostPayKeys = sel.useCostPayKeys ?? new Set<string>();
-    if (isArtsUseBlockedFor(my, p.blockedSelf)) return;
+    // 🆕`card` を渡す（§5.3 `O-349`）＝色限定つきの使用封じは**そのカードの色**で決まるので、
+    //   実行入口でも同じ引数で判定する（UI だけで弾くとカットイン等の別経路から素通りする）。
+    if (isArtsUseBlockedFor(my, p.blockedSelf, card)) return;
     // ⚠実行入口にも同じゲートを置く（UI 側だけだと別経路＝カットイン等から素通りする・§6.4 O-3）
     if (cardNameUseBlocked(my, card.CardName, card.Type)) return;
     if (!canUseArtsCondition(

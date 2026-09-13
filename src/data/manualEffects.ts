@@ -7300,7 +7300,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: {
         type: 'SEQUENCE',
         steps: [
-          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+          // 🆕`abortIfNoCandidate`＝§5.3 `O-352`（2026-09-13）＝対象が0体なら手札を捨てさせない（払い損の防止）。
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, abortIfNoCandidate: true },
           { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
           { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1, filter: { story: 'ブルアカ' } } },
           {
@@ -10202,7 +10203,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WDK08-Y12-E1","effectType":"AUTO","timing":["ON_REVEALED_FROM_HAND"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","緑","無","無"],"handDiscard":{"count":1,"filter":{"cardName":"幻水　ダンクルテウス"}}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WX24-P2-048": [
-    {"effectId":"WX24-P2-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"満月の使徒　小湊るう子"}},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"対象のレベルにつき白1枚を捨て、手札に戻す","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscardCountFromTargetLevel":true,"handDiscardFilter":{"color":"白"}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]}},{"choiceId":"c1","label":"手札をすべて捨て、6枚以上ならライフクロスを手札に加える","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"optional":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":6,"verbJa":"捨てた"},"then":{"type":"STUB","id":"CRASH_LIFE_TO_HAND","owner":"opponent"}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WX24-P2-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"満月の使徒　小湊るう子"}},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"対象のレベルにつき白1枚を捨て、手札に戻す","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscardCountFromTargetLevel":true,"handDiscardFilter":{"color":"白"}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]}},{"choiceId":"c1","label":"手札をすべて捨て、6枚以上ならライフクロスを手札に加える","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"optional":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":6,"verbJa":"捨てた"},"then":{"type":"STUB","id":"CRASH_LIFE_TO_HAND","owner":"opponent"}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // Choice 1 is only available on the opponent's turn. Choice 2 fixes the old
   // IS_MY_TURN placeholder by gating BANISH on the actual optional red payment.
@@ -12012,14 +12013,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // ── WX24-P2-060 E1（原文＝対戦相手のパワー5000以下のシグニ１体を対象とし、
   //    このシグニを場からトラッシュに置いてもよい。そうした場合、それを手札に戻す）
+  // 🆕**§5.3 `O-352`（2026-09-13）＝対象宣言を支払いより前へ出した**（`O-129` の規約）。
+  //   🔴旧形（`SEQUENCE[OPTIONAL_TRASH_SELF, CONDITIONAL{IS_MY_TURN}]`）の実測＝相手にパワー5000以下が
+  //   1体も居なくても「このシグニをトラッシュして発動」が出て、**払うと自分のシグニだけが消えた**（払い損）。
+  //   ⚠`O-347` の据置理由（engine が `freezeStoredTargets` を通していない）は**実測で誤り**だった＝
+  //   `execSequence` が対話に入るときに残りステップを凍結する（`effectExecutor.ts:7191`）ので、
+  //   自己トラッシュの支払い対話を跨いでも宣言対象は `fixedCardNums` として届く。**engine は触っていない。**
   "WX24-P2-060": [
     {"effectId":"WX24-P2-060-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],
      "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY",
+        "selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,
+                        "filter":{"cardType":"シグニ","powerRange":{"max":5000}}},
+        "abortIfNoCandidate":true},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
        {"type":"STUB","id":"OPTIONAL_TRASH_SELF"},
-       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
         "then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,
                                           "filter":{"cardType":"シグニ","powerRange":{"max":5000}}},
-                "optional":false}}
+                "optional":false,"targetsStored":true}}
      ]},
      "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
@@ -12029,13 +12041,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**対象は自分のトラッシュのシグニ**＝`TRASH_CARD owner:'self'`。
   //   🔑「このシグニを場からトラッシュに置く」支払いで**トラッシュが1枚増える**ので、
   //     宣言を先にしないと**支払ったカード自身を回収先に選べてしまう**（原文にない選択肢）。
+  // 🆕**§5.3 `O-352`（2026-09-13）＝宣言を先に出した**＝上のコメントの「支払ったカード自身を
+  //   回収先に選べてしまう」を実際に閉じた（宣言時点では効果元シグニはまだ場に居るのでトラッシュ候補に出ない）。
   "WXDi-P04-033": [
     {"effectId":"WXDi-P04-033-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],
      "action":{"type":"SEQUENCE","steps":[
+       {"type":"STUB","id":"SELECT_TARGET_ONLY",
+        "selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","hasGuard":true}},
+        "abortIfNoCandidate":true},
+       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
        {"type":"STUB","id":"OPTIONAL_TRASH_SELF"},
-       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},
+       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
         "then":{"type":"TRANSFER_TO_HAND",
-                "source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","hasGuard":true}}}}
+                "source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","hasGuard":true}},
+                "targetsStored":true}}
      ]},
      "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],

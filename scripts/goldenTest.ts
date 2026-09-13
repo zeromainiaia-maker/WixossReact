@@ -159,7 +159,7 @@ import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlo
 import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
-import { checkSpellUse } from '../src/screens/battle/spellUseGate';
+import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
@@ -19874,19 +19874,27 @@ test('O-188 第2バッチ 据置契約: 専用 STUB id は固定形へ変えな�
     }
   }
   // ②`OPTIONAL_COST` ではない専用 STUB id（engine 側に別経路がある）。
-  // 🆕**2026-09-10（§5.3 `O-298`）＝`OPTIONAL_TRASH_ENERGY_CLASS` は据置をやめた**（残るは `OPTIONAL_TRASH_SELF` だけ）。
-  //   🔑根拠は engine の実測＝あの分岐は**帰結の対象候補を見ずに支払いを提示する**（候補0体でも払えて空振り）が、
-  //   `freezeStoredTargets(thenOTEC, cur)` は通しているので**並べ替えるだけで正しく効く**
-  //   （`WXK04-038-E1` / `WXDi-CP02-065-E1` で「対象を取れない：この効果は何もしない」を確認）。
-  //   ⚠上のコメントどおり**据置契約は「いま壊れる」ことの assert であって永久の仕様ではない**。
+  // 🆕**2026-09-10（§5.3 `O-298`）＝`OPTIONAL_TRASH_ENERGY_CLASS` は据置をやめた**。
+  // 🏁🆕**2026-09-13（§5.3 `O-352`）＝`OPTIONAL_TRASH_SELF` も据置をやめた＝②の据置は残り0件。**
+  //   🔴据置の根拠（「あの分岐だけ `freezeStoredTargets(conditional.then, cur)` を通していない」）は
+  //   **engine の実測で誤りだった**＝自己トラッシュの支払いは `SELECT_TARGET`（`thisCardOnly` の1候補）で
+  //   必ず対話へ入り、そこで `execSequence` が**残りステップを凍結する**（`effectExecutor.ts:7191`）ので、
+  //   帰結は `fixedCardNums` を受け取って届く（下の `O-352` の実行テストが両方向で固定している）。
+  //   ⇒ **engine は1行も触らずに解禁できた**（`docs/BUGFIXES.md` 2026-09-13）。
+  //   ⚠**契約テストは消さずに「いま何を据置しているか」へ書き換える**（§5-4）＝いまは**据置0件**なので、
+  //     正方向（解禁した形が正準形になっていること）だけを assert する。
+  // 解禁した側＝「選択→保存→コスト」の並びになる。
   for (const [num, eid, stub] of [
     ['WXDi-P04-033', 'WXDi-P04-033-E1', 'OPTIONAL_TRASH_SELF'],
+    ['WX24-P2-060', 'WX24-P2-060-E1', 'OPTIONAL_TRASH_SELF'],
   ] as const) {
-    const json = JSON.stringify(o96Live(num, eid).action);
-    ok(json.includes(stub), `${eid}: 専用 STUB id（${stub}）のまま据え置く`);
-    ok(!json.includes('SELECT_TARGET_ONLY'), `${eid}: 専用 STUB id の形へ対象宣言を足さない`);
+    const steps = (o96Live(num, eid).action as SequenceAction).steps as (EffectAction & { id?: string; abortIfNoCandidate?: boolean })[];
+    eq(steps[0].id, 'SELECT_TARGET_ONLY', `${eid}: 先頭が対象宣言`);
+    eq(steps[0].abortIfNoCandidate, true, `${eid}: 候補0なら支払い前に降りる`);
+    eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${eid}: 宣言対象を保存`);
+    eq(steps[2].id, stub, `${eid}: 専用 STUB id（${stub}）は維持`);
+    eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', `${eid}: 実支払いだけで帰結`);
   }
-  // 解禁した側＝`OPTIONAL_TRASH_ENERGY_CLASS` は「選択→保存→コスト」の並びになる。
   for (const [num, eid] of [['WXDi-CP02-065', 'WXDi-CP02-065-E1']] as const) {
     const steps = (o96Live(num, eid).action as SequenceAction).steps as (EffectAction & { id?: string })[];
     eq(steps[0].id, 'SELECT_TARGET_ONLY', `${eid}: 先頭が対象宣言`);
@@ -30273,10 +30281,18 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     // ③の無色限定（落とすと**どのシグニでも探せる**過剰実行）
     const search = treeFind(a, x => x.type === 'SEARCH') as Record<string, unknown> | null;
     eq((search!.filter as { color?: string }).color, '無', '🔴「無色の」限定が落ちている');
-    // ②は色限定つき使用封じ＝機構未実装なので明示 defer（素の BLOCK_ACTION は無色まで封じる過剰実行）
+    // ②は色限定つき使用封じ。🏁**2026-09-13（§5.3 `O-349`）で実装**＝明示 defer をやめた。
+    // ⚠**素の `USE_ARTS`／`USE_SPELL` には落とさない**（無色のアーツ／スペルまで封じる過剰実行）＝
+    //   色限定つきの専用 actionId（`isColorQualifiedUseBlocked` が読む）を使う。
     ok(!treeHas(a, x => x.type === 'BLOCK_ACTION' && x.actionId === 'USE_ARTS'),
       '🔴色限定つき使用封じを素の BLOCK_ACTION にすると無色のアーツ／スペルまで封じる');
-    ok(treeHas(a, x => x.type === 'STUB' && x.id === 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK'), '明示 defer が無い');
+    ok(!treeHas(a, x => x.type === 'STUB' && x.id === 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK'), '明示 defer は解消済み');
+    for (const id of ['USE_ARTS_UNLESS_COLORLESS', 'USE_SPELL_UNLESS_COLORLESS']) {
+      const blk = treeFind(a, x => x.type === 'BLOCK_ACTION' && x.actionId === id) as Record<string, unknown> | null;
+      ok(!!blk, `②に ${id} が無い`);
+      eq((blk!.target as { owner?: string }).owner, 'opponent', `${id}: 封じるのは対戦相手`);
+      eq(blk!.until, 'NEXT_TURN', `${id}: 「次の対戦相手のターンの間」`);
+    }
   });
   // §6.4 O-11（続き532）：色限定つき使用封じは **live 全体**で素の BLOCK_ACTION に落とさない。
   // §6.4 O-11（続き532）：**キーワード単独の能力ブロック**が句点なしで次のマーカーへ直結する形。
@@ -30423,10 +30439,19 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     const exhausted = executeEffect(eff, exhaustedCtx);
     ok(exhausted.done, '反転確認: 全枝選択済みなら選択を提示せず no-op');
   });
-  test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
+  // 🏁**2026-09-13（§5.3 `O-349`）で実装**＝契約を「明示 defer」から正方向へ書き換えた。
+  //   🔴**素の `USE_ARTS`／`USE_SPELL` に落とさないこと**が契約の本体＝落とすと「相手はアーツも
+  //   スペルも一切使えない」恒久の全面封じ（原文は宣言色と無色は使える）。
+  test('(O-11→O-349) 色限定つき使用封じ: WXK09-037-E2 は宣言色つきの専用 actionId で張る', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
-    eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',
-      '🔴「宣言された色を持たず無色ではない」を落とすと、相手はアーツもスペルも一切使えなくなる');
+    const steps = (eff.action as unknown as { type: string; steps: { type: string; actionId: string; until: string; target: { owner: string } }[] });
+    eq(steps.type, 'SEQUENCE', 'アーツとスペルで2本に割る');
+    eq(steps.steps.map(x => x.actionId).join('|'), 'USE_ARTS_UNLESS_COLOR_DECLARED|USE_SPELL_UNLESS_COLOR_DECLARED',
+      '🔴素の USE_ARTS / USE_SPELL に落とすと恒久の全面封じになる');
+    for (const st of steps.steps) {
+      eq(st.target.owner, 'opponent', '封じるのは対戦相手');
+      eq(st.until, 'PERMANENT', '【常】＝恒久');
+    }
   });
 }
 
@@ -43030,9 +43055,11 @@ test('§6.4 O-10（続き512）: ARTS_LIMIT_1 が実際にアーツ使用を止�
   ok(/export function isArtsUseBlockedFor\(/.test(gate), 'アーツ使用ゲートが1関数に集約されている');
   ok(/ARTS_LIMIT_1/.test(gate), "🔴`ARTS_LIMIT_1` を UI が読む（未消費 id へ戻っていない）");
   // ⚠**表示ゲートと実行ゲートの両方**で呼ぶ（片方だけだと「押せるのに無反応」か「UI 迂回で使える」）。
-  ok(/isArtsUseBlockedFor\(my, payer\.blockedSelf\)/.test(gate), '表示ゲート（checkArtsUse）から呼ぶ');
+  // 🆕**2026-09-13（§5.3 `O-349`）＝第3引数に `card` を渡す**（色限定つき使用封じはカードの色で決まる）。
+  //   🔴渡し忘れると「色限定の封じだけが効かない」＝計器にもゲートにも映らない過小実行になる。
+  ok(/isArtsUseBlockedFor\(my, payer\.blockedSelf, card\)/.test(gate), '表示ゲート（checkArtsUse）から呼ぶ');
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(/isArtsUseBlockedFor\(my, p\.blockedSelf\)/.test(src), '実行ゲート（performArts）から呼ぶ');
+  ok(/isArtsUseBlockedFor\(my, p\.blockedSelf, card\)/.test(src), '実行ゲート（performArts）から呼ぶ');
 });
 
 test('§6.4 O-10（続き510）: 相手ターンのアーツコスト軽減は1回だけ（負方向＋対照の対）', () => {
@@ -73567,9 +73594,15 @@ test('§5.0 O-D 系統①: トラップアイコン節の3表記すべてが -TR
 // （すぐ上の `hasLifeBurst` と完全に同型の配線漏れ＝`census:wiring` が拾えなかった入口）。
 // ⚠`parseNameFilter` は `アイコン` を含む《》を名前候補から捨てる（`parserUtils.ts:918`）＝ここで拾わないと消える。
 test('§5.0 O-D 系統③: トラッシュから「《トラップアイコン》を持つ」の回収は hasIcon で絞る', () => {
-  const f = (card: string, id: string) => JSON.stringify(
-    ((effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action as unknown as
-      { source?: { filter?: unknown } })?.source?.filter ?? null);
+  // ⚠**キー順では比べない**（2026-09-13・§5.3 `O-352`）＝収穫マージがカード単位で fresh を採ると
+  //   **同じ意味のままキー順だけが変わる**ことがあり、旧 assert は `WX18-033-E2` でそれに落ちた
+  //   （E1 側が `abortIfNoCandidate` を得てカードごと採用された巻き込み）。見たいのは filter の中身。
+  const f = (card: string, id: string) => {
+    const filter = ((effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action as unknown as
+      { source?: { filter?: Record<string, unknown> } })?.source?.filter;
+    if (!filter) return 'null';
+    return JSON.stringify(Object.fromEntries(Object.entries(filter).sort(([a], [b]) => a.localeCompare(b))));
+  };
   eq(f('WX18-033', 'WX18-033-E2'),
     '{"cardType":"シグニ","excludeCardName":"超罠　ギジドウ","hasIcon":"トラップ"}',
     'WX18-033-E2: 除外カード名とアイコン限定が同居する');
@@ -75184,19 +75217,26 @@ test('§5.3 O-347: UNKNOWN_NESTED を落として任意トラッシュを1回だ
     ok(!act.includes('UNKNOWN_NESTED'), `🔴${id}: 失敗マーカーが残っていない`);
     eq((act.match(/OPTIONAL_TRASH_SELF/g) ?? []).length, 1, `${id}: 任意トラッシュは1回だけ`);
   }
-  // 🔴**「対象とし」の宣言を支払いより前へ出すのは、この巡では据置**（§5.3 `O-352` へ登録）。
-  //   `OPTIONAL_TRASH_SELF` は `O-188` 第2バッチの据置契約で固定形のままで、根拠は engine の実測＝
-  //   あの分岐は `freezeStoredTargets(conditional.then, cur)` を**通していない**
-  //   （解禁済みの `OPTIONAL_TRASH_ENERGY_CLASS`（`O-298`）との差はそこ）。
-  //   ⇒ 3効果とも**正準形2ステップ**（`OPTIONAL_TRASH_SELF` ＋「そうした場合」）に揃える。
+  // 🆕**2026-09-13（§5.3 `O-352`）で据置を解いた**＝この巡で「宣言を支払いより前へ」も入った。
+  //   🔴据置の根拠（「`OPTIONAL_TRASH_SELF` の分岐が `freezeStoredTargets` を通していない」）は
+  //   **engine の実測で誤り**だった（自己トラッシュの支払いは必ず対話に入り、`execSequence` が
+  //   残りステップを凍結する）。⇒ 契約を**正方向**へ書き換える。
+  // ⚠**原文に「対象とし」が無い `WXDi-P12-061-E1` は2ステップのまま**（宣言する対象が無い）。
   for (const [card, id] of [
-    ['WX24-P2-060', 'WX24-P2-060-E1'], ['WXDi-P04-033', 'WXDi-P04-033-E1'], ['WXDi-P12-061', 'WXDi-P12-061-E1'],
+    ['WX24-P2-060', 'WX24-P2-060-E1'], ['WXDi-P04-033', 'WXDi-P04-033-E1'],
   ] as const) {
     const steps = (effectsMap.get(card)!.find(e => e.effectId === id)!.action as unknown as { steps: Record<string, unknown>[] }).steps;
-    eq(steps.length, 2, `🔴${id}: 正準形は2ステップ`);
-    eq((steps[0] as { id?: string }).id, 'OPTIONAL_TRASH_SELF', `${id}: 先頭は任意トラッシュ`);
-    ok(!JSON.stringify(steps).includes('targetsStored'),
-      `🔴${id}: 据置契約＝対話を跨ぐ targetsStored を使わない`);
+    eq(steps.length, 4, `🔴${id}: 正準形は4ステップ（宣言→保存→任意トラッシュ→そうした場合）`);
+    eq((steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', `${id}: 先頭は対象宣言`);
+    eq((steps[0] as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, true, `${id}: 候補0なら支払い前に降りる`);
+    eq((steps[2] as { id?: string }).id, 'OPTIONAL_TRASH_SELF', `${id}: 支払いは宣言のあと`);
+    ok(JSON.stringify(steps[3]).includes('"targetsStored":true'),
+      `🔴${id}: 帰結は宣言した対象へ束縛する（選び直せない）`);
+  }
+  {
+    const steps = (effectsMap.get('WXDi-P12-061')!.find(e => e.effectId === 'WXDi-P12-061-E1')!.action as unknown as { steps: Record<string, unknown>[] }).steps;
+    eq(steps.length, 2, 'WXDi-P12-061-E1: 対象宣言の無い原文は2ステップのまま');
+    eq((steps[0] as { id?: string }).id, 'OPTIONAL_TRASH_SELF', 'WXDi-P12-061-E1: 先頭は任意トラッシュ');
   }
 }));
 // ══════════════════════════════════════════════════════════════════════════════
@@ -79894,6 +79934,169 @@ test('§5.3 O-338: 支払い窓が共有ヘルパを経由している（8窓）
   }
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-352`（2026-09-13）＝「〈対象〉を対象とし、〈任意コスト〉てもよい。そうした場合、〜」の
+//   **対象宣言を支払いより前に出し、候補0なら支払いを提示しない**（`O-129` の規約を全経路へ）
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔴実測した欠陥2つ（どちらも「払い損」＝コストだけ取られて何も起きない）：
+//   (a) **候補0でも支払いを提示する**…live 49効果（正準形を組んだ pass が `abortIfNoCandidate` を刻んでいない）
+//   (b) **宣言が支払いより後**…`WX24-P2-060-E1` / `WXDi-P04-033-E1`（`O-347` で据置にした2効果）
+// 🔑**engine は1行も触っていない**＝据置の根拠だった「`OPTIONAL_TRASH_SELF` の分岐が
+//   `freezeStoredTargets` を通していない」は誤りで、自己トラッシュの支払いは必ず `SELECT_TARGET` の
+//   対話に入り、そこで `execSequence` が残りステップを凍結する（`effectExecutor.ts:7191`）。
+// ⚠**「N体まで」（`upToCount`）は対象外**＝原文が0体を選べるので候補が居なくても支払いを選べる。
+
+interface O352Seq { steps: (EffectAction & { id?: string; abortIfNoCandidate?: boolean; selectTarget?: EffectTarget; condition?: Condition })[] }
+function o352CanonicalMisses(): { misses: string[]; stamped: number; upTo: number } {
+  const misses: string[] = [];
+  let stamped = 0;
+  let upTo = 0;
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'SEQUENCE' && Array.isArray(obj.steps)) {
+      const steps = (obj as unknown as O352Seq).steps;
+      for (let i = 0; i + 3 < steps.length; i++) {
+        if (steps[i].id !== 'SELECT_TARGET_ONLY') continue;
+        if (steps[i + 1].id !== 'STORE_LAST_PROCESSED_TARGETS') continue;
+        const gate = steps[i + 3];
+        if (gate.type !== 'CONDITIONAL' || (gate as ConditionalAction).condition.type !== 'PAID_ADDITIONAL_COST') continue;
+        if (steps[i].selectTarget?.upToCount) { upTo++; continue; }
+        if (steps[i].abortIfNoCandidate) stamped++; else misses.push(String(obj.__eid ?? ''));
+      }
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  for (const effects of effectsMap.values()) {
+    for (const e of effects) {
+      // effectId を miss の報告に載せるため、走査前に root へ印を付ける（live JSON は書き換えない）。
+      walk(JSON.parse(JSON.stringify(e.action, (k, v) => (
+        v && typeof v === 'object' && (v as { type?: string }).type === 'SEQUENCE'
+          ? { ...(v as object), __eid: e.effectId } : v))));
+    }
+  }
+  return { misses, stamped, upTo };
+}
+
+test('O-352 ラチェット: 正準形（宣言→保存→任意コスト→PAID_ADDITIONAL_COST）は候補0で必ず降りる', () => {
+  const { misses, stamped, upTo } = o352CanonicalMisses();
+  // 🔴0 が正＝`abortIfNoCandidate` の無い正準形が1件でも出たら FAIL（新しい pass を足した回に効く）。
+  eq(misses.join(' '), '', `O-352: 候補0でも支払いを提示する正準形が残っている（払い損）`);
+  // 計器が死んでいないことの確認（走査が空振りしたら 0/0 で緑になってしまう）。
+  ok(stamped >= 200, `O-352: 刻印済みが少なすぎる（走査が壊れた？ stamped=${stamped}）`);
+  ok(upTo >= 5, `O-352: 「N体まで」の除外が効いていない（upToCount=${upTo}）`);
+});
+
+test('O-352 実行: 宣言した1体だけが手札に戻る（WX24-P2-060-E1＝自己犠牲コスト）', () => withSavedCursor(() => {
+  const src = 'WX24-P2-060';
+  const weak = SIGNI_P3000;
+  const strong = SIGNI_P12000;
+  const base = mkCtx({ signi: [src, null, null] }, { signi: [weak, strong, null] }, src);
+  const declare = executeEffect(o96Live(src, 'WX24-P2-060-E1'), base);
+  ok(!declare.done && declare.pending.type === 'SELECT_TARGET', 'O-352: まず対象宣言のUIが開く');
+  if (declare.done || declare.pending.type !== 'SELECT_TARGET') return;
+  eq(declare.pending.candidates.join('|'), weak, 'O-352: 候補はパワー5000以下だけ（12000は出ない）');
+  const asked = resumeSelectTarget([weak], declare.pending, ctxAfter(declare, base));
+  ok(!asked.done && asked.pending.type === 'CHOOSE', 'O-352: 宣言のあとで支払いを問う');
+  if (asked.done || asked.pending.type !== 'CHOOSE') return;
+  const paid = finishPayingCosts(asked, ctxAfter(asked, base));
+  ok(paid.otherState.hand.includes(weak), 'O-352: 宣言した1体が手札へ戻る');
+  ok(!paid.otherState.field.signi.some(s => s?.at(-1) === weak), 'O-352: 宣言した1体は場から居なくなる');
+  ok(paid.otherState.field.signi.some(s => s?.at(-1) === strong), '🔴O-352: 宣言していない12000まで戻せてはいけない');
+  ok(paid.ownerState.trash.includes(src), 'O-352: 支払い（このシグニをトラッシュ）が実際に起きる');
+  eq(paid.ownerState.field.signi.filter(s => s?.at(-1) === src).length, 0, 'O-352: 効果元は場から消える');
+}));
+
+test('O-352 実行: 候補0なら支払いを提示せず降りる（払い損の再発防止・両方向）', () => withSavedCursor(() => {
+  const src = 'WX24-P2-060';
+  const strong = SIGNI_P12000;
+  const base = mkCtx({ signi: [src, null, null] }, { signi: [strong, null, null] }, src);
+  const live = o96Live(src, 'WX24-P2-060-E1');
+  const result = executeEffect(live, base);
+  ok(result.done, 'O-352: 対象が居なければ対話を出さずに解決する');
+  ok(result.ownerState.field.signi.some(s => s?.at(-1) === src), 'O-352: 効果元は場に残る（払わされない）');
+  ok(!result.ownerState.trash.includes(src), 'O-352: トラッシュにも行かない');
+  ok(result.logs.some(l => l.includes('対象を取れない')), 'O-352: 理由がログに出る');
+  // 🔁**反転確認**＝`abortIfNoCandidate` を外すと旧挙動（候補0でも支払いを提示）に戻る。
+  const withoutAbort = JSON.parse(JSON.stringify(live.action).replace(/,"abortIfNoCandidate":true/g, '')) as EffectAction;
+  const old = executeEffect({ ...live, action: withoutAbort }, base);
+  ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 候補0でも「このシグニをトラッシュして発動」を出してしまう');
+}));
+
+test('O-352 実行: 宣言したガード持ちだけを手札に加える（WXDi-P04-033-E1＝トラッシュ対象）', () => withSavedCursor(() => {
+  const src = 'WXDi-P04-033';
+  const guards = [...cardMap.values()].filter(c => c.Guard === '1' && c.Type === 'シグニ').slice(0, 2).map(c => c.CardNum);
+  eq(guards.length, 2, 'O-352: 対照用にガード持ちが2枚ある');
+  const base0 = mkCtx({ signi: [src, null, null] }, {}, src);
+  const base = { ...base0, ownerState: { ...base0.ownerState, trash: [...guards], hand: [] } } as ExecCtx;
+  const declare = executeEffect(o96Live(src, 'WXDi-P04-033-E1'), base);
+  ok(!declare.done && declare.pending.type === 'SELECT_TARGET', 'O-352: まずトラッシュの対象宣言');
+  if (declare.done || declare.pending.type !== 'SELECT_TARGET') return;
+  eq(declare.pending.targetScope, 'self_trash', 'O-352: 宣言先は自分のトラッシュ');
+  eq([...declare.pending.candidates].sort().join('|'), [...guards].sort().join('|'),
+    'O-352: 候補は《ガードアイコン》持ちだけ');
+  const asked = resumeSelectTarget([guards[1]], declare.pending, ctxAfter(declare, base));
+  ok(!asked.done && asked.pending.type === 'CHOOSE', 'O-352: 宣言のあとで支払いを問う');
+  if (asked.done || asked.pending.type !== 'CHOOSE') return;
+  const paid = finishPayingCosts(asked, ctxAfter(asked, base));
+  ok(paid.ownerState.hand.includes(guards[1]), 'O-352: 宣言した1枚が手札へ行く');
+  ok(paid.ownerState.trash.includes(guards[0]), 'O-352: 対照の1枚はトラッシュに残る');
+  ok(!paid.ownerState.hand.includes(guards[0]), 'O-352: 宣言していない札は動かない');
+  ok(paid.ownerState.trash.includes(src), 'O-352: 支払いで効果元がトラッシュへ行く');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-349`＝色限定つきの「アーツとスペルを使用できない」（2026-09-13・明示 defer の解消）
+// ══════════════════════════════════════════════════════════════════════════════
+// 原文2形（live 実測 2効果）：
+//   ①`PR-471-E1`②「次の対戦相手のターンの間、対戦相手は**無色ではない**、アーツとスペルを使用できない」
+//   ②`WXK09-037-E2`【常】「対戦相手は**宣言された色を持たず無色ではない**、アーツとスペルを使用できない」
+// 🔑判定は `isColorQualifiedUseBlocked`（`src/engine/blockAction.ts`）1本＝アーツ／スペルのゲートが共有する。
+// 🔴**素の `USE_ARTS`／`USE_SPELL` へ落とさないこと**が契約（落とすと無色まで封じる過剰実行）。
+test('O-349 判定: 無色だけが使える（無色ではないアーツ／スペルを封じる・両方向）', () => withSavedCursor(() => {
+  const my = mkState({});
+  const blockedArts = new Set(['USE_ARTS_UNLESS_COLORLESS']);
+  const blockedSpell = new Set(['USE_SPELL_UNLESS_COLORLESS']);
+  ok(isArtsUseBlockedFor(my, blockedArts, { Color: '赤' }), '赤のアーツは使えない');
+  ok(!isArtsUseBlockedFor(my, blockedArts, { Color: '無' }), '成立方向: 無色のアーツは使える');
+  ok(!isArtsUseBlockedFor(my, blockedArts, { Color: '' }), '色欄が空のカードも無色として通す');
+  ok(isSpellUseBlockedFor(my, blockedSpell, { Color: '青' }), '青のスペルは使えない');
+  ok(!isSpellUseBlockedFor(my, blockedSpell, { Color: '無' }), '成立方向: 無色のスペルは使える');
+  // 🔁**軸が混ざらない**＝アーツ側の封じでスペルは止まらない（actionId を2本に割る規約の担保）。
+  ok(!isSpellUseBlockedFor(my, blockedArts, { Color: '青' }), 'アーツの封じはスペルに掛からない');
+  ok(!isArtsUseBlockedFor(my, blockedSpell, { Color: '赤' }), 'スペルの封じはアーツに掛からない');
+}));
+
+test('O-349 判定: 宣言色つきは「宣言色 か 無色」だけが使える（未宣言なら無制限）', () => withSavedCursor(() => {
+  const blockedArts = new Set(['USE_ARTS_UNLESS_COLOR_DECLARED']);
+  const blockedSpell = new Set(['USE_SPELL_UNLESS_COLOR_DECLARED']);
+  // 🔴**未宣言＝制限なし**（fail-closed）＝ここを落とすと「相手はアーツもスペルも一切使えない」になる。
+  const undeclared = mkState({});
+  ok(!isArtsUseBlockedFor(undeclared, blockedArts, { Color: '赤' }), '🔴未宣言なら封じない（全面封じにしない）');
+  ok(!isSpellUseBlockedFor(undeclared, blockedSpell, { Color: '赤' }), '🔴未宣言ならスペルも封じない');
+  const declared = { ...mkState({}), declared_color: '白' } as PlayerState;
+  ok(!isArtsUseBlockedFor(declared, blockedArts, { Color: '白' }), '成立方向: 宣言色（白）は使える');
+  ok(!isArtsUseBlockedFor(declared, blockedArts, { Color: '白/黒' }), '多色でも宣言色を含めば使える');
+  ok(!isArtsUseBlockedFor(declared, blockedArts, { Color: '無' }), '成立方向: 無色は使える');
+  ok(isArtsUseBlockedFor(declared, blockedArts, { Color: '黒' }), '宣言色を持たない黒は使えない');
+  ok(isSpellUseBlockedFor(declared, blockedSpell, { Color: '黒' }), 'スペルも同じ判定');
+  // ⚠`card` 省略＝「いま1枚も使えないか」を聞く用途では色限定の封じを見ない（対象カードが無い）。
+  ok(!isArtsUseBlockedFor(declared, blockedArts), 'card 省略時は色限定の封じを見ない');
+}));
+
+test('O-349 配線: WXK09-037 が場にあると相手側の封じ集合へ入る（CONTINUOUS 収集）', () => withSavedCursor(() => {
+  const me = mkState({ signi: ['WXK09-037', null, null] });
+  const op = mkState({});
+  const r = calcContinuousBlockedActions(me, op, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(r.forOther.has('USE_ARTS_UNLESS_COLOR_DECLARED'), '🔴相手のアーツ封じが収集されていない');
+  ok(r.forOther.has('USE_SPELL_UNLESS_COLOR_DECLARED'), '🔴相手のスペル封じが収集されていない');
+  ok(!r.forSelf.has('USE_ARTS_UNLESS_COLOR_DECLARED'), '自分側には掛からない（向きの取り違えなし）');
+  // 反転確認＝場に居なければ何も収集されない。
+  const empty = calcContinuousBlockedActions(mkState({}), op, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(!empty.forOther.has('USE_ARTS_UNLESS_COLOR_DECLARED'), '反転確認: 場に無ければ封じない');
+}));
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

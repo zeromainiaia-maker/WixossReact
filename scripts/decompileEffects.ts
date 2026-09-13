@@ -1961,6 +1961,11 @@ function actionJa(a?: Action, effectType?: string): string {
         USE_ARTS: 'アーツを使用できない',
         ARTS_AND_SPELL: 'アーツとスペルを使用できない',
         USE_ARTS_EXCEPT_OPP_TURN: '対戦相手のターン以外でアーツを使用できない',
+        // 🆕§5.3 `O-349`（2026-09-13）＝色限定つきの使用封じ（原文2形・アーツとスペルで2本に割る規約）。
+        USE_ARTS_UNLESS_COLORLESS: '無色ではないアーツを使用できない',
+        USE_SPELL_UNLESS_COLORLESS: '無色ではないスペルを使用できない',
+        USE_ARTS_UNLESS_COLOR_DECLARED: '宣言された色を持たず無色ではないアーツを使用できない',
+        USE_SPELL_UNLESS_COLOR_DECLARED: '宣言された色を持たず無色ではないスペルを使用できない',
         SIGNI_ACTIVATED_ABILITY: '場にあるシグニの【起】能力を使用できない',
         GUARD_LV_DECLARED: '宣言された数字と同じレベルのシグニで【ガード】ができない',
         GUARD_LV_LAST_DOWNED: 'この方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない',

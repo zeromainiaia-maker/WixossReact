@@ -107,3 +107,66 @@ export function wrapSigniAutoPayGate(effect: CardEffect, costColors: string[]): 
   };
   return { ...effect, action: gate };
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * 色で限定された「アーツとスペルを使用できない」（§5.3 `O-349`・2026-09-13）
+ *
+ * 原文2形（live 実測 2効果＝`npm run census:population` で確認）：
+ *   ①「（次の対戦相手のターンの間、）対戦相手は**無色ではない**、アーツとスペルを使用できない」
+ *     （`PR-471-E1`②）＝**無色だけが使える。**
+ *   ②「対戦相手は**このシグニの【出】能力で宣言された色を持たず無色ではない**、アーツとスペルを
+ *     使用できない」（`WXK09-037-E2`＝【常】）＝**宣言された色 か 無色 なら使える。**
+ *
+ * 🔴**旧は `STUB{DEFERRED_COLOR_QUALIFIED_USE_BLOCK}`＝明示 defer の no-op**だった。
+ *   理由は「`BLOCK_ACTION` は `actionId` しか持たずカードの色で絞れない」ことだったが、
+ *   **既に同じ形の先例が2つある**＝`PLAY_COLORLESS`（無色のスペル封じ）と `BLOCK_NON_WHITE_SPELL`
+ *   （白以外のスペル封じ）は `isSpellUseBlockedFor` が**カードを受け取って**判定している。
+ *   ⇒ 新機構は要らず、**actionId を増やして同じ経路へ載せる**だけで足りる。
+ *
+ * ⚠**②は宣言前なら制限を課さない**（fail-closed）＝`declared_color` は相手（＝使用する側）自身の
+ *   state に入る（`INTERNAL_SET_OPP_DECLARED_COLOR` が `ctx.otherState` へ刻む）。
+ *   同じ読み方の先例＝`collectOppEnergyColorRestriction`（`E3` 側・宣言前は `null`）。
+ * ⚠**①と②を1つの actionId にまとめない**＝まとめると「未宣言のとき①に化けて無色以外を全部封じる」
+ *   （＝原文にない過剰実行）か「①が宣言待ちで効かない」（＝過小）のどちらかになる。
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+/** ①「無色ではない、アーツとスペルを使用できない」＝無色だけが使える。 */
+export const USE_BLOCK_UNLESS_COLORLESS = {
+  arts: 'USE_ARTS_UNLESS_COLORLESS',
+  spell: 'USE_SPELL_UNLESS_COLORLESS',
+} as const;
+/** ②「宣言された色を持たず無色ではない、アーツとスペルを使用できない」＝宣言色 か 無色 なら使える。 */
+export const USE_BLOCK_UNLESS_DECLARED_COLOR = {
+  arts: 'USE_ARTS_UNLESS_COLOR_DECLARED',
+  spell: 'USE_SPELL_UNLESS_COLOR_DECLARED',
+} as const;
+
+/** 無色か（`matchesFilter` の `nonColorless` と**同じ判定**＝データ上の「無」／空／「無色」）。 */
+function isColorlessCard(color: string | undefined): boolean {
+  const col = color ?? '';
+  return col === '' || col === '無' || col === '無色';
+}
+
+/**
+ * 色限定つきの使用封じに該当するか（`true` なら**そのカードは使えない**）。
+ *
+ * @param kind      アーツかスペルか（actionId が別＝原文は「アーツとスペル」で2本に割る規約）
+ * @param user      使用しようとしているプレイヤー（`declared_color` はこちらに入る）
+ * @param isBlocked `blocked_actions`（`:NEXT_TURN` 解除済み）＋ CONTINUOUS 収集ぶんの合併判定
+ * @param card      使おうとしているカード（`Color` だけ見る）
+ */
+export function isColorQualifiedUseBlocked(
+  kind: 'arts' | 'spell',
+  user: PlayerState,
+  isBlocked: (actionId: string) => boolean,
+  card: { Color?: string } | undefined,
+): boolean {
+  const colorless = isColorlessCard(card?.Color);
+  if (isBlocked(USE_BLOCK_UNLESS_COLORLESS[kind]) && !colorless) return true;
+  if (isBlocked(USE_BLOCK_UNLESS_DECLARED_COLOR[kind])) {
+    const declared = user.declared_color;
+    // ⚠未宣言＝制限なし（fail-closed）。宣言済みなら「宣言色を持つ」か「無色」だけが通る。
+    if (declared && !colorless && !(card?.Color ?? '').includes(declared)) return true;
+  }
+  return false;
+}

@@ -5444,6 +5444,11 @@ const BLOCK_ACTION_LABELS: Record<string, string> = {
   ARTS: 'アーツ使用封じ',
   USE_ARTS: 'アーツ使用封じ',
   ARTS_AND_SPELL: 'アーツ・スペル使用封じ',
+  // 🆕§5.3 `O-349`（2026-09-13）＝色限定つきの使用封じ（ログ表示だけ。判定は `isColorQualifiedUseBlocked`）。
+  USE_ARTS_UNLESS_COLORLESS: '無色以外のアーツ使用封じ',
+  USE_SPELL_UNLESS_COLORLESS: '無色以外のスペル使用封じ',
+  USE_ARTS_UNLESS_COLOR_DECLARED: '宣言色・無色以外のアーツ使用封じ',
+  USE_SPELL_UNLESS_COLOR_DECLARED: '宣言色・無色以外のスペル使用封じ',
   ARTS_LIMIT_1: 'アーツ使用1回制限',
   GROW: 'グロウ封じ',
   SELF_SIGNI_TRASH: '自シグニトラッシュ封じ',

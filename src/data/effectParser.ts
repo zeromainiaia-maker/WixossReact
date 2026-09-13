@@ -14933,6 +14933,54 @@ function syncO96SelectTargetOwner(action: EffectAction): void {
   walk(action);
 }
 
+/**
+ * 🆕🔴**§5.3 `O-352`（2026-09-13）＝正準形「対象宣言 → 保存 → 任意コスト → `PAID_ADDITIONAL_COST` ゲート」に
+ * `abortIfNoCandidate` を必ず刻む**（原文「〈対象〉を対象とし、〈コスト〉てもよい。そうした場合、〜」）。
+ *
+ * 🔴**`O-129` の規約（対象を取れないならコストを払わせない）は「正準形を組み立てた pass ごと」に
+ *   守られていた**＝`applyO96OptionalCostTargetFirst` は刻むのに、`applyLegacyTradeStubCost`（B9）／
+ *   `applyTargetLevelScaling`／`applyTotalLevelSelectionWiring` は刻んでおらず、**実測 49効果**が
+ *   「相手に対象が1体も居なくてもコストを払えて、払っても何も起きない」形（＝払い損）で live に居た。
+ *   実測例＝`WX06-CB01-E1` は相手にパワー3000以下が居なくても
+ *   `pay:このシグニをトラッシュして発動` が `available:true` で出て、払うと自分のシグニだけが消えた。
+ * ⇒ **組み立て地点ごとに足すのをやめ、正準形そのものへ後段で1回刻む**（新しい pass が増えても自動で守られる）。
+ * ⚠**「N体まで」（`upToCount`）には刻まない**＝原文が 0 体を選べるので、候補が居なくても支払いは選べる
+ *   （先例＝`WXDi-P08-053` の「１体まで」／`WX13-056-E1` の「２体まで」）。
+ * ⚠**4段が隣接しているときだけ**＝ゲートが `PAID_ADDITIONAL_COST` の形（＝engine の任意コスト
+ *   look-ahead に載っている形）に限る。`IS_MY_TURN` ゲートの形は「そうした場合」の慣例エンコードで
+ *   支払いの有無を見ていないので触らない（fail-closed）。
+ * 🔑ラチェットは golden（`O-352`）＝この形で `abortIfNoCandidate` が欠けた効果が出たら FAIL。
+ */
+function stampAbortOnCanonicalOptionalCost(action: EffectAction): EffectAction {
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'SEQUENCE' && Array.isArray(obj.steps)) {
+      const steps = obj.steps as Record<string, unknown>[];
+      for (let i = 0; i + 3 < steps.length; i++) {
+        const sel = steps[i];
+        if (sel?.type !== 'STUB' || sel.id !== 'SELECT_TARGET_ONLY' || sel.abortIfNoCandidate) continue;
+        if (steps[i + 1]?.id !== 'STORE_LAST_PROCESSED_TARGETS') continue;
+        // コスト段は素の STUB か、ゲート条件で包まれた STUB（`CONDITIONAL{cond, then: STUB}`）。
+        const costNode = steps[i + 2];
+        const costCore = costNode?.type === 'CONDITIONAL' && !costNode.else
+          ? costNode.then as Record<string, unknown> | undefined : costNode;
+        if (costCore?.type !== 'STUB') continue;
+        const gate = steps[i + 3];
+        if (gate?.type !== 'CONDITIONAL') continue;
+        if ((gate.condition as { type?: string } | undefined)?.type !== 'PAID_ADDITIONAL_COST') continue;
+        const selTarget = sel.selectTarget as Record<string, unknown> | undefined;
+        if (!selTarget || selTarget.upToCount) continue;
+        sel.abortIfNoCandidate = true;
+      }
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  walk(action);
+  return action;
+}
+
 function parseActionText(text: string): EffectAction {
   return foldKawariSubstitution(text,
     foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text))));
@@ -16289,6 +16337,8 @@ function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAct
   const wrappedCost = legacy[0].wrapper
     ? { ...legacy[0].wrapper, then: costStep } as EffectAction
     : costStep;
+  // ⚠**`abortIfNoCandidate` はここでは刻まない**＝正準形への刻印は後段の
+  //   `stampAbortOnCanonicalOptionalCost`（§5.3 `O-352`）が**組み立て地点に関係なく1回で**行う。
   return {
     ...action,
     steps: [
@@ -30785,6 +30835,12 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch245(effects);
   repairSemanticBatch246(effects);
   repairSemanticBatch247(effects);
+  // 🆕🔴**§5.3 `O-352`（2026-09-13）＝正準形への `abortIfNoCandidate` 刻印は「全 pass のいちばん最後」**
+  //   （説明は `stampAbortOnCanonicalOptionalCost` 側）。
+  // 🔑**ここでなければ届かない**＝`repairSemanticBatch*` の個別修理が「そうした場合」ゲートを
+  //   `PAID_ADDITIONAL_COST` へ差し替えて**正準形をここで初めて完成させる**効果がある
+  //   （実測＝`WXDi-P16-049-E1` の②枝＝`repairSemanticBatch246`）。効果単位ループ内で刻むと間に合わない。
+  for (const effect of effects) effect.action = stampAbortOnCanonicalOptionalCost(effect.action);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }
