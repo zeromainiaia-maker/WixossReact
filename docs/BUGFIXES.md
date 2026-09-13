@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁§5.3 `O-348` クローズ＝逆翻訳が描き落としていた payload キー 19種 → 0（第311バッチ）
+
+- **真因**＝`scripts/decompileEffects.ts` の STUB ラベルが **`miscStubMap` / `docs/STUBS.md` の固定文**で、
+  **engine が実際に読む payload の値を1つも見ていなかった**。⇒ **JSON も engine も正しいのに逆翻訳だけが嘘をつく**＝
+  このプロジェクトの主軸の検査（原文 × 逆翻訳の目視照合）が**そのカードだけ効かない**。
+  ⚠`census:stubs` の C/E/F群は「生の英語 ID が出ていないか」しか見ないので、**綺麗な日本語の固定文は3群とも素通りする**。
+- **影響枚数**＝**19効果 / 19カード**（残っていたキーは全件「1キー＝1ノード」）。うち**ラベルが engine と食い違っていた3件**：
+  1. `MOVE_TO_OTHER_SIGNI_ZONE`（`WXK03-042-E1`）＝ラベル「すでにシグニがあるゾーンには配置できない」が
+     `moveSelfZone.allowSwap`（原文の入れ替え条項）と**逆**。
+  2. `STRIP_ATTACHED_AND_UNDER`（`WXDi-P07-041-E2`）＝`stripSelf` を見ず「**それに**付いている」固定＝
+     原文「**このシグニに**付いているすべてのカード」が**対象シグニを剥がす**ように読めていた。
+  3. `LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`（`WXEX2-84-E1`）＝`skipArtsReturn`（アーツに触らない）でも
+     「対象のアーツをルリグデッキに加える」と書き、**同じ処理が2回**あるように読めていた。
+  さらに `REPEAT_BODY_WHILE`（`WXDi-CP01-033-E1`）は**本体が丸ごと逆翻訳から消えていた**、
+  `OPP_SIGNI_LEAVE_TO_TRASH`（2カード）は**`〈期間〉`・`〈フィルタ〉` のプレースホルダがそのまま live のシートに出ていた**。
+- **直し方**＝①固定文を payload から組む（7 id）②専用分岐を新設（8 id）③`OPTIONAL_COST` に3キー
+  ④`refreshLifeMoveReplace` だけ `IGNORED` へ理由つき登録（STUB id と完全に冗長）。
+  🔑`selfEnergyToDeckBottom` は**原文エコー（`costText`）より payload を優先**するよう順序を入れ替えた（`O-356` と同じ型の死角）。
+- **検証コマンド**＝`npm run census:payloadkeys`（**19 → 0種 / 0ノード**・`BASELINE` 19→0）→ `npm run regen` → `npm run gates`（全緑・golden 4068 PASS）。
+  副産物として `npm run census:numberdrift` が **67 → 65**（ラベルに数値が出たぶん＝`BASELINE` も 65 へ下げた）。
+- **反転確認**＝実施（`BASELINE` を 19 のままにするとゲートが「基準を下回った」で exit 1＝ラチェットが生きていることを確認）。
+- **実機**＝**不要**（§2.2＝変更は `scripts/decompileEffects.ts` と計器2本のみで `src/` 非変更）。
+
 ## 2026-09-13 — §5.1 `V-214` 返済＝実機で【歌のカケラ】と【マジックボックス】を確認／実機が出した実バグ1件を修正（第310バッチ）
 
 - **観測した2点**（第309で engine の対話を変えた箇所）

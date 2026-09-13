@@ -7732,6 +7732,17 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-13・第306バッチ後・PLAN §6 から退避）
+
+- **2026-09-13 時点（本ブロックが直近の正）**＝第306バッチ（`O-356` 着手＝原文エコー計器の新設と払い戻し①）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  ⚠**3本とも動かないのは正常**＝**逆翻訳の払い戻しはどの進捗計器にも映らない**。
+  📦**在庫**＝**機構 worklist 🔥13項目**（`O-348` 索引A／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4066 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1。
+  🆕**計器を1本追加**＝`npm run census:srcecho`（原文エコー・A群 id 数のラチェット・`gates` 同梱）。
+  🆕**払い戻し**＝`census:srcecho` **56 → 46 id**（live 308 → 237ノード）／`census:payloadkeys` **21 → 19種**。
+  🆕**較正**＝`census:enginetext` **BASELINE_SELF_TEXT 0 → 1**（engine のコードは1行も増えていない＝可視化）。
+
 ### 恒久指標アーカイブ（2026-09-11・第281バッチ後・PLAN §6 から退避）
 
 - **2026-09-11（第281バッチ・Opus 5 単独＝🏁`O-325`・🏁`O-291`・🏁`O-290` クローズ・本ブロックが直近の正）**
@@ -14607,7 +14618,9 @@ pickCount:1, then:'hand'}]}, STUB{ATTACH_SEARCHED_AS_ACCE}]`。
 2か月古いファイルの数字で3〜10倍に膨らんでいた／「(a)〜(f) は消化済み」が実際は (a)〜(g) 全消化だった）。
 ⇒ **取る順は §5.3 索引の並び（母集団順）で表す。優先度を節の名前で表さない。**
 
-### 🆕`O-348` — 逆翻訳が描き落としている payload キー（索引 A・母集団2桁）
+### 🏁`O-348` — 逆翻訳が描き落としている payload キー（索引 A・母集団2桁）｜**2026-09-13 クローズ**
+
+🏁**2026-09-13（第311バッチ）＝19種 / 19ノード → 0**（`BASELINE` 21 → 19 → **0**）。閉じ方と実バグは下の「■ クローズ記録」節へ。
 
 **規模 M。母集団＝実測 56種 / 145ノード**（`npm run census:payloadkeys`・1キーは `--key <キー名>`）。
 🔑**2つに分けて測った**（この分割が取り方を決める）：
@@ -14626,6 +14639,43 @@ pickCount:1, then:'hand'}]}, STUB{ATTACH_SEARCHED_AS_ACCE}]`。
 実装の都合なら **`IGNORED` に理由つきで登録**（🔴**理由を書かずに足さない**＝計器が死ぬ）。
 ⚠**0 を目標にしない**（`IGNORED` 側は件数に出ない）。**ラチェットは `gates` 同梱＝未判定キーが増えたら exit 1。**
 **実績**＝`MILL` の枚数キー6つ（8カード9箇所が「0枚」「999枚」）と `ATTACH_ACCE.targetSigniOwner`（`'あなたの場の'` の焼き込み）はここから出た。
+
+#### ■ クローズ記録（2026-09-13・第311バッチ）
+
+**母集団**＝最後まで残ったのは**全件が「1キー＝1ノード」**の19種（型つき22種/58ノードと `[STUB]` 側の2桁13キー/66ノードは第303〜305で消化済み）。
+🔑**1ノードでも取る価値がある**＝この計器が測っているのは「件数」ではなく「**そのカードの原文照合が効かない**」ことだから。
+
+**3通りで閉じた（`src/` は1行も触っていない＝`scripts/decompileEffects.ts` だけ）**
+
+| 閉じ方 | 件数 | キー |
+|---|---|---|
+| ①**`miscStubMap` の固定文を payload から組む** | 7 | `lrigAttackLimit` / `revealReduceLrigLimit` / `stripSelf` / `sideAttackEmptyZoneAsFront` / `loseAbilityAfterUse` / `swapOptional` / `oppActivateCostUntilOppTurnEnd` |
+| ②**専用分岐を新設**（`miscStubMap` フォールバックの直前） | 8 | `fetchCardName` / `leaveToTrashWindow` / `moveSelfZone` / `powerPlusBanishedPower` / `repeatBodyWhile` / `skipArtsReturn` / `trashedCardUpTo` / `variableEnergyTrashLevelBounce` |
+| ③**`OPTIONAL_COST` の枝を追加** | 3 | `handDiscardGroups` / `selfEnergyToDeckBottom` / `triggeringSigniTrash` |
+| ④**`IGNORED` に理由つきで登録** | 1 | `refreshLifeMoveReplace`（STUB id と完全に冗長＝`refresh.ts` は `action.id` だけを見る） |
+
+**🐛 ラベルが engine と食い違っていた3件**（engine は正しい＝**逆翻訳だけの嘘**＝この計器でしか映らない型）
+1. `MOVE_TO_OTHER_SIGNI_ZONE`＝ラベルが「（すでにシグニがあるゾーンには配置できない）」の固定文で、
+   `moveSelfZone.allowSwap` を立てた `WXK03-042-E1`（原文に入れ替え条項がある）と**逆のことを書いていた**。
+2. `STRIP_ATTACHED_AND_UNDER`＝`stripSelf` を見ず「**それに**付いている」固定＝原文「**このシグニに**付いているすべてのカード」
+   （`WXDi-P07-041-E2`）が**対象シグニを剥がす**ように読め、原文照合がそこだけ効かなかった。
+3. `LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`＝`skipArtsReturn`（＝アーツに**触らない**。枚数を切った後続ノードが処理する）でも
+   「対象のアーツをルリグデッキに加える」と書いており、**同じ処理が2回**あるように読めた（`WXEX2-84-E1`）。
+
+**🔑 最大の払い戻し＝`REPEAT_BODY_WHILE`**＝本体（`repeatBodyWhile.body`）が丸ごと落ちており、
+`WXDi-CP01-033-E1` は「デッキの一番下をトラッシュ」も「＜バーチャル＞のシグニなら＋5000」も**1文字も出ていなかった**
+（ラベルは「条件を満たすかぎり、この効果の本体をもう一度実行して再判定する」だけ）。いまは `actionJa` で入れ子を描く。
+⚠**入れ子の再帰点 `REPEAT_BODY_SELF` は `miscStubMap` に日本語を置いた**（STUBS.md の実装メモには内部識別子が入っている）。
+
+**🔑 プレースホルダがそのまま live のシートに出ていた**＝`OPP_SIGNI_LEAVE_TO_TRASH` のラベルは
+`[STUB:「〈期間〉、〈フィルタ〉対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる」。]`（2カード）。
+⚠**payload の無い形は【常】の宣言**（`WXDi-P04-037-E1`）で、期間は `activeCondition` が持つ＝**ラベルに期間を書かない**。
+
+**🔑 原文エコー（`costText`）より payload を優先した**（`selfEnergyToDeckBottom`）＝
+`costText` は原文をそのまま持っているので逆翻訳がいつも正しく見え、**engine が読む payload が壊れても原文照合で気づけない**（`O-356` と同じ型）。
+
+**副産物**＝`census:numberdrift` **67 → 65**（ラベルに数値が出たぶん。`O-354` と同じ形＝**ラベル整備は数値ドリフトの払い戻しでもある**）。
+**検証**＝`npm run regen` → `npm run gates` 全緑（golden 4068 PASS）。**`src/` 非変更のため §2.2 により実機不要。**
 
 ### `O-349` — 明示 defer（**宣言済みの no-op**＝機構が無いことを宣言してある）｜**残 1効果**
 

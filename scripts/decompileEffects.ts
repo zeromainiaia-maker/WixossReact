@@ -4078,6 +4078,14 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${a.selectTarget ? targetJa(a.selectTarget) : '対象'}を対象とする`;
       }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+        // 🆕§5.3 `O-348`（2026-09-13）＝**原文エコー（`costText`）より payload を優先する**。
+        //   🔴`costText` は原文をそのまま持っているので逆翻訳がいつも正しく見える＝
+        //   engine が実際に読む payload が壊れても原文照合で気づけない（`O-356` と同じ型）。
+        if (a.selfEnergyToDeckBottom) {
+          // ⚠成立条件は `selfToEnergy`／`selfTrash` と**逆**（場ではなくエナゾーンに居ること）。
+          const costJaSEB = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
+          return `${costJaSEB ? `${costJaSEB}を支払い、` : ''}エナゾーンにあるこのシグニをデッキの一番下に置いてもよい`;
+        }
         // costText（エナ色以外の任意コスト句）が明示されていれば原文どおり描画（A3）
         if (a.costText) return a.costText;
         // 🆕§5.3 `O-59`（2026-09-02）＝排他的な支払い枝（`additionalCostChoices`）を描く。
@@ -4245,6 +4253,23 @@ function actionJa(a?: Action, effectType?: string): string {
           const countHD = a.handDiscard.count === 'ALL' ? '好きな枚数' : `${a.handDiscard.count}枚`;
           const bodyHD = `手札から${constraintJa(a.handDiscard.selectionConstraint)}${fHD}${nounHD}を${countHD}捨て`;
           return `${headOC}${costJaOC ? `${costJaOC}を支払い` : ''}${bodyHD}てもよい`;
+        }
+        // 🆕§5.3 `O-348`（2026-09-13）＝**複数グループの手札コスト**（`handDiscardGroups`）。
+        //   🔴描かないと「コストを支払ってもよい」に潰れ、原文の「手札からカード２枚と《ガードアイコン》を
+        //   持つシグニ１枚を捨てる」が1文字も出ない（`WXDi-D09-P15-E1`②）。
+        if (Array.isArray(a.handDiscardGroups) && a.handDiscardGroups.length > 0) {
+          const groupsHDG = (a.handDiscardGroups as Array<{ count: number; filter?: Record<string, unknown> }>)
+            .map(g => {
+              const nounHDG = ([] as string[]).concat((g.filter?.cardType as string) ?? 'カード').join('か');
+              return `${g.filter ? filterJa(g.filter) : ''}${nounHDG}${g.count}枚`;
+            }).join('と');
+          return `${headOC}${costJaOC ? `${costJaOC}を支払い、` : ''}手札から${groupsHDG}を捨ててもよい`;
+        }
+        // 🆕§5.3 `O-348`（2026-09-13）＝**トリガーしたシグニを場からトラッシュに置く**任意コスト。
+        //   🔴描かないと「《黒》を支払ってもよい」だけになり、**シグニ1体を失う対価**が逆翻訳から消える
+        //   （`WD22-007-G-E1`＝原文「《黒》を支払い、そのシグニを場からトラッシュに置いてもよい」）。
+        if (a.triggeringSigniTrash) {
+          return `${headOC}${costJaOC ? `${costJaOC}を支払い、` : ''}そのシグニを場からトラッシュに置いてもよい`;
         }
         return `${headOC}${costJaOC || 'コスト'}を支払ってもよい`;
       }
@@ -4548,7 +4573,11 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_DEFEAT: 'このターン、あなたはゲームに敗北しない',
         PREVENT_DEFEAT_THIS_TURN: 'このターン、あなたはゲームに敗北しない',
         PREVENT_DEFEAT_UNTIL_NEXT_TURN: '次の対戦相手のターン終了時まで、あなたはゲームに敗北しない',
-        PREVENT_LRIG_DAMAGE: 'あなたは対戦相手のルリグによってダメージを受けない',
+        // 🆕§5.3 `O-348`（2026-09-13）＝「使ったらこの能力を失う」は payload（`loseAbilityAfterUse`）が持つ。
+        //   🔴固定文だと**そのターンは1度しか効かない**こと（`lrigDamageShield.ts` が使用済みを落とす）が
+        //   逆翻訳から消え、恒久の無敵に読めていた（`WXK01-002-E1`）。
+        PREVENT_LRIG_DAMAGE: 'あなたは対戦相手のルリグによってダメージを受けない'
+          + (a.loseAbilityAfterUse ? '。そうした場合、ターン終了時まで、この能力を失う' : ''),
         PREVENT_LRIG_DAMAGE_THIS_TURN: 'このターン、あなたは対戦相手のルリグによってダメージを受けない',
         PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN: '次のターンの間、あなたは対戦相手のルリグによってダメージを受けない',
         // ⚠レベル上限は宣言の `value` に載っている（続き492）＝固定文にすると限定の脱落を見逃す。
@@ -5525,8 +5554,11 @@ function actionJa(a?: Action, effectType?: string): string {
         //   ⚠engine の catch-all（カード全文 regex）を撤去したので、**名前のある穴**として宣言する。
         DEFERRED_DECK_REVEAL_UNTIL_UNPARSED: '【未実装】デッキの上から条件を満たすカードがめくれるまで公開する',
         // 🆕§5.3 `O-229`（2026-09-04）＝デッキの一番上とエナゾーンにある効果元自身の入れ替え。
-        SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
-          'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
+        // 🆕§5.3 `O-348`（2026-09-13）＝任意（「してもよい」）かどうかは payload（`swapOptional`）が持つ。
+        //   engine はこのフラグのときだけ選択肢を出し、無ければ**強制で入れ替える**。
+        SWAP_DECK_TOP_WITH_SELF_IN_ENERGY: a.swapOptional
+          ? 'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい'
+          : 'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替える',
         // 🆕§5.3 `O-230`（2026-09-03・`O-60` 第58バッチで分離）＝【ガード】の代替コストとしての「コラボする」。
         //   🔴機構待ち＝`WXDi-CP01-005-E1` 1件。旧実装は `STUB{COLLAB}` の「コラボしてもよい」枝に落ちて
         //     **原文と無関係にアシストルリグを場へ出す対話**が開いていた。
@@ -5553,12 +5585,23 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕§5.3 `O-236`（2026-09-04・`O-60` 第64バッチで分離）＝ルリグへの引用能力付与のうち
         //   「ダウン状態でもアタックできる」「1ターンのアタック上限」の機構が3本とも無い（`WXDi-D04-011-E1`）。
         // 🏁§5.3 `O-236`（2026-09-04 実装済み）＝ルリグのアタック上限とダウン中アタック。
-        LRIG_ATTACK_LIMIT:
-          'このターン、あなたのルリグはダウン状態でもアタックでき、1ターンにアタックできる上限が指定回数になる',
+        // 🆕§5.3 `O-348`（2026-09-13）＝上限値と「ダウン状態でも」は payload（`lrigAttackLimit`）が持つ。
+        //   🔴固定文だと**上限が何回になるのか**が逆翻訳から消える（engine は limit で置き換える）。
+        LRIG_ATTACK_LIMIT: a.lrigAttackLimit
+          ? `このターン、あなたのルリグは${a.lrigAttackLimit.whileDown ? 'ダウン状態でもアタックでき、' : ''}1ターンにアタックできる上限が${a.lrigAttackLimit.limit}になる`
+          : 'このターン、あなたのルリグが1ターンにアタックできる上限が変わる（※ペイロード欠落＝engine は何もしない）',
         REDUCE_LRIG_ATTACK_LIMIT:
           'このターン、あなたのルリグがアタックできる上限を減らす',
+        // 🆕§5.3 `O-348`（2026-09-13）＝レベル→減少量の対応表は payload（`revealReduceLrigLimit`）が持つ。
+        //   🔴「レベルに応じて」だけだと**どのレベルで何回減るのか**が逆翻訳から消える。
+        //   ⚠表に無いレベルは engine が**何も減らさない**ので、その旨も併記する。
         REVEAL_DECK_TOP_AND_REDUCE_LRIG_ATTACK_LIMIT:
-          'あなたのデッキをシャッフルし一番上を公開する。そのカードのレベルに応じて、このターン、あなたのルリグがアタックできる上限を減らす',
+          'あなたのデッキをシャッフルし一番上を公開する。'
+          + (Array.isArray(a.revealReduceLrigLimit) && a.revealReduceLrigLimit.length > 0
+            ? a.revealReduceLrigLimit
+                .map((r: any) => `そのカードがレベル${r.level}のシグニの場合、このターン、あなたのルリグがアタックできる上限を${r.reduce}減らす`)
+                .join('。') + '（それ以外のレベルなら減らさない）'
+            : 'そのカードのレベルに応じて、このターン、あなたのルリグがアタックできる上限を減らす（※ペイロード欠落）'),
         // 🆕§5.3 `O-60` 第64バッチ（2026-09-04）＝旧 `GRANT_QUOTED_ABILITY` の `『【常】：…』` 枝。
         //   engine が効果元の原文を読み直す catch-all だったので、機構が無い側は明示 defer にした。
         DEFERRED_GRANT_QUOTED_ABILITY_BLOCK:
@@ -5711,8 +5754,14 @@ function actionJa(a?: Action, effectType?: string): string {
         //   「このアーツの効果を一度繰り返す」1件だけで、§6.4 O-29 の機構待ち＝**未実装**であることを表示する。
         REPEAT_N_TIMES: '【未実装】この効果を繰り返す（反復の正準形は REPEAT。§6.4 O-29 待ち）',
         REPEAT_EFFECT: '【未実装】この効果を繰り返す（反復の正準形は REPEAT。§6.4 O-29 待ち）',
+        // 🆕§5.3 `O-348`（2026-09-13）＝繰り返しの再帰点。下の `REPEAT_BODY_WHILE` が本体を描くと
+        //   ここが入れ子で出るので、STUBS.md の実装メモ（内部識別子入り）ではなく原文の語彙を置く。
+        REPEAT_BODY_SELF: 'この効果を繰り返す',
         // §6.4 O-34（続き500）＝明示 defer 5件を解体して実装した機構。生 id を漏らさない。
-        STRIP_ATTACHED_AND_UNDER: 'それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く',
+        // 🆕§5.3 `O-348`（2026-09-13）＝剥がす相手は payload（`stripSelf`）が持つ。
+        //   🔴固定文「それに」だと**効果元自身を剥がす形**（`WXDi-P07-041-E2`「このシグニに付いている
+        //   すべてのカード」）が**対象シグニを剥がす**ように読め、原文照合がそこだけ効かなかった。
+        STRIP_ATTACHED_AND_UNDER: `${a.stripSelf ? 'このシグニ' : 'それ'}に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く`,
         USE_SEARCHED_SPELL_OR_TRASH: 'それをコストを支払わずに使用するかトラッシュに置く',
         DECK_SIGNI_LEVEL_OVERRIDE_ALL: 'このターン、あなたのデッキにあるシグニのレベルは指定値になる',
         DECLARED_ICON_HAND_DISCARD_BANISH: '対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手がアイコンを１つ宣言し、あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする',
@@ -5810,7 +5859,9 @@ function actionJa(a?: Action, effectType?: string): string {
         //   **主語を含めない共通の言い回し**にする。
         SUPPRESS_LIFE_BURST_ON_CRASH: 'この方法でクラッシュされたカードのライフバーストは発動しない',
         SUPPRESS_LIFE_BURST_ON_CARD: 'そのカードのライフバーストは発動しない',
-        ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 'このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える',
+        // 🆕§5.3 `O-348`（2026-09-13）＝クラス限定は payload（`sideAttackEmptyZoneAsFront.cardClass`）が持つ。
+        //   🔴旧は「＜英知＞」を焼き込んでおり、engine が payload から読むクラスとズレても逆翻訳が緑だった。
+        ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: `このターン、あなたの${a.sideAttackEmptyZoneAsFront?.cardClass ? `＜${a.sideAttackEmptyZoneAsFront.cardClass}＞の` : ''}シグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える`,
         MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC: 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る',
         // §6.4 O-12（続き545）＝**ハンドラを持たない宣言型**（消費は engine の別経路）。
         // `genStubsMd.mjs` はハンドラ直前コメントしか拾えないので、この 9 種はここに日本語を置く。
@@ -6166,7 +6217,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return '次の対戦相手のターン終了時まで、対戦相手のシグニの【自】能力は発動しない';
       }
       if (a.id === 'LRIG_GAIN_OPP_ACTIVATE_COST_UP' && a.oppActivateCostPlus) {
-        return `次の対戦相手のターン終了時まで、対戦相手のカードの【起】能力の使用コストは《無×${a.oppActivateCostPlus}》増える`;
+        // 🆕§5.3 `O-348`（2026-09-13）＝期間は payload（`oppActivateCostUntilOppTurnEnd`）が持つ。
+        //   🔴「次の対戦相手のターン終了時まで」を焼き込んでいたので、フラグの無い形（engine は期限の無い
+        //   `lrig_opp_act_cost_plus` へ積む＝解除されない）と逆翻訳が**同じ文**になっていた。
+        const spanOAC = a.oppActivateCostUntilOppTurnEnd ? '次の対戦相手のターン終了時まで、' : '';
+        return `${spanOAC}対戦相手のカードの【起】能力の使用コストは《無×${a.oppActivateCostPlus}》増える`;
       }
       if (a.id === 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN' && a.powerPerUnit) {
         const pu = a.powerPerUnit;
@@ -6196,6 +6251,59 @@ function actionJa(a?: Action, effectType?: string): string {
         return '対戦相手の、シグニ1体とエナゾーンにあるカード1枚とトラッシュにあるカード1枚を対象とし、'
           + `あなたのエナゾーンから${cz.colors.join('と')}の＜${cz.story}＞のシグニを1枚ずつデッキに加えてシャッフルする。`
           + 'そうした場合、それらをシャッフルしてデッキの一番下に置く';
+      }
+      // ── 🆕§5.3 `O-348`（2026-09-13）＝**payload を持つ STUB は payload から描く** ──
+      // 🔑`miscStubMap` / `STUBS.md` の固定文は payload の値を1文字も見ないので、
+      //   **JSON も engine も正しいのに逆翻訳だけが嘘をつく**（`census:payloadkeys` が測っている型）。
+      if (a.id === 'SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME') {
+        // 🔴`fetchCardName` は**別名カード**の名指し（`PR-470A` →《進化する筋肉　紗倉ひびき》）＝
+        //   「指定されたカード」と書くと**どのカードを出すのか**が原文照合で確かめられない。
+        return `このシグニをルリグデッキに戻し、あなたのルリグデッキから${a.fetchCardName ? `《${a.fetchCardName}》` : 'これと同じ名前のカード'}を場に出す`;
+      }
+      if (a.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+        // 🔴旧は STUBS.md の実装メモ（`〈期間〉`・`〈フィルタ〉` のプレースホルダ入り）がそのまま出ていた。
+        //   ⚠payload の無い形は**【常】の宣言**（`WXDi-P04-037-E1`）＝期間は `activeCondition` が持つので
+        //     ここでは書かない。engine は `effectEngine` の funnel が「場を離れる」全体を担う。
+        const winLTT = a.leaveToTrashWindow;
+        if (!winLTT) return '対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる';
+        return `${winLTT.turns}ターンの間、${winLTT.requiresNoAbilities ? '能力を持たない' : ''}対戦相手のシグニが場を離れる場合、代わりにトラッシュに置かれる`;
+      }
+      if (a.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
+        // 🔴旧ラベルは「（すでにシグニがあるゾーンには配置できない）」の固定文で、
+        //   `moveSelfZone.allowSwap`（原文に入れ替え条項がある `WXK03-042-E1`）と**逆のことを書いていた**。
+        return a.moveSelfZone?.allowSwap
+          ? 'このシグニをあなたの他のシグニゾーン1つに配置してもよい。そのシグニゾーンにシグニがある場合、そこに配置する代わりにこのシグニとそのシグニの場所を入れ替える'
+          : 'このシグニをシグニのない他のシグニゾーン1つに配置してもよい';
+      }
+      if (a.id === 'POWER_PLUS_BANISHED_POWER' && a.powerPlusBanishedPower) {
+        // 🔴旧ラベルは「対象の」だけで、**誰のどの色のシグニか**（target）も**期間**（duration）も落ちていた。
+        const ppb = a.powerPlusBanishedPower;
+        const spanPPB = ppb.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+          : ppb.duration === 'THIS_TURN' ? 'ターン終了時まで、' : '';
+        return `${targetJa(ppb.target)}を対象とし、${spanPPB}それのパワーをそのバニッシュしたシグニのパワーと同じだけ＋する`;
+      }
+      if (a.id === 'REPEAT_BODY_WHILE') {
+        // 🔴旧ラベルは「条件を満たすかぎり、この効果の本体をもう一度実行して再判定する」で、
+        //   **本体（`repeatBodyWhile.body`）が丸ごと逆翻訳から消えていた**（`WXDi-CP01-033-E1` は
+        //   「デッキの一番下をトラッシュ」も「＜バーチャル＞なら＋5000」も1文字も出ていなかった）。
+        return a.repeatBodyWhile?.body ? actionJa(a.repeatBodyWhile.body) : '【未実装】繰り返す本体が指定されていない';
+      }
+      if (a.id === 'LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS') {
+        // 🔴`skipArtsReturn` はアーツに**触らない**ことを意味する（枚数を切った後続ノードが処理する）＝
+        //   固定文のまま「対象のアーツをルリグデッキに加える」と書くと**同じ処理が2回**あるように読める。
+        return a.skipArtsReturn
+          ? 'あなたのルリグトラッシュからすべてのルリグをこのカードの下に置く'
+          : 'あなたのルリグトラッシュからすべてのルリグをこのカードの下に置き、すべてのアーツをルリグデッキに加える';
+      }
+      if (a.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
+        // 🔴`trashedCardUpTo` は原文の「カードを１枚**まで**」＝**0枚を選べる**（engine が「何もしない」枝を出す）。
+        return `その効果によってあなたのトラッシュに置かれたカードを${a.trashedCardUpTo ? '1枚まで' : '1枚'}対象とし、それを手札に加えるかエナゾーンに置く`;
+      }
+      if (a.id === 'VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE' && a.variableEnergyTrashLevelBounce) {
+        // 🔴旧ラベルは「エナゾーンからN枚まで」＝**枚数もクラス限定も逆翻訳に出ていなかった**。
+        const vtb = a.variableEnergyTrashLevelBounce;
+        return `あなたのエナゾーンから${vtb.story ? `＜${vtb.story}＞の` : ''}カードを${vtb.maxCount ?? '?'}枚までトラッシュに置く。`
+          + 'この方法でトラッシュに置いたカードの枚数と同じレベルの対戦相手のシグニ1体を対象とし、それを手札に戻す';
       }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）

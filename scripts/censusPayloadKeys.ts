@@ -41,6 +41,10 @@ const IGNORED = new Map<string, string>([
   ['placesToField', 'parser内部の配置アンカー（後続の【出】抑止を suppressOnPlay へ畳むため）＝live実行時は参照されず、「場に出す」と抑止は別payloadが描くので固有の対応語が無い'],
   // 型の識別子そのもの。
   ['type', '型の識別子'], ['id', '型の識別子'],
+  // 🆕§5.3 `O-348`（2026-09-13）＝STUB id と**完全に冗長**なマーカー。`refresh.ts` は
+  //   `action.id === 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY'` だけを見ており、このキーは読まれない。
+  //   ⇒ 落としても原文の語は1つも説明できなくならない（id 側のラベルが全文を描いている）。
+  ['refreshLifeMoveReplace', 'STUB id と冗長なマーカー（engine は id だけを見る）＝落としても原文の語が失われない'],
 ]);
 
 // ── live JSON から payload キーを全数収集 ──
@@ -110,7 +114,7 @@ console.log(`明細 → docs/_census_payload_keys.txt`);
 // 🔴**0 を目標にしない**＝意味を持たないキーは IGNORED に落とすのが正で、そちらは件数に出ない。
 //   ここで止めるのは「**未判定のキーが増えた**」場合＝新しい payload を足して描画を忘れた回。
 //   払い戻したら BASELINE を実測値へ下げる（下げ忘れも exit 1 で気づく）。
-const BASELINE = 19;  // 2026-09-13 O-356 払い戻し①＝原文エコー10 id を payload から描いた副産物（`declareOptions` / `declareFromLastProcessed` が描画されて 21→19）
+const BASELINE = 0;  // 🏁2026-09-13 §5.3 `O-348` クローズ＝残19キーを payload から描く／IGNORED へ登録して 19→0。
 if (undrawn.length > BASELINE) {
   console.error(`\n[census:payloadkeys] 🔴 GATE FAIL: 未判定の payload キーが基準 ${BASELINE} を超えた（現在 ${undrawn.length}）`);
   for (const [k, v] of undrawn.slice(0, 10)) console.error(`   - ${k}（${v.n}ノード / ${v.cards.size}枚・例 ${v.ids[0]}）`);

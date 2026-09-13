@@ -8,30 +8,32 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-13（第309バッチ）＝🏁`O-356` クローズ**（原文エコー A群 **44 → 0 id**・`census:enginetext` A群 **1 → 0**）。
-🔴🔑**主産物＝原文エコーの下に engine の実バグが並んでいた**（逆翻訳が原文を貼っていたので、原文照合では全部正しく見えていた）。
-- 🔧**3通りで閉じた**＝①**engine が決め打ち**（約30 id）→ 原文を貼らず **engine が実際にすることを固定文で**描く
-  ②**engine が原文 regex で意味を決めていた5 id**（`OPTIONAL_TRASH_ENERGY_CLASS` 33 ほか）→ **原文を読むのを data 層
-  `src/data/sourceTextPayloads.ts` だけにして payload 化**（build:effects 後段の `scripts/fillSourceTextPayloads.ts` が live と manual に刻む＝挙動は不変）
-  ③**live 0 の9 id** → 固定文。
-- 🐛**その場で直した実バグ3件**（golden 1件）＝`SONG_FRAGMENT`（コストで払った後にエナを**もう1枚**トラッシュ＝10効果）／
-  `PLACE_MAGIC_BOX`（「設置してもよい」に辞退肢が無い）／`OPP_DRAW_LIMIT`（手札2枚未満の条件を全カードへ焼き込み＝`WXDi-P16-005-E1` で過少実行）。
-- 📌**登録した実バグ4項目**＝`O-360`（アクセ系3効果が engine と別物）／`O-361`（【常】【マルチエナ】喪失の消費地点なし）／
-  `O-362`（期間の食い違い3件）／`O-363`（`WDK08-Y14-E1` の誤パースほか小さな食い違い）。
-- ✅**実機 `V-214` 返済（第310）**＝3シナリオ PASS・反転確認で2本とも赤。🐛**実機が別の実バグを1件出した**＝【マジックボックス】のゾーンを選んでも**置かれなかった**（CHOOSE の解決は別の ExecCtx で再開され `lastProcessedCards` が戻らない＝置くカードを payload で運ぶよう修正・golden 追加）。
-- 🔴**罠**＝`abilityBlockTextOf` は未キャッシュのカードで `parseCardEffects` を呼ぶ＝**parser の中から呼ぶと再入して終わらない**
-  ⇒ 原文由来の payload は **parse が返った後**（build）で刻む。manual 定義は実行時に live を上書きするので **manual 側にも刻む**。
+**直近＝2026-09-13（第311バッチ）＝🏁`O-348` クローズ**（`census:payloadkeys` 未判定キー **19種 / 19ノード → 0**・BASELINE 19→0）。
+🔑**残っていた19件は全部「1キー＝1ノード」**＝**母集団は小さいが、1件ごとに「原文照合がそこだけ効かない」穴**だった。
+- 🔧**閉じ方は3通り**＝①**`miscStubMap` の固定文を payload から組む**（7 id＝`lrigAttackLimit` / `revealReduceLrigLimit` /
+  `stripSelf` / `sideAttackEmptyZoneAsFront` / `loseAbilityAfterUse` / `swapOptional` / `oppActivateCostUntilOppTurnEnd` ほか）
+  ②**`STUBS.md` の実装メモへ落ちていた8 id に専用分岐を置く**（`fetchCardName` / `leaveToTrashWindow` / `moveSelfZone` /
+  `powerPlusBanishedPower` / `repeatBodyWhile` / `skipArtsReturn` / `trashedCardUpTo` / `variableEnergyTrashLevelBounce`）
+  ③**`OPTIONAL_COST` に3キー**（`handDiscardGroups` / `selfEnergyToDeckBottom` / `triggeringSigniTrash`）。**IGNORED 登録は1件だけ**（`refreshLifeMoveReplace`＝STUB id と完全に冗長）。
+- 🐛**ラベルが engine と食い違っていた3件**（engine は正しい＝**逆翻訳だけの嘘**）＝
+  ①`MOVE_TO_OTHER_SIGNI_ZONE`＝ラベルが「すでにシグニがあるゾーンには配置できない」で、`moveSelfZone.allowSwap` の札（`WXK03-042-E1`）と**逆のことを書いていた**
+  ②`STRIP_ATTACHED_AND_UNDER`＝`stripSelf` を見ず「**それに**付いている」固定＝原文「**このシグニに**付いている」（`WXDi-P07-041-E2`）が読めなかった
+  ③`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`＝`skipArtsReturn`（アーツに触らない）でも「対象のアーツをルリグデッキに加える」と書き、**同じ処理が2回**あるように読めた。
+- 🔑**最大の払い戻しは `REPEAT_BODY_WHILE`**＝本体（`repeatBodyWhile.body`）が丸ごと落ちており、`WXDi-CP01-033-E1` は
+  「デッキの一番下をトラッシュ」も「＜バーチャル＞なら＋5000」も**1文字も出ていなかった**（いま `actionJa` で入れ子を描く）。
+- 🔑**プレースホルダはそのまま出ていた**＝`OPP_SIGNI_LEAVE_TO_TRASH` のラベルは `〈期間〉`・`〈フィルタ〉` の実装メモが**live のシートに出ていた**（2カード）。
+- ⚠**`src/` は1行も触っていない**（`scripts/decompileEffects.ts` と計器2本のみ）＝**§2.2 により実機不要**。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-348`** の残り19キー → ②**`O-362`**（期間3件＝母集団の大きい `DOUBLE_OWN_POWER_MINUS` 6効果から） → ③**`O-343`**（索引B） |
+| 🔥**次に取るもの** | ①**`O-362`**（期間の食い違い3件＝母集団の大きい `DOUBLE_OWN_POWER_MINUS` 6効果から） → ②**`O-343`**（索引B） → ③**`O-345`**（数値ドリフトの残2件＝遅いレーン） |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
-| 📦**在庫** | 機構 worklist 🔥**13項目**（`O-343`〜`O-346`・`O-348`・`O-353`・`O-357`〜`O-363`）／実機 🏁**0**／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4068 PASS**・`census:srcecho` **44 → 0 id（🏁）**・`census:enginetext` **1 → 0（🏁）** |
+| 📦**在庫** | 機構 worklist 🔥**12項目**（`O-343`〜`O-346`・`O-353`・`O-357`〜`O-363`）／実機 🏁**0**／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4068 PASS**・`census:payloadkeys` **19 → 0（🏁）**・`census:numberdrift` **67 → 65**（副産物の払い戻し） |
 
-🆕🔴**「受け皿が無い」は連続17項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
-🆕🔴**据置契約も同じく stale になる**＝`O-188` の `OPTIONAL_TRASH_SELF` 据置は解除した（②の据置は残0）。
-🆕🔑**規約は「組み立て地点ごと」ではなく「正準形へ後段で1回」刻む**＝pass が増えても構造で守られる（ラチェットは件数ではなく**違反0**）。
+🆕🔴**「ラベルが日本語で読める」は「正しい」ではない**＝`census:stubs` の C/E/F群は**生の英語 ID しか見ない**ので、
+**綺麗な日本語で書かれた固定文が payload の値を1つも見ていない**形は3群とも素通りする（`census:payloadkeys` だけが映す）。
+🆕🔑**払い戻しは他の計器へ波及する**＝ラベルに数値が出たぶん `census:numberdrift` が 67→65 に落ちた（`O-354` と同じ形）。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -340,11 +342,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 
-**残1項目。** ⚠**新しく母集団2桁の項目が出たらここへ足す。**
-
-| ID | 規模 | 何が無いか（一行） |
-|---|---|---|
-| `O-348` | M | **逆翻訳が描き落としている payload キー 残 21種 / 21ノード**（`npm run census:payloadkeys`・BASELINE 21）。🏁**型つき22種/58ノード（第303/304）と `[STUB]` 側の母集団2桁13キー/66ノード（第305）はクローズ済み**（実バグ3件）。🔥**残は全部「1キー＝1ノード」の21件**＝`declareFromLastProcessed` / `downUpSigniChoose` / `fetchCardName` / `handDiscardGroups` / `leaveToTrashWindow` / `loseAbilityAfterUse` / `lrigAttackLimit` / `moveSelfZone` ほか。🔴**判定の罠2つ**＝①**STUB ラベルが総称で概念だけ触れていても、payload の値を区別していないなら穴**（`deckRevealUntil` 型）②**逆翻訳が原文どおりに読めても、`currentCardText` の原文エコーなら穴**（`O-356`）＝**`grep -n "<STUB_ID>" scripts/decompileEffects.ts` を必ず打つ** |
+🏁**残0**（2026-09-13・第311バッチで `O-348` をクローズ）。⚠**新しく母集団2桁の項目が出たらここへ足す。**
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -453,14 +451,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（過去に計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態になった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-13 時点（本ブロックが直近の正）**＝第306バッチ（`O-356` 着手＝原文エコー計器の新設と払い戻し①）
+- **2026-09-13 時点（本ブロックが直近の正）**＝第311バッチ（🏁`O-348` クローズ＝payload キー被覆）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
   ⚠**3本とも動かないのは正常**＝**逆翻訳の払い戻しはどの進捗計器にも映らない**。
-  📦**在庫**＝**機構 worklist 🔥13項目**（`O-348` 索引A／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4066 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1。
-  🆕**計器を1本追加**＝`npm run census:srcecho`（原文エコー・A群 id 数のラチェット・`gates` 同梱）。
-  🆕**払い戻し**＝`census:srcecho` **56 → 46 id**（live 308 → 237ノード）／`census:payloadkeys` **21 → 19種**。
-  🆕**較正**＝`census:enginetext` **BASELINE_SELF_TEXT 0 → 1**（engine のコードは1行も増えていない＝可視化）。
+  📦**在庫**＝**機構 worklist 🔥12項目**（**索引A 🏁0**／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4068 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1。
+  🆕**払い戻し**＝`census:payloadkeys` **19 → 0種（🏁 BASELINE 0）**／`census:numberdrift` **67 → 65**（ラベルに数値が出たぶんの副産物）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 
