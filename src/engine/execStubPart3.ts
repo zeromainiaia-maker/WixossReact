@@ -1535,8 +1535,12 @@ export function execStubPart3(
         : `ゾーン${zi + 1}に設置`;
       return { id: `zone_${zi}`, label, action: ({ type: 'STUB', id: 'INTERNAL_SET_MAGIC_BOX', value: zi } as StubAction) as EffectAction, available: true };
     });
+    // 🆕§5.3 `O-356`（2026-09-13）＝「設置しない」を足した。原文はどれも「設置**してもよい**」／「１枚**まで**」なのに
+    //   ゾーン選択に辞退肢が無く、`WX24-P3-089-E2` / `WX24-P4-064-E1`（デッキの一番上を見て設置してもよい）は
+    //   **見たカードが必ず MB になっていた**（過剰実行）。
+    const skipPMB = { id: 'skip', label: '設置しない', action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction, available: true };
     return needsInteraction(addLog(ctx, '【マジックボックス】を設置するゾーンを選択'), {
-      type: 'CHOOSE', options: zoneLabelsPMB, count: 1,
+      type: 'CHOOSE', options: [...zoneLabelsPMB, skipPMB], count: 1,
     });
   }
   // INTERNAL_SET_MAGIC_BOX: ゾーン確定後の実設置処理
@@ -5617,8 +5621,14 @@ export function execStubPart3(
 
   // OPP_DRAW_LIMIT: 対戦相手のターン開始時、そのターンのドローを1枚に制限（triggerScope: any_opp で相手ターン発動）
   if (stub.id === 'OPP_DRAW_LIMIT') {
+    // 🆕§5.3 `O-356`（2026-09-13）＝手札枚数の条件は payload（`oppHandMin`）があるときだけ見る。
+    //   🔴旧＝「2枚未満なら何もしない」を**全カードに焼き込んでいた**＝原文に手札条件の無い `WXDi-P16-005-E1`
+    //   （「次の対戦相手のドローフェイズの間、対戦相手はカードを合計１枚までしか引けない」）が、
+    //   相手の手札が1枚以下のときだけ**制限そのものが消えていた**（過少実行）。
     const oppHand = ctx.otherState.hand.length;
-    if (oppHand < 2) return done(addLog(ctx, '対戦相手の手札が2枚未満：ドロー制限なし'));
+    if (typeof stub.oppHandMin === 'number' && oppHand < stub.oppHandMin) {
+      return done(addLog(ctx, `対戦相手の手札が${stub.oppHandMin}枚未満：ドロー制限なし`));
+    }
     const newOtherODL: PlayerState = { ...ctx.otherState, draw_limit: 1 };
     return done(addLog({ ...ctx, otherState: newOtherODL }, '対戦相手のこのターンのドロー上限：1枚'));
   }

@@ -9976,8 +9976,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // ===== G156: 以下2つから1つ選ぶ ①相手ルリグ/シグニ1体のアタック無効 ②エナから＜ブルアカ＞2枚トラッシュしてもよい→相手2体までのアタック無効 =====
-  "WX25-CD1-06": [{"effectId":"WX25-CD1-06-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"opt1","label":"対戦相手のルリグかシグニ1体のアタックを無効にする","action":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"opt2","label":"エナから＜ブルアカ＞2枚をトラッシュして対戦相手2体までのアタックを無効にする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","costColors":[]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true}}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
-  "WX25-CP1-030": [{"effectId":"WX25-CP1-030-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"opt1","label":"対戦相手のルリグかシグニ1体のアタックを無効にする","action":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"opt2","label":"エナから＜ブルアカ＞2枚をトラッシュして対戦相手2体までのアタックを無効にする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","costColors":[]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true}}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
+  "WX25-CD1-06": [{"effectId":"WX25-CD1-06-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"opt1","label":"対戦相手のルリグかシグニ1体のアタックを無効にする","action":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"opt2","label":"エナから＜ブルアカ＞2枚をトラッシュして対戦相手2体までのアタックを無効にする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"ブルアカ","count":2},"costColors":[]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true}}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
+  "WX25-CP1-030": [{"effectId":"WX25-CP1-030-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"opt1","label":"対戦相手のルリグかシグニ1体のアタックを無効にする","action":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"opt2","label":"エナから＜ブルアカ＞2枚をトラッシュして対戦相手2体までのアタックを無効にする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"ブルアカ","count":2},"costColors":[]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"upToCount":true}}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
   // タスク12(viii)（続き137）: 現行 parser は本カードの2能力（①ターン終了時 手札を捨てて＜ブルアカ＞+4000／②絆自 アタックフェイズ開始時 ダウン→ドロー）を1つの効果に混線させ POWER_MODIFY も owner:any に壊す（parser-broken）。完全 MANUAL 上書きで是正。E1=第1能力（捨てる→+4000）、E2=絆自（既存 JSON と同型）。held に落ちるため build:effects 後 heldReview.mjs --adopt で採用。TRASH HAND_CARD optional+CONDITIONAL(IS_MY_TURN) は WX24-P4-050-E1 と同型。
   "WX25-CP1-062": [
     {"effectId":"WX25-CP1-062-E1","effectType":"AUTO","timing":["ON_TURN_END"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"ブルアカ"}},"delta":4000,"duration":"UNTIL_OPP_TURN_END"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
@@ -10198,7 +10198,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"LAST_LOOK_TRASHED_MATCHES","filter":{"cardType":"シグニ","story":"古代兵器"}},"then":{"type":"SEQUENCE","steps":[
         {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
         {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
-        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"古代兵器","count":1}},
         {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true,"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}
       ]}}
     ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
@@ -10207,7 +10207,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-P3-062-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"虚幸の冥者　ハナレ"}},"action":{"type":"SEQUENCE","steps":[
       {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
-      {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+      {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"毒牙","count":1}},
       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[
         {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true,"delta":-20000,"duration":"UNTIL_END_OF_TURN"},
         {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":-20000,"duration":"UNTIL_END_OF_TURN"}
@@ -10220,7 +10220,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-P2-084-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"c0","label":"他の＜武勇＞がいる場合、相手シグニ2体までを凍結","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"武勇"},"excludeSelf":true},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}}},
       {"choiceId":"c1","label":"＜武勇＞をエナからトラッシュして条件付きアサシンを得る","action":{"type":"SEQUENCE","steps":[
-        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"武勇","count":1}},
         {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン:{\"isFrozen\":true,\"powerLte\":3000}","duration":"UNTIL_END_OF_TURN"}}
       ]}}
     ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
@@ -10645,7 +10645,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-P03-016": [
     {"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXDi-P03-016-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000}}
   ],
-  "WXDi-CP02-103": [{"effectId":"WXDi-CP02-103-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_CLASS_ALL_ZONES"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WXDi-CP02-103": [{"effectId":"WXDi-CP02-103-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_CLASS_ALL_ZONES","treatAsClass":"ブルアカ"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // 🔑E1（【常】：【シュート】）は **`-E1b`→`-E2` の改名で原文ブロックの割り当てが直り、parser が正しい
   //   `GRANT_KEYWORD{thisCardOnly,'シュート'}` を出すようになった**ので manual には置かない（`O-42` tripwire）。
   //   旧 live は**パワー＋5000**という無関係な効果だった＝E2 の内容が E1 の枠へ漏れていた。
@@ -10657,7 +10657,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX25-P1-054-E2＝**【クロス自】なので `crossOnly` が要る**（2026-09-06）。この効果は手書きなので
   //   parser 側のクロス配線（クロス宣言→先頭ブロック）では埋まらない＝ここで明示する。
   "WX25-P1-054": [
-{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"crossOnly":true,"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
+{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"crossOnly":true,"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"ウェポン","count":2}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
   "WX25-P2-009": [{"effectId":"WX25-P2-009-ACT","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"INSTALL_GAME_GRANTED_AUTO"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}, {"effectId":"WX25-P2-009-E2","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"turnOwner":"self"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},
     {"effectId":"WX25-P2-009-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"STUB","id":"REPLACE_NEXT_OPP_REFRESH_MILL_LRIG"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_game"},
   ],

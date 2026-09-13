@@ -4984,10 +4984,8 @@ export function collectAbilityProtectedSigni(
       if (act.type !== 'STUB') continue;
 
       if (act.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
-        const card = cardMap.get(topNum);
-        const txt = card?.EffectText ?? '';
-        const colorM = txt.match(/あなたの他の([^の]+?)のシグニは対戦相手の効果によって能力を失わない/);
-        const protectedColor = colorM?.[1];
+        // 🆕§5.3 `O-356`＝保護対象の色は payload（`protectColor`）から読む（旧はカード原文を regex で読んでいた）。
+        const protectedColor = act.protectColor;
         for (const otherStack of state.field.signi) {
           if (!otherStack || otherStack.length === 0) continue;
           const otherTop = otherStack[otherStack.length - 1];
@@ -5620,17 +5618,12 @@ export function collectFieldEnergySigniColorGains(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'FIELD_ENERGY_SIGNI_GAIN_COLOR') continue;
 
-      const card = cardMap.get(cn);
-      const txt = card?.EffectText ?? '';
-      // 得る色を解析: "追加で黒を得る"
-      const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
-      if (!colorM) continue;
-      const gainColor = colorM[1];
-
-      // フィルター判定: 《ディソナアイコン》のシグニ → Story='Dissona' のシグニのみ対象
-      const isDisonaFilter = /《ディソナアイコン》のシグニ/.test(txt);
+      // 🆕§5.3 `O-356`＝得る色と絞り込みは payload から読む（旧はカード原文を regex で読んでいた）。
+      const gainColor = act.gainColor;
+      if (!gainColor) continue;
+      const isDisonaFilter = !!act.gainColorDissonaOnly;
       // その他の特殊アイコンフィルターは未対応のためスキップ
-      if (/《[^》]+》のシグニ/.test(txt) && !isDisonaFilter) continue;
+      if (act.gainColorUnsupportedFilter) continue;
 
       const instIds: string[] = [];
       for (const stack of ownerState.field.signi) {
@@ -8237,12 +8230,10 @@ export function collectFieldSigniExtraColors(
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'FIELD_ENERGY_SIGNI_GAIN_COLOR') continue;
-      const card = cardMap.get(top);
-      const txt = card?.EffectText ?? '';
-      const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
-      if (!colorM) continue;
-      const gainColor = colorM[1];
-      const isDisonaFilter = /《ディソナアイコン》のシグニ/.test(txt);
+      // 🆕§5.3 `O-356`＝payload から読む（旧はカード原文を regex で読んでいた）。
+      const gainColor = act.gainColor;
+      if (!gainColor) continue;
+      const isDisonaFilter = !!act.gainColorDissonaOnly;
       // フィールドの全シグニに追加色を付与（フィルタ付きは条件チェック）
       for (const targetStack of state.field.signi) {
         const t = targetStack?.at(-1);
@@ -8504,7 +8495,8 @@ export function collectTreatAsClassAllZones(
   cardMap: Map<string, CardData>,
 ): Record<string, string> {
   const result: Record<string, string> = {};
-  const classRe = /すべての領域で＜(.+?)＞として扱う/;
+  // 🆕§5.3 `O-356`＝クラス名は payload（`treatAsClass`）から読む（旧はカード原文を regex で読んでいた）。
+  void cardMap;
   for (const state of [ownerState, otherState]) {
     const allZones = [
       ...state.field.signi.flatMap(s => s ?? []),
@@ -8523,10 +8515,7 @@ export function collectTreatAsClassAllZones(
         if (eff.effectType !== 'CONTINUOUS') continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type !== 'STUB' || act.id !== 'TREAT_AS_CLASS_ALL_ZONES') continue;
-        const card = cardMap.get(cn);
-        const text = card?.EffectText ?? '';
-        const m = classRe.exec(text);
-        if (m) { result[cn] = m[1]; break; }
+        if (act.treatAsClass) { result[cn] = act.treatAsClass; break; }
       }
     }
   }

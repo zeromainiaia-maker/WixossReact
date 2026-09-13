@@ -19,6 +19,7 @@ import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/typ
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
+import { fillSourceTextPayloads } from '../src/data/sourceTextPayloads';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums } from '../src/engine/effectEngine';
@@ -17081,14 +17082,30 @@ test('OPTIONAL_TRASH_ENERGY_CLASS: トラッシュ句のN枚を支払う(カー�
   const oppSigni = fresh();
   const ctx = mkCtx({}, { signi: [oppSigni, null, null] }, SOURCE);
   ctx.ownerState.energy = [blues[0], blues[1], blues[2]];
+  // 🆕§5.3 `O-356`＝クラスと枚数は payload（`optionalEnergyTrash`）から読む。live の値を使う
+  //   （原文 regex は `src/data/sourceTextPayloads.ts` だけが持つ）。
+  const liveStub = findStubId(effectsMap.get(SOURCE)?.find(e => e.effectId === `${SOURCE}-E2`)?.action, ['OPTIONAL_TRASH_ENERGY_CLASS']);
+  eq(JSON.stringify(liveStub?.optionalEnergyTrash), '{"story":"ブルアカ","count":3}', 'live の payload＝原文「＜ブルアカ＞のカード３枚」');
   const eff = { type: 'SEQUENCE', steps: [
-    { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' },
+    { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS', optionalEnergyTrash: liveStub?.optionalEnergyTrash },
     { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
       then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } },
   ] } as unknown as EffectAction;
   const r = run(eff, ctx);
   eq(r.ownerState.energy.length, 0, 'エナ3枚全部がトラッシュへ');
   eq(r.otherState.field.signi[0], null, '相手シグニがバニッシュ');
+  // 🔴payload が無ければ実行しない（fail-closed＝原文 regex へ戻さない）。
+  // ⚠共有 POOL カーソルを戻す＝ここで `mkCtx` を追加で呼ぶと、後続テストが引くカードが変わる（実測＝D群が赤くなった）。
+  const savedCursorOTEC = cursor;
+  try {
+    const ctxNoPayload = mkCtx({}, { signi: [oppSigni, null, null] }, SOURCE);
+    ctxNoPayload.ownerState.energy = [blues[0], blues[1], blues[2]];
+    const rNo = run({ type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } }] } as unknown as EffectAction, ctxNoPayload);
+    eq(rNo.ownerState.energy.length, 3, '🔴payload 無しは実行しない（エナは減らない）');
+  } finally {
+    cursor = savedCursorOTEC;
+  }
 });
 
 // SIGNI_GRANT_CHOSEN_ABILITY: WXK09-050【出】。「表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ1体を
@@ -44802,6 +44819,8 @@ test("task12(lxx) Batch E': UP/REMOVE_ABILITIES/GUARD の引用内漏出を live
     for (const cardNum of ['WD17-001', 'WXDi-P09-038', 'WX25-P1-014', 'WX25-CP1-081', 'WXK08-017', 'SPDi44-12']) {
       const live = effectsMap.get(cardNum)!;
       const fresh = parseCardEffects(cardMap.get(cardNum)!);
+      // 🆕§5.3 `O-356`＝原文由来の payload は parse の後段で刻む（build:effects と同じ）＝比較前に揃える。
+      fillSourceTextPayloads(cardMap.get(cardNum)!, fresh);
       eq(JSON.stringify(fresh), JSON.stringify(live), `${cardNum}: 追加タイプの安全化を live へ採用`);
     }
   } finally {
@@ -50349,7 +50368,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     // ⚠**差し戻しではない**＝ベットの対象枚数昇格は parser の `CONDITIONAL{IS_BETTING}`（枚数だけ
     //   差し替えた同じ本文を then/else に置く）へ移り、engine が原文を読む必要がなくなった。
     'src/engine/execStubPart3.ts': 2,
-    'src/engine/effectExecutor.ts': 2,
+    // 🆕2 → 1（2026-09-13 §5.3 `O-356`）＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化したぶん。
+    // ⚠**差し戻しではない**＝全文読みへ戻したのではなく、原文 regex を data 層（`src/data/sourceTextPayloads.ts`）へ移し、
+    //   engine は payload を読むだけ（無ければ fail-closed）。
+    'src/engine/effectExecutor.ts': 1,
   };
   for (const [f, n] of Object.entries(FROZEN)) {
     const src = fs.readFileSync(join(root, f), 'utf8');
@@ -69052,8 +69074,9 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   //   計器の入口が引数名 `ctx` に依存していたため、`sourceAbilityText(cur)` と書かれた
   //   `OPTIONAL_TRASH_ENERGY_CLASS`（live 33ノード / 33カード）が一度も数えられていなかった。
   //   engine のコードは1行も増えていない。payload 化すれば 1 → 0 へ戻せる。
-  ok(/const BASELINE_SELF_TEXT = 1;/.test(census),
-    'BASELINE_SELF_TEXT が実測 1（= `OPTIONAL_TRASH_ENERGY_CLASS` の較正ぶん）になっている');
+  // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。
+  ok(/const BASELINE_SELF_TEXT = 0;/.test(census),
+    'BASELINE_SELF_TEXT が実測 0（`OPTIONAL_TRASH_ENERGY_CLASS` の payload 化で A群が空になった）');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -71824,6 +71847,40 @@ test('§5.3 O-356: 数字宣言の範囲が live に載り、engine の選択肢
   const e2 = effectsMap.get('WXDi-P06-013')!.find(e => e.effectId === 'WXDi-P06-013-E2')!;
   const decl2 = findStubId(e2.action, ['DECLARE_NUMBER_RANGE']) as EffectAction;
   eq(run(decl2, mkCtx({}, {}, 'WXDi-P06-013')).ownerState.declared_number, 1, '１～３ の先頭＝1 が宣言される');
+}));
+
+// ═══ §5.3 `O-356`＝原文エコー撤去で見えた engine の過剰／過少実行3件（2026-09-13）═══
+// 逆翻訳が原文を貼っていたので、どれも原文照合では正しく見えていた。
+//   ①`SONG_FRAGMENT`＝コストでエナの【歌のカケラ】を置いたあと、ハンドラがエナから**もう1枚**トラッシュしていた（10効果）
+//   ②`PLACE_MAGIC_BOX`＝「設置してもよい」なのにゾーン選択に辞退肢が無かった
+//   ③`OPP_DRAW_LIMIT`＝「手札2枚未満なら何もしない」を全カードに焼き込み、手札条件の無い `WXDi-P16-005-E1` で制限が消えていた
+test('§5.3 O-356: 歌のカケラの二重トラッシュ／MB 設置の辞退肢／ドロー制限の手札条件', () => withSavedCursor(() => {
+  // ① SONG_FRAGMENT
+  const songCards = [...effectsMap].filter(([cn, effs]) => cardMap.has(cn) && effs.some(e => e.effectType === 'SONG_ICON')).map(([cn]) => cn);
+  ok(songCards.length >= 2, `【歌のカケラ】を持つカードが2枚以上（${songCards.length}）`);
+  const [paidSong, otherSong] = songCards;
+  const sfEffect = effectsMap.get('SPDi47-01')!.find(e => e.effectId === 'SPDi47-01-E1')!;
+  ok(!!sfEffect.cost?.energyTrash, 'SPDi47-01-E1 はコストでエナの【歌のカケラ】をトラッシュに置く');
+  const sfBase = mkCtx({}, {}, 'SPDi47-01');
+  const sfCtx = { ...sfBase, effectsMap, sourceEffectId: 'SPDi47-01-E1',
+    ownerState: { ...sfBase.ownerState, energy: [otherSong], trash: [paidSong] } } as ExecCtx;
+  const sfRes = run({ type: 'STUB', id: 'SONG_FRAGMENT' } as EffectAction, sfCtx);
+  ok(sfRes.ownerState.energy.includes(otherSong), '🔴コストで払った後に、エナからもう1枚トラッシュしない');
+  // ② PLACE_MAGIC_BOX
+  const mbCtx = { ...mkCtx({}, {}, 'WX24-P4-064'), lastProcessedCards: [SIGNI_L1] } as ExecCtx;
+  const mbRes = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as EffectAction,
+    duration: 'INSTANT', mandatory: true } as CardEffect, mbCtx);
+  const mbOpts = ((mbRes as { pending?: { options?: { id: string }[] } }).pending?.options ?? []).map(o => o.id);
+  ok(mbOpts.includes('skip'), '🔴「設置してもよい」＝辞退肢がある');
+  // ③ OPP_DRAW_LIMIT
+  const withMin = run({ type: 'STUB', id: 'OPP_DRAW_LIMIT', oppHandMin: 2 } as EffectAction, mkCtx({}, { hand: 1 }));
+  eq(withMin.otherState.draw_limit, undefined, '手札条件つき（WXDi-P05-039）＝相手の手札が1枚なら制限しない');
+  const noMin = run({ type: 'STUB', id: 'OPP_DRAW_LIMIT' } as EffectAction, mkCtx({}, { hand: 1 }));
+  eq(noMin.otherState.draw_limit, 1, '🔴手札条件なし（WXDi-P16-005）＝相手の手札が1枚でも制限する');
+  const liveDrawLimit = (cardNum: string, effectId: string) =>
+    JSON.stringify(findStubId(effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!.action, ['OPP_DRAW_LIMIT']));
+  ok(liveDrawLimit('WXDi-P05-039', 'WXDi-P05-039-E1').includes('"oppHandMin":2'), 'WXDi-P05-039-E1 は手札条件を payload に持つ');
+  ok(!liveDrawLimit('WXDi-P16-005', 'WXDi-P16-005-E1').includes('oppHandMin'), 'WXDi-P16-005-E1 は手札条件を持たない（原文どおり）');
 }));
 
 // ═══ §5.3 `O-257`＝【ハーモニー】が engine にも UI にも無かった（2026-09-05・12枚）═══
@@ -74631,8 +74688,10 @@ test('§5.0 O-D WX16-Re20-E1: 場出し6効果が能力喪失を刻み、通常�
 
   const reverse = decompiledLineOf('WX16-Re20-E1');
   ok(reverse.includes('能力を持たないシグニとして'), '逆翻訳に配置修飾が出る');
-  ok(decompiledLineOf('WXDi-P13-042-E2').includes('ターン終了時、それらを場からトラッシュに置く'),
-    '同一カードの単数E1／複数E2を取り違えず、複数配置の逆翻訳は「それら」と描く');
+  // 🆕§5.3 `O-356`＝逆翻訳は原文の単複（それ／それら）を貼らず、engine の挙動（直前に場に出したカードを全部予約）を描く。
+  //   ⚠単複の取り違えは engine 側では起きない＝上の E2E（3枚すべてを予約）が守る。
+  ok(decompiledLineOf('WXDi-P13-042-E2').includes('ターン終了時、この方法で場に出したシグニを場からトラッシュに置く'),
+    '逆翻訳は原文を貼らず engine の挙動（この方法で場に出したシグニ全部）を描く');
 }));
 
 // ═══ §5.3 O-268 ＋ §5.0 実装キュー `WX14-003-E2`（2026-09-08）＝「限定条件を無視する」の適用範囲 ═══

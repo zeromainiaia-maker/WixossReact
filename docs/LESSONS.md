@@ -933,6 +933,14 @@ payload キー22種を `decompileEffects.ts` に配線した回で、**4件が�
 - 🆕🔴🔑**2026-09-13（第308）＝`census:srcecho` の「live ノード数」は「分岐を共有する id のノード数」であって「原文を貼っている数」ではない。**
   `DECLARE_NUMBER` 27ノードのうち、regex が実際に当たっていたのは同じ分岐の `DECLARE_NUMBER_RANGE` **4効果だけ**だった。
   ⇒ **取る前に、エコーの regex を効果単位の原文（`docs/_effect_srctext.json`）に当てて「実際に当たる効果」を数える。**
+- 🆕🔴🔑**2026-09-13（第309・`O-356` クローズ）＝原文エコーを外す作業は、それ自体が実バグの発見器だった。**
+  44 id を閉じる過程で **engine の実バグが7件**出た（3件その場で修正・4項目登録）。どれも**逆翻訳が原文を貼っていたので原文照合では正しく見えていた**。
+  ⇒ **エコーを外すときは「engine が実際にすることを書く」**（原文に寄せない）。書こうとして書けない＝そこに食い違いがある。
+- 🔴**原文由来の payload を parser の中で刻まない**＝`abilityBlockTextOf` は未キャッシュのカードで `parseCardEffects` を呼ぶので、
+  parser の末尾から呼ぶと**再入して終わらない**。⇒ **parse が返った後**（`buildEffectsJson.ts` の fresh と、build 後段の live）で刻む。
+- 🔴**live に刻んだ payload は manual 定義に上書きされる**＝`mergeManualEffects` は実行時に manual 側を勝たせる（golden・smoke・逆翻訳が通る経路）。
+  ⇒ **manual 側にも同じ payload を刻む**（`fillSourceTextPayloads.ts --manual`）。manual の効果定義は**複数行に割れていることがある**＝行単位で effectId を探すと取りこぼす。
+- 🔴**golden に `mkCtx` を1回足すだけで、無関係なテストが赤くなる**＝共有 POOL カーソルがずれる。追加の盤面は `cursor` を保存して戻す。
 - 🔑**同じ回＝原文エコーの下には「engine が原文の数値を読んでいない」実バグが隠れやすい**（範囲 0〜5 固定で ０～１０／１～３ が壊れていた）。
   エコーを外すときは **engine が同じ数値を実際に使っているか**まで確かめる（逆翻訳だけ payload 化すると、今度は payload の欠落が隠れる）。
 

@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — 🏁§5.3 `O-356` クローズ＝原文エコー A群 44 → 0 id／engine の実バグ3件を修正・4項目を登録（第309バッチ）
+
+- **真因**＝`scripts/decompileEffects.ts` の44 id の分岐が**原文を regex で切り出して逆翻訳に貼っていた**。
+  そのうち5 id は **engine も実行時にカード原文を regex で読んで意味を決めていた**（`OPTIONAL_TRASH_ENERGY_CLASS`・
+  `FIELD_ENERGY_SIGNI_GAIN_COLOR`・`TREAT_AS_CLASS_ALL_ZONES`・`PREVENT_SIGNI_ABILITY_LOSS_BY_OPP`＋`OPP_DRAW_LIMIT` の焼き込み条件）。
+  ⇒ **原文照合がこれらの STUB で構造的に効かず、engine の欠落が全部隠れていた。**
+- **閉じ方（3通り）**
+  1. **engine が決め打ち（約30 id）**＝原文を貼らず、**engine が実際にすることを固定文で**描く（期間も engine の寿命から描く）。
+  2. **engine が原文を読んでいた5 id**＝原文 regex を **`src/data/sourceTextPayloads.ts`（data 層）だけ**に移し、
+     `optionalEnergyTrash`／`gainColor`（＋2フラグ）／`treatAsClass`／`protectColor`／`oppHandMin` を payload にした。
+     刻むのは `scripts/buildEffectsJson.ts`（fresh）と **build:effects 後段の `scripts/fillSourceTextPayloads.ts`**（live＋`--manual` で manual）。
+     **engine は payload だけを読み、無ければ fail-closed**。値は旧 engine と同じ原文へ同じ regex を当てたもの＝**挙動は不変**。
+  3. **live 0 の9 id**＝固定文（原文は貼らない）。クロス効果の見出しの「《クロスアイコン》…に置かれているかぎり」も原文貼り付けだったので
+     engine の判定（ゾーンのクロス状態）どおり「クロス状態であるかぎり」へ。
+- 🐛**その場で直した実バグ3件**（golden 1件で固定）
+  - `SONG_FRAGMENT`（`execStubPart1.ts`）＝コスト「エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く」を払ったあと、
+    ハンドラが**エナからもう1枚**トラッシュしていた＝`SPDi47-01〜05-E1`／`WX26-CP1-028〜044-E1` の **10効果が1回の起動でエナを2枚失っていた**。
+    ⇒ 効果のコストに `energyTrash` があれば**トラッシュに置かれた【歌のカケラ】を使う**。
+  - `PLACE_MAGIC_BOX`（`execStubPart3.ts`）＝「設置**してもよい**」なのにゾーン選択に辞退肢が無く、`WX24-P3-089-E2`／`WX24-P4-064-E1` は
+    見たカードが**必ず** MB になっていた ⇒ 「設置しない」を追加。
+  - `OPP_DRAW_LIMIT`（`execStubPart3.ts`）＝「相手の手札が2枚未満なら何もしない」を**全カードへ焼き込み**、原文に手札条件の無い
+    `WXDi-P16-005-E1` で**相手の手札が1枚以下だと制限が消えていた** ⇒ parser が「対戦相手の手札がN枚以上ある場合」を `oppHandMin` に刻み、engine はあるときだけ判定。
+- 📌**登録した実バグ4項目**（新機構または `src/screens/` が要る）＝`O-360`（アクセ系3効果）／`O-361`（【常】【マルチエナ】喪失の消費地点なし）／
+  `O-362`（期間3件＝パワー－2倍の解除なし・バースト2回の消費・ゾーン消去の期間）／`O-363`（`WDK08-Y14-E1` の誤パースほか）。
+- 🔑**`CONDITIONAL_COST_REDUCTION_BY_FIELD`**＝第307と同じ形（効果の `cost` 側に `costReplacement`）＝マーカー集合へ加えた。
+- **検証**＝`npm run gates` 全緑（golden **4068 PASS**）。ラチェット＝`census:srcecho` **BASELINE_ECHO_IDS 44 → 0**／
+  `census:enginetext` **BASELINE_SELF_TEXT 1 → 0**。golden の期待値を4本更新（O-20 トリップワイヤ 2→1・O-60 第70 の BASELINE・
+  O-254 系の live 一致比較に payload fill・`WXDi-P13-042-E2` の逆翻訳）。**反転確認**＝payload 無しの `OPTIONAL_TRASH_ENERGY_CLASS` が
+  エナを動かさないこと（fail-closed）を golden に入れた。
+- 🔴**実機は未実施**（§2.2＝engine の CHOOSE の選択肢と【歌のカケラ】の実行経路を変えた）⇒ **`V-214`** に登録。
+- ⚠**自分で踏んだ罠**＝①parser の末尾から `abilityBlockTextOf` を呼ぶと**再入して終わらない**（未キャッシュのカードで `parseCardEffects` を呼ぶ）
+  ②manual 定義は `mergeManualEffects` が実行時に live を上書きする＝**live に刻むだけでは golden/smoke/逆翻訳に届かない**
+  ③golden に `mkCtx` を1回足しただけで**共有 POOL カーソルがずれて無関係なテストが赤くなった**（`census 対象filter D群`）＝カーソルを戻して解消。
+
 ## 2026-09-13 — §5.3 `O-356` 払い戻し③＝数字宣言の範囲が engine に届いていなかった（第308バッチ）
 
 - **真因**＝parser が「N～Mの数字１つを宣言する」を `STUB{DECLARE_NUMBER_RANGE}` とだけ出し、**範囲を捨てていた**。

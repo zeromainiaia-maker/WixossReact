@@ -14,6 +14,7 @@ import { parseCardEffects, getSilentFallbackLog, enableSourceTextLog, getSourceT
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from '../src/data/keywordCosts';
 import { parseHarmonyAbility } from '../src/data/effectParser';
+import { fillSourceTextPayloads } from '../src/data/sourceTextPayloads';
 import type { CardData } from '../src/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -138,6 +139,9 @@ for (const r of rows) {
   const printedCosts = printedKeywordCosts(card.EffectText);
   if (Object.keys(printedCosts).length > 0) printedCostByCard.set(card.CardNum, printedCosts);
   const effects = mergeManualEffects(card.CardNum, parsedEffects);
+  // 🆕§5.3 `O-356`＝原文由来の payload を fresh にも刻む（live と同じ値＝温存判定で偽の差分を出さない）。
+  //   ⚠parser の中では刻めない（`abilityBlockTextOf` が再入する）ので、parse が返った後のここで当てる。
+  fillSourceTextPayloads(card, effects);
   if (effects.length === 0) continue;
 
   result[card.CardNum] = effects;

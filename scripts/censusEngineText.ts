@@ -78,7 +78,7 @@ const onlyIds = (() => {
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
-const BASELINE_SELF_TEXT = 1;   // 🆕🔴**2026-09-13（`O-356` の着手中）＝0 → 1 は「退化」ではなく「較正」。**実挙動は1ビットも変えていない＝**検出が引数名 `ctx` に依存していた**ので `sourceAbilityText(cur)` と書かれた `OPTIONAL_TRASH_ENERGY_CLASS`（live **33ノード / 33カード**＝エナから払うクラスと枚数をアビリティ原文の regex で決めている）が**初版から一度も数えられていなかった**。🔑**funnel は関数名で数える。呼び出し側の変数名に依存しない**（第56バッチの較正が引数名を焼き込んでいた）。⚠これは `O-60` の未消化1件＝**payload 化すれば 0 へ戻せる**（parser＋engine＋decompiler の三点セット）。／（以下は従来の履歴）第71で 9→7／第72で 7→6／第73で 6→5／第74で 5→2／第75で 2→1／第76で 1→0。
+const BASELINE_SELF_TEXT = 0;   // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。原文 regex は `src/data/sourceTextPayloads.ts`（data 層）だけが持ち、engine は payload を読むだけ（無ければ fail-closed）。／（以下は 0 → 1 の較正の記録）🆕🔴**2026-09-13（`O-356` の着手中）＝0 → 1 は「退化」ではなく「較正」。**実挙動は1ビットも変えていない＝**検出が引数名 `ctx` に依存していた**ので `sourceAbilityText(cur)` と書かれた `OPTIONAL_TRASH_ENERGY_CLASS`（live **33ノード / 33カード**＝エナから払うクラスと枚数をアビリティ原文の regex で決めている）が**初版から一度も数えられていなかった**。🔑**funnel は関数名で数える。呼び出し側の変数名に依存しない**（第56バッチの較正が引数名を焼き込んでいた）。⚠これは `O-60` の未消化1件＝**payload 化すれば 0 へ戻せる**（parser＋engine＋decompiler の三点セット）。／（以下は従来の履歴）第71で 9→7／第72で 7→6／第73で 6→5／第74で 5→2／第75で 2→1／第76で 1→0。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

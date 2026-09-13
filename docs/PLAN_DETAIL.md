@@ -1,5 +1,29 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 🏁§5.3 `O-356` クローズ記録（2026-09-13・第306〜309バッチ）
+
+**項目**＝逆翻訳（`scripts/decompileEffects.ts`）が原文を regex で切り出して戻り値に乗せている箇所＝原文照合が構造的に効かない箇所。
+**計器**＝`npm run census:srcecho`（`scripts/censusSrcEcho.mjs`・ラチェット＝A群の id 数・**最終 0**＝再発防止ゲートとして残す）。
+
+| バッチ | A群 id | やったこと |
+|---|---|---|
+| 第306 | 56 → 46 | 計器新設。payload を持つ10 id を payload から描いた（`census:enginetext` の引数名依存の死角も較正） |
+| 第307 | 46 → 45 | `ARTS_COST_REDUCTION_BY_EFFECT`＝58カード全部が効果の `cost` 側に payload＝逆翻訳だけで閉じた（分類の誤りを訂正） |
+| 第308 | 45 → 44 | `DECLARE_NUMBER_RANGE`＝範囲を `numberChoices` へ（三点セット・実バグ2件） |
+| 第309 | 44 → 0 | 決め打ち約30 id は固定文／原文を読む5 id は data 層 payload 化（`src/data/sourceTextPayloads.ts`）／live 0 の9 id は固定文。実バグ3件修正・4項目登録（`O-360`〜`O-363`） |
+
+🔑**見立ての外れ**＝登録時 88 id/452ノード（粗い窓で過大）→ 計器新設時 56 id。「payload なし＝三点セット」の分類は STUB ノード単体で数えていたため、
+効果の `cost` 側・兄弟ノードの payload を見落とした（第307）。**分類する前に効果全体の payload を数える。**
+
+**登録票（第309で登録）**
+- `O-360`（M）アクセにする系3効果が engine と別物＝`ACCE_FROM_TRASH`（`WDK07-E11-E2`）／`ACCE_FROM_HAND`（`WXK05-039-E1`）は効果元自身を付けようとして恒久 no-op、
+  `ACCE_TO_ENERGY`（`WD18-009-E2`）は場の【アクセ】を全部エナへ送る。受け皿候補＝`AttachAcceAction` の2段選択（`fromEnergy`／`fromLrigDeck`）に「トラッシュから」「公開札から」を足す。
+- `O-361`（S）【常】【マルチエナ】喪失（`WX19-002-E1`）の消費地点が無い。受け皿候補＝エナ支払いの【マルチエナ】判定 funnel（`src/screens/`＝実機必須）。
+- `O-362`（M）期間3件＝`double_power_minus_targets` の解除地点なし（6効果）／`life_burst_double_next` を1回で消費（`WD23-006-E-E1`）／
+  `signi_zone_blocks` のターン終了時解除（`WXDi-P09-003-E1`）。リセットは `src/screens/`（`turnScopedState.ts`・`BattleScreen` のターン終了）。
+- `O-363`（S）小さな食い違い＝`WDK08-Y14-E1` の誤パース（エナのトラッシュを要求）／`OPP_REVEAL_HAND_AND_LRIG_DECK` の全公開（`WX15-001-E3`）／
+  `FORCE_TARGET_SELF` の「シグニの能力か効果」限定なし（`WXDi-P03-053-E1`）。
+
 
 ### §5 作業キュー — 全面改修前の全文（2026-09-10 に PLAN から退避）
 

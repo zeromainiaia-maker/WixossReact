@@ -13,7 +13,7 @@ import {
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy, energyCandidatesForOwner,
   movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
-  sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
+  deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
   trapIconEffectOf, resolveFrontOfSelfCardNum,
 } from './execUtils';
@@ -6554,16 +6554,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから特定クラスのカードを任意でトラッシュ/手札へ
         if (stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-          // §6.4 O-20: 全文だと別能力の行先を拾う（`WX25-CP1-049-E1` は E3 の「それを手札に加える」を拾い、
-          // **払ったエナがトラッシュではなく手札へ**行き、さらに後続の帰結まで省略されていた）。
-          const txtOTEC = sourceAbilityText(cur);
-          const toHWOTEC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          // クラス・トラッシュ枚数は「エナゾーンから＜X＞の(シグニ|カード)N枚をトラッシュ」句から取る。
-          // （同カード内の「N体を対象」＝バニッシュ対象数 や 別記述＝場出し記述 の誤マッチを避ける。
-          //  従来は枚数を別途「N枚を対象」から取り multi-card 札で常に1枚しか払わなかったバグの修正）
-          const trashClauseMOTEC = txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/);
-          const classMOTEC = trashClauseMOTEC ?? txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
-          const reqClassOTEC = classMOTEC?.[1] ?? '';
+          // 🆕§5.3 `O-356`（2026-09-13）＝クラス・枚数・行き先は payload（`optionalEnergyTrash`）から読む。
+          //   旧はここでアビリティ原文を regex で読んでいた（`census:enginetext` A群の最後の1行）。
+          //   値は `scripts/fillSourceTextPayloads.ts` が**同じ原文へ同じ regex**を当てて刻む＝挙動は変えない。
+          // ⚠**payload が無ければ実行しない**（fail-closed）＝原文 regex へ戻さない。
+          const oteSpec = stub.optionalEnergyTrash;
+          if (!oteSpec) {
+            if (cont) return executeAction(cont, cur);
+            return done(addLog(cur, '任意コスト：payload（optionalEnergyTrash）が無いため実行しない'));
+          }
+          const reqClassOTEC = oteSpec.story ?? '';
           const energyCandsOTEC = cur.ownerState.energy.filter(cn => {
             if (!reqClassOTEC) return true;
             return (cur.cardMap.get(cn)?.CardClass ?? '').includes(reqClassOTEC);
@@ -6572,7 +6572,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             if (cont) return executeAction(cont, cur);
             return done(addLog(cur, `エナに${reqClassOTEC || 'カード'}なし（OPTIONAL_TRASH_ENERGY_CLASS）`));
           }
-          const toHandOTEC = !!(txtOTEC.match(/それを手札に加える/) || conditional.then.type === 'TRANSFER_TO_HAND');
+          const toHandOTEC = !!(oteSpec.toHand || conditional.then.type === 'TRANSFER_TO_HAND');
           // conditional.then の BOUNCE/BANISH/DOWN の target.owner='self' → 'opponent' 修正
           let thenOTEC = conditional.then;
           if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
@@ -6581,8 +6581,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           }
           // 対象をコスト前に固定した形は、支払いプロンプトを跨ぐ前に個体IDへ焼き込む。
           thenOTEC = freezeStoredTargets(thenOTEC, cur);
-          // トラッシュ枚数＝「(シグニ|カード)N枚をトラッシュ」句の N（取れなければ1）。
-          const pickCountOTEC = trashClauseMOTEC?.[2] ? parseInt(toHWOTEC(trashClauseMOTEC[2])) : 1;
+          const pickCountOTEC = oteSpec.count;
           const destOTEC = toHandOTEC ? 'hand' : 'trash';
           const selectStubOTEC: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_OTEC_SELECT',

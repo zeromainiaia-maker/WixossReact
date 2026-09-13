@@ -3321,6 +3321,21 @@ export function execStubPart1(
   // 🔑`SONG_ICON` はまさに `/【歌のカケラ】：/` から作られる効果なので、構造化された判定と原文が一致する。
   if (stub.id === 'SONG_FRAGMENT') {
     const lrigCardNumSF = ctx.sourceCardNum; // 発動元ルリグ
+    // 🆕§5.3 `O-356`（2026-09-13）＝**コストで既にトラッシュへ置いた【歌のカケラ】を使う**。
+    // 🔴旧＝コスト「エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く」（`energyTrash`）を UI が払ったあと、
+    //   ここで**エナからもう1枚**トラッシュしていた＝`SPDi47-01〜05-E1` / `WX26-CP1-028〜044-E1` の10効果が
+    //   1回の起動でエナを2枚失っていた（過剰実行）。⚠コストを持たない形（`WX26-CP1-101-E1`＝本文で置く）は従来どおり。
+    const sfSourceEffect = ctx.sourceEffectId && ctx.sourceCardNum
+      ? (ctx.effectsMap?.get(ctx.sourceCardNum) ?? ctx.effectsMap?.get(getCardNum(ctx.sourceCardNum)))
+          ?.find(e => e.effectId === ctx.sourceEffectId)
+      : undefined;
+    if (sfSourceEffect?.cost?.energyTrash) {
+      const paidSF = [...ctx.ownerState.trash].reverse().find(cn => songIconEffectOf(ctx, cn));
+      if (!paidSF) return done(addLog(ctx, '歌のカケラ：コストでトラッシュに置いたカードが見つからない'));
+      const paidEffSF = songIconEffectOf(ctx, paidSF)!;
+      return exec(paidEffSF.action, addLog({ ...ctx, sourceCardNum: lrigCardNumSF },
+        `【歌のカケラ】発動（${ctx.cardMap.get(getCardNum(paidSF))?.CardName ?? paidSF}）：コストでトラッシュに置いたカード`));
+    }
     const songCardsInEnergy = ctx.ownerState.energy.filter(cn => songIconEffectOf(ctx, cn));
     if (songCardsInEnergy.length === 0) return done(addLog(ctx, '歌のカケラ：エナゾーンにカードなし'));
     if (songCardsInEnergy.length > 1) {

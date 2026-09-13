@@ -3148,7 +3148,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 対戦相手のドロー枚数制限 ----
   if (t.match(/対戦相手はカードを合計.*枚までしか引けない/)) {
-    return { type: 'STUB', id: 'OPP_DRAW_LIMIT' } as StubAction;
+    // 🆕§5.3 `O-356`＝「対戦相手の手札がN枚以上ある場合」を payload に刻む（engine が全カードへ焼き込んでいた条件）。
+    const handMinM = t.match(/対戦相手の手札が([０-９\d]+)枚以上ある場合/);
+    const oppHandMin = handMinM ? parseInt(handMinM[1].replace(/[０-９]/g, c => String('０１２３４５６７８９'.indexOf(c))), 10) : undefined;
+    return { type: 'STUB', id: 'OPP_DRAW_LIMIT', ...(oppHandMin !== undefined ? { oppHandMin } : {}) } as StubAction;
   }
 
   // ---- このシグニは対戦相手の効果によって新たに能力を得られない ----

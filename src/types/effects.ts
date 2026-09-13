@@ -5906,6 +5906,22 @@ export interface StubAction {
    */
   numberChoicesFrom?: 'self_center_lrig_level' | 'opp_center_lrig_level';
   /**
+   * 🆕§5.3 `O-356`（2026-09-13）＝**engine が実行時に原文 regex で決めていた値を payload へ移した**。
+   * 刻むのは `scripts/fillSourceTextPayloads.ts`（build:effects の後段）＝**engine が読んでいた原文と同じ文へ同じ regex**を当てる
+   * （挙動は変えない）。旧は逆翻訳も原文を貼っていたので、原文照合がこれらの STUB で効いていなかった。
+   * - `optionalEnergyTrash`＝`OPTIONAL_TRASH_ENERGY_CLASS` のクラス・枚数・行き先（アビリティ原文由来）
+   * - `gainColor` / `gainColorDissonaOnly` / `gainColorUnsupportedFilter`＝`FIELD_ENERGY_SIGNI_GAIN_COLOR`
+   * - `treatAsClass`＝`TREAT_AS_CLASS_ALL_ZONES` / `protectColor`＝`PREVENT_SIGNI_ABILITY_LOSS_BY_OPP`
+   * - `oppHandMin`＝`OPP_DRAW_LIMIT` の「対戦相手の手札がN枚以上ある場合」（parser が文から刻む）
+   */
+  optionalEnergyTrash?: { story?: string; count: number; toHand?: boolean };
+  gainColor?: string;
+  gainColorDissonaOnly?: boolean;
+  gainColorUnsupportedFilter?: boolean;
+  treatAsClass?: string;
+  protectColor?: string;
+  oppHandMin?: number;
+  /**
    * 🆕**`TK3_DECLARE_DISCARD` が捨てさせる側の絞り込み**（2026-09-12・§5.3 `O-312`・`WXDi-D09-P04-E3`）＝
    * 原文「**《ガードアイコン》を持たず**宣言した数字と同じレベルを持つすべてのシグニを捨てさせる」＝`{ noGuard: true }`。
    * 🔴省略＝従来どおり「宣言レベルのシグニ全部」＝**ガードアイコン持ちまで落とす過剰実行**になるので、

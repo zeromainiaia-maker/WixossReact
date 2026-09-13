@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -b --noEmit",
-    "build:effects": "tsx scripts/buildEffectsJson.ts && node scripts/fixLrigColorFilters.mjs",
+    "build:effects": "tsx scripts/buildEffectsJson.ts && node scripts/fixLrigColorFilters.mjs && tsx scripts/fillSourceTextPayloads.ts",
     "verify": "tsx scripts/verifyEffects.ts",
     "smoke": "tsx scripts/smokeTest.ts",
     "golden": "tsx scripts/goldenTest.ts",
