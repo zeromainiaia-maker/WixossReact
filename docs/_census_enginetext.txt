@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
-A🔴 SELF_TEXT（効果元の全文で意味を決める）: 0行 / 0ハンドラ
+A🔴 SELF_TEXT（効果元の全文で意味を決める）: 1行 / 1ハンドラ
 B  OTHER_CARD（他カードの属性判定）      : 56行
 C  COMMENT                              : 95行
-合計 151行
+合計 152行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -10,8 +10,16 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
+| OPTIONAL_TRASH_ENERGY_CLASS | effectExecutor.ts:6559 | 33 | 33 | 3 | 1 |
 
 ## A群 明細
+
+### OPTIONAL_TRASH_ENERGY_CLASS  (live 33効果 / 33カード / miss 1)
+  effectExecutor.ts:6559  const txtOTEC = sourceAbilityText(cur);
+    lit re:エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ
+    lit re:エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)
+    lit re:それを手札に加える
+    miss: WXDi-P12-048
 
 ## B群（他カードの属性判定＝正当寄り）
   assistLrig.ts:26 <fn:collectReturnableAssistLrigTops> if (action.withoutAttackPhaseIcon && (card.EffectText ?? '').includes('アタックフェイズアイコン')) return false;

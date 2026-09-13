@@ -75,10 +75,10 @@ const onlyIds = (() => {
 //   `ADD_CRAFT_TO_LRIG_DECK`・live9）**と**「シグニの配置替え」family（`SIGNI_REPOSITION` /
 //   `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）**を payload 化し、
 //   `SWAP_OPTIONAL`（＝入れ替え2効果）を `DEFERRED_SWAP_*` へ分離した分。
-const BASELINE_SELF_TEXT = 0;   // 🆕2026-09-05 §5.3 `O-60` 第71バッチ（生成元の無い死んだ STUB ハンドラ2本 `REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` を撤去）で 9→7／第72（内部 STUB `INTERNAL_MARK_REVEALED_NAMED` を payload 化）で 7→6／第73（【ビート】コストの対象を payload 化）で 6→5／第74（live 0 の死んだ catch-all 3 family を parser 規則ごと撤去）で 5→2／第75（`DECK_REVEAL_UNTIL` family を payload 化）で 2→1／🏁第76（条件節の捨て場だった `CONDITIONAL_POWER_BONUS` を「名前のある穴」へ改名してハンドラを撤去）で **1→0＝A群は空**。
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
+const BASELINE_SELF_TEXT = 1;   // 🆕🔴**2026-09-13（`O-356` の着手中）＝0 → 1 は「退化」ではなく「較正」。**実挙動は1ビットも変えていない＝**検出が引数名 `ctx` に依存していた**ので `sourceAbilityText(cur)` と書かれた `OPTIONAL_TRASH_ENERGY_CLASS`（live **33ノード / 33カード**＝エナから払うクラスと枚数をアビリティ原文の regex で決めている）が**初版から一度も数えられていなかった**。🔑**funnel は関数名で数える。呼び出し側の変数名に依存しない**（第56バッチの較正が引数名を焼き込んでいた）。⚠これは `O-60` の未消化1件＝**payload 化すれば 0 へ戻せる**（parser＋engine＋decompiler の三点セット）。／（以下は従来の履歴）第71で 9→7／第72で 7→6／第73で 6→5／第74で 5→2／第75で 2→1／第76で 1→0。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
@@ -100,7 +100,16 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     //   カード全文より狭い（§6.4 `O-20` の成果）が、**engine が原文を読んで意味を決める**という
     //   `O-60` の定義そのもの。⇒ 無条件に **A群（SELF_TEXT）** として数える。
     // ⚠**この行が増えたぶんは「退化」ではなく「可視化」**（実挙動は1ビットも変えていない）。
-    const isAbilityFunnel = lines[i].includes('sourceAbilityText(ctx)');
+    // 🆕🔴**2026-09-13（`O-356` の着手中）＝この検出が「引数名 `ctx`」に依存していた。**
+    //   `effectExecutor.ts:6559` は `sourceAbilityText(cur)` と書いており、**1ハンドラが丸ごと計器の外**にいた
+    //   （`OPTIONAL_TRASH_ENERGY_CLASS`＝live **33ノード / 33カード**。エナから払うクラスと枚数を
+    //    アビリティ原文の regex で決めている＝`O-60` の定義そのもの）。
+    // 🔑**第56バッチで「funnel も数える」と較正したのに、引数名を焼き込んだせいで穴が残った**＝
+    //   **funnel は「関数名」で数える。呼び出し側の変数名に依存しない。**
+    //   ⚠**funnel の宣言そのものは数えない**（`export function sourceAbilityText(ctx: ExecCtx)`＝
+    //     消費地点ではなく funnel の定義。数えると live 0 の偽の行が1本増える）。
+    const isAbilityFunnel = /\bsourceAbilityText\s*\(/.test(lines[i])
+      && !/\b(?:export\s+)?function\s+sourceAbilityText\b/.test(lines[i]);
     if (!lines[i].includes('EffectText') && !isAbilityFunnel) continue;
     const trimmed = lines[i].trim();
     const isComment = /^(\/\/|\*|\/\*)/.test(trimmed);

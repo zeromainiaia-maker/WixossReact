@@ -3,15 +3,11 @@
 
 live JSON の payload キー: 573種
   描かなくてよいと登録済み（IGNORED）: 6種
-  🔴逆翻訳が一度も言及しない        : 21種 / 21ノード
+  🔴逆翻訳が一度も言及しない        : 19種 / 19ノード
 
 ⚠候補出しであって判定ではない＝1キーずつ「落とすと原文のどの語が説明できなくなるか」で判定する。
   意味を持つキー → decompileEffects.ts に描画を足す／実装の都合 → IGNORED に理由つきで登録。
 
-     1ノード   1枚  declareFromLastProcessed  [STUB]
-        例: WD08-008-E1
-     1ノード   1枚  downUpSigniChoose  [STUB]
-        例: SPDi43-23-E1
      1ノード   1枚  fetchCardName  [STUB]
         例: PR-470A-E2
      1ノード   1枚  handDiscardGroups  [STUB]

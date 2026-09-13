@@ -4440,8 +4440,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return '【※ペイロード欠落】手札に加える【トラップ】の枚数が未指定（engine は何もしない）';
       }
       if (a.id === 'SET_OPP_SIGNI_AS_TRAP') {
-        const m = currentCardText.match(/対戦相手のシグニ[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
-        return m ? m[0] : '対戦相手のシグニ1体を対象とし、それを【トラップ】としてそのシグニゾーンに設置する';
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   `targetsStored`＝先に宣言済みの対象を使う（改めて選ばせない）。
+        return a.targetsStored
+          ? 'それ（対象済みの対戦相手のシグニ）を【トラップ】としてそのシグニゾーンに設置する'
+          : '対戦相手のシグニ1体を対象とし、それを【トラップ】としてそのシグニゾーンに設置する';
       }
       if (a.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {
         const m = currentCardText.match(/この【トラップ】[^。]*?シグニがない場合[^。]*?シグニにする/);
@@ -4623,9 +4626,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // カード名コピー系（COPY_LRIG_NAME_ABILITY・WX24-P4-011〜025/WX25-P3-028）＝
       // 「このルリグはルリグトラッシュにあるレベルNの＜X＞と同じカード名としても扱い、そのルリグの【自】能力を得る」。
       // ＜X＞のクラス・レベルはカードごとに異なるため currentCardText から原文文を抽出。
+      // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出しており、
+      //   `lrigNameCopy` が何であっても原文どおりに見えていた）。
       if (a.id === 'COPY_LRIG_NAME_ABILITY') {
-        const m = currentCardText.match(/このルリグはあなたのルリグトラッシュにある[^。]*?と同じカード名としても扱い[^。]*?能力を得る/);
-        if (m) return m[0];
+        const lnc = a.lrigNameCopy;
+        if (!lnc) return '【※ペイロード欠落】同じカード名として扱うルリグの条件が未指定（engine は候補を見つけられない）';
+        const lncKinds = (lnc.kinds ?? []).map((k: string) => k === 'AUTO' ? '【自】' : k === 'CONTINUOUS' ? '【常】' : k === 'ACTIVATED' ? '【起】' : `【${k}】`).join('と');
+        return `このルリグはあなたのルリグトラッシュにあるレベル${numJa(lnc.level)}の＜${lnc.story}＞と同じカード名としても扱い、そのルリグの${lncKinds}能力を得る`;
       }
       // シグニゾーン指定（DESIGNATE_SIGNI_ZONE・engine実装済み）＝「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」。
       // 「シグニのない」「対戦相手の」前置はカードごとに異なるため currentCardText から抽出。
@@ -4633,15 +4640,16 @@ function actionJa(a?: Action, effectType?: string): string {
         // §6.4 O-16: **どちらのゾーンを何個**指定したかは JSON の `owner` / `count` が持つ
         // （＝`designated_zones` の保存先と個数）。原文抜粋だけを返すと `owner:'self'` と既定（相手）、
         // 1ゾーンと2ゾーンが同じ文になり、逆翻訳が区別できない（＝engine を直しても計器に映らない）。
+        // ⚠**既定は engine どおり「対戦相手の」**（`execStubPart2.ts:3530` が
+        //   `stub.owner === 'self' ? 'self' : 'opponent'`＝`owner` 省略時は相手のゾーン）。
+        //   🔴**原文に合わせて「無いときは前置しない」にしてはいけない**＝engine は相手ゾーンを指定させるので、
+        //     前置を消すと逆翻訳が engine の実挙動より曖昧になる（`O-354` の教訓の逆向き）。
         const ownerJaDSZ = a.owner === 'self' ? 'あなたの' : '対戦相手の';
         const countDSZ = typeof a.count === 'number' && a.count > 1 ? a.count : 1;
         // 語順が2通り＝「シグニゾーン１つを指定する」／「シグニゾーンを２つまで指定し」。
-        const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン(?:[０-９\d]+つを指定する|を[０-９\d]+つ(?:まで)?指定(?:する|し))/);
-        // 原文が連用形（「指定し、」）でも逆翻訳は文として閉じる。
-        if (m) {
-          const bodyDSZ = m[0].replace(/指定し$/, '指定する');
-          return /(?:あなた|対戦相手)の/.test(bodyDSZ) ? bodyDSZ : `${ownerJaDSZ}${bodyDSZ}`;
-        }
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   ⚠`owner` が無い宣言は原文にも所有者の限定が無い（`WX10-051`「シグニゾーン１つを指定する。」）＝
+        //     既定で「対戦相手の」を足すと**原文に無い限定を書く**ことになるので、無いときは前置しない。
         return `${ownerJaDSZ}シグニゾーンを${numJa(countDSZ)}つ${countDSZ > 1 ? 'まで' : ''}指定する`;
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
@@ -4673,9 +4681,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「あなたのアップ状態の＜クラス＞（か＜クラス＞）/色のシグニを好きな数/N体までダウンしてもよい」。
       // クラス/色/枚数はカードごとに異なるため currentCardText から抽出。
       if (a.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
-        const m = currentCardText.match(/(?:あなたの)?アップ状態の[^。]*?のシグニを[^。]*?ダウン(?:してもよい|する)/);
-        if (m) return m[0];
-        return 'あなたのアップ状態のシグニを好きな数ダウンしてもよい';
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   engine は `selectTarget` で候補を作り、`downUpSigniChoose.optional`（または `upToCount`）で
+        //   辞退を許す（`execStubPart3.ts:3363`）。
+        const dusTgt = a.selectTarget;
+        if (!dusTgt) return '【※ペイロード欠落】ダウンするシグニの条件が未指定（engine は候補を作れない）';
+        const dusOpt = a.downUpSigniChoose?.optional === true || dusTgt.upToCount === true;
+        return `${targetJa(dusTgt)}をダウンする${dusOpt ? '（してもよい）' : ''}`;
       }
       // ターン終了時トラッシュ（TRASH_AT_TURN_END・engine実装済み）＝この方法で場に出したシグニを
       // 「ターン終了時、それ（ら）を場からトラッシュに置く」。単複はカードごとに異なるため currentCardText から抽出。
@@ -4769,12 +4781,10 @@ function actionJa(a?: Action, effectType?: string): string {
         // 種別は stub 側が持っているので、まず**自分の種別**の原文断片を探す。
         // 「【シグニバリア】１つと【ルリグバリア】１つを得る」（WXDi-P12-001）は片方に「つを得る」が
         // 続かないため、種別を問わない旧 regex だと両方の stub が【ルリグバリア】と表示されていた。
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   ⚠`count` を持つのは live 7ノード中1つだけで、engine も既定1つ＝**既定値から描くのが正しい**。
         const kind = a.id === 'GAIN_SIGNI_BARRIER' ? 'シグニ' : 'ルリグ';
-        const own = currentCardText.match(new RegExp(`【${kind}バリア】[０-９\\d]*つ(?:を得る)?`));
-        if (own) return own[0].endsWith('を得る') ? own[0] : `${own[0]}を得る`;
-        const m = currentCardText.match(/【(?:ルリグ|シグニ)バリア】[０-９\d]*つを得る/);
-        if (m) return m[0];
-        return `【${kind}バリア】１つを得る`;
+        return `【${kind}バリア】${numJa(a.count ?? 1)}つを得る`;
       }
       // バリア喪失（LOSE_SIGNI_BARRIER/LOSE_LRIG_BARRIER・engine実装済み）＝「対戦相手は【○バリア】１つを失う」（WX24-P1-043）
       if (a.id === 'LOSE_SIGNI_BARRIER' || a.id === 'LOSE_LRIG_BARRIER') {
@@ -4801,9 +4811,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「対戦相手の（ルリグ）トラッシュから（アーツ/スペル）N枚を対象とし、…使用する（してもよい）」。
       // 使用先/条件はカードごとに異なるため currentCardText から抽出。非マッチ（別構造カード）は
       // フォールスルーして従来表示のまま（誤文を入れない）。
+      // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
       if (a.id === 'CAST_FROM_OPP_TRASH') {
-        const m = currentCardText.match(/対戦相手の(?:ルリグ)?トラッシュから[^。]*?使用(?:してもよい|する)/);
-        if (m) return m[0];
+        return '対戦相手のルリグトラッシュからアーツ1枚を対象とし、それをコストを支払わずに使用する'
+          + (a.exileAfterUse ? '。それがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される' : '');
       }
       // アクセにする（ACCE_FROM_HAND・engine実装済み）＝原文の表現は多様（エナ/手札/トラッシュ由来・
       // 対象数可変）だが共通末尾「…の【アクセ】にする」の文を currentCardText から抽出（1文＝1ACCE・句は。で区切られ
@@ -4914,12 +4925,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // コラボライバー（COLLAB・engine実装済み）＝【常】は「【ガード】する際…コラボしてもよい」（ガード代替）、
       // それ以外は「コラボライバーN人を呼ぶ」。同一カードに両方あるため effectType で分岐。
       if (a.id === 'COLLAB') {
-        if (effectType === 'CONTINUOUS') {
-          const mc = currentCardText.match(/あなたが【ガード】する際、[^。]*?コラボしてもよい/);
-          if (mc) return mc[0];
-        }
-        const m = currentCardText.match(/コラボライバー[０-９\d一二三四]*人を呼ぶ/);
-        if (m) return m[0];
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   ⚠【ガード】代替の枝は `O-348` バッチCで `GUARD_ALTERNATIVE_COST` へ移した＝ここは「呼ぶ」だけ。
+        const cc = a.collabCall;
+        if (!cc) return '【※ペイロード欠落】呼ぶコラボライバーの人数が未指定（engine は何もしない）';
+        return `コラボライバー${numJa(cc.count ?? 1)}人を呼ぶ`;
       }
       // スペルを無償・限定無視で使用（PLAY_SPELL_FREE_IGNORE_RESTRICTION・engine実装済み）。
       // 🆕§5.3 `O-60` 第20バッチ（2026-09-03）＝**payload から描く**。
@@ -5013,8 +5023,17 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DECLARE_CLASS') {
         // 候補列挙つき（「＜精像＞か＜精武＞か…から1つを宣言する」PR-431・タスク12(xlvi)(c)）
         if (a.declareOptions?.length) return `${a.declareOptions.map((c: string) => `＜${c}＞`).join('か')}から1つを宣言する`;
-        const m = currentCardText.match(/クラス[０-９\d一]*つを宣言する/);
-        if (m) return m[0];
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出していた）。
+        //   ⚠`declareOptions` は engine が提示する選択肢の実体（`execStubPart1.ts:3639`）＝
+        //     描かないと「どのクラスでも宣言できる」と読めてしまう。
+        if (Array.isArray(a.declareOptions) && a.declareOptions.length > 0) {
+          return `${a.declareOptions.map((c: string) => `＜${c}＞`).join('か')}から1つを宣言する`;
+        }
+        if (a.declareFromLastProcessed) {
+          const dfpMin = a.declareFromLastProcessed.minCount;
+          return `この方法で処理したカードのクラスから1つを宣言する${dfpMin ? `（${numJa(dfpMin)}枚以上ある場合）` : ''}`;
+        }
+        return 'クラス1つを宣言する';
       }
       // ゲート設置（PLACE_OWN_GATE・engine実装済み）＝「あなたのシグニゾーンN つに【ゲート】M つを置く」。
       if (a.id === 'PLACE_OWN_GATE') {
@@ -5123,25 +5142,48 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // トラッシュしたカードからピック（PICK_FROM_TRASHED_CARDS）＝「この方法でトラッシュに置かれたカードの中から…対象とし、それ(ら)を手札に加える(か場に出す)」を原文抽出。
       if (a.id === 'PICK_FROM_TRASHED_CARDS') {
-        const m = currentCardText.match(/この方法でトラッシュに置かれたカードの中から[^。]*?対象とし、それら?を手札に加える(?:か場に出す)?/);
-        if (m) return m[0];
-        // 🆕原文が「その後、…**それを**トラッシュから場に出す」形（`WXK07-106-E1`）だと上の regex に
-        //   当たらない＝**ペイロードから組み立てる**（カード全文 regex 頼みは §5.3 `O-60` の死角）。
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出しており、
+        //   枚数・絞り込み・行き先が何であっても原文どおりに見えていた）。
         const tp = a.trashedPick;
-        if (tp) {
-          const destJa = tp.dest === 'energy' ? 'エナゾーンに置く'
-            : tp.dest === 'field' ? '場に出す'
-              : tp.dest === 'hand_or_field' ? '手札に加えるか場に出す' : '手札に加える';
-          return `この方法でトラッシュに置いたカードの中から${filterJa(tp.filter)}${numJa(tp.count)}枚${tp.upTo ? 'まで' : ''}を${destJa}`;
-        }
+        if (!tp) return '【※ペイロード欠落】この方法でトラッシュに置いたカードから選ぶ枚数・行き先が未指定';
+        const tpDest = tp.dest === 'hand' ? '手札に加える'
+          : tp.dest === 'field' ? '場に出す'
+          : tp.dest === 'hand_or_field' ? '手札に加えるか場に出す'
+          : tp.dest === 'energy' ? 'エナゾーンに置く'
+          : tp.dest === 'declare' ? '宣言する'
+          : '【※行き先未指定】';
+        const tpNoun = tp.filter?.cardType ?? 'カード';
+        return `この方法でトラッシュに置かれたカードの中から${filterJa(tp.filter)}${tpNoun}${numJa(tp.count ?? 1)}枚${tp.upTo ? 'まで' : ''}を対象とし、それを${tpDest}`;
       }
       // 場出し制限（DEPLOY_RESTRICT）＝「…新たに(場に)出せない(。（補足）)」をカード別に原文抽出（先頭の【】：は timing 側で描画済のため除外）。
       if (a.id === 'DEPLOY_RESTRICT') {
         // 配置数制限：「(このターン、)対戦相手はシグニをN体までしか場に出(せない/すことができない)(。（補足＝トラッシュ処理）)」
-        const mc = currentCardText.match(/(?:このターン、)?対戦相手は[^。：]*?シグニを[０-９\d]+体までしか[^。]*?場に出(?:せない|すことができない)(?:。（[^）]*）)?/);
-        if (mc) return mc[0];
-        const m = currentCardText.match(/[^。：]*新たに[^。]*出せない(?:。（[^）]*）)?/);
-        if (m) return m[0];
+        // 🆕`O-356`＝**payload から描く**（旧実装は `currentCardText` を切り出しており、
+        //   `deployRestrict` の主語・上限・パワー下限が何であっても原文どおりに見えていた）。
+        const drSpec = a.deployRestrict;
+        if (!drSpec) return '【※ペイロード欠落】配置制限の形が未指定（engine は何もしない＝fail-closed）';
+        // 🔑**期間は payload にも effect の `duration` にも無い＝engine の実装が決めている**ので、
+        //   engine を読んでそのとおり描く（`duration` は INSTANT/PERMANENT しか無く区別できない）。
+        //   ・`power_gte`＝`signi_deploy_bans` に `turnsRemaining:2` を積む（`execStubPart3.ts:1739`）
+        //     ＝**このターンと次のターン**（固定）。
+        //   ・`count`＝【常】は恒久（`effectEngine.collectDeployCountLimit`）／それ以外は
+        //     `signi_deploy_count_limit` フラグ＝**このターン**（`execStubPart3.ts:1717`）。
+        //   ⚠**原文の期間句をそのまま貼らない**＝貼ると engine の寿命と食い違っても気付けない。
+        if (drSpec.kind === 'power_gte') {
+          return `このターンと次のターン、対戦相手はパワー${drSpec.powerGte}以上のシグニを新たに場に出せない`;
+        }
+        if (drSpec.kind === 'count') {
+          const capDR = drSpec.cap ?? 0;
+          const subjDR = drSpec.subject ?? 'opponent';
+          const subjJaDR = subjDR === 'both' ? 'すべてのプレイヤー' : subjDR === 'self' ? 'あなた' : '対戦相手';
+          // `extraTurnReservation`＝即時ではなく**次の追加ターンへの予約**（engine は `extra_turn` のときだけ刻む）。
+          const resDR = (subjDR === 'self' && drSpec.extraTurnReservation) ? '次のあなたの追加ターンの間、' : '';
+          // engine は上限超過分を実際にトラッシュする（`applyDeployCountLimit` が `trashedCount` を返す）＝
+          // 原文の補足「（すでに場にN体ある場合は…トラッシュに置く）」に対応する実挙動なので描く。
+          const spanDR = resDR ? '' : effectType === 'CONTINUOUS' ? '' : 'このターン、';
+          return `${resDR}${spanDR}${subjJaDR}はシグニを${numJa(capDR)}体までしか場に出せない`
+            + `（すでに上限を超えている場合はその数になるようにシグニをトラッシュに置く）`;
+        }
       }
       // 相手シグニのアタックパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）。
       // 🆕§5.3 `O-60` 第17バッチ（2026-09-03）＝**payload から描く**（原文抽出は控えのフォールバック）。

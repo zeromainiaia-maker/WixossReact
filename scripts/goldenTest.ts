@@ -68544,15 +68544,21 @@ test('§5.3 O-60 第56: 計器は sourceAbilityText(ctx) の読み出しも数�
   //   ハンドラが初版から一度も計器に出ていなかった（`CLAUDE.md` が `census:costtext` の罠③として
   //   既に書いていた同じ穴）。この test は**その入口が消えないこと**を守る。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const isAbilityFunnel = lines\[i\]\.includes\('sourceAbilityText\(ctx\)'\)/.test(census),
-    '走査の入口に sourceAbilityText(ctx) が入っている');
+  // 🆕🔴**2026-09-13（`O-356`）＝入口を「関数名」で数える形へ直した。**
+  //   旧 assert は `includes('sourceAbilityText(ctx)')` という**引数名つきのリテラル**を守っており、
+  //   `sourceAbilityText(cur)` と書かれた1ハンドラ（`OPTIONAL_TRASH_ENERGY_CLASS`・live 33ノード）が
+  //   **計器の外に居続けた**。⇒ **呼び出し側の変数名に依存しないこと**を守る門にする。
+  ok(census.includes('const isAbilityFunnel = /\\bsourceAbilityText\\s*\\(/.test(lines[i])'),
+    '走査の入口は関数名で数える（引数名に依存しない）');
+  ok(!/includes\('sourceAbilityText\(ctx\)'\)/.test(census),
+    '🔴入口が引数名 ctx のリテラルへ戻っている（`sourceAbilityText(cur)` 等が計器から消える）');
   ok(/const isSelf = isAbilityFunnel \|\|/.test(census),
     'funnel 経由の読み出しは無条件に A群（SELF_TEXT）として数える');
   // engine 側に funnel の呼び出しが実在する（0 になったら計器の入口ごと消してよい合図）。
   const engineDir = join(root, 'src/engine');
   const calls = fs.readdirSync(engineDir).filter(n => n.endsWith('.ts')).reduce((n, f) => {
     const src = fs.readFileSync(join(engineDir, f), 'utf8');
-    return n + (src.match(/sourceAbilityText\(ctx\)/g) ?? []).filter(() => true).length;
+    return n + (src.match(/\bsourceAbilityText\s*\(/g) ?? []).filter(() => true).length;
   }, 0);
   ok(calls >= 10, `engine に funnel の呼び出しが残っている（実測 ${calls} 箇所）`);
 });
@@ -69042,7 +69048,12 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   }
   // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const BASELINE_SELF_TEXT = 0;/.test(census), 'BASELINE_SELF_TEXT が実測 0 へ下がっている（§5.3 `O-60` 第71〜第76＝A群が空）');
+  // 🆕🔴**2026-09-13（`O-356`）＝0 → 1 は「較正」であって退化ではない。**
+  //   計器の入口が引数名 `ctx` に依存していたため、`sourceAbilityText(cur)` と書かれた
+  //   `OPTIONAL_TRASH_ENERGY_CLASS`（live 33ノード / 33カード）が一度も数えられていなかった。
+  //   engine のコードは1行も増えていない。payload 化すれば 1 → 0 へ戻せる。
+  ok(/const BASELINE_SELF_TEXT = 1;/.test(census),
+    'BASELINE_SELF_TEXT が実測 1（= `OPTIONAL_TRASH_ENERGY_CLASS` の較正ぶん）になっている');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
