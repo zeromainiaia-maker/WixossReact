@@ -80772,6 +80772,69 @@ test('O-343 WXEX2-81 対照: payload 欠落では下のカードから色を得�
     'payload 欠落で原文 regex へ戻らない');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-345` 残バグ＝`WX19-007-E2`「対戦相手のセンタールリグがレベル４以上の場合、あなたのルリグデッキから
+// 《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》にグロウコストを支払わずにグロウする」。
+// 🔴旧 live は `STUB{CONDITIONAL_FREE_GROW}` を裸で持ち、engine は `free_grow_this_turn` を立てるだけ＝
+//   条件もグロウ先も無く、実際にグロウもしない代わりに**このターンのあらゆるグロウが無料**になっていた。
+// ══════════════════════════════════════════════════════════════════════════════
+const O345_GROW_NAMES = ['炎・タマヨリヒメ・伍', '炎・タマヨリヒメ・伍改'];
+
+test('O-345 WX19-007-E2 live: 条件とグロウ先が payload に載っている', () => {
+  const effect = effectsMap.get('WX19-007')!.find(e => e.effectId === 'WX19-007-E2')!;
+  const act = effect.action as unknown as { type: string; condition?: Record<string, unknown>; then?: Record<string, unknown> };
+  eq(act.type, 'CONDITIONAL', '条件つきで包まれている');
+  eq(JSON.stringify(act.condition), JSON.stringify({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: 4 }),
+    '🔴原文の「対戦相手のセンタールリグがレベル４以上の場合」が条件として載る');
+  const stub = act.then as { id?: string; growFromLrigDeck?: { cardNames?: string[]; free?: boolean } };
+  eq(stub.id, 'CONDITIONAL_FREE_GROW', 'STUB id は据え置き');
+  eq(JSON.stringify(stub.growFromLrigDeck?.cardNames), JSON.stringify(O345_GROW_NAMES), 'グロウ先2枚を名前で持つ');
+  eq(stub.growFromLrigDeck?.free, true, '「グロウコストを支払わずに」を持つ');
+  ok(!JSON.stringify(effect).includes('free_grow_this_turn'), '🔴このターン全体を無料にする旧軸を持たない');
+});
+
+test('O-345 WX19-007-E2 engine: 指定名がルリグデッキに在れば予約を積む／無ければ何もしない', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WX19-007')!.find(e => e.effectId === 'WX19-007-E2')!;
+  const run = (lrigDeck: string[], oppLrig: string) => {
+    const ctx = mkCtx({ signi: [null, null, null], hand: 0 }, { hand: 0 }, 'WX19-007');
+    ctx.ownerState.lrig_deck = [...lrigDeck];
+    ctx.ownerState.field.lrig = ['WX19-007'];
+    ctx.otherState.field.lrig = [oppLrig];
+    return finish(executeEffect(effect, ctx), ctx);
+  };
+  // 《炎・タマヨリヒメ・伍》= WX10-001（Lv5）。相手センターも Lv5 の同カードで条件を成立させる。
+  const withDeck = run(['WX10-001'], 'WX10-001');
+  eq(JSON.stringify(withDeck.ownerState.pending_effect_grow?.cardNames), JSON.stringify(['炎・タマヨリヒメ・伍']),
+    'ルリグデッキに在る指定名だけを予約に載せる');
+  eq(withDeck.ownerState.pending_effect_grow?.free, true, '無償グロウとして予約する');
+  eq(withDeck.ownerState.free_grow_this_turn, undefined, '🔴このターン全体を無料にしない');
+
+  // 🔴対照①＝ルリグデッキに指定名が無ければ予約しない（fail-closed）。
+  const noDeck = run(['WD01-002'], 'WX10-001');
+  eq(noDeck.ownerState.pending_effect_grow, undefined, '指定名がルリグデッキに無ければ何も予約しない');
+
+  // 🔴対照②＝対戦相手のセンターがレベル4未満なら条件不成立で予約しない。
+  //   ⚠`WD01-001`（満月の巫女）は **Lv4** なので対照にならない（初版で踏んだ）＝`WD01-002` は Lv3。
+  const lowOpp = run(['WX10-001'], 'WD01-002');
+  eq(lowOpp.ownerState.pending_effect_grow, undefined, '相手センターが Lv4 未満なら発動しない');
+}));
+
+test('O-345 WX19-007-E2 UI: グロウ候補が指定した2枚だけに絞られる（src/screens の純関数）', () => {
+  const my = mkCtx({ signi: [null, null, null], hand: 0 }, { hand: 0 }, 'WX19-007').ownerState;
+  my.field.lrig = ['WX19-007'];                       // Lv4 タマ
+  my.lrig_deck = ['WX10-001', 'WX19-001', 'WX19-007']; // 伍 / 伍改 / 自身（Lv4＝候補外）
+  const all = listGrowCandidates({ my, cardMap, effectsMap, freeGrowFilter: 'plus1' }).map(c => c.CardName);
+  ok(all.includes('炎・タマヨリヒメ・伍') && all.includes('炎・タマヨリヒメ・伍改'), '限定なしなら Lv5 の2枚が候補');
+
+  const only = listGrowCandidates({ my, cardMap, effectsMap, freeGrowFilter: 'plus1', restrictNames: ['炎・タマヨリヒメ・伍'] })
+    .map(c => c.CardName);
+  eq(JSON.stringify(only), JSON.stringify(['炎・タマヨリヒメ・伍']), '名前限定でその1枚だけになる');
+
+  // 🔴対照＝名前限定は**他の判定を緩めない**（レベルが合わないカードは名前を指定しても出ない）。
+  const bogus = listGrowCandidates({ my, cardMap, effectsMap, freeGrowFilter: 'plus1', restrictNames: ['黄金の巫女　タマヨリヒメ'] });
+  eq(bogus.length, 0, '名前を指定してもレベル+1でなければ候補にならない');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

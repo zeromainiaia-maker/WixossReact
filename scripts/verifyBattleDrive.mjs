@@ -58567,6 +58567,108 @@ scenarios.v215DeclareAllCardsMiss = {
 
 order.push('v215DeclareAllCardsHit', 'v215DeclareAllCardsMiss');
 
+// V-216＝§5.3 `O-345` 残バグ・第316バッチ（`WX19-007-E2`）。
+// 原文＝「対戦相手のセンタールリグがレベル４以上の場合、あなたのルリグデッキから
+//   《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》に**グロウコストを支払わずにグロウする**」。
+// 🔴旧実装は `free_grow_this_turn` を立てるだけ＝グロウ先の限定も無く、実際にグロウもしなかった。
+// 🔑観測点は3つ＝①グロウモーダルが開く ②候補が**指定の2枚だけ**（同レベル同クラスの囮が出ない）
+//   ③**エナ0枚のまま**グロウできてセンターが入れ替わる（＝無償）。
+// ⚠`src/screens/` を触った回なので §2.2 により実機必須。ON_PLAY はグロウ経路でしか起きないので
+//   `o190EffectStack` 注入で当該効果だけを撃つ（`o60placeHand` と同じ idiom）。
+const V216_SOURCE = 'WX19-007#3601';
+const V216_GROW_TO = 'WX10-001#3602';        // 炎・タマヨリヒメ・伍（Lv5 タマ）
+const V216_GROW_ALT = 'WX19-001#3603';       // 炎・タマヨリヒメ・伍改（Lv5 タマ）
+const V216_DECOY = 'WX05-005#3604';          // 黒点の巫女 タマヨリヒメ（Lv5 タマ＝**原文に無い**囮）
+
+scenarios.v216FreeGrowNamedOnly = {
+  title: 'V-216 O-345: WX19-007-E2＝ルリグデッキの指定2枚だけがグロウ候補になり、エナ0枚のまま無償グロウできる',
+  spec: {
+    hostSet: {
+      'field.lrig': [V216_SOURCE], 'field.lrig_down': false,
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      // 🔑**エナ0**＝無償グロウであることの証拠（払えないのにグロウできる）。
+      hand: [], energy: [], trash: [], lrig_trash: [], coins: 0,
+      lrig_deck: [V216_GROW_TO, V216_GROW_ALT, V216_DECOY],
+      deck: ['WD01-014#3610', 'WD01-014#3611', 'WD01-014#3612'],
+      actions_done: [], game_actions_done: [],
+    },
+    guestSet: {
+      // 満月の巫女 タマヨリヒメ＝**Lv4**＝原文の「レベル４以上」を満たす。
+      'field.lrig': ['WD01-001#3690'],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], lrig_trash: [], blocked_actions: [],
+    },
+    top: {
+      active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX19-007', V216_SOURCE, 'WX19-007-E2'),
+    },
+  },
+  async drive(page, H) {
+    const pre = await H.queryState();
+    H.log(`開始 lrig=${JSON.stringify(pre?.host?.lrigTop ?? pre?.host?.lrig)} energy=${pre?.host?.energy} stack=${pre?.stackLen}`);
+    const visible = async (name) => {
+      const el = page.getByAltText(name, { exact: true }).first();
+      return (await el.count()) > 0 && await el.isVisible().catch(() => false);
+    };
+    let sawModal = false, probed = null, picked = false;
+    for (let step = 0; step < 24; step++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      if (!picked && await visible('炎・タマヨリヒメ・伍')) {
+        sawModal = true;
+        // 🔑**候補の判定は「指定2枚が出る／囮が出ない」の3点だけ**を見る。
+        //   ⚠`img[alt*="タマヨリヒメ"]` のような広い selector は**盤面のルリグ画像まで拾う**ので使わない
+        //     （初版で「候補」に相手センターと自分のセンターが混ざった）。
+        if (!probed) {
+          probed = {
+            grow: true,
+            alt: await visible('炎・タマヨリヒメ・伍改'),
+            decoy: await visible('黒点の巫女　タマヨリヒメ'),
+          };
+          H.log(`  PROBE 伍=${probed.grow} 伍改=${probed.alt} 囮(黒点)=${probed.decoy}`);
+        }
+        if (probed.decoy) {
+          return { pass: false, detail: '🔴名前限定が効いていない＝原文に無い《黒点の巫女　タマヨリヒメ》（同Lv・同クラス）が候補に出た' };
+        }
+        if (!probed.alt) {
+          return { pass: false, detail: '🔴指定2枚のうち《炎・タマヨリヒメ・伍改》が候補に出ない（限定が狭すぎる）' };
+        }
+        await page.getByAltText('炎・タマヨリヒメ・伍', { exact: true }).first().click({ timeout: 2000 }).catch(() => {});
+        picked = true;
+        did = 'pick:炎・タマヨリヒメ・伍';
+      }
+      if (!did && picked) {
+        const exec = page.getByTestId('grow-execute').first();
+        if (await exec.count() && await exec.isVisible().catch(() => false)
+            && await exec.isEnabled().catch(() => false)) {
+          await exec.click({ timeout: 2000 }).catch(() => {});
+          did = 'btn:grow-execute';
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+
+      const st = await H.queryState();
+      const lrigTop = st?.host?.lrigTop ?? (st?.host?.lrig ?? []).at(-1);
+      H.log(`  v216[${step}] -> ${did ?? 'なし'} | modal=${sawModal} picked=${picked} lrigTop=${lrigTop} energy=${st?.host?.energy} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      // 🔑**グロウ完了の判定はボタンではなくセンタールリグの入れ替わり**で見る
+      //   （実装によっては候補クリックだけで確定するため、押下フラグを条件にすると永久に待つ＝初版で実測）。
+      if (picked && String(lrigTop ?? '').startsWith('WX10-001')) {
+        if ((st?.host?.energy ?? 0) !== 0) {
+          return { pass: false, detail: `グロウはできたがエナが ${st?.host?.energy} ＝0でない（無償グロウの観測が崩れている）` };
+        }
+        return { pass: true, detail: `候補は指定2枚のみ（囮《黒点の巫女》は出ない）。エナ0枚のまま《炎・タマヨリヒメ・伍》へグロウしセンターが ${lrigTop} になった` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `判定に至らず（modal=${sawModal} picked=${picked} probe=${JSON.stringify(probed)} lrigTop=${fin?.host?.lrigTop ?? JSON.stringify(fin?.host?.lrig)} energy=${fin?.host?.energy}）` };
+  },
+};
+order.push('v216FreeGrowNamedOnly');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

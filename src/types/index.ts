@@ -1259,7 +1259,15 @@ export interface PlayerState {
    * ⚠`suppressOnPlay`＝「この方法でグロウしたルリグの【出】能力は発動しない」＝**そのグロウ1回だけ**。
    *   ターン全体のフラグ（`suppress_center_on_play`）へ倒すと、同じターンの別のグロウまで黙って抑制する。
    */
-  pending_effect_grow?: { suppressOnPlay?: boolean };
+  /**
+   * 効果によるその場グロウの予約（§5.3 `O-83`／`O-345`）。engine は予約だけを積み、
+   * **実際のグロウは `BattleScreen.executeGrow`（正規経路）**が行う＝【出】・リミット再計算・コイン獲得が落ちない。
+   * - `suppressOnPlay`＝「この方法でグロウしたルリグの【出】能力は発動しない」（そのグロウ1回だけ）。
+   * - 🆕`cardNames`＝グロウ先を**カード名で限定**する（`WX19-007-E2`＝「《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》に」）。
+   * - 🆕`free`＝「**グロウコストを支払わずに**」＝UI は `freeGrowFilter:'plus1'`。
+   *   ⚠省略時は従来どおり `'plus1_paid'`（通常のコストを払う）＝ここを混ぜるとコスト踏み倒しになる。
+   */
+  pending_effect_grow?: { suppressOnPlay?: boolean; cardNames?: string[]; free?: boolean };
   /**
    * 🆕§5.3 `O-59`（2026-09-02）＝直前に**手札へ戻した【トラップ】が居たシグニゾーン**の index。
    * 「それがあった**シグニゾーンに**手札からカード１枚を【トラップ】として設置する」（`WX16-028-E2`）が読む。

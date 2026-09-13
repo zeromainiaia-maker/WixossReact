@@ -7732,6 +7732,15 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-13・第315バッチ後・PLAN §6 から退避）
+
+- **2026-09-13 時点（本ブロックが直近の正）**＝第315バッチ（🏁`O-353` クローズ＋実機 `V-215` 返済）
+  📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
+  📦**在庫**＝**機構 worklist 🔥10項目**（**索引A 🏁0**／`O-345` 索引B／`O-344`・`O-346`・`O-357`〜`O-364` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4089 PASS**／smoke 10754 OK／fuzz 200ゲーム 0／census 1 / BASELINE 1。
+  ✅**実機**＝`V-215` **2シナリオとも PASS**（`v215DeclareAllCardsHit` / `v215DeclareAllCardsMiss`）。
+  🆕**払い戻し**＝`census:stublabel` A群 **7 → 4**（宣言プールを逆翻訳に描いた）。
+
 ### 恒久指標アーカイブ（2026-09-13・第314バッチ後・PLAN §6 から退避）
 
 - **2026-09-13 時点（本ブロックが直近の正）**＝第314バッチ（Codex 委譲＝🏁`O-343` クローズ）

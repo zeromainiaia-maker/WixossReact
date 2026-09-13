@@ -18,6 +18,11 @@ export interface GrowModalState {
    * ⚠**エナの選択（`selectedGrowCost`）とは別の集合**＝混ぜると「エナを選んだのに手札が減る」になる。
    */
   growPayDiscard: Set<number>;
+  /**
+   * 🆕**効果によるグロウのグロウ先カード名限定**（§5.3 `O-345`・`WX19-007-E2`）。
+   * `null`＝限定なし（通常グロウ／従来の効果グロウ）。
+   */
+  growRestrictNames: string[] | null;
 }
 
 const initialState: GrowModalState = {
@@ -26,6 +31,7 @@ const initialState: GrowModalState = {
   pendingGrowCard: null,
   selectedGrowCost: new Set(),
   growPayDiscard: new Set(),
+  growRestrictNames: null,
 };
 
 export function useGrowModal() {
@@ -37,12 +43,17 @@ export function useGrowModal() {
     setPendingGrowCard: set.pendingGrowCard,
     setSelectedGrowCost: set.selectedGrowCost,
     setGrowPayDiscard: set.growPayDiscard,
-    /** GROW_FREE（ゲット・グロウ等）でモーダルを開く（選択状態は白紙化） */
-    openFreeGrow: (filter: 'same' | 'plus1' | 'plus1_paid') =>
-      patch({ freeGrowFilter: filter, pendingGrowCard: null, selectedGrowCost: new Set(), growPayDiscard: new Set(), showGrowModal: true }),
+    setGrowRestrictNames: set.growRestrictNames,
+    /**
+     * GROW_FREE（ゲット・グロウ等）でモーダルを開く（選択状態は白紙化）。
+     * ⚠`restrictNames`（§5.3 `O-345`）は**開くたびに明示**する＝前回の限定が残ると
+     * 次の効果グロウが黙って絞られる。
+     */
+    openFreeGrow: (filter: 'same' | 'plus1' | 'plus1_paid', restrictNames: string[] | null = null) =>
+      patch({ freeGrowFilter: filter, pendingGrowCard: null, selectedGrowCost: new Set(), growPayDiscard: new Set(), showGrowModal: true, growRestrictNames: restrictNames }),
     /** モーダルを閉じて選択状態・フリーグロウを全リセット */
     closeGrowModal: () =>
-      patch({ showGrowModal: false, pendingGrowCard: null, selectedGrowCost: new Set(), growPayDiscard: new Set(), freeGrowFilter: null }),
+      patch({ showGrowModal: false, pendingGrowCard: null, selectedGrowCost: new Set(), growPayDiscard: new Set(), freeGrowFilter: null, growRestrictNames: null }),
     /** コスト支払いエナの選択トグル */
     toggleGrowCost: (idx: number) =>
       set.selectedGrowCost((prev) => {

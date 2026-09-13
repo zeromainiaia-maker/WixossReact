@@ -6332,6 +6332,16 @@ function actionJa(a?: Action, effectType?: string): string {
         return `あなたのエナゾーンから${vtb.story ? `＜${vtb.story}＞の` : ''}カードを${vtb.maxCount ?? '?'}枚までトラッシュに置く。`
           + 'この方法でトラッシュに置いたカードの枚数と同じレベルの対戦相手のシグニ1体を対象とし、それを手札に戻す';
       }
+      // 🆕🏁**§5.3 `O-345`（2026-09-13・第316バッチ）＝ルリグデッキの名前指定へのその場グロウ。**
+      // 🔴旧ラベルは「このターン、グロウコストを支払わずにグロウできるようになる」＝
+      //   **engine の旧挙動（全グロウ無料）を書いていた**。payload 化したので原文どおりに描ける。
+      // ⚠**payload が無いときは engine が何もしない**＝それも描く（既定値へ倒したように読ませない）。
+      if (a.id === 'CONDITIONAL_FREE_GROW') {
+        const gfl = a.growFromLrigDeck;
+        if (!gfl?.cardNames?.length) return '【未実装】グロウ先の指定が無いためグロウしない';
+        const namesCFG = gfl.cardNames.map((n: string) => `《${n}》`).join('か');
+        return `あなたのルリグデッキから${namesCFG}に${gfl.free ? 'グロウコストを支払わずに' : ''}グロウする`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。

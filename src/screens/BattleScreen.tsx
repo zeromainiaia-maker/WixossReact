@@ -243,7 +243,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
     pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
     openFreeGrow, closeGrowModal, toggleGrowCost,
-    growPayDiscard, toggleGrowPayDiscard,
+    growPayDiscard, toggleGrowPayDiscard, growRestrictNames,
   } = useGrowModal();
   const {
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
@@ -2161,7 +2161,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       type: 'WRITE_STATE', myKey: localIsHost ? 'host_state' : 'guest_state', myState: cleared,
     }));
     effectGrowSuppressRef.current = req.suppressOnPlay === true;
-    openFreeGrow('plus1_paid');
+    // 🆕§5.3 `O-345`＝原文に「グロウコストを支払わずに」がある形だけ `'plus1'`（無償）。
+    //   🔴既定は `'plus1_paid'` のまま＝ここを取り違えるとコスト踏み倒しになる（`O-83` の注意書き）。
+    //   `cardNames` はグロウ先の名前限定（`WX19-007-E2`）。
+    openFreeGrow(req.free ? 'plus1' : 'plus1_paid', req.cardNames?.length ? req.cardNames : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.host_state?.pending_effect_grow, bs?.guest_state?.pending_effect_grow,
       bs?.active_user_id, loading, bs?.global_phase]);
@@ -6716,7 +6719,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // グロウ候補＝**判定は `growLogic.listGrowCandidates` 1本**（§8 `O-1` (d)）＝
   // レベル・クラス互換・【グロウ】条件・色制限。CPU の候補フィルタも同じ関数を呼ぶ。
   // ⚠ここにコストの支払い可否は含めない（人間UIは払えない候補もグレーで出す）。
-  const growCandidates: CardData[] = listGrowCandidates({ my, cardMap: battleCardMap, effectsMap, freeGrowFilter });
+  // 🆕`growRestrictNames`（§5.3 `O-345`）＝効果が「《A》か《B》に」と名前で限定したときだけ重なる追加の絞り。
+  const growCandidates: CardData[] = listGrowCandidates({ my, cardMap: battleCardMap, effectsMap, freeGrowFilter, restrictNames: growRestrictNames });
 
   // ルリグのクラス（制限チェック共通）
   // ⚠「〇〇限定」の使用制限も**実効クラス**で見る（追加で得たルリグタイプを含む・§6.4 O-3）。

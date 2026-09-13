@@ -2030,9 +2030,24 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ACCE_TO_ENERGY' } as StubAction;
   }
 
-  // ---- 対戦相手のライフクロスを見て選択的にグロウ ----
-  if (t.match(/対戦相手のセンタールリグがレベル[０-９\d]+以上の場合.*グロウコストを支払わずにグロウする/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_FREE_GROW' } as StubAction;
+  // ---- 「対戦相手のセンタールリグがレベルN以上の場合、ルリグデッキから《A》か《B》に無償グロウ」 ----
+  // 🆕🏁**§5.3 `O-345`（2026-09-13・第316バッチ）＝条件もグロウ先も payload に載せる。**
+  // 🔴旧実装は `STUB{CONDITIONAL_FREE_GROW}` を**裸で**返しており、engine は
+  //   `free_grow_this_turn` を立てるだけ＝①レベル条件が消える ②グロウ先の名前指定が消える
+  //   ③実際にグロウしない ④代わりに**このターンのあらゆるグロウが無料**になる、という別物だった。
+  // ⚠**カード番号で分岐しない**（§5-5c）＝文型と《…》の列挙から組み立てる。
+  const freeGrowM = t.match(/対戦相手のセンタールリグがレベル([０-９\d]+)以上の場合[^。]*?グロウコストを支払わずにグロウする/);
+  if (freeGrowM) {
+    const growNames = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]).filter(n => !/アイコン$/.test(n));
+    const growStub = {
+      type: 'STUB', id: 'CONDITIONAL_FREE_GROW',
+      ...(growNames.length > 0 ? { growFromLrigDeck: { cardNames: growNames, free: true } } : {}),
+    } as StubAction;
+    return {
+      type: 'CONDITIONAL',
+      condition: { type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: parseNum(freeGrowM[1]) },
+      then: growStub,
+    } as unknown as StubAction;
   }
 
   // 「あなたのセンタールリグが<色>であるかぎり、このシグニは「…」を得る」（旧 CONDITIONAL_KEYWORD_BY_CENTER_COLOR STUB）は

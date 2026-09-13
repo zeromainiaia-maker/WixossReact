@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 `O-345` クローズ＝`WX19-007-E2` の無償グロウが「過剰かつ過少」だった（第316バッチ・索引B 残0）
+
+- **原文**＝「【出】《白》：**対戦相手のセンタールリグがレベル４以上の場合**、あなたのルリグデッキから
+  **《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》に**グロウコストを支払わずに**グロウする**。」
+- **真因**＝live は `STUB{CONDITIONAL_FREE_GROW}` を**裸で**持ち、engine（`execStubPart2`）は
+  `free_grow_this_turn = true` を立てるだけだった。⇒ 4つ同時に壊れていた：
+  1. **レベル条件が消える**（いつでも発動）
+  2. **グロウ先の名前指定が消える**
+  3. 🔴**実際にグロウしない**（過少）
+  4. 🔴**代わりにこのターンのあらゆるグロウが無料になる**（過剰＝原文に無い強い効果）
+- 🔑**「過剰かつ過少」の複合バグは既定値へのフォールバックに化けて隠れる**＝「何もしない」のではなく
+  **別のもっと強いことをしていた**。**逆翻訳のラベルが engine の挙動を書いていた**（`O-354` の規約）ので
+  原文照合では「実装が足りない」としか読めず、**ラベルを原文に寄せていたら発見できていない**。
+- 🔑**受け皿は第312の検証で訂正済みだった**＝先例は `GROW_CENTER_IF_LEVEL_LTE_OPP`（`lrig_deck.at(0)` 決め打ち）ではなく
+  **`GROW_BY_EFFECT` ＋ `pending_effect_grow`**（engine は**予約だけ**積み、実グロウは
+  `BattleScreen.executeGrow` の正規経路＝【出】・リミット再計算・コイン獲得が落ちない）。
+- **直し方（足したのは3本だけ・新しい条件型は0）**
+  1. payload `StubAction.growFromLrigDeck:{cardNames, free?}`（parser が原文の《…》列挙から組む。**カード番号は焼き込まない**）
+  2. `PlayerState.pending_effect_grow` に `cardNames` / `free`（engine は予約だけ。**payload が無ければ fail-closed**）
+  3. `listGrowCandidates` に `restrictNames`（⚠**他の判定を緩めずに重ねる**追加の絞り）
+  条件は既存の `CONDITIONAL{LRIG_LEVEL owner:'opponent' operator:'gte' value:4}` で足りた。
+  ⚠**`free` の既定は `'plus1_paid'`（コストを払う）のまま**＝原文に「支払わずに」がある形だけ `'plus1'`（`O-83` の注意書き）。
+- 🔴**parser を直したのに live が変わらなかった**＝新出力が純粋上位集合でないため `docs/_held_fresh.json` に保留されていた。
+  **3つのバケツ（`_held_fresh` / `_partial_fresh` / `_idset_fresh`）を見る**規約どおりに見つけ、原文照合のうえ
+  `node scripts/heldReview.mjs --adopt-effect WX19-007-E2` で採用。
+- **検証コマンド**＝`npm run build:effects` → `heldReview --adopt-effect` → `npm run regen` → `npm run gates` 全緑（**golden 4092 PASS**）。
+  `census:numberdrift` **64 → 63**（レベル条件が逆翻訳に出た＝BASELINE も 63 へ）。
+- **反転確認**＝実施。engine の予約を旧挙動（`free_grow_this_turn`）へ戻すと golden が **PASS 2 / FAIL 1**、復元で **PASS 3**。
+- ✅**実機（`V-216`・§2.2 により `src/screens/` を触ったので必須）**＝
+  `node scripts/verifyBattleDrive.mjs v216FreeGrowNamedOnly` で **PASS**。
+  観測点3つ＝①グロウモーダルが開く ②候補が**指定2枚だけ**（**同レベル・同クラスの囮**《黒点の巫女　タマヨリヒメ》は出ない）
+  ③**エナ0枚のまま**グロウしてセンターが `WX10-001` へ入れ替わる（＝無償）。
+- 🔴**golden と実機がそれぞれ別の不備を出した**
+  1. golden の対照に選んだ `WD01-001`（満月の巫女）が**実は Lv4**で条件を満たし、対照になっていなかった
+     ⇒ `WD01-002`（Lv3）へ差し替え。**対照に使うカードの諸元は必ず実測する。**
+  2. 実機の成功判定を「グロウボタンを押したか」にしていたが、**候補クリックだけで確定する**ので永久に待った
+     ⇒ **判定はボタンではなく「センタールリグが入れ替わったか」**にした。
+  3. 候補プローブに `img[alt*="タマヨリヒメ"]` を使い**盤面のルリグ画像まで拾っていた**
+     ⇒ 「指定2枚が出る／囮が出ない」の明示3点判定にした。
+
 ## 2026-09-13 — 🏁§5.3 `O-353` クローズ＝カード名宣言の候補を全カードプールから選べるようにした（第315バッチ・Codex 委譲＋Claude 引き継ぎ）
 
 - **真因**＝`STUB{DECLARE_CARD_NAME}`（`src/engine/execStubPart1.ts`）の既定枝が候補を

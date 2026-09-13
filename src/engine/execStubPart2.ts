@@ -4416,14 +4416,37 @@ export function execStubPart2(
   if (stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') {
     return done(addLog(ctx, '[全シグニパワーマイナス防止: effectEngineで動的処理]'));
   }
+  // 🆕🏁**§5.3 `O-345`（2026-09-13・第316バッチ）＝`CONDITIONAL_FREE_GROW` を「その場グロウの予約」にした。**
+  // 🔴**旧実装は `free_grow_this_turn` を立てるだけ**＝原文「あなたのルリグデッキから《A》か《B》に
+  //   グロウコストを支払わずに**グロウする**」に対し、①グロウ先の名前指定が無い ②実際にグロウしない
+  //   ③代わりに**このターンのあらゆるグロウが無料**になる、という**過剰かつ過少**な別物だった（`WX19-007-E2`）。
+  // 🔑**実グロウは engine でやらない**＝`GROW_BY_EFFECT`（`O-83`）と同じく `pending_effect_grow` を積み、
+  //   `BattleScreen.executeGrow`（正規経路）に任せる。ここで `field.lrig` へ push すると
+  //   【出】・リミット再計算・コイン獲得が丸ごと落ちる。
+  // ⚠**payload が無ければ何もしない（fail-closed）**＝旧既定（全グロウ無料）へ倒さない。
+  // 表示: CONDITIONAL_FREE_GROW: ルリグデッキの指定したルリグへその場でグロウする（コストは payload 次第）
+  if (stub.id === 'CONDITIONAL_FREE_GROW') {
+    const specCFG = stub.growFromLrigDeck;
+    if (!specCFG || specCFG.cardNames.length === 0) {
+      return done(addLog(ctx, '[CONDITIONAL_FREE_GROW: グロウ先の指定が無いため何もしない]'));
+    }
+    // ルリグデッキに指定名が1枚も無ければグロウは起きない（対話を開いても選べないため）。
+    const deckNamesCFG = new Set((ctx.ownerState.lrig_deck ?? [])
+      .map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName)
+      .filter((n): n is string => !!n));
+    const availCFG = specCFG.cardNames.filter(n => deckNamesCFG.has(n));
+    if (availCFG.length === 0) {
+      return done(addLog(ctx, `ルリグデッキに${specCFG.cardNames.map(n => `《${n}》`).join('か')}が無い（グロウしない）`));
+    }
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState,
+      pending_effect_grow: { cardNames: availCFG, ...(specCFG.free ? { free: true } : {}) },
+    } }, `${availCFG.map(n => `《${n}》`).join('か')}に${specCFG.free ? 'グロウコストを支払わずに' : ''}グロウする`));
+  }
   // グロウコスト変更（engine: グロウコスト処理未実装）
-  // 🆕§5.3 `O-354`（2026-09-13）＝表示ラベルを**実装に合わせた**（原文に合わせない）。
-  //   🔴`CONDITIONAL_FREE_GROW` は `free_grow_this_turn` を立てるだけで、**原文の条件もグロウ先の名前指定も
-  //     持たず、実際にグロウもしない**（§5.3 `O-345` の残バグ＝`WX19-007-E2`）。
-  //   ⇒ ここで原文どおりのラベルを書くと**逆翻訳が engine の欠落を隠す**＝原文照合がそこだけ効かなくなる。
+  // ⚠**live 0 の安全網**＝parser に生成元が無い（2026-09-13 実測）。触らない・消さない。
   // 表示: GROW_COST_ZERO: このターン、グロウコストを支払わずにグロウできるようになる
-  // 表示: CONDITIONAL_FREE_GROW: このターン、グロウコストを支払わずにグロウできるようになる
-  if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW') {
+  if (stub.id === 'GROW_COST_ZERO') {
     const newOwnerGCZ: PlayerState = { ...ctx.ownerState, free_grow_this_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerGCZ }, 'グロウコスト0（次のグロウは無料）'));
   }

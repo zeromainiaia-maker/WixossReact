@@ -7060,6 +7060,14 @@ export interface StubAction {
    * 省略時は従来どおり自分の手札の名前（最大4種）。
    */
   declareNamePool?: 'opp_public_signi' | 'self_deck' | 'all_cards';
+  /**
+   * 🆕**`CONDITIONAL_FREE_GROW` のグロウ先指定**（2026-09-13・§5.3 `O-345`・`WX19-007-E2`）。
+   * 原文＝「あなたのルリグデッキから《A》か《B》に**グロウコストを支払わずにグロウする**」。
+   * 🔴**payload が無ければ何もしない（fail-closed）**＝旧実装は `free_grow_this_turn` を立てるだけで、
+   *   **グロウ先の名前指定も無く、実際にグロウもしなかった**（過剰かつ過少）。
+   * ⚠engine は予約（`pending_effect_grow`）を積むだけ＝実グロウは `BattleScreen.executeGrow` の正規経路。
+   */
+  growFromLrigDeck?: { cardNames: string[]; free?: boolean };
   /** `declareNamePool:'self_deck'` の収集領域。省略時は `['deck']`。領域×絞り込みを enum で掛け算しないための直交軸。 */
   declareNameZones?: ('deck' | 'hand' | 'field')[];
   /** 宣言候補のカード絞り込み（`cardType:'シグニ'`／`nonColorless:true` 等）。 */

@@ -331,6 +331,13 @@ export function listGrowCandidates(p: {
   effectsMap: Map<string, CardEffect[]>;
   /** `'same'`＝ゲット・グロウ等の横グロウ（現センターと同レベル）。`'plus1'`／`'plus1_paid'`／`null`＝通常のレベル+1。 */
   freeGrowFilter?: 'same' | 'plus1' | 'plus1_paid' | null;
+  /**
+   * 🆕**グロウ先をカード名で限定する**（2026-09-13・§5.3 `O-345`・`WX19-007-E2`
+   * 「あなたのルリグデッキから《炎・タマヨリヒメ・伍》か《炎・タマヨリヒメ・伍改》に」）。
+   * ⚠**レベル・クラス・【グロウ】条件の判定は据え置いたまま重ねる**（名前限定は追加の絞りであって置換ではない）。
+   * 省略時は従来どおり限定なし。
+   */
+  restrictNames?: string[] | null;
 }): CardData[] {
   const { my, cardMap, effectsMap } = p;
   const currentLrigNum = my.field.lrig.at(-1) ?? null;
@@ -338,12 +345,15 @@ export function listGrowCandidates(p: {
   const currentLevel = currentLrig ? parseInt(currentLrig.Level) || 0 : 0;
   // 現在のルリグのグロウ色制限（「このルリグは〜のルリグにしかグロウできない」）
   const colorRestrict = currentLrig?.EffectText?.match(/このルリグは(.+)のルリグにしかグロウできない/)?.[1] ?? null;
+  const restrictSet = p.restrictNames?.length ? new Set(p.restrictNames) : null;
   return my.lrig_deck
     .filter((num, i, arr) => arr.indexOf(num) === i)
     .map(num => cardMap.get(getCardNum(num)))
     .filter((c): c is CardData =>
       !!c &&
       c.Type === 'ルリグ' &&
+      // 🆕名前限定（§5.3 `O-345`）＝**他の判定を緩めずに重ねる**。
+      (!restrictSet || restrictSet.has(c.CardName)) &&
       (p.freeGrowFilter === 'same'
         ? parseInt(c.Level) === currentLevel
         : parseInt(c.Level) === currentLevel + 1 ||
