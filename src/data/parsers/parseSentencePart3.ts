@@ -2401,8 +2401,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 数値範囲で数字を宣言する ----
-  if (t.match(/[０-９\d]+～[０-９\d]+の数字[０-９\d]*つを宣言する/)) {
-    return { type: 'STUB', id: 'DECLARE_NUMBER_RANGE' } as StubAction;
+  // 🆕§5.3 `O-356`（2026-09-13）＝範囲を `numberChoices` に載せる（engine は無いと 0〜5 固定だった）。
+  {
+    const rangeM = t.match(/([０-９\d]+)～([０-９\d]+)の数字[０-９\d]*つを宣言する/);
+    if (rangeM) {
+      const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String('０１２３４５６７８９'.indexOf(c))), 10);
+      const lo = toN(rangeM[1]);
+      const hi = toN(rangeM[2]);
+      const numberChoices = Number.isFinite(lo) && Number.isFinite(hi) && lo <= hi
+        ? Array.from({ length: hi - lo + 1 }, (_, i) => lo + i) : undefined;
+      return { type: 'STUB', id: 'DECLARE_NUMBER_RANGE', ...(numberChoices ? { numberChoices } : {}) } as StubAction;
+    }
   }
 
   // ---- 手札からクラスシグニを好きな枚数公開する ----

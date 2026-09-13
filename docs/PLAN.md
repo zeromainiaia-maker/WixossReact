@@ -8,7 +8,13 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-13（第307バッチ）＝`O-356` 払い戻し②＝`ARTS_COST_REDUCTION_BY_EFFECT`（live 59ノード / 58カード）の原文エコーを撤去**（A群 **46 → 45 id**・live **237 → 178ノード**）。
+**直近＝2026-09-13（第307〜308バッチ）＝`O-356` 払い戻し②③**（A群 **46 → 44 id**・live **237 → 151ノード**）。
+🆕🔴**第308＝`DECLARE_NUMBER` の分岐（三点セット）＝実バグ2件。** 実際に原文を貼っていたのは `DECLARE_NUMBER_RANGE` の**4効果だけ**
+（`DECLARE_NUMBER` の26カードは regex に当たらず素通り）。engine は範囲を読まず**常に 0〜5**を提示していたので
+`WX25-CP1-007-E1`（０～１０）は6〜10を宣言できず、`WXDi-P06-013-E2`（１～３）は 0・4・5 を宣言できた。
+⇒ parser が範囲を既存の `numberChoices` へ載せ、engine の `DECLARE_NUMBER_RANGE` がそれを読み、逆翻訳は payload から描く
+（ミル文の二重表示も解消）。golden 1件追加。🆕別の穴 **`O-359`** を登録（`WXDi-P07-086`「２～２０の数字×1000 を基本パワーに」）。
+**以下は第307の要約**＝`ARTS_COST_REDUCTION_BY_EFFECT`（live 59ノード / 58カード）の原文エコーを撤去。
 🔴🔑**主産物＝前回の「②payload なし＝三点セット」の分類が、この id では誤りだった。**
 **STUB ノード単体に payload が無い**ことだけを見て分類していたが、**58カード全部が効果の `cost` 側に payload を持っていた**
 （`useTimeCost` 32 ／ `costReplacement` 25 ／ `costReplacement`＋`optionalDiscardCost` 1）。
@@ -24,10 +30,10 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-348`** の残り19キー（各1ノード） → ②**`O-356`** の残り（**着手前に効果の `cost` と兄弟ノードの payload を数え直す**＝`DECLARE_NUMBER` 27 から） → ③**`O-343`**（索引B） |
+| 🔥**次に取るもの** | ①**`O-348`** の残り19キー（各1ノード） → ②**`O-356`** の残り（**着手前に効果の `cost` と兄弟ノードの payload を数え直す**＝`TRASH_AT_TURN_END` 17 から。⚠`OPTIONAL_TRASH_ENERGY_CLASS` 33 は engine も原文を読むので別扱い） → ③**`O-343`**（索引B） |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
-| 📦**在庫** | 機構 worklist 🔥**9項目**（`O-343`〜`O-346`・`O-348`・`O-353`・`O-356`・`O-357`・🆕`O-358`）／実機 🏁**0**／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4066 PASS**・`census:srcecho` **46 → 45 id**・`census:numberdrift` **68 → 67（較正）** |
+| 📦**在庫** | 機構 worklist 🔥**10項目**（`O-343`〜`O-346`・`O-348`・`O-353`・`O-356`・`O-357`・`O-358`・🆕`O-359`）／実機 🏁**0**／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4067 PASS**・`census:srcecho` **46 → 44 id**・`census:numberdrift` **68 → 67（較正）** |
 
 🆕🔴**「受け皿が無い」は連続17項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
 🆕🔴**据置契約も同じく stale になる**＝`O-188` の `OPTIONAL_TRASH_SELF` 据置は解除した（②の据置は残0）。
@@ -200,7 +206,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件** | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**9項目**（`O-348`・`O-356` 索引A／`O-343`/`O-345`/`O-353` 索引B／`O-344`/`O-346`/`O-357`/🆕`O-358` 索引G／索引E 🏁0） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**10項目**（`O-348`・`O-356` 索引A／`O-343`/`O-345`/`O-353` 索引B／`O-344`/`O-346`/`O-357`/`O-358`/🆕`O-359` 索引G／索引E 🏁0） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0効果**（2026-09-12 に全数照合） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
 | — | §5.4 構造混線 | 🏁**0** | 新しく見つけたときだけ足す | — |
@@ -345,7 +351,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
 | `O-348` | M | **逆翻訳が描き落としている payload キー 残 21種 / 21ノード**（`npm run census:payloadkeys`・BASELINE 21）。🏁**型つき22種/58ノード（第303/304）と `[STUB]` 側の母集団2桁13キー/66ノード（第305）はクローズ済み**（実バグ3件）。🔥**残は全部「1キー＝1ノード」の21件**＝`declareFromLastProcessed` / `downUpSigniChoose` / `fetchCardName` / `handDiscardGroups` / `leaveToTrashWindow` / `loseAbilityAfterUse` / `lrigAttackLimit` / `moveSelfZone` ほか。🔴**判定の罠2つ**＝①**STUB ラベルが総称で概念だけ触れていても、payload の値を区別していないなら穴**（`deckRevealUntil` 型）②**逆翻訳が原文どおりに読めても、`currentCardText` の原文エコーなら穴**（`O-356`）＝**`grep -n "<STUB_ID>" scripts/decompileEffects.ts` を必ず打つ** |
-| `O-356` | L | 🔴**逆翻訳が原文を regex で切り出して戻り値に乗せている＝原文照合が構造的に死んでいる箇所**。🆕**計器 `npm run census:srcecho`**（`scripts/censusSrcEcho.mjs`・明細 `docs/_census_src_echo.txt`／1 id は `--id <STUB_ID>`・群は `--group A`）。**ラチェットは `gates` 同梱＝A群の id 数**（🔑行数ではなく **id 数**＝払い戻しの単位が「1 id を payload 化する」だから）。🔧**実測＝A群 残 45 id / 98行 / live 178ノード / 175カード**（新設時 56 id・**登録時の見立て 88 id/452ノードは過大だった**＝粗い窓で隣の分岐まで数えていた）。🔴🔑**着手前に必ず読む＝A群は重さが桁違いの2つに割れる**（実測）＝**①payload あり（残1 id）**＝逆翻訳を直すだけで閉じる＝🏁**第306バッチで10 id・第307バッチで `ARTS_COST_REDUCTION_BY_EFFECT` 59ノードを消化**（残は `OPTIONAL_TRASH_ENERGY_CLASS` 33ノードだけで、これは engine も原文を読むので②扱い）／**②payload なし 35 id / 145ノード**（`DECLARE_NUMBER` 27／`TRASH_AT_TURN_END` 17／`RIDE_ON` 11／`SONG_FRAGMENT` 11 ほか）＝**parser が構造化していない**ので逆翻訳だけ直しても描くものが無い＝**parser＋engine＋decompiler の三点セット**＝**ここからは1 id ずつ**。🔴**ただし「payload なし」は STUB ノード単体で数えた分類**＝第307で `ARTS_COST_REDUCTION_BY_EFFECT` は**58カード全部が効果の `cost` 側に payload を持っていた**（三点セットではなく逆翻訳だけで閉じた）⇒ **取る前に効果の `cost` と兄弟ノードの payload を数え直す**／**③live 0 が 9 id＝触らない・消さない**（parser に生成元が無い安全網）。⚠**置換すると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（第306で2件出た）＝**原文へ寄せて隠さない**。⚠**期間・寿命は原文の期間句ではなく engine の実装から描く**（第306の `DEPLOY_RESTRICT` が実例）。⚠**全部が悪ではない**＝引用そのものが中身の `GRANT_QUOTED_*` は `ALLOWED` に理由つき登録済み（2 id） |
+| `O-356` | L | 🔴**逆翻訳が原文を regex で切り出して戻り値に乗せている＝原文照合が構造的に死んでいる箇所**。🆕**計器 `npm run census:srcecho`**（`scripts/censusSrcEcho.mjs`・明細 `docs/_census_src_echo.txt`／1 id は `--id <STUB_ID>`・群は `--group A`）。**ラチェットは `gates` 同梱＝A群の id 数**（🔑行数ではなく **id 数**＝払い戻しの単位が「1 id を payload 化する」だから）。🔧**実測＝A群 残 44 id / 94行 / live 151ノード / 149カード**（🏁第308で `DECLARE_NUMBER` の分岐を三点セットで閉じた＝実際に原文を貼っていたのは `DECLARE_NUMBER_RANGE` の4効果・実バグ2件）（新設時 56 id・**登録時の見立て 88 id/452ノードは過大だった**＝粗い窓で隣の分岐まで数えていた）。🔴🔑**着手前に必ず読む＝A群は重さが桁違いの2つに割れる**（実測）＝**①payload あり（残1 id）**＝逆翻訳を直すだけで閉じる＝🏁**第306バッチで10 id・第307バッチで `ARTS_COST_REDUCTION_BY_EFFECT` 59ノードを消化**（残は `OPTIONAL_TRASH_ENERGY_CLASS` 33ノードだけで、これは engine も原文を読むので②扱い）／**②payload なし 35 id / 145ノード**（`DECLARE_NUMBER` 27／`TRASH_AT_TURN_END` 17／`RIDE_ON` 11／`SONG_FRAGMENT` 11 ほか）＝**parser が構造化していない**ので逆翻訳だけ直しても描くものが無い＝**parser＋engine＋decompiler の三点セット**＝**ここからは1 id ずつ**。🔴**ただし「payload なし」は STUB ノード単体で数えた分類**＝第307で `ARTS_COST_REDUCTION_BY_EFFECT` は**58カード全部が効果の `cost` 側に payload を持っていた**（三点セットではなく逆翻訳だけで閉じた）⇒ **取る前に効果の `cost` と兄弟ノードの payload を数え直す**／**③live 0 が 9 id＝触らない・消さない**（parser に生成元が無い安全網）。⚠**置換すると逆翻訳が原文とずれるカードが出る＝退化ではなく可視化**（第306で2件出た）＝**原文へ寄せて隠さない**。⚠**期間・寿命は原文の期間句ではなく engine の実装から描く**（第306の `DEPLOY_RESTRICT` が実例）。⚠**全部が悪ではない**＝引用そのものが中身の `GRANT_QUOTED_*` は `ALLOWED` に理由つき登録済み（2 id） |
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -359,7 +365,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-**残4項目。**（`O-344` は母集団訂正で19効果になったが住所は動かさない。🏁2026-09-13 にクローズ＝`O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12） ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
+**残5項目。**（`O-344` は母集団訂正で19効果になったが住所は動かさない。🏁2026-09-13 にクローズ＝`O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12） ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
@@ -367,6 +373,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 | 🆕`O-358` | S | **配置ゾーン指定に「シグニのない」限定が無い**（`WXDi-P11-009-E3`・**実測 1効果**）。原文＝「**シグニのない**対戦相手のシグニゾーン１つを指定する」に対し、engine（`execStubPart2.ts:3533`）は**3ゾーンすべてを `available:true` で提示**する＝**シグニが居るゾーンも指定できる**（過剰）。payload（`DESIGNATE_SIGNI_ZONE`）にも軸が無いので逆翻訳からも消えている（第306バッチで payload 化したときに可視化された）。🔑**受け皿の有無を先に grep する**＝`zoneOptsDSZ` の `available` を埋める軸（空きゾーン限定）が他の STUB に既に在るかを確かめてから足す |
 | 🆕`O-357` | S | **任意登場を「辞退したとき」のアクション契約が無い**（`WXK02-035-E2`・**実測 1効果**）。原文＝「デッキの一番下のカードをチェックゾーンに置く。それがシグニの場合、それを場に出してもよい。**場に出さない場合、それをトラッシュに置く。**」に対し、engine は `field.check_rest` に置いたまま**ターン終了時まで残す**（即時トラッシュにしない）＝**過少実行**。⚠**逆翻訳は engine の挙動どおりに描いてある**（原文に寄せると欠落が隠れる＝`O-354` の教訓）ので、直したら逆翻訳の注記も戻すこと。🔑**受け皿の有無を先に grep する**＝`declineAction` / `restDestination` 相当の軸が `ADD_TO_FIELD` の任意形に既に在るかを確かめてから機構を足す |
 | `O-346` | M | 🔧**母集団を実測＝121効果 / 115カード**（`npm run census:population -- "対戦相手は自分の"`。`opponentSelects` **OK 69 / MISS 52**）。🔴**「型に受け皿が無い」は誤りだった**＝`TrashAction.opponentSelects` は型にも消費地点にも在り、`WX13-036-E3` は2026-09-13 に修正済み・**実機不要**。⚠**MISS 52 はバグ数ではない**（別の正準形で配線済みが混ざる）＝残作業は「52件を1件ずつ判定」＋parser 規則 |
+| 🆕`O-359` | S | **「N～Mの数字を宣言し、基本パワーを『宣言した数字×1000』にする」が無い**（`WXDi-P07-086-E1`・**実測 1効果**・2026-09-13 第308で発見）。原文＝「２～２０の数字１つを宣言し、ターン終了時まで、それの基本パワーを『この方法で宣言した数字×1000』にする」に対し、live は `SEQUENCE[SELECT_TARGET_ONLY, STUB{DECLARE_NUMBER_POWER}]`＝engine は**固定の6値（3000〜15000）を提示して `declared_number` に入れるだけ**で、**対象の基本パワーを変える処理が無い**（真 no-op）。🔑**受け皿を先に grep する**＝範囲は第308で `DECLARE_NUMBER_RANGE.numberChoices` が読めるようになった／基本パワーの時限上書きは `SET_BASE_POWER` 系の `valueRef` 相当が既に在るか（`SET_BASE_LEVEL.valueRef:'declared_number'` は `O-312` で在る）を確かめてから足す |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -452,7 +459,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 - **2026-09-13 時点（本ブロックが直近の正）**＝第306バッチ（`O-356` 着手＝原文エコー計器の新設と払い戻し①）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
   ⚠**3本とも動かないのは正常**＝**逆翻訳の払い戻しはどの進捗計器にも映らない**。
-  📦**在庫**＝**機構 worklist 🔥9項目**（`O-348`・`O-356` 索引A／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`・`O-358` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  📦**在庫**＝**機構 worklist 🔥10項目**（`O-348`・`O-356` 索引A／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`・`O-358`・`O-359` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
   🔧**ゲート（全緑 ✅）**＝**golden 4066 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1。
   🆕**計器を1本追加**＝`npm run census:srcecho`（原文エコー・A群 id 数のラチェット・`gates` 同梱）。
   🆕**払い戻し**＝`census:srcecho` **56 → 46 id**（live 308 → 237ノード）／`census:payloadkeys` **21 → 19種**。

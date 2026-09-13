@@ -2,7 +2,7 @@
 生成: npm run census:srcecho   1 id の内訳: node scripts/censusSrcEcho.mjs --id <STUB_ID>
 
 走査対象: scripts/decompileEffects.ts
-  🔴A ECHO  （原文が戻り値に乗る＝本命の worklist）: 98行 / 45id / live 178ノード / 175カード
+  🔴A ECHO  （原文が戻り値に乗る＝本命の worklist）: 94行 / 44id / live 151ノード / 149カード
     うち原文を返してよいと登録済み（ALLOWED）     : 10行 / 2id
   B READ/GUARD（原文を読むが戻り値には乗らない）  : 9行
   C COMMENT （コメント）                          : 36行
@@ -16,94 +16,92 @@
 ── A群（live 出現の多い順）──
     33ノード  33枚  OPTIONAL_TRASH_ENERGY_CLASS
         scripts/decompileEffects.ts:3975, 3977, 3978, 3979, 3980
-    27ノード  26枚  DECLARE_NUMBER
-        scripts/decompileEffects.ts:4888, 4889, 4891, 4892
     17ノード  16枚  TRASH_AT_TURN_END
         scripts/decompileEffects.ts:4723, 4724
     11ノード  10枚  RIDE_ON
-        scripts/decompileEffects.ts:5159, 5160
+        scripts/decompileEffects.ts:5161, 5162
     11ノード  11枚  SONG_FRAGMENT
         scripts/decompileEffects.ts:4704, 4705
      8ノード   8枚  LOSE_COLOR_ALL_ZONES
         scripts/decompileEffects.ts:4827, 4828
      6ノード   6枚  DOUBLE_OWN_POWER_MINUS
-        scripts/decompileEffects.ts:4915, 4916
+        scripts/decompileEffects.ts:4917, 4918
      5ノード   5枚  OPEN_MAGIC_BOX
         scripts/decompileEffects.ts:4834, 4835
      5ノード   5枚  PLACE_MAGIC_BOX
-        scripts/decompileEffects.ts:5310, 5311
+        scripts/decompileEffects.ts:5312, 5313
      5ノード   5枚  REMOVE_SIGNI_ZONE
-        scripts/decompileEffects.ts:4908, 4909
+        scripts/decompileEffects.ts:4910, 4911
      3ノード   3枚  CONDITIONAL_COST_REDUCTION_BY_FIELD
-        scripts/decompileEffects.ts:4933, 4934
+        scripts/decompileEffects.ts:4935, 4936
      3ノード   3枚  FORCE_TARGET_SELF
-        scripts/decompileEffects.ts:5078, 5079
+        scripts/decompileEffects.ts:5080, 5081
      3ノード   3枚  MOVE_TO_ATTACKER_FRONT
-        scripts/decompileEffects.ts:4950, 4951
+        scripts/decompileEffects.ts:4952, 4953
      3ノード   3枚  PLACE_OWN_GATE
-        scripts/decompileEffects.ts:5068, 5069
+        scripts/decompileEffects.ts:5070, 5071
      3ノード   3枚  REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI
-        scripts/decompileEffects.ts:5073, 5074
+        scripts/decompileEffects.ts:5075, 5076
      3ノード   3枚  SELF_TRASH_IF_NO_OPP_CHARM
-        scripts/decompileEffects.ts:4987, 4988
+        scripts/decompileEffects.ts:4989, 4990
      2ノード   2枚  ACCE_FROM_HAND
         scripts/decompileEffects.ts:4851, 4852
      2ノード   2枚  CENTER_LRIG_DISMOUNT
-        scripts/decompileEffects.ts:5114, 5115
+        scripts/decompileEffects.ts:5116, 5117
      2ノード   2枚  CENTER_LRIG_RIDES_ON_SIGNI
-        scripts/decompileEffects.ts:5047, 5048
+        scripts/decompileEffects.ts:5049, 5050
      2ノード   2枚  COIN_USE_RESTRICTION
-        scripts/decompileEffects.ts:5227, 5228
+        scripts/decompileEffects.ts:5229, 5230
      2ノード   2枚  COPY_SIGNI
-        scripts/decompileEffects.ts:5305, 5306
+        scripts/decompileEffects.ts:5307, 5308
      2ノード   2枚  FIELD_ENERGY_SIGNI_GAIN_COLOR
-        scripts/decompileEffects.ts:5256, 5257
+        scripts/decompileEffects.ts:5258, 5259
      2ノード   2枚  LIFE_BURST_DOUBLE
-        scripts/decompileEffects.ts:5154, 5155
+        scripts/decompileEffects.ts:5156, 5157
      2ノード   2枚  LIMIT_OPP_SIGNI_ATTACKS_ONCE
-        scripts/decompileEffects.ts:5124, 5125
+        scripts/decompileEffects.ts:5126, 5127
      2ノード   2枚  OPP_DECLARE_COLOR
-        scripts/decompileEffects.ts:5232, 5233
+        scripts/decompileEffects.ts:5234, 5235
      2ノード   2枚  OPP_DRAW_LIMIT
-        scripts/decompileEffects.ts:5168, 5169
+        scripts/decompileEffects.ts:5170, 5171
      2ノード   2枚  PREVENT_SIGNI_ABILITY_LOSS_BY_OPP
         scripts/decompileEffects.ts:3899, 3900
      2ノード   2枚  REVEAL_OPP_HAND_CARD
-        scripts/decompileEffects.ts:5093, 5094
+        scripts/decompileEffects.ts:5095, 5096
      1ノード   1枚  ACCE_FROM_TRASH
-        scripts/decompileEffects.ts:5300, 5301
+        scripts/decompileEffects.ts:5302, 5303
      1ノード   1枚  ACCE_TO_ENERGY
-        scripts/decompileEffects.ts:4992, 4993
+        scripts/decompileEffects.ts:4994, 4995
      1ノード   1枚  BET_ALTERNATIVE
-        scripts/decompileEffects.ts:5285, 5286
+        scripts/decompileEffects.ts:5287, 5288
      1ノード   1枚  OPP_REVEAL_HAND_AND_LRIG_DECK
-        scripts/decompileEffects.ts:5149, 5150
+        scripts/decompileEffects.ts:5151, 5152
      1ノード   1枚  POWER_COPY_FROM_DOWNED
-        scripts/decompileEffects.ts:5295, 5296
+        scripts/decompileEffects.ts:5297, 5298
      1ノード   1枚  REMOVE_OPP_MULTI_ENA
-        scripts/decompileEffects.ts:5088, 5089
+        scripts/decompileEffects.ts:5090, 5091
      1ノード   1枚  TRAP_TO_SIGNI_IF_ZONE_EMPTY
         scripts/decompileEffects.ts:4478, 4479
      1ノード   1枚  TREAT_AS_CLASS_ALL_ZONES
-        scripts/decompileEffects.ts:5276, 5277
+        scripts/decompileEffects.ts:5278, 5279
      0ノード   0枚  ABILITY_CHECK_ELSE_TRASH
-        scripts/decompileEffects.ts:5290, 5291
+        scripts/decompileEffects.ts:5292, 5293
      0ノード   0枚  CHOOSE_COLOR_FROM_LIST
         scripts/decompileEffects.ts:4735, 4736
      0ノード   0枚  CHOOSE_HAND_CARD
-        scripts/decompileEffects.ts:5083, 5084
+        scripts/decompileEffects.ts:5085, 5086
      0ノード   0枚  OPP_DECLARE_CHOICE
-        scripts/decompileEffects.ts:4977, 4978
+        scripts/decompileEffects.ts:4979, 4980
      0ノード   0枚  OPP_MAIN_PHASE_LIMIT_DOWN
-        scripts/decompileEffects.ts:5237, 5238
+        scripts/decompileEffects.ts:5239, 5240
      0ノード   0枚  OPP_SIGNI_ATTACK_COST
-        scripts/decompileEffects.ts:5242, 5243
+        scripts/decompileEffects.ts:5244, 5245
      0ノード   0枚  PLACE_SEED_FROM_REVEALED
         scripts/decompileEffects.ts:4802, 4803
      0ノード   0枚  REPEAT_EFFECT
-        scripts/decompileEffects.ts:4982, 4983
+        scripts/decompileEffects.ts:4984, 4985
      0ノード   0枚  SELF_PLACE_COIN_COST
-        scripts/decompileEffects.ts:6347, 6348, 6369, 6834, 7061
+        scripts/decompileEffects.ts:6349, 6350, 6371, 6836, 7063
 
 ── B群（原文を読むが戻り値には乗らない＝照合は生きている）──
   scripts/decompileEffects.ts:124  [(非STUB＝汎用ヘルパー)]  const scope = currentEffectText || currentCardText;
@@ -112,6 +110,6 @@
   scripts/decompileEffects.ts:3827  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
   scripts/decompileEffects.ts:3835  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
   scripts/decompileEffects.ts:3976  [OPTIONAL_TRASH_ENERGY_CLASS]  || currentCardText.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(シグニ|カード)([０-９\d]+)枚/);
-  scripts/decompileEffects.ts:5319  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
-  scripts/decompileEffects.ts:6370  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
-  scripts/decompileEffects.ts:6835  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;
+  scripts/decompileEffects.ts:5321  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
+  scripts/decompileEffects.ts:6372  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
+  scripts/decompileEffects.ts:6837  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;

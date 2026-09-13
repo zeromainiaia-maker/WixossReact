@@ -2268,13 +2268,17 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOtherDBPM },
       `${ctx.cardMap.get(targetDBPM)?.CardName ?? targetDBPM}（パワー一致）→相手トラッシュ`));
   }
-  // DECLARE_NUMBER_RANGE: 0〜5の数字宣言（DECLARE_NUMBERと同様だが0を含む）
+  // DECLARE_NUMBER_RANGE: 「N～Mの数字１つを宣言する」。
+  // 🆕§5.3 `O-356`（2026-09-13）＝範囲は parser が `numberChoices` に載せる（無ければ従来の 0〜5）。
+  //   🔴旧＝原文の範囲を読まず常に 0〜5 を提示していた＝`WX25-CP1-007-E1`（０～１０）は6〜10を宣言できず、
+  //   `WXDi-P06-013-E2`（１～３）は 0・4・5 を宣言できた（逆翻訳は原文を貼っていたので正しく見えていた）。
   if (stub.id === 'DECLARE_NUMBER_RANGE') {
     const setDNR = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
-    const optsDNR = [0, 1, 2, 3, 4, 5].map(n => ({
+    const choicesDNR = stub.numberChoices?.length ? [...new Set(stub.numberChoices)] : [0, 1, 2, 3, 4, 5];
+    const optsDNR = choicesDNR.map(n => ({
       id: `dnr_${n}`, label: `${n}を宣言`, action: setDNR(n) as EffectAction, available: true,
     }));
-    return needsInteraction(addLog(ctx, '数字を宣言してください（0〜5）'), {
+    return needsInteraction(addLog(ctx, `数字を宣言してください（${choicesDNR[0]}〜${choicesDNR[choicesDNR.length - 1]}）`), {
       type: 'CHOOSE', options: optsDNR, count: 1,
     });
   }

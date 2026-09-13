@@ -71797,6 +71797,35 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
      '🔴payload が無いときだけ「未構造化」と明示する（payload がある効果には付けない）');
 });
 
+// ═══ §5.3 `O-356`＝「N～Mの数字１つを宣言する」の範囲が engine に届いていなかった（2026-09-13・4効果）═══
+// 🔴旧＝parser は `STUB{DECLARE_NUMBER_RANGE}` だけを出し、engine は**常に 0〜5 を提示**していた
+//   （`WX25-CP1-007-E1`＝０～１０ で6〜10を宣言できない／`WXDi-P06-013-E2`＝１～３ で 0・4・5 を宣言できる）。
+//   逆翻訳は原文を切り出して貼っていたので、**原文照合では正しく見えていた**（原文エコー）。
+// 🔑受け皿は既存の `numberChoices`（`DECLARE_NUMBER_PLAIN` 用）を `DECLARE_NUMBER_RANGE` でも読む形。
+test('§5.3 O-356: 数字宣言の範囲が live に載り、engine の選択肢がそれに一致する', () => withSavedCursor(() => {
+  const want: Record<string, string> = {
+    'WX25-CP1-007-E1': '0,1,2,3,4,5,6,7,8,9,10',
+    'WXDi-P06-013-E2': '1,2,3',
+    'WXK03-076-E1': '0,1,2,3,4,5',
+    'WXK10-052-E2': '0,1,2,3,4,5',
+  };
+  for (const [effectId, choices] of Object.entries(want)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live 効果が存在`);
+    const decl = findStubId(effect!.action, ['DECLARE_NUMBER_RANGE']) as StubAction | null;
+    eq((decl?.numberChoices ?? []).join(','), choices, `${effectId}: 原文の範囲が numberChoices に載る`);
+    const res = executeEffect({ effectId: 't', effectType: 'AUTO', action: decl as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect,
+      mkCtx({}, {}, cardNum));
+    const opts = ((res as { pending?: { options?: { action: StubAction }[] } }).pending?.options ?? []).map(o => o.action.value);
+    eq(opts.join(','), choices, `🔴${effectId}: engine が提示する数字が原文の範囲と一致（旧＝常に 0〜5）`);
+  }
+  // E2E＝オートパイロットは先頭の選択肢を取る＝１～３ なら 1 が宣言される（旧は 0 が宣言された）。
+  const e2 = effectsMap.get('WXDi-P06-013')!.find(e => e.effectId === 'WXDi-P06-013-E2')!;
+  const decl2 = findStubId(e2.action, ['DECLARE_NUMBER_RANGE']) as EffectAction;
+  eq(run(decl2, mkCtx({}, {}, 'WXDi-P06-013')).ownerState.declared_number, 1, '１～３ の先頭＝1 が宣言される');
+}));
+
 // ═══ §5.3 `O-257`＝【ハーモニー】が engine にも UI にも無かった（2026-09-05・12枚）═══
 // 原文「【ハーモニー】〈色〉のルリグN体（このシグニが場に出たとき、あなたの**アップ状態の**〈色〉のルリグN体を
 // **ダウンしないかぎり、これをダウンする**）」。

@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 `O-356` 払い戻し③＝数字宣言の範囲が engine に届いていなかった（第308バッチ）
+
+- **真因**＝parser が「N～Mの数字１つを宣言する」を `STUB{DECLARE_NUMBER_RANGE}` とだけ出し、**範囲を捨てていた**。
+  engine（`execStubPart3.ts`）は**常に 0〜5 を提示**。逆翻訳（`decompileEffects.ts`）は原文の宣言文とミル文を切り出して貼っていたので、
+  **原文照合では正しく見えていた**（原文エコー）。
+- **実バグ2件**＝`WX25-CP1-007-E1`（原文 ０～１０）は **6〜10 を宣言できなかった**／`WXDi-P06-013-E2`（原文 １～３）は **0・4・5 を宣言できた**
+  （ミル枚数が原文の範囲を外れる）。`WXK03-076-E1` / `WXK10-052-E2`（０～５）は偶然一致。
+- 🔑**計器の読み方**＝`census:srcecho` は `DECLARE_NUMBER` 27ノードと出していたが、**分岐を共有しているだけ**で、
+  実際に regex が当たって原文を貼っていたのは `DECLARE_NUMBER_RANGE` の **4効果**だった（`DECLARE_NUMBER` の26カードは素通り）。
+- **直したこと（三点セット）**
+  1. parser（`parseSentencePart3.ts`）＝範囲を既存の `numberChoices` へ載せる。
+  2. engine＝`DECLARE_NUMBER_RANGE` が `numberChoices` を読む（無ければ従来の 0〜5）。
+  3. 逆翻訳＝payload から「N～Mの数字1つを宣言する」だけを描く（後続のミルは後続ノードが描く＝**二重表示を解消**）。
+- **影響**＝live 4効果（`public/data` 3ファイル・`build:effects` で配送・温存バケツ3つとも該当なし）。
+- **別の穴を登録**＝`WXDi-P07-086-E1`「２～２０の数字１つを宣言し、それの基本パワーを『宣言した数字×1000』にする」は
+  `DECLARE_NUMBER_POWER`（固定の6値 3000〜15000 を提示・**基本パワーを変える処理が無い**）＝**`O-359`**。
+- **検証**＝golden 1件追加（4効果の `numberChoices` と engine の提示肢が一致／`WXDi-P06-013-E2` の E2E で宣言値が 1）。
+  `npm run gates` 全緑（golden **4067 PASS**）。`census:srcecho` **45 → 44 id**。
+  **実機は不要と判定**（§2.2＝`src/engine/` を触ったが**新しい型・機構は足していない**＝既存 `numberChoices` を読むだけ。`src/screens/` は触っていない。CHOOSE の提示肢が変わるだけで UI 経路は同じ）。
+
 ## 2026-09-13 — §5.3 `O-356` 払い戻し②＝`ARTS_COST_REDUCTION_BY_EFFECT` の原文エコー撤去（第307バッチ）
 
 - **真因**＝`scripts/decompileEffects.ts` のコストマーカー分岐（`ARTS_COST_REDUCTION_BY_EFFECT` / `_BY_CENTER_LRIG` / `CONDITIONAL_ARTS_COST`）が

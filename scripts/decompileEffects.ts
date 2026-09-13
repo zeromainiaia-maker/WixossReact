@@ -4883,13 +4883,15 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 数字宣言してミル（DECLARE_NUMBER/DECLARE_NUMBER_RANGE・engine実装済み）＝
       // 「X～Yの数字１つを宣言する。（あなた/対戦相手の）デッキの上から（カードを）宣言した数字に等しい枚数…トラッシュに置く」。
-      if (a.id === 'DECLARE_NUMBER' || a.id === 'DECLARE_NUMBER_RANGE') {
-        if (a.decompileDeclarationOnly) {
-          const declaration = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する/);
-          if (declaration) return declaration[0];
-        }
-        const m = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する。[^。]*?宣言した数字に等しい枚数[^。]*?トラッシュに置く/);
-        if (m) return m[0];
+      // 🆕§5.3 `O-356`（2026-09-13）＝**payload（`numberChoices`）から描く**。旧実装は原文の宣言文とミル文を切り出して貼っており、
+      //   ①engine が範囲を読まず 0〜5 固定でも原文どおりに見えた ②ミルは後続の `DECK_TOP_DECLARED_NUM_TRASH` / `MILL` も描くので二重に出た。
+      //   ⚠宣言だけを描く（後続の処理は後続ノードが描く）＝`decompileDeclarationOnly` はもう区別に使わない。
+      if (a.id === 'DECLARE_NUMBER_RANGE') {
+        const ch: number[] = a.numberChoices?.length ? a.numberChoices : [0, 1, 2, 3, 4, 5];
+        const contiguous = ch.every((n, i) => i === 0 || n === ch[i - 1] + 1);
+        return contiguous
+          ? `${ch[0]}～${ch[ch.length - 1]}の数字1つを宣言する`
+          : `数字1つを宣言する（${ch.join('/')}のいずれか）`;
       }
       // 指定ゾーンへの新規配置禁止（BLOCK_OPP_ZONE_PLACEMENT・engine実装済み・タスク12(lxi) 第10波）。
       // 期間と《無》の支払い回避は parser がフィールドへ読み取るので、原文抽出ではなく**フィールドから
