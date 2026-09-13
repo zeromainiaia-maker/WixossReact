@@ -1227,6 +1227,38 @@ export function execStubPart1(
         })),
       });
     }
+    // 🆕§5.3 `O-353`（2026-09-13）＝自分のデッキから宣言名候補を作る。
+    // 🔑領域（`declareNameZones`）と絞り込み（`declareNameFilter`）を別軸にする＝
+    //   `self_deck_signi` / `self_deck_hand_field_non_colorless_signi` のような値の掛け算を作らない。
+    // ⚠自分のデッキは構築時に宣言者自身が知っている情報。相手の隠された領域はこの枝では一切見ない。
+    // ⚠候補0では前回の宣言を消し、既定枝の原文に無い「シグニ」フォールバックはコピーしない。
+    if (stub.declareNamePool === 'self_deck') {
+      const zonesDCN = stub.declareNameZones?.length ? stub.declareNameZones : ['deck'] as const;
+      const cardsDCN = zonesDCN.flatMap(zone => {
+        if (zone === 'deck') return ctx.ownerState.deck;
+        if (zone === 'hand') return ctx.ownerState.hand;
+        return ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+      });
+      const namesPoolDCN = [...new Set(
+        cardsDCN
+          .map(cn => ctx.cardMap.get(getCardNum(cn)))
+          .filter(card => matchesFilter(card, stub.declareNameFilter))
+          .map(card => card!.CardName)
+          .filter((name): name is string => !!name),
+      )];
+      const zoneLabelDCN = zonesDCN.map(zone => zone === 'deck' ? 'デッキ' : zone === 'hand' ? '手札' : '場').join('・');
+      if (namesPoolDCN.length === 0) {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_card_name: undefined } },
+          `宣言できるカード名が無い（自分の${zoneLabelDCN}）`));
+      }
+      return needsInteraction(addLog(ctx, `カード名を宣言（自分の${zoneLabelDCN}から選択）`), {
+        type: 'CHOOSE', count: 1,
+        options: namesPoolDCN.map(name => ({
+          id: 'name_' + name, label: name, available: true,
+          action: ({ type: 'STUB', id: 'INTERNAL_DECLARE_CARD_NAME', value: name } as StubAction) as EffectAction,
+        })),
+      });
+    }
     const handNames = [...new Set(
       ctx.ownerState.hand.map(cn => ctx.cardMap.get(cn)?.CardName).filter(Boolean) as string[]
     )];

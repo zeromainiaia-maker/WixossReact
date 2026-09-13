@@ -36,6 +36,7 @@ import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex, k
 import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSuppress';
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
+import { declaredSigniOverride } from '../src/screens/battle/growLogic';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { applyCoinGain } from '../src/engine/coinGain';
 import { coinLedger, collectCoinNegationRemovals, isCoinAbility, negateCoinAbility } from '../src/engine/coinAbilityNegation';
@@ -80475,6 +80476,96 @@ test('O-345 WXK03-023-E1 E2E: 4枚払いで追加DRAWと相手シグニ1体BANIS
   ok(four.under.every(cardNum => four.result.ownerState.trash.includes(cardNum)), '選んだ下カード4枚を実際にトラッシュへ置く');
   ok(!fieldTops(four.result.otherState).includes(four.victim), '4枚払いなら相手シグニをBANISH');
   ok(four.result.otherState.energy.includes(four.victim), 'BANISHしたシグニはエナゾーンへ移る');
+}));
+
+test('O-353 WX18-028-E1 E2E: デッキにしかないシグニ名を宣言して公開・配置まで通る', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WX18-028')!.find(e => e.effectId === 'WX18-028-E1')!;
+  const deckSigni = findCard(c => isSigni(c) && !!c.CardName);
+  const deckName = cardMap.get(deckSigni)!.CardName;
+  const handOnly = findCard(c => !!c.CardName && c.CardName !== deckName);
+  const filler = findCard(c => c.Type !== 'シグニ' && c.Type !== 'レゾナ' && c.CardName !== deckName);
+  const untouched = findCard(c => c.CardNum !== deckSigni && c.CardNum !== handOnly && c.CardNum !== filler);
+  const ctx = mkCtx({}, {}, 'WX18-028');
+  ctx.ownerState.deck = [filler, deckSigni, untouched];
+  ctx.ownerState.hand = [handOnly];
+  ctx.ownerState.field.signi = [null, null, null];
+
+  const opened = executeEffect(effect, ctx);
+  ok(!opened.done && opened.pending.type === 'CHOOSE', 'カード名宣言の CHOOSE が開く');
+  if (opened.done || opened.pending.type !== 'CHOOSE') return;
+  const option = opened.pending.options.find(o => o.label === deckName);
+  ok(!!option, '🔴手札に無くデッキにだけあるシグニ名が候補に出る');
+  if (!option) return;
+
+  const declared = resumeChoose(option.id, opened.pending, execCtxFrom(opened, ctx));
+  const done = finish(declared, ctx);
+  eq(done.ownerState.declared_card_name, deckName, '選んだ名前を declared_card_name に保存');
+  ok(fieldTops(done.ownerState).includes(deckSigni), '宣言名のシグニを場に出す');
+  ok(done.ownerState.trash.includes(filler), '宣言名より前に公開したカードはトラッシュへ置く');
+  eq(done.ownerState.deck[0], untouched, '宣言名で公開を停止し後続カードをデッキに残す');
+}));
+
+test('O-353 対照: declareNamePool なしは手札名の先頭4件だけを候補にする', () => withSavedCursor(() => {
+  const deckOnly = findCard(c => isSigni(c) && !!c.CardName);
+  const deckName = cardMap.get(deckOnly)!.CardName;
+  const handCards: string[] = [];
+  const handNames = new Set<string>();
+  for (const card of cardMap.values()) {
+    if (!card.CardName || card.CardName === deckName || handNames.has(card.CardName)) continue;
+    handCards.push(card.CardNum);
+    handNames.add(card.CardName);
+    if (handCards.length === 5) break;
+  }
+  eq(handCards.length, 5, '対照用の異名手札を5枚用意');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck = [deckOnly];
+  ctx.ownerState.hand = handCards;
+  const opened = executeEffect({
+    effectId: 't', effectType: 'AUTO',
+    action: { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, ctx);
+  ok(!opened.done && opened.pending.type === 'CHOOSE', '既定枝も CHOOSE を開く');
+  if (opened.done || opened.pending.type !== 'CHOOSE') return;
+  eq(opened.pending.options.length, 4, '既定枝の .slice(0, 4) を維持');
+  ok(!opened.pending.options.some(o => o.label === deckName), '🔴プール指定なしではデッキだけの名前を宣言できない');
+}));
+
+test('O-353 WXK09-001-E3 E2E: deck＋hand＋field の有色シグニ名だけを宣言し同名だけ基本レベル0', () => withSavedCursor(() => {
+  const declaredCard = findCard(c => isSigni(c) && !!c.CardName && !['', '無', '無色'].includes(c.Color ?? ''));
+  const declaredName = cardMap.get(declaredCard)!.CardName;
+  const otherColored = findCard(c => isSigni(c) && !!c.CardName && c.CardName !== declaredName
+    && !['', '無', '無色'].includes(c.Color ?? ''));
+  const otherName = cardMap.get(otherColored)!.CardName;
+  const underColored = findCard(c => isSigni(c) && !!c.CardName && ![declaredName, otherName].includes(c.CardName)
+    && !['', '無', '無色'].includes(c.Color ?? ''));
+  const colorless = findCard(c => isSigni(c) && ['', '無', '無色'].includes(c.Color ?? '') && c.CardName !== declaredName);
+  const nonSigni = findCard(c => !isSigni(c) && c.Type !== 'レゾナ' && !!c.CardName);
+  const ctx = mkCtx({}, {}, 'WXK09-001');
+  ctx.ownerState.deck = [declaredCard, colorless, nonSigni];
+  ctx.ownerState.hand = [otherColored];
+  ctx.ownerState.field.signi = [[underColored, otherColored], null, null];
+
+  const effect = effectsMap.get('WXK09-001')!.find(e => e.effectId === 'WXK09-001-E3')!;
+  const opened = executeEffect(effect, ctx);
+  ok(!opened.done && opened.pending.type === 'CHOOSE', 'カード名宣言の CHOOSE が開く');
+  if (opened.done || opened.pending.type !== 'CHOOSE') return;
+  const labels = opened.pending.options.map(o => o.label);
+  ok(labels.includes(declaredName), '🔴デッキにだけある有色シグニ名が候補に出る');
+  ok(labels.includes(otherName), '手札・場にある有色シグニ名も候補に出る');
+  ok(!labels.includes(cardMap.get(underColored)!.CardName), '場のシグニの下にあるカード名は候補外');
+  ok(!labels.includes(cardMap.get(colorless)!.CardName), '無色シグニ名は候補外');
+  ok(!labels.includes(cardMap.get(nonSigni)!.CardName), 'シグニ以外の名前は候補外');
+  const option = opened.pending.options.find(o => o.label === declaredName);
+  if (!option) return;
+
+  const done = finish(resumeChoose(option.id, opened.pending, execCtxFrom(opened, ctx)), ctx);
+  const named = declaredSigniOverride(done.ownerState, declaredName);
+  const different = declaredSigniOverride(done.ownerState, otherName);
+  ok(named.levelZero, '宣言した名前のシグニだけ基本レベル0');
+  ok(named.ignoreRestriction, '宣言した名前のシグニだけ限定条件を無視');
+  ok(!different.levelZero, '🔴別名のシグニは基本レベル0にならない');
+  ok(!different.ignoreRestriction, '別名のシグニは限定条件を無視しない');
 }));
 
 if (listMode) {

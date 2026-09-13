@@ -4807,6 +4807,16 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'opp_public_signi') {
         return 'シグニのカード名１つを宣言する（候補＝対戦相手の場・エナ・トラッシュのシグニ名）';
       }
+      if (a.id === 'DECLARE_CARD_NAME' && a.declareNamePool === 'self_deck') {
+        const zonesDN = a.declareNameZones?.length ? a.declareNameZones : ['deck'];
+        const zoneDN = zonesDN.map((zone: string) => zone === 'deck' ? 'デッキ' : zone === 'hand' ? '手札' : '場').join('・');
+        const filterDN = a.declareNameFilter ?? {};
+        const nounDN = filterDN.cardType === 'シグニ' ? 'シグニ'
+          : filterDN.cardType === 'スペル' ? 'スペル' : '';
+        const modifierDN = filterJa({ ...filterDN, cardType: undefined });
+        const cardNameDN = nounDN ? `${nounDN}のカード名` : 'カード名';
+        return `あなたの${zoneDN}にある${modifierDN}${cardNameDN}１つを宣言する`;
+      }
       // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）。
       // 🆕**payload から描く**（§5.3 `O-60` 第9バッチ・2026-08-29）＝旧実装は `currentCardText` から
       //   【シード】を含む開花クレーズを**切り出して**いたので、**JSON が枚数も対象も持っていなくても

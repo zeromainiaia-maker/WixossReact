@@ -29944,6 +29944,35 @@ function repairSemanticBatch247(effects: CardEffect[]): void {
   }
 }
 
+/**
+ * `O-353`：宣言直後に自分のデッキを公開・探索する文型だけ、候補を自分のデッキへ配線する。
+ * カード番号ではなく効果単位の原文で絞り、相手のデッキトップ／手札を当てる宣言には触れない。
+ */
+function stampSelfDeckDeclareNamePool(sourceText: string, action: EffectAction): EffectAction {
+  const declaresBeforeOwnDeck = /(?:無色ではない)?(?:シグニの)?カード名[１1一]つを宣言する。あなたのデッキ(?:の上)?から/.test(sourceText);
+  const declaresAcrossOwnZones = /無色ではないシグニのカード名[１1一]つを宣言する。このゲームの間、あなたのメインデッキと手札と場にある宣言したシグニ/.test(sourceText);
+  if (!declaresBeforeOwnDeck && !declaresAcrossOwnZones) return action;
+
+  const declareFilter: TargetFilter | undefined = /(?:無色ではない)?シグニのカード名[１1一]つを宣言する/.test(sourceText)
+    ? { cardType: 'シグニ', ...(declaresAcrossOwnZones ? { nonColorless: true } : {}) }
+    : undefined;
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'DECLARE_CARD_NAME' && obj.declareNamePool === undefined) {
+      obj.declareNamePool = 'self_deck';
+      if (declaresAcrossOwnZones) obj.declareNameZones = ['deck', 'hand', 'field'];
+      if (declareFilter) obj.declareNameFilter = declareFilter;
+    }
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else visit(value);
+    }
+  };
+  visit(action);
+  return action;
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -30835,6 +30864,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch245(effects);
   repairSemanticBatch246(effects);
   repairSemanticBatch247(effects);
+  // `O-353`：全 rewriter が宣言ノードを組み直し終えた後の正準形へ、効果単位の原文から1回だけ刻む。
+  for (const effect of effects) {
+    if (effect.parseStatus !== 'AUTO') continue;
+    effect.action = stampSelfDeckDeclareNamePool(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+  }
   // 🆕🔴**§5.3 `O-352`（2026-09-13）＝正準形への `abortIfNoCandidate` 刻印は「全 pass のいちばん最後」**
   //   （説明は `stampAbortOnCanonicalOptionalCost` 側）。
   // 🔑**ここでなければ届かない**＝`repairSemanticBatch*` の個別修理が「そうした場合」ゲートを
