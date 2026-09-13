@@ -63,7 +63,7 @@ live JSON の STUB id 種類 : 599（総ノード 3372 件）
         生成: src\data\parsers\parseSentencePart4.ts:2035
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16854 / src\data\manualEffects.ts:11309
+        生成: src\data\effectParser.ts:16854 / src\data\manualEffects.ts:11306
      1件   1枚  DEFERRED_OPP_SPLIT_HAND_TWO_PILES
         カード: WX25-P2-022
         生成: src\data\manualEffects.ts:203
@@ -166,7 +166,7 @@ live JSON の STUB id 種類 : 599（総ノード 3372 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1657
+        消費: src\engine\execUtils.ts:1662
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:8272
@@ -211,10 +211,10 @@ live JSON の STUB id 種類 : 599（総ノード 3372 件）
         消費: src\engine\effectExecutor.ts:1324
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
-        消費: src\engine\execUtils.ts:2379 / src\screens\battle\costs.ts:1266
+        消費: src\engine\execUtils.ts:2384 / src\screens\battle\costs.ts:1266
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:2279
+        消費: src\engine\execUtils.ts:2284
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\data\sourceTextPayloads.ts:25 / src\data\sourceTextPayloads.ts:55 / src\engine\effectEngine.ts:8517

@@ -108,7 +108,7 @@ console.log('明細 → docs/_census_number_drift.txt');
 //   この計器はカードの**逆翻訳**に原文の数値が出るかを見るので、`[STUB:…]` のラベルが
 //   「WX09-027(オリハルティア)の常在マーカー。」のように**中身を書いていないと、原文の数値がまるごと落ちる**。
 //   ⇒ **ラベル整備（`census:stublabel` B/C群）はこの計器の払い戻しでもある。**
-const BASELINE = 65; // 2026-09-13 §5.3 `O-348` クローズの副産物＝payload から描く分岐を19キーぶん足したので、固定文が落としていた数値（アタック上限3／レベル別の減少量／エナ3枚まで ほか）が逆翻訳に出た。以前＝67（O-356 払い戻し②）
+const BASELINE = 64; // 2026-09-13 §5.3 `O-345` 真バグ#3＝WXK03-023-E1 の追加コスト上限4と支払い閾値2/4を payload から逆翻訳へ描いたため 65→64。
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');

@@ -1,5 +1,33 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-13・第311バッチ）** **直近＝2026-09-13（第311バッチ）＝🏁`O-348` クローズ**（`census:payloadkeys` 未判定キー **19種 / 19ノード → 0**・BASELINE 19→0）。
+  🔑**残っていた19件は全部「1キー＝1ノード」**＝**母集団は小さいが、1件ごとに「原文照合がそこだけ効かない」穴**だった。
+  - 🔧**閉じ方は3通り**＝①**`miscStubMap` の固定文を payload から組む**（7 id＝`lrigAttackLimit` / `revealReduceLrigLimit` /
+    `stripSelf` / `sideAttackEmptyZoneAsFront` / `loseAbilityAfterUse` / `swapOptional` / `oppActivateCostUntilOppTurnEnd` ほか）
+    ②**`STUBS.md` の実装メモへ落ちていた8 id に専用分岐を置く**（`fetchCardName` / `leaveToTrashWindow` / `moveSelfZone` /
+    `powerPlusBanishedPower` / `repeatBodyWhile` / `skipArtsReturn` / `trashedCardUpTo` / `variableEnergyTrashLevelBounce`）
+    ③**`OPTIONAL_COST` に3キー**（`handDiscardGroups` / `selfEnergyToDeckBottom` / `triggeringSigniTrash`）。**IGNORED 登録は1件だけ**（`refreshLifeMoveReplace`＝STUB id と完全に冗長）。
+  - 🐛**ラベルが engine と食い違っていた3件**（engine は正しい＝**逆翻訳だけの嘘**）＝
+    ①`MOVE_TO_OTHER_SIGNI_ZONE`＝ラベルが「すでにシグニがあるゾーンには配置できない」で、`moveSelfZone.allowSwap` の札（`WXK03-042-E1`）と**逆のことを書いていた**
+    ②`STRIP_ATTACHED_AND_UNDER`＝`stripSelf` を見ず「**それに**付いている」固定＝原文「**このシグニに**付いている」（`WXDi-P07-041-E2`）が読めなかった
+    ③`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`＝`skipArtsReturn`（アーツに触らない）でも「対象のアーツをルリグデッキに加える」と書き、**同じ処理が2回**あるように読めた。
+  - 🔑**最大の払い戻しは `REPEAT_BODY_WHILE`**＝本体（`repeatBodyWhile.body`）が丸ごと落ちており、`WXDi-CP01-033-E1` は
+    「デッキの一番下をトラッシュ」も「＜バーチャル＞なら＋5000」も**1文字も出ていなかった**（いま `actionJa` で入れ子を描く）。
+  - 🔑**プレースホルダはそのまま出ていた**＝`OPP_SIGNI_LEAVE_TO_TRASH` のラベルは `〈期間〉`・`〈フィルタ〉` の実装メモが**live のシートに出ていた**（2カード）。
+  - ⚠**`src/` は1行も触っていない**（`scripts/decompileEffects.ts` と計器2本のみ）＝**§2.2 により実機不要**。
+  
+  | 軸 | いまの値 |
+  |---|---|
+  | 🔥**次に取るもの** | ①**`O-362`**（期間の食い違い3件＝母集団の大きい `DOUBLE_OWN_POWER_MINUS` 6効果から） → ②**`O-343`**（索引B） → ③**`O-345`**（数値ドリフトの残2件＝遅いレーン） |
+  | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
+  | 📦**在庫** | 機構 worklist 🔥**12項目**（`O-343`〜`O-346`・`O-353`・`O-357`〜`O-363`）／実機 🏁**0**／実装キュー 🏁**0** |
+  | 🔧**ゲート** | `npm run gates` 全緑・**golden 4068 PASS**・`census:payloadkeys` **19 → 0（🏁）**・`census:numberdrift` **67 → 65**（副産物の払い戻し） |
+  
+  🆕🔴**「ラベルが日本語で読める」は「正しい」ではない**＝`census:stubs` の C/E/F群は**生の英語 ID しか見ない**ので、
+  **綺麗な日本語で書かれた固定文が payload の値を1つも見ていない**形は3群とも素通りする（`census:payloadkeys` だけが映す）。
+  🆕🔑**払い戻しは他の計器へ波及する**＝ラベルに数値が出たぶん `census:numberdrift` が 67→65 に落ちた（`O-354` と同じ形）。
+  🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
+
 - **セッション（2026-09-13・第309〜310バッチ）** **直近＝2026-09-13（第309バッチ）＝🏁`O-356` クローズ**（原文エコー A群 **44 → 0 id**・`census:enginetext` A群 **1 → 0**）。
   🔴🔑**主産物＝原文エコーの下に engine の実バグが並んでいた**（逆翻訳が原文を貼っていたので、原文照合では全部正しく見えていた）。
   - 🔧**3通りで閉じた**＝①**engine が決め打ち**（約30 id）→ 原文を貼らず **engine が実際にすることを固定文で**描く

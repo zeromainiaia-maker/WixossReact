@@ -69068,15 +69068,17 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
     ok(!engine.includes(`'${id}'`) || !engine.includes(`.includes(act.id)`),
       `effectEngine に ${id} の消費が残っている`);
   }
-  // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
+  // ratchet が実測に一致すること（較正忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
   // 🆕🔴**2026-09-13（`O-356`）＝0 → 1 は「較正」であって退化ではない。**
   //   計器の入口が引数名 `ctx` に依存していたため、`sourceAbilityText(cur)` と書かれた
   //   `OPTIONAL_TRASH_ENERGY_CLASS`（live 33ノード / 33カード）が一度も数えられていなかった。
   //   engine のコードは1行も増えていない。payload 化すれば 1 → 0 へ戻せる。
   // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。
-  ok(/const BASELINE_SELF_TEXT = 0;/.test(census),
-    'BASELINE_SELF_TEXT が実測 0（`OPTIONAL_TRASH_ENERGY_CLASS` の payload 化で A群が空になった）');
+  // 🆕2026-09-13 `O-343`＝ID門で選ばれた宣言元カードの原文参照22行を A へ較正。
+  // engine のコードは1行も増えておらず、退化ではない。
+  ok(/const BASELINE_SELF_TEXT = 22;/.test(census),
+    'BASELINE_SELF_TEXT が較正後の実測 22');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -80397,6 +80399,82 @@ test('O-348 C WDK13-017-E1: デッキ公開は OPTIONAL_ACTIVATE で辞退でき
   const r = executeEffect(eff, ctx);
   ok(!r.done && r.pending.type === 'CHOOSE', '公開前に「発動する／発動しない」を選べる');
   eq(ctx.ownerState.deck.join(','), [SIGNI_L1, SIGNI_L2, SIGNI_L4].join(','), '選択前はデッキを動かさない');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-345` 真バグ#3＝WXK03-023-E1「シグニの下から合計4枚まで」の実支払い枚数で分岐。
+// 🔴`costText` は engine が読まない原文エコーだった／旧本体は追加DRAWとBANISHが無条件だった。
+// ══════════════════════════════════════════════════════════════════════════════
+function runO345Wxk03023(paidCount: 0 | 1 | 2 | 4): {
+  result: ExecResult; victim: string; under: string[]; seen: PendingInteractionDef[];
+} {
+  const effect = effectsMap.get('WXK03-023')!.find(e => e.effectId === 'WXK03-023-E1')!;
+  const under = fill(paidCount);
+  const host = fresh();
+  const victim = fresh();
+  const handCard = fresh();
+  const deck = fill(8);
+  const ctx = mkCtx({ hand: 0, energy: 0 }, { hand: 0, energy: 0 }, 'WXK03-023');
+  ctx.ownerState.hand = [handCard];
+  ctx.ownerState.deck = [...deck];
+  ctx.ownerState.field.signi = paidCount > 0 ? [[...under, host], null, null] : [[host], null, null];
+  ctx.otherState.field.signi = [[victim], null, null];
+  ctx.otherState.energy = [];
+  const seen: PendingInteractionDef[] = [];
+  const result = finishSeen(executeEffect(effect, ctx), ctx, seen, pending => {
+    if (pending.type === 'CHOOSE' && pending.options.some(option => option.id === 'pay')) return 'pay';
+    if (pending.type !== 'SELECT_TARGET') return undefined;
+    if (pending.thenAction.type === 'TAKE_FROM_UNDER_SIGNI') return under.slice(0, paidCount);
+    if (pending.targetScope === 'self_hand') return pending.candidates.slice(0, 1);
+    if (pending.targetScope === 'opp_field') return [victim];
+    return undefined;
+  });
+  return { result, victim, under, seen };
+}
+
+test('O-345 WXK03-023-E1 E2E: 下カード0枚でも使用でき、1枚だけ引いてBANISHしない', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WXK03-023')!.find(e => e.effectId === 'WXK03-023-E1')!;
+  const json = JSON.stringify(effect);
+  ok(json.includes('"underAnySigniTrash":{"count":4,"upTo":true}'), '0〜4枚の構造化payload');
+  ok(!json.includes('costText'), '🔴engine が読まない原文エコー costText を残さない');
+  eq(effect.parseStatus, 'MANUAL', 'manual-fields 契約を維持');
+  const { result, victim, seen } = runO345Wxk03023(0);
+  const pay = seen.find(p => p.type === 'CHOOSE' && p.options.some(option => option.id === 'pay'));
+  ok(!!pay && pay.type === 'CHOOSE' && pay.options.find(option => option.id === 'pay')?.available !== false,
+    '下カード0枚でも「発動する」を選べる');
+  eq(result.ownerState.cards_drawn_by_effect_this_turn, 1, '0枚払いは常時分の1枚だけ引く');
+  eq(result.ownerState.hand.length, 1, '手札1枚を捨てて1枚引く');
+  eq(result.ownerState.last_cost_trashed_cards?.length ?? 0, 0, '0枚払いをコスト札として水増ししない');
+  ok(fieldTops(result.otherState).includes(victim), '0枚払いでは相手シグニをBANISHしない');
+
+  // §5-17′：既存の固定枚数カードは upToCount:false のまま。
+  const existing = o190OptionalCost(effectsMap.get('WXDi-P06-083')!.find(e => e.effectId === 'WXDi-P06-083-E1')!);
+  const existingSpec = resolveOptionalCostSpec(existing, mkCtx({}, {}, 'WXDi-P06-083'));
+  const existingTake = optionalCostPaySteps(existingSpec).find(a => a.type === 'TAKE_FROM_UNDER_SIGNI');
+  ok(existingTake?.type === 'TAKE_FROM_UNDER_SIGNI' && existingTake.upToCount === false,
+    '既存 underAnySigniTrash は固定枚数のまま');
+}));
+
+test('O-345 WXK03-023-E1 E2E: 2枚払いだけ追加DRAW、1枚払いとの対照では追加なし', () => withSavedCursor(() => {
+  const two = runO345Wxk03023(2);
+  eq(two.result.ownerState.cards_drawn_by_effect_this_turn, 2, '2枚払いは合計2枚引く');
+  eq(two.result.ownerState.last_cost_trashed_cards?.length, 2, '下カード2枚をコスト台帳へ記録');
+  ok(two.under.every(cardNum => two.result.ownerState.trash.includes(cardNum)), '選んだ下カード2枚を実際にトラッシュへ置く');
+  ok(fieldTops(two.result.otherState).includes(two.victim), '2枚払いではBANISHしない');
+
+  const one = runO345Wxk03023(1);
+  eq(one.result.ownerState.cards_drawn_by_effect_this_turn, 1, '🔴対照：1枚払いでは2回目のDRAWを行わない');
+  eq(one.result.ownerState.last_cost_trashed_cards?.length, 1, '1枚だけ記録する');
+  ok(fieldTops(one.result.otherState).includes(one.victim), '1枚払いでもBANISHしない');
+}));
+
+test('O-345 WXK03-023-E1 E2E: 4枚払いで追加DRAWと相手シグニ1体BANISH', () => withSavedCursor(() => {
+  const four = runO345Wxk03023(4);
+  eq(four.result.ownerState.cards_drawn_by_effect_this_turn, 2, '4枚払いでもドローは合計2枚');
+  eq(four.result.ownerState.last_cost_trashed_cards?.length, 4, '下カード4枚をコスト台帳へ記録');
+  ok(four.under.every(cardNum => four.result.ownerState.trash.includes(cardNum)), '選んだ下カード4枚を実際にトラッシュへ置く');
+  ok(!fieldTops(four.result.otherState).includes(four.victim), '4枚払いなら相手シグニをBANISH');
+  ok(four.result.otherState.energy.includes(four.victim), 'BANISHしたシグニはエナゾーンへ移る');
 }));
 
 if (listMode) {

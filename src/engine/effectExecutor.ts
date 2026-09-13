@@ -13889,6 +13889,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       } else {
         newOwner = { ...newOwner, trash: [...newOwner.trash, cardNum] };
       }
+      // OPTIONAL_COST が生成した TAKE_FROM_UNDER_SIGNI だけをコスト台帳へ載せる。
+      // 通常効果の同アクションまで無条件に記録すると、後続/別効果の COST_TRASHED_MATCHES が誤成立する。
+      if (ta.asCost && ta.destination === 'trash') {
+        newOwner = {
+          ...newOwner,
+          last_cost_trashed_cards: [...(newOwner.last_cost_trashed_cards ?? []), cardNum],
+        };
+      }
       // 「そうした場合」ゲート（`DID_IT_GATED_TYPES`）は**処理したカードを記録した型だけ**が空振りを判定できる。
       // `resumeSelectTarget` は picked をまとめて書き直すが、`applyDirectAction` を直接呼ぶ経路
       //（REPEAT／perCard 等）では記録が残らず、成功しても後段の「そうした場合」が空振り扱いへ倒れる

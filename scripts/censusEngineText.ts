@@ -78,16 +78,133 @@ const onlyIds = (() => {
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
-const BASELINE_SELF_TEXT = 0;   // 🏁**2026-09-13（`O-356` 払い戻し④）＝1 → 0**＝`OPTIONAL_TRASH_ENERGY_CLASS` を payload（`optionalEnergyTrash`）化した。原文 regex は `src/data/sourceTextPayloads.ts`（data 層）だけが持ち、engine は payload を読むだけ（無ければ fail-closed）。／（以下は 0 → 1 の較正の記録）🆕🔴**2026-09-13（`O-356` の着手中）＝0 → 1 は「退化」ではなく「較正」。**実挙動は1ビットも変えていない＝**検出が引数名 `ctx` に依存していた**ので `sourceAbilityText(cur)` と書かれた `OPTIONAL_TRASH_ENERGY_CLASS`（live **33ノード / 33カード**＝エナから払うクラスと枚数をアビリティ原文の regex で決めている）が**初版から一度も数えられていなかった**。🔑**funnel は関数名で数える。呼び出し側の変数名に依存しない**（第56バッチの較正が引数名を焼き込んでいた）。⚠これは `O-60` の未消化1件＝**payload 化すれば 0 へ戻せる**（parser＋engine＋decompiler の三点セット）。／（以下は従来の履歴）第71で 9→7／第72で 7→6／第73で 6→5／第74で 5→2／第75で 2→1／第76で 1→0。
+const BASELINE_SELF_TEXT = 22;   // 🆕🔴**2026-09-13（§5.3 `O-343`）＝0 → 22 は「較正」であって退化ではない**＝engine のコードは1行も増えていない。旧 `isSelf` は**代入行の前後3行を変数名で照合するだけ**だったので、「場/キー枠を走査して **その STUB を宣言しているカード**を見つけ、そのカード自身の原文を読む」形（変数名が `top`/`card`/`cn`）が**全部 B に落ちていた**。いまは ID 門で選ばれた変数を関数スコープで追跡して A に入れる。⚠**A群を payload 化すれば 22 → 0 へ戻せる**（`O-60` と同じ型）。／（以下は履歴）🏁2026-09-13 `O-356` 払い戻し④で 1 → 0（`OPTIONAL_TRASH_ENERGY_CLASS` を payload 化）／その前に 0 → 1 の較正（funnel の検出が引数名 `ctx` に依存していた）／第71で 9→7・第72で 7→6・第73で 6→5・第74で 5→2・第75で 2→1・第76で 1→0。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
   file: string; line: number; handler: string; cls: 'SELF_TEXT' | 'OTHER_CARD' | 'COMMENT';
   varName: string | null; snippet: string; literals: string[];
+  selfGateIds?: string[];
   /** この読み出し地点へ到達する条件（変数ごとの id 集合）。同一変数＝OR・別変数＝AND。 */
   gates: Map<string, Set<string>>;
 };
 const rows: Row[] = [];
+const gateSelectedSelfRows: Array<{ file: string; line: number; ids: string[] }> = [];
+
+/**
+ * ID 門で選ばれた効果宣言元カードの原文参照かを、関数内のデータフローで判定する。
+ * 変数名そのもの（top/card/cn 等）には依存せず、原文参照元 → cardMap.get のキー →
+ * effectsMap.get の同じキー → eff.action の ID 門、の順に対応を確認する。
+ */
+function gateSelectedSourceText(lines: string[], lineIndex: number): string[] {
+  let functionStart = 0;
+  for (let j = lineIndex; j >= 0; j--) {
+    if (/^(?:export\s+)?(?:async\s+)?function\s+\w+/.test(lines[j].trim())) {
+      functionStart = j;
+      break;
+    }
+  }
+
+  const latestInitializer = (name: string, before: number): { line: number; rhs: string } | null => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const decl = new RegExp(`\\b(?:const|let)\\s+${escaped}(?:\\s*:[^=]+)?\\s*=\\s*(.*)`);
+    for (let j = before; j >= functionStart; j--) {
+      const m = lines[j].match(decl);
+      if (m) return { line: j, rhs: m[1] };
+    }
+    return null;
+  };
+
+  const resolveOrigin = (name: string, before: number, seen = new Set<string>()): string | null => {
+    if (name === 'ctx.sourceCardNum' || name === 'sourceCardNum') return '@sourceCardNum';
+    if (!/^[$A-Z_a-z][$\w]*$/.test(name) || seen.has(name)) return name;
+    seen.add(name);
+    const init = latestInitializer(name, before);
+    if (!init) return name;
+    if (/\bctx\.sourceCardNum\b/.test(init.rhs)) return '@sourceCardNum';
+    const mapGet = init.rhs.match(/(?:\bctx\.)?\bcardMap\.get\(\s*([$A-Z_a-z][$\w]*)(?:\s*\?\?[^)]*)?\s*\)/);
+    if (mapGet) return resolveOrigin(mapGet[1], init.line - 1, seen);
+    const alias = init.rhs.trim().match(/^([$A-Z_a-z][$\w]*)\s*;?$/);
+    return alias ? resolveOrigin(alias[1], init.line - 1, seen) : name;
+  };
+
+  const line = lines[lineIndex];
+  const directGet = line.match(/(?:\bctx\.)?\bcardMap\.get\(\s*([$A-Z_a-z][$\w]*)\s*\)\??\.EffectText/);
+  let origin: string | null = directGet ? resolveOrigin(directGet[1], lineIndex - 1) : null;
+  if (!origin) {
+    const receiver = line.match(/\b([$A-Z_a-z][$\w]*)\??\.EffectText/)?.[1];
+    if (receiver) {
+      const init = latestInitializer(receiver, lineIndex - 1);
+      if (init) {
+        const mapGet = init.rhs.match(/(?:\bctx\.)?\bcardMap\.get\(\s*([$A-Z_a-z][$\w]*)(?:\s*\?\?[^)]*)?\s*\)/);
+        if (mapGet) origin = resolveOrigin(mapGet[1], init.line - 1);
+      }
+    }
+  }
+  if (!origin) return [];
+
+  const collectGateIds = (from: number, to: number, requireEffAction: boolean): string[] => {
+    const scope = lines.slice(from, to + 1).join('\n');
+    let latestIds: string[] = [];
+    let offset = 0;
+    for (const gateLine of lines.slice(from, to + 1)) {
+      const idsOnLine: string[] = [];
+      for (const m of gateLine.matchAll(/\b([$A-Z_a-z][$\w]*)\.id\s*(?:===|!==)\s*'([A-Z0-9_]+)'/g)) {
+        const gateVar = m[1];
+        if (!requireEffAction) {
+          idsOnLine.push(m[2]);
+          continue;
+        }
+        const beforeGate = scope.slice(0, offset + m.index);
+        const escaped = gateVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const fromEffect = new RegExp(`(?:const\\s+${escaped}(?:\\s*:[^=]+)?\\s*=\\s*eff\\.action|for\\s*\\(\\s*const\\s+${escaped}\\s+of[\\s\\S]*?eff\\.action)`).test(beforeGate);
+        if (fromEffect) idsOnLine.push(m[2]);
+      }
+      if (idsOnLine.length) latestIds = idsOnLine;
+      offset += gateLine.length + 1;
+    }
+    return [...new Set(latestIds)];
+  };
+
+  // execStub 系: ctx.sourceCardNum の別名から取得し、直前の stub/action ID 門を通っている。
+  if (origin === '@sourceCardNum') {
+    return collectGateIds(Math.max(functionStart, lineIndex - 80), lineIndex, false);
+  }
+
+  // collector 系: 同じカード番号で effectsMap を走査した地点以降だけを見る。
+  const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const effectsGet = new RegExp(`\\beffectsMap\\.get\\(\\s*${escapedOrigin}\\s*\\)`);
+  let anchor = -1;
+  for (let j = lineIndex; j >= functionStart; j--) {
+    if (effectsGet.test(lines[j])) {
+      anchor = j;
+      break;
+    }
+  }
+  if (anchor < 0) return [];
+  const directIds = collectGateIds(anchor, lineIndex, true);
+  if (directIds.length) return directIds;
+
+  // action を引数に取る局所 funnel が ID 門を持ち、0件なら continue する形も同じ宣言元選別。
+  const between = lines.slice(anchor, lineIndex + 1).join('\n');
+  for (const call of between.matchAll(/\b([$A-Z_a-z][$\w]*)\(\s*eff\.action\s*\)/g)) {
+    const helper = call[1];
+    let helperStart = -1;
+    const helperDecl = new RegExp(`\\bconst\\s+${helper}\\s*=`);
+    for (let j = anchor - 1; j >= functionStart; j--) {
+      if (helperDecl.test(lines[j])) {
+        helperStart = j;
+        break;
+      }
+    }
+    if (helperStart >= 0) {
+      const helperIds = collectGateIds(helperStart, anchor - 1, false);
+      if (helperIds.length) return helperIds;
+    }
+  }
+  return [];
+}
+
 const engineDir = join(root, 'src/engine');
 for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
   const lines = readFileSync(join(engineDir, f), 'utf-8').split(/\r?\n/);
@@ -141,7 +258,7 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     //     罠は計器ごとではなく横断で読む（`CLAUDE.md`）。⚠**engine のコードは1行も変えていない＝可視化。**
     const scanIds = (ln: string): boolean => {
       let disp = false;
-      const g = /\b(\w+)\.id\s*===\s*'([A-Z0-9_]+)'/g;
+      const g = /\b(\w+)\.id\s*(?:===|!==)\s*'([A-Z0-9_]+)'/g;
       let mg: RegExpExecArray | null;
       while ((mg = g.exec(ln))) {
         addGate(mg[1], mg[2]);
@@ -177,7 +294,8 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
 
     // 読んでいるカードが「効果元自身」か（代入行の前後3行で判定）
     const win = lines.slice(Math.max(0, i - 3), i + 2).join('\n');
-    const isSelf = isAbilityFunnel || /sourceCardNum|sourceCard\b|srcCard\b|ctx\.sourceCard/.test(win);
+    const selfGateIds = isComment ? [] : gateSelectedSourceText(lines, i);
+    const isSelf = isAbilityFunnel || selfGateIds.length > 0 || /sourceCardNum|sourceCard\b|srcCard\b|ctx\.sourceCard/.test(win);
     const varName = lines[i].match(/const\s+(\w+)\s*=/)?.[1] ?? null;
 
     // その変数に適用している regex / includes リテラルを、ハンドラ末尾まで走査して収集
@@ -201,10 +319,11 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
         }
       }
     }
+    if (selfGateIds.length) gateSelectedSelfRows.push({ file: f, line: i + 1, ids: selfGateIds });
     rows.push({
       file: f, line: i + 1, handler,
       cls: isComment ? 'COMMENT' : isSelf ? 'SELF_TEXT' : 'OTHER_CARD',
-      varName, snippet: trimmed.slice(0, 130), literals, gates,
+      varName, snippet: trimmed.slice(0, 130), literals, gates, selfGateIds,
     });
   }
 }
@@ -364,6 +483,8 @@ for (const r of rows.filter(x => x.cls === 'OTHER_CARD')) out += `  ${r.file}:${
 writeFileSync(join(root, 'docs/_census_enginetext.txt'), out, 'utf-8');
 
 console.log(`[census:enginetext] A🔴 SELF_TEXT ${nSelf}行 / ${handlers.size}ハンドラ・B ${nOther}行・C ${nComment}行（明細 docs/_census_enginetext.txt）`);
+console.log(`[census:enginetext] ID門→宣言元原文の較正規則: ${gateSelectedSelfRows.length}行に命中`);
+for (const r of gateSelectedSelfRows) console.log(`  ${r.file}:${r.line} <= ${r.ids.join('|')}`);
 const missTotal = ranked.filter(h => h.missCards.length > 0);
 console.log(`[census:enginetext] regex が実際に外れているハンドラ: ${missTotal.length}（miss カード計 ${missTotal.reduce((s, h) => s + h.missCards.length, 0)}）`);
 console.log(`  上位: ${ranked.slice(0, 8).map(h => `${h.handler}(miss${h.missCards.length}/live${h.effects})`).join(', ')}`);

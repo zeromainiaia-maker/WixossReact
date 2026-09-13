@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-13 — §5.3 索引B を2項目前進（第312バッチ・Codex 委譲）＝🏁`O-345` 真バグ#3 ／ 🔧`O-343` 計器の較正
+
+### (1) 🏁`O-345` 真バグ#3＝`WXK03-023-E1`《聖炎の輪舞》の追加コストが踏み倒され、閾値2つが消えていた
+
+- **真因**＝`OPTIONAL_COST` の payload が **`costText`（原文をそのまま持つ生文字列）だけ**で、engine はこれを
+  ほぼ読まない（消費は別カード専用の `includes('幻水マレガビ')` 1本のみ）＝**追加コストを1枚も払わない**。
+  さらに原文の閾値2つ（「２枚以上置いていた場合」＋1ドロー／「４枚」＋バニッシュ）が JSON に無く、
+  `DRAW`×2 と `BANISH` が**無条件実行**されていた＝**過剰実行**。
+- 🔴**逆翻訳では永久に見つからない型**＝`costText` が原文そのものなので、逆翻訳は原文どおりに読めていた（`O-356` と同じ死角）。
+- **影響枚数**＝**1効果 / 1カード**。
+- **受け皿の見立てを訂正**＝登録票の「`OPTIONAL_COST` に『シグニの下から合計N枚まで』が無い」は**誤り**。
+  `underAnySigniTrash{count,fromThis,filter}` は型・支払い可否（`canAffordOptionalCostSpec`）・支払いステップ
+  （`optionalCostPaySteps`）・逆翻訳まで**全部在った**。足りなかったのは次の2つだけ：
+  1. **可変枚数**＝`upTo?: boolean` を足し、支払い可否の不足判定を `upTo` では行わず、支払いステップに `upToCount: true` を積む。
+  2. **コスト台帳への記録**＝`TakeFromUnderSigniAction.asCost` を新設し、`optionalCostPaySteps` が積むステップにだけ立てる。
+     🔑**無条件に記録しない**（`TAKE_FROM_UNDER_SIGNI` は通常アクションでも使う＝別効果の `COST_TRASHED_MATCHES` が誤成立する）。
+     ⚠記録地点は `applyDirectAction` の `case 'TAKE_FROM_UNDER_SIGNI'` 1本（`execTakeFromUnderSigni` に即時適用枝は無く、
+     1枚でも複数枚でも `resumeSelectTarget` 経由で同じ書き口を通る）。
+  3. 判定側は既存の `COST_TRASHED_MATCHES{minCount}`（`last_cost_trashed_cards` を見る）。**新しい型は0。**
+- ⚠**`last_cost_trashed_cards` は支払いごとに上書きされる規約**（`BattleScreen` の召喚／【起】／スペル使用の各経路が
+  `[...paidNums, ...]` で**置き換える**）＝前の支払いが混ざらないことを検証で確認した。
+- **検証コマンド**＝`npx tsx scripts/syncManualLive.ts WXK03-023` → `npm run regen` → `npm run gates`（全緑・golden **4071** PASS）。
+  `npm run census:numberdrift` が **65 → 64**（閾値2/4が逆翻訳に出た＝BASELINE も 64 へ）。
+- **反転確認**＝実施。`applyDirectAction` の記録条件を殺すと golden の 2枚払い・4枚払いが **FAIL 2 / PASS 1**、戻して PASS 3。
+- **実機**＝**不要**（§2.2＝`src/screens/` 非変更）。
+
+### (2) 🔧`O-343`＝`census:enginetext` の A/B 分類を較正（A群 0 → 22行 / 21ハンドラ）
+
+- **真因**＝`scripts/censusEngineText.ts` の `isSelf` が**代入行の前後3行を変数名（`sourceCardNum` 等）で照合するだけ**
+  だったので、「**場／キー枠を走査して、その STUB を宣言しているカードを見つけ、そのカード自身の原文を読む**」形
+  （変数名が `top` / `card` / `cn`）が**全部 B（他カードの属性判定）に落ちていた**。
+  だがそのカードは定義上**効果元自身**なので A（SELF_TEXT）が正しい。
+- **直し方**＝ID 門（`x.id === 'ID'` / `x.id !== 'ID'`）で選ばれた変数から原文取得までを**関数スコープでデータフロー追跡**する
+  規則を追加（変数名に依存しない）。`effectsMap.get(<同じキー>)` をアンカーにして、門が原文取得より前にある行だけを A にする。
+- 🔑**較正であって退化ではない**＝**engine のコードは1行も触っていない**。証拠＝**合計147行・C 95行が不変で、A 22 ＋ B 30 ＝ 旧 B 52**（行の増減ゼロの純粋な再分類）。
+- 🔥**産物＝A群に miss 合計約45 の実 worklist が出た**＝`collectLrigNameAliases`（live 20効果 / **miss 19**＝ほぼ全カードが既定値へ落ちている）／
+  `collectOppGuardExtraColorlessCost`（live 10 / miss 8）／`collectAbilityGainProtectedSigni`（live 7 / miss 3）ほか。**次バッチはここを payload 化する。**
+- **判断保留（B に残した4行）**＝`buildLevelMods` / `effectEngine.ts:3064` / `collectColorlessOverrides` / `collectLrigColorAndLimitMods`
+  ＝いずれも**ID 門が原文取得より後**で「門通過後」を証明できない。
+- **検証コマンド**＝`npm run census:enginetext`（A 22 / B 30 / C 95・`BASELINE_SELF_TEXT = 22`）→ `npm run gates`（全緑）。
+
+### (3) 🔍検証で Codex の成果物から直した3点
+
+1. 🔴**`console.log` に簡体字が混入していた**（`较正规则` 相当＝`规則`）。
+   ⚠**CODEX_GUIDE §5-19 のエンコーディング検査（`U+FFFD` / 3文字以上連続の `?` / BOM）は簡体字を拾わない**＝
+   **日本語を書かせた回は目視で1回読む**（typecheck も lint も通る）。
+2. `BASELINE_SELF_TEXT` の**行内コメントが「1 → 0」のまま値だけ 22** になっていた（次に読む人が較正の理由を誤読する）。
+3. 較正の理由コメントが `const` から分離した別行に置かれていた＝行内コメントへ統合した。
+
 ## 2026-09-13 — 🏁§5.3 `O-348` クローズ＝逆翻訳が描き落としていた payload キー 19種 → 0（第311バッチ）
 
 - **真因**＝`scripts/decompileEffects.ts` の STUB ラベルが **`miscStubMap` / `docs/STUBS.md` の固定文**で、

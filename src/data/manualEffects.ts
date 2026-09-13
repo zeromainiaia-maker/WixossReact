@@ -4876,14 +4876,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXK03-070-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrashGroups":[{"count":1,"filter":{"cardName":"幻怪　モモイヌ"}},{"count":1,"filter":{"cardName":"幻怪　モモザル"}},{"count":1,"filter":{"cardName":"幻怪　モモキジ"}}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
-  // 🆕2026-09-09（S-3・意味照合triage・codex-work引き継ぎ）＝①「手札を1枚捨て」が丸ごと欠落していたので追加した。
-  //   🔴②③は据置＝「２枚以上トラッシュに置いていた場合」＋１ドロー／「４枚」＋バニッシュ、という
-  //   underAnySigniTrash の**実際に支払った枚数**を段階的に読む条件は既存機構に無い（`underAnySigniTrash` は
-  //   固定 count のオール・オア・ナッシングしか実装が無く、`TAKE_FROM_UNDER_SIGNI` は `last_cost_trashed_cards`
-  //   も書かない＝COST_TRASHED_MATCHES でも拾えない）。今回はそのぶん **DRAW を2回・BANISH を無条件のまま
-  //   温存**した（現状より過少化させない）。§5.3 へ新規登録が必要（可変枚数の任意コスト＋段階条件）。
+  // 🆕2026-09-13（§5.3 `O-345` 真バグ#3）＝追加コストを0〜4枚で選び、実際に払った下カードを
+  //   `last_cost_trashed_cards` へ記録する。2枚以上だけ追加DRAW、4枚だけ相手シグニをBANISH。
+  //   `costText` 原文エコーは engine が読まず欠落を隠すため撤去し、既存payloadだけで明示する。
   "WXK03-023": [
-    {"effectId":"WXK03-023-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"使用コストとして追加であなたのシグニの下からカードを合計４枚までトラッシュに置いてもよい"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}},{"type":"DRAW","owner":"self","count":1},{"type":"DRAW","owner":"self","count":1},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK03-023-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","underAnySigniTrash":{"count":4,"upTo":true}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}},{"type":"DRAW","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":2},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":4},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WXK03-073": [
     {"effectId":"WXK03-073-E1","effectType":"AUTO","timing":["ON_ZONE_MOVED"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"delta":2000,"targetsTriggerSource":true},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN","targetsTriggerSource":true}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},

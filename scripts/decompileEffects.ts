@@ -931,7 +931,7 @@ function costJa(c?: any): string {
       : c.underSelfTrash.selectionConstraint?.same === 'name' ? '同名のカード' : 'カード';
     parts.push(`このシグニの下から${kind}${c.underSelfTrash.count}枚をトラッシュに置く`);
   }
-  if (c.underAnySigniTrash) parts.push(`あなたのシグニの下からカードを合計${c.underAnySigniTrash.count}枚トラッシュに置く`);
+  if (c.underAnySigniTrash) parts.push(`あなたのシグニの下からカードを合計${c.underAnySigniTrash.count}枚${c.underAnySigniTrash.upTo ? 'まで' : ''}トラッシュに置く`);
   // 🆕§5.3 `O-313`（2026-09-12・`WXK10-018-E2`）＝付いているカード／下にあるカードのどちらでもよい。
   if (c.attachedOrUnderTrash) parts.push(`あなたのシグニに付いているカードか下にあるカードを${c.attachedOrUnderTrash.count}枚トラッシュに置く`);
   if (c.removeOppVirus != null) parts.push(`対戦相手の場の【ウィルス】${c.removeOppVirus}個を取り除く`);
@@ -3488,7 +3488,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const tuCnt = a.count === 'ALL' ? '好きな枚数'
         : a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
       const tuDest: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', trash: 'トラッシュに置く' };
-      return `${tuFrom}${a.filter ? filterJa(a.filter) : ''}${tuNoun}を${tuCnt}${tuDest[a.destination] ?? `${a.destination}へ置く`}`;
+      // `asCost` は OPTIONAL_COST が runtime で生成する支払い印。通常アクションとの意味差も描く。
+      return `${a.asCost ? 'コストとして' : ''}${tuFrom}${a.filter ? filterJa(a.filter) : ''}${tuNoun}を${tuCnt}${tuDest[a.destination] ?? `${a.destination}へ置く`}`;
     }
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
     case 'REVEAL': {
@@ -4194,7 +4195,7 @@ function actionJa(a?: Action, effectType?: string): string {
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）
           const fUA = a.underAnySigniTrash.filter ? filterJa(a.underAnySigniTrash.filter) : '';
           const nounUA = ([] as string[]).concat(a.underAnySigniTrash.filter?.cardType ?? 'カード').join('か');
-          return `${headOC}${whereUA}${fUA}${nounUA}を${a.underAnySigniTrash.count}枚トラッシュに置いてもよい`;
+          return `${headOC}${whereUA}${fUA}${nounUA}を${a.underAnySigniTrash.count}枚${a.underAnySigniTrash.upTo ? 'まで' : ''}トラッシュに置いてもよい`;
         }
         // エナゾーンからトラッシュする任意コスト（続き421）。従来は spec を見ずに
         // 「コストを支払ってもよい」へ潰れており、**どのカードを何枚払うのかが逆翻訳から消えて**いた

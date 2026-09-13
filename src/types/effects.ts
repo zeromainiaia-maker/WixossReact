@@ -1261,8 +1261,9 @@ export interface EffectCost {
   underSelfTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // このシグニの下から指定カードN枚をトラッシュに置く（【起】コスト）
   // あなたのシグニの下から合計N枚をトラッシュ（自分の場の全シグニを横断）。
   // fromThis＝「このシグニの下」限定（続き417）／filter＝下カードの絞り込み（続き422）。
+  // upTo＝0〜count枚を選べる「合計N枚まで」。省略時は従来どおり固定count枚。
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること。
-  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
   /**
    * 🆕**「あなたのシグニに付いているカード１枚か、あなたのシグニの下にあるカード１枚をトラッシュに置く」**
    * （2026-09-12・§5.3 `O-313`・`WXK10-018-E2`・母集団 実測1効果/1カード）。
@@ -6485,11 +6486,11 @@ export interface StubAction {
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
-  /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。`fromThis`＝「**このシグニの**下から」限定。 */
+  /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。`upTo`＝0〜N枚、`fromThis`＝「**このシグニの**下から」限定。 */
   // filter＝下カードの絞り込み（「このシグニの下から**赤のシグニ**1枚」＝`WXDi-P11-042-E1`）。
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること
   //   （片方だけだと「払えない盤面で支払うボタンが出る」か「どの下カードでも払える」になる）。
-  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
   /** OPTIONAL_COST: トラッシュから条件一致カードをゲームから除外する任意コスト。`owner:'any'` は両プレイヤーのトラッシュ。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   /** 🆕OPTIONAL_COST: トラッシュから条件一致カードをデッキの一番下に置く任意コスト（§5.3 `O-201`）。 */
@@ -7241,6 +7242,8 @@ export interface TakeFromUnderSigniAction {
    */
   count: number | 'ALL';
   upToCount?: boolean;
+  /** OPTIONAL_COST の支払いステップとして実行するときだけ、移動札を last_cost_trashed_cards に記録する。 */
+  asCost?: boolean;
   filter?: TargetFilter;
   /** fromThis 未指定時、下カードを取り出せるスタックの最上面シグニを限定する。 */
   hostFilter?: TargetFilter;

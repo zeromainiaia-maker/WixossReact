@@ -8,32 +8,32 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-13（第311バッチ）＝🏁`O-348` クローズ**（`census:payloadkeys` 未判定キー **19種 / 19ノード → 0**・BASELINE 19→0）。
-🔑**残っていた19件は全部「1キー＝1ノード」**＝**母集団は小さいが、1件ごとに「原文照合がそこだけ効かない」穴**だった。
-- 🔧**閉じ方は3通り**＝①**`miscStubMap` の固定文を payload から組む**（7 id＝`lrigAttackLimit` / `revealReduceLrigLimit` /
-  `stripSelf` / `sideAttackEmptyZoneAsFront` / `loseAbilityAfterUse` / `swapOptional` / `oppActivateCostUntilOppTurnEnd` ほか）
-  ②**`STUBS.md` の実装メモへ落ちていた8 id に専用分岐を置く**（`fetchCardName` / `leaveToTrashWindow` / `moveSelfZone` /
-  `powerPlusBanishedPower` / `repeatBodyWhile` / `skipArtsReturn` / `trashedCardUpTo` / `variableEnergyTrashLevelBounce`）
-  ③**`OPTIONAL_COST` に3キー**（`handDiscardGroups` / `selfEnergyToDeckBottom` / `triggeringSigniTrash`）。**IGNORED 登録は1件だけ**（`refreshLifeMoveReplace`＝STUB id と完全に冗長）。
-- 🐛**ラベルが engine と食い違っていた3件**（engine は正しい＝**逆翻訳だけの嘘**）＝
-  ①`MOVE_TO_OTHER_SIGNI_ZONE`＝ラベルが「すでにシグニがあるゾーンには配置できない」で、`moveSelfZone.allowSwap` の札（`WXK03-042-E1`）と**逆のことを書いていた**
-  ②`STRIP_ATTACHED_AND_UNDER`＝`stripSelf` を見ず「**それに**付いている」固定＝原文「**このシグニに**付いている」（`WXDi-P07-041-E2`）が読めなかった
-  ③`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`＝`skipArtsReturn`（アーツに触らない）でも「対象のアーツをルリグデッキに加える」と書き、**同じ処理が2回**あるように読めた。
-- 🔑**最大の払い戻しは `REPEAT_BODY_WHILE`**＝本体（`repeatBodyWhile.body`）が丸ごと落ちており、`WXDi-CP01-033-E1` は
-  「デッキの一番下をトラッシュ」も「＜バーチャル＞なら＋5000」も**1文字も出ていなかった**（いま `actionJa` で入れ子を描く）。
-- 🔑**プレースホルダはそのまま出ていた**＝`OPP_SIGNI_LEAVE_TO_TRASH` のラベルは `〈期間〉`・`〈フィルタ〉` の実装メモが**live のシートに出ていた**（2カード）。
-- ⚠**`src/` は1行も触っていない**（`scripts/decompileEffects.ts` と計器2本のみ）＝**§2.2 により実機不要**。
+**直近＝2026-09-13（第312バッチ・Codex 委譲）＝索引B を2項目前進**＝🏁`O-345` 真バグ#3 完了 ＋ 🔧`O-343` 計器の較正（`census:enginetext` A群 **0 → 22行 / 21ハンドラ**）。
+🔴🔑**この回の主産物は「登録票の受け皿の見立てが3項目とも外れていた」こと**＝着手の1手目を grep にしたら、3項目すべてで想定より小さい差分で済んだ（[LESSONS.md](./LESSONS.md) §4.1 の18〜20例目）。
+
+| 項目 | 登録票の見立て | 実測 |
+|---|---|---|
+| `O-345` #3（`WXK03-023-E1`） | 「`OPTIONAL_COST` に『シグニの下から合計N枚まで』が**無い**」 | 🔴**誤り**＝`underAnySigniTrash` は型・支払い可否・支払いステップ・逆翻訳まで**全部在った**。足りなかったのは **①可変枚数（`upTo`）②払った下カードが `last_cost_trashed_cards` に載らない** の2つだけ |
+| `O-345` #1（`WX19-007-E2`） | 「先例は `GROW_CENTER_IF_LEVEL_LTE_OPP`（`lrig_deck.at(0)` 決め打ち）」 | **`GROW_BY_EFFECT` ＋ `pending_effect_grow`** という正規経路の予約機構を見落としていた（【出】・リミット・コインが落ちない形）。⚠`src/screens/` を触る＝**実機必須**なので未着手 |
+| `O-353` | 「16効果中14効果／候補が数千件＝UI 改修＝実機必須」 | **14効果中12効果**。さらに**6効果は「自分のデッキの名前」で候補20〜25種＝UI 改修不要・実機不要**、残り6効果だけが当て物＝UI 必須。**2群にきれいに割れる** |
+
+- 🐛**`WXK03-023-E1`（《聖炎の輪舞》）の実害2つを修正**＝①`costText` は engine がほぼ読まない生文字列なので**追加コストが丸ごと踏み倒されていた** ②閾値2つ（2枚以上／4枚）が JSON に無く **`DRAW`×2 と `BANISH` が無条件実行**（過剰）。
+  ⇒ `underAnySigniTrash.upTo`（0〜4枚）＋ `TakeFromUnderSigniAction.asCost`（**支払いステップだけ**コスト台帳へ記録）＋ `COST_TRASHED_MATCHES{minCount:2/4}`。**新しい型は0**。golden 3本（0/2/4枚＋1枚払いの対照）で反転確認済み（記録行を殺すと 2本 FAIL）。
+- 🔧**`O-343` は分類の較正だけ**（`scripts/censusEngineText.ts`・`src/engine/` は1行も触っていない）＝旧 `isSelf` は**代入行の前後3行を変数名で照合するだけ**だったので、「場を走査して**その STUB を宣言しているカード**を見つけ、そのカード自身の原文を読む」形が全部 B に落ちていた。
+  🔑**合計147行・C 95行は不変で、A 22 ＋ B 30 ＝ 旧 B 52**＝**純粋な再分類**（行は1つも増減していない）。
+- 🔥**較正の産物＝A群に miss 合計約45 の実 worklist が出た**＝最上位 `collectLrigNameAliases`（**live 20効果 / miss 19**＝ほぼ全カードが既定値へ落ちている）／`collectOppGuardExtraColorlessCost`（live 10 / miss 8）。**次はここを payload 化する**（`O-60` と同じ型）。
+- 🔍**検証で Codex の成果物から3点直した**＝①`console.log` に**簡体字**（`规則`）が混入 ②`BASELINE_SELF_TEXT` の行内コメントが「1 → 0」のまま値だけ 22 になっていた ③較正の理由コメントが分離していた。⚠**§5-19 のエンコーディング検査（`U+FFFD`／`?`／BOM）は簡体字を拾わない。**
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-362`**（期間の食い違い3件＝母集団の大きい `DOUBLE_OWN_POWER_MINUS` 6効果から） → ②**`O-343`**（索引B） → ③**`O-345`**（数値ドリフトの残2件＝遅いレーン） |
-| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝**逆翻訳の払い戻しは3計器のどれにも映らない**） |
-| 📦**在庫** | 機構 worklist 🔥**12項目**（`O-343`〜`O-346`・`O-353`・`O-357`〜`O-363`）／実機 🏁**0**／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4068 PASS**・`census:payloadkeys` **19 → 0（🏁）**・`census:numberdrift` **67 → 65**（副産物の払い戻し） |
+| 🔥**次に取るもの** | ①**`O-343` 第2段**（A群 22行の payload 化＝`collectLrigNameAliases` の miss 19 から） → ②**`O-353` Part A**（自デッキ群6効果・実機不要・指示書は作成済み） → ③**`O-362`**（期間の食い違い3件） |
+| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置） |
+| 📦**在庫** | 機構 worklist 🔥**11項目**（`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引A 🏁0**・**索引E 🏁0**）／実機 🏁**0**／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4071 PASS**・`census:enginetext` **A 0 → 22（較正）**・`census:numberdrift` **65 → 64** |
 
-🆕🔴**「ラベルが日本語で読める」は「正しい」ではない**＝`census:stubs` の C/E/F群は**生の英語 ID しか見ない**ので、
-**綺麗な日本語で書かれた固定文が payload の値を1つも見ていない**形は3群とも素通りする（`census:payloadkeys` だけが映す）。
-🆕🔑**払い戻しは他の計器へ波及する**＝ラベルに数値が出たぶん `census:numberdrift` が 67→65 に落ちた（`O-354` と同じ形）。
+🆕🔴**「受け皿が無い」は連続20項目外れた**＝**着手の1手目は必ず grep**（型・消費地点・live 実績の3つ）。
+🆕🔑**計器の較正は「退化」ではなく「可視化」**＝ラチェットを上げるときは**どちらかを必ず1行書く**（今回は行の総数が不変であることが証拠）。
+🆕🔑**Codex の報告は「やらなかったこと」まで正確だったが、成果物の日本語は検証が要る**（簡体字はどのゲートも拾わない）。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -350,8 +350,8 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-343` | M | `census:enginetext` の `isSelf` が3行窓の変数名照合なので、**「場を走査してこの STUB を宣言したカードを見つけ、そのカード自身の原文を読む」形が B に落ちる**＝**A群 0 は部分的に見かけだけ**（実測 B群56行のうち18行以上・下限）。まず分類を較正し、そのうえで payload 化する |
-| `O-345` | M | **数値ドリフト**＝原文の数値がカードの逆翻訳に出てこない **72効果**（`npm run census:numberdrift`＝77 → 75 → 72 と払い戻し）。🔑**実測精度＝真バグ20% / 表示バグ45% / 偽陽性35%**。🏁**確認済み真バグ4件のうち2件（`WXDi-P13-048-E2`／`WXDi-P08-053-E1`）は完了**＝どちらも**受け皿が既に在り engine 無改造**。🔥**残2件は遅いレーン**（`WX19-007-E2`＝名前指定の無償グロウ payload／`WXK03-023-E1`＝シグニの下からの任意コスト payload。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)） |
+| `O-343` | M | 🔧**第1段（分類の較正）は 2026-09-13 第312バッチで完了**＝A群 **0 → 22行 / 21ハンドラ**（合計147行・C 95行は不変＝純粋な再分類）。🔥**残＝第2段＝A群 22行の payload 化**（`O-60` と同じ型）。**取る順は miss 降順**＝`collectLrigNameAliases`（live 20効果 / **miss 19**＝ほぼ全カードが既定値落ち）→ `collectOppGuardExtraColorlessCost`（live 10 / miss 8）→ `collectAbilityGainProtectedSigni`（live 7 / miss 3）。明細は `docs/_census_enginetext.txt` の「A群 明細」 |
+| `O-345` | M | **数値ドリフト**＝原文の数値がカードの逆翻訳に出てこない **72効果**（`npm run census:numberdrift`＝77 → 75 → 72 と払い戻し）。🔑**実測精度＝真バグ20% / 表示バグ45% / 偽陽性35%**。🏁**確認済み真バグ4件のうち3件が完了**（`WXDi-P13-048-E2`／`WXDi-P08-053-E1`／🆕`WXK03-023-E1`＝2026-09-13 第312）。🔥**残1件＝`WX19-007-E2`**（「対戦相手のセンタールリグがレベル4以上の場合、ルリグデッキから**名前指定の1枚**へ無償グロウ」）。🔑**受け皿の見立てを訂正済み**＝先例は `GROW_CENTER_IF_LEVEL_LTE_OPP` ではなく **`GROW_BY_EFFECT` ＋ `pending_effect_grow`**（engine は予約だけ・実グロウは `BattleScreen.executeGrow` の正規経路＝【出】/リミット/コインが落ちない）。足りないのは予約に**名前指定**と**無償**の軸を足すこと。⚠`src/screens/` を触る＝**実機必須** |
 | `O-353` | M | **カード名宣言の候補が「自分の手札の先頭4つ」に固定**＝`DECLARE_CARD_NAME`（`execStubPart1.ts`）。原文はどれも「カード名１つを宣言する」で**手札に限定していない**うえ、用途は「**デッキ**から宣言したカードを探す／相手のデッキトップを当てる」なので**手札の名前しか選べないと効果がほぼ死ぬ**。🔧**母集団＝実測 16効果/16カード のうち `declareNamePool` を持つ 2件を除く 14効果**。🔑`declareNamePool:'opp_public_signi'` という**プール指定の器は既に在る**（`O-306`）＝足りないのは「デッキの全カード名／シグニ名」プール。⚠**候補が数千件になるので UI 側の絞り込みが要る＝`src/screens/` を触る＝実機まで必須** |
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
@@ -451,12 +451,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（過去に計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態になった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-13 時点（本ブロックが直近の正）**＝第311バッチ（🏁`O-348` クローズ＝payload キー被覆）
+- **2026-09-13 時点（本ブロックが直近の正）**＝第312バッチ（Codex 委譲＝`O-345` 真バグ#3 ＋ `O-343` 較正）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（据置）。
-  ⚠**3本とも動かないのは正常**＝**逆翻訳の払い戻しはどの進捗計器にも映らない**。
-  📦**在庫**＝**機構 worklist 🔥12項目**（**索引A 🏁0**／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
-  🔧**ゲート（全緑 ✅）**＝**golden 4068 PASS**／smoke 10754 OK／fuzz（軽）0／census 1 / BASELINE 1。
-  🆕**払い戻し**＝`census:payloadkeys` **19 → 0種（🏁 BASELINE 0）**／`census:numberdrift` **67 → 65**（ラベルに数値が出たぶんの副産物）。
+  📦**在庫**＝**機構 worklist 🔥11項目**（**索引A 🏁0**／`O-343`・`O-345`・`O-353` 索引B／`O-344`・`O-346`・`O-357`〜`O-363` 索引G／**索引E 🏁0**）｜**実機 🏁0**｜**実装キュー 🏁0**。
+  🔧**ゲート（全緑 ✅）**＝**golden 4071 PASS**／smoke 10754 OK／fuzz 200ゲーム 0／census 1 / BASELINE 1。
+  🔧**`census:enginetext` A群 0 → 22行 / 21ハンドラ（`BASELINE_SELF_TEXT = 22`）＝較正**（合計147行・C 95行は不変＝行の増減なしの再分類）。**miss 合計約45 が次の worklist**。
+  🆕**払い戻し**＝`census:numberdrift` **65 → 64**（`WXK03-023-E1` の閾値2/4が逆翻訳に出た）。
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

@@ -617,7 +617,7 @@ export interface OptionalCostSpec {
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
   //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
-  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
   /** トラッシュから条件一致カードを除外する。owner:'any' は両プレイヤーを単一候補プールにする。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   /**
@@ -729,7 +729,9 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    underAnySigniTrash: a.underAnySigniTrash, trashExile: a.trashExile, trashToDeckBottom: a.trashToDeckBottom,
+    // ⚠JSON payload と runtime spec は別型。spread で `upTo` も明示的に運ぶ。
+    underAnySigniTrash: a.underAnySigniTrash ? { ...a.underAnySigniTrash } : undefined,
+    trashExile: a.trashExile, trashToDeckBottom: a.trashToDeckBottom,
     energyTrash, energyTrashGroups: a.energyTrashGroups,
     fieldTrash: a.fieldTrash, fieldTrapTrash: a.fieldTrapTrash,
     fieldToDeckBottom: a.fieldToDeckBottom, fieldToDeckTop: a.fieldToDeckTop, fieldTrashGroups: a.fieldTrashGroups,
@@ -849,7 +851,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const underCount = spec.underAnySigniTrash.fromThis
       ? ((ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch).length)
       : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).length;
-    if (underCount < spec.underAnySigniTrash.count) return false;
+    // 「N枚まで」は0枚も合法＝在庫不足で pay 選択肢を閉じない。固定N枚だけ従来の不足判定を保つ。
+    if (!spec.underAnySigniTrash.upTo && underCount < spec.underAnySigniTrash.count) return false;
   }
   if (spec.trashExile) {
     // 🆕**`thisCardOnly`＝「トラッシュにある**このカード**を除外する」**（2026-09-07・`WX12-035-E1`）。
@@ -1045,7 +1048,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     } as EffectAction] : []),
     ...(spec.underAnySigniTrash ? [{
       type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash',
-      count: spec.underAnySigniTrash.count, upToCount: false,
+      count: spec.underAnySigniTrash.count,
+      upToCount: spec.underAnySigniTrash.upTo ?? false,
+      asCost: true,
       ...(spec.underAnySigniTrash.fromThis ? { fromThis: true } : {}),
       // ⚠filter を渡さないと `execTakeFromUnderSigni` が**下のどのカードでも払える**（原文より緩い）。
       //   続き421 で「赤のシグニ1枚」等の絞り込みを parser が載せ始めたので、ここで受ける（続き422）。
