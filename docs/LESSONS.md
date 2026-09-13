@@ -892,6 +892,21 @@ payload キー22種を `decompileEffects.ts` に配線した回で、**4件が�
 **各1ノードの12キー（バッチB）は 12ノード中2件が実バグ**だった
 （`exceptSelfSource` の identity 縮退／`selfTrashCost` のコスト未払い過剰実行）。
 ⇒ **1ノードの項目を「parser の書き損じだろう」と安く見積もらず、engine の消費地点まで読む。**
+
+🆕🔴🔑**2026-09-13（`O-348` の続き）＝第4の形を実測した＝「逆翻訳が原文を regex でコピーしている」。**
+`scripts/decompileEffects.ts` に **`currentCardText.match(/…/)` が101箇所 / 101 STUB id**あり、
+**live に出るのは 88 id＝452ノード / 420カード**（→ **§5.3 `O-356`** に登録）。
+🔴**原文をコピーしているので、payload も engine も何であろうと逆翻訳は必ず原文と一致する**＝
+**主軸の検査（原文 × 逆翻訳の目視照合）が、そのカードでだけ構造的に無効。**
+- **見分け方**＝`grep -n "<STUB_ID>" scripts/decompileEffects.ts` して `currentCardText` が出たらこれ。
+- 🔑**「逆翻訳が原文どおりに読める」は、payload から描けている証拠ではない。**
+  実例＝`negateNthAttack`（`WX10-018-E1`）の「そのアタックがこのターン**一度目か二度目**の場合」は
+  一見正しいが `NEGATE_NTH_ATTACK` は原文エコー＝**`count` が 2 でも 9 でも同じ文が出る**。
+- 🔴**`census:payloadkeys` はこの形を見ない**（「キー名が `decompileEffects.ts` に出てこない」としか測らない）
+  ＝`resonaSummon` 11ノードはこれで説明がついた。**計器の未判定リストに出る理由を1件ずつ追うと、別系統が落ちる。**
+- ⚠**全部が悪ではない**（引用文をそのまま与える `GRANT_QUOTED_*` 等は正当寄り）＝**候補出しであって判定ではない。**
+- ⚠**payload から描く形へ移すと、そのカードの逆翻訳が原文と「ずれる」ことがある。
+  それは退化ではなく可視化**（engine の欠落が初めて見えた状態）＝**原文に寄せて隠さない。**
 （「3枚以上」が見えないカードを「配線済み」と数える）。⚠**この2件は Codex の報告では「食い違い0件」だった**＝
 **`decompileEffects.ts` を触っていない回でも、payload を足したなら逆翻訳を自分で読む**（[CODEX_GUIDE.md](./CODEX_GUIDE.md) §7）。
 
