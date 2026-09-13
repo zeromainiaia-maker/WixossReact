@@ -3,7 +3,7 @@
 
 live JSON の payload キー: 573種
   描かなくてよいと登録済み（IGNORED）: 5種
-  🔴逆翻訳が一度も言及しない        : 56種 / 145ノード
+  🔴逆翻訳が一度も言及しない        : 46種 / 99ノード
 
 ⚠候補出しであって判定ではない＝1キーずつ「落とすと原文のどの語が説明できなくなるか」で判定する。
   意味を持つキー → decompileEffects.ts に描画を足す／実装の都合 → IGNORED に理由つきで登録。
@@ -12,28 +12,12 @@ live JSON の payload キー: 573種
         例: WD12-007-E1, WD23-001-E-E2, WDK17-001-E2, WDK17-012-E2
     11ノード  11枚  resonaSummon  [STUB]
         例: WD12-007-E1, WD23-001-E-E2, WX07-050-E1, WX10-028-BURST
-     8ノード   8枚  lastProcessedFrom  [LOOK_PICK_CHAIN]
-        例: WX24-P1-017-E1, WX24-P2-035-E1, WX24-P3-037-E1, WX24-P3-039-E1
-     7ノード   7枚  energyOwner  [POWER_MODIFY_PER_ENERGY, POWER_MODIFY_PER_ENERGY_COLOR]
-        例: WX09-019-E1, WX14-063-E1, WX14-065-E1, WX14-068-E1
-     6ノード   6枚  additionalCostChoose  [CHOOSE]
-        例: WD23-044-EA-E1, SP26-005-E1, SP38-004-E1, PR-Di013-E1
      6ノード   2枚  scaleAction  [STUB]
         例: WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1
      6ノード   2枚  scaleColor  [STUB]
         例: WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1, WX25-P3-050-E1
-     5ノード   5枚  allowRepeat  [CHOOSE]
-        例: WX17-003-E1, WXDi-D05-011-E1, WXDi-P10-036-E1, WXDi-P16-TK01-E1
-     5ノード   3枚  bestEffort  [TRASH]
-        例: WDK06-R20-E1, WDK14-022-E1, WDK17-009-E2, WDK17-009-E2
      4ノード   4枚  deckRevealUntil  [STUB]
         例: WDK04-006-E1, WDK13-017-E1, WX22-021-E2, WXK10-031-E1
-     4ノード   4枚  declaredCountChoose  [CHOOSE]
-        例: PR-K056-E1, WX13-003-E1, WX20-Re20-E1, WXK05-002-E1
-     4ノード   4枚  perAllSigni  [ATTACH_CHARM]
-        例: WX08-046-BURST, WX08-081-E1, WX13-037-E1, WX18-038-E3
-     3ノード   3枚  frontOnly  [BANISH_REDIRECT]
-        例: WX19-078-E1, WXDi-D09-P14-E1, WXDi-P10-044-E2
      3ノード   3枚  lrigClass  [STUB]
         例: WX12-025-E2, WX12-034-E2, WX12-036-E2
      3ノード   3枚  negateNthAttack  [STUB]
@@ -48,12 +32,8 @@ live JSON の payload キー: 573種
         例: WX24-P2-026-E1, WXDi-CP01-005-E1
      2ノード   2枚  leaveVictimFilter  [STUB]
         例: SPDi44-08-E2, WX25-P1-018-E2
-     2ノード   2枚  recordRevealed  [REVEAL_AND_PICK]
-        例: WXEX1-06-E2, WXDi-P10-006-E3
      2ノード   2枚  trapCheckRest  [STUB]
         例: WXDi-P11-006-E1, WXK02-035-E2
-     2ノード   2枚  virusOwner  [POWER_MODIFY_PER_VIRUS_COUNT]
-        例: WX16-032-E1, WX16-046-E1
      1ノード   1枚  battleOnly  [BANISH_REDIRECT]
         例: WXDi-P15-078-E2
      1ノード   1枚  declareFromLastProcessed  [STUB]

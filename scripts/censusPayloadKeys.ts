@@ -107,7 +107,7 @@ console.log(`明細 → docs/_census_payload_keys.txt`);
 // 🔴**0 を目標にしない**＝意味を持たないキーは IGNORED に落とすのが正で、そちらは件数に出ない。
 //   ここで止めるのは「**未判定のキーが増えた**」場合＝新しい payload を足して描画を忘れた回。
 //   払い戻したら BASELINE を実測値へ下げる（下げ忘れも exit 1 で気づく）。
-const BASELINE = 56;  // 2026-09-12 第294バッチ後半＝65種のうち MILL 系6キー（countPerStoredTargets/countPerLastProcessed/countPerSourceLevel/untilFilter/untilCount/alsoOpponent）と `ATTACH_ACCE.targetSigniOwner` を描画し、IGNORED 3種を理由つきで登録した後の実数
+const BASELINE = 46;  // 2026-09-13 O-348 バッチA＝型つき10キー（46ノード）を payload から描画した後の実数
 if (undrawn.length > BASELINE) {
   console.error(`\n[census:payloadkeys] 🔴 GATE FAIL: 未判定の payload キーが基準 ${BASELINE} を超えた（現在 ${undrawn.length}）`);
   for (const [k, v] of undrawn.slice(0, 10)) console.error(`   - ${k}（${v.n}ノード / ${v.cards.size}枚・例 ${v.ids[0]}）`);

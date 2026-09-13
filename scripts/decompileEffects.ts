@@ -1635,6 +1635,13 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'TRASH': {
       const t = a.target;
+      // O-348: bestEffort は「対象がなくても後続の独立した処理を続ける」。
+      // WDK06-R20 / WDK14-022 は原文にも「手札を捨てられなくてもカードを2枚引く」と明記される。
+      const bestEffortJa = !a.bestEffort ? ''
+        : t?.type === 'HAND_CARD' ? '（手札を捨てられなくても後続を続行）'
+        : t?.type === 'ENERGY_CARD' ? '（エナがなくても後続を続行）'
+        : t?.type === 'SIGNI' ? '（対象のシグニがいなくても後続を続行）'
+        : '（対象がなくても後続を続行）';
       // 🆕§5.3 `O-60` 第43バッチ＝`LIFE_CLOTH_CARD`／`TRASH_CARD`／`CHECK_CARD` の名詞が空で
       //   「対戦相手のを1枚トラッシュに置く」という**ゾーンの消えた文**になっていた（`WX10-002-E2`）。
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ'
@@ -1644,7 +1651,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : t?.type === 'CHECK_CARD' ? 'チェックゾーンのカード' : '';
       // targetsTriggerSource:「そのシグニ」= トリガー元シグニ（タスク12(lxi) 第3波）
       if (t?.type === 'SIGNI' && a.targetsTriggerSource) return 'それ（トリガー元シグニ）をトラッシュに置く';
-      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
+      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
       if (t?.type === 'ENERGY_CARD' && t.selectionConstraint?.groups?.length) {
         return `${ownerJa(t.owner)}エナゾーンから${selectionGroupsJa(t.selectionConstraint.groups)}をトラッシュに置く`;
@@ -1687,7 +1694,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count')
           ? `この方法で処理した${t.count.filter ? `${filterJa(t.count.filter)}カード` : 'カード'}と同じ枚数`
         : `${numJa(t?.count)}枚${t?.upToCount ? 'まで' : ''}`;
-      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
+      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
     }
     case 'POWER_MODIFY': {
       // aboveSelf は「このカードの上にある[＜X＞の/《名》/色の]シグニ」＝ホスト宛（owner 接頭辞は出さない）。
@@ -2664,7 +2671,12 @@ function actionJa(a?: Action, effectType?: string): string {
         return c.condition ? `${condJa(c.condition)}場合、${body}` : body;
       }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
-      const cntCh = a.countChoose?.countFromZone
+      // O-348: `declaredCountChoose`＝使用時に宣言した数で choose_count を固定する軸
+      //   （`effectExecutor.ts` が `declared_choose_count` を読む）。
+      //   🔴上限（`choose_count`＋`upTo`）は原文の「N つまで選ぶ」そのものなので**消さずに併記する**
+      //     （消すと原文照合でN が消え、何個まで取れるのか読めなくなる）。
+      const declaredCh = a.declaredCountChoose ? '（使用時に宣言した数だけ選ぶ）' : '';
+      const cntChBase = a.countChoose?.countFromZone
         ? `${countFromZonePerJa(a.countChoose.countFromZone, 'つ', a.countChoose.upTo)}選ぶ`
         : a.countChoose
         // 🆕`$ref` は「Nつ」の助数詞に嵌まらない（旧＝「この方法で処理した枚数と同じ数の**つ**を選ぶ」）＝
@@ -2673,6 +2685,7 @@ function actionJa(a?: Action, effectType?: string): string {
           ? `${refNounJa(a.countChoose.count)}と同じ数${a.countChoose.upTo ? 'まで' : 'だけ'}選ぶ`
           : `${numJa(a.countChoose.count)}つ${a.countChoose.upTo ? 'まで' : 'を'}選ぶ`)
         : a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
+      const cntCh = `${cntChBase}${declaredCh}`;
       // betChoose＝「あなたがベットしていた場合、代わりにKつ(まで)選ぶ」の択一（engine が is_betting で choose_count 上書き）。
       const betCh = a.betChoose
         ? `。あなたがベットしていた場合、代わりに${numJa(a.betChoose.thenChooseCount)}つ${a.betChoose.thenUpTo ? 'まで' : ''}選ぶ`
@@ -2688,6 +2701,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const condCh = a.conditionChoose
         ? `。${condJa(a.conditionChoose.condition)}なら代わりに${numJa(a.conditionChoose.thenChooseCount)}つ${a.conditionChoose.thenUpTo ? 'まで' : ''}選ぶ`
         : '';
+      // O-348: 追加コストの成否で選択数を差し替える軸と、同じ選択肢を複数回取れる軸を描く。
+      const additionalCostCh = a.additionalCostChoose
+        ? `。追加コストを支払っていた場合、代わりに${numJa(a.additionalCostChoose.thenChooseCount)}つ${a.additionalCostChoose.thenUpTo ? 'まで' : ''}選ぶ`
+        : '';
+      const allowRepeatCh = a.allowRepeat ? '。同じ選択肢を2回以上選んでもよい' : '';
       // 🔴**誰が選ぶか**を書かないと原文照合できない（§5.3 `O-60` 第14バッチ）＝「対戦相手は以下の2つから
       //   1つを選び、あなたはそれを行う」は**選ぶ主体が相手**であることが効果の要点。
       //   `opponentResponds` を落とすと「あなたが選ぶ」と読めてしまい、逆翻訳が原文と真逆になる。
@@ -2695,7 +2713,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕noRepeat＝「まだ選んでいないもの」（このゲーム中に選んだ選択肢は二度と選べない）。
       //   落とすと毎回同じ選択肢を取れる強い効果に読める（`WXDi-P11-003`）。
       const noRepCh = a.noRepeat ? 'まだ選んでいないもの' : '';
-      return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
+      return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}${additionalCostCh}${allowRepeatCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
@@ -2774,9 +2792,12 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.remainder?.reorder ? '残りを好きな順番でデッキの一番下に置く'
         : '残りをデッキの一番下に置く';
       const supLPC = (a.stages || []).some((s: any) => s.then === 'field' && s.suppressOnPlay) ? '。その【出】能力は発動しない' : '';
+      const processedScopeLPC = a.lastProcessedFrom === 'field'
+        ? '（以降の「この方法で処理したカード」は場に出したカードだけを指す）'
+        : '';
       // §6.4 O-2: `opponentResponds` を落とすと「相手のデッキを**自分が**見て選ぶ」と同じ文になる（偽陰性）。
       const pickerLPC = a.opponentResponds ? '対戦相手はその中から' : 'その中から';
-      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。${pickerLPC}${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}`;
+      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。${pickerLPC}${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}${processedScopeLPC}`;
     }
     case 'REVEAL_AND_PICK': {
       const rapOwner = a.owner ?? a.from?.owner;
@@ -2812,6 +2833,9 @@ function actionJa(a?: Action, effectType?: string): string {
              : rem.position === 'bottom' ? `、残りを${remShuf}${rem.reorder ? '好きな順番で' : ''}デッキの一番下に置く`
              : `、残りを${remShuf}${rem.reorder ? '好きな順番で' : ''}デッキの${rem.reorder ? '一番上に戻す' : '上に戻す'}`)
           : '、残りを戻す';
+      const recordRevealedJa = a.recordRevealed
+        ? '（以降の「この方法で処理したカード」は公開した全カードを指す）'
+        : '';
       if ((a.pickCount ?? 1) === 0 && rem?.location === 'deck' && rem.position === 'bottom') {
         return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚公開し、公開したカードを${rem.shuffle ? 'シャッフルして' : ''}デッキの一番下に置く`;
       }
@@ -2844,7 +2868,7 @@ function actionJa(a?: Action, effectType?: string): string {
           ? '。それらのシグニの【出】能力は発動しない' : '';
         // §6.4 O-2: 選ぶ主体を明示する。`owner` だけを描くと `opponentResponds` の有無で
         // 逆翻訳が同じ文になり、「相手のデッキを**自分が**覗く」との区別が消える（偽陰性）。
-        return `${revealJa}、${a.opponentResponds ? '対戦相手はその中から' : 'その中から'}${rapConstraint}${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
+        return `${revealJa}、${a.opponentResponds ? '対戦相手はその中から' : 'その中から'}${rapConstraint}${filterStr}を${pickN}${placeVerb}${remJa}${suppress}${recordRevealedJa}`;
       }
       // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
       if (a.then) {
@@ -2875,6 +2899,18 @@ function actionJa(a?: Action, effectType?: string): string {
         c === 'ALL' ? '好きな数' : `${typeof c === 'number' ? c : 1}${unit}${upTo ? 'まで' : ''}`;
       const charmCntJa = cntJa(a.charm?.count, '枚', a.charm?.upToCount);
       const toCntJa = cntJa(a.to?.count, '体', a.to?.upToCount);
+      // O-348: `perAllSigni`＝デッキトップ1枚を「好きな数のシグニ」へ共有するのではなく、
+      //   場の各シグニへ**1枚ずつ**付ける一斉処理（`effectExecutor.ts` が対象ごとにデッキを引く）。
+      //   原文＝「対戦相手は自分のシグニ１体につき自分のデッキの上からカード１枚を、それらの【チャーム】にする」。
+      //   ⚠`charm.type` が DECK_CARD 以外の形が将来出たときに**黙って既定文へ落ちない**よう、
+      //     その場合も「1体につき1枚ずつ」だけは必ず描く（既定文は「好きな数のシグニ」＝意味が反転する）。
+      if (a.perAllSigni) {
+        const perToJa = `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体につき`;
+        if (a.charm?.type === 'DECK_CARD') {
+          return `${perToJa}、${ownerJa(a.charm?.owner)}デッキの上からカード1枚をそれぞれの【チャーム】にする`;
+        }
+        return `${perToJa}、${ownerJa(a.charm?.owner)}カード1枚をそれぞれの【チャーム】にする`;
+      }
       const charmJa = thisCardCharm ? 'このカード'
         : a.charm?.type === 'DECK_CARD' ? `${ownerJa(a.charm?.owner)}デッキの上からカード${charmCntJa}`
         : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード${charmCntJa}`
@@ -3058,7 +3094,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-60` 第29／30バッチ（2026-09-03）＝**数える範囲を payload から描く**
       //   （`PER_CHARM.sourceOwner`＝「場にある」／「あなたの場」・`PER_ENERGY_COLOR.colors`＝数える色の限定）。
       const per = (a.type === 'POWER_MODIFY_PER_ENERGY_COLOR' && Array.isArray(a.colors) && a.colors.length > 0)
-        ? `エナゾーンにあるカードが持つ${a.colors.join('、')}の色の種類数`
+        ? `${ownerJa(a.energyOwner)}エナゾーンにあるカードが持つ${a.colors.join('、')}の色の種類数`
+        : a.type === 'POWER_MODIFY_PER_ENERGY_COLOR'
+        ? `${ownerJa(a.energyOwner)}エナゾーンにあるカードが持つ色の種類数`
+        : a.type === 'POWER_MODIFY_PER_ENERGY'
+        ? `${ownerJa(a.energyOwner)}エナゾーンのカード枚数`
+        : a.type === 'POWER_MODIFY_PER_VIRUS_COUNT'
+        ? `${ownerJa(a.virusOwner)}場にある【ウィルス】の数`
         : (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'field' && a.sourceOwner === 'any')
         ? '場にある【チャーム】の枚数'
         : (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'trashed_this_effect')
@@ -3126,11 +3168,12 @@ function actionJa(a?: Action, effectType?: string): string {
         (brf.level && typeof brf.level === 'object' && brf.level.max !== undefined) ? `レベル${brf.level.max}以下の`
           : (typeof brf.level === 'number' ? `レベル${brf.level}の` : ''),
       ].join('');
+      const victim = a.frontOnly ? `このシグニの正面の${attr}シグニ` : `対戦相手の${attr}シグニ`;
       return a.redirectTo === 'exile'
-        ? `このターン、${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
+        ? `このターン、${p0}${victim}が${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
         : src || p0 || attr
-          ? `${once}${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
-          : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
+          ? `${once}${p0}${victim}が${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+          : `${victim}のバニッシュ先をトラッシュに変更する`;
     }
     case 'COST_INCREASE': {
       const inc = Array.isArray(a.amount) && a.amount.length > 0
