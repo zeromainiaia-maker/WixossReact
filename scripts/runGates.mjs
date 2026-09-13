@@ -52,6 +52,7 @@ const results = await Promise.all([
   run('census-costtext', 'census:costtext'),
   run('census-payloadkeys', 'census:payloadkeys'),
   run('census-numberdrift', 'census:numberdrift'),
+  run('census-stublabel', 'census:stublabel'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

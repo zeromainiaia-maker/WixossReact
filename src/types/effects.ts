@@ -2179,6 +2179,7 @@ export type EffectAction =
   | DelayToNextOppAttackPhaseAction
   | DelayToNextOppTurnEndAction
   | DelayToNextOwnTurnEndAction
+  | DelayToThisTurnEndAction
   | PlaceFacedownLrigZoneAction
   | RevealFacedownLrigZoneAction
   | ReturnFacedownLrigZoneToHandAction
@@ -4377,6 +4378,23 @@ export interface DelayToNextOppTurnEndAction {
  */
 export interface DelayToNextOwnTurnEndAction {
   type: 'DELAY_TO_NEXT_OWN_TURN_END';
+  action: EffectAction;
+}
+
+/**
+ * 「**この**ターン終了時、〈本文〉」（§5.3 `O-351`・2026-09-13・`WXDi-P05-007-E3`）。
+ * 上の「次のあなたのターン終了時」の兄弟だが、**予約先が active スロット**（`pending_own_turn_end_effects`）＝
+ * **いま進行中の自分のターンが終わる瞬間**に `ON_TURN_END` の collector が拾う。
+ *
+ * 🔴**受け皿は既にあった**＝`pending_own_turn_end_effects` ＋ `RESOLVE_OWN_TURN_END_EFFECT` ＋
+ *   `triggerCollect` の `ON_TURN_END` 分岐。足りなかったのは「**next スロットではなく active スロットへ積む**」
+ *   入口だけ（`DELAY_TO_NEXT_OWN_TURN_END` は 2スロット式で、次ターンまで発火しない）。
+ * ⚠**本文はここで実行しない**＝予約するだけ（兄弟2つと同じ規約）。
+ * ⚠**相手ターン中に予約すると発火しない**（active スロットはターンプレイヤー側しか読まれない）。
+ *   母集団は自分のターンの【起】なので現状は問題にならないが、増えたら `turnScopedState` 側の昇格規約を見直す。
+ */
+export interface DelayToThisTurnEndAction {
+  type: 'DELAY_TO_THIS_TURN_END';
   action: EffectAction;
 }
 

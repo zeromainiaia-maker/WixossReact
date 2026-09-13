@@ -43569,6 +43569,39 @@ test('DELAY_TO_NEXT_OWN_TURN_END: 2スロットで「次の」自分ターン終
   eq((fired.ownerState as PlayerState).hand.length, started.hand.length - 2, '予約した本文が実行されない');
   eq((fired.ownerState as PlayerState).pending_own_turn_end_effects, undefined, '実行した予約が消えていない');
 }));
+// ── DELAY_TO_THIS_TURN_END（§5.3 `O-351`「このターン終了時、〜」・2026-09-13 第300バッチ）──
+// 🔴**上の `DELAY_TO_NEXT_OWN_TURN_END` と積み先が逆**＝こちらは active スロット（`pending_own_turn_end_effects`）。
+//   取り違えると「このターン終了時」が**次のターンまで発火しない**（= 事実上の無言 no-op）。
+test('DELAY_TO_THIS_TURN_END: active スロットへ積んで「この」ターン終了時に回す（§5.3 O-351）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const handBefore = ctx.ownerState.hand.length;
+  const body = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } } as unknown as EffectAction;
+  const r = run({ type: 'DELAY_TO_THIS_TURN_END', action: body } as unknown as EffectAction, ctx);
+  const st = r.ownerState as PlayerState;
+  eq(st.pending_own_turn_end_effects?.length, 1, 'active スロットに載らない');
+  eq(st.pending_next_own_turn_end_effects, undefined, '「この」ターンなのに次ターン予約へ積んでいる');
+  eq(st.pending_own_turn_end_effects?.[0].sourceCardNum, SIGNI, '効果元が記録されない');
+  eq(st.hand.length, handBefore, '本文がこの時点で実行されている（予約するだけのはず）');
+  // 🔑**このターンの終了時に取り出せる**＝昇格を待たずに `RESOLVE_OWN_TURN_END_EFFECT` が引く
+  const fired = run({ type: 'STUB', id: 'RESOLVE_OWN_TURN_END_EFFECT' } as EffectAction,
+    { ...ctx, ownerState: st } as ExecCtx);
+  eq((fired.ownerState as PlayerState).hand.length, st.hand.length - 2, '予約した本文が実行されない');
+  eq((fired.ownerState as PlayerState).pending_own_turn_end_effects, undefined, '実行した予約が消えていない');
+}));
+// 🔴`WXDi-P05-007-E3`＝`census:stublabel` A群の初収穫。旧 live は `STUB{MASS_TRASH}`＝
+//   「**相手の**エナ全部＋**相手の**シグニ全部を**即**トラッシュ」を焼き込んだハンドラに落ちており、
+//   原文「**このターン終了時、あなたの**手札とエナゾーンにあるすべてのカードをトラッシュに置く」に対して
+//   **プレイヤーもゾーンもタイミングも全部違う**過剰実行だった。
+test('WXDi-P05-007-E3: このターン終了時に「自分の」手札とエナを流す（相手の盤面に触らない）', () => {
+  const e = (effectsMap.get('WXDi-P05-007') ?? []).find(x => x.effectId === 'WXDi-P05-007-E3');
+  ok(!!e, 'WXDi-P05-007-E3 が live に無い');
+  const json = JSON.stringify(e!.action);
+  ok(json.includes('DELAY_TO_THIS_TURN_END'), '🔴遅延が落ちて即時実行に戻っている');
+  ok(!json.includes('MASS_TRASH'), '🔴相手の盤面を全部流す MASS_TRASH に戻っている');
+  ok(json.includes('"owner":"self"') && json.includes('"hand"') && json.includes('"energy"'),
+    '🔴流す先が「自分の手札とエナゾーン」になっていない');
+  ok(!json.includes('"signi"'), '🔴原文に無いシグニまで流している');
+});
 test('REVEAL_BOTH_DECK_TOPS: 両者公開の【ライフバースト】一致でだけ帰結が走る（§6.4 O-4）', () => withSavedCursor(() => {
   // 🔴続き499 以前は公開と比較が UNKNOWN に落ち、帰結（アタック無効）だけが残って**必ず無効化**していた。
   const LB = findCard(c => isSigni(c) && !!c.BurstText && c.BurstText !== '-');

@@ -11144,6 +11144,22 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
         },
       }, '次のあなたのターン終了時の効果を予約'));
     }
+    case 'DELAY_TO_THIS_TURN_END': {
+      // 「**この**ターン終了時、〈本文〉」（§5.3 `O-351`・2026-09-13）＝予約するだけ。
+      // ⚠**active スロットへ積む**＝上の `DELAY_TO_NEXT_OWN_TURN_END` と積み先が逆
+      //   （あちらは next スロット＝次の自分のターン開始時に昇格してから発火する）。
+      const dtte = action as import('../types/effects').DelayToThisTurnEndAction;
+      return done(addLog({
+        ...ctx,
+        ownerState: {
+          ...ctx.ownerState,
+          pending_own_turn_end_effects: [
+            ...(ctx.ownerState.pending_own_turn_end_effects ?? []),
+            { ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}), action: dtte.action },
+          ],
+        },
+      }, 'このターン終了時の効果を予約'));
+    }
     case 'PLACE_FACEDOWN_LRIG_ZONE': {
       // 「デッキの一番上／手札のカードN枚まで を裏向きでルリグゾーンに置く」（§6.4 O-3）。
       const pfl = action as import('../types/effects').PlaceFacedownLrigZoneAction;

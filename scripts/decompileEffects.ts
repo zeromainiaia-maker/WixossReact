@@ -3239,6 +3239,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'DELAY_TO_NEXT_OWN_TURN_END':
       // 「次のあなたのターン終了時、〈本文〉」（§6.4 O-4）
       return `次のあなたのターン終了時、${actionJa(a.action)}`;
+    case 'DELAY_TO_THIS_TURN_END':
+      // 「このターン終了時、〈本文〉」（§5.3 `O-351`・上の兄弟だが予約先が active スロット）
+      return `このターン終了時、${actionJa(a.action)}`;
     case 'REVEAL_BOTH_DECK_TOPS':
       // ⚠比較の帰結まで出す（片方だけだと「必ず起きる」との違いが逆翻訳に映らない）。
       return 'あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。'

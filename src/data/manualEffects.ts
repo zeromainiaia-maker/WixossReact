@@ -4468,6 +4468,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   過剰実行だった。③の choice action へ SEQUENCE で畳む。
     {"effectId":"WX22-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"青","count":1},{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"search","label":"＜天使＞を3枚まで探して場に出す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"天使","color":["赤","青","緑"]},"maxCount":3,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"draw","label":"カードを6枚引く","action":{"type":"DRAW","owner":"self","count":6}},{"choiceId":"counter","label":"スペルの効果を打ち消す","action":{"type":"SEQUENCE","steps":[{"type":"COUNTER_SPELL"},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 🔴**§5.3 `O-351`（2026-09-13・第300バッチ）＝`npm run census:stublabel` A群の初収穫。**
+  //   旧 live は `SEQUENCE[DRAW 2, ENERGY_CHARGE 2, STUB{MASS_TRASH}]`。`MASS_TRASH` のハンドラは
+  //   「**相手の**エナ全部＋**相手の**シグニ全部を**即**トラッシュ」を焼き込んでおり（`execStubPart1.ts`）、
+  //   原文「**このターン終了時、あなたの**手札とエナゾーンにあるすべてのカードをトラッシュに置く」に対して
+  //   **プレイヤーもゾーンもタイミングも全部違う**＝相手の盤面を全部流す**過剰実行**だった。
+  //   🔑`MASS_TRASH` は `WX11-020-E1`（相手エナ＋相手シグニを即トラッシュ）と**2つの別文型が同居**していた
+  //     ＝`TRASH_ALL_SIGNI_AND_KEY` が `O-60` 第59バッチで直したのと**同じ壊れ方が隣に残っていた**。
+  //   ⇒ 支払い先を既存 payload（`TRASH_ALL_SIGNI_AND_KEY{trashAllScope}`）へ寄せ、遅延は新設の
+  //     `DELAY_TO_THIS_TURN_END`（受け皿 `pending_own_turn_end_effects` は既存）で表す。
+  //   ⚠`MASS_TRASH` のハンドラは `WX11-020-E1` がまだ使うので**残す**（live 1効果に減っただけ）。
+  "WXDi-P05-007": [
+    {"effectId":"WXDi-P05-007-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},{"type":"DELAY_TO_THIS_TURN_END","action":{"type":"STUB","id":"TRASH_ALL_SIGNI_AND_KEY","trashAllScope":{"owner":"self","zones":["hand","energy"]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
   "WX22-021": [
     {"effectId":"WX22-021-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_CARD_NAME"},{"type":"STUB","id":"DECK_REVEAL_UNTIL","deckRevealUntil":{"until":"declaredName","hitTo":"hand","restTo":"deckBottomShuffled"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":7},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
