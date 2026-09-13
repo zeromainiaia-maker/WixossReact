@@ -68,11 +68,19 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_ASK_ACCE_HOST') {
     const cardAAH = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
     if (!cardAAH) return done(addLog(ctx, 'アクセ設置：対象カードなし'));
+    // 🆕🔴**§5.3 `O-355`（2026-09-13）＝`acceHostFilter.thisCardOnly` を先に剥がして候補を効果元だけに絞る。**
+    //   原文「…シグニ１枚を**このシグニの**【アクセ】にする」（`WX17-033-E1`）は付け先を選ばせない。
+    //   🔴**`matchesFilter` は `thisCardOnly` を黙って無視する**（`src/types/effects.ts` の同名フィールドの
+    //     注記どおり＝`execAddToLife` も同じ理由で自前で剥がしている）＝渡すだけでは**自分の全シグニが候補**に
+    //     なり、原文に無い選択肢が出る。⚠**無視される軸を渡して安心しない。**
+    const { thisCardOnly: acceHostSelfAAH, ...acceHostRestAAH } = stub.acceHostFilter ?? {};
+    const acceHostFilterAAH = Object.keys(acceHostRestAAH).length > 0 ? acceHostRestAAH : undefined;
     const hostsAAH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       const top = stack?.at(-1);
       if (!top) return [];
       if (!canAttachSelf(top, i)) return [];
-      if (stub.acceHostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(top)), stub.acceHostFilter)) return [];
+      if (acceHostSelfAAH && getCardNum(top) !== getCardNum(ctx.sourceCardNum ?? '')) return [];
+      if (acceHostFilterAAH && !matchesFilter(ctx.cardMap.get(getCardNum(top)), acceHostFilterAAH)) return [];
       return [top];
     });
     if (hostsAAH.length === 0) return done(addLog(ctx, 'アクセできるシグニがいない'));
@@ -5398,25 +5406,12 @@ export function execStubPart3(
     } }, `${placedMPDE.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を遅延除外対象に登録`));
   }
 
-  // ATTACH_SEARCHED_AS_ACCE: サーチしたカードを対象シグニのアクセとして付ける（手札経由近似）
-  if (stub.id === 'ATTACH_SEARCHED_AS_ACCE') {
-    const searchedASAA = (ctx.lastProcessedCards ?? [])[0];
-    if (!searchedASAA || !ctx.ownerState.hand.includes(searchedASAA)) {
-      return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: サーチカードが手札にない'));
-    }
-    const candidatesASAA = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
-      if (!stack || stack.length === 0) return [];
-      const host = stack[stack.length - 1];
-      return canAttachSelf(host, i) ? [host] : [];
-    });
-    if (candidatesASAA.length === 0) return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: アクセ対象シグニなし'));
-    const ctxASAA = { ...ctx, sourceCardNum: searchedASAA };
-    const attachASAA: AttachAcceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' };
-    return needsInteraction(addLog(ctxASAA, `${ctx.cardMap.get(searchedASAA)?.CardName ?? searchedASAA}をアクセとして付ける対象を選択`), {
-      type: 'SELECT_TARGET', candidates: candidatesASAA, count: 1, optional: false,
-      targetScope: 'self_field', thenAction: attachASAA as EffectAction,
-    });
-  }
+  // 🏁**§5.3 `O-355`（2026-09-13）＝`ATTACH_SEARCHED_AS_ACCE` を撤去した。**
+  //   旧実装は「手札経由近似」＝**手札に無いと何もしない**（`ownerState.hand.includes(...)` が必須条件）ので、
+  //   呼び出し側が `LOOK_PICK_CHAIN{then:'hand'}` で**いったん手札に入れてから**付け替えるしかなかった。
+  //   さらにホスト候補が**自分の全シグニ**で、原文「**このシグニの**【アクセ】にする」より広かった。
+  //   ⇒ 唯一の利用者 `WX17-033-E1` を `LOOK_PICK_CHAIN{then:'acce', acceHostFilter:{thisCardOnly:true}}`
+  //     へ移した（parser はこの id を生成しないので live 0＝安全網を壊していない）。
 
   // CONDITIONAL_GROW_AND_KEY_DISABLE: WXK02-029 ビカム・ユー（アーツ）の選択肢①。
   //   「あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。

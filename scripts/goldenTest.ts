@@ -6458,17 +6458,18 @@ test('§6.4 O-25(d) THIS_CARD_IS_CHARMED: チャーム条件が落ちず、別�
   eq(evalCondition({ type: 'THIS_CARD_IS_CHARMED' } as Condition, ctxYes), true, 'チャーム有りで成立');
 }));
 
-// §6.4 O-25(c)：`SPDi43-05-E2` は**宣言済みの穴**（実装したことにしない）。
-// 🔴据置（rawText のまま）だと engine の `GRANT_QUOTED_AUTO_ABILITY` が全文 regex で拾おうとして
-//    黙って何もしない＝`census:stubs` にも映らない**無言 no-op** だった。
-test('§6.4 O-25(c) SPDi43-05-E2: 表せない引用は DEFERRED_ で穴を宣言する', () => {
+// 🏁**§6.4 O-25(c) / §5.3 `O-349`（2026-09-13）＝`SPDi43-05-E2` は実装した。**
+//   この test は「**据置は DEFERRED_ で宣言する**」という契約を守るためのものだったが、
+//   実装が入ったので**契約の向きを反転**させる＝**据置へ戻ったら落とす**。
+//   ⚠実装の中身は下の `SPDi43-05-E2:` / `SPDi43-05-E2 E2E:` の2本が assert する。
+//   🔑据置のとき engine 側が `GRANT_QUOTED_AUTO_ABILITY` の全文 regex で拾おうとして
+//     黙って何もしない**無言 no-op** になっていた経緯は残す（rawText を戻さないための assert）。
+test('§6.4 O-25(c) SPDi43-05-E2: 据置（DEFERRED_/rawText）へ戻していない', () => {
   const eff = effectsMap.get('SPDi43-05')?.find(e => e.effectId === 'SPDi43-05-E2');
   if (!eff) throw new Error('SPDi43-05-E2 が存在');
-  const a = eff.action as StubAction;
-  eq(a.type, 'STUB', '受け皿は STUB');
-  eq(a.id, 'DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE', '🔴無言 no-op（GRANT_QUOTED_AUTO_ABILITY 等）へ戻っている');
-  // ⚠**実装する前にこの4機構をそろえること**（PLAN §6.4 O-25(c)）。とくに②が engine に存在しない。
-  ok(!JSON.stringify(eff.action).includes('rawText'), 'STUB に GRANT_EFFECT の随伴キーが残っていない');
+  const json = JSON.stringify(eff.action);
+  ok(!json.includes('DEFERRED_'), '🔴明示 defer の no-op へ戻っている');
+  ok(!json.includes('rawText'), '🔴引用が rawText のまま＝全文 regex 頼みの無言 no-op へ戻っている');
 });
 
 test('§6.4 O-4 WXDi-P11-005-E3: 支払い回避つき攻撃制限を期間ごと表現する', () => {
@@ -7480,6 +7481,120 @@ test('§6.4 O-11 E2E: デッキから探した札を【アクセ】にする（�
   // 🔴既存 `ATTACH_ACCE` はエナ／手札からしか抜けない＝デッキ由来だと**デッキに残ったまま**アクセにも現れる。
   ok(!r.ownerState.deck.includes(acceCard), 'アクセにした札はデッキから抜ける（複製しない）');
   eq(total(r.ownerState), before, 'カード総数が変わらない');
+}));
+// ── §5.3 `O-349`（2026-09-13）＝明示 defer の最後の1効果（`SPDi43-05-E2`）──
+// 🔴旧 live は `STUB{DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE}`＝**ハンドラも無い完全な no-op**
+//   （コストのアーツだけ失って何も起きない）。受け皿4つはすべて既存だった（登録票の「1つ足りない」は外れ）。
+test('SPDi43-05-E2: 相手のアタックに「場かエナから同レベルのシグニ1枚」を払って無効化する', () => withSavedCursor(() => {
+  const e = (effectsMap.get('SPDi43-05') ?? []).find(x => x.effectId === 'SPDi43-05-E2');
+  ok(!!e, 'SPDi43-05-E2 が live に無い');
+  const json = JSON.stringify(e!.action);
+  ok(!json.includes('DEFERRED_'), '🔴明示 defer の no-op に戻っている');
+  // ① 器＝このルリグ自身へ「次の対戦相手のターン終了時まで」付与
+  eq((e!.action as { duration?: string }).duration, 'UNTIL_OPP_TURN_END', '🔴付与期間が原文と違う');
+  ok(json.includes('"thisCardOnly":true'), '🔴付与先が「このルリグ」に絞られていない');
+  // ② 収集＝相手のルリグ**と**シグニ 両方のアタックで発火する（any_opp）
+  const sub = (e!.action as { effect?: CardEffect }).effect!;
+  eq((sub.timing ?? []).join(','), 'ON_ATTACK_SIGNI,ON_ATTACK_LRIG', '🔴「ルリグかシグニ」の片方しか拾わない');
+  eq(sub.triggerScope, 'any_opp', '🔴自分のアタックで誤発火する／相手のアタックで発火しない');
+  // ③ 場∪エナの単一プール（2回選ばせて2枚落とす形になっていないこと）
+  const steps = (sub.action as { steps: Record<string, unknown>[] }).steps;
+  eq(steps.length, 2, '🔴支払いと帰結の2ステップになっていない');
+  const trash = steps[0] as { type: string; target: Record<string, unknown> };
+  eq(trash.type, 'TRASH', '🔴支払いがトラッシュではない');
+  eq((trash.target.extraZones as string[]).join(','), 'energy', '🔴「場かエナゾーンから」の単一プールでない');
+  eq(trash.target.upToCount, true, '🔴「〜してもよい」なのに0枚を選べない（強制になっている）');
+  eq((trash.target.filter as Record<string, unknown>).levelEqTrigger, true, '🔴「同じレベルの」が落ちている');
+  // ④ did-it ゲート＋アタック無効化
+  const cond = steps[1] as { condition: Record<string, unknown>; then: Record<string, unknown> };
+  eq(cond.condition.type, 'LAST_PROCESSED_COUNT_GTE', '🔴「そうした場合」のゲートが無い＝払わなくても無効化する');
+  eq(cond.then.type, 'NEGATE_ATTACK', '🔴帰結がアタック無効化でない');
+  eq(cond.then.attackingOnly, true, '🔴いま宣言中のアタックに限定していない');
+}));
+test('SPDi43-05-E2 E2E: 払えば無効化し、払わなければ無効化しない（§5.3 O-349）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('SPDi43-05') ?? []).find(x => x.effectId === 'SPDi43-05-E2')!;
+  const sub = (e.action as { effect?: CardEffect }).effect!;
+  // アタッカー（相手シグニ）と同じレベルのシグニを自分の場とエナに1枚ずつ置く。
+  const attacker = findCard(c => c.Type === 'シグニ' && !!c.Level && c.Level !== '-');
+  const lvl = cardMap.get(attacker)!.Level;
+  const sameLv = findCard(c => c.Type === 'シグニ' && c.Level === lvl && c.CardNum !== attacker);
+  const otherLv = findCard(c => c.Type === 'シグニ' && c.Level !== lvl && c.Level !== '-' && c.CardNum !== attacker);
+  // ⚠**「いまアタック中」の印を立てる**＝`attackingOnly` は `pending_signi_battle` のゾーン頂点しか候補にしない
+  //   （立てないと候補0で `NEGATE_ATTACK` が黙って何もしない＝この E2E の初回失敗がそれだった）。
+  const mk = () => {
+    const ctx = mkCtx({ signi: [sameLv, null, null] }, { signi: [attacker, null, null] }, SIGNI);
+    return { ...ctx,
+      ownerState: { ...ctx.ownerState, energy: [otherLv] },
+      otherState: { ...ctx.otherState, pending_signi_battle: { zoneIndex: 0 } },
+      triggeringCardNum: attacker } as unknown as ExecCtx;
+  };
+  // 払わない（0枚）＝アタックは無効にならない
+  const base = mk();
+  const r = executeAction(sub.action as EffectAction, base);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '支払いの選択窓が出る');
+  // 🔑候補は「場∪エナ」を1回で跨ぐ＝同レベルの札だけ（場の sameLv）。エナの otherLv は別レベルなので出ない。
+  eq((r.pending as { candidates: string[] }).candidates.join(','), sameLv,
+    '🔴候補が同レベルに絞られていない／場とエナの単一プールになっていない');
+  const skipped = finish(resumeSelectTarget([], r.pending as never, ctxAfter(r, base)), base);
+  ok(!skipped.otherState.cancel_current_signi_attack, '🔴払っていないのにアタックが無効化されている');
+  // 払う（1枚）＝アタックが無効になる
+  const paid0 = mk();
+  let r2 = executeAction(sub.action as EffectAction, paid0);
+  r2 = resumeSelectTarget([sameLv], (r2 as { pending: never }).pending, ctxAfter(r2, paid0));
+  const paid = finish(r2, paid0);
+  ok(paid.ownerState.trash.includes(sameLv), '払ったシグニがトラッシュに置かれていない');
+  ok(paid.otherState.cancel_current_signi_attack, '🔴払ったのにアタックが無効化されていない');
+}));
+// ── §5.3 `O-355`（2026-09-13）＝`acceHostFilter.thisCardOnly` でホストを効果元だけに絞る ──
+// 🔴**`matchesFilter` は `thisCardOnly` を黙って無視する**ので、渡すだけでは自分の全シグニが候補に出る
+//   （`INTERNAL_ASK_ACCE_HOST` 側で剥がしている）。この golden はその剥がしを守る。
+test('§5.3 O-355: INTERNAL_ASK_ACCE_HOST は thisCardOnly で候補を効果元だけに絞る', () => withSavedCursor(() => {
+  const src = findCard(c => c.Type === 'シグニ');
+  const other = findCard(c => c.Type === 'シグニ' && c.CardNum !== src);
+  const acceCard = findCard(c => c.Type === 'シグニ' && c.CardNum !== src && c.CardNum !== other);
+  const mk = (filter?: Record<string, unknown>) => {
+    const ctx = exactDeckCtx([acceCard], src);
+    ctx.ownerState.field.signi = [[src], [other], null];
+    return executeAction({ type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST', value: acceCard,
+      ...(filter ? { acceHostFilter: filter } : {}) } as unknown as EffectAction, ctx);
+  };
+  const open = mk();
+  ok(!open.done && open.pending.type === 'SELECT_TARGET', '（前提）ホスト選択が出る');
+  eq((open.pending as { candidates: string[] }).candidates.length, 2, '（前提）フィルタ無しなら自分の全シグニが候補');
+  const self = mk({ thisCardOnly: true });
+  ok(!self.done && self.pending.type === 'SELECT_TARGET', 'thisCardOnly でもホスト選択の経路を通る');
+  eq((self.pending as { candidates: string[] }).candidates.join(','), src,
+    '🔴thisCardOnly が効いていない＝原文「このシグニの【アクセ】にする」に無い選択肢が出る');
+}));
+// 🔴`WX17-033-E1`＝原文「【出】：あなたのデッキの上からカードを3枚見て《アクセアイコン》を持つシグニ1枚を
+//   **このシグニの**【アクセ】にする。残りを好きな順番でデッキの一番下に置く。」
+//   旧 live は `LOOK_PICK_CHAIN{then:'hand'}` ＋ `STUB{ATTACH_SEARCHED_AS_ACCE}`＝**手札を経由**していた。
+test('WX17-033-E1: 手札を経由せず、このシグニの【アクセ】になる（§5.3 O-355）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX17-033') ?? []).find(x => x.effectId === 'WX17-033-E1');
+  ok(!!e, 'WX17-033-E1 が live に無い');
+  const json = JSON.stringify(e!.action);
+  ok(!json.includes('ATTACH_SEARCHED_AS_ACCE'), '🔴手札経由の STUB に戻っている');
+  ok(!json.includes('"then":"hand"'), '🔴ピック先が手札に戻っている（解決の途中で手札に存在してしまう）');
+  ok(json.includes('"then":"acce"'), '🔴【アクセ】行きになっていない');
+  ok(json.includes('"thisCardOnly":true'), '🔴付け先が「このシグニ」に絞られていない');
+  // E2E＝デッキ3枚のうちアクセ札だけがホスト（効果元）へ付き、手札は1枚も増えない。
+  const host = 'WX17-033';
+  // ⚠`hasIcon:'アクセ'` は `EffectText` に **`【アクセ】`** を含むかで判定する（`execUtils.matchesFilter`）。
+  const acceCard = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【アクセ】'));
+  const filler = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardNum !== acceCard).slice(0, 2).map(c => c.CardNum);
+  const ctx = exactDeckCtx([acceCard, ...filler], host);
+  ctx.ownerState.field.signi = [[host], null, null];
+  const handBefore = ctx.ownerState.hand.length;
+  let r = executeAction(e!.action as EffectAction, ctx);
+  ok(!r.done && r.pending.type === 'SEARCH', '3枚見てピックする窓が出る');
+  r = resumeSearch([acceCard], r.pending as never, ctxAfter(r, ctx));
+  if (!r.done && r.pending.type === 'SELECT_TARGET') r = resumeSelectTarget([host], r.pending as never, ctxAfter(r, ctx));
+  r = finish(r, ctx);
+  const zi = r.ownerState.field.signi.findIndex(s => s?.at(-1) === host);
+  ok((r.ownerState.field.signi_acce?.[zi] ?? []).includes(acceCard), '見つけた札が効果元の【アクセ】になる');
+  eq(r.ownerState.hand.length, handBefore, '🔴手札を経由している（原文は手札に加えない）');
+  ok(!r.ownerState.hand.includes(acceCard), '🔴アクセにした札が手札に残っている');
+  ok(!r.ownerState.deck.includes(acceCard), 'アクセにした札はデッキから抜ける（複製しない）');
 }));
 test('§6.4 E2E WX24-P4-008-E1: 場→手札→残りエナの3分岐を維持', () => withSavedCursor(() => {
   const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')! as LookPickChainGolden;

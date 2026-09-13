@@ -235,12 +235,11 @@ console.log('明細 → docs/_census_stub_label.txt');
 // 🔴**0 を目標にしない**（偽陽性を含む＝0 にはできない）。止めるのは「**増えた**」場合＝
 //   新しい STUB のラベルを、そのカードの原文を読まずに書いた回。
 // ⚠払い戻したら BASELINE を実測値へ下げてコミットする（減っても exit 1）。
-const BASELINE_A = 11;  // 2026-09-13 第300バッチ（新設時 13 → `MASS_TRASH` 2件を払い戻して 11）
-const BASELINE_B = 1;   // 2026-09-13 第301バッチ（`O-354`＝17 → 1）
-// 🔑**残り1件は意図的な真陽性**＝`ATTACH_SEARCHED_AS_ACCE`（`WX17-033-E1`）のラベル「（手札経由近似）」。
-//   engine は探したカードを**いったん手札へ入れてから**【アクセ】にする（`execStubPart1.ts` が
-//   `ownerState.hand.includes(...)` を必須にしている）が、原文は手札を経由しない。
-//   ⇒ **ラベルから「近似」を消すと、その engine の逸脱が逆翻訳から見えなくなる**＝直すのは engine 側（`O-355`）。
+const BASELINE_A = 10;  // 2026-09-13 第302バッチ（新設 13 → `MASS_TRASH` 2件で 11 → `O-355` で 10）
+const BASELINE_B = 0;   // 2026-09-13 第302バッチ（`O-354` で 17→1、`O-355` で 1→0）
+// 🔑**B群 0 は「ラベルを綺麗にした」結果ではない**＝最後の1件（`ATTACH_SEARCHED_AS_ACCE` の「手札経由近似」）は
+//   **engine を直して**消した（`O-355`）。⚠**ラベルから実装メモだけ消して 0 にしない**＝
+//   それをやると engine の逸脱が逆翻訳から見えなくなる（B群を置いている意味が無くなる）。
 const BASELINE_C = 0;   // 2026-09-13 第301バッチ（`O-354`＝26 → 0。`census:stubs` F群の死角をこちらで持つ）
 let bad = false;
 for (const [tag, n, base] of [['A群', rowsA.length, BASELINE_A], ['B群', rowsB.length, BASELINE_B], ['C群', rowsC.length, BASELINE_C]]) {

@@ -2751,9 +2751,14 @@ function actionJa(a?: Action, effectType?: string): string {
       const destVerb = (t: string, gate?: boolean) => t === 'field' && gate ? '【ゲート】があるあなたのシグニゾーンに出し'
         : t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : t === 'under' ? 'このシグニの下に置き' : 'トラッシュに置き';
       // 🆕§5.3 `O-311`＝`then:'acce'`＝公開札を**あなたの〈ホスト〉シグニの【アクセ】にする**（`WXK04-003-E2`）。
-      const stageDestJa = (s: any) => s.then === 'acce'
-        ? `あなたの${filterJa(s.acceHostFilter)}シグニの【アクセ】にし`
-        : destVerb(s.then, s.gateZoneOnly);
+      // 🆕§5.3 `O-355`（2026-09-13）＝`acceHostFilter.thisCardOnly` は「このシグニ」と描く。
+      //   🔴`filterJa` に任せると「あなたの**このシグニ自身**シグニの【アクセ】に」と壊れた日本語になる
+      //     （`filterJa` は名詞の前に付く修飾語を返す関数で、自己言及の軸は修飾語ではない）。
+      const stageDestJa = (s: any) => s.then !== 'acce'
+        ? destVerb(s.then, s.gateZoneOnly)
+        : s.acceHostFilter?.thisCardOnly
+          ? 'このシグニの【アクセ】にし'
+          : `あなたの${filterJa(s.acceHostFilter)}シグニの【アクセ】にし`;
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${stageDestJa(s)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
@@ -5233,13 +5238,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
-        // 🆕§5.3 `O-354`（2026-09-13・`SPDi43-05-E2`）＝明示 defer（`O-349` の残1効果）。
-        //   🔴逆翻訳に**生の英語 ID がそのまま**出ていた（ハンドラが無いので `STUBS.md` 経由の説明も無い）。
-        //   ⚠**「未実装」と明記する**＝原文どおりに描くと、効いていないことが逆翻訳から消える。
-        DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE:
-          '次の対戦相手のターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ1体がアタックしたとき、'
-          + 'あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ1枚をトラッシュに置いてもよい。'
-          + 'そうした場合、そのアタックを無効にする」を得る（未実装＝コストが「場∪エナの単一プール」の機構待ち）',
+        // 🏁§5.3 `O-349`（2026-09-13・第302バッチ）＝`DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` の登録は撤去した。
+        //   前バッチ（`O-354`）で「未実装」と明記した表示を足したが、**同日に実装が入って live 0 になった**。
+        //   ⚠**使われていない id をこの表に残さない**＝次に同名が現れたとき「未実装」と嘘をつく。
         // 🆕§5.3 `O-317` 第283バッチ（2026-09-12・`WXK03-003A`）＝**構築時**のルリグデッキのアーツ上限
         //   （実行時の制限ではない＝判定は `src/utils/deckBuildLimits.ts` のデッキ編集側だけ）。
         LRIG_DECK_ARTS_LIMIT: 'このカードをルリグデッキに入れる場合、あなたのルリグデッキにはアーツを3枚までしか入れられない',

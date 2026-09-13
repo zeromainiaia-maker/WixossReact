@@ -1716,9 +1716,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   このシグニの【アクセ】にする。残りを好きな順番でデッキの一番下に置く。
     // 🔴旧 live＝`GRANT_KEYWORD{keyword:'アクセ'}`＋`LOOK_AND_REORDER{count:0}`＝**0枚見て何もしない**うえ、
     //   自分のシグニに「アクセ」という語を恒久付与するだけの別物だった。
-    // 🔑既存 `STUB{ATTACH_SEARCHED_AS_ACCE}`（`execStubPart3.ts:5223`＝「手札経由近似」）に載せる＝
-    //   まず1枚を手札へピックし、そのカードをアクセとして付ける。
-    {"effectId":"WX17-033-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ","hasIcon":"アクセ"},"pickCount":1,"then":"hand"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"STUB","id":"ATTACH_SEARCHED_AS_ACCE"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    // 🆕🔴**§5.3 `O-355`（2026-09-13）＝`STUB{ATTACH_SEARCHED_AS_ACCE}`（手札経由近似）をやめた。**
+    //   旧形は `LOOK_PICK_CHAIN{then:'hand'}` で**いったん手札に入れてから**付け替えており、
+    //   ①解決の途中でそのカードが**手札に存在する**（「手札に加わったとき」系や手札枚数を見る【常】が
+    //     原文に無い反応をしうる）②ハンドラが**自分の全シグニ**をホスト候補に出していた（原文は「このシグニ」）
+    //   の2点で原文から外れていた。
+    //   🔑**受け皿は2つとも既に在った**＝`LookPickChainStage.then:'acce'`（`O-311`）と
+    //     `TargetFilter.thisCardOnly`。⚠後者は `matchesFilter` が黙って無視するので engine 側で剥がした。
+    {"effectId":"WX17-033-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ","hasIcon":"アクセ"},"pickCount":1,"then":"acce","acceHostFilter":{"thisCardOnly":true}}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WXEX2-31 ／ 原文【自】：あなたの他のシグニ１体が対戦相手の効果によって場を離れたとき、このシグニを場から
@@ -4478,6 +4483,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ⇒ 支払い先を既存 payload（`TRASH_ALL_SIGNI_AND_KEY{trashAllScope}`）へ寄せ、遅延は新設の
   //     `DELAY_TO_THIS_TURN_END`（受け皿 `pending_own_turn_end_effects` は既存）で表す。
   //   ⚠`MASS_TRASH` のハンドラは `WX11-020-E1` がまだ使うので**残す**（live 1効果に減っただけ）。
+  // 🆕🔴**§5.3 `O-349`（2026-09-13・第302バッチ）＝明示 defer の最後の1効果を実装した。**
+  //   原文【起】《ゲーム１回》バーテックス ルリグデッキからアーツ１枚をルリグトラッシュに置く：
+  //   「次の対戦相手のターン終了時まで、このルリグは『【自】：対戦相手のルリグかシグニ１体がアタックしたとき、
+  //    あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。
+  //    そうした場合、そのアタックを無効にする。』を得る」
+  //   🔴旧 live は `STUB{DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE}`＝**ハンドラも無い完全な no-op**
+  //     （コストのアーツだけ失って何も起きない＝過少実行）。
+  //   🔑**受け皿は4つとも既に在った**（登録票の「足りないのは場∪エナの単一プール1つ」も外れ）＝
+  //     ①器＝`GRANT_EFFECT{target:LRIG{thisCardOnly}, duration:'UNTIL_OPP_TURN_END'}`（先例 `WX25-P2-030-E2`）
+  //     ②収集＝`collectLrigAttackDefenderTriggers`（相手ルリグのアタック）と `collectFieldTriggers` の
+  //       `opState.lrig_granted_auto_effects` 走査（相手シグニのアタック）＝どちらも `any_opp` を拾う
+  //     ③場∪エナの単一プール＝`TargetSpec.extraZones:['energy']`（§5.3 `O-280`①・先例 `WXEX1-09-E2`）
+  //     ④同レベル＝`filter.levelEqTrigger`（`triggeringCardNum` のレベルへ解決）
+  //   ⚠**`upToCount:true` が「〜してもよい」**＝0枚を選べるので `abortIfNoCandidate` の払い損問題は起きない。
+  //     「そうした場合」は `LAST_PROCESSED_COUNT_GTE:1` の did-it ゲート。
+  "SPDi43-05": [
+    {"effectId":"SPDi43-05-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trashArtsFromLrigDeck":{"count":1}},"action":{"type":"GRANT_EFFECT","target":{"type":"LRIG","owner":"self","count":1,"filter":{"thisCardOnly":true}},"duration":"UNTIL_OPP_TURN_END","effect":{"effectId":"SPDi43-05-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI","ON_ATTACK_LRIG"],"triggerScope":"any_opp","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":true,"extraZones":["energy"],"filter":{"cardType":"シグニ","levelEqTrigger":true}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"NEGATE_ATTACK","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1},"attackingOnly":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}},"duration":"UNTIL_OPP_TURN_END","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
   "WXDi-P05-007": [
     {"effectId":"WXDi-P05-007-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},{"type":"DELAY_TO_THIS_TURN_END","action":{"type":"STUB","id":"TRASH_ALL_SIGNI_AND_KEY","trashAllScope":{"owner":"self","zones":["hand","energy"]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],

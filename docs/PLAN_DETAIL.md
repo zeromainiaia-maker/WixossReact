@@ -14447,9 +14447,56 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
 | **第286で実装** | **6** | `LRIG_LEVEL` の `eq`／`levelLteSelf`／`optionalCostTarget` の写し／`FORCE_SIGNI_ATTACK` 追加ほか（BUGFIXES.md 2026-09-12） |
 | 🔥**機構待ち（登録済み）** | **8** | §5.3 索引G `O-334`〜`O-340`（`WX25-P3-057` は【アサシン】側だけ実装済み） |
 
+## 2026-09-13 クローズ：`O-349`（第302バッチ＝明示 defer の最後の1効果）
+
+### 🏁`O-349` — `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE`（`SPDi43-05-E2`）
+
+🏁**クローズ。engine を1行も触らずに live の JSON を書き換えるだけで閉じた。**
+
+**原文**＝「【起】《ゲーム１回》バーテックス ルリグデッキからアーツ１枚をルリグトラッシュに置く：
+次の対戦相手のターン終了時まで、このルリグは『【自】：**対戦相手のルリグかシグニ**１体がアタックしたとき、
+**あなたの場かエナゾーンから**そのルリグかシグニと**同じレベルの**シグニ１枚をトラッシュに置いてもよい。
+**そうした場合**、そのアタックを無効にする。』を得る」
+
+**旧 live**＝`STUB{DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE}`＝**ハンドラも無い完全な no-op**
+（コストのアーツ1枚だけ失って何も起きない＝過少実行）。
+
+🔴🔑**登録票の「足りないのは『コストが場∪エナの単一プール』1つだけ」は外れだった**＝
+それも `TargetSpec.extraZones:['energy']`（§5.3 `O-280`①・2026-09-08・先例 `WXEX1-09-E2`）として在った。
+⇒ **使った受け皿4つはすべて既存**：
+
+| # | 要るもの | 既存の受け皿 |
+|---|---|---|
+| ① | 器（このルリグへ、次の相手ターン終了時まで） | `GRANT_EFFECT{target:LRIG{thisCardOnly}, duration:'UNTIL_OPP_TURN_END'}`（先例 `WX25-P2-030-E2`） |
+| ② | 相手の**ルリグ**と**シグニ**両方のアタックで発火 | `collectLrigAttackDefenderTriggers` ＋ `collectFieldTriggers` の `opState.lrig_granted_auto_effects` 走査（どちらも `any_opp`） |
+| ③ | 場∪エナの**単一**プール | `TargetSpec.extraZones:['energy']`（1回の選択で両ゾーンを跨ぐ） |
+| ④ | 「そのルリグかシグニと同じレベルの」 | `filter.levelEqTrigger`（`triggeringCardNum` のレベルへ解決） |
+
+🔑**「〜してもよい。そうした場合」の表し方**＝`TRASH{upToCount:true}` ＋ `CONDITIONAL{LAST_PROCESSED_COUNT_GTE:1}`。
+⚠**`OPTIONAL_COST` の `fieldTrash` は使えない**＝あれは**場だけ**でエナを含められない。
+⚠**0枚を選べるので `O-352` の「候補0で払い損」問題は起きない**（`abortIfNoCandidate` は不要）。
+
+⚠🔴**E2E を書いて初めて分かった罠**＝`NEGATE_ATTACK{attackingOnly}` は
+**`pending_signi_battle` のゾーン頂点（＋`pending_lrig_attack`）しか候補にしない**ので、
+golden で「いまアタック中」の印を立てないと**候補0で `done(ctx)` を返して黙って何もしない。**
+⇒ **`attackingOnly` を試すときは必ず印を立てる**（立てないと「実装したのに効かない」と誤判定する）。
+
+**残**＝明示 defer 全体は **26種/28箇所 → 25種/27箇所**。⚠**残り25種は `O-349` の対象外**
+（`O-349` は「相手ルリグ下／色限定つき使用封じ／アタッカー同レベル交換」の3件で閉じる項目だった）。
+
 ## 2026-09-13 登録：`O-355`（第301バッチ＝`O-354` の残り）
 
-### 🆕`O-355` — サーチしたカードが【アクセ】になる前に一瞬だけ手札を経由する（索引 G）
+### 🏁`O-355` — サーチしたカードが【アクセ】になる前に一瞬だけ手札を経由する（索引 G）
+
+> 🏁**2026-09-13（第302バッチ）＝クローズ。** `LOOK_PICK_CHAIN{then:'acce', acceHostFilter:{thisCardOnly:true}}` へ移し、
+> `ATTACH_SEARCHED_AS_ACCE` は撤去した（parser は生成せず利用者はこの1効果だけだった）。
+> 🔑**受け皿は2つとも既存**（`then:'acce'`＝`O-311`／`TargetFilter.thisCardOnly`）＝**登録票の「取り方」は不要だった。**
+> 🔴**ただし `matchesFilter` は `thisCardOnly` を黙って無視する**＝渡すだけでは効かず、
+> `INTERNAL_ASK_ACCE_HOST` 側で**先に剥がして**候補を効果元だけに絞る必要があった。**⚠無視される軸を渡して安心しない。**
+> 🔑**もう1つ直った**＝旧ハンドラはホスト候補が**自分の全シグニ**で、原文「**この**シグニの【アクセ】に」より広かった。
+> 払い戻し＝`census:stublabel` **A 11→10 / B 1→0**。全文は BUGFIXES.md 2026-09-13（第302バッチ）。
+
+**（以下は登録時の記述）**
 
 **規模 S。母集団＝実測 1効果**（`WX17-033-E1`。測り方＝`grep -rn "ATTACH_SEARCHED_AS_ACCE" public/data/`）。
 

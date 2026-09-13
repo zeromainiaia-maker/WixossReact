@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 601 |
-| 　└ ハンドラ実装あり | 534 |
-| 　└ フォールバック（execStub 未処理） | 67 |
-| 総 STUB ノード件数 | 3373 |
+| JSON で使用中の STUB id 種類 | 599 |
+| 　└ ハンドラ実装あり | 533 |
+| 　└ フォールバック（execStub 未処理） | 66 |
+| 総 STUB ノード件数 | 3371 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 353 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -49,7 +49,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TREAT_AS_LEVEL1_IN_DECK_TRASH` | 2 | 2 | WXDi-P01-039, WXDi-P05-086 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
-| `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` | 1 | 1 | SPDi43-05 |  |
 | `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` | 1 | 1 | WXK03-025 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
 | `DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL` | 1 | 1 | WX25-P2-004 |  |
@@ -397,7 +396,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
-### execStubPart3.ts（248 種）
+### execStubPart3.ts（247 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -495,7 +494,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ALLOW_ATTACK_WHILE_DRIVE` | 1 | 1 | WXEX2-11 |  |
 | `ARTS_COLORLESS_MUST_PAY_CENTER_COLOR` | 1 | 1 | WX16-006 |  |
 | `ASSIST_LRIG_ATTACK_THIS_TURN` | 1 | 1 | WX25-P1-048 | このターン、レベルが minLevel 以上のアシストルリグでアタックできる |
-| `ATTACH_SEARCHED_AS_ACCE` | 1 | 1 | WX17-033 | サーチしたカードを対象シグニのアクセとして付ける（手札経由近似） |
 | `ATTACK_COUNT_BY_POWER` | 1 | 1 | WX22-022 |  |
 | `BANISH_REDIRECT_POWER0_TRASH` | 1 | 1 | WX04-038 | このターン、パワー0以下のシグニがバニッシュされる場合エナの代わりにトラッシュへ（所有者問わず。WX04-038-E1） |
 | `BANISH_REDIRECT_TO_HAND` | 1 | 1 | WXDi-P13-045 | このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る |
