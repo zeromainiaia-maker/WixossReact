@@ -14599,6 +14599,52 @@ function applyUpToClause(clause: string, stages: LookPickStage[]): void {
 }
 
 /**
+ * §5.3 `O-377`＝「〜して**もよい**。**そうした場合**、A。**その後**、B」の B を did-it ゲートの**内側**へ畳む。
+ *
+ * 🔴旧実装は B をゲートの**兄弟ステップ**として並べていた＝**任意の行動を辞退しても B だけ起きる**
+ *   （`WXDi-P13-074-E1`＝シグニ2体をダウンしなくても相手シグニが凍結される／`WXDi-P11-059-E1`＝
+ *   手札を捨てなくても相手シグニをバニッシュできる／`WX15-061-E1` 系＝コストを払わずに帰結だけ通る）。
+ *
+ * 🔑**根拠は原文コーパスの実測**（2026-09-15・索引 H の裁定）＝全効果10,768件で「そうした場合、…。」の
+ *   直後の文が「その後」で始まる形は**13件**しかなく、**13件すべて**「その後」の中身は直前の行為に
+ *   ぶら下がっている（7件は「それを」「この方法で公開したシグニ」等の照応が無いと成立しない）。
+ *   逆に**本当に無条件の後続を書くときはコネクタを付けない**実例がある（`WD12-006-E1` のアーツ本体／
+ *   `WD06-018-E1` のドロー）。⇒ 「その後」＝**条件チェーンの内側専用のコネクタ**。
+ *
+ * ⚠**fail-closed**＝①原文の「そうした場合」が**ちょうど1つ** ②その次の文が「その後」で始まる
+ *   ③トップレベル SEQUENCE に `CONDITIONAL{IS_MY_TURN}`（did-it ゲート）が**ちょうど1つ**で `else` を持たない
+ *   ④そのゲートが最終ステップでない（＝畳むものが在る）。どれかを外したら据置＝別の過剰実行を作らない。
+ * 🔴**必ずパイプラインの最外（`parseActionText`）で回す**＝内側に置くと、`PAID_ADDITIONAL_COST` ゲートを組む
+ *   O-96 系の書き換え（`then` が**単一アクション**であることを形の条件にしている）が先に空振りして、
+ *   **ゲート条件が仮の `IS_MY_TURN` のまま残る**（`WXK07-054-CB-E2` で実測）。ここで畳めば冪等。
+ */
+function foldGoAfterDidItGate(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  const sentences = sentencesOutsideQuotes(text);
+  if (sentences.filter(s => s.includes('そうした場合')).length !== 1) return parsed;
+  const si = sentences.findIndex(s => s.includes('そうした場合'));
+  if (!/^その後[、,]/.test(sentences[si + 1] ?? '')) return parsed;
+  const steps = (parsed as SequenceAction).steps;
+  const gateIdx = steps.reduce<number[]>((acc, s, k) => {
+    const didIt = s.type === 'CONDITIONAL'
+      && (s.condition.type === 'IS_MY_TURN' || s.condition.type === 'PAID_ADDITIONAL_COST') && !s.else;
+    if (didIt) acc.push(k);
+    return acc;
+  }, []);
+  if (gateIdx.length !== 1) return parsed;
+  const gi = gateIdx[0];
+  if (gi >= steps.length - 1) return parsed;                  // 既に内側＝畳むものが無い（冪等）
+  const gate = steps[gi] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const inner = gate.then.type === 'SEQUENCE'
+    ? [...(gate.then as SequenceAction).steps, ...steps.slice(gi + 1)]
+    : [gate.then, ...steps.slice(gi + 1)];
+  return {
+    ...parsed,
+    steps: [...steps.slice(0, gi), { ...gate, then: { type: 'SEQUENCE', steps: inner } as SequenceAction }],
+  } as SequenceAction;
+}
+
+/**
  * §5.3 `O-146`＝「〈任意の移動〉して**もよい**。**そうした場合**、〜」の did-it ゲートを
  * 仮ゲート `IS_MY_TURN` から**実際に動かした枚数**（`LAST_PROCESSED_COUNT_GTE`）へ差し替える。
  *
@@ -15027,8 +15073,8 @@ function stampAbortOnCanonicalOptionalCost(action: EffectAction): EffectAction {
 }
 
 function parseActionText(text: string): EffectAction {
-  return foldKawariSubstitution(text,
-    foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text))));
+  return foldGoAfterDidItGate(text, foldKawariSubstitution(text,
+    foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text)))));
 }
 
 /**
@@ -29717,6 +29763,19 @@ function repairSemanticBatch244(effects: CardEffect[]): void {
       case 'WXK07-054-CB-E2': {
         const old = effect.action;
         if (old.type === 'SEQUENCE') {
+          // 🆕**§5.3 `O-377`（2026-09-15）＝`foldGoAfterDidItGate` が「その後」節を did-it ゲートの
+          //   **内側**へ畳んだ後は `POWER_MODIFY` がトップレベルに無く、下の `find` が空振りして
+          //   **ゲートが仮の `IS_MY_TURN` のまま live へ出る**（＝支払わなくても帰結が走る）。
+          //   畳み済みの形は構造が既に正しいので、ゲート条件の刻印だけを行う。
+          const foldedGate = old.steps.find(a => a.type === 'CONDITIONAL');
+          const foldedInner = foldedGate?.type === 'CONDITIONAL' ? foldedGate.then : undefined;
+          if (foldedInner?.type === 'SEQUENCE' && foldedInner.steps.some(a => a.type === 'POWER_MODIFY')) {
+            effect.action = { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+              { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: foldedInner },
+            ] };
+            break;
+          }
           const reveal = old.steps.find(a => a.type === 'CONDITIONAL');
           const power = old.steps.find(a => a.type === 'POWER_MODIFY');
           const revealAction = reveal?.type === 'CONDITIONAL' ? reveal.then : undefined;

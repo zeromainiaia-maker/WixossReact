@@ -4663,14 +4663,35 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
   // (c) 連用形で後始末まで一文に繋がった形＝`WD21-020`。旧: 公開が丸ごと消えて
   //     `TRANSFER_TO_DECK{source:あなたのシグニ}`＝**自分の場のシグニがデッキ下へ送られる**別物だった。
   {
-    const st = steps(act('WD21-020'));
-    const cond = st[1] as { then?: Record<string, unknown> };
-    const ru = cond.then as { type?: string; restDestination?: string; stopCondition?: Record<string, unknown> };
-    eq(ru.type, 'REVEAL_UNTIL', 'WD21-020-E1: 「シグニがめくれるまで公開し」が REVEAL_UNTIL になる');
-    eq(ru.restDestination, 'deck_bottom_shuffled', 'WD21-020-E1: 公開札はシャッフルしてデッキ下');
-    eq(ru.stopCondition?.kind, 'signiCount', 'WD21-020-E1: 停止条件はシグニ1枚');
-    // 後続の「この方法で公開したシグニがレベルNの場合」が公開札を読める（参照先が復活する）。
-    const lp = st[2] as { condition?: { type?: string } };
+    // ⚠**位置ではなく型で引く**（2026-09-15・§5.3 `O-377`）＝原文「そうした場合、…公開し…。**その後**、
+    //   この方法で公開したシグニがレベルNの場合、…」に対し旧 live は**レベル分岐が did-it ゲートの外**に
+    //   あり、**シグニをバニッシュできなくてもレベル分岐だけ走る**過剰実行だった。ゲート内を `SEQUENCE` で
+    //   包んだので `steps[1].then` は `REVEAL_UNTIL` ではなくなる（上の `WXK07-054-CB` と同じ腐り方）。
+    const a = act('WD21-020');
+    const findByType = (node: unknown, want: string): Record<string, unknown> | undefined => {
+      if (!node || typeof node !== 'object') return undefined;
+      const o = node as Record<string, unknown>;
+      if (o.type === want) return o;
+      for (const v of Object.values(o)) {
+        const hit = Array.isArray(v)
+          ? (v.map(x => findByType(x, want)).find(Boolean) as Record<string, unknown> | undefined)
+          : findByType(v, want);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    const ru = findByType(a, 'REVEAL_UNTIL') as
+      { type?: string; restDestination?: string; stopCondition?: Record<string, unknown> } | undefined;
+    ok(!!ru, 'WD21-020-E1: 「シグニがめくれるまで公開し」が REVEAL_UNTIL になる');
+    eq(ru!.restDestination, 'deck_bottom_shuffled', 'WD21-020-E1: 公開札はシャッフルしてデッキ下');
+    eq(ru!.stopCondition?.kind, 'signiCount', 'WD21-020-E1: 停止条件はシグニ1枚');
+    // 🔴レベル分岐は**did-it ゲートの中**（バニッシュできなければ走らない）＝`O-377` の本体を固定する。
+    const gate = steps(a)[1] as { condition?: { type?: string }; then?: Record<string, unknown> };
+    eq(gate.condition?.type, 'IS_MY_TURN', 'WD21-020-E1: 「そうした場合」の did-it ゲート');
+    const inner = gate.then as { type?: string; steps?: Record<string, unknown>[] };
+    eq(inner.type, 'SEQUENCE', 'WD21-020-E1: 「その後」節までゲートの内側');
+    eq(steps(a).length, 2, 'WD21-020-E1: ゲートの外に帰結が残っていない');
+    const lp = inner.steps![1] as { condition?: { type?: string } };
     eq(lp.condition?.type, 'LAST_PROCESSED_MATCHES', 'WD21-020-E1: レベル分岐は公開札を参照する');
   }
   // 🔴 fail-closed ガードの固定＝**`REVEAL_UNTIL` 経路で既に解けている札は触らない**。
@@ -51174,7 +51195,15 @@ test('§6.4 O-11: MILL は lastProcessedCards の recorder＝「それが〜の�
   // 🔴parser の recorder 判定に MILL が無く、後段が IS_MY_TURN（did-it ゲート）へ化けて**無条件実行**だった。
   const e = (effectsMap.get('WXK02-055') ?? []).find(x => x.effectId === 'WXK02-055-E1');
   ok(!!e, 'WXK02-055-E1 が live に存在する');
-  const last = (e!.action as SequenceAction).steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // ⚠**位置ではなく構造で引く**（2026-09-15・§5.3 `O-377`）＝原文「《青》を支払って**もよい**。そうした場合、
+  //   …トラッシュに置く。**その後**、そのカードがレベル２のシグニの場合、…」のレベル分岐は、旧 live では
+  //   **支払いゲートの外**にあり**未払いでもバニッシュが走った**。いまはゲートの内側＝`steps[2]` は無い。
+  const gate = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq((gate.condition as { type: string }).type, 'IS_MY_TURN', '「そうした場合」の did-it ゲート');
+  eq((e!.action as SequenceAction).steps.length, 2, '🔴レベル分岐がゲートの外に残っていない（未払いで走る）');
+  const inner = gate.then as SequenceAction;
+  eq(inner.type, 'SEQUENCE', '「その後」節までゲートの内側');
+  const last = inner.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq((last.condition as { type: string }).type, 'LAST_PROCESSED_MATCHES', '🔴IS_MY_TURN へ化けている');
   eq(JSON.stringify((last.condition as { filter?: unknown }).filter), '{"cardType":"シグニ","level":2}', 'ミル結果のレベル条件');
 });
