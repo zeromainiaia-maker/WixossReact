@@ -39,6 +39,12 @@ const IGNORED = new Map<string, string>([
   // parser が STUB を配置処理と識別し、後続の「【出】能力は発動しない」を同ノードの suppressOnPlay へ畳むための印。
   // live の実行時には参照されず、「場に出す」と【出】抑止は action 本体／suppressOnPlay が描くため固有の対応語は無い。
   ['placesToField', 'parser内部の配置アンカー（後続の【出】抑止を suppressOnPlay へ畳むため）＝live実行時は参照されず、「場に出す」と抑止は別payloadが描くので固有の対応語が無い'],
+  // 🆕§5.3 `O-372` 第2バッチ（2026-09-14）＝**引いた札を後続へ渡すかの opt-in 制御フラグ**。
+  //   原文「この方法で**引いたカードの枚数**と同じ枚数」の「引いた枚数」は、逆翻訳では後続の
+  //   `DRAWN_COUNT_HAND_TO_DECK_BOTTOM` のラベルが描く（このキー自体に対応する語は原文に無い）。
+  //   ⚠opt-in にしているのは、既定で `lastProcessedCards` を上書きすると直前ステップの選択を読む
+  //     効果（live 5効果）が壊れるため＝純粋に実装都合。
+  ['recordDrawn', '実装都合（引いた札を lastProcessedCards へ渡す opt-in 制御）＝「引いた枚数」は後続 STUB のラベルが描く'],
   // 型の識別子そのもの。
   ['type', '型の識別子'], ['id', '型の識別子'],
   // 🆕§5.3 `O-348`（2026-09-13）＝STUB id と**完全に冗長**なマーカー。`refresh.ts` は

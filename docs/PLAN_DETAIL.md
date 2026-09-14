@@ -62,28 +62,39 @@
 ⚠**新しい挙動 golden は `withSavedCursor` で包む**＝包まないと POOL カーソルがずれて無関係なテストが落ちる
 （第1バッチで `第246 engine WXDi-P16-047-E2` が巻き添えになった）。
 
-**残 16件の id**（`npm run census:stubs` で測り直す）＝
-`DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` / `DEFERRED_EACH_PLAYER_REVEAL_HAND` /
-`DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` / `DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL` /
-`DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK` / `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` /
-`DEFERRED_OPP_LRIG_LEVEL_MODIFY` / `DEFERRED_OPP_SPLIT_HAND_TWO_PILES` /
-`DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` / `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` /
-`DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` / `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` /
-`DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` / `DEFERRED_SELF_SIGNI_SERVANT_ZERO` /
-`DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM` / `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`。
+**残 10件の id**（2026-09-14 第2バッチ後。`npm run census:stubs` で測り直す）＝
+`DEFERRED_EACH_PLAYER_REVEAL_HAND`（`WXEX2-80`） / `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM`（`WXDi-P09-065`） /
+`DEFERRED_OPP_LRIG_LEVEL_MODIFY`（`SP38-005`） / `DEFERRED_OPP_SPLIT_HAND_TWO_PILES`（`WX25-P2-022`） /
+`DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015`） / `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL`（`WX24-P4-085`） /
+`DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI`（`WXK08-084`） / `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED`（`WX22-042`） /
+`DEFERRED_SELF_SIGNI_SERVANT_ZERO`（`WXK11-014`） / `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`（`WX24-P4-046`）。
 
-🔑**着手前に確かめた受け皿の当たり（第1バッチで拾ったメモ）**
-- `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` → `ATTACH_ACCE` / `INTERNAL_ACCE_PICKED_TO_SELF`（`execStubPart3.ts` 冒頭）。
-- `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` → `PLACE_UNDER_SIGNI` / `PLACE_UNDER_SOURCE_SIGNI`（**置き先シグニの明示**が payload にある）。
-- `DEFERRED_SELF_SIGNI_SERVANT_ZERO` → `SIGNI_SERVANT_ZERO`（`execStubPart2.ts:1731`）。⚠**書き込み先が `otherState`**＝
-  相手シグニ前提なので、自分のシグニ版（`WXK11-014-E2`）はそのままでは使えない。⚠原文は「ターン終了時まで」なので
-  `card_identity_overrides`（永続）ではなく `name_identity_rules_this_turn` 側の寿命が要る。
-- `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` → `INTERNAL_HAND_TO_DECK_BOTTOM`（`execStubPart1.ts:2422`・選択済みN枚を手札→デッキ下）。
-- `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` → `OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM`（`execStubPart3.ts:1459`）が近いが
-  **あちらは「見ないで選び」＝ランダム**、こちらは「手札を見る」＝全公開後に選ぶ。**流用不可**。
-- `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015-E1`）の後半は `SIGNI_REPOSITION` で書けるが、
-  原文「**対象の**シグニ1体」に**持ち主が書かれていない**＝`SIGNI_REPOSITION` は `self`/`opponent` しか取らない。
-  持ち主を決めずに既定へ倒すと別物になる（fail-closed が要る）。
+🔑**第2バッチ（2026-09-14）で分かった受け皿とその落とし穴**
+- 🔴**`DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`（`WX24-P4-046-E2`）は「そうした場合」ごと消えている**＝
+  live は `SEQUENCE[STUB]` の1ステップだけで、**原文の帰結「ターン終了時まで、このシグニは【アサシン】を得る」が
+  action 木に存在しない**（`rewriteCatchAllStubs` の「未実装の任意アクションは did-it ゲートごと落とす」規則による）。
+  ⇒ **実装するときは帰結も一緒に組み直す**（defer を typed に替えるだけでは原文の後半が戻らない）。
+  同じ形が `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015-E1`）にもある。
+- 🔑**`DEFERRED_OPP_SPLIT_HAND_TWO_PILES`（`WX25-P2-022-E2`）はほぼ同型の先例がある**＝
+  `OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH`（`execStubPart1.ts:2884`・§5.3 `O-307`）＝
+  **新しい pending 型を足さずに既存3部品で書く**（①分割＝`opponentResponds` の SELECT_TARGET＝応答者だけに見える
+  ②束の選択＝効果使用者の CHOOSE・**見出しは枚数だけ** ③適用）。ゾーンを `lrig_deck` → `hand` に替えるだけで骨格は同じ。
+- ⚠**`DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM`（`WXDi-P09-065-E1`）に `OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM` は流用できない**＝
+  あちらは「**見ないで**選び」＝無作為、こちらは「対戦相手の手札を**見る**」＝全公開してから選ぶ。
+- ⚠**`DEFERRED_SELF_SIGNI_SERVANT_ZERO`（`WXK11-014-E2`）に `SIGNI_SERVANT_ZERO` は流用できない**＝
+  あれは書き込み先が `otherState.card_identity_overrides`（相手シグニ前提）で、しかも**永続**。
+  原文は「**あなたの**手札から出したシグニ」「**ターン終了時まで**」なので、
+  `name_identity_rules_this_turn` 側の寿命と自分側の state が要る。
+- 🔑**`DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI`（`WXK08-084-E1`）の置き先は効果元ではない**＝
+  「あなたの＜ウェポン＞のシグニ１体を**対象とし**…その中から１枚を**それの**下に置く」。
+  `PLACE_UNDER_SOURCE_SIGNI.hostCardNum`（§5.3 `O-60` 第51バッチで追加済み）で置き先を明示できる。
+
+⚠**`DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015-E1`）の後半**は `SIGNI_REPOSITION` で書けるが、
+原文「**対象の**シグニ1体」に**持ち主が書かれていない**＝`SIGNI_REPOSITION` は `self`/`opponent` しか取らない。
+持ち主を決めずに既定へ倒すと別物になる（fail-closed が要る）。
+
+🔑**「見ないで選び」は engine では無作為**＝既定の規約（`EffectTarget.blind` ／ `OPP_LRIG_DECK_BLIND_REVEAL` ／
+`OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM`）。選ぶ主体が相手でも**情報が誰にも増えない**ので、ランダム1回で等価。
 
 ### `O-373` — トラッシュ自己起動【起】が `trashExile{count:N}` を払えない（`src/screens/`・実機まで必須）
 

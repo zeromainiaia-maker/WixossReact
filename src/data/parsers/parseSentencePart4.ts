@@ -1693,8 +1693,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEFERRED_REMAINDER_TO_LIFE_TOP' } as StubAction;
 
   // ---- 引いた枚数と同じ枚数をデッキの下に置く ----
+  // 🆕**§5.3 `O-372` 第2バッチ（2026-09-14）＝実装した**（`WXK03-025-E2`）。
+  //   枚数は直前の `DRAW_PER_FIELD_COUNT{recordDrawn:true}` が `lastProcessedCards` に残す
+  //   （配線は `effectParser.ts` の `wireDrawnCountForHandToDeckBottom`）。
+  //   置く先は既存の `INTERNAL_HAND_TO_DECK_BOTTOM`＝**選んだ順＝積まれる順**で「好きな順番で」を表す。
   if (t.match(/この方法で引いたカードの枚数と同じ枚数のカードを手札から.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM' } as StubAction;
+    return { type: 'STUB', id: 'DRAWN_COUNT_HAND_TO_DECK_BOTTOM' } as StubAction;
 
   // ---- 引いた枚数と同じ枚数を捨てる ----
   if (t.match(/この方法で引いた枚数と同じ枚数のカードを捨てる/))
@@ -2280,8 +2284,28 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
   // ---- 〈X〉のシグニを対象とし、トラッシュからそれぞれレベルの異なる〈X〉のシグニN枚をデッキの一番下に置いてもよい ----
-  if (t.match(/のシグニ.*を対象とし.*トラッシュからそれぞれレベルの異なる.*のシグニ.*枚を.*デッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM' } as StubAction;
+  // 🆕**§5.3 `O-372` 第2バッチ（2026-09-14）＝実装した**（`WX26-CP1-055-E1`）。
+  //   🔑受け皿は**既に在った**＝`TRANSFER_TO_DECK{TRASH_CARD, selectionConstraint:{distinct:'level'},
+  //     position:'bottom', optional:true}`（`WX17-028-E1` が同じ形で live に居る）。
+  //   ⚠**「好きな順番で」は選択UIだけで表せる**＝`resumeSelectTarget` が選んだ順に適用する（§5.3 `O-274`）。
+  //   ⚠**後続の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）は残す**＝スキップ時に
+  //     `stripDidItConditional` が無効化する仕組み（`optional` を落とすと無条件成立に化ける）。
+  {
+    const distinctToBottom = t.match(/[＜〈<]([^＞〉>]+)[＞〉>]のシグニ[^。]*を対象とし[^。]*トラッシュからそれぞれレベルの異なる[＜〈<]([^＞〉>]+)[＞〉>]のシグニ([１-９\d０-９]+)枚を[^。]*デッキの一番下に置いてもよい/);
+    if (distinctToBottom) {
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: {
+          type: 'TRASH_CARD', owner: 'self', count: parseNum(distinctToBottom[3]),
+          filter: { cardType: 'シグニ', story: distinctToBottom[2] },
+          selectionConstraint: { distinct: 'level' },
+        },
+        shuffle: false, position: 'bottom', optional: true,
+      } as EffectAction;
+    }
+    if (t.match(/のシグニ.*を対象とし.*トラッシュからそれぞれレベルの異なる.*のシグニ.*枚を.*デッキの一番下に置いてもよい/))
+      return { type: 'STUB', id: 'DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM' } as StubAction;
+  }
 
   // 「この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く」は
   // parseSentencePart3 の `PICK_FROM_TRASHED_CARDS`（trashedPick ペイロードつき）が受ける（§6.4 O-11）。

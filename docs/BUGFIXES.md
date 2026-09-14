@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第332バッチ：§5.3 `O-372` 明示 defer の解体 第2バッチ（16 → 10）
+
+**6効果を消化**（`npm run census:stubs` A群 明示 defer **16種/16件 → 10種/10件**）。
+🔑**今回も6/6で受け皿が既に在った**（`EffectTarget.blind` ／ `INTERNAL_HAND_TO_DECK_BOTTOM` ／
+`LAST_PROCESSED_MATCHES` ／ `TRANSFER_TO_DECK{selectionConstraint:{distinct:'level'}}`）。
+**新しいアクション型は今回も0**（足したのは payload 1つ＝`DrawPerFieldCountAction.recordDrawn`）。
+
+### 消化した6効果
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `SPK01-14-E1`② | 「対戦相手はあなたの手札を2枚見ないで選び、あなたはそれらを捨てる」が no-op | 受け皿は既存の `EffectTarget.blind`（`effectExecutor.ts:3020` が無作為N枚をトラッシュへ）。🔑**「見ないで選び」＝無作為**がこのリポジトリの既定規約 |
+| `PR-K070-E2` 後半 | 「あなたのルリグデッキから1枚を見ないで選び公開する」が no-op | `STUB{MY_LRIG_DECK_BLIND_REVEAL}`。⚠既存 `OPP_LRIG_DECK_BLIND_REVEAL` とは**ルリグデッキの持ち主が逆** |
+| `PR-K078-E2` | 🔴**両方向のバグ**＝前半の公開が no-op なうえ、後半の【ランサー】付与が**無条件**（手札0枚でも、公開したのがレベル1のスペルでも必ず付いた） | `STUB{MY_HAND_BLIND_REVEAL}`＋既存 `LAST_PROCESSED_MATCHES{anyOf:[＜悪魔＞, level≥3]}` を門に（`gateBlindRevealedHandConsequence`） |
+| `WXK03-025-E2` | 「この方法で引いたカードの枚数と同じ枚数のカードを手札からデッキの一番下に置く」が no-op | 前段に **`recordDrawn`（新 payload・opt-in）** を立てて引いた札を `lastProcessedCards` へ／後段は `STUB{DRAWN_COUNT_HAND_TO_DECK_BOTTOM}` → 既存 `INTERNAL_HAND_TO_DECK_BOTTOM` |
+| `WDK17-015-E1` | 「このシグニをそれの【アクセ】にしてもよい」が no-op | `STUB{SELF_BECOME_ACCE_OF_PLAYED_SIGNI}`。⚠既存 `ATTACH_ACCE` はアクセ札の出どころが エナ／手札／ルリグデッキの3経路だけで、**場に居る効果元自身**は書けない |
+| `WX26-CP1-055-E1` | 「トラッシュからそれぞれレベルの異なる＜プリオケ＞のシグニ3枚を好きな順番でデッキの一番下に置いてもよい」が no-op | 受け皿は**既に在った**＝`TRANSFER_TO_DECK{TRASH_CARD, selectionConstraint:{distinct:'level'}, position:'bottom', optional:true}`（`WX17-028-E1` と同形） |
+
+### 併せて直した逆翻訳の嘘（1件）
+
+🔴**`TRASH{HAND_CARD, blind}` の「（見ないでランダム）」が `owner === 'opponent'` の枝の中でしか描かれていなかった**＝
+**自分の手札を無作為に捨てる形で「見ないで」が丸ごと落ちる**（engine は `blind` を読んでランダムに捨てるので**逆翻訳だけが嘘**）。
+`decompileEffects.ts` の門を持ち主非依存へ。⚠影響は `owner:'self'` の1効果だけ（live 91件中90件は opponent＝表示は1バイトも変わらない）。
+
+### 設計上の判断（次に読む人へ）
+
+- 🔴**`recordDrawn` を opt-in にした理由**＝`execDraw` は `lastProcessedCards` を触らない仕様で、
+  無条件に上書きすると**直前ステップの選択を読む効果**が壊れる（`DRAW_PER_FIELD_COUNT` は live 6効果、
+  うち `WDK15-001-E3` は前段の `TRASH_SIGNI_UNDER_FIELD_SIGNI` の選択を後段が読む）。**golden で反転確認済み**。
+- **`recordDrawn` は `censusPayloadKeys` の `IGNORED` に理由つきで登録**（純粋な制御フラグ＝原文に対応語が無い。
+  「引いた枚数」は後続 STUB のラベルが描く）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4161 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・lint 0 errors）。
+- **挙動 golden 4本を追加**（`§5.3 defer解体⑤〜⑧`）＝全件**反転確認つき**。⚠`withSavedCursor` で包む。
+- `npm run census:numberdrift` **55 → 54**（`BASELINE` も 54 へ）＝**消化**（`WXK03-025-E2` のラベルに
+  「引いた枚数と同じ枚数」が出たぶん）。🔑ラベル整備は numberdrift の払い戻しでもある（`O-354` と同型）。
+- 逆翻訳を6枚とも原文と目視照合。新 STUB 4本は `// 表示:` → `genStubsMd` → `regen`＝**生 ID 露出0**。
+- **実機は不要と判定**（§2.2）＝`src/screens/` は無変更・新しいアクション型なし。インタラクションを出す3本は
+  smoke のオートパイロットと上記 golden で done まで到達を確認済み。
+
 ## 2026-09-14 — 第331バッチ：§5.3「明示 defer」の解体 第1バッチ（22 → 16）
 
 **取ったもの**＝`npm run census:stubs` A群の**明示 defer（`DEFERRED_*`）22種/22件**。PLAN の登録済み worklist は全部0だったので、

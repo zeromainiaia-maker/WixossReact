@@ -9513,9 +9513,15 @@ function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAc
     if (!matchesStateFilter(countState, zi, a.countFilter)) continue;
     fieldCount++;
   }
-  if (fieldCount === 0) return done(ctx);
+  if (fieldCount === 0) return a.recordDrawn ? done({ ...ctx, lastProcessedCards: [] }) : done(ctx);
   const drawCount = a.drawPerUnit * fieldCount;
-  return executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);
+  const drawn = executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);
+  // 🆕`recordDrawn`（2026-09-14・§5.3 `O-372` 第2バッチ）＝**実際に引いた札**を後続へ渡す。
+  // ⚠`execDraw` は手札の**末尾に足す**ので、増えたぶんがそのまま引いた札（デッキ切れで少なく引いた回も合う）。
+  // 🔴**opt-in**＝既定で上書きすると、直前ステップの選択を読む効果が壊れる（`WDK15-001-E3` ほか）。
+  if (!a.recordDrawn || !drawn.done) return drawn;
+  const drawnCards = drawn.ownerState.hand.slice(ctx.ownerState.hand.length);
+  return { ...drawn, lastProcessedCards: drawnCards };
 }
 
 function execDrawPerLrigLevel(a: import('../types/effects').DrawPerLrigLevelAction, ctx: ExecCtx): ExecResult {

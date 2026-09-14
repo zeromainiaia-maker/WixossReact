@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 588 |
-| 　└ ハンドラ実装あり | 531 |
-| 　└ フォールバック（execStub 未処理） | 57 |
-| 総 STUB ノード件数 | 3401 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 360 |
+| JSON で使用中の STUB id 種類 | 586 |
+| 　└ ハンドラ実装あり | 535 |
+| 　└ フォールバック（execStub 未処理） | 51 |
+| 総 STUB ノード件数 | 3399 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 361 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -48,21 +48,15 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
-| `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` | 1 | 1 | WXK03-025 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
-| `DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` | 1 | 1 | SPK01-14 |  |
-| `DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL` | 1 | 1 | PR-K078 |  |
-| `DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK` | 1 | 1 | PR-K070 |  |
 | `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` | 1 | 1 | WXDi-P09-065 |  |
 | `DEFERRED_OPP_LRIG_LEVEL_MODIFY` | 1 | 1 | SP38-005 |  |
 | `DEFERRED_OPP_SPLIT_HAND_TWO_PILES` | 1 | 1 | WX25-P2-022 |  |
 | `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
 | `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` | 1 | 1 | WX24-P4-085 |  |
 | `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 |  |
-| `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 |  |
 | `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 |  |
 | `DEFERRED_SELF_SIGNI_SERVANT_ZERO` | 1 | 1 | WXK11-014 |  |
-| `DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM` | 1 | 1 | WX26-CP1-055 |  |
 | `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` | 1 | 1 | WX24-P4-046 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF` | 1 | 1 | WXEX2-28 |  |
@@ -384,7 +378,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
-### execStubPart3.ts（248 種）
+### execStubPart3.ts（252 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -525,6 +519,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DOUBLE_POWER_MINUS_THIS_TURN` | 1 | 1 | WX04-038 | このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1） |
 | `DOWN_UP_SIGNI_AND_CHOOSE` | 1 | 1 | SPDi43-23 | アップ状態の〈条件〉シグニをN体（まで）ダウンする（コスト軽減素材） |
 | `DRAW_UNTIL_HAND_SIZE` | 1 | 1 | SPK16-13E | 手札がN枚（value、既定6）になるまで引く |
+| `DRAWN_COUNT_HAND_TO_DECK_BOTTOM` | 1 | 1 | WXK03-025 | この方法で引いた枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く |
 | `DRIVE_SIGNI_PREVENT_DOWN` | 1 | 1 | WXK03-035 | ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与 |
 | `DYNAMIC_LEVEL_BY_ENERGY` | 1 | 1 | WX20-Re18 |  |
 | `END_ATTACK_IF_EXTRA_TURN` | 1 | 1 | WX10-026 | このターンが効果によって追加されたターンである場合、このアタックフェイズを終了する |
@@ -565,6 +560,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `MOVE_ACCE_TO_SIGNI` | 1 | 1 | WXK05-064 | アクセを別のシグニに付け替え |
 | `MULTI_ACCE_FROM_HAND` | 1 | 1 | WXK11-037 | このカード自身を自分のシグニに【アクセ】として付ける（手札発が大半だが、   🆕§5.0 実装キュー 第221バッチ＝`WX16-074-E1`「このカードを**エナゾーンから**…【アクセ】にする」も   同じ parser catc… |
 | `MULTI_DAMAGE_ON_LRIG_ATTACK` | 1 | 1 | WXK01-004 | このターン、ルリグアタックをN回与える（lrig_attack_remainingフラグでBattleScreen側が管理） |
+| `MY_HAND_BLIND_REVEAL` | 1 | 1 | PR-K078 | 対戦相手があなたの手札を1枚見ないで選び、あなたはそれを公開する |
+| `MY_LRIG_DECK_BLIND_REVEAL` | 1 | 1 | PR-K070 | 対戦相手があなたのルリグデッキからカードを1枚見ないで選び、あなたはそれを公開する |
 | `NAMED_SIGNI_ACCE_FROM_TRASH` | 1 | 1 | WDK17-011 | トラッシュのアクセカードを自分のシグニに付ける |
 | `NEGATE_ABILITY` | 1 | 1 | WXDi-P08-044 | 対象にしたシグニの能力を失わせる |
 | `NEGATE_ALL_OPP_EFFECTS` | 1 | 1 | WXK02-001 | このターン、対戦相手のすべての【常】能力は発動しない |
@@ -612,6 +609,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `RISE_BANISH_SUBSTITUTE` | 1 | 1 | WX16-002 | 《ライズアイコン》を持つこのシグニがバニッシュされる場合、代わりにその下からカードをトラッシュに置いてもよい |
 | `RISE_LEAVE_DISCARD_STACK` | 1 | 1 | WXEX2-09 | 《ライズアイコン》を持つこのシグニが場を離れるとき、その下のカードをトラッシュに置く |
 | `SELECT_OPP_SIGNI_FOR_BOTTOM_MILL` | 1 | 1 | WXK03-039 | 対戦相手のシグニ1体を対象とし、デッキの下から4枚をトラッシュに置く（この方法でレベルの異なるシグニ4枚が置かれた場合、それをバニッシュする） |
+| `SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 | このシグニを、場に出たあなたのシグニの【アクセ】にしてもよい |
 | `SELF_FROM_TRASH_TO_DECK_BOTTOM` | 1 | 1 | WX22-Re17 | このカードをトラッシュからデッキの一番下に置く |
 | `SELF_SIGNI_ATTACK_NEGATE_IMMUNITY` | 1 | 1 | WX24-P4-016 | このターン、あなたの効果によってシグニのアタックは無効にならない |
 | `SET_CANCEL_OPP_ATTACK_FLAG` | 1 | 1 | WX15-016 | 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。 |
@@ -640,7 +638,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 360 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 361 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -861,6 +859,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_SEED_TO_HAND_THEN_DECK_TOP` | 0 | 0 |  | 指定ゾーンのシードを手札に加えてデッキ上をシード設置 |
 | `INTERNAL_SEEDS_PLACE_LOOP` | 0 | 0 |  | 選択した【シード】候補を1枚ずつ順次設置する。残りは CHOOSE の continuation に積んで |
 | `INTERNAL_SELECT_COLOR` | 0 | 0 |  |  |
+| `INTERNAL_SELF_TO_ACCE_OF_TRIGGER` | 0 | 0 |  |  |
 | `INTERNAL_SET_DECLARED_COLOR` | 0 | 0 |  |  |
 | `INTERNAL_SET_GATE` | 0 | 0 |  |  |
 | `INTERNAL_SET_LAST_PROCESSED_COUNT` | 0 | 0 |  |  |

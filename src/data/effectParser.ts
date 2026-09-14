@@ -16546,12 +16546,8 @@ function removeStubFromSequences(node: unknown, id: string): void {
  */
 const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   // ── LOOK_OPP_LIFE_TOP 側 ──
-  [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれらを捨てる/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
-  [/対戦相手はあなたのルリグデッキからカード[０-９\d]+枚を見ないで選び/, 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
-  [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれを公開する/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
   [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
   // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
-  [/このシグニをそれの【アクセ】にしてもよい/, 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
   [/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/, 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
   [/その中から[０-９\d]+枚をそれの下に置く/, 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
   [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
@@ -16638,6 +16634,27 @@ function rewriteCatchAllStubs(text: string, action: EffectAction): EffectAction 
       /対戦相手のシグニ[０-９\d]*体を対象とし、それを他のシグニゾーン/.test(t) ? 'opponent'
       : /あなたのシグニ[０-９\d]*体を対象とし、それを他のシグニゾーン/.test(t) ? 'self' : null;
     if (ownerMZ) replacement = { type: 'STUB', id: 'SIGNI_REPOSITION', owner: ownerMZ } as EffectAction;
+  } else if (/対戦相手はあなたの手札を([０-９\d]+)枚見ないで選び、あなたはそれらを捨てる/.test(t)) {
+    // 🆕**§5.3 `O-372` 第2バッチ（2026-09-14）＝`SPK01-14-E1`②。**
+    //   受け皿は既存の `EffectTarget.blind`（`effectExecutor.ts:3020` が手札からランダム N 枚をトラッシュへ）。
+    //   🔑「見ないで選び」＝**無作為**がこのリポジトリの規約（`OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM` と同じ）。
+    const nBD = parseInt(t.match(/対戦相手はあなたの手札を([０-９\d]+)枚見ないで選び、あなたはそれらを捨てる/)![1]
+      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    replacement = {
+      type: 'TRASH',
+      target: { type: 'HAND_CARD', owner: 'self', count: nBD, blind: true },
+    } as EffectAction;
+  } else if (/対戦相手はあなたのルリグデッキからカード[０-９\d]+枚を見ないで選び/.test(t)) {
+    // 🆕`PR-K070-E2` 後半＝公開するだけ（カードは動かない）。
+    replacement = { type: 'STUB', id: 'MY_LRIG_DECK_BLIND_REVEAL' } as EffectAction;
+  } else if (/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれを公開する/.test(t)) {
+    // 🆕`PR-K078-E2` 前半＝公開するだけ。後続の「それが〜の場合」は下の
+    //   `gateBlindRevealedHandConsequence` が `LAST_PROCESSED_MATCHES` で門にする。
+    replacement = { type: 'STUB', id: 'MY_HAND_BLIND_REVEAL' } as EffectAction;
+  } else if (/このシグニをそれの【アクセ】にしてもよい/.test(t)) {
+    // 🆕`WDK17-015-E1`。既存 `ATTACH_ACCE` はアクセ札の出どころが エナ／手札／ルリグデッキ の3経路だけで、
+    //   「**場に居る効果元自身**がアクセになる」形が書けない＝STUB ハンドラ1本で実装した。
+    replacement = { type: 'STUB', id: 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI' } as EffectAction;
   }
   if (replacement) {
     for (const key of Object.keys(bare[0])) delete bare[0][key];
@@ -26166,6 +26183,68 @@ function applyGameGrantsBatch49(card: CardData, effects: CardEffect[], sourceTex
  * 🔴既定（注記なし）は従来どおり**占有ゾーンなら入れ替え**＝live 3効果（`WXEX2-04` ほか）の綴りは
  *   そちらが正しいので、**注記のあるカードだけ**に限定する。
  */
+/**
+ * 🆕**§5.3 `O-372` 第2バッチ（2026-09-14）＝「見ないで公開した札が〜の場合」の門を立てる。**
+ *
+ * `PR-K078-E2`「対戦相手はあなたの手札を１枚見ないで選び、あなたはそれを公開する。
+ * **それが＜悪魔＞かレベル３以上のシグニの場合**、ターン終了時まで、このシグニは【ランサー】を得る。」は
+ * 🔴**前半が defer（no-op）で、後半の付与が無条件**だった＝手札0枚でも、公開した札がレベル1のスペルでも
+ *   必ず【ランサー】が付く**過剰実行**。
+ *
+ * 🔑受け皿は既存の `LAST_PROCESSED_MATCHES{filter}`＝`MY_HAND_BLIND_REVEAL` が残した1枚を読む。
+ *   「＜悪魔＞**か**レベル３以上」は `TargetFilter.anyOf` の OR でそのまま書ける。
+ * ⚠**前半の公開が同じ効果に居るときだけ**掛ける（fail-closed）。
+ */
+function gateBlindRevealedHandConsequence(card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    for (let i = 1; i < steps.length; i++) {
+      const prev = steps[i - 1] as { type?: string; id?: string };
+      if (prev.type !== 'STUB' || prev.id !== 'MY_HAND_BLIND_REVEAL') continue;
+      const cur = steps[i] as { type?: string };
+      if (cur.type === 'CONDITIONAL') continue;   // 既に門がある＝触らない
+      // ⚠**カード全文で読む**＝効果単位の原文は上流で切られていることがある（`WX22-Re17` で実測）。
+      const src = card.EffectText ?? '';
+      const m = src.match(/それが(＜[^＞]+＞)?か?(?:レベル([０-９\d]+)以上の)?シグニの場合/);
+      if (!m || (!m[1] && !m[2])) continue;       // 条件語が読めなければ触らない（fail-closed）
+      const anyOf: Record<string, unknown>[] = [];
+      if (m[1]) anyOf.push({ cardClass: m[1].replace(/[＜＞]/g, '') });
+      if (m[2]) anyOf.push({ level: { min: parseNum(m[2]) } });
+      const filter = anyOf.length === 1
+        ? { cardType: 'シグニ', ...anyOf[0] }
+        : { cardType: 'シグニ', anyOf };
+      steps[i] = {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_MATCHES', filter, minCount: 1 },
+        then: steps[i],
+      } as EffectAction;
+    }
+  }
+}
+
+/**
+ * 🆕**§5.3 `O-372` 第2バッチ（2026-09-14）＝「この方法で引いた枚数」を実測値で渡す。**
+ *
+ * `WXK03-025-E2` は `SEQUENCE[DRAW_PER_FIELD_COUNT, STUB{DRAWN_COUNT_HAND_TO_DECK_BOTTOM}]`。
+ * 後段は**実際に引いた枚数**を必要とするので、前段に `recordDrawn` を立てて
+ * `lastProcessedCards` に引いた札を残させる（デッキ切れで少なく引いた回もそのまま合う）。
+ * 🔴**opt-in にした理由**＝`execDraw` は `lastProcessedCards` を触らない仕様で、無条件に上書きすると
+ *   直前ステップの選択を読む効果（live 5効果）が壊れる。
+ */
+function wireDrawnCountForHandToDeckBottom(_card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    for (let i = 1; i < steps.length; i++) {
+      const cur = steps[i] as { type?: string; id?: string };
+      if (cur.type !== 'STUB' || cur.id !== 'DRAWN_COUNT_HAND_TO_DECK_BOTTOM') continue;
+      const prev = steps[i - 1] as { type?: string; recordDrawn?: boolean };
+      if (prev.type === 'DRAW_PER_FIELD_COUNT') prev.recordDrawn = true;
+    }
+  }
+}
+
 function applyRepositionEmptyOnlyNote(card: CardData, effects: CardEffect[]): void {
   if (!/すでにシグニのあるシグニゾーンには配置できない/.test(card.EffectText ?? '')) return;
   for (const effect of effects) {
@@ -31095,6 +31174,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // ⚠**`rewriteCatchAllStubs` の後**に回す＝前半のミルが `OPP_DECK_BOTTOM_MILL` に化けてからでないと噛まない。
   applyNameEqLastProcessedAfterBottomMill(card, effects);
   applyRepositionEmptyOnlyNote(card, effects);
+  gateBlindRevealedHandConsequence(card, effects);
+  wireDrawnCountForHandToDeckBottom(card, effects);
   // 🆕「以下のNつから1つを選ぶ。この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う。」
   //   （`WXK10-104-E1` / `WXDi-D05-011-sub-E1`・2026-08-31 §5.2）。
   //   ⚠**選択数の上書きであって「1回の選択をN回実行」ではない**＝原文の注記が「他の選択肢と他のシグニを

@@ -2280,6 +2280,15 @@ export interface DrawPerFieldCountAction {
   drawPerUnit: number;        // シグニ1体ごとに引く枚数
   countFilter: TargetFilter;  // カウント対象シグニのフィルタ
   countOwner: Owner;          // カウントするフィールドのオーナー
+  /**
+   * 🆕**引いたカードを `lastProcessedCards` に残す**（2026-09-14・§5.3 `O-372` 第2バッチ・`WXK03-025-E2`）。
+   * 「この方法で**引いたカードの枚数**と同じ枚数のカードを手札から〜置く」のように、**実際に引いた枚数**を
+   * 後続が読む形だけに立てる。
+   * 🔴**既定（省略）では立てない**＝`execDraw` は `lastProcessedCards` を触らない仕様で、
+   *   無条件に上書きすると**直前ステップの選択を読む効果**（`WDK15-001-E3` ほか live 5効果）が壊れる。
+   * ⚠engine 専用の制御フラグ（逆翻訳は描かない＝`censusPayloadKeys` の IGNORED に登録済み）。
+   */
+  recordDrawn?: boolean;
 }
 
 // センタールリグのレベル1につき M枚ドロー（「あなたのセンタールリグのレベル１につきカードを１枚引く」WX12-013 等）

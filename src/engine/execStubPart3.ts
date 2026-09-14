@@ -6147,5 +6147,119 @@ export function execStubPart3(
     });
   }
 
+  // ── §5.3 `O-372` 第2バッチ（2026-09-14）＝明示 defer の解体（その2）──────────────────────
+  // 🔑**「見ないで選び」は engine では無作為**（既存の規約＝`EffectTarget.blind` ／ `OPP_LRIG_DECK_BLIND_REVEAL`
+  //   ／ `OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM` と同じ）。選ぶ主体が相手でも、**情報が誰にも増えない**ので
+  //   ランダム1回で等価になる。
+
+  // MY_LRIG_DECK_BLIND_REVEAL（`PR-K070-E2` 後半）
+  // 「対戦相手はあなたのルリグデッキからカード１枚を見ないで選び、あなたはそれを公開する。」
+  // ⚠**カードは動かない**（公開するだけ）＝盤面差分はログと `lastProcessedCards` のみ。
+  // ⚠既存の `OPP_LRIG_DECK_BLIND_REVEAL` とは**ルリグデッキの持ち主が逆**（あちらは相手のデッキ）。
+  // 表示: 対戦相手があなたのルリグデッキからカードを1枚見ないで選び、あなたはそれを公開する
+  if (stub.id === 'MY_LRIG_DECK_BLIND_REVEAL') {
+    const deckMLB = ctx.ownerState.lrig_deck ?? [];
+    if (deckMLB.length === 0) return done({ ...addLog(ctx, 'あなたのルリグデッキにカードがない'), lastProcessedCards: [] });
+    const pickedMLB = deckMLB[Math.floor(Math.random() * deckMLB.length)];
+    return done({
+      ...addLog(ctx, `対戦相手があなたのルリグデッキから${ctx.cardMap.get(getCardNum(pickedMLB))?.CardName ?? pickedMLB}を見ないで選び、公開した`),
+      lastProcessedCards: [pickedMLB],
+    });
+  }
+
+  // MY_HAND_BLIND_REVEAL（`PR-K078-E2` 前半）
+  // 「対戦相手はあなたの手札を１枚見ないで選び、あなたはそれを公開する。」
+  // 🔑後続の「それが＜悪魔＞かレベル３以上のシグニの場合」は既存の `LAST_PROCESSED_MATCHES` が読む＝
+  //   ここは公開した札を `lastProcessedCards` に残すだけでよい。
+  // 🔴旧 live は defer（no-op）で、しかも**後続の【ランサー】付与が無条件**だった＝
+  //   「手札が0枚でも／公開したのがレベル1のスペルでも必ずランサー」という過剰実行。
+  // 表示: 対戦相手があなたの手札を1枚見ないで選び、あなたはそれを公開する
+  if (stub.id === 'MY_HAND_BLIND_REVEAL') {
+    const handMHB = ctx.ownerState.hand;
+    if (handMHB.length === 0) return done({ ...addLog(ctx, 'あなたの手札がない（公開なし）'), lastProcessedCards: [] });
+    const pickedMHB = handMHB[Math.floor(Math.random() * handMHB.length)];
+    return done({
+      ...addLog(ctx, `対戦相手があなたの手札から${ctx.cardMap.get(getCardNum(pickedMHB))?.CardName ?? pickedMHB}を見ないで選び、公開した`),
+      lastProcessedCards: [pickedMHB],
+    });
+  }
+
+  // DRAWN_COUNT_HAND_TO_DECK_BOTTOM（`WXK03-025-E2` 後半）
+  // 「この方法で引いたカードの枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く。」
+  // 🔑枚数は**実際に引いた枚数**＝直前の `DRAW_PER_FIELD_COUNT{recordDrawn:true}` が
+  //   `lastProcessedCards` に残す（デッキ切れで少なく引いた回もそのまま合う）。
+  // 🔑置くのは既存の `INTERNAL_HAND_TO_DECK_BOTTOM`（選んだ順＝積まれる順＝「好きな順番で」）。
+  // ⚠**0枚なら何もしない**（凍結シグニが無ければドローも戻しも起きない）。
+  // 表示: この方法で引いた枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く
+  if (stub.id === 'DRAWN_COUNT_HAND_TO_DECK_BOTTOM') {
+    const nDCH = (ctx.lastProcessedCards ?? []).length;
+    if (nDCH === 0) return done(addLog(ctx, '引いた枚数が0（デッキの一番下に置くカードなし）'));
+    const handDCH = ctx.ownerState.hand;
+    if (handDCH.length === 0) return done(addLog(ctx, '手札がない（デッキの一番下に置けない）'));
+    const countDCH = Math.min(nDCH, handDCH.length);
+    return needsInteraction(addLog(ctx, `手札を${countDCH}枚、好きな順番でデッキの一番下に置く`), {
+      type: 'SELECT_TARGET',
+      candidates: [...handDCH],
+      count: countDCH,
+      optional: false,
+      targetScope: 'self_hand',
+      thenAction: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+      continuation: ({ type: 'STUB', id: 'INTERNAL_HAND_TO_DECK_BOTTOM' } as StubAction) as EffectAction,
+    });
+  }
+
+  // SELF_BECOME_ACCE_OF_PLAYED_SIGNI（`WDK17-015-E1`）
+  // 「【自】：あなたのシグニ１体が場に出たとき、**このシグニを**それの【アクセ】にしてもよい。」
+  // 🔴既存の `ATTACH_ACCE` は**アクセ札の出どころが エナ／手札／ルリグデッキ**の3経路しか無く、
+  //   「**場に居る効果元自身**がアクセになる」形は書けない（`fromHand`/`fromEnergy`/`fromLrigDeck` のどれでもない）。
+  //   ⇒ ここは STUB ハンドラ1本で書く（新しいアクション型は足さない）。
+  // ⚠ホストは `ctx.triggeringCardNum`（＝場に出たシグニ）。**効果元自身がホストになることはない**ので除外する。
+  // ⚠アクセ上限は既存の `canAttachSelf`（`collectMultiAcceLimits`）で見る＝上限に達していたら提示しない。
+  // 表示: このシグニを、場に出たあなたのシグニの【アクセ】にしてもよい
+  if (stub.id === 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI') {
+    const selfSBA = ctx.sourceCardNum;
+    const hostSBA = ctx.triggeringCardNum;
+    if (!selfSBA || !hostSBA || selfSBA === hostSBA) return done(addLog(ctx, 'アクセ化できる組み合わせがない'));
+    const signiSBA = ctx.ownerState.field.signi;
+    const selfZoneSBA = signiSBA.findIndex(st => st?.at(-1) === selfSBA);
+    const hostZoneSBA = signiSBA.findIndex(st => st?.at(-1) === hostSBA);
+    if (selfZoneSBA < 0) return done(addLog(ctx, 'このシグニが場にいないためアクセ化できない'));
+    if (hostZoneSBA < 0) return done(addLog(ctx, '場に出たシグニが見つからないためアクセ化できない'));
+    if (!canAttachSelf(hostSBA, hostZoneSBA)) return done(addLog(ctx, 'アクセ先のシグニはアクセ上限に達している'));
+    const hostNameSBA = ctx.cardMap.get(getCardNum(hostSBA))?.CardName ?? hostSBA;
+    const applySBA: StubAction = { type: 'STUB', id: 'INTERNAL_SELF_TO_ACCE_OF_TRIGGER' };
+    const skipSBA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, `このシグニを${hostNameSBA}の【アクセ】にしますか？`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'acce', label: `${hostNameSBA}の【アクセ】にする`, action: applySBA as EffectAction, available: true },
+        { id: 'skip', label: 'しない', action: skipSBA as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_SELF_TO_ACCE_OF_TRIGGER') {
+    const selfIST = ctx.sourceCardNum;
+    const hostIST = ctx.triggeringCardNum;
+    if (!selfIST || !hostIST) return done(addLog(ctx, 'アクセ化できる組み合わせがない'));
+    const fieldIST = ctx.ownerState.field;
+    const selfZoneIST = fieldIST.signi.findIndex(st => st?.at(-1) === selfIST);
+    const hostZoneIST = fieldIST.signi.findIndex(st => st?.at(-1) === hostIST);
+    if (selfZoneIST < 0 || hostZoneIST < 0) return done(addLog(ctx, 'アクセ化できる組み合わせがない'));
+    // ⚠**効果元シグニを場から抜く**＝下にカードがあるならスタックの残りはその場に留める
+    //   （`removeFromField` と同じ規約＝頂点だけを外す）。
+    const stackIST = fieldIST.signi[selfZoneIST]!;
+    const signiIST = [...fieldIST.signi] as (string[] | null)[];
+    signiIST[selfZoneIST] = stackIST.length > 1 ? stackIST.slice(0, -1) : null;
+    const acceIST = cloneAcceSlots(fieldIST);
+    acceIST[hostZoneIST] = [...acceCardsAt(fieldIST, hostZoneIST), selfIST];
+    const nextIST: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...fieldIST, signi: signiIST, signi_acce: acceIST },
+      acce_just_done: hostIST,
+    };
+    return done(addLog({ ...ctx, ownerState: nextIST },
+      `${ctx.cardMap.get(getCardNum(selfIST))?.CardName ?? selfIST}を${ctx.cardMap.get(getCardNum(hostIST))?.CardName ?? hostIST}の【アクセ】にした`));
+  }
+
   return null;
 }

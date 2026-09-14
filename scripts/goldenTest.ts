@@ -62628,16 +62628,17 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
   // ✅`DEFERRED_CHECK_ZONE_TO_HAND`（`WXDi-P11-006-E2`）は §5.3 `O-143`（2026-08-29）で受け皿ができたので
   //   この表から外した＝`TRANSFER_TO_HAND{source:{type:'CHECK_CARD'}}`（成立方向は O-143 の golden が持つ）。
   for (const [cardNum, effectId, id] of [
-    ['SPK01-14', 'SPK01-14-E1', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
-    ['PR-K070', 'PR-K070-E2', 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
-    ['PR-K078', 'PR-K078-E2', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
+    // 🏁**§5.3 `O-372` 第2バッチ（2026-09-14）＝さらに5件を実装へ戻した。**
+    ['SPK01-14', 'SPK01-14-E1', 'blind'],
+    ['PR-K070', 'PR-K070-E2', 'MY_LRIG_DECK_BLIND_REVEAL'],
+    ['PR-K078', 'PR-K078-E2', 'MY_HAND_BLIND_REVEAL'],
     // 🏁**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝この5件は受け皿が在ったので実装へ戻した。**
     //   ⚠この表は「id がそこに在ること」しか見ない＝**typed へ移した行は新しい id を書く**（`WXDi-P08-008` と同じ作法）。
     ['WX22-Re17', 'WX22-Re17-E2', 'SELF_FROM_TRASH_TO_DECK_BOTTOM'],
     ['WXEX2-80', 'WXEX2-80-E1', 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
     ['WXDi-P00-037', 'WXDi-P00-037-E2', 'OPP_DECK_BOTTOM_MILL'],
     ['WD23-022-E', 'WD23-022-E-E3', 'LIFE_CRASH'],
-    ['WDK17-015', 'WDK17-015-E1', 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
+    ['WDK17-015', 'WDK17-015-E1', 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
     ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
     ['WXDi-P00-063', 'WXDi-P00-063-E2', 'OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
     ['WXDi-P06-045', 'WXDi-P06-045-E1', 'SIGNI_REPOSITION'],
@@ -67974,6 +67975,85 @@ test('§5.3 defer解体④: repositionEmptyOnly は占有ゾーンを移動先�
   ok(!without.done && without.pending.type === 'CHOOSE', 'フラグ無しでも選択肢を出すべき');
   if (without.done || without.pending.type !== 'CHOOSE') return;
   eq(without.pending.options.map(o => o.id).sort().join(','), 'zone_1,zone_2', 'フラグ無しで占有ゾーンが消えている');
+}));
+
+// ── §5.3 `O-372` 第2バッチ（2026-09-14）＝明示 defer の解体（その2）の挙動を固定する ──
+test('§5.3 defer解体⑤: MY_LRIG_DECK_BLIND_REVEAL は自分のルリグデッキの1枚を公開するだけ（動かさない）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState = { ...ctx.ownerState, lrig_deck: ['WX22-047', 'WX09-027', 'WX02-061'] };
+  const r = run({ type: 'STUB', id: 'MY_LRIG_DECK_BLIND_REVEAL' } as EffectAction, ctx);
+  ok(r.done, '完了する');
+  eq(r.ownerState.lrig_deck.length, 3, '公開しただけなのにルリグデッキが減っている');
+  eq((r.lastProcessedCards ?? []).length, 1, '公開した1枚を lastProcessedCards に残していない');
+  ok(ctx.ownerState.lrig_deck.includes((r.lastProcessedCards ?? [])[0]), '公開した札がルリグデッキの中のカードでない');
+  // 反転＝ルリグデッキが空なら公開なし（lastProcessedCards も空＝後続の照応が空振りする）。
+  const empty = run({ type: 'STUB', id: 'MY_LRIG_DECK_BLIND_REVEAL' } as EffectAction,
+    { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: [] } } as ExecCtx);
+  eq((empty.lastProcessedCards ?? []).length, 0, 'ルリグデッキが空なのに何かを公開している');
+}));
+
+test('§5.3 defer解体⑥: MY_HAND_BLIND_REVEAL ＋ LAST_PROCESSED_MATCHES で【ランサー】が条件つきになる', () => withSavedCursor(() => {
+  // 🔴旧 live は前半が no-op で、後半の GRANT_KEYWORD が**無条件**だった（手札0枚でも必ずランサー）。
+  const eff = effectsMap.get('PR-K078')!.find(e => e.effectId === 'PR-K078-E2')!;
+  const steps = (eff.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  eq((steps[0] as { id?: string }).id, 'MY_HAND_BLIND_REVEAL', '前半が公開になっていない');
+  eq(steps[1].type, 'CONDITIONAL', '後半の【ランサー】に門が無い（無条件付与に戻っている）');
+  const cond = (steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as { type: string; filter?: Record<string, unknown> };
+  eq(cond.type, 'LAST_PROCESSED_MATCHES', '門が直前に公開した札を見ていない');
+  eq(JSON.stringify(cond.filter), JSON.stringify({ cardType: 'シグニ', anyOf: [{ cardClass: '悪魔' }, { level: { min: 3 } }] }),
+    '「＜悪魔＞かレベル3以上のシグニ」の OR になっていない');
+  // 公開そのもの＝手札が空なら lastProcessedCards も空＝門は成立しない。
+  const ctx = mkCtx({ hand: 0 }, {});
+  const r = run({ type: 'STUB', id: 'MY_HAND_BLIND_REVEAL' } as EffectAction, ctx);
+  eq((r.lastProcessedCards ?? []).length, 0, '手札が無いのに公開している');
+}));
+
+test('§5.3 defer解体⑦: DRAWN_COUNT_HAND_TO_DECK_BOTTOM は「実際に引いた枚数」だけ手札を選ばせる', () => withSavedCursor(() => {
+  // 前段＝`DRAW_PER_FIELD_COUNT{recordDrawn}` が引いた札を lastProcessedCards に残す。
+  const oppFrozen = mkCtx({}, { signi: ['WX22-047', 'WX22-047', null] });
+  oppFrozen.otherState = { ...oppFrozen.otherState,
+    field: { ...oppFrozen.otherState.field, signi_frozen: [true, true, false] } };
+  const drawn = run({ type: 'DRAW_PER_FIELD_COUNT', drawPerUnit: 1,
+    countFilter: { cardType: 'シグニ', isFrozen: true }, countOwner: 'opponent', recordDrawn: true } as EffectAction, oppFrozen);
+  ok(drawn.done, '完了する');
+  eq(drawn.ownerState.hand.length, oppFrozen.ownerState.hand.length + 2, '凍結2体ぶん引いていない');
+  eq((drawn.lastProcessedCards ?? []).length, 2, '引いた札を lastProcessedCards に残していない');
+  // 🔑後段は**引いた枚数と同じ枚数**だけ選ばせる。
+  const back = executeAction({ type: 'STUB', id: 'DRAWN_COUNT_HAND_TO_DECK_BOTTOM' } as EffectAction,
+    { ...oppFrozen, ownerState: drawn.ownerState, lastProcessedCards: drawn.lastProcessedCards } as ExecCtx);
+  ok(!back.done && back.pending.type === 'SELECT_TARGET', '手札の選択UIを出していない');
+  if (back.done || back.pending.type !== 'SELECT_TARGET') return;
+  eq(back.pending.count, 2, '引いた枚数（2）と選ばせる枚数が合っていない');
+  // 反転①＝`recordDrawn` を立てなければ lastProcessedCards は前のまま（＝opt-in が効いている）。
+  const noRecord = run({ type: 'DRAW_PER_FIELD_COUNT', drawPerUnit: 1,
+    countFilter: { cardType: 'シグニ', isFrozen: true }, countOwner: 'opponent' } as EffectAction,
+    { ...oppFrozen, lastProcessedCards: ['sentinel'] } as ExecCtx);
+  eq(JSON.stringify(noRecord.lastProcessedCards), JSON.stringify(['sentinel']),
+    'recordDrawn なしで lastProcessedCards を上書きしている（live 5効果が壊れる）');
+  // 反転②＝凍結が0体なら引かない＝戻す枚数も0。
+  const none = executeAction({ type: 'STUB', id: 'DRAWN_COUNT_HAND_TO_DECK_BOTTOM' } as EffectAction,
+    { ...oppFrozen, lastProcessedCards: [] } as ExecCtx);
+  ok(none.done, '0枚なのに選択UIを出している');
+}));
+
+test('§5.3 defer解体⑧: SELF_BECOME_ACCE_OF_PLAYED_SIGNI は効果元自身を、場に出たシグニのアクセにする', () => withSavedCursor(() => {
+  const SELF = 'WDK17-015';
+  const HOST = 'WX22-047';
+  const ctx = mkCtx({ signi: [SELF, HOST, null] }, {});
+  const acting = { ...ctx, sourceCardNum: SELF, triggeringCardNum: HOST } as ExecCtx;
+  const offered = executeAction({ type: 'STUB', id: 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI' } as EffectAction, acting);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '「してもよい」の二択を出していない');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  ok(offered.pending.options.some(o => o.id === 'skip'), '「しない」が選べない（任意が強制になる）');
+  eq(offered.ownerState.field.signi[0]?.at(-1), SELF, '選ぶ前に盤面を動かしている');
+  const r = run({ type: 'STUB', id: 'INTERNAL_SELF_TO_ACCE_OF_TRIGGER' } as EffectAction, acting);
+  ok(r.done, '完了する');
+  eq(r.ownerState.field.signi[0], null, '効果元シグニが自分のゾーンから抜けていない');
+  eq((r.ownerState.field.signi_acce?.[1] ?? []).join(','), SELF, '場に出たシグニのアクセになっていない');
+  // 反転＝効果元とホストが同じなら何もしない（自分自身のアクセにはならない）。
+  const same = run({ type: 'STUB', id: 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI' } as EffectAction,
+    { ...ctx, sourceCardNum: SELF, triggeringCardNum: SELF } as ExecCtx);
+  eq(same.ownerState.field.signi[0]?.at(-1), SELF, '自分自身のアクセにしてしまっている');
 }));
 
 // ── §5.3 `O-60` 第52バッチ（2026-09-03）＝「原文から数値ひとつを読むだけ」family 12ハンドラを payload 化 ──

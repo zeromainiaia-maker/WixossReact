@@ -1735,8 +1735,14 @@ function actionJa(a?: Action, effectType?: string): string {
         ? ''
         : a.opponentSelects && t?.owner === 'opponent'
         ? '（相手が選ぶ）'
+        // 🆕**`blind` は持ち主で門を掛けない**（2026-09-14・§5.3 `O-372` 第2バッチ・`SPK01-14-E1`②
+        //   「対戦相手は**あなたの**手札を2枚見ないで選び、あなたはそれらを捨てる」）＝
+        //   🔴旧は `owner === 'opponent'` の枝の中でしか描かず、**自分の手札を無作為に捨てる形で
+        //     「見ないで」が丸ごと落ちていた**（engine は `blind` を読んでランダムに捨てるので逆翻訳だけが嘘）。
+        : t?.type === 'HAND_CARD' && t.blind
+        ? '（見ないでランダム）'
         : t?.type === 'HAND_CARD' && t?.owner === 'opponent'
-        ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
+        ? (t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
       // 🆕**§5.3 `O-280`（2026-09-08）＝`countFromZone`（盤面で決まる動的枚数）を描く。**
       //   🔴この分岐だけ `t.count` しか見ておらず、`PR-195-E3`「相手の凍結状態のシグニ**1体につき**
