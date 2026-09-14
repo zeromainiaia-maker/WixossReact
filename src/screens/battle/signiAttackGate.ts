@@ -4,6 +4,7 @@ import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, co
 import { attackFieldTrashCost, canPayAttackFieldTrashCost } from './attackFieldTrashCost';
 import { parsePowerVal } from './battleUtils';
 import { signiAttackBanCost, signiAttackBansNeedPower } from './signiAttackBan';
+import { isEnergyPayBlocked } from './energyPaySource';
 
 /**
  * シグニアタックの可否（ルール由来の軸だけ）を1か所で判定する純関数。
@@ -22,6 +23,7 @@ export type SigniAttackBlockReason =
   | 'OPP_POWER_CAP'            // OPP_SIGNI_ATTACK_POWER_RESTRICT（相手が課したパワー上限以下はアタック不可）
   | 'ONCE_PER_TURN_LIMIT'      // signi_attack_once_limit（このターンのシグニアタックは合計1回）
   | 'ENERGY_COST'              // OPP_SIGNI_ATTACK_COST のエナが払えない
+  | 'ENERGY_PAY_BLOCKED'       // アタックに《無》が要るのに「1以上のエナコストを支払えない」（§5.3 `O-371`）
   | 'FIELD_TRASH_COST'         // 「他のシグニN体をトラッシュしないかぎりアタックできない」が払えない
   | 'ATTACK_BAN'               // signi_attack_bans_this_turn（「〈条件〉のシグニでアタックできない」）
   | 'ATTACK_BAN_COST'          // 同・「《無》×N を支払わないかぎり」の分が払えない
@@ -181,6 +183,12 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   // OPP_SIGNI_ATTACK_COST: アタック自体にエナコストが必要（performSigniAttack が実際に引き落とす）
   const signiAtkCost = attacker.signi_attack_cost ?? 0;
   if (signiAtkCost > 0 && attacker.energy.length < signiAtkCost) return 'ENERGY_COST';
+
+  // §5.3 `O-371`＝「1以上のエナコストを支払えない」（`PAY_ENERGY_COST`／`PAY_ENERGY_COST_SIGNI_ATTACK_STEP`）。
+  //   アタックの《無》は `performSigniAttack` が `buildEnergyPayPool` を通さず直接引き落とすので、封じはここで見る。
+  //   ⚠シグニのアタックは `ATTACK_SIGNI` でしか起きない＝phase 未指定の呼び出しもそのステップとして扱う。
+  const totalAtkColorless = signiAtkCost + (signiAttackColorlessCost(p) ?? 0);
+  if (totalAtkColorless > 0 && isEnergyPayBlocked(attacker, p.turnPhase ?? 'ATTACK_SIGNI')) return 'ENERGY_PAY_BLOCKED';
 
   if (!p.fieldTrashCostAlreadyPaid
       && attackFieldTrashCost(attacker, attackerNum) > 0

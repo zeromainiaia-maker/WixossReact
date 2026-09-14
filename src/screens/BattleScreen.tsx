@@ -42,7 +42,7 @@ import { collectPieceCutinCandidates } from './battle/pieceCutin';
 import { completePieceCutinResponseAfterEffects } from './battle/pieceCutinCommit';
 import { selectMandatoryAttackerBanishSubstitute } from './battle/attackerBanishSubstitute';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
-import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
+import { buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
 
 interface Props {
   user: User;
@@ -11482,8 +11482,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const fieldTrash = banCost.fieldTrash;
     // 「手札をN枚捨てないかぎり」のルリグ版は**母集団0**（原文はいずれもシグニ）。
     // 万一生えたら支払いUIが無いので過少側（アタック不可）に倒す＝無言で無視しない。
+    // §5.3 `O-371`＝《無》の前払いは `buildEnergyPayPool` を通らない＝「1以上のエナコストを支払えない」はここで見る。
     const blocked = banCost.handDiscard > 0
       || my.energy.length < colorless
+      || (colorless > 0 && isEnergyPayBlocked(my, bs?.turn_phase ?? 'ATTACK_LRIG'))
       || !canPayLrigAttackFieldTrashCost(my, fieldTrash, battleCardMap);
     return { blocked, colorless, fieldTrash };
   };
@@ -13884,7 +13886,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ライフバースト確認（人間プレイヤー用エントリポイント）
   const handleLifeBurstResponse = async (activate: boolean, targetCardNum?: string) => {
-    if (loading) return;
+    // ⚠解決中の効果があるうちは処理しない（`LifeBurstCheckModal` と同じ条件）＝`clearPending` が対象選択を捨てる。
+    if (loading || bs?.pending_effect) return;
     await performLifeBurstResponse(activate, targetCardNum, {
       owner: my,
       opponent: op,

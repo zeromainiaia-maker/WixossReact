@@ -8503,6 +8503,17 @@ export function collectDeckTrashLevel1Nums(
         }
       }
     }
+    // ③ §5.3 `O-369`＝**プレイヤーがゲーム中に得た**宣言（`GRANT_PLAYER_ABILITY`→`game_granted_effects`・`WXDi-P05-004-E1`）。
+    //    ⚠②と同じく `deckTrashLevel1Filter` が無ければ何も集めない（fail-closed）。
+    for (const eff of (state.game_granted_effects ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'TREAT_AS_LEVEL1_IN_DECK_TRASH' || !act.deckTrashLevel1Filter) continue;
+      for (const cn of [...state.deck, ...state.trash]) {
+        if (result.has(cn)) continue;
+        if (matchesFilter(cardMap.get(baseNumOf(cn)), act.deckTrashLevel1Filter)) result.add(cn);
+      }
+    }
   }
   return result;
 }

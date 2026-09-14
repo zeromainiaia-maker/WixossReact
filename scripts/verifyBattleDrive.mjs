@@ -59677,6 +59677,182 @@ scenarios.o369OppLifeBurstNone = mkO369OppLifeBurst(false);
 order.push('o369GuardAltClassHand', 'o369GuardAltClassEnergy', 'o369GuardAltClassNone',
   'o369OppLifeBurstTrashEnergy', 'o369OppLifeBurstNone');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-371`＝シグニのアタックコスト《無》×N が「1以上のエナコストを支払えない」を通る。
+//   判定＝`signiAttackBlockReason` の `ENERGY_PAY_BLOCKED`（`getMySigniZoneActions` が `canSigniAttack` で読む）。
+//   ⚠§4.4-37b＝「アタックが出ない」は**そのシグニのモーダルが開いている**ことまで見る（ボタン0件だけでは負の証拠にならない）。
+// ═════════════════════════════════════════════════════════════════════════════
+function mkO371AttackCost(blocked) {
+  const id = blocked ? 'o371AttackCostBlocked' : 'o371AttackCostUnblocked';
+  return {
+    title: `O-371：アタックコスト《無》×1 とエナ支払い封じ（${blocked ? '封じあり＝アタック不可' : '対照＝封じなし'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9820'],
+        'field.signi': [null, ['WD01-016#9821'], null], 'field.signi_down': [false, false, false],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_attacked': false,
+        hand: [], energy: ['WD01-013#9822', 'WD01-013#9823'], trash: [], lrig_deck: [], lrig_trash: [],
+        actions_done: [], game_actions_done: [], attacked_signi_ids: [],
+        signi_attack_cost: 1,
+        blocked_actions: blocked ? ['PAY_ENERGY_COST_SIGNI_ATTACK_STEP'] : [],
+        deck: ['WD01-013#9824', 'WD01-013#9825'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9826'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        hand: [], energy: [], trash: [], lrig_deck: [], blocked_actions: [],
+        deck: ['WD01-013#9827', 'WD01-013#9828'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      let st0 = await H.queryState();
+      for (let k = 0; k < 10 && (st0?.turnPhase !== 'ATTACK_SIGNI' || (st0?.host?.energy ?? 0) !== 2); k++) {
+        await page.waitForTimeout(400);
+        st0 = await H.queryState();
+      }
+      H.log(`  ${id}: 開始 phase=${st0?.turnPhase} energy=${st0?.host?.energy} signi=${JSON.stringify(st0?.host?.fieldSigni)}`);
+      if (st0?.turnPhase !== 'ATTACK_SIGNI' || (st0?.host?.energy ?? 0) !== 2) {
+        return { pass: false, detail: `前提崩れ＝注入が載っていない（phase=${st0?.turnPhase} energy=${st0?.host?.energy}）` };
+      }
+      let labels = null;
+      let modalText = '';
+      for (let k = 0; k < 8 && labels === null; k++) {
+        await H.closeModals();
+        await H.clickTestId('my-signi-zone-1');
+        await page.waitForTimeout(700);
+        const modal = page.locator('[data-testid="stack-detail-modal"], [data-testid="card-detail-modal"]').first();
+        if (await modal.count() && await modal.isVisible().catch(() => false)) {
+          modalText = (await modal.innerText().catch(() => '')).replace(/\s+/g, ' ');
+          labels = await page.locator('[data-testid^="card-action-"]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+        }
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true }).catch(() => {});
+      await H.closeModals();
+      H.log(`  ${id}: labels=${JSON.stringify(labels)} modal=${modalText.slice(0, 80)}`);
+      if (labels === null) return { pass: false, detail: '前提崩れ＝シグニのモーダルが開かない' };
+      const hasAttack = labels.some(l => (l ?? '').startsWith('アタック'));
+      const pass = blocked ? !hasAttack : labels.some(l => l === 'アタック（《無》×1）');
+      return { pass, detail: `${blocked ? (pass ? '封じ中は《無》×1 のアタックが提示されない' : '🔴封じ中なのにアタックが提示された') : (pass ? '対照＝封じなしなら「アタック（《無》×1）」が提示される' : '🔴対照でアタックが提示されない')}。labels=${JSON.stringify(labels)}` };
+    },
+  };
+}
+scenarios.o371AttackCostBlocked = mkO371AttackCost(true);
+scenarios.o371AttackCostUnblocked = mkO371AttackCost(false);
+
+// §5.3 `O-369`＝`WX25-P2-003` の【起】（センタールリグへの恒久付与で提示）。
+const O369_GRANTED_ACT = {
+  effectId: 'WX25-P2-003-GRANTED-ACT', effectType: 'ACTIVATED', timing: ['MAIN'], usageLimit: 'once_per_turn',
+  condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'gte', value: 1 },
+  action: { type: 'SEQUENCE', steps: [
+    { type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: true },
+    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+  ] },
+  duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL', permanentGrant: true,
+};
+function mkO369LrigGrantedAct(hasLife) {
+  const id = hasLife ? 'o369LrigGrantedActUse' : 'o369LrigGrantedActNoLife';
+  return {
+    title: `O-369：ゲーム中に得た【起】「ライフクロス１枚をクラッシュする：相手シグニ1体をバニッシュ」（${hasLife ? 'ライフ2枚＝使う' : '反転＝ライフ0枚'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9830'], 'field.lrig_down': false,
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_attacked': false,
+        hand: [], energy: [], trash: [], lrig_deck: [], lrig_trash: [],
+        actions_done: [], game_actions_done: [], blocked_actions: [],
+        lrig_granted_auto_effects: [O369_GRANTED_ACT],
+        life_cloth: hasLife ? ['WD01-013#9831', 'WD01-013#9832'] : [],
+        deck: ['WD01-013#9833', 'WD01-013#9834'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9835'],
+        'field.signi': [null, ['WD01-016#9836'], null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        hand: [], energy: [], trash: [], lrig_deck: [], blocked_actions: [],
+        deck: ['WD01-013#9837', 'WD01-013#9838'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let k = 0; k < 10 && (before?.turnPhase !== 'MAIN' || (before?.host?.life ?? -1) !== (hasLife ? 2 : 0)); k++) {
+        await page.waitForTimeout(400);
+        before = await H.queryState();
+      }
+      H.log(`  ${id}: 開始 phase=${before?.turnPhase} life=${before?.host?.life} gSigni=${JSON.stringify(before?.guest?.fieldSigni)}`);
+      if (before?.turnPhase !== 'MAIN' || (before?.host?.life ?? -1) !== (hasLife ? 2 : 0)) {
+        return { pass: false, detail: `前提崩れ＝注入が載っていない（phase=${before?.turnPhase} life=${before?.host?.life}）` };
+      }
+      let labels = null;
+      for (let k = 0; k < 8 && labels === null; k++) {
+        await H.closeModals();
+        await H.clickTestId('my-lrig-slot-center');
+        await page.waitForTimeout(700);
+        const modal = page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').first();
+        if (await modal.count() && await modal.isVisible().catch(() => false)) {
+          labels = await page.locator('[data-testid^="card-action-"]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+        }
+      }
+      H.log(`  ${id}: labels=${JSON.stringify(labels)}`);
+      if (labels === null) return { pass: false, detail: '前提崩れ＝センタールリグのモーダルが開かない' };
+      const idx = labels.findIndex(l => (l ?? '').startsWith('【起】'));
+      if (!hasLife) {
+        await H.closeModals();
+        return { pass: idx < 0, detail: `${idx < 0 ? '反転＝ライフ0枚では【起】が提示されない' : '🔴ライフ0枚なのに【起】が提示された'}。labels=${JSON.stringify(labels)}` };
+      }
+      if (idx < 0) { await H.closeModals(); return { pass: false, detail: `🔴ライフ2枚なのに【起】が提示されない。labels=${JSON.stringify(labels)}` }; }
+      await page.locator(`[data-testid="card-action-${idx}"]`).first().click({ timeout: 1200 }).catch(() => {});
+      let st = before;
+      let sawLife = false;
+      let picked = false;
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(500);
+        // ⚠§4.4-2c＝`pick-*` はトグル＝**1回だけ押して**から「決定」を押す（`stdStep` は毎ティック押し直して永久に決定へ届かない）。
+        const cur = await H.queryState();
+        let did = null;
+        if (cur?.pendingEffect === 'SELECT_TARGET') {
+          if (!picked) {
+            const pick = page.locator('[data-testid^="pick-"]').first();
+            if (await pick.count() && await pick.isVisible().catch(() => false)) {
+              await pick.click({ timeout: 1200 }).catch(() => {});
+              picked = true; did = 'pick-0';
+            }
+          } else {
+            const decide = page.getByRole('button', { name: /^決定/ }).first();
+            if (await decide.count() && await decide.isEnabled().catch(() => false)) {
+              await decide.click({ timeout: 1200 }).catch(() => {});
+              did = '決定';
+            }
+          }
+        }
+        // 【起】を押すと確認モーダルが開く＝ライフが減るまでは「発動」を押す（実測＝押さないと life 2→2 のまま）。
+        if (!did && !sawLife && cur?.pendingEffect == null) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+        if (!did && cur?.pendingEffect !== 'SELECT_TARGET') did = await H.clickTextOrBtn(['発動順序を確定', 'OK', 'はい']);
+        st = await H.queryState();
+        if ((st?.host?.life ?? 2) < 2) sawLife = true;
+        const gone = !(st?.guest?.fieldSigni ?? []).some(z => JSON.stringify(z ?? '').includes('WD01-016'));
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | life=${st?.host?.life} gSigni=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} check=${st?.host?.checkSlot ?? '-'}`);
+        if (sawLife && gone && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && st?.host?.checkSlot == null) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true }).catch(() => {});
+      const gone = !(st?.guest?.fieldSigni ?? []).some(z => JSON.stringify(z ?? '').includes('WD01-016'));
+      const pass = sawLife && (st?.host?.life ?? 2) === 1 && gone;
+      return { pass, detail: `${pass ? '【起】でライフ1枚をクラッシュし、相手シグニが場を離れた' : '🔴ライフが1枚減らない／相手シグニが残る'}（life ${before.host.life}→${st?.host?.life} gSigni=${JSON.stringify(st?.guest?.fieldSigni)}）labels=${JSON.stringify(labels)}` };
+    },
+  };
+}
+scenarios.o369LrigGrantedActUse = mkO369LrigGrantedAct(true);
+scenarios.o369LrigGrantedActNoLife = mkO369LrigGrantedAct(false);
+
+order.push('o371AttackCostBlocked', 'o371AttackCostUnblocked', 'o369LrigGrantedActNoLife', 'o369LrigGrantedActUse');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

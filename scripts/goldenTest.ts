@@ -82220,11 +82220,22 @@ test('O-369 WX25-P2-003: 相手LB発動時だけ game_granted_effects の【自�
     '未付与（クラッシュのみ／発動辞退相当）でもトリガーが積まれた');
 });
 
-test('O-369 WXDi-P05-004: 効かない LEVEL_REFERENCE_OVERRIDE を実装済み表示にしない', () => {
-  const fresh = parseCardEffects(cardMap.get('WXDi-P05-004')!).find(e => e.effectId === 'WXDi-P05-004-E1')!;
-  const json = JSON.stringify(fresh.action);
-  ok(json.includes('DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE'), '内容を特定した defer に分離されていない');
-  ok(!json.includes('"id":"LEVEL_REFERENCE_OVERRIDE"'), 'ACTIVATED 内のログだけの宣言が残っている');
+test('O-369 WXDi-P05-004: プレイヤー付与の宣言でデッキ／トラッシュの＜宇宙＞レベル3以下だけをレベル1扱いにする', () => {
+  const eff = (effectsMap.get('WXDi-P05-004') ?? []).find(e => e.effectId === 'WXDi-P05-004-E1')!;
+  ok(!JSON.stringify(eff.action).includes('DEFERRED_'), 'live がまだ defer のまま');
+  const granted = run(eff.action, mkCtx({}, {})).ownerState as PlayerState;
+  ok((granted.game_granted_effects ?? []).some(e => e.effectType === 'CONTINUOUS'
+    && JSON.stringify(e.action).includes('TREAT_AS_LEVEL1_IN_DECK_TRASH')), 'game_granted_effects に宣言が載らない');
+  const localCards = new Map<string, CardData>([
+    ['SPACE-L3', { CardNum: 'SPACE-L3', Type: 'シグニ', CardClass: '奏羅：宇宙', Level: '3' } as CardData],
+    ['SPACE-L4', { CardNum: 'SPACE-L4', Type: 'シグニ', CardClass: '奏羅：宇宙', Level: '4' } as CardData],
+    ['OTHER-L2', { CardNum: 'OTHER-L2', Type: 'シグニ', CardClass: '精像：天使', Level: '2' } as CardData],
+  ]);
+  const withZones: PlayerState = { ...granted, deck: ['SPACE-L3#1', 'SPACE-L4#2'], trash: ['OTHER-L2#3', 'SPACE-L3#4'] };
+  const got = collectDeckTrashLevel1Nums(withZones, mkState({}), new Map(), localCards);
+  eq(JSON.stringify([...got].sort()), JSON.stringify(['SPACE-L3#1', 'SPACE-L3#4']), '＜宇宙＞レベル3以下だけを集めていない');
+  eq(collectDeckTrashLevel1Nums({ ...withZones, game_granted_effects: [] }, mkState({}), new Map(), localCards).size, 0,
+    '反転：宣言が無いのに集めた');
 });
 
 test('O-369 WX25-P2-004: リコレクト後の相手ターンだけ PAY_ENERGY_COST を止める', () => {
@@ -82278,12 +82289,46 @@ test('O-370① WXDi-P06-006: guardAltHand は残し未知 defer だけを parser
 
 test('O-369/O-370 逆翻訳: 実装部と明示 defer の境界が生成シートに出る', () => {
   ok(decompiledLineOf('WX25-P2-003-E1').includes('対戦相手のライフバーストが発動したとき'), '#1【自】が逆翻訳にない');
-  ok(decompiledLineOf('WX25-P2-003-E1').includes('【未実装】') && decompiledLineOf('WX25-P2-003-E1').includes('【起】'), '#1【起】defer が分離されていない');
-  ok(decompiledLineOf('WXDi-P05-004-E1').includes('【未実装】') && !decompiledLineOf('WXDi-P05-004-E1').includes('[STUB:LEVEL_REFERENCE_OVERRIDE]'), '#2 が実装済みに見える');
+  ok(decompiledLineOf('WX25-P2-003-E1').includes('【起】') && !decompiledLineOf('WX25-P2-003-E1').includes('【未実装】'), '#1【起】が逆翻訳に出ない／defer が残る');
+  ok(!decompiledLineOf('WXDi-P05-004-E1').includes('【未実装】') && !decompiledLineOf('WXDi-P05-004-E1').includes('[STUB:LEVEL_REFERENCE_OVERRIDE]'), '#2 が defer のまま／ログだけの宣言が残る');
   ok(decompiledLineOf('WX25-P2-004-E1').includes('エナコストを支払えない'), '#3 支払い禁止が逆翻訳にない');
   ok(decompiledLineOf('WX25-P1-071-E1').includes('手札から＜天使＞') && decompiledLineOf('WX25-P1-071-E1').includes('エナゾーンから＜天使＞'), '#4 2択が逆翻訳にない');
   ok(!decompiledLineOf('WXDi-P06-006-E1').includes('【未実装】'), '#5 残骸 defer が逆翻訳に残る');
 });
+
+// ── §5.3 O-371：シグニ／ルリグのアタックコスト《無》が「1以上のエナコストを支払えない」を通る ──
+test('O-371 signiAttackGate: アタックに《無》が要るときだけエナ支払い封じで止まる（両封じ・両方向）', () => {
+  const def = mkState({});
+  const base: PlayerState = { ...mkState({ signi: [SIGNI, null, null] }), energy: ['WD01-010', 'WD01-011'] };
+  const g = (st: PlayerState, turnPhase?: import('../src/types').TurnPhase) => signiAttackBlockReason({
+    attacker: st, defender: def, attackerNum: SIGNI, effectsMap, cardMap: cardMap as Map<string, CardData>,
+    ...(turnPhase ? { turnPhase } : {}),
+  });
+  const cost1: PlayerState = { ...base, signi_attack_cost: 1 };
+  eq(g({ ...cost1, blocked_actions: ['PAY_ENERGY_COST_SIGNI_ATTACK_STEP'] }), 'ENERGY_PAY_BLOCKED', '🔴シグニアタックステップ封じでアタックコストを払えた');
+  eq(g({ ...cost1, blocked_actions: ['PAY_ENERGY_COST_SIGNI_ATTACK_STEP'] }, 'ATTACK_SIGNI'), 'ENERGY_PAY_BLOCKED', 'phase 明示でも止まらない');
+  eq(g({ ...cost1, blocked_actions: ['PAY_ENERGY_COST'] }), 'ENERGY_PAY_BLOCKED', '🔴ターン全体の封じでアタックコストを払えた');
+  eq(g(cost1), null, '反転：封じが無いのに止めた');
+  eq(g({ ...base, blocked_actions: ['PAY_ENERGY_COST'] }), null, '反転：《無》が要らないアタックまで止めた');
+});
+
+// ── §5.3 O-369：プレイヤーが得る【起】（ルリグ恒久付与で提示）──
+test('O-369 WX25-P2-003: ゲーム中の【起】がライフ1枚以上で提示され、ライフを1枚クラッシュして相手シグニをバニッシュする', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX25-P2-003') ?? []).find(e => e.effectId === 'WX25-P2-003-E1')!;
+  ok(!JSON.stringify(eff.action).includes('DEFERRED_'), 'live がまだ defer のまま');
+  const after = run(eff.action, mkCtx({ lrig: ['WX25-P2-003'], life: 2 }, {})).ownerState as PlayerState;
+  const act = (after.lrig_granted_auto_effects ?? []).find(e => e.effectType === 'ACTIVATED');
+  ok(!!act && (act as { permanentGrant?: boolean }).permanentGrant === true, 'ルリグ恒久付与ストアに【起】が載らない');
+  const offered = (my: PlayerState) => listActivatableGrantedLrigEffects({
+    my, op: mkState({}), phase: 'MAIN', effectsMap, cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set(),
+  }, collectGrantedLrigEffects(my, mkState({}), true, effectsMap, cardMap as Map<string, CardData>))
+    .some(e => e.effectId === act!.effectId);
+  ok(offered(after), 'ライフ1枚以上なのに【起】が提示されない');
+  ok(!offered({ ...after, life_cloth: [] }), '反転：ライフ0枚なのに提示された（コスト踏み倒し）');
+  const r = run(act!.action, mkCtx({ life: 2 }, { signi: [SIGNI, null, null] }));
+  eq(r.ownerState.life_cloth.length, 1, 'ライフが1枚クラッシュされていない');
+  ok(!r.otherState.field.signi.some(s => s?.at(-1) === SIGNI), '相手シグニがバニッシュされていない');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

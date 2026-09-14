@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第330バッチ：🏁`O-371`／🏁`O-369`（残2効果）
+
+codex は2アカウントとも利用上限（23:09 復帰）のため Claude が実装・実機まで実施。
+
+### `O-371`＝アタックコスト《無》がエナ支払い封じを通っていた
+- **真因**＝「1以上のエナコストを支払えない」（`PAY_ENERGY_COST`／`PAY_ENERGY_COST_SIGNI_ATTACK_STEP`）は `buildEnergyPayPool` の1点で効くが、
+  シグニのアタックコスト（`signi_attack_cost`／ban の《無》／【常】の支払わないかぎり）は判定（`signiAttackGate` がエナ枚数だけを見る）も引き落とし（`performSigniAttack` の `energy.slice`）も pool を通らない。ルリグの《無》（`lrigAttackCostInfo`）も同じ。
+- **修正**＝`signiAttackBlockReason` に `ENERGY_PAY_BLOCKED`（`isEnergyPayBlocked(attacker, turnPhase ?? 'ATTACK_SIGNI')`・《無》が要るときだけ）／`lrigAttackCostInfo.blocked` に同じ判定。CPU も `canSigniAttack` を通るので揃う。
+- **影響**＝封じを課す2効果（`SPK01-10-E1`／`WX25-P2-004-E1`）。
+- **検証**＝golden（両封じ×《無》あり／なし×phase 明示・未指定）・gates 全緑（golden 4153）・**実機** `o371AttackCostBlocked`（アタックが出ない）／`o371AttackCostUnblocked`（「アタック（《無》×1）」が出る）PASS。
+  **反転確認**＝gate 行を無効化→Blocked だけ FAIL・Unblocked PASS。⚠ルリグ側は実機未観測（同じ関数形・typecheck と差分目視のみ）。
+
+### `O-369` 残2効果
+- `WXDi-P05-004-E1`＝`GRANT_PLAYER_ABILITY{permanent}` で `TREAT_AS_LEVEL1_IN_DECK_TRASH{deckTrashLevel1Filter:＜宇宙＞・レベル3以下・シグニ}` を持たせ、`collectDeckTrashLevel1Nums` に③（`game_granted_effects` から集める）を追加。golden（集める／レベル4・他クラスは集めない／宣言なしは空）。
+  ⚠「１つによって」「扱ってもよい」は近似（常に扱う）。⚠parser に残る同カードの原文分岐（第329）は manual が上書きするため現在は未使用。
+- `WX25-P2-003-E1` の【起】＝プレイヤーが持つ【起】の提示口が無いので `GRANT_LRIG_ABILITY{permanent}`（センタールリグの付与【起】・先例 live 6件）で提示。
+  コスト「ライフクロス１枚をクラッシュする」はルリグ【起】のゲートと支払いが `life_crash` を扱わないため、使用条件 `LIFE_COUNT≥1`＋本体先頭 `LIFE_CRASH{self, triggerBurst}` で表現。
+  ⚠ボタン表示は「【起】コストなし」になる（ラベルがコストを描かない）。⚠ルリグの能力喪失・センター交代の影響を受ける（プレイヤー能力との差）。
+  **実機** `o369LrigGrantedActUse`（ライフ2→1・相手シグニ離場）／`o369LrigGrantedActNoLife`（提示されない）PASS。
+- **シナリオ側の誤り2件（engine は正しかった）**＝①`pick-*` を毎ティック押してトグルで決定へ届かない（§4.4-2c）②【起】の確認モーダルの「発動」を押していなかった。
+
+### 🔴 実機で見つけた UI バグ＝効果の途中で自分のライフをクラッシュすると、帰結が消えていた
+- **症状**＝`WX25-P2-003` の【起】で、ライフが 2→1 に減ったあと対象選択（`SELECT_TARGET`）が出たが、ライフバースト確認の「エナに送る」を押すと**対象選択ごと消え、バニッシュが起きなかった**。
+- **真因**＝`LifeBurstCheckModal` は自分のチェックゾーンにカードがあれば**解決中の効果（`pending_effect`）があっても最前面に出る**。
+  「エナに送る」→`performLifeBurstResponse` の書き戻しが `clearPending: true` なので、**進行中の効果の対話を捨てる**。
+  CPU 側のチェックゾーン処理は元から `pending_effect` を待っていた（人間側だけ待っていなかった）。
+- **影響**＝`SEQUENCE` の途中に `LIFE_CRASH{owner:self, triggerBurst:true}` があり後続ステップがある live **12効果**（対象選択・条件分岐が後続に来るもの）。
+- **修正**＝`LifeBurstCheckModal` を `pending_effect` がある間は出さない／`handleLifeBurstResponse` の入口でも同じ条件で止める（効果を解決し終えてからチェックゾーンを処理する順）。
+- **検証**＝実機 `o369LrigGrantedActUse`（life 2→1・相手シグニ離場）PASS。**反転確認**＝2つの待ちを外すと同シナリオが FAIL（life 2→1 なのに相手シグニが残る）。⚠golden・smoke・fuzz は UI を通らないので構造的に見えない型。
+
 ## 2026-09-14 — 第329バッチ：🏁`O-368`／🏁`O-370` クローズ・`O-369` 3効果実装（残2）・`O-371` 登録
 
 **実装＝codex 2並列**（既定 `~/.codex`＝本体で `O-368`＋`O-370`②／`.codex-work`＝git worktree で `O-369`＋`O-370`①）。

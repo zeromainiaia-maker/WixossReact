@@ -24,8 +24,12 @@ export function LifeBurstCheckModal(p: LifeBurstCheckModalProps) {
   const { eichiSuppressActive, crashSourceSuppressActive, matchesAllZoneBurstGrant, burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed, handleLifeBurstResponse } = p;
   return (
     <>
-      {/* ライフバースト確認（自分のチェックゾーンにカードがある場合） */}
-      {my.field.check && createPortal(
+      {/* ライフバースト確認（自分のチェックゾーンにカードがある場合）
+          ⚠**解決中の効果（`pending_effect`）がある間は出さない**＝効果の途中で自分のライフをクラッシュすると
+          （「ライフクロス１枚をクラッシュする：…を対象とし」等・live 12効果）、ここで「エナに送る」を押した瞬間に
+          `performLifeBurstResponse` の `clearPending` が**進行中の対象選択を捨てて帰結が消えていた**。
+          CPU 側のチェックゾーン処理は元から `pending_effect` を待つ（人間側だけ待っていなかった）。 */}
+      {my.field.check && !p.ctx.bs.pending_effect && createPortal(
         <div style={{
           position: 'fixed', inset: 0, zIndex: 4500,
           backgroundColor: 'rgba(0,0,0,0.92)',

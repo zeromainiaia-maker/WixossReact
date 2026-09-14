@@ -7,8 +7,25 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // §5.3 O-369: 「このゲームの間、あなたは『【常】：…デッキとトラッシュにあるレベル３以下の＜宇宙＞のシグニのレベルを参照する場合、
+  //   レベル１として扱ってもよい』を得る」＝既存の受け皿 `TREAT_AS_LEVEL1_IN_DECK_TRASH{deckTrashLevel1Filter}` を
+  //   プレイヤー付与（`game_granted_effects`）で持たせる（`collectDeckTrashLevel1Nums` の③が読む）。
+  "WXDi-P05-004": [
+    {"effectId":"WXDi-P05-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},
+     "action":{"type":"GRANT_PLAYER_ABILITY","permanent":true,"targetOwner":"self",
+       "rawText":"【常】：あなたの能力か効果１つによって、あなたのデッキとトラッシュにあるレベル３以下の＜宇宙＞のシグニのレベルを参照する場合、レベル１として扱ってもよい。",
+       "abilities":[{"effectId":"WXDi-P05-004-GRANTED-CONT","effectType":"CONTINUOUS",
+         "action":{"type":"STUB","id":"TREAT_AS_LEVEL1_IN_DECK_TRASH","deckTrashLevel1Filter":{"cardType":"シグニ","level":{"max":3},"story":"宇宙"}},
+         "duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},
+     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   // §5.3 O-369: プレイヤーがこのゲーム中に得る引用能力。
-  // 【自】は専用の「相手ライフバースト発動時」collector へ載せ、UI の無いプレイヤー【起】だけを分離 defer する。
+  // 【自】は専用の「相手ライフバースト発動時」collector へ載せる。
+  // 【起】は、プレイヤーが持つ【起】の提示口が無いので、センタールリグへの恒久付与（`GRANT_LRIG_ABILITY{permanent}`
+  //   ＝`getMyLrigFieldActions` の付与【起】）で提示する（先例＝`WXDi-P06-004-E1` ほか live 6件）。
+  //   ⚠コスト「ライフクロス１枚をクラッシュする」は**ルリグ【起】の可否ゲートと支払いが `life_crash` を扱わない**ので、
+  //     使用条件（ライフ1枚以上）＋本体先頭の `LIFE_CRASH{self, triggerBurst}` で表す（払えないと提示しない／払ってから対象を取る）。
   "WX25-P2-003": [
     {"effectId":"WX25-P2-003-E1","effectType":"ACTIVATED","timing":["MAIN"],
      "cost":{"energy":[{"color":"赤","count":0}]},
@@ -18,7 +35,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         "abilities":[{"effectId":"WX25-P2-003-GRANTED-AUTO","effectType":"AUTO","timing":["ON_OPP_LIFE_BURST_ACTIVATED"],"triggerScope":"self",
           "action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},
           "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},
-       {"type":"STUB","id":"DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME"}
+       {"type":"GRANT_LRIG_ABILITY","permanent":true,
+        "rawText":"『【起】《ターン１回》ライフクロス１枚をクラッシュする：対戦相手のシグニ１体を対象とし、それをバニッシュする。』",
+        "abilities":[{"effectId":"WX25-P2-003-GRANTED-ACT","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_turn",
+          "condition":{"type":"LIFE_COUNT","owner":"self","operator":"gte","value":1},
+          "action":{"type":"SEQUENCE","steps":[
+            {"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},
+            {"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1}}]},
+          "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}]}
      ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 

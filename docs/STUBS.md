@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 593 |
+| JSON で使用中の STUB id 種類 | 591 |
 | 　└ ハンドラ実装あり | 528 |
-| 　└ フォールバック（execStub 未処理） | 65 |
-| 総 STUB ノード件数 | 3404 |
+| 　└ フォールバック（execStub 未処理） | 63 |
+| 総 STUB ノード件数 | 3403 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 359 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -41,16 +41,15 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY` | 3 | 3 | WX25-P2-071, WX25-P3-055, WX25-P2-TK04 |  |
 | `GUARD_LOSS_UNLESS_LRIG` | 3 | 3 | WX12-025, WX12-034, WX12-036 |  |
 | `STRIP_OPP_ENA_MULTI_ENA` | 3 | 3 | WX19-002, WXK03-002, WXK11-020 |  |
+| `TREAT_AS_LEVEL1_IN_DECK_TRASH` | 3 | 3 | WXDi-P01-039, WXDi-P05-004, WXDi-P05-086 |  |
 | `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` | 2 | 2 | SPDi44-08, WX25-P1-018 |  |
 | `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` | 2 | 2 | WDK16-01T, WXK10-015 |  |
 | `EXTRA_USE_TIMING` | 2 | 2 | SP38-005, WX16-Re20 |  |
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
-| `TREAT_AS_LEVEL1_IN_DECK_TRASH` | 2 | 2 | WXDi-P01-039, WXDi-P05-086 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` | 1 | 1 | WXK03-025 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
-| `DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME` | 1 | 1 | WX25-P2-003 |  |
 | `DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH` | 1 | 1 | WD23-022-E |  |
 | `DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE` | 1 | 1 | WXDi-P06-045 |  |
 | `DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` | 1 | 1 | SPK01-14 |  |
@@ -64,7 +63,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
 | `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` | 1 | 1 | WX24-P4-085 |  |
 | `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 |  |
-| `DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE` | 1 | 1 | WXDi-P05-004 |  |
 | `DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED` | 1 | 1 | SP26-001 |  |
 | `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 |  |
 | `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 |  |
