@@ -126,6 +126,8 @@ function cardEntry(num) {
   const meta = {
     name: c.CardName, type: c.Type, class: norm(c.CardClass), color: c.Color,
     level: norm(c.Level), power: norm(c.Power), limit: norm(c.Limit),
+    // コスト列を渡さないと、JSON の cost（例＝《無》×８）が「原文に無い支払い」と誤読される（round5 batch_001 の偽陽性）
+    cost: norm(c.Cost), growCost: norm(c.GrowCost),
     timing: norm(c.Timing), team: norm(c.Team), lifeBurst: c.LifeBurst === '1' ? 'あり' : '',
   };
   for (const k of Object.keys(meta)) if (!meta[k]) delete meta[k];
@@ -188,6 +190,12 @@ ${guide}
 33. 🔴**「N枚まで」の任意性は engine が構造ごとに補っていることがある（2026-09-07 第219の偽陽性から追加）**＝実例＝「transferGroups」（「あなたのトラッシュから＜A＞と＜B＞をそれぞれ1枚まで対象とし、それらを手札に加える」）は各群が 「count:1」 としか書かれていないが、「execTransferToHand」 が群を展開するときに **「upToCount:true」 を無条件で付ける**ので、実挙動は既に「0〜1枚」になっている。⇒ **「原文に『まで』があるのに 「upToCount」/「upTo」 が JSON に無いので0枚を選べない」という finding は報告しない。** 報告してよいのは **原文が「まで」を持たない（＝強制）のに JSON か engine が任意にしている**とき、つまり**逆向き**のときだけ。
 
 34. 🔴**逆翻訳（decompile）に原文の一節が出ていても、それが JSON に載っているとは限らない（同上・第218の差し戻しから追加）**＝逆翻訳器は 「value2」 のような**別の軸から原文の言い回しを復元してしまう**ことがある（実例＝領域が両者のルリグトラッシュなら「限定条件を無視して」と描く実装が入りかけた）。⇒ **逆翻訳文を「JSON にその軸がある証拠」として使わない。** 判定は必ず JSON の payload と engine の消費地点で行う。
+
+35. **「あなたのターン開始時／終了時／アタックフェイズ開始時」等のフェイズ timing は、自分のターンにしか発火しない（2026-09-15 round5 の偽陽性から追加）**＝「ON_TURN_END」「ON_TURN_START」「ON_ATTACK_PHASE_START」 などは、engine の収集関数が**ターンプレイヤー側の場だけ**を 「triggerScope:self」 で走査する。⇒ **「原文は『あなたのターン終了時』なのに、ターン所有者を自分に限定する条件が JSON に無い」という finding は報告しない**（「triggerScope」 が 「any」/「opponent」 系になっていて**相手のターンにも発火する形**のときだけ報告する）。
+
+36. **「ガードステップ以外で手札を捨てたとき」の限定は構造的に守られている（同上）**＝ガードで手札を捨てても engine は手札破棄トリガー（「ON_HAND_DISCARDED」／「ON_DISCARDED_AS_COST」）を**立てない**。⇒ **「『ガードステップ以外で』の制限が JSON に無い」という finding は報告しない。**
+
+37. **「＜X＞のシグニの【出】【起】能力のコストとして捨てられたとき」は 「triggerCondition.discardCostSourceStory」 だけで表す（同上）**＝engine はコストを支払った能力の持ち主シグニのクラスを照合する。シグニのコストつき能力は【出】【起】なので、**能力種別の条件は別に書かない。** ⇒ **「【出】【起】という能力種別の限定が JSON に無い」という理由だけの finding は報告しない**（「discardCostSourceStory」 自体が無い／クラスが原文と違うときだけ報告する）。
 
 # 見るべき典型バグ
 

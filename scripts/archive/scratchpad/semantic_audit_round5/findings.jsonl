@@ -1,0 +1,7 @@
+{"batch":"006","cardNum":"WXDi-P13-074","effectId":"WXDi-P13-074-E1","severity":"HIGH","type":"WRONG","quote":"そうした場合、カードを１枚引き","claim":"原文では2体を実際にダウンした場合にのみ後続のドロー・手札破棄・凍結を行うが、JSONでは凍結が条件分岐の外にあり、ダウンしなかった場合でも実行される。","grep":"そうした場合"}
+{"batch":"009","cardNum":"WX25-CP1-087","effectId":"WX25-CP1-087-E1","severity":"MED","type":"WRONG","quote":"シグニ１体につき","claim":"原文では対象2体それぞれについて山札を1枚置くか個別に選べるが、JSONは対象数と同数をまとめて置くか全く置かないかの二択になっている。","grep":"１体につき"}
+{"batch":"009","cardNum":"WX25-P3-088","effectId":"WX25-P3-088-E2","severity":"MED","type":"MISSING","quote":"【出】【起】能力のコスト","claim":"JSONの発動条件には、このカードが＜微菌＞のシグニの【出】または【起】能力のコストとして捨てられた場合に限る能力種別条件がない。","grep":"【出】【起】能力のコスト"}
+{"batch":"011","cardNum":"WXEX1-60","effectId":"WXEX1-60-E1","severity":"MED","type":"WRONG","quote":"他のシグニ１体","claim":"原文の「他の」はアタックしたシグニを除外するが、JSONのexcludeSelfは効果元自身を除外するため、効果元以外がアタックした場合の対象範囲が異なる。","grep":"他のシグニ１体"}
+{"batch":"012","cardNum":"WX14-027","effectId":"WX14-027-E2","severity":"MED","type":"MISSING","quote":"対戦相手のスペルを使用したとき","claim":"対戦相手が所有するスペルをあなたが使用した場合に限る発動条件がJSONに無く、他のスペル使用でも発動し得る。","grep":"相手のスペルを使用"}
+{"batch":"015","cardNum":"WXDi-P14-082","effectId":"WXDi-P14-082-E2","severity":"MED","type":"WRONG","quote":"あなたのターン終了時","claim":"原文は自分のターン終了時だけ発動するが、JSONにはターン所有者を自分に限定する条件がなく、対戦相手のターン終了時にも発動し得る。","grep":"あなたのターン終了時"}
+{"batch":"016","cardNum":"WXK09-069","effectId":"WXK09-069-E2","severity":"MED","type":"MISSING","quote":"ガードステップ以外で","claim":"手札を捨てた際の発動条件から「ガードステップ以外」という制限が欠落しており、ガードステップ中にも発動し得る。","grep":"ガードステップ以外"}

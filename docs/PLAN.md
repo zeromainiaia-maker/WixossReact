@@ -8,14 +8,15 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-15（第337バッチ）＝🏁`O-374`（numberdrift 全54候補の triage＝54 → 32）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+**直近＝2026-09-15（第338バッチ）＝🔥§5.2 round5 開始（全カード読み直し・r5-001〜021＝210枚）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🏁**機構 worklist が 0 になった**＝§5.2 **round5（意味照合）の開始判断**が唯一の論点 |
-| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝この在庫は3計器に映らない） |
-| 📦**在庫** | 機構 worklist 🏁**0**／実機 🏁**0**／実装キュー 🏁**0**／§5.3 末尾の参照 **3件**／`census:stubs` 明示 defer 🏁**0**／`census:numberdrift` **32**（全件判定済み＝偽陽性と payload に数値の無い表示の穴） |
-| 🔧**ゲート** | `npm run gates` 全緑・実機不要と判定（§2.2＝`src/screens/` 無変更） |
+| 🔥**次に取るもの** | ①**round5 の続き**（バッチ22〜・§5.2 の回し方）／②`O-376`（遅いレーン・実機必須）。⚠**索引 H `O-377`〜`O-379` はユーザーの判断待ち＝Claude は取らない** |
+| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置＝監査の登録だけで挙動は未変更） |
+| 📦**在庫** | 機構 worklist 🔥**1**（`O-376`）＋解釈待ち **3**／実機 🏁**0**／実装キュー 🏁**0**／round5 **21 / 598 バッチ**／`census:numberdrift` **32** |
+| 🔧**ゲート** | 変更は監査道具（`scripts/semanticAuditExtract.mjs`）と docs だけ＝`src/` 無変更のためゲート・実機は不要と判定（§2.2） |
+| 🔴**運用の決定** | **監査の BUG は直さず `O-nn` 登録／ルール解釈に依存する判定は Claude が決めず索引 H へ**（§2.6） |
 🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**／**過去の要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -103,6 +104,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 - 🔑**LLM は「まだ知らない型」を見つけるためだけに使い、その型の全数は grep / census で取る**（効くのは枚数ではなく **1 finding が10枚の系統に化ける**こと＝その10枚を見つけるのは grep＝無料）。真バグを引いたら**直す前に母集団を数える**（§2.1 ②）。
 - 🔴**止め時は「残枚数」ではなく「1バッチあたりの新型数」＝連続3バッチで新型0 なら止める**（台帳＝`scripts/archive/scratchpad/semantic_audit_sheet1_round4/TYPE_LEDGER.md`）。
 - 🔴**偽陽性は必ず `scripts/semanticAuditExtract.mjs` の「追加の読み方ルール」へ還元する**（現在 規則1〜16）＝還元しないと**次の50枚で同じものを読まされる**。⚠偽陽性は全部「engine が JSON の見た目を裏で読み替えている」型（did-it ゲート／`OPPONENT_PAY_OPTIONAL` の既定の極性／STUB の id 名）。
+- 🆕🔴**findings の出口は3つだけ（2026-09-15 ユーザー決定）**＝
+  ①**BUG**＝**その場で直さず** §5.3 に `O-nn` で登録する（`semantic_bug_deferred.txt` に `REGISTERED` 行も書く＝在庫カウンタの二重計上を防ぐ）。
+  ②**ルール解釈待ち**＝判定がゲームルールの読み方に依存するもの（原文の読み方が2通りある）は、**Claude が FP とも BUG とも決めず** §5.3 **索引 H** に `O-nn` で登録してユーザーの判断を待つ。推奨の読みを添えるのはよいが確定させない。
+  ③**FP**＝**engine／JSON の事実（消費地点の `file:line`）で説明できるものだけ**を Claude が閉じ、読み方ルールへ還元する。
+  ⇒ `triaged.txt` は **`BUG`／`ASK`／`FP` の3値**で書き、`BUG`・`ASK` には O 番号を併記する。
 - **固定費は「バッチごと」ではなく「セッションごと」**＝作業中は `golden -- --only` ＋ `smoke` だけ／full `gates` はセッション末1回／簿記もセッション末1回（バッチ中は台帳1行）／メールは5行以内。
 - **委譲バッチの既定形**＝**1項目終わるたびに `BUGFIXES.md` へ追記させる**（第251で最終レポート生成前に報告が丸ごと消えた）。**判定（triage・parser/engine 修正）だけを Opus に残し**、監査実行・grep 展開・`manualEffects.ts` の手書き・ゲート・簿記は Sonnet／Codex でよい。
 - ⚠**この軽量運用は監査・委譲ラウンド中限定**＝`src/engine/` `src/screens/` を触る回は §2.1〜§2.5 のフル手順に戻る。
@@ -184,9 +190,9 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件** | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🏁**0項目**（索引 A/A'/B/E/G すべて残0・2026-09-15 第337で `O-374` を閉じた） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**1項目**（索引G `O-376`）＋**索引H 解釈待ち 3項目**（`O-377`〜`O-379`＝**ユーザーが判断**・Claude は取らない） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0効果**（2026-09-12 に全数照合） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
-| — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
+| — | §5.2 意味照合 | 🔥**round5 進行中 21 / 598 バッチ**（全カード読み直し） | **「受け皿の名前を知らない穴」を拾える唯一の発見器** | `semantic_audit_round5/TYPE_LEDGER.md` |
 | — | §5.4 構造混線 | 🏁**0** | 新しく見つけたときだけ足す | — |
 | — | §5.3 末尾「個別カードの機構待ち」 | 参照 **3件** | 🆕**2026-09-14 に全項目を再実測**＝**5件が stale**（第323で3件・**第328で2件**＝残りの defer 2件も実装済みだった）／残り**3件は有効** | — |
 
@@ -196,10 +202,8 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 2. **②機構（§5.3）**＝索引の上から取る。**新しく機構待ちを見つけたときの登録先**でもある。
 3. **③実装キュー**＝**機構不要と判定できる候補だけ**を取る（`semanticAuditQueue.mjs --take N`）。**②を消化すると候補が戻る。**
 4. **④低優先**は①〜③が尽きたときだけ。**⑤§5.2 round5** は③の在庫が尽きたときに開始を判断する。
-   🆕🔴**2026-09-14 時点＝③は残0**なので、**round5 の開始判断がいま生きた論点**。
-   🏁`O-372`／`O-373`（第335）・`O-375`（第336）・`O-374`（第337）を閉じた＝**②は残0**。
-   🔑`O-374` の実測＝54候補のうち**真バグ3系統（5効果）・逆翻訳の嘘17効果**（見込み「約11効果」は真バグ＋表示で概ね当たっていた）。
-   ⇒ 残る選択肢は **round5 で新しい在庫を作る** の1つ。
+   🆕🔥**2026-09-15 に round5（全カード読み直し）を開始した**（第338＝21 / 598 バッチ）。
+   **round5 が出した BUG は②（§5.3）へ `O-nn` で入る**＝round5 を回すほど②の在庫が戻る。解釈待ち（索引 H）はユーザーの判断が出るまで取らない。
    🔑round5 の性質＝**意味照合は「受け皿の名前を知らない穴」も拾える唯一の発見器**（逆翻訳・census・golden は
    知っているキーしか見ない）。⚠ただし**監査の止め時は「残枚数」ではなく「1バッチあたりの新型数」**（§2.6）。
 
@@ -283,19 +287,26 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 
 ---
 
-### 5.2 意味照合監査（semantic audit）★🏁**残0＝いまは取らない。③が尽きたら round5 を判断する**
+### 5.2 意味照合監査（semantic audit）★🔥**round5 進行中＝全カード読み直し（21 / 598 バッチ）**
 
-🏁**round4＝全11シート・効果あり6,032枚を監査完了**（`node scripts/archive/semanticAuditGap.mjs` で残0）。findings は全数 triage 済み（確定433／偽陽性70 → §5.0）。
-🏁**段2 台帳＝残 OPEN 0**（1,444 findings。`node scripts/archive/semanticAuditLedger.mjs` で測り直す＝内訳を PLAN に書き写さない）。
+🏁**round4＝全11シート・効果あり6,032枚を監査完了**。findings は全数 triage 済み（確定433／偽陽性70 → §5.0）。
+🏁**段2 台帳＝残 OPEN 0**（`node scripts/archive/semanticAuditLedger.mjs` で測り直す＝内訳を PLAN に書き写さない）。
 
-🔑**意味照合は「受け皿の名前を知らない穴」も拾える唯一の発見器**（逆翻訳・census・golden は**知っているキーしか見ない**）＝**§5.0 の在庫が尽きたら、まずこの性質がまだ必要かを検討する。**
+🔥**round5（2026-09-15 ユーザー決定）＝効果テキストと effects JSON を持つ全 5,976 枚を読み直す**（JSON 未登録の56枚は対象外）。
+置き場＝`scripts/archive/scratchpad/semantic_audit_round5/`（並び `card_order.txt`＝seed 42 固定／台帳 `TYPE_LEDGER.md`／判定 `triaged.txt`）。
+**済＝r5-001〜021（210枚）**・findings 7 → BUG 1（`O-376`）／解釈待ち 3（`O-377`〜`O-379`）／FP 3（規則35〜37へ還元）。
 
-**round5 を始めるときの手順**（歩留まり・罠は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「round4 完走記録」と [LESSONS.md](./LESSONS.md) §4.7）：
+**続きの回し方**（codex-work＝Claude の月額枠を使わない。1バッチ 11〜29 秒）：
 ```
-node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audit_round5 \
-  --model sonnet --batches <N>,<N+1>,...
+CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs \
+  --out scripts/archive/scratchpad/semantic_audit_round5 --batches 22,23,...
+# 読み方ルールを足したらプロンプトを作り直す（処理済みバッチは raw/ があるので再実行されない）
+node scripts/semanticAuditExtract.mjs --out scripts/archive/scratchpad/semantic_audit_round5 \
+  --cards-file scripts/archive/scratchpad/semantic_audit_round5/card_order.txt --batch-size 10
 ```
-- シャッフルは seed 42 の mulberry32 固定。1バッチ10枚・所要87〜443秒。消化したら `audited_cards_cumulative.txt` へ追記（キー名は `num`）。
+- 消化したら `audited_cards_cumulative.txt` へカード番号を追記し、`TYPE_LEDGER.md` に1行。
+- 🔴**triage の出口は §2.6 の3つだけ**（BUG＝`O-nn` 登録／解釈待ち＝索引 H／FP＝engine の事実で説明できるものだけ）。
+- ⚠**round1〜4 は監査員にコスト列を渡していなかった**（2026-09-15 に抽出を修正）＝過去の「支払いが余分」系の判定は、このことを知ったうえで読む。
 - 🔴🔑**findings をそのまま直さない**＝偽陽性は「engine が JSON の見た目を裏で読み替えている」型（did-it ゲート／`OPPONENT_PAY_OPTIONAL` の既定の極性）。**引き当てたら engine の受け皿を必ず読んでから triage する。**
 - 🔴**止め時は「1バッチあたりの新型数」＝連続3バッチで新型0**（§2.6）。
 
@@ -356,10 +367,22 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
+| `O-376` | S・1効果 | 「あなたが**対戦相手の**スペルを使用したとき」の持ち主限定が無い＝`spellUseTriggerMatches` は使ったスペルの持ち主を見ず、自分のスペルでも発火する（round5 r5-012）。`triggerFilter` の新キー＋`src/screens/`＝**遅いレーン・実機必須** |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0・登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）。自分で書いた登録票も実測でやり直す。
+
+#### 索引 H. ルール解釈待ち（**ユーザーが判断する**・Claude は取らない）
+
+🆕🔴**2026-09-15 ユーザー決定で新設**＝監査の finding のうち、**判定がゲームルールの解釈に依存するもの**（原文の読み方が2通りある）はここへ登録し、**Claude は FP とも BUG とも決めない**（§2.6）。
+**ユーザーの判断が出たら**＝BUG なら索引 G/B/A へ移し（母集団を実測し直す）、FP なら行を消して `semanticAuditExtract.mjs` の読み方ルールへ還元する。
+
+| ID | 規模 | 何を判断するか（一行） |
+|---|---|---|
+| `O-377` | 同文型14件 | 「〜してもよい。**そうした場合**、A。**その後**、B」の B は条件の内側か（live は B を did-it ゲートの外に置いている） |
+| `O-378` | 1効果 | 「〜を含むシグニが**アタックしたとき**、〜を含む**他の**シグニ」の「他の」は効果元以外か、アタックしたシグニ以外か |
+| `O-379` | 1効果 | 「それらのシグニ**１体につき**〜置いて**もよい**。そうした場合、それらの〜」の任意は全体で1回か、1体ずつか |
 
 #### 索引 E. 計器の較正・掃除（**機構ではない**＝カードの挙動は変わらない）
 
@@ -433,11 +456,12 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（過去に計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態になった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-15 時点（本ブロックが直近の正）**＝第337バッチ（🏁§5.3 `O-374`＝numberdrift 全54候補を triage・54 → 32）
+- **2026-09-15 時点（本ブロックが直近の正）**＝第338バッチ（🔥§5.2 round5 開始＝r5-001〜021・210枚）
   📊**進捗3計器**＝**Sheet1 要対応 0 / 863**｜**意味照合 段2 台帳 残 OPEN 0**｜**census 高シグナル 1 / BASELINE 1**（3本とも据置）。
-  📦**在庫**＝**機構 worklist 🏁0**｜**実機 🏁0**｜**実装キュー 🏁0**｜**§5.3 末尾の参照 3件**｜`census:stubs` 明示 defer **0種/0件**｜`census:numberdrift` **32**（全件判定済み）。
-  🔧**ゲート（全緑 ✅）**＝golden 全件 PASS／smoke 10754 全0／fuzz 全0／census 系全 PASS（numberdrift `BASELINE` 54→32）／lint 0 errors。
-  ✅**実機**＝不要と判定（§2.2＝`src/screens/` 無変更・engine は `execGrantEffect` の `upToCount` 1行）。
+  📦**在庫**＝**機構 worklist 🔥1**（`O-376`）＋**索引H 解釈待ち 3**（`O-377`〜`O-379`）｜**実機 🏁0**｜**実装キュー 🏁0**｜**round5 21 / 598 バッチ**｜`census:numberdrift` **32**。
+  ⚠**在庫が 0 → 1＋3 に増えた理由**＝round5 の監査が新しい穴を登録したため（退化ではない）。
+  🔧**ゲート**＝前回（第337）から `src/` 無変更＝再実行していない。変更は監査道具 `scripts/semanticAuditExtract.mjs`（コスト列の追加・読み方ルール35〜37）と docs。
+  ✅**実機**＝不要と判定（§2.2＝`src/screens/` 無変更）。
 
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
