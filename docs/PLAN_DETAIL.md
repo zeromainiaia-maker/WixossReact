@@ -4392,6 +4392,41 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 > **PLAN の索引で ID を選んだら、着手前にここの該当項目を読む。** 各項目の見出しは `O-nn`＋一行要約で、本文は退避時点の登録票そのまま（無改変）。
 > 退避時点の実測＝82項目／履歴 68,401字。以後この節は**追記のみ**（新規登録は PLAN §5.3 の索引に1行、全文はここに1項目）。
 
+### `O-370` — 実装済みなのに「未実装」と言う2箇所（計器・表示の較正＝挙動は変わらない）
+
+**規模／母集団**＝S ／ **実測 2箇所**（2026-09-14・PLAN 付録C-2 の再測で発見）。
+
+1. **`WXDi-P06-006-E1`**（「このゲームの間、あなたは以下の能力を得る。『【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりに手札を３枚捨ててもよい。』」）
+   ＝live は `SEQUENCE[DRAW, STUB{GAIN_ABILITY_THIS_GAME, gameGrants:[…,{kind:'guardAltHand',handCount:3}]}, STUB{DEFERRED_GUARD_ALT_COST_UNKNOWN}]`。
+   **`guardAltHand` は実働**（書き手 `execStubPart1.ts` の `case 'guardAltHand'`／読み手 `GuardResponseDialog.tsx`・`BattleScreen.tsx` の `game_guard_alt_hand`）なのに、
+   第58系の降格で付いた **`DEFERRED_GUARD_ALT_COST_UNKNOWN` が残っており、逆翻訳に【未実装】が出る**。
+   engine にこの id のハンドラは無い（汎用 STUB を素通り）＝**挙動は正しく、原文照合だけが嘘を読まされる**。
+   **取り方**＝速いレーン。parser の `parseSentencePart3.ts` の2生成地点のどちらが出しているかを確かめ、
+   `gameGrants` が同じ宣言を持つときは defer を出さない（`WXDi-P06-006` を MANUAL で直すと parser 改善が届かなくなる）。
+2. **`src/types/effects.ts` の `ON_LRIG_ATTACK_STEP_START` のコメント**「⚠人間ターンのみ・CPUターンは未配線＝実機未検証(C2)」＝stale。
+   `BattleScreen.tsx` の `collectCpuTurnTriggers('ON_LRIG_ATTACK_STEP_START', …)` が呼ばれている（CPU 経路は7 timing すべて配線済み）。
+   **取り方**＝コメント1行の差し替え。
+
+### `O-369` — プレイヤー／ルリグが得る引用能力のうち受け皿が無い4効果
+
+**規模／母集団**＝M ／ **実測 4効果/4カード**（2026-09-14・PLAN 付録C-2「引用AUTO付与」の再測で発見）。
+測り直す＝live で `"id":"DEFERRED_(GAIN_ABILITY_THIS_GAME_QUOTED|GRANT_QUOTED_PLAYER_ABILITY_UNTIL|GUARD_ALT_COST_UNKNOWN)"` を数える
+（⚠`WXDi-P06-006-E1` の defer は実装済みの残骸＝`O-370` 側）。
+原文側の母集団＝`census:population -- "(このゲームの間|ターン終了時まで)、あなたは(以下の能力|「[^」]*」|『[^』]*』)を得る" --json GRANT_PLAYER_ABILITY`
+＝19効果（OK 5／MISS 14。MISS のうち8件は `GAIN_ABILITY_THIS_GAME{gameGrants}` で配線済み、3件は文型の誤検出、**3件がここ**）。
+
+| 効果 | 原文（要点） | live | 何が無いか |
+|---|---|---|---|
+| `WX25-P2-003-E1` | このゲームの間、あなたは『【自】：対戦相手のライフバーストが発動したとき、相手のエナ1枚をトラッシュ。【起】《ターン１回》ライフクロス1枚をクラッシュする：相手シグニ1体をバニッシュ』を得る | `STUB{DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED}` のみ＝**丸ごと no-op** | 【自】側は `GRANT_PLAYER_ABILITY{permanent}`（`game_granted_effects`）に載る見込み。**【起】側＝プレイヤーが持つ起動能力の提示が UI に無い**（`DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY` の注記と同じ穴） |
+| `WXDi-P05-004-E1` | このゲームの間、あなたは『【常】：あなたの能力か効果１つによって、デッキとトラッシュのレベル３以下の＜宇宙＞のシグニのレベルを参照する場合、レベル１として扱ってもよい』を得る | `SEQUENCE[STUB{DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED}, STUB{LEVEL_REFERENCE_OVERRIDE,{min:1,max:1}}]` | 🔴**後段の `LEVEL_REFERENCE_OVERRIDE` は効かない**＝`getLevelReferenceOverride`（`effectExecutor.ts`）は**参照されるカード自身の CONTINUOUS** しか読まず、ACTIVATED 内の宣言は `execStubPart3.ts` がログを出すだけ。逆翻訳は「レベル1として扱ってもよい」と出る＝**表示は動くように見える**。受け皿候補＝`gameGrants` の `deckSigniLevelOverride`（デッキ内・固定レベル）だがトラッシュ／「レベル３以下」／「１つによって」を持てない |
+| `WX25-P2-004-E1` | 《リコレクトアイコン》［４枚以上］追加で、ターン終了時まで、あなたは『【常】《相手ターン》：シグニアタックステップの間、対戦相手は１以上のエナコストを支払えない』を得る | `…, RECOLLECT_GATE, STUB{DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL}` | 期間つきのプレイヤー【常】（支払い禁止）の受け皿が無い。⚠前半の「相手シグニ全体への引用【自】付与」は `GRANT_EFFECT` で実働 |
+| `WX25-P1-071-E1` | センタールリグ1体は次の相手ターン終了時まで『【常】：ガードする際、《ガードアイコン》を捨てる代わりに、手札から＜天使＞のシグニを１枚捨てるか、エナゾーンから＜天使＞のシグニ１枚をトラッシュに置いてもよい』を得る | `STUB{DEFERRED_GUARD_ALT_COST_UNKNOWN}` | 受け皿 `GUARD_ALT_HAND_REPLACE`（→`guard_alt_hand_until_opp_turn`）は**手札の枚数しか持てない**＝＜天使＞の絞り込みもエナ側の選択肢も表せない（エナ＋ガードアイコンの `game_guard_alt_energy_and_guard_card` は払う組み合わせが別） |
+
+**取り方**＝4件とも受け皿の形が違う＝**1件ずつ速いレーン＋必要な分だけ engine**。
+①`WX25-P2-003` の【自】だけを `GRANT_PLAYER_ABILITY` に載せ、【起】は defer のまま名前を分ける（部分実装で【未実装】を消さない）
+②`WXDi-P05-004` は後段の `LEVEL_REFERENCE_OVERRIDE` が**効いているように見える逆翻訳**を先に直す（原文照合の嘘）
+③④は `src/screens/`（支払い・ガード UI）を触る＝実機必須（§2.2）。
+
 ### `O-368` — 「対象とし、あなたのターンの場合」の対象宣言が条件の内側にある（15効果）
 
 **規模／母集団**＝S〜M ／ **実測 15効果/15カード**（2026-09-14・付録C「同型★」の再測で発見）。
@@ -15261,3 +15296,38 @@ live は `STUB{DEFERRED_SUPPRESS_OPP_SIGNI_TRIGGERS}`＝**明示 defer**（`cens
 **罠**＝原文は「次のあなたのエナフェイズ終了時まで、**このシグニが場にあるかぎり**」＝**2つの寿命の AND**
 （短い方で切れる）。⚠**どちらか片方に寄せない**＝場に残っていてもエナフェイズで切れる／
 エナフェイズ前でも場を離れたら切れる、の両方向を golden で固定する。
+
+## 2026-09-14 撤去：PLAN「付録C. 触らなくてよい/枯れた系統」／「付録C-2. 残・大型機構オーナー表」の旧本文
+
+> **撤去の理由**＝「調査済み」「ほぼ完了」を置く付録は worklist にも計器にも出ない＝再測したら7主張中5つが stale で、
+> 実バグ／未登録の穴が埋もれていた（→ `O-368`／`O-369`／`O-370`・修正1件は BUGFIXES 2026-09-14）。
+> **測り直し手順だけを PLAN §5.3 末尾「■ 旧 付録C／付録C-2 から移した測り直し手順」へ移した。**以下は撤去直前（再測後）の本文そのまま。
+
+### 旧 付録C. 触らなくてよい/枯れた系統（調査済み）
+
+（🆕**2026-09-14 に全項目を再測**）
+- 強制アタック＝**全部配線済み**（旧「未配線は WX12-010 のみ」は stale＝`WX12-010-E1` は golden「型網羅 FORCE_SIGNI_ATTACK」が強制を固定）。
+- BURST丸ごと欠落＝**残0**（BurstText あり × live に `LIFE_BURST` 無し＝0件を実測）。
+- 保護系キーワードの owner 誤り＝旧記載は「残0」だが**測り直すコマンドが無く未再測**。
+- 同型★（`grouped_all.txt`）＝🔴**「触らなくてよい」ではなかった**＝2グループとも**同じ文型の1枚にだけ修正が入り兄弟が旧形のまま**の症状だった。
+  ①「対象とし、手札から〜捨ててもよい。そうした場合」＝母集団 **36/37 修正済み**・取り残しの1件は**実バグ**（対象不在でも捨てられる）
+  → 2026-09-14 に修正済み（BUGFIXES.md）。
+  ②「対象とし、あなたのターンの場合」＝**4/19 だけ修正済み** → §5.3 索引 A の `O-368` へ出した。
+  🔑**★は「逆翻訳が割れている」＝片方にだけ修正が届いた兆候**として読む。測り直す＝`node scripts/groupSimilar.mjs --all`。
+- （旧「アタックフェイズ開始時系は全再生成禁止」は削除＝数字が stale（self約407→原文471カード）で、ルール自体は §2 の「一括置換は禁止」と LESSONS.md にある。）
+- 再測前の旧記載＝「強制アタック＝実装済み（未配線は WX12-010 複雑レゾナのみ）。BURST丸ごと欠落＝残0。保護系キーワードのowner誤り＝残0。」／
+  「同型★＝2026-09-12 実測 2グループ / 4枚（旧記載『常に0維持・残1件 `WX04-056`』は stale）」／
+  「『あなたのアタックフェイズ開始時』系（self約407件）は全再生成禁止（約90枚退化）。個別にtiming/triggerScopeを直す。」
+
+### 旧 付録C-2. 残・大型機構オーナー表（ほぼ完了の台帳）
+
+着手前に**この表の「状態」を `着手中(担当名)` に更新してコミット**（重複防止）。実装の型は §3「機構実装の型」に従う。
+
+| 機構 | 影響 | リスク | 状態 |
+|---|---|---|---|
+| 引用AUTO付与（旧 `GRANT_QUOTED_AUTO_ABILITY`） | 中 | 中 | 🆕**2026-09-14 再測＝旧記載は stale**。catch-all のハンドラは **`O-60` 第70で撤去**（live 0）・parser の生成地点31箇所は第69で `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` へ畳み済み（live 0＝旧「約30枚の誤パース」は消化済み）。「このゲームの間、あなたは以下の能力を得る」は **`GAIN_ABILITY_THIS_GAME{gameGrants}`（第49で payload 化）＋ `GRANT_PLAYER_ABILITY{permanent}`** が受け皿で、母集団19効果のうち**受け皿に載っていない実体は4効果だけ**＝§5.3 **`O-369`**。表示の嘘1件は **`O-370`**。⚠`census:population -- "(このゲームの間\|ターン終了時まで)、あなたは(以下の能力\|「[^」]*」\|『[^』]*』)を得る" --json GRANT_PLAYER_ABILITY` の MISS 14 は**判定ではない**（8件は `GAIN_ABILITY_THIS_GAME`、3件は文型の誤検出） |
+| ~~SET_TRAP／動的閾値フィルタ／遅延条件トリガー／《相手ターン》《自分ターン》AUTO基盤／ビート機構Phase1-7／傀儡場出し汎用化・levelLteLastProcessed~~ | — | — | **✅完了** |
+| engine未配線 timing 群の実機配線 | 大（~15 timing・R33-R58） | 高 | **✅C1全配線完了**。🆕**2026-09-14 再測**＝CPU 経路も `collectCpuTurnTriggers`（`pureCollectTurnTriggers` 経由）で **7 timing すべて**呼ばれている。§5.1 実機の残は **0**。⚠型定義の「CPU ターンは未配線」コメントは stale＝**`O-370`**。 |
+
+実装済み機構の履歴：コスト増加・ライフクラッシュ履歴・LOOK_PICK_CHAIN field宛先・リコレクト系統・改造素材機構・引用能力付与型・保護/制限系STUB・アーツコスト軽減句 は `BUGFIXES.md` 参照。
+（再測前の旧記載＝引用AUTO付与「表現完了＋engine精緻化(B4)着手済＝引用【自】/【常】能力を実発火（自場シグニ・ターン限定・parse成功時のみ）。残＝permanent/相手付与対応・誤パース是正（約30枚は原文に引用無しparser案件）。⚠要実機検証」／timing「✅C1全配線完了。残るは実機検証のみ（§5.1参照）。」）
