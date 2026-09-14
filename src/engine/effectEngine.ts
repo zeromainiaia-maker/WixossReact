@@ -8633,24 +8633,15 @@ export function applyContinuousBaseLevelOverride(
       }
     }
   }
-  for (const state of [ownerState, otherState]) {
-    for (const [cn, level] of Object.entries(state.attack_phase_level_overrides ?? {})) {
-      if (typeof level === 'number') overrides.push({ cn, level });
-    }
-    // 🆕§5.3 `O-296`＝「次の対戦相手のターン終了時まで」（`WXDi-D09-H15-E1`）。寿命は `clearUntilOppTurnEffects`。
-    for (const [cn, level] of Object.entries(state.base_level_overrides_until_opp_turn ?? {})) {
-      if (typeof level === 'number') overrides.push({ cn, level });
-    }
-    // 🆕§5.3 `O-331`＝「**次のあなたの**ターンのターン終了時まで」（`WXK07-032-E2`）。
-    //   寿命は `clearTurnEndScopedState` の `turnEnds` カウントダウン（`O-186` と同じ規約）。
-    for (const [cn, entry] of Object.entries(state.base_level_overrides_until_next_own_turn ?? {})) {
-      if (entry && typeof entry.level === 'number') overrides.push({ cn, level: entry.level });
-    }
-  }
+  overrides.push(...timedBaseLevelOverrideEntries(ownerState), ...timedBaseLevelOverrideEntries(otherState));
+  return writeLevelOverrides(cardMap, overrides);
+}
+
+/** 🔴§5.3 `O-296`＝**写し先の型を保つ**（`InstanceMap` のフォールバックを消さない）。上書きが無ければ元の map を返す。 */
+function writeLevelOverrides(cardMap: Map<string, CardData>, overrides: Array<{ cn: string; level: number }>): Map<string, CardData> {
   if (overrides.length === 0) return cardMap;
-  // 🔴§5.3 `O-296`＝**写し先の型を保つ**。本番の `cardMap` は `InstanceMap`（instanceId → CardNum へフォールバックする
-  //   派生クラス）で、素の `new Map` へ写すと**フォールバックが消え**、instanceId（`WX..#3`）キーの上書きが
-  //   1つも当たらない（LESSONS §4.1「派生クラスで挙動が変わる引数を素の型で渡さない」）。
+  //   本番の `cardMap` は `InstanceMap`（instanceId → CardNum へフォールバックする派生クラス）で、素の `new Map` へ写すと
+  //   **フォールバックが消え**、instanceId（`WX..#3`）キーの上書きが1つも当たらない（LESSONS §4.1）。
   const MapCtorBL = cardMap.constructor as new (src: Map<string, CardData>) => Map<string, CardData>;
   const newMap = new MapCtorBL(cardMap);
   for (const { cn, level } of overrides) {
@@ -8658,4 +8649,39 @@ export function applyContinuousBaseLevelOverride(
     if (card) newMap.set(cn, { ...card, Level: String(level) });
   }
   return newMap;
+}
+
+/**
+ * 🆕§5.3 `O-375`＝**state に積まれた期間つきの基本レベル上書き**（効果の解決で書かれる store）だけを列挙する。
+ * - `attack_phase_level_overrides`（ターン終了時まで）
+ * - `base_level_overrides_until_opp_turn`（次の対戦相手のターン終了時まで・`O-296`）
+ * - `base_level_overrides_until_next_own_turn`（次のあなたのターン終了時まで・`O-331`）
+ * ⚠【常】の宣言（`SET_BASE_LEVEL` CONTINUOUS）と場レベル grant は**含めない**＝盤面から毎回評価し直すもので、
+ *   UI 用の写し（`battleCardMap`）へ焼くと解決中に条件が外れても戻らない（上書きは「設定」だけで「復元」をしない）。
+ */
+export function timedBaseLevelOverrideEntries(state: PlayerState): Array<{ cn: string; level: number }> {
+  const out: Array<{ cn: string; level: number }> = [];
+  for (const [cn, level] of Object.entries(state.attack_phase_level_overrides ?? {})) {
+    if (typeof level === 'number') out.push({ cn, level });
+  }
+  for (const [cn, level] of Object.entries(state.base_level_overrides_until_opp_turn ?? {})) {
+    if (typeof level === 'number') out.push({ cn, level });
+  }
+  for (const [cn, entry] of Object.entries(state.base_level_overrides_until_next_own_turn ?? {})) {
+    if (entry && typeof entry.level === 'number') out.push({ cn, level: entry.level });
+  }
+  return out;
+}
+
+/**
+ * 🆕§5.3 `O-375`＝期間つきの基本レベル上書き**だけ**を cardMap へ写す（`effectsMap` 不要）。
+ * 🔴**なぜ要るか**＝`applyContinuousBaseLevelOverride` は engine の解決 ctx（BattleScreen の declaredCardMap）でしか通らず、
+ *   `battleCardMap` を直接読む UI（グロウ候補・シグニ配置のレベル上限・アーツ使用条件…）には**一時レベル変更が1つも届いていなかった**
+ *   （`SP38-005-E1` の「対戦相手のルリグのレベルを－1」／`SET_BASE_LEVEL{until}` 9効果ほか）。
+ * ⚠**冪等**＝値は「設定」なので、この写しへ後から `applyContinuousBaseLevelOverride` を重ねても同じ結果になる。
+ */
+export function applyTimedBaseLevelOverrides(
+  cardMap: Map<string, CardData>, ownerState: PlayerState, otherState: PlayerState,
+): Map<string, CardData> {
+  return writeLevelOverrides(cardMap, [...timedBaseLevelOverrideEntries(ownerState), ...timedBaseLevelOverrideEntries(otherState)]);
 }

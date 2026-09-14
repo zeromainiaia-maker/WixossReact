@@ -144,7 +144,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const lrigDownCost = eff.cost?.lrigDown;
               // level 指定時は該当レベルのルリグゾーンだけを支払い候補に数える（BattleScreen の支払い側と同じ判定）
               const ldLevelOk = (stack?: string[]) => lrigDownCost?.level === undefined
-                || Number(battleCardMap.get(getCardNum(stack?.[stack.length - 1] ?? ''))?.Level) === lrigDownCost.level;
+                || Number((battleCardMap.get(stack?.[stack.length - 1] ?? '') ?? battleCardMap.get(getCardNum(stack?.[stack.length - 1] ?? '')))?.Level) === lrigDownCost.level;
               const upLrigCount = (pState.field.lrig.length > 0 && !pState.field.lrig_down && ldLevelOk(pState.field.lrig) ? 1 : 0)
                 + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_l?.length ?? 0) > 0 && !pState.field.assist_lrig_l_down && ldLevelOk(pState.field.assist_lrig_l) ? 1 : 0)
                 + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_r?.length ?? 0) > 0 && !pState.field.assist_lrig_r_down && ldLevelOk(pState.field.assist_lrig_r) ? 1 : 0);

@@ -1,5 +1,127 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第337バッチ：🏁§5.3 `O-374`（`census:numberdrift` 全54候補の triage）＝54 → **32**
+
+**全54候補を live JSON と engine ハンドラまで当たって仕分けた**（登録時点で「1件ずつ当たった記録が一度も無い」とされていた在庫）。
+内訳＝**真バグ 3系統（5効果）／逆翻訳の嘘 17効果／偽陽性・payload に数値の無い表示の穴 32効果**。
+
+### 🔴 真バグ（3系統）
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `SPDi43-21-E2` | 「あなたの場に《VOGUE3-EXTREMEマドカ》がいる場合、以下の２つから１つを選ぶ」の**前置き条件が JSON から消えていた**＝マドカがいなくても毎アタックで2択。🔑**原文の綴り（スペース無し）が印字名 `VOGUE3-EXTREME　マドカ`（`SPDi43-15`・全角スペース）と一致しない**のが取りこぼしの原因（同文型の他7効果は条件つきで出ている） | manual で `condition: HAS_CARD_IN_FIELD{cardName: 印字名}`。🔴**一度原文の綴りで書いて golden が「該当カードなし」で止めた**＝`cardName` は部分一致なので原文どおりに書くと**永久に不成立**（常に出る→決して出ない、へ反転するところだった） |
+| `WXK02-057-E1` | `STUB{GRANT_CONDITIONAL_ASSASSIN_ABILITY}` が**効果元（このカード自身）へ無条件の【アサシン】**を付けていた＝原文「あなたのシグニを**２体まで対象とし**…『正面に凍結状態のシグニがあるかぎり【アサシン】』を得る」の対象も条件も無い | manual で `GRANT_EFFECT{target: 自分のシグニ 2体まで, effect: CONTINUOUS{activeCondition: FRONT_SIGNI{isFrozen}, GRANT_KEYWORD アサシン}}`（`WXDi-P11-071-E2` と同型）。併せて **`execGrantEffect` が `upToCount` を捨てていた**（「まで」でも必ず N体選ばせた）のを直した |
+| `WX21-034-E1`／`WDA-F02-17-E3`／`WXEX1-15-E1` | 「《赤》**か**《緑》を支払ってもよい」が `costColors:["赤","緑"]`＝**両方払う**（原文より重い） | parser（`parseSentencePart3.ts` の汎用任意コスト）で単色の二択を**スロット1つ `"赤|緑"`** に。engine の支払い funnel は `|` を既に扱う（`energyMatchesCostSlot`・手書きの `WX25-P2-118-E2` が先例）。⚠量の二択（`SPK06-01`「《赤×2》か《赤×4》」）は別構文で触らない |
+
+### 逆翻訳の嘘（engine は正しい・17効果）
+
+- **「代わりに－N」を差分で描いていた**（10効果）＝engine は「基本 + 条件成立時に差分」で合計は正しいが、逆翻訳が差分（－7000）を出し**原文の数値（－15000）がどこにも無かった**。
+  → `SEQUENCE` の結合で「直後・同符号・else 無し・同じ対象」の2段を「代わりにそれのパワーを{合計}する」へ。前置き条件の中の基本値（`WX25-P2-060-E1`）も同じ。
+- `HAS_CARD_IN_FIELD` のカード名分岐が `minCount` とレベル範囲を捨てていた（`WX13-062-E1`／`WX14-025-E2`「３体」・`WX14-058-E1`「レベル３以上」）。
+- `REVEAL_AND_PICK` の `then: SEQUENCE[REVEAL, ADD_TO_HAND]` が「デッキの上を公開する。そしてを手札に加える」と壊れていた（3効果・「2枚まで」も消えていた）。
+- `WX22-027-E2` の帰結（**対戦相手の**パワー12000以下のシグニをバニッシュ）が「公開札をバニッシュ」に見えていた。
+- `POWER_MULTIPLY` が存在しない `factor` を読み倍率が消えていた（engine は `multiplier`）。
+- `ON_LIFE_CLOTH_MOVED` の `lifeCountReached`（「ライフクロスが０枚になったとき」）に訳が無く生 ID が出ていた。
+- `EXILE_CRAFTS_RESET_ZONES_AND_DRAW` のラベルが引く枚数（payload `value`＝6）を出していなかった。
+
+### 残32件（1件ずつ判定済み）
+
+- **偽陽性（等価表現）**＝構造の番号（「以下の３つを行う」）・「２回繰り返す」＝3回・「４枚以上なら／そうでなければ」・《コイン×0》・「０以下にならない」の注記・「3枚を下に置き残りをトラッシュ」＝「1枚トラッシュ、残りを下」等。
+- **payload に数値が無い表示の穴**＝【英知】の複数レベル（`WX20-044-CB-E1`／`WX21-029-E1`／`WXEX2-47-E1`＝engine が原文から読む）・宣言範囲0〜5（`WX16-Re02-E1`）・【常】の「代わりに＋N」の分割効果（`*-E1b` 3件＝合計は別効果との和）・`COPY_CARD` の「レベル２であることを除き」ラベル。
+
+### 検証
+
+- `npm run gates` 全緑（golden 全件 PASS・smoke 10754 全0・fuzz 全0・census 系全 PASS・lint 0 errors）。`census:numberdrift` の `BASELINE` を 54 → **32**（消化）。
+- **挙動 golden 1本**（`§5.3 O-374`）＝マドカ条件が印字名で成立／不成立の両方向、条件付きアサシンが**選んだシグニにだけ**・任意選択・効果元に付かない、
+  「か」が fresh／live とも1スロット、量の二択は潰さない。
+- 払い戻し21件の逆翻訳を全件、原文と目視照合（削っただけで消えたものは無い）。
+- **実機は不要と判定**（§2.2）＝`src/screens/` 無変更。engine は `execGrantEffect` の `upToCount` を渡す1行。
+
+## 2026-09-15 — 第336バッチ：🏁§5.3 `O-375`（期間つきの基本レベル上書きが UI に届いていなかった）
+
+**真因**＝期間つきの基本レベル store（`attack_phase_level_overrides`／`base_level_overrides_until_opp_turn`／
+`base_level_overrides_until_next_own_turn`）を cardMap の `Level` へ写す funnel `applyContinuousBaseLevelOverride` は
+**engine の解決 ctx（BattleScreen の declaredCardMap）でしか通らず**、UI の `battleCardMap` は印字レベルのままだった。
+⇒ 相手の `SP38-005-E1` でルリグが Lv3→2 に下がっても **Lv3 のシグニを召喚でき**、グロウ候補・ルリグダウンのレベル指定コスト等も印字で判定していた。
+**影響**＝live **14効果**（`SET_BASE_LEVEL{until}` 9／`ATTACK_PHASE_LEVEL_OVERRIDE` 3／`CHANGE_BASE_LEVEL` 1／`SP38-005-E1`）。
+
+### 直し方
+
+1. `effectEngine.ts` に **`applyTimedBaseLevelOverrides(cardMap, owner, other)`** を切り出した（`effectsMap` 不要）。
+   `applyContinuousBaseLevelOverride` も同じ列挙関数 `timedBaseLevelOverrideEntries` を使う＝**engine 側の挙動は不変**（期間つきが最後に勝つ順も同じ）。
+2. `BattleScreen` の **`battleCardMap` の memo で、差し替え（ZERO 化等）の後に適用**（engine の funnel と同じ順）。
+   🔑**なぜ【常】の宣言は載せないか**＝funnel は「設定」だけで「復元」をしない。`battleCardMap` は declaredCardMap の元になるので、
+   解決中に【常】の条件が外れても**焼いたレベルが戻らない**。期間つき store は解決中に**追加しかされない**ので焼いても腐らない。
+   ⚠`effectsMap` は `battleCardMap` から作られる＝`battleCardMap` の memo に `effectsMap` を渡すと循環する（これも【常】を分けた理由）。
+3. 🔴**instance を剥がして引く UI の読み手を直した**＝store は instance キー（`CardNum#n`）で、**ルリグデッキにも instance id が振られる**
+   （`assignInstanceIds`）。`get(getCardNum(x))` で引くと上書きが見えない＝`get(x) ?? get(getCardNum(x))` へ。
+   `assistLrigAttack`／`lrigDamageShield`／`lrigDownCost`（2）／`costs.ts`（センタールリグのレベル条件）／`SigniOnPlayCostModal`／
+   `SigniSummonZoneModal`／`lrigLimit`（差し替えが無いときだけ instance 優先）／`BattleScreen` の場・アクセ母艦のレベル参照。
+   ⚠この修正は**差し替え（ZERO 化）も同時に見えるようになる**（同じ instance キーの穴）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4172 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・census 系全 PASS・lint 0 errors）。
+- **挙動 golden 1本**（`§5.3 O-375`）＝instance キーだけ書き換わり印字は不変／3種の store を全部読む／写し先が `InstanceMap` のまま／
+  上書きが無ければ同じ map／**ルリグダウンのレベル指定コストとグロウ候補が −1 後のレベルで判定し、上書き前の写しでは判定しない**（両方向）。
+- 🌐**実機 `V-226`（2本 PASS）**＝相手の `SP38-005-E1` 後（ルリグ Lv3→2）は手札の Lv3 シグニに「召喚」が出ない／**対照**＝上書きが無ければ出る。
+  併せて `V-225`（2本）を回し直して PASS（`BattleScreen` を触ったため）。
+
+### 残した既存の穴（今回の範囲外）
+
+- 【常】の `SET_BASE_LEVEL`（CONTINUOUS）と場レベル grant（`FieldGrant{kind:'baseLevel'}`）は、引き続き engine の解決 ctx でしか cardMap に載らない
+  （上の理由で `battleCardMap` へ焼けない＝UI 側で使うなら読み手ごとに評価する設計が要る）。
+- 手札・エナ・捨て札の `get(getCardNum(x))` は触っていない（期間つき上書きの対象は場のカードとルリグだけ）。
+
+## 2026-09-14 — 第335バッチ：🏁§5.3 `O-372`（明示 defer 残3 → **0**）／🏁`O-373`（トラッシュ起動の `trashExile{count}`）
+
+**明示 defer（`DEFERRED_*`）が 0種/0件になった**（`npm run census:stubs` A群「うち明示 defer」）。
+**`src/screens/` を触ったので実機まで回した**（§2.2）＝`V-225` を同じ巡で返済（2本 PASS）。
+
+### O-373 — 使用条件「このカードがトラッシュにある」の【起】が**どの入口からも提示されない**（母集団 4効果）
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `WX13-038-E2`／`WX21-021-E3`／`WXDi-P11-053-E1` | ①parser の `trashActivated` 判定が**本体の動詞**（場に出す／手札に加える…）しか見ていなかった＝本体が相手への効果だと立たない ②立てても `trashActivateCost.ts` が `trashExile{count}` を弾き、`TrashActivatedModal` に除外する札を選ぶ列が無かった | parser＝**使用条件 `THIS_CARD_IN_LOCATION{trash}`（`AND` の中も）からも立てる**。支払い＝`TrashActivateSelections.trashExile` を足し、在庫判定・選択判定・支払いを `costs.ts` の `trashExileAffordable`／`trashExileCostSatisfied`／`canAddTrashExileIndex` 1本に揃えた。行き先は `lrig_trash`（シグニ【起】経路と同じ）。⚠**効果元自身も除外候補に入る**（`WXDi-P11-053-E1`「トラッシュに《メジェド》が4枚ある場合…4枚を除外」＝自分込み。解決時に `condition` は再評価されない＝`battleController` に読み手なし） |
+| `WX15-Re15-E1`（MANUAL） | 本体が「このシグニをトラッシュから場に**出し**」（連用形）で parser の動詞表に当たらず、`trashActivated` が無かった | manual に `trashActivated:true` を足して `syncManualLive` |
+
+🔴**併せて直した UI の嘘**＝`trashActivateVerbLabel` の既定が「トラッシュから出す」だった＝上の3効果（カード自身は**トラッシュに残る**）に
+「【起】トラッシュから出す」「発動する（トラッシュから場に出す）」と予告していた。既定を「トラッシュから発動」へ変え、
+`CONDITIONAL.then/else` の中の ADD_TO_FIELD も拾うようにした（`WX15-Re15-E1` はたまたま既定で合っていただけ）。
+
+### O-372 — 明示 defer の残り3件
+
+| 効果 | 受け皿 | 直し方 |
+|---|---|---|
+| `WXK11-014-E2`「ターン終了時まで、そのシグニを《サーバント　ＺＥＲＯ》にする」（自分側） | **新 key `card_identity_overrides_this_turn`**（`turnScopedState` の turn-end 登録・場を離れたら掃除・`effectiveIdentityOverrides` が合成＝`battleCardMap`／augmented effectsMap／パワー基準値の共通 funnel） | `STUB{SELF_SIGNI_SERVANT_ZERO_THIS_TURN}`。⚠parser に来る文は期間句が剥がれている＝「そのシグニを《サーバント」で判定（母集団1効果・原文は「ターン終了時まで」） |
+| `SP38-005-E1`「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」 | 🔑**funnel は既に在った**＝一時レベル store `attack_phase_level_overrides` を `applyContinuousBaseLevelOverride` が cardMap の `Level` へ写す（engine の解決 ctx は全部この写し） | `STUB{OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN, value:-1}`。ルリグが複数なら CHOOSE、現在値は上書き済み cardMap から読む（重ねれば重なる）、0 未満にしない。⚠旧 manual コメントの「積んでも誰も読まない真 no-op」は **UI 側の読み手**の話＝下の `O-375` |
+| `WXEX2-80-E1`「各プレイヤーは手札からカードを１枚公開する。その後…公開されたシグニ２枚のレベルの差以下…を場に出す」 | 新 filter 語彙 `levelLteLastProcessedSigniLevelDiff`（シグニがちょうど2枚のときだけ `level.max=|差|`、それ以外は空ヒット） | `STUB{EACH_PLAYER_REVEAL_HAND_CARD}`＝自分→対戦相手（`opponentResponds`）の2段 `selectOrInteract`。🔴**旧は後段のレベル上限の句が丸ごと落ちて、レベル制限なしで場に出せた**（前段が defer だったので表に出なかった） |
+
+### 🔴 作業中に見つけて直した実バグ（2件）
+
+1. **相手のシグニを《サーバント　ＺＥＲＯ》にする4 id（`MAKE_SERVANT_ZERO` ほか）が永続だった**＝永続の `card_identity_overrides` へ書いており、
+   **ターンが終わってもゲーム終了まで ZERO のまま**。母集団（`census:population「を《サーバント…》にする」`）＝**live 8効果は全部「ターン終了時まで」**。
+   ⇒ `otherState.card_identity_overrides_this_turn` へ書くように変えた。（PLAN_DETAIL の登録票が「永続になっている疑い」と書いていた件の確定と修正）
+2. **`resumeSelectTarget` の汎用 per-card ループが、thenAction がもう1段の選択を開くと外側の continuation を落とす**＝
+   `WXEX2-80-E1` の実装中に「公開だけ済んで場に何も出ない」で発見。レゾナ配置（`INTERNAL_PLACE_SUMMONED_RESONAS`）と同じく
+   `SEQUENCE[thenAction, continuation]` で1回だけ実行する専用枝を足した（今回の2 id だけ）。
+
+### 検証
+
+- `npm run gates` 全緑（golden **4171 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・census 系全 PASS・lint 0 errors）。
+  golden の turn-scoped T1 ラチェット 62→63／95→96 は **新設 key の登録＝較正**（退化ではない）。
+- **挙動 golden 4本**（`§5.3 O-372` ×3・`O-373`）＝どれも両方向（差3でレベル2だけ／片方スペル・差0で何も出ない、ZERO 化が turn-end で戻る、
+  ルリグ Lv3→2 が解決 ctx の cardMap と `LRIG_LEVEL` 条件に届き印字レベル3では読まない、4枚で払え3枚・名前違い混入では払えない）。
+- 🌐**実機 `V-225`（2本 PASS）**＝`WX21-021-E3` をアタックフェイズにトラッシュから発動 → 除外候補はリゲルル4枚だけ（バニラは選べない）→
+  3枚では「支払う」が押せず4枚で押せる → 4枚が除外置き場・相手シグニがトラッシュへ／**対照**＝リゲルル3枚では【起】が出ない。
+- 逆翻訳を7効果とも原文と目視照合。census:deadstate＝書きあり・読み0 **0件**（新 key は読まれている）。
+
+### 残した既存の穴
+
+- 🆕`O-375`＝**UI 側のレベル参照は一時レベル store を見ない**（`battleCardMap` を直接読むグロウ・アーツ使用条件・【常】の activeCondition 等）。
+  `SET_BASE_LEVEL{until}` と共通。engine の解決は正しい。
+- `WX19-002-E2` ほか相手側 ZERO 化の逆翻訳は「ターン終了時まで」を描いていない（engine は今回ターン限定になった＝表示だけの穴）。
+
 ## 2026-09-14 — 第334バッチ：§5.3 `O-372` 明示 defer の解体 第4バッチ（5 → 3）
 
 **2効果を消化**（`npm run census:stubs` A群 明示 defer **5種/5件 → 3種/3件**）。ここも受け皿は在った（2/2）。

@@ -55078,6 +55078,254 @@ scenarios.v168FieldSelfExileActHidden = {
 order.push('v168TrashSelfExileActOffered');
 order.push('v168FieldSelfExileActHidden');
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-225`（§5.3 `O-373`）＝**使用条件「このカードがトラッシュにある」だけで入口がトラッシュになる【起】**と、
+//   コスト **`trashExile{count:4}`（トラッシュの《X》4枚を選んで除外）** の選択列。
+//   `WX21-021` 羅星姫　リゲルル「【起】《アタックフェイズアイコン》あなたのトラッシュにある《羅星姫　リゲルル》４枚を
+//    ゲームから除外する：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。この能力はこのカードがトラッシュにある
+//    場合にしか使用できない。」
+// 🔴**旧**＝①`trashActivated` が立たず場の【起】ゲートからもトラッシュUIからも提示されない恒久 no-op
+//   ②立てても `TrashActivatedModal` に除外する札を選ぶ列が無く、支払い関数が `count` 形を弾いていた
+//   ③ラベルの既定が「トラッシュから出す」＝カード自身はトラッシュに残るのに「場に出す」と予告していた。
+// 🔑**観測点（正方向）**＝トラッシュのリゲルルをタップ →「【起】トラッシュから発動」→ 支払いモーダルに
+//   **選べる除外候補がちょうど4枚**（名前違いのバニラは選べない）→ **3枚では支払えない／4枚で支払える** →
+//   支払うと 4枚が除外置き場（`lrig_trash`）へ・相手のシグニがトラッシュへ。
+// 🔁**負方向の対照（1ビット反転）**＝トラッシュのリゲルルを**3枚**にするだけ＝【起】が出ない
+//   （witness＝CardModal がリゲルルを表示していること）。
+// ⚠トラッシュの表示順が配列順と一致する保証は無い＝`zone-card-i` を順に開いてリゲルルの CardModal を探す。
+// ⚠アタックフェイズの【起】＝`H.ensureMain()` を呼ばない（`repatchTop` でフェイズを戻す＝既存 trashact ドライバと同じ）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V225_COPIES = ['WX21-021#1', 'WX21-021#2', 'WX21-021#3', 'WX21-021#4'];
+const V225_OTHER = 'WX01-086#9';    // 名前違いのバニラ＝除外候補に出てはいけない
+const V225_TARGET = 'WX01-086#1';   // 相手のシグニ（バニラ）＝本体の対象
+const V225_ACT_PREFIX = '【起】トラッシュから発動';
+
+const v225Spec = (copies) => ({
+  hostSet: {
+    'field.lrig': ['WD01-003#1'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    trash: [...V225_COPIES.slice(0, copies), V225_OTHER],
+    lrig_trash: [], hand: [], energy: [],
+    abilities_removed: [], actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    'field.signi': [[V225_TARGET], null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    trash: [], abilities_removed: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+/** トラッシュの札を順に開き、リゲルルの CardModal（とそのアクション）を探す。 */
+async function v225OpenRigelActions(page, H, trashLen) {
+  const modal = page.getByTestId('card-detail-modal').first();
+  let seen = false;
+  for (let i = 0; i < trashLen; i++) {
+    await H.closeModals();
+    await H.clickTestId('my-trash');
+    await page.waitForTimeout(350);
+    if (!(await H.clickTestId('zone-card-' + i))) continue;
+    for (let w = 0; w < 10; w++) {
+      await page.waitForTimeout(250);
+      if (await modal.count() && await modal.isVisible().catch(() => false)) break;
+    }
+    if (!(await modal.count()) || !(await modal.isVisible().catch(() => false))) continue;
+    const text = ((await modal.innerText().catch(() => '')) ?? '').replace(/\s+/g, '');
+    if (!/リゲルル/.test(text)) continue;
+    seen = true;
+    const items = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(
+      els => els.map(el => ({ tid: el.getAttribute('data-testid'), label: el.getAttribute('data-action-label') ?? '' })));
+    return { seen, items };
+  }
+  return { seen, items: [] };
+}
+
+const v225Drive = async (page, H, expectOffered) => {
+  await H.closeModals();
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_ARTS', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const st0 = await H.queryState();
+  const trash0 = st0?.host?.trashCards ?? [];
+  const copies0 = trash0.filter(n => String(n).startsWith('WX21-021')).length;
+  if (copies0 !== (expectOffered ? 4 : 3) || !trash0.includes(V225_OTHER)) {
+    return { pass: false, detail: '前提崩れ＝トラッシュが注入できていない（trash=' + JSON.stringify(trash0) + '）' };
+  }
+  const opened = await v225OpenRigelActions(page, H, trash0.length);
+  H.log('  リゲルル CardModal: seen=' + opened.seen + ' actions=' + JSON.stringify(opened.items.map(a => a.label)));
+  if (!opened.seen) return { pass: false, detail: 'リゲルルの CardModal が開かなかった＝【起】の有無は判定しない' };
+  const hit = opened.items.find(a => a.label.startsWith(V225_ACT_PREFIX));
+  if (!expectOffered) {
+    return hit
+      ? { pass: false, detail: '🔴3枚しか無いのに【起】が出た＝コストを踏み倒せる入口（' + hit.label + '）' }
+      : { pass: true, detail: '対照成立＝リゲルル3枚では【起】が出ない（CardModal はリゲルルを表示済み・actions='
+          + JSON.stringify(opened.items.map(a => a.label)) + '）' };
+  }
+  if (!hit) {
+    return { pass: false, detail: '🔴トラッシュUIに【起】が出ない＝恒久 no-op の再発（actions='
+      + JSON.stringify(opened.items.map(a => a.label)) + '）' };
+  }
+  await H.clickTestId(hit.tid);
+  const payModal = page.getByTestId('trashact-modal').first();
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    if (await payModal.count() && await payModal.isVisible().catch(() => false)) break;
+  }
+  if (!(await payModal.count()) || !(await payModal.isVisible().catch(() => false))) {
+    return { pass: false, detail: '【起】を押しても支払いモーダルが開かない' };
+  }
+  const cells = await page.locator('[data-testid^="trashact-trashexile-"]').evaluateAll(
+    els => els.map(el => ({ tid: el.getAttribute('data-testid'), num: el.getAttribute('data-card-num'), sel: el.getAttribute('data-selectable') })));
+  const selectable = cells.filter(c => c.sel === 'true');
+  H.log('  除外候補: ' + JSON.stringify(cells));
+  if (cells.length === 0) return { pass: false, detail: '🔴支払いモーダルに除外する札を選ぶ列が無い' };
+  if (selectable.length !== 4 || selectable.some(c => c.num !== 'WX21-021')) {
+    return { pass: false, detail: '🔴選べる除外候補がリゲルル4枚ではない（cells=' + JSON.stringify(cells) + '）' };
+  }
+  const pay = page.getByTestId('trashact-pay').first();
+  for (let k = 0; k < 3; k++) await H.clickTestId(selectable[k].tid);
+  await page.waitForTimeout(300);
+  const enabledAt3 = await pay.isEnabled().catch(() => false);
+  await H.clickTestId(selectable[3].tid);
+  await page.waitForTimeout(300);
+  const enabledAt4 = await pay.isEnabled().catch(() => false);
+  const payLabel = ((await pay.textContent().catch(() => '')) ?? '').replace(/\s+/g, '');
+  if (enabledAt3) return { pass: false, detail: '🔴3枚しか選んでいないのに支払える（踏み倒し）' };
+  if (!enabledAt4) return { pass: false, detail: '🔴4枚選んでも支払えない' };
+  if (/場に出す/.test(payLabel)) return { pass: false, detail: '🔴支払いボタンが嘘の予告（「' + payLabel + '」）＝カードはトラッシュに残る' };
+  await pay.click({ timeout: 1200 }).catch(() => {});
+
+  let last = st0, settled = 0;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: SHOT + '/v225-' + s + '.png', fullPage: true }).catch(() => {});
+    let did = await H.clickZone();
+    if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log('  v225[' + s + '] -> ' + (did ?? 'なし') + ' | hostTrash=' + JSON.stringify(last?.host?.trashCards)
+      + ' 除外=' + JSON.stringify(last?.host?.lrigTrashCards) + ' guestField=' + JSON.stringify(last?.guest?.fieldSigni)
+      + ' pEff=' + (last?.pendingEffect ?? '-') + ' stack=' + (last?.stackLen ?? '-'));
+    const done = !last?.pendingEffect && !(last?.stackLen > 0);
+    settled = done ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const hostTrash = last?.host?.trashCards ?? [];
+  const exiled = (last?.host?.lrigTrashCards ?? []).filter(n => String(n).startsWith('WX21-021'));
+  const guestField = (last?.guest?.fieldSigni ?? []).flatMap(z => z ?? []);
+  const guestTrash = last?.guest?.trashCards ?? last?.guest?.trash ?? [];
+  const dump = 'hostTrash=' + JSON.stringify(hostTrash) + ' 除外=' + JSON.stringify(exiled)
+    + ' guestField=' + JSON.stringify(guestField) + ' guestTrash=' + JSON.stringify(guestTrash) + ' 支払いボタン=「' + payLabel + '」';
+  H.log('  判定: ' + dump);
+  if (exiled.length !== 4) return { pass: false, detail: '🔴リゲルル4枚が除外置き場に入っていない。' + dump };
+  if (hostTrash.some(n => String(n).startsWith('WX21-021'))) return { pass: false, detail: '🔴トラッシュにリゲルルが残っている。' + dump };
+  if (!hostTrash.includes(V225_OTHER)) return { pass: false, detail: '🔴名前違いのバニラまで除外された。' + dump };
+  if (guestField.includes(V225_TARGET)) return { pass: false, detail: '🔴コストは払われたのに本体（相手シグニをトラッシュ）が走っていない。' + dump };
+  return { pass: true, detail: 'トラッシュUIから提示・除外候補はリゲルル4枚だけ・3枚では払えず4枚で払え・相手シグニがトラッシュへ。' + dump };
+};
+
+scenarios.v225TrashExileCountAct = {
+  title: 'V-225(1): WX21-021-E3 の【起】がトラッシュから撃てて、リゲルル4枚を選んで除外し相手シグニをトラッシュ【旧実装は一度も提示されない】',
+  spec: v225Spec(4),
+  async drive(page, H) { return v225Drive(page, H, true); },
+};
+scenarios.v225TrashExileCountActHidden = {
+  title: 'V-225(2): 対照＝トラッシュのリゲルルが3枚なら【起】が出ない（コスト踏み倒しの入口を塞いだ）',
+  spec: v225Spec(3),
+  async drive(page, H) { return v225Drive(page, H, false); },
+};
+order.push('v225TrashExileCountAct');
+order.push('v225TrashExileCountActHidden');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-226`（§5.3 `O-375`）＝**期間つきの基本レベル上書きが UI の判定に届く**。
+//   `SP38-005-E1`「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」を
+//   **相手が使った後の盤面**（store `attack_phase_level_overrides` は効果の持ち主＝相手の state に載る）を注入する。
+// 🔴**旧**＝この store を cardMap へ写す funnel は engine の解決 ctx でしか通らず、UI の `battleCardMap` は
+//   印字レベルのまま＝**ルリグが Lv2 に下がっても Lv3 のシグニを召喚できた**。
+// 🔑**観測点（正方向）**＝自分のセンタールリグ Lv3（上書きで 2）・手札に Lv3 のバニラシグニ →
+//   手札をタップしても「召喚」が**出ない**（シグニLv ≤ ルリグLv の判定＝`currentLrigLevel`）。
+// 🔁**負方向の対照（1ビット反転）**＝store を空にするだけ＝「召喚」が**出る**。
+// ⚠witness＝CardModal が手札のシグニ（WD01-010）を表示していることを確かめてから「出ない」と判定する。
+// ══════════════════════════════════════════════════════════════════════════════
+const V226_LRIG = 'WD01-002#1';     // 弦月の巫女　タマヨリヒメ（Lv3・リミット8）
+const V226_SIGNI = 'WD01-010#1';    // 大剣　カリバン（Lv3・バニラ・限定なし）
+
+const v226Spec = (lowered) => ({
+  hostSet: {
+    'field.lrig': [V226_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    hand: [V226_SIGNI], trash: [], energy: [],
+    attack_phase_level_overrides: {},
+    abilities_removed: [], actions_done: [], blocked_actions: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 相手が SP38-005-E1 を使った形＝置き場は効果の持ち主（相手）の state
+    attack_phase_level_overrides: lowered ? { [V226_LRIG]: 2 } : {},
+    abilities_removed: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const v226Drive = async (page, H, lowered) => {
+  await H.closeModals();
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log('  前提: hostLrig=' + JSON.stringify(st0?.host?.lrig ?? st0?.host?.fieldLrig) + ' hand=' + JSON.stringify(st0?.host?.handCards ?? st0?.host?.hand));
+  const modal = page.getByTestId('card-detail-modal').first();
+  let labels = [], text = '', visible = false;
+  for (let attempt = 0; attempt < 3 && !visible; attempt++) {
+    await H.closeModals();
+    await H.clickTestId('my-hand-card-0');
+    for (let i = 0; i < 12; i++) {
+      await page.waitForTimeout(250);
+      if (await modal.count() && await modal.isVisible().catch(() => false)) { visible = true; break; }
+    }
+  }
+  if (visible) {
+    await page.waitForTimeout(300);
+    labels = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(
+      els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    text = ((await modal.innerText().catch(() => '')) ?? '').replace(/\s+/g, '');
+  }
+  await page.screenshot({ path: SHOT + '/v226-' + (lowered ? 'lowered' : 'control') + '.png', fullPage: true }).catch(() => {});
+  H.log('  手札 CardModal: visible=' + visible + ' actions=' + JSON.stringify(labels) + ' text=' + JSON.stringify(text.slice(0, 40)));
+  if (!visible) return { pass: false, detail: '手札の CardModal が開かなかった＝「召喚」の有無は判定しない' };
+  if (!/カリバン/.test(text)) return { pass: false, detail: 'witness 不成立＝CardModal が手札のシグニを表示していない（text=' + JSON.stringify(text.slice(0, 80)) + '）' };
+  const summon = labels.includes('召喚');
+  if (lowered) {
+    return summon
+      ? { pass: false, detail: '🔴ルリグは Lv2 に下がっているのに Lv3 のシグニを「召喚」できる＝UI が一時レベル変更を見ていない（actions=' + JSON.stringify(labels) + '）' }
+      : { pass: true, detail: 'ルリグ Lv3→2（相手の SP38-005）で Lv3 シグニの「召喚」が出ない（actions=' + JSON.stringify(labels) + '）' };
+  }
+  return summon
+    ? { pass: true, detail: '対照成立＝上書きが無ければ Lv3 シグニを「召喚」できる（actions=' + JSON.stringify(labels) + '）' }
+    : { pass: false, detail: '対照不成立＝上書きが無いのに「召喚」が出ない＝盤面か判定が別の理由で塞がっている（actions=' + JSON.stringify(labels) + '）' };
+};
+
+scenarios.v226LoweredLrigBlocksSummon = {
+  title: 'V-226(1): 相手の SP38-005 でルリグ Lv3→2 のとき、手札の Lv3 シグニに「召喚」が出ない【旧実装は UI が印字レベルのまま】',
+  spec: v226Spec(true),
+  async drive(page, H) { return v226Drive(page, H, true); },
+};
+scenarios.v226LoweredLrigBlocksSummonControl = {
+  title: 'V-226(2): 対照＝レベル上書きが無ければ同じ盤面で「召喚」が出る',
+  spec: v226Spec(false),
+  async drive(page, H) { return v226Drive(page, H, false); },
+};
+order.push('v226LoweredLrigBlocksSummon');
+order.push('v226LoweredLrigBlocksSummonControl');
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // §5.1 `V-169`（§5.3 `O-263`）＝**`ACTIVATE_TRAP` が「どの【トラップ】か」を読んでいなかった**

@@ -5,7 +5,7 @@ import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
 import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectProtectedZoneRules, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
-applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
+applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
@@ -264,6 +264,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingTrashActivated, setPendingTrashActivated, selectedTrashActivatedCost, setSelectedTrashActivatedCost,
     selectedTrashActivatedDiscard, setSelectedTrashActivatedDiscard,
     selectedTrashActivatedExceed, setSelectedTrashActivatedExceed,
+    selectedTrashActivatedTrashExile, setSelectedTrashActivatedTrashExile,
     pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost,
     pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost,
     selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish,
@@ -896,14 +897,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opState = localIsHost ? bs.guest_state : bs.host_state;
     // 🆕§5.3 `O-306`＝instance 単位の差し替えに**宣言名の変身規則**を合成する（後から領域へ来たカードにも効く）。
     const allOverrides = { ...effectiveIdentityOverrides(myState, base), ...effectiveIdentityOverrides(opState, base) };
-    if (Object.keys(allOverrides).length === 0) return base;
+    // 🆕§5.3 `O-375`＝**期間つきの基本レベル上書き**（`attack_phase_level_overrides` ほか）を UI の写しにも載せる。
+    //   🔴旧＝engine の解決 ctx（declaredCardMap）でしか通らず、この map を直接読むグロウ候補・シグニ配置のレベル上限・
+    //     アーツ使用条件などには**一時レベル変更が1つも届いていなかった**（`SP38-005-E1`／`SET_BASE_LEVEL{until}`）。
+    //   ⚠差し替え（ZERO 化等）の**後**に当てる＝engine の funnel と同じ順（差し替え後のカードのレベルを上書き）。
+    //   ⚠【常】の宣言は載せない（盤面から毎回評価する側＝焼くと解決中に戻らない）。値は「設定」なので下流で重ねても冪等。
+    if (Object.keys(allOverrides).length === 0) return applyTimedBaseLevelOverrides(base, myState, opState);
     // card_identity_overrides: instanceId → 差し替えCardNumのカードデータに解決
     const resolved = new Map<string, CardData>(base as Map<string, CardData>);
     for (const [instanceId, overrideNum] of Object.entries(allOverrides)) {
       const overrideCard = base.get(overrideNum);
       if (overrideCard) resolved.set(instanceId, overrideCard);
     }
-    return new InstanceMap(resolved);
+    return applyTimedBaseLevelOverrides(new InstanceMap(resolved), myState, opState);
   }, [cards, battleCardNums, bs, user.id]);
 
   // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）。宣言UI用に全カードを載せた間も
@@ -8787,7 +8793,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const handRiseReq = getRiseRequirement(cardData.EffectText ?? '');
         const riseUnderLevelOf = (zi: number): number => {
           const top = (my.field.signi[zi] ?? []).at(-1);
-          return top ? (parseInt(battleCardMap.get(getCardNum(top))?.Level ?? '0') || 0) : 0;
+          return top ? (parseInt((battleCardMap.get(top) ?? battleCardMap.get(getCardNum(top)))?.Level ?? '0') || 0) : 0;
         };
         const canFitSomewhere = handRiseReq
           ? (canPayRiseMaterials(my, handRiseReq, battleCardMap) && (() => {
@@ -9047,7 +9053,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ?? candidate?.payment.groups.filter(g => g.zone === 'field').reduce((n, g) => n + g.count, 0)
         ?? 0;
       const maxPaidFieldLevels = fieldItems
-          .map(i => parseInt(battleCardMap.get(getCardNum(my.field.signi[i.index]?.at(-1) ?? ''))?.Level ?? '0', 10) || 0)
+          .map(i => parseInt((battleCardMap.get(my.field.signi[i.index]?.at(-1) ?? '') ?? battleCardMap.get(getCardNum(my.field.signi[i.index]?.at(-1) ?? '')))?.Level ?? '0', 10) || 0)
           .sort((a, b) => b - a)
           .slice(0, fieldPayCount)
           .reduce((sum, lv) => sum + lv, 0)
@@ -13979,7 +13985,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return s + lv;
       }, 0);
       const fixedDiscardLevelSum = discardedCards.reduce((s, cn) => {
-        const lv = parseInt(battleCardMap.get(getCardNum(cn))?.Level ?? '0', 10) || 0;
+        const lv = parseInt((battleCardMap.get(cn) ?? battleCardMap.get(getCardNum(cn)))?.Level ?? '0', 10) || 0;
         return s + lv;
       }, 0);
       const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i) && !(discardVarIndices?.has(i)));
@@ -14119,7 +14125,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // trash_self: このシグニを場からトラッシュに置く（起動コスト）
       if (effect.cost?.trash_self) {
-        const selfLevel = parseInt(battleCardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
+        const selfLevel = parseInt((battleCardMap.get(cardNum) ?? battleCardMap.get(getCardNum(cardNum)))?.Level ?? '', 10);
         const afterRemove = removeFromField(cardNum, paid);
         paid = {
           ...afterRemove,
@@ -14444,6 +14450,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     costIndices: Set<number>,
     discardIndices: Set<number> = new Set(),
     exceedIndices: Set<number> = new Set(),
+    trashExileIndices: Set<number> = new Set(),
   ) => {
     if (loading) return;
     setLoading(true);
@@ -14451,7 +14458,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const payment = payTrashActivateCost(
         effect, my, op,
-        { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices },
+        // 🆕§5.3 `O-373`＝`trashExile{count}`（トラッシュの《X》N枚を除外）の選択。
+        { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices, trashExile: trashExileIndices },
         // 🆕**§5.3 `O-262`**＝`cost.trashExile.self`（このカード自身の除外）を払うために効果元を渡す。
         battleCardMap, myEnergyPayPool, cardNum,
       );
@@ -14604,7 +14612,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // host シグニのレベル/クラス条件（WXK05-041=Lv4以上／WX17-076-E2=Lv2以下／WX17-033-E4=＜調理＞）
         const acceTc = eff.triggerCondition;
         if (acceTc?.accedHostMinLevel || acceTc?.accedHostMaxLevel) {
-          const hostLv = parseInt(battleCardMap.get(getCardNum(acceHostCardNum))?.Level ?? '0', 10);
+          const hostLv = parseInt((battleCardMap.get(acceHostCardNum) ?? battleCardMap.get(getCardNum(acceHostCardNum)))?.Level ?? '0', 10);
           if (isNaN(hostLv)) continue;
           if (acceTc.accedHostMinLevel && hostLv < acceTc.accedHostMinLevel) continue;
           if (acceTc.accedHostMaxLevel && hostLv > acceTc.accedHostMaxLevel) continue;
@@ -15940,7 +15948,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <HandActivatedModal ctx={modalCtx} pendingHandActivated={pendingHandActivated} setPendingHandActivated={setPendingHandActivated} selectedHandActivatedCost={selectedHandActivatedCost} setSelectedHandActivatedCost={setSelectedHandActivatedCost} executeHandActivated={executeHandActivated} />
 
       {/* トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）のエナコスト支払い */}
-      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} selectedTrashActivatedDiscard={selectedTrashActivatedDiscard} setSelectedTrashActivatedDiscard={setSelectedTrashActivatedDiscard} selectedTrashActivatedExceed={selectedTrashActivatedExceed} setSelectedTrashActivatedExceed={setSelectedTrashActivatedExceed} executeTrashActivated={executeTrashActivated} />
+      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} selectedTrashActivatedDiscard={selectedTrashActivatedDiscard} setSelectedTrashActivatedDiscard={setSelectedTrashActivatedDiscard} selectedTrashActivatedExceed={selectedTrashActivatedExceed} setSelectedTrashActivatedExceed={setSelectedTrashActivatedExceed} selectedTrashActivatedTrashExile={selectedTrashActivatedTrashExile} setSelectedTrashActivatedTrashExile={setSelectedTrashActivatedTrashExile} executeTrashActivated={executeTrashActivated} />
 
       {/* v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア */}
       <GuardBarrierActModal ctx={modalCtx} pendingGuardBarrierAct={pendingGuardBarrierAct} setPendingGuardBarrierAct={setPendingGuardBarrierAct} selectedBarrierGuardCard={selectedBarrierGuardCard} setSelectedBarrierGuardCard={setSelectedBarrierGuardCard} executeGuardBarrierAct={executeGuardBarrierAct} />

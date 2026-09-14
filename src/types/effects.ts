@@ -1583,6 +1583,11 @@ export interface TargetFilter {
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
   levelLteLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数以下のレベル。0枚ならlevel.max=0
   levelEqLastProcessedLevelSum?: boolean; // 直前に処理したカードの表記レベル合計と一致
+  /**
+   * 🆕§5.3 `O-372`（`WXEX2-80-E1`）＝「この方法で公開された**シグニ2枚のレベルの差以下**のレベルを持つ」。
+   * 直前に処理したカードのうち**シグニがちょうど2枚**のとき `level.max = |差|`。それ以外（片方がシグニでない・公開0〜1枚）は空ヒット。
+   */
+  levelLteLastProcessedSigniLevelDiff?: boolean;
   levelEqLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベルと一致。参照不能時は空ヒット
   /**
    * 🆕**`levelEqLrig` の一致値へ足すオフセット**（2026-09-12・§5.3 `O-312`・`WXK02-027-E1`

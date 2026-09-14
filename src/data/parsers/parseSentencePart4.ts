@@ -735,7 +735,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     //   ＝「あなたの手札からシグニ１枚を場に出す。…**そのシグニ**を《サーバント　ＺＥＲＯ》にする」）。
     //   engine の4つの id は**すべて `ctx.otherState.card_identity_overrides` へ書く**（`execStubPart2.ts:1637`）＝
     //   **対戦相手のシグニ専用**なので、ここへ `MAKE_SERVANT_ZERO` を出すと**自分のシグニは変換されず
-    //   相手のシグニが勝手に変換される**別効果になる。⇒ 明示 defer にして穴を計器へ残す。
+    //   相手のシグニが勝手に変換される**別効果になる。
+    // 🏁§5.3 `O-372`＝「（ターン終了時まで、）そのシグニを」は自分側・ターン限定の受け皿へ（`card_identity_overrides_this_turn`）。
+    //   ⚠この関数に来る `t` は期間句（「ターン終了時まで、」）が剥がれた後の文＝期間では判定できない。
+    //   母集団（2026-09-14 `census:population`）＝「そのシグニを《サーバント」は `WXK11-014-E2` の1効果だけで、原文は「ターン終了時まで」。
+    //   ⚠「そのシグニ」以外の自分側の形は寿命が決まらないので defer のまま残す。
+    if (/そのシグニを《サーバント/.test(t))
+      return { type: 'STUB', id: 'SELF_SIGNI_SERVANT_ZERO_THIS_TURN' } as StubAction;
     return { type: 'STUB', id: 'DEFERRED_SELF_SIGNI_SERVANT_ZERO' } as StubAction;
   }
 

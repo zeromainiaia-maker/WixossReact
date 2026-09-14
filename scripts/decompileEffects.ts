@@ -399,6 +399,7 @@ function filterJa(f?: any): string {
   if (f.levelEqLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelEqLastProcessedCount)}と同じレベルの`);
   if (f.levelLteLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelLteLastProcessedCount)}以下のレベルを持つ`);
   if (f.levelEqLastProcessedLevelSum) parts.push('この方法で処理したカードのレベル合計と同じレベルの');
+  if (f.levelLteLastProcessedSigniLevelDiff) parts.push('この方法で公開されたシグニ2枚のレベルの差以下のレベルを持つ');
   // 🆕§5.3 `O-312`（2026-09-12）＝`levelEqLrigOffset`（「センタールリグより**レベルが１つ高い／低い**」）。
   const lrigLvOff = typeof f.levelEqLrigOffset === 'number' && f.levelEqLrigOffset !== 0
     ? `より${Math.abs(f.levelEqLrigOffset)}つ${f.levelEqLrigOffset > 0 ? '高い' : '低い'}`
@@ -1191,8 +1192,16 @@ function condJa(c?: any): string {
       if (c.distinctLevels && c.distinctPhraseJa === 'kinds')
         return `${ownerJa(c.owner)}場にあるシグニが持つレベルが合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
-      if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
-        return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
+      // 🆕§5.3 `O-374`＝**`minCount` とレベル範囲を描く**（`WX13-062-E1`／`WX14-025-E2`「《弓》を含むシグニが**３体**ある場合」・
+      //   `WX14-058-E1`「**レベル３以上の**カード名に《フレイスロ》を含むシグニ」）。JSON は正しく持っていたのに
+      //   逆翻訳が「いる」に丸めており、原文照合で「3体」「レベル3以上」が落ちて見えていた（`census:numberdrift`）。
+      if (c.filter?.cardName && c.filter?.cardType === 'シグニ') {
+        const lvCN = [
+          c.filter.levelRange?.min != null ? `レベル${c.filter.levelRange.min}以上の` : '',
+          c.filter.levelRange?.max != null ? `レベル${c.filter.levelRange.max}以下の` : '',
+        ].join('');
+        return `${ownerJa(c.owner)}場に${lvCN}カード名に《${c.filter.cardName}》を含むシグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+      }
       // distinctPhraseJa:'kinds' は同じ述語（名前の異なる数）の別語形「＜C＞のシグニがN種類以上ある」＝
       // 原文どおりに戻す（既定の「それぞれ名前の異なる〜がN体いる」形＝WX12-Re01 と意味は同一）
       if (c.distinctNames && c.distinctPhraseJa === 'kinds')
@@ -2725,6 +2734,24 @@ function actionJa(a?: Action, effectType?: string): string {
           const count = placement?.source?.count ?? placement?.count;
           if (typeof count === 'number' && count > 1) part = part.replace('それを', 'それらを');
         }
+        // 🆕§5.3 `O-374`＝「…パワーを－8000する。〈条件〉の場合、**代わりに**－15000する」。
+        //   engine は「基本の POWER_MODIFY ＋ 条件成立時に差分の POWER_MODIFY」で表す（合計は原文と同じ）が、
+        //   逆翻訳が差分（－7000）をそのまま出していたので**原文の数値（－15000）がどこにも出ず**、
+        //   原文照合で「代わりに」の値を確かめられなかった（`census:numberdrift` の約9効果）。
+        //   ⚠同符号・直後・else 無し・対象が同じ（`targetsLastProcessed`／`targetsStored`／同一 target）の時だけ畳む。
+        // ⚠基本の POWER_MODIFY が**前置き条件の中**にある形も同じ（`WX25-P2-060-E1`「《ミュウ＝パピヨン》がいる場合、…－5000。
+        //   それに【チャーム】が付いている場合、代わりに－10000」）＝else の無い CONDITIONAL の then を基本とみなす。
+        const prevRaw = stepsForJa188[i - 1];
+        const prevPM = prevRaw?.type === 'CONDITIONAL' && !prevRaw.else ? prevRaw.then : prevRaw;
+        if (s?.type === 'CONDITIONAL' && !s.else && s.then?.type === 'POWER_MODIFY' && typeof s.then.delta === 'number'
+            && prevPM?.type === 'POWER_MODIFY' && typeof prevPM.delta === 'number'
+            && Math.sign(prevPM.delta) === Math.sign(s.then.delta)
+            && (s.then.targetsLastProcessed || s.then.targetsStored
+                || JSON.stringify(s.then.target) === JSON.stringify(prevPM.target))) {
+          const totalPM = prevPM.delta + s.then.delta;
+          const totalJa = `${totalPM < 0 ? '－' : '＋'}${Math.abs(totalPM)}`;
+          part = part.replace(/それのパワーを[＋－+-]\d+する$/, `代わりにそれのパワーを${totalJa}する`);
+        }
         return { step: s, part };
       }).filter((p: any) => p.part !== '');
       if (pairs.length === 0) return '何もしない';
@@ -2969,6 +2996,11 @@ function actionJa(a?: Action, effectType?: string): string {
         a.handOrField ? (a.handOrFieldAsDown ? '手札に加えるかダウン状態で場に出す' : '手札に加えるか場に出す')
         : a.handOrEnergy ? '手札に加えるかエナゾーンに置く'
         : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
+        // 🆕§5.3 `O-374`＝「その中から＜X＞のシグニを２枚まで**公開し手札に加え**」＝`then: SEQUENCE[REVEAL, ADD_TO_HAND]`。
+        //   旧はこの形が下の「それが〜の場合」枝へ落ち、「デッキの上を公開する。そしてを手札に加える」と壊れていた
+        //   （`WX24-P1-020-E1`／`WX25-P1-037-E1`／`WX25-P3-040-E1`＝pickCount の「2枚まで」も消えていた）。
+        : (a.then?.type === 'SEQUENCE' && a.then.steps?.length === 2 && a.then.steps[0]?.type === 'REVEAL'
+           && (a.then.steps[1]?.type === 'ADD_TO_HAND' || a.then.steps[1]?.type === 'TRANSFER_TO_HAND')) ? '公開し手札に加える'
         : a.then?.type === 'ADD_TO_FIELD'
           ? `${a.then.asDown ? 'ダウン状態で' : ''}場に出${a.pickUpTo ? 'してもよい' : 'す'}`
         // ENERGY_CHARGE{DECK_CARD} は「選んだ公開札をエナゾーンへ」＝ADD_TO_ENERGY と同義の配置動詞。
@@ -2988,6 +3020,12 @@ function actionJa(a?: Action, effectType?: string): string {
           const otherwise = a.elseAction ? `。そうでない場合、${actionJa(a.elseAction)}` : '';
           const condRem = (rapCnt && rapCnt > 1) ? remJa : '';
           return `${revealJa}、それが${filterStr}の場合、先に対象としたそれをバニッシュする${otherwise}${condRem}`;
+        }
+        // 🆕§5.3 `O-374`＝帰結のバニッシュが**公開したカードではなく対戦相手のシグニ**（`WX22-027-E2`「対戦相手の
+        //   パワー12000以下のシグニ１体を対象とし、…一番上を公開する。それが《ライズアイコン》を持つシグニの場合、それをバニッシュする」）。
+        //   旧は「その中から《ライズ》のシグニを1枚バニッシュする」＝**公開札を割るように見え、パワー12000以下も落ちていた**。
+        if (a.then?.type === 'BANISH' && a.then.target?.owner === 'opponent' && a.then.target?.type === 'SIGNI') {
+          return `${revealJa}、それが${filterStr}の場合、${actionJa(a.then)}${remJa}`;
         }
         const suppress = a.then?.type === 'ADD_TO_FIELD' && a.then?.suppressOnPlay
           ? '。それらのシグニの【出】能力は発動しない' : '';
@@ -3491,7 +3529,9 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}ルリグデッキから${a.payPrintedCost ? 'コストを支払って' : ''}${a.cardName ? `《${a.cardName}》` : 'キー'}1枚を場に出す`
         + (a.coinReduction ? `（そのコストは《コイン×${a.coinReduction}》減る）` : '');
     case 'FORCE_END_TURN': return 'ターンを終了する';
-    case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
+    // 🆕§5.3 `O-374`＝payload のキーは `multiplier`（engine の `execPowerMultiply` が読む）。旧は存在しない `factor` を読み
+    //   「パワーを倍にする」と**倍率が消えていた**（`WX10-077-E1`「２倍」）。
+    case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.multiplier ?? a.factor ?? ''}倍にする`;
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
     case 'POWER_MODIFY_BY_TARGET_LEVEL': {
       const dTL = a.deltaPerLevel ?? 0;
@@ -5827,8 +5867,6 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】対戦相手はあなたの手札を1枚見ないで選び、あなたはそれを公開する（それが＜悪魔＞かレベル3以上のシグニの場合、ターン終了時まで【ランサー】を得る）',
         DEFERRED_SELF_TRASH_TO_DECK_BOTTOM:
           '【未実装】このカードをトラッシュからデッキの一番下に置く',
-        DEFERRED_EACH_PLAYER_REVEAL_HAND:
-          '【未実装】各プレイヤーは手札からカードを1枚公開する（その後、公開されたシグニ2枚のレベルの差以下のシグニを場に出す）',
         DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH:
           '【未実装】対戦相手はデッキの一番下のカードをトラッシュに置く（その後、そのカードと同じカード名の対戦相手のシグニ1体をバニッシュする）',
         DEFERRED_CHECK_ZONE_TO_HAND:
@@ -5857,7 +5895,6 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE:
           '【未実装】対戦相手のトラッシュから対象のカード1枚をデッキの一番下に置く（そうした場合、対象のシグニ1体を他のシグニゾーンに配置してもよい）',
         // §5.3 O-80 第2バッチ: POWER_MOD_PER_COUNT へ誤流入していたが、既存 engine に受け皿が無い2文型。
-        DEFERRED_OPP_LRIG_LEVEL_MODIFY: '【未実装】ターン終了時まで、対象の対戦相手のルリグ1体のレベルを－1する',
         DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED: '【未実装】色1つを宣言し、ターン終了時まで、このシグニは色を失い、宣言した色を得る',
         // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
         //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
@@ -6444,6 +6481,10 @@ function actionJa(a?: Action, effectType?: string): string {
         const namesCFG = gfl.cardNames.map((n: string) => `《${n}》`).join('か');
         return `あなたのルリグデッキから${namesCFG}に${gfl.free ? 'グロウコストを支払わずに' : ''}グロウする`;
       }
+      // 🆕§5.3 `O-374`＝引く枚数は payload（`value`）＝engine（`execStubPart3` の `drawN`）と同じ値を描く（`WX24-P2-014-E2`「６枚」）。
+      if (a.id === 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW' && miscStubMap[a.id]) {
+        return miscStubMap[a.id].replace(/カードを引く$/, `カードを${typeof a.value === 'number' ? a.value : 6}枚引く`);
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
@@ -6590,6 +6631,11 @@ function effJa(e: Eff): string {
     // 🆕`handActivated`＝**手札にあるこのカードから起動する【起】**（`WX18-036-E3` ほか。
     //   2026-08-30 §5.2 Sheet2 バッチ6）。engine/UI は区別しているのに逆翻訳が描いておらず、
     //   「場のシグニの【起】」と同じ文になっていた＝原文照合で使用場所の差が見えない偽陰性。
+    // 🆕§5.3 `O-374`＝「あなたのライフクロスが**０枚**になったとき」（`PR-K038-E2`）。JSON は `triggerCondition.lifeCountReached` を
+    //   持っているのに timingJa に訳が無く、逆翻訳に**生の英語 ID と空の条件**が出ていた（枚数が原文照合から消える）。
+    if (t === 'ON_LIFE_CLOTH_MOVED' && typeof e.triggerCondition?.lifeCountReached === 'number') {
+      s = `あなたのライフクロスが${e.triggerCondition.lifeCountReached}枚になったとき`;
+    }
     if (e.handActivated && (t === 'MAIN' || t === 'ATTACK' || t === 'ATTACK_ARTS' || t === 'SPELL_CUTIN')) {
       s = `${s}（手札から起動）`;
     }

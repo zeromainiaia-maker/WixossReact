@@ -6,10 +6,10 @@ import { createPortal } from 'react-dom';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
-import { energyCostToString, canAffordGrowCost, isMultiEna } from '../costs';
+import { energyCostToString, canAffordGrowCost, isMultiEna, canAddTrashExileIndex } from '../costs';
 import {
   trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateOutcomeLabel,
-  trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied,
+  trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied, trashActivateTrashExile,
 } from '../trashActivateCost';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
@@ -24,9 +24,12 @@ interface TrashActivatedModalProps {
   setSelectedTrashActivatedDiscard: Dispatch<SetStateAction<Set<number>>>;
   selectedTrashActivatedExceed: Set<number>;
   setSelectedTrashActivatedExceed: Dispatch<SetStateAction<Set<number>>>;
+  selectedTrashActivatedTrashExile: Set<number>;
+  setSelectedTrashActivatedTrashExile: Dispatch<SetStateAction<Set<number>>>;
   executeTrashActivated: (
     cardNum: string, effect: CardEffect,
     costIndices: Set<number>, discardIndices: Set<number>, exceedIndices: Set<number>,
+    trashExileIndices: Set<number>,
   ) => void;
 }
 
@@ -46,6 +49,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
     selectedTrashActivatedCost, setSelectedTrashActivatedCost,
     selectedTrashActivatedDiscard, setSelectedTrashActivatedDiscard,
     selectedTrashActivatedExceed, setSelectedTrashActivatedExceed,
+    selectedTrashActivatedTrashExile, setSelectedTrashActivatedTrashExile,
     executeTrashActivated,
   } = p;
   const closeAll = () => {
@@ -53,6 +57,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
     setSelectedTrashActivatedCost(new Set());
     setSelectedTrashActivatedDiscard(new Set());
     setSelectedTrashActivatedExceed(new Set());
+    setSelectedTrashActivatedTrashExile(new Set());
   };
   return (
     <>
@@ -81,9 +86,10 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
               const shortfall = trashActivateAutoCostShortfall(taEffect, my, op, battleCardMap);
               const selectionsOk = trashActivateSelectionsSatisfied(
                 taEffect, my,
-                { energy: selectedTrashActivatedCost, handDiscard: selectedTrashActivatedDiscard, exceed: selectedTrashActivatedExceed },
+                { energy: selectedTrashActivatedCost, handDiscard: selectedTrashActivatedDiscard, exceed: selectedTrashActivatedExceed, trashExile: selectedTrashActivatedTrashExile },
                 battleCardMap,
               );
+              const trashExileCost = trashActivateTrashExile(taEffect.cost);
               const isValid = energyOk && selectionsOk && shortfall === null;
               const costLabels = trashActivateCostLabels(taEffect, my, op);
               return (
@@ -251,10 +257,60 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                     </>
                   )}
 
+                  {/* 🆕§5.3 `O-373`＝トラッシュから除外する札（`trashExile{count}`）。
+                      ⚠判定は `costs.ts` の `canAddTrashExileIndex` 1本（シグニ／ルリグ付与モーダルと同じ）。
+                      ⚠効果元自身も選べる（「トラッシュに《X》が4枚ある場合…4枚を除外」＝自分込み）。 */}
+                  {trashExileCost && (
+                    <>
+                      <p style={{ color: selectedTrashActivatedTrashExile.size === trashExileCost.count ? C.success : C.textMuted,
+                        fontSize: 12, margin: 0 }}>
+                        トラッシュから{trashExileCost.filter?.cardName ? `《${trashExileCost.filter.cardName}》` : 'カード'}をゲームから除外: {selectedTrashActivatedTrashExile.size} / {trashExileCost.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 160 }}>
+                        {my.trash.map((num, i) => {
+                          const card = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedTrashActivatedTrashExile.has(i);
+                          const canPick = isSel || canAddTrashExileIndex(my.trash, selectedTrashActivatedTrashExile, i, trashExileCost, battleCardMap);
+                          return (
+                            <div key={i} data-testid={`trashact-trashexile-${i}`} data-card-num={getCardNum(num)} data-selectable={canPick}
+                              onClick={() => canPick && setSelectedTrashActivatedTrashExile(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (!canAddTrashExileIndex(my.trash, prev, i, trashExileCost, battleCardMap)) return prev;
+                                next.add(i); return next;
+                              })}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard,
+                                opacity: canPick ? 1 : 0.35,
+                                cursor: canPick ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {card
+                                ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
                   <button data-testid="trashact-pay"
                     onClick={() => executeTrashActivated(
                       pendingTrashActivated.cardNum, taEffect,
                       selectedTrashActivatedCost, selectedTrashActivatedDiscard, selectedTrashActivatedExceed,
+                      selectedTrashActivatedTrashExile,
                     )}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',

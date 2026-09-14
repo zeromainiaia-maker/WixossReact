@@ -223,7 +223,8 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                   : [];
                 const existingTopLevel = consumedZones.reduce((sum, cz) => {
                   const top = (my.field.signi[cz] ?? []).at(-1);
-                  return sum + (top ? (parseInt(battleCardMap.get(getCardNum(top))?.Level ?? '0') || 0) : 0);
+                  // 🆕§5.3 `O-375`＝instance で先に引く（期間つきのレベル上書きは instance キー）。
+                  return sum + (top ? (parseInt((battleCardMap.get(top) ?? battleCardMap.get(getCardNum(top)))?.Level ?? '0') || 0) : 0);
                 }, 0);
                 const afterTotal = fieldSigniTotal - existingTopLevel + signiLevel;
                 const overLimit = afterTotal > lrigLimit;

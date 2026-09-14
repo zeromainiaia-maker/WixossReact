@@ -972,7 +972,7 @@ export function computeCostReplacement(
         const lrigLevelOf = (st?: { field?: PlayerState['field'] }): number | null => {
           const top = st?.field?.lrig?.at(-1);
           if (!top || !cardMap) return null;
-          const lv = parseInt(cardMap.get(getCardNum(top))?.Level ?? '');
+          const lv = parseInt((cardMap.get(top) ?? cardMap.get(getCardNum(top)))?.Level ?? '');
           return Number.isFinite(lv) ? lv : null;
         };
         const cmpLevel = (lv: number | null, spec: { op: '以上' | '以下'; value: number }): boolean =>

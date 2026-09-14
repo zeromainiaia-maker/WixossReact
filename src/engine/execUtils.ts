@@ -4027,6 +4027,15 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       for (const cn of removedCards) delete newIdentityOverrides[cn];
     }
   }
+  // 🆕§5.3 `O-372`＝ターン限定の差し替えも同じ規約で掃除する（場を離れたカードは別のオブジェクト）。
+  let newIdentityOverridesThisTurn = state.card_identity_overrides_this_turn;
+  if (zoneIdx >= 0 && newIdentityOverridesThisTurn) {
+    const removedTT = state.field.signi[zoneIdx] ?? [];
+    if (removedTT.some(cn => newIdentityOverridesThisTurn![cn])) {
+      newIdentityOverridesThisTurn = { ...newIdentityOverridesThisTurn };
+      for (const cn of removedTT) delete newIdentityOverridesThisTurn[cn];
+    }
+  }
   // ドライブ状態クリーンアップ：乗られていたシグニが場を離れた場合
   let newLrigRiding = state.lrig_riding_signi;
   if (newLrigRiding?.includes(cardNum)) {
@@ -4036,6 +4045,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   return {
     ...state,
     card_identity_overrides: newIdentityOverrides,
+    card_identity_overrides_this_turn: newIdentityOverridesThisTurn,
     lrig_riding_signi: newLrigRiding,
     // 「**それがあった**シグニゾーン」の解決用マーカー（タスク12(lxxvi)・`WX08-032-E1`）。
     // 場を離れた直後にしか読まれない使い捨て（`hand_discarded_just` 等と同種）。⚠**上書き**なので

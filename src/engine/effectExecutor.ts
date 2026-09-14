@@ -3789,6 +3789,18 @@ function resolveDynamicFilter(
       ? noMatch(rest)
       : { ...rest, level: shifted };
   }
+  // 🆕§5.3 `O-372`＝「この方法で公開されたシグニ2枚のレベルの差以下」（`WXEX2-80-E1`）。
+  //   ⚠原文は「シグニ2枚」＝公開されたのが2枚ともシグニでなければ差が定義されない＝空ヒット（fail-closed）。
+  if (result.levelLteLastProcessedSigniLevelDiff) {
+    const { levelLteLastProcessedSigniLevelDiff: _diff, ...rest } = result;
+    const signiLevels = (lastProcessedCards ?? [])
+      .map(n => cardMap.get(getCardNum(n)))
+      .filter(c => matchesFilter(c, { cardType: 'シグニ' }))
+      .map(c => parseInt(c?.Level ?? '', 10));
+    result = signiLevels.length === 2 && signiLevels.every(Number.isFinite)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: Math.abs(signiLevels[0] - signiLevels[1]) } }
+      : noMatch(rest);
+  }
   if (result.levelEqLastProcessed || result.nameEqLastProcessed
       || result.levelEqLastProcessedCount || result.levelLteLastProcessedCount || result.levelEqLastProcessedLevelSum) {
     const {
@@ -6013,7 +6025,9 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   }
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  // 🆕§5.3 `O-374`＝「N体**まで**対象とし…を得る」は `upToCount` を選択の任意性へ渡す
+  //   （旧は `false` 固定＝「２体まで」でも必ず2体選ばされた・`WXK02-057-E1`）。
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
@@ -11863,6 +11877,16 @@ export function resumeSelectTarget(
       ? ({ type: 'SEQUENCE', steps: [queued, pending.continuation] } as SequenceAction)
       : queued;
     return executeAction(chained, { ...cur, lastProcessedCards: selected });
+  }
+  // 🆕§5.3 `O-372`（`WXEX2-80-E1`）＝各プレイヤーの手札公開は **apply 側がもう1段の選択を開く**（自分→対戦相手）。
+  //   🔴汎用 per-card ループに流すと、2段目の pending が**外側の continuation（後段の ADD_TO_FIELD）を落とす**
+  //     （実測＝公開だけ済んで場に何も出なかった）。⇒ レゾナ配置と同じく SEQUENCE 化して1回だけ実行する。
+  if (pending.thenAction.type === 'STUB'
+      && ['INTERNAL_EACH_REVEAL_HAND_OPP', 'INTERNAL_EACH_REVEAL_HAND_APPLY'].includes((pending.thenAction as StubAction).id)) {
+    const chainedRH = pending.continuation
+      ? ({ type: 'SEQUENCE', steps: [pending.thenAction, pending.continuation] } as SequenceAction)
+      : pending.thenAction;
+    return executeAction(chainedRH, { ...cur, lastProcessedCards: selected });
   }
   // O-56: 手札などの SELECT_TARGET から選んだ複数枚を、既存の出所非依存トラップ設置へ1枚ずつ渡す。
   // 汎用 per-card ループは最初のゾーン選択で pause すると2枚目以降を落とすため、SEARCH の then:'trap'

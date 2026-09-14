@@ -16546,7 +16546,8 @@ function removeStubFromSequences(node: unknown, id: string): void {
  */
 const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   // ── LOOK_OPP_LIFE_TOP 側 ──
-  [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
+  // 🏁§5.3 `O-372`＝typed へ（`EACH_PLAYER_REVEAL_HAND_CARD`＝各自が自分の手札から1枚選んで公開し、2枚を lastProcessed に積む）。
+  [/各プレイヤーは手札からカードを[１1]枚公開する/, 'EACH_PLAYER_REVEAL_HAND_CARD'],
   // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
   [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
 ];
@@ -17014,8 +17015,9 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
 
   // catch-all への誤流入。既存機構が無い2文型は id を意味に合わせて honest defer にする。
   if (/対戦相手のルリグ[１1]体を対象とし[^。]*レベルを[－-][１1]する/.test(t)) {
+    // 🏁§5.3 `O-372`（2026-09-14）＝typed へ（受け皿は一時レベル store `attack_phase_level_overrides`）。
     return replaceUniquePowerModPerCount(action, {
-      type: 'STUB', id: 'DEFERRED_OPP_LRIG_LEVEL_MODIFY',
+      type: 'STUB', id: 'OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN', value: -1,
     } as StubAction);
   }
   if (/このシグニは色を失い[^。]*宣言した色を得る/.test(t)) {
@@ -21008,6 +21010,24 @@ function isKnownUnwiredAutoTrigger(text: string): boolean {
  * 同じ句に現れるクラスは「数え元」であり、対象クラスではないため隣接対象句にクラスが無いときは誤付着を除く。
  */
 function applyDynamicCountTargetLimit(action: EffectAction, sourceText: string): EffectAction {
+  // 🆕§5.3 `O-372`（`WXEX2-80-E1`）＝「この方法で公開されたシグニ２枚のレベルの差以下のレベルを持つ…を場に出す」。
+  //   🔴旧はこの句が丸ごと落ちて**レベル制限なし**でトラッシュから場に出せた（前段の公開が defer だったので表に出なかった）。
+  //   ⚠下の汎用ブロックは BANISH/BOUNCE/SEND_TO_ENERGY/TRASH の SIGNI 対象にしか載せず、しかも story を句から組み直す
+  //     ＝ADD_TO_FIELD の source へ流用すると＜遊具＞が落ちうる。**キー1つだけを最後の ADD_TO_FIELD.source へ足す**。
+  if (/この方法で公開されたシグニ[２2]枚のレベルの差以下のレベル/.test(sourceText)) {
+    let last: { filter?: TargetFilter } | undefined;
+    const walkAtf = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.type === 'ADD_TO_FIELD' && obj.source && typeof obj.source === 'object') last = obj.source as { filter?: TargetFilter };
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) value.forEach(walkAtf);
+        else if (value && typeof value === 'object') walkAtf(value);
+      }
+    };
+    walkAtf(action);
+    if (last) last.filter = { ...(last.filter ?? {}), levelLteLastProcessedSigniLevelDiff: true };
+  }
   const dynamic = parseDynamicCountLimit(sourceText);
   const hasDynamic = Object.keys(dynamic).length > 0;
   const eqProcessedCount = /この方法でトラッシュに置かれた.+?枚数と同じレベル/.test(sourceText);
@@ -23565,10 +23585,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   //   **3効果が場の【起】ゲートからもトラッシュUIからも落ちて恒久的に使用不能**だった。
   //   うち `WX22-Re17-E2` は本体が「このカードを**トラッシュからデッキの一番下に置く**」で、
   //   旧の動詞表（場に出す／シグニゾーンに出す／手札に加える）に無かったのが原因＝ここで拾う。
-  // ⚠**残る `WX13-038-E2`／`WX21-021-E3` はここでは直せない**＝`trashActivated` を立てても
-  //   コストが `trashExile{count:4}`（**どの4枚を除外するか選ぶ列がトラッシュUIに無い**）なので
-  //   `canOfferTrashActivate` が false のまま＝**`src/screens/` 側の作業**（PLAN §5.3 へ登録）。
-  //   ⇒ 立てるとゴールデン「トラッシュ自己起動【起】が全部『支払える形』」が赤くなる＝立てない。
+  // 🏁**残っていた `WX13-038-E2`／`WX21-021-E3` は §5.3 `O-373` で閉じた**＝トラッシュUIに除外札の選択列を足し、
+  //   入口は効果オブジェクト組み立て時に**使用条件（`THIS_CARD_IN_LOCATION{trash}`）からも**立てる（下の `condRequiresThisCardInTrash`）。
+  //   ⚠`AND` の中も見る（`WXDi-P11-053-E1`「このカードがトラッシュにあり…4枚ある場合」）。`OR` は片側だけで成立しうるので見ない。
+  const condRequiresThisCardInTrash = (c: Condition | undefined): boolean =>
+    !!c && ((c.type === 'THIS_CARD_IN_LOCATION' && c.location === 'trash')
+      || (c.type === 'AND' && (c.conditions ?? []).some(condRequiresThisCardInTrash)));
   const trashActivated = effectType === 'ACTIVATED'
     && (cost?.trashExile?.self === true
       || (/(?:この(?:シグニ|カード)|トラッシュからこの(?:シグニ|カード))/.test(actionText)
@@ -24346,7 +24368,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     // engine が「いま解決中の効果がホログラフか」を読むためのデータ側マーカー。
     ...(isHolograph ? { holograph: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),
-    ...(trashActivated ? { trashActivated: true } : {}),
+    // 🆕§5.3 `O-373`＝**使用条件が「このカードがトラッシュにある」なら入口はトラッシュ**（本体の動詞に依らない）。
+    //   旧は本体の綴り（場に出す／手札に加える…）しか見ておらず、`WX13-038-E2`／`WX21-021-E3`／`WXDi-P11-053-E1`
+    //   （本体が相手のシグニへの効果）は**どの入口からも提示されない恒久 no-op**だった。
+    ...(trashActivated || (effectType === 'ACTIVATED' && !energyActivated && !handActivated
+      && condRequiresThisCardInTrash(mergedCondition)) ? { trashActivated: true } : {}),
     ...(energyActivated ? { energyActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),

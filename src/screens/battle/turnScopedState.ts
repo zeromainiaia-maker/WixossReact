@@ -70,6 +70,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   lost_ability_effect_ids_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-disabled replacement abilities, restored at the turn boundary' },
   // 🆕§5.3 `O-306`＝「このターン、宣言されたカード名のカードは《サーバント　ＺＥＲＯ》になる」の規則（変身する側に載る）。
   name_identity_rules_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'declared-name identity rule lasting for the current turn' },
+  // 🆕§5.3 `O-372`＝「ターン終了時まで、そのシグニを《サーバント　ＺＥＲＯ》にする」（instance 単位・自分側）。
+  card_identity_overrides_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'instance identity override lasting until the end of the current turn' },
   // 「あなたの効果によってシグニのアタックは無効にならない」（§6.4 O-10 続き510）も当該ターンだけ。
   own_effects_cannot_negate_signi_attack_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-negation immunity granted for the current turn' },
   // パワー－の倍率（「代わりに３倍－される」§6.4 O-10）も、付与されたターンだけ有効。

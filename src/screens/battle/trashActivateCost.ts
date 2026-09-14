@@ -5,11 +5,12 @@
 //   同じ関数を呼ぶ形にしておかないと、「UIでは押せるのに払われない」型のズレが必ず出る。
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { matchesFilter } from '../../engine/effectExecutor';
+import { getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import {
   activatedDiscardCostRecord, canPayExceed, exceedPoolOf, handDiscardHistoryRecord, paySelectedExceed,
   fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni,
+  trashExileAffordable, trashExileCostSatisfied,
 } from './costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './lrigDownCost';
 
@@ -21,8 +22,8 @@ const SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set([
   'energy', 'discard', 'discardFilter', 'handDiscardSigni',
   'coin', 'removeOppVirus', 'charmTrash', 'lrigDown', 'exceed',
   // 🆕**§5.3 `O-262`（2026-09-06 第184バッチ）＝「トラッシュにあるこのカードをゲームから除外する」。**
-  //   ⚠**`self` 形だけ**（選択を伴う `count` 形は下の `unsupportedTrashActivateCostKeys` で弾く）＝
-  //   このモーダルにはトラッシュの札を選ぶ列が無いので、載せると**踏み倒して撃てる**側へ倒れる。
+  // 🆕**§5.3 `O-373`（2026-09-14）＝「トラッシュにある《X》N枚をゲームから除外する」（`count` 形）も払える。**
+  //   モーダルにトラッシュの札を選ぶ列（`selections.trashExile`）を足した。
   'trashExile',
 ]);
 
@@ -34,10 +35,7 @@ export function unsupportedTrashActivateCostKeys(cost: EffectCost | undefined): 
   if (!cost) return [];
   return Object.entries(cost)
     .filter(([k, v]) => isSpecified(v) && !SUPPORTED_COST_KEYS.has(k))
-    .map(([k]) => k)
-    // 🔴`trashExile` は **`self` 形（効果元自身の除外＝自動）だけ**が払える。
-    //   「トラッシュのカードN枚を除外する」は**選ぶ列がこのモーダルに無い**＝未対応側へ倒す。
-    .concat(cost.trashExile && !cost.trashExile.self ? ['trashExile'] : []);
+    .map(([k]) => k);
 }
 
 export interface TrashActivateHandDiscard {
@@ -125,7 +123,16 @@ export function canOfferTrashActivate(
   if ((energyPool?.length ?? my.energy.length) < trashActivateEnergyTotal(effect.cost)) return false;
   const hd = trashActivateHandDiscard(effect.cost);
   if (hd && my.hand.filter(num => hd.matches(cardMap.get(num))).length < hd.count) return false;
+  // 🆕§5.3 `O-373`＝選択を伴う `trashExile{count}` は**支払いUIと同じ判定関数**で在庫を見る。
+  //   ⚠効果元自身も候補に入る（`WXDi-P11-053-E1`「トラッシュに《メジェド》が4枚ある場合…4枚を除外する」＝自分込みの4枚）。
+  if (effect.cost?.trashExile && !trashExileAffordable(my.trash, effect.cost.trashExile, cardMap)) return false;
   return trashActivateAutoCostShortfall(effect, my, op, cardMap) === null;
+}
+
+/** 🆕§5.3 `O-373`＝選択を伴う `trashExile`（`count` 形）か。`self` 形は自動支払いなので選ばない。 */
+export function trashActivateTrashExile(cost: EffectCost | undefined): EffectCost['trashExile'] | null {
+  const te = cost?.trashExile;
+  return te && !te.self && (te.count ?? 0) > 0 ? te : null;
 }
 
 /** モーダルのコスト行（「なし」は呼び出し側で補う）。 */
@@ -151,9 +158,14 @@ export function trashActivateVerbLabel(effect: CardEffect): string {
     if (Array.isArray(r.steps)) {
       for (const st of r.steps) { const v = walk(st); if (v) return v; }
     }
+    // 🆕§5.3 `O-373`＝「そうした場合」（`CONDITIONAL.then`）の中も見る（`WX15-Re15-E1` は場に出す本体が then の中）。
+    for (const k of ['then', 'else'] as const) { const v = walk(r[k]); if (v) return v; }
     return null;
   };
-  return walk(effect.action) ?? 'トラッシュから出す';
+  // 🆕🔴§5.3 `O-373`＝**既定を「トラッシュから出す」にしない**。使用条件だけでトラッシュが入口になった【起】
+  //   （`WX13-038-E2` パワー－15000／`WX21-021-E3` 相手シグニをトラッシュ／`WXDi-P11-053-E1` 手札に戻す）は
+  //   **カード自身はトラッシュに残る**＝「場に出す」と書くと嘘の予告になる。
+  return walk(effect.action) ?? 'トラッシュから発動';
 }
 
 /**
@@ -167,6 +179,7 @@ export function trashActivateOutcomeLabel(effect: CardEffect): string {
   const verb = trashActivateVerbLabel(effect);
   if (verb === 'このカードを除外して発動') return 'このカードをゲームから除外する';
   if (verb === '手札に加える') return 'トラッシュから手札に加える';
+  if (verb === 'トラッシュから発動') return 'トラッシュにあるこのカードの能力を使う';
   return 'トラッシュから場に出す';
 }
 
@@ -186,6 +199,8 @@ export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op:
     cost.lrigDown ? fmtLrigDownCostLabel(cost.lrigDown) : null,
     (cost.exceed ?? 0) > 0 ? `エクシード${cost.exceed}${cost.exceedColors?.length ? `（${cost.exceedColors.join('と')}のカード）` : ''}` : null,
     cost.trashExile?.self ? 'このカードをゲームから除外' : null,
+    trashActivateTrashExile(cost)
+      ? `トラッシュから${cost.trashExile?.filter?.cardName ? `《${cost.trashExile.filter.cardName}》` : 'カード'}${cost.trashExile?.count}枚をゲームから除外` : null,
   ].filter((s): s is string => s !== null);
 }
 
@@ -199,10 +214,12 @@ export interface TrashActivateSelections {
   handDiscard: Set<number>;
   /** `exceedPoolOf(my)` のインデックス。 */
   exceed: Set<number>;
+  /** 🆕§5.3 `O-373`＝`my.trash` のインデックス（`trashExile{count}` で除外する札）。省略＝空。 */
+  trashExile?: Set<number>;
 }
 
 export const emptyTrashActivateSelections = (): TrashActivateSelections => ({
-  energy: new Set(), handDiscard: new Set(), exceed: new Set(),
+  energy: new Set(), handDiscard: new Set(), exceed: new Set(), trashExile: new Set(),
 });
 
 /**
@@ -221,6 +238,15 @@ export function trashActivateSelectionsSatisfied(
     if (selections.handDiscard.size !== hd.count) return false;
     if ([...selections.handDiscard].some(i => !hd.matches(cardMap.get(my.hand[i])))) return false;
   } else if (selections.handDiscard.size > 0) return false;
+  // 🆕§5.3 `O-373`＝除外する札は**枚数ちょうど**＋フィルタ＋集合制約（`costs.ts` の判定1本を通す）。
+  const te = trashActivateTrashExile(effect.cost);
+  const teSel = selections.trashExile ?? new Set<number>();
+  if (te) {
+    if (teSel.size !== te.count) return false;
+    if ([...teSel].some(i => i < 0 || i >= my.trash.length)) return false;
+    if (te.filter && [...teSel].some(i => !matchesFilter(cardMap.get(getCardNum(my.trash[i])), te.filter!))) return false;
+    if (!trashExileCostSatisfied(my.trash, teSel, te, cardMap)) return false;
+  } else if (teSel.size > 0) return false;
   return selections.exceed.size === (effect.cost?.exceed ?? 0);
 }
 
@@ -268,6 +294,9 @@ export function payTrashActivateCost(
   if (energyPaid.length !== selections.energy.size) return null;
   const discardedCards = [...selections.handDiscard].map(i => my.hand[i]);
   if (discardedCards.some(num => num === undefined)) return null;
+  // 🆕§5.3 `O-373`＝除外する札は**元の `my.trash` の index** で抜く（エナ／手札の支払い分は後ろに積むので index はずれない）。
+  const trashExileSel = trashActivateTrashExile(cost) ? (selections.trashExile ?? new Set<number>()) : new Set<number>();
+  const exiledFromTrash = [...trashExileSel].map(i => my.trash[i]);
 
   const coinPaid = cost?.coin ?? 0;
   if (coinPaid > 0 && (my.coins ?? 0) < coinPaid) return null;
@@ -288,7 +317,9 @@ export function payTrashActivateCost(
   let paid: PlayerState = energyPlan.applyTo({
     ...my,
     hand: my.hand.filter((_, i) => !selections.handDiscard.has(i)),
-    trash: [...my.trash, ...energyPaid, ...discardedCards],
+    trash: [...my.trash.filter((_, i) => !trashExileSel.has(i)), ...energyPaid, ...discardedCards],
+    // ⚠行き先は `lrig_trash`（＝除外置き場）＝シグニ【起】経路（`BattleScreen` の `trashExileIndices`）と同じゾーン。
+    lrig_trash: exiledFromTrash.length > 0 ? [...my.lrig_trash, ...exiledFromTrash] : my.lrig_trash,
     coins: coinPaid > 0 ? Math.max(0, (my.coins ?? 0) - coinPaid) : my.coins,
     coins_paid_this_turn: coinPaid > 0 ? (my.coins_paid_this_turn ?? 0) + coinPaid : my.coins_paid_this_turn,
     last_cost_trashed_cards: [...energyPaid, ...discardedCards],

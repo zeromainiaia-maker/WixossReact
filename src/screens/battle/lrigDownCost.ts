@@ -27,7 +27,8 @@ export function payLrigDownCost(
   const field = { ...state.field };
   const paidCards: string[] = [];
   const levelOk = (stack?: string[]) => cost.level === undefined
-    || Number(cardMap.get(getCardNum(stack?.at(-1) ?? ''))?.Level) === cost.level;
+    // 🆕§5.3 `O-375`＝instance で先に引く（期間つきのレベル上書きは instance キー）。
+    || Number((cardMap.get(stack?.at(-1) ?? '') ?? cardMap.get(getCardNum(stack?.at(-1) ?? '')))?.Level) === cost.level;
   // 🆕**色限定**（2026-09-05・§5.3 `O-257`＝【ハーモニー】「〈色〉のルリグN体をダウン」）。
   // ⚠**`includes` で見る**＝多色ルリグの `Color` は `白青` のように連結されるので完全一致だと外れる。
   const colorOk = (stack?: string[]) => cost.color === undefined
@@ -50,7 +51,7 @@ export function payLrigDownCost(
   // ⚠ 呼び出し側（engine の INTERNAL_PAY_LRIG_DOWN* / BattleScreen の各コスト支払い）で個別に書くと必ず
   //   書き忘れが出る＝実UIだけ参照不能になり、フィルタが空ヒット（＝完全 no-op）へ倒れる。
   const levelSum = paidCards.reduce((sum, id) => {
-    const lv = Number(cardMap.get(getCardNum(id))?.Level);
+    const lv = Number((cardMap.get(id) ?? cardMap.get(getCardNum(id)))?.Level);
     return sum + (Number.isFinite(lv) ? lv : 0);
   }, 0);
   return {

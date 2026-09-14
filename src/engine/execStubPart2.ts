@@ -19,6 +19,7 @@ import {
   designatedZones,
   resolveHandCardPick,
   trapIconEffectOf,
+  lrigZoneTops,
 } from './execUtils';
 import { allAcceCards } from '../utils/acce';
 import { applyCoinGain } from './coinGain';
@@ -1740,12 +1741,87 @@ export function execStubPart2(
     const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards :
       [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
     if (targets.length === 0) return done(addLog(ctx, '対象なし（SERVANT_ZERO）'));
-    // card_identity_overrides: instanceId → 'WXDi-P07-TK01-A' に設定
+    // card_identity_overrides_this_turn: instanceId → 'WXDi-P07-TK01-A' に設定
     // battleCardMapがこれを解決し、power=1000/class=精元/color=無/abilities=なし が適用される
-    const identOverSZ = { ...(ctx.otherState.card_identity_overrides ?? {}) };
+    // 🔴§5.3 `O-372`（2026-09-14）＝旧は永続の `card_identity_overrides` へ書いていた＝**ターン終了後もずっと ZERO のまま**だった。
+    //   母集団（`census:population`「を《サーバント…》にする」）＝この4 id を使う live 8効果は**全部「ターン終了時まで」**。
+    //   ⇒ ターン限定の `card_identity_overrides_this_turn`（turn-end で失効・場を離れたら掃除）へ書く。
+    const identOverSZ = { ...(ctx.otherState.card_identity_overrides_this_turn ?? {}) };
     for (const cn of targets) identOverSZ[cn] = SERVANT_ZERO_NUM;
-    const newSOtherSZ: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverSZ };
+    const newSOtherSZ: PlayerState = { ...ctx.otherState, card_identity_overrides_this_turn: identOverSZ };
     return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントZERO（WXDi-P07-TK01-A）に`));
+  }
+  // 表示: ターン終了時まで、そのシグニ（直前に場に出したあなたのシグニ）を《サーバント　ＺＥＲＯ》にする
+  // 🆕§5.3 `O-372`（`WXK11-014-E2`）＝**自分側・ターン限定**のサーバントZERO化。
+  //   ⚠上の4 id は相手側・永続（`card_identity_overrides`）なので流用しない＝書き込み先は
+  //   **`ownerState.card_identity_overrides_this_turn`**（`turnScopedState` の turn-end で失効・場を離れたら掃除）。
+  //   読み手は `effectiveIdentityOverrides`（`battleCardMap`／augmented effectsMap／パワー基準値の共通 funnel）。
+  if (stub.id === 'SELF_SIGNI_SERVANT_ZERO_THIS_TURN') {
+    const SERVANT_ZERO_NUM_TT = 'WXDi-P07-TK01-A';
+    const onField = new Set(ctx.ownerState.field.signi.flatMap(z => z ?? []));
+    const targetsTT = (ctx.lastProcessedCards ?? []).filter(cn => onField.has(cn));
+    if (targetsTT.length === 0) return done(addLog(ctx, '対象なし（場に出したシグニがいない）'));
+    const overridesTT = { ...(ctx.ownerState.card_identity_overrides_this_turn ?? {}) };
+    for (const cn of targetsTT) overridesTT[cn] = SERVANT_ZERO_NUM_TT;
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_identity_overrides_this_turn: overridesTT } },
+      `ターン終了時まで、${targetsTT.length}体をサーバントZERO（WXDi-P07-TK01-A）に`));
+  }
+  // 表示: 対戦相手のルリグ1体を対象とし、ターン終了時まで、それのレベルを－1する
+  // 🆕§5.3 `O-372`（`SP38-005-E1`）。🔑**新しい store は足さない**＝一時レベル store `attack_phase_level_overrides`
+  //   （turn-end で失効・`applyContinuousBaseLevelOverride` が cardMap へ反映＝engine のレベル読み手が全部それを見る）。
+  //   ⚠置き場は**効果の持ち主の state**（`applyTimedBaseLevel` と同じ規約。funnel は両者を読む）。
+  //   ⚠現在値は `ctx.cardMap`（上書き適用済みの写し）から読む＝同じターンに2回使えば2下がる。0 未満にはしない。
+  //   ⚠UI 側のレベル参照（グロウ・アーツ使用条件など）は `battleCardMap`＝この store を見ない既存の穴（SET_BASE_LEVEL と同じ）。
+  if (stub.id === 'OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN') {
+    // 増減量は `value`（既定 −1）。
+    const deltaLL = typeof stub.value === 'number' ? stub.value : -1;
+    const picked = (stub as unknown as { lrigInstance?: string }).lrigInstance;
+    const topsLL = lrigZoneTops(ctx.otherState.field).filter((n): n is string => !!n);
+    if (topsLL.length === 0) return done(addLog(ctx, '対戦相手のルリグがいない（レベル変更なし）'));
+    const nameLL = (n: string) => ctx.cardMap.get(n)?.CardName ?? ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+    const levelLL = (n: string) => parseInt((ctx.cardMap.get(n) ?? ctx.cardMap.get(getCardNum(n)))?.Level ?? '', 10);
+    const target = picked && topsLL.includes(picked) ? picked : topsLL.length === 1 ? topsLL[0] : undefined;
+    if (!target) {
+      const optsLL = topsLL.map((n, i) => ({
+        id: `lrig_${i}`, label: `${nameLL(n)}（レベル${levelLL(n)}）`, available: true,
+        action: { type: 'STUB', id: stub.id, value: deltaLL, lrigInstance: n } as unknown as EffectAction,
+      }));
+      return needsInteraction(addLog(ctx, 'レベルを下げる対戦相手のルリグを選ぶ'), { type: 'CHOOSE', options: optsLL, count: 1 });
+    }
+    const cur = levelLL(target);
+    if (!Number.isFinite(cur)) return done(addLog(ctx, `${nameLL(target)}のレベルが読めない（レベル変更なし）`));
+    const next = Math.max(0, cur + deltaLL);
+    const storeLL = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [target]: next };
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: storeLL } },
+      `ターン終了時まで、${nameLL(target)}のレベルを${cur}→${next}にする`));
+  }
+  // 表示: 各プレイヤーは自分の手札からカードを1枚選んで公開する（公開した2枚を「この方法で公開された」カードとして後段が参照する）
+  // 🆕§5.3 `O-372`（`WXEX2-80-E1`）。🔑新しい pending 型は足さない＝`selectOrInteract` の2段（自分→対戦相手 `opponentResponds`）。
+  //   ⚠1段目の選択は2段目の apply の payload（`revealedSelf`）で運ぶ＝2段目の resume が `lastProcessedCards` を上書きするため。
+  //   ⚠手札が0枚のプレイヤーは公開しない（その側を飛ばす）。
+  if (stub.id === 'EACH_PLAYER_REVEAL_HAND_CARD') {
+    const selfDone: StubAction = { type: 'STUB', id: 'INTERNAL_EACH_REVEAL_HAND_OPP' };
+    if (ctx.ownerState.hand.length === 0) {
+      return exec(selfDone, { ...ctx, lastProcessedCards: [] });
+    }
+    return selectOrInteract([...ctx.ownerState.hand], 1, false, 'self_hand', selfDone, undefined,
+      addLog(ctx, '各プレイヤーは手札からカードを1枚公開する（あなたから）'));
+  }
+  if (stub.id === 'INTERNAL_EACH_REVEAL_HAND_OPP') {
+    const revealedSelf = (ctx.lastProcessedCards ?? []).filter(cn => ctx.ownerState.hand.includes(cn)).slice(0, 1);
+    const apply = { type: 'STUB', id: 'INTERNAL_EACH_REVEAL_HAND_APPLY', revealedSelf } as unknown as StubAction;
+    if (ctx.otherState.hand.length === 0) {
+      return exec(apply, { ...ctx, lastProcessedCards: [] });
+    }
+    return selectOrInteract([...ctx.otherState.hand], 1, false, 'opp_hand', apply, undefined, ctx, true);
+  }
+  if (stub.id === 'INTERNAL_EACH_REVEAL_HAND_APPLY') {
+    const revealedSelf = ((stub as unknown as { revealedSelf?: string[] }).revealedSelf ?? []);
+    const revealedOpp = (ctx.lastProcessedCards ?? []).filter(cn => ctx.otherState.hand.includes(cn)).slice(0, 1);
+    const revealed = [...revealedSelf, ...revealedOpp];
+    const nameOf = (cn: string) => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn;
+    return done(addLog({ ...ctx, lastProcessedCards: revealed },
+      revealed.length > 0 ? `公開：${revealed.map(nameOf).join('・')}` : '公開されたカードはない'));
   }
   // REMOVE_MIKO_KEYWORD: みこみこ親衛隊キーワードをsourceCardNumのシグニのkeyword_grantsから取り除く（WX25-P3-TK03）
   if (stub.id === 'REMOVE_MIKO_KEYWORD') {

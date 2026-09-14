@@ -27,7 +27,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectLrigColorAndLimitMods, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectAllColorSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, collectProtectedZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectLrigColorAndLimitMods, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, collectPowerProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectAllColorSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, leaveToTrashWindowApplies, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction, collectEnergyCostSubstitutes } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -5929,7 +5929,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 62, 'PlayerState の命名規約由来フィールド数（🆕62＝2026-09-14 §5.3 `O-362` で double_power_minus_targets_this_turn / life_burst_double_this_turn を追加。60＝第319バッチ時点）');
+  eq(convention.length, 63, 'PlayerState の命名規約由来フィールド数（🆕63＝2026-09-14 §5.3 `O-372` で card_identity_overrides_this_turn を追加。62＝同日 `O-362` 時点）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5944,7 +5944,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 33, '命名規約外のターン限定フィールド数（🆕33＝2026-09-14 O-362 で life_burst_double_next の未消費時失効を共通 funnel へ登録。32＝第319バッチ時点）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 95, '型由来と命名規約外を合わせたターン限定フィールド数（🆕95＝2026-09-14 O-362。92＝第319バッチ時点）');
+  eq(registered.length, 96, '型由来と命名規約外を合わせたターン限定フィールド数（🆕96＝2026-09-14 O-372 card_identity_overrides_this_turn。95＝同日 O-362）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -48475,6 +48475,213 @@ test('§6.4 canOfferTrashActivate：在庫不足の【起】はトラッシュUI
      '支払い不能なら盤面を変えず null');
 });
 
+test('§5.3 O-374: numberdrift triage で見つけた真バグ3系統（マドカ条件の脱落／条件付きアサシンの付与先／「《X》か《Y》」の両払い）', () => withSavedCursor(() => {
+  const effOf = (num: string, id: string) => (effectsMap.get(num) ?? []).find(e => e.effectId === id)!;
+  // ① SPDi43-21-E2＝「あなたの場に《VOGUE3-EXTREMEマドカ》がいる場合、以下の２つから１つを選ぶ」
+  const madoka = effOf('SPDi43-21', 'SPDi43-21-E2');
+  eq(JSON.stringify(madoka.condition), '{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"VOGUE3-EXTREME　マドカ"}}',
+    '🔴前置き条件が載っている（旧は無条件で毎アタック2択が出た）');
+  // ⚠原文の綴り（スペース無し）ではなく**印字名**（`SPDi43-15`＝全角スペースあり）で一致させる＝原文どおりに書くと永久に不成立。
+  const madokaCard = 'SPDi43-15';
+  eq(cardMap.get(madokaCard)?.CardName, 'VOGUE3-EXTREME　マドカ', '前提：マドカの印字名');
+  ok(evalUseCondition(madoka.condition!, mkState({ signi: [madokaCard, null, null] }), mkState({}), cardMap, 'SPDi43-21', 'MAIN'),
+    '🔵マドカが場にいれば成立');
+  ok(!evalUseCondition(madoka.condition!, mkState({ signi: [SIGNI, null, null] }), mkState({}), cardMap, 'SPDi43-21', 'MAIN'),
+    '🔴いなければ不成立');
+  // ② WXK02-057-E1＝「あなたのシグニを２体まで対象とし…『正面に凍結状態のシグニがあるかぎり【アサシン】』を得る」
+  const assassin = effOf('WXK02-057', 'WXK02-057-E1');
+  const a2 = findCard(c => isSigni(c) && c.CardNum !== SIGNI);
+  const ctxA = mkCtx({ signi: [SIGNI, a2, null] }, {}, 'WXK02-057');
+  const rA = executeEffect(assassin, ctxA);
+  ok(!rA.done, '対象選択が出る');
+  const pA = (rA as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+  eq(pA.count, 2, '最大2体');
+  ok(!!pA.optional, '🔴「２体まで」＝任意（旧 GRANT_EFFECT は upToCount を捨てて必ず2体選ばせた）');
+  const rA2 = resumeSelectTarget([a2], pA, { ...ctxA, ownerState: rA.ownerState, otherState: rA.otherState, logs: rA.logs });
+  const grantedA = (rA2.ownerState.granted_effects ?? {})[a2] ?? [];
+  const g = grantedA[0] as CardEffect | undefined;
+  eq(g?.effectType, 'CONTINUOUS', '選んだシグニに【常】が付く');
+  eq(JSON.stringify(g?.activeCondition), '{"type":"FRONT_SIGNI","filter":{"isFrozen":true}}', '条件は「正面に凍結状態のシグニがあるかぎり」');
+  ok(JSON.stringify(g?.action).includes('"keyword":"アサシン"'), '帰結は【アサシン】');
+  eq((rA2.ownerState.granted_effects ?? {})[SIGNI], undefined, '選ばなかったシグニには付かない');
+  ok(!((rA2.ownerState.keyword_grants ?? {})['WXK02-057'] ?? []).includes('アサシン'),
+    '🔴効果元へ無条件の【アサシン】を付けない（旧 GRANT_CONDITIONAL_ASSASSIN_ABILITY）');
+  // ③「《X》か《Y》を支払ってもよい」＝どちらか1エナのスロット1つ
+  for (const [num, id, slot] of [['WX21-034', 'WX21-034-E1', '赤|緑'], ['WDA-F02-17', 'WDA-F02-17-E3', '青|黒'], ['WXEX1-15', 'WXEX1-15-E1', '緑|白']] as const) {
+    const fresh = JSON.stringify(findEffectDeep(parseCardEffects(cardMap.get(num)!), id));
+    const live = JSON.stringify(effOf(num, id));
+    for (const [label, json] of [['fresh', fresh], ['live', live]] as const) {
+      ok(json.includes(`"costColors":["${slot}"]`), `🔴${id} ${label}: 「か」はスロット1つ（旧は両方払う ["${slot.replace('|', '","')}"]）`);
+    }
+  }
+  const spk = JSON.stringify(effOf('SPK06-01', 'SPK06-01-E1'));
+  ok(!spk.includes('"赤|赤"'), '不成立方向：量の二択（《赤×2》か《赤×4》）を色スロットへ潰さない');
+}));
+
+test('§5.3 O-375: 期間つきの基本レベル上書きが UI の写し（battleCardMap）にも載り、UI の読み手まで届く', () => withSavedCursor(() => {
+  // 🔴旧＝`applyContinuousBaseLevelOverride` は engine の解決 ctx（declaredCardMap）でしか通らず、
+  //   `battleCardMap` を直接読むグロウ候補・ルリグダウンのレベル指定コスト等には一時レベル変更が届いていなかった。
+  const center = findCard(c => c.Type === 'ルリグ' && c.Level === '3' && !/しかグロウできない/.test(c.EffectText ?? ''));
+  const inst = `${center}#1`;
+  const my = { ...mkState({ lrig: [inst] }), lrig_deck: [] as string[] } as PlayerState;
+  const op = mkState({});
+  // SP38-005-E1 を相手が使った形＝store は効果の持ち主（相手）の state に載る
+  const opUsed = { ...op, attack_phase_level_overrides: { [inst]: 2 } } as PlayerState;
+  const base = new InstanceMap<CardData>(cardMap as Map<string, CardData>);
+  const ui = applyTimedBaseLevelOverrides(base, my, opUsed);
+  ok(ui instanceof InstanceMap, '写し先の型を保つ（InstanceMap のフォールバックを消さない）');
+  eq(ui.get(inst)?.Level, '2', '🔵instance キーでレベル2');
+  eq(ui.get(center)?.Level, '3', '🔴素の CardNum（印字）は書き換えない＝同じカードの別インスタンスへ漏れない');
+  eq(applyTimedBaseLevelOverrides(base, my, op), base, '上書きが無ければ同じ map を返す（memo を無駄に作り直さない）');
+  // 3種の store を全部読む（until_opp_turn／until_next_own_turn）
+  const oppTurn = applyTimedBaseLevelOverrides(base, { ...my, base_level_overrides_until_opp_turn: { [inst]: 1 } } as PlayerState, op);
+  eq(oppTurn.get(inst)?.Level, '1', 'base_level_overrides_until_opp_turn も載る');
+  const nextOwn = applyTimedBaseLevelOverrides(base, { ...my, base_level_overrides_until_next_own_turn: { [inst]: { level: 4, turnEnds: 2 } } } as PlayerState, op);
+  eq(nextOwn.get(inst)?.Level, '4', 'base_level_overrides_until_next_own_turn も載る');
+  // 読み手①：ルリグダウンのレベル指定コスト（instance で先に引くよう直した）
+  ok(!!payLrigDownCost(my, { count: 1, level: 2 } as never, ui), '🔵−1 後のルリグで「レベル2のルリグをダウン」が払える');
+  ok(!payLrigDownCost(my, { count: 1, level: 2 } as never, base), '🔴対照：上書き前の写しでは払えない（印字レベル3）');
+  // 読み手②：グロウ候補（現在レベル＋1）＝−1 後はレベル3のルリグが候補に入る
+  const next3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3' && c.CardNum !== center
+    && c.CardClass === cardMap.get(center)?.CardClass && !/グロウ/.test(c.EffectText ?? '') && (c.Restriction ?? '-') === '-');
+  const myDeck = { ...my, lrig_deck: [`${next3}#2`] } as PlayerState;
+  const namesUi = listGrowCandidates({ my: myDeck, cardMap: ui, effectsMap } as never).map(c => c.CardNum);
+  const namesBase = listGrowCandidates({ my: myDeck, cardMap: base, effectsMap } as never).map(c => c.CardNum);
+  ok(namesUi.includes(next3), `🔵−1 後（レベル2）ならレベル3へグロウできる（候補=${JSON.stringify(namesUi)}）`);
+  ok(!namesBase.includes(next3), '🔴対照：印字レベル3のままならレベル3は候補に入らない');
+}));
+
+test('§5.3 O-372: WXEX2-80-E1 各プレイヤーが手札を1枚公開→「公開されたシグニ2枚のレベルの差以下」の＜遊具＞だけを場に出す', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXEX2-80')!.find(e => e.effectId === 'WXEX2-80-E1')!;
+  const liveJson = JSON.stringify(eff.action);
+  ok(liveJson.includes('"EACH_PLAYER_REVEAL_HAND_CARD"'), 'live の前段は typed の公開（旧 DEFERRED_EACH_PLAYER_REVEAL_HAND）');
+  ok(liveJson.includes('"levelLteLastProcessedSigniLevelDiff":true'), '🔴後段にレベル差の上限が載っている（旧は制限なしで場に出せた）');
+  const toy = (lv: number) => findCard(c => isSigni(c) && c.CardName !== '似之遊　ハイ＆ロー'
+    && matchesFilter(c, { cardType: 'シグニ', color: '黒', story: '遊具' }) && parseInt(c.Level ?? '', 10) === lv);
+  const low = toy(2), high = toy(4);
+  const sigLv = (lv: number) => findCard(c => isSigni(c) && parseInt(c.Level ?? '', 10) === lv);
+  const spell = findCard(c => c.Type === 'スペル');
+  const run = (myReveal: string, oppReveal: string) => {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState = { ...ctx.ownerState, hand: [myReveal], trash: [low, high] };
+    ctx.otherState = { ...ctx.otherState, hand: [oppReveal] };
+    const r1 = executeEffect(eff, ctx);
+    ok(!r1.done, '自分の公開の選択が出ていない');
+    const p1 = (r1 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+    eq(p1.targetScope, 'self_hand', '1段目の候補は自分の手札');
+    ok(!p1.opponentResponds, '1段目を選ぶのは効果使用者');
+    const c1: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+    const r2 = resumeSelectTarget([myReveal], p1, c1);
+    ok(!r2.done, '対戦相手の公開の選択が出ていない');
+    const p2 = (r2 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+    eq(p2.targetScope, 'opp_hand', '2段目の候補は対戦相手の手札');
+    ok(!!p2.opponentResponds, '🔴対戦相手の手札から公開するカードを選ぶのは対戦相手');
+    const c2: ExecCtx = { ...c1, ownerState: r2.ownerState, otherState: r2.otherState, logs: r2.logs };
+    const r3 = resumeSelectTarget([oppReveal], p2, c2);
+    if (!r3.done) {
+      const p3 = (r3 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+      return { cands: [...(p3.candidates ?? [])], placed: [] as string[], why: '' };
+    }
+    return { cands: null, placed: r3.ownerState.field.signi.flatMap(z => z ?? []),
+      why: `logs=${JSON.stringify(r3.logs)} lp=${JSON.stringify(r3.lastProcessedCards)} low=${low} high=${high}` };
+  };
+  // レベル4とレベル1＝差3 → レベル2の＜遊具＞だけ（レベル4は出せない）
+  const a = run(sigLv(4), sigLv(1));
+  if (a.cands) eq(a.cands.join(','), low, '差3：候補はレベル2だけ');
+  else { ok(a.placed.includes(low), `差3：レベル2が場に出る ${a.why}`); ok(!a.placed.includes(high), '🔴差3：レベル4は出ない'); }
+  // 対戦相手がスペルを公開＝「シグニ2枚」が成立しない → 何も出せない
+  const b = run(sigLv(4), spell);
+  ok(!(b.cands ?? []).length && !b.placed.includes(low) && !b.placed.includes(high), '🔴片方がシグニでなければ何も出せない');
+  // 同じレベル＝差0 → レベル0以下は存在しない
+  const c = run(sigLv(2), sigLv(2));
+  ok(!(c.cands ?? []).length && !c.placed.includes(low), '🔴差0なら何も出せない');
+}));
+
+test('§5.3 O-372: サーバントZERO化は「ターン終了時まで」＝自分側（WXK11-014-E2）も相手側（MAKE_SERVANT_ZERO）も turn-end で戻る', () => withSavedCursor(() => {
+  const ZERO = 'WXDi-P07-TK01-A';
+  const e2 = effectsMap.get('WXK11-014')!.find(e => e.effectId === 'WXK11-014-E2')!;
+  ok(JSON.stringify(e2.action).includes('"SELF_SIGNI_SERVANT_ZERO_THIS_TURN"'), 'live は自分側・ターン限定の受け皿（旧 DEFERRED_SELF_SIGNI_SERVANT_ZERO）');
+  const stubEff = (id: string) => ({ effectId: 't', effectType: 'AUTO', action: { type: 'STUB', id } as unknown as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect);
+  const target = findCard(c => isSigni(c) && c.CardNum !== ZERO);
+  // ① 自分側
+  const ctxSelf = { ...mkCtx({ signi: [target, null, null] }, {}), lastProcessedCards: [target] } as ExecCtx;
+  const rSelf = executeEffect(stubEff('SELF_SIGNI_SERVANT_ZERO_THIS_TURN'), ctxSelf);
+  eq(effectiveIdentityOverrides(rSelf.ownerState, cardMap)[target], ZERO, '🔵自分の場に出したシグニがサーバントZEROになる');
+  eq(effectiveIdentityOverrides(rSelf.otherState, cardMap)[target], undefined, '🔴対戦相手側には書かない');
+  eq(rSelf.ownerState.card_identity_overrides?.[target], undefined, '🔴永続の card_identity_overrides へ書かない');
+  eq(effectiveIdentityOverrides(clearTurnEndScopedState(rSelf.ownerState), cardMap)[target], undefined, '🔴ターン終了で元のカードに戻る');
+  // ② 相手側（既存の4 id）＝母集団8効果は全部「ターン終了時まで」なのに、旧は永続だった
+  const ctxOpp = { ...mkCtx({}, { signi: [target, null, null] }), lastProcessedCards: [target] } as ExecCtx;
+  const rOpp = executeEffect(stubEff('MAKE_SERVANT_ZERO'), ctxOpp);
+  eq(effectiveIdentityOverrides(rOpp.otherState, cardMap)[target], ZERO, '相手のシグニがサーバントZEROになる');
+  eq(rOpp.otherState.card_identity_overrides?.[target], undefined, '🔴永続の card_identity_overrides へ書かない（旧はここに書いてゲーム終了まで戻らなかった）');
+  eq(effectiveIdentityOverrides(clearTurnEndScopedState(rOpp.otherState), cardMap)[target], undefined, '🔴ターン終了で元のカードに戻る');
+}));
+
+test('§5.3 O-372: SP38-005-E1「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」', () => withSavedCursor(() => {
+  const e1 = (effectsMap.get('SP38-005') ?? []).find(e => e.effectId === 'SP38-005-E1')!;
+  ok(JSON.stringify(e1.action).includes('"OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN"') && JSON.stringify(e1.action).includes('"value":-1'),
+    'live は typed（旧 DEFERRED_OPP_LRIG_LEVEL_MODIFY）');
+  const lrigLv = (lv: string) => findCard(c => c.Type === 'ルリグ' && c.Level === lv);
+  const center = lrigLv('3');
+  const stubEff = { effectId: 't', effectType: 'AUTO', action: e1.action, duration: 'INSTANT', mandatory: true } as CardEffect;
+  // ① 対戦相手のルリグが1体だけ＝選ばずに適用
+  const r1 = executeEffect(stubEff, mkCtx({}, { lrig: [center] }));
+  ok(r1.done, 'ルリグ1体なら選択なしで完了');
+  eq(r1.ownerState.attack_phase_level_overrides?.[center], 2, '🔵レベル3 → 2（一時レベル store）');
+  eq(r1.otherState.attack_phase_level_overrides?.[center], undefined, '置き場は効果の持ち主の state（applyContinuousBaseLevelOverride が両者を読む）');
+  eq(clearTurnEndScopedState(r1.ownerState).attack_phase_level_overrides?.[center], undefined, '🔴ターン終了で元に戻る');
+  // 🔴**読み手まで届くこと**＝旧コメントは「積んでも誰も読まない真 no-op」と警告していた。
+  //   engine の効果解決 ctx は `applyContinuousBaseLevelOverride` を通した cardMap の写しを使う（BattleScreen の declaredCardMap）。
+  const mappedLL = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, r1.ownerState, r1.otherState, effectsMap, true);
+  eq(mappedLL.get(center)?.Level, '2', '🔵解決 ctx の cardMap でルリグのレベルが2になる');
+  const condCtx = { ...mkCtx({}, { lrig: [center] }), ownerState: r1.ownerState, otherState: r1.otherState, cardMap: mappedLL } as ExecCtx;
+  ok(evalCondition({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'eq', value: 2 } as never, condCtx), '🔵LRIG_LEVEL 条件も2として読む');
+  ok(!evalCondition({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'eq', value: 3 } as never, condCtx), '🔴印字レベル3では読まない');
+  // ② アシストルリグがいれば「１体を対象とし」＝どれかを選ぶ
+  const assist = findCard(c => c.Type === 'アシストルリグ' && c.Level === '1');
+  const r2 = executeEffect(stubEff, mkCtx({}, { lrig: [center], assistL: [assist] }));
+  ok(!r2.done, '🔴ルリグが複数なら選択を出す');
+  const p2 = (r2 as { pending: PendingInteractionDef }).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  eq(p2.type, 'CHOOSE', '対象ルリグの選択は CHOOSE');
+  eq(p2.options.length, 2, 'センター＋アシスト＝2択');
+  ok(!p2.opponentResponds, '選ぶのは効果使用者');
+  // ③ レベル0 はそれ以上下げない
+  const zero = lrigLv('0');
+  const r3 = executeEffect(stubEff, mkCtx({}, { lrig: [zero] }));
+  eq(r3.ownerState.attack_phase_level_overrides?.[zero], 0, 'レベル0は0のまま（負にしない）');
+}));
+
+test('§5.3 O-373: 使用条件「このカードがトラッシュにある」の【起】はトラッシュから提示し、trashExile{count} を選んで払える', () => withSavedCursor(() => {
+  // 🔴旧＝4効果が**どの入口からも提示されない恒久 no-op**だった
+  //   （場の【起】ゲートは THIS_CARD_IN_LOCATION{trash} が場では false・トラッシュUIは trashActivated を要求）。
+  for (const [num, id] of [['WX13-038', 'WX13-038-E2'], ['WX21-021', 'WX21-021-E3'], ['WXDi-P11-053', 'WXDi-P11-053-E1'], ['WX15-Re15', 'WX15-Re15-E1']] as const) {
+    const e = effectsMap.get(num)!.find(x => x.effectId === id)!;
+    ok(e.trashActivated, `🔵${id} は trashActivated（入口＝トラッシュ）`);
+    eq(unsupportedTrashActivateCostKeys(e.cost).join('+'), '', `${id} のコストは全部トラッシュUIで払える`);
+  }
+  const eff = effectsMap.get('WX13-038')!.find(e => e.effectId === 'WX13-038-E2')!;
+  const other = findCard(c => isSigni(c) && c.CardName !== '千夜の夜王　イフリード');
+  const four = { ...mkState({}), trash: ['WX13-038', other, 'WX13-038', 'WX13-038', 'WX13-038'] } as PlayerState;
+  const three = { ...mkState({}), trash: ['WX13-038', other, 'WX13-038', 'WX13-038'] } as PlayerState;
+  ok(canOfferTrashActivate(eff, four, mkState({}), cardMap), '《イフリード》4枚（効果元込み）なら提示する');
+  ok(!canOfferTrashActivate(eff, three, mkState({}), cardMap), '🔴3枚なら提示しない');
+  const sel = (idx: number[]) => ({ energy: new Set<number>(), handDiscard: new Set<number>(), exceed: new Set<number>(), trashExile: new Set(idx) });
+  ok(!trashActivateSelectionsSatisfied(eff, four, sel([0, 2, 3]), cardMap), '🔴3枚の選択では払えない');
+  ok(!trashActivateSelectionsSatisfied(eff, four, sel([0, 1, 2, 3]), cardMap), '🔴名前違いの札を混ぜると払えない');
+  eq(payTrashActivateCost(eff, four, mkState({}), sel([0, 1, 2, 3]), cardMap, undefined, 'WX13-038'), null, '🔴名前違い混入は支払い不能');
+  const paid = payTrashActivateCost(eff, four, mkState({}), sel([0, 2, 3, 4]), cardMap, undefined, 'WX13-038')!;
+  ok(!!paid, '《イフリード》4枚を選べば払える');
+  eq(paid.my.trash.join(','), other, 'トラッシュには名前違いの1枚だけ残る');
+  eq(paid.my.lrig_trash.filter(n => n === 'WX13-038').length, 4, '除外置き場（lrig_trash）へ4枚');
+  ok(trashActivateCostLabels(eff, four, mkState({})).some(s => s.includes('《千夜の夜王　イフリード》4枚をゲームから除外')), 'コスト行に除外枚数が出る');
+  // 🔴ラベルの嘘＝旧は既定が「トラッシュから出す」で、カード自身がトラッシュに残る【起】にも「場に出す」と予告していた。
+  const labelOf = (num: string, id: string) => trashActivateVerbLabel(effectsMap.get(num)!.find(x => x.effectId === id)!);
+  eq(labelOf('WX21-021', 'WX21-021-E3'), 'トラッシュから発動', '🔴相手シグニをトラッシュに置く【起】は「場に出す」と言わない');
+  eq(labelOf('WX13-038', 'WX13-038-E2'), 'トラッシュから発動', '🔴パワー－の【起】も同じ');
+  eq(labelOf('WX15-Re15', 'WX15-Re15-E1'), 'トラッシュから出す', '🔵場に出す本体が CONDITIONAL.then の中でも拾う');
+}));
+
 test('§5.3 O-262: トラッシュ自己除外【起】は「トラッシュから提示・場からは非提示」（母集団10効果）', () => withSavedCursor(() => {
   // 🔴**両方向のバグだった**＝原文コスト「トラッシュにあるこのカードをゲームから除外する」の10効果は
   //   ①`trashActivated` が立たず**トラッシュUIから一度も提示されない**（恒久 no-op）
@@ -48508,10 +48715,13 @@ test('§5.3 O-262: トラッシュ自己除外【起】は「トラッシュか�
   eq(trashActivateVerbLabel(eff), 'このカードを除外して発動', 'ラベルは自己除外を優先して読む');
   ok(trashActivateCostLabels(eff, inTrash, mkState({})).includes('このカードをゲームから除外'),
     'コスト行にも除外が出る');
-  // ④ 選択を伴う `trashExile`（count 形）は**このモーダルに選ぶ列が無い**＝未対応側へ倒す
+  // ④ 🆕§5.3 `O-373`＝選択を伴う `trashExile`（count 形）も**モーダルの選択列で払える**（旧は未対応側へ倒していた）。
+  //   ⚠踏み倒し防止は `trashActivateSelectionsSatisfied`／`canOfferTrashActivate` 側（`O-373` の golden が両方向を見る）。
   const countForm = { ...eff, cost: { trashExile: { count: 2 } } } as typeof eff;
-  eq(unsupportedTrashActivateCostKeys(countForm.cost).join(','), 'trashExile',
-    '🔴count 形は未対応＝提示しない（載せると踏み倒せる）');
+  eq(unsupportedTrashActivateCostKeys(countForm.cost).join(','), '',
+    '🔵count 形も対応コスト（選択列で払う）');
+  ok(!canOfferTrashActivate(countForm, { ...mkState({}), trash: ['WX19-070'] } as PlayerState, mkState({}), cardMap),
+    '🔴トラッシュが1枚しか無ければ count:2 は提示しない');
 }));
 
 
@@ -62198,7 +62408,8 @@ test('O-80② parser契約: A群14効果は数える対象／効く相手をfres
 test('O-80② parser契約: B群5効果を固定値／既存MILL／honest deferへ分離する', () => withSavedCursor(() => {
   const expected = [
     ['PR-460', 'PR-460-E1', ['"type":"POWER_MODIFY"', '"delta":-15000']],
-    ['SP38-005', 'SP38-005-E1', ['DEFERRED_OPP_LRIG_LEVEL_MODIFY']],
+    // 🏁§5.3 `O-372`（2026-09-14）＝ルリグのレベル増減は一時レベル store で typed へ。
+    ['SP38-005', 'SP38-005-E1', ['OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN']],
     // 🏁**§5.3 `O-372` 第3バッチ（2026-09-14）＝実装した**（受け皿は既存の `signi_color_overrides`）。
     ['WX22-042', 'WX22-042-E1', ['"id":"SELF_SIGNI_COLOR_TO_DECLARED"']],
     ['WX25-CP1-007', 'WX25-CP1-007-E1', ['"type":"MILL","owner":"opponent","count":0,"useDeclaredCount":true']],
@@ -62643,7 +62854,8 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     // 🏁**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝この5件は受け皿が在ったので実装へ戻した。**
     //   ⚠この表は「id がそこに在ること」しか見ない＝**typed へ移した行は新しい id を書く**（`WXDi-P08-008` と同じ作法）。
     ['WX22-Re17', 'WX22-Re17-E2', 'SELF_FROM_TRASH_TO_DECK_BOTTOM'],
-    ['WXEX2-80', 'WXEX2-80-E1', 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
+    // 🏁§5.3 `O-372`（2026-09-14）＝各プレイヤーの手札公開は typed へ。
+    ['WXEX2-80', 'WXEX2-80-E1', 'EACH_PLAYER_REVEAL_HAND_CARD'],
     ['WXDi-P00-037', 'WXDi-P00-037-E2', 'OPP_DECK_BOTTOM_MILL'],
     ['WD23-022-E', 'WD23-022-E-E3', 'LIFE_CRASH'],
     ['WDK17-015', 'WDK17-015-E1', 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
@@ -71597,11 +71809,13 @@ test('§5.3 O-249 第149: サーバントZERO 化が「カード名の宣言」�
   // 同じ catch-all に落ちていた「**そのシグニ**を《サーバント　ＺＥＲＯ》にする」（`WXK11-014-E2`）。
   // 🔴**ただしこれは「自分の場に出したシグニ」**で、engine の4つの `*_SERVANT_ZERO` は
   //   すべて `otherState.card_identity_overrides` へ書く＝**相手側専用**。流用すると
-  //   「自分は変換されず相手が勝手に変換される」別効果になるので、**明示 defer** にして穴を計器へ残す。
+  //   「自分は変換されず相手が勝手に変換される」別効果になる。
+  // 🏁§5.3 `O-372`（2026-09-14）＝自分側・ターン限定の受け皿 `SELF_SIGNI_SERVANT_ZERO_THIS_TURN` へ
+  //   （書き込み先 `ownerState.card_identity_overrides_this_turn`＝turn-end で失効）。
   for (const [label, e] of pair('WXK11-014', 'WXK11-014-E2')) {
     const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
-    ok(steps.some(st => (st as { id?: string }).id === 'DEFERRED_SELF_SIGNI_SERVANT_ZERO'),
-      `WXK11-014-E2 ${label}: 自分側の変換は受け皿が無いので明示 defer`);
+    ok(steps.some(st => (st as { id?: string }).id === 'SELF_SIGNI_SERVANT_ZERO_THIS_TURN'),
+      `WXK11-014-E2 ${label}: 自分側・ターン限定のサーバントZERO化`);
     ok(!JSON.stringify(e.action).includes('DECLARE_CARD_NAME'),
       `WXK11-014-E2 ${label}: カード名の宣言に化けない`);
     ok(!JSON.stringify(e.action).includes('"MAKE_SERVANT_ZERO"'),
@@ -73073,8 +73287,8 @@ test('§5.3 O-259 第12: 相手ターンの追加タイミングと代替コス�
      '🔴印刷《黒》×0 に「《黒×2》《無×2》増える」＝相手ターン中の請求額そのもの');
   ok(!JSON.stringify(e1.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'),
      '🔴痕跡マーカーを撤去した（`O-259` のラチェット最後の1件）');
-  ok(JSON.stringify(e1.action).includes('DEFERRED_OPP_LRIG_LEVEL_MODIFY'),
-     '🛑帰結は根拠つき defer のまま＝名前のある穴として残す');
+  ok(JSON.stringify(e1.action).includes('OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN'),
+     '🏁帰結は §5.3 O-372 で typed へ（旧 DEFERRED_OPP_LRIG_LEVEL_MODIFY）');
   const e2 = (effectsMap.get('SP38-005') ?? []).find(e => e.effectId === 'SP38-005-E2')!;
   eq((e2.action as unknown as { id?: string }).id, 'EXTRA_USE_TIMING', '追加使用タイミングの受け皿');
   const lv = (n: string) => findCard(c => c.Type === 'ルリグ' && c.Level === n);

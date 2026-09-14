@@ -15,8 +15,14 @@ export function computeEffectiveLrigLimit(
   const parseLimit = (value?: string) => value === '∞' ? Infinity : (parseInt(value ?? '0', 10) || 0);
   const centerInstance = state.field.lrig.at(-1) ?? '';
   const otherCenterInstance = otherState.field.lrig.at(-1) ?? '';
-  const center = cardMap.get(state.card_identity_overrides?.[centerInstance] ?? baseCardNum(centerInstance));
-  const otherCenter = cardMap.get(otherState.card_identity_overrides?.[otherCenterInstance] ?? baseCardNum(otherCenterInstance));
+  // 🆕§5.3 `O-375`＝差し替えが無ければ **instance で先に引く**（期間つきのレベル上書きは instance キー＝`battleCardMap` に載る）。
+  //   ⚠差し替え（裏返り等）がある場合は従来どおり差し替え先を引く（素の `InstanceMap` だと instance は元カードへ落ちるため）。
+  const lrigCardOf = (st: PlayerState, inst: string) => {
+    const swapped = st.card_identity_overrides?.[inst];
+    return swapped ? cardMap.get(swapped) : (cardMap.get(inst) ?? cardMap.get(baseCardNum(inst)));
+  };
+  const center = lrigCardOf(state, centerInstance);
+  const otherCenter = lrigCardOf(otherState, otherCenterInstance);
   const basicOverride = otherState.field.signi.some(stack => {
     const top = stack?.at(-1);
     return !!top && (effectsMap.get(top) ?? effectsMap.get(baseCardNum(top)) ?? []).some(effect =>

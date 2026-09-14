@@ -13,6 +13,8 @@ export interface ActivatedModalsState {
   // トラッシュ自己起動のエナ以外コスト（§6.4）：手札捨て・エクシードの選択インデックス
   selectedTrashActivatedDiscard: Set<number>;
   selectedTrashActivatedExceed: Set<number>;
+  // 🆕§5.3 `O-373`＝トラッシュ自己起動の `trashExile{count}`（除外する札の `my.trash` インデックス）
+  selectedTrashActivatedTrashExile: Set<number>;
   // エナゾーンのACTIVATED能力（アクセカード発動）
   pendingEnergyActivated: { cardNum: string; effect: CardEffect } | null;
   selectedEnergyActivatedCost: Set<number>;
@@ -35,6 +37,7 @@ const initialState: ActivatedModalsState = {
   selectedTrashActivatedCost: new Set(),
   selectedTrashActivatedDiscard: new Set(),
   selectedTrashActivatedExceed: new Set(),
+  selectedTrashActivatedTrashExile: new Set(),
   pendingEnergyActivated: null,
   selectedEnergyActivatedCost: new Set(),
   pendingLrigGranted: null,
@@ -59,11 +62,13 @@ export function useActivatedModals() {
       patch({
         pendingTrashActivated: pending, selectedTrashActivatedCost: new Set(),
         selectedTrashActivatedDiscard: new Set(), selectedTrashActivatedExceed: new Set(),
+        selectedTrashActivatedTrashExile: new Set(),
       }),
     closeTrashActivated: () =>
       patch({
         pendingTrashActivated: null, selectedTrashActivatedCost: new Set(),
         selectedTrashActivatedDiscard: new Set(), selectedTrashActivatedExceed: new Set(),
+        selectedTrashActivatedTrashExile: new Set(),
       }),
     /** エナACTIVATED（アクセ発動）モーダルを開く（コスト選択は白紙化） */
     openEnergyActivated: (pending: NonNullable<ActivatedModalsState['pendingEnergyActivated']>) =>
@@ -89,6 +94,7 @@ export function useActivatedModals() {
     setSelectedTrashActivatedCost: set.selectedTrashActivatedCost,
     setSelectedTrashActivatedDiscard: set.selectedTrashActivatedDiscard,
     setSelectedTrashActivatedExceed: set.selectedTrashActivatedExceed,
+    setSelectedTrashActivatedTrashExile: set.selectedTrashActivatedTrashExile,
     setPendingEnergyActivated: set.pendingEnergyActivated,
     setSelectedEnergyActivatedCost: set.selectedEnergyActivatedCost,
     setPendingLrigGranted: set.pendingLrigGranted,

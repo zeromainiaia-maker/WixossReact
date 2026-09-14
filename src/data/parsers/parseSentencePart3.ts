@@ -1702,7 +1702,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
   if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
-    const costColors = extractCostColors(t);
+    // 🆕🔴§5.3 `O-374`＝「《赤》**か**《緑》を支払ってもよい」は**どちらか1エナ**＝スロット1つ `'赤|緑'`。
+    //   旧は `extractCostColors` が色を全部拾って `['赤','緑']`（**両方払う**）にしていた＝原文より重いコスト
+    //   （`WX21-034-E1`／`WDA-F02-17-E3`／`WXEX1-15-E1`）。engine の支払い funnel は `|` スロットを既に扱う
+    //   （`execUtils.energyMatchesCostSlot`／`formatCostSlot`・手書きの `WX25-P2-118-E2` が先例）。
+    //   ⚠`《赤×2》か《赤×4》`（量の二択＝`SPK06-01`）は別構文＝ここでは拾わない。
+    const eitherM = t.match(/《([白赤青緑黒無])》か《([白赤青緑黒無])》を支払ってもよい。?$/);
+    const costColors = eitherM ? [`${eitherM[1]}|${eitherM[2]}`] : extractCostColors(t);
     // 🆕《コインアイコン》のコイン支払い（§6.4・2026-08-10）。`extractCostColors` は色しか拾わないため、
     //   コインだけのコストが**payload 無しの OPTIONAL_COST＝コスト0**に落ちて**ただで撃てて**いた
     //   （`WXDi-P07-055/072/094` 等）。engine（`effectExecutor` の `coinCost`）は実装済みで、

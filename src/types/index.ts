@@ -1036,6 +1036,10 @@ export interface PlayerState {
   eichi_level_options?: Record<string, number[]>;
   // COPY_SIGNI: このターン、フィールドシグニが別のカードとして扱われる（field_cardNum → copy_source_cardNum）
   card_identity_overrides?: Record<string, string>;
+  // 🆕§5.3 `O-372`（`WXK11-014-E2`）＝上と同じ instance 単位の差し替えだが**ターン終了時まで**（turn-end で失効）。
+  //   ⚠上の `card_identity_overrides` は実際には turn-end で消えない（永続）ので、ターン限定はこちらへ書く。
+  //   読み手は `effectiveIdentityOverrides` が合成する（直接読まない）。
+  card_identity_overrides_this_turn?: Record<string, string>;
   // 🆕§5.3 `O-306`（2026-09-11）＝「宣言されたカード名のカードは《X》になる」の**規則**（**変身する側**の state に載る）。
   //   ⚠上の `card_identity_overrides`（instance 単位の差し替え）と違い、**その領域へ後から来たカードにも効く**。
   //   実効の差し替えは `engine/nameIdentityRules.ts` の `effectiveIdentityOverrides` が毎回合成する。

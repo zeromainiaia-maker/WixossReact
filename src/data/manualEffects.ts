@@ -10885,8 +10885,26 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // ④ 「（この能力は、このシグニが**トラッシュにある場合にしか**使用できない）」が落ちていた＝場に居ても撃てた。
   //    受け皿は既存＝`condition:THIS_CARD_IN_LOCATION{trash}`（`WX13-038-E2`／`WX21-021-E3` と同型）。
+  // 🆕§5.3 `O-373`＝**`trashActivated` が無く、どの入口からも提示されない恒久 no-op だった**
+  //   （場の【起】ゲートは `THIS_CARD_IN_LOCATION{trash}` が場では false・トラッシュUIは `trashActivated` を要求）。
+  // 🆕§5.3 `O-374`（numberdrift の全数 triage）で見つけた真バグ2件。
+  // ① 「あなたの場に《VOGUE3-EXTREMEマドカ》がいる場合、以下の２つから１つを選ぶ」の**前置き条件が丸ごと落ちていた**
+  //    ＝マドカがいなくても毎アタックで2択が出た。同じ文型の他7効果（`SPDi43-10-E2` ほか）は条件つきで出ている
+  //    受け皿は既存の `condition: HAS_CARD_IN_FIELD{cardName}`。
+  //    🔴**原文の《VOGUE3-EXTREMEマドカ》は印字名 `VOGUE3-EXTREME　マドカ`（`SPDi43-15`・全角スペースあり）と一致しない**
+  //    ＝これが parser の取りこぼしの原因。`cardName` は部分一致なので**原文の綴りをそのまま書くと永久に不成立**になる＝印字名で書く。
+  "SPDi43-21": [
+    {"effectId":"SPDi43-21-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"VOGUE3-EXTREME　マドカ"}},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":2}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"condition":{"type":"HAND_COUNT","owner":"opponent","operator":"eq","value":0}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  // ② 「あなたのシグニを２体まで対象とし、ターン終了時まで、それらは『【常】：このシグニの正面に凍結状態のシグニがあるかぎり、
+  //    このシグニは【アサシン】を得る。』を得る」。🔴旧 `STUB{GRANT_CONDITIONAL_ASSASSIN_ABILITY}` は**効果元（このカード自身）へ
+  //    無条件の【アサシン】を付けていた**＝対象を選ばず・条件も無く・カードは場のシグニですらない（恒久 no-op＋意味違い）。
+  //    受け皿は既存＝`GRANT_EFFECT{effect: CONTINUOUS{activeCondition: FRONT_SIGNI, GRANT_KEYWORD}}`（`WXDi-P11-071-E2` と同型）。
+  "WXK02-057": [
+    {"effectId":"WXK02-057-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":3}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK02-057-E1-GRANT","effectType":"CONTINUOUS","activeCondition":{"type":"FRONT_SIGNI","filter":{"isFrozen":true}},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WX15-Re15": [
-    {"effectId":"WX15-Re15-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"condition":{"type":"THIS_CARD_IN_LOCATION","location":"trash"},"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","nonColorless":true},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"SHUFFLE_DECK","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX15-Re15-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"condition":{"type":"THIS_CARD_IN_LOCATION","location":"trash"},"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","nonColorless":true},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"SHUFFLE_DECK","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","trashActivated":true}
   ],
   // ⑤ 《トラップアイコン》能力が**独立した能力ではなく【出】の SEQUENCE 末尾**に混ざっていた
   //    ＝【出】を撃つだけで「パワー15000以上をデッキトップへ」まで一緒に走る過剰実行。
@@ -11458,10 +11476,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**`altCostOppTurn` はレベル条件を見ない**＝相手ターン中なら常に代替コストになる。実データでは
   //   このアーツが相手ターンに撃てるのは E2 の追加タイミング（＝同じレベル条件つき）を通ったときだけなので
   //   一致する。⚠印字タイミングに《アタックフェイズアイコン》が付く同型が来たら分離が要る。
-  // 🛑**帰結（「対戦相手のルリグ1体のレベルを－1」）は根拠つき defer のまま**＝
-  //   ルリグの**実効**レベルを読む funnel が要る（`field.lrig.at(-1)` の読み口が engine＋screens で 197箇所、
-  //   `LRIG_LEVEL_CMP_OPP` も `LRIG_LEVEL_EQ_OPP` も印字レベルしか読まない＝積んでも誰も読まない
-  //   真 no-op になる）。`STUB{DEFERRED_OPP_LRIG_LEVEL_MODIFY}` として**名前のある穴**で残す。
+  // 🏁**帰結（「対戦相手のルリグ1体のレベルを－1」）は §5.3 `O-372`（2026-09-14）で typed へ**＝
+  //   `STUB{OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN}`。🔑funnel は**既に在った**＝一時レベル store
+  //   `attack_phase_level_overrides` を `applyContinuousBaseLevelOverride` が cardMap の `Level` へ写す
+  //   （engine の効果解決 ctx は全部この写しを使う＝`LRIG_LEVEL` 等の `cardMap.get(lrig).Level` がそのまま効く）。
+  //   ⚠**UI 側の読み手（`battleCardMap` を直接読むグロウ・アーツ使用条件・【常】の activeCondition 等）はこの store を見ない**
+  //     ＝`SET_BASE_LEVEL{until}` と共通の既存の穴（旧コメントの「印字レベルしか読まない」はこちら側の話）。
   'SP38-005': [
     {
       effectId: 'SP38-005-E1',
@@ -11470,7 +11490,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       cost: { energy: [{ color: '黒', count: 0 }] },
       // 「対戦相手のターンの間、…使用コストは《黒×2》《無×2》増える」＝印刷が《黒》×０ なのでこの額が請求額。
       altCostOppTurn: [{ color: '黒', count: 2 }, { color: '無', count: 2 }],
-      action: { type: 'STUB', id: 'DEFERRED_OPP_LRIG_LEVEL_MODIFY' },
+      // 🏁§5.3 `O-372`（2026-09-14）＝「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」。
+      //   受け皿は既存の一時レベル store（`attack_phase_level_overrides`＝turn-end で失効・`applyContinuousBaseLevelOverride` が cardMap へ反映）。
+      action: { type: 'STUB', id: 'OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN', value: -1 },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',

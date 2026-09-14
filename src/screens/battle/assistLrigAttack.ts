@@ -29,7 +29,8 @@ export function assistLrigAttackableSlots(
     if (!top) return;
     if (isDown || isFrozen) return;                     // アタック済み／凍結中は不可
     // ⚠レベルは**カード表記**で見る（アシストルリグに LEVEL_MODIFY を載せる語彙は現状無い）。
-    const level = parseInt(cardMap.get(baseNum(top))?.Level ?? '', 10);
+    // 🆕§5.3 `O-375`＝instance で先に引く（期間つきのレベル上書きは instance キー）。
+    const level = parseInt((cardMap.get(top) ?? cardMap.get(baseNum(top)))?.Level ?? '', 10);
     if (!Number.isFinite(level) || level < minLevel) return;
     out.push(slot);
   };

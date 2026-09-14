@@ -49,7 +49,8 @@ export function resolveLrigDamageShield(args: {
   const lostThisTurn = defender.lost_ability_effect_ids_this_turn ?? [];
 
   const attackerLevel = attackingLrigNum
-    ? parseInt(cardMap.get(baseCardNum(attackingLrigNum))?.Level ?? '', 10)
+    // 🆕§5.3 `O-375`＝instance で先に引く（期間つきのレベル上書きは instance キー）。
+    ? parseInt((cardMap.get(attackingLrigNum) ?? cardMap.get(baseCardNum(attackingLrigNum)))?.Level ?? '', 10)
     : NaN;
 
   for (const [num, eff] of shieldCandidates(defender, effectsMap)) {

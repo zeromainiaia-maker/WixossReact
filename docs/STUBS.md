@@ -12,10 +12,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 583 |
-| 　└ ハンドラ実装あり | 539 |
-| 　└ フォールバック（execStub 未処理） | 44 |
+| 　└ ハンドラ実装あり | 542 |
+| 　└ フォールバック（execStub 未処理） | 41 |
 | 総 STUB ノード件数 | 3398 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 366 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 368 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -48,9 +48,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
-| `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
-| `DEFERRED_OPP_LRIG_LEVEL_MODIFY` | 1 | 1 | SP38-005 |  |
-| `DEFERRED_SELF_SIGNI_SERVANT_ZERO` | 1 | 1 | WXK11-014 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF` | 1 | 1 | WXEX2-28 |  |
 | `ENERGY_COST_SUBSTITUTE_WHOLE` | 1 | 1 | WX09-032 |  |
@@ -200,7 +197,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SEARCHED_SPELL_OR_TRASH` | 1 | 1 | WX20-077 | USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）: 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝ 直前のサーチで見つけたカード… |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 | エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と同じレベルの対戦相手のシグニ1体を手札に戻す |
 
-### execStubPart2.ts（166 種）
+### execStubPart2.ts（169 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -285,6 +282,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_COLOR_COND_ENERGY_TRASH` | 1 | 1 | SPDi43-22 | 色を宣言し、エナから宣言色のカードを任意でトラッシュ |
 | `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | 手札の青シグニを捨て→相手手札の同パワーシグニを捨てさせる |
 | `DRAW_BY_CHARM_COUNT` | 1 | 1 | WX18-038 | 🆕§5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（原文「対戦相手の場にある【チャーム】の数に   １を加えた枚数のカードを引く」）。旧実装は①**自分の**場のチャームを数え②**+1もしない**③チャーム0で … |
+| `EACH_PLAYER_REVEAL_HAND_CARD` | 1 | 1 | WXEX2-80 | 各プレイヤーは自分の手札からカードを1枚選んで公開する（公開した2枚を「この方法で公開された」カードとして後段が参照する） |
 | `ENERGY_TO_TRASH` | 1 | 1 | WXDi-P06-069 | エナゾーンからカード1枚選んでトラッシュ（SELECT→INTERNAL） |
 | `FACEDOWN_RELEASE_BY_OPP_PAYMENT` | 1 | 1 | WXDi-P07-010 | ═══ §6.4 O-9(b)＝**繰り返す**遅延ゲート（`WXDi-P07-010-E2`）═══ 「各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、   対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そ… |
 | `FROM_TRASH_TO_CENTER_ZONE` | 1 | 1 | WXDi-P03-087 | トラッシュからカードを中央シグニゾーン（zone[1]）に出す |
@@ -318,6 +316,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `NO_ABILITY_SIGNI_TO_DECK_BOTTOM` | 1 | 1 | WXEX2-30 | アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる |
 | `OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND` | 1 | 1 | WXK10-025 | 相手より手札が少ない場合、相手の手札をデッキ下へ |
 | `OPP_LRIG_DECK_BLIND_REVEAL` | 1 | 1 | PR-469 | 対戦相手のルリグデッキからカードを1枚見ないで選び公開する。それがルリグでない場合、それをルリグトラッシュに置く |
+| `OPP_LRIG_LEVEL_MINUS_UNTIL_END_OF_TURN` | 1 | 1 | SP38-005 | 対戦相手のルリグ1体を対象とし、ターン終了時まで、それのレベルを－1する |
 | `OPP_SIGNI_TO_DECK_BY_GATE` | 1 | 1 | WDK09-001 | 相手シグニをゲートを通じてデッキへ（バウンス） |
 | `OPP_SIGNI_TO_DECK_NTH` | 1 | 1 | WDK09-012 | 相手シグニをデッキのN番目に挿入 |
 | `OPP_TRASH_TO_OPP_SIGNI_UNDER` | 1 | 1 | WXK11-069 | 相手トラッシュ最上段を相手シグニ下にカードを置く |
@@ -352,6 +351,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SEED_BLOOM_OPTIONAL` | 1 | 1 | WXK10-059 | 任意でシード1枚を開花する |
 | `SEED_FLOWER_OP` | 1 | 1 | WXK05-050 | 別シード1枚を開花してデッキ上をシード設置（ヤマレンゲ系） |
 | `SEED_HAND_AND_BLOOM_FROM_DECK_TOP` | 1 | 1 | WDK07-Y20 | シード1枚を手札に加え、デッキ上をシード設置 |
+| `SELF_SIGNI_SERVANT_ZERO_THIS_TURN` | 1 | 1 | WXK11-014 | ターン終了時まで、そのシグニ（直前に場に出したあなたのシグニ）を《サーバント　ＺＥＲＯ》にする |
 | `SELF_TRASH_IF_NO_OPP_VIRUS` | 1 | 1 | WX20-030 | 相手にウィルスがなければ自トラッシュ |
 | `SET_HAND_CARD_AS_TRAP` | 1 | 1 | WX21-057 |  |
 | `SET_LEVEL_RANGE` | 1 | 1 | WX19-065 | 自シグニ1体を選んでレベル1～4に変更（ターン終了時まで） |
@@ -635,7 +635,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 366 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 368 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -753,6 +753,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_DPE_PAY` | 0 | 0 |  |  |
 | `INTERNAL_DPE_SELECT_DISCARD` | 0 | 0 |  |  |
 | `INTERNAL_DRAW_PER_CENTER_LEVEL` | 0 | 0 |  | センタールリグのレベル1につき1ドロー |
+| `INTERNAL_EACH_REVEAL_HAND_APPLY` | 0 | 0 |  |  |
+| `INTERNAL_EACH_REVEAL_HAND_OPP` | 0 | 0 |  |  |
 | `INTERNAL_ECRV_APPLY` | 0 | 0 |  | ウイルスN個除去→(N+1)択効果を選ぶ |
 | `INTERNAL_ENCORE_USE` | 0 | 0 |  | 選択したアーツをコストなしで実行 |
 | `INTERNAL_ENERGY_TO_HAND` | 0 | 0 |  | ENERGY_TO_HAND_ON_DECK 後処理：選択エナを手札へ |

@@ -46,7 +46,10 @@ export function nameRuleScopeCards(state: PlayerState, zones: NameIdentityRule['
  * 規則が無ければ明示の差し替えをそのまま返す（従来と同一のオブジェクト）。
  */
 export function effectiveIdentityOverrides(state: PlayerState, cardMap: CardLookup): Record<string, string> {
-  const explicit = state.card_identity_overrides ?? {};
+  // 🆕§5.3 `O-372`＝ターン限定の instance 差し替え（`card_identity_overrides_this_turn`）も明示の差し替えとして重ねる。
+  const explicit = state.card_identity_overrides_this_turn
+    ? { ...(state.card_identity_overrides ?? {}), ...state.card_identity_overrides_this_turn }
+    : state.card_identity_overrides ?? {};
   const rules = [...(state.name_identity_rules ?? []), ...(state.name_identity_rules_this_turn ?? [])];
   if (rules.length === 0) return explicit;
   const out: Record<string, string> = { ...explicit };
