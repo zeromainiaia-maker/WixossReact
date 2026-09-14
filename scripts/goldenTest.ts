@@ -82073,6 +82073,46 @@ test('O-367 そのアタックの間: live の 2効果が期間を持つ（母�
     '🔴WX25-P3-032-E2（原文「このターン、次に」）にまで「そのアタックの間」が付いた');
 });
 
+// ── §5.3 末尾「個別カードの機構待ち」の再判定（2026-09-14・第328バッチ）────────────────
+// 🔴**旧 defer「`WX20-Re20` ＝一体で要る（選択数依存コスト・能力なし filter・任意複数配置UI・
+//   同一 instance 群のターン終了時 trash）＝部分実装しない」は stale**＝**4軸すべて実装済み**だった。
+//   ⇒ 実測でそれを確かめ、**二度と「未実装」に戻らないよう固定する**（defer を消す条件）。
+// ⚠**バニラ（能力を持たないシグニ）を手札に置くこと**＝`fill()` が配るのは能力持ちなので、
+//   `noAbilities` が正しく効いて**候補0**になる（＝「動かない」と誤読しかけた）。
+const RE20_VANILLA = ['WD01-013', 'WD01-012', 'WD01-010'];  // 小剣ククリ／中剣フランベル／大剣カリバン
+test('O-367後 WX20-Re20 c1: 手札から好きな枚数出し、その個体群をターン終了時トラッシュへ予約する', () => {
+  const eff = mergeManualEffects('WX20-Re20', effectsMap.get('WX20-Re20') ?? [])
+    .find(e => e.effectId === 'WX20-Re20-E1')!;
+  const choose = (eff.action as SequenceAction).steps[0] as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const ctx = mkCtx({ hand: 0 }, {});
+  const withHand = { ...ctx, ownerState: { ...ctx.ownerState, hand: [...RE20_VANILLA] } } as ExecCtx;
+  const st = run(choose.choices[1].action, withHand).ownerState as PlayerState;
+  eq(st.field.signi.filter(z => z && z.length > 0).length, 3, '🔴手札の能力なしシグニが場に出ていない');
+  eq(st.hand.length, 0, '出した分が手札に残っている');
+  // 🔑**同一 instance 群**＝出した3体がそのままターン終了時トラッシュの予約に入る
+  //   （`TRASH_AT_TURN_END` は `lastProcessedCards` を読む＝配置側が積んでいないと無言で0件になる）。
+  eq(JSON.stringify(st.turn_end_field_trash_targets), JSON.stringify(RE20_VANILLA),
+    '🔴ターン終了時トラッシュの予約が出した個体群と一致しない');
+  // 🔴対照＝能力を持つシグニは `noAbilities` で弾かれる（filter が落ちたら場に出てしまう）。
+  const withAbility = { ...ctx, ownerState: { ...ctx.ownerState, hand: fill(3) } } as ExecCtx;
+  const st2 = run(choose.choices[1].action, withAbility).ownerState as PlayerState;
+  eq(st2.field.signi.filter(z => z && z.length > 0).length, 0,
+    '🔴能力を持つシグニまで場に出た＝`noAbilities` が落ちている');
+});
+test('O-367後 WX20-Re20 c0: デッキから能力なしシグニを3枚まで公開して手札へ', () => {
+  const eff = mergeManualEffects('WX20-Re20', effectsMap.get('WX20-Re20') ?? [])
+    .find(e => e.effectId === 'WX20-Re20-E1')!;
+  const choose = (eff.action as SequenceAction).steps[0] as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const ctx = mkCtx({ hand: 0 }, {});
+  const withDeck = {
+    ...ctx,
+    ownerState: { ...ctx.ownerState, hand: [], deck: [...RE20_VANILLA, ...ctx.ownerState.deck] },
+  } as ExecCtx;
+  const st = run(choose.choices[0].action, withDeck).ownerState as PlayerState;
+  eq(st.hand.length, 3, '🔴3枚まで手札に加わっていない');
+  ok(st.hand.every(n => RE20_VANILLA.includes(n)), '🔴能力を持つシグニを拾った＝`noAbilities` が落ちている');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

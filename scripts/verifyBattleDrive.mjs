@@ -29772,7 +29772,16 @@ scenarios.v58fCpuAutoPassesTeamPieceCutin = {
   title: 'V-58(f) CPU戦でCPUが応答側＝カットイン候補ありでも自動パスして元のピースが解決（デッドロックしない）',
   spec: {
     hostSet: {
-      'field.lrig': ['WD03-003#1'],
+      // 🔴🆕**2026-09-14 に host 側を作り直した**＝`WXDi-P04-002`（世界逆流）の
+      //   【使用条件】【チーム】＜アンシエント・サプライズ＞は **`LRIG_TEAM_COUNT{…,gte 3}`** で
+      //   **いま実際に評価される**ので、`WD03-003` 1体では「使用」ボタンが**そもそも出ない**
+      //   （＝カットイン窓の検証に入る前に空振りしていた。実測でこの2本が同時に腐っていた）。
+      //   ⇒ **センター＋アシストL/R の3体を同チームで揃える**（`execUtils.ts` の `LRIG_TEAM_COUNT` が数える枠）。
+      'field.lrig': ['WXDi-D01-005#1'],          // 目醒めし者　タウィル＝ノル（効果なし＝余計な誘発を混ぜない）
+      'field.assist_lrig_l': ['WXDi-D01-006#1'], // タウィル＝ハウリング（同チーム）
+      'field.assist_lrig_r': ['WXDi-D01-007#1'], // タウィル＝カラーズ（同チーム）
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
       'lrig_deck': ['WXDi-P04-002#1'], // 世界逆流（【使用条件】【チーム】＜アンシエント・サプライズ＞）
       'field.signi': [null, null, null],
       'field.check': null,
@@ -29838,7 +29847,16 @@ scenarios.v58bNoTeamMatchSkipsCutinWindow = {
   title: 'V-58(b)対照 応答側がチーム条件（きゅるきゅるーん☆3体）を満たさない→窓は開かず即時解決',
   spec: {
     hostSet: {
-      'field.lrig': ['WD03-003#1'],
+      // 🔴🆕**2026-09-14 に host 側を作り直した**＝`WXDi-P04-002`（世界逆流）の
+      //   【使用条件】【チーム】＜アンシエント・サプライズ＞は **`LRIG_TEAM_COUNT{…,gte 3}`** で
+      //   **いま実際に評価される**ので、`WD03-003` 1体では「使用」ボタンが**そもそも出ない**
+      //   （＝カットイン窓の検証に入る前に空振りしていた。実測でこの2本が同時に腐っていた）。
+      //   ⇒ **センター＋アシストL/R の3体を同チームで揃える**（`execUtils.ts` の `LRIG_TEAM_COUNT` が数える枠）。
+      'field.lrig': ['WXDi-D01-005#1'],          // 目醒めし者　タウィル＝ノル（効果なし＝余計な誘発を混ぜない）
+      'field.assist_lrig_l': ['WXDi-D01-006#1'], // タウィル＝ハウリング（同チーム）
+      'field.assist_lrig_r': ['WXDi-D01-007#1'], // タウィル＝カラーズ（同チーム）
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
       'lrig_deck': ['WXDi-P04-002#1'], // 世界逆流
       'field.signi': [null, null, null],
       'field.check': null,
@@ -29848,6 +29866,12 @@ scenarios.v58bNoTeamMatchSkipsCutinWindow = {
     },
     guestSet: {
       'field.lrig': ['SPDi34-05#1'], // みこみこ（きゅるきゅるーん☆）単独＝チーム3体未満
+      // 🔴🆕**2026-09-14＝アシスト枠を明示的に空にする**（§4.4 罠1）＝
+      //   `assist_lrig_l`/`_r` は `CORE_FIELD_KEYS` なので**注入でリセットされない**。
+      //   直前に走る `v58f` が guest へ同チームのアシスト2体を置くため、**チーム3体が揃ってしまい
+      //   「窓は開かない」はずの対照で窓が開いていた**（＝engine のバグに見える形で対照が無効化されていた）。
+      'field.assist_lrig_l': [],
+      'field.assist_lrig_r': [],
       'lrig_deck': ['WXDi-P05-006#1'], // カットイン候補カードは持つがLRIG_TEAM_COUNT条件を満たさない
       'field.signi': [null, null, null],
       'field.check': null,
@@ -29878,10 +29902,16 @@ scenarios.v58bNoTeamMatchSkipsCutinWindow = {
       const tail = st?.logTail ?? [];
       if (tail.some(l => l.includes('の使用にカットインできる'))) sawCutinWindowOpenLog = true;
       H.log(`  v58b[${s}] -> ${did ?? 'なし'} | pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} cutinLog=${sawCutinWindowOpenLog} hLrigTrash=${st?.host?.lrigTrashCards} logTail末尾=${JSON.stringify(tail.slice(-2))}`);
-      if (usedBtn && !st?.pendingSpell && !st?.pendingEffect) {
+      // 🔴🆕**2026-09-14＝「使用」を押した直後に判定していた＝空振りで緑になっていた**（vacuous pass）。
+      //   クリックと同じティックの `queryState` は**まだ何も反映していない**ので、
+      //   `usedBtn && !pendingSpell && !pendingEffect` は**押した瞬間に必ず真**になる（実測＝3秒で PASS・
+      //   `hLrigTrash` が空＝ピースは1度も解決していなかった）。
+      //   ⇒ **ピースが実際にルリグトラッシュへ行ったこと**を決着の条件にする（§4.4 罠3 の「負方向は空振りしうる」）。
+      const resolvedV58b = (st?.host?.lrigTrashCards ?? []).some(n => String(n).startsWith('WXDi-P04-002'));
+      if (usedBtn && resolvedV58b && !st?.pendingSpell && !st?.pendingEffect) {
         return {
           pass: !sawCutinWindowOpenLog,
-          detail: `窓ログ=${sawCutinWindowOpenLog}（期待false）・ピース即時解決＝hLrigTrash=${st.host.lrigTrashCards}`,
+          detail: `窓ログ=${sawCutinWindowOpenLog}（期待false）・ピースは窓を開かずに解決＝hLrigTrash=${JSON.stringify(st.host.lrigTrashCards)}`,
         };
       }
     }
