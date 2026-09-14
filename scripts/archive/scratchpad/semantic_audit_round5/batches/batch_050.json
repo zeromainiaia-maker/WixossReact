@@ -1,0 +1,42 @@
+[
+ {
+  "num": "WX12-Re21",
+  "group": "clean"
+ },
+ {
+  "num": "WXDi-P07-073",
+  "group": "clean"
+ },
+ {
+  "num": "WXK01-062",
+  "group": "clean"
+ },
+ {
+  "num": "WD14-008",
+  "group": "clean"
+ },
+ {
+  "num": "WX17-080",
+  "group": "clean"
+ },
+ {
+  "num": "WXK09-023",
+  "group": "clean"
+ },
+ {
+  "num": "WXDi-D09-P26",
+  "group": "stub"
+ },
+ {
+  "num": "WXK01-097",
+  "group": "clean"
+ },
+ {
+  "num": "WXDi-P00-002",
+  "group": "clean"
+ },
+ {
+  "num": "WDK15-002",
+  "group": "clean"
+ }
+]

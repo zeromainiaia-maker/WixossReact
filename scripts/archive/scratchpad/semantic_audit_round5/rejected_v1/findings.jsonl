@@ -1,0 +1,1 @@
+{"batch":"001","cardNum":"WXDi-D01-011","effectId":"WXDi-D01-011-E1","severity":"HIGH","type":"EXTRA","quote":"デッキの上からカードを８枚見る","claim":"原文の「8枚」は見る枚数であり使用コストではないが、JSONには無色エナ8個の支払いが余分に設定されている。","grep":"８枚見る"}
