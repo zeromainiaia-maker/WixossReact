@@ -1,7 +1,7 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-09-13T17:53:49.506Z
-manualEffects エントリ 1069 カード / 乖離 3 カード・3 効果
+生成: 2026-09-14T09:52:44.931Z
+manualEffects エントリ 1070 カード / 乖離 3 カード・3 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。

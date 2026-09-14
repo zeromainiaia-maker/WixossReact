@@ -30051,6 +30051,114 @@ function stampAllCardsDeclareNamePool(sourceText: string, action: EffectAction):
   return action;
 }
 
+/**
+ * §5.3 `O-368`＝「〈対象〉を対象とし、あなたのターンの場合、〈帰結〉」の対象宣言を
+ * TURN_OWNER の外へ出す。文中の順序を完全一致で確認し、既に正準形の木には触れない。
+ *
+ * `tryWrapLeadingStateCondUncached` は条件より前の `…対象とし、` を m[1] として本文へ
+ * 再 prepend してから、その本文全体を CONDITIONAL.then に入れる。このため単文だけでなく、
+ * 任意コストを次文へまたぐ形も効果木が完成した最後に直す必要がある。
+ */
+function hoistTargetDeclarationBeforeOwnTurn(sourceText: string, action: EffectAction): EffectAction {
+  if (!/対象とし、あなたのターンの場合、/.test(sourceText)) return action;
+
+  const isOwnTurn = (node: EffectAction | undefined): node is ConditionalAction =>
+    node?.type === 'CONDITIONAL'
+    && node.condition.type === 'TURN_OWNER'
+    && node.condition.owner === 'self'
+    && node.else === undefined;
+  const isSelect = (node: EffectAction | undefined): node is StubAction =>
+    node?.type === 'STUB' && node.id === 'SELECT_TARGET_ONLY' && !!node.selectTarget;
+  const isStore = (node: EffectAction | undefined): node is StubAction =>
+    node?.type === 'STUB' && node.id === 'STORE_LAST_PROCESSED_TARGETS';
+  const seq = (steps: EffectAction[]): EffectAction =>
+    steps.length === 1 ? steps[0] : { type: 'SEQUENCE', steps };
+
+  const declaredTargetOf = (node: EffectAction): EffectTarget | null => {
+    switch (node.type) {
+      case 'ADD_TO_FIELD': return node.source ?? null;
+      case 'SEND_TO_ENERGY':
+      case 'BOUNCE':
+      case 'POWER_MODIFY':
+      case 'POWER_MODIFY_PER_LRIG_LEVEL':
+      case 'POWER_MODIFY_PER_TRASH_COUNT':
+        return node.target;
+      case 'STUB':
+        if (node.id !== 'STEAL_OPP_TRASH_PUPPET' || !node.puppetParams) return null;
+        return {
+          type: 'TRASH_CARD', owner: 'opponent', count: node.puppetParams.count ?? 1,
+          ...(node.puppetParams.optional ? { upToCount: true } : {}),
+          filter: node.puppetParams.filter ?? { cardType: 'シグニ' },
+        };
+      default: return null;
+    }
+  };
+  const consumeStoredTarget = (node: EffectAction): EffectAction | null => {
+    switch (node.type) {
+      case 'ADD_TO_FIELD':
+      case 'SEND_TO_ENERGY':
+      case 'BOUNCE':
+      case 'POWER_MODIFY':
+      case 'POWER_MODIFY_PER_LRIG_LEVEL':
+      case 'POWER_MODIFY_PER_TRASH_COUNT':
+        return { ...node, targetsStored: true } as EffectAction;
+      case 'STUB':
+        return node.id === 'STEAL_OPP_TRASH_PUPPET' ? { ...node, targetsStored: true } : null;
+      default: return null;
+    }
+  };
+  const canonical = (target: EffectTarget, turnResult: EffectAction): EffectAction => ({
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target, abortIfNoCandidate: true },
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+      { type: 'CONDITIONAL', condition: { type: 'TURN_OWNER', owner: 'self' }, then: turnResult },
+    ],
+  });
+
+  // 既に「TURN_OWNER の中に SELECT→STORE→任意コスト→帰結」が完成している形。
+  // 宣言2歩だけを外へ出し、支払いと帰結はともに自分ターンへ残す。
+  if (action.type === 'SEQUENCE' && action.steps.length === 1 && isOwnTurn(action.steps[0])
+      && action.steps[0].then.type === 'SEQUENCE') {
+    const inner = action.steps[0].then.steps;
+    if (isSelect(inner[0]) && isStore(inner[1]) && inner.length > 2) {
+      return {
+        type: 'SEQUENCE',
+        steps: [inner[0], inner[1], { ...action.steps[0], then: seq(inner.slice(2)) }],
+      };
+    }
+  }
+
+  // 「対象とし、TURN_OWNER、任意色コスト。そうした場合、帰結」の旧2文形。
+  // TARGET_* STUB が対象宣言と支払いを一体化しているため、既存の3語彙へ分解する。
+  if (action.type === 'SEQUENCE' && action.steps.length === 2 && isOwnTurn(action.steps[0])) {
+    const costStub = action.steps[0].then;
+    const didIt = action.steps[1];
+    if (costStub.type === 'STUB' && costStub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
+        && didIt.type === 'CONDITIONAL' && didIt.condition.type === 'IS_MY_TURN' && !didIt.else) {
+      const target = declaredTargetOf(didIt.then);
+      const result = consumeStoredTarget(didIt.then);
+      if (target && result) {
+        return canonical(target, {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: costStub.costColors },
+            { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: result },
+          ],
+        });
+      }
+    }
+  }
+
+  // 単文形。既存の action と executor がともに保存対象を読める型だけを列挙する。
+  if (isOwnTurn(action)) {
+    const target = declaredTargetOf(action.then);
+    const result = consumeStoredTarget(action.then);
+    if (target && result) return canonical(target, result);
+  }
+  return action;
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
   //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
@@ -30942,6 +31050,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch245(effects);
   repairSemanticBatch246(effects);
   repairSemanticBatch247(effects);
+  // `O-368`：全 rewriter が action 木を組み終えた効果単位の原文で、対象宣言だけを TURN_OWNER の外へ出す。
+  for (const effect of effects) {
+    if (effect.parseStatus !== 'AUTO') continue;
+    effect.action = hoistTargetDeclarationBeforeOwnTurn(
+      currentSourceTexts.get(effect.effectId) ?? '', effect.action,
+    );
+  }
   // `O-353`：全 rewriter が宣言ノードを組み直し終えた後の正準形へ、効果単位の原文から1回だけ刻む。
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;

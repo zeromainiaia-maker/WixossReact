@@ -178,6 +178,7 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   //   ⇒ **空なら据置**＝`targetsStored` のまま後段（正しい地点）の焼き込みに委ねる。
   if ((ctx.storedTargetCards ?? []).length === 0) return action;
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
+    'POWER_MODIFY_PER_LRIG_LEVEL', 'POWER_MODIFY_PER_TRASH_COUNT',
     'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI', 'REMOVE_ABILITIES',
     // 🆕**§5.3 `O-222`（2026-09-02）で `SIGNI_ATTACK_BAN` を追加**＝「〈対象〉を対象とし、
     //   〈任意コスト〉してもよい。そうした場合、それは『【常】：…かぎりアタックできない』を得る」。
@@ -9570,7 +9571,9 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
   const delta = a.deltaPerLevel * lv;
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   if (cands.length === 0) return done(ctx);
 
   function applyMod(selected: string[], c: ExecCtx): ExecCtx {
@@ -9580,6 +9583,8 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
       `パワー${delta > 0 ? '+' : ''}${delta}（ルリグlv${lv}×${a.deltaPerLevel}）`);
   }
 
+  // 対象宣言済み／任意コスト前に焼き込み済みなら、再選択せず同じ対象へ適用する。
+  if (a.targetsStored || a.fixedCardNums) return done(applyMod(cands, ctx));
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
@@ -10176,7 +10181,9 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
 
   const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
   const state = ownerState(tgtO, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   if (cands.length === 0) return done(ctx);
 
   function applyMod(selected: string[], c: ExecCtx): ExecCtx {
@@ -10186,6 +10193,8 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
       `パワー${delta > 0 ? '+' : ''}${delta}（トラッシュ${count}枚${a.maxUnits !== undefined ? `→上限${a.maxUnits}枚` : ''}×${a.deltaPerUnit}/${a.unitSize}）`);
   }
 
+  // 対象宣言済み／任意コスト前に焼き込み済みなら、再選択せず同じ対象へ適用する。
+  if (a.targetsStored || a.fixedCardNums) return done(applyMod(cands, ctx));
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';

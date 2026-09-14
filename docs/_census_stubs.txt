@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 594（総ノード 3379 件）
+live JSON の STUB id 種類 : 594（総ノード 3407 件）
 逆翻訳シートの [STUB:…] 総数: 265  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
@@ -103,16 +103,16 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
 ==============================================================================
     34件  33枚  OPTIONAL_ACTIVATE
         カード: WD06-018, WD10-001, WDK13-017, SPDi43-21, WX02-003, WX07-003 …他27枚
-        消費: src\engine\effectExecutor.ts:7078 / src\engine\effectExecutor.ts:7095 / src\engine\triggerCollect.ts:572
+        消費: src\engine\effectExecutor.ts:7079 / src\engine\effectExecutor.ts:7096 / src\engine\triggerCollect.ts:572
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:6672 / src\engine\effectExecutor.ts:6677
+        消費: src\engine\effectExecutor.ts:6673 / src\engine\effectExecutor.ts:6678
      7件   7枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018 …他1枚
         消費(ペイロードキー): src\engine\effectEngine.ts:2307
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
-        消費: src\engine\effectExecutor.ts:6454
+        消費: src\engine\effectExecutor.ts:6455
      5件   5枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
         消費: src\screens\battle\allZoneBurst.ts:24 / src\screens\battle\allZoneBurst.ts:42
@@ -124,13 +124,13 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\screens\battle\lifeCrashReplace.ts:54
      4件   4枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX25-CP1-039, WX26-CP1-047, WXDi-CP02-056
-        消費: src\engine\effectExecutor.ts:590
+        消費: src\engine\effectExecutor.ts:591
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:5692
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
-        消費: src\engine\effectExecutor.ts:537
+        消費: src\engine\effectExecutor.ts:538
      3件   3枚  GUARD_LOSS_UNLESS_LRIG
         カード: WX12-025, WX12-034, WX12-036
         消費: src\screens\battle\guard.ts:18
@@ -139,13 +139,13 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\engine\execUtils.ts:2384 / src\screens\battle\costs.ts:1266
      2件   2枚  EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY
         カード: SPDi44-08, WX25-P1-018
-        消費: src\engine\effectExecutor.ts:489
+        消費: src\engine\effectExecutor.ts:490
      2件   2枚  EXTRA_USE_TIMING
         カード: SP38-005, WX16-Re20
         消費: src\screens\battle\artsUseGate.ts:44
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:6701
+        消費: src\engine\effectExecutor.ts:6702
      2件   2枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8479 / src\engine\effectEngine.ts:8497
@@ -157,10 +157,10 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\screens\battle\signiDamageGate.ts:20
      1件   1枚  EFFECT_LEAVE_REPLACE_BANISH
         カード: WX25-P1-056
-        消費: src\engine\effectExecutor.ts:668
+        消費: src\engine\effectExecutor.ts:669
      1件   1枚  EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF
         カード: WXEX2-28
-        消費: src\engine\effectExecutor.ts:1414
+        消費: src\engine\effectExecutor.ts:1415
      1件   1枚  ENERGY_COST_SUBSTITUTE_WHOLE
         カード: WX09-032
         消費: src\engine\effectEngine.ts:8352
@@ -175,10 +175,10 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\engine\effectEngine.ts:8291
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:10780
+        消費: src\engine\effectExecutor.ts:10789
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:10782
+        消費: src\engine\effectExecutor.ts:10791
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
@@ -187,7 +187,7 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\utils\deckBuildLimits.ts:43 / src\utils\deckBuildLimits.ts:60
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
-        消費: src\engine\effectExecutor.ts:6283
+        消費: src\engine\effectExecutor.ts:6284
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
@@ -211,7 +211,7 @@ live JSON の STUB id 種類 : 594（総ノード 3379 件）
         消費: src\screens\battle\battleUtils.ts:172
      1件   1枚  SELF_LEAVE_FACEDOWN_SECOND_MAIN
         カード: WXDi-P00-038
-        消費: src\engine\effectExecutor.ts:1324
+        消費: src\engine\effectExecutor.ts:1325
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
         消費: src\engine\execUtils.ts:2284

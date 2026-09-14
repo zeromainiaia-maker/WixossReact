@@ -24505,18 +24505,87 @@ test('§5.3 O-185: PLAY_FREE{grantUseThisTurn} はカードを動かさず「こ
 }));
 // ═══ §5.2 残OPEN掃引（2026-09-06）＝意味照合台帳の残 OPEN を2件 live 修正した分の固定 ═══
 test('§5.2 残OPEN: WDK06-C14-E1 は「対象を取る」を条件の外に出す（相手ターンでも対象宣言する）', () => {
-  const e = (effectsMap.get('WDK06-C14') ?? []).find(x => x.effectId === 'WDK06-C14-E1');
-  const steps = (e?.action as unknown as { type?: string; steps?: Record<string, unknown>[] })?.steps ?? [];
-  eq((e?.action as unknown as { type?: string })?.type, 'SEQUENCE', '🔴CONDITIONAL が対象宣言ごと包む旧形に戻っている');
-  eq((steps[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY', '1歩目が対象宣言でない');
-  // 🔑対象宣言は**条件の外**＝相手ターンでも対象を取る（原文「対象とし、あなたのターンの場合、それを場に出す」）。
-  eq((steps[1] as { id?: string })?.id, 'STORE_LAST_PROCESSED_TARGETS', '2歩目で対象を保存していない');
-  const cond = steps[2] as { type?: string; condition?: { type?: string }; then?: { type?: string; targetsStored?: boolean } };
-  eq(cond?.type, 'CONDITIONAL', '3歩目が条件でない');
-  eq(cond?.condition?.type, 'TURN_OWNER', '条件が TURN_OWNER でない');
-  eq(cond?.then?.type, 'ADD_TO_FIELD', '条件の帰結が場出しでない');
-  ok(cond?.then?.targetsStored === true, '🔴宣言した対象を使っていない＝別のシグニが場に出る');
+  const assertCanonical = (e: CardEffect | undefined, label: string) => {
+    const steps = (e?.action as unknown as { type?: string; steps?: Record<string, unknown>[] })?.steps ?? [];
+    eq((e?.action as unknown as { type?: string })?.type, 'SEQUENCE', `${label}: 🔴CONDITIONAL が対象宣言ごと包む旧形に戻っている`);
+    eq((steps[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY', `${label}: 1歩目が対象宣言でない`);
+    // 🔑対象宣言は**条件の外**＝相手ターンでも対象を取る（原文「対象とし、あなたのターンの場合、それを場に出す」）。
+    eq((steps[1] as { id?: string })?.id, 'STORE_LAST_PROCESSED_TARGETS', `${label}: 2歩目で対象を保存していない`);
+    const cond = steps[2] as { type?: string; condition?: { type?: string }; then?: { type?: string; targetsStored?: boolean } };
+    eq(cond?.type, 'CONDITIONAL', `${label}: 3歩目が条件でない`);
+    eq(cond?.condition?.type, 'TURN_OWNER', `${label}: 条件が TURN_OWNER でない`);
+    eq(cond?.then?.type, 'ADD_TO_FIELD', `${label}: 条件の帰結が場出しでない`);
+    ok(cond?.then?.targetsStored === true, `${label}: 🔴宣言した対象を使っていない＝別のシグニが場に出る`);
+  };
+  assertCanonical((effectsMap.get('WDK06-C14') ?? []).find(x => x.effectId === 'WDK06-C14-E1'), 'live');
+  // §5-29: manual ではなく fresh parser を直接固定する。O-368 規則を外すと旧 CONDITIONAL root に戻って赤くなる。
+  assertCanonical(parseCardEffects(cardMap.get('WDK06-C14')!).find(x => x.effectId === 'WDK06-C14-E1'), 'fresh');
 });
+test('§5.3 O-368 E2E: 相手ターンも対象宣言、自分ターンだけ帰結（WDK07-Y13 fresh）', () => withSavedCursor(() => {
+  const action = parseCardEffects(cardMap.get('WDK07-Y13')!).find(x => x.effectId === 'WDK07-Y13-E1')!.action;
+  const target = SIGNI_L1;
+
+  const ownCtx = { ...mkCtx({}, { signi: [target, null, null] }, 'WDK07-Y13'), isOwnerTurn: true } as ExecCtx;
+  const own = run(action, ownCtx);
+  ok(!own.otherState.field.signi.some(s => s?.at(-1) === target), '自分ターン：宣言対象が場に残っている');
+  ok(own.otherState.hand.includes(target), '自分ターン：宣言対象が手札へ戻っていない');
+
+  const oppCtx = { ...mkCtx({}, { signi: [target, null, null] }, 'WDK07-Y13'), isOwnerTurn: false } as ExecCtx;
+  const offered = executeAction(action, oppCtx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '相手ターン：対象宣言の SELECT_TARGET が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(offered.pending.candidates.includes(target), '相手ターン：対象候補に相手シグニが無い');
+  const resolved = resumeSelectTarget([target], offered.pending, ctxAfter(offered, oppCtx));
+  ok(resolved.done, '相手ターン：対象宣言後に不要な対話が残る');
+  ok(resolved.otherState.field.signi.some(s => s?.at(-1) === target), '相手ターン：条件不成立なのに帰結が起きた');
+  ok((resolved.storedTargetCards ?? []).includes(target), '相手ターン：宣言対象が保存されていない');
+}));
+test('§5.3 O-368: 新規 targetsStored 消費3経路は宣言対象だけへ適用する', () => withSavedCursor(() => {
+  const a = SIGNI_L1;
+  const b = SIGNI_L2;
+  const lrig = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+
+  const lrigCtx = mkCtx({}, { signi: [a, b, null], lrig: [lrig] });
+  lrigCtx.storedTargetCards = [b];
+  const byLrig = run({
+    type: 'POWER_MODIFY_PER_LRIG_LEVEL',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+    deltaPerLevel: -2000, lrigOwner: 'opponent', targetsStored: true,
+  }, lrigCtx);
+  eq((byLrig.otherState.temp_power_mods ?? []).length, 1, 'ルリグLv比例が宣言外の対象にも適用された');
+  eq((byLrig.otherState.temp_power_mods ?? [])[0]?.cardNum, b, 'ルリグLv比例が宣言対象を使っていない');
+
+  // 実カードの任意コスト対話を跨ぎ、freezeStoredTargets → fixedCardNums の読み手まで通す。
+  const black = findCard(c => c.Color === '黒');
+  const optionalCtx = mkCtx({}, { signi: [a, b, null], lrig: [lrig] }, 'WXK09-035');
+  optionalCtx.ownerState.energy = [black];
+  optionalCtx.isOwnerTurn = true;
+  const optionalAction = parseCardEffects(cardMap.get('WXK09-035')!).find(x => x.effectId === 'WXK09-035-E1')!.action;
+  const afterPay = finishPayingCosts(executeAction(optionalAction, optionalCtx), optionalCtx);
+  eq((afterPay.otherState.temp_power_mods ?? []).length, 1, '任意コスト後に固定対象以外へルリグLv比例を適用した');
+  eq((afterPay.otherState.temp_power_mods ?? [])[0]?.cardNum, a, '任意コスト後に宣言した対象を失った');
+
+  const trashCtx = mkCtx({}, { signi: [a, b, null] });
+  trashCtx.ownerState.trash = [a, b];
+  trashCtx.storedTargetCards = [b];
+  const byTrash = run({
+    type: 'POWER_MODIFY_PER_TRASH_COUNT',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+    deltaPerUnit: -1000, unitSize: 1, trashOwner: 'self', targetsStored: true,
+  }, trashCtx);
+  eq((byTrash.otherState.temp_power_mods ?? []).length, 1, 'トラッシュ比例が宣言外の対象にも適用された');
+  eq((byTrash.otherState.temp_power_mods ?? [])[0]?.cardNum, b, 'トラッシュ比例が宣言対象を使っていない');
+
+  const puppetCtx = mkCtx({}, {});
+  puppetCtx.otherState.trash = [a, b];
+  puppetCtx.storedTargetCards = [b];
+  const puppet = run({
+    type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET', targetsStored: true,
+    puppetParams: { count: 1, filter: { cardType: 'シグニ' } },
+  }, puppetCtx);
+  ok(puppet.ownerState.field.signi.some(s => s?.at(-1) === b), '傀儡場出しが宣言対象を場に出していない');
+  ok(puppet.otherState.trash.includes(a), '傀儡場出しが宣言外のトラッシュ札まで動かした');
+}));
 test('§5.2 残OPEN: WXDi-D03-004-E3 の引用能力は《ガードアイコン》捨てで回避できる', () => {
   const e = (effectsMap.get('WXDi-D03-004') ?? []).find(x => x.effectId === 'WXDi-D03-004-E3');
   const ability = (e?.action as unknown as { abilities?: { action?: unknown }[] })?.abilities?.[0];
@@ -51263,7 +51332,7 @@ test('§6.4 O-36: ターン条件の持ち上げが allowlist 無しで全カー
   eq(turnCond(k50.action)?.owner, 'self', '🔴文頭「あなたのターンの場合、」が落ちている');
   // (b) 「〜対象とし、」の直後形（トリガー句が前置きに残る）
   const k67 = (effectsMap.get('WXK01-067') ?? []).find(x => x.effectId === 'WXK01-067-E1')!;
-  eq(turnCond(k67.action)?.owner, 'self', '🔴「対象とし、」直後のターン条件が落ちている');
+  eq(turnCond((k67.action as SequenceAction).steps[2])?.owner, 'self', '🔴「対象とし、」直後のターン条件が落ちている');
   // (c) 任意コスト STUB の「包み形」＝engine の OPT_IDS_WRAP が解体して Pattern ④/⑤ へ委譲する形
   const d82 = (effectsMap.get('WXDi-P02-082') ?? []).find(x => x.effectId === 'WXDi-P02-082-E1')!;
   const s0 = (d82.action as SequenceAction).steps[0];
@@ -51287,7 +51356,7 @@ test('§6.4 O-36: ターン条件の持ち上げが allowlist 無しで全カー
     eq(turnCond(e.action)?.owner, owner, `🔴${eid}（MANUAL）のターン条件が落ちている`);
   }
   const k41 = (effectsMap.get('WXK05-041') ?? []).find(x => x.effectId === 'WXK05-041-E2')!;
-  eq(turnCond((k41.action as SequenceAction).steps[0])?.owner, 'self', '🔴WXK05-041-E2（MANUAL）のターン条件が落ちている');
+  eq(turnCond((k41.action as SequenceAction).steps[2])?.owner, 'self', '🔴WXK05-041-E2 の帰結側ターン条件が落ちている');
   const k07 = (effectsMap.get('WXK10-007') ?? []).find(x => x.effectId === 'WXK10-007-E1')!;
   eq((k07.action as import('../src/types/effects').ChooseAction).choices[0].condition?.type, 'TURN_OWNER',
     '🔴WXK10-007-E1（MANUAL）の選択肢①条件が落ちている');

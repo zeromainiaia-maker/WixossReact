@@ -2316,12 +2316,30 @@ export function execStubPart1(
       const trigLv = parseInt(ctx.cardMap.get(getCardNum(ctx.triggeringCardNum))?.Level ?? '0', 10);
       oppTrashSPP = oppTrashSPP.filter(cn => parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '99', 10) <= trigLv);
     }
+    // 「対象とし、あなたのターンの場合」の先行宣言済み対象だけを使う。
+    if (stub.targetsStored) oppTrashSPP = oppTrashSPP.filter(cn => (ctx.storedTargetCards ?? []).includes(cn));
     if (oppTrashSPP.length === 0) return done(addLog(ctx, '相手トラッシュにシグニなし'));
     const emptyZonesSPP = ctx.ownerState.field.signi.filter(z => !z || z.length === 0).length;
     if (emptyZonesSPP === 0) return done(addLog(ctx, '空きシグニゾーンなし（傀儡を出せない）'));
     const wantSPP = pp?.count ?? (ctx.ownerState.is_betting_this_effect ? 2 : 1);
     const countSPP = Math.min(wantSPP, oppTrashSPP.length, emptyZonesSPP);
     const placeAct: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_PUPPET' };
+    if (stub.targetsStored) {
+      const selected = oppTrashSPP.slice(0, countSPP);
+      let cur = ctx;
+      for (const cn of selected) {
+        const placed = exec(placeAct as EffectAction, { ...cur, lastProcessedCards: [cn] });
+        if (!placed.done) return placed;
+        cur = {
+          ...cur,
+          ownerState: placed.ownerState,
+          otherState: placed.otherState,
+          logs: placed.logs,
+          lastProcessedCards: placed.lastProcessedCards,
+        };
+      }
+      return done({ ...cur, lastProcessedCards: selected });
+    }
     return selectOrInteract(oppTrashSPP, countSPP, pp?.optional ?? false, 'opp_trash', placeAct as EffectAction, undefined, ctx);
   }
   // INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ）

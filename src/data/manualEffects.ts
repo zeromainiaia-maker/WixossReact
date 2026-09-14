@@ -11068,7 +11068,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXK05-010-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"allowRepeat":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WXK05-046": [
-    {"effectId":"WXK05-046-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":1,"trashOwner":"self","countFilter":{"cardNames":["幕末の人斬り　イゾウ"]},"until":"UNTIL_END_OF_TURN"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["deck"]}},
+    {"effectId":"WXK05-046-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":1,"trashOwner":"self","countFilter":{"cardNames":["幕末の人斬り　イゾウ"]},"until":"UNTIL_END_OF_TURN","targetsStored":true}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["deck"]}},
   ],
   // 2026-08-30 ソフトロック修正の随伴（検証で発見）＝「N枚捨てる。**そうした場合**」の did-it ゲートが
   // `CONDITIONAL{IS_MY_TURN}`（＝枚数を見ない慣例形）だと、**候補不足クランプ後に一部しか払っていなくても
@@ -11589,22 +11589,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**engine は0行**（新しい型を1つも足していない）。
   "WXDi-P11-TK02": [
     {"effectId":"WXDi-P11-TK02-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"LIMIT_OPP_SIGNI_ATTACKS_ONCE"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-  ],
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  // 2026-09-06（§5.2 残OPEN掃引）＝**「〈対象〉を対象とし、あなたのターンの場合、それを〜する」の
-  //   対象選択が条件の内側に入っていた**（`WDK06-C14-E1`）。
-  // 🔴旧 live＝`CONDITIONAL{TURN_OWNER self}` が対象選択ごと包んでおり、**相手ターンには対象を取らない**。
-  //   原文はターンに関係なく対象を取り、**場に出す部分だけ**が「あなたのターンの場合」。
-  //   ⇒ 対象に取ること自体が誘発する能力（`ON_TARGETED`）や対象耐性が相手ターンに働かなかった。
-  // 🔑受け皿は**同じ形が既に live にある**（`SPDi44-16-E1` / `WX25-P1-030-E1`）＝
-  //   `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `CONDITIONAL{...}` の3ステップ定型。
-  // ⚠**宣言側と実行側で候補集めの関数が違う**（`transferToHandTrashCandidates` / `zoneTargetCandidates`）が、
-  //   どちらも `movableTrashCandidates` に落ちる＝このフィルタ（cardType/level/story のみ）では
-  //   候補は一致する（`O-188`「宣言と実行で候補がズレると選んだのに出せない」の確認）。
-  // ⚠**engine は0行**（新しい型を1つも足していない）。
-  "WDK06-C14": [
-    {"effectId":"WDK06-C14-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"武勇"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"武勇"}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   "WX25-CP1-038": [

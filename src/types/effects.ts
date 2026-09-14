@@ -44,7 +44,7 @@ export type EffectTiming =
   | 'ON_DECK_SHUFFLED'          // あなたのデッキがシャッフルされたとき（PR-470A）。⚠engine未配線（shuffle() がリフレッシュ/サーチ後等多数箇所に分散＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_KEYWORD_GAINED'         // あなたの他のシグニが【アサシン】【ランサー】【ダブルクラッシュ】を得たとき（WXDi-P04-035）。⚠engine未配線（「その能力を得る」動的注入＋任意コストで配線が重い＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_LRIG_UNDER_MOVED'       // あなたのルリグの下からカードが移動したとき（WXDi-P04-042）。⚠engine未配線（ルリグ下スタックの set-diff 配線が要・発火が稀＝decompiler engineUnwiredTimings に登録済み）
-  | 'ON_LRIG_ATTACK_STEP_START' // あなたのルリグアタックステップ開始時（WX25-CP1-042-E2）。engine配線済（C1・2026-06-29）＝doPhaseAdvance の ATTACK_SIGNI→ATTACK_LRIG 移行で collectTurnTriggers が発火。アクションはパース済み近似（クラッシュ数カウント非依存の固定SEQUENCE）。⚠人間ターンのみ・CPUターンは未配線＝実機未検証(C2)
+  | 'ON_LRIG_ATTACK_STEP_START' // あなたのルリグアタックステップ開始時（WX25-CP1-042-E2）。engine配線済（C1・2026-06-29）＝人間 doPhaseAdvance／CPU collectCpuTurnTriggers の両経路で発火。アクションはパース済み近似（クラッシュ数カウント非依存の固定SEQUENCE）
   | 'ON_LRIG_GROW'              // あなた/対戦相手のルリグがグロウしたとき（WXDi-P05-010 等）。triggerScope any_ally/any_opp・excludeSelf で主語を表現。engine配線済（C1・2026-06-29）＝executeGrow（人間・ゲットグロウ含む）/CPUセンターグロウで collectLrigGrowTriggers が発火。⚠アシストグロウ経路は未配線（センターグロウのみ）＝実機未検証(C2)
   | 'ON_COIN_PAID'              // あなたが《コイン》を1枚以上支払ったとき（WXDi-P15-055/069・WXDi-P16-057）。engine配線済（C1・2026-06-29）＝コイン支払の**全サイト**（グロウ人間/CPU・シグニ【起】・キープレイ・シグニ【出】・アーツ ベット/アンコール・**スペルカットインのベット**〔タスク12(lxxxiv)〕・**スペル本体のベット**〔タスク12(lxxxvi)・ベット持ちスペル7枚〕）で collectCoinPaidTriggers が発火＝2026-08-03 に穴なし。⚠スペル本体のベットだけは `pending_spell` 待ちの間にスタックへ積む＝「支払い→トリガー解決→カットイン窓→スペル解決」の順になる想定（実機未検証(C2)）
   | 'ON_LRIG_FLIP'              // 両面ルリグが反対面になったとき
@@ -3940,6 +3940,10 @@ export interface PowerModifyPerLrigLevelAction {
   useLastDownedLrigLevelSum?: boolean; // 直前の可変ルリグダウンコストで記録したレベル合計を参照
   /** true=センターだけでなく左右アシストを含む「場にいるルリグのレベルの合計」。 */
   sumFieldLrigLevels?: boolean;
+  /** 先行する対象宣言で固定した対象だけに適用する。 */
+  targetsStored?: boolean;
+  /** 任意コストの対話を跨ぐために焼き込んだ対象。 */
+  fixedCardNums?: string[];
 }
 
 // このターンを強制終了する（例: ジャッジメント・クロス）
@@ -4743,6 +4747,10 @@ export interface PowerModifyPerTrashCountAction {
    *   片方だけに配線すると `until` の有無で挙動が割れる（第50バッチ③と同じ家系）。
    */
   maxUnits?: number;
+  /** 先行する対象宣言で固定した対象だけに適用する。 */
+  targetsStored?: boolean;
+  /** 任意コストの対話を跨ぐために焼き込んだ対象。 */
+  fixedCardNums?: string[];
 }
 
 // ライフクロス枚数につきパワー±M（常時効果）
