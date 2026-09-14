@@ -108,7 +108,8 @@ console.log('明細 → docs/_census_number_drift.txt');
 //   この計器はカードの**逆翻訳**に原文の数値が出るかを見るので、`[STUB:…]` のラベルが
 //   「WX09-027(オリハルティア)の常在マーカー。」のように**中身を書いていないと、原文の数値がまるごと落ちる**。
 //   ⇒ **ラベル整備（`census:stublabel` B/C群）はこの計器の払い戻しでもある。**
-const BASELINE = 57; // 2026-09-14 §5.3 索引G 4項目（第318）＝WXDi-P07-086 の「2～20／×1000」と WX15-001 の「3枚」を payload 化して逆翻訳に出したため 59→57。以前＝59（O-344）
+const BASELINE = 56; // 🔻**56**（2026-09-14・§5.3 末尾 defer の再実測）＝`WXDi-P15-003-E1` に使用条件（ドリームチーム3色）を載せたため、
+//   原文の「３種類」が逆翻訳に出るようになった＝**消化**（較正ではない）。以前＝57：2026-09-14 §5.3 索引G 4項目（第318）＝WXDi-P07-086 の「2～20／×1000」と WX15-001 の「3枚」を payload 化して逆翻訳に出したため 59→57。以前＝59（O-344）
 if (hits.length > BASELINE) {
   console.error(`\n[census:numberdrift] 🔴 GATE FAIL: 基準 ${BASELINE} を超えた（現在 ${hits.length}）`);
   console.error('   逆翻訳が原文の数値を描き落としていないか、node scripts/censusNumberDrift.mjs --show 20 で確認。');

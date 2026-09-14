@@ -36075,7 +36075,11 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   足した分。⚠**任意なのは中の支払いだけ**で能力自体は強制なので、この集合に入るのが正しい。
     // 🆕1467→1466＝2026-09-10（未開拓プール第244）で `WXK03-020-E2` に `triggerCondition.byEffect` を足し、
     //   **段階1（効果で場に出たとき限定）の集合へ移った**ぶんの1減。⚠新しい死角ではない＝同じ1件の移動。
-    eq(eligible.length, 1466, '段階2 mandatory集合');
+    // 🆕1466→1465＝2026-09-14（§5.3 末尾 defer の再実測）で `WXDi-P15-003-E1` を
+    //   **ピースの正準形 `ACTIVATED/['MAIN']` へ直した**ぶんの1減（旧＝`AUTO/['ON_PLAY']`・mandatory）。
+    //   ⚠**発火は減っていない**＝`queueCardEffects` はピースに `['AUTO','ACTIVATED']` を積むので同じく走る。
+    //   この集合から抜けたのは「AUTO の【出】watcher ではなくピース本体だから」＝**分類の是正**。
+    eq(eligible.length, 1465, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -36091,7 +36095,10 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     //   支払うかどうかは解決中の `OPTIONAL_COST` が問う）＝**条件なし側**へ入る。
     // 🆕1405→1404＝2026-09-10（未開拓プール第244）で `WXK03-020-E2` が段階1へ移ったぶんの1減
     //   （同じ1件の移動＝上の 1467→1466 と対）。
-    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    // 🆕1404→1403＝2026-09-14（§5.3 末尾 defer の再実測）で `WXDi-P15-003-E1` を
+    //   ピースの正準形 `ACTIVATED/['MAIN']` へ直したぶんの1減。⚠上の `eligible` 1466→1465 と**同じ1件**＝
+    //   条件なし側から条件あり側への移動ではなく、**集合そのものから抜けた**（AUTO ではなくなったため）。
+    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 62, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
@@ -47101,12 +47108,20 @@ test('続き388 strip退化トリップワイヤ: WXDi-P08-001〜005 の色別3�
   }
 });
 
-test('続き388 群C WXDi-P15-003: ACTIVATED効果が無く、condition追加は使用ゲートにならない', () => {
+test('続き388 群C WXDi-P15-003: 使用条件はピースの正準形（ACTIVATED/MAIN）に載せて評価する', () => {
+  // 🔴**旧アサートは「ACTIVATED が無いので condition は死フラグ＝付けない」を固定していた**＝
+  //   群D と同じ**意図的なトリップワイヤ**（実装したら必ず赤くなる）。2026-09-14 に実装したので書き換える。
+  // 🔑**旧結論の誤り**＝「condition を付けない」ではなく「**ACTIVATED にして condition を効かせる**」が正解だった。
+  //   ピースは実測で全118効果が `ACTIVATED/['MAIN']`＝このカードだけが `AUTO/['ON_PLAY']` の外れ値で、
+  //   `canUseArtsCondition` が最初の ACTIVATED しか読まないため**使用条件が無条件成立**していた（過剰）。
+  //   発火経路は変わらない＝`queueCardEffects` はピースに `['AUTO','ACTIVATED']` × `['ON_PLAY','MAIN',…]` を積む。
   const effects = effectsMap.get('WXDi-P15-003') ?? [];
-  eq(effects.filter(effect => effect.effectType === 'ACTIVATED').length, 0, 'トップレベルACTIVATEDは0');
-  ok(effects.every(effect => effect.condition === undefined), '死フラグになるconditionは付けない');
-  ok(canUseArtsCondition(effects, mkState({}), mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
-    'ACTIVATEDが無い現行経路では使用条件を評価できない');
+  eq(effects.filter(effect => effect.effectType === 'ACTIVATED').length, 1, 'ピース本体は ACTIVATED 1本');
+  const body = effects.find(effect => effect.effectType === 'ACTIVATED')!;
+  eq(body.condition?.type, 'FIELD_LRIG_COLOR_COUNT', '使用条件が condition に載っている');
+  // 条件を満たさない素の盤面では使用できない（旧アサートはここが true＝素通りだった）。
+  ok(!canUseArtsCondition(effects, mkState({}), mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
+    '🔴ルリグ3体3色でないのに使用できてしまう（旧＝ゲートが素通りしていた状態へ戻っている）');
 });
 
 test('続き388 群D WXDi-P16-001A-E1: チェックゾーン裏返し→無償グロウ（§6.4 O-10 続き515 で実装）', () => {
@@ -81661,6 +81676,68 @@ test('O-346 据置の根拠: 手札の廃棄は既定で相手が選ぶ（oppone
   if (seen.done || seen.pending.type !== 'SELECT_TARGET') return;
   ok(!seen.pending.opponentResponds, 'actingPlayerSelects が効いていない＝「見て選び」まで相手に渡している');
 }));
+
+// ═══ §5.3 末尾「根拠つき defer」の再実測（2026-09-14 第323）＝`WXDi-P15-003` の使用条件 ═══
+// 🔴**旧コメントの defer 理由2つがどちらも stale だった**＝
+//   ①「ピースは ON_PLAY でしか発火しない」→ いまは `queueCardEffects(… ['AUTO','ACTIVATED'],
+//     ['ON_PLAY','MAIN','ATTACK','SPELL_CUTIN'] …)` で**両方**積む ②「使用条件は近似省略」→
+//     受け皿 `FIELD_LRIG_COLOR_COUNT{minLrigs:3}` は**同じ使用条件の兄弟2枚が既に使っている**。
+// 🔴**省略していた実害**＝`canUseArtsCondition` は**最初の `ACTIVATED` 効果の `condition` しか読まない**ので、
+//   `ACTIVATED` が1つも無いこのカードでは `return true` ＝**3色揃わなくても使えた**（過剰）。
+test('defer再実測 WXDi-P15-003-E1: ドリームチーム3色の使用条件がゲートとして効く', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P15-003') ?? []).find(e => e.effectId === 'WXDi-P15-003-E1');
+  ok(!!eff, 'WXDi-P15-003-E1 が live に無い');
+  if (!eff) return;
+  // 🔑ピースの正準形＝`ACTIVATED/['MAIN']`（これでないと使用条件ゲートがそもそも読まない）。
+  eq(eff.effectType, 'ACTIVATED', 'ピース本体は ACTIVATED（AUTO だとゲートが条件を読まない）');
+  eq(JSON.stringify(eff.timing), JSON.stringify(['MAIN']), 'ピース本体の timing は MAIN');
+  eq(eff.condition?.type, 'FIELD_LRIG_COLOR_COUNT', '使用条件が live に無い');
+
+  const lrigOf = (color: string) => findCard(c => c.Type === 'ルリグ' && c.Color === color);
+  const assistOf = (color: string) => findCard(c => c.Type === 'アシストルリグ' && c.Color === color);
+  // ① 3体で3色 → 使用できる
+  const threeColors = mkState({ lrig: [lrigOf('白')], assistL: [assistOf('青')], assistR: [assistOf('緑')] });
+  ok(canUseArtsCondition([eff], threeColors, mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
+    '3体で3色そろっているのに使用できない');
+  // ② 対照＝3体だが2色しかない → 使用できない（🔴これが無いと「常に通る」実装も満点に見える）
+  const twoColors = mkState({ lrig: [lrigOf('白')], assistL: [assistOf('青')], assistR: [assistOf('青')] });
+  ok(!canUseArtsCondition([eff], twoColors, mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
+    '🔴2色しかないのに使用できてしまう（使用条件が効いていない）');
+  // ③ 対照＝色は足りてもルリグが3体いない → 使用できない（`minLrigs:3`）
+  const twoLrigs = mkState({ lrig: [lrigOf('白')], assistL: [assistOf('青')] });
+  ok(!canUseArtsCondition([eff], twoLrigs, mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
+    '🔴ルリグが2体しかいないのに使用できてしまう（minLrigs が効いていない）');
+}));
+
+test('defer再実測 トリップワイヤ: ピースの本体効果は必ず ACTIVATED（使用条件ゲートが読める形）', () => {
+  // 🔑**この不変条件があれば `WXDi-P15-003` は登録時点で赤くなっていた**＝
+  //   `canUseArtsCondition` は最初の `ACTIVATED` の `condition` しか読まないので、
+  //   `ACTIVATED` を1つも持たないアーツ/ピースは**使用条件を書いても黙って無視される**。
+  const offenders: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    const card = cardMap.get(cardNum);
+    if (!card || !isPieceCardType(card.Type)) continue;
+    if (!effs.length) continue;
+    if (!effs.some(e => e.effectType === 'ACTIVATED')) offenders.push(cardNum);
+  }
+  eq(offenders.sort().join(','), '',
+    'ピースなのに ACTIVATED 効果が1つも無い＝使用条件を書いてもゲートが読まない（canUseArtsCondition は最初の ACTIVATED しか見ない）');
+});
+
+test('defer再実測 トリップワイヤ: 使用条件が ACTIVATED 以外にしか無いアーツ/ピースは0件', () => {
+  // 🔴**`canUseArtsCondition` の構造的な死角**＝最初の `ACTIVATED` 以外に書いた `condition` は
+  //   **使用ゲートから見えない**（書いたのに効かない＝無言の過剰実行）。いまは0件なので0を維持する。
+  const offenders: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    const card = cardMap.get(cardNum);
+    if (!card || !/アーツ|ピース/.test(card.Type ?? '')) continue;
+    const firstAct = effs.find(e => e.effectType === 'ACTIVATED');
+    if (firstAct?.condition) continue;
+    if (effs.some(e => e !== firstAct && e.condition)) offenders.push(cardNum);
+  }
+  eq(offenders.sort().join(','), '',
+    '使用条件が最初の ACTIVATED 以外に置かれている＝canUseArtsCondition が読まないので黙って素通りする');
+});
 
 // ═══ §5.3 索引G `O-365`＝「各プレイヤーは自分の〜」の**相手側を誰が選ぶか** ═══
 // 🔴登録票は「**両者が同時に選ぶ機構**が要る」と書いていたが、実測すると**要らなかった**＝

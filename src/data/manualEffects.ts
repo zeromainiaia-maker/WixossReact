@@ -9395,14 +9395,28 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P15-003 ひらけ！ゲート！（ピース）
   // 「あなたのシグニゾーン1つに【ゲート】1つを置く。このゲームの間、あなたのセンタールリグは『【起】エクシード4：【シグニバリア】1つを得る。【起】エクシード4：カードを4枚引く。』を得る。」
-  // ピースは executeKeyPiece が ON_PLAY を発火させるため、旧 ACTIVATED パースでは発火しなかった。
-  // E1=AUTO ON_PLAY で PLACE_OWN_GATE（ゲート設置）。E2=CONTINUOUS GRANT_LRIG_ABILITY（key_piece に残る間センタールリグへ付与＝collectLrigGrantedEffects がキーピースを走査）。
-  // 【使用条件】ドリームチーム3色以上はピース使用条件のため近似省略。
+  // E1=本体（ゲート設置）。E2=CONTINUOUS GRANT_LRIG_ABILITY（ピース解決時に `lrig_granted_auto_effects` へ載る）。
+  // 🆕🔴**2026-09-14（§5.3 末尾「根拠つき defer」の再実測）＝この2つの旧コメントは stale だった。**
+  //   ①旧「ピースは executeKeyPiece が ON_PLAY を発火させるため、旧 ACTIVATED パースでは発火しなかった」
+  //     ＝**いまは両方積む**（`BattleScreen.tsx` の `queueCardEffects(instanceId, ['AUTO','ACTIVATED'],
+  //     ['ON_PLAY','MAIN','ATTACK','SPELL_CUTIN'], …)`）＝`ACTIVATED/MAIN` でも発火する。
+  //   ②旧「【使用条件】ドリームチーム3色以上はピース使用条件のため近似省略」
+  //     ＝**受け皿は既にある**＝`FIELD_LRIG_COLOR_COUNT{minLrigs:3}`（同じ使用条件の
+  //     `WX25-P1-048-E1` / `WXDi-P09-003-E1` が実装済み・評価器は `execUtils.ts:2554`）。
+  // 🔴**省略していた実害**＝`canUseArtsCondition`（`battleUtils.ts:54`）は
+  //   **最初の `ACTIVATED` 効果の `condition` しか読まない**。このカードは `ACTIVATED` が1つも無かったので
+  //   `effect` が `undefined` → `return true` ＝**使用条件が無条件で成立**し、
+  //   **3色揃っていなくてもピースを使えた**（過剰）。
+  // 🔑**ピースの正準形は `ACTIVATED/['MAIN']`**＝実測でピース全118効果がこの形で、
+  //   `AUTO/['ON_PLAY']` はこの1枚だけの外れ値だった（golden のトリップワイヤで固定した）。
+  // ⚠コストは CSV の `Cost` 列（《無》×０）を写す（兄弟2枚と同じ綴り）。
   'WXDi-P15-003': [
     {
       effectId: 'WXDi-P15-003-E1',
-      effectType: 'AUTO',
-      timing: ['ON_PLAY'],
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 0 }] },
+      condition: { type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: 3, minLrigs: 3 },
       action: { type: 'STUB', id: 'PLACE_OWN_GATE' },
       duration: 'INSTANT',
       mandatory: true,
