@@ -70,3 +70,28 @@ WX24-P1-046-E2 :: FP :: POWER_MODIFY{deltaPerLastProcessedCount, unit:power_sum}
 WXDi-P09-007-E2 :: FP :: ルリグデッキに入るシグニはクラフトだけ＝cardType:"シグニ" で原文どおり → 規則47
 WXDi-CP02-036-E1 :: FP :: 「置く順番は対戦相手が決める」は相手自身のデッキ下の並び＝盤面差が出ない既知の近似
 WXDi-P03-004-E1 :: FP :: 選択肢内の必須コストを OPTIONAL_COST で表す近似（選んでから辞退できるが不利益は自分だけ） → 規則42の系
+# 2026-09-15 Opus＝r5-142〜201（600枚・findings 25件）の triage。BUG 19 / FP 6
+WXEX2-31-E1 :: BUG :: CONDITIONAL{IS_MY_TURN} の前段が TRASH＝did-it ゲートにならず literal 判定（両方向に壊れる） → §5.3 O-398
+WX22-001-E2 :: BUG :: 同上 → §5.3 O-398
+WDK13-022-E1 :: BUG :: 同上（選択肢①） → §5.3 O-398
+WXK10-009-E1 :: BUG :: 「それを場に出す」が直前にトラッシュしたカードへ束縛されていない → §5.3 O-392
+WXK03-079-E1 :: BUG :: 同上 → §5.3 O-392
+WX05-014-E1 :: BUG :: 「このターン」なのに GRANT_PROTECTION の duration が PERMANENT → §5.3 O-399
+WX25-P2-009-E1 :: BUG :: 「ライフクロスが0枚になったとき」が ON_OPP_LIFE_CRASHED＝毎クラッシュ発火で《ゲーム1回》を空振り消費 → §5.3 O-400
+WX06-019-E1 :: BUG :: 「場を離れる場合」の置換が BANISH_SUBSTITUTE 限定＋「他の」の excludeSelf が無い → §5.3 O-401
+WXDi-P03-054-E1 :: BUG :: 追加エクシード時の「代わりに上限2枚」が置換でなく加算（合計10枚見て3枚回収） → §5.3 O-402
+WX25-CP1-065-E1 :: BUG :: ライフクラッシュ時の追加－2000 が任意コストの支払い分岐の内側にある → §5.3 O-403
+WXEX1-59-E1 :: BUG :: レイヤーアイコンの総数でなく「持つシグニの枚数」を数えている → §5.3 O-404
+WXK09-067-E1 :: BUG :: 「無作為化して」デッキ下へ置く処理が無い（shuffle:false のまま） → §5.3 O-405
+WX19-059-BURST :: BUG :: 先頭の OPTIONAL_ACTIVATE が必須のドローまで任意化している（O-391 の逆向き） → §5.3 O-406
+WX11-030-E2 :: BUG :: 「シグニを対象とし」に owner:"self" の余計な限定 → §5.3 O-407
+WXK02-072-E1 :: BUG :: 「シグニが場から手札に戻っていた場合」の owner:"self" が余計 → §5.3 O-395
+WX11-002-E1 :: BUG :: 「他のシグニゾーンに移動したとき」の移動元/先の限定が無い → §5.3 O-385
+WXDi-D05-007-E1 :: BUG :: 「上から5枚を見る」が REVEAL_AND_PICK＝公開になっている → §5.3 O-397
+WD22-035-G-E1 :: BUG :: 任意の場出しを辞退しても MARK_SELF_DELAYED_EXILE が設定される（コストではない任意行動） → §5.3 O-391
+WXK01-040-E1 :: FP :: 監査員の誤読＝BANISH は CONDITIONAL{AND[HAND_COUNT=0, TURN_OWNER]} の then の中にある → 規則49
+WXDi-P00-042-E2 :: FP :: 盤面条件が任意コストだけを囲む形は engine が包みを解いて本体ごと捌く（effectExecutor.ts:6269 OPT_IDS_WRAP） → 規則48
+WX25-CP1-028-E1 :: FP :: 対象宣言を任意コストの後ろへ回した形＝最終盤面が一致 → 規則28
+WXEX1-64-E1 :: FP :: 同上 → 規則28
+WX06-019-BURST :: FP :: 同上（公開後に対象を選ぶ＝情報差だけ） → 規則28
+WXEX1-03-E1 :: FP :: 同上（対象不在時の起動可否は abortIfNoCandidate の領分＝O-352 で別途ラチェット済み） → 規則28
