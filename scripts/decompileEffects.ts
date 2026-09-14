@@ -3650,7 +3650,12 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `このカードの上の《${a.filter.cardName}》は『${(a.abilities || []).map(effJa).join(' / ')}』を得る`
       : `このカードの上の${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'NAME_BAN': return `このゲームの間、${a.targetSelf ? 'あなた' : '対戦相手'}は同名のカードを使用できない`;
-    case 'BLOCK_CARD_USE': return `このターン、対戦相手は《${a.cardName}》を使用できない`;
+    // 🔴主語は**効果オーナー自身**＝`effectExecutor.ts` の `BLOCK_CARD_USE` は `ctx.ownerState.blocked_card_names`
+    //   へ積む（読み手は `cardNameUseBlocked`）。旧実装は「対戦相手は」と固定していたが、
+    //   **live 4効果の原文はすべて「あなたは」**＝engine は正しく、**逆翻訳だけが嘘をついていた**
+    //   （`WD23-006-E-E1` / `WX26-CP1-101-E1` / `WXK01-005-E1` / `WXK09-TK-01A-E1`）。
+    //   ⚠逆翻訳は「engine が何をするか」を描く＝主語は engine 側に合わせる。
+    case 'BLOCK_CARD_USE': return `このターン、あなたは《${a.cardName}》を使用できない`;
     case 'COST_SUBSTITUTE': {
       // substituteCost.banish_self＝「代わりにあなたのエナゾーンからこのシグニをトラッシュに置く」（原文の言い回し）。
       // 旧実装は costJa が拾えず `コスト:{"banish_self":true}` と生JSONを漏らしていた（§5b の英語/JSON漏れ）。
@@ -4989,11 +4994,10 @@ function actionJa(a?: Action, effectType?: string): string {
           : a.zoneBlockSource === 'virus' ? '【ウィルス】がある' : '指定された';
         return `${spanBZP}、対戦相手は${payBZP}${zoneBZP}シグニゾーンにシグニを新たに配置できない`;
       }
-      // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）＝「（ターン終了時まで、）対戦相手のシグニゾーンN つを消す」。
+      // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）。期間は parser の payload から描く。
       if (a.id === 'REMOVE_SIGNI_ZONE') {
-        // 🆕§5.3 `O-356`＝原文を貼らない。⚠期間は engine の実装から描く＝`signi_zone_blocks` はターン終了時に解除
-        //   （原文「次の対戦相手のターン終了時まで」の `WXDi-P09-003-E1` はここで食い違う＝§5.3 `O-362`）。
-        return 'このターン、対戦相手のシグニゾーン1つを消す（そこにあるカードをすべてトラッシュに置き、そこにシグニを配置できない）';
+        const spanRSZ = a.zoneBlockNextTurn ? '次の対戦相手のターン終了時まで' : 'ターン終了時まで';
+        return `${spanRSZ}、対戦相手のシグニゾーン1つを消す（そこにあるカードをすべてトラッシュに置き、そこにシグニを配置できない）`;
       }
       // 🗑`EFFECT_LIMIT` の分岐は撤去（§5.3 `O-60` 第52バッチ・2026-09-03）＝上限は
       //   `POWER_MODIFY_PER_TRASH_COUNT.maxUnits` / `deltaFromZone.maxCount` へ畳まれ、live に0件。
@@ -5234,10 +5238,10 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         return '対戦相手は手札とルリグデッキをすべて公開する';
       }
-      // ライフバースト二度発動（LIFE_BURST_DOUBLE）＝「（このターン、）（次に）あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する」を原文抽出。
+      // ライフバースト二度発動（LIFE_BURST_DOUBLE）。「次に」の有無は parser の payload から描く。
       if (a.id === 'LIFE_BURST_DOUBLE') {
-        // 🆕§5.3 `O-356`＝原文を貼らず engine の挙動を描く（フラグは次の1回で消費＝「このターン（何度でも）」とは食い違う＝§5.3 `O-362`）。
-        return 'このターン、次にあなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する';
+        const nextLBD = a.lifeBurstOnceOnly ? '次に' : '';
+        return `このターン、${nextLBD}あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する`;
       }
       // ルリグが乗機シグニに乗る（RIDE_ON）＝「ターン終了時まで、…センタールリグ…は…＜乗機＞のシグニ…に乗ってもよい」を原文抽出。
       if (a.id === 'RIDE_ON') {

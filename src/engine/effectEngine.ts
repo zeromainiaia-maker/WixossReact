@@ -3189,7 +3189,7 @@ export function calcFieldPowers(
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
   // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
   const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = []) => {
-    const doublers = state.double_power_minus_targets ?? [];
+    const doublers = state.double_power_minus_targets_this_turn ?? [];
     const multipliers = state.power_minus_multipliers_this_turn ?? {};
     // 🆕**`UNTIL_NEXT_OWN_TURN_END` の分も足す**（§5.3 `O-186`）＝ここへ足さないと JSON に載るだけの死フラグ。
     for (const mod of [
@@ -3227,7 +3227,7 @@ export function calcFieldPowers(
   // 場レベル power grant は active 中の盤面へ毎回適用する。cardNum スナップショットではないため、
   // 予約後に場へ出たシグニも filter/zone/condition が一致すれば対象になる。
   const applyActiveFieldPowerGrants = (state: PlayerState, otherState: PlayerState, negatePositive = false) => {
-    const targetDoublers = state.double_power_minus_targets ?? [];
+    const targetDoublers = state.double_power_minus_targets_this_turn ?? [];
     const sourceDoublers = otherState.double_power_minus_sources ?? [];
     for (const stack of state.field.signi) {
       const cardNum = stack?.at(-1);

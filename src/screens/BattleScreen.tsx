@@ -160,7 +160,7 @@ import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
 import { handDiscardHistoryRecord, keyPlaceCoinCostOf } from './battle/costs';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeDamagedJust, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeDamagedJust, consumeFreeGrowThisTurn, consumeLifeBurstDouble, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../engine/lifeCrashGate';
@@ -4293,7 +4293,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           //   ＝**3経路のうちこの1本だけが抜けていた**（「手札が少ないターンだけ消える」型の無言の不整合）。
           ...(myLrigDeckReturned.length > 0 ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned] } : {}),
           turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined, // 一時レゾナ返却の残骸をリセット
-          life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
+          // LIFE_BURST_DOUBLE の2キーは clearTurnEndScopedState で両プレイヤー・全終了経路を一括失効する。
           lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
@@ -4813,7 +4813,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, pending_crash_causes: [], crash_cause: undefined,
-        prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
+        prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined,
+        // LIFE_BURST_DOUBLE の2キーは clearTurnEndScopedState へ集約（CPU／強制終了も同じ funnel）。
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
@@ -13777,11 +13778,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }));
         return;
       }
-      // LIFE_BURST効果を発火（LIFE_BURST_DOUBLEフラグがある場合は2回分キュー）
-      const doubleBurst = baseState.life_burst_double_next === true;
-      const baseStateForBurst = doubleBurst
-        ? { ...baseState, life_burst_double_next: undefined }
-        : baseState;
+      // LIFE_BURST効果を発火。「次に」はここで1回消費し、全ターン版は次のLBにも残す。
+      const burstDouble = consumeLifeBurstDouble(baseState);
+      const doubleBurst = burstDouble.repeatCount === 2;
+      const baseStateForBurst = burstDouble.state;
       // lrig_trash: ARTS_SELF_RECYCLE_ON_TRIGGER with ON_LIFE_BURST timing
       const lrigTrashBurstEntries: StackEntry[] = [];
       for (const artsNum of (baseState.lrig_trash ?? [])) {

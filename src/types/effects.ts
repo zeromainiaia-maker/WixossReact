@@ -5107,6 +5107,11 @@ export interface SoulOpSpec {
 
 export interface StubAction {
   /**
+   * `LIFE_BURST_DOUBLE` の消費回数。true＝「このターン、**次に**」の1回だけ、false＝このターン中の全回。
+   * parser が原文の「次に」を判別して必ず明示し、engine はカード原文を読み直さない。
+   */
+  lifeBurstOnceOnly?: boolean;
+  /**
    * `STRIP_OPP_ENA_MULTI_ENA` の追加範囲。剥奪自体は id が宣言し、`effectImmunity` は
    * `WXK11-020` 型の「そのエナは対戦相手の効果を受けない」まで含む場合だけ立てる。
    * 省略時に耐性を付けないことで、単なる「【マルチエナ】を失う」文型を過剰実行しない。

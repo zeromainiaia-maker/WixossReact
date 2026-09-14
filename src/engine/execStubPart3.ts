@@ -522,10 +522,14 @@ export function execStubPart3(
     return done(addLog(ctx, `手札上限の宣言（判定は collectHandLimits）: ${stub.id}`));
   }
   // ライフバースト特殊（engine: 発動システム改修必要）
-  // LIFE_BURST_DOUBLE: このターン、次のライフバーストは2回発動する
+  // LIFE_BURST_DOUBLE: 「次に」ありは1回消費、無しはこのターン中の全ライフバーストを2回発動する。
   if (stub.id === 'LIFE_BURST_DOUBLE') {
-    const newOwnerLBD: PlayerState = { ...ctx.ownerState, life_burst_double_next: true };
-    return done(addLog({ ...ctx, ownerState: newOwnerLBD }, 'このターン次のライフバーストは2回発動する'));
+    const onceOnlyLBD = stub.lifeBurstOnceOnly === true;
+    const newOwnerLBD: PlayerState = onceOnlyLBD
+      ? { ...ctx.ownerState, life_burst_double_next: true }
+      : { ...ctx.ownerState, life_burst_double_this_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerLBD },
+      onceOnlyLBD ? 'このターン次のライフバーストは2回発動する' : 'このターンすべてのライフバーストは2回発動する'));
   }
   // TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）
   // 表示: この方法で処理したカードの【ライフバースト】を発動する

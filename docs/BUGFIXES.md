@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 索引G `O-362` クローズ（期間の食い違い3群・第320バッチ）
+
+**真因＝「このターン」と書いてある効果の解除地点・消費回数・期間の向きが、3群それぞれ別の理由でズレていた。**
+
+### 群1＝`DOUBLE_OWN_POWER_MINUS`（6効果）＝**解除地点が存在しなかった**
+
+`double_power_minus_targets` は `execStubPart2` で積まれ `calcFieldPowers` の2箇所で読まれていたが、
+**`turnScopedState.ts` にも `BattleScreen` のターン終了リセットにも出てこない**＝
+原文「**このターン**、…代わりに２倍－される」の倍化が**ターンを越えて残り続けていた**。
+- **直し方**＝キーを **`double_power_minus_targets_this_turn` へ改名**して
+  `CONVENTION_TURN_SCOPED_STATE` の**命名規約による機械抽出**に載せた（規約名にすると
+  登録するまで typecheck が落ちる＝同種の漏れが以後は構造的に止まる）。
+- 🔑**3倍軸（`power_minus_multipliers_this_turn`）と発生源軸（`double_power_minus_sources`）は既に解除済み**
+  ＝**2倍軸だけが規約名から外れていた**ので落ちていた。
+
+### 群2＝`LIFE_BURST_DOUBLE`（2効果）＝**原文が2種類あり、片方は元から正しかった**
+
+| 効果 | 原文 | 旧挙動 |
+|---|---|---|
+| `WXDi-P12-035-E1` | このターン、**次に**あなたのライフバーストが発動する場合 | ✅正しい（1回で消費） |
+| `WD23-006-E-E1` | このターン、あなたのライフバーストが発動する場合（「次に」が**無い**） | 🔴**2回目以降が倍化されない**（過少） |
+
+- **直し方**＝parser が原文の「次に」を判別して `STUB{LIFE_BURST_DOUBLE, lifeBurstOnceOnly}` を必ず明示し、
+  engine は payload だけを読む（**engine に原文 regex を持ち込まない**＝`census:enginetext` A群を上げない）。
+  state を `life_burst_double_next`（1回きり）と `life_burst_double_this_turn`（全ターン）の2キーに割った。
+- ⚠**登録票は「2回目以降が倍化されない」としか書いておらず、片方が元から正しいことを落としていた**（Claude が訂正）。
+
+### 群3＝`REMOVE_SIGNI_ZONE`（5効果）＝**食い違いは1効果だけ**
+
+4効果は原文が「ターン終了時まで」で**現行が正しい**。`WXDi-P09-003-E1` だけが
+「**次の対戦相手のターン終了時まで**」で、`signi_zone_blocks` は自分のターン終了時に解除されるため
+**相手ターンに配置できてしまっていた**（過少）。
+- 🔑**受け皿は既存の `signi_zone_blocks_next_turn` ＋ `activateNextTurnSigniZoneBlocks` で足りた**＝
+  **ブロックは相手側の state に積む**ので、相手から見た「次の**自分**ターン」が
+  効果使用者から見た「次の**対戦相手**ターン」に一致する。**新しい期間軸は0本。**
+  ⚠着手前の見立てでは「向きが逆かもしれない」と疑っていたが、**state の持ち主を考えると一致していた**。
+
+### 🔴 副産物＝`BLOCK_CARD_USE` の逆翻訳が主語を取り違えていた（live **4効果すべて**）
+
+`WD23-006-E-E1` の逆翻訳を原文照合していて見つけた。
+engine（`effectExecutor.ts` の `BLOCK_CARD_USE`）は **`ctx.ownerState.blocked_card_names`**＝
+「**あなた**」を禁止するのに、`decompileEffects.ts` は「**対戦相手は**《X》を使用できない」と**固定文**で描いていた。
+**live 4効果の原文はすべて「あなたは」**＝**engine は正しく、逆翻訳だけが嘘をついていた。**
+- 🔑**嘘の向きが「自分の不利が相手の不利に見える」**＝原文照合という主軸の検査がそこだけ効かない。
+- ⚠**この形は golden/smoke/fuzz/census がどれも緑のまま通る**（engine は正しいので何も壊れない）。
+- golden は **id をベタ書きせず live から数え直す**形で張った（カードが増えたら自動で見る＋vacuous PASS 防止の下限つき）。
+
+### 検証
+
+- `npm run gates` **全緑**・golden **4111 → 4119 PASS / 0 FAIL**・lint warning **256 据置**・`census:deadstate` **0件**。
+- live 差分は effectId 単位で **3効果ちょうど**（群1の6効果は state キーの改名だけで JSON は不変＝正しい）。
+- **実機 `V-219` / `V-220`（2本）/ `V-221` ＝4シナリオとも PASS**
+  （`node scripts/verifyBattleDrive.mjs v219PowerMinusExpires v220LifeBurstAllTurn v220LifeBurstNextOnly v221RemoveZoneOppTurn`）。
+  🔑**`V-220` の2本は互いの対照**＝全ターン版は2回目も倍化（手札 0→2→4）、「次に」版は2回目が素（0→2→3）。
+- **反転確認**＝①live から `lifeBurstOnceOnly:false` を `true` に戻すと `v220LifeBurstAllTurn` が hand=3 で FAIL
+  ②`zoneBlockNextTurn` を外すと `v221RemoveZoneOppTurn` が「予約が揃わない」で FAIL
+  ③`BLOCK_CARD_USE` の主語を戻して `regen` すると新 golden が FAIL。**いずれも復元後 `SKIP_BUILD=0` で PASS。**
+- 🔴**golden が拾った実バグ1件**＝`consumeLifeBurstDouble` が funnel 外の新規ファイルに置かれ、
+  `turn-scoped T2`（ターン限定フィールドの手書きクリア禁止）に引っかかった。
+  **既存の `consumeFreeGrowThisTurn` などと同じく `turnScopedState.ts` 内へ移設**して解消。
+  ⚠**`npm run typecheck` は `scripts/` を見ない**ので、移設で壊れた `goldenTest.ts` の import は
+  **golden を実際に走らせるまで緑に見えた**（`CLAUDE.md` の既知の死角を実地で踏んだ）。
+
 ## 2026-09-14 — §5.3 索引G バッチ1 続き（`O-358` / `O-357` / `O-360`）
 
 - **`O-358` / `WXDi-P11-009-E3`**：`DESIGNATE_SIGNI_ZONE.requireEmptyZone` を parser・型・executor・逆翻訳へ配線した。

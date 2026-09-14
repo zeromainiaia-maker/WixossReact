@@ -4203,7 +4203,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         } as GrantProtectionAction;
       }
       // ③「このシグニのパワーが－される場合、代わりに２倍－される」（`WXK08-049-E2`）
-      //   ＝既存 `double_power_minus_targets`（`DOUBLE_OWN_POWER_MINUS`）。対象は相手シグニ。
+      //   ＝既存 `double_power_minus_targets_this_turn`（`DOUBLE_OWN_POWER_MINUS`）。対象は相手シグニ。
       if (/^この(?:シグニ|カード)のパワーが[－-]される場合、代わりに[２2]倍[－-]される$/.test(inner)) {
         return {
           type: 'SEQUENCE',

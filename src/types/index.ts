@@ -735,8 +735,10 @@ export interface PlayerState {
   draw_phase_replacement?: { fromCount: number; toCount: number };
   // このターン、このプレイヤーのすべてのキーは能力を失う（WXK02-029 ビカム・ユー CONDITIONAL_GROW_AND_KEY_DISABLE）
   keys_abilities_disabled?: boolean;
-  // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）
+  // このターン、次のライフバースト1回だけを2回発動する（LIFE_BURST_DOUBLE{lifeBurstOnceOnly:true}）。
   life_burst_double_next?: boolean;
+  // このターン中に発動するすべてのライフバーストを2回発動する（LIFE_BURST_DOUBLE{lifeBurstOnceOnly:false}）。
+  life_burst_double_this_turn?: boolean;
   // スペル/アーツ効果でターン終了まで付与されたルリグの AUTO 能力
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // 次の対戦相手のターン終了時まで付与されたルリグ能力
@@ -988,13 +990,13 @@ export interface PlayerState {
   // 裏向きシグニのCardNum一覧（SIGNI_FLIP_FACEDOWN / FACE_DOWN_OPP_SIGNI）
   face_down_signi?: string[];
   // このターン、自分の効果による特定シグニへのパワー-を2倍にする（DOUBLE_OWN_POWER_MINUS）
-  double_power_minus_targets?: string[];
+  double_power_minus_targets_this_turn?: string[];
   // このターン、指定した自シグニの効果による相手シグニへのパワー-を2倍にする。
-  // double_power_minus_targets は「修正を受ける側」の指定なので、発生源指定は別軸で保持する。
+  // double_power_minus_targets_this_turn は「修正を受ける側」の指定なので、発生源指定は別軸で保持する。
   double_power_minus_sources?: string[];
   /**
    * このターン、指定シグニが受けるパワー－の**倍率**（§6.4 O-10・続き507）。
-   * `double_power_minus_targets` は 2倍固定の集合なので「代わりに**３倍**－される」
+   * `double_power_minus_targets_this_turn` は 2倍固定の集合なので「代わりに**３倍**－される」
    * （`WX25-P2-103-E1` の選択肢②）を表せなかった＝倍率つきの上位互換。
    * ⚠**読み手は 2倍軸と同じ2箇所**（`applyTempMods` と `applyActiveFieldPowerGrants`）＝
    *   片方だけに足すと「場レベル付与のパワー－にだけ倍率が乗らない」無言のズレになる。

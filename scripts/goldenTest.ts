@@ -34,6 +34,7 @@ import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrig
 // 🆕§5.3 索引C 第9巡（2026-09-02）＝O-206 / O-177 / O-84 / O-114 / O-186 の消費地点を直接叩く。
 import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex, keyPlaceCoinCostOf, parseCoinCost } from '../src/screens/battle/costs';
 import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSuppress';
+import { consumeLifeBurstDouble } from '../src/screens/battle/turnScopedState';
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { declaredSigniOverride } from '../src/screens/battle/growLogic';
@@ -5926,7 +5927,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 60, 'PlayerState の命名規約由来フィールド数（🆕59＝2026-09-12 §5.3 `O-330` で `signi_replayed_this_turn`（チェックゾーン往復で出し直したシグニの追記ログ＝`detectPlacedSigni` が差分で読む）、`O-317`/`O-333` で `coin_abilities_used_this_turn`（コイン技の発動台帳・2スロット式）を新設。57＝2026-09-11 §5.3 `O-306` で `name_identity_rules_this_turn`（宣言名の変身規則・このターン）を新設。56＝2026-09-11 §5.3 `O-321`/`O-315`/`O-308`③ で `energy_placed_this_turn` を新設＝「このターンにエナゾーンへ置かれた札」の台帳（`"<instanceId>:<cause>"`）。既存 `self_deck_to_energy_this_turn` は**デッキ由来の枚数だけ**で、絞り込みにも由来にも応えられない。55＝2026-09-08 §5.3 `O-275` で `life_crashed_by_opp_effect_this_turn` を新設＝「対戦相手の効果によって」クラッシュされた枚数（総数の `life_crashed_this_turn` とは別の軸）。54＝2026-09-08 §5.0 `WX12-002-E3` で `allzone_burst_grant_this_turn` を新設＝「このターン」だけの全領域【ライフバースト】付与（ディスペアの `*_until_opp_turn` とは寿命が違う）。53＝53＝2026-09-06 §5.4 (b) 第189バッチで `signi_left_field_to_trash_this_attack_phase` を新設＝離場履歴の**行き先つき射影**。52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 62, 'PlayerState の命名規約由来フィールド数（🆕62＝2026-09-14 §5.3 `O-362` で double_power_minus_targets_this_turn / life_burst_double_this_turn を追加。60＝第319バッチ時点）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5938,10 +5939,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 32, '命名規約外のターン限定フィールド数（🆕32＝2026-09-12 O-340 で発生源付きのリミット修整を追加。31＝2026-09-10 第247 で lrig_limit_mod_until_own_energy_phase_end を追加）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 33, '命名規約外のターン限定フィールド数（🆕33＝2026-09-14 O-362 で life_burst_double_next の未消費時失効を共通 funnel へ登録。32＝第319バッチ時点）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 92, '型由来と命名規約外を合わせたターン限定フィールド数（🆕91＝2026-09-12 O-340 で発生源付きリミット修整を新設。90＝第290バッチ時点）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 95, '型由来と命名規約外を合わせたターン限定フィールド数（🆕95＝2026-09-14 O-362。92＝第319バッチ時点）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -24801,7 +24802,7 @@ test('§6.4 O-28: 引用【常】の3形が既存機構へ載る（live）', () 
   const prot = findActionByType(k029.action, 'GRANT_PROTECTION')!;
   eq(JSON.stringify(prot.from ?? []), '["BANISH","BOUNCE"]', 'WXK07-029-E1: バニッシュ＋バウンス耐性');
   eq(prot.sourceOwner, 'opponent', 'WXK07-029-E1: 相手の効果限定');
-  // ③「このシグニのパワーが－される場合、代わりに2倍－される」＝double_power_minus_targets
+  // ③「このシグニのパワーが－される場合、代わりに2倍－される」＝double_power_minus_targets_this_turn
   const k049 = (effectsMap.get('WXK08-049') ?? []).find(e => e.effectId === 'WXK08-049-E2')!;
   ok(JSON.stringify(k049.action).includes('DOUBLE_OWN_POWER_MINUS'), 'WXK08-049-E2: 2倍マイナス機構');
 });
@@ -24825,8 +24826,8 @@ test('DOUBLE_OWN_POWER_MINUS: 対象を持つ側の state にフラグが載る'
     { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
     { type: 'STUB', id: 'DOUBLE_OWN_POWER_MINUS' },
   ] } as unknown as EffectAction, ctx);
-  eq(JSON.stringify(r.otherState.double_power_minus_targets ?? []), JSON.stringify([target]), '相手側 state に載る');
-  eq(JSON.stringify(r.ownerState.double_power_minus_targets ?? []), '[]', '⚠自分側には載せない（旧バグ）');
+  eq(JSON.stringify(r.otherState.double_power_minus_targets_this_turn ?? []), JSON.stringify([target]), '相手側 state に載る');
+  eq(JSON.stringify(r.ownerState.double_power_minus_targets_this_turn ?? []), '[]', '⚠自分側には載せない（旧バグ）');
 }));
 // ── §6.4 O-33：`SigniAttackBan.zones`（「中央のシグニゾーンにあるシグニでアタックできない」）──
 // 🔴回帰ガード＝旧 live は `BLOCK_ACTION{ATTACK}` に潰れ、**ゾーン限定も支払い回避も期間も落ちて**いた
@@ -81382,6 +81383,172 @@ test('O-360 WD18-009-E2: 解決時条件を落とす過剰実装を避け、機�
   ok(decompiledLineOf('WD18-009-E2').includes('【未実装】') &&
     decompiledLineOf('WD18-009-E2').includes('このシグニがアクセされていた場合'),
   '逆翻訳が解決時条件の機構不足を隠している');
+});
+
+// ═══ §5.3 索引G `O-362`＝期間の食い違い3群 ═══
+test('O-362① live/fresh: パワー－2倍6効果と3倍軸がターン限定ストアへ載る', () => withSavedCursor(() => {
+  const cases = [
+    ['WX24-P1-049', 'WX24-P1-049-E2'],
+    ['WX25-CP1-070', 'WX25-CP1-070-E1'],
+    ['WX25-P2-103', 'WX25-P2-103-E1'],
+    ['WXDi-CP02-062', 'WXDi-CP02-062-E2'],
+    ['WXDi-P10-009', 'WXDi-P10-009-E1'],
+    ['WXK08-049', 'WXK08-049-E2'],
+  ] as const;
+  for (const [cardNum, effectId] of cases) {
+    const live = liveEff(cardNum, effectId);
+    const freshEff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    ok(!!findStubById(live.action, 'DOUBLE_OWN_POWER_MINUS'), `${effectId}: live に DOUBLE_OWN_POWER_MINUS が無い`);
+    ok(!!freshEff && !!findStubById(freshEff.action, 'DOUBLE_OWN_POWER_MINUS'), `${effectId}: fresh parser に DOUBLE_OWN_POWER_MINUS が無い`);
+    ok(decompiledLineOf(effectId).includes('このターン') || decompiledLineOf(effectId).includes('ターン終了時まで'),
+      `${effectId}: 逆翻訳からターン限定期間が落ちた`);
+  }
+  const triple = findStubById(liveEff('WX25-P2-103', 'WX25-P2-103-E1').action, 'CHARM_POWER_MINUS_MULTIPLIER');
+  eq(triple?.value, 3, 'WX25-P2-103-E1② の3倍軸');
+}));
+
+test('O-362① E2E: 同一ターンは2倍、ターン境界後は素の－値（temp／場grantの両消費地点）', () => withSavedCursor(() => {
+  const source = 'WXDi-P10-009';
+  const target = findCard(c => c.CardNum === 'WD01-013');
+  const ctx = mkCtx({ signi: [source, null, null] }, { signi: [target, null, null] }, source);
+  ctx.otherState.temp_power_mods = [{ cardNum: target, delta: -1000, srcCardNum: source }];
+  ctx.lastProcessedCards = [target];
+  const applied = run(liveEff(source, 'WXDi-P10-009-E1').action, ctx);
+  eq(JSON.stringify(applied.otherState.double_power_minus_targets_this_turn), JSON.stringify([target]), '対象側のターン限定ストアへ載る');
+  eq(calcFieldPowers(applied.ownerState, applied.otherState, true, effectsMap, cardMap).get(target), 1000,
+    '同一ターン: P3000への－1000が2倍されP1000');
+
+  const ended = clearTurnEndScopedState(applied.otherState);
+  eq(ended.double_power_minus_targets_this_turn, undefined, 'ターン終了で2倍指定が失効');
+  const nextTemp: PlayerState = { ...ended, temp_power_mods: [{ cardNum: target, delta: -1000, srcCardNum: source }] };
+  eq(calcFieldPowers(applied.ownerState, nextTemp, false, effectsMap, cardMap).get(target), 2000,
+    '次ターン: 同じ－1000を再適用しても素のP2000');
+
+  const grantState: PlayerState = {
+    ...applied.otherState,
+    temp_power_mods: [],
+    field_grants_active: [{ kind: 'power', delta: -1000, srcCardNum: source, srcType: 'シグニ' }],
+  };
+  eq(calcFieldPowers(applied.ownerState, grantState, true, effectsMap, cardMap).get(target), 1000,
+    '場レベルgrantの－1000にも2倍が乗る');
+  const grantEnded: PlayerState = {
+    ...clearTurnEndScopedState(grantState),
+    field_grants_active: [{ kind: 'power', delta: -1000, srcCardNum: source, srcType: 'シグニ' }],
+  };
+  eq(calcFieldPowers(applied.ownerState, grantEnded, false, effectsMap, cardMap).get(target), 2000,
+    'ターン境界後の場レベルgrantは素の－1000');
+}));
+
+test('O-362① WXK08-049-E2 E2E: 付与型【常】も同じターン限定ストアを使い境界で失効', () => withSavedCursor(() => {
+  const target = 'WD01-013#o362-grant';
+  const ctx = mkCtx({ signi: ['WXK08-049', null, null] }, { signi: [target, null, null] }, 'WXK08-049');
+  const result = run(liveEff('WXK08-049', 'WXK08-049-E2').action, ctx);
+  eq(JSON.stringify(result.otherState.double_power_minus_targets_this_turn), JSON.stringify([target]),
+    '付与型【常】の対象も同じストアへ載る');
+  eq(clearTurnEndScopedState(result.otherState).double_power_minus_targets_this_turn, undefined,
+    '「ターン終了時まで」の付与型も同じ境界で失効');
+}));
+
+test('O-362② live/fresh: LIFE_BURST_DOUBLE 2効果は「次に」の有無をpayloadで区別する', () => {
+  const cases = [
+    ['WD23-006-E', 'WD23-006-E-E1', false],
+    ['WXDi-P12-035', 'WXDi-P12-035-E1', true],
+  ] as const;
+  for (const [cardNum, effectId, onceOnly] of cases) {
+    const live = findStubById(liveEff(cardNum, effectId).action, 'LIFE_BURST_DOUBLE');
+    const freshEff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    const freshStub = freshEff && findStubById(freshEff.action, 'LIFE_BURST_DOUBLE');
+    eq(live?.lifeBurstOnceOnly, onceOnly, `${effectId}: live lifeBurstOnceOnly`);
+    eq(freshStub?.lifeBurstOnceOnly, onceOnly, `${effectId}: fresh lifeBurstOnceOnly`);
+    eq(decompiledLineOf(effectId).includes('次に'), onceOnly, `${effectId}: 逆翻訳の「次に」`);
+  }
+});
+
+test('O-362② E2E: 全ターン版は2回目も倍化し、「次に」版は1回だけ消費する', () => {
+  const allTurnApplied = run(liveEff('WD23-006-E', 'WD23-006-E-E1').action, mkCtx({}, {}, 'WD23-006-E'));
+  eq(allTurnApplied.ownerState.life_burst_double_this_turn, true, 'WD23-006-E-E1 は全ターン軸');
+  const allFirst = consumeLifeBurstDouble(allTurnApplied.ownerState);
+  const allSecond = consumeLifeBurstDouble(allFirst.state);
+  eq(allFirst.repeatCount, 2, '全ターン版1回目');
+  eq(allSecond.repeatCount, 2, '全ターン版2回目も倍化');
+  eq(clearTurnEndScopedState(allSecond.state).life_burst_double_this_turn, undefined, '全ターン版はターン終了で失効');
+
+  const onceApplied = run(liveEff('WXDi-P12-035', 'WXDi-P12-035-E1').action, mkCtx({}, {}, 'WXDi-P12-035'));
+  eq(onceApplied.ownerState.life_burst_double_next, true, 'WXDi-P12-035-E1 は次の1回軸');
+  const onceFirst = consumeLifeBurstDouble(onceApplied.ownerState);
+  const onceSecond = consumeLifeBurstDouble(onceFirst.state);
+  eq(onceFirst.repeatCount, 2, '次だけ版1回目');
+  eq(onceFirst.state.life_burst_double_next, undefined, '1回目で権利を消費');
+  eq(onceSecond.repeatCount, 1, '次だけ版2回目は素の1回');
+  eq(clearTurnEndScopedState({ ...mkState(), life_burst_double_next: true }).life_burst_double_next, undefined,
+    '未消費の次だけ版も全turn-end funnelで失効');
+});
+
+test('O-362③ live/fresh: REMOVE_SIGNI_ZONE 5効果のうちWXDi-P09-003だけ次相手ターン予約を持つ', () => {
+  const cases = [
+    ['WX25-P3-015', 'WX25-P3-015-E2', false],
+    ['WXDi-P00-015', 'WXDi-P00-015-E2', false],
+    ['WXK03-005', 'WXK03-005-E1', false],
+    ['WXK07-031', 'WXK07-031-E2', false],
+    ['WXDi-P09-003', 'WXDi-P09-003-E1', true],
+  ] as const;
+  for (const [cardNum, effectId, nextTurn] of cases) {
+    const live = findStubById(liveEff(cardNum, effectId).action, 'REMOVE_SIGNI_ZONE');
+    const freshEff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    const freshStub = freshEff && findStubById(freshEff.action, 'REMOVE_SIGNI_ZONE');
+    eq(live?.zoneBlockNextTurn === true, nextTurn, `${effectId}: live 期間軸`);
+    // WXK07-031 は複合MANUALだが、fresh parser が内文を同じSTUBへ落とすことも独立に確認する。
+    eq(freshStub?.zoneBlockNextTurn === true, nextTurn, `${effectId}: fresh 期間軸`);
+    eq(decompiledLineOf(effectId).includes('次の対戦相手のターン終了時まで'), nextTurn,
+      `${effectId}: 逆翻訳の期間`);
+  }
+});
+
+test('O-362③ E2E: 長期ゾーン消去は相手ターン中も配置不可、次の自分ターンには解除', () => withSavedCursor(() => {
+  const target = 'WD01-013#o362-zone';
+  const ctx = mkCtx({}, { signi: [target, null, null] }, 'WXDi-P09-003');
+  const applied = run(liveEff('WXDi-P09-003', 'WXDi-P09-003-E1').action, ctx);
+  eq(applied.otherState.field.signi[0], null, '指定ゾーンのシグニをトラッシュへ移す');
+  eq(resolveSigniZonePlacement(applied.otherState, 0).allowed, false, '発動ターン中は配置不可');
+  eq(JSON.stringify(applied.otherState.signi_zone_blocks_next_turn), JSON.stringify([{ zone: 0 }]),
+    'ブロックを受ける側の次の自分ターンへ予約');
+
+  const oppTurn = activateNextTurnSigniZoneBlocks(clearTurnEndScopedState(applied.otherState));
+  eq(resolveSigniZonePlacement(oppTurn, 0).allowed, false, '次の対戦相手ターン中も配置不可');
+  eq(oppTurn.signi_zone_blocks_next_turn, undefined, '予約はactiveへ1回だけ昇格');
+  const nextOwnTurn = activateNextTurnSigniZoneBlocks(clearTurnEndScopedState(oppTurn));
+  eq(resolveSigniZonePlacement(nextOwnTurn, 0).allowed, true, 'その次の自分ターンには配置可能');
+
+  const shortCtx = mkCtx({}, { signi: [target, null, null] }, 'WXDi-P00-015');
+  const short = run(liveEff('WXDi-P00-015', 'WXDi-P00-015-E2').action, shortCtx);
+  eq(short.otherState.signi_zone_blocks_next_turn, undefined, '既存4効果は次ターン予約を持たない');
+  const shortEnded = activateNextTurnSigniZoneBlocks(clearTurnEndScopedState(short.otherState));
+  eq(resolveSigniZonePlacement(shortEnded, 0).allowed, true, '既存のターン終了時まで4効果は境界で解除');
+}));
+
+// §5.3 索引G `O-362` の副産物＝`BLOCK_CARD_USE` の逆翻訳が主語を取り違えていた。
+// 🔴engine（`effectExecutor.ts` の `BLOCK_CARD_USE`）は **`ctx.ownerState.blocked_card_names`**＝
+//   「あなた」を禁止するのに、逆翻訳は「対戦相手は」と固定文で描いていた＝**live 4効果すべてで嘘**。
+//   しかも嘘の向きが「自分の不利が相手の不利に見える」＝原文照合がそこだけ効かなくなる。
+// ⚠この形は golden/smoke/fuzz/census がどれも緑のまま通る（engine は正しいので何も壊れない）。
+test('O-362 副産物: BLOCK_CARD_USE の逆翻訳の主語は engine と同じ「あなた」', () => {
+  // ⚠ id をベタ書きせず live から数え直す＝カードが増えたらこのテストが自動で見る。
+  //   `WXK09-TK-01A-E1`（トークン）は CSV に行が無く逆翻訳シートにも出ないので、行がある分だけ検査する。
+  const ids: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) if (JSON.stringify(e).includes('"BLOCK_CARD_USE"')) ids.push(e.effectId);
+  }
+  let checked = 0;
+  for (const id of ids) {
+    let line: string;
+    try { line = decompiledLineOf(id); } catch { continue; }  // 逆翻訳シートに出ないカード（トークン等）
+    checked++;
+    ok(line.includes('あなたは《'), `${id}: 逆翻訳の主語が「あなた」でない＝engine（ownerState を禁止）と食い違う`);
+    ok(!/対戦相手は《[^》]+》を使用できない/.test(line),
+      `${id}: 「対戦相手は《…》を使用できない」＝原文にも engine にも無い主語が復活している`);
+  }
+  // 🔴 vacuous PASS 防止＝0件でも緑になる形にしない（live から BLOCK_CARD_USE が消えたら気付く）。
+  ok(checked >= 3, `BLOCK_CARD_USE の検査対象が ${checked} 件しか無い（live 実測は4効果・うち3件が逆翻訳シートに出る）`);
 });
 
 if (listMode) {

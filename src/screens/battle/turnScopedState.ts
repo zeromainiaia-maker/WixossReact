@@ -62,6 +62,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   upped_from_down_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'signi upped by effects during the current turn' },
   // パワーマイナス倍化は、付与されたターンだけ有効。
   double_power_minus_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'power-minus multiplier granted for the current turn' },
+  // 対象単位のパワーマイナス2倍化も、付与されたターンだけ有効。
+  double_power_minus_targets_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'target-scoped power-minus multiplier granted for the current turn' },
   // ホログラフ公開置換は、付与されたターンだけ有効。
   holograph_reveal_replace_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'holograph reveal replacement for the current turn' },
   // 「代わりに〜、ターン終了時まで、この能力を失う」で自壊した効果（§6.4 O-10）は当該ターンだけ無効。
@@ -72,6 +74,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   own_effects_cannot_negate_signi_attack_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-negation immunity granted for the current turn' },
   // パワー－の倍率（「代わりに３倍－される」§6.4 O-10）も、付与されたターンだけ有効。
   power_minus_multipliers_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'power-minus multiplier granted for the current turn' },
+  // 「次に」を持たない LIFE_BURST_DOUBLE は、そのターン中の全ライフバーストへ適用する。
+  life_burst_double_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'all life bursts are doubled for the current turn' },
   // トラッシュ移動ロックの active 値は現在ターンだけで、次ターン予約は別フィールドに置く。
   lock_trash_move_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'active trash-move lock; next-turn reservation is stored separately' },
   // ガード追加無色コストは、付与されたターンだけ有効。
@@ -159,6 +163,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
+  // 「このターン、次に」の一発権。通常はライフバースト発動時に消費し、未消費でも全turn-end funnelで失効する。
+  life_burst_double_next: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next life-burst doubling is consumed once or expires at turn end' },
   // 🆕`turn_hand_discarded_count` の「実体」側（2026-08-31 続き748）。⚠`turn_*` 始まりで `*_this_turn` 命名では
   //   ないのでこちら。**枚数カウンタと同じ地点・同じ寿命**（片方だけ残ると絞り込み条件が食い違う）。
   turn_hand_discarded_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards this player discarded from hand during the current turn (entity side of turn_hand_discarded_count)' },
@@ -653,4 +659,20 @@ export function closeSpellCheckZone(state: PlayerState): PlayerState {
  */
 export function consumeDamagedJust(state: PlayerState): PlayerState {
   return consumeField(state, 'damaged_just');
+}
+
+/**
+ * 【ライフバースト】2回発動の権利を**読んで消費する**（§5.3 `O-362`②）。
+ * 原文が2種類ある＝「このターン、**次に**あなたのライフバーストが発動する場合」（`WXDi-P12-035-E1`）は
+ * `life_burst_double_next` の**1回きり**、「このターン、あなたのライフバーストが発動する場合」
+ * （`WD23-006-E-E1`）は `life_burst_double_this_turn` で**そのターンの全回**に効く。
+ * ⚠**funnel の外で `life_burst_double_next: undefined` を書かないこと**（T2 が検出する）。
+ *   1回きりの権利だけをここで消費し、全ターン権は `clearTurnEndScopedState` の turn-end に委ねる。
+ */
+export function consumeLifeBurstDouble(state: PlayerState): { repeatCount: 1 | 2; state: PlayerState } {
+  const doubled = state.life_burst_double_next === true || state.life_burst_double_this_turn === true;
+  return {
+    repeatCount: doubled ? 2 : 1,
+    state: state.life_burst_double_next === true ? consumeField(state, 'life_burst_double_next') : state,
+  };
 }

@@ -58859,6 +58859,189 @@ scenarios.v218ForceTargetArtsSrc = {
 
 order.push('v218ForceTargetSigniSrc', 'v218ForceTargetArtsSrc');
 
+// V-219＝§5.3 `O-362`①。live の DOUBLE_OWN_POWER_MINUS を実スタックで解決し、同じ－1000が
+// 発動ターンは－2000、ターン境界後は－1000へ戻ることをDOMの実効パワーで見る。
+const V219_SOURCE = 'WXDi-P10-009#36201';
+const V219_TARGET = 'WD01-013#36202'; // P3000
+scenarios.v219PowerMinusExpires = {
+  title: 'V-219 O-362①: パワー－2倍は同一ターンだけ効き、ターン境界後は素の－値へ戻る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#36200'], 'field.signi': [[V219_SOURCE], null, null],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      hand: [], energy: [], trash: [], actions_done: [],
+      deck: ['WD01-014#36210', 'WD01-014#36211', 'WD01-014#36212'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#36220'], 'field.signi': [[V219_TARGET], null, null],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      temp_power_mods: [{ cardNum: V219_TARGET, delta: -1000, srcCardNum: V219_SOURCE }],
+      hand: [], energy: [], trash: [], actions_done: [],
+      deck: ['WD01-014#36230', 'WD01-014#36231', 'WD01-014#36232'],
+    },
+    top: {
+      active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2,
+      effectStack: o190EffectStack('WXDi-P10-009', V219_SOURCE, 'WXDi-P10-009-E1'),
+    },
+  },
+  async drive(page, H) {
+    const readPower = async () => {
+      const tx = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+      if (/1[,，]?000/.test(tx)) return 1000;
+      if (/2[,，]?000/.test(tx)) return 2000;
+      if (/3[,，]?000/.test(tx)) return 3000;
+      return null;
+    };
+    let sameTurn = null;
+    let settled = null;
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(650);
+      let did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      settled = await H.queryState();
+      sameTurn = await readPower();
+      H.log(`  v219[${i}] -> ${did ?? 'なし'} | p=${sameTurn} stack=${settled?.stackLen ?? 0} pEff=${settled?.pendingEffect ?? '-'}`);
+      if (!settled?.pendingEffect && !(settled?.stackLen > 0) && sameTurn === 1000) break;
+    }
+    if (sameTurn !== 1000) return { pass: false, detail: `同一ターンの表示がP1000でない（P=${sameTurn}）` };
+    const afterBoundary = await v30bAdvanceOneTurn(page, H, settled.turnCount, 'v219-boundary', 55);
+    if (!afterBoundary) return { pass: false, detail: 'ターン境界へ到達できない' };
+    // CPUの自動行動を止め、同じ－1000だけをもう一度置く。2倍指定が残っていればP1000、消えていればP2000。
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await H.patchPlayerState('guest', {
+      temp_power_mods: [{ cardNum: V219_TARGET, delta: -1000, srcCardNum: V219_SOURCE }],
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1600);
+    const nextTurn = await readPower();
+    return {
+      pass: nextTurn === 2000,
+      detail: `同一ターンP3000－1000×2=P${sameTurn}／境界後に同じ－1000を再注入してP${nextTurn}（P2000が正）`,
+    };
+  },
+};
+
+// V-220＝§5.3 `O-362`②。2種類の live LIFE_BURST_DOUBLE を実スタックで宣言し、
+// `LifeBurstCheckModal → performLifeBurstResponse → queueCardEffects` を同じターンに2回通す。
+const v220Spec = (cardNum, effectId) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#36300'], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    pending_crashed_cards: [], pending_crash_source_card_nums: [], pending_crash_causes: [],
+    hand: [], energy: [], trash: [], actions_done: [], blocked_card_names: [],
+    deck: ['WD01-014#36310', 'WD01-014#36311', 'WD01-014#36312', 'WD01-014#36313', 'WD01-014#36314', 'WD01-014#36315'],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#36320'], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    hand: [], energy: [], trash: [], actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o190EffectStack(cardNum, `${cardNum}#36301`, effectId) },
+});
+
+async function driveV220(page, H, expectSecondDouble, tag) {
+  // まず実カードの宣言を解決する。
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(600);
+    const st = await H.queryState();
+    if (!st?.pendingEffect && !(st?.stackLen > 0)) break;
+    const did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+    H.log(`  ${tag}-setup[${i}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? 0} pEff=${st?.pendingEffect ?? '-'}`);
+  }
+  let lastHand = 0;
+  for (let burstNo = 1; burstNo <= 2; burstNo++) {
+    await H.patchPlayerState('host', {
+      'field.check': `PR-464#363${30 + burstNo}`,
+      pending_crashed_cards: [], pending_crash_source_card_nums: [], pending_crash_causes: [],
+    });
+    let settled = false;
+    for (let i = 0; i < 28; i++) {
+      await page.waitForTimeout(650);
+      let did = await H.clickBtn('ライフバースト発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      lastHand = st?.host?.hand ?? -1;
+      H.log(`  ${tag}-burst${burstNo}[${i}] -> ${did ?? 'なし'} | hand=${lastHand} check=${st?.host?.fieldCheck ?? '-'} stack=${st?.stackLen ?? 0} pEff=${st?.pendingEffect ?? '-'}`);
+      const expected = burstNo === 1 ? 2 : (expectSecondDouble ? 4 : 3);
+      if (lastHand === expected && st?.host?.fieldCheck == null && !(st?.stackLen > 0) && !st?.pendingEffect) {
+        settled = true; break;
+      }
+    }
+    if (!settled) return { pass: false, detail: `${tag}: ${burstNo}回目LBが期待枚数へ収束しない（hand=${lastHand}）` };
+  }
+  return {
+    pass: true,
+    detail: expectSecondDouble
+      ? 'WD23-006-E-E1＝1回目+2、同一ターン2回目も+2（手札0→2→4）'
+      : 'WXDi-P12-035-E1＝1回目+2、権利消費後の2回目は+1（手札0→2→3）',
+  };
+}
+
+scenarios.v220LifeBurstAllTurn = {
+  title: 'V-220① O-362②: WD23-006-E-E1は同じターンの2回目のライフバーストも倍化する',
+  spec: v220Spec('WD23-006-E', 'WD23-006-E-E1'),
+  drive: (page, H) => driveV220(page, H, true, 'v220-all'),
+};
+scenarios.v220LifeBurstNextOnly = {
+  title: 'V-220② O-362② 対照: WXDi-P12-035-E1は次の1回だけ倍化し、2回目は1回発動へ戻る',
+  spec: v220Spec('WXDi-P12-035', 'WXDi-P12-035-E1'),
+  drive: (page, H) => driveV220(page, H, false, 'v220-next'),
+};
+
+// V-221＝§5.3 `O-362`③。live REMOVE_SIGNI_ZONE を実スタックで解決し、active＋予約→
+// 相手ターンactive→次境界で失効、の2スロット寿命をBattleScreenの実ターン遷移で見る。
+const V221_TARGET = 'WD01-013#36401';
+scenarios.v221RemoveZoneOppTurn = {
+  title: 'V-221 O-362③: WXDi-P09-003-E1の消したゾーンは相手ターン中も残り、その次のターンには解除される',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXDi-P09-003#36400'], 'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      hand: [], energy: [], trash: [], actions_done: [],
+      deck: ['WD01-014#36410', 'WD01-014#36411', 'WD01-014#36412'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#36420'], 'field.signi': [[V221_TARGET], null, null],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      hand: [], energy: [], trash: [], actions_done: [], signi_zone_blocks: [], signi_zone_blocks_next_turn: [],
+      deck: ['WD01-014#36430', 'WD01-014#36431', 'WD01-014#36432'],
+    },
+    top: {
+      active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2,
+      effectStack: o190EffectStack('WXDi-P09-003', 'WXDi-P09-003#36400', 'WXDi-P09-003-E1'),
+    },
+  },
+  async drive(page, H) {
+    let applied = null;
+    for (let i = 0; i < 22; i++) {
+      await page.waitForTimeout(650);
+      let did = await H.clickTextOrBtn(['相手ゾーン1を削除']);
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      applied = await H.queryState();
+      const active = (applied?.guest?.zoneBlocks ?? []).some(b => b.zone === 0);
+      const reserved = (applied?.guest?.zoneBlocksNextTurn ?? []).some(b => b.zone === 0);
+      H.log(`  v221-apply[${i}] -> ${did ?? 'なし'} | active=${active} next=${reserved} field=${JSON.stringify(applied?.guest?.fieldSigni)} stack=${applied?.stackLen ?? 0}`);
+      if (active && reserved && !applied?.pendingEffect && !(applied?.stackLen > 0)) break;
+    }
+    const activeNow = (applied?.guest?.zoneBlocks ?? []).some(b => b.zone === 0);
+    const reservedNow = (applied?.guest?.zoneBlocksNextTurn ?? []).some(b => b.zone === 0);
+    if (!activeNow || !reservedNow) return { pass: false, detail: `発動時にactive＋予約が揃わない（active=${activeNow} next=${reservedNow}）` };
+    const oppTurn = await v30bAdvanceOneTurn(page, H, applied.turnCount, 'v221-opp-turn', 55);
+    if (!oppTurn) return { pass: false, detail: '相手ターン開始へ到達できない' };
+    const activeDuringOpp = (oppTurn.guest?.zoneBlocks ?? []).some(b => b.zone === 0);
+    const reservationConsumed = !(oppTurn.guest?.zoneBlocksNextTurn ?? []).some(b => b.zone === 0);
+    const nextOwn = await v30bAdvanceOneTurn(page, H, oppTurn.turnCount, 'v221-next-own', 70);
+    if (!nextOwn) return { pass: false, detail: 'その次の自分ターンへ到達できない' };
+    const expired = !(nextOwn.guest?.zoneBlocks ?? []).some(b => b.zone === 0)
+      && !(nextOwn.guest?.zoneBlocksNextTurn ?? []).some(b => b.zone === 0);
+    return {
+      pass: activeDuringOpp && reservationConsumed && expired,
+      detail: `発動時active+予約／相手ターンactive=${activeDuringOpp}・予約消費=${reservationConsumed}／次境界で解除=${expired}`,
+    };
+  },
+};
+
+order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

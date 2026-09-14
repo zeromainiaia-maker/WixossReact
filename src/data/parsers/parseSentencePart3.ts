@@ -482,7 +482,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- ライフバーストが二度発動する ----
   if (t.match(/ライフバーストは二度発動する/)) {
-    return { type: 'STUB', id: 'LIFE_BURST_DOUBLE' } as StubAction;
+    return {
+      type: 'STUB', id: 'LIFE_BURST_DOUBLE',
+      // 「次に」あり＝次の1回だけ。無し＝そのターン中に発動する全ライフバースト。
+      lifeBurstOnceOnly: /次にあなたのライフバースト/.test(t),
+    } as StubAction;
   }
 
   // ---- 対戦相手のシグニがバニッシュされる場合手札に戻る ----
@@ -627,7 +631,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニゾーンを消す ----
   if (t.match(/シグニゾーン.*消す/)) {
-    return { type: 'STUB', id: 'REMOVE_SIGNI_ZONE' } as StubAction;
+    return {
+      type: 'STUB', id: 'REMOVE_SIGNI_ZONE',
+      // 効果使用者から見た「次の対戦相手ターン」は、ブロックを受ける側から見た「次の自分ターン」。
+      ...(/次の対戦相手のターン終了時まで/.test(t) ? { zoneBlockNextTurn: true } : {}),
+    } as StubAction;
   }
 
   // ---- 【ゲート】があるシグニゾーンのアタック禁止（§6.4 O-33 据置分・続き508）----

@@ -455,11 +455,11 @@ export function execStubPart2(
       });
     }
     // 🔴**フラグは「そのシグニを持つ側」の state に積む**（§6.4 O-28）＝`calcFieldPowers` の
-    //   `applyTempMods(state, …)` は **`state.double_power_minus_targets`** を読み、`state.temp_power_mods`
+    //   `applyTempMods(state, …)` は **`state.double_power_minus_targets_this_turn`** を読み、`state.temp_power_mods`
     //   （＝そのプレイヤーのシグニに掛かる修正）にだけ適用する。従来は相手シグニを選んでおきながら
     //   **自分の state** へ積んでいたので、倍化が一度も効かなかった。
-    const existingDOPM = ctx.otherState.double_power_minus_targets ?? [];
-    const newOtherDOPM = { ...ctx.otherState, double_power_minus_targets: [...new Set([...existingDOPM, targetDOPM])] };
+    const existingDOPM = ctx.otherState.double_power_minus_targets_this_turn ?? [];
+    const newOtherDOPM = { ...ctx.otherState, double_power_minus_targets_this_turn: [...new Set([...existingDOPM, targetDOPM])] };
     return done(addLog({ ...ctx, otherState: newOtherDOPM },
       `${ctx.cardMap.get(targetDOPM)?.CardName ?? targetDOPM}へのパワー-を2倍に設定`));
   }
@@ -3510,7 +3510,10 @@ export function execStubPart2(
     const oppZoneOptionsRSZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `相手ゾーン${zi + 1}を削除`,
-      action: ({ type: 'STUB', id: 'INTERNAL_REMOVE_SIGNI_ZONE', value: zi } as StubAction) as EffectAction,
+      action: ({
+        type: 'STUB', id: 'INTERNAL_REMOVE_SIGNI_ZONE', value: zi,
+        ...(stub.zoneBlockNextTurn ? { zoneBlockNextTurn: true } : {}),
+      } as StubAction) as EffectAction,
       available: true,
     }));
     return needsInteraction(addLog(ctx, '削除する対戦相手のシグニゾーンを選択'), {
@@ -3527,10 +3530,14 @@ export function execStubPart2(
       const removed = removeFromField(cn, newOtherIRSZ);
       newOtherIRSZ = { ...removed, trash: [...removed.trash, cn] };
     }
-    // ゾーンを無効化＝そのターン中は新たに配置できない（タスク12(lxi) 第10波で死にフィールドから実働化）
+    // ゾーンを無効化＝発動ターン中は新たに配置できない。長期版は、ブロックを受ける側から見た
+    // 「次の自分ターン」予約にも同じゾーンを積み、次の対戦相手ターン終了まで維持する。
     newOtherIRSZ = {
       ...newOtherIRSZ,
       signi_zone_blocks: addSigniZoneBlock(newOtherIRSZ.signi_zone_blocks, { zone: zoneIdxIRSZ }),
+      ...(stub.zoneBlockNextTurn ? {
+        signi_zone_blocks_next_turn: addSigniZoneBlock(newOtherIRSZ.signi_zone_blocks_next_turn, { zone: zoneIdxIRSZ }),
+      } : {}),
     };
     return done(addLog({ ...ctx, otherState: newOtherIRSZ },
       `相手ゾーン${zoneIdxIRSZ + 1}を削除（${oppStackIRSZ.length}体トラッシュ）`));

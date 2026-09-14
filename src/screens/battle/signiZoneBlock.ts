@@ -5,6 +5,7 @@ import type { PlayerState, SigniZoneBlock } from '../../types';
  *
  * 母集団は原文で3系統：
  *  - 「ターン終了時まで、対戦相手のシグニゾーン１つを消す」（REMOVE_SIGNI_ZONE・4枚）
+ *  - 「次の対戦相手のターン終了時まで、対戦相手のシグニゾーン１つを消す」（REMOVE_SIGNI_ZONE・1枚）
  *  - 「次のターンの間、対戦相手は指定されたシグニゾーンにシグニを新たに配置することができない」
  *    （WX10-051-E1／WX24-P4-024-E3）
  *  - 「このターンと次のターンの間、対戦相手は《無》×5 を支払わないかぎり指定されたシグニゾーンに
@@ -73,6 +74,8 @@ export function canPlaceInSigniZone(state: PlayerState, zoneIndex: number): bool
 
 /**
  * 次の自分のターン用の予約を、そのターンのブロックへちょうど1回だけ移す。
+ * `REMOVE_SIGNI_ZONE` の長期版では、効果使用者の相手側 state に予約するため、この「次の自分ターン」が
+ * 効果使用者から見た「次の対戦相手ターン」に一致する。
  * 予約が無い場合は「このターン分」も同時に失効する（原文はいずれも
  * 「ターン終了時まで」か「（このターンと）次のターンの間」で、次の自分ターンをまたぐものは無い）。
  * activateNextTurnDeployCountLimit と同じく turnActuallyStarts=false（追加ターン）では何もしない。
