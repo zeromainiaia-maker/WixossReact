@@ -2581,6 +2581,12 @@ export interface EnergyChargeAction {
   type: 'ENERGY_CHARGE';
   target: EffectTarget; // エナゾーンに置くカード（手札やトラッシュから指定して選ぶ場合）
   asCost?: boolean; // true = 任意【出】の handToEnergy 支払い。移動札レベルを直後の本体filter用に記録する
+  /**
+   * 「**対戦相手は**自分のトラッシュからカードを３枚まで対象とし、それらをエナゾーンに置く」＝**選ぶのは相手**
+   * （§5.3 `O-365`・`WX07-017-E1`）。⚠`target.owner`（誰のカードか）とは**独立の軸**で、
+   * 省略＝**効果の使用者が選ぶ**（`execEnergyCharge` が `selectOrInteract` へ渡す既定は false）。
+   */
+  opponentSelects?: boolean;
 }
 
 // 【エナチャージN】：デッキ上からN枚をエナゾーンに置く（選ばない）

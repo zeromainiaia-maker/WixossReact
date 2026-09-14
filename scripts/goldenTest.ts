@@ -29138,6 +29138,13 @@ const O327_WIRED_SHAPES = new Map<string, string>([
   //   対照＝golden「O-346 WXK11-006-E1-G」の①あり→`opponentResponds:true` ②なし→立たない
   //   ＋**同じカードの `ADD_TO_LIFE` は「あなたの選んだカード」なので旗を立てない**ことも同テストで固定。
   ['TRANSFER_TO_HAND|TRASH_CARD|N', 'effectExecutor.ts execTransferToHand（相手のトラッシュから相手が選ぶ。§5.3 O-346 第321 で配線）'],
+  // 🆕§5.3 `O-365`（2026-09-14 第322）＝「各プレイヤーは自分のトラッシュから〜」の**相手側**（`WX07-017-E1`）。
+  //   配線＝`execAddToField` の `oppPicksAF`（`HAND_CARD` 限定を `TRASH_CARD` まで広げた）と
+  //   `execEnergyCharge` の `oppRespondsEC`（新設 `EnergyChargeAction.opponentSelects`）。
+  //   対照＝golden「O-365」＝①旗あり→`opponentResponds:true` ②旗なし→立たない
+  //   ＋**`WXEX2-50-E3`（「対戦相手のトラッシュから〜対戦相手の場に出す」＝使用者が選ぶ）が据置**であること。
+  ['ADD_TO_FIELD|TRASH_CARD|N', 'effectExecutor.ts execAddToField（相手のトラッシュから相手が選ぶ。§5.3 O-365 第322 で配線）'],
+  ['ENERGY_CHARGE|TRASH_CARD|N', 'effectExecutor.ts execEnergyCharge（相手のトラッシュから相手が選ぶ。§5.3 O-365 第322 で配線）'],
   ['STUB:SELECT_TARGET_ONLY|SIGNI|ALL', 'execStubPart1.ts SELECT_TARGET_ONLY（場のシグニ）'],
   // ── 以下は「そもそも選択が起きない」形＝旗は無害（配線の要否が生じない）──
   ['TRASH|SIGNI|ALL', '選択なし＝候補を全部トラッシュする（upToCount 無し）'],
@@ -81654,6 +81661,87 @@ test('O-346 据置の根拠: 手札の廃棄は既定で相手が選ぶ（oppone
   if (seen.done || seen.pending.type !== 'SELECT_TARGET') return;
   ok(!seen.pending.opponentResponds, 'actingPlayerSelects が効いていない＝「見て選び」まで相手に渡している');
 }));
+
+// ═══ §5.3 索引G `O-365`＝「各プレイヤーは自分の〜」の**相手側を誰が選ぶか** ═══
+// 🔴登録票は「**両者が同時に選ぶ機構**が要る」と書いていたが、実測すると**要らなかった**＝
+//   各プレイヤーは**自分のトラッシュから自分の領域へ**動かすだけで共有プールが無く、選択が互いの候補に
+//   影響しない。しかも原文の括弧は「**あなたから**カードを選択し」＝使用者が先と明記しており、
+//   engine の「自分→相手の順」で解決するのと**一致**する。⇒ 残っていた穴は `opponentSelects` だけ。
+test('O-365 WX07-017-E1: 各プレイヤー型の相手側3ノードは相手が選ぶ', () => {
+  const live = (effectsMap.get('WX07-017') ?? []).find(e => e.effectId === 'WX07-017-E1');
+  ok(!!live, 'WX07-017-E1 が live に無い');
+  if (!live) return;
+  const steps = (live.action as unknown as { steps: Array<Record<string, unknown>> }).steps;
+  eq(steps.length, 6, '①全ゾーン一括トラッシュ＋②③④の self/opponent 展開で6ステップ');
+  const zoneOf = (n: Record<string, unknown>) =>
+    ((n.source ?? n.target) as Record<string, unknown> | undefined)?.owner;
+  for (const [i, kind] of [[2, 'ADD_TO_FIELD'], [4, 'TRANSFER_TO_HAND'], [5, 'ENERGY_CHARGE']] as const) {
+    eq(steps[i].type, kind, `step${i} は ${kind}`);
+    eq(zoneOf(steps[i]), 'opponent', `step${i} は相手のトラッシュ発`);
+    eq(steps[i].opponentSelects, true,
+      `step${i}(${kind}): 相手側なのに opponentSelects が無い＝使用者が相手のリカバリー札を選べる`);
+  }
+  // 🔴**対照＝自分側のステップには旗を立てない**（立てると自分の回収を相手に選ばれる真逆のバグ）。
+  for (const i of [1, 3] as const) {
+    eq(zoneOf(steps[i]), 'self', `step${i} は自分のトラッシュ発`);
+    ok(!steps[i].opponentSelects, `🔴step${i}（自分側）にまで旗が立っている`);
+  }
+});
+
+test('O-365 E2E: 旗を立てた形だけ相手へ選択が回り、既存の使用者選択は変わらない', () => withSavedCursor(() => {
+  const mkRun = (action: Record<string, unknown>) => {
+    const ctx = mkCtx({}, {}, undefined);
+    ctx.otherState.trash = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+    return executeAction(action as unknown as EffectAction, ctx);
+  };
+  const trashSrc = { type: 'TRASH_CARD', owner: 'opponent', count: 1, upToCount: true, filter: { cardType: 'シグニ' } };
+  const cases: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
+    ['ADD_TO_FIELD',
+      { type: 'ADD_TO_FIELD', owner: 'opponent', source: trashSrc, opponentSelects: true },
+      { type: 'ADD_TO_FIELD', owner: 'opponent', source: trashSrc }],
+    ['ENERGY_CHARGE',
+      { type: 'ENERGY_CHARGE', target: trashSrc, opponentSelects: true },
+      { type: 'ENERGY_CHARGE', target: trashSrc }],
+  ];
+  for (const [label, withFlag, withoutFlag] of cases) {
+    const on = mkRun(withFlag);
+    ok(!on.done && on.pending.type === 'SELECT_TARGET', `${label}: 旗ありで対象選択の対話が開く`);
+    if (on.done || on.pending.type !== 'SELECT_TARGET') return;
+    eq(on.pending.opponentResponds, true, `${label}: opponentSelects が executor で消費されていない`);
+    // 🔴対照＝旗が無ければ従来どおり**使用者**が選ぶ（既存効果を巻き込んでいないこと）。
+    const off = mkRun(withoutFlag);
+    ok(!off.done && off.pending.type === 'SELECT_TARGET', `${label}: 旗なしでも対話は開く`);
+    if (off.done || off.pending.type !== 'SELECT_TARGET') return;
+    ok(!off.pending.opponentResponds, `🔴${label}: 旗が無いのに相手へ選択を渡している`);
+  }
+}));
+
+test('O-365 逆翻訳: 相手側3ノードだけに「（相手が選ぶ）」が出る', () => {
+  // 🔴**選択者を描かないと、engine が正しくても逆翻訳だけが嘘をつく**＝原文照合がそこだけ効かない
+  //   （`O-362` の `BLOCK_CARD_USE` で実際に踏んだ形）。自分側に出ないことも同時に固定する。
+  const line = decompiledLineOf('WX07-017-E1');
+  eq((line.match(/（相手が選ぶ）/g) ?? []).length, 3,
+    '相手側3ノード（場に出す／手札に加える／エナゾーンに置く）ぶんの選択者表示が揃っていない');
+  ok(/あなたのシグニ\(トラッシュ\)3枚までをコストを支払わずに場に出す。/.test(line),
+    '🔴自分側の「場に出す」にまで（相手が選ぶ）が付いている');
+  ok(/あなたのシグニ\(トラッシュ\)3枚までを手札に加える。/.test(line),
+    '🔴自分側の「手札に加える」にまで（相手が選ぶ）が付いている');
+});
+
+test('O-365 対照: WXEX2-50-E3「対戦相手のトラッシュから〜」は使用者が選ぶまま', () => {
+  // 🔑**同型（`ADD_TO_FIELD` ← 相手のトラッシュ）なのに主語が違う**＝
+  //   「**対戦相手のトラッシュから**シグニ１枚を対象とし、それを対戦相手の場に出す」＝選ぶのは**使用者**。
+  //   ⇒ `oppPicksAF` を `owner === 'opponent'` だけで判定するよう「広げる」とこの1枚が壊れる。
+  //   この対照があるので**旗のゲートを外してはいけない**。
+  const live = (effectsMap.get('WXEX2-50') ?? []).find(e => e.effectId === 'WXEX2-50-E3');
+  ok(!!live, 'WXEX2-50-E3 が live に無い');
+  if (!live) return;
+  const json = JSON.stringify(live.action);
+  ok(json.includes('"type":"ADD_TO_FIELD"'), '前提: ADD_TO_FIELD を含む');
+  ok(json.includes('"type":"TRASH_CARD","owner":"opponent"'), '前提: 相手のトラッシュ発');
+  ok(!json.includes('"opponentSelects":true'),
+    '🔴使用者が選ぶべき効果に opponentSelects が付いた＝主語を読まずに一律適用した');
+});
 
 // §5.3 索引G `O-362` の副産物＝`BLOCK_CARD_USE` の逆翻訳が主語を取り違えていた。
 // 🔴engine（`effectExecutor.ts` の `BLOCK_CARD_USE`）は **`ctx.ownerState.blocked_card_names`**＝

@@ -624,16 +624,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   PLAN §2.0 の速いレーンで原文から手書きする。
   // ⚠**原文の括弧書き「（あなたからカードを選択し両者が同時に移動させる）」は同時性の指示**だが、
   //   engine は逐次解決しかできない＝**自分→相手の順**で近似する（枚数・移動先は原文どおり）。
+  // 🔑**2026-09-14（§5.3 `O-365`）＝この近似は実質無害だと確認した**＝各プレイヤーは**自分のトラッシュ**から
+  //   **自分の領域へ**動かすだけで共有プールが無い＝**選択が互いの候補に影響しない**。しかも原文の括弧は
+  //   「**あなたから**カードを選択し」＝**使用者が先**と明記しており、engine の自分→相手の順と一致する。
+  //   ⇒ 「同時に選ぶ」ための新機構は**要らない**（登録票の見立てを実測で訂正した）。
+  // 🔴**残っていた本当の穴は「誰が選ぶか」だった**＝相手側3ノードに `opponentSelects` が無く、
+  //   **使用者が相手のトラッシュから相手のリカバリー札を選べた**（相手に一番弱い札を掴ませられる＝過剰）。
+  //   受け皿＝`TRANSFER_TO_HAND` は `O-346` で、`ADD_TO_FIELD`(トラッシュ発) と `ENERGY_CHARGE` は
+  //   `O-365` で executor の第8引数へ配線した。⚠**旗を立てた効果だけが相手側 UI へ回る**
+  //   （`WXEX2-50-E3`＝「対戦相手のトラッシュから〜対戦相手の場に出す」は使用者が選ぶのが正しく、据置）。
   'WX07-017': [
     {"effectId":"WX07-017-E1","effectType":"ACTIVATED","timing":["MAIN"],
      "cost":{"energy":[{"color":"緑","count":3},{"color":"無","count":3}]},
      "action":{"type":"SEQUENCE","steps":[
        {"type":"STUB","id":"TRASH_ALL_SIGNI_AND_KEY","trashAllScope":{"zones":["signi","hand","energy"],"owner":"both"}},
        {"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
-       {"type":"ADD_TO_FIELD","owner":"opponent","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
+       {"type":"ADD_TO_FIELD","owner":"opponent","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}},"opponentSelects":true},
        {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
-       {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}},
-       {"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true}}
+       {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}},"opponentSelects":true},
+       {"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"opponent","count":3,"upToCount":true},"opponentSelects":true}
      ]},
      "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

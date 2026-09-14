@@ -3314,7 +3314,10 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
   // selectionConstraint（「それぞれ名前の異なる」等）を pending へ伝搬（5c検証是正・WX20-002）
-  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
+  // §5.3 `O-365`＝「対戦相手は自分のトラッシュから〜をエナゾーンに置く」は**相手が選ぶ**。
+  // ⚠既定は false のまま＝`opponentSelects` を立てた効果だけが相手側の UI へ回る（既存効果は不変）。
+  const oppRespondsEC = !!a.opponentSelects && tgt.owner === 'opponent';
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, oppRespondsEC, { selectionConstraint: tgt.selectionConstraint });
 }
 
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
@@ -4865,7 +4868,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
   // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
   // 🆕§5.3 `O-309`②＝「対戦相手は手札からシグニ１枚を場に出してもよい」は**相手が自分の手札から選ぶ**（`opponentSelects`）。
-  const oppPicksAF = !!a.opponentSelects && srcDefined.owner === 'opponent' && srcDefined.type === 'HAND_CARD';
+  // 🆕§5.3 `O-365`（2026-09-14）＝**トラッシュ発も同じ**＝「各プレイヤーは自分のトラッシュからシグニを３枚まで
+  //   対象とし、それらを場に出す」の相手側（`WX07-017-E1`）。`HAND_CARD` 限定だったのは
+  //   `O-309` 当時それしか居なかったからで、**限定に意味は無かった**。
+  // 🔴**旗のゲートは外さない**＝これが対照を守っている。`WXEX2-50-E3`
+  //   「**対戦相手のトラッシュから**シグニ１枚を対象とし、それを対戦相手の場に出す」は
+  //   主語が「対戦相手は」ではない＝**使用者が選ぶのが正しい**ので、旗を持たず従来どおり据え置かれる。
+  //   ⇒ `srcDefined.owner === 'opponent'` だけで判定するように「広げて」はいけない。
+  const oppPicksAF = !!a.opponentSelects && srcDefined.owner === 'opponent'
+    && (srcDefined.type === 'HAND_CARD' || srcDefined.type === 'TRASH_CARD');
   return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, oppPicksAF, { selectionConstraint: src.selectionConstraint });
 }
 

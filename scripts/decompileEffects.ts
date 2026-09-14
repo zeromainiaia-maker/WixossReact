@@ -1909,7 +1909,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'ENERGY_CHARGE': {
       // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
       if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
-      if (a.target) return `${targetJa(a.target)}を対象とし、それらをエナゾーンに置く`;
+      // 🆕§5.3 `O-365`＝**誰が選ぶか**を描く（落とすと相手側の選択者が逆翻訳から消える）。
+      if (a.target) return `${targetJa(a.target)}を対象とし、それらをエナゾーンに置く${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
       return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     }
     case 'ENERGY_CHARGE_FROM_DECK':
@@ -1983,8 +1984,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このシグニをエナゾーンから場に出す」自己蘇生（thisCardOnly source・TRASH_CARD 版と同型）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
         return `このシグニをエナゾーンから${abilitylessAF}${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      // 🆕§5.3 `O-365`＝**誰が選ぶか**を描く（`TRASH`／`BOUNCE`／`SEND_TO_ENERGY` と同じ作法）。
+      //   落とすと「各プレイヤーは自分のトラッシュから〜」の相手側で**選択者が逆翻訳から消える**＝
+      //   原文照合がそこだけ効かなくなる（engine は正しいのに表示だけが嘘、という最悪の形）。
+      const oppSelAF = a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return (a.source
-        ? `${trigSrcAF || targetJa(a.source)}をコストを支払わず${defaultPlacementAF}場に出す${a.optional ? '（してもよい）' : ''}`
+        ? `${trigSrcAF || targetJa(a.source)}をコストを支払わず${defaultPlacementAF}場に出す${oppSelAF}${a.optional ? '（してもよい）' : ''}`
         : (a.cardName ? `クラフト/トークンの《${a.cardName}》を${abilitylessAF}場に出す` : `直前に選んだカードを${abilitylessAF}場に出す`)) + supAF;
     }
     case 'BLOCK_ACTION': {
@@ -2189,7 +2194,8 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `あなたのデッキの一番上のカードを手札に加える`
       : (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
       ? `このシグニをエナゾーンから手札に加える${a.source?.upToCount ? '（してもよい）' : ''}`
-      : `${targetJa(a.source)}を手札に加える`;
+      // 🆕§5.3 `O-346`/`O-365`＝**誰が選ぶか**を描く（落とすと相手側の選択者が逆翻訳から消える）。
+      : `${targetJa(a.source)}を手札に加える${a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
     case 'TRANSFER_TO_DECK': {
       const opt = a.optional ? '（してもよい）' : '';
       if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す${opt}`;
