@@ -7,15 +7,15 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-09-13）
+## サマリー（最終生成: 2026-09-14）
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 595 |
-| 　└ ハンドラ実装あり | 529 |
-| 　└ フォールバック（execStub 未処理） | 66 |
-| 総 STUB ノード件数 | 3378 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 358 |
+| JSON で使用中の STUB id 種類 | 593 |
+| 　└ ハンドラ実装あり | 528 |
+| 　└ フォールバック（execStub 未処理） | 65 |
+| 総 STUB ノード件数 | 3404 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 359 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -41,8 +41,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY` | 3 | 3 | WX25-P2-071, WX25-P3-055, WX25-P2-TK04 |  |
 | `GUARD_LOSS_UNLESS_LRIG` | 3 | 3 | WX12-025, WX12-034, WX12-036 |  |
 | `STRIP_OPP_ENA_MULTI_ENA` | 3 | 3 | WX19-002, WXK03-002, WXK11-020 |  |
-| `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` | 2 | 2 | WX25-P2-003, WXDi-P05-004 |  |
-| `DEFERRED_GUARD_ALT_COST_UNKNOWN` | 2 | 2 | WX25-P1-071, WXDi-P06-006 |  |
 | `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` | 2 | 2 | SPDi44-08, WX25-P1-018 |  |
 | `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` | 2 | 2 | WDK16-01T, WXK10-015 |  |
 | `EXTRA_USE_TIMING` | 2 | 2 | SP38-005, WX16-Re20 |  |
@@ -52,7 +50,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` | 1 | 1 | WXK03-025 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
-| `DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL` | 1 | 1 | WX25-P2-004 |  |
+| `DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME` | 1 | 1 | WX25-P2-003 |  |
 | `DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH` | 1 | 1 | WD23-022-E |  |
 | `DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE` | 1 | 1 | WXDi-P06-045 |  |
 | `DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` | 1 | 1 | SPK01-14 |  |
@@ -66,6 +64,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
 | `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` | 1 | 1 | WX24-P4-085 |  |
 | `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 |  |
+| `DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE` | 1 | 1 | WXDi-P05-004 |  |
 | `DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED` | 1 | 1 | SP26-001 |  |
 | `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 |  |
 | `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 |  |
@@ -104,10 +103,10 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 674 | 625 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
-| `STORE_LAST_PROCESSED_TARGETS` | 510 | 486 | WD12-009, WD15-001, WD19-007 |  |
-| `SELECT_TARGET_ONLY` | 497 | 473 | WD12-009, WD15-001, WD19-007 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
-| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 115 | 112 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `OPTIONAL_COST` | 676 | 627 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
+| `STORE_LAST_PROCESSED_TARGETS` | 525 | 501 | WD12-009, WD15-001, WD19-007 |  |
+| `SELECT_TARGET_ONLY` | 512 | 488 | WD12-009, WD15-001, WD19-007 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
+| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 113 | 110 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `OPPONENT_PAY_OPTIONAL` | 81 | 73 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 59 | 58 | WD10-006, WD12-006, WD17-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 32 | 32 | WX24-P2-091, WX24-P3-062, WX24-P3-076 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
@@ -222,7 +221,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SEARCHED_SPELL_OR_TRASH` | 1 | 1 | WX20-077 | USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）: 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝ 直前のサーチで見つけたカード… |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 | エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と同じレベルの対戦相手のシグニ1体を手札に戻す |
 
-### execStubPart2.ts（167 種）
+### execStubPart2.ts（166 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -253,6 +252,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_COST_REDUCTION_BY_FIELD` | 3 | 3 | WX10-031, WX12-049, WX15-034 | 場の条件による使用コスト軽減の**宣言**。 |
 | `DECK_TOP_CHECK_LEVEL_ENERGY` | 3 | 2 | WXK04-062, WXK10-031 | デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ |
 | `FLIP_FACE_DOWN_SIGNI` | 3 | 3 | WXDi-P01-040, WXDi-P05-037, WXDi-P09-034 | この方法で裏向きにした対象だけをターン終了時の表向き復帰へ予約 |
+| `GUARD_ALTERNATIVE_COST` | 3 | 3 | WX24-P2-026, WX25-P1-071, WXDi-CP01-005 | あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、指定されたコストを支払ってもよい |
 | `LAYER_ABILITY_COPY` | 3 | 3 | WX20-023, WXEX1-32, WXEX2-59 | 対象シグニの《レイヤーアイコン》能力を自シグニにコピー |
 | `PLACE_TRAP_FROM_REVEALED` | 3 | 3 | WX16-061, WX17-029, WXEX2-15 | 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置 |
 | `PLAY_SPELL_FREE_IGNORE_RESTRICTION` | 3 | 2 | WX14-014, WXEX2-14 | 〈場所〉のスペルをコストなし・限定条件無視で使用 |
@@ -270,7 +270,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `FIELD_ENERGY_SIGNI_GAIN_COLOR` | 2 | 2 | WXDi-P06-040, WXDi-P12-010 | CONTINUOUS効果はeffectEngineで処理済み（no-op） |
 | `FREE_GROW_NEXT_TURN` | 2 | 2 | WX03-024, WX03-027 | 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST） |
 | `GRANT_CHOSEN_ABILITY` | 2 | 2 | WXK04-002, WXK10-018 | 選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション） ※ SIGNI_GRANT_CHOSEN_ABILITY（WXK09-050＝表記パワー比較＋DOWN/BOUNCE 保護）は exe… |
-| `GUARD_ALTERNATIVE_COST` | 2 | 2 | WX24-P2-026, WXDi-CP01-005 | あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、指定されたコストを支払ってもよい |
 | `INTERNAL_ASK_TRAP_ZONE` | 2 | 2 | WD23-008-A, WD23-033-A | INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。 ⚠既存の INTERNAL_SET_TRAP は … |
 | `INTERNAL_SEED_FROM_DECK_TOP_PLACE` | 2 | 2 | WXK04-060, WXK10-059 | デッキ上1枚をシードとして設置 |
 | `LOCK_OPP_TRASH_MOVE` | 2 | 2 | WX24-P4-007, WXDi-P14-005 | LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 「**次の**対戦相手のメインフェイズとアタックフェイズの間、 対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-00… |
@@ -305,7 +304,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_TRASH_TO_ENERGY` | 1 | 1 | WX14-029 | このカードをトラッシュからエナゾーンに置く。 |
 | `COPY_ABILITY` | 1 | 1 | WXDi-P04-035 | このシグニはその能力を得る |
 | `DECLARE_COLOR_COND_ENERGY_TRASH` | 1 | 1 | SPDi43-22 | 色を宣言し、エナから宣言色のカードを任意でトラッシュ |
-| `DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED` | 1 | 1 | WD18-009 | バニッシュ時、トラッシュの《アクセアイコン》を持つシグニ1枚を対象とし、効果元がアクセされていた場合だけエナゾーンに置く（除去直前状態の解決時持ち回りは未実装） |
 | `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | 手札の青シグニを捨て→相手手札の同パワーシグニを捨てさせる |
 | `DRAW_BY_CHARM_COUNT` | 1 | 1 | WX18-038 | 🆕§5.0 実装キュー 第221バッチ＝`WX18-038-BURST`（原文「対戦相手の場にある【チャーム】の数に   １を加えた枚数のカードを引く」）。旧実装は①**自分の**場のチャームを数え②**+1もしない**③チャーム0で … |
 | `ENERGY_TO_TRASH` | 1 | 1 | WXDi-P06-069 | エナゾーンからカード1枚選んでトラッシュ（SELECT→INTERNAL） |
@@ -404,9 +402,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SUMMON_RESONA_FROM_LRIG_DECK` | 11 | 11 | WD12-007, WD23-001-E, WX07-050 | ═══ SUMMON_RESONA_FROM_LRIG_DECK（§6.4 O-5）═══ 「あなたのルリグデッキから〈絞り込み〉のレゾナを〈枚数〉出現条件を無視して場に出す」。  🔴**旧実装はカード全文 regex でクラスだけを読… |
 | `DEPLOY_RESTRICT` | 9 | 9 | WX07-006, WX12-008, WXDi-P05-024 | 配置制限（CONTINUOUSは動的処理、AUTOはフラグ設置） |
 | `GUARD_EXTRA_COST_BY_OPP` | 8 | 8 | WX24-P2-047, WX24-D1-05, WXDi-P01-035 |  |
-| `LEVEL_REFERENCE_OVERRIDE` | 8 | 8 | WD21-012, WX17-059, WX17-061 |  |
 | `LOSE_COLOR_ALL_ZONES` | 8 | 8 | WXDi-P16-086, WXDi-P16-087, WXDi-P16-088 | CONTINUOUS効果（effectEngine.collectColorlessOverridesで動的計算） |
 | `GAIN_SIGNI_BARRIER` | 7 | 7 | SPDi43-23, WX26-CP1-001, WXDi-P12-001 | 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効） |
+| `LEVEL_REFERENCE_OVERRIDE` | 7 | 7 | WD21-012, WX17-059, WX17-061 |  |
 | `RETURN_SELF_ARTS_TO_LRIG_DECK` | 6 | 6 | WDK17-008, SP07-009, WXDi-P06-023 | 使用後の自身をルリグデッキに戻す。 |
 | `SET_CANCEL_ATTACK_FLAG` | 6 | 6 | SPDi43-06, WX24-P3-050, WX24-P3-069 | そのアタックを無効にする |
 | `BANISH_SUBSTITUTE` | 5 | 5 | WX12-024, WX20-055, WXEX2-60 | バニッシュ時の任意身代わり置換（CONTINUOUS宣言・BattleScreen側で対話処理） |
@@ -457,7 +455,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DISONA_RESTRICTION` | 2 | 1 | WXDi-P12-075 | 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」 |
 | `DRAW_AT_TURN_END` | 2 | 2 | WXK01-054, WXK01-089 | このターン終了時にカードをN枚引く予約（場を離れても引く。WXK01-054/089） |
 | `GATE` | 2 | 2 | WDK09-001, WDK09-006 | ゲート効果（ログのみ） 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可） |
-| `LIFE_BURST_DOUBLE` | 2 | 2 | WD23-006-E, WXDi-P12-035 | このターン、次のライフバーストは2回発動する |
+| `LIFE_BURST_DOUBLE` | 2 | 2 | WD23-006-E, WXDi-P12-035 | 「次に」ありは1回消費、無しはこのターン中の全ライフバーストを2回発動する。 |
 | `LIMIT_OPP_SIGNI_ATTACKS_ONCE` | 2 | 2 | WX13-005A, WXDi-P11-TK02 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `LRIG_RIDE_SIGNI` | 2 | 2 | WXEX2-11, WXK01-038 | センタールリグがすべての乗機シグニに乗る（ドライブ状態） |
 | `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` | 2 | 2 | WXDi-P00-015, WXDi-P00-068 | 対象の自シグニを他のシグニゾーンへ移動（同処理） |
@@ -647,7 +645,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 358 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 359 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -681,6 +679,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_AND_MILL` | 0 | 0 |  | effects.jsonではDECLARE_NUMBER+MILL(useDeclaredCount)に移行済み |
 | `DECLARE_NUMBER_POWER` | 0 | 0 |  | パワーの値1つを宣言する |
 | `DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY` | 0 | 0 |  | 引用された【起】能力をプレイヤーが得る（**機構が無い**）。 |
+| `DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED` | 0 | 0 |  | バニッシュ時、トラッシュの《アクセアイコン》を持つシグニ1枚を対象とし、効果元がアクセされていた場合だけエナゾーンに置く（除去直前状態の解決時持ち回りは未実装） |
 | `DISABLE_FIRST_ABILITY_ON_ATTACK` | 0 | 0 |  | アタック時最初の能力を無効化（ログのみ） |
 | `DRAW` | 0 | 0 |  | N枚ドロー |
 | `DRAW_IF_OPP_DISCARDED_HAND` | 0 | 0 |  | 相手が手札を捨てたときドロー（トリガー系・ログのみ） |

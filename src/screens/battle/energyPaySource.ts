@@ -61,10 +61,14 @@ export const UNDER_CARD_AS_ENERGY_STUB_ID = 'UNDER_CARD_AS_ENERGY_COST';
  * 各モーダル・各 affordability 呼び出しに検算を撒かないので、支払いUIが増えても穴が開かない。
  */
 export const ENERGY_PAY_BLOCK_ACTION_ID = 'PAY_ENERGY_COST';
+/** 「相手ターンのシグニアタックステップの間」だけの同じ禁止（WX25-P2-004）。 */
+export const SIGNI_ATTACK_ENERGY_PAY_BLOCK_ACTION_ID = 'PAY_ENERGY_COST_SIGNI_ATTACK_STEP';
 
 /** このプレイヤーがいまエナコストを支払えない状態か。 */
-export function isEnergyPayBlocked(my: PlayerState): boolean {
-  return (my.blocked_actions ?? []).includes(ENERGY_PAY_BLOCK_ACTION_ID);
+export function isEnergyPayBlocked(my: PlayerState, turnPhase?: TurnPhase): boolean {
+  const blocked = my.blocked_actions ?? [];
+  return blocked.includes(ENERGY_PAY_BLOCK_ACTION_ID)
+    || (turnPhase === 'ATTACK_SIGNI' && blocked.includes(SIGNI_ATTACK_ENERGY_PAY_BLOCK_ACTION_ID));
 }
 
 const ATTACK_PHASES: TurnPhase[] = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
@@ -125,7 +129,7 @@ export function remainingOffZonePayments(my: PlayerState, perTurnLimit: number):
  */
 export function buildEnergyPayPool(my: PlayerState, ctx: EnergyPoolContext): EnergyPayEntry[] {
   // 「１以上のエナコストを支払えない」＝支払い元が1枚も無い状態と等価（エナゾーン外の支払い元も含めて封じる）。
-  if (isEnergyPayBlocked(my)) return [];
+  if (isEnergyPayBlocked(my, ctx.turnPhase)) return [];
   const pool: EnergyPayEntry[] = my.energy.map((cardNum, energyIndex) => ({
     origin: 'energy' as const, cardNum, energyIndex,
   }));

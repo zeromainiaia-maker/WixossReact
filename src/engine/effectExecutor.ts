@@ -5490,6 +5490,7 @@ const BLOCK_ACTION_LABELS: Record<string, string> = {
   SIGNI_ACTIVATED_ABILITY: 'シグニ起動能力封じ',
   USE_LRIG_ACT: 'ルリグ起動能力封じ',
   PAY_ENERGY_COST: 'エナコスト支払い封じ',
+  PAY_ENERGY_COST_SIGNI_ATTACK_STEP: 'シグニアタックステップ中のエナコスト支払い封じ',
   PLAY_SIGNI_NOT_FROM_HAND: '手札以外からのシグニ出し封じ',
   NEGATE_NEXT_SIGNI_ATTACK: '次のシグニアタック無効',
   ENCORE: 'アンコール封じ',

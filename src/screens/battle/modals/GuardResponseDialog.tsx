@@ -4,7 +4,7 @@ import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
 import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { canCardGuard, makeGuardLevelBlocker } from '../guard';
+import { canCardGuard, guardAlternativeClassCandidates, makeGuardLevelBlocker } from '../guard';
 import type { BattleModalCtx } from './types';
 
 interface GuardResponseDialogProps {
@@ -19,6 +19,7 @@ interface GuardResponseDialogProps {
   }) => void;
   handleGuardResponse: (handIndex: number | null) => void;
   handleGuardWithEnergyAlternative: () => void;
+  handleGuardWithClassHandAlternative: () => void;
   handleGuardWithHandAlternative: () => void;
   /** 🆕§5.3 `O-230`＝《無》×N を払ってコラボライバー M 人とコラボする代替ガード。 */
   handleGuardWithCollabAlternative: (colorless: number, collab: number) => void;
@@ -28,7 +29,7 @@ interface GuardResponseDialogProps {
 
 export function GuardResponseDialog(p: GuardResponseDialogProps) {
   const { bs, user, my, op, isMyTurn, loading, battleCardMap, effectsMap } = p.ctx;
-  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard } = p;
+  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithClassHandAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard } = p;
   return (
     <>
       {my.field.lrig_attacked && !my.field.check && createPortal(
@@ -80,11 +81,11 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               // GUARD_ALTERNATIVE_COST: エナゾーンから指定クラスシグニをトラッシュしてガード可能
               const guardAltCost = !guardDisabledByOpp ? collectGuardAlternativeCost(my, battleCardMap, effectsMap) : null;
               // 🆕§5.3 `O-230`＝代替コストは2種類（エナのクラス指定トラッシュ／《無》＋コラボ）。
-              const guardAltEnergyClass = guardAltCost?.spec.kind === 'energy_trash_class' ? guardAltCost.spec.signiClass : null;
-              const guardAltEnergySigni = guardAltEnergyClass ? my.energy.filter(cn => {
-                const c = battleCardMap.get(cn);
-                return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(guardAltEnergyClass);
-              }) : [];
+              const guardAltEnergyClass = guardAltCost?.spec.kind === 'energy_trash_class'
+                || guardAltCost?.spec.kind === 'hand_or_energy_trash_class' ? guardAltCost.spec.signiClass : null;
+              const guardAltClassCandidates = guardAltEnergyClass
+                ? guardAlternativeClassCandidates(my, guardAltEnergyClass, battleCardMap)
+                : { handIndices: [], energyNums: [] };
               // 🆕「《無》をN枚支払いコラボライバーM人とコラボしてもよい」＝エナがN枚あれば提示する。
               //   ⚠**コラボの実行部（`INTERNAL_DO_COLLAB`）は既にある**＝ここは提示と支払いだけ。
               const guardAltCollab = guardAltCost?.spec.kind === 'colorless_and_collab' ? guardAltCost.spec : null;
@@ -172,12 +173,23 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                       代替ガード：エナ{guardAltEnaGuard.energyCount}枚と《ガードアイコン》{guardAltEnaGuard.guardCardCount}枚をトラッシュ
                     </button>
                   )}
-                  {guardAltEnergyClass && guardAltEnergySigni.length > 0 && (
+                  {guardAltEnergyClass && guardAltClassCandidates.energyNums.length > 0 && (
                     <button onClick={handleGuardWithEnergyAlternative} disabled={loading}
+                      data-testid="guard-alt-class-energy"
                       style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
                         backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
                         fontSize: 13, marginBottom: 8 }}>
                       代替ガード：エナ＜{guardAltEnergyClass}＞1枚をトラッシュ
+                    </button>
+                  )}
+                  {guardAltCost?.spec.kind === 'hand_or_energy_trash_class'
+                    && guardAltClassCandidates.handIndices.length > 0 && (
+                    <button onClick={handleGuardWithClassHandAlternative} disabled={loading}
+                      data-testid="guard-alt-class-hand"
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #7cb9e8',
+                        backgroundColor: 'rgba(124,185,232,0.15)', color: '#7cb9e8', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：手札の＜{guardAltCost.spec.signiClass}＞シグニ1枚を捨てる
                     </button>
                   )}
                   {myGuardAltHand > 0 && my.hand.length >= myGuardAltHand && (

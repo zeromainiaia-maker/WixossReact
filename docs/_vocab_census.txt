@@ -255,11 +255,11 @@ WDK07-E01-DECORE WDK07-E02-DECORE WDK07-E03-DECORE WDK07-E04-DECORE WX16-003-E3 
 ### STUB/MANUAL格納（要個別確認）
 WDK07-E04-DECORE WXK04-018-DECORE WXK10-015-E1
 
-## コスト:エナからトラッシュ ［原文該当 180／高シグナル 0／STUB・MANUAL格納 2］
+## コスト:エナからトラッシュ ［原文該当 180／高シグナル 0／STUB・MANUAL格納 1］
 ### 高シグナル（対応語彙なし）
 （なし）
 ### STUB/MANUAL格納（要個別確認）
-WX25-P2-003-E1 WXDi-P13-003A-E1
+WXDi-P13-003A-E1
 
 ## コスト:場からトラッシュ ［原文該当 169／高シグナル 0／STUB・MANUAL格納 2］
 ### 高シグナル（対応語彙なし）

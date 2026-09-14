@@ -4243,6 +4243,32 @@ export function collectOppLifeCrashedTriggers(
 }
 
 /**
+ * プレイヤーが得た「対戦相手のライフバーストが発動したとき」を収集する。
+ * `performLifeBurstResponse(true, ...)` だけが呼ぶため、クラッシュのみ／発動辞退では発火しない。
+ * host を持たない `GRANT_PLAYER_ABILITY` は `game_granted_effects` に入るので、必ず
+ * `grantedStoreWatchers` を通して読む（ルリグ能力消失の影響も受けない）。
+ */
+export function collectOppLifeBurstActivatedTriggers(
+  ctx: TrigCtx, watcherState: PlayerState, watcherId: string,
+): { entries: StackEntry[]; usedLimitIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedLimitIds: string[] = [];
+  const limitOk = mkLimitOk(watcherState.actions_done, usedLimitIds);
+  for (const watcher of grantedStoreWatchers(
+    watcherState, 'ON_OPP_LIFE_BURST_ACTIVATED', ['self', 'any_ally', 'any'],
+  )) {
+    if (!limitOk(watcher.effect)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: watcherId, cardNum: watcher.cardNum || watcher.effect.effectId,
+      effectId: watcher.effect.effectId,
+      label: 'ゲーム中に得た【自】効果（相手ライフバースト発動時）',
+      effect: watcher.effect,
+    });
+  }
+  return { entries, usedLimitIds };
+}
+
+/**
  * 🆕**「対戦相手がダメージを受けたとき」**（§5.3 `O-160`・2026-09-02）。
  *
  * 反応するのは**ダメージを与えた側**（`watcherState`）＝クラッシュされた側の対戦相手。

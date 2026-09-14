@@ -29,6 +29,20 @@ export function canCardGuard(
   return centerLrigClass.includes(requiredClass);
 }
 
+/** クラス限定の代替ガード（手札またはエナ）の候補。UI と支払いで同じ判定を使う。 */
+export function guardAlternativeClassCandidates(
+  ownerState: PlayerState, signiClass: string, cardMap: Map<string, CardData>,
+): { handIndices: number[]; energyNums: string[] } {
+  const matches = (num: string): boolean => {
+    const card = cardMap.get(getCardNum(num));
+    return card?.Type === 'シグニ' && (card.CardClass ?? '').includes(signiClass);
+  };
+  return {
+    handIndices: ownerState.hand.map((num, i) => matches(num) ? i : -1).filter(i => i >= 0),
+    energyNums: ownerState.energy.filter(matches),
+  };
+}
+
 /**
  * 「〈レベル限定〉のシグニで【ガード】ができない」を `blocked_actions` / CONTINUOUS の actionId 集合から解いて、
  * 「そのレベルのカードでガードできないか」を答える述語にする（§6.4 O-41・2026-08-22）。

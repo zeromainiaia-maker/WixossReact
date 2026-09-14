@@ -448,6 +448,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   ⚠**払う中身が読めない文は受け皿へ載せない**（fail-closed）＝載せると engine 側で
   //     「代替コスト無し」に落ちるだけだが、**逆翻訳が「代替コストがある」と嘘をつく**。
   if (t.match(/【ガード】する際.*代わりに/)) {
+    // ①' 手札の＜X＞シグニ1枚、またはエナの＜X＞シグニ1枚（`WX25-P1-071-E1`）。
+    // ⚠単独のエナ規則より先に読む＝後半だけを拾って手札側を落とさない。
+    const handOrEnM = t.match(/手札から＜([^＞]+)＞のシグニ[^。]*捨てるか[^。]*エナゾーンから＜\1＞のシグニ/);
+    if (handOrEnM) {
+      return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST',
+        guardAltCost: { kind: 'hand_or_energy_trash_class', signiClass: handOrEnM[1] } } as StubAction;
+    }
     // ①「あなたのエナゾーンから＜X＞のシグニ１枚をトラッシュ」
     const enM = t.match(/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/);
     if (enM) {

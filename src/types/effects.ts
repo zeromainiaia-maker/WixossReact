@@ -78,6 +78,7 @@ export type EffectTiming =
   | 'ON_SIGNI_CRASHED_LIFE_TOTAL' // このシグニが1ターンに対戦相手のライフクロスを合計N枚以上クラッシュしたとき（クラッシュした側が反応。閾値は triggerCondition.crashedTotalThisTurn）
   | 'ON_HAND_OR_ENERGY_LOST_BY_OPP' // 対戦相手の効果1つによって、あなたの手札が捨てられるか あなたのエナゾーンからカードがトラッシュに置かれたとき（2経路の OR。1解決につき1度だけ発火＝中央 diff で両方をまとめて見るため構造的に重複しない）
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
+  | 'ON_OPP_LIFE_BURST_ACTIVATED' // 対戦相手のライフバーストが実際に発動したとき（クラッシュのみ／発動辞退では発火しない）
   /**
    * 🆕**対戦相手が（プレイヤーとして）ダメージを受けたとき**（§5.3 `O-160`・2026-09-02）。
    * 🔴**`ON_SIGNI_DAMAGE` とは主語が違う**＝あちらは「**このシグニが**与えたとき」で発生源を絞りすぎる。
@@ -6356,6 +6357,7 @@ export interface StubAction {
    */
   guardAltCost?:
     | { kind: 'energy_trash_class'; signiClass: string }
+    | { kind: 'hand_or_energy_trash_class'; signiClass: string }
     | { kind: 'colorless_and_collab'; colorless: number; collab: number };
   /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
   carriedTargetNum?: string;

@@ -7,6 +7,41 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // §5.3 O-369: プレイヤーがこのゲーム中に得る引用能力。
+  // 【自】は専用の「相手ライフバースト発動時」collector へ載せ、UI の無いプレイヤー【起】だけを分離 defer する。
+  "WX25-P2-003": [
+    {"effectId":"WX25-P2-003-E1","effectType":"ACTIVATED","timing":["MAIN"],
+     "cost":{"energy":[{"color":"赤","count":0}]},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"GRANT_PLAYER_ABILITY","permanent":true,"targetOwner":"self",
+        "rawText":"【自】：対戦相手のライフバーストが発動したとき、対戦相手のエナゾーンからカード1枚を対象とし、それをトラッシュに置く。",
+        "abilities":[{"effectId":"WX25-P2-003-GRANTED-AUTO","effectType":"AUTO","timing":["ON_OPP_LIFE_BURST_ACTIVATED"],"triggerScope":"self",
+          "action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},
+          "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},
+       {"type":"STUB","id":"DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME"}
+     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // §5.3 O-369: リコレクト4の期間つきプレイヤー【常】は、既存 PAY_ENERGY_COST block へ載せる。
+  "WX25-P2-004": [
+    {"effectId":"WX25-P2-004-E1","effectType":"ACTIVATED","timing":["ATTACK"],
+     "cost":{"energy":[{"color":"赤","count":1},{"color":"無","count":5}],
+       "useTimeCost":{"source":"lrig_deck_arts","filter":{"cardType":"アーツ"},"max":1,"perUnit":false,"reduction":[{"color":"無","count":3}]}},
+     "action":{"type":"SEQUENCE","steps":[
+       {"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}},
+       {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"duration":"UNTIL_END_OF_TURN",
+        "effect":{"effectId":"WX25-P2-004-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self",
+          "action":{"type":"SEQUENCE","steps":[
+            {"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無","無"],"unlessPay":true},
+            {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[]},
+             "else":{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}}}
+          ]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}},
+       {"type":"RECOLLECT_GATE","minArts":4},
+       {"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"opponent"},
+        "then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"PAY_ENERGY_COST_SIGNI_ATTACK_STEP","until":"END_OF_TURN"}}
+     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   // ══════════════════════════════════════════════════════════════════════════════
   // 第238バッチ（2026-09-09）＝「あなたの《カード名》1体がアタックしたとき」の主語
   // ══════════════════════════════════════════════════════════════════════════════

@@ -26040,6 +26040,30 @@ function applyGameGrantsBatch49(card: CardData, effects: CardEffect[], sourceTex
     //     グロウである場合**」の条件語彙が無いので、載せると**グロウのたびにエナチャージ**する過大実行）。
     //     ここで catch-all を落とすと**穴が計器から消える**ので、代わりに**名前のある穴**へ置き換える。
     const realGrants = grants.filter(g => (g as { kind?: string }).kind !== 'abilityBlockHeader');
+    // `guardAltHand` が構造化できた引用は、文単位 catch-all のガード代替 defer も同じ内容の残骸。
+    // `WXDi-P06-006-E1` は parseSentencePart3 の一般規則（旧 :465）でこれを生成していた。
+    if (realGrants.some(g => g.kind === 'guardAltHand')) {
+      const pruneGuardAltRemainder = (node: EffectAction): EffectAction | null => {
+        if (node.type === 'STUB' && (node as StubAction).id === 'DEFERRED_GUARD_ALT_COST_UNKNOWN') return null;
+        if (node.type === 'SEQUENCE') {
+          const steps = (node as SequenceAction).steps.map(pruneGuardAltRemainder)
+            .filter((x): x is EffectAction => x !== null);
+          if (steps.length === 0) return null;
+          return steps.length === 1 ? steps[0] : { ...(node as SequenceAction), steps };
+        }
+        return node;
+      };
+      const withoutRemainder = pruneGuardAltRemainder(effect.action);
+      if (withoutRemainder) effect.action = withoutRemainder;
+    }
+
+    // `WXDi-P05-004-E1` はプレイヤーのデッキ＋トラッシュ全体に作用するが、既存
+    // LEVEL_REFERENCE_OVERRIDE は参照カード自身の印字 CONTINUOUS しか読むことができない。
+    // 効かない宣言を「レベル1として扱える」と描く嘘を、内容を特定した defer 1本へ畳む。
+    if (/デッキとトラッシュにあるレベル[３3]以下の＜宇宙＞のシグニのレベルを参照/.test(sourceTexts.get(effect.effectId) ?? '')) {
+      effect.action = { type: 'STUB', id: 'DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE' } as StubAction;
+      continue;
+    }
     if (realGrants.length === 0) {
       const renameCatchAll = (node: unknown): void => {
         if (!node || typeof node !== 'object') return;

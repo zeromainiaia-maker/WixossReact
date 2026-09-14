@@ -61,7 +61,7 @@ import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDisca
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
-import { collectPlayerDamagedTriggers } from '../engine/triggerCollect';
+import { collectOppLifeBurstActivatedTriggers, collectPlayerDamagedTriggers } from '../engine/triggerCollect';
 import { matchesTrashArtsFromLrigDeckCost } from './battle/artsTrashCost';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
@@ -126,7 +126,7 @@ import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
-import { canCardGuard } from './battle/guard';
+import { canCardGuard, guardAlternativeClassCandidates } from './battle/guard';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from './battle/grantedAuto';
@@ -13069,12 +13069,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleGuardWithEnergyAlternative = async () => {
     if (!my.field.lrig_attacked || loading) return;
     const altCost = collectGuardAlternativeCost(my, battleCardMap, effectsMap);
-    if (altCost?.spec.kind !== 'energy_trash_class') return;
+    if (altCost?.spec.kind !== 'energy_trash_class' && altCost?.spec.kind !== 'hand_or_energy_trash_class') return;
     const altClass = altCost.spec.signiClass;
-    const energySigni = my.energy.filter(cn => {
-      const c = battleCardMap.get(cn);
-      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(altClass);
-    });
+    const energySigni = guardAlternativeClassCandidates(my, altClass, battleCardMap).energyNums;
     if (energySigni.length === 0) return;
     setLoading(true);
     try {
@@ -13103,6 +13100,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOpState },
         effectStack: guardTriggers.length > 0
           ? (existingStackEG ? pushToStack(existingStackEG, guardTriggers) : initStack(bs.active_user_id ?? user.id, guardTriggers))
+          : undefined,
+      }));
+    } finally { setLoading(false); }
+  };
+
+  // GUARD_ALTERNATIVE_COST: 手札から指定クラスのシグニを1枚捨ててガード（エナとの2択の手札側）。
+  const handleGuardWithClassHandAlternative = async () => {
+    if (!my.field.lrig_attacked || loading) return;
+    const altCost = collectGuardAlternativeCost(my, battleCardMap, effectsMap);
+    if (altCost?.spec.kind !== 'hand_or_energy_trash_class') return;
+    const candidates = guardAlternativeClassCandidates(my, altCost.spec.signiClass, battleCardMap);
+    const handIndex = candidates.handIndices[0];
+    if (handIndex === undefined) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const discarded = my.hand[handIndex];
+      const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+        collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+      const attackerId = isHost ? bs.guest_id : bs.host_id;
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      guardTriggers.push(...attackGuard.entries);
+      const newMyState: PlayerState = {
+        ...my,
+        hand: my.hand.filter((_, i) => i !== handIndex),
+        trash: [...my.trash, discarded],
+        ...handDiscardHistoryRecord(my, [discarded]),
+        field: { ...my.field, lrig_attacked: false },
+        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+      };
+      appendBattleLogs([`ガード代替コスト：手札の＜${altCost.spec.signiClass}＞（${battleCardMap.get(discarded)?.CardName ?? discarded}）を捨てる`]);
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newOpState = attackGuard.usedOncePerTurnIds.length > 0
+        ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : clearEndOfAttackEffects(op);
+      const existingStackHG = bs.effect_stack ?? null;
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOpState },
+        effectStack: guardTriggers.length > 0
+          ? (existingStackHG ? pushToStack(existingStackHG, guardTriggers) : initStack(bs.active_user_id ?? user.id, guardTriggers))
           : undefined,
       }));
     } finally { setLoading(false); }
@@ -13711,16 +13748,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         oppCrashTriggers.push(...dmg.entries);
         opDamagedUsedIds = dmg.usedLimitIds;
       }
+      // `activate === true` のときだけ「ライフバーストが発動した」。クラッシュだけ／発動辞退では積まない。
+      const oppBurstActivated = activate
+        ? collectOppLifeBurstActivatedTriggers(mkTrigCtx(), op, crasherId)
+        : { entries: [] as StackEntry[], usedLimitIds: [] as string[] };
+      oppCrashTriggers.push(...oppBurstActivated.entries);
       // 🆕§5.3 `O-367`（2026-09-14）＝「そのアタックの間」だけのクラッシュ先置換は、
       //   **このアタックで割れたカードを最後の1枚まで処理し終えた時点**で落とす
       //   （`clearEndOfAttackEffects` はこの関数より前に走るので、あちらでは落とせない）。
       //   ⚠**ダブルクラッシュで2枚割れた回**は1枚目でここに来るので、`remainingPending` を必ず見る。
       const clearAttackCrashEOA = op.crash_to_trash_ends_this_attack === true && remainingPending.length === 0;
       const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0 || opDamagedUsedIds.length > 0
+        || oppBurstActivated.usedLimitIds.length > 0
         || clearAttackCrashEOA
         ? {
             ...op,
-            actions_done: [...(op.actions_done ?? []), ...oppUsedIds, ...opDamagedUsedIds],
+            actions_done: [...(op.actions_done ?? []), ...oppUsedIds, ...opDamagedUsedIds, ...oppBurstActivated.usedLimitIds],
             game_actions_done: [...(op.game_actions_done ?? []), ...oppGameUsedIds],
             ...(clearAttackCrashEOA
               ? { crash_to_trash_instead: undefined, crash_to_trash_ends_this_attack: undefined }
@@ -15936,7 +15979,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
-      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} />
+      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithClassHandAlternative={handleGuardWithClassHandAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} />
 
       {/* リムーブ選択モーダル */}
       <RemoveZoneModal ctx={modalCtx} showRemoveModal={showRemoveModal} setShowRemoveModal={setShowRemoveModal} selectedRemoveZones={selectedRemoveZones} toggleRemoveZone={toggleRemoveZone} handleRemove={handleRemove} />

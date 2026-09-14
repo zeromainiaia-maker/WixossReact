@@ -8374,7 +8374,8 @@ export function collectGuardAlternativeCost(
   const holders = [...ownerState.field.signi.map(s => s?.at(-1)), lrigTop];
   for (const top of holders) {
     if (!top) continue;
-    for (const eff of (effectsMap.get(top) ?? [])) {
+    // 期間つき GRANT_EFFECT は effectsMap ではなく granted_effects_until_opp_turn に入る。
+    for (const eff of [...(effectsMap.get(top) ?? []), ...grantedEffectsOf(ownerState, top)]) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'GUARD_ALTERNATIVE_COST') continue;

@@ -2056,6 +2056,7 @@ function actionJa(a?: Action, effectType?: string): string {
         USE_ACT: '【起】能力を使用できない',
         USE_LRIG_ACT: 'ルリグの【起】能力を使用できない',
         PAY_ENERGY_COST: '１以上のエナコストを支払えない',
+        PAY_ENERGY_COST_SIGNI_ATTACK_STEP: 'シグニアタックステップの間、１以上のエナコストを支払えない',
         SIGNI_ATTACK: 'シグニでアタックできない',
         // §6.4 O-3（続き491）: フェイズスキップ機構（`PHASE_SKIP_BLOCK_IDS`）の語彙。
         // ⚠`ENERGY`（エナチャージ封じ）と `ENERGY_PHASE`（フェイズごとスキップ）は別物。
@@ -2346,6 +2347,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const bodyGE = a.target?.type === 'LRIG'
         ? bodyGE0.replace(/このシグニより(低い|高い)レベル/g, 'このルリグより$1レベル')
         : bodyGE0;
+      if (a.target?.type === 'LRIG' && a.duration === 'UNTIL_OPP_TURN_END'
+          && a.effect?.action?.type === 'STUB'
+          && a.effect.action.guardAltCost?.kind === 'hand_or_energy_trash_class') {
+        return `あなたのセンタールリグ1体を対象とし、次の対戦相手のターン終了時まで、それは『${bodyGE}』を得る`;
+      }
       return `${subjGE}は『${bodyGE}』を得る${durJaGE}`;
     }
     case 'REVEAL_DECK_TOP': return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.count)}枚公開する`;
@@ -5565,6 +5571,9 @@ function actionJa(a?: Action, effectType?: string): string {
         if (spec.kind === 'energy_trash_class') {
           return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、あなたのエナゾーンから＜${spec.signiClass}＞のシグニ1枚をトラッシュに置いてもよい`;
         }
+        if (spec.kind === 'hand_or_energy_trash_class') {
+          return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、手札から＜${spec.signiClass}＞のシグニを1枚捨てるかあなたのエナゾーンから＜${spec.signiClass}＞のシグニ1枚をトラッシュに置いてもよい`;
+        }
         const colorless = spec.colorless === 1 ? '《無》' : `《無×${spec.colorless}》`;
         return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに、${colorless}を支払いコラボライバー${numJa(spec.collab)}人とコラボしてもよい`;
       }
@@ -5737,6 +5746,12 @@ function actionJa(a?: Action, effectType?: string): string {
         //   グロウである場合**」の条件語彙が無い。載せるとグロウのたびにエナチャージする過大実行）。
         DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED:
           '【未実装】このゲームの間に得る引用能力（宣言を1つも構造化できなかった）',
+        // 表示: このゲームの間、あなたが得る【起】《ターン1回》「ライフクロス1枚をクラッシュする：対戦相手のシグニ1体を対象とし、それをバニッシュする。」
+        DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME:
+          '【未実装】このゲームの間、あなたが得る【起】《ターン1回》「ライフクロス1枚をクラッシュする：対戦相手のシグニ1体を対象とし、それをバニッシュする。」',
+        // 表示: このゲームの間、あなたの能力か効果によってデッキとトラッシュのレベル3以下の＜宇宙＞のシグニを参照する場合、レベル1として扱ってもよい
+        DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE:
+          '【未実装】このゲームの間、あなたの能力か効果によってデッキとトラッシュにあるレベル3以下の＜宇宙＞のシグニのレベルを参照する場合、レベル1として扱ってもよい',
         DEFERRED_GRANT_ALL_ZONE_TRAP_ICON:
           '【未実装】あなたのすべての領域にある《トラップアイコン》を持たない＜トリック＞のカードは《トラップアイコン》「カードを1枚引くか【エナチャージ1】をする。」を得る',
         DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED:
@@ -6465,7 +6480,7 @@ const timingJa: Record<string, string> = {
   ON_GROW_PHASE_START: 'あなたのグロウフェイズ開始時',
   ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT: 'あなたが対戦相手のシグニのアタックを効果によって無効にしたとき',
   ON_MAIN_PHASE_START: 'あなたのメインフェイズ開始時',
-  ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
+  ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_OPP_LIFE_BURST_ACTIVATED: '対戦相手のライフバーストが発動したとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
   ON_HEAVEN: 'ヘブンヘブン（すべてのクロスシグニがダウン状態でアタックしたとき）',
   ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたが【ガード】したとき',

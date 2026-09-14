@@ -22,7 +22,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { fillSourceTextPayloads } from '../src/data/sourceTextPayloads';
 import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash } from '../src/engine/boardDiff';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits, collectDeckTrashLevel1Nums, collectGuardAlternativeCost } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
@@ -59,7 +59,7 @@ import {
   hasTrapAbilityCard, resolveFrontOfSelfCardNum,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { collectSuppressedSigniTriggerNums, triggerEffectsForCollection } from '../src/engine/triggerCollect';
@@ -93,6 +93,7 @@ import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCo
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
+import { guardAlternativeClassCandidates } from '../src/screens/battle/guard';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
@@ -69112,7 +69113,7 @@ test('§5.3 O-60 第68: 引用付与の catch-all 3綴りは live から全部�
   eq(hits.length, 0, `live に引用付与 catch-all が残っている: ${hits.slice(0, 5).join(', ')}`);
 });
 
-test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になった', () => withSavedCursor(() => {
+test('§5.3 O-60 第68: 未解決の引用文型は名前のある穴になった', () => withSavedCursor(() => {
   // 🔴どれも旧 catch-all では「能力付与：…（ログのみ）」＝**無言 no-op**（JSON も計器も緑のまま）。
   // ⚠**近似で既存の受け皿へ寄せない**＝寄せるとどれも過大実行になる（各 O 項目の登録票を参照）。
   const want: Array<[string, string, string]> = [
@@ -69121,7 +69122,8 @@ test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になっ�
     //   ⚠**引用の中身が解けなかったときは今も `DEFERRED_*` へ落ちる**（part2 の規則が残っている）＝
     //     中身の無い付与を載せて「トラップは発動したのに何も起きない」無言 no-op にしないため。
     ['WXEX2-66', 'WXEX2-66-E1', 'GRANT_ALL_ZONE_TRAP_ICON'],
-    ['WX25-P2-004', 'WX25-P2-004-E1', 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL'], // O-227（期間つきプレイヤー付与が無い）
+    // 🏁`O-369`（2026-09-14）＝WX25-P2-004 は期間つきプレイヤー付与を新設せず、
+    //   引用の実体を既存 BLOCK_ACTION{PAY_ENERGY_COST_SIGNI_ATTACK_STEP} へ直接載せて解決済み。
     // 🏁`O-242`（2026-09-04）＝明示 defer から本実装へ（`firstGrowEnergyCharge` の宣言）。
     //   ⚠**宣言が1本も取れないときは今も `DEFERRED_*` へ落ちる**（見出しだけの `abilityBlockHeader` は宣言に数えない）。
     ['WXDi-P03-002', 'WXDi-P03-002-E1', 'GAIN_ABILITY_THIS_GAME'],
@@ -82197,6 +82199,90 @@ test('O-367後 WX20-Re20 c0: デッキから能力なしシグニを3枚まで�
   const st = run(choose.choices[0].action, withDeck).ownerState as PlayerState;
   eq(st.hand.length, 3, '🔴3枚まで手札に加わっていない');
   ok(st.hand.every(n => RE20_VANILLA.includes(n)), '🔴能力を持つシグニを拾った＝`noAbilities` が落ちている');
+});
+
+// ── §5.3 O-369 / O-370①：プレイヤー引用能力とガード代替 ─────────────────────
+test('O-369 WX25-P2-003: 相手LB発動時だけ game_granted_effects の【自】を収集してエナを落とす', () => {
+  const eff = MANUAL_EFFECTS['WX25-P2-003'].find(e => e.effectId === 'WX25-P2-003-E1')!;
+  const granted = run(eff.action, mkCtx({}, {})).ownerState as PlayerState;
+  ok((granted.game_granted_effects ?? []).some(e => e.timing?.includes('ON_OPP_LIFE_BURST_ACTIVATED')),
+    'GRANT_PLAYER_ABILITY が game_granted_effects に載っていない');
+  const trigCtx: TrigCtx = { hostId: 'h', guestId: 'g', activeUserId: 'h', turnPhase: 'ATTACK_LRIG',
+    effectsMap, cardMap, genId: () => 'grant-lb' };
+  const hit = collectOppLifeBurstActivatedTriggers(trigCtx, granted, 'h');
+  eq(hit.entries.length, 1, 'LB発動時 collector が付与【自】を積まない');
+  const base = mkCtx({}, {});
+  const paid = run(hit.entries[0].effect.action, { ...base,
+    otherState: { ...base.otherState, energy: ['WD01-010'] } } as ExecCtx);
+  eq(paid.otherState.energy.length, 0, '対象の相手エナが残っている');
+  ok(paid.otherState.trash.includes('WD01-010'), '相手エナがトラッシュへ移動していない');
+  eq(collectOppLifeBurstActivatedTriggers(trigCtx, mkState({}), 'h').entries.length, 0,
+    '未付与（クラッシュのみ／発動辞退相当）でもトリガーが積まれた');
+});
+
+test('O-369 WXDi-P05-004: 効かない LEVEL_REFERENCE_OVERRIDE を実装済み表示にしない', () => {
+  const fresh = parseCardEffects(cardMap.get('WXDi-P05-004')!).find(e => e.effectId === 'WXDi-P05-004-E1')!;
+  const json = JSON.stringify(fresh.action);
+  ok(json.includes('DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE'), '内容を特定した defer に分離されていない');
+  ok(!json.includes('"id":"LEVEL_REFERENCE_OVERRIDE"'), 'ACTIVATED 内のログだけの宣言が残っている');
+});
+
+test('O-369 WX25-P2-004: リコレクト後の相手ターンだけ PAY_ENERGY_COST を止める', () => {
+  const eff = MANUAL_EFFECTS['WX25-P2-004'].find(e => e.effectId === 'WX25-P2-004-E1')!;
+  const tail = (eff.action as SequenceAction).steps.at(-1)!;
+  const oppTurnCtx = { ...mkCtx({}, {}), isOwnerTurn: false } as ExecCtx;
+  const blocked = run(tail, oppTurnCtx).otherState as PlayerState;
+  ok(!isEnergyPayBlocked(blocked), 'フェイズ未指定でも局所禁止が全フェイズへ広がった');
+  eq(buildEnergyPayPool({ ...blocked, energy: ['WD01-010'] }, {
+    turnPhase: 'ATTACK_SIGNI', isMyTurn: true, effectsMap,
+  }).length, 0, '共通エナ支払い pool が空にならない');
+  ok(buildEnergyPayPool({ ...blocked, energy: ['WD01-010'] }, {
+    turnPhase: 'ATTACK_LRIG', isMyTurn: true, effectsMap,
+  }).length > 0, 'ルリグアタックステップの支払いまで止めた');
+  const ownTurnCtx = { ...mkCtx({}, {}), isOwnerTurn: true } as ExecCtx;
+  ok(!isEnergyPayBlocked(run(tail, ownTurnCtx).otherState), '自分ターンにも相手のエナ支払いを止めた');
+});
+
+test('O-369 WX25-P1-071: 期間つきルリグ付与から天使の手札／エナ2択を収集する', () => {
+  const fresh = parseCardEffects(cardMap.get('WX25-P1-071')!).find(e => e.effectId === 'WX25-P1-071-E1')!;
+  const json = JSON.stringify(fresh.action);
+  ok(json.includes('hand_or_energy_trash_class') && json.includes('天使'), 'fresh parse が2択 payload を生成しない');
+  ok(!json.includes('DEFERRED_GUARD_ALT_COST_UNKNOWN'), '既知の2択が未知 defer に反転した');
+  const base = mkCtx({ lrig: ['WX25-P1-071'] }, {});
+  const afterGrant = run(fresh.action, base).ownerState as PlayerState;
+  const found = collectGuardAlternativeCost(afterGrant, cardMap, effectsMap);
+  eq(found?.spec.kind, 'hand_or_energy_trash_class', 'granted_effects_until_opp_turn を collector が読まない');
+  eq(collectGuardAlternativeCost(clearUntilOppTurnEffects(afterGrant), cardMap, effectsMap), null,
+    '次の相手ターン終了時の掃除後も代替が残る');
+  const localCards = new Map<string, CardData>([
+    ['ANGEL-H', { CardNum: 'ANGEL-H', Type: 'シグニ', CardClass: '天使' } as CardData],
+    ['ANGEL-E', { CardNum: 'ANGEL-E', Type: 'シグニ', CardClass: '天使' } as CardData],
+    ['OTHER', { CardNum: 'OTHER', Type: 'シグニ', CardClass: '悪魔' } as CardData],
+  ]);
+  const cands = guardAlternativeClassCandidates({ ...mkState({}), hand: ['ANGEL-H', 'OTHER'], energy: ['OTHER', 'ANGEL-E'] }, '天使', localCards);
+  eq(JSON.stringify(cands), JSON.stringify({ handIndices: [0], energyNums: ['ANGEL-E'] }), '手札／エナ候補のクラス限定が崩れた');
+});
+
+test('O-370① WXDi-P06-006: guardAltHand は残し未知 defer だけを parser 後処理で落とす', () => {
+  const fresh = parseCardEffects(cardMap.get('WXDi-P06-006')!).find(e => e.effectId === 'WXDi-P06-006-E1')!;
+  const json = JSON.stringify(fresh.action);
+  ok(json.includes('"kind":"guardAltHand"') && json.includes('"handCount":3'), '実働 gameGrant が消えた');
+  ok(!json.includes('DEFERRED_GUARD_ALT_COST_UNKNOWN'), '既知 guardAltHand の残骸 defer が残る');
+  const before = mkCtx({ deck: 3, hand: 0 }, {});
+  const after = run(fresh.action, before).ownerState as PlayerState;
+  eq(after.hand.length, 1, '先頭の1ドローが壊れた');
+  eq(after.game_guard_alt_hand, 3, '既存のガード代替宣言が state に立たない');
+  const otherFresh = parseCardEffects(cardMap.get('WX25-P1-071')!).find(e => e.effectId === 'WX25-P1-071-E1')!;
+  ok(JSON.stringify(otherFresh.action).includes('hand_or_energy_trash_class'), '#4 の別規則まで guardAltHand prune が壊した');
+});
+
+test('O-369/O-370 逆翻訳: 実装部と明示 defer の境界が生成シートに出る', () => {
+  ok(decompiledLineOf('WX25-P2-003-E1').includes('対戦相手のライフバーストが発動したとき'), '#1【自】が逆翻訳にない');
+  ok(decompiledLineOf('WX25-P2-003-E1').includes('【未実装】') && decompiledLineOf('WX25-P2-003-E1').includes('【起】'), '#1【起】defer が分離されていない');
+  ok(decompiledLineOf('WXDi-P05-004-E1').includes('【未実装】') && !decompiledLineOf('WXDi-P05-004-E1').includes('[STUB:LEVEL_REFERENCE_OVERRIDE]'), '#2 が実装済みに見える');
+  ok(decompiledLineOf('WX25-P2-004-E1').includes('エナコストを支払えない'), '#3 支払い禁止が逆翻訳にない');
+  ok(decompiledLineOf('WX25-P1-071-E1').includes('手札から＜天使＞') && decompiledLineOf('WX25-P1-071-E1').includes('エナゾーンから＜天使＞'), '#4 2択が逆翻訳にない');
+  ok(!decompiledLineOf('WXDi-P06-006-E1').includes('【未実装】'), '#5 残骸 defer が逆翻訳に残る');
 });
 
 if (listMode) {
