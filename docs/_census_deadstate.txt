@@ -7,10 +7,10 @@ PlayerState のキー: 375
 
 ## 参考：書き込みの多い順（上位40）
   1528 読 / 104 書  energy
-  1289 読 /  74 書  deck
-  3757 読 /  74 書  field
-  1690 読 /  65 書  trash
-  1833 読 /  61 書  hand
+  1301 読 /  75 書  deck
+  3760 読 /  74 書  field
+  1692 読 /  65 書  trash
+  1849 読 /  61 書  hand
    204 読 /  36 書  lrig_deck
     55 読 /  36 書  temp_power_mods
    174 読 /  23 書  lrig_trash
@@ -32,6 +32,7 @@ PlayerState のキー: 375
      2 読 /   7 書  banish_redirect_battle_target_nums
      2 読 /   7 書  banish_redirect_power0_target_nums
      4 読 /   7 書  prevent_defeat
+     5 読 /   7 書  signi_color_overrides
      1 読 /   7 書  acce_just_done
     16 読 /   7 書  lrig_riding_signi
     16 読 /   7 書  lrig_upkeep_condition
@@ -40,7 +41,6 @@ PlayerState のキー: 375
      9 読 /   6 書  pending_crash_causes
     14 読 /   6 書  temp_level_mods
      1 読 /   6 書  draw_limit
-     4 読 /   6 書  signi_color_overrides
     15 読 /   6 書  card_identity_overrides
      4 読 /   6 書  signi_deploy_count_limit
      9 読 /   6 書  signi_played_from_non_hand_this_turn

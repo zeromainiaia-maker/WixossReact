@@ -2035,8 +2035,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
   // ---- 《ガードアイコン》を持たないカード〜デッキの一番下に置いてもよい ----
+  // 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝実装した**（`WXDi-P09-065-E1`）。
+  //   🔑受け皿は**既に在った**＝`TRANSFER_TO_DECK{HAND_CARD opponent, filter:{noGuard:true}, position:'bottom'}`。
+  //   ⚠**選ぶのは「あなた」**＝`opponentSelects` を立てない（`effectExecutor.ts:8028` は
+  //     `opponentSelects` のときだけ相手に選ばせる）。原文「**あなたは**その中から〜選び」と一致。
+  //   ⚠**スキップ可にするのは `source.upToCount`**＝`TRANSFER_TO_DECK` の HAND_CARD 経路は
+  //     `a.optional` ではなく `a.source.upToCount` を `selectOrInteract` の optional に渡す（:8029）。
+  //   ⚠後続の「そうした場合、対戦相手はカードを１枚引く」（`CONDITIONAL{IS_MY_TURN}`）は**残す**＝
+  //     スキップ時に `stripDidItConditional` が無効化する。
   if (t.match(/《ガードアイコン》を持たないカード.*デッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM' } as StubAction;
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'opponent', count: 1, upToCount: true, filter: { noGuard: true } },
+      shuffle: false, position: 'bottom', optional: true,
+    } as EffectAction;
 
   // ---- 手札〜ルリグゾーンに裏向きで置く（§6.4 O-3）----
   // ⚠旧 `SOUL_OP` は**カード全文 regex で分岐する別機構**（ルリグの下／ルリグトラッシュ操作）で、

@@ -6960,6 +6960,13 @@ export interface StubAction {
    * ⚠アクセ**カード側**の絞り込みは SEARCH の `filter` が担当＝役割を混ぜない。
    */
   acceHostFilter?: TargetFilter;
+  /**
+   * 🆕**`PLACE_LOOKED_CARD_UNDER_SIGNI` の置き先シグニのフィルタ**（2026-09-14・§5.3 `O-372` 第3バッチ・
+   * `WXK08-084-E1`「あなたの**＜ウェポン＞の**シグニ１体を対象とし…その中から１枚を**それの**下に置く」）。
+   * 🔴置き先は**効果元ではなく対象のシグニ**なので、`PLACE_UNDER_SOURCE_SIGNI` の既定（効果元の下）では原文と違う。
+   * ⚠engine は原文を読み直さない＝**フィルタは parser が刻む**（無ければ場のシグニ全部が候補）。
+   */
+  placeUnderHostFilter?: TargetFilter;
   type: 'STUB';
   id: string;
   /** 実行時に設定するターン持続 state の寿命。省略時は宣言型／既存 no-op のまま。 */

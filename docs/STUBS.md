@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 586 |
-| 　└ ハンドラ実装あり | 535 |
-| 　└ フォールバック（execStub 未処理） | 51 |
-| 総 STUB ノード件数 | 3399 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 361 |
+| JSON で使用中の STUB id 種類 | 585 |
+| 　└ ハンドラ実装あり | 539 |
+| 　└ フォールバック（execStub 未処理） | 46 |
+| 総 STUB ノード件数 | 3398 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 366 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -49,13 +49,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
-| `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` | 1 | 1 | WXDi-P09-065 |  |
 | `DEFERRED_OPP_LRIG_LEVEL_MODIFY` | 1 | 1 | SP38-005 |  |
-| `DEFERRED_OPP_SPLIT_HAND_TWO_PILES` | 1 | 1 | WX25-P2-022 |  |
 | `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
-| `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` | 1 | 1 | WX24-P4-085 |  |
-| `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 |  |
-| `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 |  |
 | `DEFERRED_SELF_SIGNI_SERVANT_ZERO` | 1 | 1 | WXK11-014 |  |
 | `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` | 1 | 1 | WX24-P4-046 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
@@ -378,7 +373,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
-### execStubPart3.ts（252 種）
+### execStubPart3.ts（256 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -580,13 +575,16 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_REVEAL_LRIG_DECK` | 1 | 1 | WXDi-P09-039 | 公開ログ |
 | `OPP_REVEAL_TOP_AND_HAND` | 1 | 1 | WXDi-D09-P14 | 公開ログ |
 | `OPP_SIGNI_ONE_ATTACK_TOTAL` | 1 | 1 | WXDi-P04-023 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
+| `OPP_SPLIT_HAND_TWO_PILES` | 1 | 1 | WX25-P2-022 | 対戦相手は手札を裏向きで2つの束に分け、あなたが選んだ束を対戦相手が捨てる |
 | `OPP_TRASH_LOSE_COLOR_AND_CLASS` | 1 | 1 | WXK11-026 | 対戦相手のトラッシュにあるカードは色とクラスを失う |
 | `OPP_TRASH_TO_DECK_TOP_OPP_ORDERS` | 1 | 1 | WXK06-028 | 対戦相手のトラッシュからカードをN枚まで対象としデッキの一番上に置く（置く順番は対戦相手が非公開で選ぶ） |
 | `OPP_TURN_NO_ENERGY_COST` | 1 | 1 | WXDi-P03-012 | このターン、対戦相手はエナコストを支払えない |
 | `OPP_ZONE_PLACEMENT_RESTRICT` | 1 | 1 | WXDi-P14-068 | CONTINUOUS効果（effectEngineで動的判定） |
 | `OPTIONAL_HAND_REVEAL_NAMED` | 1 | 1 | WX05-038 | 名称指定で手札カードを任意公開 |
+| `OPTIONAL_SELF_MILL_TOP` | 1 | 1 | WX24-P4-085 | あなたのデッキの一番上のカードをトラッシュに置いてもよい |
 | `PLACE_CHOKKIN` | 1 | 1 | WX17-034 | このシグニがあるシグニゾーンに【貯菌】カウンターを1つ置く |
 | `PLACE_DECK_TOP_UNDER_WEAPON_SIGNI` | 1 | 1 | WXK08-088 | ウェポンシグニの下にデッキ上を置く |
+| `PLACE_LOOKED_CARD_UNDER_SIGNI` | 1 | 1 | WXK08-084 | あなたの対象のシグニ1体を選び、デッキの上から2枚のうち1枚をその下に置き、残りをデッキの一番下に置く |
 | `PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON` | 1 | 1 | WXK08-030 | 全ウェポンシグニの下にトラッシュからシグニを1枚ずつ置く |
 | `PRDI035_PARADISE_COLOR` | 1 | 1 | PR-Di035 | 次のアタックフェイズ開始時判定フラグをセット。 |
 | `PREVENT_LIFE_REFRESH_TRASH` | 1 | 1 | WXDi-P00-041 |  |
@@ -612,6 +610,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 | このシグニを、場に出たあなたのシグニの【アクセ】にしてもよい |
 | `SELF_FROM_TRASH_TO_DECK_BOTTOM` | 1 | 1 | WX22-Re17 | このカードをトラッシュからデッキの一番下に置く |
 | `SELF_SIGNI_ATTACK_NEGATE_IMMUNITY` | 1 | 1 | WX24-P4-016 | このターン、あなたの効果によってシグニのアタックは無効にならない |
+| `SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 | このシグニは色を失い、宣言した色を得る（ターン終了時まで） |
 | `SET_CANCEL_OPP_ATTACK_FLAG` | 1 | 1 | WX15-016 | 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。 |
 | `SET_STORED_BASE_LEVEL` | 1 | 1 | WXK08-002 | この方法で対象にしたシグニの基本レベルを記録して参照する |
 | `SIGNI_GAIN_ONE_LRIG_COLOR` | 1 | 1 | WXDi-P03-074 | このシグニがルリグの色を1つ得る（ターン終了時まで） |
@@ -638,7 +637,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 361 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 366 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -774,6 +773,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_GRANT_NO_ATTACK_LRIG` | 0 | 0 |  | CHOOSE_SAME_OPTION_TWICEから呼ばれる内部ハンドラ |
 | `INTERNAL_GRANT_TRASH_SPELL_USE` | 0 | 0 |  | ── INTERNAL_GRANT_TRASH_SPELL_USE（§5.3 `O-185`・2026-09-04）── 「このターン、あなたは**それら**を使用してもよい」＝**選んだカードを動かさずに、そのターンだけ使用可能にする*… |
 | `INTERNAL_HAND_OR_ENERGY` | 0 | 0 |  | 「それぞれ手札に加えるかエナゾーンに置き」を1枚ずつ問うチェーン（タスク12(xlvi)(h)）。 |
+| `INTERNAL_HAND_PILE_DISCARD` | 0 | 0 |  |  |
+| `INTERNAL_HAND_PILES_CHOOSE` | 0 | 0 |  |  |
 | `INTERNAL_HAND_TO_DECK_BOTTOM` | 0 | 0 |  |  |
 | `INTERNAL_HAND_TO_ENERGY` | 0 | 0 |  | 手札から任意でエナゾーンに置くは §5.3 `O-60` 第15バッチで既存の `ENERGY_CHARGE{target:{HAND_CARD, upToCount}}` へ移した。 旧 `STUB{HAND_TO_ENERGY_OPT… |
 | `INTERNAL_HL_BANISH` | 0 | 0 |  | どちらも行わない→そのゾーンのシグニをバニッシュ（エナへ） |
@@ -786,6 +787,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_LCLTR_TRASH` | 0 | 0 |  |  |
 | `INTERNAL_LEAVE_TO_TRASH` | 0 | 0 |  | 選択シグニをトラッシュに置く |
 | `INTERNAL_LIFE_TO_HAND_DO` | 0 | 0 |  |  |
+| `INTERNAL_LOOKED_CARD_UNDER_APPLY` | 0 | 0 |  |  |
 | `INTERNAL_LRIG_PILE_PICK_ARTS` | 0 | 0 |  | 選んだ束を見て、その中からアーツ1枚を対戦相手のルリグトラッシュに置く（O-307 の3段目） |
 | `INTERNAL_LRIG_PILES_CHOOSE` | 0 | 0 |  | 対戦相手が分けた2つの束のどちらを見るかを効果使用者が選ぶ（O-307 の2段目） |
 | `INTERNAL_LRIG_UNDER_TRASH_SELECTED` | 0 | 0 |  |  |
@@ -859,6 +861,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_SEED_TO_HAND_THEN_DECK_TOP` | 0 | 0 |  | 指定ゾーンのシードを手札に加えてデッキ上をシード設置 |
 | `INTERNAL_SEEDS_PLACE_LOOP` | 0 | 0 |  | 選択した【シード】候補を1枚ずつ順次設置する。残りは CHOOSE の continuation に積んで |
 | `INTERNAL_SELECT_COLOR` | 0 | 0 |  |  |
+| `INTERNAL_SELF_MILL_TOP_APPLY` | 0 | 0 |  |  |
+| `INTERNAL_SELF_MILL_TOP_SKIP` | 0 | 0 |  |  |
 | `INTERNAL_SELF_TO_ACCE_OF_TRIGGER` | 0 | 0 |  |  |
 | `INTERNAL_SET_DECLARED_COLOR` | 0 | 0 |  |  |
 | `INTERNAL_SET_GATE` | 0 | 0 |  |  |

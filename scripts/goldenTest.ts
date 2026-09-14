@@ -62199,7 +62199,8 @@ test('O-80② parser契約: B群5効果を固定値／既存MILL／honest defer�
   const expected = [
     ['PR-460', 'PR-460-E1', ['"type":"POWER_MODIFY"', '"delta":-15000']],
     ['SP38-005', 'SP38-005-E1', ['DEFERRED_OPP_LRIG_LEVEL_MODIFY']],
-    ['WX22-042', 'WX22-042-E1', ['DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED']],
+    // 🏁**§5.3 `O-372` 第3バッチ（2026-09-14）＝実装した**（受け皿は既存の `signi_color_overrides`）。
+    ['WX22-042', 'WX22-042-E1', ['"id":"SELF_SIGNI_COLOR_TO_DECLARED"']],
     ['WX25-CP1-007', 'WX25-CP1-007-E1', ['"type":"MILL","owner":"opponent","count":0,"useDeclaredCount":true']],
     ['WXDi-P11-048', 'WXDi-P11-048-E3', ['"type":"MILL","owner":"self","count":0,"countIsLastProcessedLevelSum":true', '"lastProcessedLevelVerbJa":"バニッシュしたシグニ"']],
   ] as const;
@@ -62639,12 +62640,12 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     ['WXDi-P00-037', 'WXDi-P00-037-E2', 'OPP_DECK_BOTTOM_MILL'],
     ['WD23-022-E', 'WD23-022-E-E3', 'LIFE_CRASH'],
     ['WDK17-015', 'WDK17-015-E1', 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
-    ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
+    ['WX24-P4-085', 'WX24-P4-085-E1', 'OPTIONAL_SELF_MILL_TOP'],
     ['WXDi-P00-063', 'WXDi-P00-063-E2', 'OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
     ['WXDi-P06-045', 'WXDi-P06-045-E1', 'SIGNI_REPOSITION'],
     // 🏁`O-229`（2026-09-04）＝**受け皿は既に在った**（`SWAP_DECK_TOP_AND_LIFE`）ので明示 defer を撤去した。
     ['WXDi-P08-008', 'WXDi-P08-008-E2', 'SWAP_DECK_TOP_AND_LIFE'],
-    ['WXK08-084', 'WXK08-084-E1', 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
+    ['WXK08-084', 'WXK08-084-E1', 'PLACE_LOOKED_CARD_UNDER_SIGNI'],
     ['WXK10-045', 'WXK10-045-E2', 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
   ] as const) {
     const json = JSON.stringify(o76Fresh(cardNum, effectId));
@@ -68054,6 +68055,82 @@ test('§5.3 defer解体⑧: SELF_BECOME_ACCE_OF_PLAYED_SIGNI は効果元自身�
   const same = run({ type: 'STUB', id: 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI' } as EffectAction,
     { ...ctx, sourceCardNum: SELF, triggeringCardNum: SELF } as ExecCtx);
   eq(same.ownerState.field.signi[0]?.at(-1), SELF, '自分自身のアクセにしてしまっている');
+}));
+
+// ── §5.3 `O-372` 第3バッチ（2026-09-14）＝明示 defer の解体（その3）の挙動を固定する ──
+test('§5.3 defer解体⑨: SELF_SIGNI_COLOR_TO_DECLARED は宣言色で効果元の色を置き換える', () => withSavedCursor(() => {
+  const SELF = 'WX22-042';
+  const ctx = mkCtx({ signi: [SELF, null, null] }, {}, SELF);
+  const declared = { ...ctx, ownerState: { ...ctx.ownerState, declared_color: '赤' } } as ExecCtx;
+  const r = run({ type: 'STUB', id: 'SELF_SIGNI_COLOR_TO_DECLARED' } as EffectAction, declared);
+  ok(r.done, '完了する');
+  eq(r.ownerState.signi_color_overrides?.[SELF], '赤', '宣言した色に置き換わっていない');
+  // 🔑**「色を失い」＝置換**（`SIGNI_GAIN_ONE_LRIG_COLOR` のような連結ではない）。
+  ok(!(r.ownerState.signi_color_overrides?.[SELF] ?? '').includes('緑'), '元の色が残っている（失っていない）');
+  // 反転＝宣言が無ければ何もしない（fail-closed）。
+  const noDecl = run({ type: 'STUB', id: 'SELF_SIGNI_COLOR_TO_DECLARED' } as EffectAction, ctx);
+  eq(noDecl.ownerState.signi_color_overrides, undefined, '宣言が無いのに色を書き換えている');
+}));
+
+test('§5.3 defer解体⑩: OPTIONAL_SELF_MILL_TOP はスキップすると lastProcessedCards を空にする', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const top = ctx.ownerState.deck[0];
+  const offered = executeAction({ type: 'STUB', id: 'OPTIONAL_SELF_MILL_TOP' } as EffectAction, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '任意の二択を出していない');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.ownerState.deck[0], top, '選ぶ前にデッキを削っている');
+  const applied = run({ type: 'STUB', id: 'INTERNAL_SELF_MILL_TOP_APPLY' } as EffectAction, ctx);
+  eq(applied.ownerState.trash[applied.ownerState.trash.length - 1], top, 'デッキの一番上がトラッシュへ行っていない');
+  eq((applied.lastProcessedCards ?? [])[0], top, '落とした札を lastProcessedCards に残していない');
+  // 🔴**スキップ時に空にするのが要**＝残すと後続の「レベル1につき」が前のステップの札を読み、
+  //   置いてもいないのに相手のデッキが削れる（無から有の過剰実行）。
+  const skipped = run({ type: 'STUB', id: 'INTERNAL_SELF_MILL_TOP_SKIP' } as EffectAction,
+    { ...ctx, lastProcessedCards: ['sentinel'] } as ExecCtx);
+  eq((skipped.lastProcessedCards ?? []).length, 0, 'スキップしたのに前の札が残っている');
+}));
+
+test('§5.3 defer解体⑪: PLACE_LOOKED_CARD_UNDER_SIGNI は対象シグニの下に置く（効果元の下ではない）', () => withSavedCursor(() => {
+  const SRC = 'WXK08-084';
+  const HOST = 'WX22-047';
+  const ctx = mkCtx({ signi: [SRC, HOST, null] }, {}, SRC);
+  const deckTop2 = ctx.ownerState.deck.slice(0, 2);
+  const picked = deckTop2[1];
+  const r = run({ type: 'STUB', id: 'INTERNAL_LOOKED_CARD_UNDER_APPLY', value: `${HOST}:${picked}` } as EffectAction, ctx);
+  ok(r.done, '完了する');
+  // 🔴置き先は**対象のシグニ**（効果元ではない）＝ここを取り違えると原文と別物になる。
+  eq(r.ownerState.field.signi[1]?.[0], picked, '対象シグニの下に入っていない');
+  eq(r.ownerState.field.signi[0]?.length, 1, '効果元の下に入れてしまっている');
+  // 残り1枚はデッキの一番下へ、公開した2枚ぶんデッキの先頭は進む。
+  eq(r.ownerState.deck[r.ownerState.deck.length - 1], deckTop2[0], '残りがデッキの一番下へ行っていない');
+  eq(r.ownerState.deck.length, ctx.ownerState.deck.length - 1, 'デッキ枚数が合わない（下に置いた1枚だけ減る）');
+}));
+
+test('§5.3 defer解体⑫: OPP_SPLIT_HAND_TWO_PILES は相手が分け、あなたが束を選び、相手が捨てる', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { hand: 4 });
+  const oppHand = [...ctx.otherState.hand];
+  // ①分割＝相手が応答する SELECT_TARGET（候補は相手の手札全部・0枚の束も作れる）。
+  const split = executeAction({ type: 'STUB', id: 'OPP_SPLIT_HAND_TWO_PILES' } as EffectAction, ctx);
+  ok(!split.done && split.pending.type === 'SELECT_TARGET', '分割の選択UIを出していない');
+  if (split.done || split.pending.type !== 'SELECT_TARGET') return;
+  eq(split.pending.candidates.length, 4, '相手の手札全部が候補になっていない');
+  ok(split.pending.optional, '0枚の束を作れない（「2つの束」は片方が空でもよい）');
+  // ②束の選択＝**枚数だけ**が見出し（裏向き＝中身は見えない）。
+  const piles = executeAction({ type: 'STUB', id: 'INTERNAL_HAND_PILES_CHOOSE' } as EffectAction,
+    { ...ctx, lastProcessedCards: oppHand.slice(0, 1) } as ExecCtx);
+  ok(!piles.done && piles.pending.type === 'CHOOSE', '束の選択UIを出していない');
+  if (piles.done || piles.pending.type !== 'CHOOSE') return;
+  eq(piles.pending.options.length, 2, '束が2つになっていない');
+  ok(piles.pending.options.every(o => !oppHand.some(n => o.label.includes(n))),
+    '🔴束の見出しに中身のカードが出ている（裏向きなのに見えてしまう）');
+  // ③捨てる＝選んだ束だけが相手のトラッシュへ。
+  const r = run({ type: 'STUB', id: 'INTERNAL_HAND_PILE_DISCARD', pileCards: oppHand.slice(0, 1) } as EffectAction, ctx);
+  eq(r.otherState.hand.length, 3, '選んだ束（1枚）だけが捨てられていない');
+  eq(r.otherState.trash[r.otherState.trash.length - 1], oppHand[0], '捨てた札が相手のトラッシュに入っていない');
+  ok(r.otherState.hand_discarded_just_by_opp, '「対戦相手の効果によって」の印が付いていない');
+  // 反転＝相手の手札が0枚なら束に分けられない。
+  const empty = run({ type: 'STUB', id: 'OPP_SPLIT_HAND_TWO_PILES' } as EffectAction,
+    { ...ctx, otherState: { ...ctx.otherState, hand: [] } } as ExecCtx);
+  ok(empty.done, '手札0枚なのに分割UIを出している');
 }));
 
 // ── §5.3 `O-60` 第52バッチ（2026-09-03）＝「原文から数値ひとつを読むだけ」family 12ハンドラを payload 化 ──
@@ -75553,9 +75630,11 @@ test('§5.3 O-280①③: 場かエナを跨ぐ統一対象選択と、秘匿2束
   eq(r.otherState.energy.length, 0, '🔴エナにあるシグニも候補になり、トラッシュされる');
   eq(r.otherState.trash.includes(lv1), true, 'エナから移動した先はトラッシュ');
 
-  // ③`WX25-P2-022-E2`＝機構が無いことを宣言する（catch-all の誤実行より defer が正しい）。
+  // ③`WX25-P2-022-E2`＝🏁**§5.3 `O-372` 第3バッチ（2026-09-14）で実装した**（旧＝明示 defer）。
+  //   🔴登録票の「engine に『相手が分割して提示し、こちらが集合を選ぶ』形が1つも無い」は**stale だった**＝
+  //     `O-307`（`WXEX2-12-E4`）が既存2部品で同じ骨格を作っていた。
   const p2022 = JSON.stringify(effectsMap.get('WX25-P2-022')!.find(e => e.effectId === 'WX25-P2-022-E2')!.action);
-  ok(p2022.includes('DEFERRED_OPP_SPLIT_HAND_TWO_PILES'), '🔴機構不在を宣言している');
+  ok(p2022.includes('OPP_SPLIT_HAND_TWO_PILES') && !p2022.includes('DEFERRED_'), '🔴分割→選択→捨てが実装されている');
   ok(!p2022.includes('TARGET_AND_DISCARD_HAND'), '🔴相手シグニ2体バニッシュ＋自分の手札2枚捨てへ戻っていない');
 }));
 

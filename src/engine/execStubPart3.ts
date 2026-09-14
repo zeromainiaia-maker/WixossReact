@@ -6261,5 +6261,166 @@ export function execStubPart3(
       `${ctx.cardMap.get(getCardNum(selfIST))?.CardName ?? selfIST}を${ctx.cardMap.get(getCardNum(hostIST))?.CardName ?? hostIST}の【アクセ】にした`));
   }
 
+  // ── §5.3 `O-372` 第3バッチ（2026-09-14）＝明示 defer の解体（その3）──────────────────────
+
+  // SELF_SIGNI_COLOR_TO_DECLARED（`WX22-042-E1` 後半）
+  // 「色１つを宣言する。ターン終了時まで、このシグニは**色を失い**、宣言した色を**得る**。」
+  // 🔑受け皿は既存の `signi_color_overrides`（`SIGNI_GAIN_ONE_LRIG_COLOR` と同じ置き場・
+  //   寿命は `BattleScreen.tsx:4324` のターン境界リセット＝原文の「ターン終了時まで」と一致）。
+  // ⚠**元の色に足すのではなく置き換える**＝原文が「色を失い」と書いている（`SIGNI_GAIN_ONE_LRIG_COLOR`
+  //   は「得る」だけなので連結している）。
+  // ⚠宣言が無ければ何もしない（fail-closed）。宣言は直前の `DECLARE_COLOR` が `declared_color` へ置く。
+  // 表示: このシグニは色を失い、宣言した色を得る（ターン終了時まで）
+  if (stub.id === 'SELF_SIGNI_COLOR_TO_DECLARED') {
+    const selfSCD = ctx.sourceCardNum;
+    const declaredSCD = ctx.ownerState.declared_color;
+    if (!selfSCD) return done(addLog(ctx, '効果元が不明（色の置き換えなし）'));
+    if (!declaredSCD) return done(addLog(ctx, '宣言された色がない（色の置き換えなし）'));
+    const overridesSCD = { ...(ctx.ownerState.signi_color_overrides ?? {}), [selfSCD]: declaredSCD };
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSCD } },
+      `${ctx.cardMap.get(getCardNum(selfSCD))?.CardName ?? selfSCD}は色を失い${declaredSCD}を得た`));
+  }
+
+  // OPTIONAL_SELF_MILL_TOP（`WX24-P4-085-E1` 前半）
+  // 「あなたのデッキの一番上のカードをトラッシュに置いて**もよい**。」
+  // 🔑後半「この方法でトラッシュに置かれた**シグニのレベル１につき**対戦相手のデッキの上から１枚」は
+  //   既存の `{$ref:'last_processed_level_sum'}` が読む＝ここは落とした札を `lastProcessedCards` に残すだけ。
+  // ⚠**スキップしたら空にする**＝残すと前のステップの札のレベルで相手のデッキが削れる（無から有の過剰実行）。
+  // 表示: あなたのデッキの一番上のカードをトラッシュに置いてもよい
+  if (stub.id === 'OPTIONAL_SELF_MILL_TOP') {
+    const deckOSM = ctx.ownerState.deck;
+    if (deckOSM.length === 0) return done({ ...addLog(ctx, 'デッキにカードがない'), lastProcessedCards: [] });
+    const topOSM = deckOSM[0];
+    const nameOSM = ctx.cardMap.get(getCardNum(topOSM))?.CardName ?? topOSM;
+    return needsInteraction(addLog(ctx, `デッキの一番上（${nameOSM}）をトラッシュに置きますか？`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'mill', label: `${nameOSM}をトラッシュに置く`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SELF_MILL_TOP_APPLY' } as StubAction) as EffectAction, available: true },
+        { id: 'skip', label: '置かない',
+          action: ({ type: 'STUB', id: 'INTERNAL_SELF_MILL_TOP_SKIP' } as StubAction) as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_SELF_MILL_TOP_APPLY') {
+    const deckAPP = ctx.ownerState.deck;
+    if (deckAPP.length === 0) return done({ ...addLog(ctx, 'デッキにカードがない'), lastProcessedCards: [] });
+    const topAPP = deckAPP[0];
+    return done({
+      ...addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: deckAPP.slice(1), trash: [...ctx.ownerState.trash, topAPP] } },
+        `${ctx.cardMap.get(getCardNum(topAPP))?.CardName ?? topAPP}をデッキの一番上からトラッシュへ`),
+      lastProcessedCards: [topAPP],
+    });
+  }
+  if (stub.id === 'INTERNAL_SELF_MILL_TOP_SKIP') {
+    // 🔴**空にするのが要**＝残すと後続の「レベル1につき」が前のステップの札を読む。
+    return done({ ...addLog(ctx, 'デッキの一番上を置かなかった'), lastProcessedCards: [] });
+  }
+
+  // PLACE_LOOKED_CARD_UNDER_SIGNI（`WXK08-084-E1`）
+  // 「あなたの＜ウェポン＞のシグニ１体を**対象とし**、あなたのデッキの上からカードを２枚見る。
+  //   その中から１枚を**それの**下に置く。残りをデッキの一番下に置く。」
+  // 🔴置き先は**効果元ではなく対象のシグニ**＝`PLACE_UNDER_SOURCE_SIGNI` の既定（効果元の下）では原文と違う。
+  //   ⇒ ①対象を選ぶ ②公開2枚から1枚を選ぶ ③残りをデッキの一番下へ、の3段で書く。
+  // ⚠置き先フィルタは payload（`placeUnderHostFilter`）＝engine が原文を読み直さない。
+  // 表示: あなたの対象のシグニ1体を選び、デッキの上から2枚のうち1枚をその下に置き、残りをデッキの一番下に置く
+  if (stub.id === 'PLACE_LOOKED_CARD_UNDER_SIGNI') {
+    const hostFilterPLC = stub.placeUnderHostFilter;
+    const candsPLC = fieldCandidatesByOwner('self', hostFilterPLC, ctx).cands;
+    if (candsPLC.length === 0) return done(addLog(ctx, '置き先にできるシグニが場にいない'));
+    const selectedPLC = (ctx.lastProcessedCards ?? []).find(cn => candsPLC.includes(cn));
+    if (!selectedPLC) {
+      return needsInteraction(addLog(ctx, 'カードを下に置くシグニを選ぶ'), {
+        type: 'SELECT_TARGET', candidates: candsPLC, count: 1, optional: false, targetScope: 'self_field',
+        thenAction: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+        continuation: ({ ...stub } as StubAction) as EffectAction,
+      });
+    }
+    // 公開2枚（デッキの上から）。1枚しか無ければそれを置く。
+    const lookPLC = ctx.ownerState.deck.slice(0, 2);
+    if (lookPLC.length === 0) return done(addLog(ctx, 'デッキにカードがない'));
+    const optsPLC = lookPLC.map(cn => ({
+      id: `under_${cn}`,
+      label: `${ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn}を下に置く`,
+      action: ({ type: 'STUB', id: 'INTERNAL_LOOKED_CARD_UNDER_APPLY',
+        value: `${selectedPLC}:${cn}` } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, `デッキの上から${lookPLC.length}枚を見た（${lookPLC.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('、')}）`),
+      { type: 'CHOOSE', options: optsPLC, count: 1 });
+  }
+  if (stub.id === 'INTERNAL_LOOKED_CARD_UNDER_APPLY') {
+    const valILU = typeof stub.value === 'string' ? stub.value : '';
+    const [hostILU, pickILU] = valILU.split(':');
+    if (!hostILU || !pickILU) return done(addLog(ctx, '引数不正（シグニの下に置く）'));
+    const signiILU = ctx.ownerState.field.signi;
+    const zoneILU = signiILU.findIndex(st => st?.includes(hostILU));
+    if (zoneILU < 0) return done(addLog(ctx, '置き先のシグニが場にいない'));
+    const lookedILU = ctx.ownerState.deck.slice(0, 2);
+    const restILU = lookedILU.filter(cn => cn !== pickILU);
+    const newSigniILU = signiILU.map((st, i) => (i === zoneILU ? [pickILU, ...(st ?? [])] : st)) as (string[] | null)[];
+    // ⚠**公開した2枚をまとめてデッキから抜き**、残りを一番下へ回す（原文「残りをデッキの一番下に置く」）。
+    const newDeckILU = [...ctx.ownerState.deck.slice(lookedILU.length), ...restILU];
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, deck: newDeckILU, field: { ...ctx.ownerState.field, signi: newSigniILU } },
+    }, `${ctx.cardMap.get(getCardNum(pickILU))?.CardName ?? pickILU}を${ctx.cardMap.get(getCardNum(hostILU))?.CardName ?? hostILU}の下に置き、残り${restILU.length}枚をデッキの一番下へ`));
+  }
+
+  // OPP_SPLIT_HAND_TWO_PILES（`WX25-P2-022-E2`）
+  // 「対戦相手は手札を裏向きで２つの束に分ける。あなたはどちらかの束を選び、対戦相手はその束を捨てる。」
+  // 🔑**先例と同じ骨格**＝`OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH`（§5.3 `O-307`）の
+  //   ゾーンを `lrig_deck` → `hand` に、3段目を「見る」→「捨てさせる」に替えただけ。
+  //   **新しい pending 型は足さない**＝既存2部品で原文の情報公開範囲がそのまま出る：
+  //   ①分割＝`opp_hand` × `opponentResponds` の SELECT_TARGET（**応答者だけに中身が見える**）。
+  //     選んだカードが束A、残りが束B。0枚の束も作れる（`optional`）。
+  //   ②束の選択＝効果使用者の CHOOSE。**見出しは枚数だけ**＝裏向き（中身を見ないで選ぶ）。
+  // ⚠**ctx の視点は反転しない**＝候補も適用先も `ctx.otherState`（`opponentResponds` は誰がクリックするかだけ）。
+  // 表示: 対戦相手は手札を裏向きで2つの束に分け、あなたが選んだ束を対戦相手が捨てる
+  if (stub.id === 'OPP_SPLIT_HAND_TWO_PILES') {
+    const handOSH = ctx.otherState.hand;
+    if (handOSH.length === 0) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手の手札がない（束に分けられない）'));
+    }
+    return selectOrInteract(handOSH, handOSH.length, true, 'opp_hand',
+      { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction,
+      { type: 'STUB', id: 'INTERNAL_HAND_PILES_CHOOSE' } as StubAction,
+      addLog(ctx, '対戦相手は手札を裏向きで2つの束に分ける（選んだカードが束A・残りが束B）'), true);
+  }
+  if (stub.id === 'INTERNAL_HAND_PILES_CHOOSE') {
+    const handHPC = ctx.otherState.hand;
+    const pickedHPC = new Set((ctx.lastProcessedCards ?? []).filter(n => handHPC.includes(n)));
+    const pileAHPC = handHPC.filter(n => pickedHPC.has(n));
+    const pileBHPC = handHPC.filter(n => !pickedHPC.has(n));
+    const discardPile = (pileCards: string[]): EffectAction =>
+      ({ type: 'STUB', id: 'INTERNAL_HAND_PILE_DISCARD', pileCards } as StubAction as EffectAction);
+    return needsInteraction(addLog({ ...ctx, lastProcessedCards: [] },
+      `対戦相手は束A${pileAHPC.length}枚・束B${pileBHPC.length}枚に分けた`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'hand_pile_a', label: `束A（${pileAHPC.length}枚）を捨てさせる`, action: discardPile(pileAHPC), available: true },
+        { id: 'hand_pile_b', label: `束B（${pileBHPC.length}枚）を捨てさせる`, action: discardPile(pileBHPC), available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_HAND_PILE_DISCARD') {
+    const handHPD = ctx.otherState.hand;
+    const pileHPD = (stub.pileCards ?? []).filter(n => handHPD.includes(n));
+    if (pileHPD.length === 0) return done({ ...addLog(ctx, '選んだ束は0枚（捨てるカードなし）'), lastProcessedCards: [] });
+    const nextHPD: PlayerState = {
+      ...ctx.otherState,
+      hand: handHPD.filter(n => !pileHPD.includes(n)),
+      trash: [...ctx.otherState.trash, ...pileHPD],
+      // 🔑相手側から見れば「対戦相手の効果によって」手札を失った（`HAND_TRASHED_BY_OPP` 等の材料）。
+      hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...pileHPD],
+      hand_discarded_just_by_opp: true,
+      hand_trashed_by_opp_this_turn: (ctx.otherState.hand_trashed_by_opp_this_turn ?? 0) + pileHPD.length,
+    };
+    return done({
+      ...addLog({ ...ctx, otherState: nextHPD }, `対戦相手は選ばれた束${pileHPD.length}枚を捨てた`),
+      lastProcessedCards: pileHPD,
+    });
+  }
+
   return null;
 }

@@ -16548,8 +16548,6 @@ const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   // ── LOOK_OPP_LIFE_TOP 側 ──
   [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
   // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
-  [/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/, 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
-  [/その中から[０-９\d]+枚をそれの下に置く/, 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
   [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
 ];
 
@@ -16655,6 +16653,19 @@ function rewriteCatchAllStubs(text: string, action: EffectAction): EffectAction 
     // 🆕`WDK17-015-E1`。既存 `ATTACH_ACCE` はアクセ札の出どころが エナ／手札／ルリグデッキ の3経路だけで、
     //   「**場に居る効果元自身**がアクセになる」形が書けない＝STUB ハンドラ1本で実装した。
     replacement = { type: 'STUB', id: 'SELF_BECOME_ACCE_OF_PLAYED_SIGNI' } as EffectAction;
+  } else if (/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/.test(t)) {
+    // 🆕`WX24-P4-085-E1` 前半。後半「シグニのレベル1につき相手のデッキの上から1枚」は
+    //   既存の `{$ref:'last_processed_level_sum'}` が読む（配線は `wireLevelSumAfterOptionalSelfMill`）。
+    replacement = { type: 'STUB', id: 'OPTIONAL_SELF_MILL_TOP' } as EffectAction;
+  } else if (/その中から[０-９\d]+枚をそれの下に置く/.test(t)) {
+    // 🆕`WXK08-084-E1`。🔴置き先は**効果元ではなく対象のシグニ**なので、
+    //   `PLACE_UNDER_SOURCE_SIGNI` の既定（効果元の下）では原文と違う＝3段の STUB で書く。
+    // ⚠置き先フィルタは原文の「あなたの＜X＞のシグニ1体を対象とし」から刻む（engine は原文を読まない）。
+    const hostClsPU = t.match(/あなたの[＜〈<]([^＞〉>]+)[＞〉>]のシグニ[０-９\d]*体を対象とし/);
+    replacement = {
+      type: 'STUB', id: 'PLACE_LOOKED_CARD_UNDER_SIGNI',
+      placeUnderHostFilter: { cardType: 'シグニ', ...(hostClsPU ? { story: hostClsPU[1] } : {}) },
+    } as EffectAction;
   }
   if (replacement) {
     for (const key of Object.keys(bare[0])) delete bare[0][key];
@@ -16935,8 +16946,10 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
     } as StubAction);
   }
   if (/このシグニは色を失い[^。]*宣言した色を得る/.test(t)) {
+    // 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝実装した**（`WX22-042-E1`）。
+    //   受け皿は既存の `signi_color_overrides`（寿命はターン境界リセット＝原文「ターン終了時まで」と一致）。
     return replaceUniquePowerModPerCount(action, {
-      type: 'STUB', id: 'DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED',
+      type: 'STUB', id: 'SELF_SIGNI_COLOR_TO_DECLARED',
     } as StubAction);
   }
   if (/対戦相手のデッキの上からカードを宣言した数字に等しい枚数トラッシュに置く/.test(t)) {
@@ -26245,6 +26258,95 @@ function wireDrawnCountForHandToDeckBottom(_card: CardData, effects: CardEffect[
   }
 }
 
+/**
+ * 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝「この方法でトラッシュに置かれたシグニのレベル１につき」を配線する。**
+ *
+ * `WX24-P4-085-E1` の後半は **素の `TRASH{DECK_CARD opponent, count:1}`**＝
+ * 🔴前半の任意ミルを**しなかった場合でも相手のデッキが1枚削れ**、しかも**レベルに比例しない**（常に1枚）。
+ * 🔑受け皿は既存の `{$ref:'last_processed_level_sum'}`（`execUtils.ts:271`）＝
+ *   前半（`OPTIONAL_SELF_MILL_TOP`）が落とした札を読む。**スキップ時は空**なので合計0＝1枚も削れない。
+ * ⚠**前半のミルが同じ効果に居るときだけ**掛ける（fail-closed）。
+ */
+function wireLevelSumAfterOptionalSelfMill(_card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    for (let i = 1; i < steps.length; i++) {
+      const prev = steps[i - 1] as { type?: string; id?: string };
+      if (prev.type !== 'STUB' || prev.id !== 'OPTIONAL_SELF_MILL_TOP') continue;
+      const cur = steps[i] as { type?: string; target?: { type?: string; count?: unknown } };
+      if (cur.type !== 'TRASH' || cur.target?.type !== 'DECK_CARD') continue;
+      cur.target.count = { $ref: 'last_processed_level_sum' };
+    }
+  }
+}
+
+/**
+ * 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝「〜場合、」の傘を後続の文にも掛ける。**
+ *
+ * `WXDi-P09-065-E1`「**対戦相手の場に凍結状態のシグニがある場合**、対戦相手の手札を見る。
+ * **あなたはその中から**《ガードアイコン》を持たないカード１枚を選びデッキの一番下に置いてもよい。
+ * そうした場合、対戦相手はカードを１枚引く。」は、文の分割で**1文目だけ**が条件の中に入り、
+ * 🔴**2文目以降が条件の外**に出ていた＝**凍結シグニが1体も居なくても相手の手札をデッキの一番下へ送れる**
+ *   過剰実行（しかも「その中から」＝見てもいない手札から選ぶ）。
+ *
+ * 🔑**掛ける条件は1文目とまったく同じノード**（新しい条件型は作らない）。
+ * ⚠**この形（先頭 CONDITIONAL の `then` が相手手札の LOOK ∧ 原文が「場合、対戦相手の手札を見る。あなたはその中から」）
+ *   だけ**に限定する（fail-closed）。母集団は実測1効果。
+ */
+function extendFrozenHandLookGate(card: CardData, effects: CardEffect[]): void {
+  if (!/場合、対戦相手の手札を見る。あなたはその中から/.test(card.EffectText ?? '')) return;
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    if (steps.length < 2) continue;
+    const head = steps[0] as { type?: string; condition?: unknown; then?: { type?: string; source?: { location?: string; owner?: string } } };
+    if (head.type !== 'CONDITIONAL' || !head.condition) continue;
+    if (head.then?.type !== 'LOOK_AND_REORDER') continue;
+    if (head.then.source?.location !== 'hand' || head.then.source?.owner !== 'opponent') continue;
+    effect.action = {
+      type: 'CONDITIONAL',
+      condition: head.condition,
+      then: { type: 'SEQUENCE', steps: [head.then as EffectAction, ...steps.slice(1)] },
+    } as EffectAction;
+  }
+}
+
+/**
+ * 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝`PLACE_LOOKED_CARD_UNDER_SIGNI` の手前の重複 LOOK を畳む。**
+ *
+ * `WXK08-084-E1` は「あなたのデッキの上からカードを**２枚見る**」が
+ * ①先行の `LOOK_AND_REORDER{deck, count:2, destination:deck/top}`（見て戻すだけ＝盤面は動かない）と
+ * ②`STUB{PLACE_LOOKED_CARD_UNDER_SIGNI}`（**中で同じ2枚を見せて選ばせる**）の**2回**表現されていた。
+ * ⇒ ①は二重表現なので落とす（`SP26-001-E1` の `pruneDuplicateRemainderDefer` と同型）。
+ * ⚠**枚数・ゾーン・行き先が一致する LOOK だけ**を落とす（fail-closed）。
+ */
+function pruneDuplicateLookBeforePlaceUnder(_card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    let pruned = false;
+    for (let i = 1; i < steps.length; i++) {
+      const cur = steps[i] as { type?: string; id?: string };
+      if (cur.type !== 'STUB' || cur.id !== 'PLACE_LOOKED_CARD_UNDER_SIGNI') continue;
+      const prev = steps[i - 1] as {
+        type?: string; count?: number;
+        source?: { location?: string; owner?: string };
+        destination?: { location?: string; position?: string };
+      };
+      if (prev.type !== 'LOOK_AND_REORDER') continue;
+      if (prev.source?.location !== 'deck' || prev.source?.owner !== 'self') continue;
+      if (prev.destination?.location !== 'deck' || prev.destination?.position !== 'top') continue;
+      if (prev.count !== 2) continue;
+      steps.splice(i - 1, 1);
+      i--;
+      pruned = true;
+    }
+    // ⚠**畳んだ効果だけ**1要素 SEQUENCE の包みを外す（全効果に掛けると無関係な86カードが held に回る＝実測）。
+    if (pruned && steps.length === 1) effect.action = steps[0];
+  }
+}
+
 function applyRepositionEmptyOnlyNote(card: CardData, effects: CardEffect[]): void {
   if (!/すでにシグニのあるシグニゾーンには配置できない/.test(card.EffectText ?? '')) return;
   for (const effect of effects) {
@@ -31174,6 +31276,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // ⚠**`rewriteCatchAllStubs` の後**に回す＝前半のミルが `OPP_DECK_BOTTOM_MILL` に化けてからでないと噛まない。
   applyNameEqLastProcessedAfterBottomMill(card, effects);
   applyRepositionEmptyOnlyNote(card, effects);
+  pruneDuplicateLookBeforePlaceUnder(card, effects);
+  extendFrozenHandLookGate(card, effects);
+  wireLevelSumAfterOptionalSelfMill(card, effects);
   gateBlindRevealedHandConsequence(card, effects);
   wireDrawnCountForHandToDeckBottom(card, effects);
   // 🆕「以下のNつから1つを選ぶ。この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う。」

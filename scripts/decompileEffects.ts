@@ -4836,6 +4836,15 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'CHOOSE_COLOR_FROM_LIST') {
         return 'あなたのエナゾーンにあるカードが持つ色から1つを選ぶ';
       }
+      // デッキ上2枚のうち1枚を、対象のシグニの下に置く（PLACE_LOOKED_CARD_UNDER_SIGNI・engine実装済み）。
+      // 🆕**§5.3 `O-372` 第3バッチ（2026-09-14）＝置き先のフィルタ（`placeUnderHostFilter`）から描く。**
+      //   🔴置き先は**効果元ではなく対象のシグニ**なので、フィルタを描かないと「どのシグニの下か」が消える。
+      if (a.id === 'PLACE_LOOKED_CARD_UNDER_SIGNI') {
+        // ⚠`filterJa` は `cardType:'シグニ'` を落とすことがあるので、末尾に「シグニ」が無ければ足す。
+        const hostRawPL = filterJa(a.placeUnderHostFilter) || '';
+        const hostPL = hostRawPL.endsWith('シグニ') ? hostRawPL : `${hostRawPL}シグニ`;
+        return `あなたの${hostPL}1体を対象とし、あなたのデッキの上から2枚を見て、その中から1枚をそれの下に置き、残りをデッキの一番下に置く`;
+      }
       // シグニの配置替え（SIGNI_REPOSITION / MOVE_TARGET_SIGNI_TO_OTHER_ZONE・engine実装済み）。
       // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝payload（`owner` / `repositionAll`）から描く。**
       // 🔴持ち主は原文では**前の文**にあり、旧 engine はブロック全文を読んで決めていた

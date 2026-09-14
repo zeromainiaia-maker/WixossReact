@@ -247,19 +247,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔑受け皿は既存＝`EffectTarget.countFromZone`（`zone:'field'` ＋ `filter.isFrozen`）で
   //   「相手の凍結シグニの数」を動的枚数に解決する。捨てる主体は `owner:'opponent'`（既定＝本人が選ぶ）。
   // ⚠使用条件（クロス状態のシグニ）とコスト（《ダウン》）は旧 live で既に正しいので**触らない**。
-  // ── WX25-P2-022（ソウイ＝スリー）E2 ＝**明示 defer**（新しい秘匿 interaction が要る）
+  // ── WX25-P2-022（ソウイ＝スリー）E2
   //   原文＝【起】《ゲーム１回》ワンサイド《青×0》：対戦相手は手札を裏向きで２つの束に分ける。
   //         あなたはどちらかの束を選び、対戦相手はその束を捨てる。
   // 🔴旧 live は catch-all ×2 ＝**相手シグニを2体バニッシュし、自分が手札を2枚捨てる**＝
   //   原文と1つも共通点が無いうえ、**自分が損して相手も別の損をする**明確な誤実行だった。
-  //   ⇒ 何もしない明示 defer のほうが厳密に正しい（PLAN §5.3「1枚のために機構を作らないと決めてよい」）。
-  // 🔑要る機構＝**相手側が伏せて2束に分ける** → **こちらが束だけを見て選ぶ** → **相手がその束を捨てる**。
-  //   engine の pending には「相手が分割して提示し、こちらが集合を選ぶ」形が1つも無く、
-  //   `src/screens/` に分割UIと選択UIの両方が要る（live 1効果）。
+  // 🆕🏁**2026-09-14（§5.3 `O-372` 第3バッチ）＝実装した。**
+  // 🔴**旧注記「engine の pending には『相手が分割して提示し、こちらが集合を選ぶ』形が1つも無い／
+  //   `src/screens/` に分割UIと選択UIの両方が要る』は stale だった**＝
+  //   §5.3 `O-307`（2026-09-11・`WXEX2-12-E4`）が**まったく同じ骨格**を既存2部品だけで作っている
+  //   （①`opponentResponds` の SELECT_TARGET＝応答者だけに中身が見える分割 ②枚数だけを見出しにした CHOOSE）。
+  //   ⇒ ゾーンを `lrig_deck` → `hand` に、3段目を「見る」→「捨てさせる」に替えるだけで済んだ。
+  //   🔑**「受け皿が無い」と書いた登録票は、着手前にもう一度 grep する**（§5.3・外れ続き）。
   "WX25-P2-022": [
     {"effectId":"WX25-P2-022-E2","effectType":"ACTIVATED","timing":["MAIN"],
      "cost":{"energy":[{"color":"青","count":0}]},
-     "action":{"type":"STUB","id":"DEFERRED_OPP_SPLIT_HAND_TWO_PILES"},
+     "action":{"type":"STUB","id":"OPP_SPLIT_HAND_TWO_PILES"},
      "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 

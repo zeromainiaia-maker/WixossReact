@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第333バッチ：§5.3 `O-372` 明示 defer の解体 第3バッチ（10 → 5）
+
+**5効果を消化**（`npm run census:stubs` A群 明示 defer **10種/10件 → 5種/5件**）。
+🔑**3バッチ連続で「受け皿は既に在った」**（6/6・6/6・5/5）。新しいアクション型はここまで**通算0**。
+
+### 消化した5効果
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `WX22-042-E1` | 「このシグニは色を失い、宣言した色を得る」が no-op | 受け皿は既存の `signi_color_overrides`（寿命はターン境界リセット＝原文「ターン終了時まで」と一致）。⚠**置換であって連結ではない**（原文が「色を**失い**」と書いている） |
+| `WX24-P4-085-E1` | 🔴**両方向のバグ**＝前半の任意ミルが no-op なうえ、後半が**素の `TRASH{DECK_CARD opponent, count:1}`**＝**置かなくても相手のデッキが1枚削れ**、しかも**レベルに比例しない**（常に1枚） | `STUB{OPTIONAL_SELF_MILL_TOP}`＋後半の枚数を既存 `{$ref:'last_processed_level_sum'}` へ。**スキップ時は `lastProcessedCards` を空にする**ので合計0＝1枚も削れない |
+| `WXK08-084-E1` | 「その中から1枚をそれの下に置く」が no-op | `STUB{PLACE_LOOKED_CARD_UNDER_SIGNI}` の3段（対象選択→2枚から1枚→残りをデッキ下）。🔴**置き先は効果元ではなく対象のシグニ**なので `PLACE_UNDER_SOURCE_SIGNI` の既定では原文と違う＝新 payload `placeUnderHostFilter` |
+| `WXDi-P09-065-E1` | 🔴**両方向のバグ**＝選んでデッキ下へ置く部分が no-op なうえ、**「〜場合」の傘が1文目にしか掛かっておらず**、凍結シグニが1体も居なくても相手の手札をデッキの一番下へ送れた（しかも「その中から」＝見てもいない手札から） | 受け皿は既存の `TRANSFER_TO_DECK{HAND_CARD opponent, noGuard, bottom}`。⚠**スキップ可にするのは `source.upToCount`**（この経路は `a.optional` を見ない）。条件の傘は `extendFrozenHandLookGate` で後続の文へ広げた |
+| `WX25-P2-022-E2` | 「対戦相手は手札を裏向きで2つの束に分ける。あなたはどちらかの束を選び、対戦相手はその束を捨てる」が no-op | `STUB{OPP_SPLIT_HAND_TWO_PILES}`＝**`O-307` とまったく同じ骨格**（①`opponentResponds` の SELECT_TARGET＝応答者だけに中身が見える分割 ②**枚数だけ**を見出しにした CHOOSE ③捨てさせる） |
+
+### 🔴 登録票が stale だった件（記録に残す）
+
+`WX25-P2-022` の `manualEffects.ts` の注記は
+「**engine の pending には『相手が分割して提示し、こちらが集合を選ぶ』形が1つも無く、`src/screens/` に
+分割UIと選択UIの両方が要る**」と書いていたが、**これは stale だった**＝
+§5.3 `O-307`（2026-09-11・`WXEX2-12-E4`）が**既存2部品だけで同じ骨格**を作っている。
+ゾーンを `lrig_deck` → `hand` に、3段目を「見る」→「捨てさせる」に替えるだけで済んだ。
+🔑**「受け皿が無い」と書いた登録票は、着手前にもう一度 grep する**（PLAN §5.3 の「連続12項目外れている」の13件目）。
+
+### 併せて直した二重表現（1件）
+
+`WXK08-084-E1` は「デッキの上から2枚見る」を**2回**表現していた（先行の `LOOK_AND_REORDER`（見て戻すだけ）＋
+新しい STUB が中で同じ2枚を見せる）。先行の LOOK を畳んだ（`SP26-001-E1` と同型）。
+⚠**実装時に踏んだ罠**＝畳み込みの最後に `if (steps.length === 1) effect.action = steps[0]` を**全効果に掛けてしまい**、
+無関係な **86カード**が `_held_fresh` に回った。**畳んだ効果だけ**に限定して解消（`pruned` フラグ）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4165 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・lint 0 errors）。
+- **挙動 golden 4本を追加**（`§5.3 defer解体⑨〜⑫`）＝全件**反転確認つき**。
+  🔑⑫は「**束の見出しに中身のカードが出ていない**」まで assert している（裏向きの情報公開範囲が主眼の効果なので）。
+- 新 payload `placeUnderHostFilter` は**意味を持つ**ので `decompileEffects.ts` に描画を足した（IGNORED にしない）。
+- 逆翻訳を5枚とも原文と目視照合。新 STUB 4本は `// 表示:` → `genStubsMd` → `regen`＝**生 ID 露出0**。
+- **実機は不要と判定**（§2.2）＝`src/screens/` は無変更・新しいアクション型なし。
+  ⚠`WX25-P2-022-E2` は `manualEffects.ts` 側なので `npx tsx scripts/syncManualLive.ts WX25-P2-022` で live へ配送した。
+
 ## 2026-09-14 — 第332バッチ：§5.3 `O-372` 明示 defer の解体 第2バッチ（16 → 10）
 
 **6効果を消化**（`npm run census:stubs` A群 明示 defer **16種/16件 → 10種/10件**）。
