@@ -1,20 +1,20 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 373
+PlayerState のキー: 375
 🔴 書きあり・読み 0: 0
 
 
 ## 参考：書き込みの多い順（上位40）
   1520 読 / 104 書  energy
-  3744 読 /  74 書  field
+  3745 読 /  74 書  field
   1272 読 /  73 書  deck
   1683 読 /  65 書  trash
   1804 読 /  61 書  hand
    202 読 /  36 書  lrig_deck
     55 読 /  36 書  temp_power_mods
    174 読 /  23 書  lrig_trash
-   124 読 /  23 書  keyword_grants
+   130 読 /  23 書  keyword_grants
    156 読 /  21 書  life_cloth
     96 読 /  18 書  blocked_actions
    103 読 /  15 書  coins
@@ -25,7 +25,7 @@ PlayerState のキー: 373
     11 読 /  10 書  pending_crash_source_card_nums
     27 読 /  10 書  granted_effects
      5 読 /  10 書  banish_substitute_choice
-    16 読 /   9 書  pending_crashed_cards
+    17 読 /   9 書  pending_crashed_cards
      6 読 /   9 書  crash_source_card_num
     10 読 /   8 書  card_class_overrides
     13 読 /   7 書  story_overrides

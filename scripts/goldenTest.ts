@@ -63127,12 +63127,16 @@ test('manual2 A2 WD15-001-E2: ダブルクラッシュ付与はルリグだけ�
   eq(grant.duration, 'UNTIL_END_OF_TURN', 'ターン終了時までを保持');
 });
 
+// 🆕**§5.3 `O-367`（2026-09-14）＝期待値を `END_OF_ATTACK` へ更新した。**
+//   🔴旧値 `UNTIL_END_OF_TURN` は「既存のアタック中一時付与**慣例**」というコメントのとおり
+//     **受け皿が無いことへの近似**を固定していた＝**近似をテストで固定すると、機構ができても誰も直さない。**
+//   ⚠`WD15-001-E2`（すぐ上）は原文が本当に「ターン終了時まで」なので `UNTIL_END_OF_TURN` のままが正。
 test('manual2 A3 WX19-023-E2: そのアタック中の付与はLRIG・非PERMANENT', () => {
   const effect = manualFreshEffect('WX19-023', 'WX19-023-E2');
   const grant = effect.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
   eq(grant.target.type, 'LRIG', '「そのルリグ」の対象型');
   ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
-  eq(grant.duration, 'UNTIL_END_OF_TURN', '既存のアタック中一時付与慣例');
+  eq(grant.duration, 'END_OF_ATTACK', '原文「そのアタックの間」＝§5.3 `O-367` で受け皿を作った');
   ok(grant.duration !== 'PERMANENT', '旧誤動作の永続付与へ戻っていない');
 });
 
@@ -81981,6 +81985,92 @@ test('O-366 ルリグ再アタック: 母集団＝ON_ATTACK_LRIG で自分のル
     }
   }
   ok(n >= 18, `ON_ATTACK_LRIG で自分のルリグをアップする効果が ${n} 件しか無い（2026-09-14 実測 20）`);
+});
+
+// ── §5.3 `O-367`（2026-09-14）＝「そのアタックの間」だけ続く付与 ────────────────────
+// 🔴`O-366` でルリグの再アタックが**実際にできるようになった**ので、
+//   「そのアタックの間」を `UNTIL_END_OF_TURN` で代用していた 2効果が**2回目のアタックにも乗る**過剰実行になった。
+//   ⚠それまでは2回目のアタック自体が無かったので無害だった＝**機構を1つ直すと別の穴が到達可能になる**。
+test('O-367 そのアタックの間: GRANT_KEYWORD の END_OF_ATTACK は台帳に控える', () => {
+  const ctx = mkCtx({ lrig: ['WX19-023'] }, {});
+  const res = run({
+    type: 'GRANT_KEYWORD', target: { type: 'LRIG', owner: 'self', count: 1 },
+    keyword: 'ダブルクラッシュ', duration: 'END_OF_ATTACK',
+  } as unknown as EffectAction, ctx);
+  const st = res.ownerState as PlayerState;
+  // 🔑**実体は `keyword_grants`**＝キーワードの読み手（engine／UI に多数）を1つも増やさない設計。
+  ok((st.keyword_grants?.['WX19-023'] ?? []).includes('ダブルクラッシュ'),
+    '🔴keyword_grants に入っていない＝どの読み手にも届かない（別ストアを作ると必ず読み漏れる）');
+  ok((st.keyword_grants_this_attack?.['WX19-023'] ?? []).includes('ダブルクラッシュ'),
+    '🔴台帳が無い＝アタック終了時に剥がせない（＝UNTIL_END_OF_TURN と同じ挙動に戻る）');
+  // 対照＝既定（ターン終了まで）は台帳を積まない＝既存の付与は1バイトも変わらない。
+  const turnRes = run({
+    type: 'GRANT_KEYWORD', target: { type: 'LRIG', owner: 'self', count: 1 },
+    keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN',
+  } as unknown as EffectAction, mkCtx({ lrig: ['WX19-023'] }, {}));
+  eq((turnRes.ownerState as PlayerState).keyword_grants_this_attack, undefined,
+    '🔴UNTIL_END_OF_TURN なのに台帳を積んでいる（既存の付与がアタック終了で消える）');
+});
+test('O-367 そのアタックの間: clearEndOfAttackEffects は台帳の分だけ引く', () => {
+  const base = mkState({ lrig: ['WX19-023'] });
+  // 🔑**同じキーワードをターン継続の別効果も付けている**状況＝1つだけ引く（全部消すと過少）。
+  const st: PlayerState = {
+    ...base,
+    keyword_grants: { 'WX19-023': ['ダブルクラッシュ', 'ダブルクラッシュ', 'ランサー'] },
+    keyword_grants_this_attack: { 'WX19-023': ['ダブルクラッシュ'] },
+  } as PlayerState;
+  const cleared = clearEndOfAttackEffects(st);
+  eq((cleared.keyword_grants?.['WX19-023'] ?? []).filter(k => k === 'ダブルクラッシュ').length, 1,
+    '🔴ターン継続で付いていた分まで消えた（過少）／または1つも引けていない（過剰）');
+  ok((cleared.keyword_grants?.['WX19-023'] ?? []).includes('ランサー'), '無関係なキーワードを巻き込んだ');
+  eq(cleared.keyword_grants_this_attack, undefined, '台帳が残っている＝次のアタックでも引かれる');
+  // 対照＝台帳が無い state は素通り（既存の呼び出し地点の挙動を変えない）。
+  const untouched = clearEndOfAttackEffects(base);
+  eq(untouched.keyword_grants, base.keyword_grants, '台帳が無いのに keyword_grants を書き換えた');
+});
+test('O-367 そのアタックの間: CRASH_TO_TRASH_INSTEAD の期間は payload が持つ', () => {
+  const atk = run({ type: 'STUB', id: 'CRASH_TO_TRASH_INSTEAD', untilEndOfAttack: true } as unknown as EffectAction,
+    mkCtx({}, {}));
+  const atkS = atk.ownerState as PlayerState;
+  eq(atkS.crash_to_trash_instead, true, '🔴消費地点が読むフラグが立っていない（読み手は本体だけを見る）');
+  eq(atkS.crash_to_trash_ends_this_attack, true, '🔴「そのアタックの間」の印が無い＝ターン継続に化ける');
+  // 🔴**クラッシュが未処理の回は落とさない**＝`crash_to_trash_instead` を読む `performLifeBurstResponse` は
+  //   `clearEndOfAttackEffects` より**後**に走るので、ここで消すと `WX19-034-E1` が丸ごと no-op になる
+  //   （＝過剰実行を直すつもりで無実行にする）。最後の1枚を処理したあちら側が落とす。
+  eq(clearEndOfAttackEffects(atkS, { crashPending: true }).crash_to_trash_instead, true,
+    '🔴このアタックのクラッシュがまだ未処理なのに置換を落とした＝置換が一度も効かなくなる');
+  // ガードされた／ダメージが出なかった回は `performLifeBurstResponse` が走らない＝ここが唯一の解除機会。
+  eq(clearEndOfAttackEffects(atkS).crash_to_trash_instead, undefined,
+    'クラッシュが無い回にアタック終了で落ちていない（次のアタックへ持ち越す）');
+  // 対照＝既定はターン継続（`WX25-P3-032-E2` の原文は「このターン、次に〜」）。
+  const turn = run({ type: 'STUB', id: 'CRASH_TO_TRASH_INSTEAD' } as unknown as EffectAction, mkCtx({}, {}));
+  const turnS = turn.ownerState as PlayerState;
+  eq(turnS.crash_to_trash_ends_this_attack, undefined, '既定なのに「そのアタックの間」になっている');
+  eq(clearEndOfAttackEffects(turnS).crash_to_trash_instead, true,
+    '🔴ターン継続の指定までアタック終了で消えた（`WX25-P3-032-E2` が1回で切れる）');
+  // 🔑キーワード側は `crashPending` に関係なく落ちる（枚数の確定はアタック解決の中で終わっている）。
+  const kwSt: PlayerState = {
+    ...mkState({ lrig: ['WX19-023'] }),
+    keyword_grants: { 'WX19-023': ['ダブルクラッシュ'] },
+    keyword_grants_this_attack: { 'WX19-023': ['ダブルクラッシュ'] },
+  } as PlayerState;
+  eq(clearEndOfAttackEffects(kwSt, { crashPending: true }).keyword_grants, undefined,
+    '🔴クラッシュ未処理を理由にキーワードまで残した＝2回目のアタックにも乗る');
+});
+test('O-367 そのアタックの間: live の 2効果が期間を持つ（母集団カウンタ）', () => {
+  // 🔑**原文に「そのアタックの間」がある効果を全数で見る**＝新しいカードが増えたらここで気付く。
+  //   ⚠**大半は正しい形**＝`BLOCK_ACTION{GUARD, until:'END_OF_ATTACK'}`（「対戦相手は【ガード】ができない」）。
+  //   ここが数えるのは**その2つ以外**＝キーワード付与とクラッシュ先置換。
+  const e023 = (effectsMap.get('WX19-023') ?? []).find(x => x.effectId === 'WX19-023-E2');
+  eq((e023?.action as { duration?: string } | undefined)?.duration, 'END_OF_ATTACK',
+    '🔴WX19-023-E2 が UNTIL_END_OF_TURN に戻っている＝2回目のアタックにも【ダブルクラッシュ】が乗る');
+  const e034 = JSON.stringify((effectsMap.get('WX19-034') ?? []).find(x => x.effectId === 'WX19-034-E1')?.action ?? {});
+  ok(e034.includes('"untilEndOfAttack":true'),
+    '🔴WX19-034-E1 の期間が落ちている＝クラッシュ先の置換がターン継続に化ける');
+  // 🔴対照＝原文が「このターン、次に〜」の `WX25-P3-032-E2` は**付けない**（付けると1回で切れる）。
+  const e032 = JSON.stringify((effectsMap.get('WX25-P3-032') ?? []).find(x => x.effectId === 'WX25-P3-032-E2')?.action ?? {});
+  ok(e032.includes('CRASH_TO_TRASH_INSTEAD') && !e032.includes('untilEndOfAttack'),
+    '🔴WX25-P3-032-E2（原文「このターン、次に」）にまで「そのアタックの間」が付いた');
 });
 
 if (listMode) {

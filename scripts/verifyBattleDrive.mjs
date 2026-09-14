@@ -59178,7 +59178,268 @@ scenarios.v222LrigReattackControl = {
   async drive(page, H) { return runV222Round(page, H, { withUpSigni: false }); },
 };
 
-order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn', 'v222LrigReattackUp', 'v222LrigReattackControl');
+// ── V-223（§5.3 `O-367`・2026-09-14）＝「そのアタックの間」だけ続く付与 ─────────────
+// 🔴`WX19-023-E2`「【自】《ターン１回》：あなたのセンタールリグがアタックしたとき、**そのアタックの間**、
+//   そのルリグは【ダブルクラッシュ】を得る」は live で `duration:'UNTIL_END_OF_TURN'` だった＝
+//   **そのターンの2回目以降のアタックにも乗る**。⚠`O-366`（第326）で再アタックが実際にできるように
+//   なるまで2回目のアタック自体が無かったので、それまでは無害だった。
+// 🔑**対照は別シナリオではなく「同じターンの1回目と2回目」**＝盤面も操作も完全に同じで、
+//   違うのは「そのアタックが終わったかどうか」だけ＝1ビットの対照になる（§4.4 罠3）。
+//   期待＝**1回目はライフ2枚（ダブルクラッシュ）／2回目は1枚**＝合計3枚（7→4）。
+//   🔴直す前は **2枚＋2枚＝4枚（7→3）**。
+const V223_DOUBLE_SIGNI = 'WX19-023#36600';  // そのアタックの間【ダブルクラッシュ】を与える
+const V223_UP_SIGNI = 'WX19-021#36601';      // 再アタック用（`O-366`／`V-222` と同じ札）
+const V223_HOST_LRIG = 'WD01-002#36602';
+const V223_GUEST_LRIG = 'WD01-001#36603';
+
+scenarios.v223DoubleCrushOneAttackOnly = {
+  title: 'V-223 O-367: WX19-023-E2の【ダブルクラッシュ】は1回目のアタックだけ（2回目は素で1枚）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V223_HOST_LRIG],
+      'field.lrig_down': false,
+      'field.signi': [[V223_DOUBLE_SIGNI], [V223_UP_SIGNI], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      hand: [], energy: [], actions_done: [], game_actions_done: [],
+    },
+    guestSet: {
+      'field.lrig': [V223_GUEST_LRIG],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      // ⚠ガード候補を空にしてアタックが決定的にクラッシュまで進むようにする。
+      hand: [], energy: [], actions_done: [], game_actions_done: [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // ⚠**前シナリオの開きっぱなしモーダルを必ず落とす**（§4.4 罠1）＝残っていると全クリックが通らず、
+    //   症状は「押したいボタンが出ない」という**別の場所の空振り**になる（バッチ実行でだけ落ちる）。
+    await H.closeModals();
+    const before = await H.queryState();
+    const baseLife = before?.guest?.life ?? 0;
+    let attacks = 0;
+    /**
+     * 🔴**アタック宣言の直前のライフを控えて、あとから引き算する**。
+     * 初版は「アタック直後に idle になった瞬間」を1回目の決着とみなしたが、
+     * **クラッシュはチェックゾーン経由で数ティック遅れて着地する**ので 0 枚と記録して外した。
+     * ⇒ 同じ理由で、2回目は**盤面が連続して静かになってから**でないと宣言しない（`idleStreak`）。
+     */
+    const lifeMarks = [];
+    let idleStreak = 0;
+    let probedForIndex = -1;
+    let last = before;
+    // 🔴**クリックできたことを「アタックした」と数えない**（`V-222` で踏んだ＝押しても盤面が動かない形がある）。
+    const tryAttack = async () => {
+      await H.closeModals();
+      const pre = await H.queryState();
+      const opened = await H.clickTestId('my-lrig-slot-center');
+      if (!opened) return false;
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+      let ready = false;
+      for (let k = 0; k < 14; k++) {
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) { ready = true; break; }
+        await page.waitForTimeout(140);
+      }
+      if (!ready) { await H.closeModals(); return false; }
+      lifeMarks.push(pre?.guest?.life ?? 0);   // 🔑宣言の直前
+      await atk.click({ timeout: 2000 }).catch(() => {});
+      for (let k = 0; k < 18; k++) {
+        await page.waitForTimeout(200);
+        const st = await H.queryState();
+        if ((st?.guest?.life ?? 0) < (pre?.guest?.life ?? 0)
+          || (st?.guest?.lrigAttacked === true && pre?.guest?.lrigAttacked !== true)
+          || (st?.host?.fieldLrigDown === true && pre?.host?.fieldLrigDown !== true)
+          || (st?.pendingEffect != null && pre?.pendingEffect == null)
+          || ((st?.stackLen ?? 0) > (pre?.stackLen ?? 0))) return true;
+      }
+      await H.closeModals();
+      lifeMarks.pop();
+      return false;
+    };
+    for (let s = 0; s < 60; s++) {
+      await page.waitForTimeout(300);
+      const st0 = await H.queryState();
+      last = st0;
+      let did = null;
+      const idle = !!st0 && st0.pendingEffect == null && (st0.stackLen ?? 0) === 0
+        && st0.host?.checkSlot == null && st0.guest?.checkSlot == null
+        && st0.guest?.lrigAttacked !== true && st0.turnPhase === 'ATTACK_LRIG';
+      idleStreak = idle ? idleStreak + 1 : 0;
+      // ⚠**3ティック連続で静かになってから**次を宣言する（クラッシュの着地が遅れるため）。
+      if (idle && idleStreak >= 3 && attacks < 2 && probedForIndex !== attacks) {
+        probedForIndex = attacks;
+        if (await tryAttack()) { attacks++; did = `action:ルリグアタック${attacks}`; idleStreak = 0; }
+        else did = 'アタック不成立';
+      }
+      if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      last = st;
+      const crashed = baseLife - (st?.guest?.life ?? 0);
+      const kwNow = JSON.stringify(st?.host?.keywordGrants ?? []);
+      H.log(`  v223[${s}] -> ${did ?? 'なし'} | attacks=${attacks} marks=${JSON.stringify(lifeMarks)} crashed=${crashed} gLife=${st?.guest?.life}(開始${baseLife}) hLrigDown=${st?.host?.fieldLrigDown} idle=${idleStreak} kw=${kwNow} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      const quiet = st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+        && st?.host?.checkSlot == null && st?.guest?.checkSlot == null && st?.guest?.lrigAttacked !== true;
+      if (quiet && attacks === 2 && lifeMarks.length === 2 && idleStreak >= 3) {
+        const firstCrash = lifeMarks[0] - lifeMarks[1];
+        const secondCrash = lifeMarks[1] - (st.guest.life ?? 0);
+        // 🔑**付与そのものが剥がれていること**も見る（ライフの枚数だけだと防御側の別要因と切り分けられない）。
+        const kwLeft = (st.host.keywordGrants ?? []).some(g => String(g).includes('ダブルクラッシュ'));
+        const pass = firstCrash === 2 && secondCrash === 1 && !kwLeft;
+        return {
+          pass,
+          detail: pass
+            ? `1回目＝${firstCrash}枚（ダブルクラッシュが乗る）／2回目＝${secondCrash}枚（素）＝合計 ${baseLife}→${st.guest.life}／アタック後に付与が残っていない=${!kwLeft}`
+            : `🔴1回目=${firstCrash}枚・2回目=${secondCrash}枚（期待 2／1）・付与の残留=${kwLeft}`
+              + `（2回目も2枚なら END_OF_ATTACK が効いていない＝UNTIL_END_OF_TURN のまま）`,
+        };
+      }
+    }
+    return { pass: false, detail: `v223完走タイムアウト（attacks=${attacks} marks=${JSON.stringify(lifeMarks)} gLife=${last?.guest?.life}（開始${baseLife}） kw=${JSON.stringify(last?.host?.keywordGrants ?? [])} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  },
+};
+
+// ── V-224（§5.3 `O-367`・2026-09-14）＝クラッシュ先の置換も「そのアタックの間」だけ ─────
+// 🔴`WX19-034-E1`「…そうした場合、**そのアタックの間**、クラッシュされたカードはエナゾーンに置かれる
+//   代わりにトラッシュに置かれる」は live で**ターン継続**だった。
+// 🔑**このシナリオが要る理由**＝`crash_to_trash_instead` を読むのは `performLifeBurstResponse` で、
+//   これは `clearEndOfAttackEffects`（アタック終了）**より後**に走る。
+//   ⇒ 素直に「アタック終了で落とす」と**置換が一度も効かない**（過剰実行を直すつもりで無実行にする）。
+//   **この順序は純関数の golden では見えない**＝実機でしか確かめられない。
+//   期待＝**1回目のクラッシュはトラッシュへ／2回目はエナへ**（同じターン・同じ盤面＝1ビットの対照）。
+const V224_CRASH_SIGNI = 'WX19-034#36700';   // 自分をトラッシュしてクラッシュ先を置換
+const V224_UP_SIGNI = 'WX19-021#36701';      // 再アタック用（`O-366`）
+const V224_HOST_LRIG = 'WD01-002#36702';
+const V224_GUEST_LRIG = 'WD01-001#36703';
+
+scenarios.v224CrashRedirectOneAttackOnly = {
+  title: 'V-224 O-367: WX19-034-E1のクラッシュ先置換は1回目のアタックだけ（2回目はエナへ）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V224_HOST_LRIG],
+      'field.lrig_down': false,
+      'field.signi': [[V224_CRASH_SIGNI], [V224_UP_SIGNI], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      hand: [], energy: [], actions_done: [], game_actions_done: [],
+    },
+    guestSet: {
+      'field.lrig': [V224_GUEST_LRIG],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      // ⚠ガード候補を空にして決定的にクラッシュまで進める。エナ／トラッシュは**枚数で観測する**ので空から始める。
+      hand: [], energy: [], actions_done: [], game_actions_done: [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // ⚠**前シナリオの開きっぱなしモーダルを必ず落とす**（§4.4 罠1）。
+    //   🔴実測＝単体では PASS するのに4件バッチの4本目でだけ `paid=false`／`stack=2` のまま停滞した
+    //     （前の `v223` が残した中央スロットのモーダルが全クリックを飲んでいた）。
+    await H.closeModals();
+    const before = await H.queryState();
+    let attacks = 0;
+    let paid = false;
+    let sawRedirect = false;   // 🔑置換フラグが**実際に立った**か（枚数だけでは切り分けられない）
+    let idleStreak = 0;
+    let probedForIndex = -1;
+    // 🔑アタック宣言の直前に「相手のトラッシュ枚数／エナ枚数」を控えて、あとから引き算する。
+    const marks = [];
+    let last = before;
+    const tryAttack = async () => {
+      await H.closeModals();
+      const pre = await H.queryState();
+      const opened = await H.clickTestId('my-lrig-slot-center');
+      if (!opened) return false;
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+      let ready = false;
+      for (let k = 0; k < 14; k++) {
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) { ready = true; break; }
+        await page.waitForTimeout(140);
+      }
+      if (!ready) { await H.closeModals(); return false; }
+      marks.push({ trash: pre?.guest?.trash ?? 0, energy: pre?.guest?.energy ?? 0 });
+      await atk.click({ timeout: 2000 }).catch(() => {});
+      for (let k = 0; k < 18; k++) {
+        await page.waitForTimeout(200);
+        const st = await H.queryState();
+        if ((st?.guest?.life ?? 0) < (pre?.guest?.life ?? 0)
+          || (st?.guest?.lrigAttacked === true && pre?.guest?.lrigAttacked !== true)
+          || (st?.host?.fieldLrigDown === true && pre?.host?.fieldLrigDown !== true)
+          || (st?.pendingEffect != null && pre?.pendingEffect == null)
+          || ((st?.stackLen ?? 0) > (pre?.stackLen ?? 0))) return true;
+      }
+      await H.closeModals();
+      marks.pop();
+      return false;
+    };
+    for (let s = 0; s < 60; s++) {
+      await page.waitForTimeout(300);
+      const st0 = await H.queryState();
+      last = st0;
+      let did = null;
+      // 🔑1回目のアタックでだけ「このシグニをトラッシュに置く」を**払う**（2回目は札がもう無い）。
+      // ⚠**pay/skip が実際に提示されている間だけ押す**＝毎ティック盲目に押すと、
+      //   別の対話（`CHOOSE` や `SELECT_TARGET`）に当たって**払ったつもりで別の枝を選ぶ**
+      //   （実測＝単体では PASS・バッチでだけ「置換が立たない」で落ちた）。
+      if (!paid) {
+        const optsV224 = pendingPaySkip(st0);
+        if (optsV224.pay && optsV224.skip) {
+          did = await H.clickTestId('optcost-pay');
+          if (did) paid = true;
+        }
+      }
+      const idle = !!st0 && st0.pendingEffect == null && (st0.stackLen ?? 0) === 0
+        && st0.host?.checkSlot == null && st0.guest?.checkSlot == null
+        && st0.guest?.lrigAttacked !== true && st0.turnPhase === 'ATTACK_LRIG';
+      idleStreak = idle ? idleStreak + 1 : 0;
+      if (!did && idle && idleStreak >= 3 && attacks < 2 && probedForIndex !== attacks) {
+        probedForIndex = attacks;
+        if (await tryAttack()) { attacks++; did = `action:ルリグアタック${attacks}`; idleStreak = 0; }
+        else did = 'アタック不成立';
+      }
+      if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      // 🔴**既定の `stdStep` を使わない**＝ラベル既定に `スキップ`／`選ばない` が入っており、
+      //   「このシグニを場からトラッシュに置いてもよい」の**対象選択を盲目に飛ばして**しまう
+      //   （実測＝`paid=true` なのに置換フラグが立たない。単体では通り、バッチでだけ落ちた＝
+      //     どちらの並びでも踏みうる本物の取りこぼしだった）。
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      last = st;
+      if (st?.host?.crashToTrashInstead === true) sawRedirect = true;
+      H.log(`  v224[${s}] -> ${did ?? 'なし'} | attacks=${attacks} paid=${paid} redirect=${st?.host?.crashToTrashInstead}/${st?.host?.crashToTrashEndsThisAttack}(観測${sawRedirect}) marks=${JSON.stringify(marks)} gTrash=${st?.guest?.trash} gEnergy=${st?.guest?.energy} gLife=${st?.guest?.life} idle=${idleStreak} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions ?? [])} stack=${st?.stackLen ?? '-'}`);
+      const quiet = st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+        && st?.host?.checkSlot == null && st?.guest?.checkSlot == null && st?.guest?.lrigAttacked !== true;
+      if (quiet && attacks === 2 && marks.length === 2 && idleStreak >= 3) {
+        const firstTrash = marks[1].trash - marks[0].trash;
+        const firstEnergy = marks[1].energy - marks[0].energy;
+        const secondTrash = (st.guest.trash ?? 0) - marks[1].trash;
+        const secondEnergy = (st.guest.energy ?? 0) - marks[1].energy;
+        const pass = paid && sawRedirect && firstTrash === 1 && firstEnergy === 0 && secondTrash === 0 && secondEnergy === 1
+          && st.host.crashToTrashInstead !== true;
+        return {
+          pass,
+          detail: pass
+            ? `1回目＝クラッシュしたカードがトラッシュへ（trash+${firstTrash} energy+${firstEnergy}）／`
+              + `2回目＝エナへ（trash+${secondTrash} energy+${secondEnergy}）＝置換はそのアタックの間だけ`
+            : `🔴払った=${paid}・置換フラグを観測=${sawRedirect}・終了後も残留=${st.host.crashToTrashInstead === true}／1回目 trash+${firstTrash} energy+${firstEnergy}（期待 +1/+0）／`
+              + `2回目 trash+${secondTrash} energy+${secondEnergy}（期待 +0/+1）`
+              + `。置換フラグが立っていないなら**支払いが通っていない**（シナリオ側）、`
+              + `立ったのに1回目が +0/+1 なら**アタック終了で早く落としすぎ**、`
+              + `2回目が +1/+0 なら**ターン継続のまま**。`,
+        };
+      }
+    }
+    return { pass: false, detail: `v224完走タイムアウト（attacks=${attacks} paid=${paid} marks=${JSON.stringify(marks)} gTrash=${last?.guest?.trash} gEnergy=${last?.guest?.energy} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  },
+};
+
+order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn', 'v222LrigReattackUp', 'v222LrigReattackControl', 'v223DoubleCrushOneAttackOnly', 'v224CrashRedirectOneAttackOnly');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -59448,6 +59709,11 @@ try {
         //   ⚠**カードではない**＝ルリグデッキ／アシストゾーンの枚数では観測できない（旧実装はアシストルリグを場に出していた）。
         liverTokens: s.liver_tokens ?? 0,
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.3 `O-367`（2026-09-14・`V-224` の観測点）＝クラッシュ先の置換とその期間。
+        //   🔴**枚数（トラッシュ／エナ）だけでは「置換が立たなかった」と「立ったが早く落ちた」を切り分けられない**
+        //     （§4.4-71＝engine が読む state を観測面に足す）。
+        crashToTrashInstead: s.crash_to_trash_instead ?? null,
+        crashToTrashEndsThisAttack: s.crash_to_trash_ends_this_attack ?? null,
         // 🆕§5.3 `O-236`（2026-09-04）＝ルリグのアタック上限まわり（`V-151` の観測点）。
         fieldLrigDown: s.field?.lrig_down ?? null,
         lrigAttackLimit: s.lrig_attack_limit_this_turn ?? null,

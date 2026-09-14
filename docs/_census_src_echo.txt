@@ -19,10 +19,10 @@
   scripts/decompileEffects.ts:124  [(非STUB＝汎用ヘルパー)]  const scope = currentEffectText || currentCardText;
   scripts/decompileEffects.ts:125  [(非STUB＝汎用ヘルパー)]  for (const sent of scope.split(/[。\n]/)) {
   scripts/decompileEffects.ts:2265  [SEARCH]  if (a.maxCount?.$ref === 'last_processed_count' && /捨てたカード[１1]枚につき/.test(currentCardText)) {
-  scripts/decompileEffects.ts:3863  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
-  scripts/decompileEffects.ts:3871  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
-  scripts/decompileEffects.ts:5409  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
-  scripts/decompileEffects.ts:6552  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
-  scripts/decompileEffects.ts:6553  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
-  scripts/decompileEffects.ts:7024  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
-  scripts/decompileEffects.ts:7025  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;
+  scripts/decompileEffects.ts:3866  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
+  scripts/decompileEffects.ts:3874  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
+  scripts/decompileEffects.ts:5412  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
+  scripts/decompileEffects.ts:6561  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
+  scripts/decompileEffects.ts:6562  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
+  scripts/decompileEffects.ts:7033  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+  scripts/decompileEffects.ts:7034  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;

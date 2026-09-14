@@ -2977,8 +2977,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   `effectParser.ts` の `CHOOSE{additionalCostChoose}` ビルダーが**文単位より前**に受ける。
 
   // ---- クラッシュされたカードをエナ代わりにトラッシュ ----
+  // 🆕**期間を落とさない**（§5.3 `O-367`・2026-09-14）＝原文は2種類ある。
+  //   「**そのアタックの間**」＝`WX19-034-E1`（1回のアタック限り）／「**このターン**、次に〜」＝`WX25-P3-032-E2`。
+  //   🔴旧実装はどちらも同じ STUB に潰しており、前者が**ターン継続**に化けていた
+  //     （`O-366` でルリグの再アタックができるようになって初めて到達可能になった過剰実行）。
   if (t.match(/クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる/))
-    return { type: 'STUB', id: 'CRASH_TO_TRASH_INSTEAD' } as StubAction;
+    return {
+      type: 'STUB', id: 'CRASH_TO_TRASH_INSTEAD',
+      ...(/そのアタックの間/.test(t) ? { untilEndOfAttack: true } : {}),
+    } as StubAction;
 
   // ---- それのパワーをこのシグニのパワーと同じだけ変更 ----
   if (t.match(/それのパワーをこのシグニのパワーと同じだけ[－＋]する/))

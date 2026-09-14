@@ -1,5 +1,81 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 `O-367` クローズ＝「そのアタックの間」だけ続く付与の受け皿を作った（第327バッチ）
+
+### 母集団（登録票は 1効果と書いていたが **2効果**）
+
+🔑**自分が前バッチで書いた登録票も実測でやり直す**（§2.1 ②）。
+原文に「そのアタックの間」を含む効果は **12**。うち **10 は正しい形**（`BLOCK_ACTION{GUARD, until:'END_OF_ATTACK'}`）で、
+**受け皿が無かったのは2効果**＝
+
+| 効果 | 何が壊れていたか |
+|---|---|
+| `WX19-023-E2`（MANUAL） | `GRANT_KEYWORD{ダブルクラッシュ, duration:'UNTIL_END_OF_TURN'}`＝**2回目以降のアタックにも乗る** |
+| `WX19-034-E1`（AUTO） | `STUB{CRASH_TO_TRASH_INSTEAD}`＝期間の指定が**丸ごと無く**、engine は**ターン継続**で扱っていた |
+
+⚠**どちらも `O-366`（第326・ルリグの再アタック）で2回目のアタックが実際にできるようになるまで無害だった**＝
+**機構を1つ直すと、それまで到達不能だった別の穴が到達可能になる。**
+
+### 直し方
+
+- **`GrantKeywordAction.duration` に `'END_OF_ATTACK'` を足した**（`BlockActionAction.until` と同じ union 拡張の作法）。
+  🔑**実体は `keyword_grants` に置いたまま**＝キーワードの読み手（engine／UI に多数）を**1つも増やさない**。
+  代わりに `keyword_grants_this_attack`（台帳）へ「このアタックで足した分」を控え、
+  `clearEndOfAttackEffects` が**その分だけ引く**。⚠**`filter` で一括除去しない**＝同じキーワードを
+  ターン継続の別効果も付けていたら、そちらまで消える（過少）。**1件につき1つだけ**取り除く。
+  ⚠**`GRANT_KEYWORD` の書き込み口は3つある**（`targetsLastProcessed` / `targetsTriggerSource` / `applyGrant`）＝3つとも通した。
+- **`STUB{CRASH_TO_TRASH_INSTEAD}` に `untilEndOfAttack` payload**（parser が原文の「そのアタックの間」から出す）。
+  ⚠**既定はターン継続のまま**＝`WX25-P3-032-E2`（原文「このターン、次に〜」）の挙動は変えない。
+
+### 🔴 この作業で一番危なかったところ＝**境界が2つある**
+
+**`crash_to_trash_instead` を読むのは `performLifeBurstResponse` で、これは `clearEndOfAttackEffects`（アタック終了）
+より後に走る。** 素直に「アタック終了で落とす」と **`WX19-034-E1` は丸ごと no-op になる**
+（＝**過剰実行を直すつもりで無実行にする**）。⇒ 境界を分けた：
+
+| 何を | どこで落とすか | 理由 |
+|---|---|---|
+| キーワード付与 | `clearEndOfAttackEffects` | **クラッシュ枚数の確定はそれより前**に終わっている |
+| クラッシュ先の置換 | `performLifeBurstResponse`（`remainingPending.length === 0` のとき） | **読み手がアタック終了より後**。⚠ダブルクラッシュで2枚割れる回があるので「残り0枚」を見る |
+| （クラッシュが起きなかった回） | `clearEndOfAttackEffects`（`crashPending:false`） | あちらが走らないので**ここが唯一の解除機会** |
+
+🔑**この順序は純関数の golden では見えない**（両方とも「正しく落ちる」ように見える）＝**実機でしか確かめられない。**
+
+### 副産物
+
+- `performLifeBurstResponse` の **「ライフバーストが発火しなかった」経路が攻撃側 state を書いていなかった**＝
+  `opStateForUsed`（usageLimit の消化）が**捨てられていた**。`opp: burstExtraState` を足した。
+- **golden 1本の期待値を更新**＝`manual2 A3 WX19-023-E2` は `UNTIL_END_OF_TURN` を
+  「既存のアタック中一時付与**慣例**」というコメント付きで固定していた＝
+  🔑**近似をテストで固定すると、機構ができても誰も直さない。**
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4139 → 4140 PASS / 0 FAIL**・smoke 10754・fuzz 0）。
+- **golden 4本追加**（台帳の引き算／`crashPending` の両方向／payload の既定／live の母集団カウンタ）。
+  🔑**反転確認済み**（台帳を一括除去に変える／live を `UNTIL_END_OF_TURN` に戻す＝どちらも FAIL）。
+- **実機 `V-223` / `V-224` とも PASS**（`node scripts/verifyBattleDrive.mjs v223DoubleCrushOneAttackOnly v224CrashRedirectOneAttackOnly`）。
+  - `V-223`＝**1回目は2枚クラッシュ／2回目は1枚**（7→4）・アタック後に付与が残っていない。
+  - `V-224`＝**1回目はトラッシュへ／2回目はエナへ**。
+  - 🔑**対照は別シナリオではなく「同じターンの1回目と2回目」**＝盤面も操作も同一で、違うのは
+    「そのアタックが終わったかどうか」だけ＝1ビットの対照。
+  - 🔑**実機の反転確認を3方向で取った**＝①`crashPending` を外す→**1回目が +0/+1**（置換が一度も効かない）
+    ②`performLifeBurstResponse` 側の解除を外す→**2回目も +1/+0**（ターン継続のまま）
+    ③live を `UNTIL_END_OF_TURN` へ戻す→**2回目も2枚**。
+
+### シナリオを書くときに踏んだ罠（2件とも [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の既知の型）
+
+- 🔴**`H.stdStep()` の既定ラベルには `スキップ`／`選ばない` が入っている**＝
+  「このシグニを場からトラッシュに置いてもよい」の**対象選択を盲目に飛ばして**おり、
+  `paid=true` なのに置換フラグが立たなかった。⇒ **ラベルを明示して渡す**。
+  ⚠**単体では通り、バッチでだけ落ちた**＝並び順で出方が変わるだけで、**どちらでも踏みうる本物の取りこぼし**。
+- 🔴**前シナリオの開きっぱなしモーダル**（罠1）＝バッチの後半でだけクリックが全部通らなくなる。
+  ⇒ drive の先頭で `await H.closeModals()`。
+- 🔑**枚数だけを観測点にしない**＝`crash_to_trash_instead` / `crash_to_trash_ends_this_attack` を
+  `queryState` に足した（§4.4-71）。**これが無いと「支払いが通っていない」と「早く落としすぎ」を切り分けられない**
+  （実際この2つを取り違えて1往復した）。
+
+
 ## 2026-09-14 — 🏁§5.3 `O-366` クローズ＝**ルリグの再アタックが engine の門1行で禁止されていた**（第326バッチ）
 
 ### 真因

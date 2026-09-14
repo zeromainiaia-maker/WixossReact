@@ -13475,7 +13475,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       newMyState = clearEndOfAttackEffects(newMyState);
       // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
       const oppStateKey = stateKey === 'host_state' ? 'guest_state' : 'host_state';
-      newOpState = clearEndOfAttackEffects(newOpState);
+      // 🆕§5.3 `O-367`（2026-09-14）＝**このアタックで割れたライフがまだ未処理なら、
+      //   クラッシュ先の置換（`crash_to_trash_instead`）はここで落とさない**＝
+      //   それを読む `performLifeBurstResponse` は**この commit より後**に走る。
+      //   ⚠キーワード付与（【ダブルクラッシュ】）は**枚数の確定がここより前**なので、ここで落として正しい。
+      const crashPendingEOA = newMyState.field.check != null
+        || (newMyState.pending_crashed_cards?.length ?? 0) > 0;
+      newOpState = clearEndOfAttackEffects(newOpState, { crashPending: crashPendingEOA });
       if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
         const rem = op.lrig_attack_remaining - 1;
         newOpState = { ...newOpState, lrig_attack_remaining: rem > 0 ? rem : undefined };
@@ -13705,11 +13711,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         oppCrashTriggers.push(...dmg.entries);
         opDamagedUsedIds = dmg.usedLimitIds;
       }
+      // 🆕§5.3 `O-367`（2026-09-14）＝「そのアタックの間」だけのクラッシュ先置換は、
+      //   **このアタックで割れたカードを最後の1枚まで処理し終えた時点**で落とす
+      //   （`clearEndOfAttackEffects` はこの関数より前に走るので、あちらでは落とせない）。
+      //   ⚠**ダブルクラッシュで2枚割れた回**は1枚目でここに来るので、`remainingPending` を必ず見る。
+      const clearAttackCrashEOA = op.crash_to_trash_ends_this_attack === true && remainingPending.length === 0;
       const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0 || opDamagedUsedIds.length > 0
+        || clearAttackCrashEOA
         ? {
             ...op,
             actions_done: [...(op.actions_done ?? []), ...oppUsedIds, ...opDamagedUsedIds],
             game_actions_done: [...(op.game_actions_done ?? []), ...oppGameUsedIds],
+            ...(clearAttackCrashEOA
+              ? { crash_to_trash_instead: undefined, crash_to_trash_ends_this_attack: undefined }
+              : {}),
           }
         : null;
       // SET_NEXT_LIFE_CRASH_COUNTER: 自分（my=クラッシュされた側）に設定されたカウンタークラッシュを消費し、
@@ -13812,8 +13827,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, burstExtraState, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
+        // ⚠**攻撃側の state も書く**＝`opStateForUsed`（usageLimit の消化＋§5.3 `O-367` のフラグ解除）は
+        //   `queueCardEffects` が発火しなかった回に**書かれず捨てられていた**（2026-09-14 に気付いた）。
         await persist.commit(reduceBattle(bs, {
           type: 'WRITE_STATE', myKey: stateKey, myState: baseState, clearPending: true,
+          opp: burstExtraState,
         }));
       }
     } finally {

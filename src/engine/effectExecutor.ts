@@ -5698,6 +5698,26 @@ function lrigLikeFilterOk(lrigNum: string, filter: import('../types/effects').Ta
   return matchesFilter(card, attrOnly);
 }
 
+/**
+ * 🆕**「そのアタックの間」だけのキーワード付与の台帳を積む**（§5.3 `O-367`・2026-09-14）。
+ *
+ * 🔑**実体は `keyword_grants` に置いたまま**＝キーワードの読み手（engine／UI に多数）を1つも増やさない。
+ * ここに控えた分を `clearEndOfAttackEffects`（`src/screens/battle/attackDuration.ts`）が
+ * **アタック終了時に引く**（＝`performGuardResponse` がダメージ／クラッシュ解決の**後**に呼ぶ地点）。
+ *
+ * ⚠**`duration` が `'END_OF_ATTACK'` 以外なら何もしない**＝既存の付与は1バイトも変わらない。
+ * ⚠**`GRANT_KEYWORD` の書き込み口は3つある**（`targetsLastProcessed` / `targetsTriggerSource` / `applyGrant`）＝
+ *   **3つとも通す**。1つ忘れると「そのアタックの間」がその経路だけターン継続に化ける。
+ */
+function noteEndOfAttackKeywordGrants(
+  s: PlayerState, duration: GrantKeywordAction['duration'], granted: string[], keyword: string,
+): PlayerState {
+  if (duration !== 'END_OF_ATTACK' || granted.length === 0) return s;
+  const ledger = { ...(s.keyword_grants_this_attack ?? {}) };
+  for (const n of granted) ledger[n] = [...(ledger[n] ?? []), keyword];
+  return { ...s, keyword_grants_this_attack: ledger };
+}
+
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const resolvedKeyword = resolveDynamicShadowKeyword(a.keyword, ctx);
   const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
@@ -5715,7 +5735,9 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       if (isKeywordAbilityRemoved(cn, a.keyword, s.keyword_abilities_removed)) continue;
       const grants = { ...(s[gkey] ?? {}) };
       grants[cn] = [...new Set([...(grants[cn] ?? []), a.keyword])];
-      cur = addLog(setOwnerState(owner, { ...s, [gkey]: grants }, cur),
+      // 🆕§5.3 `O-367`＝この経路にも台帳を積む（片方だけに足すと「それ」経由の付与だけ消えない）。
+      cur = addLog(setOwnerState(owner,
+        noteEndOfAttackKeywordGrants({ ...s, [gkey]: grants }, a.duration, [cn], a.keyword), cur),
         `${keywordDisplayLabel(a.keyword)}：${cur.cardMap.get(cn)?.CardName ?? cn}`);
     }
     return done(cur);
@@ -5733,7 +5755,9 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     if (isKeywordAbilityRemoved(autoNum, a.keyword, s.keyword_abilities_removed)) return done(ctx);
     const grants = { ...(s[gkey] ?? {}) };
     grants[autoNum] = [...new Set([...(grants[autoNum] ?? []), a.keyword])];
-    return done(addLog(setOwnerState(owner, { ...s, [gkey]: grants }, ctx),
+    // 🆕§5.3 `O-367`＝この経路にも台帳を積む（3経路セット）。
+    return done(addLog(setOwnerState(owner,
+      noteEndOfAttackKeywordGrants({ ...s, [gkey]: grants }, a.duration, [autoNum], a.keyword), ctx),
       `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${keywordDisplayLabel(a.keyword)}」を付与`));
   }
   const tgt = a.target;
@@ -5826,6 +5850,10 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       grants[n] = [...(grants[n] ?? []), a.keyword];
     }
     let newS: PlayerState = { ...s, [gkey]: grants };
+    // 🆕**「そのアタックの間」だけの付与**（§5.3 `O-367`・2026-09-14）＝実体は `keyword_grants` に置いたまま、
+    //   **このアタックで足した分の台帳**だけを別に持つ。`clearEndOfAttackEffects` がその分を引く。
+    //   ⚠**読み手を増やさない**のが肝（キーワードの読み手は engine／UI に多数ある）。
+    newS = noteEndOfAttackKeywordGrants(newS, a.duration, grantable, a.keyword);
 
     // チアガールはフリーゾーンへ移動
     if (a.keyword === 'チアガール') {

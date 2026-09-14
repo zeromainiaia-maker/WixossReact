@@ -993,9 +993,19 @@ export function execStubPart3(
       `この方法でチェックゾーンに置かれたカードは、エナゾーンではなくトラッシュへ置かれる（残り${addSC}回）`));
   }
   // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ
+  // 🆕**`untilEndOfAttack`＝「そのアタックの間」だけ**（§5.3 `O-367`・2026-09-14・`WX19-034-E1`）。
+  //   ⚠**消費地点（`BattleScreen` のクラッシュ解決）は `crash_to_trash_instead` だけを見る**＝読み手は増えない。
+  //     印（`crash_to_trash_ends_this_attack`）は `clearEndOfAttackEffects` が落とすためだけに在る。
+  //   ⚠**既定はターン継続のまま**＝`WX25-P3-032-E2`（原文「このターン、次に〜」）の挙動は変えない。
   if (stub.id === 'CRASH_TO_TRASH_INSTEAD') {
-    const newOwner = { ...ctx.ownerState, crash_to_trash_instead: true };
-    return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、クラッシュされたカードはトラッシュに置かれる'));
+    const endsThisAttack = stub.untilEndOfAttack === true;
+    const newOwner: PlayerState = {
+      ...ctx.ownerState,
+      crash_to_trash_instead: true,
+      ...(endsThisAttack ? { crash_to_trash_ends_this_attack: true } : {}),
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `${endsThisAttack ? 'そのアタックの間' : 'このターン'}、クラッシュされたカードはトラッシュに置かれる`));
   }
   // BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る
   if (stub.id === 'BANISH_REDIRECT_TO_HAND') {

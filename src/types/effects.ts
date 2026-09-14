@@ -3033,7 +3033,18 @@ export interface GrantKeywordAction {
   type: 'GRANT_KEYWORD';
   target: EffectTarget;
   keyword: string;
-  duration: EffectDuration;
+  /**
+   * 🆕**`'END_OF_ATTACK'`＝「そのアタックの間」だけ**（§5.3 `O-367`・2026-09-14）。
+   * `BlockActionAction.until` と**同じ union 拡張の作法**。
+   * 🔴**`UNTIL_END_OF_TURN` で代用してはいけない**＝`O-366` でルリグの再アタックが実際にできるように
+   *   なったので、**そのターンの2回目以降のアタックにもキーワードが乗る**（`WX19-023-E2` の
+   *   【ダブルクラッシュ】が2回目のアタックでも乗り、ライフを余計に1枚割る）。
+   * ⚠**実体は `keyword_grants` に置いたまま**＝**読み手を1つも増やさない**。
+   *   代わりに `keyword_grants_this_attack`（台帳）へ「このアタックで付けた分」を控え、
+   *   `clearEndOfAttackEffects`（`src/screens/battle/attackDuration.ts`）が**その分だけ引く**。
+   *   🔑キーワードの読み手は engine と UI に多数あるので、**新しいストアを作ると読み漏れが必ず出る**。
+   */
+  duration: EffectDuration | 'END_OF_ATTACK';
   /** duration:NEXT_TURN の基準。省略時は従来どおり「次の自分のターン」。 */
   nextTurnOwner?: 'self' | 'opponent' | 'next';
   /** 「このターンと次のターン」＝現ターンのスナップショット付与＋次ターンの場レベル予約。 */
@@ -5119,6 +5130,12 @@ export interface SoulOpSpec {
 }
 
 export interface StubAction {
+  /**
+   * 🆕**この STUB が立てるフラグを「そのアタックの間」だけにする**（§5.3 `O-367`・2026-09-14）。
+   * いまの消費者は `CRASH_TO_TRASH_INSTEAD` のみ（`WX19-034-E1`＝原文が「そのアタックの間」）。
+   * ⚠**既定（未指定）は従来どおりターン継続**＝`WX25-P3-032-E2`（原文「このターン、次に〜」）は変えない。
+   */
+  untilEndOfAttack?: boolean;
   /**
    * `LIFE_BURST_DOUBLE` の消費回数。true＝「このターン、**次に**」の1回だけ、false＝このターン中の全回。
    * parser が原文の「次に」を判別して必ず明示し、engine はカード原文を読み直さない。

@@ -2296,6 +2296,9 @@ function actionJa(a?: Action, effectType?: string): string {
               : '（次のターンの間）'
         : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
+        // 🆕§5.3 `O-367`（2026-09-14）＝「そのアタックの間」だけ。
+        //   🔴描かないと `UNTIL_END_OF_TURN` との違いが逆翻訳に1文字も出ず、原文照合がそこだけ効かない。
+        : a.duration === 'END_OF_ATTACK' ? '（そのアタックの間）'
         : a.duration === 'PERMANENT' ? ''
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
         // 【${kwBase}[^】]*】＝【アサシン（パワー3000以下のシグニ）】等の括弧付きキーワード変種も拾う。
@@ -5672,6 +5675,12 @@ function actionJa(a?: Action, effectType?: string): string {
           : 'このターン、あなたのルリグが1ターンにアタックできる上限が変わる（※ペイロード欠落＝engine は何もしない）',
         REDUCE_LRIG_ATTACK_LIMIT:
           'このターン、あなたのルリグがアタックできる上限を減らす',
+        // 🆕§5.3 `O-367`（2026-09-14）＝**期間は payload（`untilEndOfAttack`）が持つ**。
+        //   🔴固定文「このターン」だと `WX19-034-E1`（原文「**そのアタックの間**」）の逆翻訳が嘘になり、
+        //     `O-366` でルリグの再アタックができるようになった今は**実害のある差**になる。
+        CRASH_TO_TRASH_INSTEAD: a.untilEndOfAttack
+          ? 'そのアタックの間、クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる'
+          : 'このターン、クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる',
         // 🆕§5.3 `O-348`（2026-09-13）＝レベル→減少量の対応表は payload（`revealReduceLrigLimit`）が持つ。
         //   🔴「レベルに応じて」だけだと**どのレベルで何回減るのか**が逆翻訳から消える。
         //   ⚠表に無いレベルは engine が**何も減らさない**ので、その旨も併記する。
