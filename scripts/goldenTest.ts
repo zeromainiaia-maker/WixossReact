@@ -81403,14 +81403,25 @@ test('O-360 WXK05-039-E1 E2E: 上2枚の＜調理＞を選んだ対象のアク�
   eq(result.ownerState.deck.at(-1), nonCooking, '選ばなかった公開札をデッキの一番下へ置く');
 }));
 
-test('O-360 WD18-009-E2: 解決時条件を落とす過剰実装を避け、機構不足を明示 defer する', () => {
+test('O-360 WD18-009-E2: 明示 defer から実装へ昇格（旧アサートはそのためのトリップワイヤ）', () => {
+  // 🔴**旧アサートは「`DEFERRED_` のままであること」を固定していた**＝実装したら必ず赤くなる意図的な
+  //   トリップワイヤ（`続き388 群D` と同じ作法）。2026-09-14 第324 で実装したので書き換える。
+  // 🔑**旧 defer 理由「除去直前のアクセ状態を運ぶ機構が無い」は誤りだった**＝`banishedHadAcce` が既存で、
+  //   `triggerCollect.ts` の **self スコープのブロックにだけ判定が無かった**のが真因（engine 側で塞いだ）。
   const effect = liveEff('WD18-009', 'WD18-009-E2');
-  eq(effect.action.type, 'STUB', '未実装を別 action に見せかけない');
-  eq((effect.action as StubAction).id, 'DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED',
-    '場のアクセ全部を送る ACCE_TO_ENERGY へ戻っている');
-  ok(decompiledLineOf('WD18-009-E2').includes('【未実装】') &&
-    decompiledLineOf('WD18-009-E2').includes('このシグニがアクセされていた場合'),
-  '逆翻訳が解決時条件の機構不足を隠している');
+  eq(effect.action.type, 'ENERGY_CHARGE', 'トラッシュ→エナの本体になっている');
+  ok(!JSON.stringify(effect.action).includes('DEFERRED_'), '明示 defer へ戻っている');
+  // 🔴**旧実装（場のアクセ全部をエナへ送る `ACCE_TO_ENERGY`）へ戻っていないこと**＝原文はトラッシュ発の1枚。
+  ok(!JSON.stringify(effect.action).includes('ACCE_TO_ENERGY'), '場のアクセ全部を送る旧実装へ戻っている');
+  const src = (effect.action as { target?: { type?: string; owner?: string; count?: number } }).target;
+  eq(src?.type, 'TRASH_CARD', '出所はトラッシュ');
+  eq(src?.owner, 'self', 'あなたのトラッシュ');
+  eq(src?.count, 1, '1枚');
+  // 逆翻訳は engine が何をするかを描く＝条件はトリガー側に出る（近似を隠さない）。
+  const line = decompiledLineOf('WD18-009-E2');
+  ok(!line.includes('【未実装】'), '実装したのに逆翻訳が【未実装】のまま');
+  ok(line.includes('アクセされているこのシグニがバニッシュされたとき'),
+    '逆翻訳が「アクセされていたときだけ」という条件を描いていない');
 });
 
 // ═══ §5.3 索引G `O-362`＝期間の食い違い3群 ═══
@@ -81676,6 +81687,51 @@ test('O-346 据置の根拠: 手札の廃棄は既定で相手が選ぶ（oppone
   if (seen.done || seen.pending.type !== 'SELECT_TARGET') return;
   ok(!seen.pending.opponentResponds, 'actingPlayerSelects が効いていない＝「見て選び」まで相手に渡している');
 }));
+
+// ═══ §5.3 末尾「根拠つき defer」の再実測 第2弾（2026-09-14 第324）＝`WD18-009-E2` を defer から実装へ ═══
+// 🔴**旧 defer の理由「除去直前のアクセ状態を解決時まで運ぶ機構が無い」は誤りだった**＝
+//   `triggerCondition.banishedHadAcce` が `prevOwnerState.field.signi_acce[banishedZone]` を読む機構として既存。
+// 🔴**ただし `triggerCollect.ts` の3ブロックのうち self スコープの1本にだけ判定が無かった**＝
+//   書いても**無言で素通り**する（同ブロックの直上コメントが、まさに同じ形の事故を警告していた）。
+//   ⇒ engine を先に塞いでから実装した。母集団0だったので既存効果の挙動は1件も変わらない。
+test('defer再実測2 WD18-009-E2: アクセされていたときだけ発火する（self スコープ）', () => {
+  const eff = (effectsMap.get('WD18-009') ?? []).find(e => e.effectId === 'WD18-009-E2');
+  ok(!!eff, 'WD18-009-E2 が live に無い');
+  if (!eff) return;
+  ok(!JSON.stringify(eff.action).includes('DEFERRED_'), '明示 defer のままになっている');
+  eq(eff.triggerCondition?.banishedHadAcce, true, '除去直前のアクセ判定が載っていない');
+  eq((eff.action as { type?: string }).type, 'ENERGY_CHARGE', 'トラッシュ→エナの本体');
+
+  const host = mkState({}); const guest = mkState({});
+  host.field.signi = [['WD18-009'], null, null];
+  const ctxB = trigCtx(HOST, HOST);
+  // ① 除去直前にアクセが付いていた → 発火する
+  const prevWithAcce = mkState({});
+  prevWithAcce.field.signi = [['WD18-009'], null, null];
+  prevWithAcce.field.signi_acce = [['WX15-058'], null, null];
+  ok(hasEffect(collectBanishTriggers(ctxB, 'WD18-009', HOST, host, guest, prevWithAcce).entries, 'WD18-009-E2'),
+    'アクセされていたのに発火しない');
+  // ② 対照＝アクセが付いていなかった → 発火しない（🔴これが無いと「常に発火」も満点に見える）
+  const prevNoAcce = mkState({});
+  prevNoAcce.field.signi = [['WD18-009'], null, null];
+  prevNoAcce.field.signi_acce = [null, null, null];
+  ok(!hasEffect(collectBanishTriggers(ctxB, 'WD18-009', HOST, host, guest, prevNoAcce).entries, 'WD18-009-E2'),
+    '🔴アクセされていないのに発火する（self スコープで banishedHadAcce が読まれていない）');
+  // ③ 対照＝除去直前の盤面が不明なら発火しない（`banishedHadCharm` と同じ fail-closed 規約）
+  ok(!hasEffect(collectBanishTriggers(ctxB, 'WD18-009', HOST, host, guest).entries, 'WD18-009-E2'),
+    'prevOwnerState 不明時は発火しない規約が崩れている');
+});
+
+test('defer再実測2 トリップワイヤ: ON_BANISH の除去直前フラグは3ブロックすべてで判定する', () => {
+  // 🔑**この不変条件があれば「self スコープだけ素通り」は起きなかった**＝
+  //   `triggerCollect.ts` は ①バニッシュされた本人 ②自分の場の watcher ③相手の場の watcher の3ブロックで
+  //   同じ `triggerCondition` を評価する必要がある。**どれか1本に書き忘れると無言で素通りする。**
+  const source = fs.readFileSync(join(root, 'src/engine/triggerCollect.ts'), 'utf8');
+  for (const key of ['banishedHadCharm', 'banishedHadAcce', 'banishedFromGateZone', 'banishedFromCenterZone'] as const) {
+    const hits = (source.match(new RegExp(`triggerCondition\\?\\.${key}\\b`, 'g')) ?? []).length;
+    ok(hits >= 3, `${key} の判定が ${hits} 箇所しか無い＝ON_BANISH の3ブロックのどれかで無言素通りする`);
+  }
+});
 
 // ═══ §5.3 末尾「根拠つき defer」の再実測（2026-09-14 第323）＝`WXDi-P15-003` の使用条件 ═══
 // 🔴**旧コメントの defer 理由2つがどちらも stale だった**＝

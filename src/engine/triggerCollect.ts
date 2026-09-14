@@ -1679,6 +1679,16 @@ export function collectBanishTriggers(
       && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
     if (eff.triggerCondition?.banishedFromGateZone
       && (banishedZone < 0 || !prevOwnerState?.own_gate_zones?.includes(banishedZone))) continue;
+    // 🆕🔴**2026-09-14（§5.3 末尾 defer の再実測・`WD18-009-E2`）＝この2本がここに無かった。**
+    //   `banishedHadCharm` / `banishedFromGateZone` は3ブロック全部に在るのに、
+    //   **`banishedHadAcce` と `banishedFromCenterZone` は「味方/相手の場から見る」2ブロックにしか無く、
+    //   self スコープ（＝バニッシュされた本人の能力）では一度も評価されなかった**＝
+    //   JSON に書いても**無言で素通り**する（この直上のコメントが警告しているのと同じ形）。
+    //   ⚠**追加時点の母集団は 0**（self スコープ ON_BANISH でこの2キーを持つ効果は実測0件）＝
+    //   **既存効果の挙動は1件も変わらない**。`WD18-009-E2` を実装する前にここを塞ぐ必要があった。
+    if (eff.triggerCondition?.banishedHadAcce
+      && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
+    if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
     // activeCondition チェック（「対戦相手のターンの間」等）
     const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
     if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;

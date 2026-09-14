@@ -8315,15 +8315,28 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WD18-009-E2：原文は対象を取った後に「このシグニがアクセされていた場合」を判定する。
-  // 既存 triggerCondition.banishedHadAcce は発火自体を止める watcher 用で、流用すると対象を取らない別挙動になる。
-  // 除去直前のアクセ状態を解決時まで運ぶ機構が無いため、場の全アクセをエナへ送る旧 ACCE_TO_ENERGY から明示 defer へ退避する。
+  // WD18-009-E2「【自】：このシグニがバニッシュされたとき、あなたのトラッシュから《アクセアイコン》を持つ
+  //   シグニ１枚を対象とし、**このシグニがアクセされていた場合**、それをエナゾーンに置く。」
+  // 🆕🔴**2026-09-14（第324バッチ）＝明示 defer から実装へ昇格した。**
+  //   旧 defer の理由「除去直前のアクセ状態を解決時まで運ぶ機構が無い」は**誤りだった**＝
+  //   `triggerCondition.banishedHadAcce` が**除去直前の盤面**（`prevOwnerState.field.signi_acce[banishedZone]`）を
+  //   読む機構として既にあり、先例も在る（`WX15-003-E1`）。
+  //   🔴**ただし self スコープのブロックにだけその判定が無かった**（`triggerCollect.ts` の3ブロックのうち1本）＝
+  //   **書いても無言で素通りする**状態だったので、同バッチで engine 側を先に塞いだ。
+  // ⚠**近似1件（原文との差）**＝原文は「対象を取った**あと**に条件を判定」だが、ここでは
+  //   **条件を満たさないと発火しない**（＝対象を取らない）。🔑**この差は観測できない**＝
+  //   対象は「**あなたの**トラッシュ」のカードで、live の「対象になったとき」20効果はいずれも
+  //   「**対戦相手の**能力か効果で**場の**シグニが対象になったとき」＝この経路では立たない。
   'WD18-009': [
     {
       effectId: 'WD18-009-E2',
       effectType: 'AUTO',
       timing: ['ON_BANISH'],
-      action: { type: 'STUB', id: 'DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED' },
+      triggerCondition: { banishedHadAcce: true },
+      action: {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', hasIcon: 'アクセ' } },
+      },
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',
