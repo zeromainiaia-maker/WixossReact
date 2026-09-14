@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 594（総ノード 3377 件）
+live JSON の STUB id 種類 : 594（総ノード 3379 件）
 逆翻訳シートの [STUB:…] 総数: 265  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
@@ -63,7 +63,7 @@ live JSON の STUB id 種類 : 594（総ノード 3377 件）
         生成: src\data\parsers\parseSentencePart4.ts:2035
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16899 / src\data\manualEffects.ts:11408
+        生成: src\data\effectParser.ts:16899 / src\data\manualEffects.ts:11411
      1件   1枚  DEFERRED_OPP_SPLIT_HAND_TWO_PILES
         カード: WX25-P2-022
         生成: src\data\manualEffects.ts:203

@@ -77210,6 +77210,23 @@ test('第246 engine WXDi-P14-083-E1: 対象不在では捨てず、対象あり�
   eq(miss.ownerState.hand.length, 1, '反転: 対象不在ならコストを払わない');
 }));
 
+// 2026-09-14 付録C 同型★の再測＝`WX24-P3-068-E1` は上の兄弟の修正が届いていなかった（先に捨てる旧形）。
+test('付録C★ WX24-P3-068-E1: 対象不在では捨てず、対象ありでは同じ対象だけをバニッシュ', () => withSavedCursor(() => {
+  const suijuu = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('水獣'));
+  const weak = findCard(c => c.Type === 'シグニ' && parseInt(c.Power ?? '0', 10) <= 5000);
+  const effect = findEffectDeep(effectsMap.get('WX24-P3-068') ?? [], 'WX24-P3-068-E1')!;
+  eq((effect.action as { steps?: { id?: string }[] }).steps?.[0]?.id, 'SELECT_TARGET_ONLY', '🔴1歩目が対象宣言でない（先に捨てる旧形）');
+  const hitCtx = mkCtx({}, { signi: [weak, null, null] }, 'WX24-P3-068');
+  hitCtx.ownerState = { ...hitCtx.ownerState, hand: [suijuu], trash: [] };
+  const hit = run(effect.action, hitCtx);
+  ok(hit.ownerState.trash.includes(suijuu), '対象宣言後に＜水獣＞を捨てる');
+  ok(!hit.otherState.field.signi.some(s => s?.at(-1) === weak), '宣言した対象をバニッシュ');
+  const missCtx = mkCtx({}, {}, 'WX24-P3-068');
+  missCtx.ownerState = { ...missCtx.ownerState, hand: [suijuu], trash: [] };
+  const miss = run(effect.action, missCtx);
+  eq(miss.ownerState.hand.length, 1, '反転: 対象不在ならコストを払わない');
+}));
+
 test('第246 engine WXDi-P11-080-E1: 実際に下から捨てた枚数×3000を事前確定した対象だけに反映', () => withSavedCursor(() => {
   const under = [fresh(), fresh()];
   const victim = findCard(c => c.Type === 'シグニ');
