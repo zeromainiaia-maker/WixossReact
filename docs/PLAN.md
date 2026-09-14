@@ -42,6 +42,11 @@
 | 📦**在庫** | 機構 worklist 🔥**1項目**（`O-366` 索引G）／実機 🏁**0**／実装キュー 🏁**0**／§5.3 末尾の参照 **5件** |
 | 🔧**ゲート** | `npm run gates` 全緑・**golden 4130 → 4132 PASS**・lint warning 256 据置 |
 
+🔴🔑**同日の簿記バグも直した**＝`cardProgressCensus.mjs` は **§5.3 の本文からカード番号を拾って `mech` に数える**ので、
+**「実装した」と書いたクローズ注記の引用カードまで「機構待ち」に化けていた**（**`mech` 9 → 5**）。
+2バッチ連続で踏んだので**トリップワイヤを新設**した（節に「カード番号＋クローズ語」の行があったら赤）。
+⚠**そのトリップワイヤ自身が最初は偽陽性だった**＝`new RegExp('\b…')` の `` が**バックスペースに化けて**
+何にも当たらないのに緑だった（`CLAUDE.md` の `censusDeadState` の罠と**同型・3回目**）＝**正規表現リテラルに書き換えた**。
 🔑**2日で「受け皿が無い／新機構が要る」の見立ては 14回外れた**＝**defer の理由は必ず実測でやり直す**（[LESSONS.md](./LESSONS.md) §4.1）。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
@@ -376,7 +381,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-366` | M | **ルリグが「アタックしたとき自分をアップする」を得ても再アタックできない**（**実測 3効果**＝`WXDi-P00-026-E1` / `WX19-014-E1` / `WX24-P4-011-E2`。測り直す＝`npm run census:population -- "このルリグがアタックしたとき[^。]*アップする"`＝4効果のうち `WXDi-D08-004-E3` は**シグニ**をアップする別物なので除く）。🔴**JSON は3件とも完成している**（`GRANT_EFFECT`/`GRANT_LRIG_ABILITY` → sub `AUTO/ON_ATTACK_LRIG` → `UP{LRIG}`・逆翻訳も原文一致）のに、`src/screens/BattleScreen.tsx:11522` の門が `if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）` と**明示的に再アタックを止めている**＝**アップは起きるが2回目のアタックができない真 no-op**。🔑**意図の裏づけ**＝`WX19-014-E1` の原文に「（この能力を２つ以上得ても最初のアタックですべて発動し**２回目のアタック**では発動しない）」とある。🔑**受け皿は既存**＝`lrig_attack_limit_this_turn`（§5.3 `O-236`）＝門は `lrigAtkLimit !== undefined` なら真偽値ゲートを迂回してカウント比較に切り替わる。⇒ **`src/screens/` を触らず、付与する sub 効果を `SEQUENCE[UP, STUB{LRIG_ATTACK_LIMIT, lrigAttackLimit:{limit:2}}]` にする**のが最短（`once_per_turn` なので追加アタックはちょうど1回）。⚠**3効果とも `AUTO`＝parser 改修＝遅いレーン**。⚠**上限は「なる」＝置き換え**なので既に上限を持つ効果と重なる順序を確認する。⚠**門は `src/screens/` にあるので実機まで必須**（`V-<次番号>`＝アップ後に2回目のアタックが実際にできること＋対照＝付与が無ければ2回目は不可） |
+| `O-366` | M | **ルリグが「アタックしたとき自分をアップする」を得ても再アタックできない**（**実測 3効果**＝`WXDi-P00-026-E1` / `WX19-014-E1` / `WX24-P4-011-E2`。測り直す＝`npm run census:population -- "このルリグがアタックしたとき[^。]*アップする"`＝4効果ヒットするが、うち1件は**シグニ**をアップする別物なので除く）。🔴**JSON は3件とも完成している**（`GRANT_EFFECT`/`GRANT_LRIG_ABILITY` → sub `AUTO/ON_ATTACK_LRIG` → `UP{LRIG}`・逆翻訳も原文一致）のに、`src/screens/BattleScreen.tsx:11522` の門が `if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）` と**明示的に再アタックを止めている**＝**アップは起きるが2回目のアタックができない真 no-op**。🔑**意図の裏づけ**＝`WX19-014-E1` の原文に「（この能力を２つ以上得ても最初のアタックですべて発動し**２回目のアタック**では発動しない）」とある。🔑**受け皿は既存**＝`lrig_attack_limit_this_turn`（§5.3 `O-236`）＝門は `lrigAtkLimit !== undefined` なら真偽値ゲートを迂回してカウント比較に切り替わる。⇒ **`src/screens/` を触らず、付与する sub 効果を `SEQUENCE[UP, STUB{LRIG_ATTACK_LIMIT, lrigAttackLimit:{limit:2}}]` にする**のが最短（`once_per_turn` なので追加アタックはちょうど1回）。⚠**3効果とも `AUTO`＝parser 改修＝遅いレーン**。⚠**上限は「なる」＝置き換え**なので既に上限を持つ効果と重なる順序を確認する。⚠**門は `src/screens/` にあるので実機まで必須**（`V-<次番号>`＝アップ後に2回目のアタックが実際にできること＋対照＝付与が無ければ2回目は不可） |
 
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い／新機構が要る」は**連続13項目**外れている。
 🆕🔑**`O-365` は「私が前バッチで書いた登録票」が外れた例**＝**自分で書いた見立ても実測でやり直す**
@@ -399,13 +404,6 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 **■ 根拠つき defer（着手前にこの理由が今も有効か再判定する）**
 
-- 🏁🗑**`WD18-009-E2` の defer は 2026-09-14（第324バッチ）で解消＝実装した。**
-  旧理由「除去直前のアクセ状態を解決時まで運ぶ機構が無い」は**誤り**で、`triggerCondition.banishedHadAcce`
-  （`prevOwnerState.field.signi_acce[banishedZone]` を読む）が**先例つきで既存**だった（`WX15-003-E1`）。
-  🔴**真因は別**＝`triggerCollect.ts` の ON_BANISH 3ブロックのうち**self スコープの1本にだけ判定が無く**、
-  書いても**無言で素通り**する状態だった。engine を先に塞いでから実装した（追加時点の母集団0＝既存挙動は不変）。
-  ⚠**近似1件**＝原文は「対象を取った**あと**に条件判定」だがトリガー側で判定する（**観測不能**＝対象は
-  あなたのトラッシュの札で、live の「対象になったとき」20効果は全部「相手の効果で**場の**シグニが対象」型）。
 - **`WXDi-P05-006` choice① ＝着手禁止**（ピースカットイン割込み基盤）。**母集団 実測1効果/1カード**
   （`npm run census:population -- "カットインして使用できる"`）。
 - **`WX20-Re20` ＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群の
@@ -415,7 +413,7 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
   - ①旧「**47枚の【使用条件】【チーム】**（正規デッキ常時成立で機能等価＝保留妥当）」＝**誤り**。
     実測は **53効果/53カード**で、**うち 42件は別の正準形で配線済み**
     （`LRIG_TEAM_COUNT` / `FIELD_LRIG_COLOR_COUNT` / `LRIG_ANY_TEAM_COUNT` / `FIELD_LRIGS_HAVE_COLORS`）。
-    **本当の穴は 1枚だけ**（`WXDi-P15-003`）で、**第323バッチで実装済み**。
+    **本当の穴は 1枚だけ**で、**第323バッチで実装済み**（カード番号は [BUGFIXES.md](./BUGFIXES.md) が正）。
     ⇒ **「機能等価だから保留」ではなく、機構はとっくに実装されていた。**
     測り直す＝`npm run census:population -- "【使用条件】【(ドリーム)?チーム】" --json LRIG_TEAM_COUNT`
     （⚠**MISS はバグ数ではない**＝別名の正準形が4つある）。

@@ -81722,6 +81722,28 @@ test('defer再実測2 WD18-009-E2: アクセされていたときだけ発火す
     'prevOwnerState 不明時は発火しない規約が崩れている');
 });
 
+test('簿記トリップワイヤ: §5.3 の「機構待ち」節にクローズ済みカードを残さない', () => {
+  // 🔴**`cardProgressCensus.mjs` は §5.3 の本文からカード番号を拾って `mech`（機構待ち）に数える**ので、
+  //   **クローズ注記に引用したカード番号まで「まだ直っていない」に化ける**（`CLAUDE.md` が明記している事故）。
+  // 🔑**実際に2バッチ連続で踏んだ**＝第323で1枚、第324で2枚を「実装した」と書いた注記ごと残し、
+  //   `mech` が **9**（実体5）に膨らんでいた。⇒ **経緯は BUGFIXES.md と PLAN_PROGRESS.md が正。**
+  const plan = fs.readFileSync(join(root, 'docs/PLAN.md'), 'utf8');
+  const from = plan.indexOf('#### 個別カードの機構待ち・監視項目');
+  const to = plan.indexOf('### 5.4', from);
+  ok(from >= 0 && to > from, '§5.3 末尾の「個別カードの機構待ち」節が見つからない（見出しを変えたら本テストも直す）');
+  const section = plan.slice(from, to);
+  // 🔴**`new RegExp('\\b…')` で書かない**＝文字列リテラルの `\b` は**バックスペース**に化け、
+  //   「何にも当たらないのに緑」になる（`CLAUDE.md` の `censusDeadState` の罠と同型。本テストで実際に踏んだ）。
+  //   ⇒ **正規表現リテラルで書く**（バックスラッシュが1段しか無いので化けようがない）。
+  const CARD = /\b(?:WX|WD|SP|PR)[A-Za-z0-9-]*-[A-Za-z0-9]+\b/;
+  const DONE = /(🏁|🗑|実装した|実装済み|クローズ|解消)/;
+  const offenders = section.split(/\r?\n/)
+    .filter(line => CARD.test(line) && DONE.test(line))
+    .map(line => line.trim().slice(0, 90));
+  eq(offenders.join(' // '), '',
+    'クローズ注記にカード番号を残している＝そのカードが census:cards の mech（機構待ち）に化ける');
+});
+
 test('defer再実測2 トリップワイヤ: ON_BANISH の除去直前フラグは3ブロックすべてで判定する', () => {
   // 🔑**この不変条件があれば「self スコープだけ素通り」は起きなかった**＝
   //   `triggerCollect.ts` は ①バニッシュされた本人 ②自分の場の watcher ③相手の場の watcher の3ブロックで
