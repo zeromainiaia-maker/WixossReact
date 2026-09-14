@@ -155,6 +155,7 @@ import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
 import { pickCpuMainSpell } from './battle/cpuSpell';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
+import { centerLrigAttackBlock } from './battle/lrigAttackGate';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
@@ -11512,21 +11513,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const { attacker: my, defender: op, attackerId } = p;
     const slot: LrigAttackSlot = p.slot ?? 'center';
     const isCenterAttack = slot === 'center';
-    // 🆕**§5.3 `O-236`（2026-09-04）＝「1ターンにこのルリグがアタックできる上限は N になる」。**
-    //   🔴既定は「1回」を真偽値（`lrig_has_attacked`）で表していたので**2回目以降を表せなかった**。
-    //   ⚠**上限が未設定のときは従来どおり**（真偽値の門だけ）＝既存カードの挙動は1つも変えない。
-    const lrigAtkLimit = my.lrig_attack_limit_this_turn;
-    const lrigAtkCount = my.lrig_attack_count_this_turn ?? 0;
-    if (isCenterAttack) {
-      if (lrigAtkLimit === undefined) {
-        if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
-      } else if (lrigAtkCount >= lrigAtkLimit) {
-        return false; // 付与された上限に達した
-      }
-    }
-    // 🆕**「ダウン状態でもアタックできる」**（`O-236`）＝ルリグ側の軸。
-    //   ⚠シグニ用の `ATTACK_WHILE_DOWN` とは**別軸**（あちらは `signiAttackGate.ts`）。
-    if (isCenterAttack && my.field.lrig_down && !my.lrig_attack_while_down_this_turn) return false; // すでに攻撃済み
+    // 🆕**§5.3 `O-366`（2026-09-14）＝センターのアタック可否は `centerLrigAttackBlock` の1本に寄せた。**
+    //   🔴従来ここには `if (my.lrig_has_attacked) return false;` が在り、
+    //     **効果でアップされても再アタックできない**＝再アタック系 live 20効果が真 no-op だった。
+    //   ⚠**アクション一覧（下の `getLrigActions`）と必ず同じ関数を通す**＝
+    //     片方だけ塞がっていたせいで「ボタンは出るが押しても無反応」（§6.4 `O-18`）になっていた。
+    if (isCenterAttack && centerLrigAttackBlock(my) !== null) return false;
     if (!isCenterAttack && !assistLrigAttackableSlots(my, battleCardMap).includes(slot)) return false;
     if (op.field.lrig_attacked) return false; // ガード応答待ち中
     const myLrigNumLA = lrigSlotTop(my, slot);
@@ -12900,7 +12892,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_LRIGフェイズ：ルリグアタック ───
     if (phase === 'ATTACK_LRIG') {
-      if (!cpuSt.field.lrig_down) {
+      // 🆕**§5.3 `O-366`（2026-09-14）＝人間のボタン生成／共通実行経路と**同じ**
+      //   `centerLrigAttackBlock` を通す（3地点セット）。従来ここはダウン状態しか見ておらず、
+      //   付与された上限（`O-236`）も再アタック（効果でアップ）も CPU には届いていなかった。
+      if (centerLrigAttackBlock(cpuSt) === null) {
         // 対人戦と同じ共通処理（追加コスト・ON_ATTACK_LRIGトリガー収集を含む）
         const attacked = await performLrigAttack({
           attacker: cpuSt, defender: huSt,
@@ -15636,9 +15631,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //     「アタック」ボタンが1つも出ない**＝実機で0回になる（実測で踏んだ）。
       //   ⚠**同じ式を2箇所に書いたときの典型**（§5.1 の教訓「片方だけ直すと全ゲート緑のまま
       //     実際に使われる経路にだけ実装が無い」）。
-      const lrigAtkLimitAL = my.lrig_attack_limit_this_turn;
-      if (my.field.lrig_down && !my.lrig_attack_while_down_this_turn) return []; // 攻撃済み
-      if (lrigAtkLimitAL !== undefined && (my.lrig_attack_count_this_turn ?? 0) >= lrigAtkLimitAL) return []; // 付与された上限に達した
+      //   🆕**§5.3 `O-366`（2026-09-14）＝その2箇所を `centerLrigAttackBlock` の1本に統合した。**
+      if (centerLrigAttackBlock(my) !== null) return []; // ダウン中／付与された上限に達した
       if (op.field.lrig_attacked) return []; // ガード応答待ち
       const lrigTopALK = my.field.lrig.at(-1);
       const driveCanAttack = !!(lrigTopALK && (effectsMap.get(lrigTopALK) ?? []).some(e =>

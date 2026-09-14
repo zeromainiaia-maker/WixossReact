@@ -10885,7 +10885,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // 「そのアタックの間」は既存の一時付与慣例 `UNTIL_END_OF_TURN` で表す（新しい duration は作らない）。
   "WX19-023": [
-    {"effectId":"WX19-023-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","usageLimit":"once_per_turn"}
+    {"effectId":"WX19-023-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerCondition":{"centerLrigOnly":true},"usageLimit":"once_per_turn"}
   ],
   // `O-124`①＝比較元を先に対象化し、参照不能時は powerLtLastProcessed が空候補へ fail-closed する。
   "WX15-060": [

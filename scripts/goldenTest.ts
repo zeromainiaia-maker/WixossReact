@@ -37,6 +37,7 @@ import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSu
 import { consumeLifeBurstDouble } from '../src/screens/battle/turnScopedState';
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
+import { centerLrigAttackBlock } from '../src/screens/battle/lrigAttackGate';
 import { declaredSigniOverride } from '../src/screens/battle/growLogic';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { applyCoinGain } from '../src/engine/coinGain';
@@ -81921,6 +81922,65 @@ test('O-362 副産物: BLOCK_CARD_USE の逆翻訳の主語は engine と同じ�
   }
   // 🔴 vacuous PASS 防止＝0件でも緑になる形にしない（live から BLOCK_CARD_USE が消えたら気付く）。
   ok(checked >= 3, `BLOCK_CARD_USE の検査対象が ${checked} 件しか無い（live 実測は4効果・うち3件が逆翻訳シートに出る）`);
+});
+
+// ── §5.3 `O-366`（2026-09-14）＝センタールリグの再アタック ─────────────────────
+// 🔴`performLrigAttack` が `if (my.lrig_has_attacked) return false;` で**再アタックを明示的に禁止**して
+//   おり、「【自】：このルリグがアタックしたとき、〜このルリグをアップする」系の **live 20効果**が
+//   「アップは起きるが2回目のアタックができない」真 no-op だった。
+//   しかも**アクション一覧の門にはその行が無かった**＝ボタンは出るのに押しても無反応（§6.4 `O-18`）。
+// ⇒ 判定を `centerLrigAttackBlock` 1本へ寄せ、真偽値の門を落とした。
+// ⚠この形は JSON も逆翻訳も正しい（`UP{LRIG}` は engine で本当に `lrig_down:false` になる）ので、
+//   census・decompile 系の計器はどれも緑のまま通る＝**門を直接 assert するしかない**。
+test('O-366 ルリグ再アタック: アタック後にアップされたら再アタックできる（門）', () => {
+  const attacked: PlayerState = {
+    ...mkState({ lrig: ['WX19-014'] }),
+    lrig_has_attacked: true,
+    field: { ...mkState({ lrig: ['WX19-014'] }).field, lrig_down: true },
+  } as PlayerState;
+  eq(centerLrigAttackBlock(attacked), 'ALREADY_DOWN', 'アタック直後（ダウン中）は再アタックできない');
+  // ON_ATTACK_LRIG の `UP{LRIG}` が通ったあと＝ダウンが解けている。
+  const upped: PlayerState = { ...attacked, field: { ...attacked.field, lrig_down: false } } as PlayerState;
+  eq(centerLrigAttackBlock(upped), null,
+    '🔴アップされたのに再アタックできない（`lrig_has_attacked` の真偽値の門が復活している）');
+  // 未アタックのアップ状態は当然アタックできる（vacuous PASS 防止の対照）。
+  eq(centerLrigAttackBlock(mkState({ lrig: ['WX19-014'] })), null, '未アタックのルリグがアタックできない');
+});
+test('O-366 ルリグ再アタック: 付与された上限（O-236）は据え置き', () => {
+  const base = mkState({ lrig: ['WXDi-D04-011'] });
+  // 上限3・2回消化＝まだ撃てる。⚠上限が在るときは**ダウン中でも**撃てる（`whileDown`）。
+  const mid: PlayerState = {
+    ...base, lrig_attack_limit_this_turn: 3, lrig_attack_count_this_turn: 2,
+    lrig_attack_while_down_this_turn: true, lrig_has_attacked: true,
+    field: { ...base.field, lrig_down: true },
+  } as PlayerState;
+  eq(centerLrigAttackBlock(mid), null, '上限3・2回消化で止まっている');
+  eq(centerLrigAttackBlock({ ...mid, lrig_attack_count_this_turn: 3 } as PlayerState), 'ATTACK_LIMIT',
+    '上限に達しても止まらない');
+  // 🔴`whileDown` が無い上限つきカードはダウン中に撃てない（別軸であることの固定）。
+  eq(centerLrigAttackBlock({
+    ...mid, lrig_attack_while_down_this_turn: undefined,
+  } as PlayerState), 'ALREADY_DOWN', 'whileDown が無いのにダウン中に撃てている');
+});
+test('O-366 ルリグ再アタック: 母集団＝ON_ATTACK_LRIG で自分のルリグをアップする live 効果', () => {
+  // 🔑**この門が効く母集団そのものを数える**＝新しい再アタックカードが増えても、
+  //   「門を戻した」回にこのテストが落ちるようにするための台帳（実測 2026-09-14＝20効果）。
+  let n = 0;
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const walk = (x: unknown): void => {
+        if (!x || typeof x !== 'object') return;
+        if (Array.isArray(x)) { x.forEach(walk); return; }
+        const o = x as Record<string, unknown>;
+        const timing = o.timing as string[] | undefined;
+        if (Array.isArray(timing) && timing.includes('ON_ATTACK_LRIG')
+            && /"type":"UP","target":\{"type":"LRIG","owner":"self"/.test(JSON.stringify(o.action ?? {}))) n++;
+        Object.values(o).forEach(walk);
+      };
+      walk(e);
+    }
+  }
+  ok(n >= 18, `ON_ATTACK_LRIG で自分のルリグをアップする効果が ${n} 件しか無い（2026-09-14 実測 20）`);
 });
 
 if (listMode) {

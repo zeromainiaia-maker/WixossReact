@@ -4392,6 +4392,33 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 > **PLAN の索引で ID を選んだら、着手前にここの該当項目を読む。** 各項目の見出しは `O-nn`＋一行要約で、本文は退避時点の登録票そのまま（無改変）。
 > 退避時点の実測＝82項目／履歴 68,401字。以後この節は**追記のみ**（新規登録は PLAN §5.3 の索引に1行、全文はここに1項目）。
 
+### `O-367` — 「そのアタックの間」だけ続くキーワード付与の期間が無い
+
+**規模／母集団**＝S ／ **実測 1効果**（2026-09-14・第326バッチで `O-366` の作業中に発見）。
+
+**対象**＝`WX19-023-E2`「【自】《ターン１回》：あなたのセンタールリグがアタックしたとき、**そのアタックの間**、そのルリグは【ダブルクラッシュ】を得る。」
+live は `GRANT_KEYWORD{ keyword:'ダブルクラッシュ', duration:'UNTIL_END_OF_TURN' }`
+＝**そのターン中の2回目以降のアタックにも【ダブルクラッシュ】が乗る**（過剰付与）。
+
+🔑**なぜいま出てきたか**＝**第326バッチ（`O-366`）でルリグの再アタックが実際にできるようになるまで、
+2回目のアタック自体が存在しなかったので無害だった**。⇒ **機構を1つ直すと、それまで到達不能だった別の穴が到達可能になる。**
+
+🔴**受け皿が無い＝新機構**（grep 実測 2026-09-14）＝`END_OF_ATTACK` は
+**①`BLOCK_ACTION{GUARD}`（`effectExecutor.ts:5499`）②`prevent_damage_windows`（`attackDuration.ts:5`）**
+の2つにしか無く、`GrantKeywordAction.duration` の型（`EffectDuration`）は `END_OF_ATTACK` を持てない。
+
+**取り方**＝①`GrantKeywordAction.duration` に `'END_OF_ATTACK'` を足す ②付与ストアを
+`clearEndOfAttackEffects`（`src/screens/battle/attackDuration.ts`）で掃く（**そこが「アタック1回」の境界の唯一の場所**）
+③parser（原文「そのアタックの間」＝`parseSentencePart1.ts:751` に先例あり）＋逆翻訳＋golden。
+
+⚠**母集団を数え直すときの罠**＝`npm run census:population -- "そのアタックの間"` は **6効果**当たるが、
+**うち5件は誤検出**（`SP38-008-E3` / `SPDi43-10-E2` / `WX26-CP1-068-SONG` / `WXDi-P09-006-E2` / `WXDi-P13-007-E3`）＝
+あれは「このターン、**次に**アタックしたとき」の付与で、**中の `BLOCK_ACTION{GUARD}` が既に `until:'END_OF_ATTACK'` を持つ正しい形**。
+⇒ **`GRANT_KEYWORD` を持つものだけが母集団。**
+
+⚠**`WX19-023-E2` は `parseStatus:'MANUAL'`**＝直したら **`npx tsx scripts/syncManualLive.ts WX19-023`** まで回す
+（`npm run build:effects` では収穫マージが MANUAL を不可侵にするので live に届かない）。
+
 ### `O-52` — 「めくれるまで公開」形の残り処理が受け皿ごと無い
 
 **規模／母集団（登録票の記載そのまま）**＝M

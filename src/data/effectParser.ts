@@ -156,9 +156,17 @@ function parseAllyAttackSubject(text: string): { filter: TargetFilter } | null {
  * ⚠**「対戦相手の…」は別経路**（`:9578` の any_opp 判定）。ここは「あなたの」始まり限定。
  *
  * 対応する修飾＝色／カード名《X》。修飾なし（「あなたのルリグ１体が」）も可。
+ *
+ * 🆕🔴**「センター」は捨てずに `centerOnly` で返す**（§5.3 `O-366`・2026-09-14）＝
+ *   旧実装は `(?:センター)?` で**読み飛ばして**おり、原文が「あなたの**センター**ルリグがアタックしたとき」でも
+ *   `triggerCondition.centerLrigOnly` が付かないまま `any_ally` になっていた＝
+ *   **アシストルリグのアタックでも誘発する過剰発火**（実測5効果＝`WX19-021-E2` / `WX19-023-E2` /
+ *   `WX19-034-E1` / `WX19-054-E1` / `WX20-022-E1`）。
+ *   ⚠この形は `WX19-031-E1` だけが `manualEffects.ts` で手当てされており、parser 側には規則が無かった
+ *   （＝**手で直した1枚が「直っている」ように見えて、同型5枚が野放しだった**）。
  */
-function parseAllyLrigAttackSubject(text: string): { filter: TargetFilter } | null {
-  const m = text.match(/^あなたの(.{0,24}?)(?:センター)?ルリグ(?:[０-９\d一二三四五六七八九]+体)?がアタックしたとき[、,]/);
+function parseAllyLrigAttackSubject(text: string): { filter: TargetFilter; centerOnly: boolean } | null {
+  const m = text.match(/^あなたの(.{0,24}?)(センター)?ルリグ(?:[０-９\d一二三四五六七八九]+体)?がアタックしたとき[、,]/);
   if (!m) return null;
   let rest = m[1];
   const filter: TargetFilter = {};
@@ -171,7 +179,7 @@ function parseAllyLrigAttackSubject(text: string): { filter: TargetFilter } | nu
   take(/《([^》]+)》/, mm => { filter.cardName = mm[1]; });
   take(/([白赤青緑黒])の/, mm => { filter.color = mm[1]; });
   if (rest.length > 0) return null; // 未知の修飾語が残る＝語彙化されていない＝配線しない
-  return { filter };
+  return { filter, centerOnly: !!m[2] };
 }
 
 function isBatch1OnlyClause(re: RegExp): boolean {
@@ -22298,6 +22306,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'self';
         } else if (allyLrigSubj) {
           extractedTriggerScope = 'any_ally';
+          // 🆕**「あなたの**センター**ルリグがアタックしたとき」**（§5.3 `O-366`・2026-09-14）＝
+          //   `centerLrigOnly` を立てないと `collectAllyLrigAttackTriggers` が
+          //   **アシストルリグのアタックでも**拾う（engine 側 `triggerCollect.ts:944` が読む）。
+          if (allyLrigSubj.centerOnly) {
+            extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), centerLrigOnly: true };
+          }
           const tfL = { ...(extractedTriggerFilter ?? {}), ...allyLrigSubj.filter };
           if (Object.keys(tfL).length) extractedTriggerFilter = tfL;
         } else {

@@ -59040,7 +59040,145 @@ scenarios.v221RemoveZoneOppTurn = {
   },
 };
 
-order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn');
+// ── V-222（§5.3 `O-366`・2026-09-14）＝ルリグの再アタック ────────────────────────
+// 🔴`performLrigAttack` の `if (my.lrig_has_attacked) return false;` が**効果でアップされた後の
+//   再アタックを明示的に禁止**しており、「【自】：あなたのセンタールリグがアタックしたとき、
+//   そのルリグをアップする」系の **live 20効果**が「アップは起きるが2回目が撃てない」真 no-op だった。
+// 🔴しかも**アクション一覧の門にはその行が無かった**＝ボタンは出るのに押しても無反応（§6.4 `O-18`）＝
+//   **golden も census も緑のまま**で、盤面差分にも「アップした」としか出ない（だから実機でしか見えない）。
+// ⚠**対照（§4.4 罠3）＝盤面から `WX19-021` を1枚抜くだけ**で、他は1文字も変えない。
+//   対照側は「2回目のアタックボタンが出ない」ことまで見る（ライフの減り方だけだと1回でも緑になる）。
+const V222_UP_SIGNI = 'WX19-021#36500';   // 【自】《ターン１回》：あなたのセンタールリグがアタックしたとき、そのルリグをアップする
+const V222_HOST_LRIG = 'WD01-002#36501';  // 効果を1つも持たないルリグ（アタック時の他の誘発を混ぜない）
+const V222_GUEST_LRIG = 'WD01-001#36502';
+
+const makeV222Spec = (withUpSigni) => ({
+  hostSet: {
+    'field.lrig': [V222_HOST_LRIG],
+    'field.lrig_down': false,
+    'field.signi': [withUpSigni ? [V222_UP_SIGNI] : null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    hand: [], energy: [], actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': [V222_GUEST_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    // ⚠ガード候補を空にしてアタックが1クラッシュまで決定的に進むようにする（`assistAttackBoth` と同じ手）。
+    hand: [], energy: [], actions_done: [], game_actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+
+async function runV222Round(page, H, { withUpSigni }) {
+  const before = await H.queryState();
+  const baseLife = before?.guest?.life ?? 0;
+  /**
+   * 1回ぶんのアタックを試みる。
+   * 🔴**クリックできたことを「アタックした」と数えない**＝このバグ（§6.4 `O-18`）は
+   *   **ボタンが出るのに押しても盤面が1ビットも動かない**形なので、クリックの成否で数えると
+   *   **直っていなくても緑になる**（最初の実装が実際にそれで attacks=2 と報告した）。
+   * ⇒ 押す前の盤面を控えて、**ルリグが新たにダウンした／防御側がガード応答待ちになった／
+   *   スタックが立った**のどれかを観測できたときだけ1回と数える。
+   * ⚠モーダルはトグル（§4.4 罠2c）＝毎回閉じてから開く。
+   */
+  const tryAttack = async () => {
+    await H.closeModals();
+    const pre = await H.queryState();
+    const opened = await H.clickTestId('my-lrig-slot-center');
+    if (!opened) return { attacked: false, offered: null };
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+    let ready = false;
+    for (let k = 0; k < 14; k++) {
+      if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) { ready = true; break; }
+      await page.waitForTimeout(140);
+    }
+    if (!ready) { await H.closeModals(); return { attacked: false, offered: false }; }
+    await atk.click({ timeout: 2000 }).catch(() => {});
+    for (let k = 0; k < 18; k++) {
+      await page.waitForTimeout(200);
+      const st = await H.queryState();
+      const moved = (st?.guest?.life ?? 0) < (pre?.guest?.life ?? 0)
+        || (st?.guest?.lrigAttacked === true && pre?.guest?.lrigAttacked !== true)
+        || (st?.host?.fieldLrigDown === true && pre?.host?.fieldLrigDown !== true)
+        || (st?.pendingEffect != null && pre?.pendingEffect == null)
+        || ((st?.stackLen ?? 0) > (pre?.stackLen ?? 0));
+      if (moved) return { attacked: true, offered: true };
+    }
+    await H.closeModals();
+    return { attacked: false, offered: true };   // 🔴ボタンは出たが盤面が動かない＝`O-18` の無反応
+  };
+
+  let attacks = 0;
+  let sawUppedAfterFirst = false;
+  let secondAttackOffered = null;   // 🔑対照の観測点＝2回目に「アタック」ボタンが押せる形で出たか
+  let secondAttackWorked = null;    // 🔑「出たが無反応」と「そもそも出ない」を分けて記録する
+  let probedForIndex = -1;
+  let last = before;
+  for (let s = 0; s < 44; s++) {
+    await page.waitForTimeout(300);
+    const st0 = await H.queryState();
+    last = st0;
+    // 🔑1回目のアタックのあとに**ルリグがアップして**いることを、2回目を撃つ前に必ず観測する
+    //   （ここが false のままだと「門を直したのに誘発が来ていない」のか切り分けられない）。
+    if (attacks >= 1 && st0?.host?.fieldLrigDown === false) sawUppedAfterFirst = true;
+    const crashed = baseLife - (st0?.guest?.life ?? 0);
+    let did = null;
+    const idle = !!st0 && st0.pendingEffect == null && (st0.stackLen ?? 0) === 0
+      && st0.host?.checkSlot == null && st0.guest?.checkSlot == null
+      && st0.guest?.lrigAttacked !== true && st0.turnPhase === 'ATTACK_LRIG'
+      && crashed === attacks;   // ⚠直前のアタックが決着してから次を撃つ
+    if (idle && attacks < 2 && probedForIndex !== attacks) {
+      probedForIndex = attacks;
+      const r = await tryAttack();
+      if (attacks === 1) { secondAttackOffered = r.offered; secondAttackWorked = r.attacked; }
+      if (r.attacked) { attacks++; did = `action:ルリグアタック${attacks}`; }
+      else did = `アタック不成立(offered=${r.offered})`;
+    }
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    last = st;
+    if (attacks >= 1 && st?.host?.fieldLrigDown === false) sawUppedAfterFirst = true;
+    const crashedNow = baseLife - (st?.guest?.life ?? 0);
+    H.log(`  v222.${withUpSigni ? 'up' : 'control'}[${s}] -> ${did ?? 'なし'} | attacks=${attacks} upped=${sawUppedAfterFirst} 2nd(offered=${secondAttackOffered},worked=${secondAttackWorked}) hLrigDown=${st?.host?.fieldLrigDown} gLife=${st?.guest?.life}(開始${baseLife}) crashed=${crashedNow} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    const quiet = st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.checkSlot == null && st?.guest?.checkSlot == null && st?.guest?.lrigAttacked !== true;
+    const expectAttacks = withUpSigni ? 2 : 1;
+    const done = quiet && crashedNow === expectAttacks && attacks === expectAttacks
+      && (withUpSigni || probedForIndex === 1);
+    if (done) {
+      if (withUpSigni) {
+        // 🔑帰結＝**2回アタックできた**（ライフ2枚クラッシュ）＋2回目のあとはダウンのまま
+        //   （`usageLimit:'once_per_turn'` なので3回目は無い）。
+        const downAfter = st.host.fieldLrigDown === true;
+        return { pass: sawUppedAfterFirst && downAfter,
+          detail: `1回目のアタック後にアップ=${sawUppedAfterFirst}／🔑2回アタック成立（ライフ ${baseLife}→${st.guest.life}＝2枚クラッシュ）／2回目の後はダウンのまま=${downAfter}（《ターン1回》なので3回目は無い）` };
+      }
+      // 🔑対照＝「出ない」ことを主張する側（§4.4 罠3）。⚠**「出たが無反応」なら FAIL**＝それは直っていない。
+      return { pass: secondAttackOffered === false,
+        detail: `対照＝WX19-021 を抜くだけで2回目の「アタック」は提示されない（offered=${secondAttackOffered} worked=${secondAttackWorked}）・ライフは1枚だけ（${baseLife}→${st.guest.life}）` };
+    }
+  }
+  return { pass: false, detail: `v222完走タイムアウト（withUpSigni=${withUpSigni} attacks=${attacks} upped=${sawUppedAfterFirst} 2nd(offered=${secondAttackOffered},worked=${secondAttackWorked}) hLrigDown=${last?.host?.fieldLrigDown} gLife=${last?.guest?.life}（開始${baseLife}） phase=${last?.turnPhase} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.v222LrigReattackUp = {
+  title: 'V-222 O-366: WX19-021-E2（センタールリグのアタック時にそのルリグをアップ）で2回アタックできる',
+  spec: makeV222Spec(true),
+  async drive(page, H) { return runV222Round(page, H, { withUpSigni: true }); },
+};
+
+scenarios.v222LrigReattackControl = {
+  title: 'V-222 対照（WX19-021 を抜くだけ＝アップされないので2回目のアタックボタンが出ない）',
+  spec: makeV222Spec(false),
+  async drive(page, H) { return runV222Round(page, H, { withUpSigni: false }); },
+};
+
+order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn', 'v222LrigReattackUp', 'v222LrigReattackControl');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
