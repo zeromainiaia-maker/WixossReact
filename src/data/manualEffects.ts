@@ -1564,7 +1564,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ⚠もう1件の finding（「ルリグ1体とシグニ1体に分けられていない」）は **`selectionConstraint.groups` で
   //     既に実装済み**＝較正。
   'WXK11-006': [
-    {"effectId":"WXK11-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXK11-006-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"selectionConstraint":{"groups":[{"filter":{"cardType":"ルリグ"},"count":1},{"filter":{"cardType":"シグニ"},"count":1}]}},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"opponent","count":1,"upToCount":true,"filter":{"cardType":"シグニ"}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"},{"effectId":"WXK11-006-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"optional":false},{"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":false,"fromTrash":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK11-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXK11-006-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":2,"selectionConstraint":{"groups":[{"filter":{"cardType":"ルリグ"},"count":1},{"filter":{"cardType":"シグニ"},"count":1}]}},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"opponent","count":1,"upToCount":true,"filter":{"cardType":"シグニ"}},"opponentSelects":true}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"},{"effectId":"WXK11-006-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"optional":false},{"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":false,"fromTrash":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK11-006-E4","effectType":"AUTO","timing":["ON_GUARD"],"triggerCondition":{"lrigAttackGuarded":true},"action":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
 
@@ -4385,12 +4385,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   （`effectExecutor.ts:2998` の `oppRespondsField`。live 実績＝`WDK17-009-E2` / `SPDi43-01-E1`）。
     //   ⇒ **新しい型も `src/screens/` の変更も要らない＝実機不要。**
     // ⚠**手札側には足さない**＝`HAND_CARD` は既定で相手が選ぶ（`effectExecutor.ts:3110`）。二重指定になる。
-    {"effectId":"WX13-036-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"selfPowerDown":20000},
-     "action":{"type":"SEQUENCE","steps":[
-       {"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},
-       {"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}
-     ]},
-     "duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+    // 🗑**E3 の手書きコピーは 2026-09-14（§5.3 `O-346`）で撤去した**＝parser
+    //   （`parseSentencePart1.ts` の「対戦相手が対象を選ぶパターン」規則）が `opponentSelects` を
+    //   立てるようになり、出力が実体同一になった（§6.4 `O-42` のトリップワイヤが検知）。
+    //   影武者を残すと**その効果にだけ以後の parser 改善が永久に届かない**ので削除して parser に任せる。
     {"effectId":"WX13-036-E1","effectType":"AUTO","timing":["ON_OPP_POWER_DECREASED"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"delta":0,"deltaFromOppPowerDecrease":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"byOwnEffect":true}},
   ],
   "WX14-074": [
@@ -6658,20 +6656,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `MANUAL`→`AUTO` へ直した（`PRESERVE_STATUSES` が効いたままだと同じ凍結が起きる）。
   // BURST「手札から＜迷宮＞シグニ1枚を捨てる。そうした場合、対戦相手は対象の自分のシグニ1体をトラッシュに置く」
   //   旧パース誤り: 2段目 TRASH に opponentSelects 欠落（相手自身が選ぶべき）。
-  'WX04-030': [
-    {
-      effectId: 'WX04-030-BURST',
-      effectType: 'LIFE_BURST',
-      timing: ['ON_LIFE_BURST'],
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '迷宮' } } },
-        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, opponentSelects: true } },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // 🗑**BURST の手書きコピーも 2026-09-14（§5.3 `O-346`）で撤去した**＝E1 のときと**同じ経緯**で、
+  //   parser が `opponentSelects` を立てるようになり出力が実体同一になった（`O-42` トリップワイヤが検知）。
+  //   ⇒ このカードの手書き在庫は残0。live 側の `parseStatus` も `MANUAL`→`AUTO` へ戻す。
 
   // WX04-031 幻竜姫 オロチ（シグニ）
   // E1「対戦相手のエナゾーンにあるカードが4枚以下であるかぎり、このシグニは【ダブルクラッシュ】を得る」

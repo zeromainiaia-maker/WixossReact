@@ -29133,6 +29133,11 @@ const O327_WIRED_SHAPES = new Map<string, string>([
   //   配線＝`execAddToField` の `selectOrInteract` 第8引数（`oppPicksAF`）。対照は golden「§5.3 O-309」の②（正面が空なら何も起きない）。
   ['ADD_TO_FIELD|HAND_CARD|N', 'effectExecutor.ts execAddToField（相手の手札から相手が選ぶ。§5.3 O-309 第282 で配線）'],
   ['ADD_TO_LIFE|fromTrash|N', 'effectExecutor.ts execAddToLife（トラッシュ）'],
+  // 🆕§5.3 `O-346`（2026-09-14 第321）＝「対戦相手は自分のトラッシュから対象のシグニを１枚まで手札に加える」
+  //   （`WXK11-006-E1-G`）。配線＝`execTransferToHand` の `selectOrInteract` 第8引数（`oppRespondsTTH`）。
+  //   対照＝golden「O-346 WXK11-006-E1-G」の①あり→`opponentResponds:true` ②なし→立たない
+  //   ＋**同じカードの `ADD_TO_LIFE` は「あなたの選んだカード」なので旗を立てない**ことも同テストで固定。
+  ['TRANSFER_TO_HAND|TRASH_CARD|N', 'effectExecutor.ts execTransferToHand（相手のトラッシュから相手が選ぶ。§5.3 O-346 第321 で配線）'],
   ['STUB:SELECT_TARGET_ONLY|SIGNI|ALL', 'execStubPart1.ts SELECT_TARGET_ONLY（場のシグニ）'],
   // ── 以下は「そもそも選択が起きない」形＝旗は無害（配線の要否が生じない）──
   ['TRASH|SIGNI|ALL', '選択なし＝候補を全部トラッシュする（upToCount 無し）'],
@@ -74080,12 +74085,13 @@ test('O-D 一点物 A2 WX13-036-E3: 相手の手札1枚と相手のシグニ1体
     //   **使用者が相手のいちばん重いシグニを落とせた**＝過剰だった。
     //   🔑この軸は据置の理由（限定の追加／対話を跨ぐ対象保持）と**無関係**＝engine は
     //   `oppRespondsField`（`effectExecutor.ts:2998`）で対話1回のうちに解決する。
-    //   ⚠**fresh（parser 出力）はまだ旧形**＝parser 規則は未着手（母集団の実測は §5.3 `O-346`）。
+    // 🆕**2026-09-14（§5.3 `O-346` クローズ）＝fresh も同じ形になった。**
+    //   旧版はここで「fresh はまだ旧形」と**parser の未着手を固定**していた（§5-17＝緑の golden は
+    //   正しさの証明ではない）。parser 規則を入れたので **live と fresh が一致する**のが正しい状態で、
+    //   この一致によって `manualEffects.ts` の手書きコピーは影武者になり撤去した（`O-42` トリップワイヤ）。
     eq(JSON.stringify(action.steps[1]),
-      freshParse
-        ? '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1}}'
-        : '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}',
-      `${freshParse ? 'fresh: parser は未対応（旧形のまま）' : 'live: 選択者だけを足す'}`);
+      '{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}',
+      `${freshParse ? 'fresh' : 'live'}: 選ぶのは相手（parser と live が一致する）`);
     // 🔴**`storedTargetCards` を跨がせる3段構成へ戻さない**（第219の検証で実測＝
     //   `freezeStoredTargets` は素の SEQUENCE では呼ばれず、対話の後に候補が全体へ開く＝過剰実行）。
     ok(!JSON.stringify(action).includes('targetsStored'),
@@ -81524,6 +81530,129 @@ test('O-362③ E2E: 長期ゾーン消去は相手ターン中も配置不可、
   eq(short.otherState.signi_zone_blocks_next_turn, undefined, '既存4効果は次ターン予約を持たない');
   const shortEnded = activateNextTurnSigniZoneBlocks(clearTurnEndScopedState(short.otherState));
   eq(resolveSigniZonePlacement(shortEnded, 0).allowed, true, '既存のターン終了時まで4効果は境界で解除');
+}));
+
+// ═══ §5.3 索引G `O-346`＝「対戦相手は自分の〜」＝**誰が選ぶか**の取り違え ═══
+// 🔴`target.owner`（誰のカードか）と `opponentSelects`（誰が選ぶか）は**独立**。落とすと
+//   **効果の使用者が相手の代わりに選ぶ**＝相手が一番弱い札を出すはずのところで一番強い札を取れる
+//   一方的に有利な取り違えになる。engine 側は `opponentSelects` → `opponentResponds` →
+//   相手自身の UI という経路で、**フラグが無ければ使用者が選ぶ**（fail-open ではなく fail-to-user）。
+// ⚠逆翻訳も census も golden も緑のままなので、計器では区別できない。
+test('O-346 live/fresh: 「対戦相手は自分の〜」4効果が opponentSelects を持つ（親 action 側）', () => {
+  const cases: Array<[string, string]> = [
+    ['WX19-023', 'WX19-023-BURST'],      // それをトラッシュに置く
+    ['WXK10-025', 'WXK10-025-BURST'],    // それをデッキの一番下に置く
+    ['WX24-P2-086', 'WX24-P2-086-E1'],   // 選びエナゾーンに置く
+    ['WX11-039', 'WX11-039-E1'],         // 自分の手札からシグニを3枚まで場に出す
+  ];
+  const hasOppSelects = (a: unknown): boolean => {
+    if (!a || typeof a !== 'object') return false;
+    const o = a as Record<string, unknown>;
+    if (o.opponentSelects === true) return true;
+    return Object.values(o).some(v => hasOppSelects(v));
+  };
+  for (const [cardNum, effectId] of cases) {
+    const live = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!live, `${effectId} が live に無い`);
+    ok(hasOppSelects(live!.action), `${effectId}: live に opponentSelects が無い＝使用者が相手の札を選んでしまう`);
+    // 🔴§5-29＝収穫マージは fresh が純粋上位集合でなければ live を温存するので、
+    //   **parser を退行させても live は正しいまま＝live 読みだけでは反転しない**。fresh 側も固定する。
+    const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    ok(!!fresh, `${effectId} が fresh parse に無い`);
+    ok(hasOppSelects(fresh!.action), `${effectId}: fresh parser が opponentSelects を落としている`);
+  }
+});
+
+test('O-346 E2E: 「対戦相手は自分の」は相手が選び、「対戦相手の〜を対象とし」は使用者が選ぶ', () => withSavedCursor(() => {
+  const runTrash = (opponentSelects: boolean) => {
+    const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, undefined);
+    return executeAction({
+      type: 'TRASH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+      ...(opponentSelects ? { opponentSelects: true } : {}),
+    } as unknown as EffectAction, ctx);
+  };
+  // ① 「対戦相手は自分のシグニ1体を対象とし、それをトラッシュに置く」＝**相手**が選ぶ
+  const opp = runTrash(true);
+  ok(!opp.done && opp.pending.type === 'SELECT_TARGET', '相手選択でも対象選択の対話は開く');
+  if (opp.done || opp.pending.type !== 'SELECT_TARGET') return;
+  eq(opp.pending.opponentResponds, true, 'opponentSelects が opponentResponds へ伝わっていない＝使用者が選んでしまう');
+  // ② 対照＝「対戦相手のシグニ1体を対象とし」（使用者が選ぶ）では opponentResponds を立てない。
+  //    🔴これを assert しないと「全部相手に選ばせる」実装も満点に見える（§5-3′）。
+  const self = runTrash(false);
+  ok(!self.done && self.pending.type === 'SELECT_TARGET', '使用者選択でも対象選択の対話は開く');
+  if (self.done || self.pending.type !== 'SELECT_TARGET') return;
+  ok(!self.pending.opponentResponds, 'opponentSelects が無いのに相手へ選択を渡している＝逆向きの取り違え');
+}));
+
+test('O-346 WXK11-006-E1-G: トラッシュ→手札は相手が選び、同じカードのライフ追加は使用者が選ぶ', () => withSavedCursor(() => {
+  // 原文＝「対戦相手は自分のトラッシュから**対象のシグニ**を１枚まで手札に加える。
+  //        対戦相手は自分のトラッシュから**あなたの選んだ**カード１枚をライフクロスに加える。」
+  // 🔑**同じカードの中に「相手が選ぶ」と「あなたが選ぶ」が並んでいる**＝片方だけを見て
+  //   一律に付けると必ずどちらかが壊れる。両方向をこの1本で固定する。
+  const live = (effectsMap.get('WXK11-006') ?? []).find(e => e.effectId === 'WXK11-006-E1');
+  ok(!!live, 'WXK11-006-E1 が live に無い');
+  if (!live) return;
+  // ⚠ネストした `filter:{…}` を跨ぐので `[^}]*` 型の regex では照合できない＝ノードを探して直接読む。
+  const findNode = (a: unknown, type: string): Record<string, unknown> | undefined => {
+    if (!a || typeof a !== 'object') return undefined;
+    const o = a as Record<string, unknown>;
+    if (o.type === type) return o;
+    for (const v of Object.values(o)) {
+      const hit = findNode(v, type);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+  const toHand = findNode(live.action, 'TRANSFER_TO_HAND');
+  ok(!!toHand, 'TRANSFER_TO_HAND ノードが無い');
+  eq((toHand!.source as Record<string, unknown>).owner, 'opponent', '回収元は相手のトラッシュ');
+  eq(toHand!.opponentSelects, true, 'トラッシュ→手札に opponentSelects が無い＝使用者が相手の回収先を選んでしまう');
+  const toLife = findNode(live.action, 'ADD_TO_LIFE');
+  ok(!!toLife, 'ADD_TO_LIFE ノードが無い');
+  ok(!toLife!.opponentSelects, '🔴ライフ追加まで相手に選ばせている＝原文は「あなたの選んだカード」');
+
+  // E2E＝engine が実際に相手側へ選択を回すか（型を足しただけの死フラグでないこと＝§5-14）。
+  const mkTrashCtx = (opponentSelects: boolean) => {
+    const ctx = mkCtx({}, {}, undefined);
+    ctx.otherState.trash = [SIGNI_L1, SIGNI_L2];
+    return executeAction({
+      type: 'TRANSFER_TO_HAND',
+      source: { type: 'TRASH_CARD', owner: 'opponent', count: 1, upToCount: true, filter: { cardType: 'シグニ' } },
+      ...(opponentSelects ? { opponentSelects: true } : {}),
+    } as unknown as EffectAction, ctx);
+  };
+  const oppPick = mkTrashCtx(true);
+  ok(!oppPick.done && oppPick.pending.type === 'SELECT_TARGET', '相手のトラッシュ回収で対話が開く');
+  if (oppPick.done || oppPick.pending.type !== 'SELECT_TARGET') return;
+  eq(oppPick.pending.opponentResponds, true, 'opponentSelects が execTransferToHand で消費されていない');
+  // 対照＝フラグ無しは従来どおり使用者が選ぶ（既存効果を巻き込んでいないこと）。
+  const selfPick = mkTrashCtx(false);
+  ok(!selfPick.done && selfPick.pending.type === 'SELECT_TARGET', 'フラグ無しでも対話は開く');
+  if (selfPick.done || selfPick.pending.type !== 'SELECT_TARGET') return;
+  ok(!selfPick.pending.opponentResponds, '🔴フラグ無しの既存 TRANSFER_TO_HAND まで相手へ渡している');
+}));
+
+test('O-346 据置の根拠: 手札の廃棄は既定で相手が選ぶ（opponentSelects は不要）', () => withSavedCursor(() => {
+  // 🔑**triage の偽陽性を固定する**＝`PR-195-E3`「対戦相手は自分の凍結状態のシグニ1体につき手札を1枚捨てる」は
+  //   `opponentSelects` が無くても正しい。`execTrash` の HAND_CARD 分岐だけは
+  //   `opponentResponds = owner==='opponent' && !blind && !actingPlayerSelects`＝**既定で相手が選ぶ**
+  //   （手札は非公開なので使用者には選べない）。使用者が選ぶのは「手札を見て選び」＝`actingPlayerSelects`。
+  //   ⇒ ここに `opponentSelects` を足して回るのは**無意味**で、逆に外すと「見て選ぶ」型が壊れる。
+  const ctx = mkCtx({}, { hand: 3 }, undefined);
+  const r = executeAction({
+    type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+  } as unknown as EffectAction, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手手札の廃棄は対象選択の対話を開く');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq(r.pending.opponentResponds, true, 'HAND_CARD は既定で相手が選ぶ（この既定が消えると手札が丸見えになる）');
+  // 対照＝「対戦相手の手札を見てN枚選び」＝使用者が選ぶ。
+  const seen = executeAction({
+    type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, actingPlayerSelects: true },
+  } as unknown as EffectAction, mkCtx({}, { hand: 3 }, undefined));
+  ok(!seen.done && seen.pending.type === 'SELECT_TARGET', '「見て選び」も対話を開く');
+  if (seen.done || seen.pending.type !== 'SELECT_TARGET') return;
+  ok(!seen.pending.opponentResponds, 'actingPlayerSelects が効いていない＝「見て選び」まで相手に渡している');
 }));
 
 // §5.3 索引G `O-362` の副産物＝`BLOCK_CARD_USE` の逆翻訳が主語を取り違えていた。

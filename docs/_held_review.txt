@@ -3,3 +3,10 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## （type増減なし＝値/構造変更） ［1枚］
+WX11-039
+--- WX11-039
+  原文: このスペルの使用コストはあなたの場にある＜迷宮＞のシグニ１体につき《白×1》減る。対戦相手のすべてのシグニをデッキに戻し、対戦相手は自分のデッキをシャッフルする。その後、対戦相手は自分の手札からシグニを３枚まで場に出す。,：対戦相手のシグニ１体を対象とし、それをデッキに戻し、対戦相手は自分のデッキをシャッフルする。
+  + [0].action.steps[1].opponentSelects = true
+  + [0].action.steps[1].opponentSelectsZone = true
+

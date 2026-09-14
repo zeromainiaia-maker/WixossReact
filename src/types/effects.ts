@@ -2661,6 +2661,13 @@ export interface TransferToHandAction {
   fixedCardNums?: string[];
   /** 同じ移動元から異なる条件の組をそれぞれ選ぶ。source と併用せず、source の owner/type を共有する。 */
   transferGroups?: { count: number; filter?: TargetFilter }[];
+  /**
+   * 「**対戦相手は**自分のトラッシュから対象のシグニを１枚まで手札に加える」＝**選ぶのは相手**
+   * （§5.3 `O-346`・`WXK11-006-E1-G`）。⚠`source.owner`（誰のカードか）とは**独立の軸**で、
+   * 省略＝**効果の使用者が選ぶ**（`execTransferToHand` が `selectOrInteract` へ渡す既定は false）。
+   * 🔑対照＝同じカードの `ADD_TO_LIFE` 側は原文が「**あなたの選んだ**カード１枚」なので**立てない**。
+   */
+  opponentSelects?: boolean;
 }
 
 // デッキ上または手札からライフクロスに加える

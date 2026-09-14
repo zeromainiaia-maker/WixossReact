@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 🏁§5.3 索引G `O-346` クローズ（「対戦相手は自分の〜」＝**誰が選ぶか**・第321バッチ）
+
+**真因＝`target.owner`（誰のカードか）と `opponentSelects`（誰が選ぶか）は独立なのに、parser 規則が前者だけを読んでいた。**
+落とすと engine は **fail-to-user**＝**効果の使用者が相手の代わりに選ぶ**（相手が一番惜しくない札を出すはずのところで
+使用者が一番重い札を取れる）＝一方的に有利な取り違えになる。⚠**逆翻訳も census も golden も緑のまま**。
+
+### triage が主産物＝MISS 52件の内訳（台帳＝`scripts/archive/scratchpad/O346_triage.md`）
+
+`npm run census:population -- "対戦相手は自分の" --json opponentSelects`＝**121効果 / 115カード**、
+着手前 **OK 69 / MISS 52** → 完了後 **OK 74 / MISS 47**。
+🔴**MISS はバグ数ではない**＝1件ずつ live JSON と engine の消費地点まで当たった実測の内訳は
+
+| 分類 | 件数 | 中身 |
+|---|---|---|
+| **(a) 真バグ＝修正** | **5** | 下記 |
+| (b) 別の正準形で配線済み | 19 | `EQUALIZE_ENERGY`(7) ／ `OPP_CHOOSE_OWN_SIGNI_TO_ENERGY`(2) ／ `SEARCH{opponentResponds}` ／ `CHOOSE{opponentResponds}` ／ `LOOK_PICK_CHAIN{owner:opponent}` ／ 専用 STUB ほか |
+| (c) そもそも選択の文型ではない | 27 | シャッフル / フェイズ・ステップのスキップ / 禁止 / デッキの一番上を【チャーム】 / 固定枚数ミル / めくれるまで公開 / 「すべて」 |
+| (d) 別機構が要る＝defer | 1 | `WX07-017-E1`（§5.3 `O-365` へ登録） |
+
+🔑**最大の偽陽性は `PR-195-E3`**＝「対戦相手は…手札を１枚捨てる」。**手札の廃棄は `execTrash` が既定で相手に選ばせる**
+（`opponentResponds = owner==='opponent' && !blind && !actingPlayerSelects`＝非公開領域なので使用者には選べない）。
+**使用者が選ぶほうが例外**（`actingPlayerSelects`＝「手札を見て選び」）。⇒ **ここに旗を足して回るのは無意味で、
+外すと「見て選ぶ」型が壊れる。** この判定を golden で固定した。
+
+### (a) 修正した5効果
+
+| 効果 | 原文 | 直し方 |
+|---|---|---|
+| `WX19-023-BURST` | 対戦相手は自分のシグニ１体を対象とし、それをトラッシュに置く | parser の規則は**コメントに「対戦相手が対象を選ぶパターン」と書いてあるのに旗を立てていなかった** |
+| `WXK10-025-BURST` | 〜それをデッキの一番下に置く | `TRANSFER_TO_DECK` に追加（主語が「対戦相手は自分の」のときだけ） |
+| `WX24-P2-086-E1` | 対戦相手は自分のシグニ１体を**選び**エナゾーンに置く | 🔑**すぐ上の兄弟規則「選びトラッシュに置く」には元から在った**＝写し忘れ（§5-8′） |
+| `WX11-039-E1` | その後、対戦相手は自分の手札からシグニを３枚まで場に出す | `ADD_TO_FIELD` に `opponentSelects` ＋ `opponentSelectsZone`。⚠**held に落ちていた**ので `heldReview --adopt` で採用（§5-5b＝live diff 0 は「不要」ではない） |
+| `WXK11-006-E1` | 対戦相手は自分のトラッシュから対象のシグニを１枚まで手札に加える | `TransferToHandAction` に `opponentSelects` 軸を**新設**し `execTransferToHand` の第8引数へ配線 |
+
+🔑**`WXK11-006-E1` は同じカードの中に両方向がある**＝次の文は「対戦相手は自分のトラッシュから**あなたの選んだ**
+カード１枚をライフクロスに加える」＝`ADD_TO_LIFE` 側は**旗を立てないのが正解**。一律に付けると必ず片方が壊れる。
+
+### 🔑 既存のトリップワイヤ2本が、この変更を正しく捕まえた
+
+- **`§6.4 O-42`（parser と実体同一の manual 影武者は残0）**＝parser が旗を立てた結果、
+  `WX13-036-E3`（この項目の発端カード）と `WX04-030-BURST` の**手書きコピーが実体同一になった**。
+  ⇒ 規約どおり**manual を削除して parser に任せ**、live の `parseStatus` を `MANUAL`→`AUTO` へ戻した
+  （本体は**バイト同一**であることを機械確認）。影武者を残すと**その効果にだけ以後の parser 改善が永久に届かない**。
+- **`§5.3 O-327`（live の `opponentSelects` は配線済みの形にしか載らない）**＝`TRANSFER_TO_HAND|TRASH_CARD|N` という
+  **新しい形**に旗が載った瞬間に赤くなった。指示どおり「executor の第8引数へ配線 → 対照2本 → 許容リストへ追記」の順で閉じた。
+  🔑**「先に許容リストへ足して黙らせない」とテスト本文に書いてあるのがそのまま効いた。**
+- 🔴**古い golden を1本訂正した**＝`O-D 一点物 A2 WX13-036-E3` は
+  「**fresh: parser は未対応（旧形のまま）**」と**parser の未着手を assert で固定**していた（§5-17＝緑の golden は
+  正しさの証明ではない）。parser 規則を入れたので live と fresh が一致するのが正しい状態になり、両分岐を同じ期待値へ直した。
+
+### 検証
+
+- `npm run gates` **全緑**・golden **4119 → 4123 PASS / 0 FAIL**・lint warning **256 据置**。
+- live 差分は effectId 単位で **8効果**＝修正5＋`WXK04-032-E1`（原文「対戦相手はそれを行う…手札からシグニ１枚を場に出す」
+  ＝兄弟の正しい波及）＋`WX13-036-E3`・`WX04-030-BURST`（**`parseStatus` だけ**・本体バイト同一）。
+- **held / `_partial_fresh` / `_idset_fresh` はいずれも 0 件**（`WX11-039` を採用して解消）。
+- **反転確認**＝①parser から旗を外すと `O-346 live/fresh` の**fresh 側だけ**が FAIL（**live は正しいまま**＝§5-29 の
+  「live 読みだけの assert は反転しない」を実地で確認）②`execTransferToHand` の第8引数を `false` に戻すと
+  `O-346 WXK11-006` が FAIL。いずれも復元で PASS。
+- **実機不要と判定**（PLAN §2.2）＝触ったのは `src/types` `src/engine` `src/data` `public/data` `scripts` だけで
+  **`src/screens/` は非変更**。`opponentSelects` → `opponentResponds` → 相手側 UI の経路は**既存**で、
+  `O-309` 第282（`ADD_TO_FIELD|HAND_CARD`）と同じ拡張の形。両方向の対照 golden で固定した。
+
 ## 2026-09-14 — 🏁§5.3 索引G `O-362` クローズ（期間の食い違い3群・第320バッチ）
 
 **真因＝「このターン」と書いてある効果の解除地点・消費回数・期間の向きが、3群それぞれ別の理由でズレていた。**

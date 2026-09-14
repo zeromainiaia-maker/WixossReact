@@ -1964,10 +1964,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       } as EffectAction;
     }
     // 対戦相手は自分のシグニN体を選びエナゾーンに置く
+    // 🔴**§5.3 `O-346`（2026-09-14）＝すぐ上の「選びトラッシュに置く」規則は `opponentSelects` を
+    //   立てているのに、この兄弟規則だけ落ちていた**（`WX24-P2-086-E1`）。`execSendToEnergy` の
+    //   `oppResponds` は `!!a.opponentSelects && tgt.owner === 'opponent'` なので、無いと使用者が選ぶ。
     if (t.match(/対戦相手は自分のシグニ[０-９\d]*体?を選びエナゾーンに置く/)) {
       const cntM = t.match(/([０-９\d]+)体/);
       const cnt = cntM ? parseNum(cntM[1]) : 1;
-      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as SendToEnergyAction;
+      return {
+        type: 'SEND_TO_ENERGY',
+        target: { type: 'SIGNI', owner: 'opponent', count: cnt },
+        opponentSelects: true,
+      } as SendToEnergyAction;
     }
   }
 
@@ -3871,7 +3878,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   （`WXK06-025-E2`／`WX11-039-E1`・原文 CSV 実測で該当は2文だけ）。
     //   ⚠「あなたは対戦相手の手札から〜」とは語順が違うので「対戦相手は(自分の)手札から」に限定する。
     const handOutOwner: Owner = /対戦相手は(?:自分の)?手札から/.test(t) ? 'opponent' : 'self';
+    // 🔴**§5.3 `O-346`（2026-09-14）＝主語は読んでいたが「誰が選ぶか」が落ちていた**（`WX11-039-E1`）。
+    //   `execAddToField` の `oppPicksAF` は `!!a.opponentSelects && source.owner === 'opponent'
+    //   && source.type === 'HAND_CARD'` ＝立てないと**使用者が相手の手札を見て選ぶ**ことになる。
+    //   `opponentSelectsZone` も併せて立てる＝出す先のゾーンも相手が決める
+    //   （同文型の `WXK06-025-E2` が `manualEffects.ts` で既に両方立てている＝正準形をそちらに合わせる）。
     return { type: 'ADD_TO_FIELD', owner: handOutOwner, source: { type: 'HAND_CARD', owner: handOutOwner, count, upToCount: !!upToM, filter },
+      ...(handOutOwner === 'opponent' ? { opponentSelects: true, opponentSelectsZone: true } : {}),
       ...(asDownHand ? { asDown: true } : {}),
       ...(t.includes('場に出してもよい') ? { optional: true } : {}) };
   }
@@ -4907,8 +4920,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 対戦相手のシグニをトラッシュに置く（対戦相手が対象を選ぶパターン）----
+  // 🔴**§5.3 `O-346`（2026-09-14）＝コメントは「対戦相手が対象を選ぶ」と書いてあるのに
+  //   `opponentSelects` を一度も立てていなかった**＝`execTrash` の `oppRespondsField` は
+  //   `!!a.opponentSelects && tgt.owner === 'opponent'` なので、**効果の使用者が相手のシグニを選ぶ**
+  //   一方的に有利な取り違えになっていた（`WX19-023-BURST`）。
+  //   ⚠`owner`（誰のカードか）と `opponentSelects`（誰が選ぶか）は**独立**なので必ず併記する。
   if (t.match(/対戦相手は.*自分のシグニ.*トラッシュに置く/)) {
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, opponentSelects: true };
   }
 
   // ---- デッキからサーチしてトラッシュへ ----
@@ -5261,11 +5279,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         position: 'bottom',
       } as TransferToDeckAction;
     }
+    // 🔴**§5.3 `O-346`（2026-09-14）＝「対戦相手は自分のシグニ１体を対象とし、それをデッキの一番下に置く」
+    //   （`WXK10-025-BURST`）は相手が選ぶ**。`execTransferToDeck` の `oppResponds` は
+    //   `!!a.opponentSelects && src.owner === 'opponent'` なので、立てないと使用者が相手のシグニを選ぶ。
+    //   ⚠主語が「対戦相手は自分の」のときだけ立てる（「対戦相手のシグニ１体を対象とし」＝使用者が選ぶ、は別物）。
+    const dbOppSelects = owner === 'opponent' && /対戦相手は自分の/.test(t);
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
       shuffle: false,
       position: 'bottom',
+      ...(dbOppSelects ? { opponentSelects: true } : {}),
     } as TransferToDeckAction;
   }
 

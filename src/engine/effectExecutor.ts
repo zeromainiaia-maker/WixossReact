@@ -4450,7 +4450,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   if (a.fixedCardNums && cands.length > 0 && cands.length <= count) {
     return done(applyTransfer(cands, ctx));
   }
-  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+  // §5.3 `O-346`＝「対戦相手は自分のトラッシュから〜を手札に加える」は**相手が選ぶ**。
+  // ⚠既定は false のまま＝`opponentSelects` を立てた効果だけが相手側の UI へ回る（既存効果は不変）。
+  const oppRespondsTTH = !!a.opponentSelects && src.owner === 'opponent';
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, oppRespondsTTH, { selectionConstraint: src.selectionConstraint });
 }
 
 // PLACE_SIGNI_ON_FIELD: cardNums を1枚ずつ場に出す。各カードでゾーン選択が必要なら、残りカードの配置を

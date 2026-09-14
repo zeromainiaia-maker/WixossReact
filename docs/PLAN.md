@@ -8,39 +8,42 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-**直近＝2026-09-14（第318バッチ・Codex 委譲＋Claude 引き継ぎ）＝🏁索引G の4項目クローズ**（`O-364` / `O-359` / `O-361` / `O-363`）。
-🔴🔑**主産物＝`O-364` の登録票が誤りだった**＝「恒久 no-op」ではなく、**`src/screens/battle/lrigLimit.ts` に2本目の funnel が在って拾えていた**。
-私が `src/engine/` しか grep せずに登録したのが原因（[LESSONS.md](./LESSONS.md) §4.1）。⇒ **一本化**して二重計上を防いだ。
+**直近＝2026-09-14（第319〜321バッチ・Codex 委譲＋Claude 引き継ぎ）＝🏁索引G を5項目クローズ**
+（`O-358` / `O-357` / `O-360` / `O-362` / `O-346`）。**索引 A / A' / B / E に続き G も残1**（新規登録の `O-365` のみ）。
+
+🔴🔑**主産物＝`O-346` は「MISS 52件」を1件ずつ判定して真バグが 5件だと確定したこと**（台帳＝`scripts/archive/scratchpad/O346_triage.md`）。
+**内訳＝(a) 真バグ 5 / (b) 別の正準形で配線済み 19 / (c) そもそも選択の文型でない 27 / (d) 別機構 1。**
+⇒ **計器の MISS をバグ数と読んではいけない**という §2.0 の原則が、今回もそのまま当たった。
 
 | 項目 | 実測した受け皿 | 直し方 |
 |---|---|---|
-| 🏁`O-364`（`WX22-002-E1`） | 🔴**「無い」は誤り**＝`collectOppDeclaredLrigLimitDelta`（`src/screens/`）が既に拾っていた | `collectLrigColorAndLimitMods` の**相手側候補にセンタールリグとキー枠**を足して一本化し、`computeEffectiveLrigLimit` 側の**二重加算を撤去**（−2 にしない） |
-| 🏁`O-359`（`WXDi-P07-086-E1`） | `POWER_SET`（live 226効果）＋ `valueRef:'declared_number'` の先例＋ `DECLARE_NUMBER_RANGE` | `numberChoices:[2..20]` ＋ `POWER_SET{targetsStored, valueRef, multiplier:1000, UNTIL_END_OF_TURN}`。**新型0** |
-| 🏁`O-361`（`WX19-002-E1`） | 🔑**完全に既存**＝`isEnaMultiStripped` が `STUB{STRIP_OPP_ENA_MULTI_ENA}` を読む | parser の張り替えだけ。**2効果とも**（`WXK03-002-E1` も同文型）。旧2 id は live 0 になるがハンドラは安全網として残す |
-| 🏁`O-363`（3件） | ①`OPTIONAL_COST{handReveal}` 既存 ②枚数軸を追加 ③種別限定を追加 | ①`WDK08-Y14-E1` の誤パース（**エナのトラッシュ**を要求していた）を `handReveal{count:2}` へ ②`oppLrigDeckReveal{count:3,upToCount,selectedBy:'opponent'}` ③`forceTargetSourceCardTypes:['シグニ']` |
+| 🏁`O-346` | 🔑**型も消費地点も既存**（`opponentSelects` → `opponentResponds` → 相手側 UI） | parser 4規則へ旗を追加＋`TransferToHandAction` に軸を1本新設。**真バグ5効果** |
+| 🏁`O-362` | 🔑**3群とも既存**＝命名規約 `*_this_turn` の機械抽出／payload 軸／`signi_zone_blocks_next_turn` | 解除地点の新設・「次に」の有無を payload 化・予約の向きを利用。**実機 `V-219`〜`V-221` 返済** |
+| 🏁`O-360` | **`ACCE_FROM_TRASH_MULTI` / `LOOK_PICK_CHAIN` が既存** | 3効果中2件が**恒久 no-op** だった。1件は根拠つき defer |
+| 🏁`O-358` | 無し＝`StubAction.requireEmptyZone` を新設（型＋engine＋parser＋逆翻訳） | 3ゾーン全部を `available:true` で出していた（過剰） |
+| 🏁`O-357` | 🔑**`CONDITIONAL{LAST_PROCESSED_COUNT_GTE}` の否定側で足りた**＝新型0 | 辞退時に**即時**トラッシュ（旧＝ターン終了時まで残す近似） |
 
-- 🔑**`O-363③` は限定のある1枚にだけ payload を足した**＝他2枚（`WX25-CP1-060` / `WXDi-P11-040`）の原文は
-  「**能力か効果**で対象を選ぶ際」＝**限定が無いので据え置きが正解**（原文を読んで確かめた）。
-- ✅**実機 `V-218` を同バッチで返済＝2シナリオとも PASS**（`node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc`）。
-  🔑**同一アクションのシグニ／アーツを効果元にして対照を作った**＝差が出るのは「効果元の種別」だけ。
-  ①シグニの効果＝候補が《コードメイズ　ヒメジジョ》だけに絞られる ②アーツの効果＝絞られず2体とも出る。
-- 🔑**`O-364` の観測は golden で網羅した**＝`computeEffectiveLrigLimit` は **`src/screens/` の React 非依存の純関数**なので
-  golden から import できる（`CLAUDE.md` の規約）。−1 になること／宣言者のターンでは減らないこと／宣言者が居なければ素の値／
-  **宣言者自身は減らない**の4点を固定し、一本化を戻すと **−1 が −0 に化ける**（実測 expected=10 got=11）反転も取った。
-- ⚠**`.codex-work` が再び利用上限**（823k トークン消費・リセット 7:01）＝**実装完了直前で停止**したので
-  Claude が引き継ぎ、`O-364` の golden 追加・反転確認・実機・ラチェット・簿記を完遂した。
+- 🔑**既存のトリップワイヤ3本が今回の変更を正しく捕まえた**＝`O-42`（parser と実体同一の manual 影武者→**2件を削除**）／
+  `O-327`（`opponentSelects` が未配線の形に載った→**配線してから許容リストへ**）／`turn-scoped T2`（funnel 外の手書きクリア）。
+  **どれも「先に許容リストへ足して黙らせない」と本文に書いてあり、その通りに閉じた。**
+- 🔴**古い golden を1本訂正した**＝`O-D 一点物 A2` が「**fresh: parser は未対応（旧形のまま）**」と
+  **parser の未着手を assert で固定**していた（§5-17＝**緑の golden は正しさの証明ではない**）。
+- 🔴**逆翻訳の嘘を1件見つけた**＝`BLOCK_CARD_USE` は engine が `ownerState`＝「あなた」を禁止するのに
+  逆翻訳が「**対戦相手は**」と固定文で描いていた（**live 4効果すべて**）。engine は正しく**表示だけが嘘**で、
+  嘘の向きが「自分の不利が相手の不利に見える」＝**原文照合がそこだけ効かない**。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | ①**`O-346`**（「対戦相手は自分の〜を対象とし」MISS 52件の1件ずつ判定） → ②**`O-357`**（任意登場を辞退したときの契約） → ③**`O-358`**（配置ゾーンの「シグニのない」限定） |
+| 🔥**次に取るもの** | ①**`O-365`**（「各プレイヤーが同時に自分の札を選ぶ」機構＝**1枚のために作る価値があるかを先に判断する**） → 無ければ §5.2 round5 の判断 |
 | 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置） |
-| 📦**在庫** | 機構 worklist 🔥**5項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`・`O-358`・`O-360`・`O-362` 索引G）／実機 🏁**0**（`V-218` 返済済み）／実装キュー 🏁**0** |
-| 🔧**ゲート** | `npm run gates` 全緑・**golden 4105 PASS**・実機 `V-218` **2/2 PASS**・`census:numberdrift` **59 → 57** |
+| 📦**在庫** | 機構 worklist 🔥**1項目**（**索引A/A'/B/E 🏁0**／`O-365` 索引G）／実機 🏁**0**（`V-219`〜`V-221` 返済済み）／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4105 → 4123 PASS**・実機 **4/4 PASS**・lint warning 256 据置 |
 
-🆕🔴**「受け皿が無い」の grep は `src/engine/` だけでは足りない**＝`O-364` は **`src/screens/` に2本目の funnel** が在った。
-**消費地点は engine と screens の両方を見る**（この登録票は私が書いて私が外した）。
-🆕🔑**同じ意味の funnel が2本あったら「片方を消す」ではなく「一本化して二重計上を殺す」**＝
-今回 `computeEffectiveLrigLimit` は両方を足していたので、候補を広げた瞬間に **−2** になりかねなかった。
+⚠**Codex は3セッションとも枯渇した**（`.codex-work` 428k→model at capacity ／ 既定 `~/.codex` 713k→usage limit ／
+`.codex-work` 471k→usage limit）。**3回とも最終レポートを書けずに停止**したので、
+**検証・ゲート修正・副産物の発見・簿記はすべて Claude が引き継いで実施**した（[codex-fallback-order] のとおり）。
+🆕🔑**`npm run typecheck` は `scripts/` を見ない**＝funnel へ関数を移設したとき `goldenTest.ts` の import が壊れたが
+**golden を実際に走らせるまで緑に見えた**（`CLAUDE.md` の既知の死角を実地で踏んだ）。
 🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -209,11 +212,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | 順 | キュー | 残 | 中身 | 測り直すコマンド |
 |---|---|---|---|---|
 | **①** | **§5.1 実機 `V-nn`** | 🏁**0件** | `src/screens/` を触った回の返済先＝**溜める前に返す** | §5.1 の表 |
-| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**5項目**（**索引A/B/E 🏁0**／`O-346`/`O-357`/`O-358`/`O-360`/`O-362` 索引G） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
+| **②** | **§5.3 機構 worklist `O-nn`** | 🔥**1項目**（**索引A/A'/B/E 🏁0**／`O-365` 索引G） | 新しい型・評価器・engine が要るもの | §5.3 の索引（母集団は着手時に実測し直す） |
 | **③** | **§5.0 実装キュー** | 🏁**0効果**（2026-09-12 に全数照合） | triage で真バグと確定した未修正バグ | `node scripts/archive/semanticAuditBugList.mjs` |
 | — | §5.2 意味照合 | 🏁**0**（round4 全11シート完走・段2台帳 残 OPEN 0） | **「受け皿の名前を知らない穴」を拾える唯一の発見器**＝③が尽きたら round5 の判断 | `node scripts/archive/semanticAuditGap.mjs` |
 | — | §5.4 構造混線 | 🏁**0** | 新しく見つけたときだけ足す | — |
-| — | §5.3 末尾「個別カードの機構待ち」 | 参照 **6件** | 根拠つき defer 3・既知の潜在結合 3（**着手不要**） | — |
+| — | §5.3 末尾「個別カードの機構待ち」 | 参照 **7件** | 根拠つき defer 4（🆕`WD18-009-E2`＝`DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED`）・既知の潜在結合 3（**着手不要**） | — |
 
 **取る順とその理由（依存関係）**
 
@@ -280,11 +283,15 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け3分類**＝(a)**シナリオの腐り**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) の 26）はその場で直す (b)**engine/parser のバグ**もその場で直す（§2.4） (c)**未実装**は §5.3 へ登録。
 
-🏁**残0**（`V-209`〜`V-212` は第293バッチ、**`V-213` は第296バッチ**、**`V-214` は第310バッチ**、**`V-215` は第315バッチ**、**`V-216` は第316バッチ**、**`V-217` は第317バッチ**、**`V-218` は第318バッチ**で返済）。
+🏁**残0**（`V-209`〜`V-212` は第293バッチ、**`V-213` は第296バッチ**、**`V-214` は第310バッチ**、**`V-215` は第315バッチ**、**`V-216` は第316バッチ**、**`V-217` は第317バッチ**、**`V-218` は第318バッチ**、**`V-219`〜`V-221` は第320バッチ**で返済）。
 > 🆕`V-215`＝`O-353` Part B の全カード名宣言（`node scripts/verifyBattleDrive.mjs v215DeclareAllCardsHit v215DeclareAllCardsMiss`）＝**一致／不一致の2シナリオとも PASS**。
 > 🆕`V-216`＝`O-345` の名前指定つき無償グロウ（`node scripts/verifyBattleDrive.mjs v216FreeGrowNamedOnly`）＝**候補が指定2枚だけ・囮は出ない・エナ0枚のままグロウ成立**で PASS。
 > 🆕`V-217`＝`O-344` の全領域色喪失（`node scripts/verifyBattleDrive.mjs v217LoseColorCondOn v217LoseColorCondOff`）＝**条件成立で「エナ不足」／チーム3体で支払える**の両方向 PASS。
 > 🆕`V-218`＝`O-363`③ の強制対象の種別限定（`node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc`）＝**シグニの効果では絞られ／アーツでは絞られない**の両方向 PASS。
+
+> 🆕`V-219`＝`O-362`① パワー－2倍の解除（`node scripts/verifyBattleDrive.mjs v219PowerMinusExpires`）＝**同一ターンは P3000−1000×2＝P1000／ターン境界後は同じ−1000で P2000**（＝倍化が残らない）で PASS。
+> 🆕`V-220`＝`O-362`② ライフバースト2回発動の**2種類**（`node scripts/verifyBattleDrive.mjs v220LifeBurstAllTurn v220LifeBurstNextOnly`）＝🔑**2本が互いの対照**＝全ターン版は手札 **0→2→4**（2回目も倍化）／「次に」版は **0→2→3**（2回目は素）で両方 PASS。
+> 🆕`V-221`＝`O-362`③ ゾーン消去の期間（`node scripts/verifyBattleDrive.mjs v221RemoveZoneOppTurn`）＝**発動時 active＋予約／相手ターン中も配置不可・予約消費／次の境界で解除**で PASS。
 
 ⚠**新しい観測点はここへ `V-<次番号>` で足す**（機構項目は §5.3 へ）。
 🚀**リリースゲートの通し対戦スモークは道具になった**＝`node scripts/verifyFullMatch.mjs`（`cpu` / `pvp` で片方だけも可）。
@@ -364,15 +371,14 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-**残5項目。**（🏁**2026-09-14 に `O-344`／`O-359`／`O-361`／`O-363`／`O-364` をクローズ**＝母集団は実測19効果だった／🏁2026-09-13 にクローズ＝`O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12） ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
+**残1項目。**（🏁**2026-09-14 に `O-346`／`O-357`／`O-358`／`O-360`／`O-362` をクローズ**＝第319〜321バッチ。
+うち `O-346` は **MISS 52件を1件ずつ判定**して真バグは **5件**だった／🏁同日 `O-344`／`O-359`／`O-361`／`O-363`／`O-364`／
+🏁2026-09-13 に `O-347`／`O-349`／`O-355`、`O-350` は 2026-09-12）
+⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（登録票の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| 🆕`O-358` | S | **配置ゾーン指定に「シグニのない」限定が無い**（`WXDi-P11-009-E3`・**実測 1効果**）。原文＝「**シグニのない**対戦相手のシグニゾーン１つを指定する」に対し、engine（`execStubPart2.ts:3533`）は**3ゾーンすべてを `available:true` で提示**する＝**シグニが居るゾーンも指定できる**（過剰）。payload（`DESIGNATE_SIGNI_ZONE`）にも軸が無いので逆翻訳からも消えている（第306バッチで payload 化したときに可視化された）。🔑**受け皿の有無を先に grep する**＝`zoneOptsDSZ` の `available` を埋める軸（空きゾーン限定）が他の STUB に既に在るかを確かめてから足す |
-| 🆕`O-357` | S | **任意登場を「辞退したとき」のアクション契約が無い**（`WXK02-035-E2`・**実測 1効果**）。原文＝「デッキの一番下のカードをチェックゾーンに置く。それがシグニの場合、それを場に出してもよい。**場に出さない場合、それをトラッシュに置く。**」に対し、engine は `field.check_rest` に置いたまま**ターン終了時まで残す**（即時トラッシュにしない）＝**過少実行**。⚠**逆翻訳は engine の挙動どおりに描いてある**（原文に寄せると欠落が隠れる＝`O-354` の教訓）ので、直したら逆翻訳の注記も戻すこと。🔑**受け皿の有無を先に grep する**＝`declineAction` / `restDestination` 相当の軸が `ADD_TO_FIELD` の任意形に既に在るかを確かめてから機構を足す |
-| `O-346` | M | 🔧**母集団を実測＝121効果 / 115カード**（`npm run census:population -- "対戦相手は自分の"`。`opponentSelects` **OK 69 / MISS 52**）。🔴**「型に受け皿が無い」は誤りだった**＝`TrashAction.opponentSelects` は型にも消費地点にも在り、`WX13-036-E3` は2026-09-13 に修正済み・**実機不要**。⚠**MISS 52 はバグ数ではない**（別の正準形で配線済みが混ざる）＝残作業は「52件を1件ずつ判定」＋parser 規則 |
-| `O-360` | M | **アクセにする系3効果が engine と別物**（実測3効果・第309で発見）。`ACCE_FROM_TRASH`＝原文「トラッシュから＜調理＞のシグニ１枚を対象とし、それを**このシグニの**【アクセ】にする」（`WDK07-E11-E2`）に対し engine は**トラッシュにある効果元自身**を付けようとする＝効果元は場に居るので**恒久 no-op**／`ACCE_FROM_HAND`＝「デッキの上から２枚見て、その中から＜調理＞のシグニ１枚を**それの**【アクセ】にする」（`WXK05-039-E1`）に対し engine は**効果元自身**を手札/エナから探す＝恒久 no-op／`ACCE_TO_ENERGY`＝「トラッシュから《アクセアイコン》を持つシグニ１枚を…エナゾーンに置く」（`WD18-009-E2`）に対し engine は**場の【アクセ】を全部エナへ**。🔑`AttachAcceAction` の `fromEnergy`／`fromLrigDeck` と同じ2段選択に「トラッシュから」「公開札から」を足すのが最短（除去は `applyDirectAction` の `ATTACH_ACCE` と対で足す）。逆翻訳は engine の挙動どおりに描いてある |
-| `O-362` | M | **期間の食い違い3件**（第309で発見）。①`DOUBLE_OWN_POWER_MINUS`＝`double_power_minus_targets` に**解除地点が無い**（`turnScopedState.ts` にも `BattleScreen` のターン終了リセットにも無い）＝「このターン」の2倍化が**ターンを越えて残る**（実測6効果）②`LIFE_BURST_DOUBLE`＝フラグを次の1回で消費する＝原文「このターン、あなたのライフバーストが発動する場合」（`WD23-006-E-E1`）は**2回目以降が倍化されない**③`REMOVE_SIGNI_ZONE`＝`signi_zone_blocks` はターン終了時に解除＝原文「次の対戦相手のターン終了時まで」（`WXDi-P09-003-E1`）は**相手ターンに配置できてしまう**。⚠リセットは `src/screens/` 側＝実機まで必須 |
+| `O-365` | M | **「各プレイヤーが同時に自分の札を選ぶ」機構が無い**（`WX07-017-E1`・**実測 1効果**・第321で `O-346` の triage から登録）。原文＝「その後、対戦相手は自分のトラッシュからカードを３枚まで対象とし、それらをエナゾーンに置く。**（あなたからカードを選択し両者が同時に移動させる）**」に対し、live は `ENERGY_CHARGE{TRASH_CARD owner:'opponent'}` で**使用者が相手の札を選ぶ**。🔴**`opponentSelects` を足すだけでは表せない**＝`EnergyChargeAction` に選択者の軸が無いうえ、このカードは**同じ文型が「各プレイヤーは自分の〜」で3回繰り返され、括弧のルール注記が選択順（あなたから）と同時適用を定めている**＝真に要るのは「両者がそれぞれ自分の札を選び、まとめて適用する」機構。⚠**1枚のために作る価値があるかを先に判断する**（PLAN §5.3 の「1〜3枚の項目の取り方」④＝作らないと決めるなら `DEFERRED_*` へ改名して理由を残す）。🔑**受け皿の有無を先に grep する**＝`selectOrInteract` の第8引数を持つ分岐（`§5.3 O-327` の許容リストが全数）と `EQUALIZE_ENERGY`（各プレイヤーを順に処理する既存形）を読んでから決める |
 
 ⚠**新しく母集団 1〜2効果の項目が出たらここへ足す**（速いレーンが既定＝§2.0）。
 🔴**着手の1手目は登録票の grep をやり直す**（§2.1 ②）＝「受け皿が無い」は**連続12項目**外れている。
@@ -394,6 +400,13 @@ node scripts/semanticAuditRun.mjs --out scripts/archive/scratchpad/semantic_audi
 
 **■ 根拠つき defer（着手前にこの理由が今も有効か再判定する）**
 
+- 🆕**`WD18-009-E2` ＝1枚のために機構を作らないと決めた**（2026-09-14・第319バッチ・`O-360`）。**母集団 実測1効果**。
+  原文＝「【自】：このシグニがバニッシュされたとき、あなたのトラッシュから《アクセアイコン》を持つシグニ１枚を対象とし、
+  **このシグニがアクセされていた場合**、それをエナゾーンに置く。」＝**対象を取ったあとで「除去直前にアクセされていたか」を
+  判定する**形で、既存の `banishedHadAcce`（発火条件用）とは**段階が違う**（状態の持ち回りが要る）。
+  🔴**旧 `ACCE_TO_ENERGY` は「場の【アクセ】を全部エナへ送る」別物**だったので、
+  id を `DEFERRED_TRASH_ACCE_TO_ENERGY_IF_BANISHED_SOURCE_WAS_ACCED` へ改名して**過剰実行を停止**し、
+  逆翻訳に `【未実装】` と理由を明示した（無言 no-op にしない＝§5.3 の規約）。
 - **`WXDi-P05-006` choice① ＝着手禁止**（ピースカットイン割込み基盤）。**母集団 実測1効果/1カード**
   （`npm run census:population -- "カットインして使用できる"`）。
 - **`WX20-Re20` ＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群の

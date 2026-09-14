@@ -1,5 +1,42 @@
 # PLAN 進捗サマリ・アーカイブ
 
+### 2026-09-14（第318バッチ）
+
+**直近＝2026-09-14（第318バッチ・Codex 委譲＋Claude 引き継ぎ）＝🏁索引G の4項目クローズ**（`O-364` / `O-359` / `O-361` / `O-363`）。
+🔴🔑**主産物＝`O-364` の登録票が誤りだった**＝「恒久 no-op」ではなく、**`src/screens/battle/lrigLimit.ts` に2本目の funnel が在って拾えていた**。
+私が `src/engine/` しか grep せずに登録したのが原因（[LESSONS.md](./LESSONS.md) §4.1）。⇒ **一本化**して二重計上を防いだ。
+
+| 項目 | 実測した受け皿 | 直し方 |
+|---|---|---|
+| 🏁`O-364`（`WX22-002-E1`） | 🔴**「無い」は誤り**＝`collectOppDeclaredLrigLimitDelta`（`src/screens/`）が既に拾っていた | `collectLrigColorAndLimitMods` の**相手側候補にセンタールリグとキー枠**を足して一本化し、`computeEffectiveLrigLimit` 側の**二重加算を撤去**（−2 にしない） |
+| 🏁`O-359`（`WXDi-P07-086-E1`） | `POWER_SET`（live 226効果）＋ `valueRef:'declared_number'` の先例＋ `DECLARE_NUMBER_RANGE` | `numberChoices:[2..20]` ＋ `POWER_SET{targetsStored, valueRef, multiplier:1000, UNTIL_END_OF_TURN}`。**新型0** |
+| 🏁`O-361`（`WX19-002-E1`） | 🔑**完全に既存**＝`isEnaMultiStripped` が `STUB{STRIP_OPP_ENA_MULTI_ENA}` を読む | parser の張り替えだけ。**2効果とも**（`WXK03-002-E1` も同文型）。旧2 id は live 0 になるがハンドラは安全網として残す |
+| 🏁`O-363`（3件） | ①`OPTIONAL_COST{handReveal}` 既存 ②枚数軸を追加 ③種別限定を追加 | ①`WDK08-Y14-E1` の誤パース（**エナのトラッシュ**を要求していた）を `handReveal{count:2}` へ ②`oppLrigDeckReveal{count:3,upToCount,selectedBy:'opponent'}` ③`forceTargetSourceCardTypes:['シグニ']` |
+
+- 🔑**`O-363③` は限定のある1枚にだけ payload を足した**＝他2枚（`WX25-CP1-060` / `WXDi-P11-040`）の原文は
+  「**能力か効果**で対象を選ぶ際」＝**限定が無いので据え置きが正解**（原文を読んで確かめた）。
+- ✅**実機 `V-218` を同バッチで返済＝2シナリオとも PASS**（`node scripts/verifyBattleDrive.mjs v218ForceTargetSigniSrc v218ForceTargetArtsSrc`）。
+  🔑**同一アクションのシグニ／アーツを効果元にして対照を作った**＝差が出るのは「効果元の種別」だけ。
+  ①シグニの効果＝候補が《コードメイズ　ヒメジジョ》だけに絞られる ②アーツの効果＝絞られず2体とも出る。
+- 🔑**`O-364` の観測は golden で網羅した**＝`computeEffectiveLrigLimit` は **`src/screens/` の React 非依存の純関数**なので
+  golden から import できる（`CLAUDE.md` の規約）。−1 になること／宣言者のターンでは減らないこと／宣言者が居なければ素の値／
+  **宣言者自身は減らない**の4点を固定し、一本化を戻すと **−1 が −0 に化ける**（実測 expected=10 got=11）反転も取った。
+- ⚠**`.codex-work` が再び利用上限**（823k トークン消費・リセット 7:01）＝**実装完了直前で停止**したので
+  Claude が引き継ぎ、`O-364` の golden 追加・反転確認・実機・ラチェット・簿記を完遂した。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | ①**`O-346`**（「対戦相手は自分の〜を対象とし」MISS 52件の1件ずつ判定） → ②**`O-357`**（任意登場を辞退したときの契約） → ③**`O-358`**（配置ゾーンの「シグニのない」限定） |
+| 📊**進捗3計器** | Sheet1 要対応 **0 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（3本とも据置） |
+| 📦**在庫** | 機構 worklist 🔥**5項目**（**索引A/B/E 🏁0**／`O-346`・`O-357`・`O-358`・`O-360`・`O-362` 索引G）／実機 🏁**0**（`V-218` 返済済み）／実装キュー 🏁**0** |
+| 🔧**ゲート** | `npm run gates` 全緑・**golden 4105 PASS**・実機 `V-218` **2/2 PASS**・`census:numberdrift` **59 → 57** |
+
+🆕🔴**「受け皿が無い」の grep は `src/engine/` だけでは足りない**＝`O-364` は **`src/screens/` に2本目の funnel** が在った。
+**消費地点は engine と screens の両方を見る**（この登録票は私が書いて私が外した）。
+🆕🔑**同じ意味の funnel が2本あったら「片方を消す」ではなく「一本化して二重計上を殺す」**＝
+今回 `computeEffectiveLrigLimit` は両方を足していたので、候補を広げた瞬間に **−2** になりかねなかった。
+🔑**ゲート外の計器の空振り一覧は [LESSONS.md](./LESSONS.md) §4.8**／🔑**直近の経緯は [BUGFIXES.md](./BUGFIXES.md) の先頭**。
+
 - **セッション（2026-09-14・第317バッチ）** **直近＝2026-09-14（第317バッチ）＝🏁`O-344` クローズ**（【常】宣言型 STUB の条件・値を live JSON へ・**19効果**）。
   🔑**母集団は PLAN の 19効果が正**（登録票の「2効果」は古い）＝`LOSE_COLOR_ALL_ZONES` 8／`LEVEL_REFERENCE_OVERRIDE` 7／`ALL_COLOR` 2／`ALL_CLASS` 1／`ALL_ZONE_BLACK` 1。
   **うち原文に条件・値があるのは16効果**（`ALL_CLASS`／`ALL_ZONE_BLACK`／`WX22-025-E3` は**原文が無条件＝条件なしが正しい**）。
