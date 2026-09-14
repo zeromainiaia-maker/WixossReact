@@ -222,6 +222,15 @@ ${guide}
 44. **【ライズ】は「配置条件」であって効果ではない（同上・規則2の系）**＝下敷きにする材料の判定・支払いは 「src/screens/battle/riseSummon.ts」 が持ち、JSON の effects には出ない（【グロウ】条件と同じ扱い）。
     ⇒ **「【ライズ】の重ねる処理が JSON に無い」という finding は報告しない。**
 
+45. 🔴**規則41 の適用範囲は 「OPTIONAL_COST」 系だけ（2026-09-15 round5 r5-082〜141 の engine 実測で追加）**＝「MILL」/「DOWN」/「LIFE_CRASH」/「TRANSFER_TO_DECK」 のような**コストではない任意行動**（「optional":true」）は、辞退しても**後続ステップを止めない**（「execMill」 の「置かない」は**空の SEQUENCE**＝その場で何もしないだけ）。
+    ⇒ **前段が 「OPTIONAL_COST」/「OPTIONAL_TRASH_ENERGY_CLASS」/「OPTIONAL_ACTIVATE」/「TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST」 のときだけ規則41 で閉じる。素のアクションに 「optional":true」 が付いているだけの形は、後続が兄弟ステップなら報告してよい。**
+
+46. **帰結が「この方法で〜した枚数／量」に比例する形はゲートが要らない（同上）**＝「addLastProcessedCount」（N＋1体）や 「deltaPerLastProcessedCount」（移動したカードのパワー合計）は、任意行動を辞退すると**自動的に 0 になる**ので、did-it ゲートが無くても原文どおりに落ちる。
+    ⇒ **「任意行動を辞退しても後続が実行される」という finding は、後続が枚数/量に比例する形なら報告しない。**
+
+47. **ルリグデッキの「シグニ」＝クラフト（同上）**＝ルリグデッキに入るシグニはクラフトだけなので、「ルリグデッキからクラフトであるシグニ」に対する 「filter:{cardType:"シグニ"}」 は原文どおり。
+    ⇒ **「クラフト限定の条件が無い」という finding は報告しない**（参照元がルリグデッキのとき）。
+
 # 見るべき典型バグ
 
 - 原文の効果・後続処理（「その後…」「〜した場合…」）が JSON のどこにも無い（MISSING）

@@ -46,3 +46,27 @@ WX17-029-TRAP :: FP :: 対象を hasTrapAbility へ絞った形＝トラップ�
 WXDi-CP02-061-E3 :: FP :: 【絆起】のコスト lrigDown はダウン済みルリグを候補から外す（payLrigDownCost） → 規則21の系
 WXK06-005-E3 :: FP :: キー自身に【自】を持たせた近似（原文はセンタールリグへの付与）＝能力喪失との相互作用だけが違う
 WXK03-011-E1b :: FP :: zoneMoveImmunity の zones にルリグ系が無いが、シグニが在れない領域＝挙動差が出ない
+# 2026-09-15 Opus＝r5-082〜141（600枚・findings 23件）の triage。BUG 10 / FP 13。⚠このバッチのプロンプトは規則41〜44 を入れる前のもの＝既知FP型が再出現した
+SP38-001-E1 :: BUG :: 「グロウしてもよい。…その後、アタックできないを得る」＝付与がゲート外（コストではない任意行動） → §5.3 O-391
+WX25-P3-078-E1 :: BUG :: 「アップ状態のこのシグニをダウンしてもよい。そうした場合、〜を得る」＝GRANT_EFFECT が DOWN の兄弟 → §5.3 O-391
+WXDi-P13-088-E1 :: BUG :: MILL{optional} を辞退してもトラッシュ回収が走る（execMill の skip は空 SEQUENCE＝後続を止めない） → §5.3 O-391
+WX14-030-E1 :: BUG :: 「4枚をデッキに加えてシャッフルする。そうした場合、3つから1つ選ぶ」＝CHOOSE がゲート外 → §5.3 O-391
+WXK03-040-E1 :: BUG :: 「それをトラッシュから場に出す」が targetsLastProcessed でなく、トラッシュの別シグニも選べる → §5.3 O-392
+SPDi43-30-E1 :: BUG :: 選択肢②の STUB{OPTIONAL_COST} にコストが1つも無い＝タダで【アサシン】 → §5.3 O-393
+WXDi-P10-059-E2 :: BUG :: 「バトルによって」の限定が triggerCondition に無い（banishedFilter だけ） → §5.3 O-394
+WXK02-069-E1 :: BUG :: activeCondition の owner:"self" が余計（原文は持ち主を問わない） → §5.3 O-395
+WX04-064-E1 :: BUG :: GRANT_PROTECTION の sourceOwner:"opponent" が余計（原文はアーツ全般） → §5.3 O-396
+WX16-037-E2 :: BUG :: 「4枚見る」が REVEAL_AND_PICK{revealCount:4}＝4枚とも公開（原文は選んだ1枚だけ公開） → §5.3 O-397
+WX09-CB01-E1 :: FP :: OPTIONAL_COST の直後にゲートが無い形＝Pattern ⑤で辞退すれば CHOOSE ごとスキップ → 規則41
+WXK08-053-E1 :: FP :: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST も Pattern ⑤の対象＝未払いなら「代わりに－3000」枝も走らない → 規則41
+WXDi-P15-048 :: FP :: 【ライズ】は配置条件＝riseSummon.ts が持つ（JSON には出ない） → 規則44
+WXK08-031 :: FP :: 同上 → 規則44
+WX02-034-E1 :: FP :: 対象宣言を条件の内側へ畳んだ形＝最終盤面が一致 → 規則28
+WX02-034-BURST :: FP :: 同上 → 規則28
+WX21-032-E1 :: FP :: 同上 → 規則28
+WDK13-008-E1 :: FP :: 同上（キーが無ければ何も起きないので等価） → 規則28
+WX24-P4-015-E2 :: FP :: BANISH{count:1, addLastProcessedCount}＝クラッシュ0枚なら 0+1=1 体で原文どおり → 規則46
+WX24-P1-046-E2 :: FP :: POWER_MODIFY{deltaPerLastProcessedCount, unit:power_sum}＝移動0枚なら+0 → 規則46
+WXDi-P09-007-E2 :: FP :: ルリグデッキに入るシグニはクラフトだけ＝cardType:"シグニ" で原文どおり → 規則47
+WXDi-CP02-036-E1 :: FP :: 「置く順番は対戦相手が決める」は相手自身のデッキ下の並び＝盤面差が出ない既知の近似
+WXDi-P03-004-E1 :: FP :: 選択肢内の必須コストを OPTIONAL_COST で表す近似（選んでから辞退できるが不利益は自分だけ） → 規則42の系
