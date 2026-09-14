@@ -617,7 +617,7 @@ export interface OptionalCostSpec {
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
   //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
-  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** トラッシュから条件一致カードを除外する。owner:'any' は両プレイヤーを単一候補プールにする。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   /**
@@ -853,6 +853,20 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).length;
     // 「N枚まで」は0枚も合法＝在庫不足で pay 選択肢を閉じない。固定N枚だけ従来の不足判定を保つ。
     if (!spec.underAnySigniTrash.upTo && underCount < spec.underAnySigniTrash.count) return false;
+    // 🆕`selectionConstraint.distinct`（2026-09-14・§5.3 `O-372` 第4バッチ）＝
+    //   「それぞれレベルの異なる」は**枚数が足りていても払えないことがある**（同レベルばかりのとき）。
+    //   ⚠数えないと「支払う」が押せるのに選び切れないソフトロックになる。
+    const uConst = spec.underAnySigniTrash.selectionConstraint;
+    if (uConst?.distinct && !spec.underAnySigniTrash.upTo) {
+      const pool = spec.underAnySigniTrash.fromThis
+        ? ((ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch))
+        : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).map(c => c.cardNum);
+      const keyOf = (cn: string): string => {
+        const card = ctx.cardMap.get(getCardNum(cn));
+        return uConst.distinct === 'level' ? (card?.Level ?? '') : (card?.CardName ?? '');
+      };
+      if (new Set(pool.map(keyOf)).size < spec.underAnySigniTrash.count) return false;
+    }
   }
   if (spec.trashExile) {
     // 🆕**`thisCardOnly`＝「トラッシュにある**このカード**を除外する」**（2026-09-07・`WX12-035-E1`）。
@@ -1055,6 +1069,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       // ⚠filter を渡さないと `execTakeFromUnderSigni` が**下のどのカードでも払える**（原文より緩い）。
       //   続き421 で「赤のシグニ1枚」等の絞り込みを parser が載せ始めたので、ここで受ける（続き422）。
       ...(spec.underAnySigniTrash.filter ? { filter: spec.underAnySigniTrash.filter } : {}),
+      // 🆕「それぞれレベルの異なる」等（2026-09-14・§5.3 `O-372` 第4バッチ）。
+      ...(spec.underAnySigniTrash.selectionConstraint
+        ? { selectionConstraint: spec.underAnySigniTrash.selectionConstraint } : {}),
     } as EffectAction] : []),
     ...(spec.trashExile ? [{
       type: 'EXILE',

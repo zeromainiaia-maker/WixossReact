@@ -3934,11 +3934,16 @@ export function execStubPart3(
   // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定（自分の場のシグニ）へ倒すと
   //   原文が相手を指しているときに**自分の盤面を動かす**別物になる。
   if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
-    if (stub.owner !== 'self' && stub.owner !== 'opponent') {
+    if (stub.owner !== 'self' && stub.owner !== 'opponent' && stub.owner !== 'any') {
       return done(addLog(ctx, '[SIGNI_REPOSITION: 対象の持ち主が未指定]'));
     }
+    // 🆕**`owner:'any'`＝原文が持ち主を書いていない**（2026-09-14・§5.3 `O-372` 第4バッチ・
+    //   `WDK09-015-E1`「**対象の**シグニ１体を他のシグニゾーンに配置してもよい」）。
+    //   🔴既定（自分 or 相手）へ倒すと**原文が許す片側を落とす**ので、候補は両者の場から出す。
+    //   ⚠選んだ札がどちら側かは移動時に引き直す（下の `INTERNAL_REPOSITION_TO_ZONE` の `isOpp` 引数）。
+    const isAnySR = stub.owner === 'any';
     const isOppSR = stub.owner === 'opponent';
-    const isAllSR = stub.repositionAll === true && !isOppSR;
+    const isAllSR = stub.repositionAll === true && !isOppSR && !isAnySR;
     const targetStateSR = isOppSR ? ctx.otherState : ctx.ownerState;
     const targetScopeSR: TargetScope = isOppSR ? 'opp_field' : 'self_field';
     // 全シグニ配置替え: フィールドのシグニ全体をゾーン選択で入れ替える
@@ -3969,11 +3974,18 @@ export function execStubPart3(
       return needsInteraction(addLog(ctx, '移動先ゾーンを選択'), { type: 'CHOOSE', options: zoneOptsSRAll, count: 1 });
     }
     // 対象シグニ選択
+    // 🆕`any` は**両者の場**から候補を出し、選ばれた札がどちら側かを後で引き直す。
+    const topsOf = (st: PlayerState): string[] =>
+      st.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+    const ownerOfSR = (cn: string): PlayerState =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn) ? ctx.otherState : ctx.ownerState;
     const selectedSR = (ctx.lastProcessedCards ?? []).find(cn =>
-      targetStateSR.field.signi.some(s => s?.at(-1) === cn),
+      (isAnySR ? [...topsOf(ctx.ownerState), ...topsOf(ctx.otherState)] : topsOf(targetStateSR)).includes(cn),
     );
     if (!selectedSR) {
-      const candsSR = targetStateSR.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+      const candsSR = isAnySR
+        ? [...topsOf(ctx.ownerState), ...topsOf(ctx.otherState)]
+        : topsOf(targetStateSR);
       if (candsSR.length === 0) return done(addLog(ctx, 'シグニなし（SIGNI_REPOSITION）'));
       const noopSR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
       // Preserve owner/optionality across the target-selection pause.
@@ -3986,17 +3998,19 @@ export function execStubPart3(
         targetScope: targetScopeSR, thenAction: noopSR as EffectAction, continuation: contSR as EffectAction,
       });
     }
-    // 移動先ゾーン選択
-    const currentZoneSR = targetStateSR.field.signi.findIndex(s => s?.at(-1) === selectedSR);
+    // 移動先ゾーン選択（`any` は選ばれた札の持ち主側の盤面で決める）。
+    const sideStateSR = isAnySR ? ownerOfSR(selectedSR) : targetStateSR;
+    const selectedIsOppSR = isAnySR ? sideStateSR === ctx.otherState : isOppSR;
+    const currentZoneSR = sideStateSR.field.signi.findIndex(s => s?.at(-1) === selectedSR);
     // 🆕**`repositionEmptyOnly`＝「（すでにシグニのあるシグニゾーンには配置できない）」**（2026-09-14）。
     //   ⚠既定（省略）は従来どおり**占有ゾーンなら入れ替え**＝live 3効果の綴りはそれが正しい。
     const emptyOnlySR = stub.repositionEmptyOnly === true;
     const zoneOpenSR = (zi: number): boolean =>
-      !emptyOnlySR || !(targetStateSR.field.signi[zi] && targetStateSR.field.signi[zi]!.length > 0);
+      !emptyOnlySR || !(sideStateSR.field.signi[zi] && sideStateSR.field.signi[zi]!.length > 0);
     const zoneOptsSR = [0,1,2].filter(i => i !== currentZoneSR && zoneOpenSR(i)).map(zi => ({
       id: `zone_${zi}`, label: `ゾーン${zi+1}へ移動`,
       action: ({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
-        value: `${selectedSR}:${zi}:${isOppSR}` } as StubAction) as EffectAction,
+        value: `${selectedSR}:${zi}:${selectedIsOppSR}` } as StubAction) as EffectAction,
       available: true,
     }));
     // 🔴空きが1つも無ければ配置できない（強制形でも**入れ替えない**）。

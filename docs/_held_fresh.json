@@ -1,1 +1,1 @@
-{"WXK08-084":[{"effectId":"WXK08-084-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"PLACE_LOOKED_CARD_UNDER_SIGNI","placeUnderHostFilter":{"cardType":"シグニ","story":"ウェポン"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}]}
+{}

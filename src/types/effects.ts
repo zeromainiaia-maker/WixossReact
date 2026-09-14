@@ -1264,7 +1264,7 @@ export interface EffectCost {
   // fromThis＝「このシグニの下」限定（続き417）／filter＝下カードの絞り込み（続き422）。
   // upTo＝0〜count枚を選べる「合計N枚まで」。省略時は従来どおり固定count枚。
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること。
-  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /**
    * 🆕**「あなたのシグニに付いているカード１枚か、あなたのシグニの下にあるカード１枚をトラッシュに置く」**
    * （2026-09-12・§5.3 `O-313`・`WXK10-018-E2`・母集団 実測1効果/1カード）。
@@ -6576,7 +6576,7 @@ export interface StubAction {
   // filter＝下カードの絞り込み（「このシグニの下から**赤のシグニ**1枚」＝`WXDi-P11-042-E1`）。
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること
   //   （片方だけだと「払えない盤面で支払うボタンが出る」か「どの下カードでも払える」になる）。
-  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter };
+  underAnySigniTrash?: { count: number; upTo?: boolean; fromThis?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: トラッシュから条件一致カードをゲームから除外する任意コスト。`owner:'any'` は両プレイヤーのトラッシュ。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   /** 🆕OPTIONAL_COST: トラッシュから条件一致カードをデッキの一番下に置く任意コスト（§5.3 `O-201`）。 */
@@ -7373,6 +7373,12 @@ export interface TakeFromUnderSigniAction {
   /** fromThis 未指定時、下カードを取り出せるスタックの最上面シグニを限定する。 */
   hostFilter?: TargetFilter;
   fromThis?: boolean; // true = このシグニの下から（sourceCardNumが基準）
+  /**
+   * 🆕**選択集合どうしの制約**（2026-09-14・§5.3 `O-372` 第4バッチ・`WX24-P4-046-E2`
+   * 「このシグニの下から**それぞれレベルの異なる**シグニ３枚をトラッシュに置いてもよい」）。
+   * 🔴これが無いと**同じレベルの3枚**でも払えてしまう＝原文より緩い（他の選択経路と同じ罠）。
+   */
+  selectionConstraint?: SelectionConstraint;
 }
 
 export interface UnknownAction {

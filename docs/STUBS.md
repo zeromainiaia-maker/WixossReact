@@ -11,9 +11,9 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 585 |
+| JSON で使用中の STUB id 種類 | 583 |
 | 　└ ハンドラ実装あり | 539 |
-| 　└ フォールバック（execStub 未処理） | 46 |
+| 　└ フォールバック（execStub 未処理） | 44 |
 | 総 STUB ノード件数 | 3398 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 366 |
 
@@ -50,9 +50,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_EACH_PLAYER_REVEAL_HAND` | 1 | 1 | WXEX2-80 |  |
 | `DEFERRED_OPP_LRIG_LEVEL_MODIFY` | 1 | 1 | SP38-005 |  |
-| `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` | 1 | 1 | WDK09-015 |  |
 | `DEFERRED_SELF_SIGNI_SERVANT_ZERO` | 1 | 1 | WXK11-014 |  |
-| `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` | 1 | 1 | WX24-P4-046 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF` | 1 | 1 | WXEX2-28 |  |
 | `ENERGY_COST_SUBSTITUTE_WHOLE` | 1 | 1 | WX09-032 |  |
@@ -84,7 +82,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 676 | 627 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
+| `OPTIONAL_COST` | 677 | 628 | WD10-009, WD12-009, WD13-002 | 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） |
 | `STORE_LAST_PROCESSED_TARGETS` | 525 | 501 | WD12-009, WD15-001, WD19-007 |  |
 | `SELECT_TARGET_ONLY` | 512 | 488 | WD12-009, WD15-001, WD19-007 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 113 | 110 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
@@ -397,11 +395,11 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPEN_MAGIC_BOX` | 5 | 5 | WX24-P3-050, WX24-P3-066, WX24-P3-069 | このシグニと同ゾーンのMBを表向きにしてトラッシュへ（任意） |
 | `PLACE_MAGIC_BOX` | 5 | 5 | WX24-P3-067, WX24-P3-070, WX24-P3-072 | この方法で処理したカードを【マジックボックス】として設置する |
 | `PREVENT_ABILITY_GAIN_BY_OPP` | 5 | 5 | WX20-056, WX24-P1-043, WX25-CP1-044 |  |
+| `SIGNI_REPOSITION` | 5 | 5 | WDK09-015, WXEX2-04, WX24-P2-089 | シグニを別のゾーンに移動（自or相手、1体 or 全体） |
 | `CHOOSE_HAND_OR_ENERGY` | 4 | 4 | WX24-P1-025, WX24-P2-042, WXDi-CP01-004 | デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）。 |
 | `CLASS_CHANGE` | 4 | 4 | WX21-049, WXEX2-06, WX25-P1-058 | シグニのクラスを一時変更 |
 | `EXILE_SELF_AFTER_USE` | 4 | 3 | PR-378, SP36-001, WXK11-070 | 使用後の既定配置を excluded に置換する。 |
 | `MULTI_ACCE_LIMIT` | 4 | 4 | WX16-031, WX20-028, WXK04-053 | アクセを特定枚数に制限（ログのみ） |
-| `SIGNI_REPOSITION` | 4 | 4 | WXEX2-04, WX24-P2-089, WXDi-P06-045 | シグニを別のゾーンに移動（自or相手、1体 or 全体） |
 | `TURN_CARD_COST_REDUCE` | 4 | 4 | WD16-010, WXDi-P16-009, WXDi-P16-010 | このターン、指定カード名の使用コストが《無×N》減る |
 | `ATTACK_PHASE_LEVEL_OVERRIDE` | 3 | 3 | WX20-044-CB, WX21-029, WXEX2-47 | ダメージ特殊（engine: ダメージ処理拡張必要） |
 | `COPY_LRIG_TRASH_ACTIVATED` | 3 | 3 | WX05-002, WX05-003, WX05-004 |  |

@@ -9428,7 +9428,10 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
   if (cands.length === 0) return done(ctx);
   // 🆕`count:'ALL'`＝「下からカードを**好きな枚数**」（`WXDi-P11-077-E1`）＝候補全部を上限にする。
   const takeCount = a.count === 'ALL' ? cands.length : a.count;
-  return selectOrInteract(cands, takeCount, a.upToCount ?? false, scope, a, undefined, ctx);
+  // 🆕`selectionConstraint`（2026-09-14・§5.3 `O-372` 第4バッチ）＝「それぞれレベルの異なる」等。
+  //   ⚠渡さないと同じレベルの札でも払えてしまう（原文より緩い）。
+  return selectOrInteract(cands, takeCount, a.upToCount ?? false, scope, a, undefined, ctx, false,
+    a.selectionConstraint ? { selectionConstraint: a.selectionConstraint } : undefined);
 }
 
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {

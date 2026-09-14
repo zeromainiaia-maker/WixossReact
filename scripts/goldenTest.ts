@@ -62509,17 +62509,24 @@ test('O-77 parser契約: 4効果を TRANSFER_TO_DECK へ・3効果を honest def
     //   stripDidItConditional が無効化する仕組みなので、落とすと無条件成立へ化ける。
     ok(json.includes('"IS_MY_TURN"'), `${effectId}: 「そうした場合」のゲートを残す`);
   }
-  // ■不成立方向①＝受け皿が無い3文型は honest な DEFERRED_* へ改名し、**did-it ゲートごと落とす**
-  //   （実装していない任意アクションの「そうした場合」を残すと自分のターンに常時成立する）。
-  // 🆕`WXDi-P12-034-E2` は **2026-09-01（§5.3 `O-145`）に defer を返済**した（下の O-145 テストが正）。
-  for (const [cardNum, effectId, id] of [
-    ['WX24-P4-046', 'WX24-P4-046-E2', 'DEFERRED_TRASH_UNDER_DISTINCT_LEVELS'],
-    ['WDK09-015', 'WDK09-015-E1', 'DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE'],
+  // ■不成立方向①＝🏁**§5.3 `O-372` 第4バッチ（2026-09-14）で2件とも実装した**（旧＝honest な defer）。
+  // 🔑**defer を typed へ替えるだけでは足りない**＝defer 側は「そうした場合」ごと落としていたので、
+  //   実装時は**帰結も戻る**ことまで見る（`WX24-P4-046-E2` の【アサシン】／`WDK09-015-E1` の配置替え）。
+  // 🔴**`IS_MY_TURN` は残すのが正しい**＝`execSequence` の任意コストパターン（:214）は
+  //   `['IS_MY_TURN','PAID_ADDITIONAL_COST']` を**条件として評価せず pay/skip の分岐として消費する**。
+  //   `SELF_OPTIONAL_EFFECT_TAKEN` へ「正準化」すると**その経路から外れる**（2026-09-14 に一度やって撤回した）。
+  for (const [cardNum, effectId, needles] of [
+    ['WX24-P4-046', 'WX24-P4-046-E2',
+      ['"id":"OPTIONAL_COST"', '"fromThis":true', '"distinct":"level"', '"keyword":"アサシン"']],
+    ['WDK09-015', 'WDK09-015-E1',
+      ['"type":"TRANSFER_TO_DECK"', '"owner":"opponent"', '"position":"bottom"',
+       '"id":"SIGNI_REPOSITION"', '"owner":"any"', '"repositionOptional":true']],
   ] as const) {
     const json = JSON.stringify(o77Fresh(cardNum, effectId));
-    ok(json.includes(`"${id}"`), `${effectId}: honest な defer id`);
+    ok(!json.includes('DEFERRED_'), `${effectId}: defer が残っている`);
     ok(!json.includes('LRIG_UNDER_CARD_OP'), `${effectId}: 旧 catch-all が残る`);
-    ok(!json.includes('"IS_MY_TURN"'), `${effectId}: 未実装なのに「そうした場合」が残っている（無条件成立に化ける）`);
+    for (const needle of needles) ok(json.includes(needle), `${effectId}: ${needle}`);
+    ok(json.includes('"IS_MY_TURN"'), `${effectId}: 「そうした場合」の帰結が戻っていない`);
   }
   // ■不成立方向②＝🆕**2026-09-01（§5.3 `O-146`）に `SPDi43-26-E1` も typed へ移した**＝
   //   payload つきでも「置いて**もよい**」を強制で実行し、候補を自動で1枚目に決めていた（下の O-146 テストが正）。
@@ -68131,6 +68138,60 @@ test('§5.3 defer解体⑫: OPP_SPLIT_HAND_TWO_PILES は相手が分け、あな
   const empty = run({ type: 'STUB', id: 'OPP_SPLIT_HAND_TWO_PILES' } as EffectAction,
     { ...ctx, otherState: { ...ctx.otherState, hand: [] } } as ExecCtx);
   ok(empty.done, '手札0枚なのに分割UIを出している');
+}));
+
+// ── §5.3 `O-372` 第4バッチ（2026-09-14）＝明示 defer の解体（その4）の挙動を固定する ──
+test('§5.3 defer解体⑬: 下カードの任意コストは「それぞれレベルの異なる」を課す', () => withSavedCursor(() => {
+  // 同じレベルの下カードしか無い盤面＝**枚数は足りていても払えない**（distinct 制約）。
+  const bySameLevel = [...cardMap.values()].filter(c => (c as { Type?: string }).Type === 'シグニ'
+    && (c as { Level?: string }).Level === '1').slice(0, 4).map(c => (c as { CardNum: string }).CardNum);
+  const byDiffLevel = ['1', '2', '3'].map(lv => [...cardMap.values()].find(c =>
+    (c as { Type?: string }).Type === 'シグニ' && (c as { Level?: string }).Level === lv) as { CardNum: string });
+  const SRC = bySameLevel[3];
+  const costStub = { type: 'STUB', id: 'OPTIONAL_COST',
+    underAnySigniTrash: { count: 3, fromThis: true, filter: { cardType: 'シグニ' },
+      selectionConstraint: { distinct: 'level' } } } as EffectAction;
+  const mkFor = (under: string[]): ExecCtx => {
+    const c = mkCtx({ signi: [SRC, null, null] }, {}, SRC);
+    c.ownerState = { ...c.ownerState,
+      field: { ...c.ownerState.field, signi: [[...under, SRC], null, null] } };
+    return c;
+  };
+  const same = executeAction({ type: 'SEQUENCE', steps: [costStub,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } }] } as EffectAction,
+    mkFor(bySameLevel.slice(0, 3)));
+  ok(!same.done && same.pending.type === 'CHOOSE', '任意コストの二択を出していない');
+  if (same.done || same.pending.type !== 'CHOOSE') return;
+  eq(same.pending.options.find(o => o.id === 'pay')?.available, false,
+    '🔴同じレベルの下カード3枚で「支払う」が押せる（distinct を見ていない）');
+  const diff = executeAction({ type: 'SEQUENCE', steps: [costStub,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } }] } as EffectAction,
+    mkFor(byDiffLevel.map(c => c.CardNum)));
+  ok(!diff.done && diff.pending.type === 'CHOOSE', '任意コストの二択を出していない（レベル違い）');
+  if (diff.done || diff.pending.type !== 'CHOOSE') return;
+  eq(diff.pending.options.find(o => o.id === 'pay')?.available, true,
+    'レベルが全部違うのに「支払う」が押せない');
+}));
+
+test('§5.3 defer解体⑭: SIGNI_REPOSITION{owner:"any"} は両者の場を候補にする', () => withSavedCursor(() => {
+  const MINE = 'WX22-047';
+  const THEIRS = 'WX02-061';
+  const ctx = mkCtx({ signi: [MINE, null, null] }, { signi: [THEIRS, null, null] });
+  const offered = executeAction({ type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'any',
+    repositionOptional: true } as EffectAction, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象の選択UIを出していない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  // 🔴原文「**対象の**シグニ1体」は持ち主を書いていない＝片側へ倒すと原文が許す側を落とす。
+  ok(offered.pending.candidates.includes(ctx.ownerState.field.signi[0]!.at(-1)!), '自分の場のシグニが候補にない');
+  ok(offered.pending.candidates.includes(ctx.otherState.field.signi[0]!.at(-1)!), '相手の場のシグニが候補にない');
+  ok(offered.pending.optional, '「配置してもよい」が強制になっている');
+  // 相手のシグニを選んだら、移動先は**相手の**盤面で決まる。
+  const theirs = executeAction({ type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'any', repositionOptional: true } as EffectAction,
+    { ...ctx, lastProcessedCards: [ctx.otherState.field.signi[0]!.at(-1)!] } as ExecCtx);
+  ok(!theirs.done && theirs.pending.type === 'CHOOSE', '移動先ゾーンの選択UIを出していない');
+  if (theirs.done || theirs.pending.type !== 'CHOOSE') return;
+  ok(theirs.pending.options.some(o => String((o.action as { value?: string } | undefined)?.value ?? '').endsWith(':true')),
+    '🔴相手のシグニを選んだのに自分側の盤面を動かそうとしている');
 }));
 
 // ── §5.3 `O-60` 第52バッチ（2026-09-03）＝「原文から数値ひとつを読むだけ」family 12ハンドラを payload 化 ──

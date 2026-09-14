@@ -16774,19 +16774,54 @@ function rewriteUnderCardOpToTransfer(text: string, action: EffectAction): Effec
     } as EffectAction;
   }
 
+  // ④🆕「このシグニの下からそれぞれレベルの異なるシグニN枚をトラッシュに置いて**もよい**。
+  //    **そうした場合**、ターン終了時まで、このシグニは【アサシン】を得る」（§5.3 `O-372` 第4バッチ・
+  //    2026-09-14・`WX24-P4-046-E2`）。
+  // 🔑受け皿は**既に在った**＝`STUB{OPTIONAL_COST, underAnySigniTrash{fromThis}}`。
+  //    「それぞれレベルの異なる」だけ `selectionConstraint` の配線が無かったので、そこを同じ回で足した
+  //    （`TakeFromUnderSigniAction.selectionConstraint` ＋ `canAffordOptionalCostSpec` の distinct 判定）。
+  // ⚠**「そうした場合」は `SELF_OPTIONAL_EFFECT_TAKEN` で受ける**＝`OPTIONAL_COST` は
+  //    `self_optional_effect_taken` に支払いの有無を残す（`IS_MY_TURN` のままだと払わなくても本体が走る）。
+  if (!replacement) {
+    const underDistinct = t.match(/このシグニの下からそれぞれレベルの異なるシグニ([０-９\d]+)枚をトラッシュに置いてもよい/);
+    if (underDistinct) {
+      replacement = {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        underAnySigniTrash: {
+          count: parseNum(underDistinct[1]), fromThis: true,
+          filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'level' },
+        },
+      } as EffectAction;
+    }
+  }
+
+  // ⑤🆕「対戦相手のトラッシュから対象のカードN枚をデッキの一番下に置く。**そうした場合**、
+  //    対象のシグニ1体を他のシグニゾーンに配置して**もよい**」（`WDK09-015-E1`）。
+  // 🔑前半の受け皿は既存の `TRANSFER_TO_DECK{TRASH_CARD owner:'opponent', position:'bottom'}`。
+  // ⚠後半は**持ち主が原文に書かれていない**（「対象のシグニ1体」）＝`SIGNI_REPOSITION{owner:'any'}`
+  //    （この回に engine 側へ `any` を足した）。既定へ倒すと原文が許す片側を落とす。
+  if (!replacement) {
+    const oppTrashToBottom = t.match(/対戦相手のトラッシュから対象のカード([０-９\d]+)枚をデッキの一番下に置く/);
+    if (oppTrashToBottom) {
+      replacement = {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'TRASH_CARD', owner: 'opponent', count: parseNum(oppTrashToBottom[1]) },
+        shuffle: false, position: 'bottom',
+      } as EffectAction;
+    }
+  }
+
   // ④ 受け皿が無いものは **honest な `DEFERRED_*` へ改名**する（`census:stubs` C群の作法）。
   //    🔴**改名と同時に、直後の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を落とす。**
   //      理由＝この綴りは「直前の任意アクションがスキップされたら後段も走らない」ことに依存しており、
   //      その任意アクションを**実装していない**のに残すと、**自分のターンなら常に `then` が走る**
   //      （`WX24-P4-046-E2` なら「下を1枚も捨てずに【アサシン】を得る」）＝コスト先取りより悪い過剰実行。
   //    ⇒ **何もしないことを明示する**（`miscStubMap` に原文の帰結まで日本語で書いてある）。
-  const deferId = /このシグニの下からそれぞれレベルの異なるシグニ[０-９\d]+枚をトラッシュに置いてもよい/.test(t)
-    ? 'DEFERRED_TRASH_UNDER_DISTINCT_LEVELS'
-    : /そのカードをデッキに加えてシャッフルしてもよい/.test(t)
-      ? 'DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE'
-      : /対戦相手のトラッシュから対象のカード[０-９\d]+枚をデッキの一番下に置く/.test(t)
-        ? 'DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE'
-        : null;
+  // 🏁**§5.3 `O-372` 第4バッチ（2026-09-14）＝`DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` と
+  //   `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` は実装したのでこの表から外した**（上の ④/⑤ が受ける）。
+  const deferId = /そのカードをデッキに加えてシャッフルしてもよい/.test(t)
+    ? 'DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE'
+    : null;
   if (!replacement && deferId) {
     const renameAndDropGate = (node: unknown): void => {
       if (Array.isArray(node)) { node.forEach(renameAndDropGate); return; }
@@ -16808,6 +16843,44 @@ function rewriteUnderCardOpToTransfer(text: string, action: EffectAction): Effec
     };
     renameAndDropGate(action);
     return action;
+  }
+
+  // 🆕**2文とも catch-all に落ちた形**（§5.3 `O-372` 第4バッチ・2026-09-14・`WDK09-015-E1`）＝
+  //   「対戦相手のトラッシュから対象のカードN枚をデッキの一番下に置く。**そうした場合**、
+  //     対象のシグニ1体を他のシグニゾーンに配置してもよい。」
+  //   🔴`LRIG_UNDER_CARD_OP` が**2つ**あるので下の「ちょうど1つ」ガードで弾かれていた＝
+  //     この文型だけ**順番で**埋める（1つ目＝前半／2つ目＝後半）。
+  // ⚠後半は**持ち主が原文に書かれていない**（「対象のシグニ1体」）＝`owner:'any'`。
+  //   既定（自分 or 相手）へ倒すと原文が許す片側を落とす。
+  {
+    const twoSentence = t.match(/対戦相手のトラッシュから対象のカード([０-９\d]+)枚をデッキの一番下に置く/)
+      && /対象のシグニ[０-９\d]*体を他のシグニゾーンに配置してもよい/.test(t);
+    if (twoSentence) {
+      const bareTwo: Record<string, unknown>[] = [];
+      const scanTwo = (node: unknown): void => {
+        if (Array.isArray(node)) { node.forEach(scanTwo); return; }
+        if (!node || typeof node !== 'object') return;
+        const o = node as Record<string, unknown>;
+        if (o.type === 'STUB' && o.id === 'LRIG_UNDER_CARD_OP'
+          && Object.keys(o).every(k => k === 'type' || k === 'id')) bareTwo.push(o);
+        for (const v of Object.values(o)) if (v && typeof v === 'object') scanTwo(v);
+      };
+      scanTwo(action);
+      if (bareTwo.length === 2) {
+        const nTwo = parseNum(t.match(/対戦相手のトラッシュから対象のカード([０-９\d]+)枚をデッキの一番下に置く/)![1]);
+        const fills: EffectAction[] = [
+          { type: 'TRANSFER_TO_DECK',
+            source: { type: 'TRASH_CARD', owner: 'opponent', count: nTwo },
+            shuffle: false, position: 'bottom' } as EffectAction,
+          { type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'any', repositionOptional: true } as EffectAction,
+        ];
+        bareTwo.forEach((node, i) => {
+          for (const key of Object.keys(node)) delete node[key];
+          Object.assign(node, fills[i]);
+        });
+        return action;
+      }
+    }
   }
 
   if (!replacement) return action;

@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第334バッチ：§5.3 `O-372` 明示 defer の解体 第4バッチ（5 → 3）
+
+**2効果を消化**（`npm run census:stubs` A群 明示 defer **5種/5件 → 3種/3件**）。ここも受け皿は在った（2/2）。
+**新しいアクション型は通算0**（足したのは payload 2つ＝`TakeFromUnderSigniAction.selectionConstraint` と
+`SIGNI_REPOSITION` の `owner:'any'`）。
+
+### 消化した2効果
+
+| 効果 | 真因 | 直し方 |
+|---|---|---|
+| `WX24-P4-046-E2` | 「このシグニの下からそれぞれレベルの異なるシグニ3枚をトラッシュに置いてもよい。**そうした場合**、【アサシン】を得る」が丸ごと no-op。🔴**帰結の【アサシン】は action 木から消えていた**（defer 化の際に did-it ゲートごと落とす規則の結果） | 受け皿は既存の `STUB{OPTIONAL_COST, underAnySigniTrash{fromThis}}`。「それぞれレベルの異なる」だけ配線が無かったので `TakeFromUnderSigniAction.selectionConstraint` を足し、`canAffordOptionalCostSpec` にも distinct 判定を入れた（**枚数が足りていても払えない盤面**を「支払う」で出さない） |
+| `WDK09-015-E1` | 同上（前半・後半とも no-op、帰結も消えていた） | 前半は既存 `TRANSFER_TO_DECK{TRASH_CARD opponent, position:'bottom'}`。後半は `SIGNI_REPOSITION` に **`owner:'any'`** を追加（原文「**対象の**シグニ1体」は持ち主を書いていない＝片側へ倒すと原文が許す側を落とす） |
+
+🔑**defer を typed へ替えるだけでは足りない**＝defer 側は「そうした場合」の帰結ごと落としていたので、
+**実装時は帰結が戻ることまで確認する**。今回は `rewriteUnderCardOpToTransfer` の `replacement` 経路に載せると
+自動で戻った（gate を落とすのは defer 経路だけなので）。⚠`WDK09-015-E1` は **catch-all が2つ**あって
+「ちょうど1つ」ガードで弾かれていたので、この文型だけ**順番で埋める**専用分岐を書いた。
+
+### 🔴 やりかけて撤回した変更（記録に残す）
+
+作業中に「`OPTIONAL_COST` 直後の `CONDITIONAL{IS_MY_TURN}` は常に真だから、払わなくても帰結が走る
+過剰実行では」と考え、`SELF_OPTIONAL_EFFECT_TAKEN` へ「正準化」する後処理を書いた。
+**live 276効果が同じ形**だったので大量に書き換わりかけたが、**engine を読んで撤回した**：
+
+🔑**`execSequence` の任意コストパターン（`effectExecutor.ts` 内 :214 付近）は
+`['IS_MY_TURN','PAID_ADDITIONAL_COST']` を「条件」として評価していない**＝
+**CONDITIONAL の `then` を pay 側のアクション、`else` を skip 側のアクションとして消費する**。
+⇒ `IS_MY_TURN` のままが**この engine の正準形**で、`SELF_OPTIONAL_EFFECT_TAKEN` に替えると
+**その経路から外れて別の機構（`execStubPart1` の CHOOSE）に落ちる**。
+
+⚠これは CLAUDE.md / PLAN が繰り返し警告している
+**「偽陽性は全部『engine が JSON の見た目を裏で読み替えている』型（did-it ゲート）」**そのもの。
+**JSON の見た目で過剰実行と判定しない。受け皿（`execSequence` の Pattern 表）を読むまで直さない。**
+
+### 併せて直した逆翻訳の嘘（2件）
+
+- `underAnySigniTrash` の **`selectionConstraint` を描いていなかった**＝
+  「下のシグニ3枚ならどれでもよい」に見えた（engine は distinct を課す）。
+- `SIGNI_REPOSITION` の逆翻訳が **`owner:'any'` を「持ち主なし（engine も何もしない）」と描いていた**＝
+  engine は両者の場を候補に出すのに、逆翻訳だけが「何も起きない」と嘘をついていた。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4167 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・lint 0 errors）。
+- **挙動 golden 2本を追加**（`§5.3 defer解体⑬⑭`）。⑬は**同レベル3枚では「支払う」が押せない／
+  レベル違い3枚なら押せる**の両方向、⑭は**両者の場が候補に出る**＋**相手のシグニを選んだら相手側の盤面で移動先が決まる**。
+- 逆翻訳を2枚とも原文と目視照合。
+- **実機は不要と判定**（§2.2）＝`src/screens/` は無変更・新しいアクション型なし。
+
+### 残3件＝ここからは `src/screens/` か新機構が要る（`O-372` に残す）
+
+| 効果 | 何が足りないか |
+|---|---|
+| `WXK11-014-E2` | 「そのシグニを《サーバント　ＺＥＲＯ》にする（**ターン終了時まで**）」。受け皿 `card_identity_overrides` は在るが**自分側かつターン限定**で使えない＝🔴**あのキーは「このターン」とコメントに書いてあるのに turn-end のリセット一覧に入っていない**（`BattleScreen.tsx:4324`/`:4835` の両方に無い）＝既存の `COPY_SIGNI`／`SIGNI_SERVANT_ZERO` も永続になっている疑い。**寿命の設計から**要検討＝`src/screens/` を触る |
+| `SP38-005-E1` | 「対戦相手のルリグ1体のレベルを－1する（ターン終了時まで）」。**ルリグのレベルを増減する受け皿が engine に無い**（あるのは参照側の `LRIG_LEVEL` 条件と `ATTACK_PHASE_LEVEL_OVERRIDE` だけ）。グロウ可否・レベル参照の全読み手に効かせる必要がある |
+| `WXEX2-80-E1` | 「各プレイヤーは手札からカード1枚公開する。その後…**公開されたシグニ2枚のレベルの差以下**のレベルを持つ…」。**「2枚のレベルの差」という動的な上限**を表す `TargetFilter` が無い（`levelLteLastProcessedCount` 等はあるが「差」は無い） |
+
 ## 2026-09-14 — 第333バッチ：§5.3 `O-372` 明示 defer の解体 第3バッチ（10 → 5）
 
 **5効果を消化**（`npm run census:stubs` A群 明示 defer **10種/10件 → 5種/5件**）。

@@ -62,14 +62,27 @@
 ⚠**新しい挙動 golden は `withSavedCursor` で包む**＝包まないと POOL カーソルがずれて無関係なテストが落ちる
 （第1バッチで `第246 engine WXDi-P16-047-E2` が巻き添えになった）。
 
-**残 5件の id**（2026-09-14 第3バッチ後。`npm run census:stubs` で測り直す）＝
-`DEFERRED_EACH_PLAYER_REVEAL_HAND`（`WXEX2-80`） / `DEFERRED_OPP_LRIG_LEVEL_MODIFY`（`SP38-005`） /
-`DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015`） / `DEFERRED_SELF_SIGNI_SERVANT_ZERO`（`WXK11-014`） /
-`DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`（`WX24-P4-046`）。
+**残 3件**（2026-09-14 第4バッチ後。`npm run census:stubs` で測り直す）＝
+🔴**ここからは `src/screens/` か新機構が要る＝実機まで必須**（受け皿が在るぶんは尽きた。4バッチ通算 6/6・6/6・5/5・2/2）。
 
-🔑**3バッチ連続で「受け皿は既に在った」**（6/6・6/6・5/5）＝**着手の1手目は必ず grep**。
+| 効果 | 何が足りないか | 着手時の注意 |
+|---|---|---|
+| `WXK11-014-E2`（`DEFERRED_SELF_SIGNI_SERVANT_ZERO`） | 「そのシグニを《サーバント　ＺＥＲＯ》にする（**ターン終了時まで**）」。受け皿 `card_identity_overrides` は在るが**相手側前提かつ永続** | 🔴**`card_identity_overrides` は型のコメントに「このターン」と書いてあるのに turn-end のリセット一覧（`BattleScreen.tsx:4324` / `:4835`）の**どちらにも無い**＝既存の `COPY_SIGNI`／`SIGNI_SERVANT_ZERO` も永続になっている疑いがある。**寿命の設計から**始めること（ここだけ直すと既存とズレる） |
+| `SP38-005-E1`（`DEFERRED_OPP_LRIG_LEVEL_MODIFY`） | 「対戦相手のルリグ1体のレベルを－1する（ターン終了時まで）」 | **ルリグのレベルを増減する受け皿が engine に無い**（あるのは参照側の `LRIG_LEVEL` 条件と `ATTACK_PHASE_LEVEL_OVERRIDE` だけ）。グロウ可否・ガード判定・レベル参照の**全読み手**に効かせる必要があるので funnel を先に決める |
+| `WXEX2-80-E1`（`DEFERRED_EACH_PLAYER_REVEAL_HAND`） | 「各プレイヤーは手札からカード1枚公開する。その後…**公開されたシグニ2枚のレベルの差以下**のレベルを持つ…」 | **「2枚のレベルの差」という動的上限**を表す `TargetFilter` が無い（`levelLteLastProcessedCount` / `levelEqLastProcessedLevelSum` はあるが「差」は無い）。公開自体は STUB 1本で書けるので、**残るのは filter の1語彙** |
+
+🔑**4バッチ通して「受け皿は既に在った」**（6/6・6/6・5/5・2/2）＝**着手の1手目は必ず grep**。
 第3バッチでは `manualEffects.ts` の登録票が「engine に受け皿が1つも無い／`src/screens/` が要る」と
 断言していた `WX25-P2-022` が、**`O-307` の既存2部品でそのまま書けた**（登録票が stale だった）。
+
+🔴🔑**第4バッチで一度書いて撤回した変更＝次に読む人が同じ誤診をしないために残す。**
+「`STUB{OPTIONAL_COST}` の直後の `CONDITIONAL{IS_MY_TURN}` は常に真だから、払わなくても帰結が走る過剰実行だ」
+という読みは**誤り**。**`execSequence` の任意コストパターンは `['IS_MY_TURN','PAID_ADDITIONAL_COST']` を
+条件として評価せず、CONDITIONAL の `then` を pay 側・`else` を skip 側のアクションとして消費する**
+（`effectExecutor.ts` の execSequence 内・Pattern ③）。⇒ **`IS_MY_TURN` のままがこの engine の正準形**で、
+`SELF_OPTIONAL_EFFECT_TAKEN` へ書き換えると**その経路から外れて別機構（`execStubPart1` の CHOOSE）に落ちる**。
+live 276効果が同じ形なので、気づかずに配ると影響が大きい。
+⚠これは CLAUDE.md の**「偽陽性は全部『engine が JSON の見た目を裏で読み替えている』型（did-it ゲート）」**そのもの。
 
 🔑**第2バッチ（2026-09-14）で分かった受け皿とその落とし穴**
 - 🔴**`DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`（`WX24-P4-046-E2`）は「そうした場合」ごと消えている**＝

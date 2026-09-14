@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 585（総ノード 3398 件）
+live JSON の STUB id 種類 : 583（総ノード 3398 件）
 逆翻訳シートの [STUB:…] 総数: 275  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 5 種 / 5 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 5 種 / 5 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 3 種 / 3 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 3 種 / 3 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 40 種 / 126 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
@@ -27,16 +27,10 @@ live JSON の STUB id 種類 : 585（総ノード 3398 件）
         生成: src\data\effectParser.ts:16549
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:16945 / src\data\manualEffects.ts:11473
-     1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
-        カード: WDK09-015
-        生成: src\data\effectParser.ts:16788
+        生成: src\data\effectParser.ts:17018 / src\data\manualEffects.ts:11473
      1件   1枚  DEFERRED_SELF_SIGNI_SERVANT_ZERO
         カード: WXK11-014
         生成: src\data\parsers\parseSentencePart4.ts:739
-     1件   1枚  DEFERRED_TRASH_UNDER_DISTINCT_LEVELS
-        カード: WX24-P4-046
-        生成: src\data\effectParser.ts:16784
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -76,7 +70,7 @@ live JSON の STUB id 種類 : 585（総ノード 3398 件）
         消費: src\screens\battle\guard.ts:18
      3件   3枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WX19-002, WXK03-002, WXK11-020
-        消費: src\engine\execUtils.ts:2384 / src\screens\battle\costs.ts:1266
+        消費: src\engine\execUtils.ts:2401 / src\screens\battle\costs.ts:1266
      3件   3枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-004, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8480 / src\engine\effectEngine.ts:8498 / src\engine\effectEngine.ts:8511
@@ -109,16 +103,16 @@ live JSON の STUB id 種類 : 585（総ノード 3398 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1662
+        消費: src\engine\execUtils.ts:1679
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:8291
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:10796
+        消費: src\engine\effectExecutor.ts:10799
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:10798
+        消費: src\engine\effectExecutor.ts:10801
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
@@ -154,7 +148,7 @@ live JSON の STUB id 種類 : 585（総ノード 3398 件）
         消費: src\engine\effectExecutor.ts:1325
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:2284
+        消費: src\engine\execUtils.ts:2301
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\data\sourceTextPayloads.ts:28 / src\data\sourceTextPayloads.ts:60 / src\engine\effectEngine.ts:8548

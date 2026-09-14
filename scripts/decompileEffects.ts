@@ -4258,7 +4258,10 @@ function actionJa(a?: Action, effectType?: string): string {
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）
           const fUA = a.underAnySigniTrash.filter ? filterJa(a.underAnySigniTrash.filter) : '';
           const nounUA = ([] as string[]).concat(a.underAnySigniTrash.filter?.cardType ?? 'カード').join('か');
-          return `${headOC}${whereUA}${fUA}${nounUA}を${a.underAnySigniTrash.count}枚${a.underAnySigniTrash.upTo ? 'まで' : ''}トラッシュに置いてもよい`;
+          // 🆕**選択集合の制約（「それぞれレベルの異なる」等）も出す**（2026-09-14・§5.3 `O-372` 第4バッチ）。
+          //   🔴出さないと「下のシグニ3枚ならどれでもよい」に見える＝engine は distinct を課すので逆翻訳だけが嘘。
+          const cUA = constraintJa(a.underAnySigniTrash.selectionConstraint);
+          return `${headOC}${whereUA}${cUA}${fUA}${nounUA}を${a.underAnySigniTrash.count}枚${a.underAnySigniTrash.upTo ? 'まで' : ''}トラッシュに置いてもよい`;
         }
         // エナゾーンからトラッシュする任意コスト（続き421）。従来は spec を見ずに
         // 「コストを支払ってもよい」へ潰れており、**どのカードを何枚払うのかが逆翻訳から消えて**いた
@@ -4850,12 +4853,14 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🔴持ち主は原文では**前の文**にあり、旧 engine はブロック全文を読んで決めていた
       //   ＝JSON が持ち主を持っていなくても逆翻訳は原文どおりに見えた。
       if (a.id === 'SIGNI_REPOSITION' || a.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
-        if (a.owner !== 'self' && a.owner !== 'opponent') {
+        // 🆕`owner:'any'`＝原文が持ち主を書いていない（2026-09-14・§5.3 `O-372` 第4バッチ・`WDK09-015-E1`）。
+        //   🔴旧は `any` を「未指定」と読んで「engine も何もしない」と描いていたが、engine は両者の場を候補に出す。
+        if (a.owner !== 'self' && a.owner !== 'opponent' && a.owner !== 'any') {
           return '[SIGNI_REPOSITION: 対象の持ち主なし（未指定・engine も何もしない）]';
         }
-        const whoRP = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+        const whoRP = a.owner === 'opponent' ? '対戦相手' : a.owner === 'any' ? 'どちらかの' : 'あなた';
         if (a.repositionAll) return `${whoRP}のすべてのシグニを好きなように配置し直してもよい`;
-        const targetRP = a.targetsStored ? 'それ' : `${whoRP}のシグニ1体`;
+        const targetRP = a.targetsStored ? 'それ' : a.owner === 'any' ? 'どちらかのプレイヤーのシグニ1体' : `${whoRP}のシグニ1体`;
         const emptyOnlyRP = a.repositionEmptyOnly ? '（すでにシグニのあるシグニゾーンには配置できない）' : '';
         return `${targetRP}を他のシグニゾーン1つに配置${a.repositionOptional ? 'してもよい' : 'する'}${emptyOnlyRP}`;
       }
