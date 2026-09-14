@@ -3,3 +3,13 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## -STUB ［1枚］
+SP26-001
+--- SP26-001
+  原文: 以下の２つから１つを選ぶ。①あなたのデッキの上からカードを５枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番上に置く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。②カードを２枚引き、手札１枚を【トラップ】としてあなたのシグニゾーンに設置する。
+  - [0].action.choices[0].action.steps[2].type = "STUB"
+  - [0].action.choices[0].action.steps[2].id = "ACTIVATE_TRAP"
+  - [0].action.choices[0].action.steps[2].trapTargetScope = "explicit"
+  ~ [0].action.choices[0].action.steps[1].id : "DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED" → "ACTIVATE_TRAP"
+  + [0].action.choices[0].action.steps[1].trapTargetScope = "explicit"
+

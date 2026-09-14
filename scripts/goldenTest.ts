@@ -59799,7 +59799,12 @@ test('O-65 live: 自分のライフをクラッシュする効果は、原文に
       //   「ライフクロス**が**N枚以下の**場合**」「ライフクロス**は**〜クラッシュ**されない**」という
       //   **条件・制限の文**で、語だけを見る網では素通りする。**助詞「を」＋動詞まで見る。**
       const grounded = /ライフクロス(?:の[^。]{0,8})?[０-９\d]*(?:枚|のカード)?を(?:クラッシュ|トラッシュに置)/.test(t)
-        || /あなたにダメージ/.test(t);
+        || /あなたにダメージ/.test(t)
+        // 🆕**照応形**（2026-09-14・§5.3 明示 defer の解体 第1バッチ・`WD23-022-E-E3`）＝
+        //   「あなたのライフクロスの一番上**を見る**。その後、**それを**クラッシュしてもよい。」
+        // 🔑**「見る」＋照応の2つを同時に要求する**＝`O-65` が塞いだのは「条件・制限の文」の誤読なので、
+        //   **直前にライフクロスを見る行動がある**ことまで要求すれば、その網は緩まない。
+        || /ライフクロス[^。]{0,20}を見る。[^。]{0,12}それを(?:クラッシュ|トラッシュに置)/.test(t);
       if (!grounded) bad.push(id);
     }
     for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v, id);
@@ -62626,14 +62631,16 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     ['SPK01-14', 'SPK01-14-E1', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
     ['PR-K070', 'PR-K070-E2', 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
     ['PR-K078', 'PR-K078-E2', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
-    ['WX22-Re17', 'WX22-Re17-E2', 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
+    // 🏁**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝この5件は受け皿が在ったので実装へ戻した。**
+    //   ⚠この表は「id がそこに在ること」しか見ない＝**typed へ移した行は新しい id を書く**（`WXDi-P08-008` と同じ作法）。
+    ['WX22-Re17', 'WX22-Re17-E2', 'SELF_FROM_TRASH_TO_DECK_BOTTOM'],
     ['WXEX2-80', 'WXEX2-80-E1', 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
-    ['WXDi-P00-037', 'WXDi-P00-037-E2', 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
-    ['WD23-022-E', 'WD23-022-E-E3', 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
+    ['WXDi-P00-037', 'WXDi-P00-037-E2', 'OPP_DECK_BOTTOM_MILL'],
+    ['WD23-022-E', 'WD23-022-E-E3', 'LIFE_CRASH'],
     ['WDK17-015', 'WDK17-015-E1', 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
     ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
-    ['WXDi-P00-063', 'WXDi-P00-063-E2', 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
-    ['WXDi-P06-045', 'WXDi-P06-045-E1', 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
+    ['WXDi-P00-063', 'WXDi-P00-063-E2', 'OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
+    ['WXDi-P06-045', 'WXDi-P06-045-E1', 'SIGNI_REPOSITION'],
     // 🏁`O-229`（2026-09-04）＝**受け皿は既に在った**（`SWAP_DECK_TOP_AND_LIFE`）ので明示 defer を撤去した。
     ['WXDi-P08-008', 'WXDi-P08-008-E2', 'SWAP_DECK_TOP_AND_LIFE'],
     ['WXK08-084', 'WXK08-084-E1', 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
@@ -67908,6 +67915,67 @@ test('§5.3 O-60 第51: WXDi-P15-067-E1 は＜解放派＞シグニの下に置�
 });
 
 
+// ── §5.3 明示 defer の解体 第1バッチ（2026-09-14）＝新しく実装した3ハンドラの挙動を固定する ──
+// 🔑**「JSON が typed になった」だけでは足りない**＝ハンドラが盤面を動かさなければ defer と同じ no-op。
+//   ⇒ 実行して盤面差分を見る（どれも反転確認つき）。
+test('§5.3 defer解体①: SELF_FROM_TRASH_TO_DECK_BOTTOM はトラッシュの効果元をデッキの一番下へ送る', () => withSavedCursor(() => {
+  const ctx = mkCtx({ trash: 3 }, {}, undefined);
+  const self = ctx.ownerState.trash[1];
+  const r = run({ type: 'STUB', id: 'SELF_FROM_TRASH_TO_DECK_BOTTOM' } as EffectAction,
+    { ...ctx, sourceCardNum: self } as ExecCtx);
+  ok(r.done, '完了する');
+  ok(!r.ownerState.trash.includes(self), 'トラッシュから抜けていない');
+  eq(r.ownerState.deck[r.ownerState.deck.length - 1], self, 'デッキの一番下に置かれていない');
+  eq(r.ownerState.deck.length, ctx.ownerState.deck.length + 1, 'デッキが1枚増えていない');
+  // 反転＝効果元がトラッシュに無ければ1枚も動かない（場に居るうちに撃てても盤面を壊さない）。
+  const r2 = run({ type: 'STUB', id: 'SELF_FROM_TRASH_TO_DECK_BOTTOM' } as EffectAction,
+    { ...ctx, sourceCardNum: 'not-in-trash' } as ExecCtx);
+  eq(r2.ownerState.deck.length, ctx.ownerState.deck.length, 'トラッシュに無いのにデッキが増えている');
+}));
+
+test('§5.3 defer解体②: OPP_DECK_BOTTOM_MILL は相手デッキの一番下をトラッシュへ送り lastProcessedCards に残す', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const bottom = ctx.otherState.deck[ctx.otherState.deck.length - 1];
+  const r = run({ type: 'STUB', id: 'OPP_DECK_BOTTOM_MILL' } as EffectAction, ctx);
+  ok(r.done, '完了する');
+  eq(r.otherState.deck.length, ctx.otherState.deck.length - 1, '相手デッキが1枚減っていない');
+  eq(r.otherState.trash[r.otherState.trash.length - 1], bottom, '一番下のカードがトラッシュに入っていない');
+  // 🔑**一番上ではない**＝後続の「同じカード名の」照合がここで狂うと別のシグニをバニッシュする。
+  eq(r.otherState.deck[0], ctx.otherState.deck[0], '一番上を落としている（一番下ではない）');
+  eq((r.lastProcessedCards ?? [])[0], bottom, '落とした札を lastProcessedCards に残していない');
+}));
+
+test('§5.3 defer解体③: OPP_DECK_TOP_REVEAL_TO_BOTTOM は二択を出し、選べば相手デッキの上を下へ回す', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const top = ctx.otherState.deck[0];
+  const offered = executeAction({ type: 'STUB', id: 'OPP_DECK_TOP_REVEAL_TO_BOTTOM' } as EffectAction, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '置くかどうかの二択を出していない');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.otherState.deck[0], top, '選ぶ前に勝手に動かしている');
+  ok(offered.pending.options.some(o => o.id === 'skip'), '「そのままにする」が選べない（「置いてもよい」が強制になる）');
+  const r = run({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TOP_TO_BOTTOM' } as EffectAction, ctx);
+  eq(r.otherState.deck[r.otherState.deck.length - 1], top, '一番上が一番下へ回っていない');
+  eq(r.otherState.deck.length, ctx.otherState.deck.length, 'デッキ枚数が変わっている（落としてはいけない）');
+}));
+
+test('§5.3 defer解体④: repositionEmptyOnly は占有ゾーンを移動先から外す（入れ替えない）', () => withSavedCursor(() => {
+  // 相手の3ゾーンのうち2つが埋まっている盤面で、埋まっている側は選択肢に出ない。
+  const opp = ['WX22-047', 'WX22-047', null] as (string | null)[];
+  const ctx = mkCtx({}, { signi: opp });
+  const target = ctx.otherState.field.signi[0]!.at(-1)!;
+  const withFlag = executeAction({ type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'opponent',
+    repositionEmptyOnly: true } as EffectAction, { ...ctx, lastProcessedCards: [target] } as ExecCtx);
+  ok(!withFlag.done && withFlag.pending.type === 'CHOOSE', '移動先の選択肢を出していない');
+  if (withFlag.done || withFlag.pending.type !== 'CHOOSE') return;
+  eq(withFlag.pending.options.map(o => o.id).sort().join(','), 'zone_2', '空きゾーンだけに絞れていない');
+  // 反転＝フラグが無ければ従来どおり占有ゾーンも選べる（live 3効果の綴りはそちらが正しい）。
+  const without = executeAction({ type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'opponent' } as EffectAction,
+    { ...ctx, lastProcessedCards: [target] } as ExecCtx);
+  ok(!without.done && without.pending.type === 'CHOOSE', 'フラグ無しでも選択肢を出すべき');
+  if (without.done || without.pending.type !== 'CHOOSE') return;
+  eq(without.pending.options.map(o => o.id).sort().join(','), 'zone_1,zone_2', 'フラグ無しで占有ゾーンが消えている');
+}));
+
 // ── §5.3 `O-60` 第52バッチ（2026-09-03）＝「原文から数値ひとつを読むだけ」family 12ハンドラを payload 化 ──
 // 🔴この family は **engine が `EffectText + BurstText`（カード全文）に regex を1本当てて数値を決めていた**。
 //   壊れ方が3つとも同じ＝①別の能力の数字を拾いうる ②綴りが1つ違えば既定値 ③効果元が引けない経路では必ず既定値。
@@ -71469,7 +71537,15 @@ test('§5.3 O-249 第152: held のうち fresh が正しい7枚を採用（typed
     const a = live('SP26-001', 'SP26-001-E1').action as Extract<EffectAction, { type: 'CHOOSE' }>;
     const first = a.choices[0].action as Extract<EffectAction, { type: 'SEQUENCE' }>;
     const ids = first.steps.map(st => (st as { id?: string }).id);
-    ok(ids.includes('DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED'), 'SP26-001-E1: 残りの行き先が痕跡として残る');
+    // 🏁**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝痕跡 defer を実働へ畳んだ。**
+    //   🔴同じ1文を2回表現していた＝`LOOK_PICK_CHAIN{remainder:{deck/top}}`（実働）と
+    //     `STUB{DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED}`（no-op）。落とすだけにすると「好きな順番で」が
+    //     消えるので、**`remainder.reorder` を立ててから** defer を外す（`pruneDuplicateRemainderDefer`）。
+    ok(!ids.includes('DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED'), 'SP26-001-E1: 二重表現の defer は残らない');
+    const lpc = first.steps[0] as Extract<EffectAction, { type: 'LOOK_PICK_CHAIN' }>;
+    eq(lpc.remainder?.location, 'deck', 'SP26-001-E1: 残りはデッキへ');
+    eq(lpc.remainder?.position, 'top', 'SP26-001-E1: 残りはデッキの一番上へ');
+    ok(lpc.remainder?.reorder === true, 'SP26-001-E1: 好きな順番で置ける');
     ok(ids.includes('ACTIVATE_TRAP'), 'SP26-001-E1: 【トラップ】の発動も残る');
   }
   // ⑤ 平坦化2枚＝意味は変えない（SEQUENCE の1要素包みを外しただけ）。

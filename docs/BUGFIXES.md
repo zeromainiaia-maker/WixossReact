@@ -1,5 +1,52 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第331バッチ：§5.3「明示 defer」の解体 第1バッチ（22 → 16）
+
+**取ったもの**＝`npm run census:stubs` A群の**明示 defer（`DEFERRED_*`）22種/22件**。PLAN の登録済み worklist は全部0だったので、
+「機構を作らないと決めて no-op のまま宣言してある1枚もの」を在庫として取り直した（残 **16**）。
+🔑**6件とも受け皿が既に在った**＝§5.3「1〜3枚の項目の取り方」の①（まず受け皿を疑う）が6/6で当たり、**新しいアクション型は1つも足していない**。
+
+### 消化した6効果
+
+| 効果 | 真因（いままで何が起きていなかったか） | 直し方 |
+|---|---|---|
+| `SP26-001-E1`① | 同じ1文を**2回**表現＝`LOOK_PICK_CHAIN{remainder:deck/top}`（実働）＋ `DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED`（no-op）。**二重表現**であって欠落ではない | parser 後処理 `pruneDuplicateRemainderDefer`＝**`remainder.reorder` を立ててから** defer を畳む（落とすだけだと「好きな順番で」が消える） |
+| `WX22-Re17-E2` | 「このカードをトラッシュからデッキの一番下に置く」が no-op。**さらにこの【起】はどの入口からも提示されていなかった**（場のゲートは `THIS_CARD_IN_LOCATION` が false・トラッシュUI は `trashActivated` を要求） | `STUB{SELF_FROM_TRASH_TO_DECK_BOTTOM}` を実装＋`trashActivated` の動詞表に「トラッシュからデッキの一番上／下に置く」を追加 |
+| `WD23-022-E-E3` | 「その後、それをクラッシュしてもよい」が no-op | 受け皿は既存の `LIFE_CRASH{owner:'self',count:1,optional,triggerBurst}`（`WD21-011-E3` と同形）へ typed 化 |
+| `WXDi-P00-063-E2` | 「あなたはそれを対戦相手のデッキの一番下に置いてもよい」が no-op | `STUB{OPP_DECK_TOP_REVEAL_TO_BOTTOM}`（置く／そのままの二択）＋ `INTERNAL_OPP_DECK_TOP_TO_BOTTOM` |
+| `WXDi-P00-037-E2` | 🔴**両方向のバグ**＝前半「デッキの**一番下**をトラッシュ」が no-op で、後半が**素の `BANISH{SIGNI opponent}`**＝原文の「そのカードと同じカード名の」が消えて**相手シグニを無条件に1体選べた**（過剰実行） | `STUB{OPP_DECK_BOTTOM_MILL}`＋後半に既存 `TargetFilter.nameEqLastProcessed` を配線（`applyNameEqLastProcessedAfterBottomMill`） |
+| `WXDi-P06-045-E1`② | 「それを他のシグニゾーン1つに配置する」が no-op | 受け皿は既存の `STUB{SIGNI_REPOSITION, owner}`。⚠原文の注記「（すでにシグニのあるシグニゾーンには配置できない）」を **新 payload `repositionEmptyOnly`** で渡す（既定は従来どおり**占有ゾーンなら入れ替え**＝live 3効果の綴りはそちらが正しい） |
+
+### 併せて直した系統バグ（§2.4＝その場で直す）
+
+🔴**「（この能力はこのカードがトラッシュにある場合にしか使用できない）」を持つ9枚のうち3効果が恒久的に使用不能だった。**
+場の【起】ゲート（`signiActivateGate.ts:189`）は `trashActivated` が無い効果を提示するが `THIS_CARD_IN_LOCATION{trash}` が場では false、
+トラッシュUI（`BattleScreen.tsx:8962`）は `trashActivated` を要求する＝**両方から落ちる**。
+- 🏁直したのは `WX22-Re17-E2` の1件（動詞表の追加で `trashActivated` が立つ・コストは `energy` なので支払える）。
+- ⚠**`WX13-038-E2`／`WX21-021-E3` はここでは直せない**＝`trashActivated` を立てても コストが `trashExile{count:4}` で、
+  **どの4枚を除外するか選ぶ列がトラッシュUIに無い**ため `canOfferTrashActivate` が false のまま（立てるとゴールデン
+  「トラッシュ自己起動【起】が全部『支払える形』」が赤くなる＝**立てずに PLAN §5.3 へ登録**した＝`src/screens/` 側の作業）。
+
+### 更新した契約（golden）
+
+- `O-76/O-77②` の defer 表＝5行を新しい id へ（`WXDi-P08-008` と同じ作法＝**typed へ移した行は新しい id を書く**）。
+- `O-249 第152` の `SP26-001-E1`＝「defer が痕跡として残る」→「**二重表現の defer は残らない ∧ remainder が deck/top/reorder**」へ反転。
+- `O-65`（原文に根拠が無い `LIFE_CRASH{self}` は0件）のトリップワイヤに**照応形**を追加＝
+  「ライフクロス…**を見る**。…**それを**クラッシュ」。🔑**「見る」と照応の両方**を要求するので、`O-65` が塞いだ「条件・制限の文の誤読」の網は緩まない。
+- 🆕**新ハンドラの挙動 golden 4本**（`§5.3 defer解体①〜④`）＝盤面差分＋**全件で反転確認**。
+  ⚠**POOL カーソルを退避する**（`withSavedCursor`）＝しないと後続テストが引くカードがずれて
+  無関係な `第246 engine WXDi-P16-047-E2` が落ちた（`goldenTest.ts:155` の既知の可変状態）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4157 PASS / 0 FAIL**・smoke 10754 全0・fuzz 全0・census 1/BASELINE 1・lint 0 errors/259 warnings）。
+- `npm run census:stubs` A群 明示 defer **22種/22件 → 16種/16件**。C群/E群/F群は 0 のまま。
+- 逆翻訳を6枚とも原文と目視照合（`npx tsx scripts/decompileEffects.ts <CardNum>`）。新 STUB 3本は `// 表示:` を書いて
+  `node scripts/genStubsMd.mjs` → `npm run regen`＝**生の英語 ID は出ていない**。
+- **実機は不要と判定**（§2.2）＝触ったのは `src/data/` `src/engine/` `src/types/` `scripts/` `public/data/` のみで **`src/screens/` は1行も触っていない**。
+  新しいアクション型・条件型も足していない（`census:goldentypes` 未カバー 0 のまま）。インタラクションを出す2本は
+  `npm run smoke` のオートパイロット（CHOOSE/SELECT_TARGET を自動応答）と上記 golden 4本で done まで到達を確認済み。
+
 ## 2026-09-14 — 第330バッチ：🏁`O-371`／🏁`O-369`（残2効果）
 
 codex は2アカウントとも利用上限（23:09 復帰）のため Claude が実装・実機まで実施。

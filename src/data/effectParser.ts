@@ -16549,15 +16549,10 @@ const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれらを捨てる/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
   [/対戦相手はあなたのルリグデッキからカード[０-９\d]+枚を見ないで選び/, 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
   [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれを公開する/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
-  [/このカードをトラッシュからデッキの一番下に置く/, 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
   [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
-  [/対戦相手はデッキの一番下のカードをトラッシュに置く/, 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
   // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
-  [/あなたのライフクロスの一番上を見る。その後、それをクラッシュしてもよい/, 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
   [/このシグニをそれの【アクセ】にしてもよい/, 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
   [/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/, 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
-  [/対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい/, 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
-  [/それを他のシグニゾーン[０-９\d]*つ?に配置する/, 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
   [/その中から[０-９\d]+枚をそれの下に置く/, 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
   [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
 ];
@@ -16620,6 +16615,29 @@ function rewriteCatchAllStubs(text: string, action: EffectAction): EffectAction 
         ...(mChk[1] ? { filter: { noGuard: true } } : {}),
       },
     } as EffectAction;
+  } else if (/あなたのライフクロスの一番上を見る。その後、それをクラッシュしてもよい/.test(t)) {
+    // 🆕**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝`WD23-022-E-E3`。**
+    //   公開（見る）は直前の `LOOK_AND_REORDER{life_cloth}` が済ませている＝この文は
+    //   **任意のライフクラッシュ**そのもの。受け皿は既存の `LIFE_CRASH`（`WD21-011-E3` と同じ形）。
+    // ⚠`triggerBurst: true`＝自分のライフクロスをクラッシュしてもライフバーストは発動する。
+    replacement = { type: 'LIFE_CRASH', owner: 'self', count: 1, optional: true, triggerBurst: true } as EffectAction;
+  } else if (/このカードをトラッシュからデッキの一番下に置く/.test(t)) {
+    // 🆕`WX22-Re17-E2`。効果元1枚が確定している（選択の余地が無い）ので STUB ハンドラ1本。
+    replacement = { type: 'STUB', id: 'SELF_FROM_TRASH_TO_DECK_BOTTOM' } as EffectAction;
+  } else if (/対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい/.test(t)) {
+    // 🆕`WXDi-P00-063-E2`。公開は直前の `LOOK_AND_REORDER{owner:'opponent'}`＝ここは置くかの二択。
+    replacement = { type: 'STUB', id: 'OPP_DECK_TOP_REVEAL_TO_BOTTOM' } as EffectAction;
+  } else if (/対戦相手はデッキの一番下のカードをトラッシュに置く/.test(t)) {
+    // 🆕`WXDi-P00-037-E2` 前半。後続の「そのカードと同じカード名の〜をバニッシュ」は
+    //   `nameEqLastProcessed` が読む（下の `applyNameEqLastProcessedAfterBottomMill`）。
+    replacement = { type: 'STUB', id: 'OPP_DECK_BOTTOM_MILL' } as EffectAction;
+  } else if (/それを他のシグニゾーン[０-９\d]*つ?に配置する/.test(t)) {
+    // 🆕`WXDi-P06-045-E1` ②。受け皿は既存の `SIGNI_REPOSITION`（`owner` payload つき）。
+    // ⚠**持ち主は原文から決める**（fail-closed＝読めなければ defer のまま）。
+    const ownerMZ: 'self' | 'opponent' | null =
+      /対戦相手のシグニ[０-９\d]*体を対象とし、それを他のシグニゾーン/.test(t) ? 'opponent'
+      : /あなたのシグニ[０-９\d]*体を対象とし、それを他のシグニゾーン/.test(t) ? 'self' : null;
+    if (ownerMZ) replacement = { type: 'STUB', id: 'SIGNI_REPOSITION', owner: ownerMZ } as EffectAction;
   }
   if (replacement) {
     for (const key of Object.keys(bare[0])) delete bare[0][key];
@@ -23439,10 +23457,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   //   **①トラッシュからは一度も提示されず（過少）②場のシグニとしては提示され、しかも
   //   `trashExile.self` の支払いが「場の札をトラッシュから引く」空振りで通る（過剰）**という
   //   両方向のバグだった。⇒ 入口の判定は**コストと本体の両方**から立てる。
+  // 🆕🔴**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝本体の動詞を1つ足した。**
+  // 🔴実測＝「（この能力はこのカードがトラッシュにある場合にしか使用できない）」を持つ9枚のうち
+  //   **3効果が場の【起】ゲートからもトラッシュUIからも落ちて恒久的に使用不能**だった。
+  //   うち `WX22-Re17-E2` は本体が「このカードを**トラッシュからデッキの一番下に置く**」で、
+  //   旧の動詞表（場に出す／シグニゾーンに出す／手札に加える）に無かったのが原因＝ここで拾う。
+  // ⚠**残る `WX13-038-E2`／`WX21-021-E3` はここでは直せない**＝`trashActivated` を立てても
+  //   コストが `trashExile{count:4}`（**どの4枚を除外するか選ぶ列がトラッシュUIに無い**）なので
+  //   `canOfferTrashActivate` が false のまま＝**`src/screens/` 側の作業**（PLAN §5.3 へ登録）。
+  //   ⇒ 立てるとゴールデン「トラッシュ自己起動【起】が全部『支払える形』」が赤くなる＝立てない。
   const trashActivated = effectType === 'ACTIVATED'
     && (cost?.trashExile?.self === true
       || (/(?:この(?:シグニ|カード)|トラッシュからこの(?:シグニ|カード))/.test(actionText)
-        && actionText.includes('トラッシュ') && /(?:場に出す|シグニゾーンに出す|手札に加える)/.test(actionText)));
+        && actionText.includes('トラッシュ')
+        // 🆕**「トラッシュからデッキへ戻す」も入口はトラッシュ**（`WX22-Re17-E2`）＝
+        //   注記（上）が `block` まで届かない綴りのカードがあるので、本体の動詞側でも拾う。
+        && /(?:場に出す|シグニゾーンに出す|手札に加える|トラッシュからデッキの一番[上下]に置く)/.test(actionText)));
   // 🆕**エナゾーンにあるこのカードを手札に加える【起】**（§5.3 `O-114`・`WXDi-P06-077-E2`）。
   // ⚠**`trashActivated` と排他**＝入口（どのゾーンのカードをタップするか）が違うだけで、
   //   支払い・実行は同じ `trashActivateCost` / `executeTrashActivated` を通す。
@@ -26100,6 +26130,113 @@ function applyGameGrantsBatch49(card: CardData, effects: CardEffect[], sourceTex
     if (prunedAction) effect.action = prunedAction;
   }
 }
+
+/**
+ * 🆕**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝実働と重複していた defer を落とす。**
+ *
+ * 🔴`SP26-001-E1`（「…その中からカード１枚を【トラップ】として…設置してもよい。
+ *   **残りを好きな順番でデッキの一番上に置く。**」）は、同じ1文を**2回**表現していた＝
+ *   ①`LOOK_PICK_CHAIN{remainder:{location:'deck',position:'top',reorder:true}}`（実働＝
+ *     `execLookPickChain` が並べ替え UI まで出す）と
+ *   ②文単位の catch-all が返す `STUB{DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED}`（何もしない）。
+ *   ⇒ ②は**欠落ではなく二重表現**なので落とす（`O-370`① の `pruneGuardAltRemainder` と同型）。
+ *
+ * ⚠**同じ効果に remainder を持つノードが1つも無いときは落とさない**＝
+ *   そのときだけ defer が唯一の痕跡になる（fail-open にすると穴が計器から消える）。
+ */
+/**
+ * 🆕**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝「そのカードと同じカード名の」を配線する。**
+ *
+ * `WXDi-P00-037-E2`「対戦相手はデッキの一番下のカードをトラッシュに置く。その後、**そのカードと
+ * 同じカード名の**対戦相手のシグニ１体を対象とし、それをバニッシュする。」は、後半が
+ * **素の `BANISH{SIGNI opponent}`**＝**相手のシグニを無条件に1体選べる**過剰実行だった
+ * （前半が `DEFERRED_*` の no-op だったので、いままでは後半だけが単独で走っていた）。
+ *
+ * 🔑受け皿は既存の `TargetFilter.nameEqLastProcessed`＝直前に処理した先頭カードの**カード名と完全一致**。
+ *   前半（`OPP_DECK_BOTTOM_MILL`）が落とした札を `lastProcessedCards` に残すので、そのまま噛み合う。
+ * ⚠**前半のミルが同じ効果に居るときだけ**掛ける（fail-closed）。
+ */
+/**
+ * 🆕**§5.3 明示 defer の解体 第1バッチ（2026-09-14）＝配置の「入れ替え禁止」注記を payload にする。**
+ *
+ * 原文「（すでにシグニのあるシグニゾーンには配置できない）」は**カード末尾のルール注記**で、
+ * 効果単位の原文（`currentSourceTexts`）からは剥がれている＝**カード全文でしか読めない**。
+ * ⚠だからここ（カード単位の後処理）で読む。`rewriteCatchAllStubs` の中では見えない。
+ *
+ * 🔴既定（注記なし）は従来どおり**占有ゾーンなら入れ替え**＝live 3効果（`WXEX2-04` ほか）の綴りは
+ *   そちらが正しいので、**注記のあるカードだけ**に限定する。
+ */
+function applyRepositionEmptyOnlyNote(card: CardData, effects: CardEffect[]): void {
+  if (!/すでにシグニのあるシグニゾーンには配置できない/.test(card.EffectText ?? '')) return;
+  for (const effect of effects) {
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const o = node as Record<string, unknown>;
+      if (o.type === 'STUB' && (o.id === 'SIGNI_REPOSITION' || o.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE')) {
+        o.repositionEmptyOnly = true;
+      }
+      for (const v of Object.values(o)) visit(v);
+    };
+    visit(effect.action);
+  }
+}
+
+function applyNameEqLastProcessedAfterBottomMill(_card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const steps = (effect.action as SequenceAction).steps;
+    for (let i = 1; i < steps.length; i++) {
+      const prev = steps[i - 1] as { type?: string; id?: string };
+      if (prev.type !== 'STUB' || prev.id !== 'OPP_DECK_BOTTOM_MILL') continue;
+      const cur = steps[i] as { type?: string; target?: { filter?: Record<string, unknown> } };
+      if (cur.type !== 'BANISH' || !cur.target) continue;
+      cur.target.filter = { ...(cur.target.filter ?? {}), nameEqLastProcessed: true };
+    }
+  }
+}
+
+function pruneDuplicateRemainderDefer(_card: CardData, effects: CardEffect[]): void {
+  for (const effect of effects) {
+    // ⚠**この効果に当の defer が居るときだけ触る**＝無関係な効果の `remainder` に `reorder` を
+    //   立てないための門（畳み込みは「二重表現の解消」であって一般の書き換えではない）。
+    if (!JSON.stringify(effect.action).includes('DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED')) continue;
+    // 🔑**`reorder` の有無をゲートにしない**＝この後処理が走る時点では `LOOK_PICK_CHAIN` の
+    //   `remainder` はまだ `{location:'deck',position:'top'}` だけで、`reorder` は下流で立つ。
+    //   ⇒ ここでは**行き先が一致していれば畳み、「好きな順番で」は `reorder` として載せ直す**
+    //     （落とすだけにすると、下流が立て損ねた回に並べ替えが消える）。
+    let hasDeckTopRemainder = false;
+    const scan = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(scan); return; }
+      const rem = (node as { remainder?: { location?: string; position?: string; reorder?: boolean } }).remainder;
+      if (rem && rem.location === 'deck' && rem.position === 'top') { rem.reorder = true; hasDeckTopRemainder = true; }
+      for (const v of Object.values(node as Record<string, unknown>)) scan(v);
+    };
+    scan(effect.action);
+    if (!hasDeckTopRemainder) continue;
+    const prune = (node: EffectAction): EffectAction | null => {
+      if (node.type === 'STUB' && (node as StubAction).id === 'DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED') return null;
+      if (node.type === 'SEQUENCE') {
+        const steps = (node as SequenceAction).steps.map(prune).filter((x): x is EffectAction => x !== null);
+        if (steps.length === 0) return null;
+        return steps.length === 1 ? steps[0] : { ...(node as SequenceAction), steps };
+      }
+      if (node.type === 'CHOOSE') {
+        const choices = (node as ChooseAction).choices.map(c => {
+          const a = prune(c.action);
+          return a ? { ...c, action: a } : null;
+        }).filter((x): x is NonNullable<typeof x> => x !== null);
+        if (choices.length === 0) return null;
+        return { ...(node as ChooseAction), choices };
+      }
+      return node;
+    };
+    const pruned = prune(effect.action);
+    if (pruned) effect.action = pruned;
+  }
+}
+
 
 function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
@@ -30867,6 +31004,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyVirusRemovedCountTail(card, effects);
   applySourceColorMismatchOptionalTarget(card, effects);
   applyGameGrantsBatch49(card, effects, currentSourceTexts);
+  pruneDuplicateRemainderDefer(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に
@@ -30954,6 +31092,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     //   （`parseActionText` の後段パスはこの時点より前に済んでいるので、ここでもう一度回す＝冪等）。
     effect.action = applyOptionalTransferDidItGate(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
+  // ⚠**`rewriteCatchAllStubs` の後**に回す＝前半のミルが `OPP_DECK_BOTTOM_MILL` に化けてからでないと噛まない。
+  applyNameEqLastProcessedAfterBottomMill(card, effects);
+  applyRepositionEmptyOnlyNote(card, effects);
   // 🆕「以下のNつから1つを選ぶ。この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う。」
   //   （`WXK10-104-E1` / `WXDi-D05-011-sub-E1`・2026-08-31 §5.2）。
   //   ⚠**選択数の上書きであって「1回の選択をN回実行」ではない**＝原文の注記が「他の選択肢と他のシグニを

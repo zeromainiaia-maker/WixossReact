@@ -3988,12 +3988,19 @@ export function execStubPart3(
     }
     // 移動先ゾーン選択
     const currentZoneSR = targetStateSR.field.signi.findIndex(s => s?.at(-1) === selectedSR);
-    const zoneOptsSR = [0,1,2].filter(i => i !== currentZoneSR).map(zi => ({
+    // 🆕**`repositionEmptyOnly`＝「（すでにシグニのあるシグニゾーンには配置できない）」**（2026-09-14）。
+    //   ⚠既定（省略）は従来どおり**占有ゾーンなら入れ替え**＝live 3効果の綴りはそれが正しい。
+    const emptyOnlySR = stub.repositionEmptyOnly === true;
+    const zoneOpenSR = (zi: number): boolean =>
+      !emptyOnlySR || !(targetStateSR.field.signi[zi] && targetStateSR.field.signi[zi]!.length > 0);
+    const zoneOptsSR = [0,1,2].filter(i => i !== currentZoneSR && zoneOpenSR(i)).map(zi => ({
       id: `zone_${zi}`, label: `ゾーン${zi+1}へ移動`,
       action: ({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
         value: `${selectedSR}:${zi}:${isOppSR}` } as StubAction) as EffectAction,
       available: true,
     }));
+    // 🔴空きが1つも無ければ配置できない（強制形でも**入れ替えない**）。
+    if (zoneOptsSR.length === 0) return done(addLog(ctx, '配置できる空きシグニゾーンがない'));
     if (stub.repositionOptional) zoneOptsSR.push({
       id: 'skip', label: '配置しない',
       action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
@@ -6066,6 +6073,77 @@ export function execStubPart3(
       ...addLog(setOwnerState(iszOwner, iszNext, ctx),
         `${ctx.cardMap.get(getCardNum(iszCard))?.CardName ?? iszCard}を手札に戻した`),
       lastProcessedCards: [iszCard],
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // §5.3 明示 defer の解体 第1バッチ（2026-09-14）
+  // 「1枚のために機構を作らない」と宣言していた `DEFERRED_*` を、**受け皿が既にある順に**
+  // 実装へ戻す（§5.3「1〜3枚の項目の取り方」＝まず受け皿を疑う）。
+  // ⚠**新しいアクション型は1つも足していない**＝どれも `STUB` ハンドラ1本と既存の受け皿で書ける。
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // SELF_FROM_TRASH_TO_DECK_BOTTOM（`WX22-Re17-E2`）
+  // 🔑入口（トラッシュUI）の側も同じ回に直した＝`effectParser` の `trashActivated` に
+  //   「トラッシュからデッキの一番上／一番下に置く」を足すまで、この【起】はどの入口からも出なかった。
+  // 表示: このカードをトラッシュからデッキの一番下に置く
+  if (stub.id === 'SELF_FROM_TRASH_TO_DECK_BOTTOM') {
+    const selfSFTD = ctx.sourceCardNum;
+    if (!selfSFTD) return done(addLog(ctx, '効果元が不明（トラッシュからデッキの一番下へ）'));
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは移動できない'));
+    const idxSFTD = ctx.ownerState.trash.indexOf(selfSFTD);
+    if (idxSFTD < 0) return done(addLog(ctx, 'このカードがトラッシュにないためデッキへ戻せない'));
+    const trashSFTD = [...ctx.ownerState.trash];
+    trashSFTD.splice(idxSFTD, 1);
+    return done({
+      ...addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: trashSFTD, deck: [...ctx.ownerState.deck, selfSFTD] } },
+        `${ctx.cardMap.get(getCardNum(selfSFTD))?.CardName ?? selfSFTD}をトラッシュからデッキの一番下へ`),
+      lastProcessedCards: [selfSFTD],
+    });
+  }
+
+  // OPP_DECK_TOP_REVEAL_TO_BOTTOM（`WXDi-P00-063-E2`）
+  // 「対戦相手はデッキの一番上を公開する。**あなたは**それを対戦相手のデッキの一番下に置いてもよい。」
+  // ⚠公開そのものは直前の `LOOK_AND_REORDER{owner:'opponent', private:false}` が済ませている＝
+  //   ここで出すのは**置くか置かないかの二択だけ**（選ぶのは効果の使用者＝あなた）。
+  // 表示: 対戦相手のデッキの一番上を、あなたがそのデッキの一番下に置いてもよい
+  if (stub.id === 'OPP_DECK_TOP_REVEAL_TO_BOTTOM') {
+    const deckODTB = ctx.otherState.deck;
+    if (deckODTB.length === 0) return done(addLog(ctx, '対戦相手のデッキにカードがない'));
+    const nameODTB = ctx.cardMap.get(getCardNum(deckODTB[0]))?.CardName ?? deckODTB[0];
+    const moveODTB: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_DECK_TOP_TO_BOTTOM' };
+    const skipODTB: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, `対戦相手のデッキの一番上：${nameODTB}`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'bottom', label: `${nameODTB}をデッキの一番下に置く`, action: moveODTB as EffectAction, available: true },
+        { id: 'skip', label: 'そのままにする', action: skipODTB as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_OPP_DECK_TOP_TO_BOTTOM') {
+    const dOD = ctx.otherState.deck;
+    if (dOD.length === 0) return done(addLog(ctx, '対戦相手のデッキにカードがない'));
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, deck: [...dOD.slice(1), dOD[0]] } },
+      `${ctx.cardMap.get(getCardNum(dOD[0]))?.CardName ?? dOD[0]}を対戦相手のデッキの一番下へ`));
+  }
+
+  // OPP_DECK_BOTTOM_MILL（`WXDi-P00-037-E2` 前半）
+  // 「対戦相手はデッキの**一番下**のカードをトラッシュに置く。」
+  // 🔑後続の「そのカードと同じカード名の対戦相手のシグニ1体をバニッシュ」は、既存の
+  //   `TargetFilter.nameEqLastProcessed` が読む＝ここは `lastProcessedCards` に置いた札を残すだけでよい。
+  // 表示: 対戦相手のデッキの一番下のカードをトラッシュに置く
+  if (stub.id === 'OPP_DECK_BOTTOM_MILL') {
+    const deckODBM = ctx.otherState.deck;
+    if (deckODBM.length === 0) return done({ ...addLog(ctx, '対戦相手のデッキにカードがない'), lastProcessedCards: [] });
+    const bottomODBM = deckODBM[deckODBM.length - 1];
+    return done({
+      ...addLog({ ...ctx, otherState: {
+        ...ctx.otherState,
+        deck: deckODBM.slice(0, -1),
+        trash: [...ctx.otherState.trash, bottomODBM],
+      } }, `対戦相手のデッキの一番下（${ctx.cardMap.get(getCardNum(bottomODBM))?.CardName ?? bottomODBM}）をトラッシュへ`),
+      lastProcessedCards: [bottomODBM],
     });
   }
 

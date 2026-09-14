@@ -32,6 +32,75 @@
 > **PLAN 側には「残作業の全体像」表＋開いている項目だけを残し、以下は経緯・クローズ済み項目・バッチ履歴の保管。**
 > ⚠**開いている項目（`V-184`/`V-185`・`O-nn` 32項目・§5.0 の系統6件・§5.5 の7件）は PLAN 側に全部残してある。**
 
+## 2026-09-14 登録：`O-372`／`O-373`（第331バッチ＝明示 defer の解体 第1バッチの残り）
+
+### `O-372` — 明示 defer（`DEFERRED_*`）の解体（残 **16種/16件**）
+
+**何か**＝「1枚のために機構を作らないと決めてよい」（§5.3）に従って `DEFERRED_*` へ改名し、**無言でなく宣言つきの no-op**
+として残してある効果。宣言してあるので偽陽性ではないが、**そのカードの能力は1つも動かない**。
+
+🔴**この在庫は3計器（census 高シグナル／`census:cards --sheet 1`／意味照合台帳）のどれにも映らない**＝
+`parseStatus` は `AUTO`・逆翻訳は `[STUB:日本語]` で「宣言済み」に見える・原文照合も通る。
+**カウンタは `npm run census:stubs` の A群「うち明示 defer」1本だけ。**
+
+🔑**取り方＝§5.3「1〜3枚の項目の取り方」の①（まず受け皿を疑う）を必ず先にやる。**
+第1バッチ（2026-09-14）の実測＝**6件すべて受け皿が既に在った**（`LOOK_PICK_CHAIN.remainder` ／ `LIFE_CRASH` ／
+`SIGNI_REPOSITION` ／ `TargetFilter.nameEqLastProcessed` ／ `INTERNAL_TOP_TO_BOTTOM` の相手版）。
+**新しいアクション型は1つも足していない。** 探し方＝原文の言い回しで `src/engine/` を grep → `src/types/effects.ts` の
+`TargetFilter` を眺める → `scripts/goldenTest.ts` を grep。
+
+⚠**配送の罠**＝parser を直しただけでは live に届かない。`npm run build:effects` のあと
+**`docs/_held_fresh.json` / `_partial_fresh.json` / `_idset_fresh.json` を必ず見て `node scripts/heldReview.mjs --adopt …`**
+（`PARTIAL` は `--adopt-effect <effectId>`）。第1バッチは6件中5件が held/partial に回った。
+
+⚠**新しい STUB id を足したら `// 表示: <日本語>` をハンドラ直前に書く** → `node scripts/genStubsMd.mjs` → **`npm run regen`**
+（`census:stubs` C群／`census:stublabel` C群が生の英語 ID で止まる）。
+
+⚠**golden の defer 表を更新する**＝`scripts/goldenTest.ts` の `O-76/O-77②` の配列は
+「その id がそこに在ること」しか見ないので、**typed へ移した行は新しい id へ書き換える**（`WXDi-P08-008` が先例）。
+
+⚠**新しい挙動 golden は `withSavedCursor` で包む**＝包まないと POOL カーソルがずれて無関係なテストが落ちる
+（第1バッチで `第246 engine WXDi-P16-047-E2` が巻き添えになった）。
+
+**残 16件の id**（`npm run census:stubs` で測り直す）＝
+`DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` / `DEFERRED_EACH_PLAYER_REVEAL_HAND` /
+`DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` / `DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL` /
+`DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK` / `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` /
+`DEFERRED_OPP_LRIG_LEVEL_MODIFY` / `DEFERRED_OPP_SPLIT_HAND_TWO_PILES` /
+`DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE` / `DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` /
+`DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` / `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` /
+`DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` / `DEFERRED_SELF_SIGNI_SERVANT_ZERO` /
+`DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM` / `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS`。
+
+🔑**着手前に確かめた受け皿の当たり（第1バッチで拾ったメモ）**
+- `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` → `ATTACH_ACCE` / `INTERNAL_ACCE_PICKED_TO_SELF`（`execStubPart3.ts` 冒頭）。
+- `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` → `PLACE_UNDER_SIGNI` / `PLACE_UNDER_SOURCE_SIGNI`（**置き先シグニの明示**が payload にある）。
+- `DEFERRED_SELF_SIGNI_SERVANT_ZERO` → `SIGNI_SERVANT_ZERO`（`execStubPart2.ts:1731`）。⚠**書き込み先が `otherState`**＝
+  相手シグニ前提なので、自分のシグニ版（`WXK11-014-E2`）はそのままでは使えない。⚠原文は「ターン終了時まで」なので
+  `card_identity_overrides`（永続）ではなく `name_identity_rules_this_turn` 側の寿命が要る。
+- `DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM` → `INTERNAL_HAND_TO_DECK_BOTTOM`（`execStubPart1.ts:2422`・選択済みN枚を手札→デッキ下）。
+- `DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM` → `OPP_HAND_BLIND_LOOK_TO_DECK_BOTTOM`（`execStubPart3.ts:1459`）が近いが
+  **あちらは「見ないで選び」＝ランダム**、こちらは「手札を見る」＝全公開後に選ぶ。**流用不可**。
+- `DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE`（`WDK09-015-E1`）の後半は `SIGNI_REPOSITION` で書けるが、
+  原文「**対象の**シグニ1体」に**持ち主が書かれていない**＝`SIGNI_REPOSITION` は `self`/`opponent` しか取らない。
+  持ち主を決めずに既定へ倒すと別物になる（fail-closed が要る）。
+
+### `O-373` — トラッシュ自己起動【起】が `trashExile{count:N}` を払えない（`src/screens/`・実機まで必須）
+
+**症状**＝原文「（この能力はこのカードがトラッシュにある場合にしか使用できない）」を持つ効果のうち、コストが
+「**トラッシュにあるカードN枚をゲームから除外する**」形の2効果が、**場の【起】ゲートからもトラッシュUIからも提示されない**。
+- 場側（`signiActivateGate.ts:189`）＝`trashActivated` が無いので提示するが、`THIS_CARD_IN_LOCATION{trash}` が場では false。
+- トラッシュ側（`BattleScreen.tsx:8962`）＝`trashActivated` を要求する。
+
+**なぜ `trashActivated` を立てて終わりにできないか**＝`trashActivateCost.ts` の `SUPPORTED_COST_KEYS` は
+`trashExile` を **`self` 形（効果元自身の除外＝自動）だけ**受け付ける。「どの N 枚を除外するか」を選ぶ列が
+`TrashActivatedModal` に無いので、`unsupportedTrashActivateCostKeys` が弾く＝**立てると golden
+「§6.4 対象カードの trashActivated【起】が全部『支払える形』になっている」が赤くなる**（＝「UIでは押せるのに払われない」の再発検知）。
+
+**やること**＝`TrashActivatedModal` にトラッシュの札を N 枚選ぶ列を足し、`SUPPORTED_COST_KEYS` の `trashExile` 制限を外す。
+⚠**`src/screens/` を触る**＝§2.2 により**実機まで必須**（観測点は §5.1 へ `V-<次番号>`）。
+
+
 ## 5. 作業キュー（単一・上から取る）
 
 > **取り方**＝**上から1件**。並行して別の節から取らない（これが再編前に作業順がばらついた原因）。

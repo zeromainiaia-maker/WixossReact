@@ -4841,7 +4841,8 @@ function actionJa(a?: Action, effectType?: string): string {
         const whoRP = a.owner === 'opponent' ? '対戦相手' : 'あなた';
         if (a.repositionAll) return `${whoRP}のすべてのシグニを好きなように配置し直してもよい`;
         const targetRP = a.targetsStored ? 'それ' : `${whoRP}のシグニ1体`;
-        return `${targetRP}を他のシグニゾーン1つに配置${a.repositionOptional ? 'してもよい' : 'する'}`;
+        const emptyOnlyRP = a.repositionEmptyOnly ? '（すでにシグニのあるシグニゾーンには配置できない）' : '';
+        return `${targetRP}を他のシグニゾーン1つに配置${a.repositionOptional ? 'してもよい' : 'する'}${emptyOnlyRP}`;
       }
       // クラフトをルリグデッキへ（CRAFT_TO_LRIG_DECK/ADD_CRAFT_TO_LRIG_DECK・engine実装済み）。
       // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝payload（`craftToLrigDeck`）から描く。**

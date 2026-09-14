@@ -1,21 +1,21 @@
 ===== 被覆マトリクス（wiring census）=====
-走査効果 7722（STUB除外 2245 / MANUAL除外 734 / 原文なし 53）
+走査効果 7714（STUB除外 2251 / MANUAL除外 736 / 原文なし 53）
 
 --- 語彙キー別サマリ（miss 降順）---
   miss   has  語彙キー
     12   527  powerRange  ※大クラスタ・action の値との取り違えに注意
-     5   284  levelRange  ※大クラスタ
+     5   280  levelRange  ※大クラスタ
      3   120  levelExact  ※大クラスタ・レベル丁度
-     3  1300  cardClass  ※大クラスタ・対象名詞句用法のみ
+     3  1298  cardClass  ※大クラスタ・対象名詞句用法のみ
      3    30  eachDistinctLevel  ※正準形は selectionConstraint.distinct
      3    37  excludeCardName
-     1   336  color  ※大クラスタ
+     2    31  nonColorless
+     1   335  color  ※大クラスタ
      1    12  powerLtSelf
-     1    31  nonColorless
      1    35  hasGuard
      0    24  crossState
      0    27  hasCrossIcon
-     0     9  levelLtTrigger
+     0     8  levelLtTrigger
      0    40  triggerSubjectClass  ※トリガー主語のクラス限定
      0    27  colorNotMatchesRef  ※センタールリグ／効果元と比較（相互差異とは別軸）
      0    43  hasRiseIcon
@@ -26,7 +26,7 @@
      0     9  powerLteSelf
      0     4  isDrive
      0    14  levelParity
-     0    38  isFrozen
+     0    37  isFrozen
      0     3  powerLteTrigger
      0    27  hasCharm  ※「このシグニに〜」形は isSelfCharmed／トリガー側は banishedHadCharm で配線済み扱い
      0     7  isSelfCharmed  ※ActiveCondition/Condition 側（TargetFilter ではない）
@@ -44,7 +44,7 @@
      0     4  isAwakened
      0    63  isDisona
      0     1  powerGtSelf
-    33        合計
+    34        合計
 
 --- 除外：一度も配線されていない語彙（＝配線漏れではなく機構未実装／計器の誤検出）---
   levelLtSelf  miss=1 has=0
@@ -65,21 +65,21 @@
   miss=  1 has=  45  powerRange × HAS_CARD_IN_FIELD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=   9  powerRange × GRANT_EFFECT{SIGNI}  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=   0  levelExact × GRANT_KEYWORD{LRIG}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  1 has= 464  cardClass × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
-  miss=  1 has=  48  cardClass × HAND_CARD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has= 463  cardClass × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has=  49  cardClass × HAND_CARD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has= 111  cardClass × BANISH{SIGNI}  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=  94  cardClass × (filter無)  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=  18  eachDistinctLevel × TRASH_CARD[filter]  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=   0  eachDistinctLevel × TRASH{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  1 has=   0  eachDistinctLevel × POWER_MODIFY{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  1 has=   1  eachDistinctLevel × TRASH{HAND_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  1 has= 154  levelRange × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has= 152  levelRange × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=   7  levelRange × TRASH{HAND_CARD}  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=   6  levelRange × FREEZE{SIGNI}  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=   0  powerLtSelf × HAND_CARD[filter]  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   1  nonColorless × BLOCK_ACTION{PLAYER}  （同入口の配線済みは僅少＝先に用法分類を）
   miss=  1 has=   0  nonColorless × (filter無)  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  1 has=   0  hasGuard × BOUNCE{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  1 has=   1  hasGuard × SIGNI[filter]  （同入口の配線済みは僅少＝先に用法分類を）
 
 ===== セル別 全明細 =====
 
@@ -156,13 +156,13 @@
 ## levelExact × GRANT_KEYWORD{LRIG}   miss=1 has=0
    MISS WD15-010-E1	ターン終了時まで、あなたのセンタールリグは【ダブルクラッシュ】を得る。このターン、対戦相手はレベル１のシグニで【ガード】ができない。
 
-## cardClass × SIGNI[filter]   miss=1 has=464
+## cardClass × SIGNI[filter]   miss=1 has=463
    MISS WX21-053-E1	【自】：このカードがあなたの＜龍獣＞のシグニの効果によって手札から公開されたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
    （配線済み見本: WD08-006-E1, WD10-007-E1, WD14-002-E1, WD14-007-E1, WD15-002-E1, WD17-018-E1, WD18-006-E1, WD18-013-E2 …）
 
-## cardClass × HAND_CARD[filter]   miss=1 has=48
+## cardClass × HAND_CARD[filter]   miss=1 has=49
    MISS WX22-036-E1	【自】：このカードがあなたの＜龍獣＞のシグニの効果によって手札から公開されたとき、あなたの手札から《幻竜 ピュートン》１枚を場に出してもよい。
-   （配線済み見本: WD10-007-E1, WDK07-E01-E2, WDK07-E06-E1, WDK08-Y17-E1, WX03-034-BURST, WX05-030-BURST, WX06-011-E1, WX11-035-E1 …）
+   （配線済み見本: WD10-007-E1, WDK07-E01-E2, WDK07-E06-E1, WDK08-Y17-E1, WX03-034-BURST, WX04-030-BURST, WX05-030-BURST, WX06-011-E1 …）
 
 ## cardClass × BANISH{SIGNI}   miss=1 has=111
    MISS WX21-053-E1	【自】：このカードがあなたの＜龍獣＞のシグニの効果によって手札から公開されたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
@@ -186,9 +186,9 @@
    MISS WXK03-025-E1	【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。
    （配線済み見本: WX17-003-E1）
 
-## levelRange × SIGNI[filter]   miss=1 has=154
+## levelRange × SIGNI[filter]   miss=1 has=152
    MISS WDK02-009-E1	【常】：あなたのレベル２以上のセンタールリグは以下の能力を得る。【起】《ターン１回》エクシード１：カードを１枚引く。対戦相手は手札を１枚捨てる。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグ
-   （配線済み見本: WD08-006-E1, WD09-008-E1, WD11-008-E1, WD22-011-G-E1, WDA-F02-08-E1, WDK05-T11-BURST, WDK07-Y13-E1, WDK11-014-E1 …）
+   （配線済み見本: WD08-006-E1, WD09-008-E1, WD11-008-E1, WD22-011-G-E1, WDA-F02-08-E1, WDK05-T11-BURST, WDK11-014-E1, WDK13-001-E2 …）
 
 ## levelRange × TRASH{HAND_CARD}   miss=1 has=7
    MISS WDK02-009-E1	【常】：あなたのレベル２以上のセンタールリグは以下の能力を得る。【起】《ターン１回》エクシード１：カードを１枚引く。対戦相手は手札を１枚捨てる。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグ
@@ -200,6 +200,10 @@
 
 ## powerLtSelf × HAND_CARD[filter]   miss=1 has=0
    MISS WX16-025-E1	【自】：このシグニが場を離れたとき、あなたの手札からこのシグニよりパワーの低いシグニ１枚を場に出してもよい。
+
+## nonColorless × BLOCK_ACTION{PLAYER}   miss=1 has=1
+   MISS WXK09-037-E2	【常】：対戦相手はこのシグニの【出】能力で宣言された色を持たず無色ではない、アーツとスペルを使用できない。
+   （配線済み見本: WX20-031-E1）
 
 ## nonColorless × (filter無)   miss=1 has=0
    MISS WXK11-014-E1	【常】：グロウフェイズの間、無色ではないルリグにグロウするためのエナコストは《赤×0》になる。

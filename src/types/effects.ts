@@ -5770,6 +5770,13 @@ export interface StubAction {
   /** SIGNI_REPOSITION: moving the already-declared target is optional. */
   repositionOptional?: boolean;
   /**
+   * 🆕**「（すでにシグニのあるシグニゾーンには配置できない）」**（2026-09-14・§5.3 明示 defer の解体
+   * 第1バッチ・`WXDi-P06-045-E1`②）＝**移動先は空きゾーンだけ**。
+   * 🔴既定（省略時）は**占有ゾーンなら入れ替える**＝`WXEX2-04` ほか live 3効果の綴りはそれが正しい。
+   *   この注記を持つカードで既定へ倒すと、原文が禁じている入れ替えが起きる。
+   */
+  repositionEmptyOnly?: boolean;
+  /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。
    *
