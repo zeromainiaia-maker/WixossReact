@@ -59471,6 +59471,212 @@ scenarios.v224CrashRedirectOneAttackOnly = {
 
 order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn', 'v222LrigReattackUp', 'v222LrigReattackControl', 'v223DoubleCrushOneAttackOnly', 'v224CrashRedirectOneAttackOnly');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-369`（2026-09-14）＝プレイヤー／ルリグが得る引用能力の受け皿。`src/screens/` を触ったので実機必須（§2.2）。
+//   ① `WX25-P1-071-E1` ガード代替「手札の＜天使＞を捨てるか、エナの＜天使＞をトラッシュ」
+//      ＝`GRANT_EFFECT{LRIG, UNTIL_OPP_TURN_END}` が `granted_effects_until_opp_turn[<ルリグ>]` に入り、
+//        `collectGuardAlternativeCost` が `grantedEffectsOf` 経由で読む（キーは素の cardNum でも引ける）。
+//   ② `WX25-P2-004-E1`「相手ターンのシグニアタックステップの間、相手は1以上のエナコストを支払えない」
+//      ＝`blocked_actions:['PAY_ENERGY_COST_SIGNI_ATTACK_STEP']` を `isEnergyPayBlocked(my, turnPhase)` が
+//        `ATTACK_SIGNI` のときだけ読む（`buildEnergyPayPool` が空になる）。
+//      ⚠§4.4-7c＝アーツは `ATTACK_SIGNI` で「使用」自体が出ない＝**アタックフェイズの【起】で観測する**（`WX21-026`）。
+//      🔑対照は2本＝**同じフェイズで封じを外す**／**同じ封じでフェイズだけ `ATTACK_LRIG`**（§4.4-25f＝1ビットずつ）。
+//   ③ `WX25-P2-003-E1`「このゲームの間、対戦相手のライフバーストが発動したとき、相手のエナ1枚をトラッシュ」
+//      ＝`game_granted_effects` の AUTO（`ON_OPP_LIFE_BURST_ACTIVATED`）を `performLifeBurstResponse(true)` が収集。
+//      🔑**人間が CPU のライフを割る経路**（`cpuTurnAction` の check 処理）を通す＝guest の `field.check` を注入する。
+//      ⚠LB は「カードを１枚引く」を使う（エナチャージだと LB 自身がエナを +1 して差し引きが読めない）。
+// ═════════════════════════════════════════════════════════════════════════════
+const O369_GUARD_ALT_EFFECT = {
+  effectId: 'WX25-P1-071-E1-GRANTED', effectType: 'CONTINUOUS',
+  action: { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST', guardAltCost: { kind: 'hand_or_energy_trash_class', signiClass: '天使' } },
+  duration: 'PERMANENT', mandatory: true,
+};
+function o369GuardAltSpec(handNum, energyNum) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-004#9710'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'field.lrig_attacked': true,
+      hand: [`${handNum}#9711`],
+      energy: [`${energyNum}#9712`],
+      granted_effects_until_opp_turn: { 'WD01-004': [O369_GUARD_ALT_EFFECT] },
+      game_guard_alt_energy_and_guard_card: null, game_guard_alt_hand: 0,
+      lrig_deck: [], lrig_trash: [], trash: [], coins: 0,
+      actions_done: [], game_actions_done: [],
+      life_cloth: ['WD01-013#9715', 'WD01-013#9716'],
+      deck: ['WD01-013#9717', 'WD01-013#9718'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], lrig_deck: [],
+      deck: ['WD01-013#9796', 'WD01-013#9797'],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  };
+}
+async function o369ReadGuardDialog(page, H, id) {
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(600);
+    const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+    if (btns.some(b => b.includes('ガード'))) {
+      const hand = await page.locator('[data-testid="guard-alt-class-hand"]').count().catch(() => 0);
+      const energy = await page.locator('[data-testid="guard-alt-class-energy"]').count().catch(() => 0);
+      H.log(`  ${id}: ダイアログのボタン=${JSON.stringify(btns)} hand=${hand} energy=${energy}`);
+      return { btns, hand, energy };
+    }
+  }
+  return null;
+}
+function mkO369GuardAlt(kind) {
+  // kind: 'hand'＝手札側を押す／'energy'＝エナ側を押す／'none'＝反転（＜天使＞が無い）
+  const id = kind === 'hand' ? 'o369GuardAltClassHand' : kind === 'energy' ? 'o369GuardAltClassEnergy' : 'o369GuardAltClassNone';
+  const spec = kind === 'none' ? o369GuardAltSpec('WD05-013', 'WD01-013') : o369GuardAltSpec('WX01-058', 'WX01-061');
+  return {
+    title: `O-369①：ガード代替「手札の＜天使＞を捨てるか、エナの＜天使＞をトラッシュ」（${kind === 'none' ? '反転＝＜天使＞なし' : kind + '側を払う'}）`,
+    spec,
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 lrigTop=${before?.host?.lrigTop} hand=${JSON.stringify(before?.host?.handCards)} energy=${JSON.stringify(before?.host?.energyCards)} lrigAttacked=${before?.host?.lrigAttacked} phase=${before?.turnPhase}`);
+      if (before?.host?.lrigAttacked !== true || (before?.host?.hand ?? 0) !== 1 || (before?.host?.energy ?? 0) !== 1) {
+        return { pass: false, detail: `前提崩れ＝注入が載っていない（lrigAttacked=${before?.host?.lrigAttacked} hand=${before?.host?.hand} energy=${before?.host?.energy}）` };
+      }
+      const dlg = await o369ReadGuardDialog(page, H, id);
+      if (!dlg) return { pass: false, detail: '前提崩れ＝ガード応答ダイアログが出ない' };
+      if (kind === 'none') {
+        await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+        const pass = dlg.hand === 0 && dlg.energy === 0;
+        return { pass, detail: `${pass ? '反転＝＜天使＞が無ければ代替は2つとも提示されない' : '🔴＜天使＞が無いのに代替が提示された'}（hand=${dlg.hand} energy=${dlg.energy}）ボタン=${JSON.stringify(dlg.btns)}` };
+      }
+      if (dlg.hand === 0 || dlg.energy === 0) {
+        return { pass: false, detail: `🔴2択が揃って出ない（hand=${dlg.hand} energy=${dlg.energy}）＝期間つき付与が走査されていないか、手札側ボタンが無い。ボタン=${JSON.stringify(dlg.btns)}` };
+      }
+      const clicked = await H.clickTestId(kind === 'hand' ? 'guard-alt-class-hand' : 'guard-alt-class-energy');
+      let st = before;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(500);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] hand=${st?.host?.hand} energy=${st?.host?.energy} trash=${st?.host?.trash} lrigAttacked=${st?.host?.lrigAttacked} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (st?.host?.lrigAttacked !== true && ((st?.host?.hand ?? 1) < 1 || (st?.host?.energy ?? 1) < 1)) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `押した=${clicked ?? 'なし'} hand ${before.host.hand}→${st?.host?.hand} energy ${before.host.energy}→${st?.host?.energy} trash ${before.host.trash}→${st?.host?.trash} lrigAttacked=${st?.host?.lrigAttacked}`;
+      if (!clicked) return { pass: false, detail: `前提崩れ＝代替ボタンを押せない。${dump}` };
+      const wantHand = kind === 'hand' ? 0 : 1;
+      const wantEnergy = kind === 'energy' ? 0 : 1;
+      const pass = st?.host?.hand === wantHand && st?.host?.energy === wantEnergy
+        && st?.host?.trash === (before.host.trash ?? 0) + 1 && st?.host?.lrigAttacked !== true;
+      return { pass, detail: `${pass ? `${kind}側の＜天使＞1枚だけがトラッシュへ移りガードが成立` : `🔴支払い先が違う／ガードが成立していない（期待 hand=${wantHand} energy=${wantEnergy} trash+1）`}。${dump}` };
+    },
+  };
+}
+scenarios.o369GuardAltClassHand = mkO369GuardAlt('hand');
+scenarios.o369GuardAltClassEnergy = mkO369GuardAlt('energy');
+scenarios.o369GuardAltClassNone = mkO369GuardAlt('none');
+
+// ⚠②（`WX25-P2-004-E1` のシグニアタックステップ限定エナ支払い封じ）の実機シナリオは**書かない**（2026-09-14 実測）。
+//   `ATTACK_SIGNI` で人間に提示される操作は「アタック」系だけ＝シグニ【起】は `MAIN`/`ATTACK_ARTS`（`getMySigniZoneActions`）、
+//   ルリグ【起】は `MAIN`（`getMyLrigFieldActions`）でしか出ない＝`buildEnergyPayPool` を通る観測入口が無い
+//   （初版の3本は対照までが「【起】なし」で揃い、判別力ゼロだった）。
+//   🔴しかもこのステップで実際に払われうる《無》×N のアタックコストは `BattleScreen` の `performSigniAttack` が
+//   `my.energy.slice(0, -N)` で直接引き、可否は `signiAttackGate` がエナ枚数だけで見る＝**封じを通らない**＝§5.3 `O-371`。
+
+const O369_OPP_LB_AUTO = {
+  effectId: 'WX25-P2-003-GRANTED-AUTO', effectType: 'AUTO', timing: ['ON_OPP_LIFE_BURST_ACTIVATED'], triggerScope: 'self',
+  action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } },
+  duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+};
+function mkO369OppLifeBurst(hasBurst) {
+  const id = hasBurst ? 'o369OppLifeBurstTrashEnergy' : 'o369OppLifeBurstNone';
+  const checkCard = hasBurst ? 'WD01-011#9631' : 'WD01-013#9631';
+  return {
+    title: `O-369③：ゲーム中に得た【自】「相手のライフバーストが発動したとき、相手のエナ1枚をトラッシュ」（${hasBurst ? 'LBあり' : '反転＝LBなし'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9630'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'field.lrig_attacked': false,
+        hand: [], energy: [], trash: [], lrig_deck: [], lrig_trash: [],
+        actions_done: [], game_actions_done: [], blocked_actions: [],
+        game_granted_effects: [O369_OPP_LB_AUTO],
+        deck: ['WD01-013#9638', 'WD01-013#9639'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9640'],
+        'field.signi': [null, null, null],
+        'field.check': checkCard, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        hand: [], energy: ['WD01-013#9632'], trash: [], lrig_deck: [], blocked_actions: [],
+        life_cloth: ['WD01-013#9633', 'WD01-013#9634'],
+        deck: ['WD01-013#9635', 'WD01-013#9636', 'WD01-013#9637'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      // ⚠§4.4-49＝注入直後の1発目は前シナリオの盤面（初版は gEnergy=2 で即 FAIL）。
+      //   ただし CPU は check を**すぐ処理する**ので「エナ1枚」だけを待つ（checkSlot の観測は必須にしない）。
+      let before = await H.queryState();
+      for (let k = 0; k < 12 && ((before?.guest?.energy ?? 0) !== 1 || before?.turnPhase !== 'ATTACK_SIGNI'); k++) {
+        await page.waitForTimeout(400);
+        before = await H.queryState();
+      }
+      H.log(`  ${id}: 開始 phase=${before?.turnPhase} gCheck=${before?.guest?.checkSlot ?? '-'} gEnergy=${before?.guest?.energy}`);
+      if ((before?.guest?.energy ?? 0) !== 1 && !JSON.stringify(before?.logTail ?? []).includes('[CPU] ライフクロスをオープン')) {
+        return { pass: false, detail: `前提崩れ＝guest エナが1枚にならない（${before?.guest?.energy}）phase=${before?.turnPhase}` };
+      }
+      if (before && (before.guest?.energy ?? 0) !== 1) before = { ...before, guest: { ...before.guest, energy: 1 } };
+      let sawCheck = before?.guest?.checkSlot != null || JSON.stringify(before?.logTail ?? []).includes('[CPU] ライフクロスをオープン');
+      let sawCleared = false;
+      let sawTrigger = false;
+      let quiet = 0;
+      let last = before;
+      for (let s = 0; s < 40; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const pre = await H.queryState();
+        if (pre?.pendingEffect != null || (pre?.stackLen ?? 0) > 0) {
+          did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        }
+        const st = await H.queryState();
+        last = st;
+        if (st?.guest?.checkSlot != null) sawCheck = true;
+        if (sawCheck && st?.guest?.checkSlot == null) sawCleared = true;
+        const logs = JSON.stringify(st?.logTail ?? []);
+        if (logs.includes('相手ライフバースト発動時') || logs.includes('ゲーム中に得た【自】')) sawTrigger = true;
+        const idle = st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && st?.guest?.checkSlot == null;
+        quiet = idle ? quiet + 1 : 0;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | gCheck=${st?.guest?.checkSlot ?? '-'} gEnergy=${st?.guest?.energy} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} trig=${sawTrigger} quiet=${quiet}`);
+        if (sawCleared && quiet >= 5) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true }).catch(() => {});
+      const logs = JSON.stringify(last?.logTail ?? []);
+      const opened = logs.includes(hasBurst ? '（ライフバースト発動）' : '（ライフバーストなし）');
+      const dump = `check処理=${sawCleared} CPUログ一致=${opened} 【自】ログ=${sawTrigger} gEnergy ${before.guest.energy}→${last?.guest?.energy} gHand ${before.guest.hand}→${last?.guest?.hand}`;
+      if (!sawCleared) return { pass: false, detail: `前提崩れ＝CPU がチェックゾーンを処理しなかった。${dump}` };
+      // 🔑§4.4-8z＝**クラッシュされたライフクロスはLB処理のあとエナゾーンへ置かれる**（ルールどおり）＝guest エナは +1 される。
+      //   ⇒ 期待値＝注入1枚＋クラッシュ札1枚−【自】1枚＝**1**／反転（LBなし）＝1＋1＝**2**。
+      //   （初版は「0」と書いて、engine が正しく 2→1 と落としたのを FAIL にした＝実測 tick0 で SELECT_TARGET・候補2枚）
+      if (hasBurst) {
+        const pass = opened && sawTrigger && (last?.guest?.energy ?? -1) === 1;
+        return { pass, detail: `${pass ? 'LB発動で【自】が解決し、クラッシュ札でエナ+1のあと相手エナ1枚がトラッシュへ（最終1）' : '🔴LBは発動したのに【自】が立たない／相手エナが最終1にならない（期待＝注入1＋クラッシュ札1−【自】1）'}。${dump}` };
+      }
+      const pass = opened && !sawTrigger && (last?.guest?.energy ?? -1) === 2;
+      return { pass, detail: `${pass ? '反転＝LBなしでは【自】は立たず、クラッシュ札のぶんだけエナ+1（最終2）' : '🔴LBが無いのに【自】が立った／相手エナが最終2でない（期待＝注入1＋クラッシュ札1）'}。${dump}` };
+    },
+  };
+}
+scenarios.o369OppLifeBurstTrashEnergy = mkO369OppLifeBurst(true);
+scenarios.o369OppLifeBurstNone = mkO369OppLifeBurst(false);
+
+order.push('o369GuardAltClassHand', 'o369GuardAltClassEnergy', 'o369GuardAltClassNone',
+  'o369OppLifeBurstTrashEnergy', 'o369OppLifeBurstNone');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

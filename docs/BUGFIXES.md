@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-14 — 第329バッチ：🏁`O-368`／🏁`O-370` クローズ・`O-369` 3効果実装（残2）・`O-371` 登録
+
+**実装＝codex 2並列**（既定 `~/.codex`＝本体で `O-368`＋`O-370`②／`.codex-work`＝git worktree で `O-369`＋`O-370`①）。
+worktree 側は `src`/`scripts` のパッチを 3way 適用＋JSON 2ファイル移送で合流（`effectParser.ts` は binary 扱いで merge 不可のため）。
+実機シナリオは codex が2アカウントとも利用上限に達したため Claude が書いた。
+
+### `O-368`（15効果）
+- **真因**＝`tryWrapLeadingStateCond` が条件句より前の「〜を対象とし、」まで `CONDITIONAL{TURN_OWNER self}.then` に入れていた＝**相手ターンに対象を宣言しない**。
+- **修正**＝parser `hoistTargetDeclarationBeforeOwnTurn`（原文の並び＋木の形で判定）で `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{…targetsStored}` へ。
+  engine＝`POWER_MODIFY_PER_LRIG_LEVEL`／`POWER_MODIFY_PER_TRASH_COUNT`／`STEAL_OPP_TRASH_PUPPET` に `targetsStored`（＋`fixedCardNums`）消費。
+- **影響**＝live 16効果（15件 action 変更＋先例 `WDK06-C14-E1` の MANUAL 削除→AUTO）。据置 `WXEX1-16-E1`（帰結の対象を既存の対象型で表せない）。
+- **検証**＝gates 全緑（golden 4145）・per-effect diff 16・同型★ 1→0・fresh パース assert の反転確認（規則を外すと FAIL）。実機不要（`src/screens/` 無変更）。
+
+### `O-369`（4効果中3効果）
+- `WX25-P2-003-E1`＝ゲームの間の【自】を `GRANT_PLAYER_ABILITY`＋新 timing `ON_OPP_LIFE_BURST_ACTIVATED`（`performLifeBurstResponse(true)` から収集＝人間／CPU 共通）。【起】は `DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME` へ分離。
+- `WX25-P1-071-E1`＝`GUARD_ALTERNATIVE_COST{hand_or_energy_trash_class}`＋`GuardResponseDialog` の2択＋`handleGuardWithClassHandAlternative`。
+- `WX25-P2-004-E1`＝`BLOCK_ACTION{PAY_ENERGY_COST_SIGNI_ATTACK_STEP}`（`isEnergyPayBlocked(my, turnPhase)`）。🔴**UI 上ほぼ効いていない**＝下の `O-371`。
+- `WXDi-P05-004-E1`＝効かない `LEVEL_REFERENCE_OVERRIDE` を「レベル1として扱ってもよい」と描いていた嘘を `DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE` へ（機能は据置）。
+- ⚠parser に `WXDi-P05-004` の原文の言い回しを条件にした分岐が1つある（defer 行き判定・§5-5c 逸脱・実害なし）。
+- ⚠`collectGuardAlternativeCost` に足した `grantedEffectsOf` は**実機では冗長**＝`BattleScreen` が `granted_effects(_until_opp_turn)` を `effectsMap` へ足し込み済み（反転しても実機は緑だった）。golden 等の非 augmented 呼び出しでは効く。
+- **検証**＝gates 全緑（golden 4151）・per-effect diff 5・**実機（`src/screens/` を触ったため必須）**：
+  `o369GuardAltClassHand` / `o369GuardAltClassEnergy` / `o369GuardAltClassNone` / `o369OppLifeBurstTrashEnergy` / `o369OppLifeBurstNone` 全 PASS。
+  **反転確認**＝①collector 呼び出しを外す→`o369OppLifeBurstTrashEnergy` だけ FAIL ②`GuardResponseDialog` の2択提示条件を外す→Hand/Energy だけ FAIL（None は PASS）。
+- **シナリオ側の誤り（engine は正しかった）**＝クラッシュされたライフクロスは LB 処理後にエナへ置かれる＝相手エナは +1（期待値は最終1／反転2）。§4.4-8z の型。
+
+### `O-370`
+- ①`WXDi-P06-006-E1` の `guardAltHand` と重複していた `DEFERRED_GUARD_ALT_COST_UNKNOWN` を parser（`pruneGuardAltRemainder`）で除去＝逆翻訳の【未実装】が消えた（挙動不変・`census:numberdrift` 56→55）。
+- ②`ON_LRIG_ATTACK_STEP_START` の「CPU ターン未配線」コメントを実態へ。
+
+### `O-371`（登録）
+- `ATTACK_SIGNI` で人間に提示されるエナ支払いはアタックコスト《無》×N だけだが、判定（`signiAttackGate` の `ATTACK_BAN_COST`／`ENERGY_COST`）も引き落とし（`performSigniAttack` の `energy.slice`）も `buildEnergyPayPool` を通らない＝エナ支払い封じ（2効果）が効かない。
+
 ## 2026-09-14 — PLAN 付録C「触らなくてよい/枯れた系統」を再測＝**同型★2グループは片方にだけ修正が届いた兆候だった**
 
 - **真因**＝`groupSimilar --all` の★（逆翻訳割れ）2グループは、どちらも**同じ文型の1枚にだけ修正が入り兄弟が旧形のまま**だった。

@@ -4392,7 +4392,31 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 > **PLAN の索引で ID を選んだら、着手前にここの該当項目を読む。** 各項目の見出しは `O-nn`＋一行要約で、本文は退避時点の登録票そのまま（無改変）。
 > 退避時点の実測＝82項目／履歴 68,401字。以後この節は**追記のみ**（新規登録は PLAN §5.3 の索引に1行、全文はここに1項目）。
 
-### `O-370` — 実装済みなのに「未実装」と言う2箇所（計器・表示の較正＝挙動は変わらない）
+### `O-371` — シグニのアタックコスト（《無》×N）が「1以上のエナコストを支払えない」を通らない
+
+**規模／母集団**＝S〜M ／ **封じを課す側 2効果**（`SPK01-10-E1`＝このターン `PAY_ENERGY_COST`／`WX25-P2-004-E1`＝相手ターンのシグニアタックステップだけ `PAY_ENERGY_COST_SIGNI_ATTACK_STEP`）
+（2026-09-14・`O-369` の実機シナリオを書く途中で発見）。
+測り直す＝live で `"PAY_ENERGY_COST"` / `PAY_ENERGY_COST_SIGNI_ATTACK_STEP` を含む効果を数える。
+
+**何が起きるか**＝封じは `buildEnergyPayPool`（`src/screens/battle/energyPaySource.ts`）が支払い元を空にする1点で効く。
+ところが**シグニのアタックに付く《無》×N** は3系統とも pool を通らない：
+- 判定＝`signiAttackGate.ts` の `ATTACK_BAN_COST`（`attacker.energy.length < colorless + signi_attack_cost`）／`ENERGY_COST`（`energy.length < signi_attack_cost`）＝**エナの枚数だけ**を見る
+- 引き落とし＝`BattleScreen.tsx` の `performSigniAttack`（`my.energy.slice(0, -N)`）＝**配列を直接削る**
+- 系統＝`signi_attack_cost`（`OPP_SIGNI_ATTACK_COST`・`execStubPart3.ts`）／`signi_attack_bans_this_turn` の《無》／【常】「〈《無》×N〉を支払わないかぎりアタックできない」（`cannotAttackSigniUnlessPayColorless`）
+⇒ **封じが掛かっていても、エナの枚数さえあればアタックコストを払ってアタックできる**。
+🔑`WX25-P2-004-E1` は**シグニアタックステップ限定**なので、そのステップで人間に提示されるエナ支払いは実質この経路だけ
+（シグニ【起】は `MAIN`/`ATTACK_ARTS`、ルリグ【起】は `MAIN` でしか出ない）＝**`O-369` の実装は UI 上ほぼ効いていない**。
+
+**取り方**＝判定と引き落としの両方で `isEnergyPayBlocked(attacker, turnPhase)` を見る（`signiAttackColorlessCost` の注記どおり**判定と引き落としは同じ1関数**に寄せる）。
+⚠**CPU のアタック候補も `signiAttackBlockReason` を通る**＝gate 側を直せば CPU も揃う（`performSigniAttack` の引き落としは人間・CPU 共通か確かめる）。
+⚠ルリグアタックの《無》（`lrig_attack_cost` 系）とガードの追加コスト（`opp_guard_extra_colorless` 系）も同じ直接引き落としか grep で確かめ、同じ家族なら一緒に取る。
+⚠`src/screens/` を触る＝実機必須（§2.2）。観測点＝封じ下で「アタック（《無》×1）」が提示されない／封じなしでは提示されて1枚払われる。
+
+### `O-370` — 実装済みなのに「未実装」と言う2箇所（計器・表示の較正＝挙動は変わらない）（🏁2026-09-14 第329バッチでクローズ）
+
+🏁**クローズ済み**＝①残骸 defer は parser（`applyGameGrantsBatch49` の `pruneGuardAltRemainder`＝実 grant がある場合だけ除去）で消した（`census:numberdrift` 56→55）
+②`ON_LRIG_ATTACK_STEP_START` のコメントを「人間／CPU 両経路で発火」へ。全文は [BUGFIXES.md](./BUGFIXES.md) 第329バッチ。
+
 
 **規模／母集団**＝S ／ **実測 2箇所**（2026-09-14・PLAN 付録C-2 の再測で発見）。
 
@@ -4409,9 +4433,21 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 
 ### `O-369` — プレイヤー／ルリグが得る引用能力のうち受け皿が無い4効果
 
+🆕**2026-09-14 第329バッチ＝4効果中3効果を実装し、残2効果で索引 G へ降格**（全文は [BUGFIXES.md](./BUGFIXES.md) 第329バッチ）。
+- ✅【自】「相手のライフバーストが発動したとき、相手のエナ1枚をトラッシュ」＝`GRANT_PLAYER_ABILITY`＋新 timing `ON_OPP_LIFE_BURST_ACTIVATED`（`performLifeBurstResponse(true)` から収集＝人間／CPU 共通）。
+  実機 `o369OppLifeBurstTrashEnergy` / `o369OppLifeBurstNone` PASS（⚠クラッシュ札がエナへ置かれて +1 される＝期待値は「最終1／最終2」）。
+- ✅ガード代替「手札の＜天使＞を捨てるか、エナの＜天使＞をトラッシュ」＝`GUARD_ALTERNATIVE_COST{hand_or_energy_trash_class}`・期間つき付与も走査。
+  実機 `o369GuardAltClassHand` / `o369GuardAltClassEnergy` / `o369GuardAltClassNone` PASS。
+- ⚠「相手ターンのシグニアタックステップの間、相手は1以上のエナコストを支払えない」＝`BLOCK_ACTION{PAY_ENERGY_COST_SIGNI_ATTACK_STEP}` は入れたが、
+  **そのステップで払われうるアタックコストが封じを通らない**＝UI 上ほぼ効いていない ⇒ **`O-371`** へ。実機シナリオは観測入口が無いので書いていない。
+- 🛑**残2効果（名前のある defer）**＝①プレイヤーが持つ【起】（`DEFERRED_GAIN_PLAYER_ACTIVATED_ABILITY_THIS_GAME`＝提示・支払い UI が無い）
+  ②デッキとトラッシュのレベル参照（`DEFERRED_PLAYER_ZONE_LEVEL_REFERENCE_OVERRIDE`＝横断 funnel が無い。旧 live は効かない宣言を「レベル1として扱ってもよい」と描いていた嘘を解消済み）。
+
+（以下は登録時の本文）
+
 **規模／母集団**＝M ／ **実測 4効果/4カード**（2026-09-14・PLAN 付録C-2「引用AUTO付与」の再測で発見）。
 測り直す＝live で `"id":"DEFERRED_(GAIN_ABILITY_THIS_GAME_QUOTED|GRANT_QUOTED_PLAYER_ABILITY_UNTIL|GUARD_ALT_COST_UNKNOWN)"` を数える
-（⚠`WXDi-P06-006-E1` の defer は実装済みの残骸＝`O-370` 側）。
+（⚠ゲーム中のガード代替に残っていた defer は実装済みの残骸＝`O-370` 側）。
 原文側の母集団＝`census:population -- "(このゲームの間|ターン終了時まで)、あなたは(以下の能力|「[^」]*」|『[^』]*』)を得る" --json GRANT_PLAYER_ABILITY`
 ＝19効果（OK 5／MISS 14。MISS のうち8件は `GAIN_ABILITY_THIS_GAME{gameGrants}` で配線済み、3件は文型の誤検出、**3件がここ**）。
 
@@ -4420,14 +4456,20 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 | `WX25-P2-003-E1` | このゲームの間、あなたは『【自】：対戦相手のライフバーストが発動したとき、相手のエナ1枚をトラッシュ。【起】《ターン１回》ライフクロス1枚をクラッシュする：相手シグニ1体をバニッシュ』を得る | `STUB{DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED}` のみ＝**丸ごと no-op** | 【自】側は `GRANT_PLAYER_ABILITY{permanent}`（`game_granted_effects`）に載る見込み。**【起】側＝プレイヤーが持つ起動能力の提示が UI に無い**（`DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY` の注記と同じ穴） |
 | `WXDi-P05-004-E1` | このゲームの間、あなたは『【常】：あなたの能力か効果１つによって、デッキとトラッシュのレベル３以下の＜宇宙＞のシグニのレベルを参照する場合、レベル１として扱ってもよい』を得る | `SEQUENCE[STUB{DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED}, STUB{LEVEL_REFERENCE_OVERRIDE,{min:1,max:1}}]` | 🔴**後段の `LEVEL_REFERENCE_OVERRIDE` は効かない**＝`getLevelReferenceOverride`（`effectExecutor.ts`）は**参照されるカード自身の CONTINUOUS** しか読まず、ACTIVATED 内の宣言は `execStubPart3.ts` がログを出すだけ。逆翻訳は「レベル1として扱ってもよい」と出る＝**表示は動くように見える**。受け皿候補＝`gameGrants` の `deckSigniLevelOverride`（デッキ内・固定レベル）だがトラッシュ／「レベル３以下」／「１つによって」を持てない |
 | `WX25-P2-004-E1` | 《リコレクトアイコン》［４枚以上］追加で、ターン終了時まで、あなたは『【常】《相手ターン》：シグニアタックステップの間、対戦相手は１以上のエナコストを支払えない』を得る | `…, RECOLLECT_GATE, STUB{DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL}` | 期間つきのプレイヤー【常】（支払い禁止）の受け皿が無い。⚠前半の「相手シグニ全体への引用【自】付与」は `GRANT_EFFECT` で実働 |
-| `WX25-P1-071-E1` | センタールリグ1体は次の相手ターン終了時まで『【常】：ガードする際、《ガードアイコン》を捨てる代わりに、手札から＜天使＞のシグニを１枚捨てるか、エナゾーンから＜天使＞のシグニ１枚をトラッシュに置いてもよい』を得る | `STUB{DEFERRED_GUARD_ALT_COST_UNKNOWN}` | 受け皿 `GUARD_ALT_HAND_REPLACE`（→`guard_alt_hand_until_opp_turn`）は**手札の枚数しか持てない**＝＜天使＞の絞り込みもエナ側の選択肢も表せない（エナ＋ガードアイコンの `game_guard_alt_energy_and_guard_card` は払う組み合わせが別） |
+| （実装済み）ガード代替の2択 | センタールリグ1体は次の相手ターン終了時まで『【常】：ガードする際、《ガードアイコン》を捨てる代わりに、手札から＜天使＞のシグニを１枚捨てるか、エナゾーンから＜天使＞のシグニ１枚をトラッシュに置いてもよい』を得る | `STUB{DEFERRED_GUARD_ALT_COST_UNKNOWN}` | 受け皿 `GUARD_ALT_HAND_REPLACE`（→`guard_alt_hand_until_opp_turn`）は**手札の枚数しか持てない**＝＜天使＞の絞り込みもエナ側の選択肢も表せない（エナ＋ガードアイコンの `game_guard_alt_energy_and_guard_card` は払う組み合わせが別） |
 
 **取り方**＝4件とも受け皿の形が違う＝**1件ずつ速いレーン＋必要な分だけ engine**。
 ①`WX25-P2-003` の【自】だけを `GRANT_PLAYER_ABILITY` に載せ、【起】は defer のまま名前を分ける（部分実装で【未実装】を消さない）
 ②`WXDi-P05-004` は後段の `LEVEL_REFERENCE_OVERRIDE` が**効いているように見える逆翻訳**を先に直す（原文照合の嘘）
 ③④は `src/screens/`（支払い・ガード UI）を触る＝実機必須（§2.2）。
 
-### `O-368` — 「対象とし、あなたのターンの場合」の対象宣言が条件の内側にある（15効果）
+### `O-368` — 「対象とし、あなたのターンの場合」の対象宣言が条件の内側にある（15効果）（🏁2026-09-14 第329バッチでクローズ）
+
+🏁**クローズ済み**＝全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-14「第329バッチ」。
+**15効果を正準形へ**（parser `hoistTargetDeclarationBeforeOwnTurn`＋engine 3アクションの `targetsStored` 消費）・
+**先例の MANUAL は parser が追いついて削除**・**据置1件**＝帰結が「レゾナのコストで置いたカード」を指す効果（既存の対象型で表せない）。
+🔑**登録時の母集団（MISS 15）は1件ずれていた**＝census では OK だった `SELECT_TARGET_ONLY` 持ちの1件が、実は宣言ごと条件の内側だった（MISS は判定ではない、の再演）。
+
 
 **規模／母集団**＝S〜M ／ **実測 15効果/15カード**（2026-09-14・付録C「同型★」の再測で発見）。
 測り直す＝`npm run census:population -- "対象とし、あなたのターンの場合" --json SELECT_TARGET_ONLY`
