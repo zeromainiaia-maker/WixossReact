@@ -241,6 +241,12 @@ ${guide}
 50. 🔴🔑**「実害が小さい」は偽陽性の理由にならない（2026-09-15 ユーザー指示）**＝原文と挙動が違うと分かったものは、**影響が小さくても必ず報告する**（閉じるのは Claude ではなく §5.3 への登録）。
     **偽陽性にしてよいのは ①engine／JSON の事実で「差が出ない」と示せるとき ②コーパスの実測で原文の読みが確定したとき の2つだけ。**
 
+51. 🔴**「そうした場合」ゲートは 「DID_IT_GATED_TYPES」 だけではない＝「TRASH」 には**別建ての粗ゲート**がある（2026-09-15 「O-398」 の実測で追加）**＝「effectExecutor.ts:7320」 が、「TRASH」 の 「target.owner==="self"」 かつ 「HAND_CARD|SIGNI|ENERGY_CARD」 かつ 「bestEffort」 でない形について、空振り（「lastProcessedCards」 が空）なら**残りの SEQUENCE を丸ごとスキップ**する。live 60箇所のうち **52箇所がこれで覆われていた**（round5 で BUG 判定した13効果は**全部これ＝偽陽性**だった）。
+    ⇒ **「前段が TRASH なのに後続が CONDITIONAL{IS_MY_TURN} だから did-it ゲートにならない」という finding は報告しない**（「owner:"opponent"」 か 「LIFE_CLOTH_CARD」 の形だけが例外だったが、2026-09-15 に修正済み）。
+
+52. 🔴🔑**「CONDITIONAL{IS_MY_TURN}」 は相手のターンでも必ず成立する（同上）**＝「execUtils.ts:3507」 が 「case 'IS_MY_TURN': return true;」（executor は常にオーナー視点なので実行時には判定できず、ターン判定は収集側が 「condHas」 で行う）。
+    ⇒ **「相手のターンに発火する効果なので IS_MY_TURN が false になって後続が落ちる」という finding は報告しない**（この向きの壊れ方は存在しない）。「そうした場合」ゲートの誤りは**常に過剰実行の側だけ**に出る。
+
 # 見るべき典型バグ
 
 - 原文の効果・後続処理（「その後…」「〜した場合…」）が JSON のどこにも無い（MISSING）

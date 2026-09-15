@@ -6184,6 +6184,27 @@ const DID_IT_GATED_TYPES = new Set<string>([
 // 既存の「そうした場合」ゲートと同じ lastProcessedCards 契約を使い、TRASH だけはこの用途に限って加える
 // （TRASH を DID_IT_GATED_TYPES 自体へ足すと、既存の「そうした場合」全体の挙動が変わるため分離する）。
 const SUCCESS_USAGE_ACTION_TYPES = new Set<string>([...DID_IT_GATED_TYPES, 'TRASH']);
+
+// §5.3 `O-398`：`TRASH` を `DID_IT_GATED_TYPES` 自体へ足すことはできない（上のコメントのとおり
+// 既存の「そうした場合」全体＝**粗ゲート（`execSequence` の `return done()`）が覆う52箇所**と二重になる）。
+// 代わりに**粗ゲートが構造的に見ていない形だけ**を下の細ゲート（プレースホルダ1ステップだけを消費）へ回す。
+// 🔴粗ゲートの条件は `target.owner === 'self'` かつ `HAND_CARD|SIGNI|ENERGY_CARD` なので、
+//   **相手のゾーンを捨てさせる形**と **`LIFE_CLOTH_CARD`** が丸ごと素通りしていた（実測8ノード）＝
+//   空振りでも直後の `CONDITIONAL{IS_MY_TURN}`（＝「そうした場合」）が発火する過剰実行。
+//   実害は**相手に利する帰結**に出る（`WXDi-D07-013-E1`＝エナが無くても相手が【エナチャージ１】／
+//   `WXDi-P14-060-E1`＝手札が無くても相手が1枚引く／`WD06-018-E1`＝ライフが無くても相手のライフが増える）。
+// ⚠対象は **`execTrash` が成功・空振りのどちらの経路でも `lastProcessedCards` を必ず書き直す** 4つの
+//   `target.type` に限る（`LIFE_CLOTH_CARD`:2879 / `SIGNI` / `ENERGY_CARD` / `HAND_CARD`:3038）。
+//   書き直さない型（`DECK_CARD` 等）を入れると前段の記録を「前段が処理した」と誤読する。
+// ⚠`bestEffort`（「できるかぎり」）は空振りが正常系なので除く（粗ゲートと同じ規約）。
+// 🔑対話経路（選ばせる TRASH）はここへ来ない＝`resumeSelectTarget` が 0体選択で
+//   `stripDidItConditional` を呼ぶ（`:11957`）ので既にゲート済み。ここが埋めるのは**候補0で対話に入らない**経路。
+const DID_IT_GATED_TRASH_TARGETS = new Set<string>(['HAND_CARD', 'SIGNI', 'ENERGY_CARD', 'LIFE_CLOTH_CARD']);
+function isDidItGatableTrash(action: EffectAction): boolean {
+  if (action.type !== 'TRASH') return false;
+  const t = action as TrashAction;
+  return !t.bestEffort && DID_IT_GATED_TRASH_TARGETS.has(t.target.type);
+}
 type SuccessUsageMarkedAction = EffectAction & { _successUsageEffectId?: string };
 type SuccessUsageMarkerStub = StubAction & { successUsageEffectId: string };
 
@@ -7339,7 +7360,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // ここでは**プレースホルダ1ステップだけを消費**して以降の独立ステップは残す（過剰も過小も作らない）。
     // 対象は「処理したカードを lastProcessedCards に記録する＝空振りを判定できる」型に限定する
     // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
-    if (DID_IT_GATED_TYPES.has(gateStep.type) && i + 1 < a.steps.length
+    if ((DID_IT_GATED_TYPES.has(gateStep.type) || isDidItGatableTrash(gateStep)) && i + 1 < a.steps.length
         && effLastProcessed.length === 0) {
       const nextDI = a.steps[i + 1];
       if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {

@@ -3391,6 +3391,51 @@ test('did-itゲート: 前段が空振りでも「そうした場合」以外の
   eq(run(eff, mkCtx({ hand: 3 }, { signi: [null, null, null] })).ownerState.hand.length, 4,
     '空振り→「そうした場合」の2ドローは消え、独立した1ドローは残る（3+1）');
 });
+// ── §5.3 `O-398`（2026-09-15）＝`TRASH` の did-it ゲートの**死角**。
+// 🔴`execSequence` の粗ゲート（`return done()`）は `target.owner === 'self'` かつ
+//   `HAND_CARD|SIGNI|ENERGY_CARD` しか見ていなかったので、**相手のゾーンを捨てさせる形**と
+//   **`LIFE_CLOTH_CARD`** が素通りし、空振りでも直後の「そうした場合」が発火していた（live 実測8ノード）。
+//   実害は**相手に利する帰結**で出る（`WXDi-D07-013-E1` / `WXDi-P14-060-E1` / `WD06-018-E1`）。
+// ⚠必ず**両側**で assert する（空振りの skip だけ見ると「全部抑制する」退化が満点に見える）。
+// ⚠`withSavedCursor` で包む＝`mkCtx` は POOL カーソルを進めるので、包まないと**下流のテストが引くカードが変わる**
+//   （初回実装で `WX04-047-E1` のドロー2枚が偶然＜原子＞になり、無関係なテストが FAIL した）。
+test('did-itゲート `O-398`: 相手ゾーン／ライフの TRASH も空振りなら「そうした場合」は発火しない（両側）', () => withSavedCursor(() => {
+  const mkSeq = (step1: EffectAction): EffectAction => ({ type: 'SEQUENCE', steps: [
+    step1,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] } as EffectAction);
+  // ① 相手のエナゾーン（`WXDi-D07-013-E1` / `WXDi-P06-011-E1`＝空振りでも相手が【エナチャージ１】していた）
+  const oppEnergy = { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  eq(run(mkSeq(oppEnergy), mkCtx({ hand: 3 }, { energy: 0 })).ownerState.hand.length, 3,
+    '相手エナ0→「そうした場合」は発火しない（過剰発火の回帰ガード）');
+  eq(run(mkSeq(oppEnergy), mkCtx({ hand: 3 }, { energy: 5 })).ownerState.hand.length, 5,
+    '相手エナあり→「そうした場合」は発火する（抑制しすぎの回帰ガード）');
+  // ② 相手の手札を見ないで選ぶ（`WXDi-P14-060-E1`＝手札0でも相手が1枚引いていた）
+  const oppHandBlind = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } as unknown as EffectAction;
+  eq(run(mkSeq(oppHandBlind), mkCtx({ hand: 3 }, { hand: 0 })).ownerState.hand.length, 3,
+    '相手手札0→「そうした場合」は発火しない');
+  eq(run(mkSeq(oppHandBlind), mkCtx({ hand: 3 }, { hand: 4 })).ownerState.hand.length, 5,
+    '相手手札あり→「そうした場合」は発火する');
+  // ③ ライフクロス（`WD06-018-E1` / `WX10-015-E1` / `WX13-075-E1` / `WXK05-040-E2`）＝自分側・相手側の両方
+  for (const owner of ['self', 'opponent'] as const) {
+    const lifeTrash = { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner, count: 1 } } as unknown as EffectAction;
+    const empty = owner === 'self' ? [{ hand: 3, life: 0 }, {}] : [{ hand: 3 }, { life: 0 }];
+    const full  = owner === 'self' ? [{ hand: 3, life: 7 }, {}] : [{ hand: 3 }, { life: 7 }];
+    eq(run(mkSeq(lifeTrash), mkCtx(empty[0], empty[1])).ownerState.hand.length, 3,
+      `${owner}: ライフ0→「そうした場合」は発火しない`);
+    eq(run(mkSeq(lifeTrash), mkCtx(full[0], full[1])).ownerState.hand.length, 5,
+      `${owner}: ライフあり→「そうした場合」は発火する`);
+  }
+  // ④ 対照＝`bestEffort`（「できるかぎり」）は空振りが正常系なのでゲート対象外。
+  //    誤って含めるとここが 3 に落ちる。
+  const bestEffort = { type: 'TRASH', bestEffort: true, target: { type: 'ENERGY_CARD', owner: 'opponent', count: 2 } } as unknown as EffectAction;
+  eq(run(mkSeq(bestEffort), mkCtx({ hand: 3 }, { energy: 0 })).ownerState.hand.length, 5,
+    'bestEffort は空振りでも「そうした場合」が発火する（ゲート対象外）');
+  // ⑤ 対照＝`DECK_CARD`（`execTrash` が `lastProcessedCards` を書き直さない経路がある型）は対象外のまま。
+  const deckTrash = { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as unknown as EffectAction;
+  eq(run(mkSeq(deckTrash), mkCtx({ hand: 3 }, {})).ownerState.hand.length, 5,
+    'DECK_CARD はゲート対象外（デッキトップを落とす型）');
+}));
 // ── タスク12(xxix) 残(a): WX06-014-E2「対戦相手のシグニ１体を対象とし、あなたのトラッシュから《古代兵器》
 //    のシグニ５枚を…デッキの一番下に置く。そうした場合、それをバニッシュする。」
 //    従来 JSON は step1 が「相手シグニをデッキ下」に化けていた（原文と別物）。自分トラッシュから古代兵器5枚を
