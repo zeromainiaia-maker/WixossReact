@@ -4094,6 +4094,17 @@ export interface PreventDamageAction {
    */
   sourcePowerGte?: number;
   /**
+   * 🆕**ダメージ源のシグニのパワー上限／レベル上限**（2026-09-15・§5.3 `O-383`）＝
+   * `WX25-P3-051-E1`「このターン、あなたは対戦相手の**パワー15000以下の**シグニによってダメージを受けない」／
+   * `WXDi-P03-077-BURST`「このターン、あなたは対戦相手の**レベル３以下の**シグニによってダメージを受けない」。
+   * 🔴**旧 live は `PREVENT_NEXT_DAMAGE{count:1}`**＝原文は「このターン」＝**回数無制限**なのに
+   *   **次の1回しか効かなかった**（`O-317` が `sourcePowerGte` で直したのと同じ壊れ方の、上限側）。
+   * ⚠`sourcePowerGte` と同じく**渡ってきたときだけ当たる**（fail-closed）＝パワー／レベルの分からない
+   *   経路（ルリグアタック・効果ダメージ）で無条件の無敵にしない。
+   */
+  sourcePowerLte?: number;
+  sourceLevelLte?: number;
+  /**
    * 「次のあなたのメインフェイズまで」（`WXK01-002-E2`・§6.4 O-3 続き492）＝**ターン境界を跨ぐ**期間。
    * `EffectDuration` にはこの長さが無いので専用フラグで表し、`until` より優先する。
    * 失効は `clearMainPhaseScopedState` 1点（自分が次にメインフェイズへ入るとき）。
@@ -7537,6 +7548,27 @@ export interface CardEffect {
      */
     notByBattle?: boolean;
     byEffect?: boolean; // 効果によるイベントのみ発火。ON_PLAY＝通常召喚を除外、ON_SIGNI_DOWN＝アタック/コストを除外、ON_TRASH＝コスト/バトル/ルール処理を除外（任意の効果起因＝自他問わず。WX18-086等）
+    /**
+     * 🆕**「バニッシュされた**か**効果によって場からトラッシュに置かれたとき」**（2026-09-15・§5.3 `O-384`・
+     * `WX19-029-E1`）＝**2つの経路の OR**。
+     * 🔴`byEffect:true` の1本に畳むと、**バニッシュ経路（`ON_BANISH`）では発火しない**
+     *   （＝戦闘で倒されても何も起きない過小実行）。逆に `byEffect` を落とすとコスト／ルール処理の
+     *   トラッシュでも発火する（過剰）。⇒ **経路ごとに掛かり方を変える1本のキー**にする。
+     * 🔑この実装では **バニッシュ＝場→エナゾーン／トラッシュ＝場→トラッシュ**で
+     *   （`detectBanishedSigni` / `detectTrashedSigni`）**排他**なので、両 timing を持たせても二重発火しない。
+     * ・`ON_BANISH` の収集では**原因を問わない**（バトルバニッシュでも発火する）
+     * ・`ON_TRASH` の収集では `byEffect` と**同じ**（効果起因のときだけ発火する）
+     */
+    banishOrByEffectTrash?: boolean;
+    /**
+     * 🆕**「あなたが**対戦相手の**スペルを使用したとき」**（2026-09-15・§5.3 `O-376`・`WX14-027-E2`）＝
+     * **使ったスペルの持ち主**が対戦相手であることの限定。
+     * 🔴旧 live は `triggerFilter` すら無く、`spellUseTriggerMatches` も**使ったスペルの属性しか見ない**ので、
+     *   **自分のスペルを使うたびに発火**していた（過剰発火）。
+     * ⚠この限定を立てた効果は**通常のスペル使用 funnel では発火しない**（あの経路は自分の手札のスペルだけ）＝
+     *   発火元は `CAST_FROM_OPP_TRASH` が積む `opp_spell_used_just` の watcher だけ。
+     */
+    spellOwnedByOpponent?: boolean;
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     byLrigOrSigniEffect?: boolean; // ルリグかシグニの効果が原因の場合のみ発火（WX14-066-E1）。CardData.Type の 'ルリグ'/'アシストルリグ'/'シグニ'/'レゾナ' を受理＝アシストルリグはルリグ・レゾナはシグニ。原因カード不明・スペル・アーツ・ルール処理では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）

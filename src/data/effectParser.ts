@@ -8713,7 +8713,14 @@ function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
 
 // ROADMAP batch11。「対戦相手は自分の〜を選び」の選択主体だけを、原文照合済み
 // effectId の該当 action へ付与する。条件・CHOOSE・SEQUENCE の周辺構造は変更しない。
-const OPPONENT_SELECTS_BATCH11: Record<string, 'TRASH' | 'SEND_TO_ENERGY' | 'TRANSFER_TO_DECK'> = {
+// 🆕§5.3 `O-386`（2026-09-15）＝`BANISH` / `ADD_TO_FIELD` を追加。
+//   `BANISH`＝`WX08-006-E3`「**対戦相手は**【チャーム】が付いている自分のシグニ１体を対象とし、それをバニッシュする」
+//     ＝主語が「対戦相手は」＝**相手が選ぶ**。旧 live は使用者が選んでおり、
+//     **相手のデメリットを使用者が最適に選べる**（有利な取り違え）。
+//   `ADD_TO_FIELD`＝`PR-242-E1`②「あなたのエナゾーンから**対戦相手の選んだ**シグニ１枚を場に出す」
+//     ＝**デメリットが利益に化けていた**（使用者が一番強いシグニを出せた）。
+const OPPONENT_SELECTS_BATCH11: Record<string, 'TRASH' | 'SEND_TO_ENERGY' | 'TRANSFER_TO_DECK' | 'BANISH' | 'ADD_TO_FIELD'> = {
+  'WX08-006-E3':'BANISH', 'PR-242-E1':'ADD_TO_FIELD',
   'SPDi43-01-E1':'TRASH','WX24-P2-018-E2':'TRASH','WX24-P3-051-E1':'TRASH',
   'WX24-P3-051-E2':'TRASH','WX24-P4-015-E3':'TRASH','WX25-P1-076-E1':'TRASH',
   'WX25-P2-054-E2':'TRASH','WX25-P2-TK03-E1':'TRASH','WX25-P3-032-E1':'TRASH',
@@ -8736,9 +8743,14 @@ function applyOpponentSelectsBatch11(effects: CardEffect[]): void {
     if (!node || typeof node !== 'object') return;
     const obj = node as Record<string, unknown>;
     const target = (obj.target ?? obj.source) as Record<string, unknown> | undefined;
-    if (obj.type === type && target?.owner === 'opponent') {
+    // 🆕§5.3 `O-386`＝**`ADD_TO_FIELD` だけは持ち主が `self`**（「**あなたの**エナゾーンから
+    //   **対戦相手の選んだ**シグニ１枚を場に出す」）＝選ぶ主体と札の持ち主が別。
+    //   ⚠他の型は従来どおり `owner === 'opponent'` を要求する（対照＝`WXEX2-50-E3` のような
+    //   「相手のトラッシュから**使用者が**選ぶ」形を巻き込まないため）。
+    const ownerOk = type === 'ADD_TO_FIELD' ? !!target : target?.owner === 'opponent';
+    if (obj.type === type && ownerOk) {
       // TRASH HAND は既存 executor が既定で相手選択。フラグが必要な場/エナだけへ付ける。
-      if (!(type === 'TRASH' && target.type === 'HAND_CARD')) obj.opponentSelects = true;
+      if (!(type === 'TRASH' && target!.type === 'HAND_CARD')) obj.opponentSelects = true;
     }
     for (const value of Object.values(obj)) {
       if (Array.isArray(value)) value.forEach(v => visit(v, type));
@@ -14986,6 +14998,64 @@ function hoistTargetBeforeLeadingAction(text: string, parsed: EffectAction): Eff
  * 🔑`abortIfNoCandidate` も付ける＝原文は先に対象を取るので、**エナに候補が無ければ自分をエナへ置かない**
  *   （付けないと「コストだけ払って何も出ない」）。
  */
+/**
+ * 🆕🔴**§5.3 `O-382`（2026-09-15）＝多段閾値の2段目以降が、1段目の帰結で潰れる。**
+ *
+ * 原文の形＝「〈測る動作〉。その後、**この方法で**〜が**N枚以上**の場合、A。**M枚以上**の場合、B。…」
+ * ＝どの段も**同じ1回の測定**を判定する。ところが live は素の兄弟ステップなので、
+ * **A が `lastProcessedCards` を書き換えた瞬間に測定値が消え、2段目以降が永久に不成立**になる
+ * （実測＝`WX21-023-E1` は「2枚以上でエナチャージ」が走ると `execEnergyChargeFromDeck` が
+ *  `lastProcessedCards: took`（＝チャージした1枚）を返すので、3枚以上・4枚の段が死ぬ）。
+ *
+ * ⭐**受け皿は既にある**＝`SEQUENCE{snapshotLastProcessedForConditionals:true}`
+ *   （`effectExecutor.ts` の `execSequence` 冒頭＝**全条件を先に評価してから** `then` を並べ直す）。
+ *   `manualEffects.ts` で6効果が既にこの形を手書きしている。⇒ **同じ形へ機械で寄せる。**
+ *
+ * ⚠**fail-closed**＝①`SEQUENCE` の直下に**連続する** `CONDITIONAL` が2つ以上 ②その条件が
+ *   すべて `LAST_PROCESSED_*`（＝直前の測定を読む条件）③**閾値が全部同じではない**（段になっている）
+ *   ④その連続の**前に測る動作がある**（先頭から始まる形は「測定」が無いので触らない）
+ *   ⑤冪等（既に `snapshot` が立っていれば触らない）。
+ * 🔑**`IS_MY_TURN`（did-it ゲート）は条件型が違うので巻き込まない**＝畳むとゲートが消える。
+ */
+const O382_LAST_PROCESSED_COND = /^LAST_PROCESSED_/;
+
+function wrapMultiThresholdLastProcessed(parsed: EffectAction): EffectAction {
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const o = node as Record<string, unknown>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps) && !o.snapshotLastProcessedForConditionals) {
+      const steps = o.steps as Record<string, unknown>[];
+      const isTier = (st: Record<string, unknown> | undefined): boolean => {
+        const c = st?.condition as { type?: string } | undefined;
+        return st?.type === 'CONDITIONAL' && !!c?.type && O382_LAST_PROCESSED_COND.test(c.type);
+      };
+      for (let i = 0; i < steps.length; i++) {
+        if (!isTier(steps[i])) continue;
+        let j = i;
+        while (j + 1 < steps.length && isTier(steps[j + 1])) j++;
+        const run = steps.slice(i, j + 1);
+        // ④測る動作が前に無い形（先頭から段が始まる）は触らない
+        // ①2つ以上 ③閾値が全部同じではない
+        const keys = new Set(run.map(st => JSON.stringify(st.condition)));
+        if (i > 0 && run.length >= 2 && keys.size > 1) {
+          steps.splice(i, run.length, {
+            type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: run,
+          } as unknown as Record<string, unknown>);
+          // 畳んだ中身も再帰で見る（入れ子の SEQUENCE に段があるとき）
+          run.forEach(visit);
+          i++;
+          continue;
+        }
+        i = j;
+      }
+    }
+    for (const v of Object.values(o)) visit(v);
+  };
+  visit(parsed);
+  return parsed;
+}
+
 function hoistEnergyDeclBeforeSelfToEnergy(text: string, parsed: EffectAction): EffectAction {
   // ⚠`currentSourceTexts` は `restoreElidedSwapSource` **適用後**の綴り（宣言が帰結側へ移った形）。
   if (!/(?:場にある)?この(?:シグニ|カード)を(?:場から)?エナゾーンに置いてもよい。そうした場合、(?:あなた|対戦相手)の(?:エナゾーン|トラッシュ)から[^。]*?を(?:ダウン状態で)?場に出す/.test(text)) return parsed;
@@ -30909,6 +30979,30 @@ function repairSemanticBatch246(effects: CardEffect[]): void {
  * ⚠**`abortIfNoCandidate` は付けない**＝レベル１以下が0体でも、条件Bを満たせば
  *   「代わりに」枝（レベル３以下）は原文どおり撃てる。付けると効果ごと飛ぶ。
  */
+/**
+ * 🆕🔴**§5.3 `O-384`（2026-09-15）＝「バニッシュされた**か**効果によって場からトラッシュに置かれたとき」。**
+ *
+ * `WX19-029-E1`「【自】：アタックフェイズの間、このシグニが**バニッシュされたか**効果によって
+ * 場からトラッシュに置かれたとき、シグニ１体を対象とし、それをアップするかダウンする。」
+ *
+ * 🔴旧 live は `timing:['ON_TRASH']` ＋ `byEffect:true` の**1本に畳まれていた**＝
+ *   この実装では**バニッシュ＝場→エナゾーン**（`detectBanishedSigni`）なので、
+ *   **バニッシュ経路では一度も発火しない**（＝戦闘で倒されても何も起きない過小実行）。
+ * ⇒ `timing` を2本にし、掛かり方の違う `banishOrByEffectTrash` で受ける
+ *   （`ON_BANISH` 側は原因を問わない／`ON_TRASH` 側は `byEffect` と同じ）。
+ * 🔑**二重発火しない**＝バニッシュ（→エナ）とトラッシュ（→トラッシュ）は盤面差分として排他。
+ * ⚠原文「バニッシュされたか」は CSV 全体で**この1効果だけ**（実測）＝一点物で足りる。
+ */
+function repairSemanticBatch249(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    if (effect.effectId !== 'WX19-029-E1') continue;
+    if (!effect.timing?.includes('ON_TRASH')) continue;
+    effect.timing = ['ON_BANISH', 'ON_TRASH'];
+    const { byEffect: _byEffect, ...restTC } = (effect.triggerCondition ?? {}) as Record<string, unknown>;
+    effect.triggerCondition = { ...restTC, banishOrByEffectTrash: true } as typeof effect.triggerCondition;
+  }
+}
+
 function repairSemanticBatch248(effects: CardEffect[]): void {
   for (const effect of effects) {
     switch (effect.effectId) {
@@ -32216,6 +32310,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch246(effects);
   repairSemanticBatch247(effects);
   repairSemanticBatch248(effects);
+  repairSemanticBatch249(effects);
   // `O-368`：全 rewriter が action 木を組み終えた効果単位の原文で、対象宣言だけを TURN_OWNER の外へ出す。
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
@@ -32255,6 +32350,16 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = wrapDidItGateAfterMandatory(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-513`＝「自分をエナへ置く」より前にエナの対象を宣言する（自己混入を止める）。
     effect.action = hoistEnergyDeclBeforeSelfToEnergy(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-382`＝多段閾値の段を snapshot でまとめる（1段目の帰結で測定値が潰れるのを防ぐ）。
+    effect.action = wrapMultiThresholdLastProcessed(effect.action);
+    // 🆕🔴§5.3 `O-376`（2026-09-15）＝「あなたが**対戦相手の**スペルを使用したとき」の持ち主限定。
+    //   🔴旧 live は `triggerFilter` すら無く、`spellUseTriggerMatches` も**使ったスペルの属性しか見ない**
+    //   ので、**自分のスペルを使うたびに発火**していた（過剰発火）。
+    //   ⚠原文 `あなたが対戦相手のスペルを使用したとき` は CSV 全体で **1効果**（`WX14-027-E2`・実測）。
+    if ((effect.timing ?? []).includes('ON_SPELL_USE')
+      && /あなたが対戦相手のスペルを使用したとき/.test(currentSourceTexts.get(effect.effectId) ?? '')) {
+      effect.triggerCondition = { ...(effect.triggerCondition ?? {}), spellOwnedByOpponent: true };
+    }
   }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。

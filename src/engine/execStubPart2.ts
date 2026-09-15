@@ -4114,6 +4114,15 @@ export function execStubPart2(
       // 🆕**§5.3 `O-260`＝「いま使わせたカード」を控える**＝`STUB{EXILE_FROM_CHECK_ZONE}` が読む。
       //   ⚠`lastProcessedCards` では駄目＝**スペル本体の効果が上書きする**（対象に取ったシグニ等）。
       stateAfterPF = { ...stateAfterPF, last_effect_used_card: cnPF };
+      // 🆕🔴**§5.3 `O-376`（2026-09-15）＝「あなたが**対戦相手の**スペルを使用したとき」の発火元。**
+      //   🔑通常のスペル使用 funnel（`BattleScreen` の `useSpell`）は**自分の手札のスペルしか通らない**ので、
+      //   この経路（持ち主＝相手のスペルを使う）はそこに一度も現れない。⇒ ここでフラグを積み、
+      //   `zone_moved_just` と同じ watcher 形で `ON_SPELL_USE` を収集・クリアする。
+      //   ⚠**使用した側（＝ctx.ownerState）に積む**。⚠スペル以外（アーツ・シグニ）では積まない。
+      if (stub.id === 'CAST_FROM_OPP_TRASH' && cardPF.Type === 'スペル') {
+        stateAfterPF = { ...stateAfterPF,
+          opp_spell_used_just: [...(stateAfterPF.opp_spell_used_just ?? []), cnPF] };
+      }
       // 🆕🔴**`exileAfterUse`＝「それがチェックゾーンから別の領域に移動される場合、代わりに除外」**
       //   （§5.3 `O-260`）。**置き場所を決めるこの地点で `excluded` へ入れ替える**＝別ステップに
       //   分けると、この形（候補選択→支払い CHOOSE→本体の対象選択の3重ネスト）で

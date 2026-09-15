@@ -1,5 +1,89 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-15 第363バッチ：`O-376`/`O-382`/`O-383`/`O-384`/`O-386`（＋`O-476`）クローズ ＋ `O-381`・`O-385` は偽陽性
+
+### 🏁`O-382` — 多段閾値の2段目以降が1段目の帰結で潰れる（**24効果**・登録票は「2効果」）
+
+- **母集団の実測**＝**24効果**（AUTO 10 / MANUAL 14）。⚠登録票の見立て（2効果）の **12倍**。
+  🔑**最初の自前の走査では 11件しか出なかった**＝閾値の同一判定を `[minCount, value, count]` だけで見ており、
+  **`LAST_PROCESSED_MATCHES` の `filter` 違い**（「レベル1のシグニの場合／《ガードアイコン》を持つ場合」）を
+  「同じ条件」と誤判定していた。⇒ **`JSON.stringify(condition)` 全体で比べる**（parser 実装側はこれで正しい）。
+- **壊れ方**＝原文「〈測る動作〉。その後、**この方法で**〜が**N枚以上**の場合 A。**M枚以上**の場合 B。…」は
+  **どの段も同じ1回の測定**を判定するのに、live は素の兄弟ステップ＝
+  **A が `lastProcessedCards` を書き換えた瞬間に測定値が消え、2段目以降が永久に不成立**。
+- ⭐**受け皿は既に在った**＝`SEQUENCE{snapshotLastProcessedForConditionals:true}`
+  （`execSequence` 冒頭で**全条件を先に評価してから** `then` を並べ直す）。`manualEffects.ts` で6効果が手書き済み。
+- **直し方**＝①parser の効果単位後処理 `wrapMultiThresholdLastProcessed`（**連続する** `CONDITIONAL{LAST_PROCESSED_*}`
+  が2つ以上・閾値が全部同じでない・**前に測る動作がある**ときだけ包む＝fail-closed）
+  ②MANUAL 14件は使い捨てスクリプトで同じ変換を当て `syncManualLive` ③`WX10-031-BURST` は
+  カードが PARTIAL 凍結だったので `heldReview --adopt-effect` で効果単位に採用。
+- 🔑**`O-476` も同じ pass で閉じた**（`WXDi-P04-008-E1`＝レベル1なら先に `DRAW` が走って後続が引いたカードを判定する）。
+- **検証**＝golden 2本新設（①全数走査で「素の兄弟が0件」②E2E＝包まないと2段目が走らないことを**先に確かめてから**
+  包んだ形で走ることを見る）。⚠**既存5本を更新**＝位置で段を引いていたので `flattenO382Snapshot` で包みを剥がす。
+
+### 🏁`O-383` — 「このターン、〜によってダメージを受けない」が回数1（**2効果**）
+
+- 原文は「**このターン**」＝**回数無制限**なのに `PREVENT_NEXT_DAMAGE{count:1}`＝**次の1回だけ**（過小実行）。
+- ⭐受け皿は `O-317` が作った `PREVENT_DAMAGE{sourcePowerGte}` と**同じ地点**＝上限側の
+  `sourcePowerLte` / `sourceLevelLte` を足すだけで済んだ（engine・`prevent_damage_windows`・
+  `hasActivePreventDamageWindow`・`BattleScreen` の消費地点・逆翻訳の5箇所）。
+- 🔑**fail-closed を踏襲**＝値が渡らない経路（ルリグアタック・効果ダメージ）では**当たらない**
+  （原文が「シグニによって」なので、パワー／レベルの分からないダメージまで止めたら過剰実行）。
+
+### 🏁`O-384` — 「バニッシュされた**か**効果によってトラッシュ」の OR（**1効果**＋**発見2効果**）
+
+- 🔑**この実装ではバニッシュ＝場→エナゾーン**（`detectBanishedSigni`）／トラッシュ＝場→トラッシュ
+  （`detectTrashedSigni` は `!after.energy.includes` で明示除外）＝**排他**なので、
+  `timing` を2本持たせても**二重発火しない**。⇒ `banishOrByEffectTrash`（`ON_BANISH` では原因を問わず、
+  `ON_TRASH` では `byEffect` と同じ）1本で受けた。
+- 🔴**ついでに見つかった別の過剰発火**＝`collectBanishTriggers` の **self スコープのブロックだけが
+  `duringAttackPhase` を見ていなかった**（他3ブロックは全部見ている）＝原文「**アタックフェイズの間、**
+  このシグニがバニッシュされたとき」の `WXDi-P09-075-E2` / `WXK09-033-E1` が**メインフェイズでも発火**していた。
+  ⚠self スコープ ON_BANISH 109効果のうち `duringAttackPhase` を持つのはこの2件だけ＝**他は挙動不変**。
+
+### 🏁`O-386` — 「対戦相手の選んだ」の選択者（**2効果**／登録票3件のうち1件は偽陽性）
+
+- `PR-242-E1`②「**あなたの**エナゾーンから**対戦相手の選んだ**シグニ１枚を場に出す」＝
+  **選ぶ主体（相手）と札の持ち主（自分）が別**＝`oppPicksAF` の `srcDefined.owner === 'opponent'` では届かない。
+  ⇒ `ENERGY_CARD` だけ持ち主条件を外した（**旗そのものが対照を守っている**）。
+- `WX08-006-E3`「**対戦相手は**【チャーム】が付いている自分のシグニ１体を対象とし、それをバニッシュする」＝
+  `BANISH` に旗を足すだけ（executor 側は配線済み）。
+- 🚫**`WXK11-006-E1-G2` は偽陽性**＝原文は「対戦相手は自分のトラッシュから**あなたの選んだ**カード１枚を
+  ライフクロスに加える」＝**使用者が選ぶ**のが正しく、live も旗なし（＝使用者選択）で合っていた。
+- ⚠**golden の `O-327` トリップワイヤに止められた**（未配線の形へ旗が載ると FAIL）＝
+  指示どおり executor を配線し、**対照2本**を足してから許容リストへ追記した。
+
+### 🏁`O-376` — 「あなたが**対戦相手の**スペルを使用したとき」の持ち主限定（**1効果**・遅いレーン）
+
+- 🔴`spellUseTriggerMatches` は**使ったスペルの属性しか見ず持ち主を知らない**＝`WX14-027-E2` は
+  **自分のスペルを使うたびに発火**していた（過剰発火）。
+- 🔴**発火すべき経路は通常の funnel に現れない**＝「対戦相手のトラッシュからスペルを使う」は
+  `CAST_FROM_OPP_TRASH`（`execStubPart2`）が **engine 内で完結**するので、`BattleScreen` の `useSpell`
+  （自分の手札のスペルしか通らない）には一度も来ない。⇒ **持ち主限定を足すだけだと今度は永久に発火しない。**
+- **直し方**＝①`triggerCondition.spellOwnedByOpponent`（`spellUseTriggerMatches` の第3引数で fail-closed）
+  ②engine が `opp_spell_used_just` を積む ③`collectOppOwnedSpellUseTriggers`（この限定を持つ効果だけを扱う＝
+  通常 funnel と二重に拾わない）④`zone_moved_just` と同型の `BattleScreen` watcher（収集＋フラグクリア）。
+
+### 🚫`O-381` / `O-385` — **どちらも偽陽性**（登録票の取り下げ）
+
+- `O-381`＝`resumeSearch` に**順序予約の専用分岐**があり（`afterAction===SHUFFLE_DECK` かつ
+  `isDeckPlacementFromSearch(thenAction)` なら**シャッフルを先に**実行する）、続き442 から正しかった。
+  母集団5効果すべてに E2E（`executeSearchTopE2E`＝「shuffle 後も指定位置に残る」）が張ってある。
+  🔑**JSON のキー順（`then` の後に `afterSearch`）だけを見ると逆に読める**のが誤判定の原因。
+- `O-385`＝`ON_ZONE_MOVED` の発火源 `zone_moved_just` を積むのは**配置替えの3ハンドラだけ**＝
+  **場→手札などの離場では立たない**。「他のシグニゾーンに移動したとき」は発火条件に含意されている。
+- ⇒ どちらも**engine 側の契約を全数で固定する golden** を足して取り下げた（同じ登録票が二度出ないように）。
+
+### 検証・実機
+
+- `npm run gates` **全緑**（golden **4209/4209**＝+11本）。⚠**既存8本を更新**。
+- 🔴**実機必須**（`src/screens/BattleScreen.tsx` ＋ `src/screens/battle/battleUtils.ts` を触った）＝
+  **3シナリオとも PASS**＝`o376OppSpellUse`（`V-230`）／`o383DamageLevelCap` ＋ `o383DamageLevelCapMiss`（`V-231`＝**反転確認**）。
+- ⚠**実機シナリオで偽 PASS を1回踏んだ**＝`O-383` の初版は `MAIN` から始めて `ATTACK_ARTS` で止まり、
+  **一度もアタックしていないのに「ライフ据置」で PASS**していた。⇒ `ATTACK_SIGNI` から始め、
+  **アタック宣言が通ったこと**と**「ダメージ無効」ログ**の両方を要求する形へ直した。
+
+
 ## 2026-09-15 第362バッチ：`O-511` / `O-512` / `O-513` クローズ ＋ `O-514` は偽陽性（→ `O-516` を新設）
 
 ### 🏁`O-511` — 「配置して**もよい**」の任意性が live に無かった（**2効果**）

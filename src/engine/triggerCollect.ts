@@ -21,9 +21,59 @@ export interface TargetedOrigin {
   effect: CardEffect;
 }
 
-/** ON_SPELL_USE の属性限定を、使用スペルそのものへ適用する共通ゲート。 */
-export function spellUseTriggerMatches(effect: CardEffect, usedSpell: CardData | undefined): boolean {
+/**
+ * ON_SPELL_USE の属性限定を、使用スペルそのものへ適用する共通ゲート。
+ *
+ * 🆕**§5.3 `O-376`（2026-09-15）＝`spellOwnedByOpponent`（「あなたが**対戦相手の**スペルを使用したとき」）。**
+ * 🔴旧実装は**使ったスペルの属性しか見ず持ち主を知らなかった**ので、`WX14-027-E2` は
+ *   **自分のスペルを使うたびに発火**していた（過剰発火）。
+ * ⚠**fail-closed**＝`spellIsOppOwned` が渡らない経路（＝自分の手札からの通常使用）では発火しない。
+ */
+export function spellUseTriggerMatches(
+  effect: CardEffect, usedSpell: CardData | undefined, spellIsOppOwned = false,
+): boolean {
+  if (effect.triggerCondition?.spellOwnedByOpponent && !spellIsOppOwned) return false;
   return !effect.triggerFilter || matchesFilter(usedSpell, effect.triggerFilter);
+}
+
+/**
+ * 🆕**§5.3 `O-376`＝「あなたが対戦相手のスペルを使用したとき」の収集**（`opp_spell_used_just` watcher 用）。
+ *
+ * 🔑通常のスペル使用 funnel（`BattleScreen` の `useSpell`）は**自分の手札のスペルしか通らない**ので、
+ *   持ち主が相手のスペル（`CAST_FROM_OPP_TRASH`）を使った瞬間はそこに現れない。
+ * ⚠収集元は**使用者（caster）のセンタールリグ＋場のシグニ**だけ（`triggerScope` 既定 `self`＝主語はプレイヤー）。
+ */
+export function collectOppOwnedSpellUseTriggers(
+  ctx: TrigCtx, usedSpellNum: string, casterState: PlayerState, otherState: PlayerState, casterId: string,
+): { entries: StackEntry[]; usedIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedIds: string[] = [];
+  const usedSpell = ctx.cardMap.get(getCardNum(usedSpellNum));
+  const sources = [
+    casterState.field.lrig.at(-1),
+    ...casterState.field.signi.map(stack => stack?.at(-1)),
+  ].filter((n): n is string => !!n);
+  for (const srcNum of sources) {
+    for (const eff of (ctx.effectsMap.get(getCardNum(srcNum)) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
+      // 🔴**この収集器はこの限定を持つ効果だけを扱う**＝持たない効果は通常 funnel が既に発火させている
+      //   （両方で拾うと二重発火になる）。
+      if (!eff.triggerCondition?.spellOwnedByOpponent) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!spellUseTriggerMatches(eff, usedSpell, true)) continue;
+      if (eff.usageLimit === 'once_per_turn'
+        && ((casterState.actions_done ?? []).includes(eff.effectId) || usedIds.includes(eff.effectId))) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, casterState, otherState, ctx.cardMap, srcNum, ctx.turnPhase)) continue;
+      if (eff.usageLimit === 'once_per_turn') usedIds.push(eff.effectId);
+      entries.push({
+        id: ctx.genId(), playerId: casterId, cardNum: srcNum, effectId: eff.effectId,
+        triggeringCardNum: usedSpellNum,
+        label: `${ctx.cardMap.get(getCardNum(srcNum))?.CardName ?? srcNum}【自】対戦相手のスペル使用時`,
+        effect: eff,
+      });
+    }
+  }
+  return { entries, usedIds };
 }
 
 const TARGET_ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
@@ -1438,6 +1488,10 @@ export function collectTrashTriggers(
     //   🔴**`forResonaCondition`（排他ゲート）では代用できない**＝あちらにすると今度は効果起因が落ちる。
     if (eff.triggerCondition?.byEffect && !byEffectCause
         && !(eff.triggerCondition.orResonaCondition && resonaConditionCardNum)) continue;
+    // 🆕**§5.3 `O-384`（2026-09-15）＝`banishOrByEffectTrash`（「バニッシュされた**か**効果によって
+    //   場からトラッシュに置かれたとき」）は、この**トラッシュ経路では `byEffect` と同じ**に絞る。
+    //   （バニッシュ経路の側は `collectBanishTriggers` が原因を問わずに発火させる＝原文の前半。）
+    if (eff.triggerCondition?.banishOrByEffectTrash && !byEffectCause) continue;
     // 「あなたの効果によって」＝自分の効果起因のみ。コスト・バトル・ルール処理（!byEffectCause）と相手効果（causeByOpponent）を除外。
     if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
@@ -1673,6 +1727,15 @@ export function collectBanishTriggers(
     //   ⚠**原因シグナルは2つ**＝バトル（`battleAttackerNum`）と効果起因（`cause.ownerId`）。
     //   ルール処理（どちらでもない）でも発火させない（`:93` の `byEffect && !causeOwnerId` と同じ向き）。
     if (eff.triggerCondition?.byEffect && (battleAttackerNum !== undefined || !cause?.ownerId)) continue;
+    // 🆕🔴**§5.3 `O-384`（2026-09-15）＝`duringAttackPhase` を self スコープでも見る。**
+    //   🔴他コレクタ（`:1717` `:1777` ほか）は全部このゲートを持つのに、**バニッシュされた本人の能力だけが
+    //   見ていなかった**＝原文「**アタックフェイズの間、**このシグニがバニッシュされたとき」の2効果
+    //   （`WXDi-P09-075-E2` / `WXK09-033-E1`）が**メインフェイズのバニッシュでも発火**していた（過剰発火）。
+    //   ⚠この2効果が母集団の全部（self スコープ ON_BANISH 109効果のうち `duringAttackPhase` は2件）。
+    if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    // 🆕**§5.3 `O-384`＝`banishOrByEffectTrash`（「バニッシュされた**か**効果によってトラッシュに置かれたとき」）
+    //   は、このバニッシュ経路では**原因で絞らない**（バトルバニッシュでも発火する＝原文の前半）。
+    //   トラッシュ経路の側だけ `collectTrashTriggers` が `byEffect` と同じ式で絞る。⇒ ここには条件を足さない。
     if (eff.triggerCondition?.banishedWasUp
       && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
     if (eff.triggerCondition?.banishedHadCharm

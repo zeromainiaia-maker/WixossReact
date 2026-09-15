@@ -3372,6 +3372,11 @@ function actionJa(a?: Action, effectType?: string): string {
       //   🔴描かないと「あらゆるダメージを受けない」に見え、限定が入ったことが原文照合に映らない。
       if (a.sourcePowerGte !== undefined)
         return `${periodPD}${whoPD}はパワー${a.sourcePowerGte}以上のシグニによってダメージを受けない`;
+      // 🆕§5.3 `O-383`（2026-09-15）＝上限側（「パワーN以下の／レベルN以下のシグニによって」）。
+      if (a.sourcePowerLte !== undefined)
+        return `${periodPD}${whoPD}はパワー${a.sourcePowerLte}以下のシグニによってダメージを受けない`;
+      if (a.sourceLevelLte !== undefined)
+        return `${periodPD}${whoPD}はレベル${a.sourceLevelLte}以下のシグニによってダメージを受けない`;
       return `${periodPD}${whoPD}はダメージを受けない`;
     }
     case 'ZONE_MOVE_IMMUNITY': {
@@ -6906,6 +6911,10 @@ function effJa(e: Eff): string {
     }
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
+    // 🆕§5.3 `O-376`（2026-09-15）＝`spellOwnedByOpponent`（「あなたが**対戦相手の**スペルを使用したとき」）。
+    //   🔴描かないと「あなたがスペルを使用したとき」に見え、持ち主限定が入ったことが原文照合に映らない。
+    if (t === 'ON_SPELL_USE' && e.triggerCondition?.spellOwnedByOpponent)
+      s = 'あなたが対戦相手のスペルを使用したとき';
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromZones && !e.triggerCondition?.trashSourceStory) {
       const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナ', field: '場', under_signi: 'シグニの下' };

@@ -308,6 +308,22 @@ function withoutStoredBinding<T extends EffectAction>(action: T): T {
   return rest as T;
 }
 
+/**
+ * 🆕**§5.3 `O-382`（2026-09-15）の包みを剥がして構造を見るためのヘルパー。**
+ *
+ * 多段閾値（「〈測る動作〉。N枚以上の場合 A。M枚以上の場合 B。…」）は
+ * `SEQUENCE{snapshotLastProcessedForConditionals:true}` で**段だけをまとめる**ようになった
+ * （1段目の帰結が `lastProcessedCards` を書き換えて2段目以降が死ぬのを防ぐため）。
+ * 位置で段を引いている既存テストは、この包みを剥がしてから見る。
+ * 🔑**包みが在ること自体は専用テスト（`§5.3 O-382`）が別途固定する**＝ここで剥がしても検査は失われない。
+ */
+function flattenO382Snapshot(list: Record<string, unknown>[]): Record<string, unknown>[] {
+  return (list ?? []).flatMap(st =>
+    (st?.type === 'SEQUENCE' && st.snapshotLastProcessedForConditionals)
+      ? (st.steps as Record<string, unknown>[])
+      : [st]);
+}
+
 function stripO413TargetDecl(action: EffectAction): EffectAction {
   if (!action || action.type !== 'SEQUENCE') return action;
   const steps = (action as SequenceAction).steps;
@@ -4617,7 +4633,7 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
     // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
     return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
-  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => flattenO382Snapshot(a.steps as Record<string, unknown>[]);
   // (a) 期間句で割れた照応＝「…配置してもよい。**ターン終了時まで、それの**パワーを－3000する」。
   //     旧: owner:'self' + targetsTriggerSource ＝**自分のシグニのパワーが下がる**。
   {
@@ -4705,7 +4721,7 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
     // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
     return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
-  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => flattenO382Snapshot(a.steps as Record<string, unknown>[]);
   const countLooks = (root: unknown): number => {
     let n = 0;
     const walk = (v: unknown): void => {
@@ -4776,7 +4792,8 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
     const inner = gate.then as { type?: string; steps?: Record<string, unknown>[] };
     eq(inner.type, 'SEQUENCE', 'WD21-020-E1: 「その後」節までゲートの内側');
     eq(steps(a).length, 2, 'WD21-020-E1: ゲートの外に帰結が残っていない');
-    const lp = inner.steps![1] as { condition?: { type?: string } };
+    // 🆕§5.3 `O-382`（2026-09-15）＝内側の多段閾値も `SEQUENCE{snapshot…}` で包まれた。
+    const lp = flattenO382Snapshot(inner.steps as Record<string, unknown>[])[1] as { condition?: { type?: string } };
     eq(lp.condition?.type, 'LAST_PROCESSED_MATCHES', 'WD21-020-E1: レベル分岐は公開札を参照する');
   }
   // 🔴 fail-closed ガードの固定＝**`REVEAL_UNTIL` 経路で既に解けている札は触らない**。
@@ -4822,7 +4839,7 @@ test('前文の主語が省略された閾値ゲートを継承する（O-91）'
     // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
     return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
-  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => flattenO382Snapshot(a.steps as Record<string, unknown>[]);
   // (a) 本題＝「12000以上の場合、追加でそれをバニッシュする」に条件が付く（旧＝bare BANISH＝無条件）。
   {
     const st = steps(act('WXK05-043', 'WXK05-043-E1'));
@@ -5001,7 +5018,8 @@ test('CHOOSE 前状態条件の効果レベル持ち上げ（WX24-P2-048 ほか�
 test('手札公開 REVEAL の source 復元＋公開カウント条件（WX21-023/WXEX1-69・タスク12(xxii)）', () => {
   const firstStep = (id: string) => {
     const a = (effectsMap.get(id) ?? [])[0]?.action as { type?: string; steps?: Array<{ type?: string; source?: { type?: string }; condition?: { type?: string; minCount?: number } }> } | undefined;
-    return a?.steps ?? [];
+    // 🆕§5.3 `O-382`＝多段閾値の包みを剥がしてから段を位置で引く。
+    return flattenO382Snapshot((a?.steps ?? []) as unknown as Record<string, unknown>[]) as unknown as NonNullable<typeof a>['steps'] & object[];
   };
   // WX21-023: step0 が手札公開 REVEAL（source:HAND_CARD）／step1 が「2枚以上公開」で LAST_PROCESSED_MATCHES ゲート。
   const s = firstStep('WX21-023');
@@ -15298,8 +15316,11 @@ test('O-154: WD15-001-E2 は「その中にN枚以上ある場合」の2段閾�
   //   ②【ダブルクラッシュ】付与に「2枚以上ある場合」の条件が無く**無条件で乗る**。
   type CondA2 = import('../src/types/effects').ConditionalAction;
   type StubA2 = import('../src/types/effects').StubAction;
-  const seq = manualEffect('WD15-001', 'WD15-001-E2').action as SeqA;
-  eq(seq.type, 'SEQUENCE', 'WD15-001-E2 SEQUENCE');
+  const seqRaw = manualEffect('WD15-001', 'WD15-001-E2').action as SeqA;
+  eq(seqRaw.type, 'SEQUENCE', 'WD15-001-E2 SEQUENCE');
+  // 🆕§5.3 `O-382`（2026-09-15）＝多段閾値は `SEQUENCE{snapshot…}` で包まれた（包みの有無は専用テストが固定）。
+  const seq = { ...seqRaw, steps: flattenO382Snapshot(
+    seqRaw.steps as unknown as Record<string, unknown>[]) as unknown as typeof seqRaw.steps } as SeqA;
   eq((seq.steps[0] as StubA2).id, 'SELECT_TARGET_ONLY', '先頭は対象宣言（対戦相手のシグニ1体）');
   eq((seq.steps[0] as { selectTarget?: { owner?: string } }).selectTarget?.owner, 'opponent', '宣言するのは相手のシグニ');
   eq((seq.steps[1] as StubA2).id, 'STORE_LAST_PROCESSED_TARGETS',
@@ -28400,7 +28421,10 @@ test('collectTrashTriggers: fromFieldByCostOrEffect は self と any_ally watche
 
 test('parse ON_TRASH: 「効果によって」4枚=byEffect／「あなたの効果によって」6枚=byOwnEffect（Opusタスク12(xxxv-a)）', () => {
   // 「効果によって」＝任意の効果起因（自他問わず）。相手効果でも発火する。
-  const anyEffect = ['WX18-086', 'WX18-089', 'WX19-029', 'WD14-015'];
+  // 🆕§5.3 `O-384`（2026-09-15）＝`WX19-029` は**この母集団から外した**＝原文は
+  //   「**バニッシュされたか**効果によって場からトラッシュに置かれたとき」＝**2経路の OR** で、
+  //   `byEffect` の1本に畳むと**バニッシュ経路（場→エナゾーン）で一度も発火しない**（下に専用テスト）。
+  const anyEffect = ['WX18-086', 'WX18-089', 'WD14-015'];
   // 「あなたの効果によって」＝自分の効果起因のみ（相手効果は除外）。
   const ownEffect = ['WX18-081', 'WX18-082', 'WX19-044', 'WX19-073', 'WXEX2-80', 'SP27-003'];
   for (const cardNum of anyEffect) {
@@ -28419,6 +28443,50 @@ test('parse ON_TRASH: 「効果によって」4枚=byEffect／「あなたの効
   const reordered = parseCardEffects(cardMap.get('WX19-073')!).find(x => x.effectId === 'WX19-073-E1')!;
   eq(reordered.triggerCondition?.byOwnEffect, true, '語順違いも own-effect で捕捉');
 });
+
+// ═══ §5.3 索引G `O-384`（2026-09-15 第363）＝「バニッシュされた**か**効果によってトラッシュ」の OR ═══
+// 🔴旧 live は `timing:['ON_TRASH']` ＋ `byEffect:true` の**1本に畳まれていた**。この実装では
+//   **バニッシュ＝場→エナゾーン**（`detectBanishedSigni`）／**トラッシュ＝場→トラッシュ**（`detectTrashedSigni`）
+//   で排他なので、バニッシュ経路では**一度も発火しない**＝戦闘で倒されても何も起きない過小実行だった。
+test('§5.3 O-384: WX19-029-E1 は「バニッシュ」と「効果によるトラッシュ」の両方で発火する', () => {
+  const live = (effectsMap.get('WX19-029') ?? []).find(e => e.effectId === 'WX19-029-E1');
+  ok(!!live, 'WX19-029-E1 が live に無い'); if (!live) return;
+  eq((live.timing ?? []).join(','), 'ON_BANISH,ON_TRASH',
+    '🔴片方の timing へ戻っている（原文は2経路の OR）');
+  eq(live.triggerCondition?.banishOrByEffectTrash, true,
+    '🔴経路ごとに掛かり方を変えるキーが落ちている');
+  eq(live.triggerCondition?.byEffect, undefined,
+    '🔴`byEffect` が残っている＝バニッシュ経路まで効果起因に絞られる');
+  eq(live.triggerCondition?.duringAttackPhase, true, '「アタックフェイズの間」は据置');
+});
+
+// 🔴同じ巡で見つけた**別の過剰発火**＝self スコープの `ON_BANISH` collector だけが
+//   `duringAttackPhase` を見ておらず、原文「**アタックフェイズの間、**このシグニがバニッシュされたとき」の
+//   2効果がメインフェイズのバニッシュでも発火していた（`collectBanishTriggers` の他ブロックは全部見ている）。
+test('§5.3 O-384: self スコープの ON_BANISH も「アタックフェイズの間」を見る', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [
+    ['WXDi-P09-075', 'WXDi-P09-075-E2'], ['WXK09-033', 'WXK09-033-E1'],
+  ] as const) {
+    const live = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!live, `${effectId} が live に無い`); if (!live) continue;
+    eq(live.triggerCondition?.duringAttackPhase, true, `${effectId}: 原文の「アタックフェイズの間」が落ちている`);
+  }
+  // engine 実挙動＝メインフェイズのバニッシュでは収集されない／アタックフェイズでは収集される。
+  const HOST = 'host';
+  const banished = 'WXDi-P09-075';
+  const host = mkState({ signi: [null, null, null] });
+  const guest = mkState({});
+  const mk = (phase: string): TrigCtx => ({
+    hostId: HOST, guestId: 'guest', activeUserId: HOST, turnPhase: phase,
+    effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'x',
+  });
+  const inMain = collectBanishTriggers(mk('MAIN'), banished, HOST, host, guest, host).entries;
+  ok(!inMain.some(e => e.effectId === 'WXDi-P09-075-E2'),
+    '🔴メインフェイズのバニッシュで「アタックフェイズの間」の能力が発火している');
+  const inAttack = collectBanishTriggers(mk('ATTACK'), banished, HOST, host, guest, host).entries;
+  ok(inAttack.some(e => e.effectId === 'WXDi-P09-075-E2'),
+    '🔴アタックフェイズのバニッシュで発火しなくなった（反転確認）');
+}));
 
 test('collectTrashTriggers: byEffect は self/any_ally ともルール処理を除外（Opusタスク12(xxxv-a)）', () => {
   const selfBase = effectsMap.get('WX24-P1-067')!.find(e => e.effectId === 'WX24-P1-067-E1')!;
@@ -29367,6 +29435,12 @@ const O327_WIRED_SHAPES = new Map<string, string>([
   //   ＋**`WXEX2-50-E3`（「対戦相手のトラッシュから〜対戦相手の場に出す」＝使用者が選ぶ）が据置**であること。
   ['ADD_TO_FIELD|TRASH_CARD|N', 'effectExecutor.ts execAddToField（相手のトラッシュから相手が選ぶ。§5.3 O-365 第322 で配線）'],
   ['ENERGY_CHARGE|TRASH_CARD|N', 'effectExecutor.ts execEnergyCharge（相手のトラッシュから相手が選ぶ。§5.3 O-365 第322 で配線）'],
+  // 🆕§5.3 `O-386`（2026-09-15 第363）＝「**あなたの**エナゾーンから**対戦相手の選んだ**シグニ１枚を場に出す」
+  //   （`PR-242-E1`②）。🔑**選ぶ主体（相手）と札の持ち主（自分）が別**なので、`oppPicksAF` の
+  //   `srcDefined.owner === 'opponent'` 条件では届かない＝`ENERGY_CARD` だけ持ち主条件を外した。
+  //   配線＝`execAddToField` の `selectOrInteract` 第8引数（`oppPicksAF`）。
+  //   対照＝golden「§5.3 O-386」＝①旗あり→`opponentResponds:true` ②旗なし→立たない。
+  ['ADD_TO_FIELD|ENERGY_CARD|N', 'effectExecutor.ts execAddToField（自分のエナから相手が選ぶ。§5.3 O-386 第363 で配線）'],
   ['STUB:SELECT_TARGET_ONLY|SIGNI|ALL', 'execStubPart1.ts SELECT_TARGET_ONLY（場のシグニ）'],
   // ── 以下は「そもそも選択が起きない」形＝旗は無害（配線の要否が生じない）──
   ['TRASH|SIGNI|ALL', '選択なし＝候補を全部トラッシュする（upToCount 無し）'],
@@ -63671,8 +63745,10 @@ test('manual2 A2 WD15-001-E2: ダブルクラッシュ付与はルリグだけ�
   //   **その2つこそが壊れていた**（対象宣言が無く、相手ではなく自分の＜龍獣＞を条件なしで割っていた）。
   //   ⇒ ここは「付与の宛先」だけを見る見張りに戻し、構造の正は `O-154` のテストが持つ。
   const effect = manualFreshEffect('WD15-001', 'WD15-001-E2');
-  const steps = (effect.action as SequenceAction).steps;
-  const tail = steps[steps.length - 1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // 🆕§5.3 `O-382`＝多段閾値の包みを剥がしてから末尾を見る。
+  const steps = flattenO382Snapshot(
+    (effect.action as SequenceAction).steps as unknown as Record<string, unknown>[]);
+  const tail = steps[steps.length - 1] as unknown as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   const grant = tail.then as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
   eq(grant.target.type, 'LRIG', '「このルリグ」の対象型');
   ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
@@ -82793,6 +82869,232 @@ test('defer再実測 トリップワイヤ: 使用条件が ACTIVATED 以外に�
   eq(offenders.sort().join(','), '',
     '使用条件が最初の ACTIVATED 以外に置かれている＝canUseArtsCondition が読まないので黙って素通りする');
 });
+
+// ═══ §5.3 索引G `O-381` / `O-385`（2026-09-15 第363）＝**どちらも偽陽性**だった ═══
+// 🔑どちらも「live JSON を読んだだけで engine の消費地点を読まなかった」ことが誤判定の原因。
+//   同じ登録票が二度出ないよう、**engine 側の契約を全数で固定する**。
+test('§5.3 O-381（偽陽性の固定）: SEARCH のシャッフルは「デッキへ置く」より前に走る', () => {
+  // 🔴登録票は「`afterSearch` が `then` の**後**に走って置いた位置が壊れる」としていたが、
+  //   `resumeSearch` に**順序予約の専用分岐**があり（`afterAction===SHUFFLE_DECK` かつ
+  //   `isDeckPlacementFromSearch(thenAction)` なら**シャッフルを先に**実行する）、続き442 から正しかった。
+  //   JSON のキー順（`then` の後に `afterSearch` が並ぶ）だけを見ると逆に読める。
+  const hits: string[] = [];
+  const visit = (effectId: string, node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(effectId, n)); return; }
+    const o = node as Record<string, unknown>;
+    if (o.type === 'SEARCH' && (o.afterSearch as { type?: string } | undefined)?.type === 'SHUFFLE_DECK') {
+      const then = o.then as Record<string, unknown> | undefined;
+      const placesOnDeck = (a: Record<string, unknown> | undefined): boolean => {
+        if (!a) return false;
+        if (a.type === 'TRANSFER_TO_DECK') return (a.source as { type?: string } | undefined)?.type === 'DECK_CARD';
+        if (a.type === 'CHOOSE') {
+          const cs = (a.choices ?? []) as Array<{ action?: Record<string, unknown> }>;
+          return cs.length > 0 && cs.every(c => placesOnDeck(c.action));
+        }
+        return false;
+      };
+      if (placesOnDeck(then)) hits.push(effectId);
+    }
+    for (const v of Object.values(o)) visit(effectId, v);
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) visit(e.effectId, e.action);
+  // 母集団（実測5効果）＝全部 E2E（`executeSearchTopE2E`）が「shuffle 後も指定位置に残る」ことを固定済み。
+  eq([...new Set(hits)].sort().join(','),
+    'WD23-013-A-E1,WD23-024-E-E1,WXK02-031-E2,WXK02-070-E1,WXK03-049-E1',
+    '母集団が変わった＝新しい効果は `executeSearchTopE2E` の対照も足すこと');
+});
+
+test('§5.3 O-385（偽陽性の固定）: ON_ZONE_MOVED は場→場の配置替えでしか立たない', () => withSavedCursor(() => {
+  // 🔴登録票は「移動先の限定が無く、自分の効果による**別のゾーン移動**でも発火する」としていたが、
+  //   発火源は `zone_moved_just` **1本**で、これを積むのは配置替えの3ハンドラだけ
+  //   （`INTERNAL_REPOSITION_MOVE` / `INTERNAL_REPOSITION_TO_ZONE` / `REARRANGE_SIGNI`）＝
+  //   **場→手札などの離場では立たない**。⇒ 「他のシグニゾーンに移動したとき」は発火条件に含意されている。
+  const ctx = mkCtx({ signi: [SIGNI_L1, null, null] }, {}, SIGNI_L1);
+  // (a) 配置替え＝フラグが立つ。
+  const moved = executeAction({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
+    value: `${ctx.ownerState.field.signi[0]!.at(-1)}:2:false` } as unknown as EffectAction, ctx);
+  ok((moved.ownerState.zone_moved_just ?? []).length > 0, '🔴配置替えで zone_moved_just が立たない');
+  // (b) 反転＝場→手札（バウンス）では立たない＝ON_ZONE_MOVED は発火しない。
+  const bounced = executeAction({ type: 'BOUNCE',
+    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as unknown as EffectAction,
+    mkCtx({ signi: [SIGNI_L2, null, null] }, {}, SIGNI_L2));
+  ok(!(bounced.ownerState.zone_moved_just ?? []).length,
+    '🔴場→手札の移動で zone_moved_just が立っている＝「他のシグニゾーンに移動したとき」が別のゾーン移動でも発火する');
+}));
+
+// ═══ §5.3 索引G `O-383`（2026-09-15 第363）＝「このターン、〜からダメージを受けない」が回数1だった ═══
+// 🔴原文は「**このターン**、あなたは対戦相手の〈限定〉のシグニによってダメージを受けない」＝**回数無制限**。
+//   旧 live は `PREVENT_NEXT_DAMAGE{count:1}`＝**次の1回だけ**（過小実行）。
+// ⭐受け皿は `O-317` が作った `PREVENT_DAMAGE{sourcePowerGte}` と同じ地点＝上限側の2キーを足すだけで済んだ。
+test('§5.3 O-383: 「このターン、〜によってダメージを受けない」は回数無制限（上限フィルタつき）', () => {
+  for (const [cardNum, effectId, key, value] of [
+    ['WX25-P3-051', 'WX25-P3-051-E1', 'sourcePowerLte', 15000],
+    ['WXDi-P03-077', 'WXDi-P03-077-BURST', 'sourceLevelLte', 3],
+  ] as const) {
+    const live = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!live, `${effectId} が live に無い`); if (!live) continue;
+    const js = JSON.stringify(live);
+    ok(!js.includes('PREVENT_NEXT_DAMAGE'),
+      `🔴${effectId}: 回数1の PREVENT_NEXT_DAMAGE へ戻っている（原文は「このターン」＝無制限）`);
+    ok(js.includes('"PREVENT_DAMAGE"'), `${effectId}: 期間つきの PREVENT_DAMAGE で表す`);
+    ok(js.includes(`"${key}":${value}`), `🔴${effectId}: 発生源の限定（${key}）が落ちている＝無条件の無敵になる`);
+  }
+});
+
+test('§5.3 O-383 E2E: 上限フィルタは「値が渡ったときだけ」当たる（fail-closed）', () => withSavedCursor(() => {
+  const mkWindow = (w: Record<string, unknown>): PlayerState =>
+    ({ ...mkState({}), prevent_damage_windows: [{ scope: 'ALL', expires: 'MY_TURN_END', ...w }] } as PlayerState);
+  // パワー上限＝15000以下のシグニだけ止める。
+  const pw = mkWindow({ sourcePowerLte: 15000 });
+  eq(hasActivePreventDamageWindow(pw, 'ALL', 12000), true, 'パワー12000は止まる');
+  eq(hasActivePreventDamageWindow(pw, 'ALL', 20000), false, '🔴パワー20000まで止めている（上限が効いていない）');
+  eq(hasActivePreventDamageWindow(pw, 'ALL'), false, '🔴パワー不明の経路（ルリグ／効果）まで止めている');
+  // レベル上限＝3以下のシグニだけ止める。
+  const lv = mkWindow({ sourceLevelLte: 3 });
+  eq(hasActivePreventDamageWindow(lv, 'ALL', undefined, 3), true, 'レベル3は止まる');
+  eq(hasActivePreventDamageWindow(lv, 'ALL', undefined, 4), false, '🔴レベル4まで止めている');
+  eq(hasActivePreventDamageWindow(lv, 'ALL', 9999), false, '🔴レベル不明の経路まで止めている');
+  // 反転＝限定なしの window は従来どおり何でも止める（既存効果を巻き込んでいない）。
+  eq(hasActivePreventDamageWindow(mkWindow({}), 'ALL'), true, '限定なしの window は据置');
+}));
+
+// ═══ §5.3 索引G `O-376`（2026-09-15 第363）＝「あなたが**対戦相手の**スペルを使用したとき」 ═══
+// 🔴`spellUseTriggerMatches` は**使ったスペルの属性しか見ない**ので持ち主を知らず、
+//   `WX14-027-E2` は**自分のスペルを使うたびに発火**していた（過剰発火）。
+// 🔑発火すべき経路は engine 内で完結する `CAST_FROM_OPP_TRASH` なので、通常のスペル使用 funnel には
+//   現れない＝engine が `opp_spell_used_just` を積み、`zone_moved_just` と同型の watcher が拾う。
+test('§5.3 O-376: 「対戦相手のスペルを使用したとき」は持ち主限定を持ち、自分のスペルでは発火しない', () => {
+  const live = (effectsMap.get('WX14-027') ?? []).find(e => e.effectId === 'WX14-027-E2');
+  ok(!!live, 'WX14-027-E2 が live に無い'); if (!live) return;
+  eq(live.triggerCondition?.spellOwnedByOpponent, true,
+    '🔴持ち主限定が落ちている＝自分のスペルを使うたびに発火する');
+  const anySpell = cardMap.get(findCard(c => c.Type === 'スペル'));
+  eq(spellUseTriggerMatches(live, anySpell), false,
+    '🔴自分の手札から使ったスペル（既定＝持ち主は自分）で発火している');
+  eq(spellUseTriggerMatches(live, anySpell, true), true,
+    '🔴持ち主が相手のスペルでも発火しない（過小実行へ裏返っている）');
+  // 反転＝限定を持たない既存効果は従来どおり自分のスペルで発火する。
+  const plain = (effectsMap.get('WX01-033') ?? []).find(e => e.timing?.includes('ON_SPELL_USE'));
+  if (plain) {
+    const green = cardMap.get(findCard(c => c.Type === 'スペル' && (c.Color ?? '').includes('緑')));
+    eq(spellUseTriggerMatches(plain, green), true, '🔴限定の無い既存効果まで発火しなくなった');
+  }
+});
+
+// ═══ §5.3 索引G `O-382`（2026-09-15 第363）＝多段閾値の2段目以降が1段目の帰結で潰れる ═══
+// 原文の形＝「〈測る動作〉。その後、**この方法で**〜が**N枚以上**の場合、A。**M枚以上**の場合、B。…」
+// ＝どの段も**同じ1回の測定**を判定する。ところが live は素の兄弟ステップだったので、
+// 🔴**A が `lastProcessedCards` を書き換えた瞬間に測定値が消え、2段目以降が永久に不成立**になっていた
+//   （`WX21-023-E1` は「2枚以上でエナチャージ」が走ると `execEnergyChargeFromDeck` が
+//    `lastProcessedCards:[チャージした1枚]` を返すので、3枚以上・4枚の段が死ぬ）。
+// ⭐受け皿は既に在った＝`SEQUENCE{snapshotLastProcessedForConditionals:true}`（`execSequence` 冒頭で
+//   **全条件を先に評価してから** `then` を並べ直す）。parser 後処理と `manualEffects.ts` の両方で寄せた。
+test('§5.3 O-382: 多段の LAST_PROCESSED 条件は snapshot でまとめる（素の兄弟が残っていない）', () => {
+  const bare: string[] = [];
+  const wrapped: string[] = [];
+  const isTier = (st: Record<string, unknown> | undefined): boolean => {
+    const c = st?.condition as { type?: string } | undefined;
+    return st?.type === 'CONDITIONAL' && !!c?.type && /^LAST_PROCESSED_/.test(c.type);
+  };
+  const visit = (effectId: string, node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(effectId, n)); return; }
+    const o = node as Record<string, unknown>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps)) {
+      const st = o.steps as Record<string, unknown>[];
+      if (o.snapshotLastProcessedForConditionals && st.some(isTier)) wrapped.push(effectId);
+      else {
+        for (let i = 0; i < st.length; i++) {
+          if (!isTier(st[i])) continue;
+          let j = i;
+          while (j + 1 < st.length && isTier(st[j + 1])) j++;
+          const run = st.slice(i, j + 1);
+          const keys = new Set(run.map(x => JSON.stringify(x.condition)));
+          if (i > 0 && run.length >= 2 && keys.size > 1) bare.push(effectId);
+          i = j;
+        }
+      }
+    }
+    for (const v of Object.values(o)) visit(effectId, v);
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) visit(e.effectId, e.action);
+  // 🔴**空振り防止**＝走査が壊れて0件になると「全部通った」に見える。
+  ok(wrapped.length >= 20, `snapshot 済みの走査が空振りしている（${wrapped.length}件）`);
+  eq(bare.length, 0,
+    `🔴多段閾値が素の兄弟のまま残っている＝2段目以降が1段目の帰結で潰れる（${[...new Set(bare)].slice(0, 5).join(', ')}）`);
+});
+
+test('§5.3 O-382 E2E: 1段目の帰結が測定値を書き換えても2段目・3段目が走る', () => withSavedCursor(() => {
+  // 🔑**これがバグの実体**＝1段目（`ENERGY_CHARGE_FROM_DECK`）が `lastProcessedCards` を
+  //   「チャージした1枚」へ潰すので、素の兄弟だと2段目以降が必ず外れる。
+  const sig = SIGNI;
+  const tierAt = (minCount: number, then: Record<string, unknown>) => ({
+    type: 'CONDITIONAL',
+    condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, minCount },
+    then,
+  });
+  const tiers = [
+    tierAt(1, { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 }),
+    tierAt(2, { type: 'DRAW', owner: 'self', count: 1 }),
+  ];
+  const mk = (wrap: boolean) => {
+    const ctx = mkCtx({ energy: 0, hand: 0 } as never, {}, sig);
+    // 測定＝「2枚を lastProcessedCards に載せた」状態から始める。
+    const primed: ExecCtx = { ...ctx, lastProcessedCards: [SIGNI_L1, SIGNI_L2] };
+    const inner = wrap
+      ? [{ type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: tiers }]
+      : tiers;
+    return executeAction({ type: 'SEQUENCE', steps: inner } as unknown as EffectAction, primed);
+  };
+  const off = mk(false);
+  eq(off.ownerState.hand.length, 0,
+    '前提が崩れている＝包まない形でも2段目が走ってしまう（この E2E はバグを再現できていない）');
+  const on = mk(true);
+  eq(on.ownerState.hand.length, 1, '🔴snapshot で包んでも2段目（ドロー）が走らない');
+  eq(on.ownerState.energy.length, 1, '1段目（エナチャージ）も走る');
+}));
+
+// ═══ §5.3 索引G `O-386`（2026-09-15 第363）＝「対戦相手の選んだ」の選択者 ═══
+// 🔴`PR-242-E1`②「**あなたの**エナゾーンから**対戦相手の選んだ**シグニ１枚を場に出す」は
+//   `opponentSelects` が無く**使用者が選んで**いた＝**デメリットが利益に化けていた**
+//   （自分のエナから一番強いシグニを出せた）。
+// 🔑この形だけ**選ぶ主体（相手）と札の持ち主（自分）が別**＝`oppPicksAF` の `owner === 'opponent'` では届かない。
+test('§5.3 O-386: 「対戦相手の選んだ」は相手が選ぶ（PR-242-E1② / WX08-006-E3）', () => {
+  const pr = (effectsMap.get('PR-242') ?? []).find(e => e.effectId === 'PR-242-E1');
+  ok(!!pr, 'PR-242-E1 が live に無い'); if (!pr) return;
+  const ch = pr.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const atf = ch.choices.map(c => c.action).find(a => a.type === 'ADD_TO_FIELD') as
+    { source?: { type?: string; owner?: string }; opponentSelects?: boolean } | undefined;
+  ok(!!atf, 'PR-242-E1②: ADD_TO_FIELD がある'); if (!atf) return;
+  eq(atf.source?.type, 'ENERGY_CARD', 'PR-242-E1②: 出どころは自分のエナゾーン');
+  eq(atf.source?.owner, 'self', 'PR-242-E1②: 札の持ち主は自分（選ぶのは相手）');
+  eq(atf.opponentSelects, true, '🔴PR-242-E1②: 「対戦相手の選んだ」なのに使用者が選んでいる');
+  // 🔑同じ巡で直したもう1件＝主語が「対戦相手は」の `BANISH`。
+  const wx = (effectsMap.get('WX08-006') ?? []).find(e => e.effectId === 'WX08-006-E3');
+  ok(!!wx, 'WX08-006-E3 が live に無い'); if (!wx) return;
+  eq((wx.action as { type: string }).type, 'BANISH', 'WX08-006-E3 は BANISH');
+  eq((wx.action as { opponentSelects?: boolean }).opponentSelects, true,
+    '🔴WX08-006-E3:「**対戦相手は**…自分のシグニ1体を対象とし、それをバニッシュする」なのに使用者が選んでいる');
+});
+
+test('§5.3 O-386 E2E: 自分のエナ発でも旗があれば相手へ選択が回る（旗なしは据置）', () => withSavedCursor(() => {
+  const energySrc = { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } };
+  const mkRun = (action: Record<string, unknown>) => {
+    const ctx = mkCtx({}, {}, undefined);
+    ctx.ownerState.energy = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+    return executeAction(action as unknown as EffectAction, ctx);
+  };
+  const on = mkRun({ type: 'ADD_TO_FIELD', owner: 'self', source: energySrc, opponentSelects: true });
+  ok(!on.done && on.pending.type === 'SELECT_TARGET', '旗ありで対象選択の対話が開く');
+  if (on.done || on.pending.type !== 'SELECT_TARGET') return;
+  eq(on.pending.opponentResponds, true, '🔴opponentSelects が executor で消費されていない');
+  // 🔴対照＝旗が無ければ従来どおり**使用者**が選ぶ（既存のエナ発 ADD_TO_FIELD を巻き込んでいないこと）。
+  const off = mkRun({ type: 'ADD_TO_FIELD', owner: 'self', source: energySrc });
+  ok(!off.done && off.pending.type === 'SELECT_TARGET', '旗なしでも対話は開く');
+  if (off.done || off.pending.type !== 'SELECT_TARGET') return;
+  ok(!off.pending.opponentResponds, '🔴旗が無いのに相手へ選択を渡している');
+}));
 
 // ═══ §5.3 索引G `O-365`＝「各プレイヤーは自分の〜」の**相手側を誰が選ぶか** ═══
 // 🔴登録票は「**両者が同時に選ぶ機構**が要る」と書いていたが、実測すると**要らなかった**＝

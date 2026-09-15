@@ -719,7 +719,16 @@ export interface PlayerState {
   // 🆕`sourcePowerGte`（§5.3 `O-317`・2026-09-12・`WX25-P2-008-E1`「このターン、あなたは**パワー12000以上の
   //   シグニによって**ダメージを受けない」）＝この window は**ダメージ源のパワーが分かっていて**かつ
   //   その値が閾値以上のときだけ当たる。⚠パワー不明の経路では当たらない（fail-closed＝無条件の無敵にしない）。
-  prevent_damage_windows?: { scope: 'ALL' | 'LRIG' | 'OPP_EFFECT'; expires: 'END_OF_ATTACK' | 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE'; sourcePowerGte?: number }[];
+  // 🆕`sourcePowerLte` / `sourceLevelLte`（§5.3 `O-383`・2026-09-15）＝上限側の同軸（「パワー15000以下の／レベル3以下のシグニによって」）。
+  /**
+   * 🆕**「あなたが**対戦相手の**スペルを使用したとき」の直後フラグ**（§5.3 `O-376`・2026-09-15・`WX14-027-E2`）。
+   * 🔴通常のスペル使用 funnel（`BattleScreen` の `useSpell`）は**自分の手札のスペルしか通らない**ので、
+   *   持ち主が相手のスペルを使った瞬間はそこに現れない（`CAST_FROM_OPP_TRASH` は engine 内で完結する）。
+   *   ⇒ engine がここに積み、`zone_moved_just` と同じ watcher 形で `ON_SPELL_USE` を収集・クリアする。
+   * ⚠**使用した側（caster）の state に積む**（相手の state ではない）。
+   */
+  opp_spell_used_just?: string[] | null;
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG' | 'OPP_EFFECT'; expires: 'END_OF_ATTACK' | 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE'; sourcePowerGte?: number; sourcePowerLte?: number; sourceLevelLte?: number }[];
   /**
    * 「次のあなたのメインフェイズまで、このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3）。
    * 印刷リミットを**置き換える**（`lrig_limit_mod` の加算とは別軸）＝`computeEffectiveLrigLimit` の

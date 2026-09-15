@@ -4888,8 +4888,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   //   「**対戦相手のトラッシュから**シグニ１枚を対象とし、それを対戦相手の場に出す」は
   //   主語が「対戦相手は」ではない＝**使用者が選ぶのが正しい**ので、旗を持たず従来どおり据え置かれる。
   //   ⇒ `srcDefined.owner === 'opponent'` だけで判定するように「広げて」はいけない。
-  const oppPicksAF = !!a.opponentSelects && srcDefined.owner === 'opponent'
-    && (srcDefined.type === 'HAND_CARD' || srcDefined.type === 'TRASH_CARD');
+  // 🆕§5.3 `O-386`（2026-09-15）＝**`ENERGY_CARD` は持ち主を問わない**＝
+  //   `PR-242-E1`②「**あなたの**エナゾーンから**対戦相手の選んだ**シグニ１枚を場に出す」は
+  //   選ぶ主体（相手）と札の持ち主（自分）が別。🔑**旗そのものが対照を守っている**
+  //   （`opponentSelects` は原文が「対戦相手が選ぶ」と書いた効果にしか立たない）ので、
+  //   持ち主ではなく**旗＋型**で判定する。⚠`HAND_CARD` / `TRASH_CARD` 側の持ち主条件は据置
+  //   （`WXEX2-50-E3`「対戦相手のトラッシュから〜それを対戦相手の場に出す」＝使用者が選ぶ、を守る）。
+  const oppPicksAF = !!a.opponentSelects
+    && ((srcDefined.owner === 'opponent' && (srcDefined.type === 'HAND_CARD' || srcDefined.type === 'TRASH_CARD'))
+      || srcDefined.type === 'ENERGY_CARD');
   return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, oppPicksAF, { selectionConstraint: src.selectionConstraint });
 }
 
@@ -11691,12 +11698,17 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
           scope: scopePD, expires: expiresPD,
           // 🆕§5.3 `O-317`＝「パワーN以上のシグニによって」の限定を window に載せる（落とすと無条件の無敵）。
           ...(pd.sourcePowerGte !== undefined ? { sourcePowerGte: pd.sourcePowerGte } : {}),
+          // 🆕§5.3 `O-383`（2026-09-15）＝上限側の同軸（「パワーN以下の／レベルN以下のシグニによって」）。
+          ...(pd.sourcePowerLte !== undefined ? { sourcePowerLte: pd.sourcePowerLte } : {}),
+          ...(pd.sourceLevelLte !== undefined ? { sourceLevelLte: pd.sourceLevelLte } : {}),
         }],
       };
       const periodJaPD = pd.untilNextMainPhase ? '次のあなたのメインフェイズまで'
         : pd.until === 'NEXT_TURN' ? '次のターンの間'
           : pd.until === 'END_OF_ATTACK' ? 'そのアタックで' : 'このターン';
-      const srcJaPD = pd.sourcePowerGte !== undefined ? `パワー${pd.sourcePowerGte}以上のシグニによる` : '';
+      const srcJaPD = pd.sourcePowerGte !== undefined ? `パワー${pd.sourcePowerGte}以上のシグニによる`
+        : pd.sourcePowerLte !== undefined ? `パワー${pd.sourcePowerLte}以下のシグニによる`
+          : pd.sourceLevelLte !== undefined ? `レベル${pd.sourceLevelLte}以下のシグニによる` : '';
       return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
         `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${srcJaPD}${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
     }

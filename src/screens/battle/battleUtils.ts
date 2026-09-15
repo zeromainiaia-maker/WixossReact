@@ -244,11 +244,20 @@ export function hasActivePreventDamageWindow(
    *   （原文は「シグニによって」なので、パワーの分からないダメージまで止めたら過剰実行）。
    */
   sourcePower?: number,
+  /**
+   * 🆕**ダメージ源のシグニのレベル**（§5.3 `O-383`・2026-09-15・`WXDi-P03-077-BURST`
+   * 「このターン、あなたは対戦相手の**レベル３以下の**シグニによってダメージを受けない」）。
+   * `sourcePower` と同じく **渡ってきたときだけ当たる**（fail-closed）。
+   */
+  sourceLevel?: number,
 ): boolean {
   return (state.prevent_damage_windows ?? []).some(w => {
     if (w.expires === 'NEXT_TURN_START') return false;
     if (w.scope !== 'ALL' && w.scope !== scope) return false;
     if (w.sourcePowerGte !== undefined) return sourcePower !== undefined && sourcePower >= w.sourcePowerGte;
+    // 🆕§5.3 `O-383`＝上限側。`Gte` と同じ fail-closed（値が渡らない経路では当たらない）。
+    if (w.sourcePowerLte !== undefined) return sourcePower !== undefined && sourcePower <= w.sourcePowerLte;
+    if (w.sourceLevelLte !== undefined) return sourceLevel !== undefined && sourceLevel <= w.sourceLevelLte;
     return true;
   });
 }
