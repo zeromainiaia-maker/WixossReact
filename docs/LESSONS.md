@@ -869,6 +869,24 @@
   **instanceId キーの読み書きが静かに外れる**（基本レベルの一時上書きが本番盤面で当たらなかった）。
   §4.1「派生クラスで挙動が変わる引数を素の型で渡さない」の**写す側**の形。
 
+- 🆕🔴🔑**engine の catch-all は「隣が何か」だけで意味を決めている＝木の形を変える回は挿入位置の隣を必ず読む**（2026-09-15・`O-413`）
+  `effectExecutor.ts` の任意コスト dispatcher（Pattern④/⑤）は **「STUB の直後が `CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}`」だけ**を見て
+  pay/skip の CHOOSE を出す。**id は一切見ていない。** そこへ parser が `STORE_LAST_PROCESSED_TARGETS`（内部マーカー）を
+  隣接させた瞬間、**「任意コスト：発動しますか？」が出て skip で後続が全部落ちた**（`WX12-032-E1` はバニッシュ丸ごと不発）。
+  ⇒ **parser で木にステップを挿入したら、その前後のステップが engine のどの look-ahead に掛かるかを grep する。**
+  🔑対処は engine 側に**除外リスト**（`NON_COST_MARKER_STUB_IDS`）＝⚠**足してよいのは「支払いの意味を持たない」STUB だけ**。
+
+- 🆕🔴**「木の形を確定させてから見る」パスは `parseActionText` の中に置かない＝`parseCardEffects` の全 pass の最後**（同上）
+  上流に**先頭の条件節を切り出して本文だけを `parseActionText` に渡し、返り値を同じ条件で包み直す**形がある。
+  内側の木を見て構造を足すと**条件が二重になる**（実測＝`WXK11-051` が `CONDITIONAL{cond, then: SEQUENCE[宣言, CONDITIONAL{同じ cond}]}`）。
+  🔑**先例は `stampAbortOnCanonicalOptionalCost`（`O-352`）／`normalizeCardNamesDeep`（`O-380`）**＝同じ理由で全 pass の最後にある。
+
+- 🆕🔴**宣言側（`SELECT_TARGET_ONLY`）は `resolveDynamicFilter` を通らない＝フィルタのキーを許可リストで縛る**（同上）
+  実行側（`execBanish` ほか）は `resolveDynamicFilter` を通すが、対象宣言は**自前で数キーを剥がすだけ**。
+  動的キー（`powerLtSelf` / `powerLteSelf` / `colorNotMatchesSource` …）を宣言へ渡すと
+  **宣言と実行で候補がズレて黙って空振り**する。⚠**この検査を落とした手当てスクリプトで実際に1件壊した**
+  （`WX21-032-E1` が golden の境界テストで FAIL）＝**parser 側に書いた fail-closed 条件は、手作業の一括変換にも同じだけ要る。**
+
 ### 4.2x コマンドの「緑」を信じる前に（2026-09-08 実測）
 
 - 🔴**パイプの終了コードは最後のコマンドのもの**＝`cmd | tail -n; echo $?` は **`tail` の成否**しか見ていない。
@@ -958,6 +976,13 @@
   実例＝新設テストの直後にあった `§5.3 O-60 第51: WX04-047-E1` が、ドロー2枚が偶然＜原子＞シグニになって
   分岐が変わり `expected=4 got=5` で FAIL した（**新設テスト自体は PASS**）。
   ⇒ **フィルタ実行が緑でも全件で落ちうる**（CLAUDE.md の「`--only` の PASS/FAIL は全件と等価ではない」の実例）。
+
+- 🆕🔑**live の木の形を変える回は、既存 golden の「shape assert」が大量に落ちる＝落ちた本数はバグの本数ではない**（2026-09-15・`O-413`＝**22本**）
+  ほとんどは `eq(action.type, 'CONDITIONAL')` のように**旧構造そのもの**を固定していたテスト。
+  🔑**ヘルパーを1本足して「意図を変えずに」更新する**（`stripO413TargetDecl`）＝テストごとに書き換えると意図がぶれる。
+  🔴**ただし1本ずつ読む**＝22本のうち **2本は挙動の assert**（片方は本当の回帰＝手当てスクリプトのバグ）、
+  **1本は「対象取得は無条件であるべき」とコメントに書いてありながら旧構造を固定していた**
+  （`段2 第43バッチ 見送り固定`）＝**そのバッチでようやく意図が実装された**。⇒ **落ちたテストのコメントを読むと、直した内容の裏が取れる。**
 
 ### 4.3 計器の読み方
 

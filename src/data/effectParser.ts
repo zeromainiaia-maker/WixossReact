@@ -14645,6 +14645,148 @@ function foldGoAfterDidItGate(text: string, parsed: EffectAction): EffectAction 
 }
 
 /**
+ * §5.3 `O-413`＝原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順なのに、
+ * **対象ノードが条件の内側にしか無い**形を、`SELECT_TARGET_ONLY` → `STORE` の正準形へ引き上げる。
+ *
+ * 🔴**条件が不成立のとき対象に取られない**＝`ON_TARGETED`（「対戦相手の能力か効果の**対象になったとき**」・
+ *   engine 実装済み／live 18効果／`triggerCollect.ts:743`）が**発火しない**実挙動差になる。
+ *   ON_TARGETED は `BattleScreen` の **`SELECT_TARGET` 確定経路**でだけ収集されるので、
+ *   「宣言のプロンプトを出す」こと自体が修正の本体。
+ *
+ * 🔑**正準形は live に先例がある**＝`WX25-CP1-082-E1`
+ *   （`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → … → `CONDITIONAL{…, then: BANISH{targetsStored}}`）。
+ *   同じ形を出すので engine 側の受け皿は既にある。
+ *
+ * ⚠**fail-closed**（実測 107 → 89 へ絞る条件）＝
+ *   ①原文の語順が「を対象とし」→（同じ文の中で）「場合、」
+ *   ②木に `SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` が**無い**（二重配線の防止・冪等）
+ *   ③ルートから当該 `CONDITIONAL` までの経路が **`SEQUENCE` だけ**（`CHOOSE` の枝の中は不可＝
+ *     枝を選ぶ前に対象を宣言してしまう）
+ *   ④対象ホルダーが**ちょうど1つ**で `CONDITIONAL` の内側、**外側にホルダーが無い**
+ *   ⑤ホルダーの型が **`targetsStored` を実際に消費する型**（`effectExecutor` で実装を確認した許可リスト）
+ *   ⑥`target.type === 'SIGNI'` かつ `count` が数値（`SELECT_TARGET_ONLY` が候補を作れる形）
+ *   ⑦`target.filter` のキーが**全部**許可リストに入っている
+ *     🔴`SELECT_TARGET_ONLY` は **`resolveDynamicFilter` を通らない**＝動的キー（`powerLtSelf` 等）を
+ *     含む形を通すと、宣言と実行で候補がズレて**黙って空振り**する（実測3効果を除外）
+ *   ⑧ホルダーが既に照応（`targetsStored` 等）で受けていない
+ *   ⑨複数ホルダーは**全部が同じ対象**のときだけ（`then`/`else` の「それ」）。違えばどちらに掛かるか決まらない
+ * 🔑**宣言は必ずブロックの先頭へ入れる**（途中に挟まない）＝executor の Pattern④
+ *   「コスト STUB の**直後**が `CONDITIONAL`」という隣接条件を壊さないので、did-it ゲートの形にも使える。
+ * 🔑**`CHOOSE` は枝ごとに別ブロック**として処理する（枝を選ぶ前に宣言してしまわない）。
+ *
+ * ⚠**`abortIfNoCandidate` は付けない**＝付けると**宣言より前のステップまで巻き添えで飛ぶ**
+ *   （`WX18-068-E1` は「デッキの一番上を公開する。その後、…対象とし、…場合、バニッシュ」＝公開は起きるべき）。
+ *   候補0なら store が空 → 帰結は `targetsStored` の絞り込みで no-op になる（現状と同じ帰結）。
+ */
+const O413_STORED_TARGET_ACTIONS = new Set<string>([
+  // `a.targetsStored` を読む exec 関数を実測して列挙（`effectExecutor.ts`）。
+  'BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND',
+  'POWER_MODIFY', 'POWER_SET', 'POWER_MODIFY_PER_TRASH_COUNT', 'POWER_MODIFY_PER_LRIG_LEVEL',
+  'DOWN', 'UP', 'FREEZE', 'GRANT_KEYWORD', 'GRANT_EFFECT', 'REMOVE_ABILITIES',
+]);
+// 🔴`SELECT_TARGET_ONLY` が `resolveDynamicFilter` を通さずそのまま `fieldCandidates` に渡すキーだけ。
+//   知らないキーが1つでもあれば引き上げをやめる（fail-closed）。
+const O413_STATIC_FILTER_KEYS = new Set<string>([
+  'cardType', 'powerRange', 'level', 'story', 'color', 'class', 'cardName',
+  'frontOfSelf', 'excludeSelf', 'centerZoneOnly', 'hasCharm', 'hasAcce', 'isUp', 'isDown',
+]);
+
+function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectAction {
+  if (!/を対象とし[^。]*?場合[、，]/.test(text)) return parsed;
+  // ②既に配線済み／冪等（木のどこかに宣言があれば触らない）
+  let wired = false;
+  const scanWired = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(scanWired); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && (o.id === 'SELECT_TARGET_ONLY' || o.id === 'STORE_LAST_PROCESSED_TARGETS')) wired = true;
+    Object.values(o).forEach(scanWired);
+  };
+  scanWired(parsed);
+  if (wired) return parsed;
+  return hoistWithinBlock(parsed);
+}
+
+/**
+ * 1つの「ブロック」（トップレベル、または `CHOOSE` の1枝）の中で対象宣言を先頭へ引き上げる。
+ * 🔑**`CHOOSE` は枝ごとに別のブロック**＝枝を選ぶ前に宣言してしまわないよう、枝の中で完結させる。
+ */
+function hoistWithinBlock(block: EffectAction): EffectAction {
+  if (block.type === 'CHOOSE') {
+    return { ...block, choices: block.choices.map(c => ({ ...c, action: hoistWithinBlock(c.action) })) };
+  }
+  if (block.type !== 'SEQUENCE' && block.type !== 'CONDITIONAL') return block;
+  const topSteps: EffectAction[] = block.type === 'SEQUENCE' ? (block as SequenceAction).steps : [block];
+  // ③④＝トップレベルの `CONDITIONAL` の内側にある対象ホルダーだけを集める。
+  const holders: Record<string, unknown>[] = [];
+  let outsideHolder = false;
+  let condCount = 0;
+  const collect = (n: unknown, inCond: boolean): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(x => collect(x, inCond)); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'CHOOSE') return;   // 枝は別ブロック（ここでは数えない）
+    if (o.target || o.selectTarget) { if (inCond) holders.push(o); else outsideHolder = true; }
+    if (o.type === 'CONDITIONAL') {
+      collect(o.then, true);
+      if (o.else) collect(o.else, true);
+      return;
+    }
+    for (const [k, v] of Object.entries(o)) { if (k === 'effect' || k === 'abilities') continue; collect(v, inCond); }
+  };
+  for (const st of topSteps) {
+    if (st.type === 'CONDITIONAL') condCount++;
+    collect(st, false);
+  }
+  // `CHOOSE` を含む枝は、枝側で再帰処理してから返す（トップレベルに `CHOOSE` があるだけの形）。
+  const withChoose = topSteps.map(st => (st.type === 'CHOOSE' ? hoistWithinBlock(st) : st));
+  const rebuild = (steps: EffectAction[]): EffectAction =>
+    block.type === 'SEQUENCE' ? ({ ...block, steps } as SequenceAction) : steps[0];
+  if (outsideHolder || holders.length === 0 || condCount === 0) return rebuild(withChoose);
+
+  // ⑤⑥⑦⑧＝全ホルダーが**同じ対象**（「それ」＝1つの宣言で受ける形）で、引き上げ可能な形であること。
+  const O413_STATIC_FILTER_KEYS_LOCAL = O413_STATIC_FILTER_KEYS;
+  const first = holders[0];
+  const target = first.target as Record<string, unknown> | undefined;
+  if (!target || target.type !== 'SIGNI' || typeof target.count !== 'number') return rebuild(withChoose);
+  if (Object.keys((target.filter ?? {}) as Record<string, unknown>)
+    .some(k => !O413_STATIC_FILTER_KEYS_LOCAL.has(k))) return rebuild(withChoose);
+  const targetKey = JSON.stringify(target);
+  for (const h of holders) {
+    if (!O413_STORED_TARGET_ACTIONS.has(String(h.type))) return rebuild(withChoose);
+    if (h.targetsStored || h.targetsLastProcessed || h.targetsTriggerSource || h.fixedCardNums) return rebuild(withChoose);
+    // 🔴**複数ホルダーは「同じ対象を指す」形のときだけ**まとめて1つの宣言で受ける
+    //   （`CONDITIONAL{cond, then:A{それ}, else:B{それ}}`＝「〜の場合 A、そうでない場合 B」）。
+    //   対象が違うなら**どの宣言がどちらに掛かるか決まらない**ので据置（fail-closed）。
+    if (JSON.stringify(h.target) !== targetKey) return rebuild(withChoose);
+  }
+
+  // 🔑`abortIfNoCandidate` は **CONDITIONAL が唯一のステップのときだけ**付ける。
+  //   ⚠前段のあるカードに付けると**宣言より前のステップまで巻き添えで飛ぶ**
+  //     （`WX18-068-E1`＝「デッキの一番上を公開する。その後、…対象とし、…場合、バニッシュ」は公開が起きるべき）。
+  //   単一ステップなら abort と「候補0で帰結が no-op」は同じ帰結なので、**live の先例**
+  //   （`WDK07-Y13` / `WXEX1-30` / `WXK01-067` / `WXK04-036` は既にこの形で `abortIfNoCandidate:true`）に揃える。
+  const singleStep = topSteps.length === 1;
+  const decl: EffectAction[] = [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target,
+      ...(singleStep ? { abortIfNoCandidate: true } : {}) } as unknown as EffectAction,
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as unknown as EffectAction,
+  ];
+  const holderSet = new Set(holders);
+  const stamp = (n: unknown): unknown => {
+    if (!n || typeof n !== 'object') return n;
+    if (Array.isArray(n)) return n.map(stamp);
+    if (holderSet.has(n as Record<string, unknown>)) return { ...(n as Record<string, unknown>), targetsStored: true };
+    const o = n as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) out[k] = stamp(v);
+    return out;
+  };
+  return { type: 'SEQUENCE', steps: [...decl, ...withChoose.map(st => stamp(st) as EffectAction)] } as SequenceAction;
+}
+
+
+/**
  * §5.3 `O-450`＝「〈任意の行動〉して**もよい**。**そうした場合**、B」の B が
  * did-it ゲート節を持たない**兄弟ステップ**として並んでいる形を、ゲートの内側へ包む。
  *
@@ -31657,6 +31799,15 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   //   `PAID_ADDITIONAL_COST` へ差し替えて**正準形をここで初めて完成させる**効果がある
   //   （実測＝`WXDi-P16-049-E1` の②枝＝`repairSemanticBatch246`）。効果単位ループ内で刻むと間に合わない。
   for (const effect of effects) effect.action = stampAbortOnCanonicalOptionalCost(effect.action);
+  // 🆕🔴**§5.3 `O-413`（2026-09-15）＝対象宣言の引き上げも「全 pass のいちばん最後」。**
+  // 🔴**`parseActionText` の中に置いてはいけない**＝上流が**先頭の条件節を切り出して本文だけを
+  //   `parseActionText` に渡し、返り値を同じ条件で包み直す**形があるため、内側の木を見て引き上げると
+  //   **条件が二重になる**（実測＝`WXK11-051` が `CONDITIONAL{cond, then: SEQUENCE[宣言, CONDITIONAL{同じ cond}]}`）。
+  //   効果単位の原文（`currentSourceTexts`）と**確定した木**を突き合わせてここで1回だけ引き上げる。
+  for (const effect of effects) {
+    if (effect.parseStatus !== 'AUTO') continue;
+    effect.action = hoistTargetBeforeCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+  }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。
   //   🔑**抽出地点ごとに直さない**＝`cardName` を書く規則は parser 全体に 20 箇所以上あり、足し漏れが必ず出る。

@@ -6476,7 +6476,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     }
     // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
     // IS_MY_TURN は旧パーサーのプレースホルダー、PAID_ADDITIONAL_COST は明示的な支払い結果条件。
-    if (step.type === 'STUB') {
+    // 🔴🆕**§5.3 `O-413`（2026-09-15）＝この catch-all は「STUB の直後が did-it ゲート」だけを見ている**＝
+    //   **コストでも何でもない内部マーカー STUB** がその位置に来ると「任意コスト：発動しますか？」を出し、
+    //   **skip を選ぶと後続が全部落ちる**（実測＝`WX12-032-E1` は対象宣言を引き上げた結果
+    //   `STORE_LAST_PROCESSED_TARGETS` がゲートの直前に来て、バニッシュが丸ごと不発になった）。
+    //   ⇒ **自前のハンドラを持つ宣言系マーカーは除外する**（`execStubPart1` が `done` を返すだけの型）。
+    //   ⚠**除外リストに足してよいのは「支払いの意味を持たない」STUB だけ**（コスト系を足すと踏み倒しになる）。
+    const NON_COST_MARKER_STUB_IDS = ['SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS'];
+    if (step.type === 'STUB'
+        && !NON_COST_MARKER_STUB_IDS.includes((step as import('../types/effects').StubAction).id)) {
       const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
       if (nextStep?.type === 'CONDITIONAL' &&
           ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes((nextStep as ConditionalAction).condition.type)) {

@@ -1944,7 +1944,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝条件が丸ごと落ちて**手札1枚で無条件バニッシュ**。
   // ⚠`mode:'all'` は**subject が0枚なら不成立**へ倒してある（空集合を真にすると「盤面が空なら常に撃てる」に裏返る）。
   'WXK05-028': [
-    {"effectId":"WXK05-028-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1},"action":{"type":"CONDITIONAL","condition":{"type":"PUBLIC_ZONE_MATCH","owner":"self","subjectFilter":{"cardType":"シグニ"},"filter":{"levelParity":"odd"},"mode":"all"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK05-028-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"PUBLIC_ZONE_MATCH","owner":"self","subjectFilter":{"cardType":"シグニ"},"filter":{"levelParity":"odd"},"mode":"all"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // WXDi-P06-070 ／ 原文【自】：このシグニがアタックしたとき、**このターンにこのシグニがエナゾーンから場に出ていた場合**、
@@ -2198,7 +2198,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   **あなたと対戦相手のエナゾーンにあるカードの合計が７枚以下の場合**、それをバニッシュする。
   // 🔴旧 live＝合算条件が丸ごと落ちて**無条件バニッシュ**。⚠`AND` では同値にならない（合計なので 3+4 でも成立）。
   'WDA-F03-13': [
-    {"effectId":"WDA-F03-13-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"energy","owner":"self"},{"zone":"energy","owner":"opponent"}],"operator":"lte","value":7},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WDA-F03-13-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"energy","owner":"self"},{"zone":"energy","owner":"opponent"}],"operator":"lte","value":7},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WXDi-P12-056 ／ 原文【自】：このシグニがアタックしたとき、**あなたのエナゾーンとトラッシュに《ディソナアイコン》の
@@ -2278,7 +2278,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   対象とし、**この方法でカードが１枚以上トラッシュに置かれた場合**、それをエナゾーンに置く（＝エナ0枚では撃っても何も起きない）。
   // 受け皿は既存 `COST_TRASHED_MATCHES`（`last_cost_trashed_cards` を見る＝本文の直前ステップを見る `LAST_PROCESSED_COUNT_GTE` とは参照先が違う）。
   'WXK11-068': [
-    {"effectId":"WXK11-068-E2","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_turn","cost":{"energyTrashAll":true},"action":{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":1},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK11-068-E2","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_turn","cost":{"energyTrashAll":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":1},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // SPDi43-18 ／ 原文の後半＝「**それが対戦相手のセンタールリグと共通する色を持つ場合、対戦相手は**【エナチャージ１】を**してもよい**。」
@@ -2596,7 +2596,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   あなたの場に《ライズアイコン》を持つシグニが２体ある場合、それをバニッシュする。
   // 🔴旧 live＝対象が `owner:'self'` の任意シグニ＝**自分のシグニを自爆させていた**（正面参照も脱落）。
   'WX17-053': [
-    {"effectId":"WX17-053-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasRiseIcon":true},"minCount":2},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX17-053-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasRiseIcon":true},"minCount":2},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WXK08-032 ／ 原文【自】：このシグニがアタックしたとき、**あなたのシグニゾーンにカードが７枚以上ある場合**、
@@ -2773,7 +2773,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   **場にあるシグニの下にあるカードと場にあるシグニに付いているカードが合計３枚以上の場合**、それをエナゾーンに置く。
   // ⚠「場に」＝両者の場（owner:'any'）。
   'WXK11-069': [
-    {"effectId":"WXK11-069-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"FIELD_ATTACHED_COUNT","owner":"any","include":"both","operator":"gte","value":3},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK11-069-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"FIELD_ATTACHED_COUNT","owner":"any","include":"both","operator":"gte","value":3},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════

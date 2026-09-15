@@ -287,6 +287,25 @@ function liveChoiceAction(cardNum: string, effectId: string, index: number): Eff
   return ch.condition ? ({ type: 'CONDITIONAL', condition: ch.condition, then: ch.action } as EffectAction) : ch.action;
 }
 
+/**
+ * 🆕**§5.3 `O-413`（2026-09-15）＝対象宣言の引き上げを剥がす。**
+ *
+ * 原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順の効果は、いま
+ * `SEQUENCE[STUB{SELECT_TARGET_ONLY}, STUB{STORE_LAST_PROCESSED_TARGETS}, …本体]` という正準形で出る。
+ * 🔑既存テストの多くは「`action.type === 'CONDITIONAL'`」で**条件が落ちていないこと**を assert していた。
+ *   その意図（条件は残っている）は不変なので、宣言の2ステップだけを剥がして同じ assert を続ける。
+ * ⚠**宣言そのものの有無は別のテスト（`§5.3 O-413`）で assert する**＝ここで剥がすのは「条件の検査」の前処理だけ。
+ */
+function stripO413TargetDecl(action: EffectAction): EffectAction {
+  if (!action || action.type !== 'SEQUENCE') return action;
+  const steps = (action as SequenceAction).steps;
+  const isStub = (n: EffectAction | undefined, id: string): boolean =>
+    n?.type === 'STUB' && (n as { id?: string }).id === id;
+  if (!isStub(steps[0], 'SELECT_TARGET_ONLY') || !isStub(steps[1], 'STORE_LAST_PROCESSED_TARGETS')) return action;
+  const rest = steps.slice(2);
+  return (rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction);
+}
+
 // ── オートパイロット（最終 ExecResult を返す）──
 function run(eff: EffectAction, ctx: ExecCtx): ExecResult {
   const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
@@ -531,7 +550,9 @@ const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
   test('task12(lxxxii) wave6: WXK08-003-E1 ③ は「対戦相手がアーツかスペル使用」ORゲートを保つ（無条件トラッシュにしない）', () => {
     const choose = findChooses(manualEffect('WXK08-003', 'WXK08-003-E1').action)[0];
-    const third = (choose.choices as { action: Record<string, unknown> }[])[2].action;
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）が枝の先頭に付いた。
+    const third = stripO413TargetDecl(
+      (choose.choices as { action: EffectAction }[])[2].action) as unknown as Record<string, unknown>;
     eq(third.type, 'CONDITIONAL', '③は条件つき');
     const cond = third.condition as { type: string; conditions: { type: string; owner: string }[] };
     eq(cond.type, 'OR', 'アーツ「か」スペル＝OR');
@@ -1157,7 +1178,8 @@ test('census 第3/5弾 新設条件型: FIELD_ATTACHED_COUNT / THIS_CARD_HAS_UND
 test('§3 タスク6 WXK06-071: 多段閾値がネスト CONDITIONAL（4+→-12000／1-3→-5000／0→無変化）で同一相手対象', () => {
   const savedCursor = cursor;
   const e = manualEffect('WXK06-071', 'WXK06-071-E1');
-  const outer = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  const outer = stripO413TargetDecl(e.action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq(outer.type, 'CONDITIONAL', 'outer type');
   eq(outer.condition?.type, 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', 'outer cond');
   eq((outer.condition as { value: number }).value, 4, 'outer threshold 4');
@@ -2001,7 +2023,8 @@ test('O-161/O-95/O-102 反転: 効果元比較・ルリグ比較・既存受け�
     ok(!JSON.stringify(freshEffect.action).includes('selectionConstraint'), `${effectId} fresh: 別用法へ sharedColor を漏らさない`);
   }
   const fieldMutual = findEffectDeep(effectsMap.get('WX21-006') ?? [], 'WX21-006-E1')!;
-  eq((fieldMutual.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type,
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  eq((stripO413TargetDecl(fieldMutual.action) as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type,
     'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '場全体の相互比較は既存 Condition のまま');
   const lrigRelative = findEffectDeep(effectsMap.get('WXDi-P04-020') ?? [], 'WXDi-P04-020-E2')
     ?? findEffectDeep(effectsMap.get('WXDi-P04-020') ?? [], 'WXDi-P04-020-E1')!;
@@ -2739,7 +2762,8 @@ test('§6.4 O-11: 条件節つき連用形チェーンの節が落ちない／�
   {
     const wx21 = (effectsMap.get('WX21-006') ?? []).find(x => x.effectId === 'WX21-006-E1');
     ok(!!wx21, 'WX21-006-E1 が live に存在する');
-    const act = wx21!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）が条件の外に付いた。
+    const act = stripO413TargetDecl(wx21!.action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
     eq(act.type, 'CONDITIONAL', 'WX21-006-E1: 条件ごと落ちて無条件実行に戻っていない');
     ok(JSON.stringify(act.then).includes('"BANISH"'), 'WX21-006-E1: BANISH は条件の内側にある');
     ok(!JSON.stringify(act.condition).includes('"BANISH"'), 'WX21-006-E1: 条件側に BANISH が漏れていない');
@@ -4576,7 +4600,8 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
     const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
     const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
     ok(!!e, `${id}: 効果が存在する`);
-    return e!.action;
+    // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+    return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
   const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
   // (a) 期間句で割れた照応＝「…配置してもよい。**ターン終了時まで、それの**パワーを－3000する」。
@@ -4663,7 +4688,8 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
     const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
     const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
     ok(!!e, `${id}: 効果が存在する`);
-    return e!.action;
+    // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+    return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
   const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
   const countLooks = (root: unknown): number => {
@@ -4779,7 +4805,8 @@ test('前文の主語が省略された閾値ゲートを継承する（O-91）'
     const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
     const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
     ok(!!e, `${id}: 効果が存在する`);
-    return e!.action;
+    // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+    return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
   const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
   // (a) 本題＝「12000以上の場合、追加でそれをバニッシュする」に条件が付く（旧＝bare BANISH＝無条件）。
@@ -4895,7 +4922,8 @@ test('デッキトラッシュ時の遅延設置（O-73）', () => {
     const e = ((effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[])
       .find(x => x.effectId === eid);
     ok(!!e, `${eid}: 効果が存在する`);
-    return e!.action;
+    // ⚠§5.3 `O-413` の対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+    return stripO413TargetDecl(e!.action as EffectAction) as unknown as Record<string, unknown>;
   };
   // (a) 本題＝【起】の本文が設置になる（旧＝bare POWER_MODIFY＝即時実行）。
   {
@@ -40266,7 +40294,9 @@ test('task12(lxv)① 条件つき任意コストの条件節が落ちない（pa
   // 解体できるのに parser 側のガードが残っており、**条件節だけが黙って消える**過剰実行だった。
   const wrapOf = (cardNum: string, effectId: string, idx = 0) => {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
-    return (eff.action as SequenceAction).steps[idx] as { type: string; condition?: { type: string }; then?: { id?: string } };
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから段を数える。
+    const body = stripO413TargetDecl(eff.action);
+    return (body as SequenceAction).steps[idx] as { type: string; condition?: { type: string }; then?: { id?: string } };
   };
   const armed = wrapOf('WX24-P1-011', 'WX24-P1-011-E1');
   eq(armed.type, 'CONDITIONAL', '任意コストが条件で包まれる（従来は素の STUB＝ゲート無し）');
@@ -40274,13 +40304,15 @@ test('task12(lxv)① 条件つき任意コストの条件節が落ちない（pa
   eq(armed.then!.id, 'OPTIONAL_COST', '包みの中身は素の STUB＝engine が解体できる形');
   eq(wrapOf('WXDi-P02-077', 'WXDi-P02-077-E1').condition!.type, 'HAND_COUNT', '手札枚数ゲート');
   eq(wrapOf('WXDi-P09-038', 'WXDi-P09-038-E1').condition!.type, 'THIS_CARD_IS_AWAKENED', '覚醒ゲート');
-  eq(wrapOf('WXK07-035', 'WXK07-035-E1', 2).condition!.type, 'FIELD_COUNT', '相手の場のシグニ数ゲート');
+  // ⚠`WXK07-035-E1` は**以前から**対象宣言つきの正準形（旧: `steps[2]`）＝`wrapOf` が宣言を剥がすので index 0。
+  eq(wrapOf('WXK07-035', 'WXK07-035-E1').condition!.type, 'FIELD_COUNT', '相手の場のシグニ数ゲート');
   eq(wrapOf('WX14-044', 'WX14-044-E2').then!.id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST',
     '対象宣言込みの任意コスト STUB も同じく包める');
 
   // 実経路：ゲート不成立なら任意コストの提示も本体も起きない（従来は無条件で本体が撃てた）
   const eff = effectsMap.get('WXDi-D09-H21')!.find(e => e.effectId === 'WXDi-D09-H21-E1')!;  // 相手エナ4枚以上
-  eq(((eff.action as SequenceAction).steps[0] as { condition?: { type: string } }).condition!.type, 'ENERGY_COUNT', 'ゲートはエナ枚数');
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから段を数える。
+  eq(((stripO413TargetDecl(eff.action) as SequenceAction).steps[0] as { condition?: { type: string } }).condition!.type, 'ENERGY_COUNT', 'ゲートはエナ枚数');
   const low = run(eff.action, mkCtx({ energy: 5 }, { energy: 2 }));
   eq(low.otherState.energy.length, 2, 'エナ2枚（条件未達）＝相手エナは減らない');
   const highCtx = mkCtx({ energy: 5 }, { energy: 6 });
@@ -48871,7 +48903,8 @@ test('§6.4 代わりに動詞昇格: 同一対象の CONDITIONAL{then/else}・�
   const pick = (cardNum: string, effectId: string): Cond => {
     const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
     ok(!!e, `${effectId} が存在する`);
-    return e!.action as unknown as Cond;
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+    return stripO413TargetDecl(e!.action) as unknown as Cond;
   };
   // カード, 効果, 条件型, else側（base）のaction型, then側（昇格）のaction型
   const cases: Array<[string, string, string, string, string]> = [
@@ -48936,7 +48969,8 @@ test('§6.4 THIS_CARD_HAS_UNDER.minCount: 下カード枚数の閾値を数え�
 test('§6.4 場の色の種類数ゲート: WXK11-057-E1 は無条件バニッシュではない', () => {
   const e = effectsMap.get('WXK11-057')?.find(x => x.effectId === 'WXK11-057-E1');
   ok(!!e, 'WXK11-057-E1 が存在する');
-  const a = e!.action as unknown as { type: string; condition?: { type: string; minCount?: number; distinctColors?: boolean; excludeSelf?: boolean }; then?: { type: string } };
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた（ゲートされるのはバニッシュだけ）。
+  const a = stripO413TargetDecl(e!.action) as unknown as { type: string; condition?: { type: string; minCount?: number; distinctColors?: boolean; excludeSelf?: boolean }; then?: { type: string } };
   eq(a.type, 'CONDITIONAL', 'ゲートされている');
   eq(a.condition?.type, 'HAS_CARD_IN_FIELD', '場のシグニ条件');
   eq(a.condition?.minCount, 2, '2種類以上');
@@ -51376,7 +51410,8 @@ test('§6.4 O-11: WX21-006-E1 は条件つき（それぞれ共通色を持た�
   //   **クラス filter が無く live 利用者0の死んだ受け皿**だったのが根因。
   const e = (effectsMap.get('WX21-006') ?? []).find(x => x.effectId === 'WX21-006-E1');
   ok(!!e, 'WX21-006-E1 が live に存在する');
-  const c = e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  const c = stripO413TargetDecl(e!.action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq(c.type, 'CONDITIONAL', '🔴条件ごと落ちて無条件ドローに戻っている');
   const cond = c.condition as { type: string; count?: number; filter?: { story?: string } };
   eq(cond.type, 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '共通色なし条件');
@@ -51650,7 +51685,8 @@ test('§6.4 O-36: ターン条件の持ち上げが allowlist 無しで全カー
 test('§6.4 O-36: 「手札がN枚で〜のターンの場合」は連言（WXK01-040-E1）', () => {
   // 🔴従来はどの規則にも当たらず**条件が丸ごと落ちて【出】がノーコストの無条件バニッシュ**だった。
   const e = (effectsMap.get('WXK01-040') ?? []).find(x => x.effectId === 'WXK01-040-E1')!;
-  const c = (e.action as { condition?: Condition }).condition!;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  const c = (stripO413TargetDecl(e.action) as { condition?: Condition }).condition!;
   eq(c.type, 'AND', '🔴手札枚数とターン所有者の連言が落ちている');
   const kinds = (c as Extract<Condition, { type: 'AND' }>).conditions.map(x => x.type).sort().join(',');
   eq(kinds, 'HAND_COUNT,TURN_OWNER', '両方そろっていること（片方だけだと過剰発火）');
@@ -54299,8 +54335,10 @@ test('段2-7 A: PR-464-E1 は赤Lv4以上の中央ルリグが無ければパワ
 test('段2-7 B: HAND_DIFF は self−opponent の向きで両方向を実行ゲートする', () => withSavedCursor(() => {
   const conditionOf = (cardNum: string, effectId: string): Condition => {
     const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
-    ok(effect?.action.type === 'CONDITIONAL', `${effectId}: CONDITIONAL が載る`);
-    return (effect!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから条件を取る。
+    const body = stripO413TargetDecl(effect!.action);
+    ok(body.type === 'CONDITIONAL', `${effectId}: CONDITIONAL が載る`);
+    return (body as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
   };
   const executesDraw = (condition: Condition, selfHand: number, oppHand: number) => {
     const ctx = mkCtx({ hand: selfHand }, { hand: oppHand });
@@ -59204,7 +59242,13 @@ test('段2 第43バッチ 見送り固定: 「対象とし、」の後の条件�
   for (const id of ['WDK06-R11-E1', 'WXK02-042-E1'] as const) {
     const e = b43Live(id);
     eq(e.condition, undefined, id + ': 効果レベル condition は付けない');
-    eq((e.action as { type: string }).type, 'CONDITIONAL', id + ': action は CONDITIONAL');
+    // 🆕**§5.3 `O-413`（2026-09-15）でこのテストの意図がようやく実装された。**
+    //   旧構造は「効果レベルへ hoist しない」だけで、**対象ノードは条件の内側のまま**＝
+    //   条件不成立なら対象に取られず `ON_TARGETED` が発火しなかった（＝上のコメントが望んだ形ではなかった）。
+    //   いまは `SELECT_TARGET_ONLY` → `STORE` を条件の**外**に置くので、対象取得だけが無条件になる。
+    const b43Steps = (e.action as SequenceAction).steps;
+    eq((b43Steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', id + ': 対象宣言は条件の外にある');
+    eq(stripO413TargetDecl(e.action).type, 'CONDITIONAL', id + ': 本体は CONDITIONAL のまま');
   }
 });
 
@@ -62274,7 +62318,8 @@ test('2026-08-28 Sheet1: 「トラッシュにカード名に《X》を含む“
   // 原文（`WX09-027-E2`）「…あなたのトラッシュにカード名に《アダマスフィア》を含む**シグニ**がある場合、それをバニッシュする」。
   // 🔴旧: 名詞が「カード」の規則しか無く条件が丸ごと落ち、**無条件バニッシュ**だった。
   const e = (effectsMap.get('WX09-027') ?? []).find(x => x.effectId === 'WX09-027-E2');
-  const a = e?.action as { type?: string; condition?: { type?: string; filter?: { cardName?: string; cardType?: string } } } | undefined;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  const a = stripO413TargetDecl(e!.action) as { type?: string; condition?: { type?: string; filter?: { cardName?: string; cardType?: string } } } | undefined;
   eq(a?.type, 'CONDITIONAL', 'WX09-027-E2: 条件付き（旧: 素の BANISH）');
   eq(a?.condition?.type, 'TRASH_HAS_CARD', 'WX09-027-E2: トラッシュ存在条件');
   eq(a?.condition?.filter?.cardName, 'アダマスフィア', 'WX09-027-E2: 名前部分一致');
@@ -63943,7 +63988,8 @@ test('段2 Sheet3① fresh: A群の条件・分岐・可変CHOOSEを parser 出�
   eq(red.target.filter?.color, undefined, '赤条件を相手BANISH対象へ誤付着させない');
   eq(red.target.filter?.story, undefined, '相手の任意のシグニを対象にできる');
 
-  const ex148 = sheet3b1Fresh('WXEX1-48', 'WXEX1-48-E2').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）が条件の外に付いた。
+  const ex148 = stripO413TargetDecl(sheet3b1Fresh('WXEX1-48', 'WXEX1-48-E2').action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   const count = ex148.condition as Extract<Condition, { type: 'FIELD_COUNT' }>;
   eq(count.type, 'FIELD_COUNT', 'WXEX1-48-E2: 自分の場を数える');
   eq(count.operator, 'eq', '「1体」はちょうど1体');
@@ -63983,11 +64029,22 @@ test('段2 Sheet3① E2E: WX22-002 赤枝と WXEX1-48 は条件の成立・不�
   const hasAngel = executeAction(redBranch, mkCtx({ signi: [redAngel, null, null] }, { signi: [SIGNI_L1, null, null] }, 'WX22-002'));
   ok(!hasAngel.done && hasAngel.pending.type === 'SELECT_TARGET', '赤天使ありなら任意の相手シグニをBANISH対象にする');
 
+  // 🆕**§5.3 `O-413`（2026-09-15）＝対象宣言が条件より前に出た**＝原文「対戦相手のシグニ１体を**対象とし**、
+  //   あなたの場にあるダウン状態のシグニが１体の**場合**、それをバニッシュする」の語順どおり。
+  //   ⇒ **条件の成否にかかわらず対象宣言の `SELECT_TARGET` は出る**（`ON_TARGETED` を発火させるため）ので、
+  //     「不発」は pending の有無ではなく**帰結（バニッシュ）が起きないこと**で見る。
   const ex148 = sheet3b1Fresh('WXEX1-48', 'WXEX1-48-E2').action;
-  const oneDown = executeAction(ex148, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down: [true, false, false] }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48'));
-  ok(!oneDown.done && oneDown.pending.type === 'SELECT_TARGET', '自分のダウン状態がちょうど1体なら発動');
-  const twoDown = executeAction(ex148, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down: [true, true, false] }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48'));
-  ok(twoDown.done, '自分のダウン状態が2体なら不発（gte化を防ぐ）');
+  const drive = (down: boolean[]): ExecResult => {
+    const ctx = mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48');
+    return finish(executeAction(ex148, ctx), ctx);
+  };
+  const oneDown0 = executeAction(ex148, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down: [true, false, false] }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48'));
+  ok(!oneDown0.done && oneDown0.pending.type === 'SELECT_TARGET', '対象宣言の SELECT_TARGET が出る');
+  const oneDown = drive([true, false, false]);
+  eq(oneDown.otherState.field.signi.filter(z => z?.length).length, 0, '自分のダウン状態がちょうど1体ならバニッシュされる');
+  const twoDown = drive([true, true, false]);
+  eq(twoDown.otherState.field.signi.filter(z => z?.length).length, 1,
+    '自分のダウン状態が2体なら帰結は起きない（gte化を防ぐ）＝対象宣言だけが走る');
 }));
 
 test('段2 Sheet3① E2E: WXEX1-40 の2閾値を CONTINUOUS collector が別々に読む', () => withSavedCursor(() => {
@@ -64379,7 +64436,8 @@ test('census 条件節 A群: 場に出した効果のカード種別を4効果�
     return hit;
   };
   const condition = (cardNum: string, effectId: string) => {
-    const action = effect(cardNum, effectId).action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから条件を見る。
+    const action = stripO413TargetDecl(effect(cardNum, effectId).action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
     eq(action.type, 'CONDITIONAL', `${effectId}: 条件節を丸ごと落とさない`);
     return action.condition as Extract<Condition, { type: 'THIS_CARD_PLACED_BY_CLASS' }>;
   };
@@ -70052,7 +70110,8 @@ test('§5.3 wiring 較正: 「共通する色を持たない」の3用法が別�
   const p1003 = JSON.stringify(effectsMap.get('WX25-P1-003')?.find(e => e.effectId === 'WX25-P1-003-E1')?.action);
   ok(p1003?.includes('"sharedColor":"none"'), 'WX25-P1-003-E1: 引用能力の中でも相互差異は selectionConstraint');
   // (b) 場のシグニ集合が相互に色を共有しない＝専用の条件型
-  const w21 = effectsMap.get('WX21-006')?.find(e => e.effectId === 'WX21-006-E1')?.action as { condition?: { type?: string } };
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言が条件の外に付いた。
+  const w21 = stripO413TargetDecl(effectsMap.get('WX21-006')!.find(e => e.effectId === 'WX21-006-E1')!.action) as { condition?: { type?: string } };
   eq(w21?.condition?.type, 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', 'WX21-006-E1: 場の集合の相互差異は条件型');
   // (c) 基準比較＝ルリグ基準の専用キー
   const w24 = JSON.stringify(effectsMap.get('WX24-P2-034')?.find(e => e.effectId === 'WX24-P2-034-E1')?.action);
@@ -70209,7 +70268,10 @@ test('§5.3 O-233: 「対戦相手の効果によってシグニが場を離れ�
   //   `STUB{DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT}` の honest defer に倒してあった。
   // 原文（`SPK16-13E-E1`①）＝「対戦相手のシグニ１体を対象とし、**このターンに対戦相手の効果によって
   //   あなたのシグニが場を離れていた場合**、それをバニッシュする。」
-  const c0 = (effectsMap.get('SPK16-13E')?.[0]?.action as { choices?: { action: { type: string; condition?: { type?: string; owner?: string; value?: number }; then?: { type?: string } } }[] }).choices?.[0].action;
+  // ⚠§5.3 `O-413`（2026-09-15）＝枝ごとに対象宣言が先頭へ付いた。
+  const c0 = stripO413TargetDecl(
+    (effectsMap.get('SPK16-13E')![0].action as import('../src/types/effects').ChooseAction).choices[0].action,
+  ) as unknown as { type: string; condition?: { type?: string; owner?: string; value?: number }; then?: { type?: string } };
   eq(c0?.type, 'CONDITIONAL', '①は条件つき（無条件バニッシュに倒れていない）');
   eq(c0?.condition?.type, 'SIGNI_LEFT_BY_OPP_EFFECT', '新設した条件語彙を使う');
   eq(c0?.condition?.owner, 'self', '数えるのは「あなたの」シグニ');
@@ -70418,7 +70480,9 @@ test('§5.3 O-69: 「この方法でN枚以上」は5通りの正準形で配線
 // ══════════════════════════════════════════════════════════════════════════════
 
 test('§5.3 O-232: シャッフル→公開→公開札で2分岐が構造で載る', () => withSavedCursor(() => {
-  const seq = effectsMap.get('WXDi-P10-006')?.find(e => e.effectId === 'WXDi-P10-006-E3')?.action as SequenceAction | undefined;
+  // ⚠§5.3 `O-413`（2026-09-15）＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから段を数える。
+  const seq = stripO413TargetDecl(
+    effectsMap.get('WXDi-P10-006')!.find(e => e.effectId === 'WXDi-P10-006-E3')!.action) as SequenceAction | undefined;
   eq(seq?.type, 'SEQUENCE', 'WXDi-P10-006-E3: 3ステップ');
   eq(seq?.steps.length, 3, 'シャッフル／公開＋手札／分岐');
   eq((seq!.steps[0] as { type?: string }).type, 'SHUFFLE_DECK', '①シャッフル（旧は消えていた）');
@@ -71368,10 +71432,14 @@ test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex で
   // 🏁①は `O-233`（2026-09-04）で条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT` を新設して引き取った
   //   （明示 defer `DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT` から本実装へ）。
   //   🔴**条件が消えていないこと**が本題＝落とすと無条件バニッシュの過剰実行に戻る。
-  eq(JSON.stringify(spkCh.choices[0].action),
+  // ⚠§5.3 `O-413`（2026-09-15）＝原文「対戦相手のシグニ1体を**対象とし**、…**場合**、それをバニッシュする」は
+  //   対象宣言が条件の外へ出た＝帰結は `targetsStored` で宣言した対象へ束縛される。
+  eq(JSON.stringify(stripO413TargetDecl(spkCh.choices[0].action)),
     JSON.stringify({ type: 'CONDITIONAL', condition: { type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: 1 },
-      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } }),
+      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, targetsStored: true } }),
     '①＝条件つきバニッシュ（無条件に倒れていない）');
+  eq(((spkCh.choices[0].action as SequenceAction).steps[0] as StubAction).id, 'SELECT_TARGET_ONLY',
+    '①＝条件不成立でも対象宣言は出る（`O-413`）');
   eq(JSON.stringify(spkCh.choices[1].condition),
     JSON.stringify({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 }),
     '②はエナ側の条件が選択肢のゲートとして載る');
@@ -83033,6 +83101,57 @@ test('§5.3 O-450: ADD_TO_FIELD を辞退すると「そうした場合」ごと
   const rSibCtx = { ...ctx, ownerState: rSib0.ownerState, otherState: rSib0.otherState, logs: rSib0.logs } as ExecCtx;
   const rSibSkip = finish(resumeSelectTarget([], pSib as never, rSibCtx), rSibCtx);
   eq(rSibSkip.ownerState.hand.length, 5, '兄弟ステップ形は辞退しても走る（＝これが直した壊れ方）');
+}));
+
+// ── §5.3 `O-413`（2026-09-15）＝原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順なのに
+//   対象ノードが条件の内側にしか無い形（実測 107効果 → 67効果を正準形へ引き上げ）。
+// 🔴**条件が不成立のとき対象に取られない**＝`ON_TARGETED`（live 18効果）が発火しない実挙動差だった。
+//   ON_TARGETED は `BattleScreen` の **`SELECT_TARGET` 確定経路**でだけ収集されるので、
+//   「条件の成否にかかわらず対象宣言のプロンプトが出る」ことが修正の本体。
+test('§5.3 O-413: 「対象とし」→「場合」の順の効果は対象宣言が条件の外にある', () => {
+  // live の代表6件（`BANISH` / `TRASH` / `POWER_MODIFY` の3系統を含む）。
+  const cases: [string, string][] = [
+    ['WXEX1-48', 'WXEX1-48-E2'], ['WX09-027', 'WX09-027-E2'], ['WXK11-057', 'WXK11-057-E1'],
+    ['WDK06-R11', 'WDK06-R11-E1'], ['WXEX1-29', 'WXEX1-29-E3'], ['SPK01-15', 'SPK01-15-E2'],
+  ];
+  for (const [cardNum, effectId] of cases) {
+    const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as SequenceAction | undefined;
+    ok(act?.type === 'SEQUENCE', `${effectId}: 正準形は SEQUENCE`);
+    if (act?.type !== 'SEQUENCE') continue;
+    eq((act.steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', `${effectId}: 対象宣言が条件の外にある`);
+    eq((act.steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言を storedTargetCards へ固定する`);
+    const body = act.steps[act.steps.length - 1] as ConditionalAction;
+    eq(body.type, 'CONDITIONAL', `${effectId}: 条件は落ちていない`);
+    // 🔴帰結は**宣言した対象だけ**に当たること（`targetsStored` が無いと別のシグニを選び直せる）。
+    ok(JSON.stringify(body.then).includes('"targetsStored":true'),
+      `${effectId}: 帰結は宣言した対象へ束縛されている`);
+  }
+});
+// 挙動側＝条件が不成立でも対象宣言は出る／成立すれば宣言した対象に帰結が当たる（両側）。
+test('§5.3 O-413: 条件不成立でも対象宣言は出る／成立なら宣言した対象へ当たる（両側）', () => withSavedCursor(() => {
+  // `WX09-027-E2`＝「対戦相手のパワー7000以下のシグニ1体を対象とし、あなたのトラッシュにカード名に
+  //   《アダマスフィア》を含むシグニがある場合、それをバニッシュする。」
+  const act = effectsMap.get('WX09-027')!.find(e => e.effectId === 'WX09-027-E2')!.action;
+  const adamas = findCard(c => isSigni(c) && (c.CardName ?? '').includes('アダマスフィア'));
+  const weak = findCard(c => isSigni(c) && parseInt(c.Power || '0') > 0 && parseInt(c.Power || '0') <= 7000);
+  const mk = (trashHasAdamas: boolean): ExecCtx => {
+    const ctx = mkCtx({ hand: 3 }, { signi: [weak, null, null] }, 'WX09-027');
+    ctx.ownerState = { ...ctx.ownerState, trash: trashHasAdamas ? [adamas, ...ctx.ownerState.trash] : ctx.ownerState.trash.filter(n => n !== adamas) };
+    return ctx;
+  };
+  for (const hasAdamas of [false, true]) {
+    const ctx = mk(hasAdamas);
+    const r0 = executeAction(act, ctx);
+    ok(!r0.done, `🔴条件${hasAdamas ? '成立' : '不成立'}で対象宣言の SELECT_TARGET が出ていない（ON_TARGETED が発火しない）`);
+    const p0 = (r0 as { pending: { type: string; candidates?: string[] } }).pending;
+    eq(p0.type, 'SELECT_TARGET', '宣言は SELECT_TARGET');
+    ok((p0.candidates ?? []).includes(weak), '相手のパワー7000以下シグニが候補に出る');
+    const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+    const fin = finish(resumeSelectTarget([weak], p0 as never, rctx), rctx);
+    const left = fin.otherState.field.signi.filter(z => z?.length).length;
+    eq(left, hasAdamas ? 0 : 1,
+      hasAdamas ? '条件成立＝宣言した対象がバニッシュされる' : '条件不成立＝宣言はするが帰結は起きない');
+  }
 }));
 
 if (listMode) {

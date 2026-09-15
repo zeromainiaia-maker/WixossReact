@@ -1,5 +1,106 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第352バッチ：🏁`O-413` を消化（対象宣言を条件の外へ引き上げ・**107効果 → 14効果**）
+
+### 真因＝原文の語順「〈対象〉を**対象とし**、〜の**場合**、…」に対して、対象ノードが条件の内側にしか無かった
+
+- ⇒ **条件が不成立のとき対象に取られない。** `ON_TARGETED`（「対戦相手の能力か効果の**対象になったとき**」）は
+  **engine 実装済み・live 18効果**（`triggerCollect.ts:743`）なので、**相手のトリガーが発火しない**実挙動差になる。
+- 🔑**発火点は `BattleScreen` の `SELECT_TARGET` 確定経路**（`BattleScreen.tsx:5675`）＝
+  **「宣言のプロンプトが出ること」そのものが修正の本体**。
+- **母集団の実測＝107効果**（原文が「を対象とし」→（同じ文の中で）「場合、」の順 ∧ 対象ノードが `CONDITIONAL` の内側にしか無い ∧ 未配線）。
+
+### 直し方＝`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` の正準形へ引き上げる
+
+🔑**正準形は live に先例があった**（`WX25-CP1-082-E1` / `WDK07-Y13`）＝engine の受け皿は既存。parser に
+`hoistTargetBeforeCondition` を新設し、**`parseCardEffects` の全 pass のいちばん最後**で1回だけ刻む。
+
+- 🔴**`parseActionText` の中に置いてはいけない**＝上流に**先頭の条件節を切り出して本文だけを `parseActionText` に渡し、
+  返り値を同じ条件で包み直す**形があるため、内側の木を見て引き上げると**条件が二重になる**
+  （実測＝`WXK11-051` が `CONDITIONAL{cond, then: SEQUENCE[宣言, CONDITIONAL{同じ cond}]}` になった）。
+- **fail-closed 条件9つ**で 107 → 93効果まで絞った。特に効いた3つ：
+  - 🔴**`target.filter` のキーを許可リストで縛る**＝`SELECT_TARGET_ONLY` は **`resolveDynamicFilter` を通らない**ので、
+    動的キー（`powerLtSelf` / `powerLteSelf`）を通すと**宣言と実行で候補がズレて黙って空振り**する。
+    ⚠**この検査を落とした手当てスクリプトで実際に1件壊した**（`WX21-032-E1` が golden の境界テストで FAIL）。
+  - **`CHOOSE` は枝ごとに別ブロック**として処理する（枝を選ぶ前に宣言してしまわない）。
+  - **複数ホルダーは全部が同じ対象のときだけ**（`then`/`else` の「それ」）。違えばどちらに掛かるか決まらないので据置。
+- **`abortIfNoCandidate` は `CONDITIONAL` が唯一のステップのときだけ付ける**＝前段のあるカードに付けると
+  **宣言より前のステップまで巻き添えで飛ぶ**（`WX18-068-E1` の「デッキの一番上を公開する」は起きるべき）。
+  単一ステップなら live の先例4件（`WDK07-Y13` ほか）と同じ形になる。
+
+### 🔴 engine 側で1件直した＝**catch-all が内部マーカー STUB を「任意コスト」と誤認していた**
+
+`effectExecutor.ts` の Pattern④/⑤ は **「STUB の直後が did-it ゲート」だけ**を見て pay/skip の CHOOSE を出す。
+そこへ `STORE_LAST_PROCESSED_TARGETS` が来ると **「任意コスト：発動しますか？」**が出て、**skip で後続が全部落ちる**。
+実測＝`WX12-032-E1` がバニッシュ丸ごと不発（ログが `["任意コスト：発動しますか？"]` だけ）。
+⇒ `NON_COST_MARKER_STUB_IDS`（`SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS`）を除外した。
+⚠**除外リストに足してよいのは「支払いの意味を持たない」STUB だけ**（コスト系を足すと踏み倒しになる）。
+
+### 消化の内訳（107 → 14）
+
+| 経路 | 件数 |
+|---|---|
+| parser（`heldReview --adopt-sig`） | 79 |
+| `_partial_fresh`（MANUAL 混在カードの AUTO 効果） | 9 |
+| `manualEffects.ts` を手当て → `syncManualLive` | 5 |
+| **残** → `O-451` として登録 | **14** |
+
+残14は**1件ずつ別の機構が要る**＝MANUAL 6／`powerLtSelf` 2／`ENERGY_CARD` 対象 1／
+`BANISH_REDIRECT`・`POWER_MODIFY_PER_LEVEL_SUM`（`targetsStored` 非対応）各1／`else` 側だけ 1／対象が4つ別々 1。
+
+### 検証
+
+- `npm run regen` ＋ `npm run gates` **全緑**（golden **4180/4180**＝+2本）。
+- **golden 2本を新設**＝①live 6効果の形（宣言が条件の外・帰結が `targetsStored` で束縛）
+  ②挙動の両側＝**条件不成立でも `SELECT_TARGET` が出る／成立なら宣言した対象にだけ当たる**（`WX09-027-E2`）。
+- 🔴**既存 golden 22本が落ちた**＝どれも「`action.type === 'CONDITIONAL'`」で**旧構造**を固定していたもの。
+  `stripO413TargetDecl` を1本足して**意図（条件が落ちていないこと）を変えずに**更新した。
+  🔑**うち1本（`段2 第43バッチ 見送り固定`）は「対象取得は無条件であるべき」と書いてあった**＝
+  このバッチでその意図がようやく実装された（旧構造は効果レベルへ hoist しないだけで、対象は条件の内側のままだった）。
+- ✅**実機は未実施**＝**`V-228` として §5.1 に登録した**（93効果で**新しく選択UIが出る**ので、②の「2回プロンプトが出る」使い勝手は golden では測れない）。
+
+
+## 2026-09-15 — 第351バッチ：🏁`O-450` クローズ（任意行動の帰結が did-it ゲートの外にあった・6効果）
+
+### 真因＝原文「〈任意の行動〉して**もよい**。**そうした場合**、B」の B が**兄弟ステップ**だった
+
+engine の did-it 契約は **`CONDITIONAL{IS_MY_TURN}` が任意アクションの直後にあるときだけ**効く
+（0体選択 → `resumeSelectTarget` → `stripDidItConditional`）。ゲート節が無ければ**辞退しても B が走る**。
+
+### triage＝124箇所 → 6効果（登録票の「49」は上限だった）
+
+| 分類 | 件数 | 判定 |
+|---|---|---|
+| 直後が `CONDITIONAL{IS_MY_TURN}` | 75 | 既に did-it 済 |
+| 直後が `CONDITIONAL{LAST_PROCESSED_*}` 等 | 26 | **条件自体が結果を見る**＝正しい |
+| 原文が独立文／比例形（「この方法で〜した数だけ」） | 17 | **原文どおり**＝規則46 の形 |
+| 🔴**原文に「そうした場合」があるのに兄弟** | **6** | **真バグ** |
+
+**実害**＝`WD22-035-G-E1`・`WX21-Re06-E1`（場に出さなくても「ゲームから除外」マークが付く）／
+`WX25-P3-074-E1`・`WX25-P3-078-E1`（ダウンしなくても味方が能力を得る）／
+`WXDi-P09-054-E1`・`WXDi-P15-092-E1`（ダウンしなくても2択が撃てる）。
+
+🔑**`WXDi-P13-088-E1` は偽陽性だった**＝`O-391` の登録票は「3枚ミルを辞退してもトラッシュから《ディソナ》を回収できる」を
+実害として挙げていたが、**原文は「その後」であって「そうした場合」ではない**（辞退しても回収できるのが原文どおり）。
+
+### 直し方＝parser に `wrapDidItGateAfterOptional` を新設（`foldGoAfterDidItGate` の後）
+
+- 🔴**engine の `DID_IT_GATED_TYPES` に乗らない型は包まない**＝包むと**逆翻訳だけがゲートを描いて engine は素通り**＝
+  原文照合がそこだけ効かなくなる（`MILL` などが該当）。
+- MANUAL 4件は `manualEffects.ts` を手当てして `syncManualLive` で live へ届けた。
+
+### 検証
+
+`npm run regen` ＋ `npm run gates` **全緑**（golden **4178/4178**＝+2本）。
+🔴**反転確認＝ゲート節を外した「旧 live の形」なら辞退しても帰結が走ることを同じ golden 内で実測**。
+✅実機は不要と判定（§2.2＝`src/data` `public/data` `scripts` のみ／新しい型・機構なし）。
+
+### ⚠ 途中で踏んだ罠
+
+新設 golden を `withSavedCursor` で包み忘れ、**POOL カーソルがずれて無関係な `WX04-047-E1` のテストが落ちた**
+（新設テスト自体は `--only` で PASS）。⇒ **`mkCtx` を複数回呼ぶテストは必ず `withSavedCursor` で包む。**
+
+
 ## 2026-09-15 — 第350バッチ：🏁`O-398` クローズ（`TRASH` の did-it ゲートの**死角8ノード**を修正／登録票の「60箇所」「両方向」は過大だった）
 
 ### 🔴 登録票が2つの点で stale だった（実測で訂正）
