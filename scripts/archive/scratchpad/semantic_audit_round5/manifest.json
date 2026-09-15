@@ -8,8 +8,8 @@
  ],
  "excludeFile": null,
  "population": {
-  "stubOrManual": 2521,
-  "cleanAuto": 3455,
+  "stubOrManual": 2584,
+  "cleanAuto": 3392,
   "textNoJson": 56
  },
  "textNoJson": [
@@ -101,7 +101,7 @@
   },
   {
    "num": "WX14-073",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-D01-011",
@@ -245,7 +245,7 @@
   },
   {
    "num": "WX17-040",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P03-085",
@@ -289,7 +289,7 @@
   },
   {
    "num": "WXK09-030",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX26-CP1-084",
@@ -489,7 +489,7 @@
   },
   {
    "num": "WXEX1-48",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P06-071",
@@ -585,7 +585,7 @@
   },
   {
    "num": "WX09-035",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P05-021",
@@ -1021,7 +1021,7 @@
   },
   {
    "num": "WX20-081",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK09-005",
@@ -1509,7 +1509,7 @@
   },
   {
    "num": "WXK09-061",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK09-081",
@@ -2433,7 +2433,7 @@
   },
   {
    "num": "WX18-068",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK08-087",
@@ -2885,7 +2885,7 @@
   },
   {
    "num": "WX22-019",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX18-036",
@@ -2925,7 +2925,7 @@
   },
   {
    "num": "WDK06-R11",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WDK03-006",
@@ -2973,7 +2973,7 @@
   },
   {
    "num": "WXDi-P12-054",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX25-P1-010",
@@ -3037,7 +3037,7 @@
   },
   {
    "num": "WXK02-042",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX09-010",
@@ -3869,7 +3869,7 @@
   },
   {
    "num": "WX02-034",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX26-CP1-097",
@@ -4193,7 +4193,7 @@
   },
   {
    "num": "WXK09-052",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD23-041-EA",
@@ -4273,7 +4273,7 @@
   },
   {
    "num": "WX20-035",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX01-029",
@@ -4293,7 +4293,7 @@
   },
   {
    "num": "WDK11-012",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "SPDi43-20",
@@ -5169,7 +5169,7 @@
   },
   {
    "num": "WXK07-025",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX03-049",
@@ -5973,7 +5973,7 @@
   },
   {
    "num": "WXK07-104",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX14-022",
@@ -6853,7 +6853,7 @@
   },
   {
    "num": "WXK01-040",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD22-038-UG",
@@ -7881,7 +7881,7 @@
   },
   {
    "num": "WXK01-042",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P15-098",
@@ -7977,7 +7977,7 @@
   },
   {
    "num": "WXK01-072",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P15-060",
@@ -8249,7 +8249,7 @@
   },
   {
    "num": "WX12-CB01",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK10-052",
@@ -8457,7 +8457,7 @@
   },
   {
    "num": "WX07-023",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD21-004",
@@ -8617,7 +8617,7 @@
   },
   {
    "num": "WX05-059",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXEX2-81",
@@ -8645,7 +8645,7 @@
   },
   {
    "num": "WX12-043",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK07-085",
@@ -9569,7 +9569,7 @@
   },
   {
    "num": "WX22-031",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX20-Re01",
@@ -9677,7 +9677,7 @@
   },
   {
    "num": "WX05-033",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK04-004",
@@ -10657,7 +10657,7 @@
   },
   {
    "num": "SPK01-15",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX25-P3-010",
@@ -11205,7 +11205,7 @@
   },
   {
    "num": "WX09-018",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-D09-P23",
@@ -11213,7 +11213,7 @@
   },
   {
    "num": "WDK02-011",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK02-100",
@@ -11657,7 +11657,7 @@
   },
   {
    "num": "WXK02-049",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX16-021",
@@ -13425,7 +13425,7 @@
   },
   {
    "num": "WX22-011",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX19-034",
@@ -13645,7 +13645,7 @@
   },
   {
    "num": "WX13-088",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P04-011",
@@ -13909,7 +13909,7 @@
   },
   {
    "num": "WXDi-P03-088",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX08-062",
@@ -13933,7 +13933,7 @@
   },
   {
    "num": "WXK11-075",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK04-030",
@@ -14033,7 +14033,7 @@
   },
   {
    "num": "WX05-022",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-D06-004",
@@ -14421,7 +14421,7 @@
   },
   {
    "num": "WXDi-P10-006",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX24-P3-069",
@@ -14569,7 +14569,7 @@
   },
   {
    "num": "WD16-023",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P02-020",
@@ -14701,7 +14701,7 @@
   },
   {
    "num": "WD15-018",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD12-006",
@@ -14797,7 +14797,7 @@
   },
   {
    "num": "WXK08-056",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD19-007",
@@ -15225,7 +15225,7 @@
   },
   {
    "num": "WX19-035",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX04-098",
@@ -15637,7 +15637,7 @@
   },
   {
    "num": "WXK06-085",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXEX1-05",
@@ -15853,7 +15853,7 @@
   },
   {
    "num": "WXK11-044",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P15-047",
@@ -16201,7 +16201,7 @@
   },
   {
    "num": "WXDi-D05-016",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX16-Re16",
@@ -17001,7 +17001,7 @@
   },
   {
    "num": "WXK09-006",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK04-001",
@@ -17417,7 +17417,7 @@
   },
   {
    "num": "WXK01-087",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-CP02-092",
@@ -17749,7 +17749,7 @@
   },
   {
    "num": "WXK06-056",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK06-074",
@@ -18861,7 +18861,7 @@
   },
   {
    "num": "WX10-065",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX17-034",
@@ -18993,7 +18993,7 @@
   },
   {
    "num": "PR-464",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P06-036",
@@ -19049,7 +19049,7 @@
   },
   {
    "num": "WX12-026",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WD23-023-E",
@@ -19141,7 +19141,7 @@
   },
   {
    "num": "WDK06-C01",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P03-061",
@@ -19393,7 +19393,7 @@
   },
   {
    "num": "WXK06-071",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX20-037",
@@ -20017,7 +20017,7 @@
   },
   {
    "num": "WX18-032",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P09-065",
@@ -20329,7 +20329,7 @@
   },
   {
    "num": "WD22-037-UG",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX25-P1-041",
@@ -20653,7 +20653,7 @@
   },
   {
    "num": "WXK10-068",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WDK13-004",
@@ -21101,7 +21101,7 @@
   },
   {
    "num": "WXK10-089",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXDi-P00-058",
@@ -22317,7 +22317,7 @@
   },
   {
    "num": "WDK02-014",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WDK17-007",
@@ -22401,7 +22401,7 @@
   },
   {
    "num": "WX15-036",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK02-041",
@@ -22517,7 +22517,7 @@
   },
   {
    "num": "WX08-034",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXEX2-40",
@@ -22945,7 +22945,7 @@
   },
   {
    "num": "WXK11-051",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WXK07-005",
@@ -23061,7 +23061,7 @@
   },
   {
    "num": "WX21-006",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX04-028",
@@ -23409,7 +23409,7 @@
   },
   {
    "num": "WX13-062",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX13-019",
@@ -23669,7 +23669,7 @@
   },
   {
    "num": "WDK15-014",
-   "group": "clean"
+   "group": "stub"
   },
   {
    "num": "WX24-D5-25",

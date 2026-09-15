@@ -273,8 +273,9 @@ colorの値: `"白"` `"赤"` `"青"` `"緑"` `"黒"` `"無"`
 44. **【ライズ】は「配置条件」であって効果ではない（同上・規則2の系）**＝下敷きにする材料の判定・支払いは 「src/screens/battle/riseSummon.ts」 が持ち、JSON の effects には出ない（【グロウ】条件と同じ扱い）。
     ⇒ **「【ライズ】の重ねる処理が JSON に無い」という finding は報告しない。**
 
-45. 🔴**規則41 の適用範囲は 「OPTIONAL_COST」 系だけ（2026-09-15 round5 r5-082〜141 の engine 実測で追加）**＝「MILL」/「DOWN」/「LIFE_CRASH」/「TRANSFER_TO_DECK」 のような**コストではない任意行動**（「optional":true」）は、辞退しても**後続ステップを止めない**（「execMill」 の「置かない」は**空の SEQUENCE**＝その場で何もしないだけ）。
-    ⇒ **前段が 「OPTIONAL_COST」/「OPTIONAL_TRASH_ENERGY_CLASS」/「OPTIONAL_ACTIVATE」/「TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST」 のときだけ規則41 で閉じる。素のアクションに 「optional":true」 が付いているだけの形は、後続が兄弟ステップなら報告してよい。**
+45. 🔴**規則41 の適用範囲＝「任意行動を辞退したら『そうした場合』は落ちる」（2026-09-15 第354バッチで全面改訂＝旧45 は stale）**＝対象を選ばせる任意行動（「DOWN」/「BOUNCE」/「TRANSFER_TO_HAND」/「TRANSFER_TO_DECK」/「REVEAL」/「BANISH」/「ADD_TO_FIELD」 など）は 「selectOrInteract」 を通り、0体選択で 「resumeSelectTarget」 が 「stripDidItConditional」 を呼ぶ（「effectExecutor.ts:12065」「:12074」）＝直後の 「CONDITIONAL{IS_MY_TURN}」（＝「そうした場合」）は**落ちる**。候補0で対話に入らない経路も 「DID_IT_GATED_TYPES」（「:6177」）の did-it ゲートが覆う。
+    ⇒ **「任意の〈対象を選ぶ行動〉を辞退しても後続の CONDITIONAL{IS_MY_TURN} が走る」という finding は報告しない。**
+    ⚠**例外＝報告してよいのは次の2形だけ**＝①**「MILL」 のように 「CHOOSE{実行／しない}」 で任意性を表す型**（「execMill:10126」 の skip は**空の SEQUENCE**＝後続を止めない）②**後続が 「CONDITIONAL{IS_MY_TURN}」 ではない**形（生のアクションや別の条件＝「stripDidItConditional」 は 「IS_MY_TURN」 の CONDITIONAL しか剥がせない）。
 
 46. **帰結が「この方法で〜した枚数／量」に比例する形はゲートが要らない（同上）**＝「addLastProcessedCount」（N＋1体）や 「deltaPerLastProcessedCount」（移動したカードのパワー合計）は、任意行動を辞退すると**自動的に 0 になる**ので、did-it ゲートが無くても原文どおりに落ちる。
     ⇒ **「任意行動を辞退しても後続が実行される」という finding は、後続が枚数/量に比例する形なら報告しない。**
@@ -290,6 +291,21 @@ colorの値: `"白"` `"赤"` `"青"` `"緑"` `"黒"` `"無"`
 
 50. 🔴🔑**「実害が小さい」は偽陽性の理由にならない（2026-09-15 ユーザー指示）**＝原文と挙動が違うと分かったものは、**影響が小さくても必ず報告する**（閉じるのは Claude ではなく §5.3 への登録）。
     **偽陽性にしてよいのは ①engine／JSON の事実で「差が出ない」と示せるとき ②コーパスの実測で原文の読みが確定したとき の2つだけ。**
+
+51. 🔴**「そうした場合」ゲートは 「DID_IT_GATED_TYPES」 だけではない＝「TRASH」 には**別建ての粗ゲート**がある（2026-09-15 「O-398」 の実測で追加）**＝「effectExecutor.ts:7320」 が、「TRASH」 の 「target.owner==="self"」 かつ 「HAND_CARD|SIGNI|ENERGY_CARD」 かつ 「bestEffort」 でない形について、空振り（「lastProcessedCards」 が空）なら**残りの SEQUENCE を丸ごとスキップ**する。live 60箇所のうち **52箇所がこれで覆われていた**（round5 で BUG 判定した13効果は**全部これ＝偽陽性**だった）。
+    ⇒ **「前段が TRASH なのに後続が CONDITIONAL{IS_MY_TURN} だから did-it ゲートにならない」という finding は報告しない**（「owner:"opponent"」 か 「LIFE_CLOTH_CARD」 の形だけが例外だったが、2026-09-15 に修正済み）。
+
+52. 🔴🔑**「CONDITIONAL{IS_MY_TURN}」 は相手のターンでも必ず成立する（同上）**＝「execUtils.ts:3507」 が 「case 'IS_MY_TURN': return true;」（executor は常にオーナー視点なので実行時には判定できず、ターン判定は収集側が 「condHas」 で行う）。
+    ⇒ **「相手のターンに発火する効果なので IS_MY_TURN が false になって後続が落ちる」という finding は報告しない**（この向きの壊れ方は存在しない）。「そうした場合」ゲートの誤りは**常に過剰実行の側だけ**に出る。
+
+53. 🔴**「対象とし」より前に「〈条件〉の場合」が来る原文で、対象宣言（「STUB{SELECT_TARGET_ONLY}」）が条件の外にあるのは既知（「O-452」・実測36効果）**＝2026-09-15 の 「O-413」（対象宣言を条件の外へ引き上げる修正）が**行きすぎた**形。
+    ⇒ **「JSON は条件判定より前に対象を選んでいる」という finding は個別に報告しない**（「O-452」 に集約済み。差はある）。⚠**逆向き**（原文が「〜を対象とし、〜の場合」の順なのに対象が条件の**内側**）は 「O-413」/「O-451」 として**引き続き報告する**。
+
+54. 🔴**自分の 「TRASH」 の空振りが後続の独立文まで消すのは既知（「O-453」・実測34効果）**＝規則51 の粗ゲート（「effectExecutor.ts:7348」 の 「return done()」）は**残りの SEQUENCE を丸ごと**捨てるので、原文が「手札を１枚捨てる。**カードを３枚引く**。（手札を捨てられなくてもカードを引ける）」のように独立している形でも後続が消える。
+    ⇒ **「TRASH が空振りすると後続まで実行されない」という finding は個別に報告しない**（「O-453」 に集約済み。差はある）。
+
+55. **「OPTIONAL_COST」 を辞退したときに後続ステップ全体が飛ぶ形は既知（「O-495」）**＝「effectExecutor.ts:7094」 の Pattern ⑤。
+    ⇒ **個別には報告しない**（差はある）。
 
 # 見るべき典型バグ
 
@@ -654,6 +670,22 @@ severity: HIGH＝効果の意味が実質異なる／主要効果の丸ごと欠
    "type": "SEQUENCE",
    "steps": [
     {
+     "type": "STUB",
+     "id": "SELECT_TARGET_ONLY",
+     "selectTarget": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     }
+    },
+    {
+     "type": "STUB",
+     "id": "STORE_LAST_PROCESSED_TARGETS"
+    },
+    {
      "type": "CONDITIONAL",
      "condition": {
       "type": "TRASH_HAS_CARD",
@@ -687,7 +719,8 @@ severity: HIGH＝効果の意味が実質異なる／主要効果の丸ごと欠
         "cardType": "シグニ"
        }
       },
-      "delta": -2000
+      "delta": -2000,
+      "targetsStored": true
      }
     }
    ]
