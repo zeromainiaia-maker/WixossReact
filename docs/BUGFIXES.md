@@ -1,5 +1,85 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第360バッチ：🏁`O-391` クローズ＝did-it ゲートが届かない3系統（登録票8件のうち**真バグは2件**・新たに11効果）
+
+### 🔴 登録票の8効果を engine で実行して照合＝**真バグ2 / 偽陽性5 / 既済1**
+
+| 効果 | 登録票の主張 | 実測（engine を実行して確認） |
+|---|---|---|
+| `WXDi-P13-088-E1` / `WX24-P2-009-E1` | `MILL` を辞退しても後続が止まらない | **FP**＝原文は「**その後**」で「そうした場合」ではない（止まらないのが原文どおり） |
+| `WX24-P1-040-E1` | 後続が `CONDITIONAL{IS_MY_TURN}` でない | **FP**＝`levelEqLastDownedLrig` が**参照不能で空ヒット**（`effectExecutor.ts:4220`）＋自分の `DOWN` の粗ゲート |
+| `WX24-P1-040-E2` | 同上（副次バグとして言及） | 🔴**真バグ**＝**言及されていた副次バグの方が本体**（下記） |
+| `WD22-035-G-E1` | `ADD_TO_FIELD{thisCardOnly}`→兄弟 | **既済**＝第351バッチ（`O-450`）で修正済み |
+| `WX14-030-E1` | `TRANSFER_TO_DECK` に `optional` が無い | 🔴**真バグ。ただし理由が違う**＝原文は強制なので `optional` は要らない。無いのは**ゲート節** |
+| `SP38-001-E1` | `GROW_BY_EFFECT` 系 | **FP**＝原文は「その後」／グロウの任意性は `pending_effect_grow` → `BattleScreen.executeGrow` で保たれている |
+| `WXDi-P08-031-E1` | `ADD_TO_FIELD` 空振りで基準が消える | **FP**＝`powerLtLastProcessed` は参照不能なら `powerRange{min:1,max:0}`＝**空ヒット**（fail-closed） |
+
+🔑**教訓＝「後続が素の兄弟だ」は「過剰実行する」という意味ではない。**
+`powerLtLastProcessed` / `levelEqLastDownedLrig` のように**参照不能を空ヒットへ倒す**フィルタが挟まっていれば、
+ゲート節が無くても原文どおりに何も起きない。⇒ **木の形ではなく、受け皿が参照不能をどちらへ倒すかを読む。**
+
+### 🔴 本体は登録票に無かった＝**「コストではない任意アクション」が catch-all に食われていた（11効果）**
+
+`execSequence` の「任意コストパターン」catch-all（`effectExecutor.ts`）は **`STUB` の直後が did-it ゲートなら何でも**
+「任意コスト：発動しますか？」の `CHOOSE` に化けさせる。ところが**支払いの実体は `costColors` /
+`handDiscardGroups` / `exceed` という payload から組み立てる**ので、
+**払うものが payload に無い STUB は「支払いが丸ごと消えて帰結だけ走る」**＝原文の行動が起きない。
+
+実測＝`STUB` → did-it ゲートは **16種 / 514箇所**。うち専用分岐を持たない **7 id / 11効果**が全部これだった：
+
+| STUB id | 効果 | 壊れ方（実測ログ） |
+|---|---|---|
+| `TRASH_OWN_KEY_OPTIONAL` | `WXK08-010/015/016/017/022`（5） | **キーが場に残ったまま**2体目のバニッシュ等だけ通る＝踏み倒し |
+| `TRAP_OP` / `TRAP_OPERATION` | `WX16-061-E1` / `WXEX2-15-E1`（2） | 【トラップ】をトラッシュに置かず／表向きにせず帰結だけ |
+| `TRAP_TO_HAND` | `WX16-028-E2`（1） | 【トラップ】を手札に加えずに再設置だけ |
+| `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` | `WXDi-P00-068-E1`（1） | 🔴**両枝とも完全 no-op**（移動も＋3000も起きない） |
+| `LIFE_TO_HAND_OPTIONAL` | `WXDi-P11-040-BURST`（1） | ライフを手札に加えずに手札→ライフだけ |
+| `CONDITIONAL_TRASH_UNDER_SIGNI` | `WXDi-P16-064-E1`（1） | シグニの下を置かずに相手のエナだけ落とす |
+
+⚠**`NEGATE_ATTACK_ON_TRIGGER`（`WXDi-P11-055-E1`）は FP**＝`execSequence` に**専用分岐が既にあり**
+catch-all に届いていなかった（`effectExecutor.ts` の「NEGATE_ATTACK_ON_TRIGGER」節）。
+🔑**catch-all の被害を数えるときは「その id に専用分岐が無いこと」まで確かめる**（一度これで余計な機構を書きかけた）。
+
+### 直し方（3系統・engine 2 + parser 1）
+
+1. **`SELF_ACTING_OPTIONAL_STUB_IDS` を catch-all から除外**＝自前ハンドラ（`execStubPart*`）に do/skip を出させる。
+2. **`declines` を `CHOOSE` の option に新設**（`src/types/index.ts`）＝`resumeChoose` が辞退枝のときだけ
+   continuation 先頭の `CONDITIONAL{IS_MY_TURN}` を `stripDidItConditional` で落とす。
+   🔑**`SELECT_TARGET{optional}` の 0体選択と同じ契約を `CHOOSE` へ通しただけ**（新しい概念を増やしていない）。
+   ⚠**任意コストの skip 枝には付けない**＝あちらは pay 枝に帰結を畳む形で既にゲート済み（二重に剥がすと過小実行）。
+3. **`DID_IT_GATED_STUB_IDS`（3 id だけ）**＝**対話に入らずに `done` した回**（キーが無い／ライフが無い／
+   相手エナが2枚未満）を空振りと判定して直後のゲートを消費する。
+   🔴**この集合を広げると壊れる（実測2件）**＝`MOVE_TARGET_SIGNI_TO_OTHER_ZONE` は**選択結果を
+   `lastProcessedCards` から読み直して自分へ再入する**ので、空へ倒すと**同じ選択を無限に問い続ける**。
+   `TRAP_OP` は**成功しても `lastProcessedCards` を書かない**ので空振りと誤判定して帰結を殺す。
+   ⇒ 条件は2つとも要る＝**①ハンドラが `lastProcessedCards` を読まない ②成功時は必ず対話へ入る**。
+4. **`wrapDidItGateAfterMandatory`（parser・全 pass の最後）**＝強制の動詞でも空振りしうる形にゲート節を足す。
+   🔴**`parseActionText` に置いても1効果も変わらない**（実測 0）＝この形は**原文が2文に分かれている**ので、
+   1文しか見ない `parseActionText` からは木が `SEQUENCE[前段, 後段]` に見えない。
+   ⇒ `markIndependentTrashBestEffort`（`O-453`）と同じ**効果単位ループ**に置いた。
+   fail-closed 条件は `O-450` の写し＋「直前が『てもよい』でない」（任意形は `O-450` の担当）。
+   実測＝**`WX14-030-E1` 1効果だけ**が動いた（トラッシュ0枚でも3択が撫でて相手シグニをバニッシュできていた）。
+5. **`resolveDynamicShadowKeyword` を fail-closed に**＝参照できない動的スコープの【シャドウ】は**付与しない**。
+   🔴旧実装は素の `'シャドウ'`＝**無条件シャドウ**を返しており、`WX24-P1-040-E2` は
+   **ルリグのダウンを「辞退した方が強い」**（無条件 vs レベル3限定）という逆転になっていた。
+   🔑**既定値のある解決は「外れたことが可視化されない」**（`O-60` 第58バッチと同型）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4193/4193**＝形・挙動・**反転確認**で +3本）。
+- 🔴**実機 `V-229` 2本 PASS**（`node scripts/verifyBattleDrive.mjs v229KeyOptionalSkip v229KeyOptionalTake`）＝
+  `WXK08-015`（一矢報火）で**辞退＝キーは場に残り2体目も生き残る／実行＝キーがルリグトラッシュへ入り2体目もバニッシュ**。
+  🔑**対照は「同じ盤面・同じ操作で二択の答えだけ1ビット違う」**（罠3）。
+- 🔴**実機の反転確認**＝`TRASH_OWN_KEY_OPTIONAL` を `SELF_ACTING_OPTIONAL_STUB_IDS` から外して再実行＝🔴**両方 FAIL**（`pEff=CHOOSE` のまま＝旧「任意コスト：発動しますか？」が出て「ルリグトラッシュへ」の枝が存在しない／キーは場に残ったまま1体目のバニッシュだけ通る）
+- ⚠**1本目が空振りで FAIL したが engine のせいではなかった**＝`dist` を再ビルドした回の最初のシナリオだけ
+  反映が遅れる（罠105 を新設）。そのまま再実行したら両方 3秒で PASS。
+
+### 残（登録票の主張のうち手を付けなかったもの）
+
+`WXDi-P00-068-E1` は catch-all から外したことで**動くようになった**が、原文の「配置しても**よい**」は
+`repositionOptional` が live に無いため**強制のまま**（＝`O-511` として登録）。
+
+
 ## 2026-09-15 — 第359バッチ：🏁`O-399` クローズ＝付与の寿命（12効果のうち**実バグは3件**・9件は偽陽性）
 
 ### 🔴 12件のうち9件は偽陽性＝**engine が `duration` を読んでいない**

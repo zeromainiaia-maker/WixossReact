@@ -83173,6 +83173,98 @@ test('§5.3 O-450: ADD_TO_FIELD を辞退すると「そうした場合」ごと
   eq(rSibSkip.ownerState.hand.length, 5, '兄弟ステップ形は辞退しても走る（＝これが直した壊れ方）');
 }));
 
+// ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。
+//   ①`STUB` が「コストではなく原文の行動そのもの」なのに、`execSequence` の任意コスト catch-all が
+//     「任意コスト：発動しますか？」へ化けさせ、**pay 枝では帰結しか実行しない**（＝行動が消える）。
+//   ②強制の行動が空振りしても「そうした場合」が走る（parser にゲート節が無い）。
+//   ③動的スコープの【シャドウ】が参照不能のとき**素の「シャドウ」＝無条件**へ fail-open する。
+test('§5.3 O-391(b)①: キーを置く任意行動は、辞退すれば帰結ごと落ち、実行すればキーが場から消える', () => withSavedCursor(() => {
+  // live `WXK08-015-E1`「相手のシグニ1体をバニッシュする。その後、あなたのキー1枚を場からルリグトラッシュに
+  //   置いてもよい。そうした場合、対戦相手のシグニ1体を対象とし、それをバニッシュする。」
+  const key = 'WXK08-015';
+  const oppA = fresh(), oppB = fresh();   // ⚠2体必要＝1体目を落としてもなお候補が残る盤面にする
+  const mk = (): ExecCtx => {
+    const c = mkCtx({}, { signi: [oppA, oppB, null] }, key);
+    c.ownerState = { ...c.ownerState, field: { ...c.ownerState.field, key_piece: key } };
+    return c;
+  };
+  const eff = effectsMap.get(key)!.find(e => e.effectId === 'WXK08-015-E1')!;
+  // 形＝任意行動 STUB の直後に did-it ゲート節があること（parser 側の回帰ガード）。
+  const act = eff.action as SequenceAction;
+  eq((act.steps[1] as StubAction).id, 'TRASH_OWN_KEY_OPTIONAL', '前段が「キーを置いてもよい」');
+  eq((act.steps[2] as ConditionalAction).condition.type, 'IS_MY_TURN', '帰結は did-it ゲートの内側');
+  // 挙動＝1体目のバニッシュ（対象選択）を済ませてからキーの二択に入る。
+  const ctxSkip = mk();
+  let r0 = executeEffect(eff, ctxSkip);
+  ok(!r0.done, '1体目のバニッシュの対象選択に入る');
+  {
+    const pB = (r0 as { pending: { type: string; candidates?: string[] } }).pending;
+    eq(pB.type, 'SELECT_TARGET', '前段は素のバニッシュ');
+    const cB = { ...ctxSkip, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+    r0 = resumeSelectTarget([(pB.candidates ?? [])[0]], pB as never, cB);
+  }
+  ok(!r0.done, 'キーの二択に入る');
+  const p0 = (r0 as { pending: { type: string; options: { id: string; declines?: boolean }[] } }).pending;
+  eq(p0.type, 'CHOOSE', 'キーを置くかの CHOOSE');
+  ok(p0.options.some(o => o.id === 'skip' && o.declines === true), '辞退枝に declines が立っている');
+  const rctx = { ...ctxSkip, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const rSkip = finish(resumeChoose(['skip'], p0 as never, rctx), rctx);
+  eq(rSkip.ownerState.field.key_piece, key, '辞退したのでキーは場に残る');
+  eq(rSkip.otherState.field.signi.filter(z => z && z.length > 0).length, 1,
+    '🔴辞退したのに2体目までバニッシュしている（did-it ゲートが素通り）');
+  // 挙動＝do 側。
+  const rDo = finish(resumeChoose(['do'], p0 as never, rctx), rctx);
+  eq(rDo.ownerState.field.key_piece, null, '🔴キーが場に残っている（任意コスト catch-all が行動を捨てている）');
+  ok(rDo.ownerState.lrig_trash.includes(key), 'キーはルリグトラッシュへ');
+  eq(rDo.otherState.field.signi.filter(z => z && z.length > 0).length, 0, '実行したので2体目もバニッシュする');
+}));
+
+test('§5.3 O-391(b)②: 強制の行動が空振りしたら「そうした場合」は起きない（WX14-030-E1）', () => withSavedCursor(() => {
+  // 原文「トラッシュからそれぞれレベルの異なる無色ではないシグニ４枚をデッキに加えてシャッフルする。
+  //   **そうした場合**、以下の３つから１つを選ぶ。」＝トラッシュが空でも3択が撫でていた。
+  const act = effectsMap.get('WX14-030')!.find(e => e.effectId === 'WX14-030-E1')!.action as SequenceAction;
+  eq(act.steps[0].type, 'TRANSFER_TO_DECK', '前段はデッキへ戻す（強制）');
+  const gate = act.steps[1] as ConditionalAction;
+  eq(gate.type, 'CONDITIONAL', '3択が did-it ゲートの内側にある');
+  eq(gate.condition.type, 'IS_MY_TURN', '「そうした場合」の慣例エンコード');
+  eq(gate.then.type, 'CHOOSE', 'ゲートの中身が3択');
+  // 挙動＝トラッシュが空なら3択に入らない。
+  const eff = effectsMap.get('WX14-030')!.find(e => e.effectId === 'WX14-030-E1')!;
+  const ctx = mkCtx({ trash: 0 }, { signi: [fresh(), fresh(), null] }, 'WX14-030');
+  const r = executeEffect(eff, ctx);
+  ok(r.done, '🔴トラッシュが空なのに3択のプロンプトが出ている');
+  eq(r.otherState.field.signi.filter(z => z && z.length > 0).length, 2, '相手のシグニは減らない');
+  // 🔴反転確認＝ゲート節を外した「旧 live の形」なら、空振りでも3択が出る。
+  const sibling = { type: 'SEQUENCE', steps: [act.steps[0], gate.then] } as EffectAction;
+  const effSib = { ...eff, effectId: 't-o391b-sib', action: sibling } as CardEffect;
+  const rSib = executeEffect(effSib, mkCtx({ trash: 0 }, { signi: [fresh(), fresh(), null] }, 'WX14-030'));
+  ok(!rSib.done, '兄弟ステップ形なら空振りでも3択が出る（＝これが直した壊れ方）');
+}));
+
+test('§5.3 O-391(b)③: 参照できない動的シャドウは付与しない（fail-closed）', () => withSavedCursor(() => {
+  // live `WX24-P1-040-E2`「アップ状態のルリグ1体をダウンしてもよい。次の相手ターン終了時まで、
+  //   このシグニは【シャドウ（この方法でダウンしたルリグと同じレベルのシグニ）】を得る。」
+  // 🔴旧実装は参照不能で素の「シャドウ」＝**無条件シャドウ**＝辞退した方が強いという逆転だった。
+  const self = 'WX24-P1-040';
+  const lrig = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const eff = effectsMap.get(self)!.find(e => e.effectId === 'WX24-P1-040-E2')!;
+  const mk = (): ExecCtx => mkCtx({ signi: [self, null, null], lrig: [lrig] }, {}, self);
+  const ctx = mk();
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, 'ルリグをダウンするかの二択に入る');
+  const p0 = (r0 as { pending: { type: string } }).pending;
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const grantsOf = (r: ExecResult): string[] => {
+    const st = r.ownerState as unknown as Record<string, Record<string, string[]> | undefined>;
+    return [...((st.keyword_grants_until_opp_turn ?? {})[self] ?? []),
+      ...((st.keyword_grants ?? {})[self] ?? [])];
+  };
+  const rSkip = finish(resumeChoose(['skip'], p0 as never, rctx), rctx);
+  eq(grantsOf(rSkip).length, 0, '🔴ダウンを辞退したのに無条件シャドウが付いている（fail-open）');
+  const rDo = finish(resumeChoose(['down'], p0 as never, rctx), rctx);
+  eq(grantsOf(rDo).join('|'), 'シャドウ:{"levelEq":3}', 'ダウンしたらそのレベルのシグニにだけ効くシャドウ');
+}));
+
 // ── §5.3 `O-413`（2026-09-15）＝原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順なのに
 //   対象ノードが条件の内側にしか無い形（実測 107効果 → 67効果を正準形へ引き上げ）。
 // 🔴**条件が不成立のとき対象に取られない**＝`ON_TARGETED`（live 18効果）が発火しない実挙動差だった。

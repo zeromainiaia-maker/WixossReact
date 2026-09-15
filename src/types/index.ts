@@ -1999,7 +1999,15 @@ export type PendingInteractionDef =
     }
   | {
       type: 'CHOOSE';
-      options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[]; coinCost?: number }>;
+      /**
+       * `declines`＝**「そうしない」枝**（§5.3 `O-391`(b)・2026-09-15）。
+       * 🔑これを選んだときだけ `resumeChoose` が continuation の先頭の
+       *   `CONDITIONAL{IS_MY_TURN}`（＝parser が「そうした場合」に使う慣例エンコード）を剥がす
+       *   ＝`SELECT_TARGET{optional}` の 0体選択（`resumeSelectTarget`）と同じ契約を CHOOSE にも通す。
+       * 🔴**任意コストの skip 枝には付けない**＝あちらは `execSequence` の
+       *   「任意コストパターン」が pay 枝にだけ帰結を畳む形で既にゲート済み（二重に剥がすと過小実行）。
+       */
+      options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[]; coinCost?: number; declines?: boolean }>;
       count: number;
       /** 🆕候補を UI 側が `battleCardMap` から組む宣言（`options` は空）。§5.3 `O-353` Part B。 */
       namePool?: { source: 'all_cards'; filter?: TargetFilter };

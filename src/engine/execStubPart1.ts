@@ -4878,7 +4878,8 @@ export function execStubPart1(
       type: 'CHOOSE',
       options: [
         { id: 'do', label: `${keyName}をルリグトラッシュへ（追加効果）`, action: trashKeyStub as EffectAction, available: true },
-        { id: 'skip', label: 'スキップ', action: skipStub as EffectAction, available: true },
+        // 🔴§5.3 `O-391`(b)＝**辞退したら「そうした場合」ごと落とす**（`declines`）。
+        { id: 'skip', label: 'スキップ', action: skipStub as EffectAction, available: true, declines: true },
       ],
       count: 1,
     };

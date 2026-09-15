@@ -1293,7 +1293,8 @@ export function execStubPart2(
       type: 'CHOOSE', count: 1,
       options: [
         { id: 'do',   label: 'ライフクロスを手札に加える', action: doLTH   as EffectAction, available: true },
-        { id: 'skip', label: 'そうしない',                 action: skipLTH as EffectAction, available: true },
+        // 🔴§5.3 `O-391`(b)＝辞退したら「そうした場合」（手札1枚をライフへ）は起きない。
+        { id: 'skip', label: 'そうしない',                 action: skipLTH as EffectAction, available: true, declines: true },
       ],
     });
   }

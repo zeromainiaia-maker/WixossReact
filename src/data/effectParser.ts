@@ -15433,6 +15433,50 @@ function stampAbortOnCanonicalOptionalCost(action: EffectAction): EffectAction {
   return action;
 }
 
+/**
+ * §5.3 `O-391`(b)＝「〈空振りしうる行動〉する。**そうした場合**、B」の B が
+ * did-it ゲート節を持たず**兄弟ステップ**で並んでいる形を、ゲートの内側へ包む。
+ *
+ * 🔑**`wrapDidItGateAfterOptional`（`O-450`）の「任意でない」版**。原文の動詞が強制でも
+ *   **対象が足りなければ空振りする**型（トラッシュからN枚をデッキへ戻す等）は、
+ *   原文の「そうした場合」がゲートとして機能する。
+ *   🔴実測＝`WX14-030-E1`はトラッシュが**0枚でも**直後の `CHOOSE`（3択）が撫でて、
+ *   相手シグニをバニッシュできていた（コストなしの完全な踏み倒し）。
+ *
+ * ⚠**fail-closed**（`O-450` と同じ条件を「`optional` が無い側」へ写したもの）＝
+ *   ①原文の「そうした場合」が**ちょうど１つ**で、**直前が「てもよい」ではない**（任意形は `O-450` の担当）
+ *   ②トップレベル SEQUENCE の木のどこにも did-it ゲートが無い
+ *   ③`optional:true` のトップレベルステップが**1つも無い**
+ *   ④did-it 契約に乗る型のトップレベルステップが**ちょうど１つ**で、最終ステップでない
+ *   ⑤その直後が `CONDITIONAL` でない（既に結果を見ている形は据置）
+ *   🔑①の「直前がてもよいでない」を落とすと `O-450` と二重に掛かる（冪等ではあるが意図が読めなくなる）。
+ */
+function wrapDidItGateAfterMandatory(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  if (!text.includes('そうした場合')) return parsed;
+  if (/(?:てもよい|でもよい)。\s*そうした場合/.test(text)) return parsed;   // ①任意形は O-450
+  const sentences = sentencesOutsideQuotes(text);
+  if (sentences.filter(s => s.includes('そうした場合')).length !== 1) return parsed;
+  const steps = (parsed as SequenceAction).steps;
+  if (steps.some(hasDidItGateDeep)) return parsed;                                     // ②
+  if (steps.some(s => (s as { optional?: boolean }).optional === true)) return parsed;  // ③
+  const gateIdx = steps.reduce<number[]>((acc, s, k) => {
+    if (DID_IT_GATE_CAPABLE_TYPES.has(s.type)) acc.push(k);
+    return acc;
+  }, []);
+  if (gateIdx.length !== 1) return parsed;                                             // ④
+  const gi = gateIdx[0];
+  if (gi >= steps.length - 1) return parsed;
+  if (steps[gi + 1].type === 'CONDITIONAL') return parsed;                             // ⑤
+  const rest = steps.slice(gi + 1);
+  const inner: EffectAction = rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction;
+  return {
+    ...parsed,
+    steps: [...steps.slice(0, gi + 1),
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: inner } as EffectAction],
+  } as SequenceAction;
+}
+
 function parseActionText(text: string): EffectAction {
   // ⚠`wrapDidItGateAfterOptional`（`O-450`）は `foldGoAfterDidItGate`（`O-377`）の**後**に置く＝
   //   前者は「ゲート節が無い」ことを条件にするので、後者が畳んだ結果を見てから判定させる（冪等）。
@@ -31953,6 +31997,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
     effect.action = markIndependentTrashBestEffort(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-391`(b)＝強制の行動が空振りしたら「そうした場合」も起きない（ゲート節を足す）。
+    // 🔴**ここでなければ届かない**＝この形は原文が**2文に分かれている**ので `parseActionText`
+    //   （1文ぶんしか見ない）からは木が `SEQUENCE[前段, 後段]` に見えない（実測＝入れても 0 効果しか変わらなかった）。
+    effect.action = wrapDidItGateAfterMandatory(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。

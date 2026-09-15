@@ -60364,6 +60364,156 @@ scenarios.v228DeclareTargetCondTrue = {
 
 order.push('v228DeclareTargetCondFalse', 'v228DeclareTargetCondTrue');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// V-229（§5.3 `O-391`(b)・2026-09-15）＝**「コストではない任意アクション」の二択**の実機観測。
+//   🔴修正前＝`execSequence` の任意コスト catch-all が **`STUB` の直後が did-it ゲートなら何でも**
+//     「任意コスト：発動しますか？」へ化けさせ、**pay 枝では帰結（`conditional.then`）しか実行しない**。
+//     ⇒ `WXK08-015`（一矢報火）は **キーを場に残したまま2体目のバニッシュだけが通る**＝踏み倒し。
+//     さらに skip 枝側も、原文の行動（キーを置く）は最初から1度も起きていなかった。
+//   ⇒ 自前ハンドラ（`TRASH_OWN_KEY_OPTIONAL`）に do/skip を出させ、辞退枝の `declines` を
+//     `resumeChoose` が読んで「そうした場合」を落とす。**新機構なので実機まで返す。**
+//   🔑**対照は「同じ盤面・同じ操作で二択の答えだけ1ビット違う」**（罠3）。
+//   観測点は2つ＝**`host.keyPiece`（キーが場から消えたか）**と**相手のシグニ残数**。
+const V229_ARTS = 'WXK08-015#39200';        // 一矢報火（アーツ・ATTACK・《赤×1》）
+const V229_KEY = 'WXK01-007#39201';         // ドーナ ＣＨＥＥＲ（場のキー）
+const V229_ENERGY = 'WD02-010#39202';       // 羅石 シルバン（赤）＝《赤×1》の支払い
+const V229_OPP_WEAK = 'WD01-013#39203';     // 小剣 ククリ（パワー3000）＝1体目（8000以下）の唯一の候補
+const V229_OPP_BIG = 'WD01-009#39204';      // 甲冑 ローメイル（パワー12000）＝2体目（制限なし）の唯一の残り
+const V229_HOST_LRIG = 'WD03-002#39205';
+const V229_GUEST_LRIG = 'WD03-003#39206';
+
+// ⚠罠1＝`CORE_FIELD_KEYS`（`check` / `key_piece*` / `free_zone` …）と `hand` / `energy` は
+//   除外方式では消えないので、両サイドとも自分で書き切る。⚠`life_cloth` は注入しない（罠1 追記）。
+const v229Spec = {
+  hostSet: {
+    'field.lrig': [V229_HOST_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': V229_KEY,
+    'field.key_piece_extra': [],
+    'field.free_zone': [],
+    'lrig_deck': [V229_ARTS],
+    'lrig_trash': [],
+    'hand': [],
+    'energy': [V229_ENERGY],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': [V229_GUEST_LRIG],
+    'field.signi': [[V229_OPP_WEAK], [V229_OPP_BIG], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'field.free_zone': [],
+    'hand': [],
+    'energy': [],
+    'blocked_actions': [],
+    'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+};
+
+/** アーツを使い、1体目のバニッシュを済ませて「キーを置くか」の二択が出るまで進める。 */
+async function openV229KeyChoice(page, H, id) {
+  const opened = await openV04LrigDeckAction(page, '使用');
+  if (!opened.ok) return { ok: false, detail: `アーツを開けない（${opened.detail}）` };
+  // 《赤×1》を払う（エナは1枚だけ注入してあるので候補も1つ）。
+  const cost = page.locator('[data-testid^="artscost-energy-"]').first();
+  await clickV04VisibleLocator(page, cost, 'tid:artscost-energy-0');
+  const used = await clickExactVisibleText(page, 'アーツ使用');
+  if (!used) return { ok: false, detail: 'アーツ使用ボタンが押せない（コスト支払いが成立していない）' };
+  let banished = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(500);
+    const st = await H.queryState();
+    const oppLeft = (st?.guest?.fieldSigni ?? []).filter(z => z && z.length > 0).length;
+    H.log(`  ${id}.open[${s}] | oppLeft=${oppLeft} keyPiece=${st?.host?.keyPiece ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'}`);
+    await page.screenshot({ path: `${SHOT}/${id}-open-${s}.png`, fullPage: true }).catch(() => {});
+    // ① 1体目のバニッシュ（パワー8000以下＝候補はククリだけ）。
+    if (!banished && (st?.pendingCandidates ?? []).includes(V229_OPP_WEAK)) {
+      const picked = await clickPendingInstance(page, H, V229_OPP_WEAK);
+      if (picked) { await clickExactVisibleText(page, '決定 (1/1)'); banished = true; }
+      continue;
+    }
+    // ② キーの二択が描画されたか（⚠罠2b＝盤面ログに当たらないようボタン限定で探す）。
+    const doBtn = page.getByRole('button', { name: 'ルリグトラッシュへ', exact: false }).first();
+    if (await doBtn.count() && await doBtn.isVisible().catch(() => false)) {
+      return { ok: true, banished, st, detail: 'キーの二択が出た' };
+    }
+  }
+  const fin = await H.queryState();
+  return { ok: false, banished, st: fin, detail: `キーの二択が出ない（oppLeft=${(fin?.guest?.fieldSigni ?? []).filter(z => z && z.length > 0).length} keyPiece=${fin?.host?.keyPiece ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+/** 二択を答えたあと、効果が落ち着くまで回して最終状態を返す。 */
+async function settleV229(page, H, id) {
+  let last = null;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(500);
+    const st = await H.queryState();
+    last = st;
+    // 2体目のバニッシュが出たら進める（do 側だけ通る枝）。
+    if ((st?.pendingCandidates ?? []).includes(V229_OPP_BIG)) {
+      const picked = await clickPendingInstance(page, H, V229_OPP_BIG);
+      if (picked) await clickExactVisibleText(page, '決定 (1/1)');
+      continue;
+    }
+    if (st?.pendingEffect == null && (st?.stackLen ?? 0) === 0) return st;
+    H.log(`  ${id}.settle[${s}] | oppLeft=${(st?.guest?.fieldSigni ?? []).filter(z => z && z.length > 0).length} keyPiece=${st?.host?.keyPiece ?? '-'} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+  }
+  return last;
+}
+
+scenarios.v229KeyOptionalSkip = {
+  title: 'V-229 O-391(b): キーを置く任意行動を辞退＝キーは場に残り、2体目のバニッシュも起きない',
+  spec: v229Spec,
+  async drive(page, H) {
+    const opened = await openV229KeyChoice(page, H, 'v229skip');
+    if (!opened.ok) return { pass: false, detail: `🔴${opened.detail}＝任意コスト catch-all のままか、1体目で止まっている` };
+    if (!opened.banished) return { pass: false, detail: '前提崩れ＝1体目のバニッシュを観測していない' };
+    const skipped = (await H.clickBtn('そうしない')) ?? (await H.clickBtn('スキップ'));
+    if (!skipped) return { pass: false, detail: '二択は出たが辞退ボタンを押せない' };
+    const st = await settleV229(page, H, 'v229skip');
+    const keyPiece = st?.host?.keyPiece ?? null;
+    const oppLeft = (st?.guest?.fieldSigni ?? []).filter(z => z && z.length > 0).length;
+    const pass = !!keyPiece && oppLeft === 1;
+    return {
+      pass,
+      detail: pass
+        ? `辞退＝キーは場に残り（keyPiece=${keyPiece}）2体目は生き残る（oppLeft=1）＝「そうした場合」ごと落ちている`
+        : `🔴辞退したのに keyPiece=${keyPiece ?? 'null'}（期待あり）／oppLeft=${oppLeft}（期待1）`,
+    };
+  },
+};
+
+scenarios.v229KeyOptionalTake = {
+  title: 'V-229 対照（同じ盤面・同じ操作で「ルリグトラッシュへ」を選ぶ＝キーが消えて2体目もバニッシュ）',
+  spec: v229Spec,
+  async drive(page, H) {
+    const opened = await openV229KeyChoice(page, H, 'v229take');
+    if (!opened.ok) return { pass: false, detail: `🔴${opened.detail}＝任意コスト catch-all のままか、1体目で止まっている` };
+    if (!opened.banished) return { pass: false, detail: '前提崩れ＝1体目のバニッシュを観測していない' };
+    const did = await H.clickBtn('ルリグトラッシュへ');
+    if (!did) return { pass: false, detail: '二択は出たが実行ボタンを押せない' };
+    const st = await settleV229(page, H, 'v229take');
+    const keyPiece = st?.host?.keyPiece ?? null;
+    const inTrash = (st?.host?.lrigTrashCards ?? []).some(c => String(c).startsWith('WXK01-007'));
+    const oppLeft = (st?.guest?.fieldSigni ?? []).filter(z => z && z.length > 0).length;
+    const pass = keyPiece == null && inTrash && oppLeft === 0;
+    return {
+      pass,
+      detail: pass
+        ? '実行＝キーが場から消えてルリグトラッシュへ入り、2体目もバニッシュされた（辞退側との差は二択の答えだけ）'
+        : `🔴実行したのに keyPiece=${keyPiece ?? 'null'}（期待null）／lrigTrashにキー=${inTrash}（期待true）／oppLeft=${oppLeft}（期待0）`,
+    };
+  },
+};
+
+order.push('v229KeyOptionalSkip', 'v229KeyOptionalTake');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

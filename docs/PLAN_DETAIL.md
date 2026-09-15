@@ -96,7 +96,33 @@
 - **検証**＝`npm run gates` 全緑（golden **4188/4188**＝形・挙動・**反転確認**・**依存形が止まること**で +3本）。
   ⚠実機は §2.2 で不要（`src/data/` `public/data/` のみ・新機構なし）。
 
-### `O-450` — 任意アクションの直後にゲート節が無い（`O-391` 下位型(b)・上限49ノード）
+### 🏁`O-391` — did-it ゲートが届かない3系統（2026-09-15 第360バッチでクローズ・**13効果**）
+
+- 🔴**登録票の8効果は 真バグ2 / 偽陽性5 / 既済1**（全文は [BUGFIXES.md](./BUGFIXES.md) の第360バッチ）。
+  偽陽性は全部**「後続が素の兄弟でも、フィルタ側が参照不能を空ヒットへ倒す」**形＝
+  `powerLtLastProcessed`（`effectExecutor.ts:4031`）／`levelEqLastDownedLrig`（`:4220`）は
+  参照が取れないと `powerRange{min:1,max:0}` / `noMatch` に落ちるので、**ゲート節が無くても原文どおり何も起きない**。
+  🔑**木の形ではなく、受け皿が参照不能をどちらへ倒すかを読む。**
+- 🔴**本体は登録票に無かった 11効果**＝`execSequence` の任意コスト catch-all が **`STUB` の直後が did-it ゲートなら
+  何でも**「任意コスト：発動しますか？」に化けさせ、**pay 枝では `conditional.then` しか実行しない**。
+  支払いは `costColors` / `handDiscardGroups` / `exceed` から組むので、**払うものが payload に無い STUB は
+  行動が丸ごと消えて帰結だけ走る**（`WXDi-P00-068-E1` は**両枝とも完全 no-op**だった）。
+  実測＝`STUB` → did-it ゲートは **16種 / 514箇所**、うち専用分岐を持たない **7 id / 11効果**。
+- **直し方**＝①`SELF_ACTING_OPTIONAL_STUB_IDS` を catch-all から除外 ②`declines`（CHOOSE option）を新設し
+  `resumeChoose` が辞退枝で `stripDidItConditional` を呼ぶ ③`DID_IT_GATED_STUB_IDS`（**3 id だけ**）＝
+  対話に入らず `done` した回を空振り判定 ④parser の `wrapDidItGateAfterMandatory`（強制の動詞版・`WX14-030-E1`）
+  ⑤`resolveDynamicShadowKeyword` を fail-closed（`WX24-P1-040-E2`）。
+- 🔴**③の集合を広げると壊れる（実測2件）**＝`MOVE_TARGET_SIGNI_TO_OTHER_ZONE` は選択結果を `lastProcessedCards` から
+  読み直して自分へ再入するので**同じ選択を無限に問い続ける**／`TRAP_OP` は成功しても `lastProcessedCards` を
+  書かないので**空振りと誤判定して帰結を殺す**。⇒ 条件は**①読まない ②成功時は必ず対話へ入る**の2つ。
+- 🔴**④を `parseActionText` に置いても 1効果も変わらない**（実測 0）＝この形は原文が**2文に分かれている**ので
+  1文しか見ない `parseActionText` からは `SEQUENCE[前段, 後段]` に見えない。⇒ 効果単位ループ（`O-453` と同じ場所）へ。
+- **検証**＝`npm run gates` 全緑（golden **4193/4193**＝+3本）／実機 `V-229` 2本 PASS＋**実機の反転確認**。
+- **残**＝`O-511`（`WXDi-P00-068-E1` の「配置しても**よい**」が強制のまま）。
+
+### 🏁`O-450` — 任意アクションの直後にゲート節が無い（`O-391` 下位型(b)・上限49ノード）
+
+> 🏁**第351バッチでクローズ済み**（124箇所 → 真バグ6効果）。以下は登録時の見立て。
 
 - **engine の契約**＝「そうした場合」の did-it は **`CONDITIONAL{IS_MY_TURN}` が任意アクションの直後にあるときだけ**効く
   （0体選択 → `resumeSelectTarget` → `stripDidItConditional`）。**兄弟ステップとして並んでいると止められない。**

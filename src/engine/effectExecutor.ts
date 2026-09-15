@@ -5668,6 +5668,17 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
+/**
+ * 動的スコープの【シャドウ】を実値へ解決する。
+ *
+ * 🔴🆕**§5.3 `O-391`(b)（2026-09-15）＝参照できないときは `''`（＝付与しない）へ倒す。**
+ *   旧実装は素の `'シャドウ'` を返しており、**スコープが決まらないほど強い（＝全シグニから守られる）**
+ *   無条件シャドウになっていた（実測＝`WX24-P1-040-E2` は「ルリグをダウンしてもよい」を**辞退すると**
+ *   無条件シャドウ／**ダウンすると**「レベル3」だけ＝**辞退した方が得**という逆転が起きていた）。
+ *   ⇒ 原文は「この方法でダウンしたルリグと同じレベルのシグニ」＝**そのルリグが居ないなら範囲は空**。
+ * 🔑既定値のある解決は「外れたことが可視化されない」（`O-60` 第58バッチの教訓と同型）＝
+ *   **fail-open な既定値を置かない**のがこの関数の契約。
+ */
 function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
   if (!kw.startsWith('シャドウ:')) return kw;
   const scope = decodeShadowKeyword(kw);
@@ -5676,7 +5687,8 @@ function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
     // ⚠ `seqVars` は**インタラクションを跨げない**（実UIの resume は ExecCtx を作り直し seqVars を渡さない）。
     //   「ダウンしてもよい」→ CHOOSE を挟む札（WX24-P1-040-E2）は seqVars が必ず消えるため、
     //   lastProcessedCards（同一 SEQUENCE 内の DOWN）→ PlayerState.last_lrig_down_cards（＝支払い/ダウンの
-    //   単一入口が記録）の順にフォールバックする（タスク12(cix)）。取れなければ素の「シャドウ」＝全シグニ対象。
+    //   単一入口が記録）の順にフォールバックする（タスク12(cix)）。
+    //   🔴取れなければ `''`＝**付与しない**（旧実装の素の「シャドウ」＝全シグニ対象は fail-open だった）。
     const fromCards = (): number | undefined => {
       const top = ctx.lastProcessedCards?.[0];
       const ref = (top && ctx.cardMap.get(getCardNum(top))?.Type === 'ルリグ' ? top : undefined)
@@ -5685,11 +5697,11 @@ function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
       return isNaN(lv) ? undefined : lv;
     };
     const level = ctx.seqVars?.lastDownedLrigLevel ?? fromCards();
-    return level !== undefined && !isNaN(level) ? encodeShadowKeyword({ levelEq: level }) : 'シャドウ';
+    return level !== undefined && !isNaN(level) ? encodeShadowKeyword({ levelEq: level }) : '';
   }
   if (scope.declaredNumberPowerEq) {
     const pw = ctx.seqVars?.declaredNumber;
-    return pw !== undefined && !isNaN(pw) ? encodeShadowKeyword({ powerEq: pw }) : 'シャドウ';
+    return pw !== undefined && !isNaN(pw) ? encodeShadowKeyword({ powerEq: pw }) : '';
   }
   return kw;
 }
@@ -5748,6 +5760,11 @@ function noteEndOfAttackKeywordGrants(
 
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const resolvedKeyword = resolveDynamicShadowKeyword(a.keyword, ctx);
+  // 🔴§5.3 `O-391`(b)＝動的スコープが参照できない【シャドウ】は**付与しない**（fail-closed）。
+  //   ⚠`''` はこの関数だけの内部シグナル（live JSON には出ない）＝`resolveDynamicShadowKeyword` と対で読む。
+  if (resolvedKeyword === '') {
+    return done(addLog(ctx, `${keywordDisplayLabel(a.keyword)}：参照するカードがないため付与しない`));
+  }
   const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
   a = a2;
   // targetsLastProcessed:「それ」= 直前に選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」。選択UIを出さず同一対象に付与）
@@ -6265,6 +6282,47 @@ function isOptionalCostStub(action: EffectAction): action is StubAction {
   return action.type === 'STUB' && OPTIONAL_COST_STUB_IDS.has(action.id);
 }
 
+/**
+ * 🆕🔴**§5.3 `O-391`(b)（2026-09-15）＝「コストではなく、それ自体が原文の行動」である任意 STUB。**
+ *
+ * `execSequence` の「任意コストパターン」catch-all は **`STUB` の直後が did-it ゲートなら何でも**
+ * 「任意コスト：発動しますか？」の CHOOSE に化けさせ、**pay 枝では `conditional.then` しか実行しない**。
+ * コストの実体は `costColors` / `handDiscardGroups` / `exceed` から組むので、
+ * **払うものが payload に無い STUB は「支払いが丸ごと消えて帰結だけ走る」**＝原文の行動が起きない。
+ * 🔴実測（live 11効果）＝キーはルリグトラッシュへ置かれず／【トラップ】は発動せず／ライフは手札に来ず／
+ *   シグニは別ゾーンへ移らないのに、「そうした場合」の帰結だけが走っていた
+ *   （`WXDi-P00-068-E1` は帰結が `targetsLastProcessed` なので**両枝とも完全 no-op**だった）。
+ * ⚠**専用分岐を持つ id はここへ足さない**＝`NEGATE_ATTACK_ON_TRIGGER` は catch-all の手前に専用分岐があり、
+ *   そもそも catch-all に届いていない（足すと二重に do/skip を出す）。
+ * ⇒ これらは catch-all から外し、**自前のハンドラ（`execStubPart*`）に do/skip を出させる**。
+ *   辞退側は option に `declines` を立てて `resumeChoose` が「そうした場合」を落とす。
+ * ⚠**コストの意味を持つ STUB をここへ足さない**（足すと踏み倒しになる＝`NON_COST_MARKER_STUB_IDS` と同じ規約）。
+ */
+const SELF_ACTING_OPTIONAL_STUB_IDS = new Set<string>([
+  'TRASH_OWN_KEY_OPTIONAL',            // キー1枚を場からルリグトラッシュへ（WXK08-010/015/016/017/022）
+  'TRAP_OP', 'TRAP_OPERATION',         // 【トラップ】をトラッシュへ／表向きにして発動（WX16-061・WXEX2-15）
+  'TRAP_TO_HAND',                      // 【トラップ】1つを手札へ（WX16-028）
+  'MOVE_TARGET_SIGNI_TO_OTHER_ZONE',   // シグニを他のシグニゾーンへ配置（WXDi-P00-068）
+  'LIFE_TO_HAND_OPTIONAL',             // ライフクロス1枚を手札へ（WXDi-P11-040）
+  'CONDITIONAL_TRASH_UNDER_SIGNI',     // シグニの下のカードをトラッシュへ（WXDi-P16-064）
+]);
+
+/**
+ * 🔴**上の集合のうち、「対話に入らずに `done` した回＝空振り」と機械判定してよい STUB だけ**（`O-391`(b)）。
+ *
+ * `execSequence` はこの3つの**直前に `lastProcessedCards` を空へ倒し**、
+ * 空のまま `done` が返った回だけ直後の `CONDITIONAL{IS_MY_TURN}` を消費する
+ * （＝「キーが無い」「ライフクロスが無い」「相手エナが2枚未満」で帰結だけ走るのを止める）。
+ * ⚠**条件は2つとも要る**＝①ハンドラが `lastProcessedCards` を**読まない** ②成功時は**必ず対話へ入る**
+ *   （対話へ入ればこのゲートは通らず、辞退は `resumeChoose` の `declines` が担当する）。
+ * 🔴実測で外した2件がこの条件の反例＝`MOVE_TARGET_SIGNI_TO_OTHER_ZONE` は**選択結果を
+ *   `lastProcessedCards` から読み直して自分へ再入する**ので、空へ倒すと**同じ選択を無限に問い続ける**。
+ *   `TRAP_OP` は**成功しても `lastProcessedCards` を書かない**ので、空振りと誤判定して帰結を殺す（実測）。
+ */
+const DID_IT_GATED_STUB_IDS = new Set<string>([
+  'TRASH_OWN_KEY_OPTIONAL', 'LIFE_TO_HAND_OPTIONAL', 'CONDITIONAL_TRASH_UNDER_SIGNI',
+]);
+
 function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   if (a.snapshotLastProcessedForConditionals) {
     const snapshotCtx = { ...ctx, lastProcessedCards: [...(ctx.lastProcessedCards ?? [])] };
@@ -6484,7 +6542,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     //   ⚠**除外リストに足してよいのは「支払いの意味を持たない」STUB だけ**（コスト系を足すと踏み倒しになる）。
     const NON_COST_MARKER_STUB_IDS = ['SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS'];
     if (step.type === 'STUB'
-        && !NON_COST_MARKER_STUB_IDS.includes((step as import('../types/effects').StubAction).id)) {
+        && !NON_COST_MARKER_STUB_IDS.includes((step as import('../types/effects').StubAction).id)
+        && !SELF_ACTING_OPTIONAL_STUB_IDS.has((step as import('../types/effects').StubAction).id)) {
       const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
       if (nextStep?.type === 'CONDITIONAL' &&
           ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes((nextStep as ConditionalAction).condition.type)) {
@@ -7297,6 +7356,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         || step.type === 'FIELD_SIGNI_TO_ACCE') {
       cur = { ...cur, lastProcessedCards: [] };
     }
+    // 🆕§5.3 `O-391`(b)＝自前ハンドラを持つ任意アクション STUB も同じ規約に乗せる。
+    //   ⚠ここで空へ倒すのは**対話に入らなかった回**（キーが無い／ライフが無い／条件不成立で `done` する回）を
+    //   「空振り」と判定するため。対話へ入った回は下のゲートを通らず、`resumeChoose` の `declines` が担当する。
+    if (step.type === 'STUB' && DID_IT_GATED_STUB_IDS.has((step as StubAction).id)) {
+      cur = { ...cur, lastProcessedCards: [] };
+    }
     const ctxBeforeStep = cur;
     const result = executeAction(step, cur);
     if (!result.done) {
@@ -7368,7 +7433,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // ここでは**プレースホルダ1ステップだけを消費**して以降の独立ステップは残す（過剰も過小も作らない）。
     // 対象は「処理したカードを lastProcessedCards に記録する＝空振りを判定できる」型に限定する
     // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
-    if ((DID_IT_GATED_TYPES.has(gateStep.type) || isDidItGatableTrash(gateStep)) && i + 1 < a.steps.length
+    const isSelfActingOptionalStub = gateStep.type === 'STUB'
+      && DID_IT_GATED_STUB_IDS.has((gateStep as StubAction).id);
+    if ((DID_IT_GATED_TYPES.has(gateStep.type) || isDidItGatableTrash(gateStep) || isSelfActingOptionalStub)
+        && i + 1 < a.steps.length
         && effLastProcessed.length === 0) {
       const nextDI = a.steps[i + 1];
       if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {
@@ -12489,11 +12557,19 @@ export function resumeSearch(
     return result;
   }
   if (pending.continuation) {
+    // 🆕🔴**§5.3 `O-391`(b)（2026-09-15）＝「そうしない」を選んだら「そうした場合」ごと落とす。**
+    //   `SELECT_TARGET{optional}` は `resumeSelectTarget` が 0体選択で `stripDidItConditional` を呼ぶが、
+    //   **CHOOSE で do/skip を問う任意アクション**（キーをルリグトラッシュへ／ライフを手札へ／
+    //   【トラップ】を発動／シグニを別ゾーンへ…）には同じ道が無く、**辞退しても帰結が走っていた**。
+    //   ⇒ 辞退枝に `declines` を立てておけば、ここで同じ契約が通る。
+    const declined = opts.length > 0 && opts.every(o => o.declines === true);
+    const cont = declined ? stripDidItConditional(pending.continuation) : pending.continuation;
+    if (!cont) return result;
     // 選択したアクションが処理したシグニ（公開/場出し等）を continuation の「その後、そのシグニより…」が参照できるよう lastProcessedCards を継承
     const lastProcessedCount = result.lastProcessedCards !== ctx.lastProcessedCards
       ? undefined
       : result.lastProcessedCount;
-    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastProcessedCount, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
+    return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastProcessedCount, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
   }
   return result;
 }
