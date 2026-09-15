@@ -1,5 +1,23 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-16 第368バッチ：索引G 10件（修正8＝12効果／登録票 stale 2）
+
+- **消化**＝`O-409`/`O-436`/`O-442`/`O-443`/`O-460`/`O-463`/`O-485`/`O-501`（修正）＋`O-487`/`O-520`（**登録票が stale**＝受け皿は実装済み）。1件ずつは [BUGFIXES.md](./BUGFIXES.md) 第368バッチの表。
+- 🔑**取り方**＝候補20行ぶんの**原文 × 逆翻訳 × live JSON** を1ファイルに書き出して一度に読み、受け皿の grep を**4回にまとめて**から書き始めた（第365〜367と同じ）。
+  「新機構が要る」と自分で書いた行のうち、**grep で受け皿が見つかった8件だけ**を今回のスコープにした。
+- 🔴**engine の追加は6つ**（どれも既存の契約の穴埋め）：
+  - `OppMoveImmunityZone` に `lrig_deck`/`lrig_trash`（`O-485`）。消費は `execExile` の `LRIG_DECK_CARD` 2経路と `LRIG_TRASH_CARD` の候補式2箇所。
+  - `execChoose` が枝へ `freezeStoredTargets` を通す（`O-463`）＝**`CHOOSE` が対象宣言の後ろに来る形**は、枝を選ぶ対話で限定が消えていた。
+  - `O220_FREEZABLE_STUB_IDS` に `SELECT_TARGET_ONLY` を追加＋その `TRASH_CARD` 分岐で `targetsStored`/`fixedCardNums` を消費（`O-463`）。
+  - `resolveOptionalCostSpec` が倍率の元を `fixedCardNums` からも読む＋`freezeStoredTargets` が倍率キーを持つ `OPTIONAL_COST` を焼く（`O-463`）。
+  - `execTransferToDeck` の `TRASH_CARD` 分岐に**宣言済み集合の絞り込み**と `orderChosenBy:'opponent'`（1枚ずつ相手が選ぶ）（`O-409`）。
+  - `SELECT_TARGET_ONLY` が**相手トラッシュ**の宣言を受ける（`O-409`。scope も持ち主で決める）。
+- 🔑**逆翻訳も4箇所直した**＝`minCount`（`constraintJa` と `targetJa`）／`TRASH` 分岐が `selectionConstraint` を `groups` 以外**1つも描いていなかった**／新ゾーン2語／`NO_BATTLE_DEFENDER` のラベル。
+- ⏸**次に取るときの手掛かり（索引G 残26）**：
+  - `O-465`（「あなたのルリグ1体を対象とし」）は**ルリグ単位の付与ストアが無い**＝`GRANT_LRIG_ABILITY` はプレイヤー単位（`lrig_granted_auto_effects`）にしか積めず、`targetedCenter` は**表示専用**。新機構として見積もる。
+  - `O-458`（ガードされたアタックのルリグをアップ）は `collectLrigAttackGuardedTriggers` が**攻撃側の盤面しか走査しない**＝「センタールリグ1体が」（誰のでも）を受けるには守備側スキャンと `triggeringCardNum` の配線が要る。⚠**どちらのルリグをアップするか**はルール解釈が絡む（索引H 候補）。
+  - `O-466`（シグニゾーンの表向きのカード全部）は**どの装着が表向きか**（【アクセ】【チャーム】【マジックボックス】【トラップ】）の確定が先。
+
 ## 2026-09-16 第367バッチ：索引G 30件（修正22・偽陽性8）
 
 - **消化**＝修正 `O-410`/`O-415`/`O-417`/`O-424`/`O-448`/`O-455`/`O-459`/`O-480`/`O-481`/`O-482`/`O-486`/`O-489`/`O-491`/`O-492`/`O-494`/`O-495`/`O-498`/`O-499`/`O-502`/`O-505`/`O-506`/`O-508`＋

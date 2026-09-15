@@ -670,10 +670,21 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   };
   const cntSuf = t.count === 'ALL' ? '' : `${cntRefJa(t.count)}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
-  return `${own}${cnt}${setConstraint}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
+  // 🆕§5.3 `O-436`（2026-09-16）＝下限枚数。`upToCount` だけだと「0枚でもよい」に見える。
+  const minSuf = t.selectionConstraint?.minCount !== undefined
+    ? `（${t.selectionConstraint.minCount}${counter}以上）` : '';
+  return `${own}${cnt}${setConstraint}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${minSuf}${blind}`.trim();
 }
 
 function constraintJa(c?: import('../src/types/effects').SelectionConstraint): string {
+  // 🆕§5.3 `O-436`（2026-09-16）＝**下限枚数**（原文「カード1枚**と**、〜を1枚**まで**」）。
+  //   🔴描かないと `upToCount`（0〜N）と同じ文になり「**0枚でもよい**」に見える＝
+  //   engine 側（`satisfiesSelectionConstraint` の `minCount`）が止めていることが原文照合に映らない。
+  const minJa = c?.minCount !== undefined ? `${c.minCount}枚以上を含むように` : '';
+  if (minJa) {
+    const { minCount: _m, ...rest } = c!;
+    return minJa + constraintJa(Object.keys(rest).length > 0 ? rest : undefined);
+  }
   if (c?.totalLevelExact !== undefined) return `レベルの合計が${c.totalLevelExact}になるように`;
   if (c?.totalLevelExactRef?.$ref === 'last_processed_count') return 'レベルの合計がこの方法で処理した枚数と同じになるように';
   if (c?.totalLevelMax !== undefined) return `レベルの合計が${c.totalLevelMax}以下になるように`;
@@ -1774,7 +1785,12 @@ function actionJa(a?: Action, effectType?: string): string {
         : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count')
           ? `この方法で処理した${t.count.filter ? `${filterJa(t.count.filter)}カード` : 'カード'}と同じ枚数`
         : `${numJa(t?.count)}枚${t?.upToCount ? 'まで' : ''}`;
-      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
+      // 🆕§5.3 `O-436`（2026-09-16）＝**選択集合の制約**（「共通する色を持たない」「N枚以上を含むように」）。
+      //   🔴この分岐は `selectionConstraint` を `groups` 以外**1つも描いていなかった**＝
+      //   `WX25-P1-003-sub-E1`（「カード1枚と、それと共通する色を持たないカードを1枚まで」）が
+      //   「エナを2枚までトラッシュに置く」＝**制約が2つとも消えた文**になっていた。
+      const setJa = constraintJa(t?.selectionConstraint);
+      return `${ownerJa(t?.owner)}${setJa}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
     }
     case 'POWER_MODIFY': {
       // aboveSelf は「このカードの上にある[＜X＞の/《名》/色の]シグニ」＝ホスト宛（owner 接頭辞は出さない）。
@@ -3398,7 +3414,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'ZONE_MOVE_IMMUNITY': {
       // 🆕意味照合 段2（2026-09-07）＝**5領域を書き分ける**。旧実装は `hand` 以外を全部「エナゾーン」と
       //   訳しており、engine が hand/energy しか守れないことと**同じ嘘で一致**していた。
-      const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
+      // 🆕§5.3 `O-485`（2026-09-16）＝ルリグデッキ・ルリグトラッシュ。落とすと生のキー名が逆翻訳に出る。
+      const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス', lrig_deck: 'ルリグデッキ', lrig_trash: 'ルリグトラッシュ' };
       const zonesJa = a.zones.map((z: string) => ZONE_JA[z] ?? z).join('と');
       const periodJa = a.turns >= 2 ? 'このターンと次のターンの間、' : 'このターン、';
       const DEST_JA: Record<string, string> = { trash: 'トラッシュ', deck: 'デッキ', hand: '手札', energy: 'エナゾーン', field: '場', exile: 'ゲーム外' };
@@ -4715,7 +4732,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (preventDmgMap[a.id]) return preventDmgMap[a.id];
       // 保護系STUB（対戦相手の効果によって〜されない・engine実装済み）の原文意味文。条件/duration は周辺の activeCondition 側で描画。
       if (a.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP' || a.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
-        const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス' };
+        const ZONE_JA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', deck: 'デッキ', trash: 'トラッシュ', life: 'ライフクロス', lrig_deck: 'ルリグデッキ', lrig_trash: 'ルリグトラッシュ' };
         const DEST_JA: Record<string, string> = { trash: 'トラッシュ', deck: 'デッキ', hand: '手札', energy: 'エナゾーン', field: '場', exile: 'ゲーム外' };
         const rule = a.zoneMoveImmunity;
         const zones = rule?.zones?.length
@@ -5673,6 +5690,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと
+        //   バトルしない」＝**バトルが起きないだけでアタックは通る**（消費＝`BattleScreen` の防御側判定）。
+        NO_BATTLE_DEFENDER: 'このシグニは正面からアタックしている対戦相手のシグニとバトルしない（アタックは通りダメージは受ける）',
         // 🏁§5.3 `O-349`（2026-09-13・第302バッチ）＝`DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` の登録は撤去した。
         //   前バッチ（`O-354`）で「未実装」と明記した表示を足したが、**同日に実装が入って live 0 になった**。
         //   ⚠**使われていない id をこの表に残さない**＝次に同名が現れたとき「未実装」と嘘をつく。

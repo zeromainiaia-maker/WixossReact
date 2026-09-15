@@ -198,11 +198,23 @@ export function execStubPart1(
     if (tgt.type === 'TRASH_CARD') {
       // §5.3 `O-188`：候補集めは `execTransferToHand` の TRASH_CARD 分岐と**同一の関数**を共有する。
       // ⚠宣言時と実行時で候補がズレると「選んだのに動かない」になるので、自前で書き直さない。
-      // ⚠相手トラッシュは今回のスコープ外＝fail-closed のまま（候補0で降りる）。
-      if (tgt.owner !== 'self') return done({ ...ctx, lastProcessedCards: [] });
-      const cands = transferToHandTrashCandidates(tgt, ctx);
+      // 🆕**§5.3 `O-409`（2026-09-16）＝相手トラッシュの対象宣言を解禁した**
+      //   （「対戦相手のトラッシュからカードを２枚まで**対象とし**、それらをデッキの一番下に置く。
+      //     **（置く順番は対戦相手が選ぶ）**」＝`WDK09-013-E2`）。
+      //   🔑**選ぶ人と順番を決める人が違う**ので、①使用者が2枚を宣言 →②相手が置く順を決める、の2段に割る。
+      //     ①をここで受けないと順番の問いかけの前に対象が確定できない。
+      //   ⚠候補集めは `execTransferToHand` / `execTransferToDeck` と**同じ共有関数**のまま（宣言と実行のズレを作らない）。
+      // 🆕**§5.3 `O-463`（2026-09-16）＝「**この方法でトラッシュに置かれたカードの中から**」の限定。**
+      //   直前の `TRASH{DECK_CARD}` → `STORE_LAST_PROCESSED_TARGETS` で固定した集合だけを候補にする。
+      //   ⚠`fixedCardNums` は `freezeStoredTargets` が対話を跨ぐ前に焼き込んだ同じ集合（`targetsStored` の凍結形）。
+      //   🔴どちらも読まないと**トラッシュ全体**から選べる（原文より広い過剰実行）。
+      const storedTrashLimit = stub.fixedCardNums ?? (stub.targetsStored ? (ctx.storedTargetCards ?? []) : undefined);
+      const cands = transferToHandTrashCandidates(tgt, ctx)
+        .filter(n => !storedTrashLimit || storedTrashLimit.includes(n));
       const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
-      return selectOrInteract(cands, count, tgt.upToCount ?? false, 'self_trash',
+      // ⚠**scope はトラッシュの持ち主で決める**（相手トラッシュを 'self_trash' で出すと自分のトラッシュが描かれる）。
+      return selectOrInteract(cands, count, tgt.upToCount ?? false,
+        tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash',
         { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
         false);
     }

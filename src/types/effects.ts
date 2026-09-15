@@ -4148,7 +4148,12 @@ export interface ZoneMoveImmunityAction {
  *   engine と表示が同じ嘘で一致していた）。
  * ⚠**`'life'` はクラッシュ以外の移動も含む**（`excludeCrash` で crash だけ外す）。
  */
-export type OppMoveImmunityZone = 'hand' | 'energy' | 'deck' | 'trash' | 'life';
+// 🆕**§5.3 `O-485`（2026-09-16）で `lrig_deck` / `lrig_trash` を追加**＝原文「**場以外の**あなたの領域に
+//   あるカード」（`WXK10-004-E1` / `WXEX2-22-E1`）は手札・エナ・デッキ・トラッシュ・ライフだけではない。
+//   🔴無いと**ルリグデッキのアーツ除外**（`execExile` の `LRIG_DECK_CARD`）と**ルリグトラッシュからの移動**
+//     （`zoneTargetCandidates` / `execTransferToDeck` の `LRIG_TRASH_CARD`）が素通りする。
+// ⚠**チェックゾーンは入れない**＝カードが留まらない解決中の一時ゾーンで、移動地点が無い（過剰な語彙を作らない）。
+export type OppMoveImmunityZone = 'hand' | 'energy' | 'deck' | 'trash' | 'life' | 'lrig_deck' | 'lrig_trash';
 
 /** 相手効果によるゾーン移動保護が区別する移動先。 */
 export type OppMoveDestination = 'trash' | 'deck' | 'hand' | 'energy' | 'field' | 'exile';

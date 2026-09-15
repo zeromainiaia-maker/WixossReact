@@ -21986,9 +21986,16 @@ test('型網羅 GRANT_SIGNI_ABOVE_ABILITY: 下のカードが上のシグニへ�
 test('O-128 第4 A-2: WXDi-P05-060-E2 は CONTINUOUS action 直下から赤の上シグニへ能力を付与する', () => withSavedCursor(() => {
   const effects = effectsMap.get('WXDi-P05-060') ?? [];
   const e1 = effects.find(e => e.effectId === 'WXDi-P05-060-E1');
-  ok(!!e1 && e1.action.type === 'SEQUENCE', 'E1 の設置シーケンスが live に存在');
-  const stepTypes = e1!.action.type === 'SEQUENCE' ? e1!.action.steps.map(s => s.type) : [];
-  eq(JSON.stringify(stepTypes), JSON.stringify(['STUB', 'POWER_MODIFY']), 'E1 から無言 no-op の付与STUBだけを除去');
+  // 🆕**2026-09-16（§5.3 `O-443`… ではなく `O-501`）＝E1 は「下に置く」だけになった。**
+  //   原文2本目の【常】「このカードの上にある《コードアクセル　ヒャッハー》のパワーを＋2000する」は
+  //   **使用時1回の `POWER_MODIFY` ではなく恒久の CONTINUOUS**（新設 E3）＝
+  //   `calcFieldPowers` のスタック下カード走査（`aboveSelf`）が毎フレーム評価する。
+  ok(!!e1 && e1.action.type === 'STUB', 'E1 は設置 STUB 単体（パワー修正は E3 の常在へ出した）');
+  const e3 = effects.find(e => e.effectId === 'WXDi-P05-060-E3');
+  ok(!!e3 && e3.effectType === 'CONTINUOUS' && e3.action.type === 'POWER_MODIFY',
+    '新設 E3＝「このカードの上にある《ヒャッハー》のパワー＋2000」の常在');
+  ok(!!(e3!.action.type === 'POWER_MODIFY' && e3!.action.target?.filter?.aboveSelf),
+    'E3 は aboveSelf（スタック下カードからホストへ）');
   const e2 = effects.find(e => e.effectId === 'WXDi-P05-060-E2');
   ok(!!e2, '新設 E2 が live に存在');
   eq(e2!.effectType, 'CONTINUOUS', 'Pattern B が読む CONTINUOUS');
@@ -43807,9 +43814,12 @@ test('§6.4 O-3: `WXK10-004-E1`（場以外の領域）と `WXEX2-06-E3`（ダ�
   // 受け皿 STUB（恒久 no-op）だった `WXK10-004-E1`。
   // 🆕**2026-09-07（意味照合 段2）＝原文「場以外のあなたの領域」は5領域**（旧実装は hand/energy に丸めており、
   //   デッキ・トラッシュ・ライフが1件も守られていなかった）。
+  // 🆕**2026-09-16（§5.3 `O-485`）＝7領域へ**＝**ルリグデッキ・ルリグトラッシュも「場以外」**
+  //   （消費＝`execExile` の `LRIG_DECK_CARD` と `zoneTargetCandidates`／`execTransferToDeck` の `LRIG_TRASH_CARD`）。
   const a = run1('WXK10-004', 'WXK10-004-E1').ownerState as PlayerState;
   eq(JSON.stringify(activeOppMoveImmunityZones(a).sort()),
-    JSON.stringify(['deck', 'energy', 'hand', 'life', 'trash']), '🔴場以外の5領域すべてを保護（hand/energy へ戻っていない）');
+    JSON.stringify(['deck', 'energy', 'hand', 'life', 'lrig_deck', 'lrig_trash', 'trash']),
+    '🔴場以外の7領域すべてを保護（ルリグデッキ／ルリグトラッシュが落ちている）');
   // 🔴`WXEX2-06-E3` は「ダメージを受けず」だけ拾われ**移動不可が丸ごと落ちていた**（片側採用）。
   const b = run1('WXEX2-06', 'WXEX2-06-E3').ownerState as PlayerState;
   eq(JSON.stringify(activeOppMoveImmunityZones(b).sort()), JSON.stringify(['energy', 'hand']), '移動不可の半分も効く');
@@ -84515,6 +84525,163 @@ test('§5.3 O-451: BANISH_REDIRECT と POWER_MODIFY_PER_LEVEL_SUM が targetsSto
   eq(candidatesOf(withoutStoredBinding(redirect), [declared]).length, 2, 'targetsStored なしなら2体とも候補');
   eq(candidatesOf(withoutStoredBinding(pmpls), [declared]).length, 2, '同上（POWER_MODIFY_PER_LEVEL_SUM）');
 }));
+
+// ── 第368バッチ（2026-09-16）＝索引G 10件 ─────────────────────────────────
+// 🔑どれも「受け皿は在るのに JSON／逆翻訳が別のことを書いていた」型。ここで固定するのは**形と挙動の両方**。
+
+test('§5.3 O-436: 「カード1枚と、…を1枚まで」は下限1枚（0枚では確定できない）', () => withSavedCursor(() => {
+  const rap = (effectsMap.get('WXDi-P12-039') ?? []).find(e => e.effectId === 'WXDi-P12-039-E1')!;
+  const c1 = (rap.action as unknown as { selectionConstraint?: { minCount?: number; sharedColor?: string } }).selectionConstraint;
+  eq(c1?.minCount, 1, '🔴REVEAL_AND_PICK の下限1枚が落ちている（pickUpTo だけでは0枚で確定できる）');
+  eq(c1?.sharedColor, 'none', '🔴共通色なしの制約が落ちている（minCount を足すときに上書きしやすい）');
+  const sub = JSON.stringify((effectsMap.get('WX25-P1-003') ?? []).find(e => e.effectId === 'WX25-P1-003-E1'));
+  ok(sub.includes('"sharedColor":"none","minCount":1'),
+    '🔴引用【起】側（対戦相手のエナ2枚まで）にも下限1枚＋共通色なしが要る');
+  // 🔴挙動＝0枚選択は不成立・1枚は成立（engine の確定ゲートは satisfiesSelectionConstraint）。
+  const one = findCard(c => c.Type === 'シグニ');
+  eq(satisfiesSelectionConstraint([], { minCount: 1 }, cardMap as Map<string, CardData>), false,
+    '🔴0枚で確定できてしまう＝「1枚と」が消えている');
+  eq(satisfiesSelectionConstraint([one], { minCount: 1 }, cardMap as Map<string, CardData>), true, '1枚なら成立');
+}));
+
+test('§5.3 O-442: WD22-011-G ①は遅延トリガーの設置（選んだ瞬間のパワー減少ではない）', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WD22-011-G', effectsMap.get('WD22-011-G') ?? [])
+    .find(e => e.effectId === 'WD22-011-G-E1')!;
+  const choose = eff.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const c0 = choose.choices[0].action as unknown as { type: string; duration?: string; trigger?: { timing?: string; placedByEffect?: boolean } };
+  eq(c0.type, 'INSTALL_DELAYED_TRIGGER', '🔴①が即時の POWER_MODIFY に戻っている');
+  eq(c0.trigger?.timing, 'ON_PLAY', '発火は「場に出たとき」');
+  eq(c0.trigger?.placedByEffect, true, '🔴「効果によって」が落ちると通常召喚でも発火する');
+  eq(c0.duration, 'THIS_TURN', '「このターン」');
+  // 挙動＝設置しただけでは相手のパワーは動かない（delayed_triggers に1件だけ積まれる）。
+  const ctx = mkCtx({}, { signi: [fresh(), null, null] });
+  const st = run(choose.choices[0].action, ctx).ownerState as PlayerState;
+  eq((st.delayed_triggers ?? []).length, 1, '🔴遅延トリガーが積まれていない');
+}));
+
+test('§5.3 O-409: 「置く順番は対戦相手が決める」＝1体ずつ相手に選ばせる', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WXDi-CP02-036', effectsMap.get('WXDi-CP02-036') ?? [])
+    .find(e => e.effectId === 'WXDi-CP02-036-E1')!;
+  eq((eff.action as unknown as { orderChosenBy?: string }).orderChosenBy, 'opponent',
+    '🔴置く順番の指定が落ちている＝使用者が相手の次のドロー順を決めてしまう');
+  const ctx = mkCtx({}, { signi: [fresh(), fresh(), null] });
+  const r = executeAction(eff.action, ctx);
+  ok(!r.done, '🔴2体を一括で置いた＝順番を決める余地が消えている');
+  const pend = (r as { pending: { type: string; count?: number } }).pending;
+  eq(pend.type, 'SELECT_TARGET', '相手に1体ずつ選ばせる対話');
+  eq(pend.count, 1, '🔴1体ずつでないと「順番」にならない');
+  ok(pendingRespondsOpponent(pend as unknown as PendingInteractionDef), '🔴選ぶのは対戦相手');
+  // 対照＝候補1体なら順番の余地が無いので対話を出さない。
+  const one = executeAction(eff.action, mkCtx({}, { signi: [fresh(), null, null] }));
+  ok(one.done, '候補1体では対話を出さない（無意味なモーダル）');
+}));
+
+test('§5.3 O-409(b): WDK09-013-E2 は「使用者が2枚宣言 → 相手が置く順を決める」', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WDK09-013', effectsMap.get('WDK09-013') ?? [])
+    .find(e => e.effectId === 'WDK09-013-E2')!;
+  const steps = (eff.action as SequenceAction).steps as unknown as Array<{ type: string; id?: string; orderChosenBy?: string; targetsStored?: boolean }>;
+  eq(JSON.stringify(steps.map(x => x.id ?? x.type)),
+    JSON.stringify(['SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS', 'TRANSFER_TO_DECK']),
+    '🔴宣言→固定→移動の3段でないと「選ぶ人」と「順番を決める人」を分けられない');
+  eq(steps[2].orderChosenBy, 'opponent', '置く順番は対戦相手');
+  eq(steps[2].targetsStored, true, '🔴宣言した2枚に絞らないと相手トラッシュ全体から選び直せる');
+  // 挙動＝宣言済み（storedTargetCards）2枚なら、相手へ1枚ずつの選択を出す。
+  const t1 = fresh(); const t2 = fresh(); const t3 = fresh();
+  const base = mkCtx({}, {});
+  const ctx = { ...base, otherState: { ...base.otherState, trash: [t1, t2, t3] },
+    storedTargetCards: [t1, t2] } as ExecCtx;
+  const r = executeAction(steps[2] as unknown as EffectAction, ctx);
+  ok(!r.done, '🔴一括で置いた＝順番の問いかけが無い');
+  const pend = (r as { pending: { type: string; count?: number; candidates?: string[] } }).pending;
+  eq(pend.count, 1, '1枚ずつ');
+  eq(JSON.stringify((pend.candidates ?? []).slice().sort()), JSON.stringify([t1, t2].sort()),
+    '🔴候補が宣言した2枚に絞られていない');
+}));
+
+test('§5.3 O-463: 「この方法でトラッシュに置かれたカードの中から」＋レベル比例コスト', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WX24-P2-058', effectsMap.get('WX24-P2-058') ?? [])
+    .find(e => e.effectId === 'WX24-P2-058-E1')!;
+  const steps = (eff.action as SequenceAction).steps as unknown as Array<{ type: string; id?: string; targetsStored?: boolean }>;
+  eq(JSON.stringify(steps.map(x => x.id ?? x.type)),
+    JSON.stringify(['TRASH', 'STORE_LAST_PROCESSED_TARGETS', 'SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS', 'CHOOSE']),
+    '🔴宣言が二択より後ろにあると、枝を選ぶ対話で「この方法で置かれた3枚」の限定が消える');
+  eq(steps[2].targetsStored, true, '🔴対象宣言がトラッシュ全体を候補にしている');
+  // 挙動①＝宣言の候補は storedTargetCards（この方法で置かれた札）だけ。
+  const a = findCard(c => c.Type === 'シグニ' && c.Level === '3');
+  const b = findCard(c => c.Type === 'シグニ' && c.Level === '2');
+  const other = findCard(c => c.Type === 'シグニ' && c.Level === '1');
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [a, b, other] },
+    storedTargetCards: [a, b] } as ExecCtx;
+  const r = executeAction(steps[2] as unknown as EffectAction, ctx);
+  ok(!r.done, '候補が2枚あるので選択を出す');
+  const cands = ((r as { pending: { candidates?: string[] } }).pending.candidates ?? []).slice().sort();
+  eq(JSON.stringify(cands), JSON.stringify([a, b].sort()),
+    '🔴この方法でトラッシュに置いていない札まで選べる');
+  // 挙動②＝「それのレベル1につき《無》」は**焼き込み済みの対象**からも倍率を読める（対話を跨ぐため）。
+  const spec = resolveOptionalCostSpec(
+    { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevel: ['無'], fixedCardNums: [a] } as StubAction,
+    base);
+  eq(spec.costColors.length, 3, '🔴レベル3なら《無》3つ（0だと支払いを一生提示できない）');
+  eq(spec.levelUnavailable, false, '倍率が読めている');
+}));
+
+test('§5.3 O-460: 引用能力の中の効果耐性は付与先1体だけ', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WXEX1-35', 'WXEX1-35-E1'], ['WXK10-080', 'WXK10-080-E2']] as const) {
+    const json = JSON.stringify(mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])
+      .find(e => e.effectId === effectId));
+    ok(!json.includes('"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":"ALL"}'),
+      `🔴${effectId}: 引用の中が count:'ALL'＝逆翻訳が「あなたのすべてのシグニは」と嘘をつく`);
+    ok(json.includes('"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1}'),
+      `🔴${effectId}: 付与先1体分（count:1）になっていない`);
+  }
+  // 挙動＝付与元ホストだけが免疫（隣のシグニは免疫にならない）。
+  const host = 'WXEX1-35';
+  const rise = findCard(c => c.Type === 'シグニ' && /ライズ/.test(c.EffectText ?? ''));
+  const neighbor = fresh();
+  const st = mkState({ signi: [host, neighbor, rise] });
+  const immune = collectEffectImmuneSigni(st, mkState({}), cardMap as Map<string, CardData>, effectsMap, true, 'アーツ');
+  ok(!immune.has(neighbor), '🔴隣のシグニまでアーツ耐性を得ている（付与範囲が過剰）');
+}));
+
+test('§5.3 O-485: 「場以外のあなたの領域」はルリグデッキ／ルリグトラッシュも守る', () => withSavedCursor(() => {
+  const base = mkCtx({}, {});
+  const guarded = { ...base, otherState: { ...base.otherState,
+    opp_move_immunity: [{ zones: ['hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash'], turnsRemaining: 2 }],
+  } } as unknown as ExecCtx;
+  ok(oppZoneMoveBlocked('lrig_trash', 'opponent', guarded), '🔴ルリグトラッシュが守られていない');
+  ok(oppZoneMoveBlocked('lrig_deck', 'opponent', guarded), '🔴ルリグデッキが守られていない');
+  // 消費地点＝相手のルリグトラッシュからデッキへ戻す効果は候補0で降りる。
+  const arts = findCard(c => c.Type === 'アーツ');
+  const ctx = { ...guarded, otherState: { ...guarded.otherState, lrig_trash: [arts] } } as ExecCtx;
+  const action = { type: 'TRANSFER_TO_DECK', shuffle: false, destination: 'lrig_deck',
+    source: { type: 'LRIG_TRASH_CARD', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  const r = executeAction(action, ctx);
+  ok(r.done, '🔴保護下なのに選択が始まった');
+  eq((r.otherState.lrig_deck ?? []).length, 0, '🔴保護下なのにルリグデッキへ移動した');
+}));
+
+test('§5.3 O-443: 「バトルしない」はアタック無効化ではない（NO_BATTLE_DEFENDER）', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WX25-P1-TK6', effectsMap.get('WX25-P1-TK6') ?? [])
+    .find(e => e.effectId === 'WX25-P1-TK6-E1')!;
+  eq(eff.effectType, 'CONTINUOUS', '常在');
+  eq((eff.action as StubAction).id, 'NO_BATTLE_DEFENDER',
+    '🔴NEGATE_ATTACK_ON_TRIGGER に戻っている＝アタックごと無効＝ライフまで守る過剰実行');
+}));
+
+test('§5.3 O-520 / O-487: 受け皿は既に在る（登録票を再発行しないための固定）', () => withSavedCursor(() => {
+  // O-520＝「このターンにこの能力でシグニを場に出していない場合」は `once_per_turn_on_success`。
+  //   🔑成功（`ADD_TO_FIELD` 等）でだけ消費するので「払わずに流した回」は数えない＝原文どおり。
+  const ulimit = (effectsMap.get('WX25-P3-061') ?? []).find(e => e.effectId === 'WX25-P3-061-E1')!.usageLimit;
+  eq(ulimit, 'once_per_turn_on_success',
+    '🔴once_per_turn に戻ると「発動した回」を数える＝ウリスがいれば何度でも場に出せる／出せない の逆方向に壊れる');
+  // O-487＝【英知】のレベル読み替えは**取りうるレベル群**（1であり2であり3）。
+  const opts = collectAttackPhaseLevelOverrides(
+    mkState({ signi: ['WX20-044-CB', null, null] }), effectsMap, cardMap as Map<string, CardData>, 'MAIN');
+  eq(JSON.stringify(opts['WX20-044-CB'] ?? []), JSON.stringify([1, 2, 3]),
+    '🔴単一値へ潰れている＝【英知＝６】【７】【８】のどれかしか満たせない');
+}));
+
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

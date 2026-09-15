@@ -1213,7 +1213,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/場以外のあなたの領域.*クラッシュ以外の対戦相手の効果.*他の領域に移動しない/)) {
     return {
       type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP',
-      zoneMoveImmunity: { zones: ['hand', 'energy', 'deck', 'trash', 'life'], excludeCrash: true },
+      // 🆕§5.3 `O-485`（2026-09-16）＝**ルリグデッキ・ルリグトラッシュも「場以外のあなたの領域」**。
+      //   ⚠**末尾に足す**（`isPureSuperset` は配列を添字で突き合わせる＝先頭へ挿すと live に届かない）。
+      zoneMoveImmunity: { zones: ['hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash'], excludeCrash: true },
     } as StubAction;
   }
 
@@ -2304,7 +2306,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (/対戦相手の効果(?:によって|は)/.test(t) && movesJa.test(t)
         && !/この(?:シグニ|カード|アーツ)/.test(t) && !/ライフクロス/.test(t)) {
       const zones: import('../../types/effects').OppMoveImmunityZone[] = [];
-      if (/場以外の(?:あなたの)?領域/.test(t)) { zones.push('hand', 'energy', 'deck', 'trash', 'life'); }
+      // 🆕§5.3 `O-485`（2026-09-16）＝**ルリグデッキ・ルリグトラッシュも「場以外の領域」**。
+      //   ⚠**末尾に足す**（先頭へ挿すと `buildEffectsJson` の `isPureSuperset` が添字で突き合わせるので live へ届かない）。
+      if (/場以外の(?:あなたの)?領域/.test(t)) { zones.push('hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash'); }
       else {
         if (/エナゾーン/.test(t)) zones.push('energy');
         if (/手札/.test(t)) zones.push('hand');

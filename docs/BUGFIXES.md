@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第368バッチ：§5.3 索引G 10件（修正8＝12効果／登録票 stale 2）
+
+**真因の型**＝10件のうち **8件が「受け皿は在るのに JSON がそれを使っていない」**、**2件は登録票そのものが stale**（受け皿は実装済み）。
+engine に足したのは **6つの受け皿**だけで、残りは JSON（manual 7カード）・parser 2箇所・逆翻訳4箇所。
+
+| ID | カード（効果） | 真因1行 | 影響 | 直し方 |
+|---|---|---|---|---|
+| `O-409` | `WXDi-CP02-036-E1` / `WDK09-013-E2` | 「（置く順番は対戦相手が決める／選ぶ）」の指定が無く、**使用者が相手の次のドロー順を決めていた** | 2効果 | 前者は既存 `orderChosenBy:'opponent'` を manual で刻む。後者は「選ぶ人（使用者）と順番を決める人（相手）が違う」形＝**宣言→固定→相手が1枚ずつ**の3段へ組み直し、engine の `TRASH_CARD` 側に `orderChosenBy` と宣言済み集合の絞り込みを実装 |
+| `O-436` | `WXDi-P12-039-E1` / `WX25-P1-003-sub-E1` | 「カード**1枚と**、…を**1枚まで**」が `pickUpTo`（0〜2）だけ＝**0枚でも確定できた** | 2効果 | parser の専用 rewrite（`rewriteNoSharedColorSelectionShape`）で `selectionConstraint:{sharedColor:'none', minCount:1}` を**2軸まとめて**書く。逆翻訳にも下限を描いた |
+| `O-442` | `WD22-011-G-E1`① | 「このターン、あなたのシグニが効果によって場に出たとき」の**遅延トリガーが設置されず、選んだ瞬間に－7000** | 1効果 | 既存 `INSTALL_DELAYED_TRIGGER{ON_PLAY, placedByEffect}`（先例 `WXDi-P09-010-E3` が同じ原文）へ。選択肢ラベルも原文どおりに |
+| `O-443` | `WX25-P1-TK6-E1` | 「正面のシグニと**バトルしない**」が `STUB{NEGATE_ATTACK_ON_TRIGGER}`＝**アタックごと無効**でライフまで守っていた | 1効果 | `STUB{NO_BATTLE_DEFENDER}` へ（`BattleScreen` に消費地点だけが在り live に生成元が0だった遊休受け皿）。逆翻訳ラベルも `miscStubMap` へ登録 |
+| `O-460` | `WXEX1-35-E1` / `WXK10-080-E2` | 引用能力の中の `GRANT_PROTECTION` が `count:'ALL'`＝**逆翻訳が「あなたのすべてのシグニは」と嘘**（engine は付与先ホストだけを免疫にするので**挙動は正しかった**） | 2効果 | `count:1` へ（`protThisOnly` が立って「このシグニは」と出る）。先例 `WD18-008` |
+| `O-463` | `WX24-P2-058-E1` | 「**この方法でトラッシュに置かれたカードの中から**」の限定が無く、①は**デッキから**手札に加え、②は対象も `source` も無し・コストも《無》1個固定（原文は**それのレベル1につき**） | 1効果 | `TRASH{DECK 3}`→`STORE`→`SELECT_TARGET_ONLY{targetsStored}`→`STORE`→二択＋`costColorsPerTargetLevel`。engine 側は `execChoose` が枝へ `freezeStoredTargets` を通し、`SELECT_TARGET_ONLY` の焼き込み・トラッシュ候補の限定・倍率元の焼き込みを追加 |
+| `O-485` | `WXK10-004-E1` / `WXEX2-22-E1` | 「**場以外の**あなたの領域」の保護が5領域だけ＝**ルリグデッキ・ルリグトラッシュが素通り** | 2効果 | `OppMoveImmunityZone` に `lrig_deck`/`lrig_trash` を追加（**配列の末尾に足す**＝`isPureSuperset` は添字で突き合わせる）。消費＝`execExile` の `LRIG_DECK_CARD` 2経路／`zoneTargetCandidates`・`execTransferToDeck` の `LRIG_TRASH_CARD` |
+| `O-501` | `WXDi-P05-060-E1` | 「このカードの上にある《ヒャッハー》のパワー＋2000」の**常在**が、使用時1回でターン終了に消える `POWER_MODIFY` として E1 の中に入っていた | 1効果 | 独立 `CONTINUOUS`（新設 E3・`aboveSelf`）へ。受け皿は `calcFieldPowers` のスタック下カード走査（先例 `WXDi-P03-057-E2`） |
+| `O-487` | `WX20-044-CB-E1` | 🔴**登録票が stale**＝「レベルは1であり2であり3」は `collectAttackPhaseLevelOverrides` が**取りうるレベル群**として実装済み（`eichi_level_options` → `EICHI_LEVEL_SUM` が集合で判定） | 0 | 行を消し、再発防止に golden を1本張った。payload 化は `census:enginetext` A群の1行（miss 0）として別管理 |
+| `O-520` | `WX25-P3-061-E1` | 🔴**登録票が stale**＝「このターンにこの能力でシグニを場に出していない場合」は `usageLimit:'once_per_turn_on_success'`（`O-323`）を parser が既に刻んでおり、`ADD_TO_FIELD` は `SUCCESS_USAGE_ACTION_TYPES` に入っている | 0 | 同上（golden で固定） |
+
+**検証**＝`npm run typecheck` / `npm run build:effects` / `npx tsx scripts/syncManualLive.ts …`（manual 8カード）/ `node scripts/heldReview.mjs --adopt-effect WX25-P1-003-E1` / `npm run regen` / `npm run gates` **全緑**（golden **4235/4235**＝+9本）。
+**反転確認**＝新 golden 9本のうち5本に対照 assert を置いた（候補1体なら順番の対話を出さない／`targetsStored` を外すと候補が広がる／隣のシグニは免疫にならない／0枚は確定不能／保護下ではルリグデッキへ移動しない）。
+**実機**＝§2.2 で**不要**（触ったのは `src/types/` `src/data/` `src/engine/` `scripts/` `public/data/` だけ＝`src/screens/` 不触）。新しい挙動は golden で網羅した。
+
+🔑**教訓（次バッチで最初に読む）**
+- 🔴**「受け皿が無い」と書いた登録票を信じない**＝10件のうち2件が実装済みだった。**着手の1手目は原文の言い回しで `src/` を grep**（§2.1 ②）。今回は2件とも parser／engine に規則名で入っており、grep 1回で分かった。
+- 🔑**「engine は正しいが JSON／逆翻訳が嘘」は FP ではない**＝原文照合はそこだけ効かないので**直す価値がある**（`O-460` は count を1にしただけで挙動0変化・検査面積は増えた）。
+- 🔴**対話を跨ぐと `storedTargetCards` は消える**＝「〈対象を宣言〉→ **二択** → それを〜」の形は `CHOOSE` の実行地点で焼き込まないと限定が外れる。**倍率コスト（それのレベル1につき）も同じ**で、焼かないと倍率0＝支払いを一生提示できない（過少側に静かに倒れる）。
+- ⚠**制約オブジェクトへ1軸だけ足すと他軸が落ちる**＝`minCount` を追記したら `sharedColor` が消えた（rewrite が走る時点ではまだ立っていなかった）。**同じ文型に要る軸は1つのオブジェクトで書き切る**。
+- 🔑**golden の FAIL は連鎖する**＝先行テストが落ちると `fresh()` の POOL カーソルがずれ、無関係なテスト（`WX20-Re20`）も落ちた。**まず最初の FAIL を直してから次を数える**。
+
 ## 2026-09-16 — 第367バッチ：索引G をさらに30件消化（🏁修正22件＝42効果／🚫偽陽性8件）
 
 ### 🏁修正22件

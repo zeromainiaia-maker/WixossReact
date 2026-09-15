@@ -684,8 +684,14 @@ export interface OptionalCostSpec {
 }
 
 export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCostSpec {
-  const level = maxCardLevel(ctx.storedTargetCards, ctx);
-  const levelSum = sumCardLevels(ctx.storedTargetCards, ctx);
+  // 🆕**§5.3 `O-463`（2026-09-16）＝倍率の元は「焼き込み済みの対象」も見る。**
+  //   🔴`storedTargetCards` は対話の resume を跨いで生存しない＝「〈対象を宣言〉→ **二択** →
+  //     それのレベル１につき〈コスト〉」の形（`WX24-P2-058-E1`）は、枝を選んだ時点で倍率が 0 になり
+  //     `levelUnavailable` で**支払いを一生提示できない**（無言の過少実行）。
+  //   🔑`freezeStoredTargets` が枝へ降りるときに同じ集合を `fixedCardNums` へ焼き込むので、そちらを優先する。
+  const levelTargets = a.fixedCardNums?.length ? a.fixedCardNums : ctx.storedTargetCards;
+  const level = maxCardLevel(levelTargets, ctx);
+  const levelSum = sumCardLevels(levelTargets, ctx);
   const perLevel = !!(a.costColorsPerTargetLevel || a.costColorsPerTargetLevelSum
     || a.handDiscardCountFromTargetLevel || a.energyTrashCountFromTargetLevel);
   const baseCostColors = a.costColorsPerTargetLevelSum
@@ -720,7 +726,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : handDiscardRaw;
   // 🆕§5.3 `O-280`④（2026-09-08）＝「対象**1体につき**1枚」＝宣言済み対象の**体数**で払う。
   //   ⚠レベル軸（`energyTrashCountFromTargetLevel`）と取り違えない。
-  const targetCount = (ctx.storedTargetCards ?? []).length;
+  const targetCount = (levelTargets ?? []).length;
   const energyTrash = a.energyTrash
     ? {
         count: a.energyTrashCountFromTargetCount ? targetCount

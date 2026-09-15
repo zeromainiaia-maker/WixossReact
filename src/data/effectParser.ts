@@ -14438,6 +14438,11 @@ function rewriteNoSharedColorSelectionShape(text: string, parsed: EffectAction):
       revealCount: parseNum(pairLook[1]),
       pickCount: 2,
       pickUpTo: true,
+      // 🆕§5.3 `O-436`（2026-09-16）＝原文は「カード**１枚と**、そのカードと共通する色を持たないカードを**１枚まで**」＝
+      //   **1枚目は必須**。`pickUpTo`（0〜2）だけでは**0枚でも確定できる**ので下限を課す。
+      //   🔑受け皿は既存＝`SelectionConstraint.minCount`（`satisfiesSelectionConstraint` / `canAddToSelection` /
+      //   選択UI の `canConfirm` が3点とも消費済み。先例＝`O-286` の `energyTrash.atLeast`）。
+      selectionConstraint: { sharedColor: 'none', minCount: 1 },
       then: { type: 'ADD_TO_ENERGY', owner: 'self' },
       remainder: { location: 'deck', position: 'bottom', reorder: true },
     } as RevealAndPickAction;
@@ -14462,6 +14467,16 @@ function rewriteNoSharedColorSelectionShape(text: string, parsed: EffectAction):
   if (slots.length === 1) {
     slots[0].count = 2;
     slots[0].upToCount = true;
+    // 🆕§5.3 `O-436`＝「カード**１枚と**、それと共通する色を持たないカードを**１枚まで**」＝
+    //   **上限2枚・下限1枚**かつ**2枚は共通色を持たない**。
+    //   🔴**2軸を同じオブジェクトで書き切る**＝実測で、ここへ `minCount` だけを足すと
+    //     `sharedColor:'none'`（この文型に必ず要る）が**落ちた**（この rewrite が走る時点では
+    //     まだ立っておらず、マージ元が空だった）。片方だけ書くと制約がもう片方ごと消える。
+    slots[0].selectionConstraint = {
+      ...(slots[0].selectionConstraint as Record<string, unknown> | undefined ?? {}),
+      sharedColor: 'none',
+      minCount: 1,
+    };
     return parsed;
   }
   return { type: 'UNKNOWN', raw: text };

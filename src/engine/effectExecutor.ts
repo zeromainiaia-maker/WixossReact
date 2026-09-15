@@ -150,7 +150,12 @@ const exceedPoolCountOf = (state: PlayerState): number =>
  * - `COPY_CARD`＝`execStubPart3` の `card_identity_overrides`（`WX21-034-E1`）
  * - `TRAP_OPERATION`＝`execStubPart2` の `gain_trap_ability`（`WX17-029-TRAP`）
  */
-const O220_FREEZABLE_STUB_IDS = ['COPY_CARD', 'TRAP_OPERATION', 'SET_OPP_SIGNI_AS_TRAP'];
+// 🆕**§5.3 `O-463`（2026-09-16）で `SELECT_TARGET_ONLY` を追加**＝「この方法でトラッシュに置かれたカードの
+//   中から〜を対象とし」の**対象宣言そのものを候補集合で縛る**形（`WX24-P2-058-E1`）。
+//   🔴宣言が `CHOOSE` の枝の中にあると、枝を選ぶ対話の resume で `storedTargetCards` が消える＝
+//     縛りが外れて**トラッシュ全体から選べる**（原文より広い過剰実行）。⇒ 焼き込みで個体IDへ固定する。
+//   ⚠消費は `execStubPart1` の `SELECT_TARGET_ONLY`（`TRASH_CARD` 分岐）に同じ巡で足してある。
+const O220_FREEZABLE_STUB_IDS = ['COPY_CARD', 'TRAP_OPERATION', 'SET_OPP_SIGNI_AS_TRAP', 'SELECT_TARGET_ONLY'];
 
 // 任意コストの pay/skip 分岐に埋め込む本体アクションの対象を、いま固定されている storedTargetCards へ
 // 焼き込む。storedTargetCards はインタラクションの resume を跨いで生存しないため、targetsStored のまま
@@ -198,6 +203,17 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   if (action.type === 'STUB' && O220_FREEZABLE_STUB_IDS.includes(action.id)
       && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
+  }
+  // 🆕**§5.3 `O-463`（2026-09-16）＝対象レベル比例の任意コストは「倍率の元」を焼き込む。**
+  //   🔴`resolveOptionalCostSpec` は `ctx.storedTargetCards` からレベルを取るので、対話を跨ぐと
+  //     倍率が 0＝`levelUnavailable` になり**支払いを提示できない**（`WX24-P2-058-E1` の②）。
+  //   ⚠**倍率キーを持つ任意コストだけ**を焼く（`fixedCardNums` を別の意味で読むコストを巻き込まない）。
+  if (action.type === 'STUB' && action.id === 'OPTIONAL_COST'
+      && !(action as { fixedCardNums?: string[] }).fixedCardNums
+      && (action.costColorsPerTargetLevel || action.costColorsPerTargetLevelSum
+        || action.handDiscardCountFromTargetLevel || action.energyTrashCountFromTargetLevel
+        || action.energyTrashCountFromTargetCount)) {
+    return { ...action, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
   if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(s => freezeStoredTargets(s, ctx)) };
   // 🆕**§5.3 `O-220` 第3バッチ（2026-09-02）＝`CHOOSE` の枝の中へも降りる。**
@@ -2236,6 +2252,10 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   const tgt = a.target;
   if (tgt.type === 'LRIG_DECK_CARD') {
     const state = ownerState(tgt.owner, ctx);
+    // 🆕§5.3 `O-485`（2026-09-16）＝ルリグデッキも「場以外のあなたの領域」＝相手効果の除外から守る。
+    if (oppZoneMoveBlocked('lrig_deck', tgt.owner, ctx, 'exile')) {
+      return done({ ...addLog(ctx, 'ルリグデッキ保護により効果なし'), lastProcessedCards: [] });
+    }
     const cands = state.lrig_deck.filter(n => {
       const card = ctx.cardMap.get(getCardNum(n));
       if (!card) return false;
@@ -4616,6 +4636,9 @@ function zoneTargetCandidates(src: EffectTarget, tgtOwner: Owner, ctx: ExecCtx):
   // ⚠**`execTransferToDeck` の `LRIG_TRASH_CARD` 分岐と同一の候補式**（宣言時と実行時で
   //   候補がズレると「選んだのに動かない」になる＝`TRASH_CARD`／`ENERGY_CARD` と同じ規約）。
   if (src.type === 'LRIG_TRASH_CARD') {
+    // 🆕§5.3 `O-485`（2026-09-16）＝「場以外のあなたの領域にあるカードは対戦相手の効果によって移動しない」。
+    //   ⚠**候補0で表す**（`movableTrashCandidates` と同じ規約＝盤面を巻き戻さない）。
+    if (oppZoneMoveBlocked('lrig_trash', tgtOwner, ctx)) return [];
     return (state.lrig_trash ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
   }
   return [];
@@ -7520,15 +7543,20 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
   //   ⚠キーの土台は `sourceEffectId`（付与された能力なら付与側の effectId）＝無ければカード番号。
   const noRepeatKeyBase = a.noRepeat ? (ctx.sourceEffectId ?? ctx.sourceCardNum ?? 'anon') : '';
   const takenChoiceKeys = a.noRepeat ? (ctx.ownerState.taken_choice_keys ?? []) : [];
+  // 🆕**§5.3 `O-463`（2026-09-16）＝枝の `targetsStored` を選択前に個体IDへ焼き込む。**
+  //   🔴`storedTargetCards` は対話の resume を跨いで生存しない（`freezeStoredTargets` 冒頭の注記）＝
+  //     「〈対象を宣言〉→ 以下の2つから1つを選ぶ」の形は、**枝を選んだ時点で対象の限定が消える**。
+  //   🔑ガードは `freezeStoredTargets` 側が持つ（store が空なら1バイトも焼かない）ので、
+  //     宣言を通っていない従来の `CHOOSE` は挙動不変。
   const options = a.choices.map(ch => ({
     id: ch.choiceId,
     label: ch.label,
     action: a.noRepeat
       ? ({ type: 'SEQUENCE', steps: [
-          ch.action,
+          freezeStoredTargets(ch.action, ctx),
           { type: 'STUB', id: 'INTERNAL_MARK_CHOICE_TAKEN', value: `${noRepeatKeyBase}:${ch.choiceId}` } as StubAction,
         ] } as SequenceAction as EffectAction)
-      : ch.action,
+      : freezeStoredTargets(ch.action, ctx),
     available: (ch.condition ? evalCondition(ch.condition, ctx) : true)
       && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`)),
   }));
@@ -8052,6 +8080,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   // LRIG_TRASH_CARD: ルリグトラッシュから（アーツ等を）ルリグデッキ/デッキへ戻す（WX05-001「白と黒のアーツをルリグデッキに戻す」）
   if (src.type === 'LRIG_TRASH_CARD') {
+    // 🆕§5.3 `O-485`（2026-09-16）＝相手効果によるルリグトラッシュからの移動を止める（候補0）。
+    if (oppZoneMoveBlocked('lrig_trash', src.owner, ctx, 'deck')) return done({ ...ctx, lastProcessedCards: [] });
     // ⚠候補式は `zoneTargetCandidates` の `LRIG_TRASH_CARD` 分岐と共有する（宣言側と揃える）。
     let cands = zoneTargetCandidates(src, src.owner === 'opponent' ? 'opponent' : 'self', ctx);
     // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）＝任意コストの前に宣言した対象だけへ絞る。**
@@ -8124,7 +8154,21 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'TRASH_CARD') {
-    const cands = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'deck');
+    const rawCandsTTD = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones, 'deck');
+    // 🆕**§5.3 `O-409`（2026-09-16）＝宣言済みの対象だけに絞る**（`SELECT_TARGET_ONLY` →
+    //   `STORE_LAST_PROCESSED_TARGETS` で固定した集合。`fixedCardNums` はそれを対話前に焼き込んだ形）。
+    //   🔴この分岐には `targetsStored` の絞り込みが**1つも無かった**＝宣言しても全トラッシュから選び直せた。
+    const storedLimitTTD = a.fixedCardNums ?? (a.targetsStored ? (ctx.storedTargetCards ?? []) : undefined);
+    const cands = storedLimitTTD ? rawCandsTTD.filter(n => storedLimitTTD.includes(n)) : rawCandsTTD;
+    // 🆕**`orderChosenBy:'opponent'`＝「置く順番は対戦相手が選ぶ」**（`WDK09-013-E2`）＝
+    //   宣言済みの集合を**1枚ずつ相手に選ばせて**順に置く（`SIGNI` の `count:'ALL'` 分岐と同じ契約）。
+    //   デッキの一番下へ順に積むので**選ばれた順＝最終的な並び**になる。
+    //   ⚠残り1枚なら順番の余地が無いので従来どおり自動で置く（無意味なモーダルを出さない）。
+    if (a.orderChosenBy === 'opponent' && storedLimitTTD && cands.length >= 2) {
+      const scopeOrderTTD: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+      const oneAtATimeTTD = { ...a, targetsStored: false, fixedCardNums: [...cands] } as TransferToDeckAction;
+      return selectOrInteract(cands, 1, false, scopeOrderTTD, oneAtATimeTTD, oneAtATimeTTD as EffectAction, ctx, true);
+    }
     // 「好きな枚数」は0〜全件の選択。optional×ALL の全件実行／全件スキップとは別形。
     if (src.count === 'ALL' && src.upToCount) {
       if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
@@ -13545,6 +13589,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const s = ownerState(o, ctx);
           const i = s.lrig_deck.indexOf(cardNum);
           if (i >= 0) {
+            // 🆕§5.3 `O-485`（2026-09-16）＝個体ID経路の除外も同じ保護を通す（選択UIを経た確定側）。
+            if (oppZoneMoveBlocked('lrig_deck', o, ctx, 'exile')) {
+              return done(addLog(ctx, 'ルリグデッキ保護により効果なし'));
+            }
             const lrigDeck = [...s.lrig_deck]; lrigDeck.splice(i, 1);
             return done(addLog(setOwnerState(o, { ...s, lrig_deck: lrigDeck, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
               `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をルリグデッキからゲームから除外`));

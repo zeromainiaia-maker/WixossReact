@@ -518,3 +518,17 @@ WX15-034-E1 :: 2026-09-15 :: §5.3 O-451＝CHOOSE の枝の中で引き上げ（
 WXDi-P10-004-E1 :: 2026-09-15 :: §5.3 O-451＝同上
 WD21-001-E1 :: 2026-09-15 :: §5.3 O-451＝**偽陽性**。対象が「あなたのシグニ」＝ON_TARGETED は「対戦相手の効果の対象」限定なので実害なし
 WX14-041-E1 :: 2026-09-15 :: §5.3 O-451＝**偽陽性**。対象が ENERGY_CARD＝ON_TARGETED はシグニにしか無いので実害なし
+WXDi-CP02-036-E1 :: 2026-09-16 :: §5.3 O-409＝`orderChosenBy:'opponent'`（置く順番は対戦相手）を manual で刻んだ
+WDK09-013-E2 :: 2026-09-16 :: §5.3 O-409＝宣言（相手トラッシュ2枚）→ 相手が1枚ずつ置く順を選ぶ3段へ組み直し＋engine の TRASH_CARD 側に orderChosenBy を実装
+WXDi-P12-039-E1 :: 2026-09-16 :: §5.3 O-436＝`selectionConstraint.minCount:1`（「カード1枚と、…1枚まで」の下限）を parser へ
+WX25-P1-003-sub-E1 :: 2026-09-16 :: §5.3 O-436＝同上（相手エナ2枚まで側）。sharedColor:'none' と併記
+WD22-011-G-E1 :: 2026-09-16 :: §5.3 O-442＝①を `INSTALL_DELAYED_TRIGGER{ON_PLAY, placedByEffect}` へ（即時のパワー－7000をやめた）
+WX25-P1-TK6-E1 :: 2026-09-16 :: §5.3 O-443＝`STUB{NO_BATTLE_DEFENDER}`（バトルだけ回避・ダメージは通る）へ差し替え
+WXEX1-35-E1 :: 2026-09-16 :: §5.3 O-460＝引用能力内の GRANT_PROTECTION を count:1（付与先1体）へ。engine の帰結は不変で JSON と逆翻訳の嘘を直した
+WXK10-080-E2 :: 2026-09-16 :: §5.3 O-460＝同上
+WX24-P2-058-E1 :: 2026-09-16 :: §5.3 O-463＝「この方法でトラッシュに置かれたカードの中から」の限定＋レベル比例コスト。engine に CHOOSE 前宣言の焼き込みを実装
+WXK10-004-E1 :: 2026-09-16 :: §5.3 O-485＝`OppMoveImmunityZone` に `lrig_deck`/`lrig_trash` を追加し、ルリグデッキの除外とルリグトラッシュからの移動を塞いだ
+WXEX2-22-E1 :: 2026-09-16 :: §5.3 O-485＝同じ原文（場以外のあなたの領域）の【常】側も7領域へ
+WX20-044-CB-E1 :: 2026-09-16 :: §5.3 O-487＝**登録票が stale**。`collectAttackPhaseLevelOverrides` が「取りうるレベル群」として実装済み（payload 化は census:enginetext A群の1行として別管理）
+WXDi-P05-060-E1 :: 2026-09-16 :: §5.3 O-501＝「このカードの上にある《ヒャッハー》のパワー＋2000」を使用時1回の POWER_MODIFY から独立 CONTINUOUS（E3・aboveSelf）へ
+WX25-P3-061-E1 :: 2026-09-16 :: §5.3 O-520＝**登録票が stale**。「このターンにこの能力でシグニを場に出していない場合」は `usageLimit:'once_per_turn_on_success'`（O-323）で実装済み
