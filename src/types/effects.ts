@@ -227,7 +227,8 @@ export interface CountFromZone {
    * 🆕`'level'`＝「〜の**レベルを合計した数**だけ」（§5.3 `O-60` 第38バッチ）＝`Level` の総和。
    *   ⚠`distinctBy:'level'`（レベルの**種類数**）とは別物。
    */
-  sumBy?: 'power' | 'level';
+  /** `layerIcons`＝**印刷された**《レイヤーアイコン》の個数を足す（§5.3 `O-404`・ユーザー判断＝【レイヤー】で得たアイコンは数えない）。 */
+  sumBy?: 'power' | 'level' | 'layerIcons';
   /** 「N枚につき」の単位。該当枚数をこの値で割り、端数を切り捨てる。 */
   unitSize?: number;
   /** 既存の「1枚につきN」用乗数。unitSize とは意味が逆なので互換性のため分離する。 */

@@ -64142,17 +64142,11 @@ test('選択UI枚数ゲート E2E: 部分払いでは「そうした場合」が
   eq(wipe(2), 2, '手札2枚（原文は3枚）では全滅しない＝部分払いで後段が走らない');
   eq(wipe(3), 0, '手札3枚なら原文どおり相手の場が全滅する（対照＝ゲートが強すぎないこと）');
 
-  // `WX14-012-E1`（2枚捨てる→《フレイスロ》を2枚まで場に出す）も同じ形。
-  const searched = (handCount: number) => {
-    const eff = effectsMap.get('WX14-012')!.find(e => e.effectId === 'WX14-012-E1')!;
-    const ctx = mkCtx({ hand: handCount }, {}, 'WX14-012');
-    const first = executeEffect(eff, ctx);
-    if (first.done || first.pending.type !== 'SELECT_TARGET') return false;
-    const r = finish(resumeSelectTarget(first.pending.candidates, first.pending, ctxAfter(first, ctx)), ctx);
-    return (r.logs ?? []).some(l => l.includes('シャッフル'));   // サーチまで到達したか
-  };
-  eq(searched(1), false, '手札1枚（原文は2枚）ではサーチへ進まない');
-  eq(searched(2), true, '手札2枚なら原文どおりサーチへ進む（対照）');
+  // 🆕§5.3 `O-518`（2026-09-16 **ユーザー判断＝読みA**）＝`WX14-012-E1`「手札を２枚捨てる。そうした場合」は**使用コスト**＝
+  //   解決時の部分払いそのものが起きない（2枚そろわないと使えない）＝この E2E の対象から外し、形だけ固定する。
+  const w14012 = effectsMap.get('WX14-012')!.find(e => e.effectId === 'WX14-012-E1')!;
+  eq(w14012.cost?.discard, 2, 'WX14-012-E1: 手札2枚捨ては使用コスト');
+  eq(w14012.action.type, 'SEARCH', 'WX14-012-E1: 解決時は《フレイスロ》のサーチだけ（手札破棄を解決時にしない）');
 }));
 
 // ── §5.2 Sheet2 バッチ6（2026-08-30）：意味照合 段2 の残 OPEN 消化 ──
@@ -83952,11 +83946,15 @@ test('§5.3 O-403: クラッシュ時の－2000 は支払いを問う前に付�
 test('§5.3 索引G 第366: 修正した効果の live の形', () => {
   const s = (id: string) => JSON.stringify(g365Get(id));
   const steps = (id: string) => ((g365Get(id).action as SequenceAction).steps ?? []);
-  for (const id of ['WX21-004-E3', 'WX11-006-E3', 'WX08-022-E1']) {
+  for (const id of ['WX21-004-E3', 'WX11-006-E3']) {
     ok(s(id).includes('"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1') && !s(id).includes('OPTIONAL_COST'),
       `🔴O-418 ${id}: 「手札を捨てる。そうした場合」が任意コストのまま（払える盤面で辞退できる）`);
   }
-  eq(g365Get('WX08-022-E1').cost?.discard, undefined, '🔴O-418 WX08-022-E1: 解決時の手札破棄を使用コストにしている');
+  // 🆕§5.3 `O-518`（2026-09-16 **ユーザー判断＝読みA**）＝【起】の本文が「手札をN枚捨てる。そうした場合」で始まる3効果は**使用コスト**。
+  for (const [id, n] of [['WD02-007-E1', 3], ['WX14-012-E1', 2], ['WX08-022-E1', 1]] as const) {
+    eq(g365Get(id).cost?.discard, n, `🔴O-518 ${id}: 「手札を${n}枚捨てる。そうした場合」が使用コストになっていない`);
+    ok(!s(id).includes('"HAND_CARD"'), `🔴O-518 ${id}: 手札破棄を解決時にもしている（二重）`);
+  }
   const cp080 = g365Get('WXDi-CP02-080-E1').action as ConditionalAction;
   ok(cp080.type === 'CONDITIONAL' && cp080.condition.type === 'ALL_FIELD_SIGNI_MATCH' && JSON.stringify(cp080.then).includes('"CHOOSE"'),
     '🔴O-420: 盤面条件が選択肢まで囲んでいない');
@@ -83993,15 +83991,19 @@ test('§5.3 O-479: 「あなたの場にある＜凶蟲＞のシグニの効果�
   ok(!fired([src, null, null]), '🔴原因のシグニが場に居ない（手札・トラッシュ等から使われた効果）のに発火した');
 });
 
-test('§5.3 O-418: 「手札を１枚捨てる。そうした場合」＝手札が無くても使え、捨てられなければ何も起きない（WX08-022-E1）', () => withSavedCursor(() => {
-  const eff = g365Get('WX08-022-E1');
-  const charge = (hand: number) => {
-    const c = mkCtx({ hand }, {}, 'WX08-022');
-    return finish(executeEffect(eff, c), c).ownerState.energy.length - c.ownerState.energy.length;
-  };
-  eq(charge(1), 2, '捨てられればデッキの上から2枚をエナへ');
-  eq(charge(0), 0, '🔴捨てられないのにエナが増えた（粗ゲートが止めていない）');
-}));
+// 🆕§5.3 `O-404`（2026-09-16 **ユーザー判断＝読みB**）＝「シグニが持つ《レイヤーアイコン》１つにつき」は**印刷された**アイコンの個数。
+test('§5.3 O-404: 《レイヤーアイコン》は1枚に複数あれば全部数え、【レイヤー】の付与文は数えない（＋反転）', () => {
+  const eff = g365Get('WXEX1-59-E1');
+  type CFZ = import('../src/types/effects').CountFromZone;
+  const zone = (eff.action as { countFromZone?: CFZ }).countFromZone!;
+  eq(zone.sumBy, 'layerIcons', '🔴WXEX1-59-E1: 「持つシグニの枚数」を数えている');
+  // WX16-024＝《レイヤーアイコン》【常】と《レイヤーアイコン》【自】の2つ／WX16-049＝【レイヤー】の付与文＋《レイヤーアイコン》【常】の1つ。
+  const st = mkState({ signi: ['WX16-024', 'WX16-049', null] });
+  eq(countFromZone(zone, st, mkState({}), cardMap), 3, '印刷アイコンの合計＝2＋1（付与文「〜の能力を得る」は数えない）');
+  const { sumBy: _drop, ...old } = zone;
+  ok(countFromZone({ ...old, filter: { cardType: 'シグニ', hasIcon: 'レイヤー' } } as CFZ, st, mkState({}), cardMap) !== 3,
+    '旧形（【レイヤー】を持つシグニの枚数）では合計にならない（＝直した壊れ方）');
+});
 
 test('§5.3 O-464: 「デッキの一番上を公開し、＜怪異＞なら1枚引く」＝**公開したその札**を引く（＋反転）', () => withSavedCursor(() => {
   const eff = g365Get('WX25-P1-082-E1');

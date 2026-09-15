@@ -221,6 +221,8 @@ function countFromZoneJa(spec: any): string {
     : spec?.distinctBy === 'name' ? 'の種類'
     : spec?.sumBy === 'power' ? 'のパワーの合計'
     : spec?.sumBy === 'level' ? 'のレベルの合計'
+    // 🆕§5.3 `O-404`（2026-09-16）＝印刷された《レイヤーアイコン》の個数（【レイヤー】で得たアイコンは数えない）。
+    : spec?.sumBy === 'layerIcons' ? 'が持つ《レイヤーアイコン》の数'
     : 'の枚数';
   const base = spec?.zone === 'deck' ? `${owner}デッキの枚数`
     : spec?.zone === 'charm' ? `${owner}場にある【チャーム】の枚数`
@@ -238,6 +240,10 @@ function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
   //   ⚠従来この zone は表になく `${spec.zone}にあるカード` へ落ちて **`fieldにあるカード` と生の英語**が出ていた。
   //   フィルタ（＜原子＞等）も描かないと「場のカード全部」に見えるので `filterJa` を通す。
   const filJa = spec?.filter ? filterJa(spec.filter) : '';
+  // 🆕§5.3 `O-404`（2026-09-16）＝「シグニが持つ《レイヤーアイコン》１つにつき」＝**印刷アイコンの個数**（枚数ではない）。
+  if (spec?.sumBy === 'layerIcons') {
+    return `${ownerJa(spec.owner)}場にある${filJa}${([] as string[]).concat(spec.filter?.cardType ?? []).join('か') || 'カード'}が持つ《レイヤーアイコン》${unit}つにつき${per}${suffix}${upTo ? 'まで' : ''}`;
+  }
   const subject = spec?.zone === 'deck' ? `${ownerJa(spec.owner)}デッキの枚数`
     : spec?.zone === 'charm' ? `${ownerJa(spec.owner)}場にある【チャーム】`
     : spec?.zone === 'field' ? `${ownerJa(spec.owner)}場にある${filJa}${([] as string[]).concat(spec.filter?.cardType ?? []).join('か') || 'カード'}`

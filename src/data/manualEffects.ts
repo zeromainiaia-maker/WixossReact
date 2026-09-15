@@ -2206,7 +2206,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   【エナチャージ１】をする。
   // 🔴旧 live＝枚数比例が落ちて**固定1回**。受け皿は既存 `countFromZone`（`hasIcon` に 'レイヤー' を追加した）。
   'WXEX1-59': [
-    {"effectId":"WXEX1-59-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1,"countFromZone":{"zone":"field","owner":"self","filter":{"cardType":"シグニ","hasIcon":"レイヤー"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXEX1-59-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1,"countFromZone":{"zone":"field","owner":"self","filter":{"cardType":"シグニ"},"sumBy":"layerIcons"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    // ↑🆕§5.3 `O-404`（2026-09-16 **ユーザー判断＝読みB**）＝「シグニが持つ《レイヤーアイコン》**１つにつき**」＝印刷アイコンの**個数**
+    //   （旧＝`hasIcon:'レイヤー'` を持つシグニの**枚数**。1枚に2〜3個あるシグニで過少）。【レイヤー】で得たアイコンは数えない。
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -8637,20 +8639,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX08-022 【起】手札を１枚捨てる。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。
-  // 🆕§5.3 `O-418`（2026-09-16）＝「手札を１枚捨てる。**そうした場合**」は解決時の効果（使用コストではない）＝
-  //   手札が無くても使え、捨てられなければ何も起きない。自分の `TRASH{HAND_CARD}` の空振りは粗ゲートが後続を止める。
+  // 🆕§5.3 `O-518`（2026-09-16 **ユーザー判断＝読みA**）＝「手札をN枚捨てる。そうした場合」は**使用コスト**＝
+  //   N枚そろわないと使えない。同文型の `WD02-007-E1`（3枚）／`WX14-012-E1`（2枚）と同じ形に揃える。
+  //   ⚠第366バッチ（`O-418`）で一度「解決時の効果」に変えたが、この判断で戻した。
   'WX08-022': [
     {
       effectId: 'WX08-022-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } },
-          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
-        ],
-      },
+      cost: { discard: 1 },
+      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',
@@ -11205,7 +11203,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⇒ 枚数を明示する `LAST_PROCESSED_COUNT_GTE{value:N}` へ置き換える（兄弟の `WD14-011-BURST` /
   //   `WXK01-001-E2` は元からこの形＝**同じカード群の中で書き方が2種類に割れていた**）。
   "WX14-012": [
-    {"effectId":"WX14-012-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"フレイスロ"},"maxCount":2,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    // 🆕§5.3 `O-518`（2026-09-16 **ユーザー判断＝読みA**）＝「手札を２枚捨てる。そうした場合」は**使用コスト**＝
+    //   2枚そろわないと使えない（旧＝解決時に捨てて、2枚そろったときだけ帰結）。
+    {"effectId":"WX14-012-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":0}],"discard":2},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"フレイスロ"},"maxCount":2,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // ─────────────────────────────────────────────────────────────────────────
   // 2026-08-30 §5.2 Sheet2 バッチ6（速いレーン・原文を読み直して手書き）。

@@ -61,7 +61,7 @@ live JSON の STUB id 種類 : 582（総ノード 3702 件）
         消費: src\screens\battle\guard.ts:18
      3件   3枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WX19-002, WXK03-002, WXK11-020
-        消費: src\engine\execUtils.ts:2401 / src\screens\battle\costs.ts:1266
+        消費: src\engine\execUtils.ts:2407 / src\screens\battle\costs.ts:1266
      3件   3枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-004, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8480 / src\engine\effectEngine.ts:8498 / src\engine\effectEngine.ts:8511
@@ -94,7 +94,7 @@ live JSON の STUB id 種類 : 582（総ノード 3702 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1679
+        消費: src\engine\execUtils.ts:1685
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:8291
@@ -139,7 +139,7 @@ live JSON の STUB id 種類 : 582（総ノード 3702 件）
         消費: src\engine\effectExecutor.ts:1325
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:2301
+        消費: src\engine\execUtils.ts:2307
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\data\sourceTextPayloads.ts:28 / src\data\sourceTextPayloads.ts:60 / src\engine\effectEngine.ts:8548

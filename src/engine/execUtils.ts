@@ -529,6 +529,12 @@ export function countFromZone(
     : fromZone.sumBy === 'level'
     ? matchedCards.reduce((sum, cardNum) =>
         sum + (Number.parseInt(cardMap.get(getCardNum(cardNum))?.Level ?? '', 10) || 0), 0)
+    // 🆕`sumBy:'layerIcons'`＝§5.3 `O-404`（2026-09-16 **ユーザー判断＝読みB**）＝「シグニが持つ《レイヤーアイコン》１つにつき」は
+    //   **印刷された**アイコンの個数を足す（【レイヤー】で**得た**能力のアイコンは数えない）。1枚に2〜3個あるシグニが19枚。
+    //   ⚠【レイヤー】の付与文「《レイヤーアイコン》**の能力を得る**」は数えない＝能力の見出し（`《レイヤーアイコン》【`）だけを数える。
+    : fromZone.sumBy === 'layerIcons'
+    ? matchedCards.reduce((sum, cardNum) =>
+        sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)
     : fromZone.distinctBy === 'level'
     ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.Level ?? '')
       .filter(level => level !== '')).size
