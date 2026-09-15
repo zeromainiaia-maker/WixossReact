@@ -361,7 +361,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK03-002": [
     {"effectId":"WXK03-002-E2","effectType":"AUTO","timing":["ON_PLAY"],
      "action":{"type":"SEQUENCE","steps":[
-       {"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"opp_public_signi"},
+       // 🆕§5.3 `O-440`（2026-09-16）＝「シグニのカード名１つを宣言する」＝任意のシグニ名（旧 `opp_public_signi`＝相手の公開済みだけ）。
+       {"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"all_cards","declareNameFilter":{"cardType":"シグニ"}},
        {"type":"STUB","id":"DECLARED_NAME_TO_SERVANT_ZERO","value":"field"}]},
      "duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
@@ -1761,7 +1762,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ⚠**ゾーン選択UIは出さない**（`SELECT_SIGNI_ZONE` は `src/screens/` の管轄で全空きゾーンを見せる）＝
   //     ゲートが複数空いていても先頭のゲートゾーンへ自動配置する（過剰許容を作らない側の近似）。
   'WXDi-P15-079': [
-    {"effectId":"WXDi-P15-079-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"condition":{"type":"FIELD_HAS_GATE","owner":"self"},"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ"},"pickCount":1,"then":"field","gateZoneOnly":true}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P15-079-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ"},"pickCount":1,"then":"field","gateZoneOnly":true}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // WXDi-CP02-001 ／ 原文【使用条件】【ドリームチーム】**白のルリグを１体以上含む**／…／デッキの上から５枚見て
@@ -8636,17 +8637,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX08-022 【起】手札を１枚捨てる。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。
-  // 「手札を捨てる」はコスト扱いにして、手札がない場合は起動不可にする
+  // 🆕§5.3 `O-418`（2026-09-16）＝「手札を１枚捨てる。**そうした場合**」は解決時の効果（使用コストではない）＝
+  //   手札が無くても使え、捨てられなければ何も起きない。自分の `TRASH{HAND_CARD}` の空振りは粗ゲートが後続を止める。
   'WX08-022': [
     {
       effectId: 'WX08-022-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { discard: 1 },
       action: {
-        type: 'ENERGY_CHARGE_FROM_DECK',
-        owner: 'self',
-        count: 2,
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } },
+          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
+        ],
       },
       duration: 'INSTANT',
       mandatory: false,
@@ -9496,7 +9499,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'AUTO',
       timing: ['ON_ATTACK_PHASE_START'],
       triggerScope: 'self',
-      condition: { type: 'AND', conditions: [{ type: 'SAME_ZONE_HAS_GATE' }, { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: 'タマゴ' }] },
+      // 🆕§5.3 `O-468`（2026-09-16）＝《プロフェッサー　防衛者Dr.タマゴ》の指定＝旧「タマゴ」の部分一致は別のタマゴでも成立した。
+      condition: { type: 'AND', conditions: [{ type: 'SAME_ZONE_HAS_GATE' }, { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: 'プロフェッサー　防衛者Dr.タマゴ' }] },
       // 🆕**§5.3 `O-96` 第11バッチ（2026-09-02）＝対象宣言を支払いより前へ**
       //   原文「対戦相手のシグニ１体を**対象とし**、《青》《青》を支払って**もよい**。
       //   **そうした場合、それを**デッキの一番下に置く」。
@@ -11059,7 +11063,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX14-075-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"WX14-075-E1-c1","label":"手札から＜天使＞のシグニ1枚を公開する","condition":{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"天使"},"operator":"gte","value":1},"action":{"type":"STUB","id":"HAND_REVEAL_CLASS_SIGNI","handCardPick":{"filter":{"cardType":"シグニ","story":"天使"},"count":1}}},{"choiceId":"WX14-075-E1-c2","label":"このシグニを場からトラッシュに置く","action":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX15-115": [
-    {"effectId":"WX15-115-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"delta":-5000},{"type":"STUB","id":"REMOVE_VIRUS_TARGET_ZONE"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+    // 🆕§5.3 `O-447`（2026-09-16）＝原文は「【ウィルス】を取り除き、…パワーを－5000」＝**取り除くのが先**（旧は逆順）。
+    //   宣言→保存→取り除く（`lastProcessedCards[0]` を読む）→保存した対象へ－5000（取り除いた後は感染状態でないので絞りは外す）。
+    {"effectId":"WX15-115-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"REMOVE_VIRUS_TARGET_ZONE"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000,"targetsStored":true}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX16-027": [
     {"effectId":"WX16-027-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_HAS_UNDER","minCount":1},"then":{"type":"SEQUENCE","steps":[{"type":"TAKE_FROM_UNDER_SIGNI","destination":"trash","count":1,"fromThis":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
@@ -11849,7 +11855,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   **手札が0枚でも場に出せる過剰実行**になる。`OPTIONAL_COST` なら `canAffordOptionalCostSpec` が
   //   手札0枚を弾き、`PAID_ADDITIONAL_COST` が「そうした場合」を正しくゲートする。
   "WX11-006": [
-    {"effectId":"WX11-006-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"usageLimit":"once_per_turn","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX11-006-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"usageLimit":"once_per_turn","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}},"targetsStored":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    // ↑🆕§5.3 `O-418`（2026-09-16）＝原文「手札からカードを１枚捨てる。そうした場合」は**強制**＝`OPTIONAL_COST` だと払える盤面で辞退できた。
+    //   自分の `TRASH{HAND_CARD}` の空振りは `execSequence` の粗ゲートが残りを止める（＝「そうした場合」）。
   ],
 
   // ── WX07-032 のスペル＝**「場に出し」が丸ごと落ちてライフに加える側だけ残っていた**
@@ -11906,7 +11914,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // 2026-09-07（第215バッチ）＝意味照合 triage 済み一点物。
   "WX07-033": [
-    {"effectId":"WX07-033-E2","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_ally","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    // 🆕§5.3 `O-470`（2026-09-16）＝「バニッシュされた《羅星　アルファード》**ではない**そのシグニ」＝トリガー元から自分の名前を除く。
+    {"effectId":"WX07-033-E2","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_ally","triggerFilter":{"excludeCardName":"羅星　アルファード"},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX13-035": [
     {"effectId":"WX13-035-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":2,"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"split_top_bottom"},"handOrEnergy":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -12362,6 +12371,70 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // `O-426`＝【使用条件】「**このターンにあなたのセンタールリグがグロウしていない**場合」（受け皿 `CENTER_LRIG_NOT_GROWN_THIS_TURN`）。
   "WXDi-P16-001A": [
     {"effectId":"WXDi-P16-001A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"condition":{"type":"AND","conditions":[{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":["ルリグ","アシストルリグ"],"color":["白","黒"]}},{"type":"CENTER_LRIG_NOT_GROWN_THIS_TURN","owner":"self"}]},"action":{"type":"STUB","id":"CHECK_ZONE_FLIP_FREE_GROW","value":"扉の俯瞰者　ウトゥルス"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ════ §5.3 索引G 第366バッチ（2026-09-16）＝原文を読み直して書いた単発の修正（同型2枚以下＝速いレーン） ════
+  // `O-418`＝「手札から＜英知＞のシグニを１枚捨てる。そうした場合」は**強制**（旧 `OPTIONAL_COST` は払える盤面で辞退できた）。
+  "WX21-004": [
+    {"effectId":"WX21-004-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"coin":1},"usageLimit":"once_per_turn","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知"}}},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsStored":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-420`＝盤面条件（すべてのシグニが＜ブルアカ＞）が**任意コストだけ**を囲み、選択肢が条件不成立でも走っていた。
+  "WXDi-CP02-080": [
+    {"effectId":"WXDi-CP02-080-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ALL_FIELD_SIGNI_MATCH","owner":"self","filter":{"cardType":"シグニ","story":"ブルアカ"}},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"才羽ミドリ"}}}]}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-425`＝「それがこのターンであなたの**最初の**リフレッシュである場合」＝設置前に済ませていたら撃たない（`once` は設置後の最初しか見ない）。
+  "WX09-Re06": [
+    {"effectId":"WX09-Re06-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":3}]},"action":{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","once":true,"trigger":{"timing":"ON_REFRESH","refreshedOwner":"self"},"effect":{"type":"CONDITIONAL","condition":{"type":"REFRESH_COUNT_THIS_TURN","owner":"self","operator":"lte","value":1},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-430`＝名前で指定した3種は**黒でなくても**選べる（旧は黒のシグニだけ）。
+  "WXDi-P10-077": [
+    {"effectId":"WXDi-P10-077-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"anyOf":[{"cardName":"コードラビリンス　ムジカ//メモリア"},{"cardName":"コードアンチ　マドカ//メモリア"},{"cardName":"ツヴァイ＝サンガ//メモリア"},{"cardType":"シグニ","color":"黒"}]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-431`＝「シグニのカード名１つを宣言する」＝自分のデッキに無い名前も宣言できる（旧 `self_deck`）。
+  "WX18-028": [
+    {"effectId":"WX18-028-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_CARD_NAME","declareNamePool":"all_cards","declareNameFilter":{"cardType":"シグニ"}},{"type":"REVEAL_UNTIL","owner":"self","stopCondition":{"kind":"declaredName","filter":{"cardType":"シグニ"}},"hit":{"filter":{"cardType":"シグニ","nameEqDeclaredName":true},"count":"ALL","destination":"field"},"restDestination":"trash"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-437`＝「あなたは手札を１枚捨てる」は**選択肢全体の後**（旧は④の内側＝④を選ばないと捨てなかった）。
+  "WX13-003": [
+    {"effectId":"WX13-003-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":2},{"color":"赤","count":1}],"costScaling":[{"direction":"increase","counts":[{"kind":"declaredChooseCount","owner":"self"}],"per":1,"amount":[{"color":"無","count":2}],"minCount":3,"offset":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":4,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"FREEZE","target":{"type":"LRIG","owner":"opponent","count":1}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}},"upToCount":false}}},{"choiceId":"c3","label":"選択肢4","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","excludeResona":true},"upToCount":false}}}],"upTo":true,"declaredCountChoose":true},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1},"bestEffort":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-456`＝公開・選択・移動は「そうした場合」（バニッシュできた場合）の**内側**（旧は外＝バニッシュできなくても走った）。
+  "WX16-Re04": [
+    {"effectId":"WX16-Re04-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":4,"filter":{"cardType":"シグニ","story":"美巧"},"pickCount":1,"handOrEnergy":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-457`＝「それが緑か黒の場合、追加で**それを**トラッシュに置く」＝色を見た同じシグニへ束縛する（旧は別のシグニを選べた）。
+  "WX21-007": [
+    {"effectId":"WX21-007-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":4}},"upToCount":false,"explicitTarget":true},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","color":["緑","黒"]}},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":4}}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-461`＝選択肢①「あなたの**すべての**シグニはバニッシュされない」（旧 `count:1`＝1体しか守れなかった）。
+  "WX13-029": [
+    {"effectId":"WX13-029-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CHOOSE","choose_count":1,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":"ALL"},"from":["BANISH"],"sourceOwner":"any","duration":"PERMANENT"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"STUB","id":"SIGNI_CANT_BOUNCE_FROM_FIELD"}},{"choiceId":"c2","label":"選択肢3","action":{"type":"STUB","id":"SUPPRESS_GAIN_ABILITY"}},{"choiceId":"c3","label":"選択肢4","action":{"type":"STUB","id":"PREVENT_SIGNI_DOWN_BY_OPP"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-462`＝「この下から**好きな枚数**のシグニ」（旧は最大9枚に固定）。
+  "WX17-026": [
+    {"effectId":"WX17-026-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"TAKE_FROM_UNDER_SIGNI","destination":"trash","count":"ALL","upToCount":true,"fromThis":true,"filter":{"cardType":"シグニ"}},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":true,"selectionConstraint":{"totalLevelExactRef":{"$ref":"last_processed_level_sum"}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-464`＝「デッキの一番上を公開する。そのカードが＜怪異＞の場合、カードを１枚引く」＝**公開したそのカード**を引く
+  //   （旧 `REVEAL_AND_PICK` は公開札を取り除いてから別の札を引いていた）。公開は一番上に残したまま行う。
+  "WX25-P1-082": [
+    {"effectId":"WX25-P1-082-E1","effectType":"AUTO","timing":["ON_TURN_END"],"condition":{"type":"ARTS_USED_THIS_TURN","owner":"self"},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"怪異"}},"then":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-467`＝「レベルを＋１するか－１して**もよい**」＝どちらもしない肢を足す。
+  "WX16-067": [
+    {"effectId":"WX16-067-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"level_plus_1","label":"レベルを+1する","action":{"type":"LEVEL_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知"}},"delta":1,"until":"UNTIL_END_OF_TURN"}},{"choiceId":"level_minus_1","label":"レベルを-1する","action":{"type":"LEVEL_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知","levelRange":{"min":2}}},"delta":-1,"until":"UNTIL_END_OF_TURN"}},{"choiceId":"no_change","label":"変更しない","action":{"type":"SEQUENCE","steps":[]}}]},{"type":"STUB","id":"RULE_REMINDER_TEXT"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-471`＝「そのシグニのパワーが8000以下の場合、**それを**バニッシュする」＝場に出たトリガー元に固定（旧は相手の任意の1体）。
+  "WX14-025": [
+    {"effectId":"WX14-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_opp","triggerFilter":{"powerRange":{"max":8000}},"triggerCondition":{"turnOwner":"self"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isTriggerSource":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  // `O-478`＝「このターン終了時、ライフクロスの一番上のカードを**トラッシュに置く**」＝クラッシュではない（ライフバーストが誘発しない）。
+  "WD06-008": [
+    {"effectId":"WD06-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_NUMBER"},{"type":"LOOK_AND_REORDER","source":{"location":"life_cloth","owner":"self"},"count":1,"private":false,"reorder":false,"canTrash":false,"destination":{"location":"life_cloth","owner":"self","position":"top"}},{"type":"STUB","id":"LIFE_CRASH_PREVENTION","lifeCrashPrevention":{"scope":"ALL","protects":"self"}},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRASH","target":{"type":"LIFE_CLOTH_CARD","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // `O-427`＝「あなたの場に**そのカードと共通する色を持つルリグがいる場合**、そのカードをこのシグニの下に置く」（旧は無条件に置いた）。
+  //   受け皿＝`DECK_TOP_SHARES_COLOR_WITH_LRIG`（センター／アシストを見る）。公開札は一番上に残したまま判定する。
+  "WX25-P3-110": [
+    {"effectId":"WX25-P3-110-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"DECK_TOP_SHARES_COLOR_WITH_LRIG","owner":"self"},"then":{"type":"STUB","id":"PLACE_CARD_UNDER_SIGNI","placeUnder":{"mode":"processed"}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 };
 

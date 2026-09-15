@@ -2242,6 +2242,9 @@ export function collectDrawTriggers(
         const srcCard = srcNum ? ctx.cardMap.get(srcNum) : undefined;
         if (!srcCard || srcCard.Type !== 'シグニ') continue;
         if (!(srcCard.CardClass ?? '').includes(eff.triggerCondition.drawBySourceStory)) continue;
+        // 🆕§5.3 `O-479`（2026-09-16）＝原文「**あなたの場にある**＜X＞のシグニの効果で」＝原因のシグニが引いた側の場に居ること。
+        //   旧は種類とクラスしか見ず、手札やトラッシュから使われた効果・相手の場のシグニの効果でも発火した。
+        if (!drawerState.field.signi.some(st => !!st?.length && getCardNum(st.at(-1)!) === getCardNum(srcNum!))) continue;
       }
       // outsideDrawPhase: ドローフェイズの通常ドローでは発火しない（効果ドローのみ・WXDi-D09-P19 等）。
       if (eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw) continue;

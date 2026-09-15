@@ -4648,7 +4648,8 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
   }
   // (b) 結果句で割れた照応＝「…場合、追加でそれをトラッシュに置く」（旧 owner:'any'＝自シグニも対象）。
   {
-    const cond = steps(act('WX21-007'))[1] as { then?: { target?: Record<string, unknown> } };
+    // 🆕§5.3 `O-457`（2026-09-16）＝`STORE` が間に入った（色を見た同じシグニへ束縛）＝位置ではなく型で引く。
+    const cond = steps(act('WX21-007')).find(s => s.type === 'CONDITIONAL') as { then?: { target?: Record<string, unknown> } };
     const t = cond.then!.target as { owner?: string; filter?: Record<string, unknown> };
     eq(t.owner, 'opponent', 'WX21-007-E1 「追加でそれをトラッシュ」＝相手シグニ');
     eq(JSON.stringify(t.filter?.level), JSON.stringify({ max: 4 }), 'WX21-007-E1 レベル4以下フィルタ継承');
@@ -16924,7 +16925,9 @@ test('task12(xcviii): ターンドローは「効果ドロー」ではない＝d
   ok(!!eff, 'WX20-026 が drawBySourceStory を持つ（母集団の実在確認）');
   const story = eff!.triggerCondition!.drawBySourceStory!;
   const stale = findCard(c => isSigni(c) && (c.CardClass ?? '').includes(story));
-  const base = mkState({ signi: [src, null, null] }); const host = mkState({});
+  // 🆕§5.3 `O-479`（2026-09-16）＝原文「**あなたの場にある**＜凶蟲＞のシグニの効果で」＝原因のシグニが場に居ることも要る
+  //   ⇒ 残値の札を場に置いておく（ここで見たいのは「残値のクリア」だけ）。
+  const base = mkState({ signi: [src, stale, null] }); const host = mkState({});
   // 残値あり＝前ターンの効果ドロー元が残っていると発火してしまう
   const withStale: PlayerState = { ...base, last_effect_draw_source: stale };
   ok(collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST, withStale, host, true).entries
@@ -25138,8 +25141,11 @@ test('choice ビルダー: 選択肢本文が top-level へ漏れていない（
   //   本文は `choices[].action` の中＝選ばなければ走らない。
   for (const [cardNum, effectId] of leaked) {
     const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
-    const steps = eff.action.type === 'SEQUENCE'
+    const rawSteps = eff.action.type === 'SEQUENCE'
       ? (eff.action as unknown as { steps: { type: string }[] }).steps : [eff.action as { type: string }];
+    // 🆕§5.3 `O-437`（2026-09-16）＝`WX13-003-E1` の「あなたは手札を１枚捨てる」は**選択肢全体の後**＝末尾の
+    //   `TRASH{HAND_CARD}` は漏れではなく原文どおりの top-level（旧は④の内側にあった）。
+    const steps = effectId === 'WX13-003-E1' && rawSteps.at(-1)?.type === 'TRASH' ? rawSteps.slice(0, -1) : rawSteps;
     ok(steps.every(s => s.type === 'STUB' || s.type === 'CHOOSE'),
       `${effectId}: 選択肢本文が top-level に残っている`);
     // CHOOSE 形なら「本文が choices の外に無い」ことも見る（見出し以外の裸アクションを禁じる）。
@@ -49284,7 +49290,8 @@ test('§6.4 手札コストの絞り込み: TARGET_AND_DISCARD_HAND が OPTIONAL
   // カード, 効果, 枚数, 期待 filter（原文の絞り込み）
   const cases: Array<[string, string, number, Record<string, unknown>]> = [
     ['WX18-001', 'WX18-001-E3', 1, { cardType: 'シグニ', story: '悪魔' }],
-    ['WX21-004', 'WX21-004-E3', 1, { cardType: 'シグニ', story: '英知' }],
+    // 🆕§5.3 `O-418`（2026-09-16）＝`WX21-004-E3` は原文「手札から＜英知＞のシグニを１枚**捨てる。そうした場合**」＝**強制**なので
+    //   任意コストから外した（`TRASH{HAND_CARD}` ＋粗ゲート）＝このテストの母集団ではなくなった。
     ['WX22-008', 'WX22-008-E3', 1, { cardType: 'シグニ', story: '原子' }],
     ['WXEX1-23', 'WXEX1-23-E2', 1, { cardType: 'シグニ', story: '毒牙' }],
     ['WXDi-P09-062', 'WXDi-P09-062-E1', 1, { cardType: 'シグニ', story: '武勇' }],
@@ -63545,7 +63552,8 @@ test('O-144: 「残りを好きな順番で」の並べ替えが live に届い�
   //   `{reorder:false, destination:{position:'top'}}`＝原文「残りを好きな順番でデッキの**一番下**に置く」と
   //   行き先まで逆だった。
   // 🔻**11**（2026-09-14 §5.3 `O-360`）＝`WXK05-039-E1` を `LOOK_PICK_CHAIN{remainder.reorder:true}` へ載せた実消化。
-  const BASELINE_REORDER_MISSING = 11;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  // 🔻**10**（2026-09-16 §5.3 `O-456`）＝`WX16-Re04-E1` を `REVEAL_AND_PICK{remainder.reorder:true}` へ載せた実消化。
+  const BASELINE_REORDER_MISSING = 10;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
   //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
   //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）
@@ -69045,7 +69053,8 @@ test('§5.3 O-60 第53: ゾーン移動・属性 family は live 全ノードが
   eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
   // WXEX1-13-E1 は第234バッチで、公開札を直接扱える正準形 LOOK_PICK_CHAIN へ移行した。
   // 旧 STUB の payload 走査対象はその1件ぶん減る。
-  ok(nodes >= 20, `走査対象が消えていない（実測 ${nodes} ノード）`);
+  // 🆕§5.3 `O-456`（2026-09-16）＝`WX16-Re04-E1` も `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` をやめて `REVEAL_AND_PICK` へ（20→19）。
+  ok(nodes >= 19, `走査対象が消えていない（実測 ${nodes} ノード）`);
 });
 
 test('§5.3 O-60 第53: WXDi-P09-007-E1 のルリグデッキ追加はコスト記号を拾わない（旧は《無》《ゲーム１回》も候補）', () => {
@@ -69170,8 +69179,11 @@ test('§5.3 O-60 第53: 属性 payload の値が原文どおり（クラス／�
 
 test('§5.3 O-60 第53: REVEAL_PICK の公開枚数は payload（旧既定5枚はカード全文頼み）', () => {
   const cases: Array<[string, string, number]> = [
-    ['WX14-037', 'WX14-037-E1', 3], ['WX16-Re04', 'WX16-Re04-E1', 4],
+    ['WX14-037', 'WX14-037-E1', 3],
   ];
+  // 🆕§5.3 `O-456`（2026-09-16）＝`WX16-Re04-E1` も STUB をやめ、バニッシュの did-it ゲートの内側の `REVEAL_AND_PICK` になった。
+  eq((JSON.stringify((effectsMap.get('WX16-Re04') ?? []).find(e => e.effectId === 'WX16-Re04-E1')?.action ?? {})
+    .match(/"revealCount":(\d+)/g) ?? []).join(','), '"revealCount":4', 'WX16-Re04-E1 の公開枚数は原文どおり 4');
   // 🆕§5.3 `O-402`（2026-09-16）＝`WXDi-P03-054-E1` は STUB をやめ、支払いの有無で枝を分けた `REVEAL_AND_PICK` 2本になった
   //   （旧は1枚拾ったうえで支払っていれば**追加で**2枚＝合計3枚回収できた）。公開枚数は両枝とも原文どおり5。
   const p03054 = (effectsMap.get('WXDi-P03-054') ?? []).find(e => e.effectId === 'WXDi-P03-054-E1');
@@ -71812,7 +71824,9 @@ test('§5.3 O-60 第61: モーダル選択 family の残り3件も CHOOSE / COND
   eq(w13Ch.from_count, 4, '①②③④の4候補');
   eq(w13Ch.upTo, true, '「4つ**まで**」の upTo が落ちていない');
   // 🆕**2026-09-05（§5.3 `O-251`）＝痕跡 STUB から payload へ昇格した。**
-  eq(w13Steps.length, 1, '見出しと①の間のコスト宣言は構造化されたので step には残らない');
+  // 🆕§5.3 `O-437`（2026-09-16）＝2つ目の step は選択肢全体の後の「手札を１枚捨てる」（コスト宣言の痕跡ではない）。
+  eq(w13Steps.length, 2, '見出しと①の間のコスト宣言は構造化されたので step には残らない（末尾は手札1枚捨て）');
+  eq(w13Steps[1]?.type, 'TRASH', 'O-437: 選択肢全体の後に手札1枚捨て');
   ok((w13.cost?.costScaling ?? []).some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
     '見出しと①の間のコスト宣言は costScaling として残っている');
 
@@ -74818,7 +74832,9 @@ test('実装キュー第214: 直した5効果が live に載っている（丸�
   // ① WX11-006-E3＝原文に無い「エナゾーンから」を払わせていた（旧 `OPTIONAL_TRASH_ENERGY_CLASS`）。
   const w06 = live('WX11-006', 'WX11-006-E3');
   ok(!w06.includes('OPTIONAL_TRASH_ENERGY_CLASS'), 'WX11-006-E3: エナを払わせる旧 STUB は消えた');
-  ok(w06.includes('"handDiscard":{"count":1}'), 'WX11-006-E3: 手札1枚捨てが載っている');
+  // 🆕§5.3 `O-418`（2026-09-16）＝原文「手札からカードを１枚捨てる。そうした場合」は強制＝任意コストではなく `TRASH{HAND_CARD}`。
+  ok(w06.includes('"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}') && !w06.includes('OPTIONAL_COST'),
+    'WX11-006-E3: 手札1枚捨てが（強制で）載っている');
   ok(w06.includes('"targetsStored":true'), 'WX11-006-E3: 宣言したトラッシュの1枚を場に出す');
   ok(w06.includes('"story":"悪魔"'), 'WX11-006-E3: ＜悪魔＞限定');
 
@@ -81787,11 +81803,12 @@ test('O-353 WX18-028-E1 E2E: デッキにしかないシグニ名を宣言して
   const opened = executeEffect(effect, ctx);
   ok(!opened.done && opened.pending.type === 'CHOOSE', 'カード名宣言の CHOOSE が開く');
   if (opened.done || opened.pending.type !== 'CHOOSE') return;
-  const option = opened.pending.options.find(o => o.label === deckName);
-  ok(!!option, '🔴手札に無くデッキにだけあるシグニ名が候補に出る');
-  if (!option) return;
+  // 🆕§5.3 `O-431`（2026-09-16）＝原文「シグニのカード名１つを宣言する」は名前を限定しない＝`all_cards`（候補検索の namePool）。
+  //   旧 `self_deck` は**自分のデッキに無い名前を宣言できなかった**（宣言してデッキを全部めくる選択も原文では可能）。
+  eq((opened.pending as PendingInteractionDef & { namePool?: { source?: string } }).namePool?.source, 'all_cards',
+    '🔴宣言候補が自分のデッキに限定されている');
 
-  const declared = resumeChoose(option.id, opened.pending, execCtxFrom(opened, ctx));
+  const declared = resumeChoose(deckName, opened.pending, execCtxFrom(opened, ctx));
   const done = finish(declared, ctx);
   eq(done.ownerState.declared_card_name, deckName, '選んだ名前を declared_card_name に保存');
   ok(fieldTops(done.ownerState).includes(deckSigni), '宣言名のシグニを場に出す');
@@ -81880,8 +81897,10 @@ test('O-353 Part B live: 宣言プール14件を self 6 / all 6 / opponent公開
   };
   for (const effects of effectsMap.values()) visit(effects);
   eq(JSON.stringify(counts),
-    '{"self_deck":6,"all_cards":6,"opp_public_signi":2,"unspecified":0}',
-    'Part A と O-306 を維持し、残る6件だけ all_cards に刻印');
+    // 🆕2026-09-16（§5.3 `O-431` / `O-440`）＝`WX18-028-E1`（self_deck→all_cards）と `WXK03-002-E2`（opp_public_signi→all_cards）＝
+    //   原文はどちらも「シグニのカード名１つを宣言する」で**宣言できる名前を限定していない**。
+    '{"self_deck":5,"all_cards":8,"opp_public_signi":1,"unspecified":0}',
+    'Part A を維持し、原文が名前を限定しない宣言は all_cards');
 });
 
 const o353Card = (cardNum: string, cardName: string, type: string): CardData => ({
@@ -83927,6 +83946,76 @@ test('§5.3 O-403: クラッシュ時の－2000 は支払いを問う前に付�
     `宣言のあとに任意コスト（実際=${r1.done ? 'done' : r1.pending.type}／log=${(r1.logs ?? []).slice(-3).join(' | ')}）`);
   if (r1.done || r1.pending.type !== 'CHOOSE') return;
   ok(JSON.stringify(r1.otherState).includes('WX25-CP1-065-E1-CRASH'), '🔴支払いを問う時点でクラッシュ時の能力が付与されていない');
+}));
+
+// ── §5.3 索引G 第366バッチ（2026-09-16）＝原文を読み直して直した単発の修正（形の固定＋挙動の両方向） ──
+test('§5.3 索引G 第366: 修正した効果の live の形', () => {
+  const s = (id: string) => JSON.stringify(g365Get(id));
+  const steps = (id: string) => ((g365Get(id).action as SequenceAction).steps ?? []);
+  for (const id of ['WX21-004-E3', 'WX11-006-E3', 'WX08-022-E1']) {
+    ok(s(id).includes('"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1') && !s(id).includes('OPTIONAL_COST'),
+      `🔴O-418 ${id}: 「手札を捨てる。そうした場合」が任意コストのまま（払える盤面で辞退できる）`);
+  }
+  eq(g365Get('WX08-022-E1').cost?.discard, undefined, '🔴O-418 WX08-022-E1: 解決時の手札破棄を使用コストにしている');
+  const cp080 = g365Get('WXDi-CP02-080-E1').action as ConditionalAction;
+  ok(cp080.type === 'CONDITIONAL' && cp080.condition.type === 'ALL_FIELD_SIGNI_MATCH' && JSON.stringify(cp080.then).includes('"CHOOSE"'),
+    '🔴O-420: 盤面条件が選択肢まで囲んでいない');
+  ok(s('WX09-Re06-E1').includes('REFRESH_COUNT_THIS_TURN'), '🔴O-425: 「このターン最初のリフレッシュ」の判定が無い');
+  ok(s('WX25-P3-110-E1').includes('DECK_TOP_SHARES_COLOR_WITH_LRIG'), '🔴O-427: 「共通する色のルリグがいる場合」が無い');
+  eq((s('WXDi-P10-077-E1').match(/"cardName":/g) ?? []).length, 3, '🔴O-430: 名前で指定した3種が色を問わず選べない');
+  ok(s('WXDi-P10-077-E1').includes('"type":"DECK_CARD","owner":"self","count":2'), 'O-430: デッキの上から2枚');
+  for (const id of ['WX18-028-E1', 'WXK03-002-E2']) ok(s(id).includes('"declareNamePool":"all_cards"'), `🔴O-431/O-440 ${id}: 宣言できる名前を限定している`);
+  eq((steps('WX15-115-E1')[2] as StubAction)?.id, 'REMOVE_VIRUS_TARGET_ZONE', '🔴O-447: 【ウィルス】を取り除くのが先');
+  eq(steps('WX15-115-E1')[3]?.type, 'POWER_MODIFY', 'O-447: パワー－5000 はその後');
+  ok(JSON.stringify(steps('WX16-Re04-E1')[1]).includes('"REVEAL_AND_PICK"') && steps('WX16-Re04-E1').length === 2,
+    '🔴O-456: 公開・選択がバニッシュの did-it ゲートの外にある');
+  ok(s('WX13-029-E1').includes('"from":["BANISH"]') && s('WX13-029-E1').includes('"count":"ALL"'), '🔴O-461: 「すべてのシグニ」を1体しか守らない');
+  ok(s('WX17-026-E2').includes('"TAKE_FROM_UNDER_SIGNI","destination":"trash","count":"ALL"'), '🔴O-462: 「好きな枚数」が最大9枚');
+  eq(steps('WX25-P1-082-E1')[0]?.type, 'LOOK_AND_REORDER', '🔴O-464: 公開札を取り除いてから別の札を引いている');
+  eq(((g365Get('WX16-067-E2').action as SequenceAction).steps[0] as import('../src/types/effects').ChooseAction).choices.length, 3,
+    '🔴O-467: 「してもよい」の「しない」肢が無い');
+  ok(s('WXDi-P15-058-E2').includes('"name":"プロフェッサー　防衛者Dr.タマゴ"'), '🔴O-468: ルリグ名が部分一致「タマゴ」');
+  eq((g365Get('WX07-033-E2').triggerFilter as { excludeCardName?: string } | undefined)?.excludeCardName, '羅星　アルファード', '🔴O-470: 自分の名前を除いていない');
+  ok(s('WX14-025-E1').includes('"isTriggerSource":true'), '🔴O-471: バニッシュ対象が場に出たトリガー元に固定されていない');
+  eq(g365Get('WXDi-P15-079-E1').condition, undefined, '🔴O-474: 【ゲート】の有無を使用条件にしている（配置先の制限のはず）');
+  ok(s('WD06-008-E1').includes('"type":"TRASH","target":{"type":"LIFE_CLOTH_CARD"') && !s('WD06-008-E1').includes('LIFE_CRASH"'),
+    '🔴O-478: ライフクロスを「トラッシュに置く」がクラッシュになっている');
+});
+
+test('§5.3 O-479: 「あなたの場にある＜凶蟲＞のシグニの効果で引いたとき」は原因のシグニが場に居ることが要る（＋反転）', () => {
+  const src = 'WX20-026';
+  const eff = (effectsMap.get(src) ?? []).find(e => e.triggerCondition?.drawBySourceStory)!;
+  const story = eff.triggerCondition!.drawBySourceStory!;
+  const cause = findCard(c => isSigni(c) && c.CardNum !== src && (c.CardClass ?? '').includes(story));
+  const fired = (field: (string | null)[]) => collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST,
+    { ...mkState({ signi: field }), last_effect_draw_source: cause }, mkState({}), true).entries.some(e => e.effectId === eff.effectId);
+  ok(fired([src, cause, null]), '原因の＜凶蟲＞シグニが場に居れば発火する');
+  ok(!fired([src, null, null]), '🔴原因のシグニが場に居ない（手札・トラッシュ等から使われた効果）のに発火した');
+});
+
+test('§5.3 O-418: 「手札を１枚捨てる。そうした場合」＝手札が無くても使え、捨てられなければ何も起きない（WX08-022-E1）', () => withSavedCursor(() => {
+  const eff = g365Get('WX08-022-E1');
+  const charge = (hand: number) => {
+    const c = mkCtx({ hand }, {}, 'WX08-022');
+    return finish(executeEffect(eff, c), c).ownerState.energy.length - c.ownerState.energy.length;
+  };
+  eq(charge(1), 2, '捨てられればデッキの上から2枚をエナへ');
+  eq(charge(0), 0, '🔴捨てられないのにエナが増えた（粗ゲートが止めていない）');
+}));
+
+test('§5.3 O-464: 「デッキの一番上を公開し、＜怪異＞なら1枚引く」＝**公開したその札**を引く（＋反転）', () => withSavedCursor(() => {
+  const eff = g365Get('WX25-P1-082-E1');
+  const kaii = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('怪異'));
+  const run1 = (top: string) => {
+    const c = mkCtx({ deckTop: [top] }, {}, 'WX25-P1-082');
+    const out = finish(executeEffect(eff, c), c);
+    return { hand: out.ownerState.hand, deckTop: out.ownerState.deck[0] };
+  };
+  const hit = run1(kaii);
+  ok(hit.hand.includes(kaii), '🔴公開した＜怪異＞そのものが手札に来ていない（別の札を引いている）');
+  const miss = run1(other);
+  ok(!miss.hand.includes(other) && miss.deckTop === other, '＜怪異＞でなければ引かず、公開札は一番上に残る');
 }));
 
 // ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。

@@ -1,5 +1,12 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-16（第365バッチ）＝索引G 20件消化（修正16件＝23効果／偽陽性4件）＋見送り5件に理由を追記
+
+🏁**直近＝2026-09-16（第365バッチ）＝索引G を20件消化＝修正16件（23効果）＋偽陽性4件（`O-387`/`O-388`/`O-394`/`O-397`）**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
+🔑**ほぼ全部が「受け皿は在るのに JSON が使っていない」型**＝`distinct:'name'`／`attackedThisTurn`／`isDisona`／`CENTER_LRIG_NOT_GROWN_THIS_TURN`／`triggerCondition.anyTurn`／LIFE_CRASH `optional`／`SIGNI_RETURNED_TO_HAND_THIS_TURN{owner:'any'}` は**全部 engine に実装済み**だった。engine を触ったのは2箇所だけ（`insertToDeck` の「シャッフルして一番下」＝置く札だけ無作為化／`GRANT_EFFECT` が `targetsStored` を問い直さず付与）。
+🔴**偽陽性4件は全部「engine が JSON の見た目を読み替えている」**＝`FREEZE{LRIG}` はセンター固定／`PLACE_CARD_UNDER_SIGNI` は同名クラフトが既にあれば置かない／`ON_SIGNI_BANISH_OPPONENT` はバトル経路にしか配線されていない／`REVEAL_AND_PICK` の候補は選ぶ人にしか見えない（「見る」371効果のうち230効果がこの型＝正準形）。
+⚠**見送った5件**（`O-390`/`O-400`/`O-401`/`O-404`/`O-408`）は `src/screens/` の変更・新機構・ルール解釈のどれかが要る＝理由を各行に追記して索引G に残した（代わりに `O-426`/`O-432`/`O-435`/`O-438`/`O-446` を取った）。
+
 ## 2026-09-15（第364バッチ）＝`O-515`/`O-516` クローズ（族の対象宣言を engine で合成／条件を宣言の後ろへ＝20効果）→ 残差 `O-517` 登録
 
 🏁**直近＝2026-09-15（第364バッチ）＝`O-515`（`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族＝支払いを辞退すると対象宣言が起きない）と `O-516`（「対象とし、〈条件〉場合」の条件が効果レベル＝不成立だと宣言が起きない）をクローズ**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
