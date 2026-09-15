@@ -1259,11 +1259,13 @@ test('O-58 段1: アタッカー側の必須バニッシュ置換は4効果だ�
   }), null, 'WX13-031 は同ターン2回目を防がない');
 
   // WX15-010: ＜武勇＞へ付与された「次に」1回防止も同じ abilities_removed を使う。
+  // 🆕§5.3 `O-399`（2026-09-15）＝`GRANT_FIELD_SIGNI_ABILITY`（**ACTIVATED では engine のどこも読まない**）から
+  //   `GRANT_EFFECT{count:'ALL'}` へ移したので、付与する能力は `action.effect` に1つ載る。
   const grant = effectsMap.get('WX15-010')!.find(e => e.effectId === 'WX15-010-E1')!.action as
-    { type: string; abilities?: CardEffect[] };
+    { type: string; effect?: CardEffect };
   const buyu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
   const granted = mkState({ signi: [buyu, null, null] });
-  granted.granted_effects = { [buyu]: grant.abilities ?? [] };
+  granted.granted_effects = { [buyu]: grant.effect ? [grant.effect] : [] };
   eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
     state: granted, otherState: other, victimNum: buyu, zoneIndex: 0, cardMap: cm, effectsMap,
   })), JSON.stringify({ kind: 'prevent_lose_ability', sourceNum: buyu }), 'WX15-010 の付与能力も1回防止');
@@ -6183,12 +6185,15 @@ test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_T
     const ra = findActionByType(manualEffect(cardNum, effectId).action, 'REMOVE_ABILITIES')!;
     eq((ra as unknown as { until: string }).until, 'NEXT_TURN', `${effectId}: 次のターンだけ`);
   }
-  // ⚠据置1件＝**期間だけ直すと誤った対象の効果が長持ちする**ので触らない（PLAN §6.4 O-3 に登録）。
-  //   `WX11-038-E2`＝「次のターンの**メインフェイズ**の間」＝フェイズ限定の受け皿が無い
-  //   （全ターンへ丸めるとアタックフェイズまで能力を奪う過剰実行になる）。
+  // 🆕🔴**§5.3 `O-399`（2026-09-15）＝据置を解いた。** 旧コメントは「全ターンへ丸めると
+  //   アタックフェイズまで能力を奪う過剰実行になる」として `PERMANENT` を据え置いていたが、
+  //   🔴**`PERMANENT` は `appliesThisTurn` 側だけを立てる**（`effectExecutor.ts:9806`）＝
+  //   **宣言した「このターン」に掛かり、原文が指す「次のターン」には1度も掛からない**＝
+  //   **狙った窓を1度も覆わない**。`NEXT_TURN` なら少なくとも正しいターンを覆う。
+  //   ⚠残る差（「メインフェイズの間」までは絞れない）は PLAN §5.3 `O-510` へ登録した。
   {
     const ra = findActionByType(manualEffect('WX11-038', 'WX11-038-E2').action, 'REMOVE_ABILITIES')!;
-    eq((ra as unknown as { until: string }).until, 'PERMANENT', 'WX11-038-E2: フェイズ限定の受け皿が無いので据置');
+    eq((ra as unknown as { until: string }).until, 'NEXT_TURN', 'WX11-038-E2: 正しいターンを覆う（フェイズ限定は O-510）');
   }
   // 🏁続き455 で据置解除＝指定ゾーン軸が入ったので「このターンと次のターンの間」を2スロット寿命で表せる。
   for (const [cardNum, effectId] of [
@@ -55387,17 +55392,39 @@ test('段2 第23バッチ E2E: WX22-Re04-E2 c2 は他の＜英知＞だけを保
 // ⚠**バトルバニッシュ経路限定**なのは据置＝効果バニッシュは防げない（過小側）。§5.4(ii) に登録。
 test('段2 第23バッチ: WX15-010-E1 は＜武勇＞へ「1回だけ防ぐ」能力を付与する', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX15-010')!.find(e => e.effectId === 'WX15-010-E1')!;
-  const act = eff.action as unknown as { type: string; filter?: { story?: string }; abilities?: CardEffect[] };
-  eq(act.type, 'GRANT_FIELD_SIGNI_ABILITY', '集合へ付与する形');
-  eq(act.filter?.story, '武勇', '🔴＜武勇＞限定（全シグニへ広げない）');
-  const inner = act.abilities?.[0]?.action as unknown as { id?: string; banishPrevent?: { thisCardOnly?: boolean } };
+  // 🆕🔴**§5.3 `O-399`（2026-09-15）＝`GRANT_FIELD_SIGNI_ABILITY` は ACTIVATED では恒久 no-op だった。**
+  //   `collectGrantedFromLayer`（`effectEngine.ts:7548`）は **`effectType !== 'CONTINUOUS'` を弾く**うえ、
+  //   `effectExecutor` に **`case 'GRANT_FIELD_SIGNI_ABILITY'` が無い**＝この【起】は何も付与していなかった。
+  //   ⚠**旧テストは `granted_effects` を手で注入していた**ので、配線が切れていても緑だった（葉だけを見ていた）。
+  //   ⇒ 受け皿を `GRANT_EFFECT{count:'ALL', filter}` へ移し、**実際に実行して**付与を確かめる。
+  const act = eff.action as unknown as { type: string; target?: { count?: unknown; filter?: { story?: string } }; effect?: CardEffect };
+  eq(act.type, 'GRANT_EFFECT', '実行で付与される形（ACTIVATED から読める受け皿）');
+  eq(act.target?.count, 'ALL', '🔴「あなたのすべての」＝全体付与');
+  eq(act.target?.filter?.story, '武勇', '🔴＜武勇＞限定（全シグニへ広げない）');
+  const inner = act.effect?.action as unknown as { id?: string; banishPrevent?: { thisCardOnly?: boolean } };
   eq(inner?.id, 'BATTLE_BANISH_PREVENT_LOSE_ABILITY', '1回消費の受け皿');
   eq(inner?.banishPrevent?.thisCardOnly, true, '守るのは付与された当のシグニ自身');
+
+  // 🔑**実行側**＝【起】を走らせると＜武勇＞にだけ `granted_effects` が載る（＝配線が通っている）。
+  const buyuRun = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
+  const otherRun = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('武勇'));
+  const runCtx = mkCtx({ signi: [buyuRun, otherRun, null] }, {}, 'WX15-010');
+  const ran = finish(executeAction(eff.action, runCtx), runCtx);
+  ok((ran.ownerState.granted_effects?.[buyuRun] ?? []).length > 0,
+    '🔴【起】を実行しても＜武勇＞へ能力が付与されない（配線が切れている）');
+  eq((ran.ownerState.granted_effects?.[otherRun] ?? []).length, 0, '＜武勇＞以外へは付与しない');
+  // 🔑**反転確認**＝旧形（`GRANT_FIELD_SIGNI_ABILITY`）を実行しても**何も付与されない**。
+  const legacy = { type: 'GRANT_FIELD_SIGNI_ABILITY', filter: { cardType: 'シグニ', story: '武勇' },
+    abilities: [act.effect as CardEffect] } as unknown as EffectAction;
+  const legacyCtx = mkCtx({ signi: [buyuRun, otherRun, null] }, {}, 'WX15-010');
+  const legacyRan = finish(executeAction(legacy, legacyCtx), legacyCtx);
+  eq(Object.keys(legacyRan.ownerState.granted_effects ?? {}).length, 0,
+    '反転確認：旧形は ACTIVATED では1件も付与しない（＝このテストは配線の差を見ている）');
 
   // 🔴engine を実走させて両方向を固定＝**付与された能力が実際に読まれる**こと／**一度使ったら効かない**こと。
   const victim = findCard(c => isSigni(c));
   const state = mkState({ signi: [victim, null, null] });
-  state.granted_effects = { [victim]: act.abilities as CardEffect[] };
+  state.granted_effects = { [victim]: [act.effect as CardEffect] };
   const empty = mkState({});
   eq(collectBanishPreventLoseAbility(state, empty, true, cardMap as Map<string, CardData>, new Map(), victim), victim,
     '付与された能力でバトルバニッシュを防ぐ');
@@ -67229,7 +67256,9 @@ test('索引C 2026-09-02: O-177 ライフバースト抑制は条件（TargetFil
 test('索引C 2026-09-02: O-164 効果バニッシュの1回消費盾は選択経路でも効く', () => withSavedCursor(() => {
   const eff = (effectsMap.get('WX15-010') ?? []).find(e => e.effectId === 'WX15-010-E1')!;
   const json = JSON.stringify(eff.action);
-  ok(json.includes('GRANT_FIELD_SIGNI_ABILITY') && json.includes('"story":"武勇"'), '＜武勇＞全員へ付与');
+  // 🆕§5.3 `O-399`（2026-09-15）＝受け皿を `GRANT_EFFECT{count:'ALL'}` へ移した
+  //   （`GRANT_FIELD_SIGNI_ABILITY` は **ACTIVATED では engine のどこも読まない**＝恒久 no-op だった）。
+  ok(json.includes('"type":"GRANT_EFFECT"') && json.includes('"count":"ALL"') && json.includes('"story":"武勇"'), '＜武勇＞全員へ付与');
   ok(json.includes('BATTLE_BANISH_PREVENT_LOSE_ABILITY'), '1回消費の器を使う');
   // 盾を持つシグニ（付与済み state を直接組む）を相手が効果でバニッシュしようとする。
   const victim = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
@@ -83329,6 +83358,47 @@ test('§5.3 O-453: 「そうした場合」形は手札0枚なら後続が走ら
   const r = finish(executeAction(act, ctx), ctx);
   eq(r.otherState.field.signi.filter(z => z?.length).length, 1,
     '🔴手札0枚で＜原子＞を捨てられないのにバニッシュが起きた（粗ゲートが畳まれている）');
+}));
+
+// ── §5.3 `O-399`（2026-09-15）＝付与・効果の**寿命**が原文と違う形。
+//   ⚠登録票の12効果のうち**9件は偽陽性**だった（engine が `duration` を読まず既定でターン終了に落ちる形＝
+//     `execGrantProtection` の `keyword_grants`／`lrig_granted_auto_effects`／`POWER_SET` の `temp_power_mods`）。
+//   ここで固定するのは**実挙動差があった3件**だけ。
+test('§5.3 O-399: 「次のあなたのターンまで」のパワー修正は長期ストアへ入る（両側）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXK08-075')!.find(e => e.effectId === 'WXK08-075-E1')!;
+  const self = findCard(c => isSigni(c));
+  const mk = () => mkCtx({ signi: [self, null, null] }, {}, self);
+  const ctx = mk();
+  const r = finish(executeAction(eff.action, ctx), ctx);
+  ok((r.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === self && m.delta === 8000),
+    '🔴「次のあなたのターンまで」が長期ストアへ入っていない（相手ターンに効かない）');
+  ok(!(r.ownerState.temp_power_mods ?? []).some(m => m.cardNum === self),
+    'ターン終了で消える短期ストアには入れない');
+  // 🔑**反転確認**＝`duration` を外すと短期ストア（＝このターン終了で失効）へ戻る。
+  const stripped = JSON.parse(JSON.stringify(eff.action).replace(',"duration":"UNTIL_OPP_TURN_END"', '')) as EffectAction;
+  const ctx2 = mk();
+  const rInv = finish(executeAction(stripped, ctx2), ctx2);
+  ok((rInv.ownerState.temp_power_mods ?? []).some(m => m.cardNum === self),
+    '反転確認：duration が無いと短期ストアへ入る');
+}));
+test('§5.3 O-399: 「次のターンの間、能力を失う」は次ターンぶんだけ予約する（両側）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX11-038')!.find(e => e.effectId === 'WX11-038-E2')!;
+  const oppSigni = findCard(c => isSigni(c));
+  const mk = () => mkCtx({}, { signi: [oppSigni, null, null] }, 'WX11-038');
+  const ctx = mk();
+  const r = finish(executeAction(eff.action, ctx), ctx);
+  ok((r.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
+    '🔴「次のターンの間」が次ターンへ予約されていない');
+  ok(!(r.otherState.abilities_removed ?? []).includes(oppSigni),
+    '宣言したこのターンには効かせない（原文は「次のターン」）');
+  // 🔑**反転確認**＝旧形（`until:"PERMANENT"`）は**このターン**へ掛かって次ターンには残らない。
+  const legacy = JSON.parse(JSON.stringify(eff.action).replace('"until":"NEXT_TURN"', '"until":"PERMANENT"')) as EffectAction;
+  const ctx2 = mk();
+  const rInv = finish(executeAction(legacy, ctx2), ctx2);
+  ok((rInv.otherState.abilities_removed ?? []).includes(oppSigni),
+    '反転確認：旧形はこのターンへ掛かる（＝1ターンずれていた）');
+  ok(!(rInv.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
+    '反転確認：旧形は次ターンへ予約しない');
 }));
 
 // ── §5.3 `O-451`（2026-09-15）＝`O-413` の long tail（14効果 → 4効果）。

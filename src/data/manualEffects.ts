@@ -1443,6 +1443,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   へ入る＝二度は防げない）が**まさに1回消費**。付与形が読まれるように collector を1箇所広げただけ。
   // ══════════════════════════════════════════════════════════════════════════════
 
+  // 🆕**§5.3 `O-399`（2026-09-15）＝「次のあなたのターンまで、このシグニのパワーは＋8000される」。**
+  //   🔴live は `POWER_MODIFY` に期間キーが無く＝`temp_power_mods`（**このターン終了で失効**）＝
+  //     守りたい**相手のターン**に効いていなかった（過小実行）。
+  //   🔑**「次のあなたのターンまで」の正準形は `duration:'UNTIL_OPP_TURN_END'`**＝原文コーパスの
+  //     同じ言い回し9効果のうち5効果がこの形（`WX14-049-E1`／`WXEX1-58-E1`／`WXEX1-72-E1`／`WX17-025-E3`）。
+  //     engine は `power_mods_until_opp_turn` へ積む（`effectExecutor.ts` の `execPowerModify`）。
+  'WXK08-075': [
+    {"effectId":"WXK08-075-E1","effectType":"AUTO","timing":["ON_PLAY"],"condition":{"type":"BEAT_CONDITION","condText":"４枚以下"},"cost":{"beat_signi":{"count":1,"otherCount":1}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":8000,"duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // 🆕**§5.3 `O-399`（2026-09-15）＝「次のターンのメインフェイズの間、対戦相手の場にあるシグニは能力を失い、新たに得られない」。**
+  //   🔴live は `until:'PERMANENT'` ＝ `execRemoveAbilities` の `appliesNow` 側だけが立ち（`effectExecutor.ts:9849`）、
+  //     **宣言した「このターン」に掛かって次のターンには残らない**＝原文と1ターンずれていた。
+  //   🔑`until:'NEXT_TURN'` なら `reserveFieldGrant` で**次のターンぶんだけ**予約する（`appliesNow` は false）。
+  //   ⚠**「メインフェイズの間」までは絞れない**（予約は次ターン全体）＝原文より広い。残件として PLAN §5.3 へ。
+  'WX11-038': [
+    {"effectId":"WX11-038-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"NEXT_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","crossOnly":true},
+  ],
+
   // WX15-010 ／ 原文：ターン終了時まで、**あなたのすべての＜武勇＞のシグニは**
   //   「【常】：このシグニが**次に**バニッシュされる場合、バニッシュされない。」を得る。
   // 🔴旧 live＝`GRANT_PROTECTION{target:{count:1}}`＝**1体だけに、しかも回数無制限の**耐性
@@ -1456,7 +1475,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠**1回消費は instance 単位**＝`abilities_removed` に積むのは肩代わりした `src`（＝`thisCardOnly` なら
   //   victim 自身）なので、＜武勇＞が複数いても**各自が1回ずつ**吸収する（原文どおり）。
   'WX15-010': [
-    {"effectId":"WX15-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"武勇"},"abilities":[{"effectId":"WX15-010-E1-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BATTLE_BANISH_PREVENT_LOSE_ABILITY","banishPrevent":{"thisCardOnly":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX15-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"武勇"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX15-010-E1-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BATTLE_BANISH_PREVENT_LOSE_ABILITY","banishPrevent":{"thisCardOnly":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════

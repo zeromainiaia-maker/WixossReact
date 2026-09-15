@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第359バッチ：🏁`O-399` クローズ＝付与の寿命（12効果のうち**実バグは3件**・9件は偽陽性）
+
+### 🔴 12件のうち9件は偽陽性＝**engine が `duration` を読んでいない**
+
+| 効果 | 書いてあった値 | engine の事実 |
+|---|---|---|
+| `WX05-014-E1` / `WX13-029-E1`① | `GRANT_PROTECTION{duration:'PERMANENT'}` | 受け皿は `field_grants_active`（turn-scoped）か `keyword_grants`（`turnScopedState.ts:519` で毎ターンクリア）。**`duration` は `UNTIL_OPP_TURN_END` かどうかしか見ない** |
+| `PR-204-E1` / `PR-257-E1` / `PR-258-E1` | 内側の能力が `INSTANT` | `GRANT_LRIG_ABILITY` は**アクション側**の `duration` だけを見る。既定は「ターン終了時まで」 |
+| `WXK10-054-BURST` | `POWER_SET` に期間キー無し | 既定で `temp_power_mods`＝ターン終了まで＝原文どおり |
+| `SPDi43-01-E2` / `WXDi-P16-044-E2` | 効果の `duration` が `UNTIL_END_OF_TURN` | STUB が `blocked_actions` の `:NEXT_TURN` マーカーで**自前で期間を実装**している |
+| `WX22-Re04-E2` | 選択肢③だけ期間キー無し | カードの【常】が「このシグニが**場に出たターンの間**」と別途書いており turn-scoped と一致 |
+
+🔑**教訓＝「JSON に `PERMANENT` と書いてある」は「挙動が永続」という意味ではない。**
+受け皿が**読む値の集合**（多くは `UNTIL_OPP_TURN_END` かどうかだけ）を先に確かめる。
+
+### 実バグ3件（どれも母集団1〜2効果＝速いレーン＝`manualEffects.ts`）
+
+1. **`WXK08-075-E1`**「次のあなたのターンまで、このシグニのパワーは＋8000される」＝期間キーが無く
+   **このターン終了で失効**していた（守りたい相手ターンに効かない）⇒ `duration:'UNTIL_OPP_TURN_END'`。
+   🔑**正準形はコーパスが決めた**＝同じ言い回しの9効果のうち5効果がこの形。
+2. **`WX11-038-E2`**「**次のターンの**メインフェイズの間、対戦相手のシグニは能力を失う」＝`until:'PERMANENT'` は
+   `appliesThisTurn` 側だけを立てる＝**宣言した「このターン」に掛かり、原文の窓を1度も覆わない** ⇒ `until:'NEXT_TURN'`。
+   ⚠**過去の据置判断を覆した**（旧 golden は「次ターン全体へ丸めるとアタックフェイズまで奪うので `PERMANENT` で据置」）。
+   🔑**据置側が狙った窓を1度も覆わないなら、その据置は誤り。** 残差（フェイズ限定）は `O-510` へ登録。
+3. **`WX15-010-E1`**＝**寿命ではなく配線**。`GRANT_FIELD_SIGNI_ABILITY` は `collectGrantedFromLayer`
+   （`effectEngine.ts:7548`）が **CONTINUOUS 以外を弾き**、`effectExecutor` に `case` も無い＝
+   **ACTIVATED の宣言は恒久 no-op**（＜武勇＞へ何も付与していなかった）⇒ `GRANT_EFFECT{count:'ALL', filter}` へ移した。
+
+### 🔴 なぜ golden で見つからなかったか
+
+`WX15-010` のテストは **`state.granted_effects = {victim: act.abilities}` と手で注入**していた＝
+**葉（盾の1回消費）は固定していたが、配線（【起】を実行したら付与されるか）は1度も通していなかった。**
+⇒ **実行してから**確かめる形へ書き直し、**旧形を実行しても0件しか付かない反転確認**を足した。
+
+### 新規登録
+
+`O-509`（ACTIVATED の `GRANT_FIELD_SIGNI_ABILITY` が読まれない・残1効果＝`WXDi-P03-003-E1`）／
+`O-510`（「次のターンの**メインフェイズの間**」のフェイズ限定受け皿が無い・1効果）。
+
+### 検証
+
+`npm run gates` **全緑**（golden **4190/4190**＝`O-399` の両側＋反転確認で +2本、`WX15-010` の配線テストを書き直し）。
+⚠**実機は §2.2 で不要**（触ったのは `src/data/manualEffects.ts` と `public/data/` のみ）。
+**索引A（母集団2桁）は残0になった。**
+
 ## 2026-09-15 — 第358バッチ：🏁`O-453` クローズ＝自分の `TRASH` 空振りが独立文の後続まで消していた（**34 → 1効果**）
 
 **症状**＝`effectExecutor.ts:7348` の粗ゲートは、自分の `TRASH`（`HAND_CARD|SIGNI|ENERGY_CARD`・非 `bestEffort`）が

@@ -52,6 +52,31 @@
 - **取り方**＝1件ずつ**条件型の受け皿があるか**を実測する（あれば速いレーン＝`manualEffects.ts`、
   無ければ条件型の6箇所セット＝遅いレーン）。⚠`SPDi43-17-E2` は `SPELL_USED_THIS_TURN` 系が既にあるか先に grep する。
 
+### 🏁`O-399` — 付与・効果の寿命が原文と違う（12効果 → 実バグ3件・2026-09-15 第359バッチでクローズ）
+
+- 🔴**12件のうち9件は偽陽性**＝**engine が `duration` を読んでおらず、既定でターン終了に落ちる**形だった。
+  | 効果 | 書いてあった値 | engine の事実 |
+  |---|---|---|
+  | `WX05-014-E1` / `WX13-029-E1`① | `GRANT_PROTECTION{duration:'PERMANENT'}` | `applyActiveFieldGrant` は `field_grants_active`（turn-scoped・`effectExecutor.ts:115`）／`target` 経路は `keyword_grants`（`turnScopedState.ts:519` で毎ターンクリア）。**`duration` は `UNTIL_OPP_TURN_END` かどうかしか見ない** |
+  | `PR-204-E1` / `PR-257-E1` / `PR-258-E1` | 内側の能力が `INSTANT` | `GRANT_LRIG_ABILITY` は**アクション側の `duration`** だけを見る。既定は `lrig_granted_auto_effects`＝「ターン終了時まで」（`grantedStore.ts:18`） |
+  | `WXK10-054-BURST` | `POWER_SET` に期間キー無し | 既定で `temp_power_mods`＝ターン終了まで（`effectExecutor.ts:2811`）＝原文どおり |
+  | `SPDi43-01-E2` / `WXDi-P16-044-E2` | 効果の `duration` が `UNTIL_END_OF_TURN` | STUB ハンドラが `blocked_actions` に `:NEXT_TURN` マーカーを積んで**自前で「次の相手ターン終了時まで」を実装**している（`execStubPart1.ts:1644/1654`） |
+  | `WX22-Re04-E2` | 選択肢③だけ期間キー無し | カードの【常】が「**このシグニが場に出たターンの間**」と別途書いており、`granted_effects` は turn-scoped＝一致 |
+  🔑**「JSON に `PERMANENT` と書いてある」は「挙動が永続」という意味ではない。** 受け皿が読む値の集合（多くは `UNTIL_OPP_TURN_END` かどうかだけ）を先に見る。
+- **実バグ3件と直し方**（どれも母集団1〜2効果＝速いレーン＝`manualEffects.ts`）：
+  1. `WXK08-075-E1`「次のあなたのターンまで、このシグニのパワーは＋8000」＝期間キーが無く**このターン終了で失効**していた
+     ⇒ `duration:'UNTIL_OPP_TURN_END'`（原文コーパスの同じ言い回し9効果のうち5効果がこの形＝コーパスが裁定器）。
+  2. `WX11-038-E2`「**次のターンの**メインフェイズの間、対戦相手のシグニは能力を失う」＝`until:'PERMANENT'` は
+     `appliesThisTurn` 側だけを立てる（`effectExecutor.ts:9806`）＝**宣言した「このターン」に掛かり、狙った窓を1度も覆わない**
+     ⇒ `until:'NEXT_TURN'`。⚠**過去の据置判断を覆した**（旧 golden は「丸めると過剰だから `PERMANENT` で据置」だった）。残差は `O-510`。
+  3. `WX15-010-E1`＝**寿命ではなく配線**。`GRANT_FIELD_SIGNI_ABILITY` は `collectGrantedFromLayer`（`effectEngine.ts:7548`）が
+     **CONTINUOUS 以外を弾き**、`effectExecutor` に `case` も無い ⇒ **ACTIVATED の宣言は恒久 no-op**。
+     ⇒ `GRANT_EFFECT{count:'ALL', filter}` へ移した（既存の受け皿）。残り1効果は `O-509`。
+- 🔴🔑**なぜ golden で見つからなかったか**＝テストが `state.granted_effects = {victim: act.abilities}` と**手で注入**していた＝
+  **葉（盾の1回消費）は固定していたが、配線（【起】を実行したら付与されるか）は1度も通していなかった。**
+  ⇒ 書き直して**実行してから**確かめる形にし、旧形を実行しても0件しか付かない**反転確認**を足した。
+- **検証**＝`npm run gates` 全緑（golden **4190/4190**）。⚠実機は §2.2 で不要（`src/data/` `public/data/` のみ）。
+
 ### 🏁`O-453` — 自分の `TRASH` 空振りが独立文の後続まで消していた（**34 → 1効果**・2026-09-15 第358バッチでクローズ）
 
 - **engine の事実**＝`effectExecutor.ts:7348` の粗ゲートは、自分の `TRASH`（`HAND_CARD|SIGNI|ENERGY_CARD`・非 `bestEffort`）が
