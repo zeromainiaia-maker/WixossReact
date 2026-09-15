@@ -14968,6 +14968,49 @@ function hoistTargetBeforeLeadingAction(text: string, parsed: EffectAction): Eff
   return { ...parsed, steps: [...decl, ...steps.map(st => stamp(st) as EffectAction)] } as SequenceAction;
 }
 
+/**
+ * 🆕🔴**§5.3 `O-513`（2026-09-15）＝「自分をエナに置いてから、そのエナから選ぶ」の自己混入を止める。**
+ *
+ * 原文（`WX25-P2-090-E1` / `WX25-P2-093-E1`）＝「あなたのエナゾーンからレベル１の＜遊具＞のシグニ１枚を
+ * **対象とし**、場にあるこのシグニをエナゾーンに置いても**よい**。**そうした場合、それを**ダウン状態で場に出す。」
+ * ＝**宣言が先**なので、あとからエナへ送られる効果元自身は**候補に入らない**。
+ *
+ * 🔴ところが `restoreElidedSwapSource`（§6.4 `O-7`）が、parser に読ませるために**宣言を帰結側へ移す**
+ *   （「このシグニをエナゾーンに置いてもよい。そうした場合、あなたのエナゾーンから〜を場に出す」）ので、
+ *   live は **`ADD_TO_FIELD{ENERGY_CARD}` がコストの後で自由に選ぶ**形になっていた。
+ *   ⇒ 効果元自身がレベル１の＜遊具＞のシグニなので、**たったいまエナへ置いた自分が候補に混じり、
+ *   「エナへ置いて、そのまま自分を場に戻す」完全な空回りが選べた**。
+ *
+ * ⭐直し方は `O-96` 第8バッチの正準形と**同じ**＝`SELECT_TARGET_ONLY{ENERGY_CARD}` → `STORE` →
+ *   任意コスト → 帰結に `targetsStored`。宣言が先なので候補は支払い前のエナだけになる。
+ * 🔑`abortIfNoCandidate` も付ける＝原文は先に対象を取るので、**エナに候補が無ければ自分をエナへ置かない**
+ *   （付けないと「コストだけ払って何も出ない」）。
+ */
+function hoistEnergyDeclBeforeSelfToEnergy(text: string, parsed: EffectAction): EffectAction {
+  // ⚠`currentSourceTexts` は `restoreElidedSwapSource` **適用後**の綴り（宣言が帰結側へ移った形）。
+  if (!/(?:場にある)?この(?:シグニ|カード)を(?:場から)?エナゾーンに置いてもよい。そうした場合、(?:あなた|対戦相手)の(?:エナゾーン|トラッシュ)から[^。]*?を(?:ダウン状態で)?場に出す/.test(text)) return parsed;
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  const steps = (parsed as SequenceAction).steps;
+  if (steps.length !== 2) return parsed;
+  const cost = steps[0] as unknown as Record<string, unknown>;
+  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST' || cost.selfToEnergy !== true) return parsed;
+  const gate = steps[1] as unknown as Record<string, unknown>;
+  if (gate.type !== 'CONDITIONAL') return parsed;
+  const body = gate.then as Record<string, unknown> | undefined;
+  if (!body || body.type !== 'ADD_TO_FIELD') return parsed;
+  if (body.targetsStored || body.targetsLastProcessed || body.fixedCardNums) return parsed;   // 冪等
+  const src = body.source as Record<string, unknown> | undefined;
+  if (!src || src.type !== 'ENERGY_CARD') return parsed;
+  // 🔴**宣言の対象は「実行と同じ候補集合」**＝`SELECT_TARGET_ONLY` の `ENERGY_CARD` 分岐は
+  //   `execAddToField` と同じ関数で候補を作るので、`source` をそのまま渡すのが唯一ズレない書き方。
+  return { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: src, abortIfNoCandidate: true } as unknown as EffectAction,
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as unknown as EffectAction,
+    steps[0],
+    { ...gate, then: { ...body, targetsStored: true } } as unknown as EffectAction,
+  ] } as SequenceAction;
+}
+
 function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectAction {
   const matchedSameSentence = /を対象とし[^。]*?場合[、，]/.test(text);
   if (!matchedSameSentence && !O451_DECL_THEN_DIDIT.test(text)) return parsed;
@@ -21341,6 +21384,22 @@ function parseActionTextInner(text: string): EffectAction {
         const isOpp = /対戦相手の(?:すべての)?シグニ/.test(scope);
         rec.owner = isOpp ? 'opponent' : 'self';
         if (!isOpp && /すべてのシグニを、?好きなように配置し直/.test(scope)) rec.repositionAll = true;
+      }
+      // 🆕🔴**§5.3 `O-511`（2026-09-15）＝「配置して**もよい**」の任意性も前の文と同じ効果単位で読む。**
+      // 🔴live 実測＝`repositionOptional` を持つのは 2効果だけで、原文が「配置してもよい」と書いている
+      //   `WXDi-P00-068-E1` / `WX24-P2-089-E1` は**強制配置**だった（辞退できず、しかも
+      //   `WXDi-P00-068-E1` は配置しなくても「そうした場合」の＋3000 が走っていた）。
+      // ⚠**「配置する」（`WXDi-P00-015-E1` / `WXDi-P06-045-E1`）には立てない**＝原文が強制。
+      // ⚠**既に刻まれているものには触らない**（`WDK09-015-E1` / `WXDi-CP02-095-E1` は個別修理で
+      //   `repositionOptional` を持っており、前者は「**対象の**シグニ1体」＝宣言動詞が無いので
+      //   対象選択自体が任意＝`repositionDeclareTarget` を立ててはいけない）。
+      if (rec.type === 'STUB'
+          && (rec.id === 'SIGNI_REPOSITION' || rec.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE')
+          && rec.repositionOptional === undefined
+          && /他のシグニゾーン[^。]*配置してもよい/.test(scope)) {
+        rec.repositionOptional = true;
+        // 原文が「を対象とし」と宣言している形は**対象選択が強制**（辞退はゾーン選択側）。
+        if (/を対象とし/.test(scope)) rec.repositionDeclareTarget = true;
       }
       if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED' && !rec.placeTrapReveal) {
         const n = revealCountIn(scope);
@@ -30834,6 +30893,48 @@ function repairSemanticBatch246(effects: CardEffect[]): void {
 }
 
 /** §5.0 第247バッチ：一点物＋相手任意支払い前の対象確定。 */
+/**
+ * 🆕🔴**§5.3 `O-512`（2026-09-15）＝`then` と `else` で対象が違う形（原文も2回「対象とし」と書く）。**
+ *
+ * `WXK09-081-E1`「対戦相手のレベル１以下のシグニ１体を**対象とし**、〈条件A〉場合、それをエナゾーンに置く。
+ * 〈条件B〉場合、**代わりに**対戦相手のレベル３以下のシグニ１体を**対象とし**、それをエナゾーンに置く。」
+ *
+ * 🔴`hoistTargetBeforeCondition`（`O-413`/`O-451`）は**1つの宣言で全ホルダーを受ける形**しか引き上げない
+ *   （`JSON.stringify(h.target) !== targetKey` で fail-closed）＝この形には届かない。
+ *   live は条件を1つも満たさないとき**対象宣言そのものが起きない**＝`ON_TARGETED`（相手の効果の対象に
+ *   なったとき）が発火しなかった。原文は条件より前に宣言している。
+ *
+ * 🔑**枝ごとの宣言を機構で足す必要は無い**＝最初の宣言（レベル１以下）だけを先頭へ出し、
+ *   「代わりに」枝は**枝の中で自分の対象を選ぶ**（原文もその位置で宣言している）。
+ * ⚠**`abortIfNoCandidate` は付けない**＝レベル１以下が0体でも、条件Bを満たせば
+ *   「代わりに」枝（レベル３以下）は原文どおり撃てる。付けると効果ごと飛ぶ。
+ */
+function repairSemanticBatch248(effects: CardEffect[]): void {
+  for (const effect of effects) {
+    switch (effect.effectId) {
+      case 'WXK09-081-E1': {
+        if (effect.action.type !== 'CONDITIONAL') break;
+        const outer = effect.action;
+        if (outer.condition.type !== 'ENERGY_EACH_LEVEL_FILTER_GTE') break;
+        const inner = outer.else;
+        if (inner?.type !== 'CONDITIONAL') break;
+        const lv1 = inner.then;
+        if (lv1?.type !== 'SEND_TO_ENERGY') break;
+        effect.action = { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: {
+            type: 'SIGNI', owner: 'opponent', count: 1,
+            filter: { cardType: 'シグニ', level: { max: 1 } }, upToCount: false,
+          } } as unknown as EffectAction,
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as unknown as EffectAction,
+          { ...outer, else: { ...inner, then: { ...lv1, targetsStored: true } } },
+        ] };
+        break;
+      }
+      default: break;
+    }
+  }
+}
+
 function repairSemanticBatch247(effects: CardEffect[]): void {
   for (const effect of effects) {
     switch (effect.effectId) {
@@ -32114,6 +32215,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   repairSemanticBatch245(effects);
   repairSemanticBatch246(effects);
   repairSemanticBatch247(effects);
+  repairSemanticBatch248(effects);
   // `O-368`：全 rewriter が action 木を組み終えた効果単位の原文で、対象宣言だけを TURN_OWNER の外へ出す。
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
@@ -32151,6 +32253,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // 🔴**ここでなければ届かない**＝この形は原文が**2文に分かれている**ので `parseActionText`
     //   （1文ぶんしか見ない）からは木が `SEQUENCE[前段, 後段]` に見えない（実測＝入れても 0 効果しか変わらなかった）。
     effect.action = wrapDidItGateAfterMandatory(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-513`＝「自分をエナへ置く」より前にエナの対象を宣言する（自己混入を止める）。
+    effect.action = hoistEnergyDeclBeforeSelfToEnergy(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。

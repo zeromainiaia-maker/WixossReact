@@ -5802,6 +5802,18 @@ export interface StubAction {
   /** SIGNI_REPOSITION: moving the already-declared target is optional. */
   repositionOptional?: boolean;
   /**
+   * 🆕**§5.3 `O-511`（2026-09-15）＝原文が「〈対象〉を**対象とし**、それを〜配置して**もよい**」と
+   * 書いている形＝**対象の宣言は強制で、辞退できるのは配置（移動先ゾーンの選択）だけ**。
+   *
+   * 🔴`repositionOptional` だけを立てると**対象選択の `SELECT_TARGET` まで任意**になり、0体選択で
+   *   `resumeSelectTarget` が continuation（＝このステップ自身）へ再入するので**同じ問いを無限に繰り返す**
+   *   （このハンドラは選択結果を `lastProcessedCards` から読み直して自分へ再入する形＝`O-391` ③の反例と同じ）。
+   * ⇒ このフラグが立っているときは `SELECT_TARGET` を強制にし、辞退はゾーン選択の
+   *   「配置しない」（`declines`）が担当する。
+   * ⚠原文が「**対象の**シグニ1体を〜配置してもよい」（宣言動詞が無い＝`WDK09-015-E1`）の形には立てない。
+   */
+  repositionDeclareTarget?: boolean;
+  /**
    * 🆕**「（すでにシグニのあるシグニゾーンには配置できない）」**（2026-09-14・§5.3 明示 defer の解体
    * 第1バッチ・`WXDi-P06-045-E1`②）＝**移動先は空きゾーンだけ**。
    * 🔴既定（省略時）は**占有ゾーンなら入れ替える**＝`WXEX2-04` ほか live 3効果の綴りはそれが正しい。

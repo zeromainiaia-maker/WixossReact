@@ -26744,43 +26744,75 @@ test('§6.4 O-7: 「このシグニがアタックしたとき、そのアタッ
 // 🔴従来は part4 の総称 `LRIG_UNDER_CARD_OP` へ落ち、**支払いが一度も起きないまま本体だけが走って**いた
 //   （しかも本体の `ADD_TO_FIELD` に source が無く、エナからではなく手札から出す別動作だった）。
 test('§6.4 O-7: selfToEnergy 任意コスト＝自身がエナへ行き、エナの絞り込み札がダウン状態で場に出る', () => withSavedCursor(() => {
+  // 🆕§5.3 `O-513`（2026-09-15）＝原文は「あなたのエナゾーンから〜１枚を**対象とし**、場にあるこの
+  //   シグニをエナゾーンに置いてもよい」＝**宣言が先**。`restoreElidedSwapSource` が parser に読ませる
+  //   ために宣言を帰結側へ移していたので、live は**支払いのあと**でエナから自由に選んでいた
+  //   ＝効果元自身（レベル1の＜遊具＞）が候補に混じり「エナへ置いた自分をそのまま場へ戻す」空回りが選べた。
   for (const [num, eid, level] of [
     ['WX25-P2-090', 'WX25-P2-090-E1', 1], ['WX25-P2-093', 'WX25-P2-093-E1', 2],
   ] as const) {
     const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
     const seq = live.action as SequenceAction;
-    const cost = seq.steps[0] as { id?: string; selfToEnergy?: boolean };
+    const decl = seq.steps[0] as { id?: string; selectTarget?: { type?: string }; abortIfNoCandidate?: boolean };
+    eq(decl.id, 'SELECT_TARGET_ONLY', `${eid}: 対象宣言が任意コストより前にある`);
+    eq(decl.selectTarget?.type, 'ENERGY_CARD', `${eid}: 宣言はエナゾーンの札`);
+    ok(decl.abortIfNoCandidate, `${eid}: エナに候補が無ければ自分をエナへ置かない`);
+    eq((seq.steps[1] as { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', `${eid}: 宣言を固定する`);
+    const cost = seq.steps[2] as { id?: string; selfToEnergy?: boolean };
     eq(cost.id, 'OPTIONAL_COST', `${eid}: 正準形の任意コスト`);
     ok(cost.selfToEnergy, `${eid}: 支払いは「このシグニをエナゾーンへ」`);
-    const body = (seq.steps[1] as ConditionalAction).then as { source?: { type?: string; filter?: unknown }; asDown?: boolean; suppressOnPlay?: boolean };
+    const body = (seq.steps[3] as ConditionalAction).then as { source?: { type?: string; filter?: unknown }; asDown?: boolean; suppressOnPlay?: boolean; targetsStored?: boolean };
     eq(body.source?.type, 'ENERGY_CARD', `${eid}: 出す先はエナゾーンから（手札からではない）`);
     ok(JSON.stringify(body.source?.filter).includes('遊具'), `${eid}: ＜遊具＞に絞る`);
     void level;
     ok(body.asDown && body.suppressOnPlay, `${eid}: ダウン状態＋【出】抑止`);
+    ok(body.targetsStored, `${eid}: 場に出すのは宣言した札（支払い後に選び直さない）`);
   }
-  // 実経路：支払い枝を選ぶと効果元がエナへ移り、エナのレベル1＜遊具＞だけが配置候補になる。
+  // 実経路：宣言 → 支払い枝を選ぶと効果元がエナへ移り、**宣言した札だけ**が配置候補になる。
   const self = 'WX25-P2-090';
-  const toy1 = findCard(c => isSigni(c) && c.Level === '1' && (c.CardClass ?? '').includes('遊具') && c.CardNum !== self);
+  const toys = [...cardMap.values()]
+    .filter(c => isSigni(c) && c.Level === '1' && (c.CardClass ?? '').includes('遊具') && c.CardNum !== self)
+    .map(c => c.CardNum).slice(0, 2);
+  const [toy1, toy2] = toys;
   const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具'));
   const ctx = mkCtx({ signi: [self, null, null] }, {}, self);
-  ctx.ownerState.energy = [toy1, other];
+  ctx.ownerState.energy = [toy1, toy2, other];
   const live = (effectsMap.get(self) ?? []).find(e => e.effectId === 'WX25-P2-090-E1')!;
   const p0 = executeEffect(live, ctx);
-  ok(!p0.done && p0.pending.type === 'CHOOSE', '任意コストの pay/skip を問う');
-  const pay = p0.pending.options.find(o => o.id === 'pay')!;
-  ok(pay.available, '効果元が場にあるので支払える');
-  const c0: ExecCtx = { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs };
-  const paid = executeAction(pay.action, c0);
-  ok(paid.ownerState.energy.includes(self), '効果元がエナゾーンへ移動した（＝対価を払った）');
-  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', '配置するエナ札を選ぶ');
-  ok(paid.pending.candidates.includes(toy1) && !paid.pending.candidates.includes(other),
+  ok(!p0.done && p0.pending.type === 'SELECT_TARGET', '🔴支払いより先に対象を宣言していない');
+  if (p0.done || p0.pending.type !== 'SELECT_TARGET') return;
+  eq(p0.pending.targetScope, 'self_energy', '宣言はエナゾーンから');
+  ok(p0.pending.candidates.includes(toy1) && !p0.pending.candidates.includes(other),
     'レベル1の＜遊具＞だけが候補（絞り込みが落ちていない）');
+  ok(!p0.pending.candidates.includes(self), '宣言の時点で効果元はまだ場にある（エナの候補ではない）');
+  const declared = resumeSelectTarget([toy1], p0.pending, execCtxFrom(p0, ctx));
+  ok(!declared.done && declared.pending.type === 'CHOOSE', '宣言のあとに任意コストの pay/skip を問う');
+  if (declared.done || declared.pending.type !== 'CHOOSE') return;
+  const pay = declared.pending.options.find(o => o.id === 'pay')!;
+  ok(pay.available, '効果元が場にあるので支払える');
+  const paid = executeAction(pay.action, execCtxFrom(declared, ctx));
+  ok(paid.ownerState.energy.includes(self), '効果元がエナゾーンへ移動した（＝対価を払った）');
+  // 🔴ここが `O-513` の本体＝自分をエナへ置いた**あと**でも、場に出せるのは宣言した札だけ。
+  //   旧実装は「エナのレベル1＜遊具＞」を選び直していたので、**いまエナへ置いた効果元自身**と
+  //   宣言していない toy2 が候補に混じっていた（自分を出し直す完全な空回りが選べた）。
+  if (!paid.done && paid.pending.type === 'SELECT_TARGET') {
+    ok(!paid.pending.candidates.includes(self), '🔴たったいまエナへ置いた効果元自身が配置候補に混じっている');
+    ok(!paid.pending.candidates.includes(toy2), '🔴宣言していないエナ札まで選べる');
+  } else {
+    // 候補が1枚に確定していれば対話は出ない＝それが宣言した札であること。
+    ok(paid.ownerState.field.signi.some(st => st?.at(-1) === toy1), '宣言した札が場に出ていない');
+    ok(!paid.ownerState.field.signi.some(st => st?.at(-1) === self), '🔴効果元自身が場に戻っている');
+  }
   // 負方向＝効果元が既に場を離れていれば支払えない
   const goneCtx = mkCtx({ signi: [null, null, null] }, {}, self);
   goneCtx.ownerState.energy = [toy1];
   const p1 = executeEffect(live, goneCtx);
-  ok(!p1.done && p1.pending.type === 'CHOOSE'
-    && p1.pending.options.find(o => o.id === 'pay')?.available === false,
+  const gonePending = p1.done ? undefined
+    : p1.pending.type === 'SELECT_TARGET'
+      ? resumeSelectTarget([toy1], p1.pending, execCtxFrom(p1, goneCtx))
+      : p1;
+  ok(!!gonePending && !gonePending.done && gonePending.pending.type === 'CHOOSE'
+    && gonePending.pending.options.find(o => o.id === 'pay')?.available === false,
     '場に居ない効果元はエナへ置けない＝支払い枝が選べない');
 }));
 
@@ -51236,12 +51268,40 @@ test('§6.4 O-11: 多段閾値「それぞれN枚以上ある場合、代わり�
   for (const [cardNum, effectId, hi, lo] of [['WXK09-031', 'WXK09-031-E1', 3, 2], ['WXK09-081', 'WXK09-081-E1', 2, 1]] as [string, string, number, number][]) {
     const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
     ok(!!e, `${effectId} が live に存在する`);
-    const outer = e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
-    eq(outer.type, 'CONDITIONAL', `🔴${effectId}: SEQUENCE（＝無条件実行）に戻っている`);
+    // 🆕§5.3 `O-512`（2026-09-15）＝`WXK09-081-E1` は原文が条件より**前**に対象を宣言しているので、
+    //   閾値の `CONDITIONAL` は `SEQUENCE[宣言, STORE, ここ]` の最後のステップに入っている。
+    //   ⚠**「SEQUENCE なら退化」ではない**＝退化は「閾値の `CONDITIONAL` そのものが消えている」こと。
+    const root = e!.action;
+    const outer = (root.type === 'SEQUENCE'
+      ? (root as SequenceAction).steps[(root as SequenceAction).steps.length - 1]
+      : root) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(outer.type, 'CONDITIONAL', `🔴${effectId}: 閾値の CONDITIONAL が消えている（＝無条件実行）`);
     eq((outer.condition as { type: string; minEach?: number }).minEach, hi, `${effectId}: 外側は上段の閾値`);
     ok(!!outer.else, `🔴${effectId}: 下段が else に入っていない`);
     const innerCond = (outer.else as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as { minEach?: number };
     eq(innerCond.minEach, lo, `${effectId}: else の内側が下段の閾値`);
+  }
+  // 🆕🔴§5.3 `O-512`＝`WXK09-081-E1` は原文が2回「対象とし」と書く（`then` と `else` で対象が違う）。
+  //   原文は**条件より前に**「対戦相手のレベル１以下のシグニ１体を対象とし」と宣言しているので、
+  //   **どちらの条件も満たさないときでも宣言は起きる**（＝`ON_TARGETED` が発火する）。
+  //   旧 live は条件の内側でしか対象を取らず、宣言そのものが起きていなかった。
+  {
+    const e = (effectsMap.get('WXK09-081') ?? []).find(x => x.effectId === 'WXK09-081-E1')!;
+    const seq = e.action as SequenceAction;
+    eq(seq.type, 'SEQUENCE', '🔴WXK09-081-E1: 対象宣言が条件の内側へ戻っている');
+    const decl = seq.steps[0] as StubAction;
+    eq(decl.id, 'SELECT_TARGET_ONLY', 'WXK09-081-E1: 先頭は対象宣言');
+    eq(JSON.stringify(decl.selectTarget?.filter), '{"cardType":"シグニ","level":{"max":1}}',
+      'WXK09-081-E1: 宣言はレベル1以下（＝原文の1つ目の「対象とし」）');
+    eq((decl as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, undefined,
+      '🔴WXK09-081-E1: レベル1以下が0体でも「代わりに」枝（レベル3以下）は原文どおり撃てる');
+    eq((seq.steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', 'WXK09-081-E1: 宣言を固定する');
+    const outer = seq.steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    // 「代わりに」枝は**枝の中で自分の対象を選ぶ**（原文もその位置で宣言している）。
+    eq((outer.then as { targetsStored?: boolean }).targetsStored, undefined,
+      'WXK09-081-E1: 「代わりに」枝は別の対象（レベル3以下）を枝の中で選ぶ');
+    const lo1 = (outer.else as Extract<EffectAction, { type: 'CONDITIONAL' }>).then as { targetsStored?: boolean };
+    eq(lo1.targetsStored, true, '🔴WXK09-081-E1: 下段の枝が宣言した札ではなく選び直している');
   }
 });
 
@@ -69311,6 +69371,88 @@ test('§5.3 O-60 第55: GRANT_QUOTED_ACTIVATE_ABILITY は真 no-op だったの�
 // ── §5.3 `O-60` 第56バッチ（2026-09-03）＝計器の較正で見えた2 family ──
 // 🔴この巡で `census:enginetext` に **`sourceAbilityText(ctx)` を算入**したところ、
 //    **16ハンドラが丸ごと計器の外**にいたことが分かった（行に `EffectText` が出ない funnel）。
+// ── §5.3 `O-514`（2026-09-15）＝**偽陽性の固定**。登録票は `WX22-048-E1` の「このシグニが
+//    トラッシュから場に出た場合」が **JSON のどこにも無い**と書いていたが、実体は
+//    **効果レベルの `condition` フィールド**にあった（`action` 木だけを読むと見えない）。
+// 🔑`condition` は `triggerCollect.ts` の ON_PLAY collector 2箇所と `BattleScreen` の通常召喚経路で
+//    評価されている＝トラッシュ以外から場に出たときは能力そのものが積まれない。
+// ⚠この形の登録票を二度作らないために、族（原文 12効果）を全数で固定する。
+test('§5.3 O-514: 「このシグニがトラッシュから場に出た場合」は効果レベルの condition に在る（action 木だけを見ない）', () => {
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const seen: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const t = srcText[e.effectId] ?? '';
+      if (!/この(?:シグニ|カード)がトラッシュから場に出た場合/.test(t)) continue;
+      seen.push(e.effectId);
+      ok(JSON.stringify(e).includes('THIS_CARD_FROM_TRASH'),
+        `🔴${e.effectId}: 原文の「トラッシュから場に出た場合」が live に無い（＝無条件に発動する）`);
+    }
+  }
+  ok(seen.length >= 12, `族は12効果以上（実測 ${seen.length}）`);
+});
+
+// ── §5.3 `O-511`（2026-09-15）＝「配置して**もよい**」の任意性が live に無かった ──
+// 🔴実測＝`repositionOptional` を持つのは2効果だけで、原文が「配置してもよい」と書いている
+//    `WXDi-P00-068-E1` / `WX24-P2-089-E1` は**強制配置**だった。しかも `WXDi-P00-068-E1` は
+//    「そうした場合、ターン終了時まで、それのパワーを＋3000する」が**配置しなくても走って**いた。
+// 🔑辞退は**ゾーン選択の側**（`declines`）に置く＝対象選択を任意にすると 0体選択で
+//    `resumeSelectTarget` が continuation（＝このステップ自身）へ再入し**同じ問いを無限に繰り返す**。
+test('§5.3 O-511: 「配置してもよい」は辞退できる（対象宣言は強制・辞退したら「そうした場合」も起きない）', () => withSavedCursor(() => {
+  for (const [num, eid] of [
+    ['WXDi-P00-068', 'WXDi-P00-068-E1'], ['WX24-P2-089', 'WX24-P2-089-E1'],
+  ] as const) {
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    let node: Record<string, unknown> | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && (rec.id === 'SIGNI_REPOSITION' || rec.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE')) node = rec;
+      Object.values(rec).forEach(visit);
+    };
+    visit(live.action);
+    ok(!!node, `${eid}: 配置替えノードがある`); if (!node) continue;
+    eq(node.repositionOptional, true, `🔴${eid}: 原文が「配置してもよい」なのに強制配置に戻っている`);
+    eq(node.repositionDeclareTarget, true, `🔴${eid}: 「を対象とし」の宣言が任意化されている（0体選択で無限再入する）`);
+  }
+  // 🔴反転＝原文が「配置**する**」の2効果には立てない（強制のまま）。
+  for (const [num, eid] of [
+    ['WXDi-P00-015', 'WXDi-P00-015-E1'], ['WXDi-P06-045', 'WXDi-P06-045-E1'],
+  ] as const) {
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    ok(!JSON.stringify(live.action).includes('repositionOptional'),
+      `🔴${eid}: 原文が「配置する」（強制）なのに辞退できるようになっている`);
+  }
+  // 実挙動＝`WXDi-P00-068-E1`。対象宣言 → ゾーン選択（辞退つき）。
+  const src = 'WXDi-P00-068';
+  const mate = fresh();
+  const ctx = mkCtx({ signi: [src, mate, null] }, {}, src);
+  const live = (effectsMap.get(src) ?? []).find(e => e.effectId === 'WXDi-P00-068-E1')!;
+  const p0 = executeEffect(live, ctx);
+  ok(!p0.done && p0.pending.type === 'SELECT_TARGET', '配置するシグニを選ばせていない');
+  if (p0.done || p0.pending.type !== 'SELECT_TARGET') return;
+  eq(p0.pending.optional ?? false, false, '🔴対象宣言が任意になっている（0体選択で同じ問いを無限に繰り返す）');
+  const picked = resumeSelectTarget([mate], p0.pending, execCtxFrom(p0, ctx));
+  ok(!picked.done && picked.pending.type === 'CHOOSE', '移動先ゾーンを選ばせていない');
+  if (picked.done || picked.pending.type !== 'CHOOSE') return;
+  const skip = picked.pending.options.find(o => o.id === 'skip');
+  ok(!!skip, '🔴「配置しない」が出ない＝辞退できない');
+  eq(skip?.declines, true, '🔴辞退枝に declines が無い＝「そうした場合」を止められない');
+  const pickedCtx = execCtxFrom(picked, ctx);
+  // 辞退 → 移動もパワー修正も起きない。
+  const declined = resumeChoose('skip', picked.pending, pickedCtx);
+  eq(declined.ownerState.field.signi[1]?.at(-1), mate, '辞退したのに移動している');
+  eq((declined.ownerState.temp_power_mods ?? []).length, 0,
+    '🔴配置しなかったのに「そうした場合」の＋3000 が走っている');
+  // 反転＝ゾーンを選べば移動し、＋3000 も走る。
+  const zone = picked.pending.options.find(o => o.id === 'zone_2')!;
+  const moved = resumeChoose(zone.id, picked.pending, pickedCtx);
+  eq(moved.ownerState.field.signi[2]?.at(-1), mate, 'ゾーン3へ移動していない');
+  ok((moved.ownerState.temp_power_mods ?? []).some(m => m.cardNum === mate && m.delta === 3000),
+    '🔴配置したのに「そうした場合」の＋3000 が走っていない');
+}));
+
 test('§5.3 O-60 第56: シグニの配置替えは payload の owner で動く（旧はブロック全文の includes）', () => withSavedCursor(() => {
   // 🔴旧＝`sourceAbilityText(ctx).includes('対戦相手のシグニ')`。**持ち主は前の文にある**
   //   （「対戦相手のシグニ1体を対象とし、**それを**他のシグニゾーン1つに配置してもよい」）ので、

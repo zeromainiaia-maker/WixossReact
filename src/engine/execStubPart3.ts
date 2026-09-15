@@ -3994,7 +3994,12 @@ export function execStubPart3(
         // ⚠**第56バッチ前と同じ**＝旧 `optional: stub.id === 'SWAP_OPTIONAL'` は
         //   `SIGNI_REPOSITION` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` では常に `false` だった
         //   （`SWAP_OPTIONAL` はこの門から外したので、この式はもう分岐しない）。
-        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: stub.repositionOptional === true,
+        // 🆕🔴**§5.3 `O-511`（2026-09-15）＝`repositionDeclareTarget` が立っていたら対象選択は強制。**
+        //   原文「〈対象〉を**対象とし**、それを〜配置して**もよい**」は宣言が強制で、辞退できるのは
+        //   配置だけ（＝下のゾーン選択の「配置しない」）。ここを任意にすると 0体選択で
+        //   `resumeSelectTarget` が continuation（＝このステップ自身）へ再入し**同じ問いを無限に繰り返す**。
+        type: 'SELECT_TARGET', candidates: candsSR, count: 1,
+        optional: stub.repositionOptional === true && stub.repositionDeclareTarget !== true,
         targetScope: targetScopeSR, thenAction: noopSR as EffectAction, continuation: contSR as EffectAction,
       });
     }
@@ -4007,7 +4012,8 @@ export function execStubPart3(
     const emptyOnlySR = stub.repositionEmptyOnly === true;
     const zoneOpenSR = (zi: number): boolean =>
       !emptyOnlySR || !(sideStateSR.field.signi[zi] && sideStateSR.field.signi[zi]!.length > 0);
-    const zoneOptsSR = [0,1,2].filter(i => i !== currentZoneSR && zoneOpenSR(i)).map(zi => ({
+    const zoneOptsSR: Array<{ id: string; label: string; action: EffectAction; available: boolean; declines?: boolean }>
+      = [0,1,2].filter(i => i !== currentZoneSR && zoneOpenSR(i)).map(zi => ({
       id: `zone_${zi}`, label: `ゾーン${zi+1}へ移動`,
       action: ({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
         value: `${selectedSR}:${zi}:${selectedIsOppSR}` } as StubAction) as EffectAction,
@@ -4015,10 +4021,13 @@ export function execStubPart3(
     }));
     // 🔴空きが1つも無ければ配置できない（強制形でも**入れ替えない**）。
     if (zoneOptsSR.length === 0) return done(addLog(ctx, '配置できる空きシグニゾーンがない'));
+    // 🆕🔴**§5.3 `O-511`（2026-09-15）＝辞退したら「そうした場合」ごと落とす（`declines`）。**
+    //   `WXDi-P00-068-E1`「それを他のシグニゾーン1つに配置してもよい。**そうした場合**、ターン終了時まで
+    //   それのパワーを＋3000する」は、配置しなくてもパワーが上がっていた（`O-391`(b) と同じ契約）。
     if (stub.repositionOptional) zoneOptsSR.push({
       id: 'skip', label: '配置しない',
       action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
-      available: true,
+      available: true, declines: true,
     });
     return needsInteraction(addLog(ctx, '移動先ゾーンを選択'), { type: 'CHOOSE', options: zoneOptsSR, count: 1 });
   }

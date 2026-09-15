@@ -51,6 +51,12 @@ const IGNORED = new Map<string, string>([
   //   `action.id === 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY'` だけを見ており、このキーは読まれない。
   //   ⇒ 落としても原文の語は1つも説明できなくならない（id 側のラベルが全文を描いている）。
   ['refreshLifeMoveReplace', 'STUB id と冗長なマーカー（engine は id だけを見る）＝落としても原文の語が失われない'],
+  // 🆕§5.3 `O-511`（2026-09-15）＝**辞退の置き場所**だけを決める制御フラグ。
+  //   原文「〈対象〉を**対象とし**、それを〜配置して**もよい**」の「してもよい」は `repositionOptional` が描く。
+  //   このキーが足すのは「辞退できるのはゾーン選択の側で、対象選択は強制」という engine 内部の経路の決定だけで、
+  //   盤面の帰結は `repositionOptional` と同じ（付けないと 0体選択で同じ問いを無限に繰り返す）。
+  //   ⇒ 落としても原文の語は1つも説明できなくならない。
+  ['repositionDeclareTarget', '制御フロー（辞退をゾーン選択側に置く＝対象選択の無限再入を防ぐ）＝「してもよい」は repositionOptional が描く'],
 ]);
 
 // ── live JSON から payload キーを全数収集 ──
