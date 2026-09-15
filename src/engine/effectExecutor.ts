@@ -6700,7 +6700,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ? resolveDynamicFilter(declaredRawFilterTOSOC, cur.otherState, cur.cardMap, cur.ownerState,
                 cur.lastProcessedCards, cur.effectivePowers, cur.sourceCardNum, cur.triggeringCardNum, undefined, cur.fieldSigniExtraColors, cur.allColorSigniNums)
             : undefined;
-          const targetAvailableTOSOC = declaredTargetTOSOC?.type === 'LRIG'
+          // 🆕§5.3 `O-515`＝宣言済み（store が埋まり、本体が `targetsStored`）なら、可否は「宣言した札がまだ相手の場に居るか」で見る。
+          //   🔴フィルタで測り直すと、宣言で `lastProcessedCards` が宣言した札に置き換わっているので
+          //   `levelEqLastDownedLrig` 等の照応フィルタが解けず、**支払いを提示せずに降りる**（`WX24-P1-040-E1` で実測）。
+          const declaredStoreTOSOC = (cur.storedTargetCards ?? []).length > 0 && JSON.stringify(conditional).includes('"targetsStored":true')
+            ? (cur.storedTargetCards ?? []) : null;
+          const targetAvailableTOSOC = declaredStoreTOSOC
+            ? declaredStoreTOSOC.some(n => cur.otherState.field.signi.some(st => st?.at(-1) === n))
+            : declaredTargetTOSOC?.type === 'LRIG'
             ? cur.otherState.field.lrig.length > 0
             : declaredTargetTOSOC?.type === 'TRASH_CARD'
               ? cur.ownerState.trash.some(cn => matchesFilter(cur.cardMap.get(getCardNum(cn)), declaredTargetTOSOC.filter ?? {}))
@@ -6722,7 +6729,38 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             return a;
           };
           void toHWTOSOC; // 対象の枚数・種別は optionalCostTarget と各 executor が解決する
-          const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
+          // 🆕🔴**§5.3 `O-515`（2026-09-15）＝原文「〈相手シグニ〉を対象とし、〈コスト〉を支払ってもよい。
+          //   そうした場合、…」は**宣言が先**。旧はこの族が対象確定を支払いの**中**（`pay` 枝の本体）でやるので、
+          //   **辞退すると対象化そのものが起きず `ON_TARGETED` が発火しなかった**。
+          // 🔑parser で宣言を足す方向は二重選択になる（`O-298` の据置契約）ので、**engine がここで**
+          //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS` を合成して同じ分岐へ再入する
+          //   （再入時は store が埋まっているので合成しない＝二重選択にならない）。
+          // ⚠**合成するのは「本体が単一の相手シグニ対象」だけ**（`ON_TARGETED` は相手シグニにしか無い）。
+          //   既に宣言済み（`targetsStored` を持つ／store が埋まっている）形は据置。
+          const bodyTOSOC = fixOwnerTOSOC(conditional.then) as EffectAction & { target?: import('../types/effects').EffectTarget; targetsStored?: boolean; fixedCardNums?: string[] };
+          const DECLARABLE_TOSOC = ['BANISH', 'BOUNCE', 'POWER_MODIFY', 'SEND_TO_ENERGY', 'TRASH', 'DOWN', 'FREEZE'];
+          if (DECLARABLE_TOSOC.includes(bodyTOSOC.type)
+              && bodyTOSOC.target?.type === 'SIGNI' && bodyTOSOC.target.owner === 'opponent'
+              && !bodyTOSOC.fixedCardNums
+              && !JSON.stringify(conditional).includes('"targetsStored"')
+              && (cur.storedTargetCards ?? []).length === 0) {
+            const bodyFilterTOSOC = declaredFilterTOSOC ?? (bodyTOSOC.target.filter
+              ? resolveDynamicFilter(resolveClassMatchesAnyFieldSigni(bodyTOSOC.target.filter, cur.ownerState, cur.cardMap), cur.otherState, cur.cardMap, cur.ownerState,
+                  cur.lastProcessedCards, cur.effectivePowers, cur.sourceCardNum, cur.triggeringCardNum, undefined, cur.fieldSigniExtraColors, cur.allColorSigniNums)
+              : undefined);
+            const declStepsTOSOC: EffectAction[] = [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+                selectTarget: { ...bodyTOSOC.target, ...(bodyFilterTOSOC ? { filter: bodyFilterTOSOC } : {}) } } as StubAction,
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+              stub,
+              // ⚠本体の絞りは**宣言時点で解決済みの値**へ置き換える（宣言後は `lastProcessedCards` が宣言した札になり、照応フィルタが解けない）。
+              { ...conditional, then: { ...bodyTOSOC, target: { ...bodyTOSOC.target, ...(bodyFilterTOSOC ? { filter: bodyFilterTOSOC } : {}) }, targetsStored: true } as EffectAction },
+              ...(cont ? [cont] : []),
+            ];
+            return executeAction({ type: 'SEQUENCE', steps: declStepsTOSOC } as SequenceAction, cur);
+          }
+          // 再入時（宣言済み）は、store を支払いプロンプトを跨ぐ前に個体IDへ焼き込む（OTEC 分岐と同じ契約）。
+          const fixedThenTOSOC = freezeStoredTargets(fixOwnerTOSOC(conditional.then), cur);
           const payLabelTOSOC = costColors.length > 0
             ? `対象選択して発動（${costColors.map(c => c.split('|').map(x => `《${x}》`).join('か')).join('')}）`
             : '対象選択して発動';

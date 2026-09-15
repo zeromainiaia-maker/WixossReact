@@ -834,9 +834,10 @@ test('frontOfSelf WD17-009-E1: front BANISH also requires SELF_POWER_GTE 15000',
   eq(tops(hit.otherState)[0], side, 'non-front opponent is unaffected');
   const lowCtx = mkCtx({ signi: [host, null, null] }, { signi: [side, null, front] }, host);
   lowCtx.effectivePowers = new Map([[host, 14999]]);
-  ok(!evalUseCondition(effect.condition!, lowCtx.ownerState, lowCtx.otherState, lowCtx.cardMap, host, 'ATTACK', lowCtx.effectivePowers),
-    'collector gate rejects power below 15000');
-  eq(tops(lowCtx.otherState)[2], front, 'rejected trigger leaves the front SIGNI untouched');
+  // 🆕§5.3 `O-516`＝条件は効果レベルではなく宣言の後ろ（木の中）＝能力は積まれ、解決で不成立なら何もしない。
+  eq(effect.condition, undefined, 'condition is not an effect-level gate (O-516)');
+  const low = finish(executeEffect(effect, lowCtx), lowCtx);
+  eq(tops(low.otherState)[2], front, 'power below 15000 leaves the front SIGNI untouched');
   const emptyCtx = mkCtx({ signi: [host, null, null] }, { signi: [side, null, null] }, host);
   emptyCtx.effectivePowers = new Map([[host, 15000]]);
   const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
@@ -20288,7 +20289,8 @@ test('O-221 据置契約: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST は対象0なら�
   // 対照＝相手にシグニが居れば「対象選択して発動」の二択が出る（据置で機能が死んでいない）。
   const target = findCard(c => isSigni(c));
   const filled = runEffect(branch, mkCtx({ energy: 3 }, { signi: [target, null, null] }, 'WXDi-P16-TK01'));
-  ok(!filled.done && filled.pending.type === 'CHOOSE', '対象が居れば支払いの二択が出る');
+  // 🆕§5.3 `O-515`（2026-09-15）＝対象が居れば**まず対象宣言**（engine が合成）→ そのあと支払いの二択。
+  ok(!filled.done && filled.pending.type === 'SELECT_TARGET', '対象が居ればまず対象宣言が出る（O-515）');
 }));
 
 // ── §5.3 `O-221` 第1バッチ（2026-09-02）＝**parser が追い越した手書きを削除した** ──
@@ -20650,7 +20652,8 @@ test('O-96 第2バッチ 実行: 対象候補0なら手札コストを提示せ�
 // PLAN §5.3 O-96 第3バッチ＝原文 regex を「語尾の列挙」から「順序だけ」へ切り替え、
 // 範囲は構造ガード（root SEQUENCE / コスト payload 単一 / 帰結が targetsStored 可能型 かつ SIGNI 対象）で担保する。
 test('O-96 第3バッチ JSON順序: 順序regex＋構造ガードで4帰結型を固定する', () => {
-  const banish = assertO96FixedOrder('WXK08-070', 'WXK08-070-E1');
+  // 🆕§5.3 `O-516`＝`WXK08-070-E1` は条件（【ビート】5枚）が宣言の後ろへ入って形が変わったので、同型の別札で固定する。
+  const banish = assertO96FixedOrder('WDK11-011', 'WDK11-011-E1');
   eq((banish[3] as ConditionalAction).then.type, 'BANISH', 'BANISH 帰結');
 
   const power = assertO96FixedOrder('WXDi-P11-049', 'WXDi-P11-049-E1');
@@ -20681,8 +20684,11 @@ test('O-96 第3バッチ: 相手ターン解決の TRAP/BURST に IS_MY_TURN を
 
 // 前置条件は「効果レベルの condition」として持っているものがある＝対象宣言の追加で落とさない。
 test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () => {
-  eq(o96Live('WXK08-070', 'WXK08-070-E1').condition?.type, 'BEAT_CONDITION',
-    'WXK08-070: 【ビート】5枚の条件を維持');
+  // 🆕§5.3 `O-516`＝原文「対象とし、【ビート】が５枚の場合」＝条件は**宣言の後ろ**（木の中の CONDITIONAL）。
+  const w070 = o96Live('WXK08-070', 'WXK08-070-E1');
+  eq(w070.condition, undefined, 'WXK08-070: 条件を効果レベルに置かない（宣言ごと起きなくなる）');
+  eq(((w070.action as SequenceAction).steps[2] as ConditionalAction).condition.type, 'BEAT_CONDITION',
+    'WXK08-070: 【ビート】5枚の条件を宣言の後ろに維持');
   eq(o96Live('PR-K021', 'PR-K021-E3').condition?.type, 'SELF_POWER_GTE',
     'PR-K021: 自パワー12000の条件を維持');
 });
@@ -29895,16 +29901,20 @@ test('§5.3 O-325 ②WX25-P1-058-E2: 自分の場と共通するクラスの相�
     return { ctx, result: executeAction(live.action, ctx) };
   };
   // ① 自分の場に＜迷宮＞が居る＝支払いを提示し、対象は同クラスの相手シグニだけ
+  // 🆕§5.3 `O-515`（2026-09-15）＝支払いより先に対象宣言（engine が合成）→ 支払いの二択。
   const { ctx: ctxHit, result: hit } = run058(ally);
-  ok(!hit.done && hit.pending.type === 'CHOOSE', '共通クラスの対象が居るので任意コストの CHOOSE が開く');
-  if (hit.done || hit.pending.type !== 'CHOOSE') return;
-  const pay = hit.pending.options.find(o => o.id === 'pay');
+  ok(!hit.done && hit.pending.type === 'SELECT_TARGET', '共通クラスの対象が居るのでまず対象宣言が出る（O-515）');
+  if (hit.done || hit.pending.type !== 'SELECT_TARGET') return;
+  eq(hit.pending.candidates.join(','), oppSame,
+    '宣言の候補は「自分の場と共通するクラス」だけ（別クラスが混ざると過剰実行）');
+  const declared058 = resumeSelectTarget([oppSame], hit.pending, ctxAfter(hit, ctxHit));
+  ok(!declared058.done && declared058.pending.type === 'CHOOSE', '宣言のあとに任意コストの CHOOSE が開く');
+  if (declared058.done || declared058.pending.type !== 'CHOOSE') return;
+  const pay = declared058.pending.options.find(o => o.id === 'pay');
   ok(pay?.available === true, '《緑》を払える盤面では pay が available');
-  const afterPay = resumeOptionalCost('pay', [greenEnergy], hit.pending, ctxAfter(hit, ctxHit));
-  ok(!afterPay.done && afterPay.pending.type === 'SELECT_TARGET', '支払い後にバニッシュ対象の選択になる');
-  if (afterPay.done || afterPay.pending.type !== 'SELECT_TARGET') return;
-  eq(afterPay.pending.candidates.join(','), oppSame,
-    'バニッシュ候補は「自分の場と共通するクラス」だけ（別クラスが混ざると過剰実行）');
+  const afterPay = finish(resumeOptionalCost('pay', [greenEnergy], declared058.pending, ctxAfter(declared058, ctxHit)), ctxHit);
+  eq(tops(afterPay.otherState)[0], null, '支払えば宣言した共通クラスのシグニがバニッシュされる');
+  eq(tops(afterPay.otherState)[1], oppOther, '別クラスのシグニは残る');
 
   // ② 🔴**対照**＝自分の場に共通クラスが1体も居なければ**支払いを提示しない**（§5.3 O-326 と同じ空払い防止）
   const { result: miss } = run058(null, [oppOther, null, null]);
@@ -29912,8 +29922,8 @@ test('§5.3 O-325 ②WX25-P1-058-E2: 自分の場と共通するクラスの相�
     '🔴共通クラスの相手シグニが居ないのに任意コストを提示した（宣言側のクラス一致が効いていない）');
   // 🔑**同じ盤面で相手シグニだけ差し替えると提示される**＝この対照が「常に提示しない」で通っていないことの証明。
   const { result: back } = run058(null, [oppSame, null, null]);
-  ok(!back.done && back.pending.type === 'CHOOSE',
-    '同じ盤面で相手シグニを共通クラスへ差し替えたら提示される（対照に判別力がある）');
+  ok(!back.done && back.pending.type === 'SELECT_TARGET',
+    '同じ盤面で相手シグニを共通クラスへ差し替えたら提示される（対照に判別力がある・O-515 で先頭は宣言）');
 }));
 
 test('§5.3 O-327 トリップワイヤ: live の opponentSelects は配線済みの形にしか載っていない', () => {
@@ -36394,8 +36404,12 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1404→1403＝2026-09-14（§5.3 末尾 defer の再実測）で `WXDi-P15-003-E1` を
     //   ピースの正準形 `ACTIVATED/['MAIN']` へ直したぶんの1減。⚠上の `eligible` 1466→1465 と**同じ1件**＝
     //   条件なし側から条件あり側への移動ではなく、**集合そのものから抜けた**（AUTO ではなくなったため）。
-    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
-    eq(conditional.length, 62, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
+    // 🆕1403→1411 / 62→54＝2026-09-15（§5.3 `O-516`）＝「対象とし、〈条件〉場合」の8効果
+    //   （`WDK05-T14-E1` / `WX03-034-E1` / `WX09-025-E1` / `WX21-051-E1` / `WX21-Re06-E2` / `WX22-048-E1` /
+    //   `WXK02-095-E1` / `WXK07-088-E1` / `WXK08-027-E1` のうち ON_PLAY mandatory のもの）の条件を
+    //   **効果レベルから宣言の後ろ（木の中）へ移した**＝**較正**（条件は消えていない・集合の総数も不変）。
+    eq(eligible.length - conditional.length, 1411, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    eq(conditional.length, 54, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
     //   `WXDi-CP02-100-E1`（`trashToDeckBottom`）の costUnparsed を解いた分。
@@ -45788,12 +45802,16 @@ test('task12(cix) WX24-P1-040: optional LRIG down pays center→assist and gates
   const downed = resumeChoose('down', offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
   eq(downed.ownerState.field.assist_lrig_l_down, true, 'センターがダウン済みならアシストLをダウンする');
   eq(downed.ownerState.last_lrig_down_cards?.join(','), `${lrigLv3}#left`, '効果内ダウンも同じ入口で記録される');
-  ok(!downed.done && downed.pending.type === 'CHOOSE', '続けて《無》任意コストの pay/skip');
-  if (downed.done || downed.pending.type !== 'CHOOSE') return;
-  const target = resumeChoose('pay', downed.pending, { ...ctx, ownerState: downed.ownerState, otherState: downed.otherState, logs: downed.logs, lastProcessedCards: downed.lastProcessedCards });
-  ok(!target.done && target.pending.type === 'SELECT_TARGET', '支払い後に対象選択へ');
-  if (target.done || target.pending.type !== 'SELECT_TARGET') return;
-  eq(target.pending.candidates.join(','), sameLv, 'ダウンしたルリグと同レベルの相手シグニだけが候補');
+  // 🆕§5.3 `O-515`（2026-09-15）＝支払いより先に対象宣言（候補はダウンしたルリグと同レベルだけ）。
+  ok(!downed.done && downed.pending.type === 'SELECT_TARGET', '続けて対象宣言（O-515＝支払いより前）');
+  if (downed.done || downed.pending.type !== 'SELECT_TARGET') return;
+  eq(downed.pending.candidates.join(','), sameLv, 'ダウンしたルリグと同レベルの相手シグニだけが候補');
+  const declCtx = { ...ctx, ownerState: downed.ownerState, otherState: downed.otherState, logs: downed.logs, lastProcessedCards: downed.lastProcessedCards };
+  const declared = resumeSelectTarget([sameLv], downed.pending, declCtx);
+  ok(!declared.done && declared.pending.type === 'CHOOSE', '宣言のあとに《無》任意コストの pay/skip');
+  if (declared.done || declared.pending.type !== 'CHOOSE') return;
+  const paid = finish(resumeChoose('pay', declared.pending, { ...declCtx, ownerState: declared.ownerState, otherState: declared.otherState, logs: declared.logs }), declCtx);
+  eq(tops(paid.otherState).join(','), `,${otherLv},`, '支払えば宣言した同レベルのシグニだけが手札に戻る');
 
   // スキップ枝＝「この方法でダウンした」記録を落とし、後続フィルタを空ヒットにする（did-it ゲート）。
   const ctx2 = mk();
@@ -55188,7 +55206,11 @@ test('段2 第22バッチ: FIELD_LEVEL_SUM／チーム／タマ／キー条件�
   const s1 = cardOf('シグニ', 1), s2 = cardOf('シグニ', 2), s3 = cardOf('シグニ', 3);
   const l1 = cardOf('ルリグ', 1), l2 = cardOf('ルリグ', 2), l3 = cardOf('ルリグ', 3);
   const ac = (id: string) => effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(e => e.effectId === id)!.activeCondition!;
-  const cond = (id: string) => effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(e => e.effectId === id)!.condition!;
+  // 🆕§5.3 `O-516`＝「対象とし、〈条件〉場合」は条件が宣言の後ろ（木の中の CONDITIONAL）へ移ったので、そちらも読む。
+  const cond = (id: string) => {
+    const e = effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(x => x.effectId === id)!;
+    return e.condition ?? (((e.action as SequenceAction).steps ?? []).find(s => s.type === 'CONDITIONAL') as ConditionalAction).condition;
+  };
   const chk = (c: ActiveCondition, me: StateOpts, op: StateOpts = {}) => checkActiveCondition(c, mkState(me), mkState(op), true, cardMap);
   for (const id of ['WXK07-084-E1','WXK07-087-E1','WXK07-090-E1']) {
     ok(chk(ac(id), { signi: [s1, null, null] }, { signi: [s2, null, null] }), `${id}: 自分合計以下で成立`);
@@ -64549,7 +64571,9 @@ test('索引C 2026-09-01(2巡目): O-110 「このターンで最初のリフレ
   // ⚠`refresh.ts` がリフレッシュ処理の中で**先に加算**するので、ON_REFRESH 収集時点で 1回目＝1。
   //   ⇒ 「最初」は `lte 1` であって `lte 0` ではない（境界を間違えると永久に不成立／常に成立へ倒れる）。
   const e = manualEffect('PR-205', 'PR-205-E1');
-  const cond = e.condition as Extract<Condition, { type: 'REFRESH_COUNT_THIS_TURN' }>;
+  // 🆕§5.3 `O-516`（2026-09-15）＝原文は「対象とし」が先＝条件は宣言の後ろ（木の中の CONDITIONAL）。
+  eq(e.condition, undefined, '条件を効果レベルに置かない（不成立だと宣言ごと起きない）');
+  const cond = ((e.action as SequenceAction).steps[2] as ConditionalAction).condition as Extract<Condition, { type: 'REFRESH_COUNT_THIS_TURN' }>;
   eq(cond.type, 'REFRESH_COUNT_THIS_TURN', 'リフレッシュ回数の条件で読む');
   eq(cond.operator, 'lte', '「最初」＝以下で比較');
   eq(cond.value, 1, '境界は1（収集時点で加算済み）');
@@ -66824,7 +66848,8 @@ test('O-161 fresh/engine: WXDi-P16-058-E3 は効果元と共通色のない相�
   const blocked = executeAction(effect.action, sameCtx);
   const offered = executeAction(effect.action, differentCtx);
   ok(blocked.done, '🔴共通色しかいなければ支払い選択を提示しない');
-  ok(!offered.done && offered.pending.type === 'CHOOSE', '共通色のない相手がいれば支払い選択を提示する');
+  // 🆕§5.3 `O-515`（2026-09-15）＝提示の先頭は対象宣言（そのあと支払い選択）。
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '共通色のない相手がいれば（宣言→）支払い選択を提示する');
 }));
 
 // ── §5.3 `O-97`＝印刷済み【使用条件】が複数あるピース ────────────────────
@@ -71859,10 +71884,12 @@ test('§5.3 held 第141: 条件節ガードは「対象指定より前のクラ�
   //    対象へ付けると「＜鉱石＞か＜宝石＞の相手シグニしか倒せない」過小実行になる。
   const w925 = (effectsMap.get('WX09-025') ?? []).find(e => e.effectId === 'WX09-025-E1');
   ok(!!w925, 'WX09-025-E1 が live にある'); if (!w925) return;
-  const w925Target = (w925.action as unknown as Record<string, unknown>).target as Record<string, unknown>;
+  // 🆕§5.3 `O-516`（2026-09-15）＝条件は宣言の後ろ（木の中）へ移った＝対象は先頭の宣言で見る。
+  const w925Steps = (w925.action as SequenceAction).steps;
+  const w925Target = (w925Steps[0] as unknown as Record<string, unknown>).selectTarget as Record<string, unknown>;
   ok(!('story' in (w925Target.filter as Record<string, unknown>)),
     '🔴 WX09-025: 条件節の＜鉱石＞＜宝石＞がバニッシュ対象へ付いていない');
-  ok(JSON.stringify(w925.condition).includes('鉱石'), 'WX09-025: クラスは条件側に載っている');
+  ok(JSON.stringify((w925Steps[2] as ConditionalAction).condition).includes('鉱石'), 'WX09-025: クラスは条件側に載っている');
 
   // ④ **落とし続けるべき形（反転側）その2**＝ガード導入時の基準カード（`WX10-062`）。
   const w1062 = (effectsMap.get('WX10-062') ?? []).find(e => e.effectId === 'WX10-062-E1');
@@ -83710,6 +83737,79 @@ test('§5.3 O-451: 支払いを辞退しても対象宣言は出る（両側＋�
   ok(!rOld.done);
   eq((rOld as { pending: { type: string } }).pending.type, 'CHOOSE',
     '旧形は対象宣言を出さずいきなり支払いを問う（＝これが直した壊れ方）');
+}));
+
+// ── §5.3 `O-515`（2026-09-15）＝`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族は**支払いより先に**対象を宣言する。
+//   🔴旧は対象確定を pay 枝の本体でやっていたので、**辞退すると対象化そのものが起きず `ON_TARGETED` が発火しなかった**。
+//   🔑parser で宣言を足すと二重選択になる（`O-298` の据置契約）ので、**engine の分岐が宣言を合成**する＝JSON は族のまま。
+test('§5.3 O-515: 族は支払いより先に対象を宣言する（辞退しても宣言は起きる／払えば宣言した個体だけ／二重選択にならない）', () => withSavedCursor(() => {
+  const eff = [...effectsMap.values()].flat().find(e => {
+    const s = (e.action as SequenceAction).steps;
+    if (e.condition || !s || s.length !== 2) return false;
+    const head = s[0] as StubAction & { optionalCostTarget?: unknown };
+    const body = (s[1] as ConditionalAction).then as EffectAction & { target?: EffectTarget };
+    return head.type === 'STUB' && head.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' && !head.optionalCostTarget
+      && s[1].type === 'CONDITIONAL' && body?.type === 'BANISH' && body.target?.owner === 'opponent'
+      && body.target.count === 1 && JSON.stringify(body.target.filter) === '{"cardType":"シグニ"}';
+  })!;
+  ok(!!eff, '族の代表（素の BANISH・絞りなし）が live にある'); if (!eff) return;
+  ok(!JSON.stringify(eff.action).includes('SELECT_TARGET_ONLY'), `${eff.effectId}: JSON は族のまま（O-298 の据置契約）`);
+  const src = eff.effectId.replace(/-(E\d+|BURST|TRAP)$/, '');
+  const oppA = fresh(), oppB = fresh();
+  const mk = (): ExecCtx => mkCtx({ energy: 5 }, { signi: [oppA, oppB, null] }, src);
+  const ctx = mk();
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', `🔴${eff.effectId}: 支払いより先に対象宣言が出ていない`);
+  if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+  eq(r0.pending.candidates.length, 2, '宣言の候補は相手シグニ2体');
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const r1 = resumeSelectTarget([oppB], r0.pending, rctx);
+  ok(!r1.done && r1.pending.type === 'CHOOSE', '宣言のあとに支払いの二択');
+  if (r1.done || r1.pending.type !== 'CHOOSE') return;
+  const c1 = { ...rctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs } as ExecCtx;
+  const rSkip = finish(resumeChoose('skip', r1.pending, c1), c1);
+  eq(tops(rSkip.otherState).join(','), `${oppA},${oppB},`, '🔴辞退したのにバニッシュしている');
+  const rPay = finish(resumeChoose('pay', r1.pending, c1), c1);
+  eq(tops(rPay.otherState).join(','), `${oppA},,`, '🔴払ったのに宣言した個体（oppB）以外に当たった／二度目の選択で取り違えた');
+  // 反転確認①＝既に宣言済み（store が埋まっている）形では合成しない＝**二重選択にならない**。
+  const pre = executeAction(eff.action, { ...mk(), storedTargetCards: [oppA] });
+  ok(!pre.done && pre.pending.type === 'CHOOSE', '宣言済みの形では宣言を重ねない（先頭が支払いの二択）');
+  // 反転確認②＝相手の場が空なら何も提示しない（`O-221` の据置根拠は維持）。
+  const empty = executeEffect(eff, mkCtx({ energy: 5 }, { signi: [null, null, null] }, src));
+  ok(empty.done, '対象0では宣言も支払いも提示しない');
+}));
+
+// ── §5.3 `O-516`（2026-09-15）＝原文「〈相手シグニ〉を**対象とし**、〈条件〉**場合**、〜」の条件は宣言の後ろ。
+//   🔴旧は条件が効果レベルの `condition` に在った＝**不成立だと能力ごと積まれず宣言（`ON_TARGETED`）が起きなかった**。
+test('§5.3 O-516: 「対象とし、〈条件〉場合」は条件が宣言の後ろ（20効果の形＋条件不成立でも宣言は起きる）', () => withSavedCursor(() => {
+  const ids = ['WD17-009-E1', 'WDK05-T14-E1', 'WDK13-015-E1', 'PR-205-E1', 'WX03-034-E1', 'WX09-025-E1', 'WX09-034-E3',
+    'WX13-085-E2', 'WX21-051-E1', 'WX21-Re06-E2', 'WX22-048-E1', 'WXK02-058-E1', 'WXK02-095-E1', 'WXK05-033-E1',
+    'WXK07-088-E1', 'WXK08-027-E1', 'WXK08-070-E1', 'WXK10-046-E3', 'WXK10-069-E1', 'WXK11-055-E1'];
+  const all = [...effectsMap.values()].flat();
+  for (const id of ids) {
+    const e = all.find(x => x.effectId === id);
+    ok(!!e, `${id} が live にある`); if (!e) continue;
+    eq(e.condition, undefined, `🔴${id}: 条件が効果レベルに残っている（不成立だと宣言ごと起きない）`);
+    const steps = (e.action as SequenceAction).steps ?? [];
+    eq((steps[0] as StubAction)?.id, 'SELECT_TARGET_ONLY', `${id}: 先頭は対象宣言`);
+    eq((steps[1] as StubAction)?.id, 'STORE_LAST_PROCESSED_TARGETS', `${id}: 宣言を固定する`);
+    eq(steps[2]?.type, 'CONDITIONAL', `${id}: 条件は宣言の後ろ`);
+    ok(JSON.stringify(steps[2]).includes('"targetsStored":true'), `🔴${id}: 帰結が宣言した対象へ束縛されていない`);
+  }
+  // 挙動＝`WX09-034-E3`「このシグニのパワーが20000以上の場合、それをバニッシュする」。
+  const host = 'WX09-034';
+  const eff = effectsMap.get(host)!.find(e => e.effectId === 'WX09-034-E3')!;
+  const oppA = fresh(), oppB = fresh();
+  const run = (power: number) => {
+    const c = mkCtx({ signi: [host, null, null] }, { signi: [oppA, oppB, null] }, host);
+    c.effectivePowers = new Map([[host, power]]);
+    return { c, r: executeEffect(eff, c) };
+  };
+  const low = run(19999);
+  ok(!low.r.done && low.r.pending.type === 'SELECT_TARGET', '🔴条件不成立でも宣言は出る（ON_TARGETED の発火点）');
+  eq(tops(finish(low.r, low.c).otherState).join(','), `${oppA},${oppB},`, '条件不成立なら何もバニッシュしない');
+  const high = run(20000);
+  eq(tops(finish(high.r, high.c).otherState).filter(Boolean).length, 1, '条件成立なら宣言した1体をバニッシュする');
 }));
 
 // ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。

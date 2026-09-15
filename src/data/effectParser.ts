@@ -14846,6 +14846,58 @@ function sinkTargetDeclIntoLeadingCondition(text: string, parsed: EffectAction):
 }
 
 /**
+ * 🆕**§5.3 `O-516`（2026-09-15）＝「〈相手シグニ〉を**対象とし**、〈条件〉**場合**、〜」の条件を効果レベルから木の中へ沈める。**
+ *
+ * 🔴旧は条件が効果レベルの `condition` に在った＝**条件を満たさないと能力そのものが積まれず、
+ *   宣言（＝相手シグニの `ON_TARGETED`）が起きなかった**。原文は宣言してから条件を見る。
+ * ⚠**fail-closed**＝①原文の「対象とし」がちょうど1つで、それより前に「場合／かぎり／。／「」が無い
+ *   ②対象が相手シグニ ③木が「素の1アクション」「先頭が対象ホルダーの SEQUENCE」「宣言済みの SEQUENCE」のどれか。
+ */
+function sinkEffectConditionAfterTargetDecl(
+  text: string,
+  effect: { effectType?: string; condition?: unknown; action: EffectAction },
+): void {
+  if (!effect.condition || effect.effectType !== 'AUTO') return;
+  if ((text.match(/対象とし/g) ?? []).length !== 1) return;
+  if (!/^[^。「」]*?を対象とし[、，][^。「」]*?場合[、，]/.test(text)) return;
+  const pre = text.slice(0, text.indexOf('を対象とし'));
+  if (/場合|かぎり|使用条件/.test(pre.replace(/^【[^】]*】[^：]*：/, ''))) return;
+  const HOLDERS = ['BANISH', 'BOUNCE', 'POWER_MODIFY', 'SEND_TO_ENERGY', 'TRASH', 'DOWN', 'FREEZE'];
+  type Holder = EffectAction & { target?: { type?: string; owner?: string }; targetsStored?: boolean };
+  const isOppHolder = (a: EffectAction | undefined): a is Holder => !!a && HOLDERS.includes(a.type)
+    && (a as Holder).target?.type === 'SIGNI' && (a as Holder).target?.owner === 'opponent' && !(a as Holder).targetsStored;
+  const mkCond = (then: EffectAction): EffectAction =>
+    ({ type: 'CONDITIONAL', condition: effect.condition, then } as unknown as EffectAction);
+  const act = effect.action;
+  let next: EffectAction | undefined;
+  if (isOppHolder(act)) {
+    next = { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: act.target } as unknown as EffectAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      mkCond({ ...act, targetsStored: true } as EffectAction),
+    ] } as SequenceAction;
+  } else if (act.type === 'SEQUENCE') {
+    const steps = (act as SequenceAction).steps;
+    const s0 = steps[0] as StubAction & { selectTarget?: { type?: string; owner?: string } };
+    if (s0?.type === 'STUB' && s0.id === 'SELECT_TARGET_ONLY' && (steps[1] as StubAction)?.id === 'STORE_LAST_PROCESSED_TARGETS'
+        && s0.selectTarget?.type === 'SIGNI' && s0.selectTarget.owner === 'opponent' && steps.length >= 3) {
+      const rest = steps.slice(2);
+      next = { type: 'SEQUENCE', steps: [s0, steps[1],
+        mkCond(rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction)] } as SequenceAction;
+    } else if (isOppHolder(steps[0]) && !JSON.stringify(steps.slice(1)).includes('"owner":"opponent"')) {
+      next = { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: (steps[0] as Holder).target } as unknown as EffectAction,
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+        mkCond({ type: 'SEQUENCE', steps: [{ ...steps[0], targetsStored: true } as EffectAction, ...steps.slice(1)] } as SequenceAction),
+      ] } as SequenceAction;
+    }
+  }
+  if (!next) return;
+  effect.action = next;
+  delete effect.condition;
+}
+
+/**
  * 🆕**§5.3 `O-451`（2026-09-15）＝「〈対象〉を**対象とし**、〈中間動作〉。**そうした場合**、〜」も引き上げる。**
  *
  * 🔴旧の門は `を対象とし[^。]*?場合[、，]` ＝**同じ文の中に「場合」があること**を要求していたので、
@@ -32342,6 +32394,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = hoistTargetBeforeLeadingAction(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-452`＝逆向き（原文が「場合」→「対象とし」の順）は条件の内側へ沈める。
     effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-516`＝「対象とし、〈条件〉場合」の条件を効果レベルから宣言の後ろへ沈める。
+    sinkEffectConditionAfterTargetDecl(currentSourceTexts.get(effect.effectId) ?? '', effect);
     // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
     effect.action = markIndependentTrashBestEffort(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-391`(b)＝強制の行動が空振りしたら「そうした場合」も起きない（ゲート節を足す）。

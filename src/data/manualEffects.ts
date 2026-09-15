@@ -947,7 +947,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   受け皿は今回足した `REFRESH_COUNT_THIS_TURN`（`refresh_count_this_turn` は加算後に読むので
   //   「最初の1回」は `lte 1`）。
   'PR-205': [
-    {"effectId":"PR-205-E1","effectType":"AUTO","timing":["ON_REFRESH"],"condition":{"type":"REFRESH_COUNT_THIS_TURN","owner":"self","operator":"lte","value":1},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"refreshedOwner":"self"}},
+    // 🆕§5.3 `O-516`＝条件は宣言の後ろ（原文「対象とし、〜である場合」）。
+    {"effectId":"PR-205-E1","effectType":"AUTO","timing":["ON_REFRESH"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"REFRESH_COUNT_THIS_TURN","owner":"self","operator":"lte","value":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"refreshedOwner":"self"}},
   ],
 
   // ── WXK06-030 ／ 原文【自】：このシグニがアタックしたとき、**対戦相手のシグニゾーンからカード１枚を対象とし**、
@@ -4441,14 +4442,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧＝`BOUNCE` 無条件＝**手札から普通に召喚しても、相手ターンに出ても**バウンスしていた。
   // 受け皿＝`IS_MY_TURN`（`effects.ts:491`）と `THIS_CARD_FROM_DECK`（同475／`execUtils.ts` が
   // `signi_played_from_deck` を見る）を `AND`（同490）で束ねる。**3つとも既存**。
-  // ⚠発動条件（効果レベルの `condition`）に置く＝原文の「〜場合」は発動そのもののゲート。
+  // 🆕§5.3 `O-516`（2026-09-15）＝条件は効果レベルではなく**宣言の後ろ**に置く（原文は「対象とし」が先）。
+  //   効果レベルに置くと条件不成立で宣言ごと起きず、相手シグニの `ON_TARGETED` が発火しない。
   'WDK05-T14': [
     {
       effectId: 'WDK05-T14-E1',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
-      condition: { type: 'AND', conditions: [{ type: 'IS_MY_TURN' }, { type: 'THIS_CARD_FROM_DECK' }] },
-      action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', level: { max: 3 } } }, optional: false },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', level: { max: 3 } } } },
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+        { type: 'CONDITIONAL', condition: { type: 'AND', conditions: [{ type: 'IS_MY_TURN' }, { type: 'THIS_CARD_FROM_DECK' }] },
+          then: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', level: { max: 3 } } }, optional: false, targetsStored: true } },
+      ] },
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',
@@ -5703,7 +5709,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX12-038-E1","effectType":"AUTO","timing":["ON_TURN_END"],"triggerCondition":{"anyTurn":true},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WD17-009": [
-    {"effectId":"WD17-009-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"SELF_POWER_GTE","value":15000},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    // 🆕§5.3 `O-516`＝条件は宣言の後ろ（原文「正面のシグニ１体を対象とし、パワーが15000以上の場合」）。
+    {"effectId":"WD17-009-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":15000},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
     {"effectId":"WD17-009-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"武勇"}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":15000}},"upToCount":false}},"else":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WXDi-P04-049": [
