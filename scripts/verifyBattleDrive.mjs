@@ -60101,6 +60101,122 @@ scenarios.o369LrigGrantedActNoLife = mkO369LrigGrantedAct(false);
 
 order.push('o371AttackCostBlocked', 'o371AttackCostUnblocked', 'o369LrigGrantedActNoLife', 'o369LrigGrantedActUse');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// V-227（§5.3 `O-391`(a)・2026-09-15）＝「アップ状態の**このシグニ**をダウンして**もよい**」の任意性。
+//   🔴修正前＝`execDown` の `thisCardOnly` 早期 return が `a.optional` より手前にあり、**対象選択が起きず強制ダウン**。
+//     さらに `lastProcessedCards` が必ず埋まるので did-it ゲート（`effectExecutor.ts:7328`）が素通りし、
+//     **後続の「そうした場合」も必ず走った**。実測 27ノード。
+//   🔑**対照は「同じ盤面・同じ操作で選択だけ1ビット違う」**（§4.4-3）＝spec を共有し、
+//     0体確定（辞退）と1体選択（実行）で分ける。別カードで反転すると別経路を踏んで比較にならない。
+//   カード＝`WXDi-P16-078`「【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。
+//     そうした場合、【エナチャージ１】をする。」＝観測点は**エナ枚数**と**`signi_down[0]`**の2つ。
+//   ⚠エナは 0 枚から始める（増減が1ビットで読めるようにする）。⚠`field.check` / `life_cloth` は §4.4-1 のとおり明示。
+const V227_SIGNI = 'WXDi-P16-078#39100';
+const V227_HOST_LRIG = 'WD03-002#39101';
+const V227_GUEST_LRIG = 'WD03-003#39102';
+
+const v227Spec = {
+  hostSet: {
+    'field.lrig': [V227_HOST_LRIG],
+    'field.signi': [[V227_SIGNI], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': [V227_GUEST_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+// アタックフェイズへ進めて、任意ダウンの SELECT_TARGET が出るまで回す。
+async function openV227Prompt(page, H, id) {
+  let prompted = false;
+  let last = null;
+  for (let s = 0; s < 18; s++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    last = st;
+    // 🔴選択UIが出たら**それだけを進める**（§4.4-7b）。
+    if ((st?.pendingCandidates ?? []).length > 0) { prompted = true; break; }
+    let did = await H.clickTextOrBtn(['アタックフェイズへ']);
+    H.log(`  ${id}.open[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} energy=${st?.host?.energy} down=${JSON.stringify(st?.host?.signiDown)} pEff=${st?.pendingEffect ?? '-'}`);
+    await page.screenshot({ path: `${SHOT}/${id}-open-${s}.png`, fullPage: true }).catch(() => {});
+  }
+  return { prompted, st: last };
+}
+
+// 選択を確定したあと、効果が落ち着くまで回して最終状態を返す。
+async function settleV227(page, H, id) {
+  let last = null;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(600);
+    const st = await H.queryState();
+    last = st;
+    // ⚠**開始前と完了後の両方で true になる条件では判定しない**（§4.4-5）＝
+    //   ここは「選択を確定した後」に限って呼ぶので settled を終了条件に使ってよい。
+    if (st?.pendingEffect == null && (st?.stackLen ?? 0) === 0) return st;
+    H.log(`  ${id}.settle[${s}] | energy=${st?.host?.energy} down=${JSON.stringify(st?.host?.signiDown)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+  }
+  return last;
+}
+
+scenarios.v227OptionalDownSkip = {
+  title: 'V-227 O-391(a): 「このシグニをダウンしてもよい」を辞退＝ダウンもエナチャージも起きない',
+  spec: v227Spec,
+  async drive(page, H) {
+    const opened = await openV227Prompt(page, H, 'v227skip');
+    if (!opened.prompted) {
+      return { pass: false, detail: `🔴選択UIが出ない＝強制ダウンのまま（修正前の挙動）。energy=${opened.st?.host?.energy} down=${JSON.stringify(opened.st?.host?.signiDown)} pEff=${opened.st?.pendingEffect ?? '-'}` };
+    }
+    const zero = await clickExactVisibleText(page, '決定 (0/1)');
+    if (!zero) return { pass: false, detail: `選択UIは出たが0体確定ボタンを押せない（候補=${JSON.stringify(opened.st?.pendingCandidates)}）＝辞退できていない` };
+    const st = await settleV227(page, H, 'v227skip');
+    const energy = st?.host?.energy ?? -1;
+    const downed = (st?.host?.signiDown ?? [])[0] === true;
+    const pass = energy === 0 && !downed;
+    return {
+      pass,
+      detail: pass
+        ? '辞退＝ダウンせず（signiDown[0]=false）・エナも0枚のまま＝「そうした場合」ごと落ちている'
+        : `🔴辞退したのに energy=${energy}（期待0）／signiDown[0]=${downed}（期待false）＝${downed ? '強制ダウンが残っている' : 'did-it ゲートが素通りしている'}`,
+    };
+  },
+};
+
+scenarios.v227OptionalDownTake = {
+  title: 'V-227 対照（同じ盤面・同じ操作で「ダウンする」を選ぶ＝ダウンしてエナチャージ1）',
+  spec: v227Spec,
+  async drive(page, H) {
+    const opened = await openV227Prompt(page, H, 'v227take');
+    if (!opened.prompted) {
+      return { pass: false, detail: `🔴選択UIが出ない＝強制ダウンのまま（修正前の挙動）。energy=${opened.st?.host?.energy} pEff=${opened.st?.pendingEffect ?? '-'}` };
+    }
+    // ⚠`pick-N` の index は**表示順**（§4.4-6）＝インスタンスIDで狙う。
+    const picked = await clickPendingInstance(page, H, V227_SIGNI);
+    if (!picked) return { pass: false, detail: `候補の ${V227_SIGNI} を選べない（候補=${JSON.stringify(opened.st?.pendingCandidates)}）` };
+    const confirmed = await clickExactVisibleText(page, '決定 (1/1)');
+    if (!confirmed) return { pass: false, detail: '1体選択後の確定ボタンを押せない' };
+    const st = await settleV227(page, H, 'v227take');
+    const energy = st?.host?.energy ?? -1;
+    const downed = (st?.host?.signiDown ?? [])[0] === true;
+    const pass = energy === 1 && downed;
+    return {
+      pass,
+      detail: pass
+        ? '実行＝ダウンし（signiDown[0]=true）エナチャージ1＝辞退側との差は「選択だけ」'
+        : `🔴実行したのに energy=${energy}（期待1）／signiDown[0]=${downed}（期待true）`,
+    };
+  },
+};
+
+order.push('v227OptionalDownSkip', 'v227OptionalDownTake');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -60369,6 +60485,9 @@ try {
         //   ⚠**カードではない**＝ルリグデッキ／アシストゾーンの枚数では観測できない（旧実装はアシストルリグを場に出していた）。
         liverTokens: s.liver_tokens ?? 0,
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.3 `O-391`／`V-225`（2026-09-15）＝シグニのダウン状態。「ダウンしてもよい」の**辞退**を
+        //   観測するのに要る（枚数や場の中身では「ダウンしたかどうか」に答えられない＝§4.4-71）。
+        signiDown: s.field?.signi_down ?? null,
         // 🆕§5.3 `O-367`（2026-09-14・`V-224` の観測点）＝クラッシュ先の置換とその期間。
         //   🔴**枚数（トラッシュ／エナ）だけでは「置換が立たなかった」と「立ったが早く落ちた」を切り分けられない**
         //     （§4.4-71＝engine が読む state を観測面に足す）。

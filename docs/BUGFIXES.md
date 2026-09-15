@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第349バッチ：🏁`V-227` を返済（`O-391`(a) の任意ダウンを実機で確認・反転確認つき）
+
+**結果**＝`node scripts/verifyBattleDrive.mjs v227OptionalDownSkip v227OptionalDownTake` が**両方 PASS**（各3秒）。
+
+| シナリオ | 期待 | 実測 |
+|---|---|---|
+| `v227OptionalDownSkip` | 辞退＝ダウンもエナチャージも起きない | `signiDown[0]=false` / `energy=0` ✅ |
+| `v227OptionalDownTake`（対照） | 実行＝ダウンしてエナチャージ1 | `signiDown[0]=true` / `energy=1` ✅ |
+
+🔑**対照は「同じ盤面・同じ操作で選択だけ1ビット違う」**（[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) 罠3）＝spec を共有し、0体確定と1体選択だけで分けた。
+カード＝`WXDi-P16-078`「【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンして**もよい**。そうした場合、【エナチャージ１】をする。」
+
+🔴**反転確認を実機で取った**＝`execDown` の修正を無効化して同じシナリオを回すと
+**`energy=1 down=[true,false,false]`・選択UIが出ない**（＝強制ダウンしたうえで帰結も走る＝修正前の挙動）で FAIL する。
+FAIL 文言が原因をそのまま指している（罠3b）。
+
+### 今回踏んだ罠を2つ採番した（`DRIVE_TRAPS.md` 103・104）
+
+- 🔴**103＝`V-nn` の採番は PLAN §5.1 の返済リストから取ってはいけない**＝§5.1 は返済済みの番号を並べているだけで**最大値ではない**。
+  実際には `v225TrashExileCountAct` / `v226LoweredLrigBlocksSummon` が既に在り、**`V-225` として書いた2本が衝突した**。
+  `const v225Spec` の重複宣言で `node --check` が落ちて気付いた＝**落ちなければ別項目の住所を奪っていた**。
+  ⇒ 採番の前に `grep -o "scenarios\.v[0-9]\+" scripts/verifyBattleDrive.mjs | sort -n | tail` を打つ。
+- **104＝辞退を観測するには state を観測面に足す**＝`queryState` の `sideOf` に **`signiDown`** を追加した（枚数や場の中身では「ダウンしたかどうか」に答えられない）。
+
+**検証**＝`npm run gates` **全緑**。実機2本 PASS＋反転確認 FAIL。§5.1 は**残0**へ戻した。
+
+
 ## 2026-09-15 — 第348バッチ：`O-391` 下位型(a) を修正（「このシグニをダウンしてもよい」が強制だった・27ノード）
 
 **真因**＝`execDown` の SIGNI 主経路は `a.optional` を読む（`downOptional`）のに、**その手前に `thisCardOnly` の早期 return** があり、
