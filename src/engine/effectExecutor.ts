@@ -9679,7 +9679,11 @@ function execPowerModifyPerLevelSum(a: import('../types/effects').PowerModifyPer
   const delta = a.deltaPerLevel * levelSum;
   const tgtOwner: Owner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // 🆕**§5.3 `O-451`（2026-09-15）＝`targetsStored` の消費地点**（`O-413` の正準形から来る `WXK10-089-E1`）。
+  //   絞らないと**宣言した対象と別のシグニへ当たる**。
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   if (cands.length === 0) return done(ctx);
   // 解決済み delta の POWER_MODIFY を thenAction にして適用（applyDirectAction が直接処理。再帰ループを避ける）
   const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
@@ -10970,8 +10974,14 @@ function executeActionInner(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // 「相手のシグニ1体を対象とし、このターン、それが…」は選択対象だけを保持する。
       if (!brAction.bySource && brAction.redirectTo === 'trash' && brAction.target.owner === 'opponent' && brAction.target.count === 1) {
-        const cands = fieldCandidates(ctx.otherState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
+        let cands = fieldCandidates(ctx.otherState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
           ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+        // 🆕**§5.3 `O-451`（2026-09-15）＝`targetsStored` の消費地点。**
+        //   原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順の効果は `O-413` の正準形
+        //   （`SELECT_TARGET_ONLY` → `STORE` → `CONDITIONAL{…, then: ここ}`）で来るので、
+        //   **宣言した1体へ絞らないと別のシグニを選び直せる**（`WXDi-P12-054-E2` / `WX25-P3-104-E1`）。
+        if (brAction.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+        if (brAction.fixedCardNums) cands = cands.filter(n => brAction.fixedCardNums!.includes(n));
         return selectOrInteract(cands, 1, brAction.target.upToCount ?? false, 'opp_field', brAction, undefined, ctx);
       }
       // 付与形「シグニ1体を対象とし、それは能力を得る」：対象シグニ自身を redirect 発生源として登録する。

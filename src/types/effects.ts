@@ -3734,6 +3734,15 @@ export interface PowerModifyPerStackAction {
 export interface PowerModifyPerLevelSumAction {
   type: 'POWER_MODIFY_PER_LEVEL_SUM';
   target: EffectTarget;
+  /**
+   * 🆕**§5.3 `O-451`（2026-09-15）＝`O-413` の正準形（`SELECT_TARGET_ONLY` → `STORE`）で宣言した対象へ束縛する。**
+   * 原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順の効果は対象取得が条件の外にあるので、
+   * 帰結側はここで **`storedTargetCards` へ絞る**（絞らないと別のシグニを選び直せる）。
+   * 消費地点＝`effectExecutor.ts`（この型のハンドラ内の候補フィルタ）。
+   */
+  targetsStored?: boolean;
+  /** 対話の resume を跨いで焼き込まれた同一対象（`freezeStoredTargets`）。 */
+  fixedCardNums?: string[];
   deltaPerLevel: number;     // レベル1につきのパワー増減
   countFilter: TargetFilter; // カウント対象シグニのフィルタ
   countOwner: Owner;         // カウント対象フィールドのオーナー
@@ -3769,6 +3778,15 @@ export interface MutualDiscardAndDrawAction {
 export interface BanishRedirectAction {
   type: 'BANISH_REDIRECT';
   target: EffectTarget;
+  /**
+   * 🆕**§5.3 `O-451`（2026-09-15）＝`O-413` の正準形（`SELECT_TARGET_ONLY` → `STORE`）で宣言した対象へ束縛する。**
+   * 原文が「〈対象〉を**対象とし**、〜の**場合**、…」の順の効果は対象取得が条件の外にあるので、
+   * 帰結側はここで **`storedTargetCards` へ絞る**（絞らないと別のシグニを選び直せる）。
+   * 消費地点＝`effectExecutor.ts`（この型のハンドラ内の候補フィルタ）。
+   */
+  targetsStored?: boolean;
+  /** 対話の resume を跨いで焼き込まれた同一対象（`freezeStoredTargets`）。 */
+  fixedCardNums?: string[];
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ適用（選択UIを出さず同一対象に適用）
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニへ無選択で適用
   redirectTo: 'trash' | 'exile'; // exile＝「エナゾーンに置かれる代わりにゲームから除外」（SPDi47-05。除外ゾーン未実装＝どのゾーンにも置かず取り除く近似）

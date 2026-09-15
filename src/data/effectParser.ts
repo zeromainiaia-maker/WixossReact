@@ -14683,12 +14683,21 @@ const O413_STORED_TARGET_ACTIONS = new Set<string>([
   'BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND',
   'POWER_MODIFY', 'POWER_SET', 'POWER_MODIFY_PER_TRASH_COUNT', 'POWER_MODIFY_PER_LRIG_LEVEL',
   'DOWN', 'UP', 'FREEZE', 'GRANT_KEYWORD', 'GRANT_EFFECT', 'REMOVE_ABILITIES',
+  // 🆕**§5.3 `O-451`（2026-09-15）で消費地点を足した2型。**
+  //   ⚠**ここへ足すのは「ハンドラ側で `targetsStored` を読む実装を書いてから」**
+  //     （載せるだけだと宣言が無視されて**別のシグニを選び直せる**過剰実行になる）。
+  'BANISH_REDIRECT', 'POWER_MODIFY_PER_LEVEL_SUM',
 ]);
 // 🔴`SELECT_TARGET_ONLY` が `resolveDynamicFilter` を通さずそのまま `fieldCandidates` に渡すキーだけ。
 //   知らないキーが1つでもあれば引き上げをやめる（fail-closed）。
 const O413_STATIC_FILTER_KEYS = new Set<string>([
   'cardType', 'powerRange', 'level', 'story', 'color', 'class', 'cardName',
   'frontOfSelf', 'excludeSelf', 'centerZoneOnly', 'hasCharm', 'hasAcce', 'isUp', 'isDown',
+  // 🆕**§5.3 `O-451`（2026-09-15）＝対象宣言側にも解決を足したキー**
+  //   （`execStubPart1` の `SELECT_TARGET_ONLY` が `powerLteSelfHalf` と同じ規約で powerRange へ畳む）。
+  //   ⚠**ここへ足してよいのは「宣言側でも同じ式で解決できる」キーだけ**＝
+  //     解決できないキーを通すと宣言と実行で候補がズレて**黙って空振り**する。
+  'powerLteSelf', 'powerLtSelf', 'powerGtSelf', 'powerLteSelfHalf', 'levelLteSelf',
 ]);
 
 function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectAction {

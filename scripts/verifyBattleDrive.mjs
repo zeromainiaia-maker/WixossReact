@@ -60216,6 +60216,154 @@ scenarios.v227OptionalDownTake = {
 };
 
 order.push('v227OptionalDownSkip', 'v227OptionalDownTake');
+// ═════════════════════════════════════════════════════════════════════════════
+// V-228（§5.3 `O-413`・2026-09-15）＝**対象宣言を条件の外へ引き上げた**形の実機観測。
+//   原文「〈対象〉を**対象とし**、〜の**場合**、…」は**対象取得が無条件**＝条件が不成立でも対象に取る。
+//   🔴修正前は対象ノードが `CONDITIONAL` の内側にしか無く、**条件不成立なら対象に取られなかった**＝
+//     `ON_TARGETED`（「対戦相手の能力か効果の対象になったとき」）が発火しない実挙動差。
+//   🔑**発火点は `BattleScreen` の `SELECT_TARGET` 確定経路**なので、**「宣言のプロンプトが出ること」自体**が
+//     観測点＝golden（`resumeSelectTarget` を直に叩く）では測れない。
+//   カード＝`WX22-011`（ルリグ）「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、
+//     あなたの場に**緑と白の＜美巧＞のシグニがある場合**、それを手札に戻す。」
+//   相手の観測札＝`WXDi-P03-067`「【自】《ターン１回》：このシグニが対戦相手の、能力か効果の**対象になったとき**、
+//     カードを１枚引く。」＝**guest の手札枚数**が `ON_TARGETED` の発火を1ビットで映す。
+//   🔑**対照は「盤面1文字だけ違う」**（罠3）＝自分の場に＜美巧＞2体を置くか置かないかだけ。
+//   ⚠guest の手札は**空から始める**（0→1＝宣言で発火、0→2＝発火＋バウンスで戻った札、で読み分ける）。
+//   ⚠`field.check` は両側で明示（罠1）。
+const V228_HOST_LRIG = 'WX22-011#39110';   // 一層の一掃　アン＝フォース（緑白・＜美巧＞ゲート）
+const V228_GREEN = 'WX04-035#39111';       // 不可解な誇超　コンテンポラ（緑・＜美巧＞）
+const V228_WHITE = 'WX13-040#39112';       // 思索の体現　*シンカー*（白・＜美巧＞）
+const V228_GUEST_LRIG = 'WD03-003#39113';
+const V228_TARGET = 'WXDi-P03-067#39114';  // 羅石　アパタイト（ON_TARGETED《ターン1回》＝カードを1枚引く）
+
+const v228Spec = (conditionMet) => ({
+  hostSet: {
+    'field.lrig': [V228_HOST_LRIG],
+    // 🔑ここだけが対照の1ビット＝条件（緑と白の＜美巧＞）を満たすか満たさないか。
+    'field.signi': conditionMet ? [[V228_GREEN], [V228_WHITE], null] : [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': [V228_GUEST_LRIG],
+    'field.signi': [[V228_TARGET], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'actions_done': [],
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+// アタックフェイズへ進めて、対象宣言の SELECT_TARGET が出るまで回す。
+async function openV228Prompt(page, H, id) {
+  let prompted = false;
+  let last = null;
+  for (let s = 0; s < 18; s++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    last = st;
+    // 🔴対話が出たらそれだけを進める（罠7b）。
+    if ((st?.pendingCandidates ?? []).length > 0) { prompted = true; break; }
+    const did = await H.clickTextOrBtn(['アタックフェイズへ']);
+    H.log(`  ${id}.open[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} gHand=${st?.guest?.hand} gSigni=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+    await page.screenshot({ path: `${SHOT}/${id}-open-${s}.png`, fullPage: true }).catch(() => {});
+  }
+  return { prompted, st: last };
+}
+
+// 対象を選んで確定する。返り値は確定直後の state。
+async function pickV228Target(page, H, id) {
+  const picked = await clickPendingInstance(page, H, V228_TARGET);
+  if (!picked) return { ok: false, st: await H.queryState(), reason: '候補を掴めない' };
+  const confirmed = await clickExactVisibleText(page, '決定 (1/1)');
+  if (!confirmed) return { ok: false, st: await H.queryState(), reason: '確定ボタンを押せない' };
+  H.log(`  ${id}.pick -> ${picked} / ${confirmed}`);
+  return { ok: true, st: await H.queryState() };
+}
+
+// 効果が落ち着くまで回して最終状態を返す。途中で2回目の SELECT_TARGET が出たら記録して進める。
+async function settleV228(page, H, id) {
+  let last = null;
+  let secondPrompt = null;
+  for (let s = 0; s < 16; s++) {
+    await page.waitForTimeout(600);
+    const st = await H.queryState();
+    last = st;
+    const cands = st?.pendingCandidates ?? [];
+    if (cands.length > 0) {
+      // 🔑**帰結側の選択UI**＝宣言した1体だけが候補に出ているはず（`targetsStored` の絞り込み）。
+      if (secondPrompt === null) secondPrompt = [...cands];
+      const picked = await clickPendingInstance(page, H, V228_TARGET);
+      if (picked) await clickExactVisibleText(page, '決定 (1/1)');
+      H.log(`  ${id}.settle[${s}] 2nd prompt cands=${JSON.stringify(cands)} picked=${picked ?? '-'}`);
+      continue;
+    }
+    // ⚠開始前と完了後の両方で true になる条件では判定しない（罠5）＝ここは確定後にだけ呼ぶ。
+    if (st?.pendingEffect == null && (st?.stackLen ?? 0) === 0) return { st, secondPrompt };
+    H.log(`  ${id}.settle[${s}] | gHand=${st?.guest?.hand} gSigni=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+  }
+  return { st: last, secondPrompt };
+}
+
+scenarios.v228DeclareTargetCondFalse = {
+  title: 'V-228 O-413: 条件が**不成立**でも対象宣言のプロンプトが出て ON_TARGETED が発火する',
+  spec: v228Spec(false),
+  async drive(page, H) {
+    const opened = await openV228Prompt(page, H, 'v228false');
+    if (!opened.prompted) {
+      return { pass: false, detail: `🔴対象宣言の選択UIが出ない＝対象が条件の内側のまま（修正前の挙動）。gHand=${opened.st?.guest?.hand} gSigni=${JSON.stringify(opened.st?.guest?.fieldSigni)} pEff=${opened.st?.pendingEffect ?? '-'}` };
+    }
+    const handBefore = opened.st?.guest?.hand ?? -1;
+    const picked = await pickV228Target(page, H, 'v228false');
+    if (!picked.ok) return { pass: false, detail: `${picked.reason}（候補=${JSON.stringify(opened.st?.pendingCandidates)}）` };
+    const { st, secondPrompt } = await settleV228(page, H, 'v228false');
+    const handAfter = st?.guest?.hand ?? -1;
+    const stillOnField = (st?.guest?.fieldSigni ?? []).some(z => JSON.stringify(z ?? '').includes('WXDi-P03-067'));
+    // 条件不成立＝バウンスは起きない／ON_TARGETED のドローだけが1回。
+    const pass = handBefore === 0 && handAfter === 1 && stillOnField && secondPrompt === null;
+    return {
+      pass,
+      detail: pass
+        ? '条件不成立でも対象宣言のプロンプトが出て ON_TARGETED が1回発火（guest 手札 0→1）・帰結（手札に戻す）は起きずシグニは場に残る'
+        : `🔴guest 手札 ${handBefore}→${handAfter}（期待 0→1＝ON_TARGETED が1回）／場に残る=${stillOnField}（期待 true）／帰結側の2回目プロンプト=${JSON.stringify(secondPrompt)}（期待 null）`,
+    };
+  },
+};
+
+scenarios.v228DeclareTargetCondTrue = {
+  title: 'V-228 対照（盤面1文字＝自分の場に緑と白の＜美巧＞を置くだけ）＝宣言のあと帰結側の選択UIが出て手札に戻る',
+  spec: v228Spec(true),
+  async drive(page, H) {
+    const opened = await openV228Prompt(page, H, 'v228true');
+    if (!opened.prompted) {
+      return { pass: false, detail: `🔴対象宣言の選択UIが出ない。gHand=${opened.st?.guest?.hand} pEff=${opened.st?.pendingEffect ?? '-'}` };
+    }
+    const handBefore = opened.st?.guest?.hand ?? -1;
+    const picked = await pickV228Target(page, H, 'v228true');
+    if (!picked.ok) return { pass: false, detail: `${picked.reason}（候補=${JSON.stringify(opened.st?.pendingCandidates)}）` };
+    const { st, secondPrompt } = await settleV228(page, H, 'v228true');
+    const handAfter = st?.guest?.hand ?? -1;
+    const gone = !(st?.guest?.fieldSigni ?? []).some(z => JSON.stringify(z ?? '').includes('WXDi-P03-067'));
+    const inHand = (st?.guest?.handCards ?? []).some(n => String(n).includes('WXDi-P03-067'));
+    // 🔑**帰結側の候補は宣言した1体だけ**（`targetsStored`）＝別の対象を選び直せてはいけない。
+    const narrowed = secondPrompt !== null && secondPrompt.length === 1 && secondPrompt[0] === V228_TARGET;
+    // guest 手札 0 → 2（ON_TARGETED のドロー1枚＋手札に戻ったシグニ1枚）。
+    const pass = handBefore === 0 && handAfter === 2 && gone && inHand && narrowed;
+    return {
+      pass,
+      detail: pass
+        ? '宣言のあと帰結側の選択UIが「宣言した1体だけ」を候補に出し、手札に戻った（guest 手札 0→2＝ドロー1＋戻った1）'
+        : `🔴guest 手札 ${handBefore}→${handAfter}（期待 0→2）／場から消えた=${gone}／手札に入った=${inHand}／帰結側の候補=${JSON.stringify(secondPrompt)}（期待 1件だけ）`,
+    };
+  },
+};
+
+order.push('v228DeclareTargetCondFalse', 'v228DeclareTargetCondTrue');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

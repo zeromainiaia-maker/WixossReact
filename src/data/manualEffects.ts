@@ -1813,7 +1813,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔑`colorNotMatchesSource` は `HAS_CARD_IN_FIELD` の中で `colorExclude` へ潰して評価する
   //   （動的フィルタなので `matchesFilter` に渡すと**未知キーとして素通り＝無条件成立**する）。
   'WX21-032': [
-    {"effectId":"WX21-032-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"天使","colorNotMatchesSource":true},"excludeSelf":true,"minCount":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX21-032-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"天使","colorNotMatchesSource":true},"excludeSelf":true,"minCount":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -3295,14 +3295,26 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'AUTO',
       timing: ['ON_ATTACK_SIGNI'],
       triggerScope: 'self',
+      // 🆕**§5.3 `O-451`（2026-09-15）＝対象宣言を条件の外へ**（`O-413` の正準形）。
+      //   原文「対戦相手のシグニ１体を**対象とし**、…**場合**、…パワーを－7000する」＝対象取得は無条件。
       action: {
-        type: 'CONDITIONAL',
-        condition: { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' },
-        then: {
-          type: 'POWER_MODIFY',
-          target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
-          delta: -7000,
-        },
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+            abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' },
+            then: {
+              type: 'POWER_MODIFY',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+              delta: -7000,
+              targetsStored: true,
+            },
+          },
+        ],
       },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
@@ -3903,20 +3915,32 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WXK05-035-E2',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
+      // 🆕**§5.3 `O-451`（2026-09-15）＝対象宣言を条件の外へ**（`O-413` の正準形）。
+      //   原文「対戦相手のシグニ１体を**対象とし**、このシグニの下に…**場合**、それをバニッシュする」。
       action: {
-        type: 'CONDITIONAL',
-        condition: {
-          type: 'AND',
-          conditions: [
-            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 1 } },
-            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 2 } },
-            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 3 } },
-          ],
-        },
-        then: {
-          type: 'BANISH',
-          target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
-        },
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+            abortIfNoCandidate: true },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          {
+            type: 'CONDITIONAL',
+            condition: {
+              type: 'AND',
+              conditions: [
+                { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 1 } },
+                { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 2 } },
+                { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 3 } },
+              ],
+            },
+            then: {
+              type: 'BANISH',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+              targetsStored: true,
+            },
+          },
+        ],
       },
       duration: 'INSTANT',
       mandatory: true,
@@ -4475,7 +4499,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX15-026-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"黒","count":3}]},"action":{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}}},"else":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX15-034": [
-    {"effectId":"WX15-034-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CONDITIONAL_COST_REDUCTION_BY_FIELD"},{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"WX15-034-E1-c1","label":"デッキから＜武勇＞のシグニ1枚を探して公開し手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"武勇"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"WX15-034-E1-c2","label":"あなたの場に【ライズ】を持つシグニがある場合、対戦相手のシグニ1体をバニッシュする","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasIcon":"ライズ"}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX15-034-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CONDITIONAL_COST_REDUCTION_BY_FIELD"},{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"WX15-034-E1-c1","label":"デッキから＜武勇＞のシグニ1枚を探して公開し手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"武勇"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"WX15-034-E1-c2","label":"あなたの場に【ライズ】を持つシグニがある場合、対戦相手のシグニ1体をバニッシュする","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","hasIcon":"ライズ"}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX16-006": [
     {"effectId":"WX16-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"無","count":4}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COLORLESS_MUST_PAY_CENTER_COLOR"},{"type":"CHOOSE","choose_count":2,"from_count":4,"upTo":true,"choices":[{"choiceId":"WX16-006-E1-c1","label":"対戦相手のセンタールリグは「【常】：アタックできない」を得る（ターン終了時まで）","action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"opponent","count":1},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"WX16-006-E1-c2","label":"対戦相手のシグニ1体をダウンし凍結する","action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"down":true}},{"choiceId":"WX16-006-E1-c3","label":"あなたのシグニ1体は「【常】：バニッシュされない」を得る（ターン終了時まで）","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"from":["BANISH"],"duration":"UNTIL_END_OF_TURN"}},{"choiceId":"WX16-006-E1-c4","label":"トラッシュからセンタールリグと共通色のシグニ2枚まで手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","colorMatchesLrig":true}}}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -4877,7 +4901,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-P3-096-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"天使"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","condition":{"type":"ENERGY_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"天使"},"operator":"gte","value":3}},
   ],
   "WX25-P3-104": [
-    {"effectId":"WX25-P3-104-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"毒牙"},"excludeSelf":true},"then":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},"redirectTo":"trash","until":"END_OF_TURN","whenPowerZero":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX25-P3-104-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"毒牙"},"excludeSelf":true},"then":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":2}}},"redirectTo":"trash","until":"END_OF_TURN","whenPowerZero":true,"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX25-CP1-025": [
     {"effectId":"WX25-CP1-025-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardClass":"ブルアカ"},"pickCount":2,"pickUpTo":true,"pickNoun":"カード","then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"color":"白","cardClass":"ブルアカ"},"minCount":1},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -10411,7 +10435,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // Curated CHOOSE is preserved here because the generic parser still loses two choices.
   // Dream Team requires all three LRIG slots and at least three distinct colors.
   "WXDi-P10-004": [
-    {"effectId":"WXDi-P10-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","cardClass":"プリパラ"},"pickCount":2,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardClass":"プリパラ"}}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"プリパラ"},"minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1,"countFromZone":{"zone":"field","owner":"self","filter":{"cardType":"シグニ","story":"プリパラ"},"unitSize":1,"per":1}}}],"upTo":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WXDi-P10-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","cardClass":"プリパラ"},"pickCount":2,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardClass":"プリパラ"}}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"プリパラ"},"minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1,"countFromZone":{"zone":"field","owner":"self","filter":{"cardType":"シグニ","story":"プリパラ"},"unitSize":1,"per":1}}}],"upTo":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // Dream Team requires all three LRIG slots and at least three distinct colors.
   "WXDi-P11-001": [

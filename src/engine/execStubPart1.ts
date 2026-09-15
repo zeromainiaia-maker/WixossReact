@@ -285,6 +285,25 @@ export function execStubPart1(
         ? { ...restLLS, level: { ...(typeof restLLS.level === 'object' ? restLLS.level : {}), max: sourceLevel } }
         : restLLS;
     }
+    // 🆕**§5.3 `O-451`（2026-09-15）＝`powerLteSelf` / `powerLtSelf` / `powerGtSelf`。**
+    // 🔴`matchesFilter` はこの3キーを**黙って無視する**（解決に効果元が要る）ので、対象宣言では
+    //   `powerLteSelfHalf` と同じ規約で**ここで剥がして powerRange へ畳む**。
+    //   落とすと「相手の任意1体」が候補に出る過剰実行になり、しかも**実行側（`resolveDynamicFilter`）は
+    //   正しく絞る**ので、宣言と実行で候補がズレて**黙って空振り**する（`O-413` の許可リストが弾いていた形）。
+    // ⚠基準は `effectivePowers`（実効パワー）＝`resolveDynamicFilter`（`effectExecutor.ts:3873`）と同じ式に揃える。
+    //   参照不能ならフラグを外すだけ（fail-open＝同関数の歴史的規約に揃える）。
+    if (selectFilter?.powerLteSelf || selectFilter?.powerLtSelf || selectFilter?.powerGtSelf) {
+      const { powerLteSelf: _pls, powerLtSelf: _plt, powerGtSelf: _pgt, ...restPS } = selectFilter;
+      const selfPowerPS = ctx.sourceCardNum
+        ? (ctx.effectivePowers?.get(ctx.sourceCardNum)
+          ?? Number.parseInt(ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.Power ?? '', 10))
+        : Number.NaN;
+      selectFilter = Number.isFinite(selfPowerPS)
+        ? (selectFilter.powerGtSelf
+          ? { ...restPS, powerRange: { ...(restPS.powerRange ?? {}), min: selfPowerPS + 1 } }
+          : { ...restPS, powerRange: { ...(restPS.powerRange ?? {}), max: selectFilter.powerLtSelf ? selfPowerPS - 1 : selfPowerPS } })
+        : restPS;
+    }
     if (selectFilter?.levelMatchesUnderSourceSigni) {
       const { levelMatchesUnderSourceSigni: _under, ...rest } = selectFilter;
       const host = ctx.sourceCardNum

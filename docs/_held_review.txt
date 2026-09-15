@@ -3,99 +3,51 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +SEQUENCE +SIGNI +STUB×2 ［14枚］
-SPK16-13E WD16-023 WDK02-014 WX05-059 WX10-026 WX17-040 WX18-032 WX22-017 WXDi-P03-088 WXK06-071 WXK08-003 WXK08-030 WXK09-006 WXK11-075
---- SPK16-13E
-  原文: ベット―《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のシグニ１体を対象とし、このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合、それをバニッシュする。②このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに置かれていた場合、あなたのデッキの上からカードを３枚エ
-  - [0].action.choices[0].action.condition.type = "SIGNI_LEFT_BY_OPP_EFFECT"
-  - [0].action.choices[0].action.condition.owner = "self"
-  - [0].action.choices[0].action.condition.operator = "gte"
-  - [0].action.choices[0].action.condition.value = 1
-  - [0].action.choices[0].action.then.type = "BANISH"
-  - [0].action.choices[0].action.then.target.type = "SIGNI"
-  - [0].action.choices[0].action.then.target.owner = "opponent"
-  - [0].action.choices[0].action.then.target.count = 1
-  - [0].action.choices[0].action.then.target.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.then.target.upToCount = false
-  ~ [0].action.choices[0].action.type : "CONDITIONAL" → "SEQUENCE"
-  + [0].action.choices[0].action.steps[0].type = "STUB"
-  …（他 21 行）
---- WD16-023
-  原文: このスペルの使用コストは対戦相手の手札１枚につき《無×1》増える。対戦相手のシグニ１体を対象とし、それをバニッシュする。,：どちらか１つを選ぶ。①対戦相手は手札を１枚捨てる。②対戦相手のシグニ１体を対象とし、対戦相手の手札が０枚の場合、それをバニッシュする。
-  - [1].action.choices[1].action.condition.type = "HAND_COUNT"
-  - [1].action.choices[1].action.condition.owner = "opponent"
-  - [1].action.choices[1].action.condition.operator = "eq"
-  - [1].action.choices[1].action.condition.value = 0
-  - [1].action.choices[1].action.then.type = "BANISH"
-  - [1].action.choices[1].action.then.target.type = "SIGNI"
-  - [1].action.choices[1].action.then.target.owner = "opponent"
-  - [1].action.choices[1].action.then.target.count = 1
-  - [1].action.choices[1].action.then.target.filter.cardType = "シグニ"
-  - [1].action.choices[1].action.then.target.upToCount = false
-  ~ [1].action.choices[1].action.type : "CONDITIONAL" → "SEQUENCE"
-  + [1].action.choices[1].action.steps[0].type = "STUB"
-  …（他 21 行）
---- WDK02-014
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたの手札が２枚以下の場合、ターン終了時まで、それのパワーを－1000する。あなたの手札が０枚の場合、代わりにターン終了時まで、それのパワーを－5000する。,：カードを１枚引く。
-  - [0].action.condition.type = "HAND_COUNT"
+## +SEQUENCE +SIGNI +STUB×2 ［4枚］
+WXDi-P12-054 WXK09-052 WXK10-068 WXK10-089
+--- WXDi-P12-054
+  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたの場にある黒のシグニ１体につき－1000する。【出】：あなたの場に《残黒の巫女　タマヨリヒメ》がいる場合、対戦相手のシグニ１体を対象とし、このターン、それがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる。,：対戦相手のレベル２
+  - [1].action.condition.type = "HAS_CARD_IN_FIELD"
+  - [1].action.condition.owner = "self"
+  - [1].action.condition.filter.cardName = "残黒の巫女　タマヨリヒメ"
+  - [1].action.then.type = "BANISH_REDIRECT"
+  - [1].action.then.target.type = "SIGNI"
+  - [1].action.then.target.owner = "opponent"
+  - [1].action.then.target.count = 1
+  - [1].action.then.target.filter.cardType = "シグニ"
+  - [1].action.then.redirectTo = "trash"
+  - [1].action.then.until = "END_OF_TURN"
+  ~ [1].action.type : "CONDITIONAL" → "SEQUENCE"
+  + [1].action.steps[0].type = "STUB"
+  …（他 20 行）
+--- WXK09-052
+  原文: 【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、それをエナゾーンに置く。【出】エナゾーンからレベル１～４の＜電機＞のシグニを１枚ずつトラッシュに置く：カードを２枚引く。ターン終了時まで、このシグニのパワーを＋8000する。,：カードを
+  - [0].action.condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
   - [0].action.condition.owner = "self"
-  - [0].action.condition.operator = "eq"
-  - [0].action.condition.value = 0
-  - [0].action.then.type = "POWER_MODIFY"
+  - [0].action.condition.filter.cardType = "シグニ"
+  - [0].action.condition.filter.story = "電機"
+  - [0].action.condition.levels[0] = 1
+  - [0].action.condition.levels[1] = 2
+  - [0].action.condition.levels[2] = 3
+  - [0].action.condition.levels[3] = 4
+  - [0].action.condition.minEach = 1
+  - [0].action.then.type = "SEND_TO_ENERGY"
   - [0].action.then.target.type = "SIGNI"
   - [0].action.then.target.owner = "opponent"
-  - [0].action.then.target.count = 1
-  - [0].action.then.target.filter.cardType = "シグニ"
-  - [0].action.then.target.upToCount = false
-  - [0].action.then.delta = -5000
-  - [0].action.else.type = "CONDITIONAL"
-  …（他 48 行）
-
-## +SIGNI +STUB×2 ［10枚］
-WX12-032 WX14-044 WX14-071 WXDi-P10-006 WXK02-036 WXK03-046 WXK04-026 WXK09-042 WXK09-044 WXK10-036
---- WX12-032
-  原文: このスペルを使用する際、手札から青のスペルを１枚捨ててもよい。そうした場合、このスペルの使用コストは《青×2》減る。対戦相手のシグニ１体を対象とし、あなたの手札の枚数が対戦相手の手札の枚数以上の場合、それをバニッシュする。,-
-  - [0].action.steps[0].condition.type = "IS_MY_TURN"
-  - [0].action.steps[0].then.type = "STUB"
-  - [0].action.steps[0].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
-  - [0].action.steps[1].condition.type = "HAND_DIFF"
-  - [0].action.steps[1].condition.operator = "gte"
-  - [0].action.steps[1].condition.value = 0
-  - [0].action.steps[1].then.type = "BANISH"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "opponent"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [0].action.steps[1].then.target.upToCount = false
-  …（他 24 行）
---- WX14-044
-  原文: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、対戦相手のシグニ１体を対象とし、あなたのセンタールリグが黒の場合、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－12000する。,：あなたのデッキの上からカードを３枚トラ
-  - [1].action.steps[0].condition.type = "LRIG_COLOR"
-  - [1].action.steps[0].condition.owner = "self"
-  - [1].action.steps[0].condition.color = "黒"
-  - [1].action.steps[0].then.type = "STUB"
-  - [1].action.steps[0].then.id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  - [1].action.steps[0].then.costColors[0] = "黒"
-  - [1].action.steps[1].condition.type = "IS_MY_TURN"
-  - [1].action.steps[1].then.type = "POWER_MODIFY"
-  - [1].action.steps[1].then.target.type = "SIGNI"
-  - [1].action.steps[1].then.target.owner = "opponent"
-  - [1].action.steps[1].then.target.count = 1
-  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 25 行）
---- WX14-071
-  原文: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、対戦相手のシグニ１体を対象とし、あなたのセンタールリグが黒の場合、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－7000する。,-
-  - [1].action.steps[0].condition.type = "LRIG_COLOR"
-  - [1].action.steps[0].condition.owner = "self"
-  - [1].action.steps[0].condition.color = "黒"
-  - [1].action.steps[0].then.type = "STUB"
-  - [1].action.steps[0].then.id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  - [1].action.steps[0].then.costColors[0] = "黒"
-  - [1].action.steps[1].condition.type = "IS_MY_TURN"
-  - [1].action.steps[1].then.type = "POWER_MODIFY"
-  - [1].action.steps[1].then.target.type = "SIGNI"
-  - [1].action.steps[1].then.target.owner = "opponent"
-  - [1].action.steps[1].then.target.count = 1
-  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 25 行）
+  …（他 31 行）
+--- WXK10-068
+  原文: 【常】：このシグニのパワーは対戦相手のセンタールリグのレベル１につき＋1000される。【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、それをバニッシュする。,：【エナチャージ１】
+  - [1].action.condition.type = "LRIG_LEVEL_CMP_OPP"
+  - [1].action.condition.operator = "lte"
+  - [1].action.then.type = "BANISH"
+  - [1].action.then.target.type = "SIGNI"
+  - [1].action.then.target.owner = "opponent"
+  - [1].action.then.target.count = 1
+  - [1].action.then.target.filter.cardType = "シグニ"
+  - [1].action.then.target.filter.powerLtSelf = true
+  - [1].action.then.target.upToCount = false
+  ~ [1].action.type : "CONDITIONAL" → "SEQUENCE"
+  + [1].action.steps[0].type = "STUB"
+  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
+  …（他 20 行）
 

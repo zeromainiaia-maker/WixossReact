@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第353バッチ：🏁`V-228` を返済 ＋ 🏁`O-451` を消化（`O-413` の long tail 14 → 2効果）
+
+### 🏁`V-228`（実機）＝`O-413` の対象宣言UIを両側＋反転確認で固定
+
+- **シナリオ**＝`node scripts/verifyBattleDrive.mjs v228DeclareTargetCondFalse v228DeclareTargetCondTrue`（**両方 PASS**）。
+- **カード**＝`WX22-011`（ルリグ・【自】あなたのアタックフェイズ開始時、相手シグニ1体を**対象とし**、
+  あなたの場に緑と白の＜美巧＞のシグニが**ある場合**、それを手札に戻す）。
+  **相手の観測札**＝`WXDi-P03-067`（`ON_TARGETED`《ターン1回》＝カードを1枚引く）＝**guest の手札枚数**が発火を1ビットで映す。
+- 🔑**対照は「盤面1文字」**（罠3）＝自分の場に＜美巧＞2体を置くかどうかだけ。
+  - **条件不成立**＝guest 手札 **0→1**（宣言のプロンプトが出て `ON_TARGETED` が1回発火）・帰結は起きずシグニは場に残る。
+  - **条件成立**＝guest 手札 **0→2**（ドロー1＋手札に戻った1）。
+    🔑**帰結側の候補は宣言した1体だけ**（実測 `["WXDi-P03-067#39114"]`）＝`targetsStored` の絞り込みが実機で効いている。
+- 🔴**反転確認を実機で取った**＝live を `O-413` 前の形へ戻すと**宣言UIが出ず guest 手札は 0 のまま**（`ON_TARGETED` が発火しない）。
+  ⇒ **`O-413` が直した挙動差を実 UI で再現できた。**
+
+### 🏁`O-451`＝3系統の受け皿を足して 14 → 4、うち2件は偽陽性と判定して**残2**
+
+| 系統 | 直した場所 | 効果 |
+|---|---|---|
+| ①対象宣言が動的フィルタを解決しない | `execStubPart1` の `SELECT_TARGET_ONLY` に `powerLteSelf` / `powerLtSelf` / `powerGtSelf` を追加 | `WXK09-052-E1` / `WXK10-068-E2` / `WX21-032-E1` |
+| ②帰結の型が `targetsStored` を読まない | `execBanishRedirect` 相当の分岐と `execPowerModifyPerLevelSum` に消費地点を新設（型宣言も追加） | `WXDi-P12-054-E2` / `WX25-P3-104-E1` / `WXK10-089-E1` |
+| ③`MANUAL` で parser が届かない | `manualEffects.ts` を手当て → `syncManualLive`（うち2件は `CHOOSE` の枝の中） | `WX18-056-E1` / `WXK05-035-E2` / `WX15-034-E1` / `WXDi-P10-004-E1` |
+
+🔑**①は「宣言と実行で候補がズレる」形の根治**＝`SELECT_TARGET_ONLY` は **`resolveDynamicFilter` を通らない**ので、
+`powerLteSelfHalf` / `levelLteSelf` と同じ規約で**宣言側でも `powerRange` へ畳む**。
+式は `resolveDynamicFilter`（`effectExecutor.ts:3873`）と**同一**にした（`powerLtSelf` は `-1`・`powerGtSelf` は `+1`）。
+
+⚠**②は型宣言も要る**＝`BanishRedirectAction` / `PowerModifyPerLevelSumAction` に `targetsStored` / `fixedCardNums` が無かった。
+🔴**許可リスト（parser の `O413_STORED_TARGET_ACTIONS`）へ足すのはハンドラ側の実装を書いた後**＝
+載せるだけだと宣言が無視されて**別のシグニを選び直せる**過剰実行になる。
+
+### 偽陽性2件（`ON_TARGETED` の実害が無いと示せるもの）
+
+- `WD21-001-E1`＝対象が「**あなたの**シグニ」。`ON_TARGETED` は「**対戦相手の**能力か効果の対象になったとき」なので発火しない。
+- `WX14-041-E1`＝対象が `ENERGY_CARD`。`ON_TARGETED` は**シグニにしか無い**。
+
+### 残2＝`then` と `else` で対象が違う形（`O-451` に据置）
+
+`WXK09-081-E1`（Lv1以下 → 「**代わりに**」Lv3以下）／`WXK04-025-CB-E2`（1体 → 「5枚以上の場合」すべて）。
+**原文も2回「対象とし」と書く**＝1つの宣言では受けられず、**枝ごとに宣言を作る機構**が要る。
+
+### 検証
+
+- `npm run regen` ＋ `npm run gates` **全緑**（golden **4182/4182**＝+2本）。実機 `V-228` も `O-451` 適用後に回し直して **両方 PASS**。
+- **golden 2本を新設**＝①`powerLtSelf` / `powerLteSelf` の**境界の両側**（同値が候補に入る／入らない）＋**対照**（フィルタ無しなら3体とも候補）
+  ②`BANISH_REDIRECT` / `POWER_MODIFY_PER_LEVEL_SUM` が宣言した1体だけを候補にする＋**対照**（`targetsStored` を外すと2体とも候補）。
+- 🔴**既存 golden 8本が落ちた**＝6本は旧構造の shape assert（`stripO413TargetDecl` で更新）、
+  **2本は isolation ハーネス**＝`O-413` の正準形から**内側のノードだけ取り出して単体で回す**テストが、
+  `targetsStored` のせいで候補0になっていた。⇒ `withoutStoredBinding` を足して**そのハーネスでだけ**束縛を外した
+  （⚠形の assert には使わない＝束縛が載っていること自体は `§5.3 O-413` のテストが見る）。
+
+
 ## 2026-09-15 — 第352バッチ：🏁`O-413` を消化（対象宣言を条件の外へ引き上げ・**107効果 → 14効果**）
 
 ### 真因＝原文の語順「〈対象〉を**対象とし**、〜の**場合**、…」に対して、対象ノードが条件の内側にしか無かった

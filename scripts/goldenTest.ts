@@ -296,6 +296,18 @@ function liveChoiceAction(cardNum: string, effectId: string, index: number): Eff
  *   その意図（条件は残っている）は不変なので、宣言の2ステップだけを剥がして同じ assert を続ける。
  * ⚠**宣言そのものの有無は別のテスト（`§5.3 O-413`）で assert する**＝ここで剥がすのは「条件の検査」の前処理だけ。
  */
+/**
+ * 🆕**§5.3 `O-451`（2026-09-15）＝引き上げ後のノードを「単体で」実行するテスト用に `targetsStored` を外す。**
+ * 🔑`O-413` の正準形から**内側のノードだけを取り出して直接実行する**ハーネスは、
+ *   `storedTargetCards` が空のまま走るので `targetsStored` があると**候補0**になる。
+ * ⚠**形の assert には使わない**（束縛が載っていること自体は `§5.3 O-413` のテストで見る）＝
+ *   ここで外すのは「候補の絞り込み規則だけを見たい」isolation ハーネスに限る。
+ */
+function withoutStoredBinding<T extends EffectAction>(action: T): T {
+  const { targetsStored: _drop, ...rest } = action as T & { targetsStored?: boolean };
+  return rest as T;
+}
+
 function stripO413TargetDecl(action: EffectAction): EffectAction {
   if (!action || action.type !== 'SEQUENCE') return action;
   const steps = (action as SequenceAction).steps;
@@ -19198,7 +19210,8 @@ test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所�
 test('§5c エナ帯条件: ENERGY_EACH_LEVEL_FILTER_GTE へ持ち上げ（WXK09 電機5枚）', () => {
   const cond = (json: string) => JSON.parse(json) as { type: string; levels: number[]; minEach: number };
   for (const [num, idx, minEach] of [['WXK09-051', 0, 1], ['WXK09-052', 0, 1], ['WXK09-077', 1, 1], ['WXK09-083', 0, 1]] as const) {
-    const a = (effectsMap.get(num) ?? [])[idx]?.action as { type: string; condition?: unknown };
+    // ⚠§5.3 `O-413`/`O-451`＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから条件を見る。
+    const a = stripO413TargetDecl((effectsMap.get(num) ?? [])[idx]!.action) as { type: string; condition?: unknown };
     eq(a?.type, 'CONDITIONAL', `${num}[${idx}]: 条件節が CONDITIONAL へ持ち上がる`);
     const c = cond(JSON.stringify(a.condition));
     eq(c.type, 'ENERGY_EACH_LEVEL_FILTER_GTE', `${num}: エナ帯条件`);
@@ -26274,7 +26287,9 @@ test('BANISH_REDIRECT 単体対象7効果: 群A built JSONは全4件count:1（�
   try {
     eq(powerZeroRedirect?.target.filter?.level?.max, 2, 'WX25-P3-104-E1: レベル2以下を engine が読める形で保持');
     const candCtx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L4, null] });
-    const cand = executeEffect({ effectId: 't', effectType: 'AUTO', action: powerZeroRedirect as EffectAction,
+    // ⚠§5.3 `O-451`＝`O-413` の正準形から取り出して**単体で**回すので、宣言への束縛は外す。
+    const cand = executeEffect({ effectId: 't', effectType: 'AUTO',
+      action: withoutStoredBinding(powerZeroRedirect as EffectAction),
       duration: 'INSTANT', mandatory: true } as CardEffect, candCtx);
     const list = (cand as { pending?: { candidates?: string[] } }).pending?.candidates ?? [];
     ok(list.includes(SIGNI_L1), 'WX25-P3-104-E1: レベル1は対象候補');
@@ -60835,7 +60850,8 @@ const batch44TargetAction = (cardNum: string, effectId: string, flag: 'powerLteS
   };
   const action = visit(effect.action);
   if (!action) throw new Error(`${effectId}: ${flag} target action missing`);
-  return action;
+  // ⚠§5.3 `O-451`＝`O-413` の正準形から取り出して**単体で**回すので、宣言への束縛は外す。
+  return withoutStoredBinding(action);
 };
 
 test('Stage2 power B44 E2E: all adopted self ceilings accept the boundary, reject boundary+1, and retain fail-open', () => withSavedCursor(() => {
@@ -64227,7 +64243,8 @@ test('索引C 2026-09-01(3巡目): O-95 基本文側の「このシグニと共�
   //   意味が違う（効果元1体との比較ではない）。流用すると条件が別物になる。
   // ⚠`O-102`（SP27-012 / WX21-039 の else 枝）は別テストで固定済み＝こちらは**基本文側**。
   const e = manualEffect('WX21-032', 'WX21-032-E1');
-  const a = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  // ⚠§5.3 `O-451`（2026-09-15）＝対象宣言が条件の外に付いた（`powerLteSelf` を宣言側でも解決できるようにした）。
+  const a = stripO413TargetDecl(e.action) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq(a.type, 'CONDITIONAL', '条件つきで包む（無条件バニッシュへ戻さない）');
   const c = a.condition as Extract<Condition, { type: 'HAS_CARD_IN_FIELD' }>;
   eq(c.type, 'HAS_CARD_IN_FIELD', '場に該当シグニがあるかを見る');
@@ -64794,7 +64811,9 @@ test('census 対象filter D群: 無色エナだけをトラッシュ候補にす
 // ⚠`then:'deck_top'` / `then:'trash'` は **live 初出**（型の union にはあったが利用が1件も無かった）＝
 //   §4.3「型の union にある値を executor が全部分岐しているか はどの計器も見ていない」への保険。
 test('census 189: 手書き是正21件のトップレベル形を固定する（条件/フィルタの脱落へ戻らない）', () => {
-  const act = (cardNum: string, effectId: string) => manualEffect(cardNum, effectId).action as Record<string, unknown>;
+  // ⚠§5.3 `O-413`/`O-451`＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+  const act = (cardNum: string, effectId: string) =>
+    stripO413TargetDecl(manualEffect(cardNum, effectId).action) as unknown as Record<string, unknown>;
   const stepsOf = (cardNum: string, effectId: string) =>
     (act(cardNum, effectId) as unknown as SequenceAction).steps as unknown as Record<string, unknown>[];
 
@@ -64925,7 +64944,9 @@ test('census 189: 手書き是正21件のトップレベル形を固定する（
 // 🔴**反転確認つき**＝「条件／フィルタが付いた」だけでなく「**旧 live の形に戻っていない**」ことも見る。
 //   旧 live はどれも**条件・フィルタ・段が丸ごと落ちた過剰／過小実行**だった。
 test('census 149: 手書き是正36件のトップレベル形を固定する（条件/フィルタの脱落へ戻らない）', () => {
-  const act = (cardNum: string, effectId: string) => manualEffect(cardNum, effectId).action as Record<string, unknown>;
+  // ⚠§5.3 `O-413`/`O-451`＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+  const act = (cardNum: string, effectId: string) =>
+    stripO413TargetDecl(manualEffect(cardNum, effectId).action) as unknown as Record<string, unknown>;
   const steps = (cardNum: string, effectId: string) =>
     ((act(cardNum, effectId) as unknown as SequenceAction).steps as unknown as Record<string, unknown>[]);
   const j = (v: unknown) => JSON.stringify(v);
@@ -67971,7 +67992,8 @@ test('§5.3 O-60 第50: 数える軸と単価が payload に載っている（13
   const act = (cardNum: string, effectId: string): Record<string, unknown> => {
     const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
     ok(!!hit, `${effectId} が live にある`);
-    return (hit?.action ?? {}) as unknown as Record<string, unknown>;
+    // ⚠§5.3 `O-413`/`O-451`＝対象宣言（`SELECT_TARGET_ONLY` → `STORE`）は剥がしてから形を見る。
+    return (hit ? stripO413TargetDecl(hit.action) : {}) as unknown as Record<string, unknown>;
   };
   const dz = (a: Record<string, unknown>): Record<string, unknown> =>
     (a.deltaFromZone ?? {}) as Record<string, unknown>;
@@ -83152,6 +83174,67 @@ test('§5.3 O-413: 条件不成立でも対象宣言は出る／成立なら宣�
     eq(left, hasAdamas ? 0 : 1,
       hasAdamas ? '条件成立＝宣言した対象がバニッシュされる' : '条件不成立＝宣言はするが帰結は起きない');
   }
+}));
+
+// ── §5.3 `O-451`（2026-09-15）＝`O-413` の long tail（14効果 → 4効果）。
+//   ①対象宣言（`SELECT_TARGET_ONLY`）が `powerLteSelf` / `powerLtSelf` / `powerGtSelf` を解決する
+//   ②`BANISH_REDIRECT` / `POWER_MODIFY_PER_LEVEL_SUM` が `targetsStored` を消費する
+// 🔴どちらも**落とすと「宣言と実行で候補がズレる」**＝宣言では全候補が出て、実行側が絞るので
+//   **選んだ相手に当たらない（黙って空振り）**か、**宣言していない相手を選び直せる**。
+test('§5.3 O-451: 対象宣言が powerLtSelf / powerLteSelf を解決する（境界の両側）', () => withSavedCursor(() => {
+  const src = SIGNI_P12000;
+  const over = SIGNI_L1, exact = SIGNI_L2, under = SIGNI_L3;
+  const declare = (flag: 'powerLtSelf' | 'powerLteSelf'): string[] => {
+    const ctx = mkCtx({ signi: [src, null, null] }, { signi: [over, exact, under] }, src);
+    ctx.effectivePowers = new Map([[src, 12000], [over, 12001], [exact, 12000], [under, 11999]]);
+    const act = { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', [flag]: true } } } as unknown as EffectAction;
+    const r = executeAction(act, ctx);
+    ok(!r.done, `${flag}: 対象宣言の SELECT_TARGET が出る`);
+    return r.done ? [] : ((r.pending as { candidates?: string[] }).candidates ?? []);
+  };
+  const lt = declare('powerLtSelf');
+  ok(!lt.includes(over), 'powerLtSelf: 自分より高いパワーは候補外');
+  ok(!lt.includes(exact), '🔴powerLtSelf: 同値は候補外（境界＝「より低い」）');
+  ok(lt.includes(under), 'powerLtSelf: 自分より低いパワーは候補');
+  const lte = declare('powerLteSelf');
+  ok(!lte.includes(over), 'powerLteSelf: 自分より高いパワーは候補外');
+  ok(lte.includes(exact), '🔴powerLteSelf: 同値は候補（境界＝「以下」）');
+  ok(lte.includes(under), 'powerLteSelf: 自分より低いパワーは候補');
+  // 🔴**対照＝解決を落とすと「相手の任意1体」が出る**（この assert が落ちたら宣言側の解決が消えている）。
+  const bare = (() => {
+    const ctx = mkCtx({ signi: [src, null, null] }, { signi: [over, exact, under] }, src);
+    const act = { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as unknown as EffectAction;
+    const r = executeAction(act, ctx);
+    return r.done ? [] : ((r.pending as { candidates?: string[] }).candidates ?? []);
+  })();
+  eq(bare.length, 3, 'フィルタ無しなら3体とも候補＝上の絞り込みは実際に効いている');
+}));
+
+test('§5.3 O-451: BANISH_REDIRECT と POWER_MODIFY_PER_LEVEL_SUM が targetsStored を消費する（両側）', () => withSavedCursor(() => {
+  const declared = SIGNI_L1, other = SIGNI_L2;
+  const mk = (store: string[]): ExecCtx => {
+    const ctx = mkCtx({ signi: [SIGNI_L4, null, null] }, { signi: [declared, other, null] }, SIGNI_L4);
+    return { ...ctx, storedTargetCards: store };
+  };
+  const candidatesOf = (action: EffectAction, store: string[]): string[] => {
+    const r = executeAction(action, mk(store));
+    return r.done ? [] : ((r.pending as { candidates?: string[] }).candidates ?? []);
+  };
+  const redirect = { type: 'BANISH_REDIRECT',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+    redirectTo: 'trash', until: 'END_OF_TURN', targetsStored: true } as unknown as EffectAction;
+  eq(JSON.stringify(candidatesOf(redirect, [declared])), JSON.stringify([declared]),
+    '🔴BANISH_REDIRECT: 宣言した1体だけが候補（絞らないと別のシグニを選び直せる）');
+  const pmpls = { type: 'POWER_MODIFY_PER_LEVEL_SUM',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+    deltaPerLevel: -1000, countFilter: { cardType: 'シグニ' }, countOwner: 'self', targetsStored: true } as unknown as EffectAction;
+  eq(JSON.stringify(candidatesOf(pmpls, [declared])), JSON.stringify([declared]),
+    '🔴POWER_MODIFY_PER_LEVEL_SUM: 宣言した1体だけが候補');
+  // 🔴**対照＝`targetsStored` を外すと2体とも候補**（この assert が落ちたら絞り込みが効いていない）。
+  eq(candidatesOf(withoutStoredBinding(redirect), [declared]).length, 2, 'targetsStored なしなら2体とも候補');
+  eq(candidatesOf(withoutStoredBinding(pmpls), [declared]).length, 2, '同上（POWER_MODIFY_PER_LEVEL_SUM）');
 }));
 
 if (listMode) {
