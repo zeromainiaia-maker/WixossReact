@@ -1,5 +1,13 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-15（第360バッチ）＝`O-391` クローズ（did-it ゲートが届かない3系統・登録票8件中 実バグ2／新たに11効果）
+
+🔴**登録票の8効果は 真バグ2 / 偽陽性5 / 既済1**＝偽陽性は全部「後続が素の兄弟でも、フィルタ側が**参照不能を空ヒットへ倒す**（`powerLtLastProcessed` / `levelEqLastDownedLrig`）ので原文どおり何も起きない」形。
+🔴**本体は登録票に無かった＝11効果**＝`execSequence` の任意コスト catch-all が **`STUB` の直後が did-it ゲートなら何でも**「任意コスト：発動しますか？」に化けさせ、**pay 枝では帰結しか実行しない**。`WXDi-P00-068-E1` は**両枝とも完全 no-op**だった。
+🔑**`declines`（CHOOSE option）を新設**＝`SELECT_TARGET{optional}` の 0体選択と同じ did-it 契約を `CHOOSE` へ通した。
+ゲート＝`npm run gates` 全緑（golden 4193/4193）／実機 `V-229` 2本 PASS＋実機の反転確認。
+
+
 ## 2026-09-15（第359バッチ）＝`O-399` クローズ（付与の寿命・12効果 → 実バグは3件だった）
 
 🔴**12件のうち9件は偽陽性**＝engine が `duration` を読まず**既定でターン終了に落ちる**形（`keyword_grants`／`lrig_granted_auto_effects`／`POWER_SET` の `temp_power_mods`／STUB が自前で期間を持つ形）。**「JSON に PERMANENT と書いてある」は挙動が永続という意味ではない。**

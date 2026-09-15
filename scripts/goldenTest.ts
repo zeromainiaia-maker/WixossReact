@@ -12062,10 +12062,15 @@ test('引用付与の内側トリガー: 「対戦相手のシグニかルリグ
 test('§3タスク3: 「対象とし＋エナ置き＋それをバニッシュ」が SEQUENCE[ENERGY_CHARGE_FROM_DECK, BANISH]', () => {
   for (const num of ['WX05-024', 'WX13-034']) {
     const b = parseCardEffects(cardMap.get(num)!).find(e => e.effectId === `${num}-BURST`)!;
-    const a = b.action as { type: string; steps: { type: string }[] };
+    const a = b.action as { type: string; steps: { type: string; id?: string }[] };
     eq(a.type, 'SEQUENCE', `${num}: BURST は SEQUENCE`);
-    eq(a.steps[0].type, 'ENERGY_CHARGE_FROM_DECK', `${num}: 先頭はエナチャージ（脱落回帰ガード）`);
-    eq(a.steps[1].type, 'BANISH', `${num}: 後続はバニッシュ`);
+    // 🆕**§5.3 `O-451`（2026-09-15）で対象宣言が先頭へ来た**＝原文が「〈相手シグニ〉を**対象とし**、
+    //   デッキの一番上をエナゾーンに置き、それをバニッシュする」＝**宣言が先**。
+    //   ⚠この assert の意図（エナチャージが落ちていない・バニッシュが続く）は変えない。
+    eq(a.steps[0].id, 'SELECT_TARGET_ONLY', `${num}: 対象宣言が先頭（O-451）`);
+    eq(a.steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${num}: 宣言を固定する`);
+    eq(a.steps[2].type, 'ENERGY_CHARGE_FROM_DECK', `${num}: エナチャージ（脱落回帰ガード）`);
+    eq(a.steps[3].type, 'BANISH', `${num}: 後続はバニッシュ`);
   }
 });
 test('§3タスク3: WX20-071 ON_LEAVE_FIELD は leftStateFilter{hasAcce}＋3項 SEQUENCE（エナ置き/ドロー/場出し）', () => {
@@ -53682,8 +53687,18 @@ for (const spec of SELF_BANISH_COST_CASES) {
         : undefined;
     const make = () => mkCtx({ signi: [spec.cardNum, null, null] }, { signi: [valid, invalid ?? null, null] }, spec.cardNum);
 
+    // 🆕**§5.3 `O-451`（2026-09-15）で順番が入れ替わった**＝原文は
+    //   「対戦相手の〈フィルタ〉シグニ1体を**対象とし**、このシグニをバニッシュして**もよい**」＝**宣言が先**。
+    //   ⚠この test の意図（辞退なら相手無傷／支払いなら自分だけ先に消え、帰結は宣言フィルタ内の1体だけ）は不変。
+    //   🔑**フィルタの検査は宣言側（1つ目のプロンプト）へ移る**＝そこが `SELECT_TARGET_ONLY` の候補。
     const skipCtx = make();
     let skipped = executeEffect(eff, skipCtx);
+    ok(!skipped.done && skipped.pending.type === 'SELECT_TARGET', `${spec.effectId}: 対象宣言が出ない`);
+    if (!skipped.done && skipped.pending.type === 'SELECT_TARGET') {
+      ok(skipped.pending.candidates.includes(valid), `${spec.effectId}: フィルタ内の相手が候補に入らない`);
+      if (invalid) ok(!skipped.pending.candidates.includes(invalid), `${spec.effectId}: フィルタ外の相手が候補に入った`);
+    }
+    skipped = resumeSelectTarget([valid], skipped.pending as never, ctxAfter(skipped, skipCtx));
     ok(!skipped.done && skipped.pending.type === 'SELECT_TARGET', `${spec.effectId}: 自己バニッシュ選択が出ない`);
     skipped = resumeSelectTarget([], skipped.pending as never, ctxAfter(skipped, skipCtx));
     ok(skipped.ownerState.field.signi.some(s => s?.at(-1) === spec.cardNum), `${spec.effectId}: 辞退したのに自分が消えた`);
@@ -53691,11 +53706,13 @@ for (const spec of SELF_BANISH_COST_CASES) {
 
     const payCtx = make();
     let paid = executeEffect(eff, payCtx);
+    ok(!paid.done && paid.pending.type === 'SELECT_TARGET', `${spec.effectId}: 対象宣言が出ない`);
+    paid = resumeSelectTarget([valid], paid.pending as never, ctxAfter(paid, payCtx));
     ok(!paid.done && paid.pending.type === 'SELECT_TARGET', `${spec.effectId}: 支払い選択が出ない`);
     paid = resumeSelectTarget([spec.cardNum], paid.pending as never, ctxAfter(paid, payCtx));
-    ok(!paid.done && paid.pending.type === 'SELECT_TARGET', `${spec.effectId}: 支払い後の相手対象選択が出ない`);
+    // 🔑帰結は**宣言した1体へ束縛**されるので、候補が1体なら確認のプロンプトだけが出る（O-413 と同じ）。
     if (!paid.done && paid.pending.type === 'SELECT_TARGET') {
-      ok(paid.pending.candidates.includes(valid), `${spec.effectId}: フィルタ内の相手が候補に入らない`);
+      ok(paid.pending.candidates.includes(valid), `${spec.effectId}: 帰結の候補が宣言した対象でない`);
       if (invalid) ok(!paid.pending.candidates.includes(invalid), `${spec.effectId}: フィルタ外の相手が候補に入った`);
       paid = resumeSelectTarget([valid], paid.pending, ctxAfter(paid, payCtx));
     }
@@ -55848,15 +55865,18 @@ test('段2 第25バッチ E2E: WXEX2-70-E1 は任意で他の自分の＜遊具�
   const effect = effectsMap.get('WXEX2-70')!.find(e => e.effectId === 'WXEX2-70-E1')!;
   ok(effect.action.type === 'SEQUENCE', 'WXEX2-70-E1: SEQUENCE');
   const sequence = effect.action as SequenceAction;
-  const cost = sequence.steps[0] as Extract<EffectAction, { type: 'BANISH' }>;
-  eq(cost.type, 'BANISH', '第1ステップはBANISH');
+  // 🆕**§5.3 `O-451`（2026-09-15）で対象宣言が先頭へ来た**＝原文は
+  //   「対戦相手のレベル3以下のシグニ1体を**対象とし**、あなたの他の＜遊具＞1体をバニッシュしてもよい」＝宣言が先。
+  eq((sequence.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '第1ステップは対象宣言（O-451）');
+  const cost = sequence.steps[2] as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(cost.type, 'BANISH', '第3ステップが犠牲のBANISH');
   eq(cost.target.owner, 'self', '犠牲owner=self');
   eq(cost.target.count, 1, '犠牲1体');
   eq(cost.target.filter?.story, '遊具', '犠牲は遊具');
   eq(cost.target.filter?.excludeSelf, true, 'このシグニ自身を除外');
   eq(cost.target.filter?.level, undefined, '相手対象のレベル条件を混ぜない');
   eq(cost.optional, true, '任意性を維持');
-  const send = findActionByType(sequence.steps[1], 'SEND_TO_ENERGY')!;
+  const send = findActionByType(sequence.steps[3], 'SEND_TO_ENERGY')!;
   eq(send.target.owner, 'opponent', '送る対象は相手');
   eq(send.target.filter?.level?.max, 3, '相手レベル3以下');
 
@@ -83171,6 +83191,81 @@ test('§5.3 O-450: ADD_TO_FIELD を辞退すると「そうした場合」ごと
   const rSibCtx = { ...ctx, ownerState: rSib0.ownerState, otherState: rSib0.otherState, logs: rSib0.logs } as ExecCtx;
   const rSibSkip = finish(resumeSelectTarget([], pSib as never, rSibCtx), rSibCtx);
   eq(rSibSkip.ownerState.hand.length, 5, '兄弟ステップ形は辞退しても走る（＝これが直した壊れ方）');
+}));
+
+// ── §5.3 `O-451`（2026-09-15）＝原文が「〈対象〉を**対象とし**、〈中間動作〉。…」と**先に宣言する**のに、
+//   live では**中間動作の後ろでしか対象を選んでいない**形（`O-413` の引き上げが届かない long tail）。
+//   🔴実害＝①コストを払わない／中間動作が空振りすると**対象宣言そのものが起きない**（`ON_TARGETED` が発火しない）
+//         ②`WXK09-090-E1` は**宣言した札が中間動作でデッキへ戻りうる**＝盤面差が出る。
+//   ⇒ parser の2パス（`hoistTargetBeforeCondition` の門を広げた分＋`hoistTargetBeforeLeadingAction`）で
+//     `O-413` の正準形（`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → 本体）へ引き上げる。
+test('§5.3 O-451: 中間動作の前に対象宣言がある（live 代表の形）', () => {
+  // 代表＝任意コスト／自分のシグニをバニッシュ・ダウン／エナチャージ／除外／ミル の5系統。
+  const cases: [string, string, string][] = [
+    ['WX18-001', 'WX18-001-E3', 'OPTIONAL_COST'],            // 手札から＜悪魔＞を1枚捨てる
+    ['WXEX2-70', 'WXEX2-70-E1', 'BANISH'],                   // あなたの他の＜遊具＞1体をバニッシュしてもよい
+    ['WX25-P1-055', 'WX25-P1-055-E1', 'DOWN'],               // アップ状態のこのシグニをダウンしてもよい
+    ['WX05-024', 'WX05-024-BURST', 'ENERGY_CHARGE_FROM_DECK'], // デッキの一番上をエナゾーンに置き
+    ['WXDi-P05-043', 'WXDi-P05-043-E1', 'EXILE'],            // トラッシュのスペルを2枚まで除外
+    ['WXK02-063', 'WXK02-063-E1', 'TRASH'],                  // デッキの上から5枚トラッシュ
+  ];
+  for (const [cardNum, effectId, midType] of cases) {
+    const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as SequenceAction | undefined;
+    ok(act?.type === 'SEQUENCE', `${effectId}: 正準形は SEQUENCE`);
+    if (act?.type !== 'SEQUENCE') continue;
+    eq((act.steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', `🔴${effectId}: 宣言が中間動作より後ろにある`);
+    eq((act.steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言を storedTargetCards へ固定する`);
+    eq(act.steps[2].type === 'STUB' ? (act.steps[2] as StubAction).id : act.steps[2].type, midType,
+      `${effectId}: 宣言の直後が原文どおりの中間動作`);
+    ok(JSON.stringify(act.steps.slice(3)).includes('"targetsStored":true'),
+      `🔴${effectId}: 帰結が宣言した対象へ束縛されていない（別のシグニを選び直せる）`);
+  }
+});
+
+// 🔴**`O-298` の据置契約を壊していないこと**＝`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族は
+//   自前で対象確定と事前チェックを持つので**先取りしない**。`O-451` で門を広げたとき、
+//   ここを見落として族へ宣言を挿し、golden 3本（`O-298 スコープ` ほか）が「二重選択になる」と落ちた。
+//   ⚠ただし**旧門（同じ文の中に「場合」）で既に当たっていた8カードは据置**＝族でも宣言が同居してよい。
+test('§5.3 O-451: 広げた門は TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 族へ届かない（O-298 の据置契約）', () => {
+  // (a) 「対象とし、〜を支払ってもよい。**そうした場合**」＝広げた門に当たる形＝族のまま。
+  for (const [cardNum, effectId] of [['WD06-001', 'WD06-001-E2'], ['PR-K076', 'PR-K076-E1']] as [string, string][]) {
+    const s = JSON.stringify(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action ?? {});
+    ok(s.includes('TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'), `${effectId}: 族の STUB が残っている`);
+    ok(!s.includes('SELECT_TARGET_ONLY'), `🔴${effectId}: 族へ事前確定を挿入している（対象選択が二重になる）`);
+  }
+  // (b) 旧門（同じ文の中に「場合」）で当たっていた形は**宣言が同居したまま**＝巻き添えで消していない。
+  const s2 = JSON.stringify(effectsMap.get('WX14-044')?.find(e => e.effectId === 'WX14-044-E2')?.action ?? {});
+  ok(s2.includes('SELECT_TARGET_ONLY') && s2.includes('TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'),
+    '🔴旧門で当たっていた形の宣言まで消えた（族を丸ごと除外すると起きる）');
+});
+
+// 挙動側＝**中間動作を辞退しても対象宣言は起きる／帰結は起きない**（`WX18-001-E3`）。
+test('§5.3 O-451: 支払いを辞退しても対象宣言は出る（両側＋反転確認）', () => withSavedCursor(() => {
+  const oppA = fresh(), oppB = fresh();
+  const eff = effectsMap.get('WX18-001')!.find(e => e.effectId === 'WX18-001-E3')!;
+  const mk = (): ExecCtx => mkCtx({ hand: 3 }, { signi: [oppA, oppB, null] }, 'WX18-001');
+  const ctx = mk();
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, '🔴支払いより先に対象宣言のプロンプトが出ていない');
+  const p0 = (r0 as { pending: { type: string; candidates?: string[] } }).pending;
+  eq(p0.type, 'SELECT_TARGET', '先頭は対象宣言');
+  eq((p0.candidates ?? []).length, 2, '宣言の候補は相手シグニ2体');
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const r1 = resumeSelectTarget([oppA], p0 as never, rctx);
+  ok(!r1.done, '宣言のあとに支払いの二択へ進む');
+  const p1 = (r1 as { pending: { type: string; options: { id: string }[] } }).pending;
+  eq(p1.type, 'CHOOSE', '2つ目は支払いの二択');
+  const c1 = { ...rctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs,
+    storedTargetCards: r1.storedTargetCards } as ExecCtx;
+  const rSkip = finish(resumeChoose(['skip'], p1 as never, c1), c1);
+  eq(rSkip.otherState.field.signi.filter(z => z && z.length > 0).length, 2,
+    '🔴辞退したのにバニッシュしている');
+  // 🔴反転確認＝宣言2ステップを外した「旧 live の形」なら**先頭が支払いの二択**（宣言が出ない）。
+  const oldShape = { type: 'SEQUENCE', steps: (eff.action as SequenceAction).steps.slice(2) } as EffectAction;
+  const rOld = executeEffect({ ...eff, effectId: 't-o451-old', action: oldShape } as CardEffect, mk());
+  ok(!rOld.done);
+  eq((rOld as { pending: { type: string } }).pending.type, 'CHOOSE',
+    '旧形は対象宣言を出さずいきなり支払いを問う（＝これが直した壊れ方）');
 }));
 
 // ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。

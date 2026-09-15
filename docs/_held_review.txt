@@ -3,51 +3,15 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +SEQUENCE ［21枚］
-SPDi43-29 WX24-P1-042 WX24-P2-050 WX25-P1-092 WX25-P2-095 WX25-P3-069 WXDi-CP02-086 WXDi-CP02-090 WXDi-D09-H19 WXDi-P00-036 WXDi-P01-042 WXDi-P02-074 WXDi-P03-042 WXDi-P03-058 WXDi-P05-066 WXDi-P12-054 WXDi-P12-063 WXDi-P14-055 WXDi-P15-070 WXDi-P15-087 WXDi-P16-076
---- SPDi43-29
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《338　レイ》がいる場合、対戦相手のレベル２以下のシグニ１体を対象とし、それのレベル１につき手札から青のカードを１枚捨ててもよい。そうした場合、それをデッキの一番下に置く。【出】：対戦相手のシグニ１体を対象とし、それを凍結する。,-
-  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "opponent"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.level.max = 2
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[0].abortIfNoCandidate = true
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  - [0].action.steps[2].type = "CONDITIONAL"
-  - [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  …（他 48 行）
---- WX24-P1-042
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《閃花繚乱　花代・参》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、手札から＜宝石＞のシグニを１枚捨ててもよい。そうした場合、それをバニッシュする。【起】エナゾーンから＜宝石＞のシグニ３枚をトラッシュに置く：ターン終了時まで、このシグニは「【常】：あなたの手札が２枚以下であるかぎり、この
-  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "opponent"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.powerRange.max = 12000
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  - [0].action.steps[2].type = "CONDITIONAL"
-  - [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  - [0].action.steps[2].condition.owner = "self"
-  …（他 44 行）
---- WX24-P2-050
-  原文: 【自】：アタックフェイズの間、対戦相手のエナゾーンにカード１枚が置かれたとき、対戦相手のエナゾーンにカードが３枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く。【自】：このシグニがアタックしたとき、あなたの場に《熾炎舞　遊月・参》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、あなたのエナ
-  - [1].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [1].action.steps[0].selectTarget.type = "SIGNI"
-  - [1].action.steps[0].selectTarget.owner = "opponent"
-  - [1].action.steps[0].selectTarget.count = 1
-  - [1].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [1].action.steps[0].selectTarget.filter.powerRange.max = 12000
-  - [1].action.steps[0].selectTarget.upToCount = false
-  - [1].action.steps[1].type = "STUB"
-  - [1].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  - [1].action.steps[2].type = "CONDITIONAL"
-  - [1].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  - [1].action.steps[2].condition.owner = "self"
-  …（他 44 行）
+## （type増減なし＝値/構造変更） ［5枚］
+WX15-061 WX20-049 WX24-P1-003 WX24-P4-028 WXK04-084
+--- WX15-061
+  原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、《無》を支払ってもよい。そうした場合、このシグニを場からトラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それをダウン状態で場に出す。,-
+  - [0].action.steps[1].then.steps[0].bestEffort = true
+--- WX20-049
+  原文: 【自】：このシグニがアタックしたとき、《黒》を支払ってもよい。そうした場合、このシグニを場からトラッシュに置き、あなたのデッキからカード名に《ニホニンギョ》を含むシグニを１枚探して場に出し、デッキをシャッフルする。【出】：対戦相手のシグニ１体を対象とし、あなたのトラッシュにカード名に《ニホニンギョ》を含むカードがある場合、ターン終了時まで、それの基本パワーを
+  - [0].action.steps[1].then.steps[0].bestEffort = true
+--- WX24-P1-003
+  原文: 以下の３つから２つまで選ぶ。①あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。②手札をすべて捨て、カードを４枚引く。③手札を３枚捨ててもよい。そうした場合、対戦相手のライフクロス１枚をクラッシュする。そのカードのライフバーストは発動しない。,-
+  - [0].action.choices[1].action.steps[0].bestEffort = true
 

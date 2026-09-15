@@ -14833,8 +14833,155 @@ function sinkTargetDeclIntoLeadingCondition(text: string, parsed: EffectAction):
   } as EffectAction;
 }
 
+/**
+ * 🆕**§5.3 `O-451`（2026-09-15）＝「〈対象〉を**対象とし**、〈中間動作〉。**そうした場合**、〜」も引き上げる。**
+ *
+ * 🔴旧の門は `を対象とし[^。]*?場合[、，]` ＝**同じ文の中に「場合」があること**を要求していたので、
+ *   「そうした場合」が**次の文**に来るこの形（任意コストを挟むのが典型）に1件も届いていなかった。
+ * 🔑原文が先に宣言する以上、**中間動作（コストの支払い等）より前に対象を選ぶ**のが正しい＝
+ *   `O-413` の正準形（`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → 本体）へ引き上げる。
+ * ⚠**文境界は1つだけ**許す（`[^。]*。`）＝2文以上またぐと「そうした場合」がどの宣言に掛かるか決まらない。
+ * ⚠`「` を含む形（引用付与の内側）は除く＝内側の能力の文を外側の宣言と混ぜない。
+ */
+const O451_DECL_THEN_DIDIT = /を対象とし[^。「」]*。\s*そうした場合[、，]/;
+
+/**
+ * 🆕**§5.3 `O-451`（2026-09-15）＝「〈対象〉を**対象とし**、〈中間動作〉。〈帰結〉」の**兄弟形**を引き上げる。**
+ *
+ * 🔑`hoistTargetBeforeCondition`（`O-413`）は**対象ホルダーが `CONDITIONAL` の内側にある形**だけを扱う。
+ *   ところが `SEQUENCE[〈中間動作〉, 〈帰結（素の兄弟）〉]` の形は条件節が無いので届かない。
+ *   🔴実測＝`WX05-024-BURST`「相手のパワー10000以上のシグニ1体を**対象とし**、デッキの一番上を
+ *   エナゾーンに置き、それをバニッシュする」は **エナチャージの後にしか対象を選ばせていない**。
+ *
+ * ⚠**fail-closed**（`O-413` の①〜⑧を「条件節が無い側」へ写したもの）＝
+ *   ①原文の「を対象とし」より**前に「。」が無い**（＝効果の最初の文で宣言している）
+ *   ②木に `SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` が無い（冪等）
+ *   ③トップレベルが `SEQUENCE` で、`CHOOSE` を含まない（枝を選ぶ前に宣言しない）
+ *   ④対象ホルダーが**ちょうど１つ**で、それより**前に対象を持たないステップが1つ以上**ある
+ *   ⑤型・`target` の形・フィルタのキーは `O-413` と**同じ許可リスト**
+ *   ⑥ホルダーが既に照応（`targetsStored` 等）で受けていない
+ * 🔑**宣言は先頭へ入れる**ので、中間動作が `lastProcessedCards` を書き直しても
+ *   帰結は `targetsStored`（別の入れ物）で束縛される＝**枚数の倍率参照は壊れない**
+ *   （実測＝`WXDi-P05-043-E1` の `deltaPerLastProcessedCount` は除外した枚数を見たまま）。
+ */
+/**
+ * 🔴**`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族は対象宣言を先取りしない**（`O-298` の既定契約）。
+ *
+ * あの STUB は「対象選択して発動」を**1つで扱う別設計**で、自前の事前チェック
+ * （`effectExecutor` の `targetAvailableTOSOC`）を持つ。ここへ `SELECT_TARGET_ONLY` を挿すと
+ * **対象選択が二重**になる（golden「O-298 スコープ」がこれを固定している）。
+ * 🔑この族の「先に宣言する」は **`optionalCostTarget`**（族自前の受け皿）で表す。
+ */
+function hasTosocStub(node: unknown): boolean {
+  if (!node || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some(hasTosocStub);
+  const o = node as Record<string, unknown>;
+  if (o.type === 'STUB' && o.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') return true;
+  return Object.values(o).some(hasTosocStub);
+}
+
+function hoistTargetBeforeLeadingAction(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  if (hasTosocStub(parsed)) return parsed;                     // `O-298` の据置契約
+  const pT = text.indexOf('を対象とし');
+  if (pT < 0) return parsed;                                   // ①
+  if (text.slice(0, pT).includes('。')) return parsed;             // ①
+  // 🔴**原文の「対象とし」が2つ以上ある形は触らない**（2026-09-15 実測で踏んだ）＝
+  //   `WX20-029-E1`「トラッシュから〜を**対象とし**、デッキに加えてシャッフルする。**その後**、
+  //   対戦相手のシグニ1体を**対象とし**、…」は**2つ目が「その後」＝後ろで正しい**のに、
+  //   1つ目（`source` を持つ `TRANSFER_TO_DECK`）をホルダーと数え損ねて2つ目を先頭へ上げてしまった。
+  if ((text.match(/を対象とし/g) ?? []).length !== 1) return parsed;
+  // 🔴**コスト前置き（「〈コスト〉：〈対象とし〉…」）は引き上げない**＝木の先頭に来る `TRASH` 等は
+  //   原文でも**宣言より前**にあるコストなので、中間動作ではない（実測＝`WXDi-P13-041-E1`
+  //   「【出】手札を好きな枚数捨てる：対戦相手のシグニ1体を対象とし、…」）。
+  // ⚠**「：」の有無で判定してはいけない**＝`【自】：` `【起】《アイコン》：` `：`（バースト）の区切りも
+  //   「：」なので、素朴に弾くと `WXDi-P05-043-E1` / `WX05-024-BURST` まで巻き添えになる（実測）。
+  //   ⇒ **能力種別【…】と「：」の間に、アイコン《…》を除いた地の文が残るときだけ**コストと見なす。
+  {
+    const head = text.slice(0, pT);
+    const colon = head.lastIndexOf('：');
+    if (colon >= 0) {
+      const marker = head.lastIndexOf('】', colon);
+      const costPart = head.slice(marker + 1, colon).replace(/《[^》]*》/g, '').replace(/\s|　/g, '');
+      if (costPart.length > 0) return parsed;
+    }
+  }
+  let wired = false;
+  const scanWired = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(scanWired); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && (o.id === 'SELECT_TARGET_ONLY' || o.id === 'STORE_LAST_PROCESSED_TARGETS')) wired = true;
+    if (o.type === 'CHOOSE') wired = true;                     // ③`CHOOSE` を含む形は触らない
+    Object.values(o).forEach(scanWired);
+  };
+  scanWired(parsed);
+  if (wired) return parsed;                                    // ②③
+  const steps = (parsed as SequenceAction).steps;
+  if (steps.length < 2) return parsed;
+  const holders: { idx: number; node: Record<string, unknown> }[] = [];
+  const collect = (n: unknown, idx: number): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(x => collect(x, idx)); return; }
+    const o = n as Record<string, unknown>;
+    // ⚠**`source` も宣言**＝「トラッシュから〜を対象とし」は `source` に載る。数え落とすと
+    //   「宣言がちょうど1つ」の門が素通りして、別の宣言を先頭へ上げてしまう（実測）。
+    if (o.target || o.selectTarget || o.optionalCostTarget || o.source) holders.push({ idx, node: o });
+    for (const [k, v] of Object.entries(o)) { if (k === 'effect' || k === 'abilities') continue; collect(v, idx); }
+  };
+  steps.forEach((st, i) => collect(st, i));
+  // 🔑**原文の「対象とし」1つに対応するのは「相手シグニを数で取るホルダー」ちょうど1つ**。
+  //   ⚠前段の `EXILE{TRASH_CARD}` / `BANISH{self}` のような**宣言ではない選択**もホルダーに数えられるので、
+  //     「ホルダーがちょうど1つ」では `WXDi-P05-043-E1` / `WXEX2-70-E1` のような形に届かない。
+  //   ⇒ **相手シグニ対象が2つ以上ある形は据置**（どちらに掛かるか決まらない＝fail-closed）。
+  const isOppSigniHolder = (o: Record<string, unknown>): boolean => {
+    const t = o.target as Record<string, unknown> | undefined;
+    return !!t && t.type === 'SIGNI' && t.owner === 'opponent' && typeof t.count === 'number';
+  };
+  const oppHolders = holders.filter(h => isOppSigniHolder(h.node));
+  if (oppHolders.length !== 1) return parsed;                  // ④
+  const { idx, node } = oppHolders[0];
+  if (idx === 0) return parsed;                                // ④（前段が無い）
+  // 🔴**前段が相手を対象に取る形は「中間動作」ではなく同時宣言**＝原文は
+  //   「対戦相手のルリグ1体**と**対戦相手のシグニ1体を**対象とし**、それらを凍結する」のように
+  //   1つの「対象とし」で2つ宣言している（実測＝`WXDi-P02-041-BURST` ほか3件）。引き上げない。
+  if (steps.slice(0, idx).some(st => JSON.stringify(st).includes('"owner":"opponent"'))) return parsed;
+  if (!O413_STORED_TARGET_ACTIONS.has(String(node.type))) return parsed;                 // ⑤
+  if (node.targetsStored || node.targetsLastProcessed || node.targetsTriggerSource || node.fixedCardNums) return parsed; // ⑥
+  const target = node.target as Record<string, unknown> | undefined;
+  if (!target || target.type !== 'SIGNI' || typeof target.count !== 'number') return parsed;
+  if (target.owner !== 'opponent') return parsed;              // 🔑実害（`ON_TARGETED`）が出るのは相手シグニだけ
+  if (Object.keys((target.filter ?? {}) as Record<string, unknown>).some(k => !O413_STATIC_FILTER_KEYS.has(k))) return parsed;
+  const decl: EffectAction[] = [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as unknown as EffectAction,
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as unknown as EffectAction,
+  ];
+  const stamp = (n: unknown): unknown => {
+    if (!n || typeof n !== 'object') return n;
+    if (Array.isArray(n)) return n.map(stamp);
+    if (n === node) return { ...(n as Record<string, unknown>), targetsStored: true };
+    const o = n as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) out[k] = stamp(v);
+    return out;
+  };
+  return { ...parsed, steps: [...decl, ...steps.map(st => stamp(st) as EffectAction)] } as SequenceAction;
+}
+
 function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectAction {
-  if (!/を対象とし[^。]*?場合[、，]/.test(text)) return parsed;
+  const matchedSameSentence = /を対象とし[^。]*?場合[、，]/.test(text);
+  if (!matchedSameSentence && !O451_DECL_THEN_DIDIT.test(text)) return parsed;
+  // 🔴**広げた門（`O-451`）だけ `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族を除く**（`O-298` の据置契約）。
+  //   ⚠**族を丸ごと除くのは行きすぎ**＝原文が「対象とし、〜の**場合**、〜を支払ってもよい」（同じ文）の
+  //     8カードは**既に live で宣言と族の STUB が同居していて正しく動いている**（`WX14-044` ほか実測）。
+  //     旧門で当たっていた形は据え置き、**新しく届くようになった形だけ**を止める。
+  if (!matchedSameSentence && hasTosocStub(parsed)) return parsed;
+  // 🔴**広げた門は「相手を対象に取る形」だけ**＝`ON_TARGETED`（相手の効果の対象になったとき）は
+  //   **相手のシグニにしか無い**ので、自分のシグニ／自分のゾーンが対象の形は引き上げても観測差が出ない。
+  //   ⚠実測＝`WX22-044-E1` / `WX26-CP1-055-E1` は golden（`O-249` 第154 ②）が
+  //     **「中間動作が盤面を動かさないので自由選択でも原文と同値」と判定済み**だった＝
+  //     広げた門で巻き込むと、その先例の assert が壊れるだけで得るものが無い。
+  const oppOnly = !matchedSameSentence;
   // ②既に配線済み／冪等（木のどこかに宣言があれば触らない）
   let wired = false;
   const scanWired = (n: unknown): void => {
@@ -14846,16 +14993,16 @@ function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectA
   };
   scanWired(parsed);
   if (wired) return parsed;
-  return hoistWithinBlock(parsed);
+  return hoistWithinBlock(parsed, oppOnly);
 }
 
 /**
  * 1つの「ブロック」（トップレベル、または `CHOOSE` の1枝）の中で対象宣言を先頭へ引き上げる。
  * 🔑**`CHOOSE` は枝ごとに別のブロック**＝枝を選ぶ前に宣言してしまわないよう、枝の中で完結させる。
  */
-function hoistWithinBlock(block: EffectAction): EffectAction {
+function hoistWithinBlock(block: EffectAction, oppOnly = false): EffectAction {
   if (block.type === 'CHOOSE') {
-    return { ...block, choices: block.choices.map(c => ({ ...c, action: hoistWithinBlock(c.action) })) };
+    return { ...block, choices: block.choices.map(c => ({ ...c, action: hoistWithinBlock(c.action, oppOnly) })) };
   }
   if (block.type !== 'SEQUENCE' && block.type !== 'CONDITIONAL') return block;
   const topSteps: EffectAction[] = block.type === 'SEQUENCE' ? (block as SequenceAction).steps : [block];
@@ -14881,7 +15028,7 @@ function hoistWithinBlock(block: EffectAction): EffectAction {
     collect(st, false);
   }
   // `CHOOSE` を含む枝は、枝側で再帰処理してから返す（トップレベルに `CHOOSE` があるだけの形）。
-  const withChoose = topSteps.map(st => (st.type === 'CHOOSE' ? hoistWithinBlock(st) : st));
+  const withChoose = topSteps.map(st => (st.type === 'CHOOSE' ? hoistWithinBlock(st, oppOnly) : st));
   const rebuild = (steps: EffectAction[]): EffectAction =>
     block.type === 'SEQUENCE' ? ({ ...block, steps } as SequenceAction) : steps[0];
   if (outsideHolder || holders.length === 0 || condCount === 0) return rebuild(withChoose);
@@ -14891,6 +15038,7 @@ function hoistWithinBlock(block: EffectAction): EffectAction {
   const first = holders[0];
   const target = first.target as Record<string, unknown> | undefined;
   if (!target || target.type !== 'SIGNI' || typeof target.count !== 'number') return rebuild(withChoose);
+  if (oppOnly && target.owner !== 'opponent') return rebuild(withChoose);   // `O-451` で広げた門だけの制限
   if (Object.keys((target.filter ?? {}) as Record<string, unknown>)
     .some(k => !O413_STATIC_FILTER_KEYS_LOCAL.has(k))) return rebuild(withChoose);
   const targetKey = JSON.stringify(target);
@@ -31993,6 +32141,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = hoistTargetBeforeCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-451`＝条件節が無い「〈中間動作〉→〈帰結（素の兄弟）〉」の形も引き上げる。
+    effect.action = hoistTargetBeforeLeadingAction(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-452`＝逆向き（原文が「場合」→「対象とし」の順）は条件の内側へ沈める。
     effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
