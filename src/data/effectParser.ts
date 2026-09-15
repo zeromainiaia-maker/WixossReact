@@ -14700,6 +14700,65 @@ const O413_STATIC_FILTER_KEYS = new Set<string>([
   'powerLteSelf', 'powerLtSelf', 'powerGtSelf', 'powerLteSelfHalf', 'levelLteSelf',
 ]);
 
+/**
+ * §5.3 `O-452`（2026-09-15）＝**`O-413` の逆向き**＝原文が「〈条件〉の**場合**、〜を**対象とし**、…」（＝条件が先）
+ * なのに、対象宣言（`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS`）が**条件の外**に置かれている形を、
+ * 条件の内側へ**沈める**。
+ *
+ * 🔴**実挙動差**＝条件が不成立でも対象宣言が走るので、
+ *   ①`ON_TARGETED`（「対戦相手の能力か効果の**対象になったとき**」・`triggerCollect.ts:743`）が**誤発火**する
+ *   ②条件を満たしていないのに**対象選択UIが出る**（`storedTargetCards` も汚れる）。
+ * 🔑**出どころは `O-413`（第352バッチ）ではない**＝`applyDroppedTargetDesignation` / `O-96` 系の
+ *   **もっと古い経路**が先頭へ平坦挿入していた（`1bf358353^` の live と同一であることを確認済み）。
+ *
+ * 🔑**早い段（`applyDroppedTargetDesignation` の条件先枝）を広げて直してはいけない**＝実測で
+ *   **任意コスト STUB が素の `TRASH{HAND_CARD}`（＝強制の手札破棄）に化けた**（`WX24-P1-042-E1`）。
+ *   下流の pass が「木の形」で分岐しているため、早い段で形を変えると別の変換が走る。
+ *   ⇒ **全 pass の最後**に、`hoistTargetBeforeCondition` と対で**形だけ**を直す。
+ *
+ * ⚠**fail-closed**＝
+ *   ①原文で「場合、／かぎり、」が「対象とし」より前にあり、その間に **`。` も `「` も無い**
+ *     （`。` を挟む形＝コスト軽減の前置き／`「` を挟む形＝引用付与の**外側**の条件。どちらも別物）
+ *   ②木が `SEQUENCE[SELECT_TARGET_ONLY, STORE_LAST_PROCESSED_TARGETS, CONDITIONAL{…}, (did-it ゲート?)]`
+ *   ③その `CONDITIONAL` の条件が **did-it ゲートではない**（`IS_MY_TURN` / `PAID_ADDITIONAL_COST`）かつ `else` を持たない
+ *   ④残りのステップは**「そうした場合」ゲート1つまで**（独立文が続く形は沈めると過小実行になる）
+ * 🔑**engine の隣接契約を壊さない**＝沈めた後も `STUB{OPTIONAL_COST}` の**直後**が
+ *   `CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}` のままなので、任意コスト dispatcher の Pattern④ に当たる。
+ */
+function sinkTargetDeclIntoLeadingCondition(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  const steps = (parsed as SequenceAction).steps;
+  if (steps.length < 3 || steps.length > 4) return parsed;
+  const decl0 = steps[0] as StubAction;
+  const decl1 = steps[1] as StubAction;
+  if (decl0?.type !== 'STUB' || decl0.id !== 'SELECT_TARGET_ONLY') return parsed;
+  if (decl1?.type !== 'STUB' || decl1.id !== 'STORE_LAST_PROCESSED_TARGETS') return parsed;
+  const cond = steps[2];
+  if (cond?.type !== 'CONDITIONAL') return parsed;
+  const c = cond as import('../types/effects').ConditionalAction;
+  if (c.else) return parsed;
+  if (['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes(c.condition.type)) return parsed;
+  const rest = steps.slice(3);
+  if (rest.length > 1) return parsed;
+  if (rest.length === 1 && !isDidItGate(rest[0])) return parsed;
+  // ①原文の語順＝「対象とし」の直前にある条件句が、同じ文の中にあること。
+  const pT = text.indexOf('対象とし');
+  if (pT < 0) return parsed;
+  const pre = text.slice(0, pT);
+  const hits = [...pre.matchAll(/場合[、，]|かぎり[、，]/g)];
+  const last = hits[hits.length - 1];
+  if (!last) return parsed;
+  const between = text.slice((last.index ?? 0) + last[0].length, pT);
+  if (between.includes('。') || between.includes('「')) return parsed;
+  return {
+    ...parsed,
+    steps: [{
+      ...c,
+      then: { type: 'SEQUENCE', steps: [decl0, decl1, c.then, ...rest] } as SequenceAction,
+    } as EffectAction],
+  } as EffectAction;
+}
+
 function hoistTargetBeforeCondition(text: string, parsed: EffectAction): EffectAction {
   if (!/を対象とし[^。]*?場合[、，]/.test(text)) return parsed;
   // ②既に配線済み／冪等（木のどこかに宣言があれば触らない）
@@ -31816,6 +31875,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = hoistTargetBeforeCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-452`＝逆向き（原文が「場合」→「対象とし」の順）は条件の内側へ沈める。
+    effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。

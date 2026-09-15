@@ -40361,10 +40361,14 @@ test('task12(lxv)③ レベル倍率コストの組み替えが条件包みを�
   const steps = (eff.action as SequenceAction).steps;
   const costSteps = JSON.stringify(steps).match(/"id":"OPTIONAL_COST"/g) ?? [];
   eq(costSteps.length, 1, '任意コストはひとつだけ');
-  eq((steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言が先頭（支払い額が対象レベル依存のため）');
-  const wrap = steps[2] as { type: string; condition?: { type: string }; then?: { handDiscardCountFromTargetLevel?: boolean } };
-  eq(wrap.type, 'CONDITIONAL', 'コストは《338　レイ》ゲートに包まれたまま');
-  ok(wrap.then!.handDiscardCountFromTargetLevel, '包みの中身がレベル倍率つきの任意コストに差し替わる');
+  // 🆕**§5.3 `O-452`（2026-09-15）で対象宣言は条件の内側へ沈んだ**＝原文が
+  //   「《338　レイ》がいる**場合**、〜を**対象とし**」の順（条件が先）なので、
+  //   宣言が条件の外にあると条件不成立でも `ON_TARGETED` が誤発火していた。
+  const wrap = steps[0] as { type: string; condition?: { type: string }; then?: SequenceAction };
+  eq(wrap.type, 'CONDITIONAL', '先頭は《338　レイ》ゲート（宣言ではない）');
+  const inner = wrap.then as SequenceAction;
+  eq((inner.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言は条件の内側の先頭（支払い額が対象レベル依存のため）');
+  ok(JSON.stringify(inner).includes('"handDiscardCountFromTargetLevel":true'), 'レベル倍率つきの任意コストが内側にある');
 });
 
 test('task12(lxiv)② 「手札がN枚になるように捨てる」は実行時の手札枚数との差だけ捨てる', () => {
@@ -51543,7 +51547,15 @@ test('§6.4 O-35: 「すべてのシグニが〈色〉の場合」は条件が�
   const steps = (eff!.action as SequenceAction).steps;
   const wrap = steps.find(x => x.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
   eq(wrap.condition.type, 'ALL_FIELD_SIGNI_MATCH', 'ゲートは全体色一致');
-  eq((wrap.then as StubAction).id, 'OPTIONAL_COST', '🔴then が素の STUB 単体でないと engine が包みを解けない');
+  // 🆕**§5.3 `O-452`（2026-09-15）で `then` は `SEQUENCE` になった**＝原文が「すべてのシグニが赤の**場合**、
+  //   〜を**対象とし**」の順なので、対象宣言を条件の内側へ沈めた。
+  // 🔑**「素の STUB 単体でないと engine が包みを解けない」は、この形には当てはまらない**＝
+  //   `OPT_IDS_WRAP` の包み解きに頼らず、内側の `SEQUENCE` で「コスト STUB の直後が did-it ゲート」＝
+  //   Pattern④ に当たる。挙動側は `§5.3 O-452: 条件の内側でも任意コストは pay/skip が提示され…` が両側で見ている。
+  const innerO35 = wrap.then as SequenceAction;
+  eq(innerO35.type, 'SEQUENCE', '条件の内側は SEQUENCE（宣言→コスト→ゲート）');
+  eq((innerO35.steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', '対象宣言が条件の内側の先頭');
+  eq((innerO35.steps[2] as StubAction).id, 'OPTIONAL_COST', 'コスト STUB は did-it ゲートの直前のまま');
 });
 
 
@@ -77555,7 +77567,15 @@ for (const [cardNum, effectId, must] of [
       const json = JSON.stringify(effect.action);
       for (const fragment of must) ok(json.includes(fragment), `${freshParse ? 'fresh' : 'live'}: ${fragment}`);
       // 🔴条件は**任意コストを含む枝ごと**包む＝条件不成立でコストだけ払える形へ戻さない。
-      ok(!/\{"type":"STUB","id":"OPTIONAL_COST"[^}]*\},\{"type":"CONDITIONAL","condition":\{"type":"IS_MY_TURN"/.test(json),
+      // 🆕**§5.3 `O-452`（2026-09-15）で assert を書き換えた**＝旧版は「`OPTIONAL_COST` の直後に
+      //   `CONDITIONAL{IS_MY_TURN}` が**並んでいない**こと」を見ていたが、対象宣言を条件の内側へ沈めた結果、
+      //   **条件の内側でその並びになる**（正しい形）ので誤検知する。⇒ **任意コストを含むトップレベルの
+      //   ステップが、その効果の発動条件そのものであること**を見る形へ変えた。
+      const topSteps = effect.action.type === 'SEQUENCE'
+        ? (effect.action as SequenceAction).steps : [effect.action];
+      const costHost = topSteps.find(st => JSON.stringify(st).includes('"id":"OPTIONAL_COST"'));
+      ok(!!costHost, `${freshParse ? 'fresh' : 'live'}: 任意コストがどこにも無い`);
+      ok(JSON.stringify(costHost).includes(must[0]),
         `${freshParse ? 'fresh' : 'live'}: 条件が任意コストの外へ戻っている`);
     }
   });
@@ -78619,15 +78639,14 @@ test('O-324: 場の条件（FIELD_SIGNI_ALL_DISTINCT_CLASS）が発動ゲート�
   ok(!!e, 'WX25-P1-092-E1 が live にある'); if (!e) return;
   const j = JSON.stringify(e);
   ok(j.includes('FIELD_SIGNI_ALL_DISTINCT_CLASS'), '🔴場の異クラス条件が落ちている');
-  // ⚠**残件（意図的に未達）**＝条件が包んでいるのは任意コストのステップまでで、
-  //   その前の `SELECT_TARGET_ONLY` は条件の外に残っている＝**条件不成立でも対象選択のプロンプトが出る**。
-  //   盤面は動かない（`PAID_ADDITIONAL_COST` が偽になるので BANISH は起きない）ので過剰実行ではない。
-  //   🔴**巻き取り位置を直そうとして `LEADING_STATE_CLAUSES` の前置き許可リストへ
-  //   「あなたのアタックフェイズ開始時」を足す案を A/B で試したが、この効果は変わらず
-  //   `WXK09-046-E1`（「**次の**あなたのアタックフェイズ開始時、…ある場合」＝遅延誘発）だけが
-  //   perturb した**＝効果ゼロ・副作用ありなので撤回した。ここは据置。
-  const steps = (e.action as SequenceAction).steps as { type: string; id?: string }[];
-  eq(steps[0]?.id, 'SELECT_TARGET_ONLY', '（残件）対象選択は条件の外に残っている＝直したら この assert を更新する');
+  // 🏁**残件は §5.3 `O-452`（2026-09-15）で解消した**＝旧コメントの「対象選択は条件の外に残っている
+  //   （＝条件不成立でも対象選択のプロンプトが出る）」は、`sinkTargetDeclIntoLeadingCondition` で
+  //   宣言を条件の内側へ沈めて直した。🔴**「盤面は動かないので過剰実行ではない」は誤りだった**＝
+  //   宣言そのものが `ON_TARGETED`（`triggerCollect.ts:743`・live 18効果）を誤発火させる。
+  const steps = (e.action as SequenceAction).steps as { type: string; id?: string; then?: SequenceAction }[];
+  eq(steps[0]?.type, 'CONDITIONAL', '先頭は場の異クラス条件（宣言ではない）');
+  eq(steps[0]?.then?.steps?.[0] && (steps[0].then.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY',
+    '対象選択は条件の内側にある（§5.3 O-452）');
 });
 
 test('O-324: エナから好きな枚数を手札へ戻す2効果に「互いに異クラス」制約が載る（MANUAL）', () => {
@@ -83174,6 +83193,89 @@ test('§5.3 O-413: 条件不成立でも対象宣言は出る／成立なら宣�
     eq(left, hasAdamas ? 0 : 1,
       hasAdamas ? '条件成立＝宣言した対象がバニッシュされる' : '条件不成立＝宣言はするが帰結は起きない');
   }
+}));
+
+// ── §5.3 `O-452`（2026-09-15）＝`O-413` の**逆向き**＝原文が「〈条件〉の**場合**、〜を**対象とし**」
+//   （条件が先）の効果は、対象宣言が**条件の内側**にあること。外にあると条件不成立でも
+//   `ON_TARGETED` が誤発火し、対象選択UIまで出る（実測22効果）。
+test('§5.3 O-452: 「場合」→「対象とし」の順の効果は対象宣言が条件の内側にある', () => {
+  // live の代表6件（任意コスト形・素の帰結形の両方を含む）。
+  const cases: [string, string][] = [
+    ['WXDi-P14-055', 'WXDi-P14-055-E1'], ['WX24-P1-042', 'WX24-P1-042-E1'],
+    ['WXDi-D09-H19', 'WXDi-D09-H19-E1'], ['WXDi-P16-076', 'WXDi-P16-076-E1'],
+    ['WX25-P3-104', 'WX25-P3-104-E1'], ['WXDi-P12-054', 'WXDi-P12-054-E2'],
+  ];
+  for (const [cardNum, effectId] of cases) {
+    const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as SequenceAction | undefined;
+    ok(act?.type === 'SEQUENCE', `${effectId}: 正準形は SEQUENCE`);
+    if (act?.type !== 'SEQUENCE') continue;
+    const head = act.steps[0] as ConditionalAction;
+    eq(head.type, 'CONDITIONAL', `${effectId}: 先頭は原文の条件（宣言ではない）`);
+    ok(!['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes(head.condition.type),
+      `${effectId}: 先頭の条件は did-it ゲートではない`);
+    const inner = head.then as SequenceAction;
+    ok(inner?.type === 'SEQUENCE', `${effectId}: 条件の内側は SEQUENCE`);
+    if (inner?.type !== 'SEQUENCE') continue;
+    eq((inner.steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', `${effectId}: 対象宣言は条件の内側`);
+    eq((inner.steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言を固定する`);
+    ok(JSON.stringify(inner).includes('"targetsStored":true'), `${effectId}: 帰結は宣言した対象へ束縛`);
+  }
+});
+// 挙動側＝条件不成立なら**対象宣言そのものが出ない**（`O-413` の「宣言は出る」と対になる両側テスト）。
+test('§5.3 O-452: 条件不成立なら対象宣言も出ない／成立なら出る（両側）', () => withSavedCursor(() => {
+  // `WX25-P3-104-E1`＝「あなたの場に他の＜毒牙＞のシグニがある場合、対戦相手のレベル２以下の
+  //   シグニ１体を対象とし、このターン、パワーが０以下のそれが…トラッシュに置かれる。」
+  const act = effectsMap.get('WX25-P3-104')!.find(e => e.effectId === 'WX25-P3-104-E1')!.action;
+  const poison = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙') && c.CardNum !== 'WX25-P3-104');
+  const lv2 = findCard(c => isSigni(c) && (c.Level ?? '') === '2');
+  for (const hasPoison of [false, true]) {
+    const ctx = mkCtx({ signi: [hasPoison ? poison : lv2, null, null] }, { signi: [lv2, null, null] }, 'WX25-P3-104');
+    const r = executeAction(act, ctx);
+    if (hasPoison) {
+      ok(!r.done, '🔴条件成立なのに対象宣言の SELECT_TARGET が出ていない');
+      eq((r as { pending: { type: string } }).pending.type, 'SELECT_TARGET', '宣言は SELECT_TARGET');
+    } else {
+      ok(r.done, '🔴条件不成立なのに対象宣言が出た（ON_TARGETED の誤発火・§5.3 O-452）');
+      // 🔑**反転確認**＝同じ盤面で「修正前の形（宣言が条件の外）」を組み立てると、
+      //   条件不成立でも `SELECT_TARGET` が出る＝このテストが本当に差を見ていることの確認。
+      const head = (act as SequenceAction).steps[0] as ConditionalAction;
+      const inner = head.then as SequenceAction;
+      const flat: EffectAction = { type: 'SEQUENCE', steps: [
+        inner.steps[0], inner.steps[1],
+        { ...head, then: { type: 'SEQUENCE', steps: inner.steps.slice(2) } as SequenceAction } as EffectAction,
+      ] } as SequenceAction;
+      const rFlat = executeAction(flat, mkCtx({ signi: [lv2, null, null] }, { signi: [lv2, null, null] }, 'WX25-P3-104'));
+      ok(!rFlat.done, '反転確認：修正前の形なら条件不成立でも宣言が出る（＝このテストは差を見ている）');
+    }
+  }
+}));
+
+// 🔑**engine の契約**＝条件の `then` が `SEQUENCE` になっても任意コストは正しく提示される
+//   （`CONDITIONAL{cond, then: STUB}` の包み解き（`OPT_IDS_WRAP`）に頼らず、
+//    内側の `SEQUENCE` で「コスト STUB の直後が did-it ゲート」＝Pattern④ に当たるため）。
+//   ⚠この形は `O-96` の `wrapped` 枝が以前から出していた正準形と同じ。
+test('§5.3 O-452: 条件の内側でも任意コストは pay/skip が提示され、skip なら帰結が起きない', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXDi-P14-055')!.find(e => e.effectId === 'WXDi-P14-055-E1')!.action;
+  const redSigni = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const redHand = findCard(c => (c.Color ?? '') === '赤' && c.CardNum !== redSigni);
+  const weak = findCard(c => isSigni(c) && parseInt(c.Power || '0') > 0 && parseInt(c.Power || '0') <= 5000);
+  const run = (pay: boolean) => {
+    const base = mkCtx({ signi: [redSigni, null, null] }, { signi: [weak, null, null] }, 'WXDi-P14-055');
+    base.ownerState = { ...base.ownerState, hand: [redHand] };
+    const first = executeAction(act, base);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', '条件成立＝対象宣言が先に出る');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('declaration missing');
+    const declared = resumeSelectTarget([weak], first.pending, execCtxFrom(first, base));
+    ok(!declared.done && declared.pending.type === 'CHOOSE', '🔴条件の内側でも任意コストが提示される');
+    if (declared.done || declared.pending.type !== 'CHOOSE') throw new Error('optional cost missing');
+    const afterCost = resumeChoose(pay ? 'pay' : 'skip', declared.pending, execCtxFrom(declared, base));
+    const settled = !afterCost.done && afterCost.pending.type === 'SELECT_TARGET'
+      ? resumeSelectTarget([redHand], afterCost.pending, execCtxFrom(afterCost, base))
+      : afterCost;
+    return finish(settled, base);
+  };
+  eq(run(false).otherState.field.signi.filter(z => z?.length).length, 1, 'skip＝バニッシュされない');
+  eq(run(true).otherState.field.signi.filter(z => z?.length).length, 0, 'pay＝宣言した対象がバニッシュされる');
 }));
 
 // ── §5.3 `O-451`（2026-09-15）＝`O-413` の long tail（14効果 → 4効果）。
