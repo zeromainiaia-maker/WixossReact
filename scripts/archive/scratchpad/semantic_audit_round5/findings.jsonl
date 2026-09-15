@@ -268,3 +268,7 @@
 {"batch":"536","cardNum":"WX16-028","effectId":"WX16-028-E1","severity":"HIGH","type":"WRONG","quote":"それを手札に戻す","claim":"原文ではトラッシュに置いたトラップアイコン持ちのカードを手札に戻すが、JSONは正面の対戦相手シグニを手札に戻す。","grep":"置かれたカード"}
 {"batch":"542","cardNum":"WX25-P1-053","effectId":"WX25-P1-053-E1","severity":"HIGH","type":"MISSING","quote":"そのシグニをダウン状態で場に出す","claim":"公開したシグニをダウン状態で場に出し、その【出】能力を発動させない後続処理がJSONに存在しない。","grep":"【出】能力は発動しない"}
 {"batch":"544","cardNum":"PR-380","effectId":"PR-380-E1","severity":"HIGH","type":"WRONG","quote":"《白/黒》×１","claim":"使用コストが白または黒1エナではなく無色1エナとして定義されており、他の色でも支払えてしまう。","grep":"《白/黒》"}
+{"batch":"550","cardNum":"WXDi-P01-085","effectId":"WXDi-P01-085-E1","severity":"MED","type":"WRONG","quote":"シグニ１体を対象とし","claim":"原文では条件判定より先に対象を指定するが、JSONではトラッシュ枚数の条件分岐内で初めて対象を選ぶため、条件判定前の対象指定として扱われない。","grep":"対象とし、ターン"}
+{"batch":"553","cardNum":"WXEX2-18","effectId":"WXEX2-18-E1","severity":"HIGH","type":"WRONG","quote":"そのシグニをアップする","claim":"アタックした＜遊具＞のシグニ自身ではなく、自分のシグニ1体を対象としてアップする定義になっている。","grep":"そのシグニをアップ"}
+{"batch":"557","cardNum":"WXDi-P08-031","effectId":"WXDi-P08-031-E1","severity":"MED","type":"WRONG","quote":"その後、そのシグニより","claim":"手札からシグニを場に出さなかった場合にも後続のBANISHが生の兄弟ステップとして実行され得るため、場に出したシグニを基準とする後続処理の成立条件が欠けている。","grep":"その後、そのシグニ"}
+{"batch":"561","cardNum":"WXK10-005","effectId":"WXK10-005-E1","severity":"HIGH","type":"WRONG","quote":"《緑/黒》×４","claim":"原文の使用コストは緑または黒で支払う混色コスト4だが、JSONでは無色コスト4になっている。","grep":"《緑/黒》"}
