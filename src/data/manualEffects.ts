@@ -421,7 +421,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P00-018-E1","effectType":"AUTO","timing":["ON_PLAY"],
      "action":{"type":"SEQUENCE","steps":[
        {"type":"SEQUENCE","steps":[
-         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},
+         {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"bestEffort":true},
          {"type":"STUB","id":"DRAW_DISCARD_COUNT_PLUS_N","drawDiscardPlus":1}]},
        {"type":"SEQUENCE","steps":[
          {"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":"ALL"}},
@@ -4448,7 +4448,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-009-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"keyword":"マルチエナ"}},"opponentSelects":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX04-025": [
-    {"effectId":"WX04-025-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1}},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}]},{"type":"CONDITIONAL","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX04-025-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1},"bestEffort":true},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"opponentSelects":true}]},{"type":"CONDITIONAL","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX05-009": [
     {"effectId":"WX05-009-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"龍獣","isUp":true},"upToCount":false}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteLastProcessed":true},"upToCount":false},"conditional":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -4963,7 +4963,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `last_cost_trashed_cards` へ記録する。2枚以上だけ追加DRAW、4枚だけ相手シグニをBANISH。
   //   `costText` 原文エコーは engine が読まず欠落を隠すため撤去し、既存payloadだけで明示する。
   "WXK03-023": [
-    {"effectId":"WXK03-023-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","underAnySigniTrash":{"count":4,"upTo":true}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}},{"type":"DRAW","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":2},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":4},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK03-023-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","underAnySigniTrash":{"count":4,"upTo":true}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1},"bestEffort":true},{"type":"DRAW","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":2},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":4},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WXK03-073": [
     {"effectId":"WXK03-073-E1","effectType":"AUTO","timing":["ON_ZONE_MOVED"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"delta":2000,"targetsTriggerSource":true},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN","targetsTriggerSource":true}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},
@@ -6289,7 +6289,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E3【起】エクシード5：エナをすべてトラッシュ＋手札をすべて捨て、追加の1ターンを得る。
   "WX05-001": [
     {"effectId":"WX05-001-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"PLACE_LRIGS_UNDER_CENTER","owner":"self"},{"type":"TRANSFER_TO_DECK","source":{"type":"LRIG_TRASH_CARD","owner":"self","count":"ALL","filter":{"cardType":"アーツ","color":["白","黒"]}},"shuffle":false,"destination":"lrig_deck"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"STUB","id":"GAIN_EXTRA_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX05-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"bestEffort":true},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"bestEffort":true},{"type":"STUB","id":"GAIN_EXTRA_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX05-002 花代・伍（ルリグ 花代 Lv5）
@@ -10885,7 +10885,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ① 「あなたのエナゾーンからすべてのカードをトラッシュに置き」が丸ごと落ちていた
   //    （旧 live は手札全捨て＋全バニッシュだけ＝**自分のエナを払わずに撃てる**過剰実行）。
   "WX13-001": [
-    {"effectId":"WX13-001-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX13-001-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"bestEffort":true},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"bestEffort":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // ② ライフに加えるのは**対象に取ったトラッシュのカード**（旧 live は `fromTop`＝デッキの一番上）。
   //    受け皿は既存＝`ADD_TO_LIFE.fromTrash`（原文は「カード１枚」なので filter は付けない）。

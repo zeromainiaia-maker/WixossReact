@@ -83278,6 +83278,59 @@ test('§5.3 O-452: 条件の内側でも任意コストは pay/skip が提示さ
   eq(run(true).otherState.field.signi.filter(z => z?.length).length, 0, 'pay＝宣言した対象がバニッシュされる');
 }));
 
+// ── §5.3 `O-453`（2026-09-15）＝**自分の `TRASH` の空振りで、原文が独立している後続文まで消えていた。**
+//   engine の粗ゲート（`effectExecutor.ts:7348`）は「そうした場合」形には正しいが**残りの SEQUENCE を丸ごと捨てる**。
+//   🔑**engine は原文を読めない**ので、独立側に parser が `bestEffort` を立てて区別する
+//   （型コメントがこの用途そのもの＝「対象がなくても後続SEQUENCEをスキップしない」）。
+test('§5.3 O-453: 「捨てられなくても引ける」形の TRASH は bestEffort を持つ', () => {
+  // 原文が括弧書きで独立を明記している代表4件＋明記が無い独立文の代表2件。
+  for (const effectId of [
+    'WXDi-P16-066-BURST', 'WX24-P2-067-BURST', 'WX25-P1-073-BURST', 'WX25-P3-080-BURST',
+    'WXK07-026-E1', 'WX01-044-BURST',
+  ]) {
+    const cardNum = effectId.replace(/-(?:E\d+|BURST)$/, '');
+    const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action;
+    ok(!!act, `${effectId}: live にある`); if (!act) continue;
+    ok(JSON.stringify(act).includes('"bestEffort":true'),
+      `🔴${effectId}: 独立した後続文なのに bestEffort が無い（空振りで後続が丸ごと消える）`);
+  }
+});
+// 挙動側＝手札0枚でも後続のドローが走る（両側＋反転確認）。
+test('§5.3 O-453: 手札0枚でも後続のドローが走る／「そうした場合」形は走らない（両側）', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXDi-P16-066')!.find(e => e.effectId === 'WXDi-P16-066-BURST')!.action;
+  const hand1 = findCard(c => isSigni(c));
+  // ①手札0枚＝捨てられないが3枚引く（原文が「（手札を捨てられなくてもカードを引ける）」と明記）。
+  const empty = mkCtx({}, {}, 'WXDi-P16-066');
+  empty.ownerState = { ...empty.ownerState, hand: [] };
+  const r0 = finish(executeAction(act, empty), empty);
+  eq(r0.ownerState.hand.length, 3, '🔴手札0枚だと後続のドローまで消える（§5.3 O-453）');
+  // 🔑**反転確認**＝`bestEffort` を外すと粗ゲートが残りを捨てて1枚も引けない。
+  const stripped = JSON.parse(JSON.stringify(act).replace(/,"bestEffort":true/g, '')) as EffectAction;
+  const empty2 = mkCtx({}, {}, 'WXDi-P16-066');
+  empty2.ownerState = { ...empty2.ownerState, hand: [] };
+  const rInv = finish(executeAction(stripped, empty2), empty2);
+  eq(rInv.ownerState.hand.length, 0, '反転確認：bestEffort が無いと粗ゲートが後続を捨てる');
+  // ②手札1枚＝捨てて3枚引く（差し引き +2）。
+  const one = mkCtx({}, {}, 'WXDi-P16-066');
+  one.ownerState = { ...one.ownerState, hand: [hand1] };
+  const r1 = executeAction(act, one);
+  const settled = !r1.done && r1.pending.type === 'SELECT_TARGET'
+    ? resumeSelectTarget([hand1], r1.pending, execCtxFrom(r1, one)) : r1;
+  const fin1 = finish(settled, one);
+  eq(fin1.ownerState.hand.length, 3, '手札1枚＝捨ててから3枚引く');
+  ok(fin1.ownerState.trash.includes(hand1), '捨てた1枚はトラッシュにある');
+}));
+// 🔴**依存形（原文が「そうした場合」）は従来どおり止まる**＝粗ゲートを畳んでいないことの確認。
+test('§5.3 O-453: 「そうした場合」形は手札0枚なら後続が走らない（過剰実行にしない）', () => withSavedCursor(() => {
+  const act = liveChoiceAction('WX04-034', 'WX04-034-E1', 0);
+  const oppSigni = findCard(c => isSigni(c));
+  const ctx = mkCtx({}, { signi: [oppSigni, null, null] }, 'WX04-034');
+  ctx.ownerState = { ...ctx.ownerState, hand: [] };
+  const r = finish(executeAction(act, ctx), ctx);
+  eq(r.otherState.field.signi.filter(z => z?.length).length, 1,
+    '🔴手札0枚で＜原子＞を捨てられないのにバニッシュが起きた（粗ゲートが畳まれている）');
+}));
+
 // ── §5.3 `O-451`（2026-09-15）＝`O-413` の long tail（14効果 → 4効果）。
 //   ①対象宣言（`SELECT_TARGET_ONLY`）が `powerLteSelf` / `powerLtSelf` / `powerGtSelf` を解決する
 //   ②`BANISH_REDIRECT` / `POWER_MODIFY_PER_LEVEL_SUM` が `targetsStored` を消費する

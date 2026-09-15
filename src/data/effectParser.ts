@@ -14725,6 +14725,80 @@ const O413_STATIC_FILTER_KEYS = new Set<string>([
  * 🔑**engine の隣接契約を壊さない**＝沈めた後も `STUB{OPTIONAL_COST}` の**直後**が
  *   `CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}` のままなので、任意コスト dispatcher の Pattern④ に当たる。
  */
+/**
+ * §5.3 `O-453`（2026-09-15）＝**自分の `TRASH` が空振りしたときの粗ゲートが、原文で独立している後続文まで消す。**
+ *
+ * 🔴**engine の事実**＝`effectExecutor.ts:7348` は、`TRASH` の `target.owner==='self'` かつ
+ *   `HAND_CARD|SIGNI|ENERGY_CARD` かつ `bestEffort` でない形が空振りすると **`return done()`＝
+ *   残りの SEQUENCE を丸ごと捨てる**。「そうした場合」形には正しいが、
+ *   「手札を１枚捨て、カードを３枚引く。**（手札を捨てられなくてもカードを引ける）**」のように
+ *   **原文が独立を明記している形**まで消える（実測＝この形が 44効果・うち11効果は括弧書きで明記）。
+ *
+ * 🔑**粗ゲートは外さない**＝それを外すと、原文が「そうした場合」「この方法で」で**依存している 56効果**が
+ *   空振りでも走る**過剰実行**になる（engine は原文を読まないので JSON だけでは区別できない）。
+ *   ⇒ **独立側にだけ印を付ける**＝`bestEffort`（型コメントがこの用途そのもの＝
+ *   「対象がなくても後続SEQUENCEをスキップしない」）を parser が立てる。
+ *
+ * ⚠**fail-closed**＝原文に**捨てた札への後方参照**（「そうした場合」「この方法で」「この効果で」「捨てた」）が
+ *   1つでもあれば印を付けない。⚠**引用付与（`effect` / `abilities`）の中は見ない**（原文が別のため）。
+ */
+function markIndependentTrashBestEffort(text: string, parsed: EffectAction): EffectAction {
+  const hasBackRef = /そうした場合|そうしなかった場合|この方法で|この効果で|捨てた/.test(text);
+  const TRASH_ZONES = ['HAND_CARD', 'SIGNI', 'ENERGY_CARD'];
+  /**
+   * 🔑**後方参照が「枚数の倍率」だけなら、後続を走らせても原文どおりに落ちる**（規則46 と同じ理屈）＝
+   *   空振りなら倍率が 0 になるだけ。⇒ 原文に「この効果で捨てた〜１枚につき」があっても印を付けてよい。
+   * 🔴**対象・フィルタの参照（「捨てたシグニと**同じレベルの**」＝`levelEqLastProcessed` 等）は不可**＝
+   *   走らせると**既定値へフォールバックして別のシグニに当たる**恐れがある（fail-closed）。
+   */
+  const COUNT_ONLY_REFS = [
+    /"\$ref":"last_processed_count"/g, /"addLastProcessedCount":/g, /"countPerLastProcessed":/g,
+    /"deltaPerLastProcessedCount":/g, /"countIsLastProcessedLevelSum":/g, /"drawDiscardPlus":/g,
+    /"lastProcessedCount"/g,
+  ];
+  // 🔑**「倍率の参照が残っているか」は効果の木の全体で見る**＝`WX24-P2-003-E1` のように
+  //   「手札をすべて捨て、カードを５枚引く。**その後、この効果で捨てた赤のカード１枚につき**〜」は
+  //   倍率の参照が**外側の兄弟ステップ**に載る（同じ SEQUENCE の中にはない）。
+  const wholeJson = JSON.stringify(parsed);
+  const refsAreCountOnly = (rest: EffectAction[]): boolean => {
+    let found = false;
+    for (const re of COUNT_ONLY_REFS) { re.lastIndex = 0; if (re.test(wholeJson)) found = true; re.lastIndex = 0; }
+    let j = JSON.stringify(rest);
+    for (const re of COUNT_ONLY_REFS) { re.lastIndex = 0; j = j.replace(re, ''); }
+    // 🔴**倍率の参照が1つも無いなら印を付けない**＝原文が「この方法で捨てた〜」と言っているのに
+    //   木にその参照が無い形は、**parser が参照ごと落としている**（＝別のバグ）。印を付けると
+    //   空振りでも後続が素の全体指定で走る（実測＝`WXK09-089-E1` の「この方法でトラッシュに置いた
+    //   シグニの**パワー以下の**」が落ちており、印を付けると**無条件バニッシュ**になった）。
+    if (!found) return false;
+    return !/lastProcessed|last_processed|LAST_PROCESSED|LAST_LOOK/i.test(j);
+  };
+  const rewrite = (node: unknown): unknown => {
+    if (!node || typeof node !== 'object') return node;
+    if (Array.isArray(node)) return node.map(rewrite);
+    const o = node as Record<string, unknown>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps)) {
+      const steps = (o.steps as EffectAction[]).map(st => rewrite(st) as EffectAction);
+      const marked = steps.map((st, i) => {
+        const t = st as unknown as Record<string, unknown>;
+        if (t.type !== 'TRASH' || t.bestEffort) return st;
+        const tgt = t.target as Record<string, unknown> | undefined;
+        if (!tgt || tgt.owner !== 'self' || !TRASH_ZONES.includes(String(tgt.type))) return st;
+        const nxt = steps[i + 1] as unknown as Record<string, unknown> | undefined;
+        // 後続が無い／後続が `CONDITIONAL`（＝「そうした場合」や「この方法で〜の場合」）なら触らない。
+        if (!nxt || nxt.type === 'CONDITIONAL') return st;
+        // 原文に後方参照があるときは、**後続が枚数の倍率でしか参照していない**ことを構造で確かめる。
+        if (hasBackRef && !refsAreCountOnly(steps.slice(i + 1))) return st;
+        return { ...st, bestEffort: true } as EffectAction;
+      });
+      return { ...o, steps: marked };
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) out[k] = (k === 'effect' || k === 'abilities') ? v : rewrite(v);
+    return out;
+  };
+  return rewrite(parsed) as EffectAction;
+}
+
 function sinkTargetDeclIntoLeadingCondition(text: string, parsed: EffectAction): EffectAction {
   if (parsed.type !== 'SEQUENCE') return parsed;
   const steps = (parsed as SequenceAction).steps;
@@ -31877,6 +31951,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = hoistTargetBeforeCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-452`＝逆向き（原文が「場合」→「対象とし」の順）は条件の内側へ沈める。
     effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
+    effect.action = markIndependentTrashBestEffort(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。
