@@ -162,7 +162,7 @@ import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/s
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
-import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
+import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
@@ -82868,6 +82868,36 @@ test('O-369 WX25-P2-003: ゲーム中の【起】がライフ1枚以上で提示
   eq(r.ownerState.life_cloth.length, 1, 'ライフが1枚クラッシュされていない');
   ok(!r.otherState.field.signi.some(s => s?.at(-1) === SIGNI), '相手シグニがバニッシュされていない');
 }));
+
+test('§5.3 O-380: 括弧つきカード名《X（Y）》は括弧ごと保持し Name 列の半角綴りへ寄せる', () => {
+  // 🔴旧実装は `stripRuleParens` が `（…）` を無条件に剥がしたため、**カード名の一部**まで落ちていた。
+  //   `matchesFilter` は `cardName` を `includes` の部分一致で見る（`execUtils.ts:1524`）ので、
+  //   `"鰐渕アカリ"` は**別カード**（`WXDi-CP02-098`）にも当たり、`"プリンセス・ジール"` は
+  //   同名の別バリアント（`…(サークルオブライフ)`）にも当たっていた。
+  // ⚠効果文は全角 `（）`／CardName 列は半角 `()`（Name 列の全角は実測 0 / 半角 56）＝半角へ正規化する。
+  const expect: [string, string][] = [
+    ['WX25-CP1-TK2A-E1', '鰐渕アカリ(正月)'],
+    ['WX25-CP1-TK2A-E2', '鰐渕アカリ(正月)'],
+    ['WX26-CP1-071-E2', 'プリンセス・ジール(テイクミーハイヤー)'],
+    ['WX26-CP1-073-E1', 'プリンセス・ジール(テイクミーハイヤー)'],
+    ['WX26-CP1-079-E2', 'プリンセス・リップル(テイクミーハイヤー)'],
+    ['WX26-CP1-081-E1', 'プリンセス・リップル(テイクミーハイヤー)'],
+    ['WX26-CP1-087-E2', 'プリンセス・ミーティア(テイクミーハイヤー)'],
+    ['WX26-CP1-089-E1', 'プリンセス・ミーティア(テイクミーハイヤー)'],
+  ];
+  for (const [eid, name] of expect) {
+    const cardNum = eid.replace(/-(E\d\w*|BURST)$/, '');
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === eid);
+    ok(!!e, `${eid} が live に存在する`);
+    const names = [...new Set(JSON.stringify(e!.action).match(/"cardName":"[^"]*"/g) ?? [])];
+    eq(names.join(' '), `"cardName":"${name}"`, `${eid}: カード名が括弧ごと保持され半角綴りになっている`);
+  }
+  // 反転＝ルール注記の括弧はこれまでどおり剥がれる（保護を広げすぎていない）。
+  eq(stripRuleParens('カードを１枚引く。（すでにシグニのあるシグニゾーンには配置できない）'), 'カードを１枚引く。',
+    'ルール注記の括弧が剥がれなくなった（保護の広げすぎ）');
+  eq(stripRuleParens('《鰐渕アカリ（正月）》を場に出す。（注記）'), '《鰐渕アカリ（正月）》を場に出す。',
+    'カード名は保持しつつ注記だけ剥がす');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

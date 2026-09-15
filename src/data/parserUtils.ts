@@ -94,16 +94,44 @@ const FW_DIGIT: Record<string, string> = {
 export function toHalf(s: string): string {
   return s.replace(/[０-９]/g, c => FW_DIGIT[c] ?? c);
 }
-// ルール補足テキスト（全角括弧）を除去（入れ子対応：内側から順に除去）
+/**
+ * 🆕🔴**カード名《X（Y）》の括弧は剥がさない**（§5.3 `O-380`・2026-09-15）。
+ *
+ * 🔴旧実装は `（…）` を無条件に剥がしていたため、**カード名の一部**まで落ちていた。実測＝CSV に出る
+ *   `《…（…）…》` は4名・**参照8効果**で、**8効果すべて**が欠落＝live の `cardName` が
+ *   `"鰐渕アカリ"`／`"プリンセス・ジール"` になっていた。`matchesFilter` は `includes` の部分一致なので
+ *   **括弧違いの別カード（`鰐渕アカリ`＝`WXDi-CP02-098`／`プリンセス・ジール(サークルオブライフ)`）にも当たる**。
+ * 🔴**`docs/_effect_srctext.json` にも同じ欠落が出ていた**＝原文コーパス照合（PLAN §2.6 ②）の死角だった。
+ *
+ * ⚠**カード名の括弧は効果文が全角 `（）`・Name 列が半角 `()`**（Name 列の全角は実測 0 / 半角 56）。
+ *   照合できるよう `normalizeCardNameParens` で半角へ寄せる。
+ */
+export function normalizeCardNameParens(s: string): string {
+  return s.replace(/（/g, '(').replace(/）/g, ')');
+}
+
+// ルール補足テキスト（全角括弧）を除去（入れ子対応：内側から順に除去）。
+// ⚠**`《…》` の内側は保護する**（上記 `O-380`）＝カード名に含まれる括弧を剥がさない。
 export function stripRuleParens(s: string): string {
   let result = s;
   let prev: string;
   do {
     prev = result;
-    result = result.replace(/（[^（）]*）/g, '');
+    // ⚠センチネル方式にしない＝置換用のマーカーは本文と衝突しうる（可読文字にして誤爆を踏んだ）。
+    //   出現位置が `《…》` の内側かどうかで剥がすかを決める。
+    result = result.replace(/（[^（）]*）/g, (m, offset: number) => (isInsideCardNameBrackets(result, offset) ? m : ''));
   } while (result !== prev);
   return result.trim();
 }
+
+/** `index` が `《…》` の内側か（`O-380`＝カード名の括弧を保護するための判定）。 */
+function isInsideCardNameBrackets(text: string, index: number): boolean {
+  const open = text.lastIndexOf('《', index);
+  if (open < 0) return false;
+  const close = text.indexOf('》', open);
+  return close > index;
+}
+
 export function parseNum(s: string): number {
   return parseInt(toHalf(s), 10);
 }
@@ -952,7 +980,9 @@ export function parseNameFilter(text: string): Partial<TargetFilter> {
       !s.match(/^[白赤青緑黒無][×x×]\d+$/)
     );
   if (names.length === 0) return {};
-  return names.length === 1 ? { cardName: names[0] } : { cardNames: names };
+  // §5.3 `O-380`＝効果文の全角括弧を Name 列の半角へ寄せる（`鰐渕アカリ（正月）` → `鰐渕アカリ(正月)`）。
+  const norm = names.map(normalizeCardNameParens);
+  return norm.length === 1 ? { cardName: norm[0] } : { cardNames: norm };
 }
 
 // ===== シグニターゲットパース =====
@@ -1114,7 +1144,7 @@ const SIGNI_CLAUSE_ADJACENT_NAME =
   /カード名に《([^》]+)》を含む(?:(?![。、]|シグニ).){0,14}シグニ(?:を)?[０-９\d]*(?:体|枚)(?:まで)?(?:を?対象とし|を?バニッシュ|を?手札に(?:戻|加え)|を?トラッシュに置|を?場に出|を?エナゾーンに置)/;
 export function signiClauseNameFilter(text: string): Partial<TargetFilter> {
   const m = text.match(SIGNI_CLAUSE_ADJACENT_NAME);
-  return m ? { cardName: m[1] } : {};
+  return m ? { cardName: normalizeCardNameParens(m[1]) } : {};
 }
 
 /**
@@ -1133,7 +1163,7 @@ const SIGNI_CLAUSE_CONTAINS_NAME =
 export function signiClauseContainsNameFilter(text: string): Partial<TargetFilter> {
   const m = text.match(SIGNI_CLAUSE_CONTAINS_NAME);
   const name = m?.[1] ?? m?.[2];
-  return name ? { cardName: name } : {};
+  return name ? { cardName: normalizeCardNameParens(name) } : {};
 }
 
 /**

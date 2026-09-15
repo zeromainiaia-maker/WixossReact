@@ -199,7 +199,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
+  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, normalizeCardNameParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
   parseChosenAbilitySpec,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
@@ -15042,6 +15042,19 @@ function syncO96SelectTargetOwner(action: EffectAction): void {
  *   支払いの有無を見ていないので触らない（fail-closed）。
  * 🔑ラチェットは golden（`O-352`）＝この形で `abortIfNoCandidate` が欠けた効果が出たら FAIL。
  */
+/**
+ * §5.3 `O-380`＝効果ツリー内の `cardName` / `cardNames` の**全角括弧を半角へ**寄せる（Name 列の綴りに合わせる）。
+ * ⚠**触るのはこの2キーだけ**（他の文字列に全角括弧が入っていても意味が変わるので触らない）。
+ */
+function normalizeCardNamesDeep(node: Record<string, unknown> | unknown): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { node.forEach(normalizeCardNamesDeep); return; }
+  const obj = node as Record<string, unknown>;
+  if (typeof obj.cardName === 'string') obj.cardName = normalizeCardNameParens(obj.cardName);
+  if (Array.isArray(obj.cardNames)) obj.cardNames = (obj.cardNames as unknown[]).map(x => typeof x === 'string' ? normalizeCardNameParens(x) : x);
+  for (const v of Object.values(obj)) normalizeCardNamesDeep(v);
+}
+
 function stampAbortOnCanonicalOptionalCost(action: EffectAction): EffectAction {
   const walk = (node: unknown): void => {
     if (!node || typeof node !== 'object') return;
@@ -31578,6 +31591,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   //   `PAID_ADDITIONAL_COST` へ差し替えて**正準形をここで初めて完成させる**効果がある
   //   （実測＝`WXDi-P16-049-E1` の②枝＝`repairSemanticBatch246`）。効果単位ループ内で刻むと間に合わない。
   for (const effect of effects) effect.action = stampAbortOnCanonicalOptionalCost(effect.action);
+  // 🆕🔴**§5.3 `O-380`（2026-09-15）＝カード名の括弧を Name 列の綴り（半角）へ正規化する。**
+  //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。
+  //   🔑**抽出地点ごとに直さない**＝`cardName` を書く規則は parser 全体に 20 箇所以上あり、足し漏れが必ず出る。
+  //   全 rewriter が組み終わった**最後に1回**、効果ツリー全体の `cardName` / `cardNames` を正規化する。
+  for (const effect of effects) normalizeCardNamesDeep(effect as unknown as Record<string, unknown>);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }
