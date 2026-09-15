@@ -1,5 +1,32 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-15 登録・部分クローズ：`O-391`(a) 修正 ＋ `O-450` 登録（第348バッチ）
+
+### 🏁`O-391` 下位型(a) — `optional` が消費されない（`execDown` の `thisCardOnly` 早期 return）
+
+- **真因**＝`execDown` の SIGNI 主経路は `a.optional` を見る（`const downOptional = a.optional || (a.target.upToCount ?? false)`）が、
+  その**手前**に `if (downThisCardRestrict !== null) return done(...)` があり、`filter.thisCardOnly` を持つ形が**対象選択を経ずに強制ダウン**していた。
+- **実測**＝`DOWN` で `optional:true` は **37ノード**、うち **`thisCardOnly` が 27**（`count:'ALL'` は 0）。
+- **二次被害**＝`lastProcessedCards` が必ず埋まるので、`DID_IT_GATED_TYPES` の did-it ゲート（`effectExecutor.ts:7328`）が素通りし、
+  **後続の「そうした場合」が常に成立**していた（＝辞退できないうえ、帰結も必ず走る）。
+- 🔑**正準形は `O-77`**（`execTransferToDeck` の `deckThisCardOnly && a.optional`）＝**`selectOrInteract` を通す**。
+  🔴**`INTERNAL_SKIP_OPTIONAL_ACTION` の CHOOSE 形にしてはいけない**＝`lastProcessedCards` を空にするだけで
+  **後続の `CONDITIONAL{IS_MY_TURN}` を落とさない**（`O-77` のコメントに実測済み）。⚠この巡で**一度その形で書いて気付いた**。
+- **検証**＝`npm run gates` 全緑（golden **4175/4175**＝回帰テスト `§5.3 O-391` を新設＝0体選択でドローが起きないこと・1体選択で両方起きることの両方向）。
+- **残**＝`V-225`（実機の観測点）。
+
+### `O-450` — 任意アクションの直後にゲート節が無い（`O-391` 下位型(b)・上限49ノード）
+
+- **engine の契約**＝「そうした場合」の did-it は **`CONDITIONAL{IS_MY_TURN}` が任意アクションの直後にあるときだけ**効く
+  （0体選択 → `resumeSelectTarget` → `stripDidItConditional`）。**兄弟ステップとして並んでいると止められない。**
+- **実測**＝`optional:true` の直後がゲート節でない箇所は **49**。⚠**上限**＝直後が別種の `CONDITIONAL`
+  （`LAST_PROCESSED_MATCHES` 等）なら条件自体が結果を見るので正しい。**1件ずつ triage が要る。**
+- **代表**＝`WXDi-P13-088-E1`（`MILL`→`TRANSFER_TO_HAND`）／`WD22-035-G-E1`（`ADD_TO_FIELD{thisCardOnly}`→`STUB`）／
+  `WX10-034-E1`（`BANISH`→`TRANSFER_TO_HAND`）／`WX05-046-E1`（`REARRANGE_SIGNI`→`DRAW`）。
+- **取り方の見立て**＝parser 側で後続を `CONDITIONAL{IS_MY_TURN}` に包む（`O-377` の `foldGoAfterDidItGate` と同じ層）。
+  ⚠**`MILL` は `DID_IT_GATED_TYPES` に入っていない**ので、包むだけでは効かない＝型ごとに受け皿を確かめる。
+
+
 ## 2026-09-15 登録：`O-380`〜`O-390`（§5.2 round5 r5-022〜081 の triage）
 
 > 出どころ＝`scripts/archive/scratchpad/semantic_audit_round5/triaged.txt`（600枚・findings 30件＝**BUG 12 / FP 18**）。

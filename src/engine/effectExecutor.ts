@@ -5370,6 +5370,20 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       selectionConstraint: { ...restConstraint, totalLevelExact: exact },
     });
   }
+  // 🆕🔴**§5.3 `O-391`（2026-09-15）＝「このシグニをダウンして**もよい**」の任意性がここで落ちていた。**
+  //   下の主経路は `a.optional` を見る（`downOptional`）が、**`thisCardOnly` の早期 return がその手前にある**ため、
+  //   `filter.thisCardOnly` を持つ形は**対象選択が起きない＝強制ダウン**になっていた（実測 27ノード）。
+  //   ⇒ 原文の「してもよい」が消えるだけでなく、**後続の「そうした場合」が常に成立**していた
+  //   （`lastProcessedCards` が必ず埋まるので `DID_IT_GATED_TYPES` の did-it ゲートが素通りする）。
+  // 🔑**正準形は `O-77`（`execTransferToDeck` の `deckThisCardOnly && a.optional`）と同じ＝`selectOrInteract` を通す。**
+  //   🔴**`INTERNAL_SKIP_OPTIONAL_ACTION` の CHOOSE 形にしてはいけない**＝あれは `lastProcessedCards` を空にする
+  //   だけで**後続の `CONDITIONAL{IS_MY_TURN}` を落とさない**（`O-77` のコメントに実測済み）。
+  //   `selectOrInteract` 経由なら `resumeSelectTarget` が `stripDidItConditional` を呼ぶので、0体選択で帰結ごと止まる。
+  // ⚠`count:'ALL'` はこの分岐に入れない（live 0件＝入れると「全部か0か」が部分選択に化けるだけ）。
+  if (downThisCardRestrict !== null && a.optional) {
+    return selectOrInteract(cands, 1, true, scope, a, undefined, ctx, false,
+      { selectionConstraint: a.target.selectionConstraint });
+  }
   if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   if (downThisCardRestrict !== null) {
     return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });

@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-15 — 第348バッチ：`O-391` 下位型(a) を修正（「このシグニをダウンしてもよい」が強制だった・27ノード）
+
+**真因**＝`execDown` の SIGNI 主経路は `a.optional` を読む（`downOptional`）のに、**その手前に `thisCardOnly` の早期 return** があり、
+`filter.thisCardOnly` を持つ形は**対象選択を経ずに強制ダウン**していた。
+
+**実測**＝`DOWN` で `optional:true` は **37ノード**、うち **`thisCardOnly` が 27**（`count:'ALL'` は 0＝この分岐に入れていない）。
+
+**二次被害**＝`lastProcessedCards` が必ず埋まるので `DID_IT_GATED_TYPES` の did-it ゲート（`effectExecutor.ts:7328`）が素通りし、
+**後続の「そうした場合」も常に成立**していた。⇒ `WXDi-CP02-073-E2`「アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く」は
+**辞退できないうえ、必ずドローできる**状態だった。
+
+🔑**正準形は `O-77`（2026-08-29・`execTransferToDeck` の `deckThisCardOnly && a.optional`）＝`selectOrInteract` を通す。**
+🔴**`INTERNAL_SKIP_OPTIONAL_ACTION` の CHOOSE 形にしてはいけない**＝`lastProcessedCards` を空にするだけで**後続の `CONDITIONAL{IS_MY_TURN}` を落とさない**。
+⚠**この巡で一度その形で実装してから気付いた**（`O-77` のコメントが実測を残していたので拾えた）＝**同じ family の先例コメントを先に読む。**
+
+### 分かったこと＝`O-391` は2つの下位型だった
+
+| 下位型 | 中身 | 状態 |
+|---|---|---|
+| **(a)** | `optional` が exec に消費されない | 🏁**修正**（`execDown`・27ノード） |
+| **(b)** | 任意アクションの**直後にゲート節が無く**後続が兄弟ステップ | 📋**`O-450` として分離**（上限49ノード） |
+
+**(b) の engine 契約**＝did-it は **`CONDITIONAL{IS_MY_TURN}` が直後にあるときだけ**効く（0体選択 → `resumeSelectTarget` → `stripDidItConditional`）。
+⚠**49 は上限**＝直後が別種の `CONDITIONAL`（`LAST_PROCESSED_MATCHES` 等）なら条件自体が結果を見るので正しい＝1件ずつ triage が要る。
+
+**あわせて確認できたこと**＝`WXDi-P08-058-E2` / `WX24-P2-075-E1`（`TRANSFER_TO_DECK{SIGNI,thisCardOnly,optional}`）と
+`WX17-028-E1`（`TRASH_CARD`）は **`O-77` で既に正しい**（`effectExecutor.ts:8221` ＋ golden `TRANSFER_TO_DECK optional:` テスト）。
+
+**検証**＝`npm run gates` **全緑**（golden **4175/4175**＝回帰テスト `§5.3 O-391` 新設。0体選択でドローが起きない／1体選択で両方起きる、の**両方向**を固定）。
+⚠**実機は §2.2 上は不要**（`src/engine/` のみ・先例 `O-77` も engine のみ）だが、**実機の見た目が変わる**（強制ダウン → 0体選択できる選択UI）ので、
+観測点を **`V-225`（未返済）**として §5.1 に登録した。
+
+
 ## 2026-09-15 — 第347バッチ：🏁`O-380` クローズ＝括弧つきカード名《X（Y）》の切り落としを直した（8効果）
 
 **真因**＝`src/data/parserUtils.ts` の `stripRuleParens` が `（…）` を**無条件に**剥がしており、**ルール注記だけでなくカード名の一部**まで落ちていた。

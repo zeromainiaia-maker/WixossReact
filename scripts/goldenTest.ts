@@ -82899,6 +82899,37 @@ test('§5.3 O-380: 括弧つきカード名《X（Y）》は括弧ごと保持�
     'カード名は保持しつつ注記だけ剥がす');
 });
 
+test('§5.3 O-391: 「このシグニをダウンしてもよい」は選択UIを出し、スキップで「そうした場合」ごと落ちる', () => {
+  // 🔴旧実装は `execDown` の **`thisCardOnly` 早期 return** が `a.optional` より手前にあり、
+  //   対象選択が起きず**強制ダウン**だった。さらに `lastProcessedCards` が必ず埋まるので
+  //   `DID_IT_GATED_TYPES` の did-it ゲートが素通りし、**後続の「そうした場合」が常に成立**していた。
+  // 🔑正準形は `O-77`（`execTransferToDeck`）と同じ＝`selectOrInteract` を通し、0体選択で
+  //   `resumeSelectTarget` → `stripDidItConditional` が後続の `CONDITIONAL{IS_MY_TURN}` ごと落とす。
+  const src = SIGNI_L3;
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const action = { type: 'SEQUENCE', steps: [
+    { type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true, isUp: true } }, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as EffectAction;
+  const eff = { effectId: 't-o391', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const handBefore = ctx.ownerState.hand.length;
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, '🔴強制ダウンになっている（選択UIが出ていない）');
+  const p0 = (r0 as { pending: { type: string; optional?: boolean } }).pending;
+  ok(p0.type === 'SELECT_TARGET' && p0.optional === true, '0体を選べる SELECT_TARGET を出す');
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  // スキップ（0体）＝ダウンもドローも起きない
+  const rSkip = resumeSelectTarget([], p0 as never, rctx);
+  ok(rSkip.done, 'skip 完了');
+  eq(rSkip.ownerState.hand.length, handBefore, '🔴ダウンを辞退したのにドローしている（did-it ゲートが素通り）');
+  eq((rSkip.ownerState.field.signi_down ?? [])[0] ?? false, false, 'skip 時はダウンしない');
+  // 実行（1体）＝ダウンしてドローする
+  const rDo = resumeSelectTarget([src], p0 as never, rctx);
+  ok(rDo.done, 'do 完了');
+  eq(rDo.ownerState.hand.length, handBefore + 1, 'do 時はドローする');
+  eq((rDo.ownerState.field.signi_down ?? [])[0] ?? false, true, 'do 時はダウンする');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
