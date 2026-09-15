@@ -1,5 +1,61 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 — 第365バッチ：索引G を20件消化（🏁修正16件＝23効果／🚫偽陽性4件）
+
+### 🔑 取り方＝20件ぶんの受け皿を先にまとめて grep した
+
+登録票を1件ずつ直す前に、**全件の「直すのに要る受け皿」を engine で grep してから**書き始めた。
+結果＝**engine 変更は2箇所だけ**、偽陽性4、残り14件は JSON（`manualEffects.ts` 16カード＋parser 2規則）で済んだ。
+
+### 🏁修正16件
+
+| ID | 効果 | 真因（1行） | 直し方 |
+|---|---|---|---|
+| `O-517` | `PR-K021-E3` | 「シグニ１体を対象とし、〈パワー条件〉場合」の条件が効果レベル（`owner:'any'` を `O-516` のパスが弾いた） | parser パスの門に `any` を足す |
+| `O-389` | `WX04-034-E1` | 「それぞれ名前の異なる」がゲートにだけあり、**実際に捨てる札**に無い | 3枝の `TRASH` に `selectionConstraint:{distinct:'name'}` |
+| `O-392` | `WXK03-040-E1`/`WXK03-079-E1`/`WXK10-009-E1`＋`PR-K072-E1` | 「それを場に出す」「そのシグニは能力を失う」の「それ」が未束縛＝**トラッシュの別のシグニ／自分の別のシグニを選べた** | parser 新パス `bindMilledCardToFieldPlay`（`STORE`＋`targetsStored`＝`WXK03-028-E3` の正準形）／`REMOVE_ABILITIES{targetsLastProcessed}` |
+| `O-393` | `SPDi43-30-E1` | ②の `OPTIONAL_COST` が空＝**タダで【アサシン】**、しかも付与先が任意のシグニ | `handDiscard{count:2, color:青}`＋`thisCardOnly` |
+| `O-395` | `WXK02-067/069/072-E1` | 「シグニが戻っていた場合」を `owner:'self'` で生成 | parser の条件句を `any`（engine は両者合算に対応済み） |
+| `O-396` | `WX04-064-E1` | 「アーツの効果を受けない」を相手のアーツに限定 | `sourceOwner` を削除（キーが `PROTECTION:アーツ:` になり自他とも通る） |
+| `O-402` | `WXDi-P03-054-E1` | 「代わりに2枚まで」が加算＝**1枚拾ったうえで追加で2枚** | `CONDITIONAL{PAID_ADDITIONAL_COST, then:2枚まで, else:1枚まで}` |
+| `O-403` | `WX25-CP1-065-E1` | 別の文の「クラッシュされたとき－2000」が支払いの枝の内側 | 付与を支払いの**前**へ（🔴下の engine 修正が要った） |
+| `O-405` | `WXK09-067-E1`＋`WX20-079-E1` | 「シャッフルしてデッキの一番下」の無作為化が無い | engine＋`shuffle:true` |
+| `O-406` | `WX19-059-BURST`／`WXK03-023-E1` | 先頭の任意化 STUB が**必須のドロー／手札入れ替えまで辞退可能**にしていた | バーストは `OPTIONAL_ACTIVATE` 撤去／スペルは追加コストの直後に `CONDITIONAL{PAID_ADDITIONAL_COST}` を置いて後続を continuation へ |
+| `O-407` | `WX11-030-E2` | アップ／ダウンの対象が自分のシグニだけ | `owner:'any'` |
+| `O-426` | `WXDi-P16-001A-E1` | 「このターンにグロウしていない」使用条件が無い | `AND[…, CENTER_LRIG_NOT_GROWN_THIS_TURN]` |
+| `O-432` | `PR-K076-BURST` | 「このターンにアタックした」限定が無い | `attackedThisTurn:true` |
+| `O-435` | `WXDi-P12-048-E2` | エナから置くカードの《ディソナアイコン》限定が無い | `OPTIONAL_COST{energyTrash:{filter:{isDisona}}}` |
+| `O-438` | `WX24-P4-005-E1` | 自分のライフクラッシュ「してもよい」が強制 | `LIFE_CRASH{optional:true}`（did-it ゲートは既存） |
+| `O-446` | `WXDi-P04-049-E1` | 「**各**アタックフェイズ開始時」が自分のターンだけ | `triggerCondition.anyTurn`（`O-313` の受け皿がこの timing にも効く） |
+
+### 🔧 engine 変更は2箇所
+
+1. **`insertToDeck`（`execTransferToDeck`）**＝`shuffle && position==='bottom'` は**置く札だけ**を無作為化して下へ積む（デッキ全体はシャッフルしない）。
+   ⚠導入時の live で `shuffle:true`＋`bottom` は0件＝既存の意味は変えていない（反転確認＝`top` は従来どおり全体シャッフル）。
+2. **`execGrantEffect`**＝`targetsStored` でも**問い直さずに**付与する（`POWER_MODIFY` ほかと同じ契約）。
+   🔴旧は `fixedCardNums`（支払いプロンプトを跨ぐ焼き込み後）だけが即適用＝**支払いの前に置いた付与は候補1体でも選び直させていた**（`O-403` の golden で発覚）。
+
+### 🚫偽陽性4件（どれも engine が JSON を読み替えている）
+
+- `O-387` `WX17-020-E1`＝`FREEZE{LRIG}` の実装は**センタールリグ固定**（`lstate.field.lrig.at(-1)`）＝アシストは選べない。
+- `O-388` `WXDi-CP02-061-E2`＝`PLACE_CARD_UNDER_SIGNI` のクラフト分岐が**同名が既にスタックにあれば置かない**（`execStubPart1.ts`）。
+- `O-394` `WXDi-P10-059-E2`／`WX24-P1-039-E2`＝`ON_SIGNI_BANISH_OPPONENT` は**バトル経路にしか配線されていない**（効果バニッシュは `…_BY_EFFECT` の別 timing）。
+- `O-397` 4効果＝`REVEAL_AND_PICK` の候補は `SEARCH.visibleCards` として**選ぶ人のモーダルにだけ**出る＝相手には見えない。
+  「見る」371効果のうち230効果がこの型＝**事実上の正準形**（名前が「公開」なだけ）。
+
+### ⏸ 見送り5件（索引G に理由を追記して残した）
+
+`O-390`（【ダブルクラッシュ】由来を記録する口が無い＝`src/screens/`）／`O-400`（収集地点が `eff.condition` を見ず《ゲーム１回》が先に消費＝`src/screens/`）／
+`O-401`（「場を離れる」置換＝新機構）／`O-404`（**実バグだが**付与アイコンを数えるかがルール解釈依存＝ユーザー判断待ち）／`O-408`（移動保護のゾーン語彙＝新機構）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4216/4216**＝+5本＝形の固定1本／`O-405`・`O-406`・`O-402`・`O-403` の挙動を**反転確認つき**で4本）。smoke 全0。
+- ⚠既存3本を更新＝`O-96 第3バッチ 前置条件`・`段2 第28バッチ E2E`（`PR-K021-E3` は条件不成立でも宣言のために積まれる）／`O-60 第53`（`WXDi-P03-054-E1` は STUB をやめた）。
+- live の変更は**意図した23効果だけ**（HEAD との effectId 単位の差分で確認）。
+- ✅**実機は §2.2 で不要**＝`src/screens/` 不触・新しいアクション型／条件型なし（engine 変更2つは既存型の分岐の追加）。
+
+
 ## 2026-09-15 — 第364バッチ：🏁`O-515` / `O-516` クローズ（対象宣言が支払い・条件に隠れていた＝**族96効果の engine 修正＋20効果**）
 
 ### 🏁`O-515` — `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 族は、支払いを辞退すると対象宣言が起きなかった

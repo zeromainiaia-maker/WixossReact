@@ -6051,7 +6051,9 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   }
 
   // 🆕**焼き込み済みの対象は選択UIを開かずに即付与する**（§5.3 `O-96` 第12バッチ・実機 `V-130` と同型）。
-  if (a.fixedCardNums?.length) return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
+  // 🆕§5.3 `O-403`（2026-09-16）＝`targetsStored`（宣言済みの「それ」）も**問い直さずに**付与する（`POWER_MODIFY` と同じ契約）。
+  //   🔴旧は `fixedCardNums`（支払いプロンプトを跨ぐ焼き込み後）だけが即適用で、**支払いの前に置いた付与は対象を選び直させていた**。
+  if (a.fixedCardNums?.length || a.targetsStored) return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   // LRIG は選択UIを出さず自動付与（execGrantKeyword と同様）
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -8071,6 +8073,9 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   function insertToDeck(s: PlayerState, cards: string[]): PlayerState {
+    // 🆕§5.3 `O-405`（2026-09-16）＝「それらを**シャッフルして**デッキの一番下に置く」＝**置く札だけ**を無作為化して下へ積む
+    //   （デッキ全体はシャッフルしない）。⚠live で `shuffle:true` ＋ `position:'bottom'` は導入時 0件＝既存の意味は変えない。
+    if (a.shuffle && a.position === 'bottom') return { ...s, deck: [...s.deck, ...shuffle([...cards])] };
     if (a.shuffle) return { ...s, deck: shuffle([...s.deck, ...cards]) };
     // 🔴**`toBottom` で分岐しない**（`V-100`③）＝`'second'`/`'third'` がここだけ実装されておらず、
     //   「デッキの上から三番目に置く」が黙って一番上へ落ちていた。index 0＝一番上／deck.length＝一番下

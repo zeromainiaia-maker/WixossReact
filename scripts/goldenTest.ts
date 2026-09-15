@@ -20689,8 +20689,11 @@ test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () 
   eq(w070.condition, undefined, 'WXK08-070: 条件を効果レベルに置かない（宣言ごと起きなくなる）');
   eq(((w070.action as SequenceAction).steps[2] as ConditionalAction).condition.type, 'BEAT_CONDITION',
     'WXK08-070: 【ビート】5枚の条件を宣言の後ろに維持');
-  eq(o96Live('PR-K021', 'PR-K021-E3').condition?.type, 'SELF_POWER_GTE',
-    'PR-K021: 自パワー12000の条件を維持');
+  // 🆕§5.3 `O-517`（2026-09-16）＝`PR-K021-E3` も同型（「シグニ１体を対象とし、このシグニのパワーが12000の場合」）＝宣言の後ろ。
+  const k021 = o96Live('PR-K021', 'PR-K021-E3');
+  eq(k021.condition, undefined, 'PR-K021: 条件を効果レベルに置かない');
+  eq(((k021.action as SequenceAction).steps[2] as ConditionalAction).condition.type, 'SELF_POWER_GTE',
+    'PR-K021: 自パワー12000の条件を宣言の後ろに維持');
 });
 
 // PLAN §5.3 O-190 第1バッチ＝「〈別コスト〉し《色》を支払ってもよい」の前半が
@@ -56810,7 +56813,13 @@ for (const [effectId, exactDelta, missDelta] of [
       return collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' }, owner, other, source, HOST, powers);
     };
     ok(collectAt(exactDelta).some(entry => entry.effectId === effectId), 'ちょうどで収集されない');
-    ok(!collectAt(missDelta).some(entry => entry.effectId === effectId), '1手前で過剰収集');
+    // 🆕§5.3 `O-517`（2026-09-16）＝`PR-K021-E3` は原文が「対象とし、〈パワー条件〉の場合」＝**宣言が条件より前**なので、
+    //   条件は効果レベルから木の中へ移った＝**1手前でも能力は積まれ**、解決時に条件を見る（収集では弾かない）。
+    if (effectId === 'PR-K021-E3') {
+      ok(collectAt(missDelta).some(entry => entry.effectId === effectId), '🔴条件不成立でも宣言のために能力は積まれる（O-517）');
+    } else {
+      ok(!collectAt(missDelta).some(entry => entry.effectId === effectId), '1手前で過剰収集');
+    }
     const effect = batch28Effect(effectId);
     if (effectId.endsWith('-E2')) {
       const ctx = mkCtx({ signi: [source, null, null], energy: 0 }, {}, source);
@@ -69161,8 +69170,13 @@ test('§5.3 O-60 第53: 属性 payload の値が原文どおり（クラス／�
 
 test('§5.3 O-60 第53: REVEAL_PICK の公開枚数は payload（旧既定5枚はカード全文頼み）', () => {
   const cases: Array<[string, string, number]> = [
-    ['WX14-037', 'WX14-037-E1', 3], ['WX16-Re04', 'WX16-Re04-E1', 4], ['WXDi-P03-054', 'WXDi-P03-054-E1', 5],
+    ['WX14-037', 'WX14-037-E1', 3], ['WX16-Re04', 'WX16-Re04-E1', 4],
   ];
+  // 🆕§5.3 `O-402`（2026-09-16）＝`WXDi-P03-054-E1` は STUB をやめ、支払いの有無で枝を分けた `REVEAL_AND_PICK` 2本になった
+  //   （旧は1枚拾ったうえで支払っていれば**追加で**2枚＝合計3枚回収できた）。公開枚数は両枝とも原文どおり5。
+  const p03054 = (effectsMap.get('WXDi-P03-054') ?? []).find(e => e.effectId === 'WXDi-P03-054-E1');
+  const p03054Counts = (JSON.stringify(p03054?.action ?? {}).match(/"revealCount":(\d+)/g) ?? []).join(',');
+  eq(p03054Counts, '"revealCount":5,"revealCount":5', 'WXDi-P03-054-E1 の公開枚数は両枝とも原文どおり 5');
   for (const [card, effectId, want] of cases) {
     const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
     ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
@@ -83810,6 +83824,109 @@ test('§5.3 O-516: 「対象とし、〈条件〉場合」は条件が宣言の�
   eq(tops(finish(low.r, low.c).otherState).join(','), `${oppA},${oppB},`, '条件不成立なら何もバニッシュしない');
   const high = run(20000);
   eq(tops(finish(high.r, high.c).otherState).filter(Boolean).length, 1, '条件成立なら宣言した1体をバニッシュする');
+}));
+
+// ── §5.3 索引G 第365バッチ（2026-09-16）＝原文を読み直して直した単発の修正（形の固定＋挙動が変わる4件の両方向） ──
+const g365Get = (id: string): CardEffect => {
+  const e = [...effectsMap.values()].flat().find(x => x.effectId === id);
+  if (!e) throw new Error(`${id} が live に無い`);
+  return e;
+};
+test('§5.3 索引G 第365: 修正した効果の live の形', () => {
+  const s = (id: string) => JSON.stringify(g365Get(id));
+  eq((s('WX04-034-E1').match(/"selectionConstraint":\{"distinct":"name"\}/g) ?? []).length, 3,
+    '🔴O-389: 実際に捨てる3枝すべてに「名前の異なる」制約');
+  for (const id of ['WXK03-040-E1', 'WXK03-079-E1', 'WXK10-009-E1']) {
+    ok(s(id).includes('"STORE_LAST_PROCESSED_TARGETS"') && s(id).includes('"targetsStored":true'),
+      `🔴O-392 ${id}: 「それを場に出す」が置いた札に束縛されていない（トラッシュの別のシグニを選べる）`);
+  }
+  ok(s('PR-K072-E1').includes('"targetsLastProcessed":true'), '🔴O-392 PR-K072-E1: 「そのシグニは能力を失う」が場に出した札に束縛されていない');
+  ok(s('SPDi43-30-E1').includes('"handDiscard":{"count":2,"filter":{"color":"青"}}'), '🔴O-393: 任意コストが空（タダで【アサシン】）');
+  for (const id of ['WXK02-067-E1', 'WXK02-069-E1', 'WXK02-072-E1']) {
+    eq((g365Get(id).activeCondition as { owner?: string } | undefined)?.owner, 'any', `🔴O-395 ${id}: 「シグニが戻っていた場合」は持ち主を問わない`);
+  }
+  ok(!s('WX04-064-E1').includes('sourceOwner'), '🔴O-396: 「アーツの効果を受けない」を相手のアーツに限定している');
+  ok(s('WXDi-P03-054-E1').includes('"else"') && !s('WXDi-P03-054-E1').includes('REVEAL_PICK_HAND_SHUFFLE_BOTTOM'),
+    '🔴O-402: 追加エクシードの「代わりに2枚まで」が置換になっていない（加算）');
+  const c065 = (g365Get('WX25-CP1-065-E1').action as SequenceAction).steps;
+  eq(c065[2]?.type, 'GRANT_EFFECT', '🔴O-403: クラッシュ時の－2000 の付与が支払いの外（前）にない');
+  eq((c065[3] as StubAction)?.id, 'OPTIONAL_COST', 'O-403: 付与のあとに任意コスト');
+  for (const id of ['WXK09-067-E1', 'WX20-079-E1']) ok(s(id).includes('"shuffle":true'), `🔴O-405 ${id}: 「シャッフルして一番下」の無作為化が無い`);
+  eq((g365Get('WX19-059-BURST').action as SequenceAction).steps[0]?.type, 'DRAW', '🔴O-406: 先頭の OPTIONAL_ACTIVATE が必須のドローまで任意化');
+  eq(((g365Get('WXK03-023-E1').action as SequenceAction).steps[1] as ConditionalAction)?.condition?.type, 'PAID_ADDITIONAL_COST',
+    '🔴O-406: 追加コストの任意性が後続（手札1枚捨て・1枚引く）まで巻き込む');
+  eq((s('WX11-030-E2').match(/"owner":"any"/g) ?? []).length, 2, '🔴O-407: アップ／ダウンの対象を自分のシグニに限定している');
+  ok(s('WXDi-P16-001A-E1').includes('CENTER_LRIG_NOT_GROWN_THIS_TURN'), '🔴O-426: 「このターンにグロウしていない」使用条件が無い');
+  ok(s('PR-K076-BURST').includes('"attackedThisTurn":true'), '🔴O-432: 「このターンにアタックした」限定が無い');
+  ok(s('WXDi-P12-048-E2').includes('"isDisona":true') && !s('WXDi-P12-048-E2').includes('OPTIONAL_TRASH_ENERGY_CLASS'),
+    '🔴O-435: エナから置くカードの《ディソナアイコン》限定が無い');
+  ok(/"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true,"optional":true/.test(s('WX24-P4-005-E1')), '🔴O-438: 自分のライフクラッシュが強制');
+  eq((g365Get('WXDi-P04-049-E1').triggerCondition as { anyTurn?: boolean } | undefined)?.anyTurn, true, '🔴O-446: 「各アタックフェイズ開始時」が自分のターンだけ');
+});
+
+test('§5.3 O-405: 「シャッフルしてデッキの一番下に置く」は置く札だけを無作為化し、デッキの並びは崩さない（＋反転）', () => withSavedCursor(() => {
+  const mv = (shuffleFlag: boolean, position: 'top' | 'bottom') => {
+    const c = mkCtx({ trash: 6 }, {}, 'WXK09-067');
+    const before = [...c.ownerState.deck];
+    const trash = [...c.ownerState.trash];
+    const out = finish(run({ type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL' },
+      shuffle: shuffleFlag, position } as EffectAction, c), c);
+    return { before, trash, deck: out.ownerState.deck };
+  };
+  const now = mv(true, 'bottom');
+  eq(now.deck.slice(0, now.before.length).join(','), now.before.join(','), '🔴デッキ全体をシャッフルしている（下に積むだけのはず）');
+  eq([...now.deck.slice(now.before.length)].sort().join(','), [...now.trash].sort().join(','), '置いた札はデッキの一番下にある');
+  // 反転＝`position:'top'` の shuffle は従来どおり**デッキ全体**をシャッフルする（既存の意味を変えていない）。
+  const top = mv(true, 'top');
+  ok(top.deck.slice(0, top.before.length).join(',') !== top.before.join(','), '`shuffle`（一番下以外）は従来どおり全体シャッフル');
+}));
+
+test('§5.3 O-406: 任意なのはトラップ設置／追加コストだけ＝ドローと手札入れ替えは辞退しても行う（＋反転）', () => withSavedCursor(() => {
+  const burst = g365Get('WX19-059-BURST');
+  const cb = mkCtx({ hand: 2 }, {}, 'WX19-059');
+  const rb = executeEffect(burst, cb);
+  eq(rb.ownerState.hand.length, 3, '🔴最初の問いより前に1枚引いている（ドローは強制）');
+  ok(!rb.done && rb.pending.type === 'SELECT_TARGET' && rb.pending.optional === true, 'トラップ設置は任意');
+
+  const w023 = g365Get('WXK03-023-E1');
+  const runSkip = (e: CardEffect) => {
+    const c = mkCtx({ hand: 2 }, {}, 'WXK03-023');
+    const r = executeEffect(e, c);
+    if (r.done || r.pending.type !== 'CHOOSE') return null;
+    return { c, out: finish(resumeChoose('skip', r.pending, { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs }), c) };
+  };
+  const now = runSkip(w023);
+  ok(!!now, '追加コストの二択が出る'); if (!now) return;
+  eq(now.out.ownerState.deck.length, now.c.ownerState.deck.length - 1, '🔴追加コストを払わなくても1枚引く');
+  const oldAct = { ...(w023.action as SequenceAction), steps: (w023.action as SequenceAction).steps.filter((_, i) => i !== 1) } as EffectAction;
+  const old = runSkip({ ...w023, effectId: 't-o406-old', action: oldAct });
+  ok(!!old, '旧形でも二択は出る'); if (!old) return;
+  eq(old.out.ownerState.deck.length, old.c.ownerState.deck.length, '旧形は辞退すると引かない（＝直した壊れ方）');
+}));
+
+test('§5.3 O-402: 追加エクシードを払わなければ1枚まで（旧は1枚拾ったあと追加で2枚）', () => withSavedCursor(() => {
+  const eff = g365Get('WXDi-P03-054-E1');
+  const c = mkCtx({}, {}, 'WXDi-P03-054');
+  const r = executeEffect(eff, c);
+  ok(!r.done && r.pending.type === 'CHOOSE', '追加コストの二択が先'); if (r.done || r.pending.type !== 'CHOOSE') return;
+  const r2 = resumeChoose('skip', r.pending, { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+  ok(!r2.done && r2.pending.type === 'SEARCH', '払わなければ5枚から選ぶ'); if (r2.done || r2.pending.type !== 'SEARCH') return;
+  eq(r2.pending.maxPick, 1, '🔴払っていないのに2枚以上拾える');
+  const f2 = finish(r2, c);
+  ok(!f2.pending, '払わなかった側はそこで終わる（旧は続けて2枚ぶんの公開が走った）');
+}));
+
+test('§5.3 O-403: クラッシュ時の－2000 は支払いを問う前に付与される（辞退しても残る）', () => withSavedCursor(() => {
+  const eff = g365Get('WX25-CP1-065-E1');
+  const oppA = fresh(), oppB = fresh();
+  const c = mkCtx({ hand: 2 }, { signi: [oppA, oppB, null] }, 'WX25-CP1-065');
+  const r0 = executeEffect(eff, c);
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '先頭は対象宣言'); if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+  const r1 = resumeSelectTarget([oppB], r0.pending, { ...c, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs });
+  ok(!r1.done && r1.pending.type === 'CHOOSE',
+    `宣言のあとに任意コスト（実際=${r1.done ? 'done' : r1.pending.type}／log=${(r1.logs ?? []).slice(-3).join(' | ')}）`);
+  if (r1.done || r1.pending.type !== 'CHOOSE') return;
+  ok(JSON.stringify(r1.otherState).includes('WX25-CP1-065-E1-CRASH'), '🔴支払いを問う時点でクラッシュ時の能力が付与されていない');
 }));
 
 // ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。

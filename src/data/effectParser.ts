@@ -2437,7 +2437,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
   // パターン3i: 「このターンにシグニが場から手札に戻っていた場合、」（このターンのシグニ手札戻り条件。G087）
   if (text.startsWith('このターンにシグニが場から手札に戻っていた場合、')) {
     return {
-      condition: { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'self' } as ActiveCondition,
+      // 🆕§5.3 `O-395`（2026-09-16）＝原文「シグニが」は持ち主を問わない＝`any`（旧 `self` は相手のシグニが戻っても不成立）。
+      condition: { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any' } as ActiveCondition,
       rest: text.slice('このターンにシグニが場から手札に戻っていた場合、'.length),
       conditionFound: true,
     };
@@ -14880,7 +14881,8 @@ function sinkEffectConditionAfterTargetDecl(
     const steps = (act as SequenceAction).steps;
     const s0 = steps[0] as StubAction & { selectTarget?: { type?: string; owner?: string } };
     if (s0?.type === 'STUB' && s0.id === 'SELECT_TARGET_ONLY' && (steps[1] as StubAction)?.id === 'STORE_LAST_PROCESSED_TARGETS'
-        && s0.selectTarget?.type === 'SIGNI' && s0.selectTarget.owner === 'opponent' && steps.length >= 3) {
+        // 🆕§5.3 `O-517`＝「シグニ１体を対象とし」（`owner:'any'`）も相手シグニを含む＝同じく沈める（`PR-K021-E3`）。
+        && s0.selectTarget?.type === 'SIGNI' && (s0.selectTarget.owner === 'opponent' || s0.selectTarget.owner === 'any') && steps.length >= 3) {
       const rest = steps.slice(2);
       next = { type: 'SEQUENCE', steps: [s0, steps[1],
         mkCond(rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction)] } as SequenceAction;
@@ -14895,6 +14897,42 @@ function sinkEffectConditionAfterTargetDecl(
   if (!next) return;
   effect.action = next;
   delete effect.condition;
+}
+
+/**
+ * 🆕**§5.3 `O-392`（2026-09-16）＝「デッキの〜をトラッシュに置く。それが〈X〉の場合、それを（トラッシュから）場に出す」の
+ * 「それ」を、置いた札へ束縛する。**
+ * 🔴旧は `ADD_TO_FIELD{source:TRASH_CARD}` が素のままで、**トラッシュにある別の該当シグニも選べた**。
+ * 🔑正準形は `WXK03-028-E3`＝置いた直後に `STORE_LAST_PROCESSED_TARGETS`、場出しに `targetsStored`。
+ */
+function bindMilledCardToFieldPlay(text: string, action: EffectAction): EffectAction {
+  if (!/トラッシュに置く。それが[^。]*場合、それを(?:トラッシュから)?場に出す/.test(text)) return action;
+  const isMillStep = (s: EffectAction): boolean => s.type === 'MILL'
+    || (s.type === 'TRASH' && (s as { target?: { type?: string } }).target?.type === 'DECK_CARD');
+  const walk = (node: EffectAction): EffectAction => {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === 'CHOOSE') {
+      const c = node as import('../types/effects').ChooseAction;
+      return { ...c, choices: c.choices.map(ch => ({ ...ch, action: walk(ch.action) })) } as EffectAction;
+    }
+    if (node.type === 'CONDITIONAL') {
+      const c = node as import('../types/effects').ConditionalAction;
+      return { ...c, then: walk(c.then), ...(c.else ? { else: walk(c.else) } : {}) } as EffectAction;
+    }
+    if (node.type !== 'SEQUENCE') return node;
+    const steps = (node as SequenceAction).steps.map(walk);
+    for (let i = 0; i + 1 < steps.length; i++) {
+      const gate = steps[i + 1] as import('../types/effects').ConditionalAction;
+      if (!isMillStep(steps[i]) || gate.type !== 'CONDITIONAL' || gate.condition.type !== 'LAST_PROCESSED_MATCHES') continue;
+      const play = gate.then as EffectAction & { source?: { type?: string }; targetsStored?: boolean; targetsLastProcessed?: boolean };
+      if (play.type !== 'ADD_TO_FIELD' || play.source?.type !== 'TRASH_CARD' || play.targetsStored || play.targetsLastProcessed) continue;
+      steps.splice(i + 1, 0, { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction);
+      steps[i + 2] = { ...gate, then: { ...play, targetsStored: true } as EffectAction } as EffectAction;
+      i++;
+    }
+    return { ...node, steps } as EffectAction;
+  };
+  return walk(action);
 }
 
 /**
@@ -32396,6 +32434,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = sinkTargetDeclIntoLeadingCondition(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-516`＝「対象とし、〈条件〉場合」の条件を効果レベルから宣言の後ろへ沈める。
     sinkEffectConditionAfterTargetDecl(currentSourceTexts.get(effect.effectId) ?? '', effect);
+    // 🆕§5.3 `O-392`＝「トラッシュに置く。それが〜場合、それを場に出す」の「それ」を置いた札へ束縛する。
+    effect.action = bindMilledCardToFieldPlay(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
     effect.action = markIndependentTrashBestEffort(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-391`(b)＝強制の行動が空振りしたら「そうした場合」も起きない（ゲート節を足す）。
