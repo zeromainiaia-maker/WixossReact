@@ -305,7 +305,7 @@ export type ActiveCondition =
   // 🆕`Condition` 側と同形の**2ゾーン合算**（2026-08-31 続き747・`WXEX1-31-E1`「あなたのエナゾーンと
   //   トラッシュに赤/青/緑のカードが１枚もない**かぎり**」）。⚠**両評価器を揃える**（PLAN §4.2 の3点セット）。
   | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number; distinctAcrossZones?: 'name' | 'level' }
-  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート
+  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; sharedClassDistinctNames?: boolean } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート（`sharedClassDistinctNames`＝「共通するクラスを持つシグニがN種類」§5.3 `O-480`）
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number; allFieldLrigs?: boolean } // 通常はセンター。allFieldLrigs=true はセンター＋アシスト全員
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
@@ -422,7 +422,7 @@ export type Condition =
   | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef; byOpponentEffect?: boolean }
   | { type: 'LIFE_CRASHED_LAST_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
-  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
+  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; sharedClassDistinctNames?: boolean } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number }
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
@@ -1433,6 +1433,8 @@ export interface TargetFilter {
   cardName?:  string;      // 部分一致（cardName を含む）
   cardNames?: string[];    // いずれかの名前に一致（複数名指定用、完全一致）
   excludeCardName?: string; // このカード名を除外（完全一致）
+  /** 🆕§5.3 `O-459`（2026-09-16）＝「【チーム】を持つ」＝CSV の `Team` 列が空でも `-` でもないカード。 */
+  hasTeam?: boolean;
   cardNum?:   string;
   excludeResona?: boolean; // cardType:'シグニ' はレゾナも含むため「レゾナではない」を明示
   color?:     string | string[];
@@ -1966,6 +1968,8 @@ export interface EffectTarget {
   filter?: TargetFilter;
   /** 直前の DESIGNATE_SIGNI_ZONE が保存した対象側のゾーンだけを場レベル効果の対象にする。 */
   zoneSource?: 'designated';
+  /** 🆕§5.3 `O-455`＝`CENTER_LRIG_OR_SIGNI` で**アシストルリグも**候補にする（原文が「センタールリグ」でなく「ルリグ」）。 */
+  includeAssistLrig?: boolean;
   /**
    * 「対戦相手の**すべての領域にある**シグニ」「対戦相手の**手札と場とエナゾーンとトラッシュにある**シグニ」
    * ＝場だけでなく手札・エナ・トラッシュも候補に含める（§6.4 O-17）。
@@ -6601,6 +6605,8 @@ export interface StubAction {
    * 立っているときだけ CHOOSE に「何もしない」枝が出る（既定＝ちょうど1枚＝`WX24-P3-030-E1`）。
    */
   trashedCardUpTo?: boolean;
+  /** 🆕§5.3 `O-415`＝`TRASHED_CARD_TO_HAND_OR_ENERGY` の再入印（複数枚から1枚を選んだ後）。 */
+  trashedCardPicked?: boolean;
   /**
    * PREVENT_LRIG_DAMAGE（§6.4 O-10・続き507）＝原文が
    * 「代わりにダメージを受けず、**ターン終了時まで、この能力を失う**」（`WXK01-002-E1`）の形のとき true。

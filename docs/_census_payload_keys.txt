@@ -1,7 +1,7 @@
 ===== payload キー被覆センサス（§5.5・逆翻訳が描き落としている payload キー） =====
 生成: npm run census:payloadkeys   1キーの内訳: --key <キー名>
 
-live JSON の payload キー: 595種
+live JSON の payload キー: 597種
   描かなくてよいと登録済み（IGNORED）: 9種
   🔴逆翻訳が一度も言及しない        : 0種 / 0ノード
 

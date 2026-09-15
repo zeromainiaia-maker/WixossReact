@@ -5365,7 +5365,8 @@ test('§6.4 reveal-until 9効果: 停止条件・ヒット先・残り先が liv
   eq(JSON.stringify(fixed.revealCount), JSON.stringify({ $ref: 'center_lrig_level' }), 'WX18-046-E1: 中央ルリグレベル参照');
   ok(!JSON.stringify(fixed).includes('DECK_REVEAL_UNTIL'), 'WX18-046-E1: 旧停止STUBなし');
   const declared = manualEffect('WX17-039', 'WX17-039-E1').action as SequenceAction;
-  eq(JSON.stringify((declared.steps[0] as StubAction).numberChoices), JSON.stringify([1, 2, 4, 5]), 'WX17-039-E1: 3を宣言候補から除外');
+  // 🆕§5.3 `O-481`（2026-09-16）＝「３以外の数字１つを宣言する」＝0 や 6 以上も宣言できる（旧 [1,2,4,5]）。3 は除く。
+  eq(JSON.stringify((declared.steps[0] as StubAction).numberChoices), JSON.stringify([0, 1, 2, 4, 5, 6, 7, 8, 9, 10]), 'WX17-039-E1: 3を宣言候補から除外');
   eq((manualEffect('WXK07-031', 'WXK07-031-E2').action as SequenceAction).steps[0].type, 'REVEAL_UNTIL', 'WXK07-031-E2: MANUALでも構造化済み');
 
   // §6.4 O-2＝SEARCH の相手応答ルーティングが入ったので、旧トリップワイヤ（UNKNOWN 維持＝相手応答不能）を
@@ -21029,15 +21030,16 @@ test('意味照合 WXDi-P03-004-E1: 選択肢②は《無》×5 を払えたと�
   const choose = (effect!.action as SequenceAction).steps
     .find(s => s.type === 'CHOOSE') as import('../src/types/effects').ChooseAction;
   ok(!!choose, 'CHOOSE を保持');
+  // 🆕§5.3 `O-410`（2026-09-16）＝「《無》×5を**支払い**、」は選んだら必ず払う＝任意コストではなく**強制の支払い**。
+  //   選べるのはエナ5枚以上のときだけ（選択肢の条件）＝「払えたときだけ実行する」は選択肢の可否で担保する。
+  eq(JSON.stringify((choose.choices[1] as { condition?: unknown }).condition),
+    JSON.stringify({ type: 'ENERGY_COUNT', owner: 'self', operator: 'gte', value: 5 }), '選択肢②はエナ5枚以上のときだけ選べる');
   const paid = (choose.choices[1].action as SequenceAction).steps as (EffectAction & { id?: string })[];
-  eq(paid[0].id, 'OPTIONAL_COST', '選択肢②の先頭が任意コスト');
-  eq(JSON.stringify((paid[0] as import('../src/types/effects').StubAction).costColors),
-    '["無","無","無","無","無"]', '《無》×5 を保持');
-  eq(paid[1].type, 'CONDITIONAL', '支払いゲート');
-  eq((paid[1] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', '実支払いだけで帰結');
-  // 帰結は「手札に加える → シャッフル → ライフに加える」の3段をそのまま保持する。
-  const then = (paid[1] as ConditionalAction).then as SequenceAction;
-  eq(then.steps.map(s => s.type).join(','), 'TRANSFER_TO_HAND,SHUFFLE_DECK,ADD_TO_LIFE',
+  ok(!JSON.stringify(paid).includes('OPTIONAL_COST'), '🔴選択肢②の支払いが任意（選んでから辞退できる）');
+  eq(JSON.stringify(paid[0]), JSON.stringify({ type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 5 }, asCost: true }),
+    '選択肢②の先頭はエナ5枚の支払い（《無》×5）');
+  // 支払いのあとは「手札に加える → シャッフル → ライフに加える」の3段をそのまま保持する。
+  eq(paid.slice(1).map(s => s.type).join(','), 'TRANSFER_TO_HAND,SHUFFLE_DECK,ADD_TO_LIFE',
     '支払い後の3段を保持');
   // 選択肢①（ドロー）は無償のまま＝コストを付けない。
   ok(!JSON.stringify(choose.choices[0]).includes('OPTIONAL_COST'), '選択肢①は無償のまま');
@@ -36236,7 +36238,8 @@ test('task12(xxix) G154同文12効果とunion付与4効果をproduction parser�
         if (a.type === 'CONDITIONAL') { walk(a.then); if (a.else) walk(a.else); }
       };
       walk(effect.action);
-      ok(targets.some(t => JSON.stringify(t) === JSON.stringify({ type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 })),
+      // 🆕§5.3 `O-455`（2026-09-16）＝4効果とも原文は「対戦相手の**ルリグ**かシグニ」＝アシストルリグも候補（`includeAssistLrig`）。
+      ok(targets.some(t => JSON.stringify(t) === JSON.stringify({ type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1, includeAssistLrig: true })),
         `${effectId} の該当付与先はルリグ∨シグニ`);
     }
   } finally { cursor = savedCursor; }
@@ -43216,14 +43219,25 @@ test('§6.4 O-3: `SP38-006-E4` は追加ターンのアタック/グロウフェ
   eq(resolveNextPhaseWithSkips('MAIN', nextTurn), 'END', '追加ターンではアタックフェイズを飛ばす');
 });
 
-test('§6.4 O-3: `WXK06-078-E1` の「このメインフェイズを終了する」が state を書く', () => {
+// ⚠`findCard` はカーソルを進める＝`withSavedCursor` で包まないと後続テストの引く札がずれる（第367バッチで踏んだ）。
+test('§6.4 O-3: `WXK06-078-E1` の「このメインフェイズを終了する」が state を書く', () => withSavedCursor(() => {
   const eff = effectsMap.get('WXK06-078')!.find(e => e.effectId === 'WXK06-078-E1')!;
-  const ctx = mkCtx({}, {}, 'WXK06-078');
-  const r = finish(executeEffect(eff, ctx), ctx);
+  // 🆕§5.3 `O-482`（2026-09-16）＝終了は「センタールリグが＜ウリス＞の場合、【エナチャージ１】をしてもよい。そうした場合」の内側
+  //   ⇒ ＜ウリス＞をセンターに置き、「発動する」を選んだ盤面で見る（＋反転＝＜ウリス＞でなければ終わらない）。
+  const isUrith = (c: CardData) => c.Type === 'ルリグ' && ((c.CardClass ?? '').includes('ウリス') || (c.Team ?? '').includes('ウリス'));
+  const urith = findCard(isUrith);
+  const other = findCard(c => c.Type === 'ルリグ' && !isUrith(c));
+  const runWith = (lrig: string) => {
+    const ctx = mkCtx({}, {}, 'WXK06-078');
+    ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, lrig: [lrig] } };
+    return finish(executeEffect(eff, ctx), ctx);
+  };
+  const r = runWith(urith);
   // 🔴従来は「ログを1行出すだけ」のハンドラで state を一切書かず、`census:stubs` にも映らない無言 no-op だった。
   ok((r.ownerState.blocked_actions ?? []).includes('MAIN_PHASE'), 'メインフェイズ終了を state に書く');
   ok(!(r.ownerState.blocked_actions ?? []).includes('MAIN_PHASE:NEXT_TURN'), 'このターン限り（次ターン予約にしない）');
-});
+  ok(!(runWith(other).ownerState.blocked_actions ?? []).includes('MAIN_PHASE'), '🔴センタールリグが＜ウリス＞でないのにメインフェイズが終わった（O-482）');
+}));
 
 // ── §6.4 O-3（続き491）: ターンプレイヤー交代の判定を1関数へ集約 ──
 test('§6.4 O-3: resolveTurnHandover が追加ターンと次ターンスキップを同じ1点で解決する', () => {
@@ -59702,7 +59716,8 @@ test('段2 第46バッチ live/fresh: 採用9効果にdistinct条件が残る', 
   const expected: Array<[string, string[]]> = [
     ['WX12-Re14-E1', ['TRASH_HAS_CARD', 'distinctName']],
     ['WXEX2-65-E1', ['TRASH_HAS_CARD', 'distinctName']],
-    ['WXK10-047-E1', ['ENERGY_COUNT_FILTER', 'distinctClasses']],
+    // 🆕§5.3 `O-480`（2026-09-16）＝`WXK10-047-E1` は「**共通するクラスを持つ**シグニが5種類」＝`sharedClassDistinctNames` に変えた（live は manual）。
+    //   ⇒ この「distinct 条件が残る」の母集団から外し、下で live だけを固定する。
     ['WXDi-P02-004-E1', ['TRASH_HAS_CARD', 'distinctName']],
     ['WXDi-D06-015-E1', ['COST_TRASHED_MATCHES', 'distinctColors']],
     ['WXDi-P04-071-E1', ['COST_TRASHED_MATCHES', 'distinctColors']],
@@ -65085,7 +65100,9 @@ test('census 189: 手書き是正21件のトップレベル形を固定する（
   // ⑦⑧ 「デッキの一番下」（旧＝position:'top'＝原文と逆の端）
   eq((stepsOf('WXDi-P07-064', 'WXDi-P07-064-E1')[0]!.destination as Record<string, string>).position, 'bottom');
   eq((stepsOf('WXDi-P02-036', 'WXDi-P02-036-E1')[0]!.destination as Record<string, string>).position, 'bottom');
-  eq((act('WXDi-P09-068', 'WXDi-P09-068-E1').remainder as Record<string, string>).position, 'bottom');
+  // 🆕§5.3 `O-417`（2026-09-16）＝`WXDi-P09-068-E1` は「公開→レベル1のシグニなら引く／そうでなければ**その札を**一番下」へ書き直した
+  //   （旧 `REVEAL_AND_PICK` は一致した札を取り除いてから別の札を引いていた）＝一番下は不一致枝の置き先で見る。
+  eq(((act('WXDi-P09-068', 'WXDi-P09-068-E1').steps as Record<string, unknown>[])[1].else as { destination: Record<string, string> }).destination.position, 'bottom');
 
   // ⑨⑩ LOOK_PICK_CHAIN の選択段（旧＝LOOK_AND_REORDER 単独＝選択段が丸ごと欠落／上限無し）
   //    🔴`deck_top` / `trash` は live 初出の `then` 値
@@ -65184,7 +65201,8 @@ test('census 149: 手書き是正36件のトップレベル形を固定する（
   // ① 条件が「丸ごと落ちて無条件」だったものが CONDITIONAL で包まれたこと（反転＝トップが素のアクションでない）
   for (const [cardNum, effectId, cond] of [
     ['WXK07-006', 'WXK07-006-E3', { type: 'LRIG_DECK_COUNT', owner: 'self', operator: 'lte', value: 2 }],
-    ['WX21-044', 'WX21-044-E2', { type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' }],
+    // 🆕§5.3 `O-505`（2026-09-16）＝「＜遊具＞の効果によって**手札から**場に出た場合」＝移動元（手札）も要る。
+    ['WX21-044', 'WX21-044-E2', { type: 'AND', conditions: [{ type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' }, { type: 'THIS_CARD_FROM_ZONE_THIS_TURN', zones: ['hand'] }] }],
     ['WX20-040', 'WX20-040-E2', { type: 'HAS_TRAP_IN_FIELD', owner: 'self', minCount: 3 }],
     // 🆕`destination:'trash'`＝原文「場から**トラッシュに置かれて**いた場合」（§5.4 (b)・第189バッチ）。
     ['WX18-056', 'WX18-056-E1', { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self', destination: 'trash' }],
@@ -72151,7 +72169,8 @@ test('§5.3 O-249 第146: held が指した parser の退化9件（live と fres
   // ⑦ 「（そうした場合、）**対戦相手は**【エナチャージN】をしてもよい」＝ショートハンドが `owner:'self'` 固定で、
   //    **相手に与えるデメリットが自分の利益に化けて**いた（実測3効果）。
   for (const [cardNum, effectId, path] of [
-    ['WXDi-P06-011', 'WXDi-P06-011-E1', 'steps.1.then'],
+    // 🆕§5.3 `O-448`（2026-09-16）＝`WXDi-P06-011-E1` の「対戦相手は【エナチャージ１】をしてもよい」は live を
+    //   **相手が選ぶ STUB**（`OPPONENT_OPTIONAL_ENERGY_CHARGE`）へ移した＝この「帰結がエナチャージ」の母集団から外す（下の第367で固定）。
     ['WXDi-D07-013', 'WXDi-D07-013-E1', 'steps.1.then.choices.0.action'],
     ['WXDi-P08-059', 'WXDi-P08-059-E2', 'steps.1.then.choices.0.action'],
   ] as const) {
@@ -84020,6 +84039,97 @@ test('§5.3 O-464: 「デッキの一番上を公開し、＜怪異＞なら1枚
   ok(!miss.hand.includes(other) && miss.deckTop === other, '＜怪異＞でなければ引かず、公開札は一番上に残る');
 }));
 
+// ── §5.3 索引G 第367バッチ（2026-09-16）＝原文を読み直して直した単発の修正（形の固定＋挙動の両方向） ──
+test('§5.3 索引G 第367: 修正した効果の live の形', () => {
+  const s = (id: string) => JSON.stringify(g365Get(id));
+  ok(s('WXDi-P03-004-E1').includes('"asCost":true') && !s('WXDi-P03-004-E1').includes('OPTIONAL_COST'), '🔴O-410: 選択肢②の支払いが任意のまま');
+  ok(s('WXDi-P09-068-E1').includes('LAST_PROCESSED_MATCHES') && s('WXDi-P09-068-E1').includes('"position":"bottom"'), '🔴O-417: 公開札を取り除いてから別の札を引いている');
+  ok(s('SP27-016-E1').includes('"keywords":["シャドウ","アサシン","ランサー","ダブルクラッシュ"]') && !s('SP27-016-E1').includes('SUPPRESS_OPP_SIGNI_ABILITIES'),
+    '🔴O-424: 4つのキーワードではなく能力をすべて消している');
+  ok(s('WXDi-P06-011-E1').includes('OPPONENT_OPTIONAL_ENERGY_CHARGE'), '🔴O-448: 相手のエナチャージが強制');
+  for (const id of ['SP38-001-E1', 'WX24-P1-002-E1', 'WX24-P4-027-E1', 'WX25-P2-047-E1', 'WX25-P3-002-E1', 'WX25-CP1-026-E1', 'WX25-CP1-036-E1', 'WX24-D1-08-E1']) {
+    ok(s(id).includes('"includeAssistLrig":true'), `🔴O-455 ${id}: 「対戦相手のルリグ」でアシストルリグが候補に入らない`);
+  }
+  ok(!s('WX06-002-E1').includes('includeAssistLrig'), 'O-455 反転: 「センタールリグ」と書く効果には刻まない');
+  ok(s('WXDi-P16-094-E1').includes('"hasTeam":true'), '🔴O-459: 【チーム】を持つ限定が無い');
+  ok(s('WXK10-047-E1').includes('"sharedClassDistinctNames":true') && !s('WXK10-047-E1').includes('distinctClasses'), '🔴O-480: 異なるクラスの種類数を数えている');
+  ok(s('WX17-039-E1').includes('[0,1,2,4,5,6,7,8,9,10]'), '🔴O-481: 宣言できる数字が固定');
+  ok(JSON.stringify((g365Get('WXK06-078-E1').action as ConditionalAction).then).includes('SKIP_MAIN_PHASE'), '🔴O-482: メインフェイズ終了が条件の外');
+  ok(s('WX09-012-E2').includes('OPTIONAL_ACTIVATE'), '🔴O-486: 無料使用が強制');
+  ok(/"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false/.test(s('WXK07-006-E4')) && !s('WXK07-006-E4').includes('SUPPRESS_LIFE_BURST_ON_CRASH'),
+    '🔴O-489: バーストが発動するクラッシュの後ろで抑制している');
+  ok(s('WX12-014-E1').includes('"optional":true'), '🔴O-491: 自分のライフクラッシュが強制');
+  ok(s('WX26-CP1-100-E2').includes('"treatAsClass":"プリオケ"'), '🔴O-492: すべての領域で＜プリオケ＞として扱う常在が無い');
+  ok(s('WXDi-P07-042-E3').includes('"targetsLastProcessed":true') && !s('WXDi-P07-042-E3').includes('targetsTriggerSource'), '🔴O-494: ＋4000 の対象がこのカード自身');
+  ok(s('WXDi-CP01-003-E1').includes('"else"'), '🔴O-495: 追加エクシードを辞退すると後続ごと飛ぶ');
+  ok(s('WX25-P1-053-E1').includes('"asDown":true') && s('WX25-P1-053-E1').includes('"suppressOnPlay":true'), '🔴O-498: ダウン状態で場に出す後段が無い');
+  ok(s('WXEX2-18-E1').includes('"targetsTriggerSource":true'), '🔴O-499: アップ対象がトリガー元に固定されていない');
+  ok(s('SPDi47-03-E2').indexOf('"value":1,') < s('SPDi47-03-E2').indexOf('"value":8,'), '🔴O-502: 1枚以上の帰結より先に8枚以上の帰結が走る');
+  ok(s('WX21-044-E2').includes('THIS_CARD_FROM_ZONE_THIS_TURN'), '🔴O-505: 「手札から」の移動元条件が無い');
+  eq((g365Get('WXK11-039-E2').triggerCondition as { duringAttackPhase?: boolean } | undefined)?.duringAttackPhase, true, '🔴O-506: アタックフェイズ限定が無い');
+});
+
+test('§5.3 O-480: 「共通するクラスを持つシグニが5種類」はクラスごとの名前の種類数（＋反転＝異なるクラス5種類では成立しない）', () => {
+  const cond = g365Get('WXK10-047-E1').activeCondition as ActiveCondition;
+  const byName = new Map<string, string>();
+  for (const c of cardMap.values()) if (isSigni(c) && (c.CardClass ?? '').includes('宇宙') && !byName.has(c.CardName)) byName.set(c.CardName, c.CardNum);
+  const shared = [...byName.values()].slice(0, 5);
+  const classes = new Map<string, string>();
+  for (const c of cardMap.values()) {
+    if (!isSigni(c) || !c.CardClass || c.CardClass.includes('/') || c.CardClass.includes('：') === false) continue;
+    const cls = c.CardClass.split('：').pop()!;
+    if (!classes.has(cls)) classes.set(cls, c.CardNum);
+  }
+  const disjoint = [...classes.values()].slice(0, 5);
+  const energy = (cards: string[]) => { const st = mkState(); st.energy = cards; return st; };
+  eq(shared.length, 5, 'テスト用＜宇宙＞5種'); eq(disjoint.length, 5, 'テスト用の別クラス5枚');
+  ok(checkActiveCondition(cond, energy(shared), mkState(), true, cardMap), '＜宇宙＞の名前5種で成立');
+  ok(!checkActiveCondition(cond, energy(disjoint), mkState(), true, cardMap), '🔴クラスが全部違う5枚で成立した（旧 distinctClasses の読み）');
+});
+
+test('§5.3 O-459: `hasTeam` は【チーム】を持つカードだけに当たる', () => withSavedCursor(() => {
+  // ⚠シグニの【チーム】は `Team` 列ではなく能力の見出し（`【チーム自】` 等）にある（シグニで `Team` 列が埋まるのは0枚）。
+  const team = findCard(c => isSigni(c) && /【チーム[自常起出]】/.test(c.EffectText ?? ''));
+  const noTeam = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【チーム'));
+  ok(matchesFilter(cardMap.get(team), { cardType: 'シグニ', hasTeam: true }), '【チーム】を持つシグニは当たる');
+  ok(!matchesFilter(cardMap.get(noTeam), { cardType: 'シグニ', hasTeam: true }), '🔴【チーム】を持たないシグニにも当たった');
+}));
+
+test('§5.3 O-455: 「対戦相手のルリグ」はアシストルリグも候補（＋反転＝センター限定の形は従来どおり）', () => withSavedCursor(() => {
+  const center = findCard(c => c.Type === 'ルリグ');
+  const assist = findCard(c => c.Type === 'ルリグ' && c.CardNum !== center);
+  const signi = fresh();
+  const cands = (includeAssistLrig: boolean) => {
+    const ctx = mkCtx({}, { lrig: [center], assistL: [assist], signi: [signi, null, null] }, SIGNI);
+    const r = executeAction({ type: 'GRANT_KEYWORD', keyword: 'アタックできない', duration: 'UNTIL_END_OF_TURN',
+      target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1, ...(includeAssistLrig ? { includeAssistLrig: true } : {}) } } as EffectAction, ctx);
+    return r.done ? [] : ((r.pending as { candidates?: string[] }).candidates ?? []);
+  };
+  ok(cands(true).includes(assist), '🔴「対戦相手のルリグ」でアシストルリグが候補に入らない');
+  ok(!cands(false).includes(assist) && cands(false).includes(center), '「センタールリグ」の形はセンターだけ（従来どおり）');
+}));
+
+test('§5.3 O-415: 「その効果によってトラッシュに置かれたカードの中から」は複数枚から選べる', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const ctx = mkCtx({ hand: 0 }, {}, SIGNI);
+  ctx.ownerState = { ...ctx.ownerState, trash: [a, b, c] };
+  const r0 = executeAction({ type: 'STUB', id: 'TRASHED_CARD_TO_HAND_OR_ENERGY' } as EffectAction, { ...ctx, lastProcessedCards: [a, b] });
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '🔴複数枚置かれたのに選ばせていない（先頭の1枚に丸まる）'); if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+  eq([...(r0.pending.candidates ?? [])].sort().join(','), [a, b].sort().join(','), '候補はその効果で置かれた2枚だけ（トラッシュの他の札は出ない）');
+  const c1 = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const r1 = resumeSelectTarget([b], r0.pending, c1);
+  ok(!r1.done && r1.pending.type === 'CHOOSE', '選んだあとに手札かエナかを問う'); if (r1.done || r1.pending.type !== 'CHOOSE') return;
+  const out = finish(resumeChoose('hand', r1.pending, { ...c1, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs, lastProcessedCards: r1.lastProcessedCards } as ExecCtx), c1);
+  ok(out.ownerState.hand.includes(b) && !out.ownerState.hand.includes(a), '🔴選んだ札ではない方が手札に来た');
+}));
+
+test('§5.3 O-448: 「対戦相手は【エナチャージ１】をしてもよい」は対戦相手が選ぶ', () => {
+  const r = executeAction({ type: 'STUB', id: 'OPPONENT_OPTIONAL_ENERGY_CHARGE', value: 1 } as EffectAction, mkCtx({}, {}, SIGNI));
+  ok(!r.done && r.pending.type === 'CHOOSE', '二択が出る'); if (r.done || r.pending.type !== 'CHOOSE') return;
+  eq((r.pending as { opponentResponds?: boolean }).opponentResponds, true, '🔴選ぶのが効果の使用者になっている');
+  eq(r.pending.options.map(o => o.id).join(','), 'charge,skip', '「する／しない」の二択');
+});
+
 // ── §5.3 `O-391`(b)（2026-09-15）＝did-it ゲートが**構造的に届かない**形の3系統。
 //   ①`STUB` が「コストではなく原文の行動そのもの」なのに、`execSequence` の任意コスト catch-all が
 //     「任意コスト：発動しますか？」へ化けさせ、**pay 枝では帰結しか実行しない**（＝行動が消える）。
@@ -84029,7 +84139,12 @@ test('§5.3 O-391(b)①: キーを置く任意行動は、辞退すれば帰結�
   // live `WXK08-015-E1`「相手のシグニ1体をバニッシュする。その後、あなたのキー1枚を場からルリグトラッシュに
   //   置いてもよい。そうした場合、対戦相手のシグニ1体を対象とし、それをバニッシュする。」
   const key = 'WXK08-015';
-  const oppA = fresh(), oppB = fresh();   // ⚠2体必要＝1体目を落としてもなお候補が残る盤面にする
+  // ⚠2体必要＝1体目を落としてもなお候補が残る盤面にする。
+  // 🔴**1体目のバニッシュは「パワー8000以下」限定**＝`fresh()` のままだとカーソル次第でパワー10000の札を引き、
+  //   候補0で対象選択が出ずに先へ進む（第367バッチで全件実行だけ落ちた）。条件を満たす札を明示して選ぶ。
+  const lowPower = (c: CardData) => isSigni(c) && Number.parseInt(c.Power ?? '', 10) > 0 && Number.parseInt(c.Power ?? '', 10) <= 8000;
+  const oppA = findCard(lowPower);
+  const oppB = findCard(c => lowPower(c) && c.CardNum !== oppA);
   const mk = (): ExecCtx => {
     const c = mkCtx({}, { signi: [oppA, oppB, null] }, key);
     c.ownerState = { ...c.ownerState, field: { ...c.ownerState.field, key_piece: key } };
@@ -84046,7 +84161,7 @@ test('§5.3 O-391(b)①: キーを置く任意行動は、辞退すれば帰結�
   ok(!r0.done, '1体目のバニッシュの対象選択に入る');
   {
     const pB = (r0 as { pending: { type: string; candidates?: string[] } }).pending;
-    eq(pB.type, 'SELECT_TARGET', '前段は素のバニッシュ');
+    eq(pB.type, 'SELECT_TARGET', `前段は素のバニッシュ（oppA=${oppA} oppB=${oppB}／pending=${JSON.stringify(pB).slice(0, 200)}）`);
     const cB = { ...ctxSkip, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
     r0 = resumeSelectTarget([(pB.candidates ?? [])[0]], pB as never, cB);
   }

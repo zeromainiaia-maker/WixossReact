@@ -14900,6 +14900,27 @@ function sinkEffectConditionAfterTargetDecl(
 }
 
 /**
+ * 🆕**§5.3 `O-455`（2026-09-16）＝「対戦相手の**ルリグ**（か／と）シグニ」は**アシストルリグも**対象になる。**
+ * 🔴`CENTER_LRIG_OR_SIGNI` の `GRANT_KEYWORD` はセンターだけを候補にしていた＝原文が「センタールリグ」と書く効果と区別が無かった。
+ * ⚠「対戦相手の**センタールリグ**」の効果には刻まない（原文にそう書いてある）。
+ */
+function markAssistLrigTargets(text: string, action: EffectAction): EffectAction {
+  if (!/対戦相手のルリグ/.test(text)) return action;
+  const walk = (node: unknown): unknown => {
+    if (!node || typeof node !== 'object') return node;
+    if (Array.isArray(node)) return node.map(walk);
+    const o: Record<string, unknown> = { ...(node as Record<string, unknown>) };
+    for (const k of Object.keys(o)) o[k] = walk(o[k]);
+    const t = o.target as { type?: string; owner?: string } | undefined;
+    if (o.type === 'GRANT_KEYWORD' && t?.type === 'CENTER_LRIG_OR_SIGNI' && t.owner === 'opponent') {
+      o.target = { ...t, includeAssistLrig: true };
+    }
+    return o;
+  };
+  return walk(action) as EffectAction;
+}
+
+/**
  * 🆕**§5.3 `O-392`（2026-09-16）＝「デッキの〜をトラッシュに置く。それが〈X〉の場合、それを（トラッシュから）場に出す」の
  * 「それ」を、置いた札へ束縛する。**
  * 🔴旧は `ADD_TO_FIELD{source:TRASH_CARD}` が素のままで、**トラッシュにある別の該当シグニも選べた**。
@@ -32436,6 +32457,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     sinkEffectConditionAfterTargetDecl(currentSourceTexts.get(effect.effectId) ?? '', effect);
     // 🆕§5.3 `O-392`＝「トラッシュに置く。それが〜場合、それを場に出す」の「それ」を置いた札へ束縛する。
     effect.action = bindMilledCardToFieldPlay(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-455`＝「対戦相手のルリグ」はアシストルリグも候補。
+    effect.action = markAssistLrigTargets(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-453`＝原文が独立している後続文を、自分の `TRASH` の空振りで消さない。
     effect.action = markIndependentTrashBestEffort(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // 🆕§5.3 `O-391`(b)＝強制の行動が空振りしたら「そうした場合」も起きない（ゲート節を足す）。

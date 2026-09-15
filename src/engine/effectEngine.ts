@@ -816,7 +816,18 @@ export function checkActiveCondition(
       const cards = states.flatMap(state => state.energy)
         .map(cn => cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]))
         .filter((c): c is CardData => !!c && matchesFilter(c, cond.filter));
-      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+      // 🆕§5.3 `O-480`（2026-09-16）＝「**共通するクラスを持つ**シグニがN種類」＝クラスごとに名前の種類数を数えた最大値
+      //   （`distinctClasses`＝「異なるクラスがN種類」とは別の軸）。
+      const sharedClassNamesAE = (): number => {
+        const byClass = new Map<string, Set<string>>();
+        for (const c of cards) for (const cls of splitFieldClasses(c.CardClass)) {
+          if (!byClass.has(cls)) byClass.set(cls, new Set());
+          byClass.get(cls)!.add(c.CardName);
+        }
+        return Math.max(0, ...[...byClass.values()].map(s => s.size));
+      };
+      const count = cond.sharedClassDistinctNames ? sharedClassNamesAE()
+        : cond.distinctName ? new Set(cards.map(c => c.CardName)).size
         : cond.distinctColor ? new Set(cards.flatMap(c => splitFieldColors(c.Color))).size
         : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
           .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size
@@ -1591,7 +1602,17 @@ export function evalConditionForContinuous(
       const cards = states.flatMap(state => state.energy)
         .map(n => cardMap.get(n) ?? cardMap.get(n.split('#')[0]))
         .filter((c): c is CardData => !!c && matchesFilter(c, cond.filter));
-      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+      // 🆕§5.3 `O-480`＝「共通するクラスを持つシグニがN種類」（上の ActiveCondition 側と同じ式）。
+      const sharedClassNamesUC = (): number => {
+        const byClass = new Map<string, Set<string>>();
+        for (const c of cards) for (const cls of splitFieldClasses(c.CardClass)) {
+          if (!byClass.has(cls)) byClass.set(cls, new Set());
+          byClass.get(cls)!.add(c.CardName);
+        }
+        return Math.max(0, ...[...byClass.values()].map(s => s.size));
+      };
+      const count = cond.sharedClassDistinctNames ? sharedClassNamesUC()
+        : cond.distinctName ? new Set(cards.map(c => c.CardName)).size
         : cond.distinctColor ? new Set(cards.flatMap(c => splitFieldColors(c.Color))).size
         : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
           .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size

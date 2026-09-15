@@ -1530,6 +1530,10 @@ export function matchesFilter(
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
   if (filter.excludeCardName && card.CardName === filter.excludeCardName) return false;
+  // 🆕§5.3 `O-459`（2026-09-16）＝「【チーム】を持つシグニ」（`WXDi-P16-094-E1`）。
+  // 🔴**シグニの【チーム】は CSV の `Team` 列ではなく能力の見出し**（`【チーム自】`／`【チーム常】`…）に入っている
+  //   （実測＝シグニ3,763枚で `Team` 列が埋まっているのは 0枚）。本文中の言及「【チーム】を持つ」は見出しではないので拾わない。
+  if (filter.hasTeam && !/【チーム[自常起出]】/.test(card.EffectText ?? '')) return false;
   if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
   if (filter.powerRange) {
     // CONTINUOUS効果・temp_power_mods適用済みの実効パワーを優先して使用する
@@ -2645,7 +2649,20 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           : { ...rest, colorExclude: lrigColor };
       }
       const matched = energyCandidates(st(cond.owner), condFilter, ctx.cardMap, ctx.treatAsClassAllZones);
-      const n = cond.distinctClasses
+      // 🆕§5.3 `O-480`（2026-09-16）＝「共通するクラスを持つシグニがN種類」＝クラスごとの名前の種類数の最大値（effectEngine 側と同じ式）。
+      const sharedClassNamesEU = (): number => {
+        const byClass = new Map<string, Set<string>>();
+        for (const cn of matched) {
+          const card = ctx.cardMap.get(cn);
+          for (const cls of splitClasses(card?.CardClass)) {
+            if (!byClass.has(cls)) byClass.set(cls, new Set());
+            byClass.get(cls)!.add(card?.CardName ?? cn);
+          }
+        }
+        return Math.max(0, ...[...byClass.values()].map(s => s.size));
+      };
+      const n = cond.sharedClassDistinctNames ? sharedClassNamesEU()
+        : cond.distinctClasses
         ? new Set(matched.flatMap(cn => splitClasses(ctx.cardMap.get(cn)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
         : cond.distinctColor
         ? new Set(matched.flatMap(cn => splitColors(ctx.cardMap.get(cn)?.Color))).size

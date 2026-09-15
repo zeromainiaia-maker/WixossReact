@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 — 第367バッチ：索引G をさらに30件消化（🏁修正22件＝42効果／🚫偽陽性8件）
+
+### 🏁修正22件
+
+| ID | 効果 | 真因（1行） | 直し方 |
+|---|---|---|---|
+| `O-410` | `WXDi-P03-004-E1` | 選択肢②「《無》×5を**支払い**」が任意コスト＝選んでから辞退できた | 選択肢の条件にエナ5枚以上＋`TRASH{ENERGY_CARD, count:5, asCost}` |
+| `O-415` | `WX24-P3-007-E1`／`WX24-P3-030-E1` | 「その効果でトラッシュに置かれたカードの中から」が先頭の1枚に固定 | 🔧engine＝複数枚なら選ばせ、`trashedCardPicked` で再入 |
+| `O-417` | `WXDi-P09-068-E1` | 一致した札を取り除いてから**別の札を引いた**（`O-464` と同型） | 公開→条件→引く／不一致なら**その札を**一番下（逆翻訳も一番下を描くよう修正） |
+| `O-424` | `SP27-016-E1` | 選択肢③「4つのキーワードを失い、新たに得られない」が**能力をすべて**消していた | `REMOVE_ABILITIES{keywords}`（`keyword_abilities_removed` が再付与も止める）。⚠孤立 MANUAL なので live を直接直した |
+| `O-448` | `WXDi-P06-011-E1` | 「対戦相手は【エナチャージ１】をしてもよい」が強制 | 🔧STUB `OPPONENT_OPTIONAL_ENERGY_CHARGE`（相手が選ぶ二択） |
+| `O-455` | `SP38-001-E1` ほか8効果 | 「対戦相手の**ルリグ**かシグニ」でアシストルリグが候補に入らない | 🔧`EffectTarget.includeAssistLrig`＋parser 後処理 `markAssistLrigTargets`（「センタールリグ」の効果には刻まない） |
+| `O-459` | `WXDi-P16-094-E1` | 「【チーム】を持つシグニ」の限定が無い | 🔧`TargetFilter.hasTeam`＝**能力の見出し** `【チーム自/常/起/出】`（シグニの `Team` 列は全件空） |
+| `O-480` | `WXK10-047-E1` | 「共通するクラスを持つシグニが5種類」が「異なるクラスが5種類」 | 🔧`ENERGY_COUNT_FILTER.sharedClassDistinctNames`（3箇所の評価器＋逆翻訳） |
+| `O-481` | `WX17-039-E1` | 「3以外の数字」が 1・2・4・5 固定 | `numberChoices` を 0〜10（3を除く） |
+| `O-482` | `WXK06-078-E1` | メインフェイズ終了が条件・チャージの外 | 条件の内側で `OPTIONAL_ACTIVATE → チャージ → 終了` |
+| `O-486` | `WX09-012-E2` | 「使用してもよい」が強制 | `OPTIONAL_ACTIVATE` |
+| `O-489` | `WXK07-006-E4` | 「ライフバーストは発動しない」がクラッシュの**後ろ** | `LIFE_CRASH{triggerBurst:false}` |
+| `O-491` | `WX12-014-E1` | ライフ追加が条件の外＋自分のクラッシュが強制 | 条件の内側で `LIFE_CRASH{optional}` → did-it ゲート |
+| `O-492` | `WX26-CP1-100-E2`（新設） | 「すべての領域で＜プリオケ＞として扱う」常在が無い | `TREAT_AS_CLASS_ALL_ZONES{treatAsClass}` |
+| `O-494` | `WXDi-P07-042-E3` | ＋4000 の「それ」がこのカード自身 | `targetsLastProcessed`（場に出したシグニ） |
+| `O-495` | `WXDi-CP01-003-E1` | 追加エクシードを辞退すると通常のミル・回収まで飛ぶ | 支払いの有無で `then` / `else` に分ける |
+| `O-498` | `WX25-P1-053-E1` | 「ダウン状態で場に出し【出】は発動しない」後段が無い | 公開→条件→自身バウンス（任意）→デッキの一番上から `ADD_TO_FIELD{asDown, suppressOnPlay}` |
+| `O-499` | `WXEX2-18-E1` | アップ対象がトリガー元に固定されていない | `targetsTriggerSource` |
+| `O-502` | `SPDi47-03-E2` | 「1枚以上→8枚以上なら追加で」の順が逆 | 順を入れ替え |
+| `O-505` | `WX21-044-E2` | 「**手札から**場に出た場合」の移動元条件が無い | `AND[THIS_CARD_PLACED_BY_CLASS, THIS_CARD_FROM_ZONE_THIS_TURN{hand}]` |
+| `O-506` | `WXK11-039-E2` | 「アタックフェイズの間」の限定が無い | `triggerCondition.duringAttackPhase` |
+| `O-508` | 7効果 | **6効果は既に直っていた**（条件が効果レベルに在った＝登録票が stale） | 残る `WX25-P3-061-E1` の後半条件は `O-520` に分離 |
+
+### 🚫偽陽性8件（engine が既に原文どおり）
+
+`O-419`（`insertToDeck` は選択順のまま1回で差し込む＝登録票の「1枚ずつ先頭へ」は stale）／
+`O-473`（`TARGET_OPP_SIGNI_ONLY` が「手札2枚を捨てないかぎりデッキの一番下」を実装済み）／
+`O-488`（`execGrantEffect` の `thisCardOnly` はセンター・アシストのルリグにも付く）／
+`O-493`（相手のターン終了時に「このターンにアタックした」シグニは相手のものしか無い）／
+`O-497`（「手札に**戻す**」は場のシグニ＝正面のバウンスが正しい）／
+`O-503`（`ON_SIGNI_FROZEN` の既定スコープは `any_opp`）／
+`O-504`（`COST_SUBSTITUTE.banish_self` は engine が「エナゾーンからトラッシュ」と読む）／
+`O-509`（プレイヤー付与の常在の中の `GRANT_FIELD_SIGNI_ABILITY` は `collectGrantedFromLayer` が読む）。
+⇒ 読み方ルール**規則57**へ還元。
+
+### ⚠ 踏んだ罠2つ
+
+1. 🔴**シグニの【チーム】は CSV の `Team` 列に無い**（3,763枚すべて空）＝能力の見出し `【チーム自】` 等で判定する。最初に `Team` 列で書いて golden が「該当カードなし」で落ちて気づいた。
+2. 🔴**golden のカーソル**＝`findCard` を使うテストを `withSavedCursor` で包み忘れると、**後ろの無関係なテストが全件実行でだけ落ちる**（`WX20-Re20` / 対象filter D群）。
+   さらに `O-391(b)①` は `fresh()` で作った相手シグニがカーソル次第で**パワー10000**になり、原文「パワー8000以下」のバニッシュが候補0で進んでいた＝条件を満たす札を明示するよう直した（live は HEAD と同一＝退行ではない）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4226/4226**＝+6本）。smoke 全0。live の変更は意図した**27効果**（manual 18＋孤立 MANUAL 1＋parser の `includeAssistLrig` 8）。
+- 🔧逆翻訳を2つ直した＝`includeAssistLrig`／`sharedClassDistinctNames` の描画（`census:payloadkeys` のゲートで発覚）と、同じデッキの中で一番下へ移す `LOOK_AND_REORDER` の描画。
+- ✅**実機は §2.2 で不要**＝`src/screens/` 不触（engine の追加は既存型の分岐と STUB 1本・filter/condition のキー）。
+
+
 ## 2026-09-16 — 索引H：ルール解釈待ち3件をユーザー判断で決着（`O-404` 読みB／`O-444` 読みA／`O-518` 読みA）
 
 - 経緯＝第365・366バッチで「ルール解釈に依存する」として見送った3件を、原文コーパスで minimal pair が見つからないことを確かめてから索引H へ登録（原文・逆翻訳・読みの候補つき）→ ユーザー判断。

@@ -1641,6 +1641,19 @@ export function execStubPart3(
     const internalTOSO: StubAction = { type: 'STUB', id: 'INTERNAL_TOSO_AFTER_SELECT' };
     return selectOrInteract(candsTOSO, 1, false, 'opp_field', internalTOSO as EffectAction, undefined, ctx, true);
   }
+  // 表示: 対戦相手は【エナチャージ】をしてもよい（するかどうかは対戦相手が選ぶ）
+  // 🆕§5.3 `O-448`（2026-09-16）＝「対戦相手は【エナチャージ１】をしてもよい」＝**選ぶのは対戦相手**
+  //   （旧＝`ENERGY_CHARGE_FROM_DECK{owner:'opponent'}` を素で置いた辞退肢の無い強制。`WXDi-P06-011-E1`）。
+  if (stub.id === 'OPPONENT_OPTIONAL_ENERGY_CHARGE') {
+    const nOOEC = typeof stub.value === 'number' ? stub.value : 1;
+    return needsInteraction(addLog(ctx, `対戦相手：【エナチャージ${nOOEC}】をするか選択`), {
+      type: 'CHOOSE', count: 1, opponentResponds: true, options: [
+        { id: 'charge', label: `【エナチャージ${nOOEC}】をする`,
+          action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: nOOEC } as EffectAction, available: true },
+        { id: 'skip', label: 'しない', action: { type: 'SEQUENCE', steps: [] } as EffectAction, available: true },
+      ],
+    });
+  }
   // INTERNAL_TOSO_AFTER_SELECT: 選択後、対戦相手の手札が2枚未満なら強制でデッキ下へ。
   // 2枚以上ある場合は対戦相手に「手札2枚を捨てて回避」か「デッキの一番下に送られるのを許す」かを選ばせる
   if (stub.id === 'INTERNAL_TOSO_AFTER_SELECT') {

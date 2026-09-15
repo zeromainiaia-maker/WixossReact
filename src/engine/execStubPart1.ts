@@ -4560,6 +4560,16 @@ export function execStubPart1(
   // トラッシュに置かれたカードを手札かエナに
   if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
     if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
+    // 🆕§5.3 `O-415`（2026-09-16）＝「**その効果によって**トラッシュに置かれたカードの中から」＝1回の解決で**複数枚**置かれたら、
+    //   その中から選ばせる（旧＝`lastProcessedCards[0]` 固定＝先頭の1枚に丸まっていた）。
+    //   選んだあとは `trashedCardPicked` で同じ分岐へ再入し、選んだ1枚で手札／エナを問う。
+    const trashedCandsTCTE = (ctx.lastProcessedCards ?? []).filter(n => ctx.ownerState.trash.includes(n));
+    if (!stub.trashedCardPicked && trashedCandsTCTE.length > 1) {
+      return selectOrInteract(trashedCandsTCTE, 1, !!stub.trashedCardUpTo, 'self_trash',
+        { ...stub, trashedCardPicked: true } as StubAction, undefined, ctx);
+    }
+    // ⚠再入時に0枚だった（「１枚まで」で選ばなかった）ら、トラッシュ末尾へ落とさずに終える。
+    if (stub.trashedCardPicked && trashedCandsTCTE.length === 0) return done(addLog(ctx, '何も選ばなかった'));
     // lastProcessedCards優先、なければtrash末尾を使用
     const targetTCTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
     if (!targetTCTE || !ctx.ownerState.trash.includes(targetTCTE)) {

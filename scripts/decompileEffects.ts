@@ -567,7 +567,8 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   //   ⚠書かないと逆翻訳が「あなたの**シグニ**1体を対象とする」になり、**原文と別の盤面**を指す嘘になる。
   if (t.type === 'SEED_CARD') u = '【シード】';
   else if (t.type === 'LRIG') u = 'ルリグ';
-  else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : 'センタールリグかシグニ';
+  // 🆕§5.3 `O-455`（2026-09-16）＝`includeAssistLrig`＝原文「対戦相手の**ルリグ**かシグニ」＝アシストルリグも候補。
+  else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : t.includeAssistLrig ? 'ルリグ（アシストルリグを含む）かシグニ' : 'センタールリグかシグニ';
   // 場のキー（§6.4 O-17）。数詞は下の `counter` が `loc` 無し＝「体」になるので、ここで「枚」へ寄せる。
   else if (t.type === 'KEY') u = 'キー';
   else if (t.type === 'PLAYER') u = '';
@@ -1097,7 +1098,10 @@ function condJa(c?: any): string {
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
     case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${c.byOpponentEffect ? '対戦相手の効果によって' : ''}${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'ENERGY_COUNT_FILTER': return c.distinctClasses
+    // 🆕§5.3 `O-480`（2026-09-16）＝`sharedClassDistinctNames`＝「共通するクラスを持つシグニがN種類」（異なるクラスの数ではない）。
+    case 'ENERGY_COUNT_FILTER': return c.sharedClassDistinctNames
+      ? `${ownerJa(c.owner)}エナゾーンに共通するクラスを持つシグニが${numJa(c.value)}種類${opJa(c.operator)}ある`
+      : c.distinctClasses
       ? `${ownerJa(c.owner)}エナゾーンにあるシグニが持つクラスが合計${numJa(c.value)}種類${opJa(c.operator)}`
       : c.distinctColor
       ? `${ownerJa(c.owner)}エナゾーンにあるカードの色が${numJa(c.value)}種類${opJa(c.operator)}`
@@ -2145,6 +2149,12 @@ function actionJa(a?: Action, effectType?: string): string {
           : dest.location === 'hand' ? '手札に加える'
           : '';
         if (destMoveJa) return `${src}${loc}の上から${cntJa}を${destMoveJa}`;
+      }
+      // 🆕§5.3 `O-417`（2026-09-16）＝**同じデッキの中で一番下へ移す**形（「そうでない場合、そのカードをデッキの一番下に置く」）。
+      //   🔴上の「移動」枝は行き先が元のゾーンと**違う**ときしか描かないので、ここを足さないと「公開する」だけになり
+      //   **一番下へ移した事実が逆翻訳から消える**（`WXDi-P09-068-E1` の不一致枝で実測）。
+      if (!a.reorder && dest?.location === 'deck' && a.source?.location === 'deck' && dest.position === 'bottom') {
+        return `${src}${loc}${cntJa}を${a.private === false ? '公開し' : '見て'}、そのカードをデッキの一番下に置く`;
       }
       // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）。
       // ⚠`private:false` は原文「**公開する**」＝相手にも見せる。「見る」と書くと非公開と読めるので区別する。

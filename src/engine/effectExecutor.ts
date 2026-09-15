@@ -5866,10 +5866,13 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     cands = lrigTop && lrigLikeFilterOk(lrigTop, gkResolvedFilter, ctx) ? [lrigTop] : [];
   } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
     // センタールリグとシグニ両方を候補に追加
-    const lrigTop = state.field.lrig.at(-1);
+    // 🆕§5.3 `O-455`（2026-09-16）＝原文が「対戦相手の**ルリグ**」（センターと書かない）なら**アシストルリグも**候補
+    //   （`includeAssistLrig`＝parser が原文から刻む）。「センタールリグ」の効果は従来どおりセンターだけ。
     const signiCands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
-    cands = lrigTop && lrigLikeFilterOk(lrigTop, gkResolvedFilter, ctx) ? [lrigTop, ...signiCands] : signiCands;
+    const lrigTops = (tgt.includeAssistLrig ? lrigZoneTops(state.field) : [state.field.lrig.at(-1)])
+      .filter((n): n is string => !!n && lrigLikeFilterOk(n, gkResolvedFilter, ctx));
+    cands = [...lrigTops, ...signiCands];
   } else {
     // 動的フィルタ（levelLtOppLrig/levelLtSelf 等）を具体値へ解決してから候補を絞る（付与も除去系と同じ resolve 経路に乗せる）
     cands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
