@@ -82975,6 +82975,66 @@ test('§5.3 O-391: 「このシグニをダウンしてもよい」は選択UI�
   eq((rDo.ownerState.field.signi_down ?? [])[0] ?? false, true, 'do 時はダウンする');
 });
 
+// ── §5.3 `O-450`（2026-09-15）＝「〈任意の行動〉して**もよい**。**そうした場合**、B」の B が
+//   did-it ゲート節を持たない**兄弟ステップ**になっていた形（実測6効果）。
+// 🔑live の payload を直接見る＝parser のパス（`wrapDidItGateAfterOptional`）と
+//   MANUAL 側の手当て（`manualEffects.ts` → `syncManualLive`）の**両方**を1本で守る。
+test('§5.3 O-450: 任意行動の帰結が did-it ゲートの内側にある（live 6効果の形）', () => {
+  const cases: [string, string, string][] = [
+    ['WD22-035-G', 'WD22-035-G-E1', 'ADD_TO_FIELD'],
+    ['WX21-Re06',  'WX21-Re06-E1',  'ADD_TO_FIELD'],
+    ['WX25-P3-074', 'WX25-P3-074-E1', 'DOWN'],
+    ['WX25-P3-078', 'WX25-P3-078-E1', 'DOWN'],
+    ['WXDi-P09-054', 'WXDi-P09-054-E1', 'DOWN'],
+    ['WXDi-P15-092', 'WXDi-P15-092-E1', 'DOWN'],
+  ];
+  for (const [cardNum, effectId, optType] of cases) {
+    const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as SequenceAction | undefined;
+    ok(act?.type === 'SEQUENCE', `${effectId}: トップレベルが SEQUENCE`);
+    if (act?.type !== 'SEQUENCE') continue;
+    eq(act.steps.length, 2, `${effectId}: 任意行動＋ゲートの2ステップ`);
+    eq(act.steps[0].type, optType, `${effectId}: 前段が ${optType}`);
+    eq((act.steps[0] as { optional?: boolean }).optional, true, `${effectId}: 前段が optional`);
+    const gate = act.steps[1] as ConditionalAction;
+    eq(gate.type, 'CONDITIONAL', `${effectId}: 帰結が did-it ゲートの内側（兄弟ステップではない）`);
+    eq(gate.condition.type, 'IS_MY_TURN', `${effectId}: ゲートは「そうした場合」の慣例エンコード`);
+  }
+});
+// 挙動側＝`ADD_TO_FIELD{thisCardOnly, optional}` を辞退したら帰結が起きない／出したら起きる（両側）。
+// ⚠`DOWN` 側は `§5.3 O-391` が既に両側で固定している（同じ `stripDidItConditional` 経路）。
+test('§5.3 O-450: ADD_TO_FIELD を辞退すると「そうした場合」ごと落ちる（両側）', () => withSavedCursor(() => {
+  const src = SIGNI_L3;
+  const ctx = mkCtx({ signi: [null, null, null], hand: 3 }, {}, src);
+  ctx.ownerState = { ...ctx.ownerState, trash: [src, ...ctx.ownerState.trash] };
+  const action = { type: 'SEQUENCE', steps: [
+    { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } }, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] } as EffectAction;
+  const eff = { effectId: 't-o450', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, '🔴強制配置になっている（選択UIが出ていない）');
+  const p0 = (r0 as { pending: { type: string; optional?: boolean; candidates?: string[] } }).pending;
+  eq(p0.type, 'SELECT_TARGET', '0体を選べる SELECT_TARGET を出す');
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const rSkip = finish(resumeSelectTarget([], p0 as never, rctx), rctx);
+  eq(rSkip.ownerState.hand.length, 3, '🔴配置を辞退したのに「そうした場合」が走っている');
+  const rDo = finish(resumeSelectTarget([src], p0 as never, rctx), rctx);
+  eq(rDo.ownerState.hand.length, 5, '配置したら「そうした場合」は走る（抑制しすぎの回帰ガード）');
+  // 🔴**反転確認＝ゲート節を外した「旧 live の形」なら、辞退しても帰結が走る**。
+  //   これが `O-450` の壊れ方そのもの＝この assert が落ちたら parser 側を包む意味が無くなっている。
+  const sibling = { type: 'SEQUENCE', steps: [
+    (action as SequenceAction).steps[0],
+    { type: 'DRAW', owner: 'self', count: 2 },
+  ] } as EffectAction;
+  const effSib = { effectId: 't-o450-sib', effectType: 'AUTO', action: sibling, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const rSib0 = executeEffect(effSib, ctx);
+  ok(!rSib0.done);
+  const pSib = (rSib0 as { pending: { type: string } }).pending;
+  const rSibCtx = { ...ctx, ownerState: rSib0.ownerState, otherState: rSib0.otherState, logs: rSib0.logs } as ExecCtx;
+  const rSibSkip = finish(resumeSelectTarget([], pSib as never, rSibCtx), rSibCtx);
+  eq(rSibSkip.ownerState.hand.length, 5, '兄弟ステップ形は辞退しても走る（＝これが直した壊れ方）');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

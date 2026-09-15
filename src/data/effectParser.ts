@@ -14645,6 +14645,70 @@ function foldGoAfterDidItGate(text: string, parsed: EffectAction): EffectAction 
 }
 
 /**
+ * §5.3 `O-450`＝「〈任意の行動〉して**もよい**。**そうした場合**、B」の B が
+ * did-it ゲート節を持たない**兄弟ステップ**として並んでいる形を、ゲートの内側へ包む。
+ *
+ * 🔴engine の did-it 契約は **`CONDITIONAL{IS_MY_TURN}` が任意アクションの直後にあるときだけ**効く
+ *   （0体選択 → `resumeSelectTarget` → `stripDidItConditional`／非対話経路は `execSequence` の did-it ゲート）。
+ *   ゲート節が無いまま兄弟で並んでいると**辞退しても B が走る**＝過剰実行。
+ *   実測6効果＝`WD22-035-G-E1`／`WX21-Re06-E1`（出さなくても「ゲームから除外」マークが付く）／
+ *   `WX25-P3-074-E1`／`WX25-P3-078-E1`（ダウンしなくても味方が能力を得る）／
+ *   `WXDi-P09-054-E1`／`WXDi-P15-092-E1`（ダウンしなくても2択が撃てる）。
+ *
+ * ⚠**fail-closed**（実測で 124箇所 → 6効果まで絞る条件）＝
+ *   ①原文の「そうした場合」が**ちょうど1つ**で、`〜てもよい。そうした場合` の形
+ *   ②トップレベル SEQUENCE に did-it ゲートが**1つも無い**（在るなら別の形＝触らない）
+ *   ③`optional:true` のトップレベルステップが**ちょうど1つ**で、最終ステップでない
+ *   ④その型が **engine の did-it 契約に乗る型**（`effectExecutor.ts` の `DID_IT_GATED_TYPES`）
+ *     🔴乗らない型（`MILL` など）を包むと**逆翻訳だけがゲートを描いて engine は素通り**＝原文照合がそこだけ効かなくなる
+ *   ⑤直後のステップが `CONDITIONAL` でない＝`LAST_PROCESSED_COUNT_GTE` 等で**既に結果を見ている**形は据置（実測6件）
+ *   ⑥残りのステップの**内側に did-it ゲートが無い**＝在るなら「そうした場合」はそちらに掛かっている
+ *     （`WX24-P4-048-E2`＝「その後…支払ってもよい。そうした場合」の形。これも `powerEqLastProcessed` が
+ *     参照不能なら空ヒットへ倒れるので実害なし）。
+ */
+const DID_IT_GATE_CAPABLE_TYPES = new Set<string>([
+  'BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND',
+  'SEND_TO_ENERGY', 'LIFE_CRASH', 'EXILE',
+  'REVEAL', 'TAKE_FROM_UNDER_SIGNI', 'REMOVE_CHARM', 'ADD_TO_FIELD', 'FIELD_SIGNI_TO_ACCE',
+]);
+
+function hasDidItGateDeep(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(hasDidItGateDeep);
+  if (!node || typeof node !== 'object') return false;
+  const rec = node as Record<string, unknown>;
+  if (rec.type === 'CONDITIONAL' && !rec.else) {
+    const ct = (rec.condition as { type?: string } | undefined)?.type;
+    if (ct === 'IS_MY_TURN' || ct === 'PAID_ADDITIONAL_COST') return true;
+  }
+  return Object.values(rec).some(hasDidItGateDeep);
+}
+
+function wrapDidItGateAfterOptional(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'SEQUENCE') return parsed;
+  if (!/(?:てもよい|でもよい)。\s*そうした場合/.test(text)) return parsed;
+  const sentences = sentencesOutsideQuotes(text);
+  if (sentences.filter(s => s.includes('そうした場合')).length !== 1) return parsed;
+  const steps = (parsed as SequenceAction).steps;
+  if (steps.some(hasDidItGateDeep)) return parsed;                     // ②＋⑥をまとめて満たす
+  const optIdx = steps.reduce<number[]>((acc, s, k) => {
+    if ((s as { optional?: boolean }).optional === true) acc.push(k);
+    return acc;
+  }, []);
+  if (optIdx.length !== 1) return parsed;
+  const oi = optIdx[0];
+  if (oi >= steps.length - 1) return parsed;                            // 畳むものが無い（冪等）
+  if (!DID_IT_GATE_CAPABLE_TYPES.has(steps[oi].type)) return parsed;
+  if (steps[oi + 1].type === 'CONDITIONAL') return parsed;
+  const rest = steps.slice(oi + 1);
+  const inner: EffectAction = rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction;
+  return {
+    ...parsed,
+    steps: [...steps.slice(0, oi + 1),
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: inner } as EffectAction],
+  } as SequenceAction;
+}
+
+/**
  * §5.3 `O-146`＝「〈任意の移動〉して**もよい**。**そうした場合**、〜」の did-it ゲートを
  * 仮ゲート `IS_MY_TURN` から**実際に動かした枚数**（`LAST_PROCESSED_COUNT_GTE`）へ差し替える。
  *
@@ -15086,8 +15150,10 @@ function stampAbortOnCanonicalOptionalCost(action: EffectAction): EffectAction {
 }
 
 function parseActionText(text: string): EffectAction {
-  return foldGoAfterDidItGate(text, foldKawariSubstitution(text,
-    foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text)))));
+  // ⚠`wrapDidItGateAfterOptional`（`O-450`）は `foldGoAfterDidItGate`（`O-377`）の**後**に置く＝
+  //   前者は「ゲート節が無い」ことを条件にするので、後者が畳んだ結果を見てから判定させる（冪等）。
+  return wrapDidItGateAfterOptional(text, foldGoAfterDidItGate(text, foldKawariSubstitution(text,
+    foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text))))));
 }
 
 /**
