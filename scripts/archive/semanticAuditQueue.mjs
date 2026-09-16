@@ -13,7 +13,8 @@
 //   node scripts/archive/semanticAuditQueue.mjs --id <effectId>    … 1件の内訳（判定文・原文・live JSON）
 //
 // 母集団の作り方（3つのファイルの引き算だけ。**scratchpad の外部状態に依存しない**）:
-//   ① `scripts/archive/scratchpad/semantic_audit_*_round4/triaged.txt` の `:: BUG ::` 行 ＝ 確定433効果
+//   ① `scripts/archive/scratchpad/semantic_audit*/triaged.txt` の `:: BUG ::` 行 ＝ 確定バグ
+//      （⚠**dir を固定列挙しない**＝`_round4` 限定にしていた初版は round5 を丸ごと数え落としていた）
 //   ② − `semantic_bug_fixed.txt`    ＝ 直した分（在庫カウンタからも引く）
 //   ③ − `semantic_bug_deferred.txt` ＝ **直さないと判定した分**（在庫からは引かない・候補からだけ外す）
 //
@@ -54,7 +55,11 @@ const deferred = idsFrom('semantic_bug_deferred.txt', l => l.split(' :: ')[0].tr
 
 // ── ① triaged.txt の `:: BUG ::` 行（＝確定バグ）──
 const triaged = [];
-for (const dir of readdirSync(SCRATCH).filter(d => d.startsWith('semantic_audit_') && d.endsWith('_round4'))) {
+// 🔴**ディレクトリを固定列挙しない**（2026-09-16 第374バッチ）＝初版は `_round4` で終わる dir だけを見ていたため、
+//   **round5 の triaged.txt を1行も読まず、候補プールが 0 と出ていた**（在庫カウンタ側の
+//   `semanticAuditBugList.mjs` は 158 と正しく出しており、2つの計器が食い違っていた）。
+//   ⇒ 判定は**「`triaged.txt` を持つ `semantic_audit*` dir 全部」**＝ラウンドを増やしても自動で入る。
+for (const dir of readdirSync(SCRATCH).filter(d => d.startsWith('semantic_audit'))) {
   const file = join(SCRATCH, dir, 'triaged.txt');
   if (!existsSync(file)) continue;
   for (const line of readFileSync(file, 'utf8').split('\n')) {
@@ -62,6 +67,21 @@ for (const dir of readdirSync(SCRATCH).filter(d => d.startsWith('semantic_audit_
     if (m) triaged.push({ id: m[1], desc: m[2].trim(), src: dir });
   }
 }
+
+// 🔴**effectId で畳む**（2026-09-16 第374バッチ）＝round5 は全カードの読み直しなので、
+//   round4 が既に BUG と判定した効果を**もう一度**見つける（実測 21件。うち5件は round5 内での重複）。
+//   畳まないと**同じ効果が候補に2行出て、1バッチで二重に着手する**うえ、
+//   在庫カウンタ（`semanticAuditBugList.mjs` は Map で畳んでいる）と残数が食い違う（161 対 158）。
+//   ⚠**判定文は捨てずに連結する**＝ラウンドごとに着眼が違い、両方が手掛かりになる。
+const merged = new Map();
+for (const e of triaged) {
+  const prev = merged.get(e.id);
+  if (!prev) { merged.set(e.id, { ...e }); continue; }
+  if (!prev.desc.includes(e.desc)) prev.desc += ` ／ ${e.desc}`;
+  if (!prev.src.includes(e.src)) prev.src += `+${e.src}`;
+}
+triaged.length = 0;
+triaged.push(...merged.values());
 
 // ── ②③ 引き算 ──
 const remaining = triaged.filter(e => !fixed.has(e.id));            // 在庫（PLAN §5.0 の残数と一致する）
