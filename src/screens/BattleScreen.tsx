@@ -132,8 +132,10 @@ import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
+import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
 import { applyMulligan } from './battle/mulligan';
+import { buildLrigSetupState, pickCpuLrigSetup } from './battle/lrigSetup';
 import { listAssistGrowCandidates } from './battle/assistGrow';
 import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './battle/cpuSummon';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
@@ -233,7 +235,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   } = useBattleSession();
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Stage3 seam：battle_states 永続化チョークポイント（純粋 reduceBattle の出力を commit で書き込む）
-  const persist = useBattlePersist(roomId);
+  const persistRaw = useBattlePersist(roomId);
+  // 🆕§5.1 `V-247`＝**処理中の書き込み数と、最後に書き込んだ行の `updated_at`**（CPU の二重実行を防ぐ＝`runCpuTurn` が見る）。
+  //   ⚠書き込みはすべてここを通る＝人間の操作も含めて記録する（CPU の判定が人間の書き込みの通知も待つのは正しい）。
+  const pendingCommitsRef = useRef(0);
+  const lastCommitUpdatedAtRef = useRef('');
+  const persist = useMemo(() => ({
+    ...persistRaw,
+    commit: async (patch: Parameters<typeof persistRaw.commit>[0]) => {
+      pendingCommitsRef.current += 1;
+      try {
+        const res = await persistRaw.commit(patch);
+        const ua = res.data?.[0]?.updated_at;
+        if (ua && updatedAtKey(ua) > updatedAtKey(lastCommitUpdatedAtRef.current)) lastCommitUpdatedAtRef.current = ua;
+        return res;
+      } finally {
+        pendingCommitsRef.current -= 1;
+      }
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [persistRaw.commit, persistRaw.fetchState, persistRaw.remove]);
   // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
   const { mulliganSelected, setMulliganSelected, pendingLrigSetup, setPendingLrigSetup } = useGameStartSetup();
   // シグニ召喚ゾーン選択フロー
@@ -541,49 +562,98 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [isCpuBattle, bs?.setup_phase, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── CPU 対戦：ターン自動行動 ──────────────────────────────────
+  // 🔴🆕§5.1 `V-247`（2026-09-17）＝**CPU の起動を3点で守る**（判定は `cpuDriver.ts`）。
+  //   ①**依存は盤面の更新そのもの（`bs`）**＝旧実装は依存を手で選んでいた（ルリグのトップ・行動履歴の長さ …）。
+  //     選ばれていない値だけを動かす行動（CPU のライズ＝手札と場／アシストグロウ＝アシストの枠／`cpu_used_card_nums_this_turn`）の後は
+  //     **依存が動かず二度と起動しない**＝永久停止（過去にも `v78CpuGrowsButSkipsOnPlayWithoutCoin` で同じ形を1本ずつ足していた）。
+  //   ②**実行中は重ねない**＝ENERGY のように「書く → 900ms 待つ → 次を書く」行動は、待っている間に1段目の通知で再起動し、
+  //     **古い盤面で同じ分岐をもう1回**走らせうる（GROW への遷移・開始時トリガーの二重収集）。
+  //   ③**止まったら DB を読み直す**（見張り）＝Realtime の取りこぼし／行動中に届いた通知の破棄で止まった盤面を、
+  //     ローカルと DB が違えば反映・同じなら再実行で再開する。⚠**読み直さずに再実行しない**（古い盤面で二重に動く）。
+  const bsRef = useRef(bs);
+  bsRef.current = bs;
+  const cpuRunningRef = useRef(false);
+  const cpuDroppedRef = useRef(false);
+  /** 通知待ちで起動を捨てた＝**盤面の中身が変わらない更新**が届いたときにも起動し直す（鍵が動かないので通常の起動が来ない）。 */
+  const cpuWaitingEchoRef = useRef(false);
+  const cpuLastBsChangeAtRef = useRef(Date.now());
+  const cpuLastRunEndAtRef = useRef(0);
+  const cpuResyncRef = useRef<((reason: string) => Promise<void>) | null>(null);
+  // ⚠依存は**ログを除いた盤面の中身**（`cpuBattleKey`）＝ログの追記だけでタイマーをリセットしない。
+  const cpuKey = useMemo(() => cpuBattleKey(bs), [bs]);
+  useEffect(() => { cpuLastBsChangeAtRef.current = Date.now(); }, [cpuKey]);
+  const runCpuTurn = useCallback(async (force = false) => {
+    if (cpuRunningRef.current) { cpuDroppedRef.current = true; return; }
+    // 🔴**最後の書き込みの通知がまだ届いていない盤面では走らない**（`force`＝見張りが DB と照合済みのときだけ免除）。
+    //   1回の実行が「シグニ配置を書く → 待つ → 使用済みの印を書く → アシストグロウを書く」と続くと、
+    //   先の書き込みの通知で次の実行が始まり、**後の書き込みが届いていない盤面で同じアシストグロウをもう一度選んでいた**
+    //   （機構デッキの通し対戦で3戦とも再現＝「[CPU] アシストグロウ」のログが2行続いた）。
+    //   届けば盤面の鍵が変わって起動が積まれ直すので、ここで捨ててよい（届かなければ見張りが読み直す）。
+    if (!force && !lastCommitArrived({
+      pendingCommits: pendingCommitsRef.current, localUpdatedAt: bsRef.current?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current,
+    })) { cpuWaitingEchoRef.current = true; return; }
+    cpuRunningRef.current = true;
+    cpuDroppedRef.current = false;
+    try {
+      await cpuTurnRef.current?.();
+    } catch (e) {
+      console.error('[CPU] 行動中に例外', e);
+    } finally {
+      cpuRunningRef.current = false;
+      cpuLastRunEndAtRef.current = Date.now();
+      // 実行中に届いた起動を捨てた＝その通知が「最後の書き込みの通知」だと、もう起動が来ない。読み直して確かめる。
+      if (cpuDroppedRef.current) {
+        cpuDroppedRef.current = false;
+        setTimeout(() => { void cpuResyncRef.current?.('実行中の起動を破棄'); }, CPU_ACTION_DELAY * 2);
+      }
+    }
+  }, []);
+  // 通知待ちで起動を捨てた後、盤面の中身が変わらない更新（ログ追記など）で届いた場合も起動し直す。
   useEffect(() => {
-    if (!bs || !isCpuBattle || bs.global_phase !== 'PLAYING') return;
-    // CPUのチェックゾーン処理（バースト確認）はeffect_stackがあっても行う
-    // （攻撃時トリガーとバースト確認を並行させないとCPUが止まる）
-    if (bs.pending_effect || (bs.effect_stack && !bs.guest_state?.field?.check)) return;
-    // プレイヤー（人間）がライフバースト処理中はCPU停止
-    if (bs.host_state?.field?.check) return;
-    const cpuSt = bs.guest_state;
-    const isCpuTurn = bs.active_user_id === CPU_PLAYER_ID;
-    // ATTACK_ARTS_OPはCPUがターンプレイヤーのとき人間が担当→CPU動かない
-    // CPUが非ターンプレイヤーのときはCPUが担当→動く
-    if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn) return;
-    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked && !bs.pending_spell && !(cpuSt.pending_crashed_cards?.length)) return;
+    if (!cpuWaitingEchoRef.current || !isCpuBattle || !cpuShouldAct(bs)) return;
+    if (!lastCommitArrived({ pendingCommits: pendingCommitsRef.current, localUpdatedAt: bs?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current })) return;
+    cpuWaitingEchoRef.current = false;
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
-    cpuTimerRef.current = setTimeout(() => { cpuTurnRef.current?.(); }, CPU_ACTION_DELAY);
+    cpuTimerRef.current = setTimeout(() => { void runCpuTurn(); }, CPU_ACTION_DELAY);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, isCpuBattle, runCpuTurn]);
+  cpuResyncRef.current = async (reason: string) => {
+    if (cpuRunningRef.current) return;
+    const { data } = await persist.fetchState();
+    const local = bsRef.current;
+    if (!data || !local) return;
+    const fresh = normalizeBattleRow(data as BattleStateRow);
+    if (!sameBattleForCpu(local, fresh)) {
+      console.warn(`[CPU watchdog] ${reason}: 盤面を DB から読み直して反映（phase=${fresh.turn_phase}）`);
+      setBs(fresh);
+      return;
+    }
+    if (!cpuShouldAct(fresh) || cpuWaitingForHuman(fresh)) return;
+    console.warn(`[CPU watchdog] ${reason}: 盤面が動かないので CPU を再実行（phase=${fresh.turn_phase} turn=${fresh.turn_count}）`);
+    void runCpuTurn(true);
+  };
+  useEffect(() => {
+    if (!isCpuBattle || !cpuShouldAct(bs)) return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    cpuTimerRef.current = setTimeout(() => { void runCpuTurn(); }, CPU_ACTION_DELAY);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
-  }, [
-    isCpuBattle, bs?.global_phase, bs?.active_user_id, bs?.turn_phase,
-    bs?.guest_state?.field?.check, bs?.guest_state?.field?.lrig_attacked,
-    bs?.host_state?.field?.check, bs?.host_state?.field?.lrig_attacked,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    JSON.stringify(bs?.guest_state?.field?.signi_down),
-    bs?.guest_state?.pending_crashed_cards?.length,
-    !!bs?.guest_state?.pending_signi_battle, // バトル解決待ちクリア時に再実行（トリガーなし時の停止防止）
-    !!bs?.guest_state?.pending_lrig_attack,  // ルリグアタック解決待ちクリア時に再実行
-    // F-3: CPU攻撃・人間防御の身代わり決定後にCPUバトル解決を再開（host=人間の決定を監視）
-    !!bs?.host_state?.banish_substitute_choice,
-    // 🆕§5.3 `O-414`：同上＝CPU攻撃・人間防御のダメージ置換の決定後に CPU のバトル解決を再開する。
-    //   ⚠これが無いと**人間が選んだあと CPU が二度と動かない**（依存がどれも変化しないため）。
-    !!bs?.host_state?.life_crash_replace_choice,
-    bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
-    // 🔴**「効果解決なしで state だけ変わる」CPU 行動でも再スケジュールする**（2026-08-19 続き567・§3 (cxxxvi)）＝
-    //   `performGrow` は ON_PLAY 系エントリが1件も無いと `effect_stack` を積まずに `WRITE_STATE` だけ commit する
-    //   （グロウ先に【出】が無い／コスト付き任意【出】がコイン不足で発火しない）。上の依存はどれも動かないので
-    //   **タイマーが二度と積まれず GROW フェイズで永久凍結**していた（`v78CpuGrowsButSkipsOnPlayWithoutCoin` で発見）。
-    //   ⚠**グロウで動く値を明示的に並べる**＝ルリグのトップ／段数／ルリグデッキ枚数／コイン／行動履歴。
-    //   再スケジュールは「clearTimeout してから setTimeout」なので、余計に発火しても実行は1回に畳まれる。
-    bs?.guest_state?.field?.lrig?.length,
-    bs?.guest_state?.field?.lrig?.at(-1),
-    bs?.guest_state?.lrig_deck?.length,
-    bs?.guest_state?.coins,
-    bs?.guest_state?.actions_done?.length,
-  ]);
+  }, [isCpuBattle, cpuKey, runCpuTurn]);
+  // 見張り（2秒ごと）。⚠人間の応答待ち（`cpuWaitingForHuman`）では再実行しない。
+  useEffect(() => {
+    if (!isCpuBattle) return;
+    const id = setInterval(() => {
+      const cur = bsRef.current;
+      if (!cpuWatchdogShouldCheck({
+        shouldAct: cpuShouldAct(cur) && !(cur && cpuWaitingForHuman(cur)),
+        running: cpuRunningRef.current, now: Date.now(),
+        lastBsChangeAt: cpuLastBsChangeAtRef.current, lastRunEndAt: cpuLastRunEndAtRef.current,
+      })) return;
+      cpuLastBsChangeAtRef.current = Date.now();   // 読み直しの連打を防ぐ
+      void cpuResyncRef.current?.('盤面が一定時間動かない');
+    }, 2000);
+    return () => clearInterval(id);
+  }, [isCpuBattle]);
 
   // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
   // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
@@ -2277,20 +2347,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'LRIG_SELECT' && cpuDeckData) {
       const lrigWithIds = assignGuestInstanceIds(cpuDeckData.lrig_deck);
       const mainWithIds = assignGuestInstanceIds(shuffle(cpuDeckData.main_deck));
-      const lv0Idx = cpuDeckData.lrig_deck.findIndex(num => {
-        const c = cards.find(card => card.CardNum === num);
-        return c?.Type === 'ルリグ' && c.Level === '0';
+      // 🆕§5.6 `C-5` 追補（2026-09-17）＝**CPU もアシストを置く**（旧実装はセンターしか置かず、実戦でアシストグロウ／
+      //   アシストのアタックを一度もできなかった）。どれを置くかは `pickCpuLrigSetup`、盤面の組み立ては人間と同じ `buildLrigSetupState`。
+      const cpuSetupPick = pickCpuLrigSetup(cpuDeckData.lrig_deck, battleCardMap);
+      if (!cpuSetupPick) return;
+      const lv0Idx = cpuSetupPick.centerIdx;
+      const cpuState: PlayerState = buildLrigSetupState({
+        lrigWithIds, mainWithIds, centerId: lrigWithIds[lv0Idx],
+        assistLId: cpuSetupPick.assistIdx ? lrigWithIds[cpuSetupPick.assistIdx[0]] : null,
+        assistRId: cpuSetupPick.assistIdx ? lrigWithIds[cpuSetupPick.assistIdx[1]] : null,
+        cardMap: battleCardMap,
       });
-      if (lv0Idx < 0) return;
-      const selectedId = lrigWithIds[lv0Idx];
-      const lrigDeckIds = lrigWithIds.filter((_, i) => i !== lv0Idx);
-      // ゲーム開始時、センタールリグのコイン欄（ナナシ其ノ零ノ禍等）分のコインを得る
-      const cpuStartCoins = Math.min(5, parseInt(cards.find(card => card.CardNum === cpuDeckData.lrig_deck[lv0Idx])?.Coin ?? '0') || 0);
-      const cpuState: PlayerState = {
-        life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
-        lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: cpuStartCoins,
-        field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
-      };
+      if (cpuSetupPick.assistIdx) {
+        appendBattleLogs([`[CPU] アシストルリグを配置: ${cpuSetupPick.assistIdx.map(i => battleCardMap.get(cpuDeckData.lrig_deck[i])?.CardName ?? cpuDeckData.lrig_deck[i]).join('・')}`]);
+      }
       await persist.commit(reduceBattle(bs, {
         type: 'SELECT_LRIG', isHost: false,
         selectedCardNum: cpuDeckData.lrig_deck[lv0Idx], state: cpuState,
@@ -2520,14 +2590,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // Lv0ルリグ1〜2枚：アシストなしで通常セットアップ
         // ゲーム開始時、センタールリグのコイン欄（ナナシ其ノ零ノ禍等）分のコインを得る
-        const startCoins = Math.min(5, parseInt(battleCardMap.get(cardNum)?.Coin ?? '0') || 0);
-        const lrigDeckIds  = lrigWithIds.filter((_, i) => i !== selOrigIdx);
-        const myState: PlayerState = {
-          life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
-          lrig_deck: lrigDeckIds,
-          trash: [], lrig_trash: [], energy: [], coins: startCoins,
-          field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
-        };
+        // §5.6 `C-5` 追補＝盤面の組み立ては `buildLrigSetupState` の1本（CPU と共通）。
+        const myState: PlayerState = buildLrigSetupState({ lrigWithIds, mainWithIds, centerId: selectedId, cardMap: battleCardMap });
         await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: cardNum, state: myState }));
         setLoading(false);
       };
@@ -2539,14 +2603,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const confirmNoAssist = async () => {
           setLoading(true);
-          const startCoinsNA = Math.min(5, parseInt(centerCard?.Coin ?? '0') || 0);
-          const lrigDeckIds = setup.lrigWithIds.filter(id => id !== setup.centerInstanceId);
-          const myState: PlayerState = {
-            life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
-            lrig_deck: lrigDeckIds,
-            trash: [], lrig_trash: [], energy: [], coins: startCoinsNA,
-            field: { lrig: [setup.centerInstanceId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
-          };
+          const myState: PlayerState = buildLrigSetupState({
+            lrigWithIds: setup.lrigWithIds, mainWithIds: setup.mainWithIds, centerId: setup.centerInstanceId, cardMap: battleCardMap,
+          });
           await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: setup.centerCardNum, state: myState }));
           setPendingLrigSetup(null);
           setLoading(false);
@@ -2559,21 +2618,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const selectAssistR = async (instanceId: string) => {
           if (!setup.assistLInstanceId) return;
           setLoading(true);
-          const startCoinsAR = Math.min(5, parseInt(centerCard?.Coin ?? '0') || 0);
-          const usedIds = new Set([setup.centerInstanceId, setup.assistLInstanceId, instanceId]);
-          const lrigDeckIds = setup.lrigWithIds.filter(id => !usedIds.has(id));
-          const myState: PlayerState = {
-            life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
-            lrig_deck: lrigDeckIds,
-            trash: [], lrig_trash: [], energy: [], coins: startCoinsAR,
-            field: {
-              lrig: [setup.centerInstanceId],
-              signi: [null, null, null],
-              assist_lrig_l: [setup.assistLInstanceId],
-              assist_lrig_r: [instanceId],
-              check: null, key_piece: null, free_zone: [],
-            },
-          };
+          const myState: PlayerState = buildLrigSetupState({
+            lrigWithIds: setup.lrigWithIds, mainWithIds: setup.mainWithIds, centerId: setup.centerInstanceId,
+            assistLId: setup.assistLInstanceId, assistRId: instanceId, cardMap: battleCardMap,
+          });
           await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: setup.centerCardNum, state: myState }));
           setPendingLrigSetup(null);
           setLoading(false);

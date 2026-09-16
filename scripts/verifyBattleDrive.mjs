@@ -62108,6 +62108,60 @@ scenarios.c3cpufirstturngrow = {
 };
 order.push('c3cpufirstturngrow');
 
+// 🔴**§5.1 `V-247`（2026-09-17）＝CPU が行動した後に止まらず、手番を人間へ返す。**
+//   旧実装は CPU の起動の依存を手で選んでおり、**選ばれていない値だけを動かす行動（ライズ＝手札と場／アシストグロウ＝アシストの枠）の後に
+//   二度と起動しない**ことがあった。`c5cpuassistgrow`／`c6cpurise` は行動そのものしか見ていないので、ここでは**その先**まで見る。
+async function v247WatchHandover(page, H, tag, didAct) {
+  let acted = false;
+  for (let s = 0; s < 45; s++) {
+    await page.waitForTimeout(800);
+    const st = await c2Query(page);
+    if (st && !st.error && didAct(st)) acted = true;
+    if (acted && st?.hostIsActive) return { pass: true, detail: `CPU が行動した後、手番が人間へ戻った（turn=${st.turnCount} phase=${st.turnPhase}）` };
+    // ⚠CPU の手番でも `ATTACK_ARTS_OP`（人間のアーツ窓）は人間が閉じる＝押さないとシナリオ側が止める。
+    //   人間側のライフバースト確認（クラッシュのたびに出る）も `verifyFullMatch.mjs` と同じラベルで閉じる。
+    const did = await H.stdStep(['アーツ終了→相手へ', 'アーツ終了', 'エナに送る', 'ライフバースト発動', '発動順序を確定', '確定', '決定', 'OK', 'はい', 'このまま進む', 'ガードしない', '使用しない', 'しない', '選ばない', 'スキップ']);
+    if (s % 4 === 0) H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | acted=${acted} phase=${st?.turnPhase} hostActive=${st?.hostIsActive} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+  }
+  const fin = await c2Query(page);
+  return { pass: false, detail: `🔴${acted ? 'CPU が行動した後に止まった' : 'CPU が行動しなかった'}（phase=${fin?.turnPhase} hostActive=${fin?.hostIsActive} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+}
+scenarios.v247AfterCpuRise = {
+  title: 'V-247 CPU がライズした後も止まらず、ターンを終えて人間の手番になる',
+  spec: scenarios.c6cpurise.spec,
+  async drive(page, H) {
+    return v247WatchHandover(page, H, 'v247rise',
+      st => JSON.stringify((st.cpu.fieldSigni ?? [])[0]) === JSON.stringify(['WD02-013#c6u1', 'WX15-073#c6r1']));
+  },
+};
+scenarios.v247AfterCpuAssistGrow = {
+  title: 'V-247 CPU がアシストグロウした後も止まらず、ターンを終えて人間の手番になる',
+  spec: scenarios.c5cpuassistgrow.spec,
+  async drive(page, H) {
+    return v247WatchHandover(page, H, 'v247assist', st => (st.cpu.assistL ?? []).at(-1) === 'WXDi-D01-009#c5a1');
+  },
+};
+order.push('v247AfterCpuRise', 'v247AfterCpuAssistGrow');
+// 🔑**判別力はこちら**＝`WX16-059`（鉞担の足柄 キンタロ）は【自】を持たない＝ライズしても**スタックが積まれない**。
+//   旧実装の手で選んだ依存（ルリグ・ルリグデッキ・コイン・行動履歴の長さ …）は**どれも動かない**（変わるのは手札と場だけ）＝
+//   ライズの直後に CPU が二度と起動しない形。上の2本は【出】がスタックを積むので旧実装でも通ってしまう。
+scenarios.v247AfterCpuRiseNoTrigger = {
+  title: 'V-247 CPU が【自】を持たない札（キンタロ）をライズした後も止まらず、手番が人間になる（判別力あり）',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#v247h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WD03-002#v247c'], 'field.signi': [['WD02-013#v247u'], null, null], 'field.check': null,
+      'hand': ['WX16-059#v247r'], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return v247WatchHandover(page, H, 'v247norig',
+      st => JSON.stringify((st.cpu.fieldSigni ?? [])[0]) === JSON.stringify(['WD02-013#v247u', 'WX16-059#v247r']));
+  },
+};
+order.push('v247AfterCpuRiseNoTrigger');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

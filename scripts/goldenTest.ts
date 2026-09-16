@@ -149,8 +149,10 @@ import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardP
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
+import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { applyMulligan } from '../src/screens/battle/mulligan';
+import { buildLrigSetupState, pickCpuLrigSetup } from '../src/screens/battle/lrigSetup';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
 import { planRiseSummon } from '../src/screens/battle/riseSummon';
@@ -85903,6 +85905,66 @@ test('§5.6 C-6 ライズ：置き方は planRiseSummon 1本（人間の「召�
   ok(/planRiseSummon\(\{\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
   ok(/await tryCpuRise\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにライズが無い（O-147 の fail-closed のまま）');
   ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
+}));
+
+test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中は重ねない・止まったら読み直す', () => withSavedCursor(() => {
+  const CPU = '00000000-0000-0000-0000-000000000001';
+  const base = {
+    global_phase: 'PLAYING', turn_phase: 'GROW', turn_count: 1, active_user_id: CPU,
+    host_state: mkState(), guest_state: mkState(), effect_stack: null, pending_effect: null, pending_spell: null, game_logs: [],
+  } as unknown as BattleStateRow;
+  // ① 動くべきか（旧実装の useEffect 直書きの条件と同じ）
+  ok(cpuShouldAct(base), 'CPU の手番の GROW で動かない');
+  eq(cpuShouldAct({ ...base, active_user_id: 'human' } as BattleStateRow), false, '人間の手番（MAIN 等）で CPU が動く');
+  eq(cpuShouldAct({ ...base, pending_effect: { x: 1 } } as unknown as BattleStateRow), false, '対話の応答待ちで CPU が動く');
+  ok(cpuShouldAct({ ...base, active_user_id: 'human', turn_phase: 'ATTACK_ARTS_OP' } as BattleStateRow), '相手のアタックフェイズの応答窓で CPU が動かない');
+  // ② 見張り＝動くべき ∧ 実行中でない ∧ 盤面も実行も6秒止まっている
+  const now = 100000;
+  ok(cpuWatchdogShouldCheck({ shouldAct: true, running: false, now, lastBsChangeAt: now - CPU_WATCHDOG_IDLE_MS, lastRunEndAt: 0 }), '🔴6秒止まっているのに見張りが動かない');
+  eq(cpuWatchdogShouldCheck({ shouldAct: true, running: true, now, lastBsChangeAt: 0, lastRunEndAt: 0 }), false, '実行中に見張りが割り込む（二重実行）');
+  eq(cpuWatchdogShouldCheck({ shouldAct: true, running: false, now, lastBsChangeAt: now - 1000, lastRunEndAt: 0 }), false, '盤面が動いた直後に見張りが動く');
+  eq(cpuWatchdogShouldCheck({ shouldAct: false, running: false, now, lastBsChangeAt: 0, lastRunEndAt: 0 }), false, '動くべきでない盤面で見張りが動く');
+  // ③ 読み直しの比較はログを無視し、盤面の差は拾う
+  ok(sameBattleForCpu(base, { ...base, game_logs: [{ action: 'x' }] } as unknown as BattleStateRow), 'ログの追記だけで「盤面が違う」と判定した');
+  eq(sameBattleForCpu(base, { ...base, turn_phase: 'MAIN' } as BattleStateRow), false, '🔴フェイズが違うのに同じと判定した（取りこぼしを反映しない）');
+  // ④ 人間の応答待ちでは見張りが再実行しない
+  ok(cpuWaitingForHuman({ ...base, pending_spell: { caster_id: CPU } } as unknown as BattleStateRow), 'CPU のスペルへの人間のカットイン待ちを待ちと見ていない');
+  eq(cpuWaitingForHuman(base), false, '待ちでない盤面を待ちと見た');
+
+  // ⑤🔴配線の固定＝依存を手で選ぶ形に戻さない／起動は runCpuTurn（再入防止）を通す
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battle.includes('}, [isCpuBattle, cpuKey, runCpuTurn]);'), '🔴CPU の起動が盤面の中身（cpuBattleKey）を依存にしていない（手で選んだ依存は取りこぼして永久停止する）');
+  // ログだけの更新ではタイマーをリセットしない（リセットすると CPU の行動が遅れる）。
+  eq(cpuBattleKey(base), cpuBattleKey({ ...base, game_logs: [{ action: 'y' }] } as unknown as BattleStateRow), '🔴ログの追記だけで CPU の起動の鍵が変わる');
+  ok(!battle.includes('    bs?.guest_state?.actions_done?.length,\n  ]);'), '🔴手で選んだ依存の一覧が残っている');
+  ok(/cpuTimerRef\.current = setTimeout\(\(\) => \{ void runCpuTurn\(\); \}, CPU_ACTION_DELAY\);/.test(battle), '🔴CPU の起動が再入防止（runCpuTurn）を通っていない');
+  ok(/if \(!sameBattleForCpu\(local, fresh\)\)/.test(battle), '🔴見張りが DB を読み直さずに再実行している（古い盤面で二重に動く）');
+  // 最後の書き込みの通知が届くまで次の実行を始めない（機構デッキの通し対戦でアシストグロウが3戦とも二重に選ばれた）。
+  ok(/if \(!force && !lastCommitArrived\(\{/.test(battle), '🔴CPU が自分の書き込みの通知を待たずに次の実行を始める（古い盤面で同じ行動を二重に選ぶ）');
+  // 判定は DB の updated_at（REST と Realtime の書式差を吸収する）
+  ok(lastCommitArrived({ pendingCommits: 0, localUpdatedAt: '2026-09-17 08:00:01.5+00', lastCommitUpdatedAt: '2026-09-17T08:00:01.400000+00:00' }), '届いた行（後の updated_at）を「届いていない」と判定した');
+  eq(lastCommitArrived({ pendingCommits: 0, localUpdatedAt: '2026-09-17T08:00:01.300000+00:00', lastCommitUpdatedAt: '2026-09-17T08:00:01.400000+00:00' }), false, '🔴古い行を「届いた」と判定した（二重実行）');
+  eq(lastCommitArrived({ pendingCommits: 1, localUpdatedAt: '2099-01-01T00:00:00+00:00', lastCommitUpdatedAt: '' }), false, '🔴書き込み中なのに次の実行を許した');
+}));
+
+test('§5.6 C-5 追補 セットアップ：CPU も Lv0 が3枚以上ならアシストを置く（盤面は人間と同じ buildLrigSetupState）', () => withSavedCursor(() => {
+  // センター＝上のレベルのルリグが一番多い系統の Lv0／アシスト＝残りの Lv0 をデッキ順に2枚
+  const lrigDeck = ['WDK09-005', 'WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WXDi-D01-009', 'WDK14-005'];
+  const pick = pickCpuLrigSetup(lrigDeck, cardMap);
+  eq(pick?.centerIdx, 1, 'センターがピルルク（Lv1〜3 を持つ系統）になっていない');
+  eq(JSON.stringify(pick?.assistIdx), JSON.stringify([0, 6]), '🔴Lv0 が3枚あるのにアシストを置かない（旧実装はセンターだけ）');
+  eq(pickCpuLrigSetup(['WD03-005', 'WD03-004'], cardMap)?.assistIdx, null, 'Lv0 が1枚なのにアシストを置いた');
+  eq(pickCpuLrigSetup(['WD03-004'], cardMap), null, 'Lv0 が無いのにセンターを決めた');
+  const ids = lrigDeck.map((n, i) => `${n}#g${i}`);
+  const main = Array.from({ length: 12 }, (_, i) => `M${i}`);
+  const st = buildLrigSetupState({ lrigWithIds: ids, mainWithIds: main, centerId: ids[1], assistLId: ids[0], assistRId: ids[6], cardMap });
+  eq(JSON.stringify(st.field.lrig), JSON.stringify([ids[1]]), 'センターが置かれていない');
+  eq(JSON.stringify([st.field.assist_lrig_l, st.field.assist_lrig_r]), JSON.stringify([[ids[0]], [ids[6]]]), 'アシストが置かれていない');
+  ok(!st.lrig_deck.includes(ids[0]) && !st.lrig_deck.includes(ids[1]) && !st.lrig_deck.includes(ids[6]) && st.lrig_deck.length === 4, '🔴置いたルリグがルリグデッキに残っている（複製）');
+  eq(st.hand.length + st.deck.length, 12, '手札5枚＋残りがデッキになっていない');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((battle.match(/buildLrigSetupState\(\{/g) ?? []).length, 4, '🔴セットアップの盤面を手書きしている経路がある（人間3経路＋CPU）');
+  ok(/pickCpuLrigSetup\(cpuDeckData\.lrig_deck/.test(battle), '🔴CPU のセットアップが pickCpuLrigSetup を通っていない');
 }));
 
 if (listMode) {

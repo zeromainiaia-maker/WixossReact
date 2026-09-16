@@ -11,17 +11,18 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-17＝第390バッチ：§5.6 `C-2`〜`C-6` をクローズ＝CPU がガード・手札上限・マリガン・アシストグロウ・レゾナ・ライズを踏むようになり、機構踏破計器（`census:play`）ができた**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🔑**作業の大半は「人間専用の場所から判定と実行を外へ出す」こと**だった＝ガードの可否（JSX）／引き直し（JSX）／アシストグロウの候補と実行（クロージャ）／召喚（`handleSummonSigni` → `performSummonSigni`）／ライズの置き方（JSX → `planRiseSummon`）。
-- 🔴ついでに人間側の穴1件＝**相手のアタックフェイズのアシストグロウが押しても無反応**だった（実行関数が `!isMyTurn` で弾いていた）。
-- 実機 新規5本（`V-242`〜`V-246`）＋回帰15本 全 PASS。
+**直近＝2026-09-17＝第391バッチ：§5.1 `V-247` をクローズ＝CPU の起動が「止まる」「二重に走る」穴を塞ぎ、CPU がアシストを置くようにした**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔴止まる＝起動の依存を手で選んでいた＝【自】の無い札をライズすると MAIN で永久停止（修正前コードで確定再現）。⇒ 依存は**ログを除いた盤面の中身**＋見張り（6秒動かなければ DB を読み直す）。
+- 🔴二重に走る＝前の実行の書き込みが届く前に次が始まり、同じアシストグロウを2回選んでいた（通し対戦3戦とも）。⇒ **書き込んだ行の `updated_at` が手元に届くまで次を始めない**。
+- 🔴CPU はセットアップでアシストを置かなかった（＝実戦でアシストグロウ0回）。⇒ `lrigSetup.ts` を人間と共有。
+- 📊機構デッキ `VERIFY_DECK_MECH` で **`census:play` 5戦合算 14/18 機構**（旧デッキ 7/17）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠15行）／**`C-8`**（対話応答の pure 化）／`C-7`（キー・ピース）。📊**`census:play` の未踏を見て順を決める** |
+| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠15行）／**`C-8`**（対話応答の pure 化）／`C-7`（キー・ピース）。📊未踏4（シグニ／ルリグの【起】・レゾナ・アシストのアタック）は機構デッキの札の入れ替えで先に潰せる |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **1**（`V-247`）／実装キュー **0**／**CPU 完成度 3**（§5.6 `C-7`〜`C-9`）／ルール台帳 ⚠15 |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4280） |
+| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **0**／実装キュー **0**／**CPU 完成度 3**（§5.6 `C-7`〜`C-9`）／ルール台帳 ⚠15 |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4282） |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -216,11 +217,10 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残1**（`V-247`＝CPU 通し対戦の一過性の停止）。直近＝`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
-| `V-247` | `node scripts/verifyFullMatch.mjs cpu` を**数回**回し、CPU 先攻1ターン目の GROW（グロウ直後）で**60秒止まらない**こと。止まったら `scratchpad-verify/playlogs-cpu.json` と画面のコンソールエラーを取る | 第390バッチ＝2回中1回、`WXK09-021` へグロウ直後に GROW で停止。同条件の `c3cpufirstturngrow` では再現せず（MAIN へ進んだ）＝同期のタイミング依存を疑う |
 
 - `src/screens/` を触った回・新しい型や機構を足した回は `V-<次番号>` で登録する。**採番は `grep -o "scenarios\.v[0-9]\+" scripts/verifyBattleDrive.mjs | sort -n | tail` で実測する。**
 - 観測点は**反転側まで**書く（効かないはずの側・帰結の数値＝DRIVE_TRAPS 109〜110）。
@@ -472,8 +472,9 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 - **2026-09-17 時点**（第390バッチ＝§5.6 `C-2`〜`C-6` クローズ）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **1**｜実装キュー **0**｜**CPU 完成度 3**（§5.6 `C-7`〜`C-9`・🏁`C-0`〜`C-6` 済）｜ルール台帳 ⚠15
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4280・`census:traceinv` I1=0）
+  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 3**（§5.6 `C-7`〜`C-9`・🏁`C-0`〜`C-6` 済）｜ルール台帳 ⚠15
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4282・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 5戦）**14 / 18**
 
 ---
 

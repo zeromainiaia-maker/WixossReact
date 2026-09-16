@@ -22,6 +22,7 @@ export interface PlayMechanism {
 
 export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'mulligan', label: 'マリガン（引き直し）', pattern: /^\[CPU\] 引き直し/, anchor: '[CPU] 引き直し' },
+  { id: 'assistPlace', label: 'アシストルリグの配置', pattern: /^\[CPU\] アシストルリグを配置:/, anchor: '[CPU] アシストルリグを配置:' },
   { id: 'enaCharge', label: 'エナチャージ', pattern: /^\[CPU\] エナチャージ:/, anchor: '[CPU] エナチャージ:' },
   { id: 'grow', label: 'センターのグロウ', pattern: /^\[CPU\] グロウ:/, anchor: '[CPU] グロウ:' },
   { id: 'signiPlace', label: 'シグニ配置', pattern: /^\[CPU\] シグニ配置:/, anchor: '[CPU] シグニ配置:' },

@@ -8,7 +8,29 @@ const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
-const deck = JSON.parse(readFileSync('verify-deck.json', 'utf-8'));
+// 🆕§5.6 `C-3`（2026-09-17）＝`--mech` で**機構踏破用デッキ `VERIFY_DECK_MECH`** を作る。
+//   🔑**なぜ要るか**＝`VERIFY_DECK` は**シグニ40枚＋ルリグ5枚だけ**（ガード・スペル・アーツ・アシスト・レゾナ・ライズが0枚）＝
+//   `census:play` の未踏の大半が「CPU が踏めない」ではなく「山に札が無い」だった。リリースゲート（`VERIFY_DECK`）は変えずに、
+//   計器用の山を別に持つ。使い方＝`DECK=VERIFY_DECK_MECH node scripts/verifyFullMatch.mjs cpu`。
+//   構成（青ピルルク）＝センター WD03 の Lv0〜3／アシスト2系統（ウムル・タウィル＝Lv0→Lv1《無》×0）／アーツ（ドント・ファイト＝除去）／
+//   レゾナ（†Ｍ・Ｇ・Ｔ†＝ピルルク限定・青と黒の＜電機＞を場から）／ガード4／除去スペル4／【起】付きシグニ4／ライズ（Ｈ２Ｏ＝＜原子＞の上）。
+const MECH = process.argv.includes('--mech');
+const MECH_DECK = {
+  lrig_deck: ['WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WDK09-005', 'WXDi-D01-009', 'WDK14-005', 'WXDi-D01-006', 'WX21-011', 'WX12-017'],
+  main_deck: [
+    ...Array(4).fill('WD01-017'),                                   // サーバント O（ガード）
+    ...Array(2).fill('WX03-043'), ...Array(2).fill('WX01-085'),     // ICE BREAK／FREEZE（除去スペル）
+    ...Array(2).fill('WX01-083'), ...Array(2).fill('WX02-036'),     // 【起】付きシグニ
+    ...Array(2).fill('WXDi-P05-038'),                               // 羅原姫 Ｈ２Ｏ（ライズ＝＜原子＞の上）
+    ...Array(3).fill('WX05-062'), ...Array(2).fill('WX05-060'),     // ＜原子＞（ライズの下敷き）
+    ...Array(4).fill('WD03-013'), ...Array(4).fill('WD03-012'), ...Array(3).fill('WD03-010'), // 青＜電機＞
+    ...Array(4).fill('WX12-055'), ...Array(2).fill('WX12-054'),     // 黒＜電機＞（レゾナの支払い）
+    ...Array(2).fill('WX04-080'), ...Array(2).fill('WX04-077'),     // 青のレベル1・2
+  ],
+};
+const deck = MECH ? MECH_DECK : JSON.parse(readFileSync('verify-deck.json', 'utf-8'));
+const DECK_NAME = MECH ? 'VERIFY_DECK_MECH' : 'VERIFY_DECK';
+if (deck.main_deck.length !== 40) { console.error(`メインデッキが40枚でない: ${deck.main_deck.length}`); process.exit(1); }
 
 function startDev() {
   return new Promise((resolve, reject) => {
@@ -35,7 +57,7 @@ async function login(page, url, acc) {
 }
 
 async function ensureDeck(page, acc) {
-  return await page.evaluate(async ({ SUPA_URL, ANON, deck, name }) => {
+  return await page.evaluate(async ({ SUPA_URL, ANON, deck, name, sortOrder }) => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
     if (!key) return { error: 'auth-token がlocalStorageに無い' };
     const sess = JSON.parse(localStorage.getItem(key));
@@ -47,12 +69,12 @@ async function ensureDeck(page, acc) {
     if (Array.isArray(exist) && exist.length) return { uid, existed: true, deckId: exist[0].id };
     const ins = await fetch(`${SUPA_URL}/rest/v1/decks`, {
       method: 'POST', headers: { ...h, Prefer: 'return=representation' },
-      body: JSON.stringify({ user_id: uid, name, main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, sort_order: 0 }),
+      body: JSON.stringify({ user_id: uid, name, main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, sort_order: sortOrder }),
     });
     const body = await ins.json();
     if (!ins.ok) return { uid, error: 'insert失敗 ' + JSON.stringify(body) };
     return { uid, inserted: true, deckId: body[0]?.id };
-  }, { SUPA_URL, ANON, deck, name: 'VERIFY_DECK' });
+  }, { SUPA_URL, ANON, deck, name: DECK_NAME, sortOrder: MECH ? 1 : 0 });
 }
 
 const { proc, url } = await startDev();

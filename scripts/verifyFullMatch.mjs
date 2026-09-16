@@ -41,6 +41,9 @@ const MATCH_TIMEOUT_SEC = Number(process.env.MATCH_TIMEOUT_SEC || 2700);
 // 🔑手詰まりは**周回数ではなく「盤面が動かない秒数」**で測る＝CPU の思考待ちは周回だけ進んで
 //   盤面が動かないので、周回数で切ると相手のターン中に誤検出する。
 const STUCK_SEC = Number(process.env.STUCK_SEC || 60);
+// 🆕§5.6 `C-3`＝使うデッキ（自分と CPU の両方）。既定はリリースゲートの `VERIFY_DECK`。
+//   機構踏破を測るときは `DECK=VERIFY_DECK_MECH`（`node scripts/verifySetupDeck.mjs --mech` で作る）。
+const DECK_NAME = process.env.DECK || 'VERIFY_DECK';
 
 // ── preview サーバ（verifyBattleDrive.mjs と同じ方式＝dist の鮮度を見て build を省略）─────────
 function distIsFresh() {
@@ -509,6 +512,19 @@ async function playToFinish(seats, tag) {
         await S.page.screenshot({ path: `${SHOT}/${tag}-stuck-${S.name}.png`, fullPage: true }).catch(() => {});
         S.log('画面:', (await S.body()).replace(/\n/g, ' | ').slice(0, 400));
       }
+      // 🆕§5.1 `V-247`＝**止まった瞬間の行そのもの**とコンソール末尾を書き出す（要約の describe では原因が見えない）。
+      const raw = await seats[0].page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key));
+        const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+        const uid = sess.user?.id;
+        const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id&order=created_at.desc`, { headers: h });
+        const room = (await r1.json())?.[0];
+        const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${room?.id}&select=*`, { headers: h });
+        return (await r2.json())?.[0] ?? null;
+      }, { SUPA_URL, ANON }).catch(e => ({ error: String(e) }));
+      writeFileSync(`${SHOT}/${tag}-stuck-row.json`, JSON.stringify({ row: raw, consoleTail }, null, 1));
+      seats[0].log(`手詰まりの行とコンソール末尾: ${SHOT}/${tag}-stuck-row.json`);
       return { pass: false, detail: `手詰まり＝${Math.round(idleSec)}s 盤面が動かない（封印済み=${JSON.stringify([...blocked])}・${describe(st)}）`, st };
     }
     // ⚠**無音の停滞をログに出す**＝クリックできた時しか行を出さないと、
@@ -568,6 +584,14 @@ async function driveSetup(seats, tag) {
         const h = hands[idx++ % 3];
         if (await S.clickBtn(h)) { S.log('じゃんけん:' + h); progressed = true; }
         await S.page.waitForTimeout(1200);
+      } else if (/アシストルリグを配置しますか/.test(txt)) {
+        // 🆕§5.6 `C-3`＝Lv0 ルリグが3枚あるデッキ（`VERIFY_DECK_MECH`）だけに出る。
+        //   ⚠下の「ルリグを配置」にも一致する＝**先に**判定しないとセンター選択のボタンを探し続けて止まる。
+        if (await S.clickBtn('配置する（3枚）')) { S.log('アシスト配置:する'); progressed = true; }
+      } else if (/アシストルリグ（[左右]）を選択/.test(txt)) {
+        // 候補ボタンはカード名＋カード番号を表示する＝カード番号を含む最初の押せるボタンを選ぶ。
+        const any = S.page.locator('button:not([disabled])', { hasText: /[A-Za-z]+[0-9A-Za-z]*-[0-9A-Za-z]+/ }).first();
+        if (await any.count()) { await any.click().catch(() => {}); S.log('アシスト選択'); progressed = true; }
       } else if (/ルリグを配置|ルリグを選/.test(txt)) {
         const b = S.page.locator('button', { hasText: 'WD03-005' }).first();
         if (await b.count()) { await b.click().catch(() => {}); S.log('ルリグ選択'); progressed = true; }
@@ -589,11 +613,19 @@ async function driveSetup(seats, tag) {
 }
 
 // ── CPU 通し対戦 ──────────────────────────────────────────────────────────────
+/** §5.1 `V-247`＝ブラウザのコンソール末尾（全種別）。手詰まり時に書き出す。 */
+const consoleTail = [];
+
 async function runCpuMatch(browser, url) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();
   const errs = [];
-  page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 200)); });
+  page.on('console', m => {
+    if (m.type() === 'error') errs.push(m.text().slice(0, 200));
+    // §5.1 `V-247`＝手詰まり時に直前の画面ログを残す（エラーにならない停止の手掛かり）。
+    consoleTail.push(`[${m.type()}] ${m.text().slice(0, 300)}`);
+    if (consoleTail.length > 80) consoleTail.shift();
+  });
   page.on('pageerror', e => errs.push('pageerror: ' + String(e.message).slice(0, 200)));
   try {
     await login(page, url, accounts[0]);
@@ -603,18 +635,22 @@ async function runCpuMatch(browser, url) {
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(2500);
     await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-    await page.getByText('VERIFY_DECK', { exact: false }).first().click();
+    // ⚠**名前は完全一致**（`VERIFY_DECK` の部分一致だと `VERIFY_DECK_MECH` を拾う）。
+    await page.getByText(DECK_NAME, { exact: true }).first().click();
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '次へ' }).click();
     await page.waitForTimeout(600);
     await page.getByRole('button', { name: 'CPU対戦' }).click();
     await page.waitForTimeout(800);
+    // 🆕CPU のデッキも**明示的に**選ぶ＝既定は「有効なデッキの先頭」なので、デッキが増えると CPU の山が黙って入れ替わる。
+    await page.getByText(DECK_NAME, { exact: true }).first().click();
+    await page.waitForTimeout(400);
     await page.getByRole('button', { name: '対戦開始' }).click();
     await page.waitForTimeout(3500);
     if (!(await driveSetup([S], 'cpu'))) return { pass: false, detail: 'セットアップが PLAYING へ到達しなかった', errs };
     const r = await playToFinish([S], 'cpu');
     // §5.6 `C-3`＝機構踏破計器の入力。**決着しなくても書く**（途中で詰まった試合も「どこまで踏んだか」の材料）。
-    await dumpPlayLogs(page, 'cpu');
+    await dumpPlayLogs(page, DECK_NAME === 'VERIFY_DECK' ? 'cpu' : `cpu-${DECK_NAME}`);
     await page.screenshot({ path: `${SHOT}/cpu-final.png`, fullPage: true }).catch(() => {});
     return { ...r, errs };
   } finally { await ctx.close().catch(() => {}); }
@@ -663,7 +699,7 @@ async function runPvpMatch(browser, url) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(2500);
       await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-      await page.getByText('VERIFY_DECK', { exact: false }).first().click();
+      await page.getByText(DECK_NAME, { exact: true }).first().click();
       await page.waitForTimeout(400);
       await page.getByRole('button', { name: '次へ' }).click();
       await page.waitForTimeout(600);
