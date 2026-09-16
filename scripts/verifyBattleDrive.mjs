@@ -61763,7 +61763,7 @@ async function c9Query(page) {
     const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
     const roomId = (await r1.json())?.[0]?.id;
     if (!roomId) return { error: 'no room' };
-    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,turn_phase,turn_count,active_user_id,game_logs`, { headers: h });
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,turn_phase,turn_count,active_user_id,game_logs,global_phase`, { headers: h });
     const row = (await r2.json())?.[0];
     if (!row) return { error: 'no row' };
     const side = s => ({
@@ -61775,7 +61775,7 @@ async function c9Query(page) {
     });
     return {
       host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
-      hostIsActive: row.active_user_id === sess.user?.id, turnPhase: row.turn_phase, turnCount: row.turn_count,
+      hostIsActive: row.active_user_id === sess.user?.id, turnPhase: row.turn_phase, turnCount: row.turn_count, globalPhase: row.global_phase,
       logs: (row.game_logs ?? []).slice(-30).map(l => [l.action, l.detail].filter(Boolean).join(' ')),
     };
   }, { SUPA_URL, ANON });
@@ -61893,6 +61893,220 @@ scenarios.c9extraturnup = {
 };
 
 order.push('c9lancerreplaced', 'c9extraturnup');
+
+// ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
+/** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */
+async function c2Query(page) {
+  const base = await c9Query(page);
+  if (base?.error) return base;
+  const extra = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=guest_state`, { headers: h });
+    const g = (await r2.json())?.[0]?.guest_state ?? {};
+    return {
+      handCards: g.hand ?? [], lrig: g.field?.lrig ?? [], assistL: g.field?.assist_lrig_l ?? [], assistR: g.field?.assist_lrig_r ?? [],
+      lrigDeck: g.lrig_deck ?? [], fieldSigni: g.field?.signi ?? [null, null, null], trash: g.trash ?? [],
+    };
+  }, { SUPA_URL, ANON });
+  return { ...base, cpu: extra };
+}
+
+// 🔴**`c2cpuguard`＝CPU がガードする**（旧実装は `[CPU] ガードしない` 固定＝ライフ0で殴られると必ず負けた）。
+//   🔑判別力＝CPU のライフ0・手札に《ガードアイコン》1枚＝**ガードしなければ対戦が終わる**盤面。
+scenarios.c2cpuguard = {
+  title: 'C-2 CPU のライフ0にルリグアタック＝CPU は手札のサーバント O でガードし、対戦は続く',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c2l1'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c2l2'],
+      'field.signi': [null, null, null],
+      'hand': ['WD01-017#c2g1'],   // サーバント O（Lv1・【ガード】）
+      'life_cloth': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const st0 = await c2Query(page);
+    H.log(`開始 phase=${st0?.turnPhase} cpuHand=${JSON.stringify(st0?.cpu?.handCards)} cpuLife=${st0?.guest?.life}`);
+    let attacked = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c2guard-${s}.png`, fullPage: true });
+      let did = null;
+      if (!attacked) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        const visible = async () => !!(await atk.count()) && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+        if (!(await visible())) { await H.clickTestId('my-lrig-slot-center'); for (let k = 0; k < 10 && !(await visible()); k++) await page.waitForTimeout(150); }
+        if (await visible()) { await atk.click({ timeout: 2000 }).catch(() => {}); attacked = true; did = 'ルリグアタック'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+      const st = await c2Query(page);
+      H.log(`  c2guard[${s}] -> ${did ?? 'なし'} | global=${st?.globalPhase} phase=${st?.turnPhase} cpuHand=${JSON.stringify(st?.cpu?.handCards)} cpuTrash=${JSON.stringify(st?.cpu?.trash)} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      if (st?.globalPhase && st.globalPhase !== 'PLAYING') {
+        return { pass: false, detail: `🔴CPU がガードせず対戦が終わった（global=${st.globalPhase}・log=${JSON.stringify((st.logs ?? []).slice(-4))}）` };
+      }
+      if (attacked && (st?.cpu?.trash ?? []).includes('WD01-017#c2g1') && !(st?.cpu?.handCards ?? []).includes('WD01-017#c2g1')) {
+        return { pass: true, detail: `CPU がサーバント O でガード（手札→トラッシュ）・ライフ0のまま対戦継続（global=${st.globalPhase}）・log=${JSON.stringify((st.logs ?? []).filter(l => /ガード/.test(l)).slice(-2))}` };
+      }
+    }
+    const fin = await c2Query(page);
+    return { pass: false, detail: `ガードを観測できなかった（attacked=${attacked} global=${fin?.globalPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+order.push('c2cpuguard');
+
+// 🔴**`c4cpuhandlimit`＝CPU にも手札上限がある**（旧実装は CPU に手札上限の処理自体が無く、手札が無限に増えた）。
+//   🔑判別力＝CPU のエンドフェイズに手札9枚＝**処理が無ければ9枚のまま次のターンへ移る**。
+scenarios.c4cpuhandlimit = {
+  title: 'C-4 CPU のエンドフェイズで手札9枚＝6枚まで捨て（ガードは残す）、手番が人間へ移る',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c4l1'], 'field.check': null, 'hand': [] },
+    guestSet: {
+      'field.lrig': ['WD03-002#c4l2'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WD01-017#c4g1', 'WD01-013#c4h1', 'WD01-013#c4h2', 'WD01-013#c4h3', 'WD01-013#c4h4',
+        'WD01-013#c4h5', 'WD01-013#c4h6', 'WD01-013#c4h7', 'WD01-013#c4h8'],
+      'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'END', turn_count: 4 },
+  },
+  async drive(page, H) {
+    const st0 = await c2Query(page);
+    H.log(`開始 phase=${st0?.turnPhase} cpuHand=${st0?.cpu?.handCards?.length} hostActive=${st0?.hostIsActive}`);
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      const did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+      const st = await c2Query(page);
+      H.log(`  c4hand[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} hostActive=${st?.hostIsActive} cpuHand=${st?.cpu?.handCards?.length} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      if (st?.hostIsActive) {
+        const hand = st.cpu.handCards ?? [];
+        const keptGuard = hand.includes('WD01-017#c4g1');
+        const discarded = ['WD01-013#c4h1', 'WD01-013#c4h2', 'WD01-013#c4h3', 'WD01-013#c4h4', 'WD01-013#c4h5', 'WD01-013#c4h6', 'WD01-013#c4h7', 'WD01-013#c4h8']
+          .filter(n => (st.cpu.trash ?? []).includes(n)).length;
+        return {
+          pass: hand.length === 6 && keptGuard && discarded === 3,
+          detail: hand.length === 6 && keptGuard && discarded === 3
+            ? `CPU の手札 9→6（ガードは残した・3枚がトラッシュ）→手番が人間へ・log=${JSON.stringify((st.logs ?? []).filter(l => /手札上限/.test(l)))}`
+            : `🔴手札=${hand.length}（期待6）ガード残存=${keptGuard} 捨て札=${discarded}（期待3）`,
+        };
+      }
+    }
+    const fin = await c2Query(page);
+    return { pass: false, detail: `手番が移らなかった（phase=${fin?.turnPhase} cpuHand=${fin?.cpu?.handCards?.length} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+order.push('c4cpuhandlimit');
+
+/** CPU のメインフェイズを走らせ、`seen(st)` が真になった瞬間を拾う（sticky）。人間側に出る対話は既定の応答で流す。 */
+async function c5WatchCpuMain(page, H, tag, seen, detailOf) {
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(700);
+    const st = await c2Query(page);
+    if (st && !st.error && seen(st)) return { pass: true, detail: detailOf(st) };
+    const did = await H.clickTextOrBtn(['ガードしない', '決定', 'OK', 'はい']);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} hostActive=${st?.hostIsActive} cpuField=${JSON.stringify(st?.cpu?.fieldSigni)} assistL=${JSON.stringify(st?.cpu?.assistL)} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+  }
+  const fin = await c2Query(page);
+  return { pass: false, detail: `🔴観測できなかった（phase=${fin?.turnPhase} cpuField=${JSON.stringify(fin?.cpu?.fieldSigni)} assistL=${JSON.stringify(fin?.cpu?.assistL)} lrigDeck=${JSON.stringify(fin?.cpu?.lrigDeck)} log=${JSON.stringify((fin?.logs ?? []).slice(-8))}）` };
+}
+
+// 🔴**`c5cpuassistgrow`＝CPU がアシストルリグをグロウする**（旧実装は一度もしなかった）。
+scenarios.c5cpuassistgrow = {
+  title: 'C-5 CPU のメインフェイズ＝左アシスト（ウムル Lv0）をウムル＝ドロー（Lv1・《無》×0）へグロウする',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c5h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WD03-002#c5c'], 'field.assist_lrig_l': ['WDK09-005#c5a0'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WXDi-D01-009#c5a1'], 'hand': [], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return c5WatchCpuMain(page, H, 'c5assist',
+      st => (st.cpu.assistL ?? []).at(-1) === 'WXDi-D01-009#c5a1',
+      st => `CPU が左アシストをグロウ（${JSON.stringify(st.cpu.assistL)}）・log=${JSON.stringify((st.logs ?? []).filter(l => /アシストグロウ/.test(l)))}`);
+  },
+};
+
+// 🔴**`c5cpuresona`＝CPU がレゾナを出す**（旧実装は一度も出さなかった）。
+//   `WX08-021` 黒幻蟲 サソリス（ミュウ限定・Lv3）＝【出現条件】手札から＜凶蟲＞のシグニ2枚を捨てる。
+//   ⚠手札の＜凶蟲＞は **Lv4**＝センター Lv3 の CPU は通常配置できない（配置ループに先に食われない）。
+scenarios.c5cpuresona = {
+  title: 'C-5 CPU のメインフェイズ＝手札の＜凶蟲＞2枚を捨ててレゾナ（サソリス）を空きゾーンに出す',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c5h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WX08-019#c5c'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WX08-021#c5r1'], 'hand': ['WX08-045#c5k1', 'WX08-074#c5k2'], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return c5WatchCpuMain(page, H, 'c5resona',
+      st => (st.cpu.fieldSigni ?? []).some(z => (z ?? []).includes('WX08-021#c5r1')),
+      st => `CPU がレゾナを配置（場=${JSON.stringify(st.cpu.fieldSigni)}・手札の凶蟲はトラッシュ=${['WX08-045#c5k1', 'WX08-074#c5k2'].every(n => (st.cpu.trash ?? []).includes(n))}）・log=${JSON.stringify((st.logs ?? []).filter(l => /レゾナ/.test(l)))}`);
+  },
+};
+
+// 🔴**`c6cpurise`＝CPU が【ライズ】で出す**（旧実装は `O-147` の fail-closed で候補から外していた）。
+//   `WX15-073` 勝利の円卓 アルスラ（Lv2）＝【ライズ】赤のレベル1のシグニの上。下敷き＝羅石 アイロン（赤 Lv1）。
+scenarios.c6cpurise = {
+  title: 'C-6 CPU のメインフェイズ＝アルスラを場のアイロン（赤 Lv1）の上にライズする',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c6h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WD03-002#c6c'], 'field.signi': [['WD02-013#c6u1'], null, null], 'field.check': null,
+      'hand': ['WX15-073#c6r1'], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return c5WatchCpuMain(page, H, 'c6rise',
+      st => JSON.stringify((st.cpu.fieldSigni ?? [])[0]) === JSON.stringify(['WD02-013#c6u1', 'WX15-073#c6r1']),
+      st => `CPU がアルスラをアイロンの上にライズ（ゾーン1=${JSON.stringify(st.cpu.fieldSigni[0])}）・log=${JSON.stringify((st.logs ?? []).filter(l => /ライズ/.test(l)))}`);
+  },
+};
+order.push('c5cpuassistgrow', 'c5cpuresona', 'c6cpurise');
+
+// 🔴**`c3cpufirstturngrow`＝CPU 先攻1ターン目のグロウ後にフェイズが進む**（2026-09-17・`verifyFullMatch.mjs cpu` が GROW で60秒止まった盤面の再現）。
+//   グロウ先 `WXK09-021`（コード・ピルルク Ｆ）＝【出】手札を１枚捨てる：コイン（CPU は払わない＝発動しない）。
+scenarios.c3cpufirstturngrow = {
+  title: 'C-3 CPU 先攻1ターン目＝Lv0→Lv1（WXK09-021）にグロウした後、MAIN→END→人間のターンへ進む',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c3h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WD03-005#c3l0'], 'lrig_deck': ['WXK09-021#c3l1'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WD01-013#c3x1'], 'energy': [], 'actions_done': [], 'coins': 0,
+    },
+    top: { active: 'cpu', turn_phase: 'GROW', turn_count: 1 },
+  },
+  async drive(page, H) {
+    let grew = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      const st = await c2Query(page);
+      if ((st?.cpu?.lrig ?? []).at(-1) === 'WXK09-021#c3l1') grew = true;
+      H.log(`  c3turn1[${s}] phase=${st?.turnPhase} turn=${st?.turnCount} hostActive=${st?.hostIsActive} lrig=${JSON.stringify(st?.cpu?.lrig)} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      if (grew && (st?.hostIsActive || st?.turnPhase === 'END' || st?.turnPhase === 'MAIN')) {
+        return { pass: true, detail: `グロウ後にフェイズが進んだ（phase=${st.turnPhase} hostActive=${st.hostIsActive}）` };
+      }
+    }
+    const fin = await c2Query(page);
+    return { pass: false, detail: `🔴グロウ後に止まった（grew=${grew} phase=${fin?.turnPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+order.push('c3cpufirstturngrow');
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);

@@ -4,7 +4,7 @@ import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
 import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { canCardGuard, guardAlternativeClassCandidates, makeGuardLevelBlocker } from '../guard';
+import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from '../guard';
 import type { BattleModalCtx } from './types';
 
 interface GuardResponseDialogProps {
@@ -53,13 +53,7 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               手札の「ガード」を持つカードをトラッシュに送り攻撃を防ぐか、ライフクロスをクラッシュします
             </p>
             {(() => {
-              // §6.4 O-41: レベル限定つきガード禁止（`GUARD_MAX_LV<n>` ＝n以下／`GUARD_LV<n>[_<m>…]` ＝ちょうど・列挙）。
-              // ⚠**判定は純関数へ切り出してある**（`makeGuardLevelBlocker`）＝§5-20 の定石。JSX の中に置くと
-              //   golden から両方向（掛かる／掛からない）を検証できず、限定の脱落＝過剰実行が計器に映らない。
-              const guardBlockedByLevel = makeGuardLevelBlocker([...(my.blocked_actions ?? []), ...contBlocked.forSelf]);
-              const declaredRestrictLv = op.declared_guard_restrict_level;
-              const declaredRestrictLvs = op.declared_guard_restrict_levels ?? [];
-              const handGuardEnabled = my.hand_signi_guard_enabled;
+              // §6.4 O-41 のレベル限定つきガード禁止ほか、手札の可否は `guardableHandIndices`（`guard.ts`）へ移した（§5.6 `C-2`）。
               // 相手のprevent_opp_guardフラグ（PREVENT_OPP_GUARD_THIS_TURN等）でガード禁止。
               // 🔴**CONTINUOUS の `BLOCK_ACTION{GUARD}` もここで見る**（2026-08-19 続き567・§3 (cxxxv)）＝
               //   従来この dialog は `GUARD_MAX_LV<n>`（レベル上限）しか読まず、**素の `GUARD`（＝丸ごとガード不可）**
@@ -99,23 +93,11 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const guardAltEnaGuardOk = !!guardAltEnaGuard
                 && my.energy.length >= guardAltEnaGuard.energyCount
                 && guardCardCountInHand >= guardAltEnaGuard.guardCardCount;
-              const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost || guardBlockedByExtraGuard) ? [] : my.hand
-                .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
-                .filter(({ num, card }) => {
-                  // OPTIONAL_DISCARD_GUARD: 手札から任意カードを捨ててガード可能
-                  if (my.optional_discard_guard_enabled) return true;
-                  // hand_signi_guard_enabled: 手札のシグニはすべてガード可能
-                  // myHandGuardClasses: 特定クラスの手札シグニがガード可能 (HAND_SIGNI_HAS_GUARD_ICON)
-                  const classGuardable = myHandGuardClasses.length > 0 && card?.Type === 'シグニ' &&
-                    myHandGuardClasses.some(cls => card?.CardClass?.includes(cls));
-                  const isGuardable = canCardGuard(num, my, battleCardMap, effectsMap) || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
-                  if (!isGuardable) return false;
-                  const guardLevel = parseInt(card?.Level ?? '-1');
-                  if (guardBlockedByLevel(guardLevel)) return false;
-                  if (declaredRestrictLv !== undefined && guardLevel === declaredRestrictLv) return false;
-                  if (declaredRestrictLvs.includes(guardLevel)) return false;
-                  return true;
-                });
+              // 🔑§5.6 `C-2`＝**ガードに使える手札は `guardableHandIndices` 1本**（CPU も同じ関数を見る）。
+              const guardCards = guardableHandIndices({
+                responder: my, attacker: op, cardMap: battleCardMap, effectsMap,
+                contBlockedForSelf: contBlocked.forSelf, handGuardClasses: myHandGuardClasses,
+              }).map(i => ({ num: my.hand[i], i, card: battleCardMap.get(my.hand[i]) }));
               return (
                 <>
                   {countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0 && (

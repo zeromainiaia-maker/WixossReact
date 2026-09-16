@@ -61,7 +61,7 @@ import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/trigger
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
 import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
-import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
+import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
 import { collectOppLifeBurstActivatedTriggers, collectPlayerDamagedTriggers } from '../engine/triggerCollect';
@@ -130,7 +130,12 @@ import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
-import { canCardGuard, guardAlternativeClassCandidates } from './battle/guard';
+import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
+import { pickCpuGuardHandIndex } from './battle/cpuGuard';
+import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
+import { applyMulligan } from './battle/mulligan';
+import { listAssistGrowCandidates } from './battle/assistGrow';
+import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './battle/cpuSummon';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from './battle/grantedAuto';
@@ -141,7 +146,7 @@ import { declareNameCandidates } from './battle/declareNameCandidates';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import {
-  EMPTY_RISE_SELECTION, canPayRiseMaterials, findRiseFieldAssignment,
+  EMPTY_RISE_SELECTION, planRiseSummon,
   payRiseMaterials, riseConsumedZones, validateRiseField, validateRiseMaterials,
   type RiseSelection,
 } from './battle/riseSummon';
@@ -2295,9 +2300,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     if (phase === 'MULLIGAN') {
       const cpuSt = bs.guest_state;
-      const newLifeCloth = cpuSt.deck.slice(0, 7);
-      const newDeck = cpuSt.deck.slice(7);
-      const newCpuSt: PlayerState = { ...cpuSt, deck: newDeck, life_cloth: newLifeCloth };
+      // 🆕§5.6 `C-4`＝**CPU も引き直す**。戻す札は `pickCpuMulliganIndices`、処理は人間と同じ `applyMulligan`
+      //   （旧実装は引き直さずライフを置くだけの別実装だった）。
+      const cpuMulligan = pickCpuMulliganIndices(cpuSt.hand, battleCardMap);
+      appendBattleLogs([cpuMulligan.length > 0
+        ? `[CPU] 引き直し: ${cpuMulligan.length}枚（${cpuMulligan.map(i => battleCardMap.get(cpuSt.hand[i])?.CardName ?? cpuSt.hand[i]).join('・')}）`
+        : '[CPU] 引き直さない']);
+      const newCpuSt: PlayerState = applyMulligan(cpuSt, cpuMulligan);
       await persist.commit(reduceBattle(bs, { type: 'COMPLETE_MULLIGAN', isHost: false, state: newCpuSt }));
       const { data: fresh } = await supabase
         .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')
@@ -2694,21 +2703,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (loading) return;
         setLoading(true);
         try {
-          let newHand = [...myState.hand];
-          let newDeck = [...myState.deck];
-
-          if (mulliganSelected.size > 0) {
-            const returning = [...mulliganSelected].map(i => myState.hand[i]);
-            const keeping = myState.hand.filter((_, i) => !mulliganSelected.has(i));
-            newDeck = shuffle([...newDeck, ...returning]);
-            newHand = [...keeping, ...newDeck.slice(0, returning.length)];
-            newDeck = newDeck.slice(returning.length);
-          }
-
-          const newLifeCloth = newDeck.slice(0, 7);
-          newDeck = newDeck.slice(7);
-
-          const newState: PlayerState = { ...myState, hand: newHand, deck: newDeck, life_cloth: newLifeCloth };
+          // §5.6 `C-4`＝引き直しとライフ設置は `applyMulligan` の1本（CPU も同じ関数を通る）。
+          const newState: PlayerState = applyMulligan(myState, mulliganSelected);
           await persist.commit(reduceBattle(bs, { type: 'COMPLETE_MULLIGAN', isHost, state: newState }));
 
           // 最新状態を取得して両者が完了しているか確認
@@ -6383,19 +6379,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn, usedArtsNum);
 
   // シグニ召喚（ゾーン選択後に実行）
-  const handleSummonSigni = async (
+  /** §5.6 `C-5`/`C-6`＝召喚を「誰が出すか」の引数で受ける（人間と CPU が同じ実行経路を通る）。 */
+  interface SummonActorCtx {
+    actor: PlayerState; opponent: PlayerState;
+    actorId: string; actorKey: 'host_state' | 'guest_state';
+    isActorTurn: boolean;
+    /** センタールリグのレベル／実効リミット／場のシグニのレベル合計（配置可否の再検証に使う）。 */
+    lrigLevel: number; lrigLimit: number; fieldSigniTotal: number;
+    /** 「無色のカードを場に出せない」（`PLAY_COLORLESS`）。 */
+    playColorlessBlocked: boolean;
+    /** コスト付き任意【出】＝人間はモーダルで問う／CPU は発動しない。 */
+    costOnPlay: 'modal' | 'skip';
+  }
+  const performSummonSigni = async (
     handIndex: number,
     zoneIndex: number,
-    resona?: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection },
+    resona: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection } | undefined,
     // 🆕§5.3 `O-147`＝【ライズ】の支払い（下に重ねる材料＋下敷きにする場のシグニ）。
-    riseSelection?: RiseSelection,
+    riseSelection: RiseSelection | undefined,
+    sc: SummonActorCtx,
   ) => {
-    console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
-    const resonaAttackResponse = !!resona && bs.turn_phase === 'ATTACK_ARTS_OP' && !isMyTurn;
+    const my = sc.actor;
+    const op = sc.opponent;
+    const actorIsHost = sc.actorKey === 'host_state';
+    console.log('[performSummonSigni] called', { handIndex, zoneIndex, actor: sc.actorId, isActorTurn: sc.isActorTurn });
+    const resonaAttackResponse = !!resona && bs.turn_phase === 'ATTACK_ARTS_OP' && !sc.isActorTurn;
     const resonaSpellCutin = !!resona && !!bs.pending_spell
-      && bs.pending_spell.caster_id !== user.id
+      && bs.pending_spell.caster_id !== sc.actorId
       && resona.candidate.appearance.timings.includes('SPELL_CUTIN');
-    if ((!isMyTurn && !resonaAttackResponse && !resonaSpellCutin) || loading) return;
+    if (!sc.isActorTurn && !resonaAttackResponse && !resonaSpellCutin) return;
     const summonCardNum = resona?.candidate.cardNum ?? my.hand[handIndex];
     if (!summonCardNum) return;
     const summonPlacedFromZone: TriggerOriginZone = resona ? 'lrig_deck' : 'hand';
@@ -6446,7 +6458,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       riseTrashAfter = riseMaterialPayment.trash;
       riseEnergyAfter = riseMaterialPayment.energy;
     }
-    if (isActionBlocked('PLAY_COLORLESS') && summonCardData?.Color === '無') return;
+    if (sc.playColorlessBlocked && summonCardData?.Color === '無') return;
     // 🏁§5.3 `O-94`② で `OPP_ZONE_PLACEMENT_RESTRICT` は `deployLimitBlockReason` の funnel へ移した
     //   （旧はここだけの手書き判定＝CPU 配置と engine の効果配置が素通りしていた）。下の `zoneIndex` 付き呼び出しが受ける。
     // DEPLOY_RESTRICT（配置パワー制限／配置数制限）は `engine/deployLimit.ts` に一本化する
@@ -6459,7 +6471,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : 0;
       const blockedDeploy = deployLimitBlockReason({
         placingState: my, opponentState: op, cardNum: summonCardNum,
-        cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
+        cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: sc.isActorTurn,
         onExistingStack: riseOnField || existingZoneStack.length > 0,
         fieldCountAdjust: paidFieldCount,
         placementSource: 'normal_summon',
@@ -6469,7 +6481,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // FORCE_PLACE_FRONT: 相手の該当シグニの正面に配置を強制（正面が空いている場合のみ）。ライズは上乗せのため対象外。
     if (!riseReq) {
-      const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
+      const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !sc.isActorTurn);
       if (forcedFront.size > 0 && !forcedFront.has(zoneIndex)) return;
     }
     // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）: 「新たに配置できない」ゾーン。
@@ -6493,8 +6505,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return sum + (parseInt(battleCardMap.get(paidNum)?.Level ?? '0', 10) || 0);
         }, 0);
       const resonaLevel = parseInt(summonCardData?.Level ?? '0', 10) || 0;
-      if (resonaLevel > currentLrigLevel) return;
-      if (fieldSigniTotal - paidFieldLevels + resonaLevel > lrigLimit) return;
+      if (resonaLevel > sc.lrigLevel) return;
+      if (sc.fieldSigniTotal - paidFieldLevels + resonaLevel > sc.lrigLimit) return;
     }
     setLoading(true);
     setPendingSigniSummon(null);
@@ -6592,10 +6604,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_TRASH の byEffectCause=false を維持し、ON_LEAVE_FIELD も同じ共通経路で収集する。
       const paymentDiff = resonaPaymentMeta
         ? collectBoardDiffTriggers(
-          isHost ? placed : bs.host_state,
-          isHost ? bs.guest_state : placed,
+          actorIsHost ? placed : bs.host_state,
+          actorIsHost ? bs.guest_state : placed,
           {
-            causeOwnerId: user.id,
+            causeOwnerId: sc.actorId,
             causeSourceCardNum: cardNum,
             fieldTrashCostCards: resonaPaymentMeta.fieldTrashCostCards,
             resonaConditionCardNum: cardNum,
@@ -6603,27 +6615,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         )
         : null;
       if (paymentDiff) {
-        placed = isHost ? paymentDiff.hostState : paymentDiff.guestState;
-        summonOpp = isHost ? paymentDiff.guestState : paymentDiff.hostState;
+        placed = actorIsHost ? paymentDiff.hostState : paymentDiff.guestState;
+        summonOpp = actorIsHost ? paymentDiff.guestState : paymentDiff.hostState;
       }
       const paymentEntries = paymentDiff?.entries ?? [];
       // 手札支払いは中央差分の ON_TRASH に加え、既存の「手札を捨てたとき」経路にも載せる。
       // 出現条件は【出】【起】能力の使用コストではないため asCost=false（ON_DISCARDED_AS_COST は発火させない）。
       const discardRes = resonaPaymentMeta?.discardedCostCards.length
-        ? collectHandDiscardTriggers(resonaPaymentMeta.discardedCostCards.map(getCardNum), placed, user.id, false, summonOpp, isHost ? bs.guest_id : bs.host_id, undefined, undefined, undefined)
+        ? collectHandDiscardTriggers(resonaPaymentMeta.discardedCostCards.map(getCardNum), placed, sc.actorId, false, summonOpp, actorIsHost ? bs.guest_id : bs.host_id, undefined, undefined, undefined)
         : null;
       if (discardRes?.usedLimitIds.length) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...discardRes.usedLimitIds] };
       paymentEntries.push(...(discardRes?.entries ?? []));
-      const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, summonOpp, user.id, { placedFromZone: summonPlacedFromZone });
+      const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, summonOpp, sc.actorId, { placedFromZone: summonPlacedFromZone });
       const fieldEntries = fieldRes.entries;
       // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（自分側＝placed／相手側＝opAfterPlay。続き135）
-      const summonUsedMine = isHost ? fieldRes.usedHostIds : fieldRes.usedGuestIds;
-      const summonUsedOpp  = isHost ? fieldRes.usedGuestIds : fieldRes.usedHostIds;
+      const summonUsedMine = actorIsHost ? fieldRes.usedHostIds : fieldRes.usedGuestIds;
+      const summonUsedOpp  = actorIsHost ? fieldRes.usedGuestIds : fieldRes.usedHostIds;
       if (summonUsedMine.length > 0) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...summonUsedMine] };
       const opAfterPlay: PlayerState | null = summonUsedOpp.length > 0
         ? { ...summonOpp, actions_done: [...(summonOpp.actions_done ?? []), ...summonUsedOpp] }
         : paymentDiff ? summonOpp : null;
-      const opKeySummon = isHost ? 'guest_state' : 'host_state';
+      const opKeySummon = actorIsHost ? 'guest_state' : 'host_state';
 
       // 召喚したカード自身の ON_PLAY 効果
       const ownEffects = effectsMap.get(cardNum) ?? [];
@@ -6631,7 +6643,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 【出】を封じられている場合、召喚したシグニ自身の ON_PLAY を一切積まない（正面は engine 共通規約の 2-zi）。
       const frontOnPlayBlocked = collectContinuousAbilitiesRemovedSigni(placed, op, true, effectsMap, battleCardMap, '出').has(cardNum);
       const familyOnPlayBlocked = isSigniOwnOnPlaySuppressed(
-        cardNum, placed, summonOpp, isMyTurn, effectsMap, battleCardMap,
+        cardNum, placed, summonOpp, sc.isActorTurn, effectsMap, battleCardMap,
       );
       const onPlayBlocked = frontOnPlayBlocked || familyOnPlayBlocked;
       if (onPlayBlocked) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}の【出】能力は発動しない（抑止効果）`]);
@@ -6641,7 +6653,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
         isMandatoryOwnOnPlayForNormalSummon(e, summonPlacedFromZone) &&
         // activeCondition（英知=N等）を満たさない【出】は発火しない
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, isMyTurn, battleCardMap, cardNum)) &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, sc.isActorTurn, battleCardMap, cardNum)) &&
         // THIS_CARD_FROM_TRASH 条件のみ収集時に評価（手札召喚では false）
         (!involvesFromTrash(e.condition) || evalUseCondition(e.condition!, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
@@ -6663,7 +6675,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 変換してスタックへ積む＝支払いモーダルは要らない。
       const optionalNoCostOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
         isOptionalOwnOnPlayForNormalSummon(e, summonPlacedFromZone) && !e.cost &&
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, isMyTurn, battleCardMap, cardNum)) &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, sc.isActorTurn, battleCardMap, cardNum)) &&
         (!e.condition || evalUseCondition(e.condition, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
 
@@ -6673,7 +6685,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 自身の mandatory ON_PLAY エントリ
       const ownEntries: StackEntry[] = ownOnPlay.map(eff => ({
         id: generateUUID(),
-        playerId: user.id,
+        playerId: sc.actorId,
         cardNum,
         effectId: eff.effectId,
         label: `${cardName} の【出】/【自】効果`,
@@ -6684,7 +6696,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!wrappedOpt) continue;
         ownEntries.push({
           id: generateUUID(),
-          playerId: user.id,
+          playerId: sc.actorId,
           cardNum,
           effectId: eff.effectId,
           label: `${cardName} の【出】効果（任意）`,
@@ -6714,7 +6726,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, placed, op, true, battleCardMap, underNum)) continue;
             ownEntries.push({
               id: generateUUID(),
-              playerId: user.id,
+              playerId: sc.actorId,
               cardNum: underNum!,
               effectId: eff.effectId,
               label: `${battleCardMap.get(underNum!)?.CardName ?? underNum} の【自】効果（ライズされたとき）`,
@@ -6726,7 +6738,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // コスト付き【出】効果があればモーダルで確認（DBはモーダル確定後に保存。複数あれば1効果ずつ連鎖）
-      if (ownCostOnPlay.length > 0) {
+      // ⚠CPU（`costOnPlay:'skip'`）にモーダルは出せない＝コスト付き任意【出】は発動しない（CPU の既存方針）。
+      if (ownCostOnPlay.length > 0 && sc.costOnPlay === 'modal') {
         setPendingSigniOnPlayCost({
           cardNum,
           costEffect: ownCostOnPlay[0],
@@ -6740,7 +6753,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       if (ownEntries.length === 0 && fieldEntries.length === 0 && paymentEntries.length === 0) {
         // 効果なし：そのまま保存
-        const stateKey = isHost ? 'host_state' : 'guest_state';
+        const stateKey = actorIsHost ? 'host_state' : 'guest_state';
         await persist.commit(reduceBattle(bs, {
           type: 'WRITE_STATE', myKey: stateKey, myState: placed,
           opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined,
@@ -6751,13 +6764,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // すべてをスタックに積む
       const allEntries = [...ownEntries, ...fieldEntries, ...paymentEntries];
-      const turnPlayerId = bs.active_user_id ?? user.id;
+      const turnPlayerId = bs.active_user_id ?? sc.actorId;
       const existing = bs?.effect_stack ?? null;
       const stack = existing
         ? pushToStack(existing, allEntries)
         : initStack(turnPlayerId, allEntries);
 
-      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateKey = actorIsHost ? 'host_state' : 'guest_state';
       const summonUpdate = reduceBattle(bs, {
         type: 'WRITE_STATE', myKey: stateKey, myState: placed, effectStack: stack, clearPending: true,
         opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined,
@@ -6768,6 +6781,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSummonSigni = async (
+    handIndex: number,
+    zoneIndex: number,
+    resona?: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection },
+    riseSelection?: RiseSelection,
+  ) => {
+    if (loading) return;
+    await performSummonSigni(handIndex, zoneIndex, resona, riseSelection, {
+      actor: my, opponent: op, actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      isActorTurn: isMyTurn, lrigLevel: currentLrigLevel, lrigLimit, fieldSigniTotal,
+      playColorlessBlocked: isActionBlocked('PLAY_COLORLESS'), costOnPlay: 'modal',
+    });
   };
 
   // グロウ
@@ -6799,36 +6826,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
+  // 🆕§5.6 `C-5`＝判定は `listAssistGrowCandidates`（`assistGrow.ts`）の1本＝CPU も同じ関数を見る。
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
     if (!bs) return [];
-    const phase = bs.turn_phase;
-    const stack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
-    const topInstanceId = stack.length > 0 ? stack[stack.length - 1] : null;
-    const topCard = topInstanceId ? battleCardMap.get(topInstanceId) : null;
-    const topLevel = topCard !== undefined ? (parseInt(topCard?.Level ?? '-1') || 0) : -1;
-    const topClass = topCard?.CardClass ?? '';
-    const canGrowPhase =
-      (phase === 'MAIN'           && isMyTurn) ||
-      (phase === 'ATTACK_ARTS'    && isMyTurn) ||
-      (phase === 'ATTACK_ARTS_OP' && !isMyTurn);
-    if (!canGrowPhase) return [];
-    return my.lrig_deck
-      .map(num => battleCardMap.get(num))
-      .filter((c): c is CardData => {
-        if (!c || c.Type !== 'アシストルリグ') return false;
-        const level = parseInt(c.Level) || 0;
-        if (level !== topLevel + 1) return false;
-        if (level > currentLrigLevel) return false;
-        // 🆕**「このターン、次にアシストルリグにグロウする場合、ルリグタイプは無視され」**
-        //   （§5.3 `O-180`・`WX24-P2-043`）。⚠グロウ先ルリグ自身の宣言（`ignoresLrigTypeForGrow`）とは軸が別＝
-        //   こちらは**グロウする側にかかる一過性**なので `my.next_assist_grow_mods` を見る。
-        if (topClass && !my.next_assist_grow_mods?.ignoreLrigType
-            && !lrigClassesCompatible(topClass, c.CardClass)) return false;
-        const timingOk =
-          (phase === 'MAIN' && c.Timing.includes('メインフェイズ')) ||
-          ((phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') && c.Timing.includes('アタックフェイズ'));
-        return timingOk;
-      });
+    return listAssistGrowCandidates({ state: my, side, phase: bs.turn_phase, isOwnerTurn: isMyTurn, cardMap: battleCardMap });
   };
 
   // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
@@ -7952,17 +7953,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ── アシストルリグ グロウ ──
-  const executeAssistGrow = async (card: CardData, side: 'l' | 'r', costIndices: Set<number>) => {
-    if (!isMyTurn || loading) return;
+  /**
+   * アシストグロウの実行（§5.6 `C-5`＝人間と CPU が同じ関数を通る）。
+   * ⚠**可否はここで判定しない**＝候補は `listAssistGrowCandidates`、支払いは呼び出し側が選んだ `costIndices`。
+   */
+  const performAssistGrow = async (card: CardData, side: 'l' | 'r', costIndices: Set<number>, p: {
+    owner: PlayerState; other: PlayerState; ownerId: string; ownerKey: 'host_state' | 'guest_state';
+    energyPayPool: EnergyPayEntry[];
+  }) => {
     setLoading(true);
-    closeAssistGrow();
+    const my = p.owner; const op = p.other;
+    const ownerIsHost = p.ownerKey === 'host_state';
+    const otherId = (ownerIsHost ? bs.guest_id : bs.host_id) as string;
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const assistGrowPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const assistGrowPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = assistGrowPay.paidNums;
       const sideKey = side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
       const currentStack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
@@ -7981,21 +7990,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   ⚠落とすと「このターン中は何度でもルリグタイプ無視＋コスト減」に化ける。
         next_assist_grow_mods: undefined,
       });
-      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateKey = p.ownerKey;
       // 通常手順で配置したアシストルリグの【出】を共通 collector へ載せる。
       // 任意コスト/任意発動・条件・使用制限・【出】封じを効果配置経路と同じ規則で扱う。
       const assistOnPlay = pureCollectAssistOnPlayTriggers(
-        mkTrigCtx(), instanceId, newMyState, op, user.id,
+        mkTrigCtx(), instanceId, newMyState, op, p.ownerId,
       );
-      const usedIds = isHost ? assistOnPlay.usedHostIds : assistOnPlay.usedGuestIds;
+      const usedIds = ownerIsHost ? assistOnPlay.usedHostIds : assistOnPlay.usedGuestIds;
       // ON_COIN_GAINED（§6.3 J-5）: アシストルリグ配置で Coin 欄ぶんコインを得た場合。中央 diff を通らない獲得サイト。
       // ⚠上限5のクランプ後の実増加で判定する（アシストは支払いにコインを使わないので単純差でよい）。
       const assistCoinGainActual = Math.min(5, my.coins + assistCoinGain) - my.coins;
       const assistCoinMine = assistCoinGainActual > 0
-        ? collectCoinGainedTriggers(user.id, newMyState, op, assistCoinGainActual, 0)
+        ? collectCoinGainedTriggers(p.ownerId, newMyState, op, assistCoinGainActual, 0)
         : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
       const assistCoinOpp = assistCoinGainActual > 0
-        ? collectCoinGainedTriggers(isHost ? bs.guest_id : bs.host_id, op, newMyState, 0, assistCoinGainActual)
+        ? collectCoinGainedTriggers(otherId, op, newMyState, 0, assistCoinGainActual)
         : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
       const assistAllEntries = [...assistOnPlay.entries, ...assistCoinMine.entries, ...assistCoinOpp.entries];
       const committedMyState = (usedIds.length > 0 || assistCoinMine.usedOncePerTurnIds.length > 0)
@@ -8004,10 +8013,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const assistOppState: PlayerState | null = assistCoinOpp.usedOncePerTurnIds.length > 0
         ? { ...op, actions_done: [...(op.actions_done ?? []), ...assistCoinOpp.usedOncePerTurnIds] }
         : null;
-      const assistOppKey = isHost ? 'guest_state' : 'host_state';
+      const assistOppKey = ownerIsHost ? 'guest_state' : 'host_state';
       if (assistAllEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
-        const stack = existing ? pushToStack(existing, assistAllEntries) : initStack(bs?.active_user_id ?? user.id, assistAllEntries);
+        const stack = existing ? pushToStack(existing, assistAllEntries) : initStack(bs?.active_user_id ?? p.ownerId, assistAllEntries);
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, effectStack: stack, opp: assistOppState ? { key: assistOppKey, state: assistOppState } : undefined }));
       } else {
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, opp: assistOppState ? { key: assistOppKey, state: assistOppState } : undefined }));
@@ -8015,6 +8024,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  const executeAssistGrow = async (card: CardData, side: 'l' | 'r', costIndices: Set<number>) => {
+    // 🔴§5.6 `C-5`＝旧実装はここで `!isMyTurn` を弾いていた＝候補は「相手のアタックフェイズ」（`ATTACK_ARTS_OP`）でも出るのに、
+    //   **押しても何も起きなかった**。フェイズの可否は候補（`listAssistGrowCandidates`）が決める。
+    if (loading) return;
+    closeAssistGrow();
+    await performAssistGrow(card, side, costIndices, {
+      owner: my, other: op, ownerId: user.id, ownerKey: isHost ? 'host_state' : 'guest_state', energyPayPool: myEnergyPayPool,
+    });
   };
 
   // ── アシストルリグ 起動効果 ──
@@ -8841,33 +8860,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   ⚠**モーダル（`SigniSummonZoneModal`）と同じ規則を使う**（片方だけ直すと
         //     「押せるのに置けない／置けるのに押せない」になる）。
         const handRiseReq = getRiseRequirement(cardData.EffectText ?? '');
-        const riseUnderLevelOf = (zi: number): number => {
-          const top = (my.field.signi[zi] ?? []).at(-1);
-          return top ? (parseInt((battleCardMap.get(top) ?? battleCardMap.get(getCardNum(top)))?.Level ?? '0') || 0) : 0;
-        };
+        // 🆕§5.6 `C-6`＝【ライズ】の置き方の可否は `planRiseSummon`（`riseSummon.ts`）の1本＝CPU も同じ関数で置き方を決める。
         const canFitSomewhere = handRiseReq
-          ? (canPayRiseMaterials(my, handRiseReq, battleCardMap) && (() => {
-            if (handRiseReq.base.kind === 'empty') {
-              return [0, 1, 2].some(zi => (my.field.signi[zi] ?? []).length === 0)
-                && myCurrentSigniCount < fieldSigniCountLimit
-                && (fieldSigniTotal + signiLevel) <= lrigLimit;
-            }
-            // 🆕多ゾーン消費型（下位family A）＝**枠へのゾーン割り当てが1つでも作れるか**を見る
-            //   （枠ごとの候補数だけでは足りない＝`WX17-026` は同じゾーンが両方の枠の候補になる）。
-            if (riseFieldTotal(handRiseReq.base) >= 2) {
-              const assign = findRiseFieldAssignment(my, handRiseReq, battleCardMap);
-              if (!assign) return false;
-              const under = assign.reduce((sum, a) => sum + riseUnderLevelOf(a.zoneIndex), 0);
-              return (fieldSigniTotal - under + signiLevel) <= lrigLimit;
-            }
-            return [0, 1, 2].some(zi => {
-              const stack = my.field.signi[zi] ?? [];
-              if (stack.length === 0) return false;
-              if (!matchesRiseFilter(getCardNum(stack.at(-1)!), handRiseReq.base.kind === 'field' ? handRiseReq.base.groups[0].filter : {}, battleCardMap)) return false;
-              // 下敷きのレベルと入れ替わる（体数は増えないので `fieldSigniCountLimit` は見ない）。
-              return (fieldSigniTotal - riseUnderLevelOf(zi) + signiLevel) <= lrigLimit;
-            });
-          })())
+          ? planRiseSummon({
+            my, req: handRiseReq, signiLevel, fieldSigniTotal, lrigLimit, fieldSigniCountLimit, cardMap: battleCardMap,
+          }) !== null
           : myCurrentSigniCount < fieldSigniCountLimit && [0, 1, 2].some(zi => {
             const isEmpty = (my.field.signi[zi] ?? []).length === 0;
             return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
@@ -12159,6 +12156,121 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
      *   （DESIGN §4）。CPU 専用の判定/実行をここに書かない。
      * ⚠1回の呼び出しで**1つだけ**撃つ＝スタック解決（対象選択の自動応答を含む）を待ってから次を選ぶ。
      */
+    // ── 🆕§5.6 `C-5`/`C-6`＝CPU のアシストグロウ・レゾナ・ライズ ────────────────────────────────
+    // 🔑**3本とも「可否＝人間と同じ関数」「実行＝人間と同じ関数」「CPU は通った候補から1つ選ぶだけ」**（§5.6.3）。
+    //   ⚠**安全弁**＝実行より先に `cpu_used_card_nums_this_turn` へ札を刻む（実行側が黙って return しても同じ札を選び直さない）。
+    //   🔴**印は実行の前に単独でコミットする**（スペルと同じ）＝実行側が黙って return すると印ごと失われ、
+    //   ログだけが増えて同じ札を選び直し続ける。
+    const cpuMarkUsed = async (s: PlayerState, cardNum: string): Promise<PlayerState> => {
+      const marked: PlayerState = { ...s, cpu_used_card_nums_this_turn: [...(s.cpu_used_card_nums_this_turn ?? []), cardNum] };
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: marked }));
+      return marked;
+    };
+    const cpuCenterClass = (s: PlayerState) =>
+      effectiveLrigClass(s, battleCardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardClass);
+    /** CPU の召喚文脈（人間の `handleSummonSigni` が memo 値で渡すものを、CPU の盤面から同じ式で作る）。 */
+    const cpuSummonCtx = (s: PlayerState): SummonActorCtx => {
+      const centerCard = battleCardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''));
+      const fieldTotal = s.field.signi.reduce((sum, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return sum;
+        const c = battleCardMap.get(getCardNum(top));
+        return sum + (declaredSigniOverride(s, c?.CardName).levelZero ? 0 : (parseInt(c?.Level ?? '0') || 0));
+      }, 0);
+      const blockedSelf = calcContinuousBlockedActions(s, huSt, true, effectsMap, battleCardMap).forSelf;
+      return {
+        actor: s, opponent: huSt, actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn: true,
+        lrigLevel: parseInt(centerCard?.Level ?? '0') || 0,
+        lrigLimit: computeEffectiveLrigLimit(s, huSt, battleCardMap, effectsMap, true),
+        fieldSigniTotal: fieldTotal,
+        playColorlessBlocked: (s.blocked_actions ?? []).includes('PLAY_COLORLESS') || blockedSelf.has('PLAY_COLORLESS'),
+        costOnPlay: 'skip',
+      };
+    };
+    const tryCpuAssistGrow = async (actorState: PlayerState): Promise<boolean> => {
+      const pool = buildEnergyPayPool(actorState, { turnPhase: 'MAIN', isMyTurn: true, effectsMap });
+      const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
+      const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
+      for (const side of ['l', 'r'] as const) {
+        for (const card of listAssistGrowCandidates({ state: actorState, side, phase: 'MAIN', isOwnerTurn: true, cardMap: battleCardMap })) {
+          if ((actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
+          // ⚠コインは `performAssistGrow` が払わない＝コインを要する札は選ばない（踏み倒さない）。
+          if (parseCoinCost(card.GrowCost) > 0) continue;
+          const costStr = applyGrowCostReduction(card.GrowCost,
+            collectGrowCostReductions(actorState, huSt, true, effectsMap, battleCardMap, card.CardNum));
+          const costIndices = selectEnergyIndicesForCost({
+            poolNums: energyPoolCardNums(pool), cards, costStr,
+            isAffordable: (selectedNums, cs) => isEnergyPaymentSelectionValid({
+              selectedEnergyNums: selectedNums, cards, baseCost: cs,
+              keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
+            }),
+            wholeSubstitutes,
+          });
+          if (!costIndices) continue;
+          appendBattleLogs([`[CPU] アシストグロウ: ${card.CardName}（Lv.${card.Level}・${side === 'l' ? '左' : '右'}）`]);
+          await performAssistGrow(card, side, costIndices, {
+            owner: await cpuMarkUsed(actorState, card.CardNum), other: huSt,
+            ownerId: CPU_PLAYER_ID, ownerKey: 'guest_state', energyPayPool: pool,
+          });
+          return true;
+        }
+      }
+      return false;
+    };
+    const tryCpuResona = async (actorState: PlayerState): Promise<boolean> => {
+      if (bs.pending_spell) return false;
+      const sc = cpuSummonCtx(actorState);
+      const centerClass = cpuCenterClass(actorState);
+      for (const id of actorState.lrig_deck) {
+        const card = battleCardMap.get(getCardNum(id));
+        if (card?.Type !== 'レゾナ' || (actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
+        // 限定条件＝人間のルリグデッキのカードアクションと同じ（レゾナは無視の宣言を見ない）。
+        if (!meetsRestriction(card.Restriction, centerClass, false)) continue;
+        const candidate = getResonaSummonCandidate(id, actorState, battleCardMap, effectsMap, 'MAIN');
+        if (!candidate) continue;
+        const level = parseInt(card.Level ?? '0', 10) || 0;
+        if (level > sc.lrigLevel) continue;
+        const selection = pickCpuResonaSelection(actorState, candidate.payment, battleCardMap);
+        if (!selection) continue;
+        if (sc.fieldSigniTotal - paidFieldLevels(actorState, selection, battleCardMap) + level > sc.lrigLimit) continue;
+        const zone = pickCpuResonaZone(actorState, selection);
+        if (zone === null) continue;
+        appendBattleLogs([`[CPU] レゾナ: ${card.CardName}（ゾーン${zone + 1}）`]);
+        await performSummonSigni(-1, zone, { candidate, selection }, undefined, { ...sc, actor: await cpuMarkUsed(actorState, card.CardNum) });
+        return true;
+      }
+      return false;
+    };
+    const tryCpuRise = async (actorState: PlayerState): Promise<boolean> => {
+      const sc = cpuSummonCtx(actorState);
+      const centerClass = cpuCenterClass(actorState);
+      const countLimit = computeFieldSigniLimit(actorState, huSt, effectsMap, getCardNum);
+      for (let handIdx = 0; handIdx < actorState.hand.length; handIdx++) {
+        const card = battleCardMap.get(getCardNum(actorState.hand[handIdx]));
+        if (card?.Type !== 'シグニ' || (actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
+        const req = getRiseRequirement(card.EffectText ?? '');
+        if (!req) continue;
+        // ⚠シグニのエナコストは `performSummonSigni` が払わない（人間 UI も払わない）＝コストのある札は選ばない。
+        if (parseGrowCost(card.Cost).length > 0) continue;
+        // 手札の「召喚」ボタンと同じ軸（レベル・限定条件・パワー封じ）→ 置き方は `planRiseSummon`。
+        const override = declaredSigniOverride(actorState, card.CardName);
+        const level = override.levelZero ? 0 : (parseInt(card.Level) || 0);
+        if (level > sc.lrigLevel) continue;
+        if (!meetsRestriction(card.Restriction, centerClass,
+          hasIgnoreLrigRestriction(actorState, effectsMap, 'signi', card) || override.ignoreRestriction)) continue;
+        const power = card.Power === '∞' ? Infinity : parseInt(card.Power ?? '', 10);
+        if (isHandSigniPlayBlockedByPower(actorState, power)) continue;
+        const plan = planRiseSummon({
+          my: actorState, req, signiLevel: level, fieldSigniTotal: sc.fieldSigniTotal,
+          lrigLimit: sc.lrigLimit, fieldSigniCountLimit: countLimit, cardMap: battleCardMap,
+        });
+        if (!plan) continue;
+        appendBattleLogs([`[CPU] ライズ: ${card.CardName}（ゾーン${plan.zoneIndex + 1}）`]);
+        await performSummonSigni(handIdx, plan.zoneIndex, undefined, plan.selection, { ...sc, actor: await cpuMarkUsed(actorState, card.CardNum) });
+        return true;
+      }
+      return false;
+    };
     const tryCpuSigniActivated = async (
       actorState: PlayerState,
       phase: 'MAIN' | 'ATTACK_ARTS',
@@ -12356,10 +12468,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ルリグアタックのガード応答（CPUがlrig_attackedされている）───
     if (cpuSt.field?.lrig_attacked) {
-      // CPUはガードしない。対人戦と同じ共通処理でダメージ解決
-      // （各種ダメージ無効・ダブルクラッシュ・敗北無効・MULTI_DAMAGE再アタックを含む）
-      appendBattleLogs([`[CPU] ガードしない`]);
-      await performGuardResponse(null, {
+      // 🆕§5.6 `C-2`＝**CPU もガードする**。候補は人間のダイアログと同じ `guardableHandIndices`、
+      //   選ぶのは `pickCpuGuardHandIndex`、実行は人間と同じ `performGuardResponse`
+      //   （各種ダメージ無効・ダブルクラッシュ・敗北無効・MULTI_DAMAGE再アタックを含む）。
+      const cpuGuardCandidates = guardableHandIndices({
+        responder: cpuSt, attacker: huSt, cardMap: battleCardMap, effectsMap,
+        contBlockedForSelf: calcContinuousBlockedActions(cpuSt, huSt, false, effectsMap, battleCardMap).forSelf,
+        handGuardClasses: collectHandGuardIconClasses(cpuSt, battleCardMap, effectsMap, huSt, false),
+      });
+      const cpuAttackingLrig = cpuSt.lrig_attacked_by_num ?? huSt.field.lrig.at(-1);
+      const huLrigKeywords = cpuAttackingLrig ? [
+        ...(huSt.keyword_grants?.[cpuAttackingLrig] ?? []),
+        ...(collectContinuousGrantedKeywords(huSt, cpuSt, true, effectsMap, battleCardMap)[cpuAttackingLrig] ?? []),
+      ] : [];
+      const cpuGuardIdx = pickCpuGuardHandIndex({
+        candidates: cpuGuardCandidates, hand: cpuSt.hand, cardMap: battleCardMap,
+        lifeCount: cpuSt.life_cloth.length,
+        incomingCrushCount: huLrigKeywords.includes('トリプルクラッシュ') ? 3 : huLrigKeywords.includes('ダブルクラッシュ') ? 2 : 1,
+      });
+      appendBattleLogs([cpuGuardIdx === null
+        ? `[CPU] ガードしない`
+        : `[CPU] ガードする（${battleCardMap.get(cpuSt.hand[cpuGuardIdx])?.CardName ?? cpuSt.hand[cpuGuardIdx]}）`]);
+      await performGuardResponse(cpuGuardIdx, {
         responder: cpuSt, attacker: huSt,
         responderId: CPU_PLAYER_ID, attackerId: bs.host_id,
         responderKey: 'guest_state',
@@ -12673,8 +12803,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           //   このループは**空きゾーンしか回らず** `newSigni[zone] = [candidate.id]` と置くので、
           //   ライズ41枚を**下敷きも材料も無しで空きゾーンへタダで出していた**（人間側だけが
           //   `getRiseRequirement` でゲートされていた＝CPU の一方的な過剰実行）。
-          //   ⚠CPU 側に下敷き／材料の選択経路は無いので **fail-closed で候補から外す**
-          //     （1体ぶんだけ通す「半分だけ実装した嘘」を作らない）。CPU のライズ召喚は §5.3 `O-147` に据置。
+          //   ⚠この空きゾーン配置ループからは外したまま＝**CPU のライズは `tryCpuRise`（§5.6 `C-6`）が扱う**
+          //     （置き方は人間の「召喚」ゲートと同じ `planRiseSummon`、実行は人間と同じ `performSummonSigni`）。
           if (getRiseRequirement(card!.EffectText ?? '')) return false;
           const lv = parseInt(card!.Level) || 0;
           if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
@@ -12821,6 +12951,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: newStackOP }));
         return;
       }
+
+      // 🆕§5.6 `C-5`/`C-6`＝アシストグロウ → レゾナ → ライズ（どれも1回ごとに state が動く＝再実行で次へ進む）。
+      if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuAssistGrow(newCpuSt)) return;
+      if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuResona(newCpuSt)) return;
+      if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuRise(newCpuSt)) return;
 
       // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
       // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
@@ -13049,7 +13184,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           attacker: cpuSt, defender: huSt,
           attackerId: CPU_PLAYER_ID, attackerKey: 'guest_state',
         });
-        if (attacked) return;
+        // §5.6 `C-3`＝機構踏破計器（`playCensus.ts`）が数える行。
+        if (attacked) { appendBattleLogs(['[CPU] ルリグアタック']); return; }
         // アタック不可（ドライブ状態・無効化等）→ そのままENDへ進む
       }
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
@@ -13063,7 +13199,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           attackerId: CPU_PLAYER_ID, attackerKey: 'guest_state',
           slot: cpuAssistSlots[0],
         });
-        if (attackedAssist) return;   // 次の useEffect で残りのアシストへ
+        if (attackedAssist) { appendBattleLogs(['[CPU] アシストルリグでアタック']); return; }   // 次の useEffect で残りのアシストへ   // 次の useEffect で残りのアシストへ
       }
       // ── ルリグアタック済み → アタックフェイズ終了（§8／§6.4 O-1 (e)・2026-08-18）────────────
       // 🔑**人間経路（`doPhaseAdvance` の同じ遷移）と同じ4点をこの1コミットで行う**＝
@@ -13152,9 +13288,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
+      // 🆕§5.6 `C-4`＝**CPU の手札上限**（公式ルール：エンドフェイズ ①ターン終了時の効果 → ②手札が上限を超えていれば捨てる）。
+      //   🔴旧実装は CPU に手札上限の処理自体が無かった（DESIGN §4 の注記）。
+      //   上限は人間と同じ `collectHandLimits`、捨てた札の「手札からトラッシュに置かれたとき」は人間の `confirmEndDiscard` と同じ
+      //   `collectAnyZoneTrashSelfTriggers(…, 'hand', undefined, false)`（ルール処理＝効果起因ではない）。
+      let cpuTrashEND = cpuEndState.trash;
+      const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
+      if (cpuHandEND.length > cpuHandLimit) {
+        const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap);
+        const discardNums = discardIdx.map(i => cpuHandEND[i]);
+        appendBattleLogs([`[CPU] 手札上限: ${cpuHandEND.length}枚→${cpuHandEND.length - discardNums.length}枚（${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て）`]);
+        cpuHandEND = cpuHandEND.filter((_, i) => !discardIdx.includes(i));
+        cpuTrashEND = [...cpuTrashEND, ...discardNums];
+        const cpuRuleDiscardEntries = discardNums.flatMap(cn =>
+          collectAnyZoneTrashSelfTriggers(cn, CPU_PLAYER_ID, false, 'hand', undefined, false));
+        if (cpuRuleDiscardEntries.length > 0) {
+          // 誘発を先に解決する＝人間経路と同じ。再入時は手札が上限以下なので素通りし、ターン終了時の予約（ドロー）も消費済み。
+          await persist.commit(reduceBattle(bs, {
+            type: 'WRITE_STATE', myKey: 'guest_state',
+            myState: { ...cpuEndState, hand: cpuHandEND, deck: cpuDeckEND, trash: cpuTrashEND, turn_end_draw_count: undefined },
+            opp: { key: 'host_state', state: huEndState },
+            effectStack: bs.effect_stack
+              ? pushToStack(bs.effect_stack, cpuRuleDiscardEntries)
+              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuRuleDiscardEntries),
+          }));
+          return;
+        }
+      }
       // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（人間側と同じ funnel）。
       // CPU も 【出】でこの予約を積む札（`SPK01-10`）を召喚しうるので、人間の2経路と同じ関数を通す。
-      const cpuEnergyTrashEND = resolveTurnEndEnergyTrash(cpuEndState);
+      const cpuEnergyTrashEND = resolveTurnEndEnergyTrash({ ...cpuEndState, trash: cpuTrashEND });
       if (cpuEnergyTrashEND.trashed.length > 0) {
         appendBattleLogs([`ターン終了時：CPUの${cpuEnergyTrashEND.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
       }

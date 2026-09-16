@@ -17,7 +17,7 @@
 //     手詰まり（何もクリックできない状態が続く）を FAIL として明示的に検出する。
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
-import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SHOT = 'scratchpad-verify';
@@ -613,9 +613,33 @@ async function runCpuMatch(browser, url) {
     await page.waitForTimeout(3500);
     if (!(await driveSetup([S], 'cpu'))) return { pass: false, detail: 'セットアップが PLAYING へ到達しなかった', errs };
     const r = await playToFinish([S], 'cpu');
+    // §5.6 `C-3`＝機構踏破計器の入力。**決着しなくても書く**（途中で詰まった試合も「どこまで踏んだか」の材料）。
+    await dumpPlayLogs(page, 'cpu');
     await page.screenshot({ path: `${SHOT}/cpu-final.png`, fullPage: true }).catch(() => {});
     return { ...r, errs };
   } finally { await ctx.close().catch(() => {}); }
+}
+
+/**
+ * 🆕§5.6 `C-3`＝対戦ログの全行を `${SHOT}/playlogs-<tag>.json` へ書き出す（`npm run census:play -- --file …` の入力）。
+ * ⚠**部屋を閉じるとログは消える**ので、決着直後（終了確認の前）にここで取る。
+ */
+async function dumpPlayLogs(page, tag) {
+  const logs = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const uid = sess.user?.id;
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id&order=created_at.desc`, { headers: h });
+    const room = (await r1.json())?.[0];
+    if (!room) return null;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${room.id}&select=game_logs,turn_count,global_phase`, { headers: h });
+    return (await r2.json())?.[0] ?? null;
+  }, { SUPA_URL, ANON }).catch(() => null);
+  if (!logs) { console.log(`   ⚠playlogs-${tag}: ログを取れなかった`); return; }
+  const out = `${SHOT}/playlogs-${tag}.json`;
+  writeFileSync(out, JSON.stringify({ turnCount: logs.turn_count, globalPhase: logs.global_phase, logs: (logs.game_logs ?? []).map(l => l.action) }, null, 1));
+  console.log(`   機構踏破の入力: ${out}（${(logs.game_logs ?? []).length}行）→ npm run census:play -- --file ${out}`);
 }
 
 // ── PvP 通し対戦（claude1 がルーム作成 → claude2 がパスコードで参加）────────────────────

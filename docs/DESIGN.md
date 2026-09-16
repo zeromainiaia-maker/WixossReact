@@ -154,4 +154,4 @@ CardData_Sheet*.csv（カードテキスト）
 - 手札上限超過で捨て札選択へ抜ける場合（`confirmEndDiscard` 経路）は、**①の解決結果を先に永続化**し、一時マーカー `end_turn_effects_resolved: true` を立ててから `setPendingEndDiscard`。`confirmEndDiscard` 側は各ターン終了時効果ブロックを `!my.end_turn_effects_resolved` でガードして二重適用を防ぐ。
   - 特に `game_turn_end_trash_to_hand` は「このゲーム」持続でフラグを消せないため、フラグクリアではなく**マーカーで抑止**する必要がある。
 - マーカーは `confirmEndDiscard` の最終クリーンアップで `undefined` に戻す。
-- ⚠️ **CPU の END 分岐（`cpuTurnAction`）は予約型のうち `turn_end_draw_count` のみ対応**。coin/field_trash/trash_to_hand は未対応（[§4](#4-cpu-戦と対人戦の処理統一) の統一が未了。CPU は手札上限処理自体が無いため順序は問題にならない）。
+- ⚠️ **CPU の END 分岐（`cpuTurnAction`）は予約型のうち `turn_end_draw_count` のみ対応**。coin/field_trash/trash_to_hand は未対応（[§4](#4-cpu-戦と対人戦の処理統一) の統一が未了。🆕2026-09-17 §5.6 `C-4` で **CPU にも手札上限が入った**＝①`turn_end_draw_count` を手札へ入れた**後**に ②`collectHandLimits` で上限を超えた分を捨てる、の順（人間経路と同じ）。coin/field_trash/trash_to_hand は依然未対応）。

@@ -1,6 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { getCardNum } from '../../engine/execUtils';
+import { collectOppExtraGuardFromHand, collectOppGuardExtraColorlessCost } from '../../engine/effectEngine';
 
 /** 現在の所有者盤面で、手札のカードを【ガード】として使用できるかを判定する。 */
 export function canCardGuard(
@@ -74,4 +75,61 @@ export function makeGuardLevelBlocker(actionIds: Iterable<string>): (level: numb
     if (asExact) for (const n of asExact[1].split('_')) exactLevels.add(parseInt(n));
   }
   return (level: number) => (maxLevel >= 0 && level <= maxLevel) || exactLevels.has(level);
+}
+
+/** `guardableHandIndices` の入力（防御側＝ガードする側の視点）。 */
+export interface GuardableHandInput {
+  /** ガードする側（ルリグにアタックされている側）。 */
+  responder: PlayerState;
+  /** アタックしている側。 */
+  attacker: PlayerState;
+  cardMap: Map<string, CardData>;
+  effectsMap: Map<string, CardEffect[]>;
+  /** 防御側に掛かっている CONTINUOUS の行動禁止（`calcContinuousBlockedActions(...).forSelf`）。 */
+  contBlockedForSelf: Iterable<string>;
+  /** 防御側の「手札の＜クラス＞シグニは《ガードアイコン》を持つ」（`collectHandGuardIconClasses`）。 */
+  handGuardClasses: string[];
+}
+
+/**
+ * 【ガード】に使える**手札の添字**（§5.6 `C-2`・2026-09-17）。
+ *
+ * 🔑**可否の唯一の権威**＝人間のダイアログ（`GuardResponseDialog`）と CPU（`cpuGuard.ts`）が**同じ関数**を見る。
+ *   旧実装はこの判定が JSX の中に直書きされており、CPU は「ガードしない」固定だった＝**CPU がガードする経路が一度も踏まれていない**。
+ *   ⚠写経すると「人間には出ないのに CPU は使える」型の無言のズレになる（§5.6.3 規律1）。
+ *
+ * 見る軸＝①ガードそのものの禁止（`prevent_opp_guard`／`BLOCK_ACTION{GUARD}`）②追加コスト（《無》不足／追加ガードカード不足）
+ *   ③カードごとの《ガードアイコン》（付与・クラス付与・任意カード可を含む）④レベル限定の禁止（`GUARD_MAX_LV`／`GUARD_LV`／宣言レベル）。
+ * ⚠**代替ガード（エナのクラス指定トラッシュ・コラボ・手札N枚）はここに含めない**＝ボタンが別で、実行関数も別。
+ */
+export function guardableHandIndices(p: GuardableHandInput): number[] {
+  const { responder: my, attacker: op, cardMap, effectsMap } = p;
+  const blockedSelf = new Set(p.contBlockedForSelf);
+  const guardBlockedByLevel = makeGuardLevelBlocker([...(my.blocked_actions ?? []), ...blockedSelf]);
+  const guardBlockedOutright = (my.blocked_actions ?? []).includes('GUARD') || blockedSelf.has('GUARD');
+  if (op.prevent_opp_guard === true || guardBlockedOutright) return [];
+  // ⚠ガードは常に相手ターン中＝防御側は非ターンプレイヤー（`performGuardResponse` と同じ `true`）。
+  const extraColorless = collectOppGuardExtraColorlessCost(op, my, cardMap, effectsMap, true);
+  if (my.energy.length < extraColorless) return [];
+  const guardCardCountInHand = my.hand.filter(cn => canCardGuard(cn, my, cardMap, effectsMap)).length;
+  if (collectOppExtraGuardFromHand(op, cardMap, effectsMap) && guardCardCountInHand < 2) return [];
+  const declaredRestrictLv = op.declared_guard_restrict_level;
+  const declaredRestrictLvs = op.declared_guard_restrict_levels ?? [];
+  const out: number[] = [];
+  my.hand.forEach((num, i) => {
+    const card = cardMap.get(getCardNum(num));
+    if (!my.optional_discard_guard_enabled) {
+      const classGuardable = p.handGuardClasses.length > 0 && card?.Type === 'シグニ'
+        && p.handGuardClasses.some(cls => card?.CardClass?.includes(cls));
+      const isGuardable = canCardGuard(num, my, cardMap, effectsMap)
+        || (my.hand_signi_guard_enabled && card?.Type === 'シグニ') || classGuardable;
+      if (!isGuardable) return;
+      const guardLevel = parseInt(card?.Level ?? '-1');
+      if (guardBlockedByLevel(guardLevel)) return;
+      if (declaredRestrictLv !== undefined && guardLevel === declaredRestrictLv) return;
+      if (declaredRestrictLvs.includes(guardLevel)) return;
+    }
+    out.push(i);
+  });
+  return out;
 }

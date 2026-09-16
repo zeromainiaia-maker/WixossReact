@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 第390バッチ：§5.6 `C-2`〜`C-6`＝CPU が踏まなかった経路を踏むようにした（ガード・機構踏破計器・手札上限／マリガン・アシストグロウ／レゾナ・ライズ）
+
+- 🔑**規律（§5.6.3）を5本とも守った**＝①可否は人間と同じ関数 ②実行も人間と同じ関数 ③CPU は通った候補から1つ選ぶだけ（純関数・golden で固定）。
+  そのために、**人間専用の JSX／クロージャに埋まっていた判定・実行を5か所で外へ出した**（これが今回の作業量の大半）。
+- **`C-2` ガード**＝可否は `GuardResponseDialog` の JSX に直書きだった → `guard.ts` `guardableHandIndices`（ダイアログも CPU も同じ関数）。
+  CPU の方針＝`cpuGuard.ts` `pickCpuGuardHandIndex`（受けると負ける／2枚以上割られる／ライフ2以下／ガード札2枚以上なら受ける・低レベルから使う）。
+- **`C-3` 機構踏破計器**＝`playCensus.ts`（`[CPU] …` のログ行を機構ごとに数える規則＋ソースの文言 anchor）＋ `npm run census:play`。
+  入力は `verifyFullMatch.mjs cpu` が決着時に書く `scratchpad-verify/playlogs-cpu.json`（🔴部屋を閉じるとログは消える）。
+  CPU のルリグアタック／アシストのアタックにはログが無かったので1行ずつ足した。golden が anchor の残存を検査（文言を変えると計器が黙って0件になるため）。
+- **`C-4` 手札上限・マリガン**＝引き直しは人間のマリガン画面の JSX に直書きで、CPU は**引き直さずライフを置くだけの別実装**だった → `mulligan.ts` `applyMulligan`（両方が通る）。
+  CPU の END に手札上限（旧実装は処理自体が無かった）＝ターン終了時ドローの**後**に `collectHandLimits` → `pickCpuHandLimitDiscards`。捨てた札の誘発は人間の `confirmEndDiscard` と同じ収集。
+- **`C-5` アシストグロウ・レゾナ**＝候補（`getAssistGrowCandidates`）と実行（`executeAssistGrow`）は人間専用クロージャ → `assistGrow.ts` `listAssistGrowCandidates`／`performAssistGrow`。
+  レゾナは `handleSummonSigni`（約385行）を「誰が出すか」の引数で受ける **`performSummonSigni`** に一般化し、人間はその薄いラッパーにした。支払いの選び方だけ `cpuSummon.ts`（人間と同じ `validateResonaSelection` を通った選択しか返さない）。
+  - 🔴**ついでに人間側のバグ1件**＝`executeAssistGrow` の先頭が `if (!isMyTurn) return` で、**候補に出る「相手のアタックフェイズでのアシストグロウ」を押しても何も起きなかった**。フェイズの可否は候補関数が決めるので削除（golden でソースの形を固定）。
+- **`C-6` ライズ**＝配置の可否は手札アクション（JSX）に直書き、CPU は `O-147` の fail-closed で候補から外していた → `riseSummon.ts` `planRiseSummon`（人間の「召喚」ボタンの活性条件も `planRiseSummon(...) !== null` に置換）→ `performSummonSigni`。
+- 🔴**安全弁**＝CPU のアシストグロウ／レゾナ／ライズは、実行の**前に** `cpu_used_card_nums_this_turn` を単独でコミットする（スペルと同じ）。実行関数は失敗すると黙って return するので、印を実行に委ねると同じ札を選び直してログだけが増え続ける。
+- **ラチェットの更新（較正ではなく正当な増加）**＝`isHandSigniPlayBlockedByPower` の消費地点 2→3（CPU のライズ入口）／`isEnergyPaymentSelectionValid` の BattleScreen 内呼び出し 6→7（CPU のアシストグロウ）。
+- **検証**＝golden 5本（`§5.6 C-2`〜`C-6`・純関数の表＋配線をソースの形で固定）・`npm run gates` 全緑。
+- **実機（`src/screens/` を触った＝必須）**＝新規5本 **PASS**：`V-242` `c2cpuguard`（ライフ0の CPU がサーバント O でガードして対戦継続）／`V-243` `c4cpuhandlimit`（手札 9→6・ガードは残す）／
+  `V-244` `c5cpuassistgrow`／`V-245` `c5cpuresona`（手札の＜凶蟲＞2枚を捨ててサソリス）／`V-246` `c6cpurise`（アルスラをアイロンの上に）。
+  **回帰（人間側の共通化の影響）**＝既存15本 **PASS**（レゾナ2・ライズ6・アシストグロウ1・ガード4・召喚ゲート2）。
+- **通し対戦（リリースゲート）**＝`verifyFullMatch.mjs cpu` を2回。**1回目は CPU 先攻1ターン目のグロウ直後に GROW で60秒停止＝FAIL**、2回目は **PASS**（6ターン・188秒で決着）。
+  同じ盤面（`WD03-005` → `WXK09-021`・1ターン目）の実機シナリオ `c3cpufirstturngrow` では再現しなかった（グロウ後に MAIN へ進む）＝**原因未特定**。§5.1 `V-247` に登録した（今回の変更起因かどうかも未確定）。
+- **`census:play` の初回実測（2回目の対戦・1戦）**＝**踏破 7 / 17 機構**（マリガン1／エナチャージ3／グロウ3／シグニ配置3／シグニアタック6／ルリグアタック2／ライフバースト1）。
+  未踏10＝スペル／アーツ／シグニの【起】／ルリグの【起】／アシストグロウ／レゾナ／ライズ／アシストのアタック／ガード／手札上限。
+  ⚠**実機シナリオでは5機構とも踏めている**＝通し対戦の未踏は主に**デッキ（`VERIFY_DECK`）に該当札が無い／1戦が短い**ことによる。次は複数のデッキ・複数戦で合算する。
+- 🔑**教訓**＝「CPU が踏まない」の原因は CPU 側の欠落だけではなく、**判定と実行が人間専用の場所（JSX・`my`/`isHost` を掴んだクロージャ）に埋まっていること**だった。
+  そこから外へ出すと、人間側にも見えていなかった穴（相手ターンのアシストグロウが無反応）が一緒に出てくる。
+
 ## 2026-09-17 第389バッチ：§5.6 `C-9` 着手＝ルール規則の台帳を作り、2系統のルール違反を直した
 
 - **台帳**＝[RULES.md](./RULES.md)（公式ルールの1文 × 実装箇所 × 状態）。初回＝✅4／🔴→✅3／👀14／⚠15。

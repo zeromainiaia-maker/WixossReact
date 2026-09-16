@@ -216,3 +216,74 @@ export function riseConsumedZones(
   if (riseFieldTotal(req.base) <= 1) return [destinationZone];
   return selection.fieldZones.map(f => f.zoneIndex);
 }
+
+/** 【ライズ】で出す具体的な置き方（配置先ゾーン＋選択）。 */
+export interface RiseSummonPlan { zoneIndex: number; selection: RiseSelection }
+
+/**
+ * 【ライズ】を**いまこの盤面で出せる置き方を1つ**返す（無ければ null）（§5.6 `C-6`・2026-09-17）。
+ *
+ * 🔑**人間の「召喚」ボタンのゲートと CPU が同じ関数を見る**＝`planRiseSummon(...) !== null` がボタンの活性条件。
+ *   旧実装はこの判定が手札アクション（JSX）に直書きで、CPU は【ライズ】を**候補から外していた**（`O-147` の fail-closed）。
+ *
+ * 見る軸（手札アクションの旧判定と同じ）＝材料が払えるか／配置先の種類（空きゾーン・場のシグニ1体・場のシグニ N体）ごとに
+ *   体数上限（空きゾーン型だけ）とリミット（下敷きのレベルと入れ替わる）。
+ * ⚠**選び方は決定論**＝材料は候補の先頭から（「それぞれレベルの異なる」はレベルごとに1枚）、場のシグニは若いゾーンから。
+ */
+export function planRiseSummon(p: {
+  my: PlayerState;
+  req: RiseRequirement;
+  /** 出すシグニの（宣言による基本レベル0を反映した）レベル。 */
+  signiLevel: number;
+  fieldSigniTotal: number;
+  lrigLimit: number;
+  fieldSigniCountLimit: number;
+  cardMap: Map<string, CardData>;
+}): RiseSummonPlan | null {
+  const { my, req, cardMap } = p;
+  if (!canPayRiseMaterials(my, req, cardMap)) return null;
+  // 材料の具体的な選択
+  const materials: RiseMaterialItem[] = [];
+  const used = new Set<string>();
+  for (let group = 0; group < req.materials.length; group++) {
+    const spec = req.materials[group];
+    const seenLevels = new Set<number>();
+    for (const index of riseMaterialOptions(my, spec, cardMap)) {
+      if (materials.filter(m => m.group === group).length >= spec.count) break;
+      const key = `${spec.from}:${index}`;
+      if (used.has(key)) continue;
+      if (spec.distinctLevel) {
+        const lv = levelOf(getCardNum(zoneCards(my, spec.from)[index] ?? ''), cardMap);
+        if (seenLevels.has(lv)) continue;
+        seenLevels.add(lv);
+      }
+      used.add(key);
+      materials.push({ zone: spec.from, index, group });
+    }
+  }
+  if (!validateRiseMaterials(my, req, materials, cardMap)) return null;
+  const underLevelOf = (zi: number): number => {
+    const top = (my.field.signi[zi] ?? []).at(-1);
+    return top ? (parseInt((cardMap.get(top) ?? cardMap.get(getCardNum(top)))?.Level ?? '0') || 0) : 0;
+  };
+  if (req.base.kind === 'empty') {
+    const count = my.field.signi.filter(stk => (stk ?? []).length > 0).length;
+    const zi = [0, 1, 2].find(z => (my.field.signi[z] ?? []).length === 0);
+    if (zi === undefined || count >= p.fieldSigniCountLimit || p.fieldSigniTotal + p.signiLevel > p.lrigLimit) return null;
+    return { zoneIndex: zi, selection: { materials, fieldZones: [] } };
+  }
+  if (riseFieldTotal(req.base) >= 2) {
+    const assign = findRiseFieldAssignment(my, req, cardMap);
+    if (!assign) return null;
+    const under = assign.reduce((sum, a) => sum + underLevelOf(a.zoneIndex), 0);
+    if (p.fieldSigniTotal - under + p.signiLevel > p.lrigLimit) return null;
+    return { zoneIndex: assign[0].zoneIndex, selection: { materials, fieldZones: assign } };
+  }
+  const filter = req.base.groups[0].filter;
+  const zi = [0, 1, 2].find(z => {
+    const top = (my.field.signi[z] ?? []).at(-1);
+    return !!top && matchesRiseFilter(getCardNum(top), filter, cardMap)
+      && p.fieldSigniTotal - underLevelOf(z) + p.signiLevel <= p.lrigLimit;
+  });
+  return zi === undefined ? null : { zoneIndex: zi, selection: { materials, fieldZones: [] } };
+}

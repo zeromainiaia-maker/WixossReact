@@ -128,7 +128,7 @@ import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason } from '../src/u
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectForcedTargets, collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isEnergyImmuneByOpponent, isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf, oppZoneMoveBlocked } from '../src/engine/execUtils';
-import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
+import { getRiseRequirement, matchesRiseFilter, riseFieldTotal } from '../src/engine/execUtils';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { collectSpecificCardCostReductions } from '../src/engine/effectEngine';
 import {
@@ -147,7 +147,15 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
-import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
+import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
+import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
+import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
+import { applyMulligan } from '../src/screens/battle/mulligan';
+import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
+import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
+import { planRiseSummon } from '../src/screens/battle/riseSummon';
+import { type ResonaPaymentPlan } from '../src/screens/battle/resonaSummon';
+import { PLAY_MECHANISMS, tallyPlayMechanisms, unvisitedMechanisms } from '../src/screens/battle/playCensus';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
@@ -6254,7 +6262,8 @@ test('§6.4 NEXT_TURN WX12-Re05-E1: 発動ターンは場出し可／次相手�
   ok(!isHandSigniPlayBlockedByPower(clearTurnEndScopedState(started), 12000), '対象ターン終了で失効');
   const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   const executorSource = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
-  eq((battleSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 2, '人間／CPUの手札召喚入口で消費');
+  // §5.6 `C-6`（2026-09-17）で3地点目＝CPU のライズ入口（`tryCpuRise`）。
+  eq((battleSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 3, '人間／CPU配置／CPUライズの手札召喚入口で消費');
   eq((executorSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 1, '効果による手札場出し入口でも消費');
   eq((battleSource.match(/blocked_actions:\s*\[\]/g) ?? []).length, 0, '予約をfunnel手前の手書きclearで落とさない');
 }));
@@ -81719,7 +81728,8 @@ test('§5.3 O-342: CPUはエナ順に依存せずオサキを選び実支払い�
 
 test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化回避1地点だけ旧判定に残す', () => {
   const specs = [
-    ['src/screens/BattleScreen.tsx', 6, 3, 0],
+    // §5.6 `C-5`（2026-09-17）で選択版が1地点増えた＝CPU のアシストグロウ（`tryCpuAssistGrow`）。
+    ['src/screens/BattleScreen.tsx', 7, 3, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
     ['src/screens/battle/modals/CutinModal.tsx', 1, 2, 0],
     ['src/screens/battle/modals/AssistGrowModal.tsx', 1, 1, 0],
@@ -85730,6 +85740,169 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
+}));
+
+test('§5.6 C-2 CPU のガード：可否は guardableHandIndices 1本・CPU は候補から選ぶだけ', () => withSavedCursor(() => {
+  const isPlainGuard = (c: CardData) => c.Guard === '1'
+    && !(effectsMap.get(c.CardNum) ?? []).some(e => e.action.type === 'STUB' && (e.action as StubAction).id === 'GUARD_LOSS_UNLESS_LRIG');
+  const guardLv1 = findCard(c => isPlainGuard(c) && c.Level === '1');
+  const guardLv3 = findCard(c => isPlainGuard(c) && c.Level === '3');
+  const plain = findCard(c => c.Type === 'シグニ' && c.Guard !== '1');
+  const base = (hand: string[], life = 7) => {
+    const responder = mkState({ life });
+    responder.hand = hand;
+    return { responder, attacker: mkState(), cardMap, effectsMap, contBlockedForSelf: [] as string[], handGuardClasses: [] as string[] };
+  };
+  // ① 《ガードアイコン》の札だけが候補
+  eq(JSON.stringify(guardableHandIndices(base([plain, guardLv3, guardLv1]))), JSON.stringify([1, 2]), 'ガード札だけが候補に出ていない');
+  // ② ガードそのものの禁止（相手の効果／CONTINUOUS）
+  {
+    const p = base([guardLv1]); p.attacker.prevent_opp_guard = true;
+    eq(guardableHandIndices(p).length, 0, '🔴相手がガードを禁止しているのに候補が出る');
+    eq(guardableHandIndices({ ...base([guardLv1]), contBlockedForSelf: ['GUARD'] }).length, 0, '🔴BLOCK_ACTION{GUARD} なのに候補が出る');
+  }
+  // ③ レベル限定の禁止（`GUARD_MAX_LV1`＝レベル1以下の札でガードできない）
+  eq(JSON.stringify(guardableHandIndices({ ...base([guardLv1, guardLv3]), contBlockedForSelf: ['GUARD_MAX_LV1'] })), JSON.stringify([1]),
+    '🔴レベル限定のガード禁止が候補に反映されていない');
+
+  // ④ CPU の方針（決定論）
+  const pick = (candidates: number[], hand: string[], lifeCount: number, incomingCrushCount = 1) =>
+    pickCpuGuardHandIndex({ candidates, hand, cardMap, lifeCount, incomingCrushCount });
+  eq(pick([], [guardLv1], 0), null, '候補が無いのにガードする');
+  eq(pick([0], [guardLv1], 0), 0, '🔴受けると敗北なのにガードしない');
+  eq(pick([0], [guardLv1], 5, 2), 0, '【ダブルクラッシュ】なのにガードしない');
+  eq(pick([0], [guardLv1], 2), 0, 'ライフ2枚以下でガードしない');
+  eq(pick([0], [guardLv1], 5), null, 'ガード札1枚・ライフに余裕があるのに使ってしまう（温存しない）');
+  eq(pick([0, 1], [guardLv3, guardLv1], 5), 1, '札が2枚以上あるのに使わない／レベルの低い札から使っていない');
+
+  // ⑤🔴配線の固定＝判定を JSX／CPU 経路に写経しない（`C-2` 前は CPU が「ガードしない」固定だった）
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const dialog = fs.readFileSync(join(root, 'src/screens/battle/modals/GuardResponseDialog.tsx'), 'utf8');
+  ok(!battle.includes('CPUはガードしない'), '🔴CPU のガード応答が「ガードしない」固定に戻っている');
+  ok(/pickCpuGuardHandIndex\(\{/.test(battle) && /guardableHandIndices\(\{/.test(battle), '🔴CPU が guardableHandIndices→pickCpuGuardHandIndex を通っていない');
+  ok(/guardableHandIndices\(\{/.test(dialog) && !dialog.includes('makeGuardLevelBlocker('), '🔴ダイアログがガード可否を自前で判定している');
+}));
+
+test('§5.6 C-3 機構踏破計器：ログ行を機構ごとに数え、規則の文言がソースに残っている', () => withSavedCursor(() => {
+  const rows = tallyPlayMechanisms([
+    '[CPU] ガードする（サーバント　Ｏ）', '[CPU] ガードしない', '[CPU] 幻獣　ラクダ がアタック', '[CPU] ルリグアタック',
+    '[CPU] ライフクロスをオープン: X（ライフバースト発動）', '[CPU] ライフクロスをオープン: Y（ライフバーストなし）',
+    'ガード（サーバント　Ｏ）',   // 人間側の行は数えない（`[CPU]` 接頭辞が無い）
+  ]);
+  const countOf = (id: string) => rows.find(r => r.mechanism.id === id)?.count;
+  eq(countOf('guard'), 1, '「ガードする」だけを数えていない（「ガードしない」や人間の行を数えた）');
+  eq(countOf('signiAttack'), 1, 'シグニアタックを数えていない');
+  eq(countOf('lrigAttack'), 1, 'ルリグアタックを数えていない');
+  eq(countOf('lifeBurst'), 1, 'ライフバースト「なし」まで数えている');
+  ok(unvisitedMechanisms(rows).every(m => !m.pending), '未実装（pending）の機構を未踏に数えている');
+  // 🔴**文言が契約**＝規則の anchor が src/screens/ に残っていること（変えると計器が黙って0件になる）。
+  const src = [
+    fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
+    ...fs.readdirSync(join(root, 'src/screens/battle')).filter(f => f.endsWith('.ts') && f !== 'playCensus.ts')
+      .map(f => fs.readFileSync(join(root, 'src/screens/battle', f), 'utf8')),
+  ].join('\n');
+  for (const m of PLAY_MECHANISMS.filter(m => !m.pending)) {
+    ok(src.includes(m.anchor), `🔴機構「${m.label}」のログ文言（${m.anchor}）がソースに無い＝census:play が黙って0件になる`);
+  }
+  eq(new Set(PLAY_MECHANISMS.map(m => m.id)).size, PLAY_MECHANISMS.length, '機構 id が重複している');
+}));
+
+test('§5.6 C-4 マリガンと手札上限：人間と CPU が同じ applyMulligan／CPU にも手札上限がある', () => withSavedCursor(() => {
+  // ① applyMulligan＝戻した枚数だけ引き直し、デッキの上7枚をライフクロスへ（公式ルール word_054・ゲームの準備）
+  const deck = Array.from({ length: 20 }, (_, i) => `D${i}`);
+  const st = { ...mkState(), hand: ['H0', 'H1', 'H2', 'H3', 'H4'], deck, life_cloth: [] } as PlayerState;
+  const identity = <T,>(xs: T[]) => xs;   // シャッフルを恒等にして結果を決める
+  const none = applyMulligan(st, [], identity);
+  eq(JSON.stringify(none.hand), JSON.stringify(st.hand), '引き直さないのに手札が変わった');
+  eq(JSON.stringify(none.life_cloth), JSON.stringify(deck.slice(0, 7)), 'ライフクロスがデッキの上7枚でない');
+  eq(none.deck.length, 13, 'ライフを置いた後のデッキ枚数が違う');
+  const two = applyMulligan(st, [1, 3], identity);
+  eq(JSON.stringify(two.hand), JSON.stringify(['H0', 'H2', 'H4', 'D0', 'D1']), '戻した2枚ぶん引き直していない');
+  ok(two.deck.includes('H1') && two.deck.includes('H3'), '戻した札がデッキに入っていない');
+  eq(two.hand.length + two.deck.length + two.life_cloth.length, 25, '🔴引き直しでカードが増減した');
+
+  // ② CPU の選択（決定論）
+  const lv = (n: string) => findCard(c => c.Type === 'シグニ' && c.Level === n && c.Guard !== '1');
+  const guard3 = findCard(c => c.Guard === '1' && c.Level === '3');
+  const [l1, l3, l4] = [lv('1'), lv('3'), lv('4')];
+  eq(JSON.stringify(pickCpuMulliganIndices([l1, l3, guard3, l4], cardMap)), JSON.stringify([1, 3]),
+    'CPU のマリガンがレベル3以上（ガード以外）を戻していない');
+  eq(JSON.stringify(pickCpuHandLimitDiscards([guard3, l1, l4, l3], 2, cardMap)), JSON.stringify([2, 3]),
+    'CPU の手札上限が「ガードを残し、レベルの高い札から」捨てていない');
+  eq(pickCpuHandLimitDiscards([l1], 0, cardMap).length, 0, '上限以下なのに捨てる');
+
+  // ③🔴配線の固定＝引き直しを JSX に写経しない／CPU の END に手札上限がある
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((battle.match(/applyMulligan\(/g) ?? []).length, 2, '🔴マリガンが applyMulligan を通っていない経路がある（人間＋CPU の2本）');
+  ok(/pickCpuHandLimitDiscards\(cpuHandEND/.test(battle), '🔴CPU のエンドフェイズに手札上限が無い');
+}));
+
+test('§5.6 C-5 アシストグロウ・レゾナ：候補は人間と同じ関数・CPU は支払いを選ぶだけ', () => withSavedCursor(() => {
+  // ① アシストグロウ候補（公式ルール＝センターのレベル以下・レベルちょうど+1・共通ルリグタイプ・使用タイミング）
+  const assist1 = findCard(c => c.Type === 'アシストルリグ' && c.Level === '1' && c.Timing.includes('メインフェイズ'));
+  const cls = (assist1CardClass => assist1CardClass.split('/')[0])(cardMap.get(assist1)!.CardClass ?? '');
+  // ⚠レベル0のアシストは Type が「ルリグ」（ゲーム開始時の3体）＝アシストルリグの Type を持つ札はレベル1から。
+  const assist0 = findCard(c => c.Type === 'ルリグ' && c.Level === '0' && (c.CardClass ?? '').includes(cls));
+  const center1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const center0 = findCard(c => c.Type === 'ルリグ' && c.Level === '0');
+  const st = mkState({ lrig: [center1], assistL: [assist0] });
+  st.lrig_deck = [assist1];
+  const names = (xs: CardData[]) => xs.map(c => c.CardNum);
+  ok(names(listAssistGrowCandidates({ state: st, side: 'l', phase: 'MAIN', isOwnerTurn: true, cardMap })).includes(assist1),
+    'メインフェイズに Lv0→Lv1 のアシストグロウが候補に出ない');
+  eq(listAssistGrowCandidates({ state: { ...st, field: { ...st.field, lrig: [center0] } } as PlayerState, side: 'l', phase: 'MAIN', isOwnerTurn: true, cardMap }).length, 0,
+    '🔴センタールリグのレベルを超えるアシストグロウが候補に出る');
+  eq(listAssistGrowCandidates({ state: st, side: 'l', phase: 'MAIN', isOwnerTurn: false, cardMap }).length, 0,
+    '相手のメインフェイズに候補が出る');
+
+  // ② CPU のレゾナ支払い（決定論＋人間と同じ `validateResonaSelection` を通った選択しか返さない）
+  const rs = mkState();
+  rs.hand = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const plan: ResonaPaymentPlan = { groups: [{ zone: 'hand', count: 2 }] };
+  eq(JSON.stringify(pickCpuResonaSelection(rs, plan, cardMap)?.items), JSON.stringify([{ zone: 'hand', index: 0, group: 0 }, { zone: 'hand', index: 1, group: 0 }]),
+    'CPU のレゾナ支払いが手札の先頭2枚になっていない');
+  eq(pickCpuResonaSelection(rs, { groups: [{ zone: 'hand', count: 4 }] }, cardMap), null, '払えないのに選択を返した');
+  const combined: ResonaPaymentPlan = { groups: [], combined: { zones: ['hand'], count: 2, totalLevelMin: 5 } };
+  const pickedCombined = pickCpuResonaSelection(rs, combined, cardMap);
+  ok(!!pickedCombined && validateResonaSelection(rs, combined, pickedCombined, cardMap), '合計レベル下限つきの支払いを組めていない（Lv3＋Lv2）');
+  eq(pickCpuResonaSelection(rs, { groups: [], combined: { zones: ['hand'], count: 2, totalLevelMin: 6 } }, cardMap), null, '合計レベルが届かないのに選択を返した');
+  // 配置先＝場から払うならそのゾーン、それ以外は最初の空きゾーン
+  const fieldPay = mkState({ signi: [SIGNI_L1, null, null] });
+  eq(pickCpuResonaZone(fieldPay, { items: [{ zone: 'field', index: 0, group: 0 }] }), 0, '場から払ったゾーンに出していない');
+  eq(pickCpuResonaZone(fieldPay, { items: [{ zone: 'hand', index: 0, group: 0 }] }), 1, '最初の空きゾーンに出していない');
+
+  // ③🔴配線の固定＝候補・実行を人間専用のクロージャに戻さない
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/listAssistGrowCandidates\(\{ state: my,/.test(battle), '🔴人間のアシストグロウ候補が listAssistGrowCandidates を通っていない');
+  ok(/await tryCpuAssistGrow\(newCpuSt\)/.test(battle) && /await tryCpuResona\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにアシストグロウ／レゾナが無い');
+  ok(/await performAssistGrow\(card, side, costIndices, \{\n\s+owner: my/.test(battle), '🔴人間のアシストグロウが performAssistGrow を通っていない');
+  ok(!/const executeAssistGrow = async[^\n]*\n\s+[^\n]*\n\s+[^\n]*\n\s+if \(!isMyTurn/.test(battle),
+    '🔴アシストグロウの実行が再び「自分のターンだけ」に戻った（相手のアタックフェイズの候補が押しても無反応になる）');
+}));
+
+test('§5.6 C-6 ライズ：置き方は planRiseSummon 1本（人間の「召喚」ゲートと CPU が共有）', () => withSavedCursor(() => {
+  const riseCard = findCard(c => {
+    const r = getRiseRequirement(c.EffectText ?? '');
+    return !!r && r.base.kind === 'field' && riseFieldTotal(r.base) === 1 && r.materials.length === 0;
+  });
+  const req = getRiseRequirement(cardMap.get(riseCard)!.EffectText ?? '')!;
+  const baseFilter = req.base.kind === 'field' ? req.base.groups[0].filter : {};
+  const under = findCard(c => c.Type === 'シグニ' && c.CardNum !== riseCard && matchesRiseFilter(c.CardNum, baseFilter, cardMap));
+  const other = findCard(c => c.Type === 'シグニ' && !matchesRiseFilter(c.CardNum, baseFilter, cardMap));
+  const my = mkState({ signi: [other, under, null] });
+  const underLv = parseInt(cardMap.get(under)!.Level) || 0;
+  const plan = planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 99, fieldSigniCountLimit: 3, cardMap });
+  eq(plan?.zoneIndex, 1, '条件に合う場のシグニの上（ゾーン1）に置いていない');
+  eq(planRiseSummon({ my: mkState({ signi: [other, null, null] }), req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 99, fieldSigniCountLimit: 3, cardMap }), null,
+    '🔴下敷きが無いのに置き方を返した（下敷き無しでライズできてしまう）');
+  // リミット＝下敷きのレベルと入れ替わる（合計 − 下敷き + 自身 ≤ リミット）
+  eq(planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 10 - underLv + 3 - 1, fieldSigniCountLimit: 3, cardMap }), null, 'リミット超過なのに置ける');
+  ok(planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 10 - underLv + 3, fieldSigniCountLimit: 3, cardMap }) !== null, 'リミットちょうどで置けない');
+
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/planRiseSummon\(\{\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
+  ok(/await tryCpuRise\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにライズが無い（O-147 の fail-closed のまま）');
+  ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
 }));
 
 if (listMode) {
