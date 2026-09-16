@@ -83,7 +83,7 @@ export function EndConfirmModal(p: EndConfirmModalProps) {
                 onClick={() => setView('report')}
                 style={{ ...btn({ width: '100%', marginBottom: 18, borderColor: '#3a6ea5', color: '#9ec5ef' }) }}
               >
-                🐛 バグを報告（対戦は続きます）
+                バグを報告（対戦は続きます）
               </button>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={close} style={btn({ flex: 1 })}>キャンセル</button>
