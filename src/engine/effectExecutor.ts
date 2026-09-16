@@ -14291,7 +14291,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
 
       // デッキから武装した場合はシャッフル
       if (shuffleNeeded) {
-        newState = { ...newState, deck: [...newState.deck].sort(() => Math.random() - 0.5) };
+        // 🆕§5.6 `C-1`＝偏る `sort(() => Math.random() - 0.5)` を一様な Fisher-Yates へ。
+        newState = { ...newState, deck: shuffle(newState.deck) };
       }
 
       const newCtx = { ...ctx, ownerState: newState };

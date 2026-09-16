@@ -3,6 +3,7 @@ import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction, StubAction, BanishAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
+import { randomInt } from './rng';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination, banishRedirectOpts,
@@ -3673,7 +3674,7 @@ export function execStubPart3(
   if (stub.id === 'REVEAL_OPP_HAND_CARD') {
     const oppHandROHC = ctx.otherState.hand;
     if (oppHandROHC.length === 0) return done(addLog(ctx, '相手の手札なし'));
-    const randROHC = oppHandROHC[Math.floor(Math.random() * oppHandROHC.length)];
+    const randROHC = oppHandROHC[randomInt(oppHandROHC.length)];
     return done(addLog({ ...ctx, lastProcessedCards: [randROHC] },
       `相手の手札を公開：${ctx.cardMap.get(randROHC)?.CardName ?? randROHC}`));
   }
@@ -3728,7 +3729,7 @@ export function execStubPart3(
     const sIBTD = ownerState(ownerIBTD, ctx);
     const removedIBTD = removeFromField(cnIBTD, sIBTD);
     const deckIBTD = [...removedIBTD.deck];
-    const insertIBTD = Math.floor(Math.random() * (deckIBTD.length + 1));
+    const insertIBTD = randomInt(deckIBTD.length + 1);
     deckIBTD.splice(insertIBTD, 0, cnIBTD);
     const newSIBTD: PlayerState = { ...removedIBTD, deck: deckIBTD };
     return done(addLog(setOwnerState(ownerIBTD, newSIBTD, ctx),
@@ -6210,7 +6211,7 @@ export function execStubPart3(
   if (stub.id === 'MY_LRIG_DECK_BLIND_REVEAL') {
     const deckMLB = ctx.ownerState.lrig_deck ?? [];
     if (deckMLB.length === 0) return done({ ...addLog(ctx, 'あなたのルリグデッキにカードがない'), lastProcessedCards: [] });
-    const pickedMLB = deckMLB[Math.floor(Math.random() * deckMLB.length)];
+    const pickedMLB = deckMLB[randomInt(deckMLB.length)];
     return done({
       ...addLog(ctx, `対戦相手があなたのルリグデッキから${ctx.cardMap.get(getCardNum(pickedMLB))?.CardName ?? pickedMLB}を見ないで選び、公開した`),
       lastProcessedCards: [pickedMLB],
@@ -6227,7 +6228,7 @@ export function execStubPart3(
   if (stub.id === 'MY_HAND_BLIND_REVEAL') {
     const handMHB = ctx.ownerState.hand;
     if (handMHB.length === 0) return done({ ...addLog(ctx, 'あなたの手札がない（公開なし）'), lastProcessedCards: [] });
-    const pickedMHB = handMHB[Math.floor(Math.random() * handMHB.length)];
+    const pickedMHB = handMHB[randomInt(handMHB.length)];
     return done({
       ...addLog(ctx, `対戦相手があなたの手札から${ctx.cardMap.get(getCardNum(pickedMHB))?.CardName ?? pickedMHB}を見ないで選び、公開した`),
       lastProcessedCards: [pickedMHB],

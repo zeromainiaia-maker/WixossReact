@@ -40,14 +40,12 @@ const STEP_CAP = 200;
 const EXPLOSION_DELTA = 120; // 1ゲーム内でカード総数が基準＋これを超えたら複製疑い（トークン生成を考慮した余裕値）
 
 // ── 乱数（mulberry32・シード固定で再現可能）──
-function mulberry32(a: number) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// 🆕🔴**§5.6 `C-1`（2026-09-16）＝実装は `src/engine/rng.ts` の1本に寄せた**（同じ mulberry32 が2つあった）。
+//   🔑**さらに `setRngSeed` で engine 側の乱数も同じ seed に縛る**＝これが無いと
+//     「ファズの選択は再現できるが、engine のデッキシャッフル・ランダム選択が毎回違う」＝
+//     **落ちたシードを渡されても再現しない**（`--seed` が嘘になる）。
+//   ⚠ゲーム毎に seed を差し直す（下の `playGame` 冒頭）＝ゲーム間で列が持ち越されない。
+import { mulberry32, setRngSeed } from '../src/engine/rng';
 
 // ── データ読み込み（smokeTest と同じ）──
 const cardMap = new Map<string, CardData>();
@@ -190,6 +188,10 @@ const cov = { executed: 0, skipped: 0, firedEffects: new Set<string>() };
 // ── 1 ゲーム ──
 type MoveFail = { game: number; move: number; card: string; eff: string; status: string; detail: string };
 function playGame(gameSeed: number, fails: MoveFail[], gameIdx: number): void {
+  // 🔴**engine 側の乱数もこのゲームの seed に固定する**（§5.6 `C-1`）。
+  //   ⚠ファズ自身の `rng` とは別の列にする（同じ列を共有すると、engine が乱数を引いた回数で
+  //     ファズの選択がずれ、**同じ seed でも engine の変更で別のゲームになる**）。
+  setRngSeed(gameSeed ^ 0x5bf03635);
   const rng = mulberry32(gameSeed);
   let P = mkState(rng);
   let O = mkState(rng);

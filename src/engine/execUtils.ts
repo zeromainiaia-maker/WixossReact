@@ -164,14 +164,8 @@ export type ExecResult =
 
 // ===== ユーティリティ =====
 
-export function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+// 🆕**§5.6 `C-1`（2026-09-16）＝実体は `engine/rng.ts` の1本**（名前は据置＝呼び出し元100箇所超は無変更）。
+export { shuffle } from './rng';
 
 export function resolveNum(n: NumberOrRef): number {
   return typeof n === 'number' ? n : 0;

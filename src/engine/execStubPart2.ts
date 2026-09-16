@@ -4,6 +4,7 @@ import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, TransferToHandAction, EnergyChargeAction, Owner, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
+import { randomInt, shuffle as rngShuffle } from './rng';
 import { textHasKeyword } from '../utils/keywords';
 import { effectiveCardOf, nameRuleScopeCards } from './nameIdentityRules';
 import {
@@ -764,7 +765,8 @@ export function execStubPart2(
   }
   // シャッフル後に全シグニのパワーを半減
   if (stub.id === 'SHUFFLE_DECK_POWER_HALF') {
-    const shuffledSDP = [...ctx.ownerState.deck].sort(() => Math.random() - 0.5);
+    // 🆕§5.6 `C-1`＝偏る `sort(() => Math.random() - 0.5)` を一様な Fisher-Yates へ。
+    const shuffledSDP = rngShuffle(ctx.ownerState.deck);
     const modsSDHP = [...(ctx.otherState.temp_power_mods ?? [])];
     for (let zi = 0; zi < 3; zi++) {
       const top = ctx.otherState.field.signi[zi]?.at(-1);
@@ -1147,7 +1149,7 @@ export function execStubPart2(
   if (stub.id === 'OPP_LRIG_DECK_BLIND_REVEAL') {
     const deckOBR = ctx.otherState.lrig_deck ?? [];
     if (deckOBR.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手のルリグデッキにカードがない'));
-    const pickedOBR = deckOBR[Math.floor(Math.random() * deckOBR.length)];
+    const pickedOBR = deckOBR[randomInt(deckOBR.length)];
     const cardOBR = ctx.cardMap.get(getCardNum(pickedOBR));
     const nameOBR = cardOBR?.CardName ?? pickedOBR;
     const isLrigOBR = (cardOBR?.Type ?? '').startsWith('ルリグ');

@@ -52,6 +52,7 @@ interface Props {
   onBack: () => void;
 }
 
+import { randomInt, shuffle as rngShuffle } from '../engine/rng';
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
 import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
@@ -657,7 +658,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         } else {
           const count = typeof inter.count === 'number' ? inter.count : 1;
-          const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
+          // 🆕§5.6 `C-1`＝CPU の対象選択も seam を通す（偏る sort シャッフルも解消）。
+          const shuffled = rngShuffle(inter.candidates);
           const cpuMap = new Map(cards.map(c => [c.CardNum, c] as const));
           const exactPick = inter.selectionConstraint?.totalLevelExact !== undefined
             ? findValidConstrainedSelection(shuffled, inter.optional ? 0 : count, count, inter.selectionConstraint, cpuMap)
@@ -2260,7 +2262,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     if (phase === 'JAN_KEN') {
       const choices = ['GU', 'CHOKI', 'PA'];
-      const pick = choices[Math.floor(Math.random() * 3)];
+      const pick = choices[randomInt(choices.length)];
       await persist.commit(reduceBattle(bs, { type: 'SUBMIT_JANKEN', isHost: false, pick }));
       return;
     }

@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第386バッチ：§5.6 `C-1`＝乱数を1本の seam へ集約（＋偏ったシャッフル4箇所を解消）
+
+- **目的**＝プレイ駆動の発見器（§5.6）の前提。**落ちたケースを再現できないと golden に落とせない。**
+- 🔴**着手前の見立て「`Math.random` は4箇所」は誤りだった**（`BattleScreen`／`execUtils`／`battleUtils` しか grep していなかった）＝
+  **実測 11箇所**。内訳＝`BattleScreen` 2（じゃんけん・CPU の対象選択）／`execUtils.shuffle` 1／`battleUtils.shuffle` 1／
+  `effectExecutor` 1／`execStubPart1` 1／`execStubPart2` 2／`execStubPart3` 4。
+- 🔴**うち4箇所は `[...arr].sort(() => Math.random() - 0.5)`**＝比較関数が非一貫で**一様シャッフルにならない**
+  （実装依存でほとんど混ざらない並びを作りえた）。`C-1` で一様な Fisher-Yates へ置換した＝**再現性とは別の実バグ**。
+- **修正**＝`src/engine/rng.ts` を新設（`random` / `randomInt` / `shuffle` / `mulberry32` / `setRngSeed` / `setRng` / `resetRng`）。
+  11箇所を全部そこへ通し、**同じ実装だった `execUtils.shuffle` と `battleUtils.shuffle` を1本へ寄せた**（名前は据置＝呼び出し元100箇所超は無変更）。
+  `selfPlayFuzz.ts` の mulberry32 も seam から import し、`playGame` 冒頭で `setRngSeed` を呼ぶ。
+- 🔴🔑**踏んだ罠＝既定を `Math.random` で持ってはいけない**＝値で捕まえると**読み込み時の関数が固定**され、
+  `goldenTest.ts` が3箇所でやっている `Math.random = () => 0` の差し替えが seam に届かなくなる。
+  これで golden 2本が落ちた（`wave2 A4 WD21-001-E1`／`段2 第33バッチ LAR shuffle`）⇒ **既定は thunk `() => Math.random()`**。
+  **「既定の挙動は1バイトも変えない」が `C-1` の契約**なので thunk が正しい。
+- **効果（実測）**＝`npm run fuzz` が**完全再現可能**になった。`--seed 777 --games 30` を2回＝カバレッジ完全一致（1200手／distinct 511種）、
+  `--seed 778` では別結果（1199手／517種）＝固定されすぎてもいない。**これまでは engine 側の乱数が毎回違うので `--seed` は嘘だった。**
+- **検証**＝golden 1本（`§5.6 C-1`）＝①同 seed 同結果 ②別 seed 別結果 ③要素が増減しない ④`randomInt` の範囲
+  ⑤🔴**ラチェット**＝`src/` を走査して seam を迂回する `Math.random` と `sort(() => random - 0.5)` が**増えたら FAIL**
+  （⑤は**反転確認済み**＝両方を1行ずつ足すと2件とも検出して FAIL、戻すと緑）。
+  ⚠**ラチェットは正規表現を使わずに書いた**（`censusDeadState` で踏んだ「エスケープが剥がれて黙って何にも当たらない」罠を避けるため）。
+  `npm run gates` 全緑（golden **4271**・`census:traceinv` I1=0）。
+- **実機**＝**必須（`src/screens/` を触った）**＝`node scripts/verifyFullMatch.mjs cpu` **PASS**（7ターン決着／151手／200s）
+  ＝じゃんけん・デッキシャッフル・CPU の対象選択がすべて seam 経由で正常動作。
+
 ## 2026-09-16 第385バッチ：`O-529`／`O-530` をクローズ＝対話をまたぐ「そうした場合」の2つの抜け道
 
 - **共通の真因**＝**`execSequence` の did-it ゲートは「対話に入らずに `done` した step」しか見られない**。

@@ -73,14 +73,8 @@ export function generateUUID(): string {
   ).join('');
 }
 
-export function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+// 🆕**§5.6 `C-1`（2026-09-16）＝実体は `engine/rng.ts` の1本**（`execUtils.shuffle` と同じ実装が2つあった）。
+export { shuffle } from '../../engine/rng';
 
 // インスタンスIDを意識したMap：CardNum#N のキーに対して自動的にCardNum部分で検索する
 export class InstanceMap<V> extends Map<string, V> {

@@ -4714,7 +4714,8 @@ export function execStubPart1(
     let newOther = { ...ctx.otherState };
     for (const cn of selected) {
       newOther = removeFromField(cn, newOther);
-      const shuffled = [...newOther.deck, cn].sort(() => Math.random() - 0.5);
+      // 🆕§5.6 `C-1`＝偏る `sort(() => Math.random() - 0.5)` を一様な Fisher-Yates へ。
+      const shuffled = shuffle([...newOther.deck, cn]);
       newOther = { ...newOther, deck: shuffled };
     }
     const names = selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');

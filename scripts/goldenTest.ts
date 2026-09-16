@@ -9,11 +9,12 @@
  * テストの足し方: test('名前', () => { ... assert ... }) を追加するだけ。
  */
 import fs from 'fs';
-import { join } from 'path';
+import { join, sep } from 'path';
 import { execFileSync } from 'child_process';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
 import { effectiveIdentityOverrides } from '../src/engine/nameIdentityRules';
+import { setRngSeed as rngSetSeed, resetRng as rngResetG, shuffle as rngShuffleG, randomInt as rngIntG } from '../src/engine/rng';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
@@ -85516,6 +85517,65 @@ test('§5.3 O-530: 「それぞれレベルの異なるN枚」がそろわなけ
   eq(fixedSelectionPickLimit(4, 3, false, 2), 2, 'UI の実効要求数が制約の上限へ落ちていない');
   ok(fixedSelectionCountCanConfirm(2, 4, 3, false, 2), '🔴制約の上限まで選んでも決定が押せない＝実機が詰む');
   ok(!fixedSelectionCountCanConfirm(2, 4, 3, false), '反転＝上限を渡さなければ従来どおり4枚未満は確定できない');
+}));
+
+test('§5.6 C-1: 乱数の seam（既定は Math.random／seed で決定論／偏る sort シャッフルを使わない）', () => withSavedCursor(() => {
+  // 🔴`C-1` の目的＝**落ちたケースを再現して golden に落とせるようにする**こと。
+  //   seam を迂回して `Math.random()` を書くと、そこだけ再現できない穴になる。
+  const base = Array.from({ length: 40 }, (_, i) => `c${i}`);
+
+  // ① seed を入れれば決定論＝同じ seed で同じ並び
+  rngSetSeed(12345);
+  const a = rngShuffleG(base);
+  rngSetSeed(12345);
+  const b = rngShuffleG(base);
+  eq(a.join(','), b.join(','), '🔴同じ seed なのに並びが違う＝再現できない');
+  // ② 別の seed なら別の並び（固定されすぎていない）
+  rngSetSeed(12346);
+  ok(rngShuffleG(base).join(',') !== a.join(','), '🔴別の seed でも同じ並び＝seed が効いていない');
+  // ③ 中身は保存される（並べ替えであって増減しない）
+  eq([...a].sort().join(','), [...base].sort().join(','), 'シャッフルで要素が増減している');
+  // ④ `randomInt` は範囲内
+  rngSetSeed(999);
+  ok(Array.from({ length: 200 }, () => rngIntG(5)).every(n => n >= 0 && n < 5), 'randomInt が範囲外を返す');
+  eq(rngIntG(0), 0, 'randomInt(0) は 0');
+  // 🔴**必ず既定へ戻す**＝戻さないと後続のテストまで決定論になり「たまたま通っている」を見逃す。
+  rngResetG();
+
+  // ⑤🔴**ラチェット**＝`src/` に seam を迂回する乱数が増えたら止める。
+  //   実測（2026-09-16 `C-1` 着手時）＝`Math.random()` は **11箇所**に直書きされており、
+  //   うち4箇所は `sort(() => Math.random() - 0.5)`＝**一様でない偏ったシャッフル**だった。
+  //   ⚠許すのは `rng.ts` 自身（seam の実装）と `MatchmakingScreen` のパスコード（ゲームロジックではない）。
+  //   🔑**正規表現を使わずに書く**＝この検査自体が `\s` などのエスケープ剥がれで黙って何にも当たらなくなる
+  //     （`censusDeadState.mjs` を書いたときに実際に踏んだ罠＝CLAUDE.md の検証コマンド節）。
+  const RNG_ALLOW = ['src/engine/rng.ts', 'src/screens/MatchmakingScreen.tsx'];
+  const walkTs = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
+    const full = join(dir, e.name);
+    if (e.isDirectory()) return walkTs(full);
+    return (e.name.endsWith('.ts') || e.name.endsWith('.tsx')) ? [full] : [];
+  });
+  const isCommentLine = (line: string): boolean => {
+    const t = line.trim();
+    return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
+  };
+  const offenders: string[] = [];
+  const biased: string[] = [];
+  for (const file of walkTs(join(root, 'src'))) {
+    const rel = file.slice(root.length + 1).split(sep).join('/');
+    const lines = fs.readFileSync(file, 'utf-8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (isCommentLine(line)) continue;   // 説明文に出るのは正当
+      if (!RNG_ALLOW.includes(rel) && line.includes('Math.random')) offenders.push(`${rel}:${i + 1}`);
+      // ⑥ 偏る sort シャッフルの再発も止める（`C-1` で4箇所を一様な Fisher-Yates へ置換した）。
+      const noSpace = line.split(' ').join('');
+      if (noSpace.includes('.sort(()=>Math.random') || noSpace.includes('.sort(()=>random')) biased.push(`${rel}:${i + 1}`);
+    }
+  }
+  eq(offenders.length, 0,
+    `🔴seam（src/engine/rng.ts）を迂回する Math.random が増えた＝そこだけ再現できない: ${offenders.join(' / ')}`);
+  eq(biased.length, 0,
+    `🔴sort(() => random - 0.5) は一様シャッフルではない（engine/rng.ts の shuffle を使う）: ${biased.join(' / ')}`);
 }));
 
 if (listMode) {
