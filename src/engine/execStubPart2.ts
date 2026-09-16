@@ -880,6 +880,7 @@ export function execStubPart2(
   }
   // トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ）
   // TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH: トラッシュから3枚選んでエナ/手札/デッキ下に分配
+  // 表示: あなたのトラッシュからカード1枚をエナゾーンに置き、1枚を手札に加え、1枚をデッキの一番下に置く
   if (stub.id === 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH') {
     if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     if ((ctx.lastProcessedCards?.length ?? 0) >= 3) {

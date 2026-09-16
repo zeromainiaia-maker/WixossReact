@@ -1898,6 +1898,7 @@ export function execStubPart3(
     );
   }
   // HASTARLIQ: 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置
+  // 表示: 対戦相手のシグニゾーン1つに【ハスターリク】1つを置く
   if (stub.id === 'HASTARLIQ') {
     const selectedZoneHL = typeof stub.value === 'number' ? stub.value : -1;
     if (selectedZoneHL >= 0) {

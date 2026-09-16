@@ -1,6 +1,21 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+## 2026-09-16（第376バッチ）
+🏁**直近＝2026-09-16（第376バッチ）＝`O-522` を消化＝§5.3 機構 worklist 🏁0**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+「**次に**クラッシュされるライフのバーストだけ不発」（`WXEX1-72-E2` / `WX25-P3-032-E2`＝**2効果**）の
+**1回だけの印**を実装した。🔴旧は `suppress_life_burst` も `crash_to_trash_instead` も **boolean で回数を持たず**、
+**ターン終了まで消えなかった**＝**同じターンに2枚割れると2枚目以降も不発**（過剰実行）。
+🔑**受け皿は隣に在った**＝`banish_redirect_once_source_nums`（「次に1回だけ」の先例）と同じ設計で、
+**新機構ではなく既存イディオムの適用**＝`nextCrashOnly` payload → `'once'` / `crash_to_trash_next_crash_only`。
+🔴**消費は `performLifeBurstResponse` の1点**＝述語（`lifeBurstSuppressedByTurnFlag`）は純関数なので落とせない
+（述語側で false に倒すと**1枚目すら止まらない**）。読み手は1つも増やしていない。
+🔑**「次に」は2文の両方に掛かる**＝`WX25-P3-032-E2` は**置換と抑止の両方**に刻む（片方だけだと中途半端に壊れる）。
+✅**実機 `V-236` で両方向 PASS**＝`'once'` は**1枚目=抑制 / 2枚目=発動(hand 1)**、対照 `true` は**両方とも抑制**。
+🔴**反転確認も実機で取った**＝消費の1行を戻すと `v236BurstSuppressNextOnly` が**FAIL**（2枚目も抑制に戻る）。
+⚠**速いレーンでは閉じられない項目だった**＝live JSON では表現できず `src/types/` `src/engine/` `src/screens/` を
+触るため、§2.0 の定義どおり**遅いレーン**（フル `gates` ＋ §2.2 で実機必須）で回した。
+
 ## 2026-09-16（第375バッチ）
 🏁**直近＝2026-09-16（第375バッチ）＝`MECH` 40件を棚卸し → 🆕`O-522` を1件だけ登録**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 `semantic_bug_deferred.txt` の `MECH`（＝「機構が無いので直せない」と判定した行）を全数 triage した。

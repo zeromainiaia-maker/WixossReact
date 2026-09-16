@@ -29794,6 +29794,42 @@ test('§5.3 O-318: WXEX1-72-E2 はライフをクラッシュせず、バース�
   eq(r.otherState.suppress_life_burst, 'once', '相手の「次の1枚」のライフバーストが抑止される');
 }));
 
+// ═══ §5.5 `census:numberdrift` の判定（2026-09-16・第377バッチ）＝「代わりに＋N」は**差分方式** ═══
+// 🔴**なぜ golden で固定するか**＝この3組は**逆翻訳が「＋1000」と書くのに原文は「＋3000」**で、
+//   `census:numberdrift` に「数値が食い違う」と出る。**読んだ人が実バグだと思って E1b を絶対値へ直すと、
+//   E1 と二重に乗って静かに過剰になる**（+2000 と +1000 で合計 +3000 が、+2000 と +3000 で +5000 になる）。
+// ✅実測＝engine は正しい＝`-E1`（基本）と `-E1b`（上位条件の**差分**）が**両方成立して合計**が原文と一致する。
+//   ⚠成立条件が包含関係（`gte` の閾値が上位ほど厳しい）だから差分方式が成り立つ＝**そこも一緒に固定する。**
+test('§5.5 numberdrift: 「代わりに＋N」の -E1b は差分（合計が原文と一致する）', () => withSavedCursor(() => {
+  const deltaOf = (cardNum: string, effectId: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live にある`);
+    const a = e?.action as { type?: string; delta?: number } | undefined;
+    eq(a?.type, 'POWER_MODIFY', `${effectId} は POWER_MODIFY`);
+    return a?.delta;
+  };
+  // ①共通色ルリグ2体で＋2000／3体で「代わりに＋3000」＝ 2000 + 1000
+  eq(deltaOf('WXDi-P05-076', 'WXDi-P05-076-E1'), 2000, 'WXDi-P05-076 基本は＋2000');
+  eq(deltaOf('WXDi-P05-076', 'WXDi-P05-076-E1b'), 1000, '🔴差分＝1000（3000 に直すと合計5000になる）');
+  // ②トラッシュ15枚で＋3000／25枚で「代わりに＋5000」＝ 3000 + 2000
+  eq(deltaOf('WXK02-038', 'WXK02-038-E1'), 3000, 'WXK02-038 基本は＋3000');
+  eq(deltaOf('WXK02-038', 'WXK02-038-E1b'), 2000, '🔴差分＝2000（5000 に直すと合計8000になる）');
+  // ③＋1000／登録者50万で「代わりに＋2000」＝ 1000 + 1000
+  eq(deltaOf('WXK10-036', 'WXK10-036-E1'), 1000, 'WXK10-036 基本は＋1000');
+  eq(deltaOf('WXK10-036', 'WXK10-036-E1b'), 1000, '🔴差分＝1000（2000 に直すと合計3000になる）');
+
+  // 🔑**差分方式が成り立つ前提＝上位条件は基本条件を含む**（含まないと上位だけ成立して基本が乗らない）。
+  const cond = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId)?.activeCondition as
+      { value?: number; minCount?: number } | undefined;
+  const lo1 = cond('WXDi-P05-076', 'WXDi-P05-076-E1')?.minCount;
+  const hi1 = cond('WXDi-P05-076', 'WXDi-P05-076-E1b')?.minCount;
+  ok(typeof lo1 === 'number' && typeof hi1 === 'number' && hi1 > lo1, '上位条件（3体）は基本条件（2体）を含む');
+  const lo2 = cond('WXK02-038', 'WXK02-038-E1')?.value;
+  const hi2 = cond('WXK02-038', 'WXK02-038-E1b')?.value;
+  ok(typeof lo2 === 'number' && typeof hi2 === 'number' && hi2 > lo2, '上位条件（25枚）は基本条件（15枚）を含む');
+}));
+
 // ═══ §5.3 `O-522`（2026-09-16）＝「次にクラッシュされる1枚」だけの抑止／置換 ═══
 // 原文 `WXEX1-72-E2`【出】：このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードの
 //   ライフバーストは発動しない。／`WX25-P3-032-E2`【起】：このターン、**次にアタックによって**〜

@@ -1495,6 +1495,7 @@ export function execStubPart1(
   }
   // PLACE_REV_SIGNI: REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す）
   // PR-Di017A「白熱する黒白」のREV変身効果
+  // 表示: あなたのライフクロスが1枚以下の場合、このカードを裏返して指定の《REV》のシグニを場に出す（場に出せなかった場合はトラッシュに置く）
   if (stub.id === 'PLACE_REV_SIGNI') {
     const revCardNum = typeof stub.value === 'string' ? stub.value : null;
     if (!revCardNum) return done(addLog(ctx, 'PLACE_REV_SIGNI: カード番号なし'));
@@ -2311,12 +2312,14 @@ export function execStubPart1(
     });
   }
   // SUMMON_FROM_TRASH_TO_HAND_BLACK: トラッシュから黒シグニを手札へ
+  // 表示: このターン、対戦相手のエナゾーンにあるカードは色と能力を失う
   if (stub.id === 'OPP_ENERGY_COLORLESS_ABILITY_LOSS') {
     return done(addLog({
       ...ctx,
       otherState: { ...ctx.otherState, energy_colorless_ability_loss_this_turn: true },
     }, '対戦相手のエナゾーンのカードはこのターン、色と能力を失う'));
   }
+  // 表示: あなたのトラッシュから黒のシグニ1枚を手札に加える
   if (stub.id === 'SUMMON_FROM_TRASH_TO_HAND_BLACK') {
     const blackSigni = ctx.ownerState.trash.filter(cn => {
       const c = ctx.cardMap.get(cn);

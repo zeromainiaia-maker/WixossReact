@@ -14,7 +14,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | JSON で使用中の STUB id 種類 | 583 |
 | 　└ ハンドラ実装あり | 541 |
 | 　└ フォールバック（execStub 未処理） | 42 |
-| 総 STUB ノード件数 | 3707 |
+| 総 STUB ノード件数 | 3708 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 370 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -112,8 +112,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_CLASS` | 5 | 5 | WD08-008, PR-431, WX24-P1-035 | クラス1つを宣言する |
 | `LRIG_GROW_RESTRICT` | 5 | 5 | WX17-002, WX25-P2-032, WX25-P2-033 | このルリグは指定された名前/色のルリグにしかグロウできない |
 | `PREVENT_DEFEAT_THIS_TURN` | 5 | 4 | SP36-001, WX24-P3-004, WX25-P3-049 | 敗北無効フラグ |
-| `SUPPRESS_LIFE_BURST_ON_CARD` | 5 | 5 | WXEX1-72, WX24-P1-003, WX25-P3-032 | ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット |
-| `SUPPRESS_LIFE_BURST_ON_CRASH` | 5 | 5 | WX05-032, WX13-043, WX16-067 | ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット |
+| `SUPPRESS_LIFE_BURST_ON_CARD` | 5 | 5 | WXEX1-72, WX24-P1-003, WX25-P3-032 | ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット 🆕**`nextCrashOnly`＝「次にクラッシュされる1枚」だけ**（§5.3 `O-522`・2026-09-16）。   🔴旧は `tr… |
+| `SUPPRESS_LIFE_BURST_ON_CRASH` | 5 | 5 | WX05-032, WX13-043, WX16-067 | ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット 🆕**`nextCrashOnly`＝「次にクラッシュされる1枚」だけ**（§5.3 `O-522`・2026-09-16）。   🔴旧は `tr… |
 | `TRASH_OWN_KEY_OPTIONAL` | 5 | 5 | WXK08-010, WXK08-015, WXK08-016 | キー１枚を任意でルリグトラッシュに置く（追加効果条件） |
 | `DECK_REVEAL_UNTIL` | 4 | 4 | WDK04-006, WDK13-017, WX22-021 | 条件を満たすカードが公開されるまでデッキの上からカードを公開する |
 | `DECLARE_COLORS` | 4 | 4 | WX11-074, WX11-077, WX11-080 | 原文が列挙した候補から重複なしで複数色を同時宣言する。 |
@@ -126,6 +126,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_LRIG_DECK_TO_LRIG_TRASH` | 3 | 3 | SPDi43-25, WX24-P4-014, WX25-P3-019 | 対戦相手が自分のルリグデッキからカード1枚を選んでルリグトラッシュに置く（WX24-P4-014-E3 ②）。 ⚠**選ぶのはカードの持ち主＝対戦相手**なので `opponentResponds` を立てる（`OPP_CHOOSE_YO… |
 | `REMOVE_VIRUS_TARGET_ZONE` | 3 | 3 | WD19-007, WX15-064, WX15-115 | この方法で対象にしたシグニと同じゾーンにある【ウィルス】1つを取り除く |
 | `REVEAL_CLASS_SIGNI_FROM_HAND` | 3 | 3 | WDK08-Y11, WXK04-034, WXK05-043 | 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない） 🆕**絞り込みは payload（`handCardPick`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。 🔴旧実装は… |
+| `SET_NEXT_LIFE_CRASH_COUNTER` | 3 | 2 | WX25-P1-004, WXDi-P12-030 | 次にあなたのライフクロスが（限定があればその発生源によって）クラッシュされたとき、対戦相手のライフクロスをクラッシュし返す |
 | `STRIP_ATTACHED_AND_UNDER` | 3 | 3 | WX18-029, WX19-064, WXDi-P07-041 | STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)・`WX19-064-E1` 選択肢③）: 「シグニ１体を対象とし、**それに付いているすべてのカード**と、**下に置かれているすべてのカード**を  トラッシュ… |
 | `TK3_DECLARE_DISCARD` | 3 | 3 | WD03-006, WXDi-D09-P04, WXDi-P14-061 | 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる |
 | `BANISH_FROM_GAME` | 2 | 2 | WX13-040, WX14-064 | ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件） |
@@ -140,7 +141,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_HAND_TO_DECK_TOP` | 2 | 2 | WXK06-028, WXK06-041 | 相手の手札をデッキトップに置く 🆕**枚数は payload（`oppHandToDeckCount`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。 🔴旧実装は **カード全文**へ `/手札を(\d+)枚/`… |
 | `SELF_TO_DECK_TOP` | 2 | 2 | WXDi-P02-058, WXK03-051 | 自シグニをデッキトップに置く |
 | `SET_DISPAIR_BURST_GRANT` | 2 | 2 | WX24-P3-022, WX25-P3-027 | ディスペア：次の対戦相手ターンだけ、自分の全ゾーンの非LBカードへ指定LBを付与する。 |
-| `SET_NEXT_LIFE_CRASH_COUNTER` | 2 | 2 | WX25-P1-004, WXDi-P12-030 | 次にあなたのライフクロスが（限定があればその発生源によって）クラッシュされたとき、対戦相手のライフクロスをクラッシュし返す |
 | `TRASHED_CARD_TO_HAND_OR_ENERGY` | 2 | 2 | WX24-P3-007, WX24-P3-030 | トラッシュに置かれたカードを手札かエナに |
 | `UNLIMITED_KEYS` | 2 | 2 | WXK03-003A, WXK03-003B | ゲームプレイに影響しない説明テキストは無音でスキップ。 ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の   キーセット可否ゲートと配置先（`hasUnlim… |
 | `VIEW_AND_DISCARD_SPELL` | 2 | 2 | WX14-038, WXDi-P16-050 | 相手の手札を見てスペルを捨てさせる 🆕**コスト上限と枚数は payload（`viewDiscardSpell`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。 🔴旧実装は **カード全文**へ2本の rege… |
@@ -168,7 +168,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `MUGEN_Q_RESET_AND_FLIP` | 1 | 1 | WXDi-P11-010A | WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write. Field SIGNI leave triggers are collected later by … |
 | `NEGATE_ATTACK_ON_TRIGGER` | 1 | 1 | WXDi-P11-055 |  |
 | `NON_GUARD_DISCARD_TO_ENERGY` | 1 | 1 | WX24-P2-051 | ガードアイコンなしカードを捨てたとき、そのカードをエナへ |
-| `OPP_ENERGY_COLORLESS_ABILITY_LOSS` | 1 | 1 | WXK10-008 | トラッシュから黒シグニを手札へ |
+| `OPP_ENERGY_COLORLESS_ABILITY_LOSS` | 1 | 1 | WXK10-008 | このターン、対戦相手のエナゾーンにあるカードは色と能力を失う |
 | `OPP_ENERGY_EXCESS_TRASH` | 1 | 1 | WXEX1-07 | 対戦相手のエナゾーンが閾値以上の場合、1枚トラッシュに 🆕**しきい値は payload（`oppEnergyThreshold`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。 🔴旧実装は `EffectTex… |
 | `OPP_REVEAL_SPELL_USE_FREE` | 1 | 1 | WX04-015 | 対戦相手はデッキを上からスペルがめくれるまで公開し、あなたはそのスペルをコストを支払わず限定を無視して使用してもよい（使用しなかった場合、そのスペルは対戦相手のトラッシュに置かれる） |
 | `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM` | 1 | 1 | WX25-CP1-003 | 対戦相手のシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる |
@@ -176,7 +176,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_SPLIT_LRIG_DECK_LOOK_PILE_ARTS_TO_LRIG_TRASH` | 1 | 1 | WXEX2-12 | 対戦相手は自分のルリグデッキを裏向きで2つの束に分け、あなたはどちらかの束を見てアーツ1枚をルリグトラッシュに置く |
 | `OPP_TRASH_TO_DECK_TOP` | 1 | 1 | WXDi-P07-076 | 相手のトラッシュからカードをデッキトップに（もよい） |
 | `OPTIONAL_DISCARD_CLASS_SIGNI` | 1 | 1 | PR-328 | 手札からクラスシグニを任意枚数捨てる 🆕**絞り込みと上限枚数は payload（`handCardPick`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。 🔴旧実装は `EffectText + BurstT… |
-| `PLACE_REV_SIGNI` | 1 | 1 | PR-Di017A | REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す） |
+| `PLACE_REV_SIGNI` | 1 | 1 | PR-Di017A | あなたのライフクロスが1枚以下の場合、このカードを裏返して指定の《REV》のシグニを場に出す（場に出せなかった場合はトラッシュに置く） |
 | `PLACE_TRASH_SIGNI_FACING_SAME_POWER` | 1 | 1 | WXDi-CP01-024 | ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══ 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１… |
 | `PLAY_MILLED_SIGNI_DELAYED_TRASH` | 1 | 1 | WXDi-P09-079 | 「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、そのシグニを場に出す。     ターン終了時、そのシグニを場からトラッシュに置く。」 ⚠**timing・triggerCondition は既に配線済み**（`ON_C… |
 | `POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM` | 1 | 1 | WX13-060 | 自分の場の＜X＞シグニのレベル合計×deltaPerLevel で対象のパワーを修正 |
@@ -368,7 +368,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRASH_CLASS_TO_HAND_OR_ENERGY` | 1 | 1 | WX26-CP1-022 | トラッシュからクラスシグニを手札かエナへ選択 🆕**絞り込みと上限枚数は payload（`trashPickSplit`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。 🔴旧実装は `EffectText + … |
 | `TRASH_FROM_DECK_PER_SIGNI_LEVEL` | 1 | 1 | WXK02-004 | 自場シグニのレベル合計枚数をデッキ上からトラッシュ |
 | `TRASH_TRAP_ONE` | 1 | 1 | WX19-064 | 【トラップ】1つを対象とし、それをトラッシュに置く |
-| `TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH` | 1 | 1 | WXEX1-19 | トラッシュから3枚選んでエナ/手札/デッキ下に分配 |
+| `TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH` | 1 | 1 | WXEX1-19 | あなたのトラッシュからカード1枚をエナゾーンに置き、1枚を手札に加え、1枚をデッキの一番下に置く |
 | `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 
@@ -531,7 +531,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GROW_BY_EFFECT` | 1 | 1 | SP38-001 | GROW_BY_EFFECT（§5.3 `O-83`・`SP38-001-E1`）＝「あなたのセンタールリグをグロウしてもよい」。 🔑**engine は予約だけ**＝実際のグロウは BattleScreen が `executeGro… |
 | `GROW_BY_EFFECT_SUPPRESS_ON_PLAY` | 1 | 1 | SP38-001 | GROW_BY_EFFECT_SUPPRESS_ON_PLAY（§5.3 `O-83`）＝「この方法でグロウしたルリグの【出】能力は発動しない」。 ⚠**直前の `GROW_BY_EFFECT` の予約へ載せる**＝ターン全体のフラグ（`… |
 | `GROW_FROM_LEVEL0` | 1 | 1 | PR-469 |  |
-| `HASTARLIQ` | 1 | 1 | WXDi-P05-016 | 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置 |
+| `HASTARLIQ` | 1 | 1 | WXDi-P05-016 | 対戦相手のシグニゾーン1つに【ハスターリク】1つを置く |
 | `INCREASE_ACT_ABILITY_COST` | 1 | 1 | WXDi-P06-031 | 起動能力のコストを増加（ログのみ） |
 | `INHERIT_OPP_LRIG_TYPE` | 1 | 1 | WXEX2-23 |  |
 | `INHERIT_UNDER_SIGNI_COLOR` | 1 | 1 | WXEX2-81 |  |
@@ -995,7 +995,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` | 0 | 0 |  | 引用【常】能力の付与（**構造化できなかったときの残余**）。 |
 | `SPELL_COST_REDUCTION_BY_TRASH_COUNT` | 0 | 0 |  |  |
 | `SUMMON_FROM_ENERGY` | 0 | 0 |  | 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝レベル制限は payload（`summonFromEnergy.maxLevel`）で受け取る。** 🔴旧実装は `card.EffectText` に `/レベル… |
-| `SUMMON_FROM_TRASH_TO_HAND_BLACK` | 0 | 0 |  |  |
+| `SUMMON_FROM_TRASH_TO_HAND_BLACK` | 0 | 0 |  | あなたのトラッシュから黒のシグニ1枚を手札に加える |
 | `SUPPRESS_OPP_SIGNI_ABILITIES` | 0 | 0 |  | 相手フィールドの全シグニの能力を消去 |
 | `SWAP_OPTIONAL` | 0 | 0 |  |  |
 | `TARGET_AND_DISCARD_HAND` | 0 | 0 |  | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |

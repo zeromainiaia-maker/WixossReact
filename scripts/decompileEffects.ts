@@ -2147,7 +2147,17 @@ function actionJa(a?: Action, effectType?: string): string {
       const pred = guardPred ?? predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
       // §6.4 O-16: ゾーン限定（`zoneSource:'designated'`）を落とすと**「相手のシグニは全部アタックできない」
       // と同じ文**になり、逆翻訳がゾーン継続と全体禁止を区別できない（engine を直しても計器に映らない）。
-      const subj = a.target?.type === 'SIGNI'
+      // 🆕§5.3 `O-523`（2026-09-16）＝**「このシグニはアタックできない」は効果元自身だけ**。
+      //   🔴engine は `calcContinuousBlockedActions` が `cannotAttackSigni.add(topNum)`＝**効果元に絞って**いるのに、
+      //     逆翻訳は `owner:'self'` を素直に読んで「**あなたの**シグニはアタックできない」と書いており、
+      //     **自分のシグニ全部が止まるように読めた**（live 6効果＝`PR-402-E1`/`WX05-023-E1`/`WX13-043-E1`/
+      //     `WX17-034-E2`/`WXK05-047-E1`/`WXK11-027-E1`）。**engine は正しく逆翻訳だけが嘘**の形。
+      //   ⚠判定は engine と同じ条件で書く＝`ATTACK` かつ `SIGNI` かつ `owner:'self'` かつ**フィルタ無し**。
+      const selfAttackBlock = a.actionId === 'ATTACK' && a.target?.type === 'SIGNI'
+        && a.target?.owner === 'self' && !a.target?.filter && !a.target?.zoneSource;
+      const subj = selfAttackBlock
+        ? 'このシグニ'
+        : a.target?.type === 'SIGNI'
         ? (a.target?.zoneSource === 'designated'
             ? `${ownerWord ? ownerWord + 'の' : ''}指定されたシグニゾーンにある${filterJa(a.target?.filter)}シグニ`
             : `${ownerWord ? ownerWord + 'の' : ''}${filterJa(a.target?.filter)}シグニ`)
