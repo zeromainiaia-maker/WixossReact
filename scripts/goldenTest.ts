@@ -131,6 +131,7 @@ import {
 } from '../src/screens/battle/riseSummon';
 import { fieldCandidatesByOwner } from '../src/engine/execUtils';
 import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
+import { isSigniAutoAbility } from '../src/engine/blockAction';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction, ignoresLrigTypeForGrow, freeGrowAppliesTo } from '../src/screens/battle/growLogic';
@@ -84786,6 +84787,36 @@ test('§5.3 O-466: 「シグニゾーンにある表向きのカード」＝シ�
   ok(r.otherState.trash.includes(victim), '🔴シグニ本体が落ちていない');
   ok(r.otherState.trash.includes(acce), '🔴【アクセ】が残っている');
   eq((r.otherState.field.signi_acce ?? [])[0], null, '🔴アクセ枠が空になっていない');
+}));
+
+
+test('§5.3 O-416: 「対戦相手のシグニの【自】能力」の支払いゲートは【出】に掛からない（読みB）', () => withSavedCursor(() => {
+  // 🔑**2026-09-16 ユーザー判断＝読みB**＝カードテキストの「【自】能力」はアイコン【自】だけを指す
+  //   （【出】を止めたい札は `WX14-023-E1` のように「【出】能力は発動しない」と別に書く）。
+  // 🔴`effectType`／`timing` では区別できない（【出】も「【自】：このシグニが場に出たとき」も AUTO+ON_PLAY）。
+  const cm = cardMap as Map<string, CardData>;
+  // ① parser が原文のアイコンから `onPlayIcon` を刻んでいる（live 実測 2,248効果）。
+  const iconCount = [...effectsMap.values()].flat().filter(e => e.onPlayIcon).length;
+  ok(iconCount > 2000, `🔴【出】の刻印が落ちている（実測 ${iconCount}効果）`);
+  // ②【出】アイコンの効果はゲートの対象外。
+  const onPlayEff = [...effectsMap.entries()]
+    .flatMap(([cn, effs]) => effs.map(e => [cn, e] as const))
+    .find(([cn, e]) => e.onPlayIcon && (cm.get(cn)?.Type === 'シグニ'))!;
+  ok(!!onPlayEff, '【出】を持つシグニが live に無い');
+  eq(isSigniAutoAbility(onPlayEff[1], onPlayEff[0], cm), false,
+    `🔴${onPlayEff[1].effectId}: 【出】まで「《無》を支払わないかぎり何もしない」の対象になっている`);
+  // ③「【自】：このシグニが場に出たとき」（アイコンは【自】）は**対象のまま**＝ここを一緒に外すと逆方向に壊れる。
+  const jiOnPlay = [...effectsMap.entries()]
+    .flatMap(([cn, effs]) => effs.map(e => [cn, e] as const))
+    .find(([cn, e]) => !e.onPlayIcon && e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+      && cm.get(cn)?.Type === 'シグニ')!;
+  ok(!!jiOnPlay, '【自】でON_PLAYのシグニ効果が live に無い');
+  eq(isSigniAutoAbility(jiOnPlay[1], jiOnPlay[0], cm), true,
+    `🔴${jiOnPlay[1].effectId}: アイコン【自】まで外している（timing で判定してしまっている）`);
+  // ④ シグニ／レゾナ以外（ルリグ等）は従来どおり対象外。
+  const lrigNum = findCard(c => c.Type === 'ルリグ');
+  eq(isSigniAutoAbility({ effectId: 'x', effectType: 'AUTO', action: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as CardEffect,
+    lrigNum, cm), false, 'ルリグの【自】は対象外（既存契約）');
 }));
 
 

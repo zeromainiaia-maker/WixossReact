@@ -76,11 +76,21 @@ export function findSigniAutoPayGate(abilityOwner: PlayerState, declarer: Player
   return activeGateCost(abilityOwner, PAY_GATE_OWN) ?? activeGateCost(declarer, PAY_GATE_OPP);
 }
 
-/** ゲートの対象になる能力か＝**場のシグニ（レゾナ含む）が持つ【自】**だけ。 */
+/**
+ * ゲートの対象になる能力か＝**場のシグニ（レゾナ含む）が持つ【自】**だけ。
+ *
+ * 🆕🔴**2026-09-16（§5.3 `O-416`・ユーザー判断＝読みB）＝【出】能力は含まない。**
+ *   原文は「対戦相手のシグニの**【自】**能力」で、カードテキストの【自】は**アイコン【自】だけ**を指す
+ *   （【出】能力を止めたい札は `WX14-023-E1` のように「**【出】**能力は発動しない」と別に書く）。
+ *   🔴旧実装は `effectType === 'AUTO'` だけを見ており、**【出】まで支払いを要求していた**。
+ *   ⚠判定材料は `onPlayIcon`（parser が原文のアイコンから刻む）＝`timing:['ON_PLAY']` では
+ *     「【自】：このシグニが場に出たとき」と区別できない（あちらは**ゲートの対象のまま**が正しい）。
+ */
 export function isSigniAutoAbility(
   effect: CardEffect, hostCardNum: string, cardMap: Map<string, CardData>,
 ): boolean {
   if (effect.effectType !== 'AUTO') return false;
+  if (effect.onPlayIcon) return false;
   // ⚠instanceId のまま先に引く＝`InstanceMap` は `card_identity_overrides`（カード差し替え）を
   //   解決するので、先に `#` を落とすと差し替え前のカードを見てしまう。素の Map 用に base も試す。
   const base = hostCardNum.includes('#') ? hostCardNum.slice(0, hostCardNum.indexOf('#')) : hostCardNum;

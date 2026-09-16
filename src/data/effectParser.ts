@@ -25221,6 +25221,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     parseStatus,
     ...(isCrossOnly ? { crossOnly: true } : {}),
     ...(isKizuna ? { kizunaIcon: true } : {}),
+    // 🆕§5.3 `O-416`（2026-09-16・ユーザー判断＝読みB）＝**原文のアイコンが【出】だったこと**を残す。
+    //   `effectType`／`timing` では【自】：このシグニが場に出たとき と区別できない（どちらも AUTO+ON_PLAY）。
+    ...(marker === '出' ? { onPlayIcon: true } : {}),
     // engine が「いま解決中の効果がホログラフか」を読むためのデータ側マーカー。
     ...(isHolograph ? { holograph: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),

@@ -1493,6 +1493,18 @@ payload キー22種を `decompileEffects.ts` に配線した回で、**4件が�
 
 ### 4.5 修正を live へ届ける経路（届かないと恒久 no-op になる）
 
+- 🆕🔴**「全効果に付く新しい `CardEffect` フィールド」を足すと、温存キューが一斉に解ける**（2026-09-16・`O-416` の `onPlayIcon`＝2,249効果に付与）。
+  収穫マージの `isPureSuperset` は最後に **`f.size > e.size`**（＝リーフが純粋に増えた）を見るので、
+  **どの 【出】カードも一夜にして「純改善」判定になり、`純改善採用 1 → 1,809` に跳ねた。**
+  🔑**安全性は壊れない**（同関数が「既存リーフを1つも失わない」を先に要求する）が、
+  **それまで held に溜めて人がレビューする予定だった差分が、まとめて自動採用される**。
+  ⇒ **この種のフィールドを足した回は必ず「live = 旧 live ＋ 新フィールドだけ」を機械で証明する**＝
+  `git show HEAD:public/data/effects_*.json` と現物を **effectId 単位・リーフパス集合**で突き合わせ、
+  **リーフ消失 0 ／ 新フィールド以外の追加 0** を出す（`JSON.stringify` 比較は**キー順で偽陽性を出す**＝実測15カードが順序差だけだった）。
+- 🆕⚠**新フィールドは `_partial_fresh` のラチェット（golden `O-93`）も動かす**＝混在カードで
+  「live と fresh の差が**ネストした `parseStatus` だけ**」だったカードは `equalIgnoringParseStatus` で
+  無視されていたのに、新フィールドが乗ると差分が復活して要レビュー行きになる（実測 `WX24-P2-044`）。
+  ⇒ **live へ新フィールドだけを外科パッチして** `build:effects` を回し直す（ネストした `MANUAL` 刻印を失わない）。
 - 🔴**`build:effects` の収穫マージは `parseStatus:MANUAL`／`PARTIAL` の効果を不可侵にする**＝`manualEffects.ts` を後から直しても **live には永久に届かない**（新しい id の追加だけは通る）。届けるには **`npx tsx scripts/syncManualLive.ts <CardNum>`**。⚠実行後は必ず `npm run gates`（live を直接書くので、ゲートだけが安全網）。
 - 🔴**parser を直したのに live が変わらないときは、まず3ファイルを見る**＝`docs/_held_fresh.json`／`_partial_fresh.json`／`_idset_fresh.json`。**id 集合が live と fresh でズレたカードは `_idset_fresh` に出る**（実測46カード）。
 - 🆕🔴**`parseStatus:MANUAL` なのに `manualEffects.ts` に実体が無いカードがある**（2026-08-24・`O-54`＝`WXDi-P08-038`）＝過去の外科パッチが刻印だけ残した **live 限りの遺物**。この状態だと **`syncManualLive` は「同期元が無い」ので効かず**、`build:effects` はカード単位 PRESERVE で永久に凍る。**直し方＝`grep <CardNum> src/data/manualEffects.ts` が空なら、live の `parseStatus` を `AUTO` へ戻してから `build:effects`→`heldReview --adopt`**（以後 parser 改善が届くようになる）。⚠戻す前に **fresh が live の全情報を保っているか**を effectId のリーフパス単位で必ず確認する（本件は fresh が上位＝BURST の `isUp` 脱落まで同時に直った）。
