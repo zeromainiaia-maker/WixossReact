@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第383バッチ：§5.2 round6 R6-3（締め）
+
+- **機械の再現率**＝修正前 `40940e1f3` に現ハーネスと `censusTraceInvariants.mjs` を載せて既知バグ16枚を解決＝**3/16**（I2 が `O-391`×2・`WXDi-P13-074`）。LLM の 6/16 の半分。
+- **ハーネス修正**＝変種 `nofield` を**自分側だけ**に（両者を空にすると「対戦相手のシグニ１体を対象とし」で打ち切られ、失敗経路に届かなかった＝`WX22-001-E2` で実測）。I5 は 35 → 55（候補出し）、I1 は 0 のまま。
+- **登録**＝CLAUDE.md の検証コマンドに `npm run census:traceinv`。round6 の総括は `round6/TYPE_LEDGER.md`。
+- **検証**＝`npm run census:traceinv`（I1=0）／`npm run gates` 全緑。コード変更は `scripts/` のみ＝実機不要。
+
 ## 2026-09-16 第382バッチ：§5.2 round6 R6-1（不変条件センサス）＋ engine バグ4系統
 
 - **新設**＝`npm run census:traceinv`（`scripts/censusTraceInvariants.mjs`）＝全カード × 5変種 × 断る/受けるを engine で解決し、I1〜I5 を数える（約2分）。

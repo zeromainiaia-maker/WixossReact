@@ -11,17 +11,17 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-16＝第382バッチ：§5.2 round6 R6-1（不変条件センサス）**（全文は [BUGFIXES.md](./BUGFIXES.md)・台帳は `round6/TYPE_LEDGER.md`）
-- 新設 `npm run census:traceinv`＝全カード × 5変種で I1〜I5 を数える。**I1（消滅・二重存在）は 0 で `gates` に同梱**。I2〜I5 は候補出し。
-- 精度（実バグ／標本）＝I1 4/16・I2 0/20・I3 5/20・I4 挙動0（ログの根1つ）・I5 0/35。
-- 直した engine バグ＝カードの複製2系統（ライフバーストの発動／シグニの下へ置く）・「手札から出してもよい。そうした場合」が出せなくても後続・ドロー／エナチャージのログ枚数。
+**直近＝2026-09-16＝第383バッチ：§5.2 round6 R6-3（締め）＝round6 を閉じた**（総括は `round6/TYPE_LEDGER.md`）
+- 修正前コミットで `census:traceinv` の機械再現率＝**3/16**（LLM の 6/16 の半分を LLM なしで拾える）。codex での測り直しはしない（R6-2 をやらないため）。
+- 変種「場が空」を**自分側だけ**に直した（両者を空にすると相手の対象宣言で打ち切られ、失敗経路に届かなかった）。
+- `census:traceinv` を CLAUDE.md の検証コマンドへ登録。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.2 round6 の R6-3**（締め＝ゲート化した I1 を CLAUDE.md の検証コマンドへ登録・台帳の総括）→ `O-527` |
+| 🔥**次に取るもの** | **§5.3 索引G `O-527`**（【トラップ】が無くても「そうした場合」の後続が走る・3効果） |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**（`census:cards -- --sheet 1` で測り直す）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
 | 📦**在庫** | 機構 worklist **1**（索引G 1）／実機 **0**／実装キュー **0** |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4267・`census:traceinv` 同梱＝壁時計 2分47秒） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4267・`census:traceinv` I1=0） |
 
 ---
 
@@ -229,7 +229,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 
 ### 5.2 意味照合監査（semantic audit）
 
-**現状**＝round4（全11シート）・段2 台帳・round5（全5,976枚）は完了。round6 は **R6-0 済（再現率 6/16 で未達）・R6-1 済（I1 をゲート化）⇒ R6-2 はやらず、残りは R6-3（締め）。**
+**現状**＝round4（全11シート）・段2 台帳・round5（全5,976枚）・**round6（R6-0／R6-1／R6-3・2026-09-16）は完了**。R6-2（LLM 監査）は R6-0 の再現率 6/16 で未達のためやらなかった。総括は `round6/TYPE_LEDGER.md`。
 過去ラウンドの置き場＝`scripts/archive/scratchpad/semantic_audit_*`（round5 の総括は `semantic_audit_round5/TYPE_LEDGER.md`）。
 
 #### round6 計画（原文 × 実行結果）
@@ -374,9 +374,9 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-16 時点**（第382バッチ＝round6 R6-1）
+- **2026-09-16 時点**（第383バッチ＝round6 締め）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **1**（索引G 1＝`O-527`）｜実機 **0**｜実装キュー **0**｜round6 **R6-0・R6-1 済 → R6-3**
+  - 📦**在庫**＝機構 worklist **1**（索引G 1＝`O-527`）｜実機 **0**｜実装キュー **0**｜round6 **完了**
   - 🔧**ゲート**＝`npm run gates` 全緑（golden 4267・`census:traceinv` I1=0）
 
 ---

@@ -56,7 +56,7 @@ type Variant = 'base' | 'full' | 'empty' | 'nofield';
 const VARIANTS = ((argVal('--variants') ?? 'base,full,empty,nofield').split(',').map(v => v.trim()).filter(Boolean)) as Variant[];
 const VARIANT_LABEL: Record<Variant, string> = {
   base: '基本（汎用盤面）', full: '満杯（両者シグニ3体・エナ10）', empty: '枯渇（両者 手札0・デッキ1・トラッシュ0・エナ0）',
-  nofield: '場が空（両者のシグニ0体・効果元自身は残す）',
+  nofield: '自分の場が空（自分のシグニ0体・効果元自身は残す／相手の場はそのまま）',
 };
 // CHOOSE の既定は「断る」寄り（skip/しない を優先）。accept では利用可能な非 skip 肢を選ぶ。
 let CHOICE_MODE: 'decline' | 'accept' = 'decline';
@@ -363,9 +363,11 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
       st.trash = keep(st.trash);
       st.energy = [];
       st.deck = st.deck.slice(0, 1);
-    } else if (variant === 'nofield') {
+    } else if (variant === 'nofield' && side === '自') {
       // 🆕R6-1（2026-09-16）＝「自分の〈X〉をトラッシュに置く。そうした場合」の**失敗経路**を踏ませる（`O-398` 型）。
       //   基本・満杯・枯渇は、効果が対象にするシグニを必ず場に置くので、できなかった場合の後続が一度も観測されなかった。
+      //   ⚠**自分側だけ**を空にする＝相手の場まで空にすると「対戦相手のシグニ１体を対象とし」の対象宣言で打ち切られ、
+      //     失敗経路に届かない（`WX22-001-E2` で実測）。
       st.field.signi = st.field.signi.map(z => (z && z.includes(sourceNum) ? z : null));
     }
   }
