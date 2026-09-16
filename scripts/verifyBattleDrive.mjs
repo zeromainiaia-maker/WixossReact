@@ -60238,6 +60238,79 @@ scenarios.v220LifeBurstNextOnly = {
   drive: (page, H) => driveV220(page, H, false, 'v220-next'),
 };
 
+// V-236＝§5.3 `O-522`。「**次に**クラッシュされる1枚だけ」の抑止を、同じターンに2枚割って確かめる。
+// 🔑**対照は「同じ盤面・同じ操作でフラグ1ビットだけ違う」**＝`'once'`（次の1枚だけ）と `true`（ターン全部）。
+//   🔴**反転側が本体**＝`'once'` で**2枚目が発動すること**まで見ないと、旧実装（ターン全部止める）と
+//   区別が付かない（1枚目が止まるのは両方で同じ）。
+// ⚠観測点は**「ライフバースト発動」ボタンの有無**＝抑制中は `LifeBurstCheckModal` が
+//   「バースト抑制中」＋「エナに送る」だけを出す（§4.4-91 と同じ「disabled/不在が観測点」型）。
+// ⚠`field.check` は hostSet/guestSet の両方で null にし、最後まで消化してから返す（§4.4-1）。
+const V236_BURST = 'PR-464';   // 【ライフバースト】：カードを１枚引く（＝手札1枚が1ビットの帰結）
+const v236Spec = (flag) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#36900'], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    pending_crashed_cards: [], pending_crash_source_card_nums: [], pending_crash_causes: [],
+    hand: [], energy: [], trash: [], actions_done: [], blocked_card_names: [],
+    suppress_life_burst: flag,
+    deck: ['WD01-014#36910', 'WD01-014#36911', 'WD01-014#36912', 'WD01-014#36913', 'WD01-014#36914'],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#36920'], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    hand: [], energy: [], trash: [], actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: null },
+});
+
+async function driveV236(page, H, expectSecondFires, tag) {
+  const sawButton = [];
+  const handAfter = [];
+  for (let n = 1; n <= 2; n++) {
+    await H.patchPlayerState('host', {
+      'field.check': `${V236_BURST}#369${30 + n}`,
+      pending_crashed_cards: [], pending_crash_source_card_nums: [], pending_crash_causes: [],
+    });
+    let fired = false;
+    let settled = false;
+    for (let i = 0; i < 24; i++) {
+      await page.waitForTimeout(650);
+      // 「ライフバースト発動」が出ていれば押す（＝抑制されていない）。無ければエナへ送る。
+      const burstBtn = await H.clickBtn('ライフバースト発動', { exact: true });
+      if (burstBtn) fired = true;
+      const did = burstBtn || await H.stdStep(['エナに送る', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  ${tag}-crash${n}[${i}] -> ${did ?? 'なし'} | hand=${st?.host?.hand ?? '-'} check=${st?.host?.fieldCheck ?? '-'} stack=${st?.stackLen ?? 0}`);
+      if (st?.host?.fieldCheck == null && !(st?.stackLen > 0) && !st?.pendingEffect) {
+        handAfter.push(st?.host?.hand ?? -1); settled = true; break;
+      }
+    }
+    if (!settled) return { pass: false, detail: `${tag}: ${n}枚目のクラッシュが収束しない` };
+    sawButton.push(fired);
+  }
+  // 1枚目＝必ず抑制（両シナリオ共通）。2枚目＝'once' は発動／true は抑制のまま。
+  const okFirst = sawButton[0] === false && handAfter[0] === 0;
+  const okSecond = expectSecondFires
+    ? (sawButton[1] === true && handAfter[1] === 1)
+    : (sawButton[1] === false && handAfter[1] === 0);
+  return {
+    pass: okFirst && okSecond,
+    detail: `1枚目=${sawButton[0] ? '発動可' : '抑制'}(hand ${handAfter[0]}) / 2枚目=${sawButton[1] ? '発動可' : '抑制'}(hand ${handAfter[1]})`
+      + `｜期待: 1枚目=抑制(0) / 2枚目=${expectSecondFires ? '発動可(1)' : '抑制(0)'}`,
+  };
+}
+
+scenarios.v236BurstSuppressNextOnly = {
+  title: "V-236① O-522: suppress_life_burst='once' は1枚目だけ止め、2枚目のバーストは発動する",
+  spec: v236Spec('once'),
+  drive: (page, H) => driveV236(page, H, true, 'v236-once'),
+};
+scenarios.v236BurstSuppressAllTurn = {
+  title: 'V-236② O-522 対照: suppress_life_burst=true は同じターンの2枚目も止める（旧挙動＝既定は不変）',
+  spec: v236Spec(true),
+  drive: (page, H) => driveV236(page, H, false, 'v236-all'),
+};
+
 // V-221＝§5.3 `O-362`③。live REMOVE_SIGNI_ZONE を実スタックで解決し、active＋予約→
 // 相手ターンactive→次境界で失効、の2スロット寿命をBattleScreenの実ターン遷移で見る。
 const V221_TARGET = 'WD01-013#36401';
@@ -60691,6 +60764,7 @@ scenarios.v224CrashRedirectOneAttackOnly = {
 };
 
 order.push('v219PowerMinusExpires', 'v220LifeBurstAllTurn', 'v220LifeBurstNextOnly', 'v221RemoveZoneOppTurn', 'v222LrigReattackUp', 'v222LrigReattackControl', 'v223DoubleCrushOneAttackOnly', 'v224CrashRedirectOneAttackOnly');
+order.push('v236BurstSuppressNextOnly', 'v236BurstSuppressAllTurn');
 
 // ═════════════════════════════════════════════════════════════════════════════
 // §5.3 `O-369`（2026-09-14）＝プレイヤー／ルリグが得る引用能力の受け皿。`src/screens/` を触ったので実機必須（§2.2）。

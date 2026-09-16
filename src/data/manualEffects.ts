@@ -4971,10 +4971,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     // ✅**受け皿は2つとも実装済み**＝`CRASH_TO_TRASH_INSTEAD`（`ownerState.crash_to_trash_instead` を立て、
     //   `BattleScreen.tsx:13531` が**相手視点で `op.` として**読む＝攻撃側が持つフラグ）／
     //   `SUPPRESS_LIFE_BURST_ON_CARD`（`otherState.suppress_life_burst`＝`execStubPart1.ts:1790`）。
-    // ⚠**残る近似＝「次に」（1回だけ）がターン継続になる**＝どちらのフラグも boolean で回数を持たない。
-    //   同族の `WX19-034-E1`（「そのアタックの間」）も同じ近似で運用中。【起】《ゲーム１回》なので影響は限定的。
+    // 🏁**「次に」（1回だけ）は返済済み**（§5.3 `O-522`・2026-09-16）＝**置換と抑止の両方**に
+    //   `nextCrashOnly:true` を刻む（原文の「次に」は2文の両方に掛かる）。消費は `performLifeBurstResponse` の1点。
+    //   ⚠**片方だけ刻むと中途半端に壊れる**＝バーストだけ1回・置換はターン継続、のような形になる。
+    //   ⚠同族の `WX19-034-E1`（「そのアタックの間」）は別軸（`untilEndOfAttack`）＝落とす時点が違う。
     // ⚠**コスト「ルミナス」は旧 live にも無い**＝原文で**この1枚だけ**の語彙（§5.3 索引 G に据置）。
-    {"effectId":"WX25-P3-032-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CRASH_TO_TRASH_INSTEAD"},{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+    {"effectId":"WX25-P3-032-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CRASH_TO_TRASH_INSTEAD","nextCrashOnly":true},{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD","nextCrashOnly":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   "WX25-P3-040": [
     {"effectId":"WX25-P3-040-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","story":"天使"},"pickCount":2,"pickUpTo":true,"remainder":{"location":"deck","position":"bottom","reorder":true},"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -5716,8 +5718,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   ⇒ この言い回し（「次に〜される場合」「〜は発動しない」）を見たら**まず live に `LIFE_CRASH` が
     //   紛れていないか**を疑う（逆翻訳にも「1枚クラッシュする」としか出ないので原文と並べないと分からない）。
     // ✅受け皿は実装済み＝`SUPPRESS_LIFE_BURST_ON_CARD`（`execStubPart1.ts:1790` が `otherState.suppress_life_burst`）。
-    // ⚠**残る近似＝「次に」（1回だけ）がターン継続になる**（フラグが boolean で回数を持たない）。
-    {"effectId":"WXEX1-72-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    // 🏁**「次に」（1回だけ）は返済済み**（§5.3 `O-522`・2026-09-16）＝`nextCrashOnly:true` が
+    //   `suppress_life_burst:'once'` を立て、`performLifeBurstResponse` が**1枚解決した時点で落とす**。
+    //   ⚠**この payload を外すとターン継続に戻る**（同じターンに2枚割れると2枚目も不発＝過剰実行）。
+    {"effectId":"WXEX1-72-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"SUPPRESS_LIFE_BURST_ON_CARD","nextCrashOnly":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-P05-009": [
     {

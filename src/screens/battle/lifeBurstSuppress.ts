@@ -27,7 +27,10 @@ export function lifeBurstSuppressedByTurnFlag(
 ): boolean {
   const flag = crashedState.suppress_life_burst;
   if (!flag) return false;
-  if (flag === true) return true;
+  // 🆕**`'once'`＝「次にクラッシュされる1枚」だけ**（§5.3 `O-522`）＝**判定はここでは `true` と同じ**。
+  //   🔴**印を落とすのは述語ではなく消費地点**（`performLifeBurstResponse`）＝この関数は純関数で
+  //   state を書き換えられないため。ここで false へ倒すと**1枚目すら止まらない**。
+  if (flag === true || flag === 'once') return true;
   let filter: TargetFilter = flag;
   if (filter.colorMatchesLrig || filter.colorNotMatchesLrig) {
     const lrigTop = crashedState.field.lrig.at(-1);

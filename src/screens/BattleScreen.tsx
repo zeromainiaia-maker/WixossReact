@@ -4409,6 +4409,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banish_substitute_choice: undefined,      // F-3 身代わりバニッシュ決定をリセット
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
+          crash_to_trash_next_crash_only: undefined, // 同・「次の1枚だけ」の印（§5.3 `O-522`）をリセット
           life_crash_counters: undefined,           // カウンタークラッシュ（このターン）をリセット
           negate_opp_attacks: undefined,              // N回目アタック共有カウンタをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
@@ -4910,7 +4911,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
         signi_attack_cost: undefined, lrig_riding_signi: undefined,
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
-        crash_to_trash_instead: undefined, negate_opp_attacks: undefined,
+        crash_to_trash_instead: undefined, crash_to_trash_next_crash_only: undefined, negate_opp_attacks: undefined,
         all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
         coin_condition_signi_instances: undefined,
         deck_signi_level_override: undefined,
@@ -13969,15 +13970,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   （`clearEndOfAttackEffects` はこの関数より前に走るので、あちらでは落とせない）。
       //   ⚠**ダブルクラッシュで2枚割れた回**は1枚目でここに来るので、`remainingPending` を必ず見る。
       const clearAttackCrashEOA = op.crash_to_trash_ends_this_attack === true && remainingPending.length === 0;
+      // 🆕§5.3 `O-522`（2026-09-16）＝**「次にクラッシュされる1枚」だけの置換**（`WX25-P3-032-E2`）。
+      //   ⚠**`clearAttackCrashEOA` とは落とす時点が違う**＝あちらは「そのアタックで割れた最後の1枚まで」
+      //     なので `remainingPending.length === 0` を待つが、こちらは**1枚目を解決した時点で落とす**。
+      const clearCrashNextOnly = op.crash_to_trash_next_crash_only === true;
       const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0 || opDamagedUsedIds.length > 0
         || oppBurstActivated.usedLimitIds.length > 0
-        || clearAttackCrashEOA
+        || clearAttackCrashEOA || clearCrashNextOnly
         ? {
             ...op,
             actions_done: [...(op.actions_done ?? []), ...oppUsedIds, ...opDamagedUsedIds, ...oppBurstActivated.usedLimitIds],
             game_actions_done: [...(op.game_actions_done ?? []), ...oppGameUsedIds],
             ...(clearAttackCrashEOA
               ? { crash_to_trash_instead: undefined, crash_to_trash_ends_this_attack: undefined }
+              : {}),
+            ...(clearCrashNextOnly
+              ? { crash_to_trash_instead: undefined, crash_to_trash_next_crash_only: undefined }
               : {}),
           }
         : null;
@@ -14037,6 +14045,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
           : my.actions_done,
+        // 🆕§5.3 `O-522`（2026-09-16）＝**「次にクラッシュされる1枚」だけの抑止を、ここで消費する。**
+        //   🔴旧は `true` しか無く**ターン終了まで消えなかった**＝同じターンに2枚割れると2枚目以降も不発。
+        //   ⚠**述語（`lifeBurstSuppressedByTurnFlag`）では落とせない**＝あれは純関数なので、
+        //     消費はチェックゾーン解決の**この1点**に置く（読み手を増やさない）。
+        //   ⚠**バーストの有無で分岐しない**＝原文は「次にクラッシュされる**カード**」を指名しており、
+        //     そのカードがバーストを持たなくても指名は使われる。
+        suppress_life_burst: my.suppress_life_burst === 'once' ? undefined : my.suppress_life_burst,
       });
       if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（${selfCrashRefill ? 'SELF_CRASH_TO_TRASH_AND_REFILL' : 'CRASH_TO_TRASH_INSTEAD'}）`]);
       if (refillTop) appendBattleLogs([`デッキの一番上のカードをライフクロスに加えた`]);

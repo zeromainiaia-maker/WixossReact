@@ -877,7 +877,16 @@ export interface PlayerState {
    * ⚠**判定は `lifeBurstSuppress.ts` の `lifeBurstSuppressedByTurnFlag` 1本**を通す
    *   （`flag === true` を素で書くと条件つきが truthy で全部止まる側へ戻る）。
    */
-  suppress_life_burst?: boolean | import('./effects').TargetFilter;
+  /**
+   * 🆕**`'once'`＝「**次に**クラッシュされる1枚」だけ**（2026-09-16・§5.3 `O-522`・
+   * `WXEX1-72-E2`「このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードの
+   * ライフバーストは発動しない」／`WX25-P3-032-E2`「このターン、**次にアタックによって**〜」）。
+   * 🔴**旧＝`true` しか無く、そのターンに割れる全部のバーストを止めていた**（同じターンに2枚割れると
+   * 2枚目以降も不発＝過剰実行）。⚠**消えるのはターン終了時だけ**だったので、回数の概念が無かった。
+   * ⚠**消費は `performLifeBurstResponse`（チェックゾーン解決の1点）**＝1枚解決したら落とす。
+   *   `'once'` を**述語側で false に倒さない**（述語は純関数＝状態を書き換えられない）。
+   */
+  suppress_life_burst?: boolean | 'once' | import('./effects').TargetFilter;
   // このターン、ルリグダメージを受けない
   prevent_lrig_damage?: boolean;
   // このターン（または次のターンまで）、敗北しない
@@ -1169,6 +1178,16 @@ export interface PlayerState {
    * ⚠**既定（未指定）は従来どおりターン継続**（`WX25-P3-032-E2`）。
    */
   crash_to_trash_ends_this_attack?: boolean;
+  /**
+   * 🆕**`crash_to_trash_instead` の寿命が「**次に**クラッシュされる1枚」だけ**という印
+   * （2026-09-16・§5.3 `O-522`・`WX25-P3-032-E2`）。
+   * 🔴原文「このターン、**次にアタックによって**対戦相手のライフクロスの一番上のカードがクラッシュされる場合」
+   * ＝**置換もバースト抑止も「次の1枚」だけ**。旧はどちらもターン継続だった。
+   * ⚠**読み手を増やさない**＝消費地点（`performLifeBurstResponse`）は `crash_to_trash_instead` だけを見る。
+   *   この印は**1枚解決したあとに `crash_to_trash_instead` を落とすため**だけに在る
+   *   （`crash_to_trash_ends_this_attack` と同じ設計）。
+   */
+  crash_to_trash_next_crash_only?: boolean;
   /**
    * 🆕**「そのアタックの間」だけ付けたキーワードの台帳**（§5.3 `O-367`・2026-09-14）。
    * 実体は `keyword_grants` に入っているので**読み手はこれを見なくてよい**。

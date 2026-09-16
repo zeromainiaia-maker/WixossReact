@@ -5251,6 +5251,16 @@ export interface StubAction {
    */
   lifeBurstOnceOnly?: boolean;
   /**
+   * 🆕**この STUB が立てるフラグを「次にクラッシュされる1枚」だけにする**（§5.3 `O-522`・2026-09-16）。
+   * 消費者は **`SUPPRESS_LIFE_BURST_ON_CARD`**（→ `suppress_life_burst:'once'`）と
+   * **`CRASH_TO_TRASH_INSTEAD`**（→ `crash_to_trash_next_crash_only`）の2つ。
+   * 🔴**原文の「次に」を parser／manual が判別して必ず明示する**＝engine はカード原文を読み直さない
+   *   （`census:enginetext` A群を増やさない）。⚠**既定（未指定）は従来どおりターン継続。**
+   * 実例＝`WXEX1-72-E2`「このターン、**次にクラッシュされる**〜のライフバーストは発動しない」／
+   *   `WX25-P3-032-E2`「このターン、**次にアタックによって**〜」（置換と抑止の**両方**が1回だけ）。
+   */
+  nextCrashOnly?: boolean;
+  /**
    * `STRIP_OPP_ENA_MULTI_ENA` の追加範囲。剥奪自体は id が宣言し、`effectImmunity` は
    * `WXK11-020` 型の「そのエナは対戦相手の効果を受けない」まで含む場合だけ立てる。
    * 省略時に耐性を付けないことで、単なる「【マルチエナ】を失う」文型を過剰実行しない。

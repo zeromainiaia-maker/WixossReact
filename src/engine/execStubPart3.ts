@@ -997,15 +997,21 @@ export function execStubPart3(
   //   ⚠**消費地点（`BattleScreen` のクラッシュ解決）は `crash_to_trash_instead` だけを見る**＝読み手は増えない。
   //     印（`crash_to_trash_ends_this_attack`）は `clearEndOfAttackEffects` が落とすためだけに在る。
   //   ⚠**既定はターン継続のまま**＝`WX25-P3-032-E2`（原文「このターン、次に〜」）の挙動は変えない。
+  // 🆕**`nextCrashOnly`＝「次にクラッシュされる1枚」だけ**（§5.3 `O-522`・2026-09-16）＝
+  //   `WX25-P3-032-E2` の原文「このターン、**次にアタックによって**〜」は**置換も抑止も1回だけ**。
+  //   ⚠上の「既定はターン継続のまま」は `O-367` 時点の据置で、`O-522` でその近似を返済した
+  //   （印は `performLifeBurstResponse` が1枚解決したあとに落とす）。
   if (stub.id === 'CRASH_TO_TRASH_INSTEAD') {
     const endsThisAttack = stub.untilEndOfAttack === true;
+    const nextCrashOnly = stub.nextCrashOnly === true;
     const newOwner: PlayerState = {
       ...ctx.ownerState,
       crash_to_trash_instead: true,
       ...(endsThisAttack ? { crash_to_trash_ends_this_attack: true } : {}),
+      ...(nextCrashOnly ? { crash_to_trash_next_crash_only: true } : {}),
     };
     return done(addLog({ ...ctx, ownerState: newOwner },
-      `${endsThisAttack ? 'そのアタックの間' : 'このターン'}、クラッシュされたカードはトラッシュに置かれる`));
+      `${nextCrashOnly ? '次にクラッシュされる1枚は' : endsThisAttack ? 'そのアタックの間' : 'このターン'}、クラッシュされたカードはトラッシュに置かれる`));
   }
   // BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る
   if (stub.id === 'BANISH_REDIRECT_TO_HAND') {

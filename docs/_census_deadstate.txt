@@ -1,7 +1,7 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 381
+PlayerState のキー: 382
 🔴 書きあり・読み 0: 0
 
 
@@ -45,4 +45,4 @@ PlayerState のキー: 381
      1 読 /   6 書  draw_limit
     10 読 /   6 書  attack_phase_level_overrides
      4 読 /   6 書  signi_deploy_count_limit
-     9 読 /   6 書  signi_played_from_non_hand_this_turn
+     1 読 /   6 書  crash_to_trash_instead

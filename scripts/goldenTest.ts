@@ -29789,7 +29789,46 @@ test('§5.3 O-318: WXEX1-72-E2 はライフをクラッシュせず、バース�
   ok(r.done, '対話を挟まず解決する');
   if (!r.done) return;
   eq(r.otherState.life_cloth.length, lifeBefore, '相手のライフは1枚も減らない');
-  eq(r.otherState.suppress_life_burst, true, '相手のライフバーストが抑止される');
+  // 🆕§5.3 `O-522`（2026-09-16）＝原文が「**次に**クラッシュされる」なので `'once'`（1枚だけ）。
+  //   🔴`true` に戻ると**そのターンに割れる全部のバーストを止める**（過剰実行）＝ここが見張り。
+  eq(r.otherState.suppress_life_burst, 'once', '相手の「次の1枚」のライフバーストが抑止される');
+}));
+
+// ═══ §5.3 `O-522`（2026-09-16）＝「次にクラッシュされる1枚」だけの抑止／置換 ═══
+// 原文 `WXEX1-72-E2`【出】：このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードの
+//   ライフバーストは発動しない。／`WX25-P3-032-E2`【起】：このターン、**次にアタックによって**〜
+//   チェックゾーンに置かれる代わりにトラッシュに置かれる。そのカードのライフバーストは発動しない。
+// 🔴旧＝`suppress_life_burst` も `crash_to_trash_instead` も **boolean で回数を持たず、ターン終了まで消えなかった**
+//   ＝**同じターンに2枚割れると2枚目以降も不発／2枚目もトラッシュへ**（過剰実行）。
+// 🔑**「次に」は2文の両方に掛かる**＝`WX25-P3-032-E2` は**置換と抑止の両方**に `nextCrashOnly` を刻む
+//   （片方だけだと「バーストは1回・置換はターン継続」という中途半端な壊れ方になる）。
+// ⚠**消費（印を落とす）は `performLifeBurstResponse` の1点**＝React 側なので、ここで見張るのは
+//   ①payload が live に在る ②engine が 'once' / 次の1枚だけ を立てる ③述語が 'once' を止める の3層。
+//   **「2枚目が発動する」の反転確認は実機（§5.1 `V-236`）で取る。**
+test('§5.3 O-522: 「次に」は1回だけの印として live と engine に乗る', () => withSavedCursor(() => {
+  // ① live に payload が在る（外すとターン継続へ静かに戻る）
+  const wxex = (effectsMap.get('WXEX1-72') ?? []).find(e => e.effectId === 'WXEX1-72-E2');
+  ok(!!wxex, 'WXEX1-72-E2 が live にある'); if (!wxex) return;
+  ok(JSON.stringify(wxex.action).includes('"nextCrashOnly":true'), 'WXEX1-72-E2 に nextCrashOnly が在る');
+
+  const p3032 = (effectsMap.get('WX25-P3-032') ?? []).find(e => e.effectId === 'WX25-P3-032-E2');
+  ok(!!p3032, 'WX25-P3-032-E2 が live にある'); if (!p3032) return;
+  const steps = JSON.stringify(p3032.action).match(/"nextCrashOnly":true/g) ?? [];
+  eq(steps.length, 2, '置換と抑止の**両方**に nextCrashOnly が刻まれている');
+
+  // ② engine が 'once' と「次の1枚だけ」の印を立てる
+  const r = executeAction(p3032.action, mkCtx({}, {}));
+  ok(r.done, '対話を挟まず解決する'); if (!r.done) return;
+  eq(r.otherState.suppress_life_burst, 'once', 'クラッシュされる側に 1回だけの抑止が立つ');
+  eq(r.ownerState.crash_to_trash_instead, true, '置換そのものは従来どおり立つ');
+  eq(r.ownerState.crash_to_trash_next_crash_only, true, '置換にも「次の1枚だけ」の印が立つ');
+
+  // 🔴反転確認＝payload を外した形（従来の文型）は**ターン継続**のまま
+  const plain = { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CARD' } as unknown as EffectAction;
+  const r2 = executeAction(plain, mkCtx({}, {}));
+  ok(r2.done, '素の形も解決する'); if (!r2.done) return;
+  eq(r2.otherState.suppress_life_burst, true, '🔴payload 無しは従来どおりターン継続（既定を変えていない）');
+  eq(r2.ownerState.crash_to_trash_next_crash_only, undefined, '🔴印は勝手に立たない');
 }));
 
 // ═══ §5.3 索引G `O-320`（2026-09-11）＝`WXDi-P05-086` の2文目【常】が丸ごと落ちていた ═══
@@ -29869,7 +29908,10 @@ test('§5.3 O-317: WX25-P3-032-E2 はライフをクラッシュせず、クラ�
   // 🔑**盤面が動かないことこそが正**＝この効果は予約だけを置く（旧実装はここで相手ライフが1枚減った）。
   eq(r.otherState.life_cloth.length, lifeBefore, '相手のライフは1枚も減らない');
   eq(r.ownerState.crash_to_trash_instead, true, '攻撃側にクラッシュ先置換のフラグが立つ');
-  eq(r.otherState.suppress_life_burst, true, '相手のライフバーストが抑止される');
+  // 🆕§5.3 `O-522`（2026-09-16）＝原文「このターン、**次に**アタックによって〜」なので
+  //   **置換も抑止も「次の1枚」だけ**。🔴`true` に戻ると**そのターン全部**に効く（過剰実行）。
+  eq(r.ownerState.crash_to_trash_next_crash_only, true, '置換に「次の1枚だけ」の印が立つ');
+  eq(r.otherState.suppress_life_burst, 'once', '相手の「次の1枚」のライフバーストが抑止される');
 }));
 
 // §5.3 `O-328`（2026-09-11）＝**記録側の回帰**。engine を fail-closed へ倒した以上、
@@ -67569,6 +67611,10 @@ test('索引C 2026-09-02: O-177 ライフバースト抑制は条件（TargetFil
   ok(!lifeBurstSuppressedByTurnFlag(whiteCard, crashed, cm), '🔴共通色ありは抑制しない');
   // 🔵従来の boolean（このターン全部）も従来どおり効く
   ok(lifeBurstSuppressedByTurnFlag(whiteCard, { ...crashed, suppress_life_burst: true } as PlayerState, cm), '🔵boolean は全部止める');
+  // 🆕§5.3 `O-522`＝`'once'` は**述語の上では `true` と同じ**（止める）。
+  //   🔴ここで false を返す実装にすると**1枚目すら止まらない**＝印を落とすのは消費地点の仕事。
+  ok(lifeBurstSuppressedByTurnFlag(whiteCard, { ...crashed, suppress_life_burst: 'once' } as PlayerState, cm),
+    "🔵'once' も（1枚目は）止める");
 }));
 
 test('索引C 2026-09-02: O-164 効果バニッシュの1回消費盾は選択経路でも効く', () => withSavedCursor(() => {

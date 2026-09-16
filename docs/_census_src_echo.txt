@@ -22,7 +22,7 @@
   scripts/decompileEffects.ts:3995  [GRANT_QUOTED_AUTO_ABILITY]  if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
   scripts/decompileEffects.ts:4003  [GRANT_QUOTED_AUTO_ABILITY]  if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
   scripts/decompileEffects.ts:5556  [GRANT_QUOTED_ACTIVATE_ABILITY]  ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
-  scripts/decompileEffects.ts:6736  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
-  scripts/decompileEffects.ts:6737  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
-  scripts/decompileEffects.ts:7220  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
-  scripts/decompileEffects.ts:7221  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;
+  scripts/decompileEffects.ts:6745  [SELF_PLACE_COIN_COST]  const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
+  scripts/decompileEffects.ts:6746  [SELF_PLACE_COIN_COST]  s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
+  scripts/decompileEffects.ts:7229  [SELF_PLACE_COIN_COST]  const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+  scripts/decompileEffects.ts:7230  [SELF_PLACE_COIN_COST]  s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;

@@ -1987,9 +1987,17 @@ export function execStubPart1(
     return done(addLog(ctx, 'グロウ色制限（BattleScreen側処理）'));
   }
   // ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット
+  // 🆕**`nextCrashOnly`＝「次にクラッシュされる1枚」だけ**（§5.3 `O-522`・2026-09-16）。
+  //   🔴旧は `true` 固定＝**そのターンに割れる全部のバーストを止めていた**（同じターンに2枚割れると
+  //   2枚目以降も不発＝過剰実行）。⚠**消費は `performLifeBurstResponse`**＝1枚解決したら落とす。
+  //   ⚠既定（未指定）は従来どおりターン継続＝「このターン、〜は発動しない」の文型は変えない。
   if (stub.id === 'SUPPRESS_LIFE_BURST_ON_CRASH' || stub.id === 'SUPPRESS_LIFE_BURST_ON_CARD') {
-    const newOther = { ...ctx.otherState, suppress_life_burst: true };
-    return done(addLog({ ...ctx, otherState: newOther }, 'このターン対戦相手のライフバーストは発動しない'));
+    const onceOnly = stub.nextCrashOnly === true;
+    const newOther: PlayerState = { ...ctx.otherState, suppress_life_burst: onceOnly ? 'once' : true };
+    return done(addLog({ ...ctx, otherState: newOther },
+      onceOnly
+        ? '次にクラッシュされる対戦相手のライフクロス1枚のライフバーストは発動しない'
+        : 'このターン対戦相手のライフバーストは発動しない'));
   }
   // このターンのルリグダメージ無効：ownerState に prevent_lrig_damage フラグをセット
   if (stub.id === 'PREVENT_LRIG_DAMAGE_THIS_TURN') {
