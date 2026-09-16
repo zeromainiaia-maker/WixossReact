@@ -2226,6 +2226,63 @@ const scenarios = {
       };
     },
   },
+  // 🆕🔴**§5.1 `V-239`（2026-09-17）＝同じパワー同士のバトルは「アタック側の勝ち」。**
+  // 🔑公式ルール＝「アタックしているシグニのパワーが相手のシグニのパワー**以上**の場合…相手のシグニを
+  //   バニッシュします。**未満**の場合…**両方のシグニが残ります**」＝**アタッカーはバトルで落ちない**。
+  // 🔴`O-47`（2026-08-24）が「同じパワーなら両方バニッシュ」という誤ったルール注記で相打ちを実装し、
+  //   **3週間以上どの計器にも映らなかった**（ユーザーが遊んで報告＝`bug_reports` b1039d73）。
+  // ⚠**観測点は両側**＝①防御側がエナへ行く ②🔴**アタッカーが場に残る**（ここが相打ちで壊れていた）。
+  //   WIXOSS ではバニッシュされたシグニは**エナゾーン**へ行くので、消えた先まで見る。
+  battleequalpower: {
+    title: '同値バトル（3000 vs 3000）＝防御側だけがエナへ行き、アタッカーは場に残る（O-47 撤回の回帰ガード）',
+    spec: {
+      hostSet: {
+        'field.signi': [null, ['WD01-013#1'], null],   // 小剣 ククリ（能力なし・Lv1・P3000）
+        'field.signi_down': [false, false, false],
+        'energy': [], 'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WD02-013#g1'], null],  // 羅石 アイロン（能力なし・Lv1・P3000）
+        'field.signi_down': [false, false, false],
+        'energy': [], 'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`開始 自場=${JSON.stringify(st0?.host?.fieldSigni)} 相場=${JSON.stringify(st0?.guest?.fieldSigni)}`);
+      await H.ensureMain();
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/battleequalpower-${s}.png`, fullPage: true });
+        let did = await H.clickTextOrBtn(['アタックフェイズへ', 'アーツ終了→相手へ', 'アーツ終了', '確定', '決定', 'OK', 'はい']);
+        // ⚠アタックは**シグニを開いてアクションを押す**（既存シナリオと同じ `openSigniAttack`）。
+        if (!did) did = await openSigniAttack(page, H, 1);
+        const st = await H.queryState();
+        const myTop = (st?.host?.fieldSigni ?? [])[1];
+        const opTop = (st?.guest?.fieldSigni ?? [])[1];
+        const myAlive = Array.isArray(myTop) && myTop.includes('WD01-013#1');
+        const opGone = !(Array.isArray(opTop) && opTop.includes('WD02-013#g1'));
+        H.log(`  battle[${s}] -> ${did ?? 'なし'} | 自場1=${JSON.stringify(myTop)} 相場1=${JSON.stringify(opTop)}`
+          + ` 自エナ=${JSON.stringify(st?.host?.energyCards)} 相エナ=${JSON.stringify(st?.guest?.energyCards)}`);
+        if (opGone) {
+          const myInEnergy = (st?.host?.energyCards ?? []).includes('WD01-013#1');
+          const opInEnergy = (st?.guest?.energyCards ?? []).includes('WD02-013#g1');
+          if (!myAlive || myInEnergy) {
+            return { pass: false, detail: `🔴相打ちになっている＝アタッカーが場から消えた（自場1=${JSON.stringify(myTop)} 自エナ=${JSON.stringify(st?.host?.energyCards)}）` };
+          }
+          if (!opInEnergy) {
+            return { pass: false, detail: `⚠防御側が場から消えたがエナゾーンに無い（行き先が違う: 相エナ=${JSON.stringify(st?.guest?.energyCards)}）` };
+          }
+          return { pass: true, detail: `同値バトル＝防御側だけがエナへ（相エナ=${JSON.stringify(st.guest.energyCards)}）／アタッカーは場に残存（自場1=${JSON.stringify(myTop)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      H.log('=== 全ログ末尾(-25) ===');
+      for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
+      return { pass: false, detail: `バトルが起きなかった（自場=${JSON.stringify(fin?.host?.fieldSigni)} 相場=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+    },
+  },
   deckshufflespell: {
     title: 'PR-470A（ON_DECK_SHUFFLED・スペル経路＝SEARCHER／修正回帰ガード）',
     spec: {

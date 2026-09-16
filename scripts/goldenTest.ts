@@ -100,6 +100,8 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
 import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/screens/battle/bugReport';
+import { battleOutcome, battleOutcomeLabel } from '../src/screens/battle/battleOutcome';
+import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
@@ -85643,6 +85645,41 @@ test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠け
   // ⑦ タグは重複なく、UI が5択で出せる形
   eq(new Set(BUG_TAGS.map(t => t.id)).size, BUG_TAGS.length, 'タグIDが重複している');
   ok(BUG_TAGS.every(t => t.label.length > 0), 'タグのラベルが空');
+}));
+
+test('§5.6 バトルの勝敗：同値はアタック側の勝ち／未満は両方残る（アタッカーはバトルで落ちない）', () => withSavedCursor(() => {
+  // 🔑公式ルール（`battleOutcome.ts` に引用）＝「アタックしているシグニのパワーが相手のシグニのパワー**以上**の
+  //   場合…相手のシグニをバニッシュします。**未満**の場合…**両方のシグニが残ります**」。
+  // 🔴これを golden で固定するのは、規則が `BattleScreen.tsx`（React）に直書きされていて
+  //   **census・smoke・fuzz・逆翻訳のどれも届かない**ため。実際 `O-47`（2026-08-24）が
+  //   「同じパワーなら両方バニッシュ」という誤ったルール注記で相打ちを実装し、
+  //   **3週間以上どの計器にも映らなかった**（2026-09-16 にユーザーが遊んで報告）。
+  // ① 同値＝アタック側の勝ち（🔴ここが `O-47` で相打ちに化けていた）
+  eq(battleOutcome(3000, 3000).banishDefender, true, '🔴同値でアタック側が勝てていない');
+  eq(battleOutcome(3000, 3000).banishAttacker, false, '🔴同値で相打ちになっている（ルールに無い）');
+  // ② 格上で殴る＝防御側だけ落ちる
+  eq(battleOutcome(12000, 3000).banishDefender, true, '格上なのに防御側が落ちない');
+  eq(battleOutcome(12000, 3000).banishAttacker, false, '勝ったのにアタッカーが落ちている');
+  // ③ 格下で殴る＝**両方残る**（🔴`O-47` はここでアタッカーを落としていた）
+  eq(battleOutcome(3000, 12000).banishDefender, false, '格下なのに防御側が落ちている');
+  eq(battleOutcome(3000, 12000).banishAttacker, false, '🔴格下で殴るとアタッカーが落ちる（ルールに無い＝自爆）');
+  // ④ `∞`（Infinity）でも壊れない
+  eq(battleOutcome(Infinity, 12000).banishDefender, true, '∞ が格上に勝てない');
+  eq(battleOutcome(12000, Infinity).banishDefender, false, '∞ を落としている');
+  eq(battleOutcome(Infinity, Infinity).banishDefender, true, '∞ 同士は同値＝アタック側の勝ち');
+  // ⑤ ログの文言に「敗北」を使わない（アタッカーが落ちる誤解＝`O-47` の入口）
+  ok(!battleOutcomeLabel(3000, 12000).includes('敗北'), '🔴「敗北」はアタッカーが落ちる誤解を招く');
+  ok(battleOutcomeLabel(3000, 12000).includes('両方'), '未満のときは「両方残る」と書く');
+  ok(battleOutcomeLabel(3000, 3000).includes('勝利'), '以上のときは勝利と書く');
+  // ⑥🔴**CPU の攻撃価値表と同じ規則を見ていること**＝食い違うと「CPU には勝てる見込みなのに実際は落ちる」になる。
+  //   （`O-47` の期間はまさにこれが食い違っていた＝`cpuBoardEval` だけが正しかった）
+  eq(cpuAttackValueOf(3000, 3000), 'winBattle', '🔴CPU 側が同値を勝ちと見ていない');
+  eq(cpuAttackValueOf(3000, 12000), 'noEffect', '🔴CPU 側が格下攻撃を「損」と見ている（実際は両方残る）');
+  eq(cpuAttackValueOf(3000, null), 'life', '正面が空はライフへ');
+  for (const [a, d] of [[3000, 3000], [12000, 3000], [3000, 12000]] as const) {
+    eq(cpuAttackValueOf(a, d) === 'winBattle', battleOutcome(a, d).banishDefender,
+      `🔴CPU の見立てと engine の勝敗が食い違う（${a} vs ${d}）`);
+  }
 }));
 
 if (listMode) {

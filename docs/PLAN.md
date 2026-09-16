@@ -19,9 +19,9 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.6 `C-2`（CPU のガード判定）**＝CPU が絶対にガードしないのが試合が8ターンで終わる主因。次いで `C-3`（機構踏破計器） |
+| 🔥**次に取るもの** | **§5.6 `C-9`（ルール規則の棚卸し）**＝プレイ報告第1号が**ルール処理**のバグ（`O-47` の相打ち）で、この層に計器が1つも無いと分かった。次いで `C-2`（CPU のガード判定）／`C-3`（機構踏破計器） |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**（`census:cards -- --sheet 1` で測り直す）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-0`/`C-1` 済） |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 8**（§5.6 `C-2`〜`C-9`・🏁`C-0`/`C-1` 済） |
 | 🔧**ゲート** | `npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72） |
 
 ---
@@ -169,7 +169,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **①** | **§5.1 実機 `V-nn`** | **0** | `src/screens/` を触った回・機構を足した回の返済先 | §5.1 の表 |
 | **②** | **§5.3 機構 worklist `O-nn`** | **0** | 新しい型・評価器・engine が要るもの | §5.3 の索引 |
 | **③** | **§5.0 実装キュー** | **0** | triage で BUG と確定した未修正の効果 | `node scripts/archive/semanticAuditBugList.mjs` |
-| 🔥**④** | 🆕**§5.6 CPU 完成度 `C-nn`** | **7** | **プレイ駆動の発見器**＝CPU が撃たない機構＝未検査な向き | §5.6.2 の表 |
+| 🔥**④** | 🆕**§5.6 CPU 完成度 `C-nn`** | **8** | **プレイ駆動の発見器**＝CPU が撃たない機構＝未検査な向き | §5.6.2 の表 |
 | **⑤** | **§5.2 意味照合** | **round6 完了** | 監査による新しい型の発見 | `semantic_audit_round6/TYPE_LEDGER.md` |
 | — | §5.4 構造混線 | **0** | 新しく見つけたときだけ足す | — |
 
@@ -218,7 +218,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-238`＝`bugreport`＝2026-09-16 第387バッチで PASS。報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -416,6 +416,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 | `C-6` | ライズ召喚（`O-147` の CPU 側） | M | 下敷き／材料の選択経路を CPU に与える。⚠**半分だけ通さない**（`O-147` の据置理由） |
 | `C-7` | キー・ピース（【チーム】条件つき） | M〜L | いちばん重いので最後 |
 | `C-8` | 対話応答を pure 化＋方針つきに（`cpuInteraction.ts`） | M | 「最初の available」固定では**分岐の片側しか踏まない** |
+| 🔥`C-9` | **ルール規則の棚卸し**（バトル／ダメージ／フェイズ／ゾーン移動の行き先） | M〜L | 🆕**2026-09-17 登録**＝プレイ報告第1号（`O-47` の相打ち）が**カード効果ではなくルール処理**のバグだった。**この層には計器が1つも無い**（census/golden/意味照合は全部 EffectText 由来）。**公式ルールを1つずつ純関数へ出して golden で固定する**（`battleOutcome.ts` が第1号） |
 
 #### 5.6.3 規律（`cpu*.ts` の既存5本と同じ＝[DESIGN.md](./DESIGN.md) §4）
 
@@ -467,7 +468,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 - **2026-09-16 時点**（第385バッチ＝`O-529`／`O-530` クローズ）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**｜**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-0`/`C-1` 済）
+  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**｜**CPU 完成度 8**（§5.6 `C-2`〜`C-9`・🏁`C-0`/`C-1` 済）
   - 🔧**ゲート**＝`npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72）
 
 ---

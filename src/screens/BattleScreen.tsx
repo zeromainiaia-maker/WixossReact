@@ -53,6 +53,7 @@ interface Props {
 }
 
 import { randomInt, shuffle as rngShuffle } from '../engine/rng';
+import { battleOutcome, battleOutcomeLabel } from './battle/battleOutcome';
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
 import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
@@ -10128,7 +10129,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ?? parsePowerVal(opTopCard.Power);
         appendBattleLogs([`${myCardName}（${myPower}）vs ${opCardName}（${opPower}）`]);
 
-        if (myPower >= opPower) {
+        // 🔑**勝敗は `battleOutcome`（純関数・golden で固定）だけが決める**（§5.6・2026-09-17）。
+        //   ここに `>=` を直書きしない＝規則が React の中に散ると、どの計器も届かないまま壊れる
+        //   （`O-47` がそれで3週間気づかれなかった）。
+        const outcome = battleOutcome(myPower, opPower);
+        if (outcome.banishDefender) {
           // バトル勝利：相手シグニをバニッシュ（チャームがあればトラッシュへ）
           const newOpDown   = [...(opS.field.signi_down   ?? [false, false, false])];
           const newOpFrozen = [...(opS.field.signi_frozen  ?? [false, false, false])];
@@ -10567,17 +10572,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             }
           }
         } else {
-          appendBattleLogs([`${myCardName}はバトルに敗北`]);
+          // 🔴**「敗北」ではない**＝公式ルールは「未満の場合…**両方のシグニが残ります**」＝**何も起こらない**。
+          appendBattleLogs([`${myCardName}は${battleOutcomeLabel(myPower, opPower)}`]);
         }
 
-        // 🔴**§5.3 O-47（2026-08-24 V-86 の道中で発見・実機ログで確認）＝負けた／相打ちのアタッカーもバニッシュされる。**
-        //   ルール＝「バトルではパワーの低いシグニがバニッシュされる。パワーが同じ場合は**両方**」。
-        //   従来この関数は `myPower >= opPower` で**防御側だけ**を消し、負けたときは
-        //   `「…はバトルに敗北」` とログするだけで**アタッカーが場に残り続けていた**
-        //   （実測ログ＝`シヴァ（10000）vs ゴッドイーター（15000）` → 敗北ログ → シヴァは場に残存）。
-        //   ⚠**攻撃側・防御側とも人間/CPU が同じ関数を通る**ので、この1点で全対戦に効く。
+        // 🔴🔑**§5.6（2026-09-17）＝`O-47` を撤回した。バトルでアタッカーはバニッシュされない。**
+        //   公式ルール（`battleOutcome.ts` に引用）＝「パワーが**以上**なら相手をバニッシュ／**未満**なら**両方残る**」。
+        //   `O-47`（2026-08-24）は「パワーが同じ場合は両方」という**誤ったルール注記**でアタッカーのバニッシュを足し、
+        //   実機で**同値の相打ち**が起きていた（ユーザーの報告 `bug_reports` b1039d73＝
+        //   `羅菌ナットー(3000) vs 画一の条件オリガミ(3000)` で両方がエナゾーンへ行った）。
+        //   ⚠`O-47` が根拠にした実測（`シヴァ(10000) vs ゴッドイーター(15000)` でシヴァが場に残る）は
+        //     **正しい挙動**だった＝「格下で殴っても自分は落ちない」。
+        //   ⚠**この if は規則上いま常に false**（`banishAttacker` は常に `false`）。下の約200行は
+        //     `O-58` の置換機構なので消さずに残してある＝撤去の可否は §5.6 の項目として別に判断する。
         // ⚠**行き先変更はトップ1枚にだけ適用**。下にあったカードは O-48 どおり常にトラッシュへ。
-        if (myPower <= opPower && (newMyState.field.signi[zoneIndex] ?? []).at(-1) === myTopNum) {
+        if (outcome.banishAttacker && (newMyState.field.signi[zoneIndex] ?? []).at(-1) === myTopNum) {
           const myStackAB = newMyState.field.signi[zoneIndex] ?? [];
           // O-58 段1: アタッカー側の必須バニッシュ置換。
           // 判定はバトル前の myS（アタッカー＝victim オーナーのターン）で行い、
@@ -10775,7 +10784,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newMyAcceAB,
             },
           };
-          appendBattleLogs([`${myCardName}がバニッシュされた（バトル${myPower === opPower ? '相打ち' : '敗北'}）${redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          // ⚠**「相打ち」はルールに無い**（`O-47` の撤回で到達しなくなった）＝文言も残さない。
+          appendBattleLogs([`${myCardName}がバニッシュされた${redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
