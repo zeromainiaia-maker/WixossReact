@@ -49,6 +49,14 @@ const QUEUE = args.includes('--queue');
 // round6 意味照合（原文 × 実行結果）の入力を吐く。--ids と併用。
 // 非CONTINUOUS 効果ごとに「初期盤面・受ける／断るの2通りの実行結果」を JSON で書き出す。
 const JSON_OUT = argVal('--json-out');
+// 🆕R6-0 ②（2026-09-16）＝盤面の変種。汎用盤面は失敗経路（場が満杯・手札0・デッキ切れ）を踏まないので、
+//   再現率セットの見逃しの大半がそこだった（`round6/TYPE_LEDGER.md`）。
+//   base＝汎用／full＝両者シグニ3体・エナ10／empty＝両者 手札0・デッキ1・トラッシュ0・エナ0（効果元自身は残す）。
+type Variant = 'base' | 'full' | 'empty';
+const VARIANTS = ((argVal('--variants') ?? 'base,full,empty').split(',').map(v => v.trim()).filter(Boolean)) as Variant[];
+const VARIANT_LABEL: Record<Variant, string> = {
+  base: '基本（汎用盤面）', full: '満杯（両者シグニ3体・エナ10）', empty: '枯渇（両者 手札0・デッキ1・トラッシュ0・エナ0）',
+};
 // CHOOSE の既定は「断る」寄り（skip/しない を優先）。accept では利用可能な非 skip 肢を選ぶ。
 let CHOICE_MODE: 'decline' | 'accept' = 'decline';
 // §6.4 O-20 の変換前後を比較するための計器フラグ。付けると engine が
@@ -189,7 +197,7 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
 }
 
 /** 効果対応のラベル付き盤面。対象フィルタに合う実シグニを対象側に配置し、source を要求ゾーンに置く。 */
-function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labels: Map<string, string> } {
+function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'base'): { ctx: ExecCtx; labels: Map<string, string> } {
   const labels = new Map<string, string>();
   const used = new Set<string>([sourceNum]);
   let cursor = 0;
@@ -247,7 +255,10 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
         signi_charms: [null, null, null], signi_acce: [null, null, null],
         signi_virus: [0, 0, 0], signi_armor: [false, false, false], cross_state: [false, false, false],
         assist_lrig_l: srcNonSigni && srcType === 'アシストルリグ' ? [sourceNum] : [], assist_lrig_r: [],
-        check: srcNonSigni && srcType !== 'ルリグ' && srcType !== 'アシストルリグ' ? sourceNum : null, key_piece: null, free_zone: [],
+        // ⚠スペル／アーツ等の効果元は**どのゾーンにも置かない**＝実画面は `bs.pending_spell` に保持して解決後にトラッシュへ送る。
+        //   旧実装は `check` に置いていたが、そこはライフバースト確認用の1枚スロットで、効果内のクラッシュが
+        //   効果元を上書きして「(消滅)」に化けていた（R6-0・`WDK14-007-E1` ほか7効果）。
+        check: null, key_piece: null, free_zone: [],
         signi_traps: [null, null, null],
       },
     } as unknown as PlayerState;
@@ -340,6 +351,20 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     while (st.energy.length < en.count) st.energy.push(take(`${side}エナ増${st.energy.length + 1}`));
   }
 
+  // ── 変種（効果対応の配置を済ませた後で盤面を削る／埋める）──
+  for (const [side, st] of [['自', ownerState], ['相', otherState]] as const) {
+    if (variant === 'full') {
+      st.field.signi = st.field.signi.map((z, i) => (z && z.length ? z : [take(`${side}S満${i}`)]));
+      while (st.energy.length < 10) st.energy.push(take(`${side}エナ満${st.energy.length + 1}`));
+    } else if (variant === 'empty') {
+      const keep = (arr: string[]) => arr.filter(n => n === sourceNum);
+      st.hand = keep(st.hand);
+      st.trash = keep(st.trash);
+      st.energy = [];
+      st.deck = st.deck.slice(0, 1);
+    }
+  }
+
   const ctx = {
     ownerState, otherState, cardMap: cardMap as Map<string, CardData>,
     logs: [] as string[], sourceCardNum: sourceNum, triggeringCardNum: sourceNum, currentPhase: 'MAIN',
@@ -363,6 +388,8 @@ type Snapshot = {
   // 上で個別に扱わない PlayerState キー（予約・置換・状態フラグ）＝キー → JSON
   misc: { 自: Map<string, string>; 相: Map<string, string> };
   decks: { 自: string[]; 相: string[] };
+  // 🆕R6-0 ①＝(消滅) の行に「state のどのキーにまだ名前が残っているか」を添えるための生の state
+  raw: { 自: unknown; 相: unknown };
 };
 
 // snapshot が個別に読むキー（これ以外は misc として丸ごと比較する）
@@ -371,6 +398,8 @@ const SNAP_HANDLED_KEYS = new Set([
   'temp_power_mods', 'power_mods_until_opp_turn', 'temp_level_mods', 'keyword_grants', 'keyword_grants_until_opp_turn',
   'blocked_actions', 'blocked_card_names', 'blocked_card_names_game', 'field_keyword_grants_active',
   'lrig_granted_auto_effects', 'granted_effects', 'lrig_abilities_disabled',
+  // 位置として上で追跡する（misc にも出すと同じ移動が2行になる）
+  'excluded', 'facedown_lrig_zone_cards', 'pending_crashed_cards',
 ]);
 
 function snapshot(ctx: ExecCtx): Snapshot {
@@ -408,12 +437,27 @@ function snapshot(ctx: ExecCtx): Snapshot {
     (s.field.assist_lrig_l ?? []).forEach(id => put(id, `${side}アシストL`));
     (s.field.assist_lrig_r ?? []).forEach(id => put(id, `${side}アシストR`));
     put(s.field.check, `${side}チェック`);
+    (s.field.check_rest ?? []).forEach(id => put(id, `${side}チェック`));
     put(s.field.key_piece, `${side}キー`);
+    (s.field.key_piece_extra ?? []).forEach(id => put(id, `${side}キー`));
     (s.field.free_zone ?? []).forEach(id => put(id, `${side}フリー`));
     (s.field.beat_zone ?? []).forEach(id => put(id, `${side}ビート`));
     (s.field.signi_traps ?? []).forEach((id, z) => put(id, `${side}トラップ${z}`));
     (s.field.signi_soul ?? []).forEach((id, z) => put(id, `${side}ソウル${z}`));
     (s.field.puppet_signi ?? []).forEach(id => put(id, `${side}傀儡`));
+    // 🆕R6-0 ①（2026-09-16）＝位置の死角をふさぐ。ここに無い置き場へ動いたカードは差分に「(消滅)」と出て、
+    //   ハーネスの死角と実バグ（`O-524`）が区別できなかった（`round6/vanish_all_cards.txt` の108行）。
+    (s.field.signi_charms ?? []).forEach((id, z) => put(id, `${side}チャーム${z}`));
+    (s.field.signi_acce ?? []).forEach((ids, z) => (ids ?? []).forEach(id => put(id, `${side}アクセ${z}`)));
+    (s.field.signi_facedown_attached ?? []).forEach((ids, z) => (ids ?? []).forEach(id => put(id, `${side}裏向き付け${z}`)));
+    (s.field.signi_magic_boxes ?? []).forEach((id, z) => put(id, `${side}マジックボックス${z}`));
+    (s.field.signi_seeds ?? []).forEach((id, z) => put(id, `${side}シード${z}`));
+    (s.field.facedown_signi ?? []).forEach((id, z) => put(id, `${side}裏向きシグニ${z}`));
+    (s.excluded ?? []).forEach(id => put(id, `${side}除外`));
+    (s.lrig_deck ?? []).forEach(id => put(id, `${side}ルリグデッキ`));
+    (s.facedown_lrig_zone_cards ?? []).forEach(id => put(id, `${side}ルリグゾーン裏向き`));
+    // ライフクロスのクラッシュはバースト処理待ちの控え（`BattleScreen` が手札へ送る）＝ハーネスでは最終位置として扱う。
+    (s.pending_crashed_cards ?? []).forEach(id => { if (!loc.has(id)) put(id, `${side}クラッシュ待ち`); });
     for (const m of (s.temp_power_mods ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
     for (const m of (s.power_mods_until_opp_turn ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
     for (const m of ((s as unknown as { temp_level_mods?: { cardNum: string; delta: number }[] }).temp_level_mods ?? [])) level.set(m.cardNum, (level.get(m.cardNum) ?? 0) + m.delta);
@@ -441,11 +485,29 @@ function snapshot(ctx: ExecCtx): Snapshot {
     loc, power, level, flags, kw, blocked, misc,
     coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins },
     decks: { 自: [...ctx.ownerState.deck], 相: [...ctx.otherState.deck] },
+    raw: { 自: ctx.ownerState, 相: ctx.otherState },
   };
 }
 
 /** 位置ラベルの側（自/相）を判定して owner違いを強調するための小道具 */
 const sideOf = (where: string) => where.startsWith('自') ? '自' : where.startsWith('相') ? '相' : '?';
+
+/**
+ * (消滅) の補足＝位置として追跡していない state のキーに id が残っていれば `［残存: 自.key］` を返す。
+ * ⚠残っているのが**参照**（予約・記録）なのか**置き場**なのかはキー名で読む＝置き場なら snapshot へ足す。
+ */
+function ghostKeys(snap: Snapshot, id: string): string {
+  const hits: string[] = [];
+  for (const side of ['自', '相'] as const) {
+    (function walk(o: unknown, path: string) {
+      if (hits.length > 3) return;
+      if (typeof o === 'string') { if (o === id) hits.push(`${side}.${path}`); return; }
+      if (!o || typeof o !== 'object') return;
+      for (const [k, v] of Object.entries(o)) walk(v, path ? (Array.isArray(o) ? path : `${path}.${k}`) : k);
+    })(snap.raw[side], '');
+  }
+  return hits.length ? `［残存: ${[...new Set(hits)].join(', ')}］` : '';
+}
 
 function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string>): string[] {
   const lines: string[] = [];
@@ -455,7 +517,7 @@ function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string
   const moves: { id: string; from: string; to: string }[] = [];
   for (const id of allIds) {
     const from = before.loc.get(id) ?? '(不在)';
-    const to = after.loc.get(id) ?? '(消滅)';
+    const to = after.loc.get(id) ?? `(消滅)${ghostKeys(after, id)}`;
     // ゾーン内の並び替え（デッキ index 変化）はノイズなので基底ゾーン名で比較
     const base = (w: string) => w.replace(/\[\d+\]/, '').replace(/\((上|下)\)$/, '');
     if (base(from) !== base(to)) moves.push({ id, from, to });
@@ -540,13 +602,13 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx, choices: string[] = []):
         case 'SELECT_TARGET': {
           const cands = (p.candidates as string[]) ?? [];
           const cnt = Math.min((p.count as number) ?? 1, cands.length);
-          choices.push(`対象選択 候補${cands.length}件から${cnt}件: ${cands.slice(0, cnt).map(c => choiceLabels.get(c) ?? c).join(', ')}`);
+          choices.push(`対象選択 候補${cands.length}件[${cands.map(choiceLabel).join(', ')}]から${cnt}件: ${cands.slice(0, cnt).map(choiceLabel).join(', ')}`);
           result = resumeSelectTarget(cands.slice(0, cnt), pending as never, ctx); break;
         }
         case 'SEARCH': {
           const vis = (p.visibleCards as string[]) ?? [];
           const cnt = Math.min((p.maxPick as number) ?? 0, vis.length);
-          choices.push(`探索 見える${vis.length}枚から${cnt}枚: ${vis.slice(0, cnt).map(c => choiceLabels.get(c) ?? c).join(', ')}`);
+          choices.push(`探索 見える${vis.length}枚[${vis.map(choiceLabel).join(', ')}]から${cnt}枚: ${vis.slice(0, cnt).map(choiceLabel).join(', ')}`);
           result = resumeSearch(vis.slice(0, cnt), pending as never, ctx); break;
         }
         case 'CHOOSE': {
@@ -571,7 +633,7 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx, choices: string[] = []):
         case 'REARRANGE_SIGNI': {
           // engine の pending は候補を `signiNums` に積む（`signi`/`cards` だけを見ていたため swap が常に「行わなかった」になっていた）
           const arr = (p.signi as string[]) ?? (p.cards as string[]) ?? (p.signiNums as string[]) ?? [];
-          choices.push(`シグニ配置（${(p.mode as string) ?? 'rearrange'}） 候補: ${arr.map(c => choiceLabels.get(c) ?? c).join(', ')}`);
+          choices.push(`シグニ配置（${(p.mode as string) ?? 'rearrange'}） 候補: ${arr.map(choiceLabel).join(', ')}`);
           result = resumeRearrangeSigni(arr, pending as never, ctx); break;
         }
         default: return { status: 'SKIP', detail: `unhandled pending: ${pending.type}`, result };
@@ -588,6 +650,9 @@ type Trace = { card: string; name: string; effectId: string; type: string; statu
 
 // autopilot の選択ログでカード番号をラベルに読み替えるための現在シナリオのラベル表
 let choiceLabels = new Map<string, string>();
+// 🆕R6-0 ③＝候補は**全部**ラベルつきで出す（先頭から取った分だけでは「候補に原文の条件を満たさないカードが混ざる」が読めない）。
+//   盤面に置いていないカード（ラベル無し）はカード名で出す。
+const choiceLabel = (id: string): string => choiceLabels.get(id) ?? `《${cardMap.get(id)?.CardName ?? id}》`;
 
 // 初期盤面を「ラベル=カード名(属性)」でゾーンごとに1行へ（round6 監査員が条件成立や対象の妥当性を判定するため）
 function describeBoard(ctx: ExecCtx, labels: Map<string, string>): string[] {
@@ -620,13 +685,17 @@ function describeBoard(ctx: ExecCtx, labels: Map<string, string>): string[] {
   return out;
 }
 
-function traceEffect(num: string, eff: CardEffect): Trace {
+function traceEffect(num: string, eff: CardEffect, variant: Variant = 'base'): Trace {
   const name = cardMap.get(num)?.CardName ?? '';
   const type = (eff.effectType as string) ?? '?';
-  const { ctx, labels } = buildScenario(num, eff);
+  const { ctx, labels } = buildScenario(num, eff, variant);
   choiceLabels = labels;
   const board = describeBoard(ctx, labels);
   const before = snapshot(ctx);
+  if (!before.loc.has(num)) {
+    const c = cardMap.get(num);
+    board.unshift(`効果元: 自S源=《${c?.CardName ?? num}》(${c?.Type ?? '?'})＝使用中（どのゾーンにも置いていない）`);
+  }
   const choices: string[] = [];
   const out: { status: string; detail?: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
   try {
@@ -638,6 +707,12 @@ function traceEffect(num: string, eff: CardEffect): Trace {
     const after = snapshot(afterCtx);
     out.diff = diffBoard(before, after, labels);
     out.logs = ap.result.logs.slice();
+    // 敗北は engine が「ライフクロスを0にする」で表す（`STUB{DEFEAT}`）＝消えたライフを1行に畳む。
+    //   畳まないと不変条件「カードが消えない」（R6-1 I1）が敗北のたびに鳴る。
+    if (out.logs.some(l => /敗北（ライフクロス0）/.test(l))) {
+      const lifeGone = out.diff.filter(l => /ライフ\d*: .+ライフ → \(消滅\)$/.test(l.trim()));
+      if (lifeGone.length) out.diff = [...out.diff.filter(l => !lifeGone.includes(l)), `  ライフクロス${lifeGone.length}枚を除去（敗北の表現）`];
+    }
   } catch (e) {
     out.status = 'CRASH'; out.logs = [(e as Error).message];
   }
@@ -679,18 +754,31 @@ if (JSON_OUT) {
   for (const num of ONLY_IDS ?? (ONLY_ID ? [ONLY_ID] : [])) {
     const card = cardMap.get(num);
     const effs = (effectsMap.get(num) ?? []).filter(e => e.effectType !== 'CONTINUOUS');
-    const traces = effs.map(eff => {
+    const view = (t: Trace) => ({ status: t.status, detail: t.detail, choices: t.choices, diff: t.diff.map(l => l.trim()), logs: t.logs });
+    const runVariant = (eff: CardEffect, v: Variant) => {
       CHOICE_MODE = 'decline';
-      const d = traceEffect(num, eff);
+      const d = traceEffect(num, eff, v);
       CHOICE_MODE = 'accept';
-      const a = traceEffect(num, eff);
-      const view = (t: Trace) => ({ status: t.status, detail: t.detail, choices: t.choices, diff: t.diff.map(l => l.trim()), logs: t.logs });
+      const a = traceEffect(num, eff, v);
       const same = JSON.stringify(view(d)) === JSON.stringify(view(a));
+      return { board: d.board, runs: same ? { both: view(d) } : { decline: view(d), accept: view(a) } };
+    };
+    const traces = effs.map(eff => {
+      const base = runVariant(eff, 'base');
+      // 変種は**実行結果が基本と違うときだけ**載せる（同じなら監査員に読ませる情報が無い）。
+      //   ⚠盤面が違うので choices/diff のラベル表記は揃う（同じラベル体系）＝runs の JSON 比較で足りる。
+      const variants: Record<string, unknown> = {};
+      for (const v of VARIANTS) {
+        if (v === 'base') continue;
+        const r = runVariant(eff, v);
+        if (JSON.stringify(r.runs) !== JSON.stringify(base.runs)) variants[v] = { label: VARIANT_LABEL[v], ...r };
+      }
       return {
         effectId: eff.effectId, effectType: eff.effectType,
         abilityText: abilityBlockTextOf(card, eff.effectId as string).trim(),
-        board: d.board,
-        runs: same ? { both: view(d) } : { decline: view(d), accept: view(a) },
+        board: base.board,
+        runs: base.runs,
+        ...(Object.keys(variants).length ? { variants } : {}),
       };
     });
     cards.push({ cardNum: num, traces });

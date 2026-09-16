@@ -2386,38 +2386,41 @@ export function execStubPart2(
     const sOTTOSU = ctx.otherState;
     if (sOTTOSU.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
     const topTrashOTTOSU = sOTTOSU.trash.at(-1)!;
-    // トラッシュからカードを取り出し、lastProcessedCardsに保持
-    const newTrashOTTOSU = sOTTOSU.trash.slice(0, -1);
-    const ctx1OTTBSU = { ...ctx, otherState: { ...sOTTOSU, trash: newTrashOTTOSU }, lastProcessedCards: [topTrashOTTOSU] };
     const oppZonesOTTOSU = [0, 1, 2].filter(zi => sOTTOSU.field.signi[zi]?.at(-1));
-    // シグニ不在の場合はトラッシュ除去前の ctx を返す（ctx1OTTBSU を返すとカードが消失する）
     if (oppZonesOTTOSU.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
-    if (oppZonesOTTOSU.length === 1) {
-      // 1体のみ → 自動決定
-      return exec({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: oppZonesOTTOSU[0] } as StubAction as EffectAction, ctx1OTTBSU);
-    }
+    // 🔴R6-0（2026-09-16）＝**置くカードは選択肢の action に焼き込み（`value`）、トラッシュから抜くのはゾーン確定後**。
+    //   旧実装は先にトラッシュから抜いて `lastProcessedCards` で運んでいたが、対話（CHOOSE）をまたぐと
+    //   `BattleScreen` は `lastProcessedCards` を引き継がない＝相手のシグニが2体以上いるとカードが消えていた（`WXK11-069-E2`）。
+    //   `INTERNAL_PICK_TO_TRAP` と同じ規約（`value`＝カード／`count`＝ゾーン）。
+    const placeAt = (zi: number) => ({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: topTrashOTTOSU, count: zi } as StubAction as EffectAction);
+    if (oppZonesOTTOSU.length === 1) return exec(placeAt(oppZonesOTTOSU[0]), ctx);
     // 複数シグニ → ゾーン選択（オーナー側が選ぶ）
     const zoneOptsOTTOSU = oppZonesOTTOSU.map(zi => ({
       id: `ottbsu_zone_${zi}`,
       label: `ゾーン${zi + 1}のシグニの下に置く`,
-      action: ({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: zi } as StubAction) as EffectAction,
+      action: placeAt(zi),
       available: true,
     }));
-    return needsInteraction(addLog(ctx1OTTBSU, `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}：どのシグニの下に置く？`), {
+    return needsInteraction(addLog(ctx, `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}：どのシグニの下に置く？`), {
       type: 'CHOOSE', options: zoneOptsOTTOSU, count: 1,
     });
   }
-  // INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=ゾーン番号、lastProcessedCards[0]=置くカード
+  // INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=置くカード、stub.count=ゾーン番号
   if (stub.id === 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE') {
-    const zoneIdxOTUSZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
-    const cardToPlaceOTUSZ = ctx.lastProcessedCards?.[0] ?? null;
+    const zoneIdxOTUSZ = typeof stub.count === 'number' ? stub.count : 0;
+    const cardToPlaceOTUSZ = typeof stub.value === 'string' ? stub.value : null;
     if (!cardToPlaceOTUSZ) return done(addLog(ctx, 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: カードなし'));
+    if (!ctx.otherState.trash.includes(cardToPlaceOTUSZ)) return done(addLog(ctx, '相手トラッシュに置くカードがない'));
     const newSigniOTUSZ = ctx.otherState.field.signi.map((stack, i) => {
       if (i !== zoneIdxOTUSZ) return stack;
       return [cardToPlaceOTUSZ, ...(stack ?? [])];
     }) as (string[] | null)[];
-    const newOtherOTUSZ = { ...ctx.otherState, field: { ...ctx.otherState.field, signi: newSigniOTUSZ } };
-    return done(addLog({ ...ctx, otherState: newOtherOTUSZ },
+    const newOtherOTUSZ = {
+      ...ctx.otherState,
+      trash: ctx.otherState.trash.filter(n => n !== cardToPlaceOTUSZ),
+      field: { ...ctx.otherState.field, signi: newSigniOTUSZ },
+    };
+    return done(addLog({ ...ctx, otherState: newOtherOTUSZ, lastProcessedCards: [cardToPlaceOTUSZ] },
       `${ctx.cardMap.get(cardToPlaceOTUSZ)?.CardName ?? cardToPlaceOTUSZ}→相手ゾーン${zoneIdxOTUSZ + 1}のシグニ下へ`));
   }
   // === バッチ18: エンジン必須系 ===
@@ -2807,9 +2810,11 @@ export function execStubPart2(
     // デッキ上から公開カードを取得
     const topCardsPTFR = ctx.ownerState.deck.slice(0, revealCountPTFR);
     if (topCardsPTFR.length === 0) return done(addLog(ctx, 'PLACE_TRAP_FROM_REVEALED: デッキなし'));
-    // 公開カードをデッキから除去した状態でSEARCHを提示
-    const deckWithoutPTFR = ctx.ownerState.deck.slice(revealCountPTFR);
-    const ctxPTFR = { ...ctx, ownerState: { ...ctx.ownerState, deck: deckWithoutPTFR } };
+    // 🔴R6-0（2026-09-16）＝**公開カードはデッキに残したまま** SEARCH を出す。
+    //   旧実装はここでデッキから抜いていたが、`resumeSearch` の `restDest` は**デッキに居る残り札**しか動かさない
+    //   ＝選ばなかった2〜3枚がデッキ下へ行かず**どこにも無くなっていた**（`WX16-061-E1`／`WX17-029-E1`／`WXEX2-15-E1`）。
+    //   選んだ1枚は `INTERNAL_PICK_TO_TRAP` がデッキから抜く。
+    const ctxPTFR = ctx;
     const noopPTFR: SequenceAction = { type: 'SEQUENCE', steps: [] };
     const contPTFR: StubAction = { type: 'STUB', id: 'INTERNAL_PTFR_CHOOSE_ZONE' };
     return needsInteraction(

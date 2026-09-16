@@ -85286,6 +85286,54 @@ test('§5.3 O-526: デッキの一番下を削る MILL はログも「一番下�
   ok(r2.logs.some(l => l.includes('デッキ上から1枚をトラッシュに置いた')), '上から削る形は従来の文言');
 });
 
+// ═══ §5.2 round6 R6-0（2026-09-16）＝ハーネスの死角をふさいだら出た engine の「カードが消える」2件 ═══
+// 🔑**実画面の再開経路を真似る**＝`BattleScreen` は対話をまたぐとき `lastProcessedCards` を ctx に戻さない
+//   （`storedTargetCards` だけ戻す）。golden の `finish` は戻すので、これを使うと修正前でも緑になる。
+function finishLikeBattleScreen(initial: ExecResult, ctx: ExecCtx): ExecResult {
+  let result = initial;
+  for (let steps = 0; !result.done; steps++) {
+    if (steps > 20) throw new Error('hang');
+    const pending = (result as { pending: PendingInteractionDef }).pending as PendingInteractionDef & Record<string, unknown>;
+    const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards };
+    if (pending.type === 'CHOOSE') result = resumeChoose((pending.options as { id: string }[])[0].id, pending as never, c);
+    else if (pending.type === 'SEARCH') result = resumeSearch(((pending.visibleCards as string[]) ?? []).slice(0, 1), pending as never, c);
+    else throw new Error(`unhandled ${pending.type}`);
+  }
+  return result;
+}
+
+test('R6-0: デッキ上N枚からトラップを設置すると、残りはデッキの一番下へ行く（消えない）', () => withSavedCursor(() => {
+  // 🔴旧 `PLACE_TRAP_FROM_REVEALED` は公開札を先にデッキから抜き、`resumeSearch` の `restDest` は
+  //   デッキに居る残り札しか動かさない＝選ばなかった2枚がどこにも無くなっていた（`WX16-061-E1` ほか3効果）。
+  const ctx = mkCtx({}, {});
+  const top3 = ctx.ownerState.deck.slice(0, 3);
+  const deckLen = ctx.ownerState.deck.length;
+  const r = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED', placeTrapReveal: { revealCount: 3 } } } as unknown as CardEffect, ctx), ctx);
+  const st = r.ownerState as PlayerState;
+  eq((st.field.signi_traps ?? []).filter(Boolean).join(), top3[0], '選んだ1枚がトラップになる');
+  eq(st.deck.length, deckLen - 1, '🔴デッキから消えたのは設置した1枚だけ');
+  eq(st.deck.slice(-2).join(), top3.slice(1).join(), '🔴残り2枚はデッキの一番下');
+}));
+
+test('R6-0: 相手トラッシュのカードを相手シグニの下に置く（シグニ2体＝ゾーン選択をまたいでも消えない）', () => withSavedCursor(() => {
+  // 🔴旧実装は先にトラッシュから抜いて `lastProcessedCards` で運び、CHOOSE をまたぐと実画面では失われていた（`WXK11-069-E2`）。
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
+  const top = ctx.otherState.trash.at(-1)!;
+  const trashLen = ctx.otherState.trash.length;
+  const r = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'OPP_TRASH_TO_OPP_SIGNI_UNDER' } } as unknown as CardEffect, ctx), ctx);
+  const st = r.otherState as PlayerState;
+  eq(st.trash.length, trashLen - 1, 'トラッシュから1枚減る');
+  ok(st.field.signi.some(z => (z ?? []).slice(0, -1).includes(top)), '🔴トラッシュから抜いたカードがシグニの下に無い（消えた）');
+  // 反転＝シグニが居なければトラッシュから動かさない
+  const ctx0 = mkCtx({}, {});
+  const r0 = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'OPP_TRASH_TO_OPP_SIGNI_UNDER' } } as unknown as CardEffect, ctx0), ctx0);
+  eq((r0.otherState as PlayerState).trash.length, trashLen, 'シグニ不在ならトラッシュは不変');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
