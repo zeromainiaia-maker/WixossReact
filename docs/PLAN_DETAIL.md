@@ -1,5 +1,63 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-16 第375バッチ：`semantic_bug_deferred.txt` の `MECH` 40件を棚卸し（→ 🆕`O-522` 1件だけが生き残り）
+
+**結論＝40行のうち 39行は「待っていた機構がもう在る」＝決着済み。残り1行だけが本物。**
+
+### 登録票 🆕`O-522` — 「次にクラッシュされるライフのバーストだけ不発」の1回だけの印が無い（**2効果**）
+
+- **母集団（実測）＝2効果**
+  - `WXEX1-72-E2`＝「【出】：このターン、**次にクラッシュされる**対戦相手のライフクロスの一番上のカードのライフバーストは発動しない。」
+  - `WX25-P3-032-E2`＝「【起】《ゲーム１回》ルミナス《黒×0》：このターン、**次にアタックによって**対戦相手のライフクロスの一番上のカードがクラッシュされる場合、…」
+  - 測り方＝`SUPPRESS_LIFE_BURST_ON_CARD` を使う live 5効果のうち、**原文に「次に」がある2件**（残り3件は「このターン全体」で正しい）。
+- 🔴**真因**＝`suppress_life_burst` は **ターンフラグ**で、`true` を立てると
+  `lifeBurstSuppressedByTurnFlag`（`src/screens/battle/lifeBurstSuppress.ts:28`）が **`flag === true` で即 `return true`**＝
+  **そのターンにクラッシュされる全部のライフのバーストを止める**。消えるのは**ターン終了時だけ**
+  （`BattleScreen.tsx:4387` の `clearTurnEndScopedState`）。⇒ **同じターンに2枚以上割れると2枚目以降も不発になる**（過剰実行）。
+- 🔑**受け皿は隣に在る**＝同じ `clearTurnEndScopedState` の数行上に
+  **`banish_redirect_once_source_nums`（「次に1回だけ」の印）** という先例がある（`BattleScreen.tsx:4380`）。
+  ⇒ **新しい機構ではなく、既存の「once」イディオムを `suppress_life_burst` にも与えるだけ。**
+- **取り方（速いレーン）**＝①`PlayerState.suppress_life_burst` の型（`src/types/index.ts:880`＝
+  `boolean | TargetFilter`）に **`'once'` を足す**か、別キー `suppress_life_burst_once` を立てる
+  ②`lifeBurstSuppressedByTurnFlag` が **`once` を消費したら false へ倒す**（＝呼び出し側で state を書き戻す）
+  ③parser/manual の2効果を `once` 側へ刻む ④golden に**2枚クラッシュの両方向**（1枚目は不発・2枚目は発動）を1本。
+- ⚠🔴**反転側が本体**＝「1枚目が止まる」だけでは**旧実装（全部止める）と区別が付かない**。
+  **2枚目が発動することまで assert する**（§2.2 の「帰結の数値まで assert」）。
+- ⚠**`WX25-P3-032-E2` は `CRASH_TO_TRASH_INSTEAD` と同居**しているので、置換とバースト抑制の**順序**も一緒に見る。
+
+### 🏁決着した39行（＝待っていた機構がもう在る）
+
+**確かめ方は3つだけ**＝①`DEFERRED_*` の STUB id が**普通の id に変わっているか** ②**兄弟効果（`-E1b`/`-E2`）が生えているか**
+③payload キー（`whileSourceInField` など）が**足されているか**。
+
+- **`DEFERRED_` が外れていた**＝`SP26-002-E1`（`SUPPRESS_OPP_SIGNI_TRIGGERS_THIS_TURN`・`O-337`）／
+  `WX09-032-E1`（`ENERGY_COST_SUBSTITUTE_WHOLE`・`O-338`）。
+- 🔑**兄弟効果として実装されていた**（登録票が本体 `-E1` しか見ていなかった）＝
+  `WXK03-011-E1b`（`PREVENT_NON_FIELD_MOVE_BY_OPP`＝zones に `deck`/`trash`/`life`/`lrig_deck`/`lrig_trash`・`O-311`/`O-335`）／
+  **`WX25-P3-057-E1c`（`PREVENT_ATTACK_NEGATION_BY_OPP`・`O-334`）**／`WXDi-P05-086-E2`（`TREAT_AS_LEVEL1_IN_DECK_TRASH`・`O-320`）／
+  `PR-K060-E1`（`SELF_PLAY_RESTRICT`＋`ENERGY_COUNT_FILTER{distinctColor}`・`O-290`）／
+  `WXK10-015-E1`（`SELF_PLACE_COIN_COST{coinCost:0}`・`O-290` 同族）。
+  ⚠**`O-334` の登録票には「2つ目は未実装」と書いてあったが、`-E1c` として実装済みだった**（登録票が stale）。
+- **payload が足されていた**＝`WXDi-P13-004B-E3`（`whileSourceInField`・`O-340`）／`WXDi-P16-002-E1`（`zones` に `deck`・`O-335`）／
+  `PR-469-E3`（`CHOOSE.noRepeat`・`O-305`）／`WX24-P2-050-E1`（`usageLimit:'once_per_turn_on_success'`・`O-323`）／
+  `WXDi-P13-085-E1`（`milledSourceFilter{isDisona}`・`O-321`）／`WXDi-CP02-009-E1`（`ENERGY_PLACED_THIS_TURN`・`O-321`）／
+  `WXDi-P11-046-E2`（`ARTS_USED_THIS_TURN{filter:ピース}`・`O-321`）／`WXDi-P14-040-E1`（`HAS_CARD_IN_FIELD{isFrozen,includeLrigs,minCount:3}`・`O-319`）／
+  `WXDi-D02-19LAT-E1`（`LRIG_LEVEL{allFieldLrigs}`・`O-319`）／`WXDi-P06-032-E1`（`filter.levelLteZoneCount`・`O-304`）／
+  `WXDi-P16-074-E2`（`banishedFromGateZone`・`O-297`）／`WXDi-CP01-006-E2`・`WXDi-CP01-008-E2`（`cost.collab`・`O-292`）ほか。
+
+### 🔑この回いちばん効いた実測＝「アシストが外れる」は**そのアシストが実在するか**を数える
+
+`WXDi-P06-002-E1` ほか**6効果**が「あなたの**レベル３のルリグ**１体を対象とし」なのに
+`GRANT_LRIG_ABILITY`（＝プレイヤー単位＝センター固定）で、**`O-465` と同じ「対象指定が無い」形に見えた**。
+🔴**しかし実測＝アシストルリグは全340枚がレベル1(118)かレベル2(222)で、レベル3は0枚。**
+⇒ 「レベル３のルリグ」は**必ずセンター**なので**盤面差が無い**（`O-412`/`O-490` と同じ近似）＝**登録しない**。
+🔑**教訓＝「限定が落ちている」型の finding は、その限定に当たるカードが実在するかをカードプールで数えてから登録する。**
+（数えずに登録していたら、**6効果の偽の worklist** を作っていた。）
+
+### 検証
+
+`npm run gates` 全緑（`src/` は無変更＝この回は棚卸しと登録だけ）。✅実機は §2.2 で不要。
+
 ## 2026-09-16 第373バッチ：実機 `V-232`〜`V-234` を全件返済（§5.1 🏁0）
 
 - **消化**＝`V-232`（`O-390`）／`V-233`（`O-483`）／`V-234`（`O-484`）＝**7シナリオ全 PASS**。
