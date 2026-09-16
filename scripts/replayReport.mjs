@@ -1,7 +1,8 @@
 // バグ報告の triage / 再現（§5.6 `C-0`・2026-09-16）。
 //
 // 使い方:
-//   node scripts/replayReport.mjs <report.json>            # ① triage ビュー（読むだけ・既定）
+//   node scripts/replayReport.mjs                          # ⓪ 溜まった報告を1画面で一覧＋同症状を束ねる
+//   node scripts/replayReport.mjs <report.json>            # ① triage ビュー（読むだけ）
 //   node scripts/replayReport.mjs <report.json> --logs 50  # ログをN件表示
 //   node scripts/replayReport.mjs <report.json> --inject    # ② claude1 の PLAYING ルームへ復元
 //
@@ -14,14 +15,67 @@
 //   復元先は claude1 のルーム。`active_user_id` と `pending_effect.sourcePlayerId` /
 //   `respondPlayerId` も同じ ID を指すので、**行全体を再帰的に張り替える**（1箇所でも漏れると
 //   「自分の番なのに応答できない」偽のソフトロックを自分で作る）。
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
+const REPORT_DIR = 'scratchpad-reports';
 const args = process.argv.slice(2);
-const file = args.find(a => !a.startsWith('--'));
-if (!file) { console.error('使い方: node scripts/replayReport.mjs <report.json> [--logs N] [--inject]'); process.exit(1); }
 const argVal = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const LOG_N = argVal('--logs') ? parseInt(argVal('--logs'), 10) : 20;
 const INJECT = args.includes('--inject');
+const file = args.find(a => !a.startsWith('--'));
+
+// ── 引数なし＝**溜まった報告を1画面で見る**（§5.6・2026-09-17）────────────────
+// 🔴**なぜ要るか**＝実測で 1件 ≒ 20KB。6件を1件ずつ開くと出力が6倍になり、
+//   「どれから取るか」を決める前に読む量が増える。**先に束ねて、取るものを1つ選ぶ**。
+if (!file) {
+  if (!existsSync(REPORT_DIR)) {
+    console.error(`使い方: node scripts/replayReport.mjs [<report.json>] [--logs N] [--inject]`);
+    console.error(`  引数なし＝${REPORT_DIR}/ の全報告をまとめて一覧（まず npm run reports で取り込む）`);
+    process.exit(1);
+  }
+  const files = readdirSync(REPORT_DIR).filter(f => f.endsWith('.json')).sort();
+  if (files.length === 0) { console.log(`${REPORT_DIR}/ は空です（npm run reports で取り込んでください）`); process.exit(0); }
+  const items = files.map(f => {
+    const r = JSON.parse(readFileSync(join(REPORT_DIR, f), 'utf-8'));
+    const at = r.snapshot?.at ?? {};
+    const logs = r.snapshot?.row?.game_logs ?? [];
+    return { f, r, at, lastLog: [logs.at(-1)?.action, logs.at(-1)?.detail].filter(Boolean).join(' ') };
+  });
+  console.log(`
+=== 溜まっている報告 ${items.length}件（${REPORT_DIR}/）===
+`);
+  for (const it of items) {
+    const a = it.at;
+    console.log(`[${it.r.tag}] ${it.r.comment ?? '（コメントなし）'}`);
+    console.log(`   T${a.turn_count ?? '?'} ${a.turn_phase ?? '?'}`
+      + ` 手番=${a.isMyTurn ? '自分' : '相手'} 対話=${a.pendingInteraction ?? 'なし'}`
+      + ` stack=${a.stackLen ?? '?'} life=${a.life?.me ?? '?'}-${a.life?.opp ?? '?'}`
+      + `  ${it.f}`);
+    if (it.lastLog) console.log(`   最後のログ: ${it.lastLog.slice(0, 90)}`);
+  }
+  // 🔑**束ねる**＝同じ症状を何度も報告されることは普通なので、**取る単位は「束」**にする。
+  //   キー＝タグ × フェイズ × 開いている対話 × 最後のログ（同じ壊れ方なら一致しやすい）。
+  const groups = new Map();
+  for (const it of items) {
+    const k = `${it.r.tag}|${it.at.turn_phase ?? '?'}|${it.at.pendingInteraction ?? '-'}|${it.lastLog.slice(0, 40)}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  }
+  const dup = [...groups.values()].filter(g => g.length > 1);
+  if (dup.length) {
+    console.log(`
+── 同じ症状らしい束（${dup.length}組）──`);
+    for (const g of dup) {
+      console.log(`  ×${g.length}  [${g[0].r.tag}] ${g[0].at.turn_phase} / ${g[0].lastLog.slice(0, 60)}`);
+      console.log(`        代表: ${g[0].f}`);
+    }
+    console.log('  ⚠束は「同じバグ」の保証ではない（キーが一致しただけ）＝代表1件を読んで確かめる。');
+  }
+  console.log(`
+1件を詳しく: node scripts/replayReport.mjs ${join(REPORT_DIR, items[0].f)}`);
+  process.exit(0);
+}
 
 const report = JSON.parse(readFileSync(file, 'utf-8'));
 const row = report.snapshot?.row;

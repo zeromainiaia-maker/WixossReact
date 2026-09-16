@@ -113,12 +113,22 @@ const short = (s, n) => (s ?? '').length > n ? (s.slice(0, n) + '…') : (s ?? '
   // ⚠消化印は**取り込めた行だけ**に書く（他ユーザー分も含む＝取り込み用アカウントの役目）。
   const ids = rows.filter(x => x.status === 'OPEN').map(x => x.id);
   if (ids.length === 0) { console.log('\nOPEN は無かったので消化印は書きません。'); return; }
-  const inList = `(${ids.map(id => `"${id}"`).join(',')})`;
-  const up = await fetch(`${BASE}/rest/v1/bug_reports?id=in.${encodeURIComponent(inList)}`, {
-    method: 'PATCH', headers: { ...h, Prefer: 'return=representation' },
-    body: JSON.stringify({ status: 'TRIAGED' }),
-  });
-  if (!up.ok) { console.error('\n⚠消化印の書き込みに失敗（次回も同じ報告が出ます）:', up.status, (await up.text()).slice(0, 300)); process.exit(1); }
-  console.log(`\n${(await up.json()).length}件を OPEN → TRIAGED にしました。`);
-  console.log(`次の一手＝ node scripts/replayReport.mjs ${written[0]}`);
+  // ⚠**id を一度に並べすぎない**＝`id=in.(...)` は URL に載るので、件数が増えると URL 長の上限に当たる
+  //   （uuid 1つ ≒ 39文字）。**50件ずつに割る**＝報告が溜まった日でも消化印が書けなくならない。
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const inList = `(${chunk.map(id => `"${id}"`).join(',')})`;
+    const up = await fetch(`${BASE}/rest/v1/bug_reports?id=in.${encodeURIComponent(inList)}`, {
+      method: 'PATCH', headers: { ...h, Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'TRIAGED' }),
+    });
+    if (!up.ok) { console.error('\n⚠消化印の書き込みに失敗（次回も同じ報告が出ます）:', up.status, (await up.text()).slice(0, 300)); process.exit(1); }
+    updated += (await up.json()).length;
+  }
+  console.log(`\n${updated}件を OPEN → TRIAGED にしました。`);
+  // 🔑**複数件なら先に一覧**＝1件ずつ開くと出力が件数倍になる（1件 ≒ 20KB）。
+  console.log(written.length > 1
+    ? `次の一手＝ node scripts/replayReport.mjs   （${written.length}件を1画面で一覧＋同症状を束ねる）`
+    : `次の一手＝ node scripts/replayReport.mjs ${written[0]}`);
 })();
