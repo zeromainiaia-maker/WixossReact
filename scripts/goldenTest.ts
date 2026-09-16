@@ -99,6 +99,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../sr
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
+import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/screens/battle/bugReport';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
@@ -85576,6 +85577,72 @@ test('§5.6 C-1: 乱数の seam（既定は Math.random／seed で決定論／�
     `🔴seam（src/engine/rng.ts）を迂回する Math.random が増えた＝そこだけ再現できない: ${offenders.join(' / ')}`);
   eq(biased.length, 0,
     `🔴sort(() => random - 0.5) は一様シャッフルではない（engine/rng.ts の shuffle を使う）: ${biased.join(' / ')}`);
+}));
+
+test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
+  // 🔑報告は「遊んで見つけた型」を拾う唯一の導線＝**中身が欠けているとその報告は死ぬ**
+  //   （再現できない＝golden に落とせない）。組み立てを純関数にして、ここで欠落を止める。
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const mkRow = (over: Record<string, unknown> = {}) => ({
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST,
+    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'MAIN',
+    active_user_id: HOST, turn_count: 5,
+    host_state: { ...mkState({ life: 3 }) }, guest_state: { ...mkState({ life: 6 }) },
+    game_logs: Array.from({ length: 120 }, (_, i) => ({ action: `log${i}` })),
+    updated_at: '', host_lrig_selected: null, guest_lrig_selected: null,
+    host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
+    first_player_id: HOST, pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: false, ...over,
+  }) as unknown as import('../src/types').BattleStateRow;
+
+  // ① `snapshot.row` は `battle_states` の行そのまま＝再現側が変換なしで流し込める。
+  const r1 = buildBugReport({ bs: mkRow(), myUserId: HOST, tag: 'stuck', comment: ' 押せない ', appVersion: 'v1+abc' });
+  eq(r1.room_id, 'room-1', 'room_id が載っていない');
+  eq(r1.tag, 'stuck', 'タグが載っていない');
+  eq(r1.comment, '押せない', 'コメントの前後空白が落ちていない');
+  eq(r1.app_version, 'v1+abc', 'ビルドIDが載っていない＝どのビルドの話か分からない');
+  for (const k of ['host_state', 'guest_state', 'effect_stack', 'pending_effect', 'pending_spell',
+                   'turn_phase', 'active_user_id', 'turn_count', 'host_id', 'guest_id']) {
+    ok(k in (r1.snapshot.row as unknown as Record<string, unknown>), `🔴再現に要る ${k} が snapshot.row から落ちている`);
+  }
+  // ② ログは末尾 N 件だけ（行の肥大を防ぐ）。⚠**0件にしない**＝経路が追えなくなる。
+  eq(r1.snapshot.row.game_logs.length, REPORT_LOG_TAIL, 'ログの間引き件数が違う');
+  eq((r1.snapshot.row.game_logs.at(-1) as { action: string }).action, 'log119', '🔴先頭を残している＝直前の経路が落ちる');
+  // ③ 空コメントは null（「書いていない」と「空を書いた」を混ぜない）
+  eq(buildBugReport({ bs: mkRow(), myUserId: HOST, tag: 'other', comment: '   ', appVersion: 'v' }).comment, null,
+    '空コメントが null になっていない');
+
+  // ④🔴**視点が反転しない**＝報告者が host でも guest でも `life.me` は自分側。
+  const rHost = buildBugReport({ bs: mkRow(), myUserId: HOST, tag: 'other', comment: '', appVersion: 'v' });
+  const rGuest = buildBugReport({ bs: mkRow(), myUserId: GUEST, tag: 'other', comment: '', appVersion: 'v' });
+  eq(rHost.snapshot.at.life.me, 3, 'host 視点の自ライフが違う');
+  eq(rGuest.snapshot.at.life.me, 6, '🔴guest 視点で自分と相手のライフが入れ替わっている');
+  eq(rHost.snapshot.at.isMyTurn, true, 'host の手番判定が違う');
+  eq(rGuest.snapshot.at.isMyTurn, false, '🔴guest 視点の手番判定が反転している');
+
+  // ⑤🔴**応答者は `respondPlayerId`（省略時は効果オーナー）**＝「相手に選ばせる」形があるのでここを見る。
+  //   これを間違えると「自分が答える番なのに答えられない」という最重要の型を取り違える。
+  const pe = (over: Record<string, unknown>) => ({
+    sourcePlayerId: HOST, sourceCardNum: 'X', effectId: 'X-E1',
+    interaction: { type: 'SELECT_TARGET', candidates: [], count: 1, optional: false }, ...over,
+  });
+  const own = buildBugReport({ bs: mkRow({ pending_effect: pe({}) }), myUserId: HOST, tag: 'stuck', comment: '', appVersion: 'v' });
+  eq(own.snapshot.at.pendingInteraction, 'SELECT_TARGET', '対話の種類が載っていない');
+  eq(own.snapshot.at.pendingIsMine, true, '効果オーナー＝応答者のはず');
+  const opp = buildBugReport({ bs: mkRow({ pending_effect: pe({ respondPlayerId: GUEST }) }), myUserId: HOST, tag: 'stuck', comment: '', appVersion: 'v' });
+  eq(opp.snapshot.at.pendingIsMine, false, '🔴respondPlayerId を見ていない＝「相手に選ばせる」形を取り違える');
+  eq(buildBugReport({ bs: mkRow(), myUserId: HOST, tag: 'other', comment: '', appVersion: 'v' }).snapshot.at.pendingIsMine, null,
+    '対話が無いときは null（false と混ぜない）');
+
+  // ⑥ スタック残数は `verifyBattleDrive.mjs` の queryState と同じ数え方
+  eq(stackLenOf(null), 0, 'スタック無しは 0');
+  eq(stackLenOf({ orderTurnDone: true, orderOppDone: true, queue: [1, 2] } as never), 2, '整列後は queue 長');
+  eq(stackLenOf({ orderTurnDone: false, orderOppDone: false, pendingTurn: [1], pendingOpp: [2, 3] } as never), 3,
+    '未整列は pendingTurn+pendingOpp');
+
+  // ⑦ タグは重複なく、UI が5択で出せる形
+  eq(new Set(BUG_TAGS.map(t => t.id)).size, BUG_TAGS.length, 'タグIDが重複している');
+  ok(BUG_TAGS.every(t => t.label.length > 0), 'タグのラベルが空');
 }));
 
 if (listMode) {

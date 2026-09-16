@@ -19,9 +19,9 @@
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **バグ報告ボタン3点セット**（`EndConfirmModal` 内の報告ボタン → `scripts/fetchReports.mjs` → `snapshot` を `injectScenario` へ変換）⇒ そのあと §5.6 `C-2`（CPU のガード判定）／`C-3`（機構踏破計器） |
+| 🔥**次に取るもの** | **§5.6 `C-2`（CPU のガード判定）**＝CPU が絶対にガードしないのが試合が8ターンで終わる主因。次いで `C-3`（機構踏破計器） |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**（`census:cards -- --sheet 1` で測り直す）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-1` 済） |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-0`/`C-1` 済） |
 | 🔧**ゲート** | `npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72） |
 
 ---
@@ -218,7 +218,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-237`＝`distinctlevelshortpick`＝2026-09-16 第385バッチで PASS 確認済み。`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-238`＝`bugreport`＝2026-09-16 第387バッチで PASS。報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -407,6 +407,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 | ID | 機構 | 規模 | なぜこの順か |
 |---|---|---|---|
+| 🏁`C-0` | ~~バグ報告の導線~~ | S | **2026-09-16 クローズ**＝`EndConfirmModal`（`zIndex 9999`・最前面）に「🐛 バグを報告（対戦は続きます）」＋タグ5択＋任意コメント。`bug_reports` へ保存 → `npm run reports` で取り込み → `replayReport.mjs` で triage／注入。実機 `V-238` |
 | 🏁`C-1` | ~~乱数の seed 化~~ | S | **2026-09-16 クローズ**＝`src/engine/rng.ts` が唯一の seam。11箇所を集約＋偏る sort シャッフル4箇所を解消。ラチェットは golden `§5.6 C-1`（`src/` を走査して増えたら FAIL） |
 | `C-2` | **ガード判定**（するか／何で受けるか） | S〜M | 試合長の主因。実行は `handleGuardResponse`（人間と共通）が既にあるので、要るのは**判定だけ** |
 | `C-3` | **機構踏破計器**（`census:play`） | S | 1戦ごとに「どの機構を何回踏んだか」を出す。**§5.6 の唯一の進捗指標** |
@@ -431,6 +432,16 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 - 🏁**止め時**＝①**機構踏破表が全機構 ≥1回**（機械判定）かつ ②**連続3バッチで新しい型0**（§2.6 と同じ規約）。
   ⚠**「CPU が強くなったら」を止め時にしない**＝目的は発見であって AI の強さではない。
 
+#### 5.6.4b 報告の流れ（🏁`C-0`・2026-09-16 完了）
+
+1. **アプリ**＝右上「終了」（`SystemOverlays`・`zIndex 9998`・「エラーで画面が固まっても操作できる」）→ 確認ダイアログ（`zIndex 9999`）
+   → **「🐛 バグを報告（対戦は続きます）」** → タグ5択（進まない／出ない／起きるはずがない／順番／その他）＋任意コメント → 送信 → **対戦に戻る**。
+   🔑**報告しても終了しない**＝終了に同居させると「変だったけど続けられる」型が報告されなくなる。
+2. **取り込み**＝`npm run reports`（`--list` は下見・`--keep-open` は消化印を書かない）→ `scratchpad-reports/` に落として `OPEN → TRIAGED`。
+3. **triage**＝`node scripts/replayReport.mjs <file>`＝局面・開いている対話・ログ末尾を出す。
+   **実機で見たい**＝`--inject`＝claude1 の PLAYING ルームへ**全行復元**（ID は再帰的に張り替える）。
+   🔴**`injectScenario` は使わない**＝あちらはシナリオ汚染対策で**一時状態を全部消す**が、報告の再現で欲しいのは真逆。
+
 #### 5.6.5 デッキ（ユーザー担当・2026-09-16 決定）
 
 - **CPU のデッキはアプリ内で作れる**（既存の `MatchmakingScreen` の `CPU_DECK_SELECT` ステップ＝`decks` テーブルから選ぶ）。条件は `validDecks` の2つだけ＝**メイン40枚**かつ**ルリグデッキに Lv0 のルリグがある**こと。
@@ -453,7 +464,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 - **2026-09-16 時点**（第385バッチ＝`O-529`／`O-530` クローズ）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**｜**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-1` 済）
+  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**｜**CPU 完成度 7**（§5.6 `C-2`〜`C-8`・🏁`C-0`/`C-1` 済）
   - 🔧**ゲート**＝`npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72）
 
 ---

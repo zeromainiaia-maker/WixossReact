@@ -63,3 +63,5 @@ docs/behavior_audit/
 # eslint --cache の出力（gates 高速化用・毎回書き換わる作業ファイル）。node_modules/.cache/eslint/ と同じ扱い。
 .eslintcache
 docs/_held_review_all.txt
+# §5.6 C-0: 取り込んだバグ報告（盤面ダンプ＝巨大・個別の対戦の記録）
+/scratchpad-reports/

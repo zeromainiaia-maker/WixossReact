@@ -2172,6 +2172,60 @@ const scenarios = {
       return { pass: false, detail: `🔴詰み疑い＝ピッカー表示=${sawPicker} 決定(2/2)が押せた=${readySeen} 初回ラベル="${firstLabel ?? '-'}" trash=${fin?.host?.trash} pendingEffect=${fin?.pendingEffect}` };
     },
   },
+  // 🆕🔴**§5.1 `V-238`（§5.6 `C-0`・2026-09-16）＝バグ報告ボタンが実機で最後まで通る。**
+  // 🔑**観測点は3つ**＝①終了ダイアログから報告UIが開く ②送信後に「対戦に戻る」が出る
+  //   ③🔴**戻ったあとも対戦が続いている**（`global_phase` が PLAYING のまま＝報告が終了に化けていない）。
+  // ⚠報告ボタンは**他のモーダル（4000台）より上**の終了ダイアログ（`zIndex 9999`）の中に置いてある。
+  //   そこに置いた理由は「モーダルが出たまま押せない」型を拾うため＝この経路が壊れると報告導線が死ぬ。
+  bugreport: {
+    title: 'C-0 バグ報告ボタン（終了ダイアログから送信 → 対戦に戻れる／対戦は終了しない）',
+    spec: {
+      hostSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+      guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始 phase=${before?.turnPhase ?? '-'} turn=${before?.turnCount ?? '-'}`);
+      await H.ensureMain();
+      // ① 最前面の「終了」→ 確認ダイアログ
+      const endBtn = page.getByRole('button', { name: '終了', exact: true }).first();
+      if (!(await endBtn.count())) return { pass: false, detail: '🔴最前面の「終了」ボタンが見つからない' };
+      await endBtn.click().catch(() => {});
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/bugreport-0-confirm.png`, fullPage: true });
+      // ② 報告UIを開く
+      const open = page.getByTestId('bugreport-open').first();
+      if (!(await open.count())) return { pass: false, detail: '🔴終了ダイアログに「バグを報告」が無い' };
+      await open.click().catch(() => {});
+      await page.waitForTimeout(500);
+      // ③ タグ未選択では送れない（誤送信で中身の無い報告が溜まるのを防ぐ）
+      const send = page.getByTestId('bugreport-send').first();
+      const disabledBeforeTag = !(await send.isEnabled().catch(() => true));
+      await page.getByTestId('bugreport-tag-stuck').first().click().catch(() => {});
+      await page.getByTestId('bugreport-comment').first().fill('V-238 自動テストの報告').catch(() => {});
+      await page.screenshot({ path: `${SHOT}/bugreport-1-form.png`, fullPage: true });
+      // ④ 送信
+      await send.click().catch(() => {});
+      await page.waitForTimeout(1800);
+      await page.screenshot({ path: `${SHOT}/bugreport-2-sent.png`, fullPage: true });
+      const back = page.getByTestId('bugreport-back-to-game').first();
+      if (!(await back.count())) {
+        const err = await page.getByText('送信に失敗しました', { exact: false }).first().textContent().catch(() => null);
+        return { pass: false, detail: `🔴送信できていない（${err ?? '完了画面が出ない'}）` };
+      }
+      // ⑤ 対戦に戻る → **終了していない**こと
+      await back.click().catch(() => {});
+      await page.waitForTimeout(900);
+      const after = await H.queryState();
+      if (after?.error || !after) return { pass: false, detail: '🔴報告後に対戦が消えている（ルームが無い）' };
+      await page.screenshot({ path: `${SHOT}/bugreport-3-back.png`, fullPage: true });
+      return {
+        pass: true,
+        detail: `報告を送信→対戦に戻れた（タグ未選択で送信不可=${disabledBeforeTag}／戻ったあとも phase=${after.turnPhase ?? '-'} turn=${after.turnCount ?? '-'} で継続）`,
+      };
+    },
+  },
   deckshufflespell: {
     title: 'PR-470A（ON_DECK_SHUFFLED・スペル経路＝SEARCHER／修正回帰ガード）',
     spec: {
