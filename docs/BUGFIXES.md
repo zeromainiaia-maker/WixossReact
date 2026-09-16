@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第371バッチ：PLAN §5.3 索引G を一括消化（16 → 1）
+
+**内訳＝修正 12件／実測で決着（受け皿が既にあった・盤面差の無い近似）3件／残 1件（`O-414`）。**
+
+| ID | カード（効果） | 真因1行 | 影響 | 直し方 |
+|---|---|---|---|---|
+| `O-390` | `WX16-Re07-E1` | 「【ダブルクラッシュ】**によって**2枚以上クラッシュされたとき」の**発生原因の限定が無く**、枚数（同時2枚以上）だけで発火していた＝効果による同時クラッシュでも【トリプルクラッシュ】でも起きていた | 1効果（＋クラッシュ原因を刻む地点が2本増える） | ①`BattleScreen` の**シグニアタック**のクラッシュ地点で `crashOneLife(..., crushCauseSA)` と2枚目の `pending_crash_causes` に原因を刻む ②**ルリグアタック**側は `crash_cause`／`pending_crash_causes` を**1つも書いていなかった**ので新設 ③live に `triggerCondition.crashedByKeywords:['ダブルクラッシュ']`。🔴**判定器は fail-closed**（`crashCauseMatches`）＝**刻む側を先に入れないと限定を書いた瞬間に恒久 no-op** になる |
+| `O-400` | `WX25-P2-009-E1` | `ON_OPP_LIFE_CRASHED` collector が `condition` を **`OPP_LIFE_CRASH_EVENT_GTE` しか見ておらず**、それ以外の条件を持つ効果を**不成立のまま積んでいた**＝「対戦相手のライフクロスが**０枚になったとき**」が**クラッシュのたびに発火**し、0枚前の空振りで《ゲーム１回》を使い切っていた | 1効果（＋ON_OPP_LIFE_CRASHED を持つ全効果の条件評価が入る） | ①collector の2ループ（場の走査／`game_granted_auto_effects`）で `evalUseCondition(eff.condition, op, my, …)` を評価 ②live に `LIFE_COUNT{owner:'opponent', eq 0}`。🔴**順番が本体**＝`oppLimitOk` は**呼ぶだけで回数を消費する**ので、条件判定を後ろに置くと不成立の回にも《ゲーム１回》が減る（golden で順序を assert） |
+| `O-401` | `WX06-019-E1` | 🔴**登録票が stale（偽陽性）**＝「置換の受け皿が `BANISH_SUBSTITUTE`（バニッシュ）だけ」も「`excludeSelf` が無く自身も対象」も**両方とも既に実装済み**だった | 0 | `applyEffectLeavePowerReductionSubstitute` は `LEAVE_MOVE_ACTION_TYPES`（BANISH/BOUNCE/SEND_TO_ENERGY/TRASH/EXILE/TRANSFER_TO_DECK）の**全経路**から呼ばれ、`findEffectLeavePowerReductionSubstitute` は `top === victimNum` を明示的に除外している（＝「他の」） |
+| `O-408` | `WXK03-011-E1b` | ①「シグニゾーン以外のあなたの領域」の zones に**ルリグデッキ／ルリグトラッシュ**が無い ②🔴**もっと悪い**＝`zoneMoveImmunity` の `'life'` は**宣言だけで消費地点が全ファイルに1つも無かった**（`oppZoneMoveBlocked('life', …)` が 0 件＝真 no-op） | 1効果（`'life'` の修正は `life` を宣言する全カードに効く） | ①parser の兄弟生成（`applyNonFieldMoveImmunityTail`）の zones を末尾拡張 ②`execTrash{LIFE_CLOTH_CARD}` と `execTransferToDeck{LIFE_CLOTH_CARD}` の2地点に `oppZoneMoveBlocked('life', …)` を新設。⚠**ルリグゾーン／チェックゾーン／シグニの下は足さない**＝シグニの下はルール上「シグニゾーン」（原文が明示的に除外）／残り2つは原文コーパスに「相手のその領域からトラッシュ・デッキへ移す」効果が**1件も無い**＝語彙だけ足すと真 no-op が増える |
+| `O-412` | `WD13-002-E1` / `WD13-003-E1` | **盤面差の無い近似**＝グロウコスト軽減の条件が「この方法で公開した」ではなく手札全体（`HAND_COUNT_FILTER`） | 0（情報開示だけの差） | 公開は**コストではなく無償**で、上限「２枚まで」は**両方の軽減に必要な公開枚数（最大2枚）と一致する**＝合理的なプレイでは結果が完全に一致する。残る差は「相手に手札を見せない」という情報面だけで、engine は隠し情報の戦略を持たない。逆翻訳も「手札に〜があるなら」と**engine が見ているものを正直に書いている**（嘘ではない） |
+| `O-445` | `WXK10-001-E1` ほか6効果 | 使用コスト `《白/赤》×６` を `parseEnergyCosts` が**無色6個に近似**しており、逆翻訳が `《無×6》` と書いて**原文の色制約が逆翻訳から丸ごと消えていた** | 6効果 | `EnergyCost.anyOfColors` を新設し、`parseEnergyCosts` の混色分岐が色集合を残す／逆翻訳が `《白/赤×6》` と描く／`triggerCollect` は既存の OR スロット綴り（`'白|赤'`）へ落とす。⚠**アーツの請求額は CSV の `Cost` 列由来**（`costColorMatches` が `/` を割る）＝**engine は元から正しく払わせていた**＝直したのは「逆翻訳が嘘をつく」側 |
+| `O-458` | `WXK11-006-E4` | ①`collectLrigAttackGuardedTriggers` が**攻撃側の盤面しか走査せず**、「**センタールリグ１体が**アタックしたとき」（誰のでもよい）が**自分が攻撃された回に1度も発火しなかった** ②`UP{LRIG, owner:'self'}` 固定＝相手のルリグがアタックした回に**自分のルリグを起こしていた** | 1効果 | ①collector に `defenderId` を足し、**`triggerScope:'any'` の効果だけ**防御側からも拾う（既存の「**この**ルリグの」は従来どおり攻撃側だけ）②《ターン1回》の消費先を `usedDefenderIds` で分ける ③`triggeringCardNum` にアタックしたセンタールリグを入れ、`UP{owner:'any', targetsTriggerSource}` が両側を見る |
+| `O-465` | `WX24-P3-069-E1` | 「**あなたのルリグ１体を対象とし**、…それは『…』を得る」が `GRANT_LRIG_ABILITY`＝**プレイヤー単位のストア**に積むだけで、対象指定が存在しなかった | 1効果 | `GRANT_EFFECT{target:{type:'LRIG'}}`（`granted_effects[ルリグ]`）へ移した。🔴**同じ巡で `collectOppGuardExtraColorlessCost` に付与ストアの走査を足すこと**＝忘れると**ガード税が一切効かなくなる**（対象指定を入れただけで機能が死ぬ）。⚠残差＝`GRANT_EFFECT{LRIG}` の候補はセンタールリグだけ（アシストルリグを選べない） |
+| `O-477` | `WX14-024-E2` ほか4効果 | 「手札以外の領域から」の発動元一覧に**チェックゾーンが無く**、`detectPlacedFromZone` はチェックゾーンのカードを `'field'` と返していた | 4効果（`fromZones` の全列挙）＋由来判定そのもの | `TriggerOriginZone` に `'check'` を足し、①parser の `ON_PLAY_NON_HAND_ZONES` ②`detectPlacedFromZone`（`fieldCards` より**前**に判定）③`execAddToField` の由来記録 ④逆翻訳の `nonHand` の**4箇所を同じ集合に保つ**。⚠片方だけ足すと「手札以外の領域から」が `指定領域（…）から` に化ける |
+| `O-483` | `WX25-P1-004-E1` / `WXDi-P12-030-E1` | ①ライフクラッシュ・カウンターの**発生源が限定されておらず**（原文は「対戦相手の**ルリグ**によって」「**シグニ**によって」）何に割られても返していた ②`WX25-P1-004` の**【ブースト】分の2本目が丸ごと欠落**していた | 2効果 | ①`life_crash_counter`（単一）→ `life_crash_counters`（配列・`sourceType` つき）へ ②消費地点で `crash_source_card_num` の `Type` から `'lrig'/'signi'` を判定（**発生源不明なら限定付きは発火しない＝fail-closed**）③【ブースト】は既存の `IS_BOOSTING` 条件で読めた＝新機構は不要 |
+| `O-484` | `WXK07-055-CB-E1`/`-E2` ほか5効果 | 「その中から**１枚**をトラッシュに置き」が `canTrash:true` だけ（＝好きな枚数）で、**0枚でも全枚でも捨てられた** | 5効果（exact 3／up-to 2） | `LookAndReorderAction.trashCount` / `trashUpTo` を新設し、parser（**本命の生成元は文をまたいで合成する `effectParser.ts` 側**）→ pending → UI（上限でボタンを封じ、下限未満は「決定」を封じる）→ **engine の `resumeLookAndReorder` でも強制**。🔴**UI だけでは足りない**＝CPU の自動応答は常に「トラッシュ0枚」を返すので、engine 側で補わないと CPU だけ強制を無視する |
+| `O-490` | `PR-305-E1` | **盤面差の無い近似**＝「その**バトル終了時**に」の遅延が JSON に無い | 0 | `ON_SIGNI_BATTLE` の収集地点（`BattleScreen`）は**バニッシュ解決の後**に走り、トリガーはスタックへ積まれてから解決する＝engine は既に「バトル終了時」に解決している。原文との差は「任意コストを払うか決める時点で、バトルの結果をもう知っている」ことだけで、**盤面の結果はどの分岐でも一致する**（しかも被害側に有利な方向） |
+| `O-510` | `WX11-038-E2` | 「次のターンの**メインフェイズの間**」を `until:'NEXT_TURN'`（＝次のターン全体）で丸めており、**相手のアタックフェイズ中も能力を奪っていた** | 1効果（原文コーパスでこの言い回しの全数） | `EffectDuration` に `'NEXT_TURN_MAIN_PHASE'` を新設。**昇格＝`clearMainPhaseScopedState`**（そのプレイヤーが MAIN へ入る1点）／**失効＝`clearAttackPhaseScopedState`**（ATTACK_ARTS へ入る1点）の2点で寿命を表す。⚠**`abilities_removed_next_turn` へ寄せない**（turn-start で昇格してターン丸ごと効く）＝専用スロット `abilities_removed_next_main_phase` と印 `abilities_removed_until_attack_phase` |
+| `O-519` | `WX21-Re18-E1` | 「使用コストとして追加でエナゾーンからカードを２枚以上トラッシュに置く」が `OPTIONAL_COST`＝**辞退でき、コスト０でスペルを捨てられた**（CPU は実際にそうしうる） | 1効果 | ①`OPTIONAL_COST` を撤去して素の `TRASH{ENERGY_CARD, count:'ALL', upToCount, selectionConstraint:{minCount:2}, asCost}` へ ②`selectOrInteract` に**「候補が `minCount` に届かなければ空振り」の fail-closed** を新設（エナ1枚以下で**確定ボタンが永久に押せなくなる**のを防ぐ）。🔑判断は原文コーパス＝「使用コストとして追加で〜」の34効果は全部「〜てもよい」を明記しており、**言い切りはこの1効果だけ** |
+| `O-521` | `WXK10-006-E3` ほか12効果 | 🔴**`card.Type` は複合値**（`'アーツ/クラフト'`）＝`matchesTrashArtsFromLrigDeckCost` の `=== 'アーツ'` 完全一致で**クラフトのアーツが12効果すべてでコスト候補から外れていた**。原文が「クラフトではない」と書くのは1件だけ | 11効果が広がる（1効果は据え置き） | `Type?.includes('アーツ')` へ直し、除外は `trashArtsFromLrigDeck.excludeCraft` payload で表す（parser が原文の「クラフトではない」から刻む／逆翻訳も payload があるときだけ書く）。⚠旧実装は **engine と逆翻訳が同じ嘘で一致**しており（逆翻訳も無条件に「クラフトではない」と書いていた）どの計器にも映らなかった |
+
+🔑**この回いちばん効いた実測＝「登録票の『新機構が要る』を信じない」**。
+16件のうち **3件が着手前の grep だけで決着した**（`O-401` は受け皿が全経路に既にあった／`O-412`・`O-490` は盤面差が無い近似）。
+さらに `O-465` は「ルリグ単位の付与ストアが無い」と書いてあったが、**`GRANT_EFFECT{target:{type:'LRIG'}}` が既にあった**。
+
+🔴**「宣言を足す」ときは消費地点を同じ巡で数える。** この回に実際に踏んだ形が2つある：
+- `O-408`＝`zoneMoveImmunity` の `'life'` は**宣言だけで消費が 0 件**だった（`census:deadstate` はネストした payload を見ないので**どの計器にも映らない**）。
+- `O-465`＝対象指定（`GRANT_EFFECT{LRIG}`）へ移した瞬間、読み手（`collectOppGuardExtraColorlessCost`）が
+  `lrig_granted_auto_effects` しか見ていないので**ガード税が丸ごと消える**。⇒ 同じ巡で走査軸に `granted_effects` を足した。
+
+**検証**＝`npm run gates` 全緑（golden **+9本**）。
+✅**実機**＝この回は `src/screens/` を触ったので §2.2 のフル手順に従い `V-232`〜`V-234` を §5.1 へ登録した。
+
 ## 2026-09-16 第370バッチ：索引H 決着（`O-416`＝読みB を実装／`O-469`＝FP）
 
 **ユーザー判断**＝①`O-416` は **読みB**（カードテキストの「【自】能力」は**【出】能力を含まない**）②`O-469` は

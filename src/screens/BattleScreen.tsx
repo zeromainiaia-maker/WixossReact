@@ -4405,7 +4405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banish_substitute_choice: undefined,      // F-3 身代わりバニッシュ決定をリセット
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
-          life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
+          life_crash_counters: undefined,           // カウンタークラッシュ（このターン）をリセット
           negate_opp_attacks: undefined,              // N回目アタック共有カウンタをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
           // lrig_abilities_disabled のリセットは clearTurnEndScopedState のレジストリへ集約（§6.4 O-10 続き509）。
@@ -4467,7 +4467,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opNextTurnState = handover.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-          life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
+          life_crash_counters: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, turn_pieces_used_names: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
@@ -6239,8 +6239,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     attackerId: string,
     attackerState: PlayerState,
     defenderState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectLrigAttackGuardedTriggers(mkTrigCtx(), attackerId, attackerState, defenderState);
+    defenderId?: string,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[]; usedDefenderIds: string[] } =>
+    pureCollectLrigAttackGuardedTriggers(mkTrigCtx(), attackerId, attackerState, defenderState, defenderId);
 
   /**
    * シグニが効果によって他のシグニゾーンに移動したとき（ON_ZONE_MOVED）のトリガーを収集する。
@@ -10742,8 +10743,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? `${myCardName}（アサシン）がライフをクラッシュ`
           : `${myCardName}がライフをクラッシュ`;
 
+        // 🆕§5.3 `O-390`（2026-09-16）＝**クラッシュの原因キーワードを刻む**。
+        //   原文「【ダブルクラッシュ】**によって**対戦相手のライフクロスが２枚以上クラッシュされたとき」
+        //   （`WX16-Re07-E1`）の発生原因の限定に使う（読み手は `crashCauseMatches`）。
+        //   🔴旧実装はここで `null`（原因不明）を積んでいたので、`crashedByKeywords` を足しても
+        //     fail-closed で**永久に発火しない**＝限定を入れるには先にここを刻む必要があった。
+        //   ⚠**トリプルクラッシュは別の原因**＝原文が【ダブルクラッシュ】と書く札はそちらでは発火しない。
+        //   ⚠**1枚目と２枚目の両方に同じ原因を入れる**（片方だけだと同時クラッシュの添字がずれる）。
+        const crushCauseSA = isTripleCrush ? 'トリプルクラッシュ' : isDoubleCrush ? 'ダブルクラッシュ' : undefined;
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum);
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, crushCauseSA);
         if (firstCrashOpp) {
           // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」（WX25-P3-004）。
           // ⚠置換した側から見た「対戦相手」＝**アタックしている自分**なので、割れるのは自分のライフ。
@@ -10777,8 +10786,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), secondCard],
             pending_crash_source_card_nums: [...(newOpState.pending_crash_source_card_nums ?? []), myTopNum],
             // §5.3 O-120: 原因列も**同じ長さで**伸ばす（伸ばさないと添字がずれて別のクラッシュの原因を読む）。
-            //   ダブル/トリプルクラッシュはバトルダメージなので原因は null（不明）。
-            pending_crash_causes: [...(newOpState.pending_crash_causes ?? []), null],
+            // 🆕§5.3 `O-390`（2026-09-16）＝この２枚目は**【ダブルクラッシュ】由来**なので原因を刻む。
+            //   🔴旧実装は `null`（原因不明）だった＝`crashedByKeywords` は fail-closed なので
+            //     ここを刻まないと発生原因の限定を書いた瞬間に**恒久 no-op** になる。
+            pending_crash_causes: [...(newOpState.pending_crash_causes ?? []), crushCauseSA ?? null],
           };
           appendBattleLogs([`ダブルクラッシュ：2枚目（${battleCardMap.get(secondCard)?.CardName ?? secondCard}）を同時クラッシュ予約`]);
         }
@@ -13154,14 +13165,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const attackerId = isHost ? bs.guest_id : bs.host_id;
-      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
       guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
         energy: my.energy.filter(cn => cn !== trashTarget),
         trash: [...my.trash, trashTarget],
         field: { ...my.field, lrig_attacked: false },
-        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+        // ⚠§5.3 `O-458`：**防御側**の「センタールリグ１体がアタックしたとき」の《ターン1回》もここで消費する
+        //   （攻撃側の `actions_done` へ入れると別人の台帳に付いて制限が効かない）。
+        actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+          ? [...(my.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+          : my.actions_done,
       };
       appendBattleLogs([`ガード代替コスト：エナ＜${altClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -13193,7 +13208,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const attackerId = isHost ? bs.guest_id : bs.host_id;
-      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
       guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
@@ -13201,7 +13216,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, discarded],
         ...handDiscardHistoryRecord(my, [discarded]),
         field: { ...my.field, lrig_attacked: false },
-        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+        // ⚠§5.3 `O-458`：**防御側**の「センタールリグ１体がアタックしたとき」の《ターン1回》もここで消費する
+        //   （攻撃側の `actions_done` へ入れると別人の台帳に付いて制限が効かない）。
+        actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+          ? [...(my.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+          : my.actions_done,
       };
       appendBattleLogs([`ガード代替コスト：手札の＜${altCost.spec.signiClass}＞（${battleCardMap.get(discarded)?.CardName ?? discarded}）を捨てる`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -13239,7 +13258,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const attackerId = isHost ? bs.guest_id : bs.host_id;
-      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
       guardTriggers.push(...attackGuard.entries);
       // 🔴§5.3 `O-292`＝旧はここで `STUB{INTERNAL_DO_COLLAB}` をスタックへ積み、**アシストルリグを場へ出していた**。
       //   コラボはコストの支払い＝**支払いの場でトークンを減らす**（効果の解決を待たない）。
@@ -13249,7 +13268,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: my.energy.slice(colorless),
         trash: [...my.trash, ...paid],
         field: { ...my.field, lrig_attacked: false },
-        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+        // ⚠§5.3 `O-458`：**防御側**の「センタールリグ１体がアタックしたとき」の《ターン1回》もここで消費する
+        //   （攻撃側の `actions_done` へ入れると別人の台帳に付いて制限が効かない）。
+        actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+          ? [...(my.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+          : my.actions_done,
       };
       appendBattleLogs([`ガード代替：《無》×${colorless}を支払いコラボライバー${collab}人とコラボ`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -13290,7 +13313,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const attackerId = isHost ? bs.guest_id : bs.host_id;
-      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
       guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
@@ -13298,7 +13321,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: my.hand.filter((_, i) => !idxSet.has(i)),
         trash: [...my.trash, ...paidEnergy, ...discarded],
         field: { ...my.field, lrig_attacked: false },
-        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+        // ⚠§5.3 `O-458`：**防御側**の「センタールリグ１体がアタックしたとき」の《ターン1回》もここで消費する
+        //   （攻撃側の `actions_done` へ入れると別人の台帳に付いて制限が効かない）。
+        actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+          ? [...(my.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+          : my.actions_done,
       };
       appendBattleLogs([`ガード代替：エナ${spec.energyCount}枚と《ガードアイコン》${spec.guardCardCount}枚（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）をトラッシュ`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -13328,14 +13355,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const attackerId = isHost ? bs.guest_id : bs.host_id;
-      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, user.id);
       guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
         hand: my.hand.slice(0, -altN),
         trash: [...my.trash, ...discarded],
         field: { ...my.field, lrig_attacked: false },
-        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+        // ⚠§5.3 `O-458`：**防御側**の「センタールリグ１体がアタックしたとき」の《ターン1回》もここで消費する
+        //   （攻撃側の `actions_done` へ入れると別人の台帳に付いて制限が効かない）。
+        actions_done: guardUsedIds.length > 0 || attackGuard.usedDefenderIds.length > 0
+          ? [...(my.actions_done ?? []), ...guardUsedIds, ...attackGuard.usedDefenderIds]
+          : my.actions_done,
       };
       appendBattleLogs([`ガード代替：手札${altN}枚を捨てる（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -13428,11 +13459,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_GUARD: 自フィールドシグニの「あなたが【ガード】したとき」トリガーを収集
         const { entries: guardEntries, usedOncePerTurnIds: guardUsedIds } =
           collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時', responderId);
-        const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+        // ⚠**`user.id` ではなく `responderId`**＝この経路は CPU がガードする回も通る（`CPU_PLAYER_ID`）。
+        const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my, responderId);
         guardTriggers = [...guardEntries, ...attackGuard.entries];
         attackGuardUsedIds = attackGuard.usedOncePerTurnIds;
-        if (guardUsedIds.length > 0) {
-          newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...guardUsedIds] };
+        // ⚠§5.3 `O-458`：防御側の《ターン1回》は**防御側**の台帳へ。
+        const guardUsedAll = [...guardUsedIds, ...attackGuard.usedDefenderIds];
+        if (guardUsedAll.length > 0) {
+          newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...guardUsedAll] };
         }
       } else {
         // ガードしない → ライフクロスをクラッシュ
@@ -13540,6 +13574,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             pending_crashed_cards: pendingAfterCrash,
             crash_source_card_num: op.field.lrig.at(-1),
             pending_crash_source_card_nums: pendingAfterCrash.map(() => op.field.lrig.at(-1) ?? null),
+            // 🆕§5.3 `O-390`（2026-09-16）＝**ルリグアタック経路は原因列を一切書いていなかった**。
+            //   §5.3 `O-120` の規約は「原因は**発生源と必ず同じ地点で**書く」＝
+            //   書かないと**前のクラッシュの原因が残る**し、【ダブルクラッシュ】限定の札も発火しない。
+            //   ⚠添字は `pending_crash_source_card_nums` と**必ず同じ長さ**にする。
+            crash_cause: opLrigHasTripleCrush ? 'トリプルクラッシュ' : opLrigHasDoubleCrush ? 'ダブルクラッシュ' : undefined,
+            pending_crash_causes: pendingAfterCrash.map(() =>
+              (opLrigHasTripleCrush ? 'トリプルクラッシュ' : opLrigHasDoubleCrush ? 'ダブルクラッシュ' : null)),
             field: { ...my.field, lrig_attacked: false, check: crashed },
             // 🆕§5.3 `O-160`（2026-09-02）＝ルリグアタックも**ダメージ**（`crashOneLife` と同じ印を立てる）。
             //   ⚠この経路は `crashOneLife` を通らないので、書き忘れると
@@ -13757,6 +13798,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (!crashCauseMatches(eff, crashCause)) continue;
           if (eff.kizunaIcon && !isKizunaActive(op, topNum, battleCardMap)) continue; // 【絆自】は絆獲得時のみ
           if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
+          // 🆕§5.3 `O-400`（2026-09-16）＝**`condition` を `oppLimitOk` の手前で評価する**。
+          //   🔴旧実装は `OPP_LIFE_CRASH_EVENT_GTE` しか見ておらず、それ以外の条件を持つ効果を
+          //     **条件不成立のまま積んで**いた＝`WX25-P2-009-E1`（《ゲーム1回》）は
+          //     クラッシュのたびに発火し、**0枚になる前の空振りで使い切る**。
+          //   ⚠**順番が本体**＝`oppLimitOk` は呼ぶだけで《ターン1回》／《ゲーム1回》を**消費する**ので、
+          //     条件判定を後ろに置くと不成立の回にも回数が減る。
+          //   ⚠主語は効果の持ち主（`op`＝クラッシュした側）＝「対戦相手のライフクロス」は `my`。
+          if (eff.condition
+            && !evalUseCondition(eff.condition, op, my, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
           if (!oppLimitOk(eff)) continue;
           const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
           oppCrashTriggers.push({
@@ -13773,6 +13823,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
         if (!crashCauseMatches(eff, crashCause)) continue;   // §5.3 O-120（付与された能力にも同じ条件が乗りうる）
         if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
+        // 🆕§5.3 `O-400`：付与能力側も同じ＝**`oppLimitOk` の手前で** `condition` を評価する。
+        //   こちらが `WX25-P2-009-E1`（`INSTALL_GAME_GRANTED_AUTO` で積んだ《ゲーム1回》）の本体の経路。
+        //   ⚠付与能力には盤面の場所が無いので、`sourceCardNum` には `effectId` を渡す（LIFE_COUNT は参照しない）。
+        if (eff.condition
+          && !evalUseCondition(eff.condition, op, my, battleCardMap, eff.effectId, bs.turn_phase, effectivePowers)) continue;
         if (!oppLimitOk(eff)) continue;
         oppCrashTriggers.push({
           id: generateUUID(),
@@ -13846,9 +13901,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // SET_NEXT_LIFE_CRASH_COUNTER: 自分（my=クラッシュされた側）に設定されたカウンタークラッシュを消費し、
       // 対戦相手（op）のライフクロスを perTrigger 枚クラッシュし返すトリガーを積む（WX25-P1-004 / WXDi-P12-030）。
       const counterCrashTriggers: StackEntry[] = [];
-      let myCounterAfter = my.life_crash_counter;
-      if (my.life_crash_counter && my.life_crash_counter.remaining > 0) {
-        const per = my.life_crash_counter.perTrigger;
+      // 🆕§5.3 `O-483`（2026-09-16）＝**発生源の限定**を見る。
+      //   原文「対戦相手の**ルリグ**によって」∕「**シグニ**によって」。
+      //   ⚠発生源が不明（`crash_source_card_num` 無し）なら**限定付きのカウンターは発火しない**
+      //     （fail-closed）。限定の無いカウンター（`WXDi-P12-030-E1`）は従来どおり常に発火する。
+      const crasherType: 'lrig' | 'signi' | undefined = crashSourceCardNum
+        ? (battleCardMap.get(getCardNum(crashSourceCardNum))?.Type === 'ルリグ' ? 'lrig' : 'signi')
+        : undefined;
+      const counterHits = (my.life_crash_counters ?? [])
+        .map((c, i) => ({ c, i }))
+        .filter(({ c }) => c.remaining > 0 && (!c.sourceType || c.sourceType === crasherType));
+      const myCounterAfterList = (my.life_crash_counters ?? [])
+        .map((c, i) => (counterHits.some(h => h.i === i) ? { ...c, remaining: c.remaining - 1 } : c))
+        .filter(c => c.remaining > 0);
+      const myCounterAfter = myCounterAfterList.length > 0 ? myCounterAfterList : undefined;
+      for (const { c } of counterHits) {
+        const per = c.perTrigger;
         counterCrashTriggers.push({
           id: generateUUID(),
           playerId: ownerId,
@@ -13861,8 +13929,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
           },
         });
-        const remaining = my.life_crash_counter.remaining - 1;
-        myCounterAfter = remaining > 0 ? { ...my.life_crash_counter, remaining } : undefined;
       }
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       // 🆕置換が乗った回は**デッキの一番上をライフクロスへ**足し、残り回数を1つ消費する。
@@ -13884,7 +13950,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // §5.3 O-120: 原因列は発生源列と**必ず同時に**更新する（片方だけだと添字がずれる）。
         pending_crash_causes: remainingCrashCauses,
         crash_cause: undefined,
-        life_crash_counter: myCounterAfter,
+        life_crash_counters: myCounterAfter,
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
           : my.actions_done,

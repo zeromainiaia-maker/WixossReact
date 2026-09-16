@@ -508,7 +508,11 @@ export function optionalOnPlayCostStub(
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
-  const costColors = (cost.energy ?? []).flatMap(e => Array.from({ length: e.count }, () => e.color as string));
+  // 🆕§5.3 `O-445`（2026-09-16）＝**混色スロットは OR スロットの綴り（`'白|赤'`）へ落とす**。
+  //   受け皿は既存＝`costSlotIsAny` / `energyMatchesCostSlot` / `formatCostSlot`（`execUtils.ts`）が
+  //   `'|'` を割って「どれか1色」として払わせる。`color:'無'` のまま渡すと**何色でも払える**。
+  const costColors = (cost.energy ?? []).flatMap(e =>
+    Array.from({ length: e.count }, () => (e.anyOfColors?.length ? e.anyOfColors.join('|') : (e.color as string))));
   let handDiscard: { count: number | 'ALL'; filter?: TargetFilter } | undefined;
   if (cost.discard !== undefined) {
     handDiscard = { count: cost.discard, ...(cost.discardFilter ? { filter: cost.discardFilter } : {}) };
@@ -4091,44 +4095,69 @@ export function collectTrapSetTriggers(
   return { entries, usedHostIds, usedGuestIds };
 }
 
-/** 攻撃側ルリグの「このルリグのアタックが【ガード】されたとき」を収集する。 */
+/**
+ * ルリグアタックがすべて【ガード】されたときの【自】を集める。
+ *
+ * 🆕**§5.3 `O-458`（2026-09-16）＝防御側の盤面も走査する**。
+ * 🔴旧実装は**攻撃側だけ**を走査しており、`WXK11-006-E4`（キー）の
+ *   「センタールリグ１体がアタックしたとき」（誰のルリグでもよい）が
+ *   **自分がアタックされた側では1度も発火しなかった**。
+ * ⚠**防御側から拾うのは `triggerScope:'any'` だけ**＝既存の「**この**ルリグのアタックが」
+ *   （既定の `self`）を拾うと、相手のアタックで自分の札が発火する過剰になる。
+ * ⚠**《ターン1回》の消費先を分ける**＝防御側の分は `usedDefenderIds` で返し、
+ *   呼び出し側が**防御側の `actions_done`** へ入れる（攻撃側へ入れると別人の台帳に付く）。
+ * 🔑`triggeringCardNum` に**アタックしたセンタールリグ**を入れる（「そのルリグをアップする」の宛先）。
+ */
 export function collectLrigAttackGuardedTriggers(
   ctx: TrigCtx,
   attackerId: string,
   attackerState: PlayerState,
   defenderState: PlayerState,
-): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  defenderId?: string,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[]; usedDefenderIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
+  const usedDefenderIds: string[] = [];
   const limitOk = mkLimitOk(attackerState.actions_done, usedOncePerTurnIds);
+  const limitOkDef = mkLimitOk(defenderState.actions_done, usedDefenderIds);
+  // 「そのルリグ」＝アタックしたセンタールリグ。
+  const attackingLrig = attackerState.field.lrig.at(-1);
   // 🆕**発生源はセンタールリグだけではない**（2026-08-31 続き749）＝キー（`WXK11-006-E4`）や場のシグニ
   //   （`WX24-P3-055-E2`）も「そのアタック終了時、…だった場合」を持つ。⚠キーは `activeKeyAbilitySources`
   //   を通す（「すべてのキーは能力を失う」を1点で効かせる funnel）。
-  const sourcesLAG = [
-    attackerState.field.lrig.at(-1),
-    attackerState.field.assist_lrig_l?.at(-1),
-    attackerState.field.assist_lrig_r?.at(-1),
-    ...activeKeyAbilitySources(attackerState),
-    ...attackerState.field.signi.map(stack => stack?.at(-1)),
+  const sourcesOf = (st: PlayerState): string[] => [
+    st.field.lrig.at(-1),
+    st.field.assist_lrig_l?.at(-1),
+    st.field.assist_lrig_r?.at(-1),
+    ...activeKeyAbilitySources(st),
+    ...st.field.signi.map(stack => stack?.at(-1)),
   ].filter((n): n is string => !!n);
-  if (sourcesLAG.length === 0) return { entries, usedOncePerTurnIds };
-  for (const srcNum of sourcesLAG) {
-    for (const eff of effsOf(ctx, srcNum)) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_GUARD')) continue;
-      // 🆕`lrigAttackNoDamage`＝「ダメージを与えていなかった場合」。**ガードされた経路でだけ**発火する
-      //   （バリア等でダメージが消えた場合は未配線＝過小側へ fail-closed。§5.4(ii) に登録）。
-      if (!eff.triggerCondition?.lrigAttackGuarded && !eff.triggerCondition?.lrigAttackNoDamage) continue;
-      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, attackerId === ctx.activeUserId, ctx.cardMap, srcNum)) continue;
-      if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, srcNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-      if (!limitOk(eff)) continue;
-      const cardName = ctx.cardMap.get(getCardNum(srcNum))?.CardName ?? srcNum;
-      entries.push({
-        id: ctx.genId(), playerId: attackerId, cardNum: srcNum, effectId: eff.effectId,
-        label: `${cardName} の【自】効果（ルリグアタックがガードされたとき）`, effect: eff,
-      });
+  const scan = (
+    st: PlayerState, otherSt: PlayerState, ownerId: string,
+    ok: (eff: CardEffect) => boolean, acceptScope: (scope: string | undefined) => boolean,
+  ): void => {
+    for (const srcNum of sourcesOf(st)) {
+      for (const eff of effsOf(ctx, srcNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_GUARD')) continue;
+        // 🆕`lrigAttackNoDamage`＝「ダメージを与えていなかった場合」。**ガードされた経路でだけ**発火する
+        //   （バリア等でダメージが消えた場合は未配線＝過少側へ fail-closed。§5.4(ii) に登録）。
+        if (!eff.triggerCondition?.lrigAttackGuarded && !eff.triggerCondition?.lrigAttackNoDamage) continue;
+        if (!acceptScope(eff.triggerScope)) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, st, otherSt, ownerId === ctx.activeUserId, ctx.cardMap, srcNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, st, otherSt, ctx.cardMap, srcNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        if (!ok(eff)) continue;
+        const cardName = ctx.cardMap.get(getCardNum(srcNum))?.CardName ?? srcNum;
+        entries.push({
+          id: ctx.genId(), playerId: ownerId, cardNum: srcNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（ルリグアタックがガードされたとき）`, effect: eff,
+          ...(attackingLrig ? { triggeringCardNum: attackingLrig } : {}),
+        });
+      }
     }
-  }
-  return { entries, usedOncePerTurnIds };
+  };
+  scan(attackerState, defenderState, attackerId, limitOk, () => true);
+  if (defenderId) scan(defenderState, attackerState, defenderId, limitOkDef, scope => scope === 'any');
+  return { entries, usedOncePerTurnIds, usedDefenderIds };
 }
 
 /**

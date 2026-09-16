@@ -4835,7 +4835,15 @@ export function collectOppGuardExtraColorlessCost(
 
   let total = 0;
   for (const cn of candidates) {
-    const effs = effectsMap.get(cn) ?? [];
+    // 🆕**§5.3 `O-465`（2026-09-16）＝付与ストア（`granted_effects`）も走査軸に入れる。**
+    //   🔴これが無いと、「あなたのルリグ１体を対象とし、それは『【常】対戦相手は追加で
+    //     《無》を支払わないかぎり【ガード】ができない。』を得る」を**対象指定つきで付与すると
+    //     ガード税が一切効かなくなる**（`lrig_granted_auto_effects`＝プレイヤー単位のストアしか見ていなかった）。
+    const effs = [
+      ...(effectsMap.get(cn) ?? []),
+      ...(ownerState.granted_effects?.[cn] ?? []),
+      ...(ownerState.granted_effects_until_opp_turn?.[cn] ?? []),
+    ];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const count = guardCostInAction(eff.action);

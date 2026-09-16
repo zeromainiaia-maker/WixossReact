@@ -824,6 +824,15 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           //   （どれも「どれを」を選ぶ話で、「どの順に」ではない）。
           const canReorder = inter.reorder !== false;
           const trashCount = lookReorderOrder.filter(n => lookReorderTrash.has(n)).length;
+          // 🆕§5.3 `O-484`（2026-09-16）＝トラッシュ枚数の上限・下限。
+          //   🔴旧実装は常に「好きな枚数」だった＝原文が「その中から**１枚**を」と書く札でも
+          //     0枚や全枚を捨てられた。上限はボタンを押せなくし、下限は「決定」を押せなくする。
+          //   ⚠候補が下限に届かない盤面（見た枚数 < N）では止まらないように実数へ丸める。
+          const trashMax = inter.trashCount !== undefined
+            ? Math.min(inter.trashCount, lookReorderOrder.length) : undefined;
+          const trashMin = inter.trashCount !== undefined && !inter.trashUpTo ? trashMax : 0;
+          const trashCountOk = (trashMax === undefined)
+            || (trashCount <= trashMax && trashCount >= (trashMin ?? 0));
           const topCount = isSplit ? lookReorderOrder.filter(n => !lookReorderBottom.has(n)).length : 0;
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
@@ -882,14 +891,18 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                             {isBottom ? '下' : '上'}
                           </button>
                         )}
-                        {inter.canTrash && (
-                          <button onClick={() => toggleTrash(cardNum)}
-                            style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4,
-                              border: C.borderUI, backgroundColor: isTrashed ? C.danger : 'transparent',
-                              color: C.text, cursor: 'pointer', flexShrink: 0 }}>
-                            {isTrashed ? '戻す' : 'トラッシュ'}
-                          </button>
-                        )}
+                        {inter.canTrash && (() => {
+                          // 🆕§5.3 `O-484`：上限に達している間は**新しく選べない**（「戻す」は常に押せる）。
+                          const atCap = trashMax !== undefined && !isTrashed && trashCount >= trashMax;
+                          return (
+                            <button onClick={() => { if (!atCap) toggleTrash(cardNum); }} disabled={atCap}
+                              style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4,
+                                border: C.borderUI, backgroundColor: isTrashed ? C.danger : 'transparent',
+                                color: atCap ? C.textDim : C.text, cursor: atCap ? 'default' : 'pointer', flexShrink: 0 }}>
+                              {isTrashed ? '戻す' : 'トラッシュ'}
+                            </button>
+                          );
+                        })()}
                         {canReorder && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button onClick={() => moveCard(i, -1)} disabled={i === 0 || isTrashed}
@@ -908,12 +921,13 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   })}
                 </div>
                 <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); setLookReorderTrash(new Set()); setLookReorderBottom(new Set()); }}
-                  disabled={loading}
+                  disabled={loading || !trashCountOk}
                   style={{ padding: '11px 0', borderRadius: 8, border: 'none',
-                    backgroundColor: loading ? C.disabled : C.success,
+                    backgroundColor: (loading || !trashCountOk) ? C.disabled : C.success,
                     color: C.text, fontSize: 14, fontWeight: 'bold',
-                    cursor: loading ? 'default' : 'pointer' }}>
-                  決定
+                    cursor: (loading || !trashCountOk) ? 'default' : 'pointer' }}>
+                  {/* 🆕§5.3 `O-484`：下限に届かない間は何枚足りないかを出す（ボタンが無反応に見えないように）。*/}
+                  {trashCountOk ? '決定' : `トラッシュを${trashMin}枚選んでください`}
                 </button>
               </div>
             </div>,

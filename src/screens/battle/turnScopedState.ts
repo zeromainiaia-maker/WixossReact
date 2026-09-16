@@ -223,6 +223,10 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // 能力喪失 active は現在のグローバルターンだけ。次ターン分は abilities_removed_next_turn に予約する（§6.4 O-3）。
   // ⚠登録前は turn-end 4経路のうち2経路でしか手書きクリアされておらず、普通にターンを終えると次ターン以降も残っていた。
   abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
+  // 🆕§5.3 `O-510`（2026-09-16）＝「メインフェイズの間だけ」の印。
+  //   本命の失効は `clearAttackPhaseScopedState`（ATTACK_ARTS へ入る1点）だが、
+  //   **MAIN を踏んだのに ATTACK へ入らずに終わるターン**への保険として turn-end でも落とす。
+  abilities_removed_until_attack_phase: { boundaries: ['attack-phase-start', 'turn-end'], reset: undefined, reason: 'marks the subset of abilities_removed that expires when the attack phase begins (O-510)' },
   // 指定キーワードの喪失／再取得禁止も abilities_removed と同じ期限。
   keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
   // 「効果によって得ている能力」だけの喪失（§5.3 `O-130`）も同じ期限。
@@ -585,7 +589,19 @@ export function activateTurnStartScopedState(state: PlayerState): PlayerState {
 
 /** ON_ATTACK_PHASE_START の収集より前に、当該フェイズの離場履歴を空にする。 */
 export function clearAttackPhaseScopedState(state: PlayerState): PlayerState {
-  return resetBoundary(state, 'attack-phase-start');
+  const reset = resetBoundary(state, 'attack-phase-start');
+  // 🆕§5.3 `O-510`（2026-09-16）＝「次のターンの**メインフェイズの間**」の能力喪失はここで解ける。
+  //   ⚠**その分だけ抜く**＝`abilities_removed` には別の効果由来の分も入っているので、丸ごと空にしない。
+  // ⚠**`reset` ではなく `state` から読む**＝このキーは上の登録で
+  //   `attack-phase-start` 境界に入っているので、`resetBoundary` の後はもう空になっている。
+  const untilAttack = state.abilities_removed_until_attack_phase ?? [];
+  if (untilAttack.length === 0) return reset;
+  const remaining = (reset.abilities_removed ?? []).filter(n => !untilAttack.includes(n));
+  return {
+    ...reset,
+    abilities_removed: remaining,
+    abilities_removed_until_attack_phase: undefined,
+  };
 }
 
 /**
@@ -601,10 +617,25 @@ export function clearMainPhaseScopedState(state: PlayerState): PlayerState {
   const windows = (state.prevent_damage_windows ?? []).filter(w => w.expires !== 'MY_NEXT_MAIN_PHASE');
   const lrigGrants = (reset.lrig_granted_auto_effects ?? [])
     .filter(e => !e.untilOwnEnergyPhaseEndGrant);
+  // 🆕§5.3 `O-510`（2026-09-16）＝「次のターンの**メインフェイズの間**」の予約をここで**昇格**させる。
+  //   🔑昇格と同時に `abilities_removed_until_attack_phase` へ印を残し、
+  //     `clearAttackPhaseScopedState`（ATTACK_ARTS へ入る1点）でその分だけ抜く。
+  //   ⚠予約は**ターン境界を跨ぐ**（自ターンに置いて相手ターンの MAIN で使う）ので、消費はこの1点だけ。
+  const reservedMain = state.abilities_removed_next_main_phase ?? [];
+  const promoted = reservedMain.length > 0
+    ? {
+        abilities_removed: [...new Set([...(reset.abilities_removed ?? []), ...reservedMain])],
+        abilities_removed_until_attack_phase: [
+          ...new Set([...(reset.abilities_removed_until_attack_phase ?? []), ...reservedMain]),
+        ],
+        abilities_removed_next_main_phase: undefined,
+      }
+    : {};
   return {
     ...reset,
     prevent_damage_windows: windows.length > 0 ? windows : undefined,
     lrig_granted_auto_effects: lrigGrants.length > 0 ? lrigGrants : undefined,
+    ...promoted,
   };
 }
 

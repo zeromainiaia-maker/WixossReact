@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 583（総ノード 3708 件）
-逆翻訳シートの [STUB:…] 総数: 277  うち生ID露出 0 箇所（0 種）
+逆翻訳シートの [STUB:…] 総数: 275  うち生ID露出 0 箇所（0 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 0 種 / 0 件
@@ -28,22 +28,22 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
 ==============================================================================
     35件  34枚  OPTIONAL_ACTIVATE
         カード: WD06-018, WD10-001, WDK13-017, SPDi43-21, WX02-003, WX07-003 …他28枚
-        消費: src\engine\effectExecutor.ts:7316 / src\engine\effectExecutor.ts:7333 / src\engine\triggerCollect.ts:622
+        消費: src\engine\effectExecutor.ts:7331 / src\engine\effectExecutor.ts:7348 / src\engine\triggerCollect.ts:626
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:6910 / src\engine\effectExecutor.ts:6915
+        消費: src\engine\effectExecutor.ts:6925 / src\engine\effectExecutor.ts:6930
      7件   7枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018 …他1枚
         消費(ペイロードキー): src\engine\effectEngine.ts:2328
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
-        消費: src\engine\effectExecutor.ts:6654
+        消費: src\engine\effectExecutor.ts:6669
      5件   5枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
         消費: src\screens\battle\allZoneBurst.ts:24 / src\screens\battle\allZoneBurst.ts:42
      4件   4枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX15-010, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:6202
+        消費: src\engine\effectEngine.ts:6210
      4件   4枚  DAMAGE_REPLACE_BY_COST
         カード: SPDi44-12, WX24-P3-005, WX24-P4-021, WX25-P1-014
         消費: src\screens\battle\lifeCrashReplace.ts:54
@@ -52,7 +52,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\effectExecutor.ts:607
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
-        消費: src\engine\effectEngine.ts:5713
+        消費: src\engine\effectEngine.ts:5721
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
         消費: src\engine\effectExecutor.ts:554
@@ -64,7 +64,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\execUtils.ts:2450 / src\screens\battle\costs.ts:1266
      3件   3枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-004, WXDi-P05-086
-        消費: src\engine\effectEngine.ts:8501 / src\engine\effectEngine.ts:8519 / src\engine\effectEngine.ts:8532
+        消費: src\engine\effectEngine.ts:8509 / src\engine\effectEngine.ts:8527 / src\engine\effectEngine.ts:8540
      2件   2枚  EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY
         カード: SPDi44-08, WX25-P1-018
         消費: src\engine\effectExecutor.ts:506
@@ -73,10 +73,10 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\screens\battle\artsUseGate.ts:44
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:6939
+        消費: src\engine\effectExecutor.ts:6954
      2件   2枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WX26-CP1-100, WXDi-CP02-103
-        消費: src\data\sourceTextPayloads.ts:28 / src\data\sourceTextPayloads.ts:60 / src\engine\effectEngine.ts:8569
+        消費: src\data\sourceTextPayloads.ts:28 / src\data\sourceTextPayloads.ts:60 / src\engine\effectEngine.ts:8577
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:111
@@ -91,7 +91,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\effectExecutor.ts:1431
      1件   1枚  ENERGY_COST_SUBSTITUTE_WHOLE
         カード: WX09-032
-        消費: src\engine\effectEngine.ts:8373
+        消費: src\engine\effectEngine.ts:8381
      1件   1枚  FLIP_SELF_ON_TARGETED
         カード: WX25-CP1-060
         消費: src\screens\battle\targetDodgeFlip.ts:46
@@ -100,13 +100,13 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\execUtils.ts:1696
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
-        消費: src\engine\effectEngine.ts:8312
+        消費: src\engine\effectEngine.ts:8320
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:11072
+        消費: src\engine\effectExecutor.ts:11110
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:11074
+        消費: src\engine\effectExecutor.ts:11112
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:72
@@ -115,25 +115,25 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\utils\deckBuildLimits.ts:43 / src\utils\deckBuildLimits.ts:60
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
-        消費: src\engine\effectExecutor.ts:6474
+        消費: src\engine\effectExecutor.ts:6489
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  NO_BATTLE_DEFENDER
         カード: WX25-P1-TK6
-        消費: src\screens\BattleScreen.tsx:10063
+        消費: src\screens\BattleScreen.tsx:10064
      1件   1枚  OPP_ENERGY_COLOR_CONDITION_TRASH
         カード: WXK09-037
-        消費: src\engine\effectEngine.ts:4913
+        消費: src\engine\effectEngine.ts:4921
      1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE
         カード: WXK03-071
-        消費: src\engine\effectEngine.ts:5847
+        消費: src\engine\effectEngine.ts:5855
      1件   1枚  POWER_CAP
         カード: WX22-022
         消費: src\engine\effectEngine.ts:3303 / src\screens\battle\signiAttackGate.ts:23 / src\screens\battle\signiAttackGate.ts:162
      1件   1枚  PREVENT_ATTACK_NEGATION_BY_OPP
         カード: WX25-P3-057
-        消費: src\engine\effectEngine.ts:5082
+        消費: src\engine\effectEngine.ts:5090
      1件   1枚  REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY
         カード: WX24-P3-009
         消費: src\engine\refresh.ts:30

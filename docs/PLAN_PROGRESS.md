@@ -1,6 +1,21 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+## 2026-09-16（第370バッチ）
+🏁**直近＝2026-09-16（第370バッチ）＝索引H 2件をユーザー判断で決着（`O-416` は BUG＝同日実装／`O-469` は FP）**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
+🔑**`O-416`（読みB）＝カードテキストの「【自】能力」は【出】能力を含まない。** 受け皿を3点で足した＝①`CardEffect.onPlayIcon`（parser が原文のアイコン `marker === '出'` から刻む・live **2,249効果**）②`isSigniAutoAbility` が `onPlayIcon` を除外 ③golden 1本。⚠**`timing:['ON_PLAY']` で判定してはいけない**＝「【自】：このシグニが場に出たとき」は**ゲートの対象のまま**が正しい（両方を assert に入れてある）。
+🔑**`O-469` は FP**＝【アンチェイン】【サイレント】は**必殺技名のような意味のない語**（ユーザー判断）＝JSON に現れないのが正しい。読み方ルール**規則61**へ還元。
+🔴**この回いちばん危なかったのは engine ではなく配送経路**＝**全効果に付く新フィールドを足すと収穫マージの `isPureSuperset` が `f.size > e.size` で一斉に成立し、温存キューが自動採用に化ける**（`純改善採用 1 → 1,809`）。⇒ **live = 旧 live ＋ `onPlayIcon` だけ**を effectId × リーフパス集合で機械証明した（**リーフ消失 0 ／ 他の追加 0**）。⚠`JSON.stringify` 比較は**キー順で偽陽性**（15カードが順序差だけだった）。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 索引G **16件**（`src/screens/` 必須＝9・新機構＝6・母集団の再計測＝1）。🔥**9件を実機1巡でまとめて取るのが最もレートが良い** |
+| 📊**進捗3計器** | Sheet1 要対応 **4 / 863**（全件 mech＝即着手可能 0）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist 🔥**16**（索引A 🏁**0**／索引B 🏁**0**／索引G 16）／索引H 🏁**0**／**実機 🏁0**／実装キュー 🔥**174 効果**／round5 🏁**598 / 598 バッチ（5,976枚＝100%）** |
+| 🔧**ゲート** | `npm run gates` **全緑**（golden **4241/4241**＝+1本）。✅実機は §2.2 で不要（`src/screens/` 不触＝`isSigniAutoAbility` は `src/engine/blockAction.ts` にある純関数） |
+| 🔴**運用の決定** | 🔴**全効果に付く `CardEffect` フィールドを足した回は「live = 旧 live ＋ その1キーだけ」を機械で証明する**（[LESSONS.md](./LESSONS.md) §4.5）＝温存キューが道連れで解ける。⚠差分の確認に `JSON.stringify` を使わない（キー順で偽陽性） |
+
+
 ## 2026-09-16（第369バッチ）
 🏁**直近＝2026-09-16（第369バッチ）＝索引G 11件消化＝修正6件（11効果）＋実測で決着5件（FP2・受け皿不要1・解釈待ち2）**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
 🔑**engine に足した受け皿は4つ**＝`isImmovableArtsFromLrigDeck`（`O-423`＝宣言の置き場所を問わない述語）／`placeUnder.mode:'hand_and_energy'`（`O-507`）／`TargetSpec.extraZones` を **`HAND_CARD` の TRASH でも honor**（`O-454`＝手札とエナの単一プール）／`TargetSpec.includeAcce`（`O-466`＝シグニゾーンの表向きの装着カード）。残りは JSON（manual 5カード）と逆翻訳4箇所。

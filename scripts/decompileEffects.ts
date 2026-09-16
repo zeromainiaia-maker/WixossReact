@@ -883,7 +883,9 @@ function useTimeCostJa(u: any): string {
 function costJa(c?: any): string {
   if (!c) return '';
   const parts: string[] = [];
-  if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
+  // 🆕§5.3 `O-445`（2026-09-16）＝**混色スロットは原文の綴りで描く**（`《白/赤×6》`）。
+  //   ⚠`anyOfColors` を見ないと `color:'無'` だけが出て**原文の色制約が逆翻訳から消える**。
+  if (c.energy) parts.push(c.energy.map((e: any) => `《${(e.anyOfColors?.length ? e.anyOfColors.join('/') : e.color)}×${e.count}》`).join(''));
   // O-119: JSON payload から描く。本文 regex へ戻すと payload 欠落を逆翻訳が隠す。
   if (c.costScaling?.length) parts.push(costScalingJa(c.costScaling));
   // ⚠**空文字を push しない**＝`parts` は「＋」で連結されるので `＋＋` が出る
@@ -952,7 +954,10 @@ function costJa(c?: any): string {
   //   `'アーツ/クラフト'`（クラフトのアーツ）は12効果すべてで候補から外れている。
   // 🔑**逆翻訳は engine が何をするかを書く**＝原文が「クラフトではない」と書く `WXK10-006-E3` はこれで一致し、
   //   書いていない11効果では**engine が原文より狭い**ことがこの1語で見えるようになる（`O-521` の在処）。
-  if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}クラフトではないアーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
+  // 🆕🔴§5.3 `O-521`（2026-09-16）＝「クラフトではない」は**payload があるときだけ**描く。
+  //   旧実装は**無条件に**書いており、原文に除外の無い 11効果でも「クラフトではない」と嘶をついていた
+  //   （engine 側の `Type === 'アーツ'` 完全一致と**同じ嘶で一致**していたのでどの計器にも映らなかった）。
+  if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}${c.trashArtsFromLrigDeck.excludeCraft ? 'クラフトではない' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
   // 🆕§5.3 `O-201`＝出さないと `コスト:{...}` と生JSONが漏れる（`census:stubs` C群と同じ「表示の穴」）。
   if (c.trashToDeckBottom) parts.push(`トラッシュから${filterJa(c.trashToDeckBottom.filter)}カード${c.trashToDeckBottom.count}枚をデッキの一番下に置く`);
@@ -1805,6 +1810,14 @@ function actionJa(a?: Action, effectType?: string): string {
       //   `WX25-P1-003-sub-E1`（「カード1枚と、それと共通する色を持たないカードを1枚まで」）が
       //   「エナを2枚までトラッシュに置く」＝**制約が2つとも消えた文**になっていた。
       const setJa = constraintJa(t?.selectionConstraint);
+      // 🆕§5.3 `O-519`（2026-09-16）＝**「上限なし＋下限N」は「N枚以上」と書く**。
+      //   🔴組み合わせると「2枚以上を含むように…好きな枚数」という日本語にならない文になる。
+      const minOnly = t?.selectionConstraint?.minCount !== undefined
+        && Object.keys(t.selectionConstraint).length === 1
+        && t?.count === 'ALL' && t?.upToCount;
+      if (minOnly) {
+        return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${t!.selectionConstraint!.minCount}枚以上トラッシュに置く${who}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
+      }
       return `${ownerJa(t?.owner)}${setJa}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}${bestEffortJa}`;
     }
     case 'POWER_MODIFY': {
@@ -2163,10 +2176,14 @@ function actionJa(a?: Action, effectType?: string): string {
          : '好きな順番でデッキに戻す')
         : dest?.location === 'life_cloth' ? '好きな順番でライフクロスの上に置く'
         : '';
-      // canTrash＝「不要なカードをトラッシュに置き、残りを〜」（trashして残りを行き先へ）。
+      // canTrash＝「不要なカードをトラッシュに置き、残りを〜」（trash して残りを行き先へ）。
+      // 🆕§5.3 `O-484`（2026-09-16）＝**枚数の指定を描く**（`trashCount` ＋ `trashUpTo`）。
+      //   ⚠描かないと「１枚を」と「好きな枚数を」が**逆翻訳で区別できない**。
+      const lookTrashJa = !a.canTrash ? ''
+        : a.trashCount === undefined ? 'その中から不要なカードをトラッシュに置き、残りを'
+        : `その中から${a.trashCount}枚${a.trashUpTo ? 'まで' : ''}をトラッシュに置き、残りを`;
       if (a.reorder && destJa) {
-        const trashJa = a.canTrash ? 'その中から不要なカードをトラッシュに置き、残りを' : '';
-        return `${src}${loc}から${cntJa}を見て、${trashJa}${destJa}`;
+        return `${src}${loc}から${cntJa}を見て、${lookTrashJa}${destJa}`;
       }
       // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝**行き先が元のゾーンと違うのに `reorder` が無い**形
       //   ＝並べ替えではなく**移動**。ここを描かないと `WXDi-D04-010-E1`②
@@ -2189,10 +2206,14 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）。
       // ⚠`private:false` は原文「**公開する**」＝相手にも見せる。「見る」と書くと非公開と読めるので区別する。
+      // 🆕§5.3 `O-484`：枚数指定があるときは「不要札は〜てもよい」（任意・無制限）と書かない。
+      const lookTrashNoteJa = !a.canTrash ? ''
+        : a.trashCount === undefined ? '（不要札はトラッシュに置いてもよい）'
+        : `（その中から${a.trashCount}枚${a.trashUpTo ? 'まで' : ''}をトラッシュに置く）`;
       if (!a.reorder && a.private === false) {
-        return `${src}${loc}${cntJa}を公開する${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
+        return `${src}${loc}${cntJa}を公開する${lookTrashNoteJa}`;
       }
-      return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
+      return `${src}${loc}${cntJa}を見る${lookTrashNoteJa}`;
     }
     case 'MILL':
       if (a.useDeclaredCount) return `${ownerJa(a.owner)}デッキの上から宣言した数字に等しい枚数のカードをトラッシュに置く`;
@@ -2516,6 +2537,9 @@ function actionJa(a?: Action, effectType?: string): string {
       //   期間が違う3つの JSON を逆翻訳が区別できない（＝engine を直しても計器に映らない偽陰性）。
       const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.until === 'NEXT_TURN' ? '（次のターンの間）'
+        // 🆕§5.3 `O-510`（2026-09-16）＝描かないと `NEXT_TURN` と同じ文になり、
+        //   アタックフェイズを除いたことが逆翻訳から消える。
+        : a.until === 'NEXT_TURN_MAIN_PHASE' ? '（次のターンのメインフェイズの間）'
         : a.until === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.until === 'UNTIL_OPP_TURN_END' ? '（次の対戦相手のターン終了時まで）'
         : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
@@ -6545,6 +6569,15 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW' && miscStubMap[a.id]) {
         return miscStubMap[a.id].replace(/カードを引く$/, `カードを${typeof a.value === 'number' ? a.value : 6}枚引く`);
       }
+      // 🆕§5.3 `O-483`（2026-09-16）＝**発生源の限定と枚数を payload から描く**。
+      //   ⚠`STUBS.md` の固定文は payload を一切見ないので、描かないと
+      //     「対戦相手のルリグによって」と「無限定」が**逆翻訳で区別できない**。
+      if (a.id === 'SET_NEXT_LIFE_CRASH_COUNTER') {
+        const byJa = a.crashCounterSourceType === 'lrig' ? '対戦相手のルリグによって'
+          : a.crashCounterSourceType === 'signi' ? '対戦相手のシグニによって' : '';
+        const nJa = typeof a.value === 'number' ? a.value : 1;
+        return `このターン、次に${byJa}あなたのライフクロス1枚がクラッシュされたとき、対戦相手のライフクロス${nJa}枚をクラッシュする`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
@@ -6938,7 +6971,13 @@ function effJa(e: Eff): string {
     }
     // ON_MAIN_PHASE_START の triggerScope:any_opp（「対戦相手のメインフェイズ開始時」WXDi-P00-034）
     if (t === 'ON_MAIN_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のメインフェイズ開始時';
-    if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackGuarded) s = 'このルリグのアタックが【ガード】されたとき';
+    // 🆕§5.3 `O-458`（2026-09-16）＝`triggerScope:'any'`（修飾語の無い「センタールリグ１体が」）を別の文で描く。
+    //   ⚠描かないと「このルリグの」限定版と同じ文になり、防御側でも発火することが逆翻訳から消える。
+    if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackGuarded) {
+      s = e.triggerScope === 'any'
+        ? 'いずれかのセンタールリグ1体のアタックがすべて【ガード】されたとき'
+        : 'このルリグのアタックが【ガード】されたとき';
+    }
     // 🆕2026-08-31 続き749＝「そのアタック終了時、ダメージを与えていなかった場合」（`WX24-P3-055-E2`）。
     if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackNoDamage) s = 'ルリグ１体がアタックし、そのアタックがダメージを与えなかったとき';
     // ON_TURN_END/ON_TURN_START の triggerScope:any_opp（「対戦相手のターン終了/開始時」WX11-032/WX20-073 等）
@@ -7058,7 +7097,9 @@ function effJa(e: Eff): string {
       const subj = (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
         ? `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体` : 'このシグニ';
       const zones = e.triggerCondition?.fromZones as string[] | undefined;
-      const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded'];
+      // ⚠`src/data/effectParser.ts` の `ON_PLAY_NON_HAND_ZONES` と**同じ集合に保つ**
+      //   （片方だけ足すと「手札以外の領域から」が `指定領域（…）から` に化ける）。
+      const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded', 'check'];
       const origin = e.triggerCondition?.placedFromTrash || (zones?.length === 1 && zones[0] === 'trash')
         ? 'トラッシュから'
         : zones?.length === 1 && zones[0] === 'energy'

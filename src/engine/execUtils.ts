@@ -670,7 +670,7 @@ export interface OptionalCostSpec {
   lifeToHand?: number;
   deckTrash?: number;
   charmTrash?: number;
-  trashArtsFromLrigDeck?: { color?: string; count: number };
+  trashArtsFromLrigDeck?: { color?: string; count: number; excludeCraft?: boolean };
   removeOppVirus?: number;
   /**
    * 🔴「（使用コストとして）追加でエクシードNを支払ってもよい」（§6.4 O-11・2026-08-16）。
@@ -4284,6 +4284,13 @@ export function selectOrInteract(
   if (resolvedExtra?.selectionConstraint?.totalLevelExact !== undefined
       && findValidConstrainedSelection(filteredCands, optional ? 0 : count, count,
         resolvedExtra.selectionConstraint, ctx.cardMap) === null) {
+    return done({ ...ctx, lastProcessedCards: [] });
+  }
+  // 🆕**§5.3 `O-519`（2026-09-16）＝`minCount` の下限を満たせない盤面も fail-closed へ倒す。**
+  // 🔴上の `totalLevelExact` と同じ理由＝候補が下限に届かないと**確定ボタンが永久に押せない**
+  //   （`「２枚以上」` の強制追加コストをエナ1枚で払おうとすると UI が止まる）。
+  // ⚠「払えない→何も起きない」が正しい倒し方（`lastProcessedCards` を空にして後続の「そうした場合」を止める）。
+  if ((resolvedExtra?.selectionConstraint?.minCount ?? 0) > filteredCands.length) {
     return done({ ...ctx, lastProcessedCards: [] });
   }
   return needsInteraction(ctx, {

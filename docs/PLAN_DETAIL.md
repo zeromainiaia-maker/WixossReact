@@ -1,5 +1,52 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-16 第371バッチ：索引G 一括消化（16 → 1）
+
+- **消化**＝修正 `O-390`/`O-400`/`O-408`/`O-445`/`O-458`/`O-465`/`O-477`/`O-483`/`O-484`/`O-510`/`O-519`/`O-521`（12件）＋
+  **実測で決着** `O-401`（登録票が stale＝受け皿は全経路に既にあった）／`O-412`・`O-490`（盤面差の無い近似）。1件ずつは [BUGFIXES.md](./BUGFIXES.md) 第371バッチの表。
+- 🔑**取り方**＝16行ぶんの**原文 × 逆翻訳 × live JSON** を一度に読み、受け皿の grep をまとめてから書き始めた（第365〜369と同じ）。
+  🔴**違ったのは「`src/screens/` が要る9件は後回し」をやめたこと**＝ユーザー指示が「索引G を全部行う」だったので、
+  UI・engine・parser をまたぐ項目も同じ巡で取り、**実機の返済先（`V-232`〜`V-234`）を §5.1 へ同時に登録した**。
+- 🔴**この回の最大の学び＝「登録票の『新機構が要る』は自分で書いたものでも信用しない」。**
+  16件のうち **4件**が grep だけで別の結論になった：
+  - `O-401`＝「置換の受け皿が `BANISH_SUBSTITUTE`（バニッシュ）だけ」→ **`applyEffectLeavePowerReductionSubstitute` が
+    `LEAVE_MOVE_ACTION_TYPES`（BANISH/BOUNCE/SEND_TO_ENERGY/TRASH/EXILE/TRANSFER_TO_DECK）の全経路から呼ばれていた**。
+    「`excludeSelf` が無い」も誤り（`top === victimNum` を明示的に除外済み）。
+  - `O-465`＝「ルリグ単位の付与ストアが無い」→ **`GRANT_EFFECT{target:{type:'LRIG'}}`（`granted_effects[ルリグ]`）が既にあった**。
+  - `O-412`／`O-490`＝どちらも**盤面差が無い**（下に理由）。
+- 🔴**engine の追加は7つ**：
+  - `EnergyCost.anyOfColors`（`O-445`）＝混色スロット。`triggerCollect` は既存の OR スロット綴り `'白|赤'` へ落とす。
+  - `TriggerOriginZone` に `'check'`（`O-477`）＝**4箇所を同じ集合に保つ**（parser / `detectPlacedFromZone` / 由来記録 / 逆翻訳）。
+  - `EffectDuration` に `'NEXT_TURN_MAIN_PHASE'`（`O-510`）＝昇格 `clearMainPhaseScopedState` ／失効 `clearAttackPhaseScopedState` の2点。
+  - `life_crash_counters`（配列＋`sourceType`）と `StubAction.crashCounterSourceType`（`O-483`）。
+  - `LookAndReorderAction.trashCount` / `trashUpTo`（`O-484`）＝**UI と engine の両方**で強制する。
+  - `selectOrInteract` の `minCount` fail-closed（`O-519`）＝候補が下限に届かない盤面で**確定ボタンが永久に押せない**のを防ぐ。
+  - `oppZoneMoveBlocked('life', …)` の消費地点2つ（`O-408`）＝**宣言だけで消費が 0 件**だった真 no-op。
+- 🔑**逆翻訳も6箇所直した**＝混色コスト（`《白/赤×6》`）／`NEXT_TURN_MAIN_PHASE`／`trashCount`／
+  `crashCounterSourceType`（STUB ラベルを payload から描く）／`excludeCraft`（**無条件に「クラフトではない」と書いていた**）／
+  `minCount` だけの選択集合（「2枚以上を含むように…好きな枚数」という日本語にならない文）。
+- ⏸**次に取るときの手掛かり（索引G 残1＝`O-414`）**：
+  - **残っているのは対話窓だけ**＝宣言（`grantedPayCostReplacements`）も選択肢の列挙（`payOptions`）も実装済みで、
+    `pickLifeCrashReplacement` が**自動 policy で先頭を採る**だけ。
+  - 🔴**2経路に同時に入れる**＝シグニアタックは `crashOneLife`、ルリグアタックは `performGuardResponse` の
+    「ガードしない」枝。片方だけだと「シグニには効くがルリグには効かない」型の無言の不整合（`lifeCrashReplace.ts` の規約）。
+  - 🔑**型は離場置換の `hoistLeaveSubstituteAsks` がそのまま使える**＝**移動を1つも適用する前に**被害側へ全部聞き、
+    決定を `PlayerState` へ刻んでから同期的に適用する。`leave_substitute_choices` と同型のキーを足すだけで済む。
+  - ⚠**母集団は4効果**（`WX24-P3-005-E1` / `WX24-P4-021-E3` / `WX25-P1-014-E2` / `SPDi44-12-E2`）。
+
+### `O-412` / `O-490` を「盤面差の無い近似」と判定した根拠
+
+- **`O-412`（`WD13-002-E1` / `WD13-003-E1`）**＝グロウコスト軽減の条件が「この方法で公開した」ではなく手札全体。
+  公開は**無償**で、原文の上限「２枚まで」は**両方の軽減に必要な公開枚数（最大2枚）とちょうど一致する**
+  （多クラスのシグニなら1枚で両方）。⇒ **合理的なプレイでは結果が完全に一致する。**
+  残る差は「相手に手札を見せない」という情報面だけで、engine は隠し情報の戦略を持たない。
+  ⚠**逆翻訳は嘘をついていない**（「あなたの手札に＜迷宮＞のカードが1枚以上あるなら」＝engine が見ているものを書いている）。
+- **`O-490`（`PR-305-E1`）**＝「その**バトル終了時**に」の遅延が JSON に無い。
+  `ON_SIGNI_BATTLE` の収集地点（`BattleScreen`）は**バニッシュ解決の後**に走り、トリガーはスタックへ積まれてから解決する
+  ＝engine は既に「バトル終了時」に解決している。原文との差は**任意コストを払うか決める時点でバトルの結果を知っている**ことだけで、
+  ①相手が生き残った → どちらも「捨てて、デッキの一番下へ」②相手がバトルで消えた → 原文は払い損・engine は辞退できる、
+  ③このシグニが消えた → どちらもトリガーは残り相手を送る。**盤面の結果はどの分岐でも一致する。**
+
 ## 2026-09-16 第370バッチ：索引H 決着（`O-416` 実装／`O-469` FP）
 
 - **消化**＝`O-416`（ユーザー判断＝**読みB**・同日実装）／`O-469`（ユーザー判断＝**意味のない語**・FP）。全文は [BUGFIXES.md](./BUGFIXES.md) 第370バッチ。

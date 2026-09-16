@@ -630,13 +630,26 @@ export function execStubPart1(
         : 'このターン、あなたのライフクロスはクラッシュされない';
     return done(addLog({ ...ctx, ownerState: newOwner }, label));
   }
+  // 表示: 次にあなたのライフクロスが（限定があればその発生源によって）クラッシュされたとき、対戦相手のライフクロスをクラッシュし返す
   // SET_NEXT_LIFE_CRASH_COUNTER: 「次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスをクラッシュする」
   // 防御用カウンタークラッシュをセット（WX25-P1-004 / WXDi-P12-030）。perTrigger=value(既定1)、remaining=1。
   if (stub.id === 'SET_NEXT_LIFE_CRASH_COUNTER') {
     const perTrigger = typeof stub.value === 'number' ? stub.value : 1;
-    const newOwner = { ...ctx.ownerState, life_crash_counter: { remaining: 1, perTrigger } };
+    // 🆕§5.3 `O-483`（2026-09-16）＝**発生源の限定**を payload で受け、**重ねがけ可能**な配列へ積む。
+    //   🔴旧形は単一スロットを**上書き**しており、`WX25-P1-004-E1` の【ブースト】分（シグニ由来）を
+    //     足せなかった（そもそも発生源の限定自体が無く、何に割られても返していた）。
+    const sourceType = stub.crashCounterSourceType;
+    const newOwner = {
+      ...ctx.ownerState,
+      life_crash_counters: [
+        ...(ctx.ownerState.life_crash_counters ?? []),
+        { remaining: 1, perTrigger, ...(sourceType ? { sourceType } : {}) },
+      ],
+    };
+    const bySrc = sourceType === 'lrig' ? '対戦相手のルリグによって'
+      : sourceType === 'signi' ? '対戦相手のシグニによって' : '';
     return done(addLog({ ...ctx, ownerState: newOwner },
-      `次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスを${perTrigger}枚クラッシュする`));
+      `次に${bySrc}あなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスを${perTrigger}枚クラッシュする`));
   }
   // ディスペア：次の対戦相手ターンだけ、自分の全ゾーンの非LBカードへ指定LBを付与する。
   if (stub.id === 'SET_DISPAIR_BURST_GRANT') {

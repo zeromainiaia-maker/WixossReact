@@ -58,6 +58,10 @@ const ATTACK_PHASES = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_
 /** 「手札以外から場に出たとき」の既知領域。由来不明は collector 側で fail-closed にする。 */
 const ON_PLAY_NON_HAND_ZONES: TriggerOriginZone[] = [
   'deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded',
+  // 🆕§5.3 `O-477`（2026-09-16）＝**チェックゾーン**も「手札以外の領域」。
+  // ⚠**末尾へ足す**（`buildEffectsJson` の `isPureSuperset` は配列を添字パスで突き合わせるので、
+  //   途中へ挿すと既存リーフが変わって live へ届かない）。
+  'check',
 ];
 
 function addOnPlayOriginCondition(
@@ -199,7 +203,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, normalizeCardNameParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
+  parseNum, parseLookTrashCount, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, normalizeCardNameParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
   parseChosenAbilitySpec,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
@@ -1013,12 +1017,17 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   // ルリグデッキから[色]のアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck（色指定は任意）
   // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-68`②）＝「クラフトではない」を通す**（`WXK10-006-E3`）。
   //   🔴この修飾語があるだけで regex に当たらず、**アーツ1枚というコストが丸ごと落ちていた**（踏み倒し）。
-  //   ⚠**除外そのものは追加実装が要らない**＝クラフトのアーツは `Type` が `'アーツ/クラフト'` で、
-  //     `matchesTrashArtsFromLrigDeckCost` が `Type === 'アーツ'` の完全一致を見るので既に弾かれている
-  //     （`excludeCraft` キーを足すのは**存在しない仕事**＝実データを見てから決める）。
+  // 🆕🔴**§5.3 `O-521`（2026-09-16）＝除外は `excludeCraft` で明示するようにした。**
+  //   旧コメントは「`matchesTrashArtsFromLrigDeckCost` が `Type === 'アーツ'` の完全一致を見るので
+  //   既に弾かれている」と書いていたが、**それは偶然当たっていただけ**で、同じ完全一致が
+  //   残り11効果（原文に除外が無い）からもクラフトのアーツを奇っていた＝**向きが逆の同じ罠**。
   if (!cost.trashArtsFromLrigDeck) {
-    const tArtM = costStr.match(/ルリグデッキから(?:クラフトではない)?(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
-    if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[2]), ...(tArtM[1] ? { color: tArtM[1] } : {}) };
+    const tArtM = costStr.match(/ルリグデッキから(クラフトではない)?(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
+    if (tArtM) cost.trashArtsFromLrigDeck = {
+      count: parseNum(tArtM[3]),
+      ...(tArtM[2] ? { color: tArtM[2] } : {}),
+      ...(tArtM[1] ? { excludeCraft: true } : {}),
+    };
   }
   // ルリグデッキにある＜X＞のルリグN枚をゲームから除外する → exileLrigFromLrigDeck（`PR-469`・§6.4 O-11）
   if (!cost.exileLrigFromLrigDeck) {
@@ -20016,6 +20025,10 @@ function parseActionTextInner(text: string): EffectAction {
           private: true,
           reorder: split || nextS.includes('好きな順番'),
           canTrash: nextS.includes('トラッシュ'),
+          // 🆕§5.3 `O-484`（2026-09-16）＝「その中から**１枚**をトラッシュに置き」の枚数。
+          //   🔴ここが実測での**本命の生成元**（文をまたいで合成する経路）だった＝
+          //     `parseSentencePart1` 側だけ直しても 5効果は1件も変わらない。
+          ...(parseLookTrashCount(nextS) ?? {}),
           destination: { location: 'deck', owner: 'self', position: split ? 'split_top_bottom' : nextS.includes('一番下') ? 'bottom' : 'top' },
         };
         // 🔴この early return は**3文目以降を捨てていた**＝「…残りを一番下に置く。**カードを１枚引く。**」の
@@ -27802,6 +27815,16 @@ ${card.BurstText ?? ''}`;
  * ⚠**移動先（トラッシュとデッキ）の限定は表せない**＝現行の受け皿は「そのゾーンから出る移動」を
  *   すべて止める（除外まで止まる）。移動先の軸は §5.3 へ別項目で登録した。
  * ⚠母集団は実測1効果（`census:population -- "あなたは対戦相手の効果によってダメージを受けず"`）。
+ *
+ * 🆕🔴**§5.3 `O-408`（2026-09-16）＝ゾーンの一覧を原文に合わせて数え直した。**
+ * 原文は「**シグニゾーン以外の**あなたの領域にあるカード」。
+ * - 足した＝`lrig_deck` / `lrig_trash`（どちらも `oppZoneMoveBlocked` の消費地点が既にある）。
+ * - 足さない＝**シグニの下**はルール上「シグニゾーン」なので**原文が明示的に除外**している。
+ * - 足さない＝**ルリグゾーン（ルリグの下を含む）・チェックゾーン**は、原文コーパスに
+ *   「対戦相手のその領域からトラッシュ・デッキへ移す」効果が**1件も無い**＝
+ *   語彙を足すと**消費地点の無い宣言**（真 no-op）になるので足さない。
+ * 🔑**本当の穴はゾーン名ではなく消費地点のほうだった**＝`'life'` は宣言だけで
+ *   `oppZoneMoveBlocked('life', …)` の呼び出しが**全ファイルで 0 件**だった（同じ巡で 2 地点足した）。
  */
 function applyNonFieldMoveImmunityTail(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}
@@ -27821,7 +27844,8 @@ ${card.BurstText ?? ''}`;
       action: {
         type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP',
         zoneMoveImmunity: {
-          zones: ['hand', 'energy', 'deck', 'trash', 'life'],
+          // ⚠**末尾へ足す**（`isPureSuperset` は配列を添字パスで突き合わせる）。
+          zones: ['hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash'],
           destinations: ['trash', 'deck'],
         },
       } as StubAction,

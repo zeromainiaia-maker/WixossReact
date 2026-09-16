@@ -1,34 +1,35 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 377
+PlayerState のキー: 379
 🔴 書きあり・読み 0: 0
 
 
 ## 参考：書き込みの多い順（上位40）
-  1560 読 / 106 書  energy
-  1314 読 /  75 書  deck
-  3780 読 /  74 書  field
-  1733 読 /  65 書  trash
+  1559 読 / 106 書  energy
+  1315 読 /  75 書  deck
+  3782 読 /  74 書  field
+  1761 読 /  65 書  trash
   1878 読 /  61 書  hand
-   209 読 /  36 書  lrig_deck
+   210 読 /  36 書  lrig_deck
     55 読 /  36 書  temp_power_mods
-   180 読 /  23 書  lrig_trash
+   181 読 /  23 書  lrig_trash
    130 読 /  23 書  keyword_grants
    157 読 /  21 書  life_cloth
     96 読 /  18 書  blocked_actions
+   296 読 /  16 書  actions_done
    103 読 /  15 書  coins
      3 読 /  14 書  opp_virus_removed_just
      7 読 /  12 書  pending_banish_substitute
-   290 読 /  11 書  actions_done
      2 読 /  11 書  self_optional_effect_taken
     11 読 /  10 書  pending_crash_source_card_nums
-    27 読 /  10 書  granted_effects
+    29 読 /  10 書  granted_effects
      5 読 /  10 書  banish_substitute_choice
     17 読 /   9 書  pending_crashed_cards
      6 読 /   9 書  crash_source_card_num
     10 読 /   8 書  card_class_overrides
     13 読 /   7 書  story_overrides
+     9 読 /   7 書  pending_crash_causes
      2 読 /   7 書  banish_redirect_battle_target_nums
      2 読 /   7 書  banish_redirect_power0_target_nums
      4 読 /   7 書  prevent_defeat
@@ -38,11 +39,10 @@ PlayerState のキー: 377
     16 読 /   7 書  lrig_upkeep_condition
      6 読 /   7 書  is_betting_this_effect
      1 読 /   7 書  cancel_current_signi_attack
-     9 読 /   6 書  pending_crash_causes
+     5 読 /   6 書  crash_cause
     14 読 /   6 書  temp_level_mods
+    59 読 /   6 書  abilities_removed
      1 読 /   6 書  draw_limit
     10 読 /   6 書  attack_phase_level_overrides
      4 読 /   6 書  signi_deploy_count_limit
      9 読 /   6 書  signi_played_from_non_hand_this_turn
-     2 読 /   6 書  turn_end_energy_trash_targets
-     7 読 /   6 書  turn_arts_used_names

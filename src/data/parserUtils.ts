@@ -1466,6 +1466,19 @@ export function parseSuperlative(text: string): { key: 'power' | 'level'; dir: '
 }
 
 
+/**
+ * 🆕**「その中からN枚（まで）をトラッシュに置き」の枚数**（§5.3 `O-484`・2026-09-16）。
+ *
+ * 🔴`LOOK_AND_REORDER` は長らく `canTrash:true`（＝好きな枚数）しか持っておらず、
+ * 原文が枚数を書いている5効果（exact 3／up-to 2）も**0枚でも全枚でも捨てられた**。
+ * ⚠「好きな枚数」は `null`（従来どおり無制限）。
+ */
+export function parseLookTrashCount(text: string): { trashCount: number; trashUpTo?: true } | null {
+  const m = text.match(/その中から(?:カードを?)?([０-９\d]+)枚(まで)?(?:を)?トラッシュに置/);
+  if (!m) return null;
+  return { trashCount: parseNum(m[1]), ...(m[2] ? { trashUpTo: true as const } : {}) };
+}
+
 const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
 
 export function parseEnergyCosts(str: string): EnergyCost[] {
@@ -1485,16 +1498,20 @@ export function parseEnergyCosts(str: string): EnergyCost[] {
       if (inner && ENERGY_COLORS.has(inner[1])) {
         costs.push({ color: inner[1] as EnergyCost['color'], count: parseNum(inner[2]) });
       } else {
-        // 《色1/色2》×N 形式（混色コスト、無色N枚で近似）
+        // 《色1/色2》×N 形式（混色コスト）。
+        // 🆕§5.3 `O-445`（2026-09-16）＝**色の集合を `anyOfColors` で残す**。
+        // 🔴旧実装は `{ color:'無' }` に落とすだけで、逆翻訳が `《無×6》` と書いていた＝
+        //   **原文の「白か赤で６エナ」という制約が逆翻訳から丸ごと消えていた**（6効果）。
+        // ⚠`color` は `'無'` のまま（読まない消費地点を安全側に留める）。
         const bicolorInner = m[1].match(/^([白赤青緑黒])\/([白赤青緑黒])$/);
         if (bicolorInner) {
           const cnt = m[2] ? parseNum(m[2]) : 1;
-          costs.push({ color: '無', count: cnt });
+          costs.push({ color: '無', count: cnt, anyOfColors: [bicolorInner[1], bicolorInner[2]] as EnergyCost['anyOfColors'] });
         } else {
           // 《色1/色2×N》 形式
           const bicolorNum = m[1].match(/^([白赤青緑黒])\/([白赤青緑黒])×([０-９\d]+)$/);
           if (bicolorNum) {
-            costs.push({ color: '無', count: parseNum(bicolorNum[3]) });
+            costs.push({ color: '無', count: parseNum(bicolorNum[3]), anyOfColors: [bicolorNum[1], bicolorNum[2]] as EnergyCost['anyOfColors'] });
           }
         }
       }

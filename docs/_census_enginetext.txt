@@ -10,29 +10,29 @@ miss = 各ソース行について、その行の門から来る live カード�
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| fn:collectOppGuardExtraColorlessCost + OPP_GUARD_COST_COLORLESS|GUARD_EXTRA_COST_BY_OPP | effectEngine.ts:4849 | 10 | 10 | 3 | 8 |
+| fn:collectOppGuardExtraColorlessCost + OPP_GUARD_COST_COLORLESS|GUARD_EXTRA_COST_BY_OPP | effectEngine.ts:4857 | 10 | 10 | 3 | 8 |
 | fn:collectDrawLimits + LIMIT_OPP_DRAW_COUNT|OPP_DRAW_LIMIT_PER_TURN | effectEngine.ts:4366 | 4 | 4 | 1 | 0 |
 | fn:collectAttackPhaseLevelOverrides + ATTACK_PHASE_LEVEL_OVERRIDE | effectEngine.ts:4580 | 3 | 3 | 3 | 0 |
-| fn:collectSpecificCardCostReductions + SPECIFIC_CARD_COST_REDUCE | effectEngine.ts:5114 | 2 | 2 | 1 | 0 |
-| fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP | effectEngine.ts:7215 | 1 | 1 | 1 | 0 |
-| fn:collectArtsThresholdCostReductions + ARTS_COST_REDUCTION_BY_COST_THRESHOLD | effectEngine.ts:5806 | 1 | 1 | 1 | 0 |
-| fn:collectDownProtectedSigni + PREVENT_BOUNCE_AND_DOWN_BY_OPP | effectEngine.ts:6103 | 1 | 1 | 1 | 0 |
-| fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI | effectEngine.ts:8338 | 1 | 1 | 1 | 0 |
-| fn:collectHandGuardIconClasses + HAND_SIGNI_HAS_GUARD_ICON | effectEngine.ts:5747 | 1 | 1 | 1 | 0 |
+| fn:collectSpecificCardCostReductions + SPECIFIC_CARD_COST_REDUCE | effectEngine.ts:5122 | 2 | 2 | 1 | 0 |
+| fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP | effectEngine.ts:7223 | 1 | 1 | 1 | 0 |
+| fn:collectArtsThresholdCostReductions + ARTS_COST_REDUCTION_BY_COST_THRESHOLD | effectEngine.ts:5814 | 1 | 1 | 1 | 0 |
+| fn:collectDownProtectedSigni + PREVENT_BOUNCE_AND_DOWN_BY_OPP | effectEngine.ts:6111 | 1 | 1 | 1 | 0 |
+| fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI | effectEngine.ts:8346 | 1 | 1 | 1 | 0 |
+| fn:collectHandGuardIconClasses + HAND_SIGNI_HAS_GUARD_ICON | effectEngine.ts:5755 | 1 | 1 | 1 | 0 |
 | fn:collectLrigGrantedEffects + GRANT_LRIG_TRASH_ACTIVATE_ABILITY | effectEngine.ts:3817 | 1 | 1 | 1 | 0 |
-| fn:collectLrigNameAliases + GAIN_ADDITIONAL_LRIG_TYPE | effectEngine.ts:5527 effectEngine.ts:5552 | 1 | 1 | 2 | 0 |
-| fn:collectOppLrigAttackExtraCost + OPP_LRIG_ATTACK_COST | effectEngine.ts:5883 | 1 | 1 | 1 | 0 |
-| fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH | effectEngine.ts:7041 | 1 | 1 | 1 | 0 |
+| fn:collectLrigNameAliases + GAIN_ADDITIONAL_LRIG_TYPE | effectEngine.ts:5535 effectEngine.ts:5560 | 1 | 1 | 2 | 0 |
+| fn:collectOppLrigAttackExtraCost + OPP_LRIG_ATTACK_COST | effectEngine.ts:5891 | 1 | 1 | 1 | 0 |
+| fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH | effectEngine.ts:7049 | 1 | 1 | 1 | 0 |
 | GRANT_ABILITY_UNTIL_OPP_TURN | execStubPart2.ts:4767 | 1 | 1 | 4 | 0 |
 | ACCE_SIGNI_GRANT_ABILITY | execStubPart3.ts:3622 | 0 | 0 | 1 | 0 |
-| fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:7232 | 0 | 0 | 1 | 0 |
-| fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6120 | 0 | 0 | 1 | 0 |
-| fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6875 | 0 | 0 | 1 | 0 |
+| fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:7240 | 0 | 0 | 1 | 0 |
+| fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6128 | 0 | 0 | 1 | 0 |
+| fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT | effectEngine.ts:6883 | 0 | 0 | 1 | 0 |
 
 ## A群 明細
 
 ### fn:collectOppGuardExtraColorlessCost + OPP_GUARD_COST_COLORLESS|GUARD_EXTRA_COST_BY_OPP  (live 10効果 / 10カード / miss 8)
-  effectEngine.ts:4849  [門 sourceAction=GUARD_EXTRA_COST_BY_OPP|OPP_GUARD_COST_COLORLESS] live 10効果 / 10カード / miss 8
+  effectEngine.ts:4857  [門 sourceAction=GUARD_EXTRA_COST_BY_OPP|OPP_GUARD_COST_COLORLESS] live 10効果 / 10カード / miss 8
     const txt = card?.EffectText ?? '';
     lit str:覚醒状態のシグニがあるかぎり
     lit re:レベル([１-９\d]+)の覚醒状態
@@ -52,32 +52,32 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit re:レベルは((?:[０-９\d]+であり)+[０-９\d]+)であるとして扱う
 
 ### fn:collectSpecificCardCostReductions + SPECIFIC_CARD_COST_REDUCE  (live 2効果 / 2カード / miss 0)
-  effectEngine.ts:5114  [門 sourceAction=SPECIFIC_CARD_COST_REDUCE] live 2効果 / 2カード / miss 0
+  effectEngine.ts:5122  [門 sourceAction=SPECIFIC_CARD_COST_REDUCE] live 2効果 / 2カード / miss 0
     const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
     lit re:《([^》]+)》の使用コストは《無×([０-９\d]+)》減る
 
 ### fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:7215  [門 sourceAction=PREVENT_ABILITY_CHANGE_BY_OPP] live 1効果 / 1カード / miss 0
+  effectEngine.ts:7223  [門 sourceAction=PREVENT_ABILITY_CHANGE_BY_OPP] live 1効果 / 1カード / miss 0
     const txt = (cardMap.get(cn)?.EffectText ?? '');
     lit re:あなたの＜([^＞]+)＞のシグニは
 
 ### fn:collectArtsThresholdCostReductions + ARTS_COST_REDUCTION_BY_COST_THRESHOLD  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:5806  [門 sourceAction=ARTS_COST_REDUCTION_BY_COST_THRESHOLD] live 1効果 / 1カード / miss 0
+  effectEngine.ts:5814  [門 sourceAction=ARTS_COST_REDUCTION_BY_COST_THRESHOLD] live 1効果 / 1カード / miss 0
     const txt = cardMap.get(cn)?.EffectText ?? '';
     lit re:コストの合計が([０-９\d]+)以上のアーツ.*?使用コストは《([白赤青緑黒無])×?([０-９\d]*)》?[１-９一]?つ?減る
 
 ### fn:collectDownProtectedSigni + PREVENT_BOUNCE_AND_DOWN_BY_OPP  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:6103  [門 sourceAction=PREVENT_BOUNCE_AND_DOWN_BY_OPP] live 1効果 / 1カード / miss 0
+  effectEngine.ts:6111  [門 sourceAction=PREVENT_BOUNCE_AND_DOWN_BY_OPP] live 1効果 / 1カード / miss 0
     const txt = card?.EffectText ?? '';
     lit re:場に他の＜([^＞]+)＞のシグニがあるかぎり
 
 ### fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:8338  [門 sourceAction=GROW_COST_SUBSTITUTE_TRASH_SIGNI] live 1効果 / 1カード / miss 0
+  effectEngine.ts:8346  [門 sourceAction=GROW_COST_SUBSTITUTE_TRASH_SIGNI] live 1効果 / 1カード / miss 0
     const txt = card.EffectText ?? '';
     lit re:《([白赤青緑黒無])》を支払う際、代わりに.*エナゾーンから＜([^＞]+)＞のシグニ
 
 ### fn:collectHandGuardIconClasses + HAND_SIGNI_HAS_GUARD_ICON  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:5747  [門 sourceAction=HAND_SIGNI_HAS_GUARD_ICON] live 1効果 / 1カード / miss 0
+  effectEngine.ts:5755  [門 sourceAction=HAND_SIGNI_HAS_GUARD_ICON] live 1効果 / 1カード / miss 0
     const txt = cardMap.get(cn)?.EffectText ?? '';
     lit re:手札にある＜([^＞]+)＞のシグニは《ガードアイコン》を持つ
 
@@ -87,21 +87,21 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit re:カード名に《([^》]+)》を含む
 
 ### fn:collectLrigNameAliases + GAIN_ADDITIONAL_LRIG_TYPE  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:5527  [門 sourceAction=GAIN_ADDITIONAL_LRIG_TYPE] live 1効果 / 1カード / miss 0
+  effectEngine.ts:5535  [門 sourceAction=GAIN_ADDITIONAL_LRIG_TYPE] live 1効果 / 1カード / miss 0
     const txt = keyCard?.EffectText ?? '';
     lit re:＜([^＞]+)＞
     lit re:追加で＜([^＞]+)＞を得る
-  effectEngine.ts:5552  [門 sourceAction=GAIN_ADDITIONAL_LRIG_TYPE] live 1効果 / 1カード / miss 0
+  effectEngine.ts:5560  [門 sourceAction=GAIN_ADDITIONAL_LRIG_TYPE] live 1効果 / 1カード / miss 0
     const txt = cardMap.get(top)?.EffectText ?? '';
     lit re:追加で＜([^＞]+)＞を得る
 
 ### fn:collectOppLrigAttackExtraCost + OPP_LRIG_ATTACK_COST  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:5883  [門 sourceAction=OPP_LRIG_ATTACK_COST] live 1効果 / 1カード / miss 0
+  effectEngine.ts:5891  [門 sourceAction=OPP_LRIG_ATTACK_COST] live 1効果 / 1カード / miss 0
     const txt = cardMap.get(cn)?.EffectText ?? '';
     lit re:《無》
 
 ### fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:7041  [門 sourceAction=PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH] live 1効果 / 1カード / miss 0
+  effectEngine.ts:7049  [門 sourceAction=PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH] live 1効果 / 1カード / miss 0
     const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
     lit re:あなたの＜([^＞]+)＞のシグニを場から移動させない
 
@@ -119,17 +119,17 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit re:【([^】]+)】
 
 ### fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT  (live 0効果 / 0カード / miss 0)
-  effectEngine.ts:7232  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
+  effectEngine.ts:7240  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
     const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
 
 ### fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT  (live 0効果 / 0カード / miss 0)
-  effectEngine.ts:6120  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
+  effectEngine.ts:6128  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
     const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
 
 ### fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT  (live 0効果 / 0カード / miss 0)
-  effectEngine.ts:6875  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
+  effectEngine.ts:6883  [門 sourceAction=GRANT_ABILITY_INNER_TEXT] live 0効果 / 0カード / miss 0
     const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
 
@@ -142,10 +142,10 @@ miss = 各ソース行について、その行の門から来る live カード�
   effectEngine.ts:1134 <fn:matchesFilter> if (filter.noRecollectIcon && (cardData.EffectText?.includes('《リコレクトアイコン》'))) return false;
   effectEngine.ts:2154 <fn:buildLevelMods> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   effectEngine.ts:3085 <(top)> const txt = card?.EffectText ?? '';
-  effectEngine.ts:5287 <fn:cardHasCrossIcon> return !!card?.EffectText?.startsWith('《クロスアイコン》');
-  effectEngine.ts:5292 <fn:getCrossConditionText> const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
-  effectEngine.ts:7384 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
-  execStubPart1.ts:1341 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
+  effectEngine.ts:5295 <fn:cardHasCrossIcon> return !!card?.EffectText?.startsWith('《クロスアイコン》');
+  effectEngine.ts:5300 <fn:getCrossConditionText> const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
+  effectEngine.ts:7392 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
+  execStubPart1.ts:1354 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4863 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execUtils.ts:537 <fn:countFromZone> sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)
   execUtils.ts:1512 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
@@ -160,6 +160,6 @@ miss = 各ソース行について、その行の門から来る live カード�
   execUtils.ts:1630 <fn:matchesFilter> const txt = card.EffectText ?? '';
   execUtils.ts:1760 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:2996 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:4444 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
-  execUtils.ts:4791 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
-  triggerCollect.ts:1917 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+  execUtils.ts:4451 <fn:satisfiesSelectionConstraint> const parts = [c?.EffectText ?? '', c?.LifeBurst ?? '', c?.BurstText ?? '']
+  execUtils.ts:4798 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  triggerCollect.ts:1921 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

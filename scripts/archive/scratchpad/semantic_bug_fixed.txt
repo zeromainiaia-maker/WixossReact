@@ -532,3 +532,25 @@ WXEX2-22-E1 :: 2026-09-16 :: §5.3 O-485＝同じ原文（場以外のあなた�
 WX20-044-CB-E1 :: 2026-09-16 :: §5.3 O-487＝**登録票が stale**。`collectAttackPhaseLevelOverrides` が「取りうるレベル群」として実装済み（payload 化は census:enginetext A群の1行として別管理）
 WXDi-P05-060-E1 :: 2026-09-16 :: §5.3 O-501＝「このカードの上にある《ヒャッハー》のパワー＋2000」を使用時1回の POWER_MODIFY から独立 CONTINUOUS（E3・aboveSelf）へ
 WX25-P3-061-E1 :: 2026-09-16 :: §5.3 O-520＝**登録票が stale**。「このターンにこの能力でシグニを場に出していない場合」は `usageLimit:'once_per_turn_on_success'`（O-323）で実装済み
+WX16-Re07-E1 :: 2026-09-16 :: §5.3 O-390＝【ダブルクラッシュ】由来の限定（crashedByKeywords）＋クラッシュ原因を刻む地点2本（シグニ／ルリグアタック）
+WX25-P2-009-E1 :: 2026-09-16 :: §5.3 O-400＝ON_OPP_LIFE_CRASHED collector が condition を oppLimitOk の手前で評価＋LIFE_COUNT{opponent,eq,0}
+WX06-019-E1 :: 2026-09-16 :: §5.3 O-401＝**登録票が stale**。applyEffectLeavePowerReductionSubstitute は全離場経路を覆い、「他の」の除外も入っていた
+WXK03-011-E1b :: 2026-09-16 :: §5.3 O-408＝zones に lrig_deck/lrig_trash を追加＋'life' の消費地点2つを新設（宣言だけの真 no-op を閉じた）
+WD13-002-E1 :: 2026-09-16 :: §5.3 O-412＝**盤面差の無い近似**と判定（公開は無償・上限2枚が必要枚数と一致＝合理的プレイで結果が一致）
+WXK10-002-E1 :: 2026-09-16 :: §5.3 O-445＝混色コスト《白/黒》を EnergyCost.anyOfColors で保持（逆翻訳が色制約を落としていた）
+WXK10-001-E1 :: 2026-09-16 :: §5.3 O-445＝同上（《白/赤》×6）
+WXK10-003-E1 :: 2026-09-16 :: §5.3 O-445＝同上（《赤/青》×3・manual）
+WXK10-004-E1 :: 2026-09-16 :: §5.3 O-445＝同上（《青/緑》×5）
+WXK10-005-E1 :: 2026-09-16 :: §5.3 O-445＝同上（《緑/黒》×4）
+PR-380-E1 :: 2026-09-16 :: §5.3 O-445＝同上（《白/黒》×1）
+WXK11-006-E4 :: 2026-09-16 :: §5.3 O-458＝collector が防御側も走査（triggerScope:'any'）＋UP{owner:'any',targetsTriggerSource}
+WX24-P3-069-E1 :: 2026-09-16 :: §5.3 O-465＝GRANT_EFFECT{LRIG}（対象指定）へ移し、ガード税 collector に granted_effects の走査を追加
+WX14-024-E2 :: 2026-09-16 :: §5.3 O-477＝TriggerOriginZone に 'check'（parser／detectPlacedFromZone／由来記録／逆翻訳の4箇所）
+WX25-P1-004-E1 :: 2026-09-16 :: §5.3 O-483＝カウンタークラッシュの発生源限定＋【ブースト】分の2本目（life_crash_counters 配列化）
+WXDi-P12-030-E1 :: 2026-09-16 :: §5.3 O-483＝同上（「対戦相手のシグニによって」限定）
+WXK07-055-CB-E1 :: 2026-09-16 :: §5.3 O-484＝LOOK_AND_REORDER の trashCount（UI と engine の両方で強制）
+WXK07-055-CB-E2 :: 2026-09-16 :: §5.3 O-484＝同上
+PR-305-E1 :: 2026-09-16 :: §5.3 O-490＝**盤面差の無い近似**と判定（ON_SIGNI_BATTLE の収集はバニッシュ解決の後＝既に「バトル終了時」）
+WX11-038-E2 :: 2026-09-16 :: §5.3 O-510＝EffectDuration に NEXT_TURN_MAIN_PHASE（昇格＝main-phase-start／失効＝attack-phase-start）
+WX21-Re18-E1 :: 2026-09-16 :: §5.3 O-519＝追加コストを強制化（OPTIONAL_COST 撤去）＋selectOrInteract の minCount fail-closed
+WXK10-006-E3 :: 2026-09-16 :: §5.3 O-521＝matchesTrashArtsFromLrigDeckCost を Type.includes('アーツ') へ＋excludeCraft payload

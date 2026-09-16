@@ -153,6 +153,15 @@ export type EffectDuration =
   | 'UNTIL_NEXT_OWN_TURN_END'
 
   | 'NEXT_TURN'          // 次のターンの間
+  /**
+   * 🆕**次のターンの「メインフェイズの間」だけ**（2026-09-16・§5.3 `O-510`）。
+   * 🔴`NEXT_TURN` で代用すると**アタックフェイズまで効く**＝`WX11-038-E2` は
+   *   相手のアタック中もシグニの能力を奇ったままになる（過剰）。
+   * 寿命は2点で表す＝**昇格は `clearMainPhaseScopedState`**（そのプレイヤーが MAIN へ入る1点）、
+   * **失効は `clearAttackPhaseScopedState`**（ATTACK_ARTS へ入る1点）。
+   * ⚠ターン終了時の一括クリアも安全網として残す（MAIN を踏まずに終わるターンへの保険）。
+   */
+  | 'NEXT_TURN_MAIN_PHASE'
   | 'PERMANENT';         // フィールドにいる間ずっと
 
 export type Owner = 'self' | 'opponent' | 'any';
@@ -894,6 +903,17 @@ export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 export interface EnergyCost {
   color: '白' | '赤' | '青' | '緑' | '黒' | '無';
   count: number;
+  /**
+   * 🆕**混色スロット**（§5.3 `O-445`・2026-09-16）＝CSV の `《白/赤》×６` の形。
+   * 1個につき**この中のどれか1色**で払う（色を混ぜてもよい）。
+   * 🔴旧実装は `parseEnergyCosts` がこれを**無色 N 個に近似**しており、
+   *   逆翻訳が `《無×6》` と書いて**原文の色制約が消えていた**（原文照合がそこだけ効かない）。
+   * ⚠**`color` は `'無'` のままにする**＝このキーを見ない既存の消費地点を
+   *   「何色でも払える」側（安全側）に留めるため。読む側は `anyOfColors` を優先する。
+   * ⚠**アーツの請求額は CSV の `Cost` 列由来**（`computeArtsEffectiveCost`）で、
+   *   そちらは `costColorMatches` が `'/'` を割って**既に正しく払わせている**。
+   */
+  anyOfColors?: ('白' | '赤' | '青' | '緑' | '黒')[];
 }
 
 /**
@@ -1279,7 +1299,13 @@ export interface EffectCost {
   attachedOrUnderTrash?: { count: number };
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
-  trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
+  /**
+   * ルリグデッキからアーツN枚をトラッシュ（【出】コスト）。
+   * 🆕`excludeCraft`＝原文「**クラフトではない**アーツ１枚」（§5.3 `O-521`・2026-09-16）。
+   * 🔴省略＝クラフトのアーツも候補に入る（原文に除外が無い 11効果がそちら）。
+   * ⚠以前は `Type === 'アーツ'` の完全一致が偶然クラフトを除いており、それを「実装済み」と誤認していた。
+   */
+  trashArtsFromLrigDeck?: { color?: string; count: number; excludeCraft?: boolean };
   /**
    * ルリグデッキにある＜X＞のルリグN枚を**ゲームから除外する**（ルリグ【起】コスト・`PR-469`・§6.4 O-11）。
    * ⚠**行先が違うので `trashArtsFromLrigDeck`（ルリグトラッシュ行き）を流用してはいけない**＝
@@ -3047,6 +3073,18 @@ export interface LookAndReorderAction {
   private: boolean;   // true = 自分だけ確認（相手に見せない）
   reorder: boolean;   // true = 順番を自由に決められる
   canTrash?: boolean; // true = 一部をトラッシュに置ける（残りをデッキに戻す）
+  /**
+   * 🆕**トラッシュに置く枚数**（§5.3 `O-484`・2026-09-16）。
+   * 原文「その中から**１枚**をトラッシュに置き」＝`trashCount:1`（必ず1枚）、
+   * 「**１枚まで**」＝`trashCount:1` ＋ `trashUpTo:true`。
+   * 🔴省略＝従来どおり「好きな枚数」（0〜全部）。
+   *   旧実装は全部これだったので、`WXK07-055-CB-E1`（「その中から１枚を」）は
+   *   **０枚でも５枚でも捨てられた**＝実測で exact 3効果／up-to 2効果が無限定になっていた。
+   * ⚠`canTrash` がなければ意味を持たない（トラッシュする選択肢自体が出ない）。
+   */
+  trashCount?: number;
+  /** `trashCount` を「N 枚**まで**」にする（省略＝ちょうど N 枚）。 */
+  trashUpTo?: boolean;
   shuffle?: boolean; // 戻すカードをシャッフルする（公開したカードをシャッフルしてデッキ下へ）
   revealTopAfterReorder?: boolean; // 戻した後にデッキトップ1枚を公開（ホログラフ置換）
   destination: {
@@ -5220,6 +5258,13 @@ export interface StubAction {
   oppEnaMultiStrip?: { effectImmunity?: boolean };
   /** `OPP_REVEAL_HAND_AND_LRIG_DECK` で相手が自分のルリグデッキから選んで公開する上限と選択者。 */
   oppLrigDeckReveal?: { count: number; upToCount?: boolean; selectedBy: 'opponent' };
+  /**
+   * 🆕`SET_NEXT_LIFE_CRASH_COUNTER` の**発生源限定**（§5.3 `O-483`・2026-09-16）。
+   * 原文「次に対戦相手の**ルリグ**によってあなたのライフクロス１枚がクラッシュされたとき」。
+   * 🔴省略＝従来どおり発生源を問わない（`WXDi-P12-030-E1` は原文に限定が無い）。
+   * 判定はクラッシュ解決 funnel の `crash_source_card_num` の `Type`。
+   */
+  crashCounterSourceType?: 'lrig' | 'signi';
   /** `FORCE_TARGET_SELF` が強制対象化する効果の発生源カード種別。省略時は従来どおり種別を問わない。 */
   forceTargetSourceCardTypes?: CardTypeFilter[];
   /** PREVENT_*_MOVE_BY_OPP の移動元・移動先・例外フェイズ。省略時は既存の全方向・全位相。 */
@@ -6772,7 +6817,7 @@ export interface StubAction {
   /** OPTIONAL_COST: 自分の場のチャームN枚を左のゾーンからトラッシュへ置く任意コスト。 */
   charmTrash?: number;
   /** OPTIONAL_COST: ルリグデッキから条件一致アーツを選んでルリグトラッシュへ置く任意コスト。 */
-  trashArtsFromLrigDeck?: { color?: string; count: number };
+  trashArtsFromLrigDeck?: { color?: string; count: number; excludeCraft?: boolean };
   /**
    * `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`: ルリグデッキのアーツを**ゲームから除外**する任意コスト。
    * ⚠`trashArtsFromLrigDeck`（行先＝ルリグトラッシュ）とは**行先が違う**ので流用してはいけない
@@ -7483,6 +7528,14 @@ export type TriggerOriginZone =
   | 'lrig_deck'
   | 'lrig_trash'
   | 'life_cloth'
+  /**
+   * 🆕**チェックゾーン**（§5.3 `O-477`・2026-09-16）。
+   * 🔴足す前は「手札以外の領域から場に出たとき」の一覧にチェックゾーンが無く、
+   *   `detectPlacedFromZone` はチェックゾーンのカードを `'field'` と返していた＝
+   *   ライフクロスを割ってチェックゾーンから場へ出す経路で**発火しない（fail-closed で落ちる）**か、
+   *   「場から」限定の別の効果を**誤発火**させるかのどちらかだった。
+   */
+  | 'check'
   | 'excluded';
 
 export interface CardEffect {

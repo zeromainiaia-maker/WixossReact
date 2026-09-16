@@ -620,6 +620,21 @@ export interface PlayerState {
    *   経路ごとに手書きで空へ倒すと、その経路だけ予約を握り潰す＝`clearTurnEndScopedState` に集約する。
    */
   abilities_removed_next_turn?: string[];
+  /**
+   * 🆕**「次のターンのメインフェイズの間」の予約**（2026-09-16・§5.3 `O-510`・`WX11-038-E2`）。
+   * 🔴**`abilities_removed_next_turn` へ寄せられない**＝あちらは turn-start で昇格して
+   *   **次のターン丸ごと**（アタックフェイズを含む）効く。
+   * 寿命＝`clearMainPhaseScopedState` で `abilities_removed` へ昇格しつつ
+   *   `abilities_removed_until_attack_phase` へ写き、`clearAttackPhaseScopedState` でその分だけ抜く。
+   * ⚠予約は**ターン境界を跨ぐ**（自ターンに置いて相手ターンの MAIN で使う）ので
+   *   turn-end では消さない。消費は `clearMainPhaseScopedState` の1点だけ。
+   */
+  abilities_removed_next_main_phase?: string[];
+  /**
+   * 🆕**このターンのアタックフェイズ開始で解ける能力喪失**（2026-09-16・§5.3 `O-510`）。
+   * `abilities_removed` の部分集合を指す印（読み手は従来どおり `abilities_removed` 1本のまま）。
+   */
+  abilities_removed_until_attack_phase?: string[];
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
   keyword_abilities_removed?: Record<string, string[]>;
   /**
@@ -1170,9 +1185,18 @@ export interface PlayerState {
    *   こちらは**自分自身のクラッシュ**に、しかも**回数制**でかかる。
    */
   self_crash_to_trash_and_refill?: number;
-  // SET_NEXT_LIFE_CRASH_COUNTER: 自分のライフがクラッシュされたとき、相手のライフを perTrigger 枚クラッシュし返す（remaining回まで）。
-  // 防御用カウンタークラッシュ（WX25-P1-004 アーツ / WXDi-P12-030 アシストルリグ）。ターン終了時にクリア。
-  life_crash_counter?: { remaining: number; perTrigger: number };
+  /**
+   * SET_NEXT_LIFE_CRASH_COUNTER: 自分のライフがクラッシュされたとき、相手のライフを perTrigger 枚
+   * クラッシュし返す（remaining 回まで）。防御用カウンタークラッシュ。ターン終了時にクリア。
+   *
+   * 🆕**配列にした**（2026-09-16・§5.3 `O-483`）＝`WX25-P1-004-E1` は【ブースト】した場合に
+   * **2本目のカウンター**（発生源がシグニの分）を同時に持つ。単一スロットでは上書きになる。
+   * 🔴**`sourceType` を落とすと原文より広い**＝原文は「対戦相手の**ルリグ**によって」と書いており、
+   * シグニのアタックでは（ブーストしていないかぎり）返さない。判定は `crash_source_card_num` の `Type`。
+   * ⚠旧形（単一オブジェクトの `life_crash_counter`）は削除した＝この状態はターン内限定なので
+   *   保存済み対戦が古い形を持っていても、そのターンの防御が1回失われるだけで整合は崩れない。
+   */
+  life_crash_counters?: Array<{ remaining: number; perTrigger: number; sourceType?: 'lrig' | 'signi' }>;
   // INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」で設置された1ターン限りの遅延条件トリガー。
   // 後続のトリガー（trigger.timing）発火時に effect を実行する。ターン終了時にクリア。
   delayed_triggers?: import('./effects').InstallDelayedTriggerAction[];
@@ -2050,6 +2074,12 @@ export type PendingInteractionDef =
       type: 'LOOK_AND_REORDER';
       cards: string[];
       canTrash: boolean;
+      /**
+       * 🆕§5.3 `O-484`（2026-09-16）＝トラッシュに置く枚数の指定を pending へ運ぶ。
+       * ⚠**この口が無いと UI に届かない**（`reorder` が同じ理由で落ちていた前例＝`O-150`）。
+       */
+      trashCount?: number;
+      trashUpTo?: boolean;
       destLocation: 'deck' | 'life';
       destOwner: 'self' | 'opponent';
       destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';

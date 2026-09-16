@@ -95,8 +95,12 @@ export function detectPlacedFromZone(
     ...(before.field.signi_soul ?? []).filter((n): n is string => !!n),
   ];
   if (underCards.includes(cardNum)) return 'under_signi';
+  // 🆕§5.3 `O-477`（2026-09-16）＝**チェックゾーンは `'field'` ではない**。
+  // 🔴旧実装は下の `fieldCards` に `field.check` を混ぜており、ライフクロスを割って
+  //   チェックゾーンから場へ出す経路を「場から出た」と報告していた。
+  // ⚠`check_rest`（同時クラッシュの2枚目以降）も同じゾーン。
+  if (before.field.check === cardNum || (before.field.check_rest ?? []).includes(cardNum)) return 'check';
   const fieldCards = [
-    before.field.check,
     before.field.key_piece,
     ...(before.field.key_piece_extra ?? []),
     ...(before.field.free_zone ?? []),

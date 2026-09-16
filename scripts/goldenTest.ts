@@ -6072,10 +6072,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 33, '命名規約外のターン限定フィールド数（🆕33＝2026-09-14 O-362 で life_burst_double_next の未消費時失効を共通 funnel へ登録。32＝第319バッチ時点）');
+  eq(irregular.length, 34, '命名規約外のターン限定フィールド数（🆕 34＝2026-09-16 O-510 で abilities_removed_until_attack_phase を登録。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 96, '型由来と命名規約外を合わせたターン限定フィールド数（🆕96＝2026-09-14 O-372 card_identity_overrides_this_turn。95＝同日 O-362）');
+  eq(registered.length, 97, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 97＝2026-09-16 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -6213,10 +6213,11 @@ test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_T
   //   🔴**`PERMANENT` は `appliesThisTurn` 側だけを立てる**（`effectExecutor.ts:9806`）＝
   //   **宣言した「このターン」に掛かり、原文が指す「次のターン」には1度も掛からない**＝
   //   **狙った窓を1度も覆わない**。`NEXT_TURN` なら少なくとも正しいターンを覆う。
-  //   ⚠残る差（「メインフェイズの間」までは絞れない）は PLAN §5.3 `O-510` へ登録した。
+  // 🆕**§5.3 `O-510`（2026-09-16）で残差を閉じた**＝`NEXT_TURN` はアタックフェイズまで能力を奇う（過剰）。
+  //   `NEXT_TURN_MAIN_PHASE`＝昇格は `clearMainPhaseScopedState`、失効は `clearAttackPhaseScopedState`。
   {
     const ra = findActionByType(manualEffect('WX11-038', 'WX11-038-E2').action, 'REMOVE_ABILITIES')!;
-    eq((ra as unknown as { until: string }).until, 'NEXT_TURN', 'WX11-038-E2: 正しいターンを覆う（フェイズ限定は O-510）');
+    eq((ra as unknown as { until: string }).until, 'NEXT_TURN_MAIN_PHASE', 'WX11-038-E2: 次のターンのメインフェイズの間だけ');
   }
   // 🏁続き455 で据置解除＝指定ゾーン軸が入ったので「このターンと次のターンの間」を2スロット寿命で表せる。
   for (const [cardNum, effectId] of [
@@ -35604,20 +35605,27 @@ test('PLAN §6.3 I WX24-P3-069-E1: non-LB cancels attack and grants guard extra 
     const source = 'WX24-P3-069';
     const noBurst = findCard(c => c.LifeBurst !== '1');
     const burst = findCard(c => c.LifeBurst === '1');
+    // 🆕§5.3 `O-465`（2026-09-16）＝原文は「**あなたのルリグ１体を対象とし**」＝
+    //   プレイヤー単位の `lrig_granted_auto_effects` ではなく `granted_effects[ルリグ]` へ付与する。
+    //   ⚠対象が要るので**盤面にルリグを置く**（置かないと候補0で付与されない）。
+    const lrigNum = findCard(c => c.Type === 'ルリグ');
     const resolve = (mb: string) => {
-      const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+      const ctx = mkCtx({ signi: [source, null, null], lrig: [lrigNum] }, {}, source);
       ctx.ownerState.field.signi_magic_boxes = [mb, null, null];
       return finish(executeEffect(manualEffect(source, 'WX24-P3-069-E1'), ctx), ctx);
     };
     const no = resolve(noBurst);
     eq(no.ownerState.cancel_current_signi_attack, true, 'non-LB cancels current attack');
-    const granted = no.ownerState.lrig_granted_auto_effects ?? [];
-    eq(granted.length, 1, 'own lrig receives one continuous ability');
+    const granted = no.ownerState.granted_effects?.[lrigNum] ?? [];
+    eq(granted.length, 1, '🔴対象に取ったルリグに1つ付与されていない');
+    eq(no.ownerState.lrig_granted_auto_effects?.length ?? 0, 0,
+      '🔴プレイヤー単位のストアへは積まない（対象指定が消える）');
+    // 🔴**読み手を同じ巡で広げないとここが 0 になる**（対象指定を入れただけでガード税が死ぬ）。
     eq(collectOppGuardExtraColorlessCost(no.ownerState, no.otherState, cardMap, new Map(), true), 3,
       'granted store requires three colorless energy');
     const yes = resolve(burst);
     eq(yes.ownerState.cancel_current_signi_attack, undefined, 'LB branch does not cancel attack');
-    eq(yes.ownerState.lrig_granted_auto_effects?.length ?? 0, 0, 'LB branch does not grant guard cost');
+    eq((yes.ownerState.granted_effects?.[lrigNum] ?? []).length, 0, 'LB branch does not grant guard cost');
   } finally { cursor = savedCursor; }
 });
 
@@ -38209,7 +38217,9 @@ test('ON_PLAY watcher 34効果: [A]33件は本来契機だけで収集し、自�
 
 // ── 2026-08-27: 「〈ゾーン〉から場に出たとき」の配置元ゲート ─────────────────────
 test('配置元限定 live構造: 対象5効果だけが ON_PLAY＋fromZones を持つ', () => {
-  const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded'];
+  // 🆕§5.3 `O-477`（2026-09-16）＝**チェックゾーンも「手札以外の領域」**。
+  //   ⚠`ON_PLAY_NON_HAND_ZONES`（parser）と `nonHand`（decompiler）と**3箇所を同じ集合に保つ**。
+  const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded', 'check'];
   const expected: Record<string, string[]> = {
     'WX08-042-E2': ['energy'],
     'WX14-024-E2': nonHand,
@@ -60777,8 +60787,11 @@ test('O-46 live: コスト句の連用形（「〜し、」）で2要素目以�
   ok(!!costOf('WXDi-P03-019-E1').energyTrashAll, 'WXDi-P03-019-E1＝エナ全損');
   // 🆕`WXK10-006-E3`（§5.3 `O-68`②）＝「クラフトではない」修飾語で regex を外していた分。
   ok(!!costOf('WXK10-006-E3').trash_key, 'WXK10-006-E3＝1要素目（キーをルリグトラッシュ）');
-  eq(JSON.stringify(costOf('WXK10-006-E3').trashArtsFromLrigDeck), '{"count":1}',
-    '🔴WXK10-006-E3＝2要素目（ルリグデッキのアーツ1枚）が落ちている');
+  // 🆕§5.3 `O-521`（2026-09-16）＝「クラフトではない」は **payload** で表す。
+  //   🔴旧コメントは「`Type === 'アーツ'` の完全一致が既にクラフトを弾いている」としていたが、
+  //   それは偶然で、**同じ完全一致が残り11効果（原文に除外の無い側）を狭めていた**。
+  eq(JSON.stringify(costOf('WXK10-006-E3').trashArtsFromLrigDeck), '{"count":1,"excludeCraft":true}',
+    '🔴WXK10-006-E3＝2要素目（ルリグデッキのクラフトではないアーツ1枚）が落ちている');
   // 対照＝もともと両要素が載っていた効果は1文字も変わっていない（正規化が既存を壊していない）。
   eq(JSON.stringify(costOf('WXK06-084-E1')), '{"discard":1,"deckTrash":1}', '対照＝既に両方載っていた効果は不変');
   eq(JSON.stringify(costOf('WX25-P3-019-E2')), '{"discardAll":true,"energyTrashAll":true}', '対照＝複合形の専用規則も不変');
@@ -76452,7 +76465,12 @@ test('§5.3 O-286: WX21-Re18-E1 は追加コストで払った色の枝だけを
   // (a) live 形＝5分岐がすべて色ゲートを持つ（旧は無条件に順次実行だった）。
   eq((act.match(/COST_ENERGY_TRASHED_COLOR/g) ?? []).length, 5, '🔴5つの分岐すべてに色ゲートが付く');
   for (const c of ['白', '赤', '青', '緑', '黒']) ok(act.includes(`"color":"${c}"`), `${c}の分岐がある`);
-  ok(act.includes('"atLeast":true'), '🔴追加コストは「2枚以上」（固定2枚ではない）');
+  // 🆕**§5.3 `O-519`（2026-09-16）＝追加コストは強制**（`OPTIONAL_COST` を撤去）。
+  //   原文は言い切り（「〜てもよい」が無い）＝コーパスの34効果でこの1件だけ。
+  //   上限なし（`count:'ALL'`＋`upToCount`）＋下限 2（`selectionConstraint.minCount`）で「２枚以上」を表す。
+  ok(!act.includes('"id":"OPTIONAL_COST"'), '🔴追加コストを辞退できない（任意コストではない）');
+  ok(act.includes('"minCount":2'), '🔴追加コストは「2枚以上」（固定2枚でも 0 枚でもない）');
+  ok(act.includes('"count":"ALL"') && act.includes('"upToCount":true'), '上限は無い（エナ全部まで払える）');
   // ⚠旧 live は赤/緑の色指定を**対象シグニ側**へ載せていた（原文に無い過少実行）。
   ok(!/"powerRange":\{"max":12000\},"color"/.test(act), '🔴赤の色指定を対象フィルタへ誤着させていない');
   ok(!/"powerRange":\{"min":12000\},"color"/.test(act), '🔴緑の色指定を対象フィルタへ誤着させていない');
@@ -81236,7 +81254,8 @@ test('§5.3 O-341: ゾーン保護は移動先と位相で絞れる（payload �
   const expected: Record<string, { zones: string[]; destinations?: string[]; exceptPhases?: string[] }> = {
     'WX19-047-E1':    { zones: ['energy'], destinations: ['trash'] },                       // エナ→トラッシュ
     'WX19-047-E2':    { zones: ['hand'], destinations: ['trash'] },                         // 手札→トラッシュ
-    'WXK03-011-E1b':  { zones: ['hand', 'energy', 'deck', 'trash', 'life'], destinations: ['trash', 'deck'] },
+    // 🆕§5.3 `O-408`（2026-09-16）＝原文は「**シグニゾーン以外の**あなたの領域」＝ルリグデッキ・ルリグトラッシュも入る。
+    'WXK03-011-E1b':  { zones: ['hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash'], destinations: ['trash', 'deck'] },
     'WXK10-083-E1':   { zones: ['energy'], destinations: ['trash'] },
     'WXDi-P16-002-E1': { zones: ['energy', 'hand', 'deck'], destinations: ['trash'], exceptPhases: ['GROW'] },
     'WXEX2-06-E3':    { zones: ['energy', 'hand'], destinations: ['deck', 'trash'] },
@@ -82954,7 +82973,11 @@ test('defer再実測 トリップワイヤ: 使用条件が ACTIVATED 以外に�
     if (!card || !/アーツ|ピース/.test(card.Type ?? '')) continue;
     const firstAct = effs.find(e => e.effectType === 'ACTIVATED');
     if (firstAct?.condition) continue;
-    if (effs.some(e => e !== firstAct && e.condition)) offenders.push(cardNum);
+    // 🆕**2026-09-16（§5.3 `O-400`）＝数えるのは `ACTIVATED` だけ**。
+    //   🔴このトリップワイヤの死角は「**使用ゲート**（`canUseArtsCondition`）が最初の
+    //   `ACTIVATED` しか読まない」こと。**`AUTO` の `condition` はトリガー収集側が読む**ので
+    //   死角ではない（`WX25-P2-009-E1` の `LIFE_COUNT` は `ON_OPP_LIFE_CRASHED` collector が評価する）。
+    if (effs.some(e => e !== firstAct && e.effectType === 'ACTIVATED' && e.condition)) offenders.push(cardNum);
   }
   eq(offenders.sort().join(','), '',
     '使用条件が最初の ACTIVATED 以外に置かれている＝canUseArtsCondition が読まないので黙って素通りする');
@@ -84452,24 +84475,34 @@ test('§5.3 O-399: 「次のあなたのターンまで」のパワー修正は�
   ok((rInv.ownerState.temp_power_mods ?? []).some(m => m.cardNum === self),
     '反転確認：duration が無いと短期ストアへ入る');
 }));
-test('§5.3 O-399: 「次のターンの間、能力を失う」は次ターンぶんだけ予約する（両側）', () => withSavedCursor(() => {
+test('§5.3 O-399/O-510: 「次のターンのメインフェイズの間能力を失う」の寿命（両側）', () => withSavedCursor(() => {
   const eff = effectsMap.get('WX11-038')!.find(e => e.effectId === 'WX11-038-E2')!;
   const oppSigni = findCard(c => isSigni(c));
   const mk = () => mkCtx({}, { signi: [oppSigni, null, null] }, 'WX11-038');
   const ctx = mk();
   const r = finish(executeAction(eff.action, ctx), ctx);
-  ok((r.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
-    '🔴「次のターンの間」が次ターンへ予約されていない');
+  // 🆕`O-510`：**専用スロットへ予約する**（`abilities_removed_next_turn` へ入れるとターン丸ごと効く）。
+  ok((r.otherState.abilities_removed_next_main_phase ?? []).includes(oppSigni),
+    '🔴「次のターンのメインフェイズの間」が専用スロットへ予約されていない');
+  ok(!(r.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
+    '🔴ターン丸ごとの予約スロットへは入れない（アタックフェイズまで奇う過剰になる）');
   ok(!(r.otherState.abilities_removed ?? []).includes(oppSigni),
     '宣言したこのターンには効かせない（原文は「次のターン」）');
-  // 🔑**反転確認**＝旧形（`until:"PERMANENT"`）は**このターン**へ掛かって次ターンには残らない。
-  const legacy = JSON.parse(JSON.stringify(eff.action).replace('"until":"NEXT_TURN"', '"until":"PERMANENT"')) as EffectAction;
+  // 🔑**寿命の両端を直接確かめる**＝MAIN で昇格し、ATTACK で解ける。
+  const atMain = clearMainPhaseScopedState(r.otherState);
+  ok((atMain.abilities_removed ?? []).includes(oppSigni), 'メインフェイズ開始で昇格される');
+  ok(atMain.abilities_removed_next_main_phase === undefined, '昇格したら予約は消える');
+  const atAttack = clearAttackPhaseScopedState(atMain);
+  ok(!(atAttack.abilities_removed ?? []).includes(oppSigni),
+    '🔴アタックフェイズ開始で解けていない（ここが `O-510` の本体）');
+  // 🔑**反転確認**＝旧形（`until:"NEXT_TURN"`）はターン丸ごとの予約スロットへ入る。
+  const legacy = JSON.parse(JSON.stringify(eff.action).replace('"until":"NEXT_TURN_MAIN_PHASE"', '"until":"NEXT_TURN"')) as EffectAction;
   const ctx2 = mk();
   const rInv = finish(executeAction(legacy, ctx2), ctx2);
-  ok((rInv.otherState.abilities_removed ?? []).includes(oppSigni),
-    '反転確認：旧形はこのターンへ掛かる（＝1ターンずれていた）');
-  ok(!(rInv.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
-    '反転確認：旧形は次ターンへ予約しない');
+  ok((rInv.otherState.abilities_removed_next_turn ?? []).includes(oppSigni),
+    '反転確認：旧形はターン丸ごとの予約へ入る');
+  ok(!(rInv.otherState.abilities_removed_next_main_phase ?? []).includes(oppSigni),
+    '反転確認：旧形はメインフェイズ限定のスロットへは入らない');
 }));
 
 // ── §5.3 `O-451`（2026-09-15）＝`O-413` の long tail（14効果 → 4効果）。
@@ -84819,6 +84852,165 @@ test('§5.3 O-416: 「対戦相手のシグニの【自】能力」の支払い�
     lrigNum, cm), false, 'ルリグの【自】は対象外（既存契約）');
 }));
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2026-09-16 第371バッチ：PLAN §5.3 索引G の一括消化
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-445: 混色の使用コスト（《白/赤》×N）が色の集合として live に残る', () => {
+  // 🔴旧 `parseEnergyCosts` は `{color:'無'}` に近似しており、逆翻訳が「《無×6》」と書いて
+  //   **原文の「白か赤で6エナ」という制約が逆翻訳から丸ごと消えていた**（6効果）。
+  // ⚠アーツの請求額は CSV `Cost` 由来（`costColorMatches` が `/` を割る）＝engine は元から正しい。
+  //   ここで守るのは**逆翻訳が嘘をつかないこと**。
+  const expected: Record<string, [string, string, number]> = {
+    'WXK10-001-E1': ['白', '赤', 6],
+    'WXK10-002-E1': ['白', '黒', 2],
+    'WXK10-003-E1': ['赤', '青', 3],
+    'WXK10-004-E1': ['青', '緑', 5],
+    'WXK10-005-E1': ['緑', '黒', 4],
+    'PR-380-E1': ['白', '黒', 1],
+  };
+  for (const [id, [a, b, n]] of Object.entries(expected)) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id}: live effect`);
+    const slot = eff!.cost?.energy?.[0];
+    eq(JSON.stringify(slot?.anyOfColors), JSON.stringify([a, b]), `${id}: 混色の色集合`);
+    eq(slot?.count, n, `${id}: 個数`);
+    eq(slot?.color, '無', `${id}: 既定は無色のまま（読まない消費地点を安全側に留める）`);
+  }
+});
+
+test('§5.3 O-477: チェックゾーンは「手札以外の領域」の1つ（由来判定と語彙）', () => {
+  // 🔴旧 `detectPlacedFromZone` はチェックゾーンのカードを `'field'` と返していた＝
+  //   ライフを割ってチェックゾーンから場へ出す経路が fail-closed で落ちるか、
+  //   「場から」限定の別効果を誤発火させるかのどちらかだった。
+  const signi = findCard(c => isSigni(c));
+  const st0 = mkState({ signi: [null, null, null] });
+  // ⚠`mkState` の既定デッキには全カードが入っているので、**チェックゾーンだけに居る**盤面を作る。
+  const st: PlayerState = { ...st0, deck: st0.deck.filter(n => n !== signi), hand: st0.hand.filter(n => n !== signi) };
+  const before: PlayerState = { ...st, field: { ...st.field, check: signi } };
+  eq(detectPlacedFromZone(before, signi), 'check', '🔴チェックゾーンを field と誤判定している');
+  const before2: PlayerState = { ...st, field: { ...st.field, check_rest: [signi] } };
+  eq(detectPlacedFromZone(before2, signi), 'check', 'check_rest（同時クラッシュの2枚目以降）も同じゾーン');
+  // 由来限定の評価＝`check` を列挙していれば発火し、していなければ発火しない（fail-closed の両側）。
+  const withCheck = { effectId: 'x', effectType: 'AUTO', action: { type: 'DRAW', owner: 'self', count: 1 },
+    triggerCondition: { fromZones: ['check'] } } as unknown as CardEffect;
+  const withoutCheck = { effectId: 'y', effectType: 'AUTO', action: { type: 'DRAW', owner: 'self', count: 1 },
+    triggerCondition: { fromZones: ['trash'] } } as unknown as CardEffect;
+  eq(onPlayOriginMatches(withCheck, 'check'), true, 'check を列挙していれば発火する');
+  eq(onPlayOriginMatches(withoutCheck, 'check'), false, '列挙していなければ発火しない（fail-closed）');
+});
+
+test('§5.3 O-484: 「その中からN枚をトラッシュに置き」の枚数が live に届く', () => {
+  // 🔴旧 `LOOK_AND_REORDER` は `canTrash:true`（＝好きな枚数）しか持たず、
+  //   原文が枚数を書いている5効果（exact 3／up-to 2）が**0枚でも全枚でも捨てられた**。
+  const expected: Record<string, [number, boolean]> = {
+    'WXK07-055-CB-E1': [1, false],
+    'WXK07-055-CB-E2': [1, false],
+    'WXDi-P09-010-E1': [1, false],
+    'WX25-P1-103-E1': [1, true],
+    'WXK03-014-E2': [1, true],
+  };
+  for (const [id, [n, upTo]] of Object.entries(expected)) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id}: live effect`);
+    const lar = findActionByType(eff!.action, 'LOOK_AND_REORDER') as unknown as
+      { canTrash?: boolean; trashCount?: number; trashUpTo?: boolean } | null;
+    ok(!!lar, `${id}: LOOK_AND_REORDER`);
+    eq(lar!.canTrash, true, `${id}: canTrash`);
+    eq(lar!.trashCount, n, `${id}: トラッシュ枚数`);
+    eq(lar!.trashUpTo ?? false, upTo, `${id}: 「まで」かどうか`);
+  }
+});
+
+test('§5.3 O-483: カウンタークラッシュは発生源（ルリグ／シグニ）で絞る', () => {
+  // 🔴旧形は発生源を問わず返していた（過剰）一方、原文後半の【ブースト】分の2本目が丸ごと欠落（過少）。
+  const eff = effectsMap.get('WX25-P1-004')!.find(e => e.effectId === 'WX25-P1-004-E1')!;
+  const act = JSON.stringify(eff.action);
+  ok(act.includes('"crashCounterSourceType":"lrig"'), '🔴1本目は「対戦相手のルリグによって」限定');
+  ok(act.includes('"IS_BOOSTING"'), '🔴【ブースト】分の分岐が無い');
+  ok(act.includes('"crashCounterSourceType":"signi"'), '🔴【ブースト】分は「対戦相手のシグニによって」限定');
+  const eff2 = effectsMap.get('WXDi-P12-030')!.find(e => e.effectId === 'WXDi-P12-030-E1')!;
+  ok(JSON.stringify(eff2.action).includes('"crashCounterSourceType":"signi"'),
+    '🔴WXDi-P12-030-E1 も原文は「対戦相手のシグニによって」限定');
+});
+
+test('§5.3 O-390: 【ダブルクラッシュ】由来の限定が live と判定器の両方にある', () => {
+  const eff = effectsMap.get('WX16-Re07')!.find(e => e.effectId === 'WX16-Re07-E1')!;
+  eq(JSON.stringify(eff.triggerCondition?.crashedByKeywords), '["ダブルクラッシュ"]',
+    '🔴発生原因の限定が live に無い（枚数だけだと効果による同時クラッシュでも発火する）');
+  // 判定器は fail-closed＝原因不明なら発火しない／【トリプルクラッシュ】でも発火しない。
+  eq(crashCauseMatches(eff, 'ダブルクラッシュ'), true, 'ダブルクラッシュ由来なら発火');
+  eq(crashCauseMatches(eff, 'トリプルクラッシュ'), false, '🔴トリプルクラッシュは別の原因');
+  eq(crashCauseMatches(eff, undefined), false, '🔴原因不明では発火しない（fail-closed）');
+  // 🔑**刻む側が無いと恒久 no-op**＝`BattleScreen` のクラッシュ地点2本が原因を渡していることを源で確かめる。
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok((battleSource.match(/crushCauseSA/g) ?? []).length >= 3,
+    '🔴シグニアタック側でダブル/トリプルクラッシュの原因を刻んでいない');
+  ok(battleSource.includes("crash_cause: opLrigHasTripleCrush ? 'トリプルクラッシュ'"),
+    '🔴ルリグアタック側でダブル/トリプルクラッシュの原因を刻んでいない');
+});
+
+test('§5.3 O-400: 「対戦相手のライフクロスが０枚になったとき」は条件を先に見る', () => {
+  const eff = effectsMap.get('WX25-P2-009')!.find(e => e.effectId === 'WX25-P2-009-E1')!;
+  eq(JSON.stringify(eff.condition), '{"type":"LIFE_COUNT","owner":"opponent","operator":"eq","value":0}',
+    '🔴「０枚になったとき」の条件が live に無い（クラッシュのたびに発火する）');
+  eq(eff.usageLimit, 'once_per_game', '《ゲーム１回》');
+  // 🔴**順番が本体**＝`oppLimitOk` は呼ぶだけで回数を消費するので、条件判定はその手前に無いといけない。
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const collector = battleSource.slice(battleSource.indexOf('const oppCrashTriggers: StackEntry[] = []'));
+  const condIdx = collector.indexOf('evalUseCondition(eff.condition, op, my');
+  const limitIdx = collector.indexOf('if (!oppLimitOk(eff)) continue;');
+  ok(condIdx > 0 && limitIdx > 0 && condIdx < limitIdx,
+    '🔴condition の評価が oppLimitOk より後ろにある（不成立の回にも《ゲーム１回》が減る）');
+});
+
+test('§5.3 O-458: 「センタールリグ１体がアタックしたとき」は誰のルリグでもよい', () => {
+  const eff = effectsMap.get('WXK11-006')!.find(e => e.effectId === 'WXK11-006-E4')!;
+  eq(eff.triggerScope, 'any', '🔴修飾語の無い「センタールリグ１体が」＝どちらの側でもよい');
+  const act = eff.action as unknown as { type: string; targetsTriggerSource?: boolean; target?: { owner?: string } };
+  eq(act.targetsTriggerSource, true, '🔴「そのルリグ」＝アタックしたルリグを起こす');
+  eq(act.target?.owner, 'any', '🔴owner:self に固定すると相手のアタックで自分のルリグが起きる');
+});
+
+test('§5.3 O-521: ルリグデッキのアーツ徴収はクラフトのアーツも候補（原文が除外する1件だけ除く）', () => {
+  // 🔴`Type` は複合値（'アーツ/クラフト'）＝`=== 'アーツ'` の完全一致で12効果すべてが候補を狭めていた。
+  const craft = { CardNum: 'X', Type: 'アーツ/クラフト', Color: '白' } as unknown as CardData;
+  const plain = { CardNum: 'Y', Type: 'アーツ', Color: '白' } as unknown as CardData;
+  eq(matchesTrashArtsFromLrigDeckCost(craft, { count: 1 }), true, '🔴クラフトのアーツが候補から外れている');
+  eq(matchesTrashArtsFromLrigDeckCost(plain, { count: 1 }), true, '素のアーツは候補');
+  eq(matchesTrashArtsFromLrigDeckCost(craft, { count: 1, excludeCraft: true }), false,
+    '🔴原文が「クラフトではない」と書く1件では除外する');
+  eq(matchesTrashArtsFromLrigDeckCost(craft, { count: 1, color: '黒' }), false, '色指定は従来どおり効く');
+  eq(matchesTrashArtsFromLrigDeckCost({ CardNum: 'Z', Type: 'シグニ' } as unknown as CardData, { count: 1 }), false,
+    'アーツ以外は候補にならない');
+  // live 側＝「クラフトではない」を書く効果だけが excludeCraft を持つ。
+  const withExclude = [...effectsMap.values()].flat()
+    .filter(e => JSON.stringify(e.cost ?? {}).includes('"excludeCraft":true')).map(e => e.effectId);
+  eq(withExclude.join(','), 'WXK10-006-E3', '🔴除外を持つのは原文が書いている1効果だけ');
+});
+
+test('§5.3 O-408: ライフクロスの移動保護に消費地点がある（宣言だけの真 no-op を閉じた）', () => withSavedCursor(() => {
+  // 🔴`zoneMoveImmunity.zones` に 'life' を含むカードは前からあったのに、
+  //   `oppZoneMoveBlocked('life', …)` の呼び出しが**全ファイルで 0 件**＝完全な no-op だった。
+  const victim = findCard(c => isSigni(c));
+  const base = mkCtx({}, {});
+  base.otherState = { ...base.otherState, life_cloth: [victim] };
+  base.otherProtectedZoneRules = [{ zones: ['life'], destinations: ['trash', 'deck'] }];
+  const r = run({ type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } } as EffectAction, base);
+  eq(r.otherState.life_cloth.length, 1, '🔴ライフ保護が効かずトラッシュされた');
+  // 反転確認＝保護が無ければ通る。
+  const base2 = mkCtx({}, {});
+  base2.otherState = { ...base2.otherState, life_cloth: [victim] };
+  const r2 = run({ type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } } as EffectAction, base2);
+  eq(r2.otherState.life_cloth.length, 0, '反転確認：保護が無ければトラッシュされる');
+  // WXK03-011-E1b は「シグニゾーン以外のあなたの領域」＝ルリグデッキ・ルリグトラッシュも含む。
+  const e1b = effectsMap.get('WXK03-011')!.find(e => e.effectId === 'WXK03-011-E1b')!;
+  const zones = (e1b.action as unknown as { zoneMoveImmunity?: { zones: string[] } }).zoneMoveImmunity?.zones ?? [];
+  for (const z of ['hand', 'energy', 'deck', 'trash', 'life', 'lrig_deck', 'lrig_trash']) {
+    ok(zones.includes(z), `🔴${z} が保護ゾーンに無い`);
+  }
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

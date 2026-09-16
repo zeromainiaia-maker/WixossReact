@@ -2887,6 +2887,13 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
 
   if (tgt.type === 'LIFE_CLOTH_CARD') {
+    // 🆕🔴**§5.3 `O-408`（2026-09-16）＝`'life'` の移動保護は宣言だけで消費地点が1つも無かった。**
+    //   `zoneMoveImmunity.zones` に `'life'` を含むカードは既に複数あるのに、
+    //   `oppZoneMoveBlocked('life', …)` の呼び出しが**全ファイルで 0 件**＝真 no-op だった。
+    //   ⚠ライフがトラッシュ／デッキへ動くのはここと `execTransferToDeck` の2地点だけ。
+    if (oppZoneMoveBlocked('life', tgt.owner, ctx, 'trash')) {
+      return done(addLog(ctx, 'ライフクロス保護により効果なし'));
+    }
     const count = tgt.count === 'ALL' ? state.life_cloth.length : resolveNum(tgt.count);
     const moved = state.life_cloth.slice(Math.max(0, state.life_cloth.length - count));
     const newS: PlayerState = {
@@ -5477,23 +5484,31 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'LRIG') {
-    const s = ownerState(a.target.owner, ctx);
     if (a.targetsTriggerSource) {
       const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
-      const [center, left, right] = lrigZoneTops(s.field);
-      if (!autoNum || ![center, left, right].includes(autoNum)) return done(ctx);
-      const newS: PlayerState = {
-        ...s,
-        field: {
-          ...s.field,
-          ...(autoNum === center ? { lrig_down: false } : {}),
-          ...(autoNum === left ? { assist_lrig_l_down: false } : {}),
-          ...(autoNum === right ? { assist_lrig_r_down: false } : {}),
-        },
-      };
-      const name = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
-      return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${name}をアップ`));
+      // 🆕**§5.3 `O-458`（2026-09-16）＝`owner:'any'`（「センタールリグ１体が」）は両側を見る**。
+      //   🔴`owner` を `'self'` に固定すると、相手のルリグがアタックした回に
+      //     **自分のルリグをアップしてしまう**（「そのルリグ」の宛先違い）。
+      const sides: Owner[] = a.target.owner === 'any' ? ['self', 'opponent'] : [a.target.owner as Owner];
+      for (const side of sides) {
+        const s = ownerState(side, ctx);
+        const [center, left, right] = lrigZoneTops(s.field);
+        if (!autoNum || ![center, left, right].includes(autoNum)) continue;
+        const newS: PlayerState = {
+          ...s,
+          field: {
+            ...s.field,
+            ...(autoNum === center ? { lrig_down: false } : {}),
+            ...(autoNum === left ? { assist_lrig_l_down: false } : {}),
+            ...(autoNum === right ? { assist_lrig_r_down: false } : {}),
+          },
+        };
+        const name = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
+        return done(addLog(setOwnerState(side, newS, ctx), `${name}をアップ`));
+      }
+      return done(ctx);
     }
+    const s = ownerState(a.target.owner, ctx);
     const lrigName = s.field.lrig?.length
       ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
       : '';
@@ -7931,6 +7946,9 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     type: 'LOOK_AND_REORDER',
     cards,
     canTrash: a.canTrash ?? false,
+    // 🆕§5.3 `O-484`（2026-09-16）＝トラッシュ枚数の指定を pending へ運ぶ（落とすと UI に届かない）。
+    ...(a.trashCount !== undefined ? { trashCount: a.trashCount } : {}),
+    ...(a.trashUpTo ? { trashUpTo: true } : {}),
     destLocation,
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
@@ -8170,6 +8188,10 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   // ⚠lastProcessedCards は上書きしない（「この方法で手札をN枚捨てた場合」等の直前記録を後続 CONDITIONAL が
   //   参照する連鎖の途中に置かれるため＝SPDi47-03 の2段閾値）。
   if (src.type === 'LIFE_CLOTH_CARD') {
+    // 🆕§5.3 `O-408`（2026-09-16）＝トラッシュ側と同じ規約（宣言だけだった `'life'` の消費地点）。
+    if (oppZoneMoveBlocked('life', src.owner, ctx, 'deck')) {
+      return done(addLog(ctx, 'ライフクロス保護により効果なし'));
+    }
     const n = src.count === 'ALL' ? state.life_cloth.length : resolveNum(src.count);
     const life = [...state.life_cloth];
     const moved: string[] = [];
@@ -10014,6 +10036,16 @@ function applyAbilitiesRemoval(
     }
     return { ...state, keyword_abilities_removed: removedKeywords };
   }
+  // 🆕§5.3 `O-510`（2026-09-16）＝「次のターンの**メインフェイズの間**」は別スロットへ予約する。
+  // 🔴`abilities_removed_next_turn` へ入れると turn-start で昇格して**アタックフェイズまで**効く。
+  if (action.until === 'NEXT_TURN_MAIN_PHASE') {
+    return {
+      ...state,
+      abilities_removed_next_main_phase: [
+        ...new Set([...(state.abilities_removed_next_main_phase ?? []), ...cardNums]),
+      ],
+    };
+  }
   // NEXT_TURN＝「次のターンの間」だけ＝現ターンには効かせない（予約のみ）。
   const reservesNextTurn = action.until === 'NEXT_TURN' || action.until === 'UNTIL_OPP_TURN_END';
   const appliesThisTurn = action.until !== 'NEXT_TURN';
@@ -10059,7 +10091,11 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   if (a.alsoCenterLrig) {
     const lrigState = ownerState(tgtOwner, ctx);
     const reservesNext = a.until === 'NEXT_TURN' || a.until === 'UNTIL_OPP_TURN_END';
-    const appliesNow = a.until !== 'NEXT_TURN';
+    // ⚠§5.3 `O-510`：`NEXT_TURN_MAIN_PHASE` も**現ターンには効かせない**（予約だけ）。
+    //   🔴ここを `!== 'NEXT_TURN'` のままにすると、ルリグ側だけ**宣言したそのターンに**能力を失う。
+    //   ⚠ルリグ側にはまだ「メインフェイズの間だけ」のスロットが無いので、
+    //     その組み合わせ（`alsoCenterLrig` × この期間）は live に1件も無い＝出たらそのとき足す。
+    const appliesNow = a.until !== 'NEXT_TURN' && a.until !== 'NEXT_TURN_MAIN_PHASE';
     ctx = addLog(setOwnerState(tgtOwner, {
       ...lrigState,
       ...(appliesNow ? { lrig_abilities_disabled: true } : {}),
@@ -10081,7 +10117,9 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
       cur = reservation.ctx;
       touched ||= reservation.reserved;
     }
-    if (a.until !== 'NEXT_TURN') {
+    // ⚠§5.3 `O-510`：`NEXT_TURN_MAIN_PHASE` も現ターンには効かせない（ゾーン継続側には
+    //   まだ「メインフェイズの間だけ」のスロットが無いので、組み合わせが出たらそのとき足す）。
+    if (a.until !== 'NEXT_TURN' && a.until !== 'NEXT_TURN_MAIN_PHASE') {
       const active = applyActiveFieldGrant(a.target, grant, cur);
       cur = active.ctx;
       touched ||= active.applied;
@@ -12878,6 +12916,21 @@ export function resumeLookAndReorder(
   //   細工されたリクエストや別クライアントの実装差でそのまま並べ替えが通っていた。
   //   ⚠**トラッシュ／上下の振り分けはプレイヤーの選択として残す**（reorder とは別の可否）。
   const orderSource = pending.reorder === false ? pending.cards : reordered;
+  // 🆕**§5.3 `O-484`（2026-09-16）＝トラッシュ枚数の上限・下限を engine でも強制する。**
+  // 🔴UI を直すだけでは足りない（`reorder` と同じ理由）＝**CPU の自動応答は常に「トラッシュ0枚」**を
+  //   返すので、強制（「その中から１枚をトラッシュに置き」）が CPU 側だけ無視される。
+  // ⚠下限に足りないときは**末尾（戻すときに一番後ろ）から**補う（人間の UI は確定を押せないのでここには来ない）。
+  const trashCap = pending.trashCount !== undefined
+    ? Math.min(pending.trashCount, orderSource.length) : undefined;
+  let trashedFixed = trashed;
+  if (trashCap !== undefined) {
+    trashedFixed = trashed.slice(0, trashCap);
+    if (!pending.trashUpTo && trashedFixed.length < trashCap) {
+      const fill = orderSource.filter(n => !trashedFixed.includes(n)).slice(-(trashCap - trashedFixed.length));
+      trashedFixed = [...trashedFixed, ...fill];
+    }
+  }
+  trashed = trashedFixed;
   const keepRaw = orderSource.filter(n => !trashed.includes(n));
   const keep = pending.shuffle ? shuffle(keepRaw) : keepRaw;
   const destOwner = pending.destOwner;
@@ -13900,6 +13953,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           : state.deck.includes(cardNum) ? 'deck'
           : state.trash.includes(cardNum) ? 'trash'
           : state.energy.includes(cardNum) ? 'energy'
+          // 🆕§5.3 `O-477`（2026-09-16）＝**チェックゾーン**。上の取り除きで
+          //   `field.check` を `null` にしているので、**取り除く前の `state`** を見ること。
+          : (state.field.check === cardNum || (state.field.check_rest ?? []).includes(cardNum)) ? 'check'
           : null;
         if (originZone) {
           newS = {

@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseUnderFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter, signiClauseContainsNameFilter,
+  parseNum, parseLookTrashCount, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseUnderFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter, signiClauseContainsNameFilter,
 } from '../parserUtils';
 
 /**
@@ -3371,6 +3371,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       private: true,
       reorder: splitLR || t.includes('好きな順番'),
       canTrash: t.includes('トラッシュに置き'),
+      // 🆕§5.3 `O-484`（2026-09-16）＝「その中から**１枚**を」の枚数を拾う。
+      ...(parseLookTrashCount(t) ?? {}),
       destination: { location: 'deck', owner: 'self', position: splitLR ? 'split_top_bottom' : toBottom ? 'bottom' : 'top' },
     };
   }
@@ -4874,6 +4876,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       private: !t.includes('公開'),
       reorder: t.includes('好きな順番'),
       canTrash: t.includes('トラッシュに置き') || t.includes('トラッシュに置いてもよい'),
+      // 🆕§5.3 `O-484`（2026-09-16）＝同上。
+      ...(parseLookTrashCount(t) ?? {}),
       destination: { location: 'deck', owner: 'self', position: 'top' },
     };
   }
