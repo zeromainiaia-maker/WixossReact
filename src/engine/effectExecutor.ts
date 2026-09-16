@@ -3445,12 +3445,18 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     return done(addLog(ctx, '対戦相手の効果によるダメージを受けないため効果なし'));
   }
   if (a.optional) {
+    // 🆕🔴**§5.3 `O-529`（2026-09-16）＝辞退したら「そうした場合」ごと落とす（`declines`）。**
+    //   🔴`INTERNAL_SKIP_OPTIONAL_ACTION` が `lastProcessedCards` を空にしても、この経路は**対話を跨ぐ**ので
+    //     `execSequence` の did-it ゲートを通らない（残りのステップは `pending.continuation` へ移っている）。
+    //     ⇒ 辞退枝の印は `resumeChoose` が読む `declines` だけ（`O-391`(b) と同じ契約）。
+    //   🔴実害＝`WX24-P4-005-E1`「あなたのライフクロス１枚をクラッシュしてもよい。そうした場合、対戦相手の
+    //     ライフクロス１枚をクラッシュする」が、**断っても相手のライフを割っていた**（`census:traceinv` I3）。
     return needsInteraction(addLog(ctx, 'ライフクロスをクラッシュしますか？'), {
       type: 'CHOOSE',
       count: 1,
       options: [
         { id: 'crash', label: 'クラッシュする', action: { ...a, optional: false }, available: true },
-        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' }, available: true },
+        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' }, available: true, declines: true },
       ],
     });
   }
@@ -3474,7 +3480,8 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
           action: { ...a, count: i + 1, upToCount: false, conditional: false } as EffectAction,
           available: true,
         })),
-        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as EffectAction, available: true },
+        // 🆕**§5.3 `O-529`**＝「0枚」＝辞退と同じ（上の `a.optional` 枝と同じ契約）。
+        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as EffectAction, available: true, declines: true },
       ],
     });
   }
@@ -12338,10 +12345,25 @@ export function resumeSelectTarget(
       `${cur.cardMap.get(selfNum)?.CardName ?? selfNum}を場からトラッシュに置く`);
   }
   if (pending.continuation) {
-    // 任意選択（してもよい）をスキップした場合、「そうした場合〜」(CONDITIONAL IS_MY_TURN) は実行しない
-    const cont = pending.optional && selected.length === 0
+    // 🆕🔴**§5.3 `O-530`（2026-09-16）＝集合制約つきの強制選択が `count` 枚に届かなかった回。**
+    //   🔴`canAddToSelection` は制約に反する札を**黙って間引く**（`distinct:'level'` で同レベルの2枚目など）ので、
+    //     「それぞれレベルの異なるシグニ４枚をデッキの一番下に置く。**そうした場合**、…」が
+    //     **3枚しか動いていないのに成功扱い**になり後続が走っていた（`census:traceinv` I3・`WX15-Re15-E1` ほか10効果）。
+    //   🔑**部分実行は原文どおり残す**（「可能な限り実行する」）＝落とすのは「そうした場合」だけ。
+    //   ⚠**軸は `selectionConstraint` の有無**＝制約が無い強制選択（候補が `count` 体に足りないだけ）は挙動据置
+    //     ＝既存の粗ゲート（`execSequence`）と二重にしない。
+    //   ⚠`upToCount`／`optional` は `selectOrInteract` が `optional:true` で立てるのでここへ来ない。
+    const constrainedShort = !pending.optional
+      && pending.selectionConstraint !== undefined
+      && selected.length < pending.count;
+    const cont = (pending.optional && selected.length === 0) || constrainedShort
       ? stripDidItConditional(pending.continuation)
       : pending.continuation;
+    //   ⚠**文言は `execSequence` の did-it ゲートと同じ規約に揃える**＝`census:traceinv` の I3 は
+    //     ログの失敗語（`なし|できない|不可|スキップ|足りない|未達`）で「失敗後に盤面が動いた」を拾うが、
+    //     **ここは「ゲートが正しく働いた」ログ**（動いた差分は原文どおりの部分実行）＝失敗語を入れると
+    //     自分の修正で計器が20件太る（実測）。既存の「前段が空振り：…」も同じ理由で失敗語を持たない。
+    if (constrainedShort) cur = addLog(cur, '前段が「そうした場合」の枚数に届かない：後続の効果は発生しない');
     if (cont) return executeAction(cont, cur);
   }
   return done(cur);

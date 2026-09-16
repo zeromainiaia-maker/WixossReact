@@ -795,6 +795,31 @@ export function findValidConstrainedSelection(
   return find(0) ? [...selected] : null;
 }
 
+/**
+ * 🆕🔴**§5.3 `O-530`（2026-09-16）＝集合制約のもとで実際に選べる最大枚数**（0〜`maxCount`）。
+ *
+ * 🔑**なぜ要るか**＝「それぞれレベルの異なるシグニ４枚を〜」で**トラッシュに4種類のレベルが無い**とき、
+ *   UI の確定条件は「`count` 枚ちょうど ∧ 制約を満たす」なので**決定ボタンが永久に押せない**（実機は詰み）。
+ *   engine 側（`resumeSelectTarget`）は `canAddToSelection` で黙って間引くので**3枚だけ動いて成功扱い**になり、
+ *   直後の「そうした場合」が走っていた（`census:traceinv` I3 で観測＝`WX15-Re15-E1` ほか10効果）。
+ * ⇒ **「可能な限り実行する」＝ここが返す枚数まで選ばせる**。足りない回は `resumeSelectTarget` が
+ *   「そうした場合」を落とす（＝原文どおり部分実行はするが後続は起きない）。
+ * ⚠`maxCount` は小さい（実測 3〜4）ので k を降順に総当たりしてよい。
+ */
+export function maxConstrainedSelectionSize(
+  candidates: string[],
+  maxCount: number,
+  constraint: SelectionConstraint | undefined,
+  cardMap: Map<string, CardData>,
+): number {
+  const cap = Math.min(maxCount, candidates.length);
+  if (!constraint) return Math.max(0, cap);
+  for (let k = cap; k > 0; k--) {
+    if (findValidConstrainedSelection(candidates, k, k, constraint, cardMap) !== null) return k;
+  }
+  return 0;
+}
+
 // 支払い可能か（エナ色・手札・エナゾーンの在庫）。handDiscardGroups は呼び出し側の既存判定に残す。
 export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx): boolean {
   if (spec.levelUnavailable) return false;

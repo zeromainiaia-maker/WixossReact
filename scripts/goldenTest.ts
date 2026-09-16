@@ -45,7 +45,7 @@ import { coinLedger, collectCoinNegationRemovals, isCoinAbility, negateCoinAbili
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
 import { countEnergyPlacedThisTurn } from '../src/engine/energyPlacement';
-import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, maxConstrainedSelectionSize, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -85435,6 +85435,87 @@ test('§5.3 O-527: 【トラップ】が無ければ「そうした場合」の�
     ok(!trapsOf(st).includes(old), `${id}: 元の【トラップ】は場を離れる`);
     eq(trapsOf(st).length, 1, `${id}: デッキから新しい【トラップ】を1つ設置する`);
   }
+}));
+
+test('§5.3 O-529: 任意のライフクラッシュを断ったら「そうした場合」の相手のライフクラッシュは起きない', () => withSavedCursor(() => {
+  // 🔴`LIFE_CRASH{optional}` の辞退枝は `INTERNAL_SKIP_OPTIONAL_ACTION`（`lastProcessedCards` を空にする）だけで、
+  //   **対話を跨ぐ経路には `execSequence` の did-it ゲートが無い**（残りは `pending.continuation` へ移っている）。
+  //   ⇒ 断っても「そうした場合、対戦相手のライフクロス１枚をクラッシュする」が走っていた（`census:traceinv` I3）。
+  const SRC = 'WX24-P4-005';
+  const live = mergeManualEffects(SRC, effectsMap.get(SRC) ?? []).find(e => e.effectId === 'WX24-P4-005-E1')!;
+  const ctx = mkCtx({}, {}, SRC);
+  const p0 = executeEffect(live, ctx);
+  ok(!p0.done && p0.pending.type === 'CHOOSE', 'クラッシュするかを問うていない');
+  if (p0.done || p0.pending.type !== 'CHOOSE') return;
+  const skip = p0.pending.options.find(o => o.id === 'skip');
+  ok(!!skip, '「クラッシュしない」が出ない＝辞退できない');
+  eq(skip?.declines, true, '🔴辞退枝に declines が無い＝「そうした場合」を止められない');
+  const c0 = execCtxFrom(p0, ctx);
+  const oppLife = c0.otherState.life_cloth.length;
+  const declined = resumeChoose('skip', p0.pending, c0);
+  eq(declined.otherState.life_cloth.length, oppLife,
+    '🔴断ったのに対戦相手のライフクロスがクラッシュされている');
+  eq(declined.otherState.field.check, null, '🔴断ったのに対戦相手のチェックゾーンへ置かれている');
+  // 反転＝受ければ自分と相手のライフが1枚ずつ割れる。
+  const accepted = resumeChoose('crash', p0.pending, c0);
+  eq(accepted.otherState.life_cloth.length, oppLife - 1,
+    '受けたのに対戦相手のライフクロスがクラッシュされていない');
+  eq(accepted.ownerState.life_cloth.length, c0.ownerState.life_cloth.length - 1,
+    '受けたのに自分のライフクロスがクラッシュされていない');
+}));
+
+test('§5.3 O-530: 「それぞれレベルの異なるN枚」がそろわなければ「そうした場合」は起きない（部分実行はする）', () => withSavedCursor(() => {
+  // 🔴`canAddToSelection` は制約に反する札を**黙って間引く**ので、4枚選んでも3枚しか動かないのに
+  //   `TRANSFER_TO_DECK` が did-it ゲートを通って「そうした場合」が走っていた（`census:traceinv` I3）。
+  const SRC = 'WX15-Re15';
+  const cm = cardMap as Map<string, CardData>;
+  const nonColorless = (level: string, skip: Set<string>) => findCard(c =>
+    isSigni(c) && c.Level === level && /[白青赤緑黒]/.test(c.Color ?? '') && !skip.has(c.CardNum) && c.CardNum !== SRC);
+  const used = new Set<string>();
+  const pick = (level: string) => { const n = nonColorless(level, used); used.add(n); return n; };
+  const l1 = pick('1'), l2 = pick('2'), l3 = pick('3'), l4 = pick('4'), l2b = pick('2');
+  const live = mergeManualEffects(SRC, effectsMap.get(SRC) ?? []).find(e => e.effectId === 'WX15-Re15-E1')!;
+  const constraint = { distinct: 'level' as const };
+
+  // ① 4種類そろう選び方 → 4枚がデッキの一番下へ行き、「そうした場合」の自己蘇生が走る
+  {
+    const ctx = mkCtx({ signi: [null, null, null] }, {}, SRC);
+    ctx.ownerState = { ...ctx.ownerState, trash: [SRC, l1, l2, l3, l4] };
+    const p0 = executeEffect(live, ctx);
+    ok(!p0.done && p0.pending.type === 'SELECT_TARGET', 'トラッシュから選ばせていない');
+    if (p0.done || p0.pending.type !== 'SELECT_TARGET') return;
+    eq(p0.pending.count, 4, '要求枚数が4でない');
+    eq(p0.pending.optional ?? false, false, '強制選択でない（原文は「置く」）');
+    const r = finish(resumeSelectTarget([l1, l2, l3, l4], p0.pending, execCtxFrom(p0, ctx)), ctx);
+    // ⚠「そうした場合」は最後に `SHUFFLE_DECK` まで走る＝**並びでは見ない**（在処だけを見る）。
+    eq([l1, l2, l3, l4].filter(n => r.ownerState.deck.includes(n)).length, 4, '4枚がデッキへ行っていない');
+    eq([l1, l2, l3, l4].filter(n => r.ownerState.trash.includes(n)).length, 0, '4枚がトラッシュに残っている');
+    ok(r.ownerState.field.signi.some(st => st?.at(-1) === SRC),
+      '🔴4枚そろったのに「そうした場合」の自己蘇生が起きていない');
+  }
+  // ② 同じレベルを2枚選んだ（＝4種類そろわない）→ 間引かれた3枚は動くが「そうした場合」は起きない
+  {
+    const ctx = mkCtx({ signi: [null, null, null] }, {}, SRC);
+    ctx.ownerState = { ...ctx.ownerState, trash: [SRC, l2, l2b, l3, l4] };
+    const p0 = executeEffect(live, ctx);
+    ok(!p0.done && p0.pending.type === 'SELECT_TARGET', 'トラッシュから選ばせていない');
+    if (p0.done || p0.pending.type !== 'SELECT_TARGET') return;
+    const r = finish(resumeSelectTarget([l2, l2b, l3, l4], p0.pending, execCtxFrom(p0, ctx)), ctx);
+    ok(!r.ownerState.field.signi.some(st => st?.at(-1) === SRC),
+      '🔴4枚そろっていないのに「そうした場合」の自己蘇生が起きている');
+    // ⚠**部分実行までは殺さない**（原文の「可能な限り実行する」）＝落とすのは「そうした場合」だけ。
+    //   「そうした場合」が走らない＝`SHUFFLE_DECK` も走らないので、並び（一番下の3枚）まで見てよい。
+    eq(r.ownerState.deck.slice(-3).filter(n => [l2, l3, l4].includes(n)).length, 3,
+      '部分実行（可能な限りデッキの一番下へ置く）まで殺している');
+    ok(r.ownerState.trash.includes(l2b), '間引かれた同レベルの2枚目はトラッシュに残る');
+  }
+  // ③ 実機の詰み防止＝制約のもとで選べる最大枚数まで確定できる（旧＝`count` 枚ちょうど要求で決定が押せない）
+  eq(maxConstrainedSelectionSize([l1, l2, l3, l4], 4, constraint, cm), 4, '4種類そろう盤面の上限が4でない');
+  eq(maxConstrainedSelectionSize([l2, l2b, l3], 4, constraint, cm), 2, '同レベル2枚を含む候補の上限が2でない');
+  eq(maxConstrainedSelectionSize([l1, l2], 4, undefined, cm), 2, '制約なしは候補数でクランプする');
+  eq(fixedSelectionPickLimit(4, 3, false, 2), 2, 'UI の実効要求数が制約の上限へ落ちていない');
+  ok(fixedSelectionCountCanConfirm(2, 4, 3, false, 2), '🔴制約の上限まで選んでも決定が押せない＝実機が詰む');
+  ok(!fixedSelectionCountCanConfirm(2, 4, 3, false), '反転＝上限を渡さなければ従来どおり4枚未満は確定できない');
 }));
 
 if (listMode) {

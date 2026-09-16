@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第385バッチ：`O-529`／`O-530` をクローズ＝対話をまたぐ「そうした場合」の2つの抜け道
+
+- **共通の真因**＝**`execSequence` の did-it ゲートは「対話に入らずに `done` した step」しか見られない**。
+  任意の是非や対象選択で対話へ入った回は**残りのステップが `pending.continuation` へ移る**ので、ゲートのある場所を通らない
+  （`O-527` の `doneFailed` も `execSequence` の中でしか効かない）。対話をまたぐ経路の印は **`declines`（`resumeChoose`）／`stripDidItConditional`（`resumeSelectTarget`）の2本だけ**。
+- 🔴**`O-529`（2効果）**＝`LIFE_CRASH{optional}` の辞退枝が `INTERNAL_SKIP_OPTIONAL_ACTION`（`lastProcessedCards` を空にする）だけで **`declines` を立てていなかった**
+  ⇒ `WX24-P4-005-E1`「あなたのライフクロス１枚をクラッシュしてもよい。**そうした場合**、対戦相手のライフクロス１枚をクラッシュする」が、**断っても相手のライフを割っていた**。
+  **修正**＝`execLifeCrash` の `optional` 枝と `upToCount` の「クラッシュしない」枝に `declines: true`（`O-391`(b)／`O-511` と同じ契約）。
+  **影響**＝`WX24-P4-005-E1`／`WX12-014-E1`（`LIFE_CRASH{optional}` の直後が `CONDITIONAL{IS_MY_TURN}` の全件）。
+- 🔴**`O-530`（10効果＋実機のソフトロック）**＝「それぞれレベルの異なるシグニN枚を〜。そうした場合」で、
+  ①engine は `canAddToSelection` が制約違反の札を**黙って間引く**ので**3枚しか動かないのに成功扱い**で後続が走り、
+  ②実機は確定条件が「`count` 枚ちょうど ∧ 制約成立」なので**4種類そろわない盤面では決定ボタンが永久に押せない＝詰み**だった（`softlockshortpick` とは別の詰み方）。
+  **修正**＝(a) `resumeSelectTarget` は **強制選択 ∧ `selectionConstraint` あり ∧ 選べた枚数 < `count`** の回に `stripDidItConditional` で「そうした場合」を落とす
+  （🔑**部分実行は原文どおり残す**＝「可能な限り実行する」。落とすのは後続だけ）
+  (b) `maxConstrainedSelectionSize`（`execUtils.ts`・制約のもとで実際に選べる最大枚数）を新設し、`fixedSelectionPickLimit` / `fixedSelectionCountCanConfirm` に `constrainedMax` を渡して UI の要求枚数をそこへ落とす。
+  ⚠**軸は `selectionConstraint` の有無**＝制約なしで候補が足りないだけの形（既存の粗ゲートが覆う）は挙動据置。
+- ⚠**計器の較正**＝did-it ゲートが働いたログに失敗語（`足りない` 等）を入れると `census:traceinv` の I3 が自分の修正で太る（初版で 73 → 93）。
+  engine 側の文言を既存の「前段が空振り：…」と同じ規約（失敗語を持たない）に揃えて **I3 73 → 72**。理由を `censusTraceInvariants.mjs` の `FAIL_WORDS` の上に書いた。
+- **検証**＝golden 2本（`§5.3 O-529`／`§5.3 O-530`・**どちらも修正前の engine で FAIL を確認**・反転側＝受ければ割れる／4種類そろえば蘇生する も固定）／
+  `npm run gates` 全緑（golden **4270**・`census:traceinv` I1=0・I3 72）。
+- **実機**＝**必須（`src/screens/` を触った）**＝`node scripts/verifyBattleDrive.mjs distinctlevelshortpick`（§5.1 `V-237`）＝
+  `WX19-080`（＜微菌＞3枚・レベルは2種類だけ）で **PASS：決定 (0/2)→(2/2) で確定でき、部分実行 trash -2、【ウィルス】は置かれない**。
+  **反転確認**＝`constrainedMax` を外した旧コードで **FAIL：「決定 (0/3)」のまま26ティック押せず `pendingEffect=SELECT_TARGET` で停止**（＝実機の詰みを再現）。
+
 ## 2026-09-16 `census:traceinv` I3 の残り73件を全件判定＝登録 `O-529`／`O-530`（観測のみ・修正なし）
 
 - **判定**＝73件中 実バグ2／偽陽性71（型の内訳と計器の改良案は PLAN_DETAIL の同日節）。

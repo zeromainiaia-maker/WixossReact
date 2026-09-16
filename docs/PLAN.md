@@ -11,17 +11,18 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-16＝第384バッチ：`O-527` をクローズ（【トラップ】が無くても「そうした場合」の後続が走る・3効果）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 新しい印 `doneFailed`＝ハンドラが「原文の行動が起きなかった」と返すと、`execSequence` が直後の「そうした場合」を消費する（成功しても `lastProcessedCards` を書かない STUB 用）。
-- `WXEX2-15-E1`／`WXEX1-13-E1` は parser 出力の構造が原文と違ったので `manualEffects.ts` に手書き。
-- ついでに逆翻訳の穴を1つ＝アタックフェイズ開始時の `any_opp` が「あなたの」と描かれていた（27効果・engine は正しい）。
+**直近＝2026-09-16＝第385バッチ：`O-529`／`O-530` をクローズ＝対話をまたぐ「そうした場合」の2つの抜け道**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔑**`execSequence` の did-it ゲートは「対話に入らずに `done` した step」しか見られない**＝任意の是非や対象選択で対話へ入った回は残りが `pending.continuation` へ移り、ゲートのある場所を通らない。対話をまたぐ印は **`declines`（`resumeChoose`）／`stripDidItConditional`（`resumeSelectTarget`）の2本だけ**。
+- `O-529`＝`LIFE_CRASH{optional}` の辞退枝に `declines` が無く、**断っても相手のライフが割れていた**（2効果）。
+- `O-530`＝集合制約が `count` 枚を許さない盤面で、engine は**部分実行を成功扱い**にし、実機は**決定ボタンが押せない詰み**だった（10効果＋ソフトロック）。部分実行は残し、後続だけを落とす形に直した。
+- ⚠計器の較正＝ゲートが働いたログに失敗語を入れると `census:traceinv` I3 が自分の修正で太る（73→93）。文言を既存規約へ揃えて **I3 72**。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.3 索引A `O-530`**／**索引G `O-529`**（2026-09-16 に `census:traceinv` I3 の残り73件を全件判定して登録＝観測のみ・修正なし） |
+| 🔥**次に取るもの** | **在庫なし**（機構 worklist・実機・実装キューが全部 0）⇒ 次は**発見器を回す側**＝§5.2 の未監査カード（`semanticAuditGap.mjs`）か `census:traceinv` I2/I4/I5 の判定 |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**（`census:cards -- --sheet 1` で測り直す）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **2**（索引A 1・索引G 1）／実機 **0**／実装キュー **0** |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4268・`census:traceinv` I1=0） |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0** |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72） |
 
 ---
 
@@ -215,7 +216,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**。
+**残0**（直近＝`V-237`＝`distinctlevelshortpick`＝2026-09-16 第385バッチで PASS 確認済み。`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -310,9 +311,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 A. 母集団2桁（遅いレーン）
 
-| ID | 規模 | 何が無いか（一行） |
-|---|---|---|
-| `O-530` | M・**10効果**（同構造・実画面での再現は未確認） | 「トラッシュからそれぞれレベルの異なるシグニN枚をデッキの一番下に置く。そうした場合、…」で**N枚そろわなくても後続が走る**（`WX15-Re15-E1` で観測＝4件選んで3枚しか動かず、自身を場に出した） |
+🏁**残0**（`O-530` は 2026-09-16 第385バッチでクローズ＝PLAN_DETAIL）
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -323,9 +322,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
-| ID | 規模 | 何が無いか（一行） |
-|---|---|---|
-| `O-529` | S・**2効果** | 「あなたのライフクロス１枚をクラッシュしてもよい。そうした場合、対戦相手のライフクロス１枚をクラッシュする」で**断っても相手のライフがクラッシュされる**（`WX24-P4-005-E1` で観測） |
+🏁**残0**（`O-529` は 2026-09-16 第385バッチでクローズ＝PLAN_DETAIL）
 
 #### 索引 H. ルール解釈待ち（Claude は取らない）
 
@@ -376,10 +373,10 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-16 時点**（第384バッチ＝`O-527` クローズ）
+- **2026-09-16 時点**（第385バッチ＝`O-529`／`O-530` クローズ）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **2**（索引A 1＝`O-530`｜索引G 1＝`O-529`）｜実機 **0**｜実装キュー **0**｜round6 **完了**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4268・`census:traceinv` I1=0）
+  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4270・`census:traceinv` I1=0・I3 72）
 
 ---
 

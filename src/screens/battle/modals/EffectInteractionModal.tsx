@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
-import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection, satisfiesSelectionConstraint } from '../../../engine/execUtils';
+import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection, satisfiesSelectionConstraint, maxConstrainedSelectionSize } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -111,8 +111,14 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
         // SELECT_TARGET / SEARCH 共通：カード選択ピッカー
         if (inter.type === 'SELECT_TARGET' || inter.type === 'SEARCH') {
           const candidates = inter.type === 'SELECT_TARGET' ? inter.candidates : inter.visibleCards;
+          // 🆕🔴**§5.3 `O-530`（2026-09-16）＝集合制約のもとで実際に選べる最大枚数**を上限に使う。
+          //   🔴これが無いと「それぞれレベルの異なるシグニ４枚」でトラッシュに4種類のレベルが無い盤面で
+          //     **決定ボタンが永久に押せない**（`count` 枚ちょうど ∧ 制約成立 が両立しない）。
+          const constrainedMax = inter.type === 'SELECT_TARGET' && inter.selectionConstraint && !inter.optional
+            ? maxConstrainedSelectionSize(candidates, inter.count, inter.selectionConstraint, battleCardMap)
+            : undefined;
           const maxPick = inter.type === 'SELECT_TARGET'
-            ? fixedSelectionPickLimit(inter.count, candidates.length, inter.optional)
+            ? fixedSelectionPickLimit(inter.count, candidates.length, inter.optional, constrainedMax)
             : inter.maxPick;
 
           // ── opp_hand「見て選び」の**手札の持ち主**（タスク12(cv)）──
@@ -246,7 +252,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           const canConfirm = inter.type === 'SELECT_TARGET'
             ? (inter.totalPowerMax !== undefined
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
-                : (fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional)
+                : (fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional, constrainedMax)
                   && satisfiesSelectionConstraint(
                     effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                     inter.selectionConstraint,

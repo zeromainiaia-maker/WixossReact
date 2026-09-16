@@ -2091,6 +2091,87 @@ const scenarios = {
       return { pass: false, detail: `詰み疑い＝ピッカー表示=${sawPicker} 決定ボタン="${seenLabel ?? '-'}" hand=${st?.host?.hand} pendingEffect=${st?.pendingEffect}` };
     },
   },
+  // 🆕🔴**§5.1 `V-237`（§5.3 `O-530`・2026-09-16）＝集合制約が `count` 枚を満たせない盤面でも確定できる。**
+  // 🔴`softlockshortpick`（候補が要求枚数より少ない）とは**別の詰み方**＝
+  //   **候補は足りているのに制約（「それぞれレベルの異なる」）が `count` 枚の成立を許さない**。
+  //   旧 `fixedSelectionPickLimit` は `min(count, 候補数)` しか見ないので確定条件が永久に成立せず、
+  //   決定ボタンが押せないまま **ソフトロック**になる（`census:traceinv` I3 で engine 側の過剰発火として観測）。
+  // 🔑観測点は2つ＝①決定ボタンが `(2/2)` になって押せる ②確定後に**「そうした場合」の【ウィルス】が置かれない**
+  //   （部分実行＝2枚はデッキへ行く／後続だけが落ちる）。
+  // ⚠`WX19-080` は**ナナシ限定**＝ルリグを `WD19-004`（ナナシ 其ノ壱・Lv1 Limit2）にしないと場に出せない
+  //   （`softlockshortpick` の「花代限定」と同じ罠＝§4.4）。
+  distinctlevelshortpick: {
+    title: 'WX19-080 羅菌ハクセン（＜微菌＞3枚・レベルは2種類しかない＝2枚で確定でき、【ウィルス】は置かれない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD19-004#1'],
+        'field.signi': [null, null, null],
+        // 🔑候補は**3枚（要求枚数と同数）**だが**レベルは2種類だけ**＝制約が3枚の成立を許さない。
+        'trash': ['WX15-066#1', 'WX15-116#1', 'WX15-065#1'],   // Lv1 / Lv1 / Lv2 の＜微菌＞
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [['WD01-013#11'], null, null],
+        'field.signi_virus': [0, 0, 0],
+        'actions_done': [],
+      },
+      handPrepend: ['WX19-080#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} trash=${JSON.stringify(st0?.host?.trashCards)} gVirus=${JSON.stringify(st0?.guest?.signiVirus)}`);
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      let sawPicker = false, firstLabel = null, confirmed = false, readySeen = false, picks = 0, summoned = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/distinctlevelshortpick-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const c = await clickExact('召喚');
+          if (c) { did = c; summoned = true; }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) {   // トラッシュから選ぶ SELECT_TARGET（要求3・候補3・レベルは2種類）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            sawPicker = true;
+            const lbl = (await page.getByRole('button', { name: /決定 \(/ }).first().textContent().catch(() => null))?.trim() ?? null;
+            if (lbl && !firstLabel) { firstLabel = lbl; H.log(`    ピッカー表示: 決定ボタン="${lbl}"（修正前は「決定 (0/3)」のまま押せない）`); }
+            // 🔴**押せるかどうかまで見る**（`clickTextOrBtn` は disabled でも押して 'btn:決定' を返す＝
+            //   旧挙動でも「確定した」ように見えてしまう）。ここだけは `isEnabled` を要求する。
+            const okBtn = page.getByRole('button', { name: /決定 \(2\/2\)/ }).first();
+            const ready = await okBtn.count() && await okBtn.isEnabled().catch(() => false);
+            if (ready) { readySeen = true; await okBtn.click().catch(() => {}); did = 'btn:決定 (2/2)'; confirmed = true; }
+            else if (picks < 3) {
+              // 🔑同レベルの2枚目は `canAddToSelection` が弾く＝押しても増えないので次の候補へ進む。
+              const pn = page.getByTestId(`pick-${picks}`).first();
+              if (await pn.count() && await pn.isVisible().catch(() => false)) { await pn.click().catch(() => {}); did = `pick:pick-${picks}`; }
+              picks++;
+            }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+        const st = await H.queryState();
+        H.log(`  distinct[${s}] -> ${did ?? 'なし'} | trash=${st?.host?.trash ?? '-'} gVirus=${JSON.stringify(st?.guest?.signiVirus)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (sawPicker && confirmed && readySeen && !st?.pendingEffect && !(st?.stackLen > 0)) {
+          const virus = (st?.guest?.signiVirus ?? []).reduce((a, b) => a + (b ?? 0), 0);
+          const moved = (st0?.host?.trash ?? 3) - (st?.host?.trash ?? 0);
+          if (virus > 0) {
+            return { pass: false, detail: `🔴3枚そろっていないのに「そうした場合」の【ウィルス】が置かれた（gVirus=${JSON.stringify(st.guest.signiVirus)}）` };
+          }
+          return { pass: true, detail: `決定ボタン="${firstLabel ?? '-'}"→2枚で確定でき（部分実行 trash -${moved}）、【ウィルス】は置かれない（gVirus=${JSON.stringify(st?.guest?.signiVirus)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      H.log('=== 全ログ末尾(-25) ===');
+      for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
+      return { pass: false, detail: `🔴詰み疑い＝ピッカー表示=${sawPicker} 決定(2/2)が押せた=${readySeen} 初回ラベル="${firstLabel ?? '-'}" trash=${fin?.host?.trash} pendingEffect=${fin?.pendingEffect}` };
+    },
+  },
   deckshufflespell: {
     title: 'PR-470A（ON_DECK_SHUFFLED・スペル経路＝SEARCHER／修正回帰ガード）',
     spec: {
