@@ -1,4 +1,4 @@
-import type { CardData, LifeCrashReplacement, PlayerState } from '../../types';
+import type { CardData, LifeCrashReplacement, LifeCrashReplaceOptionState, PlayerState } from '../../types';
 import type { StubAction } from '../../types/effects';
 import { selectOptionalCostEnergy } from '../../engine/execUtils';
 
@@ -23,8 +23,12 @@ import { selectOptionalCostEnergy } from '../../engine/execUtils';
  *     片方だけ限定を見ると「シグニには効くがルリグには効かない」型の無言の不整合になる。
  *   - **「デッキがN-1枚以下の場合は置き換えられない」は原文の注記**（`WX24-P4-009`／`WX25-P1-106` 等）＝
  *     枚数が足りないエントリは選ばない＝ダメージがそのまま通る。**デッキアウトの自傷が構造的に起きない。**
- *   - ⚠**「〜してもよい」（`optional`）は現状**自動適用**の近似**。上の「置き換えられない」注記のおかげで
- *     自滅にはならないが、**本来は被害側が選ぶ**。対話化は離場置換（§6.4 M2）と同じ枠組みで別バッチ。
+ *   - 🆕**「〜してもよい」（`optional`）は被害側が選ぶ**（§5.3 `O-414`・2026-09-16）＝
+ *     `lifeCrashReplaceAskOptions` で**ライフを1枚も割る前に**問い、決定を
+ *     `PlayerState.life_crash_replace_choice` へ刻んでから同期的に適用する（離場置換の
+ *     `hoistLeaveSubstituteAsks` と同じ設計＝解決ループの途中で中断する機構を作らない）。
+ *     ⚠**決定が無いとき（CPU・直接呼び出し）は従来どおり自動適用**＝先に成立した1本を採る。
+ *     ⚠**辞退しても `optional` でない置換は適用する**（原文に「してもよい」が無い宣言は断れない）。
  *   - 🆕`kind:'pay_cost'`（§6.4 O-37(a)・続き543）＝「あなたがダメージを受ける場合、代わりに〈コスト〉を
  *     支払ってもよい」。**宣言の在庫はルリグ付与ストア**（`grantedPayCostReplacements` が走査のたびに合成）で、
  *     `life_crash_replacements` にはコピーしない＝「そうした場合、このルリグはこの能力を失う」を
@@ -93,25 +97,78 @@ export function upAssistLrigZones(
   return out;
 }
 
-/** `pay_cost` の支払い方を1つ選ぶ（**原文の並び順**で最初に払えるもの）。払えなければ null。 */
-function pickPayOption(
-  repl: LifeCrashReplacement, state: PlayerState, cardMap: Map<string, CardData>,
-): { option: NonNullable<LifeCrashReplacement['payOptions']>[number]; energyPicked: string[] } | null {
-  for (const option of repl.payOptions ?? []) {
-    if (option.costColors && option.costColors.length > 0) {
-      const picked = selectOptionalCostEnergy(option.costColors, state, cardMap);
-      if (picked) return { option, energyPicked: picked };
-      continue;
-    }
-    if (option.handDiscard && state.hand.length >= option.handDiscard) return { option, energyPicked: [] };
-    if (option.energyTrash && state.energy.length >= option.energyTrash) return { option, energyPicked: [] };
-    // 🆕アシストルリグのダウン払い（§5.3 `O-202`）。⚠アップの枠が足りなければ**成立しない**。
-    if (option.assistLrigDown
-      && upAssistLrigZones(state, cardMap, option.assistLrigDown.minLevel).length >= option.assistLrigDown.count) {
-      return { option, energyPicked: [] };
-    }
+type PayOption = NonNullable<LifeCrashReplacement['payOptions']>[number];
+
+/** その支払い方 1つが**いま払えるか**（払えるなら色コストで取り除くエナも返す）。 */
+function payableOption(
+  option: PayOption, state: PlayerState, cardMap: Map<string, CardData>,
+): { option: PayOption; energyPicked: string[] } | null {
+  if (option.costColors && option.costColors.length > 0) {
+    const picked = selectOptionalCostEnergy(option.costColors, state, cardMap);
+    return picked ? { option, energyPicked: picked } : null;
+  }
+  if (option.handDiscard) return state.hand.length >= option.handDiscard ? { option, energyPicked: [] } : null;
+  if (option.energyTrash) return state.energy.length >= option.energyTrash ? { option, energyPicked: [] } : null;
+  // 🆕アシストルリグのダウン払い（§5.3 `O-202`）。⚠アップの枠が足りなければ**成立しない**。
+  if (option.assistLrigDown) {
+    return upAssistLrigZones(state, cardMap, option.assistLrigDown.minLevel).length >= option.assistLrigDown.count
+      ? { option, energyPicked: [] } : null;
   }
   return null;
+}
+
+/**
+ * `pay_cost` のうち**いま払える支払い方の添字**を全部返す（原文の並び順）。
+ * 🔑対話では**支払い方も被害側が選ぶ**（`WX25-P1-014-E2`「手札を1枚捨てる**か**エナゾーンから1枚トラッシュ」）
+ *   ので、置換1件を選択肢1つに畳まない。
+ */
+function payableOptionIndices(
+  repl: LifeCrashReplacement, state: PlayerState, cardMap: Map<string, CardData>,
+): number[] {
+  const out: number[] = [];
+  (repl.payOptions ?? []).forEach((option, i) => { if (payableOption(option, state, cardMap)) out.push(i); });
+  return out;
+}
+
+/**
+ * `pay_cost` の支払い方を1つ選ぶ。`payIndex` 指定＝被害側が選んだ方（払えなければ null）／
+ * 未指定＝**原文の並び順**で最初に払えるもの（決定が無いときの自動 policy）。
+ */
+function pickPayOption(
+  repl: LifeCrashReplacement, state: PlayerState, cardMap: Map<string, CardData>, payIndex?: number,
+): { option: PayOption; energyPicked: string[] } | null {
+  const options = repl.payOptions ?? [];
+  if (payIndex !== undefined) {
+    const option = options[payIndex];
+    return option ? payableOption(option, state, cardMap) : null;
+  }
+  for (const option of options) {
+    const ok = payableOption(option, state, cardMap);
+    if (ok) return ok;
+  }
+  return null;
+}
+
+/**
+ * 対話UI／ログに出す一行説明（⚠**原文の言い回しで書く**＝内部の識別子を出さない）。
+ * `payIndex` 未指定の `pay_cost` は支払い方が決まっていないので総称で書く。
+ */
+export function lifeCrashReplaceOptionLabel(repl: LifeCrashReplacement, payIndex?: number): string {
+  if (repl.kind === 'mill') return `代わりにデッキの上から${repl.count}枚をトラッシュに置く`;
+  if (repl.kind === 'crash_opponent') return `代わりに対戦相手のライフクロス${repl.count}枚をクラッシュする`;
+  const option = payIndex !== undefined ? (repl.payOptions ?? [])[payIndex] : undefined;
+  const lose = repl.loseGrantedEffectId ? '（このルリグはこの能力を失う）' : '';
+  if (!option) return `代わりにコストを支払う${lose}`;
+  if (option.costColors && option.costColors.length > 0) {
+    return `代わりに${option.costColors.map(c => `《${c}》`).join('')}を支払う${lose}`;
+  }
+  if (option.handDiscard) return `代わりに手札を${option.handDiscard}枚捨てる${lose}`;
+  if (option.energyTrash) return `代わりにエナゾーンからカードを${option.energyTrash}枚トラッシュに置く${lose}`;
+  if (option.assistLrigDown) {
+    const lv = option.assistLrigDown.minLevel !== undefined ? `レベル${option.assistLrigDown.minLevel}以上の` : '';
+    return `代わりに${lv}アップ状態のアシストルリグ${option.assistLrigDown.count}体をダウンする${lose}`;
+  }
+  return `代わりにコストを支払う${lose}`;
 }
 
 export interface LifeCrashReplaceContext {
@@ -122,17 +179,24 @@ export interface LifeCrashReplaceContext {
    * 未指定のときはコスト支払い型の置換を**選ばない**（＝ダメージがそのまま通る＝過剰にならない側）。
    */
   cardMap?: Map<string, CardData>;
+  /**
+   * 🆕被害側が下した決定（`PlayerState.life_crash_replace_choice`・§5.3 `O-414`）。
+   * **未指定＝従来の自動 policy**（先に成立した1本を採る）＝CPU・直接呼び出しはこちら。
+   * ⚠呼び出し側は**読んだら `consumeLifeCrashReplaceDecision` で必ず消す**（次のクラッシュへ持ち越さない）。
+   */
+  decision?: { option: LifeCrashReplaceOptionState | null };
 }
 
 /**
- * このクラッシュに使える置換を1つ選ぶ（**適用はしない**）。
- * 宣言順（先に宣言したものが先）で最初に成立したものを返す。
+ * このクラッシュで**いま成立している置換を全部**列挙する（適用はしない・宣言順）。
+ * ⚠`pay_cost` は「払える支払い方が1つ以上ある」ことが成立条件（払えない盤面ではダメージがそのまま通る）。
  */
-export function pickLifeCrashReplacement(
+export function viableLifeCrashReplacements(
   state: PlayerState,
   ctx: LifeCrashReplaceContext,
-): { index: number; repl: LifeCrashReplacement } | null {
+): { index: number; repl: LifeCrashReplacement; payIndices: number[] }[] {
   const all = lifeCrashReplacements(state);
+  const out: { index: number; repl: LifeCrashReplacement; payIndices: number[] }[] = [];
   for (let i = 0; i < all.length; i++) {
     const r = all[i];
     // 「対戦相手の〈シグニ／ルリグ〉によって」限定
@@ -142,11 +206,76 @@ export function pickLifeCrashReplacement(
     // 「デッキがN-1枚以下の場合は置き換えられない」（原文の注記）
     if (r.kind === 'mill' && state.deck.length < r.count) continue;
     // 「代わりに〈コスト〉を支払ってもよい」＝払えないなら置換は成立しない（ダメージがそのまま通る）。
-    if (r.kind === 'pay_cost' && (!ctx.cardMap || !pickPayOption(r, state, ctx.cardMap))) continue;
-    return { index: i, repl: r };
+    let payIndices: number[] = [];
+    if (r.kind === 'pay_cost') {
+      if (!ctx.cardMap) continue;
+      payIndices = payableOptionIndices(r, state, ctx.cardMap);
+      if (payIndices.length === 0) continue;
+    }
+    out.push({ index: i, repl: r, payIndices });
   }
-  return null;
+  return out;
 }
+
+/**
+ * 🆕**被害側に問うべき任意置換**を列挙する（§5.3 `O-414`）。空なら問わない＝従来の同期パス。
+ *
+ * - **強制置換が先に成立するなら問わない**＝選択の余地が無い（`leaveSubstituteAskOptions` と同じ規約）。
+ * - `pay_cost` は**支払い方ごとに1つの選択肢**にする（原文「AするかBしてもよい」）。
+ */
+export function lifeCrashReplaceAskOptions(
+  state: PlayerState,
+  ctx: LifeCrashReplaceContext,
+): LifeCrashReplaceOptionState[] {
+  const all = viableLifeCrashReplacements(state, ctx);
+  if (all.length === 0 || !all[0].repl.optional) return [];
+  const out: LifeCrashReplaceOptionState[] = [];
+  for (const e of all) {
+    if (!e.repl.optional) continue;
+    if (e.repl.kind === 'pay_cost') {
+      for (const payIndex of e.payIndices) {
+        out.push({ index: e.index, payIndex, label: lifeCrashReplaceOptionLabel(e.repl, payIndex) });
+      }
+    } else {
+      out.push({ index: e.index, label: lifeCrashReplaceOptionLabel(e.repl) });
+    }
+  }
+  return out;
+}
+
+/**
+ * このクラッシュに使う置換を1つ決める（**適用はしない**）。
+ *
+ * - `ctx.decision` **あり**＝被害側の決定を採る。⚠**再検証する**＝中断中に盤面が変わって
+ *   その (index, payIndex) がもう成立しないなら、黙って「置換しない」に倒す。
+ *   ⚠**辞退しても `optional` でない置換（強制置換）は適用する**（原文に「してもよい」が無い）。
+ * - `ctx.decision` **なし**＝従来の自動 policy＝宣言順で最初に成立したもの。
+ */
+export function pickLifeCrashReplacement(
+  state: PlayerState,
+  ctx: LifeCrashReplaceContext,
+): { index: number; repl: LifeCrashReplacement; payIndex?: number } | null {
+  const all = viableLifeCrashReplacements(state, ctx);
+  if (ctx.decision !== undefined) {
+    const chosen = ctx.decision.option;
+    if (chosen) {
+      const hit = all.find(e => e.index === chosen.index && e.repl.optional
+        && (chosen.payIndex === undefined || e.payIndices.includes(chosen.payIndex)));
+      if (hit) return { index: hit.index, repl: hit.repl, ...(chosen.payIndex !== undefined ? { payIndex: chosen.payIndex } : {}) };
+    }
+    const mandatory = all.find(e => !e.repl.optional);
+    return mandatory ? { index: mandatory.index, repl: mandatory.repl } : null;
+  }
+  const first = all[0];
+  return first ? { index: first.index, repl: first.repl } : null;
+}
+
+/**
+ * 🆕被害側の決定を1件消費する（§5.3 `O-414`）＝**実体は `turnScopedState.ts`**。
+ * 🔴ターン限定フィールドのリセットは funnel（`turnScopedState`）1本に集める規約なので
+ *   （golden `turn-scoped T2` が検出する）、ここでは**消費地点から見える名前で再エクスポート**する。
+ */
+export { consumeLifeCrashReplaceDecision } from './turnScopedState';
 
 /** 使った置換を state から消費する（`once` でないものはそのまま残る＝ターン中は何度でも）。 */
 export function consumeLifeCrashReplacement(state: PlayerState, index: number): PlayerState {
@@ -180,19 +309,19 @@ export function consumeLifeCrashReplacement(state: PlayerState, index: number): 
 /**
  * `kind:'pay_cost'` の置換を適用する（コストを払い、必要なら付与能力を1つ失う）。
  *
- * ⚠**現状は自動適用・自動選択の近似**（funnel 冒頭の `optional` の注記と同じ枠）＝
- *   ダメージ解決は `crashOneLife` の同期経路なので、被害側に問う対話窓が無い。
- *   - 支払い方は**原文の並び順**で最初に払えるものを選ぶ（恣意的な優先順位を作らない）。
- *   - 捨てる手札／トラッシュに置くエナは**末尾から**取る（決定論・ファズ再現性のため）。
- *   本来は被害側が「払う／払わない」「どれで払うか」を選ぶ。対話化は離場置換（§6.4 M2）と同じ枠組み。
+ * 🆕`payIndex` **指定＝被害側が選んだ支払い方**（§5.3 `O-414`）。未指定＝**原文の並び順**で
+ *   最初に払えるものを選ぶ自動 policy（CPU・直接呼び出し）＝恣意的な優先順位を作らない。
+ * ⚠捨てる手札／トラッシュに置くエナは**末尾から**取る（決定論・ファズ再現性のため）＝
+ *   ここは**どの1枚を出すか**まで被害側に選ばせていない近似のまま（枚数だけが盤面差になる）。
  */
 export function applyPayCostReplacement(
   state: PlayerState,
   index: number,
   repl: LifeCrashReplacement,
   cardMap: Map<string, CardData>,
+  payIndex?: number,
 ): { state: PlayerState; paidJa: string } | null {
-  const picked = pickPayOption(repl, state, cardMap);
+  const picked = pickPayOption(repl, state, cardMap, payIndex);
   if (!picked) return null;
   const { option, energyPicked } = picked;
   let paid = state;

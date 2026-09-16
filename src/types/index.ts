@@ -1842,6 +1842,39 @@ export interface PlayerState {
    * 機構を engine に新設せずに済んでいる＝**先に全部聞いてから同期的に適用する**。
    */
   leave_substitute_choices?: Record<string, string>;
+  /**
+   * 🆕**ダメージ置換（原文「代わりに〜してもよい」）の被害側への問い**（§5.3 `O-414`・2026-09-16）。
+   *
+   * 🔴**なぜ PlayerState に置くか**＝消費地点が2つ（シグニアタックの `crashOneLife` ／ ルリグアタックの
+   *   ガード応答）にあり、**シグニアタック側は攻撃側のクライアントが解決している**＝被害側へ問うには
+   *   一度 state へ書いて中断するしかない。`pending_banish_substitute` と同型（F-3）。
+   * 🔑**ライフを1枚も割る前に問う**＝`hoistLeaveSubstituteAsks`（離場置換）と同じ設計＝
+   *   「解決ループの途中で中断する」機構を作らずに済む。
+   */
+  pending_life_crash_replace?: { options: LifeCrashReplaceOptionState[] };
+  /**
+   * 上の問いへの回答。`option:null`＝**置換しない**（ダメージをそのまま受ける）。
+   * ⚠**このクラッシュ1回ぶん**＝funnel（`consumeLifeCrashReplaceDecision`）が読んだら必ず消す。
+   *   消さないと次のアタックのダメージまで同じ決定で置換される。
+   * ⚠**辞退しても `optional` でない置換（強制置換）は適用される**（`applyEffectLeaveSubstitutes` と同じ規約）。
+   */
+  life_crash_replace_choice?: { option: LifeCrashReplaceOptionState | null };
+}
+
+/**
+ * ダメージ置換の選択肢1つぶん（`pending_life_crash_replace` / `life_crash_replace_choice` の値）。
+ *
+ * ⚠**盤面から再導出できる情報だけで組む**（`LeaveSubstituteOption.key` と同じ規約）＝
+ *   中断を跨いだあとに `lifeCrashReplaceAskOptions` を引き直して同じ (index, payIndex) が出せなければ、
+ *   その決定は「もう成立しない」として通常のダメージに倒す。
+ */
+export interface LifeCrashReplaceOptionState {
+  /** `lifeCrashReplacements(state)` の添字（宣言順）。 */
+  index: number;
+  /** `kind:'pay_cost'` のとき、`LifeCrashReplacement.payOptions` の添字（支払い方も被害側が選ぶ）。 */
+  payIndex?: number;
+  /** 対話UI／ログ用の一行説明（この置換を選ぶと何が起きるか）。 */
+  label: string;
 }
 
 /** ライフクラッシュ置換1件ぶんの宣言（`PlayerState.life_crash_replacements`）。 */

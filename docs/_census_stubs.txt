@@ -46,7 +46,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費: src\engine\effectEngine.ts:6210
      4件   4枚  DAMAGE_REPLACE_BY_COST
         カード: SPDi44-12, WX24-P3-005, WX24-P4-021, WX25-P1-014
-        消費: src\screens\battle\lifeCrashReplace.ts:54
+        消費: src\screens\battle\lifeCrashReplace.ts:58
      4件   4枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX25-CP1-039, WX26-CP1-047, WXDi-CP02-056
         消費: src\engine\effectExecutor.ts:607
@@ -121,7 +121,7 @@ live JSON の STUB id 種類 : 583（総ノード 3708 件）
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  NO_BATTLE_DEFENDER
         カード: WX25-P1-TK6
-        消費: src\screens\BattleScreen.tsx:10064
+        消費: src\screens\BattleScreen.tsx:10083
      1件   1枚  OPP_ENERGY_COLOR_CONDITION_TRASH
         カード: WXK09-037
         消費: src\engine\effectEngine.ts:4921

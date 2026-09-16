@@ -1,5 +1,41 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-16 第372バッチ：`O-414` ダメージ置換の対話窓（索引G 残1 → 🏁0）
+
+- **消化**＝`O-414`（実装）。1件の全文は [BUGFIXES.md](./BUGFIXES.md) 第372バッチ。
+- 🔑**②母集団の実測で 4 → 8 に増えた**＝登録票は「S・4効果」＝ルリグ付与の `STUB{DAMAGE_REPLACE_BY_COST}`
+  （`WX24-P3-005-E1` / `WX24-P4-021-E3` / `WX25-P1-014-E2` / `SPDi44-12-E2`）**しか数えていなかった**。
+  もう1つの受け皿 `LIFE_CRASH_REPLACE{optional:true}` に4効果あった
+  （`WX24-P3-043-E1` / `WX24-P4-009-E1` / `WX25-P2-006-E1` / `WXDi-CP01-023-E1`）。
+  ⚠**`optional` でない13ノード**（`REPLACE_NEXT_DAMAGE_WITH_MILL` 13件＋`crash_opponent` 1件）は問わない
+  ＝原文に「してもよい」が無い＝**プレイヤーは断れない**。これが「問いを出す／出さない」の唯一の判断軸。
+- 🔑**設計＝離場置換の `hoistLeaveSubstituteAsks` をそのまま写した**（登録票の見立てが当たっていた唯一の項目）＝
+  **ライフを1枚も割る前に**被害側へ問い、決定を `PlayerState` へ刻んでから**従来どおり同期的に**適用する。
+  「解決ループの途中で中断して残りを再開する」機構は engine にも React 側にも無いので、作らずに済ませる。
+- 🔴**funnel（`screens/battle/lifeCrashReplace.ts`）の構造を1段割った**：
+  - `viableLifeCrashReplacements`（成立しているものを**全部**列挙）を新設し、
+    `pickLifeCrashReplacement`（1つ選ぶ）と `lifeCrashReplaceAskOptions`（問うべき任意置換）が**同じ判定**を通る。
+  - `pay_cost` は**支払い方ごとに1つの選択肢**（原文「A するか B してもよい」）。`payableOptionIndices` で
+    **いま払える方だけ**を出す＝払えない肢を出すと「辞退」と区別が付かなくなる。
+  - `lifeCrashReplaceOptionLabel` は**原文の言い回しで書く**（内部の識別子を出さない＝`census:stublabel` と同じ規約）。
+- 🔴**`PlayerState` に足した2キーは `turnScopedState` のレジストリへ登録した**
+  （`pending_life_crash_replace` / `life_crash_replace_choice`）＝消費ヘルパ `consumeLifeCrashReplaceDecision` も
+  **`turnScopedState.ts` に置いて funnel から再エクスポート**する。golden `turn-scoped T2` が
+  「ターン限定フィールドのリセットを funnel の外で手書きするな」を検出するため（最初 funnel 側に書いて落ちた）。
+- ⏸**次に「中断→再入」を書く人への手掛かり（この回に実際に踏んだ3つ）**：
+  1. **決定は「このイベント1回ぶん」**＝`crashOneLife` の入口で**引数に取り、state からは即落とす**。
+     防止・バリア・ライフ0 で消費地点に到達しなかった回にも落ちる形にしないと、**次のアタックまで効く**。
+     さらに「バトルに負けてクラッシュ地点に到達しない」回があるので、**基点（`newOpState`）からも先に落とす**。
+  2. 🔴**問い合わせ中の再入を止めないと無限ループ**＝同じ `pending_*` を書き直す commit が
+     `useEffect` の依存（state オブジェクト）を動かし続ける。F-3 と同じ `if (opS.pending_…) return;` が要る。
+  3. 🔴**CPU 攻撃・人間防御の再入は CPU タイマーの依存配列に足さないと止まる**
+     （`!!bs?.host_state?.life_crash_replace_choice`＝`banish_substitute_choice` の隣）。
+  - ⚠**問う位置は「そのフローでログを1本も出していない地点」**＝中断→再入は解決を全部やり直すので、
+    後ろで問うと**ログが二重に出る**。シグニ側は `effectivelyEmpty` を決めた直後（バトルログの手前）、
+    ルリグ側は【ガードしない】枝の先頭（ログはガード枝にしか無い）。
+- ⏸**残差（意図的に近似のまま）**＝`pay_cost` で**どの手札／どのエナを出すか**は末尾から取る決定論のまま
+  （枚数だけが盤面差になる）。`crash_opponent` の反転クラッシュ（攻撃側が受ける側に回る経路）も自動適用のまま。
+
 ## 2026-09-16 第371バッチ：索引G 一括消化（16 → 1）
 
 - **消化**＝修正 `O-390`/`O-400`/`O-408`/`O-445`/`O-458`/`O-465`/`O-477`/`O-483`/`O-484`/`O-510`/`O-519`/`O-521`（12件）＋
@@ -25,7 +61,8 @@
 - 🔑**逆翻訳も6箇所直した**＝混色コスト（`《白/赤×6》`）／`NEXT_TURN_MAIN_PHASE`／`trashCount`／
   `crashCounterSourceType`（STUB ラベルを payload から描く）／`excludeCraft`（**無条件に「クラフトではない」と書いていた**）／
   `minCount` だけの選択集合（「2枚以上を含むように…好きな枚数」という日本語にならない文）。
-- ⏸**次に取るときの手掛かり（索引G 残1＝`O-414`）**：
+- 🏁**`O-414` は 2026-09-16 第372バッチで消化した**（下の手掛かりはそのときの実装で全部使った）。
+- ⏸**当時の手掛かり（索引G 残1＝`O-414`）**：
   - **残っているのは対話窓だけ**＝宣言（`grantedPayCostReplacements`）も選択肢の列挙（`payOptions`）も実装済みで、
     `pickLifeCrashReplacement` が**自動 policy で先頭を採る**だけ。
   - 🔴**2経路に同時に入れる**＝シグニアタックは `crashOneLife`、ルリグアタックは `performGuardResponse` の

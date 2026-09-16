@@ -52040,6 +52040,258 @@ order.push('o230GuardAltCollab');
 scenarios.o230GuardAltCollabNoEnergy = mkGuardAltCollabScenario(false);
 order.push('o230GuardAltCollabNoEnergy');
 
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-235` ／ §5.3 `O-414`（2026-09-16）＝**ダメージ置換の対話窓**
+//   原文「【常】：あなたがダメージを受ける場合、代わりに〜して**もよい**」（live 8効果）。
+// 🔴**旧実装は被害側に聞かずに自動で置換していた**＝「置き換えられない」の注記のおかげで自滅はしないが、
+//   **デッキを10枚削るか・ライフを1枚渡すか**という最も重い選択を engine が勝手に決めていた。
+// 🔑**実機が要る理由**＝funnel の判定（どれが成立するか・辞退で何が残るか）は golden で両方向を取ったが、
+//   **対話窓が本当に開くか／押した決定が消費地点まで届くか**は React の配線でしか決まらない。
+//   ⚠**中断→再入**を挟む（`pending_life_crash_replace` を書いて `return` する）ので、
+//     「【ガードしない】が二重に押せる」「再入で決定が捨てられる」という壊れ方が構造的にありうる。
+// ⚠**反転確認が本体**＝「辞退したらライフが減る」と「選んだら置換される」の**両方**を見る。
+//   片方だけだと「そもそも窓が開いていない（旧の自動適用のまま）」と区別が付かない（§4.4-71）。
+// ⚠観測は `H.queryState()` の `pendingLifeCrashReplace`／`lifeCrashReplaceChoice`（今回追加）で取る
+//   ＝盤面差分（ライフ／デッキ）だけでは「問いが出た」ことを言えない。
+// ═════════════════════════════════════════════════════════════════════════════
+function mkO414DamageReplaceScenario(accept) {
+  const id = accept ? 'o414DamageReplaceAccept' : 'o414DamageReplaceDecline';
+  return {
+    title: `O-414：ダメージ置換「代わりにデッキの上から3枚をトラッシュに置いてもよい」を被害側が選ぶ（${accept ? '置換する' : '反転＝辞退してダメージを受ける'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#9410'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'field.signi_traps': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        // ⚠**ルリグに攻撃された状態**を直接作る（`GuardResponseDialog` の表示条件）。
+        'field.lrig_attacked': true,
+        // 🔑【ガードしない】以外の選択肢を出さない＝手札を空にする（《ガードアイコン》があると分岐が増える）。
+        hand: [], energy: [], trash: [], coins: 0,
+        lrig_deck: [], lrig_trash: [],
+        actions_done: [], game_actions_done: [],
+        // 🔑**任意のミル置換の宣言**（`WX24-P4-009` ／ `WXDi-CP01-023` と同じ形＝`optional:true`）。
+        //   ⚠`damageSource` を書かない＝ルリグアタックのダメージにも乗る宣言にする。
+        life_crash_replacements: [{ kind: 'mill', count: 3, optional: true }],
+        life_cloth: ['WD01-013#9415', 'WD01-013#9416', 'WD01-013#9417'],
+        // ⚠「デッキがN-1枚以下なら置き換えられない」＝3枚ミルには4枚以上残しておく。
+        deck: ['WD01-013#9420', 'WD01-013#9421', 'WD01-013#9422', 'WD01-013#9423', 'WD01-013#9424'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9490'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'field.signi_traps': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        hand: [], energy: [], trash: [],
+        deck: ['WD01-013#9496', 'WD01-013#9497'],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 life=${before?.host?.life} deck=${before?.host?.deck} trash=${JSON.stringify(before?.host?.trashCards)}`
+        + ` 宣言=${JSON.stringify(before?.host?.lifeCrashReplacements)} lrigAttacked=${before?.host?.lrigAttacked}`);
+      if (!(before?.host?.lifeCrashReplacements ?? []).length) {
+        return { pass: false, detail: `前提崩れ＝注入した life_crash_replacements が読めない` };
+      }
+      const lifeBase = before?.host?.life ?? 0;
+      const deckBase = before?.host?.deck ?? 0;
+      // ── ①【ガードしない】を押す＝ここで**ダメージ置換の問い**が開くはず。
+      const guarded = await H.clickTextOrBtn(['ガードしない']);
+      if (!guarded) return { pass: false, detail: `前提崩れ＝ガード応答ダイアログの【ガードしない】を押せない` };
+      // ── ②問いが開くのを待ち、**ボタンを押す前にラベルを全部読む**（提示されるか自体が本題）。
+      let asked = null;
+      let labels = [];
+      for (let s = 0; s < 16 && asked === null; s++) {
+        await page.waitForTimeout(500);
+        const st = await H.queryState();
+        // ⚠**state が先・DOM が後**＝`pending_*` の commit は realtime 経由でクライアントへ届くので、
+        //   state で見えた同じ周でボタンを読むと**まだガード応答ダイアログのまま**になる（初回実装で踏んだ）。
+        //   ⇒ 観測点は「モーダルが実際に描画されたか」＝「置換しない」のボタンが出るまで DOM を待つ。
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+        if ((st?.host?.pendingLifeCrashReplace ?? []).length > 0 && btns.some(b => b.includes('置換しない'))) {
+          asked = st.host.pendingLifeCrashReplace;
+          labels = btns;
+        }
+        H.log(`  ${id}[ask ${s}] pending=${JSON.stringify(st?.host?.pendingLifeCrashReplace)} life=${st?.host?.life} deck=${st?.host?.deck} btns=${JSON.stringify(btns)}`);
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-asked.png`, fullPage: true });
+      if (asked === null) {
+        const now = await H.queryState();
+        return { pass: false, detail: `🔴ダメージ置換の問いが開かない（旧＝被害側に聞かず自動適用）。`
+          + ` life ${lifeBase}→${now?.host?.life} deck ${deckBase}→${now?.host?.deck}` };
+      }
+      if (!labels.some(b => b.includes('置換しない'))) {
+        return { pass: false, detail: `🔴「置換しない」の肢が無い＝辞退できない。ボタン=${JSON.stringify(labels)}` };
+      }
+      // 🔴【ガードしない】が**同時に押せてはいけない**＝押せると再入で決定が捨てられる。
+      if (labels.some(b => b.includes('ガードしない'))) {
+        return { pass: false, detail: `🔴問い合わせ中もガード応答ダイアログが出ている（【ガードしない】を二重に押せる）。ボタン=${JSON.stringify(labels)}` };
+      }
+      H.log(`  ${id}: 問い=${JSON.stringify(asked)} ボタン=${JSON.stringify(labels)}`);
+      // ── ③決定を押す。
+      const picked = accept
+        ? await H.clickTextOrBtn(['代わりにデッキの上から3枚をトラッシュに置く'])
+        : await H.clickTextOrBtn(['置換しない（ダメージを受ける）', '置換しない']);
+      if (!picked) return { pass: false, detail: `前提崩れ＝選択肢を押せない。ボタン=${JSON.stringify(labels)}` };
+      // ── ④決定が**消費地点まで届いた**か＝盤面の差分で見る。
+      let fin = before;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(600);
+        await H.stdStep(['決定', 'OK', 'はい', '発動しない', 'しない']);
+        fin = await H.queryState();
+        H.log(`  ${id}[${s}] life=${fin?.host?.life}/${lifeBase} deck=${fin?.host?.deck}/${deckBase}`
+          + ` choice=${fin?.host?.lifeCrashReplaceChoice ?? '-'} pending=${JSON.stringify(fin?.host?.pendingLifeCrashReplace)}`
+          + ` lrigAttacked=${fin?.host?.lrigAttacked} 宣言=${JSON.stringify(fin?.host?.lifeCrashReplacements)}`);
+        const settled = accept ? (fin?.host?.deck ?? 0) < deckBase : (fin?.host?.life ?? 0) < lifeBase;
+        if (settled) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `life ${lifeBase}→${fin?.host?.life} deck ${deckBase}→${fin?.host?.deck}`
+        + ` trash=${JSON.stringify(fin?.host?.trashCards)} choice=${fin?.host?.lifeCrashReplaceChoice ?? '-'}`;
+      // 🔴**決定は1回ぶん**＝読んだあとに残っていると次のアタックまで置換される。
+      if (fin?.host?.lifeCrashReplaceChoice != null) {
+        return { pass: false, detail: `🔴決定が消費されずに残っている（次のダメージまで同じ決定で置換される）。${dump}` };
+      }
+      if (accept) {
+        if ((fin?.host?.deck ?? 0) !== deckBase - 3) return { pass: false, detail: `🔴デッキ3枚が削れていない。${dump}` };
+        if ((fin?.host?.life ?? 0) !== lifeBase) return { pass: false, detail: `🔴置換したのにライフも減っている。${dump}` };
+        return { pass: true, detail: `被害側が置換を選ぶとデッキ3枚がトラッシュへ行き、ライフは据置。${dump}` };
+      }
+      if ((fin?.host?.deck ?? 0) !== deckBase) {
+        return { pass: false, detail: `🔴辞退したのにデッキが削れた（＝旧の自動適用のまま）。${dump}` };
+      }
+      if ((fin?.host?.life ?? 0) !== lifeBase - 1) return { pass: false, detail: `🔴辞退したのにライフが減っていない。${dump}` };
+      return { pass: true, detail: `反転＝辞退するとデッキは無傷でライフが1枚クラッシュされる（置換が勝手に乗らない）。${dump}` };
+    },
+  };
+}
+scenarios.o414DamageReplaceDecline = mkO414DamageReplaceScenario(false);
+order.push('o414DamageReplaceDecline');
+scenarios.o414DamageReplaceAccept = mkO414DamageReplaceScenario(true);
+order.push('o414DamageReplaceAccept');
+
+// ── 🔴**もう1つの消費地点＝シグニアタック**（`crashOneLife`）でも同じ問いが開くこと。
+//   funnel の規約＝「片方だけ限定を見ると『シグニには効くがルリグには効かない』型の無言の不整合になる」。
+//   🔑**こちらは攻撃側のクライアントが解決している**（CPU の解決も host のブラウザで走る）＝
+//     被害側へ問うには一度 state へ書いて**中断**し、決定の commit で**再入**する必要がある。
+//     ⇒ ルリグ側（その場で `performGuardResponse` を呼び直す）とは**配線が別**なので別シナリオで見る。
+//   ⚠**辞退の側だけが本題**＝「置換する」を選んだ結果（デッキ −3）は**旧の自動適用でも同じ**になるので、
+//     問いが配線されているかを1ビットも検証しない。⇒ ここでは辞退＝「ライフが減りデッキが無傷」を見る。
+scenarios.o414DamageReplaceSigniDecline = {
+  title: 'O-414：シグニアタックのダメージでも置換の問いが開く（反転＝辞退してライフを受ける／デッキは無傷）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-004#9430'],
+      // 🔴guest zone0 の正面は **host zone2**（§4.4-8e）＝そこを空けて「正面なしアタック」にする。
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      // ⚠手札を空にしてガード応答・ライフバースト以外の対話を挟ませない。
+      hand: [], energy: [], trash: [], coins: 0, lrig_deck: [], lrig_trash: [],
+      actions_done: [], game_actions_done: [],
+      life_crash_replacements: [{ kind: 'mill', count: 3, optional: true }],
+      // ⚠【ライフバースト】を持たないバニラだけにする（確認モーダルで観測が汚れない＝§4.4-35b）。
+      life_cloth: ['WD01-013#9435', 'WD01-013#9436', 'WD01-013#9437'],
+      deck: ['WD01-013#9440', 'WD01-013#9441', 'WD01-013#9442', 'WD01-013#9443', 'WD01-013#9444'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9480'],
+      // 極剣　ゴッドイーター（Lv4・**バニラ**＝副作用で観測を汚さない）。
+      'field.signi': [['WX01-053#9481'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], lrig_deck: [], blocked_actions: [], actions_done: [],
+      deck: ['WD01-013#9496', 'WD01-013#9497'],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const id = 'o414DamageReplaceSigniDecline';
+    const before = await H.queryState();
+    H.log(`  ${id}: 開始 life=${before?.host?.life} deck=${before?.host?.deck} 宣言=${JSON.stringify(before?.host?.lifeCrashReplacements)}`
+      + ` guestSigni=${JSON.stringify(before?.guest?.fieldSigni)} phase=${before?.turnPhase}`);
+    if (!(before?.host?.lifeCrashReplacements ?? []).length) {
+      return { pass: false, detail: `前提崩れ＝注入した life_crash_replacements が読めない` };
+    }
+    const lifeBase = before?.host?.life ?? 0;
+    const deckBase = before?.host?.deck ?? 0;
+    // ── ①CPU のアタック宣言を待つ。⚠**`H.stdStep()` を呼ばない**（§4.4-53）＝
+    //   フェイズ進行ボタンも押すので、CPU の宣言前に飛ばして偽の緑を作る。
+    // ⚠応答ラベルに 'しない' を入れない＝「置換しない（ダメージを受ける）」を**先に押してしまう**。
+    let asked = null;
+    let labels = [];
+    let attacked = false;
+    for (let s = 0; s < 30 && asked === null; s++) {
+      await page.waitForTimeout(800);
+      const st = await H.queryState();
+      if ((st?.guest?.signiDown ?? [])[0] === true) attacked = true;
+      const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+        .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+      if ((st?.host?.pendingLifeCrashReplace ?? []).length > 0 && btns.some(b => b.includes('置換しない'))) {
+        asked = st.host.pendingLifeCrashReplace;
+        labels = btns;
+        break;
+      }
+      H.log(`  ${id}[ask ${s}] atk=${attacked} life=${st?.host?.life}/${lifeBase} deck=${st?.host?.deck}/${deckBase}`
+        + ` pending=${JSON.stringify(st?.host?.pendingLifeCrashReplace)} phase=${st?.turnPhase} btns=${JSON.stringify(btns)}`);
+      // 🔴**問いが開く前にライフかデッキが動いたら、そこで負け**＝
+      //   デッキが減っていれば旧の自動適用のまま／ライフが減っていれば問いを飛ばしている。
+      if ((st?.host?.deck ?? 0) < deckBase) {
+        return { pass: false, detail: `🔴問いを出さずにデッキが削れた（＝旧の自動適用のまま）。deck ${deckBase}→${st?.host?.deck}` };
+      }
+      if ((st?.host?.life ?? 0) < lifeBase) {
+        return { pass: false, detail: `🔴問いを出さずにライフが減った（置換の窓が開いていない）。life ${lifeBase}→${st?.host?.life}` };
+      }
+    }
+    await page.screenshot({ path: `${SHOT}/${id}-asked.png`, fullPage: true });
+    if (asked === null) {
+      const now = await H.queryState();
+      if (!attacked) return { pass: false, detail: `前提崩れ＝CPU がアタックを宣言しなかった（phase=${now?.turnPhase} life=${now?.host?.life}）` };
+      return { pass: false, detail: `🔴シグニアタックの経路では問いが開かない（ルリグ側だけ配線＝funnel の規約違反）。`
+        + ` life ${lifeBase}→${now?.host?.life} deck ${deckBase}→${now?.host?.deck}` };
+    }
+    H.log(`  ${id}: 問い=${JSON.stringify(asked)} ボタン=${JSON.stringify(labels)}`);
+    // ── ②辞退する。
+    const picked = await H.clickTextOrBtn(['置換しない（ダメージを受ける）']);
+    if (!picked) return { pass: false, detail: `前提崩れ＝「置換しない」を押せない。ボタン=${JSON.stringify(labels)}` };
+    // ── ③決定が消費地点（`crashOneLife`）まで届いたか。
+    let fin = before;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      const cur = await H.queryState();
+      // ⚠ライフバースト確認だけは消化する（§4.4-1）。'しない' は押さない。
+      if (cur?.host?.fieldCheck) await H.clickTextOrBtn(['エナに送る', 'スキップ']);
+      fin = await H.queryState();
+      H.log(`  ${id}[${s}] life=${fin?.host?.life}/${lifeBase} deck=${fin?.host?.deck}/${deckBase}`
+        + ` choice=${fin?.host?.lifeCrashReplaceChoice ?? '-'} check=${fin?.host?.fieldCheck ?? '-'} phase=${fin?.turnPhase}`);
+      if ((fin?.host?.life ?? 0) < lifeBase && !fin?.host?.fieldCheck) break;
+    }
+    await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+    const dump = `life ${lifeBase}→${fin?.host?.life} deck ${deckBase}→${fin?.host?.deck} choice=${fin?.host?.lifeCrashReplaceChoice ?? '-'}`;
+    if (fin?.host?.lifeCrashReplaceChoice != null) {
+      return { pass: false, detail: `🔴決定が消費されずに残っている（次のダメージまで同じ決定で置換される）。${dump}` };
+    }
+    if ((fin?.host?.deck ?? 0) !== deckBase) {
+      return { pass: false, detail: `🔴辞退したのにデッキが削れた（＝旧の自動適用のまま）。${dump}` };
+    }
+    if ((fin?.host?.life ?? 0) >= lifeBase) {
+      return { pass: false, detail: `🔴辞退したのにライフが減っていない（ダメージが素通りしている）。${dump}` };
+    }
+    return { pass: true, detail: `シグニアタックの経路でも問いが開き、辞退するとデッキ無傷でライフが減る。${dump}` };
+  },
+};
+order.push('o414DamageReplaceSigniDecline');
+
+
+
 
 // -----------------------------------------------------------------------------
 // §5.1 `V-151`（§5.3 `O-236`＝**ルリグのアタック回数上限とダウン中アタック**）
@@ -61192,6 +61444,13 @@ try {
         lifeCrashReplacements: s.life_crash_replacements ?? [],
         damageReplaceMill: s.damage_replace_mill ?? [],
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,
+        // 🆕§5.3 `O-414`（2026-09-16）＝ダメージ置換の**問い**と**回答**。
+        //   🔴盤面差分（ライフ／デッキ）だけでは「辞退が効いた」と「そもそも問いが出ていない」を
+        //   区別できない（§4.4-71）＝engine が読む state をそのまま観測面に出す。
+        pendingLifeCrashReplace: (s.pending_life_crash_replace?.options ?? []).map(o => o.label),
+        lifeCrashReplaceChoice: s.life_crash_replace_choice === undefined ? null
+          : (s.life_crash_replace_choice.option?.label ?? 'none'),
+        lifeCrashReplacements: (s.life_crash_replacements ?? []).map(r => `${r.kind}x${r.count}${r.optional ? '?' : ''}`),
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
         hastarliqZones: s.hastarliq_zones ?? [],   // V-79(B)：【ハスターリク】設置予約（発動で undefined へ）
         signiLeftThisAttackPhase: s.signi_left_field_this_attack_phase ?? [],   // V-79(D)：離場履歴（診断用）

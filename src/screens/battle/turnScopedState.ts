@@ -220,6 +220,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   declared_guard_restrict_levels: { boundaries: ['turn-end'], reset: undefined, reason: 'same as declared_guard_restrict_level (multi-value form)' },
   // 離場置換の選択は解決中に消費し、未消費の残骸もターンを跨がせない。
   leave_substitute_choices: { boundaries: ['turn-end'], reset: undefined, reason: 'unconsumed leave-replacement decisions must not cross turns' },
+  // 🆕§5.3 `O-414`＝ダメージ置換の問いと回答も**そのクラッシュ1回ぶん**。
+  //   本命の消費は `consumeLifeCrashReplaceDecision`（クラッシュ funnel の2地点）だが、
+  //   ⚠**中断中に相手がターンを終えた**等でクラッシュ地点に到達しなかった場合の残骸をここで落とす。
+  pending_life_crash_replace: { boundaries: ['turn-end'], reset: undefined, reason: 'an unanswered damage-replacement prompt must not survive the turn (O-414)' },
+  life_crash_replace_choice: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'damage-replacement decision is consumed by the crash funnel; expires here if the crash never happened (O-414)' },
   // 能力喪失 active は現在のグローバルターンだけ。次ターン分は abilities_removed_next_turn に予約する（§6.4 O-3）。
   // ⚠登録前は turn-end 4経路のうち2経路でしか手書きクリアされておらず、普通にターンを終えると次ターン以降も残っていた。
   abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
@@ -683,6 +688,20 @@ export function openSpellCheckZone(state: PlayerState, instanceId: string): Play
  */
 export function closeSpellCheckZone(state: PlayerState): PlayerState {
   return consumeField(state, 'spell_in_check_zone');
+}
+
+/**
+ * 🆕ダメージ置換（「代わりに〜してもよい」）の**被害側の決定を消費する**（§5.3 `O-414`）。
+ *
+ * 🔴**このクラッシュ1回ぶん**＝置換が成立しなかった経路（防止・バリア・ライフ0）でも呼ぶ。
+ *   呼ばないと**次のアタックのダメージまで同じ決定で置換される**。
+ * ⚠**funnel の外で `life_crash_replace_choice: undefined` を書かないこと**（T2 が検出する）＝
+ *   読み書きは `screens/battle/lifeCrashReplace.ts`（再エクスポート）と clearTurnEndScopedState だけ。
+ * ⚠問い合わせ中の印（`pending_life_crash_replace`）も一緒に落とす＝決定が出た時点で問いは終わっている。
+ */
+export function consumeLifeCrashReplaceDecision(state: PlayerState): PlayerState {
+  if (state.life_crash_replace_choice === undefined && state.pending_life_crash_replace === undefined) return state;
+  return { ...consumeField(state, 'life_crash_replace_choice'), pending_life_crash_replace: undefined };
 }
 
 /**

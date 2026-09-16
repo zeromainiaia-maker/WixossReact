@@ -32,7 +32,9 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
   const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithClassHandAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative, handleGuardWithEnergyAndGuardCard } = p;
   return (
     <>
-      {my.field.lrig_attacked && !my.field.check && createPortal(
+      {/* ⚠🆕§5.3 `O-414`＝ダメージ置換の問い（【ガードしない】の続き）が出ている間は隠す＝
+           出したままだと【ガードしない】をもう一度押せてしまい、置換の決定が捨てられる。 */}
+      {my.field.lrig_attacked && !my.field.check && !my.pending_life_crash_replace && createPortal(
         <div style={{
           position: 'fixed', inset: 0, zIndex: 4500,
           backgroundColor: 'rgba(0,0,0,0.92)',

@@ -106,7 +106,7 @@ import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, t
 import { signiAttackBlockReason, signiAttackColorlessCost, collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost, signiAttackBanCost } from '../src/screens/battle/signiAttackBan';
 import { lrigAttackFieldTrashSelectableZones, canPayLrigAttackFieldTrashCost, payLrigAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement } from '../src/screens/battle/lifeCrashReplace';
+import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, lifeCrashReplaceAskOptions, consumeLifeCrashReplaceDecision } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
 import { resolveTurnEndEnergyTrash } from '../src/screens/battle/turnEndEnergyTrash';
 import { buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, offZonePayLimit, planEnergyPayment } from '../src/screens/battle/energyPaySource';
@@ -6072,10 +6072,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 34, '命名規約外のターン限定フィールド数（🆕 34＝2026-09-16 O-510 で abilities_removed_until_attack_phase を登録。33＝2026-09-14 O-362）');
+  eq(irregular.length, 36, '命名規約外のターン限定フィールド数（🆕 36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 97, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 97＝2026-09-16 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 99, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -52174,6 +52174,84 @@ test('§6.4 O-37(a): ダメージ置換 funnel が付与ストアを見て、払
     'ルリグ能力消失中は置換も落ちる');
   // ⚠cardMap 無しの呼び出しでは選ばない（払えるか判定できない＝過剰にしない側）
   eq(pickLifeCrashReplacement(withGrant, { damageSource: 'signi' }), null, 'cardMap 未指定では選ばない');
+});
+
+// ── §5.3 `O-414`：ダメージ置換（「代わりに〜して**もよい**」）を被害側が選ぶ ───────────
+test('§5.3 O-414: 任意のダメージ置換は**支払い方ごとに**被害側へ問う', () => {
+  const cm = cardMap as Map<string, CardData>;
+  // `WX25-P1-014-E2` の形＝「手札を1枚捨てる**か**エナゾーンから1枚トラッシュに置いてもよい」。
+  const grant: CardEffect = {
+    effectId: 'granted-damage-replace', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST',
+      damageReplaceByCost: { options: [{ handDiscard: 1 }, { energyTrash: 1 }], loseAbility: true } } as StubAction,
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
+  };
+  const st: PlayerState = { ...mkState({ hand: 2, energy: 2, life: 2 }), lrig_granted_auto_effects: [grant] };
+  const asks = lifeCrashReplaceAskOptions(st, { damageSource: 'signi', cardMap: cm });
+  eq(asks.length, 2, '🔴支払い方を1つに畳んでいる（原文は「AするかBしてもよい」）');
+  eq(asks[0].payIndex, 0, '1つ目は手札');
+  eq(asks[1].payIndex, 1, '2つ目はエナ');
+  ok(asks[0].label.includes('手札') && asks[1].label.includes('エナ'), '⚠ラベルが原文の言い回しになっていない');
+  ok(asks.every(a => a.label.includes('この能力を失う')), '「そうした場合、このルリグはこの能力を失う」がラベルに出る');
+  // 払えない支払い方は選択肢に出ない（「辞退」と区別がつかなくなる）
+  const noEnergy: PlayerState = { ...st, energy: [] };
+  eq(lifeCrashReplaceAskOptions(noEnergy, { damageSource: 'signi', cardMap: cm }).length, 1,
+    '🔴払えない支払い方まで提示している');
+  // 発生源の限定は問い合わせ側でも効く（消費側と同じ funnel を通っている証拠）
+  const signiOnly: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 3, optional: true, damageSource: 'signi' }] };
+  eq(lifeCrashReplaceAskOptions(signiOnly, { damageSource: 'lrig' }).length, 0, 'ルリグのダメージには問わない');
+});
+
+test('§5.3 O-414: 強制置換が先に成立するなら問わない（選択の余地が無い）', () => {
+  // ⚠原文に「してもよい」が無い宣言（`WX24-P1-010` 等）は断れない＝対話窓を出さないのが正しい。
+  const mandatory: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 3, once: true }] };
+  eq(lifeCrashReplaceAskOptions(mandatory, { damageSource: 'signi' }).length, 0, '🔴強制置換まで断れてしまう');
+  // 「任意 → 強制」の並びなら任意だけを問う（辞退した結果として強制が残る）
+  const mixed: PlayerState = { ...mkState({}), life_crash_replacements: [
+    { kind: 'mill', count: 3, optional: true }, { kind: 'mill', count: 5, once: true } ] };
+  const asks = lifeCrashReplaceAskOptions(mixed, { damageSource: 'signi' });
+  eq(asks.length, 1, '問うのは任意の1本だけ');
+  eq(asks[0].index, 0, '任意の添字');
+});
+
+test('§5.3 O-414: 被害側の決定が消費側に効く（辞退・支払い方の指定・失効）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const st: PlayerState = { ...mkState({ hand: 2, energy: 2 }),
+    life_crash_replacements: [{ kind: 'pay_cost', count: 1, optional: true,
+      payOptions: [{ handDiscard: 1 }, { energyTrash: 1 }] }] };
+  // ⚠決定が無ければ従来どおり自動適用（CPU・直接呼び出し）＝**退化させない**
+  ok(!!pickLifeCrashReplacement(st, { damageSource: 'signi', cardMap: cm }), '決定なしは自動 policy のまま');
+  // 「置換しない」＝ダメージがそのまま通る
+  eq(pickLifeCrashReplacement(st, { damageSource: 'signi', cardMap: cm, decision: { option: null } }), null,
+    '🔴辞退しても勝手に置換している（これが O-414 の実バグ）');
+  // 支払い方の指定が効く＝自動 policy なら手札を捨てるところをエナで払う
+  const picked = pickLifeCrashReplacement(st, { damageSource: 'signi', cardMap: cm,
+    decision: { option: { index: 0, payIndex: 1, label: '' } } })!;
+  eq(picked.payIndex, 1, '選んだ支払い方が渡っていない');
+  const paid = applyPayCostReplacement(st, picked.index, picked.repl, cm, picked.payIndex)!;
+  eq(paid.state.hand.length, 2, '🔴手札で払っている（被害側はエナを選んだ）');
+  eq(paid.state.energy.length, 1, 'エナ1枚をトラッシュへ');
+  // 中断中に盤面が変わって成立しなくなった決定は、黙って「置換しない」へ倒す
+  const noPay: PlayerState = { ...st, hand: [], energy: [] };
+  eq(pickLifeCrashReplacement(noPay, { damageSource: 'signi', cardMap: cm,
+    decision: { option: { index: 0, payIndex: 1, label: '' } } }), null, '成立しない決定は通常のダメージに倒す');
+  // 🔴辞退しても**強制置換**は適用される（原文に「してもよい」が無い宣言は断れない）
+  const mixed: PlayerState = { ...mkState({}), life_crash_replacements: [
+    { kind: 'mill', count: 3, optional: true }, { kind: 'mill', count: 5, once: true } ] };
+  const kept = pickLifeCrashReplacement(mixed, { damageSource: 'signi', decision: { option: null } });
+  eq(kept?.index, 1, '🔴任意を辞退したら強制置換まで消えている');
+});
+
+test('§5.3 O-414: 決定は**このクラッシュ1回ぶん**（読んだら消える）', () => {
+  const st: PlayerState = { ...mkState({}),
+    pending_life_crash_replace: { options: [{ index: 0, label: 'x' }] },
+    life_crash_replace_choice: { option: null } };
+  const after = consumeLifeCrashReplaceDecision(st);
+  eq(after.life_crash_replace_choice, undefined, '🔴決定が残ると次のアタックまで置換される');
+  eq(after.pending_life_crash_replace, undefined, '問い合わせ中の印も一緒に落とす');
+  // ⚠何も立っていない state は**同一参照で返す**（毎クラッシュで無駄なコピーを作らない）
+  const plain = mkState({});
+  ok(consumeLifeCrashReplaceDecision(plain) === plain, '立っていなければ state を作り直さない');
 });
 
 test('§6.4 O-37(b): リフレッシュのライフ移動を「この能力を失う」で置換する', () => {

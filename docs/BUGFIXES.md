@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第372バッチ：`O-414` ダメージ置換の対話窓（索引G 残1 → 🏁0）
+
+**真因1行**＝原文「あなたがダメージを受ける場合、代わりに〜して**もよい**」の `optional` を、
+funnel（`screens/battle/lifeCrashReplace.ts`）が**被害側に聞かずに自動適用**していた。
+「置き換えられない」の注記のおかげで自滅はしないが、**デッキを10枚削るか・ライフを1枚渡すか**という
+最も重い選択を engine が勝手に決めていた（支払い方が2つある札では**どちらで払うか**も勝手に決めていた）。
+
+**影響＝8効果 / 8カード**（②で実測＝登録票の「4効果」は `DAMAGE_REPLACE_BY_COST` の付与型だけを数えていた）：
+
+| 形 | 効果 |
+|---|---|
+| `LIFE_CRASH_REPLACE{optional}` | `WX24-P3-043-E1`（アシストルリグ2体ダウン）／`WX24-P4-009-E1`（ミル10）／`WX25-P2-006-E1`（手札1枚）／`WXDi-CP01-023-E1`（ミル5） |
+| ルリグ付与 `STUB{DAMAGE_REPLACE_BY_COST}` | `WX24-P3-005-E1`（手札1枚・能力喪失）／`WX24-P4-021-E3`（《緑》《無》）／`WX25-P1-014-E2`・`SPDi44-12-E2`（手札1枚**か**エナ1枚・能力喪失） |
+
+⚠**`optional` でない宣言（`WX24-P1-010` 等13ノード＋`WX25-P3-004` の `crash_opponent`）は問わない**＝
+原文に「してもよい」が無いので断れない。これが「問いを出す／出さない」の唯一の判断軸。
+
+**直し方**＝離場置換の `hoistLeaveSubstituteAsks` と同じ設計＝**ライフを1枚も割る前に**被害側へ問い、
+決定を `PlayerState` へ刻んでから**従来どおり同期的に**適用する（解決ループの途中で中断する機構を作らない）。
+
+1. **funnel**（`lifeCrashReplace.ts`）＝`pickLifeCrashReplacement` の1本ループを
+   `viableLifeCrashReplacements`（成立している置換を**全部**列挙）へ割り、その上に
+   `lifeCrashReplaceAskOptions`（**問うべき任意置換**）と `lifeCrashReplaceOptionLabel`（原文の言い回し）を載せた。
+   - 🔑**`pay_cost` は支払い方ごとに1つの選択肢**にする（原文「Aするか**B**してもよい」＝`WX25-P1-014-E2`）。
+     `payableOptionIndices` で**いま払える方だけ**を提示する（払えない肢を出すと「辞退」と区別が付かない）。
+   - ⚠**強制置換が先に成立するなら問わない**／⚠**辞退しても `optional` でない置換は適用する**
+     （`applyEffectLeaveSubstitutes` と同じ規約）。
+   - ⚠**決定は再検証する**＝中断中に盤面が変わってその (index, payIndex) がもう成立しないなら、
+     黙って「置換しない」に倒す。⚠**決定が無ければ従来どおり自動適用**（CPU・直接呼び出し）＝退化させない。
+2. **state**＝`pending_life_crash_replace`（問い）／`life_crash_replace_choice`（回答）を新設。
+   `banish_substitute_choice` と同型で、**`turnScopedState` のレジストリへ登録**した（残骸をターンへ跨がせない）。
+   消費は `consumeLifeCrashReplaceDecision`（実体は `turnScopedState.ts`・funnel から再エクスポート）。
+3. **消費地点2つ**＝シグニアタック（`crashOneLife`）／ルリグアタック（`performGuardResponse` の【ガードしない】枝）。
+   どちらも「問う → `return` → 決定の commit で再入」。
+   - シグニ側＝**攻撃側のクライアントが解決している**ので state 経由で問う（F-3 身代わりと同じ）。
+   - ルリグ側＝**被害側自身の操作の続き**なので `performGuardResponse` をその場で呼び直す。
+4. **UI**＝`LifeCrashReplaceModal.tsx` を新設。`GuardResponseDialog` は問い合わせ中は隠す。
+
+🔴**踏んだ罠5つ（次に同じ形を書く人へ）**：
+- **決定は「このクラッシュ1回ぶん」**＝`crashOneLife` の入口で**引数に取り、state からは即落とす**。
+  防止・バリア・ライフ0 で置換に到達しなかった回に残すと、**次のアタックまで同じ決定で置換される**。
+  さらに「バトルに負けてクラッシュ地点に到達しない」回もあるので、**基点（`newOpState`）からも先に落とす**。
+- 🔴**問い合わせ中の再入を止めないと無限ループ**＝同じ `pending_*` を書き直す commit が
+  `useEffect` の依存（state オブジェクト）を動かし続ける。F-3 と同じ `if (opS.pending_…) return;` が要る。
+- 🔴**CPU 攻撃・人間防御の再入は依存配列に足さないと止まる**＝
+  `!!bs?.host_state?.life_crash_replace_choice` を CPU タイマーの deps へ（`banish_substitute_choice` の隣）。
+- 🔑**問うのは「ダメージが発生しうるアタック」だけ**＝正面が空／アサシン／バトルしない／【ランサー】。
+  かつ**バトル解決のログを1本も出す前**に問う（中断→再入は全部やり直すので、後ろで問うと**ログが二重に出る**）。
+- 🔴**ターン限定フィールドのリセットは `turnScopedState.ts` の中だけ**（golden `turn-scoped T2`）＝
+  `pending_life_crash_replace: undefined` を手書きすると落ちる。消費ヘルパ自体を funnel 側へ置く。
+
+**検証**＝`npm run gates` **全緑**（golden **+4本**＝支払い方ごとの提示／強制置換は問わない／辞退と支払い方指定と失効／決定は1回ぶん）。
+✅**実機**（`src/screens/` を触った＋新機構＝§2.2 のフル手順。`V-235` として §5.1 へ登録＝同日返済）：
+- `node scripts/verifyBattleDrive.mjs o414DamageReplaceDecline o414DamageReplaceAccept o414DamageReplaceSigniDecline` → **3件とも PASS**。
+- **反転確認**＝辞退＝`life 3→2 / deck 5→5`（置換が勝手に乗らない）／置換＝`life 3→3 / deck 5→2`。
+- **シグニアタック経路でも問いが開く**ことを別シナリオで取った（funnel の規約＝片方だけだと無言の不整合）。
+- 観測用に `verifyBattleDrive.mjs` の `queryState` へ `pendingLifeCrashReplace` / `lifeCrashReplaceChoice` /
+  `lifeCrashReplacements` を追加（§4.4-71＝盤面差分だけでは「問いが出た」ことを言えない）。
+  ⚠**実機で踏んだ罠**＝`pending_*` の commit は realtime 経由でクライアントへ届くので、
+  **state で見えた同じ周に DOM を読むとまだガード応答ダイアログのまま**＝観測点は「モーダルが描画されたか」にする。
+
+⏸**残差（意図的に近似のまま）**＝`pay_cost` で**どの手札／どのエナを出すか**は末尾から取る決定論のまま
+（枚数だけが盤面差になる）。`crash_opponent` の反転クラッシュ（攻撃側が受ける側に回る経路）も自動適用のまま。
+
 ## 2026-09-16 第371バッチ：PLAN §5.3 索引G を一括消化（16 → 1）
 
 **内訳＝修正 12件／実測で決着（受け皿が既にあった・盤面差の無い近似）3件／残 1件（`O-414`）。**

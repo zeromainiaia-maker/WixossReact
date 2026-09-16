@@ -27,7 +27,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageS
 import { resolveTurnEndLrigDeckReturn } from './battle/turnEndLrigDeckReturn';
 import { resolveTurnEndHandReturn } from './battle/turnEndHandReturn';
 import { resolveTurnEndEnergyTrash } from './battle/turnEndEnergyTrash';
-import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
+import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, consumeLifeCrashReplacement, consumeLifeCrashReplaceDecision, lifeCrashReplaceAskOptions, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
@@ -89,6 +89,7 @@ import { AssistGrowModal } from './battle/modals/AssistGrowModal';
 import { AssistActivatedModal } from './battle/modals/AssistActivatedModal';
 import { EnergyActivatedModal } from './battle/modals/EnergyActivatedModal';
 import { GuardResponseDialog } from './battle/modals/GuardResponseDialog';
+import { LifeCrashReplaceModal } from './battle/modals/LifeCrashReplaceModal';
 import { StackOrderModal } from './battle/modals/StackOrderModal';
 import { SigniSummonZoneModal } from './battle/modals/SigniSummonZoneModal';
 import { ResonaSummonModal } from './battle/modals/ResonaSummonModal';
@@ -559,6 +560,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     !!bs?.guest_state?.pending_lrig_attack,  // ルリグアタック解決待ちクリア時に再実行
     // F-3: CPU攻撃・人間防御の身代わり決定後にCPUバトル解決を再開（host=人間の決定を監視）
     !!bs?.host_state?.banish_substitute_choice,
+    // 🆕§5.3 `O-414`：同上＝CPU攻撃・人間防御のダメージ置換の決定後に CPU のバトル解決を再開する。
+    //   ⚠これが無いと**人間が選んだあと CPU が二度と動かない**（依存がどれも変化しないため）。
+    !!bs?.host_state?.life_crash_replace_choice,
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
     // 🔴**「効果解決なしで state だけ変わる」CPU 行動でも再スケジュールする**（2026-08-19 続き567・§3 (cxxxvi)）＝
     //   `performGrow` は ON_PLAY 系エントリが1件も無いと `effect_stack` を積まずに `WRITE_STATE` だけ commit する
@@ -9277,7 +9281,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   この関数は victim 側の state しか受け取っていなかったので、**引数で渡すしかない**
   //   （参照比較で相手を当てにいくと、更新済みコピーが渡る呼び出し側で必ず外れる）。
   const crashOneLife = (
-    state: PlayerState,
+    stateIn: PlayerState,
     victim: { opponent: PlayerState; isTurnPlayer: boolean },
     damageSource?: DamageSourceContext,
     crashSourceCardNum?: string,
@@ -9287,7 +9291,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
      *   fail-closed で発火しないので、**ランサー経路では必ず渡すこと**（渡し忘れると恒久 no-op になる）。
      */
     crashCause?: string,
+    /**
+     * 🆕§5.3 `O-414`：被害側が下したダメージ置換の決定（「代わりに〜してもよい」）。
+     * ⚠**省略時は `state` から読む**＝呼び出し側が先に基点から落としている場合はここへ明示的に渡す
+     *   （落とさないと**ダメージが起きなかった経路**に残骸が残り、次のアタックまで効いてしまう）。
+     */
+    replaceDecisionArg?: { option: import('../types').LifeCrashReplaceOptionState | null },
   ): { newState: PlayerState; crashed: string | null; prevented?: boolean; crashOpponentInstead?: number } => {
+    // 🆕§5.3 `O-414`（2026-09-16）＝被害側の決定は**このクラッシュ1回ぶん**。
+    //   🔴**読んだら即消す**＝置換が成立しなかった経路（防止・バリア・ライフ0）でも消える形にしておかないと、
+    //     次のアタックのダメージまで同じ決定で置換される。以降の `state` は決定を落とした後のもの。
+    const replaceDecision = replaceDecisionArg ?? stateIn.life_crash_replace_choice;
+    const state = consumeLifeCrashReplaceDecision(stateIn);
     // §5.3 O-66: ライフクラッシュ防止／回数制限（**シグニアタックのダメージ**＝cause:'damage'）。
     // ⚠**回数無制限の防御なので、消費型（バリア／prevent_next_damage／置換ミル）より先に判定する**
     //   （`lrigDamageShield` と同じ規約＝後ろに置くと、防げる状況でも限りある資源が先に減る）。
@@ -9329,10 +9344,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ⚠**限定（誰のどんな攻撃か）はここで見る**＝従来は `damageSource` を宣言していたのに捨てていて、
     //   「シグニによって」限定の札がルリグアタックのダメージまで置換していた。
     {
-      const picked = pickLifeCrashReplacement(state, { damageSource: damageSource?.type, cardMap: battleCardMap });
+      const picked = pickLifeCrashReplacement(state, {
+        damageSource: damageSource?.type, cardMap: battleCardMap,
+        // 🆕§5.3 `O-414`＝被害側の決定があればそれを採る（無ければ従来の自動 policy）。
+        ...(replaceDecision !== undefined ? { decision: replaceDecision } : {}),
+      });
       if (picked && picked.repl.kind === 'pay_cost') {
         // §6.4 O-37(a)「代わりに〈コスト〉を支払ってもよい」＝払えるときだけ選ばれている（funnel 側で確認済み）。
-        const paid = applyPayCostReplacement(state, picked.index, picked.repl, battleCardMap);
+        const paid = applyPayCostReplacement(state, picked.index, picked.repl, battleCardMap, picked.payIndex);
         if (paid) {
           appendBattleLogs([lifeCrashReplaceLog(picked.repl, paid.paidJa)]);
           return { newState: paid.state, crashed: null, prevented: true };
@@ -10069,6 +10088,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 側面アタック: シグニゾーンへの攻撃。アサシン等の直接アタック化は無視し、シグニがいればバトル・いなければ何もしない。
       const effectivelyEmpty = isSideAttack ? !opTopCardNum : (!opTopCardNum || isAssassin || hasNoBattleDefender);
 
+      // ─── 🆕§5.3 `O-414`：ダメージ置換（「代わりに〜して**もよい**」）を被害側に問う ───
+      // 🔑**ライフを1枚も割る前に問う**＝離場置換の `hoistLeaveSubstituteAsks` と同じ設計。
+      //   バトル解決の途中で中断すると、再入時に**同じログをもう一度出す**（ここまでログは1本も出していない）。
+      // ⚠**ダメージが発生しうるアタックのときだけ問う**＝正面が空／アサシン／バトルしない（ライフへ直接）か、
+      //   【ランサー】【Sランサー】でバトル勝利後に割る形。それ以外は問い自体が出ない。
+      // ⚠**CPU 防御側は従来どおり自動適用**（funnel の `decision` 未指定 policy）＝対話窓を出せないため。
+      const lifeCrashDamagePossible = !cannotDealDamageToOpp && (effectivelyEmpty
+        ? (!isSideAttack || sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap))
+        : (isSLancer || isLancer));
+      if (lifeCrashDamagePossible && defenderId !== CPU_PLAYER_ID && opS.life_crash_replace_choice === undefined) {
+        // 🔴**問い合わせ中の再入はここで止める**（F-3 と同じ）＝止めないと同じ `pending_*` を書き直し続け、
+        //   その commit が useEffect の依存（state オブジェクト）を動かして**無限ループ**になる。
+        if (opS.pending_life_crash_replace) return;
+        const askOptions = lifeCrashReplaceAskOptions(opS, { damageSource: 'signi', cardMap: battleCardMap });
+        if (askOptions.length > 0) {
+          await persist.commit(reduceBattle(bs, {
+            type: 'WRITE_STATE', myKey: opKey,
+            myState: { ...opS, pending_life_crash_replace: { options: askOptions } },
+          }));
+          appendBattleLogs([`ダメージ置換の選択を待っています`]);
+          return;
+        }
+      }
+      // 🔴決定は下の `crashOneLife` に**引数で**渡し、基点からはここで落とす＝
+      //   バトルに負けた／防止で止まった等で**クラッシュ地点に到達しなかった回**に残骸を残さない。
+      const lifeCrashDecision = opS.life_crash_replace_choice;
+      newOpState = consumeLifeCrashReplaceDecision(newOpState);
+
       if (!effectivelyEmpty && opTopCardNum && opTopCard) {
         // ─── 通常バトル（正面シグニあり・アサシンなし）───
         const opCardName = opTopCard.CardName ?? opTopCardNum;
@@ -10488,7 +10535,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, isSLancer ? 'Sランサー' : 'ランサー');
+            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, isSLancer ? 'Sランサー' : 'ランサー', lifeCrashDecision);
             if (crashOpponentInstead) {
               // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」＝
               // 置換した側（防御側）から見た「対戦相手」＝**アタックしている自分**のライフを割る。
@@ -10752,7 +10799,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   ⚠**1枚目と２枚目の両方に同じ原因を入れる**（片方だけだと同時クラッシュの添字がずれる）。
         const crushCauseSA = isTripleCrush ? 'トリプルクラッシュ' : isDoubleCrush ? 'ダブルクラッシュ' : undefined;
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, crushCauseSA);
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined, power: effectivePowers.get(myTopNum) }, myTopNum, crushCauseSA, lifeCrashDecision);
         if (firstCrashOpp) {
           // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」（WX25-P3-004）。
           // ⚠置換した側から見た「対戦相手」＝**アタックしている自分**なので、割れるのは自分のライフ。
@@ -13390,7 +13437,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     responderId: string; attackerId: string;
     responderKey: 'host_state' | 'guest_state';
   }) => {
-    const { responder: my, attacker: op, responderId, attackerId } = p;
+    const { attacker: op, responderId, attackerId } = p;
+    // ⚠`let`＝【ガードしない】枝で**ダメージ置換の決定を1件消費した基点**へ差し替えるため（§5.3 `O-414`）。
+    let my = p.responder;
     if (!my.field.lrig_attacked) return;
     setLoading(true);
     try {
@@ -13470,6 +13519,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else {
         // ガードしない → ライフクロスをクラッシュ
+        // ─── 🆕§5.3 `O-414`：ダメージ置換（「代わりに〜して**もよい**」）を被害側に問う ───
+        // ⚠**シグニアタック側（`resolvePendingSigniBattleFor`）と同じ funnel を通す**＝
+        //   片方だけだと「シグニには効くがルリグには効かない」型の無言の不整合になる（funnel の規約）。
+        // 🔑ここは【ガードしない】を選んだ直後＝**ログをまだ1本も出していない**ので、
+        //   中断して再入しても二重ログにならない。応答するのは被害側自身のクライアント。
+        if (responderId !== CPU_PLAYER_ID && my.life_crash_replace_choice === undefined) {
+          const askOptionsL = lifeCrashReplaceAskOptions(my, { damageSource: 'lrig', cardMap: battleCardMap });
+          if (askOptionsL.length > 0) {
+            await persist.commit(reduceBattle(bs, {
+              type: 'WRITE_STATE', myKey: stateKey,
+              myState: { ...my, pending_life_crash_replace: { options: askOptionsL } },
+            }));
+            appendBattleLogs([`ルリグアタック：ダメージ置換の選択を待っています`]);
+            return;
+          }
+        }
+        // 🔴決定は**このクラッシュ1回ぶん**＝下の分岐が拾わなかった経路（防止・バリア・ライフ0）でも
+        //   残骸を残さないよう、基点をここで落としておく（`crashOneLife` 側と同じ規約）。
+        const lrigCrashDecision = my.life_crash_replace_choice;
+        my = consumeLifeCrashReplaceDecision(my);
+        // ⚠**funnel は1度だけ引く**＝従来は同じ問い合わせを4回書いており、`cardMap` を渡す／渡さないが
+        //   枝ごとにズレていた（`mill` 枝だけコスト支払い型を見ないので、宣言順の意味が枝で変わっていた）。
+        const lrigCrashPicked = pickLifeCrashReplacement(my, {
+          damageSource: 'lrig', cardMap: battleCardMap,
+          ...(lrigCrashDecision !== undefined ? { decision: lrigCrashDecision } : {}),
+        });
         // 攻撃側ルリグのダブルクラッシュ確認
         // ⚠**攻撃したルリグ**を見る（アシストがアタックしたのにセンターのキーワードで判定すると
         //   ダブルクラッシュが誤って乗る／乗らない。続き427）。未設定＝従来どおりセンター。
@@ -13524,20 +13599,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...consumed,
             field: { ...my.field, lrig_attacked: false },
           };
-        } else if (pickLifeCrashReplacement(my, { damageSource: 'lrig', cardMap: battleCardMap })?.repl.kind === 'pay_cost') {
+        } else if (lrigCrashPicked?.repl.kind === 'pay_cost') {
           // §6.4 O-37(a) ダメージ置換（コスト支払い型）＝ルリグアタック側の消費地点。
           // ⚠**シグニアタック側（crashOneLife）と同じ funnel を通す**＝片方だけだと
           //   「シグニには効くがルリグには効かない」型の無言の不整合になる。
-          const pickedC = pickLifeCrashReplacement(my, { damageSource: 'lrig', cardMap: battleCardMap })!;
-          const paidC = applyPayCostReplacement(my, pickedC.index, pickedC.repl, battleCardMap);
-          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(pickedC.repl, paidC?.paidJa)}`]);
+          const paidC = applyPayCostReplacement(my, lrigCrashPicked.index, lrigCrashPicked.repl, battleCardMap, lrigCrashPicked.payIndex);
+          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(lrigCrashPicked.repl, paidC?.paidJa)}`]);
           newMyState = { ...(paidC?.state ?? my), field: { ...my.field, lrig_attacked: false } };
-        } else if (pickLifeCrashReplacement(my, { damageSource: 'lrig' })?.repl.kind === 'mill') {
+        } else if (lrigCrashPicked?.repl.kind === 'mill') {
           // ライフクラッシュ置換（ルリグアタック側の消費地点）＝ funnel で crashOneLife と同じ規則を通す。
           // ⚠「シグニによって」限定の宣言はここで**選ばれない**（従来は限定を見ずに消費していた）。
-          const pickedL = pickLifeCrashReplacement(my, { damageSource: 'lrig' })!;
-          const appliedL = applyMillReplacement(my, pickedL.index, pickedL.repl.count);
-          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(pickedL.repl)}`]);
+          const appliedL = applyMillReplacement(my, lrigCrashPicked.index, lrigCrashPicked.repl.count);
+          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(lrigCrashPicked.repl)}`]);
           newMyState = { ...appliedL.state, field: { ...my.field, lrig_attacked: false } };
         } else if (my.prevent_lrig_damage) {
           // 1回消費型の残り（「対戦相手の効果によってダメージを受けない」等・`PREVENT_DAMAGE_FROM_OPP_EFFECTS`）。
@@ -14047,6 +14120,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       banish_substitute_choice: { victimNum: pend.victimNum, option },
     };
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState }));
+  };
+
+  /**
+   * 🆕§5.3 `O-414`：ダメージ置換（「代わりに〜して**もよい**」）を被害側が選ぶ。
+   * `optionIndex=null` で「置換しない（ダメージをそのまま受ける）」。
+   *
+   * 🔑**ルリグアタックの枝はその場で再入する**＝【ガードしない】はこのクライアント自身の操作なので、
+   *   state 経由の再入を待たずに `performGuardResponse` を呼び直せる（`GuardResponseDialog` は
+   *   `pending_life_crash_replace` が立つ間は隠れている＝二重に【ガードしない】を押させない）。
+   * ⚠**シグニアタックの枝は commit するだけ**＝解決しているのは**攻撃側のクライアント**で、
+   *   `resolvePendingSigniBattle` の useEffect が state 変化で再入する（F-3 と同じ）。
+   */
+  const handleLifeCrashReplaceChoice = async (optionIndex: number | null) => {
+    if (loading) return;
+    const pend = my.pending_life_crash_replace;
+    if (!pend) return;
+    const option = optionIndex != null ? (pend.options[optionIndex] ?? null) : null;
+    const myKey = isHost ? 'host_state' : 'guest_state';
+    // ⚠リセットは funnel（`turnScopedState`）経由＝手書きの `: undefined` は golden `turn-scoped T2` が止める。
+    const newMyState: PlayerState = { ...consumeLifeCrashReplaceDecision(my), life_crash_replace_choice: { option } };
+    if (my.field.lrig_attacked) {
+      // ⚠**`handleGuardResponse` と同じ引数**で呼び直す（【ガードしない】の続きだから）。
+      await performGuardResponse(null, {
+        responder: newMyState, attacker: op,
+        responderId: user.id, attackerId: isHost ? bs.guest_id : bs.host_id,
+        responderKey: myKey,
+      });
+      return;
+    }
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey, myState: newMyState }));
   };
 
   // シグニ起動効果を実行（コスト支払い後）
@@ -16116,6 +16219,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* F-3 身代わりバニッシュ選択（防御側＝自分のシグニがバニッシュされる場合の任意置換） */}
       <BanishSubstituteModal ctx={modalCtx} handleBanishSubstituteChoice={handleBanishSubstituteChoice} />
+      <LifeCrashReplaceModal ctx={modalCtx} handleLifeCrashReplaceChoice={handleLifeCrashReplaceChoice} />
 
       {/* ライフバースト確認＋カード拡大＋相手クラッシュ確認 */}
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
