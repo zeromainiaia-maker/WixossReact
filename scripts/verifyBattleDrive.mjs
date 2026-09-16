@@ -61753,6 +61753,147 @@ scenarios.v229KeyOptionalTake = {
 
 order.push('v229KeyOptionalSkip', 'v229KeyOptionalTake');
 
+// ── §5.6 `C-9`（2026-09-17）＝ルール規則の棚卸しで見つけた2系統の実機観測点 ──
+/** `C-9` 用の読み取り（凍結・ターン数・手番まで）。 */
+async function c9Query(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return { error: 'no room' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,turn_phase,turn_count,active_user_id,game_logs`, { headers: h });
+    const row = (await r2.json())?.[0];
+    if (!row) return { error: 'no row' };
+    const side = s => ({
+      fieldSigni: s.field?.signi ?? [null, null, null],
+      signiDown: s.field?.signi_down ?? [false, false, false],
+      signiFrozen: s.field?.signi_frozen ?? [false, false, false],
+      life: (s.life_cloth ?? []).length, hand: (s.hand ?? []).length, trash: s.trash ?? [], energy: s.energy ?? [],
+      extraTurn: s.extra_turn ?? null,
+    });
+    return {
+      host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
+      hostIsActive: row.active_user_id === sess.user?.id, turnPhase: row.turn_phase, turnCount: row.turn_count,
+      logs: (row.game_logs ?? []).slice(-30).map(l => [l.action, l.detail].filter(Boolean).join(' ')),
+    };
+  }, { SUPA_URL, ANON });
+}
+
+// 🔴**`c9lancerreplaced`＝バニッシュが置換されたら【ランサー】は割らない**（公式ルール word_063）。
+//   防御側 `WX22-034`（月光の狩猟 アルテミス・P5000）＝【常】「このシグニがバニッシュされる場合、代わりにこのシグニの下からカード１枚をトラッシュに置く」。
+//   🔑**判別力は「置換が起きた」ことを同じ盤面で確かめてから、ライフが減らないことを見る**
+//   （バトルが起きていないだけの空振り PASS を作らない）。旧実装はここでライフを1枚割っていた。
+scenarios.c9lancerreplaced = {
+  title: 'C-9 【ランサー】でバトルに勝っても、バニッシュが置換されたらライフを割らない（WX22-034 の下1枚トラッシュ置換）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-002#c9l1'],
+      'field.signi': [['WX07-042#c9a1'], null, null],   // 幻獣 ラクダ（P10000）
+      'field.signi_down': [false, false, false],
+      'keyword_grants': { 'WX07-042#c9a1': ['ランサー'] },
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9l2'],
+      // 正面（host zone0 の向かい＝guest zone2）＝下に1枚置いたアルテミス。
+      'field.signi': [null, null, ['WD01-013#c9u1', 'WX22-034#c9d1']],
+      'field.signi_down': [false, false, false],
+      'life_cloth': ['WD01-013#c9L1', 'WD01-013#c9L2', 'WD01-013#c9L3', 'WD01-013#c9L4', 'WD01-013#c9L5'],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    const life0 = st0?.guest?.life ?? -1, hand0 = st0?.host?.hand ?? -1;
+    H.log(`開始 guestLife=${life0} 正面=${JSON.stringify(st0?.guest?.fieldSigni?.[2])}`);
+    let attacked = false, modalOpened = false, replacedAt = -1;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/c9lancer-${s}.png`, fullPage: true });
+      let did = null;
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (!attacked && await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+      if (!did && !modalOpened && !attacked) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+      const st = await c9Query(page);
+      const front = st?.guest?.fieldSigni?.[2] ?? null;
+      H.log(`  c9lancer[${s}] -> ${did ?? 'なし'} | 正面=${JSON.stringify(front)} guestLife=${st?.guest?.life}(開始${life0}) hostHand=${st?.host?.hand} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      if (st?.guest?.life < life0) {
+        return { pass: false, detail: `🔴置換されたのにライフが割れた（guestLife ${life0}→${st.guest.life}／正面=${JSON.stringify(front)}）` };
+      }
+      const replaced = Array.isArray(front) && front.length === 1 && front[0] === 'WX22-034#c9d1'
+        && (st?.guest?.trash ?? []).includes('WD01-013#c9u1');
+      if (replaced && replacedAt < 0) replacedAt = s;
+      // 置換を観測してから数手待って、ランサーの追加処理が走り終わってから判定する。
+      if (replacedAt >= 0 && s >= replacedAt + 4) {
+        return {
+          pass: (st?.host?.hand ?? hand0) === hand0,
+          detail: `置換＝アルテミスは場に残り下の1枚がトラッシュへ／ライフは ${life0}→${st.guest.life}（割れない）／ラクダの「ランサーのクラッシュで1ドロー」も不発（hand ${hand0}→${st.host.hand}）`,
+        };
+      }
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `置換を観測できなかった（attacked=${attacked} 正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} guestTrash=${JSON.stringify(fin?.guest?.trash)} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+// 🔴**`c9extraturnup`＝追加ターンでは「自分」がアップフェイズを迎える**（公式ルール word_006「ターンプレイヤーの…」）。
+//   旧実装はターン終了3経路とも「相手をアップ」と焼き込んでおり、追加ターンで**アタックしてダウンした自分のシグニが起き上がらず**、
+//   相手の凍結シグニは**相手のアップフェイズより前に**起き上がっていた。観測点は両側。
+scenarios.c9extraturnup = {
+  title: 'C-9 追加ターン＝自分のダウンしたシグニがアップし、相手の凍結シグニは凍結・ダウンのまま',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9e0'],
+      'field.signi': [['WD01-013#c9e1'], null, null],
+      'field.signi_down': [true, false, false], 'field.signi_frozen': [false, false, false],
+      'extra_turn': true,
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9e9'],
+      'field.signi': [null, null, ['WD02-013#c9e2']],
+      'field.signi_down': [false, false, true], 'field.signi_frozen': [false, false, true],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'END', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    H.log(`開始 turn=${st0?.turnCount} phase=${st0?.turnPhase} hostDown=${JSON.stringify(st0?.host?.signiDown)} guestDown=${JSON.stringify(st0?.guest?.signiDown)} guestFrozen=${JSON.stringify(st0?.guest?.signiFrozen)} extra=${st0?.host?.extraTurn}`);
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/c9extraturn-${s}.png`, fullPage: true });
+      const did = await H.clickTextOrBtn(['ターン終了', '決定', 'OK', 'はい']);
+      const st = await c9Query(page);
+      H.log(`  c9extra[${s}] -> ${did ?? 'なし'} | turn=${st?.turnCount} phase=${st?.turnPhase} hostActive=${st?.hostIsActive} hostDown=${JSON.stringify(st?.host?.signiDown)} guestDown=${JSON.stringify(st?.guest?.signiDown)} guestFrozen=${JSON.stringify(st?.guest?.signiFrozen)}`);
+      if ((st?.turnCount ?? 0) > (st0?.turnCount ?? 0)) {
+        if (!st.hostIsActive) return { pass: false, detail: '前提崩れ＝追加ターンにならず手番が相手へ移った' };
+        const hostUp = st.host.signiDown[0] === false;
+        const guestStillFrozen = st.guest.signiDown[2] === true && st.guest.signiFrozen[2] === true;
+        return {
+          pass: hostUp && guestStillFrozen,
+          detail: hostUp && guestStillFrozen
+            ? `追加ターン開始＝自分のシグニがアップ（hostDown=${JSON.stringify(st.host.signiDown)}）／相手の凍結シグニは凍結・ダウンのまま（guestDown=${JSON.stringify(st.guest.signiDown)} frozen=${JSON.stringify(st.guest.signiFrozen)}）`
+            : `🔴自分のアップ=${hostUp}（期待true）／相手の凍結維持=${guestStillFrozen}（期待true）＝アップフェイズが別のプレイヤーにかかっている`,
+        };
+      }
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `ターンが進まなかった（turn=${fin?.turnCount} phase=${fin?.turnPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+order.push('c9lancerreplaced', 'c9extraturnup');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

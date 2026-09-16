@@ -53,7 +53,8 @@ interface Props {
 }
 
 import { randomInt, shuffle as rngShuffle } from '../engine/rng';
-import { battleOutcome, battleOutcomeLabel } from './battle/battleOutcome';
+import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers, type DefenderBattleResolution } from './battle/battleOutcome';
+import { applyUpPhaseToField, upPhaseRecipient } from './battle/upPhase';
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
 import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
@@ -4458,20 +4459,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 遅延自己除外は非ターンプレイヤー側にも適用（WX16-040/WD22-035-G 等は相手ターン中に蘇生
         // →そのターン終了時に除外、が主用途。ターンプレイヤー側だけだと1ターン生き延びる）。
         const opState = resolvePendingExiles(opEndState, true);
-        const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
-        const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
-        const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
-        const curAssistLFrozen = opState.field.assist_lrig_l_frozen ?? false;
-        const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
-        const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
-        // ':NEXT_TURN' サフィックスのブロックを次のターン用に変換（サフィックス除去して残す）
-        // UPKEEP_OR_NO_UP: 条件あり→次ターンのUPフェーズで条件未達としてルリグをアップしない
-        const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
-          || (opState.lrig_upkeep_condition !== undefined);
-        if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
         // §6.4 O-3: 「ターンプレイヤーを交代するか」は `resolveTurnHandover` 1点で決める
         // （追加ターン＝`extra_turn` と 次ターンスキップ＝`skip_next_turn` の両方をここで見る）。
         const handover = resolveTurnHandover(my, opState);
+        // 🔴§5.6 `C-9`＝**アップを受けるのは次にターンを行うプレイヤー**（`upPhase.ts` に公式ルールを引用）。
+        //   旧実装は交代しない場合（追加ターン／相手のスキップ）も**相手をアップ**していた。
+        const upOpponent = upPhaseRecipient(handover.keepTurn) === 'opponent';
+        // UPKEEP_OR_NO_UP: 条件あり→次ターンのUPフェーズで条件未達としてルリグをアップしない
+        if (upOpponent && opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
         const opNextTurnState = handover.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
@@ -4480,23 +4475,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
           banish_redirect_battle_target_nums: undefined,
-          field: {
-            ...opState.field,
-            signi_down:   newSigniDown,
-            signi_frozen: [false, false, false],
-            lrig_down:    upkeepLrigDown,
-            lrig_frozen:  false,
-            assist_lrig_l_down: (opState.field.assist_lrig_l_down ?? false) && curAssistLFrozen,
-            assist_lrig_r_down: (opState.field.assist_lrig_r_down ?? false) && curAssistRFrozen,
-            assist_lrig_l_frozen: false,
-            assist_lrig_r_frozen: false,
-          },
+          field: upOpponent
+            ? applyUpPhaseToField(opState.field, opState.lrig_upkeep_condition !== undefined)
+            : opState.field,
         }), !handover.keepTurn).state, !handover.keepTurn)));
         // ターンプレイヤーを交代しない場合（追加ターン／相手のターンスキップ）は
         // `activeUserId` を渡さず `active_user_id` キー自体を書かない。
         if (handover.keepTurn) {
           newMyState = activateNextTurnSigniZoneBlocks(
             activateNextTurnDeployCountLimit(handover.consumeTurnEnder(newMyState)).state);
+          // §5.6 `C-9`＝次のターンも自分＝**自分がアップフェイズを迎える**。
+          newMyState = { ...newMyState, field: applyUpPhaseToField(newMyState.field, newMyState.lrig_upkeep_condition !== undefined) };
           if (handover.log) appendBattleLogs([handover.log]);
         }
         await persist.commit(reduceBattle(bs, {
@@ -4931,17 +4920,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opKey = isHost ? 'guest_state' : 'host_state';
       // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
       const opState = resolvePendingExiles(opEndState, true);
-      const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
-      const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
-      const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
-      const curAssistLFrozen = opState.field.assist_lrig_l_frozen ?? false;
-      const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
-      const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
-      const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
-        || (opState.lrig_upkeep_condition !== undefined);
-      if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
       // §6.4 O-3: 交代判定は `doPhaseAdvance` 側と**同じ1関数**（軸を足すときもここではなく関数へ）。
       const handoverED = resolveTurnHandover(my, opState);
+      // 🔴§5.6 `C-9`＝アップを受けるのは次にターンを行うプレイヤー（`doPhaseAdvance` 側と同じ規則）。
+      const upOpponentED = upPhaseRecipient(handoverED.keepTurn) === 'opponent';
+      if (upOpponentED && opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
       const opFinalState = handoverED.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         // 相手側も同じく clearTurnEndScopedState に集約（§6.4 O-3）。
@@ -4950,17 +4933,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
         banish_redirect_battle_target_nums: undefined,
-        field: {
-          ...opState.field,
-          signi_down:   newSigniDown,
-          signi_frozen: [false, false, false],
-          lrig_down:    upkeepLrigDown2,
-          lrig_frozen:  false,
-          assist_lrig_l_down: (opState.field.assist_lrig_l_down ?? false) && curAssistLFrozen,
-          assist_lrig_r_down: (opState.field.assist_lrig_r_down ?? false) && curAssistRFrozen,
-          assist_lrig_l_frozen: false,
-          assist_lrig_r_frozen: false,
-        },
+        field: upOpponentED
+          ? applyUpPhaseToField(opState.field, opState.lrig_upkeep_condition !== undefined)
+          : opState.field,
       }), !handoverED.keepTurn).state, !handoverED.keepTurn)));
       // 追加ターン / 相手のターンスキップ / ターンプレイヤー交代
       // ⚠ 交代しない場合は active_user_id を書かず据え置く（＝BEGIN_NEXT_TURN の activeUserId 省略）。
@@ -4968,6 +4943,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (handoverED.keepTurn) {
         newMyState = activateNextTurnSigniZoneBlocks(
           activateNextTurnDeployCountLimit(handoverED.consumeTurnEnder(newMyState)).state);
+        // §5.6 `C-9`＝次のターンも自分＝**自分がアップフェイズを迎える**。
+        newMyState = { ...newMyState, field: applyUpPhaseToField(newMyState.field, newMyState.lrig_upkeep_condition !== undefined) };
         if (handoverED.log) appendBattleLogs([handoverED.log]);
       } else {
         nextActiveUserId = (isHost ? bs.guest_id : bs.host_id) as string;
@@ -10140,6 +10117,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newOpCharms = [...(opS.field.signi_charms  ?? [null, null, null])];
           const newOpAcce   = cloneAcceSlots(opS.field);
           const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
+          // 🔑§5.6 `C-9`＝防御側に実際に何が起きたか。**下の置換 ladder で本当にバニッシュした1分岐だけが `'banished'` にする**
+          //   （既定は `'replaced'`＝置換分岐を足したときに書き忘れても、ランサーが「割らない」側へ倒れる）。
+          let defenderResolution: DefenderBattleResolution = 'replaced';
 
           // ─── F-3 BANISH_SUBSTITUTE: バトルバニッシュの任意身代わり置換 ───
           // victim = opTopCardNum（バトル防御シグニ）。防御側に身代わりがあれば対話（人間）/ヒューリスティック（CPU）で適用。
@@ -10468,13 +10448,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const topCard = riseSubStack.at(-1)!;
             const newOpSigniRiseSub = [...newOpSigni] as (string[] | null)[];
             newOpSigniRiseSub[opZoneIndex] = [topCard]; // トップカードのみ残す
+            // 🔴§5.6 `C-9`＝**置換＝シグニは場を離れていない**。上で「バニッシュした」前提で書き換えた4点を元へ戻す
+            //   （公式ルール word_094：付いている【チャーム】【アクセ】がトラッシュに置かれるのは**場を離れた場合**）。
+            //   旧実装は ①ON_BANISH／場を離れたときのトリガーを発火させ ②チャーム・アクセをトラッシュし
+            //   ③ダウン状態をアップへ・凍結を解除していた（どれも「残ったシグニ」に起きてはならない）。
+            banishedOpCardNum = null;
+            banishedOpUnderCards = [];
+            newOpDown[opZoneIndex] = opS.field.signi_down?.[opZoneIndex] ?? false;
+            newOpFrozen[opZoneIndex] = wasOpFrozen;
+            newOpCharms[opZoneIndex] = opS.field.signi_charms?.[opZoneIndex] ?? null;
+            newOpAcce[opZoneIndex] = cloneAcceSlots(opS.field)[opZoneIndex] ?? null;
             newOpState = {
               ...opS,
-              trash: [...opS.trash, ...bottomCards, ...banishExtraTrash],
+              trash: [...opS.trash, ...bottomCards],
               field: { ...opS.field, signi: newOpSigniRiseSub, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
             };
             appendBattleLogs([`${opCardName}（ライズ代替）スタック下${bottomCards.length}枚をトラッシュしてバニッシュ回避`]);
           } else {
+          defenderResolution = 'banished';
           // BANISH_TO_LRIG_TRASH_INSTEAD: レゾナシグニはエナ代わりにlrig_trashへ（ルリグデッキ返却の近似）
           const banishToLrigTrash = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash &&
             (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
@@ -10538,7 +10529,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           // ⚠「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074 が付与）はここも止める
           //   ＝止めないと「バトルに勝ったときだけダメージが通る」半端な近似になる。
-          const lancerApplies = isSLancer || (isLancer && hasApplicableLancer(lancerKeywords, opPower));
+          // 🔴§5.6 `C-9`＝**バニッシュが置換されたら割らない**（公式ルール＝`lancerCrushTriggers` に引用）。
+          //   旧実装は置換 ladder のどの分岐を通っても割っていた＝シグニが場に残ったのにライフが割れた。
+          const lancerApplies = lancerCrushTriggers(
+            isSLancer || (isLancer && hasApplicableLancer(lancerKeywords, opPower)), defenderResolution);
           if (lancerApplies && cannotDealDamageToOpp) {
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {
@@ -13139,11 +13133,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       const cpuEndState = resolveTurnEndFacedownReturns(cpuSt).state;
       const huEndState = resolveTurnEndFacedownReturns(huSt).state;
-      const curHuDown   = huEndState.field.signi_down   ?? [false, false, false];
-      const curHuFrozen = huEndState.field.signi_frozen  ?? [false, false, false];
-      const curHuLrigFrozen = huEndState.field.lrig_frozen ?? false;
-      const curHuAssistLFrozen = huEndState.field.assist_lrig_l_frozen ?? false;
-      const curHuAssistRFrozen = huEndState.field.assist_lrig_r_frozen ?? false;
+      // ⚠アップ処理は**ここでは書かない**＝誰がアップフェイズを迎えるかは `resolveTurnHandover` の後で決まる（§5.6 `C-9`）。
       // CPUターン終了＝人間側から見た「次の相手ターン終了時」。PvP の doPhaseAdvance / confirmEndDiscard と同じく、
       // 次ターンプレイヤーが保持する UNTIL_OPP_TURN_END 状態をここで失効させる。
       const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
@@ -13152,18 +13142,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
-        field: {
-        ...huEndState.field,
-        // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
-        signi_down:   curHuDown.map((d, i) => d && curHuFrozen[i]) as boolean[],
-        signi_frozen: [false, false, false] as boolean[],
-        lrig_down:    (huEndState.field.lrig_down ?? false) && curHuLrigFrozen,
-        lrig_frozen:  false,
-        assist_lrig_l_down: (huEndState.field.assist_lrig_l_down ?? false) && curHuAssistLFrozen,
-        assist_lrig_r_down: (huEndState.field.assist_lrig_r_down ?? false) && curHuAssistRFrozen,
-        assist_lrig_l_frozen: false,
-        assist_lrig_r_frozen: false,
-      }})).state));
+      })).state));
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuEndState.hand;
       let cpuDeckEND = cpuEndState.deck;
@@ -13208,12 +13187,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   `WD20-006` の母集団はまさに「このターンが対戦相手のターンで」＝この経路が本命。
       const handoverCpu = resolveTurnHandover(cleanCpuSt, nextHuSt);
       if (handoverCpu.log) appendBattleLogs([`[CPU] ${handoverCpu.log}`]);
+      // 🔴§5.6 `C-9`＝**アップを受けるのは次にターンを行うプレイヤー**（`upPhase.ts`）。
+      //   旧実装は交代しない場合（CPU の追加ターン／人間が予約した「次の自分のターンをスキップ」）も人間をアップしていた。
+      const upHuman = upPhaseRecipient(handoverCpu.keepTurn) === 'opponent';
+      // ⚠センタールリグのアップ条件（`lrig_upkeep_condition`）は**人間側だけ**尊重する＝支払い対話は人間の UP 分岐にしか無く、
+      //   CPU の UP 分岐はこの条件を一度も消費しない（尊重すると CPU のルリグが永久にダウンしたままになる）。
+      const upped = (s: PlayerState, honorUpkeep: boolean): PlayerState =>
+        ({ ...s, field: applyUpPhaseToField(s.field, honorUpkeep && s.lrig_upkeep_condition !== undefined) });
       await persist.commit(reduceBattle(bs, {
         type: 'BEGIN_NEXT_TURN',
         activeUserId: handoverCpu.keepTurn ? undefined : user.id,
-        myKey: 'guest_state', myState: handoverCpu.consumeTurnEnder(cleanCpuSt),
+        myKey: 'guest_state', myState: handoverCpu.consumeTurnEnder(upHuman ? cleanCpuSt : upped(cleanCpuSt, false)),
         // 遅延自己除外は非ターンプレイヤー（人間）側にも適用（WX16-040 等はCPUターン中に蘇生→そのターン終了時に除外）
-        opp: { key: 'host_state', state: handoverCpu.consumeOpponent(resolvePendingExiles(nextHuSt, true)) },
+        opp: { key: 'host_state', state: handoverCpu.consumeOpponent(resolvePendingExiles(upHuman ? upped(nextHuSt, true) : nextHuSt, true)) },
       }));
     }
   };

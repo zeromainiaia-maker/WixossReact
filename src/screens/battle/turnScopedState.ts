@@ -3,6 +3,7 @@ import { advancePreventDamageWindows } from './battleUtils';
 import { normalizeFieldGrants, optionalFieldGrants } from '../../utils/fieldGrants';
 import { activateNextTurnDeployCountLimit } from './deployCountLimit';
 import { activateNextTurnSigniZoneBlocks } from './signiZoneBlock';
+import { applyUpPhaseToField } from './upPhase';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
 type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'main-phase-start' | 'consume';
@@ -529,26 +530,14 @@ export function applyForcedTurnEnd(
     granted_effects: {},
     actions_done: [],
   });
-  // 次のターンプレイヤーのシグニをアップ（凍結中はアップせず凍結解除）。
-  const signiDown = nextState.field.signi_down ?? [false, false, false];
-  const signiFrozen = nextState.field.signi_frozen ?? [false, false, false];
-  const newSigniDown = signiDown.map((d: boolean, i: number) => d && signiFrozen[i]) as boolean[];
+  // 次のターンプレイヤーのシグニをアップ（凍結中はアップせず凍結解除）＝規則は `upPhase.ts` の1本（§5.6 `C-9`）。
+  // ⚠この関数は**常に交代する**前提（`resolveTurnHandover` を見ない）＝追加ターン予約中の強制終了は PLAN §5.6 `C-9` の残項目。
   const nextAfter = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
     ...nextState,
     // 出自マーカー本体はUP開始時の funnel でクリア
     signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined,
     signi_deploy_count_limit: undefined, // 配置数制限（相手にかけられた分）を自分のターン開始時にリセット
-    field: {
-      ...nextState.field,
-      signi_down: newSigniDown,
-      signi_frozen: [false, false, false] as [boolean, boolean, boolean],
-      lrig_down: (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
-      lrig_frozen: false,
-      assist_lrig_l_down: (nextState.field.assist_lrig_l_down ?? false) && (nextState.field.assist_lrig_l_frozen ?? false),
-      assist_lrig_r_down: (nextState.field.assist_lrig_r_down ?? false) && (nextState.field.assist_lrig_r_frozen ?? false),
-      assist_lrig_l_frozen: false,
-      assist_lrig_r_frozen: false,
-    },
+    field: applyUpPhaseToField(nextState.field),
   })).state);
   return { activeAfter, nextAfter };
 }

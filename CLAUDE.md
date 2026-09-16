@@ -89,6 +89,7 @@ WixossカードゲームのReactクローン実装。
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
   - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
+  - 🆕**`RULES.md` — ルール規則台帳（§5.6 `C-9`・2026-09-17新設）＝カード効果ではなくルール処理（バトル／ダメージ／フェイズ／ゾーン移動の行き先）を公式ルールの1文ずつに対応づけた棚卸し**（出典＝English Rule Guide ver.1.0.0＋日本語用語集）。🔴**この層には計器が無い**＝規則は純関数へ出して golden で固定する（`battleOutcome.ts`／`upPhase.ts`）。`BattleScreen.tsx` に規則を直書き・写経しない
   - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。補完的発見器として継続利用（worklistは PLAN.md §5.2）
   - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表

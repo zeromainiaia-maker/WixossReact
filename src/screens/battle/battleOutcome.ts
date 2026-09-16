@@ -43,6 +43,30 @@ export function battleOutcome(attackerPower: number, defenderPower: number): Bat
   };
 }
 
+/**
+ * バトルで防御側に**何が起きたか**（`banishDefender` が true のときの実際の帰結）。
+ *   - `'banished'`＝バニッシュされた（行き先がエナ以外に変わっても**バニッシュはバニッシュ**）。
+ *   - `'replaced'`＝効果でバニッシュが**別の行動に置き換わった**（身代わり／コストを払って残る／ダウンで残る／下のカードを捨てて残る 等）。
+ */
+export type DefenderBattleResolution = 'banished' | 'replaced';
+
+/**
+ * 【ランサー】【Sランサー】のクラッシュが起きるか（§5.6 `C-9`・2026-09-17）。
+ *
+ * 🔑**公式ルール**（[用語集 word_063「ランサー」](https://www.takaratomy.co.jp/products/wixoss/library/rule/word_063/)・
+ *   word_113「Sランサー」・English Rule Guide ver.1.0.0「Lancer」）＝
+ *   「ランサーを持つシグニがバトルでシグニをバニッシュしようとした際に、効果などによって**そのバニッシュが他の行動に置き換わった場合**、
+ *    ランサーは条件を満たしておらずライフクロスをクラッシュしません。」（Sランサーも同文）
+ *
+ * 🔴**旧実装**＝`BattleScreen` はバニッシュ置換の11分岐（身代わり／コスト払い／ダウン代替／チャーム盾／アクセ代替／ライズ代替 …）の
+ *   **どれを通っても**ランサーのクラッシュを実行していた＝**シグニが場に残ったのにライフが割れていた**。
+ *
+ * @param hasLancer アタッカーが（適用条件つきを含め）【ランサー】か【Sランサー】を持つ。
+ */
+export function lancerCrushTriggers(hasLancer: boolean, resolution: DefenderBattleResolution): boolean {
+  return hasLancer && resolution === 'banished';
+}
+
 /** ログ用の一言（勝敗の言葉を実装と1箇所に揃える）。 */
 export function battleOutcomeLabel(attackerPower: number, defenderPower: number): string {
   return battleOutcome(attackerPower, defenderPower).banishDefender

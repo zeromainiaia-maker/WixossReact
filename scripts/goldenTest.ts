@@ -100,7 +100,8 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
 import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/screens/battle/bugReport';
-import { battleOutcome, battleOutcomeLabel } from '../src/screens/battle/battleOutcome';
+import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/screens/battle/battleOutcome';
+import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
@@ -85680,6 +85681,55 @@ test('§5.6 バトルの勝敗：同値はアタック側の勝ち／未満は�
     eq(cpuAttackValueOf(a, d) === 'winBattle', battleOutcome(a, d).banishDefender,
       `🔴CPU の見立てと engine の勝敗が食い違う（${a} vs ${d}）`);
   }
+}));
+
+test('§5.6 C-9 ランサー：バニッシュが置換されたらクラッシュしない（公式ルール word_063/113）', () => withSavedCursor(() => {
+  // 🔑公式ルール＝「ランサーを持つシグニがバトルでシグニをバニッシュしようとした際に、効果などによって
+  //   **そのバニッシュが他の行動に置き換わった場合**、ランサーは条件を満たしておらずライフクロスをクラッシュしません」（Sランサーも同文）。
+  eq(lancerCrushTriggers(true, 'banished'), true, 'バニッシュしたのにランサーが割らない');
+  eq(lancerCrushTriggers(true, 'replaced'), false, '🔴置換されたのにランサーが割る（シグニが場に残ってライフも割れる）');
+  eq(lancerCrushTriggers(false, 'banished'), false, 'ランサーを持たないのに割る');
+  // 🔴**配線の固定**＝判定は React の中にあり golden から実行できないので、ソースの形で守る。
+  //   ①既定は `'replaced'`（置換分岐を足して書き忘れても「割らない」側へ倒れる）
+  //   ②`'banished'` にするのは**本当にバニッシュした1分岐だけ**
+  //   ③ランサーの判定は `lancerCrushTriggers` を通す
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(src.includes(`let defenderResolution: DefenderBattleResolution = 'replaced';`), '🔴防御側の帰結の既定が replaced でない');
+  eq(src.split(`defenderResolution = 'banished';`).length - 1, 1, '🔴banished にする分岐が1つでない（置換分岐でも立てている疑い）');
+  ok(/const lancerApplies = lancerCrushTriggers\(/.test(src), '🔴ランサーの判定が lancerCrushTriggers を通っていない');
+}));
+
+test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤーだけをアップ（凍結はアップせず解除）', () => withSavedCursor(() => {
+  // 🔑公式ルール（`upPhase.ts` に引用）＝「あなたの全てのシグニとルリグをアップします。**ターンプレイヤーの**シグニやルリグが
+  //   凍結状態だった場合、それらはアップフェイズにアップしません。…アップフェイズの終了時に凍結状態ではなくなります」。
+  const field = {
+    signi: [null, null, null],
+    signi_down: [true, true, false], signi_frozen: [true, false, true],
+    lrig: [], lrig_down: true, lrig_frozen: false,
+    assist_lrig_l_down: true, assist_lrig_l_frozen: true, assist_lrig_r_down: true, assist_lrig_r_frozen: false,
+  } as unknown as PlayerState['field'];
+  const up = applyUpPhaseToField(field);
+  eq(JSON.stringify(up.signi_down), JSON.stringify([true, false, false]), '🔴凍結中のシグニがアップした／凍結していないダウンが残った');
+  eq(JSON.stringify(up.signi_frozen), JSON.stringify([false, false, false]), '凍結がアップフェイズで解除されていない');
+  eq(up.lrig_down, false, '凍結していないセンタールリグがアップしない');
+  eq(up.assist_lrig_l_down, true, '凍結中のアシストルリグがアップした');
+  eq(up.assist_lrig_r_down, false, '凍結していないアシストルリグがアップしない');
+  eq(up.assist_lrig_l_frozen, false, 'アシストの凍結が解除されていない');
+  eq(applyUpPhaseToField({ ...field, lrig_frozen: true } as PlayerState['field']).lrig_down, true, '凍結中のセンタールリグがアップした');
+  eq(applyUpPhaseToField(field, true).lrig_down, true, 'アップ条件が未払いなのにセンタールリグがアップした');
+  // 🔴**誰をアップするか**＝`resolveTurnHandover` の交代判定と連動する。
+  //   旧実装はターン終了3経路とも「相手をアップ」と焼き込んでおり、追加ターンで**自分のシグニが起き上がらなかった**。
+  const base = {} as PlayerState;
+  eq(upPhaseRecipient(resolveTurnHandover(base, base).keepTurn), 'opponent', '通常の交代で相手がアップしない');
+  eq(upPhaseRecipient(resolveTurnHandover({ extra_turn: true } as PlayerState, base).keepTurn), 'turnEnder',
+    '🔴追加ターンなのに相手をアップしている（自分のシグニが起き上がらずアタックできない）');
+  eq(upPhaseRecipient(resolveTurnHandover(base, { skip_next_turn: true } as PlayerState).keepTurn), 'turnEnder',
+    '🔴相手がターンをスキップするのに相手をアップしている');
+  // 🔴**写経の再発防止**＝アップ処理を `BattleScreen.tsx` に手で書き直さない（4箇所に写経され、3箇所とも同じ誤りだった）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
+    '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
+  eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
 }));
 
 if (listMode) {

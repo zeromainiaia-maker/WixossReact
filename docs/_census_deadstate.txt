@@ -8,9 +8,9 @@ PlayerState のキー: 382
 ## 参考：書き込みの多い順（上位40）
   1561 読 / 106 書  energy
   1317 読 /  75 書  deck
-  3787 読 /  74 書  field
+  3772 読 /  73 書  field
   1762 読 /  64 書  trash
-  1885 読 /  61 書  hand
+  1888 読 /  61 書  hand
    210 読 /  36 書  lrig_deck
     55 読 /  36 書  temp_power_mods
    181 読 /  23 書  lrig_trash
@@ -36,7 +36,7 @@ PlayerState のキー: 382
      5 読 /   7 書  signi_color_overrides
      1 読 /   7 書  acce_just_done
     16 読 /   7 書  lrig_riding_signi
-    16 読 /   7 書  lrig_upkeep_condition
+    19 読 /   7 書  lrig_upkeep_condition
      6 読 /   7 書  is_betting_this_effect
      1 読 /   7 書  cancel_current_signi_attack
      5 読 /   6 書  crash_cause
