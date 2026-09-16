@@ -85412,6 +85412,31 @@ test('R6-1 I3: 手札から場に出してもよい。そうした場合、引�
   eq(open.st.deck.length, open.deckBefore - 1, '出せたら1枚引く');
 }));
 
+test('§5.3 O-527: 【トラップ】が無ければ「そうした場合」のデッキからの設置は起きない／あれば起きる', () => withSavedCursor(() => {
+  // 🔴`TRAP_OP`／`TRAP_TO_HAND` は成功しても `lastProcessedCards` を書かない＝did-it ゲートが空振りを判定できず、
+  //   【トラップ】が無くてもデッキ上から【トラップ】を設置していた（`WX16-061-E1`／`WXEX2-15-E1`／`WXEX1-13-E1`）。
+  const trapsOf = (st: PlayerState) => (st.field.signi_traps ?? []).filter(Boolean) as string[];
+  const live = (num: string, id: string) => mergeManualEffects(num, effectsMap.get(num) ?? []).find(e => e.effectId === id)!;
+  for (const [num, id] of [['WX16-061', 'WX16-061-E1'], ['WXEX2-15', 'WXEX2-15-E1'], ['WXEX1-13', 'WXEX1-13-E1']] as const) {
+    const c = mkCtx({ signi: [num, null, null] }, {}, num);
+    const deckLen = c.ownerState.deck.length;
+    const r = run(live(num, id).action as EffectAction, c);
+    const st = r.ownerState as PlayerState;
+    eq(trapsOf(st).length, 0, `🔴${id}: 【トラップ】が無いのに設置した`);
+    eq(st.deck.length, deckLen, `🔴${id}: 【トラップ】が無いのにデッキが動いた`);
+  }
+  // 反転＝【トラップ】があれば（捨てる／手札に戻す形）後続の設置が起きる
+  for (const [num, id] of [['WX16-061', 'WX16-061-E1'], ['WXEX1-13', 'WXEX1-13-E1']] as const) {
+    const old = fresh();
+    const c = mkCtx({ signi: [num, null, null] }, {}, num);
+    c.ownerState = { ...c.ownerState, field: { ...c.ownerState.field, signi_traps: [null, old, null] } };
+    const r = run(live(num, id).action as EffectAction, c);
+    const st = r.ownerState as PlayerState;
+    ok(!trapsOf(st).includes(old), `${id}: 元の【トラップ】は場を離れる`);
+    eq(trapsOf(st).length, 1, `${id}: デッキから新しい【トラップ】を1つ設置する`);
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

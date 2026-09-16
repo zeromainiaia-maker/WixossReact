@@ -1134,6 +1134,13 @@
   `git show <修正前の commit>:public/data/effects_X.json` から**その1効果の `action` だけ**を現在の live へ差し戻し、
   シナリオを回して FAIL を確認してから `git checkout` で戻す。**engine を書き換えて再ビルドするより速く、影響範囲も1効果に閉じる。**
 
+#### 🆕🔑 「そうした場合」の空振りを `lastProcessedCards` で判定できない STUB は `doneFailed` で明示する（2026-09-16・第384バッチ・`O-527`）
+
+- did-it ゲートは「前段が `lastProcessedCards` を書いたか」で空振りを判定するので、**成功しても記録しない STUB**（`TRAP_OP` 等）は空振りしても後続が走る。
+  `DID_IT_GATED_STUB_IDS` に入れると**成功を空振りと誤判定して帰結を殺す**（`effectExecutor.ts` のコメントに実測あり）。
+- ⇒ ハンドラが空振り経路で `doneFailed(ctx)` を返せば、`execSequence` は型を問わず直後の `CONDITIONAL{IS_MY_TURN}` を消費する。**本当に何もしなかった経路だけ**で使う。
+- 🔑見つけたのは `npm run census:traceinv` の I3（失敗ログがあるのに差分が非空）＝LLM 監査では「トラップの無い盤面」を踏まないので見えなかった。
+
 #### 🆕🔴 ルール解釈を「実装の見た目」から決めて golden で固めない（2026-09-16・第379バッチ・`O-525`）
 
 - 2026-09-06 に「クロス宣言は直後の1能力のゲート」と読んで parser に配線し、golden 2本で固定した。根拠は

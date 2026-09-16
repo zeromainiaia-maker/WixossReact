@@ -6778,6 +6778,9 @@ function effJa(e: Eff): string {
         : s.replace('クラッシュ', `${kwJa}によってクラッシュ`);
     }
     if (t === 'ON_ATTACK_PHASE_START' && e.triggerScope === 'any') s = '各アタックフェイズ開始時';
+    // 🆕2026-09-16（`O-527` の回で発見）＝`any_opp` は「**対戦相手の**アタックフェイズ開始時」。
+    //   抜けていたので27効果が「あなたの」と描かれ、原文照合で「自分のターンに発火する」と誤読させていた（engine は正しい）。
+    if (t === 'ON_ATTACK_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のアタックフェイズ開始時';
     if (e.effectType === 'TRAP_ICON' && t === 'ON_TRAP_ACTIVATE') s = '';
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）

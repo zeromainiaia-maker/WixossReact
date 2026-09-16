@@ -11,17 +11,17 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-16＝第383バッチ：§5.2 round6 R6-3（締め）＝round6 を閉じた**（総括は `round6/TYPE_LEDGER.md`）
-- 修正前コミットで `census:traceinv` の機械再現率＝**3/16**（LLM の 6/16 の半分を LLM なしで拾える）。codex での測り直しはしない（R6-2 をやらないため）。
-- 変種「場が空」を**自分側だけ**に直した（両者を空にすると相手の対象宣言で打ち切られ、失敗経路に届かなかった）。
-- `census:traceinv` を CLAUDE.md の検証コマンドへ登録。
+**直近＝2026-09-16＝第384バッチ：`O-527` をクローズ（【トラップ】が無くても「そうした場合」の後続が走る・3効果）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 新しい印 `doneFailed`＝ハンドラが「原文の行動が起きなかった」と返すと、`execSequence` が直後の「そうした場合」を消費する（成功しても `lastProcessedCards` を書かない STUB 用）。
+- `WXEX2-15-E1`／`WXEX1-13-E1` は parser 出力の構造が原文と違ったので `manualEffects.ts` に手書き。
+- ついでに逆翻訳の穴を1つ＝アタックフェイズ開始時の `any_opp` が「あなたの」と描かれていた（27効果・engine は正しい）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.3 索引G `O-527`**（【トラップ】が無くても「そうした場合」の後続が走る・3効果） |
+| 🔥**次に取るもの** | **在庫 0**＝§5 の作業キューが空。次の発見器を決める（ユーザー判断） |
 | 📊**進捗3計器** | Sheet1 要対応 **2 / 863**（`census:cards -- --sheet 1` で測り直す）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **1**（索引G 1）／実機 **0**／実装キュー **0** |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4267・`census:traceinv` I1=0） |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0** |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4268・`census:traceinv` I1=0） |
 
 ---
 
@@ -321,9 +321,10 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 G. 母集団 1〜2効果（速いレーンが既定）
 
+🏁**残0**
+
 | ID | 規模 | 何が無いか（一行） |
 |---|---|---|
-| `O-527` | S・**3効果**（R6-1 I3 で実測） | 「【トラップ】１つをトラッシュに置く。そうした場合、…」でトラップが無くても後続（デッキ上3枚から設置）が走る＝「そうした場合」が `IS_MY_TURN` で表されている |
 
 #### 索引 H. ルール解釈待ち（Claude は取らない）
 
@@ -374,10 +375,10 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-16 時点**（第383バッチ＝round6 締め）
+- **2026-09-16 時点**（第384バッチ＝`O-527` クローズ）
   - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **1**（索引G 1＝`O-527`）｜実機 **0**｜実装キュー **0**｜round6 **完了**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4267・`census:traceinv` I1=0）
+  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜round6 **完了**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4268・`census:traceinv` I1=0）
 
 ---
 

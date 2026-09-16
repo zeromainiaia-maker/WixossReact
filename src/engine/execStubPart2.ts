@@ -7,7 +7,7 @@ import type { ExecCtx, ExecResult } from './execUtils';
 import { textHasKeyword } from '../utils/keywords';
 import { effectiveCardOf, nameRuleScopeCards } from './nameIdentityRules';
 import {
-  done, addLog, needsInteraction, ownerState, setOwnerState,
+  done, doneFailed, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
   getCardNum,
   createTokenInstanceId,
@@ -2653,7 +2653,7 @@ export function execStubPart2(
       ? fieldCandidates(ctx.ownerState, specTTH.alsoSigniFilter, ctx.cardMap, ctx.effectivePowers)
       : [];
     const poolTTH = [...trapsToHandTTH, ...signiCandsTTH];
-    if (poolTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
+    if (poolTTH.length === 0) return doneFailed(addLog(ctx, 'トラップなし'));
     const maxCountTTH = specTTH.count === 'ALL' ? poolTTH.length : specTTH.count;
     // 🆕**`upTo` が立っていたら枚数が足りていても必ず選ばせる**（§5.3 `O-87`）＝
     //   `count:'ALL'` は原文「**好きな数**」＝0枚も選べるプレイヤーの選択であって「全部」ではない。
@@ -2719,7 +2719,7 @@ export function execStubPart2(
       });
     }
     if (firstTrapIdxAT < 0) firstTrapIdxAT = zoneCandsAT[0] ?? -1;
-    if (firstTrapIdxAT < 0) return done(addLog(ctx, 'トラップなし'));
+    if (firstTrapIdxAT < 0) return doneFailed(addLog(ctx, 'トラップなし'));
     const trapCardAT = trapsAT[firstTrapIdxAT]!;
     const newTrapsAT = [...trapsAT] as (string | null)[];
     newTrapsAT[firstTrapIdxAT] = null;
@@ -2910,7 +2910,7 @@ export function execStubPart2(
           ? ctx.otherState.field.signi.findIndex(stack => stack?.at(-1) === trigTZ)
           : -1;
         const cardTZ = zoneTZ >= 0 ? traps[zoneTZ] : null;
-        if (!cardTZ) return done(addLog(ctx, 'そのシグニゾーンに【トラップ】がない'));
+        if (!cardTZ) return doneFailed(addLog(ctx, 'そのシグニゾーンに【トラップ】がない'));
         const nextTZ = traps.map((c, i) => (i === zoneTZ ? null : c)) as (string | null)[];
         return done(addLog({
           ...ctx,
@@ -2920,7 +2920,7 @@ export function execStubPart2(
         }, `そのシグニゾーンの【トラップ】をトラッシュへ`));
       }
       const trashed = traps.filter((card): card is string => !!card).slice(0, maxTrash);
-      if (trashed.length === 0) return done(addLog(ctx, 'トラップなし'));
+      if (trashed.length === 0) return doneFailed(addLog(ctx, 'トラップなし'));
       const nextTraps = traps.map(card => card && trashed.includes(card) ? null : card) as (string | null)[];
       return done(addLog({
         ...ctx,

@@ -7581,9 +7581,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
     const isSelfActingOptionalStub = gateStep.type === 'STUB'
       && DID_IT_GATED_STUB_IDS.has((gateStep as StubAction).id);
-    if ((DID_IT_GATED_TYPES.has(gateStep.type) || isDidItGatableTrash(gateStep) || isSelfActingOptionalStub)
-        && i + 1 < a.steps.length
-        && effLastProcessed.length === 0) {
+    // 🆕§5.3 `O-527`＝ハンドラが明示的に「何も起きなかった」と返した（`doneFailed`）。型を問わず「そうした場合」を消費する。
+    const stepReportedFailure = !wrapCondFalse && result.done && result.didItFailed === true;
+    if (((DID_IT_GATED_TYPES.has(gateStep.type) || isDidItGatableTrash(gateStep) || isSelfActingOptionalStub)
+        && effLastProcessed.length === 0 || stepReportedFailure)
+        && i + 1 < a.steps.length) {
       const nextDI = a.steps[i + 1];
       if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {
         cur = addLog(cur, '前段が空振り：「そうした場合」の効果は発生しない');

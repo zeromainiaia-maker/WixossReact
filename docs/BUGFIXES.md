@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第384バッチ：`O-527`＝【トラップ】が無くても「そうした場合」の後続が走っていた（3効果）＋逆翻訳の any_opp
+
+- **真因**＝`TRAP_OP`／`TRAP_TO_HAND` は**成功しても `lastProcessedCards` を書かない**ので、`execSequence` の did-it ゲート（`lastProcessedCards` が空なら「そうした場合」を消費）が空振りを判定できなかった。
+  加えて parser 出力が2効果で原文と違った＝`WXEX2-15-E1` は設置（`PLACE_TRAP_FROM_REVEALED`）が `CONDITIONAL` の外、`WXEX1-13-E1` はゲート自体が無い。
+- **修正**＝新設 `doneFailed(ctx)`（`execUtils.ts`・`ExecResult.didItFailed`）＝「原文の行動が起きなかった」を明示して返す印。`TRAP_OP{trash}`・`ACTIVATE_TRAP`・`TRAP_TO_HAND` の空振り経路で返し、
+  `execSequence` は `didItFailed` の step の直後の `CONDITIONAL{IS_MY_TURN}` を型を問わず消費する。2効果は原文を読み直して `manualEffects.ts` に手書き（`syncManualLive`）。
+  ⚠**`doneFailed` は本当に何もしなかった経路だけで使う**（部分的に成功した経路で立てると正しい後続を殺す）。
+- **影響**＝`WX16-061-E1`／`WXEX2-15-E1`／`WXEX1-13-E1`。
+- **ついでの修正（逆翻訳）**＝`scripts/decompileEffects.ts` がアタックフェイズ開始時の `triggerScope:any_opp` を描き分けておらず、**27効果が「あなたのアタックフェイズ開始時」**と表示されていた（engine は相手のアタックフェイズで正しく発火）。
+- **検証**＝golden 1本（無ければ設置しない3効果／あれば設置する2効果）＝**修正前の engine で FAIL を確認**／`npm run regen`（差分28行＝any_opp 27＋`WXEX2-15-E1` の構造1）／`npm run gates` 全緑（golden 4268）。
+- **実機**＝不要（`src/engine/`・`src/data/`・`public/data/`・`scripts/` のみ。新しい型は `ExecResult` の内部フィールドだけで、カードの JSON 語彙は増えていない）。
+
 ## 2026-09-16 第383バッチ：§5.2 round6 R6-3（締め）
 
 - **機械の再現率**＝修正前 `40940e1f3` に現ハーネスと `censusTraceInvariants.mjs` を載せて既知バグ16枚を解決＝**3/16**（I2 が `O-391`×2・`WXDi-P13-074`）。LLM の 6/16 の半分。

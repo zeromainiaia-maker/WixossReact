@@ -159,7 +159,7 @@ export interface ExecCtx {
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; didItFailed?: boolean; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
   | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
 
 // ===== ユーティリティ =====
@@ -1451,6 +1451,16 @@ export function selectOptionalCostEnergy(
 
 export function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
   return selectOptionalCostEnergy(costColors, state, cardMap) !== null;
+}
+
+/**
+ * 🆕§5.3 `O-527`（2026-09-16）＝**「原文の行動が起きなかった」を後段へ伝える `done`**。
+ * `execSequence` は直後の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を消費する。
+ * 🔑`lastProcessedCards` で空振りを判定できない STUB（成功しても記録しない＝`TRAP_OP` 等）のための印。
+ * ⚠**本当に何もしなかった経路だけ**で使う（部分的に成功した経路で立てると正しい後続を殺す）。
+ */
+export function doneFailed(ctx: ExecCtx): ExecResult {
+  return { ...done(ctx), didItFailed: true } as ExecResult;
 }
 
 export function done(ctx: ExecCtx): ExecResult {

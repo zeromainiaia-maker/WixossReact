@@ -10966,7 +10966,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   parser が正しい JSON を出すようになった（`O-42` tripwire）。旧 live には**原文に無い `LIFE_CRASH{opponent}`**
   //   が `CONDITIONAL{IS_MY_TURN}` の下にぶら下がっていた＝E2 の帰結節が E1 の枠へ漏れていた。
   // WX25-P1-054-E2＝**【クロス自】なので `crossOnly` が要る**（2026-09-06）。この効果は手書きなので
-  //   parser 側のクロス配線（クロス宣言→先頭ブロック）では埋まらない＝ここで明示する。
+  //   parser の【クロス〜】ラベル処理では埋まらない＝ここで明示する（クロス宣言そのものはゲートではない＝`O-525` 読みA）。
   "WX25-P1-054": [
 {"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"crossOnly":true,"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS","optionalEnergyTrash":{"story":"ウェポン","count":2}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
   "WX25-P2-009": [{"effectId":"WX25-P2-009-ACT","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"INSTALL_GAME_GRANTED_AUTO"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}, {"effectId":"WX25-P2-009-E2","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"turnOwner":"self"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},
@@ -12695,6 +12695,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WDK13-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":2},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"includeAcce":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
+  // 🆕§5.3 `O-527`（2026-09-16）＝「あなたの【トラップ】１つを〜してもよい。**そうした場合**、デッキの上からN枚見て、1枚を【トラップ】として設置し、残りをデッキの一番下」。
+  //   🔴parser 出力は ①`WXEX2-15-E1`＝設置（`PLACE_TRAP_FROM_REVEALED`）が「そうした場合」の**外**に出ていた
+  //   ②`WXEX1-13-E1`＝`TRAP_TO_HAND` の後に「そうした場合」のゲートが**無かった**＝どちらも【トラップ】が無くても設置まで走った。
+  //   ⇒ 原文を読み直し、帰結を `CONDITIONAL{IS_MY_TURN}`（did-it ゲート）の then に入れた。空振りは `TRAP_OP`／`TRAP_TO_HAND` の `doneFailed` が伝える。
+  "WXEX2-15": [
+    {"effectId":"WXEX2-15-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRAP_OP","trapOp":"activate"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"PLACE_TRAP_FROM_REVEALED","placeTrapReveal":{"revealCount":3}}}]}},
+  ],
+  "WXEX1-13": [
+    {"effectId":"WXEX1-13-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"any_opp","duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_ACTIVATE"},{"type":"STUB","id":"TRAP_TO_HAND","trapToHand":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom"}}}]}},
+  ],
 };
 
 
