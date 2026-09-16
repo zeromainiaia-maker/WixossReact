@@ -85214,6 +85214,65 @@ test('§5.3 O-408: ライフクロスの移動保護に消費地点がある（�
   }
 }));
 
+// ═══ §5.3 `O-524`／`O-526`（2026-09-16）＝round6 試行（原文 × 実行結果）で出た2件 ═══
+test('§5.3 O-524: 場が満杯なら「場に出す」カードは元の領域に残る（消滅しない）', () => withSavedCursor(() => {
+  // 🔴`applyDirectAction` の `ADD_TO_FIELD` が**取り除いた後で**空きゾーンを数え、その盤面を確定させていた
+  //   ＝ログに「空きシグニゾーンなし」と出るのにカードがどこにも無くなる（汎用盤面で 132効果）。
+  const zones = (st: PlayerState) => [...st.deck, ...st.hand, ...st.trash, ...st.energy,
+    ...st.field.signi.flatMap(z => z ?? [])];
+  const full = [SIGNI, SIGNI_P3000, SIGNI_L1];
+  // ① トラッシュから
+  const revive = fresh();
+  const c1 = mkCtx({ signi: full, trash: 0 }, {});
+  c1.ownerState = { ...c1.ownerState, trash: [revive] };
+  const before1 = zones(c1.ownerState).length;
+  const r1 = run({ type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, c1);
+  eq((r1.ownerState as PlayerState).trash.includes(revive), true, '🔴場が満杯なのにトラッシュから消えた');
+  eq(zones(r1.ownerState as PlayerState).length, before1, '🔴カード総数が減った（消滅）');
+  ok(r1.logs.some(l => l.includes('空きシグニゾーンなし')), '置けなかったことはログに残す');
+  // ② デッキから
+  const top = fresh();
+  const c2 = mkCtx({ signi: full, deckTop: [top] }, {});
+  const deckLen = c2.ownerState.deck.length;
+  const r2 = run({ type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction, c2);
+  eq((r2.ownerState as PlayerState).deck.length, deckLen, '🔴場が満杯なのにデッキから消えた');
+  // ③ 空き1つで2体出す＝1体目は場、2体目はトラッシュに残る（`WX22-001-E1` の形）
+  const a = fresh(), b = fresh();
+  const c3 = mkCtx({ signi: [SIGNI, SIGNI_P3000, null], trash: 0 }, {});
+  c3.ownerState = { ...c3.ownerState, trash: [a, b] };
+  const before3 = zones(c3.ownerState).length;
+  const r3 = run({ type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 2, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, c3);
+  const st3 = r3.ownerState as PlayerState;
+  eq(st3.field.signi.filter(z => z && z.length > 0).length, 3, '1体目は空きゾーンに出る');
+  eq(st3.trash.filter(x => x === a || x === b).length, 1, '🔴2体目がトラッシュから消えた');
+  eq(zones(st3).length, before3, '🔴カード総数が減った（消滅）');
+}));
+
+test('§5.3 O-524: WXK02-035-E2 は場が満杯なら「場に出さない場合、トラッシュ」へ進む', () => withSavedCursor(() => {
+  // 🔴置けなかったカードが `lastProcessedCards` に残ると、後続の「場に出さない場合」が偽になり
+  //   チェックゾーンに取り残される（round6 の再トレースで唯一残った形）。
+  const eff = effectsMap.get('WXK02-035')!.find(e => e.effectId === 'WXK02-035-E2')!;
+  const bottom = fresh();
+  const c = mkCtx({ signi: [SIGNI, SIGNI_P3000, SIGNI_L1] }, {}, 'WXK02-035');
+  c.ownerState = { ...c.ownerState, deck: [...c.ownerState.deck, bottom] };
+  const r = run(eff.action as EffectAction, c);
+  const st = r.ownerState as PlayerState;
+  eq(st.trash.includes(bottom), true, '🔴場に出せなかったカードがトラッシュへ行かない');
+  eq((st.field.check_rest ?? []).includes(bottom) || st.field.check === bottom, false, '🔴チェックゾーンに取り残された');
+}));
+
+test('§5.3 O-526: デッキの一番下を削る MILL はログも「一番下から」', () => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck = [SIGNI_L1, SIGNI_L2, SIGNI_L3]; ctx.ownerState.trash = [];
+  const r = run({ type: 'MILL', owner: 'self', count: 1, fromBottom: true }, ctx);
+  ok(r.logs.some(l => l.includes('デッキの一番下から1枚をトラッシュに置いた')), '🔴一番下を削ったのにログが「デッキ上から」');
+  ok(!r.logs.some(l => l.includes('デッキ上から')), '🔴「デッキ上から」と書いている');
+  const r2 = run({ type: 'MILL', owner: 'self', count: 1 }, mkCtx({ deckTop: [SIGNI_L1] }, {}));
+  ok(r2.logs.some(l => l.includes('デッキ上から1枚をトラッシュに置いた')), '上から削る形は従来の文言');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

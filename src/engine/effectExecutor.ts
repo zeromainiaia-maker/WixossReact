@@ -4586,7 +4586,9 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     return result;
   }
   // 即時配置完了（空きゾーン1つ/空きなし）→ 残りを継続
-  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
+  // 🆕§5.3 `O-524`＝`lastProcessedCards` も引き継ぐ（空きなしで置けなかったカードは
+  //   `applyDirectAction` が外している＝落とすと後続の「場に出さない場合」が偽になる・`WXK02-035-E2`）。
+  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards ?? ctx.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
 }
 
 // 効果によって場に出したシグニの発生源（sourceCardNum）を記録する（出自条件 THIS_CARD_PLACED_BY_CLASS 用・WX26-CP1-048）。
@@ -10431,7 +10433,8 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
   const updatedCtx = setOwnerState(a.owner, newState, ctx);
   return done(addLog(
     { ...updatedCtx, lastProcessedCards: a.appendLastProcessed ? [...(ctx.lastProcessedCards ?? []), ...milled] : milled },
-    `デッキ上から${actual}枚をトラッシュに置いた`
+    // §5.3 `O-526`＝一番下を削る形（`WXK03-040-E1`）はログも分ける。
+    `${a.fromBottom ? 'デッキの一番下から' : 'デッキ上から'}${actual}枚をトラッシュに置いた`
   ));
 }
 
@@ -13912,6 +13915,29 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
             blockedDF, ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum)));
         }
       }
+      // 空きゾーン判定。🔴§5.3 `O-524`（2026-09-16）＝**元の領域から取り除く前**に判定し、
+      //   置けないときは `ctx` を変えずにログだけ残す（取り除いた後の盤面を確定させると
+      //   カードがどこにも無くなる＝場が満杯だと「場に出す」カードが消えていた・132効果）。
+      //   置けなかったカードは `lastProcessedCards` からも外す＝後続の「場に出さない場合」
+      //   （`LAST_PROCESSED_COUNT_GTE` の else）が偽にならないように（`WXK02-035-E2`）。
+      const notPlacedCtx: ExecCtx = ctx.lastProcessedCards?.includes(cardNum)
+        ? { ...ctx, lastProcessedCards: ctx.lastProcessedCards.filter(n => n !== cardNum) }
+        : ctx;
+      let emptyZones = state.field.signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+      // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出す」（`WXDi-P15-079-E1`）。
+      //   ⚠ゾーン選択UIは `src/screens/` の管轄で全空きゾーンを見せるので、**ここで1ゾーンに畳んで**
+      //     自動配置へ倒す（ゲートが複数空いていても先頭を使う＝過剰許容を作らない側）。
+      if ((action as AddToFieldAction).gateZoneOnly) {
+        const gateZs = state.own_gate_zones ?? [];
+        emptyZones = emptyZones.filter(z => gateZs.includes(z.i)).slice(0, 1);
+        if (emptyZones.length === 0) {
+          return done(addLog(notPlacedCtx,
+            `【ゲート】のある空きシグニゾーンがない（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+        }
+      }
+      if (emptyZones.length === 0) {
+        return done(addLog(notPlacedCtx, `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+      }
       let newS = { ...state };
       const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
       // 🆕§5.3 `O-60` 第43バッチ＝**出所が明示されているならそれを優先して抜く**（`WXK02-035-E2`）。
@@ -13968,21 +13994,6 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const signi = [...newS.field.signi] as (string[] | null)[];
-      let emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
-      // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出す」（`WXDi-P15-079-E1`）。
-      //   ⚠ゾーン選択UIは `src/screens/` の管轄で全空きゾーンを見せるので、**ここで1ゾーンに畳んで**
-      //     自動配置へ倒す（ゲートが複数空いていても先頭を使う＝過剰許容を作らない側）。
-      if ((action as AddToFieldAction).gateZoneOnly) {
-        const gateZs = newS.own_gate_zones ?? [];
-        emptyZones = emptyZones.filter(z => gateZs.includes(z.i)).slice(0, 1);
-        if (emptyZones.length === 0) {
-          return done(addLog(setOwnerState(owner, newS, ctx),
-            `【ゲート】のある空きシグニゾーンがない（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
-        }
-      }
-      if (emptyZones.length === 0) {
-        return done(addLog(setOwnerState(owner, newS, ctx), `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
-      }
       if (emptyZones.length >= 2 && (owner === 'self' || owner === 'opponent')) {
         const ctxAfterRemove = setOwnerState(owner, newS, ctx);
         return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}),
