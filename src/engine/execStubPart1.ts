@@ -17,8 +17,9 @@ import {
   isOwnTrashMoveLocked,
   fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
   resolveHandCardPick, handCardPickLabel, resolveFrontOfSelfCardNum,
+  isImmovableArtsFromLrigDeck,
 } from './execUtils';
-import { cloneAcceSlots } from '../utils/acce';
+import { allAcceCards, cloneAcceSlots } from '../utils/acce';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
@@ -64,6 +65,8 @@ function exileArtsFromLrigDeckCandidates(
   return (ctx.ownerState.lrig_deck ?? []).filter(n => {
     const card = ctx.cardMap.get(getCardNum(n));
     if (card?.Type !== 'アーツ') return false;
+    // §5.3 `O-423`＝「あなたのコストや効果でルリグデッキから移動しない」アーツは候補から外す。
+    if (isImmovableArtsFromLrigDeck(n, ctx.cardMap)) return false;
     const total = parseEnergyCosts(card.Cost ?? '').reduce((sum, e) => sum + e.count, 0);
     return total >= min;
   });
@@ -351,6 +354,13 @@ export function execStubPart1(
         ? lrigCandsSTO
         : fieldCandidates(state, selectFilter, ctx.cardMap, ctx.effectivePowers);
     if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigCandsSTO.length > 0) cands = [...lrigCandsSTO, ...cands];
+    // 🆕**§5.3 `O-466`（2026-09-16）＝「シグニゾーンからカード1枚を対象とし」＝シグニ本体＋【アクセ】。**
+    //   ⚠**実行側（`execTrash` の SIGNI 分岐の `includeAcce`）と対で入れること**＝宣言と実行で
+    //     候補がズレると「選んだのに動かない」になる（このファイルの `TRASH_CARD` 分岐と同じ規約）。
+    if (tgt.includeAcce) {
+      const acceOwnersSTO: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner as Owner];
+      for (const o of acceOwnersSTO) cands = [...cands, ...allAcceCards(ownerState(o, ctx).field)];
+    }
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
     }
@@ -870,7 +880,9 @@ export function execStubPart1(
     const cost = stub.trashArtsFromLrigDeck;
     if (!cost) return done(addLog(ctx, 'ルリグデッキのアーツコストを支払えない'));
     const candidates = ctx.ownerState.lrig_deck.filter(n =>
-      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), cost));
+      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), cost)
+      // §5.3 `O-423`＝「あなたのコストや効果でルリグデッキから移動しない」アーツは徴収できない。
+      && !isImmovableArtsFromLrigDeck(n, ctx.cardMap));
     const action: StubAction = {
       type: 'STUB', id: 'INTERNAL_TRASH_SELECTED_ARTS_FROM_LRIG_DECK',
     };
@@ -1403,6 +1415,24 @@ export function execStubPart1(
       const placeUnderStub: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI' };
       return selectOrInteract(candidatesPCUS, 1, false, 'self_field', placeUnderStub, undefined, ctx);
     }
+    // 🆕**§5.3 `O-507`（2026-09-16）＝「あなたの手札とエナゾーンからカードを合計N枚までこのシグニの下に置く」**
+    //   （`WX24-P4-046-E1`）。🔴旧 live は `mode:'processed'` だけで、**直前に処理したカードが無い**
+    //   （アタックフェイズ開始時トリガーで何も処理していない）ため**恒久 no-op** だった。
+    // 🔑候補は**手札とエナゾーンを跨いだ単一プール**（内訳は選ぶ側が決める）＝`HAND_OR_ENERGY_CARD` と同じ規約。
+    //   選んだ札は `lastProcessedCards` に載るので、実配置は下の `processed` 分岐へ委譲する。
+    if (specPCUS.mode === 'hand_and_energy' && srcPCUS) {
+      if (ctx.ownerState.field.signi.findIndex(st => st?.at(-1) === srcPCUS) < 0) {
+        return done(addLog(ctx, 'このシグニが場にいない'));
+      }
+      const candsHEU = [...ctx.ownerState.hand, ...ctx.ownerState.energy];
+      if (candsHEU.length === 0) return done(addLog(ctx, '手札とエナゾーンにカードがない'));
+      const wantHEU = specPCUS.count ?? 1;
+      const placeHEU: StubAction = {
+        type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'processed' },
+      };
+      return selectOrInteract(candsHEU, Math.min(wantHEU, candsHEU.length), specPCUS.upTo ?? false,
+        'self_hand_energy', placeHEU as EffectAction, undefined, ctx);
+    }
     // 「直前に処理したカードをこのシグニの下に置く」パターン（lastProcessedCardsを使用）
     if (specPCUS.mode === 'processed' && ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0 && srcPCUS) {
       const targetZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
@@ -1410,9 +1440,13 @@ export function execStubPart1(
       const newSigniPCUS = [...ctx.ownerState.field.signi] as (string[] | null)[];
       const currentStackPCUS = newSigniPCUS[targetZonePCUS] ?? [];
       newSigniPCUS[targetZonePCUS] = [...ctx.lastProcessedCards, ...currentStackPCUS];
+      // 🆕§5.3 `O-507`＝元の領域から抜く。旧実装は**トラッシュだけ**を見ており、
+      //   手札／エナから来た札を下に置くと**同じ札が2箇所に居る**（複製）ことになる。
       const newOwnerPCUS: PlayerState = {
         ...ctx.ownerState,
         trash: ctx.ownerState.trash.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
+        hand: ctx.ownerState.hand.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
+        energy: ctx.ownerState.energy.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
         field: { ...ctx.ownerState.field, signi: newSigniPCUS },
       };
       return done(addLog({ ...ctx, ownerState: newOwnerPCUS },
@@ -4336,8 +4370,9 @@ export function execStubPart1(
     const artsInDeck = lrigDeck.filter(cn => {
       const c = ctx.cardMap.get(cn);
       if (c?.Type !== 'アーツ') return false;
-      const effs = parseCardEffects(c);
-      return !effs.some(e => e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' && (e.action as StubAction).id === 'ARTS_IMMOVABLE');
+      // 🔴§5.3 `O-423`（2026-09-16）＝旧判定は「`CONTINUOUS` のトップレベル STUB」だけを見ており、
+      //   live 5効果は全部 `ACTIVATED` の `SEQUENCE` の中＝**1枚も当たらない死んだ枝**だった。
+      return !isImmovableArtsFromLrigDeck(cn, ctx.cardMap);
     });
     if (artsInDeck.length === 0) return done(addLog(ctx, 'ルリグデッキにアーツなし'));
     const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };

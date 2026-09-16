@@ -130,6 +130,7 @@ import {
   EMPTY_RISE_SELECTION, canPayRiseField, findRiseFieldAssignment, riseConsumedZones, validateRiseField,
 } from '../src/screens/battle/riseSummon';
 import { fieldCandidatesByOwner } from '../src/engine/execUtils';
+import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction, ignoresLrigTypeForGrow, freeGrowAppliesTo } from '../src/screens/battle/growLogic';
@@ -9849,7 +9850,10 @@ test('O-60⑥ parser: PLACE_CARD_UNDER_SIGNI は placeUnder で置くものを�
   eq(one('WX25-CP1-083-E1')?.mode, 'craft', 'クラフト生成');
   eq(one('WX25-CP1-083-E1')?.craftName, '給食推進車両', '🔴クラフト名を payload が運ぶ（旧実装は全文 regex から読んだ）');
   eq(one('WXDi-P03-057-E1')?.mode, 'self_under_other', 'このシグニ自身を他のシグニの下へ');
-  eq(one('WX24-P4-046-E1')?.mode, 'processed', '直前に処理したカードを下へ');
+  // 🆕**§5.3 `O-507`（2026-09-16）＝`WX24-P4-046-E1` は `processed` から `hand_and_energy` へ。**
+  //   🔴`processed` は「直前に処理したカード」＝アタックフェイズ開始時トリガーでは常に0枚＝恒久 no-op だった。
+  eq(one('WX24-P4-046-E1')?.mode, 'hand_and_energy', '手札とエナゾーンから合計3枚まで');
+  eq((one('WX24-P4-046-E1') as { count?: number } | undefined)?.count, 3, '🔴枚数が落ちている');
   // 🆕§5.3 `O-81`（2026-08-26）＝「裏向きで付ける」は受け皿ができたので**この STUB から完全に抜けた**。
   eq(found.filter(x => (x.v as { mode?: string } | undefined)?.mode === 'charm_facedown').length, 0,
     '🔴charm_facedown モードは live に0（ATTACH_FACEDOWN_FROM_HAND へ移行済み）');
@@ -17391,13 +17395,15 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
     'SPDi43-27-E2', 'WD16-010-E1', 'WX06-CB02-E2', 'WX11-018-E1', 'WX17-002-E4', 'WX17-042-E2',
     'WX17-069-E1', 'WX25-P1-TK3-E1', 'WXDi-P03-025-E1', 'WXDi-P09-065-E1', 'WXDi-P09-067-E1',
     'WXK09-039-E2', 'WXK11-061-E1',
+    // 🆕**§5.3 `O-434`（2026-09-16）＝`PR-257-sub-E3`「その後、対戦相手の手札を見て」を足した。**
+    'PR-257-E1',
   ].sort();
   const handToDeckSpecs = new Map([
     ['WDK05-R01-E2', 2], ['WDK05-R14-E1', 1], ['WDK05-R17-E1', 1],
     ['WXK02-089-E1', 2], ['WXK05-025-E1', 2],
   ]);
 
-  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧13効果だけ', () => {
+  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧14効果だけ', () => {
     const actual: string[] = [];
     for (const effects of effectsMap.values()) for (const effect of effects) {
       const hits = walkActions(effect.action, a => a.type === 'LOOK_AND_REORDER'
@@ -84680,6 +84686,106 @@ test('§5.3 O-520 / O-487: 受け皿は既に在る（登録票を再発行し�
     mkState({ signi: ['WX20-044-CB', null, null] }), effectsMap, cardMap as Map<string, CardData>, 'MAIN');
   eq(JSON.stringify(opts['WX20-044-CB'] ?? []), JSON.stringify([1, 2, 3]),
     '🔴単一値へ潰れている＝【英知＝６】【７】【８】のどれかしか満たせない');
+}));
+
+
+test('§5.3 O-423: 「あなたのコストや効果でルリグデッキから移動しない」アーツは徴収・除外の候補に出ない', () => withSavedCursor(() => {
+  // 🔴旧判定は「`effectType==='CONTINUOUS'` のトップレベル `STUB{ARTS_IMMOVABLE}`」しか探しておらず、
+  //   live 5効果は**全部 `ACTIVATED` の `SEQUENCE` の中**＝**1枚も当たらない死んだ枝**だった。
+  const immovable = ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5'];
+  for (const cn of immovable) {
+    ok(isImmovableArtsFromLrigDeck(cn, cardMap as Map<string, CardData>),
+      `🔴${cn}: 宣言が SEQUENCE の中にあると判定が当たらない（旧実装の死んだ枝）`);
+  }
+  const plainArts = findCard(c => c.Type === 'アーツ' && !/ルリグデッキから他の領域に移動しない/.test(c.EffectText ?? ''));
+  ok(!isImmovableArtsFromLrigDeck(plainArts, cardMap as Map<string, CardData>), '普通のアーツまで守ってはいけない');
+  // 消費地点＝自分の効果でルリグデッキのアーツを除外する経路は候補0で降りる。
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, lrig_deck: ['WX25-P1-TK1'] } } as ExecCtx;
+  const action = { type: 'EXILE', target: { type: 'LRIG_DECK_CARD', owner: 'self', count: 1 } } as unknown as EffectAction;
+  const r = executeAction(action, ctx);
+  ok(r.done, '🔴移動しないアーツなのに選択が始まった');
+  eq((r.ownerState.excluded ?? []).length, 0, '🔴移動しないアーツが除外された');
+}));
+
+test('§5.3 O-422 / O-434: 落ちていた1ステップ（絆の獲得／相手の手札を見る）', () => withSavedCursor(() => {
+  // O-422＝「好きな生徒１人との絆を獲得する」＝`GAIN_BOND{source:'declared'}`（【絆】能力のゲートが読む）。
+  const bond = mergeManualEffects('WX25-CP1-035', effectsMap.get('WX25-CP1-035') ?? [])
+    .find(e => e.effectId === 'WX25-CP1-035-E1')!;
+  const bondSteps = (bond.action as SequenceAction).steps as unknown as Array<{ type: string; source?: string }>;
+  eq(bondSteps.at(-1)?.type, 'GAIN_BOND', '🔴絆の獲得が落ちる＝このピースはデッキを掘るだけになる');
+  eq(bondSteps.at(-1)?.source, 'declared', '🔴カード名の宣言（declared）でないと【絆】能力が有効化されない');
+  // O-434＝「その後、対戦相手の手札を見て、宣言したカードをすべて捨てさせる」の「見る」。
+  const grant = mergeManualEffects('PR-257', effectsMap.get('PR-257') ?? [])
+    .find(e => e.effectId === 'PR-257-E1')!;
+  const sub = (grant.action as unknown as { abilities: CardEffect[] }).abilities
+    .find(e => e.effectId === 'PR-257-sub-E3')!;
+  const subSteps = (sub.action as SequenceAction).steps as unknown as Array<{ type: string; id?: string; source?: { location?: string; owner?: string } }>;
+  eq(JSON.stringify(subSteps.map(x => x.id ?? x.type)),
+    JSON.stringify(['DECLARE_CARD_NAME', 'LOOK_AND_REORDER', 'TRASH']),
+    '🔴宣言 → 手札を見る → 捨てさせる の順になっていない');
+  eq(subSteps[1].source?.owner, 'opponent', '🔴見るのは対戦相手の手札');
+}));
+
+test('§5.3 O-507: 「手札とエナゾーンから合計3枚まで」をこのシグニの下に置く', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WX24-P4-046', effectsMap.get('WX24-P4-046') ?? [])
+    .find(e => e.effectId === 'WX24-P4-046-E1')!;
+  const pu = (eff.action as unknown as { placeUnder?: { mode?: string; count?: number; upTo?: boolean } }).placeUnder;
+  eq(pu?.mode, 'hand_and_energy',
+    "🔴mode:'processed' に戻っている＝直前に処理したカードが無い（アタックフェイズ開始時）ので恒久 no-op");
+  eq(pu?.count, 3, '合計3枚');
+  // 挙動①＝候補は手札とエナを跨いだ単一プール。
+  const host = findCard(c => c.Type === 'シグニ');
+  const base = mkCtx({ signi: [host, null, null], hand: 2, energy: 2 }, {}, host);
+  const r = executeAction(eff.action as EffectAction, base);
+  ok(!r.done, '🔴選択が始まらない（恒久 no-op のまま）');
+  const pending = (r as { pending: { candidates?: string[] } }).pending;
+  eq((pending.candidates ?? []).length, 4, '🔴手札2＋エナ2＝4枚が同じプールに出ていない');
+  // 挙動②＝選んだ札は元の領域から抜けて下へ入る（複製しない）。
+  const picks = [base.ownerState.hand[0], base.ownerState.energy[0]];
+  const placed = executeAction(
+    { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'processed' } } as unknown as EffectAction,
+    { ...base, lastProcessedCards: picks } as ExecCtx);
+  ok(!placed.ownerState.hand.includes(picks[0]), '🔴手札に残ったまま下にも置かれる＝複製');
+  ok(!placed.ownerState.energy.includes(picks[1]), '🔴エナに残ったまま下にも置かれる＝複製');
+  eq((placed.ownerState.field.signi[0] ?? []).length, 3, '🔴2枚が下に入っていない');
+}));
+
+test('§5.3 O-454: 「合計3回行う。そうした場合」＝3枚払えなければ発生しない', () => withSavedCursor(() => {
+  const c0 = liveChoiceAction('WXDi-P05-003', 'WXDi-P05-003-E1', 0);
+  const steps = (c0 as SequenceAction).steps as unknown as Array<{ type: string; target?: { type?: string; count?: number; extraZones?: string[] }; condition?: { type: string; value?: number } }>;
+  eq(steps[0].type, 'TRASH', '支払いは手札とエナの単一プール');
+  eq(steps[0].target?.count, 3, '合計3枚');
+  eq(JSON.stringify(steps[0].target?.extraZones ?? []), JSON.stringify(['energy']),
+    '🔴エナが払えない＝原文の「エナゾーンからカード1枚をトラッシュに置く」肢が消える');
+  eq(steps[1].condition?.type, 'LAST_PROCESSED_COUNT_GTE',
+    '🔴CONDITIONAL{IS_MY_TURN} に戻っている＝REPEAT は did-it ゲートに入らず**常時成立**する');
+  eq(steps[1].condition?.value, 3, '🔴「3回できたか」でなければ1枚でも通ってしまう');
+  // 挙動＝手札1・エナ1（合計2）ではゲートが成立しない。
+  const base = mkCtx({ hand: 1, energy: 1 }, { lrig: [findCard(c => c.Type === 'ルリグ')] });
+  const picked = [base.ownerState.hand[0], base.ownerState.energy[0]];
+  const gate = executeAction(steps[1] as unknown as EffectAction,
+    { ...base, lastProcessedCards: picked } as ExecCtx);
+  eq((gate.otherState.negated_attack_lrigs ?? []).length, 0,
+    '🔴2枚しか払えていないのにアタック無効が通った');
+}));
+
+test('§5.3 O-466: 「シグニゾーンにある表向きのカード」＝シグニ本体＋【アクセ】', () => withSavedCursor(() => {
+  const eff = mergeManualEffects('WDK13-001', effectsMap.get('WDK13-001') ?? [])
+    .find(e => e.effectId === 'WDK13-001-E3')!;
+  const tgt = (eff.action as unknown as { target?: { includeAcce?: boolean } }).target;
+  ok(tgt?.includeAcce, '🔴シグニ本体だけ＝表向きで置かれている【アクセ】が残る（原文より弱い）');
+  // 挙動＝相手のシグニ1体＋その【アクセ】1枚が両方トラッシュへ。
+  const victim = findCard(c => c.Type === 'シグニ');
+  const acce = findCard(c => c.Type === 'シグニ' && /アクセ/.test(c.EffectText ?? ''));
+  const base = mkCtx({}, { signi: [victim, null, null] });
+  const ctx = { ...base, otherState: { ...base.otherState,
+    field: { ...base.otherState.field, signi_acce: [[acce], null, null] } } } as ExecCtx;
+  const r = executeAction(eff.action as EffectAction, ctx);
+  ok(r.done, 'count:ALL は一括適用');
+  ok(r.otherState.trash.includes(victim), '🔴シグニ本体が落ちていない');
+  ok(r.otherState.trash.includes(acce), '🔴【アクセ】が残っている');
+  eq((r.otherState.field.signi_acce ?? [])[0], null, '🔴アクセ枠が空になっていない');
 }));
 
 

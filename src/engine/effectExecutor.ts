@@ -12,7 +12,7 @@ import {
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy, energyCandidatesForOwner,
-  movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
+  movableTrashCandidates, oppZoneMoveBlocked, isOwnTrashMoveLocked, isImmovableArtsFromLrigDeck, hasNoAbility, lrigZoneTops, designatedZones,
   deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
   trapIconEffectOf, resolveFrontOfSelfCardNum,
@@ -34,7 +34,7 @@ import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbi
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { effectiveLrigClass, meetsRestriction } from '../screens/battle/growLogic';
 import { collectReturnableAssistLrigTops } from './assistLrig';
-import { acceCardsAt, cloneAcceSlots } from '../utils/acce';
+import { acceCardsAt, allAcceCards, cloneAcceSlots, normalizeAcceSlot } from '../utils/acce';
 import { diffEnergyPlacements, recordEnergyPlacements } from './energyPlacement';
 
 // いま**アタックを宣言していてバトル未解決**のシグニ（`pending_signi_battle` のゾーン頂点）。無ければ undefined。
@@ -2259,6 +2259,9 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     const cands = state.lrig_deck.filter(n => {
       const card = ctx.cardMap.get(getCardNum(n));
       if (!card) return false;
+      // 🆕§5.3 `O-423`（2026-09-16）＝「このアーツは**あなたの**、コストや効果でルリグデッキから
+      //   他の領域に移動しない」＝自分の効果による除外だけを止める（相手の効果は原文が禁じていない）。
+      if (tgt.owner === 'self' && isImmovableArtsFromLrigDeck(n, ctx.cardMap)) return false;
       if (tgt.filter?.cardType) {
         const wanted = Array.isArray(tgt.filter.cardType) ? tgt.filter.cardType : [tgt.filter.cardType];
         if (!wanted.some(t => card.Type.includes(t))) return false;
@@ -2954,6 +2957,14 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     if (tgt.extraZones?.includes('energy')) {
       cands = [...cands, ...energyCandidatesForOwner(tgt.owner, state, trashFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)];
     }
+    // 🆕**§5.3 `O-466`（2026-09-16）＝「シグニゾーンにある表向きのカード」＝シグニ本体＋【アクセ】。**
+    //   ⚠**適用側（`applyDirectAction` の TRASH/SIGNI 分岐）にも同じ分岐が要る**（`extraZones` と同じ規律）。
+    if (tgt.includeAcce) {
+      const acceOwners: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner as Owner];
+      for (const o of acceOwners) {
+        cands = [...cands, ...allAcceCards(ownerState(o, ctx).field)];
+      }
+    }
     // SELF_TRASH_PREVENT（WX07-033・§6.1）: 自分（owner:self）の効果で自シグニをトラッシュに置く場合、
     // 「自分でトラッシュに置けない」シグニを候補から除外する（相手効果によるトラッシュは対象外）。
     if (tgt.owner === 'self' && ctx.ownSelfTrashPreventNums && ctx.ownSelfTrashPreventNums.size > 0) {
@@ -2969,6 +2980,21 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const trashedPuppet = selected.some(n => (before.field.puppet_signi ?? []).includes(n));
       let cur = c;
       for (const num of selected) {
+        // 🆕**§5.3 `O-466`（2026-09-16）＝選ばれた札が【アクセ】だった場合**（一括適用パス）。
+        //   ⚠**離場置換は通さない**（場を離れるのではなく装着が外れる）＝エナ側の `extraZones` と同じ扱い。
+        if (tgt.includeAcce) {
+          const sAcc = ownerState(tgt.owner, cur);
+          const ziAcc = (sAcc.field.signi_acce ?? []).findIndex(slot => (normalizeAcceSlot(slot) ?? []).includes(num));
+          if (ziAcc >= 0) {
+            const slotsAcc = cloneAcceSlots(sAcc.field);
+            const restAcc = (normalizeAcceSlot(slotsAcc[ziAcc]) ?? []).filter(n => n !== num);
+            slotsAcc[ziAcc] = restAcc.length > 0 ? restAcc : null;
+            cur = addLog(setOwnerState(tgt.owner, {
+              ...sAcc, trash: [...sAcc.trash, num], field: { ...sAcc.field, signi_acce: slotsAcc },
+            }, cur), `${cur.cardMap.get(getCardNum(num))?.CardName ?? num}を【アクセ】からトラッシュへ`);
+            continue;
+          }
+        }
         const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
         cur = sub.ctx;            // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
         if (sub.replaced) continue;
@@ -3072,7 +3098,19 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     //   直前の公開/選択カード）を候補に効かせる。従来はここだけ無視しており、
     //   相手の手札を1枚公開してから「それを捨てる」効果が**無関係な任意の1枚**を捨てさせていた。
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
-    const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
+    // 🆕**§5.3 `O-454`（2026-09-16）＝「『エナゾーンからカード１枚をトラッシュに置く。』か
+    //   『手札を１枚捨てる。』を**合計３回**行う」（`WXDi-P05-003-E1`）＝手札とエナを跨いだ**単一プール**。**
+    // 🔑`SIGNI` 分岐の `extraZones`（§5.3 `O-280`）と同じ規約＝**1回の選択で両ゾーンを跨ぐ**
+    //   （片方ずつ数えると「エナ3＋手札3」のように合計が壊れる）。
+    // ⚠**適用側（`applyDirectAction` の TRASH/HAND_CARD 分岐）にも同じ分岐が要る**＝
+    //   片方だけだと「選ばせるのに何も起きない」無言 no-op になる。
+    const handAlsoEnergy = tgt.extraZones?.includes('energy') === true;
+    if (handAlsoEnergy) {
+      cands = [...cands, ...energyCandidatesForOwner(tgt.owner, state, handFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)];
+    }
+    const scope: TargetScope = handAlsoEnergy
+      ? (tgt.owner === 'self' ? 'self_hand_energy' : 'opp_hand_energy')
+      : (tgt.owner === 'self' ? 'self_hand' : 'opp_hand');
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
@@ -3080,13 +3118,22 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         return addLog(c, '手札保護により効果なし');
       }
       const remaining = [...s.hand];
-      const toTrash: string[] = [];
+      const remainingEnergy = [...s.energy];
+      const fromHand: string[] = [];
+      const fromEnergy: string[] = [];
       for (const n of selected) {
         const idx = remaining.indexOf(n);
-        if (idx >= 0) { remaining.splice(idx, 1); toTrash.push(n); }
+        if (idx >= 0) { remaining.splice(idx, 1); fromHand.push(n); continue; }
+        // 🆕§5.3 `O-454`＝`extraZones:['energy']` の単一プールで選ばれたエナ札（一括適用パス）。
+        // ⚠**手札由来の札とは別に数える**＝`hand_discarded_just` 等の「手札を捨てた」系の state に
+        //   エナ札を混ぜると `ON_HAND_DISCARDED` が誤発火する。
+        if (!handAlsoEnergy) continue;
+        const ei = remainingEnergy.indexOf(n);
+        if (ei >= 0) { remainingEnergy.splice(ei, 1); fromEnergy.push(n); }
       }
+      const toTrash = fromHand;
       const newS: PlayerState = {
-        ...s, hand: remaining, trash: [...s.trash, ...toTrash],
+        ...s, hand: remaining, energy: remainingEnergy, trash: [...s.trash, ...fromHand, ...fromEnergy],
         // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
         hand_discarded_just: toTrash.length > 0 ? [...(s.hand_discarded_just ?? []), ...toTrash] : s.hand_discarded_just,
         // 相手側に捨てさせた＝その相手から見れば「対戦相手の効果によって」（byOwnEffect の否定材料）
@@ -3102,7 +3149,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
           ? (s.hand_trashed_by_opp_this_turn ?? 0) + toTrash.length : s.hand_trashed_by_opp_this_turn,
       };
       return addLog(setOwnerState(tgt.owner, newS, c),
-        `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
+        `${handAlsoEnergy ? '手札／エナゾーン' : '手札'}から${[...fromHand, ...fromEnergy].map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
     if (tgt.count === 'ALL') {
       // 「好きな枚数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全捨てにしない）。
@@ -13452,6 +13499,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンからトラッシュへ`));
           }
         }
+        // 🆕**§5.3 `O-466`（2026-09-16）＝選ばれた札がシグニ本体ではなく【アクセ】だった場合。**
+        //   ⚠列挙側（`execTrash` の SIGNI 分岐の `includeAcce`）と**対で**入れること＝無言 no-op になる。
+        if (tgt.includeAcce) {
+          for (const o of ['self', 'opponent'] as Owner[]) {
+            const sa = ownerState(o, ctx);
+            const zi = (sa.field.signi_acce ?? []).findIndex(slot => (normalizeAcceSlot(slot) ?? []).includes(cardNum));
+            if (zi >= 0) {
+              const slots = cloneAcceSlots(sa.field);
+              const rest = (normalizeAcceSlot(slots[zi]) ?? []).filter(n => n !== cardNum);
+              slots[zi] = rest.length > 0 ? rest : null;
+              const newSA: PlayerState = {
+                ...sa, trash: [...sa.trash, cardNum], field: { ...sa.field, signi_acce: slots },
+              };
+              return done(addLog(setOwnerState(o, newSA, ctx),
+                `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を【アクセ】からトラッシュへ`));
+            }
+          }
+        }
         return done(ctx);
       }
       // DECK_CARD: デッキ（公開中の1枚）からトラッシュへ（LOOK_PICK_CHAIN の trash ステージ等）
@@ -13532,6 +13597,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               ? (s.hand_trashed_by_opp_this_turn ?? 0) + 1 : s.hand_trashed_by_opp_this_turn,
           };
           return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
+        }
+      }
+      // 🆕**§5.3 `O-454`（2026-09-16）＝`extraZones:['energy']` で手札とエナを跨いだ単一プールから選んだ札**
+      //   （`WXDi-P05-003-E1`）。⚠列挙側（`execTrash` の HAND_CARD 分岐）と**対で**入れること＝
+      //   片方だけだと「エナ札を選ばせるのに何も起きない」無言 no-op になる。
+      if (tgt.extraZones?.includes('energy')) {
+        for (const owner of ['self', 'opponent'] as Owner[]) {
+          const s = ownerState(owner, ctx);
+          const ei = s.energy.indexOf(cardNum);
+          if (ei >= 0) {
+            if (oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
+              return done(addLog(ctx, 'エナ保護により効果なし'));
+            }
+            const newEnergyHE = [...s.energy]; newEnergyHE.splice(ei, 1);
+            const newSHE: PlayerState = { ...s, energy: newEnergyHE, trash: [...s.trash, cardNum] };
+            return done(addLog(setOwnerState(owner, newSHE, ctx),
+              `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンからトラッシュへ`));
+          }
         }
       }
       return done(ctx);

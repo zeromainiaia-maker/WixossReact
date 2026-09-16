@@ -1,6 +1,21 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+## 2026-09-16（第368バッチ）
+🏁**直近＝2026-09-16（第368バッチ）＝索引G 10件消化＝修正8件（12効果）＋受け皿は在った2件（`O-520`／`O-487`）**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
+🔑**engine に足した受け皿は6つ**＝`OppMoveImmunityZone` に `lrig_deck`／`lrig_trash`（`O-485`）／`execChoose` が枝へ `freezeStoredTargets` を通す＋`SELECT_TARGET_ONLY` の焼き込み＋トラッシュ候補の限定＋レベル比例コストの倍率元（`O-463`）／`execTransferToDeck` の `TRASH_CARD` 側に `orderChosenBy:'opponent'` と宣言済み集合の絞り込み（`O-409`）。残りはすべて JSON（manual 7カード）と parser 2箇所・逆翻訳4箇所。
+🔴**「受け皿が無い」と書いた登録票が2件とも stale だった**＝`O-520`（「このターンにこの能力でシグニを場に出していない場合」）は `usageLimit:'once_per_turn_on_success'` が **parser から既に刻まれており**（`O-323` の規則）、`ADD_TO_FIELD` は成功判定型に入っていた／`O-487`（【英知】のレベル1・2・3扱い）は `collectAttackPhaseLevelOverrides` が**取りうるレベル群**として実装済み（payload 化は `census:enginetext` A群の1行として別管理）。⇒ **着手の1手目は登録票の grep をやり直す**（§2.1 ②）を2件とも守れていなかった。
+🔑**今回の型＝「engine は正しいのに JSON と逆翻訳が別のことを書いている」**（`O-460`＝引用能力の中の耐性が `count:'ALL'`／`O-501`＝常在のパワー修正が使用時1回の `POWER_MODIFY`）。**逆翻訳が嘘をつく箇所は原文照合がそこだけ効かない**＝engine を直さない回でも直す価値がある。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 索引G **26件**（`src/screens/` 必須・新機構・母集団の再計測が残りの中心）／**新しい母集団2桁を作る**（round6 の設計＝§5.2 の総括を読む） |
+| 📊**進捗3計器** | Sheet1 要対応 **11 / 863**（全件 mech＝**即着手可能 0**）／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist 🔥**26**（索引A 🏁**0**／索引B 🏁**0**／索引G 26＝第368バッチで10件消化）／索引H 🏁**0**／**実機 🏁0**／実装キュー 🔥**174 効果**／round5 🏁**598 / 598 バッチ（5,976枚＝100%）** |
+| 🔧**ゲート** | `npm run gates` **全緑**（golden **4235/4235**＝+9本＝今回の10件の形と挙動）。✅実機は §2.2 で不要（`src/screens/` 不触＝受け皿は engine と JSON だけ／新しい挙動は golden で網羅） |
+| 🔴**運用の決定** | 🔴**「受け皿が無い」と書いた登録票は着手時に必ず grep で測り直す**＝今回2件（`O-520`／`O-487`）が実装済みだった。⚠**実装済みを FP と呼ばない**＝「engine は正しい／JSON か逆翻訳が嘘」と「engine も正しくない」は別物で、前者は**逆翻訳を直す**のが仕事（原文照合の効く面積が広がる） |
+
+
 ## 2026-09-16（第367バッチ）
 🏁**直近＝2026-09-16（第367バッチ）＝索引G をさらに30件消化＝修正22件（42効果）＋偽陽性8件**（全文は [BUGFIXES.md](./BUGFIXES.md) / [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
 🔑**engine に足した受け皿は5つ**＝`TargetFilter.hasTeam`（シグニの【チーム】は `Team` 列ではなく能力の見出し）／`ENERGY_COUNT_FILTER.sharedClassDistinctNames`（共通するクラスを持つシグニの種類数）／`EffectTarget.includeAssistLrig`（「対戦相手の**ルリグ**」＝アシストも候補・parser が8効果に刻む）／`TRASHED_CARD_TO_HAND_OR_ENERGY` の複数枚からの選択／STUB `OPPONENT_OPTIONAL_ENERGY_CHARGE`（相手が選ぶ任意エナチャージ）。残りはすべて JSON（manual 18カード＋孤立 MANUAL の live 直し1件）。

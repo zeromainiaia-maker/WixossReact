@@ -990,7 +990,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     && (ctx.ownerState.field.signi_charms ?? []).filter(Boolean).length < spec.charmTrash) return false;
   if (spec.trashArtsFromLrigDeck) {
     const matching = ctx.ownerState.lrig_deck.filter(n =>
-      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), spec.trashArtsFromLrigDeck!));
+      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), spec.trashArtsFromLrigDeck!)
+      && !isImmovableArtsFromLrigDeck(n, ctx.cardMap));
     if (matching.length < spec.trashArtsFromLrigDeck.count) return false;
   }
   if (spec.removeOppVirus
@@ -2287,6 +2288,38 @@ export function isOwnTrashMoveLocked(owner: Owner, ctx: ExecCtx): boolean {
   if (owner !== 'self') return false;
   if (!ctx.ownerState?.lock_trash_move_this_turn) return false;
   return TRASH_LOCK_PHASES.includes(ctx.currentPhase ?? '');
+}
+
+/**
+ * 🆕**§5.3 `O-423`（2026-09-16）＝「このアーツはあなたの、コストや効果でルリグデッキから他の領域に移動しない」**
+ * （`WX25-P1-TK1`〜`TK5` のクラフト・アーツ5枚）の唯一の述語。
+ *
+ * 🔴**旧実装は死んだ枝だった**＝唯一の消費地点（`ARTS_USE_DISCARD_LRIG_DECK`）が
+ *   「`effectType==='CONTINUOUS'` の**トップレベル** `STUB{ARTS_IMMOVABLE}`」しか探しておらず、
+ *   live 5効果は**全部 `ACTIVATED` の `SEQUENCE` の中**に居た＝**1枚も当たらない**（実測 5/5）。
+ * ⇒ 宣言の置き場所を問わず、そのカードの効果 JSON を**深さ優先で全走査**して有無だけを見る。
+ *
+ * 🔑**向きは「あなたの」＝自分のコスト／効果だけ**（`owner==='self'` の経路にだけ掛ける）。
+ * ⚠**UI 側のコスト支払い（`screens/battle/artsTrashCost.ts`）はまだこの述語を通していない**＝
+ *   engine の経路（任意コスト・除外・アーツ徴収）だけを塞いである。
+ */
+export function isImmovableArtsFromLrigDeck(
+  cardNum: string | undefined, cardMap: Map<string, CardData>,
+): boolean {
+  if (!cardNum) return false;
+  const cd = cardMap.get(getCardNum(cardNum));
+  // ⚠**`Type` は完全一致で見ない**＝この5枚は `'アーツ/クラフト'`（クラフトのアーツ）。
+  //   完全一致にすると判定が1枚も当たらない（`matchesTrashArtsFromLrigDeckCost` が踏んでいるのと同じ罠）。
+  if (!cd || !cd.Type?.includes('アーツ')) return false;
+  const effs = cd.effects?.length ? cd.effects : parseCardEffects(cd);
+  const walk = (node: unknown): boolean => {
+    if (Array.isArray(node)) return node.some(walk);
+    if (!node || typeof node !== 'object') return false;
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && rec.id === 'ARTS_IMMOVABLE') return true;
+    return Object.values(rec).some(walk);
+  };
+  return walk(effs);
 }
 
 /**

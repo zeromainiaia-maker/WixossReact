@@ -1986,6 +1986,15 @@ export interface EffectTarget {
    *   cardNum のリストでゾーン非依存）。⚠デッキ／ライフは足さない（消費地点が無い）。
    */
   extraZones?: ('hand' | 'energy' | 'trash')[];
+  /**
+   * 🆕**シグニゾーンにある「表向きの装着カード」＝【アクセ】も同じプールに含める**
+   * （2026-09-16・§5.3 `O-466`・`WDK13-001-E3`「対戦相手のシグニゾーンにある**表向きのすべてのカード**を
+   * トラッシュに置く」／`WXK06-030-E1`「対戦相手のシグニゾーンから**カード**１枚を対象とし」）。
+   * 🔑**シグニ本体だけを対象にすると原文より弱い**＝【アクセ】はシグニゾーンに**表向きで**置かれる。
+   * ⚠**裏向きの装着（【チャーム】【マジックボックス】【トラップ】）は含めない**（原文が「表向き」と書く）。
+   * ⚠受け皿は `TRASH{SIGNI}` の**列挙と適用の2地点**（`extraZones` と同じ規律＝片方だけだと無言 no-op）。
+   */
+  includeAcce?: boolean;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
   actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
@@ -6284,12 +6293,18 @@ export interface StubAction {
      * `craft`＝ゲーム外からクラフトを生成して下に置く（`craftName` 必須）／
      * `self_under_other`＝**このシグニ自身**を他のシグニの下へ／
      * `processed`＝直前に処理したカード（`lastProcessedCards`）を下へ／
+     * 🆕`hand_and_energy`＝**手札とエナゾーンを跨いだ単一プール**から合計 `count` 枚を選んで下へ
+     *   （§5.3 `O-507`・`WX24-P4-046-E1`「あなたの手札とエナゾーンからカードを合計３枚まで」）。
      * ⚠**「手札から裏向きで付ける」はここではない**＝`ATTACH_FACEDOWN_FROM_HAND`（§5.3 `O-81` で実装）。
      *   旧 `charm_facedown` モードは受け皿ができたので削除した（死んだ枝は catch-all の温床）。
      */
-    mode: 'craft' | 'self_under_other' | 'processed';
+    mode: 'craft' | 'self_under_other' | 'processed' | 'hand_and_energy';
     /** `craft` のときのクラフト名（原文「クラフトの《給食推進車両》」）。 */
     craftName?: string;
+    /** `hand_and_energy` のときの枚数（原文「合計３枚まで」）。 */
+    count?: number;
+    /** `hand_and_energy` のときの「まで」（0枚も選べる）。 */
+    upTo?: boolean;
   };
   doublePowerMinus?: {
     /**

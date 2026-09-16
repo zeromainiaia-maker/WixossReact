@@ -548,6 +548,13 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     const zoneJaXZ: Record<string, string> = { hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ' };
     own = `${own}${['場', ...t.extraZones.map((z: string) => zoneJaXZ[z] ?? z)].join('か')}にある`;
   }
+  // 🆕**§5.3 `O-466`（2026-09-16）＝`includeAcce`（シグニゾーンの表向きの装着カードも含む）。**
+  //   🔴描かないと「対戦相手のすべてのシグニ」に見え、**【アクセ】も落ちる**ことが原文照合から消える。
+  //   ⚠名詞は「シグニ」ではなく**「カード」**（原文が「表向きのすべてのカード」と書く軸そのもの）。
+  if (t.includeAcce && t.type === 'SIGNI') {
+    const cntAC = t.count === 'ALL' ? 'すべてのカード' : `カード${numJa(t.count)}枚${t.upToCount ? 'まで' : ''}`;
+    return `${own}シグニゾーンにある表向きの${cntAC}`;
+  }
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
   const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
@@ -940,7 +947,12 @@ function costJa(c?: any): string {
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);
   if (c.lrigDownVariable) parts.push('アップ状態のルリグを好きな数ダウンする');
-  if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
+  // 🆕**§5.3 `O-496`（2026-09-16）＝「クラフトではない」は engine 側に**既に**在る。**
+  //   `matchesTrashArtsFromLrigDeckCost` が `Type === 'アーツ'` の**完全一致**を見るので、
+  //   `'アーツ/クラフト'`（クラフトのアーツ）は12効果すべてで候補から外れている。
+  // 🔑**逆翻訳は engine が何をするかを書く**＝原文が「クラフトではない」と書く `WXK10-006-E3` はこれで一致し、
+  //   書いていない11効果では**engine が原文より狭い**ことがこの1語で見えるようになる（`O-521` の在処）。
+  if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}クラフトではないアーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
   // 🆕§5.3 `O-201`＝出さないと `コスト:{...}` と生JSONが漏れる（`census:stubs` C群と同じ「表示の穴」）。
   if (c.trashToDeckBottom) parts.push(`トラッシュから${filterJa(c.trashToDeckBottom.filter)}カード${c.trashToDeckBottom.count}枚をデッキの一番下に置く`);
@@ -1729,7 +1741,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : '（対象がなくても後続を続行）';
       // 🆕§5.3 `O-60` 第43バッチ＝`LIFE_CLOTH_CARD`／`TRASH_CARD`／`CHECK_CARD` の名詞が空で
       //   「対戦相手のを1枚トラッシュに置く」という**ゾーンの消えた文**になっていた（`WX10-002-E2`）。
-      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ'
+      // 🆕**§5.3 `O-454`（2026-09-16）＝手札側の `extraZones`（「手札かエナゾーンから合計N枚」）。**
+      //   🔴描かないと「あなたの手札をN枚トラッシュに置く」に見え、**エナからも払える**ことが原文照合から消える。
+      const u = t?.type === 'HAND_CARD' && t.extraZones?.includes('energy') ? '手札かエナゾーンのカード（合計）'
+        : t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ'
         : t?.type === 'DECK_CARD' ? 'デッキの上からカード'
         : t?.type === 'LIFE_CLOTH_CARD' ? 'ライフクロスの一番上のカード'
         : t?.type === 'TRASH_CARD' ? 'トラッシュのカード'
@@ -5621,11 +5636,15 @@ function actionJa(a?: Action, effectType?: string): string {
       //   （旧表示の固定文「シグニの下にカードを置く」は**何を置くのかを1文字も伝えない**うえ、
       //     実際には【チャーム】の効果まで同じ文で描いていた）。
       if (a.id === 'PLACE_CARD_UNDER_SIGNI') {
-        const pu = (a as { placeUnder?: { mode: string; craftName?: string } }).placeUnder;
+        const pu = (a as { placeUnder?: { mode: string; craftName?: string; count?: number; upTo?: boolean } }).placeUnder;
         if (pu) {
           if (pu.mode === 'craft') return `クラフトの《${pu.craftName ?? '?'}》1つをこのシグニの下に置く`;
           if (pu.mode === 'self_under_other') return 'このシグニをあなたの他のシグニ1体の下に置く';
           if (pu.mode === 'charm_facedown') return '【未実装】あなたのシグニ1体を対象とし、それに手札からカード1枚を【チャーム】として裏向きで付ける';
+          // 🆕§5.3 `O-507`＝手札とエナゾーンを跨いだ単一プールから合計N枚。
+          if (pu.mode === 'hand_and_energy') {
+            return `あなたの手札とエナゾーンからカードを合計${numJa(pu.count ?? 1)}枚${pu.upTo ? 'まで' : ''}このシグニの下に置く`;
+          }
           return '直前に処理したカードをこのシグニの下に置く';
         }
         return '【※ペイロード欠落】置くものが未指定（engine は何もしない）';
