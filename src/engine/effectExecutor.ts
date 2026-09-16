@@ -8655,9 +8655,10 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   const toState    = ownerState(toOwner, ctx);
 
   if (a.perAllSigni && a.charm.type === 'DECK_CARD') {
+    // §5.3 `O-528`＝【チャーム】が既に付いているシグニには付けない（下の通常経路と同じ規則）。
     const targetZones = toState.field.signi
       .map((stack, index) => ({ stack, index }))
-      .filter(({ stack }) => stack && stack.length > 0);
+      .filter(({ stack, index }) => stack && stack.length > 0 && !toState.field.signi_charms?.[index]);
     const attachCount = Math.min(targetZones.length, charmSrc.deck.length);
     if (attachCount === 0) return done(addLog(ctx, '一斉チャーム付与対象なし'));
     const cards = charmSrc.deck.slice(0, attachCount);
@@ -8729,6 +8730,13 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     const charmHead = new Set(charmCands.slice(0, charmLimit === Number.MAX_SAFE_INTEGER ? charmCands.length : charmLimit));
     toCands = toCands.filter(n => !charmHead.has(n));
   }
+  // 🆕§5.3 `O-528`（2026-09-16 ユーザー判断＝読みA）＝**【チャーム】が既に付いているシグニは対象にできない**。
+  //   🔴旧実装は既存の `signi_charms[z]` を見ずに上書きしており、古い【チャーム】がどこにも無くなっていた
+  //   （`WX11-034-BURST`・round6 R6-0 の全数トレースで唯一残った「消滅」）。
+  toCands = toCands.filter(n => {
+    const z = toState.field.signi.findIndex(s => s?.at(-1) === n);
+    return z < 0 || !toState.field.signi_charms?.[z];
+  });
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   // ペアを i 番目どうしで対応させる（原文は「カードN枚を、シグニN体の【チャーム】にする」＝1体1枚）。

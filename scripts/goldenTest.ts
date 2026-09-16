@@ -85334,6 +85334,36 @@ test('R6-0: 相手トラッシュのカードを相手シグニの下に置く�
   eq((r0.otherState as PlayerState).trash.length, trashLen, 'シグニ不在ならトラッシュは不変');
 }));
 
+test('§5.3 O-528: 【チャーム】が既に付いているシグニには新しい【チャーム】を付けられない（読みA）', () => withSavedCursor(() => {
+  // 🔴旧実装は既存の `signi_charms[z]` を見ずに上書き＝古い【チャーム】が消えていた（`WX11-034-BURST`）。
+  const oldCharm = fresh();
+  const base = () => {
+    const c = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
+    c.otherState = { ...c.otherState, field: { ...c.otherState.field, signi_charms: [oldCharm, null, null] } };
+    return c;
+  };
+  // ① 通常経路＝【チャーム】付きの zone0 を飛ばして zone1 に付く
+  const c1 = base();
+  const top = c1.otherState.deck[0];
+  const r1 = run({ type: 'ATTACH_CHARM', charm: { type: 'DECK_CARD', owner: 'opponent', count: 1 }, to: { type: 'SIGNI', owner: 'opponent', count: 1 } } as unknown as EffectAction, c1);
+  const ch1 = (r1.otherState as PlayerState).field.signi_charms ?? [];
+  eq(ch1[0], oldCharm, '🔴古い【チャーム】が上書きされた');
+  eq(ch1[1], top, '【チャーム】の無いシグニに付く');
+  // ② 候補が【チャーム】付きだけなら何もしない（デッキも動かない）
+  const c2 = mkCtx({}, { signi: [SIGNI, null, null] });
+  c2.otherState = { ...c2.otherState, field: { ...c2.otherState.field, signi_charms: [oldCharm, null, null] } };
+  const deckLen = c2.otherState.deck.length;
+  const r2 = run({ type: 'ATTACH_CHARM', charm: { type: 'DECK_CARD', owner: 'opponent', count: 1 }, to: { type: 'SIGNI', owner: 'opponent', count: 1 } } as unknown as EffectAction, c2);
+  eq((r2.otherState as PlayerState).field.signi_charms?.[0], oldCharm, '🔴古い【チャーム】が消えた');
+  eq((r2.otherState as PlayerState).deck.length, deckLen, '付けられないならデッキから動かさない');
+  // ③ 一斉付与（perAllSigni）も【チャーム】付きを飛ばす
+  const c3 = base();
+  const r3 = run({ type: 'ATTACH_CHARM', perAllSigni: true, charm: { type: 'DECK_CARD', owner: 'opponent', count: 1 }, to: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as unknown as EffectAction, c3);
+  const ch3 = (r3.otherState as PlayerState).field.signi_charms ?? [];
+  eq(ch3[0], oldCharm, '🔴一斉付与で古い【チャーム】が上書きされた');
+  ok(!!ch3[1], '【チャーム】の無いシグニには付く');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
