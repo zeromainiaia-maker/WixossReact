@@ -394,7 +394,8 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   };
   // リフレッシュはここでは行わず、効果解決後（result.done）の applyRefreshOnDone に集約する
   // （ルール：効果解決中はデッキ0のまま可能な限り解決し、その後リフレッシュ）。
-  return done(addLog(setOwnerState(a.owner, s, ctx), `${cappedCount}枚ドロー`));
+  // R6-1 I4（2026-09-16）＝ログは**実際に引いた枚数**（デッキが足りないと要求枚数と食い違っていた・約280効果）。
+  return done(addLog(setOwnerState(a.owner, s, ctx), `${canDraw}枚ドロー`));
 }
 
 /**
@@ -3411,7 +3412,8 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
   };
   // エナに置いたカードを lastProcessedCards に記録（「この方法で＜X＞のシグニがエナゾーンに置かれた場合」
   // ＝後続 LAST_PROCESSED_MATCHES の参照用。WXEX1-43-BURST）
-  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${count}`), lastProcessedCards: took });
+  // R6-1 I4＝ログは**実際に置いた枚数**（デッキが足りないと要求枚数と食い違っていた）。
+  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${took.length}`), lastProcessedCards: took });
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
@@ -4551,7 +4553,14 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
 function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAction, ctx: ExecCtx): ExecResult {
   if (a.cardNums.length === 0) {
     const completed = a.lastProcessedCardsAfter ? { ...ctx, lastProcessedCards: a.lastProcessedCardsAfter } : ctx;
-    return a.afterAction ? executeAction(a.afterAction, completed) : done(completed);
+    // 🆕R6-1 I3（2026-09-16）＝**1枚も置けなかった**（満杯・配置制限で全部弾かれた）なら、直後の「そうした場合」を消費する。
+    //   🔴選択（対話）をまたいだ配置は `execSequence` の did-it ゲートを通らないので、
+    //   「手札から場に出してもよい。そうした場合、カードを１枚引く」が**出せなくても引けていた**（`WX20-034-CB-E1`／`WX20-039-CB-E1`）。
+    //   ⚠`applyDirectAction` は置けなかったカードを `lastProcessedCards` から外す＝空なら「1枚も置けなかった」。
+    const afterAction = a.afterAction && !a.lastProcessedCardsAfter && (completed.lastProcessedCards ?? []).length === 0
+      ? stripLeadingDidItConditional(a.afterAction)
+      : a.afterAction;
+    return afterAction ? executeAction(afterAction, completed) : done(completed);
   }
   const [head, ...rest] = a.cardNums;
   const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}),
@@ -10252,7 +10261,7 @@ function execEnergyChargeByFieldCount(a: import('../types/effects').EnergyCharge
     ...state, deck: state.deck.slice(chargeCount), energy: [...state.energy, ...took],
     self_deck_to_energy_this_turn: (state.self_deck_to_energy_this_turn ?? 0) + took.length,
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${chargeCount}（フィールド${fieldCount}体+${a.bonus}）`));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${took.length}（フィールド${fieldCount}体+${a.bonus}）`));
 }
 
 function execPowerModifyByTargetLevel(a: PowerModifyByTargetLevelAction, ctx: ExecCtx): ExecResult {
@@ -12337,6 +12346,22 @@ export function resumeSelectTarget(
 }
 
 // 「そうした場合」を表す先頭の CONDITIONAL(IS_MY_TURN) を else 側に置き換える
+/**
+ * `stripDidItConditional` の配置版＝先頭の `SHUFFLE_DECK`（「探して場に出し、デッキをシャッフルする」の後半）は残し、
+ * その直後の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）だけを消費する。それ以外の形は触らない。
+ */
+function stripLeadingDidItConditional(action: EffectAction): EffectAction | undefined {
+  if (action.type !== 'SEQUENCE') return stripDidItConditional(action);
+  const steps = action.steps;
+  let i = 0;
+  while (i < steps.length && steps[i].type === 'SHUFFLE_DECK') i++;
+  const c = steps[i];
+  if (!(c?.type === 'CONDITIONAL' && (c as ConditionalAction).condition.type === 'IS_MY_TURN')) return action;
+  const rest = [...steps.slice(0, i), ...((c as ConditionalAction).else ? [(c as ConditionalAction).else!] : []), ...steps.slice(i + 1)];
+  if (rest.length === 0) return undefined;
+  return rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest };
+}
+
 function stripDidItConditional(action: EffectAction): EffectAction | undefined {
   if (action.type === 'CONDITIONAL' && action.condition.type === 'IS_MY_TURN') {
     return action.else;
@@ -13906,12 +13931,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const owner = (action as AddToFieldAction).owner;
       const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
+      // 🆕§5.3 `O-524`／R6-1 I3（2026-09-16）＝**置けなかったカードは `lastProcessedCards` から外す**（下の置けない経路すべて）。
+      //   ①後続の「場に出さない場合」（`LAST_PROCESSED_COUNT_GTE` の else）が偽にならないように（`WXK02-035-E2`）
+      //   ②1枚も置けなければ `execPlaceSigniOnField` が直後の「そうした場合」を消費できるように（`WX20-034-CB-E1`）。
+      const notPlacedCtx: ExecCtx = ctx.lastProcessedCards?.includes(cardNum)
+        ? { ...ctx, lastProcessedCards: ctx.lastProcessedCards.filter(n => n !== cardNum) }
+        : ctx;
       const placedFromHand = state.hand.includes(cardNum);
       if (placedFromHand) {
         const printedPower = ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '';
         const power = printedPower === '∞' ? Infinity : parseInt(printedPower, 10);
         if (isHandSigniPlayBlockedByPower(state, power)) {
-          return done(addLog(ctx, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は手札から場に出せない`));
+          return done(addLog(notPlacedCtx, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は手札から場に出せない`));
         }
       }
       // 配置制限（「シグニをN体までしか場に出せない」）。⚠**元の領域から取り除く前**に弾く
@@ -13919,18 +13950,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       {
         const blockedDF = deployLimitBlockedFor(owner, cardNum, ctx);
         if (blockedDF) {
-          return done(addLog(ctx, deployLimitLogMessage(
+          return done(addLog(notPlacedCtx, deployLimitLogMessage(
             blockedDF, ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum)));
         }
       }
       // 空きゾーン判定。🔴§5.3 `O-524`（2026-09-16）＝**元の領域から取り除く前**に判定し、
       //   置けないときは `ctx` を変えずにログだけ残す（取り除いた後の盤面を確定させると
       //   カードがどこにも無くなる＝場が満杯だと「場に出す」カードが消えていた・132効果）。
-      //   置けなかったカードは `lastProcessedCards` からも外す＝後続の「場に出さない場合」
-      //   （`LAST_PROCESSED_COUNT_GTE` の else）が偽にならないように（`WXK02-035-E2`）。
-      const notPlacedCtx: ExecCtx = ctx.lastProcessedCards?.includes(cardNum)
-        ? { ...ctx, lastProcessedCards: ctx.lastProcessedCards.filter(n => n !== cardNum) }
-        : ctx;
       let emptyZones = state.field.signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
       // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出す」（`WXDi-P15-079-E1`）。
       //   ⚠ゾーン選択UIは `src/screens/` の管轄で全空きゾーンを見せるので、**ここで1ゾーンに畳んで**

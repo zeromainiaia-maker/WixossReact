@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 第382バッチ：§5.2 round6 R6-1（不変条件センサス）＋ engine バグ4系統
+
+- **新設**＝`npm run census:traceinv`（`scripts/censusTraceInvariants.mjs`）＝全カード × 5変種 × 断る/受けるを engine で解決し、I1〜I5 を数える（約2分）。
+  **I1（消滅・二重存在）だけ BASELINE 0 で `gates` に同梱**。I2〜I5 は候補出し（精度は `round6/TYPE_LEDGER.md`）。
+  `behaviorAudit.ts` に変種 `nofield`（両者のシグニ0体）と二重存在の検出を追加。`puppet_signi` は置き場ではなく印なので位置から外した（I1 の偽陽性12件）。
+- **engine ①複製**＝`TRIGGER_LIFE_BURST`（`execStubPart3.ts`）がチェックゾーンに置くだけで、デッキ／対戦相手のライフクロスにも同じカードが残っていた（`WX13-032-E2`／`WXEX2-13-E1`／`WXEX1-11-E2`）⇒ 元の領域から抜く。
+- **engine ②複製**＝`PLACE_CARD_UNDER_SIGNI{processed}`（`execStubPart1.ts`）がトラッシュ・手札・エナからしか抜かず、デッキの一番上を下に置くとデッキにも残っていた（`WX25-P3-110-E1`）⇒ デッキからも抜く。
+- **engine ③過剰実行**＝「手札から〜を場に出してもよい。そうした場合、…」で**場が満杯で出せなくても後続が走っていた**（`WX20-034-CB-E1`＝引く／`WX20-039-CB-E1`＝バニッシュ）。
+  選択をまたいだ配置は `execSequence` の did-it ゲートを通らないため ⇒ `ADD_TO_FIELD` の置けない全経路で `lastProcessedCards` から外し、`execPlaceSigniOnField` の終端で1枚も置けなければ直後の `CONDITIONAL{IS_MY_TURN}` を消費（`stripLeadingDidItConditional`）。
+- **engine ④ログ**＝ドロー／エナチャージ（`execDraw`・`execEnergyChargeFromDeck`・`execEnergyChargeByFieldCount`）のログが**要求枚数**を書いていた（デッキが足りないと実際と食い違う・約285効果）⇒ 実数。
+- **検証**＝golden 3本（複製2＋過剰実行1）＝**修正前の engine で FAIL を確認**（`git stash`）／`npm run gates` 全緑（golden 4267）／`census:traceinv` I1 **16 → 0**。
+- **登録の更新**＝`O-527`（【トラップ】が無くても「そうした場合」の後続）＝I3 で **3効果**と実測（新しい機構が要るので直していない）。
+- **実機**＝不要（`src/engine/` のみ・新しい型なし）。
+
 ## 2026-09-16 第381バッチ：`O-528`＝【チャーム】付きのシグニに新しい【チャーム】を付けると古い方が消えた（ユーザー判断＝読みA）
 
 - **ルール（ユーザー判断）**＝【チャーム】が既に付いているシグニは、新しい【チャーム】の対象にできない。

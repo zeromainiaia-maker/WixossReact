@@ -1460,6 +1460,9 @@ export function execStubPart1(
         trash: ctx.ownerState.trash.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
         hand: ctx.ownerState.hand.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
         energy: ctx.ownerState.energy.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
+        // 🔴R6-1 I1（2026-09-16）＝**デッキからも抜く**（「デッキの一番上を公開し、そのカードをこのシグニの下に置く」`WX25-P3-110-E1`）。
+        //   抜かないと同じカードがデッキとシグニの下の2か所に居た（複製）。
+        deck: ctx.ownerState.deck.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
         field: { ...ctx.ownerState.field, signi: newSigniPCUS },
       };
       return done(addLog({ ...ctx, ownerState: newOwnerPCUS },

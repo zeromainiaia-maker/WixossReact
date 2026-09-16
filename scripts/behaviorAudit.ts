@@ -52,10 +52,11 @@ const JSON_OUT = argVal('--json-out');
 // 🆕R6-0 ②（2026-09-16）＝盤面の変種。汎用盤面は失敗経路（場が満杯・手札0・デッキ切れ）を踏まないので、
 //   再現率セットの見逃しの大半がそこだった（`round6/TYPE_LEDGER.md`）。
 //   base＝汎用／full＝両者シグニ3体・エナ10／empty＝両者 手札0・デッキ1・トラッシュ0・エナ0（効果元自身は残す）。
-type Variant = 'base' | 'full' | 'empty';
-const VARIANTS = ((argVal('--variants') ?? 'base,full,empty').split(',').map(v => v.trim()).filter(Boolean)) as Variant[];
+type Variant = 'base' | 'full' | 'empty' | 'nofield';
+const VARIANTS = ((argVal('--variants') ?? 'base,full,empty,nofield').split(',').map(v => v.trim()).filter(Boolean)) as Variant[];
 const VARIANT_LABEL: Record<Variant, string> = {
   base: '基本（汎用盤面）', full: '満杯（両者シグニ3体・エナ10）', empty: '枯渇（両者 手札0・デッキ1・トラッシュ0・エナ0）',
+  nofield: '場が空（両者のシグニ0体・効果元自身は残す）',
 };
 // CHOOSE の既定は「断る」寄り（skip/しない を優先）。accept では利用可能な非 skip 肢を選ぶ。
 let CHOICE_MODE: 'decline' | 'accept' = 'decline';
@@ -362,6 +363,10 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
       st.trash = keep(st.trash);
       st.energy = [];
       st.deck = st.deck.slice(0, 1);
+    } else if (variant === 'nofield') {
+      // 🆕R6-1（2026-09-16）＝「自分の〈X〉をトラッシュに置く。そうした場合」の**失敗経路**を踏ませる（`O-398` 型）。
+      //   基本・満杯・枯渇は、効果が対象にするシグニを必ず場に置くので、できなかった場合の後続が一度も観測されなかった。
+      st.field.signi = st.field.signi.map(z => (z && z.includes(sourceNum) ? z : null));
     }
   }
 
@@ -379,6 +384,7 @@ function buildScenario(sourceNum: string, eff: CardEffect, variant: Variant = 'b
 // ── ② 盤面スナップショット & 差分器 ──
 type Snapshot = {
   loc: Map<string, string>;              // instanceId → 位置ラベル（"自hand" 等）
+  dup: Map<string, string>;              // 🆕R6-1 I1＝2か所以上に居る instanceId → 「位置A / 位置B」
   power: Map<string, number>;            // instanceId → temp_power_mods 合計
   level: Map<string, number>;            // instanceId → temp_level_mods 合計（LEVEL_MODIFY）
   flags: Map<string, string>;            // instanceId → 状態フラグ（凍結/ダウン/ウィルス/血晶/クロス/チャーム/アクセ）
@@ -410,7 +416,15 @@ function snapshot(ctx: ExecCtx): Snapshot {
   const kw = new Map<string, string>();
   const blocked: Record<'自' | '相', string> = { 自: '', 相: '' };
   const misc = { 自: new Map<string, string>(), 相: new Map<string, string>() };
-  const put =(id: string | null | undefined, where: string) => { if (id) loc.set(id, where); };
+  const dup = new Map<string, string>();
+  const put =(id: string | null | undefined, where: string) => {
+    if (!id) return;
+    const prev = loc.get(id);
+    // 同じ置き場（スタックの上下・デッキ添字違い）は二重存在ではない
+    const base = (w: string) => w.replace(/\[\d+\]/, '').replace(/\((上|下)\)$/, '');
+    if (prev !== undefined && base(prev) !== base(where)) dup.set(id, `${dup.get(id) ?? prev} / ${where}`);
+    loc.set(id, where);
+  };
   for (const [side, st] of [['自', ctx.ownerState], ['相', ctx.otherState]] as const) {
     const s = st as PlayerState;
     s.deck.forEach((id, i) => put(id, `${side}デッキ[${i}]`));
@@ -444,7 +458,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     (s.field.beat_zone ?? []).forEach(id => put(id, `${side}ビート`));
     (s.field.signi_traps ?? []).forEach((id, z) => put(id, `${side}トラップ${z}`));
     (s.field.signi_soul ?? []).forEach((id, z) => put(id, `${side}ソウル${z}`));
-    (s.field.puppet_signi ?? []).forEach(id => put(id, `${side}傀儡`));
+    // ⚠`puppet_signi` は置き場ではなく「場に居るシグニが傀儡状態」という印（本体は `field.signi` に居る）＝位置として数えない（R6-1 I1 の偽陽性12件）。
     // 🆕R6-0 ①（2026-09-16）＝位置の死角をふさぐ。ここに無い置き場へ動いたカードは差分に「(消滅)」と出て、
     //   ハーネスの死角と実バグ（`O-524`）が区別できなかった（`round6/vanish_all_cards.txt` の108行）。
     (s.field.signi_charms ?? []).forEach((id, z) => put(id, `${side}チャーム${z}`));
@@ -482,7 +496,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     }
   }
   return {
-    loc, power, level, flags, kw, blocked, misc,
+    loc, dup, power, level, flags, kw, blocked, misc,
     coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins },
     decks: { 自: [...ctx.ownerState.deck], 相: [...ctx.otherState.deck] },
     raw: { 自: ctx.ownerState, 相: ctx.otherState },
@@ -512,6 +526,8 @@ function ghostKeys(snap: Snapshot, id: string): string {
 function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string>): string[] {
   const lines: string[] = [];
   const lbl = (id: string) => labels.get(id) ?? id;
+  // 0) 二重存在（解決後に新しく2か所へ居るようになったカード）
+  for (const [id, where] of after.dup) if (before.dup.get(id) !== where) lines.push(`  ⚠二重存在 ${lbl(id)}: ${where}`);
   // 1) カード移動
   const allIds = new Set([...before.loc.keys(), ...after.loc.keys()]);
   const moves: { id: string; from: string; to: string }[] = [];

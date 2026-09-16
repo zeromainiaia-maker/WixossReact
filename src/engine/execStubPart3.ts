@@ -538,8 +538,15 @@ export function execStubPart3(
     if (!cardTLB) return done(addLog(ctx, 'TRIGGER_LIFE_BURST: カードなし'));
     const dataTLB = ctx.cardMap.get(cardTLB);
     if (!dataTLB?.BurstText) return done(addLog(ctx, `${dataTLB?.CardName ?? cardTLB}: LBなし`));
-    const newOwnerTLB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, check: cardTLB } };
-    return done(addLog({ ...ctx, ownerState: newOwnerTLB },
+    // 🔴R6-1 I1（2026-09-16）＝**元の領域から抜いてから**チェックゾーンへ置く。旧実装は `check` に書くだけで、
+    //   デッキ（`WX13-032-E2`／`WXEX2-13-E1`）や対戦相手のライフクロス（`WXEX1-11-E2`）にも同じカードが残っていた（複製）。
+    const withoutTLB = (arr: string[]) => arr.filter(n => n !== cardTLB);
+    const newOwnerTLB: PlayerState = {
+      ...ctx.ownerState, deck: withoutTLB(ctx.ownerState.deck), life_cloth: withoutTLB(ctx.ownerState.life_cloth),
+      field: { ...ctx.ownerState.field, check: cardTLB },
+    };
+    const newOtherTLB: PlayerState = { ...ctx.otherState, deck: withoutTLB(ctx.otherState.deck), life_cloth: withoutTLB(ctx.otherState.life_cloth) };
+    return done(addLog({ ...ctx, ownerState: newOwnerTLB, otherState: newOtherTLB },
       `ライフバースト発動: ${dataTLB.CardName}`));
   }
   // BATTLE_BANISH_LIFE_BURST: バトルバニッシュ後に相手側LBを発動

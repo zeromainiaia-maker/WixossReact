@@ -85364,6 +85364,54 @@ test('§5.3 O-528: 【チャーム】が既に付いているシグニには新�
   ok(!!ch3[1], '【チャーム】の無いシグニには付く');
 }));
 
+// ═══ §5.2 round6 R6-1（2026-09-16）＝不変条件 I1（カード保存則）が出した「複製」2系統 ═══
+test('R6-1 I1: ライフバーストを発動させるためチェックゾーンに置いたカードは、元の領域から抜ける（複製しない）', () => withSavedCursor(() => {
+  // 🔴旧 `TRIGGER_LIFE_BURST` は `field.check` に書くだけ＝デッキ／相手ライフにも同じカードが残っていた（3効果）。
+  const burst = findCard(c => isSigni(c) && !!c.BurstText && c.BurstText !== '-');
+  const exec = (c: ExecCtx) => executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'TRIGGER_LIFE_BURST' } } as unknown as CardEffect, { ...c, lastProcessedCards: [burst] });
+  const c1 = mkCtx({ deckTop: [burst] }, {});
+  const r1 = exec(c1);
+  eq((r1.ownerState as PlayerState).field.check, burst, 'チェックゾーンに置く');
+  eq((r1.ownerState as PlayerState).deck.includes(burst), false, '🔴デッキにも残っている（複製）');
+  const c2 = mkCtx({}, {});
+  c2.otherState = { ...c2.otherState, life_cloth: [...c2.otherState.life_cloth, burst] };
+  const r2 = exec(c2);
+  eq((r2.otherState as PlayerState).life_cloth.includes(burst), false, '🔴対戦相手のライフクロスにも残っている（複製）');
+}));
+
+test('R6-1 I1: デッキの一番上をこのシグニの下に置くと、デッキから抜ける（複製しない）', () => withSavedCursor(() => {
+  // 🔴旧 `PLACE_CARD_UNDER_SIGNI{processed}` はトラッシュ・手札・エナからしか抜かなかった（`WX25-P3-110-E1`）。
+  const src = SIGNI;
+  const top = fresh();
+  const c = mkCtx({ signi: [src, null, null], deckTop: [top] }, {}, src);
+  const r = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'processed' } } } as unknown as CardEffect,
+    { ...c, lastProcessedCards: [top] });
+  const st = r.ownerState as PlayerState;
+  ok((st.field.signi[0] ?? []).slice(0, -1).includes(top), 'シグニの下に置く');
+  eq(st.deck.includes(top), false, '🔴デッキにも残っている（複製）');
+}));
+
+test('R6-1 I3: 手札から場に出してもよい。そうした場合、引く＝場が満杯で出せなければ引かない', () => withSavedCursor(() => {
+  // 🔴選択をまたいだ配置は execSequence の did-it ゲートを通らず、出せなくても後続が走っていた（`WX20-034-CB-E1`）。
+  const eff = effectsMap.get('WX20-034-CB')!.find(e => e.effectId === 'WX20-034-CB-E1')!;
+  const toy = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && !(c.Color ?? '').includes('白') && Number(c.Level) <= 3);
+  const play = (signi: (string | null)[]) => {
+    const c = mkCtx({ signi, hand: 0 }, {}, 'WX20-034-CB');
+    c.ownerState = { ...c.ownerState, hand: [toy] };
+    const r = run(eff.action as EffectAction, c);
+    return { st: r.ownerState as PlayerState, deckBefore: c.ownerState.deck.length };
+  };
+  const full = play([SIGNI, SIGNI_P3000, SIGNI_L1]);
+  eq(full.st.hand.includes(toy), true, '出せなかったカードは手札に残る');
+  eq(full.st.deck.length, full.deckBefore, '🔴出せなかったのに引いた');
+  // 反転＝空きがあれば出して引く
+  const open = play([SIGNI, null, null]);
+  ok(open.st.field.signi.some(z => z?.includes(toy)), '空きがあれば場に出る');
+  eq(open.st.deck.length, open.deckBefore - 1, '出せたら1枚引く');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

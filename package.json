@@ -36,6 +36,7 @@
     "census:payloadkeys": "tsx scripts/censusPayloadKeys.ts",
     "census:numberdrift": "node scripts/censusNumberDrift.mjs",
     "census:stublabel": "node scripts/censusStubLabel.mjs",
+    "census:traceinv": "node --max-old-space-size=8192 scripts/censusTraceInvariants.mjs",
     "census:srcecho": "node scripts/censusSrcEcho.mjs"
   },
   "dependencies": {

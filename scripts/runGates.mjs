@@ -58,6 +58,10 @@ const results = await Promise.all([
   //   映らず、golden/smoke/fuzz も緑のまま**原文 × 逆翻訳の照合だけが無効**になる。
   // 増えたら exit 1（逆翻訳で新しく原文 regex を書いた）／減っても exit 1（基準の下げ忘れ）。
   run('census-srcecho', 'census:srcecho'),
+  // 🆕§5.2 round6 R6-1（2026-09-16）＝**実行結果の不変条件**（全カード × 盤面の変種を engine で解決）。
+  // ゲートは I1（カード保存則＝消滅・二重存在）だけ＝0 が正。I2〜I5 は候補出し（精度は round6/TYPE_LEDGER.md）。
+  // ⚠この1本で約2分（トレース生成）＝並列なので gates の壁時計は golden と同程度に収まる。
+  run('census-traceinv', 'census:traceinv'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);
