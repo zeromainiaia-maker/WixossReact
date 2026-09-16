@@ -10824,21 +10824,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           dealtSigniDamage = true;
         }
 
-        if (crashCount > 1 && newOpState.life_cloth.length > 0) {
-          // 公式ルール「同時クラッシュ」: 2枚目もライフから先に取り出す
-          const secondCard = newOpState.life_cloth[newOpState.life_cloth.length - 1];
+        // 🆕🔴§5.1 `V-232`（2026-09-16）＝**【トリプルクラッシュ】は3枚目も取る**。
+        //   🔴旧実装は `crashCount` を見て分岐しておきながら**追加を1枚に焼き込んで**おり、
+        //     シグニの【トリプルクラッシュ】が**常に2枚しか割らなかった**（実測 live 4効果＝
+        //     `WDK01-007-E1` / `WX15-032-E1` / `WX18-006-E1` / `WXEX1-33-E2b`）。
+        //   ⚠**ルリグアタック側は元から正しかった**（`Math.min(opLrigHasTripleCrush ? 2 : 1, …)`）＝
+        //     **同じ規則を2箇所に書いた**典型（§4.4 冒頭の「片方だけ機能を足す」）。
+        //   ⚠ライフが足りなければあるだけ（枚数は実減少数で数える）。
+        const extraCrashCount = Math.min(crashCount - 1, newOpState.life_cloth.length);
+        if (extraCrashCount > 0) {
+          // 公式ルール「同時クラッシュ」: 2枚目以降もライフから先に取り出す
+          const extraCards = newOpState.life_cloth.slice(-extraCrashCount);
           newOpState = {
             ...newOpState,
-            life_cloth: newOpState.life_cloth.slice(0, -1),
-            pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), secondCard],
-            pending_crash_source_card_nums: [...(newOpState.pending_crash_source_card_nums ?? []), myTopNum],
+            life_cloth: newOpState.life_cloth.slice(0, -extraCrashCount),
+            pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), ...extraCards],
+            pending_crash_source_card_nums: [...(newOpState.pending_crash_source_card_nums ?? []),
+              ...extraCards.map(() => myTopNum)],
             // §5.3 O-120: 原因列も**同じ長さで**伸ばす（伸ばさないと添字がずれて別のクラッシュの原因を読む）。
-            // 🆕§5.3 `O-390`（2026-09-16）＝この２枚目は**【ダブルクラッシュ】由来**なので原因を刻む。
+            // 🆕§5.3 `O-390`（2026-09-16）＝この2枚目以降は**【ダブル／トリプルクラッシュ】由来**なので原因を刻む。
             //   🔴旧実装は `null`（原因不明）だった＝`crashedByKeywords` は fail-closed なので
             //     ここを刻まないと発生原因の限定を書いた瞬間に**恒久 no-op** になる。
-            pending_crash_causes: [...(newOpState.pending_crash_causes ?? []), crushCauseSA ?? null],
+            pending_crash_causes: [...(newOpState.pending_crash_causes ?? []),
+              ...extraCards.map(() => crushCauseSA ?? null)],
           };
-          appendBattleLogs([`ダブルクラッシュ：2枚目（${battleCardMap.get(secondCard)?.CardName ?? secondCard}）を同時クラッシュ予約`]);
+          appendBattleLogs([`${crushCauseSA ?? 'ダブルクラッシュ'}：追加${extraCards.length}枚（${extraCards.map(n => battleCardMap.get(n)?.CardName ?? n).join('、')}）を同時クラッシュ予約`]);
         }
       }
 

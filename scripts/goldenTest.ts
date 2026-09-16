@@ -85001,6 +85001,48 @@ test('§5.3 O-484: 「その中からN枚をトラッシュに置き」の枚数
   }
 });
 
+test('§5.3 O-484: engine も「その中からN枚をトラッシュに置き」を強制する（CPU の自動応答対策）', () => withSavedCursor(() => {
+  // 🔴**UI を直すだけでは足りない**＝CPU の自動応答は**常に「トラッシュ0枚」**を返すので、
+  //   `resumeLookAndReorder` が補わないと強制が CPU 側だけ無視される（`reorder:false` と同じ理由）。
+  const [a, b, c] = [fresh(), fresh(), fresh()];
+  const mkPending = (extra: Record<string, unknown>) => ({
+    type: 'LOOK_AND_REORDER', cards: [a, b, c], canTrash: true, reorder: false,
+    destOwner: 'self', destLocation: 'deck', destPosition: 'top', ...extra,
+  }) as never;
+  const ctx = mkCtx({ deckTop: [] }, {});
+  const base = ctx.ownerState.trash.length;
+  // ── ①下限＝0枚で返しても N 枚トラッシュされる（`trashUpTo` 無し＝ちょうど N）。
+  const exact = resumeLookAndReorder([a, b, c], [], mkPending({ trashCount: 1 }), ctx);
+  eq(exact.ownerState.trash.length, base + 1,
+    '🔴0枚で返されてもトラッシュ1枚を engine が補わない（CPU だけ強制を無視する）');
+  // ⚠補うのは**末尾から**（人間の UI は確定を押せないのでここには来ない）＝デッキトップは a, b の順。
+  eq(exact.ownerState.deck.slice(0, 2).join(','), `${a},${b}`, '残りは元の順番でデッキトップへ');
+  // ── ②上限＝N 枚を超えて返しても N 枚しかトラッシュされない。
+  const capped = resumeLookAndReorder([a, b, c], [a, b, c], mkPending({ trashCount: 1 }), ctx);
+  eq(capped.ownerState.trash.length, base + 1, '🔴上限を超えたトラッシュを engine が受け入れている');
+  // ── ③`trashUpTo`（「N枚まで」）は 0 枚を許す＝下限を作らない。
+  const upTo = resumeLookAndReorder([a, b, c], [], mkPending({ trashCount: 1, trashUpTo: true }), ctx);
+  eq(upTo.ownerState.trash.length, base, '🔴「N枚まで」なのに0枚を許していない（原文にない強制）');
+  // ── ④枚数指定が無い効果（従来の「好きな枚数」）は素通しのまま＝退化させない。
+  const free = resumeLookAndReorder([a, b, c], [], mkPending({}), ctx);
+  eq(free.ownerState.trash.length, base, '枚数指定が無ければ0枚でよい');
+}));
+
+test('§5.1 V-232: シグニの【トリプルクラッシュ】は3枚クラッシュする（追加1枚の焼き込み回帰）', () => {
+  // 🔴**2026-09-16 の実機（`V-232`）で見つけた実バグ**＝シグニアタック経路は `crashCount` で分岐しながら
+  //   **追加を1枚に焼き込んで**おり、【トリプルクラッシュ】が**常に2枚しか割らなかった**
+  //   （live 4効果＝`WDK01-007-E1` / `WX15-032-E1` / `WX18-006-E1` / `WXEX1-33-E2b`）。
+  // 🔑**ルリグアタック側は元から正しかった**＝**同じ規則を2箇所に書いた**典型（§4.4 冒頭）。
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battleSource.includes('const extraCrashCount = Math.min(crashCount - 1, newOpState.life_cloth.length);'),
+    '🔴シグニアタック側の追加クラッシュが `crashCount` から枚数を出していない（1枚に焼き込まれている）');
+  ok(!battleSource.includes('const secondCard = newOpState.life_cloth[newOpState.life_cloth.length - 1];'),
+    '🔴追加1枚の焼き込みが残っている');
+  // ルリグアタック側（元から正しい）も一緒に固定する＝片方だけ直す事故を止める。
+  ok(battleSource.includes("Math.min(opLrigHasTripleCrush ? 2 : 1, lifeAfterCrash.length)"),
+    '🔴ルリグアタック側の追加クラッシュ枚数が消えている');
+});
+
 test('§5.3 O-483: カウンタークラッシュは発生源（ルリグ／シグニ）で絞る', () => {
   // 🔴旧形は発生源を問わず返していた（過剰）一方、原文後半の【ブースト】分の2本目が丸ごと欠落（過少）。
   const eff = effectsMap.get('WX25-P1-004')!.find(e => e.effectId === 'WX25-P1-004-E1')!;

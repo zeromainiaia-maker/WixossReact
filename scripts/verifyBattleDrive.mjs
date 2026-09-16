@@ -52135,15 +52135,29 @@ function mkO414DamageReplaceScenario(accept) {
       }
       H.log(`  ${id}: 問い=${JSON.stringify(asked)} ボタン=${JSON.stringify(labels)}`);
       // ── ③決定を押す。
-      const picked = accept
-        ? await H.clickTextOrBtn(['代わりにデッキの上から3枚をトラッシュに置く'])
-        : await H.clickTextOrBtn(['置換しない（ダメージを受ける）', '置換しない']);
+      // 🔴**ボタン要素に限定して完全一致で押す**（§4.4-2b／§4.4-58）＝
+      //   `clickTextOrBtn` は**盤面のテキスト**にも当たるので「押せた」と報告しながら何も選ばれず、
+      //   下の settle ループが `置換しない` を押して**辞退に化ける**（2026-09-16 の一括実行で実際に踏んだ）。
+      const wantLabel = accept ? '代わりにデッキの上から3枚をトラッシュに置く' : '置換しない（ダメージを受ける）';
+      let picked = false;
+      for (let k = 0; k < 10 && !picked; k++) {
+        const b = page.getByRole('button', { name: wantLabel, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click({ timeout: 1500 }).catch(() => {});
+        }
+        await page.waitForTimeout(400);
+        // 🔴**「押した」ではなく「決定が state に載った」で成立を数える**（§4.4-41／§4.4-98）。
+        const chk = await H.queryState();
+        if ((chk?.host?.pendingLifeCrashReplace ?? []).length === 0) picked = true;
+      }
       if (!picked) return { pass: false, detail: `前提崩れ＝選択肢を押せない。ボタン=${JSON.stringify(labels)}` };
       // ── ④決定が**消費地点まで届いた**か＝盤面の差分で見る。
       let fin = before;
       for (let s = 0; s < 20; s++) {
         await page.waitForTimeout(600);
-        await H.stdStep(['決定', 'OK', 'はい', '発動しない', 'しない']);
+        // 🔴**応答ラベルに `しない` を入れない**（§4.4-97）＝
+        //   「置換**しない**（ダメージを受ける）」に当たって、置換を選んだ回まで辞退に化ける。
+        await H.stdStep(['決定', 'OK', 'はい', 'エナに送る']);
         fin = await H.queryState();
         H.log(`  ${id}[${s}] life=${fin?.host?.life}/${lifeBase} deck=${fin?.host?.deck}/${deckBase}`
           + ` choice=${fin?.host?.lifeCrashReplaceChoice ?? '-'} pending=${JSON.stringify(fin?.host?.pendingLifeCrashReplace)}`
@@ -52289,6 +52303,528 @@ scenarios.o414DamageReplaceSigniDecline = {
   },
 };
 order.push('o414DamageReplaceSigniDecline');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-232` ／ §5.3 `O-390`（2026-09-16）＝**【ダブルクラッシュ】「によって」の発生原因の限定**
+//   `WX16-Re07-E1`「【自】《ターン１回》：【ダブルクラッシュ】**によって**対戦相手のライフクロスが
+//   ２枚以上クラッシュされたとき、このシグニをアップする。」
+// 🔴**旧実装は枚数（同時2枚以上）だけを見ていた**＝効果による同時クラッシュでも【トリプルクラッシュ】でも発火した。
+// 🔑**実機が要る理由**＝判定器（`crashCauseMatches`）は fail-closed なので、
+//   **`BattleScreen` のクラッシュ地点が原因を刻んでいなければ恒久 no-op**。
+//   golden は「live に限定がある」「判定器が正しい」までしか言えない＝**刻む側は React の配線でしか決まらない**。
+// 🔑**対照は「同じ盤面で1ビット」**＝`keyword_grants` の文字列を【ダブルクラッシュ】→【トリプルクラッシュ】に
+//   替えるだけ。どちらも同時2枚以上（旧実装ではどちらも発火）なので、**原因を見ているかだけ**が変数になる。
+// ⚠**シグニアタックとルリグアタックの両経路を見る**（原因を刻む地点が別々＝片方だけだと無言の不整合）。
+// ⚠観測点は **`WX16-Re07` がアップしたか**（`signiDown[2]`）＝ライフの枚数ではない
+//   （ライフはどちらの対でも同じだけ減るので、判別力がゼロになる）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V232_WATCHER = 'WX16-Re07#9320';       // 轟砲 ウルバン（Lv3・観測対象。ゾーン2に**ダウン**で置く）
+const V232_ATTACKER = 'WX01-053#9321';       // 極剣 ゴッドイーター（Lv4 P15000 バニラ＝副作用なし）
+
+function mkV232Spec(keyword, viaLrig) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-004#9310'], 'field.lrig_down': false,
+      // ⚠ゾーン0＝アタッカー（ルリグ経路では使わないが盤面を1ビット以外そろえるため両方に置く）。
+      //   ゾーン2＝観測対象（**ダウン**で置く＝アップしたら【自】が走った証拠）。
+      'field.signi': [[V232_ATTACKER], null, [V232_WATCHER]],
+      'field.signi_down': [false, false, true],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      // 🔑1ビットだけの差＝**どちらのキーワードを与えるか**。
+      //   ルリグ経路ではルリグへ、シグニ経路ではアタッカーへ与える。
+      keyword_grants: viaLrig ? { 'WD01-004#9310': [keyword] } : { [V232_ATTACKER]: [keyword] },
+      hand: [], energy: [], trash: [], coins: 0, lrig_deck: [], lrig_trash: [],
+      actions_done: [], game_actions_done: [],
+      deck: ['WD01-013#9330', 'WD01-013#9331', 'WD01-013#9332'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9390'],
+      // ⚠正面を空にしてバトルを起こさず素通りさせる（§4.4-8e）＝観測したいのはライフへのダメージ。
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      // ⚠手札を空にしてガード応答を挟ませない（ルリグアタック経路でも CPU は即「ガードしない」になる）。
+      hand: [], energy: [], trash: [], lrig_deck: [],
+      // ⚠【トリプルクラッシュ】でも足りる枚数（＋【ライフバースト】を持たないバニラだけ）。
+      life_cloth: ['WD01-013#9395', 'WD01-013#9396', 'WD01-013#9397', 'WD01-013#9398'],
+      deck: ['WD01-013#9391', 'WD01-013#9392', 'WD01-013#9393'],
+    },
+    top: { active: 'host', turn_phase: viaLrig ? 'ATTACK_LRIG' : 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+
+function mkV232Scenario(id, { keyword, viaLrig, expectUp }) {
+  return {
+    title: `V-232：【${keyword}】で2枚以上クラッシュ（${viaLrig ? 'ルリグ' : 'シグニ'}アタック）→ WX16-Re07 は${expectUp ? 'アップする' : 'アップしない'}`,
+    spec: mkV232Spec(keyword, viaLrig),
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 hostSigni=${JSON.stringify(before?.host?.fieldSigni)} down=${JSON.stringify(before?.host?.signiDown)}`
+        + ` grants=${JSON.stringify(before?.host?.keywordGrants)} gLife=${before?.guest?.life} phase=${before?.turnPhase}`);
+      // 🔴**前提（§4.4-49）**＝自分が張った盤面か。観測対象がゾーン2にダウンで居ること。
+      // ⚠`fieldSigni` は**スタックの配列**（`[["A#1"],null,["B#2"]]`）＝トップは `at(-1)`。
+      const topOf = (v) => (Array.isArray(v) ? v[v.length - 1] : v) ?? null;
+      if (topOf((before?.host?.fieldSigni ?? [])[2]) !== V232_WATCHER || (before?.host?.signiDown ?? [])[2] !== true) {
+        return { pass: false, detail: `前提崩れ＝観測対象がゾーン2にダウンで居ない（${JSON.stringify(before?.host?.fieldSigni)} / ${JSON.stringify(before?.host?.signiDown)}）` };
+      }
+      const gLifeBase = before?.guest?.life ?? 0;
+      let attacked = false;
+      let sawCause = null;        // sticky（§4.4-8d）＝クラッシュ原因は消費されると消える
+      let sawUp = false;          // sticky＝【自】でアップしたあと別の処理で下がっても見落とさない
+      let crashed = false;
+      for (let s = 0; s < 40; s++) {
+        await page.waitForTimeout(700);
+        const st0 = await H.queryState();
+        let did = null;
+        if (!attacked) {
+          if (viaLrig) {
+            // ルリグアタック＝センタースロットを開いて「アタック」（`runFieldDownRound` と同じ型）。
+            const opened = await H.clickTestId('my-lrig-slot-center');
+            if (opened) {
+              const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+              for (let k = 0; k < 12; k++) {
+                if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) break;
+                await page.waitForTimeout(150);
+              }
+              if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+                await atk.click({ timeout: 1500 }).catch(() => {});
+                did = 'action:ルリグアタック';
+              }
+            }
+          } else {
+            // §4.4-58＝アタック宣言は `exact: true`（常設の「ルリグアタックへ」に当てない）。
+            // §4.4-80＝ゾーンはトグルなので、ラベルが見えていないときだけ押す。
+            const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+            if (opened.modalVisible && opened.labels.some(l => l.startsWith('アタック'))) {
+              did = await H.clickBtn('アタック', { exact: true });
+            }
+          }
+          // 🔴**「押せた」ではなく「盤面が動いた」で宣言成立を数える**（§4.4-98）。
+          const chk = await H.queryState();
+          if ((chk?.guest?.life ?? gLifeBase) < gLifeBase || chk?.guest?.fieldCheck
+            || (chk?.guest?.pendingCrashCauses ?? []).length > 0) attacked = true;
+        } else {
+          // ⚠応答ラベルは対話中だけ押す（§4.4-58）。'しない' は入れない。
+          did = await H.clickTextOrBtn(['エナに送る', '発動順序を確定', '決定', 'OK', 'はい']);
+        }
+        const st = await H.queryState();
+        sawCause = sawCause ?? st?.guest?.crashCause ?? ((st?.guest?.pendingCrashCauses ?? [])[0] ?? null);
+        if ((st?.host?.signiDown ?? [])[2] === false) sawUp = true;
+        if ((st?.guest?.life ?? gLifeBase) < gLifeBase) crashed = true;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | atk=${attacked} gLife=${st?.guest?.life}/${gLifeBase}`
+          + ` cause=${st?.guest?.crashCause ?? '-'}/${JSON.stringify(st?.guest?.pendingCrashCauses)} sawCause=${sawCause ?? '-'}`
+          + ` hDown=${JSON.stringify(st?.host?.signiDown)} up=${sawUp} check=${st?.guest?.fieldCheck ?? '-'}`
+          + ` stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} phase=${st?.turnPhase}`);
+        // 決着＝2枚以上クラッシュ済みかつチェックゾーンもスタックも空。
+        const settled = crashed && (st?.guest?.life ?? gLifeBase) <= gLifeBase - 2
+          && !st?.guest?.fieldCheck && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect;
+        if (settled && (sawUp || s > 6)) break;
+      }
+      const fin = await H.queryState();
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `gLife ${gLifeBase}→${fin?.guest?.life} cause=${sawCause ?? '-'}`
+        + ` hDown=${JSON.stringify(fin?.host?.signiDown)} up=${sawUp}`;
+      // 🔴**前提（§4.4-31 witness）**＝そもそも2枚以上クラッシュしたか。
+      //   これが無いと「アップしなかった」は**アタックが起きなかっただけ**でも成立する。
+      if ((fin?.guest?.life ?? gLifeBase) > gLifeBase - 2) {
+        return { pass: false, detail: `前提崩れ＝同時2枚以上のクラッシュが起きていない（${dump}）` };
+      }
+      // 🆕🔴**この巡で見つけた実バグの回帰ガード**（2026-09-16・§5.1 `V-232`）＝
+      //   シグニアタック経路は `crashCount` で分岐しながら**追加を1枚に焼き込んで**おり、
+      //   【トリプルクラッシュ】が**常に2枚しか割らなかった**。枚数まで assert しないと緑のまま通る。
+      const wantCrash = keyword === 'トリプルクラッシュ' ? 3 : 2;
+      if ((fin?.guest?.life ?? gLifeBase) !== gLifeBase - wantCrash) {
+        return { pass: false, detail: `🔴【${keyword}】のクラッシュ枚数が ${gLifeBase - (fin?.guest?.life ?? gLifeBase)} 枚（期待 ${wantCrash} 枚）。${dump}` };
+      }
+      // 🔴**原因が刻まれているか**＝刻まれていなければ判定器は fail-closed で必ず不発＝本題を検証できない。
+      if (sawCause !== keyword) {
+        return { pass: false, detail: `🔴クラッシュの原因が「${keyword}」で刻まれていない（${viaLrig ? 'ルリグ' : 'シグニ'}アタック経路の O-390 が抜けている）。${dump}` };
+      }
+      if (expectUp) {
+        return sawUp
+          ? { pass: true, detail: `【${keyword}】由来の2枚クラッシュで WX16-Re07 がアップした。${dump}` }
+          : { pass: false, detail: `🔴アップしていない（原因は刻まれているのに【自】が発火していない）。${dump}` };
+      }
+      return sawUp
+        ? { pass: false, detail: `🔴【${keyword}】でもアップした＝原因の限定が効いていない（旧実装は枚数だけを見ていた）。${dump}` }
+        : { pass: true, detail: `反転＝【${keyword}】由来では WX16-Re07 はアップしない（原因の限定が効いている）。${dump}` };
+    },
+  };
+}
+
+scenarios.v232DoubleCrushUpsWatcher =
+  mkV232Scenario('v232DoubleCrushUpsWatcher', { keyword: 'ダブルクラッシュ', viaLrig: false, expectUp: true });
+order.push('v232DoubleCrushUpsWatcher');
+scenarios.v232TripleCrushDoesNotUp =
+  mkV232Scenario('v232TripleCrushDoesNotUp', { keyword: 'トリプルクラッシュ', viaLrig: false, expectUp: false });
+order.push('v232TripleCrushDoesNotUp');
+scenarios.v232DoubleCrushLrigAttack =
+  mkV232Scenario('v232DoubleCrushLrigAttack', { keyword: 'ダブルクラッシュ', viaLrig: true, expectUp: true });
+order.push('v232DoubleCrushLrigAttack');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-233` ／ §5.3 `O-483`（2026-09-16）＝**カウンタークラッシュの発生源限定と【ブースト】分の2本目**
+//   `WX25-P1-004`（条炎反射・《赤》×0）「このターン、次に対戦相手の**ルリグ**によってあなたのライフクロス
+//   １枚がクラッシュされたとき、対戦相手のライフクロス１枚をクラッシュする。あなたがブーストしていた場合、
+//   このターン、次に対戦相手の**シグニ**によって（同）。」
+// 🔴**旧実装は発生源を問わず返し**（過剰＝シグニのアタックでも返した）、
+//   一方で**原文後半の【ブースト】分が丸ごと欠落**していた（過少＝ブーストしても増えなかった）。
+// 🔑**実機が要る理由**＝発生源の判定（`crash_source_card_num` の `Type`）も、在庫を配列にして
+//   重ねがけできるようにした所も、**`BattleScreen` のチェックゾーン解決（`performLifeBurstResponse`）の中**にある。
+//   golden は live JSON の形しか見ていない（`§5.3 O-483` のテスト）。
+// ⚠**アーツを実際に使う**（注入で `life_crash_counters` を作らない）＝
+//   「payload が live にある」と「UI から使うとその payload が state へ届く」は別の観測点。
+// ⚠**相手のターンに使う**（`active:'cpu'` ＋ `ATTACK_ARTS_OP`＝§4.4-73）＝`life_crash_counters` は
+//   ターン限定なので、自分のターンに使っても相手のアタックまで残らない。
+// ⚠**攻撃の種類を1つに絞る**＝シグニだけ攻めさせたい回は**相手ルリグをダウン**、
+//   ルリグだけ攻めさせたい回は**相手シグニを空**にする（両方来ると、限定を無視していても
+//   「どこかで返した」で緑になり本題を1ビットも検証しない＝§4.4-86）。
+// ═════════════════════════════════════════════════════════════════════════════
+const V233_ARTS = 'WX25-P1-004#9370';        // 条炎反射（アーツ・《赤》×0）
+const V233_OPP_SIGNI = 'WX04-042#9381';      // 弩砲 スティンガー（Lv4 P15000 赤・**バニラ**＝副作用なし）
+
+function mkV233Spec({ oppSigni, boost }) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-004#9360'], 'field.lrig_down': false,
+      // ⚠自分の場は空＝相手のシグニアタックがバトルにならずライフへ通る（§4.4-8e）。
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      'field.lrig_attacked': false,
+      // ⚠手札を空にしてガード応答の分岐を増やさない（ルリグアタック回は「ガードしない」だけになる）。
+      hand: [], trash: [], coins: 0,
+      // 🔑【ブースト】は《赤》《無》《無》《無》＝赤4枚あれば無色枠も払える。使わない回は0枚。
+      energy: boost ? ['WX04-070#9365', 'WX04-070#9366', 'WX04-070#9367', 'WX04-070#9368'] : [],
+      lrig_deck: [V233_ARTS], lrig_trash: [],
+      actions_done: [], game_actions_done: [],
+      life_cloth: ['WD01-013#9375', 'WD01-013#9376', 'WD01-013#9377'],
+      deck: ['WD01-013#9371', 'WD01-013#9372', 'WD01-013#9373'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9390'],
+      // 🔑1ビット＝**攻めてくるのがシグニかルリグか**。
+      //   シグニ回は**ルリグをダウン**して攻めさせない／ルリグ回はシグニを空にする。
+      'field.lrig_down': oppSigni,
+      'field.signi': oppSigni ? [[V233_OPP_SIGNI], null, null] : [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], lrig_deck: [],
+      life_cloth: ['WD01-013#9395', 'WD01-013#9396', 'WD01-013#9397'],
+      deck: ['WD01-013#9391', 'WD01-013#9392', 'WD01-013#9393'],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2 },
+  };
+}
+
+function mkV233Scenario(id, { oppSigni, boost, expectReturn }) {
+  return {
+    title: `V-233：条炎反射を${boost ? 'ブーストして' : 'ブーストせずに'}使い、対戦相手の${oppSigni ? 'シグニ' : 'ルリグ'}のアタックで${expectReturn ? '返す' : '返さない'}`,
+    spec: mkV233Spec({ oppSigni, boost }),
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 phase=${before?.turnPhase} hostLrigDK=${JSON.stringify(before?.host?.lrigDeckCards ?? null)}`
+        + ` hLife=${before?.host?.life} gLife=${before?.guest?.life} gSigni=${JSON.stringify(before?.guest?.fieldSigni)}`
+        + ` gLrigDown=${before?.guest?.lrigDown} counters=${JSON.stringify(before?.host?.lifeCrashCounters)}`);
+      const hLifeBase = before?.host?.life ?? 0;
+      const gLifeBase = before?.guest?.life ?? 0;
+      // ── ①ルリグデッキを開いてアーツを使う（§4.4-82＝ラベルは実装から取る）。
+      let used = false;
+      let boosted = !boost;
+      let counters = [];
+      // ⚠**【ブースト】のトグルは選択済みエナを解除する**（`ArtsModal` が `setSelectedArtsCost(new Set())`）
+      //   ＝押した index の台帳もそこで作り直す。
+      let pickedEnergy = new Set();
+      for (let s = 0; s < 24 && !used; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        // ArtsModal が開いていれば、そこで完結させる。
+        const submit = page.getByRole('button', { name: /^アーツ使用/ }).first();
+        if (await submit.count() && await submit.isVisible().catch(() => false)) {
+          if (!boosted) {
+            // 🔑【ブースト】はトグルボタン（`ArtsModal.tsx` の「ブーストする」）。押すと選択済みエナが解除される。
+            const bt = page.getByRole('button', { name: /ブーストする/ }).first();
+            if (await bt.count() && await bt.isVisible().catch(() => false)) {
+              await bt.click({ timeout: 1500 }).catch(() => {});
+              boosted = true; pickedEnergy = new Set(); did = 'toggle:ブーストする';
+            }
+          }
+          if (!did && await submit.isEnabled().catch(() => false)) {
+            await submit.click({ timeout: 1500 }).catch(() => {}); did = 'btn:アーツ使用';
+          } else if (!did) {
+            // 🔴コストセルは**トグル**＝**押した index を覚えて未選択だけを押す**（§4.4-8p／§4.4-2c）。
+            //   index 0 を毎ティック押すと選んで外してを繰り返し、「アーツ使用」が永久に有効にならない
+            //   （実測＝20ティック空振り）。
+            for (let i = 0; i < 8; i++) {
+              if (pickedEnergy.has(i)) continue;
+              const e = page.getByTestId(`artscost-energy-${i}`).first();
+              if (await e.count() && await e.isVisible().catch(() => false)) {
+                await e.click({ timeout: 1200 }).catch(() => {});
+                pickedEnergy.add(i); did = `artscost-energy-${i}`; break;
+              }
+            }
+          }
+        } else {
+          // 🔴**「先へ進む側」から試す**（§4.4-2b）＝`my-lrig-dk` を先に押すと
+          //   ゾーン一覧が**トグルで開閉を繰り返し**、`zone-card-0` に永久に到達しない（§4.4-2c／実測で24ティック空振り）。
+          const labels = await page.locator('[data-testid="card-detail-modal"] [data-testid^="card-action-"]')
+            .evaluateAll(els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+          const useIdx = labels.findIndex(l => (l ?? '').startsWith('使用'));
+          if (useIdx >= 0) {
+            did = await H.clickTestId(`card-action-${useIdx}`);
+          } else {
+            const zc = page.getByTestId('zone-card-0').first();
+            if (await zc.count() && await zc.isVisible().catch(() => false)) {
+              await zc.click({ timeout: 1500 }).catch(() => {}); did = 'tid:zone-card-0';
+            } else {
+              did = await H.clickTestId('my-lrig-dk');
+              await page.waitForTimeout(500);
+            }
+          }
+          if (s === 3) H.log(`  ${id} PROBE labels=${JSON.stringify(labels)}`
+            + ` testids=${JSON.stringify(await page.locator('[data-testid]').evaluateAll(els => els.map(e => e.getAttribute('data-testid')).slice(0, 40)).catch(() => []))}`);
+        }
+        const st = await H.queryState();
+        counters = st?.host?.lifeCrashCounters ?? [];
+        if (counters.length > 0) used = true;
+        H.log(`  ${id}[use ${s}] -> ${did ?? 'なし'} | counters=${JSON.stringify(counters)} boosted=${boosted}`
+          + ` hEnergy=${st?.host?.energy} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards ?? null)} phase=${st?.turnPhase}`);
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-used.png`, fullPage: true });
+      if (!used) return { pass: false, detail: `前提崩れ＝条炎反射を使用できなかった（カウンターが1件も立たない）` };
+      // 🔴**在庫そのものを観測点にする**（§4.4-100）＝枚数だけでは「限定が効いた」と「そもそも立っていない」を
+      //   切り分けられない。ブースト無しなら lrig 限定1本・ブースト有りなら lrig と signi の2本。
+      const want = boost ? ['lrigx1/1', 'signix1/1'] : ['lrigx1/1'];
+      if (JSON.stringify(counters) !== JSON.stringify(want)) {
+        return { pass: false, detail: `🔴カウンターの在庫が期待と違う（実測=${JSON.stringify(counters)} 期待=${JSON.stringify(want)}）`
+          + `${boost ? '＝【ブースト】分の2本目が落ちている' : '＝発生源の限定が載っていない'}` };
+      }
+      // 🔴**使い終わったらモーダルを畳む**＝アーツ使用後もルリグデッキのゾーン一覧／カード詳細が
+      //   前面に残り、ヘッダーの「アーツ終了」が**DOM には在るのにクリックが2秒タイムアウトし続ける**
+      //   （§4.4-25h の重なりと同じ形＝実測で119秒溶かした）。**reload は盤面を壊さない復旧手段**（§4.4-65）。
+      await page.reload().catch(() => {});
+      await page.waitForTimeout(1800);
+      // ── ②「アーツ終了」で相手のアタックへ進める（§4.4-9＝非ターンプレイヤーが押す）。
+      // ── ③CPU のアタックを待ち、ライフバースト確認だけ消化する（§4.4-53＝`stdStep` は呼ばない）。
+      let hCrashed = false;
+      let fin = before;
+      for (let s = 0; s < 40; s++) {
+        await page.waitForTimeout(700);
+        const st0 = await H.queryState();
+        let did = null;
+        if (st0?.turnPhase === 'ATTACK_ARTS_OP') did = await H.clickBtn('アーツ終了', { exact: true });
+        if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+        if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+        if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+        fin = await H.queryState();
+        if ((fin?.host?.life ?? hLifeBase) < hLifeBase) hCrashed = true;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | phase=${fin?.turnPhase} hLife=${fin?.host?.life}/${hLifeBase}`
+          + ` gLife=${fin?.guest?.life}/${gLifeBase} counters=${JSON.stringify(fin?.host?.lifeCrashCounters)}`
+          + ` checks=${fin?.host?.fieldCheck ?? '-'}/${fin?.guest?.fieldCheck ?? '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}`);
+        const idle = !fin?.host?.fieldCheck && !fin?.guest?.fieldCheck
+          && (fin?.stackLen ?? 0) === 0 && !fin?.pendingEffect;
+        if (hCrashed && idle && (expectReturn ? (fin?.guest?.life ?? gLifeBase) < gLifeBase : s > 8)) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `hLife ${hLifeBase}→${fin?.host?.life} gLife ${gLifeBase}→${fin?.guest?.life}`
+        + ` counters=${JSON.stringify(fin?.host?.lifeCrashCounters)}`;
+      // 🔴**前提（witness）**＝自分のライフが実際にクラッシュされたか。
+      //   これが無いと「返さなかった」は**そもそも攻撃されなかっただけ**でも成立する（§4.4-31）。
+      if (!hCrashed) {
+        return { pass: false, detail: `前提崩れ＝${oppSigni ? 'シグニ' : 'ルリグ'}のアタックで自分のライフがクラッシュされていない（${dump}）` };
+      }
+      const returned = (fin?.guest?.life ?? gLifeBase) < gLifeBase;
+      if (expectReturn) {
+        if (!returned) return { pass: false, detail: `🔴カウンタークラッシュが返っていない。${dump}` };
+        if ((fin?.host?.lifeCrashCounters ?? []).includes(oppSigni ? 'signix1/1' : 'lrigx1/1')) {
+          return { pass: false, detail: `🔴返したのにカウンターの在庫が減っていない（何度でも返せる）。${dump}` };
+        }
+        return { pass: true, detail: `対戦相手の${oppSigni ? 'シグニ' : 'ルリグ'}のアタックでカウンタークラッシュが返り、在庫を1つ消費した。${dump}` };
+      }
+      if (returned) {
+        return { pass: false, detail: `🔴「対戦相手の**ルリグ**によって」限定なのにシグニのアタックでも返した（旧実装＝発生源を見ていない）。${dump}` };
+      }
+      if (!(fin?.host?.lifeCrashCounters ?? []).includes('lrigx1/1')) {
+        return { pass: false, detail: `🔴返していないのにカウンターの在庫が消えた（別の発生源で消費している）。${dump}` };
+      }
+      return { pass: true, detail: `反転＝シグニのアタックでは返さず、ルリグ限定のカウンターは在庫に残る。${dump}` };
+    },
+  };
+}
+
+scenarios.v233CounterLrigCrashReturns =
+  mkV233Scenario('v233CounterLrigCrashReturns', { oppSigni: false, boost: false, expectReturn: true });
+order.push('v233CounterLrigCrashReturns');
+scenarios.v233CounterSigniCrashIgnored =
+  mkV233Scenario('v233CounterSigniCrashIgnored', { oppSigni: true, boost: false, expectReturn: false });
+order.push('v233CounterSigniCrashIgnored');
+scenarios.v233CounterBoostedSigniReturns =
+  mkV233Scenario('v233CounterBoostedSigniReturns', { oppSigni: true, boost: true, expectReturn: true });
+order.push('v233CounterBoostedSigniReturns');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-234` ／ §5.3 `O-484`（2026-09-16）＝**「その中から１枚をトラッシュに置き」の枚数を UI が強制する**
+//   `WXK07-055-CB-E2`「【出】：あなたのデッキの上からカードを２枚見る。その中から**１枚**をトラッシュに置き、
+//   残りをデッキの一番上に戻す。」（live＝`LOOK_AND_REORDER{count:2, canTrash:true, trashCount:1}`）
+// 🔴**旧実装は `canTrash:true` だけ＝「好きな枚数」**で、**0枚でも2枚でも捨てられた**（live 5効果）。
+// 🔑**実機が要る理由**＝上限は「トラッシュ」ボタンを押せなくすること、下限は「決定」を押せなくすることで
+//   表す＝**どちらも `EffectInteractionModal` の中**。golden は live JSON の payload しか見ていない。
+// ⚠**「決定できない」を主張するので、押せる側も同じ巡で見る**（§4.4-3）＝
+//   ①0枚では「決定」が disabled で文言が `トラッシュを1枚選んでください` ②1枚選ぶと enabled になる
+//   ③そのとき**もう1枚の「トラッシュ」は disabled**（上限）④確定するとデッキ−1・トラッシュ+1。
+// ⚠**`isEnabled()` を読むだけにする**（§4.4-19）＝無効なボタンを `click()` すると既定30秒待つ。
+// 🔑CPU 側（engine の補完）は **golden で両方向を取ってある**（`resumeLookAndReorder` は純関数＝
+//   `§5.3 O-484: engine も…` のテスト）。実機はここで人間 UI の側だけを見る。
+// ═════════════════════════════════════════════════════════════════════════════
+const V234_SIGNI = 'WXK07-055-CB#9450';      // 羅星 人生さんR（Lv1・【出】＝デッキ上2枚見て1枚トラッシュ）
+
+scenarios.v234LookTrashForcedExactOne = {
+  title: 'V-234：「その中から1枚をトラッシュに置き」が UI で強制される（0枚では決定できない／2枚目は選べない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-004#9460'], 'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      'field.lrig_attacked': false,
+      hand: [V234_SIGNI],
+      energy: [], trash: [], coins: 0, lrig_deck: [], lrig_trash: [],
+      actions_done: [], game_actions_done: [],
+      life_cloth: ['WD01-013#9465', 'WD01-013#9466'],
+      // ⚠**デッキの上2枚は別カードにする**（§4.4-22＝同名だと `data-card-num` で一意にならない）。
+      //   3枚目以降も入れておく（`deck: []` はリフレッシュを誘発する＝§4.4-22）。
+      deck: ['WD02-013#9470', 'WD05-013#9471', 'WD01-016#9472', 'WD01-017#9473'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9490'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      hand: [], energy: [], trash: [], lrig_deck: [],
+      deck: ['WD01-013#9491', 'WD01-013#9492', 'WD01-013#9493'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const id = 'v234LookTrashForcedExactOne';
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log(`  ${id}: 開始 hand=${JSON.stringify(before?.host?.handCards)} deck=${before?.host?.deck}`
+      + ` trash=${JSON.stringify(before?.host?.trashCards)} signi=${JSON.stringify(before?.host?.fieldSigni)}`);
+    if (!(before?.host?.handCards ?? []).includes(V234_SIGNI)) {
+      return { pass: false, detail: `前提崩れ＝観測対象が手札に無い（${JSON.stringify(before?.host?.handCards)}）` };
+    }
+    const deckBase = before?.host?.deck ?? 0;
+    const trashBase = (before?.host?.trashCards ?? []).length;
+    // モーダル内のボタンを**文字列と disabled のペア**で読む（§4.4-91＝`disabled` 自体が観測点）。
+    const readBtns = () => page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(e => ({ t: (e.textContent || '').replace(/\s+/g, ' ').trim(), d: !!e.disabled }))
+      .filter(b => b.t)).catch(() => []);
+    let summoned = false;
+    let zonePicked = false;
+    let opened = null;      // 0枚選択時のボタン一覧（本題①）
+    let afterPick = null;   // 1枚選択後のボタン一覧（本題②③）
+    let decided = false;
+    let fin = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(600);
+      const st0 = await H.queryState();
+      let did = null;
+      const btns = await readBtns();
+      const hasLookModal = btns.some(b => b.t === 'トラッシュ' || b.t === '戻す');
+      if (hasLookModal) {
+        const rowBtns = btns.filter(b => b.t === 'トラッシュ' || b.t === '戻す');
+        const decideBtn = btns.find(b => b.t === '決定' || b.t.startsWith('トラッシュを'));
+        if (!opened) {
+          // ── 本題①＝**0枚のうちは確定できない**。
+          opened = { rowBtns, decideBtn };
+          H.log(`  ${id}: 0枚時 rows=${JSON.stringify(rowBtns)} decide=${JSON.stringify(decideBtn)}`);
+        }
+        if (!afterPick) {
+          // 1枚だけ選ぶ（選択済み＝「戻す」が1つ出ていれば済んでいる）。
+          if (!rowBtns.some(b => b.t === '戻す')) {
+            const t0 = page.getByRole('button', { name: 'トラッシュ', exact: true }).first();
+            if (await t0.count() && await t0.isEnabled().catch(() => false)) {
+              await t0.click({ timeout: 1500 }).catch(() => {}); did = 'btn:トラッシュ(1枚目)';
+            }
+          } else {
+            afterPick = { rowBtns, decideBtn };
+            H.log(`  ${id}: 1枚選択後 rows=${JSON.stringify(rowBtns)} decide=${JSON.stringify(decideBtn)}`);
+          }
+        } else if (!decided) {
+          const dec = page.getByRole('button', { name: '決定', exact: true }).first();
+          if (await dec.count() && await dec.isEnabled().catch(() => false)) {
+            await dec.click({ timeout: 1500 }).catch(() => {}); decided = true; did = 'btn:決定';
+          }
+        }
+      } else if (!summoned) {
+        if (!zonePicked) {
+          const sz = page.getByTestId('summon-zone-0').first();
+          if (await sz.count() && await sz.isVisible().catch(() => false) && await sz.isEnabled().catch(() => false)) {
+            await sz.click({ timeout: 1500 }).catch(() => {}); zonePicked = true; did = 'tid:summon-zone-0';
+          }
+        }
+        if (!did) {
+          // §4.4-92＝行動は `card-detail-modal` の `data-action-label` 列で読む。
+          const labels = await page.locator('[data-testid="card-detail-modal"] [data-testid^="card-action-"]')
+            .evaluateAll(els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+          const idx = labels.findIndex(l => (l ?? '').startsWith('召喚'));
+          if (idx >= 0) did = await H.clickTestId(`card-action-${idx}`);
+          else did = await H.clickTestId('my-hand-card-0');   // §4.4-84＝手札は testid で開く
+        }
+      }
+      fin = await H.queryState();
+      if ((fin?.host?.fieldSigni ?? []).some(z => (Array.isArray(z) ? z[z.length - 1] : z) === V234_SIGNI)) summoned = true;
+      H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | summoned=${summoned} modal=${hasLookModal} opened=${!!opened}`
+        + ` picked=${!!afterPick} decided=${decided} deck=${fin?.host?.deck}/${deckBase}`
+        + ` trash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'}`);
+      if (decided && !fin?.pendingEffect && (fin?.stackLen ?? 0) === 0) break;
+    }
+    await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+    const dump = `deck ${deckBase}→${fin?.host?.deck} trash=${JSON.stringify(fin?.host?.trashCards)}`;
+    if (!opened) return { pass: false, detail: `前提崩れ＝【出】の「デッキの上から2枚見る」モーダルが開かない（${dump}）` };
+    // ── 本題①＝0枚では確定できない（ラベルも「あと何枚か」を出す）。
+    if (!opened.decideBtn) return { pass: false, detail: `前提崩れ＝確定ボタンが読めない（${dump}）` };
+    if (!opened.decideBtn.d) {
+      return { pass: false, detail: `🔴0枚のまま「決定」が押せる＝「その中から1枚をトラッシュに置き」の下限が効いていない（実測=${JSON.stringify(opened.decideBtn)}）` };
+    }
+    if (opened.decideBtn.t !== 'トラッシュを1枚選んでください') {
+      return { pass: false, detail: `🔴確定ボタンの文言が「あと何枚か」を出していない（無反応に見える）＝${JSON.stringify(opened.decideBtn)}` };
+    }
+    if (opened.rowBtns.length !== 2 || opened.rowBtns.some(b => b.d)) {
+      return { pass: false, detail: `前提崩れ＝0枚時は2枚とも選べるはず（実測=${JSON.stringify(opened.rowBtns)}）` };
+    }
+    // ── 本題②③＝1枚選ぶと確定でき、もう1枚は上限で選べない。
+    if (!afterPick) return { pass: false, detail: `前提崩れ＝1枚目を選べなかった（${dump}）` };
+    if (afterPick.decideBtn?.d !== false || afterPick.decideBtn?.t !== '決定') {
+      return { pass: false, detail: `🔴1枚選んでも確定できない（実測=${JSON.stringify(afterPick.decideBtn)}）` };
+    }
+    const second = afterPick.rowBtns.find(b => b.t === 'トラッシュ');
+    if (!second) return { pass: false, detail: `前提崩れ＝2枚目の行が読めない（実測=${JSON.stringify(afterPick.rowBtns)}）` };
+    if (!second.d) {
+      return { pass: false, detail: `🔴2枚目の「トラッシュ」も押せる＝上限が効いていない（0枚でも全枚でも捨てられた旧実装のまま）。実測=${JSON.stringify(afterPick.rowBtns)}` };
+    }
+    // ── ④帰結＝2枚見て1枚トラッシュ・1枚をデッキトップへ戻す＝デッキは正味1枚減る。
+    if (!decided) return { pass: false, detail: `前提崩れ＝確定できなかった（${dump}）` };
+    if ((fin?.host?.trashCards ?? []).length !== trashBase + 1) {
+      return { pass: false, detail: `🔴トラッシュに置かれた枚数が1枚ではない（${dump}）` };
+    }
+    if ((fin?.host?.deck ?? 0) !== deckBase - 1) {
+      return { pass: false, detail: `🔴残り1枚がデッキトップへ戻っていない（${dump}）` };
+    }
+    return { pass: true, detail: `0枚では「${opened.decideBtn.t}」で確定できず、1枚選ぶと確定可・2枚目は上限で選べない。${dump}` };
+  },
+};
+order.push('v234LookTrashForcedExactOne');
+
+
+
 
 
 
@@ -61201,6 +61737,13 @@ try {
         //   「載ったこと自体」と「実数」の両方をここから読む。
         levelMods: (s.temp_level_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
+        // 🆕§5.1 `V-232`／`V-233`（2026-09-16）＝クラッシュの**原因**と**カウンタークラッシュの在庫**。
+        //   🔴盤面差分（ライフ枚数）だけでは「限定が効いた」と「そもそもクラッシュしていない」を
+        //   区別できない（§4.4-71／§4.4-100）＝engine が読む state をそのまま観測面に出す。
+        crashCause: s.crash_cause ?? null,
+        pendingCrashCauses: s.pending_crash_causes ?? [],
+        lifeCrashCounters: (s.life_crash_counters ?? [])
+          .map(c => `${c.sourceType ?? 'any'}x${c.perTrigger}/${c.remaining}`),
         actionsDone: s.actions_done ?? [],
         // 🆕§5.3 O-126（2026-08-28）＝`execCostIncrease` が積む使用コスト修正。
         //   **旧実装では書かれるだけで誰も読まなかった**ので、載っていること自体も観測点にする。
