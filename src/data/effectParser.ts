@@ -31679,17 +31679,16 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       // 通常能力へ残すと直前の【自】へトラップ本体が tail-splice され、発動のたび二重実行される。
       effectText = stripTrapIconClause(effectText);
       // クロスアイコン prefix の検出と除去
-      // 🔴**この宣言（「《クロスアイコン》《相方名》の右」）は直後の1能力のゲートそのもの**＝
-      //   接頭辞を捨てるだけだと、その能力が**クロスしていなくても発動する**（実測 2026-09-06＝
-      //   宣言つき10枚すべてで先頭能力に `crossOnly` が無く、【クロス自】側にだけ立っていた）。
-      //   ⚠受け皿は既にある（`isCrossZoneActive` / CONTINUOUS ループ / `triggerCollect`）＝ここは配線だけ。
-      let crossPrefixGatesFirstBlock = false;
+      // 🔴§5.3 `O-525`（2026-09-16 ユーザー判断＝読みA）＝この宣言（「《クロスアイコン》《相方名》の右」）は
+      //   **クロスできる相方と位置を示すだけ**で、直後の能力のゲートではない。クロス限定になるのは
+      //   【クロス常】【クロス出】【クロス自】【クロス起】と書かれた能力だけ（`parseBlock` が自分で立てる）。
+      //   ⚠2026-09-06（round4 第1）に「直後の1能力のゲート」と読んで `crossOnly` を立てたのは誤りだった
+      //   ＝普通の【出】【自】【常】【起】がクロスしないと働かなくなっていた（10効果）。
       if (effectText.startsWith('《クロスアイコン》')) {
         card.hasCrossIcon = true;
         const crossM = effectText.match(/^《クロスアイコン》([^【]+)/);
         if (crossM) card.crossConditionText = crossM[1].trim();
         effectText = effectText.replace(/^《クロスアイコン》[^【]*/, '');
-        crossPrefixGatesFirstBlock = true;
       }
       // 『』ブラケット除去（アクセクラフト等の効果表記）
       effectText = effectText.replace(/[『』]/g, '');
@@ -31749,8 +31748,6 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         }
         const e = parseBlock(card.CardNum, block, i);
         if (e) {
-          // クロス宣言（接頭辞）は**直後の1能力だけ**を縛る。後続の【クロス自】等は parseBlock が自分で立てる。
-          if (crossPrefixGatesFirstBlock) { e.crossOnly = true; crossPrefixGatesFirstBlock = false; }
           // §6.2 段2 第22バッチ：場のレベル合計条件。近い名前の英知／直前処理札の語彙は参照先が違うため使わない。
           const fieldLevelConditions: Record<string, Condition | ActiveCondition> = {
             'WXK07-084-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },

@@ -74287,33 +74287,46 @@ test('§5.4 (b) 第190: ON_BANISH の byEffect はバトル／ルール処理で
     '🔴ルール処理では発火しない');
 }));
 
-// ── §5.2 Sheet1 round4 第1バッチ（2026-09-06）＝**クロス宣言つき能力のゲート** ──────────────
-//   原文「《クロスアイコン》《相方名》の右【出】：…」の宣言は**直後の1能力のゲートそのもの**。
-//   parser は接頭辞を捨てるだけで `crossOnly` を立てておらず、**クロスしていなくても発動していた**
-//   （実測＝宣言つき10枚すべて。【クロス自】側にだけフラグが立っていたので気付きにくかった）。
-//   🔑受け皿（`isCrossZoneActive` / CONTINUOUS ループ / `triggerCollect`）は既にあり、配線だけの穴。
-//   ⚠**crossOnly は golden に1件も assert が無かった**＝ここがラチェット。
-test('§5.2 round4 第1: クロス宣言つきの先頭能力に crossOnly が立つ（10枚）', () => {
+// ── §5.3 `O-525`（2026-09-16 ユーザー判断＝読みA）＝**クロス宣言はゲートではない** ──────────────
+//   原文「《クロスアイコン》《相方名》の右【出】：…【クロス自】：…」の宣言は**クロスできる相方と位置を示すだけ**。
+//   クロス限定になるのは【クロス常】【クロス出】【クロス自】【クロス起】と書かれた能力だけ＝
+//   **普通の【出】はクロスしなくても発動する**（【クロス出】はクロスが成立した出現時効果）。
+//   🔴2026-09-06（round4 第1バッチ）はこの宣言を「直後の1能力のゲート」と読んで10効果に `crossOnly` を立てており、
+//   このテストはその誤読を固定していた＝**ルール解釈を1枚の手掛かりから決めて golden で固めた**事故。
+//   ⚠受け皿（`isCrossZoneActive` / CONTINUOUS ループ / `triggerCollect`）は `crossOnly` だけを見る＝フラグの正しさがそのまま挙動。
+test('§5.3 O-525: クロス宣言の直後の普通の能力は crossOnly ではない（10枚）', () => {
   const CROSS_DECLARED = [
     'WX09-016', 'WX09-020', 'WX11-037', 'WX11-038', 'WX11-041',
     'WX11-043', 'WX11-046', 'WX11-050', 'WX13-031', 'WX25-P1-054',
   ];
   for (const num of CROSS_DECLARED) {
     const effs = effectsMap.get(num) ?? [];
-    ok(effs.length > 0, `${num}: live に効果がある`);
-    ok(!!effs[0].crossOnly, `${num}: 先頭能力（クロス宣言の直後）が crossOnly`);
+    const e1 = effs.find(e => e.effectId === `${num}-E1`);
+    const e2 = effs.find(e => e.effectId === `${num}-E2`);
+    ok(!!e1 && !!e2, `${num}: live に E1/E2 がある`);
+    ok(!e1?.crossOnly, `🔴${num}-E1: 宣言直後の普通の能力に crossOnly が立っている（クロスしないと発動しない）`);
+    ok(!!e2?.crossOnly, `${num}-E2: 【クロス自】は crossOnly のまま`);
   }
-  // 🔴反転方向＝宣言の無いカードには立たない（接頭辞の消し忘れで全カードに立つ事故を止める）
-  ok(!(effectsMap.get('WX11-042') ?? [])[0]?.crossOnly, '🔴宣言の無いカードには crossOnly が立たない');
 });
 
-// 【クロス自】側（parseBlock が自分で立てる分）も一緒に固定する＝先頭ブロックだけを見て
-// 「消費し切った」と誤って後続を落とす実装への歯止め。
-test('§5.2 round4 第1: 【クロス自】ブロックの crossOnly は据置（先頭で消費し切らない）', () => {
-  for (const num of ['WX09-020', 'WX11-043', 'WX13-031']) {
-    const e2 = (effectsMap.get(num) ?? []).find(e => e.effectId === `${num}-E2`);
-    ok(!!e2?.crossOnly, `${num}-E2: 【クロス自】も crossOnly のまま`);
+// 全カードの不変条件＝`crossOnly` が立つのは、原文の能力ラベルが【クロス〜】の効果だけ（両方向）。
+test('§5.3 O-525: crossOnly ⇔ 原文の能力ラベルが【クロス常/出/自/起】（全カード）', () => {
+  let checked = 0;
+  const bad: string[] = [];
+  for (const [num, effs] of effectsMap) {
+    const card = cardMap.get(num);
+    if (!card?.EffectText?.includes('【クロス')) continue;
+    for (const e of effs) {
+      if (e.effectType === 'LIFE_BURST') continue;
+      const block = abilityBlockTextOf(card, e.effectId).replace(/^《クロスアイコン》[^【]*/, '');
+      if (block === (card.EffectText ?? '') + ' ' + (card.BurstText ?? '')) continue; // ブロックが引けない効果は判定しない
+      checked++;
+      const labeled = /^\s*【クロス[常出自起]】/.test(block);
+      if (labeled !== !!e.crossOnly) bad.push(`${e.effectId}(label=${labeled},crossOnly=${!!e.crossOnly})`);
+    }
   }
+  ok(checked >= 20, `判定できた効果が少なすぎる（${checked}）＝ブロック抽出が壊れている`);
+  eq(bad.join(' '), '', '🔴crossOnly と原文ラベルが食い違う');
 });
 
 // ── WX08-010 不灯不屈（同バッチ・意味照合の指摘から）─────────────────────────────────
