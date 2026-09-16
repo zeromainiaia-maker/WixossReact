@@ -24,7 +24,7 @@ import Papa from 'papaparse';
 import type { CardData, PlayerState } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
 import { mergeManualEffects } from '../src/data/manualEffects';
-import { setAbilityBlockScoping } from '../src/data/effectParser';
+import { setAbilityBlockScoping, abilityBlockTextOf } from '../src/data/effectParser';
 import { matchesFilter } from '../src/engine/execUtils';
 import type { TargetFilter } from '../src/types/effects';
 import {
@@ -40,10 +40,17 @@ const args = process.argv.slice(2);
 const argVal = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const ONLY_ID = argVal('--id');
 // カンマ区切りで複数カードを一括トレースする（O-20 の変換前後を2プロセスで比較するため）。
-const ONLY_IDS = argVal('--ids')?.split(',').map(s => s.trim()).filter(Boolean);
+// --ids-file は全カード走査用（コマンドライン長の上限を避ける。区切りはカンマか改行）
+const ONLY_IDS = (argVal('--ids-file') ? fs.readFileSync(argVal('--ids-file')!, 'utf8') : argVal('--ids'))
+  ?.split(/[,\r\n]+/).map(s => s.trim()).filter(Boolean);
 const SET = argVal('--set');
 const LIMIT = argVal('--limit') ? parseInt(argVal('--limit')!) : Infinity;
 const QUEUE = args.includes('--queue');
+// round6 意味照合（原文 × 実行結果）の入力を吐く。--ids と併用。
+// 非CONTINUOUS 効果ごとに「初期盤面・受ける／断るの2通りの実行結果」を JSON で書き出す。
+const JSON_OUT = argVal('--json-out');
+// CHOOSE の既定は「断る」寄り（skip/しない を優先）。accept では利用可能な非 skip 肢を選ぶ。
+let CHOICE_MODE: 'decline' | 'accept' = 'decline';
 // §6.4 O-20 の変換前後を比較するための計器フラグ。付けると engine が
 // 「その効果を生んだ能力ブロック」ではなく**カード全文**を読む旧挙動に戻る。
 // 同じ --id を付/無しで2回流して差分を取ると、変換で挙動が変わった効果だけが出る。
@@ -219,9 +226,14 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     const signi: (string[] | null)[] = [
       emptyZone0 ? null : [take(`${side}S甲`)], [take(`${side}S乙`)], [take(`${side}S丙`)],
     ];
+    // シグニ以外（ルリグ／アシストルリグ／スペル／アーツ）を効果元にするとき、シグニゾーンに置かない。
+    // 置くとパワー「-」が NaN として「自分のシグニのパワー」の集計に混ざり、フィルターが外れる（round6 試行の偽陽性）。
+    const srcType = cardMap.get(sourceNum)?.Type ?? '';
+    const srcNonSigni = isSource && sourceZone === 'signi' && !srcType.includes('シグニ');
     if (isSource) {
       labels.set(sourceNum, `${side}S源`);
-      if (sourceZone === 'signi') signi[0] = [sourceNum];
+      if (srcNonSigni) { /* 下の field で置き場を決める */ }
+      else if (sourceZone === 'signi') signi[0] = [sourceNum];
       else if (sourceZone === 'trash') trash.unshift(sourceNum);
       else hand.unshift(sourceNum);
     }
@@ -230,11 +242,12 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
       trash, lrig_trash: takeN(2, i => `${side}ルリグトラッシュ${i + 1}`),
       energy: COLORS.map(c => takeColor(`${side}エナ${c}`, c)), coins: 3, bonds: [],
       field: {
-        lrig: lrigCard ? [lrigCard] : [], signi,
+        lrig: srcNonSigni && srcType === 'ルリグ' ? [sourceNum] : lrigCard ? [lrigCard] : [], signi,
         signi_down: [false, false, false], signi_frozen: [false, false, false],
         signi_charms: [null, null, null], signi_acce: [null, null, null],
         signi_virus: [0, 0, 0], signi_armor: [false, false, false], cross_state: [false, false, false],
-        assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [],
+        assist_lrig_l: srcNonSigni && srcType === 'アシストルリグ' ? [sourceNum] : [], assist_lrig_r: [],
+        check: srcNonSigni && srcType !== 'ルリグ' && srcType !== 'アシストルリグ' ? sourceNum : null, key_piece: null, free_zone: [],
         signi_traps: [null, null, null],
       },
     } as unknown as PlayerState;
@@ -347,7 +360,18 @@ type Snapshot = {
   kw: Map<string, string>;               // instanceId → 付与キーワード
   blocked: { 自: string; 相: string };   // player-level 行動制限（blocked_actions + blocked_card_names + 付与）
   coins: { 自: number; 相: number };
+  // 上で個別に扱わない PlayerState キー（予約・置換・状態フラグ）＝キー → JSON
+  misc: { 自: Map<string, string>; 相: Map<string, string> };
+  decks: { 自: string[]; 相: string[] };
 };
+
+// snapshot が個別に読むキー（これ以外は misc として丸ごと比較する）
+const SNAP_HANDLED_KEYS = new Set([
+  'deck', 'hand', 'life_cloth', 'trash', 'lrig_trash', 'energy', 'bonds', 'field', 'lrig_deck', 'coins',
+  'temp_power_mods', 'power_mods_until_opp_turn', 'temp_level_mods', 'keyword_grants', 'keyword_grants_until_opp_turn',
+  'blocked_actions', 'blocked_card_names', 'blocked_card_names_game', 'field_keyword_grants_active',
+  'lrig_granted_auto_effects', 'granted_effects', 'lrig_abilities_disabled',
+]);
 
 function snapshot(ctx: ExecCtx): Snapshot {
   const loc = new Map<string, string>();
@@ -356,7 +380,8 @@ function snapshot(ctx: ExecCtx): Snapshot {
   const flags = new Map<string, string>();
   const kw = new Map<string, string>();
   const blocked: Record<'自' | '相', string> = { 自: '', 相: '' };
-  const put = (id: string | null | undefined, where: string) => { if (id) loc.set(id, where); };
+  const misc = { 自: new Map<string, string>(), 相: new Map<string, string>() };
+  const put =(id: string | null | undefined, where: string) => { if (id) loc.set(id, where); };
   for (const [side, st] of [['自', ctx.ownerState], ['相', ctx.otherState]] as const) {
     const s = st as PlayerState;
     s.deck.forEach((id, i) => put(id, `${side}デッキ[${i}]`));
@@ -404,8 +429,19 @@ function snapshot(ctx: ExecCtx): Snapshot {
       signiGrants ? `シグニ付与能力x${signiGrants}` : '',
       sx.lrig_abilities_disabled ? 'ルリグ能力無効' : '',
     ].filter(Boolean).sort().join('|');
+    for (const [k, v] of Object.entries(sx)) {
+      // 履歴の記録係（ドロー枚数・直前の移動など）は効果の意味ではないので出さない
+      if (SNAP_HANDLED_KEYS.has(k) || /^(last_|cards_drawn_)|_just$/.test(k) || v === undefined || v === null || v === false) continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) continue;
+      misc[side].set(k, JSON.stringify(v));
+    }
   }
-  return { loc, power, level, flags, kw, blocked, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins } };
+  return {
+    loc, power, level, flags, kw, blocked, misc,
+    coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins },
+    decks: { 自: [...ctx.ownerState.deck], 相: [...ctx.otherState.deck] },
+  };
 }
 
 /** 位置ラベルの側（自/相）を判定して owner違いを強調するための小道具 */
@@ -423,6 +459,17 @@ function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string
     // ゾーン内の並び替え（デッキ index 変化）はノイズなので基底ゾーン名で比較
     const base = (w: string) => w.replace(/\[\d+\]/, '').replace(/\((上|下)\)$/, '');
     if (base(from) !== base(to)) moves.push({ id, from, to });
+  }
+  // デッキに残ったカードの**相対順**の変化（上から抜けた分の添字ずれは変化と数えない）。
+  // 1枚を一番上／一番下へ動かしただけならそう書き、それ以外は「並びが変わった」に畳む。
+  for (const side of ['自', '相'] as const) {
+    const bothIn = new Set(after.decks[side].filter(id => before.decks[side].includes(id)));
+    const b = before.decks[side].filter(id => bothIn.has(id));
+    const a = after.decks[side].filter(id => bothIn.has(id));
+    if (b.join() === a.join()) continue;
+    const moved = b.find(id => { const rest = b.filter(x => x !== id); return [id, ...rest].join() === a.join() || [...rest, id].join() === a.join(); });
+    if (moved) lines.push(`  ${lbl(moved)}: ${side}デッキ[${before.decks[side].indexOf(moved)}] → ${side}デッキの一番${a[0] === moved ? '上' : '下'}`);
+    else lines.push(`  ${side}デッキの並びが変わった（残り${a.length}枚）`);
   }
   for (const m of moves.sort((a, b) => lbl(a.id).localeCompare(lbl(b.id)))) {
     const cross = sideOf(m.from) !== sideOf(m.to) && sideOf(m.from) !== '?' && sideOf(m.to) !== '?';
@@ -461,11 +508,21 @@ function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string
     const d = after.coins[side] - before.coins[side];
     if (d !== 0) lines.push(`  ${side}コイン: ${d > 0 ? '+' : ''}${d}`);
   }
+  // 7) その他の状態キー（予約・置換・フラグ）。カード番号はラベルに読み替える。
+  const relabel = (s: string) => s.replace(/"([A-Za-z0-9]+-[A-Za-z0-9-]+)"/g, (m, id) => labels.has(id) ? `"${labels.get(id)}"` : m);
+  const clip = (s: string) => s.length > 240 ? s.slice(0, 240) + '…' : s;
+  for (const side of ['自', '相'] as const) {
+    const keys = new Set([...before.misc[side].keys(), ...after.misc[side].keys()]);
+    for (const k of [...keys].sort()) {
+      const b = before.misc[side].get(k), a = after.misc[side].get(k);
+      if (b !== a) lines.push(`  ${side}状態 ${k}: ${b ? clip(relabel(b)) : 'なし'} → ${a ? clip(relabel(a)) : 'なし'}`);
+    }
+  }
   return lines;
 }
 
 // ── オートパイロット（smokeTest から流用）──
-function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detail?: string; result: ExecResult } {
+function autopilot(first: ExecResult, baseCtx: ExecCtx, choices: string[] = []): { status: string; detail?: string; result: ExecResult } {
   let result = first;
   let steps = 0;
   let lastSig = ''; let sameN = 0;
@@ -483,18 +540,24 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
         case 'SELECT_TARGET': {
           const cands = (p.candidates as string[]) ?? [];
           const cnt = Math.min((p.count as number) ?? 1, cands.length);
+          choices.push(`対象選択 候補${cands.length}件から${cnt}件: ${cands.slice(0, cnt).map(c => choiceLabels.get(c) ?? c).join(', ')}`);
           result = resumeSelectTarget(cands.slice(0, cnt), pending as never, ctx); break;
         }
         case 'SEARCH': {
           const vis = (p.visibleCards as string[]) ?? [];
           const cnt = Math.min((p.maxPick as number) ?? 0, vis.length);
+          choices.push(`探索 見える${vis.length}枚から${cnt}枚: ${vis.slice(0, cnt).map(c => choiceLabels.get(c) ?? c).join(', ')}`);
           result = resumeSearch(vis.slice(0, cnt), pending as never, ctx); break;
         }
         case 'CHOOSE': {
           const opts = (p.options as { id: string; label?: string; available?: boolean }[]) ?? [];
-          const skip = opts.find(o => /skip|スキップ|しない|代わりに/i.test(o.label ?? '') || o.id === 'skip');
-          const pick = skip ?? opts.find(o => o.available !== false) ?? opts[0];
+          const isSkip = (o: { id: string; label?: string }) => /skip|スキップ|しない|代わりに/i.test(o.label ?? '') || o.id === 'skip';
+          const skip = opts.find(isSkip);
+          const pick = CHOICE_MODE === 'accept'
+            ? (opts.find(o => o.available !== false && !isSkip(o)) ?? skip ?? opts[0])
+            : (skip ?? opts.find(o => o.available !== false) ?? opts[0]);
           if (!pick) return { status: 'SKIP', detail: 'CHOOSE no options', result };
+          choices.push(`選択肢[${opts.map(o => `${o.label ?? o.id}${o.available === false ? '(不可)' : ''}`).join(' / ')}] → 「${pick.label ?? pick.id}」`);
           result = resumeChoose(pick.id, pending as never, ctx); break;
         }
         case 'LOOK_AND_REORDER': {
@@ -506,7 +569,9 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
         case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(zone, pending as never, ctx); break;
         case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(sameN >= 3 ? null : zone, pending as never, ctx); break;
         case 'REARRANGE_SIGNI': {
-          const arr = (p.signi as string[]) ?? (p.cards as string[]) ?? [];
+          // engine の pending は候補を `signiNums` に積む（`signi`/`cards` だけを見ていたため swap が常に「行わなかった」になっていた）
+          const arr = (p.signi as string[]) ?? (p.cards as string[]) ?? (p.signiNums as string[]) ?? [];
+          choices.push(`シグニ配置（${(p.mode as string) ?? 'rearrange'}） 候補: ${arr.map(c => choiceLabels.get(c) ?? c).join(', ')}`);
           result = resumeRearrangeSigni(arr, pending as never, ctx); break;
         }
         default: return { status: 'SKIP', detail: `unhandled pending: ${pending.type}`, result };
@@ -519,17 +584,54 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
 }
 
 // ── トレース実行 ──
-type Trace = { card: string; name: string; effectId: string; type: string; status: string; detail?: string; diff: string[]; logs: string[] };
+type Trace = { card: string; name: string; effectId: string; type: string; status: string; detail?: string; diff: string[]; logs: string[]; choices: string[]; board: string[] };
+
+// autopilot の選択ログでカード番号をラベルに読み替えるための現在シナリオのラベル表
+let choiceLabels = new Map<string, string>();
+
+// 初期盤面を「ラベル=カード名(属性)」でゾーンごとに1行へ（round6 監査員が条件成立や対象の妥当性を判定するため）
+function describeBoard(ctx: ExecCtx, labels: Map<string, string>): string[] {
+  const desc = (id: string) => {
+    const c = cardMap.get(id);
+    if (!c) return labels.get(id) ?? id;
+    const r = c as unknown as Record<string, string>;
+    const icons = [
+      r.Guard === '1' && 'ガードアイコン', r.LifeBurst === '1' && 'ライフバースト有',
+      /【ライズ】/.test(c.EffectText ?? '') && 'ライズアイコン', r.Story && r.Story !== '-' && `ストーリー:${r.Story}`,
+    ].filter(Boolean);
+    const attrs = [c.Type, c.Level ? `Lv${c.Level}` : '', c.Power ? `パワー${c.Power}` : '', c.Color, c.CardClass, ...icons].filter(Boolean).join(' ');
+    return `${labels.get(id) ?? '?'}=《${c.CardName}》(${attrs})`;
+  };
+  const out: string[] = [];
+  for (const [side, st] of [['自分', ctx.ownerState], ['相手', ctx.otherState]] as const) {
+    const s = st as PlayerState;
+    s.field.signi.forEach((stack, z) => {
+      if (!stack?.length) { out.push(`${side}シグニゾーン${z}: 空`); return; }
+      const fl = [s.field.signi_frozen?.[z] && '凍結', s.field.signi_down?.[z] ? 'ダウン' : 'アップ', s.field.signi_virus?.[z] && 'ウィルス', s.field.signi_charms?.[z] && 'チャーム有', s.field.signi_acce?.[z] && 'アクセ有'].filter(Boolean).join(',');
+      out.push(`${side}シグニゾーン${z}: ${desc(stack.at(-1)!)} [${fl}]${stack.length > 1 ? ` 下: ${stack.slice(0, -1).map(desc).join(', ')}` : ''}`);
+    });
+    out.push(`${side}ルリグ: ${s.field.lrig.map(desc).join(', ') || '空'}`);
+    out.push(`${side}手札(${s.hand.length}): ${s.hand.map(desc).join(', ')}`);
+    out.push(`${side}デッキ(${s.deck.length}・上から): ${s.deck.slice(0, 5).map(desc).join(', ')}${s.deck.length > 5 ? ' …' : ''}`);
+    out.push(`${side}トラッシュ(${s.trash.length}): ${s.trash.map(desc).join(', ')}`);
+    out.push(`${side}エナ(${s.energy.length}): ${s.energy.map(desc).join(', ')}`);
+    out.push(`${side}ライフクロス: ${s.life_cloth.length}枚／ルリグトラッシュ: ${s.lrig_trash.length}枚／コイン: ${s.coins}`);
+  }
+  return out;
+}
 
 function traceEffect(num: string, eff: CardEffect): Trace {
   const name = cardMap.get(num)?.CardName ?? '';
   const type = (eff.effectType as string) ?? '?';
   const { ctx, labels } = buildScenario(num, eff);
+  choiceLabels = labels;
+  const board = describeBoard(ctx, labels);
   const before = snapshot(ctx);
+  const choices: string[] = [];
   const out: { status: string; detail?: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
   try {
     const first = executeEffect(eff, ctx);
-    const ap = autopilot(first, ctx);
+    const ap = autopilot(first, ctx, choices);
     out.status = ap.status;
     out.detail = ap.detail;
     const afterCtx = { ...ctx, ownerState: ap.result.ownerState, otherState: ap.result.otherState } as ExecCtx;
@@ -539,7 +641,7 @@ function traceEffect(num: string, eff: CardEffect): Trace {
   } catch (e) {
     out.status = 'CRASH'; out.logs = [(e as Error).message];
   }
-  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status: out.status, detail: out.detail, diff: out.diff, logs: out.logs };
+  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status: out.status, detail: out.detail, diff: out.diff, logs: out.logs, choices, board };
 }
 
 // 逆翻訳シート（既存 docs/decompile_sheet*.txt）から該当行を引く
@@ -571,7 +673,32 @@ const isSuspect = (t: Trace) => t.type !== 'CONTINUOUS' && t.status === 'OK' && 
 const isCross = (t: Trace) => t.diff.some(l => l.includes('側跨ぎ'));
 const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-if (HTML) {
+if (JSON_OUT) {
+  // round6 意味照合の入力。CONTINUOUS は executeEffect で観測できないので除く。
+  const cards: unknown[] = [];
+  for (const num of ONLY_IDS ?? (ONLY_ID ? [ONLY_ID] : [])) {
+    const card = cardMap.get(num);
+    const effs = (effectsMap.get(num) ?? []).filter(e => e.effectType !== 'CONTINUOUS');
+    const traces = effs.map(eff => {
+      CHOICE_MODE = 'decline';
+      const d = traceEffect(num, eff);
+      CHOICE_MODE = 'accept';
+      const a = traceEffect(num, eff);
+      const view = (t: Trace) => ({ status: t.status, detail: t.detail, choices: t.choices, diff: t.diff.map(l => l.trim()), logs: t.logs });
+      const same = JSON.stringify(view(d)) === JSON.stringify(view(a));
+      return {
+        effectId: eff.effectId, effectType: eff.effectType,
+        abilityText: abilityBlockTextOf(card, eff.effectId as string).trim(),
+        board: d.board,
+        runs: same ? { both: view(d) } : { decline: view(d), accept: view(a) },
+      };
+    });
+    cards.push({ cardNum: num, traces });
+  }
+  fs.mkdirSync(join(JSON_OUT, '..'), { recursive: true });
+  fs.writeFileSync(JSON_OUT, JSON.stringify(cards, null, 1), 'utf8');
+  console.log(`JSON出力: ${cards.length}枚 → ${JSON_OUT}`);
+} else if (HTML) {
   // ③ HTML表レンダラ: セット単位で 原文｜逆翻訳｜盤面差分｜ログ を並べたレビュー表を吐く
   const setOf = (n: string) => n.replace(/-[^-]+$/, '') || n;
   const bySet = new Map<string, Trace[]>();

@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-16 PLAN.md の掃除（66KB → 34KB）
+
+- **やったこと**＝経緯・日付つきの実績・教訓を PLAN から抜き、「現在地・手順・ルール・worklist（残数と一行）」だけにした。
+  教訓は [LESSONS.md](./LESSONS.md)（§4.1／§4.3／§4.7 の末尾）と [DRIVE_TRAPS.md](./DRIVE_TRAPS.md)（109〜114）へ移し、
+  §1 の第377バッチ要約は PLAN_PROGRESS へ、掃除前の全文は PLAN_DETAIL 末尾へ無改変で退避。
+- 🔴**§2「作業の流れ」が第350バッチ（`3afcfa5af`）で丸ごと消えていた**（そのコミットは O-398 の修正で、PLAN の差分に §2 の削除が紛れていた）。
+  CLAUDE.md と PLAN 自身が §2.0〜§2.6 を参照し続けていたので、消える直前の版から手順だけを戻した。
+- **計器の較正（前進ではない）**＝`census:cards --sheet 1` の要対応 **4 → 2**。消えた2枚（`WX06-018`／`WX10-066`）は
+  §5.3 末尾の BEHAVIOR_AUDIT defer の説明文に**「正しく動いた代表例」として引用されていたカード番号**が `mech` に数えられていただけ。
+- **検証**＝`npm run census:cards -- --sheet 1`（`O-524`/`O-525`/`O-526` を索引から拾えている）／`npm run golden -- --only "簿記トリップワイヤ"`（PASS）。
+
+## 2026-09-16 round6 試行（原文 × 実行結果）＝ハーネス整備と登録 `O-524`〜`O-526`（修正なし）
+
+- **何をしたか**＝`scripts/behaviorAudit.ts` に `--json-out`（効果ごとに初期盤面・断る／受けるの2通りの選択・差分・ログ）と `--ids-file` を足し、
+  `scripts/semanticAuditTraceExtract.mjs`（JSON を見せないプロンプト生成）を新設。30枚を codex で監査。
+- **ハーネスの穴3つ（試行の偽陽性4件は全部これ）**＝①自動操縦が `REARRANGE_SIGNI` の候補 `signiNums` を読まず入れ替えが常に空振り
+  ②シグニ以外の効果元（アシストルリグ）をシグニゾーンに置き、パワー「-」＝NaN で `powerLtAnyAlly` が外れた
+  ③差分が `negated_attacks` などの予約キーとデッキの一番下への移動を映さなかった。⇒ 3点とも直し、履歴キー（`last_*` ほか）は差分から除外。
+- **再現率**＝修正前 `40940e1f3` の既知バグ16枚で **6/16**（`round6/recall/expected.txt`）。
+- **登録**＝`O-524`（場が満杯だと「場に出す」カードが消える・132効果・`effectExecutor.ts:13894`）／`O-525`（クロス見出し直後の普通の能力が `crossOnly`・10効果・索引H）／
+  `O-526`（`MILL{fromBottom}` のログが「デッキ上から」・13効果）。登録票は PLAN_DETAIL、round6 の計画は PLAN §5.2。
+- **検証**＝`npx eslint scripts/behaviorAudit.ts scripts/semanticAuditTraceExtract.mjs`（緑）／既存の `--id` 表示モードが従来どおり出ることを目視。`src/` は未変更＝実機不要。
+
 ## 2026-09-16 第377バッチ：候補出し計器2本を「判定」に変えた（`census:stublabel` A群 4件／`census:numberdrift` 32件）
 
 **両方とも「候補出しであって判定ではない」計器**なので、**1件ずつ live JSON とハンドラまで当たって**分類した。
