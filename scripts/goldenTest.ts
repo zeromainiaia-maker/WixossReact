@@ -85967,6 +85967,20 @@ test('§5.6 C-5 追補 セットアップ：CPU も Lv0 が3枚以上ならア�
   ok(/pickCpuLrigSetup\(cpuDeckData\.lrig_deck/.test(battle), '🔴CPU のセットアップが pickCpuLrigSetup を通っていない');
 }));
 
+test('対戦終了：CPU 戦は人間が押せば CPU の分も押す／押した後は DB を読み直す（「終了待機中」のまま止まらない）', () => withSavedCursor(() => {
+  // 🔴ユーザー報告（2026-09-17）「CPU が対戦終了後の終了を押さない。ずっと勝利画面で終了待機中になる」。
+  //   CPU の確認は決着の瞬間に1回だけ書かれ、その書き込みが失敗すると二度と押されなかった（実機 `cpuAckWriteLostStillEnds` で再現）。
+  const bs = {} as BattleStateRow;
+  eq(JSON.stringify(reduceBattle(bs, { type: 'ACK_END', isHost: true, cpuBattle: true })), JSON.stringify({ host_end_ack: true, guest_end_ack: true }),
+    '🔴CPU 戦で人間が押しても CPU の分が押されない（CPU の確認を待って止まる）');
+  eq(JSON.stringify(reduceBattle(bs, { type: 'ACK_END', isHost: true })), JSON.stringify({ host_end_ack: true }), '対人戦で相手の分まで押している');
+  eq(JSON.stringify(reduceBattle(bs, { type: 'ACK_END', isHost: false })), JSON.stringify({ guest_end_ack: true }), '対人戦のゲスト側の確認が違う');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battle.includes("reduceBattle(bs, { type: 'ACK_END', isHost, cpuBattle: isCpuBattle })"), '🔴「対戦終了」ボタンが CPU 戦の同時確認を使っていない');
+  ok(/\.from\('battle_states'\)\.select\('host_end_ack, guest_end_ack'\)\.eq\('room_id', roomId\)\.maybeSingle\(\);/.test(battle),
+    '🔴押した後に DB を読み直していない（相手の確認の通知を取りこぼすと終了待機中のまま止まる）');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

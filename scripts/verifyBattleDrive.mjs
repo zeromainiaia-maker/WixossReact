@@ -62162,6 +62162,151 @@ scenarios.v247AfterCpuRiseNoTrigger = {
 };
 order.push('v247AfterCpuRiseNoTrigger');
 
+// 🔴**`cpuAcksGameEnd`＝決着したら CPU が「対戦終了」を押す（`guest_end_ack`）**（2026-09-17・ユーザー報告
+//   「CPU が対戦終了後の終了を押さない。ずっと勝利画面で終了待機中になる」）。
+//   観測点＝①決着（`global_phase=FINISHED`）②**人間が押す前に** `guest_end_ack=true` ③人間が押すとルームが消えて画面が戻る。
+async function endAckQuery(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&select=id,status&order=created_at.desc`, { headers: h });
+    const room = (await r1.json())?.[0];
+    if (!room) return { noRoom: true };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${room.id}&select=global_phase,host_end_ack,guest_end_ack,winner_id`, { headers: h });
+    return { room: room.id, ...((await r2.json())?.[0] ?? { noRow: true }) };
+  }, { SUPA_URL, ANON });
+}
+scenarios.cpuAcksGameEnd = {
+  title: 'CPU のライフ0にルリグアタック（ガード札なし）＝決着 → CPU が対戦終了を押す → 人間が押すとルームが消える',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#eah'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'hand': [], 'actions_done': [], 'field.check': null },
+    guestSet: { 'field.lrig': ['WD03-002#eag'], 'field.signi': [null, null, null], 'hand': [], 'life_cloth': [], 'field.check': null },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let attacked = false, finishedAt = -1, cpuAcked = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      const st = await endAckQuery(page);
+      H.log(`  endack[${s}] ${JSON.stringify(st)}`);
+      if (st.global_phase === 'FINISHED' && finishedAt < 0) finishedAt = s;
+      if (st.guest_end_ack) cpuAcked = true;
+      if (finishedAt >= 0) {
+        // 人間は CPU の確認を待ってから押す（押す前に CPU が押しているかを観測点にする）。
+        if (cpuAcked || s >= finishedAt + 8) {
+          if (!cpuAcked) return { pass: false, detail: `🔴決着から約${Math.round((s - finishedAt) * 0.7)}秒たっても CPU が対戦終了を押していない（${JSON.stringify(st)}）` };
+          await H.clickBtn('対戦終了', { exact: true });
+          for (let k = 0; k < 15; k++) {
+            await page.waitForTimeout(700);
+            const after = await endAckQuery(page);
+            if (after.noRoom || after.noRow) return { pass: true, detail: `決着 → CPU が対戦終了（guest_end_ack=true）→ 人間が押してルーム削除` };
+          }
+          return { pass: false, detail: `🔴両者が押したのにルームが消えない（${JSON.stringify(await endAckQuery(page))}）` };
+        }
+        continue;
+      }
+      if (!attacked) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        const visible = async () => !!(await atk.count()) && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+        if (!(await visible())) { await H.clickTestId('my-lrig-slot-center'); for (let k = 0; k < 10 && !(await visible()); k++) await page.waitForTimeout(150); }
+        if (await visible()) { await atk.click({ timeout: 2000 }).catch(() => {}); attacked = true; }
+      } else {
+        await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+      }
+    }
+    return { pass: false, detail: `決着しなかった（attacked=${attacked}）` };
+  },
+};
+order.push('cpuAcksGameEnd');
+// 同じ観測点を**シグニのアタックで勝つ**経路でも見る（決着の書き込み経路が違う）。
+scenarios.cpuAcksGameEndSigni = {
+  title: 'CPU のライフ0に正面が空のシグニでアタック＝決着 → CPU が対戦終了を押す',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#eah2'], 'field.signi': [['WD01-013#eas'], null, null], 'field.signi_down': [false, false, false], 'hand': [], 'actions_done': [], 'field.check': null },
+    guestSet: { 'field.lrig': ['WD03-002#eag2'], 'field.signi': [null, null, null], 'hand': [], 'life_cloth': [], 'field.check': null },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let attacked = false, finishedAt = -1, cpuAcked = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      const st = await endAckQuery(page);
+      H.log(`  endack2[${s}] ${JSON.stringify(st)}`);
+      if (st.global_phase === 'FINISHED' && finishedAt < 0) finishedAt = s;
+      if (st.guest_end_ack) cpuAcked = true;
+      if (finishedAt >= 0) {
+        if (cpuAcked) {
+          await H.clickBtn('対戦終了', { exact: true });
+          for (let k = 0; k < 15; k++) {
+            await page.waitForTimeout(700);
+            const after = await endAckQuery(page);
+            if (after.noRoom || after.noRow) return { pass: true, detail: '決着（シグニアタック）→ CPU が対戦終了 → 人間が押してルーム削除' };
+          }
+          return { pass: false, detail: `🔴両者が押したのにルームが消えない（${JSON.stringify(await endAckQuery(page))}）` };
+        }
+        if (s >= finishedAt + 8) return { pass: false, detail: `🔴決着から約${Math.round((s - finishedAt) * 0.7)}秒たっても CPU が対戦終了を押していない（${JSON.stringify(st)}）` };
+        continue;
+      }
+      if (!attacked) { if (await openSigniAttack(page, H, 0)) attacked = true; }
+      else await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+    }
+    return { pass: false, detail: `決着しなかった（attacked=${attacked}）` };
+  },
+};
+order.push('cpuAcksGameEndSigni');
+
+// 🔴**`cpuAckWriteLostStillEnds`＝CPU の「対戦終了」の書き込みが1回失敗しても、人間が押せば対戦が終わる**（ユーザー報告の再現）。
+//   旧実装＝CPU の確認は決着の瞬間に1回だけ書き、失敗しても再試行しない＝人間は「終了待機中」のまま永久に待つ。
+//   ⚠失敗は**通信レベルで作る**＝`battle_states` への PATCH のうち `guest_end_ack` を含むものを1回だけ中断する。
+scenarios.cpuAckWriteLostStillEnds = {
+  title: 'CPU の対戦終了の書き込みが1回失敗しても、人間が「対戦終了」を押せばルームが消えて戻れる',
+  spec: scenarios.cpuAcksGameEnd.spec,
+  async drive(page, H) {
+    let dropped = 0;
+    const handler = async (route) => {
+      const req = route.request();
+      if (dropped === 0 && req.method() === 'PATCH' && /guest_end_ack/.test(req.postData() ?? '') && !/host_end_ack/.test(req.postData() ?? '')) {
+        dropped++;
+        return route.abort('failed');
+      }
+      return route.continue();
+    };
+    await page.route('**/rest/v1/battle_states*', handler);
+    try {
+      let attacked = false, finishedAt = -1, pressed = false;
+      for (let s = 0; s < 45; s++) {
+        await page.waitForTimeout(700);
+        const st = await endAckQuery(page);
+        if (s % 3 === 0) H.log(`  acklost[${s}] dropped=${dropped} pressed=${pressed} ${JSON.stringify(st)}`);
+        if (st.noRoom || st.noRow) {
+          return pressed
+            ? { pass: true, detail: `CPU の確認の書き込みを${dropped}回落としても、人間が押したらルームが消えた` }
+            : { pass: false, detail: '人間が押す前にルームが消えた（前提崩れ）' };
+        }
+        if (st.global_phase === 'FINISHED' && finishedAt < 0) finishedAt = s;
+        if (finishedAt >= 0) {
+          if (!pressed && s >= finishedAt + 3) { pressed = !!(await H.clickBtn('対戦終了', { exact: true })); H.log(`  対戦終了を押した=${pressed} dropped=${dropped}`); }
+          if (pressed && s >= finishedAt + 20) return { pass: false, detail: `🔴人間が押してから約12秒たってもルームが消えない＝終了待機中のまま（dropped=${dropped}・${JSON.stringify(st)}）` };
+          continue;
+        }
+        if (!attacked) {
+          const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+          const visible = async () => !!(await atk.count()) && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+          if (!(await visible())) { await H.clickTestId('my-lrig-slot-center'); for (let k = 0; k < 10 && !(await visible()); k++) await page.waitForTimeout(150); }
+          if (await visible()) { await atk.click({ timeout: 2000 }).catch(() => {}); attacked = true; }
+        } else {
+          await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        }
+      }
+      return { pass: false, detail: `決着しなかった（attacked=${attacked}）` };
+    } finally {
+      await page.unroute('**/rest/v1/battle_states*', handler).catch(() => {});
+    }
+  },
+};
+order.push('cpuAckWriteLostStillEnds');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

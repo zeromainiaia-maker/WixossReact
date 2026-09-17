@@ -40,7 +40,11 @@ export type BattleAction =
       effectStack?: EffectStack | null;
     }
   /** 決着確認（終了ダイアログ）を了承する。 */
-  | { type: 'ACK_END'; isHost: boolean }
+  /**
+   * 🆕2026-09-17＝`cpuBattle` のときは**CPU（guest）の分も同時に**押す＝CPU の確認を待たない。
+   *   CPU の確認は決着の瞬間に1回だけ書かれ、その書き込みが失敗すると二度と押されず、人間が「終了待機中」のまま永久に待っていた（ユーザー報告）。
+   */
+  | { type: 'ACK_END'; isHost: boolean; cpuBattle?: boolean }
   /** じゃんけんの手を提出する。 */
   | { type: 'SUBMIT_JANKEN'; isHost: boolean; pick: string }
   /**
@@ -208,6 +212,7 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       return patch;
     }
     case 'ACK_END':
+      if (action.cpuBattle) return { host_end_ack: true, guest_end_ack: true };
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };
     case 'SUBMIT_JANKEN':
       return action.isHost ? { host_janken: action.pick } : { guest_janken: action.pick };

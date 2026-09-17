@@ -1297,6 +1297,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCpuBattle, bs?.host_end_ack, bs?.guest_end_ack, roomId, onBack]);
 
+  // 🆕2026-09-17＝**自分が「対戦終了」を押した後は DB を2秒ごとに読み直す**（対人戦も含む）。
+  //   🔴相手の確認やルーム削除の通知（Realtime）を1件取りこぼすと、画面は「終了待機中」のまま二度と動かなかった
+  //   （押した瞬間に1回読むだけで、その後は通知頼みだった）。両者が押していれば後始末して戻る／行が消えていれば戻る。
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'FINISHED') return;
+    const myAck = user.id === bs.host_id ? bs.host_end_ack : bs.guest_end_ack;
+    if (!myAck) return;
+    const id = setInterval(async () => {
+      if (leavingRef.current) return;
+      const { data, error } = await supabase
+        .from('battle_states').select('host_end_ack, guest_end_ack').eq('room_id', roomId).maybeSingle();
+      if (error || leavingRef.current) return;
+      if (!data) { leavingRef.current = true; onBack(); return; }
+      if (data.host_end_ack && data.guest_end_ack) {
+        leavingRef.current = true;
+        await persist.remove();
+        await supabase.from('rooms').delete().eq('id', roomId);
+        onBack();
+      }
+    }, 2000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.global_phase, bs?.host_end_ack, bs?.guest_end_ack, roomId]);
+
   // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
   const contBlocked = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return { forSelf: new Set<string>(), forOther: new Set<string>(), cannotAttackSigni: new Set<string>(), cannotAttackSigniUnlessPayColorless: new Map<string, number>() };
@@ -16364,7 +16388,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleEndAck = async () => {
     if (loading || !bs) return;
     setLoading(true);
-    await persist.commit(reduceBattle(bs, { type: 'ACK_END', isHost }));
+    // 🔴CPU 戦は **CPU の分も同時に押す**（2026-09-17・ユーザー報告「CPU が対戦終了を押さず、ずっと終了待機中」）。
+    //   CPU の確認は決着の瞬間に1回だけ書かれる＝その書き込みが失敗すると再試行されず、人間は永久に待っていた
+    //   （実機 `cpuAckWriteLostStillEnds` で再現＝書き込みを1回落とすだけで止まる）。CPU の確認を待つ意味は無い。
+    await persist.commit(reduceBattle(bs, { type: 'ACK_END', isHost, cpuBattle: isCpuBattle }));
     // 最新状態を取得して両者が押したか確認
     const { data } = await supabase
       .from('battle_states')
