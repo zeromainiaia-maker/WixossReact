@@ -101,7 +101,7 @@ import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeS
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
 import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/screens/battle/bugReport';
 import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/screens/battle/battleOutcome';
-import { resonaLeaveDestination } from '../src/engine/resonaZone';
+import { enforceResonaZoneRule, resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
@@ -5781,8 +5781,11 @@ test('§6.4 E2E WXK02-070-E1: Lv2以下だけ・0枚可・選べばshuffle後top
 });
 
 test('§6.4 E2E WXK03-049-E1: ＜遊具＞だけ・shuffle後の二番目を選べる', () => {
-  const picked = matchingCard({ cardType: 'シグニ', story: '遊具' });
-  const other = matchingCard({ cardType: 'シグニ' }, c => !matchesFilter(c, { cardType: 'シグニ', story: '遊具' }));
+  // ⚠**素のシグニを選ぶ**（`matchesFilter` は `cardType:'シグニ'` に**レゾナも**含めるので、
+  //   絞らないとレゾナが当たる）＝レゾナはメインデッキに入らない（`isLrigCard`）し、
+  //   §5.6 `C-9` `R-45` の規則でデッキから引き上げられるので、この盤面自体が作れない。
+  const picked = matchingCard({ cardType: 'シグニ', story: '遊具' }, c => c.Type === 'シグニ');
+  const other = matchingCard({ cardType: 'シグニ' }, c => c.Type === 'シグニ' && !matchesFilter(c, { cardType: 'シグニ', story: '遊具' }));
   const effect = parseCardEffects(cardMap.get('WXK03-049')!).find(e => e.effectId === 'WXK03-049-E1')!;
   const ctx = mkCtx({ deckTop: [picked, other] }, {}, 'WXK03-049');
   const first = executeEffect(effect, ctx);
@@ -8101,7 +8104,8 @@ test('第20バッチ SEARCH handOrField: 採用11効果ごとに手札枝・場�
     const effect = [...effectsMap.values()].flat().find(e => e.effectId === effectId)!;
     const search = findSearch(effect.action)!;
     ok(!!search && search.handOrField === true, `${effectId}: SEARCH.handOrField=true`);
-    const picked = findCard(c => matchesFilter(c, search.filter));
+    // ⚠**素のシグニに限る**（レゾナは `cardType:'シグニ'` に含まれるが、メインデッキには入らない＝`R-45`）。
+    const picked = findCard(c => c.Type === 'シグニ' && matchesFilter(c, search.filter));
 
     const runToChoice = (full: boolean) => {
       const occupied = full ? [SIGNI_L1, SIGNI_L2, SIGNI_L3] : [null, null, null];
@@ -86069,6 +86073,39 @@ test('§5.6 C-9 R-52 同時トリガーはターンプレイヤーの分を全�
   // ⚠**既存のキューは並べ替えない**＝解決順が確定済み（上の `t0` が先頭のまま）。
   const pushed2 = pushToStack(pushed, [entry('o3', OP)]);
   eq(pushed2.queue.map(e => e.id).join(','), 't0,t2,o2,o3', '既存キューの順が入れ替わった');
+}));
+
+test('§5.6 C-9 R-45 レゾナは場を離れたら必ずルリグデッキ（手札・トラッシュ・デッキ・エナに残らない）', () => withSavedCursor(() => {
+  // 🔑**2026-09-17 ユーザー裁定**＝「ルリグトラッシュに行くと明示されている場合以外、レゾナが場を離れるときは
+  //   **必ずルリグデッキに戻る**。手札やトラッシュには行かない。」
+  // 🔴**行き先ごとに直すのをやめた理由**＝場を離れる書き込みは `removeFromField` の呼び出し**約70箇所**に
+  //   散っており（手札へ／トラッシュへ／デッキへ／エナへ）、1つずつ直すと必ず取りこぼす。
+  //   ⇒ engine の**全アクションの終端**（`done()`）で正す（`enforceResonaZoneRule`）。
+  const resona = [...cardMap.values()].find(c => c.Type === 'レゾナ')!.CardNum;
+  const declared = 'WX10-008';   // 「代わりにルリグトラッシュに置かれる」と印刷されたレゾナ
+  const base = mkState({});
+  const put = (zone: 'hand' | 'trash' | 'deck' | 'energy', num: string): PlayerState =>
+    ({ ...base, lrig_deck: [], lrig_trash: [], [zone]: [...(base[zone] ?? []), num] }) as PlayerState;
+  for (const zone of ['hand', 'trash', 'deck', 'energy'] as const) {
+    const after = enforceResonaZoneRule(put(zone, resona), cardMap, effectsMap);
+    eq(after.lrig_deck.includes(resona), true, `🔴${zone} のレゾナがルリグデッキへ戻らない`);
+    eq((after[zone] ?? []).includes(resona), false, `🔴${zone} にレゾナが残っている`);
+  }
+  // ⚠「代わりにルリグトラッシュ」と**印刷された**札はルリグトラッシュへ（規則の置換）。
+  const declaredAfter = enforceResonaZoneRule(put('trash', declared), cardMap, effectsMap);
+  eq(declaredAfter.lrig_trash.includes(declared), true, '🔴印刷された置換（ルリグトラッシュ）が効いていない');
+  eq(declaredAfter.lrig_deck.includes(declared), false, '印刷された置換を無視してルリグデッキへ戻している');
+  // ⚠**ふつうのシグニは動かさない**。
+  const plain = enforceResonaZoneRule(put('hand', SIGNI), cardMap, effectsMap);
+  eq(plain.hand.includes(SIGNI), true, '🔴ふつうのシグニまで手札から抜いている');
+  eq(plain.lrig_deck.length, 0, 'ふつうのシグニをルリグデッキへ入れている');
+  // ⚠**ルリグデッキ・ルリグトラッシュ・除外は走査しない**（正しい置き場／引き戻さない）。
+  const inLrigTrash = enforceResonaZoneRule({ ...base, lrig_deck: [], lrig_trash: [resona] } as PlayerState, cardMap, effectsMap);
+  eq(inLrigTrash.lrig_trash.includes(resona), true, '🔴ルリグトラッシュに置かれたレゾナを引き上げている（効果が明示して置いた分）');
+  // 🔴**配線**＝engine の終端1箇所で掛ける（行き先ごとの写経に戻さない）。
+  const utils = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  ok(/export function done\(ctx: ExecCtx\): ExecResult \{[\s\S]{0,600}enforceResonaZoneRule\(ctx\.ownerState/.test(utils),
+    '🔴`done()` でレゾナの置き場を正していない（場を離れる約70経路を個別に直すことになる）');
 }));
 
 test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（増設枠を取り違えない）', () => withSavedCursor(() => {

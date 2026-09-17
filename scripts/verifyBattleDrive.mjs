@@ -37686,6 +37686,7 @@ scenarios.b60DeployRestrictTrim = {
     H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
 
     let summoned = false;
+    let opened = false;
     for (let s = 0; s < 24; s++) {
       await page.waitForTimeout(800);
       let did = null;
@@ -62611,6 +62612,56 @@ scenarios.c9lriglevellowered = {
 };
 
 order.push('c9lriglevellowered');
+
+// 🔴**`c9resonalimitexcess`＝バニッシュ以外の経路でもレゾナはルリグデッキへ戻る**
+//   （§5.6 `C-9` `R-45`・2026-09-17 ユーザー裁定「ルリグトラッシュに行くと明示されている場合以外、
+//    レゾナが場を離れるときは必ずルリグデッキに戻る。手札やトラッシュには行かない」）。
+// 🔑**リミット超過のルール処理**（`R-44`）でレゾナを落とす＝バトルのバニッシュを通らない経路。
+//   センター `WD01-003`（Lv2・リミット5）に Lv2 のレゾナ3体＝合計6 > 5。
+//   ⚠**engine の「手札に戻す」経路は実機シナリオを書いていない**（live の該当札が全部
+//     コスト／追加条件つきでドライブが脆くなるため）＝あちらは golden（`done()` の `enforceResonaZoneRule`）で固定。
+scenarios.c9resonalimitexcess = {
+  title: 'C-9 R-45 リミット超過で落ちたレゾナもルリグデッキへ（トラッシュに行かない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9n0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WX13-005B#c9n1'], ['WX13-006B#c9n2'], ['WX14-006B#c9n3']],   // Lv2 レゾナ×3＝合計6
+      'field.signi_down': [false, false, false],
+      'trash': [], 'lrig_deck': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9n9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let sawModal = false;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c9resexcess-${s}.png`, fullPage: true });
+      const zone = page.locator('[data-testid="limit-excess-zone-2"]').first();
+      if (await zone.count() && await zone.isVisible().catch(() => false)) { sawModal = true; await zone.click().catch(() => {}); }
+      const st = await c9Query(page);
+      H.log(`  c9resexcess[${s}] modal=${sawModal} | signi=${JSON.stringify(st?.host?.fieldSigni)} lrigDeck=${JSON.stringify(st?.host?.lrigDeck)} trash=${JSON.stringify(st?.host?.trash)}`);
+      const remaining = (st?.host?.fieldSigni ?? []).filter(z => z != null).length;
+      if (!sawModal || remaining !== 2) continue;
+      const inLrigDeck = (st?.host?.lrigDeck ?? []).includes('WX14-006B#c9n3');
+      const inTrash = (st?.host?.trash ?? []).includes('WX14-006B#c9n3');
+      return {
+        pass: inLrigDeck && !inTrash,
+        detail: inLrigDeck && !inTrash
+          ? `リミット超過で落ちたレゾナはルリグデッキへ（lrigDeck=${JSON.stringify(st.host.lrigDeck)}／トラッシュは空=${JSON.stringify(st.host.trash)}）`
+          : `🔴lrigDeck=${inLrigDeck} trash=${inTrash}（lrigDeck=${JSON.stringify(st?.host?.lrigDeck)} trash=${JSON.stringify(st?.host?.trash)}）`,
+      };
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴リミット超過の問い合わせが出ない／解けない（sawModal=${sawModal} signi=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  },
+};
+
+order.push('c9resonalimitexcess');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

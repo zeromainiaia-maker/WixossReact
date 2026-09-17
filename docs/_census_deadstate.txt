@@ -6,14 +6,14 @@ PlayerState のキー: 382
 
 
 ## 参考：書き込みの多い順（上位40）
-  1576 読 / 103 書  energy
-  1320 読 /  71 書  deck
+  1577 読 / 103 書  energy
+  1321 読 /  71 書  deck
   3824 読 /  71 書  field
-  1791 読 /  65 書  trash
-  1917 読 /  62 書  hand
+  1792 読 /  65 書  trash
+  1918 読 /  62 書  hand
     55 読 /  36 書  temp_power_mods
-   224 読 /  34 書  lrig_deck
-   194 読 /  24 書  lrig_trash
+   226 読 /  34 書  lrig_deck
+   196 読 /  24 書  lrig_trash
    132 読 /  23 書  keyword_grants
     98 読 /  18 書  blocked_actions
    161 読 /  17 書  life_cloth

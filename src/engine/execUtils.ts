@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
-import { resonaLeaveDestination } from './resonaZone';
+import { enforceResonaZoneRule, resonaLeaveDestination } from './resonaZone';
 import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, lrigTeamMatches, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
@@ -1502,7 +1502,13 @@ export function doneFailed(ctx: ExecCtx): ExecResult {
 }
 
 export function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
+  // 🆕🔴**§5.6 `C-9` `R-45`（2026-09-17 ユーザー裁定）＝レゾナは場を離れたら必ずルリグデッキへ。**
+  //   ここは engine の**全アクションの終端1箇所**＝場を離れる書き込み（約70箇所）を個別に直さずに済む。
+  //   ⚠SEQUENCE の途中の `done` でも掛かるので「手札に戻してから手札を捨てる」型の連鎖も塞がる。
+  //   ⚠正すだけ（`lrig_deck`/`lrig_trash`/`excluded` は走査しない）＝詳細は `enforceResonaZoneRule`。
+  const ownerState = enforceResonaZoneRule(ctx.ownerState, ctx.cardMap);
+  const otherState = enforceResonaZoneRule(ctx.otherState, ctx.cardMap);
+  return { done: true, ownerState, otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {

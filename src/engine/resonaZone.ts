@@ -1,4 +1,4 @@
-import type { CardData } from '../types';
+import type { CardData, PlayerState } from '../types';
 import type { CardEffect, StubAction } from '../types/effects';
 
 /**
@@ -44,4 +44,57 @@ export function resonaLeaveDestination(
     && effect.action.type === 'STUB'
     && (effect.action as StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD');
   return toLrigTrash ? 'lrig_trash' : 'lrig_deck';
+}
+
+/**
+ * 🆕**レゾナ／クラフトが「居てはいけない領域」に居たら規則の行き先へ戻す**
+ * （§5.6 `C-9` `R-45`／`R-45b`・2026-09-17 ユーザー裁定）。
+ *
+ * 🔑**裁定**＝「**ルリグトラッシュに行くと明示されている場合以外、レゾナが場を離れるときは必ずルリグデッキに戻る。
+ *   手札やトラッシュには行かない。**」⇒ レゾナが手札・トラッシュ・デッキ・エナゾーンに居る盤面は**存在しない**。
+ *
+ * 🔴**なぜ「行き先ごとに直す」ではなく「後から正す」形なのか**＝場を離れる書き込みは
+ *   `removeFromField` の呼び出し**約70箇所**に散っており（手札へ／トラッシュへ／デッキへ／エナへ）、
+ *   1つずつ直すと**必ず取りこぼす**（バニッシュ経路だけ直した第394バッチの続きがこれ）。
+ *   ⇒ **`done()`（engine の全アクションの終端・1箇所）**でまとめて正す＝新しい経路が増えても自動で掛かる。
+ *   ⚠SEQUENCE の**途中の done でも掛かる**ので、「手札に戻してから手札を捨てる」型の連鎖でも
+ *     レゾナが手札に居る瞬間が生まれない。
+ *
+ * ⚠**`lrig_deck` / `lrig_trash` は走査しない**＝どちらも正しい置き場（効果が明示して置いた分を戻さない）。
+ * ⚠**`excluded`（ゲームから除外）も走査しない**＝除外からカードを引き戻さない（クラフトの行き先でもある）。
+ * ⚠**場（`field.signi`）は当然対象外**＝出ているレゾナを回収しない。
+ */
+const RESONA_ILLEGAL_ZONES = ['hand', 'trash', 'deck', 'energy'] as const;
+
+export function enforceResonaZoneRule(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap?: Map<string, CardEffect[]>,
+): PlayerState {
+  let moved = false;
+  const toLrigDeck: string[] = [];
+  const toLrigTrash: string[] = [];
+  const toExcluded: string[] = [];
+  const next: Record<string, string[]> = {};
+  for (const zone of RESONA_ILLEGAL_ZONES) {
+    const cards = state[zone];
+    if (!cards?.length) continue;
+    const kept: string[] = [];
+    for (const num of cards) {
+      const dest = resonaLeaveDestination(num, cardMap, effectsMap);
+      if (dest === 'lrig_deck') { toLrigDeck.push(num); moved = true; continue; }
+      if (dest === 'lrig_trash') { toLrigTrash.push(num); moved = true; continue; }
+      if (dest === 'exile') { toExcluded.push(num); moved = true; continue; }
+      kept.push(num);
+    }
+    if (kept.length !== cards.length) next[zone] = kept;
+  }
+  if (!moved) return state;
+  return {
+    ...state,
+    ...next,
+    lrig_deck: toLrigDeck.length ? [...state.lrig_deck, ...toLrigDeck] : state.lrig_deck,
+    lrig_trash: toLrigTrash.length ? [...state.lrig_trash, ...toLrigTrash] : state.lrig_trash,
+    excluded: toExcluded.length ? [...(state.excluded ?? []), ...toExcluded] : state.excluded,
+  };
 }

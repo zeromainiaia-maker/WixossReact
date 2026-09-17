@@ -11,18 +11,19 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-17＝第400バッチ：`R-48` の追加裁定（ルリグのレベル低下でも落とす）を実装**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🔑**裁定＝「ルリグのレベルが下がってシグニのレベルが超過したときも、ルール処理によってトラッシュに送られる」**（live の発生源＝`SP38-005`）。
-- 実装＝実効レベルは `applyTimedBaseLevelOverrides`（**両者の store** を読む）を通す。
-- 🔴🔑**踏んだ罠**＝**「印字レベル」を instance キーから引くと永久に検出できない**＝上書きは instance キーに書かれ、`battleCardMap` は**既に上書きを当てた写し**で渡ってくるので、印字＝実効になる。⇒ **印字は base の CardNum キーから引く**。golden は素の Map を渡していたので通り、実機 `c9lriglevellowered` で初めて落ちた（実機シナリオを書いていなければ緑のまま出荷していた）。
-- 実機 `V-263`＝`c9lriglevellowered` PASS（反転＝印字を instance 優先に戻すと golden FAIL）。
+**直近＝2026-09-17＝第401バッチ：`R-45` の追加裁定＝レゾナは場を離れたら必ずルリグデッキへ（バニッシュ以外も）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔑**裁定**＝「ルリグトラッシュに行くと明示されている場合以外、レゾナが場を離れるときは**必ずルリグデッキに戻る**。手札やトラッシュには行かない」。
+- 🔴**行き先ごとに直すのをやめた**＝場を離れる書き込みは `removeFromField` の呼び出し**約70箇所**に散っており（手札／トラッシュ／デッキ／エナ）、1つずつ直すと必ず取りこぼす（バニッシュ4経路だけ直した第394バッチの続きがこれ）。⇒ **engine の全アクションの終端 `done()` で正す**（`enforceResonaZoneRule`）＝SEQUENCE の途中でも掛かるので「手札に戻してから手札を捨てる」型の連鎖も塞がる。
+- 影響＝live で `BOUNCE` **395効果**／`TRASH` **307効果**がシグニを対象に取れ、`matchesFilter` は `cardType:'シグニ'` に**レゾナも含める**＝いままで**レゾナが手札に入って実質消えていた**。
+- ⚠**golden の fixture を2件直した**＝`matchesFilter` の緩和でレゾナが「ふつうのシグニ」の代役に選ばれていた（メインデッキにレゾナは入らない＝`isLrigCard`）。
+- 実機 `V-264`＝`c9resonalimitexcess` PASS（リミット超過で落ちたレゾナもルリグデッキへ）。通し対戦 CPU も PASS。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **`C-8`**（対話応答の pure 化＝§5.6 の最後の1件）／§5.6.2b の残件2件（`R-45b` のバニッシュ以外の離場／`R-47` の既存デッキ） |
-| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（今回は engine・UI 層＝3計器の対象外） |
-| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 1**（§5.6 `C-8`）／ルール台帳 ⚠0（残件2） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4295） |
+| 🔥**次に取るもの** | **`C-8`**（対話応答の pure 化＝§5.6 の最後の1件）／§5.6.2b の残件1件（`R-47` の既存デッキ） |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（今回は engine 層＝3計器の対象外） |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／**CPU 完成度 1**（§5.6 `C-8`）／ルール台帳 ⚠0（残件1） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4296）／通し対戦 `verifyFullMatch cpu` PASS |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -170,7 +171,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **③** | **§5.0 実装キュー** | **0** | triage で BUG と確定した未修正の効果 | `node scripts/archive/semanticAuditBugList.mjs` |
 | 🔥**④** | 🆕**§5.6 CPU 完成度 `C-nn`** | **2** | **プレイ駆動の発見器**＝CPU が撃たない機構＝未検査な向き | §5.6.2 の表 |
 | **⑤** | **§5.2 意味照合** | **round6 完了** | 監査による新しい型の発見 | `semantic_audit_round6/TYPE_LEDGER.md` |
-| **⑥** | **§5.6.2b ルール解釈の残件** | **2** | 裁定は全部済み。残りは Claude が取ってよい実装の穴 | §5.6.2b の表（全文は [RULES.md](./RULES.md) §2） |
+| **⑥** | **§5.6.2b ルール解釈の残件** | **1** | 裁定は全部済み。残りは Claude が取ってよい実装の穴 | §5.6.2b の表（全文は [RULES.md](./RULES.md) §2） |
 | — | §5.4 構造混線 | **0** | 新しく見つけたときだけ足す | — |
 
 **取る順**＝①実機（寝かせるほど切り分けが高くつく）→ ②機構（索引の並び順）→ ③実装キュー（機構不要の候補だけ）→ 🔥**④CPU 完成度（`C-9`／`C-8`。順は `census:play` の未踏で決める）** → ⑤意味照合（①〜④が空のとき）。
@@ -218,7 +219,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-264`＝`c9resonalimitexcess`＝2026-09-17 第401バッチで PASS。バニッシュ以外でもレゾナがルリグデッキへ戻る回帰ガード／`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -428,7 +429,6 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 | 出所 | 残っていること |
 |---|---|
-| `R-45b` | **バニッシュ以外の離場**（効果で手札／トラッシュへ置かれる場合）＝live **`BOUNCE` 395／`TRASH` 307 効果**がシグニを対象に取れ、`matchesFilter` は `cardType:'シグニ'` に**レゾナも含める**。いまはどれも `resonaLeaveDestination` を通らない（例＝`execBounce` は `hand` へ直に積む）⇒ **レゾナが手札に入る**（手札からは出せないので実質消える） |
 | `R-47` | **既に保存されているデッキ**は遡って弾かない（追加時の判定だけ）＝対戦開始時の検証に足すかは未決 |
 
 #### 5.6.3 規律（`cpu*.ts` の既存5本と同じ＝[DESIGN.md](./DESIGN.md) §4）
