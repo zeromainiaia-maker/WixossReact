@@ -252,7 +252,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           const canConfirm = inter.type === 'SELECT_TARGET'
             ? (inter.totalPowerMax !== undefined
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
-                : (fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional, constrainedMax)
+                // 🆕2026-09-18 バグ報告（テキサハンマが出せない）＝任意の対象選択で**何も選ばずに「決定 (0/1)」を押すと
+                //   黙って「使わない」になっていた**（実機ハーネスも同じ罠を踏んだ）。断るのは隣の「スキップ」だけにする。
+                : (!(inter.optional && inter.selectionConstraint?.totalLevelExact === undefined && effectSelectedNums.length === 0)
+                  && fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional, constrainedMax)
                   && satisfiesSelectionConstraint(
                     effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                     inter.selectionConstraint,

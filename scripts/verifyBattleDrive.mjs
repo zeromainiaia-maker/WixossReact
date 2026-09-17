@@ -1265,6 +1265,63 @@ async function driveV205(page, H, { tag, expectPlaced }) {
   };
 }
 
+/** 2026-09-18 バグ報告（テキサハンマ）の実機シナリオ。`refreshCase`＝デッキちょうど7枚（ミルでリフレッシュ）。 */
+function mkBug0918Texa(refreshCase) {
+  const deck = ['WD01-013#81', 'WX02-073#1', 'WD01-013#82', 'WD01-013#83', 'WD01-013#84', 'WD01-013#85', 'WD01-013#86',
+    ...(refreshCase ? [] : ['WD01-013#87', 'WD01-013#88', 'WD01-013#89'])];
+  return {
+    title: `バグ報告 2026-09-18: WD05-009 の【出】ミルで WX02-073 がデッキからトラッシュ（${refreshCase ? 'デッキ0枚＝先にリフレッシュして不発' : '通常＝場に出せる'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'], 'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+        'hand': ['WD05-009#1'], deck,
+        'trash': ['WD05-014#4', 'WD05-014#3', 'WD01-017#1', 'WX02-025#1', 'WD05-018#2', 'WD05-017#1', 'WD04-017#4', 'WX02-072#2', 'WD05-018#3', 'WD04-017#1', 'WX02-070#2', 'WX02-025#2', 'WD05-017#2', 'WD01-017#4', 'WD01-017#3', 'WX02-072#3', 'WD05-009#2'],
+        'energy': ['WD05-013#1'], 'actions_done': [],
+      },
+      guestSet: {},
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 4 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック(WD05-009):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false, sawTarget = false;
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/bug0918texa${refreshCase ? 'R' : ''}-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            sawTarget = true;
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            const zeroConfirm = page.getByRole('button', { name: /決定 \(0\// }).first();
+            if (await zeroConfirm.count() && await zeroConfirm.isEnabled().catch(() => false)) return { pass: false, detail: '0枚選択の「決定 (0/1)」が押せる（黙って断る罠）' };
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        const pre = await H.queryState();
+        // 召喚先は「ゾーン1」、効果の配置先は空いている「ゾーン3」（占有ゾーンのボタンは押せない）。
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', pre?.pendingEffect === 'SELECT_SIGNI_ZONE' ? 'ゾーン3' : 'ゾーン1', 'OK', 'はい']);
+        const st = await H.queryState();
+        const onField = (st?.host?.fieldSigni ?? []).some(z => String(z ?? '').includes('WX02-073'));
+        const texaLog = await H.findLog(/テキサハンマ の【トラッシュ時】効果/);
+        H.log(`  tx[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} texaLog=${!!texaLog}`);
+        if (!refreshCase && onField) return { pass: true, detail: `WX02-073 が場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        if (refreshCase && (onField || sawTarget)) return { pass: false, detail: `🔴リフレッシュより先にテキサハンマが解決した（hField=${JSON.stringify(st.host.fieldSigni)} sawTarget=${sawTarget}）` };
+        // ②＝ミル直後にリフレッシュ済み（デッキ再構築・ログあり）で、数手待ってもテキサハンマが場に出ず対象選択も出ないこと。
+        if (refreshCase && s >= 6 && !st?.stackLen && !st?.pendingEffect) {
+          const refreshLog = await H.findLog(/^リフレッシュ（デッキを再構築）/);
+          return { pass: (st?.host?.deck ?? 0) > 0 && !!refreshLog, detail: `デッキ0枚→先にリフレッシュ（hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} log=${refreshLog}）→テキサハンマは不発（texaLog=${!!texaLog}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着せず（hField=${JSON.stringify(fin?.host?.fieldSigni)} hDeck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  };
+}
+
 const scenarios = {
   // ── 🆕§5.3 `O-333`（2026-09-12・第285バッチ）＝コイン技の遡及的な無効化 ─────────────
   // 原文（`WX16-002-E4`／`-E4b`）＝「【出】／【起】オーネスト《コイン》《コイン》：
@@ -6889,6 +6946,14 @@ const scenarios = {
       return { pass: false, detail: `ON_TRASH(self,fromZones:hand) 未確認（hHand=${fin?.host?.hand ?? '-'}（開始${before?.host?.hand}） hTrash=${fin?.host?.trash ?? '-'} gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // 🆕2026-09-18 バグ報告（3ddf1c98）＝《堕落の砲女 メツム》の【出】で自分のデッキから《コードアンチ テキサハンマ》が
+  //    トラッシュに置かれ、【自】「このカードをトラッシュから場に出してもよい」がログには出たが場に出せなかった。
+  //    ①通常（デッキ10枚→ミル後3枚）＝場に出せる。⚠何も選ばずに「決定 (0/1)」を押せないこと（黙って断る罠だった）。
+  //    ②デッキちょうど7枚（ミルで0枚）＝公式ルール「効果が終わった直後、他に発動する効果より優先してリフレッシュ」（例《幻獣神 オサキ》）
+  //      ⇒ テキサハンマはデッキへ戻っているので**不発が正しい**（場に出ない・対象選択も出ない）。
+  bug0918texa: mkBug0918Texa(false),
+  bug0918texaRefresh: mkBug0918Texa(true),
 
   // ㉔ WXDi-P04-043: 【自】ON_REFRESH（triggerCondition.refreshedOwner:'any'）＝§7 R45②「いずれかのプレイヤーが
   //    リフレッシュしたとき」の実機検証。host のデッキを残り1枚（trashは1枚）にしておき、WX15-073（【出】E1=対戦相手

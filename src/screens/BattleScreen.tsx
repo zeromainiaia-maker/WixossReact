@@ -8,7 +8,7 @@ import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowe
 applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums} from '../engine/effectEngine';
-import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, applyRefreshOnDone, refreshPlayersIfDeckEmpty, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canSatisfyDiscardGroups, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -455,12 +455,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
   const checkRefreshTurnEndRef            = useRef<(() => Promise<void>) | null>(null);   // §5.6 `C-9` `R-28`
   const checkLimitExcessRef              = useRef<(() => Promise<void>) | null>(null);   // §5.3 `O-532`（`R-44`/`R-48`）
+  const checkDeferredRefreshRef          = useRef<(() => Promise<void>) | null>(null);   // 2026-09-18 リフレッシュはすべての処理の後
 
   const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
   const resolvePendingLrigAttackRef      = useRef<(() => Promise<void>) | null>(null);
   const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
   const lastContMutationKeyRef    = useRef<string>(''); // CONTINUOUS BANISH/FREEZE/DOWN 二重処理防止
   const lastRefreshTurnEndKeyRef  = useRef<string>(''); // `R-28`＝同じターンで2回ターン終了させない
+  const lastDeferredRefreshKeyRef = useRef<string>(''); // 同じ盤面で2回リフレッシュしない（DB 伝播待ち）
   const lastLimitExcessKeyRef     = useRef<string>(''); // `O-532`＝DB 伝播待ちの二重処理防止
   const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
   const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
@@ -1628,6 +1630,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🆕**保留になっていたリフレッシュの受け皿**（2026-09-18・公式ルール）。
+  //   通常のリフレッシュは効果1つの解決直後（`applyRefreshOnDone`＝誘発した効果より先）とドローフェイズで行う。
+  //   ここは「デッキ0枚でもトラッシュが空で保留→あとからトラッシュにカードが置かれた」等、その2か所を通らなかった残り。
+  //   ⚠CPU 戦は人間のクライアントが CPU 側も処理する（PvP はターンプレイヤーのクライアントだけ）。
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.turn_phase === 'UP') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    if (loading) return;
+    if (bs.active_user_id !== user.id && !isCpuBattle) return;
+    checkDeferredRefreshRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🆕§5.6 `C-9` `R-28`＝**ターンプレイヤーのこのターン2回目のリフレッシュ → ターンを終了**（ルール処理）。
   //   🔴規則が効果スタックの解決経路1本にしか無かったので、盤面が動くたび見る funnel を受け皿にする
@@ -4009,6 +4026,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ドローフェイズの通常ドローは「効果ドロー」ではないため last_effect_draw_source をクリアし、
           // 直後の collectDrawTriggers で drawBySourceStory トリガー（WX20-026-E3）が前ターンの残値で誤発火しないようにする。
           : { ...drawCards(turnStartState, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined, last_effect_draw_source: undefined };
+        // 🆕ドローフェイズのリフレッシュもログに出す（2026-09-18 バグ報告＝効果解決経路の `applyRefreshOnDone` だけが書いていた）。
+        if ((newMyState.refresh_count_this_turn ?? 0) > (turnStartState.refresh_count_this_turn ?? 0)) appendBattleLogs(['リフレッシュ（デッキを再構築）']);
         // UPKEEP_OR_NO_UP: コストを支払ったらアップ、そうでなければダウンのままクリア
         if (newMyState.lrig_upkeep_condition) {
           if (upkeepPay) {
@@ -4270,10 +4289,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_energy_trash_targets: undefined,
           pending_exile_nums: undefined,
           turn_end_draw_count: undefined,
-          temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
-          temp_level_mods:    [],   // UNTIL_END_OF_TURN レベル修正をリセット
-          keyword_grants:     {},   // ターン内付与キーワードをリセット
-          granted_effects:    {},   // ターン内付与能力をリセット
+          // temp_power_mods / temp_level_mods / keyword_grants / granted_effects は clearTurnEndScopedState が両プレイヤー分を失効させる。
           // blocked_card_names のリセットは clearTurnEndScopedState のレジストリへ集約した（§6.4 O-3 続き498）。
           //   ⚠ここで個別に空へ倒すと `blocked_card_names_next_turn` の昇格結果まで握り潰しうる。
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
@@ -4797,7 +4813,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(myHandReturnedEND2.length > 0 ? { hand: [...myHandEND, ...myHandReturnedEND2] } : {}),
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
-        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
         // abilities_removed / keyword_abilities_removed のクリアと「次のターン」予約の昇格は
         // clearTurnEndScopedState に集約した（§6.4 O-3）。ここで個別に空へ倒すと予約を握り潰す。
         actions_done: [],
@@ -5257,6 +5272,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effectToRun = autoPayGate ? wrapSigniAutoPayGate(entry.effect, autoPayGate) : entry.effect;
       let result = executeEffect(effectToRun, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
+      // 🔑公式ルール＝「1つの効果が終わった後、**他に発動する効果より優先して**リフレッシュ」（例：《幻獣神 オサキ》）。
       {
         const refreshed = applyRefreshOnDone(result, battleCardMap);
         if (refreshed !== result) {
@@ -5863,7 +5879,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectZone(zoneIndex, inter, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
       result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -5918,7 +5934,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
       result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -6073,7 +6089,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
       result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -8424,7 +8440,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = spellIsOwnerTurn;
       let result = executeEffect(spellEff, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // ON_SPELL_USE: スペル使用時トリガー（自分ターンのみ）。
       // ルリグ（WX25-P2-034 APEX2「あなたがスペルを使用したとき」）に加え、場のシグニ（WX01-033 幻獣神オサキ
@@ -8766,7 +8782,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = cutinIsOwnerTurn;
       let result = executeEffect(cutinEff, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // myがhost/guestに応じてマッピング
       let hostState  = isHost ? result.ownerState : result.otherState;
@@ -12060,6 +12076,53 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
+   * 🆕**保留になっていたリフレッシュのルール処理**（2026-09-18・公式ルール「トラッシュにカードが無い場合はリフレッシュは
+   *   行われない。その場合、トラッシュにカードが置かれたら（効果の解決中であればその効果の解決後に）リフレッシュが行われる」）。
+   * 効果スタック・対話・スペル・クラッシュ解決がすべて空のときに、デッキ0枚（トラッシュあり）のプレイヤーをリフレッシュし、
+   * `ON_REFRESH` を積む。2回目のリフレッシュでのターン終了は `checkRefreshForcedTurnEnd` が見る。
+   */
+  const checkDeferredRefreshRule = async () => {
+    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    if (bs.turn_phase === 'UP') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
+    if ((bs.host_state.pending_crashed_cards?.length ?? 0) > 0) return;
+    if ((bs.guest_state.pending_crashed_cards?.length ?? 0) > 0) return;
+    const needs = (st: PlayerState) => st.deck.length === 0 && st.trash.length > 0;
+    if (!needs(bs.host_state) && !needs(bs.guest_state)) return;
+    const r = refreshPlayersIfDeckEmpty(bs.host_state, bs.guest_state, battleCardMap);
+    if (!r.aRefreshed && !r.bRefreshed) return;
+    const fingerprint = `${bs.turn_count}:${bs.host_state.trash.length}/${bs.host_state.refresh_count_this_turn ?? 0}:${bs.guest_state.trash.length}/${bs.guest_state.refresh_count_this_turn ?? 0}`;
+    if (lastDeferredRefreshKeyRef.current === fingerprint) return;
+    lastDeferredRefreshKeyRef.current = fingerprint;
+    setLoading(true);
+    try {
+      const who = (id: string) => isCpuBattle && id === CPU_PLAYER_ID ? '[CPU] ' : id === user.id ? '' : '相手';
+      appendBattleLogs([
+        ...(r.aRefreshed ? [`${who(bs.host_id)}リフレッシュ（デッキを再構築）`] : []),
+        ...(r.bRefreshed ? [`${who(bs.guest_id as string)}リフレッシュ（デッキを再構築）`] : []),
+      ]);
+      let h = r.a, g = r.b;
+      const refreshHost = r.aRefreshed ? 1 : 0, refreshGuest = r.bRefreshed ? 1 : 0;
+      const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
+      const rfG = collectRefreshTriggers(bs.guest_id as string, g, h, refreshGuest, refreshHost);
+      if (rfH.usedOncePerTurnIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...rfH.usedOncePerTurnIds] };
+      if (rfG.usedOncePerTurnIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...rfG.usedOncePerTurnIds] };
+      if (rfH.firedOnceDelayed) h = consumeOnceDelayedTriggers(h, 'ON_REFRESH');
+      if (rfG.firedOnceDelayed) g = consumeOnceDelayedTriggers(g, 'ON_REFRESH');
+      const entries = [...rfH.entries, ...rfG.entries];
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: 'host_state', myState: h,
+        opp: { key: 'guest_state', state: g },
+        effectStack: entries.length > 0 ? initStack(bs.active_user_id ?? bs.host_id, entries) : undefined,
+      }));
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * 🆕**§5.6 `C-9` `R-28`（2026-09-17）＝ターンプレイヤーのこのターン2回目のリフレッシュでターンを終了する。**
    *
    * 🔴**規則は `refreshTurnEnd.ts` の述語1本**（効果スタック解決経路と同じ判定）。ここは**残り全経路の受け皿**＝
@@ -12197,6 +12260,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   doPhaseAdvanceRef.current                = doPhaseAdvance;
   checkLimitExcessRef.current              = checkLimitExcessRule;
   checkRefreshTurnEndRef.current            = checkRefreshForcedTurnEnd;
+  checkDeferredRefreshRef.current           = checkDeferredRefreshRule;
   triggerPendingCrashRef.current           = triggerPendingCrash;
   resolveStackNextRef.current              = resolveStackNext;
   checkPowerZeroBanishRef.current          = checkAndBanishPowerZero;
@@ -12745,6 +12809,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...drawCards(activateTurnStartScopedState(cpuSt), cpuDrawCount, cpuPreventRefresh),
         actions_done: ['DRAW'], last_effect_draw_source: undefined,
       };
+      if ((newCpuSt.refresh_count_this_turn ?? 0) > 0) appendBattleLogs(['[CPU] リフレッシュ（デッキを再構築）']);
       // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
       if (newCpuSt.lrig_upkeep_condition) {
         const payCountCpu = newCpuSt.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1;
@@ -13524,7 +13589,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: cpuEnergyTrashEND.state.trash,
         turn_end_energy_trash_targets: undefined,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
-        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, actions_done: [],
+        actions_done: [],
         signi_zone_blocks: undefined, // ゾーン配置禁止をクリア。トラッシュ移動ロックは funnel（予約は別フィールド）
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット

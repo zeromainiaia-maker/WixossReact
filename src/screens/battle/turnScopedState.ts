@@ -167,6 +167,15 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
+  // 🆕🔴「ターン終了時まで」のパワー／レベル修正と、ターン内のキーワード・能力付与（2026-09-18 バグ報告）。
+  //   **書き込み先は修正を受けたシグニの持ち主の state**（`setOwnerState(tgtOwner, …)`）なのに、旧実装は
+  //   ターン終了プレイヤー側だけを手書きで空にしていた＝**相手のシグニへの「ターン終了時まで －5000」が
+  //   相手のターン中もまるごと残っていた**（`WX02-072`《コードアンチ マチュピ》で実機報告）。
+  //   ⚠期間の長い分は別ストア（`power_mods_until_opp_turn`／`keyword_grants_until_opp_turn` 等）なので、ここは「このターン」だけ。
+  temp_power_mods: { boundaries: ['turn-end'], reset: [], reason: 'until-end-of-turn power modifiers; stored on the modified signi owner, so both players must expire' },
+  temp_level_mods: { boundaries: ['turn-end'], reset: [], reason: 'until-end-of-turn level modifiers; same owner-side storage as temp_power_mods' },
+  keyword_grants: { boundaries: ['turn-end'], reset: undefined, reason: 'this-turn keyword grants; longer grants live in keyword_grants_until_opp_turn' },
+  granted_effects: { boundaries: ['turn-end'], reset: undefined, reason: 'this-turn granted abilities; longer grants live in granted_effects_until_opp_turn' },
   // 「このターン、次に」の一発権。通常はライフバースト発動時に消費し、未消費でも全turn-end funnelで失効する。
   life_burst_double_next: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next life-burst doubling is consumed once or expires at turn end' },
   // 🆕`turn_hand_discarded_count` の「実体」側（2026-08-31 続き748）。⚠`turn_*` 始まりで `*_this_turn` 命名では
@@ -532,10 +541,6 @@ export function applyForcedTurnEnd(
   /** ターンを終える側の一時状態をクリア。 */
   const endTurnClear = (state: PlayerState): PlayerState => clearTurnEndScopedState({
     ...state,
-    temp_power_mods: [],
-    temp_level_mods: [],
-    keyword_grants: {},
-    granted_effects: {},
     actions_done: [],
   });
   /** これからターンを行う側＝シグニをアップ（凍結中はアップせず凍結解除）＋次ターン予約の昇格。 */

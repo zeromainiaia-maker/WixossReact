@@ -3331,7 +3331,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       //   `milledDeckOwner` で選ぶ state と一致させる（`triggerCollect.ts` の `collectMillTriggers`）。
       last_effect_mill_source: ctx.sourceCardNum,
     };
-    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `デッキトップ${count}枚をトラッシュへ`), lastProcessedCards: took });
+    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `${tgt.owner === 'opponent' ? '相手の' : '自分の'}デッキトップ${count}枚をトラッシュへ`), lastProcessedCards: took });
   }
 
   return done(ctx);
@@ -12110,25 +12110,43 @@ function refreshPlayerIfDeckEmpty(
   };
 }
 
-// 効果解決完了時（result.done）に、デッキが0枚になった両プレイヤーをリフレッシュする。
-// 戻り値に owner/other がリフレッシュされたかを含める（ターンプレイヤーの2回目→ターン終了の判定用）。
+/** 効果解決完了時（result.done）の後始末のうち、傀儡の離場回収だけ（WDK17-007）。 */
+export function sweepOnDone(result: ExecResult): ExecResult {
+  if (!result.done) return result;
+  const swept = sweepPuppets(result.ownerState, result.otherState);
+  if (swept.a === result.ownerState && swept.b === result.otherState) return result;
+  return { ...result, ownerState: swept.a, otherState: swept.b };
+}
+
+/**
+ * デッキが0枚（かつトラッシュにカードあり）の両プレイヤーをリフレッシュする＝ルール処理の本体。
+ * ⚠`refreshed` は**盤面が実際に変わったか**で返す（`prevent_refresh_until_opp_turn` で据え置きのとき false＝funnel が空回りしない）。
+ */
+export function refreshPlayersIfDeckEmpty(
+  a: PlayerState, b: PlayerState, cardMap: Map<string, import('../types').CardData>,
+): { a: PlayerState; b: PlayerState; aRefreshed: boolean; bRefreshed: boolean } {
+  const ra = refreshPlayerIfDeckEmpty(a, cardMap);
+  const rb = refreshPlayerIfDeckEmpty(b, cardMap);
+  return { a: ra.state, b: rb.state, aRefreshed: ra.refreshed && ra.state !== a, bRefreshed: rb.refreshed && rb.state !== b };
+}
+
+/**
+ * 効果1つの解決完了時（result.done）に、傀儡の回収とデッキ0枚の両プレイヤーのリフレッシュを行う。
+ * 🔑公式ルール＝効果の解決中はリフレッシュしない（デッキ0枚のまま可能な限り解決）→ **その効果が終わった直後、
+ *   他に発動する効果より優先して**リフレッシュ。戻り値の owner/other Refreshed は2回目→ターン終了の判定用。
+ */
 export function applyRefreshOnDone(
   result: ExecResult,
   cardMap: Map<string, import('../types').CardData>,
 ): ExecResult & { ownerRefreshed?: boolean; otherRefreshed?: boolean } {
   if (!result.done) return result;
-  // 傀儡の離場回収（効果で場を離れた傀儡を持ち主のトラッシュへ。WDK17-007）
-  const swept = sweepPuppets(result.ownerState, result.otherState);
-  if (swept.a !== result.ownerState || swept.b !== result.otherState) {
-    result = { ...result, ownerState: swept.a, otherState: swept.b };
-  }
-  const o = refreshPlayerIfDeckEmpty(result.ownerState, cardMap);
-  const t = refreshPlayerIfDeckEmpty(result.otherState, cardMap);
-  if (!o.refreshed && !t.refreshed) return result;
+  result = sweepOnDone(result);
+  const r = refreshPlayersIfDeckEmpty(result.ownerState, result.otherState, cardMap);
+  if (!r.aRefreshed && !r.bRefreshed) return result;
   const logs = [...result.logs];
-  if (o.refreshed) logs.push('リフレッシュ（デッキを再構築）');
-  if (t.refreshed) logs.push('相手リフレッシュ（デッキを再構築）');
-  return { ...result, ownerState: o.state, otherState: t.state, logs, ownerRefreshed: o.refreshed, otherRefreshed: t.refreshed };
+  if (r.aRefreshed) logs.push('リフレッシュ（デッキを再構築）');
+  if (r.bRefreshed) logs.push('相手リフレッシュ（デッキを再構築）');
+  return { ...result, ownerState: r.a, otherState: r.b, logs, ownerRefreshed: r.aRefreshed, otherRefreshed: r.bRefreshed };
 }
 
 // ===== インタラクション解決（UIから呼ばれる） =====

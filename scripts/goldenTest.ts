@@ -49,7 +49,7 @@ import { countEnergyPlacedThisTurn } from '../src/engine/energyPlacement';
 import { countFromZone, fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, maxConstrainedSelectionSize, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
-  applyRefreshOnDone,
+  applyRefreshOnDone, sweepOnDone, refreshPlayersIfDeckEmpty,
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeRevealCards, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni, resumeAllocatePower,
@@ -6111,10 +6111,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 36, '命名規約外のターン限定フィールド数（🆕 36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
+  eq(irregular.length, 40, '命名規約外のターン限定フィールド数（🆕 40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 99, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 103, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -6161,6 +6161,18 @@ test('§6.4 turn-scoped T3: PvP通常終了→次ターン開始で全turn-end�
   const started = activateTurnStartScopedState(ended);
   eq(started.refresh_count_this_turn, 0, '次ターンのrefresh_countは0');
   eq(started.signi_played_from_non_hand_this_turn, undefined, '次ターンの非手札出自は空');
+}));
+
+// 🆕2026-09-18 バグ報告＝「ターン終了時まで」のパワー修正は**修正を受けたシグニの持ち主**の state に積まれる。
+//   旧実装はターン終了プレイヤー側しか空にせず、相手シグニへの －5000（`WX02-072`）が相手のターン中も残っていた。
+test('バグ報告 2026-09-18: 相手シグニへのターン終了時までのパワー修正は、ターン終了で非ターンプレイヤー側も消える', () => withSavedCursor(() => {
+  const victim = { ...mkState(), temp_power_mods: [{ cardNum: 'WD01-012#g4', delta: -5000, srcCardNum: 'WX02-072#3' }], temp_level_mods: [{ cardNum: 'WD01-012#g4', delta: -1 }], keyword_grants: { 'WD01-012#g4': ['ランサー'] } } as PlayerState;
+  const crossed = clearTurnEndScopedState(victim);
+  eq(JSON.stringify(crossed.temp_power_mods), '[]', 'パワー修正は消える');
+  eq(JSON.stringify(crossed.temp_level_mods), '[]', 'レベル修正は消える');
+  eq(crossed.keyword_grants, undefined, 'このターンのキーワード付与は消える');
+  const forced = applyForcedTurnEnd(mkState(), victim);
+  eq(JSON.stringify(forced.nextAfter.temp_power_mods), '[]', '強制ターン終了でも相手側の修正が消える');
 }));
 
 test('§6.4 turn-scoped T5: 強制アタック予約はターン開始まで不活性で開始時に昇格する', () => withSavedCursor(() => {
@@ -86623,6 +86635,25 @@ test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（�
     '🔴キーを場から取り除く経路が4箇所とも keyZone.ts を通っていない');
   eq((screen.match(/key_piece:\s*null/g) ?? []).length, 0,
     '🔴BattleScreen に `key_piece: null` の手書きが戻っている（枠を取り違える）');
+}));
+
+// 🆕2026-09-18（バグ報告の確認・公式ルール）＝リフレッシュは**効果の解決中には行わず、1つの効果が終わった直後に、
+//   他に発動する効果より優先して**行う（例《幻獣神 オサキ》）。トラッシュが空で保留になった分は、トラッシュに
+//   カードが置かれた後のルール処理（`checkDeferredRefreshRule`）が受ける。
+test('バグ報告 2026-09-18: リフレッシュは効果1つの解決直後（誘発より先）＋保留分はルール処理 funnel', () => withSavedCursor(() => {
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/applyRefreshOnDone\(result, battleCardMap\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
+  ok(/const checkDeferredRefreshRule = async/.test(screen), '保留リフレッシュのルール処理 funnel がある');
+  const body = screen.slice(screen.indexOf('const checkDeferredRefreshRule = async'));
+  ok(/if \(bs\.effect_stack \|\| bs\.pending_effect \|\| bs\.pending_spell\) return;/.test(body.slice(0, 600)), '🔴スタック・対話・スペルが残っているのに funnel がリフレッシュする');
+  const empty = { ...mkState(), deck: [], trash: [fresh()] } as PlayerState;
+  const mid = applyRefreshOnDone({ done: false, ownerState: empty, otherState: mkState(), logs: [] } as unknown as ExecResult, cardMap as Map<string, CardData>);
+  eq(mid.ownerState.deck.length, 0, '🔴効果の解決中にリフレッシュしている');
+  const end = applyRefreshOnDone({ done: true, ownerState: empty, otherState: mkState(), logs: [] } as unknown as ExecResult, cardMap as Map<string, CardData>);
+  ok(end.ownerRefreshed === true && end.ownerState.deck.length === 1, '効果が終わった直後にリフレッシュする');
+  eq(sweepOnDone({ done: true, ownerState: empty, otherState: mkState(), logs: [] } as unknown as ExecResult).ownerState.deck.length, 0, 'sweepOnDone は傀儡回収だけ');
+  const locked = { ...empty, prevent_refresh_until_opp_turn: true } as PlayerState;
+  eq(refreshPlayersIfDeckEmpty(locked, mkState(), cardMap as Map<string, CardData>).aRefreshed, false, '🔴据え置き（リフレッシュ禁止）を「した」と返す＝funnel が空回りする');
 }));
 
 test('§5.6 C-9 R-28 ターンプレイヤーの2回目のリフレッシュでターンを終了する（全経路の受け皿つき）', () => withSavedCursor(() => {
