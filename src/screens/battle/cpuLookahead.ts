@@ -40,6 +40,8 @@ export interface LookaheadCtx {
   /** 作戦データの「手元に置く価値」（`S-2`）。盤面の採点には使わない。 */
   planBonus?: (id: string) => number;
   turnPhase?: TurnPhase;
+  /** 🆕§5.7 `S-7`＝CPU のターンか（省略時 true）。相手ターンの応答（`ATTACK_ARTS_OP`）を先読みするときは false＝engine の「あなたのターンの間」が正しく外れる。 */
+  isCpuTurn?: boolean;
 }
 
 const STEP_CAP = 40;
@@ -132,7 +134,7 @@ export function simulateEffect(
   try {
     const base: ExecCtx = {
       ownerState: clone(cpu), otherState: clone(opp), cardMap: lctx.cardMap, logs: [],
-      sourceCardNum: sourceId, triggeringCardNum: sourceId, currentPhase: lctx.turnPhase ?? 'MAIN', isOwnerTurn: true,
+      sourceCardNum: sourceId, triggeringCardNum: sourceId, currentPhase: lctx.turnPhase ?? 'MAIN', isOwnerTurn: lctx.isCpuTurn ?? true,
     } as ExecCtx;
     let result = executeEffect(effect, base);
     for (let step = 0; !result.done; step++) {

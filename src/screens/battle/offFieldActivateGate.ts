@@ -1,8 +1,9 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
-import type { CardEffect, EffectCost, EffectTiming } from '../../types/effects';
+import type { CardEffect, EffectTiming } from '../../types/effects';
 import { evalUseCondition } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import type { EnergyPayEntry } from './energyPaySource';
+import { canOfferHandActivate } from './handActivateCost';
 import { canOfferTrashActivate } from './trashActivateCost';
 
 /**
@@ -15,21 +16,6 @@ import { canOfferTrashActivate } from './trashActivateCost';
  *   - 手札＝MAIN／ATTACK_ARTS／ATTACK_ARTS_OP（相手ターンのアーツステップ＝タイミング照合は ATTACK_ARTS）。
  */
 export type OffFieldZone = 'trash' | 'energy' | 'hand';
-
-/**
- * 手札の【起】の実行（`executeHandActivated`）が払えるコストキー。**ここに無いキーが付いた効果は出さない**。
- * 🔴2026-09-17 までは判定が無く、`WX18-036-E3`（「このカードを手札から公開し、＜悪魔＞のシグニ２体を場からトラッシュに置く：
- *   このシグニを手札から場に出す」）が**場のシグニを払わず・自分を捨てて・何も出ない**形で提示されていた（`O-nn` で受け皿を作る）。
- */
-const HAND_SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set(['energy', 'discardSelfFromHand', 'removeOppVirus']);
-
-/** 手札の【起】で払えないコストキー（空なら払える形）。 */
-export function unsupportedHandActivateCostKeys(cost: EffectCost | undefined): string[] {
-  if (!cost) return [];
-  return Object.entries(cost)
-    .filter(([k, v]) => (Array.isArray(v) ? v.length > 0 : Boolean(v)) && !HAND_SUPPORTED_COST_KEYS.has(k))
-    .map(([k]) => k);
-}
 
 /** そのゾーンの【起】を使う窓のタイミング（窓でなければ null）。 */
 export function offFieldActivateTiming(zone: OffFieldZone, turnPhase: TurnPhase | string | null | undefined, isMyTurn: boolean): EffectTiming | null {
@@ -82,10 +68,9 @@ export function listOffFieldActivatableEffects(p: {
     if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
     if (eff.condition && !evalUseCondition(eff.condition, my, op, cardMap, cardNum, p.turnPhase as TurnPhase, p.effectivePowers)) continue;
     if (zone === 'hand') {
-      if (unsupportedHandActivateCostKeys(eff.cost).length > 0) continue;
-      // removeOppVirus（WX21-030）＝相手の場のウィルス総数が足りなければ出さない。
-      const virus = eff.cost?.removeOppVirus ?? 0;
-      if (virus > 0 && (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) < virus) continue;
+      // 払えるコストの形（エナ・自分を捨てる・相手のウィルス・場のシグニのトラッシュ）と、ウィルス／場のシグニの在庫。
+      // 🔴2026-09-17 まで判定が無く `WX18-036-E3` が場のシグニを払わず撃てた（§5.3 `O-533` で支払いを実装）。
+      if (!canOfferHandActivate(eff, my, op, cardMap)) continue;
     } else if (!canOfferTrashActivate(eff, my, op, cardMap, p.energyPool)) continue;
     out.push(eff);
   }

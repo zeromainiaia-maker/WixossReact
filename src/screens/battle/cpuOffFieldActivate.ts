@@ -5,7 +5,8 @@ import { activatedEnergyCostStr, selectEnergyIndicesForCost, type CpuEnergyReser
 import { pickCpuHandLimitDiscards } from './cpuHandLimit';
 import { evaluateBoard, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { canAddTrashExileIndex, exceedPoolOf, type WholeEnergyCostSubstituteOption } from './costs';
-import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
+import type { EnergyPayEntry } from './energyPaySource';
+import { handActivateFieldTrashZones, payHandActivateCost } from './handActivateCost';
 import { listOffFieldActivatableEffects, type OffFieldZone } from './offFieldActivateGate';
 import {
   emptyTrashActivateSelections, payTrashActivateCost, trashActivateHandDiscard, trashActivateTrashExile,
@@ -32,6 +33,8 @@ export interface CpuOffFieldChoice {
   effect: CardEffect;
   /** トラッシュ／エナ＝`executeTrashActivated` に渡す選択（`energy` はエナ支払い元 pool の index）。手札は `energy` だけ使う。 */
   selections: TrashActivateSelections;
+  /** 🆕§5.3 `O-533`＝手札の【起】の `fieldTrash` で場からトラッシュに置くゾーン（手札以外は空）。 */
+  fieldTrash: Set<number>;
   /** 先読みの増分（解決しきれなければ null）。 */
   gain: number | null;
 }
@@ -83,28 +86,41 @@ function selectOffFieldCost(
   return payTrashActivateCost(effect, actor, opponent, sel, p.cardMap, p.energyPool, cardNum) ? sel : null;
 }
 
+/**
+ * 手札の【起】の `fieldTrash`（場の自分シグニをトラッシュ）＝**強さの低いシグニから**選ぶ（足りなければ null）。
+ * 強さ＝レベル→パワー（効果込みが無ければ印刷値）の昇順。
+ */
+export function pickCpuHandActivateFieldTrash(
+  effect: CardEffect, actor: PlayerState, cardMap: Map<string, CardData>, effectivePowers?: Map<string, number>,
+): Set<number> | null {
+  const ft = effect.cost?.fieldTrash;
+  if (!ft) return new Set();
+  const strength = (zi: number) => {
+    const top = actor.field.signi[zi]!.at(-1)!;
+    const c = cardMap.get(getCardNum(top));
+    return [parseInt(c?.Level ?? '0', 10) || 0, effectivePowers?.get(top) ?? (parseInt(c?.Power ?? '0', 10) || 0)] as const;
+  };
+  const zones = handActivateFieldTrashZones(effect, actor, cardMap)
+    .sort((a, b) => strength(a)[0] - strength(b)[0] || strength(a)[1] - strength(b)[1] || a - b);
+  if (zones.length < ft.count && !ft.upToCount) return null;
+  return new Set(zones.slice(0, ft.count));
+}
+
 /** 支払ったあとの盤面（先読み用）。払えなければ null。 */
 function paidBoard(
-  choice: Pick<CpuOffFieldChoice, 'zone' | 'cardNum' | 'handIndex' | 'effect' | 'selections'>,
+  choice: Pick<CpuOffFieldChoice, 'zone' | 'cardNum' | 'handIndex' | 'effect' | 'selections' | 'fieldTrash'>,
   actor: PlayerState, opponent: PlayerState, cardMap: Map<string, CardData>, energyPool: readonly EnergyPayEntry[],
 ): { cpu: PlayerState; opp: PlayerState } | null {
   if (choice.zone !== 'hand') {
     const pay = payTrashActivateCost(choice.effect, actor, opponent, choice.selections, cardMap, energyPool, choice.cardNum);
     return pay ? { cpu: pay.my, opp: pay.op ?? opponent } : null;
   }
-  // 手札＝`executeHandActivated` と同じ（エナ・自分を捨てる・相手のウィルスを除去）。
-  const plan = planEnergyPayment(actor, energyPool, choice.selections.energy);
-  const cpu = plan.applyTo({
-    ...actor,
-    hand: actor.hand.filter((_, i) => i !== choice.handIndex),
-    trash: [...actor.trash, ...plan.paidNums, choice.cardNum],
+  // 手札＝`executeHandActivated` と同じ支払い関数（エナ・自分を捨てる・相手のウィルス・場のシグニ）。
+  const pay = payHandActivateCost({
+    effect: choice.effect, my: actor, op: opponent, cardNum: choice.cardNum, handIndex: choice.handIndex,
+    selections: { energy: choice.selections.energy, fieldTrash: choice.fieldTrash }, cardMap, energyPool,
   });
-  const virus = choice.effect.cost?.removeOppVirus ?? 0;
-  if (virus <= 0) return { cpu, opp: opponent };
-  const v = [...(opponent.field.signi_virus ?? [0, 0, 0])];
-  let removed = 0;
-  for (let zi = 0; zi < v.length && removed < virus; zi++) while (v[zi] > 0 && removed < virus) { v[zi]--; removed++; }
-  return removed < virus ? null : { cpu, opp: { ...opponent, field: { ...opponent.field, signi_virus: v } } };
+  return pay ? { cpu: pay.my, opp: pay.op ?? opponent } : null;
 }
 
 export function pickCpuOffFieldActivated(p: {
@@ -113,7 +129,11 @@ export function pickCpuOffFieldActivated(p: {
   effectsMap: Map<string, CardEffect[]>;
   cardMap: Map<string, CardData>;
   cards: CardData[];
-  phase: 'MAIN' | 'ATTACK_ARTS';
+  /**
+   * CPU のターンの窓（`MAIN`／`ATTACK_ARTS`）か、🆕**人間のターンのアーツステップ（`ATTACK_ARTS_OP`）**＝手札の《アタックフェイズアイコン》【起】で応答する窓。
+   * ⚠`ATTACK_ARTS_OP` ではトラッシュ・エナの【起】は提示判定が出さない（自分のターンだけの窓）。
+   */
+  phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP';
   /** `buildEnergyPayPool(actor, ...)`。 */
   energyPool: readonly EnergyPayEntry[];
   /** このターン CPU が既に撃ったキー（`cpuOffFieldLedgerKey`）。 */
@@ -126,6 +146,7 @@ export function pickCpuOffFieldActivated(p: {
   lookahead?: LookaheadCtx;
 }): CpuOffFieldChoice | null {
   const { actor, opponent, cardMap } = p;
+  const isMyTurn = p.phase !== 'ATTACK_ARTS_OP';
   const zones: { zone: OffFieldZone; ids: readonly string[] }[] = [
     { zone: 'trash', ids: actor.trash },
     { zone: 'hand', ids: actor.hand },
@@ -140,7 +161,7 @@ export function pickCpuOffFieldActivated(p: {
       if (seen.has(cardNum)) continue;
       seen.add(cardNum);
       const effects = listOffFieldActivatableEffects({
-        zone, cardNum, my: actor, op: opponent, turnPhase: p.phase, isMyTurn: true,
+        zone, cardNum, my: actor, op: opponent, turnPhase: p.phase, isMyTurn,
         cardMap, effectsMap: p.effectsMap, effectivePowers: p.effectivePowers, energyPool: p.energyPool,
       });
       for (const effect of effects) {
@@ -150,11 +171,15 @@ export function pickCpuOffFieldActivated(p: {
           wholeSubstitutes: p.wholeSubstitutes, energyReserve: p.energyReserve, effectsOf: p.lookahead?.effectsOf,
         });
         if (!selections) continue;
-        const choice: CpuOffFieldChoice = { zone, cardNum, handIndex: zone === 'hand' ? index : -1, effect, selections, gain: null };
+        const fieldTrash = zone === 'hand' ? pickCpuHandActivateFieldTrash(effect, actor, cardMap, p.effectivePowers) : new Set<number>();
+        if (!fieldTrash) continue;
+        const choice: CpuOffFieldChoice = { zone, cardNum, handIndex: zone === 'hand' ? index : -1, effect, selections, fieldTrash, gain: null };
+        // 手札は選んだ支払いを実行関数と同じ関数で検算する（先読みなしでも払えない形を返さない）。
+        if (zone === 'hand' && !paidBoard(choice, actor, opponent, cardMap, p.energyPool)) continue;
         if (!p.lookahead) return choice;
         const paid = paidBoard(choice, actor, opponent, cardMap, p.energyPool);
         if (!paid) continue;
-        const after = simulateEffect(effect, cardNum, paid.cpu, paid.opp, { ...p.lookahead, turnPhase: p.phase });
+        const after = simulateEffect(effect, cardNum, paid.cpu, paid.opp, { ...p.lookahead, turnPhase: p.phase, isCpuTurn: isMyTurn });
         choice.gain = after ? evaluateBoard(after.cpu, after.opp, p.lookahead) - before : null;
         // 使う前より悪くなるもの（払ったエナ・捨てた札のぶん損）は使わない。
         if (choice.gain !== null && choice.gain <= 0) continue;

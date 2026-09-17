@@ -60051,6 +60051,141 @@ scenarios.v274CpuHandActivated = {
 };
 order.push('v274CpuHandActivated');
 
+// ── 🆕§5.1 `V-276`（2026-09-18）＝**人間のターンのアーツステップで CPU が手札の【起】で応答する**（§5.7 `S-7` の残り）──
+// 観測点＝`WX18-055-E1`（V-274 と同じ札）を**人間のターン**の `ATTACK_ARTS_OP`（CPU が非ターンプレイヤー）で使う。
+//   人間の場に12000 ⇒ CPU が手札から捨て・黒エナ2枚を払い・人間のシグニに -7000 → その後フェイズが進む。
+// 反転（`v276b`）＝人間の場が空 ⇒ 使わずに手札とエナを残してフェイズを進める。
+function mkV276CpuHandResponse(humanHasSigni) {
+  return {
+    title: humanHasSigni
+      ? 'V-276 人間のアーツステップで CPU が手札の【起】で応答する（WX18-055：人間のシグニ -7000）'
+      : 'V-276b 対照：人間の場が空なら CPU は手札の【起】で応答しない',
+    noInject: true,
+    async drive(page, H) {
+      const tag = humanHasSigni ? 'v276' : 'v276b';
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null, pending_spell: null });
+      await page.waitForTimeout(2000);
+      await injectScenario(page, {
+        hostSet: {
+          'field.lrig': ['WD03-003#1'], 'field.signi': [humanHasSigni ? ['WX22-Re17#1'] : null, null, null],
+          'field.signi_down': [false, false, false], 'temp_power_mods': [],
+        },
+        guestSet: {
+          'field.lrig': ['WD05-003#g1'], 'field.signi': [null, null, null], 'hand': ['WX18-055#g31'], 'lrig_deck': [], 'trash': [],
+          'energy': ['WD05-009#g41', 'WD05-010#g42'],
+          'actions_done': [], 'cpu_activated_effect_ids_this_turn': [], 'cpu_used_card_nums_this_turn': [],
+        },
+        top: { active: 'host', turn_phase: 'ATTACK_ARTS_OP', turn_count: 4, effect_stack: null, pending_effect: null },
+      });
+      let st = null;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(1000);
+        st = await H.queryState();
+        const used = (st?.guest?.trashCards ?? []).includes('WX18-055#g31') && !(st?.guest?.handCards ?? []).includes('WX18-055#g31');
+        const debuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX22-Re17#1:-7000'));
+        H.log(`  ${tag}[${s}] phase=${st?.turnPhase} guestHand=${JSON.stringify(st?.guest?.handCards)} guestEnergy=${JSON.stringify(st?.guest?.energyCards)} hostPowerMods=${JSON.stringify(st?.host?.powerMods)} stack=${st?.stackLen ?? '-'}`);
+        // ⚠使ったあと**アーツステップから進むこと**まで見る（台帳が効かないと同じ窓で止まる）。
+        if (humanHasSigni && used && debuffed && st?.turnPhase !== 'ATTACK_ARTS_OP' && !(st?.stackLen > 0)) {
+          await page.screenshot({ path: `${SHOT}/${tag}-use.png`, fullPage: true });
+          if ((st?.guest?.energyCards ?? []).length !== 0) return { pass: false, detail: `🔴コストの《黒》《黒》が払われていない（energy=${JSON.stringify(st?.guest?.energyCards)}）` };
+          return { pass: true, detail: `人間のアーツステップで CPU が手札の WX18-055 を捨てて人間のシグニに -7000 → フェイズが進んだ（phase=${st?.turnPhase}）` };
+        }
+        if (humanHasSigni && used) continue;
+        if (!humanHasSigni && used) return { pass: false, detail: `🔴人間の場が空なのに CPU が手札の【起】を使った（trash=${JSON.stringify(st?.guest?.trashCards)}）` };
+        if (st?.turnPhase && st.turnPhase !== 'ATTACK_ARTS_OP' && !(st?.stackLen > 0)) {
+          await page.screenshot({ path: `${SHOT}/${tag}-passed.png`, fullPage: true });
+          return humanHasSigni
+            ? { pass: false, detail: `🔴CPU が手札の【起】を使わずにアーツステップを終えた（phase=${st.turnPhase} hand=${JSON.stringify(st?.guest?.handCards)}）` }
+            : { pass: true, detail: `対照＝人間の場が空なら使わず、手札とエナを残してフェイズを進めた（phase=${st.turnPhase} hand=${JSON.stringify(st?.guest?.handCards)} energy=${JSON.stringify(st?.guest?.energyCards)}）` };
+        }
+      }
+      return { pass: false, detail: `🔴アーツステップから進まない（phase=${st?.turnPhase} hand=${JSON.stringify(st?.guest?.handCards)} hostPowerMods=${JSON.stringify(st?.host?.powerMods)}）` };
+    },
+  };
+}
+scenarios.v276CpuHandResponse = mkV276CpuHandResponse(true);
+order.push('v276CpuHandResponse');
+scenarios.v276bCpuHandResponseEmpty = mkV276CpuHandResponse(false);
+order.push('v276bCpuHandResponseEmpty');
+
+// ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
+// 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
+//   このシグニをあなたの手札から場に出す。」
+//   人間のアタックフェイズ（アーツステップ）・場に＜悪魔＞2体（WD05-011／WD05-010）
+//   ⇒ 手札のカードアクション「【起】場の＜悪魔＞2体トラッシュ・手札から公開」→ モーダルで2体を選ぶ → 2体がトラッシュ・このカードが場に出る。
+// 🔴旧＝提示はされ（2026-09-17 以前）、発動すると**このカードを捨て、場のシグニは残り、何も出なかった**。
+// 反転（`v275b`）＝＜悪魔＞が1体なら提示されない。
+function mkV275HandActivateFieldTrash(twoDemons) {
+  return {
+    title: twoDemons
+      ? 'V-275 手札の【起】（WX18-036）：場の＜悪魔＞2体をトラッシュに置き、このカードを手札から場に出す'
+      : 'V-275b 対照：場の＜悪魔＞が1体なら WX18-036 の手札【起】は提示されない',
+    spec: {
+      hostSet: {
+        // ⚠リミット11のルリグ（WD05-001）＝WD05-003（リミット5）だと Lv3＋Lv3 でリミット超過のモーダルが画面を塞ぐ（実測）。
+        'field.lrig': ['WD05-001#1'],
+        'field.signi': [['WD05-011#1'], [twoDemons ? 'WD05-010#1' : 'WD01-013#1'], null],
+        'field.signi_down': [false, false, false],
+        'hand': ['WX18-036#1'], 'trash': [], 'energy': [], 'actions_done': [],
+      },
+      guestSet: { 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2, effect_stack: null, pending_effect: null },
+    },
+    async drive(page, H) {
+      const tag = twoDemons ? 'v275' : 'v275b';
+      await page.waitForTimeout(1200);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      await page.waitForTimeout(900);
+      const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+      const actVisible = (await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false);
+      const actLabel = actVisible ? ((await actBtn.textContent().catch(() => '')) ?? '').trim() : '';
+      await page.screenshot({ path: `${SHOT}/${tag}-actions.png`, fullPage: true });
+      H.log(`  【起】提示: visible=${actVisible} label=${JSON.stringify(actLabel)}`);
+      if (!twoDemons) {
+        return actVisible
+          ? { pass: false, detail: `🔴＜悪魔＞1体なのに手札【起】が提示された（label=${actLabel}）` }
+          : { pass: true, detail: '対照＝場の＜悪魔＞が1体なら手札【起】は提示されない' };
+      }
+      if (!actVisible) return { pass: false, detail: '🔴場に＜悪魔＞2体がいるのに手札【起】が提示されない' };
+      if (actLabel.includes('手から捨て')) return { pass: false, detail: `🔴ボタンが「手から捨て」のまま（label=${actLabel}）` };
+      await actBtn.click().catch(() => {});
+      await page.waitForTimeout(900);
+      const confirm = page.getByTestId('handact-confirm').first();
+      const enabledBefore = await confirm.isEnabled().catch(() => null);
+      for (const zi of [0, 1]) { await H.clickTestId(`handact-fieldtrash-${zi}`); await page.waitForTimeout(250); }
+      await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+      const enabledAfter = await confirm.isEnabled().catch(() => null);
+      H.log(`  モーダル: 選択前 enabled=${enabledBefore} 選択後 enabled=${enabledAfter}`);
+      if (enabledBefore !== false) return { pass: false, detail: `🔴場のシグニを選ぶ前に「発動する」が押せた（enabled=${enabledBefore}）` };
+      if (!enabledAfter) return { pass: false, detail: '🔴＜悪魔＞2体を選んでも「発動する」が押せない' };
+      await confirm.click().catch(() => {});
+      let st = null;
+      for (let i = 0; i < 16; i++) {
+        await page.waitForTimeout(800);
+        const did = await H.clickZone() ?? await H.stdStep();
+        st = await H.queryState();
+        const field = (st?.host?.fieldSigni ?? []).flat().filter(Boolean);
+        H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | field=${JSON.stringify(st?.host?.fieldSigni)} hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (field.some(n => String(n).startsWith('WX18-036')) && !st?.pendingEffect && !(st?.stackLen > 0)) {
+          await page.screenshot({ path: `${SHOT}/${tag}-done.png`, fullPage: true });
+          const trash = (st?.host?.trashCards ?? []).map(String);
+          if (!trash.some(n => n.startsWith('WD05-011')) || !trash.some(n => n.startsWith('WD05-010'))) {
+            return { pass: false, detail: `🔴場の＜悪魔＞2体がトラッシュに無い（trash=${JSON.stringify(trash)} field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+          }
+          if (trash.some(n => n.startsWith('WX18-036'))) return { pass: false, detail: `🔴このカードがトラッシュにも居る（trash=${JSON.stringify(trash)}）` };
+          if (field.length !== 1) return { pass: false, detail: `🔴場のシグニが1体でない（field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+          return { pass: true, detail: `＜悪魔＞2体をトラッシュ（${JSON.stringify(trash)}）・WX18-036 が手札から場に出た（field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+        }
+      }
+      return { pass: false, detail: `🔴WX18-036 が場に出ない（field=${JSON.stringify(st?.host?.fieldSigni)} hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)}）` };
+    },
+  };
+}
+scenarios.v275HandActivateFieldTrash = mkV275HandActivateFieldTrash(true);
+order.push('v275HandActivateFieldTrash');
+scenarios.v275bHandActivateFieldTrashOneDemon = mkV275HandActivateFieldTrash(false);
+order.push('v275bHandActivateFieldTrashOneDemon');
+
 // ── 🆕§5.1 `V-270`（2026-09-17・ユーザーのバグ報告）＝**CPU は出したシグニの【出】を解決してから次のシグニを出す** ──
 // 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」＝召喚ループが【出】を最後までためて一括で積んでいた。
 // 観測点＝CPU のメインフェイズ・手札に Ｒ・Ｆ・Ｒ（WD03-014＝【出】1枚引いて1枚捨てる）と Ｓ・Ｃ（WD03-013）→ ログの順が

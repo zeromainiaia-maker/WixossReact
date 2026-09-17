@@ -163,7 +163,8 @@ import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMullig
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
-import { cpuOffFieldLedgerKey, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
+import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
+import { cpuOffFieldLedgerKey, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -49885,7 +49886,8 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
 // ⚠**資料の数字は当てにしない**＝`energyPaySource.ts` の docstring は「モーダル17本」、別のコメントは13本、
 //   旧 PLAN は14本と食い違っていた（どれも支払いサイト数そのものではなかった）。
 test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
-  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts'];
+  // §5.3 `O-533`（2026-09-18）＝手札の【起】の支払いを `handActivateCost.ts` へ移設（サイト数は据え置き＝移動であって増減ではない）。
+  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts', 'src/screens/battle/handActivateCost.ts'];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
@@ -86262,10 +86264,10 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS', true).length, 1, '🔴手札の《アタックフェイズアイコン》【起】が自分のアタックフェイズに出ない');
   eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS_OP', false).length, 1, '🔴手札の《アタックフェイズアイコン》【起】が相手のアーツステップに出ない');
   eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS_OP', true).length, 0, 'ターンプレイヤーが相手側のアーツステップで手札の【起】を出した');
-  // 🔴`WX18-036-E3`＝コストが「場の＜悪魔＞2体をトラッシュ」（手札の実行関数が払えない）＝出さない
-  //   （旧＝提示され、場のシグニを払わず自分を捨てて何も出ない形で撃てた）
-  eq(gate('hand', 'WX18-036#h2', { ...handMe, field: { ...handMe.field, signi: [['WX18-036#f1'], ['WX18-036#f2'], null] } }, opp, 'ATTACK_ARTS', true).length, 0,
-    '🔴手札の【起】の実行関数が払えないコスト（fieldTrash）の効果を提示した');
+  // `WX18-036-E3`＝コストが「場の＜悪魔＞2体をトラッシュ」＝場の＜悪魔＞が2体いなければ出さない（支払いは §5.3 `O-533` のテスト）
+  //   （2026-09-17 以前＝提示され、場のシグニを払わず自分を捨てて何も出ない形で撃てた）
+  eq(gate('hand', 'WX18-036#h2', { ...handMe, field: { ...handMe.field, signi: [['WX18-036#f1'], ['WD01-013#f2'], null] } }, opp, 'ATTACK_ARTS', true).length, 0,
+    '🔴場の＜悪魔＞が1体なのに「＜悪魔＞2体をトラッシュ」の手札【起】を提示した');
   // 画面＝人間の3入口が同じ関数を呼ぶ（写経しない）
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   for (const zone of ['hand', 'trash', 'energy']) {
@@ -86308,12 +86310,96 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
     alreadyActivated: [], isAffordable: () => true,
   });
   eq(c2 && `${c2.zone}:${c2.handIndex}:${c2.effect.effectId}`, 'hand:0:WXK11-067-E1', '🔴CPU が手札の【起】を選ばない');
+  // 🆕**人間のターンのアーツステップ（`ATTACK_ARTS_OP`）で手札の【起】で応答する**（`S-7` の残り・2026-09-18）。
+  //   `WX18-055-E1`「【起】《アタックフェイズアイコン》《黒》《黒》手札からこのカードを捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、
+  //   それのパワーを－7000する。この能力はあなたのセンタールリグが＜ウリス＞の場合にしか使用できない。」
+  const respCpu = { ...cpuBoard(['WD05-009#e1', 'WD05-010#e2'], [`${NESSIE}#t1`]), hand: ['WX18-055#h1'] };
+  const respLctx = { ...lctx, isCpuTurn: false, turnPhase: 'ATTACK_ARTS_OP' as const,
+    powersOf: (c: PlayerState, o: PlayerState) => calcFieldPowers(c, o, false, effectsMap, cm, 'ATTACK_ARTS_OP') };
+  const pickResp = (st: PlayerState, o: PlayerState) => pickCpuOffFieldActivated({
+    actor: st, opponent: o, effectsMap: em, cardMap: cm, cards: allCards, phase: 'ATTACK_ARTS_OP', energyPool: poolOf(st),
+    alreadyActivated: [],
+    isAffordable: (sel, costStr) => isEnergyPaymentSelectionValid({ selectedEnergyNums: sel, cards: allCards, baseCost: costStr }),
+    lookahead: respLctx,
+  });
+  const r1 = pickResp(respCpu, opp);
+  eq(r1 && `${r1.zone}:${r1.effect.effectId}`, 'hand:WX18-055-E1', `🔴人間のアーツステップで CPU が手札の【起】（相手に12000）を使わない（gain=${r1?.gain}）`);
+  eq(pickResp(respCpu, oppWith([null, null, null])), null, '🔴人間の場が空なのに手札を捨ててエナを払った');
+  // トラッシュの【起】（ネッシー）は相手のターンには出ない＝手札だけ
+  ok(!pickResp({ ...respCpu, hand: [] }, opp), '🔴相手のターンにトラッシュの【起】を使った');
+  ok(/if \(await tryCpuOffFieldActivated\(cpuSt, 'ATTACK_ARTS_OP'\)\) return;/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')),
+    '🔴人間のターンのアーツステップに CPU の手札【起】が配線されていない');
   // 画面の配線＝MAIN とアタックフェイズの両方・実行は人間と同じ関数
   ok(/tryCpuOffFieldActivated\(newCpuSt, 'MAIN'\)/.test(battle), '🔴CPU のメインフェイズに場以外の【起】が配線されていない');
   ok(/tryCpuOffFieldActivated\(cpuSt, 'ATTACK_ARTS'\)/.test(battle), '🔴CPU のアタックフェイズに場以外の【起】が配線されていない');
   ok(/await executeTrashActivated\(choice\.cardNum, choice\.effect, sel\.energy, sel\.handDiscard, sel\.exceed, sel\.trashExile, actorCtx\)/.test(battle)
-    && /await executeHandActivated\(choice\.cardNum, choice\.handIndex, choice\.effect, choice\.selections\.energy, actorCtx\)/.test(battle),
+    && /await executeHandActivated\(choice\.cardNum, choice\.handIndex, choice\.effect, \{ energy: choice\.selections\.energy, fieldTrash: choice\.fieldTrash \}, actorCtx\)/.test(battle),
     '🔴CPU の場以外の【起】が人間と同じ実行関数を通っていない');
+}));
+
+test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッシュ」コスト：場のシグニを払い、このカードは捨てずに場に出す', () => withSavedCursor(() => {
+  // `WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
+  //   このシグニをあなたの手札から場に出す。」
+  // 🔴旧＝`executeHandActivated` がコストに関係なく**このカードを捨て**、`fieldTrash` を払わなかった＝場のシグニは残り、何も出なかった。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const em = new InstanceMap<CardEffect[]>(effectsMap);
+  const allCards = [...cardMap.values()];
+  const eff = effectsMap.get('WX18-036')!.find(e => e.effectId === 'WX18-036-E3')!;
+  const board = (signi: (string | null)[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.field.signi = signi.map(x => (x ? [x] : null));
+    st.hand = ['WX18-036#h1']; st.trash = []; st.energy = []; st.field.lrig = ['WD05-003#r1'];
+    return st;
+  };
+  const opp = mkState({ signi: [null, null, null] });
+  const me = board(['WD05-009#f0', 'WD05-011#f1', null]);   // ＜悪魔＞ Lv4 12000／＜悪魔＞ Lv3 7000
+  // ── 提示 ──
+  eq(JSON.stringify(unsupportedHandActivateCostKeys(eff.cost)), '[]', '🔴fieldTrash が手札の【起】で払えないキーのまま');
+  ok(canOfferHandActivate(eff, me, opp, cm), '🔴場に＜悪魔＞2体がいるのに提示しない');
+  ok(!canOfferHandActivate(eff, board(['WD05-009#f0', 'WD01-013#f1', null]), opp, cm), '＜悪魔＞でないシグニを数えた');
+  // ── 支払い ──
+  const pay = (sel: number[]) => payHandActivateCost({
+    effect: eff, my: me, op: opp, cardNum: 'WX18-036#h1', handIndex: 0,
+    selections: { energy: new Set(), fieldTrash: new Set(sel) }, cardMap: cm, energyPool: [],
+  });
+  eq(pay([0]), null, '🔴＜悪魔＞1体だけで「2体をトラッシュ」を払えた');
+  const paid = pay([0, 1]);
+  ok(!!paid, '＜悪魔＞2体を選んでも払えない');
+  eq(JSON.stringify(paid!.my.hand), JSON.stringify(['WX18-036#h1']), '🔴「公開」なのにこのカードを手札から捨てた（旧実装）');
+  eq(JSON.stringify(paid!.my.field.signi), JSON.stringify([null, null, null]), '🔴場の＜悪魔＞2体がトラッシュに置かれていない');
+  eq(JSON.stringify([...paid!.my.trash].sort()), JSON.stringify(['WD05-009', 'WD05-011']), 'トラッシュの中身が違う');
+  eq(JSON.stringify([...(paid!.my.last_cost_trashed_cards ?? [])].sort()), JSON.stringify(['WD05-009', 'WD05-011']),
+    '🔴コストによる離場として記録していない（中央 diff が効果による離場と誤認する）');
+  eq(paid!.discardedCards.length, 0, '捨てていないのに手札を捨てたトリガーの対象にした');
+  // ── 解決＝このカードが手札から場に出る ──
+  const ctx = { ownerState: paid!.my, otherState: opp, cardMap: cm, logs: [], sourceCardNum: 'WX18-036#h1', triggeringCardNum: 'WX18-036#h1', currentPhase: 'ATTACK_ARTS' } as unknown as ExecCtx;
+  const res = finish(executeEffect(eff, ctx), ctx);
+  ok(res.ownerState.field.signi.some(z => z?.includes('WX18-036#h1')), `🔴解決してもこのカードが場に出ない（${JSON.stringify(res.ownerState.field.signi)}）`);
+  eq(res.ownerState.hand.length, 0, '場に出したのに手札に残った');
+  // ── 反転＝自分を捨てる9効果は従来どおり捨てる ──
+  const k11 = effectsMap.get('WXK11-067')!.find(e => e.effectId === 'WXK11-067-E1')!;
+  const k11Paid = payHandActivateCost({
+    effect: k11, my: { ...me, hand: ['WXK11-067#h1'] }, op: opp, cardNum: 'WXK11-067#h1', handIndex: 0,
+    selections: { energy: new Set(), fieldTrash: new Set() }, cardMap: cm, energyPool: [],
+  });
+  eq(JSON.stringify(k11Paid && [k11Paid.my.hand, k11Paid.my.trash, k11Paid.discardedCards]), JSON.stringify([[], ['WXK11-067#h1'], ['WXK11-067#h1']]),
+    '🔴discardSelfFromHand の手札【起】がこのカードを捨てていない');
+  // ── CPU＝強さの低い＜悪魔＞から選ぶ ──
+  const me3 = board(['WD05-009#f0', 'WD05-011#f1', 'WD05-010#f2']);   // Lv4 12000／Lv3 7000／Lv3 10000
+  eq(JSON.stringify([...pickCpuHandActivateFieldTrash(eff, me3, cm)!].sort()), JSON.stringify([1, 2]), '🔴CPU が強い＜悪魔＞（Lv4）をコストに選んだ');
+  eq(pickCpuHandActivateFieldTrash(eff, board(['WD05-009#f0', null, null]), cm), null, '＜悪魔＞1体で選択を返した');
+  const cpuChoice = pickCpuOffFieldActivated({
+    actor: me, opponent: opp, effectsMap: em, cardMap: cm, cards: allCards, phase: 'ATTACK_ARTS', energyPool: [],
+    alreadyActivated: [], isAffordable: () => true,
+  });
+  eq(cpuChoice && `${cpuChoice.zone}:${cpuChoice.effect.effectId}:${[...cpuChoice.fieldTrash].sort()}`, 'hand:WX18-036-E3:0,1', '🔴CPU が場の＜悪魔＞2体を選んだ手札【起】を返さない');
+  // ── 画面の配線＝実行・モーダルとも同じ支払い関数 ──
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const execBody = battle.slice(battle.indexOf('const executeHandActivated = async ('), battle.indexOf('const executeTrashActivated = async ('));
+  ok(/payHandActivateCost\(\{/.test(execBody), '🔴executeHandActivated が共通の支払い関数を通っていない');
+  ok(!/trash: \[\.\.\.my\.trash, \.\.\.paidNums, cardNum\]/.test(execBody), '🔴executeHandActivated が常にこのカードを捨てる手書き支払いに戻った');
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/HandActivatedModal.tsx'), 'utf8');
+  ok(/handActivateFieldTrashOk\(/.test(modal) && /fieldTrash: selectedFieldTrash/.test(modal), '🔴手札【起】のモーダルが場のシグニの選択を渡していない');
 }));
 
 test('CPU のグロウ用エナの予約：アーツ等でエナを払って次のグロウができなくなる支払いは必ずしない', () => withSavedCursor(() => {

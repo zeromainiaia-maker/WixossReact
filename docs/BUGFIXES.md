@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-7` の残り：人間のターンのアーツステップで CPU が手札の【起】で応答する
+
+- 🔑**以前**＝CPU は場以外の【起】を**自分のターン**（MAIN／ATTACK_ARTS）でしか試さず、人間のターンのアーツステップ（`ATTACK_ARTS_OP`）は応答アーツだけだった。手札の《アタックフェイズアイコン》【起】（`WX18-055`＝－7000 など）は相手のアタックの前に撃てるのに使っていなかった。
+- 実装＝`pickCpuOffFieldActivated` の窓に `ATTACK_ARTS_OP` を追加（提示判定は `isMyTurn:false`＝トラッシュ・エナは出ない／手札だけ）。`BattleScreen` の `ATTACK_ARTS_OP` 分岐で応答アーツの後に `tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')`。
+  先読み（`cpuLookahead.ts`）に `isCpuTurn` を追加＝engine の `isOwnerTurn` を正しく外し、採点のパワーは相手ターンとして計算する。エナ支払い元の pool も `isMyTurn:false` で作る。
+- 検証＝`npm run gates` 全緑（golden `§5.7 S-7` に応答の4点＝人間に12000なら使う／場が空なら使わない／トラッシュの【起】は使わない／画面の配線。**反転確認済み**＝窓を「常に自分のターン」に戻すと FAIL）。
+  実機＝🆕`V-276` PASS（手札の WX18-055 を捨て黒エナ2枚を払い人間のシグニに -7000 → ATTACK_SIGNI へ進む＝同じ窓で止まらない）／🆕`V-276b` PASS（人間の場が空＝手札とエナを残して進む）／`V-273`・`V-274` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
+## 2026-09-18 §5.3 `O-533` 手札の【起】の「公開＋場のシグニをトラッシュ」コスト
+
+- **カード**＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：このシグニをあなたの手札から場に出す。」（1効果）。
+- 🔴**真因**＝`executeHandActivated` の支払いが**コストに関係なくこのカードを手札から捨て**、`fieldTrash` を払わなかった（エナ・ウィルスだけ）。「公開」は宣言＝捨てると `ADD_TO_FIELD{HAND_CARD}` が出す札を失う。2026-09-17（`S-7`）は提示を止める応急だった。
+- 直し方＝`src/screens/battle/handActivateCost.ts` に支払いを1本化（`payHandActivateCost`＝`discardSelfFromHand` のときだけ捨てる・`fieldTrash` は `payFieldTrashCost`）。人間の実行／`HandActivatedModal`（場のシグニの選択を追加・選ぶまで「発動する」は押せない）／CPU の先読みと選択（強さの低い＜悪魔＞から）／提示判定（`canOfferHandActivate`＝該当シグニの体数）が同じ関数を使う。手札のカードアクションの文言もコストから組む（捨てる9効果は従来の文言）。
+- 影響＝手札の【起】10効果。自分を捨てる9効果はすべて `discardSelfFromHand:true` を明示（live 実測）＝挙動は不変。
+- 検証＝`npm run gates` 全緑（golden 🆕`§5.3 O-533`＝提示・支払い・解決で場に出る・捨てる9効果の反転・CPU の選択・画面の配線。**反転確認済み**＝「常に捨てる」旧挙動に戻すと FAIL。`S-7` の WX18-036 の assert は「＜悪魔＞1体なら出さない」へ更新。`planEnergyPayment` のサイト数テストは走査対象に `handActivateCost.ts` を追加＝移設で数は15のまま）。
+  実機＝🆕`V-275` PASS（2体を選ぶまで「発動する」が無効→2体がトラッシュ→WX18-036 が場に出る）／🆕`V-275b` PASS（＜悪魔＞1体なら提示しない）／`V-274`（CPU の手札【起】）PASS。⚠`V-275` の初回はルリグのリミット（WD05-003＝5）で Lv3×2 がリミット超過のモーダルに塞がれた＝ハーネスの盤面を WD05-001 へ。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 バグ報告3件（v0.506・同一対戦 `8fb4739b`）
 
 - 取り込み＝`npm run reports`（3件 OPEN → TRIAGED・`scratchpad-reports/2026-09-17T16-*`）。

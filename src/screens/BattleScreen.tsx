@@ -33,6 +33,7 @@ import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { payFieldBanishCost } from './battle/fieldBanishCost';
 import { payFieldTrashCost } from './battle/fieldTrashCost';
+import { handActivateCostLabel, handActivateVerbLabel, payHandActivateCost, type HandActivateSelections } from './battle/handActivateCost';
 import { payMultiZoneExileCost } from './battle/multiZoneExileCost';
 import { payFieldToDeckTopCost } from './battle/fieldToDeckTopCost';
 import { payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel } from './battle/trashActivateCost';
@@ -8904,11 +8905,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         zone: 'hand', cardNum, my, op, turnPhase: bs.turn_phase, isMyTurn,
         cardMap: battleCardMap, effectsMap, effectivePowers,
       })) {
-        const removeVirusReq = eff.cost?.removeOppVirus ?? 0;
-        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-        const costLabel = energyTotal > 0 ? `エナ${energyTotal}・手から捨て` : (removeVirusReq > 0 ? `ウィルス${removeVirusReq}除去・手から捨て` : '手から捨て');
         actionList.push({
-          label: `【起】${costLabel}`,
+          label: `【起】${handActivateCostLabel(eff)}`,
           color: '#ff6b35',
           onClick: () => { openHandActivated({ cardNum, handIndex, effect: eff }); },
         });
@@ -12542,15 +12540,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
      * ⚠**安全弁**＝実行より先に台帳（`cpu_activated_effect_ids_this_turn`）へ刻む（実行側は支払い不能で黙って return しうる）。
      *   キーは `effectId@instance`＝トラッシュに同名が2枚あれば2枚とも使える（回数制限の無い【起】）。
      */
-    const tryCpuOffFieldActivated = async (actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
-      const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
+    const tryCpuOffFieldActivated = async (actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): Promise<boolean> => {
+      // 🆕`ATTACK_ARTS_OP`＝人間のターンのアーツステップ（CPU は非ターンプレイヤー）＝手札の《アタックフェイズアイコン》【起】で応答する。
+      const isCpuTurn = phase !== 'ATTACK_ARTS_OP';
+      const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: isCpuTurn, effectsMap });
       const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
       const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
       const choice = pickCpuOffFieldActivated({
         actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
         phase, energyPool: pool,
         alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
-        effectivePowers: calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase),
+        effectivePowers: calcFieldPowers(actorState, huSt, isCpuTurn, effectsMap, battleCardMap, phase),
         energyReserve: cpuGrowReserveFor(actorState),
         // 可否の権威は人間の支払いモーダルと同じ `isEnergyPaymentSelectionValid`。
         isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
@@ -12558,7 +12558,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
         }),
         wholeSubstitutes,
-        lookahead: { ...cpuLookahead, turnPhase: phase },
+        lookahead: isCpuTurn
+          ? { ...cpuLookahead, turnPhase: phase }
+          : { ...cpuLookahead, turnPhase: phase, isCpuTurn: false,
+            powersOf: (c, o) => calcFieldPowers(c, o, false, effectsMap, battleCardMap, phase) },
       });
       if (!choice) return false;
       const zoneJa = choice.zone === 'trash' ? 'トラッシュ' : choice.zone === 'hand' ? '手札' : 'エナゾーン';
@@ -12576,7 +12579,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actorKey: 'guest_state' as const, energyPayPool: pool,
       };
       if (choice.zone === 'hand') {
-        await executeHandActivated(choice.cardNum, choice.handIndex, choice.effect, choice.selections.energy, actorCtx);
+        await executeHandActivated(choice.cardNum, choice.handIndex, choice.effect, { energy: choice.selections.energy, fieldTrash: choice.fieldTrash }, actorCtx);
       } else {
         const sel = choice.selections;
         await executeTrashActivated(choice.cardNum, choice.effect, sel.energy, sel.handDiscard, sel.exceed, sel.trashExile, actorCtx);
@@ -12747,6 +12750,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
       // ── §8／§6.4 O-1 (a): CPU が人間のアタックフェイズに応答アーツで守る ──────────
       if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS_OP', pickCpuResponseArts)) return;
+      // 🆕§5.7 `S-7`＝手札の《アタックフェイズアイコン》【起】で応答する（判定・実行は人間と同じ・先読みで得なものだけ）。
+      if (await tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
       appendBattleLogs(['[CPU] アーツを使用しない']);
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt, contBlocked.forSelf) }));
       return;
@@ -15073,7 +15078,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     actorKey: isHost ? 'host_state' : 'guest_state', energyPayPool: myEnergyPayPool,
   });
   const executeHandActivated = async (
-    cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect, costIndices: Set<number>,
+    cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect, selections: HandActivateSelections,
     actorCtx?: OffFieldActor,
   ) => {
     if (!actorCtx && loading) return;
@@ -15081,48 +15086,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     if (!actorCtx) closeHandActivated();
     try {
-      // エナコスト支払い
-      const handActPay = planEnergyPayment(my, energyPayPool, costIndices);
-      const paidNums = handActPay.paidNums;
-      // 手札からこのカード自身を捨てる（self-discard from hand）
-      const newHand = my.hand.filter((_, i) => i !== handIndex);
+      // 支払いは `payHandActivateCost` 1本（§5.3 `O-533`）＝CPU の先読みと提示判定も同じ関数群を使う。
+      //   🔴旧実装はコストに `discardSelfFromHand` が無くても常にこのカードを捨て、`fieldTrash` を払わなかった。
+      const payment = payHandActivateCost({
+        effect, my, op, cardNum, handIndex, selections, cardMap: battleCardMap, energyPool: energyPayPool,
+      });
+      if (!payment) return; // 支払い不能（UI側でも無効化済み）＝finally で loading を戻す
       const isGameOnce = effect.usageLimit === 'once_per_game';
-      // removeOppVirus: 相手の場の【ウィルス】N個を取り除くコスト（WX21-030「手札からこのカードを捨て、ウィルス3つを取り除く」）
-      const removeVirusN = effect.cost?.removeOppVirus ?? 0;
-      let newOpVirusState: PlayerState | null = null;
-      if (removeVirusN > 0) {
-        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
-        let removedV = 0;
-        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusN; zi++) {
-          while (newOppVirus[zi] > 0 && removedV < removeVirusN) { newOppVirus[zi]--; removedV++; }
-        }
-        if (removedV < removeVirusN) return; // 支払い不能（ウィルス不足）＝finally で loading を戻す
-        newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
-      }
-      let paid: PlayerState = handActPay.applyTo({
-        ...my,
-        hand: newHand,
-        trash: [...my.trash, ...paidNums, cardNum],
+      let paid: PlayerState = {
+        ...payment.my,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-      });
+      };
+      const newOpVirusState = payment.op;
+      if (payment.logs.length > 0) appendBattleLogs(payment.logs);
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
         playerId: actorId,
         cardNum,
         effectId: effect.effectId,
-        label: `${cardName}【起】（手から捨て）`,
+        label: `${cardName}【起】（${handActivateVerbLabel(effect)}）`,
         effect,
       };
       const stackEntries: StackEntry[] = [entry];
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
-      const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
-        [cardNum], paid, actorId, true,
-        op, opponentId, cardNum, undefined, undefined);
-      stackEntries.push(...hdEntries);
-      if (usedLimitIds.length > 0) {
-        paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+      if (payment.discardedCards.length > 0) {
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+          payment.discardedCards, paid, actorId, true,
+          op, opponentId, cardNum, undefined, undefined);
+        stackEntries.push(...hdEntries);
+        if (usedLimitIds.length > 0) {
+          paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+        }
       }
       const turnPlayerId = bs.active_user_id ?? actorId;
       const existingStack = bs?.effect_stack ?? null;
