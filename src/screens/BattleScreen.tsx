@@ -141,7 +141,7 @@ import { LimitExcessModal } from './battle/modals/LimitExcessModal';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
-import { cardStrength } from './battle/cpuCardStrength';
+import { scoreDeploy, type LookaheadCtx } from './battle/cpuLookahead';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan } from './battle/cpuDeckPlan';
 import { applyMulligan } from './battle/mulligan';
 import { buildLrigSetupState } from './battle/lrigSetup';
@@ -12490,6 +12490,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
      *   使える（またはその逆）という無言のズレになる。
      * ⚠1回の呼び出しで**1枚だけ**使う＝スタック解決（対象選択の自動応答を含む）を待ってから次を選ぶ。
      */
+    // 🆕§5.7 `S-4`＝浅い先読み（盤面をコピーして engine だけで効果を解決し、結果の盤面を採点する）。
+    //   召喚（【出】の結果）・スペル（使うか・どれを使うか）・攻めのアーツ（候補のうちどれか）で使う。本番の盤面には書かない。
+    const cpuLookahead: LookaheadCtx = {
+      cardMap: battleCardMap,
+      effectsOf: id => effectsMap.get(id) ?? [],
+      powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, battleCardMap, 'MAIN'),
+      turnPhase: 'MAIN',
+    };
     const tryCpuUseArts = async (
       actorState: PlayerState,
       turnPhase: TurnPhase,
@@ -12503,6 +12511,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const choice = pick({
         actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
         payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
+        lookahead: isActorTurn ? { ...cpuLookahead, turnPhase } : undefined,
         // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
         isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
           selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
@@ -12946,8 +12955,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             level: parseInt(card!.Level) || 0,
             power: card!.Power === '∞' ? Infinity : (parseInt(card!.Power ?? '', 10) || 0),
             // §5.7 `S-1`＝パワーだけでなく効果の強さでも比べる（【出】の除去を持つ低パワーの札を後回しにしない）。
-            // §5.7 `S-2`＝作戦データ（優先して出す札・コンボの順番）の加点。
-            value: cardStrength(card!, effectsMap.get(id) ?? [], 'deploy')
+            // §5.7 `S-4b`＝このゾーンに出して【出】を解決した**結果の盤面の点数**（先読み）＋ `S-2` 作戦データの加点。
+            value: scoreDeploy(id, zone, newCpuSt, cpuHuSt, cpuLookahead)
               + planDeployBonus(cpuPlan, id, handSignis.map(h => h.id),
                 [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean)),
             guard: card!.Guard === '1',
@@ -13106,6 +13115,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actor: newCpuSt, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
           payer: cpuSpellPayer, turnPhase: 'MAIN', pendingSpell: !!bs.pending_spell,
           alreadyUsedNums: newCpuSt.cpu_used_card_nums_this_turn ?? [],
+          lookahead: cpuLookahead,
           isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
             selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
             keywordGrants: newCpuSt.keyword_grants, allMulti: cpuSpellPayer.enaAllMulti,

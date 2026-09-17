@@ -44,6 +44,14 @@ export function setRngSeed(seed: number): void {
   rng = mulberry32(seed);
 }
 
+/**
+ * 🆕いまの乱数源（§5.7 `S-4`）＝**先読みのシミュレーションが本番の乱数列を消費しない**よう、
+ * 一時的に別の列へ差し替えて `setRng(prev)` で戻すために使う。
+ */
+export function currentRng(): () => number {
+  return rng;
+}
+
 /** 乱数源を任意の関数へ差し替える（既存の RNG を持つ呼び出し元用）。 */
 export function setRng(fn: () => number): void {
   rng = fn;

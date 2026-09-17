@@ -59805,6 +59805,68 @@ scenarios.v268CpuDeckPlan = {
 };
 order.push('v268CpuDeckPlan');
 
+// ── 🆕§5.1 `V-269`（2026-09-17）＝**浅い先読みで CPU がスペルを使う／使わない**（§5.7 `S-4c`）──
+// 🔑旧＝CPU のスペルは「正面が塞がれているときの除去だけ」。先読み（`scoreCardUseGain`）を渡すと、**使った結果の盤面が良くなる**スペルを使う。
+// 観測点＝CPU のメインフェイズ・手札にＦＲＥＥＺＥ（相手のすべてのシグニをダウンし凍結）・青エナ2枚
+//   ①人間の場にシグニ2体＝使う（ログ「[CPU] スペルを発動: ＦＲＥＥＺＥ」＋人間のシグニが凍結）
+//   ②人間の場が空＝使わない（手札に残る）＝**撃ち損をしない**ことの対照。
+function v269Spec(hostSigni) {
+  return {
+    hostSet: { 'field.lrig': ['WD03-003#1'], 'field.signi': hostSigni, 'field.signi_down': [false, false, false] },
+    guestSet: {
+      'field.lrig': ['WD03-003#g1'], 'field.signi': [null, null, null], 'hand': ['WX01-085#g31'],
+      'energy': ['WD03-013#g41', 'WD03-012#g42'], 'actions_done': [], 'cpu_used_card_nums_this_turn': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3, effect_stack: null, pending_effect: null },
+  };
+}
+async function driveV269(page, H, spec, wantCast) {
+  await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null, pending_spell: null });
+  await page.waitForTimeout(2000);
+  await injectScenario(page, spec);
+  let castLog = null;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(1000);
+    // 人間側のカットイン窓が出たらパスする（スペルの解決を進める）
+    await H.clickTextOrBtn(['パス（カットインしない）', 'パス']).catch(() => {});
+    castLog = await H.findLog(/スペルを発動: ＦＲＥＥＺＥ/);
+    const st = await H.queryState();
+    // 🔑ログ（画面のログ欄）は取りこぼすことがある＝**盤面で判定**する（手札からＦＲＥＥＺＥが消えた＝使った）。
+    const used = !(st?.guest?.handCards ?? []).includes('WX01-085#g31');
+    if (used) castLog = castLog ?? '(盤面: 手札から消えた)';
+    if (used && wantCast) {
+      // スペルの解決は人間側のカットイン窓をパスしてから＝凍結が付くまで待つ。
+      let st2 = st;
+      for (let w = 0; w < 12; w++) {
+        await H.clickTextOrBtn(['パス（カットインしない）', 'パス']).catch(() => {});
+        await page.waitForTimeout(800);
+        st2 = await H.queryState();
+        if ((st2?.host?.signiFrozen ?? []).filter(Boolean).length >= 2) break;
+      }
+      await page.screenshot({ path: `${SHOT}/v269-cast.png`, fullPage: true });
+      return { castLog, st: st2 };
+    }
+    if (!wantCast && st?.turnPhase && !['MAIN', 'ENERGY', 'GROW', 'DRAW', 'UP'].includes(st.turnPhase)) return { castLog, st };
+  }
+  return { castLog, st: await H.queryState() };
+}
+scenarios.v269CpuSpellLookahead = {
+  title: 'V-269 先読み：相手のシグニがいれば CPU がＦＲＥＥＺＥを使い、場が空なら使わない（§5.7 S-4c）',
+  noInject: true,
+  async drive(page, H) {
+    const cast = await driveV269(page, H, v269Spec([['WD01-013#1'], ['WD03-009#1'], null]), true);
+    H.log(`① 相手2体: log=${cast.castLog} hostFrozen=${JSON.stringify(cast.st?.host?.signiFrozen ?? null)} guestHand=${JSON.stringify(cast.st?.guest?.handCards)}`);
+    const frozen = (cast.st?.host?.signiFrozen ?? []).filter(Boolean).length;
+    if (!cast.castLog || frozen < 2) return { pass: false, detail: `🔴相手のシグニが2体いるのに CPU がＦＲＥＥＺＥを使わない（phase=${cast.st?.turnPhase} guestHand=${JSON.stringify(cast.st?.guest?.handCards)} hostFrozen=${JSON.stringify(cast.st?.host?.signiFrozen)}）` };
+    const hold = await driveV269(page, H, v269Spec([null, null, null]), false);
+    H.log(`② 相手0体: log=${hold.castLog} phase=${hold.st?.turnPhase} guestHand=${JSON.stringify(hold.st?.guest?.handCards)}`);
+    if (hold.castLog) return { pass: false, detail: '🔴相手の場が空なのに CPU がＦＲＥＥＺＥを使った（撃ち損）' };
+    if (!(hold.st?.guest?.handCards ?? []).includes('WX01-085#g31')) return { pass: false, detail: `前提崩れ＝②でＦＲＥＥＺＥが手札に無い（${JSON.stringify(hold.st?.guest?.handCards)}）` };
+    return { pass: true, detail: `①相手2体＝ＦＲＥＥＺＥを使い人間のシグニ${frozen}体が凍結（${cast.castLog}）②相手0体＝使わず手札に残した（phase=${hold.st?.turnPhase}）` };
+  },
+};
+order.push('v269CpuSpellLookahead');
+
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
 // 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。

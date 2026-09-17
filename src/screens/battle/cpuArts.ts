@@ -4,6 +4,7 @@ import { getCardNum } from '../../engine/effectExecutor';
 import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseGate';
 import { selectEnergyIndicesForCost } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
+import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
 
 /**
  * CPU が**アーツを使う**ための選択ロジック（§8／§6.4 `O-1` (a)(b)）。窓は2つ＝
@@ -156,13 +157,28 @@ export function hasBlockedAttacker(actor: PlayerState, defender: PlayerState): b
  * （実測＝アタックフェイズの Timing を持つアーツ 428枚は全枚 `cost` が `energy` のみ＝
  * CSV `Cost` 列の写し。手札を捨てる等が出てきたら内訳に盤面評価が要るので使わない側へ倒れる。）
  */
-export const CPU_ARTS_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set(['energy']);
+export const CPU_ARTS_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
+  'energy',
+  // 🆕2026-09-17＝**判定側（`artsUseGate`／`spellUseGate`）が実効コスト（`check.effectiveCost`）へ織り込み済み**＝エナの額として払われる。
+  'costScaling', 'costReplacement',
+]);
+
+/**
+ * 🆕**任意の宣言コスト**（2026-09-17）＝**宣言しなければ払わない**＝CPU は宣言せず基本コスト（`check.effectiveCost`）で使う。
+ * 🔴**なぜ要るか**＝§5.3 `O-86`（2026-09-02）で【ブースト】【ベット】【アンコール】使用時の任意支払い等が**原文 regex から
+ *   コストの payload へ移った**。allowlist が `energy` 1本のままだったので、**それらのキーを持つアーツ・スペル（約230効果）を
+ *   CPU が一切使わなくなっていた**（実機 `v82ResponseArtsPreventAtLowLife`＝ブースト付きの《千里同風》を使わない、で発覚）。
+ * ⚠**エナ以外を必ず払うキー（`discard`／`charmTrash`／`trashExile` …）はここに入れない**（宣言だけして踏み倒す）。
+ */
+export const CPU_ARTS_DECLINABLE_COST_KEYS: ReadonlySet<string> = new Set([
+  'boostCost', 'betOptions', 'encoreCost', 'useTimeCost', 'optionalDiscardCost',
+]);
 
 export function cpuCanPayArtsWithEnergyOnly(effects: readonly CardEffect[]): boolean {
   return effects
     .filter(e => e.effectType === 'ACTIVATED')
     .every(e => Object.entries(e.cost ?? {})
-      .every(([k, v]) => v === undefined || CPU_ARTS_PAYABLE_COST_KEYS.has(k)));
+      .every(([k, v]) => v === undefined || CPU_ARTS_PAYABLE_COST_KEYS.has(k) || CPU_ARTS_DECLINABLE_COST_KEYS.has(k)));
 }
 
 export interface CpuArtsChoice {
@@ -187,6 +203,11 @@ export interface CpuArtsPickInput {
   /** 可否の権威＝人間の支払いUIと同じ `canAffordWithExtraCost`。 */
   isAffordable: (selectedNums: string[], costStr: string, extraCosts: { color: string; count: number }[]) => boolean;
   effectivePowers?: Map<string, number>;
+  /**
+   * 🆕§5.7 `S-4c`＝先読み（攻めのアーツだけで使う）。渡すと候補の中から**使った結果の盤面が一番良くなる**ものを選び、
+   * 増分が0以下なら使わない。⚠アーツは使い切りなので**使う条件（正面が塞がれている・除去）は据置**＝1手先だけで使い切らない。
+   */
+  lookahead?: LookaheadCtx;
 }
 
 /**
@@ -227,6 +248,14 @@ function pickCpuArtsBy(
     candidates.push({ card, check, kind, costIndices });
   }
   if (candidates.length === 0) return null;
+  if (p.lookahead && opts.isMyTurn) {
+    const lrigIdOf = (num: string) => actor.lrig_deck.find(id => getCardNum(id) === num) ?? num;
+    const scored = candidates
+      .map(c => ({ c, gain: scoreCardUseGain(lrigIdOf(c.card.CardNum), c.costIndices.size, actor, opponent, p.lookahead!, 'lrig_deck') }))
+      .filter((x): x is { c: CpuArtsChoice; gain: number } => x.gain !== null && x.gain > 0)
+      .sort((a, b) => b.gain - a.gain);
+    return scored[0]?.c ?? null;
+  }
   // 分類（無効化→除去→軽減）が第一。同点はルリグデッキ順＝決定論。
   const deckOrder = new Map<string, number>();
   actor.lrig_deck.forEach((instId, i) => {

@@ -160,6 +160,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -196,7 +197,7 @@ import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlo
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
 import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCountRule } from '../src/screens/battle/keyPieceUseGate';
 import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpuKeyPiece';
-import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
+import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
@@ -53546,6 +53547,20 @@ test('O-1 cpuArts: CPU は「守りの札・エナだけで払える・未使用
   //   シグニ【起】で自動支払いできるキーを足すと「宣言だけして踏み倒す」ことになる。
   ok(!payOnly({ down_self: true }), '🔴down_self はアーツでは払われない＝使わない側へ倒す');
   ok(!payOnly({ lrigDown: { count: 1 } }), '🔴lrigDown も同じ（allowlist に足さない）');
+  // 🆕2026-09-17＝`O-86` でコストの payload へ移った**任意の宣言**（ブースト等）と、判定側が実効コストへ織り込む項は払える。
+  ok(payOnly({ energy: [{ color: '緑', count: 0 }], boostCost: [{ color: '緑', count: 1 }] }), '🔴ブースト付きのアーツを使わない（v82ResponseArtsPreventAtLowLife の退化）');
+  ok(payOnly({ energy: [{ color: '赤', count: 1 }], costScaling: [] }), '🔴コスト変動の項を持つアーツを使わない');
+  // 🔑**再発防止のラチェット**＝live のアーツ・スペルの `ACTIVATED` に出るコストのキーは、払える／任意／使わない のどれかに**必ず分類されている**こと。
+  //   新しいキーが payload に増えたとき、CPU が黙ってその札を使わなくなる（今回の形）のを止める。
+  const UNSUPPORTED_ARTS_COST_KEYS = new Set(['discard', 'charmTrash', 'trashExile', 'colorlessPayableColors']);
+  const liveKeys = new Set<string>();
+  for (const [num, effs] of effectsMap) {
+    const t = cardMap.get(num)?.Type;
+    if (t !== 'アーツ' && t !== 'スペル') continue;
+    for (const e of effs) if (e.effectType === 'ACTIVATED') for (const k of Object.keys(e.cost ?? {})) liveKeys.add(k);
+  }
+  const unclassified = [...liveKeys].filter(k => !CPU_ARTS_PAYABLE_COST_KEYS.has(k) && !CPU_ARTS_DECLINABLE_COST_KEYS.has(k) && !UNSUPPORTED_ARTS_COST_KEYS.has(k));
+  eq(JSON.stringify(unclassified), '[]', '🔴アーツ・スペルのコストに CPU が分類していないキーがある＝その札を CPU が黙って使わなくなる');
 }));
 
 test('O-1 cpuArts: 攻めの窓は「アタックが正面で塞がれている」ときだけ（除去に価値がある盤面）', () => withSavedCursor(() => {
@@ -86076,7 +86091,8 @@ test('§5.7 S-1 カードの強さ表：効果 JSON から「パワー＋効果�
 
   // 画面の配線
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(/value: cardStrength\(card!, effectsMap\.get\(id\)/.test(battle), '🔴CPU の召喚が強さを渡していない');
+  // §5.7 `S-4b` で召喚の比較は先読み（`scoreDeploy`＝盤面の採点の中で `cardStrength` を使う）へ置き換えた。
+  ok(/value: scoreDeploy\(id, zone, newCpuSt, cpuHuSt, cpuLookahead\)/.test(battle), '🔴CPU の召喚が強さ（先読み）を渡していない');
   ok(/handGuardCount: handSignis\.filter/.test(battle), '🔴CPU の召喚が手札の【ガード】枚数を渡していない');
   ok(/pickCpuEnergyChargeIndex\(cpuSt\.hand, battleCardMap/.test(battle) && !/const charged = cpuSt\.hand\[0\];/.test(battle), '🔴CPU のエナチャージが手札の先頭固定のまま');
   ok(/effectsOf: id => effectsMap\.get\(id\) \?\? \[\]/.test(battle), '🔴CPU の対話応答に効果の一覧を渡していない');
@@ -86123,6 +86139,53 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(cpuPlan, id\)/.test(battle), '🔴マリガン／対話応答に作戦データを渡していない');
   const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
   ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
+}));
+
+test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面で、召喚・スペルを選ぶ（本番の盤面と乱数は触らない）', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー決定＝A で先読みの効果を先に確かめる）。`S-1` の静的な点数は「相手の場が空でも除去を高く見る」。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const board = (signi: (string | null)[], hand: string[] = []) => {
+    const st = mkState({ signi });
+    st.hand = hand; st.life_cloth = ['WD01-013#l1', 'WD01-013#l2']; st.energy = ['WD03-013#e1', 'WD03-013#e2', 'WD03-013#e3'];
+    st.field.lrig = ['WD03-003#r1'];
+    return st;
+  };
+  const HISUI = 'WX02-053';   // 羅石 ヒスイ（【出】：相手のパワー2000以下のシグニ1体をバニッシュ）
+  const VANILLA = 'WD01-013';
+  const cpu = board([null, null, null], [`${HISUI}#h1`, `${VANILLA}#h2`]);
+  // CPU はゾーン0に出す＝正面は相手のゾーン2（盤面は左右反転）。
+  const oppSmall = board(['WD03-009#o2', null, 'WD02-014#o1']);  // 正面にパワー1000＝ヒスイで除去でき、正面が空く
+  const oppBig = board(['WD03-009#o1', null, 'WD01-013#o2']);    // 正面に3000＝除去できず、正面は塞がったまま
+  // 【出】の結果で比べる
+  const diff = (opp: PlayerState) => scoreDeploy(`${HISUI}#h1`, 0, cpu, opp, lctx) - scoreDeploy(`${VANILLA}#h2`, 0, cpu, opp, lctx);
+  ok(diff(oppSmall) > diff(oppBig) + 2000, `🔴【出】の除去が実際に決まる盤面とそうでない盤面で、召喚の点数差が変わらない（${diff(oppSmall)} / ${diff(oppBig)}）`);
+  ok(cpuOnPlayEffectsOf(`${HISUI}#h1`, cpu, oppSmall, lctx).length === 1, '前提崩れ＝ヒスイの【出】が CPU の召喚で発動する形に見えない');
+  // 本番の盤面を書き換えない・乱数列を消費しない
+  const snapshot = JSON.stringify([cpu, oppSmall]);
+  rngSetSeed(42); const expected = rngIntG(1000000); rngSetSeed(42);
+  scoreDeploy(`${HISUI}#h1`, 0, cpu, oppSmall, lctx);
+  eq(rngIntG(1000000), expected, '🔴先読みが本番の乱数列を消費した');
+  rngResetG();
+  eq(JSON.stringify([cpu, oppSmall]), snapshot, '🔴先読みが渡した盤面を書き換えた');
+  // スペル＝結果の増分（相手の場にシグニがいるときだけ除去スペルが得）
+  const removalSpell = [...cardMap.values()].find(c => c.Type === 'スペル' && (effectsMap.get(c.CardNum) ?? []).some(e =>
+    e.effectType === 'ACTIVATED' && e.action?.type === 'BANISH' && JSON.stringify(e.action).includes('"opponent"') && !JSON.stringify(e.action).includes('power')))!;
+  ok(!!removalSpell, '前提崩れ＝条件の無い除去スペルが見つからない');
+  const spellId = `${removalSpell.CardNum}#h9`;
+  const caster = board([null, null, null], [spellId]);
+  const gainWithTarget = scoreCardUseGain(spellId, 1, caster, oppBig, lctx, 'hand');
+  const gainNoTarget = scoreCardUseGain(spellId, 1, caster, board([null, null, null]), lctx, 'hand');
+  ok(gainWithTarget !== null && gainNoTarget !== null, `前提崩れ＝${removalSpell.CardNum} の先読みが解決しきれない`);
+  ok(gainWithTarget! >= SPELL_GAIN_MIN, `🔴相手のシグニを除去できるスペルの増分が下限に届かない（${gainWithTarget}）`);
+  ok(gainNoTarget! < SPELL_GAIN_MIN, `🔴相手の場が空なのに除去スペルを使う価値があると見た（${gainNoTarget}）`);
+  // 凍結スペル（ＦＲＥＥＺＥ＝相手のすべてのシグニをダウンし凍結）＝相手のシグニが2体いれば使う価値がある
+  const freezeGain = scoreCardUseGain('WX01-085#h8', 1, board([null, null, null], ['WX01-085#h8']), oppBig, lctx, 'hand');
+  ok(freezeGain !== null && freezeGain >= SPELL_GAIN_MIN, `🔴相手のシグニ2体を凍結するスペルの価値を見ていない（${freezeGain}）`);
+  // 画面の配線
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/lookahead: cpuLookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない');
+  ok(/lookahead: isActorTurn \? \{ \.\.\.cpuLookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

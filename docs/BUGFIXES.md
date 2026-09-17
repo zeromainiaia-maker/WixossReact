@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 §5.7 `S-4` 浅い先読み（A）＋CPU が任意コスト付きのアーツ・スペルを使っていなかった退化の修正
+
+### `S-4` 浅い先読み
+- 🔑**ユーザー決定**＝「A で先読みの効果を先に確かめ、そのあと C へ段階的に進む」。`S-1` の強さ表は盤面を見ない静的な点数（相手の場が空でも除去を高く見る）。
+- 実装＝`src/screens/battle/cpuLookahead.ts`
+  - `simulateEffect`＝盤面を `structuredClone` して `executeEffect` → 対話は `cpuInteraction.ts` の純関数で答えて resume を繰り返す（相手が選ぶ対話は立場を入れ替えて同じ関数）。
+    CHOOSE の resume は画面と同じ分岐（置換の問い／相手の任意支払い／任意コスト／複数選択）。解決しきれない形（未対応の対話・例外・40手超）は `null`。
+    ⚠**本番の乱数列を消費しない**＝シミュレーション中だけ `mulberry32` の固定列に差し替え、`engine/rng.ts` に足した `currentRng()` で戻す。
+  - `evaluateBoard`＝CPU から見た有利さ＝場のシグニの強さ（`S-1` の `field` 文脈・実効パワー）の差＋**正面が空いている数の差**（`openLane`）＋**相手の凍結シグニ**（`oppFrozen`）＋ライフ・手札・エナの枚数差（`BOARD_WEIGHTS`＝`S-6` の調整対象）。
+  - 使う場所＝召喚 `scoreDeploy`（置いて CPU の召喚で必ず発動する【出】を解決）／スペル `pickCpuMainSpell({ lookahead })`＝**除去に限らず**結果が `SPELL_GAIN_MIN`（1000）以上良くなるものを使う・相手の場が空なら撃たない／
+    攻めのアーツ `pickCpuArtsBy`＝候補のうち増分が最大のもの（⚠使い切りなので**使う条件は据置**）。先読みを渡さなければ旧挙動。
+- 🔴**採点で踏んだ罠**＝①相手のパワー1000のシグニを除去しても、除去されたカードは相手のエナになるので**差が +1200 しか開かず**先読みの意味が無かった ⇒ 除去の本当の価値は「正面が空いてアタックが通る」＝`openLane` を足した
+  ②ＦＲＥＥＺＥ（相手のすべてのシグニをダウンし凍結）が「手札とエナを使うだけ」に見えて撃たれなかった ⇒ `oppFrozen` を足した。
+- 検証＝`npm run gates` 全緑（golden `§5.7 S-4`＝正面の除去が決まる盤面だけ召喚の点数差が開く・本番の盤面と乱数を触らない・除去スペルは相手がいれば得／いなければ撃たない・ＦＲＥＥＺＥの価値・配線）／
+  🆕実機 `V-269` PASS×2（CPU のメインフェイズ・手札ＦＲＥＥＺＥ＝人間2体で使って2体凍結／人間0体で使わず手札に残す）／CPU のアーツ・スペル・召喚系の既存20本 PASS／CPU 通し対戦（MECH）PASS×3。
+  ⚠通し対戦の3戦では CPU がスペルを1度も使わなかった（手札に来ない・盤面の条件）＝**効果の体感はユーザーの対戦で確かめる**。
+  ⚠`V-269` の初版はログ欄を探して取りこぼし FAIL（実際は使っていた）＝**盤面の状態で判定**し、人間側のカットイン窓（「パス（カットインしない）」）を閉じてから凍結を待つ形にした。
+
+### CPU が任意コスト付きのアーツ・スペルを使っていなかった（`O-86` 後の退化）
+- 🔴**発見**＝`S-4` の回帰確認で実機 `v82ResponseArtsPreventAtLowLife`（ライフ2枚以下で CPU が防御アーツ《千里同風》を使う）が FAIL。**変更を外した HEAD でも FAIL**（`git diff` をパッチに退避して確認＝stash による CRLF の事故を避けた）。
+- 🔴**原因**＝§5.3 `O-86` 第4バッチ（2026-09-02）で【ブースト】の任意追加コストが原文 regex から `cost.boostCost` へ移った。CPU の `cpuCanPayArtsWithEnergyOnly` は**許可リストが `energy` だけ**なので、
+  同様に payload へ移った `betOptions`／`encoreCost`／`useTimeCost`／`optionalDiscardCost`／`costScaling`／`costReplacement` を持つ**アーツ・スペル約230効果を CPU が一切使わなくなっていた**（画面なしの再現で `listUsableArts` は使える・`pickCpuResponseArts` は null を確認）。
+- 修正＝キーを分類＝**払える**（`energy` と、判定側が `check.effectiveCost` へ織り込み済みの `costScaling`／`costReplacement`）／**任意の宣言**（`CPU_ARTS_DECLINABLE_COST_KEYS`＝宣言しなければ払わない＝CPU は基本コストで使う）／
+  **使わない**（`discard`／`charmTrash`／`trashExile`／`colorlessPayableColors`＝エナ以外を必ず払う・CPU のエナ選びが色制限を見ない）。
+- 🔑**再発防止のラチェット**＝golden `O-1 cpuArts` に「live のアーツ・スペルの `ACTIVATED` に出るコストのキーは3分類のどれかに必ず入っている」を追加（payload に新しいキーが増えたら FAIL＝CPU が黙ってその札を使わなくなる形を止める）。
+- 検証＝golden 全緑／実機 `v82ResponseArtsPreventAtLowLife` PASS（lrigTrash に WX25-P1-008）・対照 `v82ResponseArtsWithheldAtHighLife` PASS・`v75`／`v76` PASS。
+
 ## 2026-09-17 §5.7 `S-2` CPU デッキごとの作戦データ（キーカード・優先して出す札・コンボ）
 
 - 🔑**ユーザー指摘**＝「CPU の使うデッキによって強い行動が変わる」「複数のカードのコンボが強い」。`S-1` の強さ表はカード1枚ずつの採点なので、デッキ固有の役割とカード同士の組み合わせは表せない。

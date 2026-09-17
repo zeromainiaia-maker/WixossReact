@@ -5,6 +5,7 @@ import { selectEnergyIndicesForCost } from './cpuActivate';
 import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
 import { energyPoolCardNums } from './energyPaySource';
 import { type SpellUseCheck, listCastableSpells } from './spellUseGate';
+import { scoreCardUseGain, SPELL_GAIN_MIN, type LookaheadCtx } from './cpuLookahead';
 
 /**
  * CPU が**メインフェイズに手札のスペルを使う**ための選択ロジック（§8／§6.4 `O-1` (b)）。
@@ -52,9 +53,14 @@ export function pickCpuMainSpell(p: {
   /** 可否の権威＝人間の支払いUIと同じ `canAffordWithExtraCost`。 */
   isAffordable: (selectedNums: string[], costStr: string, extraCosts: { color: string; count: number }[]) => boolean;
   effectivePowers?: Map<string, number>;
+  /**
+   * 🆕§5.7 `S-4c`＝先読み。渡すと**除去に限らず**「使った結果の盤面が `SPELL_GAIN_MIN` 以上良くなる」スペルのうち
+   * 一番得なものを使う（正面が塞がれているかも問わない）。渡さなければ旧挙動（塞がれているときの除去だけ・手札順）。
+   */
+  lookahead?: LookaheadCtx;
 }): CpuSpellChoice | null {
   const { actor, opponent, cards, cardMap, effectsMap, payer } = p;
-  if (!hasBlockedAttacker(actor, opponent)) return null;
+  if (!p.lookahead && !hasBlockedAttacker(actor, opponent)) return null;
   const poolNums = energyPoolCardNums(payer.energyPayPool);
   const candidates: CpuSpellChoice[] = [];
   for (const { card, handIndex, check } of listCastableSpells({
@@ -68,7 +74,7 @@ export function pickCpuMainSpell(p: {
     //   だが、増えたときに**宣言だけして踏み倒す**側へ倒れないようにここで切る。
     if (!cpuCanPayArtsWithEnergyOnly(acts)) continue;
     if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
-    if (!acts.some(e => defensiveKindOf(e.action) === 'removal')) continue;
+    if (!p.lookahead && !acts.some(e => defensiveKindOf(e.action) === 'removal')) continue;
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards, costStr: check.effectiveCost,
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
@@ -79,6 +85,14 @@ export function pickCpuMainSpell(p: {
     candidates.push({ card, handIndex, check, costIndices });
   }
   if (candidates.length === 0) return null;
+  if (p.lookahead) {
+    // §5.7 `S-4c`＝結果の盤面で比べる（増分が下限に届かないスペルは使わない＝撃ち損をしない）。
+    const scored = candidates
+      .map(c => ({ c, gain: scoreCardUseGain(actor.hand[c.handIndex], c.costIndices.size, actor, opponent, p.lookahead!, 'hand') }))
+      .filter((x): x is { c: CpuSpellChoice; gain: number } => x.gain !== null && x.gain >= SPELL_GAIN_MIN)
+      .sort((a, b) => (b.gain - a.gain) || (a.c.handIndex - b.c.handIndex));
+    return scored[0]?.c ?? null;
+  }
   // 手札順の決定論（盤面評価はしない）。⚠`handIndex` は `performSpell` の手札 index と同じ空間。
   candidates.sort((a, b) => a.handIndex - b.handIndex);
   return candidates[0];
