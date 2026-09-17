@@ -2,7 +2,7 @@
 import type { PlayerState, CardData } from '../../types';
 import { getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { matchesStateFilter } from '../../engine/effectEngine';
-import { cloneAcceSlots } from '../../utils/acce';
+import { clearZoneOnSigniLeave } from './leaveFieldZone';
 
 export function fieldTrashSelectableZones(
   cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean } | undefined,
@@ -142,35 +142,24 @@ export function reduceFieldSigniToLimit(
   });
   const keep = new Set(sorted.slice(0, limit).map(z => z.zi));
   const newSigni = [...state.field.signi] as (string[] | null)[];
-  const newDown = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
-  const newFrozen = [...(state.field.signi_frozen ?? [false, false, false])] as boolean[];
-  const newCharms = state.field.signi_charms ? [...state.field.signi_charms] as (string | null)[] : undefined;
-  // ⚠旧形式（素の string）を `[...cards]` で複製すると**1文字ずつの配列**に化けるので必ず正規化を通す（タスク12(cxxxiv)）。
-  const newAcce = state.field.signi_acce ? cloneAcceSlots(state.field) : undefined;
+  // 🔑**ゾーンの後始末は `leaveFieldZone.ts` の1本**（§5.6 `C-9` `R-41`）＝ここに写経すると
+  //   経路ごとに落とすものが食い違う（実際【ソウル】はライズ経路だけが落としていた）。
+  let field = state.field;
   let trash = [...state.trash];
+  let lrigTrash = [...state.lrig_trash];
   const trashed: string[] = [];
   for (const z of zones) {
     if (keep.has(z.zi)) continue;
     trash = [...trash, ...z.stk];
-    if (newCharms?.[z.zi]) trash.push(newCharms[z.zi]!);
-    if (newAcce?.[z.zi]) trash.push(...newAcce[z.zi]!);
     if (z.top) trashed.push(z.top);
     newSigni[z.zi] = null;
-    newDown[z.zi] = false;
-    newFrozen[z.zi] = false;
-    if (newCharms) newCharms[z.zi] = null;
-    if (newAcce) newAcce[z.zi] = null;
+    const cleaned = clearZoneOnSigniLeave(field, z.zi);
+    field = cleaned.field;
+    trash = [...trash, ...cleaned.trash];
+    lrigTrash = [...lrigTrash, ...cleaned.lrigTrash];
   }
   return {
-    state: {
-      ...state,
-      field: {
-        ...state.field, signi: newSigni, signi_down: newDown, signi_frozen: newFrozen,
-        ...(newCharms ? { signi_charms: newCharms } : {}),
-        ...(newAcce ? { signi_acce: newAcce } : {}),
-      },
-      trash,
-    },
+    state: { ...state, field: { ...field, signi: newSigni }, trash, lrig_trash: lrigTrash },
     trashed,
   };
 }

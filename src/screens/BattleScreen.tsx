@@ -135,6 +135,7 @@ import { resonaLeaveDestination } from '../engine/resonaZone';
 import { getLrigAttackCrashState } from './battle/lrigCrash';
 import { refreshForcesTurnEnd } from './battle/refreshTurnEnd';
 import { removeKeyToLrigTrash } from './battle/keyZone';
+import { clearZoneOnSigniLeave } from './battle/leaveFieldZone';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
@@ -7484,6 +7485,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const newSigni = [...my.field.signi] as (string[] | null)[];
       let newTrash = [...my.trash];
+      let newLrigTrash = [...my.lrig_trash];
+      // 🔴**§5.6 `C-9` `R-41`（2026-09-17）＝リムーブだけがゾーンの後始末を1つもしていなかった。**
+      //   【チャーム】【アクセ】【ソウル】が浮いたまま残り（カードが消える）、`signi_down` / `signi_frozen` が
+      //   立ったままになって**次にそのゾーンへ置いたシグニがいきなりダウン／凍結**していた。
+      let removeField = my.field;
       const removedSigniNums: string[] = [];
       for (const zi of selectedRemoveZones) {
         const stack = my.field.signi[zi] ?? [];
@@ -7491,11 +7497,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (top) removedSigniNums.push(top);
         newTrash = [...newTrash, ...stack];
         newSigni[zi] = null;
+        const cleaned = clearZoneOnSigniLeave(removeField, zi);
+        removeField = cleaned.field;
+        newTrash = [...newTrash, ...cleaned.trash];
+        newLrigTrash = [...newLrigTrash, ...cleaned.lrigTrash];
       }
       const newMyState: PlayerState = clearEndOfAttackEffects({
         ...my,
-        field: { ...my.field, signi: newSigni },
+        field: { ...removeField, signi: newSigni },
         trash: newTrash,
+        lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), 'REMOVE'],
       });
       const stateKey = isHost ? 'host_state' : 'guest_state';

@@ -96,12 +96,18 @@ export function pushToStack(stack: EffectStack, entriesIn: StackEntry[]): Effect
   const addOpp  = entries.filter(e => e.playerId !== stack.turnPlayerId);
 
   // 両者確定済み（解決中に新トリガー発生）→ キューに直接追加
+  // 🔴**§5.6 `C-9` `R-52`（2026-09-17）＝追記もターンプレイヤー優先**（EN Triggered ability＝
+  //   「同時に発動したトリガーはターンプレイヤーの分を全部処理してから非ターンプレイヤー」）。
+  //   旧は `...entries`（**呼び出し側が渡した配列の順**）をそのまま繋いでいたので、両者のトリガーが
+  //   1回のバッチで来ると**非ターンプレイヤーの効果が先に解決しうる**（実例＝ライフバースト解決で
+  //   `[被クラッシュ側（＝非ターンプレイヤー）のトリガー, クラッシュした側（＝ターンプレイヤー）のトリガー]`
+  //   の順に渡していた）。⚠並べ替えるのは**今回足す分だけ**＝既存 `queue` は解決順が確定済みなので触らない。
   if (stack.orderTurnDone && stack.orderOppDone) {
     return {
       ...stack,
       pendingTurn: [...stack.pendingTurn, ...addTurn],
       pendingOpp:  [...stack.pendingOpp,  ...addOpp],
-      queue: [...stack.queue, ...entries],
+      queue: [...stack.queue, ...buildQueue(addTurn, addOpp)],
     };
   }
 

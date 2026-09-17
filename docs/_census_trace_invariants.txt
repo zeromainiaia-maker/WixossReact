@@ -3,7 +3,7 @@
 
 ## I1（0効果）
 
-## I2（266効果）
+## I2（268効果）
 WX01-028-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 WX02-073-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-073:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX04-015-E1	base/both	選択肢なし・差分: 相デッキの並びが変わった（残り12枚）
@@ -60,6 +60,7 @@ WX16-025-E1	base/both	選択肢なし・差分: 自手札対象: 自手札 → �
 WX16-038-E1	nofield/both	選択肢なし・差分: 自デッキ上対象: 自デッキ[0] → 自シグニ1(上) ; 自状態 signi_placed_by_source: なし → {"自デッキ上対象":"自S源"} ; 自状態 signi_placed_origin_this_turn: なし → ["WX15-032:deck"]
 WX16-038-E2	nofield/both	選択肢なし・差分: 自デッキ上対象: 自デッキ[0] → 自シグニ1(上) ; 自状態 signi_placed_by_source: なし → {"自デッキ上対象":"自S源"} ; 自状態 signi_placed_origin_this_turn: なし → ["WX15-042:deck"]
 WX16-Re09-E1	base/both	選択肢なし・差分: 自S甲: パワー+3000 ; 自S甲: 付与[なし]→[PROTECTION_FILTERED:{"from":["any"],"sourceOwner":"opponent","duringOppTurn":true}]
+WX17-028-E1	empty/both	選択肢なし・差分: 自S源: 自トラッシュ → 自デッキ[0] ; 自状態 deck_shuffled_count: なし → 1
 WX17-028-E2	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 WX17-031-E2	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 自状態 turn_signi_returned_to_hand: なし → true
 WX18-010-E1	base/both	選択肢なし・差分: 相S対象0: 相シグニ0(上) → 相手札 ; 相状態 signi_returned_to_hand_count_this_turn: なし → 1 ; 相状態 turn_signi_returned_to_hand: なし → true
@@ -125,6 +126,7 @@ WXDi-P08-062-E2	nofield/both	選択肢なし・差分: 自デッキ上1: 自デ�
 WXDi-P09-076-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自エナ ; 自デッキ上2: 自デッキ[1] → 自エナ ; 自状態 energy_placed_this_turn: なし → ["WD01-009:effect","WD01-010:effect"]
 WXDi-P09-083-E1	base/both	選択肢なし・差分: 相S対象0: パワー-7000
 WXDi-P10-034-E1	base/both	選択肢なし・差分: 自デッキの並びが変わった（残り12枚）
+WXDi-P10-044-E3	empty/both	選択肢なし・差分: 自S源: 自トラッシュ → 自デッキ[1] ; 自状態 deck_shuffled_count: なし → 1
 WXDi-P11-072-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自エナ ; 自デッキ上2: 自デッキ[1] → 自エナ
 WXDi-P11-078-E1	base/both	選択肢なし・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
 WXDi-P11-081-E2	base/both	選択肢なし・差分: 自手札対象: 自手札 → 自シグニ0(下)
@@ -277,7 +279,7 @@ WX11-025-E2	nofield/both	失敗ログ「並び替え対象が1体以下のため
 WX14-012-E1	base/both	失敗ログ「空きシグニゾーンなし（弩炎　フレイスロ少佐配置不可）」・差分: 自デッキの並びが変わった（残り14枚） ; 自状態 deck_shuffled_count: なし → 1
 WX14-026-BURST	base/decline	失敗ログ「任意アクションをスキップ」・差分: 自デッキ上1: 自デッキ[0] → 自手札
 WX14-048-E1	base/both	失敗ログ「空きシグニゾーンなし（アイン＝ダガ配置不可）」・差分: 自S対象0: 自シグニ0(上) → 自エナ ; 自トラッシュ対象2: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX05-079:trash"]
-WX17-063-TRAP	base/decline	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 相デッキの並びが変わった（残り12枚） ; 相トラッシュ1: 相トラッシュ → 相デッキ[4] ; 相トラッシュ2: 相トラッシュ → 相デッキ[8]
+WX17-063-TRAP	base/decline	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 相デッキの並びが変わった（残り12枚） ; 相トラッシュ1: 相トラッシュ → 相デッキ[13] ; 相トラッシュ2: 相トラッシュ → 相デッキ[5]
 WX20-003-E1	base/both	失敗ログ「空きシグニゾーンなし（コードアート　Ａ・Ｄ・Ｂ配置不可）」・差分: 自デッキの並びが変わった（残り13枚） ; 自状態 deck_shuffled_count: なし → 1
 WX20-026-BURST	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札
 WX22-005-E1	base/both	失敗ログ「空きシグニゾーンなし（禁忌の焔　≡プロメウス≡配置不可）」・差分: 自デッキの並びが変わった（残り15枚） ; 自状態 deck_shuffled_count: なし → 1
@@ -296,7 +298,7 @@ WXDi-P13-054-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] 
 WXDi-P13-087-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 WXDi-P15-034-E1	base/both	失敗ログ「アタックできない：コードアート　Ｉ・Ｄ・Ｏ・Ｌ」・差分: 相S対象0: 付与[なし]→[アタックできない]
 WXDi-CP01-042-E1	base/both	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ
-WXDi-CP02-003-E1	base/decline	辞退・差分: 自デッキの並びが変わった（残り8枚） ; 自S源: 自トラッシュ → 自デッキ[3] ; 自デッキ上12: 自デッキ[11] → 自手札
+WXDi-CP02-003-E1	base/decline	辞退・差分: 自デッキの並びが変わった（残り8枚） ; 自S源: 自トラッシュ → 自デッキ[9] ; 自デッキ上1: 自デッキ[0] → 自手札
 WX24-P1-004-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相S対象0: 相シグニ0(上) → 相エナ
 WX24-P2-002-E1	base/both	失敗ログ「アタックできない：コードアート　Ｉ・Ｄ・Ｏ・Ｌ」・差分: 相S対象0: 付与[なし]→[アタックできない] ; WD01-001: 付与[なし]→[アタックできない]
 WX24-P2-007-E1	nofield/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 自エナ対象1: 自エナ → 自シグニ1(上) ; 自エナ対象2: 自エナ → 自シグニ0(上) ; 自エナ対象3: 自エナ → 自シグニ2(上)
@@ -306,7 +308,7 @@ WX24-P3-049-E1	base/accept	失敗ログ「このターン、対戦相手はシ�
 WX24-P3-049-E2	base/accept	失敗ログ「【アタックできない】は新たに得られない」・差分: 自S源: 自シグニ0(上) → 自トラッシュ
 WX24-P3-090-E1	base/accept	失敗ログ「任意コストの条件を満たさない（スキップ）」・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 WX24-P4-004-E1	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自手札 ; 自デッキ上2: 自デッキ[1] → 自手札 ; 自デッキ上3: 自デッキ[2] → 自手札
-WX24-P4-005-E1	base/decline	失敗ログ「任意アクションをスキップ」・差分: 自デッキの並びが変わった（残り11枚） ; 自デッキ上8: 自デッキ[7] → 自ライフ ; 自状態 deck_shuffled_count: なし → 1
+WX24-P4-005-E1	base/decline	失敗ログ「任意アクションをスキップ」・差分: 自デッキの並びが変わった（残り11枚） ; 自デッキ上2: 自デッキ[1] → 自ライフ ; 自状態 deck_shuffled_count: なし → 1
 WX24-P4-048-E2	base/both	失敗ログ「任意コストの対象なし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）」・差分: 自トラッシュ対象: 自トラッシュ → 自デッキ[12]
 WX25-P1-061-E2	base/decline	辞退・差分: 自デッキ上1: 自デッキ[0] → 自トラッシュ ; 自デッキ上2: 自デッキ[1] → 自トラッシュ ; 自デッキ上3: 自デッキ[2] → 自トラッシュ
 WX25-P2-002-E1	base/both	失敗ログ「リコレクト条件未達（アーツ0枚 / 必要4枚以上）」・差分: 相状態 abilities_removed: なし → ["相S対象0","相S対象1","相S丙"]
@@ -358,7 +360,7 @@ WX11-069-E1	empty/both	ドロー: ログ1枚／移動0件
 WX12-Re03-E1	empty/both	ドロー: ログ1枚／移動0件
 WX12-Re14-BURST	empty/both	ドロー: ログ1枚／移動0件
 WX14-011-E1	empty/both	ドロー: ログ1枚／移動0件
-WX14-062-E1	base/both	ドロー: ログ1枚／移動2件
+WX14-062-E1	base/decline	ドロー: ログ1枚／移動2件
 WX15-036-BURST	empty/both	ドロー: ログ1枚／移動0件
 WX15-051-E1	empty/both	ドロー: ログ1枚／移動0件
 WX15-053-E1	empty/both	ドロー: ログ1枚／移動0件
@@ -372,7 +374,7 @@ WX17-068-E1	empty/both	ドロー: ログ1枚／移動0件
 WX17-068-E2	empty/both	ドロー: ログ1枚／移動0件
 WX17-070-E1	empty/both	ドロー: ログ1枚／移動0件
 WX18-016-E1	empty/both	ドロー: ログ1枚／移動0件
-WX19-040-E1	base/accept	ドロー: ログ2枚／移動0件
+WX19-040-E1	base/decline	ドロー: ログ2枚／移動1件
 WX19-059-BURST	empty/both	ドロー: ログ1枚／移動0件
 WX20-026-E1	empty/both	ドロー: ログ1枚／移動0件
 WX20-026-BURST	empty/accept	ドロー: ログ1枚／移動0件
@@ -394,9 +396,9 @@ WXDi-P03-032-E2	empty/both	エナチャージ: ログ1枚／移動0件
 WXDi-P03-055-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P03-072-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P04-005-E1	base/decline	ドロー: ログ1枚／移動0件
-WXDi-P04-009-E3	base/accept	ドロー: ログ4枚／移動3件
+WXDi-P04-009-E3	full/accept	ドロー: ログ4枚／移動3件
 WXDi-P05-002-E1	empty/both	エナチャージ: ログ1枚／移動0件
-WXDi-P05-063-E1	full/accept	ドロー: ログ1枚／移動0件
+WXDi-P05-063-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P07-023-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P08-031-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P08-074-BURST	empty/both	エナチャージ: ログ1枚／移動0件
@@ -406,7 +408,7 @@ WXDi-P11-006-E3	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P11-040-BURST	empty/accept	ドロー: ログ1枚／移動0件
 WXDi-P11-068-E2	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P11-076-BURST	empty/both	エナチャージ: ログ1枚／移動0件
-WXDi-P12-003-E1	base/accept	エナチャージ: ログ2枚／移動1件
+WXDi-P12-003-E1	full/decline	エナチャージ: ログ2枚／移動1件
 WXDi-P12-082-BURST	empty/both	エナチャージ: ログ1枚／移動0件
 WXDi-P13-001-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P13-005-E1	empty/both	ドロー: ログ1枚／移動0件
@@ -418,7 +420,7 @@ WXDi-P15-059-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P15-071-BURST	empty/both	エナチャージ: ログ1枚／移動0件
 WXDi-P16-074-BURST	empty/both	ドロー: ログ1枚／移動0件
 WXDi-P16-087-E1	empty/both	ドロー: ログ1枚／移動0件
-WXDi-P16-093-E1	empty/both	ドロー: ログ1枚／移動0件
+WXDi-P16-093-E1	full/accept	ドロー: ログ1枚／移動0件
 WXDi-CP01-050-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-CP02-006-E1	empty/both	ドロー: ログ1枚／移動0件
 WXDi-CP02-008-E3	empty/both	ドロー: ログ1枚／移動0件
@@ -457,7 +459,7 @@ WXK01-102-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK02-089-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK03-022-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK04-051-E1	empty/both	ドロー: ログ1枚／移動0件
-WXK05-005-E1	base/decline	ドロー: ログ3枚／移動2件
+WXK05-005-E1	base/decline	ドロー: ログ3枚／移動1件
 WXK05-025-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK05-045-E1	empty/both	ドロー: ログ1枚／移動0件
 WXK06-028-E2	base/decline	ドロー: ログ5枚／移動2件

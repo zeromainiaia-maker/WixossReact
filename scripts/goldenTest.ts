@@ -105,6 +105,7 @@ import { resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
+import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
@@ -85760,6 +85761,64 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
+}));
+
+test('§5.6 C-9 R-41/R-49 リムーブ＝場を離れたゾーンの後始末（チャーム・アクセ・ソウル・ダウン・凍結）', () => withSavedCursor(() => {
+  // 🔑公式ルール（JP-094・097）＝シグニが場を離れたら【チャーム】【アクセ】はトラッシュ、【ソウル】はルリグトラッシュへ。
+  //   ダウン・凍結はそのシグニの状態なのでゾーンには残らない。
+  // 🔴2026-09-17 の棚卸し＝同じ後始末が4箇所にあり、**リムーブ（メインフェイズの自分のシグニをトラッシュに置く）だけが
+  //   1つも行っていなかった**＝付属カードが浮いて消え、次にそのゾーンへ置いたシグニがいきなりダウン／凍結していた。
+  const field = {
+    lrig: [], signi: [[SIGNI_L1], null, null],
+    signi_down: [true, false, true], signi_frozen: [true, false, false],
+    signi_charms: ['CHARM-A', null, 'CHARM-C'], signi_acce: [['ACCE-A1', 'ACCE-A2'], null, null],
+    signi_soul: ['SOUL-A', null, null], signi_virus: [1, 0, 0], signi_traps: ['TRAP-A', null, null],
+    assist_lrig_l: [], assist_lrig_r: [], check: null, free_zone: [],
+  } as unknown as PlayerState['field'];
+  const left = clearZoneOnSigniLeave(field, 0);
+  eq(JSON.stringify(left.trash), JSON.stringify(['CHARM-A', 'ACCE-A1', 'ACCE-A2']),
+    '🔴【チャーム】【アクセ】がトラッシュへ行かない（カードが浮いて消える）');
+  eq(JSON.stringify(left.lrigTrash), JSON.stringify(['SOUL-A']), '🔴【ソウル】がルリグトラッシュへ行かない');
+  eq(left.field.signi_charms?.[0] ?? null, null, 'チャーム枠が空いていない');
+  eq(left.field.signi_acce?.[0] ?? null, null, 'アクセ枠が空いていない');
+  eq(left.field.signi_soul?.[0] ?? null, null, 'ソウル枠が空いていない');
+  eq(left.field.signi_down?.[0], false, '🔴ダウンが残る（次に置いたシグニがいきなりダウンする）');
+  eq(left.field.signi_frozen?.[0], false, '🔴凍結が残る');
+  // ⚠**他のゾーンは触らない**。
+  eq(left.field.signi_charms?.[2], 'CHARM-C', '別ゾーンのチャームを消している');
+  eq(left.field.signi_down?.[2], true, '別ゾーンのダウンを解除している');
+  // ⚠**ウィルスとトラップはゾーンに置かれるもの**＝シグニが離れても残る（既存3経路のどれも触っていない）。
+  eq(JSON.stringify(left.field.signi_virus), JSON.stringify([1, 0, 0]), 'ウィルスを消している（ゾーンのもの）');
+  eq(left.field.signi_traps?.[0], 'TRAP-A', 'トラップを消している（ゾーンのもの）');
+  // ⚠**元から未設定のキーを生やさない**（state の形が変わる）。
+  const bare = { signi: [null, null, null] } as unknown as PlayerState['field'];
+  eq(clearZoneOnSigniLeave(bare, 0).field.signi_charms, undefined, '未設定のチャーム枠を生やしている');
+  eq(clearZoneOnSigniLeave(bare, 0).field.signi_soul, undefined, '未設定のソウル枠を生やしている');
+  // 🔴**配線**＝リムーブと `reduceFieldSigniToLimit` は同じ関数を通る。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/const handleRemove = async[\s\S]{0,2000}clearZoneOnSigniLeave\(/.test(screen),
+    '🔴リムーブがゾーンの後始末を通っていない');
+  const limitSrc = fs.readFileSync(join(root, 'src/screens/battle/fieldLimit.ts'), 'utf8');
+  ok(/clearZoneOnSigniLeave\(/.test(limitSrc), '🔴reduceFieldSigniToLimit が後始末を写経している');
+}));
+
+test('§5.6 C-9 R-52 同時トリガーはターンプレイヤーの分を全部処理してから非ターンプレイヤー', () => withSavedCursor(() => {
+  // 🔑公式ルール（EN Triggered ability）＝同時に発動したトリガーは**ターンプレイヤーの分を全部**処理してから非ターンプレイヤー。
+  const entry = (id: string, playerId: string): StackEntry =>
+    ({ id, playerId, cardNum: SIGNI, effectId: id, label: id }) as unknown as StackEntry;
+  const TP = 'turn-player', OP = 'non-turn-player';
+  // ① 初回の整列＝入力順が混ざっていてもターンプレイヤー側が先に並ぶ。
+  const init = initStack(TP, [entry('o1', OP), entry('t1', TP)]);
+  eq(init.queue.map(e => e.id).join(','), 't1,o1', '🔴初回の整列でターンプレイヤーが先に来ない');
+  // ② 🔴**解決中の追記も同じ規則**＝旧実装は呼び出し側が渡した配列の順でそのまま繋いでいた
+  //   （ライフバースト解決は「被クラッシュ側（非ターンプレイヤー）→ クラッシュした側（ターンプレイヤー）」の順で渡していた）。
+  const resolving = initStack(TP, [entry('t0', TP)]);
+  const pushed = pushToStack(resolving, [entry('o2', OP), entry('t2', TP)]);
+  eq(pushed.queue.map(e => e.id).join(','), 't0,t2,o2',
+    '🔴解決中に足したトリガーで非ターンプレイヤーの効果が先に解決される');
+  // ⚠**既存のキューは並べ替えない**＝解決順が確定済み（上の `t0` が先頭のまま）。
+  const pushed2 = pushToStack(pushed, [entry('o3', OP)]);
+  eq(pushed2.queue.map(e => e.id).join(','), 't0,t2,o2,o3', '既存キューの順が入れ替わった');
 }));
 
 test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（増設枠を取り違えない）', () => withSavedCursor(() => {

@@ -61777,6 +61777,10 @@ async function c9Query(page) {
       extraTurn: s.extra_turn ?? null,
       // 🆕`R-45`（レゾナの行き先）の観測点＝ルリグデッキ／ルリグトラッシュも見る。
       lrigDeck: s.lrig_deck ?? [], lrigTrash: s.lrig_trash ?? [],
+      // 🆕`R-41`（場を離れたゾーンの後始末）の観測点＝チャーム／アクセ／ソウル枠。
+      signiCharms: s.field?.signi_charms ?? [null, null, null],
+      signiAcce: s.field?.signi_acce ?? [null, null, null],
+      signiSoul: s.field?.signi_soul ?? [null, null, null],
     });
     return {
       host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
@@ -62095,7 +62099,67 @@ scenarios.c9refreshturnendone = {
   },
 };
 
-order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush', 'c9refreshturnend', 'c9refreshturnendone');
+// 🔴**`c9removecleanup`＝リムーブ（メインフェイズに自分のシグニをトラッシュに置く）でもゾーンの後始末をする**
+//   （RULES.md `R-41`／`R-49`）。旧実装は `field.signi[zi] = null` にするだけで、
+//   **【チャーム】【アクセ】【ソウル】が浮いたまま残り**（カードが消える）、**ダウン・凍結も残った**
+//   （＝次にそのゾーンへ置いたシグニがいきなりダウンする）。観測点は「トラッシュに入ったか」と「枠が空いたか」の両方。
+scenarios.c9removecleanup = {
+  title: 'C-9 R-41/R-49 リムーブでチャーム・アクセがトラッシュへ行き、ダウン・凍結が残らない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9m0'],
+      'field.signi': [['WD01-013#c9m1'], null, null],
+      'field.signi_down': [true, false, false],
+      'field.signi_frozen': [true, false, false],
+      'field.signi_charms': ['WD02-013#c9mC', null, null],
+      'field.signi_acce': [['WD03-013#c9mA'], null, null],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: { 'field.lrig': ['WD03-002#c9m9'], 'field.signi': [null, null, null], 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    H.log(`開始 signi=${JSON.stringify(st0?.host?.fieldSigni)} charms=${JSON.stringify(st0?.host?.signiCharms)} acce=${JSON.stringify(st0?.host?.signiAcce)} down=${JSON.stringify(st0?.host?.signiDown)} trash=${JSON.stringify(st0?.host?.trash)}`);
+    let opened = false, picked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c9remove-${s}.png`, fullPage: true });
+      let did = null;
+      if (!opened) {
+        const btn = page.getByRole('button', { name: 'リムーブ', exact: true }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:リムーブ'; opened = true; }
+      } else if (!picked) {
+        const zone = page.getByRole('button', { name: /ゾーン1/ }).first();
+        if (await zone.count() && await zone.isVisible().catch(() => false)) { await zone.click().catch(() => {}); did = 'btn:ゾーン1'; picked = true; }
+      } else {
+        const go = page.getByRole('button', { name: /枚をトラッシュへ/ }).first();
+        if (await go.count() && await go.isVisible().catch(() => false)) { await go.click().catch(() => {}); did = 'btn:トラッシュへ'; }
+      }
+      const st = await c9Query(page);
+      H.log(`  c9remove[${s}] -> ${did ?? 'なし'} | signi=${JSON.stringify(st?.host?.fieldSigni?.[0])} charms=${JSON.stringify(st?.host?.signiCharms)} acce=${JSON.stringify(st?.host?.signiAcce)} down=${JSON.stringify(st?.host?.signiDown)} trash=${JSON.stringify(st?.host?.trash)}`);
+      const gone = (st?.host?.fieldSigni?.[0] ?? null) === null;
+      if (!gone) continue;
+      const trash = st?.host?.trash ?? [];
+      const charmTrashed = trash.includes('WD02-013#c9mC');
+      const acceTrashed = trash.includes('WD03-013#c9mA');
+      const charmSlotEmpty = (st?.host?.signiCharms?.[0] ?? null) === null;
+      const acceSlotEmpty = !(st?.host?.signiAcce?.[0]?.length);
+      const downCleared = st?.host?.signiDown?.[0] === false && st?.host?.signiFrozen?.[0] === false;
+      const okAll = charmTrashed && acceTrashed && charmSlotEmpty && acceSlotEmpty && downCleared;
+      return {
+        pass: okAll,
+        detail: okAll
+          ? `リムーブでチャーム・アクセがトラッシュへ（trash=${JSON.stringify(trash)}）／枠が空き（charms=${JSON.stringify(st.host.signiCharms)} acce=${JSON.stringify(st.host.signiAcce)}）／ダウン・凍結も解除（down=${JSON.stringify(st.host.signiDown)}）`
+          : `🔴後始末が足りない charmTrashed=${charmTrashed} acceTrashed=${acceTrashed} charmSlotEmpty=${charmSlotEmpty} acceSlotEmpty=${acceSlotEmpty} downCleared=${downCleared}（trash=${JSON.stringify(trash)} charms=${JSON.stringify(st.host.signiCharms)} acce=${JSON.stringify(st.host.signiAcce)} down=${JSON.stringify(st.host.signiDown)} frozen=${JSON.stringify(st.host.signiFrozen)}）`,
+      };
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `リムーブできなかった（opened=${opened} picked=${picked} signi=${JSON.stringify(fin?.host?.fieldSigni)} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush', 'c9refreshturnend', 'c9refreshturnendone', 'c9removecleanup');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */
