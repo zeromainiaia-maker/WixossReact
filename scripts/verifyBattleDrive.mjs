@@ -59867,6 +59867,45 @@ scenarios.v269CpuSpellLookahead = {
 };
 order.push('v269CpuSpellLookahead');
 
+// ── 🆕§5.1 `V-270`（2026-09-17・ユーザーのバグ報告）＝**CPU は出したシグニの【出】を解決してから次のシグニを出す** ──
+// 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」＝召喚ループが【出】を最後までためて一括で積んでいた。
+// 観測点＝CPU のメインフェイズ・手札に Ｒ・Ｆ・Ｒ（WD03-014＝【出】1枚引いて1枚捨てる）と Ｓ・Ｃ（WD03-013）→ ログの順が
+//   「シグニ配置: Ｒ・Ｆ・Ｒ」→「Ｒ・Ｆ・Ｒ の【出】」→「シグニ配置: Ｓ・Ｃ」であること。
+scenarios.v270CpuOnPlayResolvesBeforeNextDeploy = {
+  title: 'V-270 CPU は出したシグニの【出】を解決してから次のシグニを出す（バグ報告）',
+  spec: {
+    guestSet: {
+      'field.lrig': ['WD03-003#g1'], 'field.signi': [null, null, null],   // Lv2・リミット5＝3体出せる
+      'hand': ['WD03-014#g51', 'WX05-065#g52', 'WX05-065#g53'], 'energy': [], 'actions_done': [],   // 羅原 Ｃｒ（1000・効果の点なし）＝Ｒ・Ｆ・Ｒ が先に出る
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(2000);
+      await injectScenario(page, scenarios.v270CpuOnPlayResolvesBeforeNextDeploy.spec);
+      for (let s = 0; s < 25; s++) {
+        await page.waitForTimeout(1000);
+        const st = await H.queryState();
+        const logs = st?.logTail ?? [];
+        const placed = logs.map((l, i) => /シグニ配置: /.test(l) ? i : -1).filter(i => i >= 0);
+        const iRfr = logs.findIndex(l => /シグニ配置: コードアート　Ｒ・Ｆ・Ｒ/.test(l));
+        const iOnPlay = logs.findIndex(l => /コードアート　Ｒ・Ｆ・Ｒ の【出】/.test(l));
+        if (placed.length < 3 || iOnPlay < 0) continue;
+        H.log(`  a${attempt}: 配置=${JSON.stringify(placed)} RFR=${iRfr} 【出】=${iOnPlay} logs=${JSON.stringify(logs.slice(placed[0], placed[2] + 2))}`);
+        if (iRfr === placed[2]) { H.log('  Ｒ・Ｆ・Ｒ が最後に出た＝順番を確かめられない→やり直し'); break; }
+        const between = placed.filter(i => i > iRfr && i < iOnPlay);
+        if (between.length > 0) return { pass: false, detail: `🔴Ｒ・Ｆ・Ｒ の【出】の解決より先に次のシグニを出した（配置=${JSON.stringify(placed)} RFR=${iRfr} 【出】=${iOnPlay}）` };
+        return { pass: true, detail: `Ｒ・Ｆ・Ｒ を出した（${iRfr}）→ その【出】（${iOnPlay}）→ 次のシグニ（${placed.find(i => i > iRfr)}）の順` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `前提崩れ＝Ｒ・Ｆ・Ｒ の後に別のシグニを出す盤面にならない（tail=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+  },
+};
+order.push('v270CpuOnPlayResolvesBeforeNextDeploy');
+
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
 // 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。

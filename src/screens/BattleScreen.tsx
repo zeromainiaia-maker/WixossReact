@@ -13073,6 +13073,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 1枚ずつSupabaseを更新して画面に反映させてから次へ
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: newCpuSt, opp: cpuHuSt !== huSt ? { key: 'host_state', state: cpuHuSt } : undefined }));
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+        // 🔴**【出】（と相手側の誘発）は、出したシグニごとに解決してから次のシグニを出す**（ユーザーのバグ報告・2026-09-17）。
+        //   旧＝ループの最後までためて一括で積んでいた＝「Ｒ・Ｆ・Ｒ を出す → Ｓ・Ｃ を出す → Ｒ・Ｆ・Ｒ の【出】」の順になり、
+        //   【出】で引いた札を次の召喚に使えない／【出】の対象に後から出したシグニが入る、という順序違いになっていた。
+        //   ⇒ 誘発が1つでもあればここで止め、下でスタックに積んで return。解決後にメインフェイズが再実行され、残りのゾーンを埋める。
+        if (cpuOnPlayEntries.length > 0) break;
       }
 
       // 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ（MAINに留まり、解決後の再実行で先へ進む）

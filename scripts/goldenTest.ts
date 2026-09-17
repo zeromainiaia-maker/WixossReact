@@ -86188,6 +86188,17 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
   ok(/lookahead: isActorTurn \? \{ \.\.\.cpuLookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
 }));
 
+test('CPU の召喚：出したシグニの【出】を解決してから次のシグニを出す（バグ報告 2026-09-17）', () => withSavedCursor(() => {
+  // 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」。
+  //   召喚ループが【出】を `cpuOnPlayEntries` にためて、ループの後で一括して積んでいた。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const loopStart = battle.indexOf('for (let zone = 0; !cpuMainSkipped && zone < 3; zone++) {');
+  const pushAfter = battle.indexOf('// 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ', loopStart);
+  ok(loopStart > 0 && pushAfter > loopStart, '前提崩れ＝CPU の召喚ループが見つからない');
+  const loopBody = battle.slice(loopStart, pushAfter);
+  ok(/if \(cpuOnPlayEntries\.length > 0\) break;\s*\}\s*$/.test(loopBody), '🔴CPU の召喚ループが【出】をためたまま次のシグニを出す（1体ごとに止まらない）');
+}));
+
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
   // 🔑**2026-09-17 ユーザー裁定**＝「追加ターンを得た状態で強制終了を食らった場合、**追加ターンを開始する**」。
   // 🔴旧＝`applyForcedTurnEnd` が `resolveTurnHandover` を見ず**常に交代**していた＝追加ターンが消えて相手のターンになった。
