@@ -47,6 +47,8 @@ const DECK_NAME = process.env.DECK || 'VERIFY_DECK';
 // 🆕2026-09-17＝CPU 側のデッキ名（省略時は人間と同じ）。**人間と別のデッキを CPU に持たせる回**を作るため
 //   ＝`battleCardNums` に CPU のデッキが載っておらず、別デッキの CPU がルリグを置けずに止まっていた（同じデッキでは出ない）。
 const CPU_DECK_NAME = process.env.CPU_DECK || DECK_NAME;
+// 🆕2026-09-17＝CPU デッキを「ルリグタイプからランダム」で決めるモード（値＝フォルダ名。例 `CPU_RANDOM=ピルルク`）。
+const CPU_RANDOM_FOLDER = process.env.CPU_RANDOM || '';
 
 // ── preview サーバ（verifyBattleDrive.mjs と同じ方式＝dist の鮮度を見て build を省略）─────────
 function distIsFresh() {
@@ -575,6 +577,27 @@ function describe(st) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/**
+ * 🆕2026-09-17＝デッキはセンタールリグのルリグタイプ別フォルダに入っている。**名前のデッキを含むフォルダを開いてクリック**する。
+ * `tilePrefix`＝マッチングは `match-deck-`／デッキ一覧は `deck-card-`。フォルダを順に開いて探す（フォルダ名をスクリプトに持たない）。
+ */
+async function clickDeckInFolders(page, name, tilePrefix) {
+  const tile = page.getByTestId(`${tilePrefix}${name}`).first();
+  if (await tile.isVisible().catch(() => false)) { await tile.click(); return true; }
+  const n = await page.locator('[data-testid^="deck-folder-"]').count();
+  for (let i = 0; i < n; i++) {
+    const f = page.locator('[data-testid^="deck-folder-"]').nth(i);
+    if (!(await f.isVisible().catch(() => false))) continue;
+    await f.click().catch(() => {});
+    await page.waitForTimeout(400);
+    if (await tile.isVisible().catch(() => false)) { await tile.click(); return true; }
+    await page.getByTestId('folder-back').first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  return false;
+}
+
+
 /** セットアップ（じゃんけん→ルリグ自動配置→マリガン）を PLAYING 到達まで進める。 */
 async function driveSetup(seats, tag) {
   const hands = ['グー', 'チョキ', 'パー'];
@@ -628,15 +651,25 @@ async function runCpuMatch(browser, url) {
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(2500);
     await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-    // ⚠**名前は完全一致**（`VERIFY_DECK` の部分一致だと `VERIFY_DECK_MECH` を拾う）。
-    await page.getByText(DECK_NAME, { exact: true }).first().click();
+    // ⚠**名前は完全一致**（`VERIFY_DECK` の部分一致だと `VERIFY_DECK_MECH` を拾う）＝testid で引く。
+    if (!(await clickDeckInFolders(page, DECK_NAME, 'match-deck-'))) return { pass: false, detail: `自分のデッキ ${DECK_NAME} がフォルダに見つからない（verifySetupDeck.mjs を回し直す）`, errs };
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '次へ' }).click();
     await page.waitForTimeout(600);
     await page.getByRole('button', { name: 'CPU対戦' }).click();
     await page.waitForTimeout(800);
     // 🆕CPU のデッキも**明示的に**選ぶ＝既定は「有効なデッキの先頭」なので、デッキが増えると CPU の山が黙って入れ替わる。
-    await page.getByText(CPU_DECK_NAME, { exact: true }).first().click();
+    //   🆕2026-09-17＝CPU が使うのは **CPU デッキ**（自分のデッキとは別の種類）。`CPU_RANDOM` ならフォルダを選んでランダム。
+    if (CPU_RANDOM_FOLDER) {
+      await page.getByTestId('cpu-pick-mode-random').click();
+      await page.waitForTimeout(400);
+      const folder = page.getByTestId(`deck-folder-${CPU_RANDOM_FOLDER}`).first();
+      if (!(await folder.count())) return { pass: false, detail: `CPU デッキのフォルダ ${CPU_RANDOM_FOLDER} が無い`, errs };
+      await folder.click();
+      console.log(`   CPU デッキ＝フォルダ「${CPU_RANDOM_FOLDER}」からランダム`);
+    } else if (!(await clickDeckInFolders(page, CPU_DECK_NAME, 'match-deck-'))) {
+      return { pass: false, detail: `CPU デッキ ${CPU_DECK_NAME} がフォルダに見つからない（verifySetupDeck.mjs を回し直す）`, errs };
+    }
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '対戦開始' }).click();
     await page.waitForTimeout(3500);
@@ -692,7 +725,7 @@ async function runPvpMatch(browser, url) {
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(2500);
       await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-      await page.getByText(DECK_NAME, { exact: true }).first().click();
+      if (!(await clickDeckInFolders(page, DECK_NAME, 'match-deck-'))) throw new Error(`自分のデッキ ${DECK_NAME} がフォルダに見つからない`);
       await page.waitForTimeout(400);
       await page.getByRole('button', { name: '次へ' }).click();
       await page.waitForTimeout(600);

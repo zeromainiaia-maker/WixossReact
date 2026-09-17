@@ -3,11 +3,16 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
 import { deckLrigSetupProblem } from '../utils/deckLrigSetup';
+import { deckKindOf, folderThumbKey, groupDecksByFolder, pickRandomDeck } from '../utils/deckFolders';
+import { deckFromRow, type DeckRow } from '../utils/deckRow';
+import { DeckFolderGrid, DeckFolderHeader } from './deck/DeckFolderGrid';
 
 interface Props {
   user: User;
   decks: Deck[];
   cards: CardData[];
+  /** 自分のフォルダのサムネイル（キー＝`folderThumbKey(kind, name)`）。 */
+  folderThumbnails: Record<string, string>;
   onBattleStart: (roomId: string, deckId: string, oppArtOverrides?: Record<string, string>) => void;
   onBack: () => void;
 }
@@ -34,18 +39,33 @@ const wrap: React.CSSProperties = {
   backgroundColor: '#0a0a0f', gap: 16, color: '#ccc',
 };
 
-export default function MatchmakingScreen({ user, decks, cards, onBattleStart, onBack }: Props) {
+export default function MatchmakingScreen({ user, decks, cards, folderThumbnails, onBattleStart, onBack }: Props) {
   const cardMap = useMemo(() => new Map(cards.map(c => [c.CardNum, c])), [cards]);
 
   // メインデッキ40枚 かつ「最初に場に出すルリグ」の指定が対戦に出せる形のデッキのみ表示
   // （2026-09-17＝対戦開始時のルリグ選択を廃止し、デッキ編成で指定する＝`utils/deckLrigSetup.ts`）
-  const validDecks = useMemo(() => {
-    return decks.filter(deck => deck.mainDeck.length === 40 && deckLrigSetupProblem(deck, cardMap) === null);
-  }, [decks, cardMap]);
+  const isPlayable = (deck: Deck) => deck.mainDeck.length === 40 && deckLrigSetupProblem(deck, cardMap) === null;
+  // 🆕2026-09-17＝**自分が使うのは `player` のデッキだけ**（CPU デッキと混ぜない）。
+  const validDecks = useMemo(() => decks.filter(d => deckKindOf(d) === 'player' && isPlayable(d)), [decks, cardMap]); // eslint-disable-line react-hooks/exhaustive-deps
+  const playerFolders = useMemo(() => groupDecksByFolder(validDecks, cardMap), [validDecks, cardMap]);
+  // 🆕CPU が使うのは `cpu` のデッキだけ。**`user_id` で絞らずに引く**＝いまは行ポリシーで自分の行だけが返り、
+  //   リリース時に公開ポリシーを足すと他人（管理者）の CPU デッキも自動で並ぶ。
+  const [cpuDecks, setCpuDecks] = useState<Deck[]>([]);
+  useEffect(() => {
+    supabase.from('decks').select('*').eq('deck_kind', 'cpu').order('sort_order', { ascending: true })
+      .then(({ data }) => { if (data) setCpuDecks((data as DeckRow[]).map(deckFromRow)); });
+  }, []);
+  const validCpuDecks = useMemo(() => cpuDecks.filter(isPlayable), [cpuDecks, cardMap]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cpuFolders = useMemo(() => groupDecksByFolder(validCpuDecks, cardMap), [validCpuDecks, cardMap]);
+  const [playerOpenFolder, setPlayerOpenFolder] = useState<string | null>(null);
+  const [cpuOpenFolder, setCpuOpenFolder] = useState<string | null>(null);
+  /** CPU デッキの決め方＝`pick`（デッキを選ぶ）／`random`（ルリグタイプを選んでその中からランダム）。 */
+  const [cpuPickMode, setCpuPickMode] = useState<'pick' | 'random'>('pick');
+  const [cpuRandomFolder, setCpuRandomFolder] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
   const [selectedDeckId, setSelectedDeckId] = useState<string>(validDecks[0]?.id ?? '');
-  const [cpuDeckId, setCpuDeckId] = useState<string>(validDecks[0]?.id ?? '');
+  const [cpuDeckId, setCpuDeckId] = useState<string>('');
   const [room, setRoom] = useState<Room | null>(null);
   const [passcodeInput, setPasscodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +88,11 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
 
   // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
   const handleCpuBattle = async () => {
-    if (!selectedDeckId || !cpuDeckId) return;
+    // 🆕ランダムモード＝「対戦開始」を押した時点で、選んだルリグタイプのフォルダから1つ引く（デッキ名は見せない）。
+    const cpuDeckChosen = cpuPickMode === 'random'
+      ? pickRandomDeck(cpuFolders.find(f => f.name === cpuRandomFolder)?.decks ?? [])?.id ?? ''
+      : cpuDeckId;
+    if (!selectedDeckId || !cpuDeckChosen) return;
     setLoading(true); setError(null);
 
     const { data: roomData, error: roomErr } = await supabase
@@ -77,7 +101,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
         host_id: user.id,
         host_deck_id: selectedDeckId,
         guest_id: CPU_PLAYER_ID,
-        guest_deck_id: cpuDeckId,
+        guest_deck_id: cpuDeckChosen,
         status: 'PLAYING',
         is_cpu_battle: true,
         passcode: null,
@@ -168,6 +192,33 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
     onBattleStart(room.id, selectedDeckId, (room as Room).guest_art_overrides);
   };
 
+  const renderDeckTile = (deck: Deck, isSelected: boolean, color: string, onClick: () => void) => {
+    const thumbnail = deck.thumbnailCardNum ? cardMap.get(deck.thumbnailCardNum) : null;
+    const shared = !!deck.userId && deck.userId !== user.id;
+    return (
+      <div
+        key={deck.id}
+        data-testid={`match-deck-${deck.name}`}
+        onClick={onClick}
+        style={{
+          cursor: 'pointer', backgroundColor: '#111', borderRadius: 8, padding: 8,
+          border: `2px solid ${isSelected ? color : '#222'}`,
+        }}
+      >
+        <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+          {thumbnail ? (
+            <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 12 }}>NO IMAGE</div>
+          )}
+        </div>
+        <p style={{ fontSize: 12, fontWeight: 'bold', margin: '0 0 4px', color: isSelected ? color : '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deck.name}</p>
+        <p style={{ fontSize: 10, color: '#555', margin: 0 }}>メイン {deck.mainDeck.length}/40 &nbsp; ルリグ {deck.lrigDeck.length}/10{shared ? ' ・公開' : ''}</p>
+      </div>
+    );
+  };
+
   if (step === 'SELECT_DECK') return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
       <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #222' }}>
@@ -182,33 +233,23 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {validDecks.map(deck => {
-              const thumbnail = deck.thumbnailCardNum ? cardMap.get(deck.thumbnailCardNum) : null;
-              const isSelected = selectedDeckId === deck.id;
-              return (
-                <div
-                  key={deck.id}
-                  onClick={() => setSelectedDeckId(deck.id)}
-                  style={{
-                    cursor: 'pointer', backgroundColor: '#111', borderRadius: 8, padding: 8,
-                    border: `2px solid ${isSelected ? '#007bff' : '#222'}`,
-                  }}
-                >
-                  <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-                    {thumbnail ? (
-                      <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 12 }}>NO IMAGE</div>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 12, fontWeight: 'bold', margin: '0 0 4px', color: isSelected ? '#007bff' : '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deck.name}</p>
-                  <p style={{ fontSize: 10, color: '#555', margin: 0 }}>メイン {deck.mainDeck.length}/40 &nbsp; ルリグ {deck.lrigDeck.length}/10</p>
+          {(() => {
+            // 🆕2026-09-17＝センタールリグのルリグタイプ別フォルダ（`utils/deckFolders.ts`）。
+            const open = playerOpenFolder ? playerFolders.find(f => f.name === playerOpenFolder) : undefined;
+            if (!open) {
+              return <DeckFolderGrid folders={playerFolders} cardMap={cardMap} accent="#007bff" onOpen={setPlayerOpenFolder}
+                thumbnailOf={name => folderThumbnails[folderThumbKey('player', name)]}
+                selectedName={playerFolders.find(f => f.decks.some(d => d.id === selectedDeckId))?.name ?? null} />;
+            }
+            return (
+              <>
+                <DeckFolderHeader name={open.name} count={open.decks.length} accent="#007bff" onBack={() => setPlayerOpenFolder(null)} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {open.decks.map(deck => renderDeckTile(deck, selectedDeckId === deck.id, '#007bff', () => setSelectedDeckId(deck.id)))}
                 </div>
-              );
-            })}
-          </div>
+              </>
+            );
+          })()}
         </div>
       )}
       <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
@@ -227,7 +268,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
   if (step === 'SELECT_MODE') return (
     <div style={wrap}>
       <h2 style={{ color: '#fff', margin: 0 }}>対戦モード選択</h2>
-      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={() => { setCpuDeckId(validDecks[0]?.id ?? ''); setStep('CPU_DECK_SELECT'); }} disabled={loading}>
+      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={() => setStep('CPU_DECK_SELECT')} disabled={loading}>
         CPU対戦
       </button>
       <div style={{ width: '100%', maxWidth: 280, borderTop: '1px solid #333', margin: '4px 0' }} />
@@ -259,61 +300,67 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
     </div>
   );
 
-  if (step === 'CPU_DECK_SELECT') return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
-      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #222' }}>
-        <h2 style={{ color: '#fff', margin: 0 }}>CPUの使用デッキを選択</h2>
-      </div>
-      {validDecks.length === 0 ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: '#888', textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
-            使用可能なデッキがありません。
-          </p>
-        </div>
-      ) : (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {validDecks.map(deck => {
-              const thumbnail = deck.thumbnailCardNum ? cardMap.get(deck.thumbnailCardNum) : null;
-              const isSelected = cpuDeckId === deck.id;
-              return (
-                <div
-                  key={deck.id}
-                  onClick={() => setCpuDeckId(deck.id)}
-                  style={{
-                    cursor: 'pointer', backgroundColor: '#111', borderRadius: 8, padding: 8,
-                    border: `2px solid ${isSelected ? '#28a745' : '#222'}`,
-                  }}
-                >
-                  <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-                    {thumbnail ? (
-                      <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 12 }}>NO IMAGE</div>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 12, fontWeight: 'bold', margin: '0 0 4px', color: isSelected ? '#28a745' : '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deck.name}</p>
-                  <p style={{ fontSize: 10, color: '#555', margin: 0 }}>メイン {deck.mainDeck.length}/40 &nbsp; ルリグ {deck.lrigDeck.length}/10</p>
-                </div>
-              );
-            })}
+  if (step === 'CPU_DECK_SELECT') {
+    const cpuOpen = cpuOpenFolder ? cpuFolders.find(f => f.name === cpuOpenFolder) : undefined;
+    const canStart = cpuPickMode === 'random' ? !!cpuFolders.find(f => f.name === cpuRandomFolder) : !!cpuDeckId;
+    const modeBtn = (mode: 'pick' | 'random', label: string) => (
+      <button data-testid={`cpu-pick-mode-${mode}`} onClick={() => setCpuPickMode(mode)} style={{
+        flex: 1, padding: '10px', border: 'none', borderBottom: `3px solid ${cpuPickMode === mode ? '#28a745' : 'transparent'}`,
+        backgroundColor: 'transparent', color: cpuPickMode === mode ? '#28a745' : '#666', fontSize: 14, fontWeight: cpuPickMode === mode ? 'bold' : 'normal', cursor: 'pointer',
+      }}>{label}</button>
+    );
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
+        <div style={{ padding: '20px 20px 0', borderBottom: '1px solid #222' }}>
+          <h2 style={{ color: '#fff', margin: '0 0 8px' }}>CPUの使用デッキを選択</h2>
+          <div style={{ display: 'flex' }}>
+            {modeBtn('pick', 'デッキを選ぶ')}
+            {modeBtn('random', 'ルリグタイプからランダム')}
           </div>
         </div>
-      )}
-      {error && <p style={{ color: '#ff4444', margin: '0 16px' }}>{error}</p>}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
-        <button style={{ ...ghostBtn, flex: 1, maxWidth: 'none' }} onClick={() => setStep('SELECT_MODE')} disabled={loading}>戻る</button>
-        <button
-          style={{ ...primaryBtn, flex: 1.2, maxWidth: 'none', backgroundColor: '#28a745', opacity: cpuDeckId ? 1 : 0.4 }}
-          disabled={loading || !cpuDeckId}
-          onClick={handleCpuBattle}
-        >
-          {loading ? '準備中...' : '対戦開始'}
-        </button>
+        {validCpuDecks.length === 0 ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#888', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
+              使用可能なCPUデッキがありません。<br />
+              デッキ編成の「CPUデッキ」タブで、メインデッキ40枚・センタールリグを指定したデッキを作成してください。
+            </p>
+          </div>
+        ) : (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            {cpuPickMode === 'random' ? (
+              <>
+                <p style={{ margin: '0 0 12px', fontSize: 12, color: '#888' }}>ルリグタイプを選ぶと、対戦開始時にそのフォルダのデッキからランダムで1つ使います（デッキ名は表示しません）。</p>
+                <DeckFolderGrid folders={cpuFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuRandomFolder} selectedName={cpuRandomFolder}
+                  thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]} />
+              </>
+            ) : !cpuOpen ? (
+              <DeckFolderGrid folders={cpuFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuOpenFolder}
+                thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]}
+                selectedName={cpuFolders.find(f => f.decks.some(d => d.id === cpuDeckId))?.name ?? null} />
+            ) : (
+              <>
+                <DeckFolderHeader name={cpuOpen.name} count={cpuOpen.decks.length} accent="#28a745" onBack={() => setCpuOpenFolder(null)} />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {cpuOpen.decks.map(deck => renderDeckTile(deck, cpuDeckId === deck.id, '#28a745', () => setCpuDeckId(deck.id)))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {error && <p style={{ color: '#ff4444', margin: '0 16px' }}>{error}</p>}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
+          <button style={{ ...ghostBtn, flex: 1, maxWidth: 'none' }} onClick={() => setStep('SELECT_MODE')} disabled={loading}>戻る</button>
+          <button
+            style={{ ...primaryBtn, flex: 1.2, maxWidth: 'none', backgroundColor: '#28a745', opacity: canStart ? 1 : 0.4 }}
+            disabled={loading || !canStart}
+            onClick={handleCpuBattle}
+          >
+            {loading ? '準備中...' : '対戦開始'}
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const handleCancelRoom = async () => {
     if (!room) { setStep('SELECT_MODE'); return; }

@@ -10,6 +10,8 @@ import DeckListScreen from './screens/DeckListScreen';
 import DeckEditorScreen from './screens/DeckEditorScreen';
 import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
+import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
+import { deckFromRow } from './utils/deckRow';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -21,6 +23,9 @@ export default function App() {
   const [tkCards, setTkCards] = useState<CardData[]>([]);     // トークンカード（デッキ設定用）
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  // 🆕2026-09-17＝デッキ一覧のタブ（自分のデッキ／CPUデッキ）と開いているフォルダ。編集画面から戻っても保つ。
+  const [deckListView, setDeckListView] = useState<{ kind: DeckKind; openFolder: string | null }>({ kind: 'player', openFolder: null });
+  const [folderThumbnails, setFolderThumbnails] = useState<Record<string, string>>({});
   const [battleRoomId, setBattleRoomId] = useState<string | null>(null);
   const [battleDeckId, setBattleDeckId] = useState<string | null>(null);
   const [battleOppArtOverrides, setBattleOppArtOverrides] = useState<Record<string, string>>({});
@@ -143,33 +148,37 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     supabase.from('decks').select('*').eq('user_id', user.id).order('sort_order', { ascending: true }).then(({ data }) => {
-      if (data) setDecks(data.map(d => ({
-        id: d.id,
-        name: d.name,
-        mainDeck: d.main_deck ?? [],
-        lrigDeck: d.lrig_deck ?? [],
-        thumbnailCardNum: d.thumbnail_card_num,
-        sortOrder: d.sort_order ?? 0,
-        artOverrides: d.art_overrides ?? {},
-        centerLrig: d.center_lrig ?? null,
-        assistLrigL: d.assist_lrig_l ?? null,
-        assistLrigR: d.assist_lrig_r ?? null,
-      })));
+      if (data) setDecks(data.map(deckFromRow));
+    });
+    // 🆕フォルダのサムネイル（本人の行だけ＝行ポリシー）。
+    supabase.from('deck_folders').select('deck_kind, folder_name, thumbnail_card_num').then(({ data }) => {
+      if (data) setFolderThumbnails(Object.fromEntries(data.filter(r => r.thumbnail_card_num)
+        .map(r => [folderThumbKey(r.deck_kind === 'cpu' ? 'cpu' : 'player', r.folder_name), r.thumbnail_card_num as string])));
     });
   }, [user]);
 
-  const handleCreateDeck = async (name: string) => {
+  const handleCreateDeck = async (name: string, kind: DeckKind) => {
     if (!user) return;
     const nextOrder = decks.length;
     const { data, error } = await supabase
       .from('decks')
-      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [], sort_order: nextOrder }])
+      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [], sort_order: nextOrder, deck_kind: kind }])
       .select().single();
     if (error || !data) { alert('デッキ作成エラー: ' + (error?.message ?? '不明')); return; }
-    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [], sortOrder: nextOrder };
+    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [], sortOrder: nextOrder, kind };
     setDecks(prev => [...prev, newDeck]);
     setSelectedDeckId(data.id);
     setViewMode('DECK_EDITOR');
+  };
+
+  const handleSetFolderThumbnail = async (kind: DeckKind, folderName: string, cardNum: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('deck_folders').upsert(
+      { user_id: user.id, deck_kind: kind, folder_name: folderName, thumbnail_card_num: cardNum },
+      { onConflict: 'user_id,deck_kind,folder_name' },
+    );
+    if (error) { alert('フォルダのサムネイル保存に失敗しました: ' + error.message); return; }
+    setFolderThumbnails(prev => ({ ...prev, [folderThumbKey(kind, folderName)]: cardNum }));
   };
 
   const handleReorderDecks = async (reordered: Deck[]) => {
@@ -201,6 +210,7 @@ export default function App() {
     const { error } = await supabase.from('decks').delete().eq('id', deckId);
     if (error) { alert('削除に失敗しました: ' + error.message); return; }
     setDecks(prev => prev.filter(d => d.id !== deckId));
+    setDeckListView(v => ({ ...v, openFolder: null }));
     setViewMode('DECK_LIST');
   };
 
@@ -235,9 +245,14 @@ export default function App() {
         <DeckListScreen
           decks={decks}
           cards={cards}
+          kind={deckListView.kind}
+          openFolder={deckListView.openFolder}
+          onChangeView={(kind, openFolder) => setDeckListView({ kind, openFolder })}
           onCreateDeck={handleCreateDeck}
           onEditDeck={id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); }}
           onReorderDecks={handleReorderDecks}
+          folderThumbnails={folderThumbnails}
+          onSetFolderThumbnail={handleSetFolderThumbnail}
           onBack={() => setViewMode('START')}
         />
       )}
@@ -249,7 +264,10 @@ export default function App() {
           tkCards={tkCards}
           onUpdate={handleUpdateDeck}
           onDelete={handleDeleteDeck}
-          onBack={() => setViewMode('DECK_LIST')}
+          onBack={() => {
+            setDeckListView({ kind: deckKindOf(currentDeck), openFolder: deckFolderOf(currentDeck, new Map(cards.map(c => [c.CardNum, c] as const))) });
+            setViewMode('DECK_LIST');
+          }}
         />
       )}
       {viewMode === 'MATCHMAKING' && user && (
@@ -257,6 +275,7 @@ export default function App() {
           user={user}
           decks={decks}
           cards={cards}
+          folderThumbnails={folderThumbnails}
           onBattleStart={(roomId, deckId, oppArtOverrides) => { setBattleRoomId(roomId); setBattleDeckId(deckId); setBattleOppArtOverrides(oppArtOverrides ?? {}); setViewMode('BATTLE'); }}
           onBack={() => setViewMode('START')}
         />

@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 デッキ一覧をルリグタイプ別フォルダに分ける／CPU デッキを別の種類で持つ／CPU デッキのランダム選択／フォルダのサムネイル
+
+- 🔑**ユーザー決定**＝①デッキ一覧を**センタールリグのルリグタイプ別フォルダ**に分ける ②**CPU デッキはプレイヤーのデッキと別に作る**（混ぜない・同じくフォルダ分け）
+  ③リリース時に（管理者の）CPU デッキを全プレイヤーが使えるようにする ④CPU デッキを「ルリグタイプを選んでそのフォルダからランダム」で決めるモード
+  ⑤フォルダにもサムネイルを設定できる。追加の決定＝CPU デッキは**全プレイヤーが自分用に作れる**／**いまは本人にだけ見える**（公開はリリース時）／
+  **複合タイプは複合名のフォルダ1つ**／**ランダムのデッキ名は見せない**。
+- **Supabase**（ユーザーが SQL Editor で実行）＝`decks.deck_kind`（`player`／`cpu`・既存行は `player`）＋新テーブル `deck_folders`
+  （`user_id, deck_kind, folder_name` → `thumbnail_card_num`・行ポリシーは本人の行だけ）。
+- **判定は純関数**＝`src/utils/deckFolders.ts`（`deckFolderOf`＝センターの `CardClass`／未指定は「未設定」で最後、`groupDecksByFolder`、
+  `applyFolderReorder`＝フォルダ内の並べ替えを全体の `sort_order` へ書き戻す（他フォルダの相対順は動かさない）、`pickRandomDeck`＝`engine/rng` の seam、
+  `folderFaceCard`／`folderThumbnailCandidates`＝フォルダの表紙と候補）＋`src/utils/deckRow.ts`（DB 行 → `Deck`）。
+- 画面＝`DeckListScreen` に［自分のデッキ］［CPUデッキ］タブ＋フォルダ（`screens/deck/DeckFolderGrid.tsx`）＋フォルダ見出しの［🖼 サムネイル設定］
+  （`screens/deck/CardThumbnailPicker.tsx`＝デッキ編集のサムネイル選択から切り出して共用）。`App.tsx` がタブ／開いているフォルダを保持し、
+  編集から戻るとセンター指定後のフォルダを開く。`MatchmakingScreen` は自分＝`player` のデッキだけ・CPU＝`deck_kind=cpu` を `user_id` で絞らずに引く
+  （公開ポリシーを足すと他人の CPU デッキが並ぶ＝`docs/RELEASE.md` §1.1）。CPU の選び方は［デッキを選ぶ］［ルリグタイプからランダム］。
+- ⚠**CPU デッキの既定選択をやめた**（旧＝有効なデッキの先頭が選ばれていた）＝デッキが増えると CPU の山が黙って入れ替わるため。
+- 検証スクリプト＝`verifySetupDeck.mjs` は同じ名前・中身で `player`／`cpu` の両方を作る（`verify-deck.json` が無ければ DB の player 行を元にする）。
+  `verifyFullMatch.mjs`／`verifyBattleDrive.mjs` はフォルダを順に開いてデッキを探す `clickDeckInFolders`（testid `match-deck-`／`deck-card-`）。
+  `verifyFullMatch.mjs` に `CPU_RANDOM=<フォルダ名>` を追加。
+- 検証＝`npm run gates` 全緑（golden＝フォルダ・種類・並べ替え・ランダム・表紙の1本を新設）／実機＝CPU 通し対戦 PASS（フォルダ越しに自分／CPU デッキを選択）／
+  `CPU_RANDOM=ピルルク` PASS／`V-262` PASS（📁未設定から編集）／🆕`V-265` PASS（自分タブに CPU デッキが出ない・📁ピルルク・サムネイル WD03-013 が DB と表紙に反映・CPU タブに CPU デッキ）。
+  🔑`V-265` の初回は START 画面に行けず FAIL＝進行中ルームへ自動復帰していた（`V-262` と同じくルームを一時 FINISHED にする手順を足した）。
+  実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-17 最初に場に出すルリグをデッキ編成で指定する（対戦開始時の選択画面を廃止）＋ `R-47` 判定の実害修正
 
 - 🔑**ユーザー決定**＝「ゲーム開始時にセンタールリグなどを選択して出すのをやめ、デッキ編成時に出すルリグ（センター、アシスト）を設定する」。

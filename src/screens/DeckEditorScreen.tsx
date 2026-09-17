@@ -9,6 +9,7 @@ import {
   assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, pruneLrigRoles,
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
+import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
@@ -527,57 +528,20 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
       })()}
 
       {/* サムネイル選択モーダル */}
-      {showThumbnailModal && (() => {
-        const allNums = [...new Set([...current.mainDeck, ...current.lrigDeck])];
-        const deckCards = allNums.map(n => cardMap.get(n)).filter((c): c is CardData => !!c);
-        return (
-          <div
-            onClick={() => setShowThumbnailModal(false)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
-          >
-            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '20px', width: 'min(90vw, 480px)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '1px solid #444' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <h3 style={{ color: '#fff', fontSize: '15px', margin: 0 }}>サムネイルを選択</h3>
-                <button onClick={() => setShowThumbnailModal(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#888', fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
-              </div>
-              {deckCards.length === 0 ? (
-                <p style={{ color: '#666', textAlign: 'center', padding: '24px' }}>デッキにカードがありません</p>
-              ) : (
-                <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
-                  {deckCards.map(card => {
-                    const isSelected = current.thumbnailCardNum === card.CardNum;
-                    return (
-                      <div
-                        key={card.CardNum}
-                        onClick={() => {
-                          const updated = { ...current, thumbnailCardNum: card.CardNum };
-                          setCurrent(updated);
-                          onUpdate(updated);
-                          setShowThumbnailModal(false);
-                        }}
-                        style={{ cursor: 'pointer', borderRadius: '6px', overflow: 'hidden', border: isSelected ? '2px solid #7755dd' : '2px solid transparent', position: 'relative' }}
-                      >
-                        <img
-                          src={card.ImgURL}
-                          alt={card.CardName}
-                          style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', display: 'block' }}
-                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
-                        />
-                        {isSelected && (
-                          <div style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: '#7755dd', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>✓</div>
-                        )}
-                        <div style={{ padding: '2px 4px', backgroundColor: 'rgba(0,0,0,0.6)', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-                          <p style={{ fontSize: '9px', color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.CardName}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {showThumbnailModal && (
+        <CardThumbnailPicker
+          title="サムネイルを選択"
+          cards={[...new Set([...current.mainDeck, ...current.lrigDeck])].map(n => cardMap.get(n)).filter((c): c is CardData => !!c)}
+          selectedCardNum={current.thumbnailCardNum}
+          onSelect={cardNum => {
+            const updated = { ...current, thumbnailCardNum: cardNum };
+            setCurrent(updated);
+            onUpdate(updated);
+            setShowThumbnailModal(false);
+          }}
+          onClose={() => setShowThumbnailModal(false)}
+        />
+      )}
 
       {/* 絵柄変更モーダル */}
       {variantPickerFor && (() => {

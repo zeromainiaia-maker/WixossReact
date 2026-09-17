@@ -14,7 +14,7 @@ import { execFileSync } from 'child_process';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
 import { effectiveIdentityOverrides } from '../src/engine/nameIdentityRules';
-import { setRngSeed as rngSetSeed, resetRng as rngResetG, shuffle as rngShuffleG, randomInt as rngIntG } from '../src/engine/rng';
+import { setRngSeed as rngSetSeed, resetRng as rngResetG, shuffle as rngShuffleG, randomInt as rngIntG, setRng as rngSetG } from '../src/engine/rng';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
@@ -161,6 +161,8 @@ import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
+import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
+import { deckFromRow } from '../src/utils/deckRow';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
 import { planRiseSummon } from '../src/screens/battle/riseSummon';
@@ -85894,6 +85896,51 @@ test('デッキ編成のルリグ指定：センター必須・アシストは�
   eq(JSON.stringify(resolveDeckLrigSetup(lrigDeck, { centerLrig: PIRULUK0 }, cardMap)), JSON.stringify({ centerIdx: 2, assistIdx: null }), 'センターのみの解決が違う');
   eq(resolveDeckLrigSetup(lrigDeck, {}, cardMap), null, '未設定のデッキを置いた');
   eq(JSON.stringify(lrigRolesOfRow({ center_lrig: PIRULUK0, assist_lrig_l: null })), JSON.stringify({ centerLrig: PIRULUK0, assistLrigL: null, assistLrigR: null }), 'DB 行の読み替えが違う');
+}));
+
+test('デッキのフォルダ（センターのルリグタイプ別）・種類（自分／CPU）・ランダム選択', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー決定）＝デッキ一覧をセンタールリグのルリグタイプ別フォルダに分け、CPU デッキを別の種類として持つ。
+  //   複合タイプは複合名のフォルダ1つ／センター未指定は「未設定」（最後）。
+  const PIRULUK0 = 'WD03-005', UMR0 = 'WDK09-005';
+  const dual = [...cardMap.values()].find(c => isStartingLrig(c) && /[/／]/.test(c.CardClass ?? ''));
+  const deck = (id: string, centerLrig: string | null, kind: 'player' | 'cpu' = 'player') => ({ id, centerLrig, kind });
+  const decksIn = [deck('a', UMR0), deck('b', null), deck('c', PIRULUK0), deck('d', UMR0), ...(dual ? [deck('e', dual.CardNum)] : [])];
+  eq(deckFolderOf(deck('x', PIRULUK0), cardMap), 'ピルルク', 'センターのルリグタイプがフォルダ名にならない');
+  eq(deckFolderOf(deck('x', null), cardMap), UNSET_FOLDER, 'センター未指定が「未設定」にならない');
+  if (dual) {
+    const expected = (dual.CardClass ?? '').split(/[/／]/).map(t => t.trim()).join('/');
+    eq(deckFolderOf(deck('x', dual.CardNum), cardMap), expected, '🔴複合タイプが複合名のフォルダにならない（片方に寄せた）');
+  }
+  const folders = groupDecksByFolder(decksIn, cardMap);
+  eq(folders[folders.length - 1].name, UNSET_FOLDER, '「未設定」フォルダが最後に来ない');
+  eq(JSON.stringify(folders.find(f => f.name === 'ウムル')?.decks.map(d => d.id)), JSON.stringify(['a', 'd']), 'フォルダ内で元の並びが保たれない');
+  eq(new Set(folders.flatMap(f => f.decks.map(d => d.id))).size, decksIn.length, '🔴同じデッキが2つのフォルダに出た／消えた');
+  // フォルダ内の並べ替えは他のフォルダの相対順を動かさない。
+  const all = [deck('a', UMR0), deck('p', PIRULUK0), deck('d', UMR0), deck('q', PIRULUK0, 'cpu')];
+  const reordered = applyFolderReorder(all, [all[2], all[0]]);
+  eq(JSON.stringify(reordered.map(d => d.id)), JSON.stringify(['d', 'p', 'a', 'q']), '🔴フォルダ内の並べ替えが他のデッキの位置を動かした');
+  eq(deckKindOf({}), 'player', '種類未設定の既存デッキが自分のデッキにならない');
+  eq(deckKindOf({ kind: 'cpu' }), 'cpu', 'CPU デッキの種類が読めない');
+  // フォルダのサムネイル＝設定があればそれ／無い（または見つからない）なら先頭デッキのセンタールリグ。候補はフォルダ内デッキのカード。
+  const umrFolder = { name: 'ウムル', decks: [{ centerLrig: UMR0, thumbnailCardNum: undefined, mainDeck: ['WD03-013'], lrigDeck: [UMR0, 'WXDi-D01-009'] }, { centerLrig: UMR0, thumbnailCardNum: undefined, mainDeck: ['WD03-013', 'WD03-012'], lrigDeck: [UMR0] }] };
+  eq(folderFaceCard(umrFolder, cardMap)?.CardNum, UMR0, '未設定のフォルダの表紙が先頭デッキのセンターにならない');
+  eq(folderFaceCard(umrFolder, cardMap, 'WXDi-D01-009')?.CardNum, 'WXDi-D01-009', '🔴設定したフォルダのサムネイルが表紙にならない');
+  eq(folderFaceCard(umrFolder, cardMap, 'NO-SUCH-CARD')?.CardNum, UMR0, '見つからないサムネイル設定で表紙が消えた');
+  eq(JSON.stringify(folderThumbnailCandidates(umrFolder, cardMap).map(c => c.CardNum)), JSON.stringify([UMR0, 'WXDi-D01-009', 'WD03-013', 'WD03-012']), 'サムネイル候補がフォルダ内デッキのカード（重複なし）にならない');
+  eq(folderThumbKey('cpu', 'ウムル') === folderThumbKey('player', 'ウムル'), false, '🔴自分のデッキと CPU デッキの同名フォルダでサムネイル設定が共有される');
+  // ランダム＝候補から1つ（乱数は engine/rng の seam）。
+  rngSetG(() => 0.99);
+  eq(pickRandomDeck(['x', 'y', 'z']), 'z', 'ランダム選択が seam の乱数を使っていない');
+  rngResetG();
+  eq(pickRandomDeck([]), null, '候補が空なのに何か返した');
+  // 行 → Deck の読み替え（`deck_kind` が無い既存行は player）。
+  eq(deckFromRow({ id: 'r', name: 'n', main_deck: null, lrig_deck: null }).kind, 'player', '🔴deck_kind の無い既存行を CPU デッキ扱いした');
+  eq(deckFromRow({ id: 'r', name: 'n', main_deck: [], lrig_deck: [], deck_kind: 'cpu', user_id: 'u' }).userId, 'u', '作成者が読めない');
+  // 画面の配線＝自分が使うのは player だけ／CPU は cpu だけ（`user_id` で絞らない＝公開ポリシーを足すと並ぶ）／ランダムは pickRandomDeck。
+  const mm = fs.readFileSync(join(root, 'src/screens/MatchmakingScreen.tsx'), 'utf8');
+  ok(/deckKindOf\(d\) === 'player' && isPlayable\(d\)/.test(mm), '🔴自分の使用デッキに CPU デッキが混ざる');
+  ok(/from\('decks'\)\.select\('\*'\)\.eq\('deck_kind', 'cpu'\)\.order/.test(mm), '🔴CPU デッキの取得が deck_kind=cpu になっていない（または user_id で絞っている）');
+  ok(/pickRandomDeck\(cpuFolders\.find\(f => f\.name === cpuRandomFolder\)/.test(mm), '🔴ランダムモードが選んだフォルダから引いていない');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

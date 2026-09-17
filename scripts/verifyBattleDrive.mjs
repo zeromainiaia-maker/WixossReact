@@ -14,6 +14,27 @@ import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SHOT = 'scratchpad-verify';
+
+/**
+ * 🆕2026-09-17＝デッキはセンタールリグのルリグタイプ別フォルダに入っている。**名前のデッキを含むフォルダを開いてクリック**する。
+ * `tilePrefix`＝マッチングは `match-deck-`／デッキ一覧は `deck-card-`。フォルダを順に開いて探す（フォルダ名をスクリプトに持たない）。
+ */
+async function clickDeckInFolders(page, name, tilePrefix) {
+  const tile = page.getByTestId(`${tilePrefix}${name}`).first();
+  if (await tile.isVisible().catch(() => false)) { await tile.click(); return true; }
+  const n = await page.locator('[data-testid^="deck-folder-"]').count();
+  for (let i = 0; i < n; i++) {
+    const f = page.locator('[data-testid^="deck-folder-"]').nth(i);
+    if (!(await f.isVisible().catch(() => false))) continue;
+    await f.click().catch(() => {});
+    await page.waitForTimeout(400);
+    if (await tile.isVisible().catch(() => false)) { await tile.click(); return true; }
+    await page.getByTestId('folder-back').first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  return false;
+}
+
 mkdirSync(SHOT, { recursive: true });
 
 /**
@@ -59219,7 +59240,7 @@ scenarios.v204LrigDeckArtsCapBlocksFourth = {
         return { pass: false, detail: `前提崩れ＝START 画面に到達していない（対戦画面へ自動復帰した疑い。body=${await H.body()}）` };
       }
       await page.waitForTimeout(1500);
-      const openDeck = await H.clickTextOrBtn([DECK_NAME]);
+      const openDeck = await clickDeckInFolders(page, DECK_NAME, 'deck-card-');
       if (!openDeck) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない（body=${await H.body()}）` };
       await page.waitForTimeout(1200);
       await H.clickTextOrBtn(['カード追加']);
@@ -59359,7 +59380,7 @@ scenarios.v262LrigTypeClashBlocksAssist = {
         return { pass: false, detail: `前提崩れ＝START 画面に到達していない（body=${await H.body()}）` };
       }
       await page.waitForTimeout(1500);
-      if (!await H.clickTextOrBtn([DECK_NAME])) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない` };
+      if (!await clickDeckInFolders(page, DECK_NAME, 'deck-card-')) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない` };
       await page.waitForTimeout(1200);
 
       // ⓪ 画面の［センター］ボタンでウムル＝ノルをセンターに指定する（DB に届くこと）。
@@ -59442,6 +59463,117 @@ scenarios.v262LrigTypeClashBlocksAssist = {
   },
 };
 order.push('v262LrigTypeClashBlocksAssist');
+
+// ── 🆕§5.1 `V-265`（2026-09-17）＝**デッキ一覧のタブ（自分／CPU）・ルリグタイプ別フォルダ・フォルダのサムネイル** ──
+// 🔑**ユーザー決定**＝デッキはセンタールリグのルリグタイプ別フォルダに分け、CPU デッキは自分のデッキと別の種類で持つ（混ぜない）。
+//   フォルダにもサムネイルを設定できる（`deck_folders` テーブル＝本人の行だけ）。
+// 🔴**触った地点**＝`DeckListScreen`（タブ・フォルダ・並べ替え）／`deck/DeckFolderGrid`／`deck/CardThumbnailPicker`／`App.tsx`（保存）。
+// 観測点＝①自分のデッキのタブに CPU デッキが出ない ②CPU デッキのタブには出る ③フォルダの［🖼 サムネイル設定］で選んだカードが
+//   DB（`deck_folders`）に届き、フォルダ一覧の表紙がそのカードになる。
+scenarios.v265DeckFoldersAndCpuKind = {
+  title: 'V-265 デッキ一覧：自分／CPU のタブ分離・ルリグタイプ別フォルダ・フォルダのサムネイル',
+  noInject: true,
+  async drive(page, H) {
+    const P_NAME = `VERIFY_V265_P_${Date.now()}`;
+    const C_NAME = `VERIFY_V265_C_${Date.now()}`;
+    const THUMB = 'WD03-013';        // フォルダのサムネイルにするカード（表紙の既定＝センター WD03-005 と別のカード）
+    const rest = (fn, args) => page.evaluate(async ({ SUPA_URL, ANON, fnSrc, args }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+      // eslint-disable-next-line no-new-func
+      return await new Function('SUPA_URL', 'h', 'uid', 'args', `return (${fnSrc})(SUPA_URL, h, uid, args);`)(SUPA_URL, h, sess.user?.id, args);
+    }, { SUPA_URL, ANON, fnSrc: fn.toString(), args });
+    const createDeck = (name, kind, centerLrig) => rest(async (URL_, h, uid, a) => {
+      const res = await fetch(`${URL_}/rest/v1/decks`, { method: 'POST', headers: h,
+        body: JSON.stringify([{ user_id: uid, name: a.name, main_deck: ['WD03-013'], lrig_deck: [a.centerLrig], center_lrig: a.centerLrig, sort_order: 998, deck_kind: a.kind }]) });
+      return (await res.json())?.[0]?.id ?? null;
+    }, { name, kind, centerLrig });
+    const readFolderRow = () => rest(async (URL_, h) =>
+      (await (await fetch(`${URL_}/rest/v1/deck_folders?deck_kind=eq.player&folder_name=eq.${encodeURIComponent('ピルルク')}&select=thumbnail_card_num`, { headers: h })).json())?.[0] ?? null, {});
+    const restoreFolderRow = (prev) => rest(async (URL_, h, uid, a) => {
+      const q = `${URL_}/rest/v1/deck_folders?deck_kind=eq.player&folder_name=eq.${encodeURIComponent('ピルルク')}`;
+      if (a.prev) await fetch(q, { method: 'PATCH', headers: h, body: JSON.stringify({ thumbnail_card_num: a.prev.thumbnail_card_num }) });
+      else await fetch(q, { method: 'DELETE', headers: h });
+      return true;
+    }, { prev });
+    const deleteDeck = (id) => rest(async (URL_, h, uid, a) => { await fetch(`${URL_}/rest/v1/decks?id=eq.${a.id}`, { method: 'DELETE', headers: h }); return true; }, { id });
+    // 進行中のルームがあると START 画面ではなく対戦画面へ自動復帰する＝`V-262` と同じく一時的に FINISHED にして、最後に戻す。
+    const pauseRooms = () => rest(async (URL_, h, uid) => {
+      const rooms = (await (await fetch(`${URL_}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id,status`, { headers: h })).json()) ?? [];
+      const playing = rooms.filter(r => r.status === 'PLAYING').map(r => r.id);
+      for (const id of playing) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'FINISHED' }) });
+      return playing;
+    }, {});
+    const resumeRooms = (roomIds) => rest(async (URL_, h, uid, a) => {
+      for (const id of a.roomIds) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) });
+      return a.roomIds.length;
+    }, { roomIds });
+
+    const ids = [];
+    let prevFolder = undefined;
+    let paused = [];
+    try {
+      paused = await pauseRooms();
+      prevFolder = await readFolderRow();
+      const pId = await createDeck(P_NAME, 'player', 'WD03-005');
+      const cId = await createDeck(C_NAME, 'cpu', 'WD03-005');
+      ids.push(pId, cId);
+      H.log(`検証デッキ player=${pId} cpu=${cId}／ピルルク(player) フォルダの既存サムネイル=${JSON.stringify(prevFolder)}`);
+      if (!pId || !cId) return { pass: false, detail: '前提崩れ＝検証デッキを作れなかった（deck_kind 列が無い／RLS）' };
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(2500);
+      if (!await H.clickTextOrBtn(['デッキ編成'])) return { pass: false, detail: `前提崩れ＝START 画面に到達していない（body=${await H.body()}）` };
+      await page.waitForTimeout(1500);
+
+      // ① 自分のデッキのタブ：player は「ピルルク」フォルダにあり、CPU デッキはどのフォルダにも出ない。
+      await page.getByTestId('deck-kind-player').click();
+      await page.waitForTimeout(600);
+      const folderP = page.getByTestId('deck-folder-ピルルク').first();
+      if (!(await folderP.count())) return { pass: false, detail: '🔴自分のデッキのタブに「ピルルク」フォルダが無い（センターのルリグタイプでフォルダ分けされていない）' };
+      const cpuInPlayer = await clickDeckInFolders(page, C_NAME, 'deck-card-');
+      if (cpuInPlayer) return { pass: false, detail: `🔴自分のデッキのタブに CPU デッキ（${C_NAME}）が出た＝種類が混ざっている` };
+      await page.getByTestId('folder-back').first().click().catch(() => {});
+      await page.waitForTimeout(400);
+      await folderP.click();
+      await page.waitForTimeout(600);
+      if (!(await page.getByTestId(`deck-card-${P_NAME}`).first().isVisible().catch(() => false))) {
+        return { pass: false, detail: `🔴「ピルルク」フォルダに自分のデッキ（${P_NAME}）が出ない` };
+      }
+
+      // ③ フォルダのサムネイル設定。
+      await page.getByTestId('folder-thumbnail-edit').first().click();
+      await page.waitForTimeout(600);
+      const pick = page.getByTestId(`folder-thumb-${THUMB}`).first();
+      if (!(await pick.count())) return { pass: false, detail: `🔴サムネイル候補に ${THUMB}（フォルダ内デッキのカード）が出ない` };
+      await pick.click();
+      await page.waitForTimeout(1500);
+      const row = await readFolderRow();
+      H.log(`③ deck_folders=${JSON.stringify(row)}`);
+      if (row?.thumbnail_card_num !== THUMB) return { pass: false, detail: `🔴選んだサムネイルが DB に届かない（${JSON.stringify(row)}）` };
+      await page.getByTestId('folder-back').first().click();
+      await page.waitForTimeout(800);
+      const faceSrc = await page.getByTestId('deck-folder-ピルルク').first().locator('img').first().getAttribute('src').catch(() => null);
+      await page.screenshot({ path: `${SHOT}/v265-01-folders.png`, fullPage: true });
+      H.log(`③ 表紙 src=${faceSrc}`);
+      if (!faceSrc || !faceSrc.includes(THUMB)) return { pass: false, detail: `🔴フォルダ一覧の表紙が設定したカードにならない（src=${faceSrc}）` };
+
+      // ② CPU デッキのタブには CPU デッキが出る。
+      await page.getByTestId('deck-kind-cpu').click();
+      await page.waitForTimeout(800);
+      const cpuFound = await clickDeckInFolders(page, C_NAME, 'deck-card-');
+      await page.screenshot({ path: `${SHOT}/v265-02-cpu.png`, fullPage: true });
+      if (!cpuFound) return { pass: false, detail: `🔴CPU デッキのタブに ${C_NAME} が出ない` };
+      return { pass: true, detail: `自分のタブに CPU デッキは出ず「ピルルク」フォルダに自分のデッキ、フォルダのサムネイル ${THUMB} が DB と表紙に反映、CPU タブに CPU デッキ` };
+    } finally {
+      for (const id of ids) if (id) await deleteDeck(id).catch(() => {});
+      if (prevFolder !== undefined) await restoreFolderRow(prevFolder).catch(() => {});
+      if (paused.length) await resumeRooms(paused).catch(() => {});
+      H.log(`片付け＝検証デッキ削除・フォルダのサムネイルを元に戻した・ルーム復帰（${JSON.stringify(paused)}）`);
+    }
+  },
+};
+order.push('v265DeckFoldersAndCpuKind');
 
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
@@ -63746,12 +63878,16 @@ try {
     await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
     await page.waitForTimeout(500);
     const clickText = async (text, timeout = 4000) => { const el = page.getByText(text, { exact: false }).first(); await el.waitFor({ state: 'visible', timeout }); await el.click(); };
-    await clickText('VERIFY_DECK');
+    // 🆕2026-09-17＝デッキはフォルダ越し（自分＝player の VERIFY_DECK／CPU＝cpu の VERIFY_DECK）。
+    if (!(await clickDeckInFolders(page, 'VERIFY_DECK', 'match-deck-'))) throw new Error('VERIFY_DECK がフォルダに見つからない（verifySetupDeck.mjs を回し直す）');
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '次へ' }).click();
     await page.waitForTimeout(600);
     await page.getByRole('button', { name: 'CPU対戦' }).click();
     await page.waitForTimeout(600);
+    // 🆕2026-09-17＝CPU デッキは既定で選ばれない（CPU デッキの種類から明示的に選ぶ）。
+    if (!(await clickDeckInFolders(page, 'VERIFY_DECK', 'match-deck-'))) throw new Error('CPU デッキ VERIFY_DECK がフォルダに見つからない（verifySetupDeck.mjs を回し直す）');
+    await page.waitForTimeout(400);
     await page.getByRole('button', { name: '対戦開始' }).click();
     await page.waitForTimeout(3500);
     console.log('battle enter:', await bodyText());

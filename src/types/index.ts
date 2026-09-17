@@ -123,6 +123,10 @@ export interface Deck {
   centerLrig?: string | null;
   assistLrigL?: string | null;
   assistLrigR?: string | null;
+  /** 🆕デッキの種類（`player`＝自分が使う／`cpu`＝CPU が使う）。混ぜない＝`utils/deckFolders.ts`。 */
+  kind?: 'player' | 'cpu';
+  /** 作成者（CPU デッキが他人の公開デッキかを見分ける）。 */
+  userId?: string;
 }
 
 export interface Room {
