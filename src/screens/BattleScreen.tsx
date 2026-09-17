@@ -60,7 +60,7 @@ import { recordEnergyPlacements } from '../engine/energyPlacement';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, encoreCostOf, colorlessPayableColorsOf, canAffordEnergyCostWithSubstitutes, isEnergyPaymentSelectionValid, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -162,6 +162,8 @@ import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableG
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, hasIgnoreLrigRestriction, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
+import { checkKeyPieceUse, keyCapacityOf, keyPieceCostOf, keysOnFieldOf } from './battle/keyPieceUseGate';
+import { pickCpuKeyPiece } from './battle/cpuKeyPiece';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
 import { pickCpuMainSpell } from './battle/cpuSpell';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
@@ -170,7 +172,7 @@ import { centerLrigAttackBlock } from './battle/lrigAttackGate';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
-import { handDiscardHistoryRecord, keyPlaceCoinCostOf } from './battle/costs';
+import { handDiscardHistoryRecord } from './battle/costs';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeDamagedJust, consumeFreeGrowThisTurn, consumeLifeBurstDouble, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
@@ -7742,16 +7744,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ── キーピース使用 ──
-  const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
-    if (loading) return;
+  /**
+   * キーを場に出す／ピースを使う実行（人間・CPU 共通・§5.6 `C-7`）。`performArts` と同じく **使う側をパラメータ化**し、
+   * 人間用 `executeKeyPiece` は薄いラッパーにする。
+   * ⚠**「いま使えるか」の判定は `keyPieceUseGate.checkKeyPieceUse`**。ここに残す使用条件は**実行入口の再検算**。
+   * ⚠**マユのエンカウント（`WXDi-P13-003A`）は人間だけ**＝グロウ経路（`executeGrow`）が人間の盤面を前提にしている
+   *   （CPU の候補からは `cpuKeyPiece.ts` が外す）。
+   */
+  const performKeyPiece = async (
+    card: CardData,
+    costIndices: Set<number>,
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string;
+      actorKey: 'host_state' | 'guest_state';
+      isActorTurn: boolean;
+      /** `buildEnergyPayPool(actor, ...)` の結果（`costIndices` はこの pool の index）。 */
+      energyPayPool: EnergyPayEntry[];
+      /** 請求するコイン（`keyPieceCostOf`＝提示・モーダルと同じ式）。 */
+      coinNeeded: number;
+      effectivePowers?: Map<string, number>;
+    },
+  ) => {
+    const my = p.actor;
+    const op = p.opponent;
+    const actorIsHost = p.actorKey === 'host_state';
     if (!canUseArtsCondition(
-      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, isMyTurn, effectivePowers,
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, p.isActorTurn, p.effectivePowers,
     )) return;
 
     // WXDi-P13-003A is a piece whose resolution turns the same physical instance into
     // a LRIG. Build the entire payment/flip state first, then let executeGrow perform
     // the single commit and the normal ON_PLAY/ON_LRIG_GROW collection.
     if (card.CardNum === MAYU_ENCOUNTER_A) {
+      if (p.actorId !== user.id) return;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === MAYU_ENCOUNTER_A);
       if (idx < 0) return;
       const instanceId = my.lrig_deck[idx];
@@ -7825,23 +7851,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     setLoading(true);
-    closeKeyModal();
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const keyPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const keyPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = keyPay.paidNums;
-      const coinCost = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
-      const hasUnlimitedKeysEKP = my.field.lrig.some(ln =>
-        (effectsMap.get(ln) ?? []).some(e =>
-          e.effectType === 'CONTINUOUS' &&
-          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
-          (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
-        )
-      );
+      // 🆕§5.6 `C-7`＝**請求するコインは提示・モーダルと同じ `keyPlaceCoinCostOf`**（呼び出し側が `keyPieceCostOf` で渡す）。
+      //   旧実装は印刷コインを直読みしており、「センタールリグが＜にじさんじ＞なら《コイン×0》」のキーで手持ちのコインを取っていた。
+      const coinCost = p.coinNeeded;
       // 🔴**ピースはキーではない**（§3 (cxxiii)・続き475g）。
       //   ルール上ピースは「**使用**＝コストを1回払って効果を解決し、ルリグトラッシュへ置く」もので、
       //   キーゾーンを占有しない。従来は キー と同じ経路で **①印刷 Cost を徴収 ②`key_piece` へ置き
@@ -7852,10 +7872,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ⚠**`isPieceCardType`（派生3値）で判定する**＝完全一致だと `'ピース/クラフト'` が
       //     キー扱いになり、キーゾーンを占有したうえ `ACTIVATED` が積まれない（`V-158`）。
       const isPiece = isPieceCardType(card.Type);
-      // 🆕枠に余りがあれば `key_piece_extra` へ積む＝`hasUnlimitedKeys`（無制限）に加えて
-      //   `key_place_limit`（「N枚まで」＝§5.3 `O-200`）も同じ地点で読む。
-      const keyCapEKP = hasUnlimitedKeysEKP ? Infinity : Math.max(1, my.key_place_limit ?? 1);
-      const keysOnFieldEKP = (my.field.key_piece ? 1 : 0) + (my.field.key_piece_extra?.length ?? 0);
+      // 🆕枠に余りがあれば `key_piece_extra` へ積む＝`UNLIMITED_KEYS`（無制限）と `key_place_limit`（「N枚まで」＝§5.3 `O-200`）。
+      const keyCapEKP = keyCapacityOf(my, effectsMap);
+      const keysOnFieldEKP = keysOnFieldOf(my);
       const newField = isPiece
         ? my.field                                     // ピースはキーゾーンを占有しない
         : (my.field.key_piece && keysOnFieldEKP < keyCapEKP)
@@ -7894,7 +7913,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(isPiece ? { turn_pieces_used_names: [...(my.turn_pieces_used_names ?? []), card.CardName] } : {}),
       });
       // ON_COIN_PAID（C1 配線・キープレイのコイン支払）: extraEntries 経由で反応【自】を積む。
-      const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(p.actorId, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const keyCoinPaidEntries = keyCoin.entries;
       const paidWithCoin = applyCoinPaidUsed(paid, keyCoin); // 《ターン1回/2回》消化を永続化（続き106）
       // ⚠**ピースは `ACTIVATED` も積む**＝118枚の本体がここに入っている。`queueCardEffects` は
@@ -7909,31 +7928,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           })
         : [];
       if (isPiece && pieceCutins.length > 0) {
-        const stateKeyPC = isHost ? 'host_state' : 'guest_state';
-        const oppKeyPC = isHost ? 'guest_state' : 'host_state';
+        const stateKeyPC = p.actorKey;
+        const oppKeyPC = actorIsHost ? 'guest_state' : 'host_state';
         appendBattleLogs([`${card.CardName}の使用にカットインできる（相手の応答待ち）`]);
         await persist.commit(reduceBattle(bs, {
           type: 'QUEUE_SPELL',
           casterKey: stateKeyPC,
           casterState: paidWithCoin,
           other: { key: oppKeyPC, state: { ...op, team_piece_cutin_window: true } },
-          spell: { caster_id: user.id, card_num: instanceId, kind: 'piece' },
+          spell: { caster_id: p.actorId, card_num: instanceId, kind: 'piece' },
         }));
         setCloseZoneSignal(sig => sig + 1);
         return;
       }
       const fired = isPiece
         ? await queueCardEffects(instanceId, ['AUTO', 'ACTIVATED'],
-            ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries)
-        : await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries);
+            ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries, { id: p.actorId, key: p.actorKey })
+        : await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries, { id: p.actorId, key: p.actorKey });
       if (!fired) {
-        const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidWithCoin }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: p.actorKey, myState: paidWithCoin }));
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`KeyUseModal`）から呼ぶ薄いラッパー。本体は `performKeyPiece`。 */
+  const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
+    if (loading || !myArtsPayerCtx) return;
+    if (card.CardNum !== MAYU_ENCOUNTER_A) closeKeyModal();
+    await performKeyPiece(card, costIndices, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      isActorTurn: isMyTurn,
+      energyPayPool: myEnergyPayPool,
+      coinNeeded: keyPieceCostOf({ card, my, op, cardMap: battleCardMap, effectsMap, payer: myArtsPayerCtx }).coinNeeded,
+      effectivePowers,
+    });
   };
 
   /**
@@ -9243,77 +9275,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // ── キーピース ──
-    // UNLIMITED_KEYS: ルリグにCONT「UNLIMITED_KEYS」があれば何枚でもキーを出せる
-    const hasUnlimitedKeys = my.field.lrig.some(ln =>
-      (effectsMap.get(ln) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' &&
-        (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
-        (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
-      )
-    );
-    // 🔴**ピースはキーゾーンを占有しない**（§3 (cxxiii)・続き475g）＝`!my.field.key_piece` ゲートを掛けない。
-    //   従来はここで一緒に絞っていたため、**キーを1枚出しているだけで全ピースが使えなくなって**いた。
-    const isPieceCard = isPieceCardType(cardData.Type);
-    // 🆕`key_place_limit`＝「このゲームの間、あなたはキーをN枚まで場に出すことができる」（§5.3 `O-200`・
-    //   `WXK02-004-E3`）。`hasUnlimitedKeys`（枚数無制限の【常】）とは別軸の**回数指定**。
-    const keyCapacity = hasUnlimitedKeys ? Infinity : Math.max(1, my.key_place_limit ?? 1);
-    const keysOnField = (my.field.key_piece ? 1 : 0) + (my.field.key_piece_extra?.length ?? 0);
-    if ((cardData.Type === 'キー' || isPieceCard) && (isPieceCard || keysOnField < keyCapacity)) {
-      // 🔴**CSV の空欄は `'-'`**（空文字ではない）＝2026-09-02（§5.3 `O-200` の実機で発覚）。
-      //   旧実装は `!timing` で「タイミング指定なし＝メインで使える」を判定していたが `'-'` は truthy なので
-      //   **全80枚のキー（Timing 列が全部 `-`）が1枚も場に出せなかった**（ルリグデッキを開いても行動が0件）。
-      //   ⚠ピースは Timing に文言が入るので影響なし＝壊れていたのはキーだけ。
-      const timingRaw = cardData.Timing ?? '';
-      const timing = timingRaw === '-' ? '' : timingRaw;
-      // 🆕🔴§5.3 `O-290`（2026-09-11）＝**キーの配置ゲートでも `canSelfPlay` を見る。**
-      //   `SELF_PLAY_RESTRICT` は `WDK16-05T/05H/05S`（センタールリグ名）と `PR-K060`（エナの色3種類以上）が
-      //   持っているのに、`canSelfPlay` の呼び出しが `handleSummonSigni`（シグニの通常召喚）にしか無く
-      //   **キー配置経路では一度も呼ばれていなかった**＝誰がセンターでもキーを出せる恒久 no-op だった。
-      //   ⚠この時点でキーはまだルリグデッキにあり `my.field` に含まれない＝「あなたの場に…」は当該カードを
-      //     除いて評価される（シグニ召喚側と同じ規約）。
-      const selfPlaceOk = canSelfPlay(baseEffectsMap.get(cardNum), my, op, battleCardMap);
-      const canUse = selfPlaceOk && (
-        (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
-        (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ')) ||
-        // 🔴CSV Timing が「アタックフェイズ」のピース14枚は、従来 MAIN/GROW しか許していないため
-        //   **永久に使えなかった**（メイン+アタック11／アタックのみ3）。
-        (isPieceCard && isMyTurn && timing.includes('アタックフェイズ')
-          && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS')));
-      // 🆕§5.3 `O-290`（2026-09-11）＝**キーの配置コインは payload 込みで計算する**
-      //   （`WXK10-015`/`WXK11-012`「センタールリグが＜にじさんじ＞の場合、このキーを場に出すための
-      //   コストは《コイン×0》になる」）。🔴**`KeyUseModal` と必ず同じ1本を通す**＝片方だけだと
-      //   「一覧では出せるのに払えない／印刷コストで請求される」食い違いになる。
-      const coinNeeded = keyPlaceCoinCostOf(cardData, effectsMap, my, op, battleCardMap);
-      // ⚠ピースにも EffectText 由来の条件つきコスト軽減がある（`WXDi-P16-003`〜`007`＝「場に〔色〕のルリグが
-      //   2体以上いるかぎり、1体につき《色×1》減る」＝タスク12(xciv) α）。ここと `KeyUseModal` の両方で
-      //   同じ式を通さないと「一覧では使えるのに払えない／印刷コストで請求される」食い違いになる。
-      const myLrigCardPC = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-      const pieceEffCostGate = computeArtsEffectiveCost(
-        cardData, my, myLrigCardPC?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
-        myLrigCardPC ? parseInt(myLrigCardPC.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
-        { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap),
-        costReplacementOf(cardNum, effectsMap),
-      );
-      // 🆕§5.3 `O-259` 第2バッチ＝カード名指定の《無》軽減（常設＋**このターンだけ**の予約）を通す。
-      //   🔴ここと `KeyUseModal` の**両方**に入れないと「一覧では使えるのに払えない」食い違いになる。
-      const pieceEffCost = applySpecificCardCostReduction(pieceEffCostGate, cardData.CardName, specificCardCostReductions);
-      // 🆕**《無》コストの許可色**（意味照合 段2・`PR-K048`＝「このキーを場に出すための《無》コストは
-      //   白か赤か青でしか支払えない」）。🔴ここと `KeyUseModal` の**両方**に入れないと
-      //   「一覧では使えるのに払えない」食い違いになる（上の軽減と同じ理由）。
-      const canAfford = my.coins >= coinNeeded && canAffordEnergyCostWithSubstitutes({
-        poolNums: energyPoolCardNums(myEnergyPayPool), cards: battleCards, baseCost: pieceEffCost,
-        keywordGrants: my.keyword_grants, allMulti: myEnaAllMulti, stripped: myEnaMultiStripped,
-        colorlessOverrides: myColorlessOverrides, colorSubs: myColorSubs,
-        colorlessPayableColors: colorlessPayableColorsOf(cardNum, effectsMap),
-        wholeSubstitutes: myWholeEnergySubstitutes,
+    // 🆕§5.6 `C-7`＝判定は `keyPieceUseGate.checkKeyPieceUse` の1本（枠の空き・Timing・`SELF_PLAY_RESTRICT`・
+    //   実効コスト・コインの使用制限・使用条件）。CPU も同じ関数を見る＝**ここに条件を足さない**（写経すると人間と CPU がズレる）。
+    if ((cardData.Type === 'キー' || isPieceCardType(cardData.Type)) && myArtsPayerCtx) {
+      const keyCheck = checkKeyPieceUse({
+        card: cardData, my, op, isMyTurn, turnPhase: bs.turn_phase ?? '',
+        cards: battleCards, cardMap: battleCardMap, effectsMap, selfPlayEffectsMap: baseEffectsMap,
+        payer: myArtsPayerCtx, effectivePowers,
       });
-      const condOk = canUseArtsCondition(
-        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, isMyTurn, effectivePowers,
-      );
-      if (canUse && canAfford && condOk) {
+      if (keyCheck.usable) {
         actions.push({
           // ピースは「セット」ではなく**使用**（1回払って即解決→ルリグトラッシュ）。
-          label: isPieceCard ? 'ピースを使用' : 'キーにセット',
+          label: keyCheck.isPiece ? 'ピースを使用' : 'キーにセット',
           color: '#cc8800',
           onClick: () => { openKeyModal(cardData); },
         });
@@ -12434,6 +12407,41 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
 
     /**
+     * 🆕§5.6 `C-7`＝CPU のキー配置／ピース使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。
+     * ⚠**判定は `keyPieceUseGate`・実行は `performKeyPiece`＝どちらも人間と同じ関数**（§5.6.3）。
+     * ⚠**安全弁**＝実行より先に `cpu_used_card_nums_this_turn` へ札を刻む（`performKeyPiece` は使用条件の再検算で黙って return しうる）。
+     * ⚠ピースのカットイン窓（人間が打ち消しピースを持つとき）は `pending_spell`（caster＝CPU）で止まり、上の早期 return が受ける。
+     */
+    const tryCpuKeyPiece = async (actorState: PlayerState, turnPhase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
+      if (bs.pending_spell) return false;
+      const payer = buildArtsPayerCtx({
+        actor: actorState, opponent: huSt, isActorTurn: true,
+        turnPhase, cardMap: battleCardMap, effectsMap,
+      });
+      const choice = pickCpuKeyPiece({
+        actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
+        payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
+        // 可否の権威は人間の `KeyUseModal` と同じ `isEnergyPaymentSelectionValid`（《無》の許可色を含む）。
+        isAffordable: (selectedNums, costStr, card) => isEnergyPaymentSelectionValid({
+          selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
+          keywordGrants: actorState.keyword_grants, allMulti: payer.enaAllMulti, stripped: payer.enaMultiStripped,
+          colorlessOverrides: payer.colorlessOverrides, colorSubs: payer.colorSubs,
+          colorlessPayableColors: colorlessPayableColorsOf(card.CardNum, effectsMap),
+          wholeSubstitutes: payer.wholeEnergySubstitutes,
+        }),
+      });
+      if (!choice) return false;
+      // ⚠文言は `census:play` の契約（anchor は `[CPU] ピース:` / `[CPU] キー:` をそのまま含むこと）。
+      appendBattleLogs([choice.check.isPiece ? `[CPU] ピース: ${choice.card.CardName}` : `[CPU] キー: ${choice.card.CardName}`]);
+      await performKeyPiece(choice.card, choice.costIndices, {
+        actor: await cpuMarkUsed(actorState, choice.card.CardNum), opponent: huSt,
+        actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn: true,
+        energyPayPool: payer.energyPayPool, coinNeeded: choice.check.coinNeeded,
+      });
+      return true;
+    };
+
+    /**
      * CPU のアーツ使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1` (a)(b)。
      *
      * ⚠**窓は3つ（相手ターンの応答／自ターンの MAIN／自ターンの ATTACK_ARTS）だが通す道は1本**。
@@ -13028,6 +13036,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuAssistGrow(newCpuSt)) return;
       if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuResona(newCpuSt)) return;
       if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuRise(newCpuSt)) return;
+      // 🆕§5.6 `C-7`＝キー → ピース（1回ごとに state が動く＝再実行で次へ進む）。
+      if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuKeyPiece(newCpuSt, 'MAIN')) return;
 
       // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
       // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
@@ -13167,6 +13177,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // §8／§6.4 O-1 (b)。⚠《アタックフェイズアイコン》付きの札はここでしか使えない
       //   （MAIN 窓は CSV Timing に「メインフェイズ」がある札だけを通す＝gate 側で切れる）。
       if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS', pickCpuOffensiveArts)) return;
+      // 🆕§5.6 `C-7`＝Timing が「アタックフェイズ」のピース（MAIN で使えなかった札）。
+      if (await tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS')) return;
       // §8／§6.4 O-1 (c)＝《アタックフェイズアイコン》付きシグニ【起】（`timing:['ATTACK_ARTS']`）。
       // ⚠**MAIN 窓では出ない**（`signiActivateGate` が timing で切る）＝この窓を足すまで恒久 no-op だった。
       if (await tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS')) return;

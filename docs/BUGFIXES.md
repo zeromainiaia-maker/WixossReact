@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 第393バッチ：§5.6 `C-7` クローズ＝CPU がキーを場に出す／ピースを使う＋ピースの体数ルール（場にルリグ3体）を実装
+
+- **発端**＝CPU 経路にキー・ピースが**出現0箇所**（§5.6.1）＝CPU が撃たない＝「相手からピースを撃たれたとき」が一度も試されていない。
+- 🔴**着手して見つけた食い違い（人間側）＝キー／ピースの判定・コスト・請求が3地点に写経されていた**（提示＝`BattleScreen` の JSX／コスト＝`KeyUseModal`／請求＝`executeKeyPiece`）。
+  ①**請求するコイン**＝提示とモーダルは `keyPlaceCoinCostOf`（`WXK10-015`/`WXK11-012`「センタールリグが＜にじさんじ＞なら《コイン×0》」）、**実行は印刷コインを直読み**＝一覧で「0枚」と出たキーで手持ちのコインを取っていた。
+  ②**コインの使用制限**（`coin_use_restriction`）はモーダルだけが見ていた＝一覧に「キーにセット」が出るのに押すと決定が灰色。
+  ⇒ `src/screens/battle/keyPieceUseGate.ts`（`checkKeyPieceUse`／`keyPieceCostOf`／`listUsableKeyPieces`）を**提示・モーダル・実行・CPU の4地点が通る1本**にした。
+- 🔴**ルール穴＝「ピースはあなたの場にルリグが３体いると使用できる」がどこにも実装されていなかった**（parser の `WXDi-P16-TK01` の項に「ルール自体が engine 未実装」と明記）＝センター1体でもピースが使えた。
+  ⇒ ゲートで判定（`pieceLrigCountOk`・カットインの候補 `collectPieceCutinCandidates` も同じ関数）。緩和「このピースはあなたの場にルリグが３体いなくても使用できる」は
+  `STUB{RULE_REMINDER_TEXT}` → **`STUB{PIECE_IGNORES_LRIG_COUNT_RULE}`**（parser 1文・live 1効果＝`WXDi-P16-TK01-E1`・`heldReview --adopt-effect` で採用）。RULES.md `R-53`。
+- **実行**＝`executeKeyPiece` を `performKeyPiece`（使う側を引数化・`queueCardEffects` に owner を渡す・カットイン窓の caster も引数）＋人間用の薄いラッパーに分けた。
+  ⚠**マユのエンカウント（`WXDi-P13-003A`）は人間だけ**（解決がグロウ経路＝人間の盤面前提）＝CPU の候補から外す。
+- **CPU**＝`cpuKeyPiece.ts` `pickCpuKeyPiece`＝ゲートを通った札から **キー → ピース**（ルリグデッキ順）。窓は MAIN（アシストグロウ・レゾナ・ライズの後）と ATTACK_ARTS（Timing が「アタックフェイズ」のピース）。
+  **fail-closed**＝ピース本体の効果側コストは allowlist `energy` だけ／コストつき【出】のキーは使わない（任意の支払いを CPU が決める経路が無い）。
+- **機構デッキ**＝`VERIFY_DECK_MECH` のルリグデッキ 10→13（ソウイ＝キー／アサルト・ケルベロス／**コインの入手元**＝アロス・ピルルク ＴＥＴ Lv4・コイン3＝WD03 のピルルクはコインを持たない）。
+  `verifySetupDeck.mjs` は**中身が変わっていたら上書き**するようにした（旧＝名前があれば常にスキップ＝構成を変えても山に届かなかった）。
+- **検証**＝golden 1本（`§5.6 C-7`・**反転確認済み**＝体数を1にすると「ルリグ1体でピースを使える」で FAIL）＋既存の配線 assert 3本を新しい置き場へ更新（`O-259 第2`／`O-342` A・B）・`npm run gates` 全緑（golden **4284**）。
+  実機（`src/screens/` を触った回＝必須）＝新規 `c7cpukey`（`V-248`）／`c7cpupiece`（`V-249`・人間の手札が1枚減る）／`c7cpupieceonelrig`（`V-250`・**反転**＝ルリグ1体では使わない）**3本 PASS**。
+  回帰＝`o200KeyFromLrigDeck`／`v158PieceCostReduced`／`v158PieceCostNotReduced`／`energyPayKeyUseDeductsSelectedOnly`／`v14PermanentPlayerGrantSurvivesHumanEndNoDiscard`／`pieceUseResolvesAndGoesToLrigTrash` PASS
+  （⚠最後の1本は**センター1体の盤面でピースを使っていた**＝新ルールで正しく FAIL → アシスト2体を足して PASS）。
+  ⚠`connectSpinningChoice4Pay`／`o71HandToCheckZone`／`o202DamageReplaceDeclare` は FAIL だが**修正前のコード（変更を退避）でも同じ理由で FAIL**＝今回と無関係の既存の腐り（未対応）。
+  通し対戦 `DECK=VERIFY_DECK_MECH verifyFullMatch cpu` PASS（5ターン）＝**CPU がアサルト・ケルベロスを使い人間の手札を1枚捨てさせた**。キーはレベル4へ届く前に決着（シナリオで確認）。
+- 🔑**教訓**＝`git stash push -- <path>` → `pop` は **`core.autocrlf=true` で作業ツリーを CRLF に書き戻す**＝golden の配線 assert（`
+` を含む正規表現）が3本まとめて FAIL した（LESSONS §4.2x）。
+
 ## 2026-09-17 第392バッチ：🔴CPU 戦で「対戦終了」を押しても終わらない（ずっと「終了待機中」）
 
 - **ユーザー報告**＝「CPU が対戦終了後の終了を押さない。ずっと勝利画面で終了待機中になる」。

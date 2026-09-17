@@ -14,9 +14,14 @@ const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accou
 //   計器用の山を別に持つ。使い方＝`DECK=VERIFY_DECK_MECH node scripts/verifyFullMatch.mjs cpu`。
 //   構成（青ピルルク）＝センター WD03 の Lv0〜3／アシスト2系統（ウムル・タウィル＝Lv0→Lv1《無》×0）／アーツ（ドント・ファイト＝除去）／
 //   レゾナ（†Ｍ・Ｇ・Ｔ†＝ピルルク限定・青と黒の＜電機＞を場から）／ガード4／除去スペル4／【起】付きシグニ4／ライズ（Ｈ２Ｏ＝＜原子＞の上）。
+// 🆕§5.6 `C-7`（2026-09-17）＝キーとピースを足した（ルリグデッキ 10→13枚＝計器用の山なので構築上限は見ない）。
+//   キー（ソウイ＝キー＝《コイン》×１・【出】2枚引く）＋**コインの入手元**（アロス・ピルルク ＴＥＴ＝Lv4・《青》×０・コイン3）
+//   ＝WD03 のピルルクはどのレベルもコインを持たない＝グロウでコインを得ないとキーが出せない。
+//   ピース（アサルト・ケルベロス＝《無》×０・ルリグ3体・**人間の手札を見て1枚捨てさせる**＝CPU が撃つと人間側が受ける向き）。
 const MECH = process.argv.includes('--mech');
 const MECH_DECK = {
-  lrig_deck: ['WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WDK09-005', 'WXDi-D01-009', 'WDK14-005', 'WXDi-D01-006', 'WX21-011', 'WX12-017'],
+  lrig_deck: ['WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WDK09-005', 'WXDi-D01-009', 'WDK14-005', 'WXDi-D01-006', 'WX21-011', 'WX12-017',
+    'WDK02-001', 'WXK02-020', 'WXDi-P00-006'],
   main_deck: [
     ...Array(4).fill('WD01-017'),                                   // サーバント O（ガード）
     ...Array(2).fill('WX03-043'), ...Array(2).fill('WX01-085'),     // ICE BREAK／FREEZE（除去スペル）
@@ -64,9 +69,22 @@ async function ensureDeck(page, acc) {
     const token = sess.access_token; const uid = sess.user?.id;
     if (!token || !uid) return { error: 'token/uid 取得失敗' };
     const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const existRes = await fetch(`${SUPA_URL}/rest/v1/decks?user_id=eq.${uid}&name=eq.${encodeURIComponent(name)}&select=id`, { headers: h });
+    const existRes = await fetch(`${SUPA_URL}/rest/v1/decks?user_id=eq.${uid}&name=eq.${encodeURIComponent(name)}&select=id,main_deck,lrig_deck`, { headers: h });
     const exist = await existRes.json();
-    if (Array.isArray(exist) && exist.length) return { uid, existed: true, deckId: exist[0].id };
+    if (Array.isArray(exist) && exist.length) {
+      const cur = exist[0];
+      // 🆕§5.6 `C-7`＝中身が変わっていたら上書きする（旧＝名前があれば常にスキップ＝構成を変えても山に届かなかった）。
+      if (JSON.stringify(cur.main_deck) === JSON.stringify(deck.main_deck) && JSON.stringify(cur.lrig_deck) === JSON.stringify(deck.lrig_deck)) {
+        return { uid, existed: true, deckId: cur.id };
+      }
+      const upd = await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${cur.id}`, {
+        method: 'PATCH', headers: { ...h, Prefer: 'return=representation' },
+        body: JSON.stringify({ main_deck: deck.main_deck, lrig_deck: deck.lrig_deck }),
+      });
+      const updBody = await upd.json();
+      if (!upd.ok || !Array.isArray(updBody) || updBody.length === 0) return { uid, error: 'update失敗 ' + JSON.stringify(updBody) };
+      return { uid, updated: true, deckId: cur.id };
+    }
     const ins = await fetch(`${SUPA_URL}/rest/v1/decks`, {
       method: 'POST', headers: { ...h, Prefer: 'return=representation' },
       body: JSON.stringify({ user_id: uid, name, main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, sort_order: sortOrder }),

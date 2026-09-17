@@ -712,7 +712,10 @@ export function execStubPart1(
   // ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の
   //   キーセット可否ゲートと配置先（`hasUnlimitedKeys` の2箇所）＝**盤面へ書くのは engine ではない**。
   //   だから実行時は何もしないのが正しい（§5.3 `O-226`・2026-09-06）。逆翻訳では文を出す。
-  if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT' || stub.id === 'UNLIMITED_KEYS') {
+  // ⚠`PIECE_IGNORES_LRIG_COUNT_RULE`（「このピースはあなたの場にルリグが３体いなくても使用できる」）も同じ＝
+  //   読み手は提示ゲート `keyPieceUseGate.checkKeyPieceUse`（§5.6 `C-7`）。解決時には何もしない。
+  if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT' || stub.id === 'UNLIMITED_KEYS'
+    || stub.id === 'PIECE_IGNORES_LRIG_COUNT_RULE') {
     return done(ctx);
   }
   // OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース）

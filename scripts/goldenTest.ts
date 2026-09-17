@@ -70,7 +70,7 @@ import { payFieldTrashCost } from '../src/screens/battle/fieldTrashCost';
 import { battleOppLifeCrashSourceMatches } from '../src/screens/battle/lifeCrashTriggers';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, findAcceZone, hasAcceAt } from '../src/utils/acce';
 import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
-import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
+import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
 import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition, isPieceCardType } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
@@ -180,6 +180,8 @@ import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
+import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCountRule } from '../src/screens/battle/keyPieceUseGate';
+import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpuKeyPiece';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
@@ -73362,12 +73364,14 @@ test('§5.3 O-259 第2: 3枚とも「このターンだけ《インビンシブ�
      '🔴名前が違えば効かない');
   // 支払い経路が2口とも通っていること（片方だけだと「一覧では使えるのに払えない」）
   const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
-  ok(bs.includes('applySpecificCardCostReduction(pieceEffCostGate, cardData.CardName, specificCardCostReductions)'),
+  // §5.6 `C-7`（2026-09-17）＝提示・モーダル・実行・CPU のコストは `keyPieceUseGate.keyPieceCostOf` の1本へ寄せた。
+  const keyGate = fs.readFileSync(join(root, 'src/screens/battle/keyPieceUseGate.ts'), 'utf8');
+  ok(keyGate.includes('applySpecificCardCostReduction(effCost, card.CardName, payer.specificCardCostReductions)'),
      '🔴ピースの提示ゲートが軽減を通す');
   ok(bs.includes('turn_specific_cost_reductions: undefined,'),
      '🔴ターン境界でリセットする（消さないと永続化する）');
   const key = fs.readFileSync(join(root, 'src/screens/battle/modals/KeyUseModal.tsx'), 'utf8');
-  ok(key.includes('applySpecificCardCostReduction(effKeyCost, card.CardName, specificCardCostReductions)'),
+  ok(key.includes('keyPieceCostOf({') && key.includes('specificCardCostReductions }'),
      '🔴ピース／キーの支払いモーダルも同じ式を通す');
 });
 
@@ -81673,6 +81677,7 @@ test('§5.3 O-342: A群6地点はプール版ヘルパへ代替宣言を渡す',
   const spell = fs.readFileSync(join(root, 'src/screens/battle/spellUseGate.ts'), 'utf8');
   const arts = fs.readFileSync(join(root, 'src/screens/battle/artsUseGate.ts'), 'utf8');
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const keyGate = fs.readFileSync(join(root, 'src/screens/battle/keyPieceUseGate.ts'), 'utf8');
   const sliceFrom = (src: string, anchor: string, length: number) => {
     const start = src.indexOf(anchor);
     ok(start >= 0, `配線assertのアンカーが消えた: ${anchor}`);
@@ -81684,7 +81689,8 @@ test('§5.3 O-342: A群6地点はプール版ヘルパへ代替宣言を渡す',
     ['artsUseGate.altCost', sliceFrom(arts, 'const affordable = altCostStr', 900)],
     ['BattleScreen.grow', sliceFrom(battle, 'const hasAffordable = growCandidates.some', 1700)],
     ['BattleScreen.spellCraft', sliceFrom(battle, 'const costOk =', 900)],
-    ['BattleScreen.keyPiece', sliceFrom(battle, 'const canAfford = my.coins >= coinNeeded', 1000)],
+    // §5.6 `C-7`＝キー／ピースの提示ゲートは `keyPieceUseGate.checkKeyPieceUse` へ移した。
+    ['keyPieceUseGate.affordable', sliceFrom(keyGate, 'const affordable = my.coins >= cost.coinNeeded', 1000)],
   ] as const;
   for (const [label, src] of sites) {
     ok(src.includes('canAffordEnergyCostWithSubstitutes({'), `🔴${label} がプール版ヘルパを経由していない`);
@@ -81731,7 +81737,9 @@ test('§5.3 O-342: CPUはエナ順に依存せずオサキを選び実支払い�
 test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化回避1地点だけ旧判定に残す', () => {
   const specs = [
     // §5.6 `C-5`（2026-09-17）で選択版が1地点増えた＝CPU のアシストグロウ（`tryCpuAssistGrow`）。
-    ['src/screens/BattleScreen.tsx', 7, 3, 0],
+    // §5.6 `C-7`（2026-09-17）＝キー／ピースの提示（プール版）を `keyPieceUseGate.ts` へ移し、CPU のキー／ピース（選択版）が1地点増えた。
+    ['src/screens/BattleScreen.tsx', 8, 2, 0],
+    ['src/screens/battle/keyPieceUseGate.ts', 0, 1, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
     ['src/screens/battle/modals/CutinModal.tsx', 1, 2, 0],
     ['src/screens/battle/modals/AssistGrowModal.tsx', 1, 1, 0],
@@ -85905,6 +85913,80 @@ test('§5.6 C-6 ライズ：置き方は planRiseSummon 1本（人間の「召�
   ok(/planRiseSummon\(\{\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
   ok(/await tryCpuRise\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにライズが無い（O-147 の fail-closed のまま）');
   ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
+}));
+
+test('§5.6 C-7 キー・ピース：可否は checkKeyPieceUse 1本（提示・モーダル・実行・CPU）＋ピースの体数ルール', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const KEY = 'WXK02-020';          // ソウイ＝キー（《コイン》×１・【出】カードを２枚引く）
+  const PIECE = 'WXDi-P00-006';     // アサルト・ケルベロス（《無》×０・使用条件なし＝体数ルールだけ）
+  const TEAM_PIECE = 'WXDi-D03-011'; // Glory Grow（【チーム】＜NoLimit＞＆全員レベル１以上・センターがレベル３）
+  const RELAX_PIECE = 'WXDi-P16-TK01'; // 「このピースはあなたの場にルリグが３体いなくても使用できる」
+  const center = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const assist = findCard(c => c.Type === 'ルリグ' && c.Level === '0' && c.CardNum !== center);
+  const three = (o: StateOpts = {}) => mkState({ lrig: [center], assistL: [assist], assistR: [assist], ...o });
+  const check = (card: string, my: PlayerState, o: { phase?: string; myTurn?: boolean } = {}) => checkKeyPieceUse({
+    card: cm.get(card)!, my, op: mkState({ lrig: [center] }), isMyTurn: o.myTurn ?? true, turnPhase: o.phase ?? 'MAIN',
+    cards: [...cm.values()], cardMap: cm, effectsMap,
+    payer: buildArtsPayerCtx({ actor: my, opponent: mkState({ lrig: [center] }), isActorTurn: o.myTurn ?? true, turnPhase: (o.phase ?? 'MAIN') as TurnPhase, cardMap: cm, effectsMap }),
+  });
+
+  // ① キー＝コインで払う・メインフェイズだけ・枠が埋まっていたら出せない
+  ok(check(KEY, mkState({ lrig: [center], coins: 1 })).usable, 'コイン1でキーを出せない');
+  eq(check(KEY, mkState({ lrig: [center], coins: 0 })).usable, false, '🔴コインが足りないのにキーを出せる');
+  eq(check(KEY, mkState({ lrig: [center], coins: 1 }), { myTurn: false }).usable, false, '相手のターンにキーを出せる');
+  eq(check(KEY, mkState({ lrig: [center], coins: 1 }), { phase: 'ATTACK_ARTS' }).usable, false, 'アタックフェイズにキーを出せる');
+  const keyed = mkState({ lrig: [center], coins: 1 });
+  keyed.field.key_piece = 'WXK01-014';
+  eq(check(KEY, keyed).usable, false, '🔴キーの枠（1枚）が埋まっているのに出せる');
+  // 🔴コインの使用制限はモーダルだけが見ていた（一覧に出るのに押せない）＝ゲートで落とす。
+  eq(check(KEY, { ...mkState({ lrig: [center], coins: 1 }), coin_use_restriction: 'spell_signi_only' } as PlayerState).usable, false,
+    '🔴「コインはスペルとシグニにしか使えない」のにキーを出せる');
+
+  // ② ピース＝場にルリグが3体いないと使えない（🆕C-7 で実装）／キーの枠を占有しない
+  eq(lrigsOnFieldOf(three()), 3, '場のルリグの体数（センター＋アシスト左右）を数えていない');
+  ok(check(PIECE, three()).usable, 'ルリグ3体でピースを使えない');
+  eq(check(PIECE, mkState({ lrig: [center] })).usable, false, '🔴ルリグ1体でピースを使える（「ピースはあなたの場にルリグが３体いると使用できる」）');
+  const threeKeyed = three(); threeKeyed.field.key_piece = 'WXK01-014';
+  ok(check(PIECE, threeKeyed).usable, '🔴キーが1枚あるだけでピースが使えなくなった（ピースはキーゾーンを占有しない）');
+  ok(pieceIgnoresLrigCountRule(RELAX_PIECE, effectsMap), `${RELAX_PIECE}: 体数ルールの緩和（PIECE_IGNORES_LRIG_COUNT_RULE）が live に無い`);
+  ok(check(RELAX_PIECE, mkState({ lrig: [center] })).placeable, `🔴${RELAX_PIECE}: 「ルリグが３体いなくても使用できる」のに1体で使えない`);
+
+  // ③【使用条件】【チーム】＝条件はゲートの conditionOk（人間と CPU が同じ評価）
+  const noLimit = (lv: string, t: string) => findCard(c => c.Type === t && c.Team === 'NoLimit' && c.Level === lv);
+  const teamCenter = noLimit('3', 'ルリグ');
+  const nlA = findCard(c => c.Type === 'アシストルリグ' && c.Team === 'NoLimit' && c.Level === '1' && c.CardClass === 'アキノ');
+  const nlR = findCard(c => c.Type === 'アシストルリグ' && c.Team === 'NoLimit' && c.Level === '1' && c.CardClass === 'レイ');
+  ok(check(TEAM_PIECE, mkState({ lrig: [teamCenter], assistL: [nlA], assistR: [nlR] })).conditionOk, '【チーム】＜NoLimit＞3体（全員レベル1以上・センターLv3）で条件を満たさない');
+  eq(check(TEAM_PIECE, three()).conditionOk, false, '🔴チームの違うルリグ3体で【チーム】ピースの条件を満たす');
+
+  // ④ CPU＝通った候補からキー → ピースの順／使った札は選び直さない／扱えない札は外す
+  const cpuPick = (my: PlayerState, used: string[] = []) => pickCpuKeyPiece({
+    actor: my, opponent: mkState({ lrig: [center] }), cards: [...cm.values()], cardMap: cm, effectsMap,
+    payer: buildArtsPayerCtx({ actor: my, opponent: mkState({ lrig: [center] }), isActorTurn: true, turnPhase: 'MAIN', cardMap: cm, effectsMap }),
+    turnPhase: 'MAIN', alreadyUsedNums: used, isAffordable: () => true,
+  })?.card.CardNum ?? null;
+  const cpuSt = three({ coins: 1 }); cpuSt.lrig_deck = [PIECE, KEY];
+  eq(cpuPick(cpuSt), KEY, 'CPU がキーより先にピースを選んだ（キーは場に残るので先）');
+  eq(cpuPick(cpuSt, [KEY]), PIECE, 'CPU が使ったキーを選び直した／ピースへ進まない');
+  eq(cpuPick({ ...cpuSt, coins: 0 } as PlayerState), PIECE, '🔴CPU がコインの足りないキーを選んだ（可否をゲートに委ねていない）');
+  const oneLrig = mkState({ lrig: [center], coins: 0 }); oneLrig.lrig_deck = [PIECE];
+  eq(cpuPick(oneLrig), null, '🔴CPU がルリグ1体でピースを選んだ');
+  eq(cpuCanHandleKeyPiece(cm.get(MAYU_ENCOUNTER_A)!, effectsMap.get(MAYU_ENCOUNTER_A) ?? []), false, '🔴CPU がマユのエンカウント（人間の盤面前提のグロウ経路）を選べる');
+  eq(cpuCanHandleKeyPiece(cm.get('WXK01-028')!, effectsMap.get('WXK01-028') ?? []), false, '🔴CPU がコストつき【出】のキー（任意の支払いを決める経路が無い）を選べる');
+
+  // ⑤ コインは提示・モーダル・実行が同じ keyPlaceCoinCostOf（旧実行は印刷コインを直読みしていた）
+  const niji = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('にじさんじ'));
+  eq(keyPieceCostOf({ card: cm.get('WXK10-015')!, my: mkState({ lrig: [niji] }), op: mkState({}), cardMap: cm, effectsMap,
+    payer: { lrigNameAliases: [], specificCardCostReductions: [] } }).coinNeeded, 0, 'WXK10-015: センターが＜にじさんじ＞なのにコインを請求する');
+
+  // ⑥🔴配線の固定＝判定・コスト・実行を写経に戻さない
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/KeyUseModal.tsx'), 'utf8');
+  ok(/const keyCheck = checkKeyPieceUse\(\{/.test(battle), '🔴人間のキー／ピースの提示が checkKeyPieceUse を通っていない');
+  ok(modal.includes('keyPieceCostOf({'), '🔴KeyUseModal のコストが keyPieceCostOf を通っていない（提示と請求が割れる）');
+  ok(!battle.includes('parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);\n      const hasUnlimitedKeysEKP'), '🔴キーの実行が印刷コインを直読みしている');
+  ok(/await performKeyPiece\(card, costIndices, \{\n\s+actor: my,/.test(battle), '🔴人間のキー／ピースが performKeyPiece を通っていない');
+  ok(/await tryCpuKeyPiece\(newCpuSt, 'MAIN'\)/.test(battle) && /await tryCpuKeyPiece\(cpuSt, 'ATTACK_ARTS'\)/.test(battle), '🔴CPU のメイン／アタックフェイズにキー・ピースが無い');
 }));
 
 test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中は重ねない・止まったら読み直す', () => withSavedCursor(() => {

@@ -11,18 +11,17 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-17＝第391バッチ：§5.1 `V-247` をクローズ＝CPU の起動が「止まる」「二重に走る」穴を塞ぎ、CPU がアシストを置くようにした**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🔴止まる＝起動の依存を手で選んでいた＝【自】の無い札をライズすると MAIN で永久停止（修正前コードで確定再現）。⇒ 依存は**ログを除いた盤面の中身**＋見張り（6秒動かなければ DB を読み直す）。
-- 🔴二重に走る＝前の実行の書き込みが届く前に次が始まり、同じアシストグロウを2回選んでいた（通し対戦3戦とも）。⇒ **書き込んだ行の `updated_at` が手元に届くまで次を始めない**。
-- 🔴CPU はセットアップでアシストを置かなかった（＝実戦でアシストグロウ0回）。⇒ `lrigSetup.ts` を人間と共有。
-- 📊機構デッキ `VERIFY_DECK_MECH` で **`census:play` 5戦合算 14/18 機構**（旧デッキ 7/17）。
+**直近＝2026-09-17＝第393バッチ：§5.6 `C-7` クローズ＝CPU がキーを場に出す／ピースを使う＋ピースの体数ルール（場にルリグ3体）を実装**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔑キー／ピースの判定・コスト・請求を `keyPieceUseGate.ts` の1本へ（提示・モーダル・実行・CPU）。🔴人間側の食い違い2件（実行が印刷コインを直読み／コインの使用制限をモーダルだけが見ていた）も同時に解消。
+- 🔴**ルール穴**＝「ピースは場にルリグ3体」が未実装だった ⇒ 実装（RULES.md `R-53`）。
+- 実機 新規3本（`V-248`〜`V-250`・反転1本）PASS。📊通し対戦で CPU のピースを1回観測（キーはシナリオで確認）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠15行）／**`C-8`**（対話応答の pure 化）／`C-7`（キー・ピース）。📊未踏4（シグニ／ルリグの【起】・レゾナ・アシストのアタック）は機構デッキの札の入れ替えで先に潰せる |
-| 📊**進捗3計器** | Sheet1 要対応 **2 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **0**／実装キュー **0**／**CPU 完成度 3**（§5.6 `C-7`〜`C-9`）／ルール台帳 ⚠15 |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4282） |
+| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠15行）／**`C-8`**（対話応答の pure 化）。⚠既存の実機3本（`connectSpinningChoice4Pay`／`o71HandToCheckZone`／`o202DamageReplaceDeclare`）が修正前から FAIL＝切り分け待ち |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（今回は CPU・UI 層＝3計器の対象外） |
+| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **0**／実装キュー **0**／**CPU 完成度 2**（§5.6 `C-8`・`C-9`）／ルール台帳 ⚠15 |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4284） |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -168,11 +167,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **①** | **§5.1 実機 `V-nn`** | **0** | `src/screens/` を触った回・機構を足した回の返済先 | §5.1 の表 |
 | **②** | **§5.3 機構 worklist `O-nn`** | **0** | 新しい型・評価器・engine が要るもの | §5.3 の索引 |
 | **③** | **§5.0 実装キュー** | **0** | triage で BUG と確定した未修正の効果 | `node scripts/archive/semanticAuditBugList.mjs` |
-| 🔥**④** | 🆕**§5.6 CPU 完成度 `C-nn`** | **3** | **プレイ駆動の発見器**＝CPU が撃たない機構＝未検査な向き | §5.6.2 の表 |
+| 🔥**④** | 🆕**§5.6 CPU 完成度 `C-nn`** | **2** | **プレイ駆動の発見器**＝CPU が撃たない機構＝未検査な向き | §5.6.2 の表 |
 | **⑤** | **§5.2 意味照合** | **round6 完了** | 監査による新しい型の発見 | `semantic_audit_round6/TYPE_LEDGER.md` |
 | — | §5.4 構造混線 | **0** | 新しく見つけたときだけ足す | — |
 
-**取る順**＝①実機（寝かせるほど切り分けが高くつく）→ ②機構（索引の並び順）→ ③実装キュー（機構不要の候補だけ）→ 🔥**④CPU 完成度（`C-9`／`C-8`／`C-7`。順は `census:play` の未踏で決める）** → ⑤意味照合（①〜④が空のとき）。
+**取る順**＝①実機（寝かせるほど切り分けが高くつく）→ ②機構（索引の並び順）→ ③実装キュー（機構不要の候補だけ）→ 🔥**④CPU 完成度（`C-9`／`C-8`。順は `census:play` の未踏で決める）** → ⑤意味照合（①〜④が空のとき）。
 🔑**2026-09-16 現在は ①②③ が全部 0 なので ④ が本線**。§5.6 で見つかった engine/parser のバグは**その場で直す**（既定）か、新機構が要るなら §5.3 へ `O-nn` で登録する（§2 の1巡と同じ）。
 索引 H（解釈待ち）はユーザーの判断が出るまで取らない。
 
@@ -217,7 +216,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -390,8 +389,8 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 | 機構 | 状態 | 根拠（実測） |
 |---|---|---|
 | ~~**ガード**~~ | 🏁`C-2`（2026-09-17） | `guardableHandIndices`（人間のダイアログと共通）→ `pickCpuGuardHandIndex` → `performGuardResponse` |
-| **ピース／リレーピース** | 🔴実装なし | CPU 経路に出現 **0箇所** |
-| **キー（キープレイ）** | 🔴実装なし | `cpu*.ts` のヒット10件は全部**コストキー名**（`trash_key` 等）で別物 |
+| ~~**ピース／リレーピース**~~ | 🏁`C-7`（2026-09-17） | 可否＝`checkKeyPieceUse`（人間と共通・体数ルール込み）→ `pickCpuKeyPiece` → `performKeyPiece` |
+| ~~**キー（キープレイ）**~~ | 🏁`C-7`（2026-09-17） | 同上（キーの【起】は未対応＝場に出すまで） |
 | ~~**レゾナ**~~ | 🏁`C-5`（2026-09-17） | 候補＝`getResonaSummonCandidate`／支払い＝`pickCpuResonaSelection`／実行＝`performSummonSigni`（人間と共通） |
 | ~~**ライズ**~~ | 🏁`C-6`（2026-09-17） | 置き方＝`planRiseSummon`（人間の「召喚」ゲートと共通）／実行＝`performSummonSigni` |
 | ~~**アシストグロウ**~~ | 🏁`C-5`（2026-09-17） | 候補＝`listAssistGrowCandidates`／実行＝`performAssistGrow`（人間と共通） |
@@ -415,7 +414,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 | 🏁`C-4` | ~~手札上限・マリガン~~ | S | **2026-09-17 クローズ**＝`mulligan.ts` `applyMulligan`（人間の JSX から移設）＋ CPU の END に手札上限。実機 `V-243` |
 | 🏁`C-5` | ~~アシストグロウ・レゾナ~~ | M | **2026-09-17 クローズ**＝`assistGrow.ts`／`performAssistGrow`／`performSummonSigni`（`handleSummonSigni` を「誰が出すか」の引数で一般化）。ついでに**人間のアシストグロウが相手のアタックフェイズに押しても無反応**だった穴を修正。実機 `V-244`/`V-245` |
 | 🏁`C-6` | ~~ライズ召喚（`O-147` の CPU 側）~~ | M | **2026-09-17 クローズ**＝`riseSummon.ts` `planRiseSummon`（人間の「召喚」ゲートの判定を移設）→ `performSummonSigni`。実機 `V-246` |
-| `C-7` | キー・ピース（【チーム】条件つき） | M〜L | いちばん重いので最後 |
+| 🏁`C-7` | ~~キー・ピース（【チーム】条件つき）~~ | M〜L | **2026-09-17 クローズ**＝`keyPieceUseGate.ts`（提示・モーダル・実行・CPU の1本）→ `cpuKeyPiece.ts` → `performKeyPiece`。ピースの体数ルールを実装（`R-53`）。実機 `V-248`〜`V-250` |
 | `C-8` | 対話応答を pure 化＋方針つきに（`cpuInteraction.ts`） | M | 「最初の available」固定では**分岐の片側しか踏まない** |
 | 🔥`C-9` | **ルール規則の棚卸し**（バトル／ダメージ／フェイズ／ゾーン移動の行き先） | M〜L | **台帳＝[RULES.md](./RULES.md)**（公式ルールの1文 × 実装箇所 × 状態）。**2026-09-17 着手**＝✅4／🔴→✅3（ランサー置換・アップフェイズの受け手・ライズ置換の後始末）／👀14／**⚠15**。取り方は RULES.md §4（⚠を上から・写経を全部数える・純関数＋golden） |
 
@@ -470,11 +469,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-17 時点**（第390バッチ＝§5.6 `C-2`〜`C-6` クローズ）
-  - 📊**進捗3計器**＝Sheet1 要対応 **2 / 863**（held 1・mech 1）｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**
-  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 3**（§5.6 `C-7`〜`C-9`・🏁`C-0`〜`C-6` 済）｜ルール台帳 ⚠15
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4282・`census:traceinv` I1=0）
-  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 5戦）**14 / 18**
+- **2026-09-17 時点**（第393バッチ＝§5.6 `C-7` クローズ）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（CPU・UI 層の回＝3計器は対象外）
+  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 2**（§5.6 `C-8`・`C-9`・🏁`C-0`〜`C-7` 済）｜ルール台帳 ⚠15
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4284・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（ピース 1・キー 0＝レベル4に届く前に決着。キーは実機シナリオ `c7cpukey` で確認）
 
 ---
 

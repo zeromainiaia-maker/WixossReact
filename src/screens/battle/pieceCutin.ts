@@ -2,6 +2,7 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { evalUseCondition } from '../../engine/execUtils';
 import { isPieceCardType } from './battleUtils';
+import { pieceLrigCountOk } from './keyPieceUseGate';
 
 const baseCardNum = (id: string): string => id.split('#')[0];
 
@@ -53,6 +54,8 @@ export function collectPieceCutinCandidates(args: {
     if (!card || !isPieceCardType(card.Type)) continue;
     for (const eff of (effectsMap.get(id) ?? effectsMap.get(baseCardNum(id)) ?? [])) {
       if (eff.effectType !== 'ACTIVATED' || !eff.condition) continue;
+      // 🆕§5.6 `C-7`＝ピースの体数ルール（場にルリグ3体）はカットインでの使用にも掛かる（提示ゲートと同じ関数）。
+      if (!pieceLrigCountOk(card, responder, effectsMap)) break;
       // この窓でしか使えない宣言を持つものだけ（＝通常タイミングの札を混ぜない）。
       if (!JSON.stringify(eff.condition).includes('OPP_USING_TEAM_PIECE')) continue;
       if (!evalUseCondition(eff.condition, responderInWindow, caster, cardMap, id, (args.turnPhase ?? 'MAIN') as never)) continue;

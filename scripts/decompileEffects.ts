@@ -5743,6 +5743,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.6 `C-7`（2026-09-17・`WXDi-P16-TK01-E1`）＝ピースの「場にルリグ3体」ルールの緩和（読み手＝`checkKeyPieceUse`）。
+        PIECE_IGNORES_LRIG_COUNT_RULE: 'このピースはあなたの場にルリグが3体いなくても使用できる',
         // 🆕§5.3 `O-443`（2026-09-16）＝「【常】：このシグニは、正面にアタックしている対戦相手のシグニと
         //   バトルしない」＝**バトルが起きないだけでアタックは通る**（消費＝`BattleScreen` の防御側判定）。
         NO_BATTLE_DEFENDER: 'このシグニは正面からアタックしている対戦相手のシグニとバトルしない（アタックは通りダメージは受ける）',

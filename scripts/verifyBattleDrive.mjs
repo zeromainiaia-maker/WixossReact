@@ -23604,6 +23604,9 @@ scenarios.pieceUseResolvesAndGoesToLrigTrash = {
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#7000'],
+      // 🆕§5.6 `C-7`（2026-09-17）＝ピースの体数ルール（場にルリグ3体）を実装したので、アシスト2体を置く
+      //   （旧盤面はセンター1体＝ルール上は使えない盤面で「使える」ことを確かめていた）。
+      'field.assist_lrig_l': ['WDK09-005#7021'], 'field.assist_lrig_r': ['WDK14-005#7022'],
       'field.signi': [null, null, null], 'field.check': null,
       'field.key_piece': null, 'field.key_piece_extra': [],
       'lrig_deck': [PIECE_USE_CARD],
@@ -61910,6 +61913,8 @@ async function c2Query(page) {
     return {
       handCards: g.hand ?? [], lrig: g.field?.lrig ?? [], assistL: g.field?.assist_lrig_l ?? [], assistR: g.field?.assist_lrig_r ?? [],
       lrigDeck: g.lrig_deck ?? [], fieldSigni: g.field?.signi ?? [null, null, null], trash: g.trash ?? [],
+      // §5.6 `C-7`＝キー・ピースの観測点。
+      keyPiece: g.field?.key_piece ?? null, coins: g.coins ?? 0, lrigTrash: g.lrig_trash ?? [],
     };
   }, { SUPA_URL, ANON });
   return { ...base, cpu: extra };
@@ -62077,6 +62082,76 @@ scenarios.c6cpurise = {
   },
 };
 order.push('c5cpuassistgrow', 'c5cpuresona', 'c6cpurise');
+
+// 🔴**§5.6 `C-7`（2026-09-17）＝CPU がキーを場に出す／ピースを使う**（旧実装は一度もしなかった＝CPU 経路に出現0箇所）。
+//   `c7cpukey`＝ソウイ＝キー（《コイン》×１・【出】カードを２枚引く）。コイン1で出し、【出】で2枚引く。
+scenarios.c7cpukey = {
+  title: 'C-7 CPU のメインフェイズ＝コイン1でソウイ＝キーを場に出し、【出】で2枚引く',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c7h'], 'field.check': null },
+    guestSet: {
+      'field.lrig': ['WD03-002#c7c'], 'field.signi': [null, null, null], 'field.check': null, 'field.key_piece': null,
+      'lrig_deck': ['WXK02-020#c7k'], 'hand': [], 'coins': 1, 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return c5WatchCpuMain(page, H, 'c7key',
+      // ⚠手札枚数では判定しない＝引いた2枚を CPU がそのまま場に出すので、観測の瞬間には手札が減っている（初回実行で空振り）。
+      st => st.cpu.keyPiece === 'WXK02-020#c7k' && st.cpu.coins === 0 && (st.logs ?? []).includes('2枚ドロー'),
+      st => `CPU がキーを配置（key=${st.cpu.keyPiece}・コイン=${st.cpu.coins}）・log=${JSON.stringify((st.logs ?? []).filter(l => /キー|ドロー/.test(l)))}`);
+  },
+};
+// `c7cpupiece`＝アサルト・ケルベロス（《無》×０・ルリグ3体）＝**人間の手札を見て《ガードアイコン》を持たないカードを1枚捨てさせる**
+//   ＝CPU が撃ったときに人間側が受ける向き（§5.6.0）。
+scenarios.c7cpupiece = {
+  title: 'C-7 CPU のメインフェイズ＝ルリグ3体でアサルト・ケルベロスを使い、人間の手札を1枚捨てさせる',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c7h'], 'field.check': null, 'hand': ['WX04-080#c7h1', 'WX04-080#c7h2'] },
+    guestSet: {
+      'field.lrig': ['WD03-002#c7c'], 'field.assist_lrig_l': ['WDK09-005#c7a1'], 'field.assist_lrig_r': ['WDK14-005#c7a2'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WXDi-P00-006#c7p'], 'hand': [], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    return c5WatchCpuMain(page, H, 'c7piece',
+      st => (st.cpu.lrigTrash ?? []).includes('WXDi-P00-006#c7p') && st.host.hand === 1
+        && ['WX04-080#c7h1', 'WX04-080#c7h2'].some(n => (st.host.trash ?? []).includes(n)),
+      st => `CPU がピースを使用（ルリグトラッシュ=${JSON.stringify(st.cpu.lrigTrash)}・人間の手札=${st.host.hand}（期待1））・log=${JSON.stringify((st.logs ?? []).filter(l => /ピース|ケルベロス|トラッシュへ/.test(l)))}`);
+  },
+};
+// 🔑**判別力＝反転**＝同じピースを**ルリグ1体**で持たせる＝「ピースはあなたの場にルリグが３体いると使用できる」で使えない。
+//   旧実装（体数ルール無し）ならここで使っていた。**手番が人間へ戻るまで**使わなければ PASS。
+scenarios.c7cpupieceonelrig = {
+  title: 'C-7 反転＝ルリグ1体の CPU はピースを使わずに手番を終える（ピースの体数ルール）',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#c7h'], 'field.check': null, 'hand': ['WX04-080#c7h1', 'WX04-080#c7h2'] },
+    guestSet: {
+      'field.lrig': ['WD03-002#c7c'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WXDi-P00-006#c7p1'], 'hand': [], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 4 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 45; s++) {
+      await page.waitForTimeout(800);
+      const st = await c2Query(page);
+      if (st && !st.error && (st.logs ?? []).some(l => l.includes('[CPU] ピース:'))) {
+        return { pass: false, detail: `🔴ルリグ1体なのに CPU がピースを使った（log=${JSON.stringify((st.logs ?? []).slice(-6))}）` };
+      }
+      if (st?.hostIsActive) {
+        const kept = (st.cpu.lrigDeck ?? []).includes('WXDi-P00-006#c7p1');
+        return { pass: kept, detail: kept ? `ピースを使わずに手番が人間へ（turn=${st.turnCount}・人間の手札=${st.host.hand}）` : `🔴ピースがルリグデッキから消えた（${JSON.stringify(st.cpu.lrigDeck)}）` };
+      }
+      await H.stdStep(['アーツ終了→相手へ', 'アーツ終了', 'エナに送る', 'ライフバースト発動', '確定', '決定', 'OK', 'はい', 'ガードしない', '使用しない', 'しない', 'スキップ']);
+    }
+    return { pass: false, detail: '🔴手番が人間へ戻らなかった' };
+  },
+};
+order.push('c7cpukey', 'c7cpupiece', 'c7cpupieceonelrig');
 
 // 🔴**`c3cpufirstturngrow`＝CPU 先攻1ターン目のグロウ後にフェイズが進む**（2026-09-17・`verifyFullMatch.mjs cpu` が GROW で60秒止まった盤面の再現）。
 //   グロウ先 `WXK09-021`（コード・ピルルク Ｆ）＝【出】手札を１枚捨てる：コイン（CPU は払わない＝発動しない）。

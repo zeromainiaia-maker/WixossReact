@@ -217,11 +217,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
   }
 
   // ---- 「このピースはあなたの場にルリグが３体いなくても使用できる」（`WXDi-P16-TK01-E1`）----
-  // ⚠**緩和の対象になっているルール（ピースはルリグ3体でなければ使えない）自体が engine 未実装**
-  //   ＝緩和も no-op でよい。ルール注記として明示し、UNKNOWN のままにしない（前置文が UNKNOWN だと
-  //   後続の CHOOSE 組み立てが成立せず①②③が全部その場で走る）。
+  // 🆕§5.6 `C-7`（2026-09-17）＝**緩和の対象のルール（ピースはルリグ3体でなければ使えない）を実装した**ので、
+  //   緩和も宣言として立てる（旧＝`RULE_REMINDER_TEXT`＝ルール自体が未実装だったので no-op でよかった）。
+  //   読み手は提示ゲート `keyPieceUseGate.checkKeyPieceUse`（解決時は何もしない）。
+  //   ⚠UNKNOWN のままにしない（前置文が UNKNOWN だと後続の CHOOSE 組み立てが成立せず①②③が全部その場で走る）。
   if (/^このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる$/.test(t))
-    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'PIECE_IGNORES_LRIG_COUNT_RULE' } as StubAction;
 
   // ---- 手札からカードを【トラップ】として設置する ----
   {

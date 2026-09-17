@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { keyPlaceCoinCostOf, parseGrowCost, isEnergyPaymentSelectionValid, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, colorlessPayableColorsOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
+import { parseGrowCost, isEnergyPaymentSelectionValid, isMultiEna, colorlessPayableColorsOf, coinPayableFor } from '../costs';
+import { keyPieceCostOf } from '../keyPieceUseGate';
 import { energyPayEntryLabel } from '../energyPaySource';
 import { isPieceCardType } from '../battleUtils';
 import type { BattleModalCtx } from './types';
@@ -34,22 +35,12 @@ export function KeyUseModal(p: KeyUseModalProps) {
               display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const card = pendingKeyCard;
-              // 🆕§5.3 `O-290`（2026-09-11）＝配置コインの payload（`SELF_PLACE_COIN_COST`）を通す。
-              //   🔴**`BattleScreen` の「キーにセット」提示ゲートと必ず同じ1本**（`keyPlaceCoinCostOf`）を使う。
-              const coinNeeded = keyPlaceCoinCostOf(card, effectsMap, my, op, battleCardMap);
-              // ⚠ピースの EffectText 由来の条件つき軽減（`WXDi-P16-003`〜`007`＝タスク12(xciv) α）を通す。
-              //   `BattleScreen` の「キーにセット」ゲートと**同じ式**でなければ、出せるのに払えない／
-              //   印刷コストで請求される食い違いになる。
-              const myLrigCardKU = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-              const effKeyCost = computeArtsEffectiveCost(
-                card, my, myLrigCardKU?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
-                myLrigCardKU ? parseInt(myLrigCardKU.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
-                { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap),
-                costReplacementOf(card.CardNum, effectsMap),
-              );
-              // 🆕§5.3 `O-259` 第2バッチ＝カード名指定の《無》軽減（常設＋**このターンだけ**の予約）。
-              //   🔴`BattleScreen` の提示ゲートと**同じ式**にする（片方だけだと払えない／請求が食い違う）。
-              const effKeyCostReduced = applySpecificCardCostReduction(effKeyCost, card.CardName, specificCardCostReductions);
+              // 🆕§5.6 `C-7`＝コイン（`SELF_PLACE_COIN_COST`）とエナ（EffectText 由来の条件つき軽減・カード名指定の軽減）は
+              //   **`keyPieceCostOf` の1本**＝一覧の提示ゲート（`checkKeyPieceUse`）・実行（`performKeyPiece`）・CPU と同じ式。
+              const { coinNeeded, effectiveCost: effKeyCostReduced } = keyPieceCostOf({
+                card, my, op, cardMap: battleCardMap, effectsMap,
+                payer: { lrigNameAliases: myLrigNameAliases, specificCardCostReductions },
+              });
               const energyTotal = parseGrowCost(effKeyCostReduced).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 || isEnergyPaymentSelectionValid({
