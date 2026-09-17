@@ -30,6 +30,8 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'arts', label: 'アーツ', pattern: /^\[CPU\] アーツを使用:/, anchor: '[CPU] アーツを使用:' },
   { id: 'signiActivate', label: 'シグニの【起】', pattern: /^\[CPU\] 【起】を発動:/, anchor: '[CPU] 【起】を発動:' },
   { id: 'lrigActivate', label: 'ルリグの【起】', pattern: /^\[CPU\] ルリグの【起】を発動:/, anchor: '[CPU] ルリグの【起】を発動:' },
+  // 🆕§5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナゾーン）。
+  { id: 'offFieldActivate', label: '場以外の【起】（トラッシュ・手札・エナ）', pattern: /^\[CPU\] (トラッシュ|手札|エナゾーン)の【起】を発動:/, anchor: '[CPU] ${zoneJa}の【起】を発動:' },
   { id: 'assistGrow', label: 'アシストルリグのグロウ', pattern: /^\[CPU\] アシストグロウ:/, anchor: '[CPU] アシストグロウ:' },
   { id: 'resona', label: 'レゾナを出す', pattern: /^\[CPU\] レゾナ:/, anchor: '[CPU] レゾナ:' },
   { id: 'rise', label: 'ライズ', pattern: /^\[CPU\] ライズ:/, anchor: '[CPU] ライズ:' },

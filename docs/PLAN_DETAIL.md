@@ -25,6 +25,15 @@
   ②自動トラッシュは**盤面を注入する実機シナリオ27本にしか当たらない**（実測＝`pr426ConditionalPowerBuff` が実際に落ちた）
   ③「レベル以下」が**配置制限**か**ルール処理**かを一次資料で確定できていない。⇒ RULES.md `R-48` に ❓ で出した。
 
+## `O-533` — 手札の【起】の「公開＋場のシグニをトラッシュ」コスト（1効果・索引G・2026-09-17 登録）
+
+- **カード**＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：このシグニをあなたの手札から場に出す。」（live は `manualEffects.ts` の MANUAL＝`cost.fieldTrash{count:2, story:悪魔}`＋`ADD_TO_FIELD{HAND_CARD, cardNum}`）。
+- **いまの実装（2026-09-17 まで）**＝手札の【起】の実行（`executeHandActivated`）は**エナ・自分を捨てる・相手のウィルス除去しか払わない**のに、提示側に払えるコストの判定が無かった
+  ⇒ **場のシグニを1体も払わず、このカードを手札からトラッシュに置き、`ADD_TO_FIELD` は手札に自分がいないので何も出ない**。
+- **§5.7 `S-7` で入れた応急**＝`offFieldActivateGate.ts` の `unsupportedHandActivateCostKeys`（払えるのは `energy`／`discardSelfFromHand`／`removeOppVirus` だけ）＝**提示しない**（人間も CPU も）。
+- **取り方**＝①`executeHandActivated` を「`discardSelfFromHand` のときだけ捨てる」に直す（公開はコストではなく宣言）②`fieldTrash` の選択を `HandActivatedModal` に足す（場のシグニ【起】の `fieldTrashZones` 選択が先例＝`performSigniActivated`）③CPU は強さの低い該当シグニから選ぶ ④`HAND_SUPPORTED_COST_KEYS` に `fieldTrash` を足す ⑤golden＋実機。
+- ⚠**PLAN_DETAIL 6534 行の③（2026-08-25）が同じカードの旧記録**＝`handActivated` が `discardSelfFromHand` からしか立たない問題は MANUAL で解消済み。残るのはこのコストの支払いだけ。
+
 ## 🏁2026-09-17 第397バッチでクローズ＝`O-531`（登録票は下）
 
 ### `O-531` — バトルのライズ置換が「下のカードを全部」トラッシュし、任意も問わない（2効果・索引G）

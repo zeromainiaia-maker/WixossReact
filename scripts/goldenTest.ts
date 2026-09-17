@@ -162,6 +162,8 @@ import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrengt
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
+import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
+import { cpuOffFieldLedgerKey, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -81776,7 +81778,8 @@ test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化
   const specs = [
     // §5.6 `C-5`（2026-09-17）で選択版が1地点増えた＝CPU のアシストグロウ（`tryCpuAssistGrow`）。
     // §5.6 `C-7`（2026-09-17）＝キー／ピースの提示（プール版）を `keyPieceUseGate.ts` へ移し、CPU のキー／ピース（選択版）が1地点増えた。
-    ['src/screens/BattleScreen.tsx', 8, 2, 0],
+    // §5.7 `S-7`（2026-09-17）＝CPU の場以外の【起】（`tryCpuOffFieldActivated`）で選択版が1地点増えた。
+    ['src/screens/BattleScreen.tsx', 9, 2, 0],
     ['src/screens/battle/keyPieceUseGate.ts', 0, 1, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
     ['src/screens/battle/modals/CutinModal.tsx', 1, 2, 0],
@@ -86206,6 +86209,101 @@ test('CPU の召喚：出したシグニの【出】を解決してから次の�
   ok(/if \(cpuOnPlayEntries\.length > 0\) break;\s*\}\s*$/.test(loopBody), '🔴CPU の召喚ループが【出】をためたまま次のシグニを出す（1体ごとに止まらない）');
 }));
 
+test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本／CPU はトラッシュ・手札・エナの【起】を先読みで選んで使う', () => withSavedCursor(() => {
+  // 🆕2026-09-17 ユーザー指示「WD08-009 のようにトラッシュで起動効果を発動するカードは重要なので CPU にも使えるように」。
+  //   `WD08-009` は `WX22-Re17`（コードアンチ ネッシー）の絵違い＝効果は `WX22-Re17-E2`
+  //   「【起】《黒》《黒》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。このカードをトラッシュからデッキの一番下に置く。」
+  const cm = new InstanceMap<CardData>(cardMap);
+  const em = new InstanceMap<CardEffect[]>(effectsMap);   // 画面と同じく instance ID で引く
+  const allCards = [...cardMap.values()];
+  const NESSIE = 'WX22-Re17';
+  const e2 = effectsMap.get(NESSIE)!.find(e => e.effectId === 'WX22-Re17-E2')!;
+  ok(!!e2?.trashActivated, '前提崩れ＝WX22-Re17-E2 がトラッシュの【起】ではない');
+  const BLACK = ['WD05-009', 'WD05-010', 'WD05-011'];
+  const cpuBoard = (energy: string[], trash: string[] = [`${NESSIE}#t1`]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.trash = trash; st.hand = []; st.energy = energy; st.field.lrig = ['WD05-003#r1']; st.lrig_deck = [];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    return st;
+  };
+  const oppWith = (signi: (string | null)[]) => {
+    const st = mkState({ signi }); st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#m1', 'WD01-013#m2'];
+    return st;
+  };
+  const gate = (zone: 'trash' | 'hand' | 'energy', cardNum: string, my: PlayerState, op: PlayerState, turnPhase: string, isMyTurn: boolean, effs: Map<string, CardEffect[]> = em) =>
+    listOffFieldActivatableEffects({ zone, cardNum, my, op, turnPhase, isMyTurn, cardMap: cm, effectsMap: effs }).map(e => e.effectId);
+  const energy3 = BLACK.map((c, i) => `${c}#e${i}`);
+  const me = cpuBoard(energy3);
+  const opp = oppWith([`${NESSIE}#o1`, null, null]);
+  // ── 提示の窓（人間の旧実装と同じ）──
+  eq(JSON.stringify(gate('trash', `${NESSIE}#t1`, me, opp, 'MAIN', true)), JSON.stringify(['WX22-Re17-E2']), '🔴自分のメインフェイズにトラッシュの【起】が出ない');
+  eq(gate('trash', `${NESSIE}#t1`, me, opp, 'ATTACK_ARTS', true).length, 0, '《メインフェイズ》の【起】がアタックフェイズに出た');
+  eq(gate('trash', `${NESSIE}#t1`, me, opp, 'MAIN', false).length, 0, '相手のターンにトラッシュの【起】が出た');
+  eq(gate('trash', `${NESSIE}#t1`, cpuBoard(energy3.slice(0, 2)), opp, 'MAIN', true).length, 0, 'エナ2枚で《黒》《黒》《無》の【起】が出た');
+  // 🔴回数制限の無い【起】は同じターンにもう1枚も使える（旧＝actions_done に effectId があるだけで弾いていた）
+  const used = { ...me, actions_done: ['WX22-Re17-E2'] };
+  eq(gate('trash', `${NESSIE}#t2`, used, opp, 'MAIN', true).length, 1, '🔴回数制限の無いトラッシュの【起】を、同名の2枚目で使えない');
+  const limited = new InstanceMap<CardEffect[]>(effectsMap); limited.set(NESSIE, [{ ...e2, usageLimit: 'once_per_turn' } as CardEffect]);
+  eq(gate('trash', `${NESSIE}#t2`, used, opp, 'MAIN', true, limited).length, 0, '《ターン１回》の【起】を2回目も出した');
+  // 手札＝自分の MAIN／ATTACK_ARTS と、相手ターンのアーツステップ（ATTACK_ARTS_OP）
+  const handMe = { ...cpuBoard([]), hand: ['WXK11-067#h1', 'WX18-036#h2'] };
+  eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS', true).length, 1, '🔴手札の《アタックフェイズアイコン》【起】が自分のアタックフェイズに出ない');
+  eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS_OP', false).length, 1, '🔴手札の《アタックフェイズアイコン》【起】が相手のアーツステップに出ない');
+  eq(gate('hand', 'WXK11-067#h1', handMe, opp, 'ATTACK_ARTS_OP', true).length, 0, 'ターンプレイヤーが相手側のアーツステップで手札の【起】を出した');
+  // 🔴`WX18-036-E3`＝コストが「場の＜悪魔＞2体をトラッシュ」（手札の実行関数が払えない）＝出さない
+  //   （旧＝提示され、場のシグニを払わず自分を捨てて何も出ない形で撃てた）
+  eq(gate('hand', 'WX18-036#h2', { ...handMe, field: { ...handMe.field, signi: [['WX18-036#f1'], ['WX18-036#f2'], null] } }, opp, 'ATTACK_ARTS', true).length, 0,
+    '🔴手札の【起】の実行関数が払えないコスト（fieldTrash）の効果を提示した');
+  // 画面＝人間の3入口が同じ関数を呼ぶ（写経しない）
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  for (const zone of ['hand', 'trash', 'energy']) {
+    ok(new RegExp(`listOffFieldActivatableEffects\\(\\{\\s*zone: '${zone}'`).test(battle), `🔴人間の${zone}の【起】が共通の提示判定を通っていない`);
+  }
+  // ── CPU の選択 ──
+  const lctx = {
+    cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [],
+    powersOf: (c: PlayerState, o: PlayerState) => calcFieldPowers(c, o, true, effectsMap, cm, 'MAIN'),
+  };
+  const poolOf = (st: PlayerState) => st.energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex }));
+  const pick = (st: PlayerState, o: PlayerState, extra: { reserve?: ReturnType<typeof buildCpuGrowReserve>; already?: string[]; lookahead?: boolean } = {}) =>
+    pickCpuOffFieldActivated({
+      actor: st, opponent: o, effectsMap: em, cardMap: cm, cards: allCards, phase: 'MAIN', energyPool: poolOf(st),
+      alreadyActivated: extra.already ?? [],
+      isAffordable: (sel, costStr) => isEnergyPaymentSelectionValid({ selectedEnergyNums: sel, cards: allCards, baseCost: costStr }),
+      energyReserve: extra.reserve,
+      lookahead: extra.lookahead === false ? undefined : lctx,
+    });
+  const c1 = pick(me, opp);
+  ok(!!c1, `🔴CPU がトラッシュの ${NESSIE}【起】（相手に12000のシグニ）を使わない`);
+  eq(c1!.zone, 'trash', 'ゾーンが違う');
+  eq(c1!.effect.effectId, 'WX22-Re17-E2', '効果が違う');
+  eq(c1!.selections.energy.size, 3, 'エナを3枚選んでいない');
+  ok((c1!.gain ?? 0) > 0, `先読みの増分が正でない（${c1!.gain}）`);
+  eq(pick(me, oppWith([null, null, null])), null, '🔴相手の場が空（対象なし）なのにエナを払ってトラッシュの【起】を使った');
+  eq(pick(cpuBoard(energy3.slice(0, 2)), opp), null, 'エナが足りないのに選んだ');
+  eq(pick(me, opp, { already: [cpuOffFieldLedgerKey('WX22-Re17-E2', `${NESSIE}#t1`)] }), null, '🔴同じカードの【起】を同じターンに撃ち直した（無限ループの安全弁）');
+  ok(!!pick({ ...me, trash: [`${NESSIE}#t1`, `${NESSIE}#t2`] }, opp, { already: [cpuOffFieldLedgerKey('WX22-Re17-E2', `${NESSIE}#t1`)] }),
+    '🔴同名の2枚目（別のカード）のトラッシュ【起】を使わない');
+  // グロウ用エナの予約（ユーザー指示）＝次のグロウに《黒》×２が要るなら、黒3枚を全部は払わない
+  const growMe = { ...me, field: { ...me.field, lrig: ['WD05-003#r1'] }, lrig_deck: ['WD05-002#r2'] };
+  const reserve = buildCpuGrowReserve({ actor: growMe, opponent: opp, cardMap: cm, effectsMap: em, cards: allCards });
+  ok(!!reserve, '前提崩れ＝グロウ先があるのに予約が作られない');
+  eq(pick(growMe, opp, { reserve }), null, '🔴トラッシュの【起】でグロウ用のエナを使った');
+  // 手札の【起】（WXK11-067-E1「手札からこのカードを捨てる：【エナチャージ１】」）はアタックフェイズに使う
+  const handCpu = { ...cpuBoard([], []), hand: ['WXK11-067#h1'] };
+  const c2 = pickCpuOffFieldActivated({
+    actor: handCpu, opponent: opp, effectsMap: em, cardMap: cm, cards: allCards, phase: 'ATTACK_ARTS', energyPool: [],
+    alreadyActivated: [], isAffordable: () => true,
+  });
+  eq(c2 && `${c2.zone}:${c2.handIndex}:${c2.effect.effectId}`, 'hand:0:WXK11-067-E1', '🔴CPU が手札の【起】を選ばない');
+  // 画面の配線＝MAIN とアタックフェイズの両方・実行は人間と同じ関数
+  ok(/tryCpuOffFieldActivated\(newCpuSt, 'MAIN'\)/.test(battle), '🔴CPU のメインフェイズに場以外の【起】が配線されていない');
+  ok(/tryCpuOffFieldActivated\(cpuSt, 'ATTACK_ARTS'\)/.test(battle), '🔴CPU のアタックフェイズに場以外の【起】が配線されていない');
+  ok(/await executeTrashActivated\(choice\.cardNum, choice\.effect, sel\.energy, sel\.handDiscard, sel\.exceed, sel\.trashExile, actorCtx\)/.test(battle)
+    && /await executeHandActivated\(choice\.cardNum, choice\.handIndex, choice\.effect, choice\.selections\.energy, actorCtx\)/.test(battle),
+    '🔴CPU の場以外の【起】が人間と同じ実行関数を通っていない');
+}));
+
 test('CPU のグロウ用エナの予約：アーツ等でエナを払って次のグロウができなくなる支払いは必ずしない', () => withSavedCursor(() => {
   // 🆕2026-09-17 ユーザー指示「アーツなどエナコストが必要なカードを使うと、グロウ用のエナがなくなってグロウできなくなることは必ず避ける」
   //   （アシストグロウもアーツと同じ扱い）。次のターンのエナチャージは当てにしない。
@@ -86242,7 +86340,8 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
     '🔴効果の任意コストで次のグロウ用の青を使った');
   // 画面の配線＝エナを払う CPU の行動すべてに予約を渡す（グロウそのものとガードは対象外）
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 5, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピースのどれかに予約を渡していない');
+  // §5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナ）で6か所目。
+  eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
   ok(/reserve: cpuGrowReserveFor\(actorState\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
   ok(/cpuDeployReserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
   ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(battle), '🔴効果の任意コストの支払いに予約が無い');

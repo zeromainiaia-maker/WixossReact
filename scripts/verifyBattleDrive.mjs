@@ -45993,7 +45993,8 @@ function o114TrashSpec(hasCharm) {
     hostSet: {
       'field.lrig': ['WD03-004#9750'],
       'field.lrig_down': false,
-      'field.signi': [['WD01-009#9751'], null, null],
+      // ⚠2026-09-17 腐りを修正＝Lv4（WD01-009）はルリグ Lv1（リミット2）を超え、リミット超過のモーダルが画面を塞いでいた（ルール処理の実装後）。
+      'field.signi': [['WD01-013#9751'], null, null],
       'field.signi_charms': hasCharm ? ['WD01-013#9752', null, null] : [null, null, null],
       'field.key_piece': null, 'field.key_piece_extra': [],
       'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
@@ -59893,6 +59894,97 @@ scenarios.v272CpuKeepsGrowEnergy = {
   },
 };
 order.push('v272CpuKeepsGrowEnergy');
+
+// ── 🆕§5.1 `V-273`（2026-09-17・ユーザー指示）＝**CPU がトラッシュの【起】を使う**（§5.7 `S-7`）──
+// 観測点＝`WD08-009`（＝`WX22-Re17` コードアンチ ネッシーの絵違い）の `E2`
+//   「【起】《黒》《黒》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。このカードをトラッシュからデッキの一番下に置く。」
+//   ①人間の場に12000のシグニ＝CPU のメインフェイズに使う（CPU のトラッシュから消える＋人間のシグニに -8000）
+//   ②人間の場が空＝使わない（対象が無いのにエナを払わない）＝撃ち損をしないことの対照
+function v273Spec(hostSigni) {
+  return {
+    hostSet: { 'field.lrig': ['WD03-003#1'], 'field.signi': hostSigni, 'field.signi_down': [false, false, false], 'temp_power_mods': [] },
+    guestSet: {
+      'field.lrig': ['WD05-003#g1'], 'field.signi': [null, null, null], 'hand': [], 'lrig_deck': [],
+      'trash': ['WX22-Re17#g71'], 'energy': ['WD05-009#g41', 'WD05-010#g42', 'WD05-011#g43'],
+      'actions_done': [], 'cpu_activated_effect_ids_this_turn': [], 'cpu_used_card_nums_this_turn': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3, effect_stack: null, pending_effect: null },
+  };
+}
+async function driveV273(page, H, spec, wantUse) {
+  await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null, pending_spell: null });
+  await page.waitForTimeout(2000);
+  await injectScenario(page, spec);
+  let st = null;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(1000);
+    await H.clickTextOrBtn(['パス（カットインしない）', 'パス']).catch(() => {});
+    st = await H.queryState();
+    const used = !(st?.guest?.trashCards ?? []).includes('WX22-Re17#g71');
+    const debuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX22-Re17#1:-8000'));
+    if (wantUse && used && debuffed) return { used, debuffed, st, log: await H.findLog(/トラッシュの【起】を発動/) };
+    if (!wantUse && st?.turnPhase && !['MAIN', 'ENERGY', 'GROW', 'DRAW', 'UP'].includes(st.turnPhase)) return { used, debuffed, st };
+  }
+  st = await H.queryState();
+  return {
+    used: !(st?.guest?.trashCards ?? []).includes('WX22-Re17#g71'),
+    debuffed: (st?.host?.powerMods ?? []).some(m => m.startsWith('WX22-Re17#1:-8000')), st,
+  };
+}
+scenarios.v273CpuTrashActivated = {
+  title: 'V-273 CPU がトラッシュの【起】を使う（WD08-009＝コードアンチ ネッシー：相手のシグニがいれば -8000／場が空なら使わない）',
+  noInject: true,
+  async drive(page, H) {
+    const use = await driveV273(page, H, v273Spec([['WX22-Re17#1'], null, null]), true);
+    await page.screenshot({ path: `${SHOT}/v273-use.png`, fullPage: true });
+    H.log(`① 相手12000: used=${use.used} debuffed=${use.debuffed} log=${use.log} hostPowerMods=${JSON.stringify(use.st?.host?.powerMods)} guestTrash=${JSON.stringify(use.st?.guest?.trashCards)} guestEnergy=${JSON.stringify(use.st?.guest?.energyCards)}`);
+    if (!use.used || !use.debuffed) return { pass: false, detail: `🔴CPU がトラッシュのネッシーの【起】を使わない（phase=${use.st?.turnPhase} used=${use.used} debuffed=${use.debuffed}）` };
+    const hold = await driveV273(page, H, v273Spec([null, null, null]), false);
+    H.log(`② 相手0体: used=${hold.used} phase=${hold.st?.turnPhase} guestTrash=${JSON.stringify(hold.st?.guest?.trashCards)} guestEnergy=${JSON.stringify(hold.st?.guest?.energyCards)}`);
+    if (hold.used) return { pass: false, detail: '🔴相手の場が空（対象なし）なのに CPU がエナを払ってトラッシュの【起】を使った' };
+    return { pass: true, detail: `①相手のシグニに -8000・ネッシーはトラッシュからデッキの一番下へ（残りエナ ${JSON.stringify(use.st?.guest?.energyCards)}）②相手の場が空＝使わずトラッシュに残した（phase=${hold.st?.turnPhase}）` };
+  },
+};
+order.push('v273CpuTrashActivated');
+
+// ── 🆕§5.1 `V-274`（2026-09-17）＝**CPU が手札の【起】を使う**（§5.7 `S-7`・`executeHandActivated` を行為者つきにした回の実機）──
+// 観測点＝`WX18-055-E1`「【起】《アタックフェイズアイコン》《黒》《黒》手札からこのカードを捨てる：対戦相手のシグニ１体を対象とし、
+//   ターン終了時まで、それのパワーを－7000する。この能力はあなたのセンタールリグが＜ウリス＞の場合にしか使用できない。」
+//   CPU のアタックフェイズ（アーツステップ）・センター＝ウリス・黒エナ2枚・人間の場に12000
+//   ⇒ 手札から消えてトラッシュへ＋人間のシグニに -7000＋黒エナ2枚を払う。
+scenarios.v274CpuHandActivated = {
+  title: 'V-274 CPU が手札の【起】を使う（WX18-055：手札から捨てて相手のシグニ -7000）',
+  noInject: true,
+  async drive(page, H) {
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null, pending_spell: null });
+    await page.waitForTimeout(2000);
+    await injectScenario(page, {
+      hostSet: { 'field.lrig': ['WD03-003#1'], 'field.signi': [['WX22-Re17#1'], null, null], 'field.signi_down': [false, false, false], 'temp_power_mods': [] },
+      guestSet: {
+        'field.lrig': ['WD05-003#g1'], 'field.signi': [null, null, null], 'hand': ['WX18-055#g31'], 'lrig_deck': [], 'trash': [],
+        'energy': ['WD05-009#g41', 'WD05-010#g42'],
+        'actions_done': [], 'cpu_activated_effect_ids_this_turn': [], 'cpu_used_card_nums_this_turn': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_ARTS', turn_count: 3, effect_stack: null, pending_effect: null },
+    });
+    let st = null;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(1000);
+      await H.clickTextOrBtn(['パス（カットインしない）', 'パス']).catch(() => {});
+      st = await H.queryState();
+      const discarded = (st?.guest?.trashCards ?? []).includes('WX18-055#g31') && !(st?.guest?.handCards ?? []).includes('WX18-055#g31');
+      const debuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX22-Re17#1:-7000'));
+      if (discarded && debuffed) {
+        await page.screenshot({ path: `${SHOT}/v274-use.png`, fullPage: true });
+        H.log(`guestTrash=${JSON.stringify(st?.guest?.trashCards)} guestEnergy=${JSON.stringify(st?.guest?.energyCards)} hostPowerMods=${JSON.stringify(st?.host?.powerMods)}`);
+        if ((st?.guest?.energyCards ?? []).length !== 0) return { pass: false, detail: `🔴コストの《黒》《黒》が払われていない（energy=${JSON.stringify(st?.guest?.energyCards)}）` };
+        return { pass: true, detail: `CPU が手札の WX18-055 を捨てて人間のシグニに -7000（黒エナ2枚を支払い・trash=${JSON.stringify(st?.guest?.trashCards)}）` };
+      }
+    }
+    return { pass: false, detail: `🔴CPU が手札の【起】を使わない（phase=${st?.turnPhase} hand=${JSON.stringify(st?.guest?.handCards)} trash=${JSON.stringify(st?.guest?.trashCards)} hostPowerMods=${JSON.stringify(st?.host?.powerMods)}）` };
+  },
+};
+order.push('v274CpuHandActivated');
 
 // ── 🆕§5.1 `V-270`（2026-09-17・ユーザーのバグ報告）＝**CPU は出したシグニの【出】を解決してから次のシグニを出す** ──
 // 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」＝召喚ループが【出】を最後までためて一括で積んでいた。
