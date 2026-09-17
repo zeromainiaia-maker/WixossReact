@@ -13,11 +13,11 @@ import { getCardNum } from '../../engine/execUtils';
  *   - 旧実装は **CPU が絶対にガードしない**（`[CPU] ガードしない` 固定）＝**ルリグアタックが毎回素通り**して試合が 8ターンで終わり、
  *     **CPU がガードする経路（`ON_GUARD` トリガー・ガード追加コスト・「ガードされたとき」）が一度も踏まれていなかった**。
  *
- * ■ 方針（決定論・強さではなく「踏まれる経路を増やす」ための最小線）
+ * ■ 方針（決定論）
  *   1. 候補が無ければガードしない。
- *   2. **負ける／大きく削られる**ならガードする＝ライフ0（受けると敗北）・2枚以上のクラッシュ・ライフ2枚以下。
- *   3. **ガードに使える札が2枚以上**あれば1枚使う（1枚しか無いなら温存）。
- *   4. 使う札は**レベルが低い順**→手札の先頭から（高レベルのシグニは場に出す価値が高い）。
+ *   2. 🆕**候補があれば毎回ガードする**（2026-09-17 ユーザー決定「持っていれば毎回使う」）。
+ *      旧＝ガード札が1枚だけならライフ2枚以下まで温存していた＝「ガードを持っているのに使わない」と見えていた（ユーザー指摘）。
+ *   3. 使う札は**レベルが低い順**→手札の先頭から（高レベルのシグニは場に出す価値が高い）。
  */
 export interface CpuGuardInput {
   /** `guardableHandIndices` の結果（CPU の手札の添字）。 */
@@ -33,8 +33,6 @@ export interface CpuGuardInput {
 
 export function pickCpuGuardHandIndex(p: CpuGuardInput): number | null {
   if (p.candidates.length === 0) return null;
-  const mustGuard = p.lifeCount === 0 || p.incomingCrushCount >= 2 || p.lifeCount <= 2;
-  if (!mustGuard && p.candidates.length < 2) return null;
   const levelOf = (i: number): number => {
     const lv = parseInt(p.cardMap.get(getCardNum(p.hand[i] ?? ''))?.Level ?? '');
     return Number.isFinite(lv) ? lv : -1;

@@ -86132,6 +86132,12 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   const search = { type: 'SEARCH', visibleCards: [`${X}#7`, `${K}#7`], maxPick: 1, thenAction: { type: 'NOOP' } } as never;
   eq(JSON.stringify(pickCpuSearch(search, { cpuState: cpu, oppState: opp, cardMap: cm, effectsOf: effOf })), JSON.stringify([`${X}#7`]), '前提崩れ＝作戦なしなら強い方（J・V 7000）を取るはず');
   eq(JSON.stringify(pickCpuSearch(search, { cpuState: cpu, oppState: opp, cardMap: cm, effectsOf: effOf, planBonus: keep })), JSON.stringify([`${K}#7`]), '🔴サーチでキーカードを取らない');
+  // 🆕効果で手札を捨てるとき【ガード】を最後まで残す（ユーザー指摘・実機ログで Ｒ・Ｆ・Ｒ の【出】がサーバント Ｏ を捨てていた）
+  const guardNum = [...cardMap.values()].find(c => c.Guard === '1' && c.Type === 'シグニ')!.CardNum;
+  const handCpu = mkState({ signi: [null, null, null] });
+  handCpu.hand = [`${guardNum}#d1`, `${K}#d2`];
+  const discard = { type: 'SELECT_TARGET', candidates: [`${guardNum}#d1`, `${K}#d2`], count: 1, optional: false, targetScope: 'SINGLE', thenAction: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } } as never;
+  eq(JSON.stringify(pickCpuTargets(discard, { cpuState: handCpu, oppState: opp, cardMap: cm, effectsOf: effOf })), JSON.stringify([`${K}#d2`]), '🔴効果の捨て札で【ガード】を捨てた');
   // 画面の配線
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/normalizeCpuDeckPlan\(cpuDeckData\?\.cpu_plan\)/.test(battle), '🔴CPU デッキの作戦データを読んでいない');
@@ -86603,7 +86609,8 @@ test('§5.6 C-2 CPU のガード：可否は guardableHandIndices 1本・CPU は
   eq(pick([0], [guardLv1], 0), 0, '🔴受けると敗北なのにガードしない');
   eq(pick([0], [guardLv1], 5, 2), 0, '【ダブルクラッシュ】なのにガードしない');
   eq(pick([0], [guardLv1], 2), 0, 'ライフ2枚以下でガードしない');
-  eq(pick([0], [guardLv1], 5), null, 'ガード札1枚・ライフに余裕があるのに使ってしまう（温存しない）');
+  // 🆕2026-09-17 ユーザー決定「持っていれば毎回使う」（旧＝1枚ならライフ2枚以下まで温存）。
+  eq(pick([0], [guardLv1], 5), 0, '🔴ガード札を持っているのにガードしない（ユーザー指摘）');
   eq(pick([0, 1], [guardLv3, guardLv1], 5), 1, '札が2枚以上あるのに使わない／レベルの低い札から使っていない');
 
   // ⑤🔴配線の固定＝判定を JSX／CPU 経路に写経しない（`C-2` 前は CPU が「ガードしない」固定だった）

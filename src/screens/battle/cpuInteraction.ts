@@ -83,6 +83,13 @@ function isOnField(id: string, ctx: CpuInteractionCtx): boolean {
 }
 
 /**
+ * 🆕**手札の【ガード】を手元に置く価値**（2026-09-17・ユーザー指摘「CPU がガードを持っているのに使っていない」）。
+ * 🔴効果で手札を捨てるとき（`SELECT_TARGET` の害）、CPU は価値の低い札から捨てる＝パワーの低い【ガード】札（サーバント等）を真っ先に捨てていた。
+ *   エナチャージ・手札上限・召喚は【ガード】を残す（`S-1`）のに、効果の捨て札だけ抜けていた。
+ */
+export const CPU_GUARD_KEEP_VALUE = 8000;
+
+/**
  * カードの価値＝**強さ（パワー＋効果の点数）**を主、レベルを従にした数（§5.7 `S-1`）。
  * 場のシグニは `field` 文脈（【出】は済んでいる）、手札・デッキ等は `deploy` 文脈で測る。
  * 効果の一覧が無ければパワーだけ（旧挙動）。
@@ -91,8 +98,10 @@ function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, n
   const card = ctx.cardMap.get(getCardNum(id));
   const effects = ctx.effectsOf?.(id) ?? [];
   const onField = isOnField(id, ctx);
+  const inCpuHand = ctx.cpuState.hand.includes(id);
   const strength = cardStrength(card, effects, onField ? 'field' : 'deploy', powers?.[id])
-    + (!onField && isCpuOwnedOrUnknown(id, ctx) ? (ctx.planBonus?.(id) ?? 0) : 0);
+    + (!onField && isCpuOwnedOrUnknown(id, ctx) ? (ctx.planBonus?.(id) ?? 0) : 0)
+    + (inCpuHand && card?.Guard === '1' ? CPU_GUARD_KEEP_VALUE : 0);
   return strength * 100 + (parseInt(card?.Level ?? '', 10) || 0);
 }
 

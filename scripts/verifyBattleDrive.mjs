@@ -63224,6 +63224,58 @@ scenarios.c2cpuguard = {
     return { pass: false, detail: `ガードを観測できなかった（attacked=${attacked} global=${fin?.globalPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
   },
 };
+// 🆕§5.1 `V-271`（2026-09-17・ユーザー指摘「CPU がガードを持っているのに使っていない」）＝ガード札1枚・ライフ5でもガードする。
+//   旧方針＝1枚ならライフ2枚以下まで温存（`c2cpuguard` はライフ0の盤面なので新方針を確かめられない）。
+scenarios.v271CpuGuardsWithOneGuardAtHighLife = {
+  title: 'V-271 CPU のライフ5・ガード札1枚でもルリグアタックをガードする（ユーザー決定「持っていれば毎回使う」）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c2l1'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c2l2'],
+      'field.signi': [null, null, null],
+      'hand': ['WD01-017#c2g1'],   // サーバント O（Lv1・【ガード】）＝ガード札1枚だけ
+      'life_cloth': ['WD01-013#c2l1', 'WD01-013#c2l2', 'WD01-013#c2l3', 'WD01-013#c2l4', 'WD01-013#c2l5'],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const st0 = await c2Query(page);
+    H.log(`開始 phase=${st0?.turnPhase} cpuHand=${JSON.stringify(st0?.cpu?.handCards)} cpuLife=${st0?.guest?.life}`);
+    let attacked = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v271guard-${s}.png`, fullPage: true });
+      let did = null;
+      if (!attacked) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        const visible = async () => !!(await atk.count()) && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+        if (!(await visible())) { await H.clickTestId('my-lrig-slot-center'); for (let k = 0; k < 10 && !(await visible()); k++) await page.waitForTimeout(150); }
+        if (await visible()) { await atk.click({ timeout: 2000 }).catch(() => {}); attacked = true; did = 'ルリグアタック'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+      const st = await c2Query(page);
+      H.log(`  c2guard[${s}] -> ${did ?? 'なし'} | global=${st?.globalPhase} phase=${st?.turnPhase} cpuHand=${JSON.stringify(st?.cpu?.handCards)} cpuTrash=${JSON.stringify(st?.cpu?.trash)} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      if (st?.globalPhase && st.globalPhase !== 'PLAYING') {
+        return { pass: false, detail: `前提崩れ＝対戦が終わった（global=${st.globalPhase}・log=${JSON.stringify((st.logs ?? []).slice(-4))}）` };
+      }
+      if (attacked && (st?.guest?.life ?? 5) < 5) {
+        return { pass: false, detail: `🔴ガード札を持っているのに CPU がガードせずライフを失った（life=${st?.guest?.life}・log=${JSON.stringify((st.logs ?? []).slice(-4))}）` };
+      }
+      if (attacked && (st?.cpu?.trash ?? []).includes('WD01-017#c2g1') && !(st?.cpu?.handCards ?? []).includes('WD01-017#c2g1')) {
+        return { pass: true, detail: `ガード札1枚・ライフ5で CPU がサーバント O でガード（手札→トラッシュ・ライフ=${st?.guest?.life}）（global=${st.globalPhase}）・log=${JSON.stringify((st.logs ?? []).filter(l => /ガード/.test(l)).slice(-2))}` };
+      }
+    }
+    const fin = await c2Query(page);
+    return { pass: false, detail: `ガードを観測できなかった（attacked=${attacked} global=${fin?.globalPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+order.push('v271CpuGuardsWithOneGuardAtHighLife');
 order.push('c2cpuguard');
 
 // 🔴**`c4cpuhandlimit`＝CPU にも手札上限がある**（旧実装は CPU に手札上限の処理自体が無く、手札が無限に増えた）。
