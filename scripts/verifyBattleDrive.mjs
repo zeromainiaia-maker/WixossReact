@@ -62012,7 +62012,90 @@ scenarios.c9lrigtriplecrush = {
   },
 };
 
-order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush');
+// 🔴**`c9refreshturnend`＝ターンプレイヤーのこのターン2回目のリフレッシュでターンが終わる**（RULES.md `R-28`）。
+//   規則は効果スタックの解決経路1本にしか無かったので、ルール処理 funnel を受け皿にした＝
+//   **その funnel が実機で効くこと**をここで見る（盤面に台帳だけ立てて何も操作しない）。
+scenarios.c9refreshturnend = {
+  title: 'C-9 R-28 ターンプレイヤーの2回目のリフレッシュでターンが終了する',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9f1'],
+      'field.signi': [null, null, null],
+      'refresh_count_this_turn': 2,
+      'hand': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9f2'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴**基準値は「最初のクエリ」ではなくスペックの固定値**＝この funnel は注入直後に走るので、
+    //   1回目の観測時点で既にターンが終わっており差分がゼロに見える（初回実装でこれを踏んだ）。
+    const TURN_BASE = 2;
+    const st0 = await c9Query(page);
+    H.log(`開始 turn=${st0?.turnCount}（基準${TURN_BASE}） phase=${st0?.turnPhase} hostActive=${st0?.hostIsActive}`);
+    for (let s = 0; s < 16; s++) {
+      const st = await c9Query(page);
+      H.log(`  c9refresh[${s}] | turn=${st?.turnCount} phase=${st?.turnPhase} hostActive=${st?.hostIsActive} log=${JSON.stringify((st?.logs ?? []).slice(-2))}`);
+      if ((st?.turnCount ?? 0) > TURN_BASE) {
+        const handedOver = st.hostIsActive === false;
+        return {
+          pass: handedOver,
+          detail: handedOver
+            ? `2回目のリフレッシュでターンが終了し手番が相手へ移った（turn ${TURN_BASE}→${st.turnCount} phase=${st.turnPhase}）`
+            : `🔴ターンは進んだが手番が交代していない（hostActive=${st.hostIsActive}）`,
+        };
+      }
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/c9refresh-${s}.png`, fullPage: true });
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴ターンが終了しなかった（turn=${fin?.turnCount} phase=${fin?.turnPhase} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+// 🔑**反転側**＝1回目のリフレッシュではターンは終わらない（デッキが尽きただけ）。
+//   ⚠これが無いと「いつでもターンを終わらせる funnel」でも上の観測点は PASS してしまう。
+scenarios.c9refreshturnendone = {
+  title: 'C-9 R-28 反転＝1回目のリフレッシュではターンが終わらない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9g1'],
+      'field.signi': [null, null, null],
+      'refresh_count_this_turn': 1,
+      'hand': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9g2'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    H.log(`開始 turn=${st0?.turnCount} phase=${st0?.turnPhase} hostActive=${st0?.hostIsActive}`);
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(800);
+      const st = await c9Query(page);
+      H.log(`  c9refresh1[${s}] | turn=${st?.turnCount} phase=${st?.turnPhase} hostActive=${st?.hostIsActive}`);
+      if ((st?.turnCount ?? 0) > (st0?.turnCount ?? 0)) {
+        return { pass: false, detail: `🔴1回目のリフレッシュでターンが終わった（turn ${st0.turnCount}→${st.turnCount}）＝しきい値が効いていない` };
+      }
+    }
+    const fin = await c9Query(page);
+    await page.screenshot({ path: `${SHOT}/c9refresh1-fin.png`, fullPage: true });
+    return {
+      pass: fin?.turnCount === st0?.turnCount && fin?.hostIsActive === true,
+      detail: `1回目ではターンが続く（turn=${fin?.turnCount} phase=${fin?.turnPhase} hostActive=${fin?.hostIsActive}）`,
+    };
+  },
+};
+
+order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush', 'c9refreshturnend', 'c9refreshturnendone');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

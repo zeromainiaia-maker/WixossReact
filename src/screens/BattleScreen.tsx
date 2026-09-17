@@ -7,7 +7,7 @@ import { buildEffectsMap } from '../data/effectParser';
 import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectProtectedZoneRules, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
@@ -133,6 +133,8 @@ import { reduceBattle, type PlayerStateKey } from './battle/controller/battleCon
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
 import { resonaLeaveDestination } from '../engine/resonaZone';
 import { getLrigAttackCrashState } from './battle/lrigCrash';
+import { refreshForcesTurnEnd } from './battle/refreshTurnEnd';
+import { removeKeyToLrigTrash } from './battle/keyZone';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
@@ -442,10 +444,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleCutinPassRef               = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef          = useRef<(() => Promise<void>) | null>(null);
   const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
+  const checkRefreshTurnEndRef            = useRef<(() => Promise<void>) | null>(null);   // §5.6 `C-9` `R-28`
+
   const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
   const resolvePendingLrigAttackRef      = useRef<(() => Promise<void>) | null>(null);
   const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
   const lastContMutationKeyRef    = useRef<string>(''); // CONTINUOUS BANISH/FREEZE/DOWN 二重処理防止
+  const lastRefreshTurnEndKeyRef  = useRef<string>(''); // `R-28`＝同じターンで2回ターン終了させない
   const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
   const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
 
@@ -1645,6 +1650,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🆕§5.6 `C-9` `R-28`＝**ターンプレイヤーのこのターン2回目のリフレッシュ → ターンを終了**（ルール処理）。
+  //   🔴規則が効果スタックの解決経路1本にしか無かったので、盤面が動くたび見る funnel を受け皿にする
+  //     （スペル解決・選択の再開・ドローフェイズからのリフレッシュも通る）。
+  //   ⚠`turn_phase === 'UP'` を除く理由は `refreshTurnEnd.ts` に書いた（台帳が前ターンの値のまま）。
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.turn_phase === 'UP') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    if (loading) return;
+    if (bs.active_user_id !== user.id) return;
+    checkRefreshTurnEndRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果：WX16-045 等）
   useEffect(() => {
@@ -5413,7 +5433,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const turnPlayerIsOwner = entry.playerId === bs.active_user_id;
           const turnPlayerRefreshed = turnPlayerIsOwner ? refreshed.ownerRefreshed : refreshed.otherRefreshed;
           const turnPlayerCount = (turnPlayerIsOwner ? refreshed.ownerState : refreshed.otherState).refresh_count_this_turn ?? 0;
-          result = (turnPlayerRefreshed && turnPlayerCount >= 2 && refreshed.done)
+          // §5.6 `C-9` `R-28`＝しきい値は `refreshTurnEnd.ts` の述語1本（funnel と同じ判定を通す）。
+          result = (turnPlayerRefreshed && refreshForcesTurnEnd({ refresh_count_this_turn: turnPlayerCount } as PlayerState) && refreshed.done)
             ? { ...refreshed, forceEndTurn: true }
             : refreshed;
         }
@@ -7601,19 +7622,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const betCost = Math.max(0, betCoins);
       const encoreCoinCost = encore ? (encoreCostOf(card.CardNum, effectsMap)?.coins ?? 0) : 0;
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）
+      // 🔴§5.6 `C-9` `R-46`＝**どの枠のキーかを見分ける**（`keyZone.ts` の1本）。旧実装は `key_piece` を
+      //   無条件に `null` にしており、増設枠のキーを代替に使うとメイン枠のキーが消滅していた。
       const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
       const lrigTrashBase = encore ? my.lrig_trash : [...my.lrig_trash, instanceId];
+      const keySubRemoval = keySub
+        ? removeKeyToLrigTrash(my.field, lrigTrashBase, p.energyTrashSubInfo.keySubInstId!) : null;
       const paid: PlayerState = artsPay.applyTo({
         ...my,
         lrig_deck: encore
           ? [instanceId, ...newLrigDeck]    // アンコール：ルリグデッキ先頭に戻す
           : newLrigDeck,
         hand: newHand,
-        lrig_trash: keySub ? [...lrigTrashBase, p.energyTrashSubInfo.keySubInstId!] : lrigTrashBase,
+        lrig_trash: keySubRemoval ? keySubRemoval.lrigTrash : lrigTrashBase,
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost + encoreCoinCost, // COINS_PAID_THIS_TURN
-        field: keySub ? { ...my.field, key_piece: null } : my.field,
+        field: keySubRemoval ? keySubRemoval.field : my.field,
         ...handDiscardHistoryRecord(my, discardNums),
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // 【チェイン】の「次に使用するアーツ」軽減を消費（タスク12(xciii)。スペル版と同型）。
@@ -7689,12 +7714,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`アンコール：ルリグの下から${encSpec.exceed}枚をルリグトラッシュに置いた`]);
         }
         if (encSpec?.trashOwnKey) {
-          const keyEnc = paidWithUseCost.field.key_piece;
+          // 🔴§5.6 `C-9` `R-46`＝増設枠しか無い盤面でも払える（旧はメイン枠決め打ちで「場にキーが無い」と止まっていた）。
+          const keyEnc = keySlotCardNums(paidWithUseCost)[0];
           if (!keyEnc) return;     // 場にキーが無い（UI 側でも無効化済み）
+          const encRemoval = removeKeyToLrigTrash(paidWithUseCost.field, paidWithUseCost.lrig_trash, keyEnc);
           paidWithUseCost = {
             ...paidWithUseCost,
-            lrig_trash: [...paidWithUseCost.lrig_trash, keyEnc],
-            field: { ...paidWithUseCost.field, key_piece: null },
+            lrig_trash: encRemoval.lrigTrash,
+            field: encRemoval.field,
           };
           appendBattleLogs(['アンコール：キー1枚を場からルリグトラッシュに置いた']);
         }
@@ -8003,17 +8030,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newField = my.field;
       let newLrigTrashKey = my.lrig_trash;
       if (effect.cost?.trash_key) {
-        const keyInstId = my.field.key_piece;
-        const extraKeys = my.field.key_piece_extra ?? [];
-        const isMainKey = keyInstId != null && (keyInstId === cardNum || keyInstId.startsWith(cardNum + '_'));
-        const extraIdx = !isMainKey ? extraKeys.findIndex(k => k === cardNum || k.startsWith(cardNum + '_')) : -1;
-        if (isMainKey && keyInstId) {
-          newField = { ...my.field, key_piece: null, key_piece_extra: extraKeys };
-          newLrigTrashKey = [...my.lrig_trash, keyInstId];
-        } else if (extraIdx >= 0) {
-          const newExtra = extraKeys.filter((_, i) => i !== extraIdx);
-          newField = { ...my.field, key_piece_extra: newExtra };
-          newLrigTrashKey = [...my.lrig_trash, extraKeys[extraIdx]];
+        // §5.6 `C-9` `R-46`＝枠の見分けは `keyZone.ts` の1本（ここが唯一正しかった実装＝これを出した）。
+        const keyCostRemoval = removeKeyToLrigTrash(my.field, my.lrig_trash, cardNum);
+        if (keyCostRemoval.removed) {
+          newField = keyCostRemoval.field;
+          newLrigTrashKey = keyCostRemoval.lrigTrash;
         }
       }
       // 🆕**キー【起】の「ルリグデッキからアーツN枚をルリグトラッシュに置く」**（§5.3 `O-68`②・`WXK10-006-E3`）。
@@ -12181,8 +12202,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  /**
+   * 🆕**§5.6 `C-9` `R-28`（2026-09-17）＝ターンプレイヤーのこのターン2回目のリフレッシュでターンを終了する。**
+   *
+   * 🔴**規則は `refreshTurnEnd.ts` の述語1本**（効果スタック解決経路と同じ判定）。ここは**残り全経路の受け皿**＝
+   *   `applyRefreshOnDone` の8経路（選択の再開・スペル解決・スペルカットイン解決）とドローフェイズの
+   *   リフレッシュは `result.forceEndTurn` を読まないので、規則がそこだけ効かなかった。
+   * ⚠**盤面処理はスタック解決経路と同じ `applyForcedTurnEnd`**（`O-117` の規約＝判定も盤面処理も割らない）。
+   * ⚠**同じターンで2回撃たない**＝`turn_count:ターンプレイヤー` を指紋にする（DB 伝播待ちの二重処理防止）。
+   */
+  const checkRefreshForcedTurnEnd = async () => {
+    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    if (bs.turn_phase === 'UP') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    // ⚠クラッシュ解決（チェックゾーン）の途中では終わらせない＝ライフバーストの応答が消える。
+    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
+    if ((bs.host_state.pending_crashed_cards?.length ?? 0) > 0) return;
+    if ((bs.guest_state.pending_crashed_cards?.length ?? 0) > 0) return;
+    const activeIsHost = bs.active_user_id === bs.host_id;
+    const activeState = activeIsHost ? bs.host_state : bs.guest_state;
+    if (!refreshForcesTurnEnd(activeState)) return;
+    const fingerprint = `${bs.turn_count}:${bs.active_user_id}`;
+    if (lastRefreshTurnEndKeyRef.current === fingerprint) return;
+    lastRefreshTurnEndKeyRef.current = fingerprint;
+    setLoading(true);
+    try {
+      const forced = applyForcedTurnEnd(activeState, activeIsHost ? bs.guest_state : bs.host_state);
+      appendBattleLogs([`このターン${activeState.refresh_count_this_turn}回目のリフレッシュ（ターンプレイヤー）→ ターンを終了`]);
+      await persist.commit(reduceBattle(bs, {
+        type: 'RESOLVE_EFFECT_STEP',
+        hostState: activeIsHost ? forced.activeAfter : forced.nextAfter,
+        guestState: activeIsHost ? forced.nextAfter : forced.activeAfter,
+        pending: null, effectStack: null,
+        beginNextTurn: { activeUserId: (activeIsHost ? bs.guest_id : bs.host_id) as string },
+      }));
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
   doPhaseAdvanceRef.current                = doPhaseAdvance;
+  checkRefreshTurnEndRef.current            = checkRefreshForcedTurnEnd;
   triggerPendingCrashRef.current           = triggerPendingCrash;
   resolveStackNextRef.current              = resolveStackNext;
   checkPowerZeroBanishRef.current          = checkAndBanishPowerZero;
@@ -14521,11 +14583,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
+      // 🔴§5.6 `C-9` `R-46`＝旧実装は **`key_piece_extra: []` と全消し**しており、増設枠のキーが
+      //   ルリグトラッシュにも行かずに**消滅**していた（枠を見分ける1本＝`keyZone.ts` へ）。
       const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
-      const newField = keySub
-        ? { ...my.field, signi_down: newSigniDown, key_piece: null, key_piece_extra: [] }
+      const keySubRemovalAct = keySub
+        ? removeKeyToLrigTrash(my.field, my.lrig_trash, p.energyTrashSubInfo.keySubInstId!) : null;
+      const newField = keySubRemovalAct
+        ? { ...keySubRemovalAct.field, signi_down: newSigniDown }
         : { ...my.field, signi_down: newSigniDown };
-      const newLrigTrash = keySub ? [...my.lrig_trash, p.energyTrashSubInfo.keySubInstId!] : my.lrig_trash;
+      const newLrigTrash = keySubRemovalAct ? keySubRemovalAct.lrigTrash : my.lrig_trash;
       // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
       const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
       if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）

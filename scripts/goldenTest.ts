@@ -103,6 +103,8 @@ import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/sc
 import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/screens/battle/battleOutcome';
 import { resonaLeaveDestination } from '../src/engine/resonaZone';
 import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
+import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
+import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
@@ -7310,8 +7312,9 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
   const forcedHelper = turnScopedSource.slice(turnScopedSource.indexOf('export function applyForcedTurnEnd('));
   eq((forcedHelper.slice(0, forcedHelper.indexOf('\n}')).match(/clearTurnEndScopedState\(/g) ?? []).length, 2,
     '強制終了: ヘルパがターンプレイヤー/非ターンプレイヤーの双方をclear');
-  eq((battleSource.match(/applyForcedTurnEnd\(/g) ?? []).length, 2,
-    '🔴強制終了は「スタック解決」と「カットイン窓」の2経路から呼ばれる（片方だけだと窓限定のアーツが効かない）');
+  // 🆕§5.6 `C-9` `R-28`（2026-09-17）＝3経路目＝**2回目のリフレッシュ**のルール処理 funnel。
+  eq((battleSource.match(/applyForcedTurnEnd\(/g) ?? []).length, 3,
+    '🔴強制終了は「スタック解決」「カットイン窓」「2回目のリフレッシュ」の3経路から呼ばれる（欠けると窓限定のアーツ／規則が効かない）');
   eq((battleSource.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 6,
     'PvP通常・手札調整確定後・CPUの3経路×両PlayerState（強制終了はヘルパへ抽出済み）');
   eq((battleSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 3,
@@ -19267,7 +19270,7 @@ test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所�
   // 🆕強制終了ぶんは `applyForcedTurnEnd`（`turnScopedState.ts`）へ抽出した（§5.3 `O-117`）＝
   //   BattleScreen 側は3経路×両 PlayerState の6件、強制終了はヘルパ呼び出し2件で数える。
   eq(src.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 6, '3経路×両PlayerStateがfunnelを通る');
-  eq(src.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 2, '強制終了は2つの解決経路から共通ヘルパを呼ぶ');
+  eq(src.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 3, '強制終了は3経路（スタック解決／カットイン窓／2回目のリフレッシュ）から共通ヘルパを呼ぶ');
 });
 // §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
 // 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
@@ -31147,8 +31150,8 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     // 🆕強制終了は `applyForcedTurnEnd` へ抽出（§5.3 `O-117`）＝BattleScreen 側は6件＋ヘルパ呼び出し2件。
     eq(source.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 6,
       '通常終了・確認後・CPUの3経路×両PlayerState');
-    eq(source.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 2,
-      '強制終了は2つの解決経路（スタック解決／カットイン窓）から共通ヘルパを呼ぶ');
+    eq(source.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 3,
+      '強制終了は3経路（スタック解決／カットイン窓／§5.6 `C-9` `R-28` の2回目のリフレッシュ）から共通ヘルパを呼ぶ');
     eq(source.match(/isSigniOwnOnPlaySuppressed\(/g)?.length ?? 0, 2,
       '人間の通常召喚とCPU召喚の両方が共通抑止判定を使う');
   });
@@ -85757,6 +85760,70 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
+}));
+
+test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（増設枠を取り違えない）', () => withSavedCursor(() => {
+  // 🔑公式ルール（JP-094）＝キーがルリグデッキ・ルリグトラッシュ・ルリグゾーン以外へ行くならルリグトラッシュへ。
+  // 🔴実装の穴は「行き先」ではなく**どの枠のキーか**＝同じ処理が4箇所に写経され、3箇所が枠を取り違えていた。
+  const mkField = (): PlayerState['field'] => ({
+    lrig: [], signi: [null, null, null], signi_down: [false, false, false], signi_frozen: [false, false, false],
+    assist_lrig_l: [], assist_lrig_r: [], check: null, free_zone: [], signi_traps: [null, null, null],
+    key_piece: 'WXK01-001_1', key_piece_extra: ['WXK02-002_1', 'WXK03-003_1'],
+  } as unknown as PlayerState['field']);
+  // ① 増設枠のキーを取り除く＝**メイン枠は残る**（旧実装はメイン枠を null にしてメイン枠のキーを消滅させていた）。
+  const extraGone = removeKeyToLrigTrash(mkField(), ['old'], 'WXK02-002_1');
+  eq(extraGone.removed, 'WXK02-002_1', '増設枠のキーを見つけられない');
+  eq(extraGone.field.key_piece, 'WXK01-001_1', '🔴増設枠を取り除いたのにメイン枠のキーが消えた');
+  eq(JSON.stringify(extraGone.field.key_piece_extra), JSON.stringify(['WXK03-003_1']), '増設枠の残りが違う');
+  eq(JSON.stringify(extraGone.lrigTrash), JSON.stringify(['old', 'WXK02-002_1']), 'ルリグトラッシュへ送られていない');
+  // ② メイン枠を取り除く＝**増設枠は繰り上げず、消さない**（旧実装は `key_piece_extra: []` と全消ししていた）。
+  const mainGone = removeKeyToLrigTrash(mkField(), [], 'WXK01-001_1');
+  eq(mainGone.field.key_piece, null, 'メイン枠が空いていない');
+  eq(JSON.stringify(mainGone.field.key_piece_extra), JSON.stringify(['WXK02-002_1', 'WXK03-003_1']),
+    '🔴増設枠のキーがどこにも行かずに消えた（カードの消滅）');
+  eq(JSON.stringify(mainGone.lrigTrash), JSON.stringify(['WXK01-001_1']), 'メイン枠のキーがルリグトラッシュへ行かない');
+  // ③ カード番号（インスタンス id の前）でも引ける＝【起】コストの支払い経路が渡してくる形。
+  eq(removeKeyToLrigTrash(mkField(), [], 'WXK03-003').removed, 'WXK03-003_1', 'カード番号で増設枠を引けない');
+  eq(findKeySlot(mkField(), 'WXK01-001')?.slot, 'main', 'カード番号でメイン枠を引けない');
+  // ④ 🔴**fail-closed**＝場に無いキーを指されたら何もしない（積むと「場にもルリグトラッシュにも居る」複製になる）。
+  const miss = removeKeyToLrigTrash(mkField(), ['old'], 'WXK09-099_1');
+  eq(miss.removed, null, '場に無いキーを取り除いたことにしている');
+  eq(JSON.stringify(miss.lrigTrash), JSON.stringify(['old']), '🔴場に無いキーをルリグトラッシュへ積んでいる（複製）');
+  // 🔴**写経の再発防止**＝4経路（アーツのキー代替／アンコール／キー【起】コスト／シグニ【起】のキー代替）が同じ関数を通る。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/removeKeyToLrigTrash\(/g) ?? []).length, 4,
+    '🔴キーを場から取り除く経路が4箇所とも keyZone.ts を通っていない');
+  eq((screen.match(/key_piece:\s*null/g) ?? []).length, 0,
+    '🔴BattleScreen に `key_piece: null` の手書きが戻っている（枠を取り違える）');
+}));
+
+test('§5.6 C-9 R-28 ターンプレイヤーの2回目のリフレッシュでターンを終了する（全経路の受け皿つき）', () => withSavedCursor(() => {
+  // 🔑公式ルール（EN Refresh）＝**1ターン中にターンプレイヤーが2回目のリフレッシュを行ったら、そのターンを終了する**。
+  eq(REFRESH_TURN_END_COUNT, 2, 'しきい値が2回目でない');
+  eq(refreshForcesTurnEnd({} as PlayerState), false, 'リフレッシュ0回で終了している');
+  eq(refreshForcesTurnEnd({ refresh_count_this_turn: 1 } as PlayerState), false, '1回目で終了している（デッキが尽きただけ）');
+  eq(refreshForcesTurnEnd({ refresh_count_this_turn: 2 } as PlayerState), true, '🔴2回目で終了しない（無限ループを止められない）');
+  eq(refreshForcesTurnEnd({ refresh_count_this_turn: 3 } as PlayerState), true, '3回目以降で終了しない');
+  // 🔑**台帳を刻むのは `applyRefreshState` 1本**＝ここが数えないと述語は永久に false のまま。
+  const base = { deck: [], trash: [SIGNI], life_cloth: [SIGNI_L1], hand: [], energy: [] } as unknown as PlayerState;
+  eq(applyRefreshState(base).refresh_count_this_turn, 1, '🔴リフレッシュを数えていない');
+  const second = applyRefreshState({ ...applyRefreshState(base), deck: [], trash: [SIGNI_L2] } as PlayerState);
+  eq(second.refresh_count_this_turn, 2, '2回目が積み上がらない');
+  eq(refreshForcesTurnEnd(second), true, '2回リフレッシュしたのに終了条件を満たさない');
+  // 🔴**台帳はターン開始時に 0 へ戻る**＝戻らないと次のターンが即終了する。
+  eq((TURN_SCOPED_STATE_FIELDS.refresh_count_this_turn.boundaries as readonly string[]).includes('turn-start'), true,
+    '🔴refresh_count_this_turn が turn-start 境界でリセットされない');
+  eq(activateTurnStartScopedState(second).refresh_count_this_turn, 0, '🔴ターン開始時に台帳が 0 へ戻らない');
+  // 🔴**消費地点は2つ**＝①効果スタック解決（同じ commit にターン終了を重ねる）②ルール処理 funnel（残り全経路）。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/refreshForcesTurnEnd\(/g) ?? []).length, 2,
+    '🔴リフレッシュのターン終了判定が2箇所（スタック解決／ルール処理 funnel）を通っていない');
+  ok(/refresh_count_this_turn\s*(?:\?\?\s*0\s*\))?\s*>=\s*2/.test(screen) === false,
+    '🔴しきい値が BattleScreen に手書きで戻っている（refreshTurnEnd.ts が唯一の権威）');
+  ok(/const checkRefreshForcedTurnEnd = async/.test(screen) && /applyForcedTurnEnd\(activeState,/.test(screen),
+    '🔴funnel が `applyForcedTurnEnd`（O-117 の盤面処理1本）を通っていない');
+  ok(/if \(bs\.turn_phase === 'UP'\) return;/.test(screen),
+    '🔴UP フェイズを除外していない（ターン開始時リセット前の台帳を読んで新しいターンを即終了させる）');
 }));
 
 test('§5.6 C-9 R-06 ルリグアタックの枚数：ダブル2／トリプル3・トリプル優先・付与3経路を全部読む', () => withSavedCursor(() => {
