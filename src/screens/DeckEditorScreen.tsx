@@ -10,6 +10,7 @@ import {
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
+import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
@@ -57,6 +58,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [showDeckSettingsMenu, setShowDeckSettingsMenu] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [showCpuPlanModal, setShowCpuPlanModal] = useState(false);
   const [variantPickerFor, setVariantPickerFor] = useState<{ cardNum: string; from: 'main' | 'lrig' | 'token' } | null>(null);
 
   const cardMap = useMemo(() => {
@@ -473,8 +475,25 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               onClick={() => { setShowDeckSettingsMenu(false); setShowTokenModal(true); }}
               style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
             >🃏 トークン設定</button>
+            {current.kind === 'cpu' && (
+              <button
+                data-testid="cpu-plan-open"
+                onClick={() => { setShowDeckSettingsMenu(false); setShowCpuPlanModal(true); }}
+                style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#2e4a2e', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
+              >🤖 CPU の作戦</button>
+            )}
           </div>
         </div>
+      )}
+
+      {/* §5.7 `S-2`＝CPU デッキの作戦（キーカード・優先して出す札・コンボ） */}
+      {showCpuPlanModal && (
+        <CpuDeckPlanModal
+          deck={current}
+          cardMap={cardMap}
+          onChange={plan => { const updated = { ...current, cpuPlan: plan }; setCurrent(updated); onUpdate(updated); }}
+          onClose={() => setShowCpuPlanModal(false)}
+        />
       )}
 
       {/* トークン設定モーダル */}

@@ -59702,6 +59702,109 @@ scenarios.v267CpuInteractionPolicy = {
 };
 order.push('v267CpuInteractionPolicy');
 
+// ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
+// 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
+// 観測点＝①対戦：CPU デッキ（このルームの `guest_deck_id`）の作戦で WD03-013 をキーカードにすると、CPU のエナフェイズで
+//   同じ強さ（3000・効果なし）の WX04-080 をエナに置く（作戦なしなら手札の先頭＝WD03-013）
+//   ②画面：CPU デッキの編集画面「🤖 CPU の作戦」の［キー］が DB（`cpu_plan.keyCards`）に届く。
+// 🔑**反転は①の中で取る**＝作戦を空にした同じ盤面では WD03-013 を置く（キーカードの有無だけが違う）。
+scenarios.v268CpuDeckPlan = {
+  title: 'V-268 CPU デッキの作戦：キーカードはエナに置かない（対戦）／［キー］が保存される（画面）',
+  spec: {
+    guestSet: { 'field.lrig': ['WD03-004#g1'], 'hand': ['WD03-013#g71', 'WX04-080#g72'], 'energy': [], 'actions_done': [], 'field.signi': [null, null, null] },
+    top: { active: 'cpu', turn_phase: 'ENERGY', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const rest = (fn, args) => page.evaluate(async ({ SUPA_URL, ANON, fnSrc, args }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+      // eslint-disable-next-line no-new-func
+      return await new Function('SUPA_URL', 'h', 'uid', 'args', `return (${fnSrc})(SUPA_URL, h, uid, args);`)(SUPA_URL, h, sess.user?.id, args);
+    }, { SUPA_URL, ANON, fnSrc: fn.toString(), args });
+    const cpuDeck = () => rest(async (URL_, h, uid) => {
+      const room = (await (await fetch(`${URL_}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=guest_deck_id`, { headers: h })).json())?.[0];
+      if (!room?.guest_deck_id) return null;
+      return (await (await fetch(`${URL_}/rest/v1/decks?id=eq.${room.guest_deck_id}&select=id,name,cpu_plan,deck_kind`, { headers: h })).json())?.[0] ?? null;
+    }, {});
+    const setPlan = (id, plan) => rest(async (URL_, h, uid, a) => {
+      const r = await fetch(`${URL_}/rest/v1/decks?id=eq.${a.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ cpu_plan: a.plan }) });
+      return r.status;
+    }, { id, plan });
+    const readPlan = (id) => rest(async (URL_, h, uid, a) =>
+      (await (await fetch(`${URL_}/rest/v1/decks?id=eq.${a.id}&select=cpu_plan`, { headers: h })).json())?.[0]?.cpu_plan ?? null, { id });
+
+    const deck = await cpuDeck();
+    H.log(`CPU デッキ=${JSON.stringify(deck)}`);
+    if (!deck) return { pass: false, detail: '前提崩れ＝PLAYING ルームの CPU デッキが読めない' };
+    const original = deck.cpu_plan ?? null;
+    const chargeWith = async (plan, tag) => {
+      await setPlan(deck.id, plan);
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+      await page.reload({ waitUntil: 'networkidle' });   // CPU デッキ（作戦データ）はマウント時に読む
+      await page.waitForTimeout(2500);
+      await injectScenario(page, scenarios.v268CpuDeckPlan.spec);
+      for (let s = 0; s < 12; s++) {
+        await page.waitForTimeout(1000);
+        const st = await H.queryState();
+        const energy = st?.guest?.energyCards ?? [];
+        if (energy.length > 0) { H.log(`  ${tag}: energy=${JSON.stringify(energy)}`); return energy; }
+      }
+      const st = await H.queryState();
+      H.log(`  ${tag}: エナチャージが起きない phase=${st?.turnPhase} guest=${JSON.stringify(st?.guest)?.slice(0, 200)}`);
+      return null;
+    };
+    try {
+      const withoutPlan = await chargeWith(null, '作戦なし');
+      const withPlan = await chargeWith({ keyCards: ['WD03-013'], priorityCards: [], combos: [] }, '作戦あり');
+      if (!withoutPlan || !withPlan) return { pass: false, detail: `前提崩れ＝CPU のエナチャージを観測できない（なし=${JSON.stringify(withoutPlan)} あり=${JSON.stringify(withPlan)}）` };
+      if (!withoutPlan.includes('WD03-013#g71')) return { pass: false, detail: `前提崩れ＝作戦なしで手札の先頭（WD03-013）以外を置いた（${JSON.stringify(withoutPlan)}）` };
+      if (withPlan.includes('WD03-013#g71') || !withPlan.includes('WX04-080#g72')) {
+        return { pass: false, detail: `🔴キーカード（WD03-013）をエナに置いた＝作戦データが CPU に届いていない（${JSON.stringify(withPlan)}）` };
+      }
+
+      // ② 画面＝［キー］が DB に届く（START 画面へ行くためルームを一時停止）
+      await setPlan(deck.id, null);
+      const paused = await rest(async (URL_, h, uid) => {
+        const rooms = (await (await fetch(`${URL_}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h })).json()) ?? [];
+        for (const r of rooms) await fetch(`${URL_}/rest/v1/rooms?id=eq.${r.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'FINISHED' }) });
+        return rooms.map(r => r.id);
+      }, {});
+      try {
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.waitForTimeout(2500);
+        if (!await H.clickTextOrBtn(['デッキ編成'])) return { pass: false, detail: `前提崩れ＝START 画面に到達していない（body=${await H.body()}）` };
+        await page.waitForTimeout(1200);
+        await page.getByTestId('deck-kind-cpu').click();
+        await page.waitForTimeout(600);
+        if (!await clickDeckInFolders(page, deck.name, 'deck-card-')) return { pass: false, detail: `前提崩れ＝CPU デッキ ${deck.name} がフォルダに無い` };
+        await page.waitForTimeout(1200);
+        await H.clickTextOrBtn(['⚙ デッキ設定']);
+        await page.waitForTimeout(500);
+        const open = page.getByTestId('cpu-plan-open').first();
+        if (!(await open.count())) return { pass: false, detail: '🔴CPU デッキのデッキ設定に「🤖 CPU の作戦」が無い' };
+        await open.click();
+        await page.waitForTimeout(600);
+        const keyBtn = page.getByTestId('cpu-plan-key-WD03-013').first();
+        if (!(await keyBtn.count())) return { pass: false, detail: '🔴CPU の作戦にデッキのカード（WD03-013）の［キー］が無い' };
+        await keyBtn.click();
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: `${SHOT}/v268-plan.png`, fullPage: true });
+        const saved = await readPlan(deck.id);
+        H.log(`② 保存された cpu_plan=${JSON.stringify(saved)}`);
+        if (!(saved?.keyCards ?? []).includes('WD03-013')) return { pass: false, detail: `🔴［キー］を押しても DB に届かない（${JSON.stringify(saved)}）` };
+      } finally {
+        await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
+      }
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された` };
+    } finally {
+      await setPlan(deck.id, original).catch(() => {});
+      H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);
+    }
+  },
+};
+order.push('v268CpuDeckPlan');
+
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
 // 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。

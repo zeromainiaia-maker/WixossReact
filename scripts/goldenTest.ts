@@ -159,6 +159,7 @@ import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
+import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -86079,6 +86080,49 @@ test('§5.7 S-1 カードの強さ表：効果 JSON から「パワー＋効果�
   ok(/handGuardCount: handSignis\.filter/.test(battle), '🔴CPU の召喚が手札の【ガード】枚数を渡していない');
   ok(/pickCpuEnergyChargeIndex\(cpuSt\.hand, battleCardMap/.test(battle) && !/const charged = cpuSt\.hand\[0\];/.test(battle), '🔴CPU のエナチャージが手札の先頭固定のまま');
   ok(/effectsOf: id => effectsMap\.get\(id\) \?\? \[\]/.test(battle), '🔴CPU の対話応答に効果の一覧を渡していない');
+}));
+
+test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残す・優先して出す・コンボは A を先に出して B を温存', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー指摘「使うデッキによって強い行動が変わる」「複数のカードのコンボが強い」）。
+  const A = 'WD03-013', B = 'WX04-080', K = 'WD01-013', X = 'WD03-012';
+  // 読み込み＝形が崩れていても落ちない・自分自身とのコンボは捨てる
+  eq(JSON.stringify(normalizeCpuDeckPlan(null)), JSON.stringify({ keyCards: [], priorityCards: [], combos: [] }), 'null を空の作戦にしない');
+  const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
+  eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X], combos: [{ first: A, then: B }] }), '作戦データの正規化が違う');
+  eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])), JSON.stringify({ keyCards: [K], priorityCards: [], combos: [] }), '🔴デッキに無いカードが作戦に残った');
+  // 加点
+  ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
+  ok(planKeepsInMulligan(plan, `${B}#1`) && !planKeepsInMulligan(plan, `${X}#1`), 'マリガンで戻さない札が違う');
+  eq(planDeployBonus(plan, `${X}#1`, [], []), PLAN_WEIGHTS.priorityDeploy, '優先して出す札の加点が無い');
+  const hand = [`${A}#1`, `${B}#1`];
+  ok(planDeployBonus(plan, `${A}#1`, hand, []) > 0, '🔴相方が手札にあるのにコンボの始動札を先に出す加点が無い');
+  ok(planDeployBonus(plan, `${B}#1`, hand, []) < 0, '🔴始動札が手札にあるのに仕上げ札を先に出してしまう（温存しない）');
+  ok(planDeployBonus(plan, `${B}#1`, [`${B}#1`], [`${A}#9`]) >= PLAN_WEIGHTS.comboThenReady, '🔴始動札が場にいるのに仕上げ札を優先しない');
+  eq(planDeployBonus(plan, `${B}#1`, [`${B}#1`], []), 0, '始動札がどこにも無いのに仕上げ札を永久に温存する');
+  // 召喚の選択に効く（同じ強さなら始動札 A を先に）
+  const cands = [{ id: `${B}#1`, level: 1, power: 3000, value: 3000 + planDeployBonus(plan, `${B}#1`, hand, []) },
+    { id: `${A}#1`, level: 1, power: 3000, value: 3000 + planDeployBonus(plan, `${A}#1`, hand, []) }];
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 1, zonesRemaining: 1 }), `${A}#1`, '🔴コンボの始動札より仕上げ札を先に出した');
+  // エナチャージ・捨て札でキーカードを残す
+  const cm = new InstanceMap<CardData>(cardMap);
+  const effOf = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const h2 = [`${K}#5`, `${X}#5`];
+  const keep = (id: string) => planKeepBonus(plan, id);
+  eq(pickCpuEnergyChargeIndex([`${K}#5`, `${B}#5`], cm, effOf, 1), 0, '前提崩れ＝作戦なしならククリ（先頭・同点）をエナに置くはず');
+  eq(pickCpuEnergyChargeIndex([`${K}#5`, `${B}#5`], cm, effOf, 1, id => planKeepBonus({ ...plan, combos: [] }, id)), 1, '🔴キーカードをエナに置いた');
+  eq(JSON.stringify(pickCpuHandLimitDiscards(h2, 1, cm, effOf, keep)), JSON.stringify([1]), '🔴手札上限でキーカードを捨てた');
+  // サーチ＝作戦の加点で取る
+  const cpu = mkState({ signi: [null, null, null] }), opp = mkState({ signi: [null, null, null] });
+  const search = { type: 'SEARCH', visibleCards: [`${X}#7`, `${K}#7`], maxPick: 1, thenAction: { type: 'NOOP' } } as never;
+  eq(JSON.stringify(pickCpuSearch(search, { cpuState: cpu, oppState: opp, cardMap: cm, effectsOf: effOf })), JSON.stringify([`${X}#7`]), '前提崩れ＝作戦なしなら強い方（J・V 7000）を取るはず');
+  eq(JSON.stringify(pickCpuSearch(search, { cpuState: cpu, oppState: opp, cardMap: cm, effectsOf: effOf, planBonus: keep })), JSON.stringify([`${K}#7`]), '🔴サーチでキーカードを取らない');
+  // 画面の配線
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/normalizeCpuDeckPlan\(cpuDeckData\?\.cpu_plan\)/.test(battle), '🔴CPU デッキの作戦データを読んでいない');
+  ok(/\+ planDeployBonus\(cpuPlan, id,/.test(battle), '🔴CPU の召喚に作戦データの加点が無い');
+  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(cpuPlan, id\)/.test(battle), '🔴マリガン／対話応答に作戦データを渡していない');
+  const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
+  ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

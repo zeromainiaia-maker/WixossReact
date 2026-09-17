@@ -1,4 +1,5 @@
 import type { Deck } from '../types';
+import { normalizeCpuDeckPlan } from '../screens/battle/cpuDeckPlan';
 
 /** `decks` テーブルの1行（クライアントが読む列だけ）。 */
 export interface DeckRow {
@@ -14,6 +15,7 @@ export interface DeckRow {
   assist_lrig_l?: string | null;
   assist_lrig_r?: string | null;
   deck_kind?: string | null;
+  cpu_plan?: unknown;
 }
 
 /** DB の行 → `Deck`（App の自分のデッキ一覧と、マッチングの CPU デッキ一覧で共用）。 */
@@ -30,4 +32,5 @@ export const deckFromRow = (d: DeckRow): Deck => ({
   assistLrigL: d.assist_lrig_l ?? null,
   assistLrigR: d.assist_lrig_r ?? null,
   kind: d.deck_kind === 'cpu' ? 'cpu' : 'player',
+  cpuPlan: normalizeCpuDeckPlan(d.cpu_plan),
 });

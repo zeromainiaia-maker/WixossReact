@@ -31,6 +31,8 @@ export interface CpuInteractionCtx {
   cardMap: Map<string, CardData>;
   /** 🆕§5.7 `S-1`＝instance ID → そのカードの効果（付与を含む）。あれば「パワー＋効果の強さ」で比べる。 */
   effectsOf?: (id: string) => readonly CardEffect[];
+  /** 🆕§5.7 `S-2`＝CPU デッキの作戦データによる「手元に置く価値」の加点（キーカード・コンボのパーツ）。場のカードには足さない。 */
+  planBonus?: (id: string) => number;
 }
 
 type Inter<T extends PendingInteractionDef['type']> = Extract<PendingInteractionDef, { type: T }>;
@@ -70,6 +72,11 @@ function isCpuOwned(id: string, cpu: PlayerState): boolean {
   return zones.some(z => z?.includes(id));
 }
 
+/** 相手の盤面に見つからない＝CPU 側か、まだどこにも無い（サーチ中のデッキのカード等）。 */
+function isCpuOwnedOrUnknown(id: string, ctx: CpuInteractionCtx): boolean {
+  return isCpuOwned(id, ctx.cpuState) || !isCpuOwned(id, ctx.oppState);
+}
+
 /** 場のシグニ（どちらかの場のゾーンのトップ）か。 */
 function isOnField(id: string, ctx: CpuInteractionCtx): boolean {
   return [ctx.cpuState, ctx.oppState].some(st => st.field.signi.some(stack => stack?.includes(id)));
@@ -83,7 +90,9 @@ function isOnField(id: string, ctx: CpuInteractionCtx): boolean {
 function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, number>): number {
   const card = ctx.cardMap.get(getCardNum(id));
   const effects = ctx.effectsOf?.(id) ?? [];
-  const strength = cardStrength(card, effects, isOnField(id, ctx) ? 'field' : 'deploy', powers?.[id]);
+  const onField = isOnField(id, ctx);
+  const strength = cardStrength(card, effects, onField ? 'field' : 'deploy', powers?.[id])
+    + (!onField && isCpuOwnedOrUnknown(id, ctx) ? (ctx.planBonus?.(id) ?? 0) : 0);
   return strength * 100 + (parseInt(card?.Level ?? '', 10) || 0);
 }
 

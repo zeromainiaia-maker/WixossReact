@@ -142,6 +142,7 @@ import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
 import { cardStrength } from './battle/cpuCardStrength';
+import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan } from './battle/cpuDeckPlan';
 import { applyMulligan } from './battle/mulligan';
 import { buildLrigSetupState } from './battle/lrigSetup';
 import { resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA } from '../utils/deckLrigSetup';
@@ -1084,6 +1085,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return new InstanceMap(augMap);
   }, [bs, baseEffectsMap, user.id, battleCardMap]);
 
+  // §5.7 `S-2`＝CPU デッキの作戦データ（キーカード・優先して出す札・コンボ）。CPU の選択で強さに足し引きする。
+  const cpuPlan = useMemo(() => normalizeCpuDeckPlan(cpuDeckData?.cpu_plan), [cpuDeckData]);
+
   // §5.7 `S-1`＝`effectsMap`（強さの採点に使う）を参照するので、その定義より後ろに置く（前に置くと React Compiler がメモ化を保てず lint error）。
   // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
   // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
@@ -1102,6 +1106,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       cardMap: new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData])),
       // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
       effectsOf: id => effectsMap.get(id) ?? [],
+      planBonus: id => planKeepBonus(cpuPlan, id),
     };
     // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
     if (inter.type === 'REARRANGE_SIGNI') {
@@ -2400,7 +2405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cpuSt = bs.guest_state;
       // 🆕§5.6 `C-4`＝**CPU も引き直す**。戻す札は `pickCpuMulliganIndices`、処理は人間と同じ `applyMulligan`
       //   （旧実装は引き直さずライフを置くだけの別実装だった）。
-      const cpuMulligan = pickCpuMulliganIndices(cpuSt.hand, battleCardMap);
+      const cpuMulligan = pickCpuMulliganIndices(cpuSt.hand, battleCardMap, id => planKeepsInMulligan(cpuPlan, id));
       appendBattleLogs([cpuMulligan.length > 0
         ? `[CPU] 引き直し: ${cpuMulligan.length}枚（${cpuMulligan.map(i => battleCardMap.get(cpuSt.hand[i])?.CardName ?? cpuSt.hand[i]).join('・')}）`
         : '[CPU] 引き直さない']);
@@ -12747,7 +12752,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!used && !blocked && cpuSt.hand.length > 0) {
         // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
         const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
-        const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna));
+        const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id)));
         const charged = cpuSt.hand[chargeIdx];
         const chargedCard = battleCardMap.get(charged);
         appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
@@ -12941,7 +12946,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             level: parseInt(card!.Level) || 0,
             power: card!.Power === '∞' ? Infinity : (parseInt(card!.Power ?? '', 10) || 0),
             // §5.7 `S-1`＝パワーだけでなく効果の強さでも比べる（【出】の除去を持つ低パワーの札を後回しにしない）。
-            value: cardStrength(card!, effectsMap.get(id) ?? [], 'deploy'),
+            // §5.7 `S-2`＝作戦データ（優先して出す札・コンボの順番）の加点。
+            value: cardStrength(card!, effectsMap.get(id) ?? [], 'deploy')
+              + planDeployBonus(cpuPlan, id, handSignis.map(h => h.id),
+                [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean)),
             guard: card!.Guard === '1',
           })),
           handGuardCount: handSignis.filter(({ card }) => card?.Guard === '1').length,
@@ -13416,7 +13424,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let cpuTrashEND = cpuEndState.trash;
       const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
       if (cpuHandEND.length > cpuHandLimit) {
-        const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? []);
+        const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], id => planKeepBonus(cpuPlan, id));
         const discardNums = discardIdx.map(i => cpuHandEND[i]);
         appendBattleLogs([`[CPU] 手札上限: ${cpuHandEND.length}枚→${cpuHandEND.length - discardNums.length}枚（${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て）`]);
         cpuHandEND = cpuHandEND.filter((_, i) => !discardIdx.includes(i));

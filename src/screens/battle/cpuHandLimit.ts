@@ -27,8 +27,10 @@ const isGuard = (num: string, cardMap: Map<string, CardData>): boolean => cardMa
  * 🆕§5.7 `S-1`＝効果の一覧（`effectsOf`）があれば**強さ（パワー＋効果の点数）の低い札から**手放す。無ければ旧挙動（レベルの高い札から）。
  * 【ガード】は常に最後まで残す。
  */
-function discardOrder(hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[]): number[] {
-  const strength = (num: string) => cardStrength(cardMap.get(getCardNum(num)), effectsOf?.(num) ?? [], 'deploy');
+function discardOrder(
+  hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[], keepBonus?: (id: string) => number,
+): number[] {
+  const strength = (num: string) => cardStrength(cardMap.get(getCardNum(num)), effectsOf?.(num) ?? [], 'deploy') + (keepBonus?.(num) ?? 0);
   return hand.map((_, i) => i).sort((a, b) =>
     Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))
     || (effectsOf ? strength(hand[a]) - strength(hand[b]) : levelOf(hand[b], cardMap) - levelOf(hand[a], cardMap))
@@ -39,18 +41,20 @@ function discardOrder(hand: string[], cardMap: Map<string, CardData>, effectsOf?
  * マリガンで戻す手札の添字＝**レベル3以上のシグニ**（【ガード】持ちは除く）。
  * ⚠「戻さない」も正しい選択なので、該当が無ければ空配列（引き直さない）。
  */
-export function pickCpuMulliganIndices(hand: string[], cardMap: Map<string, CardData>): number[] {
+export function pickCpuMulliganIndices(hand: string[], cardMap: Map<string, CardData>, keeps?: (id: string) => boolean): number[] {
   return hand.map((num, i) => ({ num, i }))
-    .filter(({ num }) => cardMap.get(getCardNum(num))?.Type === 'シグニ' && levelOf(num, cardMap) >= 3 && !isGuard(num, cardMap))
+    // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは戻さない。
+    .filter(({ num }) => cardMap.get(getCardNum(num))?.Type === 'シグニ' && levelOf(num, cardMap) >= 3 && !isGuard(num, cardMap) && !keeps?.(num))
     .map(({ i }) => i);
 }
 
 /** 手札上限で捨てる手札の添字（ちょうど `count` 枚。`count` が手札を超えるなら全部）。 */
 export function pickCpuHandLimitDiscards(
   hand: string[], count: number, cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[],
+  keepBonus?: (id: string) => number,
 ): number[] {
   if (count <= 0) return [];
-  return discardOrder(hand, cardMap, effectsOf).slice(0, count).sort((a, b) => a - b);
+  return discardOrder(hand, cardMap, effectsOf, keepBonus).slice(0, count).sort((a, b) => a - b);
 }
 
 /**
@@ -61,12 +65,14 @@ export function pickCpuHandLimitDiscards(
  */
 export function pickCpuEnergyChargeIndex(
   hand: string[], cardMap: Map<string, CardData>, effectsOf: (id: string) => readonly CardEffect[], lrigLevel: number,
+  keepBonus?: (id: string) => number,
 ): number {
   if (hand.length === 0) return -1;
   const keepValue = (num: string) => {
     const card = cardMap.get(getCardNum(num));
     const base = cardStrength(card, effectsOf(num), 'deploy');
-    return card?.Type === 'シグニ' && levelOf(num, cardMap) >= lrigLevel + 2 ? base * 0.6 : base;
+    // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは残す（加点）。
+    return (card?.Type === 'シグニ' && levelOf(num, cardMap) >= lrigLevel + 2 ? base * 0.6 : base) + (keepBonus?.(num) ?? 0);
   };
   return hand.map((_, i) => i).sort((a, b) =>
     Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))

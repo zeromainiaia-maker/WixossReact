@@ -3,10 +3,12 @@
 import { useDomainState } from './useDomainState';
 
 /** `decks` の行のうち対戦で使う列（最初に場に出すルリグの指定を含む＝`utils/deckLrigSetup.ts`）。 */
-export const DECK_DATA_COLUMNS = 'main_deck, lrig_deck, center_lrig, assist_lrig_l, assist_lrig_r';
+export const DECK_DATA_COLUMNS = 'main_deck, lrig_deck, center_lrig, assist_lrig_l, assist_lrig_r, cpu_plan';
 type DeckData = {
   main_deck: string[]; lrig_deck: string[];
   center_lrig: string | null; assist_lrig_l: string | null; assist_lrig_r: string | null;
+  /** §5.7 `S-2`＝CPU デッキの作戦データ（`normalizeCpuDeckPlan` で読む）。 */
+  cpu_plan?: unknown;
 } | null;
 
 export interface BattleSessionState {

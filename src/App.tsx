@@ -200,6 +200,8 @@ export default function App() {
       center_lrig: updated.centerLrig ?? null,
       assist_lrig_l: updated.assistLrigL ?? null,
       assist_lrig_r: updated.assistLrigR ?? null,
+      // §5.7 `S-2`＝CPU デッキの作戦データ（自分のデッキでは持たない）。
+      cpu_plan: updated.kind === 'cpu' ? (updated.cpuPlan ?? null) : null,
     }).eq('id', updated.id);
     if (!error) {
       setDecks(prev => prev.map(d => d.id === updated.id ? updated : d));

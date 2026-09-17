@@ -127,6 +127,8 @@ export interface Deck {
   kind?: 'player' | 'cpu';
   /** 作成者（CPU デッキが他人の公開デッキかを見分ける）。 */
   userId?: string;
+  /** 🆕§5.7 `S-2`＝CPU デッキの作戦データ（キーカード・優先して出す札・コンボ）。`cpu` のデッキだけで使う。 */
+  cpuPlan?: import('../screens/battle/cpuDeckPlan').CpuDeckPlan;
 }
 
 export interface Room {
