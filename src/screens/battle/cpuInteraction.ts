@@ -4,6 +4,8 @@ import { cardStrength } from './cpuCardStrength';
 import { canAddToSelection, findValidConstrainedSelection, getCardNum, selectOptionalCostEnergy } from '../../engine/execUtils';
 import { shuffle as rngShuffle } from '../../engine/rng';
 import { declareNameCandidates } from './declareNameCandidates';
+import type { CpuEnergyReserve } from './cpuActivate';
+import { reserveKeptAfterPaying } from './cpuGrowReserve';
 
 /**
  * 🆕**CPU の対話応答**（§5.6 `C-8`・2026-09-17）＝効果の途中で CPU に回ってくる選択（対象・選択肢・サーチ・
@@ -33,6 +35,8 @@ export interface CpuInteractionCtx {
   effectsOf?: (id: string) => readonly CardEffect[];
   /** 🆕§5.7 `S-2`＝CPU デッキの作戦データによる「手元に置く価値」の加点（キーカード・コンボのパーツ）。場のカードには足さない。 */
   planBonus?: (id: string) => number;
+  /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
+  energyReserve?: CpuEnergyReserve;
 }
 
 type Inter<T extends PendingInteractionDef['type']> = Extract<PendingInteractionDef, { type: T }>;
@@ -195,6 +199,7 @@ export function pickCpuChoice(inter: Inter<'CHOOSE'>, ctx: CpuInteractionCtx): s
     // ⚠支払いのある肢は**肢IDだけでは払えない**（タスク12(cii)）＝支払うエナの instanceId を後ろに付ける。
     //   選べないのに `available` だった場合は null（＝その肢は選ばない）。
     const paid = selectOptionalCostEnergy(opt.costColors, ctx.cpuState, ctx.cardMap);
+    if (paid && !reserveKeptAfterPaying(ctx.energyReserve, ctx.cpuState.energy, paid)) return null;
     return paid ? [opt.id, ...paid] : null;
   };
   if (declineOpt && acceptOpts.length > 0) {

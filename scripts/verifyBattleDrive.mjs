@@ -59810,15 +59810,20 @@ order.push('v268CpuDeckPlan');
 // 観測点＝CPU のメインフェイズ・手札にＦＲＥＥＺＥ（相手のすべてのシグニをダウンし凍結）・青エナ2枚
 //   ①人間の場にシグニ2体＝使う（ログ「[CPU] スペルを発動: ＦＲＥＥＺＥ」＋人間のシグニが凍結）
 //   ②人間の場が空＝使わない（手札に残る）＝**撃ち損をしない**ことの対照。
-function v269Spec(hostSigni) {
+function v269Spec(hostSigni, guestOverride = {}) {
   return {
     hostSet: { 'field.lrig': ['WD03-003#1'], 'field.signi': hostSigni, 'field.signi_down': [false, false, false] },
     guestSet: {
       'field.lrig': ['WD03-003#g1'], 'field.signi': [null, null, null], 'hand': ['WX01-085#g31'],
+      // ⚠ルリグデッキを空に固定＝グロウ先が無い（グロウ用エナの予約が掛からない）盤面で先読みだけを見る（`V-272` と分ける）。
+      'lrig_deck': [],
       'energy': ['WD03-013#g41', 'WD03-012#g42'], 'actions_done': [], 'cpu_used_card_nums_this_turn': [],
     },
     top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 3, effect_stack: null, pending_effect: null },
   };
+}
+function withGuest(spec, guestOverride) {
+  return { ...spec, guestSet: { ...spec.guestSet, ...guestOverride } };
 }
 async function driveV269(page, H, spec, wantCast) {
   await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null, pending_spell: null });
@@ -59866,6 +59871,28 @@ scenarios.v269CpuSpellLookahead = {
   },
 };
 order.push('v269CpuSpellLookahead');
+
+// ── 🆕§5.1 `V-272`（2026-09-17・ユーザー指示）＝**グロウ用のエナを残す**（アーツ・スペル等でエナを払って次のグロウができなくなる支払いはしない）──
+// 観測点＝`V-269` と同じ盤面（人間の場に2体・CPU の手札にＦＲＥＥＺＥ《青》×１）＋ CPU のルリグデッキに次のグロウ先（ピルルク・Ｇ＝《青》×２）
+//   ①青エナ2枚＝使うと青1枚＝グロウできない ⇒ **使わない**（先読みでは得なのに、予約で止める）
+//   ②青エナ3枚＝使っても青2枚が残る ⇒ **使う**（予約が効きすぎていないことの対照）
+scenarios.v272CpuKeepsGrowEnergy = {
+  title: 'V-272 CPU はグロウ用のエナを残す（青2枚ならＦＲＥＥＺＥを使わない／青3枚なら使う）',
+  noInject: true,
+  async drive(page, H) {
+    const hostSigni = [['WD01-013#1'], ['WD03-009#1'], null];
+    const growDeck = { 'lrig_deck': ['WD03-002#g61'] };
+    const hold = await driveV269(page, H, withGuest(v269Spec(hostSigni), { ...growDeck, energy: ['WD03-013#g41', 'WD03-012#g42'] }), false);
+    H.log(`① 青2枚: used=${!!hold.castLog} phase=${hold.st?.turnPhase} guestHand=${JSON.stringify(hold.st?.guest?.handCards)} energy=${JSON.stringify(hold.st?.guest?.energyCards)}`);
+    if (hold.castLog) return { pass: false, detail: `🔴青エナ2枚（次のグロウが《青》×２）なのにＦＲＥＥＺＥを使った＝グロウできなくなる（energy=${JSON.stringify(hold.st?.guest?.energyCards)}）` };
+    if (!(hold.st?.guest?.handCards ?? []).includes('WX01-085#g31')) return { pass: false, detail: '前提崩れ＝①でＦＲＥＥＺＥが手札に無い' };
+    const cast = await driveV269(page, H, withGuest(v269Spec(hostSigni), { ...growDeck, energy: ['WD03-013#g41', 'WD03-012#g42', 'WD03-014#g43'] }), true);
+    H.log(`② 青3枚: used=${!!cast.castLog} hostFrozen=${JSON.stringify(cast.st?.host?.signiFrozen)} energy=${JSON.stringify(cast.st?.guest?.energyCards)}`);
+    if (!cast.castLog) return { pass: false, detail: `🔴青エナ3枚（払っても青2枚が残る）なのにＦＲＥＥＺＥを使わない＝予約が効きすぎ（phase=${cast.st?.turnPhase}）` };
+    return { pass: true, detail: `①青2枚＝使わず手札に残した（グロウ用の青2枚を温存）②青3枚＝使った（残り energy=${JSON.stringify(cast.st?.guest?.energyCards)}）` };
+  },
+};
+order.push('v272CpuKeepsGrowEnergy');
 
 // ── 🆕§5.1 `V-270`（2026-09-17・ユーザーのバグ報告）＝**CPU は出したシグニの【出】を解決してから次のシグニを出す** ──
 // 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」＝召喚ループが【出】を最後までためて一括で積んでいた。

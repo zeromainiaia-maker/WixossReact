@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { activatedEnergyCostStr, selectEnergyIndicesForCost } from './cpuActivate';
+import { activatedEnergyCostStr, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
 import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
@@ -89,6 +89,8 @@ export function pickCpuLrigActivated(p: {
   isAffordable: (selectedNums: string[], costStr: string) => boolean;
   wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
   effectivePowers?: Map<string, number>;
+  /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
+  energyReserve?: CpuEnergyReserve;
 }): CpuLrigActivatedChoice | null {
   const gateInput = {
     my: p.actor, op: p.opponent, phase: p.phase,
@@ -113,6 +115,7 @@ export function pickCpuLrigActivated(p: {
       costStr: applyNextLrigActCostReduction(activatedEnergyCostStr(effect), p.actor.next_lrig_act_cost_reduction),
       isAffordable: p.isAffordable,
       wholeSubstitutes: p.wholeSubstitutes,
+      reserve: p.energyReserve,
     });
     if (!costIndices) continue;
     return { effect, costIndices };

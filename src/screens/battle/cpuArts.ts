@@ -2,7 +2,7 @@ import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect, EffectAction } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
 import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseGate';
-import { selectEnergyIndicesForCost } from './cpuActivate';
+import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
 import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
 
@@ -208,6 +208,8 @@ export interface CpuArtsPickInput {
    * 増分が0以下なら使わない。⚠アーツは使い切りなので**使う条件（正面が塞がれている・除去）は据置**＝1手先だけで使い切らない。
    */
   lookahead?: LookaheadCtx;
+  /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）＝応答アーツでも CPU の次のグロウ用エナを残す。 */
+  energyReserve?: CpuEnergyReserve;
 }
 
 /**
@@ -243,6 +245,7 @@ function pickCpuArtsBy(
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
       wholeSubstitutes: payer.wholeEnergySubstitutes,
       extraCosts: check.extraCosts,
+      reserve: p.energyReserve,
     });
     if (!costIndices) continue;
     candidates.push({ card, check, kind, costIndices });

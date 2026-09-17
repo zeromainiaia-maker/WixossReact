@@ -1,7 +1,7 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import type { ArtsPayerCtx } from './artsUseGate';
-import { selectEnergyIndicesForCost } from './cpuActivate';
+import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
 import { energyPoolCardNums } from './energyPaySource';
 import { type SpellUseCheck, listCastableSpells } from './spellUseGate';
@@ -58,6 +58,8 @@ export function pickCpuMainSpell(p: {
    * 一番得なものを使う（正面が塞がれているかも問わない）。渡さなければ旧挙動（塞がれているときの除去だけ・手札順）。
    */
   lookahead?: LookaheadCtx;
+  /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
+  energyReserve?: CpuEnergyReserve;
 }): CpuSpellChoice | null {
   const { actor, opponent, cards, cardMap, effectsMap, payer } = p;
   if (!p.lookahead && !hasBlockedAttacker(actor, opponent)) return null;
@@ -80,6 +82,7 @@ export function pickCpuMainSpell(p: {
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
       wholeSubstitutes: payer.wholeEnergySubstitutes,
       extraCosts: check.extraCosts,
+      reserve: p.energyReserve,
     });
     if (!costIndices) continue;
     candidates.push({ card, handIndex, check, costIndices });

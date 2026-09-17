@@ -161,6 +161,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -86203,6 +86204,48 @@ test('CPU の召喚：出したシグニの【出】を解決してから次の�
   ok(loopStart > 0 && pushAfter > loopStart, '前提崩れ＝CPU の召喚ループが見つからない');
   const loopBody = battle.slice(loopStart, pushAfter);
   ok(/if \(cpuOnPlayEntries\.length > 0\) break;\s*\}\s*$/.test(loopBody), '🔴CPU の召喚ループが【出】をためたまま次のシグニを出す（1体ごとに止まらない）');
+}));
+
+test('CPU のグロウ用エナの予約：アーツ等でエナを払って次のグロウができなくなる支払いは必ずしない', () => withSavedCursor(() => {
+  // 🆕2026-09-17 ユーザー指示「アーツなどエナコストが必要なカードを使うと、グロウ用のエナがなくなってグロウできなくなることは必ず避ける」
+  //   （アシストグロウもアーツと同じ扱い）。次のターンのエナチャージは当てにしない。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const BLUE = 'WD03-013', RED = 'WD01-013';   // 青のシグニ／赤のシグニ（エナの色）
+  const affordAny = (sel: string[], costStr: string) => isEnergyPaymentSelectionValid({ selectedEnergyNums: sel, cards: allCards, baseCost: costStr });
+  // 予約＝次のグロウ（コード・ピルルク・Ｇ＝《青》×２）
+  const actor = mkState({ signi: [null, null, null] });
+  actor.field.lrig = ['WD03-003#r1'];      // Lv2 ピルルク・Ｍ
+  actor.lrig_deck = ['WD03-002#r2'];       // Lv3 ピルルク・Ｇ（《青》×２）
+  actor.energy = [`${BLUE}#e1`, `${BLUE}#e2`, `${RED}#e3`];
+  const reserve = buildCpuGrowReserve({ actor, opponent: mkState({}), cardMap: cm, effectsMap, cards: allCards });
+  ok(!!reserve, '前提崩れ＝グロウ先があるのに予約が作られない');
+  eq(JSON.stringify(reserve!.avoidColors), JSON.stringify(['青']), '予約に要る色が違う');
+  const pool = actor.energy;
+  // 《無》×１＝赤で払えば青2枚が残る＝払える（青を後回しにする）
+  const one = selectEnergyIndicesForCost({ poolNums: pool, cards: allCards, costStr: '《無》×１', isAffordable: affordAny, reserve });
+  eq(JSON.stringify(one ? [...one] : null), JSON.stringify([2]), '🔴《無》の支払いにグロウ用の青を使った（赤を後回しにしなかった）');
+  // 《無》×２＝どう払っても青が1枚以下になる＝払わない
+  eq(selectEnergyIndicesForCost({ poolNums: pool, cards: allCards, costStr: '《無》×２', isAffordable: affordAny, reserve }), null,
+    '🔴払うと次のグロウ（《青》×２）ができなくなる支払いを選んだ');
+  ok(selectEnergyIndicesForCost({ poolNums: pool, cards: allCards, costStr: '《無》×２', isAffordable: affordAny }) !== null, '前提崩れ＝予約なしなら《無》×２は払える');
+  // 最大レベル（グロウ先が無い）なら予約しない
+  const maxed = { ...actor, lrig_deck: [] as string[] };
+  eq(buildCpuGrowReserve({ actor: maxed, opponent: mkState({}), cardMap: cm, effectsMap, cards: allCards }), undefined, 'グロウ先が無いのに予約した');
+  // 効果の任意コスト（《青》×１）＝払うと青が1枚になる＝払わず断る
+  const choose = { type: 'CHOOSE', count: 1, options: [
+    { id: 'pay', label: '支払う', action: { type: 'NOOP' }, available: true, costColors: ['青'] },
+    { id: 'skip', label: '支払わない', action: { type: 'NOOP' }, available: true },
+  ] } as never;
+  eq(JSON.stringify(pickCpuChoice(choose, { cpuState: actor, oppState: mkState({}), cardMap: cm })[0]), JSON.stringify('pay'), '前提崩れ＝予約なしなら払う');
+  eq(JSON.stringify(pickCpuChoice(choose, { cpuState: actor, oppState: mkState({}), cardMap: cm, energyReserve: reserve })[0]), JSON.stringify('skip'),
+    '🔴効果の任意コストで次のグロウ用の青を使った');
+  // 画面の配線＝エナを払う CPU の行動すべてに予約を渡す（グロウそのものとガードは対象外）
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 5, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピースのどれかに予約を渡していない');
+  ok(/reserve: cpuGrowReserveFor\(actorState\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
+  ok(/cpuDeployReserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
+  ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(battle), '🔴効果の任意コストの支払いに予約が無い');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

@@ -92,6 +92,18 @@ export function activatedEnergyCostStr(effect: CardEffect): string {
  * マルチエナ・色代替・追加色といった例外はすべて権威側の実装1本に集約される
  * （2つ目の支払い判定を書かない＝続き546 教訓 (b) と同じ理由）。
  */
+/**
+ * 🆕**CPU がエナを払ったあとに残しておくべきもの**（2026-09-17・ユーザー指示「アーツなどでエナを使って、グロウ用のエナが無くなってグロウできなくなることは必ず避ける」）。
+ * `selectEnergyIndicesForCost` に渡すと、選んだ支払いの**残り**で `keepsAfter` が成り立たない選び方を返さない（null＝その支払いはしない）。
+ * 組み立ては `cpuGrowReserve.ts` の `buildCpuGrowReserve`（次のグロウ先の候補のどれかを残りで払えるか）。
+ */
+export interface CpuEnergyReserve {
+  /** 払ったあとに残る pool の cardNum（pool index 順）で、予約を満たせるか。 */
+  keepsAfter: (remainingNums: string[]) => boolean;
+  /** 《無》の枠を埋めるときに**後回しにする色**（予約に要る色を先に使わない）。 */
+  avoidColors: readonly string[];
+}
+
 export function selectEnergyIndicesForCost(p: {
   /** `buildEnergyPayPool(actor, ...)` の各エントリの cardNum（pool index 順）。 */
   poolNums: string[];
@@ -102,6 +114,8 @@ export function selectEnergyIndicesForCost(p: {
   wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
   /** 一括代替後にも残る追加コストを、色優先の自動選択へ含める。 */
   extraCosts?: readonly { color: string; count: number }[];
+  /** 🆕払ったあとに残すもの（グロウ用エナ）。満たせない支払いは null。 */
+  reserve?: CpuEnergyReserve;
 }): Set<number> | null {
   const { poolNums, cards, costStr, isAffordable } = p;
   if (costStr === '') return new Set();
@@ -135,8 +149,14 @@ export function selectEnergyIndicesForCost(p: {
       }
     }
     // ②残りは先頭から足していく（《無》スロット・マルチエナでの充当はここで埋まる）。
-    for (let i = 0; i < poolNums.length && !isSat(); i++) selected.add(i);
-    return isSat() ? selected : null;
+    //   🆕予約があれば、予約に要る色のエナを後回しにする（グロウに要る色を《無》で潰さない）。
+    const avoid = p.reserve?.avoidColors ?? [];
+    const fillOrder = poolNums.map((_, i) => i)
+      .sort((a, b) => Number(avoid.some(c => colorOf(poolNums[a]).includes(c))) - Number(avoid.some(c => colorOf(poolNums[b]).includes(c))) || a - b);
+    for (const i of fillOrder) { if (isSat()) break; selected.add(i); }
+    if (!isSat()) return null;
+    if (p.reserve && !p.reserve.keepsAfter(poolNums.filter((_, i) => !selected.has(i)))) return null;
+    return selected;
   };
 
   // `O-342`＝通常の色優先より先に、適用可能な一括代替札を1枚選んだ経路を試す。
@@ -190,6 +210,8 @@ export function pickCpuSigniActivated(p: {
   wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
   effectivePowers?: Map<string, number>;
   contBlockedSelf?: Set<string>;
+  /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
+  energyReserve?: CpuEnergyReserve;
 }): CpuActivatedChoice | null {
   const { actor, opponent, effectsMap, cardMap, cards } = p;
   for (let zoneIndex = 0; zoneIndex < actor.field.signi.length; zoneIndex++) {
@@ -206,6 +228,7 @@ export function pickCpuSigniActivated(p: {
         poolNums: p.energyPoolNums, cards, costStr: activatedEnergyCostStr(effect),
         isAffordable: p.isAffordable,
         wholeSubstitutes: p.wholeSubstitutes,
+        reserve: p.energyReserve,
       });
       if (!costIndices) continue;
       return { zoneIndex, cardNum, effect, costIndices };

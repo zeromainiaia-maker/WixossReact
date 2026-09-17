@@ -142,6 +142,7 @@ import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
 import { scoreDeploy, type LookaheadCtx } from './battle/cpuLookahead';
+import { buildCpuGrowReserve } from './battle/cpuGrowReserve';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan } from './battle/cpuDeckPlan';
 import { applyMulligan } from './battle/mulligan';
 import { buildLrigSetupState } from './battle/lrigSetup';
@@ -1108,6 +1109,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       effectsOf: id => effectsMap.get(id) ?? [],
       planBonus: id => planKeepBonus(cpuPlan, id),
     };
+    // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。
+    cpuCtx.energyReserve = buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: battleCardMap, effectsMap, cards });
     // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
     if (inter.type === 'REARRANGE_SIGNI') {
       const requiredChoice = pickCpuRearrange(inter);
@@ -12289,6 +12292,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
             }),
             wholeSubstitutes,
+            // アシストグロウはアーツと同じ扱い（ユーザー指示）＝センターの次のグロウ用エナを残す。
+            reserve: cpuGrowReserveFor(actorState),
           });
           if (!costIndices) continue;
           appendBattleLogs([`[CPU] アシストグロウ: ${card.CardName}（Lv.${card.Level}・${side === 'l' ? '左' : '右'}）`]);
@@ -12366,6 +12371,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const choice = pickCpuSigniActivated({
         actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
         phase, energyPoolNums: energyPoolCardNums(pool),
+        energyReserve: cpuGrowReserveFor(actorState),
         alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
         effectivePowers: powers,
         // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
@@ -12418,6 +12424,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const choice = pickCpuLrigActivated({
         actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
         phase, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
+        energyReserve: cpuGrowReserveFor(actorState),
         alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
         effectivePowers: powers,
         isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
@@ -12460,6 +12467,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const choice = pickCpuKeyPiece({
         actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
         payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
+        energyReserve: cpuGrowReserveFor(actorState),
         // 可否の権威は人間の `KeyUseModal` と同じ `isEnergyPaymentSelectionValid`（《無》の許可色を含む）。
         isAffordable: (selectedNums, costStr, card) => isEnergyPaymentSelectionValid({
           selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
@@ -12498,6 +12506,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, battleCardMap, 'MAIN'),
       turnPhase: 'MAIN',
     };
+    // 🆕**グロウ用エナの予約**（ユーザー指示・2026-09-17）＝アーツ・スペル・【起】・キー／ピース・アシストグロウ・召喚コストで
+    //   エナを払った残りで、次のグロウ先のどれかを払えないなら、その支払いはしない（`cpuGrowReserve.ts`）。
+    const cpuGrowReserveFor = (actorState: PlayerState) =>
+      buildCpuGrowReserve({ actor: actorState, opponent: huSt, cardMap: battleCardMap, effectsMap, cards });
     const tryCpuUseArts = async (
       actorState: PlayerState,
       turnPhase: TurnPhase,
@@ -12512,6 +12524,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
         payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
         lookahead: isActorTurn ? { ...cpuLookahead, turnPhase } : undefined,
+        energyReserve: cpuGrowReserveFor(actorState),
         // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
         isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
           selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
@@ -12987,7 +13000,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (paid < count) { canPay = false; break; }
             newEnergy = after;
           }
-          if (!canPay) {
+          // 🆕グロウ用エナの予約＝払った残りで次のグロウが払えないなら、この札は出さない。
+          const cpuDeployReserve = cpuGrowReserveFor(newCpuSt);
+          if (!canPay || (cpuDeployReserve && !cpuDeployReserve.keepsAfter(newEnergy))) {
             handSignis.splice(handSignis.indexOf(candidate), 1);
             continue;
           }
@@ -13121,6 +13136,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           payer: cpuSpellPayer, turnPhase: 'MAIN', pendingSpell: !!bs.pending_spell,
           alreadyUsedNums: newCpuSt.cpu_used_card_nums_this_turn ?? [],
           lookahead: cpuLookahead,
+          energyReserve: cpuGrowReserveFor(newCpuSt),
           isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
             selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
             keywordGrants: newCpuSt.keyword_grants, allMulti: cpuSpellPayer.enaAllMulti,

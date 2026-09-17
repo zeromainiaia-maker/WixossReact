@@ -2,7 +2,7 @@ import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import type { ArtsPayerCtx } from './artsUseGate';
 import { hasCpuUnsupportedAction } from './cpuArts';
-import { selectEnergyIndicesForCost } from './cpuActivate';
+import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
 import { type KeyPieceUseCheck, listUsableKeyPieces } from './keyPieceUseGate';
 import { MAYU_ENCOUNTER_A } from './mayuEncounter';
@@ -66,6 +66,8 @@ export interface CpuKeyPiecePickInput {
   /** 可否の権威＝人間の `KeyUseModal` と同じ `isEnergyPaymentSelectionValid`。 */
   isAffordable: (selectedNums: string[], costStr: string, card: CardData) => boolean;
   effectivePowers?: Map<string, number>;
+  /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
+  energyReserve?: CpuEnergyReserve;
 }
 
 /** CPU がいま使うキー／ピースを1枚選ぶ（無ければ `null`）。1回の呼び出しで1枚だけ。 */
@@ -82,6 +84,7 @@ export function pickCpuKeyPiece(p: CpuKeyPiecePickInput): CpuKeyPieceChoice | nu
       poolNums, cards: p.cards, costStr: check.effectiveCost,
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, card),
       wholeSubstitutes: p.payer.wholeEnergySubstitutes,
+      reserve: p.energyReserve,
     });
     if (!costIndices) continue;
     candidates.push({ card, check, costIndices });
