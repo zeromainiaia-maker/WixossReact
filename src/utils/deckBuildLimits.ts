@@ -54,12 +54,26 @@ export function lrigDeckArtsCount(lrigDeck: string[], cardMap: Map<string, CardD
   return lrigDeck.filter(num => cardMap.get(num)?.Type === 'アーツ').length;
 }
 
+/**
+ * 🆕**ルリグの「ルリグタイプ」の集合**（`花代/ユヅキ` のような複合タイプがあるので必ず割って比べる）。
+ * ⚠**`CardClass` がそのままルリグタイプ**（実測＝センター89種・アシスト57種で、アシストの57種は全部センター側にもある）。
+ */
+const lrigTypesOf = (card: CardData): string[] =>
+  (card.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean);
+
+/** 2枚のルリグがルリグタイプを1つでも共有するか。 */
+export function sharesLrigType(a: CardData, b: CardData): boolean {
+  const bt = new Set(lrigTypesOf(b));
+  return lrigTypesOf(a).some(t => bt.has(t));
+}
+
 /** `deckAddBlockReason` が返す「入れられない理由」。`null` なら入れられる。 */
 export type DeckAddBlockReason =
   | 'COPY_MAX'            // 同名の上限（メイン4枚／ルリグ1枚）
   | 'LRIG_ARTS_CAP'       // `LRIG_DECK_ARTS_LIMIT` の上限にアーツが達している
   | 'LRIG_ARTS_OVER_CAP'  // 上限を課す札を後から入れようとしたが、既にアーツが超過している
   | 'TEAM_PIECE_MAX'      // 【チーム】ピースは1枚まで
+  | 'LRIG_TYPE_CLASH'     // センタールリグと同じルリグタイプのアシストルリグ（§5.6 `C-9` `R-47`）
   | 'LRIG_EXTRA_MAX'      // ＋2枠が満杯
   | 'LRIG_MAX'            // ルリグデッキ10枠が満杯
   | 'MAIN_MAX'            // メインデッキ40枚
@@ -98,6 +112,20 @@ export function deckAddBlockReason(
     }
     if (isTeamPieceCard(card) && deck.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isTeamPieceCard(c); }).length >= TEAM_PIECE_MAX) {
       return 'TEAM_PIECE_MAX';
+    }
+    // 🆕🔴**§5.6 `C-9` `R-47`（2026-09-17 ユーザー裁定）＝センタールリグと同じルリグタイプの
+    //   アシストルリグは入れられない。** ⇒ 「同じルリグタイプのルリグが場に複数並ぶ」状態は
+    //   **構築で作れない**ので、場のルール処理（EN Rule-based action 5）は要らない。
+    // ⚠**両方向で止める**＝アシストを先に入れてから同タイプのセンターを足す道を塞ぐ
+    //   （片方だけだと順番を変えるだけで illegal なデッキが作れる）。
+    // ⚠**アシスト同士の同タイプは止めない**＝裁定はセンターとの重なりについてだけ。
+    if (card.Type === 'アシストルリグ' || card.Type === 'ルリグ') {
+      const otherType = card.Type === 'アシストルリグ' ? 'ルリグ' : 'アシストルリグ';
+      const clash = deck.lrigDeck.some(num => {
+        const other = cardMap.get(num);
+        return other?.Type === otherType && sharesLrigType(card, other);
+      });
+      if (clash) return 'LRIG_TYPE_CLASH';
     }
     const extraCount = deck.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isExtraLrigCard(c); }).length;
     if (isExtraLrigCard(card)) {

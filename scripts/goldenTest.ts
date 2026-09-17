@@ -131,7 +131,7 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 // 🆕第283バッチ（2026-09-12・§5.3 `O-312`/`O-313`/`O-314`/`O-317`）の消費地点を直接叩く。
 import { signiZoneNonSigniCards, stripSigniZoneNonSigniCards, pluckSigniZoneNonSigniCard } from '../src/engine/execUtils';
 import { hasActivePreventDamageWindow } from '../src/screens/battle/battleUtils';
-import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason } from '../src/utils/deckBuildLimits';
+import { lrigDeckArtsCap, lrigDeckArtsCount, deckAddBlockReason, sharesLrigType } from '../src/utils/deckBuildLimits';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectForcedTargets, collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isEnergyImmuneByOpponent, isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf, oppZoneMoveBlocked } from '../src/engine/execUtils';
@@ -85820,6 +85820,45 @@ test('§5.3 O-531 ライズのバニッシュ置換＝枚数と任意性を原�
     '🔴バトル解決が枚数を見ずに下を全部トラッシュしている');
   ok(screen.includes('newOpSigniRiseSub[opZoneIndex] = riseSubStack.slice(riseSubCount);'),
     '🔴置換後に残る下のカードを消している（旧はトップ1枚だけ残していた）');
+}));
+
+test('§5.6 C-9 R-47 センタールリグと同じルリグタイプのアシストルリグは入れられない', () => withSavedCursor(() => {
+  // 🔑**2026-09-17 ユーザー裁定**＝「センタールリグと同じルリグタイプのアシストルリグは入れることができません」。
+  //   ⇒ 「同じルリグタイプのルリグが場に複数並ぶ」状態は**構築で作れない**ので、
+  //     場のルール処理（EN Rule-based action 5）は実装しない。判定は `deckAddBlockReason` の1本。
+  const center = findCard(c => c.Type === 'ルリグ' && !!c.CardClass && !/[/／]/.test(c.CardClass));
+  const centerClass = cardMap.get(center)!.CardClass!;
+  const sameAssist = [...cardMap.values()]
+    .find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === centerClass)?.CardNum;
+  const otherAssist = [...cardMap.values()]
+    .find(c => c.Type === 'アシストルリグ' && !!c.CardClass && !sharesLrigType(c, cardMap.get(center)!))?.CardNum;
+  ok(!!sameAssist, `センター（${centerClass}）と同タイプのアシストが見つからない＝母集団の前提が崩れた`);
+  ok(!!otherAssist, '別タイプのアシストが見つからない');
+  const deckWithCenter = { mainDeck: [], lrigDeck: [center] };
+  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, deckWithCenter, cardMap), 'LRIG_TYPE_CLASH',
+    '🔴センターと同じルリグタイプのアシストが入ってしまう');
+  eq(deckAddBlockReason(cardMap.get(otherAssist!)!, deckWithCenter, cardMap), null,
+    '別タイプのアシストまで弾いている');
+  // 🔴**両方向で止める**＝アシストを先に入れてから同タイプのセンターを足す道も塞ぐ。
+  eq(deckAddBlockReason(cardMap.get(center)!, { mainDeck: [], lrigDeck: [sameAssist!] }, cardMap), 'LRIG_TYPE_CLASH',
+    '🔴順番を変えれば同タイプのセンターを足せてしまう');
+  // ⚠**アシスト同士の同タイプは止めない**＝裁定はセンターとの重なりについてだけ。
+  const sameAssist2 = [...cardMap.values()]
+    .find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === centerClass && c.CardNum !== sameAssist)?.CardNum;
+  if (sameAssist2) {
+    eq(deckAddBlockReason(cardMap.get(sameAssist2)!, { mainDeck: [], lrigDeck: [sameAssist!] }, cardMap), null,
+      'アシスト同士の同タイプまで弾いている（裁定の範囲外）');
+  }
+  // ⚠複合タイプ（`花代/ユヅキ`）は**1つでも重なれば**同じタイプ扱い。
+  const dual = [...cardMap.values()].find(c => c.Type === 'ルリグ' && /[/／]/.test(c.CardClass ?? ''));
+  if (dual) {
+    const part = (dual.CardClass ?? '').split(/[/／]/)[0].trim();
+    const partAssist = [...cardMap.values()].find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === part);
+    if (partAssist) {
+      eq(deckAddBlockReason(partAssist, { mainDeck: [], lrigDeck: [dual.CardNum] }, cardMap), 'LRIG_TYPE_CLASH',
+        '🔴複合タイプの片方だけ重なるアシストを通している');
+    }
+  }
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

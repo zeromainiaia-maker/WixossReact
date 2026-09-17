@@ -59288,6 +59288,133 @@ scenarios.v204LrigDeckArtsCapBlocksFourth = {
 };
 order.push('v204LrigDeckArtsCapBlocksFourth');
 
+// ── 🆕§5.1 `V-262`（2026-09-17）＝**センタールリグと同じルリグタイプのアシストルリグは入れられない**（`R-47`）──
+// 🔑**2026-09-17 ユーザー裁定**＝これは**構築の制限**であって場のルール処理ではない
+//   （＝「同じルリグタイプのルリグが場に複数並ぶ」状態はそもそも作れないので、EN Rule-based action 5 は要らない）。
+// 🔴**触った地点**＝`src/utils/deckBuildLimits.ts`（`deckAddBlockReason` / `sharesLrigType`）＝
+//   engine のどの funnel にも乗らない層なので、`V-204` と同じ `noInject` ハーネスで実機を見る。
+// 🔑**1ビット反転は「センター（`WX03-001`＝ウムル）がルリグデッキに在るか」だけ**＝
+//   同じアシスト（`WXDi-D01-009`＝ウムル＝ドロー）が、在ると入らず／抜くと入る。
+// ⚠**対照**＝別タイプのアシスト（`WXDi-D09-H06`＝タマ）はセンターが在っても入る（全部弾いていないこと）。
+scenarios.v262LrigTypeClashBlocksAssist = {
+  title: 'V-262 センターと同じルリグタイプのアシストは入らない（別タイプは入る／センターを抜けば入る）',
+  noInject: true,
+  async drive(page, H) {
+    const CENTER = 'WX03-001';        // 創造の鍵主 ウムル=フィーラ（ルリグ・タイプ「ウムル」）
+    const SAME = 'WXDi-D01-009';      // ウムル＝ドロー（アシスト・タイプ「ウムル」）＝入らないはず
+    const OTHER = 'WXDi-D09-H06';     // タマ・おおごえ（アシスト・タイプ「タマ」）＝入るはず
+    const DECK_NAME = `VERIFY_V262_${Date.now()}`;
+    const pauseRooms = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' };
+      const uid = sess.user?.id;
+      const rooms = (await (await fetch(`${SUPA_URL}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id,status`, { headers: h })).json()) ?? [];
+      for (const r of rooms) if (r.status === 'PLAYING') await fetch(`${SUPA_URL}/rest/v1/rooms?id=eq.${r.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'FINISHED' }) });
+      return rooms.filter(r => r.status === 'PLAYING').map(r => r.id);
+    }, { SUPA_URL, ANON });
+    const resumeRooms = (ids) => page.evaluate(async ({ SUPA_URL, ANON, ids }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json' };
+      for (const id of ids) await fetch(`${SUPA_URL}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) });
+      return ids.length;
+    }, { SUPA_URL, ANON, ids });
+    const createDeck = (name, lrigDeck) => page.evaluate(async ({ SUPA_URL, ANON, name, lrigDeck }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+      const res = await fetch(`${SUPA_URL}/rest/v1/decks`, { method: 'POST', headers: h,
+        body: JSON.stringify([{ user_id: sess.user?.id, name, main_deck: [], lrig_deck: lrigDeck, sort_order: 999 }]) });
+      return (await res.json())?.[0]?.id ?? null;
+    }, { SUPA_URL, ANON, name, lrigDeck });
+    const readDeck = (id) => page.evaluate(async ({ SUPA_URL, ANON, id }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      return (await (await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}&select=lrig_deck`, { headers: h })).json())?.[0]?.lrig_deck ?? null;
+    }, { SUPA_URL, ANON, id });
+    const deleteDeck = (id) => page.evaluate(async ({ SUPA_URL, ANON, id }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key));
+      const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+      await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}`, { method: 'DELETE', headers: h });
+      return true;
+    }, { SUPA_URL, ANON, id });
+
+    let paused = [];
+    let deckId = null;
+    try {
+      paused = await pauseRooms();
+      deckId = await createDeck(DECK_NAME, [CENTER]);
+      H.log(`ルーム退避=${JSON.stringify(paused)} 検証デッキ=${deckId}（${DECK_NAME}・センター=${CENTER}）`);
+      if (!deckId) return { pass: false, detail: '前提崩れ＝検証用デッキを作成できなかった（RLS/認証）' };
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(2500);
+      if (!await H.clickTextOrBtn(['デッキ編成'])) {
+        return { pass: false, detail: `前提崩れ＝START 画面に到達していない（body=${await H.body()}）` };
+      }
+      await page.waitForTimeout(1500);
+      if (!await H.clickTextOrBtn([DECK_NAME])) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない` };
+      await page.waitForTimeout(1200);
+      await H.clickTextOrBtn(['カード追加']);
+      await page.waitForTimeout(600);
+      const searchBox = page.getByPlaceholder('カード名・番号で検索').first();
+      const tryAdd = async (num) => {
+        await searchBox.fill(num);
+        await page.waitForTimeout(900);
+        const b = page.getByTestId(`search-add-${num}`).first();
+        if (!(await b.count()) || !(await b.isVisible().catch(() => false))) return { enabled: null, deck: await readDeck(deckId) };
+        const enabled = await b.isEnabled().catch(() => false);
+        await b.click({ timeout: 2000 }).catch(() => {});
+        await page.waitForTimeout(1200);
+        return { enabled, deck: await readDeck(deckId) };
+      };
+
+      // ① 本命＝センターと同じタイプのアシストは入らない（＋も押せない）。
+      const same = await tryAdd(SAME);
+      await page.screenshot({ path: `${SHOT}/v262-01-blocked.png`, fullPage: true });
+      H.log(`① 同タイプ: ＋enabled=${same.enabled} lrig_deck=${JSON.stringify(same.deck)}`);
+      if (same.enabled === null) return { pass: false, detail: `前提崩れ＝検索に ${SAME} の行が出ない` };
+      if ((same.deck ?? []).includes(SAME)) {
+        return { pass: false, detail: `🔴センター（${CENTER}＝ウムル）と同じルリグタイプのアシスト（${SAME}）が入った（lrig_deck=${JSON.stringify(same.deck)}）` };
+      }
+      if (same.enabled === true) {
+        return { pass: false, detail: '🔴入れられないのに＋ボタンが押せる状態だった（押しても無言 return＝理由も出ない）' };
+      }
+      // ② 対照＝別タイプのアシストは入る（全部弾いていないこと）。
+      const other = await tryAdd(OTHER);
+      H.log(`② 別タイプ: ＋enabled=${other.enabled} lrig_deck=${JSON.stringify(other.deck)}`);
+      if (!(other.deck ?? []).includes(OTHER)) {
+        return { pass: false, detail: `🔴別タイプのアシスト（${OTHER}＝タマ）まで入らない＝タイプ以外の理由で止まっている（enabled=${other.enabled} lrig_deck=${JSON.stringify(other.deck)}）` };
+      }
+      // ③ 1ビット反転＝センターを抜くと、同じアシストが入る。
+      await searchBox.fill(CENTER);
+      await page.waitForTimeout(900);
+      const rm = page.getByTestId(`search-remove-${CENTER}`).first();
+      if (!(await rm.count())) return { pass: false, detail: `前提崩れ＝検索に ${CENTER} の行が出ない` };
+      await rm.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const flipped = await tryAdd(SAME);
+      await page.screenshot({ path: `${SHOT}/v262-02-allowed.png`, fullPage: true });
+      H.log(`③ センターを抜いた: ＋enabled=${flipped.enabled} lrig_deck=${JSON.stringify(flipped.deck)}`);
+      if (!(flipped.deck ?? []).includes(SAME)) {
+        return { pass: false, detail: `🔴センターを抜いても同じアシスト（${SAME}）が入らない＝タイプ一致と無関係の理由で止まっている（enabled=${flipped.enabled} lrig_deck=${JSON.stringify(flipped.deck)}）` };
+      }
+      return {
+        pass: true,
+        detail: `センター（${CENTER}＝ウムル）が在ると同タイプのアシスト（${SAME}）は＋が disabled で入らず、`
+          + `別タイプ（${OTHER}＝タマ）は入り、センターを抜くだけで同じアシストが入った（lrig_deck=${JSON.stringify(flipped.deck)}）`,
+      };
+    } finally {
+      if (deckId) await deleteDeck(deckId).catch(() => {});
+      if (paused.length) await resumeRooms(paused).catch(() => {});
+      H.log(`片付け＝検証デッキ削除・ルーム復帰（${JSON.stringify(paused)}）`);
+    }
+  },
+};
+order.push('v262LrigTypeClashBlocksAssist');
+
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
 // 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。
