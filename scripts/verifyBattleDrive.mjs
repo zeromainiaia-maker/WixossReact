@@ -62315,6 +62315,129 @@ scenarios.c9risesubcount = {
 };
 
 order.push('c9risesubcount');
+// ── §5.6 `C-9` `R-48`（2026-09-17 ユーザー裁定）＝**基本は配置制限／レベルが変動して超過したら落とす** ──
+//   `WX20-Re18`（幻獣　アカズキン・**印字Lv2**）＝【常】「このシグニのレベルはあなたのエナゾーンにある
+//   カード５枚につき＋１される」。センターは `WD01-003`（Lv2・リミット5）。
+//   ⚠**リミットは超えない**（実効Lv5 ＝ リミット5）＝**レベル超過だけ**を見る盤面。
+scenarios.c9levelupover = {
+  title: 'C-9 R-48 効果でレベルが上がってセンタールリグのレベルを超えたシグニは自動でトラッシュへ',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9u0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WX20-Re18#c9u1'], null, null],
+      'field.signi_down': [false, false, false],
+      'energy': ['WD01-013#c9e00', 'WD01-013#c9e01', 'WD01-013#c9e02', 'WD01-013#c9e03', 'WD01-013#c9e04', 'WD01-013#c9e05', 'WD01-013#c9e06', 'WD01-013#c9e07', 'WD01-013#c9e08', 'WD01-013#c9e09', 'WD01-013#c9e10', 'WD01-013#c9e11', 'WD01-013#c9e12', 'WD01-013#c9e13', 'WD01-013#c9e14'],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9u9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 14; s++) {
+      const st = await c9Query(page);
+      H.log(`  c9lvup[${s}] | signi=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trash)}`);
+      if ((st?.host?.fieldSigni?.[0] ?? null) === null) {
+        const trashed = (st?.host?.trash ?? []).includes('WX20-Re18#c9u1');
+        return {
+          pass: trashed,
+          detail: trashed
+            ? `エナ15枚で実効レベル5＞センターLv2＝ルール処理でトラッシュへ（trash=${JSON.stringify(st.host.trash)}）`
+            : `🔴場からは消えたのにトラッシュに入っていない（trash=${JSON.stringify(st.host.trash)}）`,
+        };
+      }
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c9lvup-${s}.png`, fullPage: true });
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴レベル超過のシグニが残ったまま（signi=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  },
+};
+
+// 🔑**反転**＝エナ4枚（＋0＝印字Lv2のまま）なら落とさない。⚠これが無いと「常に落とす」実装でも上が PASS する。
+scenarios.c9levelupwithin = {
+  title: 'C-9 R-48 反転＝レベルが上がっていなければ落とさない（エナ4枚＝Lv2のまま）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9v0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WX20-Re18#c9v1'], null, null],
+      'field.signi_down': [false, false, false],
+      'energy': ['WD01-013#c9f00', 'WD01-013#c9f01', 'WD01-013#c9f02', 'WD01-013#c9f03'],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9v9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(700);
+      const st = await c9Query(page);
+      H.log(`  c9lvwithin[${s}] | signi=${JSON.stringify(st?.host?.fieldSigni?.[0])} trash=${JSON.stringify(st?.host?.trash)}`);
+      if ((st?.host?.trash ?? []).length > 0) {
+        return { pass: false, detail: `🔴レベルが上がっていないのに落とした（trash=${JSON.stringify(st.host.trash)}）` };
+      }
+    }
+    const fin = await c9Query(page);
+    await page.screenshot({ path: `${SHOT}/c9lvwithin-fin.png`, fullPage: true });
+    return {
+      pass: JSON.stringify(fin?.host?.fieldSigni?.[0]) === JSON.stringify(['WX20-Re18#c9v1']),
+      detail: `印字Lv2のままなら場に残る（signi=${JSON.stringify(fin?.host?.fieldSigni?.[0])}）`,
+    };
+  },
+};
+
+// 🔴**`c9forcedextraturn`＝強制終了でも予約済みの追加ターンは開始する**（`R-27`・2026-09-17 ユーザー裁定）。
+//   強制終了は「2回目のリフレッシュ」（`R-28`）の funnel で起こす＝盤面に台帳を立てるだけで再現できる。
+scenarios.c9forcedextraturn = {
+  title: 'C-9 R-27 強制終了（2回目のリフレッシュ）でも追加ターンを開始する',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9w0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WD01-013#c9w1'], null, null],
+      'field.signi_down': [true, false, false], 'field.signi_frozen': [false, false, false],
+      'refresh_count_this_turn': 2,
+      'extra_turn': true,
+      'hand': [], 'actions_done': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9w9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // ⚠基準はスペックの固定値（funnel が注入直後に走るので「最初のクエリ」では既に終わっている）。
+    const TURN_BASE = 2;
+    for (let s = 0; s < 14; s++) {
+      const st = await c9Query(page);
+      H.log(`  c9extraforce[${s}] | turn=${st?.turnCount} hostActive=${st?.hostIsActive} hostDown=${JSON.stringify(st?.host?.signiDown)} log=${JSON.stringify((st?.logs ?? []).slice(-2))}`);
+      if ((st?.turnCount ?? 0) > TURN_BASE) {
+        const kept = st.hostIsActive === true;
+        const up = st.host.signiDown?.[0] === false;
+        return {
+          pass: kept && up,
+          detail: kept && up
+            ? `強制終了でも追加ターンを開始（turn ${TURN_BASE}→${st.turnCount} 手番は自分のまま／ダウンしていたシグニもアップ）`
+            : `🔴手番が自分のまま=${kept} 自分のシグニがアップ=${up}（hostActive=${st.hostIsActive} down=${JSON.stringify(st.host.signiDown)}）`,
+        };
+      }
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/c9extraforce-${s}.png`, fullPage: true });
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴ターンが終了しなかった（turn=${fin?.turnCount} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+order.push('c9levelupover', 'c9levelupwithin', 'c9forcedextraturn');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

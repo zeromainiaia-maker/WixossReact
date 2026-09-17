@@ -1265,6 +1265,11 @@ export function banishDestination(
     if (resonaDest === 'lrig_trash') {
       return { state: { ...removed, lrig_trash: [...removed.lrig_trash, num] }, log: 'をバニッシュ（ルリグトラッシュへ）' };
     }
+    // 🆕`R-45b`＝**クラフトは場を離れるとゲームから取り除かれる**（2026-09-17 ユーザー裁定）。
+    //   ⚠**`excluded` へ積む**＝どこにも置かずに捨てると `census:traceinv` I1（カード保存則）に「(消滅)」で出る。
+    if (resonaDest === 'exile') {
+      return { state: { ...removed, excluded: [...(removed.excluded ?? []), num] }, log: 'をバニッシュ（ゲームから除外＝クラフト）' };
+    }
   }
   // 🆕**「このシグニの効果によって〜バニッシュされる場合」**（§5.3 `O-210`・`WX24-P4-050-E2`）＝
   //   置換元は**いま解決中の効果の発生源**（`opts.effectSourceNum`）。

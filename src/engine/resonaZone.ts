@@ -14,23 +14,24 @@ import type { CardEffect, StubAction } from '../types/effects';
  *   宣言を持つ5枚を除く41枚）。結果は二重に壊れる＝①相手にエナを1枚献上する
  *   ②レゾナが**ルリグデッキへ戻らないので二度と出せない**（`resonaSummon.ts` は `lrig_deck` から出す）。
  *
- * ⚠**`シグニ/レゾナクラフト`（live 10枚）はここでは扱わない**＝クラフトは「場を離れる場合ゲームから
- *   取り除かれる」はずだが、手元の一次資料（EN Rule Guide／JP 用語集）で明文を確認できていない。
- *   **推測で golden を張ると正しい修正を止める側に回る**ので、`Type === 'レゾナ'` の完全一致だけに掛け、
- *   クラフト側は RULES.md `R-45b` へ「要判断」で出す。
+ * 🆕**クラフトは「場を離れる場合ゲームから取り除かれる」**（2026-09-17 ユーザー裁定・RULES.md `R-45b`）＝
+ *   `シグニ/レゾナクラフト`（live 10枚）は**ルリグデッキへ戻さず除外**する。⚠戻すとルリグデッキに溜まって
+ *   **同じクラフトを何度でも出し直せる**（レゾナ規則をそのまま当てると必ずこちら側に倒れる）。
  *
- * @returns `'lrig_deck'` / `'lrig_trash'`＝規則がこのカードの行き先を決める（呼び出し側は他の置換より優先する）。
- *          `null`＝レゾナではない＝通常の行き先（エナ等）。
+ * @returns `'lrig_deck'` / `'lrig_trash'` / `'exile'`＝規則がこのカードの行き先を決める
+ *          （呼び出し側は他の置換より優先する）。`null`＝レゾナでもクラフトでもない＝通常の行き先（エナ等）。
  */
 export function resonaLeaveDestination(
   num: string,
   cardMap: Map<string, CardData>,
   effectsMap?: Map<string, CardEffect[]>,
-): 'lrig_deck' | 'lrig_trash' | null {
+): 'lrig_deck' | 'lrig_trash' | 'exile' | null {
   if (!num) return null;
   const hash = num.indexOf('#');
   const base = hash > 0 ? num.slice(0, hash) : num;
   const card = cardMap.get(num) ?? cardMap.get(base);
+  // ⚠**クラフトを先に見る**＝`シグニ/レゾナクラフト` は「レゾナ」を含むので、後に置くとレゾナ規則に食われる。
+  if ((card?.Type ?? '').includes('クラフト')) return 'exile';
   if (card?.Type !== 'レゾナ') return null;
   // ⚠**効果は2経路から来る**＝`cardMap` に畳み込まれた `effects`（engine の走査が使う形）と
   //   `effectsMap`（BattleScreen が別に持つ形）。片方だけ見ると宣言持ちの5枚が経路によって取りこぼれる。

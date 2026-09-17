@@ -5688,8 +5688,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (activeIsHost) { hostAcc = forced.activeAfter; guestAcc = forced.nextAfter; }
           else { guestAcc = forced.activeAfter; hostAcc = forced.nextAfter; }
           stackAcc = null;
-          forceEndNextTurn = { activeUserId: (activeIsHost ? bs.guest_id : bs.host_id) as string };
-          appendBattleLogs(['ターンが強制終了されました'], { defer: true });
+          // 🆕§5.6 `C-9` `R-27`＝**追加ターン／相手のスキップが予約されていれば交代しない**（`applyForcedTurnEnd` が判定）。
+          forceEndNextTurn = {
+            activeUserId: (forced.keepTurn ? bs.active_user_id : (activeIsHost ? bs.guest_id : bs.host_id)) as string,
+          };
+          appendBattleLogs(['ターンが強制終了されました', ...(forced.log ? [forced.log] : [])], { defer: true });
         }
       }
       await persist.commit(reduceBattle(bs, {
@@ -6941,7 +6944,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const limitExcessPlan = planLimitExcess({ owner: my, opponent: op, cardMap: battleCardMap, effectsMap, isOwnerTurn: isMyTurn });
   const limitExcessAsk = bs.global_phase === 'PLAYING' && !bs.effect_stack && !bs.pending_effect && !bs.pending_spell
     && !my.field.check && !op.field.check
-    && limitExcessPlan.excess > 0
+    // ⚠**レベル超過（自動）が残っているあいだは問わない**＝先に funnel が片付けてから測り直す。
+    && limitExcessPlan.levelOverZones.length === 0 && limitExcessPlan.excess > 0
     ? limitExcessPlan : null;
 
 
@@ -8967,8 +8971,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         );
         if (activeIsHostFE) { hostState = forcedFE.activeAfter; guestState = forcedFE.nextAfter; }
         else { guestState = forcedFE.activeAfter; hostState = forcedFE.nextAfter; }
-        cutinBeginNextTurn = { activeUserId: (activeIsHostFE ? bs.guest_id : bs.host_id) as string };
-        appendBattleLogs(['ターンが強制終了されました']);
+        cutinBeginNextTurn = {
+          activeUserId: (forcedFE.keepTurn ? bs.active_user_id : (activeIsHostFE ? bs.guest_id : bs.host_id)) as string,
+        };
+        appendBattleLogs(['ターンが強制終了されました', ...(forcedFE.log ? [forcedFE.log] : [])]);
       }
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState, guestState, clearPendingSpell: true,
@@ -10588,6 +10594,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const resonaDest = resonaLeaveDestination(opTopCardNum ?? '', battleCardMap, effectsMap);
           const banishToLrigTrash = resonaDest === 'lrig_trash';
           const banishToLrigDeck = resonaDest === 'lrig_deck';
+          // 🆕`R-45b`＝**クラフトは場を離れるとゲームから取り除かれる**（2026-09-17 ユーザー裁定）。
+          const banishToExileCraft = resonaDest === 'exile';
           // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナゾーンに置かれる代わりにデッキの一番下へ
           const energyToDeckBottom = !resonaDest && !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash &&
             (opS.opp_signi_energy_to_deck_bottom === true);
@@ -10599,7 +10607,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE' &&
             checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
           );
-          const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || banishToLrigDeck || energyToDeckBottom || defenderLeaveExile;
+          const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || banishToLrigDeck || banishToExileCraft || energyToDeckBottom || defenderLeaveExile;
           // 🔴**§5.3 O-48（2026-08-24 V-86(b) で発見・実機で確認）＝バニッシュの行き先はトップ1枚だけ**。
           //   ルール＝「ライズのシグニが場を離れるとき、**下にあったカードはトラッシュ**に置かれる」。
           //   従来は `...opStack`（スタック全部）をエナ／手札／デッキ／ルリグトラッシュへ送っており、
@@ -10616,6 +10624,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             energy: anyRedirect ? opS.energy : [...opS.energy, ...opTopOnly],
             // 🔴`R-45`＝規則は他の置換に**勝つ**ので、ここだけは `resonaDest` を見て排他にする。
             lrig_deck: banishToLrigDeck ? [...opS.lrig_deck, ...opTopOnly] : opS.lrig_deck,
+            excluded: banishToExileCraft ? [...(opS.excluded ?? []), ...opTopOnly] : opS.excluded,
             lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash,
             trash: [
               ...opS.trash,
@@ -10632,7 +10641,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${banishToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : redirectBanishToExile ? '（ゲームから除外）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${banishToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishToExileCraft ? '（クラフト→ゲームから除外）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : redirectBanishToExile ? '（ゲームから除外）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
           } // end resonaSubCardNum else
           } // end cookingBanishSub/acceBanishSub/resonaSub else
@@ -10863,6 +10872,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const resonaMyDest = resonaLeaveDestination(myTopNum, battleCardMap, effectsMap);
           const banishMyToLrigTrash = resonaMyDest === 'lrig_trash';
           const banishMyToLrigDeck = resonaMyDest === 'lrig_deck';
+          const banishMyToExileCraft = resonaMyDest === 'exile';   // `R-45b`
           const attackerLeaveExile = (effectsMap.get(myTopNum) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
@@ -10870,7 +10880,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum),
           );
           const anyMyRedirect = redirectMyBanish || redirectMyBanishToHand || redirectMyBanishToExile ||
-            frozenMyToDeckBottom || frozenMyToTrash || banishMyByOpponentToTrash || banishMyToLrigTrash || banishMyToLrigDeck || attackerLeaveExile;
+            frozenMyToDeckBottom || frozenMyToTrash || banishMyByOpponentToTrash || banishMyToLrigTrash || banishMyToLrigDeck || banishMyToExileCraft || attackerLeaveExile;
           banishedMyWentToTrash = !resonaMyDest
             && (redirectMyBanish || frozenMyToTrash || banishMyByOpponentToTrash || attackerLeaveExile);
           newMyState = {
@@ -10879,6 +10889,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             deck: (frozenMyToDeckBottom && !resonaMyDest) ? [...newMyState.deck, myTopNum] : newMyState.deck,
             energy: anyMyRedirect ? newMyState.energy : [...newMyState.energy, myTopNum],
             lrig_deck: banishMyToLrigDeck ? [...newMyState.lrig_deck, myTopNum] : newMyState.lrig_deck,
+            excluded: banishMyToExileCraft ? [...(newMyState.excluded ?? []), myTopNum] : newMyState.excluded,
             lrig_trash: banishMyToLrigTrash ? [...newMyState.lrig_trash, myTopNum] : newMyState.lrig_trash,
             trash: [
               ...newMyState.trash,
@@ -10896,7 +10907,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           };
           // ⚠**「相打ち」はルールに無い**（`O-47` の撤回で到達しなくなった）＝文言も残さない。
-          appendBattleLogs([`${myCardName}がバニッシュされた${banishMyToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          appendBattleLogs([`${myCardName}がバニッシュされた${banishMyToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishMyToExileCraft ? '（クラフト→ゲームから除外）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
@@ -12107,6 +12118,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const resonaDestP0 = resonaLeaveDestination(topNum, battleCardMap, effectsMap);
         const withBanished: PlayerState = resonaDestP0 === 'lrig_deck'
           ? { ...removed, lrig_deck: [...removed.lrig_deck, topNum] }
+          : resonaDestP0 === 'exile'
+          ? { ...removed, excluded: [...(removed.excluded ?? []), topNum] }   // `R-45b`＝クラフトは除外
           : resonaDestP0 === 'lrig_trash'
           ? { ...removed, lrig_trash: [...removed.lrig_trash, topNum] }
           : redirectBanishP0
@@ -12122,7 +12135,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 : recordEnergyPlacements({ ...removed, energy: [...removed.energy, topNum] }, [topNum], 'rule');
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${resonaDestP0 === 'lrig_deck' ? '（レゾナ→ルリグデッキへ）' : resonaDestP0 === 'lrig_trash' ? '（ルリグトラッシュへ）' : redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${resonaDestP0 === 'lrig_deck' ? '（レゾナ→ルリグデッキへ）' : resonaDestP0 === 'exile' ? '（クラフト→ゲームから除外）' : resonaDestP0 === 'lrig_trash' ? '（ルリグトラッシュへ）' : redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
 
         // usageLimit 消費は収集ごとに actions_done へ畳み込む（同一パスで複数シグニが0化しても《ターン1回》は1度だけ）。
         const usePZ = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
@@ -12277,13 +12290,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const forced = applyForcedTurnEnd(activeState, activeIsHost ? bs.guest_state : bs.host_state);
-      appendBattleLogs([`このターン${activeState.refresh_count_this_turn}回目のリフレッシュ（ターンプレイヤー）→ ターンを終了`]);
+      appendBattleLogs([
+        `このターン${activeState.refresh_count_this_turn}回目のリフレッシュ（ターンプレイヤー）→ ターンを終了`,
+        ...(forced.log ? [forced.log] : []),
+      ]);
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP',
         hostState: activeIsHost ? forced.activeAfter : forced.nextAfter,
         guestState: activeIsHost ? forced.nextAfter : forced.activeAfter,
         pending: null, effectStack: null,
-        beginNextTurn: { activeUserId: (activeIsHost ? bs.guest_id : bs.host_id) as string },
+        // 🆕`R-27`＝追加ターンの予約は強制終了でも効く（交代判定は `applyForcedTurnEnd` の1本）。
+        beginNextTurn: {
+          activeUserId: (forced.keepTurn ? bs.active_user_id : (activeIsHost ? bs.guest_id : bs.host_id)) as string,
+        },
       }));
       await flushBattleLogs();
     } finally {
@@ -12346,15 +12365,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
     // ⚠**カードマスタ未ロードで判定しない**＝全シグニのレベルが0に見えて盤面を誤って減らす（power0 と同じ規約）。
     if (battleCards.length === 0) return;
-    // ⚠**自分の盤面は問い合わせ（`LimitExcessModal`）が受ける**＝ここでは何もしない。
-    //   「レベル超過」は `planLimitExcess` の ⚠ のとおり**測るだけで落とさない**（RULES.md `R-48` の ❓）。
-    // CPU の盤面＝問う相手が居ないので自動で解く（ホスト側のクライアントが回す）。
+    // ① **レベルが変動して超過したシグニ**は選択の余地なくトラッシュ（`R-48`・2026-09-17 ユーザー裁定）。
+    //   ⚠印字レベルのまま超過している盤面は対象外＝そこは**配置制限**が止める（`planLimitExcess` の 🔑）。
+    const myKey: PlayerStateKey = isHost ? 'host_state' : 'guest_state';
+    const myPlan = planLimitExcess({ owner: my, opponent: op, cardMap: battleCardMap, effectsMap, isOwnerTurn: isMyTurn });
+    if (myPlan.levelOverZones.length > 0) {
+      await applyLimitExcessRule(my, myKey, user.id, myPlan.levelOverZones, 'レベル超過');
+      return;
+    }
+    // ② **リミット超過**は持ち主が1体ずつ選ぶ＝自分の盤面は `LimitExcessModal` が受ける（ここでは何もしない）。
+    // ③ CPU の盤面＝問う相手が居ないので①②とも自動で解く（ホスト側のクライアントが回す）。
     if (isCpuBattle && isHost) {
       const cpuSt = bs.guest_state;
       const cpuPlan = planLimitExcess({
         owner: cpuSt, opponent: bs.host_state, cardMap: battleCardMap, effectsMap,
         isOwnerTurn: bs.active_user_id === CPU_PLAYER_ID,
       });
+      if (cpuPlan.levelOverZones.length > 0) {
+        await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, cpuPlan.levelOverZones, '[CPU] レベル超過');
+        return;
+      }
       const pick = pickLimitExcessZone(cpuPlan);
       if (pick !== null) {
         await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, [pick], '[CPU] リミット超過');

@@ -10,8 +10,8 @@ const baseNum = (id: string): string => { const h = id.indexOf('#'); return h > 
 
 export interface LimitExcessPlan {
   /**
-   * センタールリグのレベルを**超える**シグニのゾーン（`R-48` の前半）。
-   * 🔴**2026-09-17 時点では報告するだけで落とさない**＝理由は `planLimitExcess` の ⚠ を読むこと。
+   * **効果でレベルが上がってセンタールリグのレベルを超えた**シグニのゾーン（`R-48`）＝**選択の余地なく**トラッシュ。
+   * ⚠印字レベルのまま超過している盤面は含めない（＝配置制限が止める状態）。詳細は `planLimitExcess` の 🔑。
    */
   levelOverZones: number[];
   /** 持ち主が**1体ずつ**選ぶ候補ゾーン（リミットを超えているときだけ）。 */
@@ -46,14 +46,16 @@ const EMPTY_PLAN: LimitExcessPlan = {
  *   どの効果か」を持つ state が無い。⇒ **持ち主に選ばせる**（推測で自動に落とすより安全側）。
  *   B を実装するなら「レベル変更・リミット変更の時刻印」を state に足すのが先。
  *
- * 🔴🔑**「レベル超過」は測るが落とさない**（2026-09-17 の判断・RULES.md `R-48` に ❓ で残した）＝
- *   ①原文コーパスで**ルリグのレベルを下げる効果は0枚**（実測）＝**配置ゲート**（`levelOk`／
- *     `SigniSummonZoneModal`）を通った盤面が後からレベル超過になる live の道が無い。
- *   ②そのため自動トラッシュは**盤面を注入する実機シナリオ（27本）にしか当たらない**＝
- *     テストの盤面を食うだけで、ゲーム中には一度も効かない。
- *   ③「レベル以下」が**配置制限**なのか**ルール処理（state-based）**なのかは一次資料で確定できていない。
- *   ⇒ `levelOverZones` は**計測して返すだけ**にし、落とすのは**リミット超過**（`R-44`・live 9カードが変える）に限る。
- *   ⚠読みが決まったらここを1行変えるだけで有効化できる（呼び出し側の funnel に分岐を足す）。
+ * 🔑**「シグニのレベル ≦ センタールリグのレベル」の読み（2026-09-17 ユーザー裁定・RULES.md `R-48`）**＝
+ *   **①基本は「配置制限」**（＝置くときのゲート。`levelOk`／`SigniSummonZoneModal`）
+ *   **②レベルが「変動」して超過したら、そのシグニはトラッシュに置かれる**（ルール処理）。
+ *   ⇒ `levelOverZones` は **`実効レベル > センターのレベル` かつ `実効レベル > 印字レベル`** のゾーンだけ＝
+ *     「効果でレベルが上がって超えた」ものに限る（例＝`WX20-Re18`「このシグニのレベルはあなたのエナゾーンに
+ *     あるカード５枚につき＋１される」）。
+ *   🔴**印字レベルのまま超過している盤面は落とさない**＝それは①の配置制限が止める状態であって、
+ *     ルール処理で掃除する対象ではない（実機シナリオが注入する illegal な盤面もここに入る）。
+ *   ⚠**未対応＝ルリグ側のレベル低下**（`SP38-005`＝「対戦相手のルリグ1体…それのレベルを－1する」）で生じる超過。
+ *     いまの実効レベル読みが `attack_phase_level_overrides`（相手 state に載る）を見ないため。RULES.md `R-48` の残件。
  *
  * ⚠**fail-closed**＝センタールリグが読めない／リミットが `∞` のときは**何も落とさない**（盤面からカードを消す側なので）。
  */
@@ -73,17 +75,23 @@ export function planLimitExcess(p: {
   const limit = computeEffectiveLrigLimit(owner, opponent, cardMap, effectsMap, p.isOwnerTurn);
   const signiLevels = calcSigniLevels(owner, opponent, effectsMap, cardMap);
   const levels = new Map<number, number>();
+  /** 印字レベル（＝配置ゲートが見た値）。実効レベルとの差が「レベルが変動した」の判定材料。 */
+  const printedLevels = new Map<number, number>();
   for (const [zi, stack] of owner.field.signi.entries()) {
     const top = stack?.at(-1);
     if (!top) continue;
     const card = cardMap.get(top) ?? cardMap.get(baseNum(top));
     // 🔑**配置ゲートと同じ式で数える**＝ズレると「置けたのにルール処理が落とす」形の理不尽になる。
     //   宣言名のレベル0上書き（§5.3 `O-226`）は `calcSigniLevels` が知らないのでここで重ねる。
-    if (declaredSigniOverride(owner, card?.CardName).levelZero) { levels.set(zi, 0); continue; }
+    if (declaredSigniOverride(owner, card?.CardName).levelZero) { levels.set(zi, 0); printedLevels.set(zi, 0); continue; }
     const printed = parseInt(card?.Level ?? '', 10);
-    levels.set(zi, signiLevels.get(top) ?? (Number.isFinite(printed) ? printed : 0));
+    const printedLv = Number.isFinite(printed) ? printed : 0;
+    printedLevels.set(zi, printedLv);
+    levels.set(zi, signiLevels.get(top) ?? printedLv);
   }
-  const levelOverZones = [...levels.entries()].filter(([, lv]) => lv > centerLevel).map(([zi]) => zi);
+  const levelOverZones = [...levels.entries()]
+    .filter(([zi, lv]) => lv > centerLevel && lv > (printedLevels.get(zi) ?? lv))
+    .map(([zi]) => zi);
   const total = [...levels.values()].reduce((sum, lv) => sum + lv, 0);
   const excess = Number.isFinite(limit) ? Math.max(0, total - limit) : 0;
   return {
@@ -125,6 +133,7 @@ export function applyLimitExcessTrash(
   let trash = [...state.trash];
   let lrigTrash = [...state.lrig_trash];
   let lrigDeck = [...state.lrig_deck];
+  let excluded = [...(state.excluded ?? [])];
   const signi = [...state.field.signi] as (string[] | null)[];
   const trashedTops: string[] = [];
   for (const zi of zones) {
@@ -135,6 +144,7 @@ export function applyLimitExcessTrash(
     const resonaDest = resonaLeaveDestination(top, cardMap, effectsMap);
     if (resonaDest === 'lrig_deck') lrigDeck = [...lrigDeck, top];
     else if (resonaDest === 'lrig_trash') lrigTrash = [...lrigTrash, top];
+    else if (resonaDest === 'exile') excluded = [...excluded, top];   // `R-45b`＝クラフトは除外
     else trash = [...trash, top];
     trash = [...trash, ...stack.slice(0, -1)];
     signi[zi] = null;
@@ -144,7 +154,7 @@ export function applyLimitExcessTrash(
     lrigTrash = [...lrigTrash, ...cleaned.lrigTrash];
   }
   return {
-    state: { ...state, field: { ...field, signi }, trash, lrig_trash: lrigTrash, lrig_deck: lrigDeck },
+    state: { ...state, field: { ...field, signi }, trash, lrig_trash: lrigTrash, lrig_deck: lrigDeck, excluded },
     trashedTops,
   };
 }

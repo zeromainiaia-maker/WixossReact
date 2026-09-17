@@ -175,7 +175,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { applyForcedTurnEnd, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
@@ -7314,8 +7314,8 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
   //   ⇒ 走査は「ヘルパが両 PlayerState を clear すること」＋「**2つの解決経路の両方から呼ぶこと**」で守る。
   const turnScopedSource = fs.readFileSync(join(root, 'src/screens/battle/turnScopedState.ts'), 'utf8');
   const forcedHelper = turnScopedSource.slice(turnScopedSource.indexOf('export function applyForcedTurnEnd('));
-  eq((forcedHelper.slice(0, forcedHelper.indexOf('\n}')).match(/clearTurnEndScopedState\(/g) ?? []).length, 2,
-    '強制終了: ヘルパがターンプレイヤー/非ターンプレイヤーの双方をclear');
+  eq((forcedHelper.slice(0, forcedHelper.indexOf('\n}')).match(/clearTurnEndScopedState\(/g) ?? []).length, 3,
+    '強制終了: ヘルパが endTurnClear／startTurn／keepTurn の相手をそれぞれ clear（§5.6 `C-9` `R-27` で3分岐になった）');
   // 🆕§5.6 `C-9` `R-28`（2026-09-17）＝3経路目＝**2回目のリフレッシュ**のルール処理 funnel。
   eq((battleSource.match(/applyForcedTurnEnd\(/g) ?? []).length, 3,
     '🔴強制終了は「スタック解決」「カットイン窓」「2回目のリフレッシュ」の3経路から呼ばれる（欠けると窓限定のアーツ／規則が効かない）');
@@ -85822,6 +85822,55 @@ test('§5.3 O-531 ライズのバニッシュ置換＝枚数と任意性を原�
     '🔴置換後に残る下のカードを消している（旧はトップ1枚だけ残していた）');
 }));
 
+test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
+  // 🔑**2026-09-17 ユーザー裁定**＝「追加ターンを得た状態で強制終了を食らった場合、**追加ターンを開始する**」。
+  // 🔴旧＝`applyForcedTurnEnd` が `resolveTurnHandover` を見ず**常に交代**していた＝追加ターンが消えて相手のターンになった。
+  const mkSide = (o: Partial<PlayerState> = {}): PlayerState => ({
+    ...mkState({}),
+    field: { ...mkState({}).field, signi_down: [true, false, false], signi_frozen: [false, false, false], lrig_down: true },
+    ...o,
+  }) as PlayerState;
+  // ① 通常＝交代する（アップを受けるのは相手）。
+  const plain = applyForcedTurnEnd(mkSide(), mkSide());
+  eq(plain.keepTurn, false, '予約が無いのに交代しないことにしている');
+  eq(plain.nextAfter.field.signi_down?.[0], false, '交代したのに次のターンプレイヤーがアップしていない');
+  eq(plain.activeAfter.field.signi_down?.[0], true, 'ターンを終えた側をアップしている');
+  // ② 🔴**追加ターン**＝交代せず、**ターンを終えた側**がアップフェイズを迎える。
+  const extra = applyForcedTurnEnd(mkSide({ extra_turn: true }), mkSide());
+  eq(extra.keepTurn, true, '🔴追加ターンを予約しているのに強制終了で交代している');
+  eq(extra.activeAfter.field.signi_down?.[0], false,
+    '🔴追加ターンなのに自分のシグニが起き上がらない（アタックできない）');
+  eq(extra.nextAfter.field.signi_down?.[0], true, '交代していないのに相手をアップしている');
+  eq(extra.activeAfter.extra_turn, undefined, '🔴追加ターンの予約を消費していない（無限ループ）');
+  ok(!!extra.log, '追加ターンを取ったことがログに出ない');
+  // ③ 相手のターンスキップも同じ（`resolveTurnHandover` の2軸目）。
+  const skip = applyForcedTurnEnd(mkSide(), mkSide({ skip_next_turn: true }));
+  eq(skip.keepTurn, true, '相手がスキップを予約しているのに交代している');
+  eq(skip.nextAfter.skip_next_turn, undefined, 'スキップの予約を消費していない');
+  // 🔴**配線**＝強制終了の3経路とも `keepTurn` を見てターンプレイヤーを決める。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/keepTurn \? bs\.active_user_id/g) ?? []).length, 3,
+    '🔴強制終了の3経路（スタック解決／カットイン窓／2回目のリフレッシュ）が keepTurn を見ていない');
+}));
+
+test('§5.6 C-9 R-54 〈ルリグ〉限定はセンタールリグだけを参照する', () => withSavedCursor(() => {
+  // 🔑**2026-09-17 ユーザー裁定**＝「限定条件は**センタールリグだけ**を参照する」（アシストのルリグタイプは見ない）。
+  eq(meetsRestriction('タマ限定', 'タマ'), true, 'センターが一致しているのに使えない');
+  eq(meetsRestriction('タマ限定', 'ピルルク'), false, 'センターが違うのに使える');
+  eq(meetsRestriction('-', 'ピルルク'), true, '限定なしが使えない');
+  eq(meetsRestriction('タマ限定', 'ピルルク', true), true, '「限定を無視する」が効いていない');
+  // 🔴**配線**＝`meetsRestriction` を呼ぶ全地点が**センター**（`field.lrig.at(-1)` 由来）からクラスを作る。
+  //   ⚠アシスト（`assist_lrig_*`）を混ぜると「アシストのタイプで限定が通る」型の無言の過剰になる。
+  for (const rel of ['src/engine/effectExecutor.ts', 'src/engine/execStubPart2.ts',
+    'src/screens/battle/artsUseGate.ts', 'src/screens/battle/spellUseGate.ts', 'src/screens/BattleScreen.tsx']) {
+    const src = fs.readFileSync(join(root, rel), 'utf8');
+    for (const m of src.matchAll(/meetsRestriction\(/g)) {
+      const around = src.slice(Math.max(0, m.index! - 260), m.index! + 120);
+      ok(!/assist_lrig/.test(around), `🔴${rel} の限定判定にアシストルリグが混ざっている`);
+    }
+  }
+}));
+
 test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/R-48）', () => withSavedCursor(() => {
   // 🔑公式ルール（EN Level・Limit／Rule-based action 2）＝シグニのレベルはセンタールリグのレベル以下、
   //   レベル合計はリミット以下。超えたら A（レベル超過）→ B（直前に変化）→ C（持ち主が選ぶ）の順に1体ずつトラッシュ。
@@ -85840,15 +85889,20 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
   eq(within.levelOverZones.length, 0, 'レベル以下のシグニを超過と判定している');
   eq(within.excess, 0, `リミット内（Lv1 / limit ${lrigLimitPrinted}）なのに超過と判定している`);
   eq(within.candidateZones.length, 0, '超過していないのに選択候補を出している');
-  // ② レベル超過（Lv2 のルリグに Lv3／Lv4）は**測るが落とさない**＝RULES.md `R-48` の ❓。
-  //   🔑理由＝原文コーパスで**ルリグのレベルを下げる効果は0枚**＝配置ゲートを通った盤面が後から
-  //   レベル超過になる live の道が無い（自動トラッシュは盤面を注入する実機シナリオにしか当たらない）。
-  const over = plan([SIGNI_L3, SIGNI_L4, SIGNI_L1]);
-  eq(JSON.stringify(over.levelOverZones), JSON.stringify([0, 1]),
-    '🔴センタールリグのレベルを超えるシグニを測れていない');
-  const screenLv = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((screenLv.match(/levelOverZones/g) ?? []).length, 0,
-    '🔴レベル超過で盤面を落とす分岐が入った（読みが未確定＝RULES.md `R-48` の ❓ を先に片づける）');
+  // ② 🔑**`R-48` の読み（2026-09-17 ユーザー裁定）＝基本は「配置制限」／レベルが変動して超過したら落とす。**
+  //   🔴**印字レベルのまま超過している盤面は落とさない**（＝配置制限が止める状態。実機の注入盤面もここに入る）。
+  eq(JSON.stringify(plan([SIGNI_L3, SIGNI_L4, SIGNI_L1]).levelOverZones), JSON.stringify([]),
+    '🔴印字レベルのまま超過している盤面を落としている（配置制限の領分）');
+  //   ⇒ **効果でレベルが上がった**ものだけが対象＝`WX20-Re18`（印字Lv2・「エナゾーンにあるカード５枚につき＋１」）。
+  const dyn = (energy: number) => planLimitExcess({
+    owner: mkState({ lrig: [lrigL2], signi: ['WX20-Re18'], energy }),
+    opponent: mkState({ lrig: [] }), cardMap, effectsMap, isOwnerTurn: true,
+  });
+  eq(dyn(0).levels.get(0), 2, '印字レベル（Lv2）で測れていない');
+  eq(JSON.stringify(dyn(0).levelOverZones), JSON.stringify([]), 'エナ0枚（Lv2＝ルリグと同じ）で落としている');
+  eq(dyn(15).levels.get(0), 5, 'エナ15枚で実効レベルが5にならない（+1/5枚）');
+  eq(JSON.stringify(dyn(15).levelOverZones), JSON.stringify([0]),
+    '🔴効果でレベルが上がってセンタールリグのレベルを超えたのに落とさない');
   // ③ リミット超過＝レベル合計で測り、**持ち主が選ぶ候補**を出す。
   const heavy = plan([SIGNI_L2, SIGNI_L2, SIGNI_L2]);
   eq(heavy.levelOverZones.length, 0, 'レベル以下なのにレベル超過と測っている');
@@ -85879,8 +85933,8 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
   eq(applied.state.field.signi[0], null, 'ゾーンが空いていない');
   // 🔴**配線**＝判定は純関数1本・funnel と表示の2地点から呼ぶ。
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((screen.match(/planLimitExcess\(/g) ?? []).length, 2,
-    '🔴判定の呼び出しが2箇所（自分の盤面＝モーダルの表示／CPU の盤面＝自動）でない');
+  eq((screen.match(/planLimitExcess\(/g) ?? []).length, 3,
+    '🔴判定の呼び出しが3箇所（モーダルの表示／自分の盤面の funnel／CPU の盤面）でない');
   ok(/const checkLimitExcessRule = async/.test(screen) && /pickLimitExcessZone\(cpuPlan\)/.test(screen),
     '🔴CPU の盤面を自動で解く経路が無い（問う相手が居ないので半分実装になる）');
   ok(fs.existsSync(join(root, 'src/screens/battle/modals/LimitExcessModal.tsx')),
@@ -86062,7 +86116,9 @@ test('§5.6 C-9 R-45 レゾナの行き先：ルリグデッキへ戻る（ル�
   //   ここでは掛けない（RULES.md `R-45b` の「要判断」）。
   eq(resonaLeaveDestination(SIGNI, cardMap, effectsMap), null, 'ふつうのシグニにレゾナ規則が掛かっている');
   const craft = [...cardMap.values()].find(c => c.Type === 'シグニ/レゾナクラフト')?.CardNum;
-  if (craft) eq(resonaLeaveDestination(craft, cardMap, effectsMap), null, 'レゾナクラフトに未確認の規則を掛けている');
+  // 🆕`R-45b`（2026-09-17 ユーザー裁定）＝**クラフトは場を離れるとゲームから取り除かれる**。
+  //   ⚠ルリグデッキへ戻すと**同じクラフトを何度でも出し直せる**側に倒れるので、ここを取り違えない。
+  if (craft) eq(resonaLeaveDestination(craft, cardMap, effectsMap), 'exile', '🔴レゾナクラフトが除外されない');
   // 🔴**写経の再発防止**＝行き先の ladder は4箇所（効果 funnel＋バトル2＋パワー0）にあり、
   //   規則を1つずつ手で書き直すと**経路によってレゾナの行き先が変わる**。判定は `resonaZone.ts` の1本を通す。
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');

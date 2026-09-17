@@ -4,6 +4,7 @@ import { normalizeFieldGrants, optionalFieldGrants } from '../../utils/fieldGran
 import { activateNextTurnDeployCountLimit } from './deployCountLimit';
 import { activateNextTurnSigniZoneBlocks } from './signiZoneBlock';
 import { applyUpPhaseToField } from './upPhase';
+import { resolveTurnHandover } from './turnHandover';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
 type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'main-phase-start' | 'consume';
@@ -520,26 +521,44 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
  */
 export function applyForcedTurnEnd(
   activeState: PlayerState, nextState: PlayerState,
-): { activeAfter: PlayerState; nextAfter: PlayerState } {
-  // ターンを終える側の一時状態をクリア。
-  const activeAfter = clearTurnEndScopedState({
-    ...activeState,
+): { activeAfter: PlayerState; nextAfter: PlayerState; keepTurn: boolean; log?: string } {
+  // 🆕🔴**§5.6 `C-9` `R-27`（2026-09-17 ユーザー裁定）＝強制終了でも予約済みの追加ターンは開始する。**
+  //   旧はこの関数が**常に交代する**前提で、`resolveTurnHandover` を見ていなかった＝
+  //   「追加ターンを得た状態で『このターンを終了する』を受ける」と**追加ターンが消えて相手のターンになる**。
+  //   ⚠交代判定は通常のターン終了3経路と**同じ `resolveTurnHandover` 1本**（軸を足すならあちらへ）。
+  const handover = resolveTurnHandover(activeState, nextState);
+  const enderBase = handover.consumeTurnEnder(activeState);
+  const oppBase = handover.consumeOpponent(nextState);
+  /** ターンを終える側の一時状態をクリア。 */
+  const endTurnClear = (state: PlayerState): PlayerState => clearTurnEndScopedState({
+    ...state,
     temp_power_mods: [],
     temp_level_mods: [],
     keyword_grants: {},
     granted_effects: {},
     actions_done: [],
   });
-  // 次のターンプレイヤーのシグニをアップ（凍結中はアップせず凍結解除）＝規則は `upPhase.ts` の1本（§5.6 `C-9`）。
-  // ⚠この関数は**常に交代する**前提（`resolveTurnHandover` を見ない）＝追加ターン予約中の強制終了は PLAN §5.6 `C-9` の残項目。
-  const nextAfter = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
-    ...nextState,
-    // 出自マーカー本体はUP開始時の funnel でクリア
-    signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined,
-    signi_deploy_count_limit: undefined, // 配置数制限（相手にかけられた分）を自分のターン開始時にリセット
-    field: applyUpPhaseToField(nextState.field),
-  })).state);
-  return { activeAfter, nextAfter };
+  /** これからターンを行う側＝シグニをアップ（凍結中はアップせず凍結解除）＋次ターン予約の昇格。 */
+  const startTurn = (state: PlayerState): PlayerState =>
+    activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
+      ...state,
+      // 出自マーカー本体はUP開始時の funnel でクリア
+      signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined,
+      signi_deploy_count_limit: undefined, // 配置数制限（相手にかけられた分）を自分のターン開始時にリセット
+      field: applyUpPhaseToField(state.field),
+    })).state);
+  // 通常＝交代する（アップを受けるのは相手）。
+  if (!handover.keepTurn) {
+    return { activeAfter: endTurnClear(enderBase), nextAfter: startTurn(oppBase), keepTurn: false };
+  }
+  // 追加ターン／相手のターンスキップ＝**ターンを終えた側がもう一度ターンを行う**＝アップもその側が受ける
+  //   （規則は `upPhase.ts` の `upPhaseRecipient` と同じ読み）。
+  return {
+    activeAfter: startTurn(endTurnClear(enderBase)),
+    nextAfter: clearTurnEndScopedState(oppBase),
+    keepTurn: true,
+    ...(handover.log ? { log: handover.log } : {}),
+  };
 }
 
 /** 次の自分ターン開始時の履歴切替と、各予約→active 昇格を一括する。 */
