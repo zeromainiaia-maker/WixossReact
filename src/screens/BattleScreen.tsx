@@ -140,7 +140,8 @@ import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from './b
 import { LimitExcessModal } from './battle/modals/LimitExcessModal';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
-import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
+import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
+import { cardStrength } from './battle/cpuCardStrength';
 import { applyMulligan } from './battle/mulligan';
 import { buildLrigSetupState } from './battle/lrigSetup';
 import { resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA } from '../utils/deckLrigSetup';
@@ -670,73 +671,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return () => clearInterval(id);
   }, [isCpuBattle]);
 
-  // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
-  // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
-  useEffect(() => {
-    if (!isCpuBattle || !bs?.pending_effect) return;
-    const pe = bs.pending_effect;
-    const inter = pe.interaction;
-    // 🆕§5.6 `C-8`（2026-09-17）＝**何と答えるかは `cpuInteraction.ts` の純関数**（golden で固定）。ここは呼んで実行するだけ。
-    //   旧＝この effect に直書きで、選択肢は「押せる先頭」固定（分岐の片側しか踏まない）・対象は完全ランダムだった。
-    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
-    const cpuIsHost = bs.host_id === CPU_PLAYER_ID;
-    const cpuCtx: CpuInteractionCtx = {
-      cpuState: cpuIsHost ? bs.host_state : bs.guest_state,
-      oppState: cpuIsHost ? bs.guest_state : bs.host_state,
-      // ⚠instance ID（`#…`）で引く補助関数（支払うエナの選出）があるので InstanceMap を渡す。
-      cardMap: new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData])),
-    };
-    // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
-    if (inter.type === 'REARRANGE_SIGNI') {
-      const requiredChoice = pickCpuRearrange(inter);
-      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerRS);
-    }
-    // `ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る（検算は `resumeAllocatePower`）。
-    if (inter.type === 'ALLOCATE_POWER') {
-      const allocCpu = pickCpuAllocatePower(inter, cpuCtx);
-      const timerAP = setTimeout(() => { handleAllocatePowerConfirm(allocCpu); }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerAP);
-    }
-    // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
-    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
-      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
-      const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
-      const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
-      if (inter.type === 'SELECT_VIRUS_ZONE') {
-        const zone = pickCpuVirusZone(inter, tgtState);
-        const timerVZ = setTimeout(() => { handleSelectVirusZoneForEffect(zone); }, CPU_ACTION_DELAY);
-        return () => clearTimeout(timerVZ);
-      }
-      const emptyZone = pickCpuEmptySigniZone(tgtState);
-      if (emptyZone === null) return;
-      const timerSZ = setTimeout(() => {
-        if (inter.type === 'SELECT_SIGNI_ZONE') handleSelectSigniZoneForEffect(emptyZone);
-        else handleSelectZoneForEffect(emptyZone);
-      }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerSZ);
-    }
-    // 応答者がCPUの場合（respondPlayerId指定、または無指定で効果オーナーがCPU）は自動応答する
-    // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
-    const timer = setTimeout(() => {
-      let selected: string[] = [];
-      if (inter.type === 'SELECT_TARGET') {
-        selected = pickCpuTargets(inter, cpuCtx);
-      } else if (inter.type === 'CHOOSE') {
-        selected = pickCpuChoice(inter, cpuCtx);
-        const chosen = inter.options.find(o => o.id === selected[0]);
-        // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。
-        if (chosen) appendBattleLogs([`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}`]);
-      } else if (inter.type === 'SEARCH') {
-        selected = pickCpuSearch(inter, cpuCtx);
-      } else if (inter.type === 'LOOK_AND_REORDER') {
-        selected = [...inter.cards];
-      }
-      handleEffectInteraction(selected);
-    }, CPU_ACTION_DELAY);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCpuBattle, bs?.pending_effect?.respondPlayerId, bs?.pending_effect]);
 
   // CPU対戦：effectスタック整列をCPUが自動確定
   useEffect(() => {
@@ -1149,6 +1083,77 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     return new InstanceMap(augMap);
   }, [bs, baseEffectsMap, user.id, battleCardMap]);
+
+  // §5.7 `S-1`＝`effectsMap`（強さの採点に使う）を参照するので、その定義より後ろに置く（前に置くと React Compiler がメモ化を保てず lint error）。
+  // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
+  // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
+  useEffect(() => {
+    if (!isCpuBattle || !bs?.pending_effect) return;
+    const pe = bs.pending_effect;
+    const inter = pe.interaction;
+    // 🆕§5.6 `C-8`（2026-09-17）＝**何と答えるかは `cpuInteraction.ts` の純関数**（golden で固定）。ここは呼んで実行するだけ。
+    //   旧＝この effect に直書きで、選択肢は「押せる先頭」固定（分岐の片側しか踏まない）・対象は完全ランダムだった。
+    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
+    const cpuIsHost = bs.host_id === CPU_PLAYER_ID;
+    const cpuCtx: CpuInteractionCtx = {
+      cpuState: cpuIsHost ? bs.host_state : bs.guest_state,
+      oppState: cpuIsHost ? bs.guest_state : bs.host_state,
+      // ⚠instance ID（`#…`）で引く補助関数（支払うエナの選出）があるので InstanceMap を渡す。
+      cardMap: new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData])),
+      // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
+      effectsOf: id => effectsMap.get(id) ?? [],
+    };
+    // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
+    if (inter.type === 'REARRANGE_SIGNI') {
+      const requiredChoice = pickCpuRearrange(inter);
+      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerRS);
+    }
+    // `ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る（検算は `resumeAllocatePower`）。
+    if (inter.type === 'ALLOCATE_POWER') {
+      const allocCpu = pickCpuAllocatePower(inter, cpuCtx);
+      const timerAP = setTimeout(() => { handleAllocatePowerConfirm(allocCpu); }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerAP);
+    }
+    // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
+    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
+      const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
+      if (inter.type === 'SELECT_VIRUS_ZONE') {
+        const zone = pickCpuVirusZone(inter, tgtState);
+        const timerVZ = setTimeout(() => { handleSelectVirusZoneForEffect(zone); }, CPU_ACTION_DELAY);
+        return () => clearTimeout(timerVZ);
+      }
+      const emptyZone = pickCpuEmptySigniZone(tgtState);
+      if (emptyZone === null) return;
+      const timerSZ = setTimeout(() => {
+        if (inter.type === 'SELECT_SIGNI_ZONE') handleSelectSigniZoneForEffect(emptyZone);
+        else handleSelectZoneForEffect(emptyZone);
+      }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerSZ);
+    }
+    // 応答者がCPUの場合（respondPlayerId指定、または無指定で効果オーナーがCPU）は自動応答する
+    // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
+    const timer = setTimeout(() => {
+      let selected: string[] = [];
+      if (inter.type === 'SELECT_TARGET') {
+        selected = pickCpuTargets(inter, cpuCtx);
+      } else if (inter.type === 'CHOOSE') {
+        selected = pickCpuChoice(inter, cpuCtx);
+        const chosen = inter.options.find(o => o.id === selected[0]);
+        // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。
+        if (chosen) appendBattleLogs([`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}`]);
+      } else if (inter.type === 'SEARCH') {
+        selected = pickCpuSearch(inter, cpuCtx);
+      } else if (inter.type === 'LOOK_AND_REORDER') {
+        selected = [...inter.cards];
+      }
+      handleEffectInteraction(selected);
+    }, CPU_ACTION_DELAY);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.pending_effect?.respondPlayerId, bs?.pending_effect]);
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
@@ -12740,13 +12745,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         || isPhaseSkipped('ENERGY', cpuSt, cpuContBlockedSelf);
       if (blocked) appendBattleLogs(['[CPU] エナフェイズをスキップする']);
       if (!used && !blocked && cpuSt.hand.length > 0) {
-        const charged = cpuSt.hand[0];
+        // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
+        const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
+        const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna));
+        const charged = cpuSt.hand[chargeIdx];
         const chargedCard = battleCardMap.get(charged);
         appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
         // 🆕§5.3 `O-321` 第275＝CPU の「エナに送る」も同じ台帳へ（人間側と非対称にしない）。
         const newCpuSt: PlayerState = recordEnergyPlacements({
           ...cpuSt,
-          hand: cpuSt.hand.slice(1),
+          hand: cpuSt.hand.filter((_, i) => i !== chargeIdx),
           energy: [...cpuSt.energy, charged],
           actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
         }, [charged], 'rule');
@@ -12932,7 +12940,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             id,
             level: parseInt(card!.Level) || 0,
             power: card!.Power === '∞' ? Infinity : (parseInt(card!.Power ?? '', 10) || 0),
+            // §5.7 `S-1`＝パワーだけでなく効果の強さでも比べる（【出】の除去を持つ低パワーの札を後回しにしない）。
+            value: cardStrength(card!, effectsMap.get(id) ?? [], 'deploy'),
+            guard: card!.Guard === '1',
           })),
+          handGuardCount: handSignis.filter(({ card }) => card?.Guard === '1').length,
           remainingLimit: cpuLimit - fieldTotal,
           zonesRemaining: Math.max(1, Math.min(emptyZonesAhead, cpuFieldSigniLimit - placedCount)),
         });
@@ -13404,7 +13416,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let cpuTrashEND = cpuEndState.trash;
       const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
       if (cpuHandEND.length > cpuHandLimit) {
-        const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap);
+        const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? []);
         const discardNums = discardIdx.map(i => cpuHandEND[i]);
         appendBattleLogs([`[CPU] 手札上限: ${cpuHandEND.length}枚→${cpuHandEND.length - discardNums.length}枚（${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て）`]);
         cpuHandEND = cpuHandEND.filter((_, i) => !discardIdx.includes(i));

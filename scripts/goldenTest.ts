@@ -157,7 +157,8 @@ import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
-import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
+import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
+import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -86027,6 +86028,57 @@ test('§5.6 C-8 CPU の対話応答（純関数）：損得の分かる選択は
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
   ok(!/const firstAvail = inter\.options\.find/.test(battle), '🔴「押せる先頭」の直書きが残っている');
+}));
+
+test('§5.7 S-1 カードの強さ表：効果 JSON から「パワー＋効果」で採点し、召喚・対象・エナチャージ・捨て札に使う', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー指摘「パワーが弱くても効果が強いのもある」）。旧 CPU はパワーとレベルだけで比べていた。
+  const effOf = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const VANILLA = 'WD01-013';       // 小剣 ククリ（Lv1・3000・効果なし）
+  const REMOVAL_ONPLAY = 'WX25-P3-076'; // 幻竜 オピオン（Lv1・2000・【出】で相手のシグニをバニッシュ）
+  const REMOVAL_ACT = 'WXK11-056';  // 羅原 Ｇｔ（Lv1・2000・【起】で相手のシグニをバニッシュ）
+  const MILL = 'WXK11-072';         // 堕落の砲女 メツマ（【出】デッキの上から3枚トラッシュ＝除去ではない）
+  ok(cardFeatures(effOf(REMOVAL_ONPLAY), 'deploy').removal > 0, '前提崩れ＝オピオンの【出】バニッシュを除去として数えていない');
+  eq(cardFeatures(effOf(MILL), 'deploy').removal, 0, '🔴デッキを削る効果を場の除去に数えた（初版の誤り）');
+  const sOf = (n: string, ctx: 'deploy' | 'field') => cardStrength(cardMap.get(n), effOf(n), ctx);
+  ok(sOf(REMOVAL_ONPLAY, 'deploy') > sOf(VANILLA, 'deploy'), '🔴【出】に除去を持つ低パワーのシグニがバニラより弱いと見ている');
+  ok(sOf(REMOVAL_ONPLAY, 'field') < sOf(REMOVAL_ONPLAY, 'deploy'), '場に出た後も【出】の価値を満額で数えている');
+  ok(sOf(REMOVAL_ACT, 'field') > sOf(VANILLA, 'field'), '🔴【起】で除去できる場のシグニを脅威と見ていない');
+  eq(sOf(VANILLA, 'deploy'), 3000, 'バニラの強さがパワーと一致しない');
+
+  // 召喚＝強さで比べる（value が無ければ旧挙動のパワー）
+  const cands = [{ id: 'v', level: 1, power: 3000 }, { id: 'r', level: 1, power: 2000 }];
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 1, zonesRemaining: 1 }), 'v', '旧挙動（パワー）が変わった');
+  eq(pickCpuDeployCard({ candidates: [{ ...cands[0], value: 3000 }, { ...cands[1], value: sOf(REMOVAL_ONPLAY, 'deploy') }], remainingLimit: 1, zonesRemaining: 1 }), 'r',
+    '🔴召喚で効果の強いシグニより高パワーのバニラを選んだ');
+
+  // 【ガード】は最後の1枚を手札に残す（実機で CPU がサーバント Ｏ を2枚とも場に出した）
+  const guards = [{ id: 'g1', level: 1, power: 2000, value: 2375, guard: true }, { id: 'g2', level: 1, power: 2000, value: 2375, guard: true }];
+  eq(pickCpuDeployCard({ candidates: [guards[0]], remainingLimit: 2, zonesRemaining: 2, handGuardCount: 1 }), null, '🔴最後の【ガード】を場に出した');
+  eq(pickCpuDeployCard({ candidates: guards, remainingLimit: 2, zonesRemaining: 2, handGuardCount: 2 }), 'g1', '余っている【ガード】まで出さない');
+  eq(pickCpuDeployCard({ candidates: [guards[0], { id: 'v', level: 1, power: 3000, value: 3000 }], remainingLimit: 2, zonesRemaining: 2, handGuardCount: 1 }), 'v', 'ガード以外の札を出さない');
+
+  // 除去の対象＝相手の脅威（パワー＋効果）の高い方
+  const cm = new InstanceMap<CardData>(cardMap);
+  const oppV = `${VANILLA}#1`, oppAct = `${REMOVAL_ACT}#1`;
+  const cpu = mkState({ signi: [null, null, null] }), opp = mkState({ signi: [oppV, oppAct, null] });
+  const banish = { type: 'SELECT_TARGET', candidates: [oppV, oppAct], count: 1, optional: false, targetScope: 'SINGLE', thenAction: { type: 'BANISH' } } as never;
+  eq(JSON.stringify(pickCpuTargets(banish, { cpuState: cpu, oppState: opp, cardMap: cm })), JSON.stringify([oppV]), '旧挙動（パワーだけ）が変わった');
+  eq(JSON.stringify(pickCpuTargets(banish, { cpuState: cpu, oppState: opp, cardMap: cm, effectsOf: effOf })), JSON.stringify([oppAct]),
+    '🔴除去の対象に、【起】で除去してくる低パワーのシグニより高パワーのバニラを選んだ');
+
+  // エナチャージ＝強さの低い札から（【ガード】は最後）／捨て札も同じ
+  const guard = [...cardMap.values()].find(c => c.Guard === '1')!.CardNum;
+  const hand = [`${REMOVAL_ONPLAY}#2`, `${guard}#2`, `${VANILLA}#2`];
+  eq(pickCpuEnergyChargeIndex(hand, cm, effOf, 1), 2, '🔴エナチャージで強い札か【ガード】を置いた（旧＝手札の先頭）');
+  eq(pickCpuEnergyChargeIndex([`${guard}#3`], cm, effOf, 1), 0, '【ガード】しか無いのにエナチャージしない');
+  eq(JSON.stringify(pickCpuHandLimitDiscards(hand, 1, cm, effOf)), JSON.stringify([2]), '🔴手札上限で強い札か【ガード】を捨てた');
+
+  // 画面の配線
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/value: cardStrength\(card!, effectsMap\.get\(id\)/.test(battle), '🔴CPU の召喚が強さを渡していない');
+  ok(/handGuardCount: handSignis\.filter/.test(battle), '🔴CPU の召喚が手札の【ガード】枚数を渡していない');
+  ok(/pickCpuEnergyChargeIndex\(cpuSt\.hand, battleCardMap/.test(battle) && !/const charged = cpuSt\.hand\[0\];/.test(battle), '🔴CPU のエナチャージが手札の先頭固定のまま');
+  ok(/effectsOf: id => effectsMap\.get\(id\) \?\? \[\]/.test(battle), '🔴CPU の対話応答に効果の一覧を渡していない');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

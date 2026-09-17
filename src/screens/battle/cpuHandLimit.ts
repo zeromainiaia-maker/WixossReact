@@ -1,5 +1,7 @@
 import type { CardData } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
+import type { CardEffect } from '../../types/effects';
+import { cardStrength } from './cpuCardStrength';
 
 /**
  * CPU の**マリガンで戻す札**と**手札上限で捨てる札**（§5.6 `C-4`・2026-09-17）。
@@ -20,11 +22,16 @@ const levelOf = (num: string, cardMap: Map<string, CardData>): number => {
 };
 const isGuard = (num: string, cardMap: Map<string, CardData>): boolean => cardMap.get(getCardNum(num))?.Guard === '1';
 
-/** 手放す優先順（先頭ほど手放す）の添字列。 */
-function discardOrder(hand: string[], cardMap: Map<string, CardData>): number[] {
+/**
+ * 手放す優先順（先頭ほど手放す）の添字列。
+ * 🆕§5.7 `S-1`＝効果の一覧（`effectsOf`）があれば**強さ（パワー＋効果の点数）の低い札から**手放す。無ければ旧挙動（レベルの高い札から）。
+ * 【ガード】は常に最後まで残す。
+ */
+function discardOrder(hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[]): number[] {
+  const strength = (num: string) => cardStrength(cardMap.get(getCardNum(num)), effectsOf?.(num) ?? [], 'deploy');
   return hand.map((_, i) => i).sort((a, b) =>
     Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))
-    || levelOf(hand[b], cardMap) - levelOf(hand[a], cardMap)
+    || (effectsOf ? strength(hand[a]) - strength(hand[b]) : levelOf(hand[b], cardMap) - levelOf(hand[a], cardMap))
     || b - a);
 }
 
@@ -39,7 +46,30 @@ export function pickCpuMulliganIndices(hand: string[], cardMap: Map<string, Card
 }
 
 /** 手札上限で捨てる手札の添字（ちょうど `count` 枚。`count` が手札を超えるなら全部）。 */
-export function pickCpuHandLimitDiscards(hand: string[], count: number, cardMap: Map<string, CardData>): number[] {
+export function pickCpuHandLimitDiscards(
+  hand: string[], count: number, cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[],
+): number[] {
   if (count <= 0) return [];
-  return discardOrder(hand, cardMap).slice(0, count).sort((a, b) => a - b);
+  return discardOrder(hand, cardMap, effectsOf).slice(0, count).sort((a, b) => a - b);
+}
+
+/**
+ * 🆕§5.7 `S-1`＝**エナチャージする手札**の添字＝強さの低い札（【ガード】は最後）。
+ * ⚠ルリグのレベルより2以上高いシグニは、しばらく出せないので**強さを割り引く**（エナに回しやすくする）。
+ * 旧実装は「手札の先頭1枚」固定だった（強い札でもエナに置いていた）。
+ * @returns 手札が空なら -1
+ */
+export function pickCpuEnergyChargeIndex(
+  hand: string[], cardMap: Map<string, CardData>, effectsOf: (id: string) => readonly CardEffect[], lrigLevel: number,
+): number {
+  if (hand.length === 0) return -1;
+  const keepValue = (num: string) => {
+    const card = cardMap.get(getCardNum(num));
+    const base = cardStrength(card, effectsOf(num), 'deploy');
+    return card?.Type === 'シグニ' && levelOf(num, cardMap) >= lrigLevel + 2 ? base * 0.6 : base;
+  };
+  return hand.map((_, i) => i).sort((a, b) =>
+    Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))
+    || keepValue(hand[a]) - keepValue(hand[b])
+    || a - b)[0];
 }

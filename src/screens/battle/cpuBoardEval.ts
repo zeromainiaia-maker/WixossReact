@@ -24,7 +24,14 @@ export interface CpuDeployCandidate {
   level: number;
   /** 実効パワー（`calcFieldPowers` の値。無ければ印刷パワー）。`∞` は `Infinity`。 */
   power: number;
+  /** 🆕§5.7 `S-1`＝強さ（パワー＋効果の点数＝`cpuCardStrength.ts`）。あればパワーの代わりに比べる。 */
+  value?: number;
+  /** 🆕§5.7 `S-1`＝【ガード】を持つ札（手札に残してルリグのアタックを防ぐ札）。 */
+  guard?: boolean;
 }
+
+/** 手札に残す【ガード】の枚数（最後の1枚は場に出さない）。 */
+export const CPU_KEEP_GUARDS = 1;
 
 /**
  * いまのゾーンに置く1枚を選ぶ＝**「残りゾーンを埋められる範囲でいちばん強い札」**。
@@ -53,8 +60,14 @@ export function pickCpuDeployCard(p: {
   /** 残りリミット（`cpuLimit - fieldTotal`）。 */
   remainingLimit: number;
   zonesRemaining: number;
+  /** 🆕§5.7 `S-1`＝いま手札にある【ガード】の枚数。指定すると最後の `CPU_KEEP_GUARDS` 枚は場に出さない。 */
+  handGuardCount?: number;
 }): string | null {
-  const { candidates, remainingLimit, zonesRemaining } = p;
+  const { remainingLimit, zonesRemaining } = p;
+  // 🔑【ガード】は手札で使う札＝場に出すのは余っている分だけ（2026-09-17 実機＝CPU がサーバント Ｏ を2枚とも場に出した）。
+  const candidates = p.handGuardCount !== undefined && p.handGuardCount <= CPU_KEEP_GUARDS
+    ? p.candidates.filter(c => !c.guard)
+    : p.candidates;
   const fits = candidates.filter(c => c.level <= remainingLimit);
   if (fits.length === 0) return null;
   /** レベル昇順の貪欲＝この予算・枠数で置ける**最大体数**（最大体数問題は昇順貪欲が最適）。 */
@@ -68,7 +81,7 @@ export function pickCpuDeployCard(p: {
   };
   const bestCount = maxCount(candidates.map(c => c.level), remainingLimit, zonesRemaining);
   const better = (a: CpuDeployCandidate, b: CpuDeployCandidate) =>
-    (b.power - a.power) || (b.level - a.level) || (candidates.indexOf(a) - candidates.indexOf(b));
+    ((b.value ?? b.power) - (a.value ?? a.power)) || (b.level - a.level) || (candidates.indexOf(a) - candidates.indexOf(b));
   // ①「置ける体数」を落とさない札の中で最強。
   const keepsBoardWide = fits.filter(c => {
     const others = candidates.filter(o => o !== c).map(o => o.level);

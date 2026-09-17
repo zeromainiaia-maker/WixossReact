@@ -1,4 +1,6 @@
 import type { CardData, PendingInteractionDef, PlayerState } from '../../types';
+import type { CardEffect } from '../../types/effects';
+import { cardStrength } from './cpuCardStrength';
 import { canAddToSelection, findValidConstrainedSelection, getCardNum, selectOptionalCostEnergy } from '../../engine/execUtils';
 import { shuffle as rngShuffle } from '../../engine/rng';
 import { declareNameCandidates } from './declareNameCandidates';
@@ -27,6 +29,8 @@ export interface CpuInteractionCtx {
   oppState: PlayerState;
   /** カード番号（instance の `#…` を外した番号）→ カード。 */
   cardMap: Map<string, CardData>;
+  /** 🆕§5.7 `S-1`＝instance ID → そのカードの効果（付与を含む）。あれば「パワー＋効果の強さ」で比べる。 */
+  effectsOf?: (id: string) => readonly CardEffect[];
 }
 
 type Inter<T extends PendingInteractionDef['type']> = Extract<PendingInteractionDef, { type: T }>;
@@ -66,12 +70,21 @@ function isCpuOwned(id: string, cpu: PlayerState): boolean {
   return zones.some(z => z?.includes(id));
 }
 
-/** カードの価値＝パワー（実効パワーが分かればそれ）を主、レベルを従にした数。 */
-function cardValue(id: string, cardMap: Map<string, CardData>, powers?: Record<string, number>): number {
-  const card = cardMap.get(getCardNum(id));
-  const printed = card?.Power === '∞' ? 1e9 : (parseInt(card?.Power ?? '', 10) || 0);
-  const power = powers?.[id] ?? printed;
-  return power * 100 + (parseInt(card?.Level ?? '', 10) || 0);
+/** 場のシグニ（どちらかの場のゾーンのトップ）か。 */
+function isOnField(id: string, ctx: CpuInteractionCtx): boolean {
+  return [ctx.cpuState, ctx.oppState].some(st => st.field.signi.some(stack => stack?.includes(id)));
+}
+
+/**
+ * カードの価値＝**強さ（パワー＋効果の点数）**を主、レベルを従にした数（§5.7 `S-1`）。
+ * 場のシグニは `field` 文脈（【出】は済んでいる）、手札・デッキ等は `deploy` 文脈で測る。
+ * 効果の一覧が無ければパワーだけ（旧挙動）。
+ */
+function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, number>): number {
+  const card = ctx.cardMap.get(getCardNum(id));
+  const effects = ctx.effectsOf?.(id) ?? [];
+  const strength = cardStrength(card, effects, isOnField(id, ctx) ? 'field' : 'deploy', powers?.[id]);
+  return strength * 100 + (parseInt(card?.Level ?? '', 10) || 0);
 }
 
 // ── 対象を選ぶ（SELECT_TARGET）────────────────────────────────
@@ -106,7 +119,7 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
     ordered = rngShuffle(inter.candidates);
   } else {
     const favorable = (id: string) => (intent === 'harm') !== isCpuOwned(id, cpuState);
-    const value = (id: string) => cardValue(id, cardMap, inter.candidatePowers);
+    const value = (id: string) => cardValue(id, ctx, inter.candidatePowers);
     const good = inter.candidates.filter(favorable).sort((a, b) => value(b) - value(a));
     const bad = inter.candidates.filter(id => !favorable(id)).sort((a, b) => value(a) - value(b));
     ordered = inter.optional ? good : [...good, ...bad];
@@ -187,7 +200,7 @@ export function pickCpuSearch(inter: Inter<'SEARCH'>, ctx: CpuInteractionCtx): s
   const count = inter.maxPick ?? 0;
   const ordered = inter.deckOwner === 'opponent'
     ? [...inter.visibleCards]
-    : [...inter.visibleCards].sort((a, b) => cardValue(b, ctx.cardMap) - cardValue(a, ctx.cardMap));
+    : [...inter.visibleCards].sort((a, b) => cardValue(b, ctx) - cardValue(a, ctx));
   if (inter.selectionConstraint?.totalLevelExact !== undefined) {
     const exact = findValidConstrainedSelection(ordered, inter.optional ? 0 : count, count, inter.selectionConstraint, ctx.cardMap);
     if (exact) return exact;
@@ -211,7 +224,7 @@ export function pickCpuAllocatePower(inter: Inter<'ALLOCATE_POWER'>, ctx: CpuInt
   const alloc: Record<string, number> = {};
   if (inter.targets.length === 0) return alloc;
   const unit = Math.max(1, Math.abs(inter.unit || 1000));
-  const value = (id: string) => cardValue(id, ctx.cardMap);
+  const value = (id: string) => cardValue(id, ctx);
   const own = (id: string) => isCpuOwned(id, ctx.cpuState);
   if (inter.total >= 0) {
     const best = [...inter.targets].sort((a, b) => (Number(own(b)) - Number(own(a))) || (value(b) - value(a)))[0];

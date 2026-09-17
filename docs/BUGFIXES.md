@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 §5.7 `S-1` カードの強さ表（CPU が「パワーだけ」でなく効果の強さでカードを比べる）
+
+- 🔑**ユーザー指摘**＝「パワーが弱くても効果が強いカードがある」。旧 CPU はカードの価値を**パワーとレベルだけ**で見ていた（召喚・除去の対象・サーチ・捨て札）。エナチャージは**手札の先頭1枚**固定だった。
+- 実装＝`src/screens/battle/cpuCardStrength.ts`＝**効果 JSON のアクションの木を歩いて特徴量**（除去の体数・パワーマイナス／プラス・ドロー・エナ・サーチ・場に出す・妨害・手札破壊・耐性・ライフクラッシュ・コイン・攻撃キーワード）を数え、
+  重み（`WEIGHTS`・手で決めた初期値＝`S-4` で自己対戦により調整する対象）で**パワー換算**する。原文 regex は書かない。
+  文脈＝`deploy`（【出】満額）／`field`（【出】は済んでいるので0.2倍・【常】【起】アタック時は満額）。ライフバーストは0.25倍。「そうした場合」は0.7倍・「以下から1つ」は0.6倍。
+- 使う場所＝`pickCpuDeployCard`（`value` があればパワーの代わりに比べる）／`cpuInteraction.ts` の対象・サーチ・割り振り（`effectsOf` を渡すと強さで比べる）／
+  `pickCpuHandLimitDiscards`（`effectsOf` があれば強さの低い順）／🆕`pickCpuEnergyChargeIndex`（強さの低い札・【ガード】は最後・ルリグ Lv+2 以上のシグニは割り引く）。
+  ⚠`effectsOf` を渡さないときは旧挙動＝既存の golden はそのまま通る。
+- 🔴**踏んだ罠1**＝初版は `TRASH` を対象の置き場を見ずに除去に数え、`TRASH <DECK_CARD>`（**デッキを削る**）のシグニが Lv1 の強さ上位を独占した
+  ⇒ 対象の種類を実測（`BANISH <SIGNI>` 1345／`TRASH <HAND_CARD> opponent` 349／`TRASH <DECK_CARD>` 370 …）して、**除去は場のシグニが対象のときだけ**・相手の手札は手札破壊・相手のエナは妨害（0.6倍）に分けた。
+  `TRASH_CARD` はアクションではなく「トラッシュのカード」という置き場の型だった（初版はこれを手札破壊に数えていた）。
+- 🔴**踏んだ罠2**＝CPU の対話応答の `useEffect`（画面の前の方）から、後ろで定義する `effectsMap` を参照したら**型チェックは通るが lint が error**（React Compiler「Existing memoization could not be preserved」）
+  ⇒ effect を `effectsMap` の定義の後ろへ移した。⚠**`gates` の結果を見てからコミットした**（前回の反省）ので、この error は未コミットのうちに直せた。
+- 🔴**踏んだ罠3**＝実機の通し対戦で CPU が【ガード】（サーバント Ｏ）を**2枚とも場に出した**（エナチャージではガードを残すのに召喚では出す＝判断が割れていた）
+  ⇒ `pickCpuDeployCard` に `handGuardCount`＝**最後の1枚（`CPU_KEEP_GUARDS`）は場に出さない**。
+- 検証＝`npm run gates` 全緑（golden `§5.7 S-1`＝削りを除去に数えない・【出】除去の低パワー＞バニラ・場の【出】は割り引く・召喚／対象／エナ／捨て札が強さで選ぶ・`effectsOf` 無しは旧挙動・最後のガードを出さない・画面の配線）／
+  実機＝CPU 通し対戦（MECH）PASS×2（エナはバニラ、ガードは手札に残った）／`c4cpuhandlimit`・`v267`・`v266`・`v74`・`v78`・`cpugrow`・`oppPayEnergySufficient`・`effectBanishSubstituteRunsAutomatically` PASS。
+  実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-17 §5.6 `C-8` クローズ＝CPU の対話応答を純関数＋方針つきに
 
 - 🔑**なぜ**＝CPU の対話応答（効果の途中の選択）は `BattleScreen.tsx` の `useEffect` に直書きで、**選択肢は「押せる先頭」固定**
@@ -20,7 +40,8 @@
   🔴**原因＝`git stash push/pop` が `core.autocrlf=true` で `BattleScreen.tsx` を CRLF で書き戻した**（コミットされた中身は LF）＝ソースを `
 ` 付きの正規表現で検査する golden が作業ツリーでだけ落ちた。
   census-costtext はファイル書き込みの一時エラー（`UNKNOWN: open`）。LF に戻して `gates` 全緑を確認（コミット内容の修正は不要）。
-  🔑**教訓**＝①`gates` の結果を確かめてからコミットする（同じコマンドに繋げない） ②**stash で出し入れしたら改行を確かめる**（`tr -cd '' < <file> | wc -c`）。
+  🔑**教訓**＝①`gates` の結果を確かめてからコミットする（同じコマンドに繋げない） ②**stash で出し入れしたら改行を確かめる**（`tr -cd '
+' < <file> | wc -c`）。
 
 ## 2026-09-17 CPU が先攻の1ターン目にメインフェイズごと飛ばしていた（`R-23`＝飛ばすのはアタックフェイズだけ）
 
