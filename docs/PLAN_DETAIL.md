@@ -1,7 +1,7 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
 
-## 2026-09-17 §5.6 `C-9`（ルール規則の棚卸し）で出た登録票 `O-532`
+## 🏁2026-09-17 第397バッチでクローズ＝`O-532`（登録票は下）
 
 ### `O-532` — リミット／レベル超過のルール処理が無い（RULES.md `R-44`／`R-48`・索引B）
 
@@ -17,8 +17,15 @@
 - **取り方**＝①純関数 `planLimitExcessTrash(state, otherState, cardMap, effectsMap)` ＝A（レベル超過＝**選択の余地なし**）と B/C（超過ぶんの体数）を返す ②A は自動、B/C は `pending_*` で問う
   ③funnel は `checkAndBanishPowerZero` と同じ `useEffect`（盤面が動くたび回す・`bs.active_user_id === user.id` のクライアントだけ）④golden＋実機 `V-nn`（反転＝リミット内なら何も落ちない）。
 - ⚠**A→B→C の順の出典は EN Rule-based action 2**（RULES.md §0）。読みが資料だけで決まらない部分が出たら **❓ でユーザーへ出す**（golden は読みを固定するため）。
+- 🏁**クローズ（2026-09-17 第397バッチ）**＝`src/screens/battle/limitExcess.ts`（`planLimitExcess` / `pickLimitExcessZone` / `applyLimitExcessTrash`）＋
+  `LimitExcessModal`（持ち主が**1体ずつ**選ぶ）＋`BattleScreen` の funnel（`checkLimitExcessRule`＝CPU の盤面は自動）。行き先は `R-45`（レゾナ→ルリグデッキ）と
+  `R-41`（チャーム・アクセ・ソウル）の funnel を通す。golden `§5.3 O-532`／実機 `V-256`（選んで落とす）・`V-257`（反転＝リミット内なら落とさない）。
+- 🔴**着手して変えた判断＝「A（レベル超過）は測るが落とさない」**。理由は3つ（`limitExcess.ts` の ⚠ に全文）＝
+  ①原文コーパスで**ルリグのレベルを下げる効果は0枚**（実測）＝配置ゲートを通った盤面が後からレベル超過になる live の道が無い
+  ②自動トラッシュは**盤面を注入する実機シナリオ27本にしか当たらない**（実測＝`pr426ConditionalPowerBuff` が実際に落ちた）
+  ③「レベル以下」が**配置制限**か**ルール処理**かを一次資料で確定できていない。⇒ RULES.md `R-48` に ❓ で出した。
 
-## 2026-09-17 §5.6 `C-9`（ルール規則の棚卸し）で出た登録票 `O-531`
+## 🏁2026-09-17 第397バッチでクローズ＝`O-531`（登録票は下）
 
 ### `O-531` — バトルのライズ置換が「下のカードを全部」トラッシュし、任意も問わない（2効果・索引G）
 
@@ -27,6 +34,13 @@
 - **原因**＝STUB（`RISE_BANISH_SUBSTITUTE` / `BANISH_SUBSTITUTE_RISE_STACK`）に**枚数と任意性の payload が無い**。
 - **取り方**＝①STUB に `count`／`optional` を足す（parser か manualEffects）②バトル経路は `count` 枚だけ・`count` 枚に満たなければ置換不可 ③任意は `collectBanishSubstitutes` の選択肢へ（`O-58` 段2 のチャーム盾と同じ器）④効果によるバニッシュ経路（`attackerBanishSubstitute.ts` ほか）も同じ規則か確かめる。
 - ⚠**ルール面は第389バッチで直し済み**＝置換で残ったシグニの【チャーム】【アクセ】・ダウン・凍結を戻し、「バニッシュされたとき／場を離れたとき」を発火させない（RULES.md R-41）。ここに残るのは**カード効果の枚数と任意性だけ**。
+- 🏁**クローズ（2026-09-17 第397バッチ）**＝①parser が STUB に `count`／`optional` を載せる（`WX16-002-E1`＝2枚・任意／`WX22-034-E2`＝1枚・強制）
+  ②`collectRiseBanishSubstitutes`（旧 `collectRiseBanishSubstituteSigni`）が**ルリグの宣言も走査**し、**枚数が足りなければ候補にしない**
+  ③バトル解決は `riseSubStack.slice(0, count)` だけ落とし、**残りの下のカードは動かさない**（旧はトップ1枚だけ残していた）
+  ④任意版は身代わり funnel の選択肢 `trash_under`（モーダル＋CPU ヒューリスティック）へ、アタッカー側（`attackerBanishSubstitute.ts`）も枚数ぶんへ。
+  golden `§5.3 O-531`／実機 `V-258`（`c9risesubcount`）。
+- 🔴**着手して分かった本命の欠陥（登録時の見立てより悪い）**＝`WX16-002-E1` は**ルリグ**（救念の記憶　リル）が宣言する能力なのに、
+  collector が**バニッシュされるシグニ自身の効果しか見ていなかった**＝**一度も発火しない恒久 no-op** だった（枚数・任意性より先にここが壊れていた）。
 
 ## 2026-09-16 `census:traceinv` I3 の残り73件を全件判定して出た登録票 `O-529`／`O-530`（観測のみ・修正なし）
 

@@ -7312,6 +7312,13 @@ export interface StubAction {
    */
   declareFromLastProcessed?: { minCount?: number };
   count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数
+  /**
+   * 🆕**原文の「〜してもよい」**（§5.3 `O-531`・2026-09-17）。いまの消費者は
+   * `RISE_BANISH_SUBSTITUTE` / `BANISH_SUBSTITUTE_RISE_STACK`（バニッシュのライズ置換）だけ。
+   * 🔴**未指定＝強制**＝旧実装は任意を問わずに自動適用しており、
+   *   「下のカードを残す」という選択が持ち主から奪われていた（`O-58` 段2 のチャーム盾と同型）。
+   */
+  optional?: boolean;
   /** SIGNI_FLIP_FACEDOWN: 裏向きにする場シグニの対象宣言。 */
   faceDownTarget?: {
     owner: 'self' | 'opponent';

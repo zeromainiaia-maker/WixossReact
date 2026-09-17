@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectProtectedZoneRules, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectProtectedZoneRules, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstitutes, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums} from '../engine/effectEngine';
@@ -136,6 +136,8 @@ import { getLrigAttackCrashState } from './battle/lrigCrash';
 import { refreshForcesTurnEnd } from './battle/refreshTurnEnd';
 import { removeKeyToLrigTrash } from './battle/keyZone';
 import { clearZoneOnSigniLeave } from './battle/leaveFieldZone';
+import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from './battle/limitExcess';
+import { LimitExcessModal } from './battle/modals/LimitExcessModal';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
@@ -446,12 +448,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const checkPowerZeroBanishRef          = useRef<(() => Promise<void>) | null>(null);
   const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
   const checkRefreshTurnEndRef            = useRef<(() => Promise<void>) | null>(null);   // §5.6 `C-9` `R-28`
+  const checkLimitExcessRef              = useRef<(() => Promise<void>) | null>(null);   // §5.3 `O-532`（`R-44`/`R-48`）
 
   const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
   const resolvePendingLrigAttackRef      = useRef<(() => Promise<void>) | null>(null);
   const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
   const lastContMutationKeyRef    = useRef<string>(''); // CONTINUOUS BANISH/FREEZE/DOWN 二重処理防止
   const lastRefreshTurnEndKeyRef  = useRef<string>(''); // `R-28`＝同じターンで2回ターン終了させない
+  const lastLimitExcessKeyRef     = useRef<string>(''); // `O-532`＝DB 伝播待ちの二重処理防止
   const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
   const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
 
@@ -1666,6 +1670,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     checkRefreshTurnEndRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id, bs?.turn_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🆕§5.3 `O-532`＝**レベル超過／リミット超過のルール処理**（RULES.md `R-44`/`R-48`）。
+  //   ⚠**自分の盤面は A（レベル超過＝選択の余地なし）だけ自動**＝B/C は `LimitExcessModal` が持ち主に問う。
+  //   ⚠**CPU の盤面は問えない**ので A も B/C も自動（`pickLimitExcessZone`）。
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    if (loading) return;
+    checkLimitExcessRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果：WX16-045 等）
   useEffect(() => {
@@ -6921,6 +6937,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return parseInt(top?.Level ?? '0') || 0;
   });
   const fieldSigniTotal = fieldSigniTopLevels.reduce((s, l) => s + l, 0);
+  // 🆕§5.3 `O-532`＝リミット超過のルール処理の**表示側**（判定は `planLimitExcess` の1本）。
+  const limitExcessPlan = planLimitExcess({ owner: my, opponent: op, cardMap: battleCardMap, effectsMap, isOwnerTurn: isMyTurn });
+  const limitExcessAsk = bs.global_phase === 'PLAYING' && !bs.effect_stack && !bs.pending_effect && !bs.pending_spell
+    && !my.field.check && !op.field.check
+    && limitExcessPlan.excess > 0
+    ? limitExcessPlan : null;
 
 
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
@@ -10205,6 +10227,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 🆕§5.3 `O-58` 段2（2026-09-02）＝victim に付いている札を対価にする任意置換（選択されたときだけ立つ）。
           const f3Attached: { charm: { charmNum: string; zoneIndex: number } | null;
             acce: { acceNum: string; zoneIndex: number } | null } = { charm: null, acce: null };
+          // 🆕§5.3 `O-531`＝下からカードN枚をトラッシュして回避（任意版の決定。適用は下の `riseSub` 分岐が1本で行う）。
+          //   ⚠`f3Attached` と同じく**オブジェクト**で持つ＝`let x = null` だと閉包内の代入を TS が追えず
+          //     後段で `never` に狭まる（実際にコンパイルエラーになった）。
+          const f3Under: { pick: { zoneIndex: number; count: number } | null } = { pick: null };
           {
             const f3Decision = opS.banish_substitute_choice;
             const f3DecidedForVictim = !!f3Decision && f3Decision.victimNum === opTopCardNum;
@@ -10212,6 +10238,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (o.kind === 'sacrifice') f3SacrificeNum = o.sacrificeNum;
               else if (o.kind === 'trash_charm') f3Attached.charm = { charmNum: o.charmNum, zoneIndex: o.zoneIndex };
               else if (o.kind === 'exile_acce') f3Attached.acce = { acceNum: o.acceNum, zoneIndex: o.zoneIndex };
+              else if (o.kind === 'trash_under') f3Under.pick = { zoneIndex: o.zoneIndex, count: o.count };
               else f3PayCost = { sourceNum: o.sourceNum, costType: o.costType, amount: o.amount };
             };
             if (!f3DecidedForVictim) {
@@ -10230,7 +10257,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   // ライフクロスを割る代替（§3タスク6 D・WX14-026）は損失が大きいので pay の中でも最後に回す。
                   // 🆕§5.3 `O-58` 段2＝**付いている札で払える枝を最優先**（victim も他のシグニも失わない）。
                   //   ⚠アクセ除外は victim がダウンするので、チャームより後ろに置く。
-                  const attached = f3Opts.find(o => o.kind === 'trash_charm') ?? f3Opts.find(o => o.kind === 'exile_acce');
+                  // 🆕§5.3 `O-531`＝下のカードN枚で回避できるなら最優先（victim も他のシグニも失わない）。
+                  const attached = f3Opts.find(o => o.kind === 'trash_under')
+                    ?? f3Opts.find(o => o.kind === 'trash_charm') ?? f3Opts.find(o => o.kind === 'exile_acce');
                   const pay = attached
                     ?? f3Opts.find(o => o.kind === 'pay_cost' && o.costType !== 'lifeCrash')
                     ?? f3Opts.find(o => o.kind === 'pay_cost');
@@ -10252,8 +10281,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               applyOption(f3Decision.option);
             }
           }
+          // ⚠`f3TrashUnder` も「置換が成立した」側に数える＝バニッシュ防止（`banishPreventLoseAbility`）を
+          //   二重に消費させないため。**適用そのものは下の `riseSub` 分岐**（強制版と同じ1本）。
           const f3SubstituteApplied = f3SacrificeNum != null || f3PayCost != null
-            || f3Attached.charm != null || f3Attached.acce != null;
+            || f3Attached.charm != null || f3Attached.acce != null || f3Under.pick != null;
 
           // BATTLE_LEAVE_REPLACE_WITH_DOWN: アップ状態のシグニはバニッシュ代わりにダウン（任意→自動適用）
           const opSigniWasUp = !(opS.field.signi_down?.[opZoneIndex] === true);
@@ -10514,16 +10545,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
           // RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
           // ライズスタック（複数枚）のシグニがバニッシュされる場合、スタック下のカードをトラッシュに置いてバニッシュを回避
-          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(opS, battleCardMap, effectsMap, myS, false);
-          const opTopHasRiseSub = riseBanishSubSigni.includes(opTopCardNum ?? '');
-          const riseSubStack = opTopHasRiseSub ? (opS.field.signi[opZoneIndex] ?? []) : [];
-          const riseSubApplied = opTopHasRiseSub && riseSubStack.length >= 2;
+          // 🆕§5.3 `O-531`（2026-09-17）＝**枚数と任意性を原文どおりに**（判定は `collectRiseBanishSubstitutes` 1本）。
+          //   🔴旧は「下を**全部**・**強制**・**被バニッシュシグニ自身の宣言だけ**」で、
+          //     ルリグが宣言する `WX16-002-E1` は一度も発火しない恒久 no-op だった。
+          const riseSubs = collectRiseBanishSubstitutes(opS, battleCardMap, effectsMap, myS, false);
+          const mandatoryRiseSub = riseSubs.find(r =>
+            !r.optional && r.zoneIndex === opZoneIndex && r.cardNum === opTopCardNum);
+          //   任意版は上の身代わり funnel（`f3TrashUnder`）で選ばれたときだけ適用する。
+          const riseSubCount = (f3Under.pick && f3Under.pick.zoneIndex === opZoneIndex)
+            ? f3Under.pick.count : (mandatoryRiseSub?.count ?? 0);
+          const riseSubStack = riseSubCount > 0 ? (opS.field.signi[opZoneIndex] ?? []) : [];
+          const riseSubApplied = riseSubCount > 0 && riseSubStack.length - 1 >= riseSubCount;
           if (riseSubApplied) {
-            // バニッシュ代替: スタック下2枚をトラッシュ、トップカードは残る
-            const bottomCards = riseSubStack.slice(0, -1);
-            const topCard = riseSubStack.at(-1)!;
+            // バニッシュ代替: スタックの下から `riseSubCount` 枚だけトラッシュし、シグニは場に残る。
+            // ⚠**残りの下のカードは動かさない**（旧はトップ1枚だけ残して中間のカードを消していた）。
+            const bottomCards = riseSubStack.slice(0, riseSubCount);
             const newOpSigniRiseSub = [...newOpSigni] as (string[] | null)[];
-            newOpSigniRiseSub[opZoneIndex] = [topCard]; // トップカードのみ残す
+            newOpSigniRiseSub[opZoneIndex] = riseSubStack.slice(riseSubCount);
             // 🔴§5.6 `C-9`＝**置換＝シグニは場を離れていない**。上で「バニッシュした」前提で書き換えた4点を元へ戻す
             //   （公式ルール word_094：付いている【チャーム】【アクセ】がトラッシュに置かれるのは**場を離れた場合**）。
             //   旧実装は ①ON_BANISH／場を離れたときのトリガーを発火させ ②チャーム・アクセをトラッシュし
@@ -10755,19 +10793,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             };
             appendBattleLogs([`${myCardName}（アクセ代替バニッシュ）${battleCardMap.get(mandatoryMySubstitute.cardNum)?.CardName ?? mandatoryMySubstitute.cardNum}をトラッシュしてバニッシュ回避`]);
           } else if (mandatoryMySubstitute?.kind === 'trash_rise_under') {
-            // WX22-034: 原文どおり下からカード1枚だけをトラッシュへ（トップは場に残る）。
+            // 🆕§5.3 `O-531`＝**原文の枚数ぶん**を下からトラッシュへ（トップは場に残る）。旧は1枚固定だった。
+            const trashedUnder = mandatoryMySubstitute.cardNums;
+            const trashedSet = new Set(trashedUnder);
             const newMySigniRiseSub = [...newMyState.field.signi] as (string[] | null)[];
-            const underIndex = myStackAB.indexOf(mandatoryMySubstitute.cardNum);
-            newMySigniRiseSub[zoneIndex] = underIndex >= 0
-              ? [...myStackAB.slice(0, underIndex), ...myStackAB.slice(underIndex + 1)]
-              : myStackAB;
-            attackerSubstituteTrashedUnder.push(mandatoryMySubstitute.cardNum);
+            newMySigniRiseSub[zoneIndex] = myStackAB.filter((n, i) =>
+              i === myStackAB.length - 1 || !trashedSet.has(n));
+            attackerSubstituteTrashedUnder.push(...trashedUnder);
             newMyState = {
               ...newMyState,
-              trash: [...newMyState.trash, mandatoryMySubstitute.cardNum],
+              trash: [...newMyState.trash, ...trashedUnder],
               field: { ...newMyState.field, signi: newMySigniRiseSub },
             };
-            appendBattleLogs([`${myCardName}（ライズ代替）下のカード1枚をトラッシュしてバニッシュ回避`]);
+            appendBattleLogs([`${myCardName}（ライズ代替）下のカード${trashedUnder.length}枚をトラッシュしてバニッシュ回避`]);
           } else {
           // 🆕§5.3 `O-58` 段2＝「身代わりしない」を選んだ回も決定フラグを消す（再入で問い直さない）。
           if (newMyState.banish_substitute_choice || newMyState.pending_banish_substitute) {
@@ -12253,8 +12291,86 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  /**
+   * 🆕**§5.3 `O-532`（2026-09-17）＝レベル超過／リミット超過のルール処理**（RULES.md `R-44`／`R-48`）。
+   *
+   * 規則の判定は `limitExcess.ts` の純関数1本（`planLimitExcess`）。ここは**盤面が動くたび回す受け皿**で、
+   * ①**A＝センタールリグのレベルを超えるシグニ**は選択の余地が無いので自動でトラッシュ
+   * ②**B/C＝リミット超過**は持ち主が1体ずつ選ぶ＝人間は `LimitExcessModal`、**CPU は選ばせられないので**
+   *   `pickLimitExcessZone`（失うカードが最小＝実効レベルが一番高いゾーン）で自動。
+   * ⚠**行き先は `applyLimitExcessTrash` 1本**＝レゾナはルリグデッキへ（`R-45`）、
+   *   【チャーム】【アクセ】【ソウル】の後始末は `clearZoneOnSigniLeave`（`R-41`）。
+   * ⚠**ルール処理なので「バニッシュされたとき」は誘発しない**（リムーブと同じ＝`byCostOrEffect`/`byEffectCause` は false）。
+   */
+  const applyLimitExcessRule = async (
+    owner: PlayerState, ownerKey: PlayerStateKey, ownerId: string, zones: number[], reason: string,
+  ) => {
+    const fingerprint = `${ownerKey}:${zones.join(',')}:${owner.field.signi.map(z => z?.at(-1) ?? '-').join('|')}`;
+    if (lastLimitExcessKeyRef.current === fingerprint) return;
+    lastLimitExcessKeyRef.current = fingerprint;
+    setLoading(true);
+    try {
+      const { state: after, trashedTops } = applyLimitExcessTrash(owner, zones, battleCardMap, effectsMap);
+      appendBattleLogs(trashedTops.map(n =>
+        `${reason}：${battleCardMap.get(n)?.CardName ?? n}をトラッシュに置く（ルール処理）`));
+      const ownerIsHost = ownerKey === 'host_state';
+      let hostAfter = ownerIsHost ? after : bs.host_state;
+      let guestAfter = ownerIsHost ? bs.guest_state : after;
+      const entries: StackEntry[] = [];
+      for (const cn of trashedTops) {
+        // ⚠引数は host/guest 順（`handleRemove` と同じ規約）。ルール処理なのでコスト/効果起因では発火させない。
+        const tt = collectTrashTriggers(cn, ownerId, hostAfter, guestAfter, false, false, false);
+        entries.push(...tt.entries);
+        if (tt.usedHostIds.length > 0) hostAfter = { ...hostAfter, actions_done: [...(hostAfter.actions_done ?? []), ...tt.usedHostIds] };
+        if (tt.usedGuestIds.length > 0) guestAfter = { ...guestAfter, actions_done: [...(guestAfter.actions_done ?? []), ...tt.usedGuestIds] };
+      }
+      const existing = bs.effect_stack ?? null;
+      const stack = entries.length > 0
+        ? (existing ? pushToStack(existing, entries) : initStack(bs.active_user_id ?? ownerId, entries))
+        : undefined;
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: 'host_state', myState: hostAfter,
+        opp: { key: 'guest_state', state: guestAfter },
+        effectStack: stack,
+      }));
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** ルール処理 funnel の本体（`checkAndBanishPowerZero` と同じ形）。 */
+  const checkLimitExcessRule = async () => {
+    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
+    // ⚠**カードマスタ未ロードで判定しない**＝全シグニのレベルが0に見えて盤面を誤って減らす（power0 と同じ規約）。
+    if (battleCards.length === 0) return;
+    // ⚠**自分の盤面は問い合わせ（`LimitExcessModal`）が受ける**＝ここでは何もしない。
+    //   「レベル超過」は `planLimitExcess` の ⚠ のとおり**測るだけで落とさない**（RULES.md `R-48` の ❓）。
+    // CPU の盤面＝問う相手が居ないので自動で解く（ホスト側のクライアントが回す）。
+    if (isCpuBattle && isHost) {
+      const cpuSt = bs.guest_state;
+      const cpuPlan = planLimitExcess({
+        owner: cpuSt, opponent: bs.host_state, cardMap: battleCardMap, effectsMap,
+        isOwnerTurn: bs.active_user_id === CPU_PLAYER_ID,
+      });
+      const pick = pickLimitExcessZone(cpuPlan);
+      if (pick !== null) {
+        await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, [pick], '[CPU] リミット超過');
+      }
+    }
+  };
+
+  /** `LimitExcessModal` で持ち主が選んだ1体を落とす（B/C＝1体ずつ・落としたら funnel が測り直す）。 */
+  const handleLimitExcessPick = async (zoneIndex: number) => {
+    if (loading) return;
+    await applyLimitExcessRule(my, isHost ? 'host_state' : 'guest_state', user.id, [zoneIndex], 'リミット超過');
+  };
+
   // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
   doPhaseAdvanceRef.current                = doPhaseAdvance;
+  checkLimitExcessRef.current              = checkLimitExcessRule;
   checkRefreshTurnEndRef.current            = checkRefreshForcedTurnEnd;
   triggerPendingCrashRef.current           = triggerPendingCrash;
   resolveStackNextRef.current              = resolveStackNext;
@@ -16583,6 +16699,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithClassHandAlternative={handleGuardWithClassHandAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} handleGuardWithEnergyAndGuardCard={handleGuardWithEnergyAndGuardCard} />
 
       {/* リムーブ選択モーダル */}
+      <LimitExcessModal ctx={modalCtx} plan={limitExcessAsk} onPick={handleLimitExcessPick} />
       <RemoveZoneModal ctx={modalCtx} showRemoveModal={showRemoveModal} setShowRemoveModal={setShowRemoveModal} selectedRemoveZones={selectedRemoveZones} toggleRemoveZone={toggleRemoveZone} handleRemove={handleRemove} />
 
       {/* シグニ召喚ゾーン選択 */}

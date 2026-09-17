@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
 A🔴 SELF_TEXT（効果元の全文で意味を決める）: 19行 / 18ハンドラ
-B  OTHER_CARD（他カードの属性判定）      : 29行
+B  OTHER_CARD（他カードの属性判定）      : 30行
 C  COMMENT                              : 95行
-合計 143行
+合計 144行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = 各ソース行について、その行の門から来る live カードへ、その行自身の regex/includes が1本も当たらないもの
@@ -17,7 +17,7 @@ miss = 各ソース行について、その行の門から来る live カード�
 | fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP | effectEngine.ts:7223 | 1 | 1 | 1 | 0 |
 | fn:collectArtsThresholdCostReductions + ARTS_COST_REDUCTION_BY_COST_THRESHOLD | effectEngine.ts:5814 | 1 | 1 | 1 | 0 |
 | fn:collectDownProtectedSigni + PREVENT_BOUNCE_AND_DOWN_BY_OPP | effectEngine.ts:6111 | 1 | 1 | 1 | 0 |
-| fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI | effectEngine.ts:8346 | 1 | 1 | 1 | 0 |
+| fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI | effectEngine.ts:8403 | 1 | 1 | 1 | 0 |
 | fn:collectHandGuardIconClasses + HAND_SIGNI_HAS_GUARD_ICON | effectEngine.ts:5755 | 1 | 1 | 1 | 0 |
 | fn:collectLrigGrantedEffects + GRANT_LRIG_TRASH_ACTIVATE_ABILITY | effectEngine.ts:3817 | 1 | 1 | 1 | 0 |
 | fn:collectLrigNameAliases + GAIN_ADDITIONAL_LRIG_TYPE | effectEngine.ts:5535 effectEngine.ts:5560 | 1 | 1 | 2 | 0 |
@@ -72,7 +72,7 @@ miss = 各ソース行について、その行の門から来る live カード�
     lit re:場に他の＜([^＞]+)＞のシグニがあるかぎり
 
 ### fn:collectGrowCostSubstitute + GROW_COST_SUBSTITUTE_TRASH_SIGNI  (live 1効果 / 1カード / miss 0)
-  effectEngine.ts:8346  [門 sourceAction=GROW_COST_SUBSTITUTE_TRASH_SIGNI] live 1効果 / 1カード / miss 0
+  effectEngine.ts:8403  [門 sourceAction=GROW_COST_SUBSTITUTE_TRASH_SIGNI] live 1効果 / 1カード / miss 0
     const txt = card.EffectText ?? '';
     lit re:《([白赤青緑黒無])》を支払う際、代わりに.*エナゾーンから＜([^＞]+)＞のシグニ
 
@@ -144,7 +144,8 @@ miss = 各ソース行について、その行の門から来る live カード�
   effectEngine.ts:3085 <(top)> const txt = card?.EffectText ?? '';
   effectEngine.ts:5295 <fn:cardHasCrossIcon> return !!card?.EffectText?.startsWith('《クロスアイコン》');
   effectEngine.ts:5300 <fn:getCrossConditionText> const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
-  effectEngine.ts:7392 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
+  effectEngine.ts:7357 <fn:collectRiseBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(base(n))?.EffectText ?? '').includes('【ライズ】');
+  effectEngine.ts:7443 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
   execStubPart1.ts:1357 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4871 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execUtils.ts:532 <fn:countFromZone> sum + ((cardMap.get(getCardNum(cardNum))?.EffectText ?? '').match(/《レイヤーアイコン》\s*【/g) ?? []).length, 0)

@@ -824,6 +824,10 @@ export function collectEffectBanishSubstituteChoices(
  * **新しい costType を足すときは apply 側の分岐とこの集合を必ず対で更新する。**
  */
 function isImplementedSubstituteCost(o: BanishSubstituteOption): boolean {
+  // 🆕§5.3 `O-531`＝`trash_under`（下からカードN枚）は**効果経路では別軸で既に出している**
+  //   （`underCardsTrash`＝`applyEffectLeaveUnderCardsTrashSubstitute`・`O-299`）。
+  //   ここへ通すと同じ置換が2つ並ぶので落とす。⚠バトル経路（`BattleScreen`）はこの関数を通らない。
+  if (o.kind === 'trash_under') return false;
   return o.kind !== 'pay_cost'
     || o.costType === 'discardSpell' || o.costType === 'trashStackSpell' || o.costType === 'lifeCrash';
 }
@@ -891,6 +895,12 @@ export function applyEffectBanishSubstituteChoice(
       ...state, excluded: [...(state.excluded ?? []), chosen.acceNum],
       field: { ...state.field, signi_acce: slots, signi_down: down },
     }, ctx), `身代わり：${nameOf(chosen.acceNum)}をゲームから除外して${nameOf(victimNum)}のバニッシュを回避（ダウン）`);
+  }
+
+  if (chosen.kind !== 'pay_cost') {
+    // 🆕§5.3 `O-531`＝`trash_under` は効果経路では `underCardsTrash` 軸（`O-299`）が担当する。
+    //   `isImplementedSubstituteCost` が手前で落としているので、ここへは来ない（来たら置換しない）。
+    return addLog(ctx, `身代わり：${nameOf(victimNum)}のこの置換は効果経路では扱わない`);
   }
 
   if (chosen.costType === 'discardSpell') {
@@ -1516,6 +1526,7 @@ export function collectLeaveSubstituteOptions(
           choice.kind === 'sacrifice' ? choice.sacrificeNum
           : choice.kind === 'trash_charm' ? `charm${choice.zoneIndex}`
           : choice.kind === 'exile_acce' ? `acce${choice.acceNum}`
+          : choice.kind === 'trash_under' ? `under${choice.count}`
           : `${choice.costType}${choice.amount}`}`,
         kind: 'optional',
         label: choice.kind === 'sacrifice'
@@ -1524,6 +1535,7 @@ export function collectLeaveSubstituteOptions(
           : choice.kind === 'trash_charm' ? '代わりに付いている【チャーム】をトラッシュに置く'
           : choice.kind === 'exile_acce'
             ? `代わりに${ctx.cardMap.get(getCardNum(choice.acceNum))?.CardName ?? choice.acceNum}をゲームから除外する（このシグニはダウンする）`
+          : choice.kind === 'trash_under' ? `代わりにこのシグニの下からカード${choice.count}枚をトラッシュに置く`
           : choice.costType === 'discardSpell' ? `代わりに手札からスペル${choice.amount}枚を捨てる`
           : choice.costType === 'trashStackSpell' ? `代わりにこのシグニの下からスペル${choice.amount}枚をトラッシュに置く`
           : `代わりにライフクロス${choice.amount}枚をクラッシュする`,

@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-17 第397バッチ：`O-532`（リミット超過のルール処理）と `O-531`（ライズ置換の枚数・任意性）をクローズ
+
+### `O-532` — リミット超過のルール処理が**そもそも無かった**（RULES.md `R-44`）
+
+- 🔴**真因**＝リミットは**配置時のゲート**（`SigniSummonZoneModal` の `overLimit`／手札召喚の `levelOk`）でしか見ておらず、
+  **置いたあとにリミットが下がっても場は減らなかった**。`fieldLimit.reduceFieldSigniToLimit` は別物（`LIMIT_ALL_FIELD_N`＝体数上限用）で、
+  しかも**どこからも呼ばれていない死にコード**だった。母集団＝リミットを変える効果 **9カード**（うち減らす4）＋アシストルリグの離場。
+- **実装**＝`src/screens/battle/limitExcess.ts` の純関数3本（`planLimitExcess`／`pickLimitExcessZone`／`applyLimitExcessTrash`）＋
+  `LimitExcessModal`（持ち主が**1体ずつ**選ぶ＝落としたら funnel が測り直してもう一度問う）＋
+  `BattleScreen` の funnel（`checkLimitExcessRule`＝`checkAndBanishPowerZero` と同じ形。**CPU の盤面は問う相手が居ないので自動**）。
+  ⚠**行き先は既存の funnel を通す**＝レゾナは**ルリグデッキ**へ（`R-45`）、【チャーム】【アクセ】【ソウル】は `clearZoneOnSigniLeave`（`R-41`）。
+  ⚠**ルール処理なので「バニッシュされたとき」は誘発しない**（リムーブと同じ）。
+- 🔴🔑**着手して変えた判断＝「A（レベル超過）は測るが落とさない」**（RULES.md `R-48` に ❓ で出した）。
+  最初は規則どおり自動トラッシュしたが、**実機シナリオ `pr426ConditionalPowerBuff` が落ちた**ので母集団を測り直した＝
+  ①原文コーパスで**ルリグのレベルを下げる効果は0枚**（実測）＝配置ゲートを通った盤面が後からレベル超過になる **live の道が無い**
+  ②機械走査で**注入盤面がレベル超過の実機シナリオは27本**（`order` 内）＝自動トラッシュは**テストの盤面しか食わない**
+  ③「レベル以下」が**配置制限**なのか**ルール処理（state-based）**なのかを一次資料で確定できていない。
+  ⇒ `levelOverZones` は**計測して返すだけ**にし、落とすのは**リミット超過**に限った（読みが決まれば funnel に1分岐足すだけ）。
+  🔑**教訓**＝**盤面からカードを消すルールを足すときは、先に「注入盤面の実機シナリオが何本illegalか」を機械で数える**（後から1本ずつ落ちて気づくと切り分けが高い）。
+
+### `O-531` — ライズのバニッシュ置換が「下を全部・強制・自分の宣言だけ」（RULES.md §3）
+
+- 🔴**本命の欠陥（登録時の見立てより悪い）**＝`WX16-002-E1` は**ルリグ**（`救念の記憶　リル`）が宣言する【常】なのに、
+  collector（`collectRiseBanishSubstituteSigni`）が**バニッシュされるシグニ自身の効果しか走査していなかった**＝**一度も発火しない恒久 no-op**。
+- 🔴他2件＝**枚数を見ていなかった**（原文は2枚／1枚なのに**スタックの下を全部**トラッシュし、しかもトップ以外を全部消していた）／
+  **任意（「〜してもよい」）を問わなかった**（「下のカードを残す」選択が持ち主から奪われていた）。
+- **実装**＝①parser が STUB に `count`／`optional` を載せる（`StubAction.optional` を新設）
+  ②`collectRiseBanishSubstitutes` が**ルリグの宣言も走査**（《ライズアイコン》限定）し、**枚数が足りなければ候補にしない**
+  ③バトル解決は `riseSubStack.slice(0, count)` だけ落とし**残りの下のカードは動かさない**
+  ④任意版は身代わり funnel の選択肢 `trash_under`（`BanishSubstituteModal` ＋ CPU ヒューリスティックの最優先）へ
+  ⑤アタッカー側（`attackerBanishSubstitute.ts`）も1枚固定 → 枚数ぶんへ／効果経路は既存の `underCardsTrash` 軸（`O-299`）が担当なので `isImplementedSubstituteCost` で落とす。
+
+### 検証
+
+- `npm run gates` 全緑（golden **4292**／新規2本＝`§5.3 O-532`・`§5.3 O-531`）。通し対戦 `verifyFullMatch cpu` PASS（6ターン／177秒）。
+- **反転確認**＝①`clearZoneOnSigniLeave` 相当＝`pickLimitExcessZone`/`planLimitExcess` の配線 assert ②`collectRiseBanishSubstitutes` の
+  `count`／`optional` を無視 → golden FAIL ③ルリグ走査を止める → 実機 `c9risesubcount` が「置換が起きなかった」で FAIL。
+  ⚠**parser 側の反転は live に届かない**＝収穫マージは `isPureSuperset`（既存リーフを失わない）だけ採るので、**payload を減らす変更は温存される**。
+  ⇒ 反転確認は**消費側（engine）を壊して**行う。
+- **実機**＝新規3本 PASS＝`c9limitexcesspick`（`V-256`）／`c9limitwithin`（`V-257`・**反転**＝リミット内なら1体も落とさない）／`c9risesubcount`（`V-258`）。
+  ⚠**レベル超過のシナリオは置かない**＝「落とさない」を assert すると、読みが決まったときに正しい修正を止める側に回る（RULES.md §4-4）。
+- **腐り1本を修正**＝`o180NextAssistGrowMods`（ピースを使うのにアシストが0体＝§5.6 `C-7` の体数ルール `R-53` に追随していなかった）。
+
 ## 2026-09-17 第396バッチ：§5.6 `C-9` 続き＝リムーブのゾーン後始末（`R-41`/`R-49`）とトリガーの解決順（`R-52`）を直す
 
 - **取り方**＝RULES.md §4 のとおり ⚠ を上から。台帳は ✅1／🔴→✅9／👀19／**⚠5**（前回 ⚠9・残り5件のうち4件は**ルールの読み待ち**）。

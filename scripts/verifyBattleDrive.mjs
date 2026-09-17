@@ -46054,7 +46054,9 @@ const o180Spec = {
     'field.signi': [null, null, null],
     'field.key_piece': null, 'field.key_piece_extra': [],
     'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
-    'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+    // 🆕§5.6 `C-7`（2026-09-17）＝**ピースは場にルリグ3体でないと使えない**（RULES.md `R-53`）＝
+    //   アシストを置かないとこのシナリオは「ピースが出ない」で必ず落ちる（2026-09-17 に腐りとして修正）。
+    'field.assist_lrig_l': ['WD01-003#9765'], 'field.assist_lrig_r': ['WD03-003#9766'],
     'lrig_deck': ['WX24-P2-043#9761'],
     'energy': ['WD05-013#9762', 'WD05-014#9763', 'WD05-015#9764'],
     'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
@@ -62159,7 +62161,160 @@ scenarios.c9removecleanup = {
   },
 };
 
-order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush', 'c9refreshturnend', 'c9refreshturnendone', 'c9removecleanup');
+// ── §5.3 `O-532`（2026-09-17）＝レベル超過／リミット超過のルール処理（RULES.md `R-44`/`R-48`）──
+//   センター `WD01-003`（Lv2・リミット5）を置き、①リミット超過は持ち主が選ぶ
+//   ②**リミット内なら何も落とさない**（反転＝この funnel は盤面からカードを消す側なので、これが無いと危険）。
+//   ⚠**レベル超過は測るだけで落とさない**（RULES.md `R-48` の ❓）＝そちらのシナリオは置かない
+//     （「落とさない」を assert すると、読みが決まったときに正しい修正を止める側に回る）。
+scenarios.c9limitexcesspick = {
+  title: 'O-532 リミット超過（Lv2×3＝6 > リミット5）は持ち主が1体選んでトラッシュへ',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9y0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WD01-012#c9y1'], ['WD01-012#c9y2'], ['WD01-012#c9y3']],   // Lv2×3
+      'field.signi_down': [false, false, false],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9y9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let sawModal = false;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c9limitpick-${s}.png`, fullPage: true });
+      const zone = page.locator('[data-testid="limit-excess-zone-2"]').first();
+      const visible = await zone.count() && await zone.isVisible().catch(() => false);
+      if (visible) { sawModal = true; await zone.click().catch(() => {}); }
+      const st = await c9Query(page);
+      H.log(`  c9limitpick[${s}] modal=${visible ? 'あり' : 'なし'} | signi=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trash)}`);
+      const remaining = (st?.host?.fieldSigni ?? []).filter(z => z != null).length;
+      if (sawModal && remaining === 2) {
+        const trashed = (st?.host?.trash ?? []).includes('WD01-012#c9y3');
+        // ⚠**再描画を待ってから閉じたかを見る**＝クリックと同じ tick で読むと必ず「開いたまま」に見える。
+        await page.waitForTimeout(1200);
+        await page.screenshot({ path: `${SHOT}/c9limitpick-after.png`, fullPage: true });
+        const stillOpen = await page.locator('[data-testid^="limit-excess-zone-"]').first().isVisible().catch(() => false);
+        return {
+          pass: trashed && !stillOpen,
+          detail: trashed && !stillOpen
+            ? `モーダルで選んだ1体（ゾーン3）がトラッシュへ＝レベル合計4 ≦ リミット5 になり問い合わせも閉じた（trash=${JSON.stringify(st.host.trash)}）`
+            : `🔴trashed=${trashed} モーダルが開いたまま=${stillOpen}（signi=${JSON.stringify(st.host.fieldSigni)}）`,
+        };
+      }
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴リミット超過の問い合わせが出ない／解けない（sawModal=${sawModal} signi=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  },
+};
+
+scenarios.c9limitwithin = {
+  title: 'O-532 反転＝リミット内（Lv2+Lv2＝4 ≦ 5）なら1体も落とさない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9z0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WD01-012#c9z1'], ['WD01-012#c9z2'], null],
+      'field.signi_down': [false, false, false],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9z9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(700);
+      const st = await c9Query(page);
+      H.log(`  c9limitwithin[${s}] | signi=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trash)}`);
+      if ((st?.host?.trash ?? []).length > 0) {
+        return { pass: false, detail: `🔴リミット内なのにシグニを落とした（trash=${JSON.stringify(st.host.trash)}）` };
+      }
+    }
+    const fin = await c9Query(page);
+    await page.screenshot({ path: `${SHOT}/c9limitwithin-fin.png`, fullPage: true });
+    const kept = (fin?.host?.fieldSigni ?? []).filter(z => z != null).length === 2;
+    const modalOpen = await page.locator('[data-testid^="limit-excess-zone-"]').first().isVisible().catch(() => false);
+    return {
+      pass: kept && !modalOpen,
+      detail: kept && !modalOpen
+        ? `リミット内では1体も落とさず問い合わせも出ない（signi=${JSON.stringify(fin.host.fieldSigni)}）`
+        : `🔴kept=${kept} modal=${modalOpen}`,
+    };
+  },
+};
+
+order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush', 'c9refreshturnend', 'c9refreshturnendone', 'c9removecleanup', 'c9limitexcesspick', 'c9limitwithin');
+// 🔴**`c9risesubcount`＝ライズのバニッシュ置換は「原文の枚数だけ」落とす**（§5.3 `O-531`）。
+//   宣言元は**ルリグ** `WX16-002`（救念の記憶　リル）の【常】「対戦相手のターンの間、《ライズアイコン》を持つ
+//   あなたのシグニ１体がバニッシュされる場合、代わりにその下からカード**２**枚をトラッシュに置いてもよい」。
+//   🔑**旧実装では一度も発火しなかった**（被バニッシュシグニ自身の効果しか見ていなかった）＝これが判別力。
+//   ⚠防御側は CPU なので、任意の選択は CPU ヒューリスティック（下のカードで回避できるなら最優先）が受ける。
+scenarios.c9risesubcount = {
+  title: 'O-531 ライズ置換＝ルリグ宣言でも発火し、下から2枚だけトラッシュして残りは動かさない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#c9s0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WX07-042#c9s1'], null, null],   // 幻獣 ラクダ（P10000）
+      'field.signi_down': [false, false, false],
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WX16-002#c9s9'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      // 正面（host zone0 の向かい＝guest zone2）＝下3枚＋《ライズアイコン》のシグニ（P5000）。
+      'field.signi': [null, null, ['WD01-013#c9s2', 'WD02-013#c9s3', 'WD03-013#c9s4', 'WX15-073#c9s5']],
+      'field.signi_down': [false, false, false],
+      'trash': [], 'field.check': null,
+      'life_cloth': ['WD01-013#c9sL1', 'WD01-013#c9sL2', 'WD01-013#c9sL3'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    H.log(`開始 正面=${JSON.stringify(st0?.guest?.fieldSigni?.[2])} guestTrash=${JSON.stringify(st0?.guest?.trash)}`);
+    let attacked = false, modalOpened = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/c9risesub-${s}.png`, fullPage: true });
+      let did = null;
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (!attacked && await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+      if (!did && !modalOpened && !attacked) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+      const st = await c9Query(page);
+      const front = st?.guest?.fieldSigni?.[2] ?? null;
+      H.log(`  c9risesub[${s}] -> ${did ?? 'なし'} | 正面=${JSON.stringify(front)} guestTrash=${JSON.stringify(st?.guest?.trash)} log=${JSON.stringify((st?.logs ?? []).slice(-2))}`);
+      if (!Array.isArray(front) || front.length === 4) continue;
+      const kept = JSON.stringify(front) === JSON.stringify(['WD03-013#c9s4', 'WX15-073#c9s5']);
+      const trash = st?.guest?.trash ?? [];
+      const trashedTwo = trash.includes('WD01-013#c9s2') && trash.includes('WD02-013#c9s3')
+        && !trash.includes('WD03-013#c9s4') && !trash.includes('WX15-073#c9s5');
+      return {
+        pass: kept && trashedTwo,
+        detail: kept && trashedTwo
+          ? `ルリグ宣言の置換が発火し、下から2枚だけトラッシュ（trash=${JSON.stringify(trash)}）／残りの下のカードとシグニは場に残る（${JSON.stringify(front)}）`
+          : `🔴kept=${kept} trashedTwo=${trashedTwo}（正面=${JSON.stringify(front)} trash=${JSON.stringify(trash)}）`,
+      };
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴置換が起きなかった（attacked=${attacked} 正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+order.push('c9risesubcount');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

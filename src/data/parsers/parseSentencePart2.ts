@@ -2151,8 +2151,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 《ライズアイコン》を持つシグニがバニッシュされる場合、代わりに下のカードをトラッシュ ----
+  // 🆕§5.3 `O-531`＝**枚数と任意性を payload で渡す**（旧は engine が「下を全部・強制」と焼き込んでいた）。
   if (t.match(/《ライズアイコン》.*バニッシュされる場合.*下から.*枚をトラッシュに置いてもよい/)) {
-    return { type: 'STUB', id: 'RISE_BANISH_SUBSTITUTE' } as StubAction;
+    const riseSubCnt = t.match(/下から(?:カード)?([０-９\d]+)枚/);
+    return {
+      type: 'STUB', id: 'RISE_BANISH_SUBSTITUTE',
+      count: riseSubCnt ? parseNum(riseSubCnt[1]) : 1,
+      optional: true,
+    } as StubAction;
   }
 
   // ---- スペルの使用コスト減少（色指定あり）----
@@ -2763,8 +2769,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- バニッシュ代替（ライズ下のカードをトラッシュ）----
+  // 🆕§5.3 `O-531`＝枚数を payload で渡す（原文は「カード１枚」＝強制なので `optional` は付けない）。
   if (t.match(/このシグニがバニッシュされる場合.*代わりにこのシグニの下から.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'BANISH_SUBSTITUTE_RISE_STACK' } as StubAction;
+    const stackSubCnt = t.match(/下から(?:カード)?([０-９\d]+)枚/);
+    return {
+      type: 'STUB', id: 'BANISH_SUBSTITUTE_RISE_STACK',
+      count: stackSubCnt ? parseNum(stackSubCnt[1]) : 1,
+    } as StubAction;
   }
 
   // ---- トラッシュから天使シグニを別シグニの下に置く ----

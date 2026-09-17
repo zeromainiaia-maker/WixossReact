@@ -1,12 +1,13 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
-import { checkActiveCondition, collectBanishPreventLoseAbility, collectRiseBanishSubstituteSigni } from '../../engine/effectEngine';
+import { checkActiveCondition, collectBanishPreventLoseAbility, collectRiseBanishSubstitutes } from '../../engine/effectEngine';
 import { acceCardsAt } from '../../utils/acce';
 
 export type MandatoryAttackerBanishSubstitute =
   | { kind: 'prevent_lose_ability'; sourceNum: string }
   | { kind: 'trash_acce'; cardNum: string }
-  | { kind: 'trash_rise_under'; cardNum: string };
+  /** 🆕§5.3 `O-531`＝原文の枚数ぶん（下から `count` 枚）。旧は1枚固定だった。 */
+  | { kind: 'trash_rise_under'; cardNums: string[] };
 
 const baseCardNum = (cardNum: string) => cardNum.includes('#') ? cardNum.slice(0, cardNum.indexOf('#')) : cardNum;
 
@@ -46,16 +47,19 @@ export function selectMandatoryAttackerBanishSubstitute(args: {
   if (trashAcce) return { kind: 'trash_acce', cardNum: trashAcce };
 
   // WX22-034（アルテミス）だけを許可する。兄弟の RISE_BANISH_SUBSTITUTE は
-  // 「対戦相手のターンの間」かつ任意なので、ここへ混ぜない。
-  const riseCandidates = collectRiseBanishSubstituteSigni(state, cardMap, effectsMap, otherState, true);
+  // 「対戦相手のターンの間」かつ任意なので、ここへ混ぜない（＝`optional` を落とす）。
+  // 🆕§5.3 `O-531`（2026-09-17）＝**枚数は payload から**（旧は `stack[0]`＝下の1枚固定で、
+  //   原文が2枚を要求する札でも1枚で成立していた）。⚠枚数が足りない場合は collector 側が候補を出さない。
+  const riseSub = collectRiseBanishSubstitutes(state, cardMap, effectsMap, otherState, true)
+    .find(r => !r.optional && r.zoneIndex === zoneIndex && r.cardNum === victimNum);
   const stack = state.field.signi[zoneIndex] ?? [];
-  const hasArtemisSubstitute = riseCandidates.includes(victimNum) && effectsOf(victimNum).some(eff => {
+  const hasArtemisSubstitute = !!riseSub && effectsOf(victimNum).some(eff => {
     const action = eff.action as StubAction;
     return eff.effectType === 'CONTINUOUS' && action.type === 'STUB' && action.id === 'BANISH_SUBSTITUTE_RISE_STACK' &&
       checkActiveCondition(eff.activeCondition, state, otherState, true, cardMap, victimNum);
   });
-  if (hasArtemisSubstitute && stack.length >= 2) {
-    return { kind: 'trash_rise_under', cardNum: stack[0] };
+  if (hasArtemisSubstitute && riseSub) {
+    return { kind: 'trash_rise_under', cardNums: stack.slice(0, riseSub.count) };
   }
 
   return null;

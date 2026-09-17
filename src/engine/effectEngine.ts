@@ -7321,25 +7321,74 @@ export function hasPowerPlusBlocked(
  * 有効であれば、バニッシュ時に下2枚をトラッシュしてバニッシュを回避できる。
  * stateがこのシグニのオーナー側（保護される側）。
  */
-export function collectRiseBanishSubstituteSigni(
+/**
+ * **バニッシュされる代わりに「下からカードN枚」をトラッシュする置換**の候補（§5.3 `O-531`・2026-09-17）。
+ *
+ * 🔴**旧実装（`collectRiseBanishSubstituteSigni`）の3つの欠陥**＝
+ *   ①**バニッシュされるシグニ自身の効果しか見ていなかった**＝`WX16-002-E1` は**ルリグ**（`救念の記憶　リル`）
+ *     が宣言する能力なので、**一度も発火しない恒久 no-op** だった。
+ *   ②**枚数を見ていなかった**＝「下からカード**2**枚」でも「**1**枚」でも**スタックの下を全部**トラッシュしていた。
+ *   ③**任意（「〜してもよい」）を問わなかった**＝「下のカードを残す」選択が持ち主から奪われていた。
+ *
+ * ⚠**枚数が足りなければ置換は成立しない**（原文が2枚を要求するのに下が1枚なら置き換えられない）＝
+ *   ここで落とす（呼び出し側の `length >= 2` だけでは足りない）。
+ * ⚠`RISE_BANISH_SUBSTITUTE`（ルリグ宣言）は**《ライズアイコン》を持つシグニ限定**。
+ */
+export interface RiseBanishSubstitute {
+  /** バニッシュされるシグニ（スタックのトップ）。 */
+  cardNum: string;
+  zoneIndex: number;
+  /** 下からトラッシュに置く枚数（原文どおり）。 */
+  count: number;
+  /** 「〜してもよい」＝持ち主に問う。 */
+  optional: boolean;
+  /** 宣言元（ログ・選択肢のラベル用）。 */
+  sourceNum: string;
+}
+
+export function collectRiseBanishSubstitutes(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   otherState: PlayerState,
   isOwnerTurn: boolean,
-): string[] {
-  const result: string[] = [];
+): RiseBanishSubstitute[] {
+  const base = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  const hasRiseIcon = (n: string) => (cardMap.get(base(n))?.EffectText ?? '').includes('【ライズ】');
+  const lrigSources = [
+    state.field.lrig.at(-1),
+    ...(state.field.assist_lrig_l ?? []).slice(-1),
+    ...(state.field.assist_lrig_r ?? []).slice(-1),
+  ].filter((n): n is string => !!n);
+  const result: RiseBanishSubstitute[] = [];
   for (let zi = 0; zi < state.field.signi.length; zi++) {
     const stack = state.field.signi[zi];
-    if (!stack || stack.length < 2) continue; // ライズスタックのみ対象
+    if (!stack || stack.length < 2) continue; // 下にカードがあるスタックだけが対象
     const topNum = stack[stack.length - 1];
+    const under = stack.length - 1;
+    const push = (sourceNum: string, act: import('../types/effects').StubAction) => {
+      const count = act.count ?? 1;
+      if (under < count) return;   // ⚠枚数が足りなければ置換できない
+      result.push({ cardNum: topNum, zoneIndex: zi, count, optional: act.optional === true, sourceNum });
+    };
+    // (a) バニッシュされるシグニ自身の宣言（`BANISH_SUBSTITUTE_RISE_STACK`）。
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type === 'STUB' &&
-          (act.id === 'RISE_BANISH_SUBSTITUTE' || act.id === 'BANISH_SUBSTITUTE_RISE_STACK')) {
-        result.push(topNum);
+      if (act.type !== 'STUB' || act.id !== 'BANISH_SUBSTITUTE_RISE_STACK') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      push(topNum, act);
+      break;
+    }
+    // (b) ルリグの宣言（`RISE_BANISH_SUBSTITUTE`）＝《ライズアイコン》を持つ自分のシグニが対象。
+    if (!hasRiseIcon(topNum)) continue;
+    for (const sourceNum of lrigSources) {
+      for (const eff of (effectsMap.get(sourceNum) ?? effectsMap.get(base(sourceNum)) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'RISE_BANISH_SUBSTITUTE') continue;
+        if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+        push(sourceNum, act);
         break;
       }
     }
@@ -7358,7 +7407,9 @@ export type BanishSubstituteOption =
   /** 🆕§5.3 `O-58` 段2＝victim の【チャーム】1枚をトラッシュして回避（`WX04-052-E1`）。 */
   | { kind: 'trash_charm'; sourceNum: string; charmNum: string; zoneIndex: number }
   /** 🆕§5.3 `O-58` 段2＝victim の【アクセ】をゲームから除外して回避し、そのシグニをダウン（`WXDi-P09-TK03A-E1`）。 */
-  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number };
+  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number }
+  /** 🆕§5.3 `O-531`＝victim の**下からカードN枚**をトラッシュして回避（`WX16-002-E1`＝ルリグ宣言・2枚・任意）。 */
+  | { kind: 'trash_under'; sourceNum: string; count: number; zoneIndex: number };
 
 /**
  * BANISH_SUBSTITUTE (F-3): 防御側 state のシグニ victimNum がバニッシュされる場合に使える
@@ -7483,6 +7534,12 @@ export function collectBanishSubstitutes(
         return eff.effectType === 'CONTINUOUS' && act?.type === 'STUB' && act.id === 'ACCE_BANISH_SUBSTITUTE';
       });
       if (hasAcceSub) result.push({ kind: 'exile_acce', sourceNum: acceNum, acceNum, zoneIndex: victimZone });
+    }
+    // ③ 🆕§5.3 `O-531`（2026-09-17）＝**下からカードN枚をトラッシュして回避**の**任意版**（`WX16-002-E1`）。
+    //    ⚠**強制版**（`WX22-034-E2`）はここに出さない＝選ばせるものではないのでバトル解決がそのまま適用する。
+    for (const sub of collectRiseBanishSubstitutes(state, cardMap, effectsMap, otherState, isOwnerTurn)) {
+      if (!sub.optional || sub.zoneIndex !== victimZone || sub.cardNum !== victimNum) continue;
+      result.push({ kind: 'trash_under', sourceNum: sub.sourceNum, count: sub.count, zoneIndex: victimZone });
     }
   }
   return result;

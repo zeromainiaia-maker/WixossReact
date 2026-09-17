@@ -43,6 +43,9 @@ export function BanishSubstituteModal(p: BanishSubstituteModalProps) {
                         ? `付いている【チャーム】をトラッシュして回避`
                         : opt.kind === 'exile_acce'
                           ? `《${nameOf(opt.acceNum)}》をゲームから除外して回避（このシグニはダウンする）`
+                          // 🆕§5.3 `O-531`＝下からカードN枚をトラッシュして回避（枚数は原文どおり payload から）。
+                          : opt.kind === 'trash_under'
+                            ? `このシグニの下からカード${opt.count}枚をトラッシュして回避`
                           : opt.costType === 'discardSpell'
                             ? `手札からスペル${opt.amount}枚を捨てて回避`
                             : `《${nameOf(opt.sourceNum)}》の下からスペル${opt.amount}枚をトラッシュして回避`;

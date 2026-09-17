@@ -106,6 +106,8 @@ import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/battle/refreshTurnEnd';
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
+import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from '../src/screens/battle/limitExcess';
+import { collectRiseBanishSubstitutes } from '../src/engine/effectEngine';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
@@ -1323,7 +1325,8 @@ test('O-58 段1: アタッカー側の必須バニッシュ置換は4効果だ�
   artemis.field.signi[0] = ['WD01-013', 'WD01-014', 'WX22-034'];
   eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
     state: artemis, otherState: other, victimNum: 'WX22-034', zoneIndex: 0, cardMap: cm, effectsMap,
-  })), JSON.stringify({ kind: 'trash_rise_under', cardNum: 'WD01-013' }), 'WX22-034 は下から1枚だけを選ぶ');
+  // 🆕§5.3 `O-531`（2026-09-17）＝枚数は payload から（`cardNum` 1枚固定 → `cardNums` の配列）。
+  })), JSON.stringify({ kind: 'trash_rise_under', cardNums: ['WD01-013'] }), 'WX22-034 は下から1枚だけを選ぶ');
   const oppTurnRise = mkState({});
   oppTurnRise.field.signi[0] = ['WD01-013', 'WD01-014', 'WX16-002'];
   eq(selectMandatoryAttackerBanishSubstitute({
@@ -85761,6 +85764,127 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
+}));
+
+test('§5.3 O-531 ライズのバニッシュ置換＝枚数と任意性を原文どおりに（宣言元がルリグの札も拾う）', () => withSavedCursor(() => {
+  // 🔑原文＝`WX16-002-E1`（**ルリグ**「救念の記憶　リル」）「対戦相手のターンの間、《ライズアイコン》を持つあなたのシグニ１体が
+  //   バニッシュされる場合、代わりにその下からカード**２**枚をトラッシュに置い**てもよい**」／
+  //   `WX22-034-E2`（シグニ）「このシグニがバニッシュされる場合、代わりにこのシグニの下からカード**１**枚をトラッシュに置く」。
+  // 🔴旧実装＝**下を全部・強制・被バニッシュシグニ自身の宣言だけ**＝`WX16-002-E1` は一度も発火しない恒久 no-op だった。
+  const lrigAct = (effectsMap.get('WX16-002') ?? []).find(e => e.effectId === 'WX16-002-E1')!.action as StubAction;
+  eq(lrigAct.count, 2, '🔴live に枚数 payload が無い（下を全部トラッシュに戻っている）');
+  eq(lrigAct.optional, true, '🔴live に任意 payload が無い（問わずに自動適用に戻っている）');
+  const selfAct = (effectsMap.get('WX22-034') ?? []).find(e => e.effectId === 'WX22-034-E2')!.action as StubAction;
+  eq(selfAct.count, 1, '🔴`WX22-034-E2` の枚数 payload が無い');
+  eq(selfAct.optional, undefined, '原文が「置く」（強制）なのに任意になっている');
+  const riseSigni = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【ライズ】'));
+  const plainSigni = findCard(c => c.Type === 'シグニ' && !(c.EffectText ?? '').includes('【ライズ】'));
+  const mkField = (lrig: string, stack: string[]): PlayerState => {
+    const st = mkState({ lrig: [lrig] });
+    return { ...st, field: { ...st.field, signi: [stack, null, null] } } as PlayerState;
+  };
+  const other = mkState({});
+  const subs = (owner: PlayerState, isOwnerTurn: boolean) =>
+    collectRiseBanishSubstitutes(owner, cardMap, effectsMap, other, isOwnerTurn);
+  // ① 自分の宣言（`WX22-034-E2`）＝1枚・強制。
+  const artemis = subs(mkField(SIGNI, [fresh(), 'WX22-034']), false);
+  eq(artemis.length, 1, '🔴`WX22-034` の置換候補が出ない');
+  eq(artemis[0].count, 1, '枚数が原文どおりでない');
+  eq(artemis[0].optional, false, '強制のはずが任意になっている');
+  // ② 🔴**ルリグの宣言**（`WX16-002-E1`）＝《ライズアイコン》を持つシグニ・**2枚**・**任意**。
+  const byLrig = subs(mkField('WX16-002', [fresh(), fresh(), riseSigni]), false);
+  eq(byLrig.length, 1, '🔴ルリグが宣言する置換を拾えていない（旧実装の恒久 no-op）');
+  eq(byLrig[0].count, 2, 'ルリグ宣言の枚数が2でない');
+  eq(byLrig[0].optional, true, 'ルリグ宣言が任意になっていない');
+  eq(byLrig[0].sourceNum, 'WX16-002', '宣言元がルリグになっていない');
+  // ③ 🔴**枚数が足りなければ置換は成立しない**（下が1枚しか無いのに「2枚」を要求する札）。
+  eq(subs(mkField('WX16-002', [fresh(), riseSigni]), false).length, 0,
+    '🔴下が1枚しか無いのに「2枚トラッシュ」の置換が成立している');
+  // ④ 《ライズアイコン》を持たないシグニは対象外。
+  eq(subs(mkField('WX16-002', [fresh(), fresh(), plainSigni]), false).length, 0,
+    '《ライズアイコン》を持たないシグニにルリグ宣言が掛かっている');
+  // ⑤ 「対戦相手のターンの間」＝自分のターンでは成立しない（`activeCondition` を通す）。
+  eq(subs(mkField('WX16-002', [fresh(), fresh(), riseSigni]), true).length, 0,
+    '🔴自分のターンなのに「対戦相手のターンの間」限定の置換が成立している');
+  // ⑥ 任意版は**身代わりの選択肢**として出る（強制版は出さない＝選ばせるものではない）。
+  const victimState = mkField('WX16-002', [fresh(), fresh(), riseSigni]);
+  const victimTop = victimState.field.signi[0]!.at(-1)!;
+  const opts = collectBanishSubstitutes(victimState, other, false, cardMap, effectsMap, victimTop);
+  eq(opts.filter(o => o.kind === 'trash_under').length, 1, '🔴任意版が身代わりの選択肢に出ない');
+  const mandatoryState = mkField(SIGNI, [fresh(), 'WX22-034']);
+  eq(collectBanishSubstitutes(mandatoryState, other, false, cardMap, effectsMap, 'WX22-034')
+    .filter(o => o.kind === 'trash_under').length, 0, '強制版を選択肢に出している');
+  // 🔴**適用側**＝バトル解決は枚数ぶんだけ落とし、**残りの下のカードは動かさない**。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(screen.includes('const bottomCards = riseSubStack.slice(0, riseSubCount);'),
+    '🔴バトル解決が枚数を見ずに下を全部トラッシュしている');
+  ok(screen.includes('newOpSigniRiseSub[opZoneIndex] = riseSubStack.slice(riseSubCount);'),
+    '🔴置換後に残る下のカードを消している（旧はトップ1枚だけ残していた）');
+}));
+
+test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/R-48）', () => withSavedCursor(() => {
+  // 🔑公式ルール（EN Level・Limit／Rule-based action 2）＝シグニのレベルはセンタールリグのレベル以下、
+  //   レベル合計はリミット以下。超えたら A（レベル超過）→ B（直前に変化）→ C（持ち主が選ぶ）の順に1体ずつトラッシュ。
+  // 🔴2026-09-17 の棚卸し＝**配置時のゲートでしか見ておらず**、置いたあとにリミットやレベルが変わっても場は減らなかった。
+  const lrigL2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2' && /^\d+$/.test(c.Limit ?? ''));
+  const lrigLimitPrinted = parseInt(cardMap.get(lrigL2)!.Limit!, 10);
+  const mk = (signi: (string | null)[], lrig = lrigL2): { owner: PlayerState; opponent: PlayerState } => ({
+    owner: mkState({ lrig: [lrig], signi }), opponent: mkState({ lrig: [] }),
+  });
+  const plan = (signi: (string | null)[], lrig = lrigL2) => {
+    const { owner, opponent } = mk(signi, lrig);
+    return planLimitExcess({ owner, opponent, cardMap, effectsMap, isOwnerTurn: true });
+  };
+  // ① リミット内なら何も落とさない（**この計器はカードを盤面から消す側**なので、既定は「落とさない」）。
+  const within = plan([SIGNI_L1, null, null]);
+  eq(within.levelOverZones.length, 0, 'レベル以下のシグニを超過と判定している');
+  eq(within.excess, 0, `リミット内（Lv1 / limit ${lrigLimitPrinted}）なのに超過と判定している`);
+  eq(within.candidateZones.length, 0, '超過していないのに選択候補を出している');
+  // ② レベル超過（Lv2 のルリグに Lv3／Lv4）は**測るが落とさない**＝RULES.md `R-48` の ❓。
+  //   🔑理由＝原文コーパスで**ルリグのレベルを下げる効果は0枚**＝配置ゲートを通った盤面が後から
+  //   レベル超過になる live の道が無い（自動トラッシュは盤面を注入する実機シナリオにしか当たらない）。
+  const over = plan([SIGNI_L3, SIGNI_L4, SIGNI_L1]);
+  eq(JSON.stringify(over.levelOverZones), JSON.stringify([0, 1]),
+    '🔴センタールリグのレベルを超えるシグニを測れていない');
+  const screenLv = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screenLv.match(/levelOverZones/g) ?? []).length, 0,
+    '🔴レベル超過で盤面を落とす分岐が入った（読みが未確定＝RULES.md `R-48` の ❓ を先に片づける）');
+  // ③ リミット超過＝レベル合計で測り、**持ち主が選ぶ候補**を出す。
+  const heavy = plan([SIGNI_L2, SIGNI_L2, SIGNI_L2]);
+  eq(heavy.levelOverZones.length, 0, 'レベル以下なのにレベル超過と測っている');
+  eq(heavy.total, 6, 'レベル合計が違う');
+  eq(heavy.excess, Math.max(0, 6 - lrigLimitPrinted), `超過分が違う（limit ${lrigLimitPrinted}）`);
+  if (heavy.excess > 0) {
+    eq(JSON.stringify(heavy.candidateZones), JSON.stringify([0, 1, 2]), '選択候補が全ゾーンでない');
+    eq(pickLimitExcessZone(heavy), 0, '自動選択が「実効レベルが一番高い（同値はゾーン順）」になっていない');
+  }
+  // ④ 🔴**fail-closed**＝センタールリグが読めないときは何も落とさない。
+  const noLrig = planLimitExcess({ owner: mkState({ lrig: [] }), opponent: mkState({}), cardMap, effectsMap, isOwnerTurn: true });
+  eq(noLrig.levelOverZones.length + noLrig.excess, 0, '🔴センタールリグが無いのに盤面を落とそうとしている');
+  eq(pickLimitExcessZone(noLrig), null, '超過0なのに自動選択が1体返している');
+  // ⑤ 行き先＝**レゾナはルリグデッキへ**（`R-45`）／【チャーム】【アクセ】はトラッシュ（`R-41`）。
+  const resona = [...cardMap.values()].find(c => c.Type === 'レゾナ')!.CardNum;
+  const withResona = mkState({ lrig: [lrigL2], signi: [resona, SIGNI_L1, null] });
+  const staged: PlayerState = {
+    ...withResona,
+    lrig_deck: [], trash: [],
+    field: { ...withResona.field, signi_charms: ['CHARM-X', null, null], signi_acce: [['ACCE-X'], null, null] },
+  };
+  const applied = applyLimitExcessTrash(staged, [0], cardMap, effectsMap);
+  eq(JSON.stringify(applied.trashedTops), JSON.stringify([resona]), '落としたシグニを返していない');
+  eq(applied.state.lrig_deck.includes(resona), true, '🔴レゾナがルリグデッキへ戻らない（R-45 を通っていない）');
+  eq(applied.state.trash.includes(resona), false, 'レゾナをトラッシュへ送っている');
+  eq(applied.state.trash.includes('CHARM-X') && applied.state.trash.includes('ACCE-X'), true,
+    '🔴【チャーム】【アクセ】がトラッシュへ行かない（R-41 を通っていない）');
+  eq(applied.state.field.signi[0], null, 'ゾーンが空いていない');
+  // 🔴**配線**＝判定は純関数1本・funnel と表示の2地点から呼ぶ。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/planLimitExcess\(/g) ?? []).length, 2,
+    '🔴判定の呼び出しが2箇所（自分の盤面＝モーダルの表示／CPU の盤面＝自動）でない');
+  ok(/const checkLimitExcessRule = async/.test(screen) && /pickLimitExcessZone\(cpuPlan\)/.test(screen),
+    '🔴CPU の盤面を自動で解く経路が無い（問う相手が居ないので半分実装になる）');
+  ok(fs.existsSync(join(root, 'src/screens/battle/modals/LimitExcessModal.tsx')),
+    '🔴持ち主に選ばせるモーダルが無い');
 }));
 
 test('§5.6 C-9 R-41/R-49 リムーブ＝場を離れたゾーンの後始末（チャーム・アクセ・ソウル・ダウン・凍結）', () => withSavedCursor(() => {

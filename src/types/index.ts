@@ -153,7 +153,13 @@ export type BanishSubstituteOptionState =
    * そうした場合、そのシグニをダウンする」）。
    * 🔴**行き先はトラッシュではなくゲーム外**（障害③＝防御側の実装がログと食い違っていた）。
    */
-  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number };
+  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number }
+  /**
+   * 🆕§5.3 `O-531`（2026-09-17）＝**バニッシュされる代わりに、そのシグニの下からカードN枚をトラッシュ**
+   * （`WX16-002-E1`＝ルリグが宣言・《ライズアイコン》を持つ自分のシグニ1体・**2枚**・**〜してもよい**）。
+   * ⚠**強制版**（`WX22-034-E2`＝1枚・「置く」）は選択肢にせず、バトル解決がそのまま適用する。
+   */
+  | { kind: 'trash_under'; sourceNum: string; count: number; zoneIndex: number };
 
 /**
  * シグニを新たに配置できないシグニゾーン1件（タスク12(lxi) 第10波）。
