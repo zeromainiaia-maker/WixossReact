@@ -41,6 +41,9 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'guard', label: 'ガード', pattern: /^\[CPU\] ガードする（/, anchor: '[CPU] ガードする（' },
   { id: 'lifeBurst', label: 'ライフバースト', pattern: /^\[CPU\] ライフクロスをオープン: .*（ライフバースト発動）$/, anchor: '（ライフバースト発動）' },
   { id: 'handLimit', label: '手札上限の捨て札', pattern: /^\[CPU\] 手札上限:/, anchor: '[CPU] 手札上限:' },
+  // 🆕§5.6 `C-8`＝対話の選択肢の**両側**（する／断る）。旧実装は「押せる先頭」固定で片側しか踏まなかった。
+  { id: 'chooseAccept', label: '選択肢：する側', pattern: /^\[CPU\] 選択: (?!.*（断る）$)/, anchor: '[CPU] 選択: ' },
+  { id: 'chooseDecline', label: '選択肢：断る側', pattern: /^\[CPU\] 選択: .*（断る）$/, anchor: "'（断る）'" },
 ];
 
 export interface PlayCensusRow {

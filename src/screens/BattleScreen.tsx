@@ -9,7 +9,7 @@ applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAp
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
+import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canSatisfyDiscardGroups, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, collectSuppressedSigniTriggerNums, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
@@ -52,7 +52,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { randomInt, shuffle as rngShuffle } from '../engine/rng';
+import { randomInt } from '../engine/rng';
 import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers, type DefenderBattleResolution } from './battle/battleOutcome';
 import { applyUpPhaseToField, upPhaseRecipient } from './battle/upPhase';
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
@@ -152,7 +152,7 @@ import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consum
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
-import { declareNameCandidates } from './battle/declareNameCandidates';
+import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone, type CpuInteractionCtx } from './battle/cpuInteraction';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import {
@@ -676,135 +676,59 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isCpuBattle || !bs?.pending_effect) return;
     const pe = bs.pending_effect;
     const inter = pe.interaction;
+    // 🆕§5.6 `C-8`（2026-09-17）＝**何と答えるかは `cpuInteraction.ts` の純関数**（golden で固定）。ここは呼んで実行するだけ。
+    //   旧＝この effect に直書きで、選択肢は「押せる先頭」固定（分岐の片側しか踏まない）・対象は完全ランダムだった。
+    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
+    const cpuIsHost = bs.host_id === CPU_PLAYER_ID;
+    const cpuCtx: CpuInteractionCtx = {
+      cpuState: cpuIsHost ? bs.host_state : bs.guest_state,
+      oppState: cpuIsHost ? bs.guest_state : bs.host_state,
+      // ⚠instance ID（`#…`）で引く補助関数（支払うエナの選出）があるので InstanceMap を渡す。
+      cardMap: new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData])),
+    };
     // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
     if (inter.type === 'REARRANGE_SIGNI') {
-      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
-      const requiredChoice = inter.mode === 'swap_pair' && !inter.optional
-        ? inter.signiNums.slice(0, 2)
-        : inter.mode === 'swap' && !inter.optional
-          && (inter.swapSourceLocation === 'energy' || inter.swapSourceLocation === 'trash')
-          ? inter.signiNums.slice(0, 1)
-          : null;
+      const requiredChoice = pickCpuRearrange(inter);
       const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerRS);
     }
-    // 🆕`ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る。CPU なら**先頭の対象へ全部**寄せる
-    //   （`unit` の丸めと総量の検算は `resumeAllocatePower` が最後にやるので、ここは素直な配分でよい）。
+    // `ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る（検算は `resumeAllocatePower`）。
     if (inter.type === 'ALLOCATE_POWER') {
-      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
-      const allocCpu: Record<string, number> = {};
-      if (inter.targets.length > 0) allocCpu[inter.targets[0]] = inter.total;
+      const allocCpu = pickCpuAllocatePower(inter, cpuCtx);
       const timerAP = setTimeout(() => { handleAllocatePowerConfirm(allocCpu); }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerAP);
     }
     // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
     if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
-      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
       const ownerIsHost = pe.sourcePlayerId === bs.host_id;
       const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
       const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
       if (inter.type === 'SELECT_VIRUS_ZONE') {
-        const tgtVirus = tgtState.field.signi_virus ?? [0, 0, 0];
-        // powerDeltaOnZone時はシグニのいるゾーン優先（パワー修正を有効活用）、なければ空きゾーン
-        const zone = inter.powerDeltaOnZone !== undefined
-          ? ([0, 1, 2].find(zi => (tgtState.field.signi[zi]?.length ?? 0) > 0 && (tgtVirus[zi] ?? 0) === 0)
-             ?? [0, 1, 2].find(zi => (tgtState.field.signi[zi]?.length ?? 0) > 0)
-             ?? 0)
-          : [0, 1, 2].find(zi => (tgtVirus[zi] ?? 0) === 0);
-        const timerVZ = setTimeout(() => {
-          handleSelectVirusZoneForEffect(zone ?? null);
-        }, CPU_ACTION_DELAY);
+        const zone = pickCpuVirusZone(inter, tgtState);
+        const timerVZ = setTimeout(() => { handleSelectVirusZoneForEffect(zone); }, CPU_ACTION_DELAY);
         return () => clearTimeout(timerVZ);
       }
-      if (inter.type === 'SELECT_SIGNI_ZONE') {
-        const emptyZoneSZ = [0, 1, 2].find(zi => !(tgtState.field.signi[zi]?.length));
-        if (emptyZoneSZ === undefined) return;
-        const timerSSZ = setTimeout(() => {
-          handleSelectSigniZoneForEffect(emptyZoneSZ);
-        }, CPU_ACTION_DELAY);
-        return () => clearTimeout(timerSSZ);
-      }
-      const emptyZone = [0, 1, 2].find(zi => !(tgtState.field.signi[zi]?.length));
-      if (emptyZone === undefined) return;
+      const emptyZone = pickCpuEmptySigniZone(tgtState);
+      if (emptyZone === null) return;
       const timerSZ = setTimeout(() => {
-        handleSelectZoneForEffect(emptyZone);
+        if (inter.type === 'SELECT_SIGNI_ZONE') handleSelectSigniZoneForEffect(emptyZone);
+        else handleSelectZoneForEffect(emptyZone);
       }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerSZ);
     }
     // 応答者がCPUの場合（respondPlayerId指定、または無指定で効果オーナーがCPU）は自動応答する
     // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
-    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
     const timer = setTimeout(() => {
       let selected: string[] = [];
       if (inter.type === 'SELECT_TARGET') {
-        if (inter.totalPowerMax !== undefined) {
-          // パワー合計上限つき：パワーの小さい順に上限まで貪欲に選ぶ（できるだけ多くバニッシュ）
-          const powers = inter.candidatePowers ?? {};
-          const sorted = [...inter.candidates].sort((a, b) => (powers[a] ?? 0) - (powers[b] ?? 0));
-          let sum = 0;
-          for (const n of sorted) {
-            const p = powers[n] ?? 0;
-            if (sum + p > inter.totalPowerMax) continue;
-            sum += p;
-            selected.push(n);
-          }
-        } else {
-          const count = typeof inter.count === 'number' ? inter.count : 1;
-          // 🆕§5.6 `C-1`＝CPU の対象選択も seam を通す（偏る sort シャッフルも解消）。
-          const shuffled = rngShuffle(inter.candidates);
-          const cpuMap = new Map(cards.map(c => [c.CardNum, c] as const));
-          const exactPick = inter.selectionConstraint?.totalLevelExact !== undefined
-            ? findValidConstrainedSelection(shuffled, inter.optional ? 0 : count, count, inter.selectionConstraint, cpuMap)
-            : null;
-          if (exactPick) selected = exactPick;
-          else for (const n of shuffled) {
-              if (selected.length >= count) break;
-              if (canAddToSelection(selected, n, inter.selectionConstraint, cpuMap)) selected.push(n);
-            }
-        }
+        selected = pickCpuTargets(inter, cpuCtx);
       } else if (inter.type === 'CHOOSE') {
-        if (inter.namePool) {
-          // 全カード名宣言は options が空。CPU は決定論的な名前昇順の先頭候補を宣言する。
-          selected = declareNameCandidates(
-            new Map(cards.map(card => [card.CardNum, card] as const)), inter.namePool, '', 1);
-        } else if (inter.multiSelect) {
-          // 複数選択: 利用可能な選択肢からcount個（upToならcount個まで）選択
-          const avail = inter.options.filter(o => o.available);
-          // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝**選択肢の数より多く選べる**ので、
-          // 足りないぶんは先頭から巡回して埋める。⚠これが無いと選択肢2つ・count4 のとき CPU は2つしか
-          // 選ばず、ベットしたコインぶんの選択が**黙って目減りする**（過少）。
-          selected = inter.allowRepeat && avail.length > 0
-            ? Array.from({ length: inter.count }, (_, i) => avail[i % avail.length].id)
-            : avail.slice(0, inter.count).map(o => o.id);
-        } else {
-          const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
-          selected = firstAvail ? [firstAvail.id] : [];
-          // ⚠costColors 付きの選択肢は**選択肢IDだけでは支払えない**（タスク12(cii)）。
-          //   `handleEffectInteraction` は `selectedOrChoiceId.slice(1)` を支払いエナの instanceId として
-          //   読み、`resumeOpponentPayOptional`／`resumeOptionalCost` はそれが空なら
-          //   「コスト支払いエラー: エナ不足」で**即終了**する（cost 未消費・then も未実行＝黙って空振り）。
-          //   人間側UI（optcost-energy-N）が人力でやっているエナ選出を CPU 版として行う。
-          //   支払い主体は CPU 自身＝`opponentResponds`（応答者＝CPU）でも通常の任意コスト（効果オーナー＝CPU）でも同じ。
-          if (firstAvail?.costColors?.length) {
-            const cpuState = bs.host_id === CPU_PLAYER_ID ? bs.host_state : bs.guest_state;
-            const cpuCardMap = new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData]));
-            const paidEnergy = selectOptionalCostEnergy(firstAvail.costColors, cpuState, cpuCardMap);
-            // 選出できないのに available だったら支払い枝は選ばず「支払わない」へ倒す（黙って空振りさせない）。
-            if (paidEnergy) selected = [firstAvail.id, ...paidEnergy];
-            else selected = [(inter.options.find(o => o.id !== firstAvail.id && o.available) ?? firstAvail).id];
-          }
-        }
+        selected = pickCpuChoice(inter, cpuCtx);
+        const chosen = inter.options.find(o => o.id === selected[0]);
+        // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。
+        if (chosen) appendBattleLogs([`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}`]);
       } else if (inter.type === 'SEARCH') {
-        const count = inter.maxPick ?? 0;
-        const cpuMap = new Map(cards.map(c => [c.CardNum, c] as const));
-        const exactPick = inter.selectionConstraint?.totalLevelExact !== undefined
-          ? findValidConstrainedSelection(inter.visibleCards, inter.optional ? 0 : count, count, inter.selectionConstraint, cpuMap)
-          : null;
-        if (exactPick) selected = exactPick;
-        else for (const n of inter.visibleCards) {
-            if (selected.length >= count) break;
-            if (canAddToSelection(selected, n, inter.selectionConstraint, cpuMap)) selected.push(n);
-          }
+        selected = pickCpuSearch(inter, cpuCtx);
       } else if (inter.type === 'LOOK_AND_REORDER') {
         selected = [...inter.cards];
       }

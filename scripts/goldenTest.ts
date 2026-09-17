@@ -161,6 +161,7 @@ import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
+import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
@@ -85957,6 +85958,75 @@ test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ば�
   ok(!/turn_count === 1[\s\S]{0,200}phase: 'END'/.test(cpuMain), '🔴CPU のメインフェイズが1ターン目に END へ飛んでいる（召喚・スペルを一切しない）');
   ok(/resolveNextPhaseAfterMain\(bs\.turn_count, cpuSt, cpuContBlockedSelf\)/.test(cpuMain), '🔴CPU のメインフェイズの出口が人間と同じ関数を通っていない');
   ok(/nextPhase = resolveNextPhaseAfterMain\(bs\.turn_count, my\)/.test(battle), '🔴人間のメインフェイズの出口が同じ関数を通っていない');
+}));
+
+test('§5.6 C-8 CPU の対話応答（純関数）：損得の分かる選択は得な方・断る肢があればする・「AかB」は乱数で両側を踏む', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー決定＝混合）。旧＝BattleScreen の effect に直書きで、選択肢は「押せる先頭」固定・対象は完全ランダムだった。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const OPP_WEAK = 'WX04-080#1', OPP_STRONG = 'WD03-009#1', OWN_STRONG = 'WD03-009#g1', OWN_WEAK = 'WX04-080#g1';
+  const cpu = mkState({ signi: [OWN_STRONG, OWN_WEAK, null] });
+  const opp = mkState({ signi: [OPP_WEAK, OPP_STRONG, null] });
+  const ctx = { cpuState: cpu, oppState: opp, cardMap: cm };
+  // 損得の見立て
+  eq(targetIntentOf({ type: 'BANISH' }), 'harm', 'バニッシュを害と見ていない');
+  eq(targetIntentOf({ type: 'POWER_MODIFY', delta: -3000 }), 'harm', 'マイナス修正を害と見ていない');
+  eq(targetIntentOf({ type: 'POWER_MODIFY', delta: 2000 }), 'benefit', 'プラス修正を得と見ていない');
+  eq(targetIntentOf({ type: 'SOMETHING_ELSE' }), 'unknown', '分からない型を決めつけた');
+  const sel = (thenAction: object, candidates: string[], optional = false, count = 1) =>
+    pickCpuTargets({ type: 'SELECT_TARGET', candidates, count, optional, targetScope: 'SINGLE', thenAction } as never, ctx);
+  eq(JSON.stringify(sel({ type: 'BANISH' }, [OPP_WEAK, OWN_STRONG, OPP_STRONG])), JSON.stringify([OPP_STRONG]), '🔴除去で相手の一番強いシグニを選ばない');
+  eq(JSON.stringify(sel({ type: 'BANISH' }, [OWN_STRONG, OWN_WEAK], true)), '[]', '🔴任意の除去で自分のシグニを選んだ（損になる対象は選ばない）');
+  eq(JSON.stringify(sel({ type: 'BANISH' }, [OWN_STRONG, OWN_WEAK])), JSON.stringify([OWN_WEAK]), '強制で自分を失うのに強い方を選んだ');
+  eq(JSON.stringify(sel({ type: 'POWER_MODIFY', delta: 3000 }, [OPP_STRONG, OWN_WEAK, OWN_STRONG])), JSON.stringify([OWN_STRONG]), '🔴強化で自分の一番強いシグニを選ばない');
+  eq(sel({ type: 'BANISH' }, [OPP_WEAK, OPP_STRONG, OWN_WEAK], false, 2).length, 2, '必要数を選ばない');
+  // 分からない型は乱数（seed で再現できる）
+  rngSetSeed(7); const u1 = sel({ type: 'SOMETHING_ELSE' }, [OPP_WEAK, OPP_STRONG, OWN_WEAK]);
+  rngSetSeed(7); const u2 = sel({ type: 'SOMETHING_ELSE' }, [OPP_WEAK, OPP_STRONG, OWN_WEAK]);
+  eq(JSON.stringify(u1), JSON.stringify(u2), '乱数の選択が seed で再現しない');
+  rngResetG();
+
+  // 選択肢
+  const opt = (id: string, extra: object = {}) => ({ id, label: id, action: { type: 'NOOP' }, available: true, ...extra });
+  const choose = (options: object[], extra: object = {}) =>
+    pickCpuChoice({ type: 'CHOOSE', options, count: 1, ...extra } as never, ctx);
+  eq(JSON.stringify(choose([opt('decline', { declines: true }), opt('do')])), JSON.stringify(['do']), '🔴「してもよい」で断った（する側を選ぶ）');
+  // 🔴engine の大半は `declines` の印が無く、ID／ラベルで断る側を表す（OPPONENT_PAY_OPTIONAL＝`pay`/`skip`、置換の問い＝`none`）。
+  for (let seed = 1; seed <= 10; seed++) {
+    rngSetSeed(seed);
+    eq(choose([{ id: 'skip', label: '支払わない', action: { type: 'NOOP' }, available: true }, { id: 'pay', label: '支払う（無×1）', action: { type: 'NOOP' }, available: true }])[0], 'pay', '🔴印の無い「支払う／支払わない」を乱数で選んだ（支払わない側に倒れる）');
+    eq(choose([{ id: 'none', label: '置換しない', action: { type: 'NOOP' }, available: true }, { id: 'lifeCrash', label: 'ライフクロスをクラッシュ', action: { type: 'NOOP' }, available: true }])[0], 'lifeCrash', '🔴置換の問いで「置換しない」を選んだ');
+  }
+  rngResetG();
+  ok(isDeclineOption({ id: 'x', label: 'バニッシュしない' }) && !isDeclineOption({ id: 'do', label: 'バニッシュする' }), 'ラベルで断る側を見分けられない');
+  cpu.energy = ['WD03-009#g9'];
+  const paid = choose([opt('pay', { costColors: ['青'] }), opt('decline', { declines: true })]);
+  eq(JSON.stringify(paid), JSON.stringify(['pay', 'WD03-009#g9']), '🔴払えるのに支払う肢を選ばない（または支払うエナを付けない）');
+  cpu.energy = [];
+  eq(JSON.stringify(choose([opt('pay', { costColors: ['青'] }), opt('decline', { declines: true })])), JSON.stringify(['decline']), '🔴払えないのに支払う肢を選んだ（空振りする）');
+  // 🔑「AかB」は seed を変えると両方の分岐を踏む（旧＝先頭固定で片側だけ）。
+  const seen = new Set<string>();
+  for (let seed = 1; seed <= 20; seed++) { rngSetSeed(seed); seen.add(choose([opt('A'), opt('B')])[0]); }
+  rngResetG();
+  eq(JSON.stringify([...seen].sort()), JSON.stringify(['A', 'B']), '🔴「AかB」で片側の分岐しか踏まない');
+  eq(pickCpuChoice({ type: 'CHOOSE', options: [opt('A'), opt('B')], count: 4, multiSelect: true, allowRepeat: true } as never, ctx).length, 4, '🔴繰り返し可の複数選択が目減りした');
+  eq(JSON.stringify(choose([opt('A', { available: false }), opt('B')])), JSON.stringify(['B']), '押せない肢を選んだ');
+
+  // サーチ＝価値の高い順
+  const picked = pickCpuSearch({ type: 'SEARCH', visibleCards: ['WX04-080#5', 'WD03-009#5', 'WD03-012#5'], maxPick: 2, thenAction: { type: 'NOOP' } } as never, ctx);
+  eq(JSON.stringify(picked), JSON.stringify(['WD03-009#5', 'WD03-012#5']), 'サーチで強いカードから取らない');
+
+  // パワーの割り振り＝マイナスは落とせる相手から必要ぶん、総量ちょうど
+  const alloc = pickCpuAllocatePower({ type: 'ALLOCATE_POWER', targets: [OPP_STRONG, OPP_WEAK, OWN_WEAK], total: -5000, unit: 1000, owner: 'any' } as never, ctx);
+  eq(alloc[OPP_WEAK], -3000, '🔴落とせる相手のシグニへ必要なぶん（3000）を割り振っていない');
+  eq(alloc[OWN_WEAK], undefined, '🔴マイナスを自分のシグニへ割り振った');
+  eq(Object.values(alloc).reduce((a, b) => a + b, 0), -5000, '割り振りの合計が総量と一致しない');
+  const plus = pickCpuAllocatePower({ type: 'ALLOCATE_POWER', targets: [OPP_STRONG, OWN_WEAK, OWN_STRONG], total: 4000, unit: 1000, owner: 'any' } as never, ctx);
+  eq(JSON.stringify(plus), JSON.stringify({ [OWN_STRONG]: 4000 }), 'プラスを自分の一番強いシグニへ寄せていない');
+
+  // 画面の配線＝判断は純関数だけ（直書きの「押せる先頭」に戻さない）
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
+  ok(!/const firstAvail = inter\.options\.find/.test(battle), '🔴「押せる先頭」の直書きが残っている');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {

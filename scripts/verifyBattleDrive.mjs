@@ -12279,7 +12279,7 @@ const scenarios = {
   // 到達不能＝ホスト側の起動自体が正しくSTUB発火しCPUが無料pay枝を選ぶこと（ci の影響範囲拡大の実機確認）
   // までに留める。
   wxk06067CrossZoneStubFires: {
-    title: 'WXK06-067-E1（【起】起動→OPPONENT_PAY_OPTIONALが発火しCPUが無料payを選ぶ＝(ci)と同型）',
+    title: 'WXK06-067-E1（【起】起動→OPPONENT_PAY_OPTIONAL→CPU が手札とエナから合計2枚をデッキの上に置いてシグニを守る）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#1'],
@@ -12317,10 +12317,14 @@ const scenarios = {
         const selfTrashed = (st?.host?.trashCards ?? []).includes('WXK06-067#1');
         H.log(`  x067[${s}] -> ${did ?? 'なし'} | hostTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy} pEff=${st?.pendingEffect ?? '-'}`);
         if (selfTrashed && !st?.pendingEffect && s >= 3) {
-          const guestUntouched = JSON.stringify(st?.guest?.fieldSigni) === JSON.stringify(before?.guest?.fieldSigni)
-            && st?.guest?.hand === before?.guest?.hand && st?.guest?.energy === before?.guest?.energy;
-          if (guestUntouched) return { pass: true, detail: `【起】起動→STUB発火→CPU(guest)が無料payを選択し場/手札/エナ無変化（Opusタスク12(ci)と同型・handOrEnergyToDeckTop枝は未到達）` };
-          return { pass: false, detail: `guest側に変化あり（想定外＝pay以外が選ばれた可能性）：gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy}` };
+          // 🔴2026-09-17 合格条件を原文に合わせて直した（§5.6 `C-8` の回し直しで判明・HEAD でも同じく FAIL＝シナリオ側が古かった）。
+          //   旧＝「CPU が**無料の pay** を選び場/手札/エナ無変化」＝その無料枝はタスク12(ci)で「タダで回避できる穴」として消えている。
+          //   原文＝「手札とエナゾーンから合計２枚をデッキの一番上に置かないかぎり、そのシグニをデッキの一番上に置く」
+          //   ⇒ 守る側（CPU）が**手札＋エナを合計2枚減らし、シグニは場に残る**のが正しい応答。
+          const signiKept = JSON.stringify(st?.guest?.fieldSigni) === JSON.stringify(before?.guest?.fieldSigni);
+          const paid = (before?.guest?.hand + before?.guest?.energy) - (st?.guest?.hand + st?.guest?.energy);
+          if (signiKept && paid === 2) return { pass: true, detail: `【起】起動→STUB発火→CPU(guest)が手札とエナから合計2枚をデッキの上に置き、シグニは場に残った（hand ${before?.guest?.hand}→${st?.guest?.hand} / energy ${before?.guest?.energy}→${st?.guest?.energy}）` };
+          return { pass: false, detail: `CPU の応答が原文と合わない：シグニ残存=${signiKept} 支払った枚数=${paid}（期待2）gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy}` };
         }
       }
       const fin = await H.queryState();
@@ -59632,6 +59636,71 @@ scenarios.v266CpuFirstTurnMainPhase = {
   },
 };
 order.push('v266CpuFirstTurnMainPhase');
+
+// ── 🆕§5.1 `V-267`（2026-09-17）＝**CPU の対話応答が純関数の方針どおりに動く**（§5.6 `C-8`）──
+// 🔑旧＝`BattleScreen` の effect に直書きで、選択肢は「押せる先頭」固定・対象は完全ランダム。golden は純関数だけを固定するので、
+//   **画面が本当にその関数を呼んで、答えを engine の resume へ渡しているか**はここでしか見えない。
+// 観測点＝CPU 宛ての対話を直接書き込む（注入は pending_effect を空にするので、注入後に repatchTop で置く）
+//   ①「2枚引く／引かない（断る）」→ CPU は**する側**を選び、手札が2枚増え、ログ「[CPU] 選択: 2枚引く」
+//   ②バニッシュの対象（人間の弱い／人間の強い／CPU 自身）→ **人間の強いシグニ**が場から消え、弱い方と CPU 自身は残る
+scenarios.v267CpuInteractionPolicy = {
+  title: 'V-267 CPU の対話応答：する側を選ぶ・除去は相手の強いシグニ（§5.6 C-8）',
+  spec: {
+    hostSet: { 'field.signi': [['WX04-080#1'], ['WD03-009#1'], null] },
+    guestSet: {
+      'field.lrig': ['WD03-002#g1'], 'field.signi': [['WD03-009#g5'], null, null],
+      'hand': ['WD01-013#g7'], 'energy': [], 'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await injectScenario(page, scenarios.v267CpuInteractionPolicy.spec);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2500);
+    const base = { sourcePlayerId: CPU_PLAYER_ID, respondPlayerId: CPU_PLAYER_ID, sourceCardNum: 'WD03-009#g5', effectId: 'V267-TEST' };
+    const waitFor = async (pred, label, ticks = 15) => {
+      for (let s = 0; s < ticks; s++) {
+        await page.waitForTimeout(1000);
+        const st = await H.queryState();
+        if (!st.error && pred(st)) return st;
+      }
+      const st = await H.queryState();
+      H.log(`  ${label} 待ち切れ: pending=${JSON.stringify(st.pendingOptions ?? st.pendingEffect ?? null)?.slice(0, 200)} guestHand=${st.guest?.hand} hostField=${JSON.stringify(st.host?.fieldSigni)}`);
+      return null;
+    };
+
+    // ① 選択肢＝する側
+    const hand0 = (await H.queryState()).guest?.hand ?? 0;
+    await H.repatchTop({ pending_effect: { ...base, interaction: {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'no', label: '引かない', action: { type: 'DRAW', owner: 'self', count: 0 }, available: true, declines: true },
+        { id: 'draw', label: '2枚引く', action: { type: 'DRAW', owner: 'self', count: 2 }, available: true },
+      ],
+    } } });
+    const st1 = await waitFor(st => (st.guest?.hand ?? 0) >= hand0 + 2, '①');
+    const chooseLog = await H.findLog(/\[CPU\] 選択: /);
+    H.log(`① hand ${hand0}→${st1?.guest?.hand} log=${chooseLog}`);
+    if (!st1) return { pass: false, detail: `🔴CPU が選択肢に応答しない／断った（hand ${hand0}→変化なし・log=${chooseLog ?? '—'}）` };
+    if (!chooseLog || !/2枚引く/.test(chooseLog) || /（断る）/.test(chooseLog)) return { pass: false, detail: `🔴選択ログがする側を示していない（${chooseLog ?? '—'}）` };
+
+    // ② バニッシュの対象＝人間の強いシグニ
+    await H.repatchTop({ pending_effect: { ...base, interaction: {
+      type: 'SELECT_TARGET', count: 1, optional: false, targetScope: 'SINGLE',
+      candidates: ['WX04-080#1', 'WD03-009#g5', 'WD03-009#1'],
+      thenAction: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+    } } });
+    const st2 = await waitFor(st => !JSON.stringify(st.host?.fieldSigni ?? []).includes('WD03-009#1'), '②');
+    await page.screenshot({ path: `${SHOT}/v267-02-banish.png`, fullPage: true });
+    const hostField = JSON.stringify(st2?.host?.fieldSigni ?? []), guestField = JSON.stringify(st2?.guest?.fieldSigni ?? []);
+    H.log(`② host=${hostField} guest=${guestField}`);
+    if (!st2) return { pass: false, detail: '🔴CPU がバニッシュの対象に人間の強いシグニ（WD03-009#1）を選ばなかった' };
+    if (!hostField.includes('WX04-080#1')) return { pass: false, detail: `🔴人間の弱いシグニまで消えた（${hostField}）` };
+    if (!guestField.includes('WD03-009#g5')) return { pass: false, detail: `🔴CPU が自分のシグニを除去した（${guestField}）` };
+    return { pass: true, detail: `①「${chooseLog}」で手札 ${hand0}→${st1.guest.hand} ②人間の強いシグニ WD03-009#1 だけが場から消えた（host=${hostField} guest=${guestField}）` };
+  },
+};
+order.push('v267CpuInteractionPolicy');
 
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
