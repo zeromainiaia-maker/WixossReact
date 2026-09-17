@@ -61906,6 +61906,9 @@ async function c9Query(page) {
       extraTurn: s.extra_turn ?? null,
       // 🆕`R-45`（レゾナの行き先）の観測点＝ルリグデッキ／ルリグトラッシュも見る。
       lrigDeck: s.lrig_deck ?? [], lrigTrash: s.lrig_trash ?? [],
+      // 🆕`R-48`（ルリグのレベル低下）の観測点＝期間つき基本レベル上書きの store。
+      levelOverrides: s.attack_phase_level_overrides ?? null,
+      lrigTop: s.field?.lrig?.at(-1) ?? null,
       // 🆕`R-41`（場を離れたゾーンの後始末）の観測点＝チャーム／アクセ／ソウル枠。
       signiCharms: s.field?.signi_charms ?? [null, null, null],
       signiAcce: s.field?.signi_acce ?? [null, null, null],
@@ -62565,6 +62568,49 @@ scenarios.c9forcedextraturn = {
 };
 
 order.push('c9levelupover', 'c9levelupwithin', 'c9forcedextraturn');
+// 🔴**`c9lriglevellowered`＝ルリグ側のレベルが下がって超過した場合も落とす**（`R-48` 追加裁定・2026-09-17）。
+//   live の発生源＝`SP38-005`（アーツ）「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」。
+//   ⚠その上書きは**効果を撃った側の state**（`attack_phase_level_overrides`）に載るので、ここでも**guest 側へ**注入する。
+//   センター `WD01-003`（印字Lv2）を 1 に下げ、印字Lv2 のシグニ（`WD01-012`）が超過する盤面。
+scenarios.c9lriglevellowered = {
+  title: 'C-9 R-48 ルリグのレベルが下がって超過したシグニもトラッシュへ（相手 state の上書きを読む）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#c9y0'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [['WD01-012#c9y1'], null, null],
+      'field.signi_down': [false, false, false],
+      'trash': [], 'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#c9y9'], 'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+      'attack_phase_level_overrides': { 'WD01-003#c9y0': 1 },
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 14; s++) {
+      const st = await c9Query(page);
+      H.log(`  c9lriglow[${s}] | signi=${JSON.stringify(st?.host?.fieldSigni?.[0])} trash=${JSON.stringify(st?.host?.trash)} hostLrig=${st?.host?.lrigTop} guestOverrides=${JSON.stringify(st?.guest?.levelOverrides)}`);
+      if ((st?.host?.fieldSigni?.[0] ?? null) === null) {
+        const trashed = (st?.host?.trash ?? []).includes('WD01-012#c9y1');
+        return {
+          pass: trashed,
+          detail: trashed
+            ? `センターのレベルが2→1に下がり、Lv2のシグニがルール処理でトラッシュへ（trash=${JSON.stringify(st.host.trash)}）`
+            : `🔴場からは消えたのにトラッシュに入っていない（trash=${JSON.stringify(st.host.trash)}）`,
+        };
+      }
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/c9lriglow-${s}.png`, fullPage: true });
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `🔴ルリグのレベルが下がっても超過シグニが残ったまま（signi=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  },
+};
+
+order.push('c9lriglevellowered');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

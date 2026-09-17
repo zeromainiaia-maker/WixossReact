@@ -85942,6 +85942,39 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
   eq(dyn(15).levels.get(0), 5, 'エナ15枚で実効レベルが5にならない（+1/5枚）');
   eq(JSON.stringify(dyn(15).levelOverZones), JSON.stringify([0]),
     '🔴効果でレベルが上がってセンタールリグのレベルを超えたのに落とさない');
+  //   ⇒ 🆕**ルリグ側のレベルが下がって超過した場合も同じ**（2026-09-17 追加裁定・`SP38-005`
+  //     「対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する」）。
+  //     ⚠この上書きは**効果を撃った側の state** に載る＝`opponent` 側の store を読めていないと届かない。
+  const lowered = (store: 'owner' | 'opponent') => {
+    const ownerState = mkState({ lrig: [lrigL2], signi: [SIGNI_L2] });
+    const oppState = mkState({ lrig: [] });
+    const overrides = { [lrigL2]: 1 };
+    return planLimitExcess({
+      owner: store === 'owner' ? { ...ownerState, attack_phase_level_overrides: overrides } : ownerState,
+      opponent: store === 'opponent' ? { ...oppState, attack_phase_level_overrides: overrides } : oppState,
+      cardMap, effectsMap, isOwnerTurn: true,
+    });
+  };
+  eq(lowered('opponent').limit >= 0, true, '前提＝リミットが読める');
+  eq(JSON.stringify(lowered('opponent').levelOverZones), JSON.stringify([0]),
+    '🔴相手が下げたセンタールリグのレベル（相手 state の store）を読めていない＝超過を見逃す');
+  eq(JSON.stringify(lowered('owner').levelOverZones), JSON.stringify([0]),
+    '自分 state の store に載った基本レベル上書きを読めていない');
+  //   🔴**「印字レベル」は base の CardNum キーから引く**＝上書きは instance キーに書かれ、
+  //     `battleCardMap` は**既に上書きを当てた写し**で渡ってくる。instance 優先で引くと印字＝実効になり
+  //     「レベルが変動した」を一度も検出できない（実機 `c9lriglevellowered` がこれで落ちた）。
+  {
+    const inst = `${lrigL2}#lv1`;
+    const appLike = new Map(cardMap);
+    appLike.set(inst, { ...cardMap.get(lrigL2)!, Level: '1' });   // battleCardMap と同じ形（instance キーが上書き済み）
+    const ownerState = { ...mkState({ signi: [SIGNI_L2] }), field: { ...mkState({}).field, lrig: [inst], signi: [[SIGNI_L2], null, null] } } as PlayerState;
+    const plan1 = planLimitExcess({
+      owner: { ...ownerState, attack_phase_level_overrides: { [inst]: 1 } } as PlayerState,
+      opponent: mkState({ lrig: [] }), cardMap: appLike, effectsMap, isOwnerTurn: true,
+    });
+    eq(JSON.stringify(plan1.levelOverZones), JSON.stringify([0]),
+      '🔴上書き済みの cardMap（実機と同じ形）だと「レベルが下がった」を検出できていない');
+  }
   // ③ リミット超過＝レベル合計で測り、**持ち主が選ぶ候補**を出す。
   const heavy = plan([SIGNI_L2, SIGNI_L2, SIGNI_L2]);
   eq(heavy.levelOverZones.length, 0, 'レベル以下なのにレベル超過と測っている');
