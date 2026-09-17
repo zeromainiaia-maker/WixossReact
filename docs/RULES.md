@@ -47,7 +47,7 @@
 | R-20 | **アップを受けるのは次にターンを行うプレイヤー**。凍結中はアップせず、そのアップフェイズの終わりに凍結が解ける（EN Up phase・Freeze／JP-006・046） | `upPhase.ts` `applyUpPhaseToField` / `upPhaseRecipient` | 🔴→✅（**2026-09-17**＝追加ターン／相手スキップで**相手をアップ**していた＝3経路とも同じ誤り・`c9extraturnup`） |
 | R-21 | ドローは2枚・**先攻1ターン目は1枚**（EN Draw phase・Play first） | `BattleScreen` `drawCount` | 👀 |
 | R-22 | 1枚目でデッキ0 → リフレッシュ → **2枚目は引かない**（EN Draw phase・Refresh） | `battleUtils.drawCards` | 👀 |
-| R-23 | **先攻1ターン目はアタックフェイズをスキップ**（EN Attack phase） | `doPhaseAdvance`（`MAIN && turn_count === 1 → END`） | 👀 |
+| R-23 | **先攻1ターン目はアタックフェイズをスキップ**（EN Attack phase） | `attackStepPhase.ts` `resolveNextPhaseAfterMain`（人間の `doPhaseAdvance` と CPU のメインフェイズの出口が共通） | 🔴→✅（2026-09-17＝**CPU だけメインフェイズごと飛ばしていた**＝先攻1ターン目に CPU がシグニを出さなかった。golden `§5.6 C-9 R-23`／実機 `V-266`） |
 | R-24 | エナフェイズ＝手札1枚か場のシグニ1体を1回だけ（EN Ener phase） | `actions_done` の `ENERGY` | 👀 |
 | R-25 | グロウ＝**1ターン1回・レベルちょうど+1・ルリグタイプ共通**・グロウ条件（EN Grow） | `growLogic.listGrowCandidates` / `canGrowNow` | 👀 |
 | R-26 | エンドフェイズ＝①ターン終了時の効果 ②手札7枚以上なら6枚まで捨てる ③「このターン」終了（EN End phase） | `doPhaseAdvance` END 分岐 | 👀（順序のみ） |

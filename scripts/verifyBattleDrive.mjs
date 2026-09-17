@@ -59575,6 +59575,64 @@ scenarios.v265DeckFoldersAndCpuKind = {
 };
 order.push('v265DeckFoldersAndCpuKind');
 
+// ── 🆕§5.1 `V-266`（2026-09-17）＝**CPU が先攻の1ターン目もメインフェイズを行う**（`R-23`＝飛ばすのはアタックフェイズだけ）──
+// 🔴ユーザー報告「CPU がルリグレベル１の時にシグニを出さない」の切り分けで見つけた実バグ＝CPU 側だけ `turn_count === 1` で
+//   **メインフェイズごと** END へ飛ばしていた（人間側はメインを行ってから END）。⚠報告そのものの原因は CPU デッキの Lv1 ルリグ入れ忘れだった。
+// 観測点＝CPU の1ターン目・メインフェイズ（Lv1 ルリグ・手札に Lv1 シグニ2枚）を注入 → ①シグニが場に出る ②その後アタックフェイズを飛ばす。
+// 🔑反転＝`BattleScreen.tsx` の CPU メインフェイズ冒頭に `turn_count === 1 → END` を戻すと①が 0体のまま。
+scenarios.v266CpuFirstTurnMainPhase = {
+  title: 'V-266 CPU が先攻の1ターン目もシグニを出す（アタックフェイズだけ飛ばす）',
+  spec: {
+    guestSet: {
+      'field.lrig': ['WD03-004#1'],                // コード・ピルルク・Ｋ（Lv1・リミット2）
+      'lrig_deck': [],
+      'energy': [],
+      'hand': ['WD03-013#1', 'WX04-080#1'],        // Lv1 シグニ（コスト無し・効果無し）
+      'field.signi': [null, null, null],
+      'actions_done': [],
+      'coins': 0,
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 1, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(2500);
+      await injectScenario(page, scenarios.v266CpuFirstTurnMainPhase.spec);
+      await page.waitForTimeout(1200);
+      let overwritten = false;
+      for (let s = 0; s < 15; s++) {
+        await page.waitForTimeout(1000);
+        const st = await H.queryState();
+        if (st.error) continue;
+        const g = st.guest ?? {};
+        const placed = (g.fieldSigni ?? []).filter(x => (Array.isArray(x) ? x.length > 0 : !!x)).length;
+        if (s % 3 === 0) H.log(`  v266[a${attempt}.${s}] phase=${st.turnPhase} turn=${st.turnCount} active=${st.activeUser?.slice(0, 8)} guestField=${JSON.stringify(g.fieldSigni)} lrigTop=${g.lrigTop}`);
+        if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  v266[a${attempt}] CPU 自然ターンで上書き → 再注入`); overwritten = true; break; }
+        if (placed > 0) {
+          await page.screenshot({ path: `${SHOT}/v266-placed.png`, fullPage: true });
+          // メインフェイズの出口（スペル・【起】の判断のあと）まで待つ＝固定の待ち時間だと取りこぼす（初版で 2.5 秒は足りなかった）。
+          let skipLog2 = null, attackLog = null;
+          for (let w = 0; w < 20 && !skipLog2 && !attackLog; w++) {
+            await page.waitForTimeout(500);
+            skipLog2 = await H.findLog(/\[CPU\] アタックフェイズをスキップする/);
+            attackLog = await H.findLog(/\[CPU\] (シグニアタックフェイズ|.*がアタック)/);
+          }
+          if (!skipLog2) return { pass: false, detail: `🔴シグニは出たが、1ターン目なのにアタックフェイズを飛ばしていない（attackLog=${attackLog ?? '—'}）` };
+          return { pass: true, detail: `CPU の1ターン目メインフェイズでシグニ ${placed} 体を配置（${JSON.stringify(g.fieldSigni)}）→「${skipLog2}」` };
+        }
+        if (st.turnPhase === 'END' || st.activeUser !== st.guestId && st.turnCount > 1) {
+          return { pass: false, detail: `🔴CPU が1ターン目にシグニを1体も出さずにメインフェイズを抜けた（phase=${st.turnPhase} turn=${st.turnCount} guestField=${JSON.stringify(g.fieldSigni)}）` };
+        }
+      }
+      if (!overwritten) break;
+    }
+    const stf = await H.queryState();
+    return { pass: false, detail: `🔴CPU が1ターン目にシグニを出さない guest=${JSON.stringify(stf.guest?.fieldSigni)} phase=${stf.turnPhase}` };
+  },
+};
+order.push('v266CpuFirstTurnMainPhase');
+
 // ══════════ §5.1 実機返済（2026-09-12・第293バッチ）＝`V-209` / `V-210` / `V-211` / `V-212` ══════════
 // 4件とも **`src/screens/` を触った回**（§2.2 の機械判定で実機が必須）。golden は純関数を直接叩いているので、
 // 「BattleScreen がその集合／ストア／ヘルパを本当に組み立てて渡しているか」はここでしか見えない。

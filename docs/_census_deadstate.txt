@@ -15,7 +15,7 @@ PlayerState のキー: 382
    225 読 /  33 書  lrig_deck
    196 読 /  24 書  lrig_trash
    132 読 /  23 書  keyword_grants
-    98 読 /  18 書  blocked_actions
+    99 読 /  18 書  blocked_actions
    161 読 /  17 書  life_cloth
    297 読 /  16 書  actions_done
      3 読 /  14 書  opp_virus_removed_just

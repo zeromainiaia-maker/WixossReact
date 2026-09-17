@@ -66,6 +66,24 @@ export function resolveNextPhaseWithSkips(
 }
 
 /**
+ * 🆕**メインフェイズの次のフェイズ**（人間も CPU も通る1本・2026-09-17）。
+ *
+ * 🔑**公式ルール `R-23`**＝「先攻1ターン目は**アタックフェイズ**をスキップ」（EN Rule Guide「Attack phase」）。
+ *   ⚠**メインフェイズは行う**（シグニの配置・スペル・【起】は通常どおり）。
+ * 🔴**なぜ1本にしたか**＝人間側は「MAIN を抜けるとき END へ」だったが、CPU 側は `turn_count === 1` で
+ *   **メインフェイズごと飛ばしていた**＝CPU が先攻のとき、1ターン目（ルリグ Lv1）にシグニを1体も出さなかった（ユーザー報告）。
+ * それ以外のターンは `resolveNextPhaseWithSkips`（効果によるフェイズのスキップ）に従う。
+ */
+export function resolveNextPhaseAfterMain(
+  turnCount: number,
+  turnPlayer: Pick<PlayerState, 'blocked_actions'>,
+  contBlocked?: ReadonlySet<string>,
+): TurnPhase {
+  if (turnCount === 1) return 'END';
+  return resolveNextPhaseWithSkips('MAIN', turnPlayer, contBlocked);
+}
+
+/**
  * 「追加のアタックフェイズ」（`ADD_EXTRA_ATTACK_PHASE`・§6.4 O-3）を1件消化する。
  *
  * ATTACK_LRIG の次は通常 `END` だが、ターンプレイヤーが追加フェイズを予約していれば

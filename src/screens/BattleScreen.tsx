@@ -73,7 +73,7 @@ import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
-import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, isPhaseSkipped } from './battle/attackStepPhase';
+import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, resolveNextPhaseAfterMain, isPhaseSkipped } from './battle/attackStepPhase';
 import { resolveTurnHandover } from './battle/turnHandover';
 import { resolveLrigDamageShield } from './battle/lrigDamageShield';
 import { MulliganCard } from './battle/MulliganCard';
@@ -4119,7 +4119,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(turnPlayerId, startEntries);
         }
       } else if (phase === 'MAIN' && bs.turn_count === 1) {
-        nextPhase = 'END';
+        // `R-23` 先攻1ターン目はアタックフェイズをスキップ（判定は CPU と同じ `resolveNextPhaseAfterMain`）。
+        nextPhase = resolveNextPhaseAfterMain(bs.turn_count, my);
       } else if (phase === 'END') {
         // ON_TURN_END トリガーをまだ収集していなければ先に解決する
         const turnEndMarked = my.actions_done?.includes('__TURN_END__');
@@ -12916,11 +12917,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── MAINフェイズ：シグニを手札から召喚（空きゾーンに1枚ずつ）───
     if (phase === 'MAIN') {
-      if (bs.turn_count === 1) {
-        // 先攻1ターン目はMAINからENDへ
-        await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'END' }));
-        return;
-      }
+      // 🔴旧＝`turn_count === 1` でメインフェイズごと END へ飛ばしていた＝**CPU が先攻の1ターン目（ルリグ Lv1）に
+      //   シグニを1体も出さなかった**（ユーザー報告）。公式ルール `R-23` で飛ばすのは**アタックフェイズだけ**
+      //   ＝メインフェイズは通常どおり行い、出口（下の `resolveNextPhaseAfterMain`）で END へ進む。
       // §6.4 O-3: メインフェイズがスキップされている（`WXEX2-19-E3`）なら**召喚を1体も行わず**
       // 下の MAIN→アタックフェイズ遷移へ落ちる（`ON_ATTACK_PHASE_START` の収集はそちらが行う）。
       const cpuMainSkipped = isPhaseSkipped('MAIN', cpuSt, cpuContBlockedSelf);
@@ -13204,7 +13203,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const apsStackEntries: StackEntry[] = [];
       // §6.4 O-3: アタックフェイズ自体がスキップされていれば遷移先は END になる＝
       // **開始時トリガー（`ON_ATTACK_PHASE_START`・【ハスターリク】）も収集しない**。
-      const cpuPhaseAfterMain = cpuNextPhase('MAIN');
+      // `R-23` 先攻1ターン目はアタックフェイズをスキップ（人間と同じ1本）。
+      const cpuPhaseAfterMain = resolveNextPhaseAfterMain(bs.turn_count, cpuSt, cpuContBlockedSelf);
       const cpuAttackPhaseSkipped = cpuPhaseAfterMain !== 'ATTACK_ARTS';
       if (cpuAttackPhaseSkipped) appendBattleLogs(['[CPU] アタックフェイズをスキップする']);
 

@@ -160,6 +160,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
+import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
@@ -85941,6 +85942,21 @@ test('デッキのフォルダ（センターのルリグタイプ別）・種�
   ok(/deckKindOf\(d\) === 'player' && isPlayable\(d\)/.test(mm), '🔴自分の使用デッキに CPU デッキが混ざる');
   ok(/from\('decks'\)\.select\('\*'\)\.eq\('deck_kind', 'cpu'\)\.order/.test(mm), '🔴CPU デッキの取得が deck_kind=cpu になっていない（または user_id で絞っている）');
   ok(/pickRandomDeck\(cpuFolders\.find\(f => f\.name === cpuRandomFolder\)/.test(mm), '🔴ランダムモードが選んだフォルダから引いていない');
+}));
+
+test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ばす（メインフェイズは行う・CPU も同じ）', () => withSavedCursor(() => {
+  // 🔴ユーザー報告（2026-09-17）「CPU がルリグレベル１の時にシグニを出さない」＝CPU 側だけ `turn_count === 1` で
+  //   **メインフェイズごと** END へ飛ばしていた（人間側はメインを行ってから END）。CPU が先攻のとき1ターン目に何も出さない。
+  const blank = { blocked_actions: [] as string[] };
+  eq(resolveNextPhaseAfterMain(1, blank), 'END', '🔴先攻1ターン目にアタックフェイズへ進んだ');
+  eq(resolveNextPhaseAfterMain(2, blank), 'ATTACK_ARTS', '2ターン目以降のアタックフェイズを飛ばした');
+  eq(resolveNextPhaseAfterMain(3, blank), resolveNextPhaseWithSkips('MAIN', blank), '効果によるスキップの判定と食い違う');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const cpuMain = battle.slice(battle.indexOf("// ─── MAINフェイズ：シグニを手札から召喚"), battle.indexOf("// ─── ATTACK_ARTSフェイズ："));
+  ok(cpuMain.length > 0, '前提崩れ＝CPU のメインフェイズの区間が見つからない');
+  ok(!/turn_count === 1[\s\S]{0,200}phase: 'END'/.test(cpuMain), '🔴CPU のメインフェイズが1ターン目に END へ飛んでいる（召喚・スペルを一切しない）');
+  ok(/resolveNextPhaseAfterMain\(bs\.turn_count, cpuSt, cpuContBlockedSelf\)/.test(cpuMain), '🔴CPU のメインフェイズの出口が人間と同じ関数を通っていない');
+  ok(/nextPhase = resolveNextPhaseAfterMain\(bs\.turn_count, my\)/.test(battle), '🔴人間のメインフェイズの出口が同じ関数を通っていない');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
