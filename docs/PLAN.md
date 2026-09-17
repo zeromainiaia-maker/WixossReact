@@ -15,7 +15,7 @@
 - 🔑**ユーザー決定**＝センター／アシスト左／右は**デッキ編成で指定**し、対戦開始は「じゃんけん→自動配置→マリガン」。センターのみも可（アシストは0か2）。
 - Supabase `decks` に `center_lrig` / `assist_lrig_l` / `assist_lrig_r` を追加。判定は `utils/deckLrigSetup.ts` の1本（人間も CPU も `resolveDeckLrigSetup`）。
 - 🔴**`R-47` の初版は普通の3ルリグデッキを組めなくしていた**＝Lv0 はアシスト系統も種別「ルリグ」なのに全部センター扱い ⇒ 指定したセンターとだけ比べる。
-- 🔴CPU のデッキが `battleCardNums` に載っておらず、**人間と別デッキの CPU はルリグを置けずに止まっていた**のも同時に修正。
+- 🔴CPU のデッキが `battleCardNums` に載っておらず、**人間と別デッキの CPU はルリグを置けずに止まっていた**のも同時に修正（実機＝`DECK=VERIFY_DECK CPU_DECK=VERIFY_DECK_MECH` で PASS／その1行を外すと FAIL）。
 - 実機 `V-262` PASS（役ボタン→DB→同タイプ不可）／CPU 通し対戦（MECH）PASS（CPU がデッキ指定どおり左ウムル＝ノル／右タウィル＝ノルを置きアシストグロウまで進んで決着）＋標準 VERIFY_DECK（センターのみ）も PASS。
 
 | 軸 | いまの値 |

@@ -16,9 +16,13 @@
   **Lv0 のルリグはアシスト系統も種別が「ルリグ」**（アシスト系タイプを持つ Lv0 が189枚）＝ウムル＝ノルを入れたデッキに
   ウムル＝ドロー（アシスト）が入らず、**普通の3ルリグデッキが組めなかった**。⇒ 追加時は**指定したセンターとだけ**比べ、
   逆向き（同タイプのアシストが入っているデッキでセンター／アシストを指定する）は `lrigRoleBlockReason` が止める。
-  ⚠同日の簿記で「`VERIFY_DECK_MECH` は意図的な `LRIG_TYPE_CLASH` を2組含む」と書いたのは**この誤判定を見ていただけ**（センター＝ピルルクなので重なりは無い）。
+  ⚠同日の簿記で「`VERIFY_DECK_MECH` は意図的な `LRIG_TYPE_CLASH` を2組含む」と書いたのは**この誤判定を見ていただけ**（センター＝ピルルクなので重なりは無い）＝元の記述（下の `R-47` 残件の回）にも訂正を入れた。
 - 🔴**ついでに見つけた既存バグ**＝`battleCardNums` に **CPU のデッキが載っていなかった**＝人間と別のデッキを CPU に持たせると、
   対戦開始時に CPU のルリグの種別・レベルを引けず（`cardMap.get(...)===undefined`）**ルリグを置けずにセットアップが止まっていた**（検証は同じデッキで回していたので出なかった）。
+  🔑**実機で確認（追補）**＝`verifyFullMatch.mjs` に `CPU_DECK`（CPU 側のデッキ名・省略時は人間と同じ）を足し、
+  `DECK=VERIFY_DECK CPU_DECK=VERIFY_DECK_MECH node scripts/verifyFullMatch.mjs cpu` で**人間＝標準／CPU＝機構デッキ**を回して PASS
+  （CPU は指定どおりウムル＝ノル・タウィル＝ノルを置いて決着）。**反転**＝`battleCardNums` の CPU デッキの1行だけ外して同じ対戦を回すと
+  「セットアップが PLAYING へ到達しなかった」で FAIL ＝この1行が修正の本体。⚠反転で `dist` が壊れた版になるので、戻したあと `npm run build` を回し直した。
 - 検証スクリプト＝`verifySetupDeck.mjs` が指定を書く（MECH＝センター WD03-005／左 WDK09-005／右 WDK14-005、VERIFY_DECK＝センター WD03-005 のみ。
   既存の `VERIFY_DECK` 行は `verify-deck.json` が手元に無いのでセンターだけ PATCH）。`verifyFullMatch.mjs` / `verifyBattleDrive.mjs` のセットアップ進行は選択クリックをやめて自動配置を待つ。
 - 検証＝`npm run gates` 全緑（golden 全件・R-47 を書き直し＋ルリグ指定1本を新設）／反転＝`deckBuildLimits.ts` を旧実装へ戻すと R-47 golden FAIL／
@@ -30,7 +34,7 @@
 - 🔑**ユーザー裁定**＝「すでにあるデッキをすべて消去して解決する」。第399バッチの `LRIG_TYPE_CLASH` は**追加時の判定だけ**で、保存済みデッキを遡って弾かない＝対戦開始時の検証に足すかが §5.6.2b の最後の残件だった。⇒ **データ側で消す**ので engine／UI の変更は無い。
 - 実施＝ユーザーが Supabase の SQL Editor で `delete from public.decks where name not in ('VERIFY_DECK', 'VERIFY_DECK_MECH');` を実行。
 - ⚠**Claude からは実行できなかった**＝`public.decks` は RLS で本人の行しか見えない／Supabase MCP は access token 未設定で `Unauthorized`／`.env.local` は anon キーだけ。検証アカウント（`claude1`/`claude2`）でログインして**読み取りだけ**確認した。
-- ⚠**検証用デッキは残置**＝事後確認で両アカウントとも `VERIFY_DECK`／`VERIFY_DECK_MECH` の2つが残っていることを確認。`VERIFY_DECK_MECH` は **`LRIG_TYPE_CLASH` を2組含む**（`WDK09-005` ウムル＝ノル〔種別ルリグ〕×`WXDi-D01-009`／`WDK14-005` タウィル＝ノル×`WXDi-D01-006`）＝`verifySetupDeck.mjs` が「計器用の山なので構築上限は見ない」と明記した意図的な例外。対戦開始時に検証しない裁定なので `census:play` の計測は従来どおり動く。
+- ⚠**検証用デッキは残置**＝事後確認で両アカウントとも `VERIFY_DECK`／`VERIFY_DECK_MECH` の2つが残っていることを確認。~~`VERIFY_DECK_MECH` は `LRIG_TYPE_CLASH` を2組含む意図的な例外~~ 🔴**訂正（同日）＝誤り**。センターはコード・ピルルクで、ウムル＝ノル／タウィル＝ノルは**アシスト系統の Lv0**（種別が「ルリグ」なだけ）＝重なりは無い。第399バッチの判定がアシスト系統の Lv0 までセンター扱いしていた誤判定を、そのまま読んでいた（直後の「最初に場に出すルリグをデッキ編成で指定する」の回で判定ごと修正）。
 - 検証＝コード変更なしのためゲート・実機は不要（`docs/` のみ）。
 
 ## 2026-09-17 第401バッチ：`R-45` の追加裁定＝レゾナは場を離れたら必ずルリグデッキへ（バニッシュ以外の経路も）

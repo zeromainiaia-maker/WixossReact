@@ -44,6 +44,9 @@ const STUCK_SEC = Number(process.env.STUCK_SEC || 60);
 // 🆕§5.6 `C-3`＝使うデッキ（自分と CPU の両方）。既定はリリースゲートの `VERIFY_DECK`。
 //   機構踏破を測るときは `DECK=VERIFY_DECK_MECH`（`node scripts/verifySetupDeck.mjs --mech` で作る）。
 const DECK_NAME = process.env.DECK || 'VERIFY_DECK';
+// 🆕2026-09-17＝CPU 側のデッキ名（省略時は人間と同じ）。**人間と別のデッキを CPU に持たせる回**を作るため
+//   ＝`battleCardNums` に CPU のデッキが載っておらず、別デッキの CPU がルリグを置けずに止まっていた（同じデッキでは出ない）。
+const CPU_DECK_NAME = process.env.CPU_DECK || DECK_NAME;
 
 // ── preview サーバ（verifyBattleDrive.mjs と同じ方式＝dist の鮮度を見て build を省略）─────────
 function distIsFresh() {
@@ -633,14 +636,14 @@ async function runCpuMatch(browser, url) {
     await page.getByRole('button', { name: 'CPU対戦' }).click();
     await page.waitForTimeout(800);
     // 🆕CPU のデッキも**明示的に**選ぶ＝既定は「有効なデッキの先頭」なので、デッキが増えると CPU の山が黙って入れ替わる。
-    await page.getByText(DECK_NAME, { exact: true }).first().click();
+    await page.getByText(CPU_DECK_NAME, { exact: true }).first().click();
     await page.waitForTimeout(400);
     await page.getByRole('button', { name: '対戦開始' }).click();
     await page.waitForTimeout(3500);
     if (!(await driveSetup([S], 'cpu'))) return { pass: false, detail: 'セットアップが PLAYING へ到達しなかった', errs };
     const r = await playToFinish([S], 'cpu');
     // §5.6 `C-3`＝機構踏破計器の入力。**決着しなくても書く**（途中で詰まった試合も「どこまで踏んだか」の材料）。
-    await dumpPlayLogs(page, DECK_NAME === 'VERIFY_DECK' ? 'cpu' : `cpu-${DECK_NAME}`);
+    await dumpPlayLogs(page, DECK_NAME === 'VERIFY_DECK' && CPU_DECK_NAME === DECK_NAME ? 'cpu' : `cpu-${DECK_NAME}${CPU_DECK_NAME === DECK_NAME ? '' : `-vs-${CPU_DECK_NAME}`}`);
     await page.screenshot({ path: `${SHOT}/cpu-final.png`, fullPage: true }).catch(() => {});
     return { ...r, errs };
   } finally { await ctx.close().catch(() => {}); }
