@@ -61775,6 +61775,8 @@ async function c9Query(page) {
       signiFrozen: s.field?.signi_frozen ?? [false, false, false],
       life: (s.life_cloth ?? []).length, hand: (s.hand ?? []).length, trash: s.trash ?? [], energy: s.energy ?? [],
       extraTurn: s.extra_turn ?? null,
+      // 🆕`R-45`（レゾナの行き先）の観測点＝ルリグデッキ／ルリグトラッシュも見る。
+      lrigDeck: s.lrig_deck ?? [], lrigTrash: s.lrig_trash ?? [],
     });
     return {
       host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
@@ -61895,7 +61897,122 @@ scenarios.c9extraturnup = {
   },
 };
 
-order.push('c9lancerreplaced', 'c9extraturnup');
+// 🔴**`c9resonabanish`＝レゾナはバニッシュされたら**ルリグデッキへ戻る**（公式ルール word_085／word_094・RULES.md `R-45`）。
+//   防御側 `WX13-005B`（白羅星 ニュームーン・P5000・【出】だけで【常】を持たない＝バトルの観測に雑音が入らない）。
+//   🔑**判別力は反転側**＝旧実装は**エナゾーンへ**送っていた（相手にエナを1枚献上し、レゾナは二度と出せなくなる）。
+//   ⇒ ①ルリグデッキに戻っていること ②**エナゾーンが増えていないこと**の両方を見る。
+scenarios.c9resonabanish = {
+  title: 'C-9 R-45 レゾナはバニッシュされるとルリグデッキへ戻る（エナゾーンへ行かない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-002#c9r0'],
+      'field.signi': [['WX07-042#c9r9'], null, null],   // 幻獣 ラクダ（P10000）
+      'field.signi_down': [false, false, false],
+      'hand': [], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#c9r8'],
+      // 正面（host zone0 の向かい＝guest zone2）＝レゾナ（P5000）。
+      'field.signi': [null, null, ['WX13-005B#c9r1']],
+      'field.signi_down': [false, false, false],
+      'lrig_deck': [], 'energy': [],
+      'life_cloth': ['WD01-013#c9R1', 'WD01-013#c9R2', 'WD01-013#c9R3'],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await c9Query(page);
+    H.log(`開始 正面=${JSON.stringify(st0?.guest?.fieldSigni?.[2])} guestLrigDeck=${JSON.stringify(st0?.guest?.lrigDeck)} guestEnergy=${JSON.stringify(st0?.guest?.energy)}`);
+    let attacked = false, modalOpened = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/c9resona-${s}.png`, fullPage: true });
+      let did = null;
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (!attacked && await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+      if (!did && !modalOpened && !attacked) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+      const st = await c9Query(page);
+      const front = st?.guest?.fieldSigni?.[2] ?? null;
+      H.log(`  c9resona[${s}] -> ${did ?? 'なし'} | 正面=${JSON.stringify(front)} lrigDeck=${JSON.stringify(st?.guest?.lrigDeck)} energy=${JSON.stringify(st?.guest?.energy)} trash=${JSON.stringify(st?.guest?.trash)} log=${JSON.stringify((st?.logs ?? []).slice(-3))}`);
+      const gone = front === null || (Array.isArray(front) && front.length === 0);
+      if (!gone) continue;
+      const inLrigDeck = (st?.guest?.lrigDeck ?? []).includes('WX13-005B#c9r1');
+      const inEnergy = (st?.guest?.energy ?? []).includes('WX13-005B#c9r1');
+      const inTrash = (st?.guest?.trash ?? []).includes('WX13-005B#c9r1');
+      return {
+        pass: inLrigDeck && !inEnergy && !inTrash,
+        detail: inLrigDeck && !inEnergy && !inTrash
+          ? `レゾナはルリグデッキへ戻った（lrigDeck=${JSON.stringify(st.guest.lrigDeck)}）／エナゾーンは増えていない（energy=${JSON.stringify(st.guest.energy)}）`
+          : `🔴行き先が違う lrigDeck=${inLrigDeck} energy=${inEnergy} trash=${inTrash}（lrigDeck=${JSON.stringify(st.guest.lrigDeck)} energy=${JSON.stringify(st.guest.energy)} trash=${JSON.stringify(st.guest.trash)}）`,
+      };
+    }
+    const fin = await c9Query(page);
+    return { pass: false, detail: `バトルが解決しなかった（attacked=${attacked} 正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+// 🔴**`c9lrigtriplecrush`＝ルリグアタックの【トリプルクラッシュ】は3枚割る**（RULES.md `R-06`）。
+//   旧実装はトリプルだけ `keyword_grants` しか見ておらず、**それ以外の付与経路（次の相手ターン終了時まで／CONTINUOUS）を
+//   読み落として2枚しか割らなかった**（しかも `crash_cause` が「ダブルクラッシュ」に化けるので限定札も誤って外れる）。
+//   🔑観測点は**枚数そのもの**（ライフ 5→2）＝2枚で止まったら FAIL。
+scenarios.c9lrigtriplecrush = {
+  title: 'C-9 R-06 ルリグアタックの【トリプルクラッシュ】は3枚割る（keyword_grants 以外の付与経路）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#c9t1'],
+      'field.lrig_down': false,
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'keyword_grants_until_opp_turn': { 'WD04-001#c9t1': ['トリプルクラッシュ'] },
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#c9t2'],
+      'field.signi': [null, null, null],
+      'hand': [],   // ガード候補を空にして「ガードしない」まで決定化する
+      'life_cloth': ['WD01-013#c9T1', 'WD01-013#c9T2', 'WD01-013#c9T3', 'WD01-013#c9T4', 'WD01-013#c9T5'],
+      'field.check': null, 'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let opened = false, attacked = false;
+    for (let s = 0; s < 32; s++) {
+      await page.waitForTimeout(650);
+      await page.screenshot({ path: `${SHOT}/c9triple-${s}.png`, fullPage: true });
+      let did = null;
+      if (!opened && !attacked) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      if (!did && !attacked) {
+        const attack = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+          await attack.click(); did = 'tid:アタック'; attacked = true;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'エナに送る', 'ライフバーストなし', 'OK', '決定']);
+      const st = await H.queryState();
+      const crashed = (before?.guest?.life ?? 0) - (st?.guest?.life ?? 0);
+      H.log(`  c9triple[${s}] -> ${did ?? 'なし'} | gLife=${st?.guest?.life}(開始${before?.guest?.life}) 割れた=${crashed} log=${JSON.stringify((st?.logs ?? []).slice(-2))}`);
+      // 3枚割れたら成立。⚠**2枚で止まる**のが旧実装の壊れ方なので、必ず数手余分に回してから判定する。
+      if (attacked && crashed >= 3) {
+        return { pass: true, detail: `ルリグアタックで3枚クラッシュ（相手life ${before.guest.life}→${st.guest.life}）` };
+      }
+      if (attacked && s > 20 && crashed > 0 && crashed < 3 && st?.guest?.life === (await H.queryState())?.guest?.life) {
+        return { pass: false, detail: `🔴${crashed}枚で止まった（相手life ${before.guest.life}→${st.guest.life}）＝【トリプルクラッシュ】の付与経路を読み落としている` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `アタックが解決しなかった（attacked=${attacked} gLife=${fin?.guest?.life}(開始${before?.guest?.life}) log=${JSON.stringify((fin?.logs ?? []).slice(-6))}）` };
+  },
+};
+
+order.push('c9lancerreplaced', 'c9extraturnup', 'c9resonabanish', 'c9lrigtriplecrush');
 
 // ── §5.6 `C-2`〜`C-6`（2026-09-17）＝CPU が「踏まない経路」を踏むようになったことの実機観測点 ──
 /** CPU（guest）側をもう少し細かく読む（`c9Query` の上に手札・ルリグ・ルリグデッキを足す）。 */

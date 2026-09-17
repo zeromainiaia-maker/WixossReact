@@ -131,6 +131,8 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
+import { resonaLeaveDestination } from '../engine/resonaZone';
+import { getLrigAttackCrashState } from './battle/lrigCrash';
 import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
@@ -10508,15 +10510,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${opCardName}（ライズ代替）スタック下${bottomCards.length}枚をトラッシュしてバニッシュ回避`]);
           } else {
           defenderResolution = 'banished';
-          // BANISH_TO_LRIG_TRASH_INSTEAD: レゾナシグニはエナ代わりにlrig_trashへ（ルリグデッキ返却の近似）
-          const banishToLrigTrash = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash &&
-            (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
-              eff.effectType === 'CONTINUOUS' &&
-              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-              (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
-            );
+          // 🔴**§5.6 `C-9` `R-45`（2026-09-17）＝レゾナの行き先はルール処理**（`resonaZone.ts` が唯一の権威）。
+          //   ルリグデッキ・ルリグトラッシュ・シグニゾーン以外へ行くなら代わりに**ルリグデッキ**へ戻る＝
+          //   **他のどの置換（トラッシュ／手札／デッキ下／除外）よりも優先する**。
+          //   ⚠旧実装は「代わりにルリグトラッシュ」と印刷された5枚しか見ておらず、
+          //     **残り41枚のレゾナはエナゾーンへ行っていた**（＝相手にエナを献上し、二度と出せなくなる）。
+          const resonaDest = resonaLeaveDestination(opTopCardNum ?? '', battleCardMap, effectsMap);
+          const banishToLrigTrash = resonaDest === 'lrig_trash';
+          const banishToLrigDeck = resonaDest === 'lrig_deck';
           // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナゾーンに置かれる代わりにデッキの一番下へ
-          const energyToDeckBottom = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash && !banishToLrigTrash &&
+          const energyToDeckBottom = !resonaDest && !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash &&
             (opS.opp_signi_energy_to_deck_bottom === true);
           // BATTLE_LEAVE_REPLACE_WITH_EXILE (WXK05-024): 場を離れる代わりにゲームから除外（本実装はトラッシュで近似）。
           // エナに置かれる代わりにトラッシュへ送る。
@@ -10526,7 +10529,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE' &&
             checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
           );
-          const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom || defenderLeaveExile;
+          const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || banishToLrigDeck || energyToDeckBottom || defenderLeaveExile;
           // 🔴**§5.3 O-48（2026-08-24 V-86(b) で発見・実機で確認）＝バニッシュの行き先はトップ1枚だけ**。
           //   ルール＝「ライズのシグニが場を離れるとき、**下にあったカードはトラッシュ**に置かれる」。
           //   従来は `...opStack`（スタック全部）をエナ／手札／デッキ／ルリグトラッシュへ送っており、
@@ -10538,13 +10541,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const opUnderToTrash = banishedOpUnderCards;
           newOpState = {
             ...opS,
-            hand: redirectBanishToHand ? [...opS.hand, ...opTopOnly] : opS.hand,
-            deck: (frozenToDeckBottom || energyToDeckBottom) ? [...opS.deck, ...opTopOnly] : opS.deck,
+            hand: (redirectBanishToHand && !resonaDest) ? [...opS.hand, ...opTopOnly] : opS.hand,
+            deck: ((frozenToDeckBottom || energyToDeckBottom) && !resonaDest) ? [...opS.deck, ...opTopOnly] : opS.deck,
             energy: anyRedirect ? opS.energy : [...opS.energy, ...opTopOnly],
+            // 🔴`R-45`＝規則は他の置換に**勝つ**ので、ここだけは `resonaDest` を見て排他にする。
+            lrig_deck: banishToLrigDeck ? [...opS.lrig_deck, ...opTopOnly] : opS.lrig_deck,
             lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash,
             trash: [
               ...opS.trash,
-              ...((redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile) ? opTopOnly : []),
+              ...((redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile) && !resonaDest ? opTopOnly : []),
               ...opUnderToTrash,
               ...banishExtraTrash,
             ],
@@ -10557,7 +10562,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : redirectBanishToExile ? '（ゲームから除外）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${banishToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : redirectBanishToExile ? '（ゲームから除外）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
           } // end resonaSubCardNum else
           } // end cookingBanishSub/acceBanishSub/resonaSub else
@@ -10784,12 +10789,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
           const frozenMyToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
           const frozenMyToTrash = !frozenMyToDeckBottom && opFrozenOvr.frozenLeaveToTrash;
-          const banishMyToLrigTrash = !redirectMyBanish && !redirectMyBanishToHand && !frozenMyToDeckBottom && !frozenMyToTrash && !banishMyByOpponentToTrash &&
-            (effectsMap.get(myTopNum) ?? []).some(eff =>
-              eff.effectType === 'CONTINUOUS' &&
-              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-              (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
-            );
+          // 🔴**§5.6 `C-9` `R-45`＝アタック側も同じ規則**（防御側と写経にならないよう `resonaZone.ts` の1本を共有）。
+          const resonaMyDest = resonaLeaveDestination(myTopNum, battleCardMap, effectsMap);
+          const banishMyToLrigTrash = resonaMyDest === 'lrig_trash';
+          const banishMyToLrigDeck = resonaMyDest === 'lrig_deck';
           const attackerLeaveExile = (effectsMap.get(myTopNum) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
@@ -10797,13 +10800,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum),
           );
           const anyMyRedirect = redirectMyBanish || redirectMyBanishToHand || redirectMyBanishToExile ||
-            frozenMyToDeckBottom || frozenMyToTrash || banishMyByOpponentToTrash || banishMyToLrigTrash || attackerLeaveExile;
-          banishedMyWentToTrash = redirectMyBanish || frozenMyToTrash || banishMyByOpponentToTrash || attackerLeaveExile;
+            frozenMyToDeckBottom || frozenMyToTrash || banishMyByOpponentToTrash || banishMyToLrigTrash || banishMyToLrigDeck || attackerLeaveExile;
+          banishedMyWentToTrash = !resonaMyDest
+            && (redirectMyBanish || frozenMyToTrash || banishMyByOpponentToTrash || attackerLeaveExile);
           newMyState = {
             ...newMyState,
-            hand: redirectMyBanishToHand ? [...newMyState.hand, myTopNum] : newMyState.hand,
-            deck: frozenMyToDeckBottom ? [...newMyState.deck, myTopNum] : newMyState.deck,
+            hand: (redirectMyBanishToHand && !resonaMyDest) ? [...newMyState.hand, myTopNum] : newMyState.hand,
+            deck: (frozenMyToDeckBottom && !resonaMyDest) ? [...newMyState.deck, myTopNum] : newMyState.deck,
             energy: anyMyRedirect ? newMyState.energy : [...newMyState.energy, myTopNum],
+            lrig_deck: banishMyToLrigDeck ? [...newMyState.lrig_deck, myTopNum] : newMyState.lrig_deck,
             lrig_trash: banishMyToLrigTrash ? [...newMyState.lrig_trash, myTopNum] : newMyState.lrig_trash,
             trash: [
               ...newMyState.trash,
@@ -10821,7 +10826,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           };
           // ⚠**「相打ち」はルールに無い**（`O-47` の撤回で到達しなくなった）＝文言も残さない。
-          appendBattleLogs([`${myCardName}がバニッシュされた${redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          appendBattleLogs([`${myCardName}がバニッシュされた${banishMyToLrigDeck ? '（レゾナ→ルリグデッキへ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
@@ -12027,7 +12032,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const redirectBanishToExileP0 = !redirectBanishP0 && !redirectBanishToHandP0 && opState.banish_redirect_to_exile === true;
         // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
         const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && !redirectBanishToExileP0 && removed.opp_signi_energy_to_deck_bottom === true;
-        const withBanished: PlayerState = redirectBanishP0
+        // 🔴**§5.6 `C-9` `R-45`＝レゾナの行き先はルール処理**（ここはパワー0以下のルール処理経路＝3つ目の写経）。
+        //   規則は**他のどの置換よりも優先する**ので ladder の先頭に置く。
+        const resonaDestP0 = resonaLeaveDestination(topNum, battleCardMap, effectsMap);
+        const withBanished: PlayerState = resonaDestP0 === 'lrig_deck'
+          ? { ...removed, lrig_deck: [...removed.lrig_deck, topNum] }
+          : resonaDestP0 === 'lrig_trash'
+          ? { ...removed, lrig_trash: [...removed.lrig_trash, topNum] }
+          : redirectBanishP0
           ? { ...removed, trash: [...removed.trash, topNum] }
           : redirectBanishToHandP0
             ? { ...removed, hand: [...removed.hand, topNum] }
@@ -12040,7 +12052,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 : recordEnergyPlacements({ ...removed, energy: [...removed.energy, topNum] }, [topNum], 'rule');
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${resonaDestP0 === 'lrig_deck' ? '（レゾナ→ルリグデッキへ）' : resonaDestP0 === 'lrig_trash' ? '（ルリグトラッシュへ）' : redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
 
         // usageLimit 消費は収集ごとに actions_done へ畳み込む（同一パスで複数シグニが0化しても《ターン1回》は1度だけ）。
         const usePZ = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
@@ -12557,14 +12569,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         handGuardClasses: collectHandGuardIconClasses(cpuSt, battleCardMap, effectsMap, huSt, false),
       });
       const cpuAttackingLrig = cpuSt.lrig_attacked_by_num ?? huSt.field.lrig.at(-1);
-      const huLrigKeywords = cpuAttackingLrig ? [
-        ...(huSt.keyword_grants?.[cpuAttackingLrig] ?? []),
-        ...(collectContinuousGrantedKeywords(huSt, cpuSt, true, effectsMap, battleCardMap)[cpuAttackingLrig] ?? []),
-      ] : [];
       const cpuGuardIdx = pickCpuGuardHandIndex({
         candidates: cpuGuardCandidates, hand: cpuSt.hand, cardMap: battleCardMap,
         lifeCount: cpuSt.life_cloth.length,
-        incomingCrushCount: huLrigKeywords.includes('トリプルクラッシュ') ? 3 : huLrigKeywords.includes('ダブルクラッシュ') ? 2 : 1,
+        // 🔑§5.6 `C-9` `R-06`＝見積りと解決で**同じ関数**を使う（写経すると CPU の判断だけがズレる）。
+        incomingCrushCount: getLrigAttackCrashState(cpuAttackingLrig, huSt, cpuSt, battleCardMap, effectsMap).crashCount,
       });
       appendBattleLogs([cpuGuardIdx === null
         ? `[CPU] ガードしない`
@@ -13801,17 +13810,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           damageSource: 'lrig', cardMap: battleCardMap,
           ...(lrigCrashDecision !== undefined ? { decision: lrigCrashDecision } : {}),
         });
-        // 攻撃側ルリグのダブルクラッシュ確認
+        // 攻撃側ルリグのダブル／トリプルクラッシュ確認
         // ⚠**攻撃したルリグ**を見る（アシストがアタックしたのにセンターのキーワードで判定すると
         //   ダブルクラッシュが誤って乗る／乗らない。続き427）。未設定＝従来どおりセンター。
+        // 🔴**§5.6 `C-9` `R-06`（2026-09-17）＝判定は `getLrigAttackCrashState` 1本**。
+        //   旧実装はトリプルだけ `keyword_grants` しか見ておらず、CONTINUOUS 付与を読み落としていた。
         const opLrigNum = attackingLrigNum;
-        const opDynamicKeywords = collectContinuousGrantedKeywords(op, my, true, effectsMap, battleCardMap);
-        const opLrigHasDoubleCrush = !!(opLrigNum && (
-          (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ')
-          || (opDynamicKeywords[opLrigNum] ?? []).includes('ダブルクラッシュ')
-        ));
-        // トリプルクラッシュ（WD21-009 の付与【自】＝ルリグアタックで3枚クラッシュ。検証是正＝シグニアタック側だけでなくルリグアタック経路も消費する）
-        const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
+        const lrigCrash = getLrigAttackCrashState(opLrigNum, op, my, battleCardMap, effectsMap);
+
         // 「あなたは対戦相手の（レベルN以下の）ルリグによってダメージを受けない」＝**回数無制限**の防御。
         // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
         // §6.4 O-3 続き492: 判定は `resolveLrigDamageShield` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
@@ -13878,13 +13884,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const crashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
           let lifeAfterCrash = my.life_cloth.slice(0, -1);
           let pendingAfterCrash = my.pending_crashed_cards ?? [];
-          if ((opLrigHasDoubleCrush || opLrigHasTripleCrush) && lifeAfterCrash.length > 0) {
+          if (lrigCrash.crashCount > 1 && lifeAfterCrash.length > 0) {
             // ダブル=追加1枚／トリプル=追加2枚（残ライフが足りなければあるだけ）
-            const extraCount = Math.min(opLrigHasTripleCrush ? 2 : 1, lifeAfterCrash.length);
+            const extraCount = Math.min(lrigCrash.crashCount - 1, lifeAfterCrash.length);
             const extraCards = lifeAfterCrash.slice(-extraCount);
             lifeAfterCrash = lifeAfterCrash.slice(0, -extraCount);
             pendingAfterCrash = [...pendingAfterCrash, ...extraCards];
-            appendBattleLogs([`ルリグアタック：${opLrigHasTripleCrush ? 'トリプルクラッシュ' : 'ダブルクラッシュ'}（${crashedName}、${extraCards.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
+            appendBattleLogs([`ルリグアタック：${lrigCrash.cause}（${crashedName}、${extraCards.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
           } else {
             appendBattleLogs([`ルリグアタック：ライフクロスをクラッシュ（${crashedName}）`]);
           }
@@ -13907,9 +13913,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             //   §5.3 `O-120` の規約は「原因は**発生源と必ず同じ地点で**書く」＝
             //   書かないと**前のクラッシュの原因が残る**し、【ダブルクラッシュ】限定の札も発火しない。
             //   ⚠添字は `pending_crash_source_card_nums` と**必ず同じ長さ**にする。
-            crash_cause: opLrigHasTripleCrush ? 'トリプルクラッシュ' : opLrigHasDoubleCrush ? 'ダブルクラッシュ' : undefined,
-            pending_crash_causes: pendingAfterCrash.map(() =>
-              (opLrigHasTripleCrush ? 'トリプルクラッシュ' : opLrigHasDoubleCrush ? 'ダブルクラッシュ' : null)),
+            crash_cause: lrigCrash.cause,
+            pending_crash_causes: pendingAfterCrash.map(() => lrigCrash.cause ?? null),
             field: { ...my.field, lrig_attacked: false, check: crashed },
             // 🆕§5.3 `O-160`（2026-09-02）＝ルリグアタックも**ダメージ**（`crashOneLife` と同じ印を立てる）。
             //   ⚠この経路は `crashOneLife` を通らないので、書き忘れると

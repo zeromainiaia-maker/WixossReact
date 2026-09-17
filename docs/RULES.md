@@ -35,10 +35,10 @@
 | R-03 | 【ランサー】のクラッシュは**ダメージではない**＝ライフ0でも勝たない／【Sランサー】はライフ0ならダメージ（JP-063・113） | `BattleScreen` シグニアタック解決（`ランサー：ライフなし（効果消滅）`） | 👀 |
 | R-04 | 【ランサー】＋【ダブルクラッシュ】でバトルに勝っても割るのは1枚（EN Double Crush／JP-042） | ランサー分岐とライフアタック分岐が別＝DC はライフアタック側にしか無い | 👀 |
 | R-05 | ダメージ＝ライフがあればクラッシュ／**無ければ敗北**（EN Damage／JP-077） | `BattleScreen` ライフアタック（`相手のライフなし → 相手の敗北`） | 👀 |
-| R-06 | 【ダブル／トリプルクラッシュ】は2／3枚。**残り1枚なら1枚割るだけで勝たない**。複数得ても枚数は据え置き。トリプル優先（EN Double Crush／JP-042・117） | シグニ＝`crashCount`（`V-232`）／ルリグ＝`opLrigHas*Crush` | 👀（⚠ルリグの【トリプルクラッシュ】は `keyword_grants` しか見ず、【ダブル】と違って CONTINUOUS 付与を読まない＝要確認） |
+| R-06 | 【ダブル／トリプルクラッシュ】は2／3枚。**残り1枚なら1枚割るだけで勝たない**。複数得ても枚数は据え置き。トリプル優先（EN Double Crush／JP-042・117） | シグニ＝`crashCount`（`V-232`）／ルリグ＝`lrigCrash.ts` `getLrigAttackCrashState` | 🔴→✅（**2026-09-17**＝ルリグの【トリプルクラッシュ】だけ `keyword_grants` しか見ておらず、**次の相手ターン終了時までの付与・CONTINUOUS 付与を読み落として1枚しか割らなかった**（`crash_cause` も「ダブルクラッシュ」に化けて限定札が外れる）。判定を純関数1本にして解決と CPU の見積りで共有・`V-252`＝`c9lrigtriplecrush`） |
 | R-07 | 【アサシン】＝正面を無視してダメージ・バトルしない（EN Assassin／JP-073） | `getSigniAttackKeywordState` → `effectivelyEmpty` | 👀 |
-| R-08 | ガードは**ルリグのアタックだけ**を1回防ぐ。【ダブルクラッシュ】も1枚で全部防ぐ（EN Guard／JP-012・042） | `guard.ts` ほか | ⚠ |
-| R-09 | クラッシュ → チェックゾーン → ライフバースト（任意）→ **エナゾーン**。複数は被クラッシュ側が順番を選ぶ（EN Crush・Life Burst／JP-061・062） | `crashOneLife` → `LifeBurstCheckModal` | ⚠ |
+| R-08 | ガードは**ルリグのアタックだけ**を1回防ぐ。【ダブルクラッシュ】も1枚で全部防ぐ（EN Guard／JP-012・042） | `guard.ts` `guardableHandIndices` ＋ `BattleScreen.performGuardResponse` | 👀（2026-09-17 確認＝入口が `my.field.lrig_attacked` 限定でシグニアタックには出ない／ガード枝は `lrig_attacked:false` にするだけでクラッシュ処理へ落ちないので**枚数に関係なく全部防ぐ**） |
+| R-09 | クラッシュ → チェックゾーン → ライフバースト（任意）→ **エナゾーン**。複数は被クラッシュ側が順番を選ぶ（EN Crush・Life Burst／JP-061・062） | `crashOneLife` → `LifeBurstCheckModal` → `performLifeBurstResponse` | 👀（2026-09-17 確認＝`field.check` へ置く→解決の最後に `energy: [...my.energy, cardNum]`／順番は `performLifeBurstResponse(targetCardNum)` で被クラッシュ側が指定できる＝`pending_crashed_cards` から任意の1枚を先に処理する） |
 
 ### 2.2 ターン・フェイズ
 
@@ -62,9 +62,10 @@
 | R-40 | **バニッシュ → エナゾーン**（JP-052） | バトル＝`BattleScreen`／効果＝`banishDestination` | 👀 |
 | R-41 | シグニが**場を離れたら**、下のカード・【チャーム】・【アクセ】はトラッシュ。**場を離れていなければ動かない**（JP-094・097） | バトルのバニッシュ／置換分岐 | 🔴→✅（ライズ置換の分岐だけ、残ったシグニの【チャーム】【アクセ】をトラッシュし、ダウン・凍結をリセットし、「バニッシュされたとき／場を離れたとき」を発火させていた＝2026-09-17） |
 | R-42 | リフレッシュ＝トラッシュをデッキへ → **ライフ1枚をトラッシュへ**（エナではない）。トラッシュ0なら行わない（EN Refresh／JP-064） | `refresh.applyRefreshState` | 👀 |
-| R-43 | パワー0以下 → バニッシュ（ルール処理・EN Power／Rule-based action 1） | ⚠ | ⚠ |
+| R-43 | パワー0以下 → バニッシュ（ルール処理・EN Power／Rule-based action 1） | `collectPowerZeroBanishCandidates` → `checkAndBanishPowerZero`（`useEffect` の常時チェック＋バトル解決前の先取り） | 👀（2026-09-17 確認＝ターンプレイヤーのクライアントが盤面が動くたび回す。⚠バニッシュ耐性・保護・行き先置換も見ている） |
 | R-44 | レベル超過／リミット超過 → **A（レベル超過）→B（直前に変化）→C の順に1体ずつ選んで**トラッシュ（EN Rule-based action 2） | `fieldLimit.reduceFieldSigniToLimit` | ⚠（順序 A→B→C の実装有無） |
-| R-45 | **レゾナ**がルリグデッキ・ルリグトラッシュ・シグニゾーン以外へ行くなら**ルリグデッキへ戻る**（JP-085・094） | `BANISH_TO_LRIG_TRASH_INSTEAD`（コメント「ルリグデッキ返却の近似」） | ⚠🔴疑い（バトルのバニッシュでルリグ**トラッシュ**へ送る近似） |
+| R-45 | **レゾナ**がルリグデッキ・ルリグトラッシュ・シグニゾーン以外へ行くなら**ルリグデッキへ戻る**（JP-085・094） | `engine/resonaZone.ts` `resonaLeaveDestination`（消費地点4＝効果 `banishDestination`／バトル防御側／バトルアタック側／パワー0以下） | 🔴→✅（**2026-09-17**＝規則がどこにも無く、**レゾナ46枚のうち41枚がバニッシュでエナゾーンへ行っていた**＝相手にエナを1枚献上したうえ `lrig_deck` へ戻らないので二度と出せない。残り5枚は「代わりにルリグトラッシュ」と印刷された札＝規則の置換。`V-251`＝`c9resonabanish`） |
+| R-45b | 同上のうち**バニッシュ以外の離場**（効果で手札／デッキ／トラッシュへ置かれる場合）と、**`シグニ/レゾナクラフト`（live 10枚）の行き先** | `removeFromField` の呼び出し 71箇所は `banishDestination` を通らない／クラフトの離場規則は未実装 | ⚠❓（バニッシュ4経路だけ `R-45` で塞いだ。クラフトは「場を離れる場合ゲームから取り除かれる」はずだが**一次資料で明文を確認できていない**＝推測で golden を張らない） |
 | R-46 | **キー**がルリグデッキ・ルリグトラッシュ・ルリグゾーン以外へ行くならルリグトラッシュへ（JP-094） | ⚠ | ⚠ |
 | R-47 | 同じルリグタイプのルリグが複数場にあるなら、センター以外の束をルリグトラッシュへ（EN Rule-based action 5） | ⚠ | ⚠ |
 | R-48 | シグニのレベルは**センタールリグのレベル以下**・合計は**リミット以下**（EN Level・Limit） | `fieldLimit` / `lrigLimit` | ⚠ |

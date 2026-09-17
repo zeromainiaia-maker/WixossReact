@@ -101,6 +101,8 @@ import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeS
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
 import { BUG_TAGS, REPORT_LOG_TAIL, buildBugReport, stackLenOf } from '../src/screens/battle/bugReport';
 import { battleOutcome, battleOutcomeLabel, lancerCrushTriggers } from '../src/screens/battle/battleOutcome';
+import { resonaLeaveDestination } from '../src/engine/resonaZone';
+import { getLrigAttackCrashState } from '../src/screens/battle/lrigCrash';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
 import { declareNameCandidates } from '../src/screens/battle/declareNameCandidates';
@@ -59338,7 +59340,9 @@ test('O-49 バニッシュ先変更: 防御側の語彙がアタッカー側に�
     ['by self', "id === 'BANISH_BY_SELF_GOES_TO_TRASH'", 'BANISH_BY_SELF_GOES_TO_TRASH'],
     ['frozen deck bottom', 'opFrozenOvr.frozenBanishToDeckBottom', 'myFrozenOvr.frozenBanishToDeckBottom'],
     ['frozen leave trash', 'opFrozenOvr.frozenLeaveToTrash', 'myFrozenOvr.frozenLeaveToTrash'],
-    ['resona', "id === 'BANISH_TO_LRIG_TRASH_INSTEAD'", 'BANISH_TO_LRIG_TRASH_INSTEAD'],
+    // 🆕§5.6 `C-9` `R-45`＝レゾナの行き先は**ルール処理**（`resonaZone.ts`）へ出した＝
+    //   両側とも判定を手書きせず、同じ関数を呼んでいることをミラーとして固定する。
+    ['resona', 'resonaLeaveDestination(myTopNum, battleCardMap, effectsMap)', "resonaLeaveDestination(opTopCardNum ?? '', battleCardMap, effectsMap)"],
     ['leave exile', "id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE'", 'BATTLE_LEAVE_REPLACE_WITH_EXILE'],
   ];
   for (const [label, attackerNeedle, defenderNeedle] of mirrored) {
@@ -85159,7 +85163,9 @@ test('§5.1 V-232: シグニの【トリプルクラッシュ】は3枚クラッ
   ok(!battleSource.includes('const secondCard = newOpState.life_cloth[newOpState.life_cloth.length - 1];'),
     '🔴追加1枚の焼き込みが残っている');
   // ルリグアタック側（元から正しい）も一緒に固定する＝片方だけ直す事故を止める。
-  ok(battleSource.includes("Math.min(opLrigHasTripleCrush ? 2 : 1, lifeAfterCrash.length)"),
+  // 🆕§5.6 `C-9` `R-06`（2026-09-17）＝ルリグ側の枚数判定は `getLrigAttackCrashState` へ出した
+  //   （トリプルだけ CONTINUOUS 付与を読み落としていたため）。**枚数の出どころは変わらず「規則の値−1」**。
+  ok(battleSource.includes("Math.min(lrigCrash.crashCount - 1, lifeAfterCrash.length)"),
     '🔴ルリグアタック側の追加クラッシュ枚数が消えている');
 });
 
@@ -85187,7 +85193,8 @@ test('§5.3 O-390: 【ダブルクラッシュ】由来の限定が live と判�
   const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok((battleSource.match(/crushCauseSA/g) ?? []).length >= 3,
     '🔴シグニアタック側でダブル/トリプルクラッシュの原因を刻んでいない');
-  ok(battleSource.includes("crash_cause: opLrigHasTripleCrush ? 'トリプルクラッシュ'"),
+  ok(battleSource.includes('crash_cause: lrigCrash.cause,')
+    && battleSource.includes('pending_crash_causes: pendingAfterCrash.map(() => lrigCrash.cause ?? null),'),
     '🔴ルリグアタック側でダブル/トリプルクラッシュの原因を刻んでいない');
 });
 
@@ -85750,6 +85757,71 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
+}));
+
+test('§5.6 C-9 R-06 ルリグアタックの枚数：ダブル2／トリプル3・トリプル優先・付与3経路を全部読む', () => withSavedCursor(() => {
+  // 🔑公式ルール（EN Double Crush／JP-042・117）＝ダブル2枚・トリプル3枚。複数得ても据え置き、トリプル優先。
+  const lrigNum = findCard(c => c.Type === 'ルリグ');
+  const mk = (grants?: Record<string, string[]>, untilOpp?: Record<string, string[]>, removed?: Record<string, string[]>): PlayerState =>
+    ({ ...mkState({ lrig: [lrigNum] }), keyword_grants: grants, keyword_grants_until_opp_turn: untilOpp, keyword_abilities_removed: removed }) as PlayerState;
+  const defender = mkState();
+  const crashOf = (attacker: PlayerState) => getLrigAttackCrashState(lrigNum, attacker, defender, cardMap, effectsMap);
+  eq(crashOf(mk()).crashCount, 1, 'キーワード無しで1枚でない');
+  eq(crashOf(mk()).cause, undefined, '通常のダメージに原因キーワードが刻まれている');
+  eq(crashOf(mk({ [lrigNum]: ['ダブルクラッシュ'] })).crashCount, 2, '【ダブルクラッシュ】が2枚でない');
+  eq(crashOf(mk({ [lrigNum]: ['トリプルクラッシュ'] })).crashCount, 3, '🔴【トリプルクラッシュ】が3枚でない');
+  eq(crashOf(mk({ [lrigNum]: ['ダブルクラッシュ', 'トリプルクラッシュ'] })).cause, 'トリプルクラッシュ',
+    '両方持つときにトリプルが優先されない（枚数が据え置きにならない）');
+  // 🔴**付与の経路は3つ**＝`keyword_grants` / `keyword_grants_until_opp_turn` / CONTINUOUS 付与。
+  //   旧実装はトリプルだけ1つ目しか見ておらず、【常】でトリプルを付与しても2枚しか割れなかった。
+  eq(crashOf(mk(undefined, { [lrigNum]: ['トリプルクラッシュ'] })).crashCount, 3,
+    '🔴次の相手ターン終了時までの付与（keyword_grants_until_opp_turn）を読んでいない');
+  eq(crashOf(mk({ [lrigNum]: ['トリプルクラッシュ'] }, undefined, { [lrigNum]: ['トリプルクラッシュ'] })).crashCount, 1,
+    'キーワード能力を消されたのに割る枚数が減っていない');
+  eq(getLrigAttackCrashState(null, mk({ [lrigNum]: ['トリプルクラッシュ'] }), defender, cardMap, effectsMap).crashCount, 1,
+    'アタックしたルリグが不明なのに枚数が乗っている');
+  const crashSrc = fs.readFileSync(join(root, 'src/screens/battle/lrigCrash.ts'), 'utf8');
+  ok(/collectContinuousGrantedKeywords\(/.test(crashSrc), '🔴CONTINUOUS 付与を読んでいない（【常】のダブル／トリプルが乗らない）');
+  // 🔴**写経の再発防止**＝判定は解決とCPUの見積りの2箇所で共有する。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screen.match(/getLrigAttackCrashState\(/g) ?? []).length, 2,
+    '🔴ルリグアタックの枚数判定が2箇所（アタック解決／CPU のガード見積り）を通っていない');
+  eq((screen.match(/includes\('トリプルクラッシュ'\)/g) ?? []).length, 0,
+    '🔴BattleScreen に【トリプルクラッシュ】の手書き判定が戻っている（lrigCrash.ts が唯一の権威）');
+}));
+
+test('§5.6 C-9 R-45 レゾナの行き先：ルリグデッキへ戻る（ルリグトラッシュと印刷された札だけが例外）', () => withSavedCursor(() => {
+  // 🔑公式ルール（JP-085／JP-094）＝**レゾナがルリグデッキ・ルリグトラッシュ・シグニゾーン以外のゾーンへ
+  //   置かれる場合、代わりにルリグデッキに戻る**。⇒ カード効果ではなく**ルール処理**なので全レゾナに掛かる。
+  // 🔴2026-09-17 の棚卸しで発見＝実装はこの規則を持っておらず、**レゾナはバニッシュされるとエナゾーンへ**行っていた。
+  const resonas = [...cardMap.values()].filter(c => c.Type === 'レゾナ').map(c => c.CardNum);
+  ok(resonas.length >= 40, `レゾナの母集団が激減した（${resonas.length}枚）＝CSV かフィルタの退化`);
+  const declared = resonas.filter(num => (effectsMap.get(num) ?? []).some(e =>
+    e.effectType === 'CONTINUOUS' && e.action.type === 'STUB'
+    && (e.action as StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD'));
+  eq(declared.length, 5, `「代わりにルリグトラッシュ」と印刷されたレゾナの数が変わった（${declared.join(',')}）`);
+  for (const num of declared) {
+    eq(resonaLeaveDestination(num, cardMap, effectsMap), 'lrig_trash', `${num} はルリグトラッシュへ置かれるはず`);
+  }
+  for (const num of resonas.filter(n => !declared.includes(n))) {
+    eq(resonaLeaveDestination(num, cardMap, effectsMap), 'lrig_deck', `${num} がルリグデッキへ戻らない（エナへ行くとエナ献上＋再出現不能）`);
+  }
+  // ⚠**インスタンス id（`WX10-008#1`）でも同じ答えを返す**＝場のカードは常にこの形で来る。
+  eq(resonaLeaveDestination(`${declared[0]}#3`, cardMap, effectsMap), 'lrig_trash', 'インスタンス id を解決していない');
+  // ⚠**レゾナ以外は `null`**＝通常の行き先（エナ等）へ落とす。`シグニ/レゾナクラフト` は一次資料未確認なので
+  //   ここでは掛けない（RULES.md `R-45b` の「要判断」）。
+  eq(resonaLeaveDestination(SIGNI, cardMap, effectsMap), null, 'ふつうのシグニにレゾナ規則が掛かっている');
+  const craft = [...cardMap.values()].find(c => c.Type === 'シグニ/レゾナクラフト')?.CardNum;
+  if (craft) eq(resonaLeaveDestination(craft, cardMap, effectsMap), null, 'レゾナクラフトに未確認の規則を掛けている');
+  // 🔴**写経の再発防止**＝行き先の ladder は4箇所（効果 funnel＋バトル2＋パワー0）にあり、
+  //   規則を1つずつ手で書き直すと**経路によってレゾナの行き先が変わる**。判定は `resonaZone.ts` の1本を通す。
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const utils = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  eq((screen.match(/resonaLeaveDestination\(/g) ?? []).length, 3,
+    '🔴BattleScreen のレゾナ行き先の消費地点が3箇所でない（バトル防御側・バトルアタック側・パワー0以下）');
+  ok(/resonaLeaveDestination\(num, opts\.cardMap\)/.test(utils), '🔴効果経路（banishDestination）がレゾナ規則を通っていない');
+  eq((screen.match(/BANISH_TO_LRIG_TRASH_INSTEAD/g) ?? []).length, 0,
+    '🔴BattleScreen に `BANISH_TO_LRIG_TRASH_INSTEAD` の手書き判定が戻っている（resonaZone.ts が唯一の権威）');
 }));
 
 test('§5.6 C-2 CPU のガード：可否は guardableHandIndices 1本・CPU は候補から選ぶだけ', () => withSavedCursor(() => {

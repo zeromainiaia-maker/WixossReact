@@ -11,17 +11,18 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-17＝第393バッチ：§5.6 `C-7` クローズ＝CPU がキーを場に出す／ピースを使う＋ピースの体数ルール（場にルリグ3体）を実装**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🔑キー／ピースの判定・コスト・請求を `keyPieceUseGate.ts` の1本へ（提示・モーダル・実行・CPU）。🔴人間側の食い違い2件（実行が印刷コインを直読み／コインの使用制限をモーダルだけが見ていた）も同時に解消。
-- 🔴**ルール穴**＝「ピースは場にルリグ3体」が未実装だった ⇒ 実装（RULES.md `R-53`）。
-- 実機 新規3本（`V-248`〜`V-250`・反転1本）PASS。📊通し対戦で CPU のピースを1回観測（キーはシナリオで確認）。
+**直近＝2026-09-17＝第394バッチ：§5.6 `C-9` 続き＝レゾナの行き先（`R-45`）とルリグの【トリプルクラッシュ】（`R-06`）を規則どおりに直す**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔴**レゾナの行き先という規則がどこにも無かった**＝**46枚中41枚がバニッシュでエナゾーンへ**行っていた（相手にエナ献上＋`lrig_deck` へ戻らず二度と出せない）⇒ `engine/resonaZone.ts` を唯一の権威にし、行き先 ladder **4箇所**（効果／バトル防御／バトル攻撃／パワー0）が同じ関数を通る形へ。
+- 🔴**ルリグの【トリプルクラッシュ】だけ付与経路を1つしか見ていなかった**（【ダブル】は3経路）⇒ `lrigCrash.ts` `getLrigAttackCrashState` で解決と CPU の見積りを共有。
+- 読んで一致を確認した3行（`R-08`／`R-09`／`R-43`）は 👀 へ。台帳は ✅1／🔴→✅6／👀15／**⚠12**。
+- 実機 新規2本（`V-251`／`V-252`）PASS＝**どちらも修正前のコードで FAIL を確認**（エナへ行く／1枚で止まる）。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠15行）／**`C-8`**（対話応答の pure 化）。⚠既存の実機3本（`connectSpinningChoice4Pay`／`o71HandToCheckZone`／`o202DamageReplaceDeclare`）が修正前から FAIL＝切り分け待ち |
-| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（今回は CPU・UI 層＝3計器の対象外） |
-| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **0**／実装キュー **0**／**CPU 完成度 2**（§5.6 `C-8`・`C-9`）／ルール台帳 ⚠15 |
-| 🔧**ゲート** | `npm run gates` 全緑（golden 4284） |
+| 🔥**次に取るもの** | **§5.6 `C-9` の続き**（[RULES.md](./RULES.md) の ⚠12行＝次は `R-27`／`R-28`／`R-29`／`R-44`）／**`C-8`**（対話応答の pure 化）。⚠既存の実機3本（`connectSpinningChoice4Pay`／`o71HandToCheckZone`／`o202DamageReplaceDeclare`）が修正前から FAIL＝切り分け待ち |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（今回は engine・UI 層＝3計器の対象外） |
+| 📦**在庫** | 機構 worklist **1**（索引G `O-531`）／実機 **0**／実装キュー **0**／**CPU 完成度 2**（§5.6 `C-8`・`C-9`）／ルール台帳 ⚠12 |
+| 🔧**ゲート** | `npm run gates` 全緑（golden 4286） |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -216,7 +217,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -416,7 +417,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 | 🏁`C-6` | ~~ライズ召喚（`O-147` の CPU 側）~~ | M | **2026-09-17 クローズ**＝`riseSummon.ts` `planRiseSummon`（人間の「召喚」ゲートの判定を移設）→ `performSummonSigni`。実機 `V-246` |
 | 🏁`C-7` | ~~キー・ピース（【チーム】条件つき）~~ | M〜L | **2026-09-17 クローズ**＝`keyPieceUseGate.ts`（提示・モーダル・実行・CPU の1本）→ `cpuKeyPiece.ts` → `performKeyPiece`。ピースの体数ルールを実装（`R-53`）。実機 `V-248`〜`V-250` |
 | `C-8` | 対話応答を pure 化＋方針つきに（`cpuInteraction.ts`） | M | 「最初の available」固定では**分岐の片側しか踏まない** |
-| 🔥`C-9` | **ルール規則の棚卸し**（バトル／ダメージ／フェイズ／ゾーン移動の行き先） | M〜L | **台帳＝[RULES.md](./RULES.md)**（公式ルールの1文 × 実装箇所 × 状態）。**2026-09-17 着手**＝✅4／🔴→✅3（ランサー置換・アップフェイズの受け手・ライズ置換の後始末）／👀14／**⚠15**。取り方は RULES.md §4（⚠を上から・写経を全部数える・純関数＋golden） |
+| 🔥`C-9` | **ルール規則の棚卸し**（バトル／ダメージ／フェイズ／ゾーン移動の行き先） | M〜L | **台帳＝[RULES.md](./RULES.md)**（公式ルールの1文 × 実装箇所 × 状態）。**2026-09-17 着手**＝✅1／🔴→✅6（ランサー置換・アップフェイズの受け手・ライズ置換の後始末・ピースの体数・**レゾナの行き先**・**ルリグの【トリプルクラッシュ】**）／👀15／**⚠12**。取り方は RULES.md §4（⚠を上から・写経を全部数える・純関数＋golden） |
 
 #### 5.6.3 規律（`cpu*.ts` の既存5本と同じ＝[DESIGN.md](./DESIGN.md) §4）
 

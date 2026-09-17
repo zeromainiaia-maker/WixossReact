@@ -1,5 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
+import { resonaLeaveDestination } from './resonaZone';
 import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, lrigTeamMatches, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
@@ -1252,6 +1253,19 @@ export function banishDestination(
     effectSourceNum?: string;
   },
 ): { state: PlayerState; log: string; consumedOnceSource?: string } {
+  // 🔴**§5.6 `C-9` `R-45`（2026-09-17）＝レゾナの行き先はルール処理**（JP-085／JP-094）＝
+  //   ルリグデッキ・ルリグトラッシュ・シグニゾーン**以外**へ行くなら代わりにルリグデッキへ戻る。
+  //   ⇒ **カード側のどの置換（トラッシュ／手札／デッキ下／除外）よりも先に見る**＝規則が上書きする側。
+  //   ⚠旧実装はこの規則を持っておらず、**レゾナがバニッシュされるとエナゾーンへ行っていた**。
+  if (opts?.cardMap) {
+    const resonaDest = resonaLeaveDestination(num, opts.cardMap);
+    if (resonaDest === 'lrig_deck') {
+      return { state: { ...removed, lrig_deck: [...removed.lrig_deck, num] }, log: 'をバニッシュ（ルリグデッキへ）' };
+    }
+    if (resonaDest === 'lrig_trash') {
+      return { state: { ...removed, lrig_trash: [...removed.lrig_trash, num] }, log: 'をバニッシュ（ルリグトラッシュへ）' };
+    }
+  }
   // 🆕**「このシグニの効果によって〜バニッシュされる場合」**（§5.3 `O-210`・`WX24-P4-050-E2`）＝
   //   置換元は**いま解決中の効果の発生源**（`opts.effectSourceNum`）。
   // 🔴`banish_redirect_by_source_nums`（従来）は**バトル経路だけが読む**配列なので、
