@@ -125,7 +125,7 @@ import { useActivatedModals } from './battle/hooks/useActivatedModals';
 import { useCutin } from './battle/hooks/useCutin';
 import { useEffectInteraction } from './battle/hooks/useEffectInteraction';
 import { useRemoveZone, useGuardResponses, useEndDiscard, useZoomOverlays } from './battle/hooks/useMiscBattleUI';
-import { useBattleSession } from './battle/hooks/useBattleSession';
+import { useBattleSession, DECK_DATA_COLUMNS } from './battle/hooks/useBattleSession';
 import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
@@ -142,7 +142,8 @@ import { pickCpuGuardHandIndex } from './battle/cpuGuard';
 import { cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from './battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from './battle/cpuHandLimit';
 import { applyMulligan } from './battle/mulligan';
-import { buildLrigSetupState, pickCpuLrigSetup } from './battle/lrigSetup';
+import { buildLrigSetupState } from './battle/lrigSetup';
+import { resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA } from '../utils/deckLrigSetup';
 import { listAssistGrowCandidates } from './battle/assistGrow';
 import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './battle/cpuSummon';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
@@ -265,7 +266,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [persistRaw.commit, persistRaw.fetchState, persistRaw.remove]);
   // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
-  const { mulliganSelected, setMulliganSelected, pendingLrigSetup, setPendingLrigSetup } = useGameStartSetup();
+  const { mulliganSelected, setMulliganSelected } = useGameStartSetup();
   // シグニ召喚ゾーン選択フロー
   const {
     pendingSigniSummon, setPendingSigniSummon, closeZoneSignal, setCloseZoneSignal,
@@ -494,16 +495,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               .then(async ({ data: rd }) => {
                 if (!rd?.guest_deck_id) return;
                 const { data: dd } = await supabase.from('decks')
-                  .select('main_deck, lrig_deck').eq('id', rd.guest_deck_id).single();
-                if (dd) setCpuDeckData(dd as { main_deck: string[]; lrig_deck: string[] });
+                  .select(DECK_DATA_COLUMNS).eq('id', rd.guest_deck_id).single();
+                if (dd) setCpuDeckData(dd as unknown as NonNullable<typeof cpuDeckData>);
               });
           }
         }
       });
 
-    supabase.from('decks').select('main_deck, lrig_deck').eq('id', myDeckId).single()
+    supabase.from('decks').select(DECK_DATA_COLUMNS).eq('id', myDeckId).single()
       .then(({ data }) => {
-        if (data) setMyDeckData(data as { main_deck: string[]; lrig_deck: string[] });
+        if (data) setMyDeckData(data as unknown as NonNullable<typeof myDeckData>);
       });
 
     const channel = supabase
@@ -888,6 +889,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       addAll(s.field.beat_zone);
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
+    // 🔴CPU のデッキも載せる＝載せないと、人間と別のデッキを持たせた CPU は対戦開始時にルリグの種別・レベルを
+    //   引けず（`cardMap.get(...)===undefined`）、**ルリグを置けないままセットアップが止まっていた**
+    //   （検証は人間と同じデッキで回していたので出なかった）。
+    if (cpuDeckData) { addAll(cpuDeckData.main_deck); addAll(cpuDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
     // 🔴🆕**解決待ちの `pending_effect` が抱えているカードも載せる**（§5.3 `O-142`・2026-08-29 実機で発見）。
     //   `LOOK_AND_REORDER` は見たカードを**デッキから抜いて `interaction.cards` に持つ**ので、その間だけ
@@ -979,7 +984,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs?.pending_effect?.sourceCardNum) nums.add(getCardNum(bs.pending_effect.sourceCardNum));
     for (const n of pendingEffectCardNums(bs?.pending_effect)) nums.add(n);
     return nums;
-  }, [myDeckData, bs]);
+  }, [myDeckData, cpuDeckData, bs]);
 
   const battleCardMap = useMemo(() => {
     // namePool の候補検索と resume 時の妥当性検証に限り、全カードデータを同じ ctx 経路へ載せる。
@@ -1008,6 +1013,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     return applyTimedBaseLevelOverrides(new InstanceMap(resolved), myState, opState);
   }, [cards, battleCardNums, bs, user.id]);
+
+  // ── 対戦開始：ルリグの自動配置（デッキ編成の指定どおり） ──────────────
+  // 🆕2026-09-17（ユーザー決定）＝対戦開始時のルリグ選択画面を廃止し、**デッキで指定したセンター／アシスト左右をそのまま置く**。
+  //   どれを置くかは CPU と同じ `resolveDeckLrigSetup`、盤面は同じ `buildLrigSetupState`。
+  //   ⚠二重配置の防止＝書き込み中は ref で止め、失敗したら外す（成功すれば `*_lrig_selected` が立って入口で止まる）。
+  const lrigAutoPlaceRef = useRef(false);
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'SETUP' || bs.setup_phase !== 'LRIG_SELECT' || !myDeckData) return;
+    const localIsHost = user.id === bs.host_id;
+    if (localIsHost ? bs.host_lrig_selected : bs.guest_lrig_selected) return;
+    if (lrigAutoPlaceRef.current) return;
+    const pick = resolveDeckLrigSetup(myDeckData.lrig_deck, lrigRolesOfRow(myDeckData), battleCardMap);
+    if (!pick) return; // 指定が対戦に出せない形＝画面が理由を出す
+    lrigAutoPlaceRef.current = true;
+    // ゲストはホストとinstance IDが衝突しないよう #g プレフィックスを使う
+    const assignFn = localIsHost ? assignInstanceIds : assignGuestInstanceIds;
+    const mainWithIds = assignFn(shuffle(myDeckData.main_deck));
+    const lrigWithIds = assignFn(myDeckData.lrig_deck);
+    const myState: PlayerState = buildLrigSetupState({
+      lrigWithIds, mainWithIds, centerId: lrigWithIds[pick.centerIdx],
+      assistLId: pick.assistIdx ? lrigWithIds[pick.assistIdx[0]] : null,
+      assistRId: pick.assistIdx ? lrigWithIds[pick.assistIdx[1]] : null,
+      cardMap: battleCardMap,
+    });
+    persist.commit(reduceBattle(bs, {
+      type: 'SELECT_LRIG', isHost: localIsHost, selectedCardNum: myDeckData.lrig_deck[pick.centerIdx], state: myState,
+    })).then(res => { if (res.error) lrigAutoPlaceRef.current = false; }, () => { lrigAutoPlaceRef.current = false; });
+  }, [bs?.global_phase, bs?.setup_phase, bs?.host_lrig_selected, bs?.guest_lrig_selected, myDeckData, battleCardMap]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）。宣言UI用に全カードを載せた間も
   // effectsMap の構築対象は従来どおり対戦に関係するカードだけに保つ。
@@ -2412,9 +2446,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'LRIG_SELECT' && cpuDeckData) {
       const lrigWithIds = assignGuestInstanceIds(cpuDeckData.lrig_deck);
       const mainWithIds = assignGuestInstanceIds(shuffle(cpuDeckData.main_deck));
-      // 🆕§5.6 `C-5` 追補（2026-09-17）＝**CPU もアシストを置く**（旧実装はセンターしか置かず、実戦でアシストグロウ／
-      //   アシストのアタックを一度もできなかった）。どれを置くかは `pickCpuLrigSetup`、盤面の組み立ては人間と同じ `buildLrigSetupState`。
-      const cpuSetupPick = pickCpuLrigSetup(cpuDeckData.lrig_deck, battleCardMap);
+      // 🆕2026-09-17＝**どれを置くかはデッキ編成の指定**（人間と同じ `resolveDeckLrigSetup`）。
+      //   盤面の組み立ても人間と同じ `buildLrigSetupState`（§5.6 `C-5` 追補＝旧実装はセンターしか置かなかった）。
+      const cpuSetupPick = resolveDeckLrigSetup(cpuDeckData.lrig_deck, lrigRolesOfRow(cpuDeckData), battleCardMap);
       if (!cpuSetupPick) return;
       const lv0Idx = cpuSetupPick.centerIdx;
       const cpuState: PlayerState = buildLrigSetupState({
@@ -2610,179 +2644,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       if (!myDeckData) return <div style={setupWrap}><p>デッキ読み込み中...</p></div>;
 
-      const lv0Lrigs = myDeckData.lrig_deck
-        .filter((num, i, arr) => arr.indexOf(num) === i)
-        .map(num => battleCardMap.get(num))
-        .filter((c): c is CardData => !!c && c.Type === 'ルリグ' && c.Level === '0');
-
-      const handleSelectLrig = async (cardNum: string) => {
-        if (loading) return;
-        setLoading(true);
-        // ゲストはホストとinstance IDが衝突しないよう #g プレフィックスを使う
-        const assignFn = isHost ? assignInstanceIds : assignGuestInstanceIds;
-        // インスタンスIDを付与（シャッフル後のmainDeckとlrigDeck全体に連番を振る）
-        const mainWithIds  = assignFn(shuffle(myDeckData.main_deck));
-        const lrigWithIds  = assignFn(myDeckData.lrig_deck);
-        // 選択されたルリグのインスタンスIDを取得
-        const selOrigIdx   = myDeckData.lrig_deck.indexOf(cardNum);
-        const selectedId   = selOrigIdx >= 0 ? lrigWithIds[selOrigIdx] : `${cardNum}#1`;
-
-        // Lv0ルリグが3枚以上ならアシスト配置フローへ（アシストゾーンの基底は通常ルリグ）
-        const allLv0Indices = myDeckData.lrig_deck
-          .map((num, i) => {
-            const c = battleCardMap.get(num);
-            return c && c.Type === 'ルリグ' && c.Level === '0' ? i : -1;
-          })
-          .filter(i => i >= 0);
-
-        if (allLv0Indices.length >= 3) {
-          const remainingLv0 = allLv0Indices
-            .filter(i => i !== selOrigIdx)
-            .map(i => ({ cardNum: myDeckData.lrig_deck[i], instanceId: lrigWithIds[i], origIdx: i }));
-          setPendingLrigSetup({
-            centerCardNum: cardNum,
-            centerInstanceId: selectedId,
-            lrigWithIds,
-            mainWithIds,
-            remainingLv0,
-            assistStep: 'confirm',
-            assistLInstanceId: null,
-            assistLCardNum: null,
-          });
-          setLoading(false);
-          return;
-        }
-
-        // Lv0ルリグ1〜2枚：アシストなしで通常セットアップ
-        // ゲーム開始時、センタールリグのコイン欄（ナナシ其ノ零ノ禍等）分のコインを得る
-        // §5.6 `C-5` 追補＝盤面の組み立ては `buildLrigSetupState` の1本（CPU と共通）。
-        const myState: PlayerState = buildLrigSetupState({ lrigWithIds, mainWithIds, centerId: selectedId, cardMap: battleCardMap });
-        await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: cardNum, state: myState }));
-        setLoading(false);
-      };
-
-      // アシストルリグセットアップフロー
-      if (pendingLrigSetup) {
-        const setup = pendingLrigSetup;
-        const centerCard = battleCardMap.get(setup.centerCardNum);
-
-        const confirmNoAssist = async () => {
-          setLoading(true);
-          const myState: PlayerState = buildLrigSetupState({
-            lrigWithIds: setup.lrigWithIds, mainWithIds: setup.mainWithIds, centerId: setup.centerInstanceId, cardMap: battleCardMap,
-          });
-          await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: setup.centerCardNum, state: myState }));
-          setPendingLrigSetup(null);
-          setLoading(false);
-        };
-
-        const selectAssistL = (instanceId: string, cardNum: string) => {
-          setPendingLrigSetup({ ...setup, assistStep: 'select_r', assistLInstanceId: instanceId, assistLCardNum: cardNum });
-        };
-
-        const selectAssistR = async (instanceId: string) => {
-          if (!setup.assistLInstanceId) return;
-          setLoading(true);
-          const myState: PlayerState = buildLrigSetupState({
-            lrigWithIds: setup.lrigWithIds, mainWithIds: setup.mainWithIds, centerId: setup.centerInstanceId,
-            assistLId: setup.assistLInstanceId, assistRId: instanceId, cardMap: battleCardMap,
-          });
-          await persist.commit(reduceBattle(bs, { type: 'SELECT_LRIG', isHost, selectedCardNum: setup.centerCardNum, state: myState }));
-          setPendingLrigSetup(null);
-          setLoading(false);
-        };
-
-        const btnStyle = { padding: '12px 20px', borderRadius: 8, cursor: 'pointer', border: C.borderUIMid, backgroundColor: C.bgButton, color: C.text, fontSize: 14, textAlign: 'left' as const };
-
-        if (setup.assistStep === 'confirm') {
-          return (
-            <div style={setupWrap}>
-              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグを配置しますか？</h2>
-              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
-                センター: {centerCard?.CardName ?? setup.centerCardNum}
-              </p>
-              <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
-                ルリグを配置する枚数は1枚（センターのみ）か3枚（センター＋アシスト左右）です
-              </p>
-              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                <button onClick={() => setPendingLrigSetup({ ...setup, assistStep: 'select_l' })} disabled={loading}
-                  style={{ ...btnStyle, backgroundColor: C.accent, fontWeight: 'bold' }}>
-                  配置する（3枚）
-                </button>
-                <button onClick={confirmNoAssist} disabled={loading} style={btnStyle}>
-                  配置しない（1枚）
-                </button>
-              </div>
-            </div>
-          );
-        }
-
-        if (setup.assistStep === 'select_l') {
-          return (
-            <div style={setupWrap}>
-              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグ（左）を選択</h2>
-              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
-                センター: {centerCard?.CardName ?? setup.centerCardNum}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
-                {setup.remainingLv0.map(({ cardNum, instanceId }) => {
-                  const c = battleCardMap.get(cardNum);
-                  return (
-                    <button key={instanceId} onClick={() => selectAssistL(instanceId, cardNum)} disabled={loading}
-                      style={btnStyle}>
-                      {c?.CardName ?? cardNum}
-                      <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{cardNum}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        }
-
-        if (setup.assistStep === 'select_r') {
-          const assistLCard = battleCardMap.get(setup.assistLCardNum ?? '');
-          const remainingForR = setup.remainingLv0.filter(({ instanceId }) => instanceId !== setup.assistLInstanceId);
-          return (
-            <div style={setupWrap}>
-              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグ（右）を選択</h2>
-              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
-                センター: {centerCard?.CardName ?? setup.centerCardNum}
-                　左: {assistLCard?.CardName ?? setup.assistLCardNum}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
-                {remainingForR.map(({ cardNum, instanceId }) => {
-                  const c = battleCardMap.get(cardNum);
-                  return (
-                    <button key={instanceId} onClick={() => selectAssistR(instanceId)} disabled={loading}
-                      style={btnStyle}>
-                      {c?.CardName ?? cardNum}
-                      <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{cardNum}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        }
-      }
-
+      // 🆕2026-09-17＝**選択画面は廃止**＝デッキ編成の指定どおりに自動で置く（`lrigAutoPlace` の effect）。
+      //   ここに来るのは「置いている最中」か「デッキの指定が対戦に出せない形」だけ。
+      const setupProblem = deckLrigSetupProblem({ ...lrigRolesOfRow(myDeckData), lrigDeck: myDeckData.lrig_deck }, battleCardMap);
       return (
         <>{setupLeaveConfirmModal}<div style={setupWrap}>
-          <h2 style={{ color: C.text, margin: 0 }}>センタールリグを配置</h2>
-          <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>Lv0ルリグを選ぶとデッキをシャッフルして手札5枚を引きます</p>
-          {lv0Lrigs.length === 0 ? (
-            <p style={{ color: '#f44' }}>Lv0ルリグが見つかりません。デッキを確認してください。</p>
+          {setupProblem ? (
+            <>
+              <h2 style={{ color: C.text, margin: 0 }}>ルリグを配置できません</h2>
+              <p style={{ color: '#f44', margin: 0 }}>{DECK_LRIG_SETUP_PROBLEM_JA[setupProblem]}。デッキ編成の「ルリグ」タブで指定してください。</p>
+            </>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
-              {lv0Lrigs.map(card => (
-                <button key={card.CardNum} onClick={() => handleSelectLrig(card.CardNum)} disabled={loading}
-                  style={{ padding: '12px 20px', borderRadius: 8, cursor: 'pointer', border: C.borderUIMid, backgroundColor: C.bgButton, color: C.text, fontSize: 14, textAlign: 'left' }}>
-                  {card.CardName}
-                  <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{card.CardNum}</span>
-                </button>
-              ))}
-            </div>
+            <h2 style={{ color: C.text, margin: 0 }}>ルリグを配置しています...</h2>
           )}
           {setupLeaveBtn}
         </div></>

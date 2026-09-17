@@ -159,7 +159,8 @@ import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { applyMulligan } from '../src/screens/battle/mulligan';
-import { buildLrigSetupState, pickCpuLrigSetup } from '../src/screens/battle/lrigSetup';
+import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
+import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
 import { pickCpuResonaSelection, pickCpuResonaZone } from '../src/screens/battle/cpuSummon';
 import { planRiseSummon } from '../src/screens/battle/riseSummon';
@@ -85826,43 +85827,73 @@ test('§5.3 O-531 ライズのバニッシュ置換＝枚数と任意性を原�
     '🔴置換後に残る下のカードを消している（旧はトップ1枚だけ残していた）');
 }));
 
-test('§5.6 C-9 R-47 センタールリグと同じルリグタイプのアシストルリグは入れられない', () => withSavedCursor(() => {
+test('§5.6 C-9 R-47 センタールリグと同じルリグタイプのアシストルリグは入れられない（センターはデッキで指定）', () => withSavedCursor(() => {
   // 🔑**2026-09-17 ユーザー裁定**＝「センタールリグと同じルリグタイプのアシストルリグは入れることができません」。
-  //   ⇒ 「同じルリグタイプのルリグが場に複数並ぶ」状態は**構築で作れない**ので、
-  //     場のルール処理（EN Rule-based action 5）は実装しない。判定は `deckAddBlockReason` の1本。
-  const center = findCard(c => c.Type === 'ルリグ' && !!c.CardClass && !/[/／]/.test(c.CardClass));
-  const centerClass = cardMap.get(center)!.CardClass!;
-  const sameAssist = [...cardMap.values()]
-    .find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === centerClass)?.CardNum;
-  const otherAssist = [...cardMap.values()]
-    .find(c => c.Type === 'アシストルリグ' && !!c.CardClass && !sharesLrigType(c, cardMap.get(center)!))?.CardNum;
-  ok(!!sameAssist, `センター（${centerClass}）と同タイプのアシストが見つからない＝母集団の前提が崩れた`);
-  ok(!!otherAssist, '別タイプのアシストが見つからない');
-  const deckWithCenter = { mainDeck: [], lrigDeck: [center] };
-  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, deckWithCenter, cardMap), 'LRIG_TYPE_CLASH',
+  //   ⇒ 「同じルリグタイプのルリグが場に複数並ぶ」状態は**構築で作れない**ので、場のルール処理（EN Rule-based action 5）は実装しない。
+  // 🆕🔴**同日＝センターは「デッキで指定した Lv0」だけ**（`utils/deckLrigSetup.ts`）。第399バッチの初版は
+  //   ルリグデッキの「ルリグ」全部をセンター扱いしており、**アシスト系統の Lv0（ウムル＝ノル・種別は「ルリグ」）と
+  //   同タイプのアシスト（ウムル＝ドロー）が入らなかった**＝普通の3ルリグデッキが組めなかった。
+  const PIRULUK0 = 'WD03-005', UMR0 = 'WDK09-005', TAWIL0 = 'WDK14-005', UMR_ASSIST = 'WXDi-D01-009', PIRULUK3 = 'WD03-002';
+  const center = cardMap.get(PIRULUK0)!;
+  const sameAssist = [...cardMap.values()].find(c => c.Type === 'アシストルリグ' && sharesLrigType(c, center))?.CardNum;
+  ok(!!sameAssist, 'ピルルクのアシストルリグが見つからない＝母集団の前提が崩れた');
+  // ① 反転＝初版の実害（アシスト系統の Lv0 と同タイプのアシストが弾かれていた）。
+  eq(deckAddBlockReason(cardMap.get(UMR_ASSIST)!, { mainDeck: [], lrigDeck: [PIRULUK0, UMR0], centerLrig: PIRULUK0 }, cardMap), null,
+    '🔴アシスト系統の Lv0（ウムル＝ノル）をセンター扱いして、ウムルのアシストを弾いている');
+  // ② 本命＝指定したセンターと同タイプのアシストは入らない。
+  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { mainDeck: [], lrigDeck: [PIRULUK0], centerLrig: PIRULUK0 }, cardMap), 'LRIG_TYPE_CLASH',
     '🔴センターと同じルリグタイプのアシストが入ってしまう');
-  eq(deckAddBlockReason(cardMap.get(otherAssist!)!, deckWithCenter, cardMap), null,
-    '別タイプのアシストまで弾いている');
-  // 🔴**両方向で止める**＝アシストを先に入れてから同タイプのセンターを足す道も塞ぐ。
-  eq(deckAddBlockReason(cardMap.get(center)!, { mainDeck: [], lrigDeck: [sameAssist!] }, cardMap), 'LRIG_TYPE_CLASH',
-    '🔴順番を変えれば同タイプのセンターを足せてしまう');
-  // ⚠**アシスト同士の同タイプは止めない**＝裁定はセンターとの重なりについてだけ。
-  const sameAssist2 = [...cardMap.values()]
-    .find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === centerClass && c.CardNum !== sameAssist)?.CardNum;
-  if (sameAssist2) {
-    eq(deckAddBlockReason(cardMap.get(sameAssist2)!, { mainDeck: [], lrigDeck: [sameAssist!] }, cardMap), null,
-      'アシスト同士の同タイプまで弾いている（裁定の範囲外）');
+  // ③ センター未指定なら追加時には判定しない（指定する側で止める＝④）。
+  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { mainDeck: [], lrigDeck: [PIRULUK0] }, cardMap), null, 'センター未指定なのにタイプで弾いた');
+  // ④ 逆向き＝同タイプのアシストが入っているデッキでは、そのタイプの Lv0 をセンターに指定できない。
+  const deckWithAssist = { lrigDeck: [PIRULUK0, UMR0, TAWIL0, sameAssist!] };
+  eq(lrigRoleBlockReason(deckWithAssist, PIRULUK0, 'center', cardMap), 'LRIG_TYPE_CLASH', '🔴順番を変えれば同タイプのセンターを指定できてしまう');
+  eq(lrigRoleBlockReason(deckWithAssist, UMR0, 'center', cardMap), null, '別タイプのセンターまで弾いている');
+  // ⑤ アシストに指定する Lv0 もセンターと同タイプなら不可。
+  const otherPiruluk0 = [...cardMap.values()].find(c => isStartingLrig(c) && c.CardNum !== PIRULUK0 && sharesLrigType(c, center))?.CardNum;
+  if (otherPiruluk0) {
+    eq(lrigRoleBlockReason({ lrigDeck: [PIRULUK0, otherPiruluk0], centerLrig: PIRULUK0 }, otherPiruluk0, 'assist_l', cardMap), 'LRIG_TYPE_CLASH',
+      '🔴センターと同タイプの Lv0 をアシストに置けてしまう');
   }
-  // ⚠複合タイプ（`花代/ユヅキ`）は**1つでも重なれば**同じタイプ扱い。
-  const dual = [...cardMap.values()].find(c => c.Type === 'ルリグ' && /[/／]/.test(c.CardClass ?? ''));
+  eq(lrigRoleBlockReason({ lrigDeck: [PIRULUK0, UMR0], centerLrig: PIRULUK0 }, UMR0, 'assist_l', cardMap), null, '別タイプのアシスト Lv0 まで弾いている');
+  eq(lrigRoleBlockReason({ lrigDeck: [PIRULUK3] }, PIRULUK3, 'center', cardMap), 'NOT_LV0', 'Lv0 以外をセンターに指定できた');
+  eq(lrigRoleBlockReason({ lrigDeck: [] }, PIRULUK0, 'center', cardMap), 'NOT_IN_DECK', 'デッキに無いカードを指定できた');
+  // ⑥ 複合タイプ（`花代/ユヅキ`）は**1つでも重なれば**同じタイプ扱い。
+  const dual = [...cardMap.values()].find(c => isStartingLrig(c) && /[/／]/.test(c.CardClass ?? ''));
   if (dual) {
     const part = (dual.CardClass ?? '').split(/[/／]/)[0].trim();
     const partAssist = [...cardMap.values()].find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === part);
     if (partAssist) {
-      eq(deckAddBlockReason(partAssist, { mainDeck: [], lrigDeck: [dual.CardNum] }, cardMap), 'LRIG_TYPE_CLASH',
+      eq(deckAddBlockReason(partAssist, { mainDeck: [], lrigDeck: [dual.CardNum], centerLrig: dual.CardNum }, cardMap), 'LRIG_TYPE_CLASH',
         '🔴複合タイプの片方だけ重なるアシストを通している');
     }
   }
+}));
+
+test('デッキ編成のルリグ指定：センター必須・アシストは左右そろえて0か2・抜いたら外れる・対戦開始の添字', () => withSavedCursor(() => {
+  // 🆕2026-09-17（ユーザー決定）＝対戦開始時のルリグ選択画面を廃止し、**デッキ編成でセンター／アシスト左／右を指定する**。
+  const PIRULUK0 = 'WD03-005', UMR0 = 'WDK09-005', TAWIL0 = 'WDK14-005', PIRULUK3 = 'WD03-002';
+  const lrigDeck = [PIRULUK3, UMR0, PIRULUK0, TAWIL0];
+  eq(deckLrigSetupProblem({ lrigDeck }, cardMap), 'NO_CENTER', 'センター未設定のデッキを対戦に出せる');
+  eq(deckLrigSetupProblem({ lrigDeck, centerLrig: PIRULUK0 }, cardMap), null, '「センターのみ」を弾いている（ユーザー決定で許す）');
+  eq(deckLrigSetupProblem({ lrigDeck, centerLrig: PIRULUK0, assistLrigL: UMR0 }, cardMap), 'ASSIST_ONE_SIDED', '🔴アシストが片側だけのデッキを対戦に出せる');
+  const full = { lrigDeck, centerLrig: PIRULUK0, assistLrigL: UMR0, assistLrigR: TAWIL0 };
+  eq(deckLrigSetupProblem(full, cardMap), null, '正しい3体指定を弾いている');
+  eq(deckLrigSetupProblem({ ...full, centerLrig: PIRULUK3 }, cardMap), 'ROLE_INVALID', '🔴Lv0 以外のセンターを対戦に出せる');
+  // 同じカードは1つの役にしか就かない（センターだったカードを左へ動かすとセンターは空く）。
+  const moved = assignLrigRole(full, PIRULUK0, 'assist_l');
+  eq(JSON.stringify([moved.centerLrig, moved.assistLrigL, moved.assistLrigR]), JSON.stringify([null, PIRULUK0, TAWIL0]), '🔴同じカードが2つの役に就いた');
+  eq(lrigRoleOf(full, TAWIL0), 'assist_r', '役の逆引きが違う');
+  eq(assignLrigRole(full, TAWIL0, null).assistLrigR, null, '同じ役を押しても外れない');
+  // カードを抜いたら役も外れる（抜いたのに指定だけ残ると、対戦開始で無いカードを置く）。
+  const pruned = pruneLrigRoles({ ...full, lrigDeck: [PIRULUK3, PIRULUK0, TAWIL0] });
+  eq(pruned.assistLrigL, null, '🔴ルリグデッキから抜いたカードがアシスト指定に残った');
+  eq(pruned.centerLrig, PIRULUK0, '抜いていないカードの指定まで外した');
+  // 対戦開始の添字＝人間も CPU も同じ関数。
+  eq(JSON.stringify(resolveDeckLrigSetup(lrigDeck, full, cardMap)), JSON.stringify({ centerIdx: 2, assistIdx: [1, 3] }), '🔴指定どおりの添字に解決しない');
+  eq(JSON.stringify(resolveDeckLrigSetup(lrigDeck, { centerLrig: PIRULUK0 }, cardMap)), JSON.stringify({ centerIdx: 2, assistIdx: null }), 'センターのみの解決が違う');
+  eq(resolveDeckLrigSetup(lrigDeck, {}, cardMap), null, '未設定のデッキを置いた');
+  eq(JSON.stringify(lrigRolesOfRow({ center_lrig: PIRULUK0, assist_lrig_l: null })), JSON.stringify({ centerLrig: PIRULUK0, assistLrigL: null, assistLrigR: null }), 'DB 行の読み替えが違う');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
@@ -86516,14 +86547,11 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   eq(lastCommitArrived({ pendingCommits: 1, localUpdatedAt: '2099-01-01T00:00:00+00:00', lastCommitUpdatedAt: '' }), false, '🔴書き込み中なのに次の実行を許した');
 }));
 
-test('§5.6 C-5 追補 セットアップ：CPU も Lv0 が3枚以上ならアシストを置く（盤面は人間と同じ buildLrigSetupState）', () => withSavedCursor(() => {
-  // センター＝上のレベルのルリグが一番多い系統の Lv0／アシスト＝残りの Lv0 をデッキ順に2枚
+test('§5.6 C-5 追補 セットアップ：人間も CPU もデッキの指定どおりに置く（盤面は同じ buildLrigSetupState）', () => withSavedCursor(() => {
+  // 🆕2026-09-17＝どれを置くかはデッキ編成の指定（`resolveDeckLrigSetup`）。旧 `pickCpuLrigSetup`（CPU が推測）と人間の選択画面は廃止。
   const lrigDeck = ['WDK09-005', 'WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WXDi-D01-009', 'WDK14-005'];
-  const pick = pickCpuLrigSetup(lrigDeck, cardMap);
-  eq(pick?.centerIdx, 1, 'センターがピルルク（Lv1〜3 を持つ系統）になっていない');
-  eq(JSON.stringify(pick?.assistIdx), JSON.stringify([0, 6]), '🔴Lv0 が3枚あるのにアシストを置かない（旧実装はセンターだけ）');
-  eq(pickCpuLrigSetup(['WD03-005', 'WD03-004'], cardMap)?.assistIdx, null, 'Lv0 が1枚なのにアシストを置いた');
-  eq(pickCpuLrigSetup(['WD03-004'], cardMap), null, 'Lv0 が無いのにセンターを決めた');
+  const pick = resolveDeckLrigSetup(lrigDeck, { centerLrig: 'WD03-005', assistLrigL: 'WDK09-005', assistLrigR: 'WDK14-005' }, cardMap);
+  eq(JSON.stringify(pick), JSON.stringify({ centerIdx: 1, assistIdx: [0, 6] }), '指定どおりに解決しない');
   const ids = lrigDeck.map((n, i) => `${n}#g${i}`);
   const main = Array.from({ length: 12 }, (_, i) => `M${i}`);
   const st = buildLrigSetupState({ lrigWithIds: ids, mainWithIds: main, centerId: ids[1], assistLId: ids[0], assistRId: ids[6], cardMap });
@@ -86532,8 +86560,12 @@ test('§5.6 C-5 追補 セットアップ：CPU も Lv0 が3枚以上ならア�
   ok(!st.lrig_deck.includes(ids[0]) && !st.lrig_deck.includes(ids[1]) && !st.lrig_deck.includes(ids[6]) && st.lrig_deck.length === 4, '🔴置いたルリグがルリグデッキに残っている（複製）');
   eq(st.hand.length + st.deck.length, 12, '手札5枚＋残りがデッキになっていない');
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((battle.match(/buildLrigSetupState\(\{/g) ?? []).length, 4, '🔴セットアップの盤面を手書きしている経路がある（人間3経路＋CPU）');
-  ok(/pickCpuLrigSetup\(cpuDeckData\.lrig_deck/.test(battle), '🔴CPU のセットアップが pickCpuLrigSetup を通っていない');
+  eq((battle.match(/buildLrigSetupState\(\{/g) ?? []).length, 2, '🔴セットアップの盤面を手書きしている経路がある（人間の自動配置＋CPU）');
+  ok(/resolveDeckLrigSetup\(myDeckData\.lrig_deck, lrigRolesOfRow\(myDeckData\)/.test(battle), '🔴人間の配置がデッキの指定を通っていない');
+  ok(/resolveDeckLrigSetup\(cpuDeckData\.lrig_deck, lrigRolesOfRow\(cpuDeckData\)/.test(battle), '🔴CPU の配置がデッキの指定を通っていない');
+  ok(!/センタールリグを配置<\/h2>|アシストルリグを配置しますか/.test(battle), '🔴対戦開始時のルリグ選択画面が残っている（廃止した）');
+  // 🔴CPU のデッキのカードが battleCardMap に載っていないと、人間と別デッキの CPU はルリグを引けず置けない。
+  ok(/if \(cpuDeckData\) \{ addAll\(cpuDeckData\.main_deck\); addAll\(cpuDeckData\.lrig_deck\); \}/.test(battle), '🔴CPU のデッキが battleCardNums に載っていない');
 }));
 
 test('対戦終了：CPU 戦は人間が押せば CPU の分も押す／押した後は DB を読み直す（「終了待機中」のまま止まらない）', () => withSavedCursor(() => {

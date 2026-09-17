@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
+import { deckLrigSetupProblem } from '../utils/deckLrigSetup';
 
 interface Props {
   user: User;
@@ -36,15 +37,10 @@ const wrap: React.CSSProperties = {
 export default function MatchmakingScreen({ user, decks, cards, onBattleStart, onBack }: Props) {
   const cardMap = useMemo(() => new Map(cards.map(c => [c.CardNum, c])), [cards]);
 
-  // メインデッキ40枚 かつ ルリグデッキにLv.0ルリグが存在するデッキのみ表示
+  // メインデッキ40枚 かつ「最初に場に出すルリグ」の指定が対戦に出せる形のデッキのみ表示
+  // （2026-09-17＝対戦開始時のルリグ選択を廃止し、デッキ編成で指定する＝`utils/deckLrigSetup.ts`）
   const validDecks = useMemo(() => {
-    return decks.filter(deck => {
-      if (deck.mainDeck.length !== 40) return false;
-      return deck.lrigDeck.some(num => {
-        const c = cardMap.get(num);
-        return c?.Type === 'ルリグ' && c.Level === '0';
-      });
-    });
+    return decks.filter(deck => deck.mainDeck.length === 40 && deckLrigSetupProblem(deck, cardMap) === null);
   }, [decks, cardMap]);
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
@@ -181,7 +177,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: '#888', textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
             使用可能なデッキがありません。<br />
-            メインデッキ40枚・ルリグデッキにLv.0ルリグが入ったデッキを作成してください。
+            メインデッキ40枚で、デッキ編成の「ルリグ」タブでセンタールリグを指定したデッキを作成してください。
           </p>
         </div>
       ) : (

@@ -34,6 +34,13 @@ const MECH_DECK = {
   ],
 };
 const deck = MECH ? MECH_DECK : JSON.parse(readFileSync('verify-deck.json', 'utf-8'));
+// 🆕2026-09-17＝**最初に場に出すルリグはデッキで指定する**（対戦開始時の選択画面は廃止）＝指定の無いデッキはマッチングに出ない。
+//   MECH＝センター コード・ピルルク／アシスト左 ウムル＝ノル／右 タウィル＝ノル。VERIFY_DECK＝`verify-deck.json` に
+//   `center_lrig` 等があればそれ、無ければ WD03-005（コード・ピルルク）をセンターのみで置く。
+const ROLES = MECH
+  ? { center_lrig: 'WD03-005', assist_lrig_l: 'WDK09-005', assist_lrig_r: 'WDK14-005' }
+  : { center_lrig: deck.center_lrig ?? 'WD03-005', assist_lrig_l: deck.assist_lrig_l ?? null, assist_lrig_r: deck.assist_lrig_r ?? null };
+if (!deck.lrig_deck.includes(ROLES.center_lrig)) { console.error(`センター ${ROLES.center_lrig} がルリグデッキに無い`); process.exit(1); }
 const DECK_NAME = MECH ? 'VERIFY_DECK_MECH' : 'VERIFY_DECK';
 if (deck.main_deck.length !== 40) { console.error(`メインデッキが40枚でない: ${deck.main_deck.length}`); process.exit(1); }
 
@@ -62,24 +69,25 @@ async function login(page, url, acc) {
 }
 
 async function ensureDeck(page, acc) {
-  return await page.evaluate(async ({ SUPA_URL, ANON, deck, name, sortOrder }) => {
+  return await page.evaluate(async ({ SUPA_URL, ANON, deck, name, sortOrder, roles }) => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
     if (!key) return { error: 'auth-token がlocalStorageに無い' };
     const sess = JSON.parse(localStorage.getItem(key));
     const token = sess.access_token; const uid = sess.user?.id;
     if (!token || !uid) return { error: 'token/uid 取得失敗' };
     const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const existRes = await fetch(`${SUPA_URL}/rest/v1/decks?user_id=eq.${uid}&name=eq.${encodeURIComponent(name)}&select=id,main_deck,lrig_deck`, { headers: h });
+    const existRes = await fetch(`${SUPA_URL}/rest/v1/decks?user_id=eq.${uid}&name=eq.${encodeURIComponent(name)}&select=id,main_deck,lrig_deck,center_lrig,assist_lrig_l,assist_lrig_r`, { headers: h });
     const exist = await existRes.json();
     if (Array.isArray(exist) && exist.length) {
       const cur = exist[0];
       // 🆕§5.6 `C-7`＝中身が変わっていたら上書きする（旧＝名前があれば常にスキップ＝構成を変えても山に届かなかった）。
-      if (JSON.stringify(cur.main_deck) === JSON.stringify(deck.main_deck) && JSON.stringify(cur.lrig_deck) === JSON.stringify(deck.lrig_deck)) {
+      const sameRoles = cur.center_lrig === roles.center_lrig && cur.assist_lrig_l === roles.assist_lrig_l && cur.assist_lrig_r === roles.assist_lrig_r;
+      if (sameRoles && JSON.stringify(cur.main_deck) === JSON.stringify(deck.main_deck) && JSON.stringify(cur.lrig_deck) === JSON.stringify(deck.lrig_deck)) {
         return { uid, existed: true, deckId: cur.id };
       }
       const upd = await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${cur.id}`, {
         method: 'PATCH', headers: { ...h, Prefer: 'return=representation' },
-        body: JSON.stringify({ main_deck: deck.main_deck, lrig_deck: deck.lrig_deck }),
+        body: JSON.stringify({ main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, ...roles }),
       });
       const updBody = await upd.json();
       if (!upd.ok || !Array.isArray(updBody) || updBody.length === 0) return { uid, error: 'update失敗 ' + JSON.stringify(updBody) };
@@ -87,12 +95,12 @@ async function ensureDeck(page, acc) {
     }
     const ins = await fetch(`${SUPA_URL}/rest/v1/decks`, {
       method: 'POST', headers: { ...h, Prefer: 'return=representation' },
-      body: JSON.stringify({ user_id: uid, name, main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, sort_order: sortOrder }),
+      body: JSON.stringify({ user_id: uid, name, main_deck: deck.main_deck, lrig_deck: deck.lrig_deck, sort_order: sortOrder, ...roles }),
     });
     const body = await ins.json();
     if (!ins.ok) return { uid, error: 'insert失敗 ' + JSON.stringify(body) };
     return { uid, inserted: true, deckId: body[0]?.id };
-  }, { SUPA_URL, ANON, deck, name: DECK_NAME, sortOrder: MECH ? 1 : 0 });
+  }, { SUPA_URL, ANON, deck, name: DECK_NAME, sortOrder: MECH ? 1 : 0, roles: ROLES });
 }
 
 const { proc, url } = await startDev();

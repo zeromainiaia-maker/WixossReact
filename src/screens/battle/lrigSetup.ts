@@ -1,6 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
-import { lrigClassesCompatible } from './growLogic';
 
 /**
  * ゲーム開始時のルリグ配置（§5.6 `C-5` 追補・§5.1 `V-247`・2026-09-17）。
@@ -12,7 +11,9 @@ import { lrigClassesCompatible } from './growLogic';
  * 🔴**なぜ切り出したか**＝人間のセットアップ（JSX の3経路）と CPU のセットアップが**別々に** `PlayerState` を手書きしており、
  *   CPU は**センターしか置かなかった**（Lv0 が3枚以上あってもアシストを置かない）＝**実戦の CPU はアシストグロウも
  *   アシストのアタックも一度もできなかった**（C-5 の実機シナリオはアシストを注入していたので通っていた）。
- *   ⇒ 盤面の組み立ては `buildLrigSetupState` の1本（人間も CPU も通る）、CPU は `pickCpuLrigSetup` で**どれを置くかだけ**決める。
+ *   ⇒ 盤面の組み立ては `buildLrigSetupState` の1本（人間も CPU も通る）。
+ * 🆕2026-09-17＝**どれを置くかはデッキ編成で指定する**（`utils/deckLrigSetup.ts` の `resolveDeckLrigSetup`＝人間も CPU も同じ）。
+ *   旧 `pickCpuLrigSetup`（CPU が Lv0 から推測して選ぶ）と、人間の対戦開始時の選択画面は廃止。
  */
 export function buildLrigSetupState(p: {
   lrigWithIds: string[];
@@ -36,24 +37,4 @@ export function buildLrigSetupState(p: {
       check: null, key_piece: null, free_zone: [],
     },
   } as PlayerState;
-}
-
-/**
- * CPU のルリグ配置＝**センター**は「そのルリグタイプで上のレベルのルリグが一番多い Lv0」（同数はデッキ順）、
- * **アシスト**は Lv0 が3枚以上あるときだけ、センター以外の Lv0 をデッキ順に2枚。
- * @returns ルリグデッキ内の添字（Lv0 のルリグが無ければ null）
- */
-export function pickCpuLrigSetup(
-  lrigDeckNums: string[], cardMap: Map<string, CardData>,
-): { centerIdx: number; assistIdx: [number, number] | null } | null {
-  const cardOf = (i: number) => cardMap.get(getCardNum(lrigDeckNums[i]));
-  const lv0 = lrigDeckNums.map((_, i) => i).filter(i => cardOf(i)?.Type === 'ルリグ' && cardOf(i)?.Level === '0');
-  if (lv0.length === 0) return null;
-  const lineLength = (i: number) => lrigDeckNums.filter((_, j) => {
-    const c = cardOf(j);
-    return c?.Type === 'ルリグ' && (parseInt(c.Level) || 0) >= 1 && lrigClassesCompatible(cardOf(i)?.CardClass ?? '', c.CardClass ?? '');
-  }).length;
-  const centerIdx = [...lv0].sort((a, b) => lineLength(b) - lineLength(a) || a - b)[0];
-  const others = lv0.filter(i => i !== centerIdx);
-  return { centerIdx, assistIdx: lv0.length >= 3 ? [others[0], others[1]] : null };
 }

@@ -2,33 +2,21 @@
 // useMiscBattleUI と同じく「小型ドメインを1ファイルに同居」させる方式。
 import { useDomainState } from './useDomainState';
 
-// ── 開始時セットアップ（マリガン選択＋アシストルリグセットアップの中間状態） ──
+// ── 開始時セットアップ（マリガン選択の中間状態）──
+// ⚠ルリグの配置はデッキ編成で指定する（2026-09-17）＝対戦開始時の選択の中間状態は持たない。
 export interface GameStartSetupState {
   /** マリガンで選択中の手札インデックス */
   mulliganSelected: Set<number>;
-  /** センタールリグ選択後〜アシスト確定までの中間状態 */
-  pendingLrigSetup: {
-    centerCardNum: string;
-    centerInstanceId: string;
-    lrigWithIds: string[];
-    mainWithIds: string[];
-    remainingLv0: Array<{ cardNum: string; instanceId: string; origIdx: number }>;
-    assistStep: 'confirm' | 'select_l' | 'select_r';
-    assistLInstanceId: string | null;
-    assistLCardNum: string | null;
-  } | null;
 }
 
-/** ゲーム開始時セットアップ（マリガン・アシストルリグ配置）の中間 state。 */
+/** ゲーム開始時セットアップ（マリガン）の中間 state。 */
 export function useGameStartSetup() {
   const [state, set] = useDomainState<GameStartSetupState>({
     mulliganSelected: new Set(),
-    pendingLrigSetup: null,
   });
   return {
     ...state,
     setMulliganSelected: set.mulliganSelected,
-    setPendingLrigSetup: set.pendingLrigSetup,
   };
 }
 

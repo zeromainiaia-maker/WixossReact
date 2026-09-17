@@ -119,6 +119,10 @@ export interface Deck {
   thumbnailCardNum?: string;
   sortOrder?: number;
   artOverrides?: Record<string, string>; // canonicalCardNum → variantCardNum（表示のみ）
+  /** 最初に場に出すルリグ（カード番号・Lv0 のルリグ）。判定は `utils/deckLrigSetup.ts`。 */
+  centerLrig?: string | null;
+  assistLrigL?: string | null;
+  assistLrigR?: string | null;
 }
 
 export interface Room {

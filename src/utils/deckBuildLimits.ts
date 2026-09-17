@@ -93,7 +93,7 @@ export type DeckAddBlockReason =
  */
 export function deckAddBlockReason(
   card: CardData,
-  deck: { mainDeck: string[]; lrigDeck: string[] },
+  deck: { mainDeck: string[]; lrigDeck: string[]; centerLrig?: string | null },
   cardMap: Map<string, CardData>,
 ): DeckAddBlockReason | null {
   const countByName = (list: string[]) =>
@@ -116,16 +116,14 @@ export function deckAddBlockReason(
     // 🆕🔴**§5.6 `C-9` `R-47`（2026-09-17 ユーザー裁定）＝センタールリグと同じルリグタイプの
     //   アシストルリグは入れられない。** ⇒ 「同じルリグタイプのルリグが場に複数並ぶ」状態は
     //   **構築で作れない**ので、場のルール処理（EN Rule-based action 5）は要らない。
-    // ⚠**両方向で止める**＝アシストを先に入れてから同タイプのセンターを足す道を塞ぐ
-    //   （片方だけだと順番を変えるだけで illegal なデッキが作れる）。
+    // 🔴**センターは「デッキで指定した Lv0」だけ**（`utils/deckLrigSetup.ts`）＝旧実装はルリグデッキの「ルリグ」全部を
+    //   センター扱いしており、**アシスト系統の Lv0（ウムル＝ノル等・種別は「ルリグ」）と同タイプのアシストが入らなかった**
+    //   ＝普通の3ルリグデッキが組めなかった。
+    // ⚠**逆向き（センター／アシストの指定側）は `lrigRoleBlockReason`** が止める。
     // ⚠**アシスト同士の同タイプは止めない**＝裁定はセンターとの重なりについてだけ。
-    if (card.Type === 'アシストルリグ' || card.Type === 'ルリグ') {
-      const otherType = card.Type === 'アシストルリグ' ? 'ルリグ' : 'アシストルリグ';
-      const clash = deck.lrigDeck.some(num => {
-        const other = cardMap.get(num);
-        return other?.Type === otherType && sharesLrigType(card, other);
-      });
-      if (clash) return 'LRIG_TYPE_CLASH';
+    if (card.Type === 'アシストルリグ' && deck.centerLrig) {
+      const center = cardMap.get(deck.centerLrig);
+      if (center && sharesLrigType(card, center)) return 'LRIG_TYPE_CLASH';
     }
     const extraCount = deck.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isExtraLrigCard(c); }).length;
     if (isExtraLrigCard(card)) {

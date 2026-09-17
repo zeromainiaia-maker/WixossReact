@@ -2,7 +2,12 @@
 // 「どのデッキで・CPU戦か・読み込み中か」＝1試合のライフサイクル状態。ゲーム盤面（bs）とは別。
 import { useDomainState } from './useDomainState';
 
-type DeckData = { main_deck: string[]; lrig_deck: string[] } | null;
+/** `decks` の行のうち対戦で使う列（最初に場に出すルリグの指定を含む＝`utils/deckLrigSetup.ts`）。 */
+export const DECK_DATA_COLUMNS = 'main_deck, lrig_deck, center_lrig, assist_lrig_l, assist_lrig_r';
+type DeckData = {
+  main_deck: string[]; lrig_deck: string[];
+  center_lrig: string | null; assist_lrig_l: string | null; assist_lrig_r: string | null;
+} | null;
 
 export interface BattleSessionState {
   /** 非同期処理中ガード（読み込み・アクション送信中） */

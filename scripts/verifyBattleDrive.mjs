@@ -59292,16 +59292,19 @@ order.push('v204LrigDeckArtsCapBlocksFourth');
 // ── 🆕§5.1 `V-262`（2026-09-17）＝**センタールリグと同じルリグタイプのアシストルリグは入れられない**（`R-47`）──
 // 🔑**2026-09-17 ユーザー裁定**＝これは**構築の制限**であって場のルール処理ではない
 //   （＝「同じルリグタイプのルリグが場に複数並ぶ」状態はそもそも作れないので、EN Rule-based action 5 は要らない）。
-// 🔴**触った地点**＝`src/utils/deckBuildLimits.ts`（`deckAddBlockReason` / `sharesLrigType`）＝
-//   engine のどの funnel にも乗らない層なので、`V-204` と同じ `noInject` ハーネスで実機を見る。
-// 🔑**1ビット反転は「センター（`WX03-001`＝ウムル）がルリグデッキに在るか」だけ**＝
-//   同じアシスト（`WXDi-D01-009`＝ウムル＝ドロー）が、在ると入らず／抜くと入る。
-// ⚠**対照**＝別タイプのアシスト（`WXDi-D09-H06`＝タマ）はセンターが在っても入る（全部弾いていないこと）。
+// 🆕🔴**同日＝センターは「デッキ編成で指定した Lv0」**（`utils/deckLrigSetup.ts`・対戦開始時の選択画面は廃止）。
+//   初版はルリグデッキの「ルリグ」全部をセンター扱いしており、アシスト系統の Lv0（ウムル＝ノル）と同タイプの
+//   アシストが入らなかった＝普通の3ルリグデッキが組めなかった。⇒ **センターは画面の［センター］ボタンで指定する。**
+// 🔴**触った地点**＝`src/utils/deckBuildLimits.ts`（`deckAddBlockReason`）＋`src/utils/deckLrigSetup.ts`＋
+//   `DeckEditorScreen` の役ボタン（`data-testid="lrig-role-<役>-<番号>"`）＝`V-204` と同じ `noInject` ハーネスで実機を見る。
+// 🔑**1ビット反転は「ウムル＝ノル（`WDK09-005`）をセンターに指定しているか」だけ**＝
+//   同じアシスト（`WXDi-D01-009`＝ウムル＝ドロー）が、指定中は入らず／カードを抜いて指定が外れると入る。
+// ⚠**対照**＝別タイプのアシスト（`WXDi-D09-H06`＝タマ）はセンター指定中でも入る（全部弾いていないこと）。
 scenarios.v262LrigTypeClashBlocksAssist = {
-  title: 'V-262 センターと同じルリグタイプのアシストは入らない（別タイプは入る／センターを抜けば入る）',
+  title: 'V-262 指定したセンターと同じルリグタイプのアシストは入らない（別タイプは入る／センターを抜けば入る）',
   noInject: true,
   async drive(page, H) {
-    const CENTER = 'WX03-001';        // 創造の鍵主 ウムル=フィーラ（ルリグ・タイプ「ウムル」）
+    const CENTER = 'WDK09-005';       // 奏世の鍵主 ウムル＝ノル（ルリグ Lv0・タイプ「ウムル」）
     const SAME = 'WXDi-D01-009';      // ウムル＝ドロー（アシスト・タイプ「ウムル」）＝入らないはず
     const OTHER = 'WXDi-D09-H06';     // タマ・おおごえ（アシスト・タイプ「タマ」）＝入るはず
     const DECK_NAME = `VERIFY_V262_${Date.now()}`;
@@ -59333,7 +59336,7 @@ scenarios.v262LrigTypeClashBlocksAssist = {
       const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
       const sess = JSON.parse(localStorage.getItem(key));
       const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
-      return (await (await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}&select=lrig_deck`, { headers: h })).json())?.[0]?.lrig_deck ?? null;
+      return (await (await fetch(`${SUPA_URL}/rest/v1/decks?id=eq.${id}&select=lrig_deck,center_lrig`, { headers: h })).json())?.[0] ?? null;
     }, { SUPA_URL, ANON, id });
     const deleteDeck = (id) => page.evaluate(async ({ SUPA_URL, ANON, id }) => {
       const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
@@ -59348,7 +59351,7 @@ scenarios.v262LrigTypeClashBlocksAssist = {
     try {
       paused = await pauseRooms();
       deckId = await createDeck(DECK_NAME, [CENTER]);
-      H.log(`ルーム退避=${JSON.stringify(paused)} 検証デッキ=${deckId}（${DECK_NAME}・センター=${CENTER}）`);
+      H.log(`ルーム退避=${JSON.stringify(paused)} 検証デッキ=${deckId}（${DECK_NAME}・ルリグデッキ=[${CENTER}]・センター未指定）`);
       if (!deckId) return { pass: false, detail: '前提崩れ＝検証用デッキを作成できなかった（RLS/認証）' };
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForTimeout(2500);
@@ -59358,6 +59361,25 @@ scenarios.v262LrigTypeClashBlocksAssist = {
       await page.waitForTimeout(1500);
       if (!await H.clickTextOrBtn([DECK_NAME])) return { pass: false, detail: `前提崩れ＝デッキ一覧に ${DECK_NAME} が出ない` };
       await page.waitForTimeout(1200);
+
+      // ⓪ 画面の［センター］ボタンでウムル＝ノルをセンターに指定する（DB に届くこと）。
+      await H.clickTextOrBtn(['デッキ内容']);
+      await page.waitForTimeout(500);
+      const lrigTab = page.getByRole('button', { name: /ルリグ \d+\/10/ }).first();
+      if (!(await lrigTab.count())) return { pass: false, detail: '前提崩れ＝デッキ内容の「ルリグ」タブが出ない' };
+      await lrigTab.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(500);
+      const centerBtn = page.getByTestId(`lrig-role-center-${CENTER}`).first();
+      if (!(await centerBtn.count())) return { pass: false, detail: `🔴ルリグタブに ${CENTER}（Lv0）の［センター］ボタンが出ない` };
+      await centerBtn.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const afterCenter = await readDeck(deckId);
+      await page.screenshot({ path: `${SHOT}/v262-00-center.png`, fullPage: true });
+      H.log(`⓪ センター指定: ${JSON.stringify(afterCenter)}`);
+      if (afterCenter?.center_lrig !== CENTER) {
+        return { pass: false, detail: `🔴［センター］を押しても DB の center_lrig が ${CENTER} にならない（${JSON.stringify(afterCenter)}）` };
+      }
+
       await H.clickTextOrBtn(['カード追加']);
       await page.waitForTimeout(600);
       const searchBox = page.getByPlaceholder('カード名・番号で検索').first();
@@ -59371,41 +59393,46 @@ scenarios.v262LrigTypeClashBlocksAssist = {
         await page.waitForTimeout(1200);
         return { enabled, deck: await readDeck(deckId) };
       };
+      const lrigOf = (d) => d?.lrig_deck ?? [];
 
-      // ① 本命＝センターと同じタイプのアシストは入らない（＋も押せない）。
+      // ① 本命＝指定したセンターと同じタイプのアシストは入らない（＋も押せない）。
       const same = await tryAdd(SAME);
       await page.screenshot({ path: `${SHOT}/v262-01-blocked.png`, fullPage: true });
-      H.log(`① 同タイプ: ＋enabled=${same.enabled} lrig_deck=${JSON.stringify(same.deck)}`);
+      H.log(`① 同タイプ: ＋enabled=${same.enabled} deck=${JSON.stringify(same.deck)}`);
       if (same.enabled === null) return { pass: false, detail: `前提崩れ＝検索に ${SAME} の行が出ない` };
-      if ((same.deck ?? []).includes(SAME)) {
-        return { pass: false, detail: `🔴センター（${CENTER}＝ウムル）と同じルリグタイプのアシスト（${SAME}）が入った（lrig_deck=${JSON.stringify(same.deck)}）` };
+      if (lrigOf(same.deck).includes(SAME)) {
+        return { pass: false, detail: `🔴センター（${CENTER}＝ウムル）と同じルリグタイプのアシスト（${SAME}）が入った（${JSON.stringify(same.deck)}）` };
       }
       if (same.enabled === true) {
         return { pass: false, detail: '🔴入れられないのに＋ボタンが押せる状態だった（押しても無言 return＝理由も出ない）' };
       }
       // ② 対照＝別タイプのアシストは入る（全部弾いていないこと）。
       const other = await tryAdd(OTHER);
-      H.log(`② 別タイプ: ＋enabled=${other.enabled} lrig_deck=${JSON.stringify(other.deck)}`);
-      if (!(other.deck ?? []).includes(OTHER)) {
-        return { pass: false, detail: `🔴別タイプのアシスト（${OTHER}＝タマ）まで入らない＝タイプ以外の理由で止まっている（enabled=${other.enabled} lrig_deck=${JSON.stringify(other.deck)}）` };
+      H.log(`② 別タイプ: ＋enabled=${other.enabled} deck=${JSON.stringify(other.deck)}`);
+      if (!lrigOf(other.deck).includes(OTHER)) {
+        return { pass: false, detail: `🔴別タイプのアシスト（${OTHER}＝タマ）まで入らない＝タイプ以外の理由で止まっている（enabled=${other.enabled} deck=${JSON.stringify(other.deck)}）` };
       }
-      // ③ 1ビット反転＝センターを抜くと、同じアシストが入る。
+      // ③ 1ビット反転＝センターのカードを抜くと指定も外れ、同じアシストが入る。
       await searchBox.fill(CENTER);
       await page.waitForTimeout(900);
       const rm = page.getByTestId(`search-remove-${CENTER}`).first();
       if (!(await rm.count())) return { pass: false, detail: `前提崩れ＝検索に ${CENTER} の行が出ない` };
       await rm.click({ timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(1200);
+      const removed = await readDeck(deckId);
+      if (removed?.center_lrig !== null) {
+        return { pass: false, detail: `🔴センターのカードを抜いたのに center_lrig が残った（${JSON.stringify(removed)}）＝対戦開始で無いカードを置く` };
+      }
       const flipped = await tryAdd(SAME);
       await page.screenshot({ path: `${SHOT}/v262-02-allowed.png`, fullPage: true });
-      H.log(`③ センターを抜いた: ＋enabled=${flipped.enabled} lrig_deck=${JSON.stringify(flipped.deck)}`);
-      if (!(flipped.deck ?? []).includes(SAME)) {
-        return { pass: false, detail: `🔴センターを抜いても同じアシスト（${SAME}）が入らない＝タイプ一致と無関係の理由で止まっている（enabled=${flipped.enabled} lrig_deck=${JSON.stringify(flipped.deck)}）` };
+      H.log(`③ センターを抜いた: ＋enabled=${flipped.enabled} deck=${JSON.stringify(flipped.deck)}`);
+      if (!lrigOf(flipped.deck).includes(SAME)) {
+        return { pass: false, detail: `🔴センターを抜いても同じアシスト（${SAME}）が入らない＝タイプ一致と無関係の理由で止まっている（enabled=${flipped.enabled} deck=${JSON.stringify(flipped.deck)}）` };
       }
       return {
         pass: true,
-        detail: `センター（${CENTER}＝ウムル）が在ると同タイプのアシスト（${SAME}）は＋が disabled で入らず、`
-          + `別タイプ（${OTHER}＝タマ）は入り、センターを抜くだけで同じアシストが入った（lrig_deck=${JSON.stringify(flipped.deck)}）`,
+        detail: `［センター］で ${CENTER}（ウムル）を指定すると DB に届き、同タイプのアシスト（${SAME}）は＋が disabled で入らず、`
+          + `別タイプ（${OTHER}＝タマ）は入り、センターを抜くと指定も外れて同じアシストが入った（${JSON.stringify(flipped.deck)}）`,
       };
     } finally {
       if (deckId) await deleteDeck(deckId).catch(() => {});
@@ -63729,7 +63756,7 @@ try {
     await page.waitForTimeout(3500);
     console.log('battle enter:', await bodyText());
 
-    // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）
+    // セットアップ自動進行（じゃんけん→ルリグ自動配置→マリガン→ゲーム開始）
     const hands = ['グー', 'チョキ', 'パー'];
     let handIdx = 0;
     for (let i = 0; i < 40; i++) {
@@ -63742,10 +63769,11 @@ try {
         const el = page.getByRole('button', { name: hh }).first();
         if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + hh; }
         await page.waitForTimeout(2500);
-      } else if (/ルリグを配置|ルリグを選/.test(txt)) {
-        const btn = page.locator('button', { hasText: 'WD03-005' }).first();
-        if (await btn.count()) { await btn.click().catch(() => {}); clicked = 'ルリグ(WD03-005)'; }
-        else { const b2 = page.locator('button', { hasText: 'コード・ピルルク' }).first(); if (await b2.count()) { await b2.click().catch(() => {}); clicked = 'ルリグ(名前)'; } }
+      } else if (/ルリグを配置できません/.test(txt)) {
+        // 🆕2026-09-17＝ルリグはデッキ編成で指定する（対戦開始時の選択画面は廃止＝自動で置かれる）。
+        throw new Error('VERIFY_DECK にルリグの指定が無い＝`node scripts/verifySetupDeck.mjs` を回し直す');
+      } else if (/ルリグを配置しています/.test(txt)) {
+        clicked = '(ルリグ自動配置待ち)';
       } else {
         for (const t of ['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']) {
           const el = page.getByRole('button', { name: t }).first();

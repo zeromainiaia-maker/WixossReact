@@ -5,6 +5,10 @@ import {
   deckAddBlockReason, isExtraLrigCard,
   MAIN_MAX, LRIG_MAX, LRIG_EXTRA_MAX,
 } from '../utils/deckBuildLimits';
+import {
+  assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, pruneLrigRoles,
+  DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
+} from '../utils/deckLrigSetup';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
@@ -140,12 +144,24 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
     if (idx === -1) return;
     const next = [...list];
     next.splice(idx, 1);
+    // ルリグデッキから抜けたカードは「最初に場に出すルリグ」の指定からも外す。
     const updated = from === 'main'
       ? { ...current, mainDeck: next }
-      : { ...current, lrigDeck: next };
+      : pruneLrigRoles({ ...current, lrigDeck: next });
     setCurrent(updated);
     onUpdate(updated);
   };
+
+  // 🆕2026-09-17＝**最初に場に出すルリグ（センター／アシスト左／右）はデッキ編成で指定する**（対戦開始時の選択画面は廃止）。
+  //   可否は `lrigRoleBlockReason` の1本（`R-47` のタイプ重複もここ）。同じ役を押すと外す。
+  const toggleLrigRole = (cardNum: string, role: LrigRole) => {
+    const active = lrigRoleOf(current, cardNum) === role;
+    if (!active && lrigRoleBlockReason(current, cardNum, role, cardMap) !== null) return;
+    const updated = assignLrigRole(current, cardNum, active ? null : role);
+    setCurrent(updated);
+    onUpdate(updated);
+  };
+  const lrigSetupProblem = deckLrigSetupProblem(current, cardMap);
 
   const switchVariant = (canonicalCardNum: string, variantCardNum: string) => {
     const overrides = { ...(current.artOverrides ?? {}) };
@@ -238,6 +254,30 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
           </div>
           <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card?.CardNum} / {card?.Type}{card?.Level ? ` / Lv.${card.Level}` : ''} / {card?.Color}</p>
           {card?.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: '0 0 2px' }}>{card.CardClass}</p>}
+          {from === 'lrig' && isStartingLrig(card) && (
+            <div style={{ display: 'flex', gap: '4px', margin: '2px 0 4px' }}>
+              {(['center', 'assist_l', 'assist_r'] as const).map(role => {
+                const active = lrigRoleOf(current, cardNum) === role;
+                const block = active ? null : lrigRoleBlockReason(current, cardNum, role, cardMap);
+                return (
+                  <button
+                    key={role}
+                    data-testid={`lrig-role-${role}-${cardNum}`}
+                    onClick={e => { e.stopPropagation(); toggleLrigRole(cardNum, role); }}
+                    disabled={block !== null}
+                    title={block ? LRIG_ROLE_BLOCK_JA[block] : undefined}
+                    style={{
+                      border: 'none', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontWeight: 'bold',
+                      cursor: block ? 'default' : 'pointer',
+                      backgroundColor: active ? '#5533aa' : block ? '#ddd' : '#fff',
+                      color: active ? '#fff' : block ? '#999' : '#5533aa',
+                      boxShadow: active ? 'none' : 'inset 0 0 0 1px #b8a8e0',
+                    }}
+                  >{LRIG_ROLE_JA[role]}</button>
+                );
+              })}
+            </div>
+          )}
           {card?.EffectText && card.EffectText !== '-' && (
             <p style={effectTextStyle}><span style={effectLabelStyle}>通常</span>{card.EffectText}</p>
           )}
@@ -309,7 +349,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 color: deckTab === tab ? '#5533aa' : '#888',
                 fontSize: '13px', fontWeight: deckTab === tab ? 'bold' : 'normal',
               }}>
-                {tab === 'main' ? `メイン ${current.mainDeck.length}/${MAIN_MAX}` : `ルリグ ${regularLrigCount}/${LRIG_MAX} ＋${extraLrigCount}/${LRIG_EXTRA_MAX}`}
+                {tab === 'main' ? `メイン ${current.mainDeck.length}/${MAIN_MAX}` : `${lrigSetupProblem ? '⚠' : ''}ルリグ ${regularLrigCount}/${LRIG_MAX} ＋${extraLrigCount}/${LRIG_EXTRA_MAX}`}
               </button>
             ))}
           </div>
@@ -322,7 +362,15 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 {mainLbNo.map(([num, count]) => renderDeckRow(num, count, 'main'))}
               </>
             ) : (
-              sortedLrigEntries.map(([num, count]) => renderDeckRow(num, count, 'lrig'))
+              <>
+                <div data-testid="lrig-setup-summary" style={sectionHeaderStyle(lrigSetupProblem ? '#ffe3e3' : '#e3f5e8', lrigSetupProblem ? '#992222' : '#1a5a2a')}>
+                  最初に場に出すルリグ：センター {cardMap.get(current.centerLrig ?? '')?.CardName ?? '未設定'}
+                  ／左 {cardMap.get(current.assistLrigL ?? '')?.CardName ?? 'なし'}
+                  ／右 {cardMap.get(current.assistLrigR ?? '')?.CardName ?? 'なし'}
+                  {lrigSetupProblem && <div style={{ fontSize: '11px', fontWeight: 'normal', marginTop: '2px' }}>⚠ {DECK_LRIG_SETUP_PROBLEM_JA[lrigSetupProblem]}（対戦に出せません）</div>}
+                </div>
+                {sortedLrigEntries.map(([num, count]) => renderDeckRow(num, count, 'lrig'))}
+              </>
             )}
           </div>
         </div>

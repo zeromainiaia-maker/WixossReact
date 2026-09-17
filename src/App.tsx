@@ -151,6 +151,9 @@ export default function App() {
         thumbnailCardNum: d.thumbnail_card_num,
         sortOrder: d.sort_order ?? 0,
         artOverrides: d.art_overrides ?? {},
+        centerLrig: d.center_lrig ?? null,
+        assistLrigL: d.assist_lrig_l ?? null,
+        assistLrigR: d.assist_lrig_r ?? null,
       })));
     });
   }, [user]);
@@ -185,6 +188,9 @@ export default function App() {
       lrig_deck: updated.lrigDeck,
       thumbnail_card_num: updated.thumbnailCardNum,
       art_overrides: updated.artOverrides ?? {},
+      center_lrig: updated.centerLrig ?? null,
+      assist_lrig_l: updated.assistLrigL ?? null,
+      assist_lrig_r: updated.assistLrigR ?? null,
     }).eq('id', updated.id);
     if (!error) {
       setDecks(prev => prev.map(d => d.id === updated.id ? updated : d));

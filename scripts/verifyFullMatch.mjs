@@ -572,7 +572,7 @@ function describe(st) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-/** セットアップ（じゃんけん→ルリグ選択→マリガン）を PLAYING 到達まで進める。 */
+/** セットアップ（じゃんけん→ルリグ自動配置→マリガン）を PLAYING 到達まで進める。 */
 async function driveSetup(seats, tag) {
   const hands = ['グー', 'チョキ', 'パー'];
   let idx = 0;
@@ -584,21 +584,11 @@ async function driveSetup(seats, tag) {
         const h = hands[idx++ % 3];
         if (await S.clickBtn(h)) { S.log('じゃんけん:' + h); progressed = true; }
         await S.page.waitForTimeout(1200);
-      } else if (/アシストルリグを配置しますか/.test(txt)) {
-        // 🆕§5.6 `C-3`＝Lv0 ルリグが3枚あるデッキ（`VERIFY_DECK_MECH`）だけに出る。
-        //   ⚠下の「ルリグを配置」にも一致する＝**先に**判定しないとセンター選択のボタンを探し続けて止まる。
-        if (await S.clickBtn('配置する（3枚）')) { S.log('アシスト配置:する'); progressed = true; }
-      } else if (/アシストルリグ（[左右]）を選択/.test(txt)) {
-        // 候補ボタンはカード名＋カード番号を表示する＝カード番号を含む最初の押せるボタンを選ぶ。
-        const any = S.page.locator('button:not([disabled])', { hasText: /[A-Za-z]+[0-9A-Za-z]*-[0-9A-Za-z]+/ }).first();
-        if (await any.count()) { await any.click().catch(() => {}); S.log('アシスト選択'); progressed = true; }
-      } else if (/ルリグを配置|ルリグを選/.test(txt)) {
-        const b = S.page.locator('button', { hasText: 'WD03-005' }).first();
-        if (await b.count()) { await b.click().catch(() => {}); S.log('ルリグ選択'); progressed = true; }
-        else {
-          const b2 = S.page.locator('button', { hasText: 'コード・ピルルク' }).first();
-          if (await b2.count()) { await b2.click().catch(() => {}); S.log('ルリグ選択(名前)'); progressed = true; }
-        }
+      } else if (/ルリグを配置できません/.test(txt)) {
+        // 🆕2026-09-17＝ルリグはデッキ編成で指定する（対戦開始時の選択画面は廃止＝自動で置かれる）。
+        //   ここに来るのは検証用デッキに指定が無いとき＝`node scripts/verifySetupDeck.mjs [--mech]` を回し直す。
+        console.log('   ❌ デッキにルリグの指定が無い（verifySetupDeck.mjs を回し直す）');
+        return false;
       } else {
         const c = await S.clickAny(['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']);
         if (c) { S.log('セットアップ:' + c); progressed = true; }
