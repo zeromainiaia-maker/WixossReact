@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第2段の続き＝`perform*` をさらに3本移設（リファクタ・挙動不変）
+
+- 移設＝🆕`controller/performLrigActivated.ts`（352行）／🆕`controller/performSigniActivated.ts`（393行）／🆕`controller/performSummonSigni.ts`（391行）。**逐語**で移し、I/O（`BattleIo`）と材料（`PerformCtx`）を注入にした。画面側は薄いラッパ（呼び出し地点は不変）。
+- 🔑**召喚にも画面のモーダルが混じっていた**＝`SummonActorCtx` へ**任意のコールバック2本**を追加（`closeSummonModals` / `openOnPlayCost`）。画面だけが渡す（CPU は `costOnPlay:'skip'` でモーダル分岐へ来ない＝**挙動は同じ**）。`SummonActorCtx` 自体も `controller/` へ移設。
+- 🆕`PerformCtx` に `baseEffectsMap`（付与を含まない素の効果表）を追加。⚠`effectsMap`（付与込み）と混ぜない＝「元から持つ能力か」の判定が壊れる。
+- **移設 6/12**（68＋190＋216＋352＋393＋391＝1,610行）。**残り6本＝1,705行**。**BattleScreen は 15,144 → 14,000行**（今日の通算 16,930 → 14,000＝**−2,930行**）。
+- 🔴**移設で踏んだ罠（自分のミス）**＝識別子を `ctx.` 付きへ置換すると**オブジェクトの省略記法が壊れる**（`{ effectsMap, … }` → `{ ctx.effectsMap, … }` は構文エラー）。
+  一括置換で直そうとすると**関数呼び出しの引数まで `key: value` に化ける**ので、⚠**tsc が指した位置だけ**を `effectsMap: ctx.effectsMap` へ直す（コミット済みの2本は `git checkout` で戻した）。
+- 🔴トリップワイヤ6本を較正＝`battleScreenSource()` が **`controller/` の全 `.ts` をまとめて読む**ようにした（移設のたびに落ちるのを止める）＋`planEnergyPayment` のサイト一覧に移設先3本を追加（**数は15のまま**）。
+- 検証＝`npm run gates` 全緑（golden 4313）。実機＝CPU 通し対戦 PASS（8ターン決着・197手）／`o114TrashSelfToHand`（トラッシュ【起】）・`v275HandActivateFieldTrash`（手札【起】）・`b36TrashToLifeFiltersLifeBurst`（アシストグロウ＋【出】）・`lifeCrashReplGrantFromAssist` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする＋実機ハーネスの腐り1件
 
 - 🆕`src/screens/battle/controller/battleIo.ts`＝実行関数の I/O 口。**3つだけ**（`commit`／`appendLogs`／`setLoading`）＝増やすほど画面から出せなくなる。

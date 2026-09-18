@@ -302,10 +302,12 @@ interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: numb
  * ⚠新しく画面から切り出したら、この関数に足す（足さないとトリップワイヤが黙って本数不足で落ちる）。
  */
 function battleScreenSource(): string {
+  // 🆕2026-09-18（`S-5c` 第2段）＝`controller/` へ出した配線（スタック解決・盤面差分収集・`perform*`）も**まとめて**読む。
+  const controllerDir = join(root, 'src/screens/battle/controller');
   return [
     fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
-    fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8'),
-    fs.readFileSync(join(root, 'src/screens/battle/controller/boardDiffTriggers.ts'), 'utf8'),
+    ...fs.readdirSync(controllerDir).filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(join(controllerDir, f), 'utf8')),
   ].join('\n');
 }
 
@@ -49920,7 +49922,10 @@ test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで ap
     // §5.7 `S-5c` 第2段（2026-09-18）＝アシストグロウ／ルリグアタック／スペルの支払いは `controller/` へ移設（サイト数は据え置き）。
     'src/screens/battle/controller/performAssistGrow.ts',
     'src/screens/battle/controller/performLrigAttack.ts',
-    'src/screens/battle/controller/performSpell.ts'];
+    'src/screens/battle/controller/performSpell.ts',
+    'src/screens/battle/controller/performLrigActivated.ts',
+    'src/screens/battle/controller/performSigniActivated.ts',
+    'src/screens/battle/controller/performSummonSigni.ts'];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
@@ -73121,7 +73126,7 @@ test('§5.3 O-255: 自傷パワーのコストが live に載り、支払い地�
   }
   eq(users.sort().join(','), 'WX07-042-E2:5000,WX13-036-E3:20000,WXDi-P07-046-E3:10000',
      '3効果とも payload を持つ（「－Nする」綴りの WXDi-P07-046-E3 が落ちていた）');
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const bs = battleScreenSource().replace(/\r\n/g, '\n');
   ok(bs.includes('effect.cost?.selfPowerDown'),
      '🔴シグニ【起】の支払い地点が selfPowerDown を読む（読まないと自傷が起きない＝コストが只）');
   ok(bs.includes('delta: -effect.cost.selfPowerDown'),
@@ -73161,7 +73166,7 @@ test('§5.3 O-256: 場→デッキの一番上のコストが live に載り、�
   //   （engine の正準経路 `TRANSFER_TO_DECK` は instance id のまま挿す）。
   ok(pay.includes('toDeckTop.push(stack.at(-1)!);') && !/getCardNum\(/.test(pay),
      '🔴デッキへ戻すのは instance id そのまま（getCardNum() で素の番号に潰さない）');
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const bs = battleScreenSource().replace(/\r\n/g, '\n');
   eq((bs.match(/payFieldToDeckTopCost\(\{/g) ?? []).length, 2,
      '🔴【出】と【起】の両方で払う（片方だけだと踏み倒せる経路が残る）');
   ok(bs.includes('!fieldBanishCostAct && !fieldToDeckTopCostAct && fieldTrashZones.size > 0'),
@@ -78310,7 +78315,7 @@ test('第244 SPDi43-06-E2: fieldDown.excludeSelf を提示判定と実支払い�
   }).some(e => e.effectId === 'SPDi43-06-E2');
   eq(offered(['SPDi43-06', null, null]), false, '自身しかいない盤面ではコストを払えない');
   eq(offered(['SPDi43-06', other, null]), true, '他のアップ状態シグニがいれば提示する');
-  const paymentSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const paymentSource = battleScreenSource();
   ok(paymentSource.includes('effect.cost.fieldDown.excludeSelf && fdTop === cardNum'),
     '🔴実支払い地点も自身を候補から除外する');
 }));
@@ -86986,7 +86991,7 @@ test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（�
   eq(miss.removed, null, '場に無いキーを取り除いたことにしている');
   eq(JSON.stringify(miss.lrigTrash), JSON.stringify(['old']), '🔴場に無いキーをルリグトラッシュへ積んでいる（複製）');
   // 🔴**写経の再発防止**＝4経路（アーツのキー代替／アンコール／キー【起】コスト／シグニ【起】のキー代替）が同じ関数を通る。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = battleScreenSource();
   eq((screen.match(/removeKeyToLrigTrash\(/g) ?? []).length, 4,
     '🔴キーを場から取り除く経路が4箇所とも keyZone.ts を通っていない');
   eq((screen.match(/key_piece:\s*null/g) ?? []).length, 0,

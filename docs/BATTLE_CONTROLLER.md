@@ -44,6 +44,9 @@ handler(React) → BattleAction を組む
 | 🆕`src/screens/battle/controller/performCtx.ts` | **`perform*` の共通の材料**（`PerformCtx`＝盤面・カード・ID・`trigCtx`・盤面差分収集・`BattleIo`）。 |
 | 🆕`src/screens/battle/controller/performLrigAttack.ts` | **ルリグアタックの実行**（2026-09-18）。⚠画面のモーダル（無効化の回避UI）は**任意コールバック**で受ける。 |
 | 🆕`src/screens/battle/controller/performSpell.ts` | **スペル使用の実行**（2026-09-18）。 |
+| 🆕`src/screens/battle/controller/performLrigActivated.ts` | **ルリグの【起】の実行**（2026-09-18）。 |
+| 🆕`src/screens/battle/controller/performSigniActivated.ts` | **シグニの【起】の実行**（2026-09-18）。 |
+| 🆕`src/screens/battle/controller/performSummonSigni.ts` | **シグニ召喚の実行**（2026-09-18）＋`SummonActorCtx`。⚠画面のモーダル2本は**任意コールバック**で受ける。 |
 | 🆕`src/screens/battle/controller/stackResolve.ts` | **スタック解決の本体**（§5.7 `S-5a`）＝`resolveStackStep(bs, deps)`。`BattleScreen.resolveStackNext` の385行を純関数化（React も DB も触らない）。画面は `loading`・多重実行の防止・ログ・`persist.commit` だけ。⚠`deps` の5本はまだ画面のクロージャ（`collectBoardDiffTriggers` は579行＝次段の山）。 |
 | 🆕`src/screens/battle/controller/boardDiffTriggers.ts` | **盤面差分トリガーの収集**（§5.7 `S-5b`・2026-09-18）＝`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })`。`collectBoardDiffTriggers`（579行）＋内部ラッパ22本を逐語で移設。⚠`bs` は**差分の before**。 |
 | 🆕`src/screens/battle/controller/execCtxDeps.ts` | **効果解決の材料**（2026-09-18）＝`makeTrigCtx`（`TrigCtx`）／`makeFillDeployCaps`（配置数制限・ライフクラッシュ防止を `ExecCtx` に埋める）。 |

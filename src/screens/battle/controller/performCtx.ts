@@ -17,6 +17,11 @@ export interface PerformCtx {
   bs: BattleStateRow;
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
+  /**
+   * 付与を**含まない**素の効果表（画面の `baseEffectsMap`）。
+   * ⚠`effectsMap`（付与込み）と混ぜない＝「このカードが元から持つ能力か」を見る判定が壊れる。
+   */
+  baseEffectsMap: Map<string, CardEffect[]>;
   /** 全カード（`listUsableArts` など「カード一覧」を要る関数のため）。 */
   cards: CardData[];
   /** この client のプレイヤーID。 */
