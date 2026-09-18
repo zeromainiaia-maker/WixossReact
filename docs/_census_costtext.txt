@@ -11,11 +11,11 @@
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 4434 | 4403 | battle/growLogic.ts:376 | listGrowCandidates | `/かつ\|と/` |
+| 4434 | 4403 | battle/growLogic.ts:370 | listGrowCandidates | `/かつ\|と/` |
 | 29 | 29 | battle/costs.ts:1307 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:157 | canActivateLrigEffect | `'【歌のカケラ】'` |
 | 11 | 11 | battle/pieceCutin.ts:22 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
-| 4 | 4 | battle/growLogic.ts:347 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
+| 4 | 4 | battle/growLogic.ts:341 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
 
 ## C OTHER  3規則 / 当たり 14カード
 

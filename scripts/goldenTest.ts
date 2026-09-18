@@ -107,7 +107,8 @@ import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/bat
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from '../src/screens/battle/limitExcess';
-import { centerLrigLevelOf, signiPlaceableByLevel } from '../src/screens/battle/placeLevelGate';
+import { deployLimitBlockReason, deployLimitLogMessage } from '../src/engine/deployLimit';
+import { centerLrigLevelOf, signiPlaceableByLevel } from '../src/engine/placeLevelGate';
 import { collectRiseBanishSubstitutes } from '../src/engine/effectEngine';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
@@ -71385,10 +71386,15 @@ test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わ
   //   書き込みだけで読み手が0だった（宣言だけ立って盤面は動かない真 no-op）。
   // 🔑**宣言した名前は `declared_card_name` に保存済み**（`STUB{DECLARE_CARD_NAME}`）＝
   //   足りなかったのは「その名前と突き合わせて読む側」だけだった。
-  const gl = fs.readFileSync(join(root, 'src/screens/battle/growLogic.ts'), 'utf8');
-  ok(gl.includes('export function declaredSigniOverride('), '読み手の実体が1箇所にある');
+  // 🆕**2026-09-18（`O-534`）＝実体を `src/engine/declaredSigni.ts` へ移した**＝配置レベル制限（`R-48`①）を
+  //   engine 側でも見るようになったため。`growLogic.ts` は re-export＝**判定は1本**（2箇所に写経しない）。
+  const dsg = fs.readFileSync(join(root, 'src/engine/declaredSigni.ts'), 'utf8');
+  ok(dsg.includes('export function declaredSigniOverride('), '読み手の実体が1箇所にある');
   // 🔴**名前が一致したときだけ**効く（フラグだけ見ると全シグニがレベル0＆限定無視＝過剰実行）。
-  ok(gl.includes("cardName === state.declared_card_name"), '宣言した名前と突き合わせている');
+  ok(dsg.includes("cardName === state.declared_card_name"), '宣言した名前と突き合わせている');
+  const gl = fs.readFileSync(join(root, 'src/screens/battle/growLogic.ts'), 'utf8');
+  ok(/export \{ declaredSigniOverride \} from '\.\.\/\.\.\/engine\/declaredSigni'/.test(gl),
+    'screens 側が re-export になっていない（実体が2つある）');
   const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   // 手札からの召喚ゲート＝レベル0（レベル制限とリミット）と限定条件の無視の両方
   ok(bs.includes('const declaredOverride = declaredSigniOverride(my, cardData.CardName);'), '召喚ゲートで読む');
@@ -86659,7 +86665,10 @@ test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッ�
   const board = (signi: (string | null)[]) => {
     const st = mkState({ signi: [null, null, null] });
     st.field.signi = signi.map(x => (x ? [x] : null));
-    st.hand = ['WX18-036#h1']; st.trash = []; st.energy = []; st.field.lrig = ['WD05-003#r1'];
+    // 🆕**2026-09-18（`O-534`）＝センターを Lv4（`WD05-001`）にした**＝このカード自身が **Lv4** なので、
+    //   Lv2 のルリグ（旧 `WD05-003`）の場には**ルールで置けない**（配置レベル制限 `R-48`①）。
+    //   ⚠旧盤面は illegal（場の `WD05-009` も Lv4）＝engine がレベルを見るようになって初めて落ちた**テスト側の較正**。
+    st.hand = ['WX18-036#h1']; st.trash = []; st.energy = []; st.field.lrig = ['WD05-001#r1'];
     return st;
   };
   const opp = mkState({ signi: [null, null, null] });
@@ -86932,13 +86941,73 @@ test('§5.6 C-9 R-48① 配置レベル制限＝「場に出す」効果もル�
   eq(signiPlaceableByLevel(SIGNI_L4, declared, cardMap), true, '宣言によるレベル0上書きが効いていない');
   eq(signiPlaceableByLevel(SIGNI_L3, { ...declared } as PlayerState, cardMap), false,
     '宣言していない別のシグニまでレベル0にしている（名前一致を見ていない）');
-  // 🔴**配線**＝「場に出す」効果の対象選択UIが、この判定を通してから決定を許す。
+  // 🔴**配線①＝engine の配置 funnel**（`O-534`・2026-09-18）＝`deployLimitBlockReason` が `LEVEL_OVER` を返す。
+  //   🔑ここを通るのは `applyDirectAction(ADD_TO_FIELD)`／`execAddToField` の即時配置／トークン生成＝
+  //     **選択が起きない経路と CPU もこれで塞がる**（UI だけを直した初版の穴）。
+  const mkDeployInput = (cardNum: string, lrig: string[]) => ({
+    placingState: mkState({ lrig }), opponentState: mkState({ lrig: [] }), cardNum, cardMap, effectsMap, isPlacingSideTurn: true,
+  });
+  eq(deployLimitBlockReason(mkDeployInput(SIGNI_L3, [lrigL2])), 'LEVEL_OVER',
+    '🔴engine の配置 funnel がレベル超過を弾いていない（＝選択が起きない経路と CPU が素通りする）');
+  eq(deployLimitBlockReason(mkDeployInput(SIGNI_L2, [lrigL2])), null, 'レベル以下のシグニを engine が弾いている');
+  eq(deployLimitBlockReason(mkDeployInput(SIGNI_L4, [])), null, '🔴センタールリグが読めない盤面で塞いでいる（fail-open）');
+  ok(/センタールリグのレベルを超えるため/.test(deployLimitLogMessage('LEVEL_OVER', 'X')), 'ログ文が無い');
+  // 🔴🔑**実挙動①＝選択が起きない経路**（`PLACE_SIGNI_ON_FIELD`＝カードを名指しで置く＝候補がちょうど必要数のとき engine が通る道）。
+  //   ここが塞がっていないと、UI をいくら直しても CPU と自動配置は超過して出せる（`O-534` の核心）。
+  //   ⚠**空きゾーンが2つ以上あると engine は先に「どのゾーンへ置くか」を問う**（`SELECT_SIGNI_ZONE`）＝
+  //     「置けた」を直接見たい側は**空きを1つ**にして自動配置へ倒す（初版はこれで対照が偽 FAIL した）。
+  const mkTrashCtx = (signi: (string | null)[] = [null, null, null]): ExecCtx => {
+    const base = mkCtx({ lrig: [lrigL2], signi }, { lrig: [] });
+    return { ...base, ownerState: { ...base.ownerState, trash: [SIGNI_L3, SIGNI_L1] } } as ExecCtx;
+  };
+  const fieldCountOf = (st: PlayerState) => st.field.signi.filter(z => (z ?? []).length > 0).length;
+  const placedOver = executeAction(
+    { type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [SIGNI_L3] } as unknown as EffectAction, mkTrashCtx());
+  eq(fieldCountOf(placedOver.ownerState), 0, '🔴レベル超過のシグニが選択を経ずに場へ出た（CPU・自動配置の穴）');
+  ok((placedOver.logs ?? []).some(l => /センタールリグのレベルを超える/.test(String(l))), '弾いた理由がログに出ない');
+  const placedWithin = executeAction(
+    { type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [SIGNI_L1] } as unknown as EffectAction,
+    mkTrashCtx([SIGNI_L2, SIGNI_L2, null]));
+  eq(fieldCountOf(placedWithin.ownerState), 3,
+    '🔴レベル以下のシグニまで置けない（過剰なゲート＝効果が打てなくなる側）');
+  //   ⇒ 同じ空き1ゾーンの盤面でも、超過側は**置かずにログだけ**（盤面は2体のまま）。
+  const placedOverTight = executeAction(
+    { type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [SIGNI_L3] } as unknown as EffectAction,
+    mkTrashCtx([SIGNI_L2, SIGNI_L2, null]));
+  eq(fieldCountOf(placedOverTight.ownerState), 2, '🔴空きゾーンが1つのときに超過シグニが場へ出た');
+  // 🔴🔑**実挙動②＝対象選択には「出せない候補」の印が付く**（候補からは外さない＝原文が取れる札は見せる）。
+  const selOver = executeAction({
+    type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+  } as unknown as EffectAction, mkTrashCtx());
+  eq(selOver.done, false, '前提＝候補2枚なので対象選択が立つ');
+  eq(selOver.pending?.type, 'SELECT_TARGET', '前提＝対象選択');
+  const pend = selOver.pending as { candidates: string[]; unplaceableCards?: string[] };
+  eq(pend.candidates.length, 2, '候補から外してしまっている（見せたうえで選べなくするのが仕様）');
+  eq(JSON.stringify(pend.unplaceableCards ?? []), JSON.stringify([SIGNI_L3]),
+    '🔴「出せない候補」の印が付いていない（UI の決定ゲートと CPU の候補避けが両方死ぬ）');
+  // 🔴**配線②＝対話に付く「出せない候補」の印**＝`needsInteraction` が `unplaceableCards` を付ける。
+  //   🔑UI の表示・決定ゲートと CPU の候補避けは**この印だけ**を読む（画面も CPU も自前で測らない）。
+  const utils = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  ok(/function unplaceableCardsFor\(/.test(utils) && /export function needsInteraction\(ctx: ExecCtx, pendingIn/.test(utils),
+    '🔴対話を作る口（needsInteraction）が「出せない候補」の印を付けていない');
   const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/EffectInteractionModal.tsx'), 'utf8');
-  ok(/signiPlaceableByLevel\(/.test(modal), '🔴対象選択UIが配置レベル制限を見ていない');
+  ok(/inter\.unplaceableCards/.test(modal), '🔴対象選択UIが engine の印を読んでいない');
+  ok(!/signiPlaceableByLevel\(/.test(modal), '🔴画面が自前でレベルを測っている（判定は engine の1本）');
   ok(/const canConfirm = selectedLevelBlocked \? false/.test(modal),
     '🔴レベル超過のシグニを選んでも決定ボタンが押せる');
   ok(/placeableCount/.test(modal),
     '🔴候補が全部レベル超過のときに 0 枚で決定する道が無い（決定が永久に押せない＝ソフトロック）');
+  // 🔴🔑**上限だけでなく「枚数条件」も出せる候補の数で数える**（実機 `V-281` が捕まえた UI のソフトロック）＝
+  //   候補が**全部**レベル超過の**非 optional** な選択で、上限（`maxPick`）は 0 に下がるのに
+  //   確定条件だけが `candidates.length` を見ていると、**0枚でも1枚でも決定が押せない**＝効果が終われない。
+  eq(fixedSelectionCountCanConfirm(0, 1, 0, false), true, '🔴出せる候補が0のとき0枚で確定できない＝決定が永久に押せない');
+  eq(fixedSelectionCountCanConfirm(0, 1, 1, false), false, '候補が1枚あるのに0枚で確定できてしまう（黙って断る罠）');
+  eq((modal.match(/placeableCount, inter\.optional, constrainedMax\)/g) ?? []).length, 2,
+    '🔴上限と確定条件の両方が「出せる候補の数」で数えていない（片方だけだとソフトロックか過剰許容になる）');
+  const cpu = fs.readFileSync(join(root, 'src/screens/battle/cpuInteraction.ts'), 'utf8');
+  eq((cpu.match(/unplaceableCards/g) ?? []).length >= 2, true,
+    '🔴CPU が「出せない候補」を避けていない（対象選択とサーチの2本）');
 }));
 
 test('§5.6 C-9 R-41/R-49 リムーブ＝場を離れたゾーンの後始末（チャーム・アクセ・ソウル・ダウン・凍結）', () => withSavedCursor(() => {

@@ -1,11 +1,15 @@
-import type { CardData, PlayerState } from '../../types';
-import { getCardNum } from '../../engine/effectExecutor';
-import { declaredSigniOverride } from './growLogic';
+import type { CardData, PlayerState } from '../types';
+import { declaredSigniOverride } from './declaredSigni';
 
 /**
  * **配置レベル制限**（公式ルール Level／[RULES.md](../../../docs/RULES.md) `R-48` の①）＝
  * **シグニのレベルはセンタールリグのレベル以下**でなければ場に出せない。
  *
+ *
+ * 🆕**同日 `O-534` で `src/screens/battle/` から engine へ移設した**＝最初の修正は**人間の対象選択UI だけ**を塞いでおり、
+ *   **選択が起きない経路（候補がちょうど必要数）と CPU** はそのまま超過して出せていた。
+ *   いまは **`deployLimitBlockReason` の `LEVEL_OVER`**（＝engine の全配置経路が既に通っている funnel）と、
+ *   **`needsInteraction` が対象選択へ付ける `unplaceableCards`**（UI の表示と決定ゲート・CPU の候補避け）の**2口だけ**が入口。
  * 🔴**2026-09-18 バグ報告＝「場に出す」効果はこのゲートを1つも通っていなかった。**
  *   手札召喚（`BattleScreen` の `levelOk`）とレゾナ出現（`resonaLevel <= currentLrigLevel`）には在るのに、
  *   効果の `ADD_TO_FIELD`（トラッシュ／エナ／手札／デッキから場に出す）には無く、
@@ -26,9 +30,12 @@ function levelOf(card: CardData | undefined): number | null {
   return Number.isFinite(lv) ? lv : null;
 }
 
+/** インスタンスID（`CardNum#N`）から素のカード番号へ（`execUtils.getCardNum` と同じ式＝**循環 import を避けるため**ローカルに持つ）。 */
+const baseNum = (id: string): string => { const h = id.indexOf('#'); return h > 0 ? id.slice(0, h) : id; };
+
 /** インスタンスID（`CardNum#N`）でも CardNum でも引ける lookup。 */
 function cardOf(id: string, cardMap: Map<string, CardData>): CardData | undefined {
-  return cardMap.get(id) ?? cardMap.get(getCardNum(id));
+  return cardMap.get(id) ?? cardMap.get(baseNum(id));
 }
 
 /** センタールリグのレベル。読めなければ `null`（＝判定しない）。 */

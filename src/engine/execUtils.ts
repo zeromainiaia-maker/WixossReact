@@ -22,6 +22,7 @@ import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost';
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
 import { countEnergyPlacedThisTurn } from './energyPlacement';
+import { signiPlaceableByLevel } from './placeLevelGate';
 import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -1511,7 +1512,30 @@ export function done(ctx: ExecCtx): ExecResult {
   return { done: true, ownerState, otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
-export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
+/**
+ * 🆕🔴**「場に出す」対象選択に “選んでも出せない候補” の印を付ける**（§5.3 `O-534`・`R-48`①・2026-09-18）。
+ *
+ * 🔑**`needsInteraction`（＝対話を作る唯一の口）に置く理由**＝`SELECT_TARGET` / `SEARCH` を組み立てる地点は
+ *   engine の各所に散っているので、**生成地点ごとに印を付けると必ず付け忘れが出る**。ここなら1本で覆える。
+ * ⚠**候補からは外さない**＝原文が対象に取れる札は見せる（UI は「選べるが決定できない」で表現し、CPU は避ける）。
+ * ⚠`handOrField` / `handOrEnergy`（場に出すとは限らない）には付けない＝**塞ぎすぎない側**に倒す。
+ * ⚠**出す先の場の持ち主**は `thenAction.owner`（効果のコントローラー基準）＝`ctx.ownerState` が効果の実行者。
+ */
+function unplaceableCardsFor(pending: PendingInteractionDef, ctx: ExecCtx): string[] {
+  if (pending.type !== 'SELECT_TARGET' && pending.type !== 'SEARCH') return [];
+  if (pending.thenAction?.type !== 'ADD_TO_FIELD') return [];
+  if (pending.type === 'SEARCH' && (pending.handOrField || pending.handOrEnergy)) return [];
+  const owner = (pending.thenAction as { owner?: string }).owner;
+  const placing = owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+  const cands = pending.type === 'SELECT_TARGET' ? pending.candidates : pending.visibleCards;
+  return cands.filter(n => !signiPlaceableByLevel(n, placing, ctx.cardMap));
+}
+
+export function needsInteraction(ctx: ExecCtx, pendingIn: PendingInteractionDef): ExecResult {
+  const unplaceable = unplaceableCardsFor(pendingIn, ctx);
+  const pending: PendingInteractionDef = unplaceable.length > 0
+    ? { ...pendingIn, unplaceableCards: unplaceable } as PendingInteractionDef
+    : pendingIn;
   return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 

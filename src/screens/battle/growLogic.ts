@@ -298,16 +298,10 @@ export function ignoresLrigTypeForGrow(cardNum: string, effectsMap: Map<string, 
  *   足りなかったのは「その名前と突き合わせて読む側」だけだった。
  * ⚠**名前が一致したときだけ**効く（フラグだけ見ると**全シグニ**がレベル0＆限定無視になる＝過剰実行）。
  */
-export function declaredSigniOverride(
-  state: { declared_card_name?: string; game_declared_signi_level_zero?: boolean; game_declared_signi_ignore_restriction?: boolean },
-  cardName: string | undefined,
-): { levelZero: boolean; ignoreRestriction: boolean } {
-  const named = !!cardName && !!state.declared_card_name && cardName === state.declared_card_name;
-  return {
-    levelZero: named && !!state.game_declared_signi_level_zero,
-    ignoreRestriction: named && !!state.game_declared_signi_ignore_restriction,
-  };
-}
+// 🆕**2026-09-18（`O-534`）に実装を `src/engine/declaredSigni.ts` へ移した**＝
+//   配置レベル制限（`R-48`①）を engine 側でも見るようになったため（engine は `src/screens/` を import できない）。
+//   ここは互換のための re-export＝**判定は1本**。
+export { declaredSigniOverride } from '../../engine/declaredSigni';
 
 export function meetsRestriction(restriction: string, lrigClass: string, ignoreRestriction = false): boolean {
   if (ignoreRestriction || !restriction || restriction === '-') return true;

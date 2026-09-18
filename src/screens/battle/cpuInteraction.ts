@@ -120,10 +120,16 @@ function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, n
  */
 export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractionCtx): string[] {
   const { cardMap, cpuState } = ctx;
+  // 🆕**選んでも場に出せない候補は選ばない**（§5.3 `O-534`・`R-48`①）＝engine が `unplaceableCards` で印を付ける。
+  //   ⚠**可否は engine が決めた値をそのまま使う**（§5.6.3 の規律）＝CPU 側でレベルを測らない。
+  //   ⚠全部が印つきなら空を返す＝engine 側が「対象なし」として空振らせる（無理に選んで no-op を作らない）。
+  const candidates = (inter.unplaceableCards ?? []).length > 0
+    ? inter.candidates.filter(n => !inter.unplaceableCards!.includes(n))
+    : inter.candidates;
   if (inter.totalPowerMax !== undefined) {
     // パワー合計上限つき＝パワーの小さい順に上限まで貪欲に（できるだけ多く）。
     const powers = inter.candidatePowers ?? {};
-    const sorted = [...inter.candidates].sort((a, b) => (powers[a] ?? 0) - (powers[b] ?? 0));
+    const sorted = [...candidates].sort((a, b) => (powers[a] ?? 0) - (powers[b] ?? 0));
     const selected: string[] = [];
     let sum = 0;
     for (const n of sorted) {
@@ -138,12 +144,12 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
   const intent = targetIntentOf(inter.thenAction as { type: string; delta?: unknown });
   let ordered: string[];
   if (intent === 'unknown') {
-    ordered = rngShuffle(inter.candidates);
+    ordered = rngShuffle(candidates);
   } else {
     const favorable = (id: string) => (intent === 'harm') !== isCpuOwned(id, cpuState);
     const value = (id: string) => cardValue(id, ctx, inter.candidatePowers);
-    const good = inter.candidates.filter(favorable).sort((a, b) => value(b) - value(a));
-    const bad = inter.candidates.filter(id => !favorable(id)).sort((a, b) => value(a) - value(b));
+    const good = candidates.filter(favorable).sort((a, b) => value(b) - value(a));
+    const bad = candidates.filter(id => !favorable(id)).sort((a, b) => value(a) - value(b));
     ordered = inter.optional ? good : [...good, ...bad];
   }
   const minCount = inter.optional ? 0 : count;
@@ -221,9 +227,13 @@ export function pickCpuChoice(inter: Inter<'CHOOSE'>, ctx: CpuInteractionCtx): s
 /** サーチ＝自分のデッキからなら**価値の高い順**（相手のデッキなら表示順）に `maxPick` 枚まで。制約は engine の判定を通す。 */
 export function pickCpuSearch(inter: Inter<'SEARCH'>, ctx: CpuInteractionCtx): string[] {
   const count = inter.maxPick ?? 0;
+  // 🆕`SELECT_TARGET` と同じ＝**場に出せない候補は選ばない**（`O-534`）。
+  const visible = (inter.unplaceableCards ?? []).length > 0
+    ? inter.visibleCards.filter(n => !inter.unplaceableCards!.includes(n))
+    : inter.visibleCards;
   const ordered = inter.deckOwner === 'opponent'
-    ? [...inter.visibleCards]
-    : [...inter.visibleCards].sort((a, b) => cardValue(b, ctx) - cardValue(a, ctx));
+    ? [...visible]
+    : [...visible].sort((a, b) => cardValue(b, ctx) - cardValue(a, ctx));
   if (inter.selectionConstraint?.totalLevelExact !== undefined) {
     const exact = findValidConstrainedSelection(ordered, inter.optional ? 0 : count, count, inter.selectionConstraint, ctx.cardMap);
     if (exact) return exact;

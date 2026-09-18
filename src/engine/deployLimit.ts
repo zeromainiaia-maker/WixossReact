@@ -1,6 +1,7 @@
 import type { CardData, PlayerState, SigniDeployBan } from '../types';
 import type { CardEffect } from '../types/effects';
 import { collectDeployCountLimit } from './effectEngine';
+import { signiPlaceableByLevel } from './placeLevelGate';
 
 /**
  * 配置制限（「シグニをN体までしか場に出すことができない」「パワーN以上のシグニを新たに場に出せない」）の
@@ -23,7 +24,8 @@ export type DeployBlockReason =
   | 'SOURCE_BAN'   // 「自分の、シグニとスペルの効果によってシグニを新たに場に出せない」（同上）
   | 'ALL_BAN'      // 「このターン、あなたは他のシグニを場に出せない」＝絞り込みキー無しの ban（同上）
   | 'ONLY_BY_NAMED_EFFECT' // 「《X》の効果以外によっては／によってしか新たに場に出せない」（SELF_PLAY_RESTRICT.exceptSourceCardNames）
-  | 'ZONE_LEVEL_RESTRICT'; // 「対戦相手は中央のシグニゾーンにレベルN以上のシグニを新たに配置できない」（STUB.zonePlacementRestrict）
+  | 'ZONE_LEVEL_RESTRICT' // 「対戦相手は中央のシグニゾーンにレベルN以上のシグニを新たに配置できない」（STUB.zonePlacementRestrict）
+  | 'LEVEL_OVER';  // 🆕**シグニのレベル > センタールリグのレベル**（`R-48`①・`O-534`）＝ルールの配置制限
 
 /**
  * その配置が「どうやって場に出されるか」。`signi_deploy_bans.bySource` の判定だけに使う。
@@ -184,6 +186,11 @@ function blockedByZoneLevelRestrict(p: DeployLimitInput): boolean {
 
 /** 配置できない理由。null なら配置可能。 */
 export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason | null {
+  // 🆕🔴**配置レベル制限**（`R-48`①・`O-534`・2026-09-18 バグ報告）＝**シグニのレベルはセンタールリグのレベル以下**。
+  //   🔑**ここに置く理由**＝engine の配置は `applyDirectAction(ADD_TO_FIELD)`／`execAddToField` の即時配置／
+  //     トークン生成のどれも**既にこの funnel を通っている**＝1か所足すだけで「選択が起きない経路」も CPU も塞がる。
+  //   ⚠**fail-open**（センタールリグが読めない／シグニでない札は通す）は `placeLevelGate` 側の規約。
+  if (!signiPlaceableByLevel(p.cardNum, p.placingState, p.cardMap)) return 'LEVEL_OVER';
   // 出撃元の効果を名前で限定する自身出撃制限（`O-74`/`O-79`）。ライズ（上乗せ）も「場に出す」なので対象にする。
   if (blockedByOnlyByNamedEffect(p)) return 'ONLY_BY_NAMED_EFFECT';
   // ゾーン＋レベル指定の配置禁止（`O-94`②）。`zoneIndex` を渡した呼び出し元だけが受ける。
@@ -215,5 +222,6 @@ export function deployLimitLogMessage(reason: DeployBlockReason, cardLabel: stri
   if (reason === 'ALL_BAN') return `このターンは他のシグニを場に出せないため${cardLabel}を場に出せない`;
   if (reason === 'ONLY_BY_NAMED_EFFECT') return `特定のカードの効果によってしか場に出せないため${cardLabel}を場に出せない`;
   if (reason === 'ZONE_LEVEL_RESTRICT') return `そのシグニゾーンにはそのレベルのシグニを配置できないため${cardLabel}を場に出せない`;
+  if (reason === 'LEVEL_OVER') return `センタールリグのレベルを超えるため${cardLabel}を場に出せない`;
   return `配置パワー制限のため${cardLabel}を場に出せない`;
 }

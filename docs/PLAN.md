@@ -11,20 +11,20 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-18＝バグ報告1件を処理＝「場に出す」効果の配置レベル制限（`R-48`①）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🔴効果の `ADD_TO_FIELD`（**663効果 / 599カード**）は**配置レベル制限をどこも通っていなかった**＝ルリグのレベルを超えるシグニを場に出せた。
-- 直し方＝🆕`battle/placeLevelGate.ts`（純関数・fail-open）＋ `EffectInteractionModal`＝候補は見せたまま**決定を塞ぐ**（超過は「Lv超過」表示・ボタンは「ルリグのレベルを超えています」）。
-  上限は「出せる候補の数」で数える＝**全部超過なら 0 枚で決定できる**（決定が永久に押せないソフトロックを作らない）。
-- 🆕実機 `V-279`（超過＝押せない）／`V-280`（**ルリグ Lv3 への1ビット反転**＝同じ操作で出せる＝過剰でない対照）。
-- ⚠**残る穴＝`O-534`**（engine 側。**選択が起きない経路と CPU** は依然として超過して出せる）。
+**直近＝2026-09-18＝配置レベル制限（`R-48`①）を engine の funnel へ＝`O-534` クローズ**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔴前段（同日のバグ報告）で塞いだのは**人間の対象選択UI だけ**＝**選択が起きない経路と CPU** は超過して場に出せたままだった。
+- 直し＝`deployLimitBlockReason` に **`LEVEL_OVER`** を1本足す（engine の配置3経路はすべてこの funnel を通っていた）＋
+  `needsInteraction` が対象選択に **`unplaceableCards`** を付ける（UI と CPU は**その印だけ**を読む＝判定は engine の1本）。
+- 🔑**実機が UI のソフトロックを捕まえた**＝候補が**全部**超過の非 optional な選択で、上限は0に下がるのに**枚数条件だけ候補数を見ていた**＝決定が永久に押せない。
+- 🆕実機 `V-281`／`V-282`（反転＝ルリグ Lv3 なら同じ操作で出る）。前段の `V-279`／`V-280` も PASS。CPU 通し対戦 PASS（7ターン決着）。
 
 | 軸 | いまの値 |
 |---|---|
 | 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第3段**＝**先にルール処理を出す**（`resolvePendingSigniBattleFor` 1,588行 → `doPhaseAdvance` 683 → `confirmEndDiscard` 234）。**そのあと `cpuTurnAction`**（1,362行・画面から45名前を掴む＝いま出すと巨大な deps になる） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **1**（索引A `O-534`）／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
-| ⚠**直近の不具合** | 🔴**配置レベル制限が効果の場出しに無かった**（`R-48`①）＝UI で決定を塞いだ。**engine 側は未対応＝`O-534`**（選択が起きない経路・CPU はまだ超過して出せる） |
-| ⚠**バグ報告** | 🔴**1件を処理**＝「場に出す」効果でルリグのレベルより大きいシグニを召喚できた（`ADD_TO_FIELD` 663効果/599カード）→ 実機 `V-279`／`V-280` |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| ⚠**直近の不具合** | 🏁**配置レベル制限（`R-48`①）を engine まで通した**＝`O-534` クローズ（UI・CPU・選択の起きない経路の3面）。実機が UI のソフトロックを1件捕まえた（枚数条件の数え先） |
+| ⚠**バグ報告** | 🔴**1件を処理**＝「場に出す」効果でルリグのレベルより大きいシグニを召喚できた（`ADD_TO_FIELD` 663効果/599カード）→ 実機 `V-279`〜`V-282` |
 | 🔧**ゲート** | `npm run gates` 全緑 |
 ---
 
@@ -222,7 +222,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-279`＝`placeLevelOver`／`V-280`＝`placeLevelWithin`（反転＝ルリグ Lv3 なら同じ操作で出せる）＝2026-09-18 に PASS。「場に出す」効果の配置レベル制限（`R-48`①）の回帰ガード＝超過候補は並ぶが決定ボタンが押せない（ボタン文言まで assert）／`V-264`＝`c9resonalimitexcess`＝2026-09-17 第401バッチで PASS。バニッシュ以外でもレゾナがルリグデッキへ戻る回帰ガード／`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-281`＝`placeLevelTrashOver`／`V-282`＝`placeLevelTrashWithin`（反転＝ルリグ Lv3 なら同じ操作で出る）＝2026-09-18 に PASS。対象選択が候補1枚でも**出せる候補が0なら上限も0**＝「決定 (0/0)」だけが道（コストは払う・トラッシュに残る）の回帰ガード／`V-279`＝`placeLevelOver`／`V-280`＝`placeLevelWithin`（反転＝ルリグ Lv3 なら同じ操作で出せる）＝2026-09-18 に PASS。「場に出す」効果の配置レベル制限（`R-48`①）の回帰ガード＝超過候補は並ぶが決定ボタンが押せない（ボタン文言まで assert）／`V-264`＝`c9resonalimitexcess`＝2026-09-17 第401バッチで PASS。バニッシュ以外でもレゾナがルリグデッキへ戻る回帰ガード／`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -317,11 +317,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 A. 母集団2桁（遅いレーン）
 
-| ID | 母集団 | 何が無いか |
-|---|---|---|
-| `O-534` | `ADD_TO_FIELD` **663効果 / 599カード** | **engine 側に配置レベル制限（`R-48`①）が無い**＝2026-09-18 に塞いだのは**人間の対象選択UI だけ**。**候補が1枚で選択が起きない経路と CPU（`pickCpuTargets`）は今も超過して場に出せる**。登録票＝[PLAN_DETAIL.md](./PLAN_DETAIL.md) |
-
-（`O-530` は 2026-09-16 第385バッチでクローズ＝PLAN_DETAIL）
+🏁**残0**（`O-534` は 2026-09-18 にクローズ＝PLAN_DETAIL）
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -543,11 +539,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-18 時点**（バグ報告＝配置レベル制限 `R-48`①）
-  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**UI 層だけの回＝live JSON を1バイトも触っていないので3計器は動かない**）
-  - 📦**在庫**＝機構 worklist **1**（索引A `O-534`＝engine 側の配置レベル制限）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4315**・`census:traceinv` I1=0）
-  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU を触っていない）
+- **2026-09-18 時点**（`O-534` クローズ＝配置レベル制限を engine の funnel へ）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**engine/UI の回＝live JSON を1バイトも触っていないので3計器は動かない**）
+  - 📦**在庫**＝機構 worklist **0**｜実機 **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4315**・`census:traceinv` I1=0）／CPU 通し対戦 PASS（7ターン決着）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU の判断は触っていない）
 
 ---
 

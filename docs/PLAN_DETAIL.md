@@ -1,6 +1,6 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
-## 2026-09-18 バグ報告から出た登録票 `O-534`（UI 側は同日にクローズ済み）
+## 🏁2026-09-18 にクローズ＝`O-534`（登録票は下）
 
 ### `O-534` — engine の `ADD_TO_FIELD` に配置レベル制限（`R-48`①）が無い（663効果 / 599カード・索引A）
 
@@ -16,6 +16,14 @@
   ②候補生成で外す＋`applyToField` でも弾く（ログを出す）③CPU は engine が外した候補を見るだけ（`cpuInteraction` は触らない）
   ④golden（両方向＋fail-open）⑤実機＝`placeLevelOver` の CPU 版（`V-nn`）。
 - ⚠**fail-open を崩さない**＝センタールリグが読めない盤面（実機の注入盤面・ゲーム開始直後）で塞ぐと、**合法な効果が打てない**側の事故になる。
+- 🏁**クローズ（2026-09-18・同日）**＝判定を `src/engine/placeLevelGate.ts` へ移し、**入口を2口に絞った**＝
+  ①**`deployLimitBlockReason` の `LEVEL_OVER`**（engine の配置3経路＝`applyDirectAction(ADD_TO_FIELD)`／`execAddToField` の即時配置／トークン生成は
+  **もともと全部この funnel を通っていた**＝1か所で塞がる）②**`needsInteraction` が対象選択に付ける `unplaceableCards`**（UI の表示・決定ゲートと CPU の候補避けは**この印だけ**を読む）。
+  `declaredSigniOverride` も `src/engine/declaredSigni.ts` へ移設（`growLogic.ts` は re-export）。
+  golden `§5.6 C-9 R-48①`（engine の実挙動＋印＋配線）／実機 `V-281`・`V-282`／CPU 通し対戦 PASS。
+- 🔑**この回の収穫＝実機が UI のソフトロックを捕まえた**＝候補が全部超過の**非 optional** な選択で、上限は0に下がるのに
+  **枚数条件だけ `candidates.length` を見ていた**＝決定が永久に押せない。⇒ `fixedSelectionCountCanConfirm` にも `placeableCount` を渡す（golden で両方向固定）。
+- 🔑**golden の盤面が illegal だと、ルールを実装した瞬間に落ちる**＝`O-533` のテストはセンター Lv2 の場に Lv4 のシグニを出していた（較正）。
 
 
 ## 🏁2026-09-17 第397バッチでクローズ＝`O-532`（登録票は下）

@@ -1415,6 +1415,125 @@ function mkPlaceLevelGate(over) {
   };
 }
 
+
+/**
+ * 🆕🔴**`O-534`（2026-09-18）＝「対象選択が起きない経路」の実機**。
+ *
+ * `WX02-069`（コードアンチ　ネビュラ・**Lv3**）の【起】《黒》《黒》「このシグニを**トラッシュから場に出す**」＝
+ * **対象を選ばせない**（`thisCardOnly`）ので、**人間の対象選択UI を1度も通らずに engine が直接配置する**道。
+ * 🔑最初の修正（UI の決定ゲート）はこの道を塞げていなかった＝`deployLimitBlockReason` の `LEVEL_OVER` が要る。
+ *
+ * `over=true`＝センター **Lv2**（`WD05-003` 衆合の閻魔ウリス）＝Lv3 は置けない。
+ * 📌3 の対照＝`over=false` は**ルリグを Lv3（`WD05-002`）にするだけ**の1ビット反転＝同じ操作で場に出る。
+ * 観測点＝①【起】が提示され ②コスト《黒》×2 を**実際に払い**（踏み倒しでないこと）③場に出る／出ない。
+ * ⚠**コストを払ったことまで見る**＝払わずに弾いていると「効果が動いていない」空振りと区別できない（📌4）。
+ */
+function mkPlaceLevelTrashAct(over) {
+  const tag = over ? 'placeLevelTrashOver' : 'placeLevelTrashWithin';
+  return {
+    title: `配置レベル制限（R-48①）＝対象選択の無い【起】（トラッシュから自分を場に出す）でも${over ? 'Lv2 のルリグの場に Lv3 は出ない' : 'Lv3 のルリグの場になら出る'}`,
+    spec: {
+      hostSet: {
+        'field.lrig': [over ? 'WD05-003#r1' : 'WD05-002#r1'],   // 衆合(Lv2) ／ 阿鼻(Lv3)
+        'field.lrig_down': false,
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'field.signi_charms': [null, null, null],
+        'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+        'trash': ['WX02-069#t1'],                                // コードアンチ　ネビュラ（Lv3・黒）
+        'energy': ['WD05-014#e1', 'WD05-014#e2'],                // 黒×2（【起】のコスト）
+        'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#g1'], 'field.signi': [null, null, null],
+        'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      H.log(`開始 trash=${JSON.stringify(st0?.host?.trashCards)} energy=${st0?.host?.energy} lrig=${JSON.stringify(st0?.host?.fieldLrig ?? '-')}`);
+      const opened = await v168OpenTrashCardActions(page, H);
+      H.log(`  トラッシュ CardModal: visible=${opened.modalVisible} actions=${JSON.stringify(opened.items.map(a => a.label))}`);
+      if (!opened.modalVisible) return { pass: false, detail: 'トラッシュの CardModal が開かなかった＝前提崩れ' };
+      const hit = opened.items.find(a => a.label.startsWith('【起】'));
+      if (!hit) return { pass: false, detail: `🔴トラッシュの【起】が提示されない＝前提崩れ（actions=${JSON.stringify(opened.items.map(a => a.label))}）` };
+      await H.clickTestId(hit.tid);
+      const enaPicked = new Set();
+      let paid = false, settled = 0, last = st0, step = 0, zeroState = null, pickedState = null;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(600);
+        await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+        let did = null;
+        if (!paid && enaPicked.size < 2) {
+          // ⚠押した index を覚えて1回だけ押す（毎ティック押すとトグルで外れて永久に揃わない＝§4.4-2c）。
+          const next = [0, 1, 2, 3].find(i => !enaPicked.has(i));
+          if (next !== undefined) { did = await H.clickTestId('trashact-energy-' + next); if (did) enaPicked.add(next); }
+        } else if (!paid) {
+          const pay = page.getByTestId('trashact-pay').first();
+          if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+            await pay.click({ timeout: 1200 }).catch(() => {}); did = 'trashact-pay'; paid = true;
+          }
+        } else if (!over) {
+          // 置けた側は配置ゾーンを選ぶ（空き3ゾーン＝engine が SELECT_SIGNI_ZONE を出す）。
+          did = await H.clickZone();
+          if (!did) did = await H.stdStep();
+        } else if (over) {
+          // 🔴**置けない側の観測はここが本体**＝`thisCardOnly` でも engine は候補1枚の対象選択を出すので、
+          //   ①**印のぶんだけ上限が下がって「決定 (0/0)」になる**（＝engine の `unplaceableCards` を UI が数えた証拠）
+          //   ②その1枚を**選ぶと決定が押せなくなる**（文言も出る）
+          //   ③選択を外して「決定 (0/0)」を押すと**何も出ずに効果が終わる**（ソフトロックしない）。
+          const confirm = page.getByTestId('effect-pick-confirm').first();
+          const visible = await confirm.count() && await confirm.isVisible().catch(() => false);
+          if (visible) {
+            const text = ((await confirm.textContent().catch(() => '')) ?? '').trim();
+            const enabled = await confirm.isEnabled().catch(() => false);
+            if (step === 0) { zeroState = { text, enabled }; await page.getByTestId('pick-0').first().click().catch(() => {}); did = 'pick:pick-0'; step = 1; }
+            else if (step === 1) { pickedState = { text, enabled }; await page.getByTestId('pick-0').first().click().catch(() => {}); did = 'pick:解除'; step = 2; }
+            else if (step === 2 && enabled) { await confirm.click({ timeout: 1200 }).catch(() => {}); did = 'btn:決定(0/0)'; step = 3; }
+          }
+        }
+        last = await H.queryState();
+        const onField = (last?.host?.fieldSigni ?? []).some(z => (z ?? []).some(c => String(c).startsWith('WX02-069')));
+        const gateLog = (last?.logTail ?? []).find(l => /レベルを超える/.test(l)) ?? null;
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | paid=${paid} hField=${JSON.stringify(last?.host?.fieldSigni)}`
+          + ` energy=${last?.host?.energy} trash=${JSON.stringify(last?.host?.trashCards)} pEff=${last?.pendingEffect ?? '-'}`
+          + ` gateLog=${!!gateLog}`);
+        if (paid && onField) {
+          return over
+            ? { pass: false, detail: `🔴Lv3 のシグニが Lv2 のルリグの場に出た（hField=${JSON.stringify(last?.host?.fieldSigni)}）` }
+            : { pass: true, detail: `対照＝Lv3 のルリグの場には出せた（hField=${JSON.stringify(last?.host?.fieldSigni)} energy=${last?.host?.energy}）` };
+        }
+        settled = (paid && step >= 3 && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+        if (over && settled >= 2) {
+          const zeroOk = !!zeroState?.enabled && /\(0\/0\)/.test(zeroState.text);
+          // 🔑**候補が全部「出せない」ときは、そもそも選択に入らない**（上限が 0 に下がるため）＝
+          //   決定は `(0/0)` のまま。混在する盤面（`V-279`）では選べてしまうので、そちらは
+          //   「選ぶと決定が disabled ＋ 文言が出る」で見る＝**2本で両方の形を押さえる**。
+          const pickedOk = !!pickedState && !/\(1\//.test(pickedState.text)
+            && (!pickedState.enabled || /\(0\/0\)/.test(pickedState.text));
+          // ⚠`trashCards` は**インスタンスID**（`WX02-069#t1`）＝完全一致で探さない。
+          const stillInTrash = (last?.host?.trashCards ?? []).some(n => String(n).startsWith('WX02-069'));
+          const paidOk = (last?.host?.energy ?? 9) === 0;
+          const dump = `zero=${JSON.stringify(zeroState)} picked=${JSON.stringify(pickedState)}`
+            + ` hField=${JSON.stringify(last?.host?.fieldSigni)} trash=${JSON.stringify(last?.host?.trashCards)}`
+            + ` energy=${st0?.host?.energy}→${last?.host?.energy} gateLog=${!!gateLog}`;
+          if (!paidOk) return { pass: false, detail: `前提崩れ＝コストを払っていない。${dump}` };
+          if (!zeroOk) return { pass: false, detail: `🔴出せない候補しか無いのに上限が下がっていない（決定が (0/0) でない＝engine の印を数えていない）。${dump}` };
+          if (!pickedOk) return { pass: false, detail: `🔴出せない候補が選択に入ってしまう（上限が下がっていない）。${dump}` };
+          if (!stillInTrash) return { pass: false, detail: `🔴場に出ていないのにトラッシュからも消えた（カード消失）。${dump}` };
+          return { pass: true, detail: `対象選択は出るが出せる候補が0＝「決定 (0/0)」だけが道で、場には出ずトラッシュに残った。${dump}` };
+        }
+        if (settled >= 8) break;
+      }
+      return { pass: false, detail: `未完了（paid=${paid} hField=${JSON.stringify(last?.host?.fieldSigni)}`
+        + ` energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'}）` };
+    },
+  };
+}
+
 const scenarios = {
   // ── 🆕§5.3 `O-333`（2026-09-12・第285バッチ）＝コイン技の遡及的な無効化 ─────────────
   // 原文（`WX16-002-E4`／`-E4b`）＝「【出】／【起】オーネスト《コイン》《コイン》：
@@ -8210,6 +8329,8 @@ const scenarios = {
 
   // 🆕🔴2026-09-18 バグ報告＝「場に出す」効果の配置レベル制限（`R-48`①）。定義は `mkPlaceLevelGate`（上）。
   placeLevelOver: mkPlaceLevelGate(true),
+  placeLevelTrashOver: mkPlaceLevelTrashAct(true),
+  placeLevelTrashWithin: mkPlaceLevelTrashAct(false),
   placeLevelWithin: mkPlaceLevelGate(false),
 
   // WXDi-P03-078（続き114・Sonnet・PLAN §6.4）＝

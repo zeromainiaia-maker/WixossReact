@@ -2059,6 +2059,13 @@ export type PendingInteractionDef =
       totalLevelMax?: number;     // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M と併用。WDK13-007）
       candidateLevels?: Record<string, number>; // 各候補のレベル（totalLevelMax 判定用）
       selectionConstraint?: SelectionConstraint;
+      /**
+       * 🆕**選んでも場に出せない候補**（`O-534`・`R-48`①＝センタールリグのレベルを超えるシグニ）。
+       * 🔑**engine が `needsInteraction` で付ける**＝UI は表示と決定ゲートに、CPU は候補避けに使う
+       * （**判定は `placeLevelGate.signiPlaceableByLevel` の1本**＝UI が自前で測らない）。
+       * ⚠**候補からは外さない**（原文が対象に取れる札は見せる）＝「選べるが決定できない」で表現する。
+       */
+      unplaceableCards?: string[];
     }
   | {
       type: 'SEARCH';
@@ -2080,6 +2087,8 @@ export type PendingInteractionDef =
       // handOrField: ピックしたカードを1枚ずつ「手札に加える or 場に出す」の対話選択で処理する（「公開し手札に加えるか場に出し」）
       handOrField?: boolean;
       handOrFieldAsDown?: boolean;
+      /** 🆕`SELECT_TARGET` と同じ「場に出せない候補」の印（`O-534`）。⚠`handOrField`／`handOrEnergy` には付けない（場に出すとは限らない）。 */
+      unplaceableCards?: string[];
       // handOrEnergy: ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理する（「手札に加えるかエナゾーンに置き」）
       handOrEnergy?: boolean;
       opponentChoosesPileToTrash?: boolean;

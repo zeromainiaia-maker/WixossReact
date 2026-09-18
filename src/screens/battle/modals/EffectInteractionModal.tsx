@@ -8,7 +8,6 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi
 import { energyPayEntryLabel } from '../energyPaySource';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effectInteractionSelection';
 import { declareNameCandidates } from '../declareNameCandidates';
-import { signiPlaceableByLevel } from '../placeLevelGate';
 import type { BattleModalCtx } from './types';
 import type { EffectAction } from '../../../types/effects';
 
@@ -120,34 +119,18 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             : undefined;
 
           /**
-           * 🆕🔴**配置レベル制限**（2026-09-18 バグ報告・`RULES.md` `R-48`①・`placeLevelGate.ts`）＝
+           * 🆕🔴**配置レベル制限**（2026-09-18 バグ報告・`RULES.md` `R-48`①・`engine/placeLevelGate.ts`）＝
            * **「場に出す」効果はセンタールリグのレベルを超えるシグニを出せない**。
-           * 🔴engine の `ADD_TO_FIELD` はこのゲートを1つも通しておらず、**レベル超過のシグニが選べて場に出ていた**
-           *   （手札召喚の `levelOk` とレゾナ出現には在るのに、効果の場出しだけ素通りだった）。
-           *
-           * ⚠**出す先の場の持ち主**で判定する＝`thenAction.owner` は**効果のコントローラー基準**なので、
-           *   「相手が選ぶ」型（`respondPlayerId` が viewer）では viewer から見た自分/相手が入れ替わる。
-           * ⚠**判定しない（fail-open）ケース**＝`handOrField`／`handOrEnergy`（場に出すとは限らない）／
-           *   場を対象にした移動系。塞ぎすぎると**合法な効果が打てないソフトロック**になる側。
+           * 🔑**判定は engine が済ませて `unplaceableCards` で渡してくる**（`execUtils.needsInteraction`）＝
+           *   **画面は測らない**（出す先の場の持ち主・`handOrField` の除外・fail-open の規約は engine 側の1本）。
+           *   🔴初版は画面が自前で測っていたが、それだと**選択が起きない経路と CPU が素通り**したまま（`O-534`）。
            */
-          const placeThenAction = interactionThenAction(inter);
-          const placeFieldState = (() => {
-            if (placeThenAction.type !== 'ADD_TO_FIELD') return null;
-            if (inter.type === 'SEARCH' && (inter.handOrField || inter.handOrEnergy)) return null;
-            if (inter.type === 'SELECT_TARGET'
-              && (inter.targetScope === 'self_field' || inter.targetScope === 'opp_field' || inter.targetScope === 'both_field')) return null;
-            const controllerIsViewer = (pe.sourcePlayerId ?? user.id) === user.id;
-            const toController = (placeThenAction as { owner?: string }).owner !== 'opponent';
-            return toController === controllerIsViewer ? my : op;
-          })();
-          /** レベル超過で**出せない**候補（`candidates` の値そのもの）。 */
-          const levelBlockedCards = new Set(
-            placeFieldState ? candidates.filter(n => !signiPlaceableByLevel(n, placeFieldState, battleCardMap)) : []);
+          const levelBlockedCards = new Set(inter.unplaceableCards ?? []);
           /**
            * 🔑**上限は「出せる候補の数」で数える**＝候補が全部レベル超過なら `0` 枚で決定できる
            *   （＝`O-530` と同じ「可能な限り実行する」）。これが無いと**決定が永久に押せない**。
            */
-          const placeableCount = candidates.length - levelBlockedCards.size;
+          const placeableCount = candidates.length - candidates.filter(n => levelBlockedCards.has(n)).length;
           const maxPick = inter.type === 'SELECT_TARGET'
             ? fixedSelectionPickLimit(inter.count, placeableCount, inter.optional, constrainedMax)
             : Math.min(inter.maxPick, placeableCount);
@@ -302,7 +285,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 // 🆕2026-09-18 バグ報告（テキサハンマが出せない）＝任意の対象選択で**何も選ばずに「決定 (0/1)」を押すと
                 //   黙って「使わない」になっていた**（実機ハーネスも同じ罠を踏んだ）。断るのは隣の「スキップ」だけにする。
                 : (!(inter.optional && inter.selectionConstraint?.totalLevelExact === undefined && effectSelectedNums.length === 0)
-                  && fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional, constrainedMax)
+                  // 🔴**枚数条件も「出せる候補の数」で数える**（`O-534`・2026-09-18 実機で発覚）＝
+                  //   `candidates.length` のままだと**候補が全部レベル超過の非 optional な選択で決定が永久に押せない**
+                  //   （上限＝`maxPick` は 0 に下がるのに、確定条件だけが「1枚選べ」と言い続ける）＝実機 `V-281` が捕まえた。
+                  && fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, placeableCount, inter.optional, constrainedMax)
                   && satisfiesSelectionConstraint(
                     effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                     inter.selectionConstraint,

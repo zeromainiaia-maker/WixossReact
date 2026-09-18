@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.3 `O-534` クローズ＝配置レベル制限（`R-48`①）を engine 側の funnel へ（CPU・自動配置も塞いだ）
+
+- **前段**＝同日のバグ報告（下の項）で塞いだのは**人間の対象選択UI だけ**＝**選択が起きない経路と CPU** は超過して場に出せたままだった。
+- 🔴**真因の位置**＝engine の配置は `applyDirectAction(ADD_TO_FIELD)`／`execAddToField` の即時配置／トークン生成の3経路とも
+  **`deployLimitBlockReason` を既に通っていた**のに、その判定に**レベルの軸が無かった**（体数・名前・出自・パワー・ゾーンだけ）。
+  ⇒ **1か所（`LEVEL_OVER`）足すだけで engine 側の全経路が塞がる**。
+- **やったこと**
+  - 判定を `src/screens/battle/placeLevelGate.ts` → 🆕**`src/engine/placeLevelGate.ts`** へ移設（engine から `src/screens/` は import しない）。
+    併せて `declaredSigniOverride`（宣言レベル0・`O-226`）を 🆕`src/engine/declaredSigni.ts` へ移し、`growLogic.ts` は**re-export**＝**実装は1本**。
+  - `deployLimitBlockReason` に **`LEVEL_OVER`** を追加（＋ログ文）。
+  - 🆕**`needsInteraction` が対象選択に `unplaceableCards` を付ける**（`SELECT_TARGET`／`SEARCH` × `thenAction: ADD_TO_FIELD`）。
+    🔑**対話を作る口は1つ**なので、`SELECT_TARGET` を組み立てる地点が散っていても付け忘れが出ない。
+    ⚠**候補からは外さない**（原文が対象に取れる札は見せる）／`handOrField`・`handOrEnergy` には付けない。
+  - UI は**自前の判定をやめて `inter.unplaceableCards` を読むだけ**に変更。CPU（`pickCpuTargets`／`pickCpuSearch`）も同じ印で候補を避ける。
+- 🔴**実機が捕まえた UI のソフトロック（この回の収穫）**＝候補が**全部**超過の**非 optional** な選択で、
+  上限（`maxPick`）は 0 に下がるのに**枚数条件だけが `candidates.length` を見ていた**＝**決定が永久に押せない**。
+  ⇒ `fixedSelectionCountCanConfirm` にも `placeableCount` を渡す。golden に両方向で固定（`fixedSelectionCountCanConfirm(0,1,0,false)===true`）。
+- 🔴**golden 側の較正2件**（退化ではない）＝①`O-533` の盤面が **illegal**（センター Lv2 の場に Lv4 のシグニを出す）だった＝センターを Lv4 へ
+  ②`O-226` の実体位置を engine へ（screens は re-export であることを assert）。
+- 検証＝`npm run gates` 全緑（golden **4315**）。**反転確認は3本**＝①engine の `LEVEL_OVER` を外す→FAIL ②`unplaceableCards` の印を空にする→FAIL ③枚数条件を `candidates.length` に戻す→FAIL。
+  実機＝🆕`V-281`（`placeLevelTrashOver`＝**対象選択が候補1枚でも上限0**＝「決定 (0/0)」だけが道／コストは払っている／トラッシュに残る）
+  ／🆕`V-282`（`placeLevelTrashWithin`＝**ルリグ Lv3 への1ビット反転**＝同じ操作で場に出る）／前段の `V-279`・`V-280` も PASS。
+  CPU 通し対戦 PASS（7ターン決着）。
+- ⚠**engine の実挙動は golden で固定**＝`PLACE_SIGNI_ON_FIELD`（選択を挟まない配置）で超過は出ず・レベル以下は出る／対象選択に印が付く。
+  ⚠**空きゾーンが2つ以上あると engine は先にゾーンを問う**（`SELECT_SIGNI_ZONE`）＝「置けた」を見るテストは空きを1つにする（初版はこれで偽 FAIL）。
+- 実機が必須な理由＝`src/engine/` と `src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 🔴バグ報告＝「場に出す」効果でルリグのレベルより大きいシグニを場に出せる（配置レベル制限 `R-48`①）
 
 - 🔑**ユーザー報告**＝「『場に出す』の効果でルリグレベルより大きいシグニを召喚できてしまう。対象を選ぶ段階で表示はしているが、レベル超過の場合は決定を押せないようにすべき」。
