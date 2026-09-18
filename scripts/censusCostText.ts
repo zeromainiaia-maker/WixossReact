@@ -81,6 +81,11 @@ const TARGETS: { file: string; cls: 'COST' | 'GATE' | 'OTHER' }[] = [
   { file: 'src/screens/battle/lrigActivateGate.ts', cls: 'GATE' },
   { file: 'src/screens/battle/pieceCutin.ts', cls: 'GATE' },
   { file: 'src/screens/BattleScreen.tsx', cls: 'OTHER' },
+  // 🆕2026-09-18＝§5.7 `S-5c` で画面から移した実行関数・ルール処理（`controller/`）も画面と同じ OTHER で見る。
+  //   🔴入れないと、移設のたびに原文を読む箇所が**計器から黙って消える**（第3段でバトル解決の2規則が消えて判明）。
+  ...readdirSync(join(root, 'src/screens/battle/controller'))
+    .filter(n => n.endsWith('.ts')).sort()
+    .map(n => ({ file: `src/screens/battle/controller/${n}`, cls: 'OTHER' as const })),
 ];
 
 /** `costs.ts` の中でも「コストの値を動かさない」関数は B へ落とす（マルチエナ判定など）。 */

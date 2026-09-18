@@ -59399,7 +59399,9 @@ test('O-57 engine: B群は効果所有者の宣言名で相手デッキトップ
 // §5.3 O-49: BattleScreen のバトル Phase2 は純粋 engine から呼べない。
 // 実機シナリオに加え、ミラー語彙の集合と共有行き先フラグの配線を source tripwire で守る。
 test('O-49 バニッシュ先変更: 防御側の語彙がアタッカー側にミラーされる', () => {
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   const defender = src.slice(src.indexOf('const redirectBanish ='), src.indexOf('const anyRedirect ='));
   const attacker = src.slice(src.indexOf('const redirectMyBanish ='), src.indexOf('const anyMyRedirect ='));
   // コード上の state フィールド／判定 helper／STUB id から集合を毎回再導出する。
@@ -79833,7 +79835,9 @@ test('§5.3 O-299 leaveToTrashWindow: 期間2ターン＋「能力を持たな�
   ok(applied.replaced && applied.ctx.otherState.trash.includes(vanilla), 'トラッシュへ行っていない');
 
   // 🔴**バトル経路と効果経路が同じ述語を読む**（片側だけだと O-299 の共通の壊れ方に戻る）。
-  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   eq((battleSrc.match(/leaveToTrashWindowApplies\(/g) ?? []).length, 2,
     'バトル経路の攻撃側／防御側の両方で共有述語を読んでいない（O-49 の対称規約）');
   const utilsSrc = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
@@ -85977,6 +85981,21 @@ test('§5.7 S-5c 画面のコールバックを渡し忘れていない（移設
     '🔴コスト付き【出】の確認モーダルを開くコールバックを渡していない（人間がコスト付き【出】を使えなくなる）');
 }));
 
+test('§5.7 S-5c 第3段 シグニアタックのバトル解決は移設先の1本（画面に本体を書き戻さない）', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`resolvePendingSigniBattleFor`（1,588行）と `crashOneLife`（115行）を `controller/resolveSigniBattle.ts` へ逐語で移設。
+  //   ヘッドレス（`S-5`）は同じ関数を `PerformCtx` で回す＝画面に書き戻すと二重になり、片方だけ直る型の退化を招く。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const moved = fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+  ok(battle.includes('await resolvePendingSigniBattleImpl(myS, opS, myKey, attackerId, defenderId, performCtx());'), '🔴画面のラッパが移設先へ委譲していない');
+  ok(!battle.includes('const crashOneLife = ('), '🔴crashOneLife が画面に書き戻されている');
+  ok(!battle.includes('がアタック：相手のライフなし → 相手の敗北'), '🔴バトル解決の本体（ライフなし→敗北）が画面に残っている');
+  ok(moved.includes('がアタック：相手のライフなし → 相手の敗北'), '移設先に本体が無い');
+  // 🔴付与キーワード（正面以外追加アタック等）は「アタックしている側」の盤面から引く＝画面の `dynamicKeywords.my`（見ている人の側）を使わない。
+  ok(moved.includes('my: collectContinuousGrantedKeywords(myS, opS, attackerIsActive,'), '🔴付与キーワードをアタック側の盤面から引いていない（CPU のアタックで CPU の付与が引けない）');
+  // 純関数化したパワー0以下の候補（画面の CPU 側も同じ1本を使う）。
+  ok(battle.includes('powerZeroBanishCandidates(bs, hostState, guestState, effectsMap, battleCardMap)'), '🔴画面のパワー0以下の候補が移設先の純関数を通っていない');
+}));
+
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
   // 🔑報告は「遊んで見つけた型」を拾う唯一の導線＝**中身が欠けているとその報告は死ぬ**
   //   （再現できない＝golden に落とせない）。組み立てを純関数にして、ここで欠落を止める。
@@ -86088,7 +86107,9 @@ test('§5.6 C-9 ランサー：バニッシュが置換されたらクラッシ�
   //   ①既定は `'replaced'`（置換分岐を足して書き忘れても「割らない」側へ倒れる）
   //   ②`'banished'` にするのは**本当にバニッシュした1分岐だけ**
   //   ③ランサーの判定は `lancerCrushTriggers` を通す
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   ok(src.includes(`let defenderResolution: DefenderBattleResolution = 'replaced';`), '🔴防御側の帰結の既定が replaced でない');
   eq(src.split(`defenderResolution = 'banished';`).length - 1, 1, '🔴banished にする分岐が1つでない（置換分岐でも立てている疑い）');
   ok(/const lancerApplies = lancerCrushTriggers\(/.test(src), '🔴ランサーの判定が lancerCrushTriggers を通っていない');
@@ -86176,7 +86197,9 @@ test('§5.3 O-531 ライズのバニッシュ置換＝枚数と任意性を原�
   eq(collectBanishSubstitutes(mandatoryState, other, false, cardMap, effectsMap, 'WX22-034')
     .filter(o => o.kind === 'trash_under').length, 0, '強制版を選択肢に出している');
   // 🔴**適用側**＝バトル解決は枚数ぶんだけ落とし、**残りの下のカードは動かさない**。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   ok(screen.includes('const bottomCards = riseSubStack.slice(0, riseSubCount);'),
     '🔴バトル解決が枚数を見ずに下を全部トラッシュしている');
   ok(screen.includes('newOpSigniRiseSub[opZoneIndex] = riseSubStack.slice(riseSubCount);'),
@@ -87244,7 +87267,9 @@ test('§5.6 C-9 R-45 レゾナの行き先：ルリグデッキへ戻る（ル�
   if (craft) eq(resonaLeaveDestination(craft, cardMap, effectsMap), 'exile', '🔴レゾナクラフトが除外されない');
   // 🔴**写経の再発防止**＝行き先の ladder は4箇所（効果 funnel＋バトル2＋パワー0）にあり、
   //   規則を1つずつ手で書き直すと**経路によってレゾナの行き先が変わる**。判定は `resonaZone.ts` の1本を通す。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   const utils = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
   eq((screen.match(/resonaLeaveDestination\(/g) ?? []).length, 3,
     '🔴BattleScreen のレゾナ行き先の消費地点が3箇所でない（バトル防御側・バトルアタック側・パワー0以下）');
@@ -87538,7 +87563,9 @@ test('§5.1 V-181 バトルで倒れた防御側の【自】はバトル前の�
   // 🆕2026-09-18＝`resolvePendingSigniBattleFor` は人間・CPU 共用なのに、防御側の collectBanishTriggers に
   //   画面の持ち主から見た相手 `op` を渡していた＝CPU がアタックすると人間の防御シグニの離場ゾーンが引けず、
   //   「このシグニの正面にあった」（WX07-039-E1）が「対象を取れない」で不発した（実機 v181 を防御側経路へ組み直して判明）。
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
   const m = battle.match(/collectBanishTriggers\(\s*banishedOpCardNum,\s*defenderId,\s*newHostState,\s*newGuestState,[\s\S]*?\n\s*(\w+),\s*\r?\n\s*undefined,\s*\r?\n\s*myTopNum,/);
   ok(!!m, '防御側の collectBanishTriggers 呼び出しが見つからない（形が変わったならこの検査も直す）');
   eq(m?.[1], 'opS', '🔴防御側のバトル前状態が opS ではない（op だと CPU のアタックで人間の防御シグニの離場ゾーンが引けない）');

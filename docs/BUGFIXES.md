@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第3段＝シグニアタックのバトル解決（`resolvePendingSigniBattleFor` 1,588行）を画面から出した
+
+- **移設**＝本体＋`crashOneLife`（115行・呼び出し元がここだけ）を 🆕`controller/resolveSigniBattle.ts` へ**逐語で**。材料と I/O は `PerformCtx`（`performCtx()` をそのまま渡す）。
+  画面にあった薄いラッパ8本（`collect*Triggers`）は移設先の先頭へ文字どおり写した（画面側で使われなくなった4本は削除）。
+  `collectPowerZeroBanishCandidates` は純関数 `powerZeroBanishCandidates` にして画面の CPU 側も同じ1本を使う。`loading` の確認は画面のラッパ。
+  **元コードとの機械 diff＝`loading` の1行と `import('…')` の相対パスだけ**。BattleScreen **12,012 → 10,245行**（未使用 import 45個も削除）。
+- 🔴**移設時に1件修正**＝付与キーワード（`正面以外追加アタック`／`正面隣追加アタック`）を画面の `dynamicKeywords.my`＝**見ている人の側**で引いていた＝
+  **CPU がアタックすると CPU のシグニの付与が引けず、追加のバトルが起きなかった**。⇒ アタック側の盤面（`myS`/`opS`・`attackerIsActive`）から計算（人間のアタックでは同値）。
+  🔑**前項の `op`→`opS` と同じ型**＝人間・CPU 共用の関数が画面の視点の値を掴んでいた。移設で**画面の名前が使えなくなって初めて見える**。
+- 🆕**計器の較正**＝`census:costtext` の走査対象に `controller/*.ts` を追加（OTHER）。入れないと移設のたびに原文を読む箇所が黙って消える
+  （今回 C 群が 3規則→1規則に減って判明。戻したら所属関数も `normalizeBattleRow`（誤表示）→ `resolvePendingSigniBattleFor` に正しく出た）。
+- **golden**＝移設先を読むよう6本を較正（`O-49`／`O-299`／`C-9` ランサー／`O-531`／`R-45`／`V-181`）＋🆕`§5.7 S-5c 第3段`（画面に本体を書き戻さない／付与キーワードの視点／パワー0以下の1本化）。
+- **検証**＝`npm run gates` 全緑。実機（`src/screens/`）＝シグニアタック系20本 **全 PASS**（同値バトル・ダブル/トリプルクラッシュ・防御側の【自】・ランサー各種・側面アタック・追加ゾーンアタック・レゾナ）
+  ＋CPU 通し対戦 **PASS**（10ターン決着・クラッシュの連続重複ログ 0）。
+
 ## 2026-09-18 実機シナリオの腐り36本を棚卸し＋CPU のアタックで倒れた人間のシグニの【自】が「正面にあった」を解決できない実バグ
 
 - **発端**＝前項の実機確認で `v232DoubleCrushUpsWatcher`／`v232DoubleCrushLrigAttack` が修正前から FAIL（「前提崩れ」）。
