@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第3段 完了＝CPU の1手（`cpuTurnAction` 1,362行）を画面から出した＋ハーネス2件
+
+- **移設**＝`cpuTurnAction` → 🆕`controller/cpuTurn.ts`（**元コードとの機械 diff が空**）。BattleScreen **9,098 → 7,639行**。
+  🔑**「画面から45名前を掴む」は分類すると注入4種で済んだ**＝①`PerformCtx`（盤面・カード・効果・I/O）②盤面から同じ式で作れる値（`drawCount`・`contBlocked`＝見ている人（人間）基準のまま）
+  ③薄いラッパ（`collect*`・`effectiveHasBurst` 等を逐語で写す）④**実行関数の画面ラッパ14本を「行動の口」`CpuTurnActions` として注入**（型は `DropLast<Parameters<typeof *Impl>>`）
+  ＝**UI コールバック込みのまま**なので CPU も人間と同じ経路を通る（移設先で `perform*Impl(` を直接呼ぶと UI コールバックが落ちる＝golden で禁止）。
+  残り＝全カード（`allCards`・⚠`PerformCtx.cards`＝`battleCards` と別物）・作戦データ・パワー0の即時処理（ref）。
+  画面に残っていた `SummonActorCtx` の古い写し（`performSummonSigni.ts` の公開型と同形）を削除。
+- ⚠**移設の後始末で1件事故**＝未使用ローカルを消すスクリプトが「次の15行に `=> {` があればブロック」と判定し、2行の関数を消すときに**直後の `resolvePendingSigniBattleFor` ラッパまで消した**（型検査で即検出・戻した）。
+- **golden**＝CPU の形を読む19本を `battleScreenSource()`（画面＋`controller/` 全部）へ寄せ、区間の目印が移設先へ移った T6 と、ファイル別の呼び出し数表（`O-342`）を較正＋`§5.7 S-5c 第3段` に見張り。
+- 🆕**ハーネス①** `v85CpuAutoDeclaresAndBlocksThatGuardLevel`＝**CPU の宣言は乱数**（`pickCpuChoice`）なのに「1」を決め打ち＝**変更前のコードでも 3・5・5 と揺れていた**。⇒ 実際に宣言した数字で判定（1・2・3 で PASS を確認）。
+- 🆕**ハーネス②** `verifyFullMatch.mjs`＝**配置レベル制限（`O-534`）で出せない候補（「Lv超過」）を押し続け、スキップに届かず手詰まり**（機構デッキ・人間側のライフバースト「手札から場に出す」）。
+  決定ボタンの文言が「決定 (1/N)」ではなく「ルリグのレベルを超えています」になる＝「まだ選べていない」と誤読していた。⇒ Lv超過の候補は押さない。
+- **検証**＝`npm run gates` 全緑。実機＝CPU 系49本を1回の実行で **47 PASS**、FAIL 2本＝`v78CpuGrowsAndPaysOnPlayCost`（単独・直前込みの再実行とも PASS＝並び順の揺れ）／`v85`（上の①）。
+  CPU 通し対戦＝通常デッキ PASS（6ターン）／機構デッキ PASS（ハーネス②の修正後・6ターン・踏破 10/23）。
+
 ## 2026-09-18 §5.7 `S-5c` 第3段の続き＝人間のルール処理3本（フェイズ進行・エンドの捨て札・カットイン見送り）を画面から出した
 
 - **移設**＝`doPhaseAdvance`（683行）→ 🆕`controller/phaseAdvance.ts`／`confirmEndDiscard`（234）→ 🆕`endDiscard.ts`／`handleCutinPass`（194）→ 🆕`cutinPass.ts`。

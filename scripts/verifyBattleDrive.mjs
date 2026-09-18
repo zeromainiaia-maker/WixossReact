@@ -33176,9 +33176,14 @@ scenarios.v85CpuAutoDeclaresAndBlocksThatGuardLevel = {
     }
     // 🔑**機構が動いた証拠を必須条件に入れる**（§4.4 の4）＝盤面（＝候補が1枚）だけでは
     //   「宣言が効いた」と「そもそもLv1が手札に無い」の区別がつかない。
-    const declaredOk = JSON.stringify(fin.guest.declaredGuardRestrictLevels) === JSON.stringify([1]);
-    const lv1Hidden = !seen.includes('WD01-017#85050');
-    const lv2Shown = seen.includes('WD01-016#85051');
+    // 🔴2026-09-18＝**CPU の宣言は乱数**（`pickCpuChoice`＝1〜5 の肢を `rngShuffle`）＝旧版は「1 を宣言した」を決め打ちしており、
+    //   **宣言が 1 のときだけ PASS**（変更前のコードでも 3・5・5 と揺れた）。⇒ 実際に宣言した数字 d で判定する：
+    //   手札は Lv1（85050）と Lv2（85051）＝**Lv d のものだけが候補から消え、他は残る**（d が 3〜5 なら両方残る）。
+    const d = fin.guest.declaredNumber;
+    const declaredOk = typeof d === 'number' && JSON.stringify(fin.guest.declaredGuardRestrictLevels) === JSON.stringify([d]);
+    const expectShown = [['WD01-017#85050', 1], ['WD01-016#85051', 2]].filter(([, lv]) => lv !== d).map(([id]) => id);
+    const lv1Hidden = expectShown.every(id => seen.includes(id)) && seen.every(id => expectShown.includes(id));
+    const lv2Shown = true;
     await H.clickTextOrBtn(['ガードしない']).catch(() => {});
     for (let k = 0; k < 6; k++) {
       await page.waitForTimeout(700);
@@ -33187,8 +33192,8 @@ scenarios.v85CpuAutoDeclaresAndBlocksThatGuardLevel = {
       await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', '手札に加える', 'OK']).catch(() => {});
     }
     return {
-      pass: declaredOk && lv1Hidden && lv2Shown && seen.length === 1,
-      detail: `CPU が自動宣言（declared_number=${fin.guest.declaredNumber}／guard制限=${JSON.stringify(fin.guest.declaredGuardRestrictLevels)}=[1]:${declaredOk}・デッドロックなし・宣言観測ティック=${declaredAt}）／ガード候補=${JSON.stringify(seen)}（Lv1消えた=${lv1Hidden}・Lv2残った=${lv2Shown}）`,
+      pass: declaredOk && lv1Hidden && lv2Shown,
+      detail: `CPU が自動宣言（declared_number=${fin.guest.declaredNumber}／guard制限=${JSON.stringify(fin.guest.declaredGuardRestrictLevels)}=[宣言値]:${declaredOk}・デッドロックなし・宣言観測ティック=${declaredAt}）／ガード候補=${JSON.stringify(seen)}（Lv1消えた=${lv1Hidden}・Lv2残った=${lv2Shown}）`,
     };
   },
 };

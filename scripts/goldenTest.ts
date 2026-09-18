@@ -6323,7 +6323,7 @@ test('§6.4 NEXT_TURN WX12-Re05-E1: 発動ターンは場出し可／次相手�
   ok(isHandSigniPlayBlockedByPower(started, 15000), '閾値以上も封じる');
   ok(!isHandSigniPlayBlockedByPower(started, 11999), '閾値未満は通す');
   ok(!isHandSigniPlayBlockedByPower(clearTurnEndScopedState(started), 12000), '対象ターン終了で失効');
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSource = battleScreenSource();
   const executorSource = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
   // §5.6 `C-6`（2026-09-17）で3地点目＝CPU のライズ入口（`tryCpuRise`）。
   eq((battleSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 3, '人間／CPU配置／CPUライズの手札召喚入口で消費');
@@ -7353,7 +7353,7 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
   const routes = [
     ['PvP通常終了', '// 自分（ターン終了プレイヤー）のターン内一時状態をクリア', '// ターンプレイヤーを交代しない場合（追加ターン／相手のターンスキップ）は'],
     ['手札調整確定後', '// ターン内一時状態をクリアして newMyState を確定', '// 追加ターン / 相手のターンスキップ / ターンプレイヤー交代'],
-    ['CPU終了', '// ─── ENDフェイズ：ターン終了処理 ───', 'cpuTurnRef.current = cpuTurnAction;'],
+    ['CPU終了', '// ─── ENDフェイズ：ターン終了処理 ───', 'handoverCpu.consumeOpponent(resolvePendingExiles'], // §5.7 `S-5c` 第3段＝本体は controller/cpuTurn.ts（関数末尾の引き渡しまで）
   ] as const;
   for (const [name, start, end] of routes) {
     eq((section(start, end).match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 2,
@@ -30184,11 +30184,7 @@ test('WX25-P3-104-E1: 選択対象でもバトル／効果バニッシュはエ�
   ok(result.energy.includes(selected) && !result.trash.includes(selected), '通常banishDestinationはpower0限定リストをconsumeしない');
 });
 test('WX25-P3-104-E1: 単体power0リストを全ターン境界・両プレイヤーでクリア', () => {
-  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
-    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+  const source = battleScreenSource();
   eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 6,
     'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
 });
@@ -30224,11 +30220,7 @@ test('WXDi-P15-078-E2: バトル限定個体redirectはバトルだけtrash・�
 });
 
 test('WXDi-P15-078-E2: バトル限定個体リストを全ターン境界・両プレイヤーでクリア', () => {
-  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
-    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+  const source = battleScreenSource();
   eq((source.match(/banish_redirect_battle_target_nums: undefined/g) ?? []).length, 6,
     'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
 });
@@ -78851,7 +78843,7 @@ test('第276 §5.3 O-321① guard: ピース使用履歴はアーツ使用履歴
   //   `turn_arts_used_names` のクリアは `BattleScreen.tsx` に**6箇所**あり、
   //   新しいクリア地点が足されたときに片方だけ書かれるのを機械で止める。
   // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む（クリア地点は画面と移設先に分かれた）
-  const src = (fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf-8')).split(/\r?\n/);
+  const src = battleScreenSource().split(/\r?\n/);
   const bad: string[] = [];
   let clears = 0;
   for (let i = 0; i < src.length; i++) {
@@ -81873,7 +81865,9 @@ test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化
     // §5.6 `C-7`（2026-09-17）＝キー／ピースの提示（プール版）を `keyPieceUseGate.ts` へ移し、CPU のキー／ピース（選択版）が1地点増えた。
     // §5.7 `S-7`（2026-09-17）＝CPU の場以外の【起】（`tryCpuOffFieldActivated`）で選択版が1地点増えた。
     // §5.7 `S-5c` 第2段（2026-09-18）＝`performGrow` を `controller/` へ移設＝画面 8 ＋ 移設先 1（**合計は据え置き**）。
-    ['src/screens/BattleScreen.tsx', 8, 2, 0],
+    // §5.7 `S-5c` 第3段（2026-09-18）＝`cpuTurnAction` を `controller/cpuTurn.ts` へ移設＝選択版8地点がそちらへ（**合計は据え置き**）。
+    ['src/screens/BattleScreen.tsx', 0, 2, 0],
+    ['src/screens/battle/controller/cpuTurn.ts', 8, 0, 0],
     ['src/screens/battle/controller/performGrow.ts', 1, 0, 0],
     ['src/screens/battle/keyPieceUseGate.ts', 0, 1, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
@@ -86022,7 +86016,16 @@ test('§5.7 S-5c 第3段 シグニアタックのバトル解決は移設先の1
   // 🔴付与キーワード（正面以外追加アタック等）は「アタックしている側」の盤面から引く＝画面の `dynamicKeywords.my`（見ている人の側）を使わない。
   ok(moved.includes('my: collectContinuousGrantedKeywords(myS, opS, attackerIsActive,'), '🔴付与キーワードをアタック側の盤面から引いていない（CPU のアタックで CPU の付与が引けない）');
   // 純関数化したパワー0以下の候補（画面の CPU 側も同じ1本を使う）。
-  ok(battle.includes('powerZeroBanishCandidates(bs, hostState, guestState, effectsMap, battleCardMap)'), '🔴画面のパワー0以下の候補が移設先の純関数を通っていない');
+  ok(fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8').includes('powerZeroBanishCandidates(bs, hostState, guestState, effectsMap, battleCardMap)'), '🔴CPU のパワー0以下の候補が移設先の純関数を通っていない');
+  ok(!battle.includes('const collectPowerZeroBanishCandidates = ('), '🔴パワー0以下の候補を画面で書き直している');
+  // 🆕同日の続き＝CPU の1手（`cpuTurnAction`・1,362行）も `controller/cpuTurn.ts` へ。画面は材料と「行動の口」（実行関数のラッパ）を渡すだけ。
+  ok(battle.includes('const cpuTurnAction = async () => cpuTurnActionImpl(performCtx(), {'), '🔴CPU の1手が移設先へ委譲していない');
+  ok(!battle.includes('// ─── ENDフェイズ：ターン終了処理 ───'), '🔴CPU の1手の本体（ターン終了処理）が画面に書き戻されている');
+  // 🔴CPU の行動は人間と同じ実行関数（画面のラッパ＝UI コールバック込み）を通す＝移設先で実行関数を直接呼ばない（場以外の【起】は行為者つきで同値）。
+  const cpuTurnSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  for (const impl of ['performSummonSigniImpl(', 'performLrigAttackImpl(', 'performSigniAttackImpl(', 'performArtsImpl(', 'performSpellImpl(']) {
+    ok(!cpuTurnSrc.includes(impl), `🔴cpuTurn.ts が ${impl} を直接呼んでいる（画面の UI コールバックが渡らない）`);
+  }
   // 🆕同日の続き＝ルール処理3本（`doPhaseAdvance` 683行／`confirmEndDiscard` 234行／`handleCutinPass` 194行）も移設した。
   //   画面は委譲の1行だけ＝本体を書き戻すと人間とヘッドレスで二重になる。
   ok(battle.includes('doPhaseAdvanceImpl(upkeepPay, performCtx(), { openEndDiscard })'), '🔴フェイズ進行が移設先へ委譲していない');
@@ -86032,7 +86035,10 @@ test('§5.7 S-5c 第3段 シグニアタックのバトル解決は移設先の1
   ok(!battle.includes('const confirmEndDiscard = async () => {'), '🔴エンドの捨て札の本体が画面に書き戻されている');
   ok(!battle.includes('const handleCutinPass = async () => {'), '🔴カットインの見送りの本体が画面に書き戻されている');
   // 遷移先フェイズの TrigCtx は1本（画面の CPU 側と移設先が共用）。
-  ok(battle.includes('makeTrigCtxForPhase({ bs, effectsMap, cardMap: battleCardMap, trigCtx: mkTrigCtx })'), '🔴遷移先フェイズの TrigCtx が共用の1本を通っていない');
+  ok(!battle.includes('const mkTrigCtxForPhase = (phase'), '🔴遷移先フェイズの TrigCtx を画面で書き直している（`execCtxDeps.ts` `makeTrigCtxForPhase` の1本を使う）');
+  for (const f of ['phaseAdvance.ts', 'cpuTurn.ts']) {
+    ok(fs.readFileSync(join(root, 'src/screens/battle/controller', f), 'utf8').includes('makeTrigCtxForPhase({ bs, effectsMap, cardMap: battleCardMap, trigCtx: c.trigCtx })'), `🔴${f} が共用の makeTrigCtxForPhase を通っていない`);
+  }
 }));
 
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
@@ -86181,11 +86187,7 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq(upPhaseRecipient(resolveTurnHandover(base, { skip_next_turn: true } as PlayerState).keepTurn), 'turnEnder',
     '🔴相手がターンをスキップするのに相手をアップしている');
   // 🔴**写経の再発防止**＝アップ処理を `BattleScreen.tsx` に手で書き直さない（4箇所に写経され、3箇所とも同じ誤りだった）。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
-    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+  const src = battleScreenSource();
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
@@ -86370,11 +86372,7 @@ test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ば�
   eq(resolveNextPhaseAfterMain(1, blank), 'END', '🔴先攻1ターン目にアタックフェイズへ進んだ');
   eq(resolveNextPhaseAfterMain(2, blank), 'ATTACK_ARTS', '2ターン目以降のアタックフェイズを飛ばした');
   eq(resolveNextPhaseAfterMain(3, blank), resolveNextPhaseWithSkips('MAIN', blank), '効果によるスキップの判定と食い違う');
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
-    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
+  const battle = battleScreenSource();
   const cpuMain = battle.slice(battle.indexOf("// ─── MAINフェイズ：シグニを手札から召喚"), battle.indexOf("// ─── ATTACK_ARTSフェイズ："));
   ok(cpuMain.length > 0, '前提崩れ＝CPU のメインフェイズの区間が見つからない');
   ok(!/turn_count === 1[\s\S]{0,200}phase: 'END'/.test(cpuMain), '🔴CPU のメインフェイズが1ターン目に END へ飛んでいる（召喚・スペルを一切しない）');
@@ -86495,7 +86493,7 @@ test('§5.7 S-1 カードの強さ表：効果 JSON から「パワー＋効果�
   eq(JSON.stringify(pickCpuHandLimitDiscards(hand, 1, cm, effOf)), JSON.stringify([2]), '🔴手札上限で強い札か【ガード】を捨てた');
 
   // 画面の配線
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   // §5.7 `S-4b` で召喚の比較は先読み（`scoreDeploy`＝盤面の採点の中で `cardStrength` を使う）へ置き換えた。
   ok(/value: scoreDeploy\(id, zone, newCpuSt, cpuHuSt, cpuLookahead\)/.test(battle), '🔴CPU の召喚が強さ（先読み）を渡していない');
   ok(/handGuardCount: handSignis\.filter/.test(battle), '🔴CPU の召喚が手札の【ガード】枚数を渡していない');
@@ -86544,7 +86542,7 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   const discard = { type: 'SELECT_TARGET', candidates: [`${guardNum}#d1`, `${K}#d2`], count: 1, optional: false, targetScope: 'SINGLE', thenAction: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } } as never;
   eq(JSON.stringify(pickCpuTargets(discard, { cpuState: handCpu, oppState: opp, cardMap: cm, effectsOf: effOf })), JSON.stringify([`${K}#d2`]), '🔴効果の捨て札で【ガード】を捨てた');
   // 画面の配線
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   ok(/normalizeCpuDeckPlan\(cpuDeckData\?\.cpu_plan\)/.test(battle), '🔴CPU デッキの作戦データを読んでいない');
   ok(/\+ planDeployBonus\(cpuPlan, id,/.test(battle), '🔴CPU の召喚に作戦データの加点が無い');
   ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(cpuPlan, id\)/.test(battle), '🔴マリガン／対話応答に作戦データを渡していない');
@@ -86594,7 +86592,7 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
   const freezeGain = scoreCardUseGain('WX01-085#h8', 1, board([null, null, null], ['WX01-085#h8']), oppBig, lctx, 'hand');
   ok(freezeGain !== null && freezeGain >= SPELL_GAIN_MIN, `🔴相手のシグニ2体を凍結するスペルの価値を見ていない（${freezeGain}）`);
   // 画面の配線
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   ok(/lookahead: cpuLookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない');
   ok(/lookahead: isActorTurn \? \{ \.\.\.cpuLookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
 }));
@@ -86602,7 +86600,7 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
 test('CPU の召喚：出したシグニの【出】を解決してから次のシグニを出す（バグ報告 2026-09-17）', () => withSavedCursor(() => {
   // 🔴報告「CPU が WD03-014 を出して、次に WD03-013 を出した後に、WD03-014 の出能力が発動した」。
   //   召喚ループが【出】を `cpuOnPlayEntries` にためて、ループの後で一括して積んでいた。
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   const loopStart = battle.indexOf('for (let zone = 0; !cpuMainSkipped && zone < 3; zone++) {');
   const pushAfter = battle.indexOf('// 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ', loopStart);
   ok(loopStart > 0 && pushAfter > loopStart, '前提崩れ＝CPU の召喚ループが見つからない');
@@ -86656,7 +86654,7 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   eq(gate('hand', 'WX18-036#h2', { ...handMe, field: { ...handMe.field, signi: [['WX18-036#f1'], ['WD01-013#f2'], null] } }, opp, 'ATTACK_ARTS', true).length, 0,
     '🔴場の＜悪魔＞が1体なのに「＜悪魔＞2体をトラッシュ」の手札【起】を提示した');
   // 画面＝人間の3入口が同じ関数を呼ぶ（写経しない）
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   for (const zone of ['hand', 'trash', 'energy']) {
     ok(new RegExp(`listOffFieldActivatableEffects\\(\\{\\s*zone: '${zone}'`).test(battle), `🔴人間の${zone}の【起】が共通の提示判定を通っていない`);
   }
@@ -86714,7 +86712,7 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   eq(pickResp(respCpu, oppWith([null, null, null])), null, '🔴人間の場が空なのに手札を捨ててエナを払った');
   // トラッシュの【起】（ネッシー）は相手のターンには出ない＝手札だけ
   ok(!pickResp({ ...respCpu, hand: [] }, opp), '🔴相手のターンにトラッシュの【起】を使った');
-  ok(/if \(await tryCpuOffFieldActivated\(cpuSt, 'ATTACK_ARTS_OP'\)\) return;/.test(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')),
+  ok(/if \(await tryCpuOffFieldActivated\(cpuSt, 'ATTACK_ARTS_OP'\)\) return;/.test(battleScreenSource()),
     '🔴人間のターンのアーツステップに CPU の手札【起】が配線されていない');
   // 画面の配線＝MAIN とアタックフェイズの両方・実行は人間と同じ関数
   ok(/tryCpuOffFieldActivated\(newCpuSt, 'MAIN'\)/.test(battle), '🔴CPU のメインフェイズに場以外の【起】が配線されていない');
@@ -86828,7 +86826,7 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
   eq(JSON.stringify(pickCpuChoice(choose, { cpuState: actor, oppState: mkState({}), cardMap: cm, energyReserve: reserve })[0]), JSON.stringify('skip'),
     '🔴効果の任意コストで次のグロウ用の青を使った');
   // 画面の配線＝エナを払う CPU の行動すべてに予約を渡す（グロウそのものとガードは対象外）
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   // §5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナ）で6か所目。
   eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
   ok(/reserve: cpuGrowReserveFor\(actorState\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
@@ -87360,7 +87358,7 @@ test('§5.6 C-2 CPU のガード：可否は guardableHandIndices 1本・CPU は
   eq(pick([0, 1], [guardLv3, guardLv1], 5), 1, '札が2枚以上あるのに使わない／レベルの低い札から使っていない');
 
   // ⑤🔴配線の固定＝判定を JSX／CPU 経路に写経しない（`C-2` 前は CPU が「ガードしない」固定だった）
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   const dialog = fs.readFileSync(join(root, 'src/screens/battle/modals/GuardResponseDialog.tsx'), 'utf8');
   ok(!battle.includes('CPUはガードしない'), '🔴CPU のガード応答が「ガードしない」固定に戻っている');
   ok(/pickCpuGuardHandIndex\(\{/.test(battle) && /guardableHandIndices\(\{/.test(battle), '🔴CPU が guardableHandIndices→pickCpuGuardHandIndex を通っていない');
@@ -87381,7 +87379,7 @@ test('§5.6 C-3 機構踏破計器：ログ行を機構ごとに数え、規則�
   ok(unvisitedMechanisms(rows).every(m => !m.pending), '未実装（pending）の機構を未踏に数えている');
   // 🔴**文言が契約**＝規則の anchor が src/screens/ に残っていること（変えると計器が黙って0件になる）。
   const src = [
-    fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
+    battleScreenSource(),
     ...fs.readdirSync(join(root, 'src/screens/battle')).filter(f => f.endsWith('.ts') && f !== 'playCensus.ts')
       .map(f => fs.readFileSync(join(root, 'src/screens/battle', f), 'utf8')),
   ].join('\n');
@@ -87416,7 +87414,7 @@ test('§5.6 C-4 マリガンと手札上限：人間と CPU が同じ applyMulli
   eq(pickCpuHandLimitDiscards([l1], 0, cardMap).length, 0, '上限以下なのに捨てる');
 
   // ③🔴配線の固定＝引き直しを JSX に写経しない／CPU の END に手札上限がある
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   eq((battle.match(/applyMulligan\(/g) ?? []).length, 2, '🔴マリガンが applyMulligan を通っていない経路がある（人間＋CPU の2本）');
   ok(/pickCpuHandLimitDiscards\(cpuHandEND/.test(battle), '🔴CPU のエンドフェイズに手札上限が無い');
 }));
@@ -87456,7 +87454,7 @@ test('§5.6 C-5 アシストグロウ・レゾナ：候補は人間と同じ関�
   eq(pickCpuResonaZone(fieldPay, { items: [{ zone: 'hand', index: 0, group: 0 }] }), 1, '最初の空きゾーンに出していない');
 
   // ③🔴配線の固定＝候補・実行を人間専用のクロージャに戻さない
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   ok(/listAssistGrowCandidates\(\{ state: my,/.test(battle), '🔴人間のアシストグロウ候補が listAssistGrowCandidates を通っていない');
   ok(/await tryCpuAssistGrow\(newCpuSt\)/.test(battle) && /await tryCpuResona\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにアシストグロウ／レゾナが無い');
   ok(/await performAssistGrow\(card, side, costIndices, \{\r?\n\s+owner: my/.test(battle), '🔴人間のアシストグロウが performAssistGrow を通っていない');
@@ -87483,7 +87481,7 @@ test('§5.6 C-6 ライズ：置き方は planRiseSummon 1本（人間の「召�
   eq(planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 10 - underLv + 3 - 1, fieldSigniCountLimit: 3, cardMap }), null, 'リミット超過なのに置ける');
   ok(planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 10 - underLv + 3, fieldSigniCountLimit: 3, cardMap }) !== null, 'リミットちょうどで置けない');
 
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   ok(/planRiseSummon\(\{\r?\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
   ok(/await tryCpuRise\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにライズが無い（O-147 の fail-closed のまま）');
   ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\r?\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
@@ -87554,7 +87552,7 @@ test('§5.6 C-7 キー・ピース：可否は checkKeyPieceUse 1本（提示・
     payer: { lrigNameAliases: [], specificCardCostReductions: [] } }).coinNeeded, 0, 'WXK10-015: センターが＜にじさんじ＞なのにコインを請求する');
 
   // ⑥🔴配線の固定＝判定・コスト・実行を写経に戻さない
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = battleScreenSource();
   const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/KeyUseModal.tsx'), 'utf8');
   ok(/const keyCheck = checkKeyPieceUse\(\{/.test(battle), '🔴人間のキー／ピースの提示が checkKeyPieceUse を通っていない');
   ok(modal.includes('keyPieceCostOf({'), '🔴KeyUseModal のコストが keyPieceCostOf を通っていない（提示と請求が割れる）');

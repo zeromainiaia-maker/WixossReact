@@ -201,7 +201,11 @@ function makeSeat(page, name) {
       const pick0 = page.getByTestId('pick-0').first();
       if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
         const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
-        if (!ready) { try { await pick0.click({ timeout: 1500 }); return 'pick:pick-0'; } catch { /* 続行 */ } }
+        // 🆕2026-09-18＝**配置レベル制限（`R-48`①・`O-534`）で出せない候補は押さない**＝「Lv超過」と表示され、
+        //   選んでも決定ボタンが「ルリグのレベルを超えています」のまま押せない。旧版はこれを「まだ選べていない」と読んで
+        //   候補を押し続け、**スキップにたどり着けず手詰まり**になった（機構デッキの CPU 通し対戦・人間側のライフバースト）。
+        const levelOver = ((await pick0.textContent().catch(() => '')) ?? '').includes('Lv超過');
+        if (!ready && !levelOver) { try { await pick0.click({ timeout: 1500 }); return 'pick:pick-0'; } catch { /* 続行 */ } }
       }
       return await S.clickAny([
         // 🔴**ライフバースト確認**（`LifeBurstCheckModal`）＝**相手ターンでも自分に来る**。
