@@ -4,11 +4,14 @@ import { type ExecCtx, applyRefreshOnDone, executeEffect, getCardNum } from '../
 import { initStack, isReadyToResolve, isStackDone, pushToStack, shiftQueue } from '../../../engine/effectStack';
 import { pendingRespondsOpponent, resolvePendingExiles } from '../../../engine/execUtils';
 import { type TrigCtx, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectTargetedTriggers as pureCollectTargetedTriggers, collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers } from '../../../engine/triggerCollect';
-import { type BattleStateRow, type CardData, type EffectStack, type PendingEffect, type PlayerState, type StackEntry } from '../../../types';
+import { type BattleStateRow, type CardData, type EffectStack, type PendingEffect, type PlayerState } from '../../../types';
 import { type CardEffect } from '../../../types/effects';
 import { refreshForcesTurnEnd } from '../refreshTurnEnd';
 import { applyForcedTurnEnd } from '../turnScopedState';
 import { type BattleAction } from './battleController';
+import { collectArtsUseForResolution, collectOppArtsUseForResolution } from './artsUseTriggers';
+import { makeBoardDiffCollector } from './boardDiffTriggers';
+import { makeFillDeployCaps, makeTrigCtx } from './execCtxDeps';
 
 /**
  * 🆕**スタック解決の切り出し**（§5.7 `S-5a`・2026-09-18）＝`BattleScreen.resolveStackNext` の本体（385行）を
@@ -25,7 +28,11 @@ import { type BattleAction } from './battleController';
  *   実測（2026-09-18）＝`collectBoardDiffTriggers` は579行・下位の収集ラッパ26本を呼ぶ（この塊が次の山）。
  */
 
-/** `resolveStackStep` が必要とする「画面側の材料」。 */
+/**
+ * `resolveStackStep` が必要とする材料。
+ * 🆕**2026-09-18（`S-5c` の下ごしらえ）＝データだけになった**＝画面のクロージャは1本も要らない。
+ *   誘発の収集・`TrigCtx`・配置数制限は、この関数が中で組み立てる（`boardDiffTriggers.ts`／`execCtxDeps.ts`／`artsUseTriggers.ts`）。
+ */
 export interface StackResolveDeps {
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
@@ -33,20 +40,8 @@ export interface StackResolveDeps {
   userId: string;
   /** この client が host 側か。 */
   isHost: boolean;
-  trigCtx: () => TrigCtx;
-  fillDeployCaps: (c: ExecCtx) => ExecCtx;
-  collectBoardDiffTriggers: (
-    afterHost: PlayerState, afterGuest: PlayerState,
-    meta: { causeOwnerId: string; causeSourceCardNum: string; fieldTrashCostCards?: string[];
-      resonaConditionCardNum?: string; collectPlacedSelfOnPlay?: boolean; suppressOnPlay?: boolean },
-  ) => { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState };
-  collectArtsUseForResolution: (p: {
-    artsOwnerId: string; artsCardNum: string; effectId: string; afterHost: PlayerState; afterGuest: PlayerState;
-  }) => { entries: StackEntry[]; usedIds: string[] } | null;
-  collectOppArtsUseForResolution: (p: {
-    artsOwnerId: string; artsCardNum: string; effectId: string; beforeMine: PlayerState;
-    afterHost: PlayerState; afterGuest: PlayerState; autoTargetedCards?: string[];
-  }) => { entries: StackEntry[]; usedIds: string[]; iAmHost: boolean } | null;
+  /** 場の実効パワー（`calcFieldPowers` の結果）。`TrigCtx` が読む。 */
+  effectivePowers: Map<string, number>;
 }
 
 /** 1手ぶんの結果（`action` をそのまま `persist.commit(reduceBattle(bs, action))` へ渡す）。 */
@@ -93,7 +88,7 @@ export const fieldPlacementOnPlayOpts = (effect?: CardEffect): {
 
 /** 《トラップアイコン》発動トリガー（画面側の薄いラッパと同じ＝効果元の持ち主から見た自/他を決めるだけ）。 */
 function collectTrapActivate(
-  deps: StackResolveDeps, bs: BattleStateRow, ownerId: string, hostState: PlayerState, guestState: PlayerState,
+  deps: { trigCtx: () => TrigCtx }, bs: BattleStateRow, ownerId: string, hostState: PlayerState, guestState: PlayerState,
 ) {
   const ownerState = ownerId === bs.host_id ? hostState : guestState;
   const otherState = ownerId === bs.host_id ? guestState : hostState;
@@ -104,10 +99,26 @@ function collectTrapActivate(
  * スタックの先頭1件を解決して「次に commit する `BattleAction`」を返す（解決するものが無ければ `null`）。
  * ⚠呼び出し側の `loading`／多重実行ガード（同じエントリを2回処理しない）は**ここには無い**。
  */
-export function resolveStackStep(bs: BattleStateRow, deps: StackResolveDeps): StackResolveStep | null {
+export function resolveStackStep(bs: BattleStateRow, input: StackResolveDeps): StackResolveStep | null {
   const stack = bs.effect_stack;
   if (!stack || !isReadyToResolve(stack) || stack.queue.length === 0) return null;
   const logs: string[] = [];
+  // 🆕材料はここで組み立てる（呼び出し側は**データだけ**渡す）。⚠`bs` は差分の before＝収集器にもそのまま渡す。
+  const trigCtx = () => makeTrigCtx({ bs, effectsMap: input.effectsMap, cardMap: input.cardMap,
+    effectivePowers: input.effectivePowers, userId: input.userId });
+  const artsDeps = { bs, cardMap: input.cardMap, userId: input.userId, isHost: input.isHost, trigCtx };
+  const deps = {
+    ...input,
+    trigCtx,
+    fillDeployCaps: makeFillDeployCaps({ cardMap: input.cardMap, effectsMap: input.effectsMap }),
+    collectBoardDiffTriggers: makeBoardDiffCollector({
+      bs, cardMap: input.cardMap, effectsMap: input.effectsMap, isHost: input.isHost, userId: input.userId, trigCtx,
+    }),
+    collectArtsUseForResolution: (p: Parameters<typeof collectArtsUseForResolution>[1]) =>
+      collectArtsUseForResolution(artsDeps, p),
+    collectOppArtsUseForResolution: (p: Parameters<typeof collectOppArtsUseForResolution>[1]) =>
+      collectOppArtsUseForResolution(artsDeps, p),
+  };
   const { entry, newStack: shiftedStack } = shiftQueue(stack);
   if (!entry) return { entryId: null, action: { type: 'SET_STACK', stack: null }, logs };
   const ownerIsHost = entry.playerId === bs.host_id;

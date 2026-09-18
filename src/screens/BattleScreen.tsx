@@ -9,7 +9,7 @@ import { executeEffect, applyRefreshOnDone, refreshPlayersIfDeckEmpty, resumeSel
 import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canSatisfyDiscardGroups, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectTurnTriggers as pureCollectTurnTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, collectSuppressedSigniTriggerNums, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectTurnTriggers as pureCollectTurnTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash, countCharmsToTrash, detectNewlyDowned } from '../engine/boardDiff';
 import { applyCoinGain } from '../engine/coinGain';
@@ -128,7 +128,9 @@ import { useBattleSession, DECK_DATA_COLUMNS } from './battle/hooks/useBattleSes
 import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
+import { collectArtsUseForResolution as bdCollectArtsUse, collectOppArtsUseForResolution as bdCollectOppArtsUse } from './battle/controller/artsUseTriggers';
 import { makeBoardDiffCollector, type BoardDiffCollector } from './battle/controller/boardDiffTriggers';
+import { makeFillDeployCaps, makeTrigCtx } from './battle/controller/execCtxDeps';
 import { fieldPlacementOnPlayOpts, resolveStackStep, type StackResolveDeps } from './battle/controller/stackResolve';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
@@ -1326,22 +1328,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   `LIFE_CRASH`（効果によるクラッシュ）は engine 側で解決されるので、盤面走査を engine に置くと
   //   同じ dead flag を踏む。**「ダメージ以外によってはクラッシュされない」が効くのは効果経路だけ**
   //   なので、ここを埋め忘れると `WX19-046-E2` / `WD13-010-E1`① が丸ごと無効になる。
-  const fillDeployCaps = (c: ExecCtx): ExecCtx => {
-    c.deployCountCapSelf = deployCountCap({
-      placingState: c.ownerState, opponentState: c.otherState,
-      cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: c.isOwnerTurn,
-    });
-    c.deployCountCapOpponent = deployCountCap({
-      placingState: c.otherState, opponentState: c.ownerState,
-      cardMap: battleCardMap, effectsMap,
-      isPlacingOwnerTurn: c.isOwnerTurn === undefined ? undefined : !c.isOwnerTurn,
-    });
-    c.lifeCrashPreventionsSelf = collectLifeCrashPreventions(
-      c.ownerState, c.otherState, c.isOwnerTurn ?? false, battleCardMap, effectsMap);
-    c.lifeCrashPreventionsOpponent = collectLifeCrashPreventions(
-      c.otherState, c.ownerState, c.isOwnerTurn === undefined ? false : !c.isOwnerTurn, battleCardMap, effectsMap);
-    return c;
-  };
+  // 🆕§5.7（2026-09-18）＝中身は `controller/execCtxDeps.ts`（ヘッドレスからも同じ関数を作れる）。
+  const fillDeployCaps = makeFillDeployCaps({ cardMap: battleCardMap, effectsMap });
 
   // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーン色喪失カードのリスト
   const myColorlessOverrides = useMemo(() => {
@@ -2839,11 +2827,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    */
   // C1 トリガー収集の依存 ctx（pure 関数 triggerCollect.ts へ注入）。ロジックは同モジュールに集約し、
   // ここは bs/effectsMap/battleCardMap 等を束ねて渡すだけ（golden/fuzz から pure 関数を直接検証可能にするため）。
-  const mkTrigCtx = (): TrigCtx => ({
-    hostId: bs.host_id, guestId: bs.guest_id, meId: user.id, activeUserId: bs.active_user_id ?? null,
-    turnPhase: bs.turn_phase, effectsMap, cardMap: battleCardMap, effectivePowers, genId: generateUUID,
-    suppressedSigniTriggerNums: collectSuppressedSigniTriggerNums(bs.host_state, bs.guest_state),
-  });
+  const mkTrigCtx = (): TrigCtx =>
+    makeTrigCtx({ bs, effectsMap, cardMap: battleCardMap, effectivePowers, userId: user.id });
+
+  /** 🆕§5.7（2026-09-18）＝アーツ使用トリガー収集（`controller/artsUseTriggers.ts`）の材料。 */
+  const artsUseDeps = () => ({ bs, cardMap: battleCardMap, userId: user.id, isHost, trigCtx: mkTrigCtx });
 
   /**
    * 🆕**フェイズ遷移先を基準にした `TrigCtx`**（2026-09-02・§5.3 `O-72`）。
@@ -4257,14 +4245,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * ターンプレイヤーが呼び出す（useEffect で監視）。
    */
   /**
-   * 🆕§5.7 `S-5a`（2026-09-18）＝スタック解決の**材料**（画面側のクロージャ）。
-   * ⚠ここに新しい依存を足したら `stackResolve.ts` の `StackResolveDeps` にも足す＝
-   *   「画面にしか無いもの」が増えるほどヘッドレス（`S-5`）から遠ざかる。
+   * 🆕§5.7 `S-5a`（2026-09-18）＝スタック解決の**材料**。
+   * 🆕**データだけになった**（同日の `S-5c` 下ごしらえ）＝誘発の収集・`TrigCtx`・配置数制限は
+   *   `resolveStackStep` が中で組み立てる。⚠ここにクロージャを足さない（足すとヘッドレスから遠ざかる）。
    */
   const stackResolveDeps = (): StackResolveDeps => ({
-    cardMap: battleCardMap, effectsMap, userId: user.id, isHost,
-    trigCtx: mkTrigCtx, fillDeployCaps, collectBoardDiffTriggers,
-    collectArtsUseForResolution, collectOppArtsUseForResolution,
+    cardMap: battleCardMap, effectsMap, userId: user.id, isHost, effectivePowers,
   });
 
   /**
@@ -4988,20 +4974,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect, causeOwnerId, causeCardNum);
 
   /**
-   * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
-   * activeCondition（HAS_CARD_IN_FIELD 等）を満たす場合のみスタックに追加する。
-   */
-  // ON_OPP_ARTS_USE 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectOppArtsUseTriggers = (
-    myState: PlayerState,
-    opState: PlayerState,
-    isMyTurnNow: boolean,
-    /** §5.3 `O-113`＝そのアーツの効果を受けた自分のシグニ（未提供＝判定不能で fail-closed）。 */
-    affectedOwnSigni?: string[],
-  ): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectOppArtsUseTriggers(mkTrigCtx(), myState, opState, isMyTurnNow, affectedOwnSigni);
-
-  /**
    * 「**あなたが**アーツを使用したとき」（`ON_ARTS_USE`）の収集を**両方の完了地点**から呼ぶための1本
    * （§5.3 `O-131`・`collectOppArtsUseForResolution` の裏返し）。
    * 🔴同じ理由で `resolveStackNext` にしか無く、**対象を取るアーツでは発火しなかった**
@@ -5009,18 +4981,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *    `WXK05-042` / `WXK10-046` / `WDK03-011` / `WDK03-017`）。
    * ⚠**使用者の client だけが収集する**（`ON_OPP_ARTS_USE` と裏表＝二重押しを防ぐ）。
    */
-  const collectArtsUseForResolution = (p: {
-    artsOwnerId: string; artsCardNum: string; effectId: string;
-    afterHost: PlayerState; afterGuest: PlayerState;
-  }): { entries: StackEntry[]; usedIds: string[] } | null => {
-    const cardType = battleCardMap.get(p.artsCardNum)?.Type
-      ?? battleCardMap.get(getCardNum(p.artsCardNum))?.Type;
-    if (cardType !== 'アーツ' || p.effectId === 'DELAYED_TRIGGER' || p.artsOwnerId !== user.id) return null;
-    const casterState = isHost ? p.afterHost : p.afterGuest;
-    const casterOpState = isHost ? p.afterGuest : p.afterHost;
-    return collectArtsUseTriggers(
-      user.id, casterState, casterOpState, bs.active_user_id === user.id, p.artsCardNum);
-  };
+  const collectArtsUseForResolution = (p: Parameters<typeof bdCollectArtsUse>[1]) =>
+    bdCollectArtsUse(artsUseDeps(), p);
 
   /**
    * 「対戦相手がアーツを使用したとき」（`ON_OPP_ARTS_USE`）の収集を**両方の完了地点**から呼ぶための1本
@@ -5038,40 +5000,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * @param beforeMine  アーツ解決**前**の自分の状態（「効果を受けたか」の差分の基準）
    * @param afterHost/afterGuest 解決後の両状態
    */
-  const collectOppArtsUseForResolution = (p: {
-    artsOwnerId: string; artsCardNum: string; effectId: string;
-    beforeMine: PlayerState; afterHost: PlayerState; afterGuest: PlayerState;
-    autoTargetedCards?: string[];
-  }): { entries: StackEntry[]; usedIds: string[]; iAmHost: boolean } | null => {
-    const cardType = battleCardMap.get(p.artsCardNum)?.Type
-      ?? battleCardMap.get(getCardNum(p.artsCardNum))?.Type;
-    // ⚠遅延トリガー（`INSTALL_DELAYED_TRIGGER` の発火）は「使用した」瞬間ではないので除く。
-    if (cardType !== 'アーツ' || p.effectId === 'DELAYED_TRIGGER' || p.artsOwnerId === user.id) return null;
-    const iAmHost = isHost;
-    const myStateForTrigger = iAmHost ? p.afterHost : p.afterGuest;
-    const opStateForTrigger = iAmHost ? p.afterGuest : p.afterHost;
-    const affectedOwnSigni = collectOppArtsAffectedOwnSigni(
-      p.beforeMine, myStateForTrigger, p.autoTargetedCards ?? []);
-    const collected = collectOppArtsUseTriggers(
-      myStateForTrigger, opStateForTrigger, bs.active_user_id === user.id, affectedOwnSigni);
-    return { ...collected, iAmHost };
-  };
-
-  /**
-   * あなたがアーツを使用したとき（ON_ARTS_USE）、使用者自身のルリグ/シグニのトリガーを収集する。
-   * ON_SPELL_USE の自分版（BattleScreen:7237）と同型：caster のセンタールリグ＋場のシグニを走査。
-   * usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) 出現回数で制御し、
-   * 呼び出し側で usedIds を caster の actions_done に永続化する。
-   */
-  // ON_ARTS_USE 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectArtsUseTriggers = (
-    casterId: string,
-    casterState: PlayerState,
-    opState: PlayerState,
-    isCasterTurn: boolean,
-    usedArtsNum?: string,
-  ): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn, usedArtsNum);
+  const collectOppArtsUseForResolution = (p: Parameters<typeof bdCollectOppArtsUse>[1]) =>
+    bdCollectOppArtsUse(artsUseDeps(), p);
 
   // シグニ召喚（ゾーン選択後に実行）
   /** §5.6 `C-5`/`C-6`＝召喚を「誰が出すか」の引数で受ける（人間と CPU が同じ実行経路を通る）。 */

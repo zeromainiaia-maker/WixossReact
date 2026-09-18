@@ -1,5 +1,24 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-18（S-5b＋依存の切り出し）
+**直近＝2026-09-18＝§5.7 `S-5b`＝盤面差分トリガーの収集を画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- `S-5`（対戦丸ごとのシミュレータ）の第2段。`BattleScreen` の `collectBoardDiffTriggers`（579行）＋**そこからしか呼ばれない収集ラッパ22本**を
+  `src/screens/battle/controller/boardDiffTriggers.ts` の factory（`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })`）へ**逐語で移設**。
+- 画面に残したのは材料を束ねる6行だけ。**BattleScreen は 16,553 → 15,678行**（同日 `S-5a` と合わせて 16,930 → 15,678＝**−1,252行**）。
+- これで `stackResolve.ts` の `deps` のうち**最大の塊がヘッドレスで作れる**ようになった（golden `§5.7 S-5a` は本物の収集器を通している）。
+- ⚠**挙動は1行も変えていない**（識別子も引数も不変）。
+- 🆕**同日追加＝残りの依存4本も外に出した**（`execCtxDeps.ts`＝`makeTrigCtx`／`makeFillDeployCaps`、`artsUseTriggers.ts`＝アーツ使用トリガーの収集2本）
+  ⇒ **`StackResolveDeps` はデータだけ**（`cardMap`／`effectsMap`／`userId`／`isHost`／`effectivePowers`）＝**ヘッドレスは画面のクロージャを1本も要らない**。BattleScreen は **15,608行**。
+- 検証＝`npm run gates` 全緑（golden 4311・🆕`§5.7 S-5b`＝画面なしで【出】を集める／`suppressOnPlay` で集めない／写経していない。**反転確認済み**）。
+  トリップワイヤ1本を較正（`O-233` の書き手＝走査対象に新モジュールを追加）。実機＝CPU 通し対戦 PASS（7ターン決着）＋5シナリオ PASS。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c`**＝`cpuTurnAction`（1,273行・DB 書き込み23）をヘッドレスで回せる形へ |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| 🔧**ゲート** | `npm run gates` 全緑 |
+
 ## 2026-09-18（S-5a）
 **直近＝2026-09-18＝§5.7 `S-5a`＝スタック解決の切り出し＋メモリ上の persist**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 - `S-5`（対戦丸ごとのシミュレータ）の第1段。①`createMemoryPersist`＝DB の代わりにメモリへ書く `BattlePersist`（`commit` は即反映・`updated_at` は毎回進む）

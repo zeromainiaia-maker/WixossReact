@@ -153,6 +153,7 @@ import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, 
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { makeBoardDiffCollector } from '../src/screens/battle/controller/boardDiffTriggers';
+import { createHeadlessBattle } from '../src/screens/battle/controller/headlessBattle';
 import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
 import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
@@ -33691,16 +33692,22 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
 // ⇒ 収集を `collectOppArtsUseForResolution` / `collectArtsUseForResolution` の2本へ寄せ、
 //   **両方の完了地点から呼ぶ**形にした。ここはその配線を静的に固定するトリップワイヤ。
 test('O-131 アーツ使用トリガーは「スタック解決」と「対話解決」の両方から収集される', () => {
-  const src = battleScreenSource();
-  // ⚠定義は `const xxx = (p: {` 形なので `xxx(` には当たらない＝ここで数えるのは**呼び出しだけ**。
-  ok(/const collectOppArtsUseForResolution = /.test(src), '収集ヘルパが定義されている');
-  ok(/const collectArtsUseForResolution = /.test(src), '裏返しの収集ヘルパも定義されている');
-  eq((src.match(/collectOppArtsUseForResolution\(/g) ?? []).length, 2,
-    '🔴呼び出しは2つ（resolveStackNext ＝ スタック解決 / handleEffectInteraction ＝ 対話解決）');
-  eq((src.match(/collectArtsUseForResolution\(/g) ?? []).length, 2,
-    '🔴裏返し（自分がアーツを使用したとき）も同じ2経路から呼ぶ');
+  // 🆕§5.7（2026-09-18）＝収集の実体は `controller/artsUseTriggers.ts` へ移設した。
+  //   **地点は2つのまま**＝①スタック解決（`stackResolve.ts`）②対話解決（`BattleScreen.handleEffectInteraction`）。
+  //   ⚠数えるのは**呼び出しだけ**（定義は `const xxx = (p:` 形なので `xxx(` には当たらない）。
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const stackSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8');
+  const artsSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/artsUseTriggers.ts'), 'utf8');
+  ok(/export function collectOppArtsUseForResolution/.test(artsSrc), '収集ヘルパが定義されている');
+  ok(/export function collectArtsUseForResolution/.test(artsSrc), '裏返しの収集ヘルパも定義されている');
+  for (const name of ['collectOppArtsUseForResolution', 'collectArtsUseForResolution']) {
+    eq((screenSrc.match(new RegExp(name + '\\(', 'g')) ?? []).length, 1,
+      `🔴${name}：対話解決（handleEffectInteraction）からの呼び出しが1つでない`);
+    eq((stackSrc.match(new RegExp('deps\\.' + name + '\\(', 'g')) ?? []).length, 1,
+      `🔴${name}：スタック解決からの呼び出しが1つでない`);
+  }
   // 収集の実体（pure 関数）は1本ずつしか呼ばれない＝ラッパ経由に統一されている。
-  eq((src.match(/pureCollectOppArtsUseTriggers\(/g) ?? []).length, 1, 'pure 収集は薄いラッパ1本からのみ');
+  eq((artsSrc.match(/pureCollectOppArtsUseTriggers\(/g) ?? []).length, 1, 'pure 収集は薄いラッパ1本からのみ');
   // 🔴`selectOrInteract` が「候補1件でも中断する」ことが本項の前提＝ここが変わったら読み直す。
   const exec = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
   const so = exec.slice(exec.indexOf('export function selectOrInteract('));
@@ -85717,22 +85724,12 @@ test('§5.7 S-5a スタック解決の切り出し：画面と DB なしで1手�
   const row = mkRow({ effect_stack: stack });
   // deps＝画面側の材料。⚠`collectBoardDiffTriggers` ほか5本はまだ `BattleScreen` のクロージャなので、
   //   ここでは「何も足さない」版を渡す（＝この段で切り出せたのは解決の制御フローだけ、という現状の記録でもある）。
+  // 🆕2026-09-18＝**deps はデータだけ**（`S-5c` の下ごしらえで画面のクロージャが 0 本になった）＝
+  //   誘発の収集・`TrigCtx`・配置数制限は `resolveStackStep` が中で組み立てる。
   const deps = {
     cardMap: cm as Map<string, CardData>, effectsMap, userId: HOST, isHost: true,
-    trigCtx: () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
-      effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
-      suppressedSigniTriggerNums: new Set<string>() }),
-    fillDeployCaps: (c: unknown) => c,
-    // 🆕`S-5b`＝**本物の収集器**（`boardDiffTriggers.ts`）を渡す＝ここが stub のままだと「画面が要る」ままになる。
-    collectBoardDiffTriggers: makeBoardDiffCollector({
-      bs: row, cardMap: cm as Map<string, CardData>, effectsMap, isHost: true, userId: HOST,
-      trigCtx: () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
-        effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
-        suppressedSigniTriggerNums: new Set<string>() }) as never,
-    }),
-    collectArtsUseForResolution: () => null,
-    collectOppArtsUseForResolution: () => null,
-  } as unknown as Parameters<typeof resolveStackStep>[1];
+    effectivePowers: new Map<string, number>(),
+  };
 
   const handBefore = row.host_state.hand.length;
   const step = resolveStackStep(row, deps);
@@ -85755,6 +85752,10 @@ test('§5.7 S-5a スタック解決の切り出し：画面と DB なしで1手�
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   const sr = fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8');
   ok(/const step = resolveStackStep\(bs, stackResolveDeps\(\)\);/.test(battle), '🔴画面のスタック解決が共通の純関数を通っていない');
+  // 🔴**材料はデータだけ**＝画面のクロージャを渡し始めたら（＝ヘッドレスから遠ざかったら）ここで止める。
+  const depsBody = battle.slice(battle.indexOf('const stackResolveDeps = ()'), battle.indexOf('const resolveStackNext = async'));
+  ok(!/trigCtx|fillDeployCaps|collectBoardDiffTriggers|collectArtsUseForResolution/.test(depsBody),
+    `🔴スタック解決の材料に画面のクロージャが混じっている: ${depsBody.trim().slice(0, 200)}`);
   ok(sr.includes('const ctx: ExecCtx = { ownerState: ownerStateForCtx'),
     '🔴解決の本体（ExecCtx の組み立て）が stackResolve.ts に無い');
   ok(!battle.includes('const ctx: ExecCtx = { ownerState: ownerStateForCtx'),
@@ -85809,6 +85810,57 @@ test('§5.7 S-5b 盤面差分トリガーの収集：画面なしで誘発を集
     ok(bd.includes(`const ${inner} = `), `🔴内部ラッパ ${inner} が移設されていない`);
     ok(!battle.includes(`const ${inner} = `), `🔴内部ラッパ ${inner} が画面側に残っている（二重定義＝片方だけ直す事故）`);
   }
+}));
+
+test('§5.7 S-5c ヘッドレスの盤面ドライバ：スタックを空になるまで回す／対話で止まる', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`S-5` の第3段の1枚目。画面（useEffect）と DB（通知待ち）の代わりに**同期ループ**で回す。
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const mkRow = (over: Record<string, unknown> = {}) => ({
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST,
+    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'MAIN',
+    active_user_id: HOST, turn_count: 5,
+    host_state: mkState({ hand: 2 }), guest_state: mkState({ hand: 2 }),
+    game_logs: [], updated_at: '2026-09-18T00:00:00.000Z',
+    host_lrig_selected: null, guest_lrig_selected: null, host_janken: null, guest_janken: null,
+    host_mulligan_done: true, guest_mulligan_done: true, first_player_id: HOST,
+    pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: false, ...over,
+  }) as unknown as BattleStateRow;
+  const deps = { cardMap: cm as Map<string, CardData>, effectsMap, userId: HOST, isHost: true,
+    effectivePowers: new Map<string, number>() };
+  const mkEntry = (id: string, action: unknown) => ({
+    id, playerId: HOST, cardNum: 'WD01-013#1', effectId: `S5C-${id}`, label: `テスト${id}`,
+    effect: { effectId: `S5C-${id}`, effectType: 'AUTO', duration: 'INSTANT', mandatory: true, action } as unknown as CardEffect,
+  });
+  const mkStack = (entries: unknown[]) => ({ turnPlayerId: HOST, pendingTurn: [], pendingOpp: [],
+    orderTurnDone: true, orderOppDone: true, queue: entries } as unknown as EffectStack);
+
+  // ① キューが2件でも**1回の呼び出しで空になるまで**回る（画面では DB 往復2回ぶん）。
+  const draw = { type: 'DRAW', owner: 'self', count: 1 };
+  const two = createHeadlessBattle(mkRow({ effect_stack: mkStack([mkEntry('e1', draw), mkEntry('e2', draw)]) }), deps);
+  const handBefore = two.row().host_state.hand.length;
+  eq(two.resolveStacks(), 'empty', `🔴スタックが空にならない（${JSON.stringify(two.row().effect_stack)}）`);
+  eq(two.row().host_state.hand.length, handBefore + 2, '🔴2件とも解決していない（ループが1手で止まっている）');
+  eq(two.row().effect_stack, null, 'スタックが畳まれていない');
+  eq(two.logs.length >= 2, true, `解決したエントリのログが積まれていない（${JSON.stringify(two.logs)}）`);
+  ok(two.persist.commitCount() >= 2, '🔴commit が呼ばれていない（盤面が進んでいない）');
+
+  // ② 対話が立ったら止まる（＝勝手に自動応答しない）。`SELECT_TARGET` を含む効果で確かめる。
+  const pick = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+  const oppTwo = mkState({ hand: 0 });
+  oppTwo.field.signi = [['WD05-009#o1'], ['WD05-010#o2'], null];
+  const inter = createHeadlessBattle(
+    mkRow({ guest_state: oppTwo, effect_stack: mkStack([mkEntry('e3', pick)]) }), deps);
+  eq(inter.resolveStacks(), 'pending', '🔴対象選択が立つはずの効果でループが止まらない');
+  ok(!!inter.row().pending_effect, '🔴止まったのに pending_effect が残っていない（答えられない）');
+  // 対話が残っている間は何度呼んでも進まない（呼び出し側が答えるまで待つ）。
+  const before = inter.persist.commitCount();
+  eq(inter.resolveStacks(), 'pending', '対話中に解決を進めた');
+  eq(inter.persist.commitCount(), before, '🔴対話中に盤面を書き換えた');
+
+  // ③ 何も無ければ即 `empty`（ループの終了条件）。
+  eq(createHeadlessBattle(mkRow(), deps).resolveStacks(), 'empty', 'スタックが無いのに empty を返さない');
 }));
 
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {

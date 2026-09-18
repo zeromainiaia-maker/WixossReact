@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ（新規・挙動不変）
+
+- 🆕`src/screens/battle/controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`。`memoryPersist` へ書きながら `resolveStackStep` を**進まなくなるまで**繰り返す同期ループ。
+  画面では `useEffect` ＋ DB の通知待ちで1手ずつ回っていた部分が、ヘッドレスでは1回の呼び出しで閉じる。
+- ⚠**対話（`pending_effect`）が立ったら止まる**＝ここで自動応答しない（「誰が答えたか」が消えると人間の対戦と挙動が割れる）。戻り値は `empty` / `pending` / `cap`（安全弁200手＝無限ループの疑い）。
+- 🔴**次段のために実測**＝`cpuTurnAction` **1,362行**（`persist.commit` 24／`appendBattleLogs` 34／`setState` 2）、`perform*` 12本 **3,315行**（commit 26／ログ53）。
+  画面全体では `persist.commit` 144・`appendBattleLogs` 220・`setLoading` 148。⇒ **第2段は「I/O を注入に替える」**（実行関数は人間と共有なので、差し替え口を1つ作るのが唯一の道）。
+- 検証＝`npm run gates` 全緑（golden 4312／🆕`§5.7 S-5c`＝①キュー2件が1回の呼び出しで空になる ②対話が立ったら止まり、**対話中は盤面を書き換えない** ③空なら即終了。**反転確認済み**＝1手で打ち切るとFAIL）。
+  実機＝CPU 通し対戦 PASS（6ターン決着）／`artsUseGreenFilter`・`v275`・`bug0918texa`・`v276` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-5b` 盤面差分トリガーの収集を画面から出す（リファクタ・挙動不変）
 
 - **目的**＝`S-5a` で純関数化した `resolveStackStep` の `deps` に残っていた**画面のクロージャの最大の塊**を外す。実測＝`collectBoardDiffTriggers` 579行＋収集ラッパ26本。
@@ -7,7 +18,14 @@
   本体と、そこからしか呼ばれない内部ラッパ22本（`collectSigniDownUpInline`／`collectKeywordGainedInline`／`collectFreezeInline` ほか）を**逐語で移設**し、共有ラッパ9本（`triggerCollect` の1行ラッパ）は factory の中にも同じ形で置いた。
   🔑**識別子を1つも書き換えていない**（`bs`／`battleCardMap`／`effectsMap`／`mkTrigCtx` を factory の中で束ねた）＝800行の diff が「移設」のまま読める。
 - 画面側は材料を束ねる6行だけ（`const collectBoardDiffTriggers: BoardDiffCollector = (...) => makeBoardDiffCollector({...})(...)`）。**BattleScreen は 16,553 → 15,678行**。
-- ⚠**挙動は1行も変えていない**。残る画面クロージャは `trigCtx`／`fillDeployCaps`／`collectArtsUseForResolution`／`collectOppArtsUseForResolution` の4本。
+- ⚠**挙動は1行も変えていない**。
+- 🆕**同日追加（`S-5c` の下ごしらえ）＝残りの画面クロージャ4本も外へ**
+  - 🆕`controller/execCtxDeps.ts`＝`makeTrigCtx`（旧 `mkTrigCtx`）／`makeFillDeployCaps`（旧 `fillDeployCaps`＝配置数制限とライフクラッシュ防止の宣言を `ExecCtx` に埋める）。
+  - 🆕`controller/artsUseTriggers.ts`＝`collectArtsUseForResolution`／`collectOppArtsUseForResolution`（§5.3 `O-131` の2本）。⚠**どちらの client が集めるかの非対称は仕様**なので残した。
+  - ⇒ **`StackResolveDeps` はデータだけになった**（`cardMap`／`effectsMap`／`userId`／`isHost`／`effectivePowers`）＝`resolveStackStep` が中で材料を組み立てる。**ヘッドレスは画面のクロージャを1本も要らない。**
+  - 画面側は1行ラッパへ（呼び出し地点は不変＝`mkTrigCtx` 49箇所・`fillDeployCaps` 7箇所）。**BattleScreen は 15,678 → 15,608行**。
+  - 🔴トリップワイヤ `O-131` を較正＝「2地点から呼ぶ」の数え方を**画面1・スタック解決1**へ分けた（移設で合計本数が変わるため。**地点は2つのまま**）。
+  - golden `§5.7 S-5a` に**材料にクロージャが混じっていないこと**の assert を追加（混ぜ始めたら止まる）。
 - 検証＝`npm run gates` 全緑（golden 4311／🆕`§5.7 S-5b`＝①差分が無ければ0件 ②**React 無しで場に出たシグニの【出】を集める** ③`suppressOnPlay` なら集めない ④内部ラッパが画面に二重定義されていない。**反転確認済み**＝収集を止めると FAIL）。
   `§5.7 S-5a` のテストも**本物の収集器**を渡す形へ更新（stub のままだと「画面が要る」ままになる）。🔴トリップワイヤ1本を較正（`O-233` の書き手＝`battleScreenSource()` に新モジュールを追加＝**配線は減っていない**）。
   実機＝CPU 通し対戦 PASS（7ターン決着・172手）／`v275`・`o114TrashSelfToHand`・`bug0918texa`・`v273`・`v276` PASS。

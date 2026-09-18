@@ -11,18 +11,19 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-18＝§5.7 `S-5b`＝盤面差分トリガーの収集を画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- `S-5`（対戦丸ごとのシミュレータ）の第2段。`BattleScreen` の `collectBoardDiffTriggers`（579行）＋**そこからしか呼ばれない収集ラッパ22本**を
-  `src/screens/battle/controller/boardDiffTriggers.ts` の factory（`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })`）へ**逐語で移設**。
-- 画面に残したのは材料を束ねる6行だけ。**BattleScreen は 16,553 → 15,678行**（同日 `S-5a` と合わせて 16,930 → 15,678＝**−1,252行**）。
-- これで `stackResolve.ts` の `deps` のうち**最大の塊がヘッドレスで作れる**ようになった（golden `§5.7 S-5a` は本物の収集器を通している）。
-- ⚠**挙動は1行も変えていない**（識別子も引数も不変）。残る画面クロージャは `trigCtx`／`fillDeployCaps`／アーツ使用の収集2本。
-- 検証＝`npm run gates` 全緑（golden 4311・🆕`§5.7 S-5b`＝画面なしで【出】を集める／`suppressOnPlay` で集めない／写経していない。**反転確認済み**）。
-  トリップワイヤ1本を較正（`O-233` の書き手＝走査対象に新モジュールを追加）。実機＝CPU 通し対戦 PASS（7ターン決着）＋5シナリオ PASS。
+**直近＝2026-09-18＝§5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🆕`controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`＝**React も supabase も無しでスタックを空になるまで回す**同期ループ
+  （`memoryPersist` へ commit → 次の手）。⚠**対話（`pending_effect`）が立ったら止まる**＝答えるのは呼び出し側（勝手に自動応答しない）。
+  戻り値は止まった理由（`empty` / `pending` / `cap`＝安全弁200手＝無限ループの疑い）。
+- 同日ここまでの積み上げ＝`S-5a`（スタック解決の純関数化）→ `S-5b`（盤面差分トリガーの収集）→ 依存4本（`execCtxDeps`／`artsUseTriggers`）→ この1枚。
+  **BattleScreen は 16,930 → 15,608行**（−1,322）。`StackResolveDeps` は**データだけ**。
+- 🔴**残りを実測**＝`cpuTurnAction` **1,362行**（`persist.commit` 24・ログ34・`setState` 2）／`perform*` 12本 **3,315行**（commit 26・ログ53）。
+  ⇒ **次段は「I/O の差し替え口」**（`persist.commit`／`appendBattleLogs`／`setLoading` を注入にする）＝画面全体では commit 144・ログ220・`setLoading` 148箇所。
+- 検証＝`npm run gates` 全緑（golden 4312・🆕`§5.7 S-5c`＝2件のキューが1回で空になる／対話で止まり盤面を書き換えない。**反転確認済み**）。実機＝CPU 通し対戦 PASS・シナリオ4本 PASS。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🔥**§5.7 `S-5c`**＝`cpuTurnAction`（1,273行・DB 書き込み23）をヘッドレスで回せる形へ（その前に残りの `deps` 2本＝アーツ使用の収集） |
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段**＝`cpuTurnAction`／`perform*` の I/O（`persist.commit`／`appendBattleLogs`／`setLoading`）を注入にして、ヘッドレスから CPU の1ターンを回す |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
 | 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
 | 🔧**ゲート** | `npm run gates` 全緑 |
@@ -498,7 +499,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 | 🏁`S-4` | ~~**A 浅い先読み**~~ | 2〜4日 | **2026-09-17 クローズ**＝`cpuLookahead.ts`（自動応答つきの効果解決＋盤面の採点＝場の強さ・正面が空いている数・相手の凍結・ライフ／手札／エナ）。召喚＝`scoreDeploy`（【出】の結果）／スペル＝結果が `SPELL_GAIN_MIN` 以上良くなるものを除去以外も使う／攻めのアーツ＝候補のうち一番得なもの（使う条件は据置）。golden `§5.7 S-4`／実機 `V-269`。🔴同時に **CPU がブースト等の任意コストを持つアーツ・スペル（約230効果）を使っていなかった**退化を修正（`O-86` 後） |
 | 🏁`S-7` | ~~**場以外の【起】を CPU が使う**~~ | 1〜2日 | **2026-09-18 クローズ**＝提示判定 `offFieldActivateGate.ts`（人間の3入口と共有）／実行は人間と同じ `executeTrashActivated`・`executeHandActivated`（行為者つき）／選択 `cpuOffFieldActivate.ts`（払ったあとの盤面を先読みして得なものだけ・グロウ用エナの予約）。窓＝CPU のターンの MAIN・ATTACK_ARTS（トラッシュ・手札・エナ）＋**人間のターンのアーツステップ `ATTACK_ARTS_OP`（手札の《アタックフェイズアイコン》【起】で応答）**。実機 `V-273`／`V-274`／`V-276`・`V-276b` |
 | `S-8` | **アタックするかどうかの判断**＝いまは「アタックできるシグニは全部・センタールリグも毎回」で、決めているのは順番だけ（`pickCpuAttackZone`）。母集団（2026-09-18 実測・登録票は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）＝**守備側の反応 24効果/24枚**（うちアタッカーを罰する **12**／回避・再配置 11／その他 1）・**相手の「ダウン状態のシグニ」を狙う 7効果/7枚**・**ライフバースト持ち 1,751/6,666枚**。⚠逆側＝**自分のアタックで誘発する【自】が 665効果/648枚**（撃たないと捨てる利点）。 | 中 | 「撃たない」ほうが得な場面（罰する【自】・ダウンを狙われる）で撃たなくなる。⚠**`S-5` の後が本命**＝1手先では相手の反撃を読めない |
-| 🔥`S-5` | **C 対戦丸ごとのシミュレータ**（§5.7.3 の案C・段階的）＝🏁`S-5a` メモリ上の persist＋`resolveStackNext` の切り出し（2026-09-18 済＝`controller/memoryPersist.ts`・`controller/stackResolve.ts`）→ 🏁`S-5b` 盤面差分トリガーの収集（2026-09-18 済＝`controller/boardDiffTriggers.ts`）→ 🔥`S-5c` CPU が使う実行関数 → `S-5c` `cpuTurnAction` → `S-5d` 相手側の応答と人間側ターンの駆動。各段で `gates`＋実機の回帰 | 3〜5週間 | 画面なしで CPU 同士の対戦を回す＝勝率で強さを測る。ターン進行のバグ探しにも使える | 🆕🔑**ユーザー指示（2026-09-18）＝相手のシグニが「バニッシュされたとき」の効果を持つ場合も判断に入れる**（＝バニッシュが相手の得になる盤面では殴らない／別の除去を選ぶ）。母集団と取り方は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `S-5` 要件メモ。
+| 🔥`S-5` | **C 対戦丸ごとのシミュレータ**（§5.7.3 の案C・段階的）＝🏁`S-5a` メモリ上の persist＋`resolveStackNext` の切り出し（2026-09-18 済＝`controller/memoryPersist.ts`・`controller/stackResolve.ts`）→ 🏁`S-5b` 盤面差分トリガーの収集（2026-09-18 済＝`controller/boardDiffTriggers.ts`）→ 🔥`S-5c`（第1段＝`controller/headlessBattle.ts` 済／第2段＝I/O の注入） CPU が使う実行関数 → `S-5c` `cpuTurnAction` → `S-5d` 相手側の応答と人間側ターンの駆動。各段で `gates`＋実機の回帰 | 3〜5週間 | 画面なしで CPU 同士の対戦を回す＝勝率で強さを測る。ターン進行のバグ探しにも使える | 🆕🔑**ユーザー指示（2026-09-18）＝相手のシグニが「バニッシュされたとき」の効果を持つ場合も判断に入れる**（＝バニッシュが相手の得になる盤面では殴らない／別の除去を選ぶ）。母集団と取り方は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の `S-5` 要件メモ。
 | `S-6` | 機械学習①＝自己対戦で `WEIGHTS`／`PLAN_WEIGHTS`／盤面の採点の重みを調整（`S-5` の後） | 大 | 手で決めた重みを勝率で置き換える |
 
 #### 5.7.3 `S-3` の見積もり（2026-09-17 実測・コードは変えていない）
