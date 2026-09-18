@@ -237,6 +237,16 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             : candidates;
 
           // 表示する手札一覧（持ち主は上で確定済み）。どちらの手札とも一致しない想定外ケースは候補だけを描く。
+          /**
+           * 🆕🔴**公開した札は全部見せる**（2026-09-18 バグ報告「アンナミラージュのライフバースト効果で1枚しか見えなかった」）。
+           * 原文は「デッキの上から5枚を**公開する**。その中から＜悪魔＞のシグニ1枚を手札に加え、残りをトラッシュ」＝
+           * **5枚は公開情報**なのに、engine が渡す `visibleCards` は**選べる札だけ**（フィルタ通過分）だった＝
+           * プレイヤーには1枚しか見えず、何がトラッシュへ行ったかも分からない。
+           * ⚠engine は公開した全札を `revealRemainder.cards` に持っている（残りの行き先の指定に使う）ので、**描画だけ**それを使う。
+           * ⚠選べるのは従来どおり `visibleCards` だけ（`candIdx < 0` はグレー＝`opp_hand` の「見て選び」と同じ器）。
+           */
+          const revealedAll = inter.type === 'SEARCH' ? (inter.revealRemainder?.cards ?? []) : [];
+          const searchRevealView = inter.type === 'SEARCH' && revealedAll.length > candidates.length;
           const oppHandCards = !oppHandView ? []
             : oppHandOwnerIsViewer ? my.hand
             : candidates.every(n => op.hand.includes(n)) ? op.hand
@@ -306,6 +316,11 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
                   {label}
                 </p>
+                {searchRevealView && (
+                  <p style={{ color: C.textDim, fontSize: 10, margin: 0, textAlign: 'center' }}>
+                    公開した{revealedAll.length}枚（選べるカードのみ枠が明るい・残りは効果の指定先へ）
+                  </p>
+                )}
                 {oppHandView && (
                   <p style={{ color: C.textDim, fontSize: 10, margin: 0, textAlign: 'center' }}>
                     {oppHandOwnerIsViewer ? 'あなたの手札' : '対戦相手の手札'}（全{oppHandCards.length}枚を確認・選べるカードのみ枠が明るい）
@@ -313,8 +328,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 )}
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                   {/* opp_hand「見て選び」では相手の手札全体を表示（候補のみ選択可・非候補はグレー） */}
-                  {(oppHandView ? oppHandCards : sortedCandidates).map((rawId, dispIdx) => {
-                    const candIdx = oppHandView ? sortedCandidates.indexOf(rawId) : dispIdx;
+                  {(oppHandView ? oppHandCards : searchRevealView ? revealedAll : sortedCandidates).map((rawId, dispIdx) => {
+                    const candIdx = (oppHandView || searchRevealView) ? sortedCandidates.indexOf(rawId) : dispIdx;
                     const selectable = candIdx >= 0;
                     // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
                     const cardNum = getCardNum(rawId);

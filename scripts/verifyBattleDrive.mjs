@@ -60162,6 +60162,54 @@ scenarios.v277SummonClosesZoneModal = {
 };
 order.push('v277SummonClosesZoneModal');
 
+// ── 🆕§5.1 `V-278`（2026-09-18・ユーザーのバグ報告）＝**公開した札は全部見える** ──
+// 🔴報告「アンナミラージュのライフバースト効果で1枚しか見えなかった」。
+//   `WX02-025`（悪魔姫　アンナ・ミラージュ）の【ライフバースト】＝
+//   「あなたのデッキの上からカードを５枚公開する。その中から＜悪魔＞のシグニ１枚を手札に加え、残りをトラッシュに置く。」
+// 真因＝engine が渡す `visibleCards` は**選べる札だけ**（＜悪魔＞のシグニ）で、画面はそれしか描いていなかった。
+//   ⇒ 公開した5枚は `revealRemainder.cards` に在るので、画面がそれを描く（選べるのは従来どおり候補だけ）。
+// 観測点＝選択モーダルに**5枚**並ぶ（`pick-*` の testid が付くのは候補だけ）。
+scenarios.v278RevealShowsAllCards = {
+  title: 'V-278 公開した5枚が全部見える（バグ報告＝1枚しか見えなかった）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD05-001#1'], 'field.signi': [null, null, null],
+      // デッキの上5枚＝＜悪魔＞シグニ1枚（WD05-011）＋非対象4枚（サーバント／小剣）。
+      'deck': ['WD05-011#d1', 'WD01-013#d2', 'WD01-013#d3', 'WD05-018#d4', 'WD01-013#d5',
+               'WD01-013#d6', 'WD01-013#d7', 'WD01-013#d8'],
+      'hand': [], 'trash': [], 'energy': [],
+      'field.check': 'WX02-025#lb1',          // ライフバースト確認中のカード＝アンナ・ミラージュ
+      'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'hand': [] },
+    top: { active: 'guest', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let picks = 0, imgs = 0;
+    for (let i = 0; i < 14; i++) {
+      await page.waitForTimeout(700);
+      // ライフバースト発動の確認（「発動する」）を押す。
+      await H.clickTextOrBtn(['発動する', 'ライフバースト発動', 'はい']).catch(() => {});
+      const modal = page.locator('[data-testid^="pick-"]');
+      picks = await modal.count();
+      if (picks > 0) {
+        // モーダル内のカード画像の総数＝公開された枚数（候補＋非候補）。
+        imgs = await page.locator('[data-testid^="pick-"], [data-testid^="pick-"] ~ *').count();
+        const container = page.locator('[data-testid^="pick-"]').first().locator('xpath=../..');
+        imgs = await container.locator('img').count();
+        await page.screenshot({ path: `${SHOT}/v278-reveal.png`, fullPage: true });
+        break;
+      }
+    }
+    if (picks === 0) return { pass: false, detail: '🔴ライフバーストの選択モーダルが出ない（前提崩れ）' };
+    if (imgs < 5) {
+      return { pass: false, detail: `🔴公開した5枚のうち ${imgs} 枚しか見えない（選べる候補=${picks}）` };
+    }
+    return { pass: true, detail: `公開5枚が全部見える（表示=${imgs}枚 / 選べる候補=${picks}枚）` };
+  },
+};
+order.push('v278RevealShowsAllCards');
+
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
 //   このシグニをあなたの手札から場に出す。」
