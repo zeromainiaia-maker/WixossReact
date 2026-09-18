@@ -1,5 +1,23 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-18（S-5c 第1段）
+**直近＝2026-09-18＝§5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🆕`controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`＝**React も supabase も無しでスタックを空になるまで回す**同期ループ
+  （`memoryPersist` へ commit → 次の手）。⚠**対話（`pending_effect`）が立ったら止まる**＝答えるのは呼び出し側（勝手に自動応答しない）。
+  戻り値は止まった理由（`empty` / `pending` / `cap`＝安全弁200手＝無限ループの疑い）。
+- 同日ここまでの積み上げ＝`S-5a`（スタック解決の純関数化）→ `S-5b`（盤面差分トリガーの収集）→ 依存4本（`execCtxDeps`／`artsUseTriggers`）→ この1枚。
+  **BattleScreen は 16,930 → 15,608行**（−1,322）。`StackResolveDeps` は**データだけ**。
+- 🔴**残りを実測**＝`cpuTurnAction` **1,362行**（`persist.commit` 24・ログ34・`setState` 2）／`perform*` 12本 **3,315行**（commit 26・ログ53）。
+  ⇒ **次段は「I/O の差し替え口」**（`persist.commit`／`appendBattleLogs`／`setLoading` を注入にする）＝画面全体では commit 144・ログ220・`setLoading` 148箇所。
+- 検証＝`npm run gates` 全緑（golden 4312・🆕`§5.7 S-5c`＝2件のキューが1回で空になる／対話で止まり盤面を書き換えない。**反転確認済み**）。実機＝CPU 通し対戦 PASS・シナリオ4本 PASS。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段**＝`cpuTurnAction`／`perform*` の I/O（`persist.commit`／`appendBattleLogs`／`setLoading`）を注入にして、ヘッドレスから CPU の1ターンを回す |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| 🔧**ゲート** | `npm run gates` 全緑 |
+
 ## 2026-09-18（S-5b＋依存の切り出し）
 **直近＝2026-09-18＝§5.7 `S-5b`＝盤面差分トリガーの収集を画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 - `S-5`（対戦丸ごとのシミュレータ）の第2段。`BattleScreen` の `collectBoardDiffTriggers`（579行）＋**そこからしか呼ばれない収集ラッパ22本**を

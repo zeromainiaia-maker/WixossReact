@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする＋実機ハーネスの腐り1件
+
+- 🆕`src/screens/battle/controller/battleIo.ts`＝実行関数の I/O 口。**3つだけ**（`commit`／`appendLogs`／`setLoading`）＝増やすほど画面から出せなくなる。
+  画面は `screenIo`（`persist.commit`／`appendBattleLogs`／`setLoading`）、ヘッドレスは `createHeadlessIo(memoryPersist)`。
+- 🆕`src/screens/battle/controller/performAssistGrow.ts`＝`perform*` 12本のうち**最小の68行**を試作台として逐語で移設し、I/O を注入にした。画面側は薄いラッパ（呼び出し地点は不変）。
+- 🔴**残り11本＝3,247行**（`performSigniActivated` 393／`performSummonSigni` 391／`performLrigActivated` 352／`performGrow` 341／`performSigniAttack` 331／`performLifeBurstResponse` 325／`performGuardResponse` 292／`performSpell` 216／`performArts` 214／`performKeyPiece` 202／`performLrigAttack` 190）。同じレシピで1本ずつ。
+- 🔴**実機ハーネスの腐りを1件修正**＝`scripts/verifyBattleDrive.mjs` の `queryState` が **`lifeCrashReplacements` を同じオブジェクトに2回書いていた**。
+  後から足した「`millx5?` の文字列要約」が**生の配列を黙って上書き**しており、`repl?.kind` を読む3シナリオの判定が**永久に偽**になっていた
+  （`lifeCrashReplGrantFromAssist` は落ち続け、`lifeCrashReplDeclareNoSelfMill`／`NoOppCrash` は「.length だけ」で通っていた＝**検査が効いていなかった**）。
+  ⇒ 要約を削除して生の配列に戻した。🔑**教訓＝観測面（`queryState`）にキーを足すときは既存キーと衝突していないか見る**（JS は黙って後勝ちにする）。
+- 検証＝`npm run gates` 全緑（golden 4313／🆕`§5.7 S-5c 第2段`＝**画面も DB も無しでアシストグロウが通る**（アシストが場へ・ルリグデッキから抜ける・コストは《無》×０なのでエナ不変）／I/O の口が3つのまま／画面に本体を写経していない。**反転確認済み**）。
+  ⚠**同期で観測できる範囲だけ assert する**＝golden の実行器は同期なので、`await` の後（`finally` の `setLoading(false)`）は見ない。
+  実機＝CPU 通し対戦 PASS（10ターン決着・239手）／`b36TrashToLifeFiltersLifeBurst`（アシストグロウを踏む）PASS／`lifeCrashReplGrantFromAssist`・`lifeCrashReplDeclareNoSelfMill`・`lifeCrashReplDeclareNoOppCrash`・`o202DamageReplaceDeclare` PASS。
+  ⚠`planEnergyPayment` のサイト数テストは走査対象に `performAssistGrow.ts` を追加（移設で数は15のまま）。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ（新規・挙動不変）
 
 - 🆕`src/screens/battle/controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`。`memoryPersist` へ書きながら `resolveStackStep` を**進まなくなるまで**繰り返す同期ループ。

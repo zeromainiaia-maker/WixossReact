@@ -64506,6 +64506,9 @@ try {
         fieldSoul: s.field?.signi_soul ?? [null, null, null],
         turnHandDiscarded: s.turn_hand_discarded_cards ?? [],
         turnHandDiscardedCount: s.turn_hand_discarded_count ?? 0,
+        // 🔴2026-09-18＝**同じキーを2回書いていた**（後から足した「`millx5?` の文字列要約」が、
+        //   この生の配列を黙って上書きしていた）＝`repl?.kind` を読む3シナリオが**永久に偽**になり、
+        //   `lifeCrashReplGrantFromAssist` がタイムアウトで落ち続けていた（腐り）。要約が要るなら別名にする。
         lifeCrashReplacements: s.life_crash_replacements ?? [],
         damageReplaceMill: s.damage_replace_mill ?? [],
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,
@@ -64515,7 +64518,6 @@ try {
         pendingLifeCrashReplace: (s.pending_life_crash_replace?.options ?? []).map(o => o.label),
         lifeCrashReplaceChoice: s.life_crash_replace_choice === undefined ? null
           : (s.life_crash_replace_choice.option?.label ?? 'none'),
-        lifeCrashReplacements: (s.life_crash_replacements ?? []).map(r => `${r.kind}x${r.count}${r.optional ? '?' : ''}`),
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
         hastarliqZones: s.hastarliq_zones ?? [],   // V-79(B)：【ハスターリク】設置予約（発動で undefined へ）
         signiLeftThisAttackPhase: s.signi_left_field_this_attack_phase ?? [],   // V-79(D)：離場履歴（診断用）

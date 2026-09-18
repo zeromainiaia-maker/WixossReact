@@ -153,7 +153,9 @@ import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, 
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { makeBoardDiffCollector } from '../src/screens/battle/controller/boardDiffTriggers';
+import { createHeadlessIo } from '../src/screens/battle/controller/battleIo';
 import { createHeadlessBattle } from '../src/screens/battle/controller/headlessBattle';
+import { performAssistGrow } from '../src/screens/battle/controller/performAssistGrow';
 import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
 import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
@@ -49911,7 +49913,9 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
 //   旧 PLAN は14本と食い違っていた（どれも支払いサイト数そのものではなかった）。
 test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
   // §5.3 `O-533`（2026-09-18）＝手札の【起】の支払いを `handActivateCost.ts` へ移設（サイト数は据え置き＝移動であって増減ではない）。
-  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts', 'src/screens/battle/handActivateCost.ts'];
+  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts', 'src/screens/battle/handActivateCost.ts',
+    // §5.7 `S-5c` 第2段（2026-09-18）＝アシストグロウの支払いは `controller/performAssistGrow.ts` へ移設（サイト数は据え置き）。
+    'src/screens/battle/controller/performAssistGrow.ts'];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
@@ -85861,6 +85865,64 @@ test('§5.7 S-5c ヘッドレスの盤面ドライバ：スタックを空にな
 
   // ③ 何も無ければ即 `empty`（ループの終了条件）。
   eq(createHeadlessBattle(mkRow(), deps).resolveStacks(), 'empty', 'スタックが無いのに empty を返さない');
+}));
+
+test('§5.7 S-5c 第2段 I/O の注入：実行関数（アシストグロウ）を画面なしで回せる', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`perform*`（12本・3,315行）を画面から出すための**試作台**。
+  //   `performAssistGrow`（68行・最小）を逐語で移設し、`persist.commit`／`setLoading` を `BattleIo` の注入にした。
+  // ⚠**同期で観測できる**＝この関数の `await` は commit だけで、メモリ上の commit はその場で反映される。
+  //   （golden の実行器は同期なので、非同期の続きに assert を置かない）。
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const ASSIST = 'WXDi-D01-006';                 // タウィル＝ハウリング（アシストルリグ・《無》×０）
+  const card = cardMap.get(ASSIST)!;
+  ok(card?.Type === 'アシストルリグ', '前提崩れ＝アシストルリグではない');
+  const owner = mkState({ hand: 1 });
+  owner.lrig_deck = [`${ASSIST}#a1`];
+  owner.field.assist_lrig_l = [];
+  owner.energy = ['WD01-013#e1'];
+  const other = mkState({ hand: 1 });
+  const row = {
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST, global_phase: 'PLAYING', setup_phase: null,
+    turn_phase: 'MAIN', active_user_id: HOST, turn_count: 3, host_state: owner, guest_state: other,
+    game_logs: [], updated_at: '2026-09-18T00:00:00.000Z', host_lrig_selected: null, guest_lrig_selected: null,
+    host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
+    first_player_id: HOST, pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: false,
+  } as unknown as BattleStateRow;
+  const persist = createMemoryPersist(row);
+  const { io, logs: ioLogs } = createHeadlessIo(persist);
+  let loadingCalls = 0;
+  const io2 = { ...io, setLoading: () => { loadingCalls++; } };
+  const trigCtx = () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
+    effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
+    suppressedSigniTriggerNums: new Set<string>() }) as never;
+
+  void performAssistGrow(card, 'l', new Set<number>(), {
+    owner, other, ownerId: HOST, ownerKey: 'host_state',
+    energyPayPool: owner.energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex })),
+  }, { bs: row, trigCtx, io: io2 });
+
+  const after = persist.current()!;
+  eq(JSON.stringify(after.host_state.field.assist_lrig_l), JSON.stringify([`${ASSIST}#a1`]),
+    `🔴アシストルリグが場に置かれていない（${JSON.stringify(after.host_state.field.assist_lrig_l)}）`);
+  eq(after.host_state.lrig_deck.length, 0, '🔴ルリグデッキから抜けていない');
+  eq(after.host_state.energy.length, 1, 'コストを払っていないのにエナが減った（《無》×０）');
+  ok(persist.commitCount() >= 1, '🔴commit されていない（盤面が進んでいない）');
+  // ⚠閉じる側（`finally` の `setLoading(false)`）は **await の後**＝同期では観測できない。ここは「開く側が注入を通ったか」だけを見る。
+  eq(loadingCalls, 1, `🔴操作ロックが注入を通っていない（${loadingCalls}回）`);
+  eq(ioLogs.length, 0, 'この経路はログを書かない（書くようになったら見直す）');
+
+  // 画面側は薄いラッパ＝本体を写経していない。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/performAssistGrowImpl\(card, side, costIndices, p, \{ bs, trigCtx: mkTrigCtx, io: screenIo \}\)/.test(battle),
+    '🔴画面のアシストグロウが共通の実行関数を通っていない');
+  ok(!battle.includes('const assistGrowPay = planEnergyPayment('), '🔴アシストグロウの本体が画面側に残っている');
+  // 🔴I/O の口は3つのまま（増やすほど画面から出せなくなる）。
+  const io3 = fs.readFileSync(join(root, 'src/screens/battle/controller/battleIo.ts'), 'utf8');
+  const keys = [...io3.matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]);
+  eq(JSON.stringify(keys.filter(k => ['commit', 'appendLogs', 'setLoading', 'logs', 'io'].includes(k)).slice(0, 3)),
+    JSON.stringify(['commit', 'appendLogs', 'setLoading']), `🔴BattleIo の口が変わった（${JSON.stringify(keys)}）`);
 }));
 
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {

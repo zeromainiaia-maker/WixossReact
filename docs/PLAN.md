@@ -11,19 +11,19 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-18＝§5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🆕`controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`＝**React も supabase も無しでスタックを空になるまで回す**同期ループ
-  （`memoryPersist` へ commit → 次の手）。⚠**対話（`pending_effect`）が立ったら止まる**＝答えるのは呼び出し側（勝手に自動応答しない）。
-  戻り値は止まった理由（`empty` / `pending` / `cap`＝安全弁200手＝無限ループの疑い）。
-- 同日ここまでの積み上げ＝`S-5a`（スタック解決の純関数化）→ `S-5b`（盤面差分トリガーの収集）→ 依存4本（`execCtxDeps`／`artsUseTriggers`）→ この1枚。
-  **BattleScreen は 16,930 → 15,608行**（−1,322）。`StackResolveDeps` は**データだけ**。
-- 🔴**残りを実測**＝`cpuTurnAction` **1,362行**（`persist.commit` 24・ログ34・`setState` 2）／`perform*` 12本 **3,315行**（commit 26・ログ53）。
-  ⇒ **次段は「I/O の差し替え口」**（`persist.commit`／`appendBattleLogs`／`setLoading` を注入にする）＝画面全体では commit 144・ログ220・`setLoading` 148箇所。
-- 検証＝`npm run gates` 全緑（golden 4312・🆕`§5.7 S-5c`＝2件のキューが1回で空になる／対話で止まり盤面を書き換えない。**反転確認済み**）。実機＝CPU 通し対戦 PASS・シナリオ4本 PASS。
+**直近＝2026-09-18＝§5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🆕`controller/battleIo.ts`＝**口は3つだけ**（`commit`／`appendLogs`／`setLoading`）。画面は `screenIo`、ヘッドレスは `createHeadlessIo(memoryPersist)` を渡す。
+- 🆕`controller/performAssistGrow.ts`＝**試作台**（`perform*` 12本のうち最小の68行）を逐語で移設し、I/O を注入にした。**画面なしで実行できることを golden で固定**。
+- 🔴**残り11本＝3,247行**（`performSigniActivated` 393／`performSummonSigni` 391／`performLrigActivated` 352／`performGrow` 341／`performSigniAttack` 331／
+  `performLifeBurstResponse` 325／`performGuardResponse` 292／`performSpell` 216／`performArts` 214／`performKeyPiece` 202／`performLrigAttack` 190）。**同じレシピで1本ずつ**。
+- 🔴**実機の腐りを1件修正**＝`verifyBattleDrive.mjs` の `queryState` が **`lifeCrashReplacements` を二重定義**しており、後の「文字列要約」が生の配列を黙って上書きしていた
+  ⇒ `repl?.kind` を読む3シナリオが**永久に偽**（`lifeCrashReplGrantFromAssist` は落ち続け、他2本も判定が効いていなかった）。要約を削って生の配列に戻した＝4本 PASS。
+- 検証＝`npm run gates` 全緑（golden 4313・🆕`§5.7 S-5c 第2段`＝画面なしでアシストグロウが通る／口が3つのまま／写経していない。**反転確認済み**）。
+  実機＝CPU 通し対戦 PASS（10ターン決着）／`b36TrashToLifeFiltersLifeBurst`（アシストグロウ経路）PASS／`lifeCrashRepl*` 3本＋`o202DamageReplaceDeclare` PASS。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段**＝`cpuTurnAction`／`perform*` の I/O（`persist.commit`／`appendBattleLogs`／`setLoading`）を注入にして、ヘッドレスから CPU の1ターンを回す |
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段の続き**＝`perform*` 残り11本（3,247行）を同じレシピで移設 → `cpuTurnAction`（1,362行） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
 | 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
 | 🔧**ゲート** | `npm run gates` 全緑 |
