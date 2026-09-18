@@ -51,6 +51,7 @@ handler(React) → BattleAction を組む
 | 🆕`controller/queueCardEffects.ts` | **カードの効果をスタックへ積む共有ヘルパ**（2026-09-18）。⚠`owner` は省略不可（呼び出し側が必ず明示）。 |
 | 🆕`controller/offFieldActivateExec.ts` | **場以外（トラッシュ／手札）の【起】の実行**（2026-09-18）。⚠行為者は必須引数（人間は画面のラッパが渡す）。 |
 | 🆕`controller/resolveSigniBattle.ts` | **シグニアタックのバトル解決**（§5.7 `S-5c` 第3段・2026-09-18）＝`resolvePendingSigniBattleFor`（1,588行）＋`crashOneLife`＋純関数 `powerZeroBanishCandidates`。⚠人間・CPU 共用＝**画面の視点の値（`op`／`dynamicKeywords.my`）を使わない**（移設時に2件見つかった）。 |
+| 🆕`controller/phaseAdvance.ts`／`endDiscard.ts`／`cutinPass.ts` | **人間のルール処理3本**（§5.7 `S-5c` 第3段・2026-09-18）＝`doPhaseAdvance`（683行）／`confirmEndDiscard`（234）／`handleCutinPass`（194）。画面だけが持つもの（捨て札モーダルの状態・カットインの UI・ピース解決）は第2引数の `*Ui` で受ける。遷移先フェイズの `TrigCtx` は `execCtxDeps.ts` `makeTrigCtxForPhase`（画面の CPU 側と共用）。 |
 | 🆕`src/screens/battle/controller/stackResolve.ts` | **スタック解決の本体**（§5.7 `S-5a`）＝`resolveStackStep(bs, deps)`。`BattleScreen.resolveStackNext` の385行を純関数化（React も DB も触らない）。画面は `loading`・多重実行の防止・ログ・`persist.commit` だけ。⚠`deps` の5本はまだ画面のクロージャ（`collectBoardDiffTriggers` は579行＝次段の山）。 |
 | 🆕`src/screens/battle/controller/boardDiffTriggers.ts` | **盤面差分トリガーの収集**（§5.7 `S-5b`・2026-09-18）＝`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })`。`collectBoardDiffTriggers`（579行）＋内部ラッパ22本を逐語で移設。⚠`bs` は**差分の before**。 |
 | 🆕`src/screens/battle/controller/execCtxDeps.ts` | **効果解決の材料**（2026-09-18）＝`makeTrigCtx`（`TrigCtx`）／`makeFillDeployCaps`（配置数制限・ライフクラッシュ防止を `ExecCtx` に埋める）。 |

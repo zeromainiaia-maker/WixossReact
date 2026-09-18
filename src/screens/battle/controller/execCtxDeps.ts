@@ -1,10 +1,12 @@
 import { deployCountCap } from '../../../engine/deployLimit';
 import type { ExecCtx } from '../../../engine/effectExecutor';
 import { collectLifeCrashPreventions } from '../../../engine/lifeCrashGate';
+import { collectGrantedFromUnderSigni } from '../../../engine/effectEngine';
+import { getCardNum } from '../../../engine/effectExecutor';
 import { collectSuppressedSigniTriggerNums, type TrigCtx } from '../../../engine/triggerCollect';
-import type { BattleStateRow, CardData } from '../../../types';
+import type { BattleStateRow, CardData, PlayerState, TurnPhase } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
-import { generateUUID } from '../battleUtils';
+import { generateUUID, InstanceMap } from '../battleUtils';
 
 /**
  * 🆕**効果解決の「材料」を画面なしで作る2本**（§5.7 `S-5c` の下ごしらえ・2026-09-18）。
@@ -58,5 +60,35 @@ export function makeFillDeployCaps(p: {
     c.lifeCrashPreventionsOpponent = collectLifeCrashPreventions(
       c.otherState, c.ownerState, c.isOwnerTurn === undefined ? false : !c.isOwnerTurn, battleCardMap, effectsMap);
     return c;
+  };
+}
+
+/**
+ * **遷移先フェイズを基準にした `TrigCtx`**（旧 `BattleScreen.mkTrigCtxForPhase`・§5.3 `O-72`・2026-09-18 に逐語で移設）。
+ * 🔴`effectsMap` は遷移「前」のフェイズで組まれている＝`DURING_*` 限定の下カード付与だけ遷移先で組み直す。
+ */
+export function makeTrigCtxForPhase(p: {
+  bs: BattleStateRow;
+  effectsMap: Map<string, CardEffect[]>;
+  cardMap: Map<string, CardData>;
+  trigCtx: () => TrigCtx;
+}) {
+  const { bs, effectsMap, cardMap: battleCardMap } = p;
+  const mkTrigCtx = p.trigCtx;
+  return (phase: TurnPhase, myS: PlayerState, opS: PlayerState, myIsActive: boolean): TrigCtx => {
+    const base = mkTrigCtx();
+    if (phase === bs.turn_phase) return base;
+    const augMap = new InstanceMap<CardEffect[]>(effectsMap);
+    const merged = [
+      ...collectGrantedFromUnderSigni(myS, opS, myIsActive, augMap, battleCardMap, phase),
+      ...collectGrantedFromUnderSigni(opS, myS, !myIsActive, augMap, battleCardMap, phase),
+    ];
+    for (const [num, extra] of merged) {
+      const cur = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
+      const seen = new Set(cur.map(e => e.effectId));
+      const add = extra.filter(e => !seen.has(e.effectId));
+      if (add.length > 0) augMap.set(num, [...cur, ...add]);
+    }
+    return { ...base, turnPhase: phase, effectsMap: augMap };
   };
 }

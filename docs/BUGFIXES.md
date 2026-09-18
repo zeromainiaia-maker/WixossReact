@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第3段の続き＝人間のルール処理3本（フェイズ進行・エンドの捨て札・カットイン見送り）を画面から出した
+
+- **移設**＝`doPhaseAdvance`（683行）→ 🆕`controller/phaseAdvance.ts`／`confirmEndDiscard`（234）→ 🆕`endDiscard.ts`／`handleCutinPass`（194）→ 🆕`cutinPass.ts`。
+  3本とも**元コードとの機械 diff が空**（逐語）。材料は `PerformCtx`、画面だけが持つもの（捨て札モーダルの状態・`closeCutin`・`openFreeGrow`・`resolvePendingPiece`・`loading`）は第2引数の `*Ui`。
+  画面の派生値（`my`/`op`・`drawCount`・`useMemo` の `contBlocked`／`myEffectiveHandLimit`）は移設先で**同じ式**で作る。`mkTrigCtxForPhase` は `execCtxDeps.ts` `makeTrigCtxForPhase` へ（画面の CPU 側と共用）。
+  **BattleScreen 10,245 → 9,098行**。
+- **golden**＝画面の形を読む11本を移設先も読むよう較正（数を数える検査も逐語移設なので合計は不変）＋`§5.7 S-5c 第3段` に委譲と「書き戻さない」の見張り7本。
+  ⚠較正スクリプトが `'utf-8'` 表記の読み込み（`O-321①`）に当たらず、**隣の別テストへ余計な読み込みを足していた**＝気づいて戻した（読み込みの表記は2種類ある）。
+- **検証**＝`npm run gates` 全緑。実機＝フェイズ進行・手札上限の捨て札・カットイン・ターン終了系の17本のうち14本 PASS、CPU 通し対戦 PASS（10ターン決着）。
+  ⚠FAIL 3本は**すべて変更前のコードでも同じ**＝`v76CpuSpellCutinPassProgresses`（単独でも FAIL・既存）／`v210LimitExpiresAtOwnMainPhaseStart` と `battleequalpower`（**単独では PASS、`o267`→`v210`→`v58b`→`battleequalpower` の並びで FAIL**＝直前のシナリオの状態が残る並び順の揺れ）。
+
 ## 2026-09-18 §5.7 `S-5c` 第3段＝シグニアタックのバトル解決（`resolvePendingSigniBattleFor` 1,588行）を画面から出した
 
 - **移設**＝本体＋`crashOneLife`（115行・呼び出し元がここだけ）を 🆕`controller/resolveSigniBattle.ts` へ**逐語で**。材料と I/O は `PerformCtx`（`performCtx()` をそのまま渡す）。

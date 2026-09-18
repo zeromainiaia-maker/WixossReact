@@ -30184,7 +30184,11 @@ test('WX25-P3-104-E1: 選択対象でもバトル／効果バニッシュはエ�
   ok(result.energy.includes(selected) && !result.trash.includes(selected), '通常banishDestinationはpower0限定リストをconsumeしない');
 });
 test('WX25-P3-104-E1: 単体power0リストを全ターン境界・両プレイヤーでクリア', () => {
-  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 6,
     'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
 });
@@ -30220,7 +30224,11 @@ test('WXDi-P15-078-E2: バトル限定個体redirectはバトルだけtrash・�
 });
 
 test('WXDi-P15-078-E2: バトル限定個体リストを全ターン境界・両プレイヤーでクリア', () => {
-  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   eq((source.match(/banish_redirect_battle_target_nums: undefined/g) ?? []).length, 6,
     'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
 });
@@ -50514,7 +50522,11 @@ test('§6.4 一時レゾナ: ターン終了時にルリグデッキへ戻り、
 test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を通す', () => {
   // ⚠BattleScreen のターン終了処理は2経路ある（doPhaseAdvance と終了時ディスカード確定後）。
   //   片方だけだと「手札が多いターンだけ戻らない」型の無言の不整合になる。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   const calls = (src.match(/resolveTurnEndLrigDeckReturn\(/g) ?? []).length;
   eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
@@ -50562,7 +50574,11 @@ test('V-35 targetsStored: 「N体まで対象とし…それら」の帰結 coun
 //   「通常どおり最後まで組み立てる枝」の**2つの出口**を持ち、`confirmEndDiscard` が3つ目。
 //   **1つでも欠けると「手札が◯枚のターンだけ消える」型の無言の不整合になる。**
 test('V-19 一時レゾナ: funnel の戻り値が全ターン終了出口で lrig_deck へ永続化される（3サイト）', () => {
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   const vars = [...src.matchAll(/(\w+)\s*=\s*ret\.returned;/g)].map(m => m[1]);
   eq(vars.length, 2, `funnel の戻り値を受ける変数が2つ見つからない（${vars.join(',')}）`);
   for (const v of vars) {
@@ -73465,7 +73481,11 @@ test('§5.3 O-259 第2: 3枚とも「このターンだけ《インビンシブ�
   eq(applySpecificCardCostReduction('《白》×2《無》×2', '別のピース', merged), '《白》×2《無》×2',
      '🔴名前が違えば効かない');
   // 支払い経路が2口とも通っていること（片方だけだと「一覧では使えるのに払えない」）
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8').replace(/\r\n/g, '\n');
   // §5.6 `C-7`（2026-09-17）＝提示・モーダル・実行・CPU のコストは `keyPieceUseGate.keyPieceCostOf` の1本へ寄せた。
   const keyGate = fs.readFileSync(join(root, 'src/screens/battle/keyPieceUseGate.ts'), 'utf8');
   ok(keyGate.includes('applySpecificCardCostReduction(effCost, card.CardName, payer.specificCardCostReductions)'),
@@ -74013,6 +74033,10 @@ test('§5.3 O-259 第7: 次に使うルリグの【起】能力のコストが�
        `${rel} が共通関数を通す`);
   }
   ok(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8')
        .includes('next_lrig_act_cost_reduction: undefined,'),
      '🔴使ったら消える（「次に」＝1回だけ）');
 }));
@@ -78826,7 +78850,8 @@ test('第276 §5.3 O-321① guard: ピース使用履歴はアーツ使用履歴
   // 🔴**唯一の壊れ方は「片方だけクリアし忘れてターンを跨ぐ」**＝
   //   `turn_arts_used_names` のクリアは `BattleScreen.tsx` に**6箇所**あり、
   //   新しいクリア地点が足されたときに片方だけ書かれるのを機械で止める。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8').split(/\r?\n/);
+  // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む（クリア地点は画面と移設先に分かれた）
+  const src = (fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf-8') + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf-8')).split(/\r?\n/);
   const bad: string[] = [];
   let clears = 0;
   for (let i = 0; i < src.length; i++) {
@@ -79890,7 +79915,11 @@ test('§5.3 O-299 selfFacedown: 離場を裏向きで置換し、次の次の自
   eq(blocked.discard, 0, '🔴表向きにできていないのに手札を捨てさせている（過剰実行）');
 
   // 🔑**BattleScreen のメインフェイズ開始で解決される**（engine 側に呼び出し地点が無いと恒久 no-op）。
-  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   ok(battleSrc.includes('resolveSecondMainFacedownReturns('), '🔴BattleScreen が復帰を解決していない');
   ok(battleSrc.includes("effectId: 'WXDi-P00-038-E1-FLIP'"), '手札を捨てさせる分が effect_stack へ載っていない');
 }));
@@ -85994,6 +86023,16 @@ test('§5.7 S-5c 第3段 シグニアタックのバトル解決は移設先の1
   ok(moved.includes('my: collectContinuousGrantedKeywords(myS, opS, attackerIsActive,'), '🔴付与キーワードをアタック側の盤面から引いていない（CPU のアタックで CPU の付与が引けない）');
   // 純関数化したパワー0以下の候補（画面の CPU 側も同じ1本を使う）。
   ok(battle.includes('powerZeroBanishCandidates(bs, hostState, guestState, effectsMap, battleCardMap)'), '🔴画面のパワー0以下の候補が移設先の純関数を通っていない');
+  // 🆕同日の続き＝ルール処理3本（`doPhaseAdvance` 683行／`confirmEndDiscard` 234行／`handleCutinPass` 194行）も移設した。
+  //   画面は委譲の1行だけ＝本体を書き戻すと人間とヘッドレスで二重になる。
+  ok(battle.includes('doPhaseAdvanceImpl(upkeepPay, performCtx(), { openEndDiscard })'), '🔴フェイズ進行が移設先へ委譲していない');
+  ok(battle.includes('confirmEndDiscardImpl(performCtx(), { pendingEndDiscard, selectedEndDiscard, closeEndDiscard, loading })'), '🔴エンドの捨て札が移設先へ委譲していない');
+  ok(battle.includes('handleCutinPassImpl(performCtx(), { closeCutin, openFreeGrow, resolvePendingPiece, loading })'), '🔴カットインの見送りが移設先へ委譲していない');
+  ok(!battle.includes("const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {"), '🔴フェイズ進行の本体が画面に書き戻されている');
+  ok(!battle.includes('const confirmEndDiscard = async () => {'), '🔴エンドの捨て札の本体が画面に書き戻されている');
+  ok(!battle.includes('const handleCutinPass = async () => {'), '🔴カットインの見送りの本体が画面に書き戻されている');
+  // 遷移先フェイズの TrigCtx は1本（画面の CPU 側と移設先が共用）。
+  ok(battle.includes('makeTrigCtxForPhase({ bs, effectsMap, cardMap: battleCardMap, trigCtx: mkTrigCtx })'), '🔴遷移先フェイズの TrigCtx が共用の1本を通っていない');
 }));
 
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
@@ -86142,7 +86181,11 @@ test('§5.6 C-9 アップフェイズ：次にターンを行うプレイヤー�
   eq(upPhaseRecipient(resolveTurnHandover(base, { skip_next_turn: true } as PlayerState).keepTurn), 'turnEnder',
     '🔴相手がターンをスキップするのに相手をアップしている');
   // 🔴**写経の再発防止**＝アップ処理を `BattleScreen.tsx` に手で書き直さない（4箇所に写経され、3箇所とも同じ誤りだった）。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   eq((src.match(/signi_frozen:\s*\[false, false, false\]/g) ?? []).length, 0,
     '🔴BattleScreen にアップ処理（凍結の一括解除）が手書きされている＝applyUpPhaseToField を使う');
   eq((src.match(/applyUpPhaseToField\(/g) ?? []).length, 5, 'アップ処理の呼び出し数が変わった（3経路×交代/非交代）');
@@ -86327,7 +86370,11 @@ test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ば�
   eq(resolveNextPhaseAfterMain(1, blank), 'END', '🔴先攻1ターン目にアタックフェイズへ進んだ');
   eq(resolveNextPhaseAfterMain(2, blank), 'ATTACK_ARTS', '2ターン目以降のアタックフェイズを飛ばした');
   eq(resolveNextPhaseAfterMain(3, blank), resolveNextPhaseWithSkips('MAIN', blank), '効果によるスキップの判定と食い違う');
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+    // §5.7 `S-5c` 第3段 続き（2026-09-18）＝ルール処理の移設先も読む
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/phaseAdvance.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/endDiscard.ts'), 'utf8')
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/cutinPass.ts'), 'utf8');
   const cpuMain = battle.slice(battle.indexOf("// ─── MAINフェイズ：シグニを手札から召喚"), battle.indexOf("// ─── ATTACK_ARTSフェイズ："));
   ok(cpuMain.length > 0, '前提崩れ＝CPU のメインフェイズの区間が見つからない');
   ok(!/turn_count === 1[\s\S]{0,200}phase: 'END'/.test(cpuMain), '🔴CPU のメインフェイズが1ターン目に END へ飛んでいる（召喚・スペルを一切しない）');
