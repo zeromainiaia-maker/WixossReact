@@ -1,5 +1,22 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-18 バグ報告から出た登録票 `O-534`（UI 側は同日にクローズ済み）
+
+### `O-534` — engine の `ADD_TO_FIELD` に配置レベル制限（`R-48`①）が無い（663効果 / 599カード・索引A）
+
+- **規則**＝**シグニのレベルはセンタールリグのレベル以下**でなければ場に出せない（配置制限＝[RULES.md](./RULES.md) `R-48`①）。
+- 🔴**いまの実装**＝ゲートが在るのは**手札召喚**（`BattleScreen` の `levelOk`）と**レゾナ出現**（`resonaLevel <= currentLrigLevel`）だけ。
+  **効果の `ADD_TO_FIELD`（`execAddToField` / `applyToField`）は1度も見ていない**＝`deployLimitBlockedFor`（体数・ゾーン制限）は通すのにレベルは通さない。
+  ⚠**置いたあとのルール処理（`planLimitExcess`＝`R-48`②）も拾わない**＝あれは**レベルが変動して**超過したものだけを落とす（印字レベルのままの超過は「配置制限の領分」として意図的に落とさない）。
+- **2026-09-18 に塞いだのは UI だけ**＝`placeLevelGate.signiPlaceableByLevel` を `EffectInteractionModal` の対象選択（`SELECT_TARGET` / `SEARCH`）で見る。
+  🔴**残る穴は2つ**＝①**候補がちょうど必要数で選択モーダルが出ない経路**（`cands.length === pickCount`＝engine が自動で配置する）②**CPU**（`cpuInteraction.pickCpuTargets` は候補をそのまま選ぶ＝`§5.6.3` 規律「可否は engine が決めた値を使う」に従う限り、engine を直すまで CPU は超過して出せる）。
+- **なぜ engine 側が「機構」か**＝候補から機械的に外すと**「1枚も出せないとき何が起きるか」が効果ごとに違う**（「〜を場に出す」の不履行／「そうした場合」の後段／`continuation`）。
+  ⇒ `deployLimitBlockedFor` と同じ層に**レベルのゲート**を足し、**候補の生成側（`zoneTargetCandidates`／`handCandidates`／`DECK_CARD` の絞り）と配置側（`applyToField`）の両方**で同じ純関数を通すのが筋。
+- **取り方**＝①`src/engine/` 側から呼べる純関数へ寄せる（`placeLevelGate` は `src/screens/battle/` にあるので engine からは import しない＝**規約違反**。engine 用に `deployLimit.ts` 付近へ置くか、判定を engine へ移して UI がそれを呼ぶ）
+  ②候補生成で外す＋`applyToField` でも弾く（ログを出す）③CPU は engine が外した候補を見るだけ（`cpuInteraction` は触らない）
+  ④golden（両方向＋fail-open）⑤実機＝`placeLevelOver` の CPU 版（`V-nn`）。
+- ⚠**fail-open を崩さない**＝センタールリグが読めない盤面（実機の注入盤面・ゲーム開始直後）で塞ぐと、**合法な効果が打てない**側の事故になる。
+
 
 ## 🏁2026-09-17 第397バッチでクローズ＝`O-532`（登録票は下）
 
@@ -2106,6 +2123,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 🔑**`order` に入れたシナリオは「壊れたら気づく」ための番人**＝返済後も外さない
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
+
+## 恒久指標アーカイブ（2026-09-17 第393バッチ・PLAN §6 から退避）
+
+- **2026-09-17 時点**（第393バッチ＝§5.6 `C-7` クローズ）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（CPU・UI 層の回＝3計器は対象外）
+  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 2**（§5.6 `C-8`・`C-9`・🏁`C-0`〜`C-7` 済）｜ルール台帳 ⚠15
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4284・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（ピース 1・キー 0＝レベル4に届く前に決着。キーは実機シナリオ `c7cpukey` で確認）
 
 ## 恒久指標アーカイブ（2026-09-17 第390バッチ・PLAN §6 から退避）
 

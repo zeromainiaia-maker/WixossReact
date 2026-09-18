@@ -8,6 +8,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi
 import { energyPayEntryLabel } from '../energyPaySource';
 import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effectInteractionSelection';
 import { declareNameCandidates } from '../declareNameCandidates';
+import { signiPlaceableByLevel } from '../placeLevelGate';
 import type { BattleModalCtx } from './types';
 import type { EffectAction } from '../../../types/effects';
 
@@ -117,9 +118,39 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           const constrainedMax = inter.type === 'SELECT_TARGET' && inter.selectionConstraint && !inter.optional
             ? maxConstrainedSelectionSize(candidates, inter.count, inter.selectionConstraint, battleCardMap)
             : undefined;
+
+          /**
+           * 🆕🔴**配置レベル制限**（2026-09-18 バグ報告・`RULES.md` `R-48`①・`placeLevelGate.ts`）＝
+           * **「場に出す」効果はセンタールリグのレベルを超えるシグニを出せない**。
+           * 🔴engine の `ADD_TO_FIELD` はこのゲートを1つも通しておらず、**レベル超過のシグニが選べて場に出ていた**
+           *   （手札召喚の `levelOk` とレゾナ出現には在るのに、効果の場出しだけ素通りだった）。
+           *
+           * ⚠**出す先の場の持ち主**で判定する＝`thenAction.owner` は**効果のコントローラー基準**なので、
+           *   「相手が選ぶ」型（`respondPlayerId` が viewer）では viewer から見た自分/相手が入れ替わる。
+           * ⚠**判定しない（fail-open）ケース**＝`handOrField`／`handOrEnergy`（場に出すとは限らない）／
+           *   場を対象にした移動系。塞ぎすぎると**合法な効果が打てないソフトロック**になる側。
+           */
+          const placeThenAction = interactionThenAction(inter);
+          const placeFieldState = (() => {
+            if (placeThenAction.type !== 'ADD_TO_FIELD') return null;
+            if (inter.type === 'SEARCH' && (inter.handOrField || inter.handOrEnergy)) return null;
+            if (inter.type === 'SELECT_TARGET'
+              && (inter.targetScope === 'self_field' || inter.targetScope === 'opp_field' || inter.targetScope === 'both_field')) return null;
+            const controllerIsViewer = (pe.sourcePlayerId ?? user.id) === user.id;
+            const toController = (placeThenAction as { owner?: string }).owner !== 'opponent';
+            return toController === controllerIsViewer ? my : op;
+          })();
+          /** レベル超過で**出せない**候補（`candidates` の値そのもの）。 */
+          const levelBlockedCards = new Set(
+            placeFieldState ? candidates.filter(n => !signiPlaceableByLevel(n, placeFieldState, battleCardMap)) : []);
+          /**
+           * 🔑**上限は「出せる候補の数」で数える**＝候補が全部レベル超過なら `0` 枚で決定できる
+           *   （＝`O-530` と同じ「可能な限り実行する」）。これが無いと**決定が永久に押せない**。
+           */
+          const placeableCount = candidates.length - levelBlockedCards.size;
           const maxPick = inter.type === 'SELECT_TARGET'
-            ? fixedSelectionPickLimit(inter.count, candidates.length, inter.optional, constrainedMax)
-            : inter.maxPick;
+            ? fixedSelectionPickLimit(inter.count, placeableCount, inter.optional, constrainedMax)
+            : Math.min(inter.maxPick, placeableCount);
 
           // ── opp_hand「見て選び」の**手札の持ち主**（タスク12(cv)）──
           // `targetScope:'opp_hand'` は「効果のコントローラーから見た対戦相手の手札」だが、
@@ -259,7 +290,13 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 return s + (rawId !== undefined ? (inter.candidatePowers?.[rawId] ?? 0) : 0);
               }, 0)
             : 0;
-          const canConfirm = inter.type === 'SELECT_TARGET'
+          /** 選択中に**レベル超過で場に出せない**カードが混じっている＝決定させない（上の 🔴 を参照）。 */
+          const selectedLevelBlocked = levelBlockedCards.size > 0
+            && effectSelectedNums.some(i => {
+              const rawId = sortedCandidates[parseInt(i, 10)];
+              return rawId !== undefined && levelBlockedCards.has(rawId);
+            });
+          const canConfirm = selectedLevelBlocked ? false : inter.type === 'SELECT_TARGET'
             ? (inter.totalPowerMax !== undefined
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
                 // 🆕2026-09-18 バグ報告（テキサハンマが出せない）＝任意の対象選択で**何も選ばずに「決定 (0/1)」を押すと
@@ -339,6 +376,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     const isSel = selectable && effectSelectedNums.includes(idxStr);
                     // フィールド対象の場合のゾーン番号（candidates[idx] = zone idx が対応）
                     const zoneIdx = selectable ? fieldZoneInfo[candIdx] : undefined;
+                    // 🆕**レベル超過で場に出せない候補**（2026-09-18・`placeLevelGate.ts`）＝
+                    //   見せるが**選ぶと決定が押せない**（何が出せないのかを枠と札で示す）。
+                    const levelOver = levelBlockedCards.has(rawId);
                     return (
                       <div key={dispIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <div
@@ -377,9 +417,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                             });
                           }}
                           style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
-                            border: isSel ? '2px solid #f44336' : C.borderCard,
+                            border: isSel ? '2px solid #f44336' : levelOver ? `2px dashed ${C.danger}` : C.borderCard,
                             cursor: selectable ? 'pointer' : 'default',
-                            opacity: selectable ? 1 : 0.4, overflow: 'hidden', flexShrink: 0 }}>
+                            opacity: selectable ? (levelOver ? 0.55 : 1) : 0.4, overflow: 'hidden', flexShrink: 0 }}>
                           {c ? (
                             <img src={c.ImgURL} alt={c.CardName} draggable={false}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -400,6 +440,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                           <span style={{ fontSize: 9, color: '#9abcbc', lineHeight: 1 }}>
                             {(fieldSideInfo[candIdx] ?? '')}ゾーン{zoneIdx + 1}
                           </span>
+                        )}
+                        {levelOver && (
+                          <span style={{ fontSize: 9, color: C.danger, lineHeight: 1 }}>Lv超過</span>
                         )}
                       </div>
                     );
@@ -423,7 +466,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       該当なし
                     </button>
                   )}
-                  <button onClick={() => {
+                  <button data-testid="effect-pick-confirm" onClick={() => {
                     // インデックス文字列 → CardNum に変換してから渡す
                     const selectedNums = effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)] ?? i);
                     handleEffectInteraction(selectedNums);
@@ -433,9 +476,11 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       backgroundColor: canConfirm ? C.success : C.disabled,
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !canConfirm) ? 'default' : 'pointer' }}>
-                    {inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined
-                      ? `決定 (合計${selectedPowerSum}/${inter.totalPowerMax})`
-                      : `決定 (${effectSelectedNums.length}/${maxPick})`}
+                    {selectedLevelBlocked
+                      ? 'ルリグのレベルを超えています'
+                      : inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined
+                        ? `決定 (合計${selectedPowerSum}/${inter.totalPowerMax})`
+                        : `決定 (${effectSelectedNums.length}/${maxPick})`}
                   </button>
                 </div>
               </div>

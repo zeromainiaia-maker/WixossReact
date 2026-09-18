@@ -11,26 +11,20 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-18＝§5.7 `S-5c` 第2段 完了＝`perform*` 12本すべてを画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🏁**12/12 移設済み**（アシストグロウ／ルリグアタック／スペル／ルリグ【起】／シグニ【起】／召喚／アーツ／キー・ピース／グロウ／シグニアタック／ガード応答／ライフバースト応答）。
-  共有ヘルパ `queueCardEffects`（64行）も `controller/` へ。**BattleScreen は 16,930 → 11,988行**（今日の通算 **−4,942行**）。
-- 🔑**画面のモーダルは「任意コールバック」で受ける**＝`openNegateEscape`（アタック無効化の回避UI）／`closeZoneModal`／`closeKeyModal`／`openOnPlayCost`／`growForMayu`。
-  **画面だけが渡す**＝CPU・ヘッドレスは渡さない（元々 CPU は通らない分岐なので**挙動は同じ**）。
-- ⚠**挙動は1行も変えていない**（逐語移設）。
-- 🆕**第3段の下ごしらえ＝場以外の【起】の実行2本も移設**（`controller/offFieldActivateExec.ts`＝`executeHandActivated` 58／`executeTrashActivated` 68）。⚠**行為者は必須引数**にした（旧「省略＝人間」は画面のラッパが渡す）。
-- 🔴**`cpuTurnAction` の取り方を実測して決めた**＝**画面から45個の名前を掴む**（`perform*` は5〜7個）。内訳の大半は**まだ画面に残るルール処理**＝
-  `resolvePendingSigniBattleFor` **1,588行**／`doPhaseAdvance` **683**／`confirmEndDiscard` **234**／`handleCutinPass` **195**（計2,700行）。
-  ⇒ **先にこれらを出してから `cpuTurnAction`**（順序を逆にすると deps が45本のまま固定化する）。
-- 🔴**移設の罠（記録）**＝①識別子を `ctx.` 付きにするとオブジェクトの**省略記法が壊れる**（一括置換は引数まで壊すので tsc が指した位置だけ直す）②トリップワイヤは**画面を grep する**ので移設のたびに落ちる＝`battleScreenSource()` が `controller/` を全部読む形に統一した。
-- 検証＝`npm run gates` 全緑（golden 4313）。実機＝CPU 通し対戦 PASS ×3／アシストアタック・スペル・アシストグロウ・トラッシュ【起】・アーツ使用トリガー PASS。
+**直近＝2026-09-18＝バグ報告1件を処理＝「場に出す」効果の配置レベル制限（`R-48`①）**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🔴効果の `ADD_TO_FIELD`（**663効果 / 599カード**）は**配置レベル制限をどこも通っていなかった**＝ルリグのレベルを超えるシグニを場に出せた。
+- 直し方＝🆕`battle/placeLevelGate.ts`（純関数・fail-open）＋ `EffectInteractionModal`＝候補は見せたまま**決定を塞ぐ**（超過は「Lv超過」表示・ボタンは「ルリグのレベルを超えています」）。
+  上限は「出せる候補の数」で数える＝**全部超過なら 0 枚で決定できる**（決定が永久に押せないソフトロックを作らない）。
+- 🆕実機 `V-279`（超過＝押せない）／`V-280`（**ルリグ Lv3 への1ビット反転**＝同じ操作で出せる＝過剰でない対照）。
+- ⚠**残る穴＝`O-534`**（engine 側。**選択が起きない経路と CPU** は依然として超過して出せる）。
 
 | 軸 | いまの値 |
 |---|---|
 | 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第3段**＝**先にルール処理を出す**（`resolvePendingSigniBattleFor` 1,588行 → `doPhaseAdvance` 683 → `confirmEndDiscard` 234）。**そのあと `cpuTurnAction`**（1,362行・画面から45名前を掴む＝いま出すと巨大な deps になる） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
-| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
-| ⚠**直近の不具合** | 🔴**私の移設ミスを1件修正**＝召喚後もゾーン選択モーダルが開いたまま（`closeSummonModals`／`openOnPlayCost` の渡し忘れ）。golden に**全数チェック**を追加（`controller/` の任意 UI コールバックを画面が渡しているか）＋実機 `V-277` |
-| ⚠**バグ報告** | 🔴**2件を処理**（`npm run reports`）＝①公開した札が1枚しか見えない（`REVEAL_AND_PICK` 461効果/442枚に効く表示バグ・engine は正しい）→ 実機 `V-278` ②サーバントが勝手に召喚（同日の移設ミス＝修正済み・`V-277`） |
+| 📦**在庫** | 機構 worklist **1**（索引A `O-534`）／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| ⚠**直近の不具合** | 🔴**配置レベル制限が効果の場出しに無かった**（`R-48`①）＝UI で決定を塞いだ。**engine 側は未対応＝`O-534`**（選択が起きない経路・CPU はまだ超過して出せる） |
+| ⚠**バグ報告** | 🔴**1件を処理**＝「場に出す」効果でルリグのレベルより大きいシグニを召喚できた（`ADD_TO_FIELD` 663効果/599カード）→ 実機 `V-279`／`V-280` |
 | 🔧**ゲート** | `npm run gates` 全緑 |
 ---
 
@@ -228,7 +222,7 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**（直近＝`V-264`＝`c9resonalimitexcess`＝2026-09-17 第401バッチで PASS。バニッシュ以外でもレゾナがルリグデッキへ戻る回帰ガード／`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
+**残0**（直近＝`V-279`＝`placeLevelOver`／`V-280`＝`placeLevelWithin`（反転＝ルリグ Lv3 なら同じ操作で出せる）＝2026-09-18 に PASS。「場に出す」効果の配置レベル制限（`R-48`①）の回帰ガード＝超過候補は並ぶが決定ボタンが押せない（ボタン文言まで assert）／`V-264`＝`c9resonalimitexcess`＝2026-09-17 第401バッチで PASS。バニッシュ以外でもレゾナがルリグデッキへ戻る回帰ガード／`V-263`＝`c9lriglevellowered`＝2026-09-17 第400バッチで PASS。ルリグのレベル低下で超過したシグニの回帰ガード／`V-262`＝`v262LrigTypeClashBlocksAssist`＝2026-09-17 第399バッチで PASS＋判定を外すと golden FAIL。センターと同タイプのアシストを構築で弾く回帰ガード／`V-259`＝`c9levelupover`／`V-260`＝`c9levelupwithin`（反転＝レベルが上がっていなければ落とさない）／`V-261`＝`c9forcedextraturn`＝2026-09-17 第398バッチで PASS＋修正前のコードで FAIL を確認。レベル変動による超過と、強制終了時の追加ターンの回帰ガード／`V-256`＝`c9limitexcesspick`／`V-257`＝`c9limitwithin`（反転＝リミット内なら落とさない）／`V-258`＝`c9risesubcount`＝2026-09-17 第397バッチで PASS＋修正前のコードで FAIL を確認。リミット超過のルール処理とライズ置換の枚数の回帰ガード／`V-255`＝`c9removecleanup`＝2026-09-17 第396バッチで PASS＋修正前のコードで FAIL を確認。リムーブのゾーン後始末の回帰ガード／`V-253`＝`c9refreshturnend`／`V-254`＝`c9refreshturnendone`（反転＝1回目では終わらない）＝2026-09-17 第395バッチで PASS＋修正前のしきい値で FAIL を確認。2回目のリフレッシュでターンが終わる回帰ガード／`V-251`＝`c9resonabanish`／`V-252`＝`c9lrigtriplecrush`＝2026-09-17 第394バッチで PASS＋**修正前のコードで FAIL を確認**（レゾナがエナへ／トリプルが1枚）。レゾナの行き先とルリグの【トリプルクラッシュ】の回帰ガード／`V-248`〜`V-250`＝`c7cpukey`／`c7cpupiece`／`c7cpupieceonelrig`（反転＝ルリグ1体では使わない）＝2026-09-17 第393バッチで PASS。CPU のキー・ピースとピースの体数ルールの回帰ガード／`V-247`＝2026-09-17 第391バッチでクローズ＝CPU の起動の停止・二重実行。回帰ガード＝`v247AfterCpuRiseNoTrigger`（判別力あり）／`v247AfterCpuRise`／`v247AfterCpuAssistGrow`／`c3cpufirstturngrow`／`V-242`〜`V-246`＝`c2cpuguard`／`c4cpuhandlimit`／`c5cpuassistgrow`／`c5cpuresona`／`c6cpurise`＝2026-09-17 第390バッチで PASS。CPU のガード・手札上限・アシストグロウ・レゾナ・ライズの回帰ガード／`V-240`＝`c9lancerreplaced`／`V-241`＝`c9extraturnup`＝2026-09-17 第389バッチで PASS＋修正前のコードで FAIL を確認。ランサー置換とアップフェイズの受け手の回帰ガード／`V-239`＝`battleequalpower`＝2026-09-17 第388バッチで PASS。同値バトルの回帰ガード／`V-238`＝`bugreport`＝報告導線の回帰ガード／`V-237`＝`distinctlevelshortpick`＝`O-530` の実機ソフトロック回帰ガード）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
@@ -323,7 +317,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 #### 索引 A. 母集団2桁（遅いレーン）
 
-🏁**残0**（`O-530` は 2026-09-16 第385バッチでクローズ＝PLAN_DETAIL）
+| ID | 母集団 | 何が無いか |
+|---|---|---|
+| `O-534` | `ADD_TO_FIELD` **663効果 / 599カード** | **engine 側に配置レベル制限（`R-48`①）が無い**＝2026-09-18 に塞いだのは**人間の対象選択UI だけ**。**候補が1枚で選択が起きない経路と CPU（`pickCpuTargets`）は今も超過して場に出せる**。登録票＝[PLAN_DETAIL.md](./PLAN_DETAIL.md) |
+
+（`O-530` は 2026-09-16 第385バッチでクローズ＝PLAN_DETAIL）
 
 #### 索引 B. 母集団 3〜8効果
 
@@ -545,11 +543,11 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 > 作業したら ①このブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。
 
-- **2026-09-17 時点**（第393バッチ＝§5.6 `C-7` クローズ）
-  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（CPU・UI 層の回＝3計器は対象外）
-  - 📦**在庫**＝機構 worklist **1**（索引G `O-531`）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 2**（§5.6 `C-8`・`C-9`・🏁`C-0`〜`C-7` 済）｜ルール台帳 ⚠15
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden 4284・`census:traceinv` I1=0）
-  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（ピース 1・キー 0＝レベル4に届く前に決着。キーは実機シナリオ `c7cpukey` で確認）
+- **2026-09-18 時点**（バグ報告＝配置レベル制限 `R-48`①）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**UI 層だけの回＝live JSON を1バイトも触っていないので3計器は動かない**）
+  - 📦**在庫**＝機構 worklist **1**（索引A `O-534`＝engine 側の配置レベル制限）｜実機 **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4315**・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU を触っていない）
 
 ---
 

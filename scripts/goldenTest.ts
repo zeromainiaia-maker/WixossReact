@@ -107,6 +107,7 @@ import { REFRESH_TURN_END_COUNT, refreshForcesTurnEnd } from '../src/screens/bat
 import { findKeySlot, removeKeyToLrigTrash } from '../src/screens/battle/keyZone';
 import { clearZoneOnSigniLeave } from '../src/screens/battle/leaveFieldZone';
 import { applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess } from '../src/screens/battle/limitExcess';
+import { centerLrigLevelOf, signiPlaceableByLevel } from '../src/screens/battle/placeLevelGate';
 import { collectRiseBanishSubstitutes } from '../src/engine/effectEngine';
 import { applyUpPhaseToField, upPhaseRecipient } from '../src/screens/battle/upPhase';
 import { cpuAttackValueOf } from '../src/screens/battle/cpuBoardEval';
@@ -86906,6 +86907,38 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
     '🔴CPU の盤面を自動で解く経路が無い（問う相手が居ないので半分実装になる）');
   ok(fs.existsSync(join(root, 'src/screens/battle/modals/LimitExcessModal.tsx')),
     '🔴持ち主に選ばせるモーダルが無い');
+}));
+
+test('§5.6 C-9 R-48① 配置レベル制限＝「場に出す」効果もルリグのレベルを超えられない', () => withSavedCursor(() => {
+  // 🔴**2026-09-18 バグ報告**＝効果の `ADD_TO_FIELD`（トラッシュ／エナ／手札／デッキから場に出す）は
+  //   配置レベル制限を**1つも通っていなかった**＝対象選択でレベル超過のシグニを選んでそのまま場に出せていた
+  //   （手札召喚の `levelOk` とレゾナ出現の `resonaLevel <= currentLrigLevel` には在るゲート）。
+  // 🔑**置いたあと**のルール処理は `planLimitExcess`（`R-48`②＝**変動で**超過したものを落とす）＝別の役目。
+  const lrigL2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const st = (lrig: string[]): PlayerState => mkState({ lrig });
+  eq(centerLrigLevelOf(st([lrigL2]), cardMap), 2, 'センタールリグのレベルを読めていない');
+  eq(signiPlaceableByLevel(SIGNI_L1, st([lrigL2]), cardMap), true, 'レベル以下のシグニを出せないと判定している');
+  eq(signiPlaceableByLevel(SIGNI_L2, st([lrigL2]), cardMap), true, '同レベルのシグニを出せないと判定している');
+  eq(signiPlaceableByLevel(SIGNI_L3, st([lrigL2]), cardMap), false,
+    '🔴ルリグのレベルを超えるシグニ（Lv3 > Lv2）を出せると判定している');
+  eq(signiPlaceableByLevel(SIGNI_L4, st([lrigL2]), cardMap), false, '🔴Lv4 を Lv2 のルリグの場に出せると判定している');
+  // ⚠**fail-open**＝ここは決定ボタンを塞ぐ判定なので、外すと**合法な効果が打てないソフトロック**になる。
+  eq(signiPlaceableByLevel(SIGNI_L4, st([]), cardMap), true, '🔴センタールリグが読めないのに塞いでいる');
+  eq(signiPlaceableByLevel(findCard(c => c.Type === 'スペル'), st([lrigL2]), cardMap), true,
+    'シグニでないカードまで塞いでいる');
+  // 宣言によるレベル0上書き（§5.3 `O-226`＝`WXK09-001-E3`）は手札召喚のゲートと同じく先に効く。
+  const declared = { ...st([lrigL2]), declared_card_name: cardMap.get(SIGNI_L4)!.CardName,
+    game_declared_signi_level_zero: true } as PlayerState;
+  eq(signiPlaceableByLevel(SIGNI_L4, declared, cardMap), true, '宣言によるレベル0上書きが効いていない');
+  eq(signiPlaceableByLevel(SIGNI_L3, { ...declared } as PlayerState, cardMap), false,
+    '宣言していない別のシグニまでレベル0にしている（名前一致を見ていない）');
+  // 🔴**配線**＝「場に出す」効果の対象選択UIが、この判定を通してから決定を許す。
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/EffectInteractionModal.tsx'), 'utf8');
+  ok(/signiPlaceableByLevel\(/.test(modal), '🔴対象選択UIが配置レベル制限を見ていない');
+  ok(/const canConfirm = selectedLevelBlocked \? false/.test(modal),
+    '🔴レベル超過のシグニを選んでも決定ボタンが押せる');
+  ok(/placeableCount/.test(modal),
+    '🔴候補が全部レベル超過のときに 0 枚で決定する道が無い（決定が永久に押せない＝ソフトロック）');
 }));
 
 test('§5.6 C-9 R-41/R-49 リムーブ＝場を離れたゾーンの後始末（チャーム・アクセ・ソウル・ダウン・凍結）', () => withSavedCursor(() => {

@@ -1322,6 +1322,99 @@ function mkBug0918Texa(refreshCase) {
   };
 }
 
+/**
+ * 🆕🔴**2026-09-18 バグ報告の実機シナリオ**＝**「場に出す」効果でセンタールリグのレベルより大きいシグニを場に出せた**
+ * （配置レベル制限＝`RULES.md` `R-48`①。手札召喚とレゾナ出現には在るゲートが、効果の `ADD_TO_FIELD` には無かった）。
+ *
+ * 使う札＝`WXDi-CP02-087` 水羽ミモリ（Lv1・【出】でエナから＜ブルアカ＞のシグニ1枚を場に出す）／
+ *   エナは `WXDi-CP02-054` 天童アリス（**Lv3**）×5。
+ * `over=true`＝センターを **Lv2**（`WD03-003` コード・ピルルク・Ｍ）にして**超過**させる側。
+ * 📌3（負方向は対照とセット）＝`over=false` は**ルリグを Lv3（`WD03-002`）にするだけ**の1ビット反転
+ *   ＝同じ札・同じ操作で**出せる**ことを見る（`over` 側だけでは機構を1度も通らなくても緑になる）。
+ * 観測点＝①`pick-*`（対象選択）が出た ②候補を選べた ③そのうえで**決定ボタンが disabled**（`over`）／enabled（対照）。
+ * ⚠`over` 側は返す前に**モーダルを閉じる**（選択を外してスキップ）＝開いたまま返すと次シナリオの操作が全部覆われる（§4.4-1）。
+ */
+function mkPlaceLevelGate(over) {
+  const tag = over ? 'placeLevelOver' : 'placeLevelWithin';
+  const arice = [1, 2, 3, 4, 5].map(i => `WXDi-CP02-054#${i}`);
+  return {
+    title: `配置レベル制限（R-48①）＝「場に出す」効果で${over ? 'ルリグ Lv2 の場に Lv3 のシグニは出せない' : 'ルリグ Lv3 の場に Lv3 のシグニは出せる'}`,
+    spec: {
+      hostSet: {
+        'field.lrig': [over ? 'WD03-003#1' : 'WD03-002#1'],   // コード・ピルルク・Ｍ(Lv2/Limit5) ／ ・Ｇ(Lv3/Limit8)
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'energy': arice,
+        'actions_done': [],
+      },
+      guestSet: { 'field.check': null },
+      handPrepend: ['WXDi-CP02-087#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック(水羽ミモリ):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false, sawTarget = false, picked = false, confirmState = null;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        // 対象選択が出ている間は対象選択だけを進める（§4.4-7b）。⚠同じ index を押し続けない（§4.4-2c＝トグル）。
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          sawTarget = true;
+          if (!picked) { await pick0.click().catch(() => {}); picked = true; did = did ?? 'pick:pick-0'; }
+          else {
+            const confirm = page.getByTestId('effect-pick-confirm').first();
+            if (await confirm.count() && await confirm.isVisible().catch(() => false)) {
+              confirmState = {
+                enabled: await confirm.isEnabled().catch(() => false),
+                text: ((await confirm.textContent().catch(() => '')) ?? '').trim(),
+              };
+              if (!over && confirmState.enabled) { await confirm.click().catch(() => {}); did = did ?? 'btn:決定'; }
+            }
+          }
+        }
+        // 対照側は決定のあとに配置先のゾーン選択（`SELECT_SIGNI_ZONE`）が出る＝そこまで進めて「出せた」を見る。
+        if (!did && !over) did = await H.clickZone();
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(c => String(c).startsWith('WXDi-CP02-054')));
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)}`
+          + ` pEff=${st?.pendingEffect ?? '-'} picked=${picked} confirm=${JSON.stringify(confirmState)}`);
+        if (over) {
+          if (placed) return { pass: false, detail: `🔴ルリグ Lv2 の場に Lv3 のシグニが場に出た（hField=${JSON.stringify(st?.host?.fieldSigni)}）` };
+          if (sawTarget && picked && confirmState && !confirmState.enabled && /レベルを超え/.test(confirmState.text)) {
+            // 後始末＝選択を外してモーダルを閉じる（§4.4-1）。
+            await pick0.click().catch(() => {});
+            await page.waitForTimeout(400);
+            const skip = page.getByRole('button', { name: 'スキップ', exact: true }).first();
+            if (await skip.count() && await skip.isVisible().catch(() => false)) await skip.click().catch(() => {});
+            else {
+              const c2 = page.getByTestId('effect-pick-confirm').first();
+              if (await c2.isEnabled().catch(() => false)) await c2.click().catch(() => {});
+            }
+            return { pass: true, detail: `対象には並ぶが決定が押せない（ボタン="${confirmState.text}"）＝配置レベル制限が効いた` };
+          }
+        } else {
+          if (placed) return { pass: true, detail: `ルリグ Lv3 の場に Lv3 のシグニを出せた（hField=${JSON.stringify(st?.host?.fieldSigni)}）` };
+          if (confirmState && !confirmState.enabled && /レベルを超え/.test(confirmState.text)) {
+            return { pass: false, detail: `🔴レベル以下（Lv3 ≦ Lv3）なのに決定が押せない＝過剰なゲート（ボタン="${confirmState.text}"）` };
+          }
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（sawTarget=${sawTarget} picked=${picked} confirm=${JSON.stringify(confirmState)}`
+        + ` hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  };
+}
+
 const scenarios = {
   // ── 🆕§5.3 `O-333`（2026-09-12・第285バッチ）＝コイン技の遡及的な無効化 ─────────────
   // 原文（`WX16-002-E4`／`-E4b`）＝「【出】／【起】オーネスト《コイン》《コイン》：
@@ -8114,6 +8207,10 @@ const scenarios = {
       return { pass: false, detail: `場出し未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // 🆕🔴2026-09-18 バグ報告＝「場に出す」効果の配置レベル制限（`R-48`①）。定義は `mkPlaceLevelGate`（上）。
+  placeLevelOver: mkPlaceLevelGate(true),
+  placeLevelWithin: mkPlaceLevelGate(false),
 
   // WXDi-P03-078（続き114・Sonnet・PLAN §6.4）＝
   //    【自】：あなたのターン終了時、あなたのエナゾーンからこのシグニよりパワーの低い＜地獣＞のシグニ１枚を

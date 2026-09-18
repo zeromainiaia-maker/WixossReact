@@ -1,5 +1,19 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-18（S-5c 第2段 完了＋第3段の下ごしらえ）
+**直近＝2026-09-18＝§5.7 `S-5c` 第2段 完了＝`perform*` 12本すべてを画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🏁**12/12 移設済み**（アシストグロウ／ルリグアタック／スペル／ルリグ【起】／シグニ【起】／召喚／アーツ／キー・ピース／グロウ／シグニアタック／ガード応答／ライフバースト応答）。
+  共有ヘルパ `queueCardEffects`（64行）も `controller/` へ。**BattleScreen は 16,930 → 11,988行**（今日の通算 **−4,942行**）。
+- 🔑**画面のモーダルは「任意コールバック」で受ける**＝`openNegateEscape`（アタック無効化の回避UI）／`closeZoneModal`／`closeKeyModal`／`openOnPlayCost`／`growForMayu`。
+  **画面だけが渡す**＝CPU・ヘッドレスは渡さない（元々 CPU は通らない分岐なので**挙動は同じ**）。
+- ⚠**挙動は1行も変えていない**（逐語移設）。
+- 🆕**第3段の下ごしらえ＝場以外の【起】の実行2本も移設**（`controller/offFieldActivateExec.ts`＝`executeHandActivated` 58／`executeTrashActivated` 68）。⚠**行為者は必須引数**にした（旧「省略＝人間」は画面のラッパが渡す）。
+- 🔴**`cpuTurnAction` の取り方を実測して決めた**＝**画面から45個の名前を掴む**（`perform*` は5〜7個）。内訳の大半は**まだ画面に残るルール処理**＝
+  `resolvePendingSigniBattleFor` **1,588行**／`doPhaseAdvance` **683**／`confirmEndDiscard` **234**／`handleCutinPass` **195**（計2,700行）。
+  ⇒ **先にこれらを出してから `cpuTurnAction`**（順序を逆にすると deps が45本のまま固定化する）。
+- 🔴**移設の罠（記録）**＝①識別子を `ctx.` 付きにするとオブジェクトの**省略記法が壊れる**（一括置換は引数まで壊すので tsc が指した位置だけ直す）②トリップワイヤは**画面を grep する**ので移設のたびに落ちる＝`battleScreenSource()` が `controller/` を全部読む形に統一した。
+- 検証＝`npm run gates` 全緑（golden 4313）。実機＝CPU 通し対戦 PASS ×3／アシストアタック・スペル・アシストグロウ・トラッシュ【起】・アーツ使用トリガー PASS。
+
 ## 2026-09-18（S-5c 第2段・着手〜6本目）
 **直近＝2026-09-18＝§5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 - 🆕`controller/battleIo.ts`＝**口は3つだけ**（`commit`／`appendLogs`／`setLoading`）。画面は `screenIo`、ヘッドレスは `createHeadlessIo(memoryPersist)` を渡す。
