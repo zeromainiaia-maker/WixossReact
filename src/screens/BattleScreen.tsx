@@ -275,6 +275,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [persistRaw.commit, persistRaw.fetchState, persistRaw.remove]);
+  /** 自分の書き込みが全部終わり、最後に書いた行の通知が手元の `bs` に届いているか（`cpuDriver.ts` `lastCommitArrived`）。 */
+  const ownCommitsArrived = (row: BattleStateRow | null | undefined) => lastCommitArrived({
+    pendingCommits: pendingCommitsRef.current, localUpdatedAt: row?.updated_at, lastCommitUpdatedAt: lastCommitUpdatedAtRef.current,
+  });
   // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
   const { mulliganSelected, setMulliganSelected } = useGameStartSetup();
   // シグニ召喚ゾーン選択フロー
@@ -1684,6 +1688,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (!localMy.pending_signi_battle) return;
+    // 🆕🔴バグ報告 `4b765502`（2026-09-18）＝**自分の最後の書き込みが手元に届くまで解決しない**（CPU 側 `V-247` と同じ型）。
+    //   Realtime は**ログ追記（`append_battle_logs`）の通知でも行を丸ごと差し替える**ので、解決の途中で書いたログの通知が
+    //   最終 commit の後に届くと、手元は「まだ `pending_signi_battle` が立っている古い盤面」に戻って**同じアタックを2回解決**していた
+    //   （実測＝「〜がライフをクラッシュ」が2行・実際に割れたのは1枚）。届けば `host_state` が変わってここが再発火する。
+    if (!ownCommitsArrived(bs)) return;
     resolvePendingSigniBattleRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1697,6 +1706,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (!localMy.pending_lrig_attack) return;
+    if (!ownCommitsArrived(bs)) return;   // ↑シグニアタックと同じ（バグ報告 `4b765502`）
     resolvePendingLrigAttackRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps

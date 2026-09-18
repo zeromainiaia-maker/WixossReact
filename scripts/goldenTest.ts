@@ -87387,7 +87387,7 @@ test('§5.6 C-5 アシストグロウ・レゾナ：候補は人間と同じ関�
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/listAssistGrowCandidates\(\{ state: my,/.test(battle), '🔴人間のアシストグロウ候補が listAssistGrowCandidates を通っていない');
   ok(/await tryCpuAssistGrow\(newCpuSt\)/.test(battle) && /await tryCpuResona\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにアシストグロウ／レゾナが無い');
-  ok(/await performAssistGrow\(card, side, costIndices, \{\n\s+owner: my/.test(battle), '🔴人間のアシストグロウが performAssistGrow を通っていない');
+  ok(/await performAssistGrow\(card, side, costIndices, \{\r?\n\s+owner: my/.test(battle), '🔴人間のアシストグロウが performAssistGrow を通っていない');
   ok(!/const executeAssistGrow = async[^\n]*\n\s+[^\n]*\n\s+[^\n]*\n\s+if \(!isMyTurn/.test(battle),
     '🔴アシストグロウの実行が再び「自分のターンだけ」に戻った（相手のアタックフェイズの候補が押しても無反応になる）');
 }));
@@ -87412,9 +87412,9 @@ test('§5.6 C-6 ライズ：置き方は planRiseSummon 1本（人間の「召�
   ok(planRiseSummon({ my, req, signiLevel: 3, fieldSigniTotal: 10, lrigLimit: 10 - underLv + 3, fieldSigniCountLimit: 3, cardMap }) !== null, 'リミットちょうどで置けない');
 
   const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(/planRiseSummon\(\{\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
+  ok(/planRiseSummon\(\{\r?\n\s+my, req: handRiseReq,/.test(battle), '🔴人間の「召喚」ゲートが planRiseSummon を通っていない（CPU と判定が割れる）');
   ok(/await tryCpuRise\(newCpuSt\)/.test(battle), '🔴CPU のメインフェイズにライズが無い（O-147 の fail-closed のまま）');
-  ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
+  ok(/await performSummonSigni\(handIndex, zoneIndex, resona, riseSelection, \{\r?\n\s+actor: my,/.test(battle), '🔴人間の召喚が performSummonSigni を通っていない');
 }));
 
 test('§5.6 C-7 キー・ピース：可否は checkKeyPieceUse 1本（提示・モーダル・実行・CPU）＋ピースの体数ルール', () => withSavedCursor(() => {
@@ -87487,7 +87487,7 @@ test('§5.6 C-7 キー・ピース：可否は checkKeyPieceUse 1本（提示・
   ok(/const keyCheck = checkKeyPieceUse\(\{/.test(battle), '🔴人間のキー／ピースの提示が checkKeyPieceUse を通っていない');
   ok(modal.includes('keyPieceCostOf({'), '🔴KeyUseModal のコストが keyPieceCostOf を通っていない（提示と請求が割れる）');
   ok(!battle.includes('parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);\n      const hasUnlimitedKeysEKP'), '🔴キーの実行が印刷コインを直読みしている');
-  ok(/await performKeyPiece\(card, costIndices, \{\n\s+actor: my,/.test(battle), '🔴人間のキー／ピースが performKeyPiece を通っていない');
+  ok(/await performKeyPiece\(card, costIndices, \{\r?\n\s+actor: my,/.test(battle), '🔴人間のキー／ピースが performKeyPiece を通っていない');
   ok(/await tryCpuKeyPiece\(newCpuSt, 'MAIN'\)/.test(battle) && /await tryCpuKeyPiece\(cpuSt, 'ATTACK_ARTS'\)/.test(battle), '🔴CPU のメイン／アタックフェイズにキー・ピースが無い');
 }));
 
@@ -87529,6 +87529,9 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   ok(lastCommitArrived({ pendingCommits: 0, localUpdatedAt: '2026-09-17 08:00:01.5+00', lastCommitUpdatedAt: '2026-09-17T08:00:01.400000+00:00' }), '届いた行（後の updated_at）を「届いていない」と判定した');
   eq(lastCommitArrived({ pendingCommits: 0, localUpdatedAt: '2026-09-17T08:00:01.300000+00:00', lastCommitUpdatedAt: '2026-09-17T08:00:01.400000+00:00' }), false, '🔴古い行を「届いた」と判定した（二重実行）');
   eq(lastCommitArrived({ pendingCommits: 1, localUpdatedAt: '2099-01-01T00:00:00+00:00', lastCommitUpdatedAt: '' }), false, '🔴書き込み中なのに次の実行を許した');
+  // 🆕バグ報告 `4b765502`（2026-09-18）＝人間側のアタック解決も同じ型＝ログ追記の通知で古い盤面に戻り、同じアタックを2回解決していた。
+  ok(/if \(!localMy\.pending_signi_battle\) return;[\s\S]{0,800}?if \(!ownCommitsArrived\(bs\)\) return;\s*resolvePendingSigniBattleRef\.current\?\.\(\);/.test(battle), '🔴シグニアタックの解決が自分の書き込みの通知を待たない（「〜がライフをクラッシュ」が2行出る）');
+  ok(/if \(!localMy\.pending_lrig_attack\) return;\s*if \(!ownCommitsArrived\(bs\)\) return;/.test(battle), '🔴ルリグアタックの解決が自分の書き込みの通知を待たない');
 }));
 
 test('§5.6 C-5 追補 セットアップ：人間も CPU もデッキの指定どおりに置く（盤面は同じ buildLrigSetupState）', () => withSavedCursor(() => {

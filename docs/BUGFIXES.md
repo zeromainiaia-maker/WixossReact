@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 バグ報告 `4b765502`＝シグニアタック1回で「〜がライフをクラッシュ」が2行出る（アタック解決の二重実行）
+
+- **報告**＝「ランサーが正面にシグニがいない状態でアタックしたら、ライフクロスをクラッシュが2回ログにでた」（`WD04-010` ミスザク・T10）。
+  盤面の実測＝相手の `life_crashed_this_turn=1`・ライフオープン1回＝**実際に割れたのは1枚**。ランサーは無関係（正面が空なら素のクラッシュ1枚が正しい）。
+- 🔴**真因**＝CPU 側で塞いだ `V-247` と同じ型が**人間側のアタック解決**に残っていた。Realtime は**ログ追記（`append_battle_logs`）の通知でも行を丸ごと差し替える**ので、
+  解決の途中で書いたログの通知が最終 commit の後に届くと、手元は「まだ `pending_signi_battle` が立っている古い盤面」に戻り、
+  `resolvePendingSigniBattle` の useEffect が**同じアタックをもう一度解決**していた（同じ古い盤面から計算するので結果は同じ＝ログだけが2行）。
+  ⚠結果が同じになったのは偶然＝ランダム要素や【自】の積み方次第で二重に効きうる。
+- **直し方**＝`BattleScreen.tsx` に `ownCommitsArrived`（`cpuDriver.ts` `lastCommitArrived` を人間側でも使う）→ **シグニアタック／ルリグアタックの自動解決2本**は「自分の最後の書き込みが手元に届くまで」起動しない。
+- **影響**＝人間がアタックするたびに起きうる（通知の到着順次第）。
+- **検証**＝golden `§5.1 V-247` にトリップワイヤ2本（**修正前 FAIL → 修正後 PASS** を確認）・`npm run gates` 全緑。
+  実機（`src/screens/` を触ったため）＝`v223DoubleCrushOneAttackOnly`／`o181LrigAttackEndFiresWhenGuarded`／`v52GuardRestrictDifferentLevelAllowsGuard` PASS（解決が止まらない）。
+  ⚠`v232DoubleCrushUpsWatcher`／`v232DoubleCrushLrigAttack` は FAIL だが**修正前コードでも同じ FAIL**（「前提崩れ＝同時2枚以上のクラッシュが起きていない」＝既存の不具合・未調査）。
+- **ついで**＝golden の `C-5`/`C-6`/`C-7` の形チェック3本が `\n` 決め打ちで、**作業コピーが CRLF（`core.autocrlf=true`）だと FAIL** していた＝`\r?\n` にした（`git stash` で踏んだ）。
+
 ## 2026-09-18 §5.3 `O-534` クローズ＝配置レベル制限（`R-48`①）を engine 側の funnel へ（CPU・自動配置も塞いだ）
 
 - **前段**＝同日のバグ報告（下の項）で塞いだのは**人間の対象選択UI だけ**＝**選択が起きない経路と CPU** は超過して場に出せたままだった。
