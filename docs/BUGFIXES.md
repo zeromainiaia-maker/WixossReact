@@ -5,7 +5,13 @@
 - 🆕`src/screens/battle/controller/battleIo.ts`＝実行関数の I/O 口。**3つだけ**（`commit`／`appendLogs`／`setLoading`）＝増やすほど画面から出せなくなる。
   画面は `screenIo`（`persist.commit`／`appendBattleLogs`／`setLoading`）、ヘッドレスは `createHeadlessIo(memoryPersist)`。
 - 🆕`src/screens/battle/controller/performAssistGrow.ts`＝`perform*` 12本のうち**最小の68行**を試作台として逐語で移設し、I/O を注入にした。画面側は薄いラッパ（呼び出し地点は不変）。
-- 🔴**残り11本＝3,247行**（`performSigniActivated` 393／`performSummonSigni` 391／`performLrigActivated` 352／`performGrow` 341／`performSigniAttack` 331／`performLifeBurstResponse` 325／`performGuardResponse` 292／`performSpell` 216／`performArts` 214／`performKeyPiece` 202／`performLrigAttack` 190）。同じレシピで1本ずつ。
+- 🆕**同日の続き＝あと2本を移設**（`performLrigAttack` 190行／`performSpell` 216行）。共通の材料を `controller/performCtx.ts`（`PerformCtx`）に切り出し、`performAssistGrow` も同じ形へ。
+  🔑**`performLrigAttack` で分かった型**＝`perform*` の中に**画面のモーダルを開く分岐**が混じる（無効化の回避UI＝手札を捨てて逃げる）。
+  ⇒ **その1本だけを引数の任意コールバック**（`openNegateEscape?`）にした＝画面は渡す／CPU・ヘッドレスは渡さない（元々 `attackerId === userId` のときしか開かないので**挙動は同じ**）。
+  🔴トリップワイヤ2本を較正＝`O-18`（スペル使用の封じ＝実行入口の走査先を `controller/performSpell.ts` へ／画面側の数えは別読み）と `planEnergyPayment` のサイト一覧（移設先3本を追加＝**数は15のまま**）。
+  **BattleScreen は 15,608 → 15,144行**（今日の通算 16,930 → 15,144＝**−1,786行**）。
+  実機＝CPU 通し対戦 PASS ×2／`assistAttackBoth`・`assistAttackCpuSequence`・`lifeCrashReplNotOnLrigAttack`（ルリグアタック）／`sYokusenkiSpellPay`・`sYokusenkiSpellSkip`・`wxex166SpellLockPeriod`（スペル）PASS。
+- 🔴**残り9本＝2,841行**（`performSigniActivated` 393／`performSummonSigni` 391／`performLrigActivated` 352／`performGrow` 341／`performSigniAttack` 331／`performLifeBurstResponse` 325／`performGuardResponse` 292／`performArts` 214／`performKeyPiece` 202）。同じレシピで1本ずつ。
 - 🔴**実機ハーネスの腐りを1件修正**＝`scripts/verifyBattleDrive.mjs` の `queryState` が **`lifeCrashReplacements` を同じオブジェクトに2回書いていた**。
   後から足した「`millx5?` の文字列要約」が**生の配列を黙って上書き**しており、`repl?.kind` を読む3シナリオの判定が**永久に偽**になっていた
   （`lifeCrashReplGrantFromAssist` は落ち続け、`lifeCrashReplDeclareNoSelfMill`／`NoOppCrash` は「.length だけ」で通っていた＝**検査が効いていなかった**）。

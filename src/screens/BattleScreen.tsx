@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
+import type { BattleStateRow, PlayerState, CardData, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectMultiAcceLimits, collectRiseBanishSubstitutes, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums } from '../engine/effectEngine';
+import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectMultiAcceLimits, collectRiseBanishSubstitutes, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums } from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, refreshPlayersIfDeckEmpty, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canSatisfyDiscardGroups, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectOptionalNoCostOnPlayForGrow, collectTurnTriggers as pureCollectTurnTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectOptionalNoCostOnPlayForGrow, collectTurnTriggers as pureCollectTurnTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectLeftFieldSigni, detectLeftFieldSigniToTrash, countCharmsToTrash, detectNewlyDowned } from '../engine/boardDiff';
 import { applyCoinGain } from '../engine/coinGain';
@@ -67,7 +67,7 @@ import { collectOppLifeBurstActivatedTriggers, collectPlayerDamagedTriggers } fr
 import { matchesTrashArtsFromLrigDeckCost } from './battle/artsTrashCost';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
-import { consumeNthAttackNegation, getTargetedAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from './battle/attackNegation';
+import { consumeNthAttackNegation, resolveLrigAttackContinuation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
@@ -132,6 +132,9 @@ import { collectArtsUseForResolution as bdCollectArtsUse, collectOppArtsUseForRe
 import { makeBoardDiffCollector, type BoardDiffCollector } from './battle/controller/boardDiffTriggers';
 import { makeFillDeployCaps, makeTrigCtx } from './battle/controller/execCtxDeps';
 import { performAssistGrow as performAssistGrowImpl } from './battle/controller/performAssistGrow';
+import { performLrigAttack as performLrigAttackImpl } from './battle/controller/performLrigAttack';
+import { performSpell as performSpellImpl } from './battle/controller/performSpell';
+import type { PerformCtx } from './battle/controller/performCtx';
 import type { BattleIo } from './battle/controller/battleIo';
 import { fieldPlacementOnPlayOpts, resolveStackStep, type StackResolveDeps } from './battle/controller/stackResolve';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
@@ -156,7 +159,7 @@ import { listAssistGrowCandidates } from './battle/assistGrow';
 import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './battle/cpuSummon';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
-import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from './battle/grantedAuto';
+import { clearTurnGrantedLrigAbilities, reserveGrantedAutoUsage } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -165,7 +168,7 @@ import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { EMPTY_RISE_SELECTION, planRiseSummon, payRiseMaterials, riseConsumedZones, validateRiseField, validateRiseMaterials, type RiseSelection } from './battle/riseSummon';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
-import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost, deterministicLrigAttackFieldTrashZones, payLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
+import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard } from './battle/cpuBoardEval';
 import { listActivatableSigniEffects, listActivatableSeedEffects } from './battle/signiActivateGate';
@@ -179,7 +182,7 @@ import { pickCpuKeyPiece } from './battle/cpuKeyPiece';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
 import { pickCpuMainSpell } from './battle/cpuSpell';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
-import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
+import { assistLrigAttackableSlots, lrigSlotTop, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { centerLrigAttackBlock } from './battle/lrigAttackGate';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
@@ -2842,6 +2845,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading,
   };
 
+  /** 🆕§5.7 `S-5c` 第2段＝`perform*` へ渡す共通の材料（`controller/performCtx.ts`）。 */
+  const performCtx = (): PerformCtx => ({
+    bs, cardMap: battleCardMap, effectsMap, cards: battleCards, userId: user.id, isHost, effectivePowers,
+    trigCtx: mkTrigCtx, collectBoardDiff: collectBoardDiffTriggers, io: screenIo,
+  });
+
   /** 🆕§5.7（2026-09-18）＝アーツ使用トリガー収集（`controller/artsUseTriggers.ts`）の材料。 */
   const artsUseDeps = () => ({ bs, cardMap: battleCardMap, userId: user.id, isHost, trigCtx: mkTrigCtx });
 
@@ -2909,16 +2918,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectLrigGrowTriggers(mkTrigCtx(), grownOwnerId, afterGrowerState, afterOpState);
   const collectCoinPaidTriggers = (payerId: string, afterPayerState: PlayerState, afterOpState: PlayerState): { entries: StackEntry[]; usedIds: string[] } =>
     pureCollectCoinPaidTriggers(mkTrigCtx(), payerId, afterPayerState, afterOpState);
-  // 「対戦相手のルリグがアタックしたとき」＝**防御側**の付与AUTO（any_opp/any scope）を収集（タスク12(xlvii)）。
-  // 従来この経路が無く、防御側の付与能力が ON_ATTACK_LRIG で一切拾われなかった。
-  // 場のシグニ/キーの CONTINUOUS GRANT_LRIG_ABILITY 由来（アタック側は下の contGrantedLrigEffects で合流済み）も渡す。
-  const collectLrigAttackDefenderTriggers = (defenderState: PlayerState, attackerState: PlayerState, defenderId: string): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectLrigAttackDefenderTriggers(mkTrigCtx(), defenderState, defenderId,
-      collectLrigGrantedEffects(defenderState, attackerState, false, effectsMap, battleCardMap));
-  // 「**あなたの**ルリグがアタックしたとき」＝**アタック側の味方カード**（場のシグニ／アシストルリグ）の
-  // AUTO を収集（§3 (cxxviii)・続き475d）。上の防御側コレクタとは主語も playerId も違う。
-  const collectAllyLrigAttackTriggers = (attackerState: PlayerState, attackerId: string, attackingLrigNum: string): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectAllyLrigAttackTriggers(mkTrigCtx(), attackerState, attackerId, attackingLrigNum);
   // ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻すヘルパー（続き106）。
   const applyCoinPaidUsed = (st: PlayerState, coin: { usedIds: string[] }): PlayerState =>
     coin.usedIds.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...coin.usedIds] } : st;
@@ -6706,234 +6705,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
-  // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
-  // discardIndices＝使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）で
-  // 選んだ手札 index。支払うと使用コストが置換される（検証は SpellCastModal 側＝executeArts と同じ規約）。
-  /**
-   * スペル使用の実行（人間・CPU 共通）。DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝
-   * `performArts` / `performSigniActivated` と同じく **owner をパラメータ化**し、
-   * 人間用 `castSpell` は薄いラッパーにする（§8 `O-1` (b)）。
-   *
-   * ⚠**「いま発動できるか」の判定はここではなく `spellUseGate.checkSpellUse`**。
-   * ここに残すゲートは**実行入口の再検算**（UI を迂回する経路から素通りさせないため）。
-   */
-  const performSpell = async (
-    card: CardData,
-    sel: {
-      costIndices: Set<number>;
-      handIdx: number;
-      fromLrigDeck?: boolean;
-      betCoins?: number;
-      virusRemovalByZone?: number[];
-      discardIndices?: Set<number>;
-      useCostPayKeys?: Set<string>;
-    },
-    p: {
-      actor: PlayerState; opponent: PlayerState;
-      actorId: string;
-      actorKey: 'host_state' | 'guest_state';
-      /** `actor` がターンプレイヤーか。 */
-      isActorTurn: boolean;
-      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
-      energyPayPool: EnergyPayEntry[];
-      /** `calcContinuousBlockedActions(actor, ...).forSelf`。 */
-      blockedSelf: Set<string>;
-      /** 支払ったエナの色記録（`WX04-063`）に要る＝`ArtsPayerCtx` の同名フィールド。 */
-      enaAllMulti: boolean;
-      enaMultiStripped: boolean;
-    },
-  ) => {
-    const my = p.actor;
-    const op = p.opponent;
-    const actorIsHost = p.actorKey === 'host_state';
-    const { costIndices, handIdx } = sel;
-    const fromLrigDeck = sel.fromLrigDeck;
-    const betCoins = sel.betCoins ?? 0;
-    const virusRemovalByZone = sel.virusRemovalByZone;
-    const discardIndices = sel.discardIndices ?? new Set<number>();
-    const useCostPayKeys = sel.useCostPayKeys ?? new Set<string>();
-    if (!p.isActorTurn) return;
-    // §6.4 O-18（続き513）＝3軸を `isSpellUseBlockedFor` に集約（ボタン生成側と同じ関数を見る）。
-    if (isSpellUseBlockedFor(my, p.blockedSelf, card)) return;
-    // DISONA_RESTRICTION: このターン《ディソナアイコン》ではないスペルを使用できない
-    if (my.dissona_only_spells_this_turn && card.Story !== 'Dissona') {
-      appendBattleLogs(['ディソナ制限：《ディソナアイコン》ではないスペルは使用不可']);
-      return;
-    }
-    // BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT: 相手フィールドのチャーム数以下コストのスペルは使用不可
-    const spellBlockThreshold = collectBlockLowCostSpellCount(op, battleCardMap, effectsMap);
-    if (spellBlockThreshold > 0) {
-      const spellTotalCost = parseGrowCost(card.Cost ?? '').reduce((s, c) => s + c.count, 0);
-      if (spellTotalCost <= spellBlockThreshold) {
-        appendBattleLogs([`スペル使用不可: コスト${spellTotalCost}≤相手チャーム数${spellBlockThreshold}`]);
-        return;
-      }
-    }
-    setLoading(true);
-    try {
-      const spellPay = planEnergyPayment(my, p.energyPayPool, costIndices);
-      const paidNums = spellPay.paidNums;
-      // 支払ったエナ1枚ごとの色配列（`WX04-063`「支払われたエナの色」＋ §5.3 `O-117` の
-      // `PAID_COLORS_INCLUDE_ALL` が参照）。⚠**式は `paidEnergyColorsOf` の1本**＝アーツ経路と割らない。
-      const paidEnergyColors = paidEnergyColorsOf(
-        paidNums, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped);
-      // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
-      // タスク12(lxxxv) の「軽減」も支払い元が手札なら**同じ index 空間**で消す（別々に消すと index がずれる）。
-      const useCostSpec = resolveUseTimeCost(card.CardNum, effectsMap);
-      const useCostHandIdx = useCostSpec?.source === 'hand'
-        ? [...useCostPayKeys].filter(k => k.startsWith('h:')).map(k => parseInt(k.slice(2))) : [];
-      const discardIdxAll = [...new Set([...discardIndices, ...useCostHandIdx])].filter(i => i !== handIdx);
-      const discardNums = discardIdxAll.map(i => my.hand[i]).filter(Boolean);
-      const discardSet = new Set(discardIdxAll);
-      // ベット：UIで選んだコイン枚数を支払う（所持を超えない）。is_betting_this_effect は handleCutinPass の効果解決まで持続
-      const betCost = Math.min(Math.max(0, betCoins), my.coins);
-      const isMeltFact = card.CardNum === 'WX15-067';
-      const currentOppVirus = op.field.signi_virus ?? [0, 0, 0];
-      const requestedVirus = isMeltFact ? (virusRemovalByZone ?? [0, 0, 0]) : [0, 0, 0];
-      const validVirusSelection = requestedVirus.every((n, i) =>
-        Number.isInteger(n) && n >= 0 && n <= (currentOppVirus[i] ?? 0));
-      if (!validVirusSelection) return;
-      const removedVirusCount = requestedVirus.reduce((sum, n) => sum + n, 0);
-      const newOpState: PlayerState = removedVirusCount > 0 ? {
-        ...op,
-        field: {
-          ...op.field,
-          signi_virus: currentOppVirus.map((n, i) => n - (requestedVirus[i] ?? 0)),
-        },
-      } : op;
-      let spellInstanceId: string;
-      let newMyState: PlayerState;
-      if (fromLrigDeck) {
-        // フェゾーネマジック: lrig_deckから除いてゲームから除外先へ（使用後はlrig_trashへ近似）
-        spellInstanceId = my.lrig_deck.find(id => {
-          const base = id.indexOf('#') > 0 ? id.slice(0, id.indexOf('#')) : id;
-          return base === card.CardNum;
-        }) ?? card.CardNum;
-        newMyState = spellPay.applyTo({
-          ...my,
-          lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
-          hand: my.hand.filter((_, i) => !discardSet.has(i)),
-          trash: [...my.trash, ...paidNums, ...discardNums],
-          ...handDiscardHistoryRecord(my, discardNums),
-          // 🆕**色マーカー**（§5.3 `O-269`・2026-09-06）＝「このターンにあなたが〈色〉のスペルを使用していた場合」。
-          //   🔑**判定源を `SPELL_USED_THIS_TURN` と同じ `actions_done` に置く**＝専用キー（アーツ側の
-          //   `turn_arts_used_colors`）を作るとリセット地点が別々になり、片方だけ残る事故になる。
-          //   ⚠`actions_done.includes('USE_SPELL')` は要素の完全一致なので既存判定には影響しない。
-          //   ⚠**多色スペルは色ぶん積む**（原文「赤のスペル」は赤を含めば成立）。「無色」は色ではないので積まない。
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL',
-            ...((card.Color || '').match(/白|赤|青|緑|黒/g) ?? []).map(c => `USE_SPELL_COLOR:${c}`),
-            ...(betCost > 0 ? ['COIN_SPENT'] : [])],
-          next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
-          // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
-          next_spell_wild_cost_slot: undefined,
-          ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
-          coins: Math.max(0, my.coins - betCost),
-          coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
-          is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
-          bet_coins_paid: betCost > 0 ? betCost : undefined,
-        });
-      } else {
-        spellInstanceId = my.hand[handIdx] ?? card.CardNum;
-        newMyState = spellPay.applyTo({
-          ...my,
-          hand: my.hand.filter((_, i) => i !== handIdx && !discardSet.has(i)),
-          trash: [...my.trash, ...paidNums, ...discardNums],
-          // 🔴**旧実装はここだけ枚数しか書いていなかった**（上のルリグデッキ枝は両方書いていた）＝
-          //   手札からスペルを使って払った捨ては `HAND_DISCARDED_THIS_TURN{filter}` から見えなかった。
-          ...handDiscardHistoryRecord(my, discardNums),
-          // 🆕**色マーカー**（§5.3 `O-269`・2026-09-06）＝「このターンにあなたが〈色〉のスペルを使用していた場合」。
-          //   🔑**判定源を `SPELL_USED_THIS_TURN` と同じ `actions_done` に置く**＝専用キー（アーツ側の
-          //   `turn_arts_used_colors`）を作るとリセット地点が別々になり、片方だけ残る事故になる。
-          //   ⚠`actions_done.includes('USE_SPELL')` は要素の完全一致なので既存判定には影響しない。
-          //   ⚠**多色スペルは色ぶん積む**（原文「赤のスペル」は赤を含めば成立）。「無色」は色ではないので積まない。
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL',
-            ...((card.Color || '').match(/白|赤|青|緑|黒/g) ?? []).map(c => `USE_SPELL_COLOR:${c}`),
-            ...(betCost > 0 ? ['COIN_SPENT'] : [])],
-          next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
-          // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
-          next_spell_wild_cost_slot: undefined,
-          ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
-          coins: Math.max(0, my.coins - betCost),
-          coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
-          is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
-          bet_coins_paid: betCost > 0 ? betCost : undefined,
-        });
-      }
-      // 相手ウィルスを実際に取り除いたら ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED の
-      // 監視フラグを立てる（既存のウィルス除去サイト＝execStubPart1 の6箇所と同じ規約。
-      // 立てないと WD19-009 / WX21-045 / WX21-068 / WX21-030 のトリガーが落ちる）。
-      if (removedVirusCount > 0) newMyState = { ...newMyState, opp_virus_removed_just: true };
-      // 使用時の任意支払い（軽減）＝手札以外の支払い元は手札 index と衝突しないので最終状態へ重ねる。
-      let useCostTrashedSigni: string[] = [];
-      if (useCostSpec && useCostSpec.source !== 'hand' && useCostPayKeys.size > 0) {
-        // 場のシグニ払い（タスク12(lxxxix)）は、離場トリガーの照合用に**支払い前**の在席カードを控える。
-        if (useCostSpec.source === 'signi_trash') {
-          useCostTrashedSigni = [...useCostPayKeys].filter(k => k.startsWith('z:'))
-            .map(k => newMyState.field.signi[parseInt(k.slice(2))]?.at(-1))
-            .filter((v): v is string => !!v);
-        }
-        const paidUse = payUseTimeCost(newMyState, useCostSpec, useCostPayKeys, battleCardMap);
-        newMyState = paidUse.state;
-        if (paidUse.label) appendBattleLogs([paidUse.label]);
-      } else if (useCostSpec && useCostHandIdx.length > 0) {
-        appendBattleLogs([`使用時の任意支払い：手札${useCostHandIdx.length}枚を捨てて使用コストを軽減`]);
-      }
-      if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
-      if (discardNums.length > 0) {
-        appendBattleLogs([`使用時の任意支払い：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨てて使用コストを置換`]);
-      }
-      // ON_COIN_PAID（C1 配線・**スペル本体のベット**＝タスク12(lxxxvi)）。
-      // 他のコイン支払いサイト（グロウ人間/CPU・シグニ【起】【出】・キープレイ・アーツ ベット/アンコール・
-      // カットインのベット）は収集済みで、ここだけが「コインは払うのに反応【自】を積まない」穴だった。
-      // 対象＝ベット持ちスペル7枚（`WXDi-P07-059` ほか）。
-      const spellCoin = betCost > 0
-        ? collectCoinPaidTriggers(p.actorId, newMyState, newOpState)
-        : { entries: [] as StackEntry[], usedIds: [] as string[] };
-      newMyState = applyCoinPaidUsed(newMyState, spellCoin); // 《ターン1回/2回》消化を永続化
-      const stateKey = p.actorKey;
-      const spell: PendingSpell = {
-        caster_id: p.actorId,
-        card_num: spellInstanceId,
-        paid_energy_colors: paidEnergyColors,
-        ...(removedVirusCount > 0 ? { pre_use_virus_removed: removedVirusCount } : {}),
-        ...(fromLrigDeck ? { from_lrig_deck: true } : {}),
-      };
-      // 使用時の支払いで積んだトリガーを1本のスタックにまとめる＝
-      //   ①ベットのコイン支払い（`ON_COIN_PAID`・タスク12(lxxxvi)）
-      //   ②場のシグニ払いの離場/トラッシュ（`ON_LEAVE_FIELD`/`ON_TRASH`・タスク12(lxxxix)）。
-      // ②は中央 diff へ **fieldTrashCostCards** として渡す＝コストによる支払いなので byEffectCause=false
-      // （＝「効果によってトラッシュに置かれたとき」には該当しない）。
-      // ⚠pending_spell 待ちの間にスタックが載るが、カットイン応答の継続もCPU行動も
-      //   `if (bs.effect_stack …) return;` で待つので「支払い→トリガー解決→カットイン→スペル解決」の順になる。
-      const spellUseCostEntries: StackEntry[] = [...spellCoin.entries];
-      if (useCostTrashedSigni.length > 0) {
-        const afterHostSp = actorIsHost ? newMyState : newOpState;
-        const afterGuestSp = actorIsHost ? newOpState : newMyState;
-        const bdSp = collectBoardDiffTriggers(afterHostSp, afterGuestSp, {
-          causeOwnerId: p.actorId, causeSourceCardNum: spellInstanceId,
-          fieldTrashCostCards: useCostTrashedSigni,
-        });
-        newMyState = actorIsHost ? bdSp.hostState : bdSp.guestState;
-        spellUseCostEntries.push(...bdSp.entries);
-      }
-      const spellUseCostStack: EffectStack | undefined = spellUseCostEntries.length > 0
-        ? (bs.effect_stack
-          ? pushToStack(bs.effect_stack, spellUseCostEntries)
-          : initStack(bs.active_user_id ?? p.actorId, spellUseCostEntries))
-        : undefined;
-      await persist.commit(reduceBattle(bs, {
-        type: 'QUEUE_SPELL',
-        casterKey: stateKey,
-        casterState: newMyState,
-        spell,
-        ...(removedVirusCount > 0 ? { other: { key: actorIsHost ? 'guest_state' : 'host_state', state: newOpState } } : {}),
-        ...(spellUseCostStack ? { effectStack: spellUseCostStack } : {}),
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // スペル使用の実行（人間・CPU 共通）。
+  // 🆕§5.7 `S-5c` 第2段＝本体は `controller/performSpell.ts`（I/O 注入）。ここは材料を渡すだけ。
+  const performSpell = (
+    card: Parameters<typeof performSpellImpl>[0],
+    sel: Parameters<typeof performSpellImpl>[1],
+    p: Parameters<typeof performSpellImpl>[2],
+  ) => performSpellImpl(card, sel, p, performCtx());
+
 
   /** 人間UI（`SpellCastModal`）から呼ぶ薄いラッパー。本体は `performSpell`。 */
   const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set(), useCostPayKeys: Set<string> = new Set()) => {
@@ -10195,198 +9974,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { blocked, colorless, fieldTrash };
   };
 
-  // ルリグアタックの実行（人間・CPU共通）: アタッカーのルリグをダウンし防御側にガード応答を要求。
-  // アタック不可（ドライブ状態・無効化等）の場合は状態を変えずに false を返す
-  const performLrigAttack = async (p: {
-    attacker: PlayerState; defender: PlayerState;
-    attackerId: string;
-    attackerKey: 'host_state' | 'guest_state';
-    /**
-     * アタック元のルリグ枠（省略＝センター）。`assist_l`/`assist_r` は `ASSIST_LRIG_ATTACK_THIS_TURN`
-     * が立っているターンだけ到達する（§6.4 A群・続き427）。
-     * ⚠**センター専用の判定・収集はアシストでは飛ばす**＝`lrig_has_attacked`（センターの1回制限）、
-     *   ドライブ状態（ルリグに乗っているシグニ）、センタールリグ付与ストア由来の ON_ATTACK_LRIG。
-     *   ここを共有すると「アシストがアタックしたらセンターも撃てなくなる」等の別バグになる。
-     */
-    slot?: LrigAttackSlot;
-    /**
-     * 🆕**「シグニN体を場からトラッシュに置かないかぎりアタックできない」の支払い**（§5.3 `O-222`）。
-     * 人間はモーダルで選んだゾーン、CPU は `deterministicLrigAttackFieldTrashZones` が決める。
-     * ⚠**未指定なら CPU 規約（盤面左から）で自動選択する**＝ここを素通りさせると
-     *   「払わずにアタックできる」無言の過少コストになる。
-     */
-    attackFieldTrashZones?: number[];
-  }): Promise<boolean> => {
-    const { attacker: my, defender: op, attackerId } = p;
-    const slot: LrigAttackSlot = p.slot ?? 'center';
-    const isCenterAttack = slot === 'center';
-    // 🆕**§5.3 `O-366`（2026-09-14）＝センターのアタック可否は `centerLrigAttackBlock` の1本に寄せた。**
-    //   🔴従来ここには `if (my.lrig_has_attacked) return false;` が在り、
-    //     **効果でアップされても再アタックできない**＝再アタック系 live 20効果が真 no-op だった。
-    //   ⚠**アクション一覧（下の `getLrigActions`）と必ず同じ関数を通す**＝
-    //     片方だけ塞がっていたせいで「ボタンは出るが押しても無反応」（§6.4 `O-18`）になっていた。
-    if (isCenterAttack && centerLrigAttackBlock(my) !== null) return false;
-    if (!isCenterAttack && !assistLrigAttackableSlots(my, battleCardMap).includes(slot)) return false;
-    if (op.field.lrig_attacked) return false; // ガード応答待ち中
-    const myLrigNumLA = lrigSlotTop(my, slot);
-    const allowDriveAttack = !!(myLrigNumLA && (effectsMap.get(myLrigNumLA) ?? []).some(e =>
-      e.effectType === 'CONTINUOUS' &&
-      (e.action as import('../types/effects').StubAction).type === 'STUB' &&
-      (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
-    ));
-    if (isCenterAttack && (my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
-    // keyword_grants で「アタックできない」が付与されている場合アタック不可
-    if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
-    // 《無》×N の前払い（§6.4 O-28）＝払えないならアタックそのものが成立しない。
-    const lrigCostLA = lrigAttackCostInfo(my, op, myLrigNumLA);
-    if (lrigCostLA.blocked) return false;
-    // NEGATE_ATTACK: ルリグもアタック宣言時に無効化。escapeDiscard があり手札を払える場合は既存回避UIへ。
-    // （旧 PREVENT_TARGET_LRIG_ATTACK_THIS_TURN の判定を統合＝同じ negated_attacks を見る）
-    // ⚠回避モーダルを開けるのは自分のアタックのときだけ。CPU/リモート側のアタックは払わず無効化を受け入れる。
-    const targetedLrigNegation = getTargetedAttackNegation(my, myLrigNumLA);
-    if (targetedLrigNegation.negated) {
-      const escapeCount = targetedLrigNegation.escapeDiscard;
-      if (escapeCount && my.hand.length >= escapeCount && attackerId === user.id) {
-        openNegateEscape({ zoneIndex: -1, cardNum: myLrigNumLA!, count: escapeCount });
-        return false;
-      }
-      setLoading(true);
-      try {
-        const accepted = resolveNegateEscapeChoice(my, op, 'accept', myLrigNumLA!, -1);
-        const defenderKey: 'host_state' | 'guest_state' = p.attackerKey === 'host_state' ? 'guest_state' : 'host_state';
-        appendBattleLogs([`${battleCardMap.get(myLrigNumLA!)?.CardName ?? myLrigNumLA}のアタックは無効化された`]);
-        await persist.commit(reduceBattle(bs, {
-          type: 'WRITE_STATE',
-          myKey: p.attackerKey,
-          myState: accepted.attacker,
-          opp: { key: defenderKey, state: accepted.defender },
-        }));
-      } finally {
-        setLoading(false);
-      }
-      return true;
-    }
-    setLoading(true);
-    try {
-      const myKey = p.attackerKey;
-      const lrigNum = myLrigNumLA ?? '';
-      const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
-      // 《無》の前払い（OPP_LRIG_ATTACK_COST＋付与された ban）＝可否は上の `lrigAttackCostInfo` で判定済み。
-      // ⚠ここは引き落としだけ（続き490 の「判定と引き落としを別軸にしない」と同じ規約）。
-      const lrigAttackExtraCost = lrigCostLA.colorless;
-      let myEnergyAfterAttack = my.energy;
-      if (lrigAttackExtraCost > 0) {
-        const removed = myEnergyAfterAttack.slice(-lrigAttackExtraCost);
-        myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -lrigAttackExtraCost);
-        appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
-      }
-      // 🆕**場のシグニN体を場からトラッシュに置く解除コスト**（§5.3 `O-222`・`WX24-P3-049-E1`）。
-      // ⚠**引き落としだけ**＝可否は上の `lrigAttackCostInfo` が判定済み（判定と引き落としを別軸にしない）。
-      // ⚠**払えなければアタックを成立させない**（`null` は fail-closed）。
-      let myAfterFieldTrash = my;
-      if (lrigCostLA.fieldTrash > 0) {
-        const zonesLA = p.attackFieldTrashZones
-          ?? deterministicLrigAttackFieldTrashZones(my, lrigCostLA.fieldTrash, battleCardMap);
-        const paid = payLrigAttackFieldTrashCost(my, lrigCostLA.fieldTrash, zonesLA, battleCardMap);
-        if (!paid) return false;
-        myAfterFieldTrash = paid.state;
-        appendBattleLogs([`ルリグアタック解除コスト（シグニ${lrigCostLA.fieldTrash}体）トラッシュ：${paid.trashedSigniNums.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
-      }
-      appendBattleLogs([`${lrigName}がアタック`]);
-      const attackedMyState: PlayerState = {
-        ...myAfterFieldTrash, energy: myEnergyAfterAttack,
-        ...(isCenterAttack ? { lrig_has_attacked: true } : {}),
-        // 🆕§5.3 `O-236`＝上限つきのときは回数も数える（上限が無い日は書かない＝既存の挙動を汚さない）。
-        ...(isCenterAttack && my.lrig_attack_limit_this_turn !== undefined
-          ? { lrig_attack_count_this_turn: (my.lrig_attack_count_this_turn ?? 0) + 1 } : {}),
-        field: markLrigSlotDown(myAfterFieldTrash, slot),
-      };
-      // NEGATE_NTH_ATTACK は「アタックしたとき」に無効化するため、追加コスト支払い・ダウン・攻撃済み化は行う。
-      // ただし pending_lrig_attack を立てず、ON_ATTACK_LRIG収集とガード/ダメージ応答へは進めない。
-      const lrigNegation = consumeNthAttackNegation(op, 'lrig');
-      if (lrigNegation.negated) {
-        const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
-        appendBattleLogs([`${lrigName}のアタックは無効化された（残り${lrigNegation.remaining}回）`]);
-        await persist.commit(reduceBattle(bs, {
-          type: 'WRITE_STATE',
-          myKey,
-          myState: attackedMyState,
-          opp: { key: defenderKey, state: lrigNegation.defender },
-        }));
-        return true;
-      }
-      // pending_lrig_attack: true でON_ATTACK_LRIG解決後にガード応答（lrig_attacked）をセット
-      // ⚠攻撃元カードも一緒に運ぶ＝ダメージ解決（ダブル/トリプルクラッシュ判定）が
-      //   「攻撃側＝センタールリグ」と決め打てなくなったため（アシストのアタック・続き427）。
-      let newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true, pending_lrig_attack_num: lrigNum };
-      // lrig_attacked は ON_ATTACK_LRIG 解決後にセット（スタック解決後の useEffect で対応）
+  // ルリグアタックの実行（人間・CPU共通）。
+  // 🆕§5.7 `S-5c` 第2段＝本体は `controller/performLrigAttack.ts`（I/O 注入）。ここは材料を渡すだけ。
+  const performLrigAttack = (p: Parameters<typeof performLrigAttackImpl>[0]) =>
+    performLrigAttackImpl({ ...p, openNegateEscape }, performCtx());
 
-      // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
-      const lrigCardEffects = attackingLrigPrintedEffects(mkTrigCtx(), newMyState, lrigNum);
-      // ⚠**付与ストア／コピー／CONTINUOUS 付与はいずれも「センタールリグの能力」**なので、
-      //   アシストルリグのアタックでは収集しない（収集すると同じ能力がアシストのアタックでも
-      //   撃てる過剰実行になる）。アシストは**そのカード自身の** ON_ATTACK_LRIG だけが発火する。
-      const grantedAttack = isCenterAttack
-        ? collectAttackingLrigGrantedAutos(newMyState, attackerId, lrigNum, generateUUID)
-        : { entries: [] as StackEntry[], triggered: [], usedIds: [] as string[] };
-      newMyState = consumeTriggeredGrantedAutos(newMyState, grantedAttack.triggered);
-      if (grantedAttack.usedIds.length > 0) {
-        newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...grantedAttack.usedIds] };
-      }
-      const copiedAutoEffects = (isCenterAttack ? collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true) : [])
-        .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
-      // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
-      // ON_ATTACK_LRIG 付与能力（WXDi-P05-032 等）。lrig_granted_auto_effects（実行時付与）とは別ソース。
-      // ⚠triggerScope:'any_opp'（「**対戦相手の**センタールリグがアタックしたとき」）は防御側の能力なので
-      //   アタック側では拾わない（下の collectLrigAttackDefenderTriggers が担当。タスク12(l)＝WDK04-006）。
-      const contGrantedLrigEffects = (isCenterAttack ? collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap) : [])
-        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG')
-          && (e.triggerScope ?? 'self') !== 'any_opp');
-      const otherAttackEffects = [...copiedAutoEffects, ...contGrantedLrigEffects];
-      // 防御側の付与AUTO（「対戦相手のルリグがアタックしたとき」＝any_opp/any scope・タスク12(xlvii)）。
-      // アタック側とは playerId も usageLimit の書き戻し先も異なるため、別の entries として結合する。
-      const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
-      const defenderId = attackerId === bs.host_id ? bs.guest_id : bs.host_id;
-      const defRes = collectLrigAttackDefenderTriggers(op, my, defenderId);
-      const defenderUsed = defRes.usedIds.length > 0
-        ? { key: defenderKey, state: { ...op, actions_done: [...(op.actions_done ?? []), ...defRes.usedIds] } }
-        : undefined;
-      const attackerEntries: StackEntry[] = [...lrigCardEffects.map(e => ({
-        id: generateUUID(),
-        playerId: attackerId,
-        cardNum: lrigNum,
-        effectId: e.effectId,
-        label: `${lrigName} の【自】効果（アタック時）`,
-        effect: e,
-        triggeringCardNum: lrigNum,
-      } satisfies StackEntry)), ...grantedAttack.entries, ...otherAttackEffects.map(e => ({
-        id: generateUUID(),
-        playerId: attackerId,
-        cardNum: lrigNum,
-        effectId: e.effectId,
-        label: `${lrigName} の【自】効果（アタック時）`,
-        effect: e,
-      } satisfies StackEntry))];
-      // アタック側の**味方カード**（場のシグニ／アシストルリグ）が持つ「あなたのルリグがアタックしたとき」
-      // ＝§3 (cxxviii)・続き475d で新設。上の4本はいずれも「ルリグ自身の能力」しか見ないので、
-      // この経路が無いと 18効果（17枚がシグニ）が丸ごと拾われない。
-      const allyRes = collectAllyLrigAttackTriggers(newMyState, attackerId, lrigNum);
-      if (allyRes.usedIds.length > 0) {
-        newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...allyRes.usedIds] };
-      }
-      const entries: StackEntry[] = [...attackerEntries, ...allyRes.entries, ...defRes.entries];
-      const existingStackLA = bs.effect_stack ?? null;
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey, myState: newMyState, opp: defenderUsed,
-        effectStack: entries.length > 0
-          ? (existingStackLA ? pushToStack(existingStackLA, entries) : initStack(bs.active_user_id ?? attackerId, entries))
-          : undefined,
-      }));
-      return true;
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ルリグアタック（人間プレイヤー用エントリポイント）
   const handleLrigAttack = async (slot: LrigAttackSlot = 'center') => {

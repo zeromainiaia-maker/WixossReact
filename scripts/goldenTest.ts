@@ -43704,7 +43704,8 @@ test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約
   //    （実挙動は §7 実機検証＝負方向＋対照の対）。
   // 続き552（§8 O-1 (b)）＝funnel 本体は `spellUseGate.ts` の pure 関数へ移した
   // （CPU のスペル候補フィルタも同じ関数を呼ぶ）。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // ⚠§5.7 `S-5c` 第2段（2026-09-18）＝実行入口 `performSpell` は `controller/performSpell.ts` へ移設した。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/controller/performSpell.ts'), 'utf8');
   const gate = fs.readFileSync(join(root, 'src/screens/battle/spellUseGate.ts'), 'utf8');
   const fn = gate.slice(gate.indexOf('export function isSpellUseBlockedFor'), gate.indexOf('export function isSpellUseBlockedFor') + 700);
   ok(/export function isSpellUseBlockedFor\(/.test(gate), 'スペル封じの判定が1関数に集約されている');
@@ -43717,7 +43718,9 @@ test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約
   ok(/!isSpellUseBlockedFor\(my, payer\.blockedSelf, card\)/.test(gate), '提示ゲート（checkSpellUse）から呼ぶ');
   ok(/isSpellUseBlockedFor\(my, p\.blockedSelf, card\)/.test(src), '実行ゲート（performSpell）から呼ぶ');
   // ⚠BattleScreen 側は薄いラッパー1本だけ（スペル/クラフトのボタン生成が呼ぶ）。
-  eq((src.match(/isSpellUseBlocked\(/g) ?? []).length, 1, 'BattleScreen 側の呼び出しはスペル/クラフトの1箇所だけ（手札スペルは checkSpellUse 経由）');
+  //   §5.7 `S-5c` 第2段＝`src` は実行入口（`controller/performSpell.ts`）へ移ったので、画面は別に読む。
+  const screenSrcSpell = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((screenSrcSpell.match(/isSpellUseBlocked\(/g) ?? []).length, 1, 'BattleScreen 側の呼び出しはスペル/クラフトの1箇所だけ（手札スペルは checkSpellUse 経由）');
   // 軸の直書きが funnel の外へ復活していないこと（＝また片側だけ塞ぐ回帰のガード）。
   eq((src.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 0,
      'BLOCK_NON_WHITE_SPELL を BattleScreen で直接見ない');
@@ -49914,8 +49917,10 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
 test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
   // §5.3 `O-533`（2026-09-18）＝手札の【起】の支払いを `handActivateCost.ts` へ移設（サイト数は据え置き＝移動であって増減ではない）。
   const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts', 'src/screens/battle/handActivateCost.ts',
-    // §5.7 `S-5c` 第2段（2026-09-18）＝アシストグロウの支払いは `controller/performAssistGrow.ts` へ移設（サイト数は据え置き）。
-    'src/screens/battle/controller/performAssistGrow.ts'];
+    // §5.7 `S-5c` 第2段（2026-09-18）＝アシストグロウ／ルリグアタック／スペルの支払いは `controller/` へ移設（サイト数は据え置き）。
+    'src/screens/battle/controller/performAssistGrow.ts',
+    'src/screens/battle/controller/performLrigAttack.ts',
+    'src/screens/battle/controller/performSpell.ts'];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
