@@ -152,6 +152,9 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
+import { makeBoardDiffCollector } from '../src/screens/battle/controller/boardDiffTriggers';
+import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
+import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
@@ -289,6 +292,20 @@ const withSavedCursor = (fn: () => void) => {
 
 // ── 盤面ビルダー ──
 interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: number; trash?: number; energy?: number; life?: number; coins?: number; down?: boolean[]; lrig?: string[]; assistL?: string[]; assistR?: string[]; }
+/**
+ * 🆕§5.7 `S-5a`（2026-09-18）＝**スタック解決の本体は `battle/controller/stackResolve.ts` へ移設した**。
+ * 画面側の配線本数を数えるトリップワイヤは「画面＋スタック解決」を**1つのソース**として読む。
+ * 🔴移設で本数が減るのは**較正**であって退化ではない（配線そのものは1つも減っていない）。
+ * ⚠新しく画面から切り出したら、この関数に足す（足さないとトリップワイヤが黙って本数不足で落ちる）。
+ */
+function battleScreenSource(): string {
+  return [
+    fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
+    fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8'),
+    fs.readFileSync(join(root, 'src/screens/battle/controller/boardDiffTriggers.ts'), 'utf8'),
+  ].join('\n');
+}
+
 function mkState(o: StateOpts = {}): PlayerState {
   return {
     deck: [...(o.deckTop ?? []), ...fill(20)],
@@ -7319,7 +7336,7 @@ test('🔴BattleScreen: `if (!bs) return` より後ろに React hook を置か�
 }));
 
 test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタックフェイズ経路を全配線', () => withSavedCursor(() => {
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSource = battleScreenSource();
   const section = (start: string, end: string): string => {
     const from = battleSource.indexOf(start);
     const to = battleSource.indexOf(end, from + start.length);
@@ -19285,7 +19302,7 @@ test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondit
 test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所は coins_paid_this_turn も加算する', () => {
   // ⚠BattleScreen のコスト支払いは golden のハーネスから踏めない（PLAN §4 の教訓(f)）。
   //   「支払ったのに累計へ加算し忘れた経路」は全ゲート緑のまま素通りするので、ソースを静的に走査する。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = battleScreenSource();
   const lines = src.split('\n');
   const missing: string[] = [];
   lines.forEach((ln, i) => {
@@ -31174,7 +31191,7 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   }
 
   test('§6.4 群B: ターン境界4経路すべてがON_PLAY抑止フラグをリセット', () => {
-    const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+    const source = battleScreenSource();
     eq(source.match(/suppress_signi_on_play_this_turn:\s*undefined/g)?.length ?? 0, 0,
       '呼び出し側の手書きクリアは0件');
     ok((TURN_SCOPED_STATE_FIELDS.suppress_signi_on_play_this_turn.boundaries as readonly string[]).includes('turn-end'),
@@ -33674,7 +33691,7 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
 // ⇒ 収集を `collectOppArtsUseForResolution` / `collectArtsUseForResolution` の2本へ寄せ、
 //   **両方の完了地点から呼ぶ**形にした。ここはその配線を静的に固定するトリップワイヤ。
 test('O-131 アーツ使用トリガーは「スタック解決」と「対話解決」の両方から収集される', () => {
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = battleScreenSource();
   // ⚠定義は `const xxx = (p: {` 形なので `xxx(` には当たらない＝ここで数えるのは**呼び出しだけ**。
   ok(/const collectOppArtsUseForResolution = /.test(src), '収集ヘルパが定義されている');
   ok(/const collectArtsUseForResolution = /.test(src), '裏返しの収集ヘルパも定義されている');
@@ -70912,7 +70929,8 @@ test('§5.3 O-233: 「対戦相手の効果によってシグニが場を離れ�
   ok(evalCondition(cond, one), 'カウンタ1で成立する');
   // 🔴**書き手が居ること**＝`BattleScreen` の ON_LEAVE_FIELD 検出点で、
   //   **原因が効果で、その効果のオーナーが持ち主でない**ときだけ数える（バトルやルール処理では数えない）。
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // ⚠§5.7 `S-5b`＝書き手（盤面差分の収集）は `controller/boardDiffTriggers.ts` へ移設した（`battleScreenSource()` が両方を読む）。
+  const bs = battleScreenSource();
   ok(bs.includes("causeOwnerId && causeOwnerId !== bs.host_id && leftHostSigni.length > 0"), 'host 側の書き手がある');
   ok(bs.includes("causeOwnerId && causeOwnerId !== bs.guest_id && leftGuestSigni.length > 0"), 'guest 側の書き手がある');
   // 🔴**ターン境界で戻ること**（「このターンに」＝ターン単位のカウンタ）。
@@ -77019,7 +77037,7 @@ test('§5.3 O-284: WX17-001-E1 は自分の他カードの効果も遮断し、�
   ok(immuneFromCopy('WX17-001#2').has('WX17-001#1'), '同名の別コピーからの効果は遮断する');
   // (d) 🔴**自分側の集合を計算して ctx へ渡す配線が `BattleScreen` に在る**
   //   （`sourceOwner:'any'` と書いても、片側専用の呼び出ししか無ければ実機では効かない＝`O-284` の本体）。
-  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const bs = battleScreenSource();
   ok(/const ownEffectImmuneNums = collectEffectImmuneSigni\(ownerStateForCtx, otherState/.test(bs),
     '🔴自分側視点の collectEffectImmuneSigni 呼び出しがある');
   ok(/ownEffectImmuneNums,/.test(bs), '🔴計算した集合を ExecCtx へ渡している');
@@ -85660,6 +85678,139 @@ test('§5.6 C-1: 乱数の seam（既定は Math.random／seed で決定論／�
     `🔴sort(() => random - 0.5) は一様シャッフルではない（engine/rng.ts の shuffle を使う）: ${biased.join(' / ')}`);
 }));
 
+test('§5.7 S-5a スタック解決の切り出し：画面と DB なしで1手解決できる／画面側に本体を写経していない', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`S-5`（対戦丸ごとのシミュレータ）の第1段。
+  //   ①`createMemoryPersist`＝DB の代わりにメモリへ書く `BattlePersist` ②`resolveStackStep`＝`resolveStackNext` の本体（385行）の純関数版。
+  //   このテストは**「React も supabase も読み込まずにスタックを1手進められる」**ことを固定する（＝ヘッドレスの入口が塞がっていない）。
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const mkRow = (over: Record<string, unknown> = {}) => ({
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST,
+    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'MAIN',
+    active_user_id: HOST, turn_count: 5,
+    host_state: mkState({ hand: 2 }), guest_state: mkState({ hand: 2 }),
+    game_logs: [], updated_at: '2026-09-18T00:00:00.000Z',
+    host_lrig_selected: null, guest_lrig_selected: null, host_janken: null, guest_janken: null,
+    host_mulligan_done: true, guest_mulligan_done: true, first_player_id: HOST,
+    pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: false, ...over,
+  }) as unknown as BattleStateRow;
+
+  // ── ① メモリ上の persist ──
+  const mem = createMemoryPersist(mkRow());
+  eq(mem.current()!.turn_phase, 'MAIN', '初期盤面が入っていない');
+  const r1 = mem.commit({ turn_phase: 'ATTACK_ARTS' }) as unknown as { then: unknown };
+  ok(typeof (r1 as { then?: unknown }).then === 'function', 'commit が PromiseLike を返していない（本物と差し替えられない）');
+  eq(mem.current()!.turn_phase, 'ATTACK_ARTS', '🔴commit が即座に反映されていない（ヘッドレスでは通知を待てない）');
+  eq(mem.current()!.host_id, HOST, 'パッチが行を置き換えてしまった（浅いマージでない）');
+  const t1 = mem.current()!.updated_at;
+  mem.commit({ turn_count: 6 });
+  ok(mem.current()!.updated_at > t1, '🔴updated_at が進まない（CPU の起動が自分の書き込みを見分けられない）');
+  eq(mem.commitCount(), 2, 'commit の回数が数えられていない');
+
+  // ── ② スタック解決1手（ヘッドレス）──
+  // 効果＝「カードを1枚引く」だけのエントリ。⚠ここで見るのは**配線**（画面も DB も無しで進むか）であって効果の中身ではない。
+  const drawEffect = { effectId: 'S5A-TEST-E1', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as CardEffect;
+  const entry = { id: 'e1', playerId: HOST, cardNum: 'WD01-013#1', effectId: 'S5A-TEST-E1', label: 'テスト【自】', effect: drawEffect };
+  const stack = { turnPlayerId: HOST, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true, queue: [entry] } as unknown as EffectStack;
+  const row = mkRow({ effect_stack: stack });
+  // deps＝画面側の材料。⚠`collectBoardDiffTriggers` ほか5本はまだ `BattleScreen` のクロージャなので、
+  //   ここでは「何も足さない」版を渡す（＝この段で切り出せたのは解決の制御フローだけ、という現状の記録でもある）。
+  const deps = {
+    cardMap: cm as Map<string, CardData>, effectsMap, userId: HOST, isHost: true,
+    trigCtx: () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
+      effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
+      suppressedSigniTriggerNums: new Set<string>() }),
+    fillDeployCaps: (c: unknown) => c,
+    // 🆕`S-5b`＝**本物の収集器**（`boardDiffTriggers.ts`）を渡す＝ここが stub のままだと「画面が要る」ままになる。
+    collectBoardDiffTriggers: makeBoardDiffCollector({
+      bs: row, cardMap: cm as Map<string, CardData>, effectsMap, isHost: true, userId: HOST,
+      trigCtx: () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
+        effectsMap, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => 'gen-id',
+        suppressedSigniTriggerNums: new Set<string>() }) as never,
+    }),
+    collectArtsUseForResolution: () => null,
+    collectOppArtsUseForResolution: () => null,
+  } as unknown as Parameters<typeof resolveStackStep>[1];
+
+  const handBefore = row.host_state.hand.length;
+  const step = resolveStackStep(row, deps);
+  ok(!!step, '🔴スタックが解決されない（1手も進まない）');
+  eq(step!.entryId, 'e1', '解決したエントリのIDが返らない＝呼び出し側が二重処理を防げない');
+  ok(step!.logs.some(l => l.includes('テスト【自】')), `解決したエントリのログが返らない（${JSON.stringify(step!.logs)}）`);
+  // 返ってきた action を `reduceBattle` に通してメモリ上の盤面へ適用＝画面がやっていることと同じ手順。
+  const mem2 = createMemoryPersist(row);
+  mem2.commit(reduceBattle(row, step!.action));
+  const after = mem2.current()!;
+  eq(after.host_state.hand.length, handBefore + 1, `🔴ドローが盤面に入っていない（${handBefore} → ${after.host_state.hand.length}）`);
+  eq(after.effect_stack, null, '🔴解決し終えたスタックが畳まれていない（ヘッドレスのループが止まらない）');
+  eq(after.pending_effect, null, '対話が無いのに pending_effect が立った');
+  // 解決するものが無ければ null（ループの終了条件）。
+  eq(resolveStackStep(after, deps), null, '🔴スタックが空でも解決を返す＝ヘッドレスのループが終わらない');
+  eq(resolveStackStep(mkRow({ effect_stack: { ...stack, orderTurnDone: false, pendingTurn: [entry], queue: [] } }), deps), null,
+    '整列待ち（orderTurnDone=false）のスタックを解決した');
+
+  // ── ③ 画面側に本体を写経していない ──
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const sr = fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8');
+  ok(/const step = resolveStackStep\(bs, stackResolveDeps\(\)\);/.test(battle), '🔴画面のスタック解決が共通の純関数を通っていない');
+  ok(sr.includes('const ctx: ExecCtx = { ownerState: ownerStateForCtx'),
+    '🔴解決の本体（ExecCtx の組み立て）が stackResolve.ts に無い');
+  ok(!battle.includes('const ctx: ExecCtx = { ownerState: ownerStateForCtx'),
+    '🔴解決の本体が BattleScreen に書き戻された（写経＝人間経路とヘッドレスで挙動が割れる）');
+  ok(!/executeEffect\(effectToRun, ctx\)/.test(battle), '🔴スタック解決の executeEffect が画面側に残っている');
+}));
+
+test('§5.7 S-5b 盤面差分トリガーの収集：画面なしで誘発を集められる／画面側に本体を写経していない', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`S-5` の第2段。`BattleScreen` にあった `collectBoardDiffTriggers`（579行）＋収集ラッパ26本を
+  //   `controller/boardDiffTriggers.ts` の factory へ移した。ここでは **React 無しで誘発を集められる**ことを固定する。
+  const HOST = 'user-host', GUEST = 'user-guest';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const em = new InstanceMap<CardEffect[]>(effectsMap);
+  const emptySide = () => { const st = mkState({ hand: 0, trash: 0, energy: 0, life: 0 }); st.deck = []; return st; };
+  const before = {
+    room_id: 'room-1', host_id: HOST, guest_id: GUEST, active_user_id: HOST, turn_phase: 'MAIN', turn_count: 3,
+    host_state: emptySide(), guest_state: emptySide(),
+    effect_stack: null, pending_effect: null, pending_spell: null, game_logs: [],
+  } as unknown as BattleStateRow;
+  const collect = makeBoardDiffCollector({
+    bs: before, cardMap: cm as Map<string, CardData>, effectsMap: em, isHost: true, userId: HOST,
+    trigCtx: () => ({ hostId: HOST, guestId: GUEST, meId: HOST, activeUserId: HOST, turnPhase: 'MAIN',
+      effectsMap: em, cardMap: cm, effectivePowers: new Map<string, number>(), genId: () => `gen-${Math.random()}`,
+      suppressedSigniTriggerNums: new Set<string>() }) as never,
+  });
+
+  // ① 何も変わっていなければ誘発は0（差分が無いのに拾うと、同じ効果が何度も積まれる）。
+  const same = collect(before.host_state, before.guest_state, { causeOwnerId: HOST, causeSourceCardNum: 'WD01-013#0' });
+  eq(same.entries.length, 0, `🔴盤面が変わっていないのに誘発を集めた（${JSON.stringify(same.entries.map(e => e.effectId))}）`);
+
+  // ② 場に出た＝その札の【出】を集める（`WX01-002-E2`＝「【出】：対戦相手のシグニ1体をトラッシュ」）。
+  ok(effectsMap.get('WX01-002')!.some(e => e.effectId === 'WX01-002-E2' && (e.timing ?? []).includes('ON_PLAY')),
+    '前提崩れ＝WX01-002-E2 が【出】ではない');
+  const placed = { ...before.host_state,
+    field: { ...before.host_state.field, signi: [['WX01-002#1'], null, null] } } as PlayerState;
+  const played = collect(placed, before.guest_state,
+    { causeOwnerId: HOST, causeSourceCardNum: 'WD01-013#0', collectPlacedSelfOnPlay: true });
+  ok(played.entries.some(e => e.effectId === 'WX01-002-E2'),
+    `🔴場に出たシグニの【出】を集められない（${JSON.stringify(played.entries.map(e => e.effectId))}）`);
+  // ③ 抑止フラグを立てたら集めない（`suppressOnPlay`＝「出したときの能力は発動しない」）。
+  const suppressed = collect(placed, before.guest_state,
+    { causeOwnerId: HOST, causeSourceCardNum: 'WD01-013#0', collectPlacedSelfOnPlay: true, suppressOnPlay: true });
+  ok(!suppressed.entries.some(e => e.effectId === 'WX01-002-E2'), '🔴suppressOnPlay を無視して【出】を集めた');
+
+  // ④ 画面側に本体を写経していない（＝人間経路とヘッドレスで収集が割れない）。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const bd = fs.readFileSync(join(root, 'src/screens/battle/controller/boardDiffTriggers.ts'), 'utf8');
+  ok(/const collectBoardDiffTriggers: BoardDiffCollector = \(afterHost, afterGuest, meta\) =>\s*\n\s*makeBoardDiffCollector\(\{/.test(battle),
+    '🔴画面の盤面差分収集が共通 factory を通っていない');
+  ok(bd.includes('const collectBoardDiffTriggers = ('), '🔴収集の本体が boardDiffTriggers.ts に無い');
+  for (const inner of ['collectSigniDownUpInline', 'collectKeywordGainedInline', 'collectFreezeInline', 'collectBanishOppByEffectInline']) {
+    ok(bd.includes(`const ${inner} = `), `🔴内部ラッパ ${inner} が移設されていない`);
+    ok(!battle.includes(`const ${inner} = `), `🔴内部ラッパ ${inner} が画面側に残っている（二重定義＝片方だけ直す事故）`);
+  }
+}));
+
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
   // 🔑報告は「遊んで見つけた型」を拾う唯一の導線＝**中身が欠けているとその報告は死ぬ**
   //   （再現できない＝golden に落とせない）。組み立てを純関数にして、ここで欠落を止める。
@@ -86471,7 +86622,7 @@ test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始�
   eq(skip.keepTurn, true, '相手がスキップを予約しているのに交代している');
   eq(skip.nextAfter.skip_next_turn, undefined, 'スキップの予約を消費していない');
   // 🔴**配線**＝強制終了の3経路とも `keepTurn` を見てターンプレイヤーを決める。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = battleScreenSource();
   eq((screen.match(/keepTurn \? bs\.active_user_id/g) ?? []).length, 3,
     '🔴強制終了の3経路（スタック解決／カットイン窓／2回目のリフレッシュ）が keepTurn を見ていない');
 }));
@@ -86727,8 +86878,10 @@ test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（�
 //   他に発動する効果より優先して**行う（例《幻獣神 オサキ》）。トラッシュが空で保留になった分は、トラッシュに
 //   カードが置かれた後のルール処理（`checkDeferredRefreshRule`）が受ける。
 test('バグ報告 2026-09-18: リフレッシュは効果1つの解決直後（誘発より先）＋保留分はルール処理 funnel', () => withSavedCursor(() => {
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((screen.match(/applyRefreshOnDone\(result, battleCardMap\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
+  const screen = battleScreenSource();
+  // ⚠§5.7 `S-5a`＝スタック解決の1経路だけ `stackResolve.ts` へ移り、カードマップの引数名が `deps.cardMap` になった
+  //   （**経路数は9のまま**＝較正であって退化ではない）。
+  eq((screen.match(/applyRefreshOnDone\(result, (?:battleCardMap|deps\.cardMap)\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
   ok(/const checkDeferredRefreshRule = async/.test(screen), '保留リフレッシュのルール処理 funnel がある');
   const body = screen.slice(screen.indexOf('const checkDeferredRefreshRule = async'));
   ok(/if \(bs\.effect_stack \|\| bs\.pending_effect \|\| bs\.pending_spell\) return;/.test(body.slice(0, 600)), '🔴スタック・対話・スペルが残っているのに funnel がリフレッシュする');
@@ -86760,7 +86913,7 @@ test('§5.6 C-9 R-28 ターンプレイヤーの2回目のリフレッシュで�
     '🔴refresh_count_this_turn が turn-start 境界でリセットされない');
   eq(activateTurnStartScopedState(second).refresh_count_this_turn, 0, '🔴ターン開始時に台帳が 0 へ戻らない');
   // 🔴**消費地点は2つ**＝①効果スタック解決（同じ commit にターン終了を重ねる）②ルール処理 funnel（残り全経路）。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = battleScreenSource();
   eq((screen.match(/refreshForcesTurnEnd\(/g) ?? []).length, 2,
     '🔴リフレッシュのターン終了判定が2箇所（スタック解決／ルール処理 funnel）を通っていない');
   ok(/refresh_count_this_turn\s*(?:\?\?\s*0\s*\))?\s*>=\s*2/.test(screen) === false,

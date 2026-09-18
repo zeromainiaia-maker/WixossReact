@@ -1,5 +1,38 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-18（S-5a）
+**直近＝2026-09-18＝§5.7 `S-5a`＝スタック解決の切り出し＋メモリ上の persist**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- `S-5`（対戦丸ごとのシミュレータ）の第1段。①`createMemoryPersist`＝DB の代わりにメモリへ書く `BattlePersist`（`commit` は即反映・`updated_at` は毎回進む）
+  ②`resolveStackStep`＝`BattleScreen.resolveStackNext` の本体385行を **React も DB も触らない純関数**へ（`src/screens/battle/controller/stackResolve.ts`）。
+- 画面側に残したのは `loading`・多重実行の防止・ログの flush・`persist.commit` だけ（37行）。**BattleScreen は 16,930 → 16,553行**。
+- ⚠**挙動は1行も変えていない**（移設）＝人間の対戦経路も同じ関数を通る。
+- 🔴**次の山を実測**＝`deps` に残った5本のうち `collectBoardDiffTriggers` が**579行・下位の収集ラッパ26本**（`S-5b` の本体）。
+- 検証＝`npm run gates` 全緑（golden 4310・🆕`§5.7 S-5a`＝ヘッドレスで1手解決／画面に本体を写経していない）。**トリップワイヤ8本を較正**（走査対象に `stackResolve.ts` を追加＝配線は1つも減っていない）。
+  実機＝CPU 通し対戦 PASS（7ターン決着）＋対話を含む4シナリオ PASS。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5b`**＝`collectBoardDiffTriggers`（579行・収集ラッパ26本）を画面から出す → `cpuTurnAction` → 相手側の応答 |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| 🔧**ゲート** | `npm run gates` 全緑 |
+
+## 2026-09-18（S-7 クローズ）
+**直近＝2026-09-18＝§5.7 `S-7` クローズ＝人間のターンのアーツステップで CPU が手札の【起】で応答する**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- `S-7` の残り＝`ATTACK_ARTS_OP`（CPU が非ターンプレイヤー）で、応答アーツの後に手札の《アタックフェイズアイコン》【起】を試す（`tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')`）。
+- 判定・実行は人間と同じ（`listOffFieldActivatableEffects`／`executeHandActivated`）。選択は先読みで得なものだけ＝先読みに「CPU のターンか」（`LookaheadCtx.isCpuTurn`）を足し、相手ターンのパワー計算で採点する。
+- 同日の前半＝§5.3 `O-533` クローズ（手札の【起】の「公開＋場のシグニをトラッシュ」コスト＝PLAN_PROGRESS）。
+- 実機＝🆕`V-276`（人間の場に12000＝CPU が手札の WX18-055 で -7000 → フェイズが進む）・🆕`V-276b`（人間の場が空＝使わない）／`V-273`・`V-274` PASS。
+- 🔑**ユーザー質問「CPU はアタックしたほうが良いか悪いかを判断できているか」**＝**できていない**（アタックできるシグニは全部アタック・センタールリグも毎回アタック。判断は順番だけ＝`pickCpuAttackZone`）。⇒ 母集団を実測して §5.7 `S-8` に登録した。
+  ⚠**アシストルリグは既定でアタックできない**（ルールどおり＝`assistLrigAttackableSlots` は `assist_lrig_attack_min_level` が無ければ空）。立てるのは `WX25-P1-048`（ピース）だけでそのターン限り。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5a`**（メモリ上の persist＋`resolveStackNext` の切り出し） |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・🆕`S-8`）／**リリース作業 1**（RELEASE.md） |
+| 🔧**ゲート** | `npm run gates` 全緑 |
+
 ## 2026-09-18（O-533 クローズ）
 **直近＝2026-09-18＝§5.3 `O-533` クローズ＝手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 - `WX18-036-E3`「このカードを手札から公開し、＜悪魔＞のシグニ２体を場からトラッシュに置く：このシグニを手札から場に出す」が撃てるようになった（2026-09-17 の `S-7` で提示を止めていた）。

@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5b` 盤面差分トリガーの収集を画面から出す（リファクタ・挙動不変）
+
+- **目的**＝`S-5a` で純関数化した `resolveStackStep` の `deps` に残っていた**画面のクロージャの最大の塊**を外す。実測＝`collectBoardDiffTriggers` 579行＋収集ラッパ26本。
+- 実装＝🆕`src/screens/battle/controller/boardDiffTriggers.ts`＝`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })` が収集関数を返す factory。
+  本体と、そこからしか呼ばれない内部ラッパ22本（`collectSigniDownUpInline`／`collectKeywordGainedInline`／`collectFreezeInline` ほか）を**逐語で移設**し、共有ラッパ9本（`triggerCollect` の1行ラッパ）は factory の中にも同じ形で置いた。
+  🔑**識別子を1つも書き換えていない**（`bs`／`battleCardMap`／`effectsMap`／`mkTrigCtx` を factory の中で束ねた）＝800行の diff が「移設」のまま読める。
+- 画面側は材料を束ねる6行だけ（`const collectBoardDiffTriggers: BoardDiffCollector = (...) => makeBoardDiffCollector({...})(...)`）。**BattleScreen は 16,553 → 15,678行**。
+- ⚠**挙動は1行も変えていない**。残る画面クロージャは `trigCtx`／`fillDeployCaps`／`collectArtsUseForResolution`／`collectOppArtsUseForResolution` の4本。
+- 検証＝`npm run gates` 全緑（golden 4311／🆕`§5.7 S-5b`＝①差分が無ければ0件 ②**React 無しで場に出たシグニの【出】を集める** ③`suppressOnPlay` なら集めない ④内部ラッパが画面に二重定義されていない。**反転確認済み**＝収集を止めると FAIL）。
+  `§5.7 S-5a` のテストも**本物の収集器**を渡す形へ更新（stub のままだと「画面が要る」ままになる）。🔴トリップワイヤ1本を較正（`O-233` の書き手＝`battleScreenSource()` に新モジュールを追加＝**配線は減っていない**）。
+  実機＝CPU 通し対戦 PASS（7ターン決着・172手）／`v275`・`o114TrashSelfToHand`・`bug0918texa`・`v273`・`v276` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
+## 2026-09-18 §5.7 `S-5a` スタック解決の切り出し＋メモリ上の persist（リファクタ・挙動不変）
+
+- **目的**＝`S-5`（対戦丸ごとのシミュレータ）の第1段。「画面の `useEffect` と DB の通知待ち」に埋まっているスタック解決を、ヘッドレスで回せる形にする。
+- 実装
+  - 🆕`src/screens/battle/controller/memoryPersist.ts`＝`BattlePersist` のメモリ実装（`commit` は即反映・`updated_at` は呼ぶたびに進む・`remove()` 後は `fetchState` が null）。⚠パッチの意味は解釈しない（浅いマージだけ＝遷移は `reduceBattle` の責務）。
+  - 🆕`src/screens/battle/controller/stackResolve.ts`＝`resolveStackStep(bs, deps)`。`BattleScreen.resolveStackNext` の本体385行を**そのまま**移設し、戻り値を「次に commit する `BattleAction` ＋ 積むログ ＋ 解決したエントリID」にした。画面に残したのは `loading`・多重実行の防止・`appendBattleLogs`・`persist.commit`・flush だけ（37行）。
+  - ついでに移設＝`fieldPlacementOnPlayOpts`（純関数）。画面側で未使用になった import 20件を削除。**BattleScreen は 16,930 → 16,553行**。
+- ⚠**挙動は1行も変えていない**（人間の対戦経路も同じ関数を通る）。`deps` に残った5本（`trigCtx`／`fillDeployCaps`／`collectBoardDiffTriggers`／`collectArtsUseForResolution`／`collectOppArtsUseForResolution`）は**まだ画面のクロージャ**＝次段。
+- 🔴**次の山を実測**＝`collectBoardDiffTriggers` は**579行・下位の収集ラッパ26本**を呼ぶ（`S-5b` の本体）。
+- 検証＝`npm run gates` 全緑（golden 4310／🆕`§5.7 S-5a`＝①メモリ persist の契約 ②**React も supabase も無しで DRAW のスタックを1手解決し、`reduceBattle` を通して盤面に反映できる** ③画面側に本体を写経していない）。
+  🔴**トリップワイヤ8本を較正**＝画面のソースを grep して配線本数を数えるテスト（ターン終了4経路／コイン支払い／ON_PLAY 抑止／`O-131` アーツ使用2経路／`O-284`／`R-27`／`R-28`／リフレッシュ9経路）は、**走査対象に `stackResolve.ts` を足した**（`battleScreenSource()` の1本に集約）。**配線は1つも減っていない＝較正であって退化ではない。**
+  実機＝CPU 通し対戦 PASS（7ターン決着・176手）／`v275`・`o114TrashSelfToHand`・`bug0918texa`・`v276` PASS（対話・トリガー・CPU 応答を含む経路）。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-7` の残り：人間のターンのアーツステップで CPU が手札の【起】で応答する
 
 - 🔑**以前**＝CPU は場以外の【起】を**自分のターン**（MAIN／ATTACK_ARTS）でしか試さず、人間のターンのアーツステップ（`ATTACK_ARTS_OP`）は応答アーツだけだった。手札の《アタックフェイズアイコン》【起】（`WX18-055`＝－7000 など）は相手のアタックの前に撃てるのに使っていなかった。

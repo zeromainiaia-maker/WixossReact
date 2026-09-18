@@ -37,6 +37,9 @@ handler(React) → BattleAction を組む
 | `src/screens/battle/controller/persist.ts` | 永続化チョークポイント `useBattlePersist(roomId)`＝`commit(patch)` / `fetchState()` / `remove()`。battle_states への I/O を1点集約。error は `.message` を保持。 |
 | `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在18 action（下記）。 |
 | `scripts/goldenTest.ts` | `Stage3 reduceBattle *` で各遷移を固定。 |
+| 🆕`src/screens/battle/controller/memoryPersist.ts` | **メモリ上の `BattlePersist`**（§5.7 `S-5a`・2026-09-18）＝DB の代わりに1行をメモリに持つ。`commit` は即反映・`updated_at` は毎回進む。ヘッドレス（`S-5`）の書き込み先。 |
+| 🆕`src/screens/battle/controller/stackResolve.ts` | **スタック解決の本体**（§5.7 `S-5a`）＝`resolveStackStep(bs, deps)`。`BattleScreen.resolveStackNext` の385行を純関数化（React も DB も触らない）。画面は `loading`・多重実行の防止・ログ・`persist.commit` だけ。⚠`deps` の5本はまだ画面のクロージャ（`collectBoardDiffTriggers` は579行＝次段の山）。 |
+| 🆕`src/screens/battle/controller/boardDiffTriggers.ts` | **盤面差分トリガーの収集**（§5.7 `S-5b`・2026-09-18）＝`makeBoardDiffCollector({ bs, cardMap, effectsMap, isHost, userId, trigCtx })`。`collectBoardDiffTriggers`（579行）＋内部ラッパ22本を逐語で移設。⚠`bs` は**差分の before**。 |
 
 ### ✅ 永続化チョークポイント移行＝完了
 

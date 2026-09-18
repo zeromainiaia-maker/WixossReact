@@ -4,21 +4,17 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectProtectedZoneRules, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectAttackNegationProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstitutes, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
-applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
-collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums} from '../engine/effectEngine';
+import { leaveToTrashWindowApplies, applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectMultiAcceLimits, collectRiseBanishSubstitutes, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay, keySlotCardNums } from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, refreshPlayersIfDeckEmpty, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseRequirement, matchesRiseFilter, riseFieldTotal, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canSatisfyDiscardGroups, pendingRespondsOpponent } from '../engine/execUtils';
 import { effectiveIdentityOverrides } from '../engine/nameIdentityRules';
-import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, collectSuppressedSigniTriggerNums, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
-import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
-import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectLeftFieldSigniToTrash, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countMovedToDeckFromField, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
+import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve, isStackDone } from '../engine/effectStack';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectTurnTriggers as pureCollectTurnTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, collectSuppressedSigniTriggerNums, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
+import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
+import { detectLeftFieldSigni, detectLeftFieldSigniToTrash, countCharmsToTrash, detectNewlyDowned } from '../engine/boardDiff';
 import { applyCoinGain } from '../engine/coinGain';
 import { coinLedger } from '../engine/coinAbilityNegation';
 import { payAttachedOrUnderTrash } from './battle/attachedOrUnderCost';
-import { detectEnergyAddedWithSource, detectTrashAdded, detectPlacedFromZone } from '../engine/boardDiff';
 import { hasApplicableLancer, hasKeyword, hasBanishResist } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
@@ -132,6 +128,8 @@ import { useBattleSession, DECK_DATA_COLUMNS } from './battle/hooks/useBattleSes
 import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
+import { makeBoardDiffCollector, type BoardDiffCollector } from './battle/controller/boardDiffTriggers';
+import { fieldPlacementOnPlayOpts, resolveStackStep, type StackResolveDeps } from './battle/controller/stackResolve';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
 import { canCardGuard, guardAlternativeClassCandidates, guardableHandIndices } from './battle/guard';
 import { resonaLeaveDestination } from '../engine/resonaZone';
@@ -161,11 +159,7 @@ import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone, type CpuInteractionCtx } from './battle/cpuInteraction';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
-import {
-  EMPTY_RISE_SELECTION, planRiseSummon,
-  payRiseMaterials, riseConsumedZones, validateRiseField, validateRiseMaterials,
-  type RiseSelection,
-} from './battle/riseSummon';
+import { EMPTY_RISE_SELECTION, planRiseSummon, payRiseMaterials, riseConsumedZones, validateRiseField, validateRiseMaterials, type RiseSelection } from './battle/riseSummon';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost, deterministicLrigAttackFieldTrashZones, payLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
@@ -192,7 +186,7 @@ import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScope
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../engine/lifeCrashGate';
-import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../engine/blockAction';
+import { isHandSigniPlayBlockedByPower } from '../engine/blockAction';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -2783,16 +2777,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ─── バニッシュ・ターントリガー ヘルパー ─────────────────────────────
   // detect*/count*（盤面差分の検出/計数）は Stage2 で pure 化＝src/engine/boardDiff.ts に集約（上部 import）。
 
-  // ON_BLOOD_CRYSTAL_ARMOR トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  // usageLimit（《ターン1回/2回》）消費 effectId を usedHostIds/usedGuestIds で返す（呼び出し元が actions_done へ
-  // 書き戻す＝ON_BANISH と同型。Opusタスク12(xxxii)で any_ally が発火するようになり書き戻しが必要になった）。
-  const collectArmorTriggers = (
-    armoredCardNum: string,
-    armoredPlayerId: string,
-    afterHostState: PlayerState,
-    afterGuestState: PlayerState,
-  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectArmorTriggers(mkTrigCtx(), armoredCardNum, armoredPlayerId, afterHostState, afterGuestState);
 
   // ON_LEAVE_FIELD トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   // causeOwnerId＝離脱を引き起こした効果のオーナー（バトル/ルール処理＝undefined）。
@@ -2808,9 +2792,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId, leftBeforeState, leftZoneIdx);
 
-  // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, causeSourceCardNum?: string, byEffectCause = true): StackEntry[] =>
-    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, causeSourceCardNum, byEffectCause);
   const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string, byEffectCause = true, ownerState?: PlayerState, otherState?: PlayerState): StackEntry[] =>
     pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum, byEffectCause, ownerState, otherState);
   const collectTrashTriggers = (
@@ -3000,14 +2981,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
   };
 
-  // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
-  const collectAllyPlayOrOppDiscardTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    allyPlacedNums: string[],
-    oppDiscardCount: number,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectAllyPlayOrOppDiscardTriggers(mkTrigCtx(), controllerId, controllerState, allyPlacedNums, oppDiscardCount);
 
   // ON_MATERIAL_USED（materialUsedByPlayer 変種）収集（改造素材機構 Step3a・triggerCollect.ts。ここは薄いラッパ）。
   const collectMaterialUsedByPlayerTriggers = (
@@ -3016,140 +2989,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectMaterialUsedByPlayerTriggers(mkTrigCtx(), userId, userState);
 
-  // ON_MATERIAL_USED（self/any_ally 変種）収集（改造素材機構 Step3b・triggerCollect.ts。ここは薄いラッパ）。
-  const collectMaterialUsedOnSigniTriggers = (
-    targetNums: string[],
-    ownerId: string,
-    ownerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMaterialUsedOnSigniTriggers(mkTrigCtx(), targetNums, ownerId, ownerState);
 
-  // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
-  const collectBanishOppByEffectTriggers = (
-    banisherCardNum: string,
-    banisherOwnerId: string,
-    banisherOwnerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectBanishOppByEffectTriggers(mkTrigCtx(), banisherCardNum, banisherOwnerId, banisherOwnerState);
 
-  // ON_LRIG_UNDER_MOVED 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
-  const collectLrigUnderMovedTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectLrigUnderMovedTriggers(mkTrigCtx(), controllerId, controllerState);
 
-  // ON_DECK_SHUFFLED 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
-  const collectDeckShuffledTriggers = (
-    shufflerId: string,
-    shufflerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectDeckShuffledTriggers(mkTrigCtx(), shufflerId, shufflerState);
 
-  // ON_KEYWORD_GAINED 収集（C1・WXDi-P04-035。ここは薄いラッパ）。
-  const collectKeywordGainedTriggers = (
-    gains: { cardNum: string; keyword: string }[],
-    gainOwnerId: string,
-    ownerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectKeywordGainedTriggers(mkTrigCtx(), gains, gainOwnerId, ownerState);
 
-  // ON_KEYWORD_GAINED をスタック解決(resolveStackNext)/resume(handleEffectInteraction) 双方で拾う共有ヘルパー。
-  // キーワード付与（GRANT_KEYWORD）は対象選択を伴い resume 経路で完了することが多いため、両経路で検出する。
-  const collectKeywordGainedInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    const entries: StackEntry[] = [];
-    let h = afterHost, g = afterGuest;
-    for (const kgIsHost of [true, false]) {
-      const ownerId = kgIsHost ? bs.host_id : bs.guest_id;
-      const before = kgIsHost ? bs.host_state : bs.guest_state;
-      const after = kgIsHost ? afterHost : afterGuest;
-      const gains = detectKeywordGained(before, after);
-      if (gains.length === 0) continue;
-      const kg = collectKeywordGainedTriggers(gains, ownerId, after);
-      entries.push(...kg.entries);
-      if (kg.usedOncePerTurnIds.length > 0) {
-        if (kgIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...kg.usedOncePerTurnIds] };
-        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...kg.usedOncePerTurnIds] };
-      }
-    }
-    return { entries, hostState: h, guestState: g };
-  };
 
-  // ON_DECK_SHUFFLED を検出する共有ヘルパー（deck_shuffled_count の before/after 差分）。
-  // before は bs.host_state/guest_state。entries（スタックへ積む）と once_per_turn の actions_done を反映した
-  // host/guest を返す（呼び出し側で update.host_state/guest_state に反映する）。
-  // ⚠**呼び出し元は中央 diff（`collectBoardDiffTriggers`）1箇所だけ**＝2026-08-29 の §5.3 `O-135` で
-  //   スペル解決経路（`handleCutinPass`）を中央 diff へ一本化したため、こちらの直呼びは無くなった。
-  const collectDeckShuffleInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    const entries: StackEntry[] = [];
-    let h = afterHost, g = afterGuest;
-    for (const dsIsHost of [true, false]) {
-      const dsOwnerId = dsIsHost ? bs.host_id : bs.guest_id;
-      const before = dsIsHost ? bs.host_state : bs.guest_state;
-      const after = dsIsHost ? afterHost : afterGuest;
-      if (!detectDeckShuffled(before, after)) continue;
-      const ds = collectDeckShuffledTriggers(dsOwnerId, after);
-      entries.push(...ds.entries);
-      if (ds.usedOncePerTurnIds.length > 0) {
-        if (dsIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...ds.usedOncePerTurnIds] };
-        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...ds.usedOncePerTurnIds] };
-      }
-    }
-    return { entries, hostState: h, guestState: g };
-  };
 
-  // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT をスタックを経由しないインライン解決（pending効果 resume＝handleEffectInteraction）
-  // で検出する共有ヘルパー。resolveStackNext の中央 diff（4760）はスタック解決のみを通るため、対象選択を伴う効果が
-  // resume 経路で解決される場合（[出]バニッシュ等）はこれを呼んで発火させる。source=効果発生源（pe.sourceCardNum）。
-  const collectBanishOppByEffectInline = (
-    sourceCardNum: string,
-    sourcePlayerId: string,
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    let h = afterHost, g = afterGuest;
-    const sourceIsHost = sourcePlayerId === bs.host_id;
-    const sourceState = sourceIsHost ? afterHost : afterGuest;
-    const oppBefore = sourceIsHost ? bs.guest_state : bs.host_state;
-    const oppAfter = sourceIsHost ? afterGuest : afterHost;
-    const banisherOnField = sourceState.field.signi.some(s => s?.at(-1) === sourceCardNum);
-    if (detectBanishedSigni(oppBefore, oppAfter).length === 0 || !banisherOnField) return { entries: [], hostState: h, guestState: g };
-    const bn = collectBanishOppByEffectTriggers(sourceCardNum, sourcePlayerId, sourceState);
-    if (bn.usedOncePerTurnIds.length > 0) {
-      if (sourceIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...bn.usedOncePerTurnIds] };
-      else g = { ...g, actions_done: [...(g.actions_done ?? []), ...bn.usedOncePerTurnIds] };
-    }
-    return { entries: bn.entries, hostState: h, guestState: g };
-  };
 
-  // ON_LRIG_UNDER_MOVED をスタックを経由しないインライン解決（resume＝handleEffectInteraction）で検出する共有ヘルパー。
-  // resolveStackNext の中央 diff（4782）はスタック解決のみを通るため、対象選択を伴う効果がここを通る場合に発火させる。
-  const collectLrigUnderMovedInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    const entries: StackEntry[] = [];
-    let h = afterHost, g = afterGuest;
-    for (const luIsHost of [true, false]) {
-      const luOwnerId = luIsHost ? bs.host_id : bs.guest_id;
-      const before = luIsHost ? bs.host_state : bs.guest_state;
-      const after = luIsHost ? afterHost : afterGuest;
-      if (countLrigUnderMoved(before, after) <= 0) continue;
-      const lu = collectLrigUnderMovedTriggers(luOwnerId, after);
-      entries.push(...lu.entries);
-      if (lu.usedOncePerTurnIds.length > 0) {
-        if (luIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...lu.usedOncePerTurnIds] };
-        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...lu.usedOncePerTurnIds] };
-      }
-    }
-    return { entries, hostState: h, guestState: g };
-  };
 
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
@@ -3163,23 +3010,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     isDrawPhaseDraw = false,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectDrawTriggers(mkTrigCtx(), drawerId, drawerState, otherState, isDrawPhaseDraw);
-  const collectOppDrawTriggers = (
-    reactorId: string,
-    reactorState: PlayerState,
-    drawerState: PlayerState,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectOppDrawTriggers(mkTrigCtx(), reactorId, reactorState, drawerState);
-  const collectMillTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    milledFromControllerDeck: number,
-    milledFromOppDeck: number,
-    milledControllerCards?: string[],
-    milledOppCards?: string[],
-    causeOwnerId?: string,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMillTriggers(mkTrigCtx(), controllerId, controllerState, otherState, milledFromControllerDeck, milledFromOppDeck, milledControllerCards, milledOppCards, causeOwnerId);
 
   // ON_CHARM_TO_TRASH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectCharmToTrashTriggers = (
@@ -3191,16 +3021,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectCharmToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, charmsFromControllerField, charmsFromOppField);
 
-  // ON_MAGIC_BOX_FLIPPED トリガー収集（§6.4 A群・WX24-P4-016。triggerCollect.ts の薄いラッパ）。
-  // ⚠実カードの watcher は**付与ストア**から来る＝pure 側が印字＋付与の両方を走査している。
-  const collectMagicBoxFlippedTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    flippedOnControllerField: number,
-    flippedOnOppField: number,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMagicBoxFlippedTriggers(mkTrigCtx(), controllerId, controllerState, otherState, flippedOnControllerField, flippedOnOppField);
 
   // ON_COIN_GAINED トリガー収集（§6.3 J-5。triggerCollect.ts の薄いラッパ）。
   // ⚠獲得枚数は**呼び出し側が実増加を渡す**（グロウは支払いと獲得が同じ差分に同居するため before/after 差では取りこぼす）。
@@ -3213,6 +3033,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectCoinGainedTriggers(mkTrigCtx(), watcherId, watcherState, otherState, gainedBySelf, gainedByOpp);
 
+  /**
+   * 🆕§5.7 `S-5b`（2026-09-18）＝**盤面差分トリガーの収集本体（579行＋ラッパ26本）は
+   *   `controller/boardDiffTriggers.ts` へ移した**。ここは材料（before 盤面・ID・フェイズ）を束ねるだけ。
+   * 🔴**ここに収集を書き戻さない**＝ヘッドレス（`S-5`）は同じ factory を自前で作って回す。golden `§5.7 S-5b` が見張る。
+   */
+  const collectBoardDiffTriggers: BoardDiffCollector = (afterHost, afterGuest, meta) =>
+    makeBoardDiffCollector({
+      bs, cardMap: battleCardMap, effectsMap, isHost, userId: user.id, trigCtx: mkTrigCtx,
+    })(afterHost, afterGuest, meta);
+
   // ON_ACCE_TO_TRASH トリガー収集（§6.3 J-2。triggerCollect.ts の薄いラッパ）。
   const collectAcceToTrashTriggers = (
     controllerId: string,
@@ -3223,28 +3053,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectAcceToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, acceFromControllerField, acceFromOppField);
 
-  // ON_SOUL_ATTACHED / ON_CARD_ATTACHED トリガー収集（§6.3 J-2。triggerCollect.ts の薄いラッパ）。
-  const collectAttachedTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    timing: 'ON_SOUL_ATTACHED' | 'ON_CARD_ATTACHED',
-    attachedHosts: { hostNum: string; count: number }[],
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectAttachedTriggers(mkTrigCtx(), controllerId, controllerState, otherState, timing, attachedHosts);
 
-  // ON_ENERGY_TO_TRASH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectEnergyToTrashTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    fromControllerEnergy: number,
-    fromOppEnergy: number,
-    fromControllerEnergyAny?: number,
-    fromOppEnergyAny?: number,
-    causeOwnerId?: string,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectEnergyToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, fromControllerEnergy, fromOppEnergy, fromControllerEnergyAny, fromOppEnergyAny, causeOwnerId);
 
   // ON_SIGNI_CRASHED_LIFE_TOTAL トリガー収集（「このシグニが1ターンに合計N枚以上クラッシュしたとき」）。
   const collectSigniCrashTotalTriggers = (
@@ -3266,718 +3075,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[]; firedOnceDelayed: boolean } =>
     pureCollectRefreshTriggers(mkTrigCtx(), controllerId, controllerState, otherState, refreshedByController, refreshedByOpp);
 
-  // ON_OPP_POWER_DECREASED トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectPowerDecreaseTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    decreaseOnOpp: number,
-    decreaseSources: string[] = [],
-    causeOwnerId?: string,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectPowerDecreaseTriggers(mkTrigCtx(), controllerId, controllerState, otherState, decreaseOnOpp, decreaseSources, causeOwnerId);
 
-  // ON_CARD_MOVED_TO_DECK トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectMoveToDeckTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    movedToControllerDeck: number,
-    movedToControllerDeckFromTrash: number,
-    movedToOppDeck: number,
-    causeOwnerId?: string,
-    movedToControllerDeckFromField = 0,
-    movedToOppDeckFromField = 0,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMoveToDeckTriggers(mkTrigCtx(), controllerId, controllerState, otherState, movedToControllerDeck, movedToControllerDeckFromTrash, movedToOppDeck, causeOwnerId, movedToControllerDeckFromField, movedToOppDeckFromField);
 
-  // ON_SIGNI_FROZEN トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectFreezeTriggers = (
-    frozenByOwner: { ownerId: string; nums: string[] }[],
-    hostState: PlayerState,
-    guestState: PlayerState,
-  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectFreezeTriggers(mkTrigCtx(), frozenByOwner, hostState, guestState);
 
-  // ON_SIGNI_FROZEN をスタックを経由しないインライン解決（対象選択を伴う効果が resume 経路＝handleEffectInteraction
-  // で完結する場合）で検出する共有ヘルパー。resolveStackNext の中央 diff（3798）はスタック解決のみを通るため、
-  // FREEZE 付与の大半（SELECT_TARGET で単体対象を凍結）はここを呼んで ON_SIGNI_FROZEN を拾う（続き40 R38 実機FAIL修正）。
-  // before は bs.host_state/guest_state。entries と once_per_turn の actions_done を反映した host/guest を返す。
-  const collectFreezeInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    let h = afterHost, g = afterGuest;
-    const frozenHost = detectNewlyFrozen(bs.host_state, afterHost);
-    const frozenGuest = detectNewlyFrozen(bs.guest_state, afterGuest);
-    if (frozenHost.length === 0 && frozenGuest.length === 0) return { entries: [], hostState: h, guestState: g };
-    const fz = collectFreezeTriggers(
-      [{ ownerId: bs.host_id, nums: frozenHost }, { ownerId: bs.guest_id, nums: frozenGuest }],
-      afterHost, afterGuest,
-    );
-    if (fz.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...fz.usedHostIds] };
-    if (fz.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...fz.usedGuestIds] };
-    return { entries: fz.entries, hostState: h, guestState: g };
-  };
 
-  // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP のインライン収集（タスク16[C]機構①・collectFreezeInline と同型）。
-  // before は bs.host_state/guest_state。byEffect＝効果起因か（中央diff＝true／アタックダウンは
-  // performSigniAttack 側で byEffect:false のまま直接 pure collector を呼ぶ）。
-  const collectSigniDownUpInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    let h = afterHost, g = afterGuest;
-    const entries: StackEntry[] = [];
-    const downHost = detectNewlyDowned(bs.host_state, afterHost);
-    const downGuest = detectNewlyDowned(bs.guest_state, afterGuest);
-    if (downHost.length > 0 || downGuest.length > 0) {
-      // 🔴「このターンでN回目」台帳（§6.4 O-11）は**収集の前に**積む＝
-      //   `fireCondition` は収集時に評価されるので、今回のダウンを含めないと「3回目」が永久に来ない。
-      h = recordSigniDownedThisTurn(h, downHost);
-      g = recordSigniDownedThisTurn(g, downGuest);
-      const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
-        [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], h, g);
-      entries.push(...dn.entries);
-      if (dn.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...dn.usedHostIds] };
-      if (dn.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...dn.usedGuestIds] };
-    }
-    const upHost = detectNewlyUpped(bs.host_state, afterHost);
-    const upGuest = detectNewlyUpped(bs.guest_state, afterGuest);
-    if (upHost.nums.length > 0 || upGuest.nums.length > 0 || upHost.lrigUpNum || upGuest.lrigUpNum) {
-      const up = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_BECOMES_UP',
-        [{ ownerId: bs.host_id, nums: upHost.nums, lrigNum: upHost.lrigUpNum, byEffect: true },
-         { ownerId: bs.guest_id, nums: upGuest.nums, lrigNum: upGuest.lrigUpNum, byEffect: true }], h, g);
-      entries.push(...up.entries);
-      if (up.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...up.usedHostIds] };
-      if (up.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...up.usedGuestIds] };
-    }
-    return { entries, hostState: h, guestState: g };
-  };
 
-  const fieldPlacementOnPlayOpts = (effect?: CardEffect): {
-    collectPlacedSelfOnPlay: boolean;
-    suppressOnPlay: boolean;
-  } => {
-    if (!effect) return { collectPlacedSelfOnPlay: false, suppressOnPlay: false };
-    const visit = (value: unknown): boolean => {
-      if (!value || typeof value !== 'object') return false;
-      const action = value as Record<string, unknown>;
-      if ((action.type === 'ADD_TO_FIELD' || action.type === 'REVEAL_UNTIL_TO_FIELD') && action.suppressOnPlay === true) return true;
-      // 配置を行う STUB（`placesToField` を宣言したもの）にも同じ scoped フラグが乗る（§6.4 O-32）。
-      // ⚠型ごとに分岐を足していくと**新しい配置アンカーが無言で漏れる**ので、STUB 側は id ではなく
-      //   フラグで判定する（`foldSuppressOnPlay` が立てる側と同じ規約）。
-      if (action.type === 'STUB' && action.suppressOnPlay === true) return true;
-      if (action.type === 'REVEAL_UNTIL' && action.hit && typeof action.hit === 'object') {
-        const hit = action.hit as { destination?: unknown; suppressOnPlay?: unknown };
-        if (hit.destination === 'field' && hit.suppressOnPlay === true) return true;
-      }
-      if (action.type === 'LOOK_PICK_CHAIN' && Array.isArray(action.stages)
-          && action.stages.some(s => !!s && typeof s === 'object'
-            && (s as { then?: string; suppressOnPlay?: boolean }).then === 'field'
-            && (s as { suppressOnPlay?: boolean }).suppressOnPlay === true)) return true;
-      return Object.values(action).some(v => Array.isArray(v) ? v.some(visit) : visit(v));
-    };
-    return {
-      collectPlacedSelfOnPlay: true,
-      suppressOnPlay: visit(effect.action),
-    };
-  };
 
-  // === 盤面差分トリガーの統合収集（続き61・Opus）===
-  // resolveStackNext の中央 diff（result.done===true 分岐）と handleEffectInteraction の resume 完了分岐の
-  // 双方から呼べる「盤面 before/after を比べてトリガーを収集する」共通関数。
-  // 【背景】従来、この収集は resolveStackNext の else 節（result.done===true）にのみ全種そろっており、
-  // 対象選択(SELECT_TARGET/CHOOSE)を挟んで resume 経路で完了する効果では大半のトリガーが取りこぼされていた
-  // （§6.3・続き58/60 で ON_OPP_POWER_DECREASED/ON_ENERGY_TO_TRASH/ON_DRAW〔SEQUENCE内対話〕/ON_TRASH self を実機FAILで確認）。
-  // resume 側には collectFreezeInline 等 5 種の場当たり的 inline 版しかなく、SEQUENCE 構造次第で同 collector が
-  // 再度 FAIL する対症療法だった。本関数に全 collector を集約し両経路から呼ぶことで解決経路に依らず一貫させる。
-  // before は bs.host_state/guest_state。afterHost/afterGuest（result 状態）を受け取り、entries（積むトリガー）と
-  // once_per_turn の actions_done を反映した host/guest を返す（呼び出し側で update.host_state/guest_state と effect_stack へ反映）。
-  // meta.causeOwnerId＝この効果のオーナー（entry.playerId/pe.sourcePlayerId・「対戦相手の効果によって」判定と
-  // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT の発生源側判定に使用）。meta.causeSourceCardNum＝発生源カード
-  // （entry.cardNum/pe.sourceCardNum・banisher 照合と ON_PLAY の placeSourceIsSigni 判定に使用）。
-  // ⚠この関数は「盤面差分だけで判定できる」トリガーのみを含む。action 型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD の
-  // 【出】積み・ON_ARTS_USE/ON_OPP_ARTS_USE・FORCE_END_TURN）は entry.effect / entryCardType に依存するため
-  // resolveStackNext 側に inline 据置（resume 経路では pending_effect に元 action 型が無いため再現不能・従来同様）。
-  const collectBoardDiffTriggers = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-    meta: {
-      causeOwnerId: string;
-      causeSourceCardNum: string;
-      fieldTrashCostCards?: string[];
-      resonaConditionCardNum?: string;
-      collectPlacedSelfOnPlay?: boolean;
-      suppressOnPlay?: boolean;
-    },
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    const { causeOwnerId, causeSourceCardNum } = meta;
-    const fieldTrashCostCards = new Set(meta.fieldTrashCostCards ?? []);
-    const beforeHost = bs.host_state, beforeGuest = bs.guest_state;
-    let h = afterHost, g = afterGuest;
-    const entries: StackEntry[] = [];
-    const useHost  = (used: string[]) => { if (used.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...used] }; };
-    const useGuest = (used: string[]) => { if (used.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...used] }; };
-
-    // 効果解決で生じた手札捨ての原因 owner を React watcher まで運ぶ。
-    // executor は userId を持たないため、entry/pending 由来の causeOwnerId を知る中央 diff で刻む。
-    // 🆕**原因カード**も同時に刻む（意味照合 段2・`WX25-CP1-016-E1`＝「シグニかスペルの、
-    //   コストか効果によって」）＝`causeSourceCardNum` を知っているのはこの中央 diff だけ。
-    if (detectHandTrashed(beforeHost, h).length > 0 && h.hand_discarded_just?.length) {
-      h = { ...h, hand_discarded_just_cause_owner_id: causeOwnerId, hand_discarded_just_cause_card_num: causeSourceCardNum };
-    }
-    if (detectHandTrashed(beforeGuest, g).length > 0 && g.hand_discarded_just?.length) {
-      g = { ...g, hand_discarded_just_cause_owner_id: causeOwnerId, hand_discarded_just_cause_card_num: causeSourceCardNum };
-    }
-
-    entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeHost, h, bs.host_id));
-    entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeGuest, g, bs.guest_id));
-
-    // ON_BANISH: バニッシュされたシグニ（usageLimit 消費は useHost/useGuest で actions_done へ永続化）
-    // ⚠ここは**盤面差分でバニッシュを認識する唯一の funnel**なので、「このターンにシグニがバニッシュ
-    //   されている」の履歴（タスク12(xciv) の `WX13-026`＝コスト軽減の条件）も同じ場所で記録する。
-    //   ⚠**バニッシュされた側**の state に積む（アーツ使用側から見た「対戦相手のシグニが…」は
-    //   相手 state を読む）。同じ差分が複数回評価されても条件は `>= 1` でしか使わないので二重計上は無害。
-    const hostBanished = detectBanishedSigni(beforeHost, h);
-    for (const cardNum of hostBanished) {
-      const bt = collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
-      entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
-    }
-    if (hostBanished.length > 0) h = { ...h, signi_banished_this_turn: (h.signi_banished_this_turn ?? 0) + hostBanished.length };
-    // §5.3 O-121: 「このターンに**あなたが**対戦相手のシグニをバニッシュしていた場合」の台帳。
-    //   ⚠**バニッシュした側**（causeOwnerId）の state へ積む＝上の `signi_banished_this_turn`（被バニッシュ側の件数）とは別軸。
-    //   この funnel は効果解決経路なので `byEffect: true`。バトルバニッシュは別地点（アタック解決）で積む。
-    if (hostBanished.length > 0 && causeOwnerId === bs.guest_id) {
-      g = { ...g, opp_signi_banished_this_turn: [
-        ...(g.opp_signi_banished_this_turn ?? []),
-        ...hostBanished.map(() => ({ by: causeSourceCardNum ?? null, byEffect: true })),
-      ] };
-    }
-    const guestBanished = detectBanishedSigni(beforeGuest, g);
-    for (const cardNum of guestBanished) {
-      const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
-      entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
-    }
-    if (guestBanished.length > 0) g = { ...g, signi_banished_this_turn: (g.signi_banished_this_turn ?? 0) + guestBanished.length };
-    // §5.3 O-121: host 側が原因のときは host の台帳へ（上と対称）。
-    if (guestBanished.length > 0 && causeOwnerId === bs.host_id) {
-      h = { ...h, opp_signi_banished_this_turn: [
-        ...(h.opp_signi_banished_this_turn ?? []),
-        ...guestBanished.map(() => ({ by: causeSourceCardNum ?? null, byEffect: true })),
-      ] };
-    }
-
-    // ON_TRASH: スタック/pending 解決内でも fieldTrashCostCards に記録された支払いは byEffectCause=false、
-    // それ以外の場→トラッシュは effect 起因。原因owner と所有者が異なれば「対戦相手の効果によって」。
-    const hostTrashedByOpp  = causeOwnerId === bs.guest_id;
-    const guestTrashedByOpp = causeOwnerId === bs.host_id;
-    for (const cardNum of detectTrashedSigni(beforeHost, h)) {
-      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp, true, !fieldTrashCostCards.has(cardNum), meta.resonaConditionCardNum);
-      entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
-    }
-    for (const cardNum of detectTrashedSigni(beforeGuest, g)) {
-      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp, true, !fieldTrashCostCards.has(cardNum), meta.resonaConditionCardNum);
-      entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
-    }
-    // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
-    for (const cardNum of detectDeckTrashed(beforeHost, h)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, causeSourceCardNum, !!causeOwnerId));
-    }
-    for (const cardNum of detectDeckTrashed(beforeGuest, g)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, causeSourceCardNum, !!causeOwnerId));
-    }
-    // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）。
-    // causeSourceCardNum＝原因効果の発生源カード（「あなたの＜X＞のシグニの効果によって捨てられたとき」の判定用）。
-    for (const cardNum of detectHandTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand', causeSourceCardNum, !!causeOwnerId, h, g));
-    }
-    for (const cardNum of detectHandTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand', causeSourceCardNum, !!causeOwnerId, g, h));
-    }
-    for (const cardNum of detectEnergyTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy', causeSourceCardNum, !!causeOwnerId, h, g));
-    }
-    for (const cardNum of detectEnergyTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy', causeSourceCardNum, !!causeOwnerId, g, h));
-    }
-    for (const cardNum of detectUnderSigniTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'under_signi', causeSourceCardNum, !!causeOwnerId, h, g));
-    }
-    for (const cardNum of detectUnderSigniTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'under_signi', causeSourceCardNum, !!causeOwnerId, g, h));
-    }
-
-    // §5.3 `O-81`＝裏向きで付けられたカードの回収（公開して持ち主の手札へ）。
-    // ⚠**ON_LEAVE_FIELD 収集より前**＝`FACEDOWN_REVEALED_JUST`／`levelEqFacedownRevealed` は収集時に読む。
-    // `removeFromField` を通らずに `field` を組み直す経路（コスト支払い等）の取りこぼしをここで拾う。
-    h = sweepFacedownAttached(h);
-    g = sweepFacedownAttached(g);
-
-    // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）。causeOwnerId＝この効果のオーナー
-    // （「あなたの効果によって対戦相手の…」any_opp／「対戦相手の効果によって」byOpponentEffect の判定に使用）。
-    // 🆕§5.3 `O-233`（2026-09-04）＝**このターンに「対戦相手の効果によって」場を離れたシグニ**の累計。
-    //   `SIGNI_LEFT_BY_OPP_EFFECT`（`SPK16-13E-E1`①）が読む。`hand_trashed_by_opp_this_turn` /
-    //   `energy_trashed_by_opp_this_turn` と同じ規約＝**離脱の原因が効果で、その効果のオーナーが
-    //   持ち主ではない**ときだけ数える（バトルのバニッシュやルール処理では `causeOwnerId` が無い＝数えない）。
-    const leftHostSigni = detectLeftFieldSigni(beforeHost, h);
-    const leftGuestSigni = detectLeftFieldSigni(beforeGuest, g);
-    if (causeOwnerId && causeOwnerId !== bs.host_id && leftHostSigni.length > 0) {
-      h = { ...h, signi_left_by_opp_effect_this_turn: (h.signi_left_by_opp_effect_this_turn ?? 0) + leftHostSigni.length };
-    }
-    if (causeOwnerId && causeOwnerId !== bs.guest_id && leftGuestSigni.length > 0) {
-      g = { ...g, signi_left_by_opp_effect_this_turn: (g.signi_left_by_opp_effect_this_turn ?? 0) + leftGuestSigni.length };
-    }
-    for (const { cardNum, under, zoneIdx } of leftHostSigni) {
-      const lf = collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g, causeOwnerId, beforeHost, zoneIdx);
-      entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
-    }
-    for (const { cardNum, under, zoneIdx } of leftGuestSigni) {
-      const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId, beforeGuest, zoneIdx);
-      entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
-    }
-    // §6.3 J-4: アタックフェイズ中に場を離れたシグニを記録する（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE`・WX24-P2-075-E1）。
-    // ⚠アタックフェイズ以外では記録しない（フェイズ開始時のリセットと合わせて「そのアタックフェイズの間」を表す）。
-    if (['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase)) {
-      const leftHost  = detectLeftFieldSigni(beforeHost, h).map(x => x.cardNum);
-      const leftGuest = detectLeftFieldSigni(beforeGuest, g).map(x => x.cardNum);
-      if (leftHost.length > 0)  h = { ...h, signi_left_field_this_attack_phase: [...(h.signi_left_field_this_attack_phase ?? []), ...leftHost] };
-      if (leftGuest.length > 0) g = { ...g, signi_left_field_this_attack_phase: [...(g.signi_left_field_this_attack_phase ?? []), ...leftGuest] };
-      // 🆕**行き先つきの射影も同時に記録する**（§5.4 (b)・2026-09-06 第189バッチ）＝原文が
-      //   「場から**トラッシュに置かれて**いた場合」と行き先を名指しする効果（`WX18-056-E1`）用。
-      //   ⚠**上の無印版と必ず同じ位置で書く**（片方だけ書くと2つの履歴が黙ってずれる）。
-      const leftHostTr  = detectLeftFieldSigniToTrash(beforeHost, h);
-      const leftGuestTr = detectLeftFieldSigniToTrash(beforeGuest, g);
-      if (leftHostTr.length > 0)  h = { ...h, signi_left_field_to_trash_this_attack_phase: [...(h.signi_left_field_to_trash_this_attack_phase ?? []), ...leftHostTr] };
-      if (leftGuestTr.length > 0) g = { ...g, signi_left_field_to_trash_this_attack_phase: [...(g.signi_left_field_to_trash_this_attack_phase ?? []), ...leftGuestTr] };
-    }
-
-    // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn 増加を検出）
-    if ((h.cards_drawn_by_effect_this_turn ?? 0) > (beforeHost.cards_drawn_by_effect_this_turn ?? 0)) {
-      const dt = collectDrawTriggers(bs.host_id, h, g);
-      entries.push(...dt.entries); useHost(dt.usedOncePerTurnIds);
-      const odt = collectOppDrawTriggers(bs.guest_id, g, h);
-      entries.push(...odt.entries); useGuest(odt.usedOncePerTurnIds);
-    }
-    if ((g.cards_drawn_by_effect_this_turn ?? 0) > (beforeGuest.cards_drawn_by_effect_this_turn ?? 0)) {
-      const dt = collectDrawTriggers(bs.guest_id, g, h);
-      entries.push(...dt.entries); useGuest(dt.usedOncePerTurnIds);
-      const odt = collectOppDrawTriggers(bs.host_id, h, g);
-      entries.push(...odt.entries); useHost(odt.usedOncePerTurnIds);
-    }
-
-    // ON_CARD_MILLED_FROM_DECK: デッキ→トラッシュ（ミル）が起きた場合
-    const milledHost  = countMilledFromDeck(beforeHost, h);
-    const milledGuest = countMilledFromDeck(beforeGuest, g);
-    const milledHostCards = detectMilledFromDeck(beforeHost, h);
-    const milledGuestCards = detectMilledFromDeck(beforeGuest, g);
-    if (milledHost > 0 || milledGuest > 0) {
-      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest, milledHostCards, milledGuestCards, causeOwnerId);
-      entries.push(...mtH.entries); useHost(mtH.usedOncePerTurnIds);
-      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost, milledGuestCards, milledHostCards, causeOwnerId);
-      entries.push(...mtG.entries); useGuest(mtG.usedOncePerTurnIds);
-      // SELF_DECK_TO_TRASH_THIS_TURN（「このターンにあなたのデッキからカードがN枚以上トラッシュに置かれていた場合」
-      // WXDi-P03-065）用のターン累計。⚠**持ち主基準**＝自分のデッキから落ちた枚数を自分の state へ積む
-      // （相手効果で落とされた場合も自分のデッキが減っているので数える＝原文に原因限定が無い）。
-      // 🆕**実体側も同じ地点で積む**（絞り込み付きの履歴参照＝`SELF_DECK_TO_TRASH_THIS_TURN{filter}` 用）。
-      if (milledHost > 0)  h = { ...h, deck_to_trash_count_this_turn: (h.deck_to_trash_count_this_turn ?? 0) + milledHost, deck_to_trash_cards_this_turn: [...(h.deck_to_trash_cards_this_turn ?? []), ...milledHostCards] };
-      if (milledGuest > 0) g = { ...g, deck_to_trash_count_this_turn: (g.deck_to_trash_count_this_turn ?? 0) + milledGuest, deck_to_trash_cards_this_turn: [...(g.deck_to_trash_cards_this_turn ?? []), ...milledGuestCards] };
-    }
-
-    // ON_CHARM_TO_TRASH: 【チャーム】が場→トラッシュに置かれた場合
-    const charmHost  = countCharmsToTrash(beforeHost, h);
-    const charmGuest = countCharmsToTrash(beforeGuest, g);
-    if (charmHost > 0 || charmGuest > 0) {
-      const chH = collectCharmToTrashTriggers(bs.host_id, h, g, charmHost, charmGuest);
-      entries.push(...chH.entries); useHost(chH.usedOncePerTurnIds);
-      const chG = collectCharmToTrashTriggers(bs.guest_id, g, h, charmGuest, charmHost);
-      entries.push(...chG.entries); useGuest(chG.usedOncePerTurnIds);
-    }
-
-    // ON_MAGIC_BOX_FLIPPED: 効果で【マジックボックス】が表向きになった場合（§6.4 A群・WX24-P4-016-E3）
-    const mbFlipHost  = countMagicBoxesFlipped(beforeHost, h);
-    const mbFlipGuest = countMagicBoxesFlipped(beforeGuest, g);
-    if (mbFlipHost > 0 || mbFlipGuest > 0) {
-      const mbH = collectMagicBoxFlippedTriggers(bs.host_id, h, g, mbFlipHost, mbFlipGuest);
-      entries.push(...mbH.entries); useHost(mbH.usedOncePerTurnIds);
-      const mbG = collectMagicBoxFlippedTriggers(bs.guest_id, g, h, mbFlipGuest, mbFlipHost);
-      entries.push(...mbG.entries); useGuest(mbG.usedOncePerTurnIds);
-    }
-
-    // ON_COIN_GAINED: 効果解決で《コインアイコン》が増えた場合（§6.3 J-5・SP27-007-E1）。
-    // ⚠グロウ／アシストグロウ／CPU グロウの獲得はこの funnel を通らないので各サイトで別途収集する
-    //   （既存 ON_COIN_PAID がコスト支払いの全サイトを個別に押さえているのと同じ形）。
-    const coinGainHost  = countCoinsGained(beforeHost, h);
-    const coinGainGuest = countCoinsGained(beforeGuest, g);
-    if (coinGainHost > 0 || coinGainGuest > 0) {
-      const cgH = collectCoinGainedTriggers(bs.host_id, h, g, coinGainHost, coinGainGuest);
-      entries.push(...cgH.entries); useHost(cgH.usedOncePerTurnIds);
-      const cgG = collectCoinGainedTriggers(bs.guest_id, g, h, coinGainGuest, coinGainHost);
-      entries.push(...cgG.entries); useGuest(cgG.usedOncePerTurnIds);
-    }
-
-    // ON_ACCE_TO_TRASH: 【アクセ】が場→トラッシュに置かれた場合（§6.3 J-2・WXEX2-19-E1）
-    const acceHost  = countAcceToTrash(beforeHost, h);
-    const acceGuest = countAcceToTrash(beforeGuest, g);
-    if (acceHost > 0 || acceGuest > 0) {
-      const acH = collectAcceToTrashTriggers(bs.host_id, h, g, acceHost, acceGuest);
-      entries.push(...acH.entries); useHost(acH.usedOncePerTurnIds);
-      const acG = collectAcceToTrashTriggers(bs.guest_id, g, h, acceGuest, acceHost);
-      entries.push(...acG.entries); useGuest(acG.usedOncePerTurnIds);
-    }
-
-    // ON_SOUL_ATTACHED / ON_CARD_ATTACHED: 自分の場のシグニに【ソウル】/カードが付いた場合（§6.3 J-2）。
-    // 付与先ホストは各プレイヤーの盤面ごとに検出する＝そのプレイヤーの場の【自】だけが反応する。
-    for (const [pid, before, after, otherAfter] of [
-      [bs.host_id, beforeHost, h, g] as const,
-      [bs.guest_id, beforeGuest, g, h] as const,
-    ]) {
-      const use = pid === bs.host_id ? useHost : useGuest;
-      const souls = detectSoulAttached(before, after).map(x => ({ hostNum: x.hostNum, count: 1 }));
-      if (souls.length > 0) {
-        const r = collectAttachedTriggers(pid, after, otherAfter, 'ON_SOUL_ATTACHED', souls);
-        entries.push(...r.entries); use(r.usedOncePerTurnIds);
-      }
-      const attached = detectCardAttached(before, after).map(x => ({ hostNum: x.hostNum, count: x.count }));
-      if (attached.length > 0) {
-        const r = collectAttachedTriggers(pid, after, otherAfter, 'ON_CARD_ATTACHED', attached);
-        entries.push(...r.entries); use(r.usedOncePerTurnIds);
-      }
-    }
-
-    // ON_ENERGY_TO_TRASH: エナゾーン→トラッシュが起きた場合。
-    // ⚠あわせて「エナゾーンから出て行った枚数（行き先を問わない）」も渡す＝`energyLeftToAnyZone` を持つ効果
-    //   （WXDi-P06-038-E1「他の領域に移動したとき」）は手札/場/デッキ行きでも発火する。ここは効果解決の
-    //   中央 diff なので「効果によって」の限定は構造的に満たされる（コスト支払いはこの関数を通らない）。
-    const energyTrashHost  = countEnergyToTrash(beforeHost, h);
-    const energyTrashGuest = countEnergyToTrash(beforeGuest, g);
-    const energyLeftHost   = countEnergyLeftZone(beforeHost, h);
-    const energyLeftGuest  = countEnergyLeftZone(beforeGuest, g);
-    if (energyTrashHost > 0 || energyTrashGuest > 0 || energyLeftHost > 0 || energyLeftGuest > 0) {
-      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest, energyLeftHost, energyLeftGuest, causeOwnerId);
-      entries.push(...etH.entries); useHost(etH.usedOncePerTurnIds);
-      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost, energyLeftGuest, energyLeftHost, causeOwnerId);
-      entries.push(...etG.entries); useGuest(etG.usedOncePerTurnIds);
-    }
-
-    // ON_HAND_OR_ENERGY_LOST_BY_OPP: 「対戦相手の効果1つによって、あなたの手札が捨てられるか
-    // あなたのエナゾーンからカードがトラッシュに置かれたとき」（WXDi-P13-051-E3）。
-    // ⚠**2経路を1回の走査でまとめて見る**のが要点＝原文の「効果1つによって」は、1解決で両方起きても
-    //   発火は1度だけ、という意味。手札捨てだけ React watcher（ON_HAND_DISCARDED）に任せると、
-    //   同じ解決で2回積まれる（両方やる相手効果は実在＝WXK02-004／WXDi-P10-003／WXDi-P13-003A）。
-    // 原因（対戦相手の効果か）は causeOwnerId で判定する。コスト支払いはこの関数を通らない。
-    {
-      const handLostHost = detectHandTrashed(beforeHost, h).length;
-      const handLostGuest = detectHandTrashed(beforeGuest, g).length;
-      if (handLostHost > 0 || handLostGuest > 0 || energyTrashHost > 0 || energyTrashGuest > 0) {
-        const rlH = pureCollectOppResourceLossTriggers(
-          mkTrigCtx(), bs.host_id, h, g, handLostHost, energyTrashHost, causeOwnerId === bs.guest_id);
-        entries.push(...rlH.entries); useHost(rlH.usedOncePerTurnIds);
-        const rlG = pureCollectOppResourceLossTriggers(
-          mkTrigCtx(), bs.guest_id, g, h, handLostGuest, energyTrashGuest, causeOwnerId === bs.host_id);
-        entries.push(...rlG.entries); useGuest(rlG.usedOncePerTurnIds);
-      }
-    }
-
-    // ON_SIGNI_CRASHED_LIFE_TOTAL: 効果によるライフクラッシュ（execLifeCrash が主体別カウンタへ加算）で
-    // 合計が閾値に達したシグニを収集する。攻撃によるクラッシュは攻撃解決側で同じ collector を呼ぶ
-    // （経路が別＝アタックはこの中央 diff を通らない）。増えたキーだけを見るので既存効果に波及しない。
-    for (const side of ['host', 'guest'] as const) {
-      const isHostSide = side === 'host';
-      const before = isHostSide ? beforeHost : beforeGuest;
-      const beforeMap = before.life_crashed_by_signi_this_turn ?? {};
-      // 走査のたびに最新の h/g を読む（useHost/useGuest が actions_done を積むため）。
-      for (const [signiNum, total] of Object.entries((isHostSide ? h : g).life_crashed_by_signi_this_turn ?? {})) {
-        if (total <= (beforeMap[signiNum] ?? 0)) continue;
-        const ct = pureCollectSigniCrashTotalTriggers(
-          mkTrigCtx(), isHostSide ? bs.host_id : bs.guest_id,
-          isHostSide ? h : g, isHostSide ? g : h, signiNum, total,
-        );
-        entries.push(...ct.entries);
-        if (isHostSide) useHost(ct.usedOncePerTurnIds); else useGuest(ct.usedOncePerTurnIds);
-      }
-    }
-
-    // ON_REFRESH: いずれかのプレイヤーがリフレッシュした場合
-    const refreshHost  = countRefresh(beforeHost, h);
-    const refreshGuest = countRefresh(beforeGuest, g);
-    if (refreshHost > 0 || refreshGuest > 0) {
-      const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
-      entries.push(...rfH.entries); useHost(rfH.usedOncePerTurnIds);
-      const rfG = collectRefreshTriggers(bs.guest_id, g, h, refreshGuest, refreshHost);
-      entries.push(...rfG.entries); useGuest(rfG.usedOncePerTurnIds);
-      // 🆕`once` 遅延 watcher（「このターン**最初の**リフレッシュ」）は発火した側だけ設置を消費する
-      //   （§5.3 2026-08-27 Sheet1 B11・`WX09-Re06`）。消費しないと同ターン2回目以降も発火する。
-      if (rfH.firedOnceDelayed) h = consumeOnceDelayedTriggers(h, 'ON_REFRESH');
-      if (rfG.firedOnceDelayed) g = consumeOnceDelayedTriggers(g, 'ON_REFRESH');
-    }
-
-    // ON_OPP_POWER_DECREASED（毒牙）: シグニのパワーが減った場合、減らした側（controller）が反応
-    const decOnHost  = detectPowerDecrease(beforeHost, h);
-    const decOnGuest = detectPowerDecrease(beforeGuest, g);
-    if (decOnHost > 0 || decOnGuest > 0) {
-      // 発生源限定（「あなたの＜X＞のシグニの効果によって」）判定用に、減少を起こした効果元カードも渡す。
-      // 🆕§6.4 O-44＝**srcCardNum が刻まれない経路（POWER_MODIFY_PER_* / STUB 系）は
-      //   `causeSourceCardNum`（いま解決中の効果の発生源カード）へ寄せる**。減少はその効果の解決中に
-      //   起きているので発生源はそのカード。コレクタ側は fail-closed（不明なら発火しない）。
-      const decSrcOnHost  = detectPowerDecreaseSources(beforeHost, h, causeSourceCardNum);
-      const decSrcOnGuest = detectPowerDecreaseSources(beforeGuest, g, causeSourceCardNum);
-      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest, decSrcOnGuest, causeOwnerId);
-      entries.push(...dpH.entries); useHost(dpH.usedOncePerTurnIds);
-      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost, decSrcOnHost, causeOwnerId);
-      entries.push(...dpG.entries); useGuest(dpG.usedOncePerTurnIds);
-    }
-
-    // ON_CARD_MOVED_TO_DECK: 他領域→デッキ移動が起きた場合
-    const movedHost = countMovedToDeck(beforeHost, h, false);
-    const movedGuest = countMovedToDeck(beforeGuest, g, false);
-    const movedHostFromTrash = countMovedToDeck(beforeHost, h, true);
-    const movedGuestFromTrash = countMovedToDeck(beforeGuest, g, true);
-    // §5.3 `O-116`＝**場から**デッキへ戻った枚数（`WX05-019-E3` の由来限定）。
-    const movedHostFromField = countMovedToDeckFromField(beforeHost, h);
-    const movedGuestFromField = countMovedToDeckFromField(beforeGuest, g);
-    if (movedHost > 0 || movedGuest > 0) {
-      const mvH = collectMoveToDeckTriggers(bs.host_id, h, g, movedHost, movedHostFromTrash, movedGuest, causeOwnerId, movedHostFromField, movedGuestFromField);
-      entries.push(...mvH.entries); useHost(mvH.usedOncePerTurnIds);
-      const mvG = collectMoveToDeckTriggers(bs.guest_id, g, h, movedGuest, movedGuestFromTrash, movedHost, causeOwnerId, movedGuestFromField, movedHostFromField);
-      entries.push(...mvG.entries); useGuest(mvG.usedOncePerTurnIds);
-      // OPP_CARDS_MOVED_TO_DECK_THIS_TURN: 「対戦相手のカードがあなたの効果によってデッキに移動」の累計（WXK06-071）。
-      // 効果オーナー（causeOwnerId）＝アクティブプレイヤーの counter に、相手のカードが移動した枚数を積む。
-      // ルール処理/バトル（causeOwnerId=undefined）は「あなたの効果」ではないので数えない。
-      if (causeOwnerId === bs.host_id && movedGuest > 0) {
-        h = { ...h, opp_cards_moved_to_deck_this_turn: (h.opp_cards_moved_to_deck_this_turn ?? 0) + movedGuest };
-      } else if (causeOwnerId === bs.guest_id && movedHost > 0) {
-        g = { ...g, opp_cards_moved_to_deck_this_turn: (g.opp_cards_moved_to_deck_this_turn ?? 0) + movedHost };
-      }
-    }
-
-    // ON_ZONE_MOVED の原因主体限定付き watcher は、この解決の causeOwnerId が残っている中央 diff で収集する。
-    // 後段の zone_moved_just watcher は原因限定なしだけを処理してフラグをクリアする。
-    for (const movedNum of (h.zone_moved_just ?? []).filter(n => !(beforeHost.zone_moved_just ?? []).includes(n))) {
-      const zm = pureCollectZoneMovedTriggers(mkTrigCtx(), movedNum, h, g, bs.host_id, bs.guest_id, causeOwnerId, true);
-      entries.push(...zm.entries);
-      if (zm.moverUsedIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...zm.moverUsedIds] };
-      if (zm.otherUsedIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...zm.otherUsedIds] };
-    }
-    for (const movedNum of (g.zone_moved_just ?? []).filter(n => !(beforeGuest.zone_moved_just ?? []).includes(n))) {
-      const zm = pureCollectZoneMovedTriggers(mkTrigCtx(), movedNum, g, h, bs.guest_id, bs.host_id, causeOwnerId, true);
-      entries.push(...zm.entries);
-      if (zm.moverUsedIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...zm.moverUsedIds] };
-      if (zm.otherUsedIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...zm.otherUsedIds] };
-    }
-
-    // ON_HAND_ADDED: 効果によってカードが手札に移動した場合（続き207・WX25-P2-063/WXDi-P11-007/WX14-029/WD12-009）
-    const handAddedHost = detectHandAdded(beforeHost, h);
-    const handAddedGuest = detectHandAdded(beforeGuest, g);
-    if (handAddedHost.length > 0 || handAddedGuest.length > 0) {
-      const ha = pureCollectHandAddedTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, moved: handAddedHost },
-        { ownerId: bs.guest_id, moved: handAddedGuest },
-      ], causeOwnerId, h, g);
-      entries.push(...ha.entries); useHost(ha.usedHostIds); useGuest(ha.usedGuestIds);
-    }
-    // ON_TRASH_CARD_ADDED: 効果によってトラッシュにカードが置かれた場合（§6.4 O-37(c)・WX24-P3-007 の付与【自】）。
-    // ⚠**移動元を問わない**＝ON_CARD_MILLED_FROM_DECK（デッキ限定）とは別軸で、同じ解決で両方発火しうる。
-    //   「対戦相手の効果1つによって」は causeOwnerId で判定する（コスト支払いはこの中央 diff を通らない）。
-    const trashAddedHost = detectTrashAdded(beforeHost, h);
-    const trashAddedGuest = detectTrashAdded(beforeGuest, g);
-    if (trashAddedHost.length > 0 || trashAddedGuest.length > 0) {
-      const ta = pureCollectTrashAddedTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, nums: trashAddedHost },
-        { ownerId: bs.guest_id, nums: trashAddedGuest },
-      ], causeOwnerId, h, g);
-      entries.push(...ta.entries); useHost(ta.usedHostIds); useGuest(ta.usedGuestIds);
-    }
-    // ON_ENERGY_CHARGE movedSelf: エナへ移動したカード自身の AUTO。場 watcher とは movedSelf で排他的。
-    const energyAddedSelfHost = detectEnergyAddedWithSource(beforeHost, h);
-    const energyAddedSelfGuest = detectEnergyAddedWithSource(beforeGuest, g);
-    if (energyAddedSelfHost.length > 0 || energyAddedSelfGuest.length > 0) {
-      const eaSelf = pureCollectEnergyAddedSelfTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, moved: energyAddedSelfHost },
-        { ownerId: bs.guest_id, moved: energyAddedSelfGuest },
-      ], causeOwnerId, causeSourceCardNum, h, g);
-      entries.push(...eaSelf.entries); useHost(eaSelf.usedHostIds); useGuest(eaSelf.usedGuestIds);
-    }
-    // ON_ENERGY_TO_FIELD: エナゾーンからシグニが場に出た場合（続き207・WXDi-P11-007-E1「か場に出たとき」枝。
-    // 手札枝と同一効果の usageLimit を共有するため ON_HAND_ADDED の usedIds 反映（useHost/useGuest）後に呼ぶ）
-    const evfHost = detectPlacedFromEnergy(beforeHost, h);
-    const evfGuest = detectPlacedFromEnergy(beforeGuest, g);
-    if (evfHost.length > 0 || evfGuest.length > 0) {
-      const ev = pureCollectEnergyToFieldTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, nums: evfHost },
-        { ownerId: bs.guest_id, nums: evfGuest },
-      ], h, g);
-      entries.push(...ev.entries); useHost(ev.usedHostIds); useGuest(ev.usedGuestIds);
-    }
-
-    // ON_LIFE_CLOTH_ADDED: ライフクロスの増加分だけを検出（減少側の ON_LIFE_CRASHED と混線しない）。
-    const lifeAddedHost = detectLifeClothAdded(beforeHost, h);
-    const lifeAddedGuest = detectLifeClothAdded(beforeGuest, g);
-    if (lifeAddedHost.length > 0 || lifeAddedGuest.length > 0) {
-      const la = pureCollectLifeClothAddedTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, nums: lifeAddedHost },
-        { ownerId: bs.guest_id, nums: lifeAddedGuest },
-      ], h, g);
-      entries.push(...la.entries); useHost(la.usedHostIds); useGuest(la.usedGuestIds);
-    }
-
-    // ON_LIFE_CLOTH_MOVED: 宛先付き離脱。クラッシュ直後は life→field.check のため to:'other'。
-    // check→energy/trash の解決時は life 差分が無く、クラッシュ専用枝は ON_LIFE_CRASHED が収集する。
-    const lifeMovedHost = detectLifeClothMoved(beforeHost, h);
-    const lifeMovedGuest = detectLifeClothMoved(beforeGuest, g);
-    if (lifeMovedHost.length > 0 || lifeMovedGuest.length > 0) {
-      const lm = pureCollectLifeClothMovedTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, moved: lifeMovedHost, beforeCount: beforeHost.life_cloth.length, afterCount: h.life_cloth.length },
-        { ownerId: bs.guest_id, moved: lifeMovedGuest, beforeCount: beforeGuest.life_cloth.length, afterCount: g.life_cloth.length },
-      ], h, g);
-      entries.push(...lm.entries); useHost(lm.usedHostIds); useGuest(lm.usedGuestIds);
-    }
-
-    // ON_OPP_ENERGY_ADDED: 相手エナの増加を逆 scope で監視し、置かれたカード自身を triggeringCardNum に渡す。
-    const energyAddedHost = detectEnergyAdded(beforeHost, h);
-    const energyAddedGuest = detectEnergyAdded(beforeGuest, g);
-    if (energyAddedHost.length > 0 || energyAddedGuest.length > 0) {
-      const ea = pureCollectOppEnergyAddedTriggers(mkTrigCtx(), [
-        { ownerId: bs.host_id, nums: energyAddedHost },
-        { ownerId: bs.guest_id, nums: energyAddedGuest },
-      ], h, g);
-      entries.push(...ea.entries); useHost(ea.usedHostIds); useGuest(ea.usedGuestIds);
-    }
-
-    // ON_SIGNI_FROZEN: 新たに凍結状態になったシグニ
-    { const fz = collectFreezeInline(h, g); entries.push(...fz.entries); h = fz.hostState; g = fz.guestState; }
-
-    // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP: 効果でダウン/アップ状態が変わったシグニ（タスク16[C]機構①・byEffect=true）
-    { const du = collectSigniDownUpInline(h, g); entries.push(...du.entries); h = du.hostState; g = du.guestState; }
-
-    // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064）: 「あなたのターンの間」＝ターンプレイヤーを controller として、
-    // 味方シグニが場に出た（play枝）か相手手札がトラッシュに置かれた（discard枝・⚠自効果限定は近似）場合に発火。
-    {
-      const turnIsHost = (bs.active_user_id ?? bs.host_id) === bs.host_id;
-      const apTurnBefore = turnIsHost ? beforeHost : beforeGuest;
-      const apTurnAfter = turnIsHost ? h : g;
-      const apOppBefore = turnIsHost ? beforeGuest : beforeHost;
-      const apOppAfter = turnIsHost ? g : h;
-      // 裏向き→表向き（WXDi-P10-034）は「場に出た」扱いではないため「あなたのシグニが場に出たとき」から除外。
-      const facedownFlippedAP = new Set<string>(detectFacedownFlipped(apTurnBefore, apTurnAfter));
-      const allyPlaced = detectPlacedSigni(apTurnBefore, apTurnAfter).filter(n => !facedownFlippedAP.has(n));
-      const oppDiscarded = detectHandTrashed(apOppBefore, apOppAfter).length;
-      if (allyPlaced.length > 0 || oppDiscarded > 0) {
-        const turnPlayerId = turnIsHost ? bs.host_id : bs.guest_id;
-        const ap = collectAllyPlayOrOppDiscardTriggers(turnPlayerId, apTurnAfter, allyPlaced, oppDiscarded);
-        entries.push(...ap.entries);
-        if (turnIsHost) useHost(ap.usedOncePerTurnIds); else useGuest(ap.usedOncePerTurnIds);
-      }
-    }
-
-    // ON_MATERIAL_USED（self/any_ally・改造素材機構）: MARK_MATERIAL_TARGET が material_used_targets を積んだ場合、
-    // 対象シグニ所有者の「このシグニに/他の味方に使用されたとき」を発火し、処理後に material_used_targets をクリア。
-    for (const muIsHost of [true, false]) {
-      const muOwnerId = muIsHost ? bs.host_id : bs.guest_id;
-      const muBefore = (muIsHost ? beforeHost : beforeGuest)?.material_used_targets ?? [];
-      const muAfterState = muIsHost ? h : g;
-      const muAfter = muAfterState.material_used_targets ?? [];
-      const beforeSetMU = new Set(muBefore);
-      const newTargets = muAfter.filter(n => !beforeSetMU.has(n));
-      if (newTargets.length > 0) {
-        const mu = collectMaterialUsedOnSigniTriggers(newTargets, muOwnerId, muAfterState);
-        const cleared = { ...muAfterState, material_used_targets: [],
-          actions_done: [...(muAfterState.actions_done ?? []), ...mu.usedOncePerTurnIds] };
-        if (muIsHost) h = cleared; else g = cleared;
-        entries.push(...mu.entries);
-      }
-    }
-
-    // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 対戦相手シグニがバニッシュされ、かつ発生源
-    // （causeSourceCardNum）が発生源側プレイヤーの場シグニの場合、その側の any_ally【自】を発火。
-    { const bn = collectBanishOppByEffectInline(causeSourceCardNum, causeOwnerId, h, g); entries.push(...bn.entries); h = bn.hostState; g = bn.guestState; }
-
-    // ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）
-    { const lu = collectLrigUnderMovedInline(h, g); entries.push(...lu.entries); h = lu.hostState; g = lu.guestState; }
-
-    // ON_DECK_SHUFFLED（C1・PR-470A）
-    { const ds = collectDeckShuffleInline(h, g); entries.push(...ds.entries); h = ds.hostState; g = ds.guestState; }
-
-    // ON_KEYWORD_GAINED（C1・WXDi-P04-035）
-    { const kg = collectKeywordGainedInline(h, g); entries.push(...kg.entries); h = kg.hostState; g = kg.guestState; }
-
-    // ON_PLAY（自身＋any_ally/any・効果配置）＋ON_BLOOM。自身【出】は呼び出し側の明示 opt-in 時だけ収集するため、
-    // 同じ diff を通る通常召喚の支払い差分では二重発火しない。
-    // 場出しした効果元（causeSourceCardNum）がシグニかで bySigniEffect 発火可否を判定。開花は「場に出た」扱いでないため ON_PLAY 除外。
-    const placeSourceIsSigni = battleCardMap.get(causeSourceCardNum)?.Type === 'シグニ';
-    const hostBloomedSE  = detectBloomedSigni(beforeHost, h);
-    const guestBloomedSE = detectBloomedSigni(beforeGuest, g);
-    // 裏向き→表向き（WXDi-P10-034）も開花と同じく「場に出た」扱いではないため ON_PLAY から除外する。
-    const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE,
-      ...detectFacedownFlipped(beforeHost, h), ...detectFacedownFlipped(beforeGuest, g)]);
-    for (const placedNum of detectPlacedSigni(beforeHost, h)) {
-      if (bloomedSetSE.has(placedNum)) continue;
-      const placedFromZone = detectPlacedFromZone(beforeHost, placedNum, h);
-      if (meta.collectPlacedSelfOnPlay) {
-        const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, h, g, bs.host_id, {
-          placedByEffect: true,
-          sourceIsSigni: placeSourceIsSigni,
-          suppressOnPlay: meta.suppressOnPlay,
-          placedFromZone,
-        });
-        entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
-      }
-      const ft = collectFieldTriggers('ON_PLAY', placedNum, h, g, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromZone });
-      entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
-    }
-    for (const placedNum of detectPlacedSigni(beforeGuest, g)) {
-      if (bloomedSetSE.has(placedNum)) continue;
-      const placedFromZone = detectPlacedFromZone(beforeGuest, placedNum, g);
-      if (meta.collectPlacedSelfOnPlay) {
-        const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, g, h, bs.guest_id, {
-          placedByEffect: true,
-          sourceIsSigni: placeSourceIsSigni,
-          suppressOnPlay: meta.suppressOnPlay,
-          placedFromZone,
-        });
-        entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
-      }
-      const ft = collectFieldTriggers('ON_PLAY', placedNum, g, h, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromZone });
-      entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
-    }
-    for (const bloomedNum of hostBloomedSE) {
-      const bl = collectBloomTriggers(bloomedNum, h, g, bs.host_id);
-      entries.push(...bl.entries); useHost(bl.usedHostIds); useGuest(bl.usedGuestIds);
-    }
-    for (const bloomedNum of guestBloomedSE) {
-      const bl = collectBloomTriggers(bloomedNum, g, h, bs.guest_id);
-      entries.push(...bl.entries); useHost(bl.usedHostIds); useGuest(bl.usedGuestIds);
-    }
-
-    // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカード
-    for (const [ownerId, before, after] of [[bs.host_id, beforeHost, h], [bs.guest_id, beforeGuest, g]] as const) {
-      for (const cardNum of detectEnergyFromTrash(before, after)) {
-        for (const eff of (effectsMap.get(cardNum) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_FROM_TRASH')) continue;
-          entries.push({
-            id: generateUUID(),
-            playerId: ownerId,
-            cardNum,
-            effectId: eff.effectId,
-            label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（トラッシュからエナ時）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-
-    // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニ
-    for (const cardNum of detectNewlyArmored(beforeHost, h)) {
-      const at = collectArmorTriggers(cardNum, bs.host_id, h, g);
-      entries.push(...at.entries); useHost(at.usedHostIds); useGuest(at.usedGuestIds);
-    }
-    for (const cardNum of detectNewlyArmored(beforeGuest, g)) {
-      const at = collectArmorTriggers(cardNum, bs.guest_id, h, g);
-      entries.push(...at.entries); useHost(at.usedHostIds); useGuest(at.usedGuestIds);
-    }
-
-    return { entries, hostState: h, guestState: g };
-  };
 
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
@@ -5153,6 +4256,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * キューの先頭エントリを取り出して effectExecutor で実行し DB に保存する。
    * ターンプレイヤーが呼び出す（useEffect で監視）。
    */
+  /**
+   * 🆕§5.7 `S-5a`（2026-09-18）＝スタック解決の**材料**（画面側のクロージャ）。
+   * ⚠ここに新しい依存を足したら `stackResolve.ts` の `StackResolveDeps` にも足す＝
+   *   「画面にしか無いもの」が増えるほどヘッドレス（`S-5`）から遠ざかる。
+   */
+  const stackResolveDeps = (): StackResolveDeps => ({
+    cardMap: battleCardMap, effectsMap, userId: user.id, isHost,
+    trigCtx: mkTrigCtx, fillDeployCaps, collectBoardDiffTriggers,
+    collectArtsUseForResolution, collectOppArtsUseForResolution,
+  });
+
+  /**
+   * スタックの先頭1件を解決する（画面側のシェル）。
+   * 🆕§5.7 `S-5a`＝**本体385行は `stackResolve.ts` の `resolveStackStep`（純関数）へ移した**。
+   *   ここに残すのは React/DB の都合だけ＝`loading`・多重実行の防止・ログの flush・`persist.commit`。
+   * 🔴**ここに解決の中身を書き戻さない**（写経すると人間経路とヘッドレスで挙動が割れる）＝golden `§5.7 S-5a` が見張る。
+   */
   const resolveStackNext = async () => {
     if (!bs?.effect_stack || loading) return;
     const stack = bs.effect_stack;
@@ -5164,371 +4284,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     setLoading(true);
     try {
-      const { entry, newStack: shiftedStack } = shiftQueue(stack);
-      if (!entry) {
-        await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: null }));
-        return;
-      }
-
-      lastResolvedEntryIdRef.current = entry.id;
-      const ownerIsHost = entry.playerId === bs.host_id;
-      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
-      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
-      const isOwnerTurn = bs.active_user_id === entry.playerId;
-      // ON_ABILITY_ACTIVATED（§6.3 J-1「他能力の発動監視」）＝**ここが「能力が発動した」瞬間**。
-      // `shiftQueue` の呼び出し元はこの1箇所だけなので、全経路（人間/CPU・【出】/【自】/LB）をここで押さえられる。
-      // 監視側の【自】を同じスタックへ積み、発動した能力の直後に解決させる。
-      // ⚠監視エントリ自身は ON_ABILITY_ACTIVATED なので collector 側で除外され、連鎖にはならない。
-      const abilityActivated = { ownerId: entry.playerId, effect: entry.effect, cardNum: entry.cardNum, ownerState };
-      const aaHost  = pureCollectAbilityActivatedTriggers(mkTrigCtx(), bs.host_id, bs.host_state, bs.guest_state, abilityActivated);
-      const aaGuest = pureCollectAbilityActivatedTriggers(mkTrigCtx(), bs.guest_id, bs.guest_state, bs.host_state, abilityActivated);
-      const abilityWatchEntries = [...aaHost.entries, ...aaGuest.entries];
-      const newStack = abilityWatchEntries.length > 0 ? pushToStack(shiftedStack, abilityWatchEntries) : shiftedStack;
-      const who = entry.playerId === user.id ? '自分' : '相手';
-      appendBattleLogs([`[${who}] ${entry.label}`], { defer: true });
-      // 【英知】条件のレベル読み替えを収集（位相限定かどうかは収集側が原文から判定する）。
-      // 値は**取りうるレベル群**なので `eichi_level_options` に入れる（単一値の
-      // `attack_phase_level_overrides` は SET_BASE_LEVEL 等が使う別物）。
-      const ownerLevelOverrides = collectAttackPhaseLevelOverrides(ownerState, effectsMap, battleCardMap, bs.turn_phase ?? undefined);
-      const ownerStateForCtx = Object.keys(ownerLevelOverrides).length > 0
-        ? { ...ownerState, eichi_level_options: ownerLevelOverrides } : ownerState;
-      const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, bs.turn_phase);
-      // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
-      const otherProtectedZoneRules = collectProtectedZoneRules(otherState, battleCardMap, effectsMap, bs.turn_phase ?? undefined);
-      const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap, bs.turn_phase ?? undefined);
-      // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
-      const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
-      const otherAttackNegationProtectedNums = collectAttackNegationProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
-      // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
-      // !isOwnerTurn: 相手(otherState)視点での isOwnerTurn を渡す（collectAbilityProtectedSigni と同じ慣例）
-      const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
-      // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
-      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn, bs.turn_phase);
-      // GRANT_PROTECTION from=['BANISH'/'any']: 相手フィールドのバニッシュ保護シグニ
-      const otherBanishProtectedNums = collectBanishEffectProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, undefined, 'opponent', bs.turn_phase);
-      // 発生源無限定（sourceOwner:any）の耐性は、自分の効果で自場をバニッシュする場合にも有効。
-      // opponent 指定はこの集合へ入らないため、既存の相手限定耐性は広がらない。
-      const ownBanishProtectedNums0 = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, ctxPowers, 'self', bs.turn_phase);
-      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
-      const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
-      // SELF_TRASH_PREVENT（WX07-033）: 効果オーナー自身が自シグニをトラッシュに置けない制限（§6.1）
-      const ownSelfTrashPreventNums = collectSelfTrashPreventNums(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
-      // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP: 能力付与保護シグニ
-      // !isOwnerTurn: 第1引数 otherState（相手）視点でのisOwnerTurnを渡す
-      const otherAbilityGainProtectedNums0 = collectAbilityGainProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
-      // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」WX04-035-E1等）:
-      // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
-      const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
-      const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType);
-      // 🆕**§5.3 `O-284`（2026-09-08）＝自分側の完全効果耐性も対で計算する。**
-      //   🔴上の1本だけだと「**対戦相手の効果が自分側を侵すか**」しか判定されず、
-      //     `sourceOwner:'any'`（`WX17-001-E1`「自身以外の効果を受けない」）は**自分の効果に対して素通り**だった。
-      //   🔑先例＝`collectBanishEffectProtectedSigni` の `otherBanishProtectedNums` / `ownBanishProtectedNums` の対。
-      //   ⚠`sourceOwner:'opponent'` の耐性はこの集合に入らない（collector が弾く）＝既存の相手限定耐性は広がらない。
-      const ownEffectImmuneNums = collectEffectImmuneSigni(ownerStateForCtx, otherState, battleCardMap, effectsMap, isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType, ctxPowers);
-      // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
-      const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(
-        otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType, entry.cardNum,
-      );
-      const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
-      const otherBounceProtectedNumsM = [...otherBounceProtectedNums, ...otherEffectImmuneNums];
-      const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums, ...otherBanishBySourceNums]);
-      const otherTrashFieldProtectedNumsM = [...otherTrashFieldProtectedNums, ...otherEffectImmuneNums];
-      const otherProtectedSigniNumsM  = [...otherProtectedSigniNums, ...otherEffectImmuneNums];
-      // 🆕§5.3 `O-284`＝自分側の完全効果耐性はバニッシュ保護へも union する（相手側と同じ扱い）。
-      const ownBanishProtectedNumsM = new Set<string>([...ownBanishProtectedNums0, ...ownEffectImmuneNums]);
-      const otherAbilityGainProtectedNums = [...otherAbilityGainProtectedNums0, ...otherEffectImmuneNums];
-      // BLOCK_OPP_DECK_TO_ENERGY / BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT
-      const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
-      const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerStateForCtx, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn)]);
-      const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerStateForCtx, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn)]);
-      // OPP_TRASH_LOSE_COLOR_AND_CLASS: otherState が自ターン中にこの効果を持つとき ownerState のトラッシュが色/クラスを失う
-      const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerStateForCtx, effectsMap, battleCardMap, !isOwnerTurn);
-      const treatAsClassAllZones = collectTreatAsClassAllZones(ownerStateForCtx, otherState, effectsMap, battleCardMap);
-      const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerStateForCtx, otherState, effectsMap, battleCardMap);
-      const declaredCardMap1 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerStateForCtx, otherState), ownerStateForCtx, otherState, effectsMap, isOwnerTurn);
-      // CHARM_PROTECTION（WX04-052-E1）: 両プレイヤーのチャーム盾シグニ
-      const charmShieldNums = new Set<string>([
-        ...collectCharmShieldSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap),
-        ...collectCharmShieldSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap),
-      ]);
-      // ⚠ `currentPhase` は**この8箇所すべてに渡すこと**（タスク12(cvii)）。engine 側にはフェイズを見る
-      //   機構が4本あるが（`isOwnTrashMoveLocked`／`DURING_PHASE` 条件／`applyEffectLeaveNoAbilityDeck
-      //   BottomSubstitute`／`banishRedirectOpts.turnPhase`）、いずれも**フェイズ不明なら成立させない側へ
-      //   倒す**設計なので、渡し忘れると「engine は正しいのに実UIでは丸ごと不発」になり計器にも映らない。
-      //   golden ハーネス（`src/verify/main.ts`）は `currentPhase:'MAIN'` を手で埋めるため緑のまま通る。
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, sourceEffectId: entry.effectId, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, sourceLeftZoneIdx: entry.sourceLeftZoneIdx, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedZoneRules, otherProtectedSigniNums: otherProtectedSigniNumsM, otherAttackNegationProtectedNums, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, ownBanishProtectedNums: ownBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, ownEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
-      ctx.isOwnerTurn = isOwnerTurn;
-      // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
-      // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
-      ctx.effectsMap = effectsMap;
-      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ（isOwnerTurn 確定後に呼ぶ）
-      // §6.4 O-38（続き544）＝「対戦相手のシグニの【自】能力が発動する場合、対戦相手が〈コスト〉を
-      // 支払わないかぎり、その能力は何もしない」（`SPDi43-01-E2`）。
-      // 🔑**ここが唯一の choke point**＝`shiftQueue` の呼び出し元は上の1箇所だけなので、
-      //   全経路（人間/CPU・シグニの【自】）をここで包める。収集側（`triggerCollect` の42箇所に散った
-      //   `BLOCK_OWN_SIGNI_AUTO` フィルタ）に支払い分岐は差し込めない。
-      const autoPayGate = isSigniAutoAbility(entry.effect, entry.cardNum, battleCardMap)
-        ? findSigniAutoPayGate(ownerState, otherState) : null;
-      const effectToRun = autoPayGate ? wrapSigniAutoPayGate(entry.effect, autoPayGate) : entry.effect;
-      let result = executeEffect(effectToRun, ctx);
-      // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
-      // 🔑公式ルール＝「1つの効果が終わった後、**他に発動する効果より優先して**リフレッシュ」（例：《幻獣神 オサキ》）。
-      {
-        const refreshed = applyRefreshOnDone(result, battleCardMap);
-        if (refreshed !== result) {
-          const turnPlayerIsOwner = entry.playerId === bs.active_user_id;
-          const turnPlayerRefreshed = turnPlayerIsOwner ? refreshed.ownerRefreshed : refreshed.otherRefreshed;
-          const turnPlayerCount = (turnPlayerIsOwner ? refreshed.ownerState : refreshed.otherState).refresh_count_this_turn ?? 0;
-          // §5.6 `C-9` `R-28`＝しきい値は `refreshTurnEnd.ts` の述語1本（funnel と同じ判定を通す）。
-          result = (turnPlayerRefreshed && refreshForcesTurnEnd({ refresh_count_this_turn: turnPlayerCount } as PlayerState) && refreshed.done)
-            ? { ...refreshed, forceEndTurn: true }
-            : refreshed;
-        }
-      }
-      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
-
-      // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
-      if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.targetScope === 'opp_field') {
-        const effectSourceCardType = battleCardMap.get(getCardNum(entry.cardNum))?.Type;
-        const forcedNums = collectForcedTargets(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, effectSourceCardType);
-        const forcedInCands = forcedNums.filter(n => result.done === false && result.pending.type === 'SELECT_TARGET' && result.pending.candidates.includes(n));
-        if (forcedInCands.length > 0 && result.done === false && result.pending.type === 'SELECT_TARGET' && forcedInCands.length < result.pending.candidates.length) {
-          const pend = result.pending;
-          result = { ...result, pending: { ...pend, candidates: forcedInCands } } as typeof result;
-          appendBattleLogs([`[FORCE_TARGET_SELF] 対象が${forcedInCands.length}体に強制`], { defer: true });
-        }
-      }
-
-      const hostState  = resolvePendingExiles(ownerIsHost ? result.ownerState : result.otherState);
-      const guestState = resolvePendingExiles(ownerIsHost ? result.otherState : result.ownerState);
-
-      const stackAfter = isStackDone(newStack) ? null : newStack;
-      // パッチは型付きローカルへ積み、commit 直前に `RESOLVE_EFFECT_STEP` の payload として1回だけ渡す
-      // （旧実装は `Record<string, unknown>` の `update` を積み増し、`'host_state' in update ? … : hostState`
-      //  で読み戻していた＝3キーとも初期化済みなので **読み戻し先は常に累積値**）。
-      let hostAcc = hostState;
-      let guestAcc = guestState;
-      // ON_ABILITY_ACTIVATED（§6.3 J-1）の《ターン1回》消化を actions_done へ永続化する。
-      // collector が使用回数を読むのは actions_done なので、書き戻さないと**同じターンに何度でも再発火**する
-      // （既存 collector 群が usedOncePerTurnIds を呼び出し側で書き戻しているのと同じ規約）。
-      if (aaHost.usedOncePerTurnIds.length > 0) {
-        hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...aaHost.usedOncePerTurnIds] };
-      }
-      if (aaGuest.usedOncePerTurnIds.length > 0) {
-        guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...aaGuest.usedOncePerTurnIds] };
-      }
-      let stackAcc: EffectStack | null = stackAfter;
-      let pendingAcc: PendingEffect | null;
-      /** FORCE_END_TURN で重ねるターン終了（未発生＝undefined）。 */
-      let forceEndNextTurn: { activeUserId: string } | undefined;
-      if (!result.done) {
-        // opponentResponds=true の場合、相手プレイヤーがUIを操作する
-        const oppId = ownerIsHost ? bs.guest_id : bs.host_id;
-        const respondPlayerId = pendingRespondsOpponent(result.pending) ? oppId : undefined;
-        pendingAcc = {
-          sourcePlayerId: entry.playerId,
-          ...(respondPlayerId ? { respondPlayerId } : {}),
-          sourceCardNum: entry.cardNum,
-          effectId: entry.effectId,
-          interaction: result.pending,
-          ...(entry.triggeringCardNum ? { triggeringCardNum: entry.triggeringCardNum } : {}),
-          ...(entry.leftFieldUnderCards ? { leftFieldUnderCards: entry.leftFieldUnderCards } : {}),
-          ...(entry.sourceLeftZoneIdx !== undefined ? { sourceLeftZoneIdx: entry.sourceLeftZoneIdx } : {}),
-          ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
-          ...(result.trapActivated ? { trapActivated: true } : {}),
-          ...(result.trapSetOwners ? { trapSetOwners: result.trapSetOwners } : {}),
-          ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
-        } satisfies PendingEffect;
-        // インタラクション中はスタック（残キュー）を保持
-        stackAcc = newStack;
-        // === 中断前ラウンドの盤面差分トリガー（タスク12(cxi)・Opus）===
-        // エントリの解決が**最初の対話で中断する**場合、そこまでに確定した盤面変化（例 SEQUENCE の
-        // step1 の DRAW）は下の RESOLVE_EFFECT_STEP で bs.host_state/bs.guest_state へ取り込まれる。
-        // 従来この分岐には収集が一切なく、resume 側（handleEffectInteraction）が完了時に行う
-        // collectBoardDiffTriggers は **before に既にその変化を含む**ため差分ゼロ＝永久に見逃していた
-        // （続き75 が resume 側の2巡目以降に入れた同じ手当ての、1巡目版が欠けていた）。
-        // 実例＝WX20-026-E1 `SEQUENCE[DRAW, TRASH(手札1枚選択)]` はドロー直後に中断するため、
-        // 同カード E3 の ON_DRAW（drawBySourceStory）が実機で一度も発火しなかった。
-        // ⚠ pending_effect を残したままスタックに積むが、これは resume 側の中途収集と同じ扱い
-        //   （pending 解決後にスタックが処理される）＝新しい実行順序を持ち込むものではない。
-        const midBd = collectBoardDiffTriggers(hostAcc, guestAcc, {
-          causeOwnerId: entry.playerId,
-          causeSourceCardNum: entry.cardNum,
-          fieldTrashCostCards: result.fieldTrashCostCards,
-          ...fieldPlacementOnPlayOpts(entry.effect),
-        });
-        hostAcc = midBd.hostState;
-        guestAcc = midBd.guestState;
-        if (midBd.entries.length > 0) stackAcc = pushToStack(newStack, midBd.entries);
-      } else {
-        pendingAcc = null;
-
-        // === 盤面差分トリガーの統合収集（続き61・Opus）===
-        // 従来ここに全 collector が並んでいたが、resume 経路（handleEffectInteraction）と共通化するため
-        // collectBoardDiffTriggers に集約した。action 型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD/arts）は下に inline 据置。
-        {
-          const bd = collectBoardDiffTriggers(hostAcc, guestAcc, {
-            causeOwnerId: entry.playerId,
-            causeSourceCardNum: entry.cardNum,
-            fieldTrashCostCards: result.fieldTrashCostCards,
-            ...fieldPlacementOnPlayOpts(entry.effect),
-          });
-          hostAcc = bd.hostState;
-          guestAcc = bd.guestState;
-          if (bd.entries.length > 0) {
-            const baseStackBD = stackAcc ?? null;
-            stackAcc = baseStackBD
-              ? pushToStack(baseStackBD, bd.entries)
-              : initStack(stack.turnPlayerId, bd.entries);
-          }
-        }
-
-        // 《トラップアイコン》発動は signi_traps の減少だけでは「破棄」と区別できないため、
-        // executor が発動枝で立てた明示イベントを、現在の効果解決完了後に収集する。
-        if (result.trapActivated) {
-          const ta = collectTrapActivateTriggers(entry.playerId, hostState, guestState);
-          if (ta.entries.length > 0) {
-            const baseStackTA = stackAcc ?? null;
-            stackAcc = baseStackTA
-              ? pushToStack(baseStackTA, ta.entries)
-              : initStack(stack.turnPlayerId, ta.entries);
-          }
-          if (ta.usedHostIds.length > 0) {
-            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ta.usedHostIds] };
-          }
-          if (ta.usedGuestIds.length > 0) {
-            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ta.usedGuestIds] };
-          }
-        }
-
-        if ((result.trapSetOwners?.length ?? 0) > 0) {
-          const ts = pureCollectTrapSetTriggers(mkTrigCtx(), entry.playerId, result.trapSetOwners!, hostState, guestState);
-          if (ts.entries.length > 0) {
-            const baseStackTS = stackAcc ?? null;
-            stackAcc = baseStackTS
-              ? pushToStack(baseStackTS, ts.entries)
-              : initStack(stack.turnPlayerId, ts.entries);
-          }
-          if (ts.usedHostIds.length > 0) {
-            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ts.usedHostIds] };
-          }
-          if (ts.usedGuestIds.length > 0) {
-            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ts.usedGuestIds] };
-          }
-        }
-
-        // ON_TARGETED（続き137・タスク12(xx)）: targetsTriggerSource/targetsLastProcessed の自動対象化は
-        // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。executeEffect が
-        // result.autoTargetedCards として surface した「対戦相手の場のシグニ」を対象に取った瞬間として収集する。
-        if ((result.autoTargetedCards?.length ?? 0) > 0) {
-          const oppOfSourceId = entry.playerId === bs.host_id ? bs.guest_id : bs.host_id;
-          const oppOfSourceAfter = oppOfSourceId === bs.host_id ? hostState : guestState;
-          const autoTargetedOpp = result.autoTargetedCards!.filter(n =>
-            oppOfSourceAfter.field.signi.some(s => s?.at(-1) === n));
-          if (autoTargetedOpp.length > 0) {
-            const tt = collectTargetedTriggers(
-              autoTargetedOpp, oppOfSourceId, hostState, guestState,
-              { cardNum: entry.cardNum, effect: entry.effect },
-              bs.host_state, bs.guest_state,
-            );
-            if (tt.entries.length > 0) {
-              const baseStackT = stackAcc ?? null;
-              stackAcc = baseStackT
-                ? pushToStack(baseStackT, tt.entries)
-                : initStack(stack.turnPlayerId, tt.entries);
-            }
-            if (tt.usedHostIds.length > 0) {
-              hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...tt.usedHostIds] };
-            }
-            if (tt.usedGuestIds.length > 0) {
-              guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...tt.usedGuestIds] };
-            }
-          }
-        }
-
-        // 🏁§5.3 `O-292`（2026-09-12）＝ここにあった「COLLAB で配置したアシストルリグ自身の【出】を集める」分岐は撤去した。
-        //   「コラボライバーを呼ぶ」は**ライバートークンを得るだけ**で、カードは場に出ない（公式 FAQ）。
-
-        // 開花（ON_BLOOM）トリガーは上の detectBloomedSigni / collectBloomTriggers で収集済み。
-        // ルール上「開花」は「場に出た」扱いではないため、ここで ON_PLAY（出現時）は発火させない。
-
-        // REVEAL_UNTIL_TO_FIELD の自身【出】も上の opt-in 中央 diff に統合済み。
-
-        // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
-        // ⚠遅延トリガー（INSTALL_DELAYED_TRIGGER の発火）は除く＝アーツを「使用した」のは設置した時点であって
-        //   発火時点ではない。タスク12(lxi) 第6波で entry.cardNum に設置元カード番号を復元した副作用で、
-        //   アーツ由来の遅延トリガー6枚（WX11-024／WX24-P1-007／WX25-P3-003／WX26-CP1-003／-005／-009）が
-        //   発火のたびに「アーツ使用」を再発火させる二重発火になるため、effectId で弁別して抑止する。
-        // §5.3 `O-131`＝収集は `collectOppArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
-        const artsTriggers = collectOppArtsUseForResolution({
-          artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
-          beforeMine: isHost ? bs.host_state : bs.guest_state,
-          afterHost: hostState, afterGuest: guestState,
-          autoTargetedCards: result.autoTargetedCards,
-        });
-        if (artsTriggers) {
-          const iAmHost = artsTriggers.iAmHost;
-          if (artsTriggers.entries.length > 0) {
-            const baseStack2 = stackAcc ?? null;
-            stackAcc = baseStack2
-              ? pushToStack(baseStack2, artsTriggers.entries)
-              : initStack(iAmHost ? bs.host_id : bs.guest_id, artsTriggers.entries);
-          }
-          // 🆕usageLimit（《ターン1回/2回》）を反応側の actions_done へ永続化（ON_ARTS_USE 側と同型）。
-          if (artsTriggers.usedIds.length > 0) {
-            const baseStOA = iAmHost ? hostAcc : guestAcc;
-            const withUsedOA = { ...baseStOA, actions_done: [...(baseStOA.actions_done ?? []), ...artsTriggers.usedIds] };
-            if (iAmHost) hostAcc = withUsedOA; else guestAcc = withUsedOA;
-          }
-        }
-
-        // ON_ARTS_USE: 自分がアーツを使用した場合、使用者自身の ON_ARTS_USE トリガーを収集（ON_SPELL_USE のアーツ版）。
-        // caster の client のみが収集する（entry.playerId === user.id）＝ON_OPP_ARTS_USE と裏表で二重押しを防ぐ。
-        // §5.3 `O-131`＝収集は `collectArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
-        const au = collectArtsUseForResolution({
-          artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
-          afterHost: hostState, afterGuest: guestState,
-        });
-        if (au) {
-          if (au.entries.length > 0) {
-            const baseStackAU = stackAcc ?? null;
-            stackAcc = baseStackAU
-              ? pushToStack(baseStackAU, au.entries)
-              : initStack(user.id, au.entries);
-            // usageLimit（《ターン1回/2回》）を caster の actions_done に永続化
-            if (au.usedIds.length > 0) {
-              const baseStAU = isHost ? hostAcc : guestAcc;
-              const withUsed = { ...baseStAU, actions_done: [...(baseStAU.actions_done ?? []), ...au.usedIds] };
-              if (isHost) hostAcc = withUsed; else guestAcc = withUsed;
-            }
-          }
-        }
-
-        // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
-        if (result.forceEndTurn) {
-          const activeIsHost = bs.active_user_id === bs.host_id;
-          // §5.3 `O-117`＝盤面処理は `applyForcedTurnEnd` の1本（カットイン経路と同じ関数を見る）。
-          const forced = applyForcedTurnEnd(
-            activeIsHost ? hostState : guestState,
-            activeIsHost ? guestState : hostState,
-          );
-          // ⚠ ターン強制終了は**それまでの累積を上書きする**（旧 `Object.assign` の後勝ち）。
-          //   forced.* は解決直後の hostState/guestState 由来＝累積側ではない。
-          if (activeIsHost) { hostAcc = forced.activeAfter; guestAcc = forced.nextAfter; }
-          else { guestAcc = forced.activeAfter; hostAcc = forced.nextAfter; }
-          stackAcc = null;
-          // 🆕§5.6 `C-9` `R-27`＝**追加ターン／相手のスキップが予約されていれば交代しない**（`applyForcedTurnEnd` が判定）。
-          forceEndNextTurn = {
-            activeUserId: (forced.keepTurn ? bs.active_user_id : (activeIsHost ? bs.guest_id : bs.host_id)) as string,
-          };
-          appendBattleLogs(['ターンが強制終了されました', ...(forced.log ? [forced.log] : [])], { defer: true });
-        }
-      }
-      await persist.commit(reduceBattle(bs, {
-        type: 'RESOLVE_EFFECT_STEP', hostState: hostAcc, guestState: guestAcc,
-        pending: pendingAcc, effectStack: stackAcc, beginNextTurn: forceEndNextTurn,
-      }));
+      const step = resolveStackStep(bs, stackResolveDeps());
+      if (!step) return;
+      if (step.entryId) lastResolvedEntryIdRef.current = step.entryId;
+      if (step.logs.length > 0) appendBattleLogs(step.logs, { defer: true });
+      await persist.commit(reduceBattle(bs, step.action));
       // main update が確定してから flush（先に RPC が届いて stale な effect_stack で再実行されるのを防ぐ）
       await flushBattleLogs();
     } finally {
@@ -6125,18 +4885,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectFieldTriggers(mkTrigCtx(), event, triggeringCardNum, myState, opState, ownerId, opts);
 
-  // 【シード】が開花したときの ON_BLOOM トリガーを収集する。
-  //  ・開花したシグニ自身の「このシグニが開花したとき」（triggerScope: self）
-  //  ・場の他シグニの「あなたの他のシグニが開花したとき」（triggerScope: any_ally/any）
-  // 開花は「場に出た」扱いではないため、ON_PLAY（出現時）は発火させない（公式ルール）。
-  // ON_BLOOM 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectBloomTriggers = (
-    bloomedInstanceId: string,
-    myState: PlayerState,
-    opState: PlayerState,
-    ownerId: string,
-  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectBloomTriggers(mkTrigCtx(), bloomedInstanceId, myState, opState, ownerId);
 
   /**
    * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD）に反応する自フィールドシグニの AUTO 効果を収集する。
