@@ -4903,7 +4903,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     costOnPlay: 'modal' | 'skip';
   }
   // 🆕§5.7 `S-5c` 第2段＝本体は `controller/performSummonSigni.ts`（I/O 注入）。ここは材料を渡すだけ。
-  const performSummonSigni = (a0: Parameters<typeof performSummonSigniImpl>[0], a1: Parameters<typeof performSummonSigniImpl>[1], a2: Parameters<typeof performSummonSigniImpl>[2], a3: Parameters<typeof performSummonSigniImpl>[3], a4: Parameters<typeof performSummonSigniImpl>[4]) => performSummonSigniImpl(a0, a1, a2, a3, a4, performCtx());
+  const performSummonSigni = (
+    a0: Parameters<typeof performSummonSigniImpl>[0], a1: Parameters<typeof performSummonSigniImpl>[1],
+    a2: Parameters<typeof performSummonSigniImpl>[2], a3: Parameters<typeof performSummonSigniImpl>[3],
+    a4: Parameters<typeof performSummonSigniImpl>[4],
+  ) => performSummonSigniImpl(a0, a1, a2, a3, {
+    ...a4,
+    // 🔴**渡し忘れ厳禁**（2026-09-18 のバグ報告＝召喚後もゾーン選択モーダルが開いたままになり、
+    //   手札から追加で召喚できてしまった）。移設前はこの2つが `performSummonSigni` の本体にあった。
+    closeSummonModals: () => { setPendingSigniSummon(null); setPendingResonaSummon(null); },
+    openOnPlayCost: setPendingSigniOnPlayCost,
+  }, performCtx());
 
 
   const handleSummonSigni = async (

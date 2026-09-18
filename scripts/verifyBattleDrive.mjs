@@ -60108,6 +60108,60 @@ order.push('v276CpuHandResponse');
 scenarios.v276bCpuHandResponseEmpty = mkV276CpuHandResponse(false);
 order.push('v276bCpuHandResponseEmpty');
 
+// ── 🆕§5.1 `V-277`（2026-09-18・ユーザーのバグ報告）＝**召喚したらゾーン選択のモーダルが閉じる** ──
+// 🔴報告「1体のシグニを召喚した後、なぜかそのまま手札のカードが追加で召喚されることになっている。
+//   召喚した後になぜか追加で召喚するゾーンを選ぶ画面になる」。
+// 真因＝`performSummonSigni` を `controller/` へ移設した際に、画面のラッパが
+//   `closeSummonModals`（＝`setPendingSigniSummon(null)` / `setPendingResonaSummon(null)`）を**渡し忘れていた**。
+// 観測点＝召喚後に「ゾーン1」ボタンが消える／場のシグニが1体だけ／手札が1枚だけ減る。
+scenarios.v277SummonClosesZoneModal = {
+  title: 'V-277 召喚したらゾーン選択モーダルが閉じる（バグ報告＝追加召喚の画面が出ない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD05-001#1'],            // リミット11（配置制限に掛からない）
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'hand': ['WD05-010#h1', 'WD05-011#h2'],  // ＜悪魔＞Lv3 ×2（コストなしで召喚できる）
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'hand': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log(`開始 hand=${JSON.stringify(before?.host?.handCards)} field=${JSON.stringify(before?.host?.fieldSigni)}`);
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    await page.waitForTimeout(700);
+    H.log('召喚:', await H.clickBtn('召喚', { exact: true }) ?? '見つからず');
+    await page.waitForTimeout(700);
+    H.log('ゾーン:', await H.clickZone() ?? '見つからず');
+    // 召喚が盤面に入るのを待つ（対話は出ない札）。
+    let st = null;
+    for (let i = 0; i < 12; i++) {
+      await page.waitForTimeout(700);
+      st = await H.queryState();
+      const placed = (st?.host?.fieldSigni ?? []).flat().filter(Boolean).length;
+      if (placed >= 1 && !st?.pendingEffect && !(st?.stackLen > 0)) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v277-after.png`, fullPage: true });
+    // 🔴**ここが報告の中身**＝召喚後にゾーン選択が残っていない。
+    const zoneStillOpen = [];
+    for (const zi of [1, 2, 3]) {
+      const b = page.getByRole('button', { name: new RegExp(`^ゾーン${zi}`) }).first();
+      if (await b.count() && await b.isVisible().catch(() => false)) zoneStillOpen.push(zi);
+    }
+    const field = (st?.host?.fieldSigni ?? []).flat().filter(Boolean);
+    const detail = `field=${JSON.stringify(st?.host?.fieldSigni)} hand=${JSON.stringify(st?.host?.handCards)} zoneOpen=${JSON.stringify(zoneStillOpen)}`;
+    if (field.length !== 1) return { pass: false, detail: `🔴召喚されたシグニが1体でない（${detail}）` };
+    if ((st?.host?.handCards ?? []).length !== 1) return { pass: false, detail: `🔴手札の減りが1枚でない（${detail}）` };
+    if (zoneStillOpen.length > 0) {
+      return { pass: false, detail: `🔴召喚後もゾーン選択モーダルが開いたまま＝追加で召喚できてしまう（${detail}）` };
+    }
+    return { pass: true, detail: `召喚1体でモーダルが閉じた（${detail}）` };
+  },
+};
+order.push('v277SummonClosesZoneModal');
+
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
 //   このシグニをあなたの手札から場に出す。」

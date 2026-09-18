@@ -85937,6 +85937,39 @@ test('§5.7 S-5c 第2段 I/O の注入：実行関数（アシストグロウ）
     JSON.stringify(['commit', 'appendLogs', 'setLoading']), `🔴BattleIo の口が変わった（${JSON.stringify(keys)}）`);
 }));
 
+test('§5.7 S-5c 画面のコールバックを渡し忘れていない（移設した実行関数の UI 口を全数で見る）', () => withSavedCursor(() => {
+  // 🔴**2026-09-18 のバグ報告**＝「1体召喚したあと、続けて手札から召喚するゾーン選択が出る」。
+  //   真因＝`performSummonSigni` を `controller/` へ移設したとき、**画面のラッパが UI コールバック2本を渡し忘れた**
+  //   （`closeSummonModals`＝召喚モーダルを閉じる／`openOnPlayCost`＝コスト付き【出】の確認）。
+  //   型は `?:`（任意）なので**typecheck も lint も通り、golden もどのゲートも緑のまま**だった。
+  // 🔑**だからここで全数チェックする**＝移設先で `?:` にした UI コールバックは、画面のどこかで必ず渡す。
+  const controllerDir = join(root, 'src/screens/battle/controller');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // UI っぽい任意コールバック＝`open*` / `close*` / `*Modal` で終わる `?: (…) => …` の宣言。
+  const uiCallback = /^\s{2,4}(open[A-Z]\w*|close[A-Z]\w*|\w*Modal|growForMayu)\?:\s*\(/;
+  const missing: string[] = [];
+  const found: string[] = [];
+  for (const f of fs.readdirSync(controllerDir).filter(n => n.endsWith('.ts'))) {
+    const src = fs.readFileSync(join(controllerDir, f), 'utf8');
+    for (const line of src.split('\n')) {
+      const m = line.match(uiCallback);
+      if (!m) continue;
+      const name = m[1];
+      found.push(`${f}:${name}`);
+      // 画面側で「渡している」こと＝`name:` か `name,`（短縮記法）で現れる。
+      // ⚠テンプレートリテラルの中では `\\s` と書く（`\s` はテンプレート側で食われて regex に届かない＝何にも当たらない）。
+      if (!new RegExp(`(?:^|[\\s{,])${name}\\s*[:,]`, 'm').test(battle)) missing.push(`${f}:${name}`);
+    }
+  }
+  ok(found.length >= 5, `🔴UI コールバックの宣言が見つからない（検出器が壊れている）: ${JSON.stringify(found)}`);
+  eq(missing.length, 0, `🔴画面が渡し忘れている UI コールバック: ${missing.join(', ')}（移設前は実行関数の本体にあった＝落とすと無言で効かなくなる）`);
+  // 🔴召喚の2本は名指しでも見る（今回の報告そのもの）。
+  ok(/closeSummonModals: \(\) => \{ setPendingSigniSummon\(null\); setPendingResonaSummon\(null\); \}/.test(battle),
+    '🔴召喚モーダルを閉じるコールバックを渡していない（召喚後もゾーン選択が開いたままになる）');
+  ok(/openOnPlayCost: setPendingSigniOnPlayCost/.test(battle),
+    '🔴コスト付き【出】の確認モーダルを開くコールバックを渡していない（人間がコスト付き【出】を使えなくなる）');
+}));
+
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
   // 🔑報告は「遊んで見つけた型」を拾う唯一の導線＝**中身が欠けているとその報告は死ぬ**
   //   （再現できない＝golden に落とせない）。組み立てを純関数にして、ここで欠落を止める。

@@ -29,6 +29,7 @@
 | 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第3段**＝**先にルール処理を出す**（`resolvePendingSigniBattleFor` 1,588行 → `doPhaseAdvance` 683 → `confirmEndDiscard` 234）。**そのあと `cpuTurnAction`**（1,362行・画面から45名前を掴む＝いま出すと巨大な deps になる） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
 | 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| ⚠**直近の不具合** | 🔴**私の移設ミスを1件修正**＝召喚後もゾーン選択モーダルが開いたまま（`closeSummonModals`／`openOnPlayCost` の渡し忘れ）。golden に**全数チェック**を追加（`controller/` の任意 UI コールバックを画面が渡しているか）＋実機 `V-277` |
 | 🔧**ゲート** | `npm run gates` 全緑 |
 ---
 
