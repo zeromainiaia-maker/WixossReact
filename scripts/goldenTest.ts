@@ -87534,6 +87534,16 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   ok(/if \(!localMy\.pending_lrig_attack\) return;\s*if \(!ownCommitsArrived\(bs\)\) return;/.test(battle), '🔴ルリグアタックの解決が自分の書き込みの通知を待たない');
 }));
 
+test('§5.1 V-181 バトルで倒れた防御側の【自】はバトル前の防御側の盤面で集める（CPU のアタックでも）', () => withSavedCursor(() => {
+  // 🆕2026-09-18＝`resolvePendingSigniBattleFor` は人間・CPU 共用なのに、防御側の collectBanishTriggers に
+  //   画面の持ち主から見た相手 `op` を渡していた＝CPU がアタックすると人間の防御シグニの離場ゾーンが引けず、
+  //   「このシグニの正面にあった」（WX07-039-E1）が「対象を取れない」で不発した（実機 v181 を防御側経路へ組み直して判明）。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const m = battle.match(/collectBanishTriggers\(\s*banishedOpCardNum,\s*defenderId,\s*newHostState,\s*newGuestState,[\s\S]*?\n\s*(\w+),\s*\r?\n\s*undefined,\s*\r?\n\s*myTopNum,/);
+  ok(!!m, '防御側の collectBanishTriggers 呼び出しが見つからない（形が変わったならこの検査も直す）');
+  eq(m?.[1], 'opS', '🔴防御側のバトル前状態が opS ではない（op だと CPU のアタックで人間の防御シグニの離場ゾーンが引けない）');
+}));
+
 test('§5.6 C-5 追補 セットアップ：人間も CPU もデッキの指定どおりに置く（盤面は同じ buildLrigSetupState）', () => withSavedCursor(() => {
   // 🆕2026-09-17＝どれを置くかはデッキ編成の指定（`resolveDeckLrigSetup`）。旧 `pickCpuLrigSetup`（CPU が推測）と人間の選択画面は廃止。
   const lrigDeck = ['WDK09-005', 'WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WXDi-D01-009', 'WDK14-005'];

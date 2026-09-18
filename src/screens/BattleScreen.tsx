@@ -7757,7 +7757,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             defenderId,
             newHostState,
             newGuestState,
-            op, // 防御側のバトル前状態（アクセ付与ON_BANISH復元用）
+            // 🔴防御側のバトル前状態（アクセ付与 ON_BANISH 復元・離場ゾーン添字 `sourceLeftZoneIdx`）。
+            //   2026-09-18 まで**画面の持ち主から見た相手 `op`** を渡していた＝**CPU がアタックすると防御側は人間なのに
+            //   CPU の盤面から探して見つからず**、「このシグニの正面にあった」（`WX07-039-E1`）が「対象を取れない」で不発していた
+            //   （実機 `V-181` を撤回済みの相打ち前提から防御側経路へ組み直して判明）。この関数は人間・CPU 共用＝`opS` を使う。
+            opS,
             undefined,
             myTopNum,
           )

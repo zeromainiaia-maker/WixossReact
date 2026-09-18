@@ -7330,7 +7330,7 @@ const scenarios = {
     title: 'WXEX2-50→WXK10-022-E1（R30 ON_PLAY any_opp+targetsTriggerSource＝対戦相手のシグニが場に出たとき能力喪失）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD03-003#1'],
+        'field.lrig': ['WX03-008#1'],
         'field.signi': [['WXEX2-50#1'], ['WXK10-022#1'], null], // zone0=起動元／zone1=watcher（any_opp）／zone2はstep2の配置先に空ける
         'field.signi_down': [false, false, false],
         'trash': ['WX08-074#1'],  // 幻蟲 Ｑ・アント（＜凶蟲＞シグニ・step2の自トラッシュ側ソース）
@@ -8019,7 +8019,7 @@ const scenarios = {
     spec: {
       hostSet: {
         'field.lrig': ['WX25-P3-032#1'],  // 虚幸の冥者 ハナレ（HAS_CARD_IN_FIELD条件のカード自身をセンターに）
-        'field.signi': [['WX25-P3-062#1'], ['WX01-053#1'], null], // 攻撃者(zone0)＋埋め草(zone1)
+        'field.signi': [['WX25-P3-062#1'], ['WD01-013#8'], null], // 攻撃者(zone0)＋埋め草(zone1)
         'field.signi_down': [false, false, false],
         'energy': ['WX04-101#1'], // アイン＝ダガ（毒牙・Lv1・エナからの任意トラッシュ対象）
         'actions_done': [],
@@ -17173,8 +17173,31 @@ function preflightScenario(sc, db) {
     }
     if (emptyZones >= 2) warns.push(`空きシグニゾーンが${emptyZones}＝召喚/ADD_TO_FIELD 後に SELECT_SIGNI_ZONE（「ゾーンN」ボタンのクリック）が要る`);
   }
+  // 🆕🔴**注入した場そのものがリミット超過**（2026-09-18・§4.4-117）＝§5.3 `O-532`（2026-09-17）でリミット超過が
+  //   **ルール処理**になったので、違法な盤面を注入すると**「リミット超過」の選択画面が先に出て画面を塞ぐ**。
+  //   シナリオは「前提崩れ」「タイムアウト」の形で落ち、原因が盤面だと分からない（v232 の3本・o206・v143 …が同時に腐った）。
+  //   ⚠**場のトップだけを数える**（下に重なったカードはレベル合計に入らない）。⚠両側を見る（相手側の超過も同じ画面を出す）。
+  //   ⚠意図してリミット超過を注入するシナリオ（`O-532` 自身など）は spec に `allowOverLimit: true` を書いて黙らせる。
+  if (!sc.spec?.allowOverLimit) {
+    for (const [side, set] of [['自分', hostSet], ['相手', sc.spec?.guestSet ?? {}]]) {
+      const lr = set['field.lrig'];
+      const lrNum = Array.isArray(lr) && lr.length ? strip(lr.at(-1)) : null;
+      const lrCard = lrNum ? db.get(lrNum) : null;
+      const zones = set['field.signi'];
+      if (!lrCard || !lrCard.limit || !Array.isArray(zones)) continue;
+      const tops = zones.map((z) => (Array.isArray(z) && z.length ? strip(z.at(-1)) : null)).filter(Boolean);
+      const sum = tops.reduce((a, n) => a + (db.get(n)?.level ?? 0), 0);
+      if (sum > lrCard.limit) {
+        const msg = `🔴${side}の注入盤面がリミット超過（${tops.map((n) => `${n}(Lv${db.get(n)?.level ?? '?'})`).join('+')}＝${sum} > ${lr.at(-1)} のリミット${lrCard.limit}）＝「リミット超過」の選択画面が先に出る（§4.4-117）`;
+        warns.push(msg);
+        if (sc.id) preflightOverLimit.set(sc.id, msg);
+      }
+    }
+  }
   return warns;
 }
+/** preflight が「注入盤面がリミット超過」と判定したシナリオ（FAIL の行に理由として添える）。 */
+const preflightOverLimit = new Map();
 
 // ── 既存 PLAYING ルームの再利用判定（2026-07-14）＝マッチング〜マリガンの30〜60秒を毎試行やり直さない。
 //    injectScenario が毎回 host/guest state をホワイトリスト方式で全リセット＋シナリオ直前 reload で
@@ -20015,7 +20038,7 @@ scenarios.v12CpuCannotAttackGranted = {
   title: 'V-12 A-1 CPUが付与「アタックできない」を守る（対象だけup維持・他方は攻撃・phase前進）',
   spec: {
     hostSet: {
-      'field.lrig': ['WD01-001#6200'],
+      'field.lrig': ['WX03-006#6200'],
       'field.signi': [['WD05-009#6203'], ['WD05-009#6204'], ['WD05-009#6206']],
       'field.check': null,
     },
@@ -20061,7 +20084,7 @@ scenarios.v12CpuCannotAttackGrantedControl = {
   title: 'V-12 A-2 対照（keyword_grantsだけ外すとCPUの2体がともにアタック）',
   spec: {
     hostSet: {
-      'field.lrig': ['WD01-001#6210'],
+      'field.lrig': ['WX03-006#6210'],
       'field.signi': [['WD05-009#6213'], ['WD05-009#6214'], ['WD05-009#6216']],
       'field.check': null,
     },
@@ -20102,7 +20125,7 @@ scenarios.v12CpuPowerCapWithControl = {
   title: 'V-12 A-3 CPUが防御側opp_signi_attack_power_capを守る＋cap除去対照',
   spec: {
     hostSet: {
-      'field.lrig': ['WD01-001#6220'],
+      'field.lrig': ['WX03-006#6220'],
       'field.signi': [['WD05-009#6223'], ['WD05-009#6224'], ['WD05-009#6226']],
       'field.check': null,
       'opp_signi_attack_power_cap': 5000,
@@ -20148,7 +20171,7 @@ scenarios.v12CpuPowerCapWithControl = {
     await page.waitForTimeout(600);
     await injectScenario(page, {
       hostSet: {
-        'field.lrig': ['WD01-001#6220'],
+        'field.lrig': ['WX03-006#6220'],
         'field.signi': [['WD05-009#6223'], ['WD05-009#6224'], ['WD05-009#6226']],
         'field.check': null,
       },
@@ -23292,7 +23315,7 @@ const B6_OPP_ARM   = 'WD01-012#9510';    // 中剣フランベル（精武：ア
 const B6_OPP_WALL  = 'WD01-010#9511';    // 大剣カリバン＝正面の壁（＝「それ」＝手札へ戻る対象）
 const b6MiddleOwnerSpec = () => ({
   hostSet: {
-    'field.lrig': ['WD03-003#9520'],
+    'field.lrig': ['WX03-008#9520'],
     // ⚠罠8e＝host と guest のゾーン index は「正面」で一致しない。**中央（zone1）同士だけが対応**する。
     'field.signi': [[B6_SELF_ARM], [B6_SRC], [B6_SELF_OTHER]],
     'field.signi_down': [false, false, false],
@@ -23320,6 +23343,7 @@ async function b6MiddleOwnerDrive(page, H) {
   }
   H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'guest signi:', JSON.stringify(before?.guest?.fieldSigni));
   let modalOpened = false, candsSeen = null, last = before;
+  let declCands = null, declPicked = false;
   for (let s = 0; s < 22; s++) {
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${SHOT}/b6MiddleOwner-${s}.png`, fullPage: true });
@@ -23338,8 +23362,21 @@ async function b6MiddleOwnerDrive(page, H) {
     }
     if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
     const pre = await H.queryState();
-    // ⚠**最初の SELECT_TARGET だけ**を見る＝これが「ダウンするシグニ」のピッカー。
-    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates) && pre.pendingCandidates.length) {
+    // 🔴2026-09-18 に組み直した＝live は **先頭に宣言の選択**（`SELECT_TARGET_ONLY{opponent}`＝「対戦相手のシグニ１体を対象とし」）
+    //   を持つようになった（このシナリオを書いた 2026-08-27 より後の parser 修正）。旧版は「最初の SELECT_TARGET＝ダウンの選択」と
+    //   決め打ちしていたので、**宣言の候補（相手のシグニ＝正しい）を中間動作の候補と取り違えて** FAIL していた。
+    //   ⇒ 宣言の選択は**正面の壁（＝「それ」＝手札へ戻る対象）**を選んで進め、**固定対象が載った後**の選択をダウンの選択として見る。
+    const isSelect = pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates) && pre.pendingCandidates.length;
+    const declDone = Array.isArray(pre?.pendingStoredTargets) && pre.pendingStoredTargets.length > 0;
+    if (!did && isSelect && !declDone && !candsSeen) {
+      if (!declCands) { declCands = pre.pendingCandidates.slice(); H.log('  宣言の候補:', JSON.stringify(declCands)); }
+      if (!declPicked && pre.pendingCandidates.includes(B6_OPP_WALL)) {
+        const c = await clickPendingInstance(page, H, B6_OPP_WALL);
+        if (c) { declPicked = true; did = c; }
+      }
+      if (!did) did = await H.clickBtn('決定');
+    }
+    if (!candsSeen && isSelect && declDone) {
       candsSeen = pre.pendingCandidates.slice();
       H.log('  ダウン対象の候補:', JSON.stringify(candsSeen));
     }
@@ -24492,7 +24529,7 @@ scenarios.v14FacedownOwnReturnsHumanEndNoDiscard = {
       'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null,
       'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8010), 'actions_done': [], 'game_actions_done': [],
     },
-    guestSet: { 'field.lrig': ['WD01-001#8090'], 'field.signi': [['WX01-053#8091'], ['WX01-053#8092'], ['WX01-053#8093']], 'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null, 'life_cloth': v14Life(8040) },
+    guestSet: { 'field.lrig': ['WX03-006#8090'], 'field.signi': [['WX01-053#8091'], ['WX01-053#8092'], ['WX01-053#8093']], 'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null, 'life_cloth': v14Life(8040) },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   drive: (page, H) => driveV14FacedownLifecycle(page, H, { targetSide: 'host', targetId: V14_FD_OWN, zoneIndex: 1, optionalActivate: true, pickTarget: true, confirmText: '決定 (1/2)' }),
@@ -24535,7 +24572,7 @@ const V14_ATK_POS_SPEC = {
     'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8110), 'actions_done': [],
   },
   guestSet: {
-    'field.lrig': ['WD03-003#8190'], 'field.signi': [['WX01-053#8121'], ['WX01-053#8122'], ['WX01-053#8123']],
+    'field.lrig': ['WX03-008#8190'], 'field.signi': [['WX01-053#8121'], ['WX01-053#8122'], ['WX01-053#8123']],
     'temp_power_mods': [{ cardNum: 'WX01-053#8123', delta: 20000 }], 'field.check': null,
     'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8130), 'actions_done': [],
   },
@@ -24603,12 +24640,12 @@ const V14_CPU_PAY_B = 'WX01-083#8143';
 const V14_CPU_DEFENDERS = ['WX01-053#8151', 'WX01-053#8152', 'WX01-053#8153'];
 const V14_CPU_ATK_SPEC = {
   hostSet: {
-    'field.lrig': ['WD01-001#8140'], 'field.signi': [['WX01-053#8151'], ['WX01-053#8152'], ['WX01-053#8153']],
+    'field.lrig': ['WX03-006#8140'], 'field.signi': [['WX01-053#8151'], ['WX01-053#8152'], ['WX01-053#8153']],
     'temp_power_mods': [{ cardNum: 'WX01-053#8153', delta: 20000 }], 'field.check': null,
     'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8160),
   },
   guestSet: {
-    'field.lrig': ['WD03-003#8191'], 'field.signi': [[V14_CPU_ATK], [V14_CPU_PAY_A], [V14_CPU_PAY_B]],
+    'field.lrig': ['WX03-008#8191'], 'field.signi': [[V14_CPU_ATK], [V14_CPU_PAY_A], [V14_CPU_PAY_B]],
     'field.signi_down': [false, false, false], 'field.check': null, 'signi_attack_field_trash_costs': { [V14_CPU_ATK]: 2 },
     'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8170), 'actions_done': [],
   },
@@ -24654,7 +24691,7 @@ const v14MultiAcceSpec = acceValue => ({
     'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8210), 'actions_done': [],
   },
   guestSet: {
-    'field.lrig': ['WD01-001#8290'], 'field.signi': [['WX01-053#8221'], ['WX01-053#8222'], ['WX01-053#8223']],
+    'field.lrig': ['WX03-006#8290'], 'field.signi': [['WX01-053#8221'], ['WX01-053#8222'], ['WX01-053#8223']],
     'temp_power_mods': [{ cardNum: 'WX01-053#8223', delta: 20000 }], 'field.check': null,
     'hand': [], 'energy': ['WD01-013#8224', 'WX01-083#8225'], 'trash': [], 'life_cloth': v14Life(8230), 'actions_done': [],
   },
@@ -33678,7 +33715,7 @@ function v86Base({ hostSigni, hostHand = [], hostEnergy = [], hostTrash = [], ho
       'deck': ['WD01-013#8650', 'WD01-013#8651', 'WD01-013#8652', 'WD01-013#8653', 'WD01-013#8654'],
     },
     guestSet: {
-      'field.lrig': ['WD03-002#8691'],
+      'field.lrig': ['WX03-008#8691'],
       'field.signi': guestSigni,
       'field.signi_down': [false, false, false],
       'field.check': null,
@@ -39089,7 +39126,7 @@ const o80PerCountSpec = () => ({
     'actions_done': [],
   },
   guestSet: {
-    'field.lrig': ['WD03-003#1'],
+    'field.lrig': ['WX03-008#1'],
     // 3体並べる＝「1体だけ」と「全体」を区別できる盤面にする（1体だと旧実装でも同じ絵になる）
     'field.signi': [['WD05-010#2'], ['WD05-012#2'], ['WX02-067#2']],
     'field.signi_down': [false, false, false],
@@ -39199,7 +39236,7 @@ const o81Spec = () => ({
     'actions_done': [],
   },
   guestSet: {
-    'field.lrig': ['WD03-003#81'],
+    'field.lrig': ['WX03-008#81'],
     'field.signi': [[O81_TARGET], [O81_WALL], [O81_CONTROL]],
     'field.signi_down': [false, false, false],
     'field.check': null,
@@ -39261,12 +39298,16 @@ async function o81Attach(page, H, tag) {
 }
 
 /**
- * 中央のシグニでアタックして正面の壁とバトル＝ホストが場を離れる。
+ * **CPU の正面の壁にアタックさせて**ホストを場から離す（防御側としてバトルでバニッシュ）。
+ * 🔴2026-09-18 に組み直した＝旧版は「ホストが格上の壁にアタックして返り討ち」だったが、それは撤回済みの
+ *   `O-47`（相打ち）＝**公式ルールではアタッカーはバトルでバニッシュされない**（第388バッチ）。以後この2本は
+ *   「前提崩れ＝ホストシグニが場を離れていない」で恒久 FAIL していた（リミット超過の画面にも隠れていた＝§4.4-117）。
+ * ⚠CPU の側面2体もホストの空きゾーンへ殴ってライフを割る＝「エナに送る」を押して進める。
  * ⚠`isDone`（＝離脱の観測）が立った**直後に返さない**（罠5）＝離脱の結果として積まれる
  *   ON_LEAVE_FIELD の【自】はまだ stack に載っていない。`settleTicks` 回だけ余分に回して解決を待つ。
  */
 async function o81AttackIntoWall(page, H, tag, isDone, settleTicks = 8) {
-  let modalOpened = false;
+  let repatched = false;
   let doneSeenAt = -1;
   let last = await H.queryState();
   for (let s = 0; s < 30; s++) {
@@ -39274,19 +39315,15 @@ async function o81AttackIntoWall(page, H, tag, isDone, settleTicks = 8) {
     await page.screenshot({ path: `${SHOT}/${tag}-battle-${s}.png`, fullPage: true });
     let did = null;
     const chk = await H.queryState();
-    if (chk?.turnPhase !== 'ATTACK_SIGNI' && !chk?.pendingEffect && !(chk?.stackLen > 0) && !isDone(chk)) {
+    // ⚠CPU のアタックフェイズへは**1回だけ**切り替える（2回目以降に戻すと CPU のシグニはダウン済みで殴れず空回りする）。
+    if (!repatched && !chk?.pendingEffect && !(chk?.stackLen > 0) && !isDone(chk)) {
       await H.closeModals();
-      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await H.repatchTop({ active: 'cpu', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
       await page.waitForTimeout(500);
-      modalOpened = false;
-      did = `repatch:ATTACK_SIGNI(was ${chk?.turnPhase})`;
+      repatched = true;
+      did = `repatch:CPU ATTACK_SIGNI(was ${chk?.turnPhase})`;
     }
-    if (!did) {
-      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック(exact)'; }
-    }
-    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
-    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    if (!did) did = await H.stdStep(['エナに送る', '発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
     last = await H.queryState();
     H.log(`  ${tag}bt[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(last?.host?.fieldSigni)} gField=${JSON.stringify(last?.guest?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} revealed=${JSON.stringify(last?.host?.facedownRevealedJust)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
     if (doneSeenAt < 0 && isDone(last)) doneSeenAt = s;
@@ -39319,7 +39356,7 @@ scenarios.o81FacedownAttachRevealBanish = {
     await page.screenshot({ path: `${SHOT}/o81-final.png`, fullPage: true });
     const detail = `hField=${JSON.stringify(last?.host?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} hTrash=${JSON.stringify(last?.host?.trashCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEna=${JSON.stringify(last?.guest?.energyCards)} logTail=${JSON.stringify((last?.logTail ?? []).slice(-6))}`;
     if (o81OnField(last?.host?.fieldSigni, O81_HOST)) {
-      return { pass: false, detail: `前提崩れ＝ホストシグニが場を離れていない（バトルが起きていない）。${detail}` };
+      return { pass: false, detail: `前提崩れ＝ホストシグニが場を離れていない（CPU のアタックで倒されていない）。${detail}` };
     }
     if (!(last?.host?.handCards ?? []).includes(O81_ATTACH)) {
       return { pass: false, detail: `🔴公開して手札に戻っていない（${(last?.host?.trashCards ?? []).includes(O81_ATTACH) ? 'トラッシュへ行った＝【チャーム】の処理に化けている' : '行方不明'}）。${detail}` };
@@ -39698,7 +39735,7 @@ const O88B_OPP_A = 'WD01-010#2';        // 相手 Lv3
 const O88B_OPP_B = 'WD01-013#2';        // 相手 Lv1
 const o88AttackAnaphoraSpec = () => ({
   hostSet: {
-    'field.lrig': ['WD03-003#1'],
+    'field.lrig': ['WX03-008#1'],
     'field.signi': [[O88B_SRC], [O88B_SELF_DECOY], null],
     'field.signi_down': [false, false, false],
     // 原文の「12000以上の場合」が成立する盤面にする（表記8000＋5000＝13000）
@@ -39903,7 +39940,7 @@ const O91_OPP_A = 'WD01-010#2';         // 相手 Lv3
 const O91_OPP_B = 'WD01-013#2';         // 相手 Lv1
 const o91BelowThresholdSpec = () => ({
   hostSet: {
-    'field.lrig': ['WD03-003#1'],
+    'field.lrig': ['WX03-008#1'],
     'field.signi': [[O91_SRC], [O91_SELF_DECOY], null],
     'field.signi_down': [false, false, false],
     // 🔑対照との唯一の差＝8000＋3000＝**11000**（10000以上だが12000未満）。
@@ -46186,7 +46223,7 @@ order.push('o162ChoosePlayer');
 function o114EnergySpec(hasBikou) {
   return {
     hostSet: {
-      'field.lrig': ['WD03-004#9740'],
+      'field.lrig': ['WD03-003#9740'],
       'field.lrig_down': false,
       // ＜美巧＞のシグニを置くか置かないかで提示可否が分かれる。
       'field.signi': hasBikou ? [['WX24-P3-055#9741'], null, null] : [null, null, null],
@@ -46434,7 +46471,7 @@ function o206Spec(distinct) {
     : ['WD01-015#9770', 'WD01-015#9771', 'WD01-015#9772'];
   return {
     hostSet: {
-      'field.lrig': ['WD03-004#9773'],
+      'field.lrig': ['WD03-003#9773'],
       'field.lrig_down': false,
       'field.signi': [['WXK09-029#9774'], null, null],
       'field.signi_down': [false, false, false],
@@ -48184,7 +48221,7 @@ function mkBasePowerScenario(choice) {
     title: `O-60 V-143②：WXDi-P07-085 の【起】選択肢${choice}で基本パワーが${8000 + WANT[choice]}になる`,
     spec: {
       hostSet: {
-        'field.lrig': ['WD04-004#9800'],           // 一ノ娘　緑姫（緑・Lv1・リミット2）
+        'field.lrig': ['WD04-003#9800'],           // 二ノ娘　緑姫（緑・Lv2・リミット5）＝Lv1（リミット2）では Lv3 を置くとリミット超過（§4.4-117）
         'field.signi': [['WXDi-P07-085#9850'], null, null],
         'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
         'field.free_zone': [], 'field.beat_zone': [],
@@ -50479,7 +50516,7 @@ scenarios.v145GrantQuotedAutoOnAttack = {
       'deck': ['WD01-013#9980', 'WD01-013#9981', 'WD02-013#9982'],
     },
     guestSet: {
-      'field.lrig': ['WD01-001#9991'],
+      'field.lrig': ['WX03-006#9991'],
       // ⚠**3ゾーンとも埋める**＝host と guest のゾーン index は正面で一致しない（§4.4 📌8e）。
       'field.signi': [[V145B_OPP], [`${V145B_OPP.split('#')[0]}#9992`], [`${V145B_OPP.split('#')[0]}#9993`]],
       'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
@@ -51585,17 +51622,20 @@ order.push('v180IgnoreRestrictionArtsScopeSigniBlocked');
 // **2本セット**（§4.4-3 / §4.4-25f＝反転は1ビットだけ動かす）＝
 //   正面に置く相手シグニを入れ替えると候補もそれに追随すること（固定 index を掴んでいないことの証拠）。
 //
-// ⚠**盤面の作り方**＝host 中央（zone1）の `WX07-039`（羅原 Uuo・青 Lv4 P10000）でアタックし、
-//   正面（guest zone1・§4.4-8e＝**中央同士だけが正面**）に **P15000 のバニラ**を置いて
-//   **アタッカーを返り討ちにする**＝これで `ON_BANISH` が実際のバトル経路から発火する。
-//   guest は3ゾーンとも埋める（§4.4-8e＝1ゾーンだけだと正面素通りでライフクラッシュになりバトルが起きない）。
+// ⚠**盤面の作り方**＝host 中央（zone1）に `WX07-039`（羅原 Uuo・青 Lv4 P10000）を置き、
+//   **CPU（guest）のシグニアタックで防御側としてバニッシュさせる**＝これで `ON_BANISH` が実際のバトル経路から発火する。
+//   正面（guest zone1・§4.4-8e＝**中央同士だけが正面**）は **P15000 のバニラ**。
+//   🔴2026-09-18 に組み直した＝旧版は **host がアタックして格上に「返り討ち」にされる**前提だったが、
+//     それは撤回済みの `O-47`（相打ち）の挙動＝**公式ルールではアタッカーはバトルでバニッシュされない**（第388バッチ）。
+//     以後この2本は「前提崩れ＝アタッカーがバニッシュされていない」で恒久 FAIL していた（リミット超過の画面にも隠れていた）。
+//   ⚠guest の側面2体も host の空きゾーンへアタックしてライフを割る＝host のライフはバーストの無いバニラで積む。
 // ⚠**バニラを選ぶ**（§4.4-35b＝銀行役の副作用を避ける）＝`WX01-053` / `WX01-064` / `WX01-086` は
 //   `EffectText` も `BurstText` も持たない（全カード走査で確認）。
 // ⚠**エナは青2枚**＝続く `OPTIONAL_COST{青青}` まで到達させるため。
 // ═════════════════════════════════════════════════════════════════════════════
 const v181Spec = (frontNum, sideNum) => ({
   hostSet: {
-    'field.lrig': ['WD01-004#8101'],
+    'field.lrig': ['WD01-003#8101'],
     'field.signi': [null, ['WX07-039#8102'], null],   // 中央＝アタッカー（正面が解決対象）
     'field.signi_down': [false, false, false],
     'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
@@ -51604,17 +51644,18 @@ const v181Spec = (frontNum, sideNum) => ({
     energy: ['WD03-013#8110', 'WD03-013#8111'],       // 青×2（《青》《青》の任意コスト）
     deck: ['WD01-013#8120', 'WD01-013#8121', 'WD01-013#8122'],
     hand: [], actions_done: [], game_actions_done: [],
+    life_cloth: ['WD01-013#8130', 'WD01-013#8131', 'WD01-013#8132', 'WD01-013#8133'],
   },
   guestSet: {
-    'field.lrig': ['WD01-001#8190'],
+    'field.lrig': ['WX03-006#8190'],
     // zone1 が host zone1 の正面（§4.4-8e）。3ゾーンとも P15000 のバニラで埋める。
     'field.signi': [[sideNum + '#8191'], [frontNum + '#8192'], ['WX01-086#8193']],
     'field.signi_down': [false, false, false],
     'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
     'field.free_zone': [], 'field.beat_zone': [],
-    hand: [], energy: [], trash: [],
+    hand: [], energy: [], trash: [], actions_done: [], game_actions_done: [],
   },
-  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
 });
 
 async function driveV181(page, H, o) {
@@ -51626,7 +51667,7 @@ async function driveV181(page, H, o) {
       || !JSON.stringify(st0?.guest?.fieldSigni ?? []).includes(frontNum)) {
     return { pass: false, detail: `前提崩れ＝盤面が注入されていない（host=${JSON.stringify(st0?.host?.fieldSigni)} guest=${JSON.stringify(st0?.guest?.fieldSigni)}）` };
   }
-  let attacked = false, modalOpened = false, banished = false;
+  let attacked = false, banished = false;
   let candSeen = null, settled = 0;
   for (let s = 0; s < 26; s++) {
     await page.waitForTimeout(900);
@@ -51634,12 +51675,13 @@ async function driveV181(page, H, o) {
     let did = null;
     const chk = await H.queryState();
     // §4.4-8q＝アタックフェイズの到達点はフェイズ名で確かめる（ドリフトしたら repatch）。
-    if (!attacked && chk?.turnPhase && chk.turnPhase !== 'ATTACK_SIGNI'
+    // CPU がアタックを始めたら attacked（guest のシグニがダウンするか、host のライフが減る）。
+    if ((chk?.guest?.signiDown ?? []).some(Boolean) || (chk?.host?.life ?? 99) < (st0?.host?.life ?? 99)) attacked = true;
+    if (!attacked && !banished && chk?.turnPhase && chk.turnPhase !== 'ATTACK_SIGNI'
         && !chk?.pendingEffect && !(chk?.stackLen > 0)) {
       await H.closeModals();
-      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await H.repatchTop({ active: 'cpu', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
       await page.waitForTimeout(600);
-      modalOpened = false;
       did = `repatch:ATTACK_SIGNI(was ${chk.turnPhase})`;
     }
     // 🔴§4.4-7b＝対話中はアタック操作を試さない（ゾーンのトグルを押し続けて止まる）。
@@ -51647,16 +51689,13 @@ async function driveV181(page, H, o) {
     // 🔴**必ず exact:true**（§4.4-2 / §4.4-32 と同型）＝`exact:false` だと盤面に常設の
     //   「**ルリグアタック**へ」「**アタック**フェイズへ」に当たり、**シグニのアタックを1度も宣言しないまま
     //   「押せた」と報告し続ける**（初版でこれを踏んで26ティック空振りした）。
-    if (!did && !busy) {
-      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-      if (await atk.count() && await atk.isVisible().catch(() => false)) {
-        await atk.click({ timeout: 1500 }).catch(() => {}); did = 'btn:アタック'; attacked = true;
+    // ⚠アタックは CPU が宣言する（host は防御側）＝ここでは何も押さない。
+    //   ⚠側面の CPU シグニが空きゾーンへ殴るとライフクロスのクラッシュ確認（「エナに送る」）が出る＝これは対話ではないので常に押す。
+    if (!did) {
+      const toEna = page.getByRole('button', { name: 'エナに送る', exact: true }).first();
+      if (await toEna.count() && await toEna.isVisible().catch(() => false)) {
+        await toEna.click({ timeout: 1500 }).catch(() => {}); did = 'btn:エナに送る';
       }
-    }
-    // §4.4-2c＝ゾーンの行動一覧はトグルなので「開いていないときだけ」押す。
-    if (!did && !busy && !modalOpened) {
-      const opened = await H.clickTestId('my-signi-zone-1');
-      if (opened) { did = opened; modalOpened = true; }
     }
     // 🔴§4.4-41＝「押した」ではなく「盤面が変わった」を進行条件にする。応答系のラベルは
     //   盤面に常時出ている文言（「しない」等）にも当たるので、**対話中だけ**押す
@@ -51677,10 +51716,10 @@ async function driveV181(page, H, o) {
   }
   const fin = await H.queryState();
   if (!banished) {
-    return { pass: false, detail: `前提崩れ＝アタッカーがバニッシュされていない（host=${JSON.stringify(fin?.host?.fieldSigni)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
+    return { pass: false, detail: `前提崩れ＝CPU のアタックで WX07-039 がバニッシュされていない（host=${JSON.stringify(fin?.host?.fieldSigni)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
   }
   if (!candSeen) {
-    return { pass: false, detail: `🔴【自】が対象選択を出さなかった＝正面を解決できず abortIfNoCandidate で降りた（＝離場ゾーン添字が実機の収集経路で積まれていない）` };
+    return { pass: false, detail: `🔴【自】が対象選択を出さなかった＝正面を解決できず abortIfNoCandidate で降りた（＝離場ゾーン添字が実機の収集経路で積まれていない）。logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))} gField=${JSON.stringify(fin?.guest?.fieldSigni)}` };
   }
   const uniq = [...new Set(candSeen.map(n => String(n).split('#')[0]))];
   if (uniq.length === 1 && uniq[0] === frontNum) {
@@ -52831,7 +52870,9 @@ const V232_ATTACKER = 'WX01-053#9321';       // 極剣 ゴッドイーター（L
 function mkV232Spec(keyword, viaLrig) {
   return {
     hostSet: {
-      'field.lrig': ['WD01-004#9310'], 'field.lrig_down': false,
+      // ⚠ルリグは Lv4・リミット11（`WD01-001`）＝旧 `WD01-004`（Lv1・リミット2）に Lv4＋Lv3 を置いていたため、
+      //   リミット超過の選択画面が先に出てアタックできなかった（2026-09-18 に判明・盤面が違法だった）。
+      'field.lrig': ['WD01-001#9310'], 'field.lrig_down': false,
       // ⚠ゾーン0＝アタッカー（ルリグ経路では使わないが盤面を1ビット以外そろえるため両方に置く）。
       //   ゾーン2＝観測対象（**ダウン**で置く＝アップしたら【自】が走った証拠）。
       'field.signi': [[V232_ATTACKER], null, [V232_WATCHER]],
@@ -52840,7 +52881,7 @@ function mkV232Spec(keyword, viaLrig) {
       'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
       // 🔑1ビットだけの差＝**どちらのキーワードを与えるか**。
       //   ルリグ経路ではルリグへ、シグニ経路ではアタッカーへ与える。
-      keyword_grants: viaLrig ? { 'WD01-004#9310': [keyword] } : { [V232_ATTACKER]: [keyword] },
+      keyword_grants: viaLrig ? { 'WD01-001#9310': [keyword] } : { [V232_ATTACKER]: [keyword] },
       hand: [], energy: [], trash: [], coins: 0, lrig_deck: [], lrig_trash: [],
       actions_done: [], game_actions_done: [],
       deck: ['WD01-013#9330', 'WD01-013#9331', 'WD01-013#9332'],
@@ -56034,7 +56075,7 @@ const v166Spec = () => ({
     actions_done: [],
   },
   guestSet: {
-    'field.lrig': ['WX16-020#2'],   // ママ♥１（相手ルリグ＝能力の少ない Lv1）
+    'field.lrig': ['WX16-019#2'],   // ママ♥２（相手ルリグ＝能力を持たない Lv2・リミット5）＝Lv1（リミット2）では Lv1×3 がリミット超過（§4.4-117）
     'field.signi': [[V166_OPP[0]], [V166_OPP[1]], [V166_OPP[2]]],
     'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
     'field.free_zone': [], 'field.beat_zone': [],
@@ -56380,7 +56421,7 @@ const V168_ACT_LABEL = '【起】このカードを除外して発動（この�
 
 const v168Spec = (inTrash) => ({
   hostSet: {
-    'field.lrig': ['WD01-003#1'],
+    'field.lrig': ['WD01-002#1'],   // Lv3・リミット8＝Lv2（リミット5）だと対照側の Lv4+Lv3 がリミット超過（§4.4-117）
     // 正方向＝付与先だけ。対照＝**同じ盤面にアルバトを場のゾーン2へ足すだけ**の1ビット反転。
     'field.signi': inTrash ? [[V168_TARGET], null, null] : [[V168_TARGET], [V168_CARD], null],
     'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
@@ -56836,7 +56877,7 @@ order.push('v226LoweredLrigBlocksSummonControl');
 // ══════════════════════════════════════════════════════════════════════════════
 const O263_TRAP_DRAW2 = 'WX19-059#1';   // 大罠 ブーブー＝《トラップアイコン》カードを2枚引く
 const O263_TRAP_ENA2 = 'WX19-025#1';    // 大罠 ドッキリ＝《トラップアイコン》デッキから2枚エナチャージ
-const O263_LRIG_AYA = 'WX15-014#1';     // ぱわふるあーや！Ⅰ（あや Lv1）＝あや限定アーツを使うため
+const O263_LRIG_AYA = 'WX15-013#1';     // ぐれーとあーや！Ⅱ（あや Lv2・リミット5）＝あや限定アーツを使うため（Lv1 だと Lv4 のシグニでリミット超過＝§4.4-117）
 const O263_ARTS = 'WX15-017#1';         // トリップ・トラップ（アーツ・《青》×0・用法①）
 const O263_SRC_SIGNI = 'WX19-058#1';    // 超罠 ピットフォール（【起】《ダウン》・用法②）
 
@@ -63429,6 +63470,7 @@ scenarios.c9removecleanup = {
 scenarios.c9limitexcesspick = {
   title: 'O-532 リミット超過（Lv2×3＝6 > リミット5）は持ち主が1体選んでトラッシュへ',
   spec: {
+    allowOverLimit: true,   // リミット超過そのものを確かめるシナリオ（preflight の §4.4-117 を黙らせる）
     hostSet: {
       'field.lrig': ['WD01-003#c9y0'],
       'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
@@ -63752,6 +63794,7 @@ order.push('c9lriglevellowered');
 scenarios.c9resonalimitexcess = {
   title: 'C-9 R-45 リミット超過で落ちたレゾナもルリグデッキへ（トラッシュに行かない）',
   spec: {
+    allowOverLimit: true,   // リミット超過そのものを確かめるシナリオ（preflight の §4.4-117 を黙らせる）
     hostSet: {
       'field.lrig': ['WD01-003#c9n0'],
       'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
@@ -64337,10 +64380,12 @@ if (runIds.length === 0) { console.error('シナリオ指定が不正:', request
 try {
   const cardDb = loadCardDb();
   for (const id of runIds) {
-    const warns = preflightScenario(scenarios[id], cardDb);
+    const warns = preflightScenario({ ...scenarios[id], id }, cardDb);
     if (warns.length) { console.log(`⚠ preflight[${id}]:`); for (const w of new Set(warns)) console.log('   - ' + w); }
   }
 } catch (e) { console.log('preflight スキップ（CSV読込失敗）:', e.message); }
+// 🆕`PREFLIGHT_ONLY=1`＝ブラウザを起動せず preflight だけ（シナリオ未指定なら全件）。注入盤面のリミット超過の棚卸しに使う。
+if (process.env.PREFLIGHT_ONLY === '1') { console.log(`preflight のみ：リミット超過 ${preflightOverLimit.size} 本`); process.exit(preflightOverLimit.size ? 1 : 0); }
 
 // スクショ＝明示指定シナリオ（デバッグ中）のみ既定ON。全件バッチ（回帰）はOFFで数分短縮。SHOTS=1/0 で強制。
 const SHOTS_ON = process.env.SHOTS === '1' || (process.env.SHOTS !== '0' && requested.length > 0);
@@ -64865,6 +64910,9 @@ try {
         // （`effectExecutor.ts:4141`）。デッキ探索の**絞り込みが効いているか**は結果（何を手札に入れたか）では
         // 判定できない（当たりを引けば緑に見える）＝候補列を直接見るための計器。
         pendingVisibleCards: row.pending_effect?.interaction?.visibleCards ?? null,
+        // 🆕2026-09-18＝「〜を対象とし、…」の宣言で固定した対象（`STORE_LAST_PROCESSED_TARGETS`）。
+        //   宣言の選択と、そのあとの中間動作の選択を区別する（候補が同じ集合になりうるので候補列では区別できない）。
+        pendingStoredTargets: row.pending_effect?.storedTargetCards ?? null,
         // 「モーダルが出ない」の切り分け用＝UI の描画ゲートは
         // `(respondPlayerId ?? sourcePlayerId) === user.id`（EffectInteractionModal.tsx）。
         // この値と viewerUserId が食い違っていれば pending は立っているのに誰の画面にも出ない（タスク12(cx) で実際に踏んだ）。
@@ -65016,7 +65064,8 @@ try {
 finally { killTree(proc); }
 
 console.log('\n========== 結果サマリ ==========');
-for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}${r.sec != null ? ` (${r.sec}s)` : ''}  — ${r.detail}`);
+for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}${r.sec != null ? ` (${r.sec}s)` : ''}  — ${r.detail}${!r.pass && preflightOverLimit.has(r.id) ? `
+      ⚠preflight: ${preflightOverLimit.get(r.id)}` : ''}`);
 const allPass = results.length === runIds.length && results.every(r => r.pass);
 console.log(allPass ? '\n🎉 ALL PASS' : '\n⚠️ 一部 FAIL');
 process.exit(code || (allPass ? 0 : 1));
