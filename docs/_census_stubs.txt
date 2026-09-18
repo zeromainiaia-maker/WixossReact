@@ -121,7 +121,7 @@ live JSON の STUB id 種類 : 584（総ノード 3708 件）
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  NO_BATTLE_DEFENDER
         カード: WX25-P1-TK6
-        消費: src\screens\BattleScreen.tsx:7991
+        消費: src\screens\BattleScreen.tsx:6734
      1件   1枚  OPP_ENERGY_COLOR_CONDITION_TRASH
         カード: WXK09-037
         消費: src\engine\effectEngine.ts:4921

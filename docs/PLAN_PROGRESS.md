@@ -1,5 +1,26 @@
 # PLAN 進捗サマリ・アーカイブ
 
+## 2026-09-18（S-5c 第2段・着手〜6本目）
+**直近＝2026-09-18＝§5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🆕`controller/battleIo.ts`＝**口は3つだけ**（`commit`／`appendLogs`／`setLoading`）。画面は `screenIo`、ヘッドレスは `createHeadlessIo(memoryPersist)` を渡す。
+- 🆕`controller/performAssistGrow.ts`＝**試作台**（`perform*` 12本のうち最小の68行）を逐語で移設し、I/O を注入にした。**画面なしで実行できることを golden で固定**。
+- 🆕**6本まで移設済み**＝`performAssistGrow`（68）／`performLrigAttack`（190）／`performSpell`（216）／`performLrigActivated`（352）／`performSigniActivated`（393）／`performSummonSigni`（391）。
+  共通の材料は `controller/performCtx.ts`（`PerformCtx`）。
+- 🔴**残り6本＝1,705行**（`performGrow` 341／`performSigniAttack` 331／`performLifeBurstResponse` 325／`performGuardResponse` 292／`performArts` 214／`performKeyPiece` 202）。**同じレシピで1本ずつ**。
+- 🔑**移設で分かったこと**＝`perform*` の中に**画面のモーダルを開く分岐**が混じる（`performLrigAttack` の「無効化の回避UI」）＝
+  **その1本だけを引数の任意コールバックにする**（画面は渡す・CPU/ヘッドレスは渡さない＝元々 `attackerId === userId` のときしか開かないので挙動は同じ）。
+- 🔴**実機の腐りを1件修正**＝`verifyBattleDrive.mjs` の `queryState` が **`lifeCrashReplacements` を二重定義**しており、後の「文字列要約」が生の配列を黙って上書きしていた
+  ⇒ `repl?.kind` を読む3シナリオが**永久に偽**（`lifeCrashReplGrantFromAssist` は落ち続け、他2本も判定が効いていなかった）。要約を削って生の配列に戻した＝4本 PASS。
+- 検証＝`npm run gates` 全緑（golden 4313・🆕`§5.7 S-5c 第2段`＝画面なしでアシストグロウが通る／口が3つのまま／写経していない。**反転確認済み**）。
+  実機＝CPU 通し対戦 PASS（10ターン決着）／`b36TrashToLifeFiltersLifeBurst`（アシストグロウ経路）PASS／`lifeCrashRepl*` 3本＋`o202DamageReplaceDeclare` PASS。
+
+| 軸 | いまの値 |
+|---|---|
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段の続き**＝`perform*` 残り6本（1,705行）を同じレシピで移設 → `cpuTurnAction`（1,362行） |
+| 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
+| 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
+| 🔧**ゲート** | `npm run gates` 全緑 |
+
 ## 2026-09-18（S-5c 第1段）
 **直近＝2026-09-18＝§5.7 `S-5c` 第1段＝ヘッドレスの盤面ドライバ**（全文は [BUGFIXES.md](./BUGFIXES.md)）
 - 🆕`controller/headlessBattle.ts`＝`createHeadlessBattle(row, deps)`＝**React も supabase も無しでスタックを空になるまで回す**同期ループ

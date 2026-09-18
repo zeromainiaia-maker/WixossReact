@@ -22695,8 +22695,10 @@ test('段2 第37バッチ 二重経路契約: engine collectorとBattleScreenは
     eq(battleResult, expected, `BattleScreen実機predicate ${source}`);
     eq(battleResult, engineResult, `同一盤面の二重経路一致 ${source}`);
   }
-  const battleSource = fs.readFileSync(join(process.cwd(), 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(battleSource.includes('battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap, op)'),
+  // ⚠§5.7 `S-5c` 第2段＝該当ループは `controller/` へ移設した（`battleScreenSource()` が両方を読む）。
+  const battleSource = battleScreenSource();
+  // ⚠§5.7 `S-5c` 第2段＝移設でカードマップの引数名が `ctx.cardMap` になった（**地点は1つのまま**＝較正）。
+  ok(/battleOppLifeCrashSourceMatches\(eff, topNum, crashSourceCardNum, (?:battleCardMap|ctx\.cardMap), op\)/.test(battleSource),
     '実機のoppCrashSourcesループが検証済みのBattleScreen predicateを呼ぶ');
   // 🆕**第241バッチ（2026-09-09）＝`triggerFilter.isDrive` も二重経路で一致させる。**
   //   🔴この軸は**クラッシュ側の `PlayerState` が要る**（`matchesStateFilter` がゾーン番号を引く）ため、
@@ -43648,7 +43650,7 @@ test('§6.4 O-10（続き515）: チェックゾーン裏返し→無償グロ�
   eq(clearTurnEndScopedState(grown.ownerState as PlayerState).lrig_grew_this_turn, undefined, 'ターン境界で消える');
   // ⚠**実グロウは BattleScreen の正規経路**（engine が field.lrig へ直接 push しない＝
   //    グロウ時トリガー・リミット再計算・コイン獲得を落とさない）。
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const src = battleScreenSource();
   ok(/pending_flip_grow_card/.test(src), 'BattleScreen が予約を消費する');
   ok(/lrig_grew_this_turn: true/.test(src), 'グロウ履歴を立てる地点がある');
   // 🔴2→1（続き552d・§8 `O-1` (d)）＝**CPU の手書きグロウを削除して `performGrow` に統合した**ので
@@ -43768,7 +43770,8 @@ test('§6.4 O-10（続き512）: ARTS_LIMIT_1 が実際にアーツ使用を止�
   // 🆕**2026-09-13（§5.3 `O-349`）＝第3引数に `card` を渡す**（色限定つき使用封じはカードの色で決まる）。
   //   🔴渡し忘れると「色限定の封じだけが効かない」＝計器にもゲートにも映らない過小実行になる。
   ok(/isArtsUseBlockedFor\(my, payer\.blockedSelf, card\)/.test(gate), '表示ゲート（checkArtsUse）から呼ぶ');
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // ⚠§5.7 `S-5c` 第2段＝実行ゲートは `controller/performArts.ts` へ移設した。
+  const src = battleScreenSource();
   ok(/isArtsUseBlockedFor\(my, p\.blockedSelf, card\)/.test(src), '実行ゲート（performArts）から呼ぶ');
 });
 
@@ -49918,14 +49921,11 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
 //   旧 PLAN は14本と食い違っていた（どれも支払いサイト数そのものではなかった）。
 test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
   // §5.3 `O-533`（2026-09-18）＝手札の【起】の支払いを `handActivateCost.ts` へ移設（サイト数は据え置き＝移動であって増減ではない）。
-  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts', 'src/screens/battle/handActivateCost.ts',
-    // §5.7 `S-5c` 第2段（2026-09-18）＝アシストグロウ／ルリグアタック／スペルの支払いは `controller/` へ移設（サイト数は据え置き）。
-    'src/screens/battle/controller/performAssistGrow.ts',
-    'src/screens/battle/controller/performLrigAttack.ts',
-    'src/screens/battle/controller/performSpell.ts',
-    'src/screens/battle/controller/performLrigActivated.ts',
-    'src/screens/battle/controller/performSigniActivated.ts',
-    'src/screens/battle/controller/performSummonSigni.ts'];
+  // §5.7 `S-5c` 第2段（2026-09-18）＝`perform*` は `controller/` へ移設したので**まとめて**読む（サイト数は据え置き）。
+  const controllerFiles = fs.readdirSync(join(root, 'src/screens/battle/controller'))
+    .filter(f => f.endsWith('.ts')).map(f => 'src/screens/battle/controller/' + f);
+  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts',
+    'src/screens/battle/handActivateCost.ts', ...controllerFiles];
   const missing: string[] = [];
   let sites = 0;
   for (const f of files) {
@@ -81832,7 +81832,9 @@ test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化
     // §5.6 `C-5`（2026-09-17）で選択版が1地点増えた＝CPU のアシストグロウ（`tryCpuAssistGrow`）。
     // §5.6 `C-7`（2026-09-17）＝キー／ピースの提示（プール版）を `keyPieceUseGate.ts` へ移し、CPU のキー／ピース（選択版）が1地点増えた。
     // §5.7 `S-7`（2026-09-17）＝CPU の場以外の【起】（`tryCpuOffFieldActivated`）で選択版が1地点増えた。
-    ['src/screens/BattleScreen.tsx', 9, 2, 0],
+    // §5.7 `S-5c` 第2段（2026-09-18）＝`performGrow` を `controller/` へ移設＝画面 8 ＋ 移設先 1（**合計は据え置き**）。
+    ['src/screens/BattleScreen.tsx', 8, 2, 0],
+    ['src/screens/battle/controller/performGrow.ts', 1, 0, 0],
     ['src/screens/battle/keyPieceUseGate.ts', 0, 1, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
     ['src/screens/battle/modals/CutinModal.tsx', 1, 2, 0],
@@ -85247,7 +85249,7 @@ test('§5.1 V-232: シグニの【トリプルクラッシュ】は3枚クラッ
   //   **追加を1枚に焼き込んで**おり、【トリプルクラッシュ】が**常に2枚しか割らなかった**
   //   （live 4効果＝`WDK01-007-E1` / `WX15-032-E1` / `WX18-006-E1` / `WXEX1-33-E2b`）。
   // 🔑**ルリグアタック側は元から正しかった**＝**同じ規則を2箇所に書いた**典型（§4.4 冒頭）。
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSource = battleScreenSource();
   ok(battleSource.includes('const extraCrashCount = Math.min(crashCount - 1, newOpState.life_cloth.length);'),
     '🔴シグニアタック側の追加クラッシュが `crashCount` から枚数を出していない（1枚に焼き込まれている）');
   ok(!battleSource.includes('const secondCard = newOpState.life_cloth[newOpState.life_cloth.length - 1];'),
@@ -85280,7 +85282,7 @@ test('§5.3 O-390: 【ダブルクラッシュ】由来の限定が live と判�
   eq(crashCauseMatches(eff, 'トリプルクラッシュ'), false, '🔴トリプルクラッシュは別の原因');
   eq(crashCauseMatches(eff, undefined), false, '🔴原因不明では発火しない（fail-closed）');
   // 🔑**刻む側が無いと恒久 no-op**＝`BattleScreen` のクラッシュ地点2本が原因を渡していることを源で確かめる。
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSource = battleScreenSource();
   ok((battleSource.match(/crushCauseSA/g) ?? []).length >= 3,
     '🔴シグニアタック側でダブル/トリプルクラッシュの原因を刻んでいない');
   ok(battleSource.includes('crash_cause: lrigCrash.cause,')
@@ -85294,7 +85296,7 @@ test('§5.3 O-400: 「対戦相手のライフクロスが０枚になったと�
     '🔴「０枚になったとき」の条件が live に無い（クラッシュのたびに発火する）');
   eq(eff.usageLimit, 'once_per_game', '《ゲーム１回》');
   // 🔴**順番が本体**＝`oppLimitOk` は呼ぶだけで回数を消費するので、条件判定はその手前に無いといけない。
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const battleSource = battleScreenSource();
   const collector = battleSource.slice(battleSource.indexOf('const oppCrashTriggers: StackEntry[] = []'));
   const condIdx = collector.indexOf('evalUseCondition(eff.condition, op, my');
   const limitIdx = collector.indexOf('if (!oppLimitOk(eff)) continue;');
@@ -87072,7 +87074,7 @@ test('§5.6 C-9 R-06 ルリグアタックの枚数：ダブル2／トリプル3
   const crashSrc = fs.readFileSync(join(root, 'src/screens/battle/lrigCrash.ts'), 'utf8');
   ok(/collectContinuousGrantedKeywords\(/.test(crashSrc), '🔴CONTINUOUS 付与を読んでいない（【常】のダブル／トリプルが乗らない）');
   // 🔴**写経の再発防止**＝判定は解決とCPUの見積りの2箇所で共有する。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const screen = battleScreenSource();
   eq((screen.match(/getLrigAttackCrashState\(/g) ?? []).length, 2,
     '🔴ルリグアタックの枚数判定が2箇所（アタック解決／CPU のガード見積り）を通っていない');
   eq((screen.match(/includes\('トリプルクラッシュ'\)/g) ?? []).length, 0,

@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第2段 完了＝`perform*` 12本を画面から出した（リファクタ・挙動不変）
+
+- **移設（逐語）＝12/12**＝`performAssistGrow` 68／`performLrigAttack` 190／`performSpell` 216／`performLrigActivated` 352／`performSigniActivated` 393／`performSummonSigni` 391／`performArts` 214／`performKeyPiece` 202／`performGrow` 341／`performSigniAttack` 331／`performGuardResponse` 292／`performLifeBurstResponse` 325。
+  共有ヘルパ `queueCardEffects`（64行）＋小ヘルパ（`mkTrigCtxWithLayerGrants`／`collectAttackFieldTrashCostTriggers`／`getAllZoneBurstGrant`／`grantedBurstEntry`／`applyCoinPaidUsed`／`effectTypeLabel`）も `controller/` へ。
+- **I/O は `BattleIo` の3口**（`commit`／`appendLogs`／`setLoading`）、材料は `PerformCtx`。画面は `screenIo` と `performCtx()` を1本ずつ作って渡すだけ。
+- 🔑**画面のモーダルは任意コールバックで受ける**（`openNegateEscape`／`closeZoneModal`／`closeKeyModal`／`openOnPlayCost`／`growForMayu`）＝**画面だけが渡す**。CPU・ヘッドレスは渡さない（元々 CPU が通らない分岐なので**挙動は同じ**）。
+- **BattleScreen は 15,144 → 12,102行**（今日の通算 16,930 → 12,102＝**−4,828行**）。
+- 🔴**移設で踏んだ罠（次にやる人向け）**
+  - ①識別子を `ctx.` 付きへ置換すると**オブジェクトの省略記法が壊れる**（`{ effectsMap, … }`）。**一括置換は関数の引数まで `key: value` に化ける**ので、⚠**tsc が指した位置だけ**直す。型宣言行（`effectivePowers?: Map<…>`）も巻き込むので除外する。
+  - ②トリップワイヤは**画面のソースを grep する**ので移設のたびに落ちる ⇒ `battleScreenSource()` を **`controller/` の全 `.ts` をまとめて読む**形にした（今回さらに9本を較正＝**配線は1つも減っていない**）。
+  - ③`planEnergyPayment` のサイト一覧も `controller/` を自動で含める形にした（**数は15のまま**）。
+- 検証＝`npm run gates` 全緑（golden 4313）。実機＝CPU 通し対戦 PASS ×3（7〜8ターン決着）／`assistAttackBoth`・`sYokusenkiSpellPay`・`b36TrashToLifeFiltersLifeBurst`・`o114TrashSelfToHand`・`artsUseGreenFilter` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-5c` 第2段の続き＝`perform*` をさらに3本移設（リファクタ・挙動不変）
 
 - 移設＝🆕`controller/performLrigActivated.ts`（352行）／🆕`controller/performSigniActivated.ts`（393行）／🆕`controller/performSummonSigni.ts`（391行）。**逐語**で移し、I/O（`BattleIo`）と材料（`PerformCtx`）を注入にした。画面側は薄いラッパ（呼び出し地点は不変）。

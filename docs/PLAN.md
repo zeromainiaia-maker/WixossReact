@@ -11,22 +11,18 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-18＝§5.7 `S-5c` 第2段（着手）＝実行関数の I/O を注入にする**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- 🆕`controller/battleIo.ts`＝**口は3つだけ**（`commit`／`appendLogs`／`setLoading`）。画面は `screenIo`、ヘッドレスは `createHeadlessIo(memoryPersist)` を渡す。
-- 🆕`controller/performAssistGrow.ts`＝**試作台**（`perform*` 12本のうち最小の68行）を逐語で移設し、I/O を注入にした。**画面なしで実行できることを golden で固定**。
-- 🆕**6本まで移設済み**＝`performAssistGrow`（68）／`performLrigAttack`（190）／`performSpell`（216）／`performLrigActivated`（352）／`performSigniActivated`（393）／`performSummonSigni`（391）。
-  共通の材料は `controller/performCtx.ts`（`PerformCtx`）。
-- 🔴**残り6本＝1,705行**（`performGrow` 341／`performSigniAttack` 331／`performLifeBurstResponse` 325／`performGuardResponse` 292／`performArts` 214／`performKeyPiece` 202）。**同じレシピで1本ずつ**。
-- 🔑**移設で分かったこと**＝`perform*` の中に**画面のモーダルを開く分岐**が混じる（`performLrigAttack` の「無効化の回避UI」）＝
-  **その1本だけを引数の任意コールバックにする**（画面は渡す・CPU/ヘッドレスは渡さない＝元々 `attackerId === userId` のときしか開かないので挙動は同じ）。
-- 🔴**実機の腐りを1件修正**＝`verifyBattleDrive.mjs` の `queryState` が **`lifeCrashReplacements` を二重定義**しており、後の「文字列要約」が生の配列を黙って上書きしていた
-  ⇒ `repl?.kind` を読む3シナリオが**永久に偽**（`lifeCrashReplGrantFromAssist` は落ち続け、他2本も判定が効いていなかった）。要約を削って生の配列に戻した＝4本 PASS。
-- 検証＝`npm run gates` 全緑（golden 4313・🆕`§5.7 S-5c 第2段`＝画面なしでアシストグロウが通る／口が3つのまま／写経していない。**反転確認済み**）。
-  実機＝CPU 通し対戦 PASS（10ターン決着）／`b36TrashToLifeFiltersLifeBurst`（アシストグロウ経路）PASS／`lifeCrashRepl*` 3本＋`o202DamageReplaceDeclare` PASS。
+**直近＝2026-09-18＝§5.7 `S-5c` 第2段 完了＝`perform*` 12本すべてを画面から出した**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- 🏁**12/12 移設済み**（アシストグロウ／ルリグアタック／スペル／ルリグ【起】／シグニ【起】／召喚／アーツ／キー・ピース／グロウ／シグニアタック／ガード応答／ライフバースト応答）。
+  共有ヘルパ `queueCardEffects`（64行）も `controller/` へ。**BattleScreen は 16,930 → 12,102行**（今日の通算 **−4,828行**）。
+- 🔑**画面のモーダルは「任意コールバック」で受ける**＝`openNegateEscape`（アタック無効化の回避UI）／`closeZoneModal`／`closeKeyModal`／`openOnPlayCost`／`growForMayu`。
+  **画面だけが渡す**＝CPU・ヘッドレスは渡さない（元々 CPU は通らない分岐なので**挙動は同じ**）。
+- ⚠**挙動は1行も変えていない**（逐語移設）。残りは `cpuTurnAction`（1,362行・`persist.commit` 24／ログ34）。
+- 🔴**移設の罠（記録）**＝①識別子を `ctx.` 付きにするとオブジェクトの**省略記法が壊れる**（一括置換は引数まで壊すので tsc が指した位置だけ直す）②トリップワイヤは**画面を grep する**ので移設のたびに落ちる＝`battleScreenSource()` が `controller/` を全部読む形に統一した。
+- 検証＝`npm run gates` 全緑（golden 4313）。実機＝CPU 通し対戦 PASS ×3／アシストアタック・スペル・アシストグロウ・トラッシュ【起】・アーツ使用トリガー PASS。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第2段の続き**＝`perform*` 残り6本（1,705行）を同じレシピで移設 → `cpuTurnAction`（1,362行） |
+| 🔥**次に取るもの** | 🔥**§5.7 `S-5c` 第3段**＝`cpuTurnAction`（1,362行）を画面から出す（I/O は注入済み＝同じレシピ） |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1** |
 | 📦**在庫** | 機構 worklist **0**／実機 **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／**リリース作業 1**（RELEASE.md） |
 | 🔧**ゲート** | `npm run gates` 全緑 |
