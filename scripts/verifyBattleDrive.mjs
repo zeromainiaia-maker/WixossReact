@@ -2526,12 +2526,16 @@ const scenarios = {
   battleequalpower: {
     title: '同値バトル（3000 vs 3000）＝防御側だけがエナへ行き、アタッカーは場に残る（O-47 撤回の回帰ガード）',
     spec: {
+      // ⚠2026-09-18＝ルリグを明示（§4.4-120）。未指定だと土台（前のシナリオ／ルームの初期状態）のルリグ次第で、
+      //   Lv0（リミット0）なら相手の Lv1 シグニがリミット超過のルール処理でトラッシュされ「防御側がエナに無い」で FAIL した。
       hostSet: {
+        'field.lrig': ['WD01-001#bq1'], 'field.lrig_down': false,   // 満月の巫女（Lv4・リミット11・能力なし）
         'field.signi': [null, ['WD01-013#1'], null],   // 小剣 ククリ（能力なし・Lv1・P3000）
         'field.signi_down': [false, false, false],
         'energy': [], 'actions_done': [],
       },
       guestSet: {
+        'field.lrig': ['WD02-001#bq2'],   // 花代・肆（Lv4・リミット11）
         'field.signi': [null, ['WD02-013#g1'], null],  // 羅石 アイロン（能力なし・Lv1・P3000）
         'field.signi_down': [false, false, false],
         'energy': [], 'actions_done': [],
@@ -17178,6 +17182,12 @@ function preflightScenario(sc, db) {
   //   シナリオは「前提崩れ」「タイムアウト」の形で落ち、原因が盤面だと分からない（v232 の3本・o206・v143 …が同時に腐った）。
   //   ⚠**場のトップだけを数える**（下に重なったカードはレベル合計に入らない）。⚠両側を見る（相手側の超過も同じ画面を出す）。
   //   ⚠意図してリミット超過を注入するシナリオ（`O-532` 自身など）は spec に `allowOverLimit: true` を書いて黙らせる。
+  // 🆕2026-09-18（§4.4-120）＝シグニを置くのにルリグを指定しない側は、**土台のルリグ次第**でリミット超過・レベル超過・【常】が変わる。
+  for (const [side, set] of [['自分', hostSet], ['相手', sc.spec?.guestSet ?? {}]]) {
+    const zs = set['field.signi'];
+    const placesSigni = Array.isArray(zs) && zs.some(z => Array.isArray(z) && z.length > 0);
+    if (placesSigni && !set['field.lrig']) warns.push(`⚠${side}はシグニを置くのにルリグを指定していない＝土台のルリグ次第（Lv0 ならリミット超過でトラッシュされる・§4.4-120）`);
+  }
   if (!sc.spec?.allowOverLimit) {
     for (const [side, set] of [['自分', hostSet], ['相手', sc.spec?.guestSet ?? {}]]) {
       const lr = set['field.lrig'];
@@ -17242,10 +17252,37 @@ async function cleanupRooms(page) {
 }
 
 // 盤面注入（in-page）。ドットパスのマージで host_state/guest_state を上書きし、トップレベルを PATCH。
-async function injectScenario(page, spec) {
-  return await page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, spec }) => {
+/** ブラウザの localStorage から Supabase の認証（token と uid）を取り出す。 */
+async function readAuth(page) {
+  return await page.evaluate(() => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
-    const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+    const sess = key ? JSON.parse(localStorage.getItem(key)) : null;
+    return sess ? { token: sess.access_token, uid: sess.user?.id } : null;
+  });
+}
+
+/**
+ * ⚠`auth` を渡すと localStorage を読まない＝**アプリを開いていないページ（about:blank）からでも注入できる**
+ *   （§4.4-120＝前のシナリオのクライアントを止めてから注入するため）。
+ */
+/**
+ * 🆕🔴2026-09-18（§4.4-120）＝**注入の土台（盤面の物理配置のうち「シナリオが指定しないもの」）**。
+ *   実行の最初の注入で DB の行から記録し、以後の注入は毎回ここへ戻してから spec を当てる
+ *   ＝**同じ実行の中では並び順に関係なく全シナリオが同じ土台から始まる**（単独で回したときと同じ）。
+ *   旧版は前のシナリオの**センタールリグ・ルリグデッキ・手札・エナ・コイン**をそのまま引き継いでいた
+ *   ＝ルリグを指定しないシナリオに前のシナリオのルリグの【常】が効いた（`v58b` → `battleequalpower` で
+ *   防御側のバニッシュ先が変わった）。
+ */
+let INJECT_BASELINE = null;
+
+async function injectScenario(page, spec, auth = null) {
+  const res = await page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, spec, auth, baseline }) => {
+    let token, uid;
+    if (auth) { token = auth.token; uid = auth.uid; }
+    else {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); token = sess.access_token; uid = sess.user?.id;
+    }
     const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
     const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'PLAYINGルームなし' };
@@ -17257,6 +17294,18 @@ async function injectScenario(page, spec) {
       o[parts[parts.length - 1]] = val;
     };
     const hs = row.host_state, gs = row.guest_state;
+    // §4.4-120＝土台の記録（初回）／復元（2回目以降）。field.signi は spec がほぼ必ず指定するので対象外。
+    const pickBase = (st) => JSON.parse(JSON.stringify({
+      lrig: st.field?.lrig ?? [], lrig_deck: st.lrig_deck ?? [], hand: st.hand ?? [], energy: st.energy ?? [], coins: st.coins ?? 0,
+    }));
+    const capturedBaseline = baseline ? null : { host: pickBase(hs), guest: pickBase(gs) };
+    if (baseline) {
+      for (const [st, b] of [[hs, baseline.host], [gs, baseline.guest]]) {
+        st.field = st.field ?? {};
+        st.field.lrig = [...b.lrig]; st.lrig_deck = [...b.lrig_deck];
+        st.hand = [...b.hand]; st.energy = [...b.energy]; st.coins = b.coins;
+      }
+    }
     // シナリオ間の状態汚染対策（続き77で field.* まで拡張→続き105で全面書き換え）。
     // ⚠続き105（Sonnet・§3タスク3）＝個別フィールドの列挙方式は根本的に脆いと判明。
     // PlayerState（src/types/index.ts）は deck/hand/energy/trash/life_cloth/lrig_deck/lrig_trash/coins/field の
@@ -17316,6 +17365,18 @@ async function injectScenario(page, spec) {
     const mkFiller = (base, n) => Array.from({ length: n }, (_, i) => `${FILLER}#${base + i}`);
     hs.deck = mkFiller(1200, 40); hs.life_cloth = mkFiller(1300, 7); hs.trash = []; hs.lrig_trash = []; // host（#1200～/#1300～＝scenario注入の#1..#10と非衝突）
     gs.deck = mkFiller(2200, 40); gs.life_cloth = mkFiller(2300, 7); gs.trash = []; gs.lrig_trash = []; // guest（host と別レンジ＝owner跨ぎの重複も回避）
+    // 🆕🔴2026-09-18（§4.4-120）＝**場の付属物も毎回空に戻す**（アシストルリグ・キー／ピース・フリーゾーン・ビートゾーン・チェックゾーン）。
+    //   旧版は CORE_FIELD_KEYS として**そのまま引き継いでいた**＝シナリオが指定しないと**前のシナリオのアシストやキーが残り、
+    //   その【常】（リミット＋・バニッシュの行き先 …）が次のシナリオに効いていた**（`o186` が置いたアシスト2体の直後に
+    //   `v210`「リミット +2 の期限切れ」が FAIL ほか）。「単独では PASS・並び順で FAIL」の DB 側の本体。
+    //   ⚠手札・エナは引き継いだまま（「何かしら入っている」前提のシナリオがありうる＝未指定のまま使う型は別途洗う）。
+    for (const st of [hs, gs]) {
+      if (!st.field) continue;
+      st.field.assist_lrig_l = []; st.field.assist_lrig_r = [];
+      st.field.key_piece = null; st.field.key_piece_extra = [];
+      st.field.free_zone = []; st.field.beat_zone = [];
+      st.field.check = null;
+    }
     for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
     for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
     if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)];
@@ -17325,6 +17386,9 @@ async function injectScenario(page, spec) {
       active_user_id: top.active === 'cpu' ? CPU_PLAYER_ID : uid,
       turn_phase: top.turn_phase ?? 'MAIN',
       turn_count: top.turn_count ?? 2,
+      // 🆕🔴2026-09-18（§4.4-120）＝**決着状態も毎回戻す**。旧版は盤面だけ書き換えて `global_phase:FINISHED`・`winner_id` を残した
+      //   ＝決着させるシナリオ（`v43SLancerDefeatsOpponentAtZeroLife` 等）の後ろ11本が、12本ごとのセッション再生成まで連続で FAIL した。
+      global_phase: 'PLAYING', winner_id: null, host_end_ack: false, guest_end_ack: false,
       // 🆕§5.3 `O-113`（2026-08-28）＝**相手アーツの解決を直接注入できるようにした**。
       //   `ON_OPP_ARTS_USE` は「相手が持つアーツの StackEntry が解決されたとき」に収集されるので、
       //   CPU にアーツを撃たせずに窓を作るにはスタックを注入するしかない（`pendingSpell` と同じ手）。
@@ -17350,8 +17414,14 @@ async function injectScenario(page, spec) {
     const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
       method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
     });
-    return { roomId, ok: w.ok, status: w.status, prevDeck, prevLife, body: w.ok ? null : await w.text() };
-  }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec });
+    return { roomId, ok: w.ok, status: w.status, prevDeck, prevLife, body: w.ok ? null : await w.text(), capturedBaseline };
+  }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec, auth, baseline: INJECT_BASELINE });
+  if (res?.capturedBaseline && !INJECT_BASELINE && res.ok) {
+    INJECT_BASELINE = res.capturedBaseline;
+    console.log('注入の土台（§4.4-120）:', JSON.stringify({ host: INJECT_BASELINE.host.lrig, guest: INJECT_BASELINE.guest.lrig, hostHand: INJECT_BASELINE.host.hand.length, hostEnergy: INJECT_BASELINE.host.energy.length }));
+  }
+  if (res) delete res.capturedBaseline;
+  return res;
 }
 
 // ⚠ `vite preview` はビルド済み dist を配信するため、ソース変更を反映するには build が必須。
@@ -65014,6 +65084,7 @@ try {
     sinceRecycle = 0;
   };
 
+  let appUrl = null;   // アプリの URL（about:blank から戻るため・§4.4-120）
   for (const id of runIds) {
     if (sinceRecycle >= RECYCLE_EVERY) await recycle(`${sinceRecycle}件処理ごとの予防`);
     const sc = scenarios[id];
@@ -65029,13 +65100,24 @@ try {
         //   ⚠**ルームの status を触るのは drive 側の責任**（必ず `finally` で PLAYING へ戻すこと）。
         if (sc.noInject) console.log('注入: スキップ（noInject＝対戦盤面を使わないシナリオ）');
         else {
-          const inj = await injectScenario(page, sc.spec);
+          // 🆕🔴2026-09-18（§4.4-120）＝**注入の前に前のシナリオのクライアントを止める**。
+          //   旧版は「前のシナリオの画面が生きたまま注入 → そのあと reload」だった＝注入から reload までの間、
+          //   **古いクライアント（CPU の起動タイマー・効果の自動解決・送信中の書き込み）が新しい盤面を上書きできた**。
+          //   「単独では PASS・並び順で FAIL」が BUGFIXES に14回・PLAN_PROGRESS に10回出ていた型の本体
+          //   （CPU が動くシナリオの直後で出やすい＝`v14MultiAcceTwo`／`v210`／`battleequalpower`／`v78`）。
+          //   ⇒ 認証だけ先に取り出し、about:blank へ移ってページの JS を止め、書き込みが落ち着くのを待ってから注入する。
+          const auth = await readAuth(page);
+          appUrl = appUrl ?? page.url();
+          await page.goto('about:blank');
+          await page.waitForTimeout(1500);
+          const inj = await injectScenario(page, sc.spec, auth);
           console.log('注入:', JSON.stringify(inj));
-          if (inj.error) { r = { pass: false, detail: '注入失敗: ' + inj.error, sec: 0 }; break; }
+          if (inj.error) { r = { pass: false, detail: '注入失敗: ' + inj.error, sec: 0 }; await page.goto(appUrl, { waitUntil: 'networkidle' }); break; }
         }
-        // 毎シナリオ直前に reload してコンポーネントツリーを再マウント（続き105＝クライアント側残留状態対策）。
+        // 毎シナリオ直前にアプリを開き直してコンポーネントツリーを再マウント（続き105＝クライアント側残留状態対策）。
         // App.tsx 起動時ロジックが PLAYING ルームを検出して BattleScreen へ復帰＝直前の注入 DB 書き込みは活きる。
-        await page.reload({ waitUntil: 'networkidle' });
+        if (!sc.noInject) await page.goto(appUrl, { waitUntil: 'networkidle' });
+        else await page.reload({ waitUntil: 'networkidle' });
         await page.waitForTimeout(2000);
         await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
         const t0 = Date.now();

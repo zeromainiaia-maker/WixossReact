@@ -6103,6 +6103,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ガード応答（人間プレイヤー用エントリポイント）
   const handleGuardResponse = async (handIndex: number | null) => {
     if (loading) return;
+    // 🆕🔴2026-09-18＝**自分の最後の書き込みが手元に届くまで受け付けない**（バグ報告 `4b765502` と同じ型）。
+    //   `loading` は画面の状態＝1回目の commit が届く前の二度押し（ハーネスの周回・人間の素早い連打）を止められず、
+    //   **古い盤面からルリグアタックのダメージをもう一度計算していた**（実測＝「ルリグアタック：ライフクロスをクラッシュ」が2行・
+    //   CPU 系シナリオ `v78`／`v82` がバッチ中だけ「ターンが終わらない」）。
+    if (!ownCommitsArrived(bs)) return;
     await performGuardResponse(handIndex, {
       responder: my,
       attacker: op,

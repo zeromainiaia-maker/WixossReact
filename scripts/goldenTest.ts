@@ -87602,6 +87602,8 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   // 🆕バグ報告 `4b765502`（2026-09-18）＝人間側のアタック解決も同じ型＝ログ追記の通知で古い盤面に戻り、同じアタックを2回解決していた。
   ok(/if \(!localMy\.pending_signi_battle\) return;[\s\S]{0,800}?if \(!ownCommitsArrived\(bs\)\) return;\s*resolvePendingSigniBattleRef\.current\?\.\(\);/.test(battle), '🔴シグニアタックの解決が自分の書き込みの通知を待たない（「〜がライフをクラッシュ」が2行出る）');
   ok(/if \(!localMy\.pending_lrig_attack\) return;\s*if \(!ownCommitsArrived\(bs\)\) return;/.test(battle), '🔴ルリグアタックの解決が自分の書き込みの通知を待たない');
+  // 🆕2026-09-18＝人間の【ガードしない】（`handleGuardResponse`）も同じ型＝二度押しで古い盤面からダメージを再計算していた。
+  ok(battle.includes('const handleGuardResponse = async (handIndex: number | null) => {') && /const handleGuardResponse = async \(handIndex: number \| null\) => \{\s*if \(loading\) return;[\s\S]{0,600}?if \(!ownCommitsArrived\(bs\)\) return;/.test(battle), '🔴ガード応答が自分の書き込みの通知を待たない（二度押しでルリグアタックのダメージが二重になる）');
 }));
 
 test('§5.1 V-181 バトルで倒れた防御側の【自】はバトル前の防御側の盤面で集める（CPU のアタックでも）', () => withSavedCursor(() => {
