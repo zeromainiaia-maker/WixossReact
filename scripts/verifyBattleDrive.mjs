@@ -7028,7 +7028,11 @@ const scenarios = {
         await page.waitForTimeout(1000);
         await page.screenshot({ path: `${SHOT}/oppdraw-${s}.png`, fullPage: true });
         const st = await H.queryState();
-        const watcherLog = await H.findLog(/ラブラドライト.*対戦相手ドロー時|の【自】効果（対戦相手ドロー時）/);
+        // ⚠2026-09-18＝**画面ではなく DB のログで探す**（§4.4-120 の後、CPU が観測開始前にアタック・ドローを終えることがあり、
+        //   画面のログ欄（直近数行）からは発火行が流れて見えなくなっていた＝発火しているのに FAIL）。
+        const watcherRe = /ラブラドライト.*対戦相手ドロー時|の【自】効果（対戦相手ドロー時）/;
+        const watcherLog = [...(before?.logTail ?? []), ...(st?.logTail ?? [])].find(l => watcherRe.test(l))
+          ?? await H.findLog(watcherRe);
         H.log(`  oppdraw[${s}] hHand=${st?.host?.hand ?? '-'}(開始${before?.host?.hand}) gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog} logTail=${JSON.stringify(st?.logTail?.slice(-6))}`);
         if (watcherLog) {
           return { pass: true, detail: `ON_DRAW any_opp 発火→host が1枚ドロー確認（hHand ${before?.host?.hand}→${st.host.hand}）・watcher「${watcherLog}」` };
@@ -7775,6 +7779,9 @@ const scenarios = {
         'hand': ['WX14-040#1'],             // 羅植　ヤシ（Lv4・クラス制限なし・E3のみ青コスト所持）＝決定的指定（旧handPrependは残留ランダム手札混入でmy-hand-card-0がずれるflakinessの原因だった）
         'actions_done': [],
       },
+      // ⚠2026-09-18＝**相手の手札を明示**（E3 は対戦相手の手札を捨てさせる）。旧版は前のシナリオの手札が残っていたので通っていた
+      //   ＝§4.4-120 で手札が土台（空）へ戻ると、捨てる札が無くカウンタが0のままだった。
+      guestSet: { 'hand': ['WD01-013#tco1', 'WD01-013#tco2', 'WD01-013#tco3'] },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
@@ -17266,14 +17273,17 @@ async function readAuth(page) {
  *   （§4.4-120＝前のシナリオのクライアントを止めてから注入するため）。
  */
 /**
- * 🆕🔴2026-09-18（§4.4-120）＝**注入の土台（盤面の物理配置のうち「シナリオが指定しないもの」）**。
- *   実行の最初の注入で DB の行から記録し、以後の注入は毎回ここへ戻してから spec を当てる
- *   ＝**同じ実行の中では並び順に関係なく全シナリオが同じ土台から始まる**（単独で回したときと同じ）。
+ * 🆕🔴2026-09-18（§4.4-120）＝**注入の土台（盤面の物理配置のうち「シナリオが指定しないもの」）＝固定値**。
+ *   毎回の注入でここへ戻してから spec を当てる＝**並び順にも、前回の実行が残した盤面にも左右されない**。
  *   旧版は前のシナリオの**センタールリグ・ルリグデッキ・手札・エナ・コイン**をそのまま引き継いでいた
- *   ＝ルリグを指定しないシナリオに前のシナリオのルリグの【常】が効いた（`v58b` → `battleequalpower` で
- *   防御側のバニッシュ先が変わった）。
+ *   ＝ルリグを指定しないシナリオに前のシナリオのルリグの【常】が効いた（`v58b` → `battleequalpower`）。
+ *   ⚠ルリグは**能力を持たない Lv4・リミット12**（自分＝白 WX03-006／相手＝青 WX03-008）＝配置・リミットを邪魔しない。
+ *   ⚠ルリグの種類・色・レベルに依存するシナリオは spec で必ず指定すること（preflight が未指定を警告する）。
  */
-let INJECT_BASELINE = null;
+const INJECT_BASELINE = {
+  host: { lrig: ['WX03-006#base-h'], lrig_deck: [], hand: [], energy: [], coins: 0 },
+  guest: { lrig: ['WX03-008#base-g'], lrig_deck: [], hand: [], energy: [], coins: 0 },
+};
 
 async function injectScenario(page, spec, auth = null) {
   const res = await page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, spec, auth, baseline }) => {
@@ -17294,12 +17304,8 @@ async function injectScenario(page, spec, auth = null) {
       o[parts[parts.length - 1]] = val;
     };
     const hs = row.host_state, gs = row.guest_state;
-    // §4.4-120＝土台の記録（初回）／復元（2回目以降）。field.signi は spec がほぼ必ず指定するので対象外。
-    const pickBase = (st) => JSON.parse(JSON.stringify({
-      lrig: st.field?.lrig ?? [], lrig_deck: st.lrig_deck ?? [], hand: st.hand ?? [], energy: st.energy ?? [], coins: st.coins ?? 0,
-    }));
-    const capturedBaseline = baseline ? null : { host: pickBase(hs), guest: pickBase(gs) };
-    if (baseline) {
+    // §4.4-120＝固定の土台へ戻す（field.signi は spec がほぼ必ず指定するので対象外）。
+    {
       for (const [st, b] of [[hs, baseline.host], [gs, baseline.guest]]) {
         st.field = st.field ?? {};
         st.field.lrig = [...b.lrig]; st.lrig_deck = [...b.lrig_deck];
@@ -17414,13 +17420,8 @@ async function injectScenario(page, spec, auth = null) {
     const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
       method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
     });
-    return { roomId, ok: w.ok, status: w.status, prevDeck, prevLife, body: w.ok ? null : await w.text(), capturedBaseline };
+    return { roomId, ok: w.ok, status: w.status, prevDeck, prevLife, body: w.ok ? null : await w.text() };
   }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec, auth, baseline: INJECT_BASELINE });
-  if (res?.capturedBaseline && !INJECT_BASELINE && res.ok) {
-    INJECT_BASELINE = res.capturedBaseline;
-    console.log('注入の土台（§4.4-120）:', JSON.stringify({ host: INJECT_BASELINE.host.lrig, guest: INJECT_BASELINE.guest.lrig, hostHand: INJECT_BASELINE.host.hand.length, hostEnergy: INJECT_BASELINE.host.energy.length }));
-  }
-  if (res) delete res.capturedBaseline;
   return res;
 }
 
