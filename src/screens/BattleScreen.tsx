@@ -26,10 +26,10 @@ import {buildRearrangeSigniArrangement} from './battle/rearrangeSigniUi';
 import {payLifeOnPlayCost} from './battle/lifeCost';
 import {payLrigDownCost, fmtLrigDownCostLabel} from './battle/lrigDownCost';
 import {payFieldTrashCost} from './battle/fieldTrashCost';
-import {handActivateCostLabel, handActivateVerbLabel, payHandActivateCost, type HandActivateSelections} from './battle/handActivateCost';
+import {handActivateCostLabel, type HandActivateSelections} from './battle/handActivateCost';
 import {payMultiZoneExileCost} from './battle/multiZoneExileCost';
 import {payFieldToDeckTopCost} from './battle/fieldToDeckTopCost';
-import {payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
+import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
 import {listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated} from './battle/cpuOffFieldActivate';
 import {isTrashImmuneByOpponent} from '../engine/execUtils';
@@ -131,6 +131,7 @@ import {performSummonSigni as performSummonSigniImpl} from './battle/controller/
 import {performGuardResponse as performGuardResponseImpl} from './battle/controller/performGuardResponse';
 import {performArts as performArtsImpl} from './battle/controller/performArts';
 import {performKeyPiece as performKeyPieceImpl} from './battle/controller/performKeyPiece';
+import {executeHandActivated as executeHandActivatedImpl, executeTrashActivated as executeTrashActivatedImpl, type OffFieldActor} from './battle/controller/offFieldActivateExec';
 import {performSigniAttack as performSigniAttackImpl} from './battle/controller/performSigniAttack';
 import {performLifeBurstResponse as performLifeBurstResponseImpl} from './battle/controller/performLifeBurstResponse';
 import {performGrow as performGrowImpl} from './battle/controller/performGrow';
@@ -10597,147 +10598,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * 🆕§5.7 `S-7`＝場以外の【起】の**行為者**（CPU も人間と同じ実行関数で撃つ）。省略時は人間（自分）＝従来と同一。
    * ⚠`performSigniActivated` の `p` と同じ形（行為者・相手・ID・state キー・エナ支払い元）。
    */
-  type OffFieldActor = {
-    actor: PlayerState; opponent: PlayerState;
-    actorId: string; opponentId: string;
-    actorKey: 'host_state' | 'guest_state';
-    energyPayPool: EnergyPayEntry[];
-  };
   const humanOffFieldActor = (): OffFieldActor => ({
     actor: my, opponent: op, actorId: user.id, opponentId: (isHost ? bs.guest_id : bs.host_id) ?? '',
     actorKey: isHost ? 'host_state' : 'guest_state', energyPayPool: myEnergyPayPool,
   });
+  // 🆕§5.7 `S-5c` 第3段＝本体は `controller/offFieldActivateExec.ts`（I/O 注入）。ここは行為者と UI を渡すだけ。
   const executeHandActivated = async (
-    cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect, selections: HandActivateSelections,
-    actorCtx?: OffFieldActor,
+    cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect,
+    selections: HandActivateSelections, actorCtx?: OffFieldActor,
   ) => {
     if (!actorCtx && loading) return;
-    const { actor: my, opponent: op, actorId, opponentId, actorKey, energyPayPool } = actorCtx ?? humanOffFieldActor();
-    setLoading(true);
-    if (!actorCtx) closeHandActivated();
-    try {
-      // 支払いは `payHandActivateCost` 1本（§5.3 `O-533`）＝CPU の先読みと提示判定も同じ関数群を使う。
-      //   🔴旧実装はコストに `discardSelfFromHand` が無くても常にこのカードを捨て、`fieldTrash` を払わなかった。
-      const payment = payHandActivateCost({
-        effect, my, op, cardNum, handIndex, selections, cardMap: battleCardMap, energyPool: energyPayPool,
-      });
-      if (!payment) return; // 支払い不能（UI側でも無効化済み）＝finally で loading を戻す
-      const isGameOnce = effect.usageLimit === 'once_per_game';
-      let paid: PlayerState = {
-        ...payment.my,
-        actions_done: [...(my.actions_done ?? []), effect.effectId],
-        game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-      };
-      const newOpVirusState = payment.op;
-      if (payment.logs.length > 0) appendBattleLogs(payment.logs);
-      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const entry: StackEntry = {
-        id: generateUUID(),
-        playerId: actorId,
-        cardNum,
-        effectId: effect.effectId,
-        label: `${cardName}【起】（${handActivateVerbLabel(effect)}）`,
-        effect,
-      };
-      const stackEntries: StackEntry[] = [entry];
-      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
-      if (payment.discardedCards.length > 0) {
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
-          payment.discardedCards, paid, actorId, true,
-          op, opponentId, cardNum, undefined, undefined);
-        stackEntries.push(...hdEntries);
-        if (usedLimitIds.length > 0) {
-          paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
-        }
-      }
-      const turnPlayerId = bs.active_user_id ?? actorId;
-      const existingStack = bs?.effect_stack ?? null;
-      const newStack = existingStack
-        ? pushToStack(existingStack, stackEntries)
-        : initStack(turnPlayerId, stackEntries);
-      const stateKey = actorKey;
-      const opKey = actorKey === 'host_state' ? 'guest_state' : 'host_state';
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true,
-        opp: newOpVirusState ? { key: opKey, state: newOpVirusState } : undefined,
-      }));
-    } finally {
-      setLoading(false);
-    }
+    await executeHandActivatedImpl(cardNum, handIndex, effect, selections,
+      actorCtx ?? humanOffFieldActor(), performCtx(), actorCtx ? undefined : { close: closeHandActivated });
   };
 
-  // トラッシュ自己起動【起】を実行（コスト支払い → このカードをトラッシュから場に出す）。
-  // カードはトラッシュに残したまま effect_stack に積み、resolver の execAddToField が
-  // thisCardOnly source（トラッシュの効果元自身）を場へ移す。
-  // ⚠ コスト支払いは `payTrashActivateCost` 一本（UI の可否判定と同じ関数群を使う）。
+
+  // 🆕§5.7 `S-5c` 第3段＝本体は `controller/offFieldActivateExec.ts`（I/O 注入）。
   const executeTrashActivated = async (
-    cardNum: string,
-    effect: import('../types/effects').CardEffect,
-    costIndices: Set<number>,
-    discardIndices: Set<number> = new Set(),
-    exceedIndices: Set<number> = new Set(),
-    trashExileIndices: Set<number> = new Set(),
-    /** 🆕§5.7 `S-7`＝行為者（CPU）。省略時は人間（自分）＝従来と同一。 */
-    actorCtx?: OffFieldActor,
+    cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>,
+    discardIndices: Set<number> = new Set(), exceedIndices: Set<number> = new Set(),
+    trashExileIndices: Set<number> = new Set(), actorCtx?: OffFieldActor,
   ) => {
     if (!actorCtx && loading) return;
-    const { actor: my, opponent: op, actorId, opponentId, actorKey, energyPayPool } = actorCtx ?? humanOffFieldActor();
-    setLoading(true);
-    if (!actorCtx) closeTrashActivated();
-    try {
-      const payment = payTrashActivateCost(
-        effect, my, op,
-        // 🆕§5.3 `O-373`＝`trashExile{count}`（トラッシュの《X》N枚を除外）の選択。
-        { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices, trashExile: trashExileIndices },
-        // 🆕**§5.3 `O-262`**＝`cost.trashExile.self`（このカード自身の除外）を払うために効果元を渡す。
-        battleCardMap, energyPayPool, cardNum,
-      );
-      if (!payment) return; // 支払い不能（UI側でも無効化済み）
-      const isGameOnce = effect.usageLimit === 'once_per_game';
-      let paid: PlayerState = {
-        ...payment.my,
-        actions_done: [...(my.actions_done ?? []), effect.effectId],
-        game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-      };
-      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const entry: StackEntry = {
-        id: generateUUID(),
-        playerId: actorId,
-        cardNum,
-        effectId: effect.effectId,
-        label: `${cardName}【起】（${trashActivateVerbLabel(effect)}）`,
-        effect,
-      };
-      const stackEntries: StackEntry[] = [entry];
-      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
-      if (payment.discardedCards.length > 0) {
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
-          payment.discardedCards, paid, actorId, true,
-          op, opponentId, cardNum, undefined, undefined);
-        stackEntries.push(...hdEntries);
-        if (usedLimitIds.length > 0) paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
-      }
-      // ON_COIN_PAID: 《コイン》を支払った場合に反応する【自】を積む（シグニ【起】経路と同型）
-      if (payment.coinPaid > 0) {
-        const coinTrig = collectCoinPaidTriggers(actorId, paid, op);
-        stackEntries.push(...coinTrig.entries);
-        paid = applyCoinPaidUsed(paid, coinTrig);
-      }
-      const turnPlayerId = bs.active_user_id ?? actorId;
-      const existingStack = bs?.effect_stack ?? null;
-      const newStack = existingStack
-        ? pushToStack(existingStack, stackEntries)
-        : initStack(turnPlayerId, stackEntries);
-      const stateKey = actorKey;
-      const oppStateKey = actorKey === 'host_state' ? 'guest_state' : 'host_state';
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true,
-        opp: payment.op ? { key: oppStateKey, state: payment.op } : undefined,
-      }));
-    } finally {
-      setLoading(false);
-    }
+    await executeTrashActivatedImpl(cardNum, effect, costIndices, discardIndices, exceedIndices, trashExileIndices,
+      actorCtx ?? humanOffFieldActor(), performCtx(), actorCtx ? undefined : { close: closeTrashActivated });
   };
+
 
   // v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア
   const executeGuardBarrierAct = async (handIndex: number) => {

@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-18 §5.7 `S-5c` 第3段の下ごしらえ＝場以外の【起】の実行を移設／`cpuTurnAction` の取り方を実測（リファクタ・挙動不変）
+
+- 移設＝🆕`controller/offFieldActivateExec.ts`（`executeHandActivated` 58行／`executeTrashActivated` 68行）。⚠**行為者（`OffFieldActor`）を必須引数**にした＝旧実装の「省略＝人間」は画面のラッパが `humanOffFieldActor()` を渡す形へ（ヘッドレスから呼ぶときに人間の state を拾わないため）。モーダルを閉じる UI も任意コールバック。
+- 🔴**`cpuTurnAction`（1,362行）は今回**着手しない**＝実測で**画面から45個の名前を掴んでいた**（`perform*` は5〜7個）。その大半が**まだ画面に残るルール処理**＝`resolvePendingSigniBattleFor` **1,588行**／`doPhaseAdvance` **683**／`confirmEndDiscard` **234**／`handleCutinPass` **195**（計2,700行）。
+  ⇒ **順番を変える**＝ルール処理を先に出してから `cpuTurnAction`（先に CPU を出すと deps 45本が固定化し、ヘッドレスから遠いまま残る）。PLAN §1 の「次に取るもの」を更新した。
+- **BattleScreen は 12,102 → 11,988行**（今日の通算 16,930 → 11,988＝**−4,942行**）。
+- 検証＝`npm run gates` 全緑（golden 4313／`O-533` のトリップワイヤを移設先へ較正）。実機＝CPU 通し対戦 PASS（6ターン決着）／`v273`（CPU のトラッシュ【起】）・`v274`（CPU の手札【起】）・`v275`（人間の手札【起】）・`o114TrashSelfToHand` PASS。
+- 実機が必須な理由＝`src/screens/` を触った回（§2.2）。
+
 ## 2026-09-18 §5.7 `S-5c` 第2段 完了＝`perform*` 12本を画面から出した（リファクタ・挙動不変）
 
 - **移設（逐語）＝12/12**＝`performAssistGrow` 68／`performLrigAttack` 190／`performSpell` 216／`performLrigActivated` 352／`performSigniActivated` 393／`performSummonSigni` 391／`performArts` 214／`performKeyPiece` 202／`performGrow` 341／`performSigniAttack` 331／`performGuardResponse` 292／`performLifeBurstResponse` 325。

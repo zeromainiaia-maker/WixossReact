@@ -86671,8 +86671,9 @@ test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッ�
   });
   eq(cpuChoice && `${cpuChoice.zone}:${cpuChoice.effect.effectId}:${[...cpuChoice.fieldTrash].sort()}`, 'hand:WX18-036-E3:0,1', '🔴CPU が場の＜悪魔＞2体を選んだ手札【起】を返さない');
   // ── 画面の配線＝実行・モーダルとも同じ支払い関数 ──
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  const execBody = battle.slice(battle.indexOf('const executeHandActivated = async ('), battle.indexOf('const executeTrashActivated = async ('));
+  // ⚠§5.7 `S-5c` 第3段（2026-09-18）＝実行本体は `controller/offFieldActivateExec.ts` へ移設した。
+  const exec = fs.readFileSync(join(root, 'src/screens/battle/controller/offFieldActivateExec.ts'), 'utf8');
+  const execBody = exec.slice(exec.indexOf('export const executeHandActivated = async ('), exec.indexOf('export const executeTrashActivated = async ('));
   ok(/payHandActivateCost\(\{/.test(execBody), '🔴executeHandActivated が共通の支払い関数を通っていない');
   ok(!/trash: \[\.\.\.my\.trash, \.\.\.paidNums, cardNum\]/.test(execBody), '🔴executeHandActivated が常にこのカードを捨てる手書き支払いに戻った');
   const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/HandActivatedModal.tsx'), 'utf8');
