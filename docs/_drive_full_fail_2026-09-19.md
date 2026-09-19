@@ -4,8 +4,14 @@
 ＝今回の変更とは無関係に、以前から全件実行で落ちていた（全件を回す運用が無く、見えていなかった）。
 ⚠`cpuAckWriteLostStillEnds` は決着でルームを消すシナリオ＝単独で回す（§4.4-115）ので除外。
 
-> 🏁**2026-09-19＝A・B の17本＋C の64本を解消**（BUGFIXES 同日の項）。残り＝**C の4本**。
+> 🏁**2026-09-19＝85本すべて解消**（A・B 17本＋C 68本／BUGFIXES 同日の項）。**残り0。**
 > ⚠**残数は「C 全68本を1回の実行で回し直した実測」**（推測ではない）＝解消済みの行はこのファイルから消してある。
+>
+> 🔴**「残0」の意味**＝**68本すべてを個別／小群で PASS まで確認した**。ただし **68本を1回の実行で回すと毎回1本前後が落ちる**＝
+> 実測 3回＝**66 / 67 / 67**で、**落ちる顔ぶれは毎回違う**（`delayedAttackTrigger`+`installDelayedTriggerFire` → `v12GrantedEnergyChargeThirdBlocked` → `underCostFromThisOnly`）。
+> このうち**決定的に再現したものは2件で、どちらも直した**（オーバーレイの閉じ残し＝§4.4-130／PATCH のあとを固定 sleep で済ませていた＝§4.4-3）。
+> **残る揺れは 2026-09-18 に記録済みの「CPU の待ち予算に対するタイミングの揺れ」と同じ形**（落ちる顔ぶれが毎回変わる）＝
+> ⚠**1回のバッチ FAIL を即バグと読まない。単独・小群で再現しなければ揺れとして扱い、再現したものだけ直す。**
 
 ## 🏁A 撤回済みの相打ち（O-47）前提＝シナリオが古い（12本・2026-09-19 解消）
 
@@ -30,14 +36,10 @@
 - b34ZeroPickAllowedWhenUpTo (21s)  — 未完了（zoned=false confirm=null hField=[null,null,null] pEff=-）
 - v227OptionalDownSkip (5s)  — 選択UIは出たが0体確定ボタンを押せない（候補=["WXDi-P16-078#39100"]）＝辞退できていない
 
-## C 未分類（前提崩れ・未完了・観測できず）（残り **4本** / 元68本）
+## 🏁C 未分類（前提崩れ・未完了・観測できず）（**残り0** / 元68本）
 
-🏁**解消済み64本**（この節から削除済み）＝v64DamageReplaceByCostPaysAndLosesAbility / b60UnderCardsSurvive / b60UnderCardsTrashed / wxdip09053GrantUpToTwo / v14PermanentPlayerGrantSurvivesHumanEndNoDiscard / o56BurstAsCheckDoesNotEnterCheckZone / handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / v45cPaySelfBanishRemovesOnlyFiltered / v45cSkipSelfBanishDoesNothing / o245CoinKeySetBlocked / v55CheckZoneFlipGrowsAndOnPlayFires / o71HandToCheckZone / v51LeaveSubstitutePaysAndSurvives / b41GrantKeywordTargetsOwnSigniOnly / b54EnergySelfReviveOnlySelf / v16NonEichiAbilityDoesNotUpWatcher / wx20re18DynamicLevelAttackBanish / v172BattleBanishDoesNotFire / v171BanishedSigniDoesNotLower / o297GateZoneBanishFires / o297OtherZoneGateSilent / handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
+🏁**解消済み68本＝全部**（この節から削除済み）＝v04TanabataLeaveFieldE3 / v13TrashActLrigDownTwo / v17CoinPaymentDoesNotFire / b46KeyTrashOnlyControl / v64DamageReplaceByCostPaysAndLosesAbility / b60UnderCardsSurvive / b60UnderCardsTrashed / wxdip09053GrantUpToTwo / v14PermanentPlayerGrantSurvivesHumanEndNoDiscard / o56BurstAsCheckDoesNotEnterCheckZone / handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / v45cPaySelfBanishRemovesOnlyFiltered / v45cSkipSelfBanishDoesNothing / o245CoinKeySetBlocked / v55CheckZoneFlipGrowsAndOnPlayFires / o71HandToCheckZone / v51LeaveSubstitutePaysAndSurvives / b41GrantKeywordTargetsOwnSigniOnly / b54EnergySelfReviveOnlySelf / v16NonEichiAbilityDoesNotUpWatcher / wx20re18DynamicLevelAttackBanish / v172BattleBanishDoesNotFire / v171BanishedSigniDoesNotLower / o297GateZoneBanishFires / o297OtherZoneGateSilent / handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
 
-- v04TanabataLeaveFieldE3 (23s)  — E3の噛み合わせ未確認（field=[["WD02-010#6002","WXDi-P10-041#6003"],["WX21-057#6004"],null] hand=[] energy=[] trash=["WD02-010#6001"]）
-- v13TrashActLrigDownTwo (44s)  — 完走タイムアウト（mechanism=true stackSeen=true sourceCount=1 trash=["WXDi-P04-042#7303"] field=[null,null,null] specific=センター→アシストLの順でdown=[true,true,false] pending=SELECT_TARGET stack=0）
-- v17CoinPaymentDoesNotFire (58s)  — 効果獲得/支払い判定未完了（payment=true started=true host={"fieldSigni":[["WXDi-P15-069#8901"],["SP27-007#8902"],null],"signiDown":[false,false,false],"hand":[],"trash":[],"energy":["WD02-009#8903",
-- b46KeyTrashOnlyControl (74s)  — 前提崩れ＝【起】を撃てていない（キーがルリグトラッシュへ行っていない）。labels=[] energy ["WX05-077#3","WX05-079#3","WD01-013#60"]→["WX05-077#3","WX05-079#3","WD01-013#60"] lrigTrash 0→0 trash=["WD05-012#9"]
 
 
 

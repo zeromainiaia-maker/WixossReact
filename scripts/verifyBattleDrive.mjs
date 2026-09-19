@@ -7762,7 +7762,10 @@ const scenarios = {
       // （ボタン非表示＝使用済みonce_per_gameのため）CardStackModal（カード拡大表示）を開いたまま残る。
       // このモーダルは全画面固定オーバーレイ＝後続の「アタックフェイズへ」クリックを吸収してしまうため、
       // フェイズ進行前に明示的に閉じる（無ければ何も起きない）。
-      await H.clickTextOrBtn(['タップして閉じる']);
+      // 🔴🆕2026-09-19＝**`clickTextOrBtn(['タップして閉じる'])` 1回では閉じ切らないことがある**＝
+      //   `outsideDrawPhase` の直後に回すと**この1回では残り、「アタックフェイズへ」が吸われて `phase=MAIN` のまま**
+      //   14周空振りした（単独では PASS＝典型的な並び順の揺れ）。⇒ Escape も撃つ `closeModals()` に寄せる。
+      await H.closeModals();
       if (!installed) {
         const fin = await H.queryState();
         return { pass: false, detail: `遅延トリガー設置を確認できず（hand=${fin?.host?.hand ?? '-'} delayed=${JSON.stringify(fin?.host?.delayedTriggers)}）` };
@@ -16507,7 +16510,10 @@ scenarios.underEnergyPayPerTurnLimit = {
 const V04_UNDER_PAID = 'WD02-010#6001';   // 既に支払い済み＝trashに直接注入
 const V04_UNDER_REMAIN = 'WD02-010#6002'; // まだ下にある＝E3の対象
 const V04_LEAVE_TANABATA = 'WXDi-P10-041#6003';
-const V04_LEAVE_BOUNCER = 'WX21-057#6004'; // 小罠 ツララ（【出】自分のシグニ1体を対象とし手札に戻す・あや限定）
+// 🔴2026-09-19＝**旧版は `WX21-057`（小罠 ツララ）を召喚して【出】で戻していた**が、原文は
+//   「あなたの**【トラップ】**１つを手札に戻す」＝**シグニを戻す効果ではない**（旧 JSON の誤りで、parser 修正後は
+//   召喚しても何も起きず22周空振りしていた）。`leaveFieldToHand` と同じ結論なので**同じ手（合成 BOUNCE の注入）**にする。
+//   見たいのは「タナバタが場を離れたときに E3 が下の残り1枚をエナへ動かすか」なので、戻す側は合成で十分。
 
 const V04_LEAVE_SPEC = {
   hostSet: {
@@ -16535,8 +16541,19 @@ const V04_LEAVE_SPEC = {
     'actions_done': [],
     'game_actions_done': [],
   },
-  handPrepend: [V04_LEAVE_BOUNCER],
-  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    effectStack: {
+      turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+      queue: [{
+        id: 'v04-leave-bounce', playerId: null, cardNum: V04_LEAVE_TANABATA, effectId: 'V04-BOUNCE-SYNTH',
+        label: '自分のシグニ1体を手札に戻す（注入）',
+        effect: {
+          effectId: 'V04-BOUNCE-SYNTH', effectType: 'AUTO', timing: ['ON_PLAY'],
+          action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } },
+          duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+        },
+      }],
+    } },
 };
 
 scenarios.v04TanabataLeaveFieldE3 = {
@@ -16551,16 +16568,11 @@ scenarios.v04TanabataLeaveFieldE3 = {
       return { pass: false, detail: `支払い済みカードのtrash注入不成立=${JSON.stringify(before?.host?.trashCards)}` };
     }
     await H.ensureMain();
-    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-    let summoned = false;
     for (let s = 0; s < 22; s++) {
       await page.waitForTimeout(900);
       await page.screenshot({ path: `${SHOT}/v04LeaveE3-${s}.png`, fullPage: true });
       let did = null;
-      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
-      if (!did && summoned) did = await H.clickTestId('summon-zone-1');
-      if (!did) { // SELECT_TARGET（バウンス対象＝自分の場・pick-0=タナバタ(zone0)を選ぶ。pick-1=ツララ自身は避ける）
+      if (!did) { // SELECT_TARGET（注入した BOUNCE の対象＝自分の場。候補はタナバタ1体だけ）
         const pick0 = page.getByTestId('pick-0').first();
         if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
           const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
@@ -16578,7 +16590,7 @@ scenarios.v04TanabataLeaveFieldE3 = {
       const e3Log = await H.findLog(/タナバタ.*場を離れたとき|の【自】効果（場を離れたとき）|下.*エナ/);
       H.log(`  v04lf[${s}] -> ${did ?? 'なし'} | leftField=${leftField} hand=${backInHand} remainEnergy=${remainToEnergy} paidTrashOnly=${paidStaysInTrashOnly} e3Log=${!!e3Log} field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
       if (leftField && backInHand && remainToEnergy && paidStaysInTrashOnly && trashNotDup) {
-        return { pass: true, detail: `タナバタがツララでバウンス→場を離れる→E3発火で残り下カード${V04_UNDER_REMAIN}だけエナへ（energy=${JSON.stringify(st.host.energyCards)}）。支払い済み${V04_UNDER_PAID}はtrashのまま不変（trash=${JSON.stringify(st.host.trashCards)}）` };
+        return { pass: true, detail: `注入した BOUNCE でタナバタが場を離れる→E3発火で残り下カード${V04_UNDER_REMAIN}だけエナへ（energy=${JSON.stringify(st.host.energyCards)}）。支払い済み${V04_UNDER_PAID}はtrashのまま不変（trash=${JSON.stringify(st.host.trashCards)}）` };
       }
       if (leftField && backInHand && trashNotDup && s >= 6) {
         return { pass: false, st, detail: `【engine疑い】タナバタが場を離れた後、残り下カード${V04_UNDER_REMAIN}がエナではなくtrashへ（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）＝E3(TAKE_FROM_UNDER_SIGNI destination:energy)が発火せず、既定の「下カードは場を離れるとtrashへ」ルールが優先された疑い。e3Log=${!!e3Log}` };
@@ -20663,7 +20675,17 @@ scenarios.v12GrantedEnergyChargeTwice = {
             const patched = await H.patchPlayerState('host', { 'field.lrig_down': true });
             if (patched?.error) return { pass: false, detail: `次イベント準備のlrig_down PATCH失敗: ${patched.error}` };
             await H.closeModals();
-            await page.waitForTimeout(500);
+            // 🔴🆕2026-09-19＝**PATCH のあとを固定 sleep で済ませない**（§4.4-3）＝生きているクライアントが
+            //   自分の state を書き戻すので、**ダウンが反映される前に次のチャージへ進むと使用回数の台帳
+            //   （`actions_done` の `SPDi43-13-sub-E1`）が巻き戻り、3回目が撃ててしまう**
+            //   （単独・数本では再現せず、68本バッチで1回だけ「3回目もアップ」で落ちた）。
+            //   ⇒ **ダウンと使用回数の両方を観測してから**次へ進む。
+            for (let w = 0; w < 16; w++) {
+              await page.waitForTimeout(250);
+              const chk = await H.queryState();
+              const used = (chk?.host?.actionsDone ?? []).filter(a => a === 'SPDi43-13-sub-E1').length;
+              if (chk?.host?.lrigDown === true && used >= completed) break;
+            }
           }
         }
       }
@@ -24413,7 +24435,7 @@ async function driveV13TrashAct(page, H, opts) {
     const settled = mechanismSeen && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
     const finalOk = settled && sourceCount === 1 && sourceField && sourceLeftTrash && paidCardsOk && specific.ok;
     consecutiveFinal = finalOk ? consecutiveFinal + 1 : 0;
-    H.log(`  v13[${s}] -> ${did ?? 'なし'} | effect=${opts.effectId} mechanism=${mechanismSeen} stackSeen=${stackSeen} sourceCount=${sourceCount} sourceField=${sourceField} paidCards=${paidCardsOk} specific=${specific.ok} settled=${settled}`);
+    H.log(`  v13[${s}] -> ${did ?? 'なし'} | effect=${opts.effectId} mechanism=${mechanismSeen} stackSeen=${stackSeen} sourceCount=${sourceCount} sourceField=${sourceField} paidCards=${paidCardsOk} specific=${specific.ok} settled=${settled} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)} opts=${JSON.stringify(st?.pendingOptions)}`);
     if (consecutiveFinal >= 2) {
       return {
         pass: true,
@@ -24429,7 +24451,13 @@ scenarios.v13TrashActLrigDownTwo = {
   title: 'V-13 WXDi-P04-042：レベル2ルリグ2体ダウンでトラッシュ起動し本体を場へ移す',
   spec: {
     hostSet: {
-      'field.lrig': ['WD01-003#7301'], 'field.assist_lrig_l': ['WD03-003#7302'], 'field.assist_lrig_r': [],
+      // 🔴2026-09-19＝**センターは Lv3 にする**。この【起】が場へ出す `WXDi-P04-042`（コードアンシエンツ　スチームパンク）は **Lv3** で、
+      //   旧版のセンター WD01-003（**Lv2**）だと §5.3 `O-532`／`O-534`（配置レベル制限がルール処理になった）以後は
+      //   **「トラッシュから場に出すカードを0枚選んでください」＝候補が「Lv超過」で全部落ち、`決定 (0/0)` のまま止まる**
+      //   （コストは払えているので「払ったのに出ない」＝120周まるごと空振りしていた）。
+      //   ⚠コスト「アップ状態の**レベル2**のルリグ2体をダウン」は**アシスト2体（ともに Lv2）**で満たす＝センターは数に入らない。
+      'field.lrig': ['WD03-002#7301'],                                      // コード・ピルルク・Ｇ（Lv3・リミット8）
+      'field.assist_lrig_l': ['WD03-003#7302'], 'field.assist_lrig_r': ['WD01-003#7304'],  // ともに Lv2
       'field.lrig_down': false, 'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
       'field.signi': [null, null, null], 'field.check': null,
       'trash': ['WXDi-P04-042#7303'], 'hand': [], 'energy': [], 'life_cloth': v13Life(7310),
@@ -24445,9 +24473,10 @@ scenarios.v13TrashActLrigDownTwo = {
       { testId: 'trashact-cost-summary', attr: 'data-lrig-down-count', value: 2 },
       { testId: 'trashact-cost-summary', attr: 'data-lrig-down-level', value: 2 },
     ],
+    // ⚠**Lv2 のルリグはアシスト2体だけ**（センターは Lv3 で数に入らない）＝支払いで下がるのはその2体。
     finalCheck: async st => ({
-      ok: st?.host?.lrigDown === true && st?.host?.assistDown?.[0] === true && st?.host?.assistDown?.[1] === false,
-      detail: `センター→アシストLの順でdown=${JSON.stringify([st?.host?.lrigDown, ...(st?.host?.assistDown ?? [])])}`,
+      ok: st?.host?.lrigDown === false && st?.host?.assistDown?.[0] === true && st?.host?.assistDown?.[1] === true,
+      detail: `Lv2のアシスト2体だけがdown＝[center, L, R]=${JSON.stringify([st?.host?.lrigDown, ...(st?.host?.assistDown ?? [])])}`,
     }),
   }),
 };
@@ -25624,7 +25653,12 @@ async function driveV17EffectGainOrPayment(page, H, payment) {
     }
     if (!did && actionClicked) { did = await H.clickBtn('発動', { exact: true }); if (did) started = true; }
     const pre = await v15cQueryBattleState(page);
-    if (!did && (pre?.pendingCandidates ?? []).includes(V17_PAY_SIGNI)) did = await clickPendingInstance(page, H, V17_PAY_SIGNI);
+    // 🔴🆕2026-09-19＝**「決定 (1/」が出ていない間だけ押す**（§4.4-2c）＝旧版は候補に居るかぎり毎ティック押していて
+    //   **選択がトグルで外れ続け**、120周 `SELECT_TARGET` のまま確定に一度も到達しなかった（`settled` が永久に false）。
+    if (!did && (pre?.pendingCandidates ?? []).includes(V17_PAY_SIGNI)) {
+      const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+      if (!ready) did = await clickPendingInstance(page, H, V17_PAY_SIGNI);
+    }
     if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
     const st = await v15cQueryBattleState(page); last = st;
     const sourceLog = payment ? v15cLog(st, /THE DOOR.*【起】|コイン支払時/) : v15cLog(st, /華代・爾彩焔.*【起】|コイン2枚獲得/);
@@ -25640,7 +25674,7 @@ async function driveV17EffectGainOrPayment(page, H, payment) {
       ? settled && coinsOk && !triggerLog && !drawn && markerInDeck && doneCount === 0 && conserved
       : settled && coinsOk && triggerLog && drawn && doneCount === 1 && conserved;
     finalTicks = ok ? finalTicks + 1 : 0;
-    H.log(`  v17.effectCoin[${s}] -> ${did ?? 'なし'} | payment=${payment} source=${sourceLog} coins=${st?.host?.coins} trigger=${triggerLog} drawn=${drawn} done=${doneCount}`);
+    H.log(`  v17.effectCoin[${s}] -> ${did ?? 'なし'} | payment=${payment} source=${sourceLog} coins=${st?.host?.coins} trigger=${triggerLog} drawn=${drawn} done=${doneCount} settled=${settled} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} conserved=${conserved} marker=${markerInDeck}`);
     if (finalTicks >= 2) return { pass: true, detail: payment
       ? '獲得対照と同一盤面で押す能力だけコイン2支払いへ変更：coins 2→0の実起動後もSP27ログ/actions_done/drawなし・全instance1枚'
       : '効果解決中央diff経路：WXK07-006-E3実解決でcoins 2→4、SP27ログ→draw・actions_done1件・全instance1枚' };
@@ -39261,6 +39295,12 @@ const b46KeySpec = (keyNum) => ({
     'field.key_piece_extra': [],
     'energy': [...B46_KEY_ENERGY],
     'trash': ['WD05-012#9'],       // 対照キーの本文（トラッシュから場に出す）が空振りしないように1枚置く
+    // 🔴2026-09-19＝**ルリグデッキにアーツを1枚置く**。対照キー `WXK10-006-E3` のコストは
+    //   `trash_key` **＋ `trashArtsFromLrigDeck{count:1, excludeCraft:true}`**（原文＝「このキーを場からルリグトラッシュに置き、
+    //   ルリグデッキからアーツ1枚をトラッシュに置く」）で、**ルリグデッキが空だと支払えず【起】が一覧に出ない**
+    //   （支払えないコストの選択肢は提示しない規約）＝`labels=[]` のまま74秒空振りしていた。
+    //   ⚠注入の土台は `lrig_deck` を空に戻すので、**シナリオ側で明示しないと必ず空**になる。
+    'lrig_deck': ['WX02-020#46001'],
     'lrig_trash': [],
     'coins': 0,
     'actions_done': [],
@@ -39286,7 +39326,7 @@ const b46KeyDrive = (tag, keyNum, expectEnergyEmptied) => async function drive(p
   H.log(`  ${tag} 開始: key=${before?.host?.keyPiece} energy=${JSON.stringify(before?.host?.energyCards)} lrigTrash=${before?.host?.lrigTrash} phase=${before?.turnPhase}`);
   H.log('  KEY スロット:', await H.clickTestId('my-lrig-slot-key') ?? '見つからず');
   await page.waitForTimeout(900);
-  let used = false, sawLabels = [], last = before;
+  let used = false, sawLabels = [], last = before, artsPicked = false;
   for (let s = 0; s < 26; s++) {
     await page.waitForTimeout(700);
     let did = null;
@@ -39301,6 +39341,14 @@ const b46KeyDrive = (tag, keyNum, expectEnergyEmptied) => async function drive(p
           await btn.click({ timeout: 1200 }).catch(() => {}); did = `act:${labels[idx]}`; used = true;
         }
       }
+    }
+    // 🔴🆕2026-09-19＝**対照キー `WXK10-006-E3` のコストは「ルリグデッキからアーツ1枚」**＝
+    //   モーダルのサムネイルを押さないと「発動」が disabled のままで26周空振りする。
+    //   ⚠`KeyActivatedModal` の候補には `data-testid` が無いので `img[alt=カード名]` で狙う（`clickModalImage`）。
+    //   ⚠**1回だけ押す**（毎ティック押すと選択がトグルで外れる＝§4.4-2c）。
+    if (!did && used && !artsPicked) {
+      const a = await H.clickModalImage('ブラッディ・スラッシュ');
+      if (a) { artsPicked = true; did = a; }
     }
     // 罠33＝キー【起】の確定は「発動」（`KeyUseModal` の「セット」とは別モーダル）。
     //   ⚠**スロットの開き直しより先に置く**（後ろだとオーバーレイを閉じ続けて永久に確定へ到達しない）
@@ -39338,7 +39386,7 @@ const b46KeyDrive = (tag, keyNum, expectEnergyEmptied) => async function drive(p
     return { pass: true, detail: `エナ3枚がすべてトラッシュへ（キー【起】でも energyTrashAll が払われる）。${detail}` };
   }
   if (energyAfter.length !== 3) return { pass: false, detail: `🔴対照が壊れた＝エナ全損コストを持たないキーなのにエナが減った。${detail}` };
-  return { pass: true, detail: '対照＝trash_key だけのキー【起】ではエナが1枚も減らない。' + detail };
+  return { pass: true, detail: '対照＝エナ全損コストを持たないキー【起】ではエナが1枚も減らない。' + detail };
 };
 scenarios.b46KeyEnergyTrashAllPaid = {
   title: 'WXK04-025-CB-E2（キー【起】＝キー＋エナゾーンをすべてトラッシュ）＝エナ3枚が実際に失われる【本命・旧: 提示だけで踏み倒し】',
@@ -39346,7 +39394,9 @@ scenarios.b46KeyEnergyTrashAllPaid = {
   drive: b46KeyDrive('b46KeyEnergyTrashAllPaid', B46_KEY_ALL, true),
 };
 scenarios.b46KeyTrashOnlyControl = {
-  title: 'WXK10-006-E3（同じ盤面・trash_key だけのキー【起】）＝エナは1枚も減らない【対照】',
+  // ⚠2026-09-19＝タイトルの「trash_key だけ」は不正確になった（live のコストは `trash_key` ＋
+  //   `trashArtsFromLrigDeck`）。**対照の軸は「エナ全損コストを持たない」こと**なのでそこを名前にする。
+  title: 'WXK10-006-E3（同じ盤面・エナ全損コストを持たないキー【起】）＝エナは1枚も減らない【対照】',
   spec: b46KeySpec(B46_KEY_CTRL),
   drive: b46KeyDrive('b46KeyTrashOnlyControl', B46_KEY_CTRL, false),
 };
