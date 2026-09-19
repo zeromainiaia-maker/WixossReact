@@ -10581,6 +10581,9 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
   if (!key || !tgt || tgt.type !== 'SIGNI') return a;
   // 体数も宣言側に揃える（「シグニを２体まで対象とし…それらをバニッシュする」WXDi-P02-043＝
   // 帰結側は「それら」しか書いていないので count が 1 に落ちており、固定対象が2体でも1体しか撃てなかった）。
+  // 🆕**帰結側の `upToCount` は後処理 `normalizeStoredTargetUpToCount` が倒す**（§5.3 `O-536`）＝
+  //   ここで倒すと**この規則を通らない生成箇所**（`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`／
+  //   `REMOVE_ABILITIES`／エナゾーン対象の `TRANSFER_TO_HAND`）に届かない。
   return {
     ...a,
     [key]: { ...tgt, owner: desig.owner, count: desig.count, ...(desig.upToCount ? { upToCount: true } : {}) },
@@ -13593,6 +13596,69 @@ function replaceFirstLegacyReveal(action: EffectAction, replacement: RevealUntil
  *   同じカードの別能力の「対象とし」を巻き込む（`normalizeAddToFieldAsDown` と同じ罠）。
  * ⚠**`then` に対象が無い／`count` が 1 でない形は対象外**＝焼き込む個体が定まらない。
  */
+/**
+ * 🆕🔴**§5.3 `O-536`（2026-09-19）＝「N体まで」は宣言側にしか付けない。**
+ *
+ * 原文＝「〈対象〉を**N体まで**対象とし、〈任意コスト〉して**もよい**。**そうした場合、それら**を〜する」
+ *   （live 実測 **14効果 / 14カード**）。**「まで」で減らす自由は対象宣言の1回だけ**で、
+ *   帰結は宣言した札を**そのまま**処理する（帰結文には「まで」が書かれていない）。
+ *
+ * 🔴**症状**＝帰結にも `upToCount` が立っていると `selectOrInteract` の `optional` が
+ *   `a.optional || target.upToCount` で true になり、**`O-535` の自動解決から外れる**
+ *   ＝宣言した対象を**もう一度（今度は減らせる形で）選び直させる**。
+ *   `BattleScreen` は `SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶので、
+ *   「対象にされたとき」の【自】が二重に立つ経路でもある。
+ *
+ * 🔑**後処理1本で根絶する**＝生成箇所が最低4つある（汎用の `bindToStoredTarget`／
+ *   `parseSentencePart4` の「アタックしたシグニ＋キー」／`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`／
+ *   `REMOVE_ABILITIES`・エナゾーン対象の `TRANSFER_TO_HAND` のように `bindToStoredTarget` の
+ *   BINDABLE/SIGNI 条件を通らない形）。**個別の枝に書くと次に枝が増えたとき必ず漏れる**
+ *   （`normalizeRevealPickEnergyThen` と同じ理由）。
+ *
+ * ⚠**宣言側（`selectTarget`）は触らない**＝0体を選ぶ自由はそこに残す。
+ * ⚠🔴**「直前が対象宣言のステップ」であることを必ず確かめる**＝`upToCount` は
+ *   **帰結側の「〜してもよい」にも使われている**（`WX12-010-E3`「この方法で移動したシグニを
+ *   **アップしてもよい**」＝`UP{count:'ALL', upToCount:true, targetsStored:true}`で、
+ *   照応先は engine が算出した集合＝任意性は帰結の側にある）。
+ *   その形は宣言ステップが `REARRANGE_SIGNI` なので `selectTarget` を持たず、ここで落ちる。
+ * ⚠**立っているときだけ倒す**＝`upToCount` の書き方は live に2通りある（明示 `false` とキー無し）。
+ *   どちらかへ機械的に寄せると**意味の変わらない差分が 36〜139効果**出て A/B 差分が読めなくなる（両方とも実測した）。
+ */
+function normalizeStoredTargetUpToCount(action: EffectAction): void {
+  // 宣言 → STORE のあとに続く「固定済みの帰結」から `upToCount` を落とす。
+  const dropOnStored = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(dropOnStored); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.targetsStored === true) {
+      for (const key of ['target', 'source'] as const) {
+        const t = obj[key] as Record<string, unknown> | undefined;
+        if (t && t.upToCount === true) t.upToCount = false;
+      }
+    }
+    for (const v of Object.values(obj)) dropOnStored(v);
+  };
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'SEQUENCE' && Array.isArray(obj.steps)) {
+      const steps = obj.steps as Record<string, unknown>[];
+      for (let i = 0; i + 1 < steps.length; i++) {
+        // ⚠**宣言ステップは id では絞らない**＝`SELECT_TARGET_ONLY` のほかに
+        //   `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` のような専用 STUB もある（実測＝これで1効果取りこぼした）。
+        //   共通しているのは**`selectTarget` を持つこと**＝そこが対象宣言の口。
+        if (!steps[i]?.selectTarget) continue;
+        const store = steps[i + 1];
+        if (store?.type !== 'STUB' || store.id !== 'STORE_LAST_PROCESSED_TARGETS') continue;
+        steps.slice(i + 2).forEach(dropOnStored);
+      }
+    }
+    for (const v of Object.values(obj)) visit(v);
+  };
+  visit(action);
+}
+
 function normalizeOpponentPayPreTarget(action: EffectAction, fullText: string): void {
   // 🔴**`abilityBlockTextOf` は使わない**（2026-09-10 に実測して書き直した）＝あの関数は内部で
   //   パーサーを再実行してブロック境界を求めるため、**この正準化から呼ぶと再入する**。
@@ -32521,6 +32587,17 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   //   原文は全角 `《鰐渕アカリ（正月）》`／CardName 列は半角 `鰐渕アカリ(正月)`（全角は実測 0 / 半角 56）。
   //   🔑**抽出地点ごとに直さない**＝`cardName` を書く規則は parser 全体に 20 箇所以上あり、足し漏れが必ず出る。
   //   全 rewriter が組み終わった**最後に1回**、効果ツリー全体の `cardName` / `cardNames` を正規化する。
+  // 🆕🔴**§5.3 `O-536`（2026-09-19）＝帰結側に残った「まで」を倒すのも「全 pass のいちばん最後」。**
+  // 🔴**効果単位の後処理ループに置いてはいけない**＝対象宣言（`SELECT_TARGET_ONLY` ＋ `STORE`）を
+  //   前へ引き上げるのは**この最終ループの `hoistTargetBeforeCondition` 族**なので、早い段では
+  //   まだ `SEQUENCE[OPTIONAL_COST, CONDITIONAL{…}]` のままで**正準形が存在しない**
+  //   （実測＝早い段に置くと 8効果しか当たらず、`WDK08-Y14-E1`／`WXK08-001-E1` の2効果を取りこぼした）。
+  // ⚠**原文で前置ガードする**（全 10,700 効果で木を総当たり再帰すると build が延びる＝
+  //   上の `ダウン状態で場に出` ガードと同じ理由）。該当は「まで対象とし」の原文だけ。
+  for (const effect of effects) {
+    if (!/まで(?:を)?対象とし/.test(currentSourceTexts.get(effect.effectId) ?? '')) continue;
+    normalizeStoredTargetUpToCount(effect.action);
+  }
   for (const effect of effects) normalizeCardNamesDeep(effect as unknown as Record<string, unknown>);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;

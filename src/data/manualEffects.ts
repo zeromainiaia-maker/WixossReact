@@ -405,6 +405,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ⚠既存の `energyTrashCountFromTargetLevel`（対象の**レベル**）と取り違えない。
   // ⚠支払いは任意（「置いても**よい**」）＝`STUB{OPTIONAL_COST}` ＋ `CONDITIONAL{PAID_ADDITIONAL_COST}`。
   //   払わなければパワー減少も起きない（「**そうした場合**」）。
+  // 🆕🔴**§5.3 `O-536`（2026-09-19）＝「３体まで」は宣言側（`selectTarget`）にだけ付ける。**
+  //   帰結にも `upToCount` を付けると `selectOrInteract` の `optional` が立ち、`O-535` の自動解決から外れて
+  //   **宣言した対象をもう一度選び直させる**（parser 側は `normalizeStoredTargetUpToCount` が倒すが、
+  //   **MANUAL は収穫マージが不可侵にするので手で揃える**。同型＝`WX24-P2-054-E2`／`PR-K026-E1-G2`／`WDK09-013-E2`）。
   "WX25-CP1-092": [
     {"effectId":"WX25-CP1-092-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self",
      "action":{"type":"SEQUENCE","steps":[
@@ -412,7 +416,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
        {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
        {"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardClass":"ブルアカ"}},"energyTrashCountFromTargetCount":true},
        {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
-        "then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"delta":-3000,"targetsStored":true}}
+        "then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-3000,"targetsStored":true}}
      ]},
      "duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
@@ -775,7 +779,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ── WX24-P2-054 ／ 最大レベルではなく、選んだ相手シグニすべてのレベル合計ぶん《緑》を払う。
   // 🔴旧 live は《緑》1つ固定のうえ、自分のデッキ上をエナチャージする別動作だった。
   'WX24-P2-054': [
-    {"effectId":"WX24-P2-054-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"参式　一衣"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColorsPerTargetLevelSum":["緑"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    {"effectId":"WX24-P2-054-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"参式　一衣"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColorsPerTargetLevelSum":["緑"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -11705,7 +11709,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ⚠`RULE_REMINDER_TEXT`（1000単位の但し書き）は `splitTotal.unit:1000` が表すので落とす。
   // ⚠**E1 の1本目【起】（エクシード1・－7000）は旧のまま**＝あちらは同じ文に対象宣言があり正しい。
   "PR-K026": [
-    {"effectId":"PR-K026-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-K026-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"},{"effectId":"PR-K026-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":9}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":9},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-18000,"splitTotal":{"unit":1000},"duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグニを２体まで対象とし、あなたのデッキの上からカードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、それらのパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"PR-K026-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-K026-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"},{"effectId":"PR-K026-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":9}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":9},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-18000,"splitTotal":{"unit":1000},"duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグニを２体まで対象とし、あなたのデッキの上からカードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、それらのパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   "WXDi-D09-H07": [
@@ -12635,7 +12639,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //     （`orderChosenBy` を `targetsStored` と組で消費する新分岐＝`execTransferToDeck` の TRASH_CARD 側）。
   //   ⚠E1（パワー－2000）は parser の出力をそのまま使う＝ここには書かない（`mergeManualEffects` は effectId 一致で差し替える）。
   "WDK09-013": [
-    {"effectId":"WDK09-013-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":true},"targetsStored":true,"shuffle":false,"position":"bottom","orderChosenBy":"opponent"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WDK09-013-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":false},"targetsStored":true,"shuffle":false,"position":"bottom","orderChosenBy":"opponent"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // 🆕**§5.3 `O-463`（2026-09-16）＝「**この方法でトラッシュに置かれたカードの中から**」。**

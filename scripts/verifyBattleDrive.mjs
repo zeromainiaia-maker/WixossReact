@@ -11062,11 +11062,14 @@ const scenarios = {
       let energySelected = 0;
       let paid = false;
       let pickedCount2 = 0;
-      // ⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られた「2件だけの」SELECT_TARGETが
-      // もう一度発火する（BANISH自体は常にselectOrInteract経由＝候補が2件に絞られていても確認クリックが要る）。
-      // 対象確定は1回で終わらず、支払い前後で計2回のpick UIを踏む＝この関数はその両方を同じ手順で処理する。
-      // 🆕**2026-09-19（§5.3 `O-535`）でもこの形は据置**＝帰結が `upToCount`（「２体**まで**」）なので
-      //   自動解決の対象外（`upToCount` は「〜してもよい」にも使われるため区別できない）。残 13効果＝`O-536`。
+      // 🔴🆕**2026-09-19（§5.3 `O-536`）＝対象を聞くのはちょうど1回**（罠 §4.4-131）。
+      //   ①旧実装＝支払い後に `freezeStoredTargets` で2件へ絞られた SELECT_TARGET が**もう一度**発火し、
+      //     対象確定を支払い前後で計2回踏んでいた（このシナリオはその両方をクリックして緑にしていた）。
+      //   ②`O-535`（engine の自動解決）を入れた時点ではこの形だけ据置だった＝**帰結にも `upToCount`
+      //     （「２体まで」）が立っていて `selectOrInteract` の `optional` が true になる**ため、
+      //     「選ぶ余地なし」の条件から外れていた。
+      //   ③`O-536` で**parser が帰結側の `upToCount` を落とす**ようにしたので、いまは1回で閉じる。
+      //   ⇒ **支払いのあとに候補が出たら即 FAIL**（緩く数えると2回聞く形へ戻っても緑になる）。
       for (let s = 0; s < 30; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lxivMultiTargetPayBanishesBoth-${s}.png`, fullPage: true });
@@ -11099,14 +11102,12 @@ const scenarios = {
           const payBtn = page.getByTestId('optcost-pay').first();
           if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; paid = true; }
         }
-        // 支払い後の再確認SELECT_TARGET（候補はfixedCardNumsで2件に絞られている）＝同じ多選択パターンで処理
+        // 🔴§5.3 `O-536`＝支払いのあとに宣言した対象を問い直したら**その場で FAIL**（退化の検出器）。
         if (!did && paid) {
-          const pN2 = page.getByTestId(`pick-${pickedCount2}`).first();
-          if (pickedCount2 < 2 && await pN2.count() && await pN2.isVisible().catch(() => false)) {
-            await pN2.click().catch(() => {}); pickedCount2++; did = `pick2:pick-${pickedCount2 - 1}`;
-          } else {
-            const confirmBtn2 = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
-            if (await confirmBtn2.count() && await confirmBtn2.isVisible().catch(() => false)) { await confirmBtn2.click().catch(() => {}); did = 'btn:決定(N/2)#2'; }
+          const stAfterPay = await H.queryState();
+          if (sameInstanceSet(stAfterPay?.pendingCandidates, ['WX01-053#1', 'WX01-053#2'])) {
+            pickedCount2++;
+            return { pass: false, detail: `🔴O-536 退化＝宣言した対象を支払いのあとで問い直した（cands=${JSON.stringify(stAfterPay.pendingCandidates)}）` };
           }
         }
         // ⚠H.stdStep()は使わない＝この対象ピッカー（upToCount:true）自身が独自の「スキップ」ボタンを持つため
@@ -11118,7 +11119,7 @@ const scenarios = {
         const banishedBoth = (before?.guest?.fieldSigni?.[0] != null) && (before?.guest?.fieldSigni?.[1] != null) && (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.fieldSigni?.[1] == null);
         H.log(`  lmpb[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} paid=${paid} pickedCount2=${pickedCount2} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
         if (banishedBoth) {
-          return { pass: true, detail: `対象ピッカー前置（最大2体）で両方選択→確定→OPTIONAL_COSTを支払う→支払い後の再確認SELECT_TARGET（fixedCardNumsで2件に絞られている）でも両方選択→BANISHで両方バニッシュ（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
+          return { pass: true, detail: `対象ピッカー前置（最大2体）で両方選択→確定→OPTIONAL_COSTを支払う→**問い直し無し**でBANISHが両方に当たる（gField=${JSON.stringify(st.guest.fieldSigni)}・支払い後の問い直し=${pickedCount2}回・期待0・O-536）` };
         }
       }
       const fin = await H.queryState();

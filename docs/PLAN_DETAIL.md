@@ -1,6 +1,6 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
-## 🏁2026-09-19 にクローズ＝`O-535`（登録票は下）＋同日の新規登録 `O-536`
+## 🏁2026-09-19 にクローズ＝`O-535` と `O-536`（登録票は下）
 
 ### `O-535` — 「対象とし〜任意コスト〜そうした場合」で**同じ対象を2回選ばされる**（631効果 / 608カード・索引A'）
 
@@ -66,6 +66,30 @@
   ③golden＝「宣言で0体を選べる／帰結では選び直さない」の両方向 ④`O-535` の対照 golden（④の assert）を**逆向きへ直す**。
 - ⚠**`WX12-010-E3` 型を巻き込まない**＝あちらは**宣言ステップが対象選択ではない**（`REARRANGE_SIGNI` の結果を `STORE` した集合）。
   **「直前が `SELECT_TARGET_ONLY` かどうか」で切れる**（実測＝640箇所のうち 638 が `SELECT_TARGET_ONLY`）。
+
+- 🏁**クローズ（2026-09-19・第403バッチ）**＝**後処理1本**（`normalizeStoredTargetUpToCount`＝`src/data/effectParser.ts`）。
+  `[宣言(`selectTarget` を持つステップ), STORE_LAST_PROCESSED_TARGETS]` の直後から、`targetsStored:true` を持つノードの
+  `target`/`source` の `upToCount` を倒す。**宣言側（`selectTarget`）は触らない**＝0体を選ぶ自由はそこに残す。
+  - ⚠🔴**母集団は 13 ではなく 14効果 / 14カード**（登録票の 13 は誤り）＝初回の走査を宣言ステップの **id**
+    （`SELECT_TARGET_ONLY`）で絞ったため、`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` で宣言する `WXK11-010-E1` を
+    数え落としていた。⇒ **構造（`selectTarget` を持つか）で絞る。**
+  - 🔴**呼ぶ場所が肝＝「全 pass のいちばん最後」**＝対象宣言を前へ引き上げるのは最終ループの
+    `hoistTargetBeforeCondition` 族なので、効果単位の後処理ループに置くと**正準形がまだ無く 8効果にしか当たらない**
+    （`WDK08-Y14-E1`／`WXK08-001-E1` を取りこぼす）。
+  - 🔑**生成箇所ごとに直さない**＝この形を組む箇所は最低4つ（汎用の `bindToStoredTarget`／`parseSentencePart4` の
+    「アタックしたシグニ＋キー」／専用 STUB 宣言／`bindToStoredTarget` の BINDABLE・SIGNI 条件を通らない
+    `REMOVE_ABILITIES`・エナゾーン対象の `TRANSFER_TO_HAND`）。
+  - ⚠**MANUAL 4効果は手で揃える**（収穫マージが不可侵）＝`WDK09-013-E2`／`PR-K026-E1-G2`／`WX24-P2-054-E2`／
+    `WX25-CP1-092-E1` → `npx tsx scripts/syncManualLive.ts` で配送。
+  - ⚠**`upToCount` は「立っているときだけ倒す」**＝live には明示 `false` とキー無しの2通りがあり、どちらかへ
+    機械的に寄せると**意味の変わらない差分が 36〜139効果**出て A/B 差分が読めなくなる（両方とも実測した）。
+  - **検証**＝golden 2本（①**live 全件走査のラチェット**＝parser 側と MANUAL 側を同じ1本で守る ②E2E＝`WXDi-P02-043-E1`）。
+    **旧 live へ戻すと両方 FAIL**＝反転確認済み。`npm run gates` 全緑（golden **4324**）／実機8本 ALL PASS
+    （本命＝`lxivMultiTargetPayBanishesBoth` が `支払い後の問い直し=0回`）。
+  - 🔴**`O-535` の対照 golden ④（engine は `upToCount` を尋ねる）は据置が正**＝engine の契約は変えていない
+    （`upToCount` は帰結側の「〜してもよい」にも使われる＝`WX12-010-E3`）。**落としたのは live の payload だけ。**
+  - ⚠**E2E に `WDK09-013-E2` は使えない**＝帰結が `orderChosenBy:'opponent'`（「置く順番は対戦相手が選ぶ」）で
+    2枚以上なら**順番を決める別の対話が正しく入る**＝この軸の観測に使えない（最初これで書いて FAIL した）。
 
 ## 🏁2026-09-18 にクローズ＝`O-534`（登録票は下）
 
@@ -2198,6 +2222,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 🔑**`order` に入れたシナリオは「壊れたら気づく」ための番人**＝返済後も外さない
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
+
+## 恒久指標アーカイブ（2026-09-19 第402バッチ・PLAN §6 から退避）
+
+- **2026-09-19 時点**（第402バッチ＝§5.3 `O-535` クローズ）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**engine とテストだけの回＝live JSON を触っていないので3計器は動かない**）
+  - 📦**在庫**＝機構 worklist **1**（索引I `O-536`）｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**｜実機シナリオの既存 FAIL **0**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4322**＝+2・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU の判断は触っていない）
 
 ## 恒久指標アーカイブ（2026-09-19 実機シナリオ C 消化の回・PLAN §6 から退避）
 

@@ -35025,11 +35025,14 @@ test('PLAN §5.3 WX24-P2-054-E2: 対象レベル合計ぶんを実際に払い�
   eq(pay?.costColors?.length, 3, 'レベル1＋2なのに《緑》3つを要求していない');
   eq(pay?.available, true, 'ちょうど《緑》3つで pay できない');
   const paid = resumeOptionalCost('pay', greenEnergy, selected.pending, ctxAfter(selected, ctx));
-  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', '固定対象のエナ送り解決に進んでいない');
-  if (paid.done || paid.pending.type !== 'SELECT_TARGET') return;
-  eq(JSON.stringify(new Set(paid.pending.candidates)), JSON.stringify(new Set([SIGNI_L1, SIGNI_L2])),
-    '支払い後の候補が先に対象とした2体へ固定されていない');
-  const resolved = resumeSelectTarget([SIGNI_L1, SIGNI_L2], paid.pending, ctxAfter(paid, ctx));
+  // 🆕🔴**§5.3 `O-536`（2026-09-19）＝宣言した2体を支払いのあとで聞き直さない。**
+  //   旧版はここで「2体へ固定された `SELECT_TARGET` が出る」を**経過点として** assert していたが、
+  //   それは「同じ対象を2回聞く」形そのものだった（帰結にも `upToCount`＝「３体まで」が残っていて
+  //   `selectOrInteract` の `optional` が立ち、`O-535` の自動解決から外れていた）。
+  //   ⇒ **直接の帰結**（エナが払われ、宣言した2体がエナへ行く）で見る。
+  ok(paid.done, `🔴支払いのあとに同じ対象を問い直した: ${paid.done ? '' : paid.pending.type}`);
+  if (!paid.done) return;
+  const resolved = paid;
   eq(resolved.ownerState.energy.length, 0, '《緑》3つが実際に支払われていない');
   ok([SIGNI_L1, SIGNI_L2].every(n => resolved.otherState.energy.includes(n)), '対象2体が相手のエナへ行っていない');
   ok(resolved.otherState.field.signi.every(zone => zone === null), '対象2体が場に残っている');
@@ -49790,7 +49793,15 @@ test('§6.4 対象宣言の脱落: フィルタが無くても owner/count は�
   const b1 = bodyTarget('WXDi-P02-009', 'WXDi-P02-009-E3');
   eq(b1.owner, 'opponent', 'WXDi-P02-009-E3: 対戦相手のシグニ（旧実装は自分のシグニを手札に戻していた）');
   eq(b1.count, 2, 'WXDi-P02-009-E3: 2体');
-  ok(b1.upToCount === true, 'WXDi-P02-009-E3: 「まで」＝上限指定');
+  // 🆕🔴**§5.3 `O-536`（2026-09-19）＝「まで」は宣言側にだけ残す。**
+  //   旧版はここで**帰結にも** `upToCount` があることを固定していたが、それだと
+  //   `selectOrInteract` の `optional` が立ち、`O-535` の自動解決から外れて
+  //   **宣言した対象をもう一度選び直させる**（原文は「それら**を手札に戻す**」＝選び直す余地は無い）。
+  ok(b1.upToCount !== true, '🔴WXDi-P02-009-E3: 帰結に「まで」が残っている（宣言した対象を2回聞く形）');
+  const decl1 = JSON.stringify(effectsMap.get('WXDi-P02-009')?.find(x => x.effectId === 'WXDi-P02-009-E3'))
+    .match(/"selectTarget":(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})/);
+  ok(!!decl1 && (JSON.parse(decl1[1]) as T).upToCount === true,
+    'WXDi-P02-009-E3: 宣言側の「まで」（0体も選べる）まで落としている');
   // 修飾が所有者語の**前**に付く宣言（「能力を持たない対戦相手のシグニ1体」）
   const b2 = bodyTarget('WX25-P3-014', 'WX25-P3-014-E1');
   eq(b2.owner, 'opponent', 'WX25-P3-014-E1: 対戦相手のシグニ（旧実装は自分のシグニをバウンスしていた）');
@@ -87802,11 +87813,120 @@ test('§5.3 O-535 対照: 自動解決は「選ぶ余地が1つも無い」形�
   //   **帰結側の「〜してもよい」にも使われている**（反例＝`WX12-010-E3` の
   //   `UP{count:'ALL', upToCount:true, targetsStored:true}`＝「移動したシグニを**アップしてもよい**」）。
   //   ⚠ここを `a.optional` だけで切る形は**一度書いて戻した**（golden 4本が「0体を選ぶ自由が消えた」で落ちた）。
+  // 🆕**§5.3 `O-536`（2026-09-19）で live 側は 0 になった**（parser が「N体まで対象とし…それら」の
+  //   帰結から `upToCount` を落とす＝ラチェットは `§5.3 O-536` の全件走査）。**engine の契約はここが正**＝
+  //   `upToCount` が立っている帰結は**いまも尋ねる**（`WX12-010-E3` 型の「〜してもよい」が残っているため）。
   eq(pendTypeOf(banish({ targetsStored: true }, { count: 2, upToCount: true }), [a, b]), 'SELECT_TARGET',
     '🔴帰結の upToCount（「〜してもよい」にも使われる）を自動解決した');
   // 🔑**肯定側**＝宣言1体・ちょうど1体取る・任意でない＝自動解決する（①〜④に判別力があることの証明）。
   eq(pendTypeOf(banish({ targetsStored: true }), [a]), 'done',
     '🔴宣言済み・選ぶ余地なしの形が自動解決されていない（O-535 が効いていない）');
+}));
+
+
+// ── 第403バッチ（2026-09-19）＝§5.3 `O-536`（帰結側に残る「まで」を落とす）─────────────
+test('§5.3 O-536: 「N体まで対象とし…それら」の帰結に upToCount を残さない（live 全件走査）', () => withSavedCursor(() => {
+  // 原文の「まで」は**宣言の1回だけ**。帰結（「それら」）にも立っていると
+  //   `selectOrInteract` の `optional` が true になり、`O-535` の自動解決から外れて
+  //   **宣言した対象をもう一度選び直させる**（旧 live は 14効果 / 14カード）。
+  // 🔑**生成箇所ごとに assert しない**＝parser にはこの形を組む箇所が4つ以上あり、
+  //   MANUAL 側にも4効果ある。**live を全件走査するラチェット**にすればどちらも同じ1本で守れる。
+  const bad: string[] = [];
+  const scanStored = (node: unknown, hit: () => void): void => {
+    if (Array.isArray(node)) { node.forEach(n => scanStored(n, hit)); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.targetsStored === true) {
+      for (const key of ['target', 'source'] as const) {
+        const t = obj[key] as Record<string, unknown> | undefined;
+        if (t?.upToCount === true) hit();
+      }
+    }
+    for (const v of Object.values(obj)) scanStored(v, hit);
+  };
+  const visit = (node: unknown, effectId: string): void => {
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'SEQUENCE' && Array.isArray(obj.steps)) {
+      const steps = obj.steps as Record<string, unknown>[];
+      for (let i = 0; i + 1 < steps.length; i++) {
+        // ⚠宣言ステップは id では絞らない（`SELECT_TARGET_ONLY` のほかに
+        //   `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` もある）＝共通点は `selectTarget` を持つこと。
+        if (!steps[i]?.selectTarget) continue;
+        const store = steps[i + 1];
+        if (store?.type !== 'STUB' || store.id !== 'STORE_LAST_PROCESSED_TARGETS') continue;
+        steps.slice(i + 2).forEach(s => scanStored(s, () => { if (!bad.includes(effectId)) bad.push(effectId); }));
+      }
+    }
+    for (const v of Object.values(obj)) visit(v, effectId);
+  };
+  for (const effects of effectsMap.values()) for (const e of effects) visit(e.action, e.effectId);
+  eq(bad.join(','), '', `🔴宣言した対象をもう一度聞く形が live に戻っている: ${bad.join(',')}`);
+}));
+
+test('§5.3 O-536 E2E: 「２体まで対象とし」は1回だけ聞く（WXDi-P02-043-E1）', () => withSavedCursor(() => {
+  // 原文＝【自】：このシグニがアタックしたとき、対戦相手のパワー10000以上のシグニを**２体まで**対象とし、
+  //   《緑》《緑》《緑》《無》《無》《無》を支払っても**よい**。**そうした場合、それら**をバニッシュする。
+  // ⚠**`WDK09-013-E2` は E2E に使えない**＝あちらは帰結が `orderChosenBy:'opponent'`（「置く順番は
+  //   対戦相手が選ぶ」）で、**2枚以上なら順番を決める別の対話が正しく入る**＝この軸の観測に使えない。
+  const live = (effectsMap.get('WXDi-P02-043') ?? []).find(e => e.effectId === 'WXDi-P02-043-E1')!;
+  const bigs: string[] = [];
+  for (const c of cardMap.values()) {
+    if (isSigni(c) && parseInt(c.Power || '0', 10) >= 10000 && !bigs.includes(c.CardNum)) bigs.push(c.CardNum);
+    if (bigs.length === 2) break;
+  }
+  const small = findCard(c => isSigni(c) && !bigs.includes(c.CardNum)
+    && parseInt(c.Power || '0', 10) > 0 && parseInt(c.Power || '0', 10) < 10000);
+  const greens: string[] = [];
+  for (const c of cardMap.values()) {
+    if ((c.Color ?? '') === '緑' && !greens.includes(c.CardNum) && !bigs.includes(c.CardNum) && c.CardNum !== small) greens.push(c.CardNum);
+    if (greens.length === 6) break;
+  }
+  const mk = (): ExecCtx => {
+    const ctx = mkCtx({ signi: ['WXDi-P02-043', null, null] }, { signi: [bigs[0], bigs[1], small] }, 'WXDi-P02-043');
+    ctx.ownerState = { ...ctx.ownerState, energy: [...greens] };
+    return ctx;
+  };
+
+  const ctx = mk();
+  const r0 = executeAction(live.action, ctx);
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '①まず対象を宣言させる（ON_TARGETED の収集地点）');
+  if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+  eq(r0.pending.candidates.slice().sort().join(','), bigs.slice().sort().join(','), 'パワー10000以上だけが宣言の候補');
+  eq(r0.pending.count, 2, '宣言は２体');
+  ok(r0.pending.optional, '🔴宣言側の「まで」（0体も選べる）を落としている');
+
+  // 🔴**本題＝２体を宣言したら、支払いのあとに聞き直さない**（旧 live は帰結にも `upToCount` が立っていた）。
+  const declared = resumeSelectTarget([...bigs], r0.pending, ctxAfter(r0, ctx));
+  ok(!declared.done && declared.pending.type === 'CHOOSE', '②宣言のあとに任意コストの二択');
+  if (declared.done || declared.pending.type !== 'CHOOSE') return;
+  const paid = resumeOptionalCost('pay', [...greens], declared.pending, ctxAfter(declared, ctx));
+  ok(paid.done, `🔴支払いのあとに同じ対象を問い直した: ${paid.done ? '' : paid.pending.type}`);
+  if (!paid.done) return;
+  eq(fieldTops(paid.otherState).join(','), small, '宣言した２体だけがバニッシュされ、10000未満は残る');
+
+  // 🔑**宣言を１体に減らしても聞き直さない**（「まで」の自由は宣言で使い切る）。
+  const ctx1 = mk();
+  const r1 = executeAction(live.action, ctx1);
+  if (r1.done || r1.pending.type !== 'SELECT_TARGET') { ok(false, '宣言が出ない'); return; }
+  const d1 = resumeSelectTarget([bigs[0]], r1.pending, ctxAfter(r1, ctx1));
+  if (d1.done || d1.pending.type !== 'CHOOSE') { ok(false, '任意コストが出ない'); return; }
+  const paid1 = resumeOptionalCost('pay', [...greens], d1.pending, ctxAfter(d1, ctx1));
+  ok(paid1.done, `🔴１体の宣言を聞き直した: ${paid1.done ? '' : paid1.pending.type}`);
+  if (!paid1.done) return;
+  eq(fieldTops(paid1.otherState).slice().sort().join(','), [bigs[1], small].sort().join(','),
+    '宣言した１体だけがバニッシュされる');
+
+  // 🔴**反転＝払わなければ1体も落ちない**（「そうした場合」のゲートは生きている）。
+  const ctx2 = mk();
+  const r2 = executeAction(live.action, ctx2);
+  if (r2.done || r2.pending.type !== 'SELECT_TARGET') { ok(false, '宣言が出ない'); return; }
+  const d2 = resumeSelectTarget([...bigs], r2.pending, ctxAfter(r2, ctx2));
+  if (d2.done || d2.pending.type !== 'CHOOSE') { ok(false, '任意コストが出ない'); return; }
+  const skipped = resumeOptionalCost('skip', [], d2.pending, ctxAfter(d2, ctx2));
+  ok(skipped.done, 'skip で完了する'); if (!skipped.done) return;
+  eq(fieldTops(skipped.otherState).slice().sort().join(','), [...bigs, small].sort().join(','), '払わなければ全員残る');
 }));
 
 if (listMode) {

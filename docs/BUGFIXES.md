@@ -1,5 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19（第403バッチ）§5.3 `O-536` クローズ＝「N体まで対象とし…それら」の帰結から「まで」を落とす（14効果 / 14カード）
+
+- 🔴**真因**＝parser が対象宣言の `upToCount`（「N体**まで**」）を**帰結側にもコピー**していた。
+  `selectOrInteract` は `optional` に **`a.optional || target.upToCount`** を渡すので帰結が任意扱いになり、
+  前バッチで入れた `O-535` の自動解決（「選ぶ余地が1つも無い対話は engine が閉じる」）から外れて、
+  **宣言した対象をもう一度（今度は減らせる形で）選び直させて**いた。原文は「〈対象〉を**N体まで**対象とし、〜。
+  **そうした場合、それら**を〜する」＝**「まで」で減らす自由は宣言の1回だけ**。
+- **影響**＝**14効果 / 14カード**（live 実測）。内訳＝`POWER_MODIFY` 4／`BANISH` 3／`TRANSFER_TO_DECK` 2／
+  `TRANSFER_TO_HAND` 1／`SEND_TO_ENERGY` 1／`BOUNCE` 1／`REMOVE_ABILITIES` 1／`DOWN` 1。
+  ⚠**登録票の「13効果」は誤り**＝初回の走査を宣言ステップの **id**（`SELECT_TARGET_ONLY`）で絞ったため、
+  `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（専用 STUB）で宣言する `WXK11-010-E1` を数え落としていた。
+  ⇒ 🔑**宣言ステップは id ではなく「`selectTarget` を持つこと」で見る。**
+- **直し方**＝**後処理1本**（`normalizeStoredTargetUpToCount`＝`src/data/effectParser.ts`）。
+  `[宣言(selectTarget を持つステップ), STORE_LAST_PROCESSED_TARGETS]` の直後から、
+  `targetsStored:true` を持つノードの `target`/`source` の `upToCount` を倒す。
+  - 🔑**生成箇所ごとに直さない**＝この形を組む箇所は最低4つ（汎用の `bindToStoredTarget`／
+    `parseSentencePart4` の「アタックしたシグニ＋キー」／専用 STUB 宣言／`bindToStoredTarget` の
+    BINDABLE・SIGNI 条件を通らない形＝`REMOVE_ABILITIES`・エナゾーン対象の `TRANSFER_TO_HAND`）。
+    **`bindToStoredTarget` だけ直した版は 14効果中 10効果にしか当たらなかった。**
+  - 🔴**呼ぶ場所が肝＝「全 pass のいちばん最後」**＝対象宣言を前へ引き上げるのは最終ループの
+    `hoistTargetBeforeCondition` 族なので、効果単位の後処理ループ（`normalizeOpponentPayPreTarget` の隣）に
+    置くと**まだ正準形が存在せず 8効果しか当たらない**（`WDK08-Y14-E1`／`WXK08-001-E1` を取りこぼす）。
+  - ⚠**MANUAL 4効果は手で揃える**（収穫マージが MANUAL を不可侵にする）＝`WDK09-013-E2`／`PR-K026-E1-G2`／
+    `WX24-P2-054-E2`／`WX25-CP1-092-E1` → `npx tsx scripts/syncManualLive.ts` で配送。
+  - ⚠**`upToCount` は「立っているときだけ倒す」**＝live には明示 `false` とキー無しの2通りがあり、
+    どちらかへ機械的に寄せると**意味の変わらない差分が 36〜139効果**出て A/B 差分が読めなくなる（両方とも実測した）。
+- 🔴**engine では直せないことの根拠（前バッチからの引き継ぎ）**＝`upToCount` は
+  「宣言の『まで』」と**帰結の「〜してもよい」**の**両方**に使われていて `pending` からは区別できない
+  （反例＝`WX12-010-E3`「この方法で移動したシグニを**アップしてもよい**」＝`UP{count:'ALL', upToCount:true, targetsStored:true}`）。
+  ⇒ **parser 側で落とすのが筋**だった。`O-535` の対照 golden ④（engine は `upToCount` を尋ねる）は**そのまま正**。
+- **既存テストの直し方**＝落ちた golden 2本はどちらも「2回目の `SELECT_TARGET` が出る」を**経過点として**
+  assert していた（`PLAN §5.3 WX24-P2-054-E2`／`§6.4 対象宣言の脱落`）＝**直接の帰結**（エナへ行く／盤面）と、
+  **宣言側と帰結側を別々に見る**形へ書き換えた。⚠`§6.4` の旧 assert は「帰結にも `upToCount` がある」を
+  **固定していた**＝直さずに通そうとすると `O-536` そのものを差し戻すことになる。
+- **検証**＝golden 2本を新設＝①**live 全件走査のラチェット**（宣言 → STORE のあとに `targetsStored ∧ upToCount` が
+  1件でもあれば FAIL＝parser 側と MANUAL 側を同じ1本で守る）②E2E（`WXDi-P02-043-E1`＝2体宣言→支払い→
+  問い直し無しで両方バニッシュ／1体だけ宣言→1体だけ／skip→全員残る）。**旧 live へ戻すと両方 FAIL**＝反転確認済み。
+  ⚠**`WDK09-013-E2` は E2E に使えない**＝帰結が `orderChosenBy:'opponent'`（「置く順番は対戦相手が選ぶ」）で、
+  2枚以上なら**順番を決める別の対話が正しく入る**（最初これで書いて FAIL し、軸が混ざっていることに気づいた）。
+  `npm run gates` 全緑（golden **4324**）。live の A/B 差分は**狙った14効果だけ**。
+- **実機＝8本を1回の実行で ALL PASS**（`node scripts/verifyBattleDrive.mjs lxivMultiTargetPayBanishesBoth
+  lxivMultiTargetSkipBanishesNone handDiscardSkipBlocksBody handDiscardPayRunsBody handDiscardOptionTwoDownsOpponentLrig
+  handDiscardOptionThreeDownsOpponentSigni underCostFiltersByColor underCostUnavailableWhenNoRed`）。
+  - 🔑**`lxivMultiTargetPayBanishesBoth` が `WXDi-P02-043-E1` そのもの**＝前バッチで「`O-536` を閉じたら
+    ここが FAIL になる観測点」として残しておいた1本。**「支払いのあとに候補が出たら即 FAIL」へ書き換え**、
+    実機で `支払い後の問い直し=0回` を観測した（罠 [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-131 を更新）。
+  - ⑤実機まで回した理由＝**実機シナリオが期待する対話の回数が変わる**回（PLAN §2.2）。
+
 ## 2026-09-19（第402バッチ）§5.3 `O-535` クローズ＝宣言済みの対象を2回聞かない（631効果 / 608カード）
 
 - 🔴**真因**＝`selectOrInteract`（`execUtils.ts`）に**「候補が確定しているなら自動解決」の枝が無い**ので、
