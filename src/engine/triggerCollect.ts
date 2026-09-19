@@ -3582,6 +3582,37 @@ export function collectEnergyAddedSelfTriggers(
         });
       }
     }
+    // 🔴2026-09-19＝**「付与された能力 ∧ 原因限定つき」の ON_ENERGY_CHARGE がどこからも収集されていなかった**
+    //   （実機 `v12GrantedEnergyChargeTwice` / `v12GrantedEnergyChargeThirdBlocked` が恒久 FAIL だった真因）。
+    //   ・印刷能力の原因限定つき → 直上のループ（`ownFieldSources` × `effsOf`）が拾う。
+    //   ・付与能力の**原因限定なし** → `BattleScreen` の React watcher が `grantedStoreWatchers` で拾う。
+    //   ・付与能力の**原因限定つき** → その watcher は原因を知らない層なので
+    //     `byOwnEffect / byOpponentEffect / byEffect` を明示的に `continue` する＝**ここで拾うしかない**。
+    //   実例＝`SPDi43-13-E2` が付与する `SPDi43-13-sub-E1`
+    //   「【自】《ターン２回》：あなたの効果１つによってあなたのエナゾーンにカードが置かれたとき、このルリグをアップする」。
+    //   ⚠`grantedStore.ts` の冒頭の注意書き（「新しい timing を配線するときは印刷能力の走査と対にしてこの関数も呼ぶ」）
+    //   のとおりの取りこぼしで、**JSON も逆翻訳も golden も緑のまま**能力だけが死んでいた。
+    for (const w of grantedStoreWatchers(ownerState, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
+      const eff = w.effect;
+      if (eff.triggerCondition?.movedSelf) continue;
+      const causeLimited = !!(eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect);
+      if (!causeLimited || !effectCauseMatches(eff, grp.ownerId, causeOwnerId)) continue;
+      const hostNum = w.cardNum;
+      if (!hostNum) continue;
+      const ownerIsTurn = grp.ownerId === ctx.activeUserId;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, ownerIsTurn, ctx.cardMap, hostNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, ownerState, otherState, ctx.cardMap, hostNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+      const used = (ownerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedIds.filter(id => id === eff.effectId).length;
+      if (used >= max) continue;
+      if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+      entries.push({
+        id: ctx.genId(), playerId: grp.ownerId, cardNum: hostNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(hostNum))?.CardName ?? hostNum} の【自】効果（エナチャージ時・付与能力）`,
+        effect: eff, triggeringCardNum: grp.moved[0].cardNum,
+      });
+    }
   }
   return { entries, usedHostIds, usedGuestIds };
 }

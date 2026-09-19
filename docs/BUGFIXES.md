@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19 エンジン実バグ＝「効果で付与された能力 ∧ 原因限定つき」の `ON_ENERGY_CHARGE` がどこからも収集されず恒久 no-op＋実機シナリオ C の続き19本
+
+- 🔴**実バグ**＝`SPDi43-13-E2`【起】が付与する `SPDi43-13-sub-E1`
+  「【自】《ターン２回》：**あなたの効果１つによって**あなたのエナゾーンにカードが置かれたとき、このルリグをアップする」が**一度も発動しなかった**。
+  **真因＝収集の担当が3通りに割れていて、その1つだけ受け持ちが居なかった**：
+  ①印刷能力 ∧ 原因限定つき → `collectEnergyAddedSelfTriggers`（`triggerCollect.ts`）が拾う
+  ②付与能力 ∧ 原因限定**なし** → `BattleScreen` の React watcher が `grantedStoreWatchers` で拾う
+  ③**付与能力 ∧ 原因限定つき → どちらも拾わない**（②の watcher は原因を知らない層なので `byOwnEffect`/`byEffect`/`byOpponentEffect` を明示的に `continue` する＝そこは正しい）。
+  ⇒ ①のコレクタに**付与ストアの走査を足した**（`grantedStore.ts` 冒頭の「新しい timing を配線するときは印刷能力の走査と対にしてこの関数も呼ぶこと」の取りこぼし）。
+  🔴**JSON も逆翻訳も golden も census も緑のまま能力だけが死ぬ型**＝実機でしか出ない。
+  **golden 1本**（修正前 FAIL＝反転確認済み・《ターン2回》の打ち止めと「付与前は非発火」も同時に固定）。
+- ⚠**その golden を足したら無関係な `第246 engine WXDi-P16-047-E2` が FAIL に化けた**＝`goldenTest.ts` の盤面ビルダーは
+  **全テスト共有の POOL カーソル**から払い出すので、**テストを1本足すと以降のテストが引くカードが全部ずれる**。
+  ⇒ `withSavedCursor()` で包んだ（LESSONS §4.3 に追記）。**`--only` では絶対に再現しない**。
+- **実機シナリオ C（既存 FAIL 68本）の続き＝19本を解消**（すべてハーネス側＝シナリオが後からの変更に追従していなかった）。系統は5つ：
+  ①**WD08-001 の2つの【起】が「両方コストなし表示で区別不能」という前提が解消済み**（いまは E3＝「【起】このルリグをダウン」）＝
+  位置決め打ち（`nth(1)`／`nth: n-1`）が0件で永久空振り → ラベル指定へ（`installByEffectFreeze`／`wxex225SkipAutoTrashesTrigger`／`v11EffectDeploy`×3）。
+  ②**任意コストの「払う」と「辞退」を別々の `clickTextOrBtn` に分けていた**＝12ラベルを走査する数百ms の間にモーダルが描画され、辞退側を拾っていた
+  （実行ごとに PASS/FAIL が揺れた）→ 同じ一覧の先頭へ（`installDelayedTriggerFire`／`oppDrawOwnEffectOnly`）。§4.4-125。
+  ③**対象選択（SELECT_TARGET）が任意コストより先に来る**のに順序を決め打ちしていた（`fezoneDoubleCostSkip`／`fezoneDoubleCostPay`／`underCostFromThisOnly`／`wx17040ConditionsFalseNoop`）。
+  ④**ルール変更への未追従**＝ライズは空の場から召喚できない（`lookReorderCanTrash`＝`C-6`）／ピースは場にルリグ3体が要る（`mayuEncounterFreeGrow`＝`C-7`）／
+  **センタールリグ枠にシグニを入れていた**＝リミット0でシグニがトラッシュされる（`lrigDownCenterOnly`×2＝`O-532`・§4.4-117。**同型はこの2本だけと全数 grep で確認**）。
+  ⑤**辞退枝のラベルは「支払わない」**（`/^支払う/` では当たらない）＝`wx22025SigniTrashUnavailable`／支払い枝のラベルは**コストそのもの**（「手札を2枚捨てる」）＝`spdi4302AvoidedNoChoose`。
+- 🔑**`spdi4302AvoidedNoChoose` の真因は資源の消失ではなく CPU の別能力**＝注入直後の DB には `hand=2` が入っているのに0.9秒後には `hand=0`（トラッシュにも行かない）で
+  「注入が効いていない／クライアントが書き戻した」と2回誤読した。実体は **CPU がメインフェイズに同じルリグの【起】(`SPDi43-02-E2`) を撃っていた**＝
+  `PLACE_FACEDOWN_LRIG_ZONE{source:'hand', all:true, owner:'opponent'}`＝**手札を全部**奪う（枚数を増やしても無駄）。
+  ⇒ `game_actions_done` に効果 ID を入れて使用済みにする。**資源が消える謎は推測せず `logTail` を1周ぶん出す**（§4.4-126）。
+- **検証**＝`npm run gates` 全緑（golden 4319/4319）。実機＝解消した19本を PASS で確認。残り C ＝**49本**（[`_drive_full_fail_2026-09-19.md`](./_drive_full_fail_2026-09-19.md)）。
+
 ## 2026-09-19 実機シナリオの既存 FAIL のうち A・B の17本を解消（シナリオが古くなっていた）
 
 - **A 撤回済みの相打ち前提（12本）**＝自分がアタックして負け、アタッカーが倒れる前提だった（第388バッチで撤回）。

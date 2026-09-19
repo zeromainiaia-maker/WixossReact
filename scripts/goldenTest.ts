@@ -59642,6 +59642,34 @@ test('段2 第42バッチ E2E-A energy watcher: WXK10-047 は movedSelf なし�
   eq(has(collect(undefined), 'WXK10-047-E2'), false, 'ルール処理なら非発火');
 });
 
+// 🔴2026-09-19＝**「付与された能力 ∧ 原因限定つき」の ON_ENERGY_CHARGE が恒久 no-op だった**回帰止め。
+//   印刷能力の原因限定つきは `collectEnergyAddedSelfTriggers` が、付与の原因限定**なし**は BattleScreen の
+//   React watcher が拾うが、**付与 ∧ 原因限定**だけがどちらからも漏れていた（watcher は原因を知らない層なので
+//   `byOwnEffect` を `continue` する）。実機 `v12GrantedEnergyChargeTwice` が恒久 FAIL だった真因。
+// ⚠POOL カーソルを戻す（`withSavedCursor`）＝戻さないと**後続テストが引くカードがずれて別のテストが落ちる**
+//   （実測＝この1本を足しただけで `第246 engine WXDi-P16-047-E2` が FAIL に化けた）。
+test('§5.3 付与ストア: byOwnEffect つき ON_ENERGY_CHARGE（SPDi43-13-sub-E1）を collectEnergyAddedSelfTriggers が拾う', () => withSavedCursor(() => {
+  const granted = effectsMap.get('SPDi43-13')?.find(e => e.effectId === 'SPDi43-13-E2');
+  const sub = (granted?.action as { abilities?: CardEffect[] })?.abilities?.[0];
+  if (!sub) throw new Error('live に SPDi43-13-E2 の付与能力が無い');
+  eq(sub.timing?.includes('ON_ENERGY_CHARGE'), true, '前提: 付与能力は ON_ENERGY_CHARGE');
+  eq(sub.triggerCondition?.byOwnEffect, true, '前提: 付与能力は byOwnEffect つき');
+  const moved = [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'deck' }] }];
+  const withGrant = (cause?: string, done: string[] = []) => {
+    const st = mkState({ lrig: ['SPDi43-13'] });
+    (st as unknown as { lrig_granted_auto_effects: CardEffect[] }).lrig_granted_auto_effects = [sub];
+    (st as unknown as { actions_done: string[] }).actions_done = done;
+    return collectEnergyAddedSelfTriggers(trigCtx(HOST), moved, cause, undefined, st, mkState()).entries;
+  };
+  eq(has(withGrant(HOST), 'SPDi43-13-sub-E1'), true, '自分の効果でエナが増えたら付与能力が発火');
+  eq(has(withGrant(GUEST), 'SPDi43-13-sub-E1'), false, '相手の効果では非発火');
+  eq(has(withGrant(undefined), 'SPDi43-13-sub-E1'), false, 'ルール処理（原因なし）では非発火');
+  // 《ターン2回》＝3回目は出ない。
+  eq(has(withGrant(HOST, ['SPDi43-13-sub-E1', 'SPDi43-13-sub-E1']), 'SPDi43-13-sub-E1'), false, '《ターン2回》を使い切ったら非発火');
+  // 付与が無ければ当然出ない（印刷能力には無い）。
+  eq(has(collectEnergyAddedSelfTriggers(trigCtx(HOST), moved, HOST, undefined, mkState({ lrig: ['SPDi43-13'] }), mkState()).entries, 'SPDi43-13-sub-E1'), false, '付与前は非発火');
+}));
+
 test('段2 第42バッチ E2E-B: 4コレクタとトラッシュ自己復帰が causeOwnerId を評価', () => {
   const empty = mkState();
 
