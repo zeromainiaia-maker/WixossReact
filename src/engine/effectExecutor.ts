@@ -3276,12 +3276,15 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         `エナから${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
     // 「そのカード」は既にトリガーで一意に決まっており、対象を取らないため選択UIを出さず直接処理する。
-    if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
+    // 🆕🔴2026-09-19＝保護で移動しなかったら「処理した札なし」（「そうした場合」を成立させない）。
+    const processedEnergy = (cs: string[]): string[] =>
+      (tgt.owner !== 'any' && oppZoneMoveBlocked('energy', tgt.owner, ctx, 'trash')) ? [] : cs;
+    if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: processedEnergy(cands) });
     // 🆕**焼き込み済みの対象も同じ**（§5.3 `O-96` 第9バッチ・実機 `V-130` と同型）＝
     //   支払いより前に確定した1枚なので、支払い後に選び直させない。
     if (a.fixedCardNums?.length) {
       return cands.length > 0
-        ? done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands })
+        ? done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: processedEnergy(cands) })
         : done({ ...ctx, lastProcessedCards: [] });
     }
     if (tgt.count === 'ALL') {
@@ -3301,7 +3304,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
           ],
         });
       }
-      return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
+      return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: processedEnergy(cands) });
     }
     const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）
@@ -12331,9 +12334,12 @@ export function resumeSelectTarget(
   const perCardAction: EffectAction = batchShuffleTransfer
     ? { ...(pending.thenAction as TransferToDeckAction), shuffle: false }
     : pending.thenAction;
+  // 🆕🔴2026-09-19＝保護で動かなかった札は「処理した札」に数えない（「そうした場合」を成立させない・実機 `v34`）。
+  const moveBlockedCards: string[] = [];
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(perCardAction, cardNum, cur);
+    if (result.done && result.zoneMoveBlocked) moveBlockedCards.push(cardNum);
     if (!result.done) {
       // FIELD_SIGNI_TO_ACCE は「アクセ元→host」の2段選択。外側SEQUENCEの後続
       // （そうした場合のDRAW等）を2段目へ運ぶ。既存actionのresume挙動は変更しない。
@@ -12357,7 +12363,7 @@ export function resumeSelectTarget(
     const shuffled = execShuffleDeck({ type: 'SHUFFLE_DECK', owner: (pending.thenAction as TransferToDeckAction).source.owner as Owner }, cur);
     cur = { ...cur, ownerState: shuffled.ownerState, otherState: shuffled.otherState, logs: shuffled.logs };
   }
-  cur = { ...cur, lastProcessedCards: selected };
+  cur = { ...cur, lastProcessedCards: moveBlockedCards.length ? selected.filter(n => !moveBlockedCards.includes(n)) : selected };
   // selfTrashCost: 「このシグニを場からトラッシュに置いてもよい。そうした場合、それらをバニッシュする」
   // 対象を1体以上選んだ場合のみ、効果元シグニ自身をコストとしてトラッシュする（WX21-052）
   if (selected.length > 0
@@ -13634,7 +13640,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           if (ei >= 0) {
             if (owner === 'opponent'
                 && oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
-              return done(addLog(ctx, 'エナ保護により効果なし'));
+              // 🆕🔴2026-09-19＝**保護で移動しなかったら「処理した札なし」**（`lastProcessedCards: []`）。選択の仕組みが先に「選んだ札」を記録しているので、
+              //   ここで消さないと「そうした場合」が成立する（実機 `v34`＝エナ保護で1枚も落ちないのに、相手の【エナチャージ】まで起きた）。
+              return done({ ...addLog(ctx, 'エナ保護により効果なし'), lastProcessedCards: [], zoneMoveBlocked: true });
             }
             const newEnergyXZ = [...s.energy]; newEnergyXZ.splice(ei, 1);
             const newSXZ: PlayerState = { ...s, energy: newEnergyXZ, trash: [...s.trash, cardNum] };
@@ -13686,7 +13694,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           if (ei >= 0) {
             // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（inline版と同じ保護）
             if (oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
-              return done(addLog(ctx, 'エナ保護により効果なし'));
+              // 🆕🔴2026-09-19＝**保護で移動しなかったら「処理した札なし」**（`lastProcessedCards: []`）。選択の仕組みが先に「選んだ札」を記録しているので、
+              //   ここで消さないと「そうした場合」が成立する（実機 `v34`＝エナ保護で1枚も落ちないのに、相手の【エナチャージ】まで起きた）。
+              return done({ ...addLog(ctx, 'エナ保護により効果なし'), lastProcessedCards: [], zoneMoveBlocked: true });
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
             const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level || '', 10);
@@ -13751,7 +13761,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
             if (oppZoneMoveBlocked('energy', owner, ctx, 'trash')) {
-              return done(addLog(ctx, 'エナ保護により効果なし'));
+              // 🆕🔴2026-09-19＝**保護で移動しなかったら「処理した札なし」**（`lastProcessedCards: []`）。選択の仕組みが先に「選んだ札」を記録しているので、
+              //   ここで消さないと「そうした場合」が成立する（実機 `v34`＝エナ保護で1枚も落ちないのに、相手の【エナチャージ】まで起きた）。
+              return done({ ...addLog(ctx, 'エナ保護により効果なし'), lastProcessedCards: [], zoneMoveBlocked: true });
             }
             const newEnergyHE = [...s.energy]; newEnergyHE.splice(ei, 1);
             const newSHE: PlayerState = { ...s, energy: newEnergyHE, trash: [...s.trash, cardNum] };
@@ -13802,7 +13814,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
             if (oppZoneMoveBlocked('energy', o, ctx, 'exile')) {
-              return done(addLog(ctx, 'エナ保護により効果なし'));
+              // 🆕🔴2026-09-19＝**保護で移動しなかったら「処理した札なし」**（`lastProcessedCards: []`）。選択の仕組みが先に「選んだ札」を記録しているので、
+              //   ここで消さないと「そうした場合」が成立する（実機 `v34`＝エナ保護で1枚も落ちないのに、相手の【エナチャージ】まで起きた）。
+              return done({ ...addLog(ctx, 'エナ保護により効果なし'), lastProcessedCards: [], zoneMoveBlocked: true });
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
             return done(addLog(setOwnerState(o, { ...s, energy: newEnergy, excluded: [...(s.excluded ?? []), cardNum] }, ctx),

@@ -29113,8 +29113,11 @@ scenarios.v34EnergyMoveImmunityAbsentTrashFires = {
   async drive(page, H) {
     const before = await H.queryState();
     const fin = await driveV34EnergyProtect(page, H);
-    const pass = (fin?.guest?.energy ?? 0) === (before?.guest?.energy ?? 1) - 1;
-    const detail = `guest.energy ${before?.guest?.energy}→${fin?.guest?.energy}（期待-1＝奪われた）`;
+    // ⚠2026-09-19＝原文の続き「そうした場合、対戦相手は【エナチャージ１】をしてもよい」＝CPU が乱数でチャージする／しない。
+    //   ⇒ 枚数（-1）ではなく「狙ったエナがトラッシュへ行ったか」で判定する（チャージすれば 1→1、しなければ 1→0）。
+    const trashed = (fin?.guest?.trashCards ?? []).includes('WD01-013#9993');
+    const pass = trashed && ((fin?.guest?.energy ?? -1) === 0 || (fin?.guest?.energy ?? -1) === 1);
+    const detail = `guest.energy ${before?.guest?.energy}→${fin?.guest?.energy}・狙ったエナがトラッシュ=${trashed}（チャージは乱数＝0か1）`;
     H.log(`  v34enaprotect ${detail}`);
     return { pass, detail };
   },
@@ -44343,8 +44346,9 @@ async function driveO146(page, H, take) {
       if (take && !pickedOnce && !decided) { await pick0.click().catch(() => {}); pickedOnce = true; did = 'pick-0'; }
     }
     if (!did && sawPick && !decided && (pickedOnce || !take)) {
-      // 「まで」＝0枚でもよいので「決定」は最初から押せる（＝やらない側もここで抜ける）。
-      const b = await H.clickBtn('決定');
+      // ⚠2026-09-19（§4.4-122）＝辞退は「スキップ」だけ（`5c8ae247c` 以後「決定 (0/1)」は押せない）。
+      //   旧版は「決定」を押そうとして押せず、標準操作が候補を選んで確定＝「選ばない側」でエナが減っていた。
+      const b = take ? await H.clickBtn('決定') : await H.clickBtn('スキップ', { exact: true });
       if (b) { decided = true; did = b; }
     }
     if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい', 'スキップ', '選ばない']);

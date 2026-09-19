@@ -86041,6 +86041,33 @@ test('§5.7 S-5c 第3段 シグニアタックのバトル解決は移設先の1
   }
 }));
 
+test('2026-09-19 エナ保護で移動しなかったら「そうした場合」は成立しない（WXDi-P08-059-E2）', () => withSavedCursor(() => {
+  // 🔴実機 `v34EnergyMoveImmunityBlocksTrash`（全件実行で発見）＝「対戦相手のエナ1枚をトラッシュに置く。**そうした場合**、
+  //   対戦相手は【エナチャージ１】をしてもよい」で、相手のエナが保護（`opp_move_immunity`）されていると1枚も落ちないのに、
+  //   **選択後の per-card ループが最後に「処理した札＝選んだ札全部」で上書きしていた**ため「そうした場合」が成立し、相手がエナチャージした（エナ 1→2）。
+  //   ⇒ 保護で止めた分岐は `zoneMoveBlocked` を立て、ループはその札を「処理した札」から除く（`resumeSelectTarget`）。
+  const eff = (effectsMap.get('WXDi-P08-059') ?? []).find(e => e.effectId === 'WXDi-P08-059-E2');
+  ok(!!eff, 'WXDi-P08-059-E2 が live に無い'); if (!eff) return;
+  // ⚠golden のカード表は `#インスタンス` を解決しない＝素のカード番号で置く（mkState と同じ）。
+  const mk = (protectedEnergy: boolean) => {
+    const c = mkCtx({}, { energy: 1 }, 'WXDi-P08-059');
+    if (protectedEnergy) c.otherState = { ...c.otherState, opp_move_immunity: [{ zones: ['energy'], turnsRemaining: 2 }] } as PlayerState;
+    return c;
+  };
+  // 保護あり＝1枚も落ちない・「そうした場合」（エナチャージ）も起きない。
+  const cb = mk(true);
+  const target = cb.otherState.energy[0];
+  const blocked = run(eff.action, cb);
+  eq(JSON.stringify(blocked.otherState.energy), JSON.stringify([target]), '🔴保護があるのに相手のエナが動いた（トラッシュ or 「そうした場合」のエナチャージ）');
+  ok(!blocked.otherState.trash.includes(target), '🔴保護があるのにトラッシュへ行った');
+  // 対照＝保護なし＝トラッシュへ行き、自動応答（先頭＝エナチャージ）で1枚チャージされる。
+  const co = mk(false);
+  const target2 = co.otherState.energy[0];
+  const open = run(eff.action, co);
+  ok(open.otherState.trash.includes(target2), '保護なしなのにトラッシュへ行かない（前提崩れ）');
+  eq(open.otherState.energy.length, 1, '保護なしで「そうした場合」のエナチャージが起きていない（did-it が常に不成立になった＝過剰修正）');
+}));
+
 test('§5.6 C-0: バグ報告のペイロード（再現に要るものが欠けない／視点が反転しない）', () => withSavedCursor(() => {
   // 🔑報告は「遊んで見つけた型」を拾う唯一の導線＝**中身が欠けているとその報告は死ぬ**
   //   （再現できない＝golden に落とせない）。組み立てを純関数にして、ここで欠落を止める。

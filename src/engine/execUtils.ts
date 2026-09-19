@@ -71,6 +71,11 @@ export interface ExecCtx {
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   isOwnerTurn?: boolean;     // 効果オーナーのターンか。未設定なら TURN_OWNER は後方互換で成立扱い
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
+  /**
+   * 🆕2026-09-19＝**移動の保護（`opp_move_immunity` 等）で、この1枚が動かなかった**印。
+   * 選択後の per-card ループ（`resumeSelectTarget`）がこれを見て「処理した札」から除く＝「そうした場合」を成立させない。
+   */
+  zoneMoveBlocked?: boolean;
   /** カードでない処理個数（ウィルス等）。lastProcessedCards を偽カードで水増しせず後段へ渡す。 */
   lastProcessedCount?: number;
   lastLookTrashedCards?: string[]; // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
@@ -161,7 +166,7 @@ export interface ExecCtx {
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; didItFailed?: boolean; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; didItFailed?: boolean; zoneMoveBlocked?: boolean; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
   | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
 
 // ===== ユーティリティ =====
@@ -1509,7 +1514,7 @@ export function done(ctx: ExecCtx): ExecResult {
   //   ⚠正すだけ（`lrig_deck`/`lrig_trash`/`excluded` は走査しない）＝詳細は `enforceResonaZoneRule`。
   const ownerState = enforceResonaZoneRule(ctx.ownerState, ctx.cardMap);
   const otherState = enforceResonaZoneRule(ctx.otherState, ctx.cardMap);
-  return { done: true, ownerState, otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
+  return { done: true, ownerState, otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, zoneMoveBlocked: ctx.zoneMoveBlocked, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
 /**
