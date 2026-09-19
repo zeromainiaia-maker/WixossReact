@@ -6488,6 +6488,8 @@ const scenarios = {
         'field.signi': [['WXDi-D09-P19#1'], null, null], // watcher兼原因カード（蒼天 アウドムラ）
         'field.signi_down': [false, false, false],
         'actions_done': [],
+        // ⚠2026-09-19＝**手札を明示**（E2「手札から＜天使＞のシグニ1枚を捨てる。そうした場合、1枚引く」）。旧版は前のシナリオの手札頼み。
+        'hand': ['WX04-060#odp1'],   // 史実の改善 サリエ（＜天使＞・バニラ）＝コスト「手札から＜天使＞のシグニを捨てる」を払える
       },
       guestSet: {
         'blocked_actions': [],
@@ -6513,7 +6515,8 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', 'OK', 'はい']);
+        // ⚠2026-09-19＝任意コスト（手札の＜天使＞を捨てる）を払う＝「発動する」→ 手札の選択（pick-0）→ 決定。
+        if (!did) did = await H.stdStep(['発動する', '発動順序を確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const watcherLog = await H.findLog(/アウドムラ.*ドロー時|の【自】効果（ドロー時）/);
         const buffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WXDi-D09-P19#1:') && parseInt(m.split(':')[1], 10) > 0);
@@ -17335,12 +17338,15 @@ async function injectScenario(page, spec, auth = null) {
       o[parts[parts.length - 1]] = val;
     };
     const hs = row.host_state, gs = row.guest_state;
-    // §4.4-120＝固定の土台へ戻す（field.signi は spec がほぼ必ず指定するので対象外）。
+    // §4.4-120＝固定の土台へ戻す（場のシグニも含む）。
     {
       for (const [st, b] of [[hs, baseline.host], [gs, baseline.guest]]) {
         st.field = st.field ?? {};
         st.field.lrig = [...b.lrig]; st.lrig_deck = [...b.lrig_deck];
         st.hand = [...b.hand]; st.energy = [...b.energy]; st.coins = b.coins;
+        // 🆕2026-09-19＝**場のシグニも空に戻す**（旧版は「spec がほぼ必ず指定する」として対象外＝指定しないシナリオに前のシナリオのシグニが残り、
+        //   その【自】が発火した＝`delayedAttackTrigger` の場に `outsideDrawPhase` の蒼天 アウドムラが居た）。
+        st.field.signi = [null, null, null];
       }
     }
     // シナリオ間の状態汚染対策（続き77で field.* まで拡張→続き105で全面書き換え）。
