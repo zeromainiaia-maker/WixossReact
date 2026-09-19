@@ -12958,10 +12958,9 @@ const scenarios = {
           const lrigImg = page.locator('img[alt="混沌の鍵主　ウムル＝フィーラ"]').first();
           if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
         }
-        if (!did && opened && !skipClicked) {
-          const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).nth(1);
-          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】コストなし(2番目=E3)'; }
-        }
+        // ⚠🆕2026-09-19＝**旧版は「両方が【起】コストなし表示で区別不能」を前提に nth(1) を決め打ち**していたが、
+        //   表示は解消済み＝E3 は「【起】このルリグをダウン」＝**位置ではなくラベルで狙う**（`installByEffectFreeze` と同じ）。
+        if (!did && opened && !skipClicked) did = await H.clickBtn('【起】このルリグをダウン');
         if (!did && !skipClicked) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
@@ -13318,6 +13317,19 @@ const scenarios = {
             await confirmBtn.click().catch(() => {}); did = 'btn:決定'; confirmed = true;
           }
         }
+        // 🔴🆕2026-09-19＝**③は「対象を取ってから条件判定」**（原文＝「対戦相手のシグニ1体を**対象とし**、
+        //   あなたのライフクロスが対戦相手より少ない場合、それをバニッシュする」／live も
+        //   `SEQUENCE[SELECT_TARGET_ONLY, STORE_LAST_PROCESSED_TARGETS, CONDITIONAL{LIFE_COMPARE_OPP}]`）。
+        //   旧版は「条件不成立なら対象選択にすら進まない」と決めつけて `SELECT_TARGET` を1手も進めず、20周空振りしていた。
+        //   ⇒ **対象は選ぶ。見るのは「選んだのにバニッシュされないこと」**。
+        if (!did && confirmed) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            else { did = await H.clickBtn('決定'); }
+          }
+        }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         H.log(`  x040f[${s}] -> ${did ?? 'なし'} | gateChecked=${gateChecked} choose3=${choose3Clicked} confirmed=${confirmed} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} hDeck=${st?.host?.deck} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
@@ -13328,7 +13340,7 @@ const scenarios = {
           if (drewCard) return { pass: false, detail: `選択肢1不成立のはずがドローが実行された（hHand ${before.host.hand}→${st.host.hand}）` };
           if (energyCharged) return { pass: false, detail: `選択肢2不成立のはずがエナチャージが実行された（hEnergy ${before.host.energy}→${st.host.energy}）` };
           if (!guestUntouched) return { pass: false, detail: `選択肢3不成立のはずが対象がバニッシュされた（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
-          return { pass: true, detail: `3条件すべて不成立を確認＝①②のCHOOSEボタンはdisabled（choice.conditionでavailable制御）、③は選べたが対象選択にすら進まず静かに無効果（hHand ${before.host.hand}→${st.host.hand}・hEnergy ${before.host.energy}→${st.host.energy}・gField変化なし）` };
+          return { pass: true, detail: `3条件すべて不成立を確認＝①②のCHOOSEボタンはdisabled（choice.conditionでavailable制御）、③は選べて対象も取れるが（原文どおり）ライフ比較が不成立でバニッシュされない（hHand ${before.host.hand}→${st.host.hand}・hEnergy ${before.host.energy}→${st.host.energy}・gField変化なし）` };
         }
       }
       const fin = await H.queryState();
