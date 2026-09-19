@@ -792,3 +792,11 @@
    （ターン1回なら `actions_done`）。**盤面を増やして殴り合うのではなく、邪魔な能力を使用済みにする。**
    ⚠**シナリオのカードは原文だけでなく live の全効果（E2・E3…）を読む**＝CSV の EffectText には出ていても、
    「CPU が先に撃てる【起】」かどうかは live の JSON を見ないと分からない。
+127. 🔴🆕**`queryState()` に**無い**キーを `?? []` で読むと、その assert は永久に真になる**（2026-09-19・`v64DamageReplaceByCostPaysAndLosesAbility`）＝
+   「付与能力が消えたこと」を `!(st?.host?.lrigGranted ?? []).some(…)` で見ていたが、**`queryState` が返すのは `grantedLrigAutoIds`**（`lrigGranted` は存在しない）。
+   ⇒ `undefined ?? []` → `[].some(...)` → `false` → **`abilityGone` が最初から true**＝**判別力ゼロの条件**が1つ混ざったまま緑になりうる（罠4 の実例）。
+   ⇒ 🔑**「消えた」を見るなら、先に「在った」を観測する**（`sawAbility` を必須条件にする）。**片側だけの assert は書かない。**
+   ⚠**キー名は `H.queryState()` の実装で確かめる**（`grantedLrigAutoIds` / `keywordGrants` / `powerMods` … 似た名前が多い）。
+   🔑同じ回で踏んだもう1つ＝**CPU のアタックはガード応答を押さないと解決しない**＝「エナに送る」だけ押しても
+   `ATTACK_SIGNI` のまま止まり、**ライフが減らないのを『置換が効いた』と読み違えそうになる**（実際はタイムアウト）。
+   ⇒ 相手に殴らせるシナリオは **`ガードしない（ライフクロスクラッシュ）` を必ず一覧に入れる。**

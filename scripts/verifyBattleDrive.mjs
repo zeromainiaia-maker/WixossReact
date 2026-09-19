@@ -28447,20 +28447,29 @@ scenarios.v64DamageReplaceByCostPaysAndLosesAbility = {
   },
   async drive(page, H) {
     let last = await H.queryState();
+    // 🔴🆕2026-09-19＝**「能力を失った」は `grantedLrigAutoIds` で見る**（`lrigGranted` は `queryState` に無く、
+    //   `undefined ?? []` で**常に空→常に「消えた」＝判別力ゼロ**だった＝罠4 そのもの）。
+    //   ⚠**注入直後に在ることを先に確かめる**（在らなかったら「消えた」は何も言っていない）。
+    let sawAbility = (last?.host?.grantedLrigAutoIds ?? []).includes('v64damageReplaceE1');
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(500);
-      const did = await H.clickBtn('エナに送る', { exact: true });
+      // ⚠🆕2026-09-19＝**ガード応答を押さないと CPU のアタックが解決しない**＝
+      //   旧版は「エナに送る」だけを押していたので、`ATTACK_SIGNI` のまま30周（15秒）止まり、
+      //   ライフが減らないのを「置換が効いた」ではなく**タイムアウト**として落としていた。
+      //   ⚠置換の支払い（「手札を1枚捨てる」）も対話で出るので、その枝も押す。
+      const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'ガードしない', '手札を1枚捨てる', '発動する', '支払う', 'エナに送る', '決定', 'OK', 'はい']);
       const st = await H.queryState();
       last = st;
-      const abilityGone = !(st?.host?.lrigGranted ?? []).some(g => g.effectId === 'v64damageReplaceE1');
+      sawAbility ||= (st?.host?.grantedLrigAutoIds ?? []).includes('v64damageReplaceE1');
+      const abilityGone = sawAbility && !(st?.host?.grantedLrigAutoIds ?? []).includes('v64damageReplaceE1');
       const discarded = !(st?.host?.handCards ?? []).includes('WD01-013#900');
-      H.log(`  v64dmgrepl[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hHand=${st?.host?.hand} discarded=${discarded} abilityGone=${abilityGone} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      H.log(`  v64dmgrepl[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hHand=${st?.host?.hand} discarded=${discarded} sawAbility=${sawAbility} abilityGone=${abilityGone} granted=${JSON.stringify(st?.host?.grantedLrigAutoIds)} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
       if (st?.host?.life === 7 && discarded && abilityGone) {
-        return { pass: true, detail: `host.life 7維持・手札を捨てて支払い・付与効果は消費済み（hHand=${st.host.hand}）` };
+        return { pass: true, detail: `host.life 7維持・手札を捨てて支払い・付与効果は消費済み（付与を観測してから消えた=${sawAbility}／hHand=${st.host.hand}）` };
       }
       if ((st?.host?.life ?? 7) < 7 && st?.host?.fieldCheck == null) return { pass: false, detail: `【置換不発】host.life=${st.host.life}（期待7）` };
     }
-    return { pass: false, detail: `ダメージ置換タイムアウト（hLife=${last?.host?.life} hHand=${JSON.stringify(last?.host?.handCards)} lrigGranted=${JSON.stringify(last?.host?.lrigGranted)} phase=${last?.turnPhase}）` };
+    return { pass: false, detail: `ダメージ置換タイムアウト（hLife=${last?.host?.life} hHand=${JSON.stringify(last?.host?.handCards)} sawAbility=${sawAbility} granted=${JSON.stringify(last?.host?.grantedLrigAutoIds)} phase=${last?.turnPhase}）` };
   },
 };
 order.push('v64DamageReplaceByCostPaysAndLosesAbility');
