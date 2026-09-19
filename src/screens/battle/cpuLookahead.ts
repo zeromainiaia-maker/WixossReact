@@ -10,7 +10,8 @@ import { getCardNum } from '../../engine/execUtils';
 import { checkActiveCondition } from '../../engine/effectEngine';
 import { onPlayOriginMatches } from '../../engine/triggerCollect';
 import { currentRng, mulberry32, setRng } from '../../engine/rng';
-import { cardStrength } from './cpuCardStrength';
+import { effectValueOf } from './cpuCardStrength';
+import { cpuAttackValueOf } from './cpuBoardEval';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import {
   pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone,
@@ -62,25 +63,86 @@ export const BOARD_WEIGHTS = DEFAULT_CPU_POLICY.boardWeights;
 const clone = <T>(v: T): T => structuredClone(v);
 
 /**
+ * 場のシグニの実効パワー（採点用）。⚠**`Infinity` を上限値へ丸める**＝丸めないと
+ * `fieldValue(cpu) - fieldValue(opp)` が両側 `∞` のときに **`NaN`** になり、
+ * 比較が全部 false に化けて**候補が1つも選ばれない**（例外も出ない）。
+ * 🔑`cardStrength` が印字 `∞` に使っている `1e6` と同じ値に揃える。
+ * ⚠**名前に固有の接頭辞を付ける**＝`POWER_CAP` だと **STUB id（`WX22-022` の `POWER_CAP`）と衝突して**
+ *   `npm run census:stubs` がこの行を「その STUB の消費地点」として誤って数える（2026-09-20 実測。`O-147` と同型の罠）。
+ *   ⚠**接頭辞を足すだけでは逃げられない**（照合は部分一致＝`SCORING_POWER_CAP` でも当たった）⇒ **camelCase にして大文字の STUB id 空間から出す。**
+ */
+const scoringPowerCap = 1e6;
+function scoringPowerOf(top: string, ctx: LookaheadCtx, powers?: Map<string, number>): number {
+  const fromMap = powers?.get(top);
+  if (fromMap !== undefined) return Number.isFinite(fromMap) ? fromMap : scoringPowerCap;
+  const raw = (ctx.cardMap.get(getCardNum(top)) ?? ctx.cardMap.get(top))?.Power ?? '';
+  return raw === '∞' ? scoringPowerCap : (parseInt(raw, 10) || 0);
+}
+
+/**
  * 盤面の採点＝**CPU から見た有利さ**（パワー換算）。
- * 場のシグニの強さ（`field` 文脈＝実効パワー＋【常】【起】などの効果）の差＋ライフ・手札・エナの枚数差
- * ＋**正面が空いているシグニの数の差**（自分のシグニの正面が空いていればライフへアタックが通る）。
+ * 場のシグニの強さ（効果の点数＋パワーの一部）の差＋ライフ・手札・エナの枚数差
+ * ＋**正面が空いているシグニの数の差**（正面が空いていればライフへアタックが通る）
+ * ＋🆕**バトルに勝てているレーンの数の差**。
  * ⚠盤面は左右反転＝ゾーン `zi` の正面は相手の `2 - zi`（engine 共通規約・`facingSigniPower` と同じ）。
+ *
+ * 🆕🔴**§5.7 `S-10`（2026-09-20）＝パワーを「線形」から「閾値」へ移した。**
+ *
+ * ■ 何が壊れていたか（ユーザー指摘「パワーを上げる効果を過剰に使う」）＝同じ「+3000」を2つの層が**4倍違う値**で数えていた。
+ *   **使う前**＝`cpuCardStrength.WEIGHTS.powerUp = 0.25` ⇒ 750点／**使った後**＝ここが実効パワーを**係数1.0**で加算 ⇒ 3000点。
+ *   `scoreEffectGain`／`scoreCardUseGain` は「使った後 − 使う前」なので、**パワーを上げる効果は必ず満額の得**に見えていた
+ *   （+3000 が `openLane`(3000) と同値・ライフ 0.43枚ぶん）。
+ * 🔴**係数を下げるだけでは直らない**＝線形であるかぎり「十分大きいバフは常に得」が残る。
+ *   **パワーの価値は本来 閾値関数**＝バトルの勝敗が反転しなければ（除去圏を跨がなければ）**ほぼ 0**。
+ * ⇒ ①生パワーは `fieldPowerScale`（既定 0.25＝`cardStrength` 側と揃えた）まで落とし、
+ *    ②**離散の項** `laneWin`（正面とのバトルに勝てているレーン数の差）を置く。
+ * 🔑**これは「一時バフと永続バフが同点」という第3の歪みも同時に薄める**＝勝敗が反転しないバフは 0 点になる。
+ * ⚠**除去圏（「パワー○以下」593効果）の閾値跨ぎは第2段**（未実装＝`S-10` の登録票③）。
+ * ⚠**旧挙動は `CPU_POLICIES['legacy-power']` で再現できる**（A/B の A 側）。
  */
 export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: LookaheadCtx): number {
   // 🆕§5.7 `S-9`＝席ごとのポリシー（無ければ既定）。⚠`BOARD_WEIGHTS` を直接読むと A/B が効かない。
   const W = ctx.policy?.boardWeights ?? BOARD_WEIGHTS;
   const powers = ctx.powersOf?.(cpu, opp);
-  const fieldValue = (st: PlayerState) => st.field.signi.reduce((sum, stack) => {
-    const top = stack?.at(-1);
-    if (!top) return sum;
-    return sum + cardStrength(ctx.cardMap.get(getCardNum(top)) ?? ctx.cardMap.get(top), ctx.effectsOf(top), 'field', powers?.get(top));
-  }, 0);
+  /**
+   * そのゾーンに**生きている**シグニ（無ければ `undefined`）。
+   * 🆕🔴**パワー0以下は「居ない」として数える**（§5.7 `S-10`・2026-09-20）＝
+   *   公式ルールのルール処理でバニッシュされる（`powerZeroBanishCandidates`＝`resolveSigniBattle.ts:1840`＝`power > 0` なら対象外）。
+   *   🔑**パワーマイナスの価値の本体はここ**＝`fieldPowerScale` を 0.25 に落としたぶん、
+   *   「0 まで落として消す」が安く見えてしまうのを、**0 を跨いだ瞬間に満額（場から消える＋正面が空く）**にして取り戻す。
+   *   ⚠`evaluateBoard` は**ルール処理を回した後の盤面を見ているわけではない**（`simulateEffect` は効果1つだけ）ので、
+   *   ここで先回りして数えないと**「0 以下にした」ことが1点も評価されない**。
+   */
+  const topOf = (st: PlayerState, zi: number) => {
+    const top = st.field.signi[zi]?.at(-1);
+    if (!top) return undefined;
+    return scoringPowerOf(top, ctx, powers) > 0 ? top : undefined;
+  };
+  /** 場の1体の点数＝**効果の点数は満額・生パワーは `fieldPowerScale` 倍**（`S-10`）。 */
+  const signiValue = (st: PlayerState, zi: number) => {
+    const top = topOf(st, zi);
+    if (!top) return 0;
+    return scoringPowerOf(top, ctx, powers) * W.fieldPowerScale + effectValueOf(ctx.effectsOf(top), 'field');
+  };
+  const fieldValue = (st: PlayerState) => [0, 1, 2].reduce((sum, zi) => sum + signiValue(st, zi), 0);
+  // ⚠**空き判定も `topOf` を通す**＝パワー0以下のシグニが正面に残っていると「塞がっている」と誤読する。
   const openLanes = (me: PlayerState, them: PlayerState) =>
-    [0, 1, 2].filter(zi => (me.field.signi[zi]?.length ?? 0) > 0 && (them.field.signi[2 - zi]?.length ?? 0) === 0).length;
+    [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined).length;
+  /**
+   * 🆕`me` のシグニが**正面とのバトルに勝てている**レーン数（`S-10` の閾値項）。
+   * 🔑判定は `cpuAttackValueOf` を再利用する＝**公式ルール（アタック側のパワー「以上」で勝ち）を2か所に書かない**。
+   * ⚠同値は**両者とも勝ち**になる（＝殴ったほうが勝つ）＝差し引き 0 になり、実際の有利不利と一致する。
+   */
+  const wonLanes = (me: PlayerState, them: PlayerState) =>
+    [0, 1, 2].filter(zi => {
+      const mine = topOf(me, zi), theirs = topOf(them, 2 - zi);
+      if (!mine || !theirs) return false;
+      return cpuAttackValueOf(scoringPowerOf(mine, ctx, powers), scoringPowerOf(theirs, ctx, powers)) === 'winBattle';
+    }).length;
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
-    + [0, 1, 2].filter(zi => (opp.field.signi[zi]?.length ?? 0) > 0 && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
+    + (wonLanes(cpu, opp) - wonLanes(opp, cpu)) * W.laneWin
+    + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
     + (cpu.hand.length - opp.hand.length) * W.hand
     + (cpu.energy.length - opp.energy.length) * W.energy;

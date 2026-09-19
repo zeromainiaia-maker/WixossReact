@@ -86678,7 +86678,14 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
   const oppBig = board(['WD03-009#o1', null, 'WD01-013#o2']);    // 正面に3000＝除去できず、正面は塞がったまま
   // 【出】の結果で比べる
   const diff = (opp: PlayerState) => scoreDeploy(`${HISUI}#h1`, 0, cpu, opp, lctx) - scoreDeploy(`${VANILLA}#h2`, 0, cpu, opp, lctx);
-  ok(diff(oppSmall) > diff(oppBig) + 2000, `🔴【出】の除去が実際に決まる盤面とそうでない盤面で、召喚の点数差が変わらない（${diff(oppSmall)} / ${diff(oppBig)}）`);
+  // 🆕§5.7 `S-10`（2026-09-20）＝**閾値は重みから導く**（旧＝固定値 2000）。
+  //   除去が決まると「正面が空く（`openLane`）」、決まらないと「格上で立っているだけ（`laneWin`）」なので、
+  //   差は最低でも **`openLane - laneWin`** ある。⚠**`laneWin` を `openLane` と同値にすると除去の価値が 0 になる**
+  //   （2026-09-20 に 3000 で試して差が 450 点に潰れた＝この assert が捕まえた）。
+  const wS10 = DEFAULT_CPU_POLICY.boardWeights;
+  ok(wS10.laneWin < wS10.openLane, '🔴`laneWin >= openLane`＝「正面を除去する」と「格上で立つ」が同点になり除去の価値が消える');
+  ok(diff(oppSmall) > diff(oppBig) + (wS10.openLane - wS10.laneWin),
+    `🔴【出】の除去が実際に決まる盤面とそうでない盤面で、召喚の点数差が変わらない（${diff(oppSmall)} / ${diff(oppBig)}）`);
   ok(cpuOnPlayEffectsOf(`${HISUI}#h1`, cpu, oppSmall, lctx).length === 1, '前提崩れ＝ヒスイの【出】が CPU の召喚で発動する形に見えない');
   // 本番の盤面を書き換えない・乱数列を消費しない
   const snapshot = JSON.stringify([cpu, oppSmall]);
@@ -86729,8 +86736,14 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   const e2 = effectsMap.get(NESSIE)!.find(e => e.effectId === 'WX22-Re17-E2')!;
   ok(!!e2?.trashActivated, '前提崩れ＝WX22-Re17-E2 がトラッシュの【起】ではない');
   const BLACK = ['WD05-009', 'WD05-010', 'WD05-011'];
+  // 🆕§5.7 `S-10`（2026-09-20）＝**自分の場に P7000 を1体置く**（相手ゾーン0の正面＝自分ゾーン2）。
+  //   🔴旧はここが**空の場**だった＝`S-10` で盤面の採点を閾値化したら、**エナ3枚を払って相手の 12000 を 4000 にしても
+  //   自分の場が空なので今ターンは何も起きない**＝CPU が正しく「使わない」を選ぶようになり、この assert が落ちた。
+  //   ⇒ **assert の閾値を緩めるのではなく、効果が実際に効く盤面へ直した**
+  //   （7000 なら 12000 には負け、−8000 後の 4000 には勝つ＝`laneWin` が反転する）。
+  const MID = 'WD05-012';   // 背徳の象徴 コスモ（黒・Lv2・P7000・効果なし）
   const cpuBoard = (energy: string[], trash: string[] = [`${NESSIE}#t1`]) => {
-    const st = mkState({ signi: [null, null, null] });
+    const st = mkState({ signi: [null, null, `${MID}#f9`] });
     st.trash = trash; st.hand = []; st.energy = energy; st.field.lrig = ['WD05-003#r1']; st.lrig_deck = [];
     st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
     return st;
@@ -86932,6 +86945,68 @@ test('§5.7 S-9 強さの A/B 測定台：席ごとのポリシー・席入れ�
   const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/cpuTurnActionImpl\(performCtx\(\), \{/.test(screenOnly), '前提崩れ＝画面の `cpuTurnAction` の呼び出しが見つからない');
   ok(!/cpuPolicy|policy:/.test(screenOnly), '🔴画面が CPU ポリシーを渡している＝実機の挙動が変わりうる（`S-9` は測定台だけのはず）');
+}));
+
+test('§5.7 S-10 盤面の採点のパワー項：線形から閾値へ（勝敗が反転しないバフはほぼ 0 点）', () => withSavedCursor(() => {
+  // 🆕2026-09-20（ユーザー指摘「パワーを上げる効果を過剰に使う」）。
+  //   旧＝`evaluateBoard` が実効パワーを**係数1.0**で加算し、`cardStrength` 側は `powerUp: 0.25`＝**同じ +3000 が4倍違った**。
+  //   新＝生パワーは `fieldPowerScale`(0.25) まで落とし、**`laneWin`（正面とのバトルに勝てているレーン数）**を置く。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const VAN = 'WD01-013';   // バニラ（効果なし）＝パワー項だけを見る
+  /** 自分ゾーン0 と 相手ゾーン2（＝正面）に1体ずつ置き、実効パワーを直接与えた盤面の点数。 */
+  const score = (minePower: number, theirPower: number, policy = DEFAULT_CPU_POLICY) => {
+    const side = () => {
+      const st = mkState({ signi: [null, null, null] });
+      st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#l1', 'WD01-013#l2']; st.field.lrig = ['WD03-003#r1'];
+      return st;
+    };
+    const me = side(); me.field.signi[0] = [`${VAN}#m0`];
+    const them = side(); them.field.signi[2] = [`${VAN}#t0`];
+    const lctx = {
+      cardMap: cm as Map<string, CardData>,
+      effectsOf: () => [],                               // 効果の点数を 0 にして**パワー項だけ**を見る
+      powersOf: () => new Map([[`${VAN}#m0`, minePower], [`${VAN}#t0`, theirPower]]),
+      policy,
+    };
+    return evaluateBoard(me, them, lctx);
+  };
+  const W = DEFAULT_CPU_POLICY.boardWeights;
+  const LEGACY = CPU_POLICIES['legacy-power'];
+
+  // ── ① 勝っているレーンをさらに強化しても、点はほとんど増えない（＝過剰使用が止まる本体）──
+  const buffWhileWinning = score(8000, 3000) - score(5000, 3000);
+  eq(buffWhileWinning, 3000 * W.fieldPowerScale, `🔴すでに勝っているレーンへの +3000 が満額の得に見えている（${buffWhileWinning}）`);
+
+  // ── ② 勝敗が反転する +1 は、反転しない +3000 より価値が高い（＝閾値関数になった）──
+  const flip = score(3001, 3000) - score(3000, 3000);
+  ok(flip > buffWhileWinning, `🔴勝敗を反転させる +1 が、反転しない +3000 より安い（${flip} vs ${buffWhileWinning}）＝まだ線形`);
+  eq(flip, 1 * W.fieldPowerScale + W.laneWin, `🔴反転の価値が \`laneWin\` になっていない（${flip}）`);
+
+  // ── ③ 旧実装（`legacy-power`）は逆＝線形そのもの。**A/B の A 側として再現できることを固定する** ──
+  eq(score(8000, 3000, LEGACY) - score(5000, 3000, LEGACY), 3000, '🔴`legacy-power` が旧挙動（係数1.0）を再現していない');
+  eq(score(3001, 3000, LEGACY) - score(3000, 3000, LEGACY), 1, '🔴`legacy-power` に閾値項が混ざっている');
+  eq(LEGACY.boardWeights.fieldPowerScale, 1, '`legacy-power` の生パワー係数');
+  eq(LEGACY.boardWeights.laneWin, 0, '`legacy-power` の閾値項');
+  // 🔑**4倍だった**（`S-10` の真因）＝旧 3000 / 新 750。
+  eq((score(8000, 3000, LEGACY) - score(5000, 3000, LEGACY)) / buffWhileWinning, 4, '🔴旧実装との比が4倍でない＝真因の見立てが崩れた');
+
+  // ── ④ 同値は「殴ったほうが勝つ」＝差し引き 0（片側だけ数えると盤面が偏る）──
+  eq(score(3000, 3000), 0, `🔴同じパワーで向かい合っているのに点差が付いた（${score(3000, 3000)}）`);
+  ok(score(2000, 3000) < 0 && score(4000, 3000) > 0, '🔴格下／格上の符号が合っていない');
+  // 負け側は `laneWin` ぶん引かれる（相手だけがバトルに勝てる）。
+  eq(score(2000, 3000), -1000 * W.fieldPowerScale - W.laneWin, '🔴負けているレーンの引き方');
+
+  // ── ⑤ `laneWin < openLane`＝「正面を除去する」ほうが「格上で立つ」より常に良い ──
+  ok(W.laneWin < W.openLane, '🔴`laneWin >= openLane`＝除去の価値が消える（golden `§5.7 S-4` も落ちる）');
+
+  // ── ⑥ `∞` で `NaN` にならない（両側 ∞ の引き算）──
+  const inf = score(Infinity, Infinity);
+  ok(Number.isFinite(inf) && inf === 0, `🔴両側 ∞ の盤面で点数が NaN／非有限になった（${inf}）＝比較が全部 false に化けて候補が選ばれない`);
+
+  // ── ⑦ 配線＝重みを直接読んでいないこと（ポリシー経由でないと A/B が効かない）──
+  const look = fs.readFileSync(join(root, 'src/screens/battle/cpuLookahead.ts'), 'utf8');
+  ok(/W\.fieldPowerScale/.test(look) && /W\.laneWin/.test(look), '🔴`evaluateBoard` が新しい重みをポリシーから読んでいない');
+  ok(/cpuAttackValueOf\(/.test(look), '🔴バトルの勝敗判定を `cpuAttackValueOf` の再利用ではなく書き写している（公式ルールが2か所になる）');
 }));
 
 test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッシュ」コスト：場のシグニを払い、このカードは捨てずに場に出す', () => withSavedCursor(() => {

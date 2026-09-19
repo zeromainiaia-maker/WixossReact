@@ -28,6 +28,20 @@ export interface BoardWeights {
   openLane: number;
   /** 相手の凍結しているシグニ1体（次のアップフェイズに起き上がれない）。 */
   oppFrozen: number;
+  /**
+   * 🆕§5.7 `S-10`＝**場のシグニの生パワーに掛ける係数**（既定 0.25）。
+   * 🔴**1.0 にすると「パワーを上げる効果は必ず満額の得」に戻る**＝旧挙動（`legacy-power`）。
+   * 🔑0.25 は `cpuCardStrength.WEIGHTS.powerUp` と同じ値＝**「使う前」と「使った後」で同じ値段にする**のが狙い。
+   */
+  fieldPowerScale: number;
+  /**
+   * 🆕§5.7 `S-10`＝**正面とのバトルに勝てているレーン1つ**（`cpuAttackValueOf` の `winBattle`）。
+   * 🔑パワーの価値の本体はここ＝**勝敗が反転しないバフは（`fieldPowerScale` のぶんを除いて）0 点**になる。
+   * 🔴**`openLane` より小さくする**＝正面が空いている（ライフに通る）ほうが、正面に格上で立っている状態より**常に良い**。
+   *   同値にすると「正面を除去する」と「単に格上で立つ」が**同点**になり、**除去の価値が消える**
+   *   （2026-09-20 に 3000 で試して golden `§5.7 S-4` が落ちて気付いた＝**除去が決まる盤面と決まらない盤面の差が 450 点**になった）。
+   */
+  laneWin: number;
 }
 
 /** 1つの CPU の「強さの設定」＝これを席ごとに変えて勝率を比べる。 */
@@ -43,12 +57,15 @@ export interface CpuPolicy {
 }
 
 /**
- * 🔴**既定のポリシー＝いまの CPU そのもの**（2026-09-19 時点の定数をそのまま移しただけ＝挙動は不変）。
- * ⚠**ここの数値を「良くしよう」として触らない**＝触るのは `S-10` 以降の項目で、**必ず A/B（`S-9`）を通してから**。
+ * 🔴**既定のポリシー＝いまの CPU そのもの**（`npm run selfplay` も `BattleScreen` もこれで動く）。
+ * ⚠**ここの数値を「良くしよう」として触らない**＝触るときは**必ず A/B（`S-9`）で勝率を測ってから**、
+ *   かつ**旧値をプリセットとして残す**（`legacy-*`）＝残さないと後から比較できない。
+ * 🆕**変更履歴**＝2026-09-19 新設（`S-9`・当時の定数をそのまま移設）／
+ *   2026-09-20 `S-10` で `fieldPowerScale: 0.25` と `laneWin: 3000` を追加（旧値は `legacy-power`）。
  */
 export const DEFAULT_CPU_POLICY: CpuPolicy = {
   name: 'default',
-  boardWeights: { life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500 },
+  boardWeights: { life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500 },
   spellGainMin: 1000,
   keepGuards: 1,
 };
@@ -60,10 +77,12 @@ const variant = (name: string, over: Partial<Omit<CpuPolicy, 'name'>>): CpuPolic
 /**
  * 名前つきプリセット。
  *
- * 🔴**`default` 以外は「測定台そのものが効いているか」を確かめるための自己検査用**であって、
- *   **強い CPU の候補ではない**（どれも既定より弱くなるはずの方向へ振ってある）。
- *   ⇒ **A/B が「差を検出できる」ことを、差が出るはずの組で先に確かめる**（差が出ないなら配線が死んでいる）。
- * 🔑**`S-10` 以降で本物の候補を足すときは、ここに名前つきで足して `--b <名前>` で当てる。**
+ * ■ 2種類ある（混ぜない）
+ *   - **自己検査用**（`no-spell` / `no-guard-keep` / `ignore-life`）＝**強い CPU の候補ではない**。
+ *     どれも既定より弱くなるはずの方向へ振ってあり、**A/B が「差を検出できる」ことを確かめる**ために使う
+ *     （差が出ないなら配線が死んでいる）。
+ *   - 🆕**旧実装**（`legacy-*`）＝**その項目を入れる前の CPU**。A/B の A 側。⚠**消さない**。
+ * 🔑**新しい候補を足すときは、ここに名前つきで足して `--b <名前>` で当てる。**
  */
 export const CPU_POLICIES: Record<string, CpuPolicy> = {
   default: DEFAULT_CPU_POLICY,
@@ -73,6 +92,14 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'no-guard-keep': variant('no-guard-keep', { keepGuards: 0 }),
   /** ライフの価値を見ない（盤面の物量だけで判断する）＝配線の自己検査用。 */
   'ignore-life': variant('ignore-life', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, life: 0 } }),
+  /**
+   * 🆕§5.7 `S-10` の **A 側＝2026-09-20 以前の盤面の採点そのもの**（生パワーを係数1.0 で加算・バトルの閾値項なし）。
+   * 🔴**これは自己検査用ではなく「旧実装」**＝`S-10` の A/B（`--a legacy-power --b default`）で使う。
+   * ⚠**消さない**＝消すと `S-10` の判断が再現できなくなる（`S-6` が重みを動かしたあとでも旧点との比較が要る）。
+   */
+  'legacy-power': variant('legacy-power', {
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1, laneWin: 0 },
+  }),
 };
 
 /** 名前からポリシーを引く。⚠**知らない名前は黙って既定に落とさない**（A と B が同じものになって勝率が無意味になる）。 */
