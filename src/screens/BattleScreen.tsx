@@ -143,8 +143,9 @@ import {applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess} from './bat
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
 import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu} from './battle/cpuDriver';
 import {pickCpuMulliganIndices} from './battle/cpuHandLimit';
-import {buildCpuGrowReserve} from './battle/cpuGrowReserve';
-import {normalizeCpuDeckPlan, planKeepBonus, planKeepsInMulligan} from './battle/cpuDeckPlan';
+import {normalizeCpuDeckPlan, planKeepsInMulligan} from './battle/cpuDeckPlan';
+// 🆕§5.7 `S-5d` 第2段（2026-09-19）＝CPU の対話応答の振り分け（純関数）。
+import {decideCpuInteractionResponse} from './battle/cpuInteractionRespond';
 import {applyMulligan} from './battle/mulligan';
 import {buildLrigSetupState} from './battle/lrigSetup';
 import {resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA} from '../utils/deckLrigSetup';
@@ -153,7 +154,6 @@ import {clearEndOfAttackEffects} from './battle/attackDuration';
 import {reserveGrantedAutoUsage} from './battle/grantedAuto';
 import {getResonaSummonCandidate, getSpellCutinResonaCandidates, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate} from './battle/resonaSummon';
 import {pendingEffectCardNums} from './battle/pendingEffectCards';
-import {isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone, type CpuInteractionCtx} from './battle/cpuInteraction';
 import {planRiseSummon, type RiseSelection} from './battle/riseSummon';
 import {attackFieldTrashCost, canPayAttackFieldTrashCost, canPayLrigAttackFieldTrashCost} from './battle/attackFieldTrashCost';
 import {canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost} from './battle/signiAttackGate';
@@ -1057,70 +1057,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
   useEffect(() => {
     if (!isCpuBattle || !bs?.pending_effect) return;
-    const pe = bs.pending_effect;
-    const inter = pe.interaction;
-    // 🆕§5.6 `C-8`（2026-09-17）＝**何と答えるかは `cpuInteraction.ts` の純関数**（golden で固定）。ここは呼んで実行するだけ。
-    //   旧＝この effect に直書きで、選択肢は「押せる先頭」固定（分岐の片側しか踏まない）・対象は完全ランダムだった。
-    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
-    const cpuIsHost = bs.host_id === CPU_PLAYER_ID;
-    const cpuCtx: CpuInteractionCtx = {
-      cpuState: cpuIsHost ? bs.host_state : bs.guest_state,
-      oppState: cpuIsHost ? bs.guest_state : bs.host_state,
-      // ⚠instance ID（`#…`）で引く補助関数（支払うエナの選出）があるので InstanceMap を渡す。
-      cardMap: new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData])),
-      // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
-      effectsOf: id => effectsMap.get(id) ?? [],
-      planBonus: id => planKeepBonus(cpuPlan, id),
-    };
-    // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。
-    cpuCtx.energyReserve = buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: battleCardMap, effectsMap, cards });
-    // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
-    if (inter.type === 'REARRANGE_SIGNI') {
-      const requiredChoice = pickCpuRearrange(inter);
-      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerRS);
-    }
-    // `ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る（検算は `resumeAllocatePower`）。
-    if (inter.type === 'ALLOCATE_POWER') {
-      const allocCpu = pickCpuAllocatePower(inter, cpuCtx);
-      const timerAP = setTimeout(() => { handleAllocatePowerConfirm(allocCpu); }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerAP);
-    }
-    // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
-    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
-      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
-      const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
-      const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
-      if (inter.type === 'SELECT_VIRUS_ZONE') {
-        const zone = pickCpuVirusZone(inter, tgtState);
-        const timerVZ = setTimeout(() => { handleSelectVirusZoneForEffect(zone); }, CPU_ACTION_DELAY);
-        return () => clearTimeout(timerVZ);
-      }
-      const emptyZone = pickCpuEmptySigniZone(tgtState);
-      if (emptyZone === null) return;
-      const timerSZ = setTimeout(() => {
-        if (inter.type === 'SELECT_SIGNI_ZONE') handleSelectSigniZoneForEffect(emptyZone);
-        else handleSelectZoneForEffect(emptyZone);
-      }, CPU_ACTION_DELAY);
-      return () => clearTimeout(timerSZ);
-    }
-    // 応答者がCPUの場合（respondPlayerId指定、または無指定で効果オーナーがCPU）は自動応答する
-    // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
+    // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝**「どのハンドラへ渡すか」の振り分けも純関数へ**（`cpuInteractionRespond.ts`）。
+    //   画面に残るのは「人が見て分かる速さで遅らせて、**人間と同じハンドラ**を呼ぶ」だけ＝
+    //   ヘッドレス（`S-5`）は待たずに同じ戻り値を使う。
+    // ⚠**決めるのは遅延の前**（従来も REARRANGE/ALLOCATE/ゾーンはそうだった）。
+    //   `SELECT_TARGET`/`CHOOSE` は従来 `setTimeout` の中で決めていたが、`cpuDriver` は
+    //   `pending_effect` がある間は走らない（`cpuDriver.ts:20`）ので、**待っている間に盤面も乱数も動かない**＝同値。
+    const res = decideCpuInteractionResponse(bs.pending_effect, {
+      cpuPlayerId: CPU_PLAYER_ID, hostId: bs.host_id,
+      hostState: bs.host_state, guestState: bs.guest_state,
+      cards, cardMap: battleCardMap, effectsMap, cpuPlan,
+    });
+    if (!res) return;
     const timer = setTimeout(() => {
-      let selected: string[] = [];
-      if (inter.type === 'SELECT_TARGET') {
-        selected = pickCpuTargets(inter, cpuCtx);
-      } else if (inter.type === 'CHOOSE') {
-        selected = pickCpuChoice(inter, cpuCtx);
-        const chosen = inter.options.find(o => o.id === selected[0]);
-        // §5.6 `C-3` の計器が「分岐の両側を踏んだか」を数えるための行（文言は playCensus.ts の anchor）。
-        if (chosen) appendBattleLogs([`[CPU] 選択: ${chosen.label}${isDeclineOption(chosen) ? '（断る）' : ''}`]);
-      } else if (inter.type === 'SEARCH') {
-        selected = pickCpuSearch(inter, cpuCtx);
-      } else if (inter.type === 'LOOK_AND_REORDER') {
-        selected = [...inter.cards];
+      switch (res.kind) {
+        case 'rearrange': handleRearrangeSigniConfirm(res.arrangement); break;
+        case 'allocate': handleAllocatePowerConfirm(res.alloc); break;
+        case 'virusZone': handleSelectVirusZoneForEffect(res.zone); break;
+        case 'signiZone': handleSelectSigniZoneForEffect(res.zone); break;
+        case 'zone': handleSelectZoneForEffect(res.zone); break;
+        default:
+          if (res.logs.length > 0) appendBattleLogs(res.logs);
+          handleEffectInteraction(res.selected);
       }
-      handleEffectInteraction(selected);
     }, CPU_ACTION_DELAY);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19（第405バッチ）§5.7 `S-5d` 第2段＝**CPU の対話応答の「振り分け」を画面から出した**（リファクタ・挙動不変）
+
+- 🔴**何が残っていたか**＝`cpuInteraction.ts`（**何と**答えるか）は 2026-09-17 に純関数化したのに、
+  **「どのハンドラへ渡すか」の振り分けは `BattleScreen` の `useEffect`（70行）に残っていた**＝
+  第1段で「答える7本」を移したあとも、**ヘッドレスは CPU の対話に答えられない**ままだった。
+- **移設**＝`src/screens/battle/cpuInteractionRespond.ts`（`decideCpuInteractionResponse`）。
+  戻り値は `CpuInteractionResponse`＝`rearrange` / `allocate` / `virusZone` / `signiZone` / `zone` / `effect`（＋`null`）。
+  - 🔑**待ち時間は画面に残す**＝`setTimeout` と `CPU_ACTION_DELAY` を純関数へ持ち込むと**自己対戦が実時間に縛られる**。
+    画面は「人が見て分かる速さ」で遅らせ、ヘッドレスは待たずに同じ戻り値を使う。
+  - 🔑**`[CPU] 選択: …` のログは戻り値（`logs`）で返す**＝`census:play` の anchor なので文言は契約。
+    置くのは画面（`appendBattleLogs`）のままにして、**誰がログを書くか**を1箇所に保つ。
+  - ⚠**`null` は「CPU は答えない」**＝①応答者が CPU でない ②空きゾーンが無い。どちらも従来どおり**何もしない**。
+- ⚠🔑**決めるタイミングが「遅延の前」に揃った**＝旧実装は `REARRANGE`/`ALLOCATE`/ゾーンを**遅延の前**、
+  `SELECT_TARGET`/`CHOOSE` を**`setTimeout` の中**で決めていた（乱数の消費時点が型で違った）。
+  **`cpuDriver` は `pending_effect` がある間は走らない**（`cpuDriver.ts:20`）＝**待っている間に盤面も乱数も動かない**ので、
+  寄せても同値。⇒ **「同値だから寄せた」根拠をここに残す**（勘で寄せない）。
+- **golden**＝🆕2本を新設＝①`§5.7 S-5d 第2段`（型ごとの宛先／`respondPlayerId` が CPU でなければ `null`／
+  **空きゾーンが無ければ `null`**／`CHOOSE` のログが戻り値に入る）②画面に振り分けを書き戻さない見張り
+  （画面が `pickCpu*` を直接呼ばない／純関数に `setTimeout`・`CPU_ACTION_DELAY` が入らない／画面の遅延が消えていない）。
+  **「空きゾーンが無ければ答えない」を壊すと FAIL する**ことを反転確認済み。
+  既存3本（`§5.6 C-8`／`§5.7 S-2`／グロウ用エナの予約）は**画面のソースを読んで配線を数える**検査だったので
+  `cpuRespondSource()`（画面＋純関数を1つのソースとして読む）へ**較正**＝**配線の本数は不変**。
+- **検証**＝`npm run gates` 全緑（golden **4328**＝+2）。
+  実機＝CPU 系8本 ALL PASS（`cpuOptionalOnPlayCharm`／`c2cpuguard`／`c4cpuhandlimit`／`c5cpuresona`／
+  `c6cpurise`／`c7cpukey`／`c7cpupiece`／`cpugrow`）＋CPU 通し対戦 PASS。
+- ⚠**踏んだ事故**＝`goldenTest.ts` を python のヒアドキュメント経由で書き換えたとき、`'\n'` の
+  バックスラッシュが1段落ちて**本物の改行**になり構文が壊れた（`Unterminated string literal`）。
+  🔑**この repo の `goldenTest.ts` は CRLF**（`git` は正規化して見せるので `--numstat` では気づけない）＝
+  **python で読むときは universal newlines、書くときは `newline='\r\n'`**。バックスラッシュを含む置換は
+  **Edit ツールで行う**（[LESSONS.md](./LESSONS.md) §4.3 の「Python で書き戻すと改行を壊す」の同系統）。
+
 ## 2026-09-19（第404バッチ）§5.7 `S-5d` 第1段＝**対話の解決（`pending_effect` の resume）7本を画面から出した**（リファクタ・挙動不変）
 
 - 🔴**なぜ最初にここか**＝`createHeadlessBattle` は「対話が立ったら止まる＝**答えるのは呼び出し側の仕事**」と

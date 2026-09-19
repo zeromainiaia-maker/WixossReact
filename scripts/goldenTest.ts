@@ -168,6 +168,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
@@ -303,6 +304,18 @@ interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: numb
  * 🔴移設で本数が減るのは**較正**であって退化ではない（配線そのものは1つも減っていない）。
  * ⚠新しく画面から切り出したら、この関数に足す（足さないとトリップワイヤが黙って本数不足で落ちる）。
  */
+/**
+ * 🆕**CPU の対話応答の配線を読む1本**（§5.7 `S-5d` 第2段・2026-09-19）。
+ * 画面（遅延と委譲）と純関数（`cpuInteractionRespond.ts`＝何と答えるか・どこへ渡すか）を**1つのソース**として読む。
+ * 🔴移設で本数が減るのは**較正**であって退化ではない（配線そのものは1つも減っていない）。
+ */
+function cpuRespondSource(): string {
+  return [
+    fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
+    fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf8'),
+  ].join('\n');
+}
+
 function battleScreenSource(): string {
   // 🆕2026-09-18（`S-5c` 第2段）＝`controller/` へ出した配線（スタック解決・盤面差分収集・`perform*`）も**まとめて**読む。
   const controllerDir = join(root, 'src/screens/battle/controller');
@@ -86533,7 +86546,9 @@ test('§5.6 C-8 CPU の対話応答（純関数）：損得の分かる選択は
   eq(JSON.stringify(plus), JSON.stringify({ [OWN_STRONG]: 4000 }), 'プラスを自分の一番強いシグニへ寄せていない');
 
   // 画面の配線＝判断は純関数だけ（直書きの「押せる先頭」に戻さない）
-  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝**振り分けも `cpuInteractionRespond.ts` へ移した**ので両方を読む
+  //   （画面に残るのは遅延と委譲だけ）。**配線の本数は不変＝較正であって退化ではない。**
+  const battle = cpuRespondSource();
   ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
   ok(!/const firstAvail = inter\.options\.find/.test(battle), '🔴「押せる先頭」の直書きが残っている');
 }));
@@ -86634,7 +86649,8 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   const battle = battleScreenSource();
   ok(/normalizeCpuDeckPlan\(cpuDeckData\?\.cpu_plan\)/.test(battle), '🔴CPU デッキの作戦データを読んでいない');
   ok(/\+ planDeployBonus\(cpuPlan, id,/.test(battle), '🔴CPU の召喚に作戦データの加点が無い');
-  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(cpuPlan, id\)/.test(battle), '🔴マリガン／対話応答に作戦データを渡していない');
+  // 🆕§5.7 `S-5d` 第2段＝対話応答の配線は `cpuInteractionRespond.ts` へ移った（較正）。
+  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(d\.cpuPlan, id\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データを渡していない');
   const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
   ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
 }));
@@ -86920,7 +86936,8 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
   eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
   ok(/reserve: cpuGrowReserveFor\(actorState\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
   ok(/cpuDeployReserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
-  ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(battle), '🔴効果の任意コストの支払いに予約が無い');
+  // 🆕§5.7 `S-5d` 第2段＝効果の任意コストの予約は `cpuInteractionRespond.ts` へ移った（較正）。
+  ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(cpuRespondSource()), '🔴効果の任意コストの支払いに予約が無い');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
@@ -87980,6 +87997,70 @@ test('§5.7 S-5d 第1段 ログの flush は `BattleIo` の口（ヘッドレス
   const ifaceBlock = io.slice(io.indexOf('export interface BattleIo'));
   eq((ifaceBlock.slice(0, ifaceBlock.indexOf('\n}')).match(/^\s{2}\w+:/gm) ?? []).length, 4,
     '🔴BattleIo の口が4つでない（増やすほど画面から出せなくなる）');
+}));
+
+
+// ── 第405バッチ（2026-09-19）＝§5.7 `S-5d` 第2段（CPU の対話応答の振り分けを画面から出す）───────
+test('§5.7 S-5d 第2段 CPU の対話応答の振り分け（純関数）：型ごとに宛先が決まり、CPU でなければ答えない', () => withSavedCursor(() => {
+  // 🆕2026-09-19＝`cpuInteraction.ts`（**何と**答えるか）は純関数だったのに、
+  //   **どのハンドラへ渡すかの振り分け**は `BattleScreen` の `useEffect` に残っていた＝
+  //   ヘッドレス（`S-5`）は CPU の対話に答えられなかった。ここはその振り分けを固定する。
+  const CPU = 'CPU';
+  const host = mkState({ signi: [SIGNI_L1, null, null] });
+  const guest = mkState({ signi: [SIGNI_L2, null, null] });
+  const deps = {
+    cpuPlayerId: CPU, hostId: 'HUMAN', hostState: host, guestState: guest,
+    cards: [...cardMap.values()], cardMap: cardMap as Map<string, CardData>,
+    effectsMap, cpuPlan: normalizeCpuDeckPlan(null),
+  };
+  const pe = (interaction: object, extra: object = {}) =>
+    ({ sourcePlayerId: CPU, sourceCardNum: SIGNI_L1, effectId: 'x', interaction, ...extra } as never);
+
+  // 🔴**応答者が CPU でなければ答えない**（人間の対話を CPU が勝手に押さない）。
+  eq(decideCpuInteractionResponse(pe({ type: 'SELECT_TARGET', candidates: [SIGNI_L2], count: 1, optional: false, targetScope: 'SINGLE', thenAction: { type: 'BANISH' } }, { sourcePlayerId: 'HUMAN' }), deps),
+    null, '🔴人間が応答する対話に CPU が答えた');
+  // 🔑`respondPlayerId` が CPU なら、効果の持ち主が人間でも答える（相手応答型）。
+  ok(decideCpuInteractionResponse(pe({ type: 'SELECT_TARGET', candidates: [SIGNI_L2], count: 1, optional: false, targetScope: 'SINGLE', thenAction: { type: 'BANISH' } }, { sourcePlayerId: 'HUMAN', respondPlayerId: CPU }), deps) !== null,
+    '🔴相手応答型（respondPlayerId=CPU）に答えていない');
+
+  // 型ごとの宛先
+  const kindOf = (interaction: object, extra: object = {}) =>
+    decideCpuInteractionResponse(pe(interaction, extra), deps)?.kind ?? 'null';
+  eq(kindOf({ type: 'REARRANGE_SIGNI', signiNums: [], zones: 3 }), 'rearrange', 'REARRANGE_SIGNI の宛先が違う');
+  eq(kindOf({ type: 'ALLOCATE_POWER', targets: [SIGNI_L2], total: -2000, unit: 1000 }), 'allocate', 'ALLOCATE_POWER の宛先が違う');
+  eq(kindOf({ type: 'SELECT_VIRUS_ZONE', owner: 'opponent' }), 'virusZone', 'SELECT_VIRUS_ZONE の宛先が違う');
+  eq(kindOf({ type: 'SELECT_SIGNI_ZONE', owner: 'opponent' }), 'signiZone', 'SELECT_SIGNI_ZONE の宛先が違う');
+  eq(kindOf({ type: 'SELECT_ZONE', owner: 'opponent' }), 'zone', 'SELECT_ZONE の宛先が違う');
+  eq(kindOf({ type: 'SEARCH', visibleCards: [SIGNI_L1], maxPick: 1, deckOwner: 'self' }), 'effect', 'SEARCH の宛先が違う');
+  // 🔴**空きゾーンが無ければ答えない**（従来も `return` して何もしなかった＝ここで勝手に0番を押さない）。
+  const fullHost = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] });
+  eq(decideCpuInteractionResponse(pe({ type: 'SELECT_SIGNI_ZONE', owner: 'self' }, { sourcePlayerId: CPU }), { ...deps, hostId: CPU, hostState: fullHost }),
+    null, '🔴空きゾーンが無いのにゾーンを押した');
+
+  // 🔑`CHOOSE` は `[CPU] 選択: …` のログを**戻り値で**返す（画面が積む）＝`census:play` の anchor。
+  const chose = decideCpuInteractionResponse(pe({
+    type: 'CHOOSE', count: 1,
+    options: [{ id: 'do', label: 'する', action: { type: 'NOOP' }, available: true },
+      { id: 'skip', label: 'しない', action: { type: 'NOOP' }, available: true, declines: true }],
+  }), deps);
+  ok(chose?.kind === 'effect' && chose.logs.some(l => l.startsWith('[CPU] 選択: ')),
+    '🔴CHOOSE のログ行（census:play の anchor）が戻り値に無い');
+}));
+
+test('§5.7 S-5d 第2段 画面に CPU の振り分けを書き戻さない', () => withSavedCursor(() => {
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const moved = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf8');
+  ok(battle.includes('decideCpuInteractionResponse(bs.pending_effect, {'), '🔴画面が振り分けの純関数を呼んでいない');
+  // 🔴「何と答えるか」の `pickCpu*` を画面から直接呼ばない（振り分けの経路が2本になる）。
+  for (const pick of ['pickCpuTargets(', 'pickCpuChoice(', 'pickCpuSearch(', 'pickCpuRearrange(',
+    'pickCpuAllocatePower(', 'pickCpuVirusZone(', 'pickCpuEmptySigniZone(']) {
+    ok(!battle.includes(pick), `🔴画面が ${pick} を直接呼んでいる`);
+    ok(moved.includes(pick), `🔴移設先に ${pick} が無い`);
+  }
+  // 🔑**待ち時間は画面の仕事**＝純関数に `setTimeout` / `CPU_ACTION_DELAY` を持ち込まない（自己対戦が実時間に縛られる）。
+  ok(!moved.includes('setTimeout('), '🔴純関数に setTimeout が入った');
+  ok(!/CPU_ACTION_DELAY[^`）]/.test(moved.replace(/`CPU_ACTION_DELAY`/g, '')), '🔴純関数に待ち時間が入った');
+  ok(battle.includes('}, CPU_ACTION_DELAY);'), '🔴画面の遅延が消えた（CPU が一瞬で答えて人が追えない）');
 }));
 
 if (listMode) {
