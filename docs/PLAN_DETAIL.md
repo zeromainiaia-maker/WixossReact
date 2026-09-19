@@ -1,5 +1,23 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-09-19 実機シナリオ C の消化中に出た登録票 `O-535`（観測のみ・修正なし）
+
+### `O-535` — 「対象とし〜任意コスト〜そうした場合」で**同じ対象を2回選ばされる**（631効果 / 608カード・索引A'）
+
+- **形**＝live の action が `SEQUENCE[STUB{SELECT_TARGET_ONLY}, STUB{STORE_LAST_PROCESSED_TARGETS}, STUB{OPTIONAL_COST}, CONDITIONAL{PAID_ADDITIONAL_COST} → <帰結>{targetsStored:true}]`。
+  原文は「対戦相手のシグニ１体を**対象とし**、〜してもよい。**そうした場合**、それを手札に戻す」＝**対象を取るのは1回**。
+- 🔴**いまの挙動**＝①`SELECT_TARGET_ONLY` で対象を尋ね ②任意コストを払い ③帰結（`BOUNCE` 等）が **もう一度**同じ対象を尋ねる。
+  ③の候補は `freezeStoredTargets` の `fixedCardNums`（または `targetsStored`）で**1体に絞られている**のに、
+  **`selectOrInteract`（`execUtils.ts:4380` 付近）に「候補数 ≦ count なら自動解決」の枝が無い**ので必ず対話になる。
+- **実測**＝**631効果 / 608カード**（`public/data/effects_*.json` を走査＝`SELECT_TARGET_ONLY` ∧ `STORE_LAST_PROCESSED_TARGETS` ∧ どこかに `targetsStored:true`）。
+  発見元＝実機 `handDiscardPayRunsBody`（`WXDi-CP01-027-E3`）。**シナリオ側は2回答える形に直してある**（ハーネスは現状に追従済み）。
+- ⚠**気になる副作用（未検証）**＝`BattleScreen` は `SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶので、
+  **「対象にされたとき」の【自】が2回収集されうる**。ただし `usageLimit` を持つ効果は2回目が落ちるため、実害の有無は**別途 minimal pair を作って測る**こと。
+  🔴**「2回聞かれる＝UXの粗」で片付けない**。回数まで assert する実機を1本書いてから判断する（§4.4 の3）。
+- **取り方の案**＝`selectOrInteract` に「`fixedCardNums` または `targetsStored` で候補が確定していて、かつ `optional` でない」ときの自動解決枝を足す。
+  ⚠**631効果に効く**＝過剰に広げると「選ばせるべき場面で勝手に決まる」へ裏返るので、**条件は「直前に同じ効果が対象を取っている」ことに限定する**。
+  ⚠自動解決にすると `ON_TARGETED` の収集地点が1つ減るので、**減った側が正しい**ことを実機で確かめる。
+
 ## 🏁2026-09-18 にクローズ＝`O-534`（登録票は下）
 
 ### `O-534` — engine の `ADD_TO_FIELD` に配置レベル制限（`R-48`①）が無い（663効果 / 599カード・索引A）

@@ -4,7 +4,7 @@
 ＝今回の変更とは無関係に、以前から全件実行で落ちていた（全件を回す運用が無く、見えていなかった）。
 ⚠`cpuAckWriteLostStillEnds` は決着でルームを消すシナリオ＝単独で回す（§4.4-115）ので除外。
 
-> 🏁**2026-09-19＝A・B の17本＋C の40本を解消**（BUGFIXES 同日の項）。残り＝**C の28本**。
+> 🏁**2026-09-19＝A・B の17本＋C の44本を解消**（BUGFIXES 同日の項）。残り＝**C の24本**。
 > ⚠**残数は「C 全68本を1回の実行で回し直した実測」**（推測ではない）＝解消済みの行はこのファイルから消してある。
 
 ## 🏁A 撤回済みの相打ち（O-47）前提＝シナリオが古い（12本・2026-09-19 解消）
@@ -30,14 +30,10 @@
 - b34ZeroPickAllowedWhenUpTo (21s)  — 未完了（zoned=false confirm=null hField=[null,null,null] pEff=-）
 - v227OptionalDownSkip (5s)  — 選択UIは出たが0体確定ボタンを押せない（候補=["WXDi-P16-078#39100"]）＝辞退できていない
 
-## C 未分類（前提崩れ・未完了・観測できず）（残り **28本** / 元68本）
+## C 未分類（前提崩れ・未完了・観測できず）（残り **24本** / 元68本）
 
-🏁**解消済み40本**（この節から削除済み）＝freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
+🏁**解消済み44本**（この節から削除済み）＝handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
 
-- handDiscardSkipBlocksBody (23s)  — skip完走タイムアウト（prompted=false branch=false guard=false/false target=false/false hHand=["WD01-017#4811","WD01-013#4812","WD01-014#4813"] gField=[["WD01-013#4815"],null,null] pEff=SELECT_TA
-- handDiscardPayRunsBody (23s)  — pay完走タイムアウト（prompted=false branch=false guard=false/false target=false/false hHand=["WD01-017#4811","WD01-013#4812","WD01-014#4813"] gField=[["WD01-013#4815"],null,null] pEff=SELECT_TARGET
-- handDiscardOptionTwoDownsOpponentLrig (31s)  — 選択肢2完走タイムアウト（arts=true/true/3/true choose=true/true/true cost=false/false/false/false target=false/false hE=0 hDown=false/[false,false,false] gDown=false/[false,false,false]
-- handDiscardOptionThreeDownsOpponentSigni (31s)  — 選択肢3完走タイムアウト（arts=true/true/3/true choose=true/true/true cost=false/false/false/false target=false/false hE=0 hDown=false/[false,false,false] gDown=false/[false,false,fal
 - v04TanabataLeaveFieldE3 (23s)  — E3の噛み合わせ未確認（field=[["WD02-010#6002","WXDi-P10-041#6003"],["WX21-057#6004"],null] hand=[] energy=[] trash=["WD02-010#6001"]）
 - v13TrashActLrigDownTwo (44s)  — 完走タイムアウト（mechanism=true stackSeen=true sourceCount=1 trash=["WXDi-P04-042#7303"] field=[null,null,null] specific=センター→アシストLの順でdown=[true,true,false] pending=SELECT_TARGET stack=0）
 - v14PermanentPlayerGrantSurvivesHumanEndNoDiscard (24s)  — player付与の成立前提を観測できず（action=false grants=[] lrigTrash=[] logs=[]）
