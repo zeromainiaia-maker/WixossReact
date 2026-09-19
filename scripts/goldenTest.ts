@@ -170,7 +170,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
-import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
@@ -86664,6 +86664,43 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(d\.cpuPlan, id\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データを渡していない');
   const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
   ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
+}));
+
+test('§5.7 S-16 先読みは山の順序を見ない（カンニングを塞ぐ）＝集合は知ってよい／順序は見てはいけない', () => withSavedCursor(() => {
+  // 🔴**何が漏れていたか**＝`simulateEffect` は実 state を clone して engine に渡すので、`execDraw` が
+  //   **本物の山の一番上**を引く＝CPU は「次に何を引くか」を正解で先読みして点数に使っていた（PLAN §5.7.0 の線引きに違反）。
+  // ⇒ **先読み用のコピーだけ**、**正準順に並べ直してから盤面 seed で混ぜる**（`hideDeckOrder`）。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const deck = ['WD03-013#d1', 'WD03-012#d2', 'WD03-010#d3', 'WD01-017#d4', 'WX05-062#d5', 'WX05-060#d6', 'WX12-055#d7', 'WX12-054#d8'];
+  const mk = (order: string[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = []; st.deck = [...order]; st.energy = []; st.life_cloth = ['WD01-013#l1'];
+    st.field.lrig = ['WD03-003#r1'];
+    return st;
+  };
+  const drawTwo = { effectId: 'S16_DRAW2', effectType: 'ACTIVATED', action: { type: 'DRAW', owner: 'self', count: 2 }, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const src = 'WD03-003#r1';
+  const base = mk(deck), opp = mk([...deck].reverse());
+  const after = simulateEffect(drawTwo, src, base, opp, lctx);
+  ok(!!after, '前提崩れ＝2枚ドローの先読みが解決しない');
+  eq(after!.cpu.hand.length, 2, '前提崩れ＝2枚引いていない');
+  // ① **集合は変えない**＝引いた札は必ず山にあった札／山は2枚減る
+  ok(after!.cpu.hand.every(id => deck.includes(id)), '🔴山に無い札を引いた（集合が変わった）');
+  eq(after!.cpu.deck.length, deck.length - 2, '🔴山の枚数が合わない');
+  // ② 🔴**順序は見ない**＝山の並びだけが違う盤面は**同じ結果**になる（＝判断が並びに依存しない）
+  const rotated = mk([...deck.slice(3), ...deck.slice(0, 3)]);
+  const afterRot = simulateEffect(drawTwo, src, rotated, opp, lctx);
+  eq(JSON.stringify(afterRot!.cpu.hand), JSON.stringify(after!.cpu.hand),
+    '🔴山の並びを変えると先読みの結果が変わる＝CPU が山の順序を見ている（カンニング）');
+  // ③ 本物の一番上をそのまま引いていない（伏せたうえで引いている）
+  ok(JSON.stringify(after!.cpu.hand) !== JSON.stringify(deck.slice(0, 2)),
+    '🔴先読みが本物の山の一番上をそのまま引いた＝`hideDeckOrder` が効いていない');
+  // ④ 決定論＝同じ盤面なら同じ結果（`S-9` の A/B と実機シナリオの再現性の前提）
+  eq(JSON.stringify(simulateEffect(drawTwo, src, base, opp, lctx)!.cpu.hand), JSON.stringify(after!.cpu.hand),
+    '🔴同じ盤面で先読みの結果が変わる（決定論が壊れている）');
+  // ⑤ 渡した盤面は書き換えない（本番の山を混ぜない）
+  eq(JSON.stringify(base.deck), JSON.stringify(deck), '🔴先読みが本番の山の並びを書き換えた');
 }));
 
 test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面で、召喚・スペルを選ぶ（本番の盤面と乱数は触らない）', () => withSavedCursor(() => {

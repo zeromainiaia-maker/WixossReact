@@ -9,7 +9,7 @@ import type { ExecResult } from '../../engine/execUtils';
 import { getCardNum } from '../../engine/execUtils';
 import { checkActiveCondition } from '../../engine/effectEngine';
 import { onPlayOriginMatches } from '../../engine/triggerCollect';
-import { currentRng, mulberry32, setRng } from '../../engine/rng';
+import { currentRng, mulberry32, setRng, shuffle } from '../../engine/rng';
 import { effectValueOf } from './cpuCardStrength';
 import { cpuAttackValueOf } from './cpuBoardEval';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
@@ -61,6 +61,53 @@ const STEP_CAP = 40;
 export const BOARD_WEIGHTS = DEFAULT_CPU_POLICY.boardWeights;
 
 const clone = <T>(v: T): T => structuredClone(v);
+
+/**
+ * 🆕🔴**先読みのカンニングを塞ぐ**（§5.7 `S-16` の前提・2026-09-20）。
+ *
+ * ■ 何が漏れていたか＝`simulateEffect` は実 state を `structuredClone` して engine に渡すので、
+ *   `execDraw`（`effectExecutor.ts`）が **`state.deck.slice(0, n)`＝本物の山の一番上**を引く。
+ *   ⇒ CPU は「ドローの結果」を**正解で**先読みし、それを選択の点数に使っていた（相手の山も同じ＝ミル・デッキ公開）。
+ * ■ 線引き（PLAN §5.7.0 ユーザー決定）＝**山の中身（集合）は知ってよい／山の順序は見てはいけない。**
+ *   ⇒ **先読み用のコピーだけ山を混ぜる**（集合はそのまま＝サーチの価値は変わらない）。
+ * 🔴**決定論は保つ**＝seed は**盤面から決める**（`boardSeed`）＝同じ盤面なら必ず同じ混ぜ方＝同じ手を選ぶ
+ *   （`S-9` の A/B と実機シナリオの再現性の前提）。⚠`Math.random` で混ぜない。
+ * ⚠**seed は「見てよい情報」だけから作る**（山の順序を入れると、順序が変われば手が変わる＝別の形の漏れ）。
+ * ⚠**ライフクロスは混ぜない**＝順序は誰も選べず、クラッシュは engine が末尾から取る（先読みで有利にならない）。
+ */
+function boardSeed(cpu: PlayerState, opp: PlayerState, turnPhase: string): number {
+  // FNV-1a（見えている情報だけ＝手札・場・エナ・トラッシュの枚数と並び、山は**枚数だけ**）。
+  const parts = [
+    turnPhase, cpu.hand.join(','), opp.hand.length, cpu.energy.join(','), opp.energy.join(','),
+    cpu.field.signi.map(z => z?.at(-1) ?? '-').join(','), opp.field.signi.map(z => z?.at(-1) ?? '-').join(','),
+    cpu.field.lrig.at(-1) ?? '-', opp.field.lrig.at(-1) ?? '-',
+    cpu.deck.length, opp.deck.length, cpu.life_cloth?.length ?? 0, opp.life_cloth?.length ?? 0,
+    cpu.trash.length, opp.trash.length,
+  ].join('|');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < parts.length; i++) {
+    h ^= parts.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * 山の順序を伏せたコピー（**集合は変えない**）。
+ * 🔑**正準順（instance ID の昇順）に並べ直してから混ぜる**＝結果が**山の中身だけ**の関数になる
+ *   （並べ直さないと、混ぜた結果が本物の並びに依存する＝順序が判断にわずかに残る）。
+ * ⚠**先読み用のコピーにだけ使う**（本番の山は触らない）。
+ */
+export function hideDeckOrder(state: PlayerState, seed: number): PlayerState {
+  if (state.deck.length <= 1) return state;
+  const prev = currentRng();
+  setRng(mulberry32(seed));
+  try {
+    return { ...state, deck: shuffle([...state.deck].sort()) };
+  } finally {
+    setRng(prev);
+  }
+}
 
 /**
  * 場のシグニの実効パワー（採点用）。⚠**`Infinity` を上限値へ丸める**＝丸めないと
@@ -198,8 +245,10 @@ export function simulateEffect(
   const prevRng = currentRng();
   setRng(mulberry32(0x5eed));
   try {
+    // 🔴山の順序は見てはいけない（`hideDeckOrder`）＝**先読み用のコピーだけ**混ぜる。本番の盤面は触らない。
+    const seed = boardSeed(cpu, opp, lctx.turnPhase ?? 'MAIN');
     const base: ExecCtx = {
-      ownerState: clone(cpu), otherState: clone(opp), cardMap: lctx.cardMap, logs: [],
+      ownerState: hideDeckOrder(clone(cpu), seed), otherState: hideDeckOrder(clone(opp), seed ^ 0x9e3779b9), cardMap: lctx.cardMap, logs: [],
       sourceCardNum: sourceId, triggeringCardNum: sourceId, currentPhase: lctx.turnPhase ?? 'MAIN', isOwnerTurn: lctx.isCpuTurn ?? true,
     } as ExecCtx;
     let result = executeEffect(effect, base);
