@@ -4220,6 +4220,9 @@ const scenarios = {
       },
       guestSet: {
         'field.signi': [['WD01-013#1'], ['WD01-013#2'], null], // 凍結対象2体（小剣 ククリ×2・別インスタンス）
+        // ⚠2026-09-19＝**相手の手札を明示**（観測点＝「対戦相手は手札を1枚捨てる」で手札が減るか）。
+        //   旧版は未指定＝前のシナリオの手札頼み。土台（手札空）では捨てる札が無く「未発火」に見えていた。
+        'hand': ['WD01-013#fz91', 'WD01-013#fz92', 'WD01-013#fz93'],
       },
       handPrepend: ['WX01-081#1', 'WX01-081#2'],           // コードアート Ｔ・Ｖ×2枚（1枚ずつ召喚して別々に凍結）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
@@ -6535,47 +6538,59 @@ const scenarios = {
   //    [pick-0=WXK02-041(zone0), pick-1=WX21-057(zone1)] の順に固定→pick-1（自分自身）を選んでバウンスさせる
   //    （watcherを誤ってバウンスすると自壊し検証にならないため）。
   leaveFieldToHand: {
-    title: 'WX21-057→WXK02-041（ON_LEAVE_FIELD leftToZone:hand＝手札に戻ったとき＋2000・対話ありでもPASSする対照実験）',
+    // 🆕2026-09-19＝**手札に戻す元をスタック注入へ**。旧版の WX21-057（小罠 ツララ）の【出】は原文が
+    //   「あなたの**【トラップ】**１つを手札に戻す」で、シグニを戻す効果ではなかった（旧 JSON の誤り＝parser 修正後は何も起きず恒久 FAIL）。
+    //   見たいのは監視役 WXK02-041 の「シグニが場から手札に戻ったとき」＝戻す側は合成の BOUNCE で十分。
+    title: 'WXK02-041（ON_LEAVE_FIELD leftToZone:hand＝シグニが場から手札に戻ったとき＋2000）',
     spec: {
       hostSet: {
-        'field.lrig': ['WX15-002#1'],                  // あや Lv4/Limit11（WX21-057「あや限定」召喚条件）
-        'field.signi': [['WXK02-041#1'], null, null],  // watcher（讃の遊　オエカキボード・遊具class）
-        'actions_done': [],
+        'field.lrig': ['WX15-002#1'],                  // あや Lv4/Limit11
+        'field.signi': [['WXK02-041#1'], ['WD01-013#lf1'], null],  // watcher（讃の遊　オエカキボード・遊具）／戻す対象（小剣 ククリ）
+        'hand': [], 'actions_done': [],
       },
-      handPrepend: ['WX21-057#1'],                      // 小罠 ツララ（【出】自分のシグニ1体を対象とし手札に戻す）
-      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: {
+          turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+          queue: [{
+            id: 'lf-bounce', playerId: null, cardNum: 'WD01-013#lf1', effectId: 'LF-BOUNCE-SYNTH',
+            label: '自分のシグニ1体を手札に戻す（注入）',
+            effect: {
+              effectId: 'LF-BOUNCE-SYNTH', effectType: 'AUTO', timing: ['ON_PLAY'],
+              action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } },
+              duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+            },
+          }],
+        } },
     },
     async drive(page, H) {
       const before = await H.queryState();
       H.log('開始時 host.powerMods:', JSON.stringify(before?.host?.powerMods));
-      await H.ensureMain();
-      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-      let summoned = false;
+      let picked = false, buffPicked = false;
       for (let s = 0; s < 22; s++) {
-        await page.waitForTimeout(900);
-        await page.screenshot({ path: `${SHOT}/leaveFieldToHand-${s}.png`, fullPage: true });
+        await page.waitForTimeout(800);
         let did = null;
-        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
-        if (!did && summoned) did = await H.clickTestId('summon-zone-1');
-        if (!did) { // SELECT_TARGET（バウンス対象＝自分の場・pick-1=zone1=WX21-057自身を選ぶ。pick-0=watcherは避ける）
-          const pick1 = page.getByTestId('pick-1').first();
-          if (await pick1.count() && await pick1.isVisible().catch(() => false)) {
-            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-            if (!confirmReady) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; }
-          }
+        // 戻す対象は WD01-013#lf1（watcher を戻すと自壊して検証にならない）。
+        if (!picked && (await H.queryState())?.pendingCandidates?.includes('WD01-013#lf1')) {
+          const c = await clickPendingInstance(page, H, 'WD01-013#lf1');
+          if (c) { picked = true; did = c; }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        // watcher の「＜遊具＞のシグニ1体を＋2000」の対象＝watcher 自身。
+        // ⚠候補は押すたびにトグルする（§4.4-8p）＝1回だけ押す。
+        if (!did && picked && !buffPicked && !(await H.queryState())?.pendingCandidates?.includes('WD01-013#lf1') && (await H.queryState())?.pendingCandidates?.includes('WXK02-041#1')) {
+          const c2 = await clickPendingInstance(page, H, 'WXK02-041#1');
+          if (c2) { did = c2; buffPicked = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', '発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
-        const watcherLog = await H.findLog(/オエカキボード.*場を離れたとき|の【自】効果（場を離れたとき）|の【自】効果（味方が場を離れたとき）/);
+        const watcherLog = (st?.logTail ?? []).find(l => /オエカキボード.*場を離れたとき|の【自】効果（場を離れたとき）|の【自】効果（味方が場を離れたとき）/.test(l));
         const buffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WXK02-041#1:') && parseInt(m.split(':')[1], 10) > 0);
-        H.log(`  lf[${s}] -> ${did ?? 'なし'} | hPowerMods=${(st?.host?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
-        if (buffed || watcherLog) {
-          return { pass: true, detail: `ON_LEAVE_FIELD(leftToZone:hand) 発火→WXK02-041 自身+2000（hPowerMods=${(st.host.powerMods).join(',')}）・watcher「${watcherLog}」` };
+        H.log(`  lf[${s}] -> ${did ?? 'なし'} | hPowerMods=${(st?.host?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand ?? '-'} stack=${st?.stackLen} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)} watcher=${!!watcherLog}`);
+        if (buffed) {
+          return { pass: true, detail: `ON_LEAVE_FIELD(leftToZone:hand) 発火→WXK02-041 自身+2000（hPowerMods=${(st.host.powerMods).join(',')}）・watcher「${watcherLog ?? '-'}」` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `ON_LEAVE_FIELD(leftToZone:hand) 未確認（hPowerMods=${(fin?.host?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `ON_LEAVE_FIELD(leftToZone:hand) 未確認（hPowerMods=${(fin?.host?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-5))}）` };
     },
   },
 
@@ -8330,10 +8345,14 @@ const scenarios = {
           // pending.continuation（＝後続のGRANT_KEYWORD）を afterAction として全配置後に実行するようにした。
           // ADD_TO_FIELD成功に加え、配置シグニ WXDi-CP02-087#1 への 絆常付与（GRANT_KEYWORD continuation）が
           // 実際に kwGrants へ入ることを assert する（旧・意図的no-op確認から真の回帰テストへ格上げ）。
-          const grantOk = (stFin?.host?.keywordGrants ?? []).some(g => typeof g === 'string' && g.includes('WXDi-CP02-087#1'));
-          return { pass: grantOk, detail: grantOk
-            ? `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスが場に出た＋後続GRANT_KEYWORD(絆常)も発火（kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）＝タスク12(xiv) continuation引き継ぎ修正を実機確認（hField=${JSON.stringify(stFin.host.fieldSigni)}）`
-            : `ADD_TO_FIELD成功だが後続GRANT_KEYWORD(絆常)無発火（kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）＝continuation欠落バグ` };
+          // ⚠2026-09-19＝原文の【絆常】は【出】とは**別の常時能力**（`WXDi-CP02-087-E2`）＝【出】の続きではない。
+          //   旧版は誤った旧 JSON（【出】の後に GRANT_KEYWORD が続く形）を前提に付与を待っていた＝parser が正しく分けた後は恒久 FAIL。
+          //   「選択後に場に出すと後続の処理が消えない」回帰は golden（ADD_TO_FIELD(SELECT_TARGET経由)＋後続ステップ）が見る。
+          const energyLeft = (stFin?.host?.energyCards ?? []).filter(n => n.startsWith('WXDi-CP02-054')).length;
+          const ok = energyLeft === 4;
+          return { pass: ok, detail: ok
+            ? `ADD_TO_FIELD(ENERGY_CARD)＝エナの天童アリスが1体だけ場に出た（エナ 5→${energyLeft}）`
+            : `エナの＜ブルアカ＞が1枚だけ減っていない（残り${energyLeft}）` };
         }
       }
       const fin = await H.queryState();
@@ -8860,9 +8879,13 @@ const scenarios = {
         'field.signi': [['WX25-CP1-042#1'], null, null],
         'field.signi_down': [false, false, false],
         'actions_done': [],
+        // ⚠2026-09-19＝E2 の枚数は「このターンに青の＜ブルアカ＞のシグニがクラッシュした相手のライフ」（live は原文どおり）。
+        //   旧版はクラッシュ履歴も相手の手札も未指定＝0枚で「未発火」に見えていた。このシグニ（青・＜ブルアカ＞）が1枚クラッシュ済みにする。
+        'life_crashed_by_signi_this_turn': { 'WX25-CP1-042#1': 1 },
       },
       guestSet: {
         'blocked_actions': [],
+        'hand': ['WD01-013#las91', 'WD01-013#las92', 'WD01-013#las93'],
       },
       top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
     },
@@ -31758,7 +31781,9 @@ async function driveDeclaredIconRound(page, H, discardCardBase, discardColor) {
       const expectBanish = declaredColor !== null && declaredColor !== discardColor;
       const consistent = banished === expectBanish;
       return {
-        pass: consistent && declaredColor === '白',
+        // ⚠2026-09-19＝宣言は乱数（旧版は「白を宣言する」前提＝白以外が出ると整合していても FAIL）。
+        //   本題は「宣言色と捨てた札の色が違えばバニッシュ、同じなら残る」の整合＝どちらの枝を通ったかは detail に出る。
+        pass: consistent && declaredColor !== null,
         detail: `捨てた札の色=${discardColor}・宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
       };
     }
