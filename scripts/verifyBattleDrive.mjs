@@ -7921,12 +7921,16 @@ const scenarios = {
         'field.signi': [['WX25-CP1-069#1'], null, null],
         'field.signi_down': [false, false, false],
         'actions_done': [],
+        // ⚠2026-09-19＝設置の前に任意コスト「手札を1枚捨ててもよい」がある（live は原文どおり）＝払える手札を置く。
+        'hand': ['WD01-013#idh1'],
       },
       guestSet: {
         'field.lrig': ['WD03-003#1'],
         'field.signi': [null, null, null],
         'life_cloth': ['WD01-013#9', 'WD01-013#10'], // 2枚（1枚クラッシュしても0枚化＝試合終了を回避）
         'blocked_actions': [],
+        // ⚠2026-09-19＝相手の手札を明示（観測点＝「相手は手札を1枚捨てる」で減るか）。旧版は前のシナリオの手札頼み。
+        'hand': ['WD01-013#idt1', 'WD01-013#idt2', 'WD01-013#idt3'],
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
@@ -7960,7 +7964,10 @@ const scenarios = {
           const opened = await H.clickTestId('my-signi-zone-0');
           if (opened) { did = opened; modalOpened = true; }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        // ⚠任意コストは払う（「発動する」→ 手札の選択）＝払わないと設置されない。
+        // 🔴**辞退ラベルと同じ一覧の先頭に置く**（§4.4-125）＝別々の呼び出しに分けると、1本目を試した直後に
+        //   モーダルが描画された周で2本目の「スキップ」を拾って辞退してしまう（実測で FAIL/PASS が揺れた）。
+        if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい', 'エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
         const st = await H.queryState();
         H.log(`  idt[${s}] -> ${did ?? 'なし'} | gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) hHand=${st?.host?.hand ?? '-'} delayed=${JSON.stringify(st?.host?.delayedTriggers)} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if ((st?.guest?.hand ?? 99) < (before?.guest?.hand ?? 0)) {
@@ -7979,9 +7986,9 @@ const scenarios = {
   //    残っていた＝ADD_TO_FIELD（手札以外からの場出し＝byEffect）が実際にこのwatcherを発火させるかを確認する。
   //    トリガー源＝WD08-001（混沌の鍵主 ウムル＝フィーラ・Lv4Limit11ルリグ）の【起】《ダウン》
   //    「あなたのトラッシュからシグニ1枚を対象とし、それを場に出す」で自トラッシュのシグニを場に出す。
-  //    ⚠WD08-001はE2（【起】《ターン1回》《黒×0》デッキ上3枚トラッシュ）とE3（【起】《ダウン》場出し）の
-  //    両方がcostPartsMAの分岐（energyTotal>0/coin/discard系のみ）に引っかからず両方「【起】コストなし」と
-  //    表示され区別不能＝ボタンをnth(1)（2番目＝JSON順でE3）で指定して回避（表示バグは別途・軽微・据置）。
+  //    ⚠🆕2026-09-19＝**旧コメントの「両方が【起】コストなし と表示され区別不能」は解消済み**＝いまは
+  //    E2＝「【起】コストなし」／E3＝「【起】このルリグをダウン」と別ラベルで出る。
+  //    ⇒ nth(1) の位置決め打ち（表示が直った瞬間に 0件で永久空振りする）をやめ、**ラベルで狙う**。
   installByEffectFreeze: {
     title: 'WD08-001→WXDi-P07-044-E2（機構④＝any_ally+byEffect ADD_TO_FIELD で凍結+パワー-2000）',
     spec: {
@@ -8013,10 +8020,7 @@ const scenarios = {
           const lrigImg = page.locator('img[alt="混沌の鍵主　ウムル＝フィーラ"]').first();
           if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
         }
-        if (!did && opened) {
-          const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).nth(1);
-          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】コストなし(2番目=E3)'; }
-        }
+        if (!did && opened) did = await H.clickBtn('【起】このルリグをダウン');
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
@@ -9568,10 +9572,18 @@ const scenarios = {
   //    起きていた（`hDeck=2 hTrash=3`）＝**あの数字自体が「仕様どおり」の証拠だった。**
   lookReorderCanTrash: {
     title: 'WX20-037（V-89 作り直し＝デッキ上3枚から赤のシグニ2枚を場に出し、残りをトラッシュ）',
+    // 🆕2026-09-19＝**トウタクは【ライズ】**（赤のシグニ2体の上に置く）＝§5.6 `C-6`（2026-09-17）以後、
+    //   空の場からは召喚できない＝旧版は手札から「召喚」を押そうとして永久に空振りしていた（全件実行で恒久 FAIL）。
+    //   ⇒ `b34ZeroPickAllowedWhenUpTo` と同じ型で **トウタクを場に置き、【出】をスタックへ直接積む**
+    //   （観測点は【出】の「3枚見て赤を2枚まで場に出し、残りをトラッシュ」なので召喚経路は本題ではない）。
+    //   リミット＝トウタクLv2＋赤2枚(Lv1+Lv1)＝4 ≦ 8（§4.4-117）。
     spec: {
       hostSet: {
         'field.lrig': ['WD03-002#1'],                 // Lv3・リミット8
-        'field.signi': [null, null, null],
+        'field.signi': [['WX20-037#1'], null, null],  // 暴食の暴君　トウタク（Lv2・【出】LOOK_PICK_CHAIN）＝ゾーン1/2 を出し先に空ける
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'hand': [],
         // 🔑**上から3枚に「赤のシグニ2枚＋非赤1枚」を仕込む**＝pick される側と remainder される側を1回で見る。
         'deck': ['WD02-013#1', 'WX04-070#1', 'WD01-013#1',
                  'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5',
@@ -9580,8 +9592,14 @@ const scenarios = {
         'energy': [],
         'actions_done': [],
       },
-      handPrepend: ['WX20-037#1'], // 暴食の暴君　トウタク（Lv2・【出】LOOK_PICK_CHAIN）
-      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: {
+          turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+          queue: [{
+            id: 'lrct-onplay', playerId: null, cardNum: 'WX20-037#1', effectId: 'WX20-037-E1',
+            label: 'WX20-037【出】（注入）', effect: liveEffect('WX20-037', 'WX20-037-E1'),
+          }],
+        } },
     },
     async drive(page, H) {
       // 前シナリオ（ルーム再利用）が残した「ライフクロスクラッシュ」等の残留モーダルを先に片付ける。
@@ -9593,7 +9611,6 @@ const scenarios = {
       await H.ensureMain();
       const before = await H.queryState();
       H.log(`開始 deck=${before?.host?.deck} trash=${before?.host?.trash} field=${JSON.stringify(before?.host?.fieldSigni)}`);
-      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       const onField = (st) => (st?.host?.fieldSigni ?? []).flatMap(z => z ?? []);
       let last = before;
       const picked = new Set();
@@ -12717,7 +12734,10 @@ const scenarios = {
 
   // 上記の境界確認＝host（対象）の場にシグニが1体も無ければ「自分のシグニを1体トラッシュに置く」枝は
   // 選べない（disabled）こと。⚠効果オーナー=guest（CPU）・応答者=host（driver）のためCPU自動応答は
-  // 発火しない＝driverがdisabled状態を確認した後、自分で「支払う」を押してモーダルを閉じる。
+  // 発火しない＝driverがdisabled状態を確認した後、自分で辞退枝を押してモーダルを閉じる。
+  // ⚠🆕2026-09-19＝辞退枝のラベルは **「支払わない」**（`/^支払う/` では当たらない＝20周まるごと空振りしていた）。
+  //   host は手札0・エナ0・場0 なので支払える枝は1つも無い＝閉じられるのは辞退枝だけ。
+  //   🔑「disabled であること」の判別力は対照 `wx22025SigniTrashBranch`（host に場のシグニあり＝押せて解決する）が担保する（§4.4-3）。
   wx22025SigniTrashUnavailable: {
     title: 'WX22-025-E3 境界（hostの場が空＝signiTrash枝はdisabled）',
     spec: {
@@ -12748,8 +12768,8 @@ const scenarios = {
           if (!enabled) sawDisabled = true;
           H.log(`  x025u[${s}] -> signiTrashBtn見えている・enabled=${enabled}`);
           if (sawDisabled) { // 確認できたので支払う枝でモーダルを閉じる（host自身が応答者＝CPU自動応答なし）
-            const payBtn = page.getByRole('button', { name: /^支払う/ }).first();
-            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払う'; }
+            const payBtn = page.getByRole('button', { name: /^支払わない/ }).first();
+            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払わない'; }
           }
         }
         if (!did) await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない']);
@@ -12757,7 +12777,7 @@ const scenarios = {
         const lifeCrashed = (st?.host?.life ?? 0) < (before?.host?.life ?? 0);
         H.log(`  x025u[${s}] hLife=${st?.host?.life} sawDisabled=${sawDisabled} pEff=${st?.pendingEffect ?? '-'}`);
         if (!st?.pendingEffect && s >= 3) {
-          if (sawDisabled) return { pass: true, detail: `hostの場が空のとき「自分のシグニを1体トラッシュに置く」ボタンがdisabledであることを確認（driver操作で「支払う」を選択しE3のLIFE_CRASHは不発・hLife ${before.host.life}→${st?.host?.life}は場が空＝直接攻撃になった通常戦闘ダメージで無関係）` };
+          if (sawDisabled) return { pass: true, detail: `hostの場が空のとき「自分のシグニを1体トラッシュに置く」ボタンがdisabledであることを確認（driver操作で「支払わない」を選んでモーダルを閉じた・hLife ${before.host.life}→${st?.host?.life} は場が空＝直接攻撃になった通常戦闘ダメージで無関係）` };
           return { pass: false, detail: `signiTrashボタンのdisabled状態を観測できなかった（見えなかった可能性・CHOOSEがCPU自動応答で一瞬で解決した可能性あり）` };
         }
       }
