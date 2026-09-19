@@ -11,6 +11,7 @@ import { checkActiveCondition } from '../../engine/effectEngine';
 import { onPlayOriginMatches } from '../../engine/triggerCollect';
 import { currentRng, mulberry32, setRng } from '../../engine/rng';
 import { cardStrength } from './cpuCardStrength';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import {
   pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone,
   type CpuInteractionCtx,
@@ -42,20 +43,21 @@ export interface LookaheadCtx {
   turnPhase?: TurnPhase;
   /** 🆕§5.7 `S-7`＝CPU のターンか（省略時 true）。相手ターンの応答（`ATTACK_ARTS_OP`）を先読みするときは false＝engine の「あなたのターンの間」が正しく外れる。 */
   isCpuTurn?: boolean;
+  /**
+   * 🆕§5.7 `S-9`＝この CPU のポリシー（盤面の重み・閾値）。省略時は `DEFAULT_CPU_POLICY`。
+   * ⚠**席ごとに違うものが来る**（自己対戦の A/B）＝ここから先で `BOARD_WEIGHTS` を直接読まない。
+   */
+  policy?: CpuPolicy;
 }
 
 const STEP_CAP = 40;
 
-/** 盤面の採点の重み（パワー換算）。`S-6` の自己対戦で調整する対象。 */
-export const BOARD_WEIGHTS = {
-  life: 7000,
-  hand: 1500,
-  energy: 1000,
-  /** 正面が空いている（＝ライフへアタックが通る）シグニ1体。除去の大きな価値はここ（弱いシグニを除去しても「正面が空く」ぶん得）。 */
-  openLane: 3000,
-  /** 相手の凍結しているシグニ1体（次のアップフェイズに起き上がれない＝次のターンにアタックできない）。凍結スペルの価値はここ。 */
-  oppFrozen: 2500,
-} as const;
+/**
+ * 盤面の採点の重み（パワー換算）。`S-6` の自己対戦で調整する対象。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.boardWeights`**（§5.7 `S-9`）＝**値をここに書かない**。
+ * ⚠`evaluateBoard` は**ポリシーが来ればそちらを使う**ので、この定数は「既定値の別名」でしかない。
+ */
+export const BOARD_WEIGHTS = DEFAULT_CPU_POLICY.boardWeights;
 
 const clone = <T>(v: T): T => structuredClone(v);
 
@@ -66,6 +68,8 @@ const clone = <T>(v: T): T => structuredClone(v);
  * ⚠盤面は左右反転＝ゾーン `zi` の正面は相手の `2 - zi`（engine 共通規約・`facingSigniPower` と同じ）。
  */
 export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: LookaheadCtx): number {
+  // 🆕§5.7 `S-9`＝席ごとのポリシー（無ければ既定）。⚠`BOARD_WEIGHTS` を直接読むと A/B が効かない。
+  const W = ctx.policy?.boardWeights ?? BOARD_WEIGHTS;
   const powers = ctx.powersOf?.(cpu, opp);
   const fieldValue = (st: PlayerState) => st.field.signi.reduce((sum, stack) => {
     const top = stack?.at(-1);
@@ -75,11 +79,11 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
   const openLanes = (me: PlayerState, them: PlayerState) =>
     [0, 1, 2].filter(zi => (me.field.signi[zi]?.length ?? 0) > 0 && (them.field.signi[2 - zi]?.length ?? 0) === 0).length;
   return fieldValue(cpu) - fieldValue(opp)
-    + (openLanes(cpu, opp) - openLanes(opp, cpu)) * BOARD_WEIGHTS.openLane
-    + [0, 1, 2].filter(zi => (opp.field.signi[zi]?.length ?? 0) > 0 && opp.field.signi_frozen?.[zi]).length * BOARD_WEIGHTS.oppFrozen
-    + (cpu.life_cloth.length - opp.life_cloth.length) * BOARD_WEIGHTS.life
-    + (cpu.hand.length - opp.hand.length) * BOARD_WEIGHTS.hand
-    + (cpu.energy.length - opp.energy.length) * BOARD_WEIGHTS.energy;
+    + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
+    + [0, 1, 2].filter(zi => (opp.field.signi[zi]?.length ?? 0) > 0 && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
+    + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
+    + (cpu.hand.length - opp.hand.length) * W.hand
+    + (cpu.energy.length - opp.energy.length) * W.energy;
 }
 
 /** 対話に答えて resume する（1手）。答えられない形は null。 */
@@ -220,5 +224,8 @@ export function scoreCardUseGain(
   return evaluateBoard(actor, other, lctx) - before;
 }
 
-/** スペルを使う価値があるとみなす増分の下限（カード1枚＋エナを使うぶんより得か）。 */
-export const SPELL_GAIN_MIN = 1000;
+/**
+ * スペルを使う価値があるとみなす増分の下限（カード1枚＋エナを使うぶんより得か）。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.spellGainMin`**（§5.7 `S-9`）＝**値をここに書かない**。
+ */
+export const SPELL_GAIN_MIN = DEFAULT_CPU_POLICY.spellGainMin;

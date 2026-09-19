@@ -1,37 +1,81 @@
 /**
  * 🆕**ヘッドレス自己対戦**（§5.7 `S-5d` 第3段・2026-09-19）＝**画面も DB も無しで CPU 同士を対戦させる**。
  *
- * 使い方＝`npx tsx scripts/headlessSelfPlay.ts [--games N] [--seed S] [--steps N] [--verbose]`
- *   （既定＝1戦・seed 1・1手の上限 4000。1戦 ≒ 300〜450手 ≒ 30〜40秒）。
+ * 使い方（① 疎通確認＝`npm run selfplay`）＝`npx tsx scripts/headlessSelfPlay.ts [--games N] [--seed S] [--steps N] [--verbose]`
+ *   （既定＝1戦・seed 1・1手の上限 4000。1戦 ≒ 300〜450手 ≒ 30〜40秒）。**これが `npm run gates` に入っているゲート。**
+ *
+ * 使い方（② 強さの A/B＝`npm run selfplay:ab`・§5.7 `S-9`・2026-09-19）＝
+ *   `npx tsx scripts/headlessSelfPlay.ts --a <ポリシー名> --b <ポリシー名> [--games N] [--seed S] [--jobs N]`
+ *   - 🔴**`--games N` は「シードの本数」**＝**1シードにつき2戦回す**（席を入れ替える）＝実際の対戦数は **2N**。
+ *   - ポリシー名は `src/screens/battle/cpuPolicy.ts` の `CPU_POLICIES`（`--a` を省くと `default`）。
+ *   - **`--jobs N` で子プロセス並列**（既定1）。⚠1戦 ≒ 30〜40秒＝**直列だと 20シード＝40戦で約25分**。
+ *   - 出力は勝率＋**Wilson 95% 信頼区間**（集計は `scripts/selfPlayStats.ts`＝golden が固定している）。
+ *
+ * 🔴**A/B で最初に確かめること**＝`--a default --b default` を回して**勝率がちょうど 50% に出る**こと。
+ *   ⚠同じポリシー同士だと**2戦目は1戦目と同じ試合**（同じ山・同じ判断で席だけ反転）なので、
+ *   **全組が1勝1敗・勝率ちょうど 50%** になるのが正しい。ここが崩れたら決定論か席入れ替えが壊れている。
+ *
+ * 🔴**何戦回せば「差あり」と言えるか**（Wilson 95%・2026-09-19 実測／1戦 ≒ 33秒・8並列で約7倍）
+ *   | 真の勝率 | 要る対戦数 | シード数 | 直列 | 8並列 |
+ *   |---|---|---|---|---|
+ *   | 70% | 24 | 12 | 13分 | 2分 |
+ *   | 65% | 44 | 22 | 24分 | 3分 |
+ *   | 60% | 96 | 48 | 53分 | 8分 |
+ *   | 55% | 370 | 185 | 204分 | 29分 |
+ *   ⇒ **「ちょっと強くなった」を測るのは桁で高い**。小さい改善は**勝率ではなく別の指標**（`census:play` の踏破・
+ *   ログの回数）で見て、勝率は「壊れていないこと」の確認に使うほうが安い。
  *
  * 🔑**なぜ要るか**＝`S-5` の目的は「**勝率で強さを測る**」こと（§5.7.2）。`S-6`（重みの自己調整）は
- *   この口が無いと1歩も進まない。⚠**強さの比較はまだしない**＝いまは「決着まで止まらずに回る」ことの確認器。
+ *   この口が無いと1歩も進まない。
  *
  * ⚠**`idle` / `cap` は異常**＝どちらの席も動けない（対話に答えられない・待ち合わせが噛み合っていない）か、
  *   無限ループ。**既定では exit 1** で止める（`--allow-stall` で許す）。
  * ⚠**山は `VERIFY_DECK_MECH` と同じ構成**（`scripts/verifySetupDeck.mjs`）＝機構を広く踏む山。
  *   ⚠ここを変えると勝率の比較ができなくなるので、**山を変えるときは理由を BUGFIXES に書く**。
  */
+import { spawn } from 'child_process';
 import fs from 'fs';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import Papa from 'papaparse';
 import type { BattleStateRow, CardData, PlayerState } from '../src/types';
 import { setRngSeed, shuffle } from '../src/engine/rng';
 import { CPU_PLAYER_ID, assignGuestInstanceIds, assignInstanceIds } from '../src/screens/battle/battleUtils';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
+import { resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { applyMulligan } from '../src/screens/battle/mulligan';
+import { formatAbReport, splitSeeds, summarizeAb, type AbGameResult } from './selfPlayStats';
 
 const argv = process.argv.slice(2);
 const numArg = (name: string, dflt: number) => {
   const i = argv.indexOf(name);
   return i >= 0 && argv[i + 1] ? Number(argv[i + 1]) : dflt;
 };
+const strArg = (name: string, dflt: string) => {
+  const i = argv.indexOf(name);
+  return i >= 0 && argv[i + 1] ? String(argv[i + 1]) : dflt;
+};
 const GAMES = numArg('--games', 1);
 const SEED0 = numArg('--seed', 1);
 const MAX_STEPS = numArg('--steps', 4000);
 const VERBOSE = argv.includes('--verbose');
 const ALLOW_STALL = argv.includes('--allow-stall');
+// 🆕§5.7 `S-9`＝A/B モード（`--a` か `--b` があれば）。⚠**無ければ従来どおり**＝`npm run selfplay` のゲートは不変。
+const AB_MODE = argv.includes('--a') || argv.includes('--b');
+const A_NAME = strArg('--a', 'default');
+const B_NAME = strArg('--b', 'default');
+const JOBS = numArg('--jobs', 1);
+/** 子プロセスとして呼ばれたか（結果を1行 JSON で返すだけ＝人が読む出力は出さない）。 */
+const IS_WORKER = argv.includes('--worker');
+const WORKER_SEEDS = strArg('--seeds', '').split(',').filter(Boolean).map(Number);
+/**
+ * 🆕**先攻をどちらの席にするか**（`host`／`guest`・既定 `host`）。
+ * 🔑**用途＝「席の偏り」と「手番の偏り」の切り分け**（2026-09-19・`S-9` の初回計測で先攻の勝率 18.8% が出た）＝
+ *   これを反転させて**偏りが席について回るのか手番について回るのか**を見る。
+ *   ⚠席について回るなら `S-5` の**席の鏡（`mirrorSeats`）が疑わしい**。手番について回るなら単に後攻有利。
+ */
+const FIRST = strArg('--first', 'host') === 'guest' ? CPU_PLAYER_ID : 'HOST';
 
 // ── カードデータ（`goldenTest.ts` と同じ読み方）──
 const root = process.cwd();
@@ -65,6 +109,8 @@ const cards = allCards.filter(c => used.has(c.CardNum));
 const cardMap = new Map(cards.map(c => [c.CardNum, c]));
 
 const HOST_ID = 'headless-host';
+/** 先攻の席（`--first`）。⚠ターン1のドローが1枚になるのは `first_player_id` の側（`cpuTurn.ts` の `drawCount`）。 */
+const firstId = () => (FIRST === 'HOST' ? HOST_ID : CPU_PLAYER_ID);
 
 /** 対戦開始時の1人ぶんの盤面（ルリグ配置 → マリガン無し → ライフクロス7枚）。 */
 function buildSide(guest: boolean): PlayerState {
@@ -81,28 +127,115 @@ function buildSide(guest: boolean): PlayerState {
 function buildRow(): BattleStateRow {
   return {
     room_id: 'headless', host_id: HOST_ID, guest_id: CPU_PLAYER_ID,
-    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'UP', active_user_id: HOST_ID, turn_count: 1,
+    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'UP', active_user_id: firstId(), turn_count: 1,
     host_state: buildSide(false), guest_state: buildSide(true),
     game_logs: [], updated_at: new Date().toISOString(),
     host_lrig_selected: ROLES.center, guest_lrig_selected: ROLES.center,
     host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
-    first_player_id: HOST_ID, pending_spell: null, pending_effect: null, effect_stack: null,
+    first_player_id: firstId(), pending_spell: null, pending_effect: null, effect_stack: null,
     winner_id: null, host_end_ack: false, guest_end_ack: false,
   } as unknown as BattleStateRow;
 }
 
-const results: { seed: number; reason: string; steps: number; turns: number; winner: string; ms: number }[] = [];
-for (let g = 0; g < GAMES; g++) {
-  const seed = SEED0 + g;
+interface GameOutcome { seed: number; reason: string; steps: number; turns: number; winner: string; ms: number; hostLife: number; guestLife: number }
+
+/**
+ * 1戦。⚠**`setRngSeed` → `buildRow()` の順は変えない**＝山のシャッフルはこの乱数列を消費するので、
+ * 同じシードなら**必ず同じ山**になる（席を入れ替えた2戦目が同じ山で回るのはこのため）。
+ */
+async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolicy }): Promise<GameOutcome> {
   setRngSeed(seed);
-  const m = createHeadlessMatch(buildRow(), { cards });
+  const m = createHeadlessMatch(buildRow(), { cards, policy });
   const t0 = Date.now();
   const res = await m.run(MAX_STEPS);
   const r = m.row();
   const winner = r.winner_id === CPU_PLAYER_ID ? 'guest' : r.winner_id === HOST_ID ? 'host' : '-';
-  results.push({ seed, reason: res.reason, steps: res.steps, turns: r.turn_count, winner, ms: Date.now() - t0 });
   if (VERBOSE) console.log(m.logs.join('\n'));
-  console.log(`seed=${seed} ${res.reason} 手数=${res.steps} ターン=${r.turn_count} 勝者=${winner} ライフ=${r.host_state.life_cloth.length}/${r.guest_state.life_cloth.length} ${Date.now() - t0}ms`);
+  return {
+    seed, reason: res.reason, steps: res.steps, turns: r.turn_count, winner,
+    ms: Date.now() - t0, hostLife: r.host_state.life_cloth.length, guestLife: r.guest_state.life_cloth.length,
+  };
+}
+
+/**
+ * 1シードぶんの **2戦**（席を入れ替える）。
+ * 🔴**ここが `S-9` ②の本体**＝1戦目 A=host（先攻）／2戦目 A=guest（後攻）。**片方だけで測らない。**
+ */
+async function playPair(seed: number, a: CpuPolicy, b: CpuPolicy): Promise<AbGameResult[]> {
+  const out: AbGameResult[] = [];
+  for (const swapped of [false, true]) {
+    const g = await playOne(seed, swapped ? { host: b, guest: a } : { host: a, guest: b });
+    const aSeat = swapped ? 'guest' : 'host';
+    out.push({
+      seed, swapped, reason: g.reason, steps: g.steps, turns: g.turns, ms: g.ms,
+      winner: g.winner === '-' ? null : g.winner === aSeat ? 'A' : 'B',
+    });
+  }
+  return out;
+}
+
+/** 子プロセスを1本起こして、そのシード群の結果を受け取る。 */
+function runWorker(seeds: number[]): Promise<AbGameResult[]> {
+  const self = fileURLToPath(import.meta.url);
+  const args = ['--import', 'tsx', self, '--worker', '--a', A_NAME, '--b', B_NAME,
+    '--steps', String(MAX_STEPS), '--first', FIRST === 'HOST' ? 'host' : 'guest', '--seeds', seeds.join(',')];
+  return new Promise((resolve, reject) => {
+    const ch = spawn(process.execPath, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'inherit'] });
+    let buf = '';
+    ch.stdout.on('data', d => { buf += String(d); });
+    ch.on('error', reject);
+    ch.on('close', code => {
+      // ⚠**行の先頭マーカーで拾う**＝子の stdout に他の出力が混ざっても壊れない。
+      const rows = buf.split(/\r?\n/).filter(l => l.startsWith('##R ')).map(l => JSON.parse(l.slice(4)) as AbGameResult);
+      if (code !== 0 && rows.length === 0) return reject(new Error(`worker exit ${code}: ${buf.slice(-500)}`));
+      resolve(rows);
+    });
+  });
+}
+
+// ══ ① 子プロセス（結果を1行 JSON で返すだけ）══
+if (IS_WORKER) {
+  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  for (const seed of WORKER_SEEDS) {
+    for (const r of await playPair(seed, a, b)) console.log(`##R ${JSON.stringify(r)}`);
+  }
+  process.exit(0);
+}
+
+// ══ ② A/B モード ══
+if (AB_MODE) {
+  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const seeds = Array.from({ length: GAMES }, (_, i) => SEED0 + i);
+  console.log(`A=${a.name} vs B=${b.name}｜${seeds.length} シード × 2戦（席入れ替え）＝ ${seeds.length * 2} 戦｜並列 ${Math.max(1, Math.min(JOBS, seeds.length))}`);
+  const t0 = Date.now();
+  let ab: AbGameResult[];
+  if (JOBS > 1 && seeds.length > 1) {
+    ab = (await Promise.all(splitSeeds(seeds, JOBS).map(runWorker))).flat();
+  } else {
+    ab = [];
+    for (const seed of seeds) {
+      const rs = await playPair(seed, a, b);
+      ab.push(...rs);
+      console.log(`  seed=${seed} A(先攻)=${rs[0].winner ?? rs[0].reason} / A(後攻)=${rs[1].winner ?? rs[1].reason}`);
+    }
+  }
+  ab.sort((x, y) => (x.seed - y.seed) || (Number(x.swapped) - Number(y.swapped)));
+  const sum = summarizeAb(ab, FIRST === 'HOST' ? 'host' : 'guest');
+  console.log(formatAbReport(sum, a.name, b.name));
+  console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒（対戦の合計は ${(sum.totalMs / 1000).toFixed(0)}秒）`);
+  if (sum.stalled > 0) {
+    console.log(`🔴止まった対戦が ${sum.stalled} 件ある＝勝率の分母から落ちている（原因を潰すまで数字を信じない）`);
+    if (!ALLOW_STALL) process.exit(1);
+  }
+  process.exit(0);
+}
+
+// ══ ③ 従来モード（`npm run selfplay`＝ゲート）══
+const results: GameOutcome[] = [];
+for (let g = 0; g < GAMES; g++) {
+  const o = await playOne(SEED0 + g);
+  results.push(o);
+  console.log(`seed=${o.seed} ${o.reason} 手数=${o.steps} ターン=${o.turns} 勝者=${o.winner} ライフ=${o.hostLife}/${o.guestLife} ${o.ms}ms`);
 }
 
 const stalled = results.filter(r => r.reason !== 'finished');

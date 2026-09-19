@@ -1,4 +1,5 @@
 import type { CardData, PlayerState } from '../../types';
+import { DEFAULT_CPU_POLICY } from './cpuPolicy';
 
 /**
  * CPU の**選択の精緻化**（§8／§6.4 `O-1` (g)）＝「どれを出すか／どれで殴るか」を盤面から決める純関数。
@@ -30,8 +31,11 @@ export interface CpuDeployCandidate {
   guard?: boolean;
 }
 
-/** 手札に残す【ガード】の枚数（最後の1枚は場に出さない）。 */
-export const CPU_KEEP_GUARDS = 1;
+/**
+ * 手札に残す【ガード】の枚数（最後の1枚は場に出さない）。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.keepGuards`**（§5.7 `S-9`）＝**値をここに書かない**。
+ */
+export const CPU_KEEP_GUARDS = DEFAULT_CPU_POLICY.keepGuards;
 
 /**
  * いまのゾーンに置く1枚を選ぶ＝**「残りゾーンを埋められる範囲でいちばん強い札」**。
@@ -60,12 +64,15 @@ export function pickCpuDeployCard(p: {
   /** 残りリミット（`cpuLimit - fieldTotal`）。 */
   remainingLimit: number;
   zonesRemaining: number;
-  /** 🆕§5.7 `S-1`＝いま手札にある【ガード】の枚数。指定すると最後の `CPU_KEEP_GUARDS` 枚は場に出さない。 */
+  /** 🆕§5.7 `S-1`＝いま手札にある【ガード】の枚数。指定すると最後の `keepGuards` 枚は場に出さない。 */
   handGuardCount?: number;
+  /** 🆕§5.7 `S-9`＝手札に残す【ガード】の枚数（席ごとのポリシー）。省略時は `CPU_KEEP_GUARDS`。 */
+  keepGuards?: number;
 }): string | null {
   const { remainingLimit, zonesRemaining } = p;
+  const keepGuards = p.keepGuards ?? CPU_KEEP_GUARDS;
   // 🔑【ガード】は手札で使う札＝場に出すのは余っている分だけ（2026-09-17 実機＝CPU がサーバント Ｏ を2枚とも場に出した）。
-  const candidates = p.handGuardCount !== undefined && p.handGuardCount <= CPU_KEEP_GUARDS
+  const candidates = p.handGuardCount !== undefined && p.handGuardCount <= keepGuards
     ? p.candidates.filter(c => !c.guard)
     : p.candidates;
   const fits = candidates.filter(c => c.level <= remainingLimit);

@@ -67,6 +67,7 @@ import {pickCpuMainSpell} from '../cpuSpell';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {centerLrigAttackBlock} from '../lrigAttackGate';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
+import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
 import {deployCountCap, deployLimitBlockReason} from '../../../engine/deployLimit';
 import {isHandSigniPlayBlockedByPower} from '../../../engine/blockAction';
 
@@ -108,6 +109,11 @@ export interface CpuTurnDeps {
   cpuPlan: ReturnType<typeof normalizeCpuDeckPlan>;
   /** パワー0以下のルール処理を今すぐ回す（画面の `checkPowerZeroBanishRef.current`）。 */
   checkPowerZeroBanish: () => Promise<void> | undefined;
+  /**
+   * 🆕§5.7 `S-9`＝この席の CPU のポリシー（盤面の重み・閾値）。省略時は `DEFAULT_CPU_POLICY`。
+   * ⚠**画面（`BattleScreen`）は渡さない**＝実機の挙動は変わらない。渡すのは自己対戦の A/B だけ。
+   */
+  policy?: CpuPolicy;
 }
 
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝CPU の1手（`cpuTurnAction`・1,362行）を `BattleScreen` から**逐語で移設**。
@@ -529,11 +535,14 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    */
   // 🆕§5.7 `S-4`＝浅い先読み（盤面をコピーして engine だけで効果を解決し、結果の盤面を採点する）。
   //   召喚（【出】の結果）・スペル（使うか・どれを使うか）・攻めのアーツ（候補のうちどれか）で使う。本番の盤面には書かない。
+  // 🆕§5.7 `S-9`＝席ごとのポリシー（無ければ既定）＝盤面の採点・閾値はここから流す。
+  const cpuPolicy = d.policy ?? DEFAULT_CPU_POLICY;
   const cpuLookahead: LookaheadCtx = {
     cardMap: battleCardMap,
     effectsOf: id => effectsMap.get(id) ?? [],
     powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, battleCardMap, 'MAIN'),
     turnPhase: 'MAIN',
+    policy: cpuPolicy,
   };
   // 🆕**グロウ用エナの予約**（ユーザー指示・2026-09-17）＝アーツ・スペル・【起】・キー／ピース・アシストグロウ・召喚コストで
   //   エナを払った残りで、次のグロウ先のどれかを払えないなら、その支払いはしない（`cpuGrowReserve.ts`）。
@@ -1007,6 +1016,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
           guard: card!.Guard === '1',
         })),
         handGuardCount: handSignis.filter(({ card }) => card?.Guard === '1').length,
+        keepGuards: cpuPolicy.keepGuards,
         remainingLimit: cpuLimit - fieldTotal,
         zonesRemaining: Math.max(1, Math.min(emptyZonesAhead, cpuFieldSigniLimit - placedCount)),
       });

@@ -92,7 +92,8 @@ export function pickCpuMainSpell(p: {
     // §5.7 `S-4c`＝結果の盤面で比べる（増分が下限に届かないスペルは使わない＝撃ち損をしない）。
     const scored = candidates
       .map(c => ({ c, gain: scoreCardUseGain(actor.hand[c.handIndex], c.costIndices.size, actor, opponent, p.lookahead!, 'hand') }))
-      .filter((x): x is { c: CpuSpellChoice; gain: number } => x.gain !== null && x.gain >= SPELL_GAIN_MIN)
+      // 🆕§5.7 `S-9`＝下限は席ごとのポリシー（無ければ既定）。
+      .filter((x): x is { c: CpuSpellChoice; gain: number } => x.gain !== null && x.gain >= (p.lookahead!.policy?.spellGainMin ?? SPELL_GAIN_MIN))
       .sort((a, b) => (b.gain - a.gain) || (a.c.handIndex - b.c.handIndex));
     return scored[0]?.c ?? null;
   }

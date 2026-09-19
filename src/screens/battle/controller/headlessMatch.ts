@@ -3,6 +3,7 @@ import { isReadyToResolve, confirmTurnOrder, confirmOppOrder } from '../../../en
 import type { BattleStateRow, CardData, PendingEffect } from '../../../types';
 import { CPU_PLAYER_ID } from '../battleUtils';
 import { normalizeCpuDeckPlan, type CpuDeckPlan } from '../cpuDeckPlan';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from '../cpuPolicy';
 import { cpuShouldAct, cpuWaitingForHuman } from '../cpuDriver';
 import { decideCpuInteractionResponse } from '../cpuInteractionRespond';
 import { createHeadlessIo } from './battleIo';
@@ -75,6 +76,14 @@ export interface HeadlessMatchDeps {
   cpuPlan?: CpuDeckPlan;
   /** ルール処理の二重処理防止の指紋（省略時は新規）。 */
   memo?: RuleCheckMemo;
+  /**
+   * 🆕§5.7 `S-9`＝**席ごとの CPU ポリシー**（省略時は両席とも既定）。
+   *
+   * 🔴**これが無いと勝率は「先攻有利と乱数」しか映さない**＝両席が同じ関数・同じ定数で打つので対称。
+   * ⚠**席を入れ替えてもう1戦する**のは呼び出し側（`scripts/headlessSelfPlay.ts` の A/B モード）の仕事＝
+   *   ここは「どちらの席にどのポリシーを当てるか」だけを受ける。
+   */
+  policy?: { host: CpuPolicy; guest: CpuPolicy };
 }
 
 /**
@@ -274,6 +283,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       await cpuTurnAction(ctxOf(bs, bs.host_id), {
         actions: actionsFor(() => ctxOf(row(), row().host_id)),
         allCards: d.cards, cpuPlan,
+        // 🆕§5.7 `S-9`＝この枝は **guest 席**の CPU（鏡を通していない）。
+        policy: d.policy?.guest ?? DEFAULT_CPU_POLICY,
         checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
       });
       return true;
@@ -292,6 +303,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     await cpuTurnAction(mirroredCtx(), {
       actions: actionsFor(mirroredCtx),
       allCards: d.cards, cpuPlan,
+      // 🆕§5.7 `S-9`＝この枝は **host 席**の CPU（鏡を通して同じ関数に指させている）。
+      policy: d.policy?.host ?? DEFAULT_CPU_POLICY,
       checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
     });
     return true;

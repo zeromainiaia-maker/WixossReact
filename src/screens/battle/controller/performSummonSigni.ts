@@ -55,7 +55,6 @@ export const performSummonSigni = async (
   const my = sc.actor;
   const op = sc.opponent;
   const actorIsHost = sc.actorKey === 'host_state';
-  console.log('[performSummonSigni] called', { handIndex, zoneIndex, actor: sc.actorId, isActorTurn: sc.isActorTurn });
   const resonaAttackResponse = !!resona && ctx.bs.turn_phase === 'ATTACK_ARTS_OP' && !sc.isActorTurn;
   const resonaSpellCutin = !!resona && !!ctx.bs.pending_spell
     && ctx.bs.pending_spell.caster_id !== sc.actorId

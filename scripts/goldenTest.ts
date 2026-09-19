@@ -213,6 +213,10 @@ import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCount
 import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpuKeyPiece';
 import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
+import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
+import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
+import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
@@ -86826,6 +86830,108 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   ok(/await executeTrashActivated\(choice\.cardNum, choice\.effect, sel\.energy, sel\.handDiscard, sel\.exceed, sel\.trashExile, actorCtx\)/.test(battle)
     && /await executeHandActivated\(choice\.cardNum, choice\.handIndex, choice\.effect, \{ energy: choice\.selections\.energy, fieldTrash: choice\.fieldTrash \}, actorCtx\)/.test(battle),
     '🔴CPU の場以外の【起】が人間と同じ実行関数を通っていない');
+}));
+
+test('§5.7 S-9 強さの A/B 測定台：席ごとのポリシー・席入れ替え・勝率の誤差幅', () => withSavedCursor(() => {
+  // 🆕2026-09-19（§5.7 `S-9`）＝`npm run selfplay` は**両席が同じ定数で打つ**ので勝率は対称だった
+  //   （出るのは先攻有利と乱数だけ）。⇒ ①席ごとのポリシー ②席入れ替え ③誤差幅 の3点を固定する。
+
+  // ── ① 既定値の在処は1つ（`cpuPolicy.ts`）＝別名が実体からズレていないか ──
+  ok(BOARD_WEIGHTS === DEFAULT_CPU_POLICY.boardWeights, '🔴`BOARD_WEIGHTS` が `DEFAULT_CPU_POLICY` と別の実体＝数値を2か所に書いている');
+  eq(SPELL_GAIN_MIN, DEFAULT_CPU_POLICY.spellGainMin, '🔴`SPELL_GAIN_MIN` が `DEFAULT_CPU_POLICY` とズレた');
+  eq(CPU_KEEP_GUARDS, DEFAULT_CPU_POLICY.keepGuards, '🔴`CPU_KEEP_GUARDS` が `DEFAULT_CPU_POLICY` とズレた');
+  ok(CPU_POLICIES.default === DEFAULT_CPU_POLICY, '前提崩れ＝プリセット `default` が既定ポリシーではない');
+  let threw = false;
+  try { resolveCpuPolicy('no-such-policy'); } catch { threw = true; }
+  ok(threw, '🔴知らないポリシー名が黙って既定に落ちる＝A と B が同じものになって勝率が無意味になる');
+
+  // ── ② ポリシーが実際に判断を変える（盤面の採点）──
+  const cm = new InstanceMap<CardData>(cardMap);
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const side = (life: number) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = []; st.energy = []; st.field.lrig = ['WD03-003#r1'];
+    st.life_cloth = Array.from({ length: life }, (_, i) => `WD01-013#l${i}`);
+    return st;
+  };
+  const me = side(4), them = side(2);
+  const withDefault = evaluateBoard(me, them, lctx);
+  const withPolicy = evaluateBoard(me, them, { ...lctx, policy: DEFAULT_CPU_POLICY });
+  eq(withPolicy, withDefault, '🔴既定ポリシーを明示して渡すと点数が変わる＝既定値が二重管理になっている');
+  const ignoreLife = evaluateBoard(me, them, { ...lctx, policy: CPU_POLICIES['ignore-life'] });
+  eq(withDefault - ignoreLife, 2 * BOARD_WEIGHTS.life, `🔴盤面の採点がポリシーの重みを読んでいない（${withDefault} / ${ignoreLife}）`);
+
+  // ── ③ ポリシーが実際に判断を変える（召喚＝手札に残す【ガード】の枚数）──
+  const cands = [
+    { id: 'GUARD#1', level: 1, power: 5000, guard: true },
+    { id: 'PLAIN#1', level: 1, power: 1000, guard: false },
+  ];
+  const pick = (keepGuards?: number) => pickCpuDeployCard({ candidates: cands, remainingLimit: 1, zonesRemaining: 1, handGuardCount: 1, keepGuards });
+  eq(pick(), 'PLAIN#1', '前提崩れ＝既定（1枚残す）なのに最後の【ガード】を場に出した');
+  eq(pick(DEFAULT_CPU_POLICY.keepGuards), 'PLAIN#1', '🔴既定ポリシーを明示して渡すと選択が変わる');
+  eq(pick(0), 'GUARD#1', '🔴`keepGuards: 0` のポリシーが召喚に届いていない（A/B が効かない）');
+
+  // ── ④ 誤差幅（Wilson）＝「勝ったから強い」と言わないための下限 ──
+  const w0 = wilsonInterval(0, 0);
+  ok(w0.lo === 0 && w0.hi === 1, '🔴0戦で区間が狭まった');
+  const w10 = wilsonInterval(10, 10);
+  ok(w10.hi === 1 && w10.lo < 1 && w10.lo > 0.6, `🔴10戦全勝の下限が出ていない（${w10.lo}）＝「勝率100%・誤差±0」の嘘が出る`);
+  const w5 = wilsonInterval(5, 10);
+  ok(w5.lo < 0.5 && w5.hi > 0.5, `🔴5勝5敗なのに区間が 50% を跨がない（${w5.lo}〜${w5.hi}）`);
+  ok(wilsonInterval(60, 100).hi - wilsonInterval(60, 100).lo > wilsonInterval(600, 1000).hi - wilsonInterval(600, 1000).lo,
+    '🔴戦数を10倍にしても区間が狭まらない');
+
+  // ── ⑤ 集計（席入れ替えの読み方）──
+  const g = (seed: number, swapped: boolean, winner: 'A' | 'B' | null): AbGameResult =>
+    ({ seed, swapped, winner, reason: winner ? 'finished' : 'idle', steps: 1, turns: 1, ms: 1 });
+  const sum = summarizeAb([
+    g(1, false, 'A'), g(1, true, 'A'),     // A が2連勝
+    g(2, false, 'A'), g(2, true, 'B'),     // 1勝1敗
+    g(3, false, 'B'), g(3, true, null),    // 片方が止まった＝組として数えない
+  ]);
+  eq(sum.games, 6, '対戦数');
+  eq(sum.decided, 5, '決着数');
+  eq(sum.stalled, 1, '止まった数');
+  eq(sum.aWins, 3, 'A の勝ち数');
+  eq(sum.rate, 3 / 5, '🔴勝率の分母が「決着した対戦」になっていない（止まった対戦を数えている）');
+  // 先攻＝host 席（既定）。A が guest 席（swapped）で勝った戦は**先攻の負け**。
+  eq(sum.firstPlayerRate, 3 / 5, '🔴先攻の勝率が `swapped` を読んでいない＝先攻有利を相殺できない');
+  eq(sum.firstSeat, 'host', '既定の先攻の席');
+  // 🔴先攻が guest 席のとき（`--first guest`）＝**同じ結果でも先攻の勝率は反転する**。
+  //   （2026-09-19＝`--first` を足した直後、ラベルが host 固定のままで 62.5% と 37.5% を取り違えかけた）
+  const swapFirst = summarizeAb([
+    g(1, false, 'A'), g(1, true, 'A'), g(2, false, 'A'), g(2, true, 'B'), g(3, false, 'B'), g(3, true, null),
+  ], 'guest');
+  eq(swapFirst.firstPlayerRate, 2 / 5, '🔴`firstSeat: guest` で先攻の勝率が反転していない');
+  eq(swapFirst.rate, 3 / 5, '先攻の席を変えても A の勝率は変わらない（A/B の答えは手番の定義に依らない）');
+  ok(formatAbReport(swapFirst, 'a', 'b').includes('先攻（guest席）'), '🔴勝率表のラベルが先攻の席を反映していない');
+  eq(JSON.stringify(sum.aAsHost), JSON.stringify({ wins: 2, decided: 3 }), 'A が先攻のときの内訳');
+  eq(JSON.stringify(sum.aAsGuest), JSON.stringify({ wins: 1, decided: 2 }), 'A が後攻のときの内訳');
+  eq(JSON.stringify(sum.pairs), JSON.stringify({ aSweep: 1, split: 1, bSweep: 0, incomplete: 1 }), '🔴組の内訳（席入れ替えの2戦が揃っているか）');
+  ok(!summarizeAb([g(1, false, 'A'), g(1, true, 'A')]).significant, '🔴2戦で「差あり」と言った');
+  ok(summarizeAb(Array.from({ length: 200 }, (_, i) => g(i, i % 2 === 1, 'A'))).significant, '🔴200戦全勝でも「差あり」と言わない');
+  ok(formatAbReport(sum, 'default', 'x').includes('席入れ替え'), '勝率表に席入れ替えの断りが無い');
+
+  // ── ⑥ シードの配り方（並列）＝取りこぼさない・重複しない・塊で割らない ──
+  const chunks = splitSeeds([1, 2, 3, 4, 5], 2);
+  eq(JSON.stringify(chunks), JSON.stringify([[1, 3, 5], [2, 4]]), '🔴シードを塊で割った＝対戦の長さの偏りで並列が効かない');
+  eq(splitSeeds([1, 2, 3], 8).length, 3, '🔴シードより多いワーカーを起こした');
+
+  // ── ⑦ 配線（ここが切れると A/B は「同じ CPU 同士」を測り続けて静かに嘘をつく）──
+  const headless = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  ok(/policy: d\.policy\?\.guest \?\? DEFAULT_CPU_POLICY/.test(headless), '🔴guest 席の CPU にポリシーを渡していない');
+  ok(/policy: d\.policy\?\.host \?\? DEFAULT_CPU_POLICY/.test(headless), '🔴host 席（席の鏡）の CPU にポリシーを渡していない');
+  const cpuTurnSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(/const cpuPolicy = d\.policy \?\? DEFAULT_CPU_POLICY;/.test(cpuTurnSrc), '🔴`cpuTurnAction` がポリシーを受けていない');
+  ok(/policy: cpuPolicy,/.test(cpuTurnSrc), '🔴先読み（`cpuLookahead`）にポリシーを渡していない＝盤面の採点が A/B で動かない');
+  ok(/keepGuards: cpuPolicy\.keepGuards,/.test(cpuTurnSrc), '🔴召喚にポリシーを渡していない');
+  const spellSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuSpell.ts'), 'utf8');
+  ok(/p\.lookahead!\.policy\?\.spellGainMin \?\? SPELL_GAIN_MIN/.test(spellSrc), '🔴スペルの下限がポリシーを読んでいない');
+  // 🔴**実機（`BattleScreen`）はポリシーを渡さない**＝この項目で人間の対戦の挙動は1ビットも変わらない、の機械的な証拠。
+  // ⚠`battleScreenSource()` は `controller/` も読む（＝ここには policy が在る）＝**画面のファイル1本だけ**を見る。
+  const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/cpuTurnActionImpl\(performCtx\(\), \{/.test(screenOnly), '前提崩れ＝画面の `cpuTurnAction` の呼び出しが見つからない');
+  ok(!/cpuPolicy|policy:/.test(screenOnly), '🔴画面が CPU ポリシーを渡している＝実機の挙動が変わりうる（`S-9` は測定台だけのはず）');
 }));
 
 test('§5.3 O-533 手札の【起】の「公開＋場のシグニをトラッシュ」コスト：場のシグニを払い、このカードは捨てずに場に出す', () => withSavedCursor(() => {

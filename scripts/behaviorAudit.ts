@@ -26,6 +26,7 @@ import type { CardEffect } from '../src/types/effects';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { setAbilityBlockScoping, abilityBlockTextOf } from '../src/data/effectParser';
 import { matchesFilter } from '../src/engine/execUtils';
+import { setRngSeed } from '../src/engine/rng';
 import type { TargetFilter } from '../src/types/effects';
 import {
   executeEffect,
@@ -35,6 +36,13 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 
+// 🆕🔴**乱数を固定する**（2026-09-20・`S-9` の簿記中に発覚）＝この監査基盤は冒頭に「決定論」と書いてあるのに
+//   **`setRngSeed` を一度も呼んでいなかった**＝`src/engine/rng.ts` の既定は `Math.random`（`C-1` の契約）なので、
+//   **デッキをシャッフルする効果のトレースが毎回変わる**。
+//   ⇒ `docs/_census_trace_invariants.txt` が**ソースを1行も変えていない回でも差分を出し**（実測＝commit `b2c5292f0`＝
+//   docs だけのバッチで18行動いた）、**本物の退化を差分ノイズから見分けられなくなっていた**。
+//   ⚠ゲートは I1（カード保存則）だけなので緑のまま通っていた。
+setRngSeed(20260920);
 const root = process.cwd();
 const args = process.argv.slice(2);
 const argVal = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };

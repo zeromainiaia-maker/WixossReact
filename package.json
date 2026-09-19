@@ -14,6 +14,7 @@
     "reports": "node scripts/fetchReports.mjs",
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
     "selfplay": "tsx scripts/headlessSelfPlay.ts",
+    "selfplay:ab": "tsx scripts/headlessSelfPlay.ts --jobs 8",
     "audit": "tsx scripts/behaviorAudit.ts",
     "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
     "audit:html": "tsx scripts/behaviorAudit.ts --html",
