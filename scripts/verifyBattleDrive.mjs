@@ -30109,21 +30109,25 @@ scenarios.wxdip09053GrantUpToTwo = {
       // ⚠duration:UNTIL_OPP_TURN_END の GRANT_KEYWORD は `keyword_grants` ではなく
       //   `keyword_grants_until_opp_turn` に書かれる（execGrantKeyword:3515）＝queryState の
       //   `keywordGrants` は素通りする。盤面ログの行数（小剣 ククリへの付与が2件）で判定する。
-      const body = await H.fullBody();
-      const shadowCount = (body.match(/シャドウ.*小剣.*ククリ/g) ?? []).length;
-      H.log(`  v23b[${s}] -> ${did ?? 'なし'} | candidates=${JSON.stringify(candidateSnapshot)} picked=${JSON.stringify([...picked])} shadowLogCount=${shadowCount} pEff=${st?.pendingEffect ?? '-'}`);
+      // 🔴🆕2026-09-19＝**付与は state で見る**（`keyword_grants_until_opp_turn`）。
+      //   旧版は画面ログを `/シャドウ.*小剣.*ククリ/` で数えていて、文言が変われば黙って 0 になる
+      //   （実測＝候補も選択も正しいのに `shadowLogCount=0` で「付与未確認」と落ちていた）。
+      // 🔴live の形は **`GRANT_EFFECT`**（「【常】：対戦相手のターンの間、【シャドウ】を得る」という**能力**を配る）＝
+      //   付与先は `granted_effects_until_opp_turn`。キーワードの2ストアには1件も入らない。
+      const grants = st?.host?.grantedEffectsUntilOppTurn ?? [];
+      const shadowCount = grants.filter(g => g.includes('WXDi-P09-053-E1-opp-turn')).length;
+      H.log(`  v23b[${s}] -> ${did ?? 'なし'} | candidates=${JSON.stringify(candidateSnapshot)} picked=${JSON.stringify([...picked])} grants=${JSON.stringify(grants)} shadowCount=${shadowCount} pEff=${st?.pendingEffect ?? '-'}`);
       if (shadowCount >= 2 && !st?.pendingEffect) {
         const candOk = candidateSnapshot && candidateSnapshot.length === 2
           && candidateSnapshot.every(c => c.startsWith('WD01-013#1') || c.startsWith('WD01-013#2'));
         return {
           pass: !!candOk,
-          detail: `候補=${JSON.stringify(candidateSnapshot)}（自分のLv1シグニ2体だけ／guestの同名WD01-013#3は含まれず）→2体とも【シャドウ】付与ログ確認（shadowLogCount=${shadowCount}）`,
+          detail: `候補=${JSON.stringify(candidateSnapshot)}（自分のLv1シグニ2体だけ／guestの同名WD01-013#3は含まれず）→2体とも【シャドウ】の能力が付いた（granted_effects_until_opp_turn=${JSON.stringify(grants)}）`,
         };
       }
     }
     const fin = await H.queryState();
-    const bodyFin = await H.fullBody();
-    return { pass: false, detail: `付与未確認（candidates=${JSON.stringify(candidateSnapshot)} shadowLogCount=${(bodyFin.match(/シャドウ.*小剣.*ククリ/g) ?? []).length} pEff=${fin?.pendingEffect ?? '-'}）` };
+    return { pass: false, detail: `付与未確認（candidates=${JSON.stringify(candidateSnapshot)} grantedEffectsUntilOppTurn=${JSON.stringify(fin?.host?.grantedEffectsUntilOppTurn)} grantedEffects=${JSON.stringify(fin?.host?.grantedEffects)} keywordGrants=${JSON.stringify(fin?.host?.keywordGrants)} pEff=${fin?.pendingEffect ?? '-'}）` };
   },
 };
 order.push('wxdip09053GrantUpToTwo');
@@ -65027,6 +65031,14 @@ try {
         //   「載ったこと自体」と「実数」の両方をここから読む。
         levelMods: (s.temp_level_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
+        // 🆕2026-09-19＝**「次の対戦相手のターン終了時まで」の付与は別ストア**（`execGrantKeyword` が
+        //   `duration:UNTIL_OPP_TURN_END` をここへ書く）＝`keywordGrants` だけを見ると**素通りする**。
+        //   旧 `wxdip09053GrantUpToTwo` は代わりに**画面ログの文字列**を数えていて、文言が変わった瞬間に 0 になっていた。
+        keywordGrantsUntilOppTurn: Object.entries(s.keyword_grants_until_opp_turn ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
+        // 🆕2026-09-19＝**`GRANT_EFFECT`（能力そのものの付与）は `granted_effects*` へ入る**＝キーワード付与の
+        //   2ストアを見ても素通りする（`grantedStore.ts` の3ストアのうちシグニ側の2本）。
+        grantedEffects: Object.entries(s.granted_effects ?? {}).map(([id, effs]) => `${id}:${(effs || []).map(e => e.effectId).join('/')}`),
+        grantedEffectsUntilOppTurn: Object.entries(s.granted_effects_until_opp_turn ?? {}).map(([id, effs]) => `${id}:${(effs || []).map(e => e.effectId).join('/')}`),
         // 🆕§5.1 `V-232`／`V-233`（2026-09-16）＝クラッシュの**原因**と**カウンタークラッシュの在庫**。
         //   🔴盤面差分（ライフ枚数）だけでは「限定が効いた」と「そもそもクラッシュしていない」を
         //   区別できない（§4.4-71／§4.4-100）＝engine が読む state をそのまま観測面に出す。
