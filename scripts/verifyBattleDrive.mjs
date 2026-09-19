@@ -36077,7 +36077,11 @@ const B54_LIFE = ['WD01-010#3841', 'WD01-013#3842', 'WD01-012#3843'];
 function b54Spec(selfCard) {
   return {
     hostSet: {
-      'field.lrig': ['WD03-002#3851'],
+      // 🔴2026-09-19＝**センタールリグは Lv4 にする**。`B54_SELF_FIELD`（WD14-012 毒蛇の華　アシュタルス）は **Lv4** で、
+      //   旧版の WD03-002（Lv3）だと §5.3 `O-532`／`O-534`（2026-09-18＝配置レベル制限がルール処理になった）以後は
+      //   **エナから場に戻せない**（候補が「Lv超過」表示・確定ボタンが「ルリグのレベルを超えています」）＝34周空振りしていた。
+      //   ⚠`b54EnergySelfToLife` の WXDi-P08-038 は Lv3 なのでどちらでも通る（リミット11 に Lv4 が1体＝余裕）。
+      'field.lrig': ['WD01-001#3851'],
       'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
       'field.signi': [[selfCard], null, null], 'field.signi_down': [false, false, false],
       'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
@@ -36803,7 +36807,9 @@ scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
       let did = null;
       const st0 = await H.queryState();
       const cands = Array.isArray(st0?.pendingCandidates) ? st0.pendingCandidates : [];
-      if (paid && !picked && cands.length > 0) {
+      // 🔴🆕2026-09-19＝**対象ピッカーは任意コストより先に来る**（原文どおり「対象とし、《青》を支払ってもよい」）。
+      //   旧版は `paid &&` を条件にしていたので、先に出た `SELECT_TARGET` を1手も進められず30周空振りしていた。
+      if (!picked && cands.length > 0) {
         sawPicker = true; candSnapshot = cands;
         const onlyOwn = cands.includes(B41_OWNER_SOURCE) && cands.includes(B41_OWNER_SELF)
           && !cands.includes(B41_OWNER_OPP);
