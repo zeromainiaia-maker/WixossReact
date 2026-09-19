@@ -908,7 +908,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     : !canReorder
                     ? (inter.canTrash
                       ? `トラッシュに置くカードを選んでください（残りは元の順番のまま戻ります）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
-                      : `カードを確認してください（${inter.destPosition === 'bottom' ? 'デッキの一番下' : 'デッキトップ'}へ元の順番のまま戻ります）`)
+                      : `カードを確認してください（${inter.destLocation === 'life' ? 'ライフクロスの一番上' : inter.destPosition === 'bottom' ? 'デッキの一番下' : 'デッキトップ'}へ元の順番のまま戻ります）`)
                     : inter.canTrash
                     ? `トラッシュに置くカードを選び、残りを並べ替えてください（上がデッキトップ）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
                     : inter.destPosition === 'first_top_rest_bottom'

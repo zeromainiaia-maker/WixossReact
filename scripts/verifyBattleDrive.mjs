@@ -6911,8 +6911,11 @@ const scenarios = {
           // 原文＝「【自】《ターン1回》：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」。
           // 本シナリオは CPU(guest) 自身のターン中のグロウ＝watcher(host) から見て「あなたのターン」ではない
           // ＝turnOwner:self ゲートにより **非発火が正しい**。発火したら続き73発見バグの回帰（続き75で修正）。
-          if ((g.trash ?? 0) > gTrash0) {
-            return { pass: false, detail: `turnOwner:self ゲート違反＝相手ターン中の相手グロウで誤発火（gTrash ${gTrash0}→${g.trash}・log「${watcherLog ?? '—'}」）。原文は「あなたのターンの間」限定` };
+          // ⚠2026-09-19＝**発火の判定はログで見る**。旧版は「相手のトラッシュが増えたら誤発火」だったが、
+          //   グロウのコスト（青×2）の支払いでもトラッシュは2枚増える＝発火していなくても必ず FAIL していた。
+          const firedLog = (st.logTail ?? []).find(l => /の【自】効果（グロウ時）/.test(l));
+          if (firedLog) {
+            return { pass: false, detail: `turnOwner:self ゲート違反＝相手ターン中の相手グロウで誤発火（gTrash ${gTrash0}→${g.trash}・log「${firedLog}」）。原文は「あなたのターンの間」限定` };
           }
           if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  lrigGrowAnyOpp[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
           if (s % 3 === 0 || did) H.log(`  lrigGrowAnyOpp[a${attempt}.${s}] -> ${did ?? 'なし'} | phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} gTrash=${g.trash} pEff=${st.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
@@ -43284,7 +43287,9 @@ async function driveCp01031(page, H, distinct5) {
   }
   if (!advanced) return { pass: false, detail: `アタックフェイズへ進めなかった（phase=${last?.turnPhase}）` };
 
-  const mods = last?.host?.powerMods ?? [];
+  // ⚠2026-09-19＝「次の対戦相手のターン終了時まで」の POWER_SET は長期ストア（`power_mods_until_opp_turn`＝`powerModsUntilOppTurn`）へ入る
+  //   （§5.3 `O-296`・2026-09-12）。旧版は短期ストアだけを見ていたので、発火していても FAIL していた。
+  const mods = [...(last?.host?.powerMods ?? []), ...(last?.host?.powerModsUntilOppTurn ?? [])];
   // POWER_SET 35000 は基本パワー12000 との差＝+23000 として積まれる。
   const set35000 = mods.some(m => String(m).startsWith('WXDi-CP01-031#8501') && String(m).includes('23000'));
   if (distinct5) {
@@ -44444,7 +44449,8 @@ async function driveO145(page, H, take) {
         chose = true; did = take ? 'btn:デッキに加える' : 'btn:加えない';
       }
     }
-    if (!did) did = await H.stdStep(['確認', '確定', '決定', 'OK', 'はい', '閉じる']);
+    // ⚠2026-09-19＝「決定」を「確認」より先に＝「確認」は見出し（「カードを確認してください」）の文字に当たって空振りしていた。
+    if (!did) did = await H.stdStep(['決定', '確定', '確認', 'OK', 'はい', '閉じる']);
     last = await H.queryState();
     H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | choiceUI=${sawChoice} chose=${chose} life=${JSON.stringify(last?.host?.lifeCards)} deck=${last?.host?.deck} shuffled=${last?.host?.deck_shuffled_count} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
     // 🔴**「押した」ではなく「盤面が落ち着いた」を進行条件にする**（§5.1 の教訓）＝
@@ -47756,9 +47762,16 @@ order.push('o226DeclaredSigniOverrideOff');
 // -----------------------------------------------------------------------------
 
 /** ルリグデッキのアーツを使う（任意でベット枚数を指定）。エナは要求枚数ぶん1回ずつ押す。 */
-async function useArtsFromLrigDeck(page, H, { betLabel = null } = {}) {
+async function useArtsFromLrigDeck(page, H, { betLabel = null, declareChoose = null } = {}) {
   const opened = await openV04LrigDeckAction(page, '使用');
   if (!opened.ok) return { ok: false, detail: opened.detail };
+  // 🆕2026-09-19＝**選んだ数でコストが変わるアーツは、使用前に「選ぶ数」を宣言する**（§5.3 `O-251`）。
+  //   既定は0＝押さないと「選択数0」で選択肢がすべて飛ばされる（`v142FourChoices` が全件実行で恒久 FAIL していた）。
+  if (declareChoose != null) {
+    const d = await H.clickTestId(`arts-declare-choose-${declareChoose}`);
+    if (!d) return { ok: false, detail: `選ぶ数の宣言（${declareChoose}つ）が押せない` };
+    await page.waitForTimeout(300);
+  }
   if (betLabel) {
     const bet = await H.clickBtn(betLabel, { exact: true });
     if (!bet) return { ok: false, detail: `ベット「${betLabel}」が押せない` };
@@ -48163,7 +48176,7 @@ scenarios.v142FourChoices = {
     top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
   },
   async drive(page, H) {
-    const used = await useArtsFromLrigDeck(page, H);
+    const used = await useArtsFromLrigDeck(page, H, { declareChoose: 4 });
     H.log(`  v142FourChoices: アーツ使用=${JSON.stringify(used)}`);
     if (!used.ok) return { pass: false, detail: `前提崩れ＝アーツを使えない（${used.detail}）` };
     const p = await readChoosePrompt(page);
@@ -48171,6 +48184,7 @@ scenarios.v142FourChoices = {
       .map(b => (b.textContent || '').trim()).filter(t => /^✓? ?選択肢\d/.test(t))).catch(() => []);
     await page.screenshot({ path: `${SHOT}/v142FourChoices-final.png`, fullPage: true });
     H.log(`  v142FourChoices: 提示=${JSON.stringify(p)} 選択肢=${JSON.stringify(opts)}`);
+    { const lg = await H.queryState(); H.log(`  v142FourChoices: logs=${JSON.stringify((lg?.logTail ?? []).slice(-8))} pEff=${lg?.pendingEffect ?? '-'} opts=${JSON.stringify(lg?.pendingOptions ?? [])}`); }
     if (p.multi?.max !== 4) {
       return { pass: false, detail: `🔴「4つまで選ぶ」になっていない（提示=${JSON.stringify(p)}）` };
     }
@@ -49581,7 +49595,10 @@ scenarios.v139PieceLimitSelfPlus2 = {
   title: 'O-60 V-139①：WXDi-P16-002 は「あなたの」センタールリグのリミットを＋2する（旧＝相手に＋2／しかも次ターン扱い）',
   spec: {
     hostSet: {
-      'field.lrig': [V139_LRIG_L2],
+      // ⚠2026-09-19＝ピースの【使用条件】（＜夢限少女＞のチーム3体＆全員 Lv1 以上）は live の `condition` に載り、スタック解決時にも評価される。
+      //   旧版のセンター（ファイト Dr.タマゴ・チーム外）＋アシスト未指定では条件を満たせず、効果が何もしなかった（全件実行で恒久 FAIL）。
+      'field.lrig': ['WXDi-P16-019#9600'],   // 真実を募る ガブリエラ（夢限少女・Lv2）
+      'field.assist_lrig_l': ['WXDi-P16-018#9601'], 'field.assist_lrig_r': ['WXDi-P16-021#9602'],   // 夢限少女・Lv1 ×2
       'field.signi': [null, null, null],
       'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
       'field.free_zone': [], 'field.beat_zone': [],
@@ -49614,9 +49631,10 @@ scenarios.v139PieceLimitSelfPlus2 = {
       if (settled >= 4) break;
     }
     await page.screenshot({ path: `${SHOT}/v139PieceLimitSelfPlus2-final.png`, fullPage: true });
-    const self = st?.host?.lrigLimitMod ?? 0, selfPend = st?.host?.pendingLrigLimitMod ?? 0;
-    const opp = st?.guest?.lrigLimitMod ?? 0, oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
-    const dump = `自分 mod=${self}/pending=${selfPend}｜相手 mod=${opp}/pending=${oppPend}`;
+    // ⚠2026-09-19＝WXDi-P16-002 の＋2は「エナフェイズ終了まで」＝発生源ごとの別ストアへ入る（`lrigLimitModUntilEnergyEnd`）。
+    const self = (st?.host?.lrigLimitMod ?? 0) + (st?.host?.lrigLimitModUntilEnergyEnd ?? 0), selfPend = st?.host?.pendingLrigLimitMod ?? 0;
+    const opp = (st?.guest?.lrigLimitMod ?? 0) + (st?.guest?.lrigLimitModUntilEnergyEnd ?? 0), oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
+    const dump = `自分 mod=${self}/pending=${selfPend}｜相手 mod=${opp}/pending=${oppPend} logs=${JSON.stringify((st?.logTail ?? []).slice(-6))}`;
     // 🔴**本題を先に判定**＝旧は「相手に＋2」だった。
     if (opp !== 0 || oppPend !== 0) return { pass: false, detail: `🔴対戦相手のリミットが動いた＝向きが逆（旧挙動）。${dump}` };
     if (self === 0 && selfPend === 2) return { pass: false, detail: `🔴自分の＋2が「次のターン」へ回った＝そのターンのうちに効いていない（旧 NEXT_TURN 扱い）。${dump}` };
@@ -49664,8 +49682,9 @@ scenarios.v139ReleaseLimitBothSides = {
       if (settled >= 4) break;
     }
     await page.screenshot({ path: `${SHOT}/v139ReleaseLimitBothSides-final.png`, fullPage: true });
-    const self = st?.host?.lrigLimitMod ?? 0;
-    const opp = st?.guest?.lrigLimitMod ?? 0, oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
+    // ⚠2026-09-19＝「エナフェイズ終了まで」の修整は別ストア（`lrigLimitModUntilEnergyEnd`）。
+    const self = (st?.host?.lrigLimitMod ?? 0) + (st?.host?.lrigLimitModUntilEnergyEnd ?? 0);
+    const opp = (st?.guest?.lrigLimitMod ?? 0) + (st?.guest?.lrigLimitModUntilEnergyEnd ?? 0), oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
     const dump = `自分 mod=${self}｜相手 mod=${opp}/pending=${oppPend}`;
     // 🔴**両方を assert する**＝片方だけ見ると「自分の＋1が消えた」旧挙動を見落とす。
     if (self !== 1) return { pass: false, detail: `🔴自分のリミット＋1が乗っていない（self=${self}）＝旧の「相手側が一致したら自分側を飛ばす」構造。${dump}` };
@@ -51010,6 +51029,9 @@ function mkGuardAltCollabScenario(hasEnergy) {
         'hand': ['WD01-017#9710'],                     // サーバント Ｏ（《ガードアイコン》＝通常ガードの対照）
         'energy': hasEnergy ? ['WD05-013#9711', 'WD05-013#9712'] : [],
         'trash': [], 'coins': 0,
+        // ⚠2026-09-19＝**コラボライバーのトークンが要る**（2026-09-12 第282バッチで提示条件に `liver_tokens >= collab` が入った）。
+        //   旧版はトークン0＝代替コストが出ず、全件実行で恒久 FAIL していた。エナの有無だけが1点差の対照なので両方に置く。
+        'liver_tokens': 1,
         'actions_done': [], 'game_actions_done': [],
         'life_cloth': ['WD01-013#9713', 'WD01-013#9714'],
         'deck': ['WD01-013#9720', 'WD01-013#9721'],
@@ -56465,8 +56487,12 @@ const v167Drive = async (page, H, tag, expectRemain) => {
     return { pass: false, detail: '🔴宣言色のカードまで落ちた＝色の否定が効いていない（過剰実行）。'
       + ' 落ちた' + declared + '=' + JSON.stringify(badGone) + ' ' + dump };
   }
-  if (ena1.length !== expectRemain) {
-    return { pass: false, detail: '🔴残枚数が期待と違う（期待 ' + expectRemain + '枚）。' + dump };
+  // ⚠2026-09-19＝**CPU の色宣言は乱数**（`pickCpuChoice`）＝旧版の「先頭の白を宣言する」前提は外れた。
+  //   残るべき枚数は「宣言色を持つカードの数」で決める（引数の expectRemain は白を宣言した場合の値＝参考）。
+  void expectRemain;
+  const expectKept = ena0.filter(n => colorOf(n) === declared).length;
+  if (ena1.length !== expectKept) {
+    return { pass: false, detail: '🔴残枚数が期待と違う（期待 ' + expectKept + '枚）。' + dump };
   }
   return { pass: true, detail: '宣言色（' + declared + '）以外だけが全部トラッシュへ行き、宣言色は残った。' + dump };
 };
@@ -58550,6 +58576,9 @@ const O321B_PIECE = 'WXDi-P12-004#9603';   // ディソナンス（《無》×1�
 const o321bSpec = () => ({
   hostSet: {
     'field.lrig': ['WD01-001#9601'],
+    // ⚠2026-09-19＝**ピースは場にルリグが3体いないと使えない**（§5.6 `C-7`・2026-09-17 の体数ルール）＝アシスト2体を置く。
+    //   旧版はセンターだけ＝使うボタンが出ず、全件実行で恒久 FAIL していた。
+    'field.assist_lrig_l': ['WXDi-P16-018#9607'], 'field.assist_lrig_r': ['WXDi-P16-021#9608'],
     'field.lrig_down': false,
     'field.signi': [[O321B_SIGNI], null, null],
     'field.signi_down': [false, false, false],
@@ -64785,6 +64814,9 @@ try {
         //   `pending_lrig_limit_mod`＝`until:'NEXT_TURN'` の予約（GROW→MAIN 遷移で本スロットへ移る）。
         //   ⚠**片方だけ見ると「向きが逆」と「まだ効いていない」を取り違える**（旧実装は原文と逆向きだった）。
         lrigLimitMod: s.lrig_limit_mod ?? 0,
+        // 🆕2026-09-19＝「自分のエナフェイズ終了まで」のリミット修整は別ストア（`lrig_limit_mod` には入らない）＝期間つき＋発生源つきの合計。
+        lrigLimitModUntilEnergyEnd: (s.lrig_limit_mod_until_own_energy_phase_end ?? 0)
+          + Object.values(s.lrig_limit_mod_until_own_energy_phase_end_by_source ?? {}).reduce((x, y) => x + (Number(y) || 0), 0),
         pendingLrigLimitMod: s.pending_lrig_limit_mod ?? 0,
         // 🆕§5.3 `O-152`（2026-09-04）＝「効果による手札捨て」の直前フラグ。
         //   `ON_HAND_DISCARDED` は **executor が立てて BattleScreen の watcher が消化する**2段構えなので、
