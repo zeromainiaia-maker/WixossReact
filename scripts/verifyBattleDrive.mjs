@@ -15670,6 +15670,7 @@ async function runHandDiscardFrenRound(page, H, branch) {
   const before = await H.queryState();
   let phaseStarted = false; let prompted = false; let branchClicked = false;
   let guardPicked = false; let guardConfirmed = false; let targetPicked = false; let targetConfirmed = false;
+  let targetRounds = 0; let targetPickedThisRound = false;
   let last = before;
   for (let s = 0; s < 60; s++) {
     await page.waitForTimeout(250);
@@ -15680,7 +15681,19 @@ async function runHandDiscardFrenRound(page, H, branch) {
       if (did) phaseStarted = true;
     } else {
       const opts = pendingPaySkip(st0);
-      if (!branchClicked && opts.pay && opts.skip) {
+      // 🔴🆕2026-09-19＝**対象選択は2回来る**（旧版は「任意コストを払ったあとに1回だけ」を決め打ちしていて、
+      //   先に出た1回目の `SELECT_TARGET` で止まり60周まるごと空振りした）。live の形は
+      //   `SEQUENCE[SELECT_TARGET_ONLY, STORE_LAST_PROCESSED_TARGETS, OPTIONAL_COST, CONDITIONAL{PAID}→BOUNCE{targetsStored}]`＝
+      //   ①「対象とし」の SELECT_TARGET_ONLY ②支払い後の `BOUNCE` 本体（`storedTargetCards` で1体に絞られている）。
+      //   ⚠`selectOrInteract` は**候補1件でも必ず尋ねる**（`execUtils.ts:4380` に自動解決の枝が無い）ので、
+      //   絞り込みが効いていても対話は出る＝これは engine の設計どおり。
+      //   ⇒ **回数を数えて2回とも応答する**（`skip` 側は1回目だけ来る）。
+      if (sameInstanceSet(st0?.pendingCandidates, [HAND_COST_BOUNCE_TARGET])) {
+        if (!targetPickedThisRound) { did = await clickPendingInstance(page, H, HAND_COST_BOUNCE_TARGET); if (did) targetPickedThisRound = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { targetPickedThisRound = false; targetRounds++; } }
+        targetPicked = targetPickedThisRound || targetRounds > 0;
+        targetConfirmed = targetRounds > 0;
+      } else if (!branchClicked && opts.pay && opts.skip) {
         prompted = true;
         if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `Guard所持なのにpay disabled: ${JSON.stringify(st0.pendingOptions)}` };
         did = await H.clickTestId(branch === 'pay' ? 'optcost-pay' : 'optcost-skip');
@@ -15694,12 +15707,6 @@ async function runHandDiscardFrenRound(page, H, branch) {
       } else if (branch === 'pay' && guardPicked && !guardConfirmed) {
         did = await clickExactVisibleText(page, '決定 (1/1)');
         if (did) guardConfirmed = true;
-      } else if (branch === 'pay' && guardConfirmed && !targetPicked && sameInstanceSet(st0?.pendingCandidates, [HAND_COST_BOUNCE_TARGET])) {
-        did = await clickPendingInstance(page, H, HAND_COST_BOUNCE_TARGET);
-        if (did) targetPicked = true;
-      } else if (branch === 'pay' && targetPicked && !targetConfirmed) {
-        did = await clickExactVisibleText(page, '決定 (1/1)');
-        if (did) targetConfirmed = true;
       }
     }
     if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
@@ -15739,6 +15746,8 @@ scenarios.handDiscardPayRunsBody = {
 const HAND_COST_BLUE_ARCHIVE = 'WXDi-CP02-063#4821';
 const HAND_COST_ARTS_SELF_SIGNI = 'WD01-013#4822';
 const HAND_COST_ARTS_OPP_SIGNI = 'WD01-013#4823';
+// 🆕2026-09-19＝②「対戦相手のルリグ1体を対象とし…」の対象＝guest のセンタールリグ（下の guestSet と同じ値）。
+const HAND_COST_ARTS_OPP_LRIG = 'WD01-001#4829';
 const HAND_DISCARD_ARTS_SPEC = {
   hostSet: {
     'field.lrig': ['WD03-001#4824'],
@@ -15768,6 +15777,7 @@ async function runHandDiscardArtsRound(page, H, choiceLabel) {
   let choosePrompted = false; let choiceClicked = false; let choiceConfirmed = false;
   let costPrompted = false; let payClicked = false; let costPicked = false; let costConfirmed = false;
   let targetPicked = false; let targetConfirmed = false; let last = before;
+  let targetRounds = 0; let targetPickedThisRound = false;
   for (let s = 0; s < 80; s++) {
     await page.waitForTimeout(250);
     const st0 = await H.queryState();
@@ -15802,22 +15812,29 @@ async function runHandDiscardArtsRound(page, H, choiceLabel) {
       }
     } else {
       const opts = pendingPaySkip(st0);
-      if (!payClicked && opts.pay && opts.skip) {
+      const cands = Array.isArray(st0?.pendingCandidates) ? st0.pendingCandidates : [];
+      const isCostCands = sameInstanceSet(cands, [HAND_COST_BLUE_ARCHIVE]);
+      // 🔴🆕2026-09-19＝**②も③も「対象とし」の SELECT_TARGET が任意コストより先に来る**
+      //   （②＝相手ルリグ／③＝相手シグニ）。旧版は③だけを、しかも**支払いの後**だけ拾っていたので、
+      //   ②は先に出た対象選択で止まって80周空振りし、③も順序違いで届かなかった。
+      //   ⚠`selectOrInteract` は候補1件でも必ず尋ねる＝**支払いの後にもう一度来ることがある**ので回数で数える。
+      if (cands.length > 0 && !isCostCands) {
+        const want = choiceLabel === '選択肢2' ? HAND_COST_ARTS_OPP_LRIG : HAND_COST_ARTS_OPP_SIGNI;
+        if (!sameInstanceSet(cands, [want])) {
+          return { pass: false, detail: `対象候補が期待と違う=${JSON.stringify(cands)}（期待=${want}だけ）` };
+        }
+        if (!targetPickedThisRound) { did = await clickPendingInstance(page, H, want); if (did) targetPickedThisRound = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { targetPickedThisRound = false; targetRounds++; } }
+        targetPicked = targetPickedThisRound || targetRounds > 0;
+        targetConfirmed = targetRounds > 0;
+      } else if (!payClicked && opts.pay && opts.skip) {
         costPrompted = true;
         if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `ブルアカ所持なのにpay disabled=${JSON.stringify(st0.pendingOptions)}` };
         did = await H.clickTestId('optcost-pay'); if (did) payClicked = true;
-      } else if (payClicked && !costPicked && Array.isArray(st0?.pendingCandidates)) {
-        if (!sameInstanceSet(st0.pendingCandidates, [HAND_COST_BLUE_ARCHIVE])) {
-          return { pass: false, detail: `【ブルアカfilter回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${HAND_COST_BLUE_ARCHIVE}だけ）` };
-        }
+      } else if (payClicked && !costPicked && isCostCands) {
         did = await clickPendingInstance(page, H, HAND_COST_BLUE_ARCHIVE); if (did) costPicked = true;
       } else if (costPicked && !costConfirmed) {
         did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true;
-      } else if (choiceLabel === '選択肢3' && costConfirmed && !targetPicked
-          && sameInstanceSet(st0?.pendingCandidates, [HAND_COST_ARTS_OPP_SIGNI])) {
-        did = await clickPendingInstance(page, H, HAND_COST_ARTS_OPP_SIGNI); if (did) targetPicked = true;
-      } else if (choiceLabel === '選択肢3' && targetPicked && !targetConfirmed) {
-        did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true;
       }
     }
     if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
