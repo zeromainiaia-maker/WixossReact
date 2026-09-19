@@ -4,7 +4,7 @@
 ＝今回の変更とは無関係に、以前から全件実行で落ちていた（全件を回す運用が無く、見えていなかった）。
 ⚠`cpuAckWriteLostStillEnds` は決着でルームを消すシナリオ＝単独で回す（§4.4-115）ので除外。
 
-> 🏁**2026-09-19＝A・B の17本＋C の44本を解消**（BUGFIXES 同日の項）。残り＝**C の24本**。
+> 🏁**2026-09-19＝A・B の17本＋C の58本を解消**（BUGFIXES 同日の項）。残り＝**C の10本**。
 > ⚠**残数は「C 全68本を1回の実行で回し直した実測」**（推測ではない）＝解消済みの行はこのファイルから消してある。
 
 ## 🏁A 撤回済みの相打ち（O-47）前提＝シナリオが古い（12本・2026-09-19 解消）
@@ -30,32 +30,18 @@
 - b34ZeroPickAllowedWhenUpTo (21s)  — 未完了（zoned=false confirm=null hField=[null,null,null] pEff=-）
 - v227OptionalDownSkip (5s)  — 選択UIは出たが0体確定ボタンを押せない（候補=["WXDi-P16-078#39100"]）＝辞退できていない
 
-## C 未分類（前提崩れ・未完了・観測できず）（残り **24本** / 元68本）
+## C 未分類（前提崩れ・未完了・観測できず）（残り **10本** / 元68本）
 
-🏁**解消済み44本**（この節から削除済み）＝handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
+🏁**解消済み58本**（この節から削除済み）＝handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / v45cPaySelfBanishRemovesOnlyFiltered / v45cSkipSelfBanishDoesNothing / o245CoinKeySetBlocked / v55CheckZoneFlipGrowsAndOnPlayFires / o71HandToCheckZone / v51LeaveSubstitutePaysAndSurvives / b41GrantKeywordTargetsOwnSigniOnly / b54EnergySelfReviveOnlySelf / v16NonEichiAbilityDoesNotUpWatcher / wx20re18DynamicLevelAttackBanish / v172BattleBanishDoesNotFire / v171BanishedSigniDoesNotLower / o297GateZoneBanishFires / o297OtherZoneGateSilent / handDiscardSkipBlocksBody / handDiscardPayRunsBody / handDiscardOptionTwoDownsOpponentLrig / handDiscardOptionThreeDownsOpponentSigni / freezetriggerUsageLimit / lrigGrowAnyOpp / lrigAttackStepStartUsageLimit / leaveFieldToHand / outsideDrawPhase / delayedAttackTrigger / installDelayedTriggerFire / installByEffectFreeze / craftEnergyCP02087 / lookReorderCanTrash / oppDrawOwnEffectOnly / mayuEncounterFreeGrow / wx22025SigniTrashUnavailable / spdi4302AvoidedNoChoose / wxex225SkipAutoTrashesTrigger / wx17040ConditionsFalseNoop / lrigDownCenterOnlyUnwired / lrigDownCenterOnlyPays / v11EffectDeployCountFlagBlocked / v11EffectDeployNoLimitControl / v11EffectDeployContinuousBlocked / v12GrantedEnergyChargeTwice / v12GrantedEnergyChargeThirdBlocked / fezoneDoubleCostSkip / fezoneDoubleCostPay / underCostFromThisOnly / v34EnergyMoveImmunityBlocksTrash / v34EnergyMoveImmunityAbsentTrashFires / v40DeclaredIconHandDiscardProtects / censusDistinctByNameMet / o146EnergyTopSkip / o145LifeTopTake / o145LifeTopSkip / v142FourChoices / v139PieceLimitSelfPlus2 / v139ReleaseLimitBothSides / o230GuardAltCollab / v167DeclaredColorTrashAll / v167DeclaredColorKeepsAll / o321PieceUsedGateFires
 
 - v04TanabataLeaveFieldE3 (23s)  — E3の噛み合わせ未確認（field=[["WD02-010#6002","WXDi-P10-041#6003"],["WX21-057#6004"],null] hand=[] energy=[] trash=["WD02-010#6001"]）
 - v13TrashActLrigDownTwo (44s)  — 完走タイムアウト（mechanism=true stackSeen=true sourceCount=1 trash=["WXDi-P04-042#7303"] field=[null,null,null] specific=センター→アシストLの順でdown=[true,true,false] pending=SELECT_TARGET stack=0）
 - v14PermanentPlayerGrantSurvivesHumanEndNoDiscard (24s)  — player付与の成立前提を観測できず（action=false grants=[] lrigTrash=[] logs=[]）
 - v17CoinPaymentDoesNotFire (58s)  — 効果獲得/支払い判定未完了（payment=true started=true host={"fieldSigni":[["WXDi-P15-069#8901"],["SP27-007#8902"],null],"signiDown":[false,false,false],"hand":[],"trash":[],"energy":["WD02-009#8903",
 - v64DamageReplaceByCostPaysAndLosesAbility (17s)  — ダメージ置換タイムアウト（hLife=7 hHand=["WD01-013#900"] lrigGranted=undefined phase=ATTACK_SIGNI）
-- v51LeaveSubstitutePaysAndSurvives (11s)  — survived=true（期待true） / paid=false（期待true＝支払いログ確認） / hField=[["WX25-P2-059#9992"],null,null]
-- v55CheckZoneFlipGrowsAndOnPlayFires (6s)  — grew=false（期待true＝WXDi-P16-001Bへグロウ） / sawOnPlayLog=false（期待true＝【出】発火） / lrigTop=WD01-001#9960
 - wxdip09053GrantUpToTwo (26s)  — 付与未確認（candidates=["WD01-013#1","WD01-013#2"] shadowLogCount=0 pEff=-）
-- wx20re18DynamicLevelAttackBanish (20s)  — バニッシュ未確認（attacked=false gField=[null,null,["WX01-053#1"]] pEff=-）
-- v45cPaySelfBanishRemovesOnlyFiltered (17s)  — 未完了（pay=true attacked=true selfPaid=false declined=false pEff=SELECT_TARGET）
-- v45cSkipSelfBanishDoesNothing (17s)  — 未完了（pay=false attacked=true selfPaid=false declined=false pEff=SELECT_TARGET）
-- v16NonEichiAbilityDoesNotUpWatcher (18s)  — 未完了（attacked=true abilityLog=true down=[true,true,false] logs=["[自分] 凶魔　アオヒゲ の【自】効果（シグニアタック時）"]）
-- b54EnergySelfReviveOnlySelf (25s)  — 未完了（cast=true victim=true cands=["WD14-012#3802"] picked=true ena=["WD01-010#3811","WD01-013#3812","WD14-012#3802"] field=[null,null,null] pEff=SELECT_TARGET）
 - o56BurstAsCheckDoesNotEnterCheckZone (24s)  — 未完了（attacked=true hand=0 check=- trash=[]）
-- b41GrantKeywordTargetsOwnSigniOnly (20s)  — 到達できず（energyPicked=false paid=false sawPicker=false picked=false pEff=SELECT_TARGET candidates=["WX25-P3-059#54111","WD01-013#54112"] grants=[]）
 - b60UnderCardsSurvive (20s)  — 未完了＝この STUB に到達しない（logTail=["小悪の象徴　コオニを召喚","[自分] 舞踏の童話　グラシュ の【自】効果（他のシグニ召喚時）","このシグニを小悪の象徴　コオニの【アクセ】にしますか？"]）
 - b60UnderCardsTrashed (18s)  — 対照が未完了（stack=["WD01-013#91","WD01-014#91","WXDi-CP02-054#1"] logTail=["[自分] 天童アリス の【自】効果（シグニアタック時）"]）
 - b46KeyTrashOnlyControl (74s)  — 前提崩れ＝【起】を撃てていない（キーがルリグトラッシュへ行っていない）。labels=[] energy ["WX05-077#3","WX05-079#3","WD01-013#60"]→["WX05-077#3","WX05-079#3","WD01-013#60"] lrigTrash 0→0 trash=["WD05-012#9"]
-- o71HandToCheckZone (9s)  — 手札へ戻っていない（guestHand=4 checkRest=[] guestTrash=[]）
-- o245CoinKeySetBlocked (4s)  — 前提崩れ＝キーの「キーにセット」に到達できない（キーにセット,ピースを使用 action が3秒以内に描画されない）
-- o297GateZoneBanishFires (18s)  — バトルバニッシュ自体が未確認＝観測不能（hostField=[["WXDi-P16-074#9400"],["WD01-013#9402"],null] guestHand=2）
-- o297OtherZoneGateSilent (18s)  — バトルバニッシュ自体が未確認＝観測不能（hostField=[["WXDi-P16-074#9400"],["WD01-013#9402"],null] guestHand=2）
-- v172BattleBanishDoesNotFire (30s)  — 決着せず（hostField=[["WD21-017#1"],["WX15-046#1"],null] watcherGone=false placed=false attacked=true logs=["[あなた] シグニアタックフェイズ","羅星　≡センヤ≡（2000）vs 甲冑　ローメイル（13000）","羅星　≡センヤ≡はパワーが足りず、両方のシグニが
-- v171BanishedSigniDoesNotLower (95s)  — 決着せず（hostField=[["WX18-056#1"],["WD05-014#1"],null] attacked=false sacGone=false logs=["[あなた] シグニアタックフェイズ","堕落の砲女　サキュ（1000）vs 甲冑　ローメイル（13000）","堕落の砲女　サキュはパワーが足りず、両方のシグニが残る"]）
 

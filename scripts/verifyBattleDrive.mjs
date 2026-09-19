@@ -52775,7 +52775,12 @@ const o297Spec = (gateZone) => ({
     hand: ['WD01-013#9492', 'WD01-013#9493'],
     energy: [], trash: [], blocked_actions: [],
   },
-  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  // 🔴🆕2026-09-19＝**相手（CPU）のアタックフェイズから始める**＝**アタッカーはバトルでバニッシュされない**
+  //   （§4.4-118・`O-47` 撤回）ので、自分の victim（host zone1）をバトルで失わせるには**守る側**に回すしかない（§4.4-124）。
+  //   旧版は自分がアタックして負ける前提で、「両方残る」になり `victimLeft=false`＝観測不能のまま落ちていた。
+  //   ⚠guest の攻撃役は zone1 の1体だけ＝**必ず host zone1（victim）の正面**なので、狙った1体だけが倒れる。
+  //   ⚠guest の手札は MAIN を過ぎた地点から始めるので CPU の召喚では減らない（観測点＝【自】の「手札を1枚捨てる」）。
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
 });
 
 async function driveO297(page, H, o) {
@@ -52791,20 +52796,13 @@ async function driveO297(page, H, o) {
   const gHand0 = before?.guest?.hand ?? 0;
   H.log(`開始 hostField=${JSON.stringify(before?.host?.fieldSigni)} gateZones=${JSON.stringify(before?.host?.ownGateZones ?? '-')} guestHand=${gHand0}`);
   // §4.4-66＝観測点は sticky に持つ（後続の描画で消えても判定できるように）。
-  let victimLeft = false, discarded = false, modalOpened = false;
+  let victimLeft = false, discarded = false;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(800);
     let did = null;
-    const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
-    if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
-      await atkBtn.click().catch(() => {}); did = 'btn:アタック';
-    }
-    // §4.4-2c＝ゾーンの行動一覧はトグルなので、開いたら二度押さない。
-    if (!did && !modalOpened) {
-      const opened = await H.clickTestId('my-signi-zone-1');
-      if (opened) { did = opened; modalOpened = true; }
-    }
-    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    // 🔴アタックするのは CPU＝こちらは押さない（押すと自分の行動一覧を開いて対話を塞ぐ）。
+    //   ⚠CPU がライフを割ると確認（「エナに送る」）が出る＝押して進める（`driveO47Def` と同じ）。
+    if (!did) did = await H.clickTextOrBtn(['エナに送る', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
     const st = await H.queryState();
     if (!(st?.host?.fieldSigni?.[1] ?? [])?.includes?.(VICTIM)) victimLeft = true;
     if ((st?.guest?.hand ?? gHand0) < gHand0) discarded = true;
