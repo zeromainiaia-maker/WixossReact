@@ -33701,9 +33701,11 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
 //   **両方の完了地点から呼ぶ**形にした。ここはその配線を静的に固定するトリップワイヤ。
 test('O-131 アーツ使用トリガーは「スタック解決」と「対話解決」の両方から収集される', () => {
   // 🆕§5.7（2026-09-18）＝収集の実体は `controller/artsUseTriggers.ts` へ移設した。
-  //   **地点は2つのまま**＝①スタック解決（`stackResolve.ts`）②対話解決（`BattleScreen.handleEffectInteraction`）。
+  //   **地点は2つのまま**＝①スタック解決（`stackResolve.ts`）②対話解決（`handleEffectInteraction`）。
   //   ⚠数えるのは**呼び出しだけ**（定義は `const xxx = (p:` 形なので `xxx(` には当たらない）。
-  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // 🆕§5.7 `S-5d` 第1段（2026-09-19）＝**対話解決の本体は `controller/effectInteraction.ts` へ移設**した
+  //   （画面に残るのは1行のラッパだけ）。**地点の数は不変＝較正であって退化ではない。**
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/effectInteraction.ts'), 'utf8');
   const stackSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/stackResolve.ts'), 'utf8');
   const artsSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/artsUseTriggers.ts'), 'utf8');
   ok(/export function collectOppArtsUseForResolution/.test(artsSrc), '収集ヘルパが定義されている');
@@ -87927,6 +87929,57 @@ test('§5.3 O-536 E2E: 「２体まで対象とし」は1回だけ聞く（WXDi-
   const skipped = resumeOptionalCost('skip', [], d2.pending, ctxAfter(d2, ctx2));
   ok(skipped.done, 'skip で完了する'); if (!skipped.done) return;
   eq(fieldTops(skipped.otherState).slice().sort().join(','), [...bigs, small].sort().join(','), '払わなければ全員残る');
+}));
+
+
+// ── 第404バッチ（2026-09-19）＝§5.7 `S-5d` 第1段（対話の解決を画面から出す）──────────────
+test('§5.7 S-5d 第1段 対話の解決は移設先の7本（画面に本体を書き戻さない）', () => withSavedCursor(() => {
+  // 🆕2026-09-19＝`handleEffectInteraction` ほか7本（566行）を `controller/effectInteraction.ts` へ逐語で移設。
+  //   🔑**ヘッドレス（`S-5`）が「対話に答える」唯一の経路**＝画面に書き戻すと人間側とヘッドレス側で
+  //   二重になり、片方だけ直る型の退化（`S-5c` で何度も踏んだ形）を招く。
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const moved = fs.readFileSync(join(root, 'src/screens/battle/controller/effectInteraction.ts'), 'utf8');
+  ok(battle.includes('makeEffectInteractionHandlers(performCtx(), {'), '🔴画面のラッパが移設先へ委譲していない');
+  // 7本すべてが移設先に在り、画面には「1行のラッパ」しか残っていない。
+  for (const name of ['handleConfirmStackOrder', 'handleEffectInteraction', 'handleSelectZoneForEffect',
+    'handleSelectSigniZoneForEffect', 'handleAllocatePowerConfirm', 'handleRearrangeSigniConfirm',
+    'handleSelectVirusZoneForEffect']) {
+    ok(moved.includes(`const ${name} = async (`), `🔴${name} の本体が移設先に無い`);
+    ok(battle.includes(`effectInteractionHandlers().${name}(`), `🔴${name} のラッパが委譲していない`);
+    ok(!battle.includes(`const ${name} = async (`), `🔴${name} の本体が画面に書き戻されている`);
+  }
+  // 🔴resume 系の呼び出しは移設先だけ（画面から engine の resume を直接呼ばない）。
+  for (const resume of ['resumeSelectTarget(', 'resumeSearch(', 'resumeChoose(', 'resumeOptionalCost(',
+    'resumeOpponentPayOptional(', 'resumeLookAndReorder(', 'resumeSelectZone(', 'resumeSelectSigniZone(',
+    'resumeSelectVirusZone(', 'resumeRevealCards(', 'resumeRearrangeSigni(', 'resumeAllocatePower(']) {
+    ok(!battle.includes(resume), `🔴画面が ${resume} を直接呼んでいる（対話の経路が2本になる）`);
+    ok(moved.includes(resume), `🔴移設先に ${resume} が無い`);
+  }
+  // 🔴画面のモジュール直下にあった2本も一緒に移した（呼び出しはこの7本の中だけ＝実測）。
+  for (const fn of ['function finalizePendingSpellPlacement(', 'function nextRespondPatch(']) {
+    ok(moved.includes(fn), `🔴${fn} が移設先に無い`);
+    ok(!battle.includes(fn), `🔴${fn} が画面に書き戻されている`);
+  }
+  // 🔑**UI は4つだけ**＝これ以上持ち込むと画面から出せなくなる（モーダルの開閉・ref・React の state は入れない）。
+  const uiBlock = moved.slice(moved.indexOf('export interface EffectInteractionUi'));
+  const uiKeys = (uiBlock.slice(0, uiBlock.indexOf('\n}')).match(/^\s{2}\w+\??:/gm) ?? []).length;
+  eq(uiKeys, 5, '🔴EffectInteractionUi のキー数が変わった（増やす前に「それは対話解決の仕事か」を疑う）');
+}));
+
+test('§5.7 S-5d 第1段 ログの flush は `BattleIo` の口（ヘッドレスは no-op）', () => withSavedCursor(() => {
+  // 🔴`appendLogs({defer:true})` と対＝**画面だけが flush している**と、移設先はログを溜めたまま返す。
+  //   ⚠`BattleIo` を増やすのはここが最後になるよう、理由をこの見張りに書いておく。
+  const io = fs.readFileSync(join(root, 'src/screens/battle/controller/battleIo.ts'), 'utf8');
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const moved = fs.readFileSync(join(root, 'src/screens/battle/controller/effectInteraction.ts'), 'utf8');
+  ok(/flushLogs: \(\) => Promise<void>;/.test(io), '🔴BattleIo に flushLogs が無い');
+  ok(/flushLogs: async \(\) => \{\},/.test(io), '🔴ヘッドレス I/O が flushLogs を持っていない（同じ関数が落ちる）');
+  ok(battle.includes('flushLogs: flushBattleLogs,'), '🔴画面の I/O が flushLogs を渡していない');
+  ok(moved.includes('const flushBattleLogs = c.io.flushLogs;'), '🔴移設先が I/O 経由で flush していない');
+  // 口は4つ（commit / appendLogs / flushLogs / setLoading）＝増えたら「それは実行関数の仕事か」を疑う。
+  const ifaceBlock = io.slice(io.indexOf('export interface BattleIo'));
+  eq((ifaceBlock.slice(0, ifaceBlock.indexOf('\n}')).match(/^\s{2}\w+:/gm) ?? []).length, 4,
+    '🔴BattleIo の口が4つでない（増やすほど画面から出せなくなる）');
 }));
 
 if (listMode) {

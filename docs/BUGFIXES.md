@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19（第404バッチ）§5.7 `S-5d` 第1段＝**対話の解決（`pending_effect` の resume）7本を画面から出した**（リファクタ・挙動不変）
+
+- 🔴**なぜ最初にここか**＝`createHeadlessBattle` は「対話が立ったら止まる＝**答えるのは呼び出し側の仕事**」と
+  決めてあるのに、**その「答える」7本（計566行）が `BattleScreen` にしか無かった**＝ヘッドレスでは
+  **どちら側の対話にも答えられない**（`S-5d` の「人間側ターンの駆動」も CPU 同士の自己対戦も、ここを通らないと1歩も進まない）。
+- **移設**＝`controller/effectInteraction.ts`（`makeEffectInteractionHandlers`）。
+  `handleConfirmStackOrder` / `handleEffectInteraction`（299行）/ `handleSelectZoneForEffect` /
+  `handleSelectSigniZoneForEffect` / `handleAllocatePowerConfirm` / `handleRearrangeSigniConfirm` /
+  `handleSelectVirusZoneForEffect`。**本体は逐語**（元コードとの機械照合で「原文がそのまま含まれる」ことを確認）。
+  🔑**7本まとめて1つの factory にした**＝個別 export にすると全部へ材料を配り直すことになり**逐語でなくなる**。
+- **一緒に移したもの**＝画面のモジュール直下にあった `finalizePendingSpellPlacement` / `nextRespondPatch` と、
+  薄いラッパ4本（`collectTargetedTriggers` / `collectTrapActivateTriggers` / `collectArtsUseForResolution` /
+  `collectOppArtsUseForResolution`）。**どれも呼び出しがこの7本の中だけ**だった（typecheck の未使用検出で確認）。
+- **`BattleIo` に `flushLogs` を追加**（4つ目の口）＝`appendLogs({defer:true})` と**対**。
+  🔴画面だけが flush していると、移設先はログを溜めたまま返る。ヘッドレスは `defer` でも即座に配列へ積むので **no-op**。
+- **画面だけが渡すもの＝4つ**（`loading` ／ `lookReorderTrash` ／ `lookReorderBottom` ／
+  `setEffectSelectedNums`・`setRearrangeSlots`）。モーダルの開閉・ref・React の state は入れない。
+- **BattleScreen 7,644 → 7,028行**（−616）。
+- **golden**＝`O-131`（アーツ使用トリガーの**呼び出し地点を数える**見張り）が `BattleScreen.tsx` しか読んでいなかったので
+  移設先を読むよう**較正**（**地点の数は2つのまま＝退化ではない**）。🆕見張り2本を新設＝
+  ①`§5.7 S-5d 第1段`（7本すべてが移設先に在り、画面は1行のラッパだけ／engine の `resume*` を画面から直接呼ばない／
+  `EffectInteractionUi` のキー数）②`§5.7 S-5d 第1段 ログの flush`（`BattleIo` の口は4つ・ヘッドレス側にも `flushLogs` が在る）。
+- **検証**＝`npm run gates` 全緑（golden **4326**＝+2）。
+  実機＝**対話7本の型をすべて踏む16本を1回の実行で ALL PASS**＝`o140AllocatePower`（割り振り）／
+  `lookReorderCanTrash`・`o51ReorderRemainder`（並べ替え）／`effectPlacedOnPlayZoneSelect`・`craftTokenPlace`（ゾーン選択2種）／
+  `meltFactVirusRemoval`（ウィルス）／`crossIconBouncePicker`・`centerZoneOnlyPicker`（対象選択）／
+  `lxivMultiTarget*`・`handDiscard*`・`underCost*`（選択肢＋任意コスト）。
+  ＋**CPU 通し対戦 PASS**（8ターン / 182手で決着）＝**CPU の自動応答**（`pickCpu*` → 移設した `handleEffectInteraction`）も踏んだ。
+- ⚠**計器の読み方**＝`census:deadstate` の `hand` の**読み回数が 1999 → 2016** に動いたが**退化ではない**。
+  `classify()` は `line.indexOf('hand')` の**部分一致**で数えるので **`handleEffectInteraction` のような識別子も
+  「`hand` の読み」に化ける**＝ハンドラ名が2ファイルに出るようになった分がそのまま乗っただけ。
+  **dead キーの一覧（本来の信号）と書き込み回数は不変**／golden のラチェット（6件）も緑。
+
 ## 2026-09-19（第403バッチ）§5.3 `O-536` クローズ＝「N体まで対象とし…それら」の帰結から「まで」を落とす（14効果 / 14カード）
 
 - 🔴**真因**＝parser が対象宣言の `upToCount`（「N体**まで**」）を**帰結側にもコピー**していた。

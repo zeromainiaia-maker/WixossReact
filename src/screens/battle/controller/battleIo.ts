@@ -19,6 +19,12 @@ export interface BattleIo {
   commit: BattlePersist['commit'];
   /** 対戦ログを積む。 */
   appendLogs: (lines: string[], opts?: { defer?: boolean }) => void;
+  /**
+   * `appendLogs({defer:true})` で溜めた分を書き出す。
+   * 🔑**`appendLogs` の `defer` と対の口**なので別々に数えない（口は「ログ」で1つ）。
+   * ⚠ヘッドレスは `defer` でも即座に配列へ積むので **no-op**。
+   */
+  flushLogs: () => Promise<void>;
   /** 画面の操作ロック（ヘッドレスでは no-op）。 */
   setLoading: (v: boolean) => void;
 }
@@ -31,6 +37,7 @@ export function createHeadlessIo(persist: BattlePersist): { io: BattleIo; logs: 
     io: {
       commit: (patch: Partial<BattleStateRow>) => persist.commit(patch),
       appendLogs: (lines) => { logs.push(...lines); },
+      flushLogs: async () => {},
       setLoading: () => {},
     },
   };
