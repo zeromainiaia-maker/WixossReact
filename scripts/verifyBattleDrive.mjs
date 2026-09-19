@@ -30185,7 +30185,11 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
   title: 'WX20-Re18-E2（動的レベル＝エナ10枚で実効Lv4→アタック時に正面シグニをバニッシュ）',
   spec: {
     hostSet: {
-      'field.lrig': ['WD03-003#1'],
+      // 🔴2026-09-19＝**センタールリグは Lv4 にする**。このシナリオの主題は「エナ10枚で**実効 Lv4** になる」ことなので、
+      //   旧版の WD03-003（**Lv2**・リミット5）だと §5.3 `O-532`／`O-534`（配置レベル制限がルール処理になった）以後は
+      //   **注入直後にアカズキン自身がルール処理で場から消える**（`hField=[null,null,null]`＝アタックに永久に到達しない）。
+      //   ⚠つまり「動的レベルが効いている」こと自体が前提を壊していた＝Lv4・リミット11 のルリグへ。
+      'field.lrig': ['WD01-001#1'],
       'field.signi': [['WX20-Re18#1'], null, null],
       'field.signi_down': [false, false, false],
       'energy': Array.from({ length: 10 }, (_, i) => `WD05-009#${i + 1}`),
@@ -30209,18 +30213,17 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
       await page.screenshot({ path: `${SHOT}/wx20re18DynamicLevelAttackBanish-${s}.png`, fullPage: true });
       let did = null;
       if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+      // ⚠🆕2026-09-19＝**アタックは `o321AttackSigni` と同じ綴りで押す**＝
+      //   `getByRole('button',{name:'アタック',exact:true})` はアクセシブル名が完全一致しないと0件になり、
+      //   ゾーンをトグルし続けるだけで20周空振りする（§4.4-2／§4.4-2c）。
       if (!did && !attacked) {
-        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
-        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        if (await o321AttackSigni(page, H, 0)) { did = 'action:アタック'; attacked = true; }
       }
-      if (!did && !attacked) {
-        const opened = await H.clickTestId('my-signi-zone-0');
-        if (opened) did = opened;
-      }
-      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'エナに送る']);
+      // ⚠E2 の BANISH は `frontOfSelf` で正面1体に絞られていても**対象選択の対話は出る**（`O-535`）＝pick→決定 で進める。
+      if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'エナに送る']);
       const st = await H.queryState();
       const gCnt = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
-      H.log(`  v24cxvii[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} pEff=${st?.pendingEffect ?? '-'}`);
+      H.log(`  v24cxvii[${s}] -> ${did ?? 'なし'} | attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} pEff=${st?.pendingEffect ?? '-'}`);
       if (attacked && gCnt === 0) {
         return { pass: true, detail: `実効Lv4（印字Lv2＋エナ10枚/5=+2）でアタック→P15000のWX01-053（バトルでは負けない強さ）が無条件でバニッシュされた＝E2の条件付き効果が寄与（gField 1→0・gTrash ${before?.guest?.trash}→${st?.guest?.trash}）` };
       }
@@ -33801,7 +33804,11 @@ async function driveV16Eichi(page, H, id, { expectUp }) {
         await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
       }
     }
-    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    // ⚠🆕2026-09-19＝対照側の `凶魔　アオヒゲ` は**「トラッシュに置く／置かない」の CHOOSE を出す**
+    //   （デッキ2枚を落とすかどうかの任意）。旧版のラベル一覧に無くて 26周まるごと CHOOSE のまま止まっていた。
+    //   ⇒ **効果を最後まで走らせる側（トラッシュに置く）を押す**（本題は watcher が起きないことなので、
+    //   どちらでも成立するが「能力が実際に解決した」ところまで見るほうが判別力が高い）。
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない', 'トラッシュに置く']);
     const st = await H.queryState();
     // 🔑**「AUTO 能力が1つ発動した」ことを両シナリオで必須にする**＝これが無いと対照側は
     //   「アタックすら通っていない」だけで緑になる（§4.4 の3・4）。
@@ -57455,8 +57462,17 @@ const V171_TARGET   = 'WD03-009#1';   // コードアート　Ｒ・Ｍ・Ｎ（
 const V171_ARTS     = 'WX02-020#1';   // ブラッディ・スラッシュ（《黒》×2・アタックフェイズ可）
 const V171_ENERGY   = ['WD05-010#7101', 'WD05-011#7102'];  // 黒2枚（アーツの《黒》×2）
 
-/** V-171 の盤面（①②で完全に同一＝反転させるのは「離場の行き先」だけ）。 */
-const v171Spec = () => ({
+/**
+ * V-171 の盤面（①②で完全に同一＝反転させるのは「離場の行き先」だけ）。
+ * 🔴🆕2026-09-19＝②は **「自分のシグニをバニッシュする」効果をスタックへ注入**して作る。
+ *   旧版は**サキュでアタックして正面の P12000 に負ける**形だったが、**アタッカーはバトルでバニッシュされない**
+ *   （§4.4-118・`O-47` 撤回）ので「両方残る」になり 96秒まるごと空振りしていた。
+ *   ⚠**守る側に回す（§4.4-124）では代用できない**＝それは**相手のアタックフェイズ**になり、
+ *   本題の履歴（`signi_left_field_*_this_attack_phase`）が**別のアタックフェイズ**の話になって
+ *   ①②どちらでも -7000 が乗らなくなる＝**対照の判別力が消える**。
+ *   ⇒ **同じアタックフェイズ内でエナ行きのバニッシュを起こす**（`BANISH` の既定の行き先はエナ＝§4.4-8f）。
+ */
+const v171Spec = (selfBanishStack = false) => ({
   hostSet: {
     'field.lrig': ['WD05-001#1'],
     // zone0＝シガラヤキ（アタッカー）／zone1＝サキュ（場を離れる役）
@@ -57485,7 +57501,23 @@ const v171Spec = () => ({
   //   「使用」が出ない（撃てないので提示されない）。`signi_left_field_to_trash_this_attack_phase` の
   //   記録条件は `['ATTACK_ARTS','ATTACK_ARTS_OP','ATTACK_SIGNI','ATTACK_LRIG']` なので
   //   **アーツ段で置いたトラッシュもちゃんと履歴に載る**（＝同じアタックフェイズ内）。
-  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  top: {
+    active: 'host', turn_phase: selfBanishStack ? 'ATTACK_SIGNI' : 'ATTACK_ARTS', turn_count: 2,
+    ...(selfBanishStack ? {
+      effectStack: {
+        turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+        queue: [{
+          id: 'v171-self-banish', playerId: null, cardNum: V171_ATTACKER, effectId: 'v171-self-banish',
+          label: '自分のシグニ1体をバニッシュ（注入）',
+          effect: {
+            effectId: 'v171-self-banish', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+            action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } },
+            duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+          },
+        }],
+      },
+    } : {}),
+  },
 });
 
 /** guest の powerMods に -7000 が乗ったか。 */
@@ -57575,12 +57607,8 @@ async function v171Drive(page, H, tag, viaTrash) {
       }
     }
 
-    // ── ② サキュ（zone1）でアタック＝正面の P12000 に負けてバニッシュ（＝エナ行き）──
-    if (!viaTrash && !sacGone && !did) {
-      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック(サキュ)'; }
-      else did = await H.clickTestId('my-signi-zone-1');
-    }
+    // ── ② サキュは**注入した「自分のシグニ1体をバニッシュ」**で場を離れる（＝エナ行き）。
+    //   下の共通ハンドラが `clickPendingInstance(V171_SAC)` で対象に選ぶので、ここでは何も押さない。
 
     // ── 共通：サキュが居なくなったらシガラヤキ（zone0）でアタック ──
     if (sacGone && !attacked && !did) {
@@ -57649,10 +57677,10 @@ scenarios.v171TrashedSigniLowersPower = {
 };
 
 scenarios.v171BanishedSigniDoesNotLower = {
-  // 🔴**対照**＝盤面は1文字も変えず、離場の**行き先だけ**をトラッシュ→エナ（バトルバニッシュ）に反転する。
+  // 🔴**対照**＝場のカードは1枚も変えず、離場の**行き先だけ**をトラッシュ→エナ（バニッシュ）に反転する。
   //   🔑旧実装はどちらでも -7000 が乗る＝この対でしか新旧を弁別できない。
   title: 'V-171(2): 対照＝バニッシュ（エナ行き）では -7000 しない【旧実装は乗っていた】',
-  spec: v171Spec(),
+  spec: v171Spec(true),
   async drive(page, H) { return v171Drive(page, H, 'v171Banish', false); },
 };
 
@@ -57686,8 +57714,13 @@ const V172_LRIG     = 'WX07-007#1';   // 博愛の使者　サシェ・モティ
 const V172_VICTIM   = 'WD05-014#1';   // 堕落の砲女　サキュ（P1000）＝パワー3000以下＝バニッシュされる側
 const V172_WALL     = 'WD01-009#1';   // 甲冑　ローメイル（P12000）＝②でセンヤをバトルバニッシュさせる壁
 
-/** V-172 の盤面（①②で完全に同一＝反転させるのは「場を離れた原因」だけ）。 */
-const v172Spec = () => ({
+/**
+ * V-172 の盤面（①②で完全に同一＝反転させるのは「場を離れた原因」だけ）。
+ * 🔴🆕2026-09-19＝②（バトルバニッシュ）だけ **`top` を「CPU のアタックフェイズ」**にする＝
+ *   **アタッカーはバトルでバニッシュされない**（§4.4-118・`O-47` 撤回）ので、センヤを「バトルで場から離す」には
+ *   **相手に殴らせる**しかない（§4.4-124）。⚠**場のカードは1枚も変えていない**（反転は依然「場を離れた原因」だけ）。
+ */
+const v172Spec = (cpuAttacks = false) => ({
   hostSet: {
     'field.lrig': [V172_LRIG],
     // zone0＝センヤ（観測対象）／zone1＝アンタレス（もう1体の材料）
@@ -57708,7 +57741,7 @@ const v172Spec = () => ({
     'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
     'field.free_zone': [], 'field.beat_zone': [],
   },
-  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  top: { active: cpuAttacks ? 'cpu' : 'host', turn_phase: cpuAttacks ? 'ATTACK_SIGNI' : 'MAIN', turn_count: 2 },
 });
 
 async function v172Drive(page, H, tag, viaResona) {
@@ -57755,19 +57788,13 @@ async function v172Drive(page, H, tag, viaResona) {
         }
       }
     } else {
-      // ②アタックフェイズへ送ってセンヤ（zone0）でアタック＝正面 P12000 に負けてバニッシュ
+      // 🔴🆕2026-09-19＝②は**相手（CPU）のアタック**でセンヤを倒させる（§4.4-118／124）。
+      //   旧版は自分でアタックして負ける前提だったが、**アタッカーはバトルでバニッシュされない**ので
+      //   「両方残る」になり30周空振りしていた（ログ＝「パワーが足りず、両方のシグニが残る」）。
+      //   ⇒ ここでは何も押さず、CPU の解決（と下の汎用ハンドラ）に任せる。
+      //   機構の証拠＝**CPU の壁（guest zone2＝センヤの正面）がダウンした**こと。
       const stPh = await H.queryState();
-      if (!watcherGone && stPh?.turnPhase !== 'ATTACK_SIGNI' && !stPh?.pendingEffect && !(stPh?.stackLen > 0)) {
-        await H.closeModals();
-        await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
-        await page.waitForTimeout(600);
-        did = `repatch:ATTACK_SIGNI(was ${stPh?.turnPhase})`;
-      }
-      if (!did && !attacked) {
-        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-        if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
-        else did = await H.clickTestId('my-signi-zone-0');
-      }
+      if ((stPh?.guest?.signiDown ?? [])[2] === true) attacked = true;
     }
 
     if (!did) {
@@ -57789,7 +57816,8 @@ async function v172Drive(page, H, tag, viaResona) {
         }
       }
     }
-    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', 'このまま進む']);
+    // ⚠CPU が空きゾーンへ殴るとライフクラッシュの確認が出る＝「エナに送る」を押して進める（`driveO47Def` と同じ）。
+    if (!did) did = await H.clickTextOrBtn(['エナに送る', '発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', 'このまま進む']);
     if (!did) did = await H.stdStep();
 
     const st = await H.queryState();
@@ -57827,9 +57855,10 @@ scenarios.v172ResonaConditionFires = {
 };
 
 scenarios.v172BattleBanishDoesNotFire = {
-  // 🔴**対照**＝盤面は1文字も変えず、場を離れた**原因だけ**をレゾナ出現条件→バトルバニッシュに反転する。
+  // 🔴**対照**＝場のカードは1枚も変えず、場を離れた**原因だけ**をレゾナ出現条件→バトルバニッシュに反転する
+  //   （アタッカーはバトルでバニッシュされないので、相手に殴らせる＝`top` だけが違う）。
   title: 'V-172(2): 対照＝バトルバニッシュ（効果でもレゾナ出現条件でもない）では発火しない',
-  spec: v172Spec(),
+  spec: v172Spec(true),
   async drive(page, H) { return v172Drive(page, H, 'v172Battle', false); },
 };
 

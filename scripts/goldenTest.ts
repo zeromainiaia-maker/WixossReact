@@ -59670,6 +59670,24 @@ test('§5.3 付与ストア: byOwnEffect つき ON_ENERGY_CHARGE（SPDi43-13-sub
   eq(has(collectEnergyAddedSelfTriggers(trigCtx(HOST), moved, HOST, undefined, mkState({ lrig: ['SPDi43-13'] }), mkState()).entries, 'SPDi43-13-sub-E1'), false, '付与前は非発火');
 }));
 
+// 🔴2026-09-19＝**動的レベル（`DYNAMIC_LEVEL_BY_ENERGY`）が `SELF_LEVEL_THRESHOLD` に一度も届いていなかった**回帰止め。
+//   `calcSigniLevels` は **instanceId**（`WX20-Re18#1`）でキーを張るのに、`evalCondition` は
+//   `getCardNum()` で **素のカード番号**へ落として引いていた＝必ず miss →「印字レベル」へフォールバック。
+//   ⚠**この盤面ビルダーは既定で instanceId＝素の番号**なので、`#` 付きの id を明示しないと再現しない
+//   （＝だから golden が緑のままだった）。`InstanceMap` で `#` を解決する本番と同じ形にして引く。
+test('§5.3 SELF_LEVEL_THRESHOLD: 動的レベルは instanceId で引く（WX20-Re18＝印字Lv2・エナ5枚につき+1）', () => withSavedCursor(() => {
+  const ATK = 'WX20-Re18#1';
+  const cm = new InstanceMap<CardData>(cardMap);
+  const em = new InstanceMap<CardEffect[]>(effectsMap);
+  const cond = effectsMap.get('WX20-Re18')?.find(e => e.effectId === 'WX20-Re18-E2')?.condition;
+  eq(cond?.type, 'SELF_LEVEL_THRESHOLD', '前提: WX20-Re18-E2 は SELF_LEVEL_THRESHOLD');
+  const mk = (energy: number) => mkState({ lrig: ['WD01-001'], signi: [ATK, null, null], energy });
+  const op = mkState();
+  eq(evalUseCondition(cond!, mk(10), op, cm, ATK, 'ATTACK_SIGNI', undefined, em), true, 'エナ10枚＝実効Lv4 で成立');
+  eq(evalUseCondition(cond!, mk(5), op, cm, ATK, 'ATTACK_SIGNI', undefined, em), false, 'エナ5枚＝実効Lv3 で不成立');
+  eq(evalUseCondition(cond!, mk(0), op, cm, ATK, 'ATTACK_SIGNI', undefined, em), false, 'エナ0枚＝印字Lv2 で不成立');
+}));
+
 test('段2 第42バッチ E2E-B: 4コレクタとトラッシュ自己復帰が causeOwnerId を評価', () => {
   const empty = mkState();
 

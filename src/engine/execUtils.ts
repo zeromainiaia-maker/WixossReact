@@ -3523,9 +3523,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'SELF_LEVEL_THRESHOLD': {
       const srcLv = ctx.sourceCardNum;
       if (!srcLv) return false;
-      const lv = (ctx.effectsMap
-        ? calcSigniLevels(ctx.ownerState, ctx.otherState, ctx.effectsMap, ctx.cardMap).get(getCardNum(srcLv))
-        : undefined) ?? parseInt(ctx.cardMap.get(getCardNum(srcLv))?.Level ?? '', 10);
+      // 🔴2026-09-19＝**`calcSigniLevels` は instanceId（`WX20-Re18#1`）でキーを張る**（場のスタックの先頭をそのまま使う）。
+      //   旧実装は `getCardNum(srcLv)`＝**素のカード番号**で引いていたので**必ず miss** し、
+      //   `??` の右側＝**印字レベル**へ落ちていた＝`DYNAMIC_LEVEL_BY_ENERGY` 等の動的レベルが**一度も効かなかった**。
+      //   実例＝`WX20-Re18`（幻獣　アカズキン）は印字 Lv2・エナ5枚につき+1 で、閾値4の【自】が**恒久 no-op**
+      //   （実機 `wx20re18DynamicLevelAttackBanish` が恒久 FAIL だった真因）。
+      //   ⚠**返り値の Map は素の `Map`**（`InstanceMap` ではない）＝`#` を落とすと引けない。
+      //   ⚠`effectEngine.ts` 側の同名 case は `effectiveLevels?.get(sourceCardNum)`＝instanceId で引いていて正しい＝**両者を揃える**。
+      const lvMap = ctx.effectsMap
+        ? calcSigniLevels(ctx.ownerState, ctx.otherState, ctx.effectsMap, ctx.cardMap)
+        : undefined;
+      const lv = lvMap?.get(srcLv) ?? lvMap?.get(getCardNum(srcLv))
+        ?? parseInt(ctx.cardMap.get(getCardNum(srcLv))?.Level ?? '', 10);
       if (isNaN(lv)) return false;
       return cmp(lv, cond.operator, cond.value);
     }
