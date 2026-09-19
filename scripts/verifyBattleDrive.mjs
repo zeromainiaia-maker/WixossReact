@@ -38060,9 +38060,15 @@ const b60UnderDrive = (tag) => async (page, H) => {
       await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
     }
     if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
-    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+    // ⚠🆕2026-09-19＝**「いいえ」を「はい」より先に置く**＝この STUB の問い（「…の【アクセ】にしますか？」）で
+    //   「はい」を押すと効果元が場を離れて**下のカードの行き先ごと観測が壊れる**。見たいのは
+    //   「この STUB に到達して、かつ下のカードが落ちないこと」なので**辞退で十分**。
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'しない', 'いいえ', 'スキップ', 'はい']);
     last = await H.queryState();
-    fired ||= (last?.logTail ?? []).some(l => l.includes('LRIG_UNDER_CARD_OP'));
+    // 🔴🆕2026-09-19＝**到達の判定を生の STUB id で見ない**＝`census:stubs` C群/F群 の整備で
+    //   ログ・ラベルから**英語の id が消えて日本語の問いになった**（`LRIG_UNDER_CARD_OP` はもう出ない）＝
+    //   `fired` が永久に false で22周空振りしていた。⇒ **実際に出る問いの骨格**で見る。
+    fired ||= (last?.logTail ?? []).some(l => /【アクセ】にしますか/.test(l) || l.includes('LRIG_UNDER_CARD_OP'));
     const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
     H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} fired=${fired} logTail=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
     if (fired && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
@@ -38123,15 +38129,21 @@ scenarios.b60UnderCardsTrashed = {
         const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
         if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
       }
+      // 🔴🆕2026-09-19＝**`決定 (1/` が出ていない間だけ pick-0 を押す**（§4.4-2c）＝
+      //   旧版は毎ティック無条件に押していたので**選択がトグルで外れ続け**、20周 `SELECT_TARGET` のまま
+      //   確定に一度も到達しなかった（`pick-0` が毎回 `did` を埋めるので `stdStep` にも落ちない）。
       if (!did) {
         const pick0 = page.getByTestId('pick-0').first();
-        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!ready) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+        }
       }
-      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      if (!did) did = await H.stdStep(['発動', '確定', '決定', 'OK', 'はい']);
       last = await H.queryState();
       const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
       const trashed = (last?.logTail ?? []).some(l => l.includes('シグニ下') && l.includes('トラッシュ'));
-      H.log(`  b60UnderNg[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} logTail=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
+      H.log(`  b60UnderNg[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} pEff=${last?.pendingEffect ?? '-'} cands=${JSON.stringify(last?.pendingCandidates)} logTail=${JSON.stringify((last?.logTail ?? []).slice(-5))}`);
       if (trashed) {
         return stack.length === 1
           ? { pass: true, detail: `対照：ペイロード trash_all_under_self を持つ札では下の2枚が落ちる（stack=${JSON.stringify(stack)} trash=${last?.host?.trash}）` }
