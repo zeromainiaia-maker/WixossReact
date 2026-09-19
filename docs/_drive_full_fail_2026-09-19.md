@@ -4,7 +4,9 @@
 ＝今回の変更とは無関係に、以前から全件実行で落ちていた（全件を回す運用が無く、見えていなかった）。
 ⚠`cpuAckWriteLostStillEnds` は決着でルームを消すシナリオ＝単独で回す（§4.4-115）ので除外。
 
-## A 撤回済みの相打ち（O-47）前提＝シナリオが古い（12本）
+> 🏁**2026-09-19＝A・B の17本を解消**（BUGFIXES 同日の項）。残り＝**C の68本**。
+
+## 🏁A 撤回済みの相打ち（O-47）前提＝シナリオが古い（12本・2026-09-19 解消）
 
 - o47AttackerLosesIsBanished (4s)  — 負け＝アタッカー(P3000)が場を離れた=false／エナゾーンへ=false／防御側(P15000)は残存=true（host場=[null,["WD01-013#4702"],null] guest場=[null,["WX01-053#4701"],null]）
 - o47TieBanishesBoth (4s)  — 相打ち＝アタッカーが離場=false／防御側も離場=true（host場=[null,["WD01-013#4703"],null] guest場=[null,null,null]・host energy=[] guest energy=["WD01-013#4704"]）
@@ -19,7 +21,7 @@
 - b62AcceBanishDraws (21s)  — 前提崩れ＝アタッカーがバトルで失われていない（hZone0=["WD01-013#1"]）
 - b62AcceBanishNoAcce (21s)  — 前提崩れ＝アタッカーがバトルで失われていない（hZone0=["WD01-013#1"]）
 
-## B 任意選択の辞退が「スキップ」だけになった（5c8ae247c）＝シナリオが古い（5本）
+## 🏁B 任意選択の辞退が「スキップ」だけになった（5c8ae247c）＝シナリオが古い（5本・2026-09-19 解消）
 
 - targetDeclOpponentOnlyCandidates (6s)  — owner候補は正しいが0体確定ボタンを押せない（candidates=["WD01-012#4692","WD01-013#4693","WD01-014#4694"]）
 - targetDeclUpToTwoAllowsZero (5s)  — 「決定 (0/2)」がenabledでなく0体確定できない

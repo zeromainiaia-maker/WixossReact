@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19 実機シナリオの既存 FAIL のうち A・B の17本を解消（シナリオが古くなっていた）
+
+- **A 撤回済みの相打ち前提（12本）**＝自分がアタックして負け、アタッカーが倒れる前提だった（第388バッチで撤回）。
+  ①`o47AttackerLosesIsBanished`／`o47TieBanishesBoth`＝撤回された挙動そのものを確かめていた → **削除**し、正しいルール「格下でアタックしても両方残る」の `o47AttackerLosesBothRemain` を追加（同値は `battleequalpower`）。
+  ②`o49`×5／`o58ArtemisAttackerBanish`／`b62AcceBanish`×2 → **守る側で負ける形**（相手＝CPU がアタック）へ。倒れる側（自分）と判定はそのまま（`o47DefSpec`／`driveO47Def`・§4.4-124）。
+  ③`o58GustavAttackerBanishOnce`＝同ターン2回目は守る側で再現できない（1回目の後に CPU のターンが進む）→ **1回目（場に残り能力を失う）だけ**。能力の喪失は「ターン終了時まで」＝ログで判定（§4.4-123）。
+  ④`o58OpponentTurnOnlyDoesNotProtectAttacker`（自分のターンには守られない）＝自分のターンにバトルで倒れることがもう起きない → 正方向 **`o58BaguetteProtectsOnOpponentTurn`**（相手のターンに代わりにアクセをトラッシュして残る）へ差し替え。
+- **B 古い操作（5本）**
+  ①`targetDeclOpponentOnlyCandidates`／`targetDeclUpToTwoAllowsZero`／`v227OptionalDownSkip`＝「決定 (0/N)」→ **「スキップ」**（`5c8ae247c` 以後、任意の対象選択の辞退はスキップだけ・§4.4-122）。
+  ②`targetDeclPowerCapUsesEffectivePower`＝候補0でも後段の任意コストが出る旧挙動を待っていた → **対象を取れない効果は何もしない**（ルールどおり）も完了として扱う。
+  ③`b34ZeroPickAllowedWhenUpTo`＝トウタク（WX20-037）は**ライズ**＝§5.6 `C-6` 以後は空の場から召喚できない → 場に置いて【出】をスタックへ直接積む（`liveEffect()` で live の JSON を読む）。
+- ⚠`o49AttackerBanishRedirectToTrash` がバッチ中に1回だけ FAIL（単独・組・再バッチでは PASS）＝再現せず。
+- **検証**＝17本を1回の実行で PASS（Gustav は修正後に4回連続 PASS）。ハーネスだけの変更（`src/` は無変更）。残り＝**C の68本**（`_drive_full_fail_2026-09-19.md`）。
+
 ## 2026-09-19 実機ハーネスの土台を固定値にして全件実行＝今回の変更で壊れた2本を修正／既存 FAIL 85本を可視化
 
 - **土台を固定値に**（§4.4-120 ③の続き・ユーザー決定）＝シナリオが指定しない物理配置は毎回

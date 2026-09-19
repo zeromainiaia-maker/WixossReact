@@ -15097,8 +15097,9 @@ scenarios.targetDeclOpponentOnlyCandidates = {
     if (!sameInstanceSet(cands, AKINO_TARGET_GUEST) || cands.includes(AKINO_TARGET_SELF)) {
       return { pass: false, detail: `【owner回帰】候補=${JSON.stringify(cands)}（期待＝guest 3体のみ ${JSON.stringify(AKINO_TARGET_GUEST)}／self ${AKINO_TARGET_SELF} は不在）` };
     }
-    const zero = await clickExactVisibleText(page, '決定 (0/2)');
-    if (!zero) return { pass: false, detail: `owner候補は正しいが0体確定ボタンを押せない（candidates=${JSON.stringify(cands)}）` };
+    // ⚠2026-09-19（§4.4-122）＝任意の対象選択の辞退は「スキップ」だけ（`5c8ae247c`＝「決定 (0/N)」は押せない）。
+    const zero = await clickExactVisibleText(page, 'スキップ');
+    if (!zero) return { pass: false, detail: `owner候補は正しいが辞退（スキップ）を押せない（candidates=${JSON.stringify(cands)}）` };
     const done = await settleAkinoAfterZero(page, H, 'tdoc', { payGuard: false });
     return {
       pass: done.pass,
@@ -15169,7 +15170,8 @@ scenarios.targetDeclUpToTwoAllowsZero = {
     if (!sameInstanceSet(opened.st.pendingCandidates, AKINO_TARGET_GUEST)) {
       return { pass: false, detail: `0体対照の候補前提不一致=${JSON.stringify(opened.st.pendingCandidates)}` };
     }
-    if (!(await clickExactVisibleText(page, '決定 (0/2)'))) return { pass: false, detail: '「決定 (0/2)」がenabledでなく0体確定できない' };
+    // ⚠2026-09-19（§4.4-122）＝任意の対象選択の辞退は「スキップ」だけ（`5c8ae247c`＝「決定 (0/N)」は押せない）。
+    if (!(await clickExactVisibleText(page, 'スキップ'))) return { pass: false, detail: '辞退（スキップ）を押せない' };
     const done = await settleAkinoAfterZero(page, H, 'td0', { payGuard: true });
     if (!done.pass) return { pass: false, detail: `0体確定後の完走タイムアウト（prompted=${done.prompted} pay=${done.payClicked} guard=${done.guardPicked}/${done.guardConfirmed} gField=${JSON.stringify(done.st?.guest?.fieldSigni)}）` };
     const guardMoved = done.st.host.trashCards.includes(AKINO_GUARD) && !done.st.host.handCards.includes(AKINO_GUARD);
@@ -15283,7 +15285,10 @@ scenarios.targetDeclPowerCapUsesEffectivePower = {
       if (!did) did = await H.clickBtn('エナに送る', { exact: true });
       const st = await H.queryState();
       last = st;
-      const settled = sawPostTargetChoose && skipped && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      // 🆕2026-09-19＝**対象を取れない効果は何もしない**（ルールどおり）＝候補0なら後段の任意コストは出ない。
+      //   旧版は「候補0でも後段の OPTIONAL_TRASH_SELF が出る」旧挙動を待ち、全件実行で恒久 FAIL していた。
+      const aborted = (st?.logTail ?? []).some(l => l.includes('対象を取れない'));
+      const settled = (aborted || (sawPostTargetChoose && skipped)) && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
         && st?.host?.pendingSigniBattle == null
         && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
       H.log(`  tdpe[${s}] -> ${did ?? 'なし'} | mod=${modSeen} postTargetChoose=${sawPostTargetChoose} skipped=${skipped} candidates=${JSON.stringify(st?.pendingCandidates)} gPmods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
@@ -34125,31 +34130,51 @@ async function driveO47(page, H, id, check) {
   return { pass: false, detail: `未完了（attacked=${state.attacked} hField=${JSON.stringify(fin?.host?.fieldSigni)} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
 }
 
-// (1) 負け＝アタッカーだけが消え、防御側は残る（従来はどちらも残っていた）
-scenarios.o47AttackerLosesIsBanished = {
-  title: 'O-47 バトルで負けたアタッカーがバニッシュされる（防御側は残る）',
+/**
+ * 🆕2026-09-19＝**守る側でバトルに負ける形**（`O-47` 撤回＝アタッカーはバトルでバニッシュされない・第388バッチ）。
+ *   `o47Spec` と同じ盤面（倒れる側＝自分の中央）のまま、**相手（CPU）の中央がアタックする**。判定関数はそのまま使える
+ *   （旧版は自分がアタックして負ける＝撤回済みの挙動を前提にしていたため、全件実行で恒久 FAIL していた）。
+ */
+function o47DefSpec(hostCenter, guestCenter) {
+  const spec = o47Spec(hostCenter, guestCenter);
+  spec.top = { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 };
+  return spec;
+}
+
+async function driveO47Def(page, H, id, check, onTick = null) {
+  const before = await H.queryState();
+  let attacked = false, idle = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    // ⚠CPU が空きゾーンへ殴るとライフクラッシュの確認（「エナに送る」）が出る＝押して進める。
+    const did = await H.stdStep(['エナに送る', '発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    const st = await H.queryState();
+    if ((st?.guest?.signiDown ?? [])[1] === true) attacked = true;
+    // ⚠「ターン終了時まで」の印は CPU のターンが進むと消える＝途中の観測を呼び出し側で保持できるようにする（§4.4-8d）。
+    if (onTick) onTick(st);
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!attacked) continue;
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+    if (idle >= 3) return check(st, before);
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（CPU のアタック attacked=${attacked} hField=${JSON.stringify(fin?.host?.fieldSigni)} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+}
+
+
+
+// 🆕2026-09-19＝**撤回後の正しいルール**（第388バッチ＝アタッカーはバトルでバニッシュされない）。
+//   旧 `o47AttackerLosesIsBanished`（負けたアタッカーが消える）／`o47TieBanishesBoth`（相打ち）は撤回済みの挙動そのものを
+//   確かめていたので削除した（同値バトルは `battleequalpower` が見る）。
+scenarios.o47AttackerLosesBothRemain = {
+  title: 'O-47 撤回後＝格下でアタックしても両方残る（アタッカーはバトルでバニッシュされない）',
   spec: o47Spec([O47_SMALL], [O47_BIG]),
   drive: (page, H) => driveO47(page, H, 'o47lose', (st) => {
-    const attackerGone = v86HasLeftField(st?.host, O47_SMALL);
-    const inEnergy = (st.host.energyCards ?? []).includes(O47_SMALL);   // 🔑行き先はエナゾーン
+    const attackerStays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O47_SMALL));
     const defenderStays = (st.guest.fieldSigni ?? []).some(z => (z ?? []).includes(O47_BIG));
     return {
-      pass: attackerGone && inEnergy && defenderStays,
-      detail: `負け＝アタッカー(P3000)が場を離れた=${attackerGone}／エナゾーンへ=${inEnergy}／防御側(P15000)は残存=${defenderStays}（host場=${JSON.stringify(st.host.fieldSigni)} guest場=${JSON.stringify(st.guest.fieldSigni)}）`,
-    };
-  }),
-};
-
-// (2) 相打ち＝同値なら**両方**消える（従来は防御側だけ消えていた）
-scenarios.o47TieBanishesBoth = {
-  title: 'O-47 パワーが同じなら両方バニッシュされる（相打ち）',
-  spec: o47Spec([O47_TIE_A], [O47_TIE_B]),
-  drive: (page, H) => driveO47(page, H, 'o47tie', (st) => {
-    const mineGone = v86HasLeftField(st?.host, O47_TIE_A);
-    const theirsGone = v86HasLeftField(st?.guest, O47_TIE_B);
-    return {
-      pass: mineGone && theirsGone,
-      detail: `相打ち＝アタッカーが離場=${mineGone}／防御側も離場=${theirsGone}（host場=${JSON.stringify(st.host.fieldSigni)} guest場=${JSON.stringify(st.guest.fieldSigni)}・host energy=${JSON.stringify(st.host.energyCards)} guest energy=${JSON.stringify(st.guest.energyCards)}）`,
+      pass: attackerStays && defenderStays,
+      detail: `負け＝アタッカー(P3000)は場に残存=${attackerStays}／防御側(P15000)も残存=${defenderStays}`,
     };
   }),
 };
@@ -34183,7 +34208,7 @@ scenarios.o48BattleBanishSendsUnderCardsToTrash = {
   }),
 };
 
-order.push('o47AttackerLosesIsBanished', 'o47TieBanishesBoth', 'o47AttackerWinsStaysOnField',
+order.push('o47AttackerLosesBothRemain', 'o47AttackerWinsStaysOnField',
   'o48BattleBanishSendsUnderCardsToTrash');
 // ── O-47 / O-48 END ──
 
@@ -34198,9 +34223,9 @@ const O49_ANASTASIA = 'WXK05-024#4906';        // 魔界の末娘 アナスタ�
 const O49_WALL = 'WX01-053#4907';              // 極剣 ゴッドイーター（P15000）
 
 scenarios.o49AttackerBanishRedirectToTrash = {
-  title: 'O-49 防御側WXK11-032のbySource置換で相打ちアタッカーはエナではなくトラッシュへ',
-  spec: o47Spec([O49_L1_ATTACKER], [O49_ENAJE]),
-  drive: (page, H) => driveO47(page, H, 'o49redirect', (st) => {
+  title: 'O-49 防御側WXK11-032のbySource置換で相打ちアタッカーはエナではなくトラッシュへ（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O49_L1_ATTACKER], [O49_ENAJE]),
+  drive: (page, H) => driveO47Def(page, H, 'o49redirect', (st) => {
     const inTrash = (st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
     const notInEnergy = !(st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
     return {
@@ -34211,9 +34236,9 @@ scenarios.o49AttackerBanishRedirectToTrash = {
 };
 
 scenarios.o49AttackerNoRedirectGoesToEnergy = {
-  title: 'O-49対照 置換が無ければ相打ちアタッカーは従来どおりエナへ',
-  spec: o47Spec([O49_L1_ATTACKER], [O49_PLAIN_DEFENDER]),
-  drive: (page, H) => driveO47(page, H, 'o49plain', (st) => {
+  title: 'O-49対照 置換が無ければ相打ちアタッカーは従来どおりエナへ（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O49_L1_ATTACKER], [O49_PLAIN_DEFENDER]),
+  drive: (page, H) => driveO47Def(page, H, 'o49plain', (st) => {
     const inEnergy = (st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
     const notInTrash = !(st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
     return {
@@ -34224,9 +34249,9 @@ scenarios.o49AttackerNoRedirectGoesToEnergy = {
 };
 
 scenarios.o49AttackerRedirectRespectsLevelFilter = {
-  title: 'O-49 WXK10-053のレベル1以下限定がアタッカーのレベルを読む',
-  spec: o47Spec([O49_L1_ATTACKER], [O49_TIMER_BOMB]),
-  drive: (page, H) => driveO47(page, H, 'o49level1', (st) => {
+  title: 'O-49 WXK10-053のレベル1以下限定がアタッカーのレベルを読む（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O49_L1_ATTACKER], [O49_TIMER_BOMB]),
+  drive: (page, H) => driveO47Def(page, H, 'o49level1', (st) => {
     const inTrash = (st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
     const notInEnergy = !(st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
     return {
@@ -34237,9 +34262,9 @@ scenarios.o49AttackerRedirectRespectsLevelFilter = {
 };
 
 scenarios.o49AttackerRedirectRejectsLevel2 = {
-  title: 'O-49対照 WXK10-053のレベル1以下限定は同盤面のレベル2アタッカーには効かない',
-  spec: o47Spec([O49_L2_ATTACKER], [O49_TIMER_BOMB]),
-  drive: (page, H) => driveO47(page, H, 'o49level2', (st) => {
+  title: 'O-49対照 WXK10-053のレベル1以下限定は同盤面のレベル2アタッカーには効かない（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O49_L2_ATTACKER], [O49_TIMER_BOMB]),
+  drive: (page, H) => driveO47Def(page, H, 'o49level2', (st) => {
     const inEnergy = (st.host.energyCards ?? []).includes(O49_L2_ATTACKER);
     const notInTrash = !(st.host.trashCards ?? []).includes(O49_L2_ATTACKER);
     return {
@@ -34250,9 +34275,9 @@ scenarios.o49AttackerRedirectRejectsLevel2 = {
 };
 
 scenarios.o49AttackerSelfExileReplacesLeave = {
-  title: 'O-49 アタッカーWXK05-024自身の離場→除外置換をトラッシュ近似で適用',
-  spec: o47Spec([O49_ANASTASIA], [O49_WALL]),
-  drive: (page, H) => driveO47(page, H, 'o49selfexile', (st) => {
+  title: 'O-49 アタッカーWXK05-024自身の離場→除外置換をトラッシュ近似で適用（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O49_ANASTASIA], [O49_WALL]),
+  drive: (page, H) => driveO47Def(page, H, 'o49selfexile', (st) => {
     const inTrash = (st.host.trashCards ?? []).includes(O49_ANASTASIA);
     const notInEnergy = !(st.host.energyCards ?? []).includes(O49_ANASTASIA);
     return {
@@ -34277,9 +34302,9 @@ const O58_BAGUETTE_ACCE = 'WD01-013#5805';
 const O58_WALL = 'WX01-053#5899'; // P15000。3件ともアタッカーが明確に負ける。
 
 scenarios.o58ArtemisAttackerBanish = {
-  title: 'O-58 WX22-034が自分から攻撃して負けても場に残り、下のカード1枚だけをトラッシュ',
-  spec: o47Spec([O58_ARTEMIS_UNDER, O58_ARTEMIS], [O58_WALL]),
-  drive: (page, H) => driveO47(page, H, 'o58Artemis', (st) => {
+  title: 'O-58 WX22-034が自分から攻撃して負けても場に残り、下のカード1枚だけをトラッシュ（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  spec: o47DefSpec([O58_ARTEMIS_UNDER, O58_ARTEMIS], [O58_WALL]),
+  drive: (page, H) => driveO47Def(page, H, 'o58Artemis', (st) => {
     const stays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O58_ARTEMIS));
     const underInTrash = (st.host.trashCards ?? []).includes(O58_ARTEMIS_UNDER);
     const victimNotMoved = !(st.host.energyCards ?? []).includes(O58_ARTEMIS) &&
@@ -34321,46 +34346,46 @@ async function o58RearmGustavSameTurn(page) {
 }
 
 scenarios.o58GustavAttackerBanishOnce = {
-  title: 'O-58 WX13-031が自分から攻撃して負けた1回目だけ回避し、同ターン2回目はバニッシュ',
-  spec: o47Spec([O58_GUSTAV], [O58_WALL]),
+  title: 'O-58 WX13-031がバトルで負けても1回目は場に残り能力を失う（2026-09-19＝守る側で負ける形＝相手がアタック）',
+  // ⚠旧版は「同ターン2回目はバニッシュ」まで見ていたが、守る側で2回攻撃を受けさせる手段が無い
+  //   （1回目の後に CPU のターンが進む）＝前半だけを確かめる。能力を失うことは `abilities_removed` で見る。
+  spec: o47DefSpec([O58_GUSTAV], [O58_WALL]),
   async drive(page, H) {
-    const first = await driveO47(page, H, 'o58GustavFirst', (st) => {
+    // ⚠能力の喪失は「ターン終了時まで」＝CPU のターンが終わると消える＝一度でも観測したら保持する（sticky）。
+    let removedSeen = false;
+    return driveO47Def(page, H, 'o58GustavFirst', (st) => {
       const stays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O58_GUSTAV));
-      const removed = (st.host.abilitiesRemoved ?? []).includes(O58_GUSTAV);
-      return { pass: stays && removed, detail: `1回目は場に残存=${stays}／abilities_removedへ記録=${removed}` };
+      const removed = removedSeen || (st.host.abilitiesRemoved ?? []).includes(O58_GUSTAV);
+      return { pass: stays && removed, detail: `1回目は場に残存=${stays}／abilities_removedへ記録（途中で観測）=${removed}` };
+    }, (st) => {
+      if ((st?.host?.abilitiesRemoved ?? []).includes(O58_GUSTAV)) removedSeen = true;
+      // ⚠観測開始前（アプリを開き直した直後）に CPU がターンを終えることがある＝ログでも見る（ログは残る）。
+      if ((st?.logTail ?? []).some(l => l.includes('（バニッシュ置換）バニッシュされず'))) removedSeen = true;
     });
-    if (!first.pass) return first;
-    const rearmed = await o58RearmGustavSameTurn(page);
-    if (!rearmed?.ok) return { pass: false, detail: `2回目の準備失敗=${JSON.stringify(rearmed)}` };
-    const second = await driveO47(page, H, 'o58GustavSecond', (st) => {
-      const gone = v86HasLeftField(st?.host, O58_GUSTAV);
-      const inEnergy = (st.host.energyCards ?? []).includes(O58_GUSTAV);
-      return { pass: gone && inEnergy, detail: `2回目は回避せず離場=${gone}／エナへ=${inEnergy}` };
-    });
-    return second.pass
-      ? { pass: true, detail: `${first.detail}／${second.detail}` }
-      : second;
   },
 };
 
-const o58BaguetteSpec = o47Spec([O58_BAGUETTE], [O58_WALL]);
+const o58BaguetteSpec = o47DefSpec([O58_BAGUETTE], [O58_WALL]);
 o58BaguetteSpec.hostSet['field.signi_acce'] = [null, [O58_BAGUETTE_ACCE], null];
-scenarios.o58OpponentTurnOnlyDoesNotProtectAttacker = {
-  title: 'O-58負方向 WX17-048は対戦相手ターン限定なので自分から攻撃して負けたバゲットを守らない',
+scenarios.o58BaguetteProtectsOnOpponentTurn = {
+  title: 'O-58 WX17-048＝対戦相手のターンにバトルで負けたバゲットは、代わりにアクセをトラッシュして場に残る',
+  // 🆕2026-09-19＝旧 `o58OpponentTurnOnlyDoesNotProtectAttacker`（自分のターンに自分から攻撃して負ける＝守られない）は、
+  //   撤回済みの相打ち（アタッカーが倒れる）を前提にしていた＝**自分のターンにバトルで倒れることはもう起きない**。
+  //   ⇒ 正方向（相手のターンに守られる）へ切り替えた。
   spec: o58BaguetteSpec,
-  drive: (page, H) => driveO47(page, H, 'o58BaguetteNegative', (st) => {
-    const gone = v86HasLeftField(st?.host, O58_BAGUETTE);
-    const inEnergy = (st.host.energyCards ?? []).includes(O58_BAGUETTE);
+  drive: (page, H) => driveO47Def(page, H, 'o58Baguette', (st) => {
+    const stays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O58_BAGUETTE));
+    const notInEnergy = !(st.host.energyCards ?? []).includes(O58_BAGUETTE);
     const acceInTrash = (st.host.trashCards ?? []).includes(O58_BAGUETTE_ACCE);
     return {
-      pass: gone && inEnergy && acceInTrash,
-      detail: `バゲットは回避せず離場=${gone}／エナへ=${inEnergy}／付属アクセは通常処理でトラッシュ=${acceInTrash}`,
+      pass: stays && notInEnergy && acceInTrash,
+      detail: `バゲットは場に残存=${stays}／エナへ行っていない=${notInEnergy}／代わりにアクセがトラッシュ=${acceInTrash}`,
     };
   }),
 };
 
 order.push('o58ArtemisAttackerBanish', 'o58GustavAttackerBanishOnce',
-  'o58OpponentTurnOnlyDoesNotProtectAttacker');
+  'o58BaguetteProtectsOnOpponentTurn');
 // ── O-58 END ──
 
 // ── O-181 ─────────────────────────────────────────────────────────────
@@ -35033,6 +35058,15 @@ order.push('v63SameChoiceTwiceRunsEffectTwice');
 //
 // 🔑**対照は「同じ UI で `pickUpTo` を持たない効果」**＝`決定 (0/1)` が**押せない**ことを見る。
 //   「0枚で決定できた」を単独で緑にしない（§4.4 の3）。
+/** live の効果 JSON を1件読む（スタックへ直接積むシナリオ用）。 */
+function liveEffect(cardNum, effectId) {
+  for (const f of readdirSync('public/data').filter(n => /^effects_.*\.json$/.test(n))) {
+    const j = JSON.parse(readFileSync(join('public/data', f), 'utf-8'));
+    const e = (j[cardNum] ?? []).find(x => x.effectId === effectId);
+    if (e) return e;
+  }
+  throw new Error(`live に ${cardNum} / ${effectId} が無い`);
+}
 const B34_UPTO_SRC = 'WX20-037#3401';    // 暴食の暴君 トウタク（【出】3枚見て**赤のシグニを2枚まで**場に出す）
 const B34_RED1 = 'WD02-011#3402';        // デッキトップの赤シグニ（候補）
 const B34_RED2 = 'WD02-011#3403';
@@ -35054,13 +35088,16 @@ async function b34ReadConfirm(page) {
 
 scenarios.b34ZeroPickAllowedWhenUpTo = {
   title: '段2第34/43 WX20-037-E1：「2枚まで」は 決定 (0/2) が押せて0枚で完了する（残りはトラッシュ）',
+  // 🆕2026-09-19＝トウタクは**ライズ**（赤のシグニ2体の上に置く）＝§5.6 `C-6`（2026-09-17）以後、空の場からは召喚できない
+  //   （旧版は手札から召喚しようとして「召喚」ボタンが出ず、全件実行で恒久 FAIL していた）。
+  //   ⇒ 観測点は【出】の「2枚まで」なので、**トウタクを場に置き【出】をスタックへ直接積む**。
   spec: {
     hostSet: {
       'field.lrig': ['WD02-001#3490'],
-      'field.signi': [null, null, null],
+      'field.signi': [[B34_UPTO_SRC], null, null],
       'field.signi_down': [false, false, false],
       'field.check': null,
-      'hand': [B34_UPTO_SRC],
+      'hand': [],
       // ⚠**デッキトップ3枚が公開対象**＝赤シグニ2枚を確実に候補へ入れる（候補0だと UI が出ない）。
       'deck': [B34_RED1, B34_RED2, B34_FILLER, 'WD01-013#3405', 'WD01-013#3406'],
       'energy': [], 'trash': [], 'actions_done': [],
@@ -35072,11 +35109,19 @@ scenarios.b34ZeroPickAllowedWhenUpTo = {
       'hand': [], 'energy': [], 'trash': [],
       'deck': ['WD01-013#3470', 'WD01-013#3471', 'WD01-013#3472'],
     },
-    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: {
+        turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+        queue: [{
+          id: 'b34-onplay', playerId: null, cardNum: B34_UPTO_SRC, effectId: 'WX20-037-E1',
+          label: 'WX20-037【出】（注入）', effect: liveEffect('WX20-037', 'WX20-037-E1'),
+        }],
+      } },
   },
   async drive(page, H) {
     await H.ensureMain();
-    let opened = false; let summoned = false; let zoned = false;
+    // 【出】は注入済み（召喚を経由しない）。
+    let opened = true; let summoned = true; let zoned = true;
     let confirmSeen = null; let confirmed = false;
     for (let s = 0; s < 26; s++) {
       await page.waitForTimeout(700);
@@ -38304,7 +38349,8 @@ const b62AcceSpec = (withAcce) => ({
     'field.signi': [null, null, ['WX01-053#1']],        // host zone0 の正面（2-0）に P15000＝バトルで勝つ
     'field.signi_down': [false, false, false],
   },
-  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  // 🆕2026-09-19＝守る側で負ける形（相手がアタック）。旧版は自分がアタックして負ける＝撤回済みの相打ち前提だった。
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
 });
 const b62AcceDrive = (tag, withAcce, expectDraw) => async function drive(page, H) {
   let before = await H.queryState();
@@ -38318,28 +38364,13 @@ const b62AcceDrive = (tag, withAcce, expectDraw) => async function drive(page, H
   if (!(before?.host?.fieldSigni?.[0] ?? []).includes('WD01-013#1')) {
     return { pass: false, detail: `準備失敗＝アタッカーが載っていない（${JSON.stringify(before?.host?.fieldSigni)}）` };
   }
-  let modalOpened = false; let banished = false; let last = before;
+  let banished = false; let last = before;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
     let did = null;
-    const phaseChk = await H.queryState();
-    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !banished) {
-      await H.closeModals();
-      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
-      await page.waitForTimeout(600);
-      modalOpened = false;
-      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
-    }
-    if (!did) {
-      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
-      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
-    }
-    if (!did && !modalOpened) {
-      const opened = await H.clickTestId('my-signi-zone-0');
-      if (opened) { did = opened; modalOpened = true; }
-    }
-    if (!did) did = await H.stdStep(['発動', '発動する', '引く', '確定', 'OK', 'はい']);
+    // ⚠アタックは CPU が宣言する（自分は守る側）＝ここでは何も押さない。
+    if (!did) did = await H.stdStep(['エナに送る', '発動', '発動する', '引く', '確定', 'OK', 'はい', 'ガードしない']);
     last = await H.queryState();
     const gone = !(last?.host?.fieldSigni?.[0] ?? []).includes('WD01-013#1');
     if (gone) banished = true;
@@ -38347,7 +38378,7 @@ const b62AcceDrive = (tag, withAcce, expectDraw) => async function drive(page, H
     if (banished && (last?.host?.hand ?? 0) > hand0) break;
     if (banished && s > 8) break;
   }
-  if (!banished) return { pass: false, detail: `前提崩れ＝アタッカーがバトルで失われていない（hZone0=${JSON.stringify(last?.host?.fieldSigni?.[0])}）` };
+  if (!banished) return { pass: false, detail: `前提崩れ＝自分のシグニがバトルで失われていない（CPU のアタック）（hZone0=${JSON.stringify(last?.host?.fieldSigni?.[0])}）` };
   const drew = (last?.host?.hand ?? 0) > hand0;
   const detail = `acce=${withAcce} バトルで失った後 hand=${hand0}→${last?.host?.hand}`;
   return drew === expectDraw
@@ -62792,8 +62823,9 @@ scenarios.v227OptionalDownSkip = {
     if (!opened.prompted) {
       return { pass: false, detail: `🔴選択UIが出ない＝強制ダウンのまま（修正前の挙動）。energy=${opened.st?.host?.energy} down=${JSON.stringify(opened.st?.host?.signiDown)} pEff=${opened.st?.pendingEffect ?? '-'}` };
     }
-    const zero = await clickExactVisibleText(page, '決定 (0/1)');
-    if (!zero) return { pass: false, detail: `選択UIは出たが0体確定ボタンを押せない（候補=${JSON.stringify(opened.st?.pendingCandidates)}）＝辞退できていない` };
+    // ⚠2026-09-19（§4.4-122）＝任意の対象選択の辞退は「スキップ」だけ（`5c8ae247c`＝「決定 (0/N)」は押せない）。
+    const zero = await clickExactVisibleText(page, 'スキップ');
+    if (!zero) return { pass: false, detail: `選択UIは出たが辞退（スキップ）を押せない（候補=${JSON.stringify(opened.st?.pendingCandidates)}）＝辞退できていない` };
     const st = await settleV227(page, H, 'v227skip');
     const energy = st?.host?.energy ?? -1;
     const downed = (st?.host?.signiDown ?? [])[0] === true;
