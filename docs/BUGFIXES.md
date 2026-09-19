@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19（第402バッチ）§5.3 `O-535` クローズ＝宣言済みの対象を2回聞かない（631効果 / 608カード）
+
+- 🔴**真因**＝`selectOrInteract`（`execUtils.ts`）に**「候補が確定しているなら自動解決」の枝が無い**ので、
+  「〈対象〉を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合**、それを〜する」の形が
+  **①宣言 → ②支払い → ③帰結でもう一度同じ対象を尋ねる**になっていた。③の候補は
+  `freezeStoredTargets` の `fixedCardNums`（または `targetsStored`）で**宣言した札まで絞られている**＝選ぶ余地は無い。
+- **影響**＝**631効果 / 608カード**（live 実測＝`SELECT_TARGET_ONLY` ∧ `STORE_LAST_PROCESSED_TARGETS` ∧ `targetsStored:true`）。
+  帰結の内訳は `BANISH` 256／`POWER_MODIFY` 141／`BOUNCE` 64／`GRANT_KEYWORD` 38／`TRASH` 37 …。
+  🔴**UX の粗ではない**＝`BattleScreen` は **`SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶ**ので
+  「対象になったとき」の【自】が2回収集される。ただし**実害の母集団は小さい**＝`ON_TARGETED` の【自】は
+  **18効果しか無く 17効果は `usageLimit` で2回目が落ちる**＝素で二重発火するのは **1効果（`WX25-CP1-060`）**。
+- **直し方**＝**`executeAction` の出口に funnel を1本**（`o535ForcedDeclaredSelection` / `o535AutoResolveDeclared`）。
+  対話を作った地点の ctx を復元して **`resumeSelectTarget` にそのまま流す**＝型ごとの特例
+  （`ADD_TO_FIELD` のゾーン連鎖・離場置換の問い・割り振り・`batchShuffle`）を1つも再実装していない。
+  ⚠**`selectOrInteract` 側には置けない**（`execUtils` → `effectExecutor` は循環 import）。
+  **自動解決の条件（5つ）**＝①`thenAction` が宣言済みの印を持つ ②`pending.optional` でない ③候補数 ≦ `count`
+  ④`unplaceableCards` が無い（`O-534`）⑤合計制約が無い。
+- 🔑**ハンドラが `thenAction` を作り直すと funnel から見えない**＝`POWER_MODIFY_PER_LEVEL_SUM` は素の `POWER_MODIFY` へ
+  変換して渡していたので印が消えていた（兄弟の `PER_LRIG_LEVEL` / `PER_TRASH_COUNT` は**同じ auto-apply を既に持っていた**）。
+- 🔴**一度広げて戻した**＝`upToCount` を「宣言で使い切った『まで』」と読んで `thenAction.optional` で切る形にしたら
+  **golden 4本**が落ちた（`§6.4 O-8(b)`×2／`§5.0 O-D WX12-010-E3`／`PLAN §5.3 WX24-P2-054-E2`）。
+  反例＝`WX12-010-E3`「この方法で他のシグニゾーンに移動したシグニを**アップしてもよい**」＝
+  `UP{count:'ALL', upToCount:true, targetsStored:true}` で、**照応先は engine が算出した集合**（動いたシグニ）＝任意性は帰結の側。
+  ⇒ **`upToCount` は「まで」と「〜してもよい」の両方に使われていて engine からは区別できない。** 残 **13効果**は `O-536`（parser 側）へ登録。
+- 🔑**「減った収集地点が正しい」ことの実測**＝`STORE_LAST_PROCESSED_TARGETS` の**直前のステップ**を全数で数えると
+  **640箇所のうち 638 が `SELECT_TARGET_ONLY`**（残り2は `TRASH` 直後と列の先頭＝場のカードではない）。
+  `SELECT_TARGET_ONLY` は候補があるかぎり必ず対話を出し、`thenAction` は `INTERNAL_NOOP`＝印を持たない（funnel の対象外）
+  ⇒ **宣言ステップが `ON_TARGETED` の唯一の収集地点として必ず残る。**
+- **既存テストの直し方**＝3本の golden が「2回目の `SELECT_TARGET` が出る」を**経過点として**assert していたので、
+  **直接の帰結**（バニッシュ／エナ送り／`lastProcessedCards`）を見る形へ直した（`task12(xxii)` ×2／`§5.3 O-451`）。
+  実機は**回数まで assert** へ直した（`targetRounds === 1`／2回目が来たら即 FAIL）＝旧版の `targetRounds > 0` は
+  **2回聞く形へ戻っても緑**だった。新しい罠＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-131。
+- **検証**＝golden 2本を新設（`§5.3 O-535` 本体＝`WD12-009-E1` の正準形／対照4向き＝①印なし ②宣言2体から1体
+  ③`optional` ④`upToCount`）。**funnel を外すと両方 FAIL**＝反転確認済み。`npm run gates` 全緑（golden **4322**）。
+  ⑤実機まで回した理由＝**新しい機構（対話の自動解決）**を足した回（PLAN §2.2）。
+- **実機＝この形を踏む8本を1回の実行で回して全 PASS**（`node scripts/verifyBattleDrive.mjs lxivMultiTargetPayBanishesBoth
+  lxivMultiTargetSkipBanishesNone handDiscardSkipBlocksBody handDiscardPayRunsBody handDiscardOptionTwoDownsOpponentLrig
+  handDiscardOptionThreeDownsOpponentSigni underCostFiltersByColor underCostUnavailableWhenNoRed`）。
+  - 🔑**自動解決が効いたことを実機で観測した3本**＝`handDiscardPayRunsBody`（`対象を聞いた回数=1`）／
+    `handDiscardOptionThreeDownsOpponentSigni`（同）／`underCostFiltersByColor`（`問い直し無し=true`）。
+  - 🔑**据置を実機で固定した1本**＝`lxivMultiTargetPayBanishesBoth`＝**帰結が `upToCount`（「２体まで」）なのでいまも2回来る**
+    （`支払い後の再確認SELECT_TARGET`）＝`O-536` を閉じたらここが FAIL になる＝**次の作業の観測点として残してある**。
+  - 対照4本（`handDiscardSkipBlocksBody`／`lxivMultiTargetSkipBanishesNone`／`handDiscardOptionTwoDownsOpponentLrig`／
+    `underCostUnavailableWhenNoRed`）＝**払わない・対象を取らない側**が変わっていないこと。
+
 ## 2026-09-19（続き）エンジン実バグ＝動的レベルが `SELF_LEVEL_THRESHOLD` に一度も届いていなかった＋実機シナリオ C をさらに24本（残4本）
 
 - 🔴**実バグ**＝`evalCondition` の `SELF_LEVEL_THRESHOLD` が**実効レベルを素のカード番号で引いていた**。

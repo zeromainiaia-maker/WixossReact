@@ -11065,6 +11065,8 @@ const scenarios = {
       // ⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られた「2件だけの」SELECT_TARGETが
       // もう一度発火する（BANISH自体は常にselectOrInteract経由＝候補が2件に絞られていても確認クリックが要る）。
       // 対象確定は1回で終わらず、支払い前後で計2回のpick UIを踏む＝この関数はその両方を同じ手順で処理する。
+      // 🆕**2026-09-19（§5.3 `O-535`）でもこの形は据置**＝帰結が `upToCount`（「２体**まで**」）なので
+      //   自動解決の対象外（`upToCount` は「〜してもよい」にも使われるため区別できない）。残 13効果＝`O-536`。
       for (let s = 0; s < 30; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lxivMultiTargetPayBanishesBoth-${s}.png`, fullPage: true });
@@ -15684,13 +15686,12 @@ async function runHandDiscardFrenRound(page, H, branch) {
       if (did) phaseStarted = true;
     } else {
       const opts = pendingPaySkip(st0);
-      // 🔴🆕2026-09-19＝**対象選択は2回来る**（旧版は「任意コストを払ったあとに1回だけ」を決め打ちしていて、
-      //   先に出た1回目の `SELECT_TARGET` で止まり60周まるごと空振りした）。live の形は
+      // 🔴🆕2026-09-19（§5.3 `O-535`）＝**対象選択はちょうど1回**。live の形は
       //   `SEQUENCE[SELECT_TARGET_ONLY, STORE_LAST_PROCESSED_TARGETS, OPTIONAL_COST, CONDITIONAL{PAID}→BOUNCE{targetsStored}]`＝
-      //   ①「対象とし」の SELECT_TARGET_ONLY ②支払い後の `BOUNCE` 本体（`storedTargetCards` で1体に絞られている）。
-      //   ⚠`selectOrInteract` は**候補1件でも必ず尋ねる**（`execUtils.ts:4380` に自動解決の枝が無い）ので、
-      //   絞り込みが効いていても対話は出る＝これは engine の設計どおり。
-      //   ⇒ **回数を数えて2回とも応答する**（`skip` 側は1回目だけ来る）。
+      //   ①「対象とし」の SELECT_TARGET_ONLY で宣言 ②支払い ③帰結の `BOUNCE` は**宣言した1体しか取れない**。
+      //   🔑同日の朝までは ③でもう一度尋ねていた（`selectOrInteract` に自動解決の枝が無かった）＝
+      //   `BattleScreen` は `SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶので
+      //   「対象になったとき」の【自】が二重に立つ形だった。⇒ **回数まで assert する**（下の `targetRounds`）。
       if (sameInstanceSet(st0?.pendingCandidates, [HAND_COST_BOUNCE_TARGET])) {
         if (!targetPickedThisRound) { did = await clickPendingInstance(page, H, HAND_COST_BOUNCE_TARGET); if (did) targetPickedThisRound = true; }
         else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { targetPickedThisRound = false; targetRounds++; } }
@@ -15727,8 +15728,9 @@ async function runHandDiscardFrenRound(page, H, branch) {
       const guardPaid = st.host.trashCards.includes(HAND_COST_GUARD) && !st.host.handCards.includes(HAND_COST_GUARD)
         && HAND_COST_FREN_NONMATCH.every(n => st.host.handCards.includes(n));
       const bounced = st.guest.fieldSigni?.[0] == null && st.guest.handCards.includes(HAND_COST_BOUNCE_TARGET);
-      return { pass: prompted && guardPicked && guardConfirmed && targetPicked && targetConfirmed && guardPaid && bounced,
-        detail: `pay/skip提示=${prompted}・Guardだけ候補→trash=${guardPaid}・P3000対象をguest.field→hand=${bounced}` };
+      // 🔴§5.3 `O-535`＝**回数まで assert する**（2回聞かれる形へ戻ったら FAIL）。
+      return { pass: prompted && guardPicked && guardConfirmed && targetRounds === 1 && guardPaid && bounced,
+        detail: `pay/skip提示=${prompted}・Guardだけ候補→trash=${guardPaid}・P3000対象をguest.field→hand=${bounced}・対象を聞いた回数=${targetRounds}（期待1・O-535）` };
     }
   }
   return { pass: false, detail: `${branch}完走タイムアウト（prompted=${prompted} branch=${branchClicked} guard=${guardPicked}/${guardConfirmed} target=${targetPicked}/${targetConfirmed} hHand=${JSON.stringify(last?.host?.handCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
@@ -15820,7 +15822,8 @@ async function runHandDiscardArtsRound(page, H, choiceLabel) {
       // 🔴🆕2026-09-19＝**②も③も「対象とし」の SELECT_TARGET が任意コストより先に来る**
       //   （②＝相手ルリグ／③＝相手シグニ）。旧版は③だけを、しかも**支払いの後**だけ拾っていたので、
       //   ②は先に出た対象選択で止まって80周空振りし、③も順序違いで届かなかった。
-      //   ⚠`selectOrInteract` は候補1件でも必ず尋ねる＝**支払いの後にもう一度来ることがある**ので回数で数える。
+      //   ⚠🆕**§5.3 `O-535`（2026-09-19）で「支払いの後にもう一度来る」は無くなった**（宣言済み・選ぶ余地なしの
+      //     対話は engine が自動解決する）＝いまは**ちょうど1回**。回数で数える形は据置＝退化の検出器として働く。
       if (cands.length > 0 && !isCostCands) {
         const want = choiceLabel === '選択肢2' ? HAND_COST_ARTS_OPP_LRIG : HAND_COST_ARTS_OPP_SIGNI;
         if (!sameInstanceSet(cands, [want])) {
@@ -15856,7 +15859,7 @@ async function runHandDiscardArtsRound(page, H, choiceLabel) {
       }
       const correct = st.guest.lrigDown === false && st.guest.signiDown?.[0] === true
         && st.guest.signiDown?.slice(1).every(v => v === false);
-      return { pass: paid && targetPicked && targetConfirmed && hostAllUp && correct, detail: `③を1つだけ選択→決定。energy ${before.host.energy}→${st.host.energy}・ブルアカtrash=${paid}／host lrigDown=${st.host.lrigDown} signiDown=${JSON.stringify(st.host.signiDown)}／guest lrigDown=${st.guest.lrigDown} signiDown=${JSON.stringify(st.guest.signiDown)}` };
+      return { pass: paid && targetRounds === 1 && hostAllUp && correct, detail: `③を1つだけ選択→決定（対象を聞いた回数=${targetRounds}・期待1・O-535）。energy ${before.host.energy}→${st.host.energy}・ブルアカtrash=${paid}／host lrigDown=${st.host.lrigDown} signiDown=${JSON.stringify(st.host.signiDown)}／guest lrigDown=${st.guest.lrigDown} signiDown=${JSON.stringify(st.guest.signiDown)}` };
     }
   }
   return { pass: false, detail: `${choiceLabel}完走タイムアウト（arts=${deckOpened}/${artsOpened}/${energyPicked.size}/${artsUsed} choose=${choosePrompted}/${choiceClicked}/${choiceConfirmed} cost=${costPrompted}/${payClicked}/${costPicked}/${costConfirmed} target=${targetPicked}/${targetConfirmed} hE=${last?.host?.energy} hDown=${last?.host?.lrigDown}/${JSON.stringify(last?.host?.signiDown)} gDown=${last?.guest?.lrigDown}/${JSON.stringify(last?.guest?.signiDown)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
@@ -15940,10 +15943,13 @@ async function runUnderFilterRound(page, H, { expectAffordable }) {
         }
         if (!costPicked) { did = await clickPendingInstance(page, H, UNDER_FILTER_RED); if (did) costPicked = true; }
         else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true; }
-      } else if (expectAffordable && costConfirmed && !banishConfirmed
+      } else if (expectAffordable && costConfirmed
           && sameInstanceSet(st0?.pendingCandidates, [UNDER_FILTER_TARGET])) {
-        if (!banishPicked) { did = await clickPendingInstance(page, H, UNDER_FILTER_TARGET); if (did) banishPicked = true; }
-        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) banishConfirmed = true; }
+        // 🔴🆕2026-09-19（§5.3 `O-535`・罠 §4.4-131）＝**支払いのあとに同じ対象を問い直したら FAIL**。
+        //   旧版はここで2回目の pick／決定 を押していた（＝「同じ対象を2回聞く」を実機で固定していた）。
+        //   engine は `executeAction` の出口で「宣言済み・選ぶ余地なし」の対話を自動解決するので、
+        //   ここに来ること自体が退化（`ON_TARGETED` の二重収集にも戻る）。
+        return { pass: false, detail: `🔴O-535 退化＝宣言した対象を支払いのあとで問い直した（cands=${JSON.stringify(st0.pendingCandidates)}）` };
       }
     }
     if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
@@ -15964,8 +15970,8 @@ async function runUnderFilterRound(page, H, { expectAffordable }) {
       const onlyRedPaid = st.host.trashCards.includes(UNDER_FILTER_RED)
         && JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify(expectedAfterStack);
       const bodyRan = st.guest.fieldSigni?.[0] == null && st.guest.energyCards.includes(UNDER_FILTER_TARGET);
-      return { pass: prompted && costPicked && costConfirmed && banishPicked && banishConfirmed && onlyRedPaid && bodyRan,
-        detail: `pay/skip提示=${prompted}・候補は赤 ${UNDER_FILTER_RED} だけ・下stackからtrash=${onlyRedPaid}・対象BANISH（field→energy）=${bodyRan}` };
+      return { pass: prompted && costPicked && costConfirmed && !banishPicked && !banishConfirmed && onlyRedPaid && bodyRan,
+        detail: `pay/skip提示=${prompted}・候補は赤 ${UNDER_FILTER_RED} だけ・下stackからtrash=${onlyRedPaid}・対象BANISH（field→energy）=${bodyRan}・問い直し無し=${!banishPicked && !banishConfirmed}（O-535）` };
     }
   }
   return { pass: false, detail: `under filter完走タイムアウト（target=${targetPicked}/${targetConfirmed} prompted=${prompted} branch=${branchClicked} cost=${costPicked}/${costConfirmed} banish=${banishPicked}/${banishConfirmed} hStack=${JSON.stringify(last?.host?.fieldSigni?.[0])} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };

@@ -1,6 +1,6 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
-## 2026-09-19 実機シナリオ C の消化中に出た登録票 `O-535`（観測のみ・修正なし）
+## 🏁2026-09-19 にクローズ＝`O-535`（登録票は下）＋同日の新規登録 `O-536`
 
 ### `O-535` — 「対象とし〜任意コスト〜そうした場合」で**同じ対象を2回選ばされる**（631効果 / 608カード・索引A'）
 
@@ -17,6 +17,55 @@
 - **取り方の案**＝`selectOrInteract` に「`fixedCardNums` または `targetsStored` で候補が確定していて、かつ `optional` でない」ときの自動解決枝を足す。
   ⚠**631効果に効く**＝過剰に広げると「選ばせるべき場面で勝手に決まる」へ裏返るので、**条件は「直前に同じ効果が対象を取っている」ことに限定する**。
   ⚠自動解決にすると `ON_TARGETED` の収集地点が1つ減るので、**減った側が正しい**ことを実機で確かめる。
+
+- 🏁**クローズ（2026-09-19・第402バッチ）**＝**`executeAction` の出口に funnel を1本**置いた
+  （`o535ForcedDeclaredSelection` / `o535AutoResolveDeclared`＝`src/engine/effectExecutor.ts`）。
+  **対話を作った地点の ctx を復元して `resumeSelectTarget` へそのまま流す**ので、
+  `resumeSelectTarget` が持つ型ごとの特例（`ADD_TO_FIELD` のゾーン連鎖・離場置換の問い・割り振り・`batchShuffle` …）を**1つも再実装していない**。
+  - **なぜ `selectOrInteract`（`execUtils.ts`）ではないか**＝あちらから `resumeSelectTarget` を呼ぶと**循環 import**（`execUtils` → `effectExecutor`）。
+    ⇒ 対話を作る口は `needsInteraction` の1本だが、**解決できるのは `effectExecutor` 側**なので funnel は `executeAction` の出口に置いた。
+  - **自動解決する条件（5つ全部）**＝①`thenAction` が宣言済みの印（`targetsStored` / `fixedCardNums`）を持つ
+    ②`pending.optional` でない ③候補数 ≦ `count` ④`unplaceableCards` が無い（`O-534`）⑤合計制約が無い。
+  - ⚠**ハンドラが `thenAction` を作り直すと funnel から見えない**＝`POWER_MODIFY_PER_LEVEL_SUM` は素の `POWER_MODIFY` へ
+    変換して渡していたので印が消えていた（兄弟の `POWER_MODIFY_PER_LRIG_LEVEL` / `POWER_MODIFY_PER_TRASH_COUNT` は
+    **同じ行を既に持っていた**＝この型だけ抜けていた）。⇒ ハンドラ側に auto-apply を足した。
+  - **`ON_TARGETED` の実害（②で測った）**＝`ON_TARGETED` の【自】は **18効果 / 18カード**しか無く、
+    **17効果は `usageLimit` を持つので2回目が落ちる**＝素で二重発火するのは **1効果（`WX25-CP1-060`）**。
+    🔑**「2回聞かれる」ほうは 631効果全部に出ていた**ので、直す価値は二重発火よりも**対象宣言の一回性**の側にあった。
+  - **減った収集地点が正しいことの根拠（実測）**＝`STORE_LAST_PROCESSED_TARGETS` の**直前のステップ**を全数で数えると
+    **640箇所のうち 638 が `SELECT_TARGET_ONLY`**（残り2は `TRASH` 直後と列の先頭＝どちらも場のカードではない）。
+    `SELECT_TARGET_ONLY` は候補があるかぎり**必ず対話を出す**（`thenAction` は `INTERNAL_NOOP`＝印を持たないので funnel の対象外）
+    ⇒ **宣言ステップが `ON_TARGETED` の収集地点として必ず残る。**
+  - **検証**＝golden 2本（`§5.3 O-535` 本体＋対照4向き。**funnel を外すと両方 FAIL**＝反転確認済み）／`npm run gates` 全緑／
+    実機＝`handDiscardPayRunsBody`・`handDiscardSkipBlocksBody`・`handDiscardOptionTwoDownsOpponentLrig`・
+    `handDiscardOptionThreeDownsOpponentSigni`・`underCostFiltersByColor`・`underCostUnavailableWhenNoRed`・
+    `lxivMultiTargetPayBanishesBoth`・`lxivMultiTargetSkipBanishesNone`。
+    🔑**実機側は「回数まで assert」へ直した**（`targetRounds === 1`／2回目が来たら即 FAIL）＝
+    旧版の `targetRounds > 0` は**2回聞く形へ戻っても緑**だった（罠 [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-131）。
+  - 🔴**一度広げて戻した**＝「`upToCount` は宣言で使い切った『まで』だから自動解決してよい」と読んで
+    `pending.optional` の代わりに `thenAction.optional` で切る形を書いたら、**golden 4本が落ちた**
+    （`§6.4 O-8(b)`×2／`§5.0 O-D WX12-010-E3`／`PLAN §5.3 WX24-P2-054-E2`）。
+    反例＝`WX12-010-E3`「この方法で他のシグニゾーンに移動したシグニを**アップしてもよい**」＝
+    `UP{count:'ALL', upToCount:true, targetsStored:true}` で、**照応先は engine が算出した集合**（動いたシグニ）＝
+    任意性は帰結の側にある。⇒ **`upToCount` は「まで」と「〜してもよい」の両方に使われている**ので engine からは区別できない。
+    残り **13効果 / 13カード**は `O-536`（parser 側）へ。
+
+### `O-536` — 「N体まで対象とし…それら」の**帰結側**に `upToCount` が残る（13効果 / 13カード・索引I）
+
+- **形**＝`SELECT_TARGET_ONLY{count:N, upToCount:true}` → `STORE` → …→ 帰結 `{target:{count:N, upToCount:true}, targetsStored:true}`。
+  原文は「〈対象〉を**N体まで**対象とし、〜。**そうした場合、それら**を〜する」＝**「まで」は宣言で1回だけ**使う。
+- 🔴**いまの挙動**＝帰結でも `upToCount` が立っているので `selectOrInteract` の `optional` が true になり、
+  `O-535` の自動解決から外れる＝**宣言した対象をもう一度（今度は減らせる形で）選び直させる**。
+- **内訳（2026-09-19 実測・効果単位）**＝`POWER_MODIFY` 4／`BANISH` 3／`TRANSFER_TO_DECK` 2／
+  `TRANSFER_TO_HAND` 1／`SEND_TO_ENERGY` 1／`BOUNCE` 1／`REMOVE_ABILITIES` 1（代表＝`WXDi-P02-043-E1` / `WX24-P2-054-E2`）。
+- 🔴**engine では直せない**＝`pending` からは「宣言の『まで』」と**帰結の「〜してもよい」**を区別できない
+  （反例は `WX12-010-E3`＝上の `O-535` クローズ注記）。⇒ **parser が帰結の `upToCount` を落とす**のが筋。
+- **取り方**＝①`hoistTargetBeforeCondition` ほか「宣言を前に出す／帰結へ `targetsStored` を付ける」規則の出口で、
+  **帰結側の `target.upToCount` / `source.upToCount` を削る**（宣言側は残す）
+  ②`npm run build:effects` → `heldReview` で**何が動くか**を先に見る（[LESSONS.md](./LESSONS.md) §4.1 の「門を広げる前に golden を grep」）
+  ③golden＝「宣言で0体を選べる／帰結では選び直さない」の両方向 ④`O-535` の対照 golden（④の assert）を**逆向きへ直す**。
+- ⚠**`WX12-010-E3` 型を巻き込まない**＝あちらは**宣言ステップが対象選択ではない**（`REARRANGE_SIGNI` の結果を `STORE` した集合）。
+  **「直前が `SELECT_TARGET_ONLY` かどうか」で切れる**（実測＝640箇所のうち 638 が `SELECT_TARGET_ONLY`）。
 
 ## 🏁2026-09-18 にクローズ＝`O-534`（登録票は下）
 
@@ -2149,6 +2198,14 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 🔑**`order` に入れたシナリオは「壊れたら気づく」ための番人**＝返済後も外さない
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
+
+## 恒久指標アーカイブ（2026-09-19 実機シナリオ C 消化の回・PLAN §6 から退避）
+
+- **2026-09-19 時点**（実機シナリオ C の消化＋付与能力の `ON_ENERGY_CHARGE` 実バグ）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**ハーネスと engine の回＝live JSON を1バイトも触っていないので3計器は動かない**）
+  - 📦**在庫**＝機構 worklist **1**（`O-535`）｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**｜🏁**実機シナリオの既存 FAIL 0**（元85本）
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4320**＝+5・`census:traceinv` I1=0）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU の判断は触っていない）
 
 ## 恒久指標アーカイブ（2026-09-17 第393バッチ・PLAN §6 から退避）
 

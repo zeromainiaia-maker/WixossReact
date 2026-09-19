@@ -35202,14 +35202,13 @@ test('task12(xxii) WXK06-031-E1 E2E: 黒レベル1〜4を各1枚トラッシュ�
     ok(!yes.p0.done, '先行対象保存後にSEARCHが出る'); if (yes.p0.done) return;
     const yesR = resumeSearch(blackByLevel, yes.p0.pending as never,
       { ...yes.ctx, ownerState: yes.p0.ownerState, otherState: yes.p0.otherState, logs: yes.p0.logs, storedTargetCards: yes.p0.storedTargetCards });
-    ok(!yesR.done && yesR.pending.type === 'SELECT_TARGET', '4枚なら保存対象だけのバニッシュ確認へ進む');
-    if (yesR.done) return;
-    eq(yesR.pending.candidates.join(','), target,
-      '4枚条件が成立し、SEARCH then TRASH＋afterSearch後も記録が生存して保存対象のバニッシュへ進む');
-    const yesDone = resumeSelectTarget([target], yesR.pending as never,
-      { ...yes.ctx, ownerState: yesR.ownerState, otherState: yesR.otherState, logs: yesR.logs,
-        lastProcessedCards: yesR.lastProcessedCards, storedTargetCards: yesR.storedTargetCards });
-    ok(yesDone.done); if (!yesDone.done) return;
+    // 🆕**§5.3 `O-535`（2026-09-19）＝宣言済みの対象はもう一度尋ねない**＝
+    //   旧実装はここで「保存対象だけが候補」の `SELECT_TARGET` を出しており、**同じ対象を2回選ばされて**いた
+    //   （`BattleScreen` は `SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶので
+    //    `ON_TARGETED` の二重発火にもなる）。⇒ 4枚条件の成立とバニッシュまでを1回で走らせる。
+    ok(yesR.done, `4枚条件が成立し、記録が生存して保存対象のバニッシュまで走る: ${yesR.done ? '' : yesR.pending.type}`);
+    if (!yesR.done) return;
+    const yesDone = yesR;
     ok(blackByLevel.every(n => yesDone.ownerState.trash.includes(n)), '選んだ4枚をトラッシュへ');
     ok(!yesDone.otherState.field.signi.some(s => s?.at(-1) === target), '4枚なら保存した先行対象をバニッシュ');
 
@@ -35249,15 +35248,11 @@ test('task12(xxii) WDK08-Y01-E1 E2E: ルリグ発生源で水獣4枚公開→1�
     const deckBefore = p1.ownerState.deck.length;
     const yes = resumeSelectTarget(waterByLevel, p1.pending as never,
       { ...ctx, ownerState: p1.ownerState, otherState: p1.otherState, logs: p1.logs, storedTargetCards: p1.storedTargetCards });
-    ok(!yes.done && yes.pending.type === 'SELECT_TARGET', '相異4枚なら保存対象だけのエナ送り確認へ進む');
-    if (yes.done) return;
+    // 🆕**§5.3 `O-535`（2026-09-19）＝宣言済みの対象はもう一度尋ねない**（上の WXK06-031 と同じ理由）。
+    ok(yes.done, `DRAW後も公開記録が生存し、相異4枚で保存対象のエナ送りまで走る: ${yes.done ? '' : yes.pending.type}`);
+    if (!yes.done) return;
     eq(yes.ownerState.deck.length, deckBefore - 1, '4枚公開で1ドロー');
-    eq(yes.pending.candidates.join(','), target,
-      'DRAW後も公開記録が生存し、相異4枚条件が成立して保存対象だけが候補になる');
-    const yesDone = resumeSelectTarget([target], yes.pending as never,
-      { ...ctx, ownerState: yes.ownerState, otherState: yes.otherState, logs: yes.logs,
-        lastProcessedCards: yes.lastProcessedCards, storedTargetCards: yes.storedTargetCards });
-    ok(yesDone.done); if (!yesDone.done) return;
+    const yesDone = yes;
     ok(yesDone.otherState.energy.includes(target), '4枚のレベルが全て異なれば先行対象の相手シグニをエナへ');
 
     const three = waterByLevel.slice(0, 3);
@@ -84925,16 +84920,24 @@ test('§5.3 O-451: BANISH_REDIRECT と POWER_MODIFY_PER_LEVEL_SUM が targetsSto
     const r = executeAction(action, mk(store));
     return r.done ? [] : ((r.pending as { candidates?: string[] }).candidates ?? []);
   };
+  // 🆕**§5.3 `O-535`（2026-09-19）＝宣言済みの対象はもう一度尋ねない**ので、絞り込みの検査は
+  //   「候補が1体」ではなく「**実際に当たった札が1体**」で見る（`lastProcessedCards`＝処理した札）。
+  //   ⚠絞り込みが壊れると「2体とも候補の対話が出る」か「別のシグニに当たる」のどちらかになる＝両方落ちる。
+  const appliedOf = (action: EffectAction, store: string[]): string[] => {
+    const r = executeAction(action, mk(store));
+    ok(r.done, `宣言済みなら問い直さずに適用する: ${r.done ? '' : r.pending.type}`);
+    return r.done ? (r.lastProcessedCards ?? []) : [];
+  };
   const redirect = { type: 'BANISH_REDIRECT',
     target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
     redirectTo: 'trash', until: 'END_OF_TURN', targetsStored: true } as unknown as EffectAction;
-  eq(JSON.stringify(candidatesOf(redirect, [declared])), JSON.stringify([declared]),
-    '🔴BANISH_REDIRECT: 宣言した1体だけが候補（絞らないと別のシグニを選び直せる）');
+  eq(JSON.stringify(appliedOf(redirect, [declared])), JSON.stringify([declared]),
+    '🔴BANISH_REDIRECT: 宣言した1体だけに当たる（絞らないと別のシグニへ当たる）');
   const pmpls = { type: 'POWER_MODIFY_PER_LEVEL_SUM',
     target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
     deltaPerLevel: -1000, countFilter: { cardType: 'シグニ' }, countOwner: 'self', targetsStored: true } as unknown as EffectAction;
-  eq(JSON.stringify(candidatesOf(pmpls, [declared])), JSON.stringify([declared]),
-    '🔴POWER_MODIFY_PER_LEVEL_SUM: 宣言した1体だけが候補');
+  eq(JSON.stringify(appliedOf(pmpls, [declared])), JSON.stringify([declared]),
+    '🔴POWER_MODIFY_PER_LEVEL_SUM: 宣言した1体だけに当たる');
   // 🔴**対照＝`targetsStored` を外すと2体とも候補**（この assert が落ちたら絞り込みが効いていない）。
   eq(candidatesOf(withoutStoredBinding(redirect), [declared]).length, 2, 'targetsStored なしなら2体とも候補');
   eq(candidatesOf(withoutStoredBinding(pmpls), [declared]).length, 2, '同上（POWER_MODIFY_PER_LEVEL_SUM）');
@@ -87724,6 +87727,86 @@ test('対戦終了：CPU 戦は人間が押せば CPU の分も押す／押し�
   ok(battle.includes("reduceBattle(bs, { type: 'ACK_END', isHost, cpuBattle: isCpuBattle })"), '🔴「対戦終了」ボタンが CPU 戦の同時確認を使っていない');
   ok(/\.from\('battle_states'\)\.select\('host_end_ack, guest_end_ack'\)\.eq\('room_id', roomId\)\.maybeSingle\(\);/.test(battle),
     '🔴押した後に DB を読み直していない（相手の確認の通知を取りこぼすと終了待機中のまま止まる）');
+}));
+
+// ── 第402バッチ（2026-09-19）＝§5.3 `O-535`（宣言済みの対象を2回聞かない） ───────────────
+test('§5.3 O-535: 宣言した対象は任意コストの後で問い直さない（WD12-009-E1・631効果の正準形）', () => withSavedCursor(() => {
+  // 原文＝「対戦相手の**パワー15000以上**のシグニ１体を**対象とし**、《緑》を支払って**もよい**。
+  //        **そうした場合**、それをバニッシュする。」＝対象を取るのは1回。
+  const live = (effectsMap.get('WD12-009') ?? []).find(e => e.effectId === 'WD12-009-E1')!;
+  const steps = (live.action as SequenceAction).steps as unknown as Array<{ type: string; id?: string }>;
+  eq(JSON.stringify(steps.map(x => x.id ?? x.type)),
+    JSON.stringify(['SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS', 'OPTIONAL_COST', 'CONDITIONAL']),
+    '🔴宣言→固定→任意コスト→帰結 の正準形が崩れている（この形が 631効果 / 608カード）');
+
+  const big = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) >= 15000);
+  const small = findCard(c => isSigni(c) && c.CardNum !== big
+    && parseInt(c.Power || '0', 10) > 0 && parseInt(c.Power || '0', 10) < 15000);
+  const green = findCard(c => (c.Color ?? '') === '緑');
+  const setup = () => {
+    const ctx = mkCtx({ signi: ['WD12-009', null, null] }, { signi: [big, small, null] }, 'WD12-009');
+    ctx.ownerState = { ...ctx.ownerState, energy: [green] };
+    return ctx;
+  };
+  const ctx = setup();
+  const r0 = executeAction(live.action, ctx);
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '①まず対象を宣言させる（ここが ON_TARGETED の収集地点）');
+  if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+  eq(r0.pending.candidates.join(','), big, 'パワー15000以上だけが宣言の候補');
+  const declared = resumeSelectTarget([big], r0.pending, ctxAfter(r0, ctx));
+  ok(!declared.done && declared.pending.type === 'CHOOSE', '②宣言のあとに任意コストの二択');
+  if (declared.done || declared.pending.type !== 'CHOOSE') return;
+
+  // 🔴**本題**＝支払いのあとに「同じ対象」をもう一度聞かない（旧実装は `SELECT_TARGET` を再発行していた）。
+  //   🔑UX の粗ではない＝`BattleScreen` は `SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を
+  //   呼ぶので、2回聞く形は「対象になったとき」の【自】を**二重に収集する**。
+  const paid = resumeOptionalCost('pay', [green], declared.pending, ctxAfter(declared, ctx));
+  ok(paid.done, `🔴支払いの後に同じ対象を問い直した: ${paid.done ? '' : paid.pending.type}`);
+  if (!paid.done) return;
+  eq(fieldTops(paid.otherState).join(','), small, '宣言した1体だけがバニッシュされ、もう1体は残る');
+  ok(paid.ownerState.trash.includes(green), '《緑》のコストが支払われている');
+
+  // 🔴**反転（skip）**＝払わなければ1体も落ちない（「そうした場合」のゲートが生きている）。
+  const skipped = resumeOptionalCost('skip', [], declared.pending, ctxAfter(declared, ctx));
+  ok(skipped.done, 'skip で完了する'); if (!skipped.done) return;
+  eq(fieldTops(skipped.otherState).join(','), [big, small].join(','), '払わなければ両方残る');
+}));
+
+test('§5.3 O-535 対照: 自動解決は「選ぶ余地が1つも無い」形だけ（3つの向きで反転する）', () => withSavedCursor(() => {
+  // 🔴**631効果に効く funnel** なので、広げると「選ばせるべき場面で勝手に決まる」へ裏返る。
+  //   ⇒ この3つが FAIL したら funnel が広すぎる（`o535ForcedDeclaredSelection` の条件を読む）。
+  const a = SIGNI_L1, b = SIGNI_L2;
+  const mk = (store?: string[]): ExecCtx => {
+    const ctx = mkCtx({ signi: [SIGNI_L4, null, null] }, { signi: [a, b, null] }, SIGNI_L4);
+    return store ? ({ ...ctx, storedTargetCards: store } as ExecCtx) : ctx;
+  };
+  const pendTypeOf = (action: EffectAction, store?: string[]): string => {
+    const r = executeAction(action, mk(store));
+    return r.done ? 'done' : r.pending.type;
+  };
+  const banish = (extra: Record<string, unknown>, tgtExtra: Record<string, unknown> = {}): EffectAction =>
+    ({ type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, ...tgtExtra },
+      ...extra } as unknown as EffectAction);
+
+  // ① **宣言していない**（印が無い）＝候補が1体でも必ず尋ねる（対象宣言は勝手に済ませない）。
+  eq(pendTypeOf(banish({}, { filter: { cardType: 'シグニ', cardNum: a } })), 'SELECT_TARGET',
+    '🔴宣言の印が無いのに自動解決した（候補1体でも対象は選ばせる）');
+  // ② **宣言が2体・取れるのは1体**＝どちらを撃つかの余地が残っているので尋ねる。
+  eq(pendTypeOf(banish({ targetsStored: true }), [a, b]), 'SELECT_TARGET',
+    '🔴宣言2体から1体を選ぶ余地を奪った（勝手に決めている）');
+  // ③ **`optional`（原文の「〜して**もよい**」）**＝断る自由があるので尋ねる。
+  eq(pendTypeOf(banish({ targetsStored: true, optional: true }), [a]), 'SELECT_TARGET',
+    '🔴「してもよい」の断る自由を奪った（勝手に実行している）');
+  // ④ 🔴**`upToCount` も尋ねる**＝`upToCount` は「宣言で使い切った『まで』」とは限らず、
+  //   **帰結側の「〜してもよい」にも使われている**（反例＝`WX12-010-E3` の
+  //   `UP{count:'ALL', upToCount:true, targetsStored:true}`＝「移動したシグニを**アップしてもよい**」）。
+  //   ⚠ここを `a.optional` だけで切る形は**一度書いて戻した**（golden 4本が「0体を選ぶ自由が消えた」で落ちた）。
+  eq(pendTypeOf(banish({ targetsStored: true }, { count: 2, upToCount: true }), [a, b]), 'SELECT_TARGET',
+    '🔴帰結の upToCount（「〜してもよい」にも使われる）を自動解決した');
+  // 🔑**肯定側**＝宣言1体・ちょうど1体取る・任意でない＝自動解決する（①〜④に判別力があることの証明）。
+  eq(pendTypeOf(banish({ targetsStored: true }), [a]), 'done',
+    '🔴宣言済み・選ぶ余地なしの形が自動解決されていない（O-535 が効いていない）');
 }));
 
 if (listMode) {

@@ -9964,6 +9964,19 @@ function execPowerModifyPerLevelSum(a: import('../types/effects').PowerModifyPer
   if (cands.length === 0) return done(ctx);
   // 解決済み delta の POWER_MODIFY を thenAction にして適用（applyDirectAction が直接処理。再帰ループを避ける）
   const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  // 🆕**§5.3 `O-535`（2026-09-19）＝宣言済み／焼き込み済みなら再選択せずに同じ対象へ適用する。**
+  //   🔑兄弟の `POWER_MODIFY_PER_LRIG_LEVEL` / `POWER_MODIFY_PER_TRASH_COUNT` は同じ行を既に持っていた
+  //   （この型だけ抜けていた）。⚠**`executeAction` の funnel では救えない**＝`thenAction` を
+  //   素の `POWER_MODIFY` へ作り直して渡すので、宣言済みの印（`targetsStored`/`fixedCardNums`）が
+  //   pending に残らない＝funnel から「選ぶ余地がある対話」に見える。
+  if (a.targetsStored || a.fixedCardNums) {
+    let cur = ctx;
+    for (const n of cands) {
+      const r = applyDirectAction(pmAction, n, cur);
+      cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+    }
+    return done({ ...addLog(cur, `パワー${delta > 0 ? '+' : ''}${delta}（レベル合計${levelSum}×${a.deltaPerLevel}）`), lastProcessedCards: cands });
+  }
   if (a.target.count === 'ALL') {
     let cur = ctx;
     for (const n of cands) {
@@ -10985,6 +10998,94 @@ function execSetCardCostReplacement(a: import('../types/effects').SetCardCostRep
 // ===== メイン実行関数 =====
 
 /**
+ * 🆕🔴**§5.3 `O-535`（2026-09-19）＝宣言済みの対象を、もう一度尋ねない。**
+ *
+ * 🔴**症状**＝「〈対象〉を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合**、それを〜する」
+ *   （live 実測 **631効果 / 608カード**）で、**同じ対象を2回選ばされる**＝
+ *   ①`SELECT_TARGET_ONLY` で対象を宣言 ②任意コストを払う ③帰結（`BANISH` ほか）が**もう一度**尋ねる。
+ *   ③の候補は `freezeStoredTargets` の `fixedCardNums`（または `targetsStored`）で**宣言した札まで絞られている**
+ *   のに、`selectOrInteract` に「候補が確定しているなら自動解決」の枝が無いので必ず対話になっていた。
+ * 🔴**UX の粗ではない**＝`BattleScreen` は **`SELECT_TARGET` の resume ごとに `collectTargetedTriggers` を呼ぶ**
+ *   ので、**「対象にされたとき」の【自】が2回収集される**。`usageLimit` を持つ 17効果は2回目が落ちるが、
+ *   **持たない 1効果（`WX25-CP1-060`）は素で二重発火する**（実測＝`ON_TARGETED` は全18効果）。
+ *
+ * 🔑**先例は `POWER_MODIFY`**（`execPowerModify` の `targetsStored` 分岐）＝
+ *   「再び選択UIを出すのは冗長で、しかも同じ対象へ `ON_TARGETED` が二度立つ（対象宣言は1回）」。
+ *   この契約を **`executeAction` の出口1箇所**へ広げる（帰結の型は 30種以上あり、
+ *   ハンドラごとに書くと必ず付け忘れが出る＝この repo が何度も踏んだ「同じ式を2箇所以上に書く」型）。
+ *
+ * ⚠**条件は「選ぶ余地が1つも無い」まで絞る**（631効果に効くので、広げると
+ *   「選ばせるべき場面で勝手に決まる」へ裏返る）＝
+ *   ①`thenAction` が**宣言済み**の印（`targetsStored` / `fixedCardNums`）を持つ
+ *   ②`pending.optional` でない（0体を選ぶ自由が無い＝`a.optional` も `target.upToCount` も無い）
+ *   ③候補数 ≦ `count`（＝全部取るしかない）
+ *   ④`unplaceableCards` が無い（`O-534`＝選べても出せない札は UI/CPU の判断に委ねる）
+ *   ⑤合計制約（`selectionConstraint` / `totalPowerMax` / `totalLevelMax`）が無い。
+ * ⚠**`autoTargetedCards` には積まない**＝対象化は**宣言ステップ（そこで `ON_TARGETED` が立つ）**で済んでいる。
+ *   ここで積むと二重発火を別経路で復活させる。
+ * ⚠**宣言そのものは自動解決しない**＝`SELECT_TARGET_ONLY` の `thenAction` は印を持たないので条件①で落ちる
+ *   （候補1件でも尋ねる＝そこが `ON_TARGETED` の唯一の収集地点）。
+ */
+function o535ForcedDeclaredSelection(
+  result: ExecResult,
+): (PendingInteractionDef & { type: 'SELECT_TARGET' }) | null {
+  if (result.done) return null;
+  const p = result.pending;
+  if (p.type !== 'SELECT_TARGET') return null;
+  if (p.unplaceableCards?.length) return null;
+  if (p.selectionConstraint || p.totalPowerMax !== undefined || p.totalLevelMax !== undefined) return null;
+  const then = p.thenAction as { targetsStored?: boolean; fixedCardNums?: string[] };
+  const declared = then.targetsStored === true || (then.fixedCardNums?.length ?? 0) > 0;
+  if (!declared) return null;
+  // 🔴🔑**`pending.optional` で切る**（`a.optional` だけを見て `upToCount` を通す形は**試して戻した**）＝
+  //   `upToCount` は「宣言で使い切った『まで』」ではなく、**帰結側の「〜して**もよい**」にも使われている**。
+  //   反例＝`WX12-010-E3`「この方法で他のシグニゾーンに移動したシグニを**アップしてもよい**」は
+  //   `UP{target:{count:'ALL',upToCount:true}, targetsStored:true}`＝**照応先は engine が算出した集合**
+  //   （動いたシグニ）で、任意性はこの UP の側にある。⇒ 自動解決すると**0体を選ぶ自由が消える**
+  //   （golden `§6.4 O-8(b)` ほか4本が落ちて分かった）。
+  // ⚠**残る二重質問＝13効果 / 13カード**（帰結が `upToCount` の形。`WXDi-P02-043-E1` ほか）＝
+  //   `pending` からは「宣言の『まで』」と「帰結の『してもよい』」を区別できないので、ここでは触らない
+  //   （直すなら parser 側で帰結の `upToCount` を落とす＝PLAN §5.3 `O-536`）。
+  if (p.optional) return null;
+  if (!Number.isFinite(p.count) || p.count <= 0) return null;
+  if (p.candidates.length === 0 || p.candidates.length > p.count) return null;
+  return p;
+}
+
+/**
+ * `o535ForcedDeclaredSelection` が成立した対話を、その場で `resumeSelectTarget` へ流す。
+ * ⚠**深さを制限する**＝`resumeSelectTarget` は内部で `executeAction` を呼ぶので、万一
+ *   同じ形の対話を作り直す帰結があっても無限再入しないようにする（保険。実測では1段で閉じる）。
+ */
+let o535AutoResolveDepth = 0;
+function o535AutoResolveDeclared(result: ExecResult, ctx: ExecCtx): ExecResult {
+  const pending = o535ForcedDeclaredSelection(result);
+  if (!pending) return result;
+  if (o535AutoResolveDepth >= 4) return result;
+  // ⚠**対話を作った地点の ctx を復元する**＝`needsInteraction` が result へ写した値がそれ
+  //   （`storedTargetCards` を落とすと `targetsStored` の絞り込みが resume 側で空振りする）。
+  const at: ExecCtx = {
+    ...ctx,
+    ownerState: result.ownerState,
+    otherState: result.otherState,
+    logs: result.logs,
+    lastProcessedCards: result.lastProcessedCards,
+    lastProcessedCount: result.lastProcessedCount,
+    lastLookTrashedCards: result.lastLookTrashedCards,
+    storedTargetCards: result.storedTargetCards,
+    fieldTrashCostCards: result.fieldTrashCostCards,
+    trapActivated: result.trapActivated,
+    trapSetOwners: result.trapSetOwners,
+  };
+  o535AutoResolveDepth++;
+  try {
+    return resumeSelectTarget([...pending.candidates], pending, at);
+  } finally {
+    o535AutoResolveDepth--;
+  }
+}
+
+/**
  * 🆕🔴**§5.3 `O-321`/`O-315`/`O-308`③（2026-09-11 第275バッチ）＝エナゾーンへの配置を1箇所で台帳へ記録する。**
  *
  * 🔴**なぜ funnel を作ったか**＝`energy: [...state.energy, …]` は engine だけで **69箇所**ある。
@@ -10998,7 +11099,7 @@ function execSetCardCostReplacement(a: import('../types/effects').SetCardCostRep
  *   由来で切り分けられるようにするため）。
  */
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
-  const result = executeActionInner(action, ctx);
+  const result = o535AutoResolveDeclared(executeActionInner(action, ctx), ctx);
   const ownerPlaced = diffEnergyPlacements(ctx.ownerState, result.ownerState);
   const otherPlaced = diffEnergyPlacements(ctx.otherState, result.otherState);
   if (ownerPlaced.length === 0 && otherPlaced.length === 0) return result;
