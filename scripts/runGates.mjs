@@ -62,6 +62,10 @@ const results = await Promise.all([
   // ゲートは I1（カード保存則＝消滅・二重存在）だけ＝0 が正。I2〜I5 は候補出し（精度は round6/TYPE_LEDGER.md）。
   // ⚠この1本で約2分（トレース生成）＝並列なので gates の壁時計は golden と同程度に収まる。
   run('census-traceinv', 'census:traceinv'),
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝**ヘッドレス自己対戦を1戦**（画面も DB も無しで CPU 同士）。
+  // 🔑ここが止まる＝材料／ルール処理／対話の解決／CPU の1手／席の鏡のどれかが噛み合っていない。
+  // ⚠判定は「決着したか」だけ（勝敗は見ない＝乱数で変わる）。`idle`／`cap` で exit 1。約35秒・並列。
+  run('selfplay', 'selfplay'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

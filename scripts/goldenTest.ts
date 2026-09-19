@@ -159,6 +159,7 @@ import { createHeadlessIo } from '../src/screens/battle/controller/battleIo';
 import { createHeadlessBattle } from '../src/screens/battle/controller/headlessBattle';
 import { performAssistGrow } from '../src/screens/battle/controller/performAssistGrow';
 import { createMemoryPersist } from '../src/screens/battle/controller/memoryPersist';
+import { mirrorSeats } from '../src/screens/battle/controller/headlessMatch';
 import { resolveStackStep } from '../src/screens/battle/controller/stackResolve';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canAffordEnergyCostWithSubstitutes, canPayExceed, costColorMatches, exceedPoolOf, isEnaMultiStripped, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed, isEnergyPaymentSelectionValid } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
@@ -87083,7 +87084,9 @@ test('§5.3 O-532 レベル超過／リミット超過のルール処理（R-44/
     '🔴【チャーム】【アクセ】がトラッシュへ行かない（R-41 を通っていない）');
   eq(applied.state.field.signi[0], null, 'ゾーンが空いていない');
   // 🔴**配線**＝判定は純関数1本・funnel と表示の2地点から呼ぶ。
-  const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝funnel（自分の盤面／CPU の盤面）は `controller/ruleChecks.ts` へ移設した
+  //   ＝**地点の数は3のまま**（画面はモーダルの表示だけ）＝較正であって退化ではない。
+  const screen = battleScreenSource();
   eq((screen.match(/planLimitExcess\(/g) ?? []).length, 3,
     '🔴判定の呼び出しが3箇所（モーダルの表示／自分の盤面の funnel／CPU の盤面）でない');
   ok(/const checkLimitExcessRule = async/.test(screen) && /pickLimitExcessZone\(cpuPlan\)/.test(screen),
@@ -87319,7 +87322,10 @@ test('バグ報告 2026-09-18: リフレッシュは効果1つの解決直後（
   //   （**経路数は9のまま**＝較正であって退化ではない）。
   eq((screen.match(/applyRefreshOnDone\(result, (?:battleCardMap|deps\.cardMap)\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
   ok(/const checkDeferredRefreshRule = async/.test(screen), '保留リフレッシュのルール処理 funnel がある');
-  const body = screen.slice(screen.indexOf('const checkDeferredRefreshRule = async'));
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝**本体は `controller/ruleChecks.ts`**（画面に残るのは委譲の1行）＝
+  //   `battleScreenSource()` は画面を先に連結するので、**本体側から読む**（較正＝条件の数は不変）。
+  const rulesSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  const body = rulesSrc.slice(rulesSrc.indexOf('const checkDeferredRefreshRule = async'));
   ok(/if \(bs\.effect_stack \|\| bs\.pending_effect \|\| bs\.pending_spell\) return;/.test(body.slice(0, 600)), '🔴スタック・対話・スペルが残っているのに funnel がリフレッシュする');
   const empty = { ...mkState(), deck: [], trash: [fresh()] } as PlayerState;
   const mid = applyRefreshOnDone({ done: false, ownerState: empty, otherState: mkState(), logs: [] } as unknown as ExecResult, cardMap as Map<string, CardData>);
@@ -87420,7 +87426,9 @@ test('§5.6 C-9 R-45 レゾナの行き先：ルリグデッキへ戻る（ル�
   //   規則を1つずつ手で書き直すと**経路によってレゾナの行き先が変わる**。判定は `resonaZone.ts` の1本を通す。
   const screen = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
     // §5.7 `S-5c` 第3段（2026-09-18）＝シグニアタックのバトル解決は移設先で読む
-    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8');
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/resolveSigniBattle.ts'), 'utf8')
+    // §5.7 `S-5d` 第3段（2026-09-19）＝パワー0以下のルール処理は `controller/ruleChecks.ts` へ移設（**地点は3のまま**）
+    + '\n' + fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
   const utils = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
   eq((screen.match(/resonaLeaveDestination\(/g) ?? []).length, 3,
     '🔴BattleScreen のレゾナ行き先の消費地点が3箇所でない（バトル防御側・バトルアタック側・パワー0以下）');
@@ -88061,6 +88069,95 @@ test('§5.7 S-5d 第2段 画面に CPU の振り分けを書き戻さない', ()
   ok(!moved.includes('setTimeout('), '🔴純関数に setTimeout が入った');
   ok(!/CPU_ACTION_DELAY[^`）]/.test(moved.replace(/`CPU_ACTION_DELAY`/g, '')), '🔴純関数に待ち時間が入った');
   ok(battle.includes('}, CPU_ACTION_DELAY);'), '🔴画面の遅延が消えた（CPU が一瞬で答えて人が追えない）');
+}));
+
+// ── 第406バッチ（2026-09-19）＝§5.7 `S-5d` 第3段（ヘッドレスの対戦ループ）──────────────
+test('§5.7 S-5d 第3段 席の鏡：2回かけると元に戻る／guest 席に host の盤面が来る', () => withSavedCursor(() => {
+  // 🔑**鏡が「人間側ターンの駆動」の全部**＝`cpuTurnAction` は guest 席＝`CPU_PLAYER_ID` を前提に書かれているので、
+  //   host 席を CPU に指させるには盤面を鏡にして渡し、**書き戻しを同じ関数で戻す**（involution）。
+  const HOST = 'user-host', CPU = '00000000-0000-0000-0000-000000000001';
+  const row = {
+    room_id: 'r', host_id: HOST, guest_id: CPU, global_phase: 'PLAYING', setup_phase: null,
+    turn_phase: 'MAIN', active_user_id: HOST, turn_count: 3,
+    host_state: mkState({ hand: 2, signi: ['WD01-013#h1'] }), guest_state: mkState({ hand: 4 }),
+    game_logs: [], updated_at: 'x', host_lrig_selected: null, guest_lrig_selected: null,
+    host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: false,
+    first_player_id: HOST, pending_spell: null, pending_effect: null, effect_stack: null,
+    winner_id: null, host_end_ack: false, guest_end_ack: true,
+  } as unknown as BattleStateRow;
+  const m = mirrorSeats(row, HOST, CPU);
+  // 席の中身が入れ替わる／ID の並びは変わらない（guest 席の ID は常に CPU＝CPU 側のコードが見分けられる）。
+  eq(m.guest_id, CPU, '🔴鏡の guest 席が CPU_PLAYER_ID でない（cpuTurnAction がどちらも動かさなくなる）');
+  eq(m.host_id, HOST, '鏡の host 席の ID が変わった');
+  eq(JSON.stringify(m.guest_state.field.signi), JSON.stringify(row.host_state.field.signi), '🔴鏡の guest 席に host の盤面が来ていない');
+  eq(m.active_user_id, CPU, '🔴鏡で手番が CPU 席に移っていない（＝host 席を CPU に指させられない）');
+  eq(m.guest_mulligan_done, true, '対の列（mulligan_done）が入れ替わっていない');
+  eq(m.host_end_ack, true, '対の列（end_ack）が入れ替わっていない');
+  // 🔑involution＝2回で元に戻る（パッチを実座標へ戻すのがこの性質）。
+  eq(JSON.stringify(mirrorSeats(m, HOST, CPU)), JSON.stringify(row), '🔴2回かけても元に戻らない（書き戻しが壊れる）');
+  // 片側しか無いパッチでも成立する（`reduceBattle` は片側だけ書くことがある）。
+  const patch = mirrorSeats({ active_user_id: HOST, guest_state: row.guest_state } as never, HOST, CPU) as Record<string, unknown>;
+  eq(patch.active_user_id, CPU, '片側パッチの ID が入れ替わっていない');
+  ok('host_state' in patch && !('guest_state' in patch), '🔴片側パッチの席が入れ替わっていない');
+}));
+
+test('§5.7 S-5d 第3段 ヘッドレスの対戦ループ：画面なしで両席が自分のターンを回す', () => {
+  // 🔴**この1本だけが端から端まで回す**＝材料（`battleMaterials`）・ルール処理（`ruleChecks`）・対話の解決・
+  //   CPU の1手・席の鏡が**全部つながっていないと `ターン=1` のまま止まる**（試運転で2回とも実際に止まった）。
+  //   ⚠重いので手数を絞る（60手＝3ターン目まで・約9秒）。**決着まで回すのは `gates` の `selfplay`**（1戦 約35秒・並列）。
+  const out = execFileSync(process.execPath, [join(root, 'node_modules/tsx/dist/cli.mjs'),
+    join(root, 'scripts/headlessSelfPlay.ts'), '--games', '1', '--seed', '1', '--steps', '60', '--allow-stall'],
+    { cwd: root, encoding: 'utf8' });
+  const m = out.match(/ターン=(\d+)/);
+  ok(!!m, `🔴自己対戦が結果行を出さない: ${out.slice(0, 400)}`);
+  // 🔑**3ターン目まで**見る＝host 席 → guest 席 → host 席の**両方向の引き渡し**を通す
+  //   （2ターン目までだと、鏡側だけが正しくても通ってしまう＝反転確認で実測）。
+  ok(parseInt(m![1], 10) >= 3, `🔴60手で3ターン目まで進まない（ターン=${m![1]}）＝どちらかの席が動いていない`);
+});
+
+test('§5.7 S-5d 第3段 画面に材料・ルール処理を書き戻さない／ループの順番と席の扱い', () => withSavedCursor(() => {
+  const battle = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const materials = fs.readFileSync(join(root, 'src/screens/battle/controller/battleMaterials.ts'), 'utf8');
+  const rules = fs.readFileSync(join(root, 'src/screens/battle/controller/ruleChecks.ts'), 'utf8');
+  const loop = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf8');
+  // ① 材料3本＝画面は委譲だけ（本体を写経すると人間経路とヘッドレスで割れる）。
+  for (const call of ['buildBattleCardMap({ bs, baseCards, userId: user.id })',
+    'buildBaseEffectsMap(battleCards)',
+    'buildAugmentedEffectsMap({ bs, baseEffectsMap, cardMap: battleCardMap, userId: user.id })',
+    'buildEffectivePowers({ bs, effectsMap, cardMap: battleCardMap, userId: user.id })']) {
+    ok(battle.includes(call), `🔴画面が材料の共通関数を通っていない: ${call}`);
+  }
+  ok(!battle.includes('const augMap = new InstanceMap'), '🔴augmented 効果表の本体が画面に書き戻されている');
+  ok(materials.includes('const augMap = new InstanceMap'), '移設先に augmented 効果表の本体が無い');
+  ok(!battle.includes('lrig_attack_phase_power_down_per_signi'), '🔴有効パワーの本体が画面に書き戻されている');
+  // ② ルール処理8本＝本体は移設先。画面に残るのは委譲の1行だけ（指紋は `RuleCheckMemo`）。
+  for (const fn of ['const triggerPendingCrash = async', 'const checkAndBanishPowerZero = async',
+    'const checkAndApplyContMutations = async', 'const checkDeferredRefreshRule = async',
+    'const checkRefreshForcedTurnEnd = async', 'const applyLimitExcessRule = async',
+    'const checkLimitExcessRule = async', 'const resolvePendingLrigAttack = async']) {
+    ok(rules.includes(fn), `🔴移設先にルール処理が無い: ${fn}`);
+  }
+  ok(!battle.includes('lastBanishedKeyRef'), '🔴ルール処理の指紋が画面に残っている（本体も残っている疑い）');
+  ok(battle.includes('createRuleCheckMemo()'), '🔴画面が `RuleCheckMemo` を作っていない（毎回作り直すと同じ処理を何度も書く）');
+  ok(!battle.includes('applyLimitExcessTrash('), '🔴リミット超過の本体が画面に書き戻されている');
+  ok(!battle.includes('calcContinuousSigniMutations('), '🔴CONTINUOUS 変化の本体が画面に書き戻されている');
+  // ③ ループの順番＝画面の `useEffect` と同じ（対話 → 整列 → スタック → ルール処理 → CPU の1手）。
+  const order = ['pending_effect) return (await answerInteraction', 'confirmOrderIfNeeded(bs)', 'resolveStackOnce(bs)', 'runRuleChecks(bs)', 'runCpuTurn(bs)']
+    .map(k => loop.indexOf(k));
+  ok(order.every(i => i >= 0), `🔴ループの1手から工程が消えた: ${JSON.stringify(order)}`);
+  ok(order.every((v, i) => i === 0 || order[i - 1] < v), `🔴ループの順番が画面の useEffect と違う: ${JSON.stringify(order)}`);
+  // ④ 🔴`PerformCtx.userId` は**相手（クライアント）の席**＝ここに CPU_PLAYER_ID を渡すと
+  //   CPU が自分にターンを渡し続ける（試運転で実測＝host 席だけが連続で打った）。
+  ok(loop.includes('cpuTurnAction(ctxOf(bs, bs.host_id)'), '🔴CPU の1手に相手（クライアント）の席を渡していない');
+  ok(!loop.includes('ctxOf(bs, CPU_PLAYER_ID)'), '🔴CPU の1手に CPU 自身の席を渡している（ターンが移らなくなる）');
+  // ⑤ 🔴相手の応答待ち（ガード・カットイン・身代わり・ダメージ置換）では席を譲る＝譲らないと空回りする。
+  ok(/cpuShouldAct\(bs\) && !cpuWaitingForHuman\(bs\)/.test(loop), '🔴応答待ちの席へ譲っていない（攻撃側を呼び続けて止まる）');
+  ok(/!cpuShouldAct\(m0\) \|\| cpuWaitingForHuman\(m0\)/.test(loop), '🔴鏡側でも応答待ちを見ていない');
+  // ⑥ 待ち時間はヘッドレスに持ち込まない（自己対戦が実時間に縛られる）。
+  ok(!loop.includes('setTimeout('), '🔴ヘッドレスのループに setTimeout が入った');
+  ok(!/CPU_ACTION_DELAY/.test(loop.replace(/`CPU_ACTION_DELAY`/g, '')), '🔴ヘッドレスのループに待ち時間が入った');
+  // ⑦ guest 席の ID の約束（違うと黙って1手も進まない）。
+  ok(loop.includes('initial.guest_id !== CPU_PLAYER_ID'), '🔴guest 席が CPU_PLAYER_ID でないときに落としていない');
 }));
 
 if (listMode) {

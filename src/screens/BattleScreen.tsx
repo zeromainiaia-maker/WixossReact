@@ -3,17 +3,13 @@ import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, PendingEffect, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {buildEffectsMap} from '../data/effectParser';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectCopiedLrigContinuousEffects, collectOppEnergyColorRestriction, collectMultiAcceLimits, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, applyTimedBaseLevelOverrides, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
-import {executeEffect, applyRefreshOnDone, refreshPlayersIfDeckEmpty, removeFromField, getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx} from '../engine/effectExecutor';
+import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectOppEnergyColorRestriction, collectMultiAcceLimits, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {executeEffect, applyRefreshOnDone, getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
-import {effectiveIdentityOverrides} from '../engine/nameIdentityRules';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
-import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, type TrigCtx} from '../engine/triggerCollect';
+import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
 import { collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers} from '../engine/triggerCollect';
-import {detectNewlyDowned} from '../engine/boardDiff';
 import {coinLedger} from '../engine/coinAbilityNegation';
-import {hasKeyword, hasBanishResist} from '../utils/keywords';
 import {acceCardsAt, allAcceCards, normalizeAcceSlots} from '../utils/acce';
 import {C, HandCards, PlayerField} from '../components/BoardComponents';
 import type {CardAction} from '../components/BoardComponents';
@@ -41,7 +37,7 @@ interface Props {
 }
 
 import {randomInt} from '../engine/rng';
-import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, assignInstanceIds, assignGuestInstanceIds, jankenWinner, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, isPieceCardType} from './battle/battleUtils';
+import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, canUseArtsCondition, isPieceCardType} from './battle/battleUtils';
 import {recordEnergyPlacements} from '../engine/energyPlacement';
 import {mainPhaseGateOkFor} from '../engine/triggerCollect';
 import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, canAffordEnergyCostWithSubstitutes, findCounterSpellMaxCost, paySelectedExceed} from './battle/costs';
@@ -51,8 +47,7 @@ import {computeFieldSigniLimit} from './battle/fieldLimit';
 import {matchesTrashArtsFromLrigDeckCost} from './battle/artsTrashCost';
 import {MAYU_ENCOUNTER_A} from './battle/mayuEncounter';
 import {computeEffectiveLrigLimit} from './battle/lrigLimit';
-import {resolveLrigAttackContinuation, resolveNegateEscapeChoice} from './battle/attackNegation';
-import {consumeOnceDelayedTriggers} from './battle/delayedTrigger';
+import {resolveNegateEscapeChoice} from './battle/attackNegation';
 import {moveFieldSigniFacedown, scheduleTurnEndFacedownReturns} from '../engine/facedownSigni';
 import {JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn} from './battle/uiConstants';
 import {MulliganCard} from './battle/MulliganCard';
@@ -108,6 +103,10 @@ import {useBattleLog} from './battle/hooks/useBattleLog';
 import {useGameStartSetup, useSigniSummonFlow} from './battle/hooks/useSetupFlow';
 import {useBattlePersist} from './battle/controller/persist';
 import {makeBoardDiffCollector, type BoardDiffCollector} from './battle/controller/boardDiffTriggers';
+// 🆕§5.7 `S-5d` 第3段（2026-09-19）＝盤面の材料（カード表・効果表・有効パワー）の本体。
+import {buildBattleCardMap, buildBaseEffectsMap, buildAugmentedEffectsMap, buildEffectivePowers} from './battle/controller/battleMaterials';
+// 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体（画面の `useEffect` から回る受け皿）。
+import {makeRuleChecks, createRuleCheckMemo} from './battle/controller/ruleChecks';
 import {makeFillDeployCaps, makeTrigCtx} from './battle/controller/execCtxDeps';
 import {performAssistGrow as performAssistGrowImpl} from './battle/controller/performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './battle/controller/performLrigAttack';
@@ -135,11 +134,9 @@ import { resolveStackStep, type StackResolveDeps} from './battle/controller/stac
 import {makeEffectInteractionHandlers} from './battle/controller/effectInteraction';
 import {reduceBattle, type PlayerStateKey} from './battle/controller/battleController';
 import {canCardGuard, guardAlternativeClassCandidates} from './battle/guard';
-import {resonaLeaveDestination} from '../engine/resonaZone';
-import {refreshForcesTurnEnd} from './battle/refreshTurnEnd';
 import {removeKeyToLrigTrash} from './battle/keyZone';
 import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
-import {applyLimitExcessTrash, pickLimitExcessZone, planLimitExcess} from './battle/limitExcess';
+import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
 import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu} from './battle/cpuDriver';
 import {pickCpuMulliganIndices} from './battle/cpuHandLimit';
@@ -418,11 +415,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
   const resolvePendingLrigAttackRef      = useRef<(() => Promise<void>) | null>(null);
-  const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
-  const lastContMutationKeyRef    = useRef<string>(''); // CONTINUOUS BANISH/FREEZE/DOWN 二重処理防止
-  const lastRefreshTurnEndKeyRef  = useRef<string>(''); // `R-28`＝同じターンで2回ターン終了させない
-  const lastDeferredRefreshKeyRef = useRef<string>(''); // 同じ盤面で2回リフレッシュしない（DB 伝播待ち）
-  const lastLimitExcessKeyRef     = useRef<string>(''); // `O-532`＝DB 伝播待ちの二重処理防止
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理の二重処理防止の指紋（旧 `last*KeyRef` 5本）は
+  //   `controller/ruleChecks.ts` の `RuleCheckMemo` に束ねた。🔴**毎回作り直さない**（指紋が消えると同じ処理を何度も書く）。
+  const ruleMemoRef = useRef(createRuleCheckMemo());
   const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
   const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
 
@@ -815,26 +810,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const needsAllCardNames = bs?.pending_effect?.interaction.type === 'CHOOSE'
       && bs.pending_effect.interaction.namePool?.source === 'all_cards';
     const baseCards = needsAllCardNames ? cards : cards.filter(c => battleCardNums.has(c.CardNum));
-    const base = new InstanceMap(baseCards.map(c => [c.CardNum, c] as [string, CardData]));
-    if (!bs) return base;
-    const localIsHost = user.id === bs.host_id;
-    const myState = localIsHost ? bs.host_state : bs.guest_state;
-    const opState = localIsHost ? bs.guest_state : bs.host_state;
-    // 🆕§5.3 `O-306`＝instance 単位の差し替えに**宣言名の変身規則**を合成する（後から領域へ来たカードにも効く）。
-    const allOverrides = { ...effectiveIdentityOverrides(myState, base), ...effectiveIdentityOverrides(opState, base) };
-    // 🆕§5.3 `O-375`＝**期間つきの基本レベル上書き**（`attack_phase_level_overrides` ほか）を UI の写しにも載せる。
-    //   🔴旧＝engine の解決 ctx（declaredCardMap）でしか通らず、この map を直接読むグロウ候補・シグニ配置のレベル上限・
-    //     アーツ使用条件などには**一時レベル変更が1つも届いていなかった**（`SP38-005-E1`／`SET_BASE_LEVEL{until}`）。
-    //   ⚠差し替え（ZERO 化等）の**後**に当てる＝engine の funnel と同じ順（差し替え後のカードのレベルを上書き）。
-    //   ⚠【常】の宣言は載せない（盤面から毎回評価する側＝焼くと解決中に戻らない）。値は「設定」なので下流で重ねても冪等。
-    if (Object.keys(allOverrides).length === 0) return applyTimedBaseLevelOverrides(base, myState, opState);
-    // card_identity_overrides: instanceId → 差し替えCardNumのカードデータに解決
-    const resolved = new Map<string, CardData>(base as Map<string, CardData>);
-    for (const [instanceId, overrideNum] of Object.entries(allOverrides)) {
-      const overrideCard = base.get(overrideNum);
-      if (overrideCard) resolved.set(instanceId, overrideCard);
-    }
-    return applyTimedBaseLevelOverrides(new InstanceMap(resolved), myState, opState);
+    // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝本体は `controller/battleMaterials.ts`（ヘッドレスは同じ関数で材料を作る）。
+    return buildBattleCardMap({ bs, baseCards, userId: user.id });
   }, [cards, battleCardNums, bs, user.id]);
 
   // ── 対戦開始：ルリグの自動配置（デッキ編成の指定どおり） ──────────────
@@ -874,179 +851,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // CONTINUOUS 効果マップ（ベース: カードデータのみ、静的）
   const baseEffectsMap = useMemo(
-    () => new InstanceMap(buildEffectsMap(battleCards)),
+    () => buildBaseEffectsMap(battleCards),
     [battleCards],
   );
 
   // granted_effects + under-signi付与 + card_identity_overrides を加味した augmented 効果マップ
   const effectsMap = useMemo(() => {
-    if (!bs) return baseEffectsMap;
-    const localIsHost = user.id === bs.host_id;
-    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
-    const opS  = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-
-    // granted_effects（ターン終了まで）と granted_effects_until_opp_turn（次の相手ターン終了まで）を
-    // instanceId 単位で配列結合してマージ（同一キーで一方が欠落しないように）。
-    const mergeGranted = (
-      a: Record<string, import('../types/effects').CardEffect[]>,
-      b: Record<string, import('../types/effects').CardEffect[]>,
-    ): Record<string, import('../types/effects').CardEffect[]> => {
-      const out: Record<string, import('../types/effects').CardEffect[]> = { ...a };
-      for (const [k, v] of Object.entries(b)) out[k] = [...(out[k] ?? []), ...v];
-      return out;
-    };
-    // 🔴「ターン終了時まで、〜は**効果によって得ている能力**を失う」（§5.3 `O-130`）＝
-    //   `granted_abilities_removed` に載ったカードは付与ぶんを**この合成の時点で**空にする
-    //   （augmented effectsMap が engine 全体の読み口なので、ここを通せば消費地点が1つで済む）。
-    //   ⚠印刷能力は消さない＝`abilities_removed`（全能力喪失）とは別軸。
-    const dropLost = (
-      m: Record<string, import('../types/effects').CardEffect[]>, st: typeof myS,
-    ): Record<string, import('../types/effects').CardEffect[]> => {
-      const lost = st.granted_abilities_removed;
-      if (!lost?.length) return m;
-      const out: Record<string, import('../types/effects').CardEffect[]> = {};
-      for (const [k, v] of Object.entries(m)) {
-        if (lost.includes(k) || lost.includes(getCardNum(k))) continue;
-        out[k] = v;
-      }
-      return out;
-    };
-    const myGranted = dropLost(mergeGranted(myS.granted_effects ?? {}, myS.granted_effects_until_opp_turn ?? {}), myS);
-    const opGranted = dropLost(mergeGranted(opS.granted_effects ?? {}, opS.granted_effects_until_opp_turn ?? {}), opS);
-    const hasGranted = Object.keys(myGranted).length > 0 || Object.keys(opGranted).length > 0;
-
-    // スタックあり（ライズ）ゾーンの有無チェック
-    const hasStack = [...myS.field.signi, ...opS.field.signi].some(s => s && s.length >= 2);
-
-    // card_identity_overrides（サーバントZERO等）
-    // ⚠`battleCardMap` と**同じ funnel** を通す＝片方だけ規則を見ると「見た目は ZERO なのに能力は元のまま」になる。
-    const myOverrides = effectiveIdentityOverrides(myS, battleCardMap);
-    const opOverrides = effectiveIdentityOverrides(opS, battleCardMap);
-    const hasOverrides = Object.keys(myOverrides).length > 0 || Object.keys(opOverrides).length > 0;
-
-    // レイヤー等のフィールド付与（GRANT_FIELD_SIGNI_ABILITY）持ちシグニの有無チェック
-    const hasFieldGrant = [...myS.field.signi, ...opS.field.signi].some(s => {
-      const top = s?.at(-1);
-      if (!top) return false;
-      return (baseEffectsMap.get(top) ?? []).some(e =>
-        // 🔴**SEQUENCE の中も見る**（2026-08-28・Sheet1 残8枚バッチ・実機で発見）＝
-        //   「このシグニのパワーは＋Nされ／基本パワーはNになり、このシグニは「【自】…」を得る」の連用中止形は
-        //   `SEQUENCE[POWER_MODIFY|POWER_SET, GRANT_FIELD_SIGNI_ABILITY]` になる。
-        //   `collectContinuousGrantedAbilities`（`effectEngine.ts:6535`）は**この形を明示的に走査している**のに、
-        //   ここのゲートが action 直下しか見ていなかったので **effectsMap が付与つきで組み直されず、
-        //   付与された【自】が1度も収集されなかった**（実測 live 11効果）。
-        //   ⚠すぐ下の `hasPlayerFieldGrant`（プレイヤー付与）は最初から SEQUENCE を見ており、**片側だけの穴**だった。
-        e.effectType === 'CONTINUOUS' && (e.action.type === 'GRANT_FIELD_SIGNI_ABILITY'
-          || (e.action.type === 'SEQUENCE' && e.action.steps.some(a => a.type === 'GRANT_FIELD_SIGNI_ABILITY'))));
-    });
-    const hasPlayerFieldGrant = [myS, opS].some(st => (st.game_granted_effects ?? []).some(e =>
-      e.effectType === 'CONTINUOUS' && (e.action.type === 'GRANT_FIELD_SIGNI_ABILITY'
-        || (e.action.type === 'SEQUENCE' && e.action.steps.some(a => a.type === 'GRANT_FIELD_SIGNI_ABILITY'))),
-    ));
-
-    // アクセ付与（GRANT_ACCE_HOST_ABILITY）持ちアクセカードの有無チェック
-    const hasAcceGrant = [...allAcceCards(myS.field), ...allAcceCards(opS.field)].some(acceNum => {
-      return (baseEffectsMap.get(acceNum) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_ACCE_HOST_ABILITY');
-    });
-
-    // ソウル付与（GRANT_SOUL_HOST_ABILITY）持ちソウルカードの有無チェック
-    const hasSoulGrant = [...(myS.field.signi_soul ?? []), ...(opS.field.signi_soul ?? [])].some(soulNum => {
-      if (!soulNum) return false;
-      return (baseEffectsMap.get(soulNum) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_SOUL_HOST_ABILITY');
-    });
-
-    // COPY_LRIG_NAME_ABILITY で「そのルリグの【常】能力を得る」センタールリグの有無チェック
-    const hasCopyLrigCont = [myS, opS].some(st => {
-      const top = st.field.lrig.at(-1);
-      if (!top) return false;
-      const txt = battleCardMap.get(top)?.EffectText ?? '';
-      if (!/そのルリグの【常】能力を得る/.test(txt)) return false;
-      return (baseEffectsMap.get(top) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' &&
-        (e.action as import('../types/effects').StubAction).id === 'COPY_LRIG_NAME_ABILITY');
-    });
-
-    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasPlayerFieldGrant && !hasAcceGrant && !hasSoulGrant && !hasCopyLrigCont) return baseEffectsMap;
-
-    // 🔴**`InstanceMap` で組む**（2026-08-28・Sheet1 残8枚バッチ・実機で発見）＝
-    //   下の付与コレクタ（`collectGrantedFromLayer` / `…FromAcce` / `…FromSoul` / `…FromUnderSigni`）へ
-    //   **この map をそのまま渡している**のに、素の `Map` は `'WX11-053#1'` のような **instanceId を解決できない**
-    //   （`new Map(baseEffectsMap)` は InstanceMap の**実エントリ＝CardNum キー**だけを複製する）。
-    //   コレクタは場のシグニを `field.signi[zi].at(-1)`＝**instanceId** で引くので、
-    //   `effectsMap.get(top)` が常に `undefined` になり **付与宣言が1件も収集されなかった**
-    //   （実機で `myLayer=[]` を実測。live で `GRANT_FIELD_SIGNI_ABILITY` を持つ 71 効果が該当）。
-    //   ⚠`return new InstanceMap(augMap)` は最後に包み直しているので**外から見た型は変わらない**＝
-    //     ここを InstanceMap にしても呼び出し側の挙動は変わらず、内部の付与収集だけが直る。
-    const augMap = new InstanceMap<import('../types/effects').CardEffect[]>(baseEffectsMap);
-
-    // COPY_LRIG_NAME_ABILITY 【常】能力コピー：ルリグトラッシュの該当ルリグの CONTINUOUS 効果を
-    // センタールリグ（instanceId）に注入する。これにより各 CONTINUOUS 収集関数が自動的に拾う。
-    if (hasCopyLrigCont) {
-      for (const [st, otherSt, isTurn] of [[myS, opS, myTurn], [opS, myS, !myTurn]] as const) {
-        const copiedCont = collectCopiedLrigContinuousEffects(st, battleCardMap, baseEffectsMap, otherSt, isTurn);
-        if (copiedCont.length === 0) continue;
-        const top = st.field.lrig.at(-1)!;
-        const base = augMap.get(top) ?? baseEffectsMap.get(top) ?? [];
-        augMap.set(top, [...base, ...copiedCont]);
-      }
-    }
-
-    // card_identity_overrides: ZERO化されたシグニの効果を差し替えカードの効果に設定（通常は空）
-    for (const [instanceId, overrideNum] of [...Object.entries(myOverrides), ...Object.entries(opOverrides)]) {
-      const overrideEffects = baseEffectsMap.get(overrideNum) ?? [];
-      augMap.set(instanceId, overrideEffects);
-    }
-
-    // granted_effects の適用
-    for (const [instanceId, granted] of [...Object.entries(myGranted), ...Object.entries(opGranted)]) {
-      const base = augMap.get(getCardNum(instanceId)) ?? [];
-      augMap.set(instanceId, [...base, ...granted]);
-    }
-
-    // under-signi → top-signi 効果付与（collectGrantedFromUnderSigni）
-    if (hasStack) {
-      const myUnder = collectGrantedFromUnderSigni(myS, opS, myTurn, augMap, battleCardMap, bs.turn_phase);
-      const opUnder = collectGrantedFromUnderSigni(opS, myS, !myTurn, augMap, battleCardMap, bs.turn_phase);
-      for (const [num, extra] of [...myUnder, ...opUnder]) {
-        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
-        augMap.set(num, [...base, ...extra]);
-      }
-    }
-
-    // レイヤー等のフィールド付与（collectGrantedFromLayer）
-    if (hasFieldGrant || hasPlayerFieldGrant) {
-      const myLayer = collectGrantedFromLayer(myS, opS, myTurn, augMap, battleCardMap);
-      const opLayer = collectGrantedFromLayer(opS, myS, !myTurn, augMap, battleCardMap);
-      for (const [num, extra] of [...myLayer, ...opLayer]) {
-        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
-        augMap.set(num, [...base, ...extra]);
-      }
-    }
-
-    // アクセ→ホストシグニ付与（collectGrantedFromAcce）
-    if (hasAcceGrant) {
-      const myAcce = collectGrantedFromAcce(myS, opS, myTurn, augMap, battleCardMap);
-      const opAcce = collectGrantedFromAcce(opS, myS, !myTurn, augMap, battleCardMap);
-      for (const [num, extra] of [...myAcce, ...opAcce]) {
-        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
-        augMap.set(num, [...base, ...extra]);
-      }
-    }
-
-    // ソウル→ホストシグニ付与（collectGrantedFromSoul）
-    if (hasSoulGrant) {
-      const mySoul = collectGrantedFromSoul(myS, opS, myTurn, augMap, battleCardMap);
-      const opSoul = collectGrantedFromSoul(opS, myS, !myTurn, augMap, battleCardMap);
-      for (const [num, extra] of [...mySoul, ...opSoul]) {
-        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
-        augMap.set(num, [...base, ...extra]);
-      }
-    }
-
-    return new InstanceMap(augMap);
+    // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝本体は `controller/battleMaterials.ts`（ヘッドレスは同じ関数で材料を作る）。
+    return buildAugmentedEffectsMap({ bs, baseEffectsMap, cardMap: battleCardMap, userId: user.id });
   }, [bs, baseEffectsMap, user.id, battleCardMap]);
 
   // §5.7 `S-2`＝CPU デッキの作戦データ（キーカード・優先して出す札・コンボ）。CPU の選択で強さに足し引きする。
@@ -1087,27 +899,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
-    if (!bs) return new Map<string, number>();
-    const localIsHost = user.id === bs.host_id;
-    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
-    const opS  = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-    const base = calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap, bs.turn_phase);
-    // lrig_attack_phase_power_down_per_signi: アタックフェイズ中に相手シグニのパワーを自シグニ数×N下げる
-    const isAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase);
-    const lrigAttackPhasePowerDown = (myS.lrig_attack_phase_power_down_per_signi ?? 0)
-      + (myS.lrig_attack_phase_power_down_per_signi_until_opp_turn ?? 0);
-    if (isAttackPhase && lrigAttackPhasePowerDown > 0) {
-      const friendlyCount = myS.field.signi.filter(s => s?.length).length;
-      const penalty = -(lrigAttackPhasePowerDown * friendlyCount);
-      const result = new Map(base);
-      for (const stack of opS.field.signi) {
-        const top = stack?.at(-1);
-        if (top) result.set(top, (result.get(top) ?? 0) + penalty);
-      }
-      return result;
-    }
-    return base;
+    // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝本体は `controller/battleMaterials.ts`（ヘッドレスは同じ関数で材料を作る）。
+    return buildEffectivePowers({ bs, effectsMap, cardMap: battleCardMap, userId: user.id });
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // CONTINUOUS GRANT_KEYWORD（activeCondition 達成）で動的に付与中のキーワード（バッジ表示用）。
@@ -2694,29 +2487,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     resonaConditionCardNum?: string,
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect, byEffectCause, resonaConditionCardNum);
-
-  /**
-   * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
-   * banishedPlayerId: バニッシュされたシグニのオーナーの userId (host_id or guest_id)。
-   */
-  // ON_BANISH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  // usageLimit（《ターン1回/2回》）消費 effectId を usedHostIds/usedGuestIds で返す（呼び出し元が actions_done へ
-  // 書き戻す＝他コレクタと同型。続き100で発見した「読むだけで書き戻さない」ノーガード状態を続き135で解消）。
-  const collectBanishTriggers = (
-    banishedCardNum: string,
-    banishedPlayerId: string,
-    afterHostState: PlayerState,
-    afterGuestState: PlayerState,
-    prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
-    cause?: { ownerId: string; sourceCardNum?: string },
-    battleAttackerNum?: string,
-  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState, cause, battleAttackerNum);
-
-  // ON_SIGNI_POWER_ZERO_OR_LESS トリガー収集（pure: triggerCollect.ts）。checkAndBanishPowerZero から呼ぶ。
-  const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectPowerZeroTriggers(mkTrigCtx(), zeroedCardNum, zeroedOwnerId, afterHostState, afterGuestState);
-
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ON_BANISH／ON_SIGNI_POWER_ZERO_OR_LESS の薄いラッパも `controller/ruleChecks.ts` へ（同上）。
   /**
    * ON_TARGETED（「このシグニが対戦相手の能力か効果の対象になったとき」）のトリガーを収集する（C1 配線）。
    * targetedNums=対象に取られたシグニのカード番号群／targetedOwnerId=その所有者（＝効果発生源の対戦相手）。
@@ -2788,15 +2559,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   // ON_REFRESH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectRefreshTriggers = (
-    controllerId: string,
-    controllerState: PlayerState,
-    otherState: PlayerState,
-    refreshedByController: number,
-    refreshedByOpp: number,
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[]; firedOnceDelayed: boolean } =>
-    pureCollectRefreshTriggers(mkTrigCtx(), controllerId, controllerState, otherState, refreshedByController, refreshedByOpp);
-
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ON_REFRESH の薄いラッパは `controller/ruleChecks.ts` へ（呼び出しはルール処理の中だけ）。
 
 
 
@@ -4479,24 +4242,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ON_ATTACK_LRIG解決後にガード応答をセット（pending_lrig_attackフラグをクリアしてlrig_attackedをセット）
-  const resolvePendingLrigAttack = async () => {
-    if (!my.pending_lrig_attack) return;
-    if (loading) return;
-    const myKey = isHost ? 'host_state' : 'guest_state';
-    const opKey = isHost ? 'guest_state' : 'host_state';
-    setLoading(true);
-    try {
-      // 🆕**進行中のルリグアタックの無効化**（意味照合 段2・`WXDi-P09-036-E1`）＝
-      //   `ON_ATTACK_LRIG` で立った `cancel_current_lrig_attack` はここが唯一の消費地点。
-      const contLA = resolveLrigAttackContinuation(my, op);
-      if (contLA.cancelled) {
-        appendBattleLogs([`${battleCardMap.get(getCardNum(my.pending_lrig_attack_num ?? my.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ'}のアタックは無効化された`]);
-      }
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: contLA.attacker, opp: { key: opKey, state: contLA.defender } }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 🆕§5.7 `S-5d` 第3段＝本体は `controller/ruleChecks.ts`（ヘッドレスも同じ1本を回す）。
+  const resolvePendingLrigAttack = async () => { await ruleChecks().resolvePendingLrigAttack(); };
 
   // シグニアタック処理（人間プレイヤー用エントリポイント）
   const handleSigniAttack = async (zoneIndex: number) => {
@@ -4708,465 +4455,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  // ダブルクラッシュ等による追加ライフクラッシュ（バースト後に自動発動）
-  // 同時クラッシュで先にライフから取り出したカードを check にセットして処理する
-  const triggerPendingCrash = async () => {
-    const pendingCards = my.pending_crashed_cards ?? [];
-    if (!pendingCards.length || my.field.check || loading) return;
-    setLoading(true);
-    try {
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      const [nextCard, ...remaining] = pendingCards;
-      const [nextSource, ...remainingSources] = my.pending_crash_source_card_nums ?? [];
-      const newMyState: PlayerState = {
-        ...my,
-        pending_crashed_cards: remaining,
-        pending_crash_source_card_nums: remainingSources,
-        crash_source_card_num: nextSource ?? undefined,
-        field: { ...my.field, check: nextCard },
-      };
-      const crashedName = battleCardMap.get(nextCard)?.CardName ?? nextCard;
-      appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${crashedName}）`]);
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // パワー0以下シグニの自動バニッシュ処理
-  const checkAndBanishPowerZero = async () => {
-    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
-    // カードマスタ（cards）が未ロードだと battleCardMap が空になり、全シグニのパワーが
-    // 取得できず parseInt('0')=0 と誤判定され、盤面全体を誤バニッシュしてDBに書き込んでしまう。
-    // リロード直後にカードデータfetchが未完了のまま battle_state を購読すると発生するため、
-    // カードデータが揃うまでルール処理（破壊的書き込み）を一切行わない。
-    if (battleCardMap.size === 0) return;
-    if (bs.effect_stack || bs.pending_effect) return;
-
-    const isMyTurnLocal = bs.active_user_id === bs.host_id;
-    const powers = calcFieldPowers(bs.host_state, bs.guest_state, isMyTurnLocal, effectsMap, battleCardMap, bs.turn_phase);
-
-    // バニッシュ候補を先に収集してフィンガープリントで二重処理を防ぐ
-    const candidates: string[] = [];
-    for (const ownerIsHost of [true, false]) {
-      const ownerState = ownerIsHost ? bs.host_state : bs.guest_state;
-      const opStateP0 = ownerIsHost ? bs.guest_state : bs.host_state;
-      const isOwnerTurnP0 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
-      const grants = ownerState.keyword_grants;
-      const grantsOppTurn = ownerState.keyword_grants_until_opp_turn;
-      // CONTINUOUS GRANT_PROTECTION from=['BANISH'] による保護（activeCondition 評価込み）
-      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap, undefined, 'rule', bs.turn_phase);
-      for (const stack of ownerState.field.signi) {
-        if (!stack?.length) continue;
-        const topNum = stack[stack.length - 1];
-        const rawPower = battleCardMap.get(topNum)?.Power;
-        const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
-        // NaN（Power「-」等の非数値）はバニッシュ対象にしない
-        if (isNaN(power) || power > 0) continue;
-        if (banishProtected.has(topNum)) continue;
-        if (hasBanishResist(topNum, battleCardMap, grants, grantsOppTurn)) continue;
-        candidates.push(topNum);
-      }
-    }
-    if (candidates.length === 0) return;
-
-    const candidateKey = [...candidates].sort().join(',');
-    if (candidateKey === lastBanishedKeyRef.current) return; // DB伝播待ち中の二重処理をスキップ
-    lastBanishedKeyRef.current = candidateKey;
-
-    let hostState  = bs.host_state;
-    let guestState = bs.guest_state;
-    const allTriggers: StackEntry[] = [];
-
-    for (const ownerIsHost of [true, false]) {
-      const ownerId = ownerIsHost ? bs.host_id : bs.guest_id;
-      const ownerState = ownerIsHost ? hostState : guestState;
-      const opStateP02 = ownerIsHost ? guestState : hostState;
-      const isOwnerTurnP02 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
-      const grants = ownerState.keyword_grants;
-      const grantsOppTurn2 = ownerState.keyword_grants_until_opp_turn;
-      const banishProtected2 = collectBanishEffectProtectedSigni(ownerState, opStateP02, isOwnerTurnP02, effectsMap, battleCardMap, undefined, 'rule', bs.turn_phase);
-
-      for (const stack of ownerState.field.signi) {
-        if (!stack?.length) continue;
-        const topNum = stack[stack.length - 1];
-        const rawPower = battleCardMap.get(topNum)?.Power;
-        const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
-        // NaN（Power「-」等の非数値）はバニッシュ対象にしない
-        if (isNaN(power) || power > 0) continue;
-        if (banishProtected2.has(topNum)) continue;
-        if (hasBanishResist(topNum, battleCardMap, grants, grantsOppTurn2)) continue;
-
-        const currentOwner = ownerIsHost ? hostState : guestState;
-        const removed = removeFromField(topNum, currentOwner);
-        const opState = ownerIsHost ? guestState : hostState;
-        const opIsOwnerTurnP0 = ownerIsHost ? !isMyTurnLocal : isMyTurnLocal;
-        // パワー0バニッシュ: 相手の同ゾーンシグニがシュートを持つ場合もトラッシュへ
-        const dieZoneP0 = currentOwner.field.signi.findIndex(s => s?.at(-1) === topNum);
-        const opZoneSigniP0 = dieZoneP0 >= 0 ? opState.field.signi[dieZoneP0]?.at(-1) ?? null : null;
-        const opShootP0 = opZoneSigniP0 != null &&
-          hasKeyword(opZoneSigniP0, 'シュート', battleCardMap, opState.keyword_grants, undefined, opState.keyword_grants_until_opp_turn, undefined, opState.abilities_removed);
-        const redirectBanishP0 =
-          opShootP0 ||
-          opState.banish_redirect === true ||
-          // パワー0以下のシグニ→トラッシュ（所有者問わず。WX04-038-E1。どちらかのプレイヤーが設定）
-          hostState.power0_banish_to_trash === true ||
-          guestState.power0_banish_to_trash === true ||
-          // 「対戦相手の」限定版（BANISH_REDIRECT whenPowerZero・続き218）＝設定した側の対戦相手のシグニだけ。
-          // opState は消滅するシグニの持ち主から見た対戦相手＝そこに立っていれば消滅側が「対戦相手」に当たる。
-          opState.power0_banish_to_trash_opp_only === true ||
-          // 単体選択×パワー0限定版（WX25-P3-104-E1）。通常のバトル／効果バニッシュ経路には配線しない。
-          isSelectedPowerZeroBanishRedirect(opState, topNum) ||
-          opState.field.signi.some((s, zi) => {
-            const n = s?.at(-1);
-            // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない。
-            // 被バニッシュ＝topNum（currentOwner の dieZoneP0）。target.filter で絞る（タスク12(xliv)(a)）。
-            const base = parseInt(battleCardMap.get(topNum)?.Level ?? '', 10);
-            const p0Attrs = {
-              zoneIdx: dieZoneP0 >= 0 ? dieZoneP0 : undefined,
-              level: isNaN(base) ? undefined
-                : base + (currentOwner.temp_level_mods ?? []).filter(m => m.cardNum === topNum).reduce((sum, m) => sum + m.delta, 0),
-              frozen: (currentOwner.field.signi_frozen?.[dieZoneP0] ?? false),
-              hasCharm: (currentOwner.field.signi_charms?.[dieZoneP0] ?? null) !== null,
-              infected: (currentOwner.field.signi_virus?.[dieZoneP0] ?? 0) > 0,
-            };
-            return n && (effectsMap.get(n) ?? []).some(e =>
-              e.effectType === 'CONTINUOUS' &&
-              banishRedirectAppliesFrom(e.action, n, null, p0Attrs) &&
-              banishRedirectFrontMatches(e.action, zi, p0Attrs) &&
-              checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
-            );
-          });
-        const redirectBanishToHandP0 = opState.banish_redirect_to_hand === true;
-        // BANISH_REDIRECT redirectTo:'exile'（SPDi47-05）: エナの代わりにゲームから除外（どのゾーンにも置かない）
-        const redirectBanishToExileP0 = !redirectBanishP0 && !redirectBanishToHandP0 && opState.banish_redirect_to_exile === true;
-        // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
-        const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && !redirectBanishToExileP0 && removed.opp_signi_energy_to_deck_bottom === true;
-        // 🔴**§5.6 `C-9` `R-45`＝レゾナの行き先はルール処理**（ここはパワー0以下のルール処理経路＝3つ目の写経）。
-        //   規則は**他のどの置換よりも優先する**ので ladder の先頭に置く。
-        const resonaDestP0 = resonaLeaveDestination(topNum, battleCardMap, effectsMap);
-        const withBanished: PlayerState = resonaDestP0 === 'lrig_deck'
-          ? { ...removed, lrig_deck: [...removed.lrig_deck, topNum] }
-          : resonaDestP0 === 'exile'
-          ? { ...removed, excluded: [...(removed.excluded ?? []), topNum] }   // `R-45b`＝クラフトは除外
-          : resonaDestP0 === 'lrig_trash'
-          ? { ...removed, lrig_trash: [...removed.lrig_trash, topNum] }
-          : redirectBanishP0
-          ? { ...removed, trash: [...removed.trash, topNum] }
-          : redirectBanishToHandP0
-            ? { ...removed, hand: [...removed.hand, topNum] }
-            : redirectBanishToExileP0
-              ? removed
-              : energyToBottomP0
-                ? { ...removed, deck: [...removed.deck, topNum] }
-                // 🆕§5.3 `O-321` 第275＝エナへ行った分だけ台帳へ（`cause:'rule'`＝ルール処理のバニッシュ）。
-                //   ⚠**置き換え先が別ゾーンの分岐（トラッシュ／手札／除外／デッキ下）では記録しない**。
-                : recordEnergyPlacements({ ...removed, energy: [...removed.energy, topNum] }, [topNum], 'rule');
-        if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
-        const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${resonaDestP0 === 'lrig_deck' ? '（レゾナ→ルリグデッキへ）' : resonaDestP0 === 'exile' ? '（クラフト→ゲームから除外）' : resonaDestP0 === 'lrig_trash' ? '（ルリグトラッシュへ）' : redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
-
-        // usageLimit 消費は収集ごとに actions_done へ畳み込む（同一パスで複数シグニが0化しても《ターン1回》は1度だけ）。
-        const usePZ = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
-          if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
-          if (r.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...r.usedGuestIds] };
-        };
-        const bt = collectBanishTriggers(topNum, ownerId, hostState, guestState, currentOwner);
-        allTriggers.push(...bt.entries); usePZ(bt);
-        // パワー0以下になったとき（ON_SIGNI_POWER_ZERO_OR_LESS）を監視するシグニのトリガーも収集。
-        // 同パスで複数シグニが同時に0化した場合の once_per_turn 重複発火を避けるため effectId で dedup。
-        const pz = collectPowerZeroTriggers(topNum, ownerId, hostState, guestState);
-        allTriggers.push(...pz.entries.filter(e => !allTriggers.some(a => a.effectId === e.effectId))); usePZ(pz);
-      }
-    }
-
-    const changed = candidates.length > 0;
-    if (!changed) return;
-    setLoading(true);
-    try {
-      let newStack = bs.effect_stack as EffectStack | null;
-      if (allTriggers.length > 0) {
-        newStack = initStack(bs.active_user_id!, allTriggers);
-      }
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: 'host_state', myState: hostState,
-        opp: { key: 'guest_state', state: guestState },
-        // 変化が無ければ effect_stack キー自体を書かない（旧 spread と同一パッチ）
-        effectStack: newStack !== bs.effect_stack ? newStack : undefined,
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果のみ）
-  const checkAndApplyContMutations = async () => {
-    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
-    if (bs.effect_stack || bs.pending_effect) return;
-    const hostIsActive = bs.active_user_id === bs.host_id;
-    const mutations = calcContinuousSigniMutations(
-      bs.host_state, bs.guest_state, hostIsActive, effectsMap, battleCardMap,
-    );
-    if (mutations.length === 0) return;
-    const mutKey = mutations.map(m => `${m.effectId}:${m.targetNums.sort().join(',')}`).sort().join('|');
-    if (mutKey === lastContMutationKeyRef.current) return;
-    lastContMutationKeyRef.current = mutKey;
-
-    let hostState  = bs.host_state;
-    let guestState = bs.guest_state;
-    const allTriggers: import('../types').StackEntry[] = [];
-
-    for (const mut of mutations) {
-      for (const num of mut.targetNums) {
-        const targetState = mut.targetIsHost ? hostState : guestState;
-        const cardName = battleCardMap.get(num)?.CardName ?? num;
-
-        if (mut.type === 'BANISH') {
-          const removed = removeFromField(num, targetState);
-          // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
-          // 🆕§5.3 `O-321` 第275＝【常】効果によるバニッシュ＝`cause:'effect'`。
-          const withBanished: import('../types').PlayerState = removed.opp_signi_energy_to_deck_bottom === true
-            ? { ...removed, deck: [...removed.deck, num] }
-            : recordEnergyPlacements({ ...removed, energy: [...removed.energy, num] }, [num], 'effect');
-          if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
-          appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
-          const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
-          // cause＝CONT効果の発生源（「あなたの効果によって…バニッシュされたとき」banishedByOwnEffect/banishedSourceStory の CONT 経路。G072群C の保守的非発火を解消）
-          const bt = collectBanishTriggers(num, ownerId, hostState, guestState, targetState,
-            { ownerId: mut.sourceIsHost ? bs.host_id : bs.guest_id, sourceCardNum: mut.sourceCardNum });
-          allTriggers.push(...bt.entries);
-          // usageLimit 消費を actions_done へ畳み込む（同一パスで複数体バニッシュしても《ターン1回》は1度だけ）
-          if (bt.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...bt.usedHostIds] };
-          if (bt.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...bt.usedGuestIds] };
-        } else if (mut.type === 'FREEZE') {
-          const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === num);
-          if (zoneIdx < 0) continue;
-          const newFrozen = [...(targetState.field.signi_frozen ?? [false, false, false])] as boolean[];
-          const newDown   = [...(targetState.field.signi_down   ?? [false, false, false])] as boolean[];
-          newFrozen[zoneIdx] = true;
-          newDown[zoneIdx]   = true;
-          const updated: import('../types').PlayerState = { ...targetState, field: { ...targetState.field, signi_frozen: newFrozen, signi_down: newDown } };
-          if (mut.targetIsHost) hostState = updated; else guestState = updated;
-          appendBattleLogs([`${cardName}をフリーズ（常時効果）`]);
-        } else if (mut.type === 'DOWN') {
-          const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === num);
-          if (zoneIdx < 0) continue;
-          const newDown = [...(targetState.field.signi_down ?? [false, false, false])] as boolean[];
-          newDown[zoneIdx] = true;
-          const updated: import('../types').PlayerState = { ...targetState, field: { ...targetState.field, signi_down: newDown } };
-          if (mut.targetIsHost) hostState = updated; else guestState = updated;
-          appendBattleLogs([`${cardName}をダウン（常時効果）`]);
-        }
-      }
-    }
-
-    // ON_SIGNI_DOWN（常時効果によるダウン/フリーズ＝byEffect:true・タスク16[C]機構①）
-    {
-      const downHost  = detectNewlyDowned(bs.host_state, hostState);
-      const downGuest = detectNewlyDowned(bs.guest_state, guestState);
-      if (downHost.length > 0 || downGuest.length > 0) {
-        // 🔴台帳は**収集の前に**積む（`fireCondition` が今回のダウンを含めて数えるため）。
-        hostState = recordSigniDownedThisTurn(hostState, downHost);
-        guestState = recordSigniDownedThisTurn(guestState, downGuest);
-        const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
-          [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], hostState, guestState);
-        allTriggers.push(...dn.entries);
-        if (dn.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...dn.usedHostIds] };
-        if (dn.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...dn.usedGuestIds] };
-      }
-    }
-
-    setLoading(true);
-    try {
-      let newStack = bs.effect_stack as import('../types').EffectStack | null;
-      if (allTriggers.length > 0) {
-        newStack = initStack(bs.active_user_id!, allTriggers);
-      }
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: 'host_state', myState: hostState,
-        opp: { key: 'guest_state', state: guestState },
-        // 変化が無ければ effect_stack キー自体を書かない（旧 spread と同一パッチ）
-        effectStack: newStack !== bs.effect_stack ? newStack : undefined,
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * 🆕**保留になっていたリフレッシュのルール処理**（2026-09-18・公式ルール「トラッシュにカードが無い場合はリフレッシュは
-   *   行われない。その場合、トラッシュにカードが置かれたら（効果の解決中であればその効果の解決後に）リフレッシュが行われる」）。
-   * 効果スタック・対話・スペル・クラッシュ解決がすべて空のときに、デッキ0枚（トラッシュあり）のプレイヤーをリフレッシュし、
-   * `ON_REFRESH` を積む。2回目のリフレッシュでのターン終了は `checkRefreshForcedTurnEnd` が見る。
-   */
-  const checkDeferredRefreshRule = async () => {
-    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
-    if (bs.turn_phase === 'UP') return;
-    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
-    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
-    if ((bs.host_state.pending_crashed_cards?.length ?? 0) > 0) return;
-    if ((bs.guest_state.pending_crashed_cards?.length ?? 0) > 0) return;
-    const needs = (st: PlayerState) => st.deck.length === 0 && st.trash.length > 0;
-    if (!needs(bs.host_state) && !needs(bs.guest_state)) return;
-    const r = refreshPlayersIfDeckEmpty(bs.host_state, bs.guest_state, battleCardMap);
-    if (!r.aRefreshed && !r.bRefreshed) return;
-    const fingerprint = `${bs.turn_count}:${bs.host_state.trash.length}/${bs.host_state.refresh_count_this_turn ?? 0}:${bs.guest_state.trash.length}/${bs.guest_state.refresh_count_this_turn ?? 0}`;
-    if (lastDeferredRefreshKeyRef.current === fingerprint) return;
-    lastDeferredRefreshKeyRef.current = fingerprint;
-    setLoading(true);
-    try {
-      const who = (id: string) => isCpuBattle && id === CPU_PLAYER_ID ? '[CPU] ' : id === user.id ? '' : '相手';
-      appendBattleLogs([
-        ...(r.aRefreshed ? [`${who(bs.host_id)}リフレッシュ（デッキを再構築）`] : []),
-        ...(r.bRefreshed ? [`${who(bs.guest_id as string)}リフレッシュ（デッキを再構築）`] : []),
-      ]);
-      let h = r.a, g = r.b;
-      const refreshHost = r.aRefreshed ? 1 : 0, refreshGuest = r.bRefreshed ? 1 : 0;
-      const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
-      const rfG = collectRefreshTriggers(bs.guest_id as string, g, h, refreshGuest, refreshHost);
-      if (rfH.usedOncePerTurnIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...rfH.usedOncePerTurnIds] };
-      if (rfG.usedOncePerTurnIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...rfG.usedOncePerTurnIds] };
-      if (rfH.firedOnceDelayed) h = consumeOnceDelayedTriggers(h, 'ON_REFRESH');
-      if (rfG.firedOnceDelayed) g = consumeOnceDelayedTriggers(g, 'ON_REFRESH');
-      const entries = [...rfH.entries, ...rfG.entries];
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: 'host_state', myState: h,
-        opp: { key: 'guest_state', state: g },
-        effectStack: entries.length > 0 ? initStack(bs.active_user_id ?? bs.host_id, entries) : undefined,
-      }));
-      await flushBattleLogs();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * 🆕**§5.6 `C-9` `R-28`（2026-09-17）＝ターンプレイヤーのこのターン2回目のリフレッシュでターンを終了する。**
-   *
-   * 🔴**規則は `refreshTurnEnd.ts` の述語1本**（効果スタック解決経路と同じ判定）。ここは**残り全経路の受け皿**＝
-   *   `applyRefreshOnDone` の8経路（選択の再開・スペル解決・スペルカットイン解決）とドローフェイズの
-   *   リフレッシュは `result.forceEndTurn` を読まないので、規則がそこだけ効かなかった。
-   * ⚠**盤面処理はスタック解決経路と同じ `applyForcedTurnEnd`**（`O-117` の規約＝判定も盤面処理も割らない）。
-   * ⚠**同じターンで2回撃たない**＝`turn_count:ターンプレイヤー` を指紋にする（DB 伝播待ちの二重処理防止）。
-   */
-  const checkRefreshForcedTurnEnd = async () => {
-    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
-    if (bs.turn_phase === 'UP') return;
-    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
-    // ⚠クラッシュ解決（チェックゾーン）の途中では終わらせない＝ライフバーストの応答が消える。
-    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
-    if ((bs.host_state.pending_crashed_cards?.length ?? 0) > 0) return;
-    if ((bs.guest_state.pending_crashed_cards?.length ?? 0) > 0) return;
-    const activeIsHost = bs.active_user_id === bs.host_id;
-    const activeState = activeIsHost ? bs.host_state : bs.guest_state;
-    if (!refreshForcesTurnEnd(activeState)) return;
-    const fingerprint = `${bs.turn_count}:${bs.active_user_id}`;
-    if (lastRefreshTurnEndKeyRef.current === fingerprint) return;
-    lastRefreshTurnEndKeyRef.current = fingerprint;
-    setLoading(true);
-    try {
-      const forced = applyForcedTurnEnd(activeState, activeIsHost ? bs.guest_state : bs.host_state);
-      appendBattleLogs([
-        `このターン${activeState.refresh_count_this_turn}回目のリフレッシュ（ターンプレイヤー）→ ターンを終了`,
-        ...(forced.log ? [forced.log] : []),
-      ]);
-      await persist.commit(reduceBattle(bs, {
-        type: 'RESOLVE_EFFECT_STEP',
-        hostState: activeIsHost ? forced.activeAfter : forced.nextAfter,
-        guestState: activeIsHost ? forced.nextAfter : forced.activeAfter,
-        pending: null, effectStack: null,
-        // 🆕`R-27`＝追加ターンの予約は強制終了でも効く（交代判定は `applyForcedTurnEnd` の1本）。
-        beginNextTurn: {
-          activeUserId: (forced.keepTurn ? bs.active_user_id : (activeIsHost ? bs.guest_id : bs.host_id)) as string,
-        },
-      }));
-      await flushBattleLogs();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * 🆕**§5.3 `O-532`（2026-09-17）＝レベル超過／リミット超過のルール処理**（RULES.md `R-44`／`R-48`）。
-   *
-   * 規則の判定は `limitExcess.ts` の純関数1本（`planLimitExcess`）。ここは**盤面が動くたび回す受け皿**で、
-   * ①**A＝センタールリグのレベルを超えるシグニ**は選択の余地が無いので自動でトラッシュ
-   * ②**B/C＝リミット超過**は持ち主が1体ずつ選ぶ＝人間は `LimitExcessModal`、**CPU は選ばせられないので**
-   *   `pickLimitExcessZone`（失うカードが最小＝実効レベルが一番高いゾーン）で自動。
-   * ⚠**行き先は `applyLimitExcessTrash` 1本**＝レゾナはルリグデッキへ（`R-45`）、
-   *   【チャーム】【アクセ】【ソウル】の後始末は `clearZoneOnSigniLeave`（`R-41`）。
-   * ⚠**ルール処理なので「バニッシュされたとき」は誘発しない**（リムーブと同じ＝`byCostOrEffect`/`byEffectCause` は false）。
-   */
+  // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体は `controller/ruleChecks.ts` へ逐語で移設した。
+  //   🔴ここに書き戻さない＝ヘッドレスの対戦ループ（`headlessMatch.ts`）が同じ8本を回す＝二重になると片方だけ直る。
+  const ruleChecks = () => makeRuleChecks(performCtx(), { loading, isCpuBattle, memo: ruleMemoRef.current });
+  const triggerPendingCrash = async () => { await ruleChecks().triggerPendingCrash(); };
+  const checkAndBanishPowerZero = async () => { await ruleChecks().checkAndBanishPowerZero(); };
+  const checkAndApplyContMutations = async () => { await ruleChecks().checkAndApplyContMutations(); };
+  const checkDeferredRefreshRule = async () => { await ruleChecks().checkDeferredRefreshRule(); };
+  const checkRefreshForcedTurnEnd = async () => { await ruleChecks().checkRefreshForcedTurnEnd(); };
   const applyLimitExcessRule = async (
     owner: PlayerState, ownerKey: PlayerStateKey, ownerId: string, zones: number[], reason: string,
-  ) => {
-    const fingerprint = `${ownerKey}:${zones.join(',')}:${owner.field.signi.map(z => z?.at(-1) ?? '-').join('|')}`;
-    if (lastLimitExcessKeyRef.current === fingerprint) return;
-    lastLimitExcessKeyRef.current = fingerprint;
-    setLoading(true);
-    try {
-      const { state: after, trashedTops } = applyLimitExcessTrash(owner, zones, battleCardMap, effectsMap);
-      appendBattleLogs(trashedTops.map(n =>
-        `${reason}：${battleCardMap.get(n)?.CardName ?? n}をトラッシュに置く（ルール処理）`));
-      const ownerIsHost = ownerKey === 'host_state';
-      let hostAfter = ownerIsHost ? after : bs.host_state;
-      let guestAfter = ownerIsHost ? bs.guest_state : after;
-      const entries: StackEntry[] = [];
-      for (const cn of trashedTops) {
-        // ⚠引数は host/guest 順（`handleRemove` と同じ規約）。ルール処理なのでコスト/効果起因では発火させない。
-        const tt = collectTrashTriggers(cn, ownerId, hostAfter, guestAfter, false, false, false);
-        entries.push(...tt.entries);
-        if (tt.usedHostIds.length > 0) hostAfter = { ...hostAfter, actions_done: [...(hostAfter.actions_done ?? []), ...tt.usedHostIds] };
-        if (tt.usedGuestIds.length > 0) guestAfter = { ...guestAfter, actions_done: [...(guestAfter.actions_done ?? []), ...tt.usedGuestIds] };
-      }
-      const existing = bs.effect_stack ?? null;
-      const stack = entries.length > 0
-        ? (existing ? pushToStack(existing, entries) : initStack(bs.active_user_id ?? ownerId, entries))
-        : undefined;
-      await persist.commit(reduceBattle(bs, {
-        type: 'WRITE_STATE', myKey: 'host_state', myState: hostAfter,
-        opp: { key: 'guest_state', state: guestAfter },
-        effectStack: stack,
-      }));
-      await flushBattleLogs();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /** ルール処理 funnel の本体（`checkAndBanishPowerZero` と同じ形）。 */
-  const checkLimitExcessRule = async () => {
-    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
-    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
-    if (bs.host_state.field?.check || bs.guest_state.field?.check) return;
-    // ⚠**カードマスタ未ロードで判定しない**＝全シグニのレベルが0に見えて盤面を誤って減らす（power0 と同じ規約）。
-    if (battleCards.length === 0) return;
-    // ① **レベルが変動して超過したシグニ**は選択の余地なくトラッシュ（`R-48`・2026-09-17 ユーザー裁定）。
-    //   ⚠印字レベルのまま超過している盤面は対象外＝そこは**配置制限**が止める（`planLimitExcess` の 🔑）。
-    const myKey: PlayerStateKey = isHost ? 'host_state' : 'guest_state';
-    const myPlan = planLimitExcess({ owner: my, opponent: op, cardMap: battleCardMap, effectsMap, isOwnerTurn: isMyTurn });
-    if (myPlan.levelOverZones.length > 0) {
-      await applyLimitExcessRule(my, myKey, user.id, myPlan.levelOverZones, 'レベル超過');
-      return;
-    }
-    // ② **リミット超過**は持ち主が1体ずつ選ぶ＝自分の盤面は `LimitExcessModal` が受ける（ここでは何もしない）。
-    // ③ CPU の盤面＝問う相手が居ないので①②とも自動で解く（ホスト側のクライアントが回す）。
-    if (isCpuBattle && isHost) {
-      const cpuSt = bs.guest_state;
-      const cpuPlan = planLimitExcess({
-        owner: cpuSt, opponent: bs.host_state, cardMap: battleCardMap, effectsMap,
-        isOwnerTurn: bs.active_user_id === CPU_PLAYER_ID,
-      });
-      if (cpuPlan.levelOverZones.length > 0) {
-        await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, cpuPlan.levelOverZones, '[CPU] レベル超過');
-        return;
-      }
-      const pick = pickLimitExcessZone(cpuPlan);
-      if (pick !== null) {
-        await applyLimitExcessRule(cpuSt, 'guest_state', CPU_PLAYER_ID, [pick], '[CPU] リミット超過');
-      }
-    }
-  };
+  ) => { await ruleChecks().applyLimitExcessRule(owner, ownerKey, ownerId, zones, reason); };
+  const checkLimitExcessRule = async () => { await ruleChecks().checkLimitExcessRule(); };
 
   /** `LimitExcessModal` で持ち主が選んだ1体を落とす（B/C＝1体ずつ・落としたら funnel が測り直す）。 */
   const handleLimitExcessPick = async (zoneIndex: number) => {

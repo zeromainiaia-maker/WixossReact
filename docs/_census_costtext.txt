@@ -22,5 +22,5 @@
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 | 12 | 12 | battle/controller/resolveSigniBattle.ts:1283 | resolvePendingSigniBattleFor | `'アタックできる'` |
-| 1 | 1 | BattleScreen.tsx:966 | normalizeBattleRow | `/そのルリグの【常】能力を得る/` |
+| 1 | 1 | battle/controller/battleMaterials.ts:144 | buildAugmentedEffectsMap | `/そのルリグの【常】能力を得る/` |
 | 1 | 1 | battle/controller/resolveSigniBattle.ts:1283 | resolvePendingSigniBattleFor | `'シグニゾーンにもアタックする'` |

@@ -13,6 +13,7 @@
     "golden": "tsx scripts/goldenTest.ts",
     "reports": "node scripts/fetchReports.mjs",
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
+    "selfplay": "tsx scripts/headlessSelfPlay.ts",
     "audit": "tsx scripts/behaviorAudit.ts",
     "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
     "audit:html": "tsx scripts/behaviorAudit.ts --html",

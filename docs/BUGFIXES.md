@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+
+## 2026-09-19（第406バッチ）§5.7 `S-5d` 第3段＝**ヘッドレスの対戦ループ**（画面なしで CPU 同士が決着まで回るようになった）
+
+- 🏁**これで `S-5`（対戦丸ごとのシミュレータ）が動いた**＝`npm run selfplay`（`scripts/headlessSelfPlay.ts`）で **1戦 ≒ 300〜430手・14〜18ターン・約35秒**。
+  4シード試して**全戦とも決着**（勝者は host 席・guest 席の両方が出た＝鏡が一方に偏っていない）。
+- **残っていた3つを出した**（どれも画面にしか無かった＝ヘッドレスは材料すら作れなかった）：
+  - ①**材料3本**＝`controller/battleMaterials.ts`（`buildBattleCardMap` / `buildBaseEffectsMap` /
+    `buildAugmentedEffectsMap` / `buildEffectivePowers`）。画面の `useMemo` 3本を**逐語**で移設（未使用 import が
+    8本出た＝**画面に残っていないことの証拠**）。
+  - ②**ルール処理8本**＝`controller/ruleChecks.ts`（`triggerPendingCrash` / `checkAndBanishPowerZero` /
+    `checkAndApplyContMutations` / `checkDeferredRefreshRule` / `checkRefreshForcedTurnEnd` /
+    `applyLimitExcessRule` / `checkLimitExcessRule` / `resolvePendingLrigAttack`・計 479行）。
+    二重処理防止の指紋（`last*KeyRef` 5本）は `RuleCheckMemo` に束ね、画面は `useRef` で1つ持つ。
+  - ③**対戦ループ**＝`controller/headlessMatch.ts`（`createHeadlessMatch`）。1回の `step()` が画面の
+    「盤面が変わる → `useEffect` が1つ動く」1手に相当し、**順番は画面と同じ**（対話 → 整列 → スタック → ルール処理 → CPU の1手）。
+- 🔑**「人間側ターンの駆動」は席の鏡（`mirrorSeats`）1本で解いた**＝`cpuTurnAction` は
+  **guest 席＝`CPU_PLAYER_ID` を前提に書かれている**（`guest_state` 40箇所）ので、host 席を指させるには
+  **盤面を鏡にして渡し、書き戻しを同じ関数で戻す**（involution）。⚠**host 用の CPU を別に書かない**（2つ目は必ずズレる）。
+- 🔴**踏んだ罠3つ**（どれも例外もゲートの赤も出さずに「1手も進まない／空回りする」）：
+  - ①**`PerformCtx.userId` は「CPU ではなく相手（クライアント）」**＝実機は人間の client が CPU を動かすので、
+    `cpuTurnAction` の中の `user.id` は**ターンの引き渡し先**（`cpuTurn.ts:1559`）。ここに `CPU_PLAYER_ID` を渡すと
+    **CPU が自分自身にターンを渡し続ける**（実測＝host 席だけが T1・T2・T3 … と連続で打ち、相手は一度も動かなかった）。
+  - ②**応答待ちの席へ譲る**＝`cpuWaitingForHuman`（ガード応答・カットイン・身代わり・ダメージ置換）のとき
+    攻撃側の CPU を呼び続けると**永久に空回り**する（実測＝T2 の `ATTACK_LRIG` で止まった）。
+  - ③**`guest_id` が `CPU_PLAYER_ID` でないと黙って `idle`**（どちらの席も動かない）⇒ `createHeadlessMatch` で落とす。
+- ⚠**速度の落とし穴**＝材料を ctx のたびに組み直すと**1手 120秒**（全カードの effects parse）。
+  静的な効果表は1回だけ組み、盤面ごとの材料は WeakMap で使い回す。**渡すカードは対戦に出る分だけ**（画面の `battleCardNums` と同じ絞り）。
+- **ゲート**＝🆕`npm run selfplay`（1戦・`idle`/`cap` で exit 1）を **`npm run gates` に同梱**（約38秒・並列なので壁時計は変わらず）。
+  golden は🆕3本＝①席の鏡（involution・片側パッチ）②**60手で3ターン目まで進む**（`--steps 60`＝両方向の引き渡し。
+  **2ターン目までだと鏡側だけ正しくても通る**ことを反転確認で実測）③画面に材料・ルール処理を書き戻さない／ループの順番／席の扱い。
+  既存3本（`O-532` リミット超過／保留リフレッシュ／`R-45` レゾナの行き先）は移設先も読むよう**較正**（**地点の数は不変**）。
+- **BattleScreen 6,987 → 6,287行**（−700）。`npm run gates` 全緑（golden **4331**＝+3）。
+- **実機**＝`node scripts/verifyBattleDrive.mjs` **14本 ALL PASS**＝CPU 系8本（`cpuOptionalOnPlayCharm`／`c2cpuguard`／`c4cpuhandlimit`／`c5cpuresona`／`c6cpurise`／`c7cpukey`／`c7cpupiece`／`cpugrow`）＋**移設したルール処理**を踏む6本（`powerzero`／`powerzeroUsageLimit`／`v91refreshonce`／`refreshTrigger`／`b15plaincrash`／`doubleCrashUpTrigger`）＋CPU 通し対戦。⚠**実機が要る回**＝`src/screens/` を触ったから（PLAN §2.2）。
+- ⚠**計器の明細が動くが退化ではない**＝`census:costtext` の C群1件が `BattleScreen.tsx:966` → `battle/controller/battleMaterials.ts:144`（移設先へ付け替わっただけ・**A群は 0 のまま**）／`census:deadstate` の読み回数が数件増える（**dead キー一覧とラチェットは不変**＝走査対象のファイルが増えたため）。
+- ⚠**今回も踏んだ道具の罠2つ**＝①**Bash 経由の python ヒアドキュメントはバックスラッシュが1段落ちる**
+  （`'
+'` が本物の改行になる）⇒ `chr(92)` で組む（[LESSONS.md](./LESSONS.md) §4.3）
+  ②**同じ1行が複数のテストに在る**ので `replace(..., 1)` は**別のテストに当たる**（`O-49` に誤挿入した）⇒
+  **先に当てたい箇所の位置を特定してから置換する**。
+
 ## 2026-09-19（第405バッチ）§5.7 `S-5d` 第2段＝**CPU の対話応答の「振り分け」を画面から出した**（リファクタ・挙動不変）
 
 - 🔴**何が残っていたか**＝`cpuInteraction.ts`（**何と**答えるか）は 2026-09-17 に純関数化したのに、
