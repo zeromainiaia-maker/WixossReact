@@ -34,11 +34,7 @@ export interface CpuSpellChoice {
   costIndices: Set<number>;
 }
 
-/**
- * CPU がいま使うスペルを1枚選ぶ（無ければ `null`）。**1回の呼び出しで1枚だけ**＝
- * 実行後は `pending_spell`（人間のカットイン応答）の解決を待って CPU ループが再入する。
- */
-export function pickCpuMainSpell(p: {
+export interface CpuMainSpellPickInput {
   actor: PlayerState;
   opponent: PlayerState;
   cards: CardData[];
@@ -60,9 +56,14 @@ export function pickCpuMainSpell(p: {
   lookahead?: LookaheadCtx;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
-}): CpuSpellChoice | null {
+}
+
+/**
+ * 🆕§5.7 `S-15`＝CPU が**いま使える**スペルを全部（手札順）。分類で絞らない＝除去だけに絞るのは選ぶ側（旧挙動）。
+ * ⚠CPU が払いきれない札（エナ以外の宣言コスト・未対応アクション）はここで外す＝列挙に出た札は実行できる。
+ */
+export function listCpuMainSpells(p: CpuMainSpellPickInput): CpuSpellChoice[] {
   const { actor, opponent, cards, cardMap, effectsMap, payer } = p;
-  if (!p.lookahead && !hasBlockedAttacker(actor, opponent)) return null;
   const poolNums = energyPoolCardNums(payer.energyPayPool);
   const candidates: CpuSpellChoice[] = [];
   for (const { card, handIndex, check } of listCastableSpells({
@@ -76,7 +77,6 @@ export function pickCpuMainSpell(p: {
     //   だが、増えたときに**宣言だけして踏み倒す**側へ倒れないようにここで切る。
     if (!cpuCanPayArtsWithEnergyOnly(acts)) continue;
     if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
-    if (!p.lookahead && !acts.some(e => defensiveKindOf(e.action) === 'removal')) continue;
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards, costStr: check.effectiveCost,
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
@@ -87,6 +87,18 @@ export function pickCpuMainSpell(p: {
     if (!costIndices) continue;
     candidates.push({ card, handIndex, check, costIndices });
   }
+  return candidates;
+}
+
+/**
+ * CPU がいま使うスペルを1枚選ぶ（無ければ `null`）。**1回の呼び出しで1枚だけ**＝
+ * 実行後は `pending_spell`（人間のカットイン応答）の解決を待って CPU ループが再入する。
+ */
+export function pickCpuMainSpell(p: CpuMainSpellPickInput): CpuSpellChoice | null {
+  const { actor, opponent, effectsMap } = p;
+  if (!p.lookahead && !hasBlockedAttacker(actor, opponent)) return null;
+  const candidates = listCpuMainSpells(p).filter(c => p.lookahead
+    || (effectsMap.get(c.card.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED' && defensiveKindOf(e.action) === 'removal'));
   if (candidates.length === 0) return null;
   if (p.lookahead) {
     // §5.7 `S-4c`＝結果の盤面で比べる（増分が下限に届かないスペルは使わない＝撃ち損をしない）。

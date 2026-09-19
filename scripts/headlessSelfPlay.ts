@@ -32,6 +32,13 @@
  *   無限ループ。**既定では exit 1** で止める（`--allow-stall` で許す）。
  * ⚠**山は `VERIFY_DECK_MECH` と同じ構成**（`scripts/verifySetupDeck.mjs`）＝機構を広く踏む山。
  *   ⚠ここを変えると勝率の比較ができなくなるので、**山を変えるときは理由を BUGFIXES に書く**。
+ *
+ * 使い方（③ 候補数の実測＝§5.7 `S-15`・2026-09-20）＝`npx tsx scripts/headlessSelfPlay.ts --census-moves [--games N] [--seed S]`
+ *   CPU が行動を選ぶ直前の盤面ごとに `listCpuMoves` の候補数・列挙の所要時間・**探索用の1手適用（engine だけの先読み）の所要時間**を集計する。
+ *   🔴**同時に「CPU が実際に打った手は、その盤面の `listCpuMoves` に必ず出ている」を全数照合する**（外れが1件でも exit 1）＝
+ *   列挙の道が1本であることの検査（golden `§5.7 S-15` がこのモードを短い手数で回す）。
+ *   🔑**`S-16` のビーム幅はこの数字で決める**（測らずに幅を決めない＝登録票）。⚠適用時間は先読みの器がある種類
+ *   （召喚・【起】・アーツ・スペル）だけ＝エナチャージ・グロウ・アシスト・レゾナ・ライズは engine 側の適用が未実装（`S-16`）。
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -45,6 +52,10 @@ import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMa
 import { resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { applyMulligan } from '../src/screens/battle/mulligan';
+import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
+import { describeCpuMove, type CpuMove } from '../src/screens/battle/cpuMoves';
+import { scoreCardUseGain, scoreDeploy, simulateEffect } from '../src/screens/battle/cpuLookahead';
+import { getCardNum } from '../src/engine/execUtils';
 import { formatAbReport, splitSeeds, summarizeAb, type AbGameResult } from './selfPlayStats';
 
 const argv = process.argv.slice(2);
@@ -76,6 +87,10 @@ const WORKER_SEEDS = strArg('--seeds', '').split(',').filter(Boolean).map(Number
  *   ⚠席について回るなら `S-5` の**席の鏡（`mirrorSeats`）が疑わしい**。手番について回るなら単に後攻有利。
  */
 const FIRST = strArg('--first', 'host') === 'guest' ? CPU_PLAYER_ID : 'HOST';
+const CENSUS_MOVES = argv.includes('--census-moves');
+/** 🆕`--census-moves` のときだけ両席の CPU に渡す観測フック。 */
+let observeMoves: CpuTurnDeps['observeMoves'];
+let observeChoice: CpuTurnDeps['observeChoice'];
 
 // ── カードデータ（`goldenTest.ts` と同じ読み方）──
 const root = process.cwd();
@@ -140,12 +155,41 @@ function buildRow(): BattleStateRow {
 interface GameOutcome { seed: number; reason: string; steps: number; turns: number; winner: string; ms: number; hostLife: number; guestLife: number }
 
 /**
+ * 🆕§5.7 `S-15`＝**「CPU が実際に打った手は、その盤面の `listCpuMoves` に必ず出ている」の全数照合**。
+ * 🔴外れが1件でもあれば失敗＝列挙（探索が使う道）と本番の選択（`cpuTurnAction`）がズレた＝**探索では出ない手を本番が打つ**。
+ * ⚠`observeMoves` は選ぶ直前（と、同じ呼び出しで召喚した直後）の盤面で呼ばれ、`observeChoice` はその盤面で選んだ手。
+ */
+function installMoveCheck() {
+  let lastListed: { phase: string; set: Set<string> } | null = null;
+  let checked = 0;
+  const misses: string[] = [];
+  observeChoice = mv => {
+    checked++;
+    const d = describeCpuMove(mv);
+    if (!lastListed?.set.has(d)) misses.push(`${lastListed?.phase ?? '?'}: ${d}（列挙＝${[...(lastListed?.set ?? [])].join(' ') || '空'}）`);
+  };
+  const onMoves: NonNullable<CpuTurnDeps['observeMoves']> = ({ phase, moves }) => {
+    lastListed = { phase, set: new Set(moves.map(describeCpuMove)) };
+  };
+  observeMoves = onMoves;
+  return {
+    onMoves,
+    report: () => {
+      // ⚠文言は golden `§5.7 S-5d 第3段` の契約（`打った手の照合 N手｜列挙に無かった手 M`）。
+      console.log(`打った手の照合 ${checked}手｜列挙に無かった手 ${misses.length}`);
+      for (const x of misses.slice(0, 20)) console.log(`  🔴${x}`);
+    },
+    failed: () => misses.length > 0 || checked === 0,
+  };
+}
+
+/**
  * 1戦。⚠**`setRngSeed` → `buildRow()` の順は変えない**＝山のシャッフルはこの乱数列を消費するので、
  * 同じシードなら**必ず同じ山**になる（席を入れ替えた2戦目が同じ山で回るのはこのため）。
  */
 async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolicy }): Promise<GameOutcome> {
   setRngSeed(seed);
-  const m = createHeadlessMatch(buildRow(), { cards, policy });
+  const m = createHeadlessMatch(buildRow(), { cards, policy, observeMoves, observeChoice });
   const t0 = Date.now();
   const res = await m.run(MAX_STEPS);
   const r = m.row();
@@ -230,7 +274,68 @@ if (AB_MODE) {
   process.exit(0);
 }
 
-// ══ ③ 従来モード（`npm run selfplay`＝ゲート）══
+// ══ ③ 候補数の実測（§5.7 `S-15`）══
+if (CENSUS_MOVES) {
+  type Obs = { phase: string; n: number; listMs: number; kinds: Record<string, number>; applyMs: number[] };
+  const obs: Obs[] = [];
+  /** 探索用の1手適用（engine だけ・盤面は書き換えない）＝いまある先読みの器で測れる種類だけ。 */
+  const applyOnce = (mv: CpuMove, c: Parameters<NonNullable<CpuTurnDeps['observeMoves']>>[0]['ctx']): boolean => {
+    const { actor, opponent, lookahead } = c;
+    switch (mv.kind) {
+      case 'deploy': scoreDeploy(mv.id, mv.zone, actor, opponent, lookahead); return true;
+      case 'activate': simulateEffect(mv.choice.effect, mv.choice.cardNum, actor, opponent, lookahead); return true;
+      case 'lrigActivate': simulateEffect(mv.choice.effect, actor.field.lrig.at(-1) ?? '', actor, opponent, lookahead); return true;
+      case 'offFieldActivate': simulateEffect(mv.choice.effect, mv.choice.cardNum, actor, opponent, lookahead); return true;
+      case 'spell': scoreCardUseGain(actor.hand[mv.choice.handIndex], mv.choice.costIndices.size, actor, opponent, lookahead, 'hand'); return true;
+      case 'arts': scoreCardUseGain(actor.lrig_deck.find(id => getCardNum(id) === mv.choice.card.CardNum) ?? mv.choice.card.CardNum,
+        mv.choice.costIndices.size, actor, opponent, lookahead, 'lrig_deck'); return true;
+      default: return false;
+    }
+  };
+  const seenBoards = new Set<string>();
+  const chk = installMoveCheck();
+  observeMoves = e => {
+    chk.onMoves(e);
+    const { phase, moves, ms, ctx } = e;
+    // 同じ盤面（応答待ちで再入した回）は1回だけ数える。
+    const key = `${phase}|${moves.map(describeCpuMove).join(',')}|${ctx.actor.hand.join(',')}|${ctx.actor.energy.length}`;
+    if (seenBoards.has(key)) return;
+    seenBoards.add(key);
+    const kinds: Record<string, number> = {};
+    const applyMs: number[] = [];
+    for (const mv of moves) {
+      kinds[mv.kind] = (kinds[mv.kind] ?? 0) + 1;
+      const t = performance.now();
+      if (applyOnce(mv, ctx)) applyMs.push(performance.now() - t);
+    }
+    obs.push({ phase, n: moves.length, listMs: ms, kinds, applyMs });
+  };
+  for (let g = 0; g < GAMES; g++) {
+    const o = await playOne(SEED0 + g);
+    console.log(`seed=${o.seed} ${o.reason} 手数=${o.steps} ターン=${o.turns} 勝者=${o.winner} ${o.ms}ms`);
+  }
+  const pct = (xs: number[], q: number) => { const a = [...xs].sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : 0; };
+  const f1 = (x: number) => x.toFixed(1);
+  console.log(`
+盤面（重複除く）${obs.length}件`);
+  for (const ph of ['ENERGY', 'GROW', 'MAIN', 'ATTACK_ARTS']) {
+    const xs = obs.filter(o => o.phase === ph);
+    if (!xs.length) continue;
+    const ns = xs.map(o => o.n);
+    const kinds: Record<string, number> = {};
+    for (const o of xs) for (const [k, v] of Object.entries(o.kinds)) kinds[k] = (kinds[k] ?? 0) + v;
+    console.log(`${ph.padEnd(11)} 盤面${String(xs.length).padStart(4)}｜候補数 平均${f1(ns.reduce((a, b) => a + b, 0) / ns.length)} 中央${pct(ns, 0.5)} p90 ${pct(ns, 0.9)} 最大${Math.max(...ns)}｜0件 ${ns.filter(n => n === 0).length}｜列挙 平均${f1(xs.reduce((a, o) => a + o.listMs, 0) / xs.length)}ms p90 ${f1(pct(xs.map(o => o.listMs), 0.9))}ms`);
+    console.log(`${''.padEnd(11)} 内訳（延べ）${Object.entries(kinds).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+  }
+  const all = obs.flatMap(o => o.applyMs);
+  chk.report();
+  console.log(`探索用の1手適用（engine だけ）${all.length}回｜平均${f1(all.reduce((a, b) => a + b, 0) / Math.max(1, all.length))}ms 中央${f1(pct(all, 0.5))}ms p90 ${f1(pct(all, 0.9))}ms 最大${f1(Math.max(0, ...all))}ms`);
+  process.exit(chk.failed() ? 1 : 0);
+}
+
+// ══ ④ 従来モード（`npm run selfplay`＝ゲート）══
+// 🆕§5.7 `S-15`＝ゲートでも打った手の照合を回す（列挙は1盤面 約2ms＝1戦で1秒未満）。
+const moveCheck = installMoveCheck();
 const results: GameOutcome[] = [];
 for (let g = 0; g < GAMES; g++) {
   const o = await playOne(SEED0 + g);
@@ -238,6 +343,11 @@ for (let g = 0; g < GAMES; g++) {
   console.log(`seed=${o.seed} ${o.reason} 手数=${o.steps} ターン=${o.turns} 勝者=${o.winner} ライフ=${o.hostLife}/${o.guestLife} ${o.ms}ms`);
 }
 
+moveCheck.report();
+if (moveCheck.failed()) {
+  console.log('🔴CPU が列挙（`listCpuMoves`）に無い手を打った＝探索の道と本番の選択がズレている（§5.7 `S-15`）');
+  process.exit(1);
+}
 const stalled = results.filter(r => r.reason !== 'finished');
 const wins = { host: results.filter(r => r.winner === 'host').length, guest: results.filter(r => r.winner === 'guest').length };
 console.log(`\n${GAMES}戦＝決着 ${results.length - stalled.length} / 止まった ${stalled.length}｜勝敗 host ${wins.host} - ${wins.guest} guest｜平均ターン ${(results.reduce((a, r) => a + r.turns, 0) / results.length).toFixed(1)}`);

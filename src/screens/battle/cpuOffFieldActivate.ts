@@ -123,7 +123,7 @@ function paidBoard(
   return pay ? { cpu: pay.my, opp: pay.op ?? opponent } : null;
 }
 
-export function pickCpuOffFieldActivated(p: {
+export interface CpuOffFieldPickInput {
   actor: PlayerState;
   opponent: PlayerState;
   effectsMap: Map<string, CardEffect[]>;
@@ -144,7 +144,13 @@ export function pickCpuOffFieldActivated(p: {
   energyReserve?: CpuEnergyReserve;
   /** 先読み（省略時は先読みせず、見つけた順の最初の1つ）。 */
   lookahead?: LookaheadCtx;
-}): CpuOffFieldChoice | null {
+}
+
+/**
+ * 🆕§5.7 `S-15`＝CPU が**いま撃てる**場以外の【起】を全部（トラッシュ→手札→エナ・ゾーン内の順・遅延評価）。
+ * 支払いの内訳まで決めた形で出す（`gain` は null）＝列挙に出た候補はそのまま実行できる。
+ */
+export function* iterCpuOffFieldActivated(p: CpuOffFieldPickInput): Generator<CpuOffFieldChoice> {
   const { actor, opponent, cardMap } = p;
   const isMyTurn = p.phase !== 'ATTACK_ARTS_OP';
   const zones: { zone: OffFieldZone; ids: readonly string[] }[] = [
@@ -152,8 +158,6 @@ export function pickCpuOffFieldActivated(p: {
     { zone: 'hand', ids: actor.hand },
     { zone: 'energy', ids: actor.energy },
   ];
-  const before = p.lookahead ? evaluateBoard(actor, opponent, p.lookahead) : 0;
-  let best: CpuOffFieldChoice | null = null;
   for (const { zone, ids } of zones) {
     const seen = new Set<string>();
     for (let index = 0; index < ids.length; index++) {
@@ -176,16 +180,30 @@ export function pickCpuOffFieldActivated(p: {
         const choice: CpuOffFieldChoice = { zone, cardNum, handIndex: zone === 'hand' ? index : -1, effect, selections, fieldTrash, gain: null };
         // 手札は選んだ支払いを実行関数と同じ関数で検算する（先読みなしでも払えない形を返さない）。
         if (zone === 'hand' && !paidBoard(choice, actor, opponent, cardMap, p.energyPool)) continue;
-        if (!p.lookahead) return choice;
-        const paid = paidBoard(choice, actor, opponent, cardMap, p.energyPool);
-        if (!paid) continue;
-        const after = simulateEffect(effect, cardNum, paid.cpu, paid.opp, { ...p.lookahead, turnPhase: p.phase, isCpuTurn: isMyTurn });
-        choice.gain = after ? evaluateBoard(after.cpu, after.opp, p.lookahead) - before : null;
-        // 使う前より悪くなるもの（払ったエナ・捨てた札のぶん損）は使わない。
-        if (choice.gain !== null && choice.gain <= 0) continue;
-        if (!best || (choice.gain ?? 0) > (best.gain ?? 0)) best = choice;
+        yield choice;
       }
     }
+  }
+}
+
+export function listCpuOffFieldActivated(p: CpuOffFieldPickInput): CpuOffFieldChoice[] {
+  return [...iterCpuOffFieldActivated(p)];
+}
+
+export function pickCpuOffFieldActivated(p: CpuOffFieldPickInput): CpuOffFieldChoice | null {
+  const { actor, opponent, cardMap } = p;
+  if (!p.lookahead) return iterCpuOffFieldActivated(p).next().value ?? null;
+  const isMyTurn = p.phase !== 'ATTACK_ARTS_OP';
+  const before = evaluateBoard(actor, opponent, p.lookahead);
+  let best: CpuOffFieldChoice | null = null;
+  for (const choice of iterCpuOffFieldActivated(p)) {
+    const paid = paidBoard(choice, actor, opponent, cardMap, p.energyPool);
+    if (!paid) continue;
+    const after = simulateEffect(choice.effect, choice.cardNum, paid.cpu, paid.opp, { ...p.lookahead, turnPhase: p.phase, isCpuTurn: isMyTurn });
+    choice.gain = after ? evaluateBoard(after.cpu, after.opp, p.lookahead) - before : null;
+    // 使う前より悪くなるもの（払ったエナ・捨てた札のぶん損）は使わない。
+    if (choice.gain !== null && choice.gain <= 0) continue;
+    if (!best || (choice.gain ?? 0) > (best.gain ?? 0)) best = choice;
   }
   return best;
 }

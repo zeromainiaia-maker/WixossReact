@@ -1,21 +1,17 @@
 import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase} from '../../../types';
 import type {CardEffect, TriggerOriginZone} from '../../../types/effects';
-import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectHandLimits, collectHandGuardIconClasses, drawPhaseLimitFromBlocked, collectForcePlaceFrontZones, collectGrowCostReductions} from '../../../engine/effectEngine';
+import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectHandLimits, collectHandGuardIconClasses, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
 import {getCardNum, evalUseCondition} from '../../../engine/effectExecutor';
-import {getRiseRequirement, resolvePendingExiles} from '../../../engine/execUtils';
+import {resolvePendingExiles} from '../../../engine/execUtils';
 import {initStack, pushToStack} from '../../../engine/effectStack';
 import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectTurnTriggers as pureCollectTurnTriggers, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay} from '../../../engine/triggerCollect';
 import {resolveTurnEndEnergyTrash} from '../turnEndEnergyTrash';
 import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated} from '../cpuOffFieldActivate';
-import {buildEnergyPayPool, energyPoolCardNums} from '../energyPaySource';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, drawCards} from '../battleUtils';
 import {recordEnergyPlacements} from '../../../engine/energyPlacement';
-import {isEnaMultiStripped, parseGrowCost, applyGrowCostReduction, parseCoinCost, colorlessPayableColorsOf, isEnergyPaymentSelectionValid} from '../costs';
-import {meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride} from '../growLogic';
-import {computeFieldSigniLimit} from '../fieldLimit';
-import {computeEffectiveLrigLimit} from '../lrigLimit';
+import {canGrowNow} from '../growLogic';
 import {resolveLrigAttackContinuation} from '../attackNegation';
 import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
 import {resolveTurnEndFacedownReturns} from '../../../engine/facedownSigni';
@@ -46,30 +42,24 @@ import {pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards} from '../cpuHandLimi
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve} from '../cpuGrowReserve';
 import {normalizeCpuDeckPlan, planDeployBonus, planKeepBonus} from '../cpuDeckPlan';
-import {listAssistGrowCandidates} from '../assistGrow';
-import {paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone} from '../cpuSummon';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
-import {getResonaSummonCandidate} from '../resonaSummon';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
-import {planRiseSummon} from '../riseSummon';
 import {clearUntilOppTurnEffects} from '../untilOppTurn';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {canSigniAttack, collectForcedAttackZones} from '../signiAttackGate';
 import {effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard} from '../cpuBoardEval';
-import {pickCpuSigniActivated, selectEnergyIndicesForCost} from '../cpuActivate';
+import {pickCpuSigniActivated} from '../cpuActivate';
 import {pickCpuLrigActivated} from '../cpuLrigActivate';
-import {buildArtsPayerCtx, hasIgnoreLrigRestriction} from '../artsUseGate';
 import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts} from '../cpuArts';
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell} from '../cpuSpell';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {centerLrigAttackBlock} from '../lrigAttackGate';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
-import {deployCountCap, deployLimitBlockReason} from '../../../engine/deployLimit';
-import {isHandSigniPlayBlockedByPower} from '../../../engine/blockAction';
 
 import type { SummonActorCtx } from './performSummonSigni';
 
@@ -114,6 +104,16 @@ export interface CpuTurnDeps {
    * ⚠**画面（`BattleScreen`）は渡さない**＝実機の挙動は変わらない。渡すのは自己対戦の A/B だけ。
    */
   policy?: CpuPolicy;
+  /**
+   * 🆕§5.7 `S-15`＝**候補列挙の観測フック**（計測専用）。CPU 自身のターンの `ENERGY`／`GROW`／`MAIN`／`ATTACK_ARTS` で
+   * 行動を選ぶ前に `listCpuMoves` の結果を渡す。⚠**画面は渡さない**＝渡さなければ列挙もしない（本番の手数は増えない）。
+   */
+  observeMoves?: (e: { phase: TurnPhase; moves: CpuMove[]; ms: number; ctx: CpuMoveCtx }) => void;
+  /**
+   * 🆕§5.7 `S-15`＝**CPU が実際に選んだ手**（`observeMoves` の直後に、同じ盤面で選んだもの）。
+   * 🔑**golden が「本番で打った手は必ず列挙に出ている」を照合する口**（列挙の道が1本であることの検査）。
+   */
+  observeChoice?: (m: CpuMove) => void;
 }
 
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝CPU の1手（`cpuTurnAction`・1,362行）を `BattleScreen` から**逐語で移設**。
@@ -235,135 +235,57 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: marked }));
     return marked;
   };
-  const cpuCenterClass = (s: PlayerState) =>
-    effectiveLrigClass(s, battleCardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardClass);
   /** CPU の召喚文脈（人間の `handleSummonSigni` が memo 値で渡すものを、CPU の盤面から同じ式で作る）。 */
-  const cpuSummonCtx = (s: PlayerState): SummonActorCtx => {
-    const centerCard = battleCardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''));
-    const fieldTotal = s.field.signi.reduce((sum, stack) => {
-      const top = stack?.at(-1);
-      if (!top) return sum;
-      const c = battleCardMap.get(getCardNum(top));
-      return sum + (declaredSigniOverride(s, c?.CardName).levelZero ? 0 : (parseInt(c?.Level ?? '0') || 0));
-    }, 0);
-    const blockedSelf = calcContinuousBlockedActions(s, huSt, true, effectsMap, battleCardMap).forSelf;
-    return {
-      actor: s, opponent: huSt, actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn: true,
-      lrigLevel: parseInt(centerCard?.Level ?? '0') || 0,
-      lrigLimit: computeEffectiveLrigLimit(s, huSt, battleCardMap, effectsMap, true),
-      fieldSigniTotal: fieldTotal,
-      playColorlessBlocked: (s.blocked_actions ?? []).includes('PLAY_COLORLESS') || blockedSelf.has('PLAY_COLORLESS'),
-      costOnPlay: 'skip',
-    };
-  };
+  const cpuSummonCtx = (s: PlayerState): SummonActorCtx => ({
+    ...cpuSummonBudget(cpuMoveCtx(s), s),
+    actor: s, opponent: huSt, actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn: true,
+    costOnPlay: 'skip',
+  });
+  // 🆕§5.7 `S-15`＝候補の列挙は `cpuMoves.ts`（探索と本番で同じ道）。ここは「選んで実行する」だけ。
+  const cpuMoveCtx = (actorState: PlayerState): CpuMoveCtx => ({
+    actor: actorState, opponent: huSt, allCards: cards, battleCards, cardMap: battleCardMap, effectsMap,
+    lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor,
+  });
   const tryCpuAssistGrow = async (actorState: PlayerState): Promise<boolean> => {
-    const pool = buildEnergyPayPool(actorState, { turnPhase: 'MAIN', isMyTurn: true, effectsMap });
-    const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
-    const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
-    for (const side of ['l', 'r'] as const) {
-      for (const card of listAssistGrowCandidates({ state: actorState, side, phase: 'MAIN', isOwnerTurn: true, cardMap: battleCardMap })) {
-        if ((actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
-        // ⚠コインは `performAssistGrow` が払わない＝コインを要する札は選ばない（踏み倒さない）。
-        if (parseCoinCost(card.GrowCost) > 0) continue;
-        const costStr = applyGrowCostReduction(card.GrowCost,
-          collectGrowCostReductions(actorState, huSt, true, effectsMap, battleCardMap, card.CardNum));
-        const costIndices = selectEnergyIndicesForCost({
-          poolNums: energyPoolCardNums(pool), cards, costStr,
-          isAffordable: (selectedNums, cs) => isEnergyPaymentSelectionValid({
-            selectedEnergyNums: selectedNums, cards, baseCost: cs,
-            keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
-          }),
-          wholeSubstitutes,
-          // アシストグロウはアーツと同じ扱い（ユーザー指示）＝センターの次のグロウ用エナを残す。
-          reserve: cpuGrowReserveFor(actorState),
-        });
-        if (!costIndices) continue;
-        appendBattleLogs([`[CPU] アシストグロウ: ${card.CardName}（Lv.${card.Level}・${side === 'l' ? '左' : '右'}）`]);
-        await performAssistGrow(card, side, costIndices, {
-          owner: await cpuMarkUsed(actorState, card.CardNum), other: huSt,
-          ownerId: CPU_PLAYER_ID, ownerKey: 'guest_state', energyPayPool: pool,
-        });
-        return true;
-      }
-    }
-    return false;
+    const m = listCpuAssistGrows(cpuMoveCtx(actorState))[0];
+    if (!m) return false;
+    d.observeChoice?.(m);
+    const { card, side, costIndices, pool } = m;
+    appendBattleLogs([`[CPU] アシストグロウ: ${card.CardName}（Lv.${card.Level}・${side === 'l' ? '左' : '右'}）`]);
+    await performAssistGrow(card, side, costIndices, {
+      owner: await cpuMarkUsed(actorState, card.CardNum), other: huSt,
+      ownerId: CPU_PLAYER_ID, ownerKey: 'guest_state', energyPayPool: pool,
+    });
+    return true;
   };
   const tryCpuResona = async (actorState: PlayerState): Promise<boolean> => {
     if (bs.pending_spell) return false;
+    const m = listCpuResonas(cpuMoveCtx(actorState))[0];
+    if (!m) return false;
+    d.observeChoice?.(m);
     const sc = cpuSummonCtx(actorState);
-    const centerClass = cpuCenterClass(actorState);
-    for (const id of actorState.lrig_deck) {
-      const card = battleCardMap.get(getCardNum(id));
-      if (card?.Type !== 'レゾナ' || (actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
-      // 限定条件＝人間のルリグデッキのカードアクションと同じ（レゾナは無視の宣言を見ない）。
-      if (!meetsRestriction(card.Restriction, centerClass, false)) continue;
-      const candidate = getResonaSummonCandidate(id, actorState, battleCardMap, effectsMap, 'MAIN');
-      if (!candidate) continue;
-      const level = parseInt(card.Level ?? '0', 10) || 0;
-      if (level > sc.lrigLevel) continue;
-      const selection = pickCpuResonaSelection(actorState, candidate.payment, battleCardMap);
-      if (!selection) continue;
-      if (sc.fieldSigniTotal - paidFieldLevels(actorState, selection, battleCardMap) + level > sc.lrigLimit) continue;
-      const zone = pickCpuResonaZone(actorState, selection);
-      if (zone === null) continue;
-      appendBattleLogs([`[CPU] レゾナ: ${card.CardName}（ゾーン${zone + 1}）`]);
-      await performSummonSigni(-1, zone, { candidate, selection }, undefined, { ...sc, actor: await cpuMarkUsed(actorState, card.CardNum) });
-      return true;
-    }
-    return false;
+    appendBattleLogs([`[CPU] レゾナ: ${m.card.CardName}（ゾーン${m.zone + 1}）`]);
+    await performSummonSigni(-1, m.zone, { candidate: m.candidate, selection: m.selection }, undefined, { ...sc, actor: await cpuMarkUsed(actorState, m.card.CardNum) });
+    return true;
   };
   const tryCpuRise = async (actorState: PlayerState): Promise<boolean> => {
+    const m = listCpuRises(cpuMoveCtx(actorState))[0];
+    if (!m) return false;
+    d.observeChoice?.(m);
     const sc = cpuSummonCtx(actorState);
-    const centerClass = cpuCenterClass(actorState);
-    const countLimit = computeFieldSigniLimit(actorState, huSt, effectsMap, getCardNum);
-    for (let handIdx = 0; handIdx < actorState.hand.length; handIdx++) {
-      const card = battleCardMap.get(getCardNum(actorState.hand[handIdx]));
-      if (card?.Type !== 'シグニ' || (actorState.cpu_used_card_nums_this_turn ?? []).includes(card.CardNum)) continue;
-      const req = getRiseRequirement(card.EffectText ?? '');
-      if (!req) continue;
-      // ⚠シグニのエナコストは `performSummonSigni` が払わない（人間 UI も払わない）＝コストのある札は選ばない。
-      if (parseGrowCost(card.Cost).length > 0) continue;
-      // 手札の「召喚」ボタンと同じ軸（レベル・限定条件・パワー封じ）→ 置き方は `planRiseSummon`。
-      const override = declaredSigniOverride(actorState, card.CardName);
-      const level = override.levelZero ? 0 : (parseInt(card.Level) || 0);
-      if (level > sc.lrigLevel) continue;
-      if (!meetsRestriction(card.Restriction, centerClass,
-        hasIgnoreLrigRestriction(actorState, effectsMap, 'signi', card) || override.ignoreRestriction)) continue;
-      const power = card.Power === '∞' ? Infinity : parseInt(card.Power ?? '', 10);
-      if (isHandSigniPlayBlockedByPower(actorState, power)) continue;
-      const plan = planRiseSummon({
-        my: actorState, req, signiLevel: level, fieldSigniTotal: sc.fieldSigniTotal,
-        lrigLimit: sc.lrigLimit, fieldSigniCountLimit: countLimit, cardMap: battleCardMap,
-      });
-      if (!plan) continue;
-      appendBattleLogs([`[CPU] ライズ: ${card.CardName}（ゾーン${plan.zoneIndex + 1}）`]);
-      await performSummonSigni(handIdx, plan.zoneIndex, undefined, plan.selection, { ...sc, actor: await cpuMarkUsed(actorState, card.CardNum) });
-      return true;
-    }
-    return false;
+    appendBattleLogs([`[CPU] ライズ: ${m.card.CardName}（ゾーン${m.zone + 1}）`]);
+    await performSummonSigni(m.handIndex, m.zone, undefined, m.selection, { ...sc, actor: await cpuMarkUsed(actorState, m.card.CardNum) });
+    return true;
   };
   const tryCpuSigniActivated = async (
     actorState: PlayerState,
     phase: 'MAIN' | 'ATTACK_ARTS',
   ): Promise<boolean> => {
-    const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
-    const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
-    const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
-    const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
-    const choice = pickCpuSigniActivated({
-      actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
-      phase, energyPoolNums: energyPoolCardNums(pool),
-      energyReserve: cpuGrowReserveFor(actorState),
-      alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
-      effectivePowers: powers,
-      // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
-      isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
-        selectedEnergyNums: selectedNums, cards, baseCost: costStr,
-        keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
-      }),
-      wholeSubstitutes,
-    });
+    const input = cpuSigniActivatedInput(cpuMoveCtx(actorState), phase);
+    const pool = input.pool;
+    const choice = pickCpuSigniActivated(input);
     if (!choice) return false;
+    d.observeChoice?.({ kind: 'activate', choice });
     appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
     // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
     //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
@@ -397,25 +319,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     actorState: PlayerState,
     phase: 'MAIN' | 'ATTACK_ARTS',
   ): Promise<boolean> => {
-    const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
-    const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
-    const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
-    const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
-    const blockedSelf = calcContinuousBlockedActions(
-      actorState, huSt, true, effectsMap, battleCardMap, powers).forSelf;
-    const choice = pickCpuLrigActivated({
-      actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
-      phase, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
-      energyReserve: cpuGrowReserveFor(actorState),
-      alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
-      effectivePowers: powers,
-      isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
-        selectedEnergyNums: selectedNums, cards, baseCost: costStr,
-        keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
-      }),
-      wholeSubstitutes,
-    });
+    const input = cpuLrigActivatedInput(cpuMoveCtx(actorState), phase);
+    const pool = input.pool;
+    const choice = pickCpuLrigActivated(input);
     if (!choice) return false;
+    d.observeChoice?.({ kind: 'lrigActivate', choice });
     const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
     appendBattleLogs([`[CPU] ルリグの【起】を発動: ${lrigName}`]);
     // ⚠安全弁＝実行より先に「撃った」履歴を確定させる（シグニ【起】と同じ理由）。
@@ -442,24 +350,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    */
   const tryCpuKeyPiece = async (actorState: PlayerState, turnPhase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
     if (bs.pending_spell) return false;
-    const payer = buildArtsPayerCtx({
-      actor: actorState, opponent: huSt, isActorTurn: true,
-      turnPhase, cardMap: battleCardMap, effectsMap,
-    });
-    const choice = pickCpuKeyPiece({
-      actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
-      payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
-      energyReserve: cpuGrowReserveFor(actorState),
-      // 可否の権威は人間の `KeyUseModal` と同じ `isEnergyPaymentSelectionValid`（《無》の許可色を含む）。
-      isAffordable: (selectedNums, costStr, card) => isEnergyPaymentSelectionValid({
-        selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr,
-        keywordGrants: actorState.keyword_grants, allMulti: payer.enaAllMulti, stripped: payer.enaMultiStripped,
-        colorlessOverrides: payer.colorlessOverrides, colorSubs: payer.colorSubs,
-        colorlessPayableColors: colorlessPayableColorsOf(card.CardNum, effectsMap),
-        wholeSubstitutes: payer.wholeEnergySubstitutes,
-      }),
-    });
+    const input = cpuKeyPieceInput(cpuMoveCtx(actorState), turnPhase);
+    const payer = input.payer;
+    const choice = pickCpuKeyPiece(input);
     if (!choice) return false;
+    d.observeChoice?.({ kind: 'piece', choice });
     // ⚠文言は `census:play` の契約（anchor は `[CPU] ピース:` / `[CPU] キー:` をそのまま含むこと）。
     appendBattleLogs([choice.check.isPiece ? `[CPU] ピース: ${choice.card.CardName}` : `[CPU] キー: ${choice.card.CardName}`]);
     await performKeyPiece(choice.card, choice.costIndices, {
@@ -478,28 +373,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    */
   const tryCpuOffFieldActivated = async (actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): Promise<boolean> => {
     // 🆕`ATTACK_ARTS_OP`＝人間のターンのアーツステップ（CPU は非ターンプレイヤー）＝手札の《アタックフェイズアイコン》【起】で応答する。
-    const isCpuTurn = phase !== 'ATTACK_ARTS_OP';
-    const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: isCpuTurn, effectsMap });
-    const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
-    const wholeSubstitutes = collectEnergyCostSubstitutes(actorState, battleCardMap, effectsMap);
-    const choice = pickCpuOffFieldActivated({
-      actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
-      phase, energyPool: pool,
-      alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
-      effectivePowers: calcFieldPowers(actorState, huSt, isCpuTurn, effectsMap, battleCardMap, phase),
-      energyReserve: cpuGrowReserveFor(actorState),
-      // 可否の権威は人間の支払いモーダルと同じ `isEnergyPaymentSelectionValid`。
-      isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
-        selectedEnergyNums: selectedNums, cards, baseCost: costStr,
-        keywordGrants: actorState.keyword_grants, stripped, wholeSubstitutes,
-      }),
-      wholeSubstitutes,
-      lookahead: isCpuTurn
-        ? { ...cpuLookahead, turnPhase: phase }
-        : { ...cpuLookahead, turnPhase: phase, isCpuTurn: false,
-          powersOf: (c, o) => calcFieldPowers(c, o, false, effectsMap, battleCardMap, phase) },
-    });
+    const input = cpuOffFieldInput(cpuMoveCtx(actorState), phase);
+    const pool = input.pool;
+    const choice = pickCpuOffFieldActivated(input);
     if (!choice) return false;
+    if (phase !== 'ATTACK_ARTS_OP') d.observeChoice?.({ kind: 'offFieldActivate', choice });
     const zoneJa = choice.zone === 'trash' ? 'トラッシュ' : choice.zone === 'hand' ? '手札' : 'エナゾーン';
     // ⚠文言は `census:play` の契約（anchor＝`の【起】を発動: `）。
     appendBattleLogs([`[CPU] ${zoneJa}の【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
@@ -554,26 +432,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     pick: (p: CpuArtsPickInput) => CpuArtsChoice | null,
   ): Promise<boolean> => {
     const isActorTurn = turnPhase !== 'ATTACK_ARTS_OP';
-    const payer = buildArtsPayerCtx({
-      actor: actorState, opponent: huSt, isActorTurn,
-      turnPhase, cardMap: battleCardMap, effectsMap,
-    });
-    const choice = pick({
-      actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
-      payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
-      lookahead: isActorTurn ? { ...cpuLookahead, turnPhase } : undefined,
-      energyReserve: cpuGrowReserveFor(actorState),
-      // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
-      isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
-        selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
-        keywordGrants: actorState.keyword_grants, allMulti: payer.enaAllMulti,
-        stripped: payer.enaMultiStripped, colorlessOverrides: payer.colorlessOverrides,
-        colorSubs: payer.colorSubs, extraColorMap: payer.energyExtraColors,
-        banColorlessPay: actorState.cannot_pay_colorless_this_attack_phase,
-        wholeSubstitutes: payer.wholeEnergySubstitutes,
-      }),
-    });
+    const input = cpuArtsInput(cpuMoveCtx(actorState), turnPhase);
+    const payer = input.payer;
+    const choice = pick(input);
     if (!choice) return false;
+    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: [choice.kind], costIndices: choice.costIndices } });
     appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
     // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
     //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して
@@ -720,6 +583,16 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
 
   const phase = bs.turn_phase;
 
+  // 🆕§5.7 `S-15`＝候補数の実測フック（渡したときだけ・盤面には書かない）。`S-16` のビーム幅を決める材料。
+  const observeMovesAt = (s: PlayerState) => {
+    if (!d.observeMoves) return;
+    const moveCtx = cpuMoveCtx(s);
+    const t0 = performance.now();
+    const moves = listCpuMoves(moveCtx, phase, { pendingSpell: !!bs.pending_spell });
+    d.observeMoves({ phase, moves, ms: performance.now() - t0, ctx: moveCtx });
+  };
+  if (phase === 'ENERGY' || phase === 'GROW' || phase === 'MAIN' || phase === 'ATTACK_ARTS') observeMovesAt(cpuSt);
+
   // §6.4 O-3（フェイズスキップ）＝CPU 側も人間と同じ `PHASE_SKIP_BLOCK_IDS` 表で判定する。
   // ⚠**CONTINUOUS 由来の封じ（`WX05-018-E1` の「対戦相手は自分のエナフェイズをスキップする」等）は
   //   `blocked_actions` に載らない**ので、`calcContinuousBlockedActions(...).forSelf` を必ず渡す。
@@ -817,6 +690,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
       const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id)));
       const charged = cpuSt.hand[chargeIdx];
+      d.observeChoice?.({ kind: 'energy', handIndex: chargeIdx, id: charged });
       const chargedCard = battleCardMap.get(charged);
       appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
       // 🆕§5.3 `O-321` 第275＝CPU の「エナに送る」も同じ台帳へ（人間側と非対称にしない）。
@@ -859,28 +733,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   if (phase === 'GROW') {
     const cpuContBlockedGrow = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf;
     if (canGrowNow(cpuSt, cpuContBlockedGrow)) {
-      const cpuEnaMultiStrippedGrow = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
-      const cpuGrowPool = buildEnergyPayPool(cpuSt, { turnPhase: 'GROW', isMyTurn: true, effectsMap });
-      const cpuGrowPoolNums = energyPoolCardNums(cpuGrowPool);
-      const cpuGrowWholeSubstitutes = collectEnergyCostSubstitutes(cpuSt, battleCardMap, effectsMap);
       // 候補は人間と同じ gate。コストは**払える1枚目**を選ぶ（決定論・盤面評価はしない）。
-      for (const growCard of listGrowCandidates({ my: cpuSt, cardMap: battleCardMap, effectsMap })) {
-        // 🆕**§5.3 `O-219`**＝グロウ先ごとに軽減が変わる（人間UIと同じ関数・同じ引数で読む）。
-        const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, true, effectsMap, battleCardMap, growCard.CardNum);
-        const growCostStr = applyGrowCostReduction(growCard.GrowCost, cpuGrowRed);
-        const growCoinNeed = parseCoinCost(growCard.GrowCost);
-        if (growCoinNeed > 0 && (cpuSt.coins ?? 0) < growCoinNeed) continue;
-        const costIndices = selectEnergyIndicesForCost({
-          poolNums: cpuGrowPoolNums, cards, costStr: growCostStr,
-          // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
-          isAffordable: (selectedNums, costStr) => isEnergyPaymentSelectionValid({
-            selectedEnergyNums: selectedNums, cards, baseCost: costStr,
-            keywordGrants: cpuSt.keyword_grants, stripped: cpuEnaMultiStrippedGrow,
-            wholeSubstitutes: cpuGrowWholeSubstitutes,
-          }),
-          wholeSubstitutes: cpuGrowWholeSubstitutes,
-        });
-        if (!costIndices) continue;
+      // 🆕§5.7 `S-15`＝列挙は `listCpuGrows`（探索と同じ道）。
+      const cpuGrowMove = listCpuGrows(cpuMoveCtx(cpuSt))[0];
+      if (cpuGrowMove) {
+        d.observeChoice?.(cpuGrowMove);
+        const { card: growCard, costIndices, pool: cpuGrowPool } = cpuGrowMove;
         appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
         await performGrow(growCard, costIndices, {}, {
           actor: cpuSt, opponent: huSt,
@@ -924,80 +782,41 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // 下の MAIN→アタックフェイズ遷移へ落ちる（`ON_ATTACK_PHASE_START` の収集はそちらが行う）。
     const cpuMainSkipped = isPhaseSkipped('MAIN', cpuSt, cpuContBlockedSelf);
     if (cpuMainSkipped) appendBattleLogs(['[CPU] メインフェイズをスキップする']);
-    const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
-    const cpuLrigNum = cpuLrigId ? getCardNum(cpuLrigId) : null;
-    const cpuLrigCard = cpuLrigNum ? cards.find(c => c.CardNum === cpuLrigNum) : null;
-    const cpuLimit     = cpuLrigCard?.Limit === '∞' ? Infinity : (parseInt(cpuLrigCard?.Limit ?? '0') || 0);
-    const cpuLrigLevel = parseInt(cpuLrigCard?.Level ?? '0') || 0;
-
+    // 🆕§5.7 `S-15`＝枠・手札のシグニ・ゾーンの可否・コストの支払いは `cpuMoves.ts`（探索の列挙と同じ関数）。
+    const cpuDeployMoveCtx = cpuMoveCtx(cpuSt);
+    const { lrigLevel: cpuLrigLevel, limit: cpuLimit, fieldTotal: cpuFieldTotal0 } = cpuDeployBudget(cpuDeployMoveCtx, cpuSt);
     // 現在のフィールドのシグニの合計レベル
-    let fieldTotal = 0;
-    for (const stack of cpuSt.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = getCardNum(stack[stack.length - 1]);
-      const topCard = cards.find(c => c.CardNum === topNum);
-      fieldTotal += parseInt(topCard?.Level ?? '0') || 0;
-    }
+    let fieldTotal = cpuFieldTotal0;
 
     // 手札のシグニ（**順序はここで決めない**）。
     // 🔴**旧実装は「レベル昇順」で並べて「入る最初の1枚」**＝リミットが余っていてもわざと弱い札から出しており、
     //   強い札が一生手札で腐っていた。§8 `O-1` (g) で**盤面評価（`pickCpuDeployCard`）**へ置き換えた＝
     //   「残りゾーンを埋められる範囲でいちばん強い札」を選ぶ。⚠**手札の並び順に依存しない**ように、
     //   ここでのソートは**同点解決のための安定順（手札順）だけ**にする。
-    const handSignis = cpuSt.hand
-      .map((id, idx) => ({ id, idx, card: cards.find(c => c.CardNum === getCardNum(id)) }))
-      .filter(({ card }) => card && card.Type === 'シグニ');
+    const handSignis = cpuHandSignis(cpuDeployMoveCtx, cpuSt);
 
     let newCpuSt = { ...cpuSt };
     // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
     const cpuOnPlayEntries: StackEntry[] = [];
     // 人間（host）側 watcher の usageLimit 消費を畳み込む作業用（huSt と異なれば host_state も併せて保存する）
     let cpuHuSt: PlayerState = huSt;
-    // LIMIT_ALL_FIELD_N: シグニ場出し数の上限（WX04-005-E3）。CPU=guest, 人間=host。
-    const cpuFieldSigniLimitBase = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
-    // DEPLOY_RESTRICT（配置数制限）: 相手（host）の CONT レゾナ＋自フラグ（このターン）の小さい方を上限に反映。
-    // 上限計算は `engine/deployLimit.ts` に一本化（人間UI・engine の効果配置と同じ関数＝続き405）。
-    const cpuDeployCap = deployCountCap({
-      placingState: newCpuSt, opponentState: bs.host_state,
-      cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
-    });
-    const cpuFieldSigniLimit = cpuDeployCap !== undefined ? Math.min(cpuFieldSigniLimitBase, cpuDeployCap) : cpuFieldSigniLimitBase;
+    // LIMIT_ALL_FIELD_N（シグニ場出し数の上限）と DEPLOY_RESTRICT（配置数制限）の小さい方＝`cpuFieldSigniCap`
+    // （上限計算は `engine/deployLimit.ts` に一本化＝人間UI・engine の効果配置と同じ関数＝続き405）。
+    const cpuFieldSigniLimit = cpuFieldSigniCap(cpuDeployMoveCtx, newCpuSt);
 
     for (let zone = 0; !cpuMainSkipped && zone < 3; zone++) {
       if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
       if (handSignis.length === 0) break;
       // 場出し数上限に達していたら召喚しない
       if (newCpuSt.field.signi.filter(stk => (stk ?? []).length > 0).length >= cpuFieldSigniLimit) break;
-      // FORCE_PLACE_FRONT: 人間（host）の該当シグニの正面ゾーンが空いている場合、そのゾーンにしか配置できない
-      const cpuForcedFront = collectForcePlaceFrontZones(bs.host_state, newCpuSt, battleCardMap, effectsMap, false);
-      if (cpuForcedFront.size > 0 && !cpuForcedFront.has(zone)) continue;
-      // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）: 配置禁止ゾーンは飛ばす。
-      // 《無》回避つきは支払えるときだけ配置可（CPU は常に支払う方針）。徴収はシグニコスト確定後。
-      if (!resolveSigniZonePlacement(newCpuSt, zone).allowed) continue;
+      // 正面強制（FORCE_PLACE_FRONT）・配置禁止ゾーン（《無》回避つきは払えるときだけ・徴収はシグニコスト確定後）。
+      if (!cpuDeployZoneOpen(cpuDeployMoveCtx, newCpuSt, zone, cpuFieldSigniLimit)) continue;
 
-      // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv かつ 配置制限を満たす）。
-      // ⚠パワー上限（`signi_deploy_power_limit`）は従来 CPU が見ておらず、人間だけが縛られていた（続き405）。
+      // 召喚できるシグニ（リミット内 かつ シグニLv ≤ ルリグLv かつ 配置制限を満たす）。
+      // ⚠【ライズ】は外す（§5.3 `O-147`＝CPU のライズは `tryCpuRise`）。
       // ⚠**可否（ここ）と選択（`pickCpuDeployCard`）を分ける**＝可否は人間と同じ gate 群が権威。
-      const placeable = handSignis.filter(({ id, card }) => {
-        // 🆕🔴**§5.3 `O-147`（2026-09-05）＝CPU は【ライズ】の配置条件を1度も見ていなかった。**
-        //   このループは**空きゾーンしか回らず** `newSigni[zone] = [candidate.id]` と置くので、
-        //   ライズ41枚を**下敷きも材料も無しで空きゾーンへタダで出していた**（人間側だけが
-        //   `getRiseRequirement` でゲートされていた＝CPU の一方的な過剰実行）。
-        //   ⚠この空きゾーン配置ループからは外したまま＝**CPU のライズは `tryCpuRise`（§5.6 `C-6`）が扱う**
-        //     （置き方は人間の「召喚」ゲートと同じ `planRiseSummon`、実行は人間と同じ `performSummonSigni`）。
-        if (getRiseRequirement(card!.EffectText ?? '')) return false;
-        const lv = parseInt(card!.Level) || 0;
-        if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
-        const power = card!.Power === '∞' ? Infinity : parseInt(card!.Power ?? '', 10);
-        if (isHandSigniPlayBlockedByPower(newCpuSt, power)) return false;
-        return deployLimitBlockReason({
-          placingState: newCpuSt, opponentState: bs.host_state, cardNum: id,
-          cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
-          placementSource: 'normal_summon',
-          // 🆕§5.3 `O-94`②＝CPU 召喚もゾーン制限を見る（旧は人間の通常召喚UIだけが見ていた）。
-          zoneIndex: zone,
-        }) === null;
-      });
+      const placeable = cpuDeployPlaceable(cpuDeployMoveCtx, newCpuSt, zone, handSignis,
+        { lrigLevel: cpuLrigLevel, limit: cpuLimit, fieldTotal });
       // §8 `O-1` (g)＝盤面評価で1枚選ぶ。**残ゾーン数**は「この先まだ空いていて置けるゾーンの数」＝
       // 上限（`cpuFieldSigniLimit`）で頭打ちにする（取り置きが過剰にならないように）。
       const emptyZonesAhead = newCpuSt.field.signi
@@ -1025,31 +844,13 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
 
       // エナ支払い（シグニのコスト）。ゾーン配置禁止の《無》回避コストと合わせて成立を確かめてから
       // 一括で newCpuSt へ反映する（片方だけ払って置けない＝エナの取りこぼしを作らない）。
-      const signiCosts = parseGrowCost(candidate.card!.Cost);
-      let cpuStAfterCost = newCpuSt;
-      if (signiCosts.length > 0) {
-        let canPay = true;
-        let newEnergy = [...newCpuSt.energy];
-        for (const { color, count } of signiCosts) {
-          let paid = 0;
-          const after = newEnergy.filter(eNum => {
-            if (paid >= count) return true;
-            const eCard = cards.find(c => c.CardNum === getCardNum(eNum));
-            const eColor = eCard?.Color ?? '';
-            if (color === '無' || eColor.includes(color)) { paid++; return false; }
-            return true;
-          });
-          if (paid < count) { canPay = false; break; }
-          newEnergy = after;
-        }
-        // 🆕グロウ用エナの予約＝払った残りで次のグロウが払えないなら、この札は出さない。
-        const cpuDeployReserve = cpuGrowReserveFor(newCpuSt);
-        if (!canPay || (cpuDeployReserve && !cpuDeployReserve.keepsAfter(newEnergy))) {
-          handSignis.splice(handSignis.indexOf(candidate), 1);
-          continue;
-        }
-        cpuStAfterCost = { ...cpuStAfterCost, energy: newEnergy };
+      // 🆕グロウ用エナの予約＝払った残りで次のグロウが払えないなら、この札は出さない（`cpuPaySigniCostEnergy`）。
+      const cpuPaidEnergy = cpuPaySigniCostEnergy(cpuDeployMoveCtx, newCpuSt, candidate.card!);
+      if (!cpuPaidEnergy) {
+        handSignis.splice(handSignis.indexOf(candidate), 1);
+        continue;
       }
+      const cpuStAfterCost = cpuPaidEnergy === newCpuSt.energy ? newCpuSt : { ...newCpuSt, energy: cpuPaidEnergy };
       // ゾーン配置禁止の《無》回避コストを徴収する。シグニコスト支払い後のエナで再検証し、
       // 足りなくなっていたらこのゾーンには置かない（エナは減らさない）。
       const cpuZonePay = resolveSigniZonePlacement(cpuStAfterCost, zone);
@@ -1059,6 +860,10 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       }
       newCpuSt = cpuZonePay.state;
 
+      // 観測は1体目だけ（2体目以降は観測した盤面から動いている）。
+      if (newCpuSt.field.signi.every((stk, zi) => zi === zone || (stk ?? []).length === (cpuSt.field.signi[zi] ?? []).length)) {
+        d.observeChoice?.({ kind: 'deploy', handIndex: candidate.idx, id: candidate.id, zone });
+      }
       appendBattleLogs([`[CPU] シグニ配置: ${candidate.card!.CardName}（ゾーン${zone + 1}）`]);
       const newSigni = [...newCpuSt.field.signi] as (string[] | null)[];
       newSigni[zone] = [candidate.id];
@@ -1147,6 +952,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       return;
     }
 
+    // ⚠召喚ループは**同じ呼び出しのまま**下の候補へ進む＝置いたあとの盤面で観測し直す（`S-15` の照合が別の盤面同士を比べない）。
+    if (newCpuSt.field.signi.some((stk, zi) => (stk ?? []).length !== (cpuSt.field.signi[zi] ?? []).length)) observeMovesAt(newCpuSt);
     // 🆕§5.6 `C-5`/`C-6`＝アシストグロウ → レゾナ → ライズ（どれも1回ごとに state が動く＝再実行で次へ進む）。
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuAssistGrow(newCpuSt)) return;
     if (!cpuMainSkipped && cpuHuSt === huSt && await tryCpuResona(newCpuSt)) return;
@@ -1172,27 +979,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (!cpuMainSkipped && cpuHuSt === huSt) {
       if (await tryCpuUseArts(newCpuSt, 'MAIN', pickCpuOffensiveArts)) return;
       // スペルは1枚使うと `pending_spell`（人間のカットイン窓）で止まる＝上の早期 return が受ける。
-      const cpuSpellPayer = buildArtsPayerCtx({
-        actor: newCpuSt, opponent: huSt, isActorTurn: true,
-        turnPhase: 'MAIN', cardMap: battleCardMap, effectsMap,
-      });
-      const cpuSpellChoice = pickCpuMainSpell({
-        actor: newCpuSt, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
-        payer: cpuSpellPayer, turnPhase: 'MAIN', pendingSpell: !!bs.pending_spell,
-        alreadyUsedNums: newCpuSt.cpu_used_card_nums_this_turn ?? [],
-        lookahead: cpuLookahead,
-        energyReserve: cpuGrowReserveFor(newCpuSt),
-        isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
-          selectedEnergyNums: selectedNums, cards: battleCards, baseCost: costStr, extraCosts,
-          keywordGrants: newCpuSt.keyword_grants, allMulti: cpuSpellPayer.enaAllMulti,
-          stripped: cpuSpellPayer.enaMultiStripped,
-          colorlessOverrides: cpuSpellPayer.colorlessOverrides,
-          colorSubs: cpuSpellPayer.colorSubs, extraColorMap: cpuSpellPayer.energyExtraColors,
-          banColorlessPay: newCpuSt.cannot_pay_colorless_this_attack_phase,
-          wholeSubstitutes: cpuSpellPayer.wholeEnergySubstitutes,
-        }),
-      });
+      const cpuSpellInputV = cpuSpellInput(cpuMoveCtx(newCpuSt), !!bs.pending_spell);
+      const cpuSpellPayer = cpuSpellInputV.payer;
+      const cpuSpellChoice = pickCpuMainSpell(cpuSpellInputV);
       if (cpuSpellChoice) {
+        d.observeChoice?.({ kind: 'spell', choice: cpuSpellChoice });
         appendBattleLogs([`[CPU] スペルを発動: ${cpuSpellChoice.card.CardName}`]);
         // ⚠アーツと同じ安全弁＝実行より先に「使った」履歴を確定させる（`performSpell` は
         //   使用不能を検出すると何も書かずに return するので、履歴を実行の成否に委ねると

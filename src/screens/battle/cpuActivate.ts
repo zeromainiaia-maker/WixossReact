@@ -194,7 +194,7 @@ export interface CpuActivatedChoice {
  * ⚠**窓は2つ**＝`'MAIN'`（無印【起】）と `'ATTACK_ARTS'`（《アタックフェイズアイコン》付き【起】）。
  * 判定は同じ `signiActivateGate` の1本で、違うのは渡す `phase` だけ（§8 `O-1` (c)）。
  */
-export function pickCpuSigniActivated(p: {
+export interface CpuSigniActivatedPickInput {
   actor: PlayerState;
   opponent: PlayerState;
   effectsMap: Map<string, CardEffect[]>;
@@ -212,7 +212,13 @@ export function pickCpuSigniActivated(p: {
   contBlockedSelf?: Set<string>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
-}): CpuActivatedChoice | null {
+}
+
+/**
+ * 🆕§5.7 `S-15`＝CPU が**いま撃てる**場のシグニ【起】を**全部**、ゾーン順→効果定義順で列挙する（遅延評価）。
+ * `pickCpuSigniActivated` はこの先頭を取るだけ＝「列挙」と「選ぶ」を割った（探索 `S-16` が全候補を要る）。
+ */
+export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator<CpuActivatedChoice> {
   const { actor, opponent, effectsMap, cardMap, cards } = p;
   for (let zoneIndex = 0; zoneIndex < actor.field.signi.length; zoneIndex++) {
     const cardNum = actor.field.signi[zoneIndex]?.at(-1);
@@ -231,8 +237,16 @@ export function pickCpuSigniActivated(p: {
         reserve: p.energyReserve,
       });
       if (!costIndices) continue;
-      return { zoneIndex, cardNum, effect, costIndices };
+      yield { zoneIndex, cardNum, effect, costIndices };
     }
   }
-  return null;
+}
+
+export function listCpuSigniActivated(p: CpuSigniActivatedPickInput): CpuActivatedChoice[] {
+  return [...iterCpuSigniActivated(p)];
+}
+
+/** いま撃つ1つ＝列挙の先頭（ゾーン順→効果定義順・盤面評価はしない）。 */
+export function pickCpuSigniActivated(p: CpuSigniActivatedPickInput): CpuActivatedChoice | null {
+  return iterCpuSigniActivated(p).next().value ?? null;
 }

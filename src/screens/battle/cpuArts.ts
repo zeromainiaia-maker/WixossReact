@@ -219,15 +219,26 @@ export interface CpuArtsPickInput {
  * ⚠**応答（相手ターン）と攻め（自ターン）で違うのは `isMyTurn` と `allowKinds` だけ**にする＝
  * 選び方の本体を2本に分けると、片方だけに条件を足したときに気付けない。
  */
-function pickCpuArtsBy(
-  p: CpuArtsPickInput,
-  opts: { isMyTurn: boolean; allowKinds: ReadonlySet<CpuDefensiveKind> },
-): CpuArtsChoice | null {
+/** 🆕§5.7 `S-15`＝列挙の1件＝分類で絞る前（`kinds` は分類の全部＝空もありうる）。 */
+export interface CpuArtsCandidate {
+  card: CardData;
+  check: ArtsUseCheck;
+  /** この札の【起】が持つ分類（`defensiveKindOf`・重複なし・`KIND_PRIORITY` 順）。 */
+  kinds: CpuDefensiveKind[];
+  costIndices: Set<number>;
+}
+
+/**
+ * 🆕§5.7 `S-15`＝CPU が**いま使える**アーツを全部（ルリグデッキ順）。**分類では絞らない**＝窓ごとの分類の絞り
+ * （応答＝温存規律／攻め＝除去だけ）は選ぶ側（`pickCpuArtsBy`）が持つ。
+ * ⚠CPU が払いきれない札（エナ以外の宣言コスト・未対応アクション）はここで外す＝列挙に出た札は実行できる。
+ */
+export function listCpuArts(p: CpuArtsPickInput, isMyTurn: boolean): CpuArtsCandidate[] {
   const { actor, opponent, cards, cardMap, effectsMap, payer } = p;
   const poolNums = energyPoolCardNums(payer.energyPayPool);
-  const candidates: CpuArtsChoice[] = [];
+  const candidates: CpuArtsCandidate[] = [];
   for (const { card, check } of listUsableArts({
-    my: actor, op: opponent, isMyTurn: opts.isMyTurn, turnPhase: p.turnPhase,
+    my: actor, op: opponent, isMyTurn, turnPhase: p.turnPhase,
     cards, cardMap, effectsMap, payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
@@ -235,11 +246,10 @@ function pickCpuArtsBy(
     if (!cpuCanPayArtsWithEnergyOnly(effects)) continue;
     const acts = effects.filter(e => e.effectType === 'ACTIVATED');
     if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
-    const kind = acts
+    const kinds = [...new Set(acts
       .map(e => defensiveKindOf(e.action))
-      .filter((k): k is CpuDefensiveKind => k !== null && opts.allowKinds.has(k))
-      .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b])[0];
-    if (!kind) continue;
+      .filter((k): k is CpuDefensiveKind => k !== null))]
+      .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b]);
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards, costStr: check.effectiveCost,
       isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
@@ -248,6 +258,20 @@ function pickCpuArtsBy(
       reserve: p.energyReserve,
     });
     if (!costIndices) continue;
+    candidates.push({ card, check, kinds, costIndices });
+  }
+  return candidates;
+}
+
+function pickCpuArtsBy(
+  p: CpuArtsPickInput,
+  opts: { isMyTurn: boolean; allowKinds: ReadonlySet<CpuDefensiveKind> },
+): CpuArtsChoice | null {
+  const { actor, opponent } = p;
+  const candidates: CpuArtsChoice[] = [];
+  for (const { card, check, kinds, costIndices } of listCpuArts(p, opts.isMyTurn)) {
+    const kind = kinds.find(k => opts.allowKinds.has(k));
+    if (!kind) continue;
     candidates.push({ card, check, kind, costIndices });
   }
   if (candidates.length === 0) return null;

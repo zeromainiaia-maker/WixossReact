@@ -70,8 +70,8 @@ export interface CpuKeyPiecePickInput {
   energyReserve?: CpuEnergyReserve;
 }
 
-/** CPU がいま使うキー／ピースを1枚選ぶ（無ければ `null`）。1回の呼び出しで1枚だけ。 */
-export function pickCpuKeyPiece(p: CpuKeyPiecePickInput): CpuKeyPieceChoice | null {
+/** 🆕§5.7 `S-15`＝CPU がいま使えるキー／ピースを全部（ルリグデッキ順）。`pickCpuKeyPiece` はこれに順序を当てるだけ。 */
+export function listCpuKeyPieces(p: CpuKeyPiecePickInput): CpuKeyPieceChoice[] {
   const poolNums = energyPoolCardNums(p.payer.energyPayPool);
   const candidates: CpuKeyPieceChoice[] = [];
   for (const { card, check } of listUsableKeyPieces({
@@ -89,6 +89,12 @@ export function pickCpuKeyPiece(p: CpuKeyPiecePickInput): CpuKeyPieceChoice | nu
     if (!costIndices) continue;
     candidates.push({ card, check, costIndices });
   }
+  return candidates;
+}
+
+/** CPU がいま使うキー／ピースを1枚選ぶ（無ければ `null`）。1回の呼び出しで1枚だけ。 */
+export function pickCpuKeyPiece(p: CpuKeyPiecePickInput): CpuKeyPieceChoice | null {
+  const candidates = listCpuKeyPieces(p);
   // キー → ピース（`listUsableKeyPieces` はルリグデッキ順＝同種内の順はそのまま＝安定ソート）。
   candidates.sort((a, b) => Number(a.check.isPiece) - Number(b.check.isPiece));
   return candidates[0] ?? null;

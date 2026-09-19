@@ -615,13 +615,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCpuBattle, cpuKey, runCpuTurn]);
-  // 見張り（2秒ごと）。⚠人間の応答待ち（`cpuWaitingForHuman`）では再実行しない。
+  // 見張り（2秒ごと）。⚠人間の応答待ち（`cpuWaitingForHuman`）では**再実行しない**（`cpuResyncRef` が DB の行で判定する）。
+  // 🔴🆕2026-09-20＝**応答待ちでも読み直しだけはする**。旧＝応答待ちの盤面では見張りそのものを止めていた＝
+  //   人間が【ガードしない】を押した後の通知（クラッシュ→チェックゾーン）を取りこぼすと、画面は「ルリグに攻撃された！」のまま
+  //   **ライフバースト確認を覆い続け、二度と DB を読まない**（実機 `verifyFullMatch.mjs cpu` の T2 で手詰まり＝DB はライフ5・画面は6）。
   useEffect(() => {
     if (!isCpuBattle) return;
     const id = setInterval(() => {
       const cur = bsRef.current;
       if (!cpuWatchdogShouldCheck({
-        shouldAct: cpuShouldAct(cur) && !(cur && cpuWaitingForHuman(cur)),
+        shouldAct: cpuShouldAct(cur),
         running: cpuRunningRef.current, now: Date.now(),
         lastBsChangeAt: cpuLastBsChangeAtRef.current, lastRunEndAt: cpuLastRunEndAtRef.current,
       })) return;

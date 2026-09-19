@@ -73,7 +73,7 @@ export interface CpuLrigActivatedChoice {
  * CPU がいま撃つルリグ【起】を1つ選ぶ（無ければ `null`）。**1回の呼び出しで1つだけ**＝
  * 実行後はスタック解決を待って CPU ループが再入する。
  */
-export function pickCpuLrigActivated(p: {
+export interface CpuLrigActivatedPickInput {
   actor: PlayerState;
   opponent: PlayerState;
   effectsMap: Map<string, CardEffect[]>;
@@ -91,7 +91,10 @@ export function pickCpuLrigActivated(p: {
   effectivePowers?: Map<string, number>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
-}): CpuLrigActivatedChoice | null {
+}
+
+/** 🆕§5.7 `S-15`＝いま撃てるルリグ【起】を全部（①本来→②付与→③継承の順・遅延評価）。`pickCpuLrigActivated` は先頭を取るだけ。 */
+export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<CpuLrigActivatedChoice> {
   const gateInput = {
     my: p.actor, op: p.opponent, phase: p.phase,
     effectsMap: p.effectsMap, cardMap: p.cardMap,
@@ -118,7 +121,14 @@ export function pickCpuLrigActivated(p: {
       reserve: p.energyReserve,
     });
     if (!costIndices) continue;
-    return { effect, costIndices };
+    yield { effect, costIndices };
   }
-  return null;
+}
+
+export function listCpuLrigActivated(p: CpuLrigActivatedPickInput): CpuLrigActivatedChoice[] {
+  return [...iterCpuLrigActivated(p)];
+}
+
+export function pickCpuLrigActivated(p: CpuLrigActivatedPickInput): CpuLrigActivatedChoice | null {
+  return iterCpuLrigActivated(p).next().value ?? null;
 }

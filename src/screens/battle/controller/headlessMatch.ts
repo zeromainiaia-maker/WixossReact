@@ -10,7 +10,7 @@ import { createHeadlessIo } from './battleIo';
 import { reduceBattle } from './battleController';
 import { buildBaseEffectsMap, buildBattleMaterials } from './battleMaterials';
 import { makeBoardDiffCollector } from './boardDiffTriggers';
-import { cpuTurnAction, type CpuTurnActions } from './cpuTurn';
+import { cpuTurnAction, type CpuTurnActions, type CpuTurnDeps } from './cpuTurn';
 import { handleCutinPass as handleCutinPassImpl } from './cutinPass';
 import { makeEffectInteractionHandlers } from './effectInteraction';
 import { makeTrigCtx } from './execCtxDeps';
@@ -84,6 +84,9 @@ export interface HeadlessMatchDeps {
    *   ここは「どちらの席にどのポリシーを当てるか」だけを受ける。
    */
   policy?: { host: CpuPolicy; guest: CpuPolicy };
+  /** 🆕§5.7 `S-15`＝候補列挙の観測フック（両席とも・計測専用＝`scripts/headlessSelfPlay.ts --census-moves`）。 */
+  observeMoves?: CpuTurnDeps['observeMoves'];
+  observeChoice?: CpuTurnDeps['observeChoice'];
 }
 
 /**
@@ -285,6 +288,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
         allCards: d.cards, cpuPlan,
         // 🆕§5.7 `S-9`＝この枝は **guest 席**の CPU（鏡を通していない）。
         policy: d.policy?.guest ?? DEFAULT_CPU_POLICY,
+        observeMoves: d.observeMoves, observeChoice: d.observeChoice,
         checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
       });
       return true;
@@ -305,6 +309,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       allCards: d.cards, cpuPlan,
       // 🆕§5.7 `S-9`＝この枝は **host 席**の CPU（鏡を通して同じ関数に指させている）。
       policy: d.policy?.host ?? DEFAULT_CPU_POLICY,
+      observeMoves: d.observeMoves, observeChoice: d.observeChoice,
       checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
     });
     return true;

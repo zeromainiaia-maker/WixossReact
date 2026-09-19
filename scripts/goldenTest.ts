@@ -328,6 +328,8 @@ function battleScreenSource(): string {
     fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8'),
     ...fs.readdirSync(controllerDir).filter(f => f.endsWith('.ts'))
       .map(f => fs.readFileSync(join(controllerDir, f), 'utf8')),
+    // 🆕§5.7 `S-15`（2026-09-20）＝CPU の候補列挙を `cpuTurn.ts` から `cpuMoves.ts` へ出した＝配線の検査はこちらも読む。
+    fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf8'),
   ].join('\n');
 }
 
@@ -81939,7 +81941,11 @@ test('§5.3 O-342: B群15地点を共有判定へ寄せ、専用1地点と退化
     // §5.7 `S-5c` 第2段（2026-09-18）＝`performGrow` を `controller/` へ移設＝画面 8 ＋ 移設先 1（**合計は据え置き**）。
     // §5.7 `S-5c` 第3段（2026-09-18）＝`cpuTurnAction` を `controller/cpuTurn.ts` へ移設＝選択版8地点がそちらへ（**合計は据え置き**）。
     ['src/screens/BattleScreen.tsx', 0, 2, 0],
-    ['src/screens/battle/controller/cpuTurn.ts', 8, 0, 0],
+    // 🆕§5.7 `S-15`（2026-09-20）＝CPU の候補列挙を `cpuMoves.ts` へ移設。**8 → 4 は較正**（退化ではない）＝
+    //   グロウ／アシストグロウ／シグニ【起】／ルリグ【起】／場以外の【起】の5地点が**同じ引数の同じ式**だったので
+    //   `basicAffordable` 1本に畳んだ（残りはキー・ピース／アーツ／スペルの3本＝引数が違う）。
+    ['src/screens/battle/controller/cpuTurn.ts', 0, 0, 0],
+    ['src/screens/battle/cpuMoves.ts', 4, 0, 0],
     ['src/screens/battle/controller/performGrow.ts', 1, 0, 0],
     ['src/screens/battle/keyPieceUseGate.ts', 0, 1, 0],
     ['src/screens/battle/modals/GrowModal.tsx', 1, 1, 1],
@@ -86711,7 +86717,10 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
   // 画面の配線
   const battle = battleScreenSource();
   ok(/lookahead: cpuLookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない');
-  ok(/lookahead: isActorTurn \? \{ \.\.\.cpuLookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
+  // 🆕§5.7 `S-15`＝入力の組み立ては `cpuMoves.ts`（`ctx.lookahead` は `cpuTurn.ts` の `cpuLookahead`）。
+  ok(/lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor/.test(battle), '🔴CPU の候補列挙の文脈に先読みを渡していない');
+  ok(/lookahead: ctx\.lookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない（`cpuSpellInput`）');
+  ok(/lookahead: isActorTurn \? \{ \.\.\.ctx\.lookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
 }));
 
 test('CPU の召喚：出したシグニの【出】を解決してから次のシグニを出す（バグ報告 2026-09-17）', () => withSavedCursor(() => {
@@ -87115,9 +87124,11 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
   // 画面の配線＝エナを払う CPU の行動すべてに予約を渡す（グロウそのものとガードは対象外）
   const battle = battleScreenSource();
   // §5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナ）で6か所目。
-  eq((battle.match(/energyReserve: cpuGrowReserveFor\(/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
-  ok(/reserve: cpuGrowReserveFor\(actorState\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
-  ok(/cpuDeployReserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
+  // 🆕§5.7 `S-15`＝入力の組み立ては `cpuMoves.ts`（`ctx.reserveFor` は `cpuTurn.ts` の `cpuGrowReserveFor`）。
+  ok(/reserveFor: cpuGrowReserveFor/.test(battle), '🔴CPU の候補列挙の文脈にグロウ用エナの予約を渡していない');
+  eq((battle.match(/energyReserve: ctx\.reserveFor\(s\)/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
+  ok(/reserve: ctx\.reserveFor\(s\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
+  ok(/reserve && !reserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
   // 🆕§5.7 `S-5d` 第2段＝効果の任意コストの予約は `cpuInteractionRespond.ts` へ移った（較正）。
   ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(cpuRespondSource()), '🔴効果の任意コストの支払いに予約が無い');
 }));
@@ -87887,6 +87898,10 @@ test('§5.1 V-247 CPU 起動ドライバ：盤面の更新で起動・実行中�
   eq(cpuBattleKey(base), cpuBattleKey({ ...base, game_logs: [{ action: 'y' }] } as unknown as BattleStateRow), '🔴ログの追記だけで CPU の起動の鍵が変わる');
   ok(!battle.includes('    bs?.guest_state?.actions_done?.length,\n  ]);'), '🔴手で選んだ依存の一覧が残っている');
   ok(/cpuTimerRef\.current = setTimeout\(\(\) => \{ void runCpuTurn\(\); \}, CPU_ACTION_DELAY\);/.test(battle), '🔴CPU の起動が再入防止（runCpuTurn）を通っていない');
+  // 🆕2026-09-20＝人間の応答待ちでも見張りは DB を**読み直す**（反映だけ）／再実行は読み直した行で `cpuWaitingForHuman` を見て止める。
+  //   🔴旧＝応答待ちで見張りごと止めていた＝通知を1件取りこぼすとガード確認のまま永久停止（実機 CPU 通し対戦 T2）。
+  ok(/shouldAct: cpuShouldAct\(cur\),/.test(battle), '🔴見張りが人間の応答待ちで DB の読み直しまで止めている（通知の取りこぼしで永久停止する）');
+  ok(/if \(!cpuShouldAct\(fresh\) \|\| cpuWaitingForHuman\(fresh\)\) return;/.test(battle), '🔴見張りが人間の応答待ちで CPU を再実行する（二重行動）');
   ok(/if \(!sameBattleForCpu\(local, fresh\)\)/.test(battle), '🔴見張りが DB を読み直さずに再実行している（古い盤面で二重に動く）');
   // 最後の書き込みの通知が届くまで次の実行を始めない（機構デッキの通し対戦でアシストグロウが3戦とも二重に選ばれた）。
   ok(/if \(!force && !lastCommitArrived\(\{/.test(battle), '🔴CPU が自分の書き込みの通知を待たずに次の実行を始める（古い盤面で同じ行動を二重に選ぶ）');
@@ -88294,6 +88309,12 @@ test('§5.7 S-5d 第3段 ヘッドレスの対戦ループ：画面なしで両�
   // 🔑**3ターン目まで**見る＝host 席 → guest 席 → host 席の**両方向の引き渡し**を通す
   //   （2ターン目までだと、鏡側だけが正しくても通ってしまう＝反転確認で実測）。
   ok(parseInt(m![1], 10) >= 3, `🔴60手で3ターン目まで進まない（ターン=${m![1]}）＝どちらかの席が動いていない`);
+  // 🆕§5.7 `S-15`＝**CPU が実際に打った手は、その盤面の候補列挙（`listCpuMoves`）に必ず出ている**。
+  //   🔴外れる＝探索（`S-16`）が見る手と本番の選択がズレた。⚠反転確認済み（列挙から【起】を抜くと 1件出て exit 1）。
+  const mc = out.match(/打った手の照合 (\d+)手｜列挙に無かった手 (\d+)/);
+  ok(!!mc, `🔴自己対戦が打った手の照合を出さない（§5.7 S-15）: ${out.slice(-400)}`);
+  ok(parseInt(mc![1], 10) >= 10, `🔴照合した手が少なすぎる（${mc![1]}手）＝観測フックが繋がっていない`);
+  eq(mc![2], '0', `🔴CPU が列挙に無い手を打った: ${out.slice(-800)}`);
 });
 
 test('§5.7 S-5d 第3段 画面に材料・ルール処理を書き戻さない／ループの順番と席の扱い', () => withSavedCursor(() => {
