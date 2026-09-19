@@ -12842,6 +12842,12 @@ const scenarios = {
         'field.lrig': ['SPDi43-02#1'],
         'field.signi': [null, null, null],
         'actions_done': [],
+        // 🔴2026-09-19＝**同じルリグの【起】(E2) を使用済みにしておく**。放っておくと CPU がメインフェイズに
+        //   これを撃ち（`PLACE_FACEDOWN_LRIG_ZONE{source:hand, all:true, owner:opponent}`＝**host の手札を全部**
+        //   裏向きでルリグゾーンへ）、本題の【自】が来たときには手札0＝「手札を2枚捨てる」が払えず
+        //   16周まるごと空振りしていた（枚数を増やしても `all:true` なので無駄）。
+        //   E2 は `usageLimit:'once_per_game'` なので `game_actions_done` に入れるだけで提示されなくなる。
+        'game_actions_done': ['SPDi43-02-E2'],
       },
       top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
     },
@@ -12854,20 +12860,36 @@ const scenarios = {
         const before = await H.queryState();
         let picked = false;
         let overwritten = false;
+        const pickedIdx = new Set();   // §4.4-2c＝押した index を覚える（同じ pick を押すとトグルで外れる）
         for (let s = 0; s < 16; s++) {
           await page.waitForTimeout(900);
           await page.screenshot({ path: `${SHOT}/spdi4302AvoidedNoChoose-a${attempt}-${s}.png`, fullPage: true });
           let did = null;
           if (!picked) {
-            const payBtn = page.getByRole('button', { name: /^支払う/ }).first();
-            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
-              await payBtn.click().catch(() => {}); did = 'btn:支払う'; picked = true;
+            // 🔴2026-09-19＝**支払い枝のラベルは「支払う」ではなくコストそのもの**（ここでは「手札を2枚捨てる」）。
+            //   `/^支払う/` は当たらず16周まるごと空振りしていた（辞退枝だけが「支払わない」）＝§4.4-125 の近縁。
+            const payBtn = page.getByRole('button', { name: /^(手札を2枚捨てる|支払う)/ }).first();
+            if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+              const nm = await payBtn.textContent().catch(() => '');
+              await payBtn.click().catch(() => {}); did = 'btn:' + String(nm).trim(); picked = true;
             }
           }
+          // 🔴2026-09-19＝支払いは **SELECT_TARGET（手札2枚を選ぶ）** に続く＝ここを進めないと永久に pEff=SELECT_TARGET のまま。
+          //   ⚠「決定」を先に試すと `決定 (0/2)`（disabled）をクリックしたことにして pick を1枚も押さないので、**pick を先に積む**（§4.4-2c）。
+          if (!did) {
+            for (const i of [0, 1, 2, 3]) {
+              if (pickedIdx.has(i)) continue;
+              const pk = page.getByTestId(`pick-${i}`).first();
+              if (await pk.count() && await pk.isVisible().catch(() => false) && await pk.isEnabled().catch(() => true)) {
+                await pk.click().catch(() => {}); pickedIdx.add(i); did = `pick-${i}`; break;
+              }
+            }
+          }
+          if (!did) did = await H.clickBtn('決定');
           const st = await H.queryState();
           const bodyTxt = await H.body();
           const sawChoose = /選択肢1|選択肢2/.test(bodyTxt);
-          H.log(`  s4302a[a${attempt}.${s}] -> ${did ?? 'なし'} | picked=${picked} hHand=${st?.host?.hand} hDeck=${st?.host?.deck} sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
+          H.log(`  s4302a[a${attempt}.${s}] -> ${did ?? 'なし'} | picked=${picked} hHand=${st?.host?.hand}${JSON.stringify(st?.host?.handCards ?? [])} hTrash=${JSON.stringify(st?.host?.trashCards ?? [])} phase=${st?.turnPhase} hDeck=${st?.host?.deck} sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
           if (sawChoose) {
             return { pass: false, detail: `回避（支払う）後に「選択肢1/2」のCHOOSEが出現＝実バグ（従来の無条件実行が再発）` };
           }
@@ -13509,7 +13531,10 @@ const scenarios = {
     title: 'WXK10-037-E2（lrigDown centerOnly＝センターダウン済みでは【起】が提示されない・タスク12(cviii)回帰）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD01-013#1'],
+        // 🔴2026-09-19＝旧版は `WD01-013`（小剣ククリ＝**シグニ**）をセンタールリグ枠に入れていた＝リミット0扱いで、
+        //   §5.3 `O-532`（2026-09-18＝リミット超過がルール処理になった）以後は **WXK10-037 が注入直後にトラッシュされ**、
+        //   シグニゾーンを押しても何も出ない（abilityBtnSeen=false のまま空振り）＝§4.4-117。⇒ 実在のルリグ（Lv3・リミット8）にする。
+        'field.lrig': ['WD03-002#1'],
         'field.lrig_down': true, // センタールリグは既にダウン済み＝本来なら支払い不能のはず
         'field.signi': [['WXK10-037#1'], null, null],
         'field.signi_down': [false, false, false],
@@ -13565,7 +13590,8 @@ const scenarios = {
     title: 'WXK10-037-E2（lrigDown centerOnly＝アップなら提示され、センターがダウンして支払われる・タスク12(cviii)）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD01-013#1'],
+        // 🔴2026-09-19＝`Unwired` 側と同じ理由で実在のルリグにする（旧版はシグニをルリグ枠に入れていた＝§4.4-117）。
+        'field.lrig': ['WD03-002#1'],
         'field.lrig_down': false, // センタールリグはアップ＝支払える
         'field.signi': [['WXK10-037#1'], null, null],
         'field.signi_down': [false, false, false],
