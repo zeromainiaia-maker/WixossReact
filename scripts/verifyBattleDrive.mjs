@@ -7082,11 +7082,15 @@ const scenarios = {
     title: 'PR-423×SPDi43-21（ON_DRAW any_opp「自分の効果で」発生源限定なし＝§7 R40②の実機検証）',
     spec: {
       hostSet: {
+        // 🆕2026-09-19＝ルリグを明示（未指定だと土台のルリグ任せ＝preflight 警告／Lv0 ならリミット超過でトラッシュ・§4.4-117）。
+        //   Lv4・リミット11 に Lv3＋Lv2＝5 で収まる。
+        'field.lrig': ['WD01-001#1'],
         'field.signi': [['SPDi43-21#1'], ['PR-423#1'], null], // SPDi43-21=自分の効果でguestを引かせる側／PR-423=watcher
         'field.signi_down': [false, false, false],
         'actions_done': [],
       },
       guestSet: {
+        'field.lrig': ['WD03-002#1'],
         'field.signi': [null, null, null],
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
@@ -7099,8 +7103,9 @@ const scenarios = {
         await page.screenshot({ path: `${SHOT}/oppdrawownfx-${s}.png`, fullPage: true });
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
-        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        // 🔴**SPDi43-21 は「カードを１枚引いてもよい」＝任意**＝「発動する」を押さないと引かない。
+        //   辞退ラベル（スキップ等）と**同じ一覧の先頭**に置く（別呼び出しに分けると描画が届いた周に辞退する＝§4.4-125）。
+        if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい', 'エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
         const st = await H.queryState();
         const pr423Alive = (st?.host?.fieldSigni ?? []).some(z => (z || []).includes('PR-423#1'));
         const guestDrew = (st?.guest?.hand ?? 0) > (before?.guest?.hand ?? 0);
@@ -10702,11 +10707,27 @@ const scenarios = {
     title: 'WXDi-P13-003A-E1（未知の邂逅＝手札+エナ計5枚移動でB面WXDi-P13-003Bへ反転＋無料グロウ・actions_doneにGROW）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD01-003#1'], // 半月の巫女 タマヨリヒメ（Lv2・まだこのターングロウしていない）
+        'field.lrig': ['WD01-003#1'], // 半月の巫女 タマヨリヒメ（白・Lv2・まだこのターングロウしていない）
+        // ⚠2026-09-19＝**ピースは場にルリグが3体いないと使えない**（§5.6 `C-7`・2026-09-17 の体数ルール）＝アシスト2体を置く。
+        //   旧版はセンターだけ＝ルリグデッキを開いてもカードの拡大表示が出るだけで「ピースを使用」が1本も出ず、恒久 FAIL していた。
+        //   使用条件【ドリームチーム】「白か黒のルリグを1体以上含む」はセンター（白）で満たす。
+        'field.assist_lrig_l': ['WXDi-P16-018#1'], 'field.assist_lrig_r': ['WXDi-P16-021#1'],
+        'field.lrig_down': false,
+        'field.check': null,
+        'field.key_piece': null, 'field.key_piece_extra': [],
         'lrig_deck': ['WXDi-P13-003A#1'],
+        'lrig_trash': [],
         'hand': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'], // 手札3枚
         'energy': ['WD01-013#4', 'WD01-013#5'],              // エナ2枚（計5枚移動＝canGrow条件）
-        'actions_done': [],
+        'trash': [],
+        'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'lrig_deck': [], // 🔴§4.4-1＝前シナリオのアーツが残ると CPU が撃ってスタックが立つ
+        'hand': [], 'energy': [], 'trash': [],
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
@@ -10720,11 +10741,16 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/mayuEncounterFreeGrow-${s}.png`, fullPage: true });
         let did = null;
-        // 「セット」確定ボタンを先に試す（KeyUseModal 開後は見出し文言「キーにセット」がテキストとして残留し、
-        // clickTextOrBtn の getByText フォールバックがそれを誤って再クリックし続けるレースを回避するため）。
-        if (!did) did = await H.clickBtn('セット', { exact: true });
+        // ⚠**手順は先例（`pieceUse`／`o321PieceUsedGateFires`）と同じ綴りにする**＝
+        //   `card-action-*[ピースを使用]` → ボタン「使用」（exact）。ラベルを勝手に増やすと「押せた風」で素通りする（§4.4-2b）。
+        //   （KeyUseModal 開後は見出し文言がテキストとして残留し、`clickTextOrBtn` の getByText フォールバックが誤ヒットするため）
+        if (!did) {
+          const use = page.locator('[data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
+          if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+            await use.click({ timeout: 2000 }).catch(() => {}); did = 'action:ピースを使用';
+          }
+        }
         if (!did) did = await H.clickBtn('使用', { exact: true });
-        if (!did) did = await H.clickTextOrBtn(['キーにセット', 'ピースを使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P13-003B';
