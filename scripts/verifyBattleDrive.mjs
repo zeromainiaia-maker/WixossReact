@@ -25061,7 +25061,10 @@ scenarios.v14PermanentLrigGrantSurvivesHumanEndNoDiscard = {
 scenarios.v14PermanentPlayerGrantSurvivesHumanEndNoDiscard = {
   title: 'V-14 B-4 WXDi-P03-003-E1：このゲームの間のplayer付与がhuman END(no-discard)を跨いで残る',
   spec: {
-    hostSet: { 'field.lrig': ['WD03-003#8341'], 'field.signi': [['WD01-013#8342'], null, null], 'field.check': null, 'lrig_deck': ['WXDi-P03-003#8343'], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8350), 'game_granted_effects': [] },
+    // ⚠2026-09-19＝**WXDi-P03-003 は「ピース」**＝場にルリグが3体いないと使えない（§5.6 `C-7`・2026-09-17）。
+    //   旧版はセンターだけ＝「ピースを使用」が1本も出ず、70周まるごと空振りしていた（`action=false`）。
+    //   使用条件「センタールリグがレベル2以上」は WD03-003（Lv2）で満たす。
+    hostSet: { 'field.lrig': ['WD03-003#8341'], 'field.assist_lrig_l': ['WXDi-P16-018#8345'], 'field.assist_lrig_r': ['WXDi-P16-021#8346'], 'field.lrig_down': false, 'field.signi': [['WD01-013#8342'], null, null], 'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [], 'lrig_deck': ['WXDi-P03-003#8343'], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8350), 'game_granted_effects': [] },
     guestSet: { 'field.lrig': ['WD01-001#8344'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v14Life(8360) },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
@@ -36700,9 +36703,12 @@ scenarios.o56BurstAsCheckDoesNotEnterCheckZone = {
       await page.screenshot({ path: `${SHOT}/o56burst-${s}.png`, fullPage: true }).catch(() => {});
       let did = await v86Attack(page, H, attack, 1);
       if (!did) did = await H.clickBtn('発動する');
-      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+      // ⚠🆕2026-09-19＝**本体の CHOOSE は「トラッシュに置く／置かない」**（デッキの端をミルするかの任意）。
+      //   旧版のラベル一覧に無くて 32周まるごと `CHOOSE` のまま止まっていた＝**置く側**を押さないと
+      //   「チェックゾーンにあるかのように LB を発動する」本題まで進まない。
+      if (!did) did = await H.stdStep(['トラッシュに置く', '発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
       const st = await H.queryState();
-      H.log(`  o56burst[${s}] -> ${did ?? 'なし'} | attacked=${attack.attacked} hand=${st?.host?.hand} check=${st?.host?.fieldCheck ?? '-'} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      H.log(`  o56burst[${s}] -> ${did ?? 'なし'} | attacked=${attack.attacked} hand=${st?.host?.hand} check=${st?.host?.fieldCheck ?? '-'} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)} stack=${st?.stackLen ?? '-'}`);
       settle = attack.attacked && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 ? settle + 1 : 0;
       if (settle < 4) continue;
       const burstRan = (st.host.hand ?? 0) === (before.host.hand ?? 0) + 1;

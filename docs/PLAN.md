@@ -11,19 +11,19 @@
 
 > **運用**＝直近1件だけを置く入れ替え式。作業したら ①この要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②今回の要約へ書き換える。
 
-**直近＝2026-09-19＝実機シナリオの既存 FAIL（C 68本）の消化＋engine 実バグ1件**（全文は [BUGFIXES.md](./BUGFIXES.md)）
-- C を**全68本回し直して 40 PASS / 28 FAIL**（今セッションで19本を解消）。系統は5つ＝①WD08-001 の【起】を**ラベルでなく位置**で狙っていた ②任意コストの「払う」と「辞退」を**別々の呼び出し**に分けていた ③**対象選択が任意コストより先**に来る ④ルール変更（`C-6`／`C-7`／`O-532`）への未追従 ⑤ボタンのラベル違い。
-- 🔴**engine 実バグ**＝「**効果で付与された能力 ∧ 原因限定つき**」の `ON_ENERGY_CHARGE` がどの収集経路からも漏れて**恒久 no-op**（`SPDi43-13-sub-E1`）。golden 1本（反転確認済み）。
-- ⚠golden にテストを1本足すと**共有 POOL カーソルがずれて無関係なテストが落ちる**（`withSavedCursor` で解決＝[LESSONS.md](./LESSONS.md) §4.3）。新しい罠＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-125／126。
+**直近＝2026-09-19＝実機シナリオの既存 FAIL（C 68本）を64本まで消化＋engine 実バグ2件**（全文は [BUGFIXES.md](./BUGFIXES.md)）
+- **C は 68 → 残り4本**（A・B 17本も同日解消＝元85本のうち残4）。腐りの系統は7つ＝①対象選択が任意コストより先 ②アタッカーはバトルでバニッシュされない（相手に殴らせる） ③配置レベル制限がルール処理に ④ピースはルリグ3体 ⑤CHOOSE のラベル ⑥観測が画面ログ文字列 ⑦`pick-0` のトグル。
+- 🔴**engine 実バグ2件**＝①「**効果で付与された能力 ∧ 原因限定つき**」の `ON_ENERGY_CHARGE` がどの収集経路からも漏れて恒久 no-op ②`SELF_LEVEL_THRESHOLD` が実効レベルを**素のカード番号**で引いていて**動的レベルが一度も効かなかった**（`calcSigniLevels` は instanceId でキーを張る）。**どちらも golden 1本＋反転確認つき**。
+- ⚠golden にテストを1本足すと**共有 POOL カーソルがずれて無関係なテストが落ちる**（`withSavedCursor`＝[LESSONS.md](./LESSONS.md) §4.3）。新しい罠＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-125〜128。
 
 | 軸 | いまの値 |
 |---|---|
-| 🔥**次に取るもの** | 🔥**実機シナリオ C の残り28本**（[_drive_full_fail_2026-09-19.md](./_drive_full_fail_2026-09-19.md)＝上から順に取る）→ 片付いたら **§5.7 `S-5d`**（相手側の応答と人間側ターンの駆動をヘッドレスで回す） |
+| 🔥**次に取るもの** | 🔥**実機シナリオの残り4本**（[_drive_full_fail_2026-09-19.md](./_drive_full_fail_2026-09-19.md)＝`v04Tanabata`／`v13TrashActLrigDownTwo`／`v17CoinPaymentDoesNotFire`／`b46KeyTrashOnlyControl`）→ 片付いたら **§5.3 `O-535`** か **§5.7 `S-5d`** |
 | 📊**進捗3計器** | Sheet1 要対応 **1 / 863**／台帳 残 OPEN **0**／census 高シグナル **1 / BASELINE 1**（**ハーネスと engine の回＝live JSON を1バイトも触っていないので3計器は動かない**） |
-| 📦**在庫** | 機構 worklist **1**（`O-535`）／実機 `V-nn` **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／リリース作業 **1**（RELEASE.md）／🔥**実機シナリオの既存 FAIL 24**（元85本＝A・B 17本と C 44本は解消済み） |
-| ⚠**直近の不具合** | 🔴**付与された能力は「印刷能力の走査」と対で `grantedStore.ts` を呼ばないと死ぬ**＝原因限定つきの timing は React watcher 側が構造的に拾えないので**コレクタ側が唯一の受け皿**。 |
+| 📦**在庫** | 機構 worklist **1**（`O-535`）／実機 `V-nn` **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）／リリース作業 **1**（RELEASE.md）／🔥**実機シナリオの既存 FAIL 4**（元85本） |
+| ⚠**直近の不具合** | 🔴**「実効値」を引くときは instanceId か素の番号かを間違えない**＝`calcSigniLevels`／`calcFieldPowers` は **instanceId** でキーを張る。素の番号で引くと**必ず miss して印字値へ落ちる**（黙って過少実行になる）。 |
 | ⚠**バグ報告** | なし |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4319**） |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4320**） |
 
 ---
 
@@ -542,8 +542,8 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 
 - **2026-09-19 時点**（実機シナリオ C の消化＋付与能力の `ON_ENERGY_CHARGE` 実バグ）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**ハーネスと engine の回＝live JSON を1バイトも触っていないので3計器は動かない**）
-  - 📦**在庫**＝機構 worklist **1**（`O-535`）｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**｜🔥**実機シナリオの既存 FAIL 24**（元85本）
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4319**＝+4・`census:traceinv` I1=0）
+  - 📦**在庫**＝機構 worklist **1**（`O-535`）｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 3**（`S-5`・`S-6`・`S-8`）｜リリース作業 **1**｜🔥**実機シナリオの既存 FAIL 4**（元85本）
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4320**＝+5・`census:traceinv` I1=0）
   - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（前回から未計測＝CPU の判断は触っていない）
 
 ---

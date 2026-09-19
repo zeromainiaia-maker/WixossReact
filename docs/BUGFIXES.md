@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-19（続き）エンジン実バグ＝動的レベルが `SELF_LEVEL_THRESHOLD` に一度も届いていなかった＋実機シナリオ C をさらに24本（残4本）
+
+- 🔴**実バグ**＝`evalCondition` の `SELF_LEVEL_THRESHOLD` が**実効レベルを素のカード番号で引いていた**。
+  `calcSigniLevels` は **instanceId**（`WX20-Re18#1`）でキーを張る（場のスタックの先頭をそのまま使う）のに、
+  `getCardNum(srcLv)` で `#` を落として引いていたので**必ず miss** → `??` の右側＝**印字レベル**へ落ちていた。
+  ⇒ `DYNAMIC_LEVEL_BY_ENERGY` 等の**動的レベルが条件判定に一度も効かず**、`WX20-Re18`（幻獣　アカズキン＝印字Lv2・
+  エナ5枚につき+1）の**閾値4の【自】は恒久 no-op**。`effectEngine.ts` 側の同名 case は instanceId で引いていて正しかった＝**両者を揃えた**。
+  **golden 1本**（修正前 FAIL＝反転確認済み）。⚠**golden の盤面ビルダーは既定で instanceId＝素の番号**なので、
+  `#` 付きの id を明示しないと再現しない＝**だから golden が緑のままだった**（`InstanceMap` で本番と同じ形にして引く）。
+- **実機シナリオ C＝さらに24本を解消**（この日の通算 A・B 17本＋C 64本／**残り C 4本**）。系統は7つ：
+  ①**対象選択が任意コストより先に来る**（`handDiscard`×4／`fezone`×2／`underCostFromThisOnly`／`v45c`×2／`b41`）。
+  ⚠`selectOrInteract` は**候補1件でも必ず尋ねる**（自動解決の枝が無い）ので、**同じ対象を2回聞かれる**形がある → `O-535` に登録。
+  ②**アタッカーはバトルでバニッシュされない**（§4.4-118）＝自分のシグニをバトルで失わせるシナリオは**相手に殴らせる**（`v172`／`o297`×2）。
+  ⚠`v171` は「守る側に回す」と**別のアタックフェイズ**になり対照の判別力が消えるので、**同じアタックフェイズ内でエナ行きのバニッシュを注入**した。
+  ③**配置レベル制限がルール処理になった**（`O-532`／`O-534`）＝ルリグの Lv が足りないと**注入したシグニ自身が消える**／**エナから戻せない**（`b54`／`wx20re18`）。
+  ④**ピースは場にルリグ3体が要る**（§5.6 `C-7`）＝`v55`／`v14PermanentPlayerGrant`（`mayuEncounterFreeGrow` と同型）。
+  ⑤**CHOOSE のラベルが一覧に無くて止まる**（`v16`／`o56`＝「トラッシュに置く」／`v64`＝ガード応答）。
+  ⑥**観測を画面ログの正規表現でやっていて文言変更で黙って0になる**（`wxdip09053`／`b60UnderCardsSurvive`）→ **state を `queryState` に出して見る**。
+  ⑦**`pick-0` を毎ティック押して選択がトグルで外れる**（`b60UnderCardsTrashed`・§4.4-2c）。
+- 🔑**`queryState` に3ストアを追加**＝`keywordGrantsUntilOppTurn` / `grantedEffects` / `grantedEffectsUntilOppTurn`。
+  **同じ「【シャドウ】を得る」でも live の action 型で入り先が変わる**（`GRANT_KEYWORD`→`keyword_grants*`／**`GRANT_EFFECT`→`granted_effects*`**）。
+- ⚠🔴**判別力ゼロの assert を1件見つけて直した**（`v64`）＝`queryState` に**無い**キー（`lrigGranted`）を `?? []` で読んでいて
+  「付与能力が消えた」が**最初から true**だった。⇒ `grantedLrigAutoIds` で見て、**先に「在った」を観測してから「消えた」を要求**する形へ。
+- **新しい罠**＝[DRIVE_TRAPS.md](./DRIVE_TRAPS.md) §4.4-125〜128。**follow-up**＝`v57TeamConditionPieceNoUseButtonOutsideCutin` は
+  いま盤面がセンター1体だけで、`C-7` 以後は**チーム条件に関係なくボタンが出ない**＝判別力が怪しい（一覧ファイルの「観測メモ」）。
+- **検証**＝`npm run gates` 全緑（golden **4320**）。実機＝解消した24本（対照を含む）を PASS で確認。
+
 ## 2026-09-19 エンジン実バグ＝「効果で付与された能力 ∧ 原因限定つき」の `ON_ENERGY_CHARGE` がどこからも収集されず恒久 no-op＋実機シナリオ C の続き19本
 
 - 🔴**実バグ**＝`SPDi43-13-E2`【起】が付与する `SPDi43-13-sub-E1`
