@@ -19894,7 +19894,8 @@ scenarios.v11EffectDeployCountFlagBlocked = {
         did = await H.clickTestId('my-lrig-slot-center');
         if (did) lrigOpened = true;
       } else if (!abilityClicked) {
-        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        // ⚠🆕2026-09-19＝WD08-001 の E3 は **「【起】このルリグをダウン」**（旧＝両方「コストなし」表示で nth:1 決め打ちだった＝表示が直って0件＝永久空振り）。
+        did = await H.clickBtn('【起】このルリグをダウン');
         if (did) abilityClicked = true;
       }
       if (!did) did = await H.clickBtn('発動', { exact: true });
@@ -19986,7 +19987,8 @@ scenarios.v11EffectDeployNoLimitControl = {
         did = await H.clickTestId('my-lrig-slot-center');
         if (did) lrigOpened = true;
       } else if (!abilityClicked) {
-        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        // ⚠🆕2026-09-19＝WD08-001 の E3 は **「【起】このルリグをダウン」**（旧＝両方「コストなし」表示で nth:1 決め打ちだった＝表示が直って0件＝永久空振り）。
+        did = await H.clickBtn('【起】このルリグをダウン');
         if (did) abilityClicked = true;
       }
       if (!did) did = await H.clickBtn('発動', { exact: true });
@@ -20046,7 +20048,8 @@ scenarios.v11EffectDeployContinuousBlocked = {
         did = await H.clickTestId('my-lrig-slot-center');
         if (did) lrigOpened = true;
       } else if (!abilityClicked) {
-        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        // ⚠🆕2026-09-19＝WD08-001 の E3 は **「【起】このルリグをダウン」**（旧＝両方「コストなし」表示で nth:1 決め打ちだった＝表示が直って0件＝永久空振り）。
+        did = await H.clickBtn('【起】このルリグをダウン');
         if (did) abilityClicked = true;
       }
       if (!did) did = await H.clickBtn('発動', { exact: true });
