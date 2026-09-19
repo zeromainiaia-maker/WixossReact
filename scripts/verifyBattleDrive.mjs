@@ -33005,7 +33005,7 @@ function v45cSpec() {
 }
 async function driveV45c(page, H, pay) {
   let attacked = false; let zoneOpened = false; let emptyStreak = 0; let selfPaid = false; let declined = false;
-  let firstCands = null; let secondCands = null;
+  let firstCands = null; let secondCands = null; let selfCands = null;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${SHOT}/v45c-${pay}-${s}.png`, fullPage: true }).catch(() => {});
@@ -33020,20 +33020,31 @@ async function driveV45c(page, H, pay) {
         }
       }
       if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
-    } else if (!selfPaid && !declined && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
-      // ①任意コスト＝**自己バニッシュ**の選択。候補は効果元シグニ1体だけであること自体が (cxlviii) の是正点。
-      if (!firstCands) firstCands = st0.pendingCandidates;
-      if (pay) {
-        did = await clickCandidateByPrefix(page, H, st0, 'WX24-P4-052#48501', 'selfCost');
-        if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); selfPaid = true; }
+    } else if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+      // 🔴🆕2026-09-19＝**live の順序は「①対象を取る → ②自己バニッシュ（任意）→ ③帰結」**
+      //   （`SEQUENCE[SELECT_TARGET_ONLY{opponent,power<=8000}, STORE, BANISH{self,thisCardOnly,optional}, CONDITIONAL→BANISH{targetsStored}]`）。
+      //   旧版は「①自己バニッシュ → ②相手を選ぶ」の順を決め打ちしていたので、先に来た相手の対象選択で
+      //   `clickCandidateByPrefix('WX24-P4-052#…')` が空振りし、20周そのまま止まっていた。
+      //   ⇒ **順序を決め打ちせず、いま出ている候補が「自分自身だけか」で分岐する。**
+      //   ⚠③は `targetsStored` で1体に絞られていても**もう一度尋ねられる**（`O-535`）＝同じ枝で何度でも応答する。
+      const cands = st0.pendingCandidates;
+      const isSelfChoice = cands.every(n => n.startsWith('WX24-P4-052#48501'));
+      if (isSelfChoice) {
+        if (!selfCands) selfCands = cands;
+        if (pay) {
+          did = await clickCandidateByPrefix(page, H, st0, 'WX24-P4-052#48501', 'selfCost');
+          if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); selfPaid = true; }
+        } else {
+          did = await H.clickTextOrBtn(['スキップ', '該当なし', '選ばない']);
+          if (did) declined = true;
+        }
       } else {
-        did = await H.clickTextOrBtn(['該当なし', '選ばない', 'スキップ']);
-        if (did) declined = true;
+        // 相手のパワー8000以下＝「対象とし」（①）と帰結（③）で同じ候補集合が出る。
+        if (!firstCands) firstCands = cands;
+        if (selfPaid && !secondCands) secondCands = cands;
+        did = await clickCandidateByPrefix(page, H, st0, 'WD01-013#48511', 'target');
+        if (did) await H.clickTextOrBtn(['決定']).catch(() => {});
       }
-    } else if (selfPaid) {
-      // ②帰結＝宣言フィルタ（パワー8000以下）に合う相手シグニだけを選ばせる。正面の15000は候補外が正。
-      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !secondCands) secondCands = st0.pendingCandidates;
-      did = await H.stdStep();
     }
     const st = await H.queryState();
     H.log(`  v45c[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} selfPaid=${selfPaid} declined=${declined} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)}`);
@@ -33044,17 +33055,18 @@ async function driveV45c(page, H, pay) {
       const selfGone = !hFlat.some(n => n.startsWith('WX24-P4-052'));
       const weakGone = !gFlat.some(n => n.startsWith('WD01-013#48511'));   // power3000＝フィルタ内
       const wallAlive = gFlat.some(n => n.startsWith('WX01-053#48512'));   // power15000＝フィルタ外の対照
-      // 1体目の候補が自分自身1体だけ＝自己バニッシュ対価として提示されている（旧バグでは相手シグニだった）
-      const firstIsSelfOnly = Array.isArray(firstCands) && firstCands.length === 1
-        && firstCands[0].startsWith('WX24-P4-052#48501');
-      const secondExcludesWall = !Array.isArray(secondCands)
-        || !secondCands.some(n => n.startsWith('WX01-053#48512'));
+      // 自己バニッシュの候補が自分自身1体だけ＝対価として提示されている（旧バグでは相手シグニだった）
+      const selfIsSelfOnly = Array.isArray(selfCands) && selfCands.length === 1
+        && selfCands[0].startsWith('WX24-P4-052#48501');
+      // 「対象とし」の候補は宣言フィルタ（パワー8000以下）＝正面の15000は候補外が正。
+      const targetExcludesWall = Array.isArray(firstCands)
+        && !firstCands.some(n => n.startsWith('WX01-053#48512'));
       const pass = pay
-        ? (firstIsSelfOnly && selfGone && weakGone && wallAlive && secondExcludesWall)
-        : (firstIsSelfOnly && !selfGone && !weakGone && wallAlive);
+        ? (selfIsSelfOnly && targetExcludesWall && selfGone && weakGone && wallAlive)
+        : (selfIsSelfOnly && targetExcludesWall && !selfGone && !weakGone && wallAlive);
       return {
         pass,
-        detail: `pay=${pay}・①候補=${JSON.stringify(firstCands)}（自分1体のみ=${firstIsSelfOnly}）・②候補=${JSON.stringify(secondCands)}（15000除外=${secondExcludesWall}）・host場=${JSON.stringify(st.host.fieldSigni)}・guest場=${JSON.stringify(st.guest.fieldSigni)}`,
+        detail: `pay=${pay}・対象候補=${JSON.stringify(firstCands)}（15000除外=${targetExcludesWall}）・自己バニッシュ候補=${JSON.stringify(selfCands)}（自分1体のみ=${selfIsSelfOnly}）・帰結の再提示=${JSON.stringify(secondCands)}・host場=${JSON.stringify(st.host.fieldSigni)}・guest場=${JSON.stringify(st.guest.fieldSigni)}`,
       };
     }
   }
@@ -47555,7 +47567,18 @@ function mkCoinKeySetScenario(restricted) {
       await H.ensureMain();
       const opened = await openV04LrigDeckAction(page, ['キーにセット', 'ピースを使用']);
       H.log(`  ${id}: ルリグデッキ→キー→セット = ${JSON.stringify(opened)}`);
-      if (!opened.ok) return { pass: false, detail: `前提崩れ＝キーの「キーにセット」に到達できない（${opened.detail}）` };
+      if (!opened.ok) {
+        // 🔴🆕2026-09-19＝**制限下では確定ボタンが disabled になるのではなく、アクション自体が一覧から消える**
+        //   （支払えないコストを持つ選択肢は提示しない規約＝`lrigDownCenterOnlyUnwired` と同じ）。
+        //   旧版はモーダルの「セット」ボタンが出る前提で待っていたので「前提崩れ」で落ちていた。
+        //   ⚠**「モーダルが開いていない」と区別する**＝ルリグデッキとカードまでは開けていることを条件にする。
+        //   🔑判別力は対照 `o245CoinKeySetAllowed`（同じ盤面から制限だけ外す＝アクションが出る）が担保する（§4.4-3）。
+        const hidAction = /action が3秒以内に描画されない/.test(opened.detail ?? '');
+        if (restricted && hidAction) {
+          return { pass: true, detail: `制限下ではキーの「キーにセット」アクションそのものが提示されない（${opened.detail}）` };
+        }
+        return { pass: false, detail: `前提崩れ＝キーの「キーにセット」に到達できない（${opened.detail}）` };
+      }
       const btn = await readBetButtons(page, ['セット']);
       await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
       H.log(`  ${id}: 確定ボタン=${JSON.stringify(btn)}`);
