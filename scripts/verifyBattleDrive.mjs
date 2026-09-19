@@ -14714,6 +14714,19 @@ scenarios.fezoneDoubleCostPay = {
         const advance = await H.clickBtn('アタックフェイズへ', { exact: true });
         if (advance) { did = advance; attackPhaseStarted = true; }
       }
+      // 🔴🆕2026-09-19＝**任意コストより先に対象選択（SELECT_TARGET）が来る**＝skip 側と同じ（旧版は pay の後だけ pick していた）。
+      if (!did && !paid) {
+        const stSel = await H.queryState();
+        if (stSel?.pendingEffect === 'SELECT_TARGET') {
+          const cands = Array.isArray(stSel?.pendingCandidates) ? stSel.pendingCandidates : [];
+          for (let i = 0; i < Math.max(cands.length, 1); i++) {
+            if (picked.has(`pre:${i}`)) continue;
+            const pk = await H.clickTestId(`pick-${i}`);
+            if (pk) { picked.add(`pre:${i}`); did = pk; break; }
+          }
+          if (!did) did = await H.clickBtn('決定');
+        }
+      }
       if (!did && !paid && !optEnergySelected) {
         const selected = await H.clickTestId('optcost-energy-0');
         if (selected) { did = selected; optEnergySelected = true; }
@@ -14758,10 +14771,25 @@ scenarios.fezoneDoubleCostSkip = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
-    const before = await H.queryState(); let skipped = false;
+    const before = await H.queryState(); let skipped = false; const picked = new Set();
     for (let s = 0; s < 20; s++) {
       await page.waitForTimeout(650);
       let did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      // 🔴🆕2026-09-19＝**任意コストより先に対象選択（SELECT_TARGET）が来る**＝ここを進めないと
+      //   `optcost-skip` が永久に出ず20周空振りする（旧版は skip だけを待っていた）。
+      //   ⚠押した index を覚える（同じ pick を押すとトグルで外れる＝§4.4-2c）。
+      if (!did && !skipped) {
+        const stSel = await H.queryState();
+        if (stSel?.pendingEffect === 'SELECT_TARGET') {
+          const cands = Array.isArray(stSel?.pendingCandidates) ? stSel.pendingCandidates : [];
+          for (let i = 0; i < Math.max(cands.length, 1); i++) {
+            if (picked.has(i)) continue;
+            const pk = await H.clickTestId(`pick-${i}`);
+            if (pk) { picked.add(i); did = pk; break; }
+          }
+          if (!did) did = await H.clickBtn('決定');
+        }
+      }
       if (!did && !skipped) {
         const skip = page.getByTestId('optcost-skip').first();
         if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'tid:optcost-skip'; skipped = true; }
@@ -15978,7 +16006,13 @@ scenarios.underCostFromThisOnly = {
         did = await openSigniAttack(page, H, 0); if (did) attacked = true;
       } else {
         const opts = pendingPaySkip(st0);
-        if (!paid && opts.pay && opts.skip) {
+        // 🔴🆕2026-09-19＝**対象選択（-3000 の相手シグニ）が任意コストより先に来ることがある**＝
+        //   旧版は `costConfirmed` の後でしか対象を取らなかったので、先に来た `SELECT_TARGET` で止まり72周空振りした。
+        //   ⇒ **順序を決め打ちせず、いま出ている候補で分岐する**（どちらの順でも進む）。
+        if (!targetConfirmed && sameInstanceSet(st0?.pendingCandidates, [UNDER_POWER_TARGET])) {
+          if (!targetPicked) { did = await clickPendingInstance(page, H, UNDER_POWER_TARGET); if (did) targetPicked = true; }
+          else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true; }
+        } else if (!paid && opts.pay && opts.skip) {
           prompted = true;
           if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `このシグニの下に1枚あるのにpay disabled=${JSON.stringify(st0.pendingOptions)}` };
           did = await H.clickTestId('optcost-pay'); if (did) paid = true;
@@ -15988,9 +16022,6 @@ scenarios.underCostFromThisOnly = {
           }
           if (!costPicked) { did = await clickPendingInstance(page, H, UNDER_THIS_CARD); if (did) costPicked = true; }
           else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true; }
-        } else if (costConfirmed && !targetConfirmed && sameInstanceSet(st0?.pendingCandidates, [UNDER_POWER_TARGET])) {
-          if (!targetPicked) { did = await clickPendingInstance(page, H, UNDER_POWER_TARGET); if (did) targetPicked = true; }
-          else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true; }
         }
       }
       if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
