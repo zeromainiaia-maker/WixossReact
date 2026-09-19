@@ -29742,7 +29742,11 @@ async function driveV51LeaveSubstitute(page, H, payChoice) {
     }
     if (!did) did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
     fin = await H.queryState();
-    sawPayLog ||= (fin?.logTail ?? []).some(l => l.includes('を支払い、羅輝石　スフェーンの場離れをこの能力の喪失で置換'));
+    // ⚠🆕2026-09-19＝**ログの文言が変わっている**＝いまは
+    //   「《緑》《無》を支払い、<カード名>の場離れを置換（この能力を失う）」（`effectExecutor.ts` の
+    //   `EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY` 枝）。旧版は「…をこの能力の喪失で置換」を完全一致で探していて
+    //   **支払いは起きているのに paid=false** になっていた。⇒ **「支払い」と「場離れを置換」の骨格だけで見る。**
+    sawPayLog ||= (fin?.logTail ?? []).some(l => /を支払い、.*の場離れを置換/.test(l));
     H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} pendingOptions=${JSON.stringify(fin?.pendingOptions)} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
     if (fin?.activeUser && fin.activeUser !== V79_CPU_ID) break;
   }
@@ -29889,8 +29893,15 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
   title: 'V-55(a)(c) WXDi-P16-001A使用＝コスト無料で《扉の俯瞰者　ウトゥルス》へグロウし【出】も発火する',
   spec: {
     hostSet: {
-      'field.lrig': ['WD01-001#9960'], 'lrig_deck': ['WXDi-P16-001A#9961'], 'field.signi': [null, null, null],
-      'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+      // ⚠2026-09-19＝**NEXT GATE は「ピース」**＝場にルリグが3体いないと使えない（§5.6 `C-7`・2026-09-17）。
+      //   旧版はセンターだけ＝ルリグデッキを開いてもカード詳細が出るだけで「ピースを使用」が1本も出ず、恒久 FAIL していた。
+      //   使用条件【ドリームチーム】「白か黒のルリグを1体以上含む」はセンター（WD01-001＝白）で満たす。
+      'field.lrig': ['WD01-001#9960'],
+      'field.assist_lrig_l': ['WXDi-P16-018#9963'], 'field.assist_lrig_r': ['WXDi-P16-021#9964'],
+      'field.lrig_down': false,
+      'lrig_deck': ['WXDi-P16-001A#9961'], 'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [], 'game_actions_done': [],
     },
     guestSet: {
       'field.lrig': ['WD01-001#9962'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
@@ -29903,9 +29914,14 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
     await page.waitForTimeout(600);
     const cardClick = await H.clickTestId('zone-card-0');
     await page.waitForTimeout(600);
-    const useClick = await H.clickTextOrBtn(['使用']);
+    // ⚠**手順は先例（`o321PieceUsedGateFires`／`mayuEncounterFreeGrow`）と同じ綴りにする**＝
+    //   `card-action-*[ピースを使用]` →（KeyUseModal の）ボタン「使用」。`clickTextOrBtn(['使用'])` は
+    //   モーダルの見出し文言にも当たるので「押せた風」で素通りする（§4.4-2b）。
+    const useAction = page.locator('[data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
+    const useClick = (await useAction.count() && await useAction.isVisible().catch(() => false))
+      ? (await useAction.click({ timeout: 2000 }).catch(() => {}), 'action:ピースを使用') : null;
     await page.waitForTimeout(400);
-    const useClick2 = await H.clickTextOrBtn(['使用']);
+    const useClick2 = await H.clickBtn('使用', { exact: true });
     H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick} useClick2=${useClick2}`);
     let fin = before;
     let sawOnPlayLog = false;
@@ -47428,15 +47444,18 @@ scenarios.o71HandToCheckZone = {
     }
     if (!ended) return { pass: false, detail: `ターンを終われなかった（phase=${last?.turnPhase}）` };
     const hand = last?.guest?.hand ?? 0;
+    const handCards = last?.guest?.handCards ?? [];
     const trash = last?.guest?.trashCards ?? [];
     const rest = last?.guest?.checkRest ?? [];
-    const detail = `guestHand=${hand} checkRest=${JSON.stringify(rest)} guestTrash=${JSON.stringify(trash)}`;
+    const detail = `guestHandCards=${JSON.stringify(handCards)}(${hand}枚) checkRest=${JSON.stringify(rest)} guestTrash=${JSON.stringify(trash)}`;
     if (trash.includes(placed)) {
       return { pass: false, detail: `🔴置いた札がトラッシュへ落ちた（${detail}）＝戻す遅延より check_rest の掃除が先に走っている` };
     }
-    return hand === HAND_BASE && rest.length === 0
-      ? { pass: true, detail: `ターン終了時に手札へ戻った（${detail}）` }
-      : { pass: false, detail: `手札へ戻っていない（${detail}）` };
+    // 🔴🆕2026-09-19＝**枚数で見ない**＝ターンを終えると**相手（CPU）のターンが始まって相手がドローする**ので、
+    //   `hand === HAND_BASE` は成立しない（実測＝4枚）。観測点は「**置いたその札**が手札に戻っているか」。
+    return handCards.includes(placed) && rest.length === 0
+      ? { pass: true, detail: `ターン終了時に置いた札（${placed}）が手札へ戻った（${detail}）` }
+      : { pass: false, detail: `置いた札（${placed}）が手札に無い（${detail}）` };
   },
 };
 order.push('o71HandToCheckZone');
