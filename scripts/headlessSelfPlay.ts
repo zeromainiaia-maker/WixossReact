@@ -482,7 +482,8 @@ if (CENSUS_MOVES) {
   const f1 = (x: number) => x.toFixed(1);
   console.log(`
 盤面（重複除く）${obs.length}件`);
-  for (const ph of ['ENERGY', 'GROW', 'MAIN', 'ATTACK_ARTS']) {
+  // 🆕§5.7 `S-17` 第1段（2026-09-20）＝**アタックの2フェイズも表に出す**（候補＝アタックできるシグニ／ルリグ）。
+  for (const ph of ['ENERGY', 'GROW', 'MAIN', 'ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_LRIG']) {
     const xs = obs.filter(o => o.phase === ph);
     if (!xs.length) continue;
     const ns = xs.map(o => o.n);

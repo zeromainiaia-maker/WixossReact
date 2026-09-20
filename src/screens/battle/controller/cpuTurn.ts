@@ -48,7 +48,6 @@ import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
 import {resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks} from '../signiZoneBlock';
 import {clearUntilOppTurnEffects} from '../untilOppTurn';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
-import {canSigniAttack, collectForcedAttackZones} from '../signiAttackGate';
 import {effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard} from '../cpuBoardEval';
 import {pickCpuSigniActivated, type CpuActivatedChoice} from '../cpuActivate';
 import {pickCpuLrigActivated, type CpuLrigActivatedChoice} from '../cpuLrigActivate';
@@ -58,7 +57,6 @@ import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
-import {centerLrigAttackBlock} from '../lrigAttackGate';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
 
@@ -656,7 +654,10 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const moves = listCpuMoves(moveCtx, phase, { pendingSpell: !!bs.pending_spell });
     d.observeMoves({ phase, moves, ms: performance.now() - t0, ctx: moveCtx });
   };
-  if (phase === 'ENERGY' || phase === 'GROW' || phase === 'MAIN' || phase === 'ATTACK_ARTS') observeMovesAt(cpuSt);
+  // 🆕§5.7 `S-17` 第1段（2026-09-20）＝**アタックの2フェイズも観測する**＝
+  //   これで `S-15` の「打った手は必ず列挙に出ている」の全数照合が**アタックにも掛かる**。
+  if (phase === 'ENERGY' || phase === 'GROW' || phase === 'MAIN' || phase === 'ATTACK_ARTS'
+    || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') observeMovesAt(cpuSt);
 
   // §6.4 O-3（フェイズスキップ）＝CPU 側も人間と同じ `PHASE_SKIP_BLOCK_IDS` 表で判定する。
   // ⚠**CONTINUOUS 由来の封じ（`WX05-018-E1` の「対戦相手は自分のエナフェイズをスキップする」等）は
@@ -1188,29 +1189,26 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // 旧実装は blocked_actions と場トラッシュコストしか見ておらず、付与「アタックできない」等の
     // `cannotAttackSigni` 軸が CPU に効いていなかった）。アタック不可のシグニはダウンされず
     // `performSigniAttack` が早期 return して無限ループするので、必ずここで落とす。
-    const cpuAttackable = cpuSt.field.signi.flatMap((stack, zi) => {
-      const top = (stack ?? []).at(-1);
-      if (!top) return [];
-      return canSigniAttack({
-        attacker: cpuSt, defender: huSt, attackerNum: top,
-        effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
-      }) ? [zi] : [];
-    });
+    // 🆕§5.7 `S-17` 第1段（2026-09-20）＝**候補は `listCpuMoves` から取る**（列挙の道は1本＝`S-15` の規律）。
+    //   ⚠旧はここで `canSigniAttack` を直接回していた＝**探索が見る候補と本番が見る候補が別の実装**だった。
+    const attackMoves = listCpuMoves(cpuMoveCtx(cpuSt), 'ATTACK_SIGNI', { pendingSpell: !!bs.pending_spell })
+      .flatMap(m => (m.kind === 'signiAttack' ? [m] : []));
     // §8 `O-1` (g)＝**どれで殴るかを盤面で選ぶ**（旧実装はゾーン0から順に全部＝格上の正面へ突っ込んで
     // 自分だけ落ちていた）。優先は ライフに通る → 勝てるバトル →（撃たない）。強制アタックは最優先。
     const cpuAttackPowers = calcFieldPowers(cpuSt, huSt, true, effectsMap, battleCardMap, bs.turn_phase);
     const cpuDefenderPowers = calcFieldPowers(huSt, cpuSt, false, effectsMap, battleCardMap, bs.turn_phase);
     const firstUp = pickCpuAttackZone({
-      attackable: cpuAttackable,
-      forced: collectForcedAttackZones({
-        attacker: cpuSt, defender: huSt, effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
-      }),
+      attackable: attackMoves.map(m => m.zone),
+      // ⚠**強制は列挙が刻んだ印から読む**（`collectForcedAttackZones` をここでもう一度回さない＝二重実装）。
+      forced: attackMoves.filter(m => m.forced).map(m => m.zone),
       attackerPower: zi => effectivePowerOf((cpuSt.field.signi[zi] ?? []).at(-1) ?? '', cpuAttackPowers, battleCardMap),
       facingPower: zi => facingSigniPower(huSt, zi, cpuDefenderPowers, battleCardMap),
     }) ?? -1;
 
     if (firstUp >= 0) {
       const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
+      // 🆕§5.7 `S-17` 第1段＝**打った手を照合へ流す**（列挙に無い手を本番が打っていないか＝`S-15` の全数照合）。
+      d.observeChoice?.(attackMoves.find(m => m.zone === firstUp) ?? { kind: 'signiAttack', zone: firstUp, id: myTopNum, forced: false });
       appendBattleLogs([`[CPU] ${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} がアタック`]);
       // 対人戦と同じ共通処理でバトル解決（バニッシュ先エナ・各種代替・ON_BANISH等トリガー収集を含む）
       await performSigniAttack(firstUp, {
@@ -1248,7 +1246,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // 🆕**§5.3 `O-366`（2026-09-14）＝人間のボタン生成／共通実行経路と**同じ**
     //   `centerLrigAttackBlock` を通す（3地点セット）。従来ここはダウン状態しか見ておらず、
     //   付与された上限（`O-236`）も再アタック（効果でアップ）も CPU には届いていなかった。
-    if (centerLrigAttackBlock(cpuSt) === null) {
+    // 🆕§5.7 `S-17` 第1段（2026-09-20）＝**可否は列挙から読む**（`listCpuMoves` が `centerLrigAttackBlock` を呼ぶ）。
+    //   ⚠**アシストルリグのアタックはまだ列挙に無い**（下の `assistLrigAttackableSlots`）＝その手は照合の対象外。
+    const lrigAttackMove = listCpuMoves(cpuMoveCtx(cpuSt), 'ATTACK_LRIG', { pendingSpell: !!bs.pending_spell })
+      .find(m => m.kind === 'lrigAttack');
+    if (lrigAttackMove) {
+      d.observeChoice?.(lrigAttackMove);
       // 対人戦と同じ共通処理（追加コスト・ON_ATTACK_LRIGトリガー収集を含む）
       const attacked = await performLrigAttack({
         attacker: cpuSt, defender: huSt,

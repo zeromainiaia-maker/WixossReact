@@ -89103,6 +89103,71 @@ test('§5.7 S-23 本物のデッキで測る：山の差し替え・席ごとの
   ok(!screenOnly.includes('cpuPlans'), '🔴画面が席ごとの作戦データを渡している＝実機の挙動が変わりうる（`S-23` は測定台だけのはず）');
 }));
 
+// ── 第422バッチ（2026-09-20）＝§5.7 `S-17` 第1段（アタックを候補列挙に載せる）───────────
+test('§5.7 S-17 第1段 アタックの列挙：可否はゲート1本・強制の印・本番の選択も同じ列挙から', () => withSavedCursor(() => {
+  // 🔑**なぜ第1段が要るか**＝`S-17` は「アタックする／しない・順番・ルリグアタック」を探索で決める項目だが、
+  //   **その盤面で打てるアタックを並べる関数が無い**と探索が書けない（`S-15` が MAIN 側で先に通した道と同じ）。
+  //   ⇒ ここでは**列挙を足し、本番の選択をその列挙から取る**（挙動は変えない）。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const VANILLA = 'WD01-013';
+  const mk = (signi: (string | null)[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.field.signi = signi.map(x => (x ? [x] : null)) as PlayerState['field']['signi'];
+    st.hand = []; st.energy = [];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];
+    st.lrig_deck = [];
+    return st;
+  };
+  const actor = mk([`${VANILLA}#a0`, `${VANILLA}#a1`, null]);
+  const opponent = mk([null, null, null]);
+  const ctx: CpuMoveCtx = {
+    actor, opponent, allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: lctx, reserveFor: () => undefined,
+  };
+
+  // ── ① アタックできるシグニが候補に出る（ゾーン昇順・`id` つき）──
+  const atk = listCpuMoves(ctx, 'ATTACK_SIGNI', { pendingSpell: false });
+  eq(atk.map(describeCpuMove).join(' '), `signiAttack:${VANILLA}#a0@0 signiAttack:${VANILLA}#a1@1`,
+    '🔴アタックの候補が出ない／順が違う（探索は列挙の順を決定論の拠り所にしている）');
+
+  // ── ② 🔴可否は `signiAttackGate` の1本だけ＝ダウン済みは候補から消える（列挙側で判定を写経しない）──
+  const downed = { ...actor, field: { ...actor.field, signi_down: [true, false, false] } } as PlayerState;
+  const atkDowned = listCpuMoves({ ...ctx, actor: downed }, 'ATTACK_SIGNI', { pendingSpell: false });
+  eq(atkDowned.map(describeCpuMove).join(' '), `signiAttack:${VANILLA}#a1@1`,
+    '🔴ダウン済みのシグニが候補に残る＝`canSigniAttack` を通っていない（本番は `performSigniAttack` が空振りして無限ループする）');
+
+  // ── ③ ルリグアタック＝`centerLrigAttackBlock` が通るときだけ1手 ──
+  eq(listCpuMoves(ctx, 'ATTACK_LRIG', { pendingSpell: false }).map(describeCpuMove).join(' '), 'lrigAttack',
+    '🔴ルリグアタックが候補に出ない');
+  const lrigDown = { ...actor, field: { ...actor.field, lrig_down: true } } as PlayerState;
+  eq(listCpuMoves({ ...ctx, actor: lrigDown }, 'ATTACK_LRIG', { pendingSpell: false }).length, 0,
+    '🔴ダウン済みのルリグでアタックの候補が出る＝`centerLrigAttackBlock` を通っていない');
+
+  // ── ④ 🔴**まだ適用できない**（バトル解決・ガード・ライフバーストは第2段）＝「弱い手」として0点で並べない ──
+  for (const kind of ['signiAttack', 'lrigAttack'] as const) {
+    eq(CPU_SIM_APPLICABLE_KINDS.has(kind), false, `🔴${kind} を「適用できる」と宣言しているのに適用の実装が無い`);
+  }
+  eq(applyCpuMoveSim(ctx, atk[0]), null, '🔴適用を実装していない種類が null を返さない（探索が嘘の盤面で進む）');
+
+  // ── ⑤ 配線＝本番の選択も**この列挙から**取る（2本に割ると「探索では出ない手を本番が打つ」）──
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/listCpuMoves\(cpuMoveCtx\(cpuSt\), 'ATTACK_SIGNI'/.test(turn),
+    '🔴シグニアタックの候補を `listCpuMoves` から取っていない（本番が独自に `canSigniAttack` を回している）');
+  ok(/attackable: attackMoves\.map\(m => m\.zone\)/.test(turn), '🔴選ぶ側が列挙の結果を受けていない');
+  ok(/forced: attackMoves\.filter\(m => m\.forced\)\.map\(m => m\.zone\)/.test(turn),
+    '🔴強制アタックを列挙の印から読んでいない＝`collectForcedAttackZones` の二重実装');
+  ok(/listCpuMoves\(cpuMoveCtx\(cpuSt\), 'ATTACK_LRIG'/.test(turn), '🔴ルリグアタックの可否を列挙から取っていない');
+  ok(/phase === 'ATTACK_SIGNI' \|\| phase === 'ATTACK_LRIG'\) observeMovesAt\(cpuSt\)/.test(turn),
+    '🔴アタックの2フェイズを観測していない＝「打った手は列挙に出ている」の全数照合がアタックに掛からない');
+  ok(/d\.observeChoice\?\.\(attackMoves\.find/.test(turn), '🔴打ったアタックを照合へ流していない');
+  // 🔴**実機（`BattleScreen`）はアタックの列挙を持たない**＝画面は `cpuTurnAction` を呼ぶだけ、の機械的な証拠。
+  const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(!screenOnly.includes("listCpuMoves"), '🔴画面が候補列挙を直接呼んでいる（列挙の道は `cpuTurnAction` の1本）');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -10,6 +10,8 @@ import { isHandSigniPlayBlockedByPower } from '../../engine/blockAction';
 import { buildArtsPayerCtx, hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
 import { listAssistGrowCandidates } from './assistGrow';
 import { isPhaseSkipped } from './attackStepPhase';
+import { canSigniAttack, collectForcedAttackZones } from './signiAttackGate';
+import { centerLrigAttackBlock } from './lrigAttackGate';
 import {
   applyGrowCostReduction, colorlessPayableColorsOf, isEnaMultiStripped, isEnergyPaymentSelectionValid,
   parseCoinCost, parseGrowCost,
@@ -80,7 +82,12 @@ export type CpuMove =
   | { kind: 'lrigActivate'; choice: CpuLrigActivatedChoice; pool: EnergyPayEntry[]; phase: 'MAIN' | 'ATTACK_ARTS' }
   | { kind: 'offFieldActivate'; choice: CpuOffFieldChoice; pool: EnergyPayEntry[]; phase: 'MAIN' | 'ATTACK_ARTS' }
   | { kind: 'arts'; choice: CpuArtsCandidate; pool: EnergyPayEntry[]; turnPhase: TurnPhase }
-  | { kind: 'spell'; choice: CpuSpellChoice; pool: EnergyPayEntry[] };
+  | { kind: 'spell'; choice: CpuSpellChoice; pool: EnergyPayEntry[] }
+  // 🆕§5.7 `S-17` 第1段＝**アタックも1手として並べる**（順序と「撃たない」を探索で決めるための前提）。
+  //   ⚠可否は `signiAttackGate` / `lrigAttackGate`（列挙はゲートを呼ぶだけ＝§5.6.3）。
+  //   `forced`＝「可能ならばアタックしなければならない」対象（§6.4 `O-8`(a)）＝**選ぶ側はこれを最優先にする**。
+  | { kind: 'signiAttack'; zone: number; id: string; forced: boolean }
+  | { kind: 'lrigAttack' };
 
 export type CpuMoveKind = CpuMove['kind'];
 
@@ -496,6 +503,27 @@ export function listCpuActivateMoves(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_AR
  * ⚠**アタック（`ATTACK_SIGNI`／`ATTACK_LRIG`）は含めない**＝`S-17` の範囲。
  * ⚠`MAIN` は `cpuTurnAction` と同じく、スペル解決待ち（`pendingSpell`）の間はレゾナ・ピース・スペルを出さない。
  */
+/**
+ * 🆕§5.7 `S-17` 第1段＝**この盤面でアタックできるシグニ**（ゾーン昇順）。
+ *
+ * 🔴**可否は `canSigniAttack` の1本だけ**＝アタック禁止・コスト不足・パワー上限・ダウン・
+ *   **強制アタックの順序規則**（`FORCED_ATTACK_ORDER`）が全部ここで効く。**列挙側で足さない。**
+ * ⚠**「撃たない」は列挙では表さない**（手が無い＝空配列）＝撃つ／撃たないの判断は「選ぶ」側（`S-17` 第2段）。
+ */
+function listCpuSigniAttacks(ctx: CpuMoveCtx, turnPhase: TurnPhase): CpuMove[] {
+  const gateBase = {
+    attacker: ctx.actor, defender: ctx.opponent,
+    effectsMap: ctx.effectsMap, cardMap: ctx.cardMap, turnPhase,
+  };
+  const forced = collectForcedAttackZones(gateBase);
+  return ctx.actor.field.signi.flatMap((stack, zone) => {
+    const id = (stack ?? []).at(-1);
+    if (!id) return [];
+    if (!canSigniAttack({ ...gateBase, attackerNum: id })) return [];
+    return [{ kind: 'signiAttack' as const, zone, id, forced: forced.includes(zone) }];
+  });
+}
+
 export function listCpuMoves(ctx: CpuMoveCtx, phase: TurnPhase, opts: { pendingSpell: boolean }): CpuMove[] {
   const s = ctx.actor;
   const blockedSelf = calcContinuousBlockedActions(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap).forSelf;
@@ -521,6 +549,11 @@ export function listCpuMoves(ctx: CpuMoveCtx, phase: TurnPhase, opts: { pendingS
       ...listCpuMainSpells(spellIn).map(choice => ({ kind: 'spell' as const, choice, pool: spellIn.payer.energyPayPool })),
     ];
   }
+  // 🆕§5.7 `S-17` 第1段＝**アタックの列挙**。
+  //   ⚠`ATTACK_SIGNI` の順序規則（強制対象が先）は **`canSigniAttack` の中**で効く（ここに写経しない）＝
+  //     強制対象が残っている間、他のゾーンは `FORCED_ATTACK_ORDER` で**そもそも候補に出ない**。
+  if (phase === 'ATTACK_SIGNI') return listCpuSigniAttacks(ctx, phase);
+  if (phase === 'ATTACK_LRIG') return centerLrigAttackBlock(s) === null ? [{ kind: 'lrigAttack' }] : [];
   if (phase === 'ATTACK_ARTS') {
     const artsIn = cpuArtsInput(ctx, 'ATTACK_ARTS');
     const pieceIn = cpuKeyPieceInput(ctx, 'ATTACK_ARTS');
@@ -539,6 +572,8 @@ export const CPU_MOVE_PRIORITY: Readonly<Partial<Record<TurnPhase, readonly CpuM
   GROW: ['grow'],
   MAIN: ['deploy', 'assistGrow', 'resona', 'rise', 'piece', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell'],
   ATTACK_ARTS: ['arts', 'piece', 'activate', 'lrigActivate', 'offFieldActivate'],
+  ATTACK_SIGNI: ['signiAttack'],
+  ATTACK_LRIG: ['lrigAttack'],
 };
 
 // ─── 探索用の1手適用（§5.7 `S-16`）────────────────────────────────
@@ -773,6 +808,9 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     }
     // 🔴engine だけでは写せない（実行関数の盤面操作を写経しない＝§5.6.3）。探索はこの手を扱わない。
     case 'assistGrow': case 'resona': case 'rise': case 'piece': return null;
+    // 🆕§5.7 `S-17` 第1段＝**アタックはまだ適用できない**（バトル解決・ガード・ライフバーストは第2段）＝
+    //   いまは**列挙と本番の選択を1本にする**ところまで。⚠`CPU_SIM_APPLICABLE_KINDS` にも入れていない。
+    case 'signiAttack': case 'lrigAttack': return null;
   }
 }
 
@@ -795,5 +833,7 @@ export function describeCpuMove(m: CpuMove): string {
     case 'offFieldActivate': return `offFieldActivate:${m.choice.effect.effectId}@${m.choice.zone}`;
     case 'arts': return `arts:${m.choice.card.CardNum}`;
     case 'spell': return `spell:${m.choice.card.CardNum}`;
+    case 'signiAttack': return `signiAttack:${m.id}@${m.zone}${m.forced ? '!' : ''}`;
+    case 'lrigAttack': return 'lrigAttack';
   }
 }
