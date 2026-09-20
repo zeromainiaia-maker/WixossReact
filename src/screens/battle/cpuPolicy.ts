@@ -15,6 +15,34 @@
  *
  * ⚠**ポリシーを渡さなければ既定**＝`BattleScreen` は渡さないので、**実機の挙動は1ビットも変わらない**。
  */
+// 🔴**型だけの import**＝実行時の依存は `cpuCardStrength` → `cpuPolicy` の一方向（循環しない）。
+import type { CardFeatures } from './cpuCardStrength';
+
+/**
+ * 🆕§5.7 `S-6` 第2段＝**カードの強さ表の重み**（`cpuCardStrength.WEIGHTS` の実体）。
+ * 🔴**`CardFeatures` のキーと1対1**＝特徴量を足したのにここへ入れ忘れると型で落ちる。
+ * ⚠`--a-set` では **`strength.` を前に付ける**（`strength.removal=9000`）＝`energy`/`search` が `BoardWeights` と衝突するため。
+ */
+export type StrengthWeights = Record<keyof CardFeatures, number>;
+
+/**
+ * 🆕§5.7 `S-6` 第2段＝**デッキの作戦データ（`S-2`）の足し引き**（`cpuDeckPlan.PLAN_WEIGHTS` の実体）。
+ * ⚠`--a-set` では **`plan.` を前に付ける**（`plan.keyKeep=10000`）。
+ */
+export interface PlanWeights {
+  /** キーカードをエナ・捨て札にしない。 */
+  keyKeep: number;
+  /** コンボのパーツを手元に残す。 */
+  comboKeep: number;
+  /** 優先して出す。 */
+  priorityDeploy: number;
+  /** コンボの始動札（相方が手札にある）。 */
+  comboFirst: number;
+  /** コンボの仕上げ札（始動札が場にある）。 */
+  comboThenReady: number;
+  /** コンボの仕上げ札を温存（始動札が手札にあって、まだ場にいない）＝**負の値**。 */
+  comboThenHold: number;
+}
 
 /** 盤面の採点の重み（パワー換算）。`S-6` の自己対戦で調整する対象。 */
 export interface BoardWeights {
@@ -127,6 +155,24 @@ export interface CpuPolicy {
    * ⚠**全カードの比率（23/6,713＝0.3%）とは桁が違う**＝サーバントは1デッキに固まって入る。
    */
   readonly guardDeckCount: number;
+  /**
+   * 🆕§5.7 `S-6` 第2段＝**カードの強さ表の重み**（`cpuCardStrength`）。
+   * 🔑**なぜ載せたか**＝第1段の篩で**振れるのは49個中20個だけ**と実測した＝**残り29個は調整対象から外れていた**。
+   * ⚠**`--a-set` は `strength.` を前に付ける**（`energy`/`search` が `BoardWeights` と同名）。
+   */
+  readonly strengthWeights: StrengthWeights;
+  /**
+   * 🆕§5.7 `S-6` 第2段＝**キーワード1つの点数**（`GRANT_KEYWORD` の実測上位）。
+   * ⚠**`--a-set` は `keyword.` を前に付ける**（`keyword.ランサー=4000`）。⚠**知らないキーワード名は例外**（打ち間違いを黙って捨てない）。
+   */
+  readonly keywordValues: Readonly<Record<string, number>>;
+  /** 🆕§5.7 `S-6` 第2段＝**作戦データ（`S-2`）の足し引き**。⚠**`--a-set` は `plan.` を前に付ける**。 */
+  readonly planWeights: PlanWeights;
+  /**
+   * 🆕§5.7 `S-6` 第2段＝**手札の【ガード】を手元に置く価値**（`cpuInteraction`＝効果で手札を捨てるときに最後まで残す）。
+   * ⚠`keepGuards`（何枚残すか＝召喚側）とは別物。こちらは**捨て札の並び**に効く点数。
+   */
+  readonly guardKeepValue: number;
 }
 
 /**
@@ -164,6 +210,23 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   //   値は A/B で決める（`search-attack-burst` / `search-attack-guard` / `search-attack-risk`）。
   lifeBurstCost: 0,
   guardDeckCount: 0,
+  // 🆕§5.7 `S-6` 第2段（2026-09-21）＝**旧 `cpuCardStrength.WEIGHTS` をそのまま移設**（値は1つも変えていない）。
+  strengthWeights: {
+    removal: 6000, powerDown: 0.5, powerUp: 0.25, draw: 2500, energy: 1500, search: 2500, summon: 3500,
+    disrupt: 2500, handDisrupt: 2500, protection: 2000, lifeCrash: 5000, coin: 1000, keyword: 1, misc: 500,
+  },
+  // 🆕§5.7 `S-6` 第2段＝**旧 `cpuCardStrength.KEYWORD_VALUE` をそのまま移設**。
+  keywordValues: {
+    'ランサー': 3000, 'Sランサー': 4000, 'ダブルクラッシュ': 4000, 'トリプルクラッシュ': 6000,
+    'アサシン': 3500, 'シャドウ': 2500, 'バニッシュされない': 3000, 'シュート': 2000,
+  },
+  // 🆕§5.7 `S-6` 第2段＝**旧 `cpuDeckPlan.PLAN_WEIGHTS` をそのまま移設**。
+  planWeights: {
+    keyKeep: 20000, comboKeep: 4000, priorityDeploy: 4000,
+    comboFirst: 5000, comboThenReady: 8000, comboThenHold: -8000,
+  },
+  // 🆕§5.7 `S-6` 第2段＝**旧 `cpuInteraction.CPU_GUARD_KEEP_VALUE` をそのまま移設**。
+  guardKeepValue: 8000,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -290,6 +353,10 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
   const parts = spec.split(',').map(x => x.trim()).filter(Boolean);
   if (parts.length === 0) return base;
   let weights = { ...base.boardWeights };
+  // 🆕§5.7 `S-6` 第2段＝接頭辞つきの3群（`BoardWeights` と同名のキーがあるので名前空間を分ける）。
+  let strength = { ...base.strengthWeights };
+  let keywords = { ...base.keywordValues };
+  let planW = { ...base.planWeights };
   const top: Record<string, number | boolean> = {};
   for (const part of parts) {
     const [rawKey, rawVal] = part.split('=');
@@ -298,15 +365,36 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (!key || rawVal === undefined || !Number.isFinite(num)) {
       throw new Error(`CPU policy override の書き方: "key=数値[,key=数値…]"（受け取った: ${part}）`);
     }
+    // 🔴**接頭辞つきは「知らない名前なら例外」**＝打ち間違いが「既定のまま測った」に化けない（下の既定の規律と同じ）。
+    if (key.startsWith('strength.')) {
+      const k = key.slice('strength.'.length);
+      if (!(k in strength)) throw new Error(`unknown strength weight: ${k}（${Object.keys(strength).join(' / ')}）`);
+      strength = { ...strength, [k]: num }; continue;
+    }
+    if (key.startsWith('keyword.')) {
+      const k = key.slice('keyword.'.length);
+      if (!(k in keywords)) throw new Error(`unknown keyword: ${k}（${Object.keys(keywords).join(' / ')}）`);
+      keywords = { ...keywords, [k]: num }; continue;
+    }
+    if (key.startsWith('plan.')) {
+      const k = key.slice('plan.'.length);
+      if (!(k in planW)) throw new Error(`unknown plan weight: ${k}（${Object.keys(planW).join(' / ')}）`);
+      planW = { ...planW, [k]: num }; continue;
+    }
     if (key in weights) { weights = { ...weights, [key]: num }; continue; }
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
-      || key === 'lifeBurstCost' || key === 'guardDeckCount') {
+      || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount）`);
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue`
+      + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
+      + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }
-  return { ...base, ...top, boardWeights: weights, name: `${base.name}+${parts.join(',')}` };
+  return {
+    ...base, ...top, boardWeights: weights, strengthWeights: strength, keywordValues: keywords, planWeights: planW,
+    name: `${base.name}+${parts.join(',')}`,
+  };
 }

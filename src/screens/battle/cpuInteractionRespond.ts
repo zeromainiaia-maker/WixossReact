@@ -3,6 +3,7 @@ import type { CardData, PendingEffect, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve } from './cpuGrowReserve';
 import { planKeepBonus, type CpuDeckPlan } from './cpuDeckPlan';
+import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
   pickCpuSearch, pickCpuTargets, pickCpuVirusZone, type CpuInteractionCtx,
@@ -44,6 +45,8 @@ export interface CpuInteractionRespondDeps {
   effectsMap: Map<string, CardEffect[]>;
   /** CPU デッキの作戦データ（`S-2`）。 */
   cpuPlan: CpuDeckPlan;
+  /** 🆕§5.7 `S-6` 第2段＝この席の CPU のポリシー（省略時は既定＝画面は渡さない）。 */
+  policy?: CpuPolicy;
 }
 
 export function decideCpuInteractionResponse(
@@ -61,7 +64,8 @@ export function decideCpuInteractionResponse(
     cardMap: new InstanceMap(d.cards.map(c => [c.CardNum, c] as [string, CardData])),
     // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
     effectsOf: id => d.effectsMap.get(id) ?? [],
-    planBonus: id => planKeepBonus(d.cpuPlan, id),
+    planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy),
+    policy: d.policy,
   };
   // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。
   cpuCtx.energyReserve = buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: d.cardMap, effectsMap: d.effectsMap, cards: d.cards });

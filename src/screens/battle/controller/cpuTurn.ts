@@ -754,7 +754,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (!used && !blocked && cpuSt.hand.length > 0) {
       // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
       const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
-      const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id)));
+      const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy));
       const charged = cpuSt.hand[chargeIdx];
       d.observeChoice?.({ kind: 'energy', handIndex: chargeIdx, id: charged });
       const chargedCard = battleCardMap.get(charged);
@@ -923,7 +923,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
           // §5.7 `S-4b`＝このゾーンに出して【出】を解決した**結果の盤面の点数**（先読み）＋ `S-2` 作戦データの加点。
           value: scoreDeploy(id, zone, newCpuSt, cpuHuSt, cpuLookahead)
             + planDeployBonus(cpuPlan, id, handSignis.map(h => h.id),
-              [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean)),
+              [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean), cpuPolicy),
           guard: card!.Guard === '1',
         })),
         handGuardCount: handSignis.filter(({ card }) => card?.Guard === '1').length,
@@ -1415,7 +1415,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     let cpuTrashEND = cpuEndState.trash;
     const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
     if (cpuHandEND.length > cpuHandLimit) {
-      const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], id => planKeepBonus(cpuPlan, id));
+      const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy);
       const discardNums = discardIdx.map(i => cpuHandEND[i]);
       appendBattleLogs([`[CPU] 手札上限: ${cpuHandEND.length}枚→${cpuHandEND.length - discardNums.length}枚（${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て）`]);
       cpuHandEND = cpuHandEND.filter((_, i) => !discardIdx.includes(i));

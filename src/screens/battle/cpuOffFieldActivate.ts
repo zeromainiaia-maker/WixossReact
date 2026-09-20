@@ -4,6 +4,7 @@ import { getCardNum } from '../../engine/execUtils';
 import { activatedEnergyCostStr, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { pickCpuHandLimitDiscards } from './cpuHandLimit';
 import { evaluateBoard, simulateEffect, type LookaheadCtx } from './cpuLookahead';
+import type { CpuPolicy } from './cpuPolicy';
 import { canAddTrashExileIndex, exceedPoolOf, type WholeEnergyCostSubstituteOption } from './costs';
 import type { EnergyPayEntry } from './energyPaySource';
 import { handActivateFieldTrashZones, payHandActivateCost } from './handActivateCost';
@@ -52,6 +53,8 @@ function selectOffFieldCost(
     wholeSubstitutes?: readonly WholeEnergyCostSubstituteOption[];
     energyReserve?: CpuEnergyReserve;
     effectsOf?: (id: string) => readonly CardEffect[];
+    /** 🆕§5.7 `S-6` 第2段＝強さ表の重み（捨て札の並びに効く）。 */
+    policy?: CpuPolicy;
   },
 ): TrashActivateSelections | null {
   // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）を**CPU の支払い内訳にも効かせる**。
@@ -69,7 +72,7 @@ function selectOffFieldCost(
   if (hd) {
     const matching = actor.hand.map((id, i) => ({ id, i })).filter(({ id }) => hd.matches(p.cardMap.get(id) ?? p.cardMap.get(getCardNum(id))));
     if (matching.length < hd.count) return null;
-    const picked = pickCpuHandLimitDiscards(matching.map(m => m.id), hd.count, p.cardMap, p.effectsOf);
+    const picked = pickCpuHandLimitDiscards(matching.map(m => m.id), hd.count, p.cardMap, p.effectsOf, undefined, p.policy);
     sel.handDiscard = new Set(picked.map(k => matching[k].i));
   }
   // トラッシュの札を除外するコスト＝効果元自身は最後に回す（場に出す【起】が自分を見失わない）。
@@ -183,6 +186,7 @@ export function* iterCpuOffFieldActivated(p: CpuOffFieldPickInput): Generator<Cp
         const selections = selectOffFieldCost(zone, cardNum, effect, actor, opponent, {
           cardMap, cards: p.cards, energyPool: p.energyPool, isAffordable: p.isAffordable,
           wholeSubstitutes: p.wholeSubstitutes, energyReserve: p.energyReserve, effectsOf: p.lookahead?.effectsOf,
+          policy: p.lookahead?.policy,
         });
         if (!selections) continue;
         const fieldTrash = zone === 'hand' ? pickCpuHandActivateFieldTrash(effect, actor, cardMap, p.effectivePowers) : new Set<number>();

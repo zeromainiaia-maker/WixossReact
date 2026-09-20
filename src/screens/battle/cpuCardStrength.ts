@@ -1,5 +1,6 @@
 import type { CardData } from '../../types';
 import type { CardEffect } from '../../types/effects';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 
 /**
  * 🆕**カードの強さ表**（§5.7 `S-1`・2026-09-17）＝CPU が「パワーだけ」でなく**効果の強さ**でカードを比べるための採点。
@@ -51,17 +52,18 @@ const emptyFeatures = (): CardFeatures => ({
   disrupt: 0, handDisrupt: 0, protection: 0, lifeCrash: 0, coin: 0, keyword: 0, misc: 0,
 });
 
-/** パワー換算の重み（1単位あたり）。`powerDown`/`powerUp` は値そのものに掛ける係数。 */
-export const WEIGHTS: Record<keyof CardFeatures, number> = {
-  removal: 6000, powerDown: 0.5, powerUp: 0.25, draw: 2500, energy: 1500, search: 2500, summon: 3500,
-  disrupt: 2500, handDisrupt: 2500, protection: 2000, lifeCrash: 5000, coin: 1000, keyword: 1, misc: 500,
-};
+/**
+ * パワー換算の重み（1単位あたり）。`powerDown`/`powerUp` は値そのものに掛ける係数。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.strengthWeights`**（§5.7 `S-6` 第2段）＝**値をここに書かない**
+ *   （2か所に書くと「画面と自己対戦で違う CPU が動く」＝`SPELL_GAIN_MIN` と同じ規律）。
+ */
+export const WEIGHTS: Record<keyof CardFeatures, number> = DEFAULT_CPU_POLICY.strengthWeights;
 
-/** キーワード1つの点数（`GRANT_KEYWORD` の `keyword` 実測上位）。 */
-const KEYWORD_VALUE: Record<string, number> = {
-  'ランサー': 3000, 'Sランサー': 4000, 'ダブルクラッシュ': 4000, 'トリプルクラッシュ': 6000,
-  'アサシン': 3500, 'シャドウ': 2500, 'バニッシュされない': 3000, 'シュート': 2000,
-};
+/**
+ * キーワード1つの点数（`GRANT_KEYWORD` の `keyword` 実測上位）。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.keywordValues`**（§5.7 `S-6` 第2段）＝**値をここに書かない**。
+ */
+export const KEYWORD_VALUE: Readonly<Record<string, number>> = DEFAULT_CPU_POLICY.keywordValues;
 
 const REMOVAL = new Set(['BANISH', 'TRASH', 'BOUNCE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'EXILE']);
 const DISRUPT = new Set(['DOWN', 'FREEZE', 'NEGATE_ATTACK', 'BLOCK_ACTION', 'REMOVE_ABILITIES']);
@@ -101,9 +103,9 @@ function countOf(node: Node): number {
 }
 
 /** アクションの木を歩いて特徴量を足す。`mult`＝この枝の重み（「そうした場合」「以下から1つ」は割り引く）。 */
-function walk(node: unknown, mult: number, f: CardFeatures): void {
+function walk(node: unknown, mult: number, f: CardFeatures, kw0: Readonly<Record<string, number>>): void {
   if (!node || typeof node !== 'object') return;
-  if (Array.isArray(node)) { node.forEach(n => walk(n, mult, f)); return; }
+  if (Array.isArray(node)) { node.forEach(n => walk(n, mult, f, kw0)); return; }
   const n = node as Node;
   const type = typeof n.type === 'string' ? n.type : '';
   const owner = ownerOf(n);
@@ -132,7 +134,7 @@ function walk(node: unknown, mult: number, f: CardFeatures): void {
   else if (type === 'GAIN_COIN') f.coin += asNumber(n.count ?? n.value, 1) * mult;
   else if (type === 'GRANT_KEYWORD') {
     const kw = String(n.keyword ?? '');
-    if (self && KEYWORD_VALUE[kw]) f.keyword += KEYWORD_VALUE[kw] * mult;
+    if (self && kw0[kw]) f.keyword += kw0[kw] * mult;
     else if (opp && kw === 'アタックできない') f.disrupt += countOf(n) * mult;
   } else if (type === 'STUB') f.misc += mult;
 
@@ -144,7 +146,7 @@ function walk(node: unknown, mult: number, f: CardFeatures): void {
       : type === 'CHOOSE' ? mult * 0.6
         : mult;
     if (CONTAINERS.has(type) || key === 'steps' || key === 'then' || key === 'else' || key === 'options' || key === 'action' || key === 'thenAction') {
-      walk(child, childMult, f);
+      walk(child, childMult, f, kw0);
     }
   }
 }
@@ -160,17 +162,23 @@ function timingWeight(e: CardEffect, context: StrengthContext): number {
   return 0.5;
 }
 
-/** カードの効果の特徴量（文脈で重み付け済み）。 */
-export function cardFeatures(effects: readonly CardEffect[], context: StrengthContext): CardFeatures {
+/**
+ * カードの効果の特徴量（文脈で重み付け済み）。
+ * 🆕§5.7 `S-6` 第2段＝**キーワードの点数はポリシーから**（席ごとに違う値が来る＝A/B の口）。
+ * ⚠**渡さなければ既定**＝実機の挙動は1ビットも変わらない。
+ */
+export function cardFeatures(effects: readonly CardEffect[], context: StrengthContext, policy?: CpuPolicy): CardFeatures {
   const f = emptyFeatures();
-  for (const e of effects) walk(e.action, timingWeight(e, context), f);
+  const kw = policy?.keywordValues ?? KEYWORD_VALUE;
+  for (const e of effects) walk(e.action, timingWeight(e, context), f, kw);
   return f;
 }
 
-/** 効果ぶんの点数（パワー換算）。 */
-export function effectValueOf(effects: readonly CardEffect[], context: StrengthContext): number {
-  const f = cardFeatures(effects, context);
-  return (Object.keys(f) as (keyof CardFeatures)[]).reduce((sum, k) => sum + f[k] * WEIGHTS[k], 0);
+/** 効果ぶんの点数（パワー換算）。🆕§5.7 `S-6` 第2段＝重みはポリシーから（省略時は既定）。 */
+export function effectValueOf(effects: readonly CardEffect[], context: StrengthContext, policy?: CpuPolicy): number {
+  const f = cardFeatures(effects, context, policy);
+  const w = policy?.strengthWeights ?? WEIGHTS;
+  return (Object.keys(f) as (keyof CardFeatures)[]).reduce((sum, k) => sum + f[k] * w[k], 0);
 }
 
 /**
@@ -178,8 +186,8 @@ export function effectValueOf(effects: readonly CardEffect[], context: StrengthC
  * @param power 実効パワー（場のシグニ）。省略時は印刷パワー。
  */
 export function cardStrength(
-  card: CardData | undefined, effects: readonly CardEffect[], context: StrengthContext, power?: number,
+  card: CardData | undefined, effects: readonly CardEffect[], context: StrengthContext, power?: number, policy?: CpuPolicy,
 ): number {
   const printed = card?.Power === '∞' ? 1e6 : (parseInt(card?.Power ?? '', 10) || 0);
-  return (power ?? printed) + effectValueOf(effects, context);
+  return (power ?? printed) + effectValueOf(effects, context, policy);
 }

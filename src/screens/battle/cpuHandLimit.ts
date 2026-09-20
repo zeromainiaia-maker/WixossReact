@@ -2,6 +2,7 @@ import type { CardData } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
 import type { CardEffect } from '../../types/effects';
 import { cardStrength } from './cpuCardStrength';
+import type { CpuPolicy } from './cpuPolicy';
 
 /**
  * CPU の**マリガンで戻す札**と**手札上限で捨てる札**（§5.6 `C-4`・2026-09-17）。
@@ -29,8 +30,9 @@ const isGuard = (num: string, cardMap: Map<string, CardData>): boolean => cardMa
  */
 function discardOrder(
   hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[], keepBonus?: (id: string) => number,
+  policy?: CpuPolicy,
 ): number[] {
-  const strength = (num: string) => cardStrength(cardMap.get(getCardNum(num)), effectsOf?.(num) ?? [], 'deploy') + (keepBonus?.(num) ?? 0);
+  const strength = (num: string) => cardStrength(cardMap.get(getCardNum(num)), effectsOf?.(num) ?? [], 'deploy', undefined, policy) + (keepBonus?.(num) ?? 0);
   return hand.map((_, i) => i).sort((a, b) =>
     Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))
     || (effectsOf ? strength(hand[a]) - strength(hand[b]) : levelOf(hand[b], cardMap) - levelOf(hand[a], cardMap))
@@ -51,10 +53,10 @@ export function pickCpuMulliganIndices(hand: string[], cardMap: Map<string, Card
 /** 手札上限で捨てる手札の添字（ちょうど `count` 枚。`count` が手札を超えるなら全部）。 */
 export function pickCpuHandLimitDiscards(
   hand: string[], count: number, cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[],
-  keepBonus?: (id: string) => number,
+  keepBonus?: (id: string) => number, policy?: CpuPolicy,
 ): number[] {
   if (count <= 0) return [];
-  return discardOrder(hand, cardMap, effectsOf, keepBonus).slice(0, count).sort((a, b) => a - b);
+  return discardOrder(hand, cardMap, effectsOf, keepBonus, policy).slice(0, count).sort((a, b) => a - b);
 }
 
 /**
@@ -65,12 +67,12 @@ export function pickCpuHandLimitDiscards(
  */
 export function pickCpuEnergyChargeIndex(
   hand: string[], cardMap: Map<string, CardData>, effectsOf: (id: string) => readonly CardEffect[], lrigLevel: number,
-  keepBonus?: (id: string) => number,
+  keepBonus?: (id: string) => number, policy?: CpuPolicy,
 ): number {
   if (hand.length === 0) return -1;
   const keepValue = (num: string) => {
     const card = cardMap.get(getCardNum(num));
-    const base = cardStrength(card, effectsOf(num), 'deploy');
+    const base = cardStrength(card, effectsOf(num), 'deploy', undefined, policy);
     // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは残す（加点）。
     return (card?.Type === 'シグニ' && levelOf(num, cardMap) >= lrigLevel + 2 ? base * 0.6 : base) + (keepBonus?.(num) ?? 0);
   };

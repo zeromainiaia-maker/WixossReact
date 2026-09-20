@@ -167,7 +167,7 @@ import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../sr
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
-import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrength';
+import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -180,7 +180,7 @@ import { cpuOffFieldLedgerKey, pickCpuHandActivateFieldTrash, pickCpuOffFieldAct
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
-import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
+import { CPU_GUARD_KEEP_VALUE, isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
@@ -86816,7 +86816,8 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   ok(/normalizeCpuDeckPlan\(cpuDeckData\?\.cpu_plan\)/.test(battle), '🔴CPU デッキの作戦データを読んでいない');
   ok(/\+ planDeployBonus\(cpuPlan, id,/.test(battle), '🔴CPU の召喚に作戦データの加点が無い');
   // 🆕§5.7 `S-5d` 第2段＝対話応答の配線は `cpuInteractionRespond.ts` へ移った（較正）。
-  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(d\.cpuPlan, id\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データを渡していない');
+  // 🆕§5.7 `S-6` 第2段（2026-09-21）＝**作戦データの重みもポリシーから**＝`d.policy` も一緒に渡す（較正）。
+  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(d\.cpuPlan, id, d\.policy\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データ（とポリシー）を渡していない');
   const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
   ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
 }));
@@ -89446,9 +89447,57 @@ test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分�
   for (const k of Object.keys(DEFAULT_CPU_POLICY.boardWeights)) {
     ok(knobKeys.has(k), `🔴盤面の重み「${k}」が §5.7 S-6 の走査表（SCAN_KNOBS）に無い＝調整対象から漏れている`);
   }
-  for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks', 'lifeBurstCost', 'guardDeckCount']) {
+  for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks',
+    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue']) {
     ok(knobKeys.has(k), `🔴ポリシーの数値「${k}」が §5.7 S-6 の走査表に無い＝調整対象から漏れている`);
   }
+  // 🆕§5.7 `S-6` 第2段＝**接頭辞つきの3群も全数**（`strength.` 14／`keyword.` 8／`plan.` 6）。
+  // 🔴**入れ忘れた数値は調整対象から静かに消える**＝第1段の実測では**49個中29個がこの状態**だった。
+  for (const k of Object.keys(DEFAULT_CPU_POLICY.strengthWeights)) {
+    ok(knobKeys.has(`strength.${k}`), `🔴強さ表の重み「${k}」が走査表に無い（\`strength.${k}\` が要る）`);
+  }
+  for (const k of Object.keys(DEFAULT_CPU_POLICY.keywordValues)) {
+    ok(knobKeys.has(`keyword.${k}`), `🔴キーワード「${k}」の点数が走査表に無い（\`keyword.${k}\` が要る）`);
+  }
+  for (const k of Object.keys(DEFAULT_CPU_POLICY.planWeights)) {
+    ok(knobKeys.has(`plan.${k}`), `🔴作戦データの重み「${k}」が走査表に無い（\`plan.${k}\` が要る）`);
+  }
+  // 🔴**接頭辞が要る理由＝名前が衝突する**（`energy`／`search` は `BoardWeights` にもある）。
+  //   接頭辞を書き忘れると**盤面の重みのほうが当たり、強さ表は1ビットも動かない**（静かに嘘の結論が出る）。
+  const collide = Object.keys(DEFAULT_CPU_POLICY.strengthWeights)
+    .filter(k => k in DEFAULT_CPU_POLICY.boardWeights) as ('energy')[];
+  ok(collide.length > 0, '前提崩れ＝盤面の重みと強さ表に同名のキーが1つも無い（接頭辞が要る理由のテスト）');
+  for (const k of collide) {
+    eq(patchCpuPolicy(DEFAULT_CPU_POLICY, `${k}=12345`).strengthWeights[k], DEFAULT_CPU_POLICY.strengthWeights[k],
+      `🔴接頭辞なしの「${k}」が強さ表まで書き換えた＝名前空間が分かれていない`);
+    eq(patchCpuPolicy(DEFAULT_CPU_POLICY, `strength.${k}=12345`).boardWeights[k], DEFAULT_CPU_POLICY.boardWeights[k],
+      `🔴「strength.${k}」が盤面の重みまで書き換えた`);
+  }
+  // 🔴**知らない名前は例外**（打ち間違いが「既定のまま測った」に化けない＝`resolveCpuPolicy` と同じ規律）。
+  for (const bad of ['strength.nope=1', 'keyword.そんなキーワード=1', 'plan.nope=1']) {
+    let threwBad = false;
+    try { patchCpuPolicy(DEFAULT_CPU_POLICY, bad); } catch { threwBad = true; }
+    ok(threwBad, `🔴接頭辞つきの打ち間違い「${bad}」が黙って通った`);
+  }
+  // 🔴**既定値の在処は1つ**（第2段で移設した4本＝別名が実体からズレていないか）。
+  ok(STRENGTH_WEIGHTS === DEFAULT_CPU_POLICY.strengthWeights,
+    '🔴`cpuCardStrength.WEIGHTS` が `DEFAULT_CPU_POLICY.strengthWeights` と別の実体＝数値を2か所に書いている');
+  ok(KEYWORD_VALUE === DEFAULT_CPU_POLICY.keywordValues, '🔴`KEYWORD_VALUE` が既定ポリシーと別の実体');
+  ok(PLAN_WEIGHTS === DEFAULT_CPU_POLICY.planWeights, '🔴`PLAN_WEIGHTS` が既定ポリシーと別の実体');
+  eq(CPU_GUARD_KEEP_VALUE, DEFAULT_CPU_POLICY.guardKeepValue, '🔴`CPU_GUARD_KEEP_VALUE` が既定ポリシーとズレた');
+  // ── ①' 配線＝ポリシーが実際に点数を変える（ここが切れると新しい29個は「振っても何も起きない」）──
+  const kwEffect = [{ effectId: 'X-E1', effectType: 'CONTINUOUS', timing: [], action: { type: 'GRANT_KEYWORD', keyword: 'ランサー', target: { side: 'self' } } }] as unknown as CardEffect[];
+  const baseKw = effectValueOf(kwEffect, 'field');
+  const doubledKw = effectValueOf(kwEffect, 'field', patchCpuPolicy(DEFAULT_CPU_POLICY, 'keyword.ランサー=6000'));
+  ok(doubledKw > baseKw, `🔴\`keyword.\` の重みが効果の点数に届いていない（${baseKw} / ${doubledKw}）`);
+  const halvedKw = effectValueOf(kwEffect, 'field', patchCpuPolicy(DEFAULT_CPU_POLICY, 'strength.keyword=0.5'));
+  ok(halvedKw < baseKw, `🔴\`strength.keyword\` が効果の点数に届いていない（${baseKw} / ${halvedKw}）`);
+  eq(effectValueOf(kwEffect, 'field', DEFAULT_CPU_POLICY), baseKw,
+    '🔴既定ポリシーを明示して渡すと点数が変わる＝既定値が二重管理になっている');
+  const planX = { keyCards: ['WD01-017'], priorityCards: [], combos: [] };
+  eq(planKeepBonus(planX, 'WD01-017#1'), DEFAULT_CPU_POLICY.planWeights.keyKeep, '前提崩れ＝キーカードの加点');
+  eq(planKeepBonus(planX, 'WD01-017#1', patchCpuPolicy(DEFAULT_CPU_POLICY, 'plan.keyKeep=10000')), 10000,
+    '🔴`plan.` の重みが作戦データの加点に届いていない');
   // 🔴**`with` を書き忘れると「効かない数値」という嘘の結論が出る**＝期待損の2本は
   //   `searchAttacks` が立たないと**アタック探索そのものが走らない**ので、単体で振れば必ず分岐0 になる（`S-17` 第3段）。
   for (const k of SCAN_KNOBS.filter(x => x.key === 'lifeBurstCost' || x.key === 'guardDeckCount')) {

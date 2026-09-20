@@ -1,5 +1,71 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-21（第430バッチ）§5.7 `S-6` 第2段＝**残り29個の数値を `CpuPolicy` へ載せ、49個を全数走査して多次元 A/B に掛けた**
+
+### ① 配管＝調整できる数値 49個を全部 `--a-set` で振れるようにした
+
+- **載せた4本**＝`strengthWeights`（14・旧 `cpuCardStrength.WEIGHTS`）／`keywordValues`（8・旧 `KEYWORD_VALUE`）／
+  `planWeights`（6・旧 `cpuDeckPlan.PLAN_WEIGHTS`）／`guardKeepValue`（1・旧 `cpuInteraction.CPU_GUARD_KEEP_VALUE`）。
+  🔴**値は1つも変えていない**＝既定値の在処を `cpuPolicy.ts` に寄せただけ（旧名は**実体を指す別名**として残す＝`SPELL_GAIN_MIN` と同じ規律）。
+- 🔴**接頭辞が要る**＝`--a-set "strength.energy=3000"`／`"keyword.ランサー=6000"`／`"plan.keyKeep=10000"`。
+  **`energy` は `BoardWeights` にも `StrengthWeights` にもある**＝名前空間を分けないと
+  **盤面の重みのほうが当たって強さ表は1ビットも動かない**（静かに嘘の結論が出る）。golden がこの衝突を検査する。
+- **通した経路は8か所だけ**（実測）＝`cardStrength`／`effectValueOf`／`cardFeatures` に `policy?` を足し、
+  `cpuHandLimit`（エナチャージ・手札上限）・`cpuInteraction`（対象選択の価値）・`cpuLookahead`（場のシグニの点数）・
+  `cpuDeckPlan`（作戦データの加点）・`cpuOffFieldActivate`（手札を捨てるコスト）へ席のポリシーを渡す。
+  `headlessMatch` は**答える席のポリシー**で対話に答える。⚠**画面は渡さない**（`S-9` の規律＝実機は既定のまま）。
+- 🔑**挙動不変の裏取り**＝①`npm run selfplay` のゲートが**第1段とまったく同じ結果**（seed=1 / 400手 / 16ターン / 勝者=guest / ライフ 0-1）
+  ②**旧20個の分岐スクリーニングの数字が第1段と1件も変わらなかった**（下の表）。
+
+### ② 実測＝93候補 × 6デッキ × 2シード＝**1,128対戦・4,323秒**（`npm run selfplay:scan -- --scan`）
+
+**新しく振れるようになった29個のうち、判断を変えたのは 11個だけ**（上位）＝
+`strength.search`（10/12）／`strength.draw`（7/12）／`strength.energy`・`strength.removal`（5/12）／
+`strength.disrupt`・`strength.misc`（4/12）／`strength.keyword`・`strength.protection`・`strength.summon`（3/12）／
+`guardKeepValue`・`strength.lifeCrash`・`strength.powerUp`（2/12）／`keyword.ダブルクラッシュ`・`keyword.ランサー`・`plan.comboKeep`・`strength.handDisrupt`（1/12）。
+
+🔴**分岐0 は 8件 → 36件**（新規28件）。**原因はまた「山」だった**（実測）＝
+
+| 分岐0 の群 | 件数 | 原因 | 実測 |
+|---|---|---|---|
+| `keyword.Sランサー` / `トリプルクラッシュ` / `シャドウ` / `バニッシュされない` / `シュート` | 10 | **(a) 山に札が無い** | 6デッキ合計 **0枚**（付与があるのは ダブルクラッシュ9／ランサー4／アサシン2 だけ） |
+| `plan.priorityDeploy` | 2 | **(a)** | 3つの作戦データとも `priorityCards` が**空** |
+| `plan.keyKeep` / `comboFirst` / `comboThenReady` / `comboThenHold` / `comboKeep`(片側) | 9 | **(e) 順位が反転しない** | 6デッキ全体で `keyCards` **1枚**・`combos` **1つ**だけ＝半分にしても倍にしても並びが同じ |
+| `strength.coin` | 2 | **(a)** | `GAIN_COIN` **0件** |
+| `strength.powerDown` / `strength.protection=1000` / `keyword.アサシン` ほか | 5 | **(e)** | 札はあるが片側だけ分岐する（＝閾値の外） |
+
+🔑**`plan.*`（作戦データ）は、この6デッキでは原理的に測れない**＝ユーザー作27デッキのうち `cpu_plan` つきは5つで、
+**中身はキーカード1枚・コンボ1つ**しか入っていない。⇒ **`S-14`（コンボに「使い方」を持たせる）の前提がここで数字になった。**
+
+### ③ 多次元 A/B＝**4束とも全6デッキで「差があるとは言えない」**（各 6デッキ × 8シード × 2戦＝96戦・止まり0）
+
+| 束（B 側・A は `default`） | 仮説 | 合算（A2連勝-1勝1敗-B2連勝） |
+|---|---|---|
+| `turnDamage=3000,actionBias=1500,hand=750` | 行動を重く（`S-21` の価値の欠落を埋める） | 6 - 34 - 8 |
+| `hand=3000,energy=2000,growReady=5000` | 資源を重く（↑の反対側＝軸を挟む） | 7 - 34 - 7 |
+| `strength.removal=12000,strength.disrupt=5000,openLane=6000` | 除去・妨害を重く | 4 - 40 - 4 |
+| `strength.draw=5000,strength.search=5000,strength.energy=3000` | 引く・探すを重く | 7 - 36 - 5 |
+| **合計** | | **24 - 144 - 24＝ちょうど五分** |
+
+🔴🔑**ここが `S-6` の本当の壁**＝**分岐しているのに勝率が動かない**（`actionBias` は **12/12 で分岐**するのに勝率は 42.9%）。
+**192組のうち 144組（75%）が1勝1敗**＝**勝敗の二値は情報の4分の3を捨てている**。
+⇒ 1候補8分（96戦）を払っても**決着する組は10〜14**しか得られず、Wilson の下限が 50% を超えるには **70%以上**が要る＝
+**この測定台で検出できるのは「大きな差」だけ。重みの微調整は原理的に測れない。**
+
+⤵**⇒ `S-27` を登録**＝**勝敗ではなく連続量（席入れ替えの対ごとのライフ差）で測る**＝
+1勝1敗の組も「何点差で勝ったか」を持っているので、**捨てている 144組がそのまま標本になる**。
+（`headlessSelfPlay` は既に `hostLife`/`guestLife`/`turns` を持っている＝集計を足すだけ。）
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4350**）。**実機 `verifyFullMatch.mjs cpu` PASS**（6ターン/131手/218s）＝`src/screens/` を触ったので §2.2 で必須。
+- golden `§5.7 S-6` に第2段ぶんを追加＝①**`strength.`／`keyword.`／`plan.`／`guardKeepValue` の全キーが走査表にある**
+  ②**接頭辞なしの `energy` が強さ表を書き換えない／`strength.energy` が盤面の重みを書き換えない**（名前空間の分離）
+  ③**接頭辞つきの打ち間違いは例外**（`strength.nope` ほか3本）④**別名が実体と同一オブジェクト**（`WEIGHTS`／`KEYWORD_VALUE`／`PLAN_WEIGHTS`／`CPU_GUARD_KEEP_VALUE`）
+  ⑤**ポリシーが実際に点数を変える**（`keyword.ランサー` と `strength.keyword` で `effectValueOf` が動く／`plan.keyKeep` で `planKeepBonus` が動く）。
+- ⚠golden `§5.7 S-2` の配線検査を**較正**した（`planKeepBonus(d.cpuPlan, id)` → `(d.cpuPlan, id, d.policy)`）＝退化ではない。
+
+
 ## 2026-09-21（第429バッチ）§5.7 `S-6` 第1段＝**重み候補の「分岐スクリーニング」**（＝A/B に掛ける前の篩）
 
 - **何を入れたか**＝`npm run selfplay:scan`（`scripts/headlessSelfPlay.ts --diverge` ＋ 純関数 `scripts/cpuWeightScan.ts`）＝

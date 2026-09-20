@@ -42,12 +42,11 @@ export interface ScanKnob {
 }
 
 /**
- * 🔴**走査する20個**＝`patchCpuPolicy` がいま受け取れる全部（`boardWeights` 12 ＋ `CpuPolicy` 8）。
+ * 🔴**走査する49個＝`patchCpuPolicy` が受け取れる全部**（`boardWeights` 12 ＋ `CpuPolicy` 8 ＋ `strength.` 14 ＋ `keyword.` 8 ＋ `plan.` 6 ＋ `guardKeepValue` 1）。
  *
- * ⚠**`S-6` の対象はこれで全部ではない**（2026-09-21 実測＝調整できる数値は全部で **49個**）＝
- *   **`cpuCardStrength.WEIGHTS`（14）／`KEYWORD_VALUE`（8）／`cpuDeckPlan.PLAN_WEIGHTS`（6）／
- *   `cpuInteraction.CPU_GUARD_KEEP_VALUE`（1）の 29個は `CpuPolicy` に載っていない**＝
- *   **コードを書き換えないと振れない**（＝`S-6` 第2段の仕事）。
+ * 🆕**2026-09-21（第2段）＝残り29個も `CpuPolicy` へ載せた**（第1段の実測＝振れるのは49個中20個だけだった）＝`strength.`（14）／`keyword.`（8）／`plan.`（6）／`guardKeepValue`（1）。
+ * ⚠**接頭辞が要るのは名前が衝突するから**＝`energy`／`search` は `BoardWeights` にも同名のキーがある。
+ * 🔴**走査表に入れ忘れた数値は調整対象から静かに消える**＝golden `§5.7 S-6` が全キーの網羅を検査する。
  */
 export const SCAN_KNOBS: readonly ScanKnob[] = [
   // ── 盤面の採点（`BoardWeights`）＝既定の半分／倍 ──
@@ -74,6 +73,40 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   // 🔴**`searchAttacks` を一緒に立てる**＝立てないとアタック探索が走らず、期待損を計算する場所が無い（`S-17` 第3段）。
   { key: 'lifeBurstCost', base: 0, values: [2500], with: 'searchAttacks=1' },
   { key: 'guardDeckCount', base: 0, values: [8], with: 'searchAttacks=1' },
+  // ── 🆕§5.7 `S-6` 第2段＝**カードの強さ表**（`strength.`）＝既定の半分／倍 ──
+  // ⚠`energy`／`search` は `BoardWeights` と同名なので**接頭辞が要る**（無いと盤面の重みのほうが当たる）。
+  { key: 'strength.removal', base: 6000, values: [3000, 12000] },
+  { key: 'strength.powerDown', base: 0.5, values: [0.25, 1] },
+  { key: 'strength.powerUp', base: 0.25, values: [0.125, 0.5] },
+  { key: 'strength.draw', base: 2500, values: [1250, 5000] },
+  { key: 'strength.energy', base: 1500, values: [750, 3000] },
+  { key: 'strength.search', base: 2500, values: [1250, 5000] },
+  { key: 'strength.summon', base: 3500, values: [1750, 7000] },
+  { key: 'strength.disrupt', base: 2500, values: [1250, 5000] },
+  { key: 'strength.handDisrupt', base: 2500, values: [1250, 5000] },
+  { key: 'strength.protection', base: 2000, values: [1000, 4000] },
+  { key: 'strength.lifeCrash', base: 5000, values: [2500, 10000] },
+  { key: 'strength.coin', base: 1000, values: [500, 2000] },
+  { key: 'strength.keyword', base: 1, values: [0.5, 2] },
+  { key: 'strength.misc', base: 500, values: [250, 1000] },
+  // ── 🆕キーワード1つの点数（`keyword.`）──
+  { key: 'keyword.ランサー', base: 3000, values: [1500, 6000] },
+  { key: 'keyword.Sランサー', base: 4000, values: [2000, 8000] },
+  { key: 'keyword.ダブルクラッシュ', base: 4000, values: [2000, 8000] },
+  { key: 'keyword.トリプルクラッシュ', base: 6000, values: [3000, 12000] },
+  { key: 'keyword.アサシン', base: 3500, values: [1750, 7000] },
+  { key: 'keyword.シャドウ', base: 2500, values: [1250, 5000] },
+  { key: 'keyword.バニッシュされない', base: 3000, values: [1500, 6000] },
+  { key: 'keyword.シュート', base: 2000, values: [1000, 4000] },
+  // ── 🆕作戦データの足し引き（`plan.`）⚠**作戦データを持つ山でしか効かない**（`cpu_plan` つきは実測5デッキ）──
+  { key: 'plan.keyKeep', base: 20000, values: [10000, 40000] },
+  { key: 'plan.comboKeep', base: 4000, values: [2000, 8000] },
+  { key: 'plan.priorityDeploy', base: 4000, values: [2000, 8000] },
+  { key: 'plan.comboFirst', base: 5000, values: [2500, 10000] },
+  { key: 'plan.comboThenReady', base: 8000, values: [4000, 16000] },
+  { key: 'plan.comboThenHold', base: -8000, values: [-4000, -16000] },
+  // ── 🆕手札の【ガード】を手元に置く価値（効果で手札を捨てるときの並び）──
+  { key: 'guardKeepValue', base: 8000, values: [4000, 16000] },
 ];
 
 /**

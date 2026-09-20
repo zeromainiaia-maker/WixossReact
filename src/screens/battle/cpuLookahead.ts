@@ -175,7 +175,7 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
   const signiValue = (st: PlayerState, zi: number) => {
     const top = topOf(st, zi);
     if (!top) return 0;
-    return scoringPowerOf(top, ctx, powers) * W.fieldPowerScale + effectValueOf(ctx.effectsOf(top), 'field');
+    return scoringPowerOf(top, ctx, powers) * W.fieldPowerScale + effectValueOf(ctx.effectsOf(top), 'field', ctx.policy);
   };
   const fieldValue = (st: PlayerState) => [0, 1, 2].reduce((sum, zi) => sum + signiValue(st, zi), 0);
   // ⚠**空き判定も `topOf` を通す**＝パワー0以下のシグニが正面に残っていると「塞がっている」と誤読する。

@@ -213,6 +213,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       cards: d.cards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
       // 🆕§5.7 `S-23`＝**答える席の作戦データ**で答える（対話は両席の CPU が答えるため）。
       cpuPlan: planFor(responderId === bs.host_id ? 'host' : 'guest'),
+      // 🆕§5.7 `S-6` 第2段＝**答える席のポリシー**（強さ表の重み・【ガード】温存の点数）＝A/B が対象選択にも効く。
+      policy: (responderId === bs.host_id ? d.policy?.host : d.policy?.guest) ?? DEFAULT_CPU_POLICY,
     });
     if (!res) return false;
     const h = makeEffectInteractionHandlers(ctx, { loading: false });

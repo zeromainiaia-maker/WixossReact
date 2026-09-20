@@ -1,4 +1,5 @@
 import { getCardNum } from '../../engine/execUtils';
+import { DEFAULT_CPU_POLICY, type CpuPolicy, type PlanWeights } from './cpuPolicy';
 
 /**
  * 🆕**CPU デッキの作戦データ**（§5.7 `S-2`・2026-09-17）＝デッキごとに「どの札が大事か・何を先に出すか・どのコンボを狙うか」を持たせる。
@@ -28,21 +29,11 @@ export interface CpuDeckPlan {
 
 export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = { keyCards: [], priorityCards: [], combos: [] };
 
-/** 足し引きする点数（パワー換算）。`S-4` の自己対戦で調整する対象。 */
-export const PLAN_WEIGHTS = {
-  /** キーカードをエナ・捨て札にしない */
-  keyKeep: 20000,
-  /** コンボのパーツを手元に残す */
-  comboKeep: 4000,
-  /** 優先して出す */
-  priorityDeploy: 4000,
-  /** コンボの始動札（相方が手札にある） */
-  comboFirst: 5000,
-  /** コンボの仕上げ札（始動札が場にある） */
-  comboThenReady: 8000,
-  /** コンボの仕上げ札を温存（始動札が手札にあって、まだ場にいない） */
-  comboThenHold: -8000,
-} as const;
+/**
+ * 足し引きする点数（パワー換算）。`S-6` の自己対戦で調整する対象。
+ * 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.planWeights`**（§5.7 `S-6` 第2段）＝**値をここに書かない**。
+ */
+export const PLAN_WEIGHTS: PlanWeights = DEFAULT_CPU_POLICY.planWeights;
 
 const strList = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && x.length > 0))] : [];
@@ -74,11 +65,12 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0;
 
 /** 手元に残す価値の加点（エナチャージ・手札上限の捨て札・サーチで使う）。 */
-export function planKeepBonus(plan: CpuDeckPlan, id: string): number {
+export function planKeepBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
   const num = getCardNum(id);
+  const W = policy?.planWeights ?? PLAN_WEIGHTS;
   let bonus = 0;
-  if (plan.keyCards.includes(num)) bonus += PLAN_WEIGHTS.keyKeep;
-  if (plan.combos.some(c => c.first === num || c.then === num)) bonus += PLAN_WEIGHTS.comboKeep;
+  if (plan.keyCards.includes(num)) bonus += W.keyKeep;
+  if (plan.combos.some(c => c.first === num || c.then === num)) bonus += W.comboKeep;
   return bonus;
 }
 
@@ -92,16 +84,19 @@ export function planKeepsInMulligan(plan: CpuDeckPlan, id: string): boolean {
  * 場に出す（召喚する）ときの加点。
  * @param handIds いまの手札（instance ID）／@param fieldIds いまの自分の場（シグニのトップ・ルリグ）
  */
-export function planDeployBonus(plan: CpuDeckPlan, id: string, handIds: readonly string[], fieldIds: readonly string[]): number {
+export function planDeployBonus(
+  plan: CpuDeckPlan, id: string, handIds: readonly string[], fieldIds: readonly string[], policy?: CpuPolicy,
+): number {
   const num = getCardNum(id);
+  const W = policy?.planWeights ?? PLAN_WEIGHTS;
   const inHand = new Set(handIds.map(getCardNum));
   const onField = new Set(fieldIds.map(getCardNum));
-  let bonus = plan.priorityCards.includes(num) ? PLAN_WEIGHTS.priorityDeploy : 0;
+  let bonus = plan.priorityCards.includes(num) ? W.priorityDeploy : 0;
   for (const c of plan.combos) {
-    if (c.first === num && inHand.has(c.then) && !onField.has(c.first)) bonus += PLAN_WEIGHTS.comboFirst;
+    if (c.first === num && inHand.has(c.then) && !onField.has(c.first)) bonus += W.comboFirst;
     if (c.then === num) {
-      if (onField.has(c.first)) bonus += PLAN_WEIGHTS.comboThenReady;
-      else if (inHand.has(c.first)) bonus += PLAN_WEIGHTS.comboThenHold;
+      if (onField.has(c.first)) bonus += W.comboThenReady;
+      else if (inHand.has(c.first)) bonus += W.comboThenHold;
     }
   }
   return bonus;

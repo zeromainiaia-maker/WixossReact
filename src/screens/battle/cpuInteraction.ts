@@ -1,6 +1,7 @@
 import type { CardData, PendingInteractionDef, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { cardStrength } from './cpuCardStrength';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import { canAddToSelection, findValidConstrainedSelection, getCardNum, selectOptionalCostEnergy } from '../../engine/execUtils';
 import { shuffle as rngShuffle } from '../../engine/rng';
 import { declareNameCandidates } from './declareNameCandidates';
@@ -37,6 +38,11 @@ export interface CpuInteractionCtx {
   planBonus?: (id: string) => number;
   /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
   energyReserve?: CpuEnergyReserve;
+  /**
+   * 🆕§5.7 `S-6` 第2段＝この CPU のポリシー（強さ表の重み・【ガード】温存の点数）。省略時は既定。
+   * ⚠**席ごとに違うものが来る**（自己対戦の A/B）＝ここから先で `WEIGHTS`／`CPU_GUARD_KEEP_VALUE` を直接読まない。
+   */
+  policy?: CpuPolicy;
 }
 
 type Inter<T extends PendingInteractionDef['type']> = Extract<PendingInteractionDef, { type: T }>;
@@ -91,7 +97,8 @@ function isOnField(id: string, ctx: CpuInteractionCtx): boolean {
  * 🔴効果で手札を捨てるとき（`SELECT_TARGET` の害）、CPU は価値の低い札から捨てる＝パワーの低い【ガード】札（サーバント等）を真っ先に捨てていた。
  *   エナチャージ・手札上限・召喚は【ガード】を残す（`S-1`）のに、効果の捨て札だけ抜けていた。
  */
-export const CPU_GUARD_KEEP_VALUE = 8000;
+/** 🔴**実体は `cpuPolicy.DEFAULT_CPU_POLICY.guardKeepValue`**（§5.7 `S-6` 第2段）＝**値をここに書かない**。 */
+export const CPU_GUARD_KEEP_VALUE = DEFAULT_CPU_POLICY.guardKeepValue;
 
 /**
  * カードの価値＝**強さ（パワー＋効果の点数）**を主、レベルを従にした数（§5.7 `S-1`）。
@@ -103,9 +110,9 @@ function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, n
   const effects = ctx.effectsOf?.(id) ?? [];
   const onField = isOnField(id, ctx);
   const inCpuHand = ctx.cpuState.hand.includes(id);
-  const strength = cardStrength(card, effects, onField ? 'field' : 'deploy', powers?.[id])
+  const strength = cardStrength(card, effects, onField ? 'field' : 'deploy', powers?.[id], ctx.policy)
     + (!onField && isCpuOwnedOrUnknown(id, ctx) ? (ctx.planBonus?.(id) ?? 0) : 0)
-    + (inCpuHand && card?.Guard === '1' ? CPU_GUARD_KEEP_VALUE : 0);
+    + (inCpuHand && card?.Guard === '1' ? (ctx.policy?.guardKeepValue ?? CPU_GUARD_KEEP_VALUE) : 0);
   return strength * 100 + (parseInt(card?.Level ?? '', 10) || 0);
 }
 
