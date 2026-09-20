@@ -9,6 +9,7 @@ import {
   assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, pruneLrigRoles,
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
+import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../utils/cardSearch';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
 import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
 
@@ -111,14 +112,17 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   }, [cards]);
   const classes = useMemo(() => [...new Set(cards.map(c => c.CardClass).filter(Boolean))].sort(), [cards]);
 
+  // 番号検索を避難先（variant）の番号にも当てるための索引（`utils/cardSearch.ts`）。
+  const variantNumIndex = useMemo(() => buildVariantNumIndex(variantCards), [variantCards]);
+
   const filteredCards = useMemo(() => cards.filter(c => {
-    if (search && !c.CardName.includes(search) && !c.CardNum.includes(search)) return false;
+    if (!cardMatchesSearch(c, search, variantNumIndex)) return false;
     if (filterType && c.Type !== filterType) return false;
     if (filterColor && c.Color !== filterColor) return false;
     if (filterLevel && c.Level !== filterLevel) return false;
     if (filterClass && c.CardClass !== filterClass) return false;
     return true;
-  }), [cards, search, filterType, filterColor, filterLevel, filterClass]);
+  }), [cards, search, variantNumIndex, filterType, filterColor, filterLevel, filterClass]);
 
   const countInMainByName = (cardName: string) =>
     current.mainDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
@@ -406,6 +410,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               const canAdd = addBlockReason(card) === null;
               const bg = getCardBg(card.Color);
               const hasLB = card.LifeBurst === '1';
+              // 検索語が「避難先の番号」に当たって出てきた行は、その番号を出さないと理由が分からない。
+              const hitVariantNums = matchedVariantNums(card, search, variantNumIndex);
               return (
                 <div
                   key={card.CardNum}
@@ -424,6 +430,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                       {hasLB && <span style={{ fontSize: '9px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '3px', padding: '1px 4px', flexShrink: 0, fontWeight: 'bold' }}>LB</span>}
                     </div>
                     <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card.CardNum} / {card.Type}{card.Level ? ` / Lv.${card.Level}` : ''} / {card.Color}</p>
+                    {hitVariantNums.length > 0 && (
+                      <p style={{ fontSize: '10px', color: '#5533aa', margin: 0 }}>
+                        別番号：{hitVariantNums.slice(0, 4).join(' / ')}{hitVariantNums.length > 4 ? ` ほか${hitVariantNums.length - 4}件` : ''}
+                      </p>
+                    )}
                     {card.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: '0 0 2px' }}>{card.CardClass}</p>}
                     {card.EffectText && card.EffectText !== '-' && (
                       <p style={effectTextStyle}><span style={effectLabelStyle}>通常</span>{card.EffectText}</p>

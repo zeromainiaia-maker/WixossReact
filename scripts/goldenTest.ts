@@ -182,6 +182,7 @@ import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
 import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
+import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
@@ -88587,6 +88588,54 @@ test('§5.7 S-5d 第3段 画面に材料・ルール処理を書き戻さない�
   // ⑦ guest 席の ID の約束（違うと黙って1手も進まない）。
   ok(loop.includes('initial.guest_id !== CPU_PLAYER_ID'), '🔴guest 席が CPU_PLAYER_ID でないときに落としていない');
 }));
+
+// ── カード検索：番号は「避難先（variant）の番号」にも当てる（2026-09-20 ユーザー要望・`src/utils/cardSearch.ts`）──
+// 🔴経緯＝再録・別絵柄は `CardData_Variants.csv`（CardNum/CardName/ImgURL の3列）へ退避してあり、
+//   アプリが使う本体は**最初に収録されたパックの番号しか持たない**。そのため「パック名で引く」が壊れていた。
+//   実測（2026-09-20）＝**148 パック接頭辞のうち 147 で結果が増える**。`SPDi38-` `SP32-` `SP33-` は
+//   **本体 0 件＝1枚も出てこなかった**（避難先込みで 66 / 37 / 32 件）。
+// 🔑この検査の眼目は「**出るのは本体のカード**」＝variant のデータ（3列しかない＝効果もタイプも無い）が
+//   検索結果に混ざると、追加ボタンが壊れた行がデッキ編集に並ぶ。
+test('カード検索: 番号は避難先(variant)にも当たり、返るのは本体カードだけ', () => {
+  // ① 純関数の契約（合成データ）。
+  const mk = (CardNum: string, CardName: string) => ({ CardNum, CardName }) as unknown as CardData;
+  const idx = buildVariantNumIndex([mk('WX01-101', 'サーバント　Ｄ'), mk('PR-001', 'サーバント　Ｄ')]);
+  const canon = mk('WD01-016', 'サーバント　Ｄ');
+  const other = mk('WX24-001', '幻獣　テスト');
+  ok(cardMatchesSearch(canon, '', idx), '空の検索語で落ちた（フィルタ無しのときは全通し）');
+  ok(cardMatchesSearch(canon, 'サーバント', idx), 'カード名の部分一致が当たらない');
+  ok(cardMatchesSearch(canon, 'WD01-', idx), '本体のカード番号が当たらない');
+  ok(cardMatchesSearch(canon, 'WX01-', idx), '🔴避難先のカード番号が当たらない（この修正の本体）');
+  ok(cardMatchesSearch(canon, 'wx01-', idx), '番号の大文字小文字を無視していない');
+  ok(!cardMatchesSearch(other, 'WX01-', idx), '無関係のカードが避難先索引で釣れた');
+  eq(matchedVariantNums(canon, 'WX01-', idx).join(','), 'WX01-101', '当たった別番号だけを返していない');
+  eq(matchedVariantNums(canon, 'WD01-', idx).length, 0, '🔴本体の番号を「別番号」として返した（行に嘘が出る）');
+  eq(matchedVariantNums(canon, '', idx).length, 0, '空の検索語で別番号を返した');
+
+  // ② 実データ。`cardMap` は Sheet1〜11＋TK＝**本体だけ**なので、返り値がそこに在ることで
+  //    「variant のデータが混ざっていない」を機械で言える。
+  const vpath = join(root, 'public/data/CardData_Variants.csv');
+  ok(fs.existsSync(vpath), 'CardData_Variants.csv が無い（検索の避難先が消えている）');
+  const variantRows = Papa.parse<Record<string, string>>(
+    fs.readFileSync(vpath, 'utf-8').replace(/^﻿/, ''), { header: true, skipEmptyLines: true },
+  ).data as unknown as CardData[];
+  const liveIdx = buildVariantNumIndex(variantRows);
+  const sheetCards = [...cardMap.values()];
+  const search = (q: string) => sheetCards.filter(c => cardMatchesSearch(c, q, liveIdx));
+
+  // 錨1＝WX01 の再録。旧実装では本体番号が `WD01-016` なので「WX01-」で1枚も出なかった。
+  const wx01 = search('WX01-');
+  ok(wx01.some(c => c.CardNum === 'WD01-016'), '🔴WX01-101（サーバント　Ｄ）の本体 WD01-016 が「WX01-」で出ない');
+  ok(wx01.length > sheetCards.filter(c => c.CardNum.includes('WX01-')).length, '避難先込みで増えていない');
+  // 錨2＝本体に1枚も無いパック＝旧実装では検索結果が空だった。
+  eq(sheetCards.filter(c => c.CardNum.includes('SPDi38-')).length, 0, 'SPDi38 が本体に入った（錨の前提が変わった＝測り直す）');
+  ok(search('SPDi38-').length > 0, '🔴本体に無いパック（SPDi38）が1枚も引けない');
+  // 🔴返るのは本体だけ＝3列しかない variant 行が結果に混ざっていない。
+  for (const c of search('SPDi38-')) {
+    ok(cardMap.has(c.CardNum), `🔴検索結果に本体でないカードが出た: ${c.CardNum}`);
+    ok(!!c.Type, `🔴Type が空のカードが出た（variant の3列データが混ざっている）: ${c.CardNum}`);
+  }
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
