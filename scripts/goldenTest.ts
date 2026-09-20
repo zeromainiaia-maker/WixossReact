@@ -222,6 +222,8 @@ import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/s
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { guardProbability, lifeBurstProbability, lifeCrushRisk, lrigAttackRisk } from '../src/screens/battle/cpuAttackRisk';
+import { LB_MAX, MAIN_MAX } from '../src/utils/deckBuildLimits';
 import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { deckActionTypes, formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck } from './selfPlayDecks';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
@@ -89199,7 +89201,9 @@ test('§5.7 S-17 アタックの列挙と近似適用：可否はゲート1本�
   //   「撃たない」が正しくなるのは**ライフバースト・ガードを確率で見られるようになってから**（第3段）。
   ok(/const searchedZone = searchedAttack\?\.move\?\.kind === 'signiAttack' \? searchedAttack\.move\.zone : null;/.test(turn),
     '🔴探索の結果の読み方が変わった＝`null`（得にならない）で**撃たない**ようになっていないか確かめる');
-  ok(/const firstUp = searchedZone \?\? pickCpuAttackZone\(\{/.test(turn),
+  // 🆕§5.7 `S-17` 第3段（2026-09-21）＝**`declinedAttack` の分岐が足された**＝期待損を見るポリシー
+  //   （既定は見ない）で**厳密に損**と出たときだけ撃たない。既定は従来どおり価値表へ落ちる。
+  ok(/const firstUp = declinedAttack \? -1 : searchedZone \?\? pickCpuAttackZone\(\{/.test(turn),
     '🔴探索が「打たない」と言ったときに従来の価値表へ落ちていない＝アタックしないターンが生まれる');
   ok(/&& attackMoves\.length > 0 && !attackMoves\.some\(m => m\.forced\)/.test(turn),
     '🔴強制アタック（ルール由来の義務）がある盤面で探索を通している＝順番を選べないのに選ばせている');
@@ -89212,6 +89216,169 @@ test('§5.7 S-17 アタックの列挙と近似適用：可否はゲート1本�
   // 🔴**実機（`BattleScreen`）はアタックの列挙を持たない**＝画面は `cpuTurnAction` を呼ぶだけ、の機械的な証拠。
   const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(!screenOnly.includes("listCpuMoves"), '🔴画面が候補列挙を直接呼んでいる（列挙の道は `cpuTurnAction` の1本）');
+}));
+
+// ── 第427バッチ（2026-09-21）＝§5.7 `S-17` 第3段（ライフバースト・ガードを確率で見る）──────
+test('§5.7 S-17 第3段 アタックの期待損：公開ゾーンだけ・超幾何・既定0で挙動不変・撃たない判断', () => withSavedCursor(() => {
+  // 🔑**なぜ第3段が要るか**＝第2段の近似は**バーストもガードも解かない**＝アタックの点数が**常に上振れ**する。
+  //   ⇒ 探索に「撃つ／撃たない」を決めさせられず、**順番だけ**に限定して配線してあった
+  //   （[LESSONS.md] §4.3「同点なら何もしない、は損の無い行動を捨てる」）。**人間が撃たない理由が近似に映っていない。**
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const VANILLA = 'WD01-013';   // LB なし・ガードなし
+  const LB_ONLY = 'WD01-009';   // 【ライフバースト】持ち・ガードなし
+  const mk = (signi: (string | null)[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.field.signi = signi.map(x => (x ? [x] : null)) as PlayerState['field']['signi'];
+    st.hand = []; st.energy = []; st.trash = [];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];
+    st.lrig_deck = [];
+    return st;
+  };
+  const actor = mk([`${VANILLA}#a0`, `${VANILLA}#a1`, null]);
+  const opponent = mk([null, null, null]);
+  const near = (a: number, b: number, msg: string) => ok(Math.abs(a - b) < 1e-9, `${msg}（実測 ${a} / 期待 ${b}）`);
+
+  // ── ① 事前確率＝**構築ルールの定数から出す**（手で決めた数字ではない）──
+  //   🔴実測（2026-09-21・ユーザー作26デッキ＋`VERIFY_DECK_MECH`・主デッキ1,080枚）＝
+  //     LB **528枚（48.9%）＝ほぼ全デッキが上限 20/40**／ガード **204枚（18.9%）＝中央 8/40**。
+  //   ⚠**登録票の「LB 持ち 1,751 / 6,666枚（26.1%）」は全カードの比率**＝そのまま使うと**約半分に外す**。
+  near(lifeBurstProbability(opponent, cm as Map<string, CardData>), LB_MAX / MAIN_MAX,
+    '🔴初期盤面のバースト率が構築上限（20/40）になっていない＝事前確率を手で決めている');
+
+  // ── ② 🔑**向きが直感と逆**＝壺から戻さずに引く問題＝**見たバーストが増えるほど残りは下がる**──
+  //   （ベータ分布の素朴な混合＝「見た率へ寄せる」は**符号が逆**になる）。
+  const seenLb = (n: number, filler: number) => ({
+    ...opponent,
+    energy: [...Array(n).fill(LB_ONLY), ...Array(filler).fill(VANILLA)].map((x, i) => `${x}#e${i}`),
+  } as PlayerState);
+  near(lifeBurstProbability(seenLb(10, 0), cm as Map<string, CardData>), 10 / 30,
+    '🔴バーストを10枚見たのに残りの確率が下がっていない＝超幾何ではなく素朴な混合になっている');
+  near(lifeBurstProbability(seenLb(20, 0), cm as Map<string, CardData>), 0,
+    '🔴上限20枚すべて見えたのに「まだ出る」と読んでいる＝観測が効いていない');
+  near(lifeBurstProbability(seenLb(0, 20), cm as Map<string, CardData>), 1,
+    '🔴バースト無しを20枚見たのに残りの確率が上がっていない');
+  // ⚠**トークンはメインデッキの札ではない**（数えると母数が水増しされて確率が下がる）。
+  const withToken = { ...opponent, energy: ['WD01-013#e0'], trash: [] } as PlayerState;
+  ok(lifeBurstProbability(withToken, cm as Map<string, CardData>) > LB_MAX / MAIN_MAX,
+    '🔴公開ゾーンの非バーストを数えていない');
+
+  // ── ③ ガード＝**相手の手札は「枚数」しか見ない**（中身を見たらカンニング）──
+  const handOf = (nums: string[]) => ({ ...opponent, hand: nums.map((n, i) => `${n}#h${i}`) } as PlayerState);
+  eq(guardProbability(handOf(['WD01-017', 'WD01-017']), cm as Map<string, CardData>, 0), 0,
+    '🔴`guardDeckCount: 0`（既定）でガードを見ている＝挙動不変にならない');
+  eq(guardProbability(opponent, cm as Map<string, CardData>, 8), 0, '🔴手札0枚でもガードされると読んでいる');
+  near(guardProbability(handOf([VANILLA]), cm as Map<string, CardData>, 8), 8 / 40, '🔴手札1枚のガード率が 8/40 になっていない');
+  // 🔴**カンニングの検査**＝**中身が全部ガード札でも、枚数が同じなら同じ確率**でなければならない。
+  near(guardProbability(handOf(['WD01-017', 'WD01-017', 'WD01-017']), cm as Map<string, CardData>, 8),
+    guardProbability(handOf([VANILLA, VANILLA, VANILLA]), cm as Map<string, CardData>, 8),
+    '🔴相手の手札の中身でガード率が変わった＝伏せ札を読んでいる（カンニング）');
+
+  // ── ④ 🔴**読んでよいゾーンの検査（ソース）**＝公開ゾーンだけ＝`deck` / `life_cloth` の中身と `hand` の中身は読まない ──
+  const riskSrcRaw = fs.readFileSync(join(root, 'src/screens/battle/cpuAttackRisk.ts'), 'utf-8');
+  const riskSrc = riskSrcRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');   // ⚠コメントは検査しない（説明文に語が出る）
+  ok(!/\.deck\b/.test(riskSrc), '🔴期待損の計算が相手の山を読んでいる（カンニング）');
+  ok(!/life_cloth/.test(riskSrc), '🔴期待損の計算がライフクロスの中身を読んでいる（＝どのバーストが来るかを知ってしまう）');
+  // ⚠`weights.hand`（盤面の重み）は相手の手札ではない＝`opp.` を前置して相手のゾーンだけを見る。
+  eq((riskSrc.match(/opp\.hand\b(?!\.length)/g) ?? []).length, 0,
+    '🔴相手の手札を枚数以外で読んでいる（`opp.hand.length` 以外の参照）＝カンニング');
+
+  // ── ⑤ 期待損（パワー換算・`evaluateBoard` と同じ尺度）──
+  const burst = CPU_POLICIES['search-attack-burst'];
+  near(lifeCrushRisk(opponent, cm as Map<string, CardData>, burst), 0.5 * burst.lifeBurstCost,
+    '🔴ライフ1枚の期待損が `P(バースト) × lifeBurstCost` になっていない');
+  eq(lifeCrushRisk(opponent, cm as Map<string, CardData>, DEFAULT_CPU_POLICY), 0,
+    '🔴既定のポリシーで期待損が出ている＝実機の挙動が変わる');
+  // ルリグアタック＝ガードされたら「ライフを割れない（life − energy）」が、相手は手札を1枚捨てる（＝こちらの得＝hand）。
+  const guardPol = CPU_POLICIES['search-attack-guard'];
+  const w = DEFAULT_CPU_POLICY.boardWeights;
+  const oppHand5 = handOf([VANILLA, VANILLA, VANILLA, VANILLA, VANILLA]);
+  const pg = guardProbability(oppHand5, cm as Map<string, CardData>, guardPol.guardDeckCount);
+  near(lrigAttackRisk(oppHand5, cm as Map<string, CardData>, guardPol, w), pg * (w.life - w.energy - w.hand),
+    '🔴ガードの期待損が「割れないぶん − 相手が捨てるぶん」になっていない');
+  // 🔑**「ガードされるから撃たない」にはならない**＝相手の手札は1枚減る＝期待損はクラッシュの価値を超えない。
+  ok(lrigAttackRisk(oppHand5, cm as Map<string, CardData>, guardPol, w) < w.life - w.energy,
+    '🔴ガードの期待損がクラッシュの価値を超えた＝ルリグアタックが「損」に見える（規則上ありえない）');
+
+  // ── ⑥ 近似適用に載っている（`CpuSimBoard.risk`）＝**既定 0＝第2段と1ビットも変わらない** ──
+  const ctxOf = (policy?: CpuPolicy): CpuMoveCtx => ({
+    actor, opponent: oppHand5, allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: policy ? { ...lctx, policy } : lctx, reserveFor: () => undefined,
+  });
+  const atk = listCpuMoves(ctxOf(), 'ATTACK_SIGNI', { pendingSpell: false });
+  eq(applyCpuMoveSim(ctxOf(), atk[0])?.risk ?? 0, 0, '🔴既定のポリシーでアタックに期待損が乗った＝挙動が変わる');
+  near(applyCpuMoveSim(ctxOf(burst), atk[0])?.risk ?? -1, 0.5 * burst.lifeBurstCost,
+    '🔴ライフを割るアタックに期待損が乗っていない');
+  // 正面が居る＝**ライフを割らない**＝バーストの期待損は乗らない（＝順番の比較がここで効く）。
+  const facing = { ...oppHand5, field: { ...oppHand5.field, signi: [null, null, [`${VANILLA}#o2`]] } } as PlayerState;
+  eq(applyCpuMoveSim({ ...ctxOf(burst), opponent: facing }, atk[0])?.risk ?? 0, 0,
+    '🔴バトルになるアタック（ライフを割らない）にバーストの期待損が乗っている');
+  // 🔴🔑**割るライフが無ければ期待損も無い**（実測 2026-09-21）＝`simCrushLife` は何もしないのに
+  //   期待損だけを払っていた＝**盤面は動かないのに点数だけ下がる**＝探索が「撃たない」へ倒れる。
+  //   ビームの深い節で相手のライフを使い切ったあとに起きる（実測＝この修正で自己対戆4戦の「撃たない」2件が消えた）。
+  const noLife = { ...oppHand5, life_cloth: [] } as PlayerState;
+  eq(applyCpuMoveSim({ ...ctxOf(burst), opponent: noLife }, atk[0])?.risk ?? -1, 0,
+    '🔴ライフが0枚（割れない）なのにバーストの期待損を払っている＝盤面が動かないのに点数だけ下がる');
+  eq(applyCpuMoveSim({ ...ctxOf(guardPol), opponent: noLife }, { kind: 'lrigAttack' })?.risk ?? -1, 0,
+    '🔴ライフが0枚なのにガードの期待損を払っている');
+  near(applyCpuMoveSim(ctxOf(guardPol), { kind: 'lrigAttack' })?.risk ?? -1,
+    lrigAttackRisk(oppHand5, cm as Map<string, CardData>, guardPol, w),
+    '🔴ルリグアタックにガードの期待損が乗っていない');
+
+  // ── ⑦ 探索が点数から引いている（**累積**＝2回割れば2回ぶん）──
+  const searchSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuSearch.ts'), 'utf-8');
+  ok(/const risk = node\.risk \+ \(after\.risk \?\? 0\);/.test(searchSrc), '🔴期待損を手順に沿って累積していない');
+  ok(/evaluateBoard\(after\.cpu, after\.opp, ctx\.lookahead\) - risk/.test(searchSrc), '🔴期待損を終端の点数から引いていない');
+  const opts = { width: 4, depth: 4, pendingSpell: false };
+  const plain = searchCpuMove(ctxOf(), 'ATTACK_SIGNI', opts);
+  ok(!!plain.move, '🔴期待損ゼロでもアタックを選ばない（前提が崩れている）');
+  // 🔑**期待損を極端に大きくすると「撃たない」が出る**＝これが第3段で初めて意味を持つ判定。
+  const huge = { ...burst, lifeBurstCost: 1e6 } as CpuPolicy;
+  const scared = searchCpuMove(ctxOf(huge), 'ATTACK_SIGNI', opts);
+  eq(scared.move, null, '🔴期待損がクラッシュの価値を桁で超えてもアタックを選ぶ＝`risk` が探索に届いていない');
+  ok(scared.candidates > 0, '🔴候補が0＝「探索の外の手しか無い」と混ざっている（`S-21` の計器）');
+  ok(scared.actionScore < scared.baseline, '🔴「厳密に損」になっていない＝同点の「何もしない」と区別できない');
+  ok(scared.actionRisk > 0, '🔴最善手順が背負った期待損を返していない＝「撃たない」を第3段のせいにしてよいか判定できない');
+  // 🔴🔑**誤帰属の検査**＝**期待損が 0 の手しか無い盤面では `actionRisk` も 0**＝`cpuTurn` の条件④が効いて
+  //   「撃たない」を出さない。実測（2026-09-21、96戦）＝条件④なしで出た「撃たない」**3件は全部 `risk === 0`**だった。
+  // ⚠全レーンを塞ぐ＝1レーンでも空いていればそこへのアタックがライフを割る（期待損が乗る）。
+  const allFacing = { ...oppHand5, field: { ...oppHand5.field, signi: [[`${VANILLA}#o0`], [`${VANILLA}#o1`], [`${VANILLA}#o2`]] } } as PlayerState;
+  eq(searchCpuMove({ ...ctxOf(burst), opponent: allFacing }, 'ATTACK_SIGNI', opts).actionRisk, 0,
+    '🔴ライフを割らない盤面なのに期待損が乗っている＝「撃たない」を第3段のせいに誤帰属する');
+
+  // ── ⑧ 配線＝**「撃たない」は3条件そろったときだけ**（既定は従来どおり価値表へ落ちる）──
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/const attackRiskAware = cpuPolicy\.lifeBurstCost > 0 \|\| cpuPolicy\.guardDeckCount > 0;/.test(turn),
+    '🔴期待損を見ないポリシーでも「撃たない」を選べる＝実機の挙動が変わる');
+  ok(/&& searchedAttack\.candidates > 0 && searchedAttack\.actionScore < searchedAttack\.baseline$/m.test(turn),
+    '🔴「候補はあった」と「厳密に損」の2条件が揃っていない＝第2段で捨てた20回のアタックが戻ってくる');
+  ok(/&& searchedAttack\.actionRisk > 0;/.test(turn),
+    '🔴「その損に期待損が効いている」を見ていない＝第3段と無関係の理由で「撃たない」を選ぶ（実測＝96戦の3件全部がこれ）');
+  ok(/const firstUp = declinedAttack \? -1 : searchedZone \?\? pickCpuAttackZone\(\{/.test(turn),
+    '🔴「撃たない」と判定したのに価値表で殴っている／判定なしで価値表へ落ちなくなっている');
+  // 🔴**ログの文言が契約**（`census:play` の `attackDecline`）＝`playCensus.ts` は `pending` なので本体の anchor 検査から外れる。
+  const declineRule = PLAY_MECHANISMS.find(m => m.id === 'attackDecline');
+  ok(!!declineRule, '🔴「撃たない判断」の規則が `census:play` に無い＝回数が測れない（登録票の止め時）');
+  ok(turn.includes(declineRule!.anchor), '🔴「撃たない」のログ文言がソースに無い＝`census:play` が黙って0件になる');
+  ok(declineRule!.pattern.test('[CPU] アタックしない（損と判定: -1234／期待損2000／候補3）'), '🔴規則が自分のログ行に当たらない');
+  // 🔑**数値を書く**＝「なぜ撃たなかったのか」をログだけで追える（推論しない＝§5.6 `C-0`）。
+  ok(/actionScore - searchedAttack!\.baseline/.test(turn), '🔴「どれだけ損か」をログに書いていない＝判定の理由を推論する羽目になる');
+
+  // ── ⑨ 既定値とプリセット（🔴**実機は1ビットも変わらない**）──
+  eq(DEFAULT_CPU_POLICY.lifeBurstCost, 0, '🔴既定でバーストの期待損が入っている（実機の挙動が変わる）');
+  eq(DEFAULT_CPU_POLICY.guardDeckCount, 0, '🔴既定でガードの期待損が入っている（実機の挙動が変わる）');
+  eq(CPU_POLICIES['search-attack'].lifeBurstCost, 0, '🔴第2段のプリセットに第3段が混ざっている＝軸が切り分けられない');
+  eq(CPU_POLICIES['search-attack'].guardDeckCount, 0, '🔴第2段のプリセットに第3段が混ざっている＝軸が切り分けられない');
+  eq(CPU_POLICIES['search-attack-risk'].lifeBurstCost, 2500, '🔴`search-attack-risk` にバーストの期待損が入っていない');
+  eq(CPU_POLICIES['search-attack-risk'].guardDeckCount, 8, '🔴`search-attack-risk` にガードの期待損が入っていない');
+  for (const k of ['search-attack-burst', 'search-attack-guard', 'search-attack-risk']) {
+    eq(CPU_POLICIES[k].searchAttacks, true, `🔴${k} でアタック探索そのものが入っていない＝第3段だけを測れない`);
+  }
+  // 🔑**CLI から差し替えられる**（`S-25` ①＝コードを変えずに A/B できる）
+  eq(patchCpuPolicy(DEFAULT_CPU_POLICY, 'lifeBurstCost=3000').lifeBurstCost, 3000, '🔴`lifeBurstCost` を CLI から差し替えられない');
+  eq(patchCpuPolicy(DEFAULT_CPU_POLICY, 'guardDeckCount=8').guardDeckCount, 8, '🔴`guardDeckCount` を CLI から差し替えられない');
 }));
 
 // ── 第426バッチ（2026-09-21）＝§5.7 `S-25` ①／`S-6`（重みを CLI から差し替える）────────

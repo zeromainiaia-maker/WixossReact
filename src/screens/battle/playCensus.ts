@@ -39,6 +39,11 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'key', label: 'キー', pattern: /^\[CPU\] キー:/, anchor: '[CPU] キー:' },
   { id: 'signiAttack', label: 'シグニアタック', pattern: /^\[CPU\] .+ がアタック$/, anchor: ' がアタック`' },
   { id: 'lrigAttack', label: 'センタールリグのアタック', pattern: /^\[CPU\] ルリグアタック$/, anchor: '[CPU] ルリグアタック' },
+  // 🆕§5.7 `S-17` 第3段＝**「撃たない」判断の回数**（登録票の止め時＝これが測れること）。
+  // 🔴**`pending` の意味がここだけ違う**＝実装は在る（`cpuTurn.ts`）が、**既定のポリシーが期待損を見ない**
+  //   （`lifeBurstCost: 0` / `guardDeckCount: 0`）ので**踏まない**＝未踏に数えると §5.6 の止め時が永久に閉じない。
+  //   ⚠その代わり anchor はここでは検査されないので、**golden `§5.7 S-17 第3段` が別に固定している**。
+  { id: 'attackDecline', label: 'アタックしない判断（§5.7 S-17 第3段・既定オフ）', pattern: /^\[CPU\] アタックしない（損と判定/, anchor: '[CPU] アタックしない（損と判定: ', pending: 'S-17' },
   { id: 'assistAttack', label: 'アシストルリグのアタック', pattern: /^\[CPU\] アシストルリグでアタック$/, anchor: '[CPU] アシストルリグでアタック' },
   { id: 'guard', label: 'ガード', pattern: /^\[CPU\] ガードする（/, anchor: '[CPU] ガードする（' },
   { id: 'lifeBurst', label: 'ライフバースト', pattern: /^\[CPU\] ライフクロスをオープン: .*（ライフバースト発動）$/, anchor: '（ライフバースト発動）' },

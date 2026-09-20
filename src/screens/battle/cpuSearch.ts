@@ -58,6 +58,15 @@ export interface CpuSearchResult {
    * 候補が1つも適用できなかったときは `baseline` と同じ値（＝比べるものが無い）。
    */
   actionScore: number;
+  /**
+   * 🆕§5.7 `S-17` 第3段＝**その最善手順が背負った期待損の累計**（パワー換算・既定 0）。
+   * 🔴🔑**「撃たない」の誤帰属を防ぐための計器**（2026-09-21 実測）＝
+   *   `actionScore < baseline` だけを条件にすると、**期待損とは無関係に点数が下がる手**
+   *   （バトルで相手をバニッシュしてエナを与える等）まで「損だから撃たない」と読んでしまう。
+   *   実測＝96戦で出た「撃たない」**3件は全部 `risk === 0`**＝**第3段は1件も関与していなかった。**
+   *   ⇒ **判断を第3段のせいにしてよいのは `actionRisk > 0` のときだけ。**
+   */
+  actionRisk: number;
 }
 
 export interface CpuSearchOpts {
@@ -81,7 +90,12 @@ export interface CpuSearchOpts {
   actionBias?: number;
 }
 
-interface Node { board: CpuSimBoard; line: CpuMove[]; score: number }
+/**
+ * 🆕§5.7 `S-17` 第3段＝`risk`＝**この手順で背負った期待損の累積**（パワー換算）。
+ * 🔑**点数（`score`）はすでに `risk` を引いた後の値**＝ビームの並べ替えも「何もしない」との比較も
+ *   全部この1つの数で行う（引く場所を2か所に書かない）。
+ */
+interface Node { board: CpuSimBoard; line: CpuMove[]; score: number; risk: number }
 
 /**
  * この盤面で**いま打つ1手**を探索で決める。
@@ -90,11 +104,11 @@ interface Node { board: CpuSimBoard; line: CpuMove[]; score: number }
  */
 export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearchOpts): CpuSearchResult {
   const baseline = evaluateBoard(ctx.actor, ctx.opponent, ctx.lookahead);
-  const empty: CpuSearchResult = { move: null, line: [], score: baseline, baseline, nodes: 0, candidates: 0, applied: 0, actionScore: baseline };
+  const empty: CpuSearchResult = { move: null, line: [], score: baseline, baseline, nodes: 0, candidates: 0, applied: 0, actionScore: baseline, actionRisk: 0 };
   if (opts.width <= 0 || opts.depth <= 0) return empty;
   const nodeCap = opts.nodeCap ?? 400;
   let nodes = 0;
-  let beam: Node[] = [{ board: { cpu: ctx.actor, opp: ctx.opponent }, line: [], score: baseline }];
+  let beam: Node[] = [{ board: { cpu: ctx.actor, opp: ctx.opponent }, line: [], score: baseline, risk: 0 }];
   // 🆕§5.7 `S-21`＝**「何もしない」を除いた最善**を別に持つ（`best` は baseline と競合したあとの最善）。
   let bestAction: Node | null = null;
   // 🆕§5.7 `S-21`＝**根の盤面で探索が扱える候補の数**（`move === null` の意味を割る計器）。
@@ -112,8 +126,10 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
         nodes++;
         if (!after) continue;
         if (d === 0) rootApplied++;
-        const score = evaluateBoard(after.cpu, after.opp, ctx.lookahead);
-        const child: Node = { board: after, line: [...node.line, move], score };
+        // 🆕§5.7 `S-17` 第3段＝**期待損は手順に沿って累積する**（2回ライフを割れば2回ぶん背負う）。
+        const risk = node.risk + (after.risk ?? 0);
+        const score = evaluateBoard(after.cpu, after.opp, ctx.lookahead) - risk;
+        const child: Node = { board: after, line: [...node.line, move], score, risk };
         next.push(child);
         // ⚠**深いほうが良いとは限らない**＝途中の盤面も含めて最善を採る。
         if (!bestAction || score > bestAction.score) bestAction = child;
@@ -126,7 +142,7 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
     beam = next.slice(0, opts.width);
   }
   const actionScore = bestAction ? bestAction.score : baseline;
-  const stats = { baseline, nodes, candidates: rootCandidates, applied: rootApplied, actionScore };
+  const stats = { baseline, nodes, candidates: rootCandidates, applied: rootApplied, actionScore, actionRisk: bestAction?.risk ?? 0 };
   // 🆕§5.7 `S-21`＝**行動する側に下駄を足してから**「何もしない」と比べる（既定 0＝従来どおり）。
   if (!bestAction || bestAction.score + (opts.actionBias ?? 0) <= baseline) return { ...empty, ...stats };
   return { move: bestAction.line[0], line: bestAction.line, score: bestAction.score, ...stats };

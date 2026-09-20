@@ -20,7 +20,9 @@ import {
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
 import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
+import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -580,7 +582,20 @@ export const CPU_MOVE_PRIORITY: Readonly<Partial<Record<TurnPhase, readonly CpuM
 // ─── 探索用の1手適用（§5.7 `S-16`）────────────────────────────────
 
 /** 1手を適用した結果の盤面（探索用＝**engine だけ**・本番の `perform*` は通らない）。 */
-export interface CpuSimBoard { cpu: PlayerState; opp: PlayerState }
+export interface CpuSimBoard {
+  cpu: PlayerState;
+  opp: PlayerState;
+  /**
+   * 🆕§5.7 `S-17` 第3段＝**この1手で背負った期待損**（パワー換算・省略＝0）。
+   *
+   * 🔑**なぜ盤面ではなく別の口なのか**＝ライフバースト・ガードは**確率**で効くので、
+   *   盤面（ライフ何枚・手札何枚）という**離散の形では表せない**（「0.49枚割れた」は書けない）。
+   *   ⇒ **点数から引く期待値のチャンネル**を1本だけ足した（`cpuSearch` が `evaluateBoard` から差し引く）。
+   * ⚠**増分**＝手順に沿って累積するのは `cpuSearch` 側（ここは「その1手ぶん」だけ返す）。
+   * ⚠**`evaluateBoard` と同じ尺度**（パワー換算）＝別の単位を混ぜない。
+   */
+  risk?: number;
+}
 
 /**
  * 🆕§5.7 `S-16`＝**探索用の1手適用**（`applyCpuMove` の探索側の実装）。
@@ -698,11 +713,15 @@ function payCpuSelfCostSim(
  * 🆕§5.7 `S-17` 第2段＝**ライフクロスを1枚クラッシュした盤面**（近似）。
  *
  * 🔴**近似（正直に）**＝本番（`resolveSigniBattle`）はチェックゾーンへ置き → **ライフバースト**の応答 →
- *   エナゾーンへ、と進む。ここは**バーストを解かず**にエナへ直行する（＝**相手のバーストを常に「無い」と読む**）。
- *   ⚠**探索が楽観に振れる向きの近似**＝`S-17` 第3段で「バーストの事前確率」を入れるまでは、
- *   **アタックの点数は上振れして出る**（それでも「順番」の比較には効く＝どの順でも同じだけ上振れする）。
+ *   エナゾーンへ、と進む。ここは**バーストを解かず**にエナへ直行する（＝**盤面としては常に「無い」と読む**）。
+ * 🆕§5.7 `S-17` 第3段（2026-09-21）＝**上振れ分は `risk`（期待損）で引く**（`cpuAttackRisk.lifeCrushRisk`）＝
+ *   盤面は楽観のまま・点数だけ確率で割り引く。⚠**既定は `lifeBurstCost: 0`＝第2段と同じ楽観**。
+ *   🔴**どのライフクロスが来るかは見ない**（伏せ札＝カンニング）＝公開ゾーンから出した事前確率だけを使う。
  * ⚠ライフが0枚なら何も起きない（本番はここで勝敗判定＝探索では見ない）。
  */
+/** 探索が使うポリシー（席ごとに違う＝`DEFAULT_CPU_POLICY` を直接読まない＝A/B が効かなくなる）。 */
+const policyOf = (ctx: CpuMoveCtx): CpuPolicy => ctx.lookahead.policy ?? DEFAULT_CPU_POLICY;
+
 function simCrushLife(defender: PlayerState): PlayerState {
   const crashed = defender.life_cloth.at(-1);
   if (!crashed) return defender;
@@ -748,7 +767,13 @@ function simAttack(ctx: CpuMoveCtx, zone: number, id: string): CpuSimBoard | nul
   }
   // ⚠**誘発で盤面が動いたあとの正面**を見る（先に決め打つと「自分で退けた相手」と殴り合う）。
   const facing = opp.field.signi[2 - zone]?.at(-1);
-  if (!facing) return { cpu, opp: simCrushLife(opp) };
+  // 🆕§5.7 `S-17` 第3段＝ライフを割るなら**バーストの期待損**を背負う（既定 0＝見ない）。
+  // 🔴**割るライフが無ければ期待損も無い**＝`simCrushLife` は何もしない（得も損も出ない）＝
+  //   ここを分けないと**盤面は動かないのに点数だけ下がる**＝探索が「撃たない」へ倒れる。
+  if (!facing) {
+    const crushes = opp.life_cloth.length > 0;
+    return { cpu, opp: simCrushLife(opp), risk: crushes ? lifeCrushRisk(opp, ctx.cardMap, policyOf(ctx)) : 0 };
+  }
   const myPowers = calcFieldPowers(cpu, opp, true, ctx.effectsMap, ctx.cardMap, 'ATTACK_SIGNI');
   const opPowers = calcFieldPowers(opp, cpu, false, ctx.effectsMap, ctx.cardMap, 'ATTACK_SIGNI');
   // ⚠**実効パワー（`calcFieldPowers`）が無い札は CSV の素のパワー**（`∞` は engine 側が数値化済み）。
@@ -763,8 +788,9 @@ function simAttack(ctx: CpuMoveCtx, zone: number, id: string): CpuSimBoard | nul
 
 /**
  * 🆕§5.7 `S-17` 第2段＝**センタールリグのアタック**（近似）。
- * 🔴**ガードを解かない**＝相手の手札の【ガード】は非公開（枚数だけが公開情報）＝**第3段で確率にする**。
- *   ⇒ いまは「通る」前提＝**楽観**（`simCrushLife` と同じ向きの近似）。
+ * 🔴**ガードを解かない**＝相手の手札の【ガード】は非公開（枚数だけが公開情報）＝盤面は「通る」前提＝**楽観**。
+ * 🆕§5.7 `S-17` 第3段（2026-09-21）＝**その上振れ分を `risk` で引く**（`cpuAttackRisk.lrigAttackRisk`）＝
+ *   **ガードされる確率は相手の手札の「枚数」だけ**から出す（中身は読まない）。⚠既定 `guardDeckCount: 0` ＝見ない。
  */
 function simLrigAttack(ctx: CpuMoveCtx): CpuSimBoard | null {
   let cpu: PlayerState = { ...ctx.actor, field: { ...ctx.actor.field, lrig_down: true } };
@@ -778,7 +804,11 @@ function simLrigAttack(ctx: CpuMoveCtx): CpuSimBoard | null {
       cpu = after.cpu; opp = after.opp;
     }
   }
-  return { cpu, opp: simCrushLife(opp) };
+  const policy = policyOf(ctx);
+  // ⚠**誘発で盤面が動いたあと**の相手を見る（`simAttack` と同じ＝先に決め打つと自分で減らした手札を数える）。
+  // 🔴**割るライフが無ければ期待損も無い**（`simAttack` と同じ理由）。
+  const risk = opp.life_cloth.length > 0 ? lrigAttackRisk(opp, ctx.cardMap, policy, policy.boardWeights) : 0;
+  return { cpu, opp: simCrushLife(opp), risk };
 }
 
 export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | null {

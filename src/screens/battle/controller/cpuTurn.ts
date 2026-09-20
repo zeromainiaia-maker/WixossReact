@@ -1220,7 +1220,31 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       })
       : null;
     const searchedZone = searchedAttack?.move?.kind === 'signiAttack' ? searchedAttack.move.zone : null;
-    const firstUp = searchedZone ?? pickCpuAttackZone({
+    /**
+     * 🆕🔴§5.7 `S-17` 第3段（2026-09-21）＝**ここで初めて「撃たない」を探索に決めさせてよくなる**。
+     * 🔑**第2段で禁じた理由は「近似が楽観だから」**＝ライフバーストもガードも解いていない盤面では
+     *   「撃たない」が得に見えるのは**同点のときだけ**で、それは**損の無い行動を捨てている**だけだった。
+     *   第3段で**期待損**（`cpuAttackRisk`）を点数に入れたので、**行動が baseline を「厳密に下回る」**という
+     *   判定が意味を持つようになった。
+     * 🔴**条件を4つとも要求する**＝①期待損を実際に見ているポリシーか（既定 0 ＝ **実機は従来どおり**）
+     *   ②候補はあった（`candidates > 0`＝「探索の外の手しか無い」と混ぜない＝`S-21` の計器）
+     *   ③**同点ではなく厳密に損**（`actionScore < baseline`）
+     *   ④🔴**その損に期待損が効いている**（`actionRisk > 0`）。**④が無いと誤帰属する**＝
+     *     2026-09-21 の実測（96戦）で出た「撃たない」**3件は全部 `risk === 0`**＝バトルで相手をバニッシュすると
+     *     相手のエナが増えて点数が下がる、という**第3段とは無関係の理由**だった。
+     *     ④を落とすと「アタックに損は無い」という第2段の結論（規則上アタッカーは落ちない）を黙って覆す。
+     * ⚠**強制アタックのある盤面ではそもそも探索を通さない**（`attackSearchOn`）＝義務は「撃たない」を選べない。
+     */
+    const attackRiskAware = cpuPolicy.lifeBurstCost > 0 || cpuPolicy.guardDeckCount > 0;
+    const declinedAttack = !!searchedAttack && attackRiskAware && searchedZone === null
+      && searchedAttack.candidates > 0 && searchedAttack.actionScore < searchedAttack.baseline
+      && searchedAttack.actionRisk > 0;
+    // 🔑**数値も書く**＝「なぜ撃たなかったのか」をログだけで追えるようにする（2026-09-21＝推論で2往復ムダにした反省・§5.6 `C-0`）。
+    if (declinedAttack) {
+      appendBattleLogs([`[CPU] アタックしない（損と判定: ${Math.round(searchedAttack!.actionScore - searchedAttack!.baseline)}`
+        + `／期待損${Math.round(searchedAttack!.actionRisk)}／候補${searchedAttack!.candidates}）`]);
+    }
+    const firstUp = declinedAttack ? -1 : searchedZone ?? pickCpuAttackZone({
       attackable: attackMoves.map(m => m.zone),
       // ⚠**強制は列挙が刻んだ印から読む**（`collectForcedAttackZones` をここでもう一度回さない＝二重実装）。
       forced: attackMoves.filter(m => m.forced).map(m => m.zone),

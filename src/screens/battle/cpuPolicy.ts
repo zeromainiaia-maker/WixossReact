@@ -110,6 +110,23 @@ export interface CpuPolicy {
    * ⚠**探索が決めるのは順番だけ**（撃つ／撃たないは `cpuTurn.ts` が従来の価値表へ落とす）。
    */
   readonly searchAttacks: boolean;
+  /**
+   * 🆕§5.7 `S-17` 第3段＝**ライフクロスを1枚割ったときに【ライフバースト】が解決する損**（パワー換算・**既定 0＝見ない**）。
+   *
+   * 期待損＝`P(バースト) × この値`。確率は**公開ゾーンだけ**から出す（`cpuAttackRisk.lifeBurstProbability`）＝
+   * 🔴**伏せ札（相手の山・ライフクロス・手札の中身）は読まない**＝どのバーストが来るかは原理的に分からない。
+   * 📏**実測（2026-09-21・実デッキ27／LB 528枚）**＝解決したときの価値は**平均 2,960 / 中央 2,500 / p90 6,000**。
+   * ⚠**手で決めない**＝この実測は「A/B に掛ける初期値」であって既定値ではない（`search-attack-burst` プリセット）。
+   */
+  readonly lifeBurstCost: number;
+  /**
+   * 🆕§5.7 `S-17` 第3段＝**相手のデッキに入っている【ガード】の想定枚数**（**既定 0＝ガードを見ない**）。
+   *
+   * ルリグアタックが防がれる確率を**相手の手札の枚数**（公開情報）から出すのに使う（`cpuAttackRisk.guardProbability`）。
+   * 📏**実測（2026-09-21・実デッキ27／主デッキ 1,080枚）**＝**204枚（18.9%）＝中央 8/40**。
+   * ⚠**全カードの比率（23/6,713＝0.3%）とは桁が違う**＝サーバントは1デッキに固まって入る。
+   */
+  readonly guardDeckCount: number;
 }
 
 /**
@@ -143,6 +160,10 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   actionBias: 0,
   // 🆕§5.7 `S-17` 第2段＝**既定はアタックを探索しない**＝挙動不変。A/B で勝率を見てから上げる。
   searchAttacks: false,
+  // 🆕§5.7 `S-17` 第3段＝**既定 0＝ライフバースト・ガードの期待損を見ない**（＝第2段と同じ楽観的な近似）。
+  //   値は A/B で決める（`search-attack-burst` / `search-attack-guard` / `search-attack-risk`）。
+  lifeBurstCost: 0,
+  guardDeckCount: 0,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -194,6 +215,14 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 🔑**A/B の相手は `search`**（`default` ではない）＝**アタック探索だけの差**が出る。
    */
   'search-attack': variant('search-attack', { searchWidth: 4, searchDepth: 4, searchAttacks: true }),
+  /**
+   * 🆕§5.7 `S-17` 第3段＝**アタックの期待損を確率で見る**3本。🔑**A/B の相手は `search-attack`**（`default` ではない）
+   *   ＝**第3段だけの差**が出る（第2段の混入を避ける＝`searchAttacks` を別 switch にしたのと同じ理由）。
+   * ⚠**数値は実測の中央値**（LB の解決価値 2,500／デッキのガード 8枚）＝**手で「良さそうな値」を選んでいない**。
+   */
+  'search-attack-burst': variant('search-attack-burst', { searchWidth: 4, searchDepth: 4, searchAttacks: true, lifeBurstCost: 2500 }),
+  'search-attack-guard': variant('search-attack-guard', { searchWidth: 4, searchDepth: 4, searchAttacks: true, guardDeckCount: 8 }),
+  'search-attack-risk': variant('search-attack-risk', { searchWidth: 4, searchDepth: 4, searchAttacks: true, lifeBurstCost: 2500, guardDeckCount: 8 }),
   /** 🆕幅を広げた版（コストと勝率の関係を見る用）。 */
   'search-wide': variant('search-wide', { searchWidth: 8, searchDepth: 6 }),
   /**
@@ -270,12 +299,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
       throw new Error(`CPU policy override の書き方: "key=数値[,key=数値…]"（受け取った: ${part}）`);
     }
     if (key in weights) { weights = { ...weights, [key]: num }; continue; }
-    if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias') {
+    if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
+      || key === 'lifeBurstCost' || key === 'guardDeckCount') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
-      + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks）`);
+      + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
+      + ` / lifeBurstCost / guardDeckCount）`);
   }
   return { ...base, ...top, boardWeights: weights, name: `${base.name}+${parts.join(',')}` };
 }
