@@ -221,7 +221,7 @@ import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPOR
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
-import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { deckActionTypes, formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck } from './selfPlayDecks';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
@@ -89212,6 +89212,48 @@ test('§5.7 S-17 アタックの列挙と近似適用：可否はゲート1本�
   // 🔴**実機（`BattleScreen`）はアタックの列挙を持たない**＝画面は `cpuTurnAction` を呼ぶだけ、の機械的な証拠。
   const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(!screenOnly.includes("listCpuMoves"), '🔴画面が候補列挙を直接呼んでいる（列挙の道は `cpuTurnAction` の1本）');
+}));
+
+// ── 第426バッチ（2026-09-21）＝§5.7 `S-25` ①／`S-6`（重みを CLI から差し替える）────────
+test('§5.7 S-25 ポリシーの数値をその場で差し替える：重み・ポリシー欄・知らないキーは例外', () => withSavedCursor(() => {
+  // 🔑**なぜ要るか**＝仮説を1つ試すたびに `CPU_POLICIES` へプリセットを足していた＝**コードを変えないと測れない**＝
+  //   重みの調整（`S-6`）が1歩も進まない。⇒ `--a-set "fieldPowerScale=1,openLane=1500"` で回せるようにした。
+  const base = DEFAULT_CPU_POLICY;
+  eq(patchCpuPolicy(base, ''), base, '🔴空の差分で別物を返した（差分なしは元のまま）');
+
+  // ① 重み（`boardWeights` のキー）
+  const w = patchCpuPolicy(base, 'fieldPowerScale=1,openLane=1500');
+  eq(w.boardWeights.fieldPowerScale, 1, '🔴重みが差し替わっていない');
+  eq(w.boardWeights.openLane, 1500, '🔴2つ目の重みが差し替わっていない');
+  eq(w.boardWeights.life, base.boardWeights.life, '🔴指定していない重みまで動いた');
+  eq(base.boardWeights.fieldPowerScale, 0.25, '🔴元のポリシーを書き換えた（共有オブジェクトを壊している）');
+
+  // ② ポリシー欄（数値・真偽値）
+  eq(patchCpuPolicy(base, 'searchWidth=0').searchWidth, 0, '🔴`searchWidth` を差し替えられない＝探索の入切が測れない');
+  eq(patchCpuPolicy(base, 'searchAttacks=1').searchAttacks, true, '🔴真偽値の欄を 1 で立てられない');
+  eq(patchCpuPolicy(base, 'searchAttacks=0').searchAttacks, false, '🔴真偽値の欄を 0 で倒せない');
+
+  // ③ 🔑**どの数値で回したかが名前に残る**（`S-9` の規律＝勝率表から読める）
+  ok(patchCpuPolicy(base, 'openLane=1500').name.includes('openLane=1500'), '🔴差分が名前に残っていない＝勝率表からどの数値か分からない');
+
+  // ④ 🔴知らないキー・書き方の間違いは**例外**（`resolveCpuPolicy` と同じ規律）＝
+  //    打ち間違いが「既定のまま測った」に化けると、A/B が静かに嘘をつく。
+  for (const bad of ['nosuch=1', 'openLane', 'openLane=abc', '=3']) {
+    let threw = false;
+    try { patchCpuPolicy(base, bad); } catch { threw = true; }
+    ok(threw, `🔴おかしな差分 "${bad}" を黙って受け取った`);
+  }
+
+  // ⑤ 配線＝A/B の両側に口がある（片方だけだと対照が作れない）
+  const hs = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
+  ok(/const A_SET = strArg\('--a-set', ''\);/.test(hs) && /const B_SET = strArg\('--b-set', ''\);/.test(hs),
+    '🔴`--a-set` / `--b-set` の片方しか無い');
+  ok(/policyOf\(A_NAME, A_SET\)/.test(hs) && /policyOf\(B_NAME, B_SET\)/.test(hs), '🔴差分がポリシーの組み立てに届いていない');
+  ok(/\.\.\.\(A_SET \? \['--a-set', A_SET\] : \[\]\)/.test(hs),
+    '🔴子プロセス（`--jobs`）へ差分を渡していない＝並列のときだけ既定の重みで回る（静かに嘘をつく）');
+  // 🔴**画面は差し替えを使わない**＝実機の CPU は既定のポリシーだけで動く（`S-9` の規律と同じ）。
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(!screenSrc.includes('patchCpuPolicy'), '🔴画面がポリシーの差し替えを呼んでいる＝実機の挙動が測定台の都合で変わる');
 }));
 
 if (listMode) {

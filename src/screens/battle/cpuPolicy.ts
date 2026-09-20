@@ -246,3 +246,36 @@ export function resolveCpuPolicy(name: string): CpuPolicy {
   if (!p) throw new Error(`unknown CPU policy: ${name}（使えるのは ${Object.keys(CPU_POLICIES).join(' / ')}）`);
   return p;
 }
+
+/**
+ * 🆕§5.7 `S-25` ①／`S-6`＝**ポリシーの数値を名前で差し替える**（`"fieldPowerScale=1,openLane=1500"`）。
+ *
+ * 🔑**なぜ要るか**＝いままで仮説を1つ試すたびに `CPU_POLICIES` へプリセットを足していた＝
+ *   **コードを変えないと測れない**＝重みの調整（`S-6`）が1歩も進まない。
+ * 🔴**知らないキーは例外**（`resolveCpuPolicy` と同じ規律）＝打ち間違いが「既定のまま測った」に化けない。
+ * ⚠**`boardWeights` のキーが先**（`life`／`openLane`／`fieldPowerScale` …）＝同名はポリシー側に無い。
+ * ⚠**数値だけ**（`searchAttacks` のような真偽値は `1`／`0` で書く）。
+ * ⚠**名前は `<元の名前>+<差分>`** になる＝勝率表にどの数値で回したかが残る（`S-9` の規律）。
+ */
+export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
+  const parts = spec.split(',').map(x => x.trim()).filter(Boolean);
+  if (parts.length === 0) return base;
+  let weights = { ...base.boardWeights };
+  const top: Record<string, number | boolean> = {};
+  for (const part of parts) {
+    const [rawKey, rawVal] = part.split('=');
+    const key = (rawKey ?? '').trim();
+    const num = Number((rawVal ?? '').trim());
+    if (!key || rawVal === undefined || !Number.isFinite(num)) {
+      throw new Error(`CPU policy override の書き方: "key=数値[,key=数値…]"（受け取った: ${part}）`);
+    }
+    if (key in weights) { weights = { ...weights, [key]: num }; continue; }
+    if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias') {
+      top[key] = num; continue;
+    }
+    if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
+    throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
+      + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks）`);
+  }
+  return { ...base, ...top, boardWeights: weights, name: `${base.name}+${parts.join(',')}` };
+}

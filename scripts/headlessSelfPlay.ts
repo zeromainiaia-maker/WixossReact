@@ -60,7 +60,7 @@ import type { BattleStateRow, CardData, PlayerState, TurnPhase } from '../src/ty
 import { setRngSeed, shuffle } from '../src/engine/rng';
 import { CPU_PLAYER_ID, assignGuestInstanceIds, assignInstanceIds } from '../src/screens/battle/battleUtils';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
-import { resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { patchCpuPolicy, resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
@@ -87,6 +87,14 @@ const ALLOW_STALL = argv.includes('--allow-stall');
 const AB_MODE = argv.includes('--a') || argv.includes('--b');
 const A_NAME = strArg('--a', 'default');
 const B_NAME = strArg('--b', 'default');
+/**
+ * 🆕§5.7 `S-25` ①／`S-6`＝**重みをその場で差し替える**（`--a-set "fieldPowerScale=1,openLane=1500"`）。
+ * 🔑**プリセットを足さずに仮説を試せる**＝重みの調整が「コードを変えないと測れない」状態を抜ける。
+ */
+const A_SET = strArg('--a-set', '');
+const B_SET = strArg('--b-set', '');
+/** 名前 → プリセット → 差分（`--a-set`）。⚠差分は名前に残る（どの数値で回したか勝率表に出す）。 */
+const policyOf = (name: string, set: string): CpuPolicy => patchCpuPolicy(resolveCpuPolicy(name), set);
 const JOBS = numArg('--jobs', 1);
 /** 子プロセスとして呼ばれたか（結果を1行 JSON で返すだけ＝人が読む出力は出さない）。 */
 const IS_WORKER = argv.includes('--worker');
@@ -280,6 +288,7 @@ function runWorker(seeds: number[]): Promise<AbGameResult[]> {
     // 🆕§5.7 `S-23`＝**山も子へ渡す**（渡し忘れると子だけ既定の合成デッキで回り、親の表題と中身が食い違う）。
     ...(deckA.name === MECH_DECK.name ? [] : ['--deck-a', deckA.name]),
     ...(deckB.name === MECH_DECK.name ? [] : ['--deck-b', deckB.name]),
+    ...(A_SET ? ['--a-set', A_SET] : []), ...(B_SET ? ['--b-set', B_SET] : []),
     ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : [])];
   return new Promise((resolve, reject) => {
     const ch = spawn(process.execPath, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'inherit'] });
@@ -297,7 +306,7 @@ function runWorker(seeds: number[]): Promise<AbGameResult[]> {
 
 // ══ ① 子プロセス（結果を1行 JSON で返すだけ）══
 if (IS_WORKER) {
-  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const a = policyOf(A_NAME, A_SET), b = policyOf(B_NAME, B_SET);
   for (const seed of WORKER_SEEDS) {
     for (const r of await playPair(seed, a, b)) console.log(`##R ${JSON.stringify(r)}`);
   }
@@ -333,7 +342,7 @@ async function runAb(a: CpuPolicy, b: CpuPolicy, quiet = false) {
  * 使い方＝`npm run selfplay:ab -- --a search --b default --decks "A,B,C" --games 8`
  */
 if (AB_MODE && ROUND_ROBIN.length >= 1) {
-  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const a = policyOf(A_NAME, A_SET), b = policyOf(B_NAME, B_SET);
   const list = ROUND_ROBIN.map(n => resolveSelfPlayDeck(n, allCardMap));
   console.log(`A=${a.name} vs B=${b.name}｜山 ${list.length}種 × ${GAMES} シード × 2戦（席入れ替え）`);
   console.log(formatDeckCoverage(list));
@@ -366,7 +375,7 @@ if (AB_MODE && ROUND_ROBIN.length >= 1) {
 // ══ ②' 総当たり（§5.7 `S-23` ①＝**本物のデッキで測る**）══
 // 🔑**ポリシーは両席とも同じ**（`--a` で指定・既定 `default`）＝ここで測るのは**山の差**。
 if (ROUND_ROBIN.length >= 2) {
-  const policy = resolveCpuPolicy(A_NAME);
+  const policy = policyOf(A_NAME, A_SET);
   const list = ROUND_ROBIN.map(n => resolveSelfPlayDeck(n, allCardMap));
   console.log(`総当たり ${list.length}デッキ（ポリシーは両席とも ${policy.name}）｜1組 ${GAMES} シード × 2戦（席入れ替え）`);
   console.log(formatDeckCoverage(list));
@@ -413,7 +422,7 @@ if (ROUND_ROBIN.length >= 2) {
 
 // ══ ② A/B モード ══
 if (AB_MODE) {
-  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const a = policyOf(A_NAME, A_SET), b = policyOf(B_NAME, B_SET);
   const deckLabel = deckA.name === deckB.name ? `山＝${deckA.name}` : `山 A=${deckA.name} / B=${deckB.name}`;
   console.log(`A=${a.name} vs B=${b.name}｜${GAMES} シード × 2戦（席入れ替え）＝ ${GAMES * 2} 戦｜並列 ${Math.max(1, Math.min(JOBS, GAMES))}｜${deckLabel}`);
   // 🔑§5.7 `S-20` ③＝**その山が踏みうる型の数を必ず出す**（勝率 50% を「安全」と誤読しないため）。
