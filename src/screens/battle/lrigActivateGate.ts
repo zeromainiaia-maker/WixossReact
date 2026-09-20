@@ -7,6 +7,7 @@ import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
 import { exceedColorsSatisfied, exceedPoolOf } from './costs';
+import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
 
 /**
@@ -156,6 +157,9 @@ export function canActivateLrigEffect(
   if (act?.type === 'STUB' && act.id === 'SONG_FRAGMENT'
     && !my.energy.some(cn => cardMap.get(getCardNum(cn))?.EffectText?.includes('【歌のカケラ】'))) return false;
   if (eff.condition && !evalUseCondition(eff.condition, my, op, cardMap, sourceCardNum, phase, p.effectivePowers)) return false;
+  // 🆕**「場に出す」だけの【起】は置き場が無ければ撃たせない**（§5.6 `C-0`・バグ報告 `c32a37ce`）＝
+  //   旧は満杯でも撃てて、**《ダウン》を払っただけで盤面が動かなかった**（`WD08-001-E3`）。
+  if (blockedByNoEmptySigniZone(eff, my, op)) return false;
   return true;
 }
 

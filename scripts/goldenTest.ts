@@ -227,6 +227,7 @@ import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/scree
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { blockedByNoEmptySigniZone } from '../src/screens/battle/emptyZoneGate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
@@ -53942,6 +53943,46 @@ test('O-1 lrigActivateGate: ルリグ【起】の提示は封じ・使用制限�
   eq(ids([condEff]).length, 0, '🔴使用条件を満たさなければ提示しない');
   eq(ids([mkLrigAct('L1', { cost: { down_self: true } })], { field: { ...mkState({ lrig: [LRIG_ANY] }).field, lrig_down: true } }).length, 0,
     '【起】《ダウン》：既にダウン済みなら提示しない');
+}));
+
+// 🆕**§5.6 `C-0`（2026-09-20・バグ報告 `c32a37ce`）＝「場に出す」だけの【起】は置き場が要る。**
+// 🔴旧＝`混沌の鍵主　ウムル＝フィーラ`（`WD08-001-E3`）の【起】《ダウン》が**場が満杯でも撃てた**＝
+//   `execAddToField` が `空きシグニゾーンなし（…配置不可）` を出して何もしないので、
+//   **ルリグをダウンさせただけで盤面が1つも動かない**（CPU が毎ターンこれを撃って《ダウン》を捨てていた）。
+// ⚠**止めるのはトップレベルが `ADD_TO_FIELD` の効果だけ**＝`SEQUENCE` の1ステップなら他が動くので止めない。
+// ⚠**コストで自分の場が空く型（`fieldTrash`/`fieldBanish`/`trash_self` …）は止めない**＝過小実行になる。
+test('§5.6 C-0 空き無しの「場に出す」だけの【起】は提示しない（ルリグ／シグニ共通）', () => withSavedCursor(() => {
+  const sg = [findCard(c => c.Type === 'シグニ'), findCard(c => c.Type === 'シグニ'), findCard(c => c.Type === 'シグニ')];
+  const place: CardEffect['action'] = {
+    type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+  } as CardEffect['action'];
+  const ids = (effs: CardEffect[], state?: Partial<PlayerState>) =>
+    listActivatableLrigEffects(lrigGateArgs(effs, state)).map(e => e.effectId);
+  // ⚠`lrigGateArgs` の `state` は **`PlayerState` の浅いマージ**＝`signi` ではなく `field` ごと渡す。
+  const full = { field: mkState({ lrig: [LRIG_ANY], signi: sg }).field } as Partial<PlayerState>;
+  eq(ids([mkLrigAct('L1', { cost: { down_self: true }, action: place })]).join(','), 'L1', '空きがあれば提示する');
+  eq(ids([mkLrigAct('L1', { cost: { down_self: true }, action: place })], full).length, 0,
+    '🔴場が満杯なら提示しない（《ダウン》を払って何も起きない型）');
+  // 対照①＝コストで自分の場が空く型は止めない。
+  eq(ids([mkLrigAct('L1', { cost: { fieldTrash: { count: 1 } }, action: place })], full).join(','), 'L1',
+    'コストで場が空く型は満杯でも提示する');
+  // 対照②＝`SEQUENCE` の1ステップなら他のステップが動くので止めない。
+  const seq = { type: 'SEQUENCE', steps: [place, { type: 'DRAW', owner: 'self', count: 1 }] } as CardEffect['action'];
+  eq(ids([mkLrigAct('L1', { cost: { down_self: true }, action: seq })], full).join(','), 'L1',
+    'SEQUENCE の1ステップなら止めない（他のステップは動く）');
+  // 🔑**live の実カード**＝報告された当の効果で固定する。
+  const umr = (effectsMap.get('WD08-001') ?? []).find(e => e.effectId === 'WD08-001-E3');
+  if (!umr) throw new Error('WD08-001-E3 が live に無い');
+  eq((umr.action as { type?: string }).type, 'ADD_TO_FIELD', 'WD08-001-E3 はトップレベルが ADD_TO_FIELD');
+  const umrArgs = (state?: Partial<PlayerState>) => lrigGateArgs([umr], state);
+  eq(canActivateLrigEffect(umr, umrArgs(), 'WD08-001'), true, 'WD08-001-E3：空きがあれば撃てる');
+  eq(canActivateLrigEffect(umr, umrArgs(full), 'WD08-001'), false,
+    '🔴WD08-001-E3：場が満杯なら撃てない（バグ報告 c32a37ce）');
+  // シグニ【起】側も同じ関数を通る。
+  eq(blockedByNoEmptySigniZone(mkLrigAct('S1', { action: place }), mkState({ signi: sg }), mkState({})), true,
+    'シグニ【起】も同じ判定関数（`blockedByNoEmptySigniZone`）を通す');
+  eq(blockedByNoEmptySigniZone(mkLrigAct('S1', { action: place }), mkState({}), mkState({})), false, '対照：空きがあれば通す');
 }));
 
 test('O-1 (f) lrigActivateGate: 付与【起】も同じ funnel で切れる', () => withSavedCursor(() => {

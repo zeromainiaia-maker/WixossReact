@@ -9,6 +9,7 @@ import { canPayUnderSelfTrash } from './underAnySigniCost';
 import { canPayAttachedOrUnderTrash } from './attachedOrUnderCost';
 import { energyTrashCostSatisfied, handDiscardSigniAffordable, trashExileAffordable } from './costs';
 import { multiZoneExileAffordable } from './multiZoneExileCost';
+import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
 //   トラッシュ【起】と同じ funnel を使う（写経しない）。
 import { canOfferTrashActivate } from './trashActivateCost';
@@ -250,6 +251,9 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     // lrigDown: アップ状態のルリグ（centerOnly / level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
     !(e.cost?.lrigDown && payLrigDownCost(my, e.cost.lrigDown, cardMap) === null) &&
     (!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, cardMap, topNum, getPowers())) &&
+    // 🆕**「場に出す」だけの【起】は置き場が無ければ提示しない**（§5.6 `C-0`・バグ報告 `c32a37ce`）＝
+    //   ルリグ【起】と**同じ関数**を通す（写経すると片側だけ穴が空く）。
+    !blockedByNoEmptySigniZone(e, my, op) &&
     (!e.condition || evalUseCondition(e.condition, my, op, cardMap, topNum, phase, getPowers())),
   );
 }
