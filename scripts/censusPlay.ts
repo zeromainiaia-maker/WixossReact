@@ -8,14 +8,24 @@
 // 🔑**§5.6 の唯一の進捗指標**。止め時①＝「未踏 0」（`pending` の機構＝CPU がまだ踏めないものは数えない）。
 // ⚠規則（どのログ行をどの機構と数えるか）は `src/screens/battle/playCensus.ts` だけに置く＝golden がソースの文言と突き合わせる。
 // ⚠ゲートではない（exit 0）。1戦の結果は乱数で揺れる＝**0回を即バグと読まない**（数戦を合算してから判断する）。
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { tallyPlayMechanisms, unvisitedMechanisms } from '../src/screens/battle/playCensus';
 
 const args = process.argv.slice(2);
-const files = args.flatMap((a, i) => (a === '--file' && args[i + 1] ? [args[i + 1]] : []));
+const arg = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+// 🆕§5.7 `S-23`（2026-09-20）＝**自己対戦のログをまとめて読む**（`headlessSelfPlay.ts --logs-out <dir>` の出力）。
+//   ⚠`--grep` はファイル名（`<山A>_vs_<山B>_s<seed>_a.json`）への部分一致＝**山ごとの踏破**を出すのに使う。
+const dir = arg('--dir');
+const grep = arg('--grep');
+const files = [
+  ...args.flatMap((a, i) => (a === '--file' && args[i + 1] ? [args[i + 1]] : [])),
+  ...(dir ? readdirSync(dir).filter(f => f.endsWith('.json') && (!grep || f.includes(grep))).map(f => join(dir, f)) : []),
+];
 if (files.length === 0) {
   console.error('使い方: npm run census:play -- --file scratchpad-verify/playlogs-cpu.json [--file …]');
-  console.error('  入力は `node scripts/verifyFullMatch.mjs cpu` が書き出す（部屋を閉じるとログは消えるため）。');
+  console.error('        npm run census:play -- --dir <自己対戦の --logs-out で書いた dir> [--grep <山の名前>]');
+  console.error('  入力は `node scripts/verifyFullMatch.mjs cpu`（実機）か `headlessSelfPlay.ts --logs-out`（自己対戦）が書き出す。');
   process.exit(2);
 }
 
@@ -30,7 +40,9 @@ for (const f of files) {
 
 const rows = tallyPlayMechanisms(lines);
 console.log(`\n=== 機構踏破表（CPU 側・${files.length}戦）===`);
-for (const m of matches) console.log(`  ${m}`);
+// ⚠**戦数が多いときは明細を畳む**（自己対戦は1組で十数戦になる）。
+if (matches.length <= 8) for (const m of matches) console.log(`  ${m}`);
+else console.log(`  ${matches.length}ファイル・計 ${lines.length}行（明細は省略）`);
 console.log('');
 const w = Math.max(...rows.map(r => r.mechanism.label.length));
 for (const r of rows) {

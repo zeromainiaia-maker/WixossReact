@@ -39,6 +39,17 @@
  *   列挙の道が1本であることの検査（golden `§5.7 S-15` がこのモードを短い手数で回す）。
  *   🔑**`S-16` のビーム幅はこの数字で決める**（測らずに幅を決めない＝登録票）。⚠適用時間は先読みの器がある種類
  *   （召喚・【起】・アーツ・スペル）だけ＝エナチャージ・グロウ・アシスト・レゾナ・ライズは engine 側の適用が未実装（`S-16`）。
+ *
+ * 使い方（④ 本物のデッキで測る＝§5.7 `S-23`／`S-20` ①③・2026-09-20）＝
+ *   `node scripts/listDecks.mjs --export scratchpad-decks`（1回だけ・DB から書き出す）のあと
+ *   - `npx tsx scripts/headlessSelfPlay.ts --deck "ケトッシー軸" --games 1`         # 両席とも同じ山
+ *   - `npm run selfplay:ab -- --deck-a "WD13" --deck-b "天使軸1" --games 20`        # **山の A/B**（席入れ替えつき）
+ *   - `npm run selfplay:ab -- --decks "WD13,天使軸1,ケトッシー軸" --games 6`        # **総当たり**（全ての組）
+ *   - `--logs-out <dir>` を足すと1戦ごとにログ JSON を書く ⇒ `npm run census:play -- --dir <dir> [--grep <山の名前>]` で機構踏破を合算できる。
+ *   🔴**既定の山は変えていない**（`--deck*` を渡さなければ `VERIFY_DECK_MECH`）＝過去の勝率と比べられなくなるため。
+ *   🔑**出力に「その山が踏みうる型の数」を必ず出す**（`S-20` ③）＝**勝率 50% を「安全」と誤読しない**ための計器。
+ *     実測（2026-09-20）＝既定の山 **23種** ／ ユーザー作26デッキの和集合 **85種**（**64種は既定の山に出てこない**・
+ *     `POWER_MODIFY` は既定の山に **0枚**／26デッキ中 **23デッキ**が持つ）。
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -55,7 +66,8 @@ import { applyMulligan } from '../src/screens/battle/mulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
-import { formatAbReport, splitSeeds, summarizeAb, type AbGameResult } from './selfPlayStats';
+import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
+import { formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck, type SelfPlayDeck } from './selfPlayDecks';
 
 const argv = process.argv.slice(2);
 const numArg = (name: string, dflt: number) => {
@@ -87,6 +99,18 @@ const WORKER_SEEDS = strArg('--seeds', '').split(',').filter(Boolean).map(Number
  */
 const FIRST = strArg('--first', 'host') === 'guest' ? CPU_PLAYER_ID : 'HOST';
 const CENSUS_MOVES = argv.includes('--census-moves');
+/**
+ * 🆕§5.7 `S-23`／`S-20` ①＝**山の差し替え**（`--deck` 両席／`--deck-a`・`--deck-b` 席ごと／`--decks` 総当たり）。
+ * 🔴**既定は空＝合成の `VERIFY_DECK_MECH`**（過去の勝率と比較できるように既定は変えない）。
+ * ⚠**山は A/B のラベルに付いて回る**＝`--deck-a` は「A のポリシー」と一緒に席を入れ替える（`playPair`）。
+ */
+const DECK_BOTH = strArg('--deck', '');
+const DECK_A_NAME = strArg('--deck-a', DECK_BOTH);
+const DECK_B_NAME = strArg('--deck-b', DECK_BOTH);
+/** 総当たり（`--decks "A,B,C"`）＝全ての組（順不同）を `--games` シードずつ回す。 */
+const ROUND_ROBIN = strArg('--decks', '').split(',').map(s => s.trim()).filter(Boolean);
+/** 🆕1戦ごとの対戦ログを書き出す先（`npm run census:play -- --file …` の入力）。 */
+const LOGS_OUT = strArg('--logs-out', '');
 /** 🆕§5.7 `S-16`＝`--census-moves` のときに探索も回して「いまの選択とどれだけ変わるか」を測る（既定 幅4・深さ4）。 */
 const SEARCH_W = numArg('--search-width', 4);
 const SEARCH_D = numArg('--search-depth', 4);
@@ -112,50 +136,54 @@ for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}
   for (const r of data) if (r.CardNum?.trim()) allCards.push(r as unknown as CardData);
 }
 
-/** `VERIFY_DECK_MECH`（`scripts/verifySetupDeck.mjs`）と同じ山＝ガード・スペル・アーツ・アシスト・レゾナ・ライズが入る。 */
-const DECK = {
-  lrig_deck: ['WD03-005', 'WD03-004', 'WD03-003', 'WD03-002', 'WDK09-005', 'WXDi-D01-009', 'WDK14-005', 'WXDi-D01-006', 'WX21-011', 'WX12-017',
-    'WDK02-001', 'WXK02-020', 'WXDi-P00-006'],
-  main_deck: [
-    ...Array(4).fill('WD01-017'),
-    ...Array(2).fill('WX03-043'), ...Array(2).fill('WX01-085'),
-    ...Array(2).fill('WX01-083'), ...Array(2).fill('WX02-036'),
-    ...Array(2).fill('WXDi-P05-038'),
-    ...Array(3).fill('WX05-062'), ...Array(2).fill('WX05-060'),
-    ...Array(4).fill('WD03-013'), ...Array(4).fill('WD03-012'), ...Array(3).fill('WD03-010'),
-    ...Array(4).fill('WX12-055'), ...Array(2).fill('WX12-054'),
-    ...Array(2).fill('WX04-080'), ...Array(2).fill('WX04-077'),
-  ],
-};
-const ROLES = { center: 'WD03-005', assistL: 'WDK09-005', assistR: 'WDK14-005' };
-// ⚠**対戦に出るカードだけを渡す**＝全カード（約7,000枚）を渡すと材料の組み立てが1手ごとに重くなる（画面の `battleCardNums` と同じ絞り）。
-const used = new Set([...DECK.main_deck, ...DECK.lrig_deck]);
-const cards = allCards.filter(c => used.has(c.CardNum));
-const cardMap = new Map(cards.map(c => [c.CardNum, c]));
+// ⚠**カードの絞りは山が決まってから**（下の `selectDecks`）＝全カード（約7,000枚）を渡すと材料の組み立てが1手ごとに重くなる
+//   （画面の `battleCardNums` と同じ絞り）。
+const allCardMap = new Map(allCards.map(c => [c.CardNum, c]));
+/**
+ * 🆕§5.7 `S-23`＝**この対戦で使う山**（既定＝合成の `VERIFY_DECK_MECH`）。
+ * ⚠`resolveSelfPlayDeck` は**書き出した JSON だけ**を読む（対戦中に DB は引かない）。
+ */
+let deckA: SelfPlayDeck = resolveSelfPlayDeck(DECK_A_NAME, allCardMap);
+let deckB: SelfPlayDeck = resolveSelfPlayDeck(DECK_B_NAME, allCardMap);
+let cards: CardData[] = [];
+let cardMap = new Map<string, CardData>();
+/**
+ * 山を差し替える（総当たりは組ごとに呼ぶ）。
+ * 🔴**トークン（`CardData_TK.csv`）は常に全部載せる**＝実機の `battleCardNums` が常時ロードしている分＝
+ *   載せ忘れると**効果で生成したカードの `CardData` が引けず、無言の no-op になる**（`O-263` と同じ形）。
+ */
+function selectDecks(a: SelfPlayDeck, b: SelfPlayDeck): void {
+  deckA = a; deckB = b;
+  const used = new Set([...a.mainDeck, ...a.lrigDeck, ...b.mainDeck, ...b.lrigDeck].map(n => String(n).split('#')[0]));
+  cards = allCards.filter(c => used.has(c.CardNum) || /-TK/.test(c.CardNum));
+  cardMap = new Map(cards.map(c => [c.CardNum, c]));
+}
+selectDecks(deckA, deckB);
 
 const HOST_ID = 'headless-host';
 /** 先攻の席（`--first`）。⚠ターン1のドローが1枚になるのは `first_player_id` の側（`cpuTurn.ts` の `drawCount`）。 */
 const firstId = () => (FIRST === 'HOST' ? HOST_ID : CPU_PLAYER_ID);
 
 /** 対戦開始時の1人ぶんの盤面（ルリグ配置 → マリガン無し → ライフクロス7枚）。 */
-function buildSide(guest: boolean): PlayerState {
+function buildSide(guest: boolean, deck: SelfPlayDeck): PlayerState {
   const assign = guest ? assignGuestInstanceIds : assignInstanceIds;
-  const lrigWithIds = assign(DECK.lrig_deck);
-  const mainWithIds = assign(shuffle([...DECK.main_deck]));
-  const at = (n: string) => lrigWithIds[DECK.lrig_deck.indexOf(n)];
+  const lrigWithIds = assign(deck.lrigDeck);
+  const mainWithIds = assign(shuffle([...deck.mainDeck]));
+  const at = (n: string | null | undefined) => (n ? lrigWithIds[deck.lrigDeck.indexOf(n)] : null);
   return applyMulligan(buildLrigSetupState({
-    lrigWithIds, mainWithIds, centerId: at(ROLES.center),
-    assistLId: at(ROLES.assistL), assistRId: at(ROLES.assistR), cardMap,
+    lrigWithIds, mainWithIds, centerId: at(deck.roles.centerLrig)!,
+    assistLId: at(deck.roles.assistLrigL), assistRId: at(deck.roles.assistLrigR), cardMap,
   }), []);
 }
 
-function buildRow(): BattleStateRow {
+/** ⚠**席ごとに山が違う**＝`host`／`guest` の順で組む（シャッフルの乱数の消費順もこの順）。 */
+function buildRow(seats: { host: SelfPlayDeck; guest: SelfPlayDeck }): BattleStateRow {
   return {
     room_id: 'headless', host_id: HOST_ID, guest_id: CPU_PLAYER_ID,
     global_phase: 'PLAYING', setup_phase: null, turn_phase: 'UP', active_user_id: firstId(), turn_count: 1,
-    host_state: buildSide(false), guest_state: buildSide(true),
+    host_state: buildSide(false, seats.host), guest_state: buildSide(true, seats.guest),
     game_logs: [], updated_at: new Date().toISOString(),
-    host_lrig_selected: ROLES.center, guest_lrig_selected: ROLES.center,
+    host_lrig_selected: seats.host.roles.centerLrig, guest_lrig_selected: seats.guest.roles.centerLrig,
     host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
     first_player_id: firstId(), pending_spell: null, pending_effect: null, effect_stack: null,
     winner_id: null, host_end_ack: false, guest_end_ack: false,
@@ -198,14 +226,29 @@ function installMoveCheck() {
  * 1戦。⚠**`setRngSeed` → `buildRow()` の順は変えない**＝山のシャッフルはこの乱数列を消費するので、
  * 同じシードなら**必ず同じ山**になる（席を入れ替えた2戦目が同じ山で回るのはこのため）。
  */
-async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolicy }): Promise<GameOutcome> {
+async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolicy }, swapped = false): Promise<GameOutcome> {
   setRngSeed(seed);
-  const m = createHeadlessMatch(buildRow(), { cards, policy, observeMoves, observeChoice });
+  // 🆕§5.7 `S-23`＝**山もポリシーと一緒に席を入れ替える**（A の山は A のポリシーに付いて回る）。
+  const seats = swapped ? { host: deckB, guest: deckA } : { host: deckA, guest: deckB };
+  const m = createHeadlessMatch(buildRow(seats), {
+    cards, policy, observeMoves, observeChoice,
+    // 🆕§5.7 `S-23`＝**作戦データ（`S-2`）も席ごと**＝デッキごとに違うので1つに畳めない。
+    cpuPlans: { host: seats.host.plan, guest: seats.guest.plan },
+  });
   const t0 = Date.now();
   const res = await m.run(MAX_STEPS);
   const r = m.row();
   const winner = r.winner_id === CPU_PLAYER_ID ? 'guest' : r.winner_id === HOST_ID ? 'host' : '-';
   if (VERBOSE) console.log(m.logs.join('\n'));
+  // 🆕`--logs-out`＝機構踏破（`npm run census:play`）の入力。⚠部屋を閉じるとログが消える実機と違い、ここは決定論で撮り直せる。
+  if (LOGS_OUT) {
+    fs.mkdirSync(LOGS_OUT, { recursive: true });
+    // ⚠**日本語のデッキ名を潰さない**（`\w` で削ると「天使軸1」が `___1` になり、`census:play --grep` で山を絞れない）＝
+    //   Windows/POSIX の両方でファイル名に使えない文字だけを置き換える。
+    const tag = `${deckA.name}_vs_${deckB.name}_s${seed}${swapped ? '_b' : '_a'}`.replace(/[<>:"/|?*\s]/g, '_');
+    fs.writeFileSync(join(LOGS_OUT, `${tag}.json`),
+      JSON.stringify({ logs: m.logs, turnCount: r.turn_count, globalPhase: r.global_phase }, null, 1), 'utf-8');
+  }
   return {
     seed, reason: res.reason, steps: res.steps, turns: r.turn_count, winner,
     ms: Date.now() - t0, hostLife: r.host_state.life_cloth.length, guestLife: r.guest_state.life_cloth.length,
@@ -219,7 +262,7 @@ async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolic
 async function playPair(seed: number, a: CpuPolicy, b: CpuPolicy): Promise<AbGameResult[]> {
   const out: AbGameResult[] = [];
   for (const swapped of [false, true]) {
-    const g = await playOne(seed, swapped ? { host: b, guest: a } : { host: a, guest: b });
+    const g = await playOne(seed, swapped ? { host: b, guest: a } : { host: a, guest: b }, swapped);
     const aSeat = swapped ? 'guest' : 'host';
     out.push({
       seed, swapped, reason: g.reason, steps: g.steps, turns: g.turns, ms: g.ms,
@@ -233,7 +276,11 @@ async function playPair(seed: number, a: CpuPolicy, b: CpuPolicy): Promise<AbGam
 function runWorker(seeds: number[]): Promise<AbGameResult[]> {
   const self = fileURLToPath(import.meta.url);
   const args = ['--import', 'tsx', self, '--worker', '--a', A_NAME, '--b', B_NAME,
-    '--steps', String(MAX_STEPS), '--first', FIRST === 'HOST' ? 'host' : 'guest', '--seeds', seeds.join(',')];
+    '--steps', String(MAX_STEPS), '--first', FIRST === 'HOST' ? 'host' : 'guest', '--seeds', seeds.join(','),
+    // 🆕§5.7 `S-23`＝**山も子へ渡す**（渡し忘れると子だけ既定の合成デッキで回り、親の表題と中身が食い違う）。
+    ...(deckA.name === MECH_DECK.name ? [] : ['--deck-a', deckA.name]),
+    ...(deckB.name === MECH_DECK.name ? [] : ['--deck-b', deckB.name]),
+    ...(LOGS_OUT ? ['--logs-out', LOGS_OUT] : [])];
   return new Promise((resolve, reject) => {
     const ch = spawn(process.execPath, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'inherit'] });
     let buf = '';
@@ -257,12 +304,12 @@ if (IS_WORKER) {
   process.exit(0);
 }
 
-// ══ ② A/B モード ══
-if (AB_MODE) {
-  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+/**
+ * A/B を1組ぶん回す（ポリシーの A/B も、山の A/B（`S-23`）も同じ口）。
+ * ⚠**山は呼ぶ前に `selectDecks` で決めておく**（子プロセスへも `deckA`/`deckB` から渡る）。
+ */
+async function runAb(a: CpuPolicy, b: CpuPolicy, quiet = false) {
   const seeds = Array.from({ length: GAMES }, (_, i) => SEED0 + i);
-  console.log(`A=${a.name} vs B=${b.name}｜${seeds.length} シード × 2戦（席入れ替え）＝ ${seeds.length * 2} 戦｜並列 ${Math.max(1, Math.min(JOBS, seeds.length))}`);
-  const t0 = Date.now();
   let ab: AbGameResult[];
   if (JOBS > 1 && seeds.length > 1) {
     ab = (await Promise.all(splitSeeds(seeds, JOBS).map(runWorker))).flat();
@@ -271,11 +318,70 @@ if (AB_MODE) {
     for (const seed of seeds) {
       const rs = await playPair(seed, a, b);
       ab.push(...rs);
-      console.log(`  seed=${seed} A(先攻)=${rs[0].winner ?? rs[0].reason} / A(後攻)=${rs[1].winner ?? rs[1].reason}`);
+      if (!quiet) console.log(`  seed=${seed} A(先攻)=${rs[0].winner ?? rs[0].reason} / A(後攻)=${rs[1].winner ?? rs[1].reason}`);
     }
   }
   ab.sort((x, y) => (x.seed - y.seed) || (Number(x.swapped) - Number(y.swapped)));
-  const sum = summarizeAb(ab, FIRST === 'HOST' ? 'host' : 'guest');
+  return summarizeAb(ab, FIRST === 'HOST' ? 'host' : 'guest');
+}
+
+// ══ ②' 総当たり（§5.7 `S-23` ①＝**本物のデッキで測る**）══
+// 🔑**ポリシーは両席とも同じ**（`--a` で指定・既定 `default`）＝ここで測るのは**山の差**。
+if (ROUND_ROBIN.length >= 2) {
+  const policy = resolveCpuPolicy(A_NAME);
+  const list = ROUND_ROBIN.map(n => resolveSelfPlayDeck(n, allCardMap));
+  console.log(`総当たり ${list.length}デッキ（ポリシーは両席とも ${policy.name}）｜1組 ${GAMES} シード × 2戦（席入れ替え）`);
+  console.log(formatDeckCoverage(list));
+  const t0 = Date.now();
+  type Cell = { a: string; b: string; rate: number; lo: number; hi: number; decided: number; stalled: number; pairs: string };
+  const cells: Cell[] = [];
+  const score = new Map<string, { w: number; n: number }>();
+  /** 🆕§5.7 `S-19`＝先攻の勝率（全組の合算）。 */
+  const first = { wins: 0, n: 0 };
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      selectDecks(list[i], list[j]);
+      const sum = await runAb(policy, policy, true);
+      cells.push({
+        a: list[i].name, b: list[j].name, rate: sum.rate, lo: sum.lo, hi: sum.hi,
+        decided: sum.decided, stalled: sum.stalled,
+        pairs: `${sum.pairs.aSweep}-${sum.pairs.split}-${sum.pairs.bSweep}`,
+      });
+      // 🆕§5.7 `S-19`＝**先攻の勝率は組ごとではなく全体で読む**（1組16戦では区間が広すぎる）。
+      first.wins += Math.round(sum.firstPlayerRate * sum.decided); first.n += sum.decided;
+      for (const [name, w, n] of [[list[i].name, sum.aWins, sum.decided], [list[j].name, sum.decided - sum.aWins, sum.decided]] as const) {
+        const cur = score.get(name) ?? { w: 0, n: 0 };
+        score.set(name, { w: cur.w + w, n: cur.n + n });
+      }
+      console.log(`  ${list[i].name} vs ${list[j].name}：${(sum.rate * 100).toFixed(1)}% [${(sum.lo * 100).toFixed(1)}, ${(sum.hi * 100).toFixed(1)}]`
+        + `｜決着 ${sum.decided}/${sum.games}｜組（A連勝-1勝1敗-B連勝）${cells[cells.length - 1].pairs}`
+        + `｜先攻 ${(sum.firstPlayerRate * 100).toFixed(1)}%`);
+    }
+  }
+  console.log(`\n=== デッキ別の勝率（総当たり・席入れ替え込み）===`);
+  for (const [name, s] of [...score].sort((x, y) => (y[1].w / Math.max(1, y[1].n)) - (x[1].w / Math.max(1, x[1].n)))) {
+    console.log(`  ${name.padEnd(14)} ${((s.w / Math.max(1, s.n)) * 100).toFixed(1)}%（${s.w}/${s.n}）`);
+  }
+  // 🆕§5.7 `S-19`＝**先攻の勝率（全組の合算）**＝`--first` を反転しなくても「手番の偏り」がここに出る。
+  const fw = wilsonInterval(first.wins, first.n);
+  console.log(`先攻（${FIRST === 'HOST' ? 'host' : 'guest'}席）の勝率 ${((first.wins / Math.max(1, first.n)) * 100).toFixed(1)}%`
+    + `（${first.wins}/${first.n}）  95%CI [${(fw.lo * 100).toFixed(1)}, ${(fw.hi * 100).toFixed(1)}]`);
+  const stalled = cells.reduce((a2, c) => a2 + c.stalled, 0);
+  console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒｜止まった対戦 ${stalled}`);
+  console.log('⚠**勝率はデッキの強さと CPU の打ち方の合成**＝デッキが弱いのか CPU が使えていないのかはここでは分からない（`census:play` の踏破と併せて読む）。');
+  if (stalled > 0 && !ALLOW_STALL) process.exit(1);
+  process.exit(0);
+}
+
+// ══ ② A/B モード ══
+if (AB_MODE) {
+  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const deckLabel = deckA.name === deckB.name ? `山＝${deckA.name}` : `山 A=${deckA.name} / B=${deckB.name}`;
+  console.log(`A=${a.name} vs B=${b.name}｜${GAMES} シード × 2戦（席入れ替え）＝ ${GAMES * 2} 戦｜並列 ${Math.max(1, Math.min(JOBS, GAMES))}｜${deckLabel}`);
+  // 🔑§5.7 `S-20` ③＝**その山が踏みうる型の数を必ず出す**（勝率 50% を「安全」と誤読しないため）。
+  console.log(formatDeckCoverage(deckA.name === deckB.name ? [deckA] : [deckA, deckB]));
+  const t0 = Date.now();
+  const sum = await runAb(a, b);
   console.log(formatAbReport(sum, a.name, b.name));
   console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒（対戦の合計は ${(sum.totalMs / 1000).toFixed(0)}秒）`);
   if (sum.stalled > 0) {
@@ -414,6 +520,10 @@ if (CENSUS_MOVES) {
 
 // ══ ④ 従来モード（`npm run selfplay`＝ゲート）══
 // 🆕§5.7 `S-15`＝ゲートでも打った手の照合を回す（列挙は1盤面 約2ms＝1戦で1秒未満）。
+if (deckA.name !== MECH_DECK.name || deckB.name !== MECH_DECK.name) {
+  console.log(`山＝${deckA.name === deckB.name ? deckA.name : `host ${deckA.name} / guest ${deckB.name}`}`);
+  console.log(formatDeckCoverage(deckA.name === deckB.name ? [deckA] : [deckA, deckB]));
+}
 const moveCheck = installMoveCheck();
 const results: GameOutcome[] = [];
 for (let g = 0; g < GAMES; g++) {

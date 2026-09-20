@@ -223,6 +223,7 @@ import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
+import { deckActionTypes, formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck } from './selfPlayDecks';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
@@ -89049,6 +89050,58 @@ test('デッキフォーマット: 画面の配線（追加可否・保存・CPU
   ok(mm.includes('variantNumIndex'), '🔴マッチングがフォーマット判定に避難先索引を使っていない');
   ok(mm.includes('decks.length ?? 0) > 0'), '🔴候補0のフォルダで対戦開始できる（空 id で部屋だけ出来て止まる）');
 });
+
+// ── 第421バッチ（2026-09-20）＝§5.7 `S-23`（本物のデッキで CPU を測る）────────────────
+test('§5.7 S-23 本物のデッキで測る：山の差し替え・席ごとの作戦データ・型の被覆', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（実測）**＝A/B の既定の山（`VERIFY_DECK_MECH`）は機構を広く踏む目的で選んだ28枚種で、
+  //   **`POWER_MODIFY` を持つカードが1枚も無い**＝`S-10` はその型を直したのに A/B は1ノードも踏まずに
+  //   「勝率は下がらない」と出していた（`S-20`）。⇒ 山を差し替えられるようにし、**踏みうる型の数を毎回出す**。
+
+  // ── ① 既定の山は合成デッキのまま（過去の勝率と比較できる）──
+  ok(resolveSelfPlayDeck(null, cardMap) === MECH_DECK, '🔴`--deck` 無しで既定の山が変わった＝過去の A/B と比較できなくなる');
+  ok(resolveSelfPlayDeck('', cardMap) === MECH_DECK, '🔴空文字で既定の山に落ちない');
+  // 🔴知らない名前は**例外**＝黙って既定に落ちると「どの山で測ったか分からない数字」が出る（`resolveCpuPolicy` と同じ規律）。
+  let threw = false;
+  try { resolveSelfPlayDeck('no-such-deck-name-xyz', cardMap); } catch { threw = true; }
+  ok(threw, '🔴知らないデッキ名が黙って既定の山に落ちる＝表題と中身が食い違った勝率が出る');
+
+  // ── ② 合成デッキが `scripts/verifySetupDeck.mjs` の `VERIFY_DECK_MECH` とズレていない ──
+  // 🔑**同じ山を2箇所に書いている**（実機の通し対戦は DB のデッキ／自己対戦はメモリ上の配列）＝
+  //   ズレると「実機で測った踏破」と「自己対戦で測った勝率」が別の山の数字になる。
+  const setup = fs.readFileSync(join(root, 'scripts/verifySetupDeck.mjs'), 'utf-8');
+  const blk = setup.match(/const MECH_DECK = (\{[\s\S]*?\n\};)/);
+  ok(!!blk, '前提崩れ＝`verifySetupDeck.mjs` の `MECH_DECK` が見つからない');
+  const litSrc = blk![1].replace(/\/\/[^\n]*/g, '').replace(/;$/, '');
+  const lit = (new Function(`return ${litSrc}`))() as { lrig_deck: string[]; main_deck: string[] };
+  eq(JSON.stringify(lit.lrig_deck), JSON.stringify(MECH_DECK.lrigDeck), '🔴自己対戦と実機ハーネスでルリグデッキがズレた');
+  eq(JSON.stringify(lit.main_deck), JSON.stringify(MECH_DECK.mainDeck), '🔴自己対戦と実機ハーネスでメインデッキがズレた');
+
+  // ── ③ 型の被覆（`S-20` ③）＝live JSON から数えられている ──
+  const mechTypes = deckActionTypes(MECH_DECK);
+  ok(mechTypes.size >= 15, `🔴既定の山の型が数えられていない（${mechTypes.size}種）＝live JSON の読み口が切れた`);
+  ok(mechTypes.has('DRAW'), '前提崩れ＝既定の山に `DRAW` が無い（型の収集が動いていない）');
+  ok(formatDeckCoverage([MECH_DECK]).includes('踏みうる型'),
+    '🔴A/B の出力に「踏みうる型」が出ない＝勝率 50% を「安全」と誤読する（`S-20` の再発）');
+
+  // ── ④ 配線（ここが切れると「本物のデッキ同士」を測っているつもりで別物を測る）──
+  const hs = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
+  ok(/swapped \? \{ host: deckB, guest: deckA \} : \{ host: deckA, guest: deckB \}/.test(hs),
+    '🔴山が席入れ替えに付いて回っていない＝A の山が2戦とも同じ席に居る');
+  ok(/cpuPlans: \{ host: seats\.host\.plan, guest: seats\.guest\.plan \}/.test(hs),
+    '🔴席ごとの作戦データを渡していない＝相手のデッキのキーカードで判断する');
+  ok(/'--deck-a', deckA\.name/.test(hs) && /'--deck-b', deckB\.name/.test(hs),
+    '🔴子プロセス（`--jobs`）へ山を渡していない＝並列のときだけ既定の山で回る');
+  ok(/\/-TK\/\.test\(c\.CardNum\)/.test(hs),
+    '🔴トークンを常時ロードしていない＝効果で生成したカードの CardData が引けず無言の no-op になる（`O-263` と同じ形）');
+  const headless = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf-8');
+  ok(/cpuPlan: planFor\('guest'\)/.test(headless), '🔴guest 席の CPU に席ごとの作戦データを渡していない');
+  ok(/cpuPlan: planFor\('host'\)/.test(headless), '🔴host 席（席の鏡）の CPU に席ごとの作戦データを渡していない');
+  ok(/cpuPlan: planFor\(responderId === bs\.host_id \? 'host' : 'guest'\)/.test(headless),
+    '🔴対話の応答が「答える席」の作戦データを使っていない');
+  // 🔴**実機（`BattleScreen`）は席ごとの作戦データを渡さない**＝人間側にデッキの作戦は無い（`policy` と同じ規律）。
+  const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(!screenOnly.includes('cpuPlans'), '🔴画面が席ごとの作戦データを渡している＝実機の挙動が変わりうる（`S-23` は測定台だけのはず）');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

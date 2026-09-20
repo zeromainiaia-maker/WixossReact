@@ -74,6 +74,14 @@ export interface HeadlessMatchDeps {
   cards: CardData[];
   /** CPU デッキの作戦データ（§5.7 `S-2`）。省略時は既定。 */
   cpuPlan?: CpuDeckPlan;
+  /**
+   * 🆕§5.7 `S-23`＝**席ごとの作戦データ**（省略時は `cpuPlan`）。
+   *
+   * 🔴**これが無いと「本物のデッキ同士」を測れない**＝作戦データ（キーカード・優先札・コンボ）は
+   *   **デッキごとに違う**ので、両席で1つを共有すると**相手のデッキのキーカードを自分の判断に使う**。
+   * ⚠`policy` と同じ形（席のキー）で持つ＝A/B の席入れ替えは呼び出し側（`scripts/headlessSelfPlay.ts`）の仕事。
+   */
+  cpuPlans?: { host: CpuDeckPlan; guest: CpuDeckPlan };
   /** ルール処理の二重処理防止の指紋（省略時は新規）。 */
   memo?: RuleCheckMemo;
   /**
@@ -135,6 +143,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
   const { io, logs } = createHeadlessIo(persist);
   const row = () => persist.current()!;
   const cpuPlan = d.cpuPlan ?? normalizeCpuDeckPlan(undefined);
+  /** 🆕§5.7 `S-23`＝その席の作戦データ（`cpuPlans` が無ければ従来どおり1つを共有）。 */
+  const planFor = (seat: 'host' | 'guest') => d.cpuPlans?.[seat] ?? cpuPlan;
   const memo = d.memo ?? createRuleCheckMemo();
   // 🔑**静的な効果表は1回だけ組む**＝これを毎回作ると全カードの parse を1手に何度も払う（試運転で 120秒/1手）。
   const uniqCards = [...new Map(d.cards.map(c => [c.CardNum, c] as const)).values()];
@@ -200,7 +210,9 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     const res = decideCpuInteractionResponse(pe, {
       cpuPlayerId: responderId, hostId: bs.host_id,
       hostState: bs.host_state, guestState: bs.guest_state,
-      cards: d.cards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap, cpuPlan,
+      cards: d.cards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
+      // 🆕§5.7 `S-23`＝**答える席の作戦データ**で答える（対話は両席の CPU が答えるため）。
+      cpuPlan: planFor(responderId === bs.host_id ? 'host' : 'guest'),
     });
     if (!res) return false;
     const h = makeEffectInteractionHandlers(ctx, { loading: false });
@@ -285,7 +297,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     if (cpuShouldAct(bs) && !cpuWaitingForHuman(bs)) {
       await cpuTurnAction(ctxOf(bs, bs.host_id), {
         actions: actionsFor(() => ctxOf(row(), row().host_id)),
-        allCards: d.cards, cpuPlan,
+        allCards: d.cards, cpuPlan: planFor('guest'),
         // 🆕§5.7 `S-9`＝この枝は **guest 席**の CPU（鏡を通していない）。
         policy: d.policy?.guest ?? DEFAULT_CPU_POLICY,
         observeMoves: d.observeMoves, observeChoice: d.observeChoice,
@@ -306,7 +318,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     const mirroredCtx = () => ctxOf(mirrored(), hostId, mirrorIo);
     await cpuTurnAction(mirroredCtx(), {
       actions: actionsFor(mirroredCtx),
-      allCards: d.cards, cpuPlan,
+      allCards: d.cards, cpuPlan: planFor('host'),
       // 🆕§5.7 `S-9`＝この枝は **host 席**の CPU（鏡を通して同じ関数に指させている）。
       policy: d.policy?.host ?? DEFAULT_CPU_POLICY,
       observeMoves: d.observeMoves, observeChoice: d.observeChoice,

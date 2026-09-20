@@ -65,3 +65,5 @@ docs/behavior_audit/
 docs/_held_review_all.txt
 # §5.6 C-0: 取り込んだバグ報告（盤面ダンプ＝巨大・個別の対戦の記録）
 /scratchpad-reports/
+# §5.7 S-23: DB から書き出したユーザーのデッキ（本物の山で A/B を測る入力）
+/scratchpad-decks/
