@@ -71,6 +71,14 @@ export interface CpuPolicy {
   readonly spellGainMin: number;
   /** 手札に残す【ガード】の枚数（`cpuBoardEval.pickCpuDeployCard`）。 */
   readonly keepGuards: number;
+  /**
+   * 🆕§5.7 `S-16`＝**メインフェイズの探索のビーム幅**（`cpuSearch.searchCpuMove`）。**0 なら探索しない**＝従来の優先順。
+   * 🔑**分岐 flag ではなく数値**＝どの幅で回した結果かが勝率表から読める（§5.7 `S-9` の規律）。
+   * ⚠**既定は 0**＝実機の挙動は変えない。上げる判断は A/B（`--b search`）で行う。
+   */
+  readonly searchWidth: number;
+  /** 🆕§5.7 `S-16`＝探索の深さ（1ターンに続けて打つ手の数の上限）。`searchWidth` が 0 なら使わない。 */
+  readonly searchDepth: number;
 }
 
 /**
@@ -89,6 +97,9 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   },
   spellGainMin: 1000,
   keepGuards: 1,
+  // 🆕§5.7 `S-16`＝**既定は探索しない**（0）＝挙動不変。A/B で勝率を見てから上げる。
+  searchWidth: 0,
+  searchDepth: 0,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -125,6 +136,22 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 🆕§5.7 `S-18` の **A 側＝「次のターン」項を入れる前の採点**（枚数の線形だけ）。
    * ⚠**消さない**＝`S-18` の A/B（`--a legacy-nextturn --b default`）で使う。
    */
+  /**
+   * 🆕§5.7 `S-16` の **B 側＝メインフェイズをビーム探索で決める CPU**（幅4・深さ4＝`--census-moves` の実測値）。
+   * ⚠**探索が扱えない手**（アシストグロウ・レゾナ・ライズ・キー／ピース）は**従来の優先順のまま**。
+   */
+  search: variant('search', { searchWidth: 4, searchDepth: 4 }),
+  /** 🆕幅を広げた版（コストと勝率の関係を見る用）。 */
+  'search-wide': variant('search-wide', { searchWidth: 8, searchDepth: 6 }),
+  /**
+   * 🆕§5.7 `S-16`＝**探索 ＋ 場のシグニを満額で数える**（`fieldPowerScale: 1`）。
+   * 🔑**仮説の切り分け用**＝探索を入れると弱くなる（実測 27.5%）原因が「**召喚が損に見える**
+   *   （手札 1500 ＞ 生パワー3000 の 0.25 倍＝750）」なのかを確かめる。
+   */
+  'search-power': variant('search-power', {
+    searchWidth: 4, searchDepth: 4,
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1 },
+  }),
   'legacy-nextturn': variant('legacy-nextturn', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
   }),

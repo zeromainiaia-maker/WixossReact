@@ -8,7 +8,7 @@ PlayerState のキー: 382
 ## 参考：書き込みの多い順（上位40）
   1688 読 / 111 書  energy
   1400 読 /  78 書  deck
-  3916 読 /  71 書  field
+  3917 読 /  71 書  field
   1832 読 /  65 書  trash
   2047 読 /  64 書  hand
    234 読 /  33 書  lrig_deck

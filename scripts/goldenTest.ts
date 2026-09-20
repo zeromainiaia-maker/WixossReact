@@ -86705,6 +86705,36 @@ test('§5.7 S-16 先読みは山の順序を見ない（カンニングを塞ぐ
   eq(JSON.stringify(base.deck), JSON.stringify(deck), '🔴先読みが本番の山の並びを書き換えた');
 }));
 
+test('§5.7 S-16 探索の配線：既定は幅0（挙動不変）・実行は人間と同じ perform*・扱えない手は従来の優先順', () => withSavedCursor(() => {
+  // 🔴**既定で挙動が変わらないこと**が最優先＝`BattleScreen` はポリシーを渡さない＝実機は従来どおり。
+  eq(DEFAULT_CPU_POLICY.searchWidth, 0, '🔴既定で探索が有効になっている（実機の挙動が変わる）');
+  eq(DEFAULT_CPU_POLICY.searchDepth, 0, '🔴既定の探索の深さが 0 でない');
+  ok(!!CPU_POLICIES.search && CPU_POLICIES.search.searchWidth > 0, '🔴A/B 用の `search` プリセットが無い＝探索の効果を測れない');
+  // 🔑**分岐 flag ではなく数値**（`cpuPolicy.ts` の規律）＝勝率表からどの幅で回したか読める。
+  eq(typeof CPU_POLICIES.search.searchWidth, 'number', '🔴探索の入切が数値になっていない');
+  const battle = battleScreenSource();
+  // ① 探索を呼ぶのは MAIN（ポリシーの数値で入切）
+  ok(/const cpuSearchOn = cpuPolicy\.searchWidth > 0 && cpuPolicy\.searchDepth > 0/.test(battle),
+    '🔴探索の入切がポリシーの数値になっていない');
+  ok(/searchCpuMove\(cpuMoveCtx\(cpuSt\), 'MAIN', \{/.test(battle), '🔴メインフェイズで探索を呼んでいない');
+  // ② 🔴**実行は人間と同じ `perform*`**（探索用の近似適用で打たない＝§5.6.3）
+  //   ⚠検査は `cpuTurn.ts` 単体で見る（`battleScreenSource()` は `cpuMoves.ts`＝**定義側**も読むため）。
+  const cpuTurnSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(!/applyCpuMoveSim\(/.test(cpuTurnSrc), '🔴本番の実行に探索用の近似適用（`applyCpuMoveSim`）を使っている');
+  ok(/case 'activate': return tryCpuSigniActivated\(actorState, phase, move\.choice\);/.test(battle),
+    '🔴探索が選んだ手を本番の実行関数へ流していない');
+  // ③ 探索が有効なときは、同じ種類を従来の優先順でも打たない（二重に打たない）
+  for (const re of [/if \(!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt\s*\n\s*&& await tryCpuSigniActivated\(newCpuSt, 'MAIN'\)\)/,
+    /if \(!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt\) \{\s*\n\s*if \(await tryCpuUseArts\(newCpuSt, 'MAIN', pickCpuOffensiveArts\)\)/]) {
+    ok(re.test(battle), `🔴探索が有効でも従来の優先順が同じ種類を打つ（${re.source.slice(0, 40)}…）`);
+  }
+  // ④ 探索が扱えない手は**従来の優先順のまま**（`cpuSearchOn` で止めない）＝止めると CPU がレゾナもライズも出さなくなる
+  for (const call of ['tryCpuAssistGrow(newCpuSt)', 'tryCpuResona(newCpuSt)', 'tryCpuRise(newCpuSt)', "tryCpuKeyPiece(newCpuSt, 'MAIN')"]) {
+    const line = battle.split('\n').find(l => l.includes(call) && l.includes('await'));
+    ok(!!line && !line.includes('cpuSearchOn'), `🔴探索の外に置いた手（${call}）まで探索の有無で止めている`);
+  }
+}));
+
 test('§5.7 S-16 前半の探索：幅0で無効・扱えない手は選ばない・決定論・本番の盤面を触らない', () => withSavedCursor(() => {
   // 🔑**探索は「1手適用するたびに候補を出し直す」ビーム**（`listCpuMoves` → `applyCpuMoveSim` → `evaluateBoard`）。
   // ⚠**既定では動かない**＝`searchWidth` が 0 なら呼ばない（ポリシーの数値で入切する）。
@@ -86861,7 +86891,17 @@ test('CPU の召喚：出したシグニの【出】を解決してから次の�
   const pushAfter = battle.indexOf('// 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ', loopStart);
   ok(loopStart > 0 && pushAfter > loopStart, '前提崩れ＝CPU の召喚ループが見つからない');
   const loopBody = battle.slice(loopStart, pushAfter);
-  ok(/if \(cpuOnPlayEntries\.length > 0\) break;\s*\}\s*$/.test(loopBody), '🔴CPU の召喚ループが【出】をためたまま次のシグニを出す（1体ごとに止まらない）');
+  // 🆕§5.7 `S-16`（2026-09-20）＝末尾に**探索の1手 break**が増えた（探索が有効なら1回の呼び出しで1体）。
+  //   ⚠守っている不変条件は不変＝**【出】が1つでも出たらその場でループを抜ける**（ためて一括で積まない）。
+  const breakAt = loopBody.indexOf('if (cpuOnPlayEntries.length > 0) break;');
+  ok(breakAt > 0, '🔴CPU の召喚ループが【出】をためたまま次のシグニを出す（1体ごとに止まらない）');
+  const loopTail = loopBody.slice(breakAt)
+    .replace('if (cpuOnPlayEntries.length > 0) break;', '')
+    .replace('if (cpuSearchOn) { cpuSearchDeployed = true; break; }', '')
+    // 🆕§5.7 `S-16`＝探索が置いた1体はその場で返す（再入してまた探索する）＝ループの外の1行。
+    .replace('if (cpuSearchDeployed && cpuOnPlayEntries.length === 0) return;', '')
+    .replace(/\/\/[^\n]*/g, '').trim();
+  eq(loopTail, '}', `🔴【出】の break の後にループが続いている（${loopTail.slice(0, 80)}）`);
 }));
 
 test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本／CPU はトラッシュ・手札・エナの【起】を先読みで選んで使う', () => withSavedCursor(() => {

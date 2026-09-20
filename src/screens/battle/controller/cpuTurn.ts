@@ -7,7 +7,7 @@ import {initStack, pushToStack} from '../../../engine/effectStack';
 import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectTurnTriggers as pureCollectTurnTriggers, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay} from '../../../engine/triggerCollect';
 import {resolveTurnEndEnergyTrash} from '../turnEndEnergyTrash';
 import {type HandActivateSelections} from '../handActivateCost';
-import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated} from '../cpuOffFieldActivate';
+import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, drawCards} from '../battleUtils';
 import {recordEnergyPlacements} from '../../../engine/energyPlacement';
@@ -50,11 +50,12 @@ import {clearUntilOppTurnEffects} from '../untilOppTurn';
 import {clearAttackFieldTrashCosts} from '../attackFieldTrashCost';
 import {canSigniAttack, collectForcedAttackZones} from '../signiAttackGate';
 import {effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard} from '../cpuBoardEval';
-import {pickCpuSigniActivated} from '../cpuActivate';
-import {pickCpuLrigActivated} from '../cpuLrigActivate';
+import {pickCpuSigniActivated, type CpuActivatedChoice} from '../cpuActivate';
+import {pickCpuLrigActivated, type CpuLrigActivatedChoice} from '../cpuLrigActivate';
 import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts} from '../cpuArts';
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
-import {pickCpuMainSpell} from '../cpuSpell';
+import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
+import {searchCpuMove} from '../cpuSearch';
 import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {centerLrigAttackBlock} from '../lrigAttackGate';
@@ -280,10 +281,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const tryCpuSigniActivated = async (
     actorState: PlayerState,
     phase: 'MAIN' | 'ATTACK_ARTS',
+    /** 🆕§5.7 `S-16`＝探索が選んだ手（渡されたらここでは選ばない）。 */
+    preset?: CpuActivatedChoice,
   ): Promise<boolean> => {
     const input = cpuSigniActivatedInput(cpuMoveCtx(actorState), phase);
     const pool = input.pool;
-    const choice = pickCpuSigniActivated(input);
+    const choice = preset ?? pickCpuSigniActivated(input);
     if (!choice) return false;
     d.observeChoice?.({ kind: 'activate', choice, pool, phase });
     appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
@@ -318,10 +321,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const tryCpuLrigActivated = async (
     actorState: PlayerState,
     phase: 'MAIN' | 'ATTACK_ARTS',
+    preset?: CpuLrigActivatedChoice,
   ): Promise<boolean> => {
     const input = cpuLrigActivatedInput(cpuMoveCtx(actorState), phase);
     const pool = input.pool;
-    const choice = pickCpuLrigActivated(input);
+    const choice = preset ?? pickCpuLrigActivated(input);
     if (!choice) return false;
     d.observeChoice?.({ kind: 'lrigActivate', choice, pool, phase });
     const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
@@ -371,11 +375,14 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    * ⚠**安全弁**＝実行より先に台帳（`cpu_activated_effect_ids_this_turn`）へ刻む（実行側は支払い不能で黙って return しうる）。
    *   キーは `effectId@instance`＝トラッシュに同名が2枚あれば2枚とも使える（回数制限の無い【起】）。
    */
-  const tryCpuOffFieldActivated = async (actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): Promise<boolean> => {
+  const tryCpuOffFieldActivated = async (
+    actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP',
+    preset?: CpuOffFieldChoice,
+  ): Promise<boolean> => {
     // 🆕`ATTACK_ARTS_OP`＝人間のターンのアーツステップ（CPU は非ターンプレイヤー）＝手札の《アタックフェイズアイコン》【起】で応答する。
     const input = cpuOffFieldInput(cpuMoveCtx(actorState), phase);
     const pool = input.pool;
-    const choice = pickCpuOffFieldActivated(input);
+    const choice = preset ?? pickCpuOffFieldActivated(input);
     if (!choice) return false;
     if (phase !== 'ATTACK_ARTS_OP') d.observeChoice?.({ kind: 'offFieldActivate', choice, pool, phase });
     const zoneJa = choice.zone === 'trash' ? 'トラッシュ' : choice.zone === 'hand' ? '手札' : 'エナゾーン';
@@ -436,11 +443,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     actorState: PlayerState,
     turnPhase: TurnPhase,
     pick: (p: CpuArtsPickInput) => CpuArtsChoice | null,
+    preset?: CpuArtsChoice,
   ): Promise<boolean> => {
     const isActorTurn = turnPhase !== 'ATTACK_ARTS_OP';
     const input = cpuArtsInput(cpuMoveCtx(actorState), turnPhase);
     const payer = input.payer;
-    const choice = pick(input);
+    const choice = preset ?? pick(input);
     if (!choice) return false;
     if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: [choice.kind], costIndices: choice.costIndices }, pool: payer.energyPayPool, turnPhase });
     appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
@@ -463,6 +471,57 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       enaMultiStripped: payer.enaMultiStripped,
     });
     return true;
+  };
+
+  /**
+   * CPU がメインフェイズにスペルを1枚使う（使ったら `true`）。🆕§5.7 `S-15`／`S-16`＝
+   * **選ぶ**（`pickCpuMainSpell`）と**実行**（人間と同じ `performSpell`）を分け、**探索が選んだ手**も同じ口から流す。
+   */
+  const tryCpuMainSpell = async (actorState: PlayerState, preset?: CpuSpellChoice): Promise<boolean> => {
+    const input = cpuSpellInput(cpuMoveCtx(actorState), !!bs.pending_spell);
+    const payer = input.payer;
+    const choice = preset ?? pickCpuMainSpell(input);
+    if (!choice) return false;
+    d.observeChoice?.({ kind: 'spell', choice, pool: payer.energyPayPool });
+    appendBattleLogs([`[CPU] スペルを発動: ${choice.card.CardName}`]);
+    // ⚠アーツと同じ安全弁＝実行より先に「使った」履歴を確定させる（`performSpell` は
+    //   使用不能を検出すると何も書かずに return するので、履歴を実行の成否に委ねると
+    //   CPU が同じ札を選び直して MAIN から先へ進まなくなる）。
+    const spellActor: PlayerState = {
+      ...actorState,
+      cpu_used_card_nums_this_turn: [...(actorState.cpu_used_card_nums_this_turn ?? []), choice.card.CardNum],
+    };
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: spellActor }));
+    await performSpell(choice.card, {
+      costIndices: choice.costIndices, handIdx: choice.handIndex,
+    }, {
+      actor: spellActor, opponent: huSt,
+      actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+      isActorTurn: true,
+      energyPayPool: payer.energyPayPool,
+      blockedSelf: payer.blockedSelf,
+      enaAllMulti: payer.enaAllMulti,
+      enaMultiStripped: payer.enaMultiStripped,
+    });
+    return true;
+  };
+
+  /**
+   * 🆕§5.7 `S-16`＝**探索が選んだ1手を、本番の実行関数へ流す**（`applyCpuMove` の本番側）。
+   * 🔴**実行は人間と同じ `perform*` の1本**（§5.6.3）＝探索用の `applyCpuMoveSim`（engine だけの近似）とは別物で、
+   *   **打つのはこちらが正**。⚠**列挙は共通**（`listCpuMoves`）＝「探索では出たのに本番で出ない手」を作らない。
+   * ⚠召喚（`deploy`）はメインの召喚ループが扱う（ゾーンの徴収・【出】の収集がそこにある）＝ここでは受けない。
+   */
+  const doCpuSearchedMove = async (actorState: PlayerState, move: CpuMove, phase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
+    switch (move.kind) {
+      case 'activate': return tryCpuSigniActivated(actorState, phase, move.choice);
+      case 'lrigActivate': return tryCpuLrigActivated(actorState, phase, move.choice);
+      case 'offFieldActivate': return tryCpuOffFieldActivated(actorState, phase, move.choice);
+      case 'arts': return tryCpuUseArts(actorState, phase, pickCpuOffensiveArts,
+        { card: move.choice.card, check: move.choice.check, kind: move.choice.kinds[0] ?? 'removal', costIndices: move.choice.costIndices });
+      case 'spell': return tryCpuMainSpell(actorState, move.choice);
+      default: return false;
+    }
   };
 
   // ─── ライフバースト確認（チェックゾーンのカードを処理）───
@@ -801,6 +860,27 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     //   ここでのソートは**同点解決のための安定順（手札順）だけ**にする。
     const handSignis = cpuHandSignis(cpuDeployMoveCtx, cpuSt);
 
+    /**
+     * 🆕§5.7 `S-16`＝**メインフェイズをビーム探索で決める**（ポリシーの数値で入切・**既定 0＝従来の優先順**）。
+     * 🔑**1回の呼び出しで1手**＝打つと盤面が動いて再入するので、そこでまた探索し直す（＝ドローで増えた選択肢が入る）。
+     * ⚠**探索が扱えない手**（アシストグロウ・レゾナ・ライズ・キー／ピース）は**従来の優先順のまま**下で処理する。
+     * ⚠**エナチャージは探索の担当ではない**（`ENERGY` フェイズ＝「置くか」ではなく「どれを置くか」の判断）。
+     */
+    const cpuSearchOn = cpuPolicy.searchWidth > 0 && cpuPolicy.searchDepth > 0 && !cpuMainSkipped;
+    let cpuSearchedDeploy: Extract<CpuMove, { kind: 'deploy' }> | null = null;
+    /** 🆕§5.7 `S-16`＝探索が選んだ召喚を置いたか（置いたら**その場で return**＝再入してまた探索する）。 */
+    let cpuSearchDeployed = false;
+    if (cpuSearchOn) {
+      const searched = searchCpuMove(cpuMoveCtx(cpuSt), 'MAIN', {
+        width: cpuPolicy.searchWidth, depth: cpuPolicy.searchDepth, pendingSpell: !!bs.pending_spell,
+      });
+      if (searched.move && searched.move.kind !== 'deploy') {
+        // 🔴**実行は人間と同じ `perform*`**（`doCpuSearchedMove`）＝探索用の近似適用では打たない。
+        if (await doCpuSearchedMove(cpuSt, searched.move, 'MAIN')) return;
+      }
+      cpuSearchedDeploy = searched.move?.kind === 'deploy' ? searched.move : null;
+    }
+
     let newCpuSt = { ...cpuSt };
     // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
     const cpuOnPlayEntries: StackEntry[] = [];
@@ -811,6 +891,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const cpuFieldSigniLimit = cpuFieldSigniCap(cpuDeployMoveCtx, newCpuSt);
 
     for (let zone = 0; !cpuMainSkipped && zone < 3; zone++) {
+      // 🆕§5.7 `S-16`＝探索が有効なら、**探索が選んだゾーンだけ**（選ばなかったターンは1体も置かない）。
+      if (cpuSearchOn && cpuSearchedDeploy?.zone !== zone) continue;
       if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
       if (handSignis.length === 0) break;
       // 場出し数上限に達していたら召喚しない
@@ -828,7 +910,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       const emptyZonesAhead = newCpuSt.field.signi
         .filter((stk, zi) => zi >= zone && (stk ?? []).length === 0).length;
       const placedCount = newCpuSt.field.signi.filter(stk => (stk ?? []).length > 0).length;
-      const pickedId = pickCpuDeployCard({
+      // 🆕§5.7 `S-16`＝探索が選んだ札（無効なら従来の盤面評価＝`pickCpuDeployCard`）。
+      const pickedId = cpuSearchedDeploy ? cpuSearchedDeploy.id : pickCpuDeployCard({
         candidates: placeable.map(({ id, card }) => ({
           id,
           level: parseInt(card!.Level) || 0,
@@ -946,8 +1029,15 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       //   【出】で引いた札を次の召喚に使えない／【出】の対象に後から出したシグニが入る、という順序違いになっていた。
       //   ⇒ 誘発が1つでもあればここで止め、下でスタックに積んで return。解決後にメインフェイズが再実行され、残りのゾーンを埋める。
       if (cpuOnPlayEntries.length > 0) break;
+      // 🆕§5.7 `S-16`＝探索は**1回の呼び出しで1手**（次の1手は再入して探索し直す）。
+      // 🔴**`break` だけで下へ落とさない**＝落とすとそのまま MAIN が終わり、**1ターンに1体しか出せない**
+      //   （2026-09-20 実測＝シグニ配置が 62 → 38 に減っていた真因）。
+      if (cpuSearchOn) { cpuSearchDeployed = true; break; }
     }
 
+    // 🆕§5.7 `S-16`＝探索が選んだ召喚を置いた＝ここで一旦返す（再入してまた探索する）。
+    //   ⚠【出】があるときは下の push が受ける（そちらが先）。
+    if (cpuSearchDeployed && cpuOnPlayEntries.length === 0) return;
     // 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ（MAINに留まり、解決後の再実行で先へ進む）
     if (cpuOnPlayEntries.length > 0) {
       const existingStackOP = bs.effect_stack ?? null;
@@ -970,48 +1060,22 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
     // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
     //   ウィルス除去時しか書かないので、ここで撃つと配置で積んだ人間側の変更を取りこぼす。
-    if (!cpuMainSkipped && cpuHuSt === huSt
+    if (!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt
       && await tryCpuSigniActivated(newCpuSt, 'MAIN')) return;
     // §8／§6.4 O-1 (c)＝センタールリグの【起】（live 492効果がメイン窓）。
-    if (!cpuMainSkipped && cpuHuSt === huSt
+    if (!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt
       && await tryCpuLrigActivated(newCpuSt, 'MAIN')) return;
     // 🆕§5.7 `S-7`＝トラッシュ／手札／エナの【起】（`WD08-009` ほか・人間と同じ判定と実行関数）。
-    if (!cpuMainSkipped && cpuHuSt === huSt
+    if (!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt
       && await tryCpuOffFieldActivated(newCpuSt, 'MAIN')) return;
 
     // ── §8／§6.4 O-1 (b): CPU がメインフェイズに攻めのアーツ／スペル（＝除去）を使う ──────────
     // ⚠`cpuHuSt` が書き換わっている間は使わない＝`performArts`／`performSpell` は相手 state を
     //   書かないので、ここで使うと配置で積んだ人間側の変更を取りこぼす（【起】と同じ理由）。
-    if (!cpuMainSkipped && cpuHuSt === huSt) {
+    if (!cpuSearchOn && !cpuMainSkipped && cpuHuSt === huSt) {
       if (await tryCpuUseArts(newCpuSt, 'MAIN', pickCpuOffensiveArts)) return;
       // スペルは1枚使うと `pending_spell`（人間のカットイン窓）で止まる＝上の早期 return が受ける。
-      const cpuSpellInputV = cpuSpellInput(cpuMoveCtx(newCpuSt), !!bs.pending_spell);
-      const cpuSpellPayer = cpuSpellInputV.payer;
-      const cpuSpellChoice = pickCpuMainSpell(cpuSpellInputV);
-      if (cpuSpellChoice) {
-        d.observeChoice?.({ kind: 'spell', choice: cpuSpellChoice, pool: cpuSpellPayer.energyPayPool });
-        appendBattleLogs([`[CPU] スペルを発動: ${cpuSpellChoice.card.CardName}`]);
-        // ⚠アーツと同じ安全弁＝実行より先に「使った」履歴を確定させる（`performSpell` は
-        //   使用不能を検出すると何も書かずに return するので、履歴を実行の成否に委ねると
-        //   CPU が同じ札を選び直して MAIN から先へ進まなくなる）。
-        const cpuSpellActor: PlayerState = {
-          ...newCpuSt,
-          cpu_used_card_nums_this_turn: [...(newCpuSt.cpu_used_card_nums_this_turn ?? []), cpuSpellChoice.card.CardNum],
-        };
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuSpellActor }));
-        await performSpell(cpuSpellChoice.card, {
-          costIndices: cpuSpellChoice.costIndices, handIdx: cpuSpellChoice.handIndex,
-        }, {
-          actor: cpuSpellActor, opponent: huSt,
-          actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
-          isActorTurn: true,
-          energyPayPool: cpuSpellPayer.energyPayPool,
-          blockedSelf: cpuSpellPayer.blockedSelf,
-          enaAllMulti: cpuSpellPayer.enaAllMulti,
-          enaMultiStripped: cpuSpellPayer.enaMultiStripped,
-        });
-        return;
-      }
+      if (await tryCpuMainSpell(newCpuSt)) return;
     }
 
     // ── MAIN→ATTACK_ARTS 移行（アタックフェイズ開始時）。以下のトリガーを1つのスタックに集約し、
