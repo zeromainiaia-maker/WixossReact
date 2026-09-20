@@ -873,6 +873,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (cpuSearchOn) {
       const searched = searchCpuMove(cpuMoveCtx(cpuSt), 'MAIN', {
         width: cpuPolicy.searchWidth, depth: cpuPolicy.searchDepth, pendingSpell: !!bs.pending_spell,
+        // 🆕§5.7 `S-21`＝「行動する」側への下駄（既定 0＝従来どおり）。
+        actionBias: cpuPolicy.actionBias,
       });
       if (searched.move && searched.move.kind !== 'deploy') {
         // 🔴**実行は人間と同じ `perform*`**（`doCpuSearchedMove`）＝探索用の近似適用では打たない。

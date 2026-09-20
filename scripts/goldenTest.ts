@@ -87110,6 +87110,25 @@ test('§5.7 S-9 強さの A/B 測定台：席ごとのポリシー・席入れ�
   eq(JSON.stringify(sum.aAsHost), JSON.stringify({ wins: 2, decided: 3 }), 'A が先攻のときの内訳');
   eq(JSON.stringify(sum.aAsGuest), JSON.stringify({ wins: 1, decided: 2 }), 'A が後攻のときの内訳');
   eq(JSON.stringify(sum.pairs), JSON.stringify({ aSweep: 1, split: 1, bSweep: 0, incomplete: 1 }), '🔴組の内訳（席入れ替えの2戦が揃っているか）');
+  // 🆕🔴§5.7 `S-21`（2026-09-20）＝**主の判定は「組」**。
+  // 🔴**なぜ**＝席入れ替えの2戦は相関するのに、`rate` の Wilson は**独立と数えている**＝
+  //   **1勝1敗の組は両者に1勝ずつを配るだけでポリシーの差について何も語らない**のに分母に入る。
+  //   実測（`--a default --b damage-only`）＝160戦で 48.8% [41.1, 56.4] と出たが**80組中 78組が1勝1敗**＝実質の標本は2組。
+  eq(sum.pairDecided, 1, '🔴決着した組の数が 1勝1敗を除いていない＝差の無い組を分母に入れると区間が狭く出る');
+  eq(sum.pairRate, 1, '🔴組で見た勝率が Aの2連勝／決着した組 になっていない');
+  ok(!sum.pairSignificant, '🔴1組で「差あり」と言った');
+  // ⚠**組で見ると区間は広くなる**（標本が減る）＝これが正しい振る舞い。
+  const many = summarizeAb(Array.from({ length: 200 }, (_, i) => g(Math.floor(i / 2), i % 2 === 1, 'A')));
+  ok(many.pairSignificant, '🔴100組全て A の2連勝なのに組で「差あり」と言わない');
+  ok(many.pairHi - many.pairLo > many.hi - many.lo,
+    `🔴組の区間が戦単位より狭い（${many.pairLo}〜${many.pairHi} / ${many.lo}〜${many.hi}）＝標本が減っていない`);
+  // 🔴**1勝1敗が多い回は「同じ打ち方」と書く**（「差が無い」と書かない）。
+  const mostlySplit = summarizeAb(Array.from({ length: 20 }, (_, i) =>
+    g(Math.floor(i / 2), i % 2 === 1, i % 2 === 0 ? 'A' : 'B')));
+  ok(formatAbReport(mostlySplit, 'a', 'b').includes('ほぼ同じ打ち方'),
+    '🔴1勝1敗ばかりなのに「2つのポリシーがほぼ同じ打ち方」と出ていない＝戦数を増やせば直ると誤読する');
+  ok(formatAbReport(sum, 'a', 'b').includes('組で見た勝率（こちらを読む）'),
+    '🔴勝率表の主の判定が組になっていない');
   ok(!summarizeAb([g(1, false, 'A'), g(1, true, 'A')]).significant, '🔴2戦で「差あり」と言った');
   ok(summarizeAb(Array.from({ length: 200 }, (_, i) => g(i, i % 2 === 1, 'A'))).significant, '🔴200戦全勝でも「差あり」と言わない');
   ok(formatAbReport(sum, 'default', 'x').includes('席入れ替え'), '勝率表に席入れ替えの断りが無い');
@@ -87188,6 +87207,131 @@ test('§5.7 S-18 終端評価の「次ターン」項：グロウの価値・グ
   eq(evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-002#r1' }), opp, lctxLegacy)
     - evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-003#r1' }), opp, lctxLegacy), 0,
     '🔴`legacy-nextturn` なのに「次のターン」項が効いている');
+}));
+
+test('§5.7 S-21 探索の目的関数：「打たない」を割る計器／行動への下駄／このターンに通るダメージ', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**＝`S-16` の探索は従来と互角（A/B 50.0%）で止まっており、
+  //   実測（2026-09-20・`--census-moves`）では **111手中 58手で「打たない」**を選んでいた。
+  // 🔑**最初にやるのは実装ではなく計器の分割**＝「打たない」には3つ意味がある。
+  //   ①`candidates === 0`＝**探索の外の手しか無い**（アシストグロウ・レゾナ・ライズ・ピース）＝**判断ではない**
+  //   ②`applied === 0`＝**先読みが解けない**（`simulateEffect` が null）＝**重みをいじっても直らない**
+  //   ③それ以外＝**候補はあるが baseline を超えなかった**＝これだけが目的関数の問題。
+  //   ⚠**この3つを混ぜて「探索は打たないを選ぶ」と読まない**（実測では 58 のうち 12 が①だった）。
+  // 🔑軸は2本とも**数値**（分岐 flag ではない＝`cpuPolicy.ts` の規律）で、**既定 0＝挙動不変**。
+  eq(DEFAULT_CPU_POLICY.actionBias, 0, '🔴既定で「行動への下駄」が効いている（実機の挙動が変わる）');
+  eq(DEFAULT_CPU_POLICY.boardWeights.turnDamage, 0, '🔴既定で `turnDamage` が効いている（実機の挙動が変わる）');
+  for (const n of ['search-damage', 'search-act', 'search-act-mild', 'search-damage-act', 'damage-only']) {
+    ok(!!CPU_POLICIES[n], `🔴S-21 の A/B プリセット \`${n}\` が消えている＝目的関数の判断が再現できない`);
+  }
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const VAN = 'WD01-013';   // 小剣　ククリ＝Lv1・パワー3000・コストなし・【ガード】なし
+  const W = DEFAULT_CPU_POLICY.boardWeights;
+
+  // ── ① `turnDamage`＝**手番側の空きレーンにだけ**上乗せする（左右対称にしない）──
+  // 🔑盤面は左右反転＝自分のゾーン0の正面は相手のゾーン2。
+  //   両者がゾーン0にだけ立つ盤面は **`openLane` の差が 0**（両方とも正面が空）なので、
+  //   ここで出る差は `turnDamage` だけになる。
+  const lane0 = () => {
+    const st = mkState({ signi: [`${VAN}#s1`, null, null] });
+    st.hand = []; st.energy = []; st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    return st;
+  };
+  const dmgLctx = (isCpuTurn: boolean) => ({
+    cardMap: cm as Map<string, CardData>, effectsOf: () => [], powersOf: () => new Map<string, number>(),
+    isCpuTurn, policy: CPU_POLICIES['damage-only'],
+  });
+  const T = CPU_POLICIES['damage-only'].boardWeights.turnDamage;
+  ok(T > 0, '前提崩れ＝`damage-only` の `turnDamage` が 0');
+  const myTurn = evaluateBoard(lane0(), lane0(), dmgLctx(true));
+  const oppTurn = evaluateBoard(lane0(), lane0(), dmgLctx(false));
+  eq(myTurn - oppTurn, 2 * T,
+    `🔴「このターンに通るダメージ」が手番で入れ替わっていない（${myTurn} / ${oppTurn}）＝左右対称のままだ`);
+  // ⚠**既定（`turnDamage: 0`）では手番で差が出ない**＝入れる前と同じ振る舞い。
+  const plain = (isCpuTurn: boolean) => evaluateBoard(lane0(), lane0(),
+    { cardMap: cm as Map<string, CardData>, effectsOf: () => [], powersOf: () => new Map<string, number>(), isCpuTurn });
+  eq(plain(true) - plain(false), 0, '🔴既定の重みなのに手番で盤面の点数が変わる（挙動不変でない）');
+  // 🔴**ダウンしているシグニは「このターン殴れる」に数えない**＝
+  //   これが【起】の《ダウン》コストの値段（`evaluateBoard` は `signi_down` を他のどの項でも見ていない）。
+  const downed = lane0();
+  downed.field.signi_down = [true, false, false];
+  eq(evaluateBoard(downed, lane0(), dmgLctx(true)) - evaluateBoard(lane0(), lane0(), dmgLctx(true)), -T,
+    '🔴ダウンしているシグニを「このターン通るダメージ」に数えている＝《ダウン》コストがタダに見える');
+  const frozen = lane0();
+  frozen.field.signi_frozen = [true, false, false];
+  eq(evaluateBoard(frozen, lane0(), dmgLctx(true)) - evaluateBoard(lane0(), lane0(), dmgLctx(true)), -T,
+    '🔴凍結しているシグニを「このターン通るダメージ」に数えている');
+
+  // ── ② 計器＝「候補0」と「候補はあるが却下」を別々に出す ──
+  // 🔑**エナチャージは必ず `hand`(1500) → `energy`(1000) の **-500**＝
+  //   「何もしない」が構造的に有利になる盤面の最も短い例（実測でも却下46件中34件がこれ）。
+  const chargeSide = (o: { hand?: string[]; done?: boolean } = {}) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = o.hand ?? [`${VAN}#h1`, `${VAN}#h2`];
+    st.energy = []; st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    st.actions_done = o.done ? ['ENERGY'] : [];
+    return st;
+  };
+  const mkCtxFor = (actor: PlayerState, opponent: PlayerState): CpuMoveCtx => ({
+    actor, opponent, allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] },
+    reserveFor: () => undefined,
+  });
+  const ctxCharge = mkCtxFor(chargeSide(), chargeSide());
+  const r0 = searchCpuMove(ctxCharge, 'ENERGY', { width: 4, depth: 4, pendingSpell: false });
+  eq(r0.move, null, '🔴既定（下駄 0）なのに損な手を打った');
+  eq(r0.candidates, 2, `🔴根の候補数を数えていない（${r0.candidates}）＝「打たない」の内訳が割れない`);
+  eq(r0.applied, 2, `🔴適用できた候補数を数えていない（${r0.applied}）＝「先読みが解けない」と区別できない`);
+  eq(r0.actionScore - r0.baseline, -(W.hand - W.energy),
+    `🔴エナチャージの得失が手札とエナの差でない（${r0.actionScore - r0.baseline}）`);
+  // 🔴**候補0（エナチャージ済み）は別の意味**＝却下ではなく「打つものが無い」。
+  const rNone = searchCpuMove(mkCtxFor(chargeSide({ done: true }), chargeSide()), 'ENERGY',
+    { width: 4, depth: 4, pendingSpell: false });
+  eq(rNone.candidates, 0, '🔴打つ手が無い盤面で候補数が 0 になっていない');
+  eq(rNone.actionScore, rNone.baseline, '🔴候補が無いのに「行動の最善」が baseline と違う');
+
+  // ── ③ `actionBias`＝行動側への下駄（連続値）──
+  // 🔑**閾値は正確**＝得失 -500 なら下駄 400 では打たず、600 で打つ。
+  const loss = W.hand - W.energy;
+  eq(searchCpuMove(ctxCharge, 'ENERGY', { width: 4, depth: 4, pendingSpell: false, actionBias: loss - 100 }).move, null,
+    '🔴下駄が得失に届いていないのに打った');
+  ok(!!searchCpuMove(ctxCharge, 'ENERGY', { width: 4, depth: 4, pendingSpell: false, actionBias: loss + 100 }).move,
+    '🔴下駄が得失を上回っているのに打たなかった');
+  // ⚠**候補が無い盤面では `Infinity` でも打たない**（無いものは打てない）。
+  eq(searchCpuMove(mkCtxFor(chargeSide({ done: true }), chargeSide()), 'ENERGY',
+    { width: 4, depth: 4, pendingSpell: false, actionBias: Number.POSITIVE_INFINITY }).move, null,
+    '🔴候補が無いのに手を返した');
+  // 🔴**本番の配線**＝ポリシーの数値が探索へ渡っている（渡し忘れると A/B が永久に動かない）。
+  ok(/actionBias: cpuPolicy\.actionBias/.test(battleScreenSource()),
+    '🔴ポリシーの `actionBias` を探索へ渡していない＝`search-act` の A/B が何も変えない');
+
+  // ── ④ 🔴**コスト側**＝【起】の「エナ以外の宣言コスト」を探索も払う ──
+  // 🔑**目的関数の半分はコスト**＝旧は `applyCpuMoveSim` が**エナしか払わなかった**ので、
+  //   《ダウン》も「自分をトラッシュ」も**タダ**に見えていた（live 実測＝`ACTIVATED` 2,632 のうち 569効果）。
+  // ⚠標本＝`WX02-036`コードアート　Ｇ・Ｒ・Ｂ＝【起】《ダウン》（`cost.down_self`）。
+  const DOWN_SELF = 'WX02-036';
+  eq(effectsMap.get(DOWN_SELF)?.find(e => e.effectId === `${DOWN_SELF}-E1`)?.cost?.down_self, true,
+    `前提崩れ＝${DOWN_SELF}-E1 の \`down_self\` コストが live から消えている`);
+  const actSide = () => {
+    // ⚠**場には「#なしの番号」を置く**＝このテストの `effectsMap` は**カード番号キー**で、
+    //   `signiActivateGate` は `effectsMap.get(場の一番上)` を**そのまま**引く（instance なら空話になる）。
+    const st = mkState({ signi: [DOWN_SELF, null, null] });
+    st.hand = [`${VAN}#h1`]; st.energy = []; st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1']; st.lrig_deck = [];
+    return st;
+  };
+  const actCtx = mkCtxFor(actSide(), actSide());
+  const actMove = listCpuMoves(actCtx, 'MAIN', { pendingSpell: false }).find(m => m.kind === 'activate');
+  ok(!!actMove, '前提崩れ＝【起】《ダウン》が候補に出ていない');
+  const afterAct = applyCpuMoveSim(actCtx, actMove!);
+  ok(!!afterAct, '🔴【起】《ダウン》を探索が適用できなくなった');
+  eq(afterAct!.cpu.field.signi_down?.[0], true,
+    '🔴探索が《ダウン》コストを払っていない＝【起】がタダに見える');
+  // 🔑**払った後はもう払えない**＝同じターンに何度も撃てない（多重発動防止）。
+  eq(applyCpuMoveSim({ ...actCtx, actor: afterAct!.cpu }, actMove!), null,
+    '🔴すでにダウンしているのに《ダウン》コストをもう一度払えた');
 }));
 
 test('§5.7 S-10 盤面の採点のパワー項：線形から閾値へ（勝敗が反転しないバフはほぼ 0 点）', () => withSavedCursor(() => {
@@ -87732,9 +87876,12 @@ test('§5.6 C-9 R-46 キーが場を離れたらルリグトラッシュへ（�
   eq(miss.removed, null, '場に無いキーを取り除いたことにしている');
   eq(JSON.stringify(miss.lrigTrash), JSON.stringify(['old']), '🔴場に無いキーをルリグトラッシュへ積んでいる（複製）');
   // 🔴**写経の再発防止**＝4経路（アーツのキー代替／アンコール／キー【起】コスト／シグニ【起】のキー代替）が同じ関数を通る。
+  // 🔑**4→5 は較正（退化ではない）**＝2026-09-20・§5.7 `S-21` で `applyCpuMoveSim` が
+  //   【起】の `trash_key` コストを**払うようになった**（旧はエナ以外を1つも払わずタダに見えていた）。
+  //   ⚠**手書きを足したのではなく、新しい経路をこの関数へ通した**＝下の `key_piece: null` の数は 0 のまま。
   const screen = battleScreenSource();
-  eq((screen.match(/removeKeyToLrigTrash\(/g) ?? []).length, 4,
-    '🔴キーを場から取り除く経路が4箇所とも keyZone.ts を通っていない');
+  eq((screen.match(/removeKeyToLrigTrash\(/g) ?? []).length, 5,
+    '🔴キーを場から取り除く経路が5箇所とも keyZone.ts を通っていない');
   eq((screen.match(/key_piece:\s*null/g) ?? []).length, 0,
     '🔴BattleScreen に `key_piece: null` の手書きが戻っている（枠を取り違える）');
 }));

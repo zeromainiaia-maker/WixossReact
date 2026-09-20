@@ -48,6 +48,25 @@ export interface AbSummary {
   aAsGuest: { wins: number; decided: number };
   /** 席を入れ替えた2戦が揃っている組の内訳（A2勝 / 1勝1敗 / A0勝）。 */
   pairs: { aSweep: number; split: number; bSweep: number; incomplete: number };
+  /**
+   * 🆕🔴§5.7 `S-21`（2026-09-20）＝**組（席入れ替えの2戦）で決着した数**＝`aSweep + bSweep`。
+   *
+   * 🔴**なぜこちらが主の判定か**＝`rate` の Wilson 区間は**160戦を独立と数えている**が、
+   *   席入れ替えの2戦は**同じシードの対**で相関する。**1勝1敗の組は両者に1勝ずつを配るだけで、
+   *   ポリシーの差について何も語らない**＝分母に入れると**区間が実際より狭く出る**。
+   *   実測（2026-09-20・`--a default --b damage-only`）＝戦単位では 160戦 48.8% [41.1, 56.4] と出たが、
+   *   **80組のうち 78組が1勝1敗**＝実質の標本は **2組**しか無かった。
+   * 🔑**組で見ると感度が上がる**＝席の偏り（先攻 34〜37%＝`S-19`）が組の中で相殺されるから。
+   * ⚠**`split` が多い回は「差が無い」ではなく「2つのポリシーがほぼ同じ打ち方をした」**。
+   */
+  pairDecided: number;
+  /** A が2連勝した組の割合（決着した組のうち）。決着した組が0なら null。 */
+  pairRate: number | null;
+  /** 組で見た Wilson 95% 信頼区間。 */
+  pairLo: number;
+  pairHi: number;
+  /** 🔑**主の判定**＝組で見た区間が 50% を跨がない。 */
+  pairSignificant: boolean;
   totalMs: number;
 }
 
@@ -90,6 +109,9 @@ export function summarizeAb(results: readonly AbGameResult[], firstSeat: 'host' 
     const a = dec.filter(r => r.winner === 'A').length;
     if (a === 2) pairs.aSweep++; else if (a === 1) pairs.split++; else pairs.bSweep++;
   }
+  // 🆕§5.7 `S-21`＝**組で見た勝率**（主の判定）＝1勝1敗の組は**分母に入れない**。
+  const pairDecided = pairs.aSweep + pairs.bSweep;
+  const pairCi = wilsonInterval(pairs.aSweep, pairDecided);
   return {
     games: results.length,
     decided: decidedGames.length,
@@ -103,6 +125,11 @@ export function summarizeAb(results: readonly AbGameResult[], firstSeat: 'host' 
     aAsHost: { wins: asHost.filter(r => r.winner === 'A').length, decided: asHost.length },
     aAsGuest: { wins: asGuest.filter(r => r.winner === 'A').length, decided: asGuest.length },
     pairs,
+    pairDecided,
+    pairRate: pairDecided > 0 ? pairs.aSweep / pairDecided : null,
+    pairLo: pairCi.lo,
+    pairHi: pairCi.hi,
+    pairSignificant: pairDecided > 0 && (pairCi.lo > 0.5 || pairCi.hi < 0.5),
     totalMs: results.reduce((a, r) => a + r.ms, 0),
   };
 }
@@ -127,10 +154,15 @@ export function formatAbReport(s: AbSummary, aName: string, bName: string): stri
   L.push('');
   L.push(`===== A/B 結果  A=${aName}  B=${bName} =====`);
   L.push(`対戦 ${s.games}（${s.games / 2} シード × 2＝席入れ替え）｜決着 ${s.decided}｜止まった ${s.stalled}｜実時間 ${(s.totalMs / 1000).toFixed(0)}秒`);
-  L.push(`A の勝率 **${pct(s.rate)}**（${s.aWins} - ${s.bWins}）  95%CI [${pct(s.lo)}, ${pct(s.hi)}]`);
-  L.push(s.significant
-    ? `🔎**差あり**＝信頼区間が 50% を跨いでいない（A のほうが${(s.rate ?? 0) > 0.5 ? '強い' : '弱い'}と言ってよい）`
-    : `⚠**差があるとは言えない**＝信頼区間が 50% を跨いでいる。⇒ **戦数を増やす**（区間幅は概ね 1/√n でしか縮まない）`);
+  // 🔑**主の判定は「組」**（§5.7 `S-21`）＝席入れ替えの2戦は相関するので、戦単位の区間は**実際より狭く出る**。
+  L.push(`🔑**組で見た勝率（こちらを読む） ${pct(s.pairRate)}**（A が2連勝 ${s.pairs.aSweep} - B が2連勝 ${s.pairs.bSweep}）  95%CI [${pct(s.pairLo)}, ${pct(s.pairHi)}]`);
+  L.push(s.pairSignificant
+    ? `🔎**差あり**＝組で見た区間が 50% を跨いでいない（A のほうが${(s.pairRate ?? 0) > 0.5 ? '強い' : '弱い'}と言ってよい）`
+    : `⚠**差があるとは言えない**＝決着した組 ${s.pairDecided}／${s.pairDecided + s.pairs.split}組。`
+      + (s.pairs.split > s.pairDecided
+        ? `🔴**1勝1敗が ${s.pairs.split}組＝2つのポリシーはほぼ同じ打ち方をしている**（勝敗を決めたのは席）⇒ 戦数を増やしても効率が悪い。**差が出るところまで振る**か、別の指標（census:play・ログの回数）で見る。`
+        : `⇒ **戦数を増やす**（区間幅は概ね 1/√n でしか縮まらない）`));
+  L.push(`参考（戦単位＝対を独立と数えるので**区間が狭く出る**）＝A の勝率 ${pct(s.rate)}（${s.aWins} - ${s.bWins}）  95%CI [${pct(s.lo)}, ${pct(s.hi)}]`);
   const hostTurn = s.firstSeat === 'host' ? '先攻' : '後攻';
   const guestTurn = s.firstSeat === 'host' ? '後攻' : '先攻';
   L.push(`内訳＝A が host席（${hostTurn}）${s.aAsHost.wins}/${s.aAsHost.decided}｜A が guest席（${guestTurn}）${s.aAsGuest.wins}/${s.aAsGuest.decided}`);

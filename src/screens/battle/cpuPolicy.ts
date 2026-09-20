@@ -59,6 +59,20 @@ export interface BoardWeights {
    * ⚠**相手のルリグのレベルも引く**（盤面の採点は差で見る＝先にグロウされたら不利）。
    */
   lrigLevel: number;
+  /**
+   * 🆕§5.7 `S-21`＝**このターンに通るダメージ**（登録票の案①の安い形・既定 0＝従来どおり）。
+   *
+   * 🔑**なぜ要るか**＝`openLane` は**左右対称**に数えている（自分の空きレーン − 相手の空きレーン）が、
+   *   **ターンは対称ではない**＝いまアタックするのは**手番側だけ**。
+   *   ⇒ **手番側の空きレーンにだけ上乗せ**する＝「このターンの終端はアタック後」に近づける安い近似。
+   * 🔑**これが `S-21` の本命**＝探索が「打たない」を選ぶのは、**盤面へ出す価値が手札1枚より安い**からで、
+   *   その差の実体は「出したシグニは**このターンに殃る**」が1点も入っていないこと。
+   * 🔑**ダウン・凍結しているシグニは数えない**（殴れない）＝これが【起】の《ダウン》コスト（live 284効果）の値段になる
+   *   （`evaluateBoard` は `signi_down` をどこでも見ておらず、《ダウン》は**タダのコスト**に見えていた）。
+   * ⚠**アタック制限の付与までは見ていない**＝そこまで見るのは `S-17`。
+   * ⚠`ATTACK_ARTS_OP`（相手のターンの応答）では**相手側に上乗せ**する（`isCpuTurn:false`）。
+   */
+  turnDamage: number;
 }
 
 /** 1つの CPU の「強さの設定」＝これを席ごとに変えて勝率を比べる。 */
@@ -79,6 +93,13 @@ export interface CpuPolicy {
   readonly searchWidth: number;
   /** 🆕§5.7 `S-16`＝探索の深さ（1ターンに続けて打つ手の数の上限）。`searchWidth` が 0 なら使わない。 */
   readonly searchDepth: number;
+  /**
+   * 🆕§5.7 `S-21`＝**「行動する」側への下駄**（パワー換算・既定 0＝従来どおり）。
+   * 登録票の案③「『何もしない』を選ばせない」の**連続版**＝`Infinity` なら候補がある限り必ず打つ。
+   * 🔑**案①（`turnDamage`）とは別の軸**＝あちらは「価値の欠落を埋める」、こちらは「欠落を埋めずに行動を優先する」。
+   *   **A/B でどちらが効くかを決める**（手で決めない＝登録票）。
+   */
+  readonly actionBias: number;
 }
 
 /**
@@ -94,12 +115,16 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
     life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500,
     // 🆕§5.7 `S-18`（2026-09-20）＝次のターンの制約。⚠**手で決めた初期値**＝`S-6`／A/B で調整する対象。
     growReady: 2500, handEmpty: -2000, guardKept: 800, lrigLevel: 2500,
+    // 🆕§5.7 `S-21`（2026-09-20）＝**既定 0＝入れる前と同じ振る舞い**。値は A/B で決める（`search-damage` ほか）。
+    turnDamage: 0,
   },
   spellGainMin: 1000,
   keepGuards: 1,
   // 🆕§5.7 `S-16`＝**既定は探索しない**（0）＝挙動不変。A/B で勝率を見てから上げる。
   searchWidth: 0,
   searchDepth: 0,
+  // 🆕§5.7 `S-21`＝**既定 0＝「何もしない」と同点なら打たない**（従来どおり）。
+  actionBias: 0,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -154,6 +179,36 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   }),
   'legacy-nextturn': variant('legacy-nextturn', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
+  }),
+  // ─── 🆕§5.7 `S-21`＝探索の目的関数の候補（どれも `search` を A 側にして比べる）───
+  /**
+   * 🆕**案①＝このターンに通るダメージを終端に入れる**（`turnDamage`）。
+   * 🔑**手番側の空きレーンにだけ上乗せ**する＝「出したシグニはこのターンに殴る」を価格に入れる。
+   * 初期値 3000＝`openLane` と同額（合計 6000＝ライフ 7000 の 0.86枚分）。⚠**手で決めた初期値**。
+   */
+  'search-damage': variant('search-damage', {
+    searchWidth: 4, searchDepth: 4,
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, turnDamage: 3000 },
+  }),
+  /**
+   * 🆕**案③＝「何もしない」を選ばせない**（`actionBias: Infinity`）。
+   * 🔑**候補が1つでも適用できたら必ず打つ**＝行動の中の最善だけを比べる。
+   * ⚠**上限の検査**でもある＝これが負けるなら「打つこと自体が損」の盤面が実在する。
+   */
+  'search-act': variant('search-act', { searchWidth: 4, searchDepth: 4, actionBias: Number.POSITIVE_INFINITY }),
+  /** 🆕**案③の控えめ版**＝「少しぐらい損でも打つ」（手札1枚分＝1500）。 */
+  'search-act-mild': variant('search-act-mild', { searchWidth: 4, searchDepth: 4, actionBias: 1500 }),
+  /** 🆕**案①＋③**＝価値の欠落を埋めつつ、同点なら打つ側へ寄せる。 */
+  'search-damage-act': variant('search-damage-act', {
+    searchWidth: 4, searchDepth: 4, actionBias: 1500,
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, turnDamage: 3000 },
+  }),
+  /**
+   * 🆕**案①を探索なしで**＝`turnDamage` は `evaluateBoard` の項なので
+   *   **従来の貪欲な選択（召喚・スペル・アーツ）にも効く**。探索の効果と分けて測るための側。
+   */
+  'damage-only': variant('damage-only', {
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, turnDamage: 3000 },
   }),
 };
 

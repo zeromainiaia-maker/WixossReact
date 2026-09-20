@@ -24,6 +24,8 @@ import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } fr
 import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './cpuSummon';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import { computeFieldSigniLimit } from './fieldLimit';
+import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
+import { removeKeyToLrigTrash } from './keyZone';
 import { canGrowNow, declaredSigniOverride, effectiveLrigClass, listGrowCandidates, meetsRestriction } from './growLogic';
 import { computeEffectiveLrigLimit } from './lrigLimit';
 import { getResonaSummonCandidate, type ResonaPaymentSelection, type ResonaSummonCandidate } from './resonaSummon';
@@ -559,6 +561,103 @@ export interface CpuSimBoard { cpu: PlayerState; opp: PlayerState }
  *   盤面操作を写す必要があり、**写経すると本番とズレる**（§5.6.3）。**探索はこれらを候補から外し、従来の優先順に委ねる。**
  *   ⚠**「適用できない」を「弱い手」と混同しない**＝点数0で並べるのではなく、探索の外に置く。
  */
+/**
+ * 🆕§5.7 `S-21`＝**探索用の「エナ以外の宣言コスト」の支払い**（2026-09-20）。
+ *
+ * 🔴**何が壊れていたか**＝`applyCpuMoveSim` の【起】は**エナしか払っていなかった**。
+ *   実測（live JSON 全数）＝`ACTIVATED` 2,632効果のうち **569効果がエナ以外のコストを持つ**
+ *   （`down_self` 284 / `coin` 130 / `trash_self` 74 / `trash_key` 46 / `fieldDown` 15 / `lrigDown` 13 /
+ *     `discardAll` 6 / `energyTrashAll` 5 / `acceTrash` 3 / `bounceSelf` 1 / `fieldExileSelf` 1）。
+ *   ⇒ **探索はそれらを「タダ」と見ていた**＝`trash_self` なら**シグニを残したまま効果だけ得る**、
+ *   `discardAll` なら**手札を捨てずに効果だけ得る**と採点していた。
+ * 🔑**これが `S-21`（行動する／しない）の半分**＝**コストを数えない目的関数は「行動は安い」と言い続ける**。
+ * 🔴**実行関数の写経ではない**（§5.6.3）＝ルリグのダウンは既存の純関数
+ *   （`payLrigDownCost` / `payLrigDownSelfCost`＝人間の支払いと同じ本体）を呼ぶ。
+ * ⚠**allowlist＝払い方を知らないキーが1つでもあれば `null`**（＝探索の外へ出す）。
+ *   **denylist にしない**＝してしまうと新しいコスト語彙が増えたときに**黙って踏み倒す**側へ倒れる。
+ * ⚠ここは**探索の近似のみ**＝本番の支払いは `perform*`（そちらが正）。離場の誘発は解かない。
+ */
+const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
+  // エナ側＝呼び出し元が `payEnergy` で既に払っている（ここでは何もしない）。
+  'energy', 'none', 'costScaling', 'costReplacement',
+  // 盤面側＝下の `payCpuSelfCostSim` が写す。
+  'coin', 'down_self', 'lrigDown', 'fieldDown', 'trash_self', 'trash_key', 'discardAll', 'energyTrashAll',
+]);
+
+/**
+ * 【起】の「エナ以外」を探索用の盤面へ写す（払えなければ `null`）。
+ * @param zoneIndex 場のシグニの【起】ならそのゾーン、ルリグの【起】なら `null`。
+ */
+function payCpuSelfCostSim(
+  cost: CardEffect['cost'], s: PlayerState, zoneIndex: number | null, cardMap: Map<string, CardData>,
+  sourceCardNum: string,
+): PlayerState | null {
+  if (!cost) return s;
+  for (const k of Object.keys(cost)) {
+    if ((cost as Record<string, unknown>)[k] === undefined) continue;
+    if (!CPU_SIM_PAYABLE_COST_KEYS.has(k)) return null;   // ⚠allowlist＝知らないコストは探索の外へ
+  }
+  let out = s;
+  if (cost.coin !== undefined) {
+    if ((out.coins ?? 0) < cost.coin) return null;
+    // ⚠**`coins_paid_this_turn` も必ず加算する**＝`COINS_PAID_THIS_TURN` 条件がこれを読む
+    //   （golden `task12(cxvi)` が「払ったのに累計へ加算しない経路」を全数で見張っている）。
+    out = { ...out, coins: (out.coins ?? 0) - cost.coin, coins_paid_this_turn: (out.coins_paid_this_turn ?? 0) + cost.coin };
+  }
+  if (cost.down_self) {
+    if (zoneIndex === null) {
+      const paid = payLrigDownSelfCost(out);
+      if (!paid) return null;
+      out = paid;
+    } else {
+      // ⚠既にダウンしていれば払えない（`performSigniActivated` と同じ多重発動防止）。
+      if (out.field.signi_down?.[zoneIndex]) return null;
+      const down = [...(out.field.signi_down ?? [false, false, false])];
+      down[zoneIndex] = true;
+      out = { ...out, field: { ...out.field, signi_down: down } };
+    }
+  }
+  if (cost.lrigDown) {
+    const paid = payLrigDownCost(out, cost.lrigDown, cardMap);
+    if (!paid) return null;
+    out = paid.state;
+  }
+  if (cost.fieldDown) {
+    // ⚠**近似**＝ゾーン番号の順にアップのシグニをダウンする（`filter` は見ない＝
+    //   見ない分だけ**払える側に償いすぎる**ので、本番で払えなければそこで止まる）。
+    const down = [...(s.field.signi_down ?? [false, false, false])];
+    let remaining = cost.fieldDown.count;
+    for (let zi = 0; zi < 3 && remaining > 0; zi++) {
+      if ((out.field.signi[zi] ?? []).length === 0 || down[zi]) continue;
+      if (cost.fieldDown.excludeSelf && zi === zoneIndex) continue;
+      down[zi] = true;
+      remaining--;
+    }
+    if (remaining > 0) return null;
+    out = { ...out, field: { ...out.field, signi_down: down } };
+  }
+  if (cost.trash_self) {
+    if (zoneIndex === null) return null;
+    const stack = out.field.signi[zoneIndex] ?? [];
+    if (stack.length === 0) return null;
+    const signi = [...out.field.signi] as (string[] | null)[];
+    signi[zoneIndex] = null;
+    const down = [...(out.field.signi_down ?? [false, false, false])];
+    down[zoneIndex] = false;
+    out = { ...out, trash: [...out.trash, ...stack], field: { ...out.field, signi, signi_down: down } };
+  }
+  if (cost.trash_key) {
+    // 🔴**果を見分けるのは共有の純関数**（`removeKeyToLrigTrash`）＝`key_piece` を無条件に `null` にすると
+    //   増設枠のキーを払ったときに**メイン枠のキーが消滅**する（§5.6 `C-9` `R-46` の旧実装の穴）。
+    const k = removeKeyToLrigTrash(out.field, [...out.lrig_trash], sourceCardNum);
+    if (!k.removed) return null;   // ⚠見つからなければ探索の外へ（fail-closed）
+    out = { ...out, field: k.field, lrig_trash: k.lrigTrash };
+  }
+  if (cost.discardAll) out = { ...out, hand: [], trash: [...out.trash, ...out.hand] };
+  if (cost.energyTrashAll) out = { ...out, energy: [], trash: [...out.trash, ...out.energy] };
+  return out;
+}
+
 export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | null {
   const { actor, opponent } = ctx;
   /** エナの支払いを写す（人間の支払いと同じ `planEnergyPayment`＝下敷き払いも含む）。 */
@@ -631,13 +730,20 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       return { cpu, opp };
     }
     case 'activate': {
-      const paid = markActivated(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.effect.effectId);
+      // 🆕§5.7 `S-21`＝**エナ以外の宣言コストも払う**（【起】の 569効果）。
+      //   🔴旧はエナしか払わず、**《ダウン》も「自分をトラッシュ」もタダに見えていた**。
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum);
+      if (!selfPaid) return null;
+      const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));
     }
     case 'lrigActivate': {
       const src = actor.field.lrig.at(-1);
       if (!src) return null;
-      const paid = markActivated(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.effect.effectId);
+      // 🆕§5.7 `S-21`＝ルリグの【起】は `zoneIndex: null`（`down_self` は**ルリグ自身**をダウン）。
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src));
+      if (!selfPaid) return null;
+      const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, src, paid, opponent, lctxOf(move.phase));
     }
     case 'offFieldActivate': {

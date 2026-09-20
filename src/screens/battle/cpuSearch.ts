@@ -38,6 +38,26 @@ export interface CpuSearchResult {
   baseline: number;
   /** 展開した局面の数（コストの計器）。 */
   nodes: number;
+  /**
+   * 🆕§5.7 `S-21`＝**根の盤面で探索が扱える候補の数**（`CPU_SIM_APPLICABLE_KINDS` で絞った後）。
+   * 🔑**`move === null` の意味を2つに割るための計器**＝
+   *   `candidates === 0`＝**探索の外の手しか無かった**（アシストグロウ・レゾナ・ライズ・ピース）＝**判断ではない**／
+   *   `candidates > 0`＝**候補はあったが baseline を超えなかった**＝**目的関数の問題**（これが `S-21` の本体）。
+   * ⚠**この2つを混ぜて「探索は打たないを選ぶ」と読まない**（2026-09-20 実測＝58 のうち 12 が前者、残り 46 のうち 34 は本番で探索を呼ばない ENERGY フェイズだった）。
+   */
+  candidates: number;
+  /**
+   * 🆕§5.7 `S-21`＝**根の候補のうち `applyCpuMoveSim` が実際に盤面を返した数**。
+   * 🔑**`candidates > 0` なのに `applied === 0`** は**目的関数の問題ではない**＝
+   *   `simulateEffect` が解けなかった（未対応の対話・例外・手数超過）＝**先読みの穴**。
+   *   ⚠これを「探索が打たないを選んだ」と読むと、重みをいじっても永久に直らない。
+   */
+  applied: number;
+  /**
+   * 🆕§5.7 `S-21`＝**「何もしない」を除いた最善**（1手以上打つ手順の終端の点数）。
+   * 候補が1つも適用できなかったときは `baseline` と同じ値（＝比べるものが無い）。
+   */
+  actionScore: number;
 }
 
 export interface CpuSearchOpts {
@@ -49,6 +69,16 @@ export interface CpuSearchOpts {
   pendingSpell: boolean;
   /** 展開の上限（安全弁＝盤面あたり）。省略時 400。 */
   nodeCap?: number;
+  /**
+   * 🆕§5.7 `S-21`＝**「行動する」側への下駄**（パワー換算・既定 0＝従来どおり）。
+   * 🔑**なぜ要るか**＝`evaluateBoard` は**盤面のスナップショットの差**でしかなく、
+   *   手札・エナは枚数で満額数えるのに、**それを使って盤面へ変えた価値は割いて数える**
+   *   （生パワー×`fieldPowerScale`）＝**何もしないという選択が構造的に有利**になっている。
+   *   実測（2026-09-20）＝探索は 111手中 58手で「打たない」を選んだ。
+   * 🔑**値は A/B で決める**（`CPU_POLICIES` の `search-act` / `search-act-mild` ほか）。`Infinity` なら
+   *   **「何もしない」を選ばせない**（登録票の案③）。
+   */
+  actionBias?: number;
 }
 
 interface Node { board: CpuSimBoard; line: CpuMove[]; score: number }
@@ -60,27 +90,33 @@ interface Node { board: CpuSimBoard; line: CpuMove[]; score: number }
  */
 export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearchOpts): CpuSearchResult {
   const baseline = evaluateBoard(ctx.actor, ctx.opponent, ctx.lookahead);
-  const empty: CpuSearchResult = { move: null, line: [], score: baseline, baseline, nodes: 0 };
+  const empty: CpuSearchResult = { move: null, line: [], score: baseline, baseline, nodes: 0, candidates: 0, applied: 0, actionScore: baseline };
   if (opts.width <= 0 || opts.depth <= 0) return empty;
   const nodeCap = opts.nodeCap ?? 400;
   let nodes = 0;
   let beam: Node[] = [{ board: { cpu: ctx.actor, opp: ctx.opponent }, line: [], score: baseline }];
-  let best: Node = beam[0];
+  // 🆕§5.7 `S-21`＝**「何もしない」を除いた最善**を別に持つ（`best` は baseline と競合したあとの最善）。
+  let bestAction: Node | null = null;
+  // 🆕§5.7 `S-21`＝**根の盤面で探索が扱える候補の数**（`move === null` の意味を割る計器）。
+  let rootCandidates = 0;
+  let rootApplied = 0;
   for (let d = 0; d < opts.depth; d++) {
     const next: Node[] = [];
     for (const node of beam) {
       const nodeCtx: CpuMoveCtx = { ...ctx, actor: node.board.cpu, opponent: node.board.opp };
       for (const move of listCpuMoves(nodeCtx, phase, { pendingSpell: opts.pendingSpell })) {
         if (!CPU_SIM_APPLICABLE_KINDS.has(move.kind)) continue;
+        if (d === 0) rootCandidates++;
         if (nodes >= nodeCap) break;
         const after = applyCpuMoveSim(nodeCtx, move);
         nodes++;
         if (!after) continue;
+        if (d === 0) rootApplied++;
         const score = evaluateBoard(after.cpu, after.opp, ctx.lookahead);
         const child: Node = { board: after, line: [...node.line, move], score };
         next.push(child);
-        // ⚠**深いほうが良いとは限らない**＝途中の盤面も含めて最善を採る（手を打たない選択も `baseline` として入っている）。
-        if (score > best.score) best = child;
+        // ⚠**深いほうが良いとは限らない**＝途中の盤面も含めて最善を採る。
+        if (!bestAction || score > bestAction.score) bestAction = child;
       }
       if (nodes >= nodeCap) break;
     }
@@ -89,8 +125,11 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
     next.sort((a, b) => b.score - a.score);
     beam = next.slice(0, opts.width);
   }
-  if (best.line.length === 0) return { ...empty, nodes };
-  return { move: best.line[0], line: best.line, score: best.score, baseline, nodes };
+  const actionScore = bestAction ? bestAction.score : baseline;
+  const stats = { baseline, nodes, candidates: rootCandidates, applied: rootApplied, actionScore };
+  // 🆕§5.7 `S-21`＝**行動する側に下駄を足してから**「何もしない」と比べる（既定 0＝従来どおり）。
+  if (!bestAction || bestAction.score + (opts.actionBias ?? 0) <= baseline) return { ...empty, ...stats };
+  return { move: bestAction.line[0], line: bestAction.line, score: bestAction.score, ...stats };
 }
 
 /** 探索が選んだ手順の表示（ログ・golden 用）。 */

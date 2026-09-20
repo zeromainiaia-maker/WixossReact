@@ -45,7 +45,7 @@ import fs from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import Papa from 'papaparse';
-import type { BattleStateRow, CardData, PlayerState } from '../src/types';
+import type { BattleStateRow, CardData, PlayerState, TurnPhase } from '../src/types';
 import { setRngSeed, shuffle } from '../src/engine/rng';
 import { CPU_PLAYER_ID, assignGuestInstanceIds, assignInstanceIds } from '../src/screens/battle/battleUtils';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
@@ -54,7 +54,7 @@ import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
-import { searchCpuMove, describeCpuLine } from '../src/screens/battle/cpuSearch';
+import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
 import { formatAbReport, splitSeeds, summarizeAb, type AbGameResult } from './selfPlayStats';
 
 const argv = process.argv.slice(2);
@@ -90,6 +90,12 @@ const CENSUS_MOVES = argv.includes('--census-moves');
 /** 🆕§5.7 `S-16`＝`--census-moves` のときに探索も回して「いまの選択とどれだけ変わるか」を測る（既定 幅4・深さ4）。 */
 const SEARCH_W = numArg('--search-width', 4);
 const SEARCH_D = numArg('--search-depth', 4);
+/**
+ * 🆕§5.7 `S-21`＝**計測側の探索だけ別のポリシーで回す**（`--search-policy <名>`・省略時は対戦と同じ）。
+ * 🔑**安い調整の口**＝対戦は `default` のままで、目的関数を差し替えたときに
+ *   「打たない」がどう動くかを 2戦（約 80秒）で見る。⚠**これは勝率ではない**＝最終的な判断は `selfplay:ab`。
+ */
+const SEARCH_POLICY = argv.includes('--search-policy') ? resolveCpuPolicy(strArg('--search-policy', 'default')) : null;
 /** 🆕`--census-moves` のときだけ両席の CPU に渡す観測フック。 */
 let observeMoves: CpuTurnDeps['observeMoves'];
 let observeChoice: CpuTurnDeps['observeChoice'];
@@ -295,12 +301,39 @@ if (CENSUS_MOVES) {
   const chk = installMoveCheck();
   // 🆕§5.7 `S-16`＝探索（幅 `--search-width` / 深さ `--search-depth`）と**いまの選択**を突き合わせる。
   const search = { runs: 0, ms: [] as number[], nodes: [] as number[], moved: 0, same: 0, diff: 0, none: 0, gain: [] as number[] };
+  /**
+   * 🆕§5.7 `S-21`＝**「探索は打たない」の内訳**。
+   * `noCand`＝**探索が扱える候補が0**（アシストグロウ・レゾナ・ライズ・ピースだけ）＝**判断ではない**。
+   * `rejected`＝**候補はあったが baseline を超えなかった**＝**目的関数の問題**（`S-21` の本体）。
+   */
+  const none = { noCand: 0, noApply: 0, rejected: 0, loss: [] as number[], byKind: {} as Record<string, number>, byKindNoApply: {} as Record<string, number> };
   const samples: string[] = [];
-  let lastSearch: { phase: string; move: CpuMove | null; line: CpuMove[]; gain: number } | null = null;
+  const rejSamples: string[] = [];
+  let lastSearch: { phase: string; move: CpuMove | null; line: CpuMove[]; gain: number; r: ReturnType<typeof searchCpuMove>; ctx: CpuMoveCtx } | null = null;
   onChoice = (_mv, d) => {
     if (!lastSearch) return;
     const sd = lastSearch.move ? describeCpuMove(lastSearch.move) : null;
-    if (sd === null) { search.none++; samples.push(`[${lastSearch.phase}] いま=${d}／探索=打たない`); return; }
+    if (sd === null) {
+      search.none++;
+      const { r, ctx, phase } = lastSearch;
+      if (r.candidates === 0) { none.noCand++; return; }
+      const kinds = new Set(listSearchableCpuMoves(ctx, phase as TurnPhase, false).map(m => m.kind));
+      // 🔑**候補はあるのに1つも適用できなかった**＝`simulateEffect` が解けない＝**先読みの穴**（目的関数ではない）。
+      if (r.applied === 0) {
+        none.noApply++;
+        for (const k of kinds) none.byKindNoApply[k] = (none.byKindNoApply[k] ?? 0) + 1;
+        return;
+      }
+      none.rejected++;
+      none.loss.push(r.actionScore - r.baseline);
+      // 🔑**拒んだ候補の種類**＝どの種類の手が「損」に見えているか。
+      for (const k of kinds) none.byKind[k] = (none.byKind[k] ?? 0) + 1;
+      if (rejSamples.length < 12) {
+        rejSamples.push(`[${phase}] いま=${d}／探索の最善行動=${Math.round(r.actionScore - r.baseline)}（候補${r.candidates}）`);
+      }
+      samples.push(`[${phase}] いま=${d}／探索=打たない`);
+      return;
+    }
     if (sd === d) { search.same++; return; }
     search.diff++;
     samples.push(`[${lastSearch.phase}] いま=${d}／探索=${describeCpuLine(lastSearch.line)}（+${Math.round(lastSearch.gain)}）`);
@@ -310,12 +343,16 @@ if (CENSUS_MOVES) {
     const { phase, moves, ms, ctx } = e;
     if (SEARCH_W > 0 && (phase === 'MAIN' || phase === 'ENERGY' || phase === 'GROW' || phase === 'ATTACK_ARTS')) {
       const t0 = performance.now();
-      const r = searchCpuMove(ctx, phase, { width: SEARCH_W, depth: SEARCH_D, pendingSpell: false });
+      // 🆕§5.7 `S-21`＝計測側だけ別ポリシー（`--search-policy`）。対戦本体は触らない。
+      const sctx = SEARCH_POLICY ? { ...ctx, lookahead: { ...ctx.lookahead, policy: SEARCH_POLICY } } : ctx;
+      const r = searchCpuMove(sctx, phase, {
+        width: SEARCH_W, depth: SEARCH_D, pendingSpell: false, actionBias: SEARCH_POLICY?.actionBias ?? 0,
+      });
       search.runs++;
       search.ms.push(performance.now() - t0);
       search.nodes.push(r.nodes);
       search.gain.push(r.score - r.baseline);
-      lastSearch = { phase, move: r.move, line: r.line, gain: r.score - r.baseline };
+      lastSearch = { phase, move: r.move, line: r.line, gain: r.score - r.baseline, r, ctx: sctx };
     }
     // 同じ盤面（応答待ちで再入した回）は1回だけ数える。
     const key = `${phase}|${moves.map(describeCpuMove).join(',')}|${ctx.actor.hand.join(',')}|${ctx.actor.energy.length}`;
@@ -354,6 +391,17 @@ if (CENSUS_MOVES) {
     const pc = (xs: number[], q: number) => { const a = [...xs].sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : 0; };
     console.log(`探索（幅${SEARCH_W}・深さ${SEARCH_D}）${search.runs}盤面｜1盤面 平均${f2(search.ms.reduce((a, b) => a + b, 0) / search.runs)}ms p90 ${f2(pc(search.ms, 0.9))}ms 最大${f2(Math.max(...search.ms))}ms｜展開 平均${f2(search.nodes.reduce((a, b) => a + b, 0) / search.runs)} 最大${Math.max(...search.nodes)}`);
     console.log(`  いまの選択と比べて＝同じ ${search.same}／違う ${search.diff}／探索は「打たない」 ${search.none}（打った手 ${search.same + search.diff + search.none}）`);
+    // 🆕§5.7 `S-21`＝「打たない」を**判断ではない分**と**目的関数の問題**に割る。
+    console.log(`  「打たない」の内訳＝候補0 ${none.noCand}（探索の外の手だけ＝判断ではない）／適用0 ${none.noApply}（先読みが解けない）／却下 ${none.rejected}（目的関数）`);
+    if (none.noApply > 0) {
+      console.log(`    適用0 の盤面に出ていた手の種類＝${Object.entries(none.byKindNoApply).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+    }
+    if (none.rejected > 0) {
+      const ls = [...none.loss].sort((a, b) => a - b);
+      console.log(`    却下された最善行動の得失＝中央 ${Math.round(ls[Math.floor(ls.length / 2)])} 最小 ${Math.round(ls[0])} 最大 ${Math.round(ls[ls.length - 1])}`);
+      console.log(`    却下された盤面に出ていた手の種類＝${Object.entries(none.byKind).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+      for (const x of rejSamples) console.log(`    ${x}`);
+    }
     for (const x of samples.slice(0, 12)) console.log(`    ${x}`);
   }
   const all = obs.flatMap(o => o.applyMs);

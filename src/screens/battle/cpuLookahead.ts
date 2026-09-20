@@ -224,8 +224,23 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
       if (!mine || !theirs) return false;
       return cpuAttackValueOf(scoringPowerOf(mine, ctx, powers), scoringPowerOf(theirs, ctx, powers)) === 'winBattle';
     }).length;
+  /**
+   * 🆕§5.7 `S-21`＝**このターンに実際に殴れるレーン**（既定 `turnDamage: 0`＝この項は無い）。
+   * 🔑**`openLanes` とは2点違う**＝
+   *   ①**手番側だけ**に上乗せする（ターンは対称ではない＝いまアタックするのは一方だけ）。
+   *   ②🔴**ダウン・凍結しているシグニは数えない**（殴れない）。
+   *     🔑**これが《ダウン》コストの値段**＝`evaluateBoard` は `signi_down` をどこでも見ていなかったので、
+   *     【起】の《ダウン》（live 284効果）は**払っても 1点も減らない**＝タダのコストに見えていた。
+   * 🔑**終端を「アタック後」へ寄せる安い近似**＝これが無いと盤面へ出す価値が手札1枚より安く見える。
+   * ⚠**アタック制限の効果までは見ていない**（「アタックできない」の付与）＝そこまで見るのは `S-17`。
+   */
+  const attackLanes = (me: PlayerState, them: PlayerState) =>
+    [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined
+      && !me.field.signi_down?.[zi] && !me.field.signi_frozen?.[zi]).length;
+  const attackerOpenLanes = (ctx.isCpuTurn ?? true) ? attackLanes(cpu, opp) : -attackLanes(opp, cpu);
   return fieldValue(cpu) - fieldValue(opp)
     + (openLanes(cpu, opp) - openLanes(opp, cpu)) * W.openLane
+    + attackerOpenLanes * W.turnDamage
     + (wonLanes(cpu, opp) - wonLanes(opp, cpu)) * W.laneWin
     + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
