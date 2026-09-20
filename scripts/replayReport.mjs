@@ -4,7 +4,12 @@
 //   node scripts/replayReport.mjs                          # ⓪ 溜まった報告を1画面で一覧＋同症状を束ねる
 //   node scripts/replayReport.mjs <report.json>            # ① triage ビュー（読むだけ）
 //   node scripts/replayReport.mjs <report.json> --logs 50  # ログをN件表示
-//   node scripts/replayReport.mjs <report.json> --inject    # ② claude1 の PLAYING ルームへ復元
+//   node scripts/replayReport.mjs <report.json> --replay    # ② 盤面を engine で撃ち直す（推奨・数秒・無料）
+//   node scripts/replayReport.mjs <report.json> --inject    # ③ claude1 の PLAYING ルームへ復元
+//
+// 🔴🔑**まず `--replay`**（2026-09-20 ユーザー提案）＝報告 `c32a37ce` は**推論で2往復ムダにした**。
+//   ログに出てくる効果を engine で撃ち直し、**原文 × 提示 × 請求 × 盤面差分**を並べると、
+//   「置けないのに撃てる」「軽減が効いていない」型は**最初の1回で**見える。実体は `replayReportEngine.ts`。
 //
 // 🔴**`verifyBattleDrive.mjs` の `injectScenario` は使えない**＝あちらは**シナリオ間の汚染を防ぐため
 //   「盤面の物理配置」9フィールド以外を意図的に全部消し、ダウン/凍結/チャーム等のマーカーも既定値へ戻す**。
@@ -17,13 +22,23 @@
 //   「自分の番なのに応答できない」偽のソフトロックを自分で作る）。
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const REPORT_DIR = 'scratchpad-reports';
 const args = process.argv.slice(2);
 const argVal = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const LOG_N = argVal('--logs') ? parseInt(argVal('--logs'), 10) : 20;
 const INJECT = args.includes('--inject');
+const REPLAY = args.includes('--replay');
 const file = args.find(a => !a.startsWith('--'));
+
+// ── ② engine で撃ち直す（`replayReportEngine.ts` へ委譲）───────────────────
+// 🔑**別プロセスに出す理由**＝engine は TypeScript なので `tsx` が要る（この .mjs からは import できない）。
+if (REPLAY && file) {
+  const r = spawnSync('npx', ['tsx', 'scripts/replayReportEngine.ts', file, ...(argVal('--logs') ? ['--logs', argVal('--logs')] : [])],
+    { stdio: 'inherit', shell: true });
+  process.exit(r.status ?? 0);
+}
 
 // ── 引数なし＝**溜まった報告を1画面で見る**（§5.6・2026-09-17）────────────────
 // 🔴**なぜ要るか**＝実測で 1件 ≒ 20KB。6件を1件ずつ開くと出力が6倍になり、
@@ -147,6 +162,7 @@ if (!INJECT) {
   console.log(`
 ──────────────────────────────
 次の一手:
+  🔥まず撃ち直す         → node scripts/replayReport.mjs ${file} --replay   （原文 × 提示 × 請求 × 盤面差分）
   engine のバグらしい → 上の pending_effect を golden で再現する（盤面は snapshot.row にある）
   実機の詰まりらしい   → node scripts/replayReport.mjs ${file} --inject
 `);
