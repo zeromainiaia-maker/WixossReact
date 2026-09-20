@@ -17,12 +17,12 @@ import {
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
 import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
-import type { LookaheadCtx } from './cpuLookahead';
+import { cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
-import { listCpuOffFieldActivated, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
+import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
 import { paidFieldLevels, pickCpuResonaSelection, pickCpuResonaZone } from './cpuSummon';
-import { buildEnergyPayPool, energyPoolCardNums, type EnergyPayEntry } from './energyPaySource';
+import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import { computeFieldSigniLimit } from './fieldLimit';
 import { canGrowNow, declaredSigniOverride, effectiveLrigClass, listGrowCandidates, meetsRestriction } from './growLogic';
 import { computeEffectiveLrigLimit } from './lrigLimit';
@@ -71,12 +71,14 @@ export type CpuMove =
   | { kind: 'assistGrow'; card: CardData; side: 'l' | 'r'; costIndices: Set<number>; pool: EnergyPayEntry[] }
   | { kind: 'resona'; card: CardData; candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection; zone: number }
   | { kind: 'rise'; card: CardData; handIndex: number; zone: number; selection: NonNullable<ReturnType<typeof planRiseSummon>>['selection'] }
-  | { kind: 'piece'; choice: CpuKeyPieceChoice }
-  | { kind: 'activate'; choice: CpuActivatedChoice }
-  | { kind: 'lrigActivate'; choice: CpuLrigActivatedChoice }
-  | { kind: 'offFieldActivate'; choice: CpuOffFieldChoice }
-  | { kind: 'arts'; choice: CpuArtsCandidate }
-  | { kind: 'spell'; choice: CpuSpellChoice };
+  | { kind: 'piece'; choice: CpuKeyPieceChoice; pool: EnergyPayEntry[] }
+  // ⚠`pool` は支払いの内訳（`costIndices`）を実際のエナへ写すのに要る（`S-16` の `applyCpuMoveSim`）＝
+  //   手が自分で持つ＝適用側が入力を組み直さない（組み直すと「列挙したときと違う pool で払う」ズレが出る）。
+  | { kind: 'activate'; choice: CpuActivatedChoice; pool: EnergyPayEntry[]; phase: 'MAIN' | 'ATTACK_ARTS' }
+  | { kind: 'lrigActivate'; choice: CpuLrigActivatedChoice; pool: EnergyPayEntry[]; phase: 'MAIN' | 'ATTACK_ARTS' }
+  | { kind: 'offFieldActivate'; choice: CpuOffFieldChoice; pool: EnergyPayEntry[]; phase: 'MAIN' | 'ATTACK_ARTS' }
+  | { kind: 'arts'; choice: CpuArtsCandidate; pool: EnergyPayEntry[]; turnPhase: TurnPhase }
+  | { kind: 'spell'; choice: CpuSpellChoice; pool: EnergyPayEntry[] };
 
 export type CpuMoveKind = CpuMove['kind'];
 
@@ -471,6 +473,18 @@ export function cpuSpellInput(ctx: CpuMoveCtx, pendingSpell: boolean): CpuMainSp
   };
 }
 
+/** 【起】3種（場のシグニ／センタールリグ／場以外）をまとめて列挙する（窓は `MAIN` と `ATTACK_ARTS`）。 */
+export function listCpuActivateMoves(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS'): CpuMove[] {
+  const signiIn = cpuSigniActivatedInput(ctx, phase);
+  const lrigIn = cpuLrigActivatedInput(ctx, phase);
+  const offIn = cpuOffFieldInput(ctx, phase);
+  return [
+    ...listCpuSigniActivated(signiIn).map(choice => ({ kind: 'activate' as const, choice, pool: signiIn.pool, phase })),
+    ...listCpuLrigActivated(lrigIn).map(choice => ({ kind: 'lrigActivate' as const, choice, pool: lrigIn.pool, phase })),
+    ...listCpuOffFieldActivated(offIn).map(choice => ({ kind: 'offFieldActivate' as const, choice, pool: offIn.pool, phase })),
+  ];
+}
+
 // ─── 全体 ─────────────────────────────────────────────────────
 
 /**
@@ -491,26 +505,27 @@ export function listCpuMoves(ctx: CpuMoveCtx, phase: TurnPhase, opts: { pendingS
   if (phase === 'GROW') return canGrowNow(s, blockedSelf) ? listCpuGrows(ctx) : [];
   if (phase === 'MAIN') {
     if (isPhaseSkipped('MAIN', s, blockedSelf)) return [];
+    const spellIn = cpuSpellInput(ctx, opts.pendingSpell);
+    const artsIn = cpuArtsInput(ctx, 'MAIN');
+    const pieceIn = cpuKeyPieceInput(ctx, 'MAIN');
     return [
       ...listCpuDeploys(ctx),
       ...listCpuAssistGrows(ctx),
       ...(opts.pendingSpell ? [] : listCpuResonas(ctx)),
       ...listCpuRises(ctx),
-      ...(opts.pendingSpell ? [] : listCpuKeyPieces(cpuKeyPieceInput(ctx, 'MAIN')).map(choice => ({ kind: 'piece' as const, choice }))),
-      ...listCpuSigniActivated(cpuSigniActivatedInput(ctx, 'MAIN')).map(choice => ({ kind: 'activate' as const, choice })),
-      ...listCpuLrigActivated(cpuLrigActivatedInput(ctx, 'MAIN')).map(choice => ({ kind: 'lrigActivate' as const, choice })),
-      ...listCpuOffFieldActivated(cpuOffFieldInput(ctx, 'MAIN')).map(choice => ({ kind: 'offFieldActivate' as const, choice })),
-      ...listCpuArts(cpuArtsInput(ctx, 'MAIN'), true).map(choice => ({ kind: 'arts' as const, choice })),
-      ...listCpuMainSpells(cpuSpellInput(ctx, opts.pendingSpell)).map(choice => ({ kind: 'spell' as const, choice })),
+      ...(opts.pendingSpell ? [] : listCpuKeyPieces(pieceIn).map(choice => ({ kind: 'piece' as const, choice, pool: pieceIn.payer.energyPayPool }))),
+      ...listCpuActivateMoves(ctx, 'MAIN'),
+      ...listCpuArts(artsIn, true).map(choice => ({ kind: 'arts' as const, choice, pool: artsIn.payer.energyPayPool, turnPhase: 'MAIN' as TurnPhase })),
+      ...listCpuMainSpells(spellIn).map(choice => ({ kind: 'spell' as const, choice, pool: spellIn.payer.energyPayPool })),
     ];
   }
   if (phase === 'ATTACK_ARTS') {
+    const artsIn = cpuArtsInput(ctx, 'ATTACK_ARTS');
+    const pieceIn = cpuKeyPieceInput(ctx, 'ATTACK_ARTS');
     return [
-      ...listCpuArts(cpuArtsInput(ctx, 'ATTACK_ARTS'), true).map(choice => ({ kind: 'arts' as const, choice })),
-      ...(opts.pendingSpell ? [] : listCpuKeyPieces(cpuKeyPieceInput(ctx, 'ATTACK_ARTS')).map(choice => ({ kind: 'piece' as const, choice }))),
-      ...listCpuSigniActivated(cpuSigniActivatedInput(ctx, 'ATTACK_ARTS')).map(choice => ({ kind: 'activate' as const, choice })),
-      ...listCpuLrigActivated(cpuLrigActivatedInput(ctx, 'ATTACK_ARTS')).map(choice => ({ kind: 'lrigActivate' as const, choice })),
-      ...listCpuOffFieldActivated(cpuOffFieldInput(ctx, 'ATTACK_ARTS')).map(choice => ({ kind: 'offFieldActivate' as const, choice })),
+      ...listCpuArts(artsIn, true).map(choice => ({ kind: 'arts' as const, choice, pool: artsIn.payer.energyPayPool, turnPhase: 'ATTACK_ARTS' as TurnPhase })),
+      ...(opts.pendingSpell ? [] : listCpuKeyPieces(pieceIn).map(choice => ({ kind: 'piece' as const, choice, pool: pieceIn.payer.energyPayPool }))),
+      ...listCpuActivateMoves(ctx, 'ATTACK_ARTS'),
     ];
   }
   return [];
@@ -523,6 +538,141 @@ export const CPU_MOVE_PRIORITY: Readonly<Partial<Record<TurnPhase, readonly CpuM
   MAIN: ['deploy', 'assistGrow', 'resona', 'rise', 'piece', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell'],
   ATTACK_ARTS: ['arts', 'piece', 'activate', 'lrigActivate', 'offFieldActivate'],
 };
+
+// ─── 探索用の1手適用（§5.7 `S-16`）────────────────────────────────
+
+/** 1手を適用した結果の盤面（探索用＝**engine だけ**・本番の `perform*` は通らない）。 */
+export interface CpuSimBoard { cpu: PlayerState; opp: PlayerState }
+
+/**
+ * 🆕§5.7 `S-16`＝**探索用の1手適用**（`applyCpuMove` の探索側の実装）。
+ *
+ * 🔴**本番用（`cpuTurnAction` の `perform*`）とは別実装**＝**列挙は1本のまま**（`listCpuMoves`）で、
+ *   ここは「engine だけで**近似的に**進めて、次の候補を出し直せる盤面を作る」ことだけを担う。
+ * ■ できること＝支払い（エナ・シグニのコスト）を写し、**使用済みの印**（`cpu_used_card_nums_this_turn` /
+ *   `cpu_activated_effect_ids_this_turn`）を刻み、効果を `simulateEffect` で解決する。
+ *   ⇒ **同じ手を2回選ばない**・**ドローで増えた選択肢が次の列挙に入る**（`S-16` のビーム探索の前提）。
+ * ■ 🔴**近似（`S-4` から引き継ぐ限界）**＝誘発の連鎖・スタック・相手の応答は解かない。
+ *   ⇒ 探索の評価は**近似**で、実際に打つのは本番の `perform*`（そちらが正）。
+ * ■ 🔴**まだ適用できない手は `null` を返す**（`assistGrow` / `resona` / `rise` / `piece`）＝
+ *   engine だけで置き換えるには実行関数（`performAssistGrow`／`performSummonSigni`／`performKeyPiece`）の
+ *   盤面操作を写す必要があり、**写経すると本番とズレる**（§5.6.3）。**探索はこれらを候補から外し、従来の優先順に委ねる。**
+ *   ⚠**「適用できない」を「弱い手」と混同しない**＝点数0で並べるのではなく、探索の外に置く。
+ */
+export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | null {
+  const { actor, opponent } = ctx;
+  /** エナの支払いを写す（人間の支払いと同じ `planEnergyPayment`＝下敷き払いも含む）。 */
+  const payEnergy = (s: PlayerState, pool: readonly EnergyPayEntry[], costIndices: ReadonlySet<number>): PlayerState =>
+    planEnergyPayment(s, pool, costIndices).applyTo(s);
+  const markUsed = (s: PlayerState, cardNum: string): PlayerState =>
+    ({ ...s, cpu_used_card_nums_this_turn: [...(s.cpu_used_card_nums_this_turn ?? []), cardNum] });
+  const markActivated = (s: PlayerState, key: string): PlayerState =>
+    ({ ...s, cpu_activated_effect_ids_this_turn: [...(s.cpu_activated_effect_ids_this_turn ?? []), key] });
+  const lctxOf = (turnPhase: TurnPhase): LookaheadCtx => ({ ...ctx.lookahead, turnPhase });
+  /** カードの `ACTIVATED` を順に解決する（1つでも解けなければ null＝先読みで判断しない）。 */
+  const resolveActivated = (id: string, cpu: PlayerState, opp: PlayerState, turnPhase: TurnPhase): CpuSimBoard | null => {
+    const acts = ctx.lookahead.effectsOf(id).filter(e => e.effectType === 'ACTIVATED');
+    if (acts.length === 0) return null;
+    let a = cpu, b = opp;
+    for (const e of acts) {
+      const after = simulateEffect(e, id, a, b, lctxOf(turnPhase));
+      if (!after) return null;
+      a = after.cpu; b = after.opp;
+    }
+    return { cpu: a, opp: b };
+  };
+
+  switch (move.kind) {
+    case 'energy': {
+      // ⚠1ターン1回＝`actions_done` に刻む（刻まないと探索が何枚でもエナに置ける）。
+      const cpu: PlayerState = {
+        ...actor,
+        hand: actor.hand.filter((_, i) => i !== move.handIndex),
+        energy: [...actor.energy, move.id],
+        actions_done: [...(actor.actions_done ?? []), 'ENERGY'],
+      };
+      return { cpu, opp: opponent };
+    }
+    case 'grow': {
+      const inst = actor.lrig_deck.find(id => getCardNum(id) === move.card.CardNum);
+      if (!inst) return null;
+      const paid = payEnergy(actor, move.pool, move.costIndices);
+      // ⚠近似＝グロウ時の誘発（`ON_GROW`）・コイン・アシストの起き直しは解かない（本番の `performGrow` が正）。
+      // ⚠**`actions_done` に `'GROW'` を刻む**（`performGrow` と同じ）＝刻まないと探索が同じターンに何回でもグロウする。
+      return {
+        cpu: {
+          ...paid,
+          actions_done: [...(paid.actions_done ?? []), 'GROW'],
+          field: { ...paid.field, lrig: [...paid.field.lrig, inst] },
+          lrig_deck: paid.lrig_deck.filter(id => id !== inst),
+        },
+        opp: opponent,
+      };
+    }
+    case 'deploy': {
+      const card = ctx.cardMap.get(getCardNum(move.id));
+      if (!card) return null;
+      const energy = cpuPaySigniCostEnergy(ctx, actor, card);
+      if (!energy) return null;
+      const signi = [...actor.field.signi] as (string[] | null)[];
+      signi[move.zone] = [move.id];
+      let cpu: PlayerState = {
+        ...actor, energy,
+        hand: actor.hand.filter(h => h !== move.id),
+        field: { ...actor.field, signi },
+      };
+      let opp = opponent;
+      // 【出】＝CPU の通常召喚と同じ絞り込み（`cpuOnPlayEffectsOf`）。解けないものは飛ばす（`scoreDeploy` と同じ扱い）。
+      for (const e of cpuOnPlayEffectsOf(move.id, cpu, opp, ctx.lookahead)) {
+        const after = simulateEffect(e, move.id, cpu, opp, lctxOf('MAIN'));
+        if (!after) continue;
+        cpu = after.cpu; opp = after.opp;
+      }
+      return { cpu, opp };
+    }
+    case 'activate': {
+      const paid = markActivated(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.effect.effectId);
+      return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));
+    }
+    case 'lrigActivate': {
+      const src = actor.field.lrig.at(-1);
+      if (!src) return null;
+      const paid = markActivated(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.effect.effectId);
+      return simulateEffect(move.choice.effect, src, paid, opponent, lctxOf(move.phase));
+    }
+    case 'offFieldActivate': {
+      // 支払いは `cpuOffFieldActivate` の `paidBoard`（トラッシュ／手札それぞれ本番と同じ支払い関数）。
+      const paid = paidBoard(move.choice, actor, opponent, ctx.cardMap, move.pool);
+      if (!paid) return null;
+      const marked = markActivated(paid.cpu, cpuOffFieldLedgerKey(move.choice.effect.effectId, move.choice.cardNum));
+      return simulateEffect(move.choice.effect, move.choice.cardNum, marked, paid.opp, lctxOf(move.phase));
+    }
+    case 'arts': {
+      const inst = actor.lrig_deck.find(id => getCardNum(id) === move.choice.card.CardNum) ?? move.choice.card.CardNum;
+      const paid = markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum);
+      const used: PlayerState = { ...paid, lrig_deck: paid.lrig_deck.filter(id => id !== inst) };
+      return resolveActivated(inst, used, opponent, move.turnPhase);
+    }
+    case 'spell': {
+      const inst = actor.hand[move.choice.handIndex];
+      if (!inst) return null;
+      const paid = markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum);
+      // ⚠近似＝スペルは解決後にトラッシュへ置かれる（カットイン窓・置換は解かない）。
+      const used: PlayerState = {
+        ...paid,
+        hand: paid.hand.filter((_, i) => i !== move.choice.handIndex),
+        trash: [...paid.trash, inst],
+      };
+      return resolveActivated(inst, used, opponent, 'MAIN');
+    }
+    // 🔴engine だけでは写せない（実行関数の盤面操作を写経しない＝§5.6.3）。探索はこの手を扱わない。
+    case 'assistGrow': case 'resona': case 'rise': case 'piece': return null;
+  }
+}
+
+/** 探索用の適用ができる手の種類（できないものは従来の優先順に委ねる＝上の `applyCpuMoveSim`）。 */
+export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
+  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell']);
 
 /** 手の短い表示（ログ・計測用）。 */
 export function describeCpuMove(m: CpuMove): string {

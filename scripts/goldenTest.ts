@@ -171,6 +171,8 @@ import { cardFeatures, cardStrength } from '../src/screens/battle/cpuCardStrengt
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { applyCpuMoveSim, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
@@ -86703,6 +86705,96 @@ test('§5.7 S-16 先読みは山の順序を見ない（カンニングを塞ぐ
   eq(JSON.stringify(base.deck), JSON.stringify(deck), '🔴先読みが本番の山の並びを書き換えた');
 }));
 
+test('§5.7 S-16 前半の探索：幅0で無効・扱えない手は選ばない・決定論・本番の盤面を触らない', () => withSavedCursor(() => {
+  // 🔑**探索は「1手適用するたびに候補を出し直す」ビーム**（`listCpuMoves` → `applyCpuMoveSim` → `evaluateBoard`）。
+  // ⚠**既定では動かない**＝`searchWidth` が 0 なら呼ばない（ポリシーの数値で入切する）。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const mk = () => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = ['WD01-013#h1', 'WD01-013#h2'];
+    st.energy = ['WD03-013#e1', 'WD03-013#e2'];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];
+    st.lrig_deck = [];
+    return st;
+  };
+  const actor = mk(), opponent = mk();
+  const ctx: CpuMoveCtx = {
+    actor, opponent, allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: lctx, reserveFor: () => undefined,
+  };
+  // ① 幅0（既定）＝探索しない＝1手も返さない（`cpuTurnAction` は従来の優先順のまま）
+  eq(searchCpuMove(ctx, 'MAIN', { width: 0, depth: 4, pendingSpell: false }).move, null, '🔴幅0なのに探索が手を返した（既定で挙動が変わる）');
+  const snapshot = JSON.stringify([actor, opponent]);
+  const r = searchCpuMove(ctx, 'MAIN', { width: 4, depth: 4, pendingSpell: false });
+  ok(!!r.move, `前提崩れ＝この盤面で探索が1手も見つけない（候補 ${listCpuMoves(ctx, 'MAIN', { pendingSpell: false }).map(describeCpuMove).join(' ')}）`);
+  // ② 🔴**扱えない種類を選ばない**（`applyCpuMoveSim` が null を返す手＝探索の外）
+  ok(r.line.every(m => CPU_SIM_APPLICABLE_KINDS.has(m.kind)), `🔴探索が適用できない手を選んだ（${r.line.map(describeCpuMove).join(' → ')}）`);
+  // ③ 目的関数＝終端の盤面の点数（何もしないより良い手だけを返す）
+  ok(r.score > r.baseline, `🔴何もしないより悪い手順を返した（${r.score} <= ${r.baseline}）`);
+  // ④ 決定論（`S-9` の A/B と実機シナリオの再現性の前提）
+  const r2 = searchCpuMove(ctx, 'MAIN', { width: 4, depth: 4, pendingSpell: false });
+  eq(r2.line.map(describeCpuMove).join(' → '), r.line.map(describeCpuMove).join(' → '), '🔴同じ盤面で探索の結果が変わる');
+  // ⑤ 🔴本番の盤面を触らない
+  eq(JSON.stringify([actor, opponent]), snapshot, '🔴探索が渡した盤面を書き換えた');
+  // ⑥ 展開の上限（安全弁）＝`nodeCap` を超えて広げない
+  eq(searchCpuMove(ctx, 'MAIN', { width: 4, depth: 4, pendingSpell: false, nodeCap: 1 }).nodes <= 1, true, '🔴展開の上限を超えて探索した');
+}));
+
+test('§5.7 S-16 探索用の1手適用：支払い・使用済みの印を写し、次の列挙が出し直せる（本番の盤面は触らない）', () => withSavedCursor(() => {
+  // 🔑**探索（`S-16`）の前提**＝1手適用するたびに `listCpuMoves` を呼び直す＝
+  //   ①同じ手を2回選ばない（使用済みの印）②ドロー等で増えた選択肢が次の列挙に入る。
+  // 🔴**本番用（`perform*`）とは別実装**＝ここは engine だけの近似。列挙（`listCpuMoves`）は1本のまま。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const VANILLA = 'WD01-013';   // レベル1のシグニ（コストなし）
+  const mk = () => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = [`${VANILLA}#h1`, `${VANILLA}#h2`];
+    st.energy = ['WD03-013#e1', 'WD03-013#e2'];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];   // レベル3のルリグ（リミットに余裕）
+    st.lrig_deck = [];
+    return st;
+  };
+  const actor = mk(), opponent = mk();
+  const ctx: CpuMoveCtx = {
+    actor, opponent, allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: lctx, reserveFor: () => undefined,
+  };
+  const moves = listCpuMoves(ctx, 'MAIN', { pendingSpell: false });
+  const deploy = moves.find(m => m.kind === 'deploy');
+  ok(!!deploy, `前提崩れ＝召喚の候補が出ない（${moves.map(describeCpuMove).join(' ')}）`);
+  const snapshot = JSON.stringify([actor, opponent]);
+  const after = applyCpuMoveSim(ctx, deploy!);
+  ok(!!after, '🔴召喚の1手が適用できない');
+  // ① 盤面が進む＝手札から消えてゾーンが埋まる
+  eq(after!.cpu.field.signi[(deploy as Extract<CpuMove, { kind: 'deploy' }>).zone]?.at(-1), (deploy as Extract<CpuMove, { kind: 'deploy' }>).id, '🔴召喚したシグニがゾーンに居ない');
+  eq(after!.cpu.hand.length, actor.hand.length - 1, '🔴手札が減っていない');
+  // ② 🔴**本番の盤面を書き換えない**（探索は判断の材料を作るだけ）
+  eq(JSON.stringify([actor, opponent]), snapshot, '🔴1手適用が渡した盤面を書き換えた');
+  // ③ 🔑**次の列挙が出し直せる**＝適用後の盤面で列挙すると、同じ手はもう出ない
+  const next = listCpuMoves({ ...ctx, actor: after!.cpu, opponent: after!.opp }, 'MAIN', { pendingSpell: false });
+  ok(!next.some(m => describeCpuMove(m) === describeCpuMove(deploy!)), '🔴適用後も同じ手が候補に残る（探索が同じ手を繰り返す）');
+  // ④ エナチャージ＝1ターン1回の印（`actions_done`）を刻む＝適用後は候補が空になる
+  const energyMoves = listCpuMoves(ctx, 'ENERGY', { pendingSpell: false });
+  ok(energyMoves.length > 0, '前提崩れ＝エナチャージの候補が出ない');
+  const afterEnergy = applyCpuMoveSim(ctx, energyMoves[0]);
+  ok(!!afterEnergy, '🔴エナチャージの1手が適用できない');
+  eq(afterEnergy!.cpu.energy.length, actor.energy.length + 1, '🔴エナが増えていない');
+  eq(listCpuMoves({ ...ctx, actor: afterEnergy!.cpu }, 'ENERGY', { pendingSpell: false }).length, 0,
+    '🔴エナチャージ後も候補が残る（1ターン1回の印を刻んでいない）');
+  // ⑤ 🔴**まだ適用できない手は `null`**（実行関数の盤面操作を写経しない＝§5.6.3）＝「弱い手」として0点で並べない
+  for (const kind of ['assistGrow', 'resona', 'rise', 'piece'] as const) {
+    eq(CPU_SIM_APPLICABLE_KINDS.has(kind), false, `🔴${kind} を「適用できる」と宣言しているのに実装が無い`);
+  }
+  eq(applyCpuMoveSim(ctx, { kind: 'rise', card: cardMap.get(VANILLA)!, handIndex: 0, zone: 0, selection: undefined } as unknown as CpuMove), null,
+    '🔴適用を実装していない種類が null を返さない（探索が嘘の盤面で進む）');
+}));
+
 test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面で、召喚・スペルを選ぶ（本番の盤面と乱数は触らない）', () => withSavedCursor(() => {
   // 🆕2026-09-17（ユーザー決定＝A で先読みの効果を先に確かめる）。`S-1` の静的な点数は「相手の場が空でも除去を高く見る」。
   const cm = new InstanceMap<CardData>(cardMap);
@@ -86742,14 +86834,15 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
     e.effectType === 'ACTIVATED' && e.action?.type === 'BANISH' && JSON.stringify(e.action).includes('"opponent"') && !JSON.stringify(e.action).includes('power')))!;
   ok(!!removalSpell, '前提崩れ＝条件の無い除去スペルが見つからない');
   const spellId = `${removalSpell.CardNum}#h9`;
-  const caster = board([null, null, null], [spellId]);
+  const caster = board([null, null, null], [spellId, `${VANILLA}#h6`]);   // 🆕`S-18`＝予備の手札1枚（手札0の罰則を主題から外す）
   const gainWithTarget = scoreCardUseGain(spellId, 1, caster, oppBig, lctx, 'hand');
   const gainNoTarget = scoreCardUseGain(spellId, 1, caster, board([null, null, null]), lctx, 'hand');
   ok(gainWithTarget !== null && gainNoTarget !== null, `前提崩れ＝${removalSpell.CardNum} の先読みが解決しきれない`);
   ok(gainWithTarget! >= SPELL_GAIN_MIN, `🔴相手のシグニを除去できるスペルの増分が下限に届かない（${gainWithTarget}）`);
   ok(gainNoTarget! < SPELL_GAIN_MIN, `🔴相手の場が空なのに除去スペルを使う価値があると見た（${gainNoTarget}）`);
   // 凍結スペル（ＦＲＥＥＺＥ＝相手のすべてのシグニをダウンし凍結）＝相手のシグニが2体いれば使う価値がある
-  const freezeGain = scoreCardUseGain('WX01-085#h8', 1, board([null, null, null], ['WX01-085#h8']), oppBig, lctx, 'hand');
+  // 🆕§5.7 `S-18`＝**手札0の罰則**が入ったので検体に予備の手札を1枚足す（主題は凍結スペルの価値）。
+  const freezeGain = scoreCardUseGain('WX01-085#h8', 1, board([null, null, null], ['WX01-085#h8', `${VANILLA}#h7`]), oppBig, lctx, 'hand');
   ok(freezeGain !== null && freezeGain >= SPELL_GAIN_MIN, `🔴相手のシグニ2体を凍結するスペルの価値を見ていない（${freezeGain}）`);
   // 画面の配線
   const battle = battleScreenSource();
@@ -86867,7 +86960,9 @@ test('§5.7 S-7 場以外の【起】：提示の判定は人間と CPU で1本�
   // 🆕**人間のターンのアーツステップ（`ATTACK_ARTS_OP`）で手札の【起】で応答する**（`S-7` の残り・2026-09-18）。
   //   `WX18-055-E1`「【起】《アタックフェイズアイコン》《黒》《黒》手札からこのカードを捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、
   //   それのパワーを－7000する。この能力はあなたのセンタールリグが＜ウリス＞の場合にしか使用できない。」
-  const respCpu = { ...cpuBoard(['WD05-009#e1', 'WD05-010#e2'], [`${NESSIE}#t1`]), hand: ['WX18-055#h1'] };
+  // 🆕§5.7 `S-18`（2026-09-20）＝**手札を0にする罰則**が入ったので、検体に**予備の手札を1枚**持たせる
+  //   （この検査の主題は「相手のパワーを下げる手札の【起】を使うか」であって、最後の1枚を使い切るかではない）。
+  const respCpu = { ...cpuBoard(['WD05-009#e1', 'WD05-010#e2'], [`${NESSIE}#t1`]), hand: ['WX18-055#h1', 'WD01-013#h2'] };
   const respLctx = { ...lctx, isCpuTurn: false, turnPhase: 'ATTACK_ARTS_OP' as const,
     powersOf: (c: PlayerState, o: PlayerState) => calcFieldPowers(c, o, false, effectsMap, cm, 'ATTACK_ARTS_OP') };
   const pickResp = (st: PlayerState, o: PlayerState) => pickCpuOffFieldActivated({
@@ -86991,6 +87086,60 @@ test('§5.7 S-9 強さの A/B 測定台：席ごとのポリシー・席入れ�
   const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/cpuTurnActionImpl\(performCtx\(\), \{/.test(screenOnly), '前提崩れ＝画面の `cpuTurnAction` の呼び出しが見つからない');
   ok(!/cpuPolicy|policy:/.test(screenOnly), '🔴画面が CPU ポリシーを渡している＝実機の挙動が変わりうる（`S-9` は測定台だけのはず）');
+}));
+
+test('§5.7 S-18 終端評価の「次ターン」項：グロウの価値・グロウ用エナ・手札0・【ガード】の温存', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**＝旧の採点は `hand`／`energy` の**線形の枚数**だけで、
+  //   「エナを使い切って次のターン何もできない」「ルリグが育っていない」が1点も映らなかった。
+  //   実測（`--census-moves`・幅4深さ4）＝**探索が「グロウしない」を選ぶ**（グロウはエナを払うだけの損に見える）。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const VAN = 'WD01-013';
+  const W = DEFAULT_CPU_POLICY.boardWeights;
+  const side = (o: { hand?: string[]; energy?: string[]; lrig?: string; grown?: boolean } = {}) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = o.hand ?? [];
+    st.energy = o.energy ?? [];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = [o.lrig ?? 'WD03-003#r1'];
+    st.actions_done = o.grown ? ['GROW'] : [];
+    return st;
+  };
+  const lctxOf = (canPayNextGrow?: (st: PlayerState) => boolean | undefined) => ({
+    cardMap: cm as Map<string, CardData>,
+    effectsOf: () => [],
+    powersOf: () => new Map<string, number>(),
+    canPayNextGrow,
+  });
+  const opp = side({ hand: [`${VAN}#o1`] });
+  // ① ルリグのレベル差＝グロウの価値（これが無いとグロウは「エナを払うだけ」に見える）
+  const lv2 = evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-003#r1' }), opp, lctxOf());   // コード・ピルルク・Ｍ＝Lv2
+  const lv3 = evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-002#r1' }), opp, lctxOf());   // コード・ピルルク・Ｇ＝Lv3
+  eq(lv3 - lv2, W.lrigLevel, `🔴ルリグのレベルが採点に入っていない（${lv2} / ${lv3}）＝探索がグロウを選ばなくなる`);
+  // ② グロウ用エナの確保＝「次のグロウが払えるか」。⚠**項は左右対称**なので、相手側が一定になる形で比べる
+  //   （ここでは「エナが1枚でもあれば払える」という判定を渡し、相手はエナ0＝常に払えない側に固定する）。
+  const canPayIfEnergy = (st: PlayerState) => st.energy.length > 0;
+  const ready = evaluateBoard(side({ hand: [`${VAN}#h1`], energy: ['WD03-013#e1'] }), opp, lctxOf(canPayIfEnergy));
+  const notReady = evaluateBoard(side({ hand: [`${VAN}#h1`] }), opp, lctxOf(canPayIfEnergy));
+  eq(ready - notReady, W.energy + W.growReady, '🔴次のグロウが払えるかが採点に入っていない');
+  // ③ 🔴**すでにグロウしたら「確保済み」**＝グロウ直後を 0 にすると**グロウそのものが損**に見える（実測で探索が選ばなくなった）
+  const grown = evaluateBoard(side({ hand: [`${VAN}#h1`], grown: true }), opp, lctxOf(canPayIfEnergy));
+  eq(grown - notReady, W.growReady, '🔴このターン既にグロウしているのに「グロウ用エナが無い」と減点した');
+  // ④ 手札が0
+  const empty = evaluateBoard(side({ hand: [] }), opp, lctxOf());
+  const one = evaluateBoard(side({ hand: [`${VAN}#h1`] }), opp, lctxOf());
+  eq(empty - one, -W.hand + W.handEmpty, '🔴手札0の罰則が入っていない（枚数の線形だけになっている）');
+  // ⑤ 【ガード】の温存＝手札の【ガード】は `keepGuards` 枚まで加点
+  const guardCard = [...cardMap.values()].find(c => c.Guard === '1' && c.Type === 'シグニ');
+  ok(!!guardCard, '前提崩れ＝【ガード】を持つシグニが見つからない');
+  const withGuard = evaluateBoard(side({ hand: [`${guardCard!.CardNum}#g1`] }), opp, lctxOf());
+  eq(withGuard - one, W.guardKept, '🔴手札の【ガード】の温存が採点に入っていない');
+  // ⑥ 旧挙動は `legacy-nextturn` で再現できる（A/B の A 側・⚠消さない）
+  const legacy = CPU_POLICIES['legacy-nextturn'];
+  ok(!!legacy, '🔴`legacy-nextturn`（S-18 前の採点）が消えている＝A/B が再現できない');
+  const lctxLegacy = { ...lctxOf(canPayIfEnergy), policy: legacy };
+  eq(evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-002#r1' }), opp, lctxLegacy)
+    - evaluateBoard(side({ hand: [`${VAN}#h1`], lrig: 'WD03-003#r1' }), opp, lctxLegacy), 0,
+    '🔴`legacy-nextturn` なのに「次のターン」項が効いている');
 }));
 
 test('§5.7 S-10 盤面の採点のパワー項：線形から閾値へ（勝敗が反転しないバフはほぼ 0 点）', () => withSavedCursor(() => {

@@ -106,8 +106,11 @@ export function pickCpuHandActivateFieldTrash(
   return new Set(zones.slice(0, ft.count));
 }
 
-/** 支払ったあとの盤面（先読み用）。払えなければ null。 */
-function paidBoard(
+/**
+ * 支払ったあとの盤面（先読み用）。払えなければ null。
+ * 🆕§5.7 `S-16`＝探索の1手適用（`applyCpuMoveSim`）も**この関数を通す**＝支払いの写し取りを2か所に書かない。
+ */
+export function paidBoard(
   choice: Pick<CpuOffFieldChoice, 'zone' | 'cardNum' | 'handIndex' | 'effect' | 'selections' | 'fieldTrash'>,
   actor: PlayerState, opponent: PlayerState, cardMap: Map<string, CardData>, energyPool: readonly EnergyPayEntry[],
 ): { cpu: PlayerState; opp: PlayerState } | null {

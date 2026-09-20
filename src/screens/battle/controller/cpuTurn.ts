@@ -285,7 +285,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const pool = input.pool;
     const choice = pickCpuSigniActivated(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'activate', choice });
+    d.observeChoice?.({ kind: 'activate', choice, pool, phase });
     appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
     // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
     //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
@@ -323,7 +323,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const pool = input.pool;
     const choice = pickCpuLrigActivated(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'lrigActivate', choice });
+    d.observeChoice?.({ kind: 'lrigActivate', choice, pool, phase });
     const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
     appendBattleLogs([`[CPU] ルリグの【起】を発動: ${lrigName}`]);
     // ⚠安全弁＝実行より先に「撃った」履歴を確定させる（シグニ【起】と同じ理由）。
@@ -354,7 +354,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const payer = input.payer;
     const choice = pickCpuKeyPiece(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'piece', choice });
+    d.observeChoice?.({ kind: 'piece', choice, pool: payer.energyPayPool });
     // ⚠文言は `census:play` の契約（anchor は `[CPU] ピース:` / `[CPU] キー:` をそのまま含むこと）。
     appendBattleLogs([choice.check.isPiece ? `[CPU] ピース: ${choice.card.CardName}` : `[CPU] キー: ${choice.card.CardName}`]);
     await performKeyPiece(choice.card, choice.costIndices, {
@@ -377,7 +377,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const pool = input.pool;
     const choice = pickCpuOffFieldActivated(input);
     if (!choice) return false;
-    if (phase !== 'ATTACK_ARTS_OP') d.observeChoice?.({ kind: 'offFieldActivate', choice });
+    if (phase !== 'ATTACK_ARTS_OP') d.observeChoice?.({ kind: 'offFieldActivate', choice, pool, phase });
     const zoneJa = choice.zone === 'trash' ? 'トラッシュ' : choice.zone === 'hand' ? '手札' : 'エナゾーン';
     // ⚠文言は `census:play` の契約（anchor＝`の【起】を発動: `）。
     appendBattleLogs([`[CPU] ${zoneJa}の【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
@@ -421,6 +421,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     powersOf: (c, o) => calcFieldPowers(c, o, true, effectsMap, battleCardMap, 'MAIN'),
     turnPhase: 'MAIN',
     policy: cpuPolicy,
+    // 🆕§5.7 `S-18`＝**次のグロウのコストをいま払えるか**（判定は人間の支払いと同じ `cpuGrowReserve`）。
+    //   ⚠グロウ先が1枚も無ければ `undefined`＝加点も減点もしない。
+    canPayNextGrow: st => {
+      const reserve = cpuGrowReserveFor(st);
+      return reserve ? reserve.keepsAfter(st.energy) : undefined;
+    },
   };
   // 🆕**グロウ用エナの予約**（ユーザー指示・2026-09-17）＝アーツ・スペル・【起】・キー／ピース・アシストグロウ・召喚コストで
   //   エナを払った残りで、次のグロウ先のどれかを払えないなら、その支払いはしない（`cpuGrowReserve.ts`）。
@@ -436,7 +442,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const payer = input.payer;
     const choice = pick(input);
     if (!choice) return false;
-    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: [choice.kind], costIndices: choice.costIndices } });
+    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: [choice.kind], costIndices: choice.costIndices }, pool: payer.energyPayPool, turnPhase });
     appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
     // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
     //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して
@@ -983,7 +989,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       const cpuSpellPayer = cpuSpellInputV.payer;
       const cpuSpellChoice = pickCpuMainSpell(cpuSpellInputV);
       if (cpuSpellChoice) {
-        d.observeChoice?.({ kind: 'spell', choice: cpuSpellChoice });
+        d.observeChoice?.({ kind: 'spell', choice: cpuSpellChoice, pool: cpuSpellPayer.energyPayPool });
         appendBattleLogs([`[CPU] スペルを発動: ${cpuSpellChoice.card.CardName}`]);
         // ⚠アーツと同じ安全弁＝実行より先に「使った」履歴を確定させる（`performSpell` は
         //   使用不能を検出すると何も書かずに return するので、履歴を実行の成否に委ねると

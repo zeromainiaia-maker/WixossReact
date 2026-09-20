@@ -49,6 +49,12 @@ export interface LookaheadCtx {
    * ⚠**席ごとに違うものが来る**（自己対戦の A/B）＝ここから先で `BOARD_WEIGHTS` を直接読まない。
    */
   policy?: CpuPolicy;
+  /**
+   * 🆕§5.7 `S-18`＝**その盤面で次のグロウのコストを払えるか**（`cpuGrowReserve` の予約＝人間と同じ支払い判定）。
+   * ⚠**渡さなければこの項は 0**（採点は従来どおり）＝`cpuTurnAction` が渡す。
+   * 🔑**「グロウ先が無い」と「払えない」を分ける**＝前者は `undefined` を返す（加点も減点もしない）。
+   */
+  canPayNextGrow?: (st: PlayerState) => boolean | undefined;
 }
 
 const STEP_CAP = 40;
@@ -173,6 +179,38 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
   };
   const fieldValue = (st: PlayerState) => [0, 1, 2].reduce((sum, zi) => sum + signiValue(st, zi), 0);
   // ⚠**空き判定も `topOf` を通す**＝パワー0以下のシグニが正面に残っていると「塞がっている」と誤読する。
+  /**
+   * 🆕§5.7 `S-18`＝**次のターンの制約**。①次のグロウが払えるか ②手札が0（③【ガード】の温存は下の自分側だけの項）。
+   * 🔑**1ply 伸ばして相手のターンを読むより安くて外しにくい**（相手の手札は非公開＝どのみち近似になる）。
+   * 🔴**左右対称に数える**（差で見る）＝片側だけに掛けると**鏡合わせの盤面で点差が付く**（golden `§5.7 S-10` が検出）。
+   * ⚠見ているのは**公開情報だけ**（手札の**枚数**・エナ・ルリグ）。
+   */
+  const nextTurnValue = (st: PlayerState) => {
+    let v = 0;
+    // 🔴**この項の意味は「今ターンのグロウを確保できているか」**（`cpuGrowReserve` と同じ狙い）＝
+    //   **すでにグロウしたなら「確保済み」として満額**を与える。
+    //   ⚠**グロウ直後を 0 にすると、グロウそのものが「損」に見えて探索がグロウを選ばなくなる**（2026-09-20 実測）。
+    const grown = st.actions_done?.includes('GROW') ?? false;
+    const growOk = grown ? true : ctx.canPayNextGrow?.(st);
+    if (growOk === true) v += W.growReady;
+    if (st.hand.length === 0) v += W.handEmpty;
+    return v;
+  };
+  /**
+   * 🆕§5.7 `S-18`＝**手札の【ガード】の温存**（`keepGuards` 枚まで）。
+   * ⚠**自分側だけ**＝相手の手札の中身は**非公開**（枚数しか見てよくない）＝相手側で数えるとカンニングになる。
+   */
+  const guardValue = (st: PlayerState) => {
+    const guards = st.hand.filter(id => (ctx.cardMap.get(getCardNum(id)) ?? ctx.cardMap.get(id))?.Guard === '1').length;
+    return Math.min(guards, ctx.policy?.keepGuards ?? DEFAULT_CPU_POLICY.keepGuards) * W.guardKept;
+  };
+  /** センタールリグのレベル（🆕§5.7 `S-18`＝グロウの価値）。 */
+  const lrigLevelOf = (st: PlayerState) => {
+    const top = st.field.lrig.at(-1);
+    if (!top) return 0;
+    const c = ctx.cardMap.get(getCardNum(top)) ?? ctx.cardMap.get(top);
+    return parseInt(c?.Level ?? '0', 10) || 0;
+  };
   const openLanes = (me: PlayerState, them: PlayerState) =>
     [0, 1, 2].filter(zi => topOf(me, zi) !== undefined && topOf(them, 2 - zi) === undefined).length;
   /**
@@ -192,7 +230,12 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     + [0, 1, 2].filter(zi => topOf(opp, zi) !== undefined && opp.field.signi_frozen?.[zi]).length * W.oppFrozen
     + (cpu.life_cloth.length - opp.life_cloth.length) * W.life
     + (cpu.hand.length - opp.hand.length) * W.hand
-    + (cpu.energy.length - opp.energy.length) * W.energy;
+    + (cpu.energy.length - opp.energy.length) * W.energy
+    // 🆕§5.7 `S-18`＝**ルリグのレベル差**（グロウの価値＝リミットと出せるシグニの上限）。
+    + (lrigLevelOf(cpu) - lrigLevelOf(opp)) * W.lrigLevel
+    // 🆕§5.7 `S-18`＝次のターンの制約（左右対称）＋【ガード】の温存（自分側だけ＝相手の手札は非公開）。
+    + (nextTurnValue(cpu) - nextTurnValue(opp))
+    + guardValue(cpu);
 }
 
 /** 対話に答えて resume する（1手）。答えられない形は null。 */

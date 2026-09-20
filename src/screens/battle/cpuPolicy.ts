@@ -42,6 +42,23 @@ export interface BoardWeights {
    *   （2026-09-20 に 3000 で試して golden `§5.7 S-4` が落ちて気付いた＝**除去が決まる盤面と決まらない盤面の差が 450 点**になった）。
    */
   laneWin: number;
+  /**
+   * 🆕§5.7 `S-18`＝**次のグロウのコストがいま払えるか**（払えるなら加点）。
+   * 🔑**なぜ要るか**＝旧の採点は `hand:1500` / `energy:1000` の**線形の枚数**だけで、
+   *   「エナを使い切って次のターン何もできない」が1点も映らなかった（`S-16` の探索は**エナチャージを −500 と見て「置かない」を選んだ**＝実測）。
+   * ⚠**グロウ先が1枚も無いときは加点しない**（払うものが無い＝この項の対象外）。
+   */
+  growReady: number;
+  /** 🆕§5.7 `S-18`＝**手札が0**（次のターンはドローの2枚だけで動く羽目になる）＝**負の値**を入れる。 */
+  handEmpty: number;
+  /** 🆕§5.7 `S-18`＝手札に残っている【ガード】1枚（`keepGuards` 枚まで数える）＝守りの札を温存する。 */
+  guardKept: number;
+  /**
+   * 🆕§5.7 `S-18`＝**センタールリグのレベル1つ**（＝リミットと出せるシグニのレベルの上限）。
+   * 🔴**これが無いとグロウが「エナを払うだけの損」に見える**＝`S-16` の探索が**グロウしない**を選ぶ（2026-09-20 実測）。
+   * ⚠**相手のルリグのレベルも引く**（盤面の採点は差で見る＝先にグロウされたら不利）。
+   */
+  lrigLevel: number;
 }
 
 /** 1つの CPU の「強さの設定」＝これを席ごとに変えて勝率を比べる。 */
@@ -65,7 +82,11 @@ export interface CpuPolicy {
  */
 export const DEFAULT_CPU_POLICY: CpuPolicy = {
   name: 'default',
-  boardWeights: { life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500 },
+  boardWeights: {
+    life: 7000, hand: 1500, energy: 1000, openLane: 3000, oppFrozen: 2500, fieldPowerScale: 0.25, laneWin: 1500,
+    // 🆕§5.7 `S-18`（2026-09-20）＝次のターンの制約。⚠**手で決めた初期値**＝`S-6`／A/B で調整する対象。
+    growReady: 2500, handEmpty: -2000, guardKept: 800, lrigLevel: 2500,
+  },
   spellGainMin: 1000,
   keepGuards: 1,
 };
@@ -99,6 +120,13 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    */
   'legacy-power': variant('legacy-power', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1, laneWin: 0 },
+  }),
+  /**
+   * 🆕§5.7 `S-18` の **A 側＝「次のターン」項を入れる前の採点**（枚数の線形だけ）。
+   * ⚠**消さない**＝`S-18` の A/B（`--a legacy-nextturn --b default`）で使う。
+   */
+  'legacy-nextturn': variant('legacy-nextturn', {
+    boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
   }),
 };
 

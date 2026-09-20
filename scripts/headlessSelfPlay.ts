@@ -53,9 +53,8 @@ import { resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolic
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
-import { describeCpuMove, type CpuMove } from '../src/screens/battle/cpuMoves';
-import { scoreCardUseGain, scoreDeploy, simulateEffect } from '../src/screens/battle/cpuLookahead';
-import { getCardNum } from '../src/engine/execUtils';
+import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { searchCpuMove, describeCpuLine } from '../src/screens/battle/cpuSearch';
 import { formatAbReport, splitSeeds, summarizeAb, type AbGameResult } from './selfPlayStats';
 
 const argv = process.argv.slice(2);
@@ -88,9 +87,14 @@ const WORKER_SEEDS = strArg('--seeds', '').split(',').filter(Boolean).map(Number
  */
 const FIRST = strArg('--first', 'host') === 'guest' ? CPU_PLAYER_ID : 'HOST';
 const CENSUS_MOVES = argv.includes('--census-moves');
+/** 🆕§5.7 `S-16`＝`--census-moves` のときに探索も回して「いまの選択とどれだけ変わるか」を測る（既定 幅4・深さ4）。 */
+const SEARCH_W = numArg('--search-width', 4);
+const SEARCH_D = numArg('--search-depth', 4);
 /** 🆕`--census-moves` のときだけ両席の CPU に渡す観測フック。 */
 let observeMoves: CpuTurnDeps['observeMoves'];
 let observeChoice: CpuTurnDeps['observeChoice'];
+/** 🆕§5.7 `S-16`＝打った手を計測側へも渡す口（`--census-moves` の探索との突き合わせ）。 */
+let onChoice: ((mv: CpuMove, describe: string) => void) | undefined;
 
 // ── カードデータ（`goldenTest.ts` と同じ読み方）──
 const root = process.cwd();
@@ -167,6 +171,7 @@ function installMoveCheck() {
     checked++;
     const d = describeCpuMove(mv);
     if (!lastListed?.set.has(d)) misses.push(`${lastListed?.phase ?? '?'}: ${d}（列挙＝${[...(lastListed?.set ?? [])].join(' ') || '空'}）`);
+    onChoice?.(mv, d);
   };
   const onMoves: NonNullable<CpuTurnDeps['observeMoves']> = ({ phase, moves }) => {
     lastListed = { phase, set: new Set(moves.map(describeCpuMove)) };
@@ -278,25 +283,40 @@ if (AB_MODE) {
 if (CENSUS_MOVES) {
   type Obs = { phase: string; n: number; listMs: number; kinds: Record<string, number>; applyMs: number[] };
   const obs: Obs[] = [];
-  /** 探索用の1手適用（engine だけ・盤面は書き換えない）＝いまある先読みの器で測れる種類だけ。 */
-  const applyOnce = (mv: CpuMove, c: Parameters<NonNullable<CpuTurnDeps['observeMoves']>>[0]['ctx']): boolean => {
-    const { actor, opponent, lookahead } = c;
-    switch (mv.kind) {
-      case 'deploy': scoreDeploy(mv.id, mv.zone, actor, opponent, lookahead); return true;
-      case 'activate': simulateEffect(mv.choice.effect, mv.choice.cardNum, actor, opponent, lookahead); return true;
-      case 'lrigActivate': simulateEffect(mv.choice.effect, actor.field.lrig.at(-1) ?? '', actor, opponent, lookahead); return true;
-      case 'offFieldActivate': simulateEffect(mv.choice.effect, mv.choice.cardNum, actor, opponent, lookahead); return true;
-      case 'spell': scoreCardUseGain(actor.hand[mv.choice.handIndex], mv.choice.costIndices.size, actor, opponent, lookahead, 'hand'); return true;
-      case 'arts': scoreCardUseGain(actor.lrig_deck.find(id => getCardNum(id) === mv.choice.card.CardNum) ?? mv.choice.card.CardNum,
-        mv.choice.costIndices.size, actor, opponent, lookahead, 'lrig_deck'); return true;
-      default: return false;
-    }
+  /** 🆕§5.7 `S-16`＝**探索用の1手適用そのもの**を測る（`applyCpuMoveSim`）。`null`＝まだ適用できない手。 */
+  const applied: Record<string, { ok: number; ng: number }> = {};
+  const applyOnce = (mv: CpuMove, c: CpuMoveCtx): boolean => {
+    const r = applyCpuMoveSim(c, mv);
+    const cell = applied[mv.kind] ?? (applied[mv.kind] = { ok: 0, ng: 0 });
+    if (r) cell.ok++; else cell.ng++;
+    return !!r;
   };
   const seenBoards = new Set<string>();
   const chk = installMoveCheck();
+  // 🆕§5.7 `S-16`＝探索（幅 `--search-width` / 深さ `--search-depth`）と**いまの選択**を突き合わせる。
+  const search = { runs: 0, ms: [] as number[], nodes: [] as number[], moved: 0, same: 0, diff: 0, none: 0, gain: [] as number[] };
+  const samples: string[] = [];
+  let lastSearch: { phase: string; move: CpuMove | null; line: CpuMove[]; gain: number } | null = null;
+  onChoice = (_mv, d) => {
+    if (!lastSearch) return;
+    const sd = lastSearch.move ? describeCpuMove(lastSearch.move) : null;
+    if (sd === null) { search.none++; samples.push(`[${lastSearch.phase}] いま=${d}／探索=打たない`); return; }
+    if (sd === d) { search.same++; return; }
+    search.diff++;
+    samples.push(`[${lastSearch.phase}] いま=${d}／探索=${describeCpuLine(lastSearch.line)}（+${Math.round(lastSearch.gain)}）`);
+  };
   observeMoves = e => {
     chk.onMoves(e);
     const { phase, moves, ms, ctx } = e;
+    if (SEARCH_W > 0 && (phase === 'MAIN' || phase === 'ENERGY' || phase === 'GROW' || phase === 'ATTACK_ARTS')) {
+      const t0 = performance.now();
+      const r = searchCpuMove(ctx, phase, { width: SEARCH_W, depth: SEARCH_D, pendingSpell: false });
+      search.runs++;
+      search.ms.push(performance.now() - t0);
+      search.nodes.push(r.nodes);
+      search.gain.push(r.score - r.baseline);
+      lastSearch = { phase, move: r.move, line: r.line, gain: r.score - r.baseline };
+    }
     // 同じ盤面（応答待ちで再入した回）は1回だけ数える。
     const key = `${phase}|${moves.map(describeCpuMove).join(',')}|${ctx.actor.hand.join(',')}|${ctx.actor.energy.length}`;
     if (seenBoards.has(key)) return;
@@ -306,7 +326,8 @@ if (CENSUS_MOVES) {
     for (const mv of moves) {
       kinds[mv.kind] = (kinds[mv.kind] ?? 0) + 1;
       const t = performance.now();
-      if (applyOnce(mv, ctx)) applyMs.push(performance.now() - t);
+      const ok = applyOnce(mv, ctx);
+      if (ok) applyMs.push(performance.now() - t);
     }
     obs.push({ phase, n: moves.length, listMs: ms, kinds, applyMs });
   };
@@ -327,9 +348,19 @@ if (CENSUS_MOVES) {
     console.log(`${ph.padEnd(11)} 盤面${String(xs.length).padStart(4)}｜候補数 平均${f1(ns.reduce((a, b) => a + b, 0) / ns.length)} 中央${pct(ns, 0.5)} p90 ${pct(ns, 0.9)} 最大${Math.max(...ns)}｜0件 ${ns.filter(n => n === 0).length}｜列挙 平均${f1(xs.reduce((a, o) => a + o.listMs, 0) / xs.length)}ms p90 ${f1(pct(xs.map(o => o.listMs), 0.9))}ms`);
     console.log(`${''.padEnd(11)} 内訳（延べ）${Object.entries(kinds).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
   }
-  const all = obs.flatMap(o => o.applyMs);
   chk.report();
-  console.log(`探索用の1手適用（engine だけ）${all.length}回｜平均${f1(all.reduce((a, b) => a + b, 0) / Math.max(1, all.length))}ms 中央${f1(pct(all, 0.5))}ms p90 ${f1(pct(all, 0.9))}ms 最大${f1(Math.max(0, ...all))}ms`);
+  if (search.runs > 0) {
+    const f2 = (x: number) => x.toFixed(1);
+    const pc = (xs: number[], q: number) => { const a = [...xs].sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : 0; };
+    console.log(`探索（幅${SEARCH_W}・深さ${SEARCH_D}）${search.runs}盤面｜1盤面 平均${f2(search.ms.reduce((a, b) => a + b, 0) / search.runs)}ms p90 ${f2(pc(search.ms, 0.9))}ms 最大${f2(Math.max(...search.ms))}ms｜展開 平均${f2(search.nodes.reduce((a, b) => a + b, 0) / search.runs)} 最大${Math.max(...search.nodes)}`);
+    console.log(`  いまの選択と比べて＝同じ ${search.same}／違う ${search.diff}／探索は「打たない」 ${search.none}（打った手 ${search.same + search.diff + search.none}）`);
+    for (const x of samples.slice(0, 12)) console.log(`    ${x}`);
+  }
+  const all = obs.flatMap(o => o.applyMs);
+  console.log(`探索用の1手適用（applyCpuMoveSim）${all.length}回｜平均${f1(all.reduce((a, b) => a + b, 0) / Math.max(1, all.length))}ms 中央${f1(pct(all, 0.5))}ms p90 ${f1(pct(all, 0.9))}ms 最大${f1(Math.max(0, ...all))}ms`);
+  // 🔑**種類ごとの適用できた／できなかった**＝`null` は「弱い手」ではなく**探索の外に置く手**（実行関数の写経を避けている）。
+  console.log(`  適用の可否（種類別）＝${Object.entries(applied).sort((a, b) => (b[1].ok + b[1].ng) - (a[1].ok + a[1].ng))
+    .map(([k, v]) => `${k} ${v.ok}/${v.ok + v.ng}`).join(' ｜ ')}`);
   process.exit(chk.failed() ? 1 : 0);
 }
 
