@@ -89104,7 +89104,7 @@ test('§5.7 S-23 本物のデッキで測る：山の差し替え・席ごとの
 }));
 
 // ── 第422バッチ（2026-09-20）＝§5.7 `S-17` 第1段（アタックを候補列挙に載せる）───────────
-test('§5.7 S-17 第1段 アタックの列挙：可否はゲート1本・強制の印・本番の選択も同じ列挙から', () => withSavedCursor(() => {
+test('§5.7 S-17 アタックの列挙と近似適用：可否はゲート1本・強制の印・バトルの規則は battleOutcome', () => withSavedCursor(() => {
   // 🔑**なぜ第1段が要るか**＝`S-17` は「アタックする／しない・順番・ルリグアタック」を探索で決める項目だが、
   //   **その盤面で打てるアタックを並べる関数が無い**と探索が書けない（`S-15` が MAIN 側で先に通した道と同じ）。
   //   ⇒ ここでは**列挙を足し、本番の選択をその列挙から取る**（挙動は変えない）。
@@ -89146,11 +89146,35 @@ test('§5.7 S-17 第1段 アタックの列挙：可否はゲート1本・強制
   eq(listCpuMoves({ ...ctx, actor: lrigDown }, 'ATTACK_LRIG', { pendingSpell: false }).length, 0,
     '🔴ダウン済みのルリグでアタックの候補が出る＝`centerLrigAttackBlock` を通っていない');
 
-  // ── ④ 🔴**まだ適用できない**（バトル解決・ガード・ライフバーストは第2段）＝「弱い手」として0点で並べない ──
+  // ── ④ 第2段＝**近似適用**（`applyCpuMoveSim`）。正面が空ならライフ、居ればバトル ──
   for (const kind of ['signiAttack', 'lrigAttack'] as const) {
-    eq(CPU_SIM_APPLICABLE_KINDS.has(kind), false, `🔴${kind} を「適用できる」と宣言しているのに適用の実装が無い`);
+    eq(CPU_SIM_APPLICABLE_KINDS.has(kind), true, `🔴${kind} の適用を実装したのに「扱える手」に入っていない＝探索が見ない`);
   }
-  eq(applyCpuMoveSim(ctx, atk[0]), null, '🔴適用を実装していない種類が null を返さない（探索が嘘の盤面で進む）');
+  const snapshot = JSON.stringify([actor, opponent]);
+  // (a) 正面が空＝ライフクロスが1枚減り、**エナへ移る**（⚠近似＝ライフバーストは解かない＝`S-17` 第3段）。
+  const afterLife = applyCpuMoveSim(ctx, atk[0]);
+  ok(!!afterLife, '🔴アタックの1手が適用できない');
+  eq(afterLife!.opp.life_cloth.length, opponent.life_cloth.length - 1, '🔴ライフクロスが減っていない（アタックが盤面を動かさない）');
+  eq(afterLife!.opp.energy.length, opponent.energy.length + 1, '🔴クラッシュしたライフクロスがどこにも行っていない（カードが消える）');
+  eq(afterLife!.cpu.field.signi_down?.[0], true, '🔴アタックしたシグニがダウンしていない＝探索が同じシグニで何度も殴る');
+  eq(JSON.stringify([actor, opponent]), snapshot, '🔴1手適用が渡した盤面を書き換えた');
+  // (b) 🔑**適用後の列挙にその手はもう出ない**（ダウンの印が効いている）
+  const nextAtk = listCpuMoves({ ...ctx, actor: afterLife!.cpu, opponent: afterLife!.opp }, 'ATTACK_SIGNI', { pendingSpell: false });
+  ok(!nextAtk.some(m => describeCpuMove(m) === describeCpuMove(atk[0])), '🔴適用後も同じアタックが候補に残る');
+  // (c) 正面が居る＝**バトルの規則は `battleOutcome` の1本**（同値はアタック側の勝ち／格下で殴っても自分は落ちない）
+  const POW1000 = 'WD01-013';          // パワー1000
+  const strong = mk([null, null, `${POW1000}#o2`]);  // ゾーン0の正面＝2
+  const vsEqual = applyCpuMoveSim({ ...ctx, opponent: strong }, atk[0]);
+  ok(!!vsEqual, '🔴正面が居るときにアタックが適用できない');
+  eq(vsEqual!.opp.field.signi[2], null, '🔴同値のバトルで相手シグニがバニッシュされていない（規則＝「以上」）');
+  eq(vsEqual!.cpu.field.signi[0]?.at(-1), `${VANILLA}#a0`, '🔴バトルでアタッカーが落ちた（規則上ありえない）');
+  eq(vsEqual!.opp.life_cloth.length, strong.life_cloth.length, '🔴バトルなのにライフまで割れている');
+  eq(vsEqual!.opp.energy.length, strong.energy.length + 1, '🔴バニッシュしたシグニがエナへ行っていない（カードが消える）');
+  // (d) ルリグアタック＝ライフが減り、ルリグがダウンする（⚠近似＝**ガードは解かない**＝`S-17` 第3段）
+  const afterLrig = applyCpuMoveSim(ctx, { kind: 'lrigAttack' });
+  ok(!!afterLrig, '🔴ルリグアタックが適用できない');
+  eq(afterLrig!.opp.life_cloth.length, opponent.life_cloth.length - 1, '🔴ルリグアタックでライフが減らない');
+  eq(afterLrig!.cpu.field.lrig_down, true, '🔴ルリグがダウンしていない＝探索が何度でもルリグで殴る');
 
   // ── ⑤ 配線＝本番の選択も**この列挙から**取る（2本に割ると「探索では出ない手を本番が打つ」）──
   const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
@@ -89163,6 +89187,23 @@ test('§5.7 S-17 第1段 アタックの列挙：可否はゲート1本・強制
   ok(/phase === 'ATTACK_SIGNI' \|\| phase === 'ATTACK_LRIG'\) observeMovesAt\(cpuSt\)/.test(turn),
     '🔴アタックの2フェイズを観測していない＝「打った手は列挙に出ている」の全数照合がアタックに掛からない');
   ok(/d\.observeChoice\?\.\(attackMoves\.find/.test(turn), '🔴打ったアタックを照合へ流していない');
+  // ── ⑥ 🔴**探索が決めるのは「順番」であって「撃つかどうか」ではない**（第2段の実測で決めた）──
+  //   実測（`--census-moves` 1戦）＝探索はアタックを **20回「打たない」**と判定したが、中身は
+  //   **「正面が格上＝バトルで何も起きない」＝baseline と同点**で、**同点は「何もしない」が勝つ**ため。
+  //   ⚠規則上アタッカーは落ちない＝**撃たないと `ON_ATTACK_SIGNI` 684効果/667枚を捨てるだけ**。
+  //   「撃たない」が正しくなるのは**ライフバースト・ガードを確率で見られるようになってから**（第3段）。
+  ok(/const searchedZone = searchedAttack\?\.move\?\.kind === 'signiAttack' \? searchedAttack\.move\.zone : null;/.test(turn),
+    '🔴探索の結果の読み方が変わった＝`null`（得にならない）で**撃たない**ようになっていないか確かめる');
+  ok(/const firstUp = searchedZone \?\? pickCpuAttackZone\(\{/.test(turn),
+    '🔴探索が「打たない」と言ったときに従来の価値表へ落ちていない＝アタックしないターンが生まれる');
+  ok(/&& attackMoves\.length > 0 && !attackMoves\.some\(m => m\.forced\)/.test(turn),
+    '🔴強制アタック（ルール由来の義務）がある盤面で探索を通している＝順番を選べないのに選ばせている');
+  // 🔴**`S-16`（メイン）と別の switch**＝同じ数値で両方を入切すると、どちらの軸で勝率が動いたのか分からない。
+  ok(/const attackSearchOn = cpuPolicy\.searchAttacks &&/.test(turn),
+    '🔴アタック探索が `searchWidth` に相乗りしている＝`S-16` と `S-17` の A/B を切り分けられない');
+  eq(DEFAULT_CPU_POLICY.searchAttacks, false, '🔴既定でアタック探索が入っている（実機の挙動が変わる）');
+  eq(CPU_POLICIES['search'].searchAttacks, false, '🔴`search` プリセットにアタック探索が混ざっている＝軸が切り分けられない');
+  eq(CPU_POLICIES['search-attack'].searchAttacks, true, '🔴`search-attack` プリセットでアタック探索が入っていない');
   // 🔴**実機（`BattleScreen`）はアタックの列挙を持たない**＝画面は `cpuTurnAction` を呼ぶだけ、の機械的な証拠。
   const screenOnly = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(!screenOnly.includes("listCpuMoves"), '🔴画面が候補列挙を直接呼んでいる（列挙の道は `cpuTurnAction` の1本）');

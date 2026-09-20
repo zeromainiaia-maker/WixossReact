@@ -100,6 +100,16 @@ export interface CpuPolicy {
    *   **A/B でどちらが効くかを決める**（手で決めない＝登録票）。
    */
   readonly actionBias: number;
+  /**
+   * 🆕§5.7 `S-17` 第2段＝**アタックの手順も探索で決めるか**（既定 `false`）。
+   *
+   * 🔴**`searchWidth` と別の switch にした理由（2026-09-20 実測）**＝同じ数値で両方を入切すると
+   *   **`S-16`（メイン）と `S-17`（アタック）の勝率を切り分けられない**。
+   *   実際、最初に `search` プリセット（＝両方 on）を本物のデッキ（WD13）で A/B したら
+   *   **組で 0-4-4＝「A のほうが弱い」**と出たが、**どちらの軸が弱いのか分からなかった**。
+   * ⚠**探索が決めるのは順番だけ**（撃つ／撃たないは `cpuTurn.ts` が従来の価値表へ落とす）。
+   */
+  readonly searchAttacks: boolean;
 }
 
 /**
@@ -125,6 +135,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   searchDepth: 0,
   // 🆕§5.7 `S-21`＝**既定 0＝「何もしない」と同点なら打たない**（従来どおり）。
   actionBias: 0,
+  // 🆕§5.7 `S-17` 第2段＝**既定はアタックを探索しない**＝挙動不変。A/B で勝率を見てから上げる。
+  searchAttacks: false,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -166,6 +178,11 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * ⚠**探索が扱えない手**（アシストグロウ・レゾナ・ライズ・キー／ピース）は**従来の優先順のまま**。
    */
   search: variant('search', { searchWidth: 4, searchDepth: 4 }),
+  /**
+   * 🆕§5.7 `S-17` 第2段＝**メインの探索に加えてアタックの手順も探索する**。
+   * 🔑**A/B の相手は `search`**（`default` ではない）＝**アタック探索だけの差**が出る。
+   */
+  'search-attack': variant('search-attack', { searchWidth: 4, searchDepth: 4, searchAttacks: true }),
   /** 🆕幅を広げた版（コストと勝率の関係を見る用）。 */
   'search-wide': variant('search-wide', { searchWidth: 8, searchDepth: 6 }),
   /**

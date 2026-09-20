@@ -412,7 +412,9 @@ if (CENSUS_MOVES) {
    * `noCand`＝**探索が扱える候補が0**（アシストグロウ・レゾナ・ライズ・ピースだけ）＝**判断ではない**。
    * `rejected`＝**候補はあったが baseline を超えなかった**＝**目的関数の問題**（`S-21` の本体）。
    */
-  const none = { noCand: 0, noApply: 0, rejected: 0, loss: [] as number[], byKind: {} as Record<string, number>, byKindNoApply: {} as Record<string, number> };
+  const none = { noCand: 0, noApply: 0, rejected: 0, loss: [] as number[], byKind: {} as Record<string, number>, byKindNoApply: {} as Record<string, number>,
+    // 🆕§5.7 `S-17` 第2段＝**フェイズ別の「打たない」**＝アタックの却下は「ほぼ起きない」のが正（アタックは基本タダ）。
+    byPhase: {} as Record<string, number> };
   const samples: string[] = [];
   const rejSamples: string[] = [];
   let lastSearch: { phase: string; move: CpuMove | null; line: CpuMove[]; gain: number; r: ReturnType<typeof searchCpuMove>; ctx: CpuMoveCtx } | null = null;
@@ -431,6 +433,7 @@ if (CENSUS_MOVES) {
         return;
       }
       none.rejected++;
+      none.byPhase[phase] = (none.byPhase[phase] ?? 0) + 1;
       none.loss.push(r.actionScore - r.baseline);
       // 🔑**拒んだ候補の種類**＝どの種類の手が「損」に見えているか。
       for (const k of kinds) none.byKind[k] = (none.byKind[k] ?? 0) + 1;
@@ -447,7 +450,9 @@ if (CENSUS_MOVES) {
   observeMoves = e => {
     chk.onMoves(e);
     const { phase, moves, ms, ctx } = e;
-    if (SEARCH_W > 0 && (phase === 'MAIN' || phase === 'ENERGY' || phase === 'GROW' || phase === 'ATTACK_ARTS')) {
+    // 🆕§5.7 `S-17` 第2段（2026-09-20）＝**アタックのフェイズでも探索を回して「いまの選択」と比べる**。
+    if (SEARCH_W > 0 && (phase === 'MAIN' || phase === 'ENERGY' || phase === 'GROW' || phase === 'ATTACK_ARTS'
+      || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG')) {
       const t0 = performance.now();
       // 🆕§5.7 `S-21`＝計測側だけ別ポリシー（`--search-policy`）。対戦本体は触らない。
       const sctx = SEARCH_POLICY ? { ...ctx, lookahead: { ...ctx.lookahead, policy: SEARCH_POLICY } } : ctx;
@@ -507,6 +512,8 @@ if (CENSUS_MOVES) {
       const ls = [...none.loss].sort((a, b) => a - b);
       console.log(`    却下された最善行動の得失＝中央 ${Math.round(ls[Math.floor(ls.length / 2)])} 最小 ${Math.round(ls[0])} 最大 ${Math.round(ls[ls.length - 1])}`);
       console.log(`    却下された盤面に出ていた手の種類＝${Object.entries(none.byKind).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+      // 🆕§5.7 `S-17` 第2段＝**フェイズ別**（アタックの却下が多いなら近似か重みが壊れている）。
+      console.log(`    却下のフェイズ別＝${Object.entries(none.byPhase).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ')}`);
       for (const x of rejSamples) console.log(`    ${x}`);
     }
     for (const x of samples.slice(0, 12)) console.log(`    ${x}`);

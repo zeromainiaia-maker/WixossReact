@@ -328,6 +328,27 @@ export function simulateEffect(
  * CPU がシグニを手札から場に出したときに**必ず発動する【出】**（CPU の通常召喚と同じ絞り込み）。
  * コスト付きの任意【出】は CPU が発動しない（`mandatory:false` を除く）。
  */
+/**
+ * 🆕§5.7 `S-17` 第2段＝**アタックしたときに必ず誘発する【自】**（`ON_ATTACK_SIGNI` / `ON_ATTACK_LRIG`）。
+ *
+ * 🔑**アタック順が意味を持つのはここ**＝母集団は `ON_ATTACK_SIGNI` **684効果 / 667枚**（2026-09-20 実測）。
+ * ⚠**絞り込みは `cpuOnPlayEffectsOf` と同じ**（自分を発生源とする・任意でない・効果による誘発ではない・
+ *   `activeCondition` を満たす）＝**同じ規律で同じ穴を避ける**（任意の【自】を CPU が勝手に撃たない）。
+ * ⚠**`onPlayOriginMatches` は見ない**（出どころの条件は【出】固有）。
+ */
+export function cpuAttackTriggerEffectsOf(
+  id: string, timing: 'ON_ATTACK_SIGNI' | 'ON_ATTACK_LRIG',
+  cpu: PlayerState, opp: PlayerState, lctx: LookaheadCtx,
+): CardEffect[] {
+  return lctx.effectsOf(id).filter(e =>
+    e.effectType === 'AUTO'
+    && (e.timing?.includes(timing) ?? false)
+    && (e.triggerScope === undefined || e.triggerScope === 'self')
+    && e.mandatory !== false
+    && !e.triggerCondition?.byEffect && !e.triggerCondition?.bySigniEffect
+    && (!e.activeCondition || checkActiveCondition(e.activeCondition, cpu, opp, true, lctx.cardMap, id)));
+}
+
 export function cpuOnPlayEffectsOf(id: string, cpu: PlayerState, opp: PlayerState, lctx: LookaheadCtx): CardEffect[] {
   return lctx.effectsOf(id).filter(e =>
     e.effectType === 'AUTO'

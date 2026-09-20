@@ -4,7 +4,7 @@ import {
   calcContinuousBlockedActions, calcFieldPowers, collectEnergyCostSubstitutes, collectForcePlaceFrontZones,
   collectGrowCostReductions,
 } from '../../engine/effectEngine';
-import { getCardNum, getRiseRequirement } from '../../engine/execUtils';
+import { banishDestination, getCardNum, getRiseRequirement, removeFromField } from '../../engine/execUtils';
 import { deployLimitBlockReason, deployCountCap } from '../../engine/deployLimit';
 import { isHandSigniPlayBlockedByPower } from '../../engine/blockAction';
 import { buildArtsPayerCtx, hasIgnoreLrigRestriction, type ArtsPayerCtx } from './artsUseGate';
@@ -12,6 +12,7 @@ import { listAssistGrowCandidates } from './assistGrow';
 import { isPhaseSkipped } from './attackStepPhase';
 import { canSigniAttack, collectForcedAttackZones } from './signiAttackGate';
 import { centerLrigAttackBlock } from './lrigAttackGate';
+import { battleOutcome } from './battleOutcome';
 import {
   applyGrowCostReduction, colorlessPayableColorsOf, isEnaMultiStripped, isEnergyPaymentSelectionValid,
   parseCoinCost, parseGrowCost,
@@ -19,7 +20,7 @@ import {
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
 import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
-import { cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
+import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -693,6 +694,93 @@ function payCpuSelfCostSim(
   return out;
 }
 
+/**
+ * 🆕§5.7 `S-17` 第2段＝**ライフクロスを1枚クラッシュした盤面**（近似）。
+ *
+ * 🔴**近似（正直に）**＝本番（`resolveSigniBattle`）はチェックゾーンへ置き → **ライフバースト**の応答 →
+ *   エナゾーンへ、と進む。ここは**バーストを解かず**にエナへ直行する（＝**相手のバーストを常に「無い」と読む**）。
+ *   ⚠**探索が楽観に振れる向きの近似**＝`S-17` 第3段で「バーストの事前確率」を入れるまでは、
+ *   **アタックの点数は上振れして出る**（それでも「順番」の比較には効く＝どの順でも同じだけ上振れする）。
+ * ⚠ライフが0枚なら何も起きない（本番はここで勝敗判定＝探索では見ない）。
+ */
+function simCrushLife(defender: PlayerState): PlayerState {
+  const crashed = defender.life_cloth.at(-1);
+  if (!crashed) return defender;
+  return {
+    ...defender,
+    life_cloth: defender.life_cloth.slice(0, -1),
+    energy: [...defender.energy, crashed],
+    life_crashed_this_turn: (defender.life_crashed_this_turn ?? 0) + 1,
+  };
+}
+
+/** アタックしたシグニをダウンさせる（本番の `performSigniAttack` と同じ印＝同じ手を2回選ばない）。 */
+function simDownAttacker(attacker: PlayerState, zone: number, id: string): PlayerState {
+  const down = [...(attacker.field.signi_down ?? [false, false, false])];
+  down[zone] = true;
+  return {
+    ...attacker,
+    field: { ...attacker.field, signi_down: down },
+    attacked_signi_ids: [...(attacker.attacked_signi_ids ?? []), id],
+  };
+}
+
+/**
+ * 🆕§5.7 `S-17` 第2段＝**シグニ1体のアタックを近似で適用する**。
+ *
+ * ■ 進める順（本番と同じ並び）＝①アタック宣言でダウン ②**`ON_ATTACK_SIGNI` の【自】**（順序が意味を持つ本体）
+ *   ③正面が居ればバトル（`battleOutcome`＝**規則は純関数1本**）→ バニッシュの行き先は engine の `banishDestination`
+ *   ④正面が空ならライフクラッシュ（`simCrushLife`）。
+ * ■ 🔴**解かないもの**＝ライフバースト・ガード・防御アーツ・バニッシュ時の誘発（`ON_BANISH`／`ON_LEAVE_FIELD`）・
+ *   アタック時のコスト（《無》の前払い・場のシグニをトラッシュする条件）。**本番の `perform*` が正**。
+ * ■ ⚠**アタックのコストを払っていない**＝`signiAttackGate` は「払えるか」を見て候補に出すので、
+ *   **探索の中ではコスト分だけ得に見える**（第1段の実測＝その形の札は live で少数）。第3段で詰める。
+ */
+function simAttack(ctx: CpuMoveCtx, zone: number, id: string): CpuSimBoard | null {
+  let cpu = simDownAttacker(ctx.actor, zone, id);
+  let opp = ctx.opponent;
+  const lctx: LookaheadCtx = { ...ctx.lookahead, turnPhase: 'ATTACK_SIGNI' };
+  for (const e of cpuAttackTriggerEffectsOf(id, 'ON_ATTACK_SIGNI', cpu, opp, lctx)) {
+    const after = simulateEffect(e, id, cpu, opp, lctx);
+    // ⚠解けない【自】は**飛ばす**（`scoreDeploy` と同じ扱い＝効果の分は見ないが盤面は進める）。
+    if (!after) continue;
+    cpu = after.cpu; opp = after.opp;
+  }
+  // ⚠**誘発で盤面が動いたあとの正面**を見る（先に決め打つと「自分で退けた相手」と殴り合う）。
+  const facing = opp.field.signi[2 - zone]?.at(-1);
+  if (!facing) return { cpu, opp: simCrushLife(opp) };
+  const myPowers = calcFieldPowers(cpu, opp, true, ctx.effectsMap, ctx.cardMap, 'ATTACK_SIGNI');
+  const opPowers = calcFieldPowers(opp, cpu, false, ctx.effectsMap, ctx.cardMap, 'ATTACK_SIGNI');
+  // ⚠**実効パワー（`calcFieldPowers`）が無い札は CSV の素のパワー**（`∞` は engine 側が数値化済み）。
+  const powerOf = (num: string, powers: Map<string, number>): number =>
+    powers.get(num) ?? (parseInt(ctx.cardMap.get(getCardNum(num))?.Power ?? '0', 10) || 0);
+  const outcome = battleOutcome(powerOf(id, myPowers), powerOf(facing, opPowers));
+  if (!outcome.banishDefender) return { cpu, opp };
+  // バニッシュ＝**行き先は engine の1本**（レゾナ・クラフト・置換で変わる）。⚠誘発（`ON_BANISH`）は解かない。
+  const removed = removeFromField(facing, opp);
+  return { cpu, opp: banishDestination(removed, cpu, facing, { cardMap: ctx.cardMap }).state };
+}
+
+/**
+ * 🆕§5.7 `S-17` 第2段＝**センタールリグのアタック**（近似）。
+ * 🔴**ガードを解かない**＝相手の手札の【ガード】は非公開（枚数だけが公開情報）＝**第3段で確率にする**。
+ *   ⇒ いまは「通る」前提＝**楽観**（`simCrushLife` と同じ向きの近似）。
+ */
+function simLrigAttack(ctx: CpuMoveCtx): CpuSimBoard | null {
+  let cpu: PlayerState = { ...ctx.actor, field: { ...ctx.actor.field, lrig_down: true } };
+  let opp = ctx.opponent;
+  const lrig = ctx.actor.field.lrig.at(-1);
+  if (lrig) {
+    const lctx: LookaheadCtx = { ...ctx.lookahead, turnPhase: 'ATTACK_LRIG' };
+    for (const e of cpuAttackTriggerEffectsOf(lrig, 'ON_ATTACK_LRIG', cpu, opp, lctx)) {
+      const after = simulateEffect(e, lrig, cpu, opp, lctx);
+      if (!after) continue;
+      cpu = after.cpu; opp = after.opp;
+    }
+  }
+  return { cpu, opp: simCrushLife(opp) };
+}
+
 export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | null {
   const { actor, opponent } = ctx;
   /** エナの支払いを写す（人間の支払いと同じ `planEnergyPayment`＝下敷き払いも含む）。 */
@@ -808,15 +896,15 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     }
     // 🔴engine だけでは写せない（実行関数の盤面操作を写経しない＝§5.6.3）。探索はこの手を扱わない。
     case 'assistGrow': case 'resona': case 'rise': case 'piece': return null;
-    // 🆕§5.7 `S-17` 第1段＝**アタックはまだ適用できない**（バトル解決・ガード・ライフバーストは第2段）＝
-    //   いまは**列挙と本番の選択を1本にする**ところまで。⚠`CPU_SIM_APPLICABLE_KINDS` にも入れていない。
-    case 'signiAttack': case 'lrigAttack': return null;
+    // 🆕§5.7 `S-17` 第2段＝**アタックの近似適用**（下の `simAttack` が本体・限界もそこに書いてある）。
+    case 'signiAttack': return simAttack(ctx, move.zone, move.id);
+    case 'lrigAttack': return simLrigAttack(ctx);
   }
 }
 
 /** 探索用の適用ができる手の種類（できないものは従来の優先順に委ねる＝上の `applyCpuMoveSim`）。 */
 export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
-  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell']);
+  new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
 
 /** 手の短い表示（ログ・計測用）。 */
 export function describeCpuMove(m: CpuMove): string {

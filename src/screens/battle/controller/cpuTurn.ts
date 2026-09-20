@@ -1197,7 +1197,30 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     // 自分だけ落ちていた）。優先は ライフに通る → 勝てるバトル →（撃たない）。強制アタックは最優先。
     const cpuAttackPowers = calcFieldPowers(cpuSt, huSt, true, effectsMap, battleCardMap, bs.turn_phase);
     const cpuDefenderPowers = calcFieldPowers(huSt, cpuSt, false, effectsMap, battleCardMap, bs.turn_phase);
-    const firstUp = pickCpuAttackZone({
+    /**
+     * 🆕§5.7 `S-17` 第2段＝**アタックの手順を探索で決める**（ポリシーの数値で入切・**既定 0＝従来の価値表の順**）。
+     * 🔴**強制アタック（「可能ならばアタックしなければならない」）がある間は探索を通さない**＝
+     *   あれはルール由来の義務で、「撃たない」も「順番を変える」も選べない（`signiAttackGate` が他を弾く）。
+     * 🔴🔑**探索が決めるのは「順番」であって「撃つかどうか」ではない**（2026-09-20 実測で決めた）＝
+     *   探索が `null`（＝1手も得にならない）と言ったら**従来の価値表の順で撃つ**。
+     *   **なぜ**＝実測（`--census-moves`・1戦）で**探索はアタックを20回「打たない」と判定した**が、その中身は
+     *   **「正面が格上＝バトルで何も起きない」＝点数が baseline と同点**で、**同点は「何もしない」が勝つ**ため。
+     *   ⚠実際には**アタックに損は無い**（規則上アタッカーは落ちない）どころか、
+     *   **`ON_ATTACK_SIGNI` の【自】 684効果/667枚**を捨てることになる（登録票の警告そのもの）。
+     *   🔑**「撃たない」が正しくなるのは、ライフバースト・ガードを確率で見られるようになってから**（第3段）＝
+     *   現に人間が撃たない理由は「割るとバーストで損をする」＝**いまの楽観的な近似には原理的に映らない**。
+     * ⚠**近似の向きは楽観**（ライフバースト・ガードを解かない＝`cpuMoves.ts` の `simCrushLife`）。
+     */
+    const attackSearchOn = cpuPolicy.searchAttacks && cpuPolicy.searchWidth > 0 && cpuPolicy.searchDepth > 0
+      && attackMoves.length > 0 && !attackMoves.some(m => m.forced);
+    const searchedAttack = attackSearchOn
+      ? searchCpuMove(cpuMoveCtx(cpuSt), 'ATTACK_SIGNI', {
+        width: cpuPolicy.searchWidth, depth: cpuPolicy.searchDepth, pendingSpell: !!bs.pending_spell,
+        actionBias: cpuPolicy.actionBias,
+      })
+      : null;
+    const searchedZone = searchedAttack?.move?.kind === 'signiAttack' ? searchedAttack.move.zone : null;
+    const firstUp = searchedZone ?? pickCpuAttackZone({
       attackable: attackMoves.map(m => m.zone),
       // ⚠**強制は列挙が刻んだ印から読む**（`collectForcedAttackZones` をここでもう一度回さない＝二重実装）。
       forced: attackMoves.filter(m => m.forced).map(m => m.zone),
