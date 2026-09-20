@@ -68,6 +68,7 @@ import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from 
 import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
 import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck, type SelfPlayDeck } from './selfPlayDecks';
+import { buildScanSpecs, formatDivergeReport, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
 
 const argv = process.argv.slice(2);
 const numArg = (name: string, dflt: number) => {
@@ -119,6 +120,18 @@ const DECK_B_NAME = strArg('--deck-b', DECK_BOTH);
 const ROUND_ROBIN = strArg('--decks', '').split(',').map(s => s.trim()).filter(Boolean);
 /** 🆕1戦ごとの対戦ログを書き出す先（`npm run census:play -- --file …` の入力）。 */
 const LOGS_OUT = strArg('--logs-out', '');
+/**
+ * 🆕§5.7 `S-6` 第1段（2026-09-21）＝**分岐スクリーニング**（`--diverge`）。
+ * 候補のポリシーを**両席**に置いて1戦回し、**打った手の並び**を基準（`--a`・既定 `default`）の並びと突き合わせる。
+ * 🔑**1候補 1戦（35秒）で「この数値は判断を変えるか」が分かる**＝本番の A/B（96戦＝8分）の**96分の1**。
+ * 🔴**分岐0 の候補を A/B に掛けるのは確実な無駄**（同じ試合が2回走るだけ）＝`S-25` はそれに8分×4本を払った。
+ */
+const DIVERGE = argv.includes('--diverge');
+/** 走査する候補（`--cand "key=値,…"` を何度でも書ける）。`--scan` は `SCAN_KNOBS` の全部。 */
+const CAND_SPECS = argv.flatMap((a, i) => (a === '--cand' && argv[i + 1] ? [String(argv[i + 1])] : []));
+const SCAN = argv.includes('--scan');
+/** 子プロセスへ仕事を渡すファイル（⚠日本語のデッキ名をコマンドラインに載せない＝Windows の引用符事故を避ける）。 */
+const TASKS_FILE = strArg('--tasks-file', '');
 /** 🆕§5.7 `S-16`＝`--census-moves` のときに探索も回して「いまの選択とどれだけ変わるか」を測る（既定 幅4・深さ4）。 */
 const SEARCH_W = numArg('--search-width', 4);
 const SEARCH_D = numArg('--search-depth', 4);
@@ -302,6 +315,107 @@ function runWorker(seeds: number[]): Promise<AbGameResult[]> {
       resolve(rows);
     });
   });
+}
+
+/**
+ * ══ ⓪ 分岐スクリーニング（§5.7 `S-6` 第1段・2026-09-21）══
+ *
+ * 使い方＝`npm run selfplay:scan -- --decks "ケトッシー軸,WD13,…" --games 2`（`--scan`＝20個のつまみを全部）
+ *        ／`npm run selfplay:scan -- --cand "life=3500,hand=3000" --cand "openLane=6000"`（狙い撃ち）
+ * 🔴**これは強さの判定ではない**＝「A/B に掛ける価値があるか」の篩（詳細は `scripts/cpuWeightScan.ts` の冒頭）。
+ */
+interface DivergeTask { deck: string; seed: number; cand: string }
+
+/** 1戦して**打った手の並び**を取る（両席とも同じポリシー＝測るのは「基準と違う手を打ったか」だけ）。 */
+async function playTraced(seed: number, p: CpuPolicy): Promise<{ moves: string[]; reason: string }> {
+  const moves: string[] = [];
+  // ⚠`observeMoves` は付けない＝列挙のコスト（1盤面 約2ms）を払う理由が無い。
+  observeMoves = undefined;
+  observeChoice = mv => { moves.push(describeCpuMove(mv)); };
+  const o = await playOne(seed, { host: p, guest: p });
+  observeChoice = undefined;
+  return { moves, reason: o.reason };
+}
+
+/** 子プロセスを1本起こして、その仕事群の結果を受け取る。 */
+function runDivergeWorker(tasks: DivergeTask[], idx: number): Promise<DivergeRun[]> {
+  const self = fileURLToPath(import.meta.url);
+  const dir = join(process.cwd(), 'node_modules/.tmp');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = join(dir, `diverge_tasks_${process.pid}_${idx}.json`);
+  fs.writeFileSync(file, JSON.stringify(tasks), 'utf-8');
+  const args = ['--import', 'tsx', self, '--diverge', '--worker', '--a', A_NAME,
+    '--steps', String(MAX_STEPS), '--first', FIRST === 'HOST' ? 'host' : 'guest', '--tasks-file', file];
+  return new Promise((resolve, reject) => {
+    const ch = spawn(process.execPath, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'inherit'] });
+    let buf = '';
+    ch.stdout.on('data', d => { buf += String(d); });
+    ch.on('error', reject);
+    ch.on('close', code => {
+      try { fs.unlinkSync(file); } catch { /* 消せなくても害は無い */ }
+      const rows = buf.split(/\r?\n/).filter(l => l.startsWith('##V ')).map(l => JSON.parse(l.slice(4)) as DivergeRun);
+      if (code !== 0 && rows.length === 0) return reject(new Error(`diverge worker exit ${code}: ${buf.slice(-500)}`));
+      resolve(rows);
+    });
+  });
+}
+
+if (IS_WORKER && DIVERGE) {
+  const champion = policyOf(A_NAME, '');
+  const tasks = JSON.parse(fs.readFileSync(TASKS_FILE, 'utf-8')) as DivergeTask[];
+  for (const t of tasks) {
+    // ⚠**山は仕事ごとに引き直す**（子は親の `--decks` を知らない）。合成デッキは名前で引けないので空文字で。
+    const d = resolveSelfPlayDeck(t.deck === MECH_DECK.name ? '' : t.deck, allCardMap);
+    selectDecks(d, d);
+    const r = await playTraced(t.seed, t.cand ? patchCpuPolicy(champion, t.cand) : champion);
+    console.log(`##V ${JSON.stringify({ cand: t.cand, deck: t.deck, seed: t.seed, moves: r.moves, reason: r.reason })}`);
+  }
+  process.exit(0);
+}
+
+if (DIVERGE) {
+  const champion = policyOf(A_NAME, '');
+  const specs = SCAN ? buildScanSpecs() : CAND_SPECS;
+  if (specs.length === 0) {
+    console.log('🔴候補がありません＝`--scan`（20個のつまみを全部）か `--cand "key=値,…"` を渡してください。');
+    process.exit(1);
+  }
+  // ⚠**打ち間違いはここで落とす**＝1時間回したあとに「知らないキーだった」では遅い（`patchCpuPolicy` は例外を投げる）。
+  for (const s of specs) patchCpuPolicy(champion, s);
+  const decks = ROUND_ROBIN.length > 0 ? ROUND_ROBIN.map(n => resolveSelfPlayDeck(n, allCardMap)) : [deckA];
+  const seeds = Array.from({ length: GAMES }, (_, i) => SEED0 + i);
+  const tasks: DivergeTask[] = [];
+  for (const d of decks) for (const seed of seeds) for (const cand of ['', ...specs]) tasks.push({ deck: d.name, seed, cand });
+  console.log(`分岐スクリーニング｜基準=${champion.name}｜候補 ${specs.length}件｜山 ${decks.length}種 × ${seeds.length} シード`
+    + `＝${tasks.length} 対戦（基準を含む）｜並列 ${Math.max(1, JOBS)}`);
+  console.log(`🔑本番の A/B なら 1候補 96戦＝この篩は **約${screenSpeedup(decks.length, seeds.length).toFixed(0)}倍安い**`
+    + `（ただし答えるのは「判断を変えるか」だけ）`);
+  console.log(formatDeckCoverage(decks));
+  const t0 = Date.now();
+  let runs: DivergeRun[];
+  if (JOBS > 1 && tasks.length > 1) {
+    // ⚠**塊で割らない**＝対戦の長さは山とシードで倍近く違う（`splitSeeds` と同じ理由）。
+    const jobs = Math.max(1, Math.min(JOBS, tasks.length));
+    const chunks = Array.from({ length: jobs }, (_, j) => tasks.filter((_, i) => i % jobs === j));
+    runs = (await Promise.all(chunks.map((c, j) => runDivergeWorker(c, j)))).flat();
+  } else {
+    runs = [];
+    for (const t of tasks) {
+      const d = decks.find(x => x.name === t.deck)!;
+      selectDecks(d, d);
+      const r = await playTraced(t.seed, t.cand ? patchCpuPolicy(champion, t.cand) : champion);
+      runs.push({ cand: t.cand, deck: t.deck, seed: t.seed, moves: r.moves, reason: r.reason });
+    }
+  }
+  const rows = summarizeDiverge(runs);
+  console.log(formatDivergeReport(rows, { champion: champion.name, decks: decks.length, seeds: seeds.length }));
+  console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒｜対戦 ${runs.length}`);
+  const stalled = runs.filter(r => r.reason !== 'finished').length;
+  if (stalled > 0) {
+    console.log(`🔴止まった対戦が ${stalled} 件ある＝その分の分岐は判断できない`);
+    if (!ALLOW_STALL) process.exit(1);
+  }
+  process.exit(0);
 }
 
 // ══ ① 子プロセス（結果を1行 JSON で返すだけ）══

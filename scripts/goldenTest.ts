@@ -226,6 +226,7 @@ import { guardProbability, lifeBurstProbability, lifeCrushRisk, lrigAttackRisk }
 import { LB_MAX, MAIN_MAX } from '../src/utils/deckBuildLimits';
 import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { deckActionTypes, formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck } from './selfPlayDecks';
+import { buildScanSpecs, firstDivergence, formatDivergeReport, SCAN_KNOBS, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
 import { allZoneBurstGrantMatches, resolveAllZoneBurstGrant } from '../src/screens/battle/allZoneBurst';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
@@ -89421,6 +89422,94 @@ test('§5.7 S-25 ポリシーの数値をその場で差し替える：重み・
   // 🔴**画面は差し替えを使わない**＝実機の CPU は既定のポリシーだけで動く（`S-9` の規律と同じ）。
   const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(!screenSrc.includes('patchCpuPolicy'), '🔴画面がポリシーの差し替えを呼んでいる＝実機の挙動が測定台の都合で変わる');
+}));
+
+// ── 第429バッチ（2026-09-21）＝§5.7 `S-6` 第1段（重み候補の分岐スクリーニング）───────────
+test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分岐の取り方・「A/B に掛ける価値」の篩', () => withSavedCursor(() => {
+  // 🔑**なぜ第1段が「勝率」ではなく「分岐」か**＝`S-25` は重みを1本ずつ A/B に掛けて4本とも「差なし」で終わったが、
+  //   そのうち `hand=800` は **0-8-0＝1組も動かなかった**＝**2つのポリシーが最初から最後まで同じ手を打った**。
+  //   ⇒ 8分（96戦）払って得た情報は「この数値は判断を1度も変えなかった」だけ。**それは1戦（35秒）で分かる。**
+  // 🔴**分岐は必要条件であって十分条件ではない**＝分岐0 なら A/B は必ず全組1勝1敗（掛けるだけ無駄）。
+  //   分岐したからといって勝率が動くとは限らない。**強さの判定は `selfplay:ab`（`S-9`）だけ。**
+
+  // ── ① 走査表＝`patchCpuPolicy` が受け取れるキーだけ（打ち間違いは1時間後ではなく即落ちる）──
+  for (const k of SCAN_KNOBS) {
+    let threw = false;
+    try { patchCpuPolicy(DEFAULT_CPU_POLICY, `${k.with ? `${k.with},` : ''}${k.key}=${k.values[0]}`); } catch { threw = true; }
+    ok(!threw, `🔴走査表のキー「${k.key}」を patchCpuPolicy が知らない＝走査が途中で落ちる`);
+    ok(k.values.length > 0, `🔴「${k.key}」に試す値が無い`);
+    ok(!k.values.includes(k.base), `🔴「${k.key}」の候補に既定値そのものが入っている＝必ず分岐0 に出る無駄な候補`);
+  }
+  // 🔴**`boardWeights` と `CpuPolicy` の数値を全部走査する**＝新しい重みを足したのに走査表へ入れ忘れると、
+  //   その数値は**調整対象から静かに消える**（どの計器にも出ない＝`S-6` が永久に届かない）。
+  const knobKeys = new Set(SCAN_KNOBS.map(k => k.key));
+  for (const k of Object.keys(DEFAULT_CPU_POLICY.boardWeights)) {
+    ok(knobKeys.has(k), `🔴盤面の重み「${k}」が §5.7 S-6 の走査表（SCAN_KNOBS）に無い＝調整対象から漏れている`);
+  }
+  for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks', 'lifeBurstCost', 'guardDeckCount']) {
+    ok(knobKeys.has(k), `🔴ポリシーの数値「${k}」が §5.7 S-6 の走査表に無い＝調整対象から漏れている`);
+  }
+  // 🔴**`with` を書き忘れると「効かない数値」という嘘の結論が出る**＝期待損の2本は
+  //   `searchAttacks` が立たないと**アタック探索そのものが走らない**ので、単体で振れば必ず分岐0 になる（`S-17` 第3段）。
+  for (const k of SCAN_KNOBS.filter(x => x.key === 'lifeBurstCost' || x.key === 'guardDeckCount')) {
+    eq(k.with, 'searchAttacks=1', `🔴「${k.key}」が searchAttacks を立てずに振られる＝分岐0 が「効かない数値」と誤読される`);
+  }
+  // `with` は**前**に置く（`patchCpuPolicy` は後勝ち＝後ろに置くと本命の値を踏み潰しうる）。
+  const spec = buildScanSpecs([{ key: 'lifeBurstCost', base: 0, values: [2500], with: 'searchAttacks=1' }])[0];
+  eq(spec, 'searchAttacks=1,lifeBurstCost=2500', '🔴`with` が後ろ＝本命の値を踏み潰しうる並び');
+  eq(patchCpuPolicy(DEFAULT_CPU_POLICY, spec).lifeBurstCost, 2500, '🔴`with` つきの候補で本命の値が入らない');
+  ok(patchCpuPolicy(DEFAULT_CPU_POLICY, spec).searchAttacks, '🔴`with` が効いていない＝アタック探索が走らない');
+  eq(buildScanSpecs().length, SCAN_KNOBS.reduce((a, k) => a + k.values.length, 0), '🔴候補の数が走査表の値の総数と合わない');
+
+  // ── ② 分岐の取り方 ──
+  eq(firstDivergence(['a', 'b', 'c'], ['a', 'b', 'c']), null, '🔴同じ並びを分岐と数えた');
+  eq(firstDivergence(['a', 'b', 'c'], ['a', 'x', 'c']), 1, '🔴最初に食い違った位置を返していない');
+  eq(firstDivergence(['a', 'b'], ['a', 'b', 'c']), 2, '🔴長さだけが違う（片方が先に終わった）を分岐と数えていない');
+  eq(firstDivergence([], []), null, '🔴空同士を分岐と数えた');
+
+  // ── ③ 集計＝基準は行に出さない／分岐の多い順（＝そのまま「A/B に掛ける順」）──
+  const run = (cand: string, seed: number, moves: string[], reason = 'finished'): DivergeRun => ({ cand, deck: 'D', seed, moves, reason });
+  const rows = summarizeDiverge([
+    run('', 1, ['a', 'b', 'c']), run('', 2, ['a', 'b', 'c']),
+    run('x=1', 1, ['a', 'b', 'c']), run('x=1', 2, ['a', 'b', 'c']),   // 1度も分岐しない
+    run('y=1', 1, ['a', 'z', 'c']), run('y=1', 2, ['a', 'b', 'c']),   // 片方だけ分岐
+  ]);
+  eq(rows.length, 2, '🔴基準（cand=""）が候補の行に出ている＝自分自身との比較は常に分岐0');
+  eq(rows[0].cand, 'y=1', '🔴分岐の多い順に並んでいない＝そのまま「A/B に掛ける順」にならない');
+  eq(rows[0].runs, 2, '🔴比べた対戦の数');
+  eq(rows[0].diverged, 1, '🔴分岐した対戦の数');
+  eq(JSON.stringify(rows[0].firstDiff), '[1]', '🔴最初の分岐の位置を集めていない');
+  eq(rows[1].diverged, 0, '🔴同じ並びを分岐と数えた');
+  // 🔴**基準が無い（基準側が止まった等）対戦を「分岐0」に数えない**＝分岐0 は
+  //   「A/B に掛けるだけ無駄」という強い主張なので、**測れなかったものを混ぜると嘘になる**。
+  const noBase = summarizeDiverge([run('x=1', 9, ['a'])]);
+  eq(noBase[0].runs, 0, '🔴基準が無い対戦を分母に入れた＝分岐0 が「測れなかった」を含む');
+  eq(noBase[0].unpaired, 1, '🔴比べられなかった対戦を数えていない');
+  const st = summarizeDiverge([run('', 1, ['a']), run('x=1', 1, ['a'], 'cap')]);
+  eq(st[0].stalled, 1, '🔴止まった対戦に印が付いていない');
+
+  // ── ④ 表の文言＝誤読を止める2行を必ず書く ──
+  const rep = formatDivergeReport(rows, { champion: 'default', decks: 1, seeds: 2 });
+  ok(rep.includes('分岐0 の候補 1件'), '🔴分岐0 の候補を名指ししていない＝そのまま A/B に掛けて8分を捨てる');
+  ok(rep.includes('x=1'), '🔴分岐0 の候補名が表に出ていない');
+  ok(rep.includes('必要条件であって十分条件ではない'), '🔴「分岐した＝強い」と誤読させる表になっている');
+  ok(formatDivergeReport([rows[0]], { champion: 'default', decks: 1, seeds: 2 }).includes('分岐0 の候補は無い'),
+    '🔴分岐0 が無いときの文言が出ない');
+  eq(screenSpeedup(6, 2), 8, '🔴篩の安さの計算が合わない（6デッキ×2シード＝12戦 vs 本番の A/B 96戦）');
+
+  // ── ⑤ 配線（ここが切れると走査は「基準と同じ CPU」を測り続けて静かに嘘をつく）──
+  const hsScan = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
+  ok(/t\.cand \? patchCpuPolicy\(champion, t\.cand\) : champion/.test(hsScan),
+    '🔴候補の spec がポリシーに届いていない＝基準と同じ CPU を測り続ける');
+  ok(/for \(const s of specs\) patchCpuPolicy\(champion, s\);/.test(hsScan),
+    '🔴候補の打ち間違いを走らせる前に落としていない＝1時間回したあとで気付く');
+  ok(/playOne\(seed, \{ host: p, guest: p \}\)/.test(hsScan),
+    '🔴候補を両席に置いていない＝基準との差に席の差（先攻有利）が混ざる');
+  ok(/observeMoves = undefined;/.test(hsScan), '🔴分岐の計測で列挙のコスト（1盤面 約2ms）を払っている');
+  ok(/'##V '/.test(hsScan) && /##V \$\{JSON\.stringify/.test(hsScan), '🔴子プロセスの結果マーカーが親子で食い違っている');
+  // 🔴**画面は走査を知らない**（`S-9` の規律＝測定台の都合で実機の挙動を変えない）。
+  const screenScan = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(!screenScan.includes('cpuWeightScan'), '🔴画面が走査の道具を読んでいる');
 }));
 
 if (listMode) {
