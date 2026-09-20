@@ -53985,6 +53985,53 @@ test('§5.6 C-0 空き無しの「場に出す」だけの【起】は提示し�
   eq(blockedByNoEmptySigniZone(mkLrigAct('S1', { action: place }), mkState({}), mkState({})), false, '対照：空きがあれば通す');
 }));
 
+// 🆕**§5.6 `C-0`（2026-09-20・バグ報告 `c32a37ce` の後半）＝置けなかった配置は【出】を発火させない。**
+// 🔴**報告の疑い**＝「場が満杯で出せなかったのに `コードアンチ　ネッシー`（`WX22-Re17-E1`＝
+//   『あなたのトラッシュからシグニ１体が場に出たとき』）が発火している」。
+// 🔑**実測＝発火しない**（下の A/B）。`ON_PLAY` の収集は**盤面差分**（`detectPlacedSigni`）が入口なので、
+//   カードが1枚も場に載らなければ収集そのものが走らない。
+// ⚠**この検査を残す理由**＝提示ゲート（`blockedByNoEmptySigniZone`）は **`SEQUENCE` の1ステップの
+//   `ADD_TO_FIELD` を意図的に止めない**ので、**「置けない配置」は今後も起こる**。
+//   engine 側が空振りでトリガーを撒かないことを、ここで別に固定しておく。
+test('§5.6 C-0 置けなかった「場に出す」は【出】（トラッシュ由来）を発火させない', () => withSavedCursor(() => {
+  const nessie = 'WX22-Re17', other = findCard(c => c.Type === 'シグニ' && c.CardNum !== nessie);
+  const servant = findCard(c => c.Type === 'シグニ' && c.CardNum !== nessie && c.CardNum !== other);
+  const e3 = (effectsMap.get('WD08-001') ?? []).find(e => e.effectId === 'WD08-001-E3');
+  if (!e3) throw new Error('WD08-001-E3 が live に無い');
+  const tctx = { hostId: 'H', guestId: 'G', activeUserId: 'H', turnPhase: 'MAIN' as const,
+    effectsMap: new InstanceMap<CardEffect[]>(effectsMap), cardMap: cardMap as Map<string, CardData>,
+    genId: () => 'c0' };
+  const fire = (signi: (string | null)[]): { placed: string[]; ids: string[]; logs: string[] } => {
+    const before = mkState({ signi: signi as never, trash: 0 });
+    before.trash = [servant];
+    // ⚠**デッキを空にする**＝`mkState` の `fill(20)` は POOL から採るので `servant` と同じ番号が
+    //   デッキにも入りうる。`detectPlacedFromZone` は**デッキを先に見る**ので、由来が `'deck'` に
+    //   化けて検査が空振りする（instanceId を使わないハーネス特有の罠）。
+    before.deck = [];
+    const ctx = mkCtx({}, {}, 'WD08-001');
+    ctx.ownerState = before;
+    const res = finish(executeAction(e3.action, ctx), ctx);
+    const after = res.ownerState ?? before;
+    const placed = detectPlacedSigni(before, after);
+    const ids: string[] = [];
+    for (const n of placed) {
+      const zone = detectPlacedFromZone(before, n, after);
+      ids.push(...collectFieldTriggers(tctx, 'ON_PLAY', n, after, res.otherState ?? mkState({}), 'H',
+        { placedByEffect: true, placedFromZone: zone }).entries.map(e => e.effectId));
+    }
+    return { placed, ids, logs: res.logs ?? [] };
+  };
+  // 対照＝空きがあれば置けて、ネッシーの【自】はちゃんと発火する（**検査が空振りでないことの証明**）。
+  const okCase = fire([null, nessie, other]);
+  eq(okCase.placed.length, 1, '対照：空きがあれば1体が場に出る');
+  ok(okCase.ids.includes('WX22-Re17-E1'), '対照：トラッシュから場に出れば WX22-Re17-E1 が発火する');
+  // 本番＝満杯なら1枚も場に載らない＝収集が走らない。
+  const fullCase = fire([nessie, nessie, other]);
+  eq(fullCase.placed.length, 0, '🔴満杯なら「場に出たカード」が0＝ON_PLAY 収集そのものが走らない');
+  eq(fullCase.ids.length, 0, '🔴置けなかった配置で WX22-Re17-E1 は発火しない（バグ報告 c32a37ce 後半）');
+  ok(fullCase.logs.some(l => l.includes('空きシグニゾーンなし')), '満杯の経路は「空きシグニゾーンなし」で止まる');
+}));
+
 test('O-1 (f) lrigActivateGate: 付与【起】も同じ funnel で切れる', () => withSavedCursor(() => {
   const ids = (granted: CardEffect[], state?: Partial<PlayerState>, phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') =>
     listActivatableGrantedLrigEffects(lrigGateArgs([], state, phase), granted).map(e => e.effectId);

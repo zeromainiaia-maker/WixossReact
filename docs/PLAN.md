@@ -15,8 +15,8 @@
 - **真因**＝提示ゲートが**置き場を1行も見ていなかった**＝`WD08-001-E3`（ウムル＝フィーラ【起】《ダウン》）が満杯でも撃て、**ダウンだけ払って盤面が動かない**。
 - **直し**＝`emptyZoneGate.ts`（新設）の `blockedByNoEmptySigniZone` を**ルリグ【起】とシグニ【起】の両ゲート**から呼ぶ。
   ⚠止めるのは**トップレベルが `ADD_TO_FIELD`** かつ**コストで場が空かない**効果だけ（live **83効果 / 81カード**）。
-- 🔑報告の後半「ネッシーも発動してしまう」は**engine のバグではない**＝`WX22-Re17` の【起】は原文がトラッシュ限定。
-  置けなかった配置は `boardDiffTriggers` が**盤面差分**で拾うので構造的にトリガーを生まない。
+- 🔑報告の後半「失敗した配置をトリガーにネッシーの【自】が発火する」は **engine を走らせて実測＝発火しない**
+  （満杯＝場に出たカード0＝収集が走らない／1ゾーン空き＝`WX22-Re17-E1` 発火＝対照）。**golden で固定済み**。
 
 | 軸 | いまの値 |
 |---|---|
@@ -25,7 +25,7 @@
 | 📦**在庫** | 🏁**機構 worklist 0**／実機 `V-nn` **0**／実装キュー **0**／CPU 完成度 **0**／**CPU の強さ 5**（`S-17`・`S-19`・`S-20`・`S-14`・`S-6`）／リリース作業 **1**（RELEASE.md）／実機シナリオの既存 FAIL **0** |
 | ⚠**直近の不具合** | 🔴**未修正で登録済み**＝①先攻が勝てない（`S-19`）②**A/B の山が型を踏まない**（`S-20`）。 |
 | ⚠**バグ報告** | 🏁**未消化 0**（`c32a37ce` を消化＝`npm run reports` で TRIAGED 済み） |
-| 🔧**ゲート** | `npm run gates` 全緑（golden **4343**＝+1）｜**実機は必須（`src/screens/` を触った）**＝`node scripts/verifyFullMatch.mjs cpu` PASS（10ターン / 237手）。反転確認＝報告の盤面を復元して `git stash` で A/B |
+| 🔧**ゲート** | `npm run gates` 全緑（golden **4344**＝+2）｜**実機は必須（`src/screens/` を触った）**＝`node scripts/verifyFullMatch.mjs cpu` PASS（10ターン / 237手）。反転確認＝報告の盤面を復元して `git stash` で A/B |
 ---
 
 ## 2. 作業の流れ（1巡の定義）
@@ -575,7 +575,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
 - **2026-09-20 時点**（第417バッチ＝§5.6 `C-0` バグ報告 `c32a37ce`）
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**live JSON 未変更＝3計器は動かない**）
   - 📦**在庫**＝🏁**機構 worklist 0**｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 5**（`S-17`・`S-19`・`S-20`・`S-14`・`S-6`）｜リリース作業 **1**｜実機シナリオの既存 FAIL **0**｜🏁**未消化のバグ報告 0**
-  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4343**＝+1・`census:traceinv` I1=0・`selfplay` 外れ0）｜**実機＝`verifyFullMatch.mjs cpu` PASS**（決着 10ターン / 237手 / 355s）
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4344**＝+2・`census:traceinv` I1=0・`selfplay` 外れ0）｜**実機＝`verifyFullMatch.mjs cpu` PASS**（決着 10ターン / 237手 / 355s）
   - 🆕📏**「場に出す」だけの【起】の母集団**＝`ACTIVATED` かつトップレベルが `ADD_TO_FIELD` の効果 **83効果 / 81カード**（新ゲート `blockedByNoEmptySigniZone` の適用範囲）
 
 ---
