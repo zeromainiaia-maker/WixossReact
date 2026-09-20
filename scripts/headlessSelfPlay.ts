@@ -325,6 +325,44 @@ async function runAb(a: CpuPolicy, b: CpuPolicy, quiet = false) {
   return summarizeAb(ab, FIRST === 'HOST' ? 'host' : 'guest');
 }
 
+/**
+ * ══ ②'' ポリシー × 山（§5.7 `S-25`・2026-09-20）══
+ * 🔴**なぜ要るか（実測）**＝`search` vs `default` を**1つの山（WD13）で測って「探索は弱い」と登録した**が、
+ *   山を変えて測り直すと**4デッキ中3つで探索のほうが強かった**（ケトッシー軸 8-0-0／天使軸1 6-2-0／WD06 6-2-0）。
+ *   ⇒ **ポリシーの良し悪しは「山ごとの表」で見る**（1つの山の勝率で一般化しない＝`S-20`／`S-23` と同じ教訓）。
+ * 使い方＝`npm run selfplay:ab -- --a search --b default --decks "A,B,C" --games 8`
+ */
+if (AB_MODE && ROUND_ROBIN.length >= 1) {
+  const a = resolveCpuPolicy(A_NAME), b = resolveCpuPolicy(B_NAME);
+  const list = ROUND_ROBIN.map(n => resolveSelfPlayDeck(n, allCardMap));
+  console.log(`A=${a.name} vs B=${b.name}｜山 ${list.length}種 × ${GAMES} シード × 2戦（席入れ替え）`);
+  console.log(formatDeckCoverage(list));
+  const t0 = Date.now();
+  const rows: { deck: string; sum: Awaited<ReturnType<typeof runAb>> }[] = [];
+  for (const deck of list) {
+    // ⚠**両席とも同じ山**＝測るのはポリシーの差（山の差は `--decks` だけを渡す総当たりモード）。
+    selectDecks(deck, deck);
+    const sum = await runAb(a, b, true);
+    rows.push({ deck: deck.name, sum });
+    const verdict = sum.pairDecided === 0 ? 'ほぼ同じ打ち方'
+      : sum.pairSignificant ? (sum.pairRate > 0.5 ? '🔎A が強い' : '🔎A が弱い') : '差があるとは言えない';
+    console.log(`  ${deck.name.padEnd(14)} 組 ${sum.pairs.aSweep}-${sum.pairs.split}-${sum.pairs.bSweep}`
+      + `｜組で見た勝率 ${sum.pairDecided === 0 ? '—' : `${(sum.pairRate * 100).toFixed(1)}%`}`
+      + ` [${(sum.pairLo * 100).toFixed(1)}, ${(sum.pairHi * 100).toFixed(1)}]｜${verdict}`
+      + `｜止まった ${sum.stalled}`);
+  }
+  const sig = rows.filter(r => r.sum.pairSignificant);
+  console.log(`
+=== まとめ（${a.name} 目線）===`);
+  console.log(`  A が強い山 ${sig.filter(r => r.sum.pairRate > 0.5).map(r => r.deck).join('／') || 'なし'}`);
+  console.log(`  A が弱い山 ${sig.filter(r => r.sum.pairRate <= 0.5).map(r => r.deck).join('／') || 'なし'}`);
+  console.log(`  差が出なかった山 ${rows.filter(r => !r.sum.pairSignificant).map(r => r.deck).join('／') || 'なし'}`);
+  console.log('🔴**1つの山の勝率でポリシーを一般化しない**＝この表が「山によって逆になる」ことを示すためにある。');
+  console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒`);
+  if (rows.some(r => r.sum.stalled > 0) && !ALLOW_STALL) process.exit(1);
+  process.exit(0);
+}
+
 // ══ ②' 総当たり（§5.7 `S-23` ①＝**本物のデッキで測る**）══
 // 🔑**ポリシーは両席とも同じ**（`--a` で指定・既定 `default`）＝ここで測るのは**山の差**。
 if (ROUND_ROBIN.length >= 2) {
