@@ -125,6 +125,12 @@ export interface Deck {
   assistLrigR?: string | null;
   /** 🆕デッキの種類（`player`＝自分が使う／`cpu`＝CPU が使う）。混ぜない＝`utils/deckFolders.ts`。 */
   kind?: 'player' | 'cpu';
+  /**
+   * 🆕デッキフォーマット（カードプール）。判定は `utils/deckFormat.ts`。
+   * ⚠**`undefined` は「未設定」＝この機能より前に作られたデッキ**で、そのときは**中身から推定**する
+   *   （`effectiveDeckFormat`）。新しく作るデッキには `'allstar'` を明示で入れる。
+   */
+  format?: import('../utils/deckFormat').DeckFormat;
   /** 作成者（CPU デッキが他人の公開デッキかを見分ける）。 */
   userId?: string;
   /** 🆕§5.7 `S-2`＝CPU デッキの作戦データ（キーカード・優先して出す札・コンボ）。`cpu` のデッキだけで使う。 */

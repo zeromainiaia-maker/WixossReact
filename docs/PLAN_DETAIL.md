@@ -2474,6 +2474,23 @@ golden 側にも純関数テストを1本足した（`§5.1 V-204 deckAddBlockRe
 （例＝`o267CutinResonaResolvesBeforeSpell` は「`effect_stack` を空にしてからスペルを解決する」ガードの唯一の番人）。
 
 
+## 恒久指標アーカイブ（2026-09-20 第414バッチ・PLAN §6 から退避）
+
+- **2026-09-20 時点**（第414バッチ＝カード番号の検索が再録の番号で引けなかったのを修正）
+  - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**live JSON 未変更＝3計器は動かない**）
+  - 📦**在庫**＝🏁**機構 worklist 0**｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 6**（`S-21`・`S-17`・`S-19`・`S-20`・`S-14`・`S-6`）｜リリース作業 **1**｜実機シナリオの既存 FAIL **0**
+  - 🔧**ゲート**＝`npm run gates` 全緑（golden **4339**＝+1・`census:traceinv` I1=0・`selfplay` 決着＋打った手の照合 外れ0・lint 0 errors / 262 warnings）｜**実機** `node scripts/archive/verifyCardSearch.mjs` **11/11 PASS**
+  - 🆕📏**カードデータの母数**＝本体 **6,666枚**（Sheet1〜10）＋トークン **47**＋**避難先（variant）2,572件**（`CardNum`/`CardName`/`ImgURL` の3列）。
+    **variant は全件が本体1枚かトークンへ一意に解決**し、本体に**同名2枚以上のグループは 0**（＝カード名をキーにしても曖昧さが出ない）。
+  - 🆕📏**配信サイズ（Vercel Hobby の上限に対する余裕）**＝`dist` **13.5MB / 25ファイル**（上限＝静的アップロード **100MB**・ファイル数 **15,000**）｜
+    初回ロードの実転送量＝raw 12.54MB → **gzip 1.76MB / brotli 1.19MB**（Fast Data Transfer **100GB/月** ≒ **86,000 回の初回ロード**）｜
+    **カード画像は ImageKit 配信＝Vercel の帯域を使わない**｜Functions なし（完全静的）。⇒ **容量はどの軸でも制約になっていない。**
+  - 📏**BattleScreen**＝**6,287行**（±0）｜`controller/cpuTurn.ts` **1,436行**｜`cpuMoves.ts` **693行**｜`cpuSearch.ts` **109行**｜🆕`utils/cardSearch.ts` **40行**
+  - 📊**CPU の候補数**（`--census-moves`・4戦 432盤面）＝**MAIN 中央2・p90 8・最大18**｜**1手適用 平均0.1ms**｜**探索（幅4深さ4）1盤面 平均3.0ms・最大34ms**
+  - 📊**自己対戦 A/B（80戦ずつ）**＝`default` vs **`search`＝50.0% [39.3, 60.7]（互角）**｜`legacy-nextturn` vs `default`＝51.2%（差なし）｜`legacy-power` vs `default`＝370戦で 50.0%
+  - 📊**先攻の勝率**＝直近の A/B で **27.5〜40.0%**（`S-19`）
+  - 📊**機構踏破**＝`census:play`（`VERIFY_DECK_MECH` 1戦）**10 / 20**（未計測）
+
 ## 恒久指標アーカイブ（2026-09-20 第413バッチ・PLAN §6 から退避）
 
 - **2026-09-20 時点**（第413バッチ＝🏁§5.7 `S-16` 探索の配線）

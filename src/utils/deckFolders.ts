@@ -18,6 +18,20 @@ export const DECK_KIND_JA: Record<DeckKind, string> = { player: '自分のデッ
 /** センター未指定（またはカードが見つからない）デッキのフォルダ名。 */
 export const UNSET_FOLDER = '未設定';
 
+/**
+ * 🆕**「全員のルリグからランダム」を表す擬似フォルダ**（2026-09-20 ユーザー要望）。
+ * 🔑**実在のルリグタイプと衝突しない名前にする**＝`CardClass` に `__` は出ない。
+ * ⚠**中身は「絞り込み後の全デッキ」**＝フォルダ分けの結果ではないので `groupDecksByFolder` には入れない
+ *   （入れると同じデッキが2つのフォルダに出て件数が二重になる）。
+ */
+export const ALL_LRIG_FOLDER = '__all__';
+export const ALL_LRIG_FOLDER_JA = '全員のルリグ';
+
+/** ランダム選出用＝先頭に「全員のルリグ」を足したフォルダ一覧。 */
+export function withAllLrigFolder<T>(folders: DeckFolder<T>[], allDecks: T[]): DeckFolder<T>[] {
+  return [{ name: ALL_LRIG_FOLDER, decks: allDecks }, ...folders];
+}
+
 export const deckKindOf = (deck: Pick<Deck, 'kind'>): DeckKind => (deck.kind === 'cpu' ? 'cpu' : 'player');
 
 /** デッキのフォルダ名＝センタールリグのルリグタイプ（`CardClass`）。複合タイプは `/` で正規化した複合名のまま。 */

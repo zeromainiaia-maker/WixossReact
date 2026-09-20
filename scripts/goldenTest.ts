@@ -183,6 +183,8 @@ import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase
 import { isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
+import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
+import { ALL_LRIG_FOLDER, withAllLrigFolder } from '../src/utils/deckFolders';
 import { applyFolderReorder, deckFolderOf, deckKindOf, folderFaceCard, folderThumbKey, folderThumbnailCandidates, groupDecksByFolder, pickRandomDeck, UNSET_FOLDER } from '../src/utils/deckFolders';
 import { deckFromRow } from '../src/utils/deckRow';
 import { listAssistGrowCandidates } from '../src/screens/battle/assistGrow';
@@ -80849,22 +80851,22 @@ test('§5.1 V-204 deckAddBlockReason：構築制限の判定は1本（アーツ�
   const a4 = findCard(c => c.Type === 'アーツ' && ![a1, a2, a3].includes(c.CardNum));
   const card = (n: string) => m.get(n) as CardData;
   // ① 上限を課す札が居れば4枚目のアーツは入らない。
-  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2, a3] }, m), 'LRIG_ARTS_CAP',
+  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2, a3] }, m, new Map()), 'LRIG_ARTS_CAP',
     '🔴WXK03-003A が居るのにアーツ4枚目が入る');
   // ② 反転確認＝その1枚を抜くだけで入る（盤面の他の3枚は同一）。
-  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: [a1, a2, a3] }, m), null,
+  eq(deckAddBlockReason(card(a4), { mainDeck: [], lrigDeck: [a1, a2, a3] }, m, new Map()), null,
     '反転確認: 上限を課す札が無ければ同じ4枚目が入る');
   // ③ 3枚目までは入る（上限そのものを off-by-one で読んでいない）。
-  eq(deckAddBlockReason(card(a3), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2] }, m), null,
+  eq(deckAddBlockReason(card(a3), { mainDeck: [], lrigDeck: ['WXK03-003A', a1, a2] }, m, new Map()), null,
     '3枚目までは入る（>= ではなく > で判定していないか）');
   // ④ 上限を課す札を**後から**入れる向き＝既にアーツが4枚あれば入らない。
-  eq(deckAddBlockReason(card('WXK03-003A'), { mainDeck: [], lrigDeck: [a1, a2, a3, a4] }, m), 'LRIG_ARTS_OVER_CAP',
+  eq(deckAddBlockReason(card('WXK03-003A'), { mainDeck: [], lrigDeck: [a1, a2, a3, a4] }, m, new Map()), 'LRIG_ARTS_OVER_CAP',
     '🔴アーツ4枚のデッキに上限札を後入れできてしまう');
   // ⑤ 同名1枚まで（ルリグデッキ）／⑥ メインは同名4枚まで＝旧 canAdd が見ていた軸も同じ1本が見る。
-  eq(deckAddBlockReason(card(a1), { mainDeck: [], lrigDeck: [a1] }, m), 'COPY_MAX', 'ルリグデッキは同名1枚まで');
+  eq(deckAddBlockReason(card(a1), { mainDeck: [], lrigDeck: [a1] }, m, new Map()), 'COPY_MAX', 'ルリグデッキは同名1枚まで');
   const sig = findCard(c => c.Type === 'シグニ' && c.LifeBurst !== '1');
-  eq(deckAddBlockReason(card(sig), { mainDeck: Array(4).fill(sig), lrigDeck: [] }, m), 'COPY_MAX', 'メインは同名4枚まで');
-  eq(deckAddBlockReason(card(sig), { mainDeck: Array(40).fill(sig), lrigDeck: [] }, m), 'MAIN_MAX', 'メインは40枚まで');
+  eq(deckAddBlockReason(card(sig), { mainDeck: Array(4).fill(sig), lrigDeck: [] }, m, new Map()), 'COPY_MAX', 'メインは同名4枚まで');
+  eq(deckAddBlockReason(card(sig), { mainDeck: Array(40).fill(sig), lrigDeck: [] }, m, new Map()), 'MAIN_MAX', 'メインは40枚まで');
 }));
 
 test('§5.3 O-313 「各ターン終了時」は両方のターン境界で発火する', () => withSavedCursor(() => {
@@ -86377,14 +86379,17 @@ test('§5.6 C-9 R-47 センタールリグと同じルリグタイプのアシ�
   const center = cardMap.get(PIRULUK0)!;
   const sameAssist = [...cardMap.values()].find(c => c.Type === 'アシストルリグ' && sharesLrigType(c, center))?.CardNum;
   ok(!!sameAssist, 'ピルルクのアシストルリグが見つからない＝母集団の前提が崩れた');
+  // ⚠**フォーマットは `allstar` で中立にする**（2026-09-20）＝`deckAddBlockReason` はフォーマットも見るようになり、
+  //   未設定のデッキは中身から推定する。ここの標本は `WD03-005`(レガシー)＋`WXDi-D01-009`(ディーバ) の
+  //   混成なので、指定しないと **`LRIG_TYPE_CLASH` の前に `FORMAT` が返って**この検査が意味を失う。
   // ① 反転＝初版の実害（アシスト系統の Lv0 と同タイプのアシストが弾かれていた）。
-  eq(deckAddBlockReason(cardMap.get(UMR_ASSIST)!, { mainDeck: [], lrigDeck: [PIRULUK0, UMR0], centerLrig: PIRULUK0 }, cardMap), null,
+  eq(deckAddBlockReason(cardMap.get(UMR_ASSIST)!, { format: 'allstar', mainDeck: [], lrigDeck: [PIRULUK0, UMR0], centerLrig: PIRULUK0 }, cardMap, new Map()), null,
     '🔴アシスト系統の Lv0（ウムル＝ノル）をセンター扱いして、ウムルのアシストを弾いている');
   // ② 本命＝指定したセンターと同タイプのアシストは入らない。
-  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { mainDeck: [], lrigDeck: [PIRULUK0], centerLrig: PIRULUK0 }, cardMap), 'LRIG_TYPE_CLASH',
+  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { format: 'allstar', mainDeck: [], lrigDeck: [PIRULUK0], centerLrig: PIRULUK0 }, cardMap, new Map()), 'LRIG_TYPE_CLASH',
     '🔴センターと同じルリグタイプのアシストが入ってしまう');
   // ③ センター未指定なら追加時には判定しない（指定する側で止める＝④）。
-  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { mainDeck: [], lrigDeck: [PIRULUK0] }, cardMap), null, 'センター未指定なのにタイプで弾いた');
+  eq(deckAddBlockReason(cardMap.get(sameAssist!)!, { format: 'allstar', mainDeck: [], lrigDeck: [PIRULUK0] }, cardMap, new Map()), null, 'センター未指定なのにタイプで弾いた');
   // ④ 逆向き＝同タイプのアシストが入っているデッキでは、そのタイプの Lv0 をセンターに指定できない。
   const deckWithAssist = { lrigDeck: [PIRULUK0, UMR0, TAWIL0, sameAssist!] };
   eq(lrigRoleBlockReason(deckWithAssist, PIRULUK0, 'center', cardMap), 'LRIG_TYPE_CLASH', '🔴順番を変えれば同タイプのセンターを指定できてしまう');
@@ -86404,7 +86409,7 @@ test('§5.6 C-9 R-47 センタールリグと同じルリグタイプのアシ�
     const part = (dual.CardClass ?? '').split(/[/／]/)[0].trim();
     const partAssist = [...cardMap.values()].find(c => c.Type === 'アシストルリグ' && (c.CardClass ?? '') === part);
     if (partAssist) {
-      eq(deckAddBlockReason(partAssist, { mainDeck: [], lrigDeck: [dual.CardNum], centerLrig: dual.CardNum }, cardMap), 'LRIG_TYPE_CLASH',
+      eq(deckAddBlockReason(partAssist, { format: 'allstar', mainDeck: [], lrigDeck: [dual.CardNum], centerLrig: dual.CardNum }, cardMap, new Map()), 'LRIG_TYPE_CLASH',
         '🔴複合タイプの片方だけ重なるアシストを通している');
     }
   }
@@ -86478,7 +86483,9 @@ test('デッキのフォルダ（センターのルリグタイプ別）・種�
   const mm = fs.readFileSync(join(root, 'src/screens/MatchmakingScreen.tsx'), 'utf8');
   ok(/deckKindOf\(d\) === 'player' && isPlayable\(d\)/.test(mm), '🔴自分の使用デッキに CPU デッキが混ざる');
   ok(/from\('decks'\)\.select\('\*'\)\.eq\('deck_kind', 'cpu'\)\.order/.test(mm), '🔴CPU デッキの取得が deck_kind=cpu になっていない（または user_id で絞っている）');
-  ok(/pickRandomDeck\(cpuFolders\.find\(f => f\.name === cpuRandomFolder\)/.test(mm), '🔴ランダムモードが選んだフォルダから引いていない');
+  // 🆕2026-09-20＝抽選は**フォーマットで絞り込んだ後**のフォルダから引く（`cpuRandomFolders`）。
+  //   ⚠**絞り込み前の `cpuFolders` に戻すとフォーマット指定が黙って効かなくなる**（`utils/deckFormat.ts`）。
+  ok(/pickRandomDeck\(cpuRandomFolders\.find\(f => f\.name === cpuRandomFolder\)/.test(mm), '🔴ランダムモードが選んだフォルダから引いていない');
 }));
 
 test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ばす（メインフェイズは行う・CPU も同じ）', () => withSavedCursor(() => {
@@ -88635,6 +88642,124 @@ test('カード検索: 番号は避難先(variant)にも当たり、返るのは
     ok(cardMap.has(c.CardNum), `🔴検索結果に本体でないカードが出た: ${c.CardNum}`);
     ok(!!c.Type, `🔴Type が空のカードが出た（variant の3列データが混ざっている）: ${c.CardNum}`);
   }
+});
+
+// ── デッキフォーマット（カードプール）＝`src/utils/deckFormat.ts`（2026-09-20 ユーザー決定）──
+// 🔴**この検査の本体**＝「**本体の番号だけで判定してはいけない**」。再録・別絵柄は `CardData_Variants.csv` へ
+//   退避してあり、本体は最初に収録されたパックの番号しか持たない。**本体がレガシー番号なのにディーバ期の
+//   再録がある札が 91枚**あり（`WD03-005 コード・ピルルク` → `WXDi-D09-P01`）、そこにディーバの
+//   センタールリグ群が丸ごと入る＝本体だけで見ると**ディーバのデッキに自分のルリグが1体も入らない**。
+test('デッキフォーマット: 再録を含めた全印刷で判定し、フォーマット外は追加を止める', () => {
+  // ① 番号1つの判定（`WX` は数値で見る＝WX27 以降が出ても自動でディーバ）。
+  ok(isDivaCardNum('WXDi-P00-006'), 'WXDi がディーバでない');
+  ok(isDivaCardNum('PR-Di007'), 'PR-Di がディーバでない');
+  ok(isDivaCardNum('SPDi43-02'), 'SPDi がディーバでない');
+  ok(isDivaCardNum('WX24-P1-001') && isDivaCardNum('WX26-CP1-001'), 'WX24/WX26 がディーバでない');
+  ok(isDivaCardNum('WX27-001') && isDivaCardNum('WX99-001'), '🔴WX27 以降が自動でディーバに入らない（上限を切っている）');
+  ok(!isDivaCardNum('WX23-001') && !isDivaCardNum('WX01-001'), 'WX23 以前がディーバに入った');
+  ok(!isDivaCardNum('WXK01-001'), '🔴WXK（キー期）をディーバに数えた＝`WX` の直後を数字2桁で見ていない');
+  ok(!isDivaCardNum('WXEX1-001'), '🔴WXEX をディーバに数えた');
+  ok(!isDivaCardNum('WDK07-001') && !isDivaCardNum('PR-046'), 'レガシーの札をディーバに数えた');
+  ok(isDivaCardNum('wxdi-p00-006'), '小文字の番号を取りこぼした');
+
+  // ② 実データ＝避難先込みでプールを決める。
+  const variantRows = Papa.parse<Record<string, string>>(
+    fs.readFileSync(join(root, 'public/data/CardData_Variants.csv'), 'utf-8').replace(/^﻿/, ''),
+    { header: true, skipEmptyLines: true },
+  ).data as unknown as CardData[];
+  const vIdx = buildVariantNumIndex(variantRows);
+  const fcard = (n: string) => { const c = cardMap.get(n); if (!c) throw new Error(`${n} が cardMap に無い`); return c; };
+
+  const piruluk = fcard('WD03-005');                    // 本体=レガシー番号／WXDi-D09-P01 に再録
+  const pools = cardPoolsOf(piruluk, vIdx);
+  ok(pools.diva && pools.legacy, '🔴コード・ピルルク（再録あり）が両プールに居ない＝本体の番号だけで判定している');
+  ok(cardAllowedInFormat(piruluk, 'diva', vIdx), '🔴ディーバのデッキにディーバのセンタールリグが入れられない');
+  ok(cardAllowedInFormat(piruluk, 'legacy', vIdx), 'レガシーで使えるはずの札が弾かれた');
+
+  const divaOnly = fcard('WXDi-P00-006');
+  ok(cardAllowedInFormat(divaOnly, 'diva', vIdx), 'ディーバ専用札がディーバで弾かれた');
+  ok(!cardAllowedInFormat(divaOnly, 'legacy', vIdx), '🔴ディーバ専用札がレガシーで使えてしまう');
+  const legacyOnly = fcard('WX01-001');
+  ok(cardAllowedInFormat(legacyOnly, 'legacy', vIdx), 'レガシー専用札がレガシーで弾かれた');
+  ok(!cardAllowedInFormat(legacyOnly, 'diva', vIdx), '🔴レガシー専用札がディーバで使えてしまう');
+  ok(cardAllowedInFormat(divaOnly, 'allstar', vIdx) && cardAllowedInFormat(legacyOnly, 'allstar', vIdx), 'オールスターが何かを弾いた');
+
+  // ③ 母数の錨（`docs/PLAN.md` §6 の実測値と同じ）。⚠**カードを足したら測り直す**。
+  // 🔴**`cardMap` を母数に使わない**＝あれは全テストで共有する可変状態で、合成カードを足すテストが居ると
+  //   件数が静かに動く（実測＝6,666 のはずが 6,668 になり、錨が 2枚ずれた）。⇒ **シートの CSV から直接読む。**
+  // 🔴**トークンも除く**（`CardData_TK.csv`）＝デッキに入れる札ではないうえ、**番号が `TK` で始まらない**
+  //   （`WXDi-P07-TK01-A` の形＝43枚がディーバ番号）ので、接頭辞で外そうとすると 2,847 が 2,890 に化ける。
+  const sheet: CardData[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const rows = Papa.parse<Record<string, string>>(
+      fs.readFileSync(join(root, `public/data/CardData_Sheet${i}.csv`), 'utf-8').replace(/^﻿/, ''),
+      { header: true, skipEmptyLines: true },
+    ).data as unknown as CardData[];
+    for (const r of rows) if (r.CardNum) sheet.push(r);
+  }
+  eq(sheet.length, 6666, '🔴シートのカード枚数が変わった（以下の錨を測り直す）');
+  let dOnly = 0, lOnly = 0, both = 0;
+  for (const c of sheet) {
+    const p = cardPoolsOf(c, vIdx);
+    if (p.diva && p.legacy) both++; else if (p.diva) dOnly++; else lOnly++;
+  }
+  eq(both, 91, '🔴再録で両プールに居る札の数が変わった（判定の前提が動いた＝測り直す）');
+  eq(dOnly + both, 2847, 'ディーバで使えるカード数が変わった');
+  eq(lOnly + both, 3910, 'レガシーで使えるカード数が変わった');
+
+  // ④ 中身からの推定＝「そのプールにしか無い札」で決める。
+  const detect = (nums: string[]) => detectDeckFormat(nums, cardMap, vIdx);
+  eq(detect([]), 'allstar', '空のデッキを推定で縛った');
+  eq(detect(['WD03-005']), 'allstar', '🔴両プールに居る札だけのデッキを片方へ倒した');
+  eq(detect(['WD03-005', 'WXDi-P00-006']), 'diva', 'ディーバ専用札があるのにディーバと推定しない');
+  eq(detect(['WD03-005', 'WX01-001']), 'legacy', 'レガシー専用札があるのにレガシーと推定しない');
+  eq(detect(['WXDi-P00-006', 'WX01-001']), 'allstar', '🔴両方の専用札があるデッキをオールスターにしない');
+
+  // ⑤ 実効フォーマット＝明示設定が推定に勝つ。
+  const fdeck = { mainDeck: ['WX01-001'], lrigDeck: [] as string[] };
+  eq(effectiveDeckFormat(fdeck, cardMap, vIdx), 'legacy', '未設定のとき推定を使っていない');
+  eq(effectiveDeckFormat({ ...fdeck, format: 'allstar' as const }, cardMap, vIdx), 'allstar', '🔴明示設定より推定が勝っている');
+  eq(outOfFormatCardNums({ ...fdeck, format: 'diva' as const }, cardMap, vIdx).join(','), 'WX01-001', 'フォーマット外を数えられていない');
+  eq(outOfFormatCardNums({ ...fdeck, format: 'allstar' as const }, cardMap, vIdx).length, 0, 'オールスターでフォーマット外が出た');
+
+  // ⑥ 追加可否の1本（`deckAddBlockReason`）にフォーマットが乗っている。
+  eq(deckAddBlockReason(divaOnly, { mainDeck: [], lrigDeck: [], format: 'legacy' }, cardMap, vIdx), 'FORMAT',
+    '🔴レガシーのデッキにディーバ専用札を足せてしまう');
+  eq(deckAddBlockReason(divaOnly, { mainDeck: [], lrigDeck: [], format: 'allstar' }, cardMap, vIdx), null,
+    'オールスターなのにフォーマットで弾いた');
+  eq(deckAddBlockReason(piruluk, { mainDeck: [], lrigDeck: [], format: 'diva' }, cardMap, vIdx), null,
+    '🔴ディーバのデッキに再録済みのセンタールリグを足せない');
+  // 🔴**索引を渡し忘れると再録が見えなくなる**ことを固定する（画面側の配線はトリップワイヤで別に見張る）。
+  eq(deckAddBlockReason(piruluk, { mainDeck: [], lrigDeck: [], format: 'diva' }, cardMap, new Map()), 'FORMAT',
+    '空の索引でも再録が見えている（テストの前提が壊れた）');
+
+  // ⑦ 「全員のルリグ」の擬似フォルダ＝先頭に1つだけ足し、中身は絞り込み後の全デッキ。
+  const folders = withAllLrigFolder([{ name: 'タマ', decks: [1, 2] }, { name: 'ピルルク', decks: [3] }], [1, 2, 3]);
+  eq(folders.length, 3, '擬似フォルダの足し方が変わった');
+  eq(folders[0].name, ALL_LRIG_FOLDER, '🔴「全員のルリグ」が先頭に無い');
+  eq(folders[0].decks.length, 3, '🔴「全員のルリグ」の中身が全デッキでない');
+  ok(!folders.slice(1).some(f => f.name === ALL_LRIG_FOLDER), '擬似フォルダが2つ出た');
+});
+
+// ── 配線のトリップワイヤ（画面は golden から実行できないので、経路が消えていないことだけ固定する）──
+test('デッキフォーマット: 画面の配線（追加可否・保存・CPU ランダムの絞り込み）', () => {
+  const editor = fs.readFileSync(join(root, 'src/screens/DeckEditorScreen.tsx'), 'utf-8');
+  // 🔴索引を渡さないと `deckAddBlockReason` は再録を見られない＝ディーバのルリグが入らなくなる。
+  ok(editor.includes('deckAddBlockReason(card, current, cardMap, variantNumIndex)'),
+    '🔴デッキ編集が `deckAddBlockReason` に避難先索引を渡していない');
+  ok(editor.includes('effectiveDeckFormat('), 'デッキ編集が実効フォーマットを計算していない');
+  ok(editor.includes('DeckFormatModal'), 'フォーマット設定の入口が消えた');
+
+  const app = fs.readFileSync(join(root, 'src/App.tsx'), 'utf-8');
+  ok(app.includes('deck_format: updated.format ?? null'), '🔴フォーマットが DB へ保存されていない');
+  ok(app.includes("deck_format: 'allstar'"), '🔴新しいデッキに `allstar` を明示で入れていない（空デッキが推定で縛られる）');
+
+  const mm = fs.readFileSync(join(root, 'src/screens/MatchmakingScreen.tsx'), 'utf-8');
+  // 🔴抽選は**絞り込み後**のフォルダから引く＝`cpuFolders`（絞り込み前）から引くと指定が効かない。
+  ok(mm.includes('pickRandomDeck(cpuRandomFolders.find'), '🔴CPU のランダム抽選が絞り込み前のフォルダから引いている');
+  ok(mm.includes('withAllLrigFolder('), '🔴「全員のルリグ」タイルが消えた');
+  ok(mm.includes('variantNumIndex'), '🔴マッチングがフォーマット判定に避難先索引を使っていない');
+  ok(mm.includes('decks.length ?? 0) > 0'), '🔴候補0のフォルダで対戦開始できる（空 id で部屋だけ出来て止まる）');
 });
 
 if (listMode) {

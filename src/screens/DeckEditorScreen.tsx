@@ -10,7 +10,9 @@ import {
   DECK_LRIG_SETUP_PROBLEM_JA, LRIG_ROLE_BLOCK_JA, LRIG_ROLE_JA, type LrigRole,
 } from '../utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../utils/cardSearch';
+import { DECK_FORMAT_JA, effectiveDeckFormat, outOfFormatCardNums, type DeckFormat } from '../utils/deckFormat';
 import { CardThumbnailPicker } from './deck/CardThumbnailPicker';
+import { DeckFormatModal } from './deck/DeckFormatModal';
 import { CpuDeckPlanModal } from './deck/CpuDeckPlanModal';
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
@@ -60,6 +62,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [showDeckSettingsMenu, setShowDeckSettingsMenu] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showCpuPlanModal, setShowCpuPlanModal] = useState(false);
+  const [showFormatModal, setShowFormatModal] = useState(false);
   const [variantPickerFor, setVariantPickerFor] = useState<{ cardNum: string; from: 'main' | 'lrig' | 'token' } | null>(null);
 
   const cardMap = useMemo(() => {
@@ -115,6 +118,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   // 番号検索を避難先（variant）の番号にも当てるための索引（`utils/cardSearch.ts`）。
   const variantNumIndex = useMemo(() => buildVariantNumIndex(variantCards), [variantCards]);
 
+  // 🆕デッキフォーマット（`utils/deckFormat.ts`）＝明示設定が無ければ中身から推定した値。
+  const deckFormat = useMemo(() => effectiveDeckFormat(current, cardMap, variantNumIndex), [current, cardMap, variantNumIndex]);
+  const outOfFormat = useMemo(() => outOfFormatCardNums(current, cardMap, variantNumIndex), [current, cardMap, variantNumIndex]);
+
   const filteredCards = useMemo(() => cards.filter(c => {
     if (!cardMatchesSearch(c, search, variantNumIndex)) return false;
     if (filterType && c.Type !== filterType) return false;
@@ -134,7 +141,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   //   🔴以前は同じ規則が addCard／検索行の canAdd／デッキ行の canAdd の**3箇所**に写経されており、
   //     `O-317` のアーツ上限は addCard にしか無かった＝**＋ボタンは押せるのに無言 `return`**（V-205 と同型）。
   //   ⚠ここを列挙式のコピーに戻さない（ボタンの活殺と実際の可否が必ずズレる）。
-  const addBlockReason = (card: CardData) => deckAddBlockReason(card, current, cardMap);
+  const addBlockReason = (card: CardData) => deckAddBlockReason(card, current, cardMap, variantNumIndex);
 
   const addCard = (card: CardData) => {
     if (addBlockReason(card) !== null) return;
@@ -360,6 +367,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               </button>
             ))}
           </div>
+          {outOfFormat.length > 0 && (
+            <div data-testid="deck-format-warning" style={{ flexShrink: 0, padding: '6px 10px', backgroundColor: '#5a2020', color: '#ffcccc', fontSize: '11px' }}>
+              ⚠ {DECK_FORMAT_JA[deckFormat]}フォーマット外のカードが {outOfFormat.length}枚 入っています（対戦には出せます。設定はデッキ設定 →「🎴 フォーマット」）
+            </div>
+          )}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
             {deckTab === 'main' ? (
               <>
@@ -407,7 +419,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             {filteredCards.slice(0, 200).map(card => {
               const lrig = isLrigCard(card);
               const nameCount = lrig ? countInLrigByName(card.CardName) : countInMainByName(card.CardName);
-              const canAdd = addBlockReason(card) === null;
+              const blockReason = addBlockReason(card);
+              const canAdd = blockReason === null;
               const bg = getCardBg(card.Color);
               const hasLB = card.LifeBurst === '1';
               // 検索語が「避難先の番号」に当たって出てきた行は、その番号を出さないと理由が分からない。
@@ -430,6 +443,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                       {hasLB && <span style={{ fontSize: '9px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '3px', padding: '1px 4px', flexShrink: 0, fontWeight: 'bold' }}>LB</span>}
                     </div>
                     <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card.CardNum} / {card.Type}{card.Level ? ` / Lv.${card.Level}` : ''} / {card.Color}</p>
+                    {blockReason === 'FORMAT' && (
+                      <p data-testid={`search-format-ng-${card.CardNum}`} style={{ fontSize: '10px', color: '#cc3333', margin: 0, fontWeight: 'bold' }}>
+                        ✕ {DECK_FORMAT_JA[deckFormat]}フォーマット外
+                      </p>
+                    )}
                     {hitVariantNums.length > 0 && (
                       <p style={{ fontSize: '10px', color: '#5533aa', margin: 0 }}>
                         別番号：{hitVariantNums.slice(0, 4).join(' / ')}{hitVariantNums.length > 4 ? ` ほか${hitVariantNums.length - 4}件` : ''}
@@ -486,6 +504,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               onClick={() => { setShowDeckSettingsMenu(false); setShowTokenModal(true); }}
               style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
             >🃏 トークン設定</button>
+            <button
+              data-testid="deck-format-open"
+              onClick={() => { setShowDeckSettingsMenu(false); setShowFormatModal(true); }}
+              style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
+            >🎴 フォーマット：{DECK_FORMAT_JA[deckFormat]}{current.format === undefined ? '（自動）' : ''}</button>
             {current.kind === 'cpu' && (
               <button
                 data-testid="cpu-plan-open"
@@ -495,6 +518,17 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             )}
           </div>
         </div>
+      )}
+
+      {/* 🆕デッキフォーマット（カードプール）＝`utils/deckFormat.ts` */}
+      {showFormatModal && (
+        <DeckFormatModal
+          deck={current}
+          cardMap={cardMap}
+          variantNumIndex={variantNumIndex}
+          onChange={(format: DeckFormat | undefined) => { const updated = { ...current, format }; setCurrent(updated); onUpdate(updated); }}
+          onClose={() => setShowFormatModal(false)}
+        />
       )}
 
       {/* §5.7 `S-2`＝CPU デッキの作戦（キーカード・優先して出す札・コンボ） */}

@@ -1,5 +1,5 @@
 import type { CardData, Deck } from '../../types';
-import { folderFaceCard, type DeckFolder } from '../../utils/deckFolders';
+import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, folderFaceCard, type DeckFolder } from '../../utils/deckFolders';
 
 /**
  * センタールリグのルリグタイプ別フォルダの一覧（デッキ一覧・マッチングで共用）。
@@ -20,7 +20,9 @@ export function DeckFolderGrid({ folders, cardMap, accent, onOpen, extra, select
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
       {folders.map(folder => {
-        const face = folderFaceCard(folder, cardMap, thumbnailOf?.(folder.name));
+        // 🆕「全員のルリグ」は擬似フォルダ＝特定のルリグの絵を出すと誤解を招くのでサイコロのままにする。
+        const isAll = folder.name === ALL_LRIG_FOLDER;
+        const face = isAll ? undefined : folderFaceCard(folder, cardMap, thumbnailOf?.(folder.name));
         return (
           <div key={folder.name} style={{ backgroundColor: '#111', borderRadius: 8, border: selectedName === folder.name ? `2px solid ${accent}` : '1px solid #222', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
@@ -33,10 +35,10 @@ export function DeckFolderGrid({ folders, cardMap, accent, onOpen, extra, select
                   <img src={face.ImgURL} alt={face.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.85 }}
                     onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                 ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: 28 }}>📁</div>
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isAll ? accent : '#444', fontSize: 34 }}>{isAll ? '🎲' : '📁'}</div>
                 )}
               </div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 'bold', color: accent, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📁 {folder.name}</p>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 'bold', color: accent, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isAll ? `🎲 ${ALL_LRIG_FOLDER_JA}` : `📁 ${folder.name}`}</p>
               <p style={{ margin: '2px 0 0', fontSize: 11, color: '#666' }}>{folder.decks.length} デッキ</p>
             </button>
             {extra?.(folder)}

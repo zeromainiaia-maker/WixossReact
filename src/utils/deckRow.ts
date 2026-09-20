@@ -1,5 +1,6 @@
 import type { Deck } from '../types';
 import { normalizeCpuDeckPlan } from '../screens/battle/cpuDeckPlan';
+import { DECK_FORMATS, type DeckFormat } from './deckFormat';
 
 /** `decks` テーブルの1行（クライアントが読む列だけ）。 */
 export interface DeckRow {
@@ -15,6 +16,8 @@ export interface DeckRow {
   assist_lrig_l?: string | null;
   assist_lrig_r?: string | null;
   deck_kind?: string | null;
+  /** 🆕デッキフォーマット。⚠**null は「未設定」**＝読み側で中身から推定する（`effectiveDeckFormat`）。 */
+  deck_format?: string | null;
   cpu_plan?: unknown;
 }
 
@@ -32,5 +35,10 @@ export const deckFromRow = (d: DeckRow): Deck => ({
   assistLrigL: d.assist_lrig_l ?? null,
   assistLrigR: d.assist_lrig_r ?? null,
   kind: d.deck_kind === 'cpu' ? 'cpu' : 'player',
+  format: normalizeDeckFormat(d.deck_format),
   cpuPlan: normalizeCpuDeckPlan(d.cpu_plan),
 });
+
+/** DB の文字列 → `DeckFormat`。⚠知らない値・null は **`undefined`（未設定）** に倒す（勝手に制限を掛けない）。 */
+export const normalizeDeckFormat = (v: unknown): DeckFormat | undefined =>
+  DECK_FORMATS.find(f => f === v);

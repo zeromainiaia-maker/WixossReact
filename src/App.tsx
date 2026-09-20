@@ -162,10 +162,11 @@ export default function App() {
     const nextOrder = decks.length;
     const { data, error } = await supabase
       .from('decks')
-      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [], sort_order: nextOrder, deck_kind: kind }])
+      // 🆕新しいデッキは `allstar` を**明示で**入れる＝空のデッキが推定で勝手に縛られないため（`utils/deckFormat.ts`）。
+      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [], sort_order: nextOrder, deck_kind: kind, deck_format: 'allstar' }])
       .select().single();
     if (error || !data) { alert('デッキ作成エラー: ' + (error?.message ?? '不明')); return; }
-    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [], sortOrder: nextOrder, kind };
+    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [], sortOrder: nextOrder, kind, format: 'allstar' };
     setDecks(prev => [...prev, newDeck]);
     setSelectedDeckId(data.id);
     setViewMode('DECK_EDITOR');
@@ -200,6 +201,8 @@ export default function App() {
       center_lrig: updated.centerLrig ?? null,
       assist_lrig_l: updated.assistLrigL ?? null,
       assist_lrig_r: updated.assistLrigR ?? null,
+      // 🆕デッキフォーマット。⚠**null は「自動（中身から推定）」**＝読み側が毎回判定する（`utils/deckFormat.ts`）。
+      deck_format: updated.format ?? null,
       // §5.7 `S-2`＝CPU デッキの作戦データ（自分のデッキでは持たない）。
       cpu_plan: updated.kind === 'cpu' ? (updated.cpuPlan ?? null) : null,
     }).eq('id', updated.id);
@@ -277,6 +280,7 @@ export default function App() {
           user={user}
           decks={decks}
           cards={cards}
+          variantCards={variantCards}
           folderThumbnails={folderThumbnails}
           onBattleStart={(roomId, deckId, oppArtOverrides) => { setBattleRoomId(roomId); setBattleDeckId(deckId); setBattleOppArtOverrides(oppArtOverrides ?? {}); setViewMode('BATTLE'); }}
           onBack={() => setViewMode('START')}

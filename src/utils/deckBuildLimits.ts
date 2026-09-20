@@ -1,6 +1,7 @@
 import type { CardData } from '../types';
 import { isLrigCard } from '../types';
 import type { StubAction } from '../types/effects';
+import { cardAllowedInFormat, effectiveDeckFormat, type DeckFormat } from './deckFormat';
 
 /** 構築ルールの枚数上限（表示にも使うので `DeckEditorScreen` から import する）。 */
 export const MAIN_MAX = 40;
@@ -77,7 +78,8 @@ export type DeckAddBlockReason =
   | 'LRIG_EXTRA_MAX'      // ＋2枠が満杯
   | 'LRIG_MAX'            // ルリグデッキ10枠が満杯
   | 'MAIN_MAX'            // メインデッキ40枚
-  | 'LB_MAX';             // ライフバースト20枚
+  | 'LB_MAX'              // ライフバースト20枚
+  | 'FORMAT';             // 🆕デッキフォーマット外のカードプール（`utils/deckFormat.ts`）
 
 /**
  * 🆕**「このカードをいま1枚足せるか」の唯一の判定**（2026-09-12・§5.1 `V-204`）。
@@ -93,11 +95,22 @@ export type DeckAddBlockReason =
  */
 export function deckAddBlockReason(
   card: CardData,
-  deck: { mainDeck: string[]; lrigDeck: string[]; centerLrig?: string | null },
+  deck: { mainDeck: string[]; lrigDeck: string[]; centerLrig?: string | null; format?: DeckFormat },
   cardMap: Map<string, CardData>,
+  /**
+   * 🆕`CardName` → 避難先（variant）番号（`utils/cardSearch.ts` の `buildVariantNumIndex`）。
+   * 🔴**フォーマット判定に必須**＝本体の番号だけで見ると、ディーバ期に再録された 91枚
+   *   （`WD03-005 コード・ピルルク` 等のセンタールリグ群）がディーバのデッキに入らなくなる。
+   * ⚠テストなどで持っていないときは空の `Map` を渡す（**引数を省けるようにしない**＝
+   *   省けると「渡し忘れ＝制限が黙って消える」事故が起きる）。
+   */
+  variantNumIndex: Map<string, string[]>,
 ): DeckAddBlockReason | null {
   const countByName = (list: string[]) =>
     list.filter(n => cardMap.get(n)?.CardName === card.CardName).length;
+
+  // 🆕**フォーマットが最初**＝ほかの上限より根本的な「そのプールに無い札」なので、理由もこれを返す。
+  if (!cardAllowedInFormat(card, effectiveDeckFormat(deck, cardMap, variantNumIndex), variantNumIndex)) return 'FORMAT';
 
   if (isLrigCard(card)) {
     if (countByName(deck.lrigDeck) >= LRIG_COPY_MAX) return 'COPY_MAX';

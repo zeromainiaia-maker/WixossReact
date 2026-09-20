@@ -3,14 +3,21 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
 import { deckLrigSetupProblem } from '../utils/deckLrigSetup';
-import { deckKindOf, folderThumbKey, groupDecksByFolder, pickRandomDeck } from '../utils/deckFolders';
+import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, deckKindOf, folderThumbKey, groupDecksByFolder, pickRandomDeck, withAllLrigFolder } from '../utils/deckFolders';
 import { deckFromRow, type DeckRow } from '../utils/deckRow';
+import { buildVariantNumIndex } from '../utils/cardSearch';
+import { DECK_FORMATS, DECK_FORMAT_JA, effectiveDeckFormat, type DeckFormat } from '../utils/deckFormat';
 import { DeckFolderGrid, DeckFolderHeader } from './deck/DeckFolderGrid';
 
 interface Props {
   user: User;
   decks: Deck[];
   cards: CardData[];
+  /**
+   * 🆕再録・別絵柄（`CardData_Variants.csv`）。**フォーマット判定に要る**
+   * ＝本体がレガシー番号でもディーバ期の再録がある札が 91枚ある（`utils/deckFormat.ts`）。
+   */
+  variantCards?: CardData[];
   /** 自分のフォルダのサムネイル（キー＝`folderThumbKey(kind, name)`）。 */
   folderThumbnails: Record<string, string>;
   onBattleStart: (roomId: string, deckId: string, oppArtOverrides?: Record<string, string>) => void;
@@ -39,8 +46,9 @@ const wrap: React.CSSProperties = {
   backgroundColor: '#0a0a0f', gap: 16, color: '#ccc',
 };
 
-export default function MatchmakingScreen({ user, decks, cards, folderThumbnails, onBattleStart, onBack }: Props) {
+export default function MatchmakingScreen({ user, decks, cards, variantCards = [], folderThumbnails, onBattleStart, onBack }: Props) {
   const cardMap = useMemo(() => new Map(cards.map(c => [c.CardNum, c])), [cards]);
+  const variantNumIndex = useMemo(() => buildVariantNumIndex(variantCards), [variantCards]);
 
   // メインデッキ40枚 かつ「最初に場に出すルリグ」の指定が対戦に出せる形のデッキのみ表示
   // （2026-09-17＝対戦開始時のルリグ選択を廃止し、デッキ編成で指定する＝`utils/deckLrigSetup.ts`）
@@ -62,6 +70,21 @@ export default function MatchmakingScreen({ user, decks, cards, folderThumbnails
   /** CPU デッキの決め方＝`pick`（デッキを選ぶ）／`random`（ルリグタイプを選んでその中からランダム）。 */
   const [cpuPickMode, setCpuPickMode] = useState<'pick' | 'random'>('pick');
   const [cpuRandomFolder, setCpuRandomFolder] = useState<string | null>(null);
+  /** 🆕ランダム選出のフォーマット絞り込み（`'all'`＝絞らない）。フォルダの選択とは**直交**する。 */
+  const [cpuRandomFormat, setCpuRandomFormat] = useState<DeckFormat | 'all'>('all');
+
+  // 🆕フォーマットで絞った CPU デッキ → その中でルリグタイプ別フォルダ＋先頭に「全員のルリグ」。
+  //   🔑**絞り込みが先**＝フォルダの件数がそのまま「この条件で引ける数」になる（0 なら開始させない）。
+  const cpuRandomDecks = useMemo(
+    () => (cpuRandomFormat === 'all'
+      ? validCpuDecks
+      : validCpuDecks.filter(d => effectiveDeckFormat(d, cardMap, variantNumIndex) === cpuRandomFormat)),
+    [validCpuDecks, cpuRandomFormat, cardMap, variantNumIndex],
+  );
+  const cpuRandomFolders = useMemo(
+    () => withAllLrigFolder(groupDecksByFolder(cpuRandomDecks, cardMap), cpuRandomDecks),
+    [cpuRandomDecks, cardMap],
+  );
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
   const [selectedDeckId, setSelectedDeckId] = useState<string>(validDecks[0]?.id ?? '');
@@ -90,7 +113,7 @@ export default function MatchmakingScreen({ user, decks, cards, folderThumbnails
   const handleCpuBattle = async () => {
     // 🆕ランダムモード＝「対戦開始」を押した時点で、選んだルリグタイプのフォルダから1つ引く（デッキ名は見せない）。
     const cpuDeckChosen = cpuPickMode === 'random'
-      ? pickRandomDeck(cpuFolders.find(f => f.name === cpuRandomFolder)?.decks ?? [])?.id ?? ''
+      ? pickRandomDeck(cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks ?? [])?.id ?? ''
       : cpuDeckId;
     if (!selectedDeckId || !cpuDeckChosen) return;
     setLoading(true); setError(null);
@@ -302,7 +325,10 @@ export default function MatchmakingScreen({ user, decks, cards, folderThumbnails
 
   if (step === 'CPU_DECK_SELECT') {
     const cpuOpen = cpuOpenFolder ? cpuFolders.find(f => f.name === cpuOpenFolder) : undefined;
-    const canStart = cpuPickMode === 'random' ? !!cpuFolders.find(f => f.name === cpuRandomFolder) : !!cpuDeckId;
+    // 🔴**候補0のフォルダでは開始させない**＝引けずに空 id で走ると部屋だけ出来て止まる。
+    const canStart = cpuPickMode === 'random'
+      ? (cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks.length ?? 0) > 0
+      : !!cpuDeckId;
     const modeBtn = (mode: 'pick' | 'random', label: string) => (
       <button data-testid={`cpu-pick-mode-${mode}`} onClick={() => setCpuPickMode(mode)} style={{
         flex: 1, padding: '10px', border: 'none', borderBottom: `3px solid ${cpuPickMode === mode ? '#28a745' : 'transparent'}`,
@@ -329,9 +355,27 @@ export default function MatchmakingScreen({ user, decks, cards, folderThumbnails
           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
             {cpuPickMode === 'random' ? (
               <>
-                <p style={{ margin: '0 0 12px', fontSize: 12, color: '#888' }}>ルリグタイプを選ぶと、対戦開始時にそのフォルダのデッキからランダムで1つ使います（デッキ名は表示しません）。</p>
-                <DeckFolderGrid folders={cpuFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuRandomFolder} selectedName={cpuRandomFolder}
-                  thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]} />
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>フォーマットとルリグタイプを選ぶと、対戦開始時にその条件のデッキからランダムで1つ使います（デッキ名は表示しません）。</p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {(['all', ...DECK_FORMATS] as const).map(f => {
+                    const on = cpuRandomFormat === f;
+                    const label = f === 'all' ? 'すべて' : DECK_FORMAT_JA[f];
+                    return (
+                      <button key={f} data-testid={`cpu-random-format-${f}`} onClick={() => { setCpuRandomFormat(f); setCpuRandomFolder(null); }} style={{
+                        padding: '6px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
+                        border: `1px solid ${on ? '#28a745' : '#333'}`,
+                        backgroundColor: on ? '#123d20' : 'transparent', color: on ? '#4ade80' : '#888',
+                        fontWeight: on ? 'bold' : 'normal',
+                      }}>{label}</button>
+                    );
+                  })}
+                </div>
+                {cpuRandomDecks.length === 0 ? (
+                  <p style={{ color: '#888', fontSize: 13 }}>このフォーマットの CPU デッキがありません。</p>
+                ) : (
+                  <DeckFolderGrid folders={cpuRandomFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuRandomFolder} selectedName={cpuRandomFolder}
+                    thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]} />
+                )}
               </>
             ) : !cpuOpen ? (
               <DeckFolderGrid folders={cpuFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuOpenFolder}
@@ -348,6 +392,14 @@ export default function MatchmakingScreen({ user, decks, cards, folderThumbnails
           </div>
         )}
         {error && <p style={{ color: '#ff4444', margin: '0 16px' }}>{error}</p>}
+        {/* 🆕ランダムは「何から引くか」を押す前に読めるようにする（デッキ名は出さない＝引く楽しみを消さない）。 */}
+        {cpuPickMode === 'random' && cpuRandomFolder && (
+          <p data-testid="cpu-random-summary" style={{ margin: '0 16px', fontSize: 12, color: '#4ade80' }}>
+            🎲 {cpuRandomFormat === 'all' ? 'すべてのフォーマット' : DECK_FORMAT_JA[cpuRandomFormat]}
+            ／{cpuRandomFolder === ALL_LRIG_FOLDER ? ALL_LRIG_FOLDER_JA : cpuRandomFolder}
+            ／候補 {cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks.length ?? 0} デッキ
+          </p>
+        )}
         <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
           <button style={{ ...ghostBtn, flex: 1, maxWidth: 'none' }} onClick={() => setStep('SELECT_MODE')} disabled={loading}>戻る</button>
           <button
