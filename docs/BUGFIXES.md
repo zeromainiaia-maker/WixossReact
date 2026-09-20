@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-20（第420バッチ）§5.6.5 ユーザー作の CPU デッキをハーネスで使えるようにした＋**自分で作った事故を1件塞いだ**
+
+- **きっかけ**＝ユーザーが CPU デッキ作成用アカウント（`カルカドール`）を共有。実測 **27件**（`cpu` 21 / `player` 6・うち26件がメイン40枚・`cpu_plan` つき5件）。
+- 🔴🔑**先に自分で作った事故を塞いだ**＝**そのアカウントを `verify-accounts.json` へ足した瞬間、ハーネスがユーザーの本番アカウントに書き込む状態になっていた。**
+  - `verifySetupDeck.mjs` は **`for (const acc of accounts)` で全アカウントを回す**＝**本人のアカウントに `VERIFY_DECK` / `VERIFY_DECK_MECH` を作る**。
+  - `verifyFullMatch.mjs` は **`accounts[0]` / `accounts[1]` の並び順依存**＝先頭に足すと**別人の席で対戦テストが走る**。
+  - ⇒ **`scripts/verifyAccounts.mjs`（新設）へ読み手を集約**し、`harness: false` のアカウントを**書き込み系から構造的に外した**。
+    **`harnessAccounts()`（書き込み可）／`allAccounts()`・`findAccount()`（読むだけ）**の2系統。5本（`verifySetupDeck` / `verifyFullMatch` / `verifyBattleDrive` / `fetchReports` / `listDecks`）を寄せた。
+  - ⚠**踏んだ罠**＝import を足す条件を「ファイルに `verifyAccounts.mjs` の文字列が無ければ」にしたら、**直前に書いたコメントの中に同じ文字列があった**ので
+    3本とも import が入らず、**`harnessAccounts is not defined` が実行時に初めて出た**（`.mjs` は typecheck の対象外）。⇒ **存在判定は「コメントに出る語」でやらない。**
+- **入れた道具2本**
+  - **`scripts/listDecks.mjs`**（第419バッチで新設）＝一覧／`--cpu`／`--name <一部>`（中身をカード名つき）／`--export <dir>`。
+  - 🆕**`scripts/importDecks.mjs`**＝ユーザーのデッキを**ハーネス用アカウントへ取り込む**。**既定は下見**（`--apply` で実行）・**冪等**（同一なら何もしない）・
+    **`player` と `cpu` の両方を作る**（通し対戦は種別の違う2つの山から選ぶので片方だけだと「デッキが見つからない」で落ちる）。
+    🔴**`--to` がハーネス用でなければ書き込みを拒否する**（実測＝`--to カルカドール --apply` は拒否メッセージで終わる）。
+- **実測**＝`--apply` で **新規52行**（26デッキ × 2種別）を `claude1` へ。再実行で **同一52**（冪等）。
+  **`DECK="ケトッシー軸" node scripts/verifyFullMatch.mjs cpu` → PASS（決着 6ターン / 125手 / 165s）**＝**ユーザーが作った本物のデッキで実機の通し対戦が初めて回った**。
+  機構踏破＝`npm run census:play -- --file scratchpad-verify/playlogs-cpu-ケトッシー軸.json` ＝**7 / 23 機構**（未踏の大半はスペル・アーツ・【起】・アシスト系＝**その山に札が無い**）。
+- 🏁**PLAN §5.6.5 の未整備3本は解消**＝エクスポート（`listDecks --export`）／インポート（`importDecks`）／デッキ名の引数化（**`DECK=` / `CPU_DECK=` は元から実装済みだった**＝足りなかったのは「その名前のデッキが `claude1` に在ること」だけ）。
+- 🔴**認証情報は `verify-accounts.json`（`.gitignore` 圏内）にだけ置く**＝docs にもスクリプトにもコミットにも書かない。クローンし直した環境には付いてこないので再共有が要る。
+- **検証コマンド**＝`node scripts/importDecks.mjs`（下見）／`--apply`／`DECK="<名前>" node scripts/verifyFullMatch.mjs cpu`。`npm run gates` 全緑。
+- **実機**＝**回した**（上の通し対戦 PASS）。⚠`src/` は1行も変えていない（触ったのは `scripts/` と docs）。
+
 ## 2026-09-20（第419バッチ）§5.6 `C-0` バグ報告を「engine で撃ち直す」道具を新設（`--replay`）
 
 - **きっかけ**＝ユーザー提案「**バグ報告の盤面を再現しログ通りに実行すれば、今回のようにバグの修正が遅くなることが少なくなる**」。

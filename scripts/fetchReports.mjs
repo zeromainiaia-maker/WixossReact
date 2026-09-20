@@ -23,6 +23,7 @@
 //     `verifyBattleDrive.mjs` の注入仕様へそのまま変換できる。
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { allAccounts, findAccount, harnessAccounts } from './verifyAccounts.mjs';
 
 const OUT_DIR = 'scratchpad-reports';
 const args = process.argv.slice(2);
@@ -36,9 +37,11 @@ const BASE = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
 if (!BASE || !ANON) { console.error('.env.local に VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY がありません'); process.exit(1); }
 
-const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
+// ⚠**既定はハーネス用の先頭**（取り込み用アカウント＝`claude1`）＝ユーザー本人のアカウントを
+//   足しても既定が変わらないようにする（`verifyAccounts.mjs` 冒頭の事故）。`--user` は全件から探す。
+const accounts = allAccounts();
 const wanted = argVal('--user');
-const acc = wanted ? accounts.find(a => a.username === wanted) : accounts[0];
+const acc = wanted ? findAccount(wanted) : harnessAccounts()[0];
 if (!acc) { console.error(`アカウント ${wanted} が verify-accounts.json にありません`); process.exit(1); }
 
 /** アプリ（`LoginScreen.tsx`）と同じユーザー名→メール変換。 */

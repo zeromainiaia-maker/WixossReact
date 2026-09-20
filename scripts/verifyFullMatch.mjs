@@ -19,11 +19,14 @@ import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { harnessAccounts } from './verifyAccounts.mjs';
 
 const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
-const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
+// 🔴**ハーネス用アカウントだけ**＝`accounts[0]`/`accounts[1]` は**並び順に依存する**ので、
+//   ユーザー本人のアカウントを足したときに別人の席で対戦が始まらないようにする（`verifyAccounts.mjs` 冒頭）。
+const accounts = harnessAccounts();
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();

@@ -480,9 +480,13 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
   **見る**＝`node scripts/listDecks.mjs`（一覧）／`--cpu`（CPU 用だけ）／`--name <名前の一部>`（中身をカード名つき）／`--user <別アカウント>`／`--export <dir>`（JSON 書き出し・gitignore 圏内）。
   ⚠**RLS は既定が「本人の行だけ」**＝ログインしたアカウントのデッキしか返らない（0件を「無い」と即断しない）。
   ⚠**`deck_format` は全件 `null`**（v0.512 で新設した列＝既存デッキには未設定）。
-- 🔴**ハーネスとの往復が未整備**＝`verifyFullMatch.mjs` / `verifyBattleDrive.mjs` は **`claude1`/`claude2` でログインして `VERIFY_DECK` 固定名**を探すので、ユーザー個人アカウントのデッキは見えない。
-  さらに `verify-deck.json` は **`.gitignore` 圏内**＝クローンし直すと全マッチテストが再現できない。⇒ **エクスポート／インポート／デッキ名を引数化の3本**（いずれも既存スクリプトの一般化）。
-  🆕**このうち「エクスポート」は `scripts/listDecks.mjs --export` で埋まった**（残り＝**インポート**＝書き出した JSON を `claude1` へ流し込む／**デッキ名を引数化**＝`DECK=` は既にあるがハーネスが探すのは自分のアカウントの中だけ）。
+- 🏁**ハーネスとの往復は通った**（2026-09-20）＝**`node scripts/importDecks.mjs --apply`** で `カルカドール` のデッキを `claude1` へ取り込み、
+  **`DECK="<名前>" node scripts/verifyFullMatch.mjs cpu`** で通し対戦が回る（実測＝`ケトッシー軸` で **PASS・6ターン/125手**）。
+  取り込みは**冪等**（同一なら何もしない）で、**`player` と `cpu` の両方**を作る（通し対戦は種別の違う2つの山から選ぶ）。
+  🔴**書き込み先は `harnessAccounts()` に限る**＝`harness:false`（ユーザー本人）へは書かない。
+  ⚠`verify-deck.json` は **`.gitignore` 圏内**＝クローンし直すと `VERIFY_DECK` は再現できない（`verify-accounts.json` があれば `importDecks.mjs` で作り直せる）。
+  🆕**機構踏破も測れる**＝`npm run census:play -- --file scratchpad-verify/playlogs-cpu-<デッキ名>.json`
+  （`ケトッシー軸` の初回実測＝**踏破 7 / 23 機構**＝スペル・アーツ・【起】・アシスト系が未踏＝**山にその札が無い**）。
 
 #### 5.6.6 いまはやらないと決めたこと
 

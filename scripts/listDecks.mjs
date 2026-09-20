@@ -15,6 +15,7 @@
 //   ⚠アプリ側の `LoginScreen.tsx` が変わったらここも変わる（同じ規則を3箇所に持っている）。
 // 🔑**RLS は既定が「本人の行だけ」**＝ログインしたアカウントのデッキしか返らない。0件を「無い」と即断しない。
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { allAccounts, findAccount } from './verifyAccounts.mjs';
 import { join } from 'node:path';
 
 const DEFAULT_USER = 'カルカドール';   // CPU デッキ作成用（ユーザー本人）
@@ -30,10 +31,9 @@ const BASE = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
 if (!BASE || !ANON) { console.error('.env.local に VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY がありません'); process.exit(1); }
 
-let accounts;
-try { accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts; }
-catch { console.error('verify-accounts.json がありません（gitignore 圏内＝クローンでは付いてきません）'); process.exit(1); }
-const acc = accounts.find(a => a.username === USER);
+// ⚠**読むだけ**なので全件から探してよい（`harness:false` のユーザー本人アカウントが既定）。
+const accounts = allAccounts();
+const acc = findAccount(USER);
 if (!acc) {
   console.error(`アカウント「${USER}」が verify-accounts.json にありません。`);
   console.error(`  登録済み: ${accounts.map(a => a.username).join(' / ')}`);

@@ -12,6 +12,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { harnessAccounts } from './verifyAccounts.mjs';
 
 const SHOT = 'scratchpad-verify';
 
@@ -667,7 +668,8 @@ async function driveB28Granted(page, H, expectBounce) {
   return { pass: false, detail: `決着せず（正面=${JSON.stringify(fin?.guest?.fieldSigni?.[1])} guestHand ${gHand0}→${fin?.guest?.hand ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
 }
 
-const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
+// 🔴**ハーネス用アカウントだけ**（`verifyAccounts.mjs` 冒頭の事故）＝盤面を注入する＝書き込みを伴う。
+const accounts = harnessAccounts();
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();

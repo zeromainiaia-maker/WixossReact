@@ -3,11 +3,14 @@
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
+import { harnessAccounts } from './verifyAccounts.mjs';
 
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
-const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
+// 🔴**ハーネス用アカウントだけ**（`harnessAccounts`）＝このスクリプトは**デッキを挿入・上書きする**ので、
+//   ユーザー本人のアカウント（`harness:false`）を絶対に回さない（2026-09-20 の事故＝`verifyAccounts.mjs` 冒頭）。
+const accounts = harnessAccounts();
 // 🆕§5.6 `C-3`（2026-09-17）＝`--mech` で**機構踏破用デッキ `VERIFY_DECK_MECH`** を作る。
 //   🔑**なぜ要るか**＝`VERIFY_DECK` は**シグニ40枚＋ルリグ5枚だけ**（ガード・スペル・アーツ・アシスト・レゾナ・ライズが0枚）＝
 //   `census:play` の未踏の大半が「CPU が踏めない」ではなく「山に札が無い」だった。リリースゲート（`VERIFY_DECK`）は変えずに、
