@@ -86857,8 +86857,13 @@ test('§5.7 S-16 先読みは山の順序を見ない（カンニングを塞ぐ
 
 test('§5.7 S-16 探索の配線：既定は幅0（挙動不変）・実行は人間と同じ perform*・扱えない手は従来の優先順', () => withSavedCursor(() => {
   // 🔴**既定で挙動が変わらないこと**が最優先＝`BattleScreen` はポリシーを渡さない＝実機は従来どおり。
-  eq(DEFAULT_CPU_POLICY.searchWidth, 0, '🔴既定で探索が有効になっている（実機の挙動が変わる）');
-  eq(DEFAULT_CPU_POLICY.searchDepth, 0, '🔴既定の探索の深さが 0 でない');
+  // 🆕🔴§5.7 `S-25`（2026-09-21 ユーザー決定）＝**既定を 4/4 へ上げた**＝実機の CPU が探索で打つ。
+  //   根拠＝`search` vs `default` を**6デッキ × 8シード（96戦）**で測って**合算 組 83.3% [66.4, 92.7]**。
+  //   ⚠**旧値（探索なし）は `legacy-greedy` に残す**＝残さないと「上げたせいで弱くなった」を測り直せない。
+  eq(DEFAULT_CPU_POLICY.searchWidth, 4, '🔴既定の探索の幅が変わった（実機の CPU の強さが変わる＝A/B を取り直すこと）');
+  eq(DEFAULT_CPU_POLICY.searchDepth, 4, '🔴既定の探索の深さが変わった');
+  eq(CPU_POLICIES['legacy-greedy'].searchWidth, 0, '🔴探索を入れる前のプリセットが消えた＝既定を上げた判断を測り直せない');
+  eq(CPU_POLICIES['legacy-greedy'].searchDepth, 0, '🔴`legacy-greedy` の深さが 0 でない');
   ok(!!CPU_POLICIES.search && CPU_POLICIES.search.searchWidth > 0, '🔴A/B 用の `search` プリセットが無い＝探索の効果を測れない');
   // 🔑**分岐 flag ではなく数値**（`cpuPolicy.ts` の規律）＝勝率表からどの幅で回したか読める。
   eq(typeof CPU_POLICIES.search.searchWidth, 'number', '🔴探索の入切が数値になっていない');
