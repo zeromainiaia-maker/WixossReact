@@ -579,7 +579,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" node scripts/semanticAuditRunCodex.mjs -
   - 📊**進捗3計器**＝Sheet1 要対応 **1 / 863**｜意味照合 段2 台帳 残 OPEN **0**｜census 高シグナル **1 / BASELINE 1**（**live JSON 未変更＝3計器は動かない**）
   - 📦**在庫**＝🏁**機構 worklist 0**｜実機 `V-nn` **0**｜実装キュー **0**｜**CPU 完成度 0**｜**CPU の強さ 6**（🆕`S-21`・`S-17`・`S-19`・`S-20`・`S-14`・`S-6`＝🏁`S-15`・🏁`S-16`・🏁`S-18` を消化）｜リリース作業 **1**｜実機シナリオの既存 FAIL **0**
   - 🔧**ゲート**＝`npm run gates` 全緑（golden **4338**＝+5・`census:traceinv` I1=0・`selfplay` 決着＋打った手の照合 外れ0）｜**実機** `verifyFullMatch.mjs cpu` PASS
-  - 📏**BattleScreen**＝**6,287行**（±0）｜`controller/cpuTurn.ts` **1,420行**｜`cpuMoves.ts` **693行**｜`cpuSearch.ts` **109行**
+  - 📏**BattleScreen**＝**6,287行**（±0）｜`controller/cpuTurn.ts` **1,436行**｜`cpuMoves.ts` **693行**｜`cpuSearch.ts` **109行**
   - 📊**CPU の候補数**（`--census-moves`・4戦 432盤面）＝**MAIN 中央2・p90 8・最大18**｜**1手適用 平均0.1ms**（適用できるのは候補の 89%）｜**探索（幅4深さ4）1盤面 平均3.0ms・最大34ms**
   - 🆕📊**自己対戦 A/B（80戦ずつ）**＝`default` vs **`search`＝50.0% [39.3, 60.7]（互角）**｜`legacy-nextturn` vs `default`＝51.2%（差なし）｜`legacy-power` vs `default`＝370戦で 50.0%
     ⚠`default` vs `search-power`＝78.8% は**配線バグ入りの測定**＝読まない（測り直していない）
