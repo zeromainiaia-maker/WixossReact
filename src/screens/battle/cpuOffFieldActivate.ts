@@ -8,6 +8,7 @@ import { canAddTrashExileIndex, exceedPoolOf, type WholeEnergyCostSubstituteOpti
 import type { EnergyPayEntry } from './energyPaySource';
 import { handActivateFieldTrashZones, payHandActivateCost } from './handActivateCost';
 import { listOffFieldActivatableEffects, type OffFieldZone } from './offFieldActivateGate';
+import { applyActivateCostZero } from './activateCostZero';
 import {
   emptyTrashActivateSelections, payTrashActivateCost, trashActivateHandDiscard, trashActivateTrashExile,
   type TrashActivateSelections,
@@ -53,8 +54,11 @@ function selectOffFieldCost(
     effectsOf?: (id: string) => readonly CardEffect[];
   },
 ): TrashActivateSelections | null {
+  // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）を**CPU の支払い内訳にも効かせる**。
+  //   🔴旧は満額の `activatedEnergyCostStr` を使っており、人間の支払いUIだけが安い片肺だった。
+  const costEffect = applyActivateCostZero(effect, actor, cardNum);
   const energy = selectEnergyIndicesForCost({
-    poolNums: p.energyPool.map(e => e.cardNum), cards: p.cards, costStr: activatedEnergyCostStr(effect),
+    poolNums: p.energyPool.map(e => e.cardNum), cards: p.cards, costStr: activatedEnergyCostStr(costEffect),
     isAffordable: p.isAffordable, wholeSubstitutes: p.wholeSubstitutes, reserve: p.energyReserve,
   });
   if (!energy) return null;
@@ -83,7 +87,7 @@ function selectOffFieldCost(
   const exceed = effect.cost?.exceed ?? 0;
   if (exceed > 0) sel.exceed = new Set(exceedPoolOf(actor).slice(0, exceed).map((_, i) => i));
   // 支払えるかは人間と同じ支払い関数で検算する。
-  return payTrashActivateCost(effect, actor, opponent, sel, p.cardMap, p.energyPool, cardNum) ? sel : null;
+  return payTrashActivateCost(costEffect, actor, opponent, sel, p.cardMap, p.energyPool, cardNum) ? sel : null;
 }
 
 /**
@@ -115,7 +119,10 @@ export function paidBoard(
   actor: PlayerState, opponent: PlayerState, cardMap: Map<string, CardData>, energyPool: readonly EnergyPayEntry[],
 ): { cpu: PlayerState; opp: PlayerState } | null {
   if (choice.zone !== 'hand') {
-    const pay = payTrashActivateCost(choice.effect, actor, opponent, choice.selections, cardMap, energyPool, choice.cardNum);
+    // ⚠先読み用の盤面も**同じ funnel**を通す（ここだけ満額だと「払えない」と誤判定して候補が消える）。
+    const pay = payTrashActivateCost(
+      applyActivateCostZero(choice.effect, actor, choice.cardNum),
+      actor, opponent, choice.selections, cardMap, energyPool, choice.cardNum);
     return pay ? { cpu: pay.my, opp: pay.op ?? opponent } : null;
   }
   // 手札＝`executeHandActivated` と同じ支払い関数（エナ・自分を捨てる・相手のウィルス・場のシグニ）。

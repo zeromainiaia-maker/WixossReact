@@ -5,6 +5,7 @@ import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import type { EnergyPayEntry } from './energyPaySource';
 import { canOfferHandActivate } from './handActivateCost';
 import { canOfferTrashActivate } from './trashActivateCost';
+import { applyActivateCostZero } from './activateCostZero';
 
 /**
  * 🆕**場以外の【起】の提示判定**（§5.7 `S-7`・2026-09-17）＝トラッシュ／エナゾーン／手札にあるカードの【起】を
@@ -71,7 +72,10 @@ export function listOffFieldActivatableEffects(p: {
       // 払えるコストの形（エナ・自分を捨てる・相手のウィルス・場のシグニのトラッシュ）と、ウィルス／場のシグニの在庫。
       // 🔴2026-09-17 まで判定が無く `WX18-036-E3` が場のシグニを払わず撃てた（§5.3 `O-533` で支払いを実装）。
       if (!canOfferHandActivate(eff, my, op, cardMap)) continue;
-    } else if (!canOfferTrashActivate(eff, my, op, cardMap, p.energyPool)) continue;
+    // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）を**提示ゲートにも効かせる**。
+    //   🔴旧はここが満額のエナ枚数を要求しており、**ウムル＝フィーラの【出】を撃ってもトラッシュ【起】が安くならなかった**
+    //     （`activateCostZero.ts` の冒頭に実測）。
+    } else if (!canOfferTrashActivate(applyActivateCostZero(eff, my, cardNum), my, op, cardMap, p.energyPool)) continue;
     out.push(eff);
   }
   return out;

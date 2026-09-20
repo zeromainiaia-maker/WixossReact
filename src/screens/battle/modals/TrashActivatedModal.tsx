@@ -7,6 +7,7 @@ import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { energyCostToString, canAffordGrowCost, isMultiEna, canAddTrashExileIndex } from '../costs';
+import { applyActivateCostZero } from '../activateCostZero';
 import {
   trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateOutcomeLabel,
   trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied, trashActivateTrashExile,
@@ -73,7 +74,10 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
             {(() => {
               const taCard = battleCardMap.get(pendingTrashActivated.cardNum);
               if (!taCard) return null;
-              const taEffect = pendingTrashActivated.effect;
+              // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）をコスト機構の手前で焼き込む。
+              //   🔴旧は満額を請求していた＝ウムル＝フィーラの【出】がトラッシュ【起】に効かなかった。
+              //   ⚠**支払い実行（`offFieldActivateExec`）も同じ関数を通す**（写経すると「表示は0・請求は満額」になる）。
+              const taEffect = applyActivateCostZero(pendingTrashActivated.effect, my, pendingTrashActivated.cardNum);
               const energyCosts = taEffect.cost?.energy ?? [];
               const energyTotal = trashActivateEnergyTotal(taEffect.cost);
               const energyCostStr = energyCostToString(energyCosts);

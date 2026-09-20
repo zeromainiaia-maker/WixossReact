@@ -178,6 +178,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   granted_effects: { boundaries: ['turn-end'], reset: undefined, reason: 'this-turn granted abilities; longer grants live in granted_effects_until_opp_turn' },
   // 「このターン、次に」の一発権。通常はライフバースト発動時に消費し、未消費でも全turn-end funnelで失効する。
   life_burst_double_next: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next life-burst doubling is consumed once or expires at turn end' },
+  // 🆕§5.6 `C-0`（2026-09-20・バグ報告 `c32a37ce` の追跡）＝`ACTIVATE_COST_ZERO_BLACK`（`WD08-001-E1`）の
+  //   「**ターン終了時まで**、次にそれの【起】能力を使用する場合、その能力の使用コストは《黒×0》になる」。
+  //   🔴**旧は未登録**＝使わなければ次のターン以降もずっと残り、**後のターンの【起】が無料**になる過剰実行だった。
+  //   消費は `performSigniActivated` / `offFieldActivateExec`（`consumeActivateCostZero`）。
+  activate_cost_zero_signi: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next activated-ability cost becomes energy-free; consumed by the first such activation or expires at turn end' },
   // 🆕`turn_hand_discarded_count` の「実体」側（2026-08-31 続き748）。⚠`turn_*` 始まりで `*_this_turn` 命名では
   //   ないのでこちら。**枚数カウンタと同じ地点・同じ寿命**（片方だけ残ると絞り込み条件が食い違う）。
   turn_hand_discarded_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards this player discarded from hand during the current turn (entity side of turn_hand_discarded_count)' },
@@ -665,6 +670,16 @@ export function consumeFreeGrowThisTurn(state: PlayerState): PlayerState {
 /** 対象スペルを打ち消した時点で予約を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */
 export function consumeSpellNegationThisTurn(state: PlayerState): PlayerState {
   return consumeField(state, 'spell_negated_this_turn');
+}
+
+/**
+ * 🆕**《黒×0》（`ACTIVATE_COST_ZERO_BLACK`＝`WD08-001-E1`）を消費する**（§5.6 `C-0`・2026-09-20）。
+ * 原文「**次に**それの【起】能力を使用する場合」＝**一発**なので、その【起】を撃った時点で落とす。
+ * ⚠**funnel の外で `activate_cost_zero_signi: undefined` を書かないこと**（T2 が検出する）。
+ * ⚠**乗っていない札の【起】では落とさない**（別の札に乗った権利を巻き添えで消さない）。
+ */
+export function consumeActivateCostZero(state: PlayerState, cardNum: string): PlayerState {
+  return state.activate_cost_zero_signi === cardNum ? consumeField(state, 'activate_cost_zero_signi') : state;
 }
 
 /**

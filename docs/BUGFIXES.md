@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-20（第418バッチ）§5.6 `C-0` バグ報告 `c32a37ce` の追跡＝`ACTIVATE_COST_ZERO_BLACK`（ウムル＝フィーラの【出】）が3地点とも壊れていた
+
+- **きっかけ**＝ユーザーの指摘「**ではルリグの起動効果１がおかしいのでしょうか？トラッシュの起動コストを減らすほうです**」。
+  当たりだった（ただし向きは逆＝**効き過ぎ**ではなく**まったく効いていない**）。
+- **原文**（`WD08-001-E1`）＝「【出】：あなたの**トラッシュにあるシグニ**１枚を対象とし、**ターン終了時まで**、
+  次にそれの【起】能力を使用する場合、その能力の使用コストは**《黒×0》**になる。」
+- 🔴**実測した3つの欠陥**（`activate_cost_zero_signi` を読む地点を `grep` で全数＝**src 全体で6箇所しかなかった**）
+  1. **トラッシュ【起】にまったく効いていなかった**＝読んでいたのは `SigniExtActivatedModal` ではなく
+     **場のシグニ【起】の3箇所だけ**（`SigniActivatedModal` / `performSigniActivated` / `cpuActivate`）。
+     **提示ゲート `canOfferTrashActivate`・支払いUI `TrashActivatedModal`・支払い `payTrashActivateCost`・CPU `cpuOffFieldActivate` は1行も見ていなかった。**
+     🔑**対象は必ずトラッシュの札**なので、これが本来の主用途（`WX22-Re17` ネッシーのトラッシュ【起】《黒》《黒》《無》を無料にする）＝
+     **この【出】は使い道で完全な no-op だった。**
+  2. **CPU は場のシグニ【起】でもエナを満額払っていた**＝人間の `SigniActivatedModal` だけが `energyTotal` を 0 にしており、
+     CPU（`cpuActivate.ts:234`）は満額の `activatedEnergyCostStr(effect)` を使っていた（免除していたのは《コイン》だけ）＝**人間だけ安い片肺**。
+  3. **「ターン終了時まで」が効いていなかった**＝`turnScopedState.ts` に**未登録**で、使わなければ**次のターン以降も残った**
+     （＝後のターンの【起】が無料になる過剰実行）。落ちるのは「その札の【起】を実際に使ったとき」だけだった。
+- **直し方＝funnel 1本**＝`src/screens/battle/activateCostZero.ts`（新設）の `applyActivateCostZero(effect, my, cardNum)` が
+  **コスト機構の手前で `cost.energy` / `cost.coin` を落とす**。`trashActivateEnergyTotal` / `canOfferTrashActivate` /
+  `payTrashActivateCost` / `selectEnergyIndicesForCost` は**どれも `effect.cost` しか見ない**ので、ここ1本で
+  **提示・表示・支払い・CPU が同時に揃う**。配線先＝`offFieldActivateGate` / `TrashActivatedModal` /
+  `offFieldActivateExec`（トラッシュ・手札の両ブランチ） / `cpuOffFieldActivate`（`selectOffFieldCost` と先読みの `paidBoard`） /
+  `cpuActivate` / `SigniActivatedModal` / `performSigniActivated`。
+  ⚠**エナと《コイン》以外のコストは落とさない**（原文は「使用コストは《黒×0》になる」）＝落とすと踏み倒しになる。golden で固定。
+- **消費とターン終了**＝`turnScopedState.ts` に `activate_cost_zero_signi: { boundaries: ['turn-end', 'consume'] }` を登録し、
+  消費関数 `consumeActivateCostZero(state, cardNum)` も**そこへ置いた**。
+  🔑**最初 `activateCostZero.ts` 側に書いたらゲートが止めた**＝`turn-scoped T2`（funnel 外でターン限定フィールドを手書きクリアしない）。
+  ⚠**乗っていない札の【起】では落とさない**（別の札に乗った権利を巻き添えで消さない）。
+- **反転確認（実測）**＝ネッシー（`WX22-Re17-E2`・素はエナ3枚）を**エナ0枚**の盤面で提示ゲートに掛け、`git stash` で A/B。
+  **修正前＝`提示=[なし]`（《黒×0》が乗っていても提示されない）／修正後＝`提示=[WX22-Re17-E2]`・エナ0枚で支払い成立。**
+  対照＝乗っていなければエナ0枚では提示も支払いも不成立（＝踏み倒しを開けていない）。
+- **golden**＝`§5.6 C-0 ACTIVATE_COST_ZERO_BLACK：トラッシュ【起】・CPU・ターン終了の3地点`（新規1本）。
+  ラチェット2本を**較正**＝`turn-scoped T1` の命名規約外 **40→41** / 合計 **103→104**（新しいフィールドを登録したため＝退化ではない）。
+- ⚠**`npm run typecheck` は緑のまま通った**＝`scripts/` は見ていない（CLAUDE.md の既知の罠）。
+  `consumeActivateCostZero` の移設で golden の import が壊れていたのは **`npm run golden` を実際に走らせて初めて出た**。
+- **影響**＝`ACTIVATE_COST_ZERO_BLACK` は live **1効果 / 1カード**（`WD08-001`）だが、**受け手はトラッシュ【起】 38効果 / 37カード**。
+- **残件（CPU AI・未修正）**＝報告のログでは CPU が **サーバントＴ**（トラッシュ【起】を持たない札）を対象に選んでいた。
+  原文に対象の制限は無いので**ルール上は合法**だが、**《黒×0》を活かせる札（ネッシー等）を選べていない**＝CPU の選択の質の問題。
+  PLAN §5.7 へ `S-22` で登録した。
+- **検証コマンド**＝`npm run gates`（全緑・golden **4345**）／`npm run golden -- --only "C-0 ACTIVATE_COST_ZERO"`。
+- **実機**＝**必須（`src/screens/` を触った回）**＝`node scripts/verifyFullMatch.mjs cpu` **PASS**（決着 6ターン / 130手 / 185s）。
+
 ## 2026-09-20（第417バッチ）§5.6 `C-0` バグ報告 `c32a37ce`＝空きシグニゾーンが無いのに「場に出す」だけの【起】が撃てた
 
 - **報告**（`wrong` / v0.512+7354f65 / T7 ATTACK_ARTS_OP）＝

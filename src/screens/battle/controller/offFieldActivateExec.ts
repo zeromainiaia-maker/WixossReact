@@ -6,6 +6,8 @@ import { reduceBattle } from '../controller/battleController';
 import { type EnergyPayEntry } from '../energyPaySource';
 import { type HandActivateSelections, handActivateVerbLabel, payHandActivateCost } from '../handActivateCost';
 import { payTrashActivateCost, trashActivateVerbLabel } from '../trashActivateCost';
+import { applyActivateCostZero } from '../activateCostZero';
+import { consumeActivateCostZero } from '../turnScopedState';
 import type { PerformCtx } from './performCtx';
 
 /** ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻す（旧 `BattleScreen` の1行ヘルパ）。 */
@@ -45,8 +47,9 @@ export interface OffFieldActor {
     });
     if (!payment) return; // 支払い不能（UI側でも無効化済み）＝finally で loading を戻す
     const isGameOnce = effect.usageLimit === 'once_per_game';
+    // 🆕§5.6 `C-0`＝《黒×0》は手札【起】でも一発で消費する（乗っていなければ何も変わらない）。
     let paid: PlayerState = {
-      ...payment.my,
+      ...consumeActivateCostZero(payment.my, cardNum),
       actions_done: [...(my.actions_done ?? []), effect.effectId],
       game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
     };
@@ -104,8 +107,12 @@ export interface OffFieldActor {
   ctx.io.setLoading(true);
   ui?.close?.();
   try {
+    // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）を**支払いにも効かせる**。
+    //   ⚠提示ゲート（`offFieldActivateGate`）・支払いUI（`TrashActivatedModal`）・CPU（`cpuOffFieldActivate`）と
+    //     **同じ関数**を通す＝写経すると「提示は0・請求は満額」の片肺になる。
+    const costEffect = applyActivateCostZero(effect, my, cardNum);
     const payment = payTrashActivateCost(
-      effect, my, op,
+      costEffect, my, op,
       // 🆕§5.3 `O-373`＝`trashExile{count}`（トラッシュの《X》N枚を除外）の選択。
       { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices, trashExile: trashExileIndices },
       // 🆕**§5.3 `O-262`**＝`cost.trashExile.self`（このカード自身の除外）を払うために効果元を渡す。
@@ -113,8 +120,10 @@ export interface OffFieldActor {
     );
     if (!payment) return; // 支払い不能（UI側でも無効化済み）
     const isGameOnce = effect.usageLimit === 'once_per_game';
+    // 🆕§5.6 `C-0`＝「**次に**それの【起】能力を使用する場合」＝一発なので使ったら落とす
+    //   （場のシグニ【起】側の `performSigniActivated` と同じ funnel）。
     let paid: PlayerState = {
-      ...payment.my,
+      ...consumeActivateCostZero(payment.my, cardNum),
       actions_done: [...(my.actions_done ?? []), effect.effectId],
       game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
     };

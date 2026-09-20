@@ -2,6 +2,7 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { energyCostToString, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
 import { listActivatableSigniEffects } from './signiActivateGate';
+import { activateCostZeroApplies, applyActivateCostZero } from './activateCostZero';
 
 /**
  * CPU が場のシグニの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1`）。
@@ -72,7 +73,7 @@ export function cpuCanAutoPayActivatedCost(effect: CardEffect, actor: PlayerStat
     if (!CPU_AUTO_PAYABLE_COST_KEYS.has(key)) return false;
   }
   // 《コインアイコン》は所持枚数で判定（`signiActivateGate` は提示の判定だけでコインを見ない）。
-  const coinCost = actor.activate_cost_zero_signi === cardNum ? 0 : (cost.coin ?? 0);
+  const coinCost = activateCostZeroApplies(actor, cardNum) ? 0 : (cost.coin ?? 0);
   if (coinCost > 0 && (actor.coins ?? 0) < coinCost) return false;
   // removeOppVirus は相手盤面が要るので、ここでは「宣言があれば実行側が検算する」に委ねる
   // （足りなければ `performSigniActivated` が支払い不能で return する＝無害）。
@@ -231,7 +232,9 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
       if (p.alreadyActivated.includes(effect.effectId)) continue;
       if (!cpuCanAutoPayActivatedCost(effect, actor, cardNum)) continue;
       const costIndices = selectEnergyIndicesForCost({
-        poolNums: p.energyPoolNums, cards, costStr: activatedEnergyCostStr(effect),
+        // 🆕§5.6 `C-0`＝《黒×0》（`ACTIVATE_COST_ZERO_BLACK`）をエナにも効かせる。
+        //   🔴旧はここが満額で、人間の `SigniActivatedModal` だけがエナを 0 にしていた（片肺）。
+        poolNums: p.energyPoolNums, cards, costStr: activatedEnergyCostStr(applyActivateCostZero(effect, actor, cardNum)),
         isAffordable: p.isAffordable,
         wholeSubstitutes: p.wholeSubstitutes,
         reserve: p.energyReserve,

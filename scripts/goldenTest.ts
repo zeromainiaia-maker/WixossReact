@@ -203,6 +203,7 @@ import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKey
 import { resolveTurnEndFacedownReturns, resolveSecondMainFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { applyForcedTurnEnd, TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { consumeActivateCostZero } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
@@ -228,6 +229,10 @@ import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 import { canActivateLrigEffect, collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { blockedByNoEmptySigniZone } from '../src/screens/battle/emptyZoneGate';
+import { applyActivateCostZero } from '../src/screens/battle/activateCostZero';
+import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
+import { payTrashActivateCost, emptyTrashActivateSelections } from '../src/screens/battle/trashActivateCost';
+import { activatedEnergyCostStr } from '../src/screens/battle/cpuActivate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
@@ -6162,10 +6167,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 40, '命名規約外のターン限定フィールド数（🆕 40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
+  eq(irregular.length, 41, '命名規約外のターン限定フィールド数（🆕 41＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録＝旧は未登録で「ターン終了時まで」が効かず次のターン以降も残っていた。40＝2026-09-18 バグ報告で temp_power_mods / temp_level_mods / keyword_grants / granted_effects を登録。36＝2026-09-16 O-414 で pending_life_crash_replace / life_crash_replace_choice を登録。34＝同日 O-510。33＝2026-09-14 O-362）');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 103, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
+  eq(registered.length, 104, '型由来と命名規約外を合わせたターン限定フィールド数（🆕 104＝2026-09-20 §5.6 `C-0` で activate_cost_zero_signi を登録。103＝2026-09-18 バグ報告。99＝2026-09-16 O-414。97＝同日 O-510。96＝2026-09-14 O-372）');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -54030,6 +54035,54 @@ test('§5.6 C-0 置けなかった「場に出す」は【出】（トラッシ�
   eq(fullCase.placed.length, 0, '🔴満杯なら「場に出たカード」が0＝ON_PLAY 収集そのものが走らない');
   eq(fullCase.ids.length, 0, '🔴置けなかった配置で WX22-Re17-E1 は発火しない（バグ報告 c32a37ce 後半）');
   ok(fullCase.logs.some(l => l.includes('空きシグニゾーンなし')), '満杯の経路は「空きシグニゾーンなし」で止まる');
+}));
+
+// 🆕🔴**§5.6 `C-0`（2026-09-20・バグ報告 `c32a37ce` の追跡）＝`ACTIVATE_COST_ZERO_BLACK`（`WD08-001-E1`）。**
+// 原文＝「あなたの**トラッシュにあるシグニ**１枚を対象とし、**ターン終了時まで**、次にそれの【起】能力を
+// 使用する場合、その能力の使用コストは**《黒×0》**になる」。
+// 🔴**旧実装は3つとも壊れていた（実測）**＝
+//   ①**トラッシュ【起】にまったく効かない**（提示ゲート・支払いUI・支払い実行・CPU のどれも読んでいなかった）
+//     ＝**対象は必ずトラッシュの札**なので、これが本来の主用途＝**この【出】は使い道で完全な no-op**だった。
+//   ②**CPU は場のシグニ【起】でもエナ満額**（人間の `SigniActivatedModal` だけが 0＝片肺）。
+//   ③**「ターン終了時まで」が効かない**（`turnScopedState` に未登録＝次のターン以降も残った）。
+test('§5.6 C-0 ACTIVATE_COST_ZERO_BLACK：トラッシュ【起】・CPU・ターン終了の3地点', () => withSavedCursor(() => {
+  const NESSIE = 'WX22-Re17', nessieEff = (effectsMap.get(NESSIE) ?? []).find(e => e.effectId === 'WX22-Re17-E2');
+  if (!nessieEff) throw new Error('WX22-Re17-E2 が live に無い');
+  ok(!!nessieEff.trashActivated, '前提：WX22-Re17-E2 はトラッシュ【起】');
+  eq((nessieEff.cost?.energy ?? []).reduce((n, c) => n + c.count, 0), 3, '前提：素のコストはエナ3枚（《黒》《黒》《無》）');
+  const black = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('黒'));
+  const mkMy = (energy: string[], zero?: string): PlayerState => ({
+    ...mkState({ energy: 0 }), energy, trash: [NESSIE], actions_done: [], activate_cost_zero_signi: zero,
+  } as unknown as PlayerState);
+  const offered = (energy: string[], zero?: string) => listOffFieldActivatableEffects({
+    zone: 'trash', cardNum: NESSIE, my: mkMy(energy, zero), op: mkState({}), turnPhase: 'MAIN', isMyTurn: true,
+    cardMap: cardMap as Map<string, CardData>, effectsMap,
+    energyPool: energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex })),
+  }).map(e => e.effectId);
+  const three = [black, black, black];
+  eq(offered(three).join(','), 'WX22-Re17-E2', '対照：エナ3枚あれば素でも提示される');
+  eq(offered([]).length, 0, '対照：エナ0枚では提示されない');
+  // ①トラッシュ【起】＝《黒×0》が乗っていればエナ0枚でも提示され、エナ0枚で支払いが成立する。
+  eq(offered([], NESSIE).join(','), 'WX22-Re17-E2', '🔴《黒×0》が乗ればエナ0枚でも提示される');
+  const zeroMy = mkMy([], NESSIE);
+  ok(!!payTrashActivateCost(applyActivateCostZero(nessieEff, zeroMy, NESSIE), zeroMy, mkState({}),
+    { ...emptyTrashActivateSelections(), energy: new Set<number>() }, cardMap as Map<string, CardData>, [], NESSIE),
+    '🔴《黒×0》ならエナを1枚も選ばずに支払いが成立する');
+  ok(!payTrashActivateCost(applyActivateCostZero(nessieEff, mkMy([]), NESSIE), mkMy([]), mkState({}),
+    { ...emptyTrashActivateSelections(), energy: new Set<number>() }, cardMap as Map<string, CardData>, [], NESSIE),
+    '対照：乗っていなければエナ0枚の支払いは成立しない');
+  // ②CPU の支払い内訳も同じ funnel＝コスト文字列が空になる（＝1枚も払わない）。
+  eq(activatedEnergyCostStr(applyActivateCostZero(nessieEff, zeroMy, NESSIE)), '', '🔴CPU 側のコスト文字列も空になる');
+  ok(activatedEnergyCostStr(nessieEff).length > 0, '対照：素のコスト文字列は空でない');
+  // ⚠エナ以外のコストは落とさない（「使用コストは《黒×0》」＝エナと《コイン》の話）。
+  const withDiscard = { ...nessieEff, cost: { ...nessieEff.cost, discard: 1 } } as CardEffect;
+  eq(applyActivateCostZero(withDiscard, zeroMy, NESSIE).cost?.discard, 1, '手札を捨てるコストは《黒×0》で消えない');
+  // ③「ターン終了時まで」＝使わなくてもターン終了で失効する。
+  eq(clearTurnEndScopedState(zeroMy).activate_cost_zero_signi, undefined,
+    '🔴ターン終了で失効する（旧は未登録で次のターン以降も残った）');
+  // ⚠**消費は `turnScopedState.ts` の funnel**（ターン限定フィールドのリセットはそこの戻り値だけで行う＝`turn-scoped T2`）。
+  eq(consumeActivateCostZero(zeroMy, NESSIE).activate_cost_zero_signi, undefined, '使ったら落ちる（「次に」＝一発）');
+  eq(consumeActivateCostZero(zeroMy, black).activate_cost_zero_signi, NESSIE, '別の札の【起】では落とさない');
 }));
 
 test('O-1 (f) lrigActivateGate: 付与【起】も同じ funnel で切れる', () => withSavedCursor(() => {

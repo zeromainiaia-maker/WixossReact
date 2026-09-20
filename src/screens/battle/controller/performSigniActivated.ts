@@ -5,6 +5,8 @@ import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectHandDisc
 import { type PlayerState, type StackEntry } from '../../../types';
 import { cloneAcceSlots } from '../../../utils/acce';
 import { payAttachedOrUnderTrash } from '../attachedOrUnderCost';
+import { activateCostZeroApplies } from '../activateCostZero';
+import { consumeActivateCostZero } from '../turnScopedState';
 import { generateUUID } from '../battleUtils';
 import { reduceBattle } from '../controller/battleController';
 import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord } from '../costs';
@@ -130,7 +132,7 @@ export const performSigniActivated = async (
       : { ...my.field, signi_down: newSigniDown };
     const newLrigTrash = keySubRemovalAct ? keySubRemovalAct.lrigTrash : my.lrig_trash;
     // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
-    const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
+    const coinCostAct = activateCostZeroApplies(my, cardNum) ? 0 : (effect.cost?.coin ?? 0);
     if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）
     // removeOppVirus: 相手の場のウィルスN個を取り除く
     const removeVirusNAct = effect.cost?.removeOppVirus ?? 0;
@@ -145,8 +147,10 @@ export const performSigniActivated = async (
       newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
     }
     const isGameOnceAct = effect.usageLimit === 'once_per_game';
+    // 🆕§5.6 `C-0`＝《黒×0》は「**次に**それの【起】能力を使用する場合」＝一発なので、
+    //   **基底の state に対して**消費する（下の各キーを上書きしないよう必ずここで畳む）。
     let paid: PlayerState = signiActPay.applyTo({
-      ...my,
+      ...consumeActivateCostZero(my, cardNum),
       hand: newHand,
       coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
       coins_paid_this_turn: coinCostAct > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostAct : my.coins_paid_this_turn, // COINS_PAID_THIS_TURN
@@ -155,7 +159,6 @@ export const performSigniActivated = async (
       coin_abilities_used_this_turn: coinCostAct > 0
         ? [...(my.coin_abilities_used_this_turn ?? []), ...coinLedger(effect)]
         : my.coin_abilities_used_this_turn,
-      activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
       trash: [...my.trash, ...paidNums, ...energyTrashCards, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
       // ⚠エナ由来（`energyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
       ...handDiscardHistoryRecord(my, [...discardedCards, ...discardAllCards, ...discardVarCards]),

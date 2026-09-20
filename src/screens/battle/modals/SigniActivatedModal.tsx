@@ -8,6 +8,7 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, energyCostToString, isEnergyPaymentSelectionValid, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
+import { activateCostZeroApplies } from '../activateCostZero';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../attachedOrUnderCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
@@ -61,7 +62,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
             {(() => {
               const card = battleCardMap.get(pendingSigniActivated.cardNum);
               const eff  = pendingSigniActivated.effect;
-              const isCostZeroByEffect = my.activate_cost_zero_signi === pendingSigniActivated.cardNum;
+              // 🆕§5.6 `C-0`＝判定は `activateCostZero.ts` の1本（トラッシュ【起】・CPU と同じ funnel）。
+              const isCostZeroByEffect = activateCostZeroApplies(my, pendingSigniActivated.cardNum);
               const energyTotal = isCostZeroByEffect ? 0 : (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const actDiscardGroups = eff.cost?.discardGroups;
               // 🆕**`handDiscardSigni`（「手札から＜X＞のシグニをN枚捨てる」）を手札捨てコストに合流**（§5.3 `O-46`）。
