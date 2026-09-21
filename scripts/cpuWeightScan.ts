@@ -107,6 +107,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'plan.comboThenHold', base: -8000, values: [-4000, -16000] },
   // ── 🆕手札の【ガード】を手元に置く価値（効果で手札を捨てるときの並び）──
   { key: 'guardKeepValue', base: 8000, values: [4000, 16000] },
+  // ── 🆕§5.7 `S-22`＝対象選択を置き場で決めるか（0＝旧挙動＝乱数）。⚠つまみではなく**反転確認の口**。
+  { key: 'targetIntentByScope', base: 1, values: [0] },
 ];
 
 /**

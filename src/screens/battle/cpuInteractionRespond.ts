@@ -6,7 +6,7 @@ import { planKeepBonus, type CpuDeckPlan } from './cpuDeckPlan';
 import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
-  pickCpuSearch, pickCpuTargets, pickCpuVirusZone, type CpuInteractionCtx,
+  pickCpuSearch, pickCpuTargets, pickCpuVirusZone, targetIntentFor, type CpuInteractionCtx,
 } from './cpuInteraction';
 
 /**
@@ -98,6 +98,14 @@ export function decideCpuInteractionResponse(
   const logs: string[] = [];
   if (inter.type === 'SELECT_TARGET') {
     selected = pickCpuTargets(inter, cpuCtx);
+    // 🆕🔴§5.7 `S-22`（2026-09-21）＝**効果の意味も置き場も読めず乱数で決めた対象選択**の回数＝**0 が正**
+    //   （`census:play` の規則 `targetRandom`）。🔑**この失敗はどの計器にも映っていなかった**＝
+    //   盤面も勝敗も静かに悪くなるだけで、golden も smoke も緑のまま通る。
+    //   ⚠**選ぶ余地が無い形（候補 ≦ 必要数）は数えない**＝どう選んでも同じ。⚠文言は `playCensus.ts` の契約。
+    if (inter.candidates.length > (typeof inter.count === 'number' ? inter.count : 1)
+      && targetIntentFor(inter, cpuCtx.policy) === 'unknown') {
+      logs.push(`[CPU] 対象を乱数で選んだ: ${(inter.thenAction as { type?: string } | undefined)?.type ?? '?'}/${inter.targetScope}`);
+    }
   } else if (inter.type === 'CHOOSE') {
     selected = pickCpuChoice(inter, cpuCtx);
     const chosen = inter.options.find(o => o.id === selected[0]);

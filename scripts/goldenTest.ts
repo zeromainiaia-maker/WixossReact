@@ -181,7 +181,7 @@ import { cpuOffFieldLedgerKey, pickCpuHandActivateFieldTrash, pickCpuOffFieldAct
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
-import { CPU_GUARD_KEEP_VALUE, isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentOf } from '../src/screens/battle/cpuInteraction';
+import { CPU_GUARD_KEEP_VALUE, isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentFor, targetIntentOf } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
@@ -89801,6 +89801,88 @@ test('§5.7 S-28 場のシグニをエナチャージ：実行は人間と同じ
     '🔴場から置いた印を literal で出していない＝`census:play` が黙って0件になる');
   ok(/id: 'enaChargeField'/.test(fs.readFileSync(join(root, 'src/screens/battle/playCensus.ts'), 'utf-8')),
     '🔴`census:play` に規則が無い＝踏んだかどうかが測れない');
+}));
+
+test('§5.7 S-22 対象選択が効果の意味を見ている：`thenAction` で読めないときは置き場で向きを決める', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（バグ報告 `c32a37ce`／2026-09-21 実測）**＝`WD08-001-E1`（【出】「トラッシュのシグニ1枚の
+  //   次の【起】コストを《黒×0》にする」）で CPU は**トラッシュ【起】を持たない `サーバント Ｔ`**を選んでいた。
+  // 📏**母集団**＝本物のデッキ6つ × 1戦で CPU が答えた `SELECT_TARGET` **66件**のうち
+  //   **32件（48%）が `thenAction` から損得を読めず乱数**（選ぶ余地があったのは22件）。
+  //   最大の塊は**対象宣言**＝`STUB{SELECT_TARGET_ONLY}` は `thenAction` に `INTERNAL_NOOP` を置き、
+  //   **帰結（バニッシュ等）は宣言の後ろのステップに来る**ので `thenAction` には何も書かれていない。
+
+  // ── ① 向きの見立て＝`thenAction` → 置き場の順 ──
+  const iOf = (thenAction: object, targetScope: string) => targetIntentFor({ thenAction, targetScope } as never);
+  const DECL = { type: 'STUB', id: 'INTERNAL_NOOP' };
+  eq(iOf({ type: 'BANISH' }, 'self_field'), 'harm', '🔴型で分かる損得を置き場で上書きした（`thenAction` が先）');
+  eq(iOf(DECL, 'opp_field'), 'harm', '🔴相手の場を指す対象宣言を乱数で選んでいる（`WD15-018-E1` の帰結はバニッシュ）');
+  eq(iOf(DECL, 'opp_field_energy'), 'harm', '🔴`opp_` で始まる置き場を見落とした');
+  eq(iOf(DECL, 'self_trash'), 'benefit', '🔴自分の置き場を指す対象宣言を乱数で選んでいる（`WD08-001-E1`）');
+  eq(iOf(DECL, 'both_trash'), 'unknown', '🔴両者を跨ぐ置き場で向きを決めつけた（どちらを選ぶかで意味が反転する）');
+  // 🔴**手放す型だけは逆**（`ADD_TO_LIFE{fromHand}`＝手札1枚をライフクロスへ）。置き場が相手側なら `harm`。
+  eq(iOf({ type: 'ADD_TO_LIFE' }, 'self_hand'), 'cost', '🔴手放す札を「得」と見て一番強い札をライフに埋めた');
+  eq(iOf({ type: 'ENERGY_CHARGE' }, 'self_trash'), 'cost', '🔴エナへ置く札を「得」と見た');
+  eq(iOf({ type: 'ADD_TO_LIFE' }, 'opp_field'), 'harm', '🔴相手のシグニを自分のライフへ加える形を「手放す」と見た');
+  // 🆕`POWER_MODIFY_PER_*` 族は `delta` を持たず、1単位あたりの増減に符号がある（live 110ノード）。
+  eq(iOf({ type: 'POWER_MODIFY_PER_FIELD', deltaPerUnit: -1000 }, 'both_field'), 'harm', '🔴「〜1体につき－1000」を乱数に回した');
+  eq(iOf({ type: 'POWER_MODIFY_PER_TRASH_COUNT', deltaPerCard: 500 }, 'both_field'), 'benefit', '🔴「〜1枚につき＋500」を乱数に回した');
+  eq(iOf({ type: 'LEVEL_MODIFY', delta: -1 }, 'both_field'), 'harm', '🔴レベルを下げる効果を乱数に回した');
+
+  // ── ② 報告された盤面（`WD08-001-E1`）＝トラッシュの【起】を持つ札を選ぶ ──
+  const effOf22 = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const SERVANT = 'WX01-100', NESSIE = 'WX22-Re17';   // サーバント Ｔ（8000・【ガード】）／コードアンチ ネッシー（12000・トラッシュ【起】）
+  ok(cardMap.has(SERVANT) && cardMap.has(NESSIE), '前提崩れ＝報告のカードが CSV に無い');
+  ok(effOf22(NESSIE).some(e => e.effectType === 'ACTIVATED'), '前提崩れ＝ネッシーの【起】が live に無い');
+  const cm22 = new InstanceMap<CardData>(cardMap);
+  const trashIds = [`${SERVANT}#t1`, `${NESSIE}#t1`];
+  const ctx22 = { cpuState: { ...mkState(), trash: trashIds } as PlayerState, oppState: mkState(), cardMap: cm22, effectsOf: effOf22 };
+  const declTrash = { type: 'SELECT_TARGET', candidates: trashIds, count: 1, optional: false,
+    targetScope: 'self_trash', thenAction: { type: 'STUB', id: 'ACTIVATE_COST_ZERO_BLACK' } } as never;
+  eq(JSON.stringify(pickCpuTargets(declTrash, ctx22)), JSON.stringify([`${NESSIE}#t1`]),
+    '🔴《黒×0》の権利を使えない札（サーバント Ｔ）を選んだ＝バグ報告 `c32a37ce` の再発');
+
+  // ── ③ 相手の場を指す対象宣言＝一番強いシグニ（`WD15-018-E1`）──
+  const OPP_WEAK = 'WX04-080#o1', OPP_STRONG = 'WD03-009#o1';
+  const ctxOpp = { cpuState: mkState({ signi: [null, null, null] }), oppState: mkState({ signi: [OPP_WEAK, OPP_STRONG, null] }), cardMap: cm22, effectsOf: effOf22 };
+  eq(JSON.stringify(pickCpuTargets({ type: 'SELECT_TARGET', candidates: [OPP_WEAK, OPP_STRONG], count: 1,
+    optional: false, targetScope: 'opp_field', thenAction: { type: 'STUB', id: 'INTERNAL_NOOP' } } as never, ctxOpp)),
+  JSON.stringify([OPP_STRONG]), '🔴相手の場の対象宣言で弱いシグニを選んだ（帰結はこの対象へのバニッシュ）');
+
+  // ── ④ 手放す型＝価値の低い順・**【ガード】は残す**・**任意でも選ぶ** ──
+  const mk22 = (n: string, power: number, guard = false): [string, CardData] =>
+    [n, { CardNum: n, CardName: n, Type: 'シグニ', Level: '1', Power: String(power), Color: '白', Guard: guard ? '1' : '' } as unknown as CardData];
+  const cmCost = new Map<string, CardData>([mk22('CHEAP', 3000), mk22('RICH', 12000), mk22('GUARD', 2000, true)]);
+  const handIds = ['RICH#h1', 'GUARD#h1', 'CHEAP#h1'];
+  const ctxCost = { cpuState: { ...mkState(), hand: handIds } as PlayerState, oppState: mkState(), cardMap: cmCost, effectsOf: () => [] as CardEffect[] };
+  const toLife = (optional: boolean) => pickCpuTargets({ type: 'SELECT_TARGET', candidates: handIds, count: 1,
+    optional, targetScope: 'self_hand', thenAction: { type: 'ADD_TO_LIFE' } } as never, ctxCost);
+  eq(JSON.stringify(toLife(false)), JSON.stringify(['CHEAP#h1']), '🔴ライフクロスへ一番価値の高い札を埋めた（または【ガード】を手放した）');
+  eq(toLife(true).length, 1, '🔴「してもよい」で断った＝手放す型を `harm` と同じに扱うと得な効果ごと消える');
+
+  // ── ⑤ 分からない置き場は乱数のまま（seed で再現できる）──
+  const bothIds = ['CHEAP#h1', 'RICH#h1'];
+  const rnd = () => pickCpuTargets({ type: 'SELECT_TARGET', candidates: bothIds, count: 1, optional: false,
+    targetScope: 'both_trash', thenAction: { type: 'STUB', id: 'INTERNAL_NOOP' } } as never, ctxCost);
+  rngSetSeed(11); const r1 = rnd(); rngSetSeed(11); const r2 = rnd(); rngResetG();
+  eq(JSON.stringify(r1), JSON.stringify(r2), '乱数の選択が seed で再現しない');
+
+  // ── ⑥ 配線＝`pickCpuTargets` は置き場つきの見立てを通る（`targetIntentOf` 直呼びに戻さない）──
+  const src22 = fs.readFileSync(join(root, 'src/screens/battle/cpuInteraction.ts'), 'utf-8');
+  ok(/const intent = targetIntentFor\(inter, ctx\.policy\);/.test(src22),
+    '🔴`pickCpuTargets` が置き場を見ない見立て（`targetIntentOf` 直呼び）に戻っている＝対象宣言が乱数に落ちる');
+
+  // ── ⑦ 反転の口＝`legacy-targetrandom` で旧挙動（乱数）へ戻せる ──
+  eq(targetIntentFor({ thenAction: DECL, targetScope: 'opp_field' } as never, CPU_POLICIES['legacy-targetrandom']), 'unknown',
+    '🔴`legacy-targetrandom` で旧挙動に戻らない＝A/B で切り分けられない');
+  eq(CPU_POLICIES['legacy-targetrandom'].targetIntentByScope, 0, '前提崩れ＝旧挙動プリセットの値');
+  ok(DEFAULT_CPU_POLICY.targetIntentByScope > 0, '🔴既定でこの修正が止まっている');
+
+  // ── ⑧ 恒久の計器（`census:play` の `targetRandom`）＝**0 が正**・文言は literal ──
+  const respondSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
+  ok(/\[CPU\] 対象を乱数で選んだ: /.test(respondSrc),
+    '🔴乱数に落ちた対象選択の印を literal で出していない＝`census:play` が黙って0件になる');
+  ok(/id: 'targetRandom'/.test(fs.readFileSync(join(root, 'src/screens/battle/playCensus.ts'), 'utf-8')),
+    '🔴`census:play` に規則が無い＝乱数に落ちた回数が測れない');
 }));
 
 if (listMode) {

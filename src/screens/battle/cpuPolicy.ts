@@ -199,6 +199,12 @@ export interface CpuPolicy {
    * 📏実測＝この条件が立つ ENERGY の盤面は **WD13 56% / WD06 24% / ケトッシー軸 0%**。
    */
   readonly chargeFieldBlocked: number;
+  /**
+   * 🆕§5.7 `S-22`＝**`thenAction` から損得が読めない対象選択を「置き場（`targetScope`）」で決める**か（0＝旧挙動＝乱数）。
+   * 🔴**0 にすると対象宣言が乱数に戻る**（`STUB{SELECT_TARGET_ONLY}` は `thenAction` に印しか持たない）。
+   * 📏実測（修正前・本物のデッキ6つ × 1戦）＝CPU が答えた `SELECT_TARGET` **66件のうち32件（48%）が乱数**。
+   */
+  readonly targetIntentByScope: number;
 }
 
 /**
@@ -265,6 +271,10 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   // 🆕§5.7 `S-28`（2026-09-21）＝**場のシグニをエナへ置く**。値は `guardKeepValue` と同じ桁に置いた
   //   （＝「バトルで落ちる札を残す」ことは【ガード】を捨てるのと同じくらい避けたい、という序列）。
   chargeFieldBlocked: 8000,
+  // 🆕§5.7 `S-22`（2026-09-21）＝**既定で有効**。🔴これは調整つまみではなく**実測したバグの修正**
+  //   （対象選択の 48% が乱数で、最大の塊は「宣言の後ろでバニッシュされる相手のシグニ」を乱数で選んでいた）。
+  //   ⚠**実機の挙動が変わる回**＝自己対戦の乱数列も動くので、この回にベースラインを撮り直す。
+  targetIntentByScope: 1,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -348,6 +358,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * ⚠**消さない**＝この機構だけを切り分けて測り直す唯一の口。
    */
   'legacy-fieldcharge': variant('legacy-fieldcharge', { chargeFieldBlocked: 0 }),
+  /** 🆕§5.7 `S-22` を入れる前＝`thenAction` で読めない対象選択は乱数（対象宣言が全部ここに落ちていた）。 */
+  'legacy-targetrandom': variant('legacy-targetrandom', { targetIntentByScope: 0 }),
   'legacy-nextturn': variant('legacy-nextturn', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
   }),
@@ -436,13 +448,13 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked') {
+      || key === 'chargeFieldBlocked' || key === 'targetIntentByScope') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / targetIntentByScope`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

@@ -57,18 +57,73 @@ const HARMFUL_ACTIONS = new Set([
 /** 対象に**得がある**アクション（自分に使えば得）。 */
 const BENEFICIAL_ACTIONS = new Set(['GRANT_KEYWORD', 'GRANT_EFFECT', 'UP', 'GRANT_PROTECTION']);
 
-export type TargetIntent = 'harm' | 'benefit' | 'unknown';
+/**
+ * 🆕**選んだ札が自分の手元から出ていく型**（§5.7 `S-22`・2026-09-21）＝
+ * **効果そのものは自分の得**だが、**どれを選ぶかは「何を手放すか」**＝価値の低い順に選ぶ
+ * （`ADD_TO_LIFE{fromHand}`＝「手札を1枚ライフクロスに加える」／`ENERGY_CHARGE`＝「手札・トラッシュの1枚をエナに置く」）。
+ * 🔴**`harm` と同じにできない**＝`harm` は `optional` のとき「自分に損な候補は選ばない」＝**0体で止まる**ので、
+ *   「〜してもよい」の形が**断る**に化けて**得な効果ごと消える**。
+ * ⚠**置き場が相手側なら別物**（`ADD_TO_LIFE{fromField, owner:opponent}`＝相手のシグニを自分のライフクロスへ＝`harm`）
+ *   ＝振り分けは `targetIntentFor` が `targetScope` で行う。
+ */
+const SELF_COST_ACTIONS = new Set(['ADD_TO_LIFE', 'ENERGY_CHARGE']);
+
+/**
+ * `POWER_MODIFY_PER_*` 族（「〜1つにつきパワーを±N」）の**1単位あたりの増減**。
+ * 🔑**符号だけを使う**（何単位になるかは盤面次第だが、向きは符号で決まる）。live で 110ノード（2026-09-21 実測）。
+ */
+const PER_UNIT_DELTA_KEYS = [
+  'deltaPerUnit', 'deltaPerLevel', 'deltaPerCard', 'deltaPerColor', 'deltaPerCharm',
+  'deltaPerLife', 'deltaPerVirus', 'deltaPerTrashedLevel',
+] as const;
+
+export type TargetIntent = 'harm' | 'benefit' | 'cost' | 'unknown';
 
 /** 対象に対するアクションの損得（パワー修正は `delta` の符号）。分からなければ `unknown`＝乱数に回す。 */
 export function targetIntentOf(action: { type: string; delta?: unknown } | undefined): TargetIntent {
   if (!action) return 'unknown';
-  if (action.type === 'POWER_MODIFY') {
+  if (action.type === 'POWER_MODIFY' || action.type === 'LEVEL_MODIFY') {
     const d = Number(action.delta);
     return Number.isFinite(d) && d !== 0 ? (d < 0 ? 'harm' : 'benefit') : 'unknown';
+  }
+  // 🆕§5.7 `S-22`＝`POWER_MODIFY_PER_*` 族は `delta` を持たず、**1単位あたりの増減**に符号がある。
+  const rec = action as unknown as Record<string, unknown>;
+  for (const k of PER_UNIT_DELTA_KEYS) {
+    const d = Number(rec[k]);
+    if (Number.isFinite(d) && d !== 0) return d < 0 ? 'harm' : 'benefit';
   }
   if (HARMFUL_ACTIONS.has(action.type)) return 'harm';
   if (BENEFICIAL_ACTIONS.has(action.type)) return 'benefit';
   return 'unknown';
+}
+
+/**
+ * 🆕**この対話の損得**（§5.7 `S-22`・2026-09-21）＝`thenAction` から読めないときは **`targetScope`（置き場）で補う**。
+ *
+ * 🔴**なぜ要るか（実測＝本物のデッキ6つ × 1戦で CPU が答えた `SELECT_TARGET` 66件）**＝
+ *   **32件（48%）が `thenAction` から損得を読めず乱数**だった（選ぶ余地があったのは22件）。最大の塊は**対象宣言**＝
+ *   `STUB{SELECT_TARGET_ONLY}` は `thenAction` に `INTERNAL_NOOP` を置き、**帰結は宣言の後ろのステップに来る**ので
+ *   **`thenAction` には何も書かれていない**（`WD15-018-E1`＝「パワー5000以下のシグニ1体を対象とし…それをバニッシュする」で
+ *   相手の場の3体から乱数で選んでいた／`WD08-001-E1`＝「トラッシュのシグニ1枚の次の【起】コストを《黒×0》にする」で
+ *   トラッシュ【起】を持たない `サーバント Ｔ` を選んだ＝バグ報告 `c32a37ce`）。
+ * 🔑**置き場が答えを持っている**＝**相手の置き場を指す対話は相手に不利なことをするため**（`opp_*`＝`harm`）、
+ *   **自分の置き場を指す対話は自分の札を活かすため**（`self_*`＝`benefit`）にある。
+ * ⚠**両者を跨ぐ置き場（`both_*`）は分からない**＝乱数のまま（どちらを選ぶかで意味が反転する）。
+ * ⚠**`targetScope` は効果の使用者から見た名前**＝応答者が対戦相手の形（「対戦相手は自分の手札を1枚捨てる」）では
+ *   置き場が `opp_*` なのに候補は CPU の札になる。**向きの最終判定は候補の持ち主**（`favorable`）が行うので食い違わない。
+ */
+export function targetIntentFor(
+  inter: Pick<Inter<'SELECT_TARGET'>, 'thenAction' | 'targetScope'>, policy?: CpuPolicy,
+): TargetIntent {
+  const action = inter.thenAction as { type: string; delta?: unknown } | undefined;
+  const base = targetIntentOf(action);
+  if (base !== 'unknown') return base;
+  // 🔴反転の口（`legacy-targetrandom`）＝0 なら置き場を見ずに乱数へ落とす（A/B の A 側）。
+  if (policy && policy.targetIntentByScope === 0) return 'unknown';
+  const scope = String(inter.targetScope);
+  const isSelf = scope.startsWith('self_');
+  if (isSelf && action && SELF_COST_ACTIONS.has(action.type)) return 'cost';
+  return scope.startsWith('opp_') ? 'harm' : isSelf ? 'benefit' : 'unknown';
 }
 
 /** instance ID が CPU の盤面のどこかにあるか（無ければ相手側とみなす）。 */
@@ -123,7 +178,9 @@ function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, n
  * - 害（除去・ダウン・マイナス修正…）＝**相手の価値が高い順**、相手の候補が尽きたら**自分の価値が低い順**。
  * - 得（強化・付与・アップ…）＝**自分の価値が高い順**、尽きたら相手の価値が低い順。
  * - 🔑**任意（`optional`）なら損になる対象は選ばない**＝害を自分に／得を相手に与える候補しか無ければ0体で止める。
- * - 損得が分からなければ乱数（旧実装と同じ）。
+ * - 🆕**手放す型（`cost`）＝価値の低い順**（【ガード】は `cardValue` が手札ぶんを加点するので残る）。**任意でも選ぶ**。
+ * - 🆕**`thenAction` から読めないときは置き場で決める**（§5.7 `S-22`＝`targetIntentFor`）。
+ * - 置き場でも分からなければ（`both_*`）乱数（旧実装と同じ）。
  */
 export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractionCtx): string[] {
   const { cardMap, cpuState } = ctx;
@@ -148,10 +205,14 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
     return selected;
   }
   const count = typeof inter.count === 'number' ? inter.count : 1;
-  const intent = targetIntentOf(inter.thenAction as { type: string; delta?: unknown });
+  const intent = targetIntentFor(inter, ctx.policy);
   let ordered: string[];
   if (intent === 'unknown') {
     ordered = rngShuffle(candidates);
+  } else if (intent === 'cost') {
+    // 🆕§5.7 `S-22`＝手放す札は**価値の低い順**（持ち主で分けない＝候補は全部自分の置き場にある）。
+    const value = (id: string) => cardValue(id, ctx, inter.candidatePowers);
+    ordered = [...candidates].sort((a, b) => value(a) - value(b));
   } else {
     const favorable = (id: string) => (intent === 'harm') !== isCpuOwned(id, cpuState);
     const value = (id: string) => cardValue(id, ctx, inter.candidatePowers);
