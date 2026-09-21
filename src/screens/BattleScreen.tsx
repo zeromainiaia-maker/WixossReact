@@ -3,7 +3,7 @@ import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, PendingEffect, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectOppEnergyColorRestriction, collectMultiAcceLimits, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectMultiAcceLimits, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
 import {executeEffect, applyRefreshOnDone, getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
@@ -39,6 +39,7 @@ interface Props {
 import {randomInt} from '../engine/rng';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, canUseArtsCondition, isPieceCardType} from './battle/battleUtils';
 import {recordEnergyPlacements} from '../engine/energyPlacement';
+import {performEnergyCharge, type EnergyChargeSource} from './battle/controller/performEnergyCharge';
 import {mainPhaseGateOkFor} from '../engine/triggerCollect';
 import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, canAffordEnergyCostWithSubstitutes, findCounterSpellMaxCost, paySelectedExceed} from './battle/costs';
 import {meetsRestriction, effectiveLrigClass, listGrowCandidates, declaredSigniOverride} from './battle/growLogic';
@@ -2685,65 +2686,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     doPhaseAdvance();
   };
 
-  // エナチャージ（手札のカードをエナゾーンへ）
-  const handleEnergyChargeFromHand = async (handIndex: number) => {
+  /**
+   * エナチャージ（手札／場のシグニ）。
+   * 🆕🔴§5.7 `S-28`（2026-09-21）＝**実行は `controller/performEnergyCharge` の1本**＝
+   *   旧はここに**ほぼ同じ手順が2本**あり、さらに **CPU が第3の写経**で**色制限を無視していた**。
+   */
+  const handleEnergyCharge = async (source: EnergyChargeSource) => {
     if (!isMyTurn || loading) return;
     setLoading(true);
     try {
-      const cardNum = my.hand[handIndex];
-      const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const colorRestrict = collectOppEnergyColorRestriction(op, my, effectsMap);
-      const handWithout = my.hand.filter((_, i) => i !== handIndex);
-      let newMyState: PlayerState;
-      // 原文「宣言された色を持た**ず無色ではない**カード」＝無色（データ上は「無」／空）は素通しする。
-      const chargeColor = battleCardMap.get(cardNum)?.Color ?? '';
-      const chargeIsColorless = chargeColor === '' || chargeColor === '無' || chargeColor === '無色';
-      if (colorRestrict && !chargeIsColorless && !chargeColor.includes(colorRestrict)) {
-        newMyState = { ...my, hand: handWithout, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
-        appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
-      } else {
-        // 🆕§5.3 `O-321` 第275＝「エナに送る」はルール処理（`cause:'rule'`）。
-        newMyState = recordEnergyPlacements({ ...my, hand: handWithout, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] }, [cardNum], 'rule');
-        appendBattleLogs([`エナチャージ（${name}）`]);
-      }
+      const r = performEnergyCharge(my, op, source, battleCardMap, effectsMap);
+      if (!r.charged) return;
+      appendBattleLogs(r.logs);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: r.state }));
     } finally {
       setLoading(false);
     }
   };
-
-  // エナチャージ（シグニゾーンの最上層カードをエナゾーンへ）
-  const handleEnergyChargeFromSigni = async (zoneIndex: number) => {
-    if (!isMyTurn || loading) return;
-    setLoading(true);
-    try {
-      const signiStack = my.field.signi[zoneIndex];
-      if (!signiStack || signiStack.length === 0) return;
-      const cardNum = signiStack[signiStack.length - 1];
-      const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const newStack = signiStack.slice(0, -1);
-      const newSigni = [...my.field.signi] as (string[] | null)[];
-      newSigni[zoneIndex] = newStack.length > 0 ? newStack : null;
-      const colorRestrict = collectOppEnergyColorRestriction(op, my, effectsMap);
-      let newMyState: PlayerState;
-      // 原文「宣言された色を持た**ず無色ではない**カード」＝無色（データ上は「無」／空）は素通しする。
-      const chargeColor = battleCardMap.get(cardNum)?.Color ?? '';
-      const chargeIsColorless = chargeColor === '' || chargeColor === '無' || chargeColor === '無色';
-      if (colorRestrict && !chargeIsColorless && !chargeColor.includes(colorRestrict)) {
-        newMyState = { ...my, field: { ...my.field, signi: newSigni }, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
-        appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
-      } else {
-        // 🆕§5.3 `O-321` 第275＝同上（場からの「エナに送る」もルール処理）。
-        newMyState = recordEnergyPlacements({ ...my, field: { ...my.field, signi: newSigni }, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] }, [cardNum], 'rule');
-        appendBattleLogs([`エナチャージ（${name}）`]);
-      }
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleEnergyChargeFromHand = (handIndex: number) => handleEnergyCharge({ from: 'hand', handIndex });
+  const handleEnergyChargeFromSigni = (zoneIndex: number) => handleEnergyCharge({ from: 'field', zone: zoneIndex });
 
   // ===== 効果エンジン統合 =====
 

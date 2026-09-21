@@ -192,6 +192,13 @@ export interface CpuPolicy {
    * ⚠**旧実装の 0.6 をそのまま数値にしただけ**（既定は挙動不変）。
    */
   readonly chargeFarLevelScale: number;
+  /**
+   * 🆕§5.7 `S-28`＝**正面に格上がいて場に残しても邪魔なシグニ**を、エナへ回しやすくする減点（パワー換算）。
+   * 🔴**0 ならこの機構そのものが止まる**（＝場のシグニは1度もチャージされない＝旧挙動）。
+   * 🔑**門は別に2つある**（正面に格上がいる／手札に置き換えがある）＝この数値は**手札と比べる重み**だけを決める。
+   * 📏実測＝この条件が立つ ENERGY の盤面は **WD13 56% / WD06 24% / ケトッシー軸 0%**。
+   */
+  readonly chargeFieldBlocked: number;
 }
 
 /**
@@ -255,6 +262,9 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   chargeKeepPlayable: 8000,
   // 旧実装の 0.6 をそのまま（挙動不変）。
   chargeFarLevelScale: 0.6,
+  // 🆕§5.7 `S-28`（2026-09-21）＝**場のシグニをエナへ置く**。値は `guardKeepValue` と同じ桁に置いた
+  //   （＝「バトルで落ちる札を残す」ことは【ガード】を捨てるのと同じくらい避けたい、という序列）。
+  chargeFieldBlocked: 8000,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -332,7 +342,12 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 📏直した根拠＝**グロウ機会 214 のうち 15（7%）が払えず**（色7／枚数8）、
    *   **MAIN で空きゾーンがあるのに出せる札が手札に無い盤面が 22/98（22%）**（ケトッシー軸）。
    */
-  'legacy-charge': variant('legacy-charge', { chargeGrowColor: 0, chargeKeepPlayable: 0 }),
+  'legacy-charge': variant('legacy-charge', { chargeGrowColor: 0, chargeKeepPlayable: 0, chargeFieldBlocked: 0 }),
+  /**
+   * 🆕§5.7 `S-28`＝**場のシグニをエナへ置く前の CPU**＝A/B の A 側（`--a legacy-fieldcharge --b default`）。
+   * ⚠**消さない**＝この機構だけを切り分けて測り直す唯一の口。
+   */
+  'legacy-fieldcharge': variant('legacy-fieldcharge', { chargeFieldBlocked: 0 }),
   'legacy-nextturn': variant('legacy-nextturn', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
   }),
@@ -420,13 +435,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key in weights) { weights = { ...weights, [key]: num }; continue; }
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
-      || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale') {
+      || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
+      || key === 'chargeFieldBlocked') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

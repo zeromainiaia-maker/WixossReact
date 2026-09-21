@@ -72,7 +72,12 @@ export interface CpuMoveCtx {
 
 /** CPU の1手。探索（`S-16`）はこれを適用して次の盤面を作る。 */
 export type CpuMove =
-  | { kind: 'energy'; handIndex: number; id: string }
+  /**
+   * エナチャージ。🆕§5.7 `S-28`（2026-09-21）＝**場のシグニからも置ける**（人間は前から出来た）。
+   * ⚠`handIndex` は `from:'hand'` のときだけ意味を持つ（`from:'field'` は `zone`）。
+   */
+  | { kind: 'energy'; from: 'hand'; handIndex: number; id: string }
+  | { kind: 'energy'; from: 'field'; zone: number; id: string }
   | { kind: 'grow'; card: CardData; costIndices: Set<number>; pool: EnergyPayEntry[] }
   | { kind: 'deploy'; handIndex: number; id: string; zone: number }
   | { kind: 'assistGrow'; card: CardData; side: 'l' | 'r'; costIndices: Set<number>; pool: EnergyPayEntry[] }
@@ -113,9 +118,22 @@ function basicAffordable(ctx: CpuMoveCtx, s: PlayerState) {
 
 // ─── エナチャージ ───────────────────────────────────────────────
 
-/** エナフェイズに置ける手札（全部）。⚠1ターン1回・封じ／スキップは `listCpuMoves` 側で見る。 */
+/**
+ * エナフェイズに置けるもの（**手札の全部 ＋ 場のシグニの最上層の全部**）。
+ * 🆕🔴§5.7 `S-28`（2026-09-21・ユーザー指摘）＝**人間は場のシグニもエナへ置けるのに、CPU は手札しか見ていなかった**
+ *   （一度も踏んだことが無い機構）。🔑**良い手になる場面**＝**正面に格上がいて場に残しても邪魔なシグニ**を置けば、
+ *   **手札を減らさずにレーンを空けられる**（ENERGY → MAIN の順なので同じターンに強い札で埋め直せる）。
+ * ⚠**ここは絞らない**（`cpuMoves.ts` の規律＝分類・閾値・盤面評価は「選ぶ側」の仕事＝`cpuEnergyCharge.ts`）。
+ * ⚠1ターン1回・封じ／スキップは `listCpuMoves` 側で見る。
+ */
 export function listCpuEnergyCharges(s: PlayerState): CpuMove[] {
-  return s.hand.map((id, handIndex) => ({ kind: 'energy' as const, handIndex, id }));
+  return [
+    ...s.hand.map((id, handIndex) => ({ kind: 'energy' as const, from: 'hand' as const, handIndex, id })),
+    ...s.field.signi.flatMap((stack, zone) => {
+      const top = (stack ?? []).at(-1);
+      return top ? [{ kind: 'energy' as const, from: 'field' as const, zone, id: top }] : [];
+    }),
+  ];
 }
 
 // ─── グロウ ───────────────────────────────────────────────────
@@ -837,11 +855,20 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
   switch (move.kind) {
     case 'energy': {
       // ⚠1ターン1回＝`actions_done` に刻む（刻まないと探索が何枚でもエナに置ける）。
+      // 🆕§5.7 `S-28`＝場から置く場合はそのゾーンの最上層を外す。
+      // ⚠**近似**＝相手の「エナチャージの色制限」（トラッシュ送り）は解かない（本番は `performEnergyCharge` が正）。
+      const base: PlayerState = move.from === 'hand'
+        ? { ...actor, hand: actor.hand.filter((_, i) => i !== move.handIndex) }
+        : (() => {
+          const signi = [...actor.field.signi] as (string[] | null)[];
+          const rest = (signi[move.zone] ?? []).slice(0, -1);
+          signi[move.zone] = rest.length > 0 ? rest : null;
+          return { ...actor, field: { ...actor.field, signi } };
+        })();
       const cpu: PlayerState = {
-        ...actor,
-        hand: actor.hand.filter((_, i) => i !== move.handIndex),
-        energy: [...actor.energy, move.id],
-        actions_done: [...(actor.actions_done ?? []), 'ENERGY'],
+        ...base,
+        energy: [...base.energy, move.id],
+        actions_done: [...(base.actions_done ?? []), 'ENERGY'],
       };
       return { cpu, opp: opponent };
     }
@@ -939,7 +966,8 @@ export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
 /** 手の短い表示（ログ・計測用）。 */
 export function describeCpuMove(m: CpuMove): string {
   switch (m.kind) {
-    case 'energy': return `energy:${m.id}`;
+    // ⚠**手札側の文言は据え置き**（`S-15` の照合と `S-6` の分岐スクリーニングの基準を動かさない）。
+    case 'energy': return m.from === 'field' ? `energy:field:${m.id}@${m.zone}` : `energy:${m.id}`;
     case 'grow': return `grow:${m.card.CardNum}`;
     case 'deploy': return `deploy:${m.id}@${m.zone}`;
     case 'assistGrow': return `assistGrow:${m.card.CardNum}@${m.side}`;

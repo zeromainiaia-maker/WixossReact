@@ -167,6 +167,7 @@ import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../sr
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
+import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
@@ -86767,7 +86768,8 @@ test('§5.7 S-1 カードの強さ表：効果 JSON から「パワー＋効果�
   // §5.7 `S-4b` で召喚の比較は先読み（`scoreDeploy`＝盤面の採点の中で `cardStrength` を使う）へ置き換えた。
   ok(/value: scoreDeploy\(id, zone, newCpuSt, cpuHuSt, cpuLookahead\)/.test(battle), '🔴CPU の召喚が強さ（先読み）を渡していない');
   ok(/handGuardCount: handSignis\.filter/.test(battle), '🔴CPU の召喚が手札の【ガード】枚数を渡していない');
-  ok(/pickCpuEnergyChargeIndex\(cpuSt\.hand, battleCardMap/.test(battle) && !/const charged = cpuSt\.hand\[0\];/.test(battle), '🔴CPU のエナチャージが手札の先頭固定のまま');
+  // 🆕§5.7 `S-28`（2026-09-21）＝エナチャージの選択は `pickCpuEnergyCharge`（**手札 ＋ 場のシグニ**）へ移った＝較正。
+  ok(/pickCpuEnergyCharge\(\{/.test(battle) && !/const charged = cpuSt\.hand\[0\];/.test(battle), '🔴CPU のエナチャージが手札の先頭固定のまま');
   ok(/effectsOf: id => effectsMap\.get\(id\) \?\? \[\]/.test(battle), '🔴CPU の対話応答に効果の一覧を渡していない');
 }));
 
@@ -89724,6 +89726,81 @@ test('§5.7 S-26 エナチャージの選び方：次のグロウの色を確保
   // ⚠`battleScreenSource()` は `controller/` も読むので、**画面の本体だけ**を見る。
   ok(!fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8').includes('chargeNeedColors'),
     '🔴画面が `chargeNeedColors` を呼んでいる＝CPU の判断が画面側に散る');
+}));
+
+// ── 第433バッチ（2026-09-21）＝§5.7 `S-28`（場のシグニをエナチャージする）───────────
+test('§5.7 S-28 場のシグニをエナチャージ：実行は人間と同じ1本・門は2つ・正面は左右反転', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（2026-09-21 ユーザー指摘）**＝**人間は前から場のシグニをエナへ置ける**のに、
+  //   CPU は `pickCpuEnergyChargeIndex(cpuSt.hand, …)`＝**手札しか見ておらず一度も踏んだことが無かった**。
+  //   🔑**良い手になる場面**＝**正面に格上がいて場に残しても邪魔なシグニ**＝**手札を減らさずレーンを空けられる**。
+  // 📏母集団の実測（ENERGY の盤面）＝WD13 56% / WD06 24% / ケトッシー軸 0%。
+
+  const mk = (n: string, power: number, level = 1, type = 'シグニ'): [string, CardData] =>
+    [n, { CardNum: n, CardName: n, Type: type, Level: String(level), Power: String(power), Color: '白' } as unknown as CardData];
+  const cm28 = new Map<string, CardData>([mk('SMALL', 3000), mk('BIG', 12000), mk('MID', 8000), mk('HAND', 9000)]);
+  const noEff = () => [] as CardEffect[];
+  const side = (signi: (string[] | null)[], hand: string[] = []): PlayerState =>
+    ({ ...mkState({ signi: [null, null, null] }), field: { ...mkState({ signi: [null, null, null] }).field, signi }, hand } as PlayerState);
+
+  // ── ① 🔴**正面は左右が反転する**（自分の 0 は相手の 2）──
+  //   自分のゾーン0 に SMALL、相手のゾーン2 に BIG ＝**正面に格上**。
+  const meFaced = side([['SMALL#1'], null, null], ['HAND#1']);
+  const opFaced = side([null, null, ['BIG#1']]);
+  const inp = { actor: meFaced, opponent: opFaced, cardMap: cm28, effectsOf: noEff, lrigLevel: 1 };
+  ok(fieldChargeAllowed(inp, 0), '🔴正面（相手のゾーン2）の格上を見ていない＝左右の反転を取り違えている');
+  // 相手を同じ側（ゾーン0）に置いたら**正面ではない**＝許可しない。
+  ok(!fieldChargeAllowed({ ...inp, opponent: side([['BIG#1'], null, null]) }, 0),
+    '🔴正面ではないシグニを見て「邪魔」と判断した（左右の反転を取り違えている）');
+
+  // ── ② 門2つ＝**格上がいる**かつ**手札に置き換えがある** ──
+  ok(!fieldChargeAllowed({ ...inp, opponent: side([null, null, ['SMALL#2']]) }, 0),
+    '🔴正面が格下／同格でもエナへ回した＝仕事をしているシグニを捨てる');
+  ok(!fieldChargeAllowed({ ...inp, actor: side([['SMALL#1'], null, null], []) }, 0),
+    '🔴手札に置き換えが無いのにエナへ回した＝レーンが空くだけでライフに通る');
+  ok(!fieldChargeAllowed({ ...inp, actor: side([['SMALL#1'], null, null], ['HAND#1']), lrigLevel: 0 }, 0),
+    '🔴いま出せない（レベルがルリグレベル超）札を「置き換え」に数えた');
+  ok(!fieldChargeAllowed({ ...inp, actor: side([['MID#1'], null, null], ['SMALL#2']) }, 0),
+    '🔴いまより弱い札を「置き換え」に数えた');
+  ok(!fieldChargeAllowed({ ...inp, actor: side([null, null, null], ['HAND#1']) }, 0), '🔴空のゾーンを許可した');
+
+  // ── ③ 選ぶ＝**同点なら手札**（新しい機構を勝手に優先しない）──
+  const pick = (policy?: CpuPolicy) => pickCpuEnergyCharge({ ...inp, policy });
+  eq(JSON.stringify(pick()), JSON.stringify({ from: 'field', zone: 0 }),
+    '🔴条件がそろっているのに場のシグニを選ばない＝この機構が死んでいる');
+  // 🔴**`chargeFieldBlocked: 0` で旧挙動**（場は1度も選ばれない）＝`legacy-fieldcharge` プリセット。
+  eq(JSON.stringify(pick(CPU_POLICIES['legacy-fieldcharge'])), JSON.stringify({ from: 'hand', handIndex: 0 }),
+    '🔴`legacy-fieldcharge` で旧挙動（手札だけ）に戻らない＝A/B で切り分けられない');
+  ok(CPU_POLICIES['legacy-fieldcharge'].chargeFieldBlocked === 0, '前提崩れ＝旧挙動プリセットの値');
+  eq(DEFAULT_CPU_POLICY.chargeFieldBlocked > 0, true, '🔴既定でこの機構が止まっている');
+
+  // ── ④ 列挙＝**手札 ＋ 場のシグニ**（絞らない＝`cpuMoves.ts` の規律）──
+  const movesSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf-8');
+  ok(/s\.field\.signi\.flatMap\(\(stack, zone\)/.test(movesSrc),
+    '🔴`listCpuEnergyCharges` が場のシグニを列挙していない＝打った手が列挙に無い（`S-15` の照合が落ちる）');
+  ok(/case 'energy': return m\.from === 'field'/.test(movesSrc),
+    '🔴場から置いた手の表示が手札と同じ＝`S-15` の照合と分岐スクリーニングで区別できない');
+  ok(/energy:\$\{m\.id\}`/.test(movesSrc),
+    '🔴手札側の表示文言を変えた＝`S-6` の分岐スクリーニングの基準が動く');
+
+  // ── ⑤ 🔴**実行は人間と同じ1本**（旧は画面に2本＋CPU に第3の写経があった）──
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(/performEnergyCharge\(my, op, source, battleCardMap, effectsMap\)/.test(screenSrc),
+    '🔴画面が共通の実行関数を通っていない');
+  ok(!/collectOppEnergyColorRestriction\(op, my, effectsMap\)/.test(screenSrc),
+    '🔴画面に色制限の写経が残っている＝2か所に書いている');
+  const turnSrc28 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/performEnergyCharge\(cpuSt, huSt, chargeSource, battleCardMap, effectsMap, '\[CPU\] '\)/.test(turnSrc28),
+    '🔴CPU が共通の実行関数を通っていない＝色制限を無視する第3の写経に戻っている');
+  // 🔴**色制限は CPU にも効く**（旧バグ＝CPU だけ素通しだった）。
+  const perf = fs.readFileSync(join(root, 'src/screens/battle/controller/performEnergyCharge.ts'), 'utf-8');
+  ok(/collectOppEnergyColorRestriction\(opponent, actor, effectsMap\)/.test(perf), '🔴共通の実行関数が色制限を読んでいない');
+  ok(/actions_done: done/.test(perf), '🔴1ターン1回の台帳（`actions_done`）を積んでいない');
+
+  // ── ⑥ 計器（`census:play` の `enaChargeField`）＝文言は literal で書く ──
+  ok(/\[CPU\] エナチャージ（場のシグニ: /.test(turnSrc28),
+    '🔴場から置いた印を literal で出していない＝`census:play` が黙って0件になる');
+  ok(/id: 'enaChargeField'/.test(fs.readFileSync(join(root, 'src/screens/battle/playCensus.ts'), 'utf-8')),
+    '🔴`census:play` に規則が無い＝踏んだかどうかが測れない');
 }));
 
 if (listMode) {

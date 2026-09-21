@@ -28,6 +28,10 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   //   実測（修正前・6デッキ × 4戦）＝**グロウ機会 214 のうち 15（7%）**（色7／枚数8）。
   { id: 'growUnpayable', label: '🔴グロウできない（エナ不足）＝少ないほど良い', pattern: /^\[CPU\] グロウできない（エナ不足）/, anchor: '[CPU] グロウできない（エナ不足）' },
   { id: 'enaCharge', label: 'エナチャージ', pattern: /^\[CPU\] エナチャージ:/, anchor: '[CPU] エナチャージ:' },
+  // 🆕🔴§5.7 `S-28`（2026-09-21・ユーザー指摘）＝**場のシグニをエナへ置いた回数**＝
+  //   **人間は前から出来たのに CPU は一度も踏んだことが無かった**機構。
+  //   🔑**正面に格上がいて邪魔なシグニ**をチャージに回すと、**手札を減らさずレーンを空けられる**。
+  { id: 'enaChargeField', label: '🆕エナチャージ（場のシグニ）', pattern: /^\[CPU\] エナチャージ（場のシグニ:/, anchor: '[CPU] エナチャージ（場のシグニ:' },
   { id: 'grow', label: 'センターのグロウ', pattern: /^\[CPU\] グロウ:/, anchor: '[CPU] グロウ:' },
   { id: 'signiPlace', label: 'シグニ配置', pattern: /^\[CPU\] シグニ配置:/, anchor: '[CPU] シグニ配置:' },
   { id: 'spell', label: 'スペル', pattern: /^\[CPU\] スペルを発動:/, anchor: '[CPU] スペルを発動:' },

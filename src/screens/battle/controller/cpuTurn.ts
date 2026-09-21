@@ -10,7 +10,6 @@ import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, drawCards} from '../battleUtils';
-import {recordEnergyPlacements} from '../../../engine/energyPlacement';
 import {canGrowNow} from '../growLogic';
 import {resolveLrigAttackContinuation} from '../attackNegation';
 import {clearEndOfTurnDelayedTriggers} from '../delayedTrigger';
@@ -38,7 +37,9 @@ import {reduceBattle, type PlayerStateKey} from './battleController';
 import {guardableHandIndices} from '../guard';
 import {getLrigAttackCrashState} from '../lrigCrash';
 import {pickCpuGuardHandIndex} from '../cpuGuard';
-import {pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards} from '../cpuHandLimit';
+import {pickCpuHandLimitDiscards} from '../cpuHandLimit';
+import {pickCpuEnergyCharge} from '../cpuEnergyCharge';
+import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve, chargeNeedColors} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
@@ -766,18 +767,28 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         needColors: chargeNeedColors(cpuMoveCtx(cpuSt), cards),
         emptyZones: cpuSt.field.signi.filter(stk => !(stk ?? []).length).length,
       };
-      const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy, chargeCtx));
-      const charged = cpuSt.hand[chargeIdx];
-      d.observeChoice?.({ kind: 'energy', handIndex: chargeIdx, id: charged });
-      const chargedCard = battleCardMap.get(charged);
-      appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
-      // 🆕§5.3 `O-321` 第275＝CPU の「エナに送る」も同じ台帳へ（人間側と非対称にしない）。
-      const newCpuSt: PlayerState = recordEnergyPlacements({
-        ...cpuSt,
-        hand: cpuSt.hand.filter((_, i) => i !== chargeIdx),
-        energy: [...cpuSt.energy, charged],
-        actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
-      }, [charged], 'rule');
+      // 🆕🔴§5.7 `S-28`（2026-09-21）＝**手札だけでなく場のシグニも候補にする**（人間は前から出来た）。
+      const chargeSource = pickCpuEnergyCharge({
+        actor: cpuSt, opponent: huSt, cardMap: battleCardMap, effectsOf: id => effectsMap.get(id) ?? [],
+        lrigLevel: cpuLrigLevelEna, keepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy, charge: chargeCtx,
+        powers: Object.fromEntries(calcFieldPowers(cpuSt, huSt, true, effectsMap, battleCardMap, 'ENERGY')),
+      });
+      if (!chargeSource) return;
+      const charged = chargeSource.from === 'hand' ? cpuSt.hand[chargeSource.handIndex] : cpuSt.field.signi[chargeSource.zone]!.at(-1)!;
+      d.observeChoice?.(chargeSource.from === 'hand'
+        ? { kind: 'energy', from: 'hand', handIndex: chargeSource.handIndex, id: charged }
+        : { kind: 'energy', from: 'field', zone: chargeSource.zone, id: charged });
+      // 🔴**実行は人間と同じ `performEnergyCharge` の1本**（§5.6.3）＝旧はここが第3の写経で、
+      //   **相手の「エナチャージの色制限」を CPU だけが無視していた**（人間はトラッシュ送りになる）。
+      const chargeRes = performEnergyCharge(cpuSt, huSt, chargeSource, battleCardMap, effectsMap, '[CPU] ');
+      // ⚠**`[CPU] エナチャージ: <名前>` は `census:play` の規則 `enaCharge` の契約**＝必ず出す。
+      //   `performEnergyCharge` の行は**場から置いた回**と**色制限でトラッシュへ行った回**だけ足す（同じ内容を2度書かない）。
+      appendBattleLogs([`[CPU] エナチャージ: ${battleCardMap.get(charged)?.CardName ?? charged}`,
+        // 🔴**この文言は literal で書く**＝`census:play` の規則 `enaChargeField` の anchor を
+        //   golden `§5.6 C-3` が**ソースに literal で残っているか**で検査する（合成すると黙って0件になる）。
+        ...(chargeSource.from === 'field' ? [`[CPU] エナチャージ（場のシグニ: ${battleCardMap.get(charged)?.CardName ?? charged}）`] : []),
+        ...(chargeRes.toTrash ? chargeRes.logs : [])]);
+      const newCpuSt: PlayerState = chargeRes.state;
       cpuAtGrowStart = newCpuSt;
       await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: newCpuSt }));
       // 少し待ってGROWへ進む
