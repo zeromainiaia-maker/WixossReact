@@ -222,6 +222,11 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   ⚠支払いUI・引き落としと**同じ関数**（`canPayAttachedOrUnderTrash` / `payAttachedOrUnderTrash`）を通す。
     !(e.cost?.attachedOrUnderTrash
       && !canPayAttachedOrUnderTrash(my, e.cost.attachedOrUnderTrash.count)) &&
+    // 🆕**chargeCounterRemove**（§5.7 `S-31` ② 第4段・`WX17-034`＝【貯菌】）＝
+    //   🔴**提示の検算も支払いも無く、カウンター0個でも撃てた**（「相手のシグニ1体をトラッシュ」が
+    //   コストなしで何度でも通っていた）。⚠支払い（`performSigniActivated`）と**同じ軸**＝効果元のゾーンの数。
+    !(e.cost?.chargeCounterRemove
+      && (my.field.signi_chokkin?.[zoneIndex] ?? 0) < e.cost.chargeCounterRemove) &&
     // 🆕**charmTrash / removeOppVirus**（§5.7 `S-31` ② 第3段）＝**ここに1行も無かった**。
     //   🔴`performSigniActivated` は枚数が足りないと**何も書かずに return** するので、
     //     提示だけ通ると「撃てると言われたのに盤面が動かない」＝CPU が選び直して**無限ループ**になる

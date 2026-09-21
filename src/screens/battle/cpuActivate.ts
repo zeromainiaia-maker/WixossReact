@@ -2,6 +2,8 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
 import { fieldTrashSelectableZones } from './fieldLimit';
+import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
+import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
 import { payUnderSelfTrash, underSelfCostCandidates, type UnderAnySigniCandidate } from './underAnySigniCost';
 import { cardStrength } from './cpuCardStrength';
 import { reserveKeptAfterPaying } from './cpuGrowReserve';
@@ -86,6 +88,11 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'removeOppVirus',
   'selfPowerDown',
   'deckTrash',
+  // 🆕§5.7 `S-31` ② 第4段（2026-09-21）＝**この回に支払いを新設したキー**。
+  //   `selfToDeckBottom`＝効果元を場からデッキの一番下へ（自動／`trash_self` の兄弟）。
+  //   `chargeCounterRemove`＝効果元の上の【貯菌】をN個取り除く（自動／**この回に提示の検算も足した**）。
+  'selfToDeckBottom',
+  'chargeCounterRemove',
 ]);
 
 /**
@@ -359,6 +366,32 @@ export function pickCpuEnergyTrashIndices(p: {
 }
 
 /**
+ * 🆕**ルリグデッキからアーツを徴収するコストで、どれを捨てるか**（`trashArtsFromLrigDeck`・§5.7 `S-31` ② 第4段）。
+ *
+ * 🔑**候補は engine・人間のUI・提示ゲートと同じ funnel**（`trashArtsFromLrigDeckCandidates`＝色／クラフト除外／
+ *   「ルリグデッキから移動しない」アーツを除く）。
+ * ⚠**弱いアーツから捨てる**＝`cardStrength` の昇順（同点はルリグデッキの並び順で決定論）。
+ *   🔴アーツの強さは盤面の札とは軸が違う（使う窓・防御力）が、**別の評価軸をここで発明しない**＝
+ *   強さ表を1本に保つ（`S-6` が学習で動かせるのもこの1本だけ）。
+ * @returns 捨てるアーツの cardNum。**足りなければ `null`**（＝その【起】は候補から外す）。
+ */
+export function pickCpuTrashArtsNums(p: {
+  effect: CardEffect;
+  actor: PlayerState;
+  cardMap: Map<string, CardData>;
+  effectsOf?: (id: string) => readonly CardEffect[];
+  policy?: CpuPolicy;
+}): string[] | null {
+  const cost = p.effect.cost?.trashArtsFromLrigDeck;
+  if (!cost) return [];
+  const cands = trashArtsFromLrigDeckCandidates(p.actor, cost, p.cardMap, isImmovableArtsFromLrigDeck);
+  if (cands.length < cost.count) return null;
+  const strength = (num: string) =>
+    cardStrength(p.cardMap.get(getCardNum(num)), p.effectsOf?.(num) ?? [], 'deploy', undefined, p.policy);
+  return [...cands].sort((a, b) => strength(a) - strength(b)).slice(0, cost.count);
+}
+
+/**
  * 🆕**効果元の下から払うコストで、どのカードを落とすか**（`underSelfTrash`・§5.7 `S-31` ② 第3段・2026-09-21）。
  *
  * 🔑**可否の権威は人間の支払いUIと同じ関数**＝`canPayUnderSelfTrash`（`selectionConstraint`＝
@@ -408,8 +441,9 @@ export function pickCpuFieldTrashZones(p: {
   // 🆕§5.7 `S-31` ② 第3段＝**行き先違いの3キーは同じゾーン選択 state を使う**
   //   （`performSigniActivated` / `performLrigActivated` が `fieldTrashZones` / `fieldBanishZones` の1つで受ける。
   //    parser は3キーを同時に立てない＝型の注記どおり）。
-  //   ⚠**選ぶ軸は同じでも行き先は違う**＝`fieldBanish` はエナゾーン・`fieldToDeckTop` はデッキの上。
-  const ft = p.effect.cost?.fieldTrash ?? p.effect.cost?.fieldBanish ?? p.effect.cost?.fieldToDeckTop;
+  //   ⚠**選ぶ軸は同じでも行き先は違う**＝`fieldBanish` はエナゾーン・`fieldToDeckTop` はデッキの上・
+  //     `fieldToLrigTrash` はルリグトラッシュ（🆕§5.7 `S-31` ② 第4段）。
+  const ft = p.effect.cost?.fieldTrash ?? p.effect.cost?.fieldBanish ?? p.effect.cost?.fieldToDeckTop ?? p.effect.cost?.fieldToLrigTrash;
   if (!ft) return new Set();
   const strength = (zi: number) => {
     const top = p.actor.field.signi[zi]?.at(-1) ?? '';

@@ -694,6 +694,10 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   //     載せないと `payCpuSelfCostSim` が `null` を返す＝**その手は探索の外**（＝従来の優先順で撃つ）。
   //     🔑「払い方を知らないなら探索に入れない」＝タダで撃てると誤って採点するより安全側。
   'underSelfTrash', 'charmTrash', 'selfPowerDown', 'deckTrash',
+  // 🆕§5.7 `S-31` ② 第4段＝この回に支払いを新設したキー（下の `payCpuSelfCostSim` が写す）。
+  //   ⚠**`fieldToLrigTrash` は載せない**＝行き先（ルリグトラッシュ）をこの近似が持っていない
+  //     ＝`null` を返して**その手は探索の外**（従来の優先順で撃つ）。
+  'selfToDeckBottom', 'chargeCounterRemove', 'trashArtsFromLrigDeck',
 ]);
 
 /**
@@ -710,6 +714,8 @@ function payCpuSelfCostSim(
   fieldTrashZones?: Set<number>,
   /** 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすカード（本番と同じ選択）。 */
   underTrashKeys?: Set<string>,
+  /** 🆕§5.7 `S-31` ② 第4段＝ルリグデッキから徴収するアーツ（本番と同じ選択）。 */
+  trashArtsNums?: string[],
 ): PlayerState | null {
   if (!cost) return s;
   for (const k of Object.keys(cost)) {
@@ -781,6 +787,30 @@ function payCpuSelfCostSim(
   // 🆕§5.7 `S-31` ② 第3段＝デッキの上から落とすコスト（**支払いは本番と同じ funnel**）。
   if (cost.deckTrash !== undefined) {
     out = payDeckTrashCost(out, cost.deckTrash).state;
+  }
+  // 🆕§5.7 `S-31` ② 第4段＝効果元を場からデッキの一番下へ（`trash_self` と行き先だけが違う）。
+  if (cost.selfToDeckBottom) {
+    if (!out.field.signi.some(stack => stack?.at(-1) === sourceCardNum)) return null;
+    const afterD = removeFromField(sourceCardNum, out);
+    out = { ...afterD, deck: [...afterD.deck, sourceCardNum] };
+  }
+  // 🆕§5.7 `S-31` ② 第4段＝効果元の上のカウンター（【貯菌】）をN個取り除く。
+  if (cost.chargeCounterRemove !== undefined) {
+    if (zoneIndex === null) return null;
+    const chokkinSim = [...(out.field.signi_chokkin ?? [0, 0, 0])];
+    if ((chokkinSim[zoneIndex] ?? 0) < cost.chargeCounterRemove) return null;
+    chokkinSim[zoneIndex] -= cost.chargeCounterRemove;
+    out = { ...out, field: { ...out.field, signi_chokkin: chokkinSim } };
+  }
+  // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキのアーツ徴収（**本番が選んだ札をそのまま払う**）。
+  if (cost.trashArtsFromLrigDeck !== undefined) {
+    const nums = (trashArtsNums ?? []).filter(n => out.lrig_deck.includes(n));
+    if (nums.length < cost.trashArtsFromLrigDeck.count) return null;
+    out = {
+      ...out,
+      lrig_deck: out.lrig_deck.filter(n => !nums.includes(n)),
+      lrig_trash: [...out.lrig_trash, ...nums],
+    };
   }
   if (cost.coin !== undefined) {
     if ((out.coins ?? 0) < cost.coin) return null;
@@ -1036,7 +1066,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       const src = actor.field.lrig.at(-1);
       if (!src) return null;
       // 🆕§5.7 `S-21`＝ルリグの【起】は `zoneIndex: null`（`down_self` は**ルリグ自身**をダウン）。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices, move.choice.fieldBanishZones);
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices, move.choice.fieldBanishZones, undefined, move.choice.trashArtsNums);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, src, paid, opponent, lctxOf(move.phase));

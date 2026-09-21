@@ -40,6 +40,8 @@ export const performLrigActivated = async (
     trashExileIndices?: Set<number>;
     /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
     fieldBanishZones?: Set<number>;
+    /** 🆕§5.7 `S-31` ② 第4段＝`trashArtsFromLrigDeck` で捨てるアーツ（ルリグデッキの cardNum）。 */
+    trashArtsNums?: string[];
     /**
      * 🆕エクシードで置くカード（`exceedPoolOf(my)` の添字・§5.3 `O-118`）。
      * ⚠**省略＝従来どおり自動**（色指定を貪欲に満たしてから下から補う）＝CPU 経路はこちら。
@@ -250,6 +252,21 @@ export const performLrigActivated = async (
       if (movedCL.length < charmTrashNLrig) { ctx.io.setLoading(false); return; }
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
     }
+    // 🆕**trashArtsFromLrigDeck**（§5.7 `S-31` ② 第4段・live 5効果＝`WDK14-001-E3` ほか）＝
+    //   「ルリグデッキから赤のアーツ1枚をルリグトラッシュに置く：」。
+    //   🔴**この経路に支払いが1行も無かった**＝**アーツを1枚も失わずに撃てた**（キー【起】側には在る）。
+    //   ⚠**どれを捨てるかは人間が選ぶ**（`sel.trashArtsNums`）＝候補が1つでも選ばれていなければ払わない。
+    //     CPU は `pickCpuTrashArtsNums` が決める（どちらも候補は `trashArtsFromLrigDeckCandidates` の1本）。
+    if (effect.cost?.trashArtsFromLrigDeck) {
+      const artsNums = (sel.trashArtsNums ?? []).filter(n => paid.lrig_deck.includes(n));
+      if (artsNums.length < effect.cost.trashArtsFromLrigDeck.count) { ctx.io.setLoading(false); return; }
+      paid = {
+        ...paid,
+        lrig_deck: paid.lrig_deck.filter(n => !artsNums.includes(n)),
+        lrig_trash: [...paid.lrig_trash, ...artsNums],
+      };
+      ctx.io.appendLogs([`ルリグデッキのアーツ${artsNums.length}枚をルリグトラッシュに置いた（コスト）`]);
+    }
     // 🆕**deckTrash**（§5.7 `S-31` ② 第3段）＝**この経路にも支払いが1行も無かった**。
     //   ⚠支払いは `payDeckTrashCost` 1本（場のシグニ【起】と同じ関数＝写経しない）。
     if (effect.cost?.deckTrash) {
@@ -304,7 +321,11 @@ export const performLrigActivated = async (
     //   🔴**この経路にも支払いが1行も無かった**＝提示ゲートも見ていないので**踏み倒して撃てた**うえ、
     //     帰結が「この方法でトラッシュに置いたシグニ1体につき」の札は**0体扱いで本体も空振り**していた。
     //   ⚠ゾーン選択 state は `fieldBanishZones` を共用する（parser は両キーを同時に立てない＝型の注記どおり）。
-    if (!effect.cost?.fieldBanish && effect.cost?.fieldTrash && fieldBanishZones.size > 0) {
+    // 🆕**fieldToLrigTrash**（§5.7 `S-31` ② 第4段・`WX07-001-E2`／`WX08-004-E2`）＝
+    //   「レゾナ1体を場から**ルリグトラッシュ**に置く：」。🔴**ここにも支払いが無く踏み倒せた**。
+    //   ⚠**行き先の分岐は `payFieldTrashCost` が既に持っている**（`cost.fieldToLrigTrash` を見て `lrig_trash` へ）＝
+    //     条件に足すだけでよい（別の支払い関数を書かない）。
+    if (!effect.cost?.fieldBanish && (effect.cost?.fieldTrash || effect.cost?.fieldToLrigTrash) && fieldBanishZones.size > 0) {
       const ftPaidLg = payFieldTrashCost({
         state: paid, zones: fieldBanishZones, cost: effect.cost, cardMap: ctx.cardMap,
       });

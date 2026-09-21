@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
+import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuTrashArtsNums, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { getCardNum } from '../../engine/execUtils';
 import type { CpuPolicy } from './cpuPolicy';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
@@ -75,6 +75,11 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   'removeOppVirus',
   'exceedColors',
   'deckTrash',
+  // 🆕§5.7 `S-31` ② 第4段（2026-09-21）＝**この回に支払いを新設したキー**（どちらも旧は踏み倒せた）。
+  //   `fieldToLrigTrash`＝場のレゾナ等をルリグトラッシュへ（ゾーンは `pickCpuFieldTrashZones`）。
+  //   `trashArtsFromLrigDeck`＝ルリグデッキのアーツを徴収（どれを捨てるかは `pickCpuTrashArtsNums`）。
+  'fieldToLrigTrash',
+  'trashArtsFromLrigDeck',
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
@@ -103,6 +108,8 @@ export interface CpuLrigActivatedChoice {
    * ⚠**`fieldTrash` と `fieldBanish` の共用**＝行き先（トラッシュ／エナ）は実行側が決める。
    */
   fieldBanishZones: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第4段＝`trashArtsFromLrigDeck` で捨てるアーツ（ルリグデッキの cardNum）。 */
+  trashArtsNums: string[];
 }
 
 /**
@@ -187,7 +194,13 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
       effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
     });
     if (!fieldBanishZones) continue;
-    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones };
+    // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキのアーツ徴収（払えないなら候補から外す）。
+    const trashArtsNums = pickCpuTrashArtsNums({
+      effect, actor: p.actor, cardMap: p.cardMap,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
+    });
+    if (!trashArtsNums) continue;
+    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones, trashArtsNums };
   }
 }
 

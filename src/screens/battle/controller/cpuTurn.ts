@@ -354,6 +354,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       handDiscardIndices: choice.handDiscardIndices, energyTrashIndices: choice.energyTrashIndices,
       // 🆕§5.7 `S-31` ② 第3段＝場から払うコスト（`fieldTrash` / `fieldBanish` で共用のゾーン）。
       fieldBanishZones: choice.fieldBanishZones,
+      // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキから徴収するアーツ。
+      trashArtsNums: choice.trashArtsNums,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',

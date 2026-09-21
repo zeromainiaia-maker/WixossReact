@@ -6,6 +6,8 @@ import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
+import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
+import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
 import { charmTrashAffordable, exceedColorsSatisfied, exceedPoolOf, removeOppVirusAffordable } from './costs';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
@@ -158,6 +160,15 @@ export function canActivateLrigEffect(
   // ⚠**`upToCount`（「N体まで」）は0体でも成立する**ので候補数で止めない＝止めると原文より狭くなる。
   if (eff.cost?.fieldTrash && !eff.cost.fieldTrash.upToCount
     && fieldTrashSelectableZones(eff.cost.fieldTrash, my, cardMap).length < eff.cost.fieldTrash.count) return false;
+  // 🆕**fieldToLrigTrash**（§5.7 `S-31` ② 第4段・`WX07-001-E2`「レゾナ1体を場からルリグトラッシュに置く」）＝
+  //   🔴**検算も支払いも無く踏み倒せた**。⚠**候補の軸は `fieldTrash` と同じ**（行き先だけが違う）。
+  if (eff.cost?.fieldToLrigTrash
+    && fieldTrashSelectableZones(eff.cost.fieldToLrigTrash, my, cardMap).length < eff.cost.fieldToLrigTrash.count) return false;
+  // 🆕**trashArtsFromLrigDeck**（§5.7 `S-31` ② 第4段・live 5効果）＝徴収できるアーツが足りなければ撃てない。
+  //   ⚠候補は **engine・UI・CPU と同じ funnel**（`trashArtsFromLrigDeckCandidates`）。
+  if (eff.cost?.trashArtsFromLrigDeck
+    && trashArtsFromLrigDeckCandidates(my, eff.cost.trashArtsFromLrigDeck, cardMap, isImmovableArtsFromLrigDeck).length
+      < eff.cost.trashArtsFromLrigDeck.count) return false;
   // SONG_FRAGMENT: エナゾーンに【歌のカケラ】がある場合のみ撃てる。
   const act = eff.action as StubAction;
   if (act?.type === 'STUB' && act.id === 'SONG_FRAGMENT'

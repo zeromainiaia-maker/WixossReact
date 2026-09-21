@@ -1,4 +1,4 @@
-import type { CardData } from '../../types';
+import type { CardData, PlayerState } from '../../types';
 import type { EffectCost } from '../../types/effects';
 
 /**
@@ -19,4 +19,26 @@ export function matchesTrashArtsFromLrigDeckCost(
   if (!card?.Type?.includes('アーツ')) return false;
   if (cost.excludeCraft && card.Type.includes('クラフト')) return false;
   return !cost.color || (card.Color?.includes(cost.color) ?? false);
+}
+
+/**
+ * 🆕**`cost.trashArtsFromLrigDeck` の候補**（§5.7 `S-31` ② 第4段・2026-09-21）＝
+ * ルリグデッキから徴収できるアーツを**1本の funnel**で返す。
+ *
+ * 🔑**候補の軸は2つ**＝①色・クラフト除外（`matchesTrashArtsFromLrigDeckCost`）
+ * ②「あなたのコストや効果でルリグデッキから移動しない」アーツを除く（`isImmovableArtsFromLrigDeck`＝§5.3 `O-423`）。
+ * ⚠**engine（`execStubPart1` の徴収）と同じ2軸**＝写経して片方を落とすと「UI では選べるのに engine では動かない」になる。
+ * ⚠`import` の向き（`engine` → `screens/battle`）は既存のものに合わせてある（`matchesTrashArtsFromLrigDeckCost` と同じ）。
+ */
+export function trashArtsFromLrigDeckCandidates(
+  my: PlayerState,
+  cost: EffectCost['trashArtsFromLrigDeck'] | undefined,
+  cardMap: Map<string, CardData>,
+  isImmovable: (cardNum: string, cardMap: Map<string, CardData>) => boolean,
+): string[] {
+  if (!cost) return [];
+  return my.lrig_deck.filter(num => {
+    const base = num.includes('#') ? num.slice(0, num.indexOf('#')) : num;
+    return matchesTrashArtsFromLrigDeckCost(cardMap.get(base), cost) && !isImmovable(num, cardMap);
+  });
 }

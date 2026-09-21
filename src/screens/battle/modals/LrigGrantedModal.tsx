@@ -10,6 +10,8 @@ import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, isEnergyPaymentSelectionValid, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
+import { trashArtsFromLrigDeckCandidates } from '../artsTrashCost';
+import { isImmovableArtsFromLrigDeck } from '../../../engine/execUtils';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
@@ -29,7 +31,7 @@ interface LrigGrantedModalProps {
   /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
   selectedLrigGrantedFieldBanish: Set<number>;
   setSelectedLrigGrantedFieldBanish: Dispatch<SetStateAction<Set<number>>>;
-  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>) => void;
+  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>, trashArtsNums?: string[]) => void;
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
@@ -41,11 +43,15 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
   //   ⚠選択 state はここに閉じる（他のコストと違って BattleScreen 側で使わない）。
   //   ⚠閉じる3経路すべてでリセットする（effect 内 setState は使わない）。
   const [selectedExceed, setSelectedExceed] = useState<number[]>([]);
+  // 🆕§5.7 `S-31` ② 第4段＝`trashArtsFromLrigDeck`（ルリグデッキからアーツを徴収するコスト）で捨てる札。
+  //   🔴旧＝この経路には選択UIも支払いも無く、**アーツを1枚も失わずに撃てた**（キー【起】側には在った）。
+  //   ⚠選択 state はここに閉じる（`selectedExceed` と同じ規約＝閉じる3経路すべてでリセットする）。
+  const [selectedLrigArts, setSelectedLrigArts] = useState<string[]>([]);
   return (
     <>
       {pendingLrigGranted && createPortal(
         <div
-          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedExceed([]); }}
+          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedExceed([]); setSelectedLrigArts([]); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -125,7 +131,10 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               //   🔴**ルリグ【起】にはこの UI も支払いも1行も無く、コストを踏み倒して撃てた。**
               //   ⚠**行き先だけが違う**（バニッシュ＝エナゾーン／トラッシュ＝トラッシュ）＝ラベルを書き分ける。
               const lgFieldTrashCost = !lgFieldBanishCost ? eff.cost?.fieldTrash : undefined;
-              const lgFieldZoneCost = lgFieldBanishCost ?? lgFieldTrashCost;
+              // 🆕§5.7 `S-31` ② 第4段＝**行き先が3つめ**（ルリグトラッシュ＝`WX07-001-E2`「レゾナ1体を場から
+              //   ルリグトラッシュに置く」）。⚠**選ぶ軸は同じ**なので state と UI は共用し、ラベルだけ書き分ける。
+              const lgFieldToLrigTrashCost = (!lgFieldBanishCost && !lgFieldTrashCost) ? eff.cost?.fieldToLrigTrash : undefined;
+              const lgFieldZoneCost = lgFieldBanishCost ?? lgFieldTrashCost ?? lgFieldToLrigTrashCost;
               const lgFieldUpTo = lgFieldTrashCost?.upToCount === true;
               const lgFbSelectableZones = lgFieldZoneCost
                 ? fieldTrashSelectableZones(lgFieldZoneCost, my, battleCardMap)
@@ -138,7 +147,11 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               // 🆕§5.3 `O-292`＝ライバートークン（提示ゲート `canActivateLrigEffect` と同じ軸）。
               const lgCollabCost = eff.cost?.collab ?? 0;
               const lgCollabOk = lgCollabCost === 0 || (my.liver_tokens ?? 0) >= lgCollabCost;
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk;
+              // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキのアーツ徴収（候補は engine・可否ゲート・CPU と同じ funnel）。
+              const lgArtsCost = eff.cost?.trashArtsFromLrigDeck;
+              const lgArtsCands = trashArtsFromLrigDeckCandidates(my, lgArtsCost, battleCardMap, isImmovableArtsFromLrigDeck);
+              const lgArtsOk = !lgArtsCost || selectedLrigArts.length === lgArtsCost.count;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk && lgCollabOk && lgArtsOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -421,7 +434,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                   {lgFieldZoneCost && (
                     <>
                       <p style={{ color: lgFieldBanishOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
-                        場から{lgFieldZoneCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(lgFieldZoneCost.filter)}シグニを{lgFieldBanishCost ? 'バニッシュ' : 'トラッシュ'}:
+                        場から{(lgFieldBanishCost ?? lgFieldTrashCost)?.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(lgFieldZoneCost.filter)}シグニを{lgFieldBanishCost ? 'バニッシュ' : lgFieldToLrigTrashCost ? 'ルリグトラッシュへ' : 'トラッシュ'}:
                         {' '}{selectedLrigGrantedFieldBanish.size} / {lgFieldZoneCost.count}体{lgFieldUpTo ? 'まで' : ''}
                       </p>
                       {lgFbSelectableZones.length === 0 ? (
@@ -468,6 +481,40 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     </>
                   )}
 
+                  {/* 🆕§5.7 `S-31` ② 第4段＝ルリグデッキからアーツを徴収するコスト（`WDK14-001-E3` ほか live 5効果） */}
+                  {lgArtsCost && (
+                    <>
+                      <p style={{ color: lgArtsOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        ルリグデッキから{lgArtsCost.color ? `${lgArtsCost.color}の` : ''}アーツをルリグトラッシュへ:
+                        {' '}{selectedLrigArts.length} / {lgArtsCost.count}枚
+                      </p>
+                      {lgArtsCands.length === 0 ? (
+                        <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>捨てられるアーツがありません</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                          {lgArtsCands.map(num => {
+                            const c = battleCardMap.get(getCardNum(num));
+                            const isSel = selectedLrigArts.includes(num);
+                            return (
+                              <div key={num}
+                                data-testid={`lrigact-arts-${getCardNum(num)}`}
+                                onClick={() => setSelectedLrigArts(prev => prev.includes(num)
+                                  ? prev.filter(x => x !== num)
+                                  : (prev.length >= lgArtsCost.count ? prev : [...prev, num]))}
+                                onContextMenu={e => e.preventDefault()}
+                                style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                  border: isSel ? '2px solid #ff9800' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                                {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                   : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                                {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   {exceedCost > 0 && totalExceedAvail >= exceedCost && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
@@ -502,14 +549,14 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); setSelectedExceed([]); }}
+                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); setSelectedExceed([]); setSelectedLrigArts([]); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed)); setSelectedExceed([]); }}
+                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed), selectedLrigArts); setSelectedExceed([]); setSelectedLrigArts([]); }}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

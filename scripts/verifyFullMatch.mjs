@@ -200,15 +200,26 @@ function makeSeat(page, name) {
      * 🔑**`pick-0` は「決定 (1/N)」が出ていないときだけ押す**（`verifyBattleDrive.mjs` の `stdStep` と同じ規約）
      *   ＝必要枚数に達しているのにさらに選ぶと選択が解除されて無限ループになる。
      */
-    modalStep: async () => {
+    modalStep: async (blocked = new Set()) => {
       const pick0 = page.getByTestId('pick-0').first();
       if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
         const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
         // 🆕2026-09-18＝**配置レベル制限（`R-48`①・`O-534`）で出せない候補は押さない**＝「Lv超過」と表示され、
         //   選んでも決定ボタンが「ルリグのレベルを超えています」のまま押せない。旧版はこれを「まだ選べていない」と読んで
         //   候補を押し続け、**スキップにたどり着けず手詰まり**になった（機構デッキの CPU 通し対戦・人間側のライフバースト）。
-        const levelOver = ((await pick0.textContent().catch(() => '')) ?? '').includes('Lv超過');
-        if (!ready && !levelOver) { try { await pick0.click({ timeout: 1500 }); return 'pick:pick-0'; } catch { /* 続行 */ } }
+        // 🆕🔴**2026-09-22＝その判定は一度も当たっていなかった**（§5.7 `S-31` ② 第4段の実機で再発）＝
+        //   「Lv超過」の `<span>` は `pick-N` の**兄弟**（`EffectInteractionModal.tsx`）なので
+        //   `pick0.textContent()` には**絶対に入らない**。⇒ **親要素の文字列で見る。**
+        //   🔑これは「正規表現／セレクタが黙って何にも当たらない」型＝**当たった回数を必ず確かめる**
+        //     （CLAUDE.md の `census:deadstate` の罠と同型）。
+        const wrapText = ((await pick0.locator('xpath=..').textContent().catch(() => '')) ?? '');
+        const levelOver = wrapText.includes('Lv超過');
+        // 🆕🔴**封印された手は押し直さない**＝`modalStep` だけ `blocked` を受け取っていなかったので、
+        //   「3回押しても盤面が動かない＝封印」の仕組みが**この経路にだけ効かず**、
+        //   `pick-0` を押し続けて「決定(0/N)／選ばない」へ一生たどり着けなかった。
+        if (!ready && !levelOver && !blocked.has('pick:pick-0')) {
+          try { await pick0.click({ timeout: 1500 }); return 'pick:pick-0'; } catch { /* 続行 */ }
+        }
       }
       return await S.clickAny([
         // 🔴**ライフバースト確認**（`LifeBurstCheckModal`）＝**相手ターンでも自分に来る**。
@@ -330,7 +341,7 @@ async function playOneStep(S, st, blocked = new Set()) {
   // ① 対話モーダル（自分に来ている pending は誰のターンでも捌く＝相手ターンのガード窓など）。
   const discard = await S.endDiscardStep();
   if (discard) return discard;
-  const modal = await S.modalStep();
+  const modal = await S.modalStep(blocked);
   if (modal) return modal;
   // 🔴固定ラベルで拾えない効果モーダル（`CHOOSE` のカード固有ラベルなど）はここで総当たりする。
   if (st?.pendingEffect || st?.pendingSpell) {

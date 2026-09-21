@@ -2,13 +2,13 @@
 import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
-import type { CardData } from './src/types';
-import type { CardEffect, EffectCost } from './src/types/effects';
-import { mergeManualEffects } from './src/data/manualEffects';
-import { CPU_AUTO_PAYABLE_COST_KEYS } from './src/screens/battle/cpuActivate';
-import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS } from './src/screens/battle/cpuLrigActivate';
+import type { CardData } from '../../src/types';
+import type { CardEffect, EffectCost } from '../../src/types/effects';
+import { mergeManualEffects } from '../../src/data/manualEffects';
+import { CPU_AUTO_PAYABLE_COST_KEYS } from '../../src/screens/battle/cpuActivate';
+import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS } from '../../src/screens/battle/cpuLrigActivate';
 
-const root = import.meta.dirname;
+const root = join(import.meta.dirname, '../..');
 const cardMap = new Map<string, CardData>();
 for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
   const p = join(root, 'public/data', f);

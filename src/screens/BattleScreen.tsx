@@ -5385,10 +5385,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set()) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set(), trashArtsNums: string[] = []) => {
     if (loading) return;
     closeLrigGranted();
-    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices }, {
+    // 🆕§5.7 `S-31` ② 第4段＝`trashArtsNums`（ルリグデッキから徴収するアーツ）も実行へ渡す。
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices, trashArtsNums }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,

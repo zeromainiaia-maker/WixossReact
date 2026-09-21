@@ -277,6 +277,24 @@ export const performSigniActivated = async (
       if (movedCA.length < charmTrashNAct2) return; // 支払い不能
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
     }
+    // 🆕**selfToDeckBottom**（§5.7 `S-31` ② 第4段・`WXK10-043-E2`／`WXDi-P08-062-E2`）＝
+    //   「このシグニを場から**デッキの一番下**に置く：」。🔴**この経路に支払いが1行も無く踏み倒せた**
+    //   （`trash_self`／`bounceSelf`／`fieldExileSelf` と**行き先だけが違う**兄弟なのに、ここだけ抜けていた）。
+    //   ⚠離場処理は同じ `removeFromField`（下敷き・チャーム・アクセの後始末を落とさない）。
+    if (effect.cost?.selfToDeckBottom) {
+      const afterRemoveD = removeFromField(cardNum, paid);
+      paid = { ...afterRemoveD, deck: [...afterRemoveD.deck, cardNum] };
+    }
+    // 🆕**chargeCounterRemove**（§5.7 `S-31` ② 第4段・`WX17-034`＝【貯菌】）＝
+    //   「この上から【貯菌】N つを取り除く：」。🔴**支払いも提示の検算も無かった**＝
+    //   **カウンターが0個でも撃てた**（＝「相手のシグニ1体をトラッシュ」がコストなしで無限に撃てる）。
+    if (effect.cost?.chargeCounterRemove) {
+      const zoneIdxC = paid.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+      const chokkin = [...(paid.field.signi_chokkin ?? [0, 0, 0])];
+      if (zoneIdxC < 0 || (chokkin[zoneIdxC] ?? 0) < effect.cost.chargeCounterRemove) { ctx.io.setLoading(false); return; }
+      chokkin[zoneIdxC] -= effect.cost.chargeCounterRemove;
+      paid = { ...paid, field: { ...paid.field, signi_chokkin: chokkin } };
+    }
     // 🆕**deckTrash**（§5.7 `S-31` ② 第3段・`SPK01-06-E1` ほか live 9効果）＝
     //   🔴**この経路にも支払いが1行も無かった**＝人間も CPU も踏み倒して撃てていた。
     //   ⚠支払いは `payDeckTrashCost` 1本（ルリグ【起】と同じ関数＝写経しない）。
