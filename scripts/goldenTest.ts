@@ -169,11 +169,11 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
-import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
-import { applyCpuMoveSim, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { applyCpuMoveSim, cpuPlanMoveStep, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
@@ -86780,7 +86780,9 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   // 読み込み＝形が崩れていても落ちない・自分自身とのコンボは捨てる
   eq(JSON.stringify(normalizeCpuDeckPlan(null)), JSON.stringify({ keyCards: [], priorityCards: [], combos: [] }), 'null を空の作戦にしない');
   const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
-  eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X], combos: [{ first: A, then: B }] }), '作戦データの正規化が違う');
+  // 🆕§5.7 `S-14`（2026-09-21）＝**旧形 `{first, then}` は「出す → 出す」の2手へ変換される**（較正＝保存済みの作戦を壊さない）。
+  eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X],
+    combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }] }), '作戦データの正規化が違う');
   eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])), JSON.stringify({ keyCards: [K], priorityCards: [], combos: [] }), '🔴デッキに無いカードが作戦に残った');
   // 加点
   ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
@@ -90016,10 +90018,87 @@ test('§5.7 S-14 作戦データを探索にも効かせる：加点は打つ前
 
   // ── ⑤ 配線＝**加点の式は1本**（探索側も召喚側も同じ `planDeployBonus` を呼ぶ）──
   const turnSrc14 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
-  ok(/moveBonus: \(mv, board\) => \(mv\.kind === 'deploy'/.test(turnSrc14),
-    '🔴探索に作戦データを渡していない＝`priorityCards`／`combos` が既定の CPU で効かない');
-  eq((turnSrc14.match(/planDeployBonus\(cpuPlan,/g) ?? []).length, 2,
-    '🔴`planDeployBonus` の呼び出し本数が変わった（探索側＋召喚側の2本＝式を2か所に書き直していないか）');
+  ok(/const step = cpuPlanMoveStep\(mv, board\.cpu\);/.test(turnSrc14)
+    && /planUseBonus\(cpuPlan, step\.num, step\.use, cpuPlanBoardCtx\(board\.cpu\), cpuPolicy\)/.test(turnSrc14),
+  '🔴探索に作戦データを渡していない＝`priorityCards`／`combos` が既定の CPU で効かない');
+  eq((turnSrc14.match(/planDeployBonus\(cpuPlan,/g) ?? []).length, 1,
+    '🔴召喚側の `planDeployBonus` の呼び出し本数が変わった（探索側は `planUseBonus` の1本＝式を2か所に書き直していないか）');
+}));
+
+test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／アーツ／スペルを列で書け、旧形も読める', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（2026-09-21 実測）**＝21デッキの作戦データを下書きしたら、**3件が「出す」だけでは書けなかった**
+  //   （`WD06` リュウグウの【起】／`WD08` ネビュラをトラッシュから【起】／`WD16` Ｆ・Ｍ・Ｓ の【起】→Ｇ・Ｌ・Ｋ）。
+  const A = 'WD03-013', B = 'WX04-080';
+
+  // ── ① 読み込み＝🆕新形（`steps`）と🔴旧形（`{first, then}`）の両方 ──
+  const neu = normalizeCpuDeckPlan({ combos: [{ steps: [{ num: A, use: 'activate' }, { num: B, use: 'deploy' }] }] });
+  eq(JSON.stringify(neu.combos), JSON.stringify([{ steps: [{ num: A, use: 'activate' }, { num: B, use: 'deploy' }] }]),
+    '🔴「使い方」つきのコンボを読めない');
+  eq(JSON.stringify(normalizeCpuDeckPlan({ combos: [{ first: A, then: B }] }).combos),
+    JSON.stringify([{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }]),
+    '🔴旧形のコンボが読めない＝保存済みの作戦を壊す');
+  // 壊れた値＝知らない使い方は「出す」へ寄せる／空の番号と重複は落とす
+  eq(JSON.stringify(normalizeCpuDeckPlan({ combos: [{ steps: [{ num: A, use: 'ぬるぽ' }, { num: A, use: 'deploy' }, { num: '' }] }] }).combos),
+    JSON.stringify([{ steps: [{ num: A, use: 'deploy' }] }]), '🔴壊れた「使い方」を素通しした');
+  // デッキから抜けた札は全部の手を見て落とす
+  eq(pruneCpuDeckPlan(neu, [A]).combos.length, 0, '🔴デッキに無い札を含むコンボが残った');
+  // 手元に残す・マリガンで戻さないは**全部の手**を見る
+  ok(planKeepsInMulligan(neu, `${B}#1`) && planKeepBonus(neu, `${A}#1`) > 0, '🔴「使い方」つきコンボのパーツを守っていない');
+
+  // ── ② 加点＝「済んだ」の判定は使い方ごと ──
+  const eff = (num: string) => (num === A ? [`${A}-E1`] : []);
+  const ctxOf = (o: Partial<Parameters<typeof planUseBonus>[3]>) =>
+    ({ hand: [], field: [], effectIdsOf: eff, ...o } as Parameters<typeof planUseBonus>[3]);
+  // 1手目（`activate`）＝後ろの手の札が手元にあるなら「先に打つ」
+  eq(planUseBonus(neu, A, 'activate', ctxOf({ hand: [`${A}#1`, `${B}#1`] })), PLAN_WEIGHTS.comboFirst,
+    '🔴【起】を1手目に持つコンボの始動に加点が無い');
+  // 🔑**使い方が違えば別の手**＝同じ札を「出す」で打っても加点しない
+  eq(planUseBonus(neu, A, 'deploy', ctxOf({ hand: [`${A}#1`, `${B}#1`] })), 0,
+    '🔴「使い方」を見ずに札の一致だけで加点した（【起】のコンボが召喚で成立してしまう）');
+  // 2手目＝前の【起】が済んでいれば最優先／済んでいなければ温存
+  eq(planUseBonus(neu, B, 'deploy', ctxOf({ hand: [`${B}#1`], activatedEffectIds: [`${A}-E1`] })), PLAN_WEIGHTS.comboThenReady,
+    '🔴前の【起】を使ったのに仕上げの札を優先しない');
+  eq(planUseBonus(neu, B, 'deploy', ctxOf({ hand: [`${A}#1`, `${B}#1`] })), PLAN_WEIGHTS.comboThenHold,
+    '🔴前の【起】がまだなのに仕上げの札を出してしまう（温存しない）');
+  // 🔑トラッシュの札も「手元にある」と数える（トラッシュ【起】のコンボ＝`WD08` のネビュラ）
+  ok(planUseBonus(neu, A, 'activate', ctxOf({ hand: [], available: [`${A}#1`, `${B}#9`] })) > 0,
+    '🔴トラッシュ・エナにある札をコンボの相方と見ていない');
+  // アーツ／スペルの「済んだ」＝使用済みの置き場にある
+  const arts = normalizeCpuDeckPlan({ combos: [{ steps: [{ num: A, use: 'spell' }, { num: B, use: 'deploy' }] }] });
+  eq(planUseBonus(arts, B, 'deploy', ctxOf({ hand: [`${B}#1`], trash: [`${A}#1`] })), PLAN_WEIGHTS.comboThenReady,
+    '🔴スペルを使い終わったことを見ていない');
+  // 1手だけのコンボ＝その使い方を常に優先する
+  const solo = normalizeCpuDeckPlan({ combos: [{ steps: [{ num: A, use: 'activate' }] }] });
+  eq(planUseBonus(solo, A, 'activate', ctxOf({})), PLAN_WEIGHTS.comboFirst, '🔴1手のコンボ（この【起】を優先）が効かない');
+
+  // ── ③ 手 → 作戦の「手」の対応づけ（`cpuPlanMoveStep`）──
+  const st14 = mkState({ signi: [null, null, null], lrig: ['WD03-003#r1'] });
+  eq(JSON.stringify(cpuPlanMoveStep({ kind: 'deploy', handIndex: 0, id: `${A}#1`, zone: 0 } as never, st14)),
+    JSON.stringify({ num: A, use: 'deploy' }), '🔴召喚を「出す」に対応づけていない');
+  eq(JSON.stringify(cpuPlanMoveStep({ kind: 'activate', choice: { cardNum: `${A}#1` }, pool: [], phase: 'MAIN' } as never, st14)),
+    JSON.stringify({ num: A, use: 'activate' }), '🔴場のシグニ【起】を「【起】で使う」に対応づけていない');
+  eq(JSON.stringify(cpuPlanMoveStep({ kind: 'offFieldActivate', choice: { cardNum: `${A}#1` }, pool: [], phase: 'MAIN' } as never, st14)),
+    JSON.stringify({ num: A, use: 'activate' }), '🔴場以外の【起】を「【起】で使う」に対応づけていない');
+  // 🔴ルリグ【起】は `choice` に札が無い＝センタールリグの一番上で代用する（`effectId` から削り出さない）
+  eq(JSON.stringify(cpuPlanMoveStep({ kind: 'lrigActivate', choice: {}, pool: [], phase: 'MAIN' } as never, st14)),
+    JSON.stringify({ num: 'WD03-003', use: 'activate' }), '🔴ルリグ【起】をセンタールリグに対応づけていない');
+  eq(cpuPlanMoveStep({ kind: 'lrigAttack' } as never, st14), null, '🔴作戦に関係しない手を対応づけた');
+
+  // ── ④ 盤面の文脈＝写経せず1本（トラッシュ・エナも「手元」に入れる）──
+  const stCtx = mkState({ signi: [null, null, null], lrig: ['WD03-003#r1'] });
+  stCtx.hand = [`${A}#h`]; stCtx.trash = [`${B}#t`]; stCtx.energy = [`${A}#e`];
+  const built = cpuPlanBoardCtx(stCtx, eff);
+  ok(built.available!.includes(`${B}#t`) && built.available!.includes(`${A}#e`),
+    '🔴トラッシュ・エナを「手元」に入れていない＝トラッシュ【起】のコンボが動かない');
+  eq(built.field.includes('WD03-003#r1'), true, '🔴ルリグを場に数えていない');
+
+  // ── ⑤ 編集 UI（`src/screens/deck/CpuDeckPlanModal.tsx`）──
+  const modal = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(/data-testid="cpu-plan-combo-use"/.test(modal), '🔴「使い方」を選ぶ UI が無い');
+  ok(/data-testid="cpu-plan-combo-step-add"/.test(modal) && /data-testid="cpu-plan-combo-add"/.test(modal),
+    '🔴コンボを「手を足す → 追加」で組み立てられない（2手に限らない形になっていない）');
+  ok(/CPU_COMBO_USE_LABELS/.test(modal), '🔴使い方の表示名を画面に写経している（表は `cpuDeckPlan.ts` の1本）');
+  ok(/data-testid={`cpu-plan-key-\$\{c\.CardNum\}`}/.test(modal), '🔴キーカードのボタンの testid が変わった（実機シナリオが参照している）');
 }));
 
 if (listMode) {

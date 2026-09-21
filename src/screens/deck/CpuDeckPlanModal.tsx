@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
-  EMPTY_CPU_DECK_PLAN, pruneCpuDeckPlan, type CpuDeckPlan,
+  CPU_COMBO_USES, CPU_COMBO_USE_LABELS, EMPTY_CPU_DECK_PLAN, pruneCpuDeckPlan,
+  type CpuComboStep, type CpuComboUse, type CpuDeckPlan,
 } from '../battle/cpuDeckPlan';
 
 /**
- * 🆕**CPU の作戦**の編集（§5.7 `S-2`・CPU デッキだけ）＝キーカード・優先して出す札・コンボ（「A の後に B」）。
+ * 🆕**CPU の作戦**の編集（§5.7 `S-2`・CPU デッキだけ）＝キーカード・優先して出す札・コンボ。
  * 保存はデッキの更新（`onChange`）と同じ経路＝`decks.cpu_plan`。デッキに無いカードは保存時に外す（`pruneCpuDeckPlan`）。
+ *
+ * 🆕🔴**§5.7 `S-14`（2026-09-21）＝コンボに「使い方」を持たせた**＝1手ごとに
+ * **出す／【起】で使う／アーツで撃つ／スペルで使う**を選ぶ（**2手に限らない**）。
+ * 🔑**なぜ要るか（実測）**＝21デッキの作戦データを下書きしたら、**3件が「出す」だけでは書けなかった**
+ * （`WD06` リュウグウの【起】／`WD08` ネビュラをトラッシュから【起】／`WD16` Ｆ・Ｍ・Ｓ の【起】→Ｇ・Ｌ・Ｋ）。
+ * ⚠**旧形（A → B の2枚）で保存済みのコンボは「出す → 出す」として読める**（`normalizeCpuDeckPlan`）。
  */
 export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   deck: Deck;
@@ -17,20 +24,30 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const deckNums = [...new Set([...deck.lrigDeck, ...deck.mainDeck])];
   const plan = pruneCpuDeckPlan(deck.cpuPlan ?? EMPTY_CPU_DECK_PLAN, deckNums);
   const cards = deckNums.map(n => cardMap.get(n)).filter((c): c is CardData => !!c);
-  const [first, setFirst] = useState('');
-  const [then, setThen] = useState('');
-  const nameOf = (num: string) => cardMap.get(num)?.CardName ?? num;
+  /** 組み立て中のコンボ（「手を足す」で伸ばし、「コンボに追加」で確定する）。 */
+  const [steps, setSteps] = useState<CpuComboStep[]>([]);
+  const [num, setNum] = useState('');
+  const [use, setUse] = useState<CpuComboUse>('deploy');
+  const nameOf = (n: string) => cardMap.get(n)?.CardName ?? n;
+  const stepLabel = (st: CpuComboStep) => `${nameOf(st.num)}（${CPU_COMBO_USE_LABELS[st.use]}）`;
 
   const save = (next: CpuDeckPlan) => onChange(pruneCpuDeckPlan(next, deckNums));
-  const toggle = (key: 'keyCards' | 'priorityCards', num: string) => {
+  const toggle = (key: 'keyCards' | 'priorityCards', n: string) => {
     const list = plan[key];
-    save({ ...plan, [key]: list.includes(num) ? list.filter(n => n !== num) : [...list, num] });
+    save({ ...plan, [key]: list.includes(n) ? list.filter(x => x !== n) : [...list, n] });
+  };
+  /** 組み立て中のコンボに1手足す（⚠同じ「札×使い方」は足さない）。 */
+  const addStep = () => {
+    if (!num || steps.some(st => st.num === num && st.use === use)) return;
+    setSteps([...steps, { num, use }]);
+    setNum('');
   };
   const addCombo = () => {
-    if (!first || !then || first === then) return;
-    if (plan.combos.some(c => c.first === first && c.then === then)) return;
-    save({ ...plan, combos: [...plan.combos, { first, then }] });
-    setFirst(''); setThen('');
+    if (steps.length === 0) return;
+    const key = (xs: readonly CpuComboStep[]) => xs.map(st => `${st.num}/${st.use}`).join('>');
+    if (plan.combos.some(c => key(c.steps) === key(steps))) { setSteps([]); return; }
+    save({ ...plan, combos: [...plan.combos, { steps }] });
+    setSteps([]);
   };
 
   const chip = (active: boolean, color: string): React.CSSProperties => ({
@@ -49,7 +66,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
         <p style={{ color: '#aaa', fontSize: 11, margin: 0, lineHeight: 1.6 }}>
           <b style={{ color: '#ffb84d' }}>キー</b>＝エナに置かない・捨てない・マリガンで戻さない／
           <b style={{ color: '#4da3ff' }}>優先</b>＝先に場に出す／
-          <b style={{ color: '#7ddc7d' }}>コンボ</b>＝A が場にいないあいだ B は温存し、A を先に出す
+          <b style={{ color: '#7ddc7d' }}>コンボ</b>＝前の手が済むまで後の手は温存し、順番どおりに打つ
         </p>
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 120 }}>
@@ -65,23 +82,29 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
         </div>
 
         <div style={{ borderTop: '1px solid #333', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ color: '#7ddc7d', fontSize: 12, fontWeight: 'bold' }}>コンボ（A の後に B）</span>
+          <span style={{ color: '#7ddc7d', fontSize: 12, fontWeight: 'bold' }}>コンボ（順番に打つ手）</span>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <select data-testid="cpu-plan-combo-first" value={first} onChange={e => setFirst(e.target.value)} style={selectStyle}>
-              <option value="">A（先に出す）</option>
+            <select data-testid="cpu-plan-combo-card" value={num} onChange={e => setNum(e.target.value)} style={selectStyle}>
+              <option value="">カードを選ぶ</option>
               {cards.map(c => <option key={c.CardNum} value={c.CardNum}>{c.CardName}</option>)}
             </select>
-            <span style={{ color: '#888' }}>→</span>
-            <select data-testid="cpu-plan-combo-then" value={then} onChange={e => setThen(e.target.value)} style={selectStyle}>
-              <option value="">B（後で使う）</option>
-              {cards.map(c => <option key={c.CardNum} value={c.CardNum}>{c.CardName}</option>)}
+            <select data-testid="cpu-plan-combo-use" value={use} onChange={e => setUse(e.target.value as CpuComboUse)}
+              style={{ ...selectStyle, flex: '0 0 130px' }}>
+              {CPU_COMBO_USES.map(u => <option key={u} value={u}>{CPU_COMBO_USE_LABELS[u]}</option>)}
             </select>
-            <button data-testid="cpu-plan-combo-add" onClick={addCombo} disabled={!first || !then || first === then}
-              style={{ ...chip(!!first && !!then && first !== then, '#2e8b2e'), padding: '6px 10px' }}>追加</button>
+            <button data-testid="cpu-plan-combo-step-add" onClick={addStep} disabled={!num}
+              style={{ ...chip(!!num, '#2e6fb8'), padding: '6px 10px' }}>手を足す</button>
           </div>
+          {steps.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#7ddc7d' }}>
+              <span data-testid="cpu-plan-combo-draft" style={{ flex: 1 }}>{steps.map(stepLabel).join(' → ')}</span>
+              <button data-testid="cpu-plan-combo-add" onClick={addCombo} style={chip(true, '#2e8b2e')}>コンボに追加</button>
+              <button onClick={() => setSteps([])} style={chip(false, '#000')}>取消</button>
+            </div>
+          )}
           {plan.combos.map(c => (
-            <div key={`${c.first}>${c.then}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#ddd' }}>
-              <span style={{ flex: 1 }}>{nameOf(c.first)} → {nameOf(c.then)}</span>
+            <div key={c.steps.map(st => `${st.num}/${st.use}`).join('>')} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#ddd' }}>
+              <span style={{ flex: 1 }}>{c.steps.map(stepLabel).join(' → ')}</span>
               <button onClick={() => save({ ...plan, combos: plan.combos.filter(x => x !== c) })} style={chip(false, '#000')}>削除</button>
             </div>
           ))}

@@ -43,7 +43,7 @@ import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve, chargeNeedColors} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
-import {normalizeCpuDeckPlan, planDeployBonus, planKeepBonus} from '../cpuDeckPlan';
+import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planUseBonus} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
@@ -57,7 +57,7 @@ import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpu
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
-import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -908,11 +908,14 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         // 🆕🔴§5.7 `S-14`（2026-09-21）＝**作戦データ（`S-2`）を探索にも効かせる**。
         //   🔴`S-25` で既定を「探索あり」へ上げた瞬間、召喚を決めるのが下の `pickCpuDeployCard`
         //   （`planDeployBonus` を足す側）から探索へ移り、**`priorityCards` と `combos` が黙って効かなくなっていた**。
-        //   ⚠**加点の式は1本**＝ここも下の `pickCpuDeployCard` も同じ `planDeployBonus` を呼ぶ。
-        moveBonus: (mv, board) => (mv.kind === 'deploy'
-          ? planDeployBonus(cpuPlan, mv.id, board.cpu.hand,
-            [...board.cpu.field.signi.map(stk => stk?.at(-1) ?? ''), ...board.cpu.field.lrig].filter(Boolean), cpuPolicy)
-          : 0),
+        //   🆕**コンボの「使い方」（`S-14` 第2段）＝【起】・アーツ・スペルもここで加点する**
+        //   （探索は既定なので、`activate` を含むコンボはこの口でしか効かない）。
+        //   ⚠**加点の式は1本**＝ここも下の `pickCpuDeployCard` も同じ `planUseBonus`／`planDeployBonus` を呼ぶ。
+        moveBonus: (mv, board) => {
+          const step = cpuPlanMoveStep(mv, board.cpu);
+          if (!step) return 0;
+          return planUseBonus(cpuPlan, step.num, step.use, cpuPlanBoardCtx(board.cpu), cpuPolicy);
+        },
       });
       if (searched.move && searched.move.kind !== 'deploy') {
         // 🔴**実行は人間と同じ `perform*`**（`doCpuSearchedMove`）＝探索用の近似適用では打たない。

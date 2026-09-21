@@ -23,6 +23,7 @@ import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } f
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
+import type { CpuComboUse } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -962,6 +963,30 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
 /** 探索用の適用ができる手の種類（できないものは従来の優先順に委ねる＝上の `applyCpuMoveSim`）。 */
 export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
   new Set<CpuMoveKind>(['energy', 'grow', 'deploy', 'activate', 'lrigActivate', 'offFieldActivate', 'arts', 'spell', 'signiAttack', 'lrigAttack']);
+
+/**
+ * 🆕**その手が作戦データ（`S-2`）のどの「手」に当たるか**（§5.7 `S-14`・2026-09-21）。
+ * 🔑**コンボの「使い方」と突き合わせる唯一の場所**＝`planUseBonus` はここが返した `{num, use}` だけを見る。
+ * ⚠**ルリグの【起】は `choice` に札を持たない**＝センタールリグの一番上で代用する
+ *   （付与・継承された【起】は当たらない＝**加点0**＝安全側に外す）。
+ *   🔴**`effectId` からカード番号を正規表現で削り出さない**（接尾辞が開いた集合＝実測で95件外れる）。
+ * ⚠`resona`／`rise` は**まだ探索に入らない**（`CPU_SIM_APPLICABLE_KINDS` の外）＝いまは加点が届かないが、
+ *   入ったときに黙って落ちないよう対応づけだけ書いてある。
+ */
+export function cpuPlanMoveStep(m: CpuMove, st: PlayerState): { num: string; use: CpuComboUse } | null {
+  switch (m.kind) {
+    case 'deploy': return { num: getCardNum(m.id), use: 'deploy' };
+    case 'resona': case 'rise': return { num: m.card.CardNum, use: 'deploy' };
+    case 'activate': case 'offFieldActivate': return { num: getCardNum(m.choice.cardNum), use: 'activate' };
+    case 'lrigActivate': {
+      const top = st.field.lrig.at(-1);
+      return top ? { num: getCardNum(top), use: 'activate' } : null;
+    }
+    case 'arts': return { num: m.choice.card.CardNum, use: 'arts' };
+    case 'spell': return { num: m.choice.card.CardNum, use: 'spell' };
+    default: return null;
+  }
+}
 
 /** 手の短い表示（ログ・計測用）。 */
 export function describeCpuMove(m: CpuMove): string {

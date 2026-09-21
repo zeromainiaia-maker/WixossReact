@@ -7,9 +7,9 @@ const draft = {
   'WD03': { keyCards: ['WD03-009'], priorityCards: ['WD03-011', 'WD03-014'], combos: [] },
   'WD04': { keyCards: ['WD04-009'], priorityCards: ['WD04-011', 'WD04-012'], combos: [{ first: 'WD04-010', then: 'WD04-011' }] },
   'WD05': { keyCards: ['WD05-009'], priorityCards: ['WD05-014'], combos: [{ first: 'WD05-014', then: 'WD05-011' }] },
-  'WD06': { keyCards: ['WX19-Re10'], priorityCards: ['WD06-013', 'WX02-056'], combos: [] },
+  'WD06': { keyCards: ['WX19-Re10'], priorityCards: ['WD06-013', 'WX02-056'], combos: [{ steps: [{ num: 'WX19-Re10', use: 'activate' }] }] },
   'WD07': { keyCards: ['WD07-012'], priorityCards: ['WX19-Re04', 'WD07-010'], combos: [{ first: 'WX19-Re04', then: 'WD07-012' }] },
-  'WD08': { keyCards: ['WX22-Re17'], priorityCards: ['WX03-047', 'WD08-015'], combos: [{ first: 'WX22-Re17', then: 'WX03-047' }] },
+  'WD08': { keyCards: ['WX22-Re17'], priorityCards: ['WX03-047', 'WD08-015'], combos: [{ steps: [{ num: 'WX22-Re17', use: 'deploy' }, { num: 'WX03-047', use: 'deploy' }] }, { steps: [{ num: 'WX02-069', use: 'activate' }] }] },
   'WD09': { keyCards: ['WD09-009'], priorityCards: ['WD09-011'], combos: [{ first: 'WD09-011', then: 'WD09-009' }] },
   'WD10': { keyCards: ['WD10-009'], priorityCards: ['WD10-011'], combos: [{ first: 'WD10-011', then: 'WD10-009' }, { first: 'WD10-013', then: 'WD10-015' }] },
   'WD11': { keyCards: ['WD11-009'], priorityCards: ['WX19-Re19'], combos: [{ first: 'WD11-008', then: 'WD11-009' }] },
@@ -17,7 +17,7 @@ const draft = {
   'WD13': { keyCards: ['WX02-021'], priorityCards: ['WD13-016', 'WX01-036'], combos: [{ first: 'WD13-016', then: 'WX02-021' }] },
   'WD14': { keyCards: ['WD14-012'], priorityCards: ['WX11-083', 'WD14-015'], combos: [{ first: 'WD14-015', then: 'WX11-083' }] },
   'WD15': { keyCards: ['WD15-015'], priorityCards: ['WD15-014', 'WD15-018'], combos: [{ first: 'WD15-015', then: 'WD15-014' }] },
-  'WD16': { keyCards: ['WD16-016'], priorityCards: ['WD16-014', 'WX09-Re14'], combos: [] },
+  'WD16': { keyCards: ['WD16-016'], priorityCards: ['WD16-014', 'WX09-Re14'], combos: [{ steps: [{ num: 'WX09-048', use: 'activate' }, { num: 'WD16-016', use: 'deploy' }] }] },
   '天使軸1': { keyCards: ['WX02-021'], priorityCards: ['WX03-037'], combos: [] },
   'ケトッシー軸': { keyCards: ['WX01-087'], priorityCards: ['WD04-011'], combos: [{ first: 'WD04-010', then: 'WD04-011' }] },
   'レベル2止め': { keyCards: [], priorityCards: ['WX01-067', 'WX01-070'], combos: [] },
@@ -30,7 +30,7 @@ for (const d of decks) {
   const p = draft[d.name];
   if (!p || d.deck_kind !== 'cpu') continue;
   const inDeck = new Set([...(d.main_deck ?? []), ...(d.lrig_deck ?? [])].map(String));
-  for (const n of [...p.keyCards, ...p.priorityCards, ...p.combos.flatMap(c => [c.first, c.then])]) {
+  for (const n of [...p.keyCards, ...p.priorityCards, ...p.combos.flatMap(c => (c.steps ? c.steps.map(st => st.num) : [c.first, c.then]))]) {
     if (!inDeck.has(n)) missing.push(`${d.name}: ${n}`);
   }
   d.cpu_plan = p; applied++;
