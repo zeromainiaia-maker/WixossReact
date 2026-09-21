@@ -459,6 +459,33 @@ export function cpuKeyPieceInput(ctx: CpuMoveCtx, turnPhase: 'MAIN' | 'ATTACK_AR
 }
 
 /** 場以外（トラッシュ／手札／エナ）の【起】の入力。`ATTACK_ARTS_OP`＝人間のターンの応答窓。 */
+/**
+ * 🆕**カットイン窓の材料**（§5.6 `C-10` 第2段・2026-09-22）＝**人間のスペル／ピースへの応答**。
+ *
+ * ⚠**窓は相手のターン**（`isMyTurn:false`）＝エナ支払い元 pool もその前提で組む。
+ * 🔑**支払いの権威は `basicAffordable` の1本**（グロウ／【起】と同じ）＝
+ *   ここで2つ目の支払い判定を書かない（golden `§5.3 O-342` がその口の数を見張っている）。
+ */
+export function cpuCutinInput(ctx: CpuMoveCtx, turnPhase: TurnPhase): {
+  pool: EnergyPayEntry[];
+  energyPoolNums: string[];
+  cards: CardData[];
+  isAffordable: (selectedNums: string[], costStr: string) => boolean;
+  energyReserve: CpuEnergyReserve | undefined;
+  effectivePowers: Map<string, number>;
+  lrigClass: string;
+} {
+  const s = ctx.actor;
+  const pool = buildEnergyPayPool(s, { turnPhase, isMyTurn: false, effectsMap: ctx.effectsMap });
+  const { isAffordable } = basicAffordable(ctx, s);
+  return {
+    pool, energyPoolNums: energyPoolCardNums(pool), cards: ctx.allCards, isAffordable,
+    energyReserve: ctx.reserveFor(s),
+    effectivePowers: calcFieldPowers(s, ctx.opponent, false, ctx.effectsMap, ctx.cardMap, turnPhase),
+    lrigClass: centerClassOf(ctx, s),
+  };
+}
+
 export function cpuOffFieldInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): CpuOffFieldPickInput & { pool: EnergyPayEntry[] } {
   const s = ctx.actor;
   const isCpuTurn = phase !== 'ATTACK_ARTS_OP';

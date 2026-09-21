@@ -44,6 +44,9 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'lrigActivate', label: 'ルリグの【起】', pattern: /^\[CPU\] ルリグの【起】を発動:/, anchor: '[CPU] ルリグの【起】を発動:' },
   // 🆕§5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナゾーン）。
   { id: 'offFieldActivate', label: '場以外の【起】（トラッシュ・手札・エナ）', pattern: /^\[CPU\] (トラッシュ|手札|エナゾーン)の【起】を発動:/, anchor: '[CPU] ${zoneJa}の【起】を発動:' },
+  // 🆕§5.6 `C-10` 第2段（2026-09-22）＝**スペル／ピースへのカットイン応答**。
+  //   🔴旧は「CPU は常にパス」＝**この窓ごと踏んでいなかった**（61カード／ユーザー作27デッキ中7デッキが該当）。
+  { id: 'cutin', label: 'カットイン応答', pattern: /^\[CPU\] カットイン:/, anchor: '[CPU] カットイン:' },
   { id: 'assistGrow', label: 'アシストルリグのグロウ', pattern: /^\[CPU\] アシストグロウ:/, anchor: '[CPU] アシストグロウ:' },
   { id: 'resona', label: 'レゾナを出す', pattern: /^\[CPU\] レゾナ:/, anchor: '[CPU] レゾナ:' },
   { id: 'rise', label: 'ライズ', pattern: /^\[CPU\] ライズ:/, anchor: '[CPU] ライズ:' },

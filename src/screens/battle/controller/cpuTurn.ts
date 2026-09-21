@@ -8,6 +8,10 @@ import {collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, 
 import {resolveTurnEndEnergyTrash} from '../turnEndEnergyTrash';
 import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
+import {cutinCardName, pickCpuCutin} from '../cpuCutin';
+import {performCutinUse} from './performCutinUse';
+import {isEnaMultiStripped} from '../costs';
+import {collectEnaAllMulti} from '../artsUseGate';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
 import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, drawCards} from '../battleUtils';
 import {canGrowNow} from '../growLogic';
@@ -57,7 +61,7 @@ import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpu
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
-import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuOffFieldInput, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -431,6 +435,40 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   };
 
   /**
+   * 🆕**CPU のカットイン応答**（§5.6 `C-10` 第2段）＝人間のスペル／ピースに対して**打ち消せるなら打ち消す**。
+   *
+   * ⚠**判定は `collectCutinCandidates`・実行は `performCutinUse`＝どちらも人間と同じ関数**（§5.6.3）。
+   * ⚠**支払い内訳を人間が選ぶ形（エクシード・下のカード・ベット）は撃たない**（`cpuCanAutoPayCutin` の allowlist）。
+   * ⚠**使わなかったら `false`**＝呼び出し元が従来どおり `handleCutinPass()` でパスする。
+   */
+  const tryCpuCutin = async (actorState: PlayerState): Promise<boolean> => {
+    if (!bs.pending_spell) return false;
+    // 🔑**材料は `cpuCutinInput` の1本**（エナ支払いの権威は `basicAffordable`＝グロウ／【起】と同じ）。
+    const input = cpuCutinInput(cpuMoveCtx(actorState), bs.turn_phase as TurnPhase);
+    const choice = pickCpuCutin({
+      ...input,
+      my: actorState, op: huSt, cpuId: CPU_PLAYER_ID,
+      pendingSpell: bs.pending_spell, hostState: bs.host_state, guestState: bs.guest_state, hostId: bs.host_id,
+      turnPhase: bs.turn_phase, isMyTurn: false, cardMap: battleCardMap, effectsMap,
+    });
+    if (!choice) return false;
+    // ⚠文言は `census:play` の契約（anchor＝`[CPU] カットイン: `）。
+    appendBattleLogs([`[CPU] カットイン: ${cutinCardName(choice.candidate, battleCardMap)}`]);
+    await performCutinUse(choice.candidate, choice.costIndices, new Set(), 0, new Set(), {
+      actor: actorState, opponent: huSt, actorId: CPU_PLAYER_ID, actorIsHost: false, isActorTurn: false,
+      energyPayPool: input.pool,
+      enaAllMulti: collectEnaAllMulti(actorState, huSt, true, effectsMap, battleCardMap),
+      enaMultiStripped: isEnaMultiStripped(actorState, huSt, true, effectsMap, battleCardMap),
+    }, c, {
+      // ⚠画面だけが持つ口＝CPU には無い（窓は `performCutinUse` 側が閉じる）。
+      closeCutin: () => {}, loading: false,
+      queueCardEffects: async () => {},
+      fetchLatest: async () => ({ data: null, error: null }),
+    });
+    return true;
+  };
+
+  /**
    * CPU のアーツ使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1` (a)(b)。
    *
    * ⚠**窓は3つ（相手ターンの応答／自ターンの MAIN／自ターンの ATTACK_ARTS）だが通す道は1本**。
@@ -623,8 +661,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     return;
   }
 
-  // ─── スペルカットインパス（人間のスペルに対してCPUは常にパス）───
+  // ─── スペルカットイン窓（人間のスペル／ピースへの応答）───
+  // 🆕🔴**§5.6 `C-10` 第2段（2026-09-22）＝旧は「CPU は常にパス」だった**＝**この窓ごと使えていなかった**。
+  //   📏母集団＝カットインできる札 **61カード**／**ユーザー作27デッキ中 7デッキ**（`WD13`・`ケトッシー軸` を含む）。
+  //   ⚠**候補は人間と同じ関数**（`collectCutinCandidates`）／**実行も人間と同じ関数**（`performCutinUse`）。
   if (bs.pending_spell && bs.pending_spell.caster_id !== CPU_PLAYER_ID) {
+    if (await tryCpuCutin(cpuSt)) return;
     // 対人戦と同じ共通処理（NEGATE_SPELL打ち消し・ON_SPELL_USEトリガーを含む）でスペルを解決
     await handleCutinPass();
     return;

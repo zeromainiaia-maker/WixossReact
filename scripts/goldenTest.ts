@@ -223,6 +223,7 @@ import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost'
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
+import { cpuCanAutoPayCutin, pickCpuCutin } from '../src/screens/battle/cpuCutin';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { emptyHandActivateSelections, payHandActivateCost } from '../src/screens/battle/handActivateCost';
 import { emptyTrashActivateSelections, payTrashActivateCost } from '../src/screens/battle/trashActivateCost';
@@ -87738,7 +87739,9 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
   // §5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナ）で6か所目。
   // 🆕§5.7 `S-15`＝入力の組み立ては `cpuMoves.ts`（`ctx.reserveFor` は `cpuTurn.ts` の `cpuGrowReserveFor`）。
   ok(/reserveFor: cpuGrowReserveFor/.test(battle), '🔴CPU の候補列挙の文脈にグロウ用エナの予約を渡していない');
-  eq((battle.match(/energyReserve: ctx\.reserveFor\(s\)/g) ?? []).length, 6, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】のどれかに予約を渡していない');
+  // 🆕§5.6 `C-10` 第2段（2026-09-22）＝**カットイン窓で7か所目**（CPU が人間のスペルに応答するようになった）。
+  //   ⚠**増えたのは口が1つ増えたから**＝較正であって退化ではない。
+  eq((battle.match(/energyReserve: ctx\.reserveFor\(s\)/g) ?? []).length, 7, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】／カットインのどれかに予約を渡していない');
   ok(/reserve: ctx\.reserveFor\(s\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
   ok(/reserve && !reserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
   // 🆕§5.7 `S-5d` 第2段＝効果の任意コストの予約は `cpuInteractionRespond.ts` へ移った（較正）。
@@ -87772,7 +87775,9 @@ test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始�
   eq(skip.nextAfter.skip_next_turn, undefined, 'スキップの予約を消費していない');
   // 🔴**配線**＝強制終了の3経路とも `keepTurn` を見てターンプレイヤーを決める。
   const screen = battleScreenSource();
-  eq((screen.match(/keepTurn \? bs\.active_user_id/g) ?? []).length, 3,
+  // ⚠§5.6 `C-10` 第2段＝カットイン窓の1経路が `controller/performCutinUse.ts` へ移り、盤面行の名前が
+  //   `ctx.bs` になった（**経路数は3のまま**＝較正であって退化ではない）。
+  eq((screen.match(/keepTurn \? (?:ctx\.)?bs\.active_user_id/g) ?? []).length, 3,
     '🔴強制終了の3経路（スタック解決／カットイン窓／2回目のリフレッシュ）が keepTurn を見ていない');
 }));
 
@@ -88127,7 +88132,9 @@ test('バグ報告 2026-09-18: リフレッシュは効果1つの解決直後（
   const screen = battleScreenSource();
   // ⚠§5.7 `S-5a`＝スタック解決の1経路だけ `stackResolve.ts` へ移り、カードマップの引数名が `deps.cardMap` になった
   //   （**経路数は9のまま**＝較正であって退化ではない）。
-  eq((screen.match(/applyRefreshOnDone\(result, (?:battleCardMap|deps\.cardMap)\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
+  // ⚠§5.6 `C-10` 第2段＝カットイン窓の1経路が `controller/performCutinUse.ts` へ移り、引数名が `ctx.cardMap` になった
+  //   （**経路数は9のまま**＝較正であって退化ではない）。
+  eq((screen.match(/applyRefreshOnDone\(result, (?:battleCardMap|deps\.cardMap|ctx\.cardMap)\)/g) ?? []).length, 9, '🔴効果1つの解決直後のリフレッシュ（9経路）が欠けている');
   ok(/const checkDeferredRefreshRule = async/.test(screen), '保留リフレッシュのルール処理 funnel がある');
   // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝**本体は `controller/ruleChecks.ts`**（画面に残るのは委譲の1行）＝
   //   `battleScreenSource()` は画面を先に連結するので、**本体側から読む**（較正＝条件の数は不変）。
@@ -91034,6 +91041,64 @@ test('§5.6 C-10 カットイン候補の列挙は1本（応答者をパラメ�
   } as never);
   eq(uncounterable.filter(c => c.source === 'hand').length, 0,
     '🔴「打ち消されない」スペルにカットイン候補を出した');
+}));
+
+test('§5.6 C-10 第2段 CPU がカットイン窓で応答する（打ち消せるなら打ち消す・払えないなら撃たない）', () => withSavedCursor(() => {
+  // 🔴**旧＝「人間のスペルに対してCPUは常にパス」**（`cpuTurn.ts` にそう書いてあった）＝**窓ごと使えていなかった**。
+  // 🔑**規律**＝候補は人間と同じ `collectCutinCandidates`／実行も人間と同じ `performCutinUse`（応答者をパラメータ化）。
+  const cmC10b = cardMap as Map<string, CardData>;
+  const allCards = [...cmC10b.values()];
+  const SPELL_C10 = findCard(c => c.Type === 'スペル');
+  // スペルカットインのアーツ（ルリグ限定なし・素のエナコストだけ＝CPU が自動で払える形）
+  const artsNum = allCards.find(c => (c.Timing ?? '').includes('スペルカットイン') && (c.Type ?? '').includes('アーツ')
+    // ⚠**`Restriction` の「制限なし」は空文字ではなく `-`**（CSV の実データ＝ここで1度こけた）。
+    && ['', '-'].includes((c.Restriction ?? '').trim())
+    && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'
+      && Object.keys(e.cost ?? {}).every(k => k === 'energy' || k === 'none')))?.CardNum;
+  ok(!!artsNum, '前提崩れ＝素のエナコストだけのカットインアーツが CSV に無い');
+
+  const stC10 = (o: { lrigDeck?: string[]; energy?: string[] } = {}) => {
+    const b = mkState({});
+    return { ...b, lrig_deck: o.lrigDeck ?? [], energy: o.energy ?? fill(10) } as PlayerState;
+  };
+  const pick = (o: { lrigDeck?: string[]; energy?: string[]; affordable?: boolean } = {}) => {
+    const cpu = stC10(o);
+    const human = stC10();
+    return pickCpuCutin({
+      my: cpu, op: human, cpuId: 'CPU',
+      pendingSpell: { card_num: SPELL_C10, caster_id: 'HUMAN', kind: 'spell' } as never,
+      hostState: human, guestState: cpu, hostId: 'HUMAN',
+      turnPhase: 'MAIN', isMyTurn: false, cardMap: cmC10b, effectsMap,
+      cards: allCards, energyPoolNums: cpu.energy,
+      isAffordable: () => o.affordable ?? true, lrigClass: '',
+    } as never);
+  };
+
+  // ── ① 候補があり払えるなら応答する ──
+  const chosen = pick({ lrigDeck: [artsNum!] });
+  ok(!!chosen, '🔴カットインできる札を持っているのに応答しない（窓ごと素通り）');
+  eq(chosen!.candidate.instanceId, artsNum, '🔴選んだ候補が違う（実行時に札を見失う）');
+
+  // ── ② 🔴**払えないなら撃たない**（宣言だけして踏み倒す側へ倒さない）──
+  eq(pick({ lrigDeck: [artsNum!], affordable: false }), null, '🔴エナを払えないのに応答した');
+  eq(pick({ lrigDeck: [] }), null, '🔴カットインできる札が無いのに応答した');
+
+  // ── ③ **支払い内訳を人間が選ぶ形は撃たない**（allowlist の規律）──
+  ok(cpuCanAutoPayCutin({ effectId: 'X', effectType: 'ACTIVATED',
+    cost: { energy: [{ color: '青', count: 1 }] } } as never), '素のエナコストは撃てる');
+  ok(!cpuCanAutoPayCutin({ effectId: 'X', effectType: 'ACTIVATED',
+    cost: { betOptions: { options: [1], variable: false } } } as never), '🔴ベット宣言の要る形を撃とうとした');
+  ok(!cpuCanAutoPayCutin({ effectId: 'X', effectType: 'ACTIVATED',
+    cost: { encoreCost: { energy: [{ color: '青', count: 1 }] } } as never } as never),
+    '🔴エンコールの形を撃とうとした');
+
+  // ── ④ 配線＝**実行は人間と同じ関数**／**窓のログは計器の契約** ──
+  const turnSrcC10 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/tryCpuCutin\(cpuSt\)/.test(turnSrcC10), '🔴カットイン窓で CPU が応答を試していない（常にパスへ戻った）');
+  ok(/performCutinUse\(/.test(turnSrcC10), '🔴CPU が人間と同じ実行関数を呼んでいない');
+  ok(/\[CPU\] カットイン: /.test(turnSrcC10), '🔴計器の anchor（`[CPU] カットイン: `）がソースに無い');
+  const screenC10 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(/performCutinUse\(candidate, costIndices/.test(screenC10), '🔴画面が共有の実行関数を呼んでいない（2本に割れた）');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

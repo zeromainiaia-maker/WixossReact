@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState, useRef} from 'react';
 import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
-import type {BattleStateRow, PlayerState, CardData, PendingEffect, StackEntry, EffectStack} from '../types';
+import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectMultiAcceLimits, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, applyContinuousBaseLevelOverride, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
-import {executeEffect, applyRefreshOnDone, getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx} from '../engine/effectExecutor';
+import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectMultiAcceLimits, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectOppOwnedSpellUseTriggers as pureCollectOppOwnedSpellUseTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, type TrigCtx} from '../engine/triggerCollect';
@@ -24,8 +24,8 @@ import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashAct
 import {listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
 import {isTrashImmuneByOpponent} from '../engine/execUtils';
 import {collectCutinCandidates} from './battle/cutinCandidates';
-import {completePieceCutinResponseAfterEffects} from './battle/pieceCutinCommit';
-import {payUnderAnySigniTrash, payUnderSelfTrash} from './battle/underAnySigniCost';
+import {performCutinUse} from './battle/controller/performCutinUse';
+import {payUnderAnySigniTrash} from './battle/underAnySigniCost';
 import {buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry} from './battle/energyPaySource';
 
 interface Props {
@@ -37,11 +37,11 @@ interface Props {
 }
 
 import {randomInt} from '../engine/rng';
-import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, canUseArtsCondition, isPieceCardType} from './battle/battleUtils';
+import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceIds, assignGuestInstanceIds, jankenWinner, keyActivatedTimingMatchesPhase, isPieceCardType} from './battle/battleUtils';
 import {recordEnergyPlacements} from '../engine/energyPlacement';
 import {performEnergyCharge, type EnergyChargeSource} from './battle/controller/performEnergyCharge';
 import {mainPhaseGateOkFor} from '../engine/triggerCollect';
-import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, canAffordEnergyCostWithSubstitutes, paySelectedExceed} from './battle/costs';
+import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, applyGrowCostReduction, parseCoinCost, canAffordEnergyCostWithSubstitutes, paySelectedExceed} from './battle/costs';
 import {meetsRestriction, effectiveLrigClass, listGrowCandidates, declaredSigniOverride} from './battle/growLogic';
 import {cardNameUseBlocked} from './battle/cardNameUseBlock';
 import {computeFieldSigniLimit} from './battle/fieldLimit';
@@ -108,7 +108,7 @@ import {makeBoardDiffCollector, type BoardDiffCollector} from './battle/controll
 import {buildBattleCardMap, buildBaseEffectsMap, buildAugmentedEffectsMap, buildEffectivePowers} from './battle/controller/battleMaterials';
 // 🆕§5.7 `S-5d` 第3段（2026-09-19）＝ルール処理8本の本体（画面の `useEffect` から回る受け皿）。
 import {makeRuleChecks, createRuleCheckMemo} from './battle/controller/ruleChecks';
-import {makeFillDeployCaps, makeTrigCtx} from './battle/controller/execCtxDeps';
+import {makeTrigCtx} from './battle/controller/execCtxDeps';
 import {performAssistGrow as performAssistGrowImpl} from './battle/controller/performAssistGrow';
 import {performLrigAttack as performLrigAttackImpl} from './battle/controller/performLrigAttack';
 import {performLrigActivated as performLrigActivatedImpl} from './battle/controller/performLrigActivated';
@@ -167,7 +167,7 @@ import {sideAttackEmptyZoneDealsDamage} from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
 import {handDiscardHistoryRecord} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
-import {applyForcedTurnEnd, closeTeamPieceCutinWindow} from './battle/turnScopedState';
+import {closeTeamPieceCutinWindow} from './battle/turnScopedState';
 import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
 
@@ -1061,7 +1061,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   同じ dead flag を踏む。**「ダメージ以外によってはクラッシュされない」が効くのは効果経路だけ**
   //   なので、ここを埋め忘れると `WX19-046-E2` / `WD13-010-E1`① が丸ごと無効になる。
   // 🆕§5.7（2026-09-18）＝中身は `controller/execCtxDeps.ts`（ヘッドレスからも同じ関数を作れる）。
-  const fillDeployCaps = makeFillDeployCaps({ cardMap: battleCardMap, effectsMap });
 
   // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーン色喪失カードのリスト
   const myColorlessOverrides = useMemo(() => {
@@ -3373,248 +3372,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   handleCutinPassRef.current = handleCutinPass;
 
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
-  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys: Set<string> = new Set(), betCoins = 0) => {
-    if (!bs.pending_spell || loading) return;
-    if (candidate.kind !== 'effect') return;
-    if (!canUseArtsCondition(
-      [candidate.effect], my, op, battleCardMap, candidate.instanceId, bs.turn_phase, isMyTurn, effectivePowers)) return;
-    setLoading(true);
-    closeCutin();
-    try {
-      const { card: cutinCard, instanceId: cutinInstanceId, source, handIdx } = candidate;
-      // §6.4 O-10（続き518）＝ピース応答窓での使用。スペル打ち消しとは処理が別なので先に分岐する。
-      // 🔑**ここでは窓を閉じない**＝カットインしたピースの効果を解決し、`cutin_response_complete` を立てて
-      //   既存の「応答完了→元の処理を継続」useEffect に `resolvePendingPiece` を呼ばせる
-      //   （選択肢②を選んだときは元のピースがそのまま解決する＝原文どおり）。
-      if (bs.pending_spell.kind === 'piece') {
-        const piecePay = planEnergyPayment(my, myEnergyPayPool, costIndices);
-        const lrigIdxPC = my.lrig_deck.findIndex(id => id === cutinInstanceId);
-        const newLrigDeckPC = lrigIdxPC === -1 ? my.lrig_deck
-          : [...my.lrig_deck.slice(0, lrigIdxPC), ...my.lrig_deck.slice(lrigIdxPC + 1)];
-        const paidPC: PlayerState = piecePay.applyTo({
-          ...my,
-          lrig_deck: newLrigDeckPC,
-          lrig_trash: [...my.lrig_trash, cutinInstanceId],
-          trash: [...my.trash, ...piecePay.paidNums],
-        });
-        appendBattleLogs([`[カットイン] ${cutinCard.CardName}を使用`]);
-        const stateKeyPC: PlayerStateKey = isHost ? 'host_state' : 'guest_state';
-        const completed = await completePieceCutinResponseAfterEffects<BattleStateRow>({
-          // 支払いは先に確定するが、この時点では応答完了を公開しない。
-          commitPayment: async () => {
-            await persist.commit(reduceBattle(bs, {
-              type: 'WRITE_STATE', myKey: stateKeyPC, myState: paidPC,
-            }));
-          },
-          queueEffects: async () => {
-            await queueCardEffects(cutinInstanceId, ['ACTIVATED'], ['MAIN', 'ATTACK', 'SPELL_CUTIN'], paidPC, op);
-          },
-          // commit の完了と Realtime の React state 反映は別タイミングなので、古い closure の bs を使わない。
-          fetchLatest: async () => {
-            const { data, error } = await persist.fetchState();
-            if (error) console.error('[handleCutinUse piece] 最新盤面の取得エラー:', error.message);
-            return data;
-          },
-          markComplete: async latest => {
-            const latestMyState = stateKeyPC === 'host_state' ? latest.host_state : latest.guest_state;
-            await persist.commit(reduceBattle(latest, {
-              type: 'WRITE_STATE', myKey: stateKeyPC, myState: latestMyState,
-              markCutinResponseComplete: true,
-            }));
-          },
-        });
-        if (!completed) console.error('[handleCutinUse piece] 応答完了フラグを書き込めませんでした');
-        return;
-      }
-      const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
-      const casterIsHost = caster_id === bs.host_id;
-      const casterState = casterIsHost ? bs.host_state : bs.guest_state;
-      // スペルを処理（打ち消し）: フェゾーネマジック等はゲームから除外＝lrig_trashへ近似、通常スペルはトラッシュへ
-      const shouldCounterSpell = candidate.countersSpell ?? true;
-      const newCasterState: PlayerState = shouldCounterSpell
-        ? (from_lrig_deck
-        ? { ...casterState, lrig_trash: [...casterState.lrig_trash, card_num] }
-        : { ...casterState, trash: [...casterState.trash, card_num] })
-        : casterState;
-      // コスト支払い（エナ支払い元は funnel 1本＝§6.4）。
-      // ⚠この経路だけ `underSelfTrash`（シグニの下からのコスト）と同居しうる。両者が**同じスタック**を
-      //   触ると index がずれるので、`UNDER_CARD_AS_ENERGY_COST` と `underSelfTrash` を同じカードが
-      //   持たないことを goldenTest でロックしてある（現状 0件）。
-      const cutinPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
-      const paidNums = cutinPay.paidNums;
-      let cutinPaid: PlayerState;
-      if (source === 'lrig_deck') {
-        // ルリグデッキから使用: デッキから取り出してルリグトラッシュへ
-        const lrigIdx = my.lrig_deck.findIndex(id => getCardNum(id) === cutinCard.CardNum);
-        const actualId = lrigIdx >= 0 ? my.lrig_deck[lrigIdx] : cutinCard.CardNum;
-        const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
-          : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
-        cutinPaid = cutinPay.applyTo({
-          ...my,
-          lrig_deck: newLrigDeck,
-          lrig_trash: [...my.lrig_trash, actualId],
-          trash: [...my.trash, ...paidNums],
-          turn_arts_used: true,
-          turn_arts_used_names: [...(my.turn_arts_used_names ?? []), cutinCard.CardName],
-          turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((cutinCard.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
-        });
-      } else if (source === 'hand') {
-        // 手札から自分を捨てる（discardSelfFromHand）
-        const idx = handIdx ?? my.hand.indexOf(cutinCard.CardNum);
-        const newHand = idx >= 0
-          ? [...my.hand.slice(0, idx), ...my.hand.slice(idx + 1)]
-          : my.hand;
-        cutinPaid = cutinPay.applyTo({
-          ...my,
-          hand: newHand,
-          trash: [...my.trash, cutinCard.CardNum, ...paidNums],
-        });
-      } else {
-        // lrig_field / signi_field: エナコスト + エクシードコスト（選択カードをlrig_trashへ）
-        const exceedCostH = candidate.effect.cost?.exceed ?? 0;
-        const exceedPoolH = [
-          ...my.field.lrig.slice(0, -1),
-          ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
-          ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
-        ];
-        const exceedCards = exceedCostH > 0
-          ? new Set([...selectedCutinExceed].map(i => exceedPoolH[i]).filter(Boolean))
-          : new Set<string>();
-        cutinPaid = cutinPay.applyTo({
-          ...my,
-          trash: [...my.trash, ...paidNums],
-          lrig_trash: [...my.lrig_trash, ...exceedCards],
-          field: {
-            ...my.field,
-            lrig: my.field.lrig.filter(id => !exceedCards.has(id)),
-            assist_lrig_l: my.field.assist_lrig_l?.filter(id => !exceedCards.has(id)),
-            assist_lrig_r: my.field.assist_lrig_r?.filter(id => !exceedCards.has(id)),
-          },
-        });
-        if (source === 'signi_field' && candidate.effect.cost?.underSelfTrash) {
-          const zoneIdx = candidate.zoneIdx ?? cutinPaid.field.signi.findIndex(stack => stack?.at(-1) === cutinInstanceId);
-          const underPaid = payUnderSelfTrash(
-            cutinPaid, zoneIdx, underTrashKeys, candidate.effect.cost.underSelfTrash.count, battleCardMap,
-            candidate.effect.cost.underSelfTrash.filter, candidate.effect.cost.underSelfTrash.selectionConstraint,
-          );
-          if (!underPaid) return;
-          cutinPaid = {
-            ...underPaid.state,
-            last_cost_trashed_cards: [...paidNums, ...underPaid.moved],
-          };
-        }
-      }
-      // §5.3 `O-117`＝**カットイン窓の支払いもエナの色を記録する**。
-      // 🔴**実機（`b21end5colors`）で捕まえた片肺**＝`performArts`（通常のアーツ使用）にだけ記録を足したところ、
-      //   カットイン窓は**別の支払いサイト**なので `WX05-016` が 5色払っても条件不成立のままだった。
-      //   `WX05-016` は **Timing がスペルカットインだけ**＝**この経路が本番**である。
-      // ⚠3つの source 分岐（lrig_deck / hand / lrig_field・signi_field）の**後**で1回だけ当てる
-      //   （分岐ごとに書くと必ずどれかが漏れる）。式は `paidEnergyColorsOf` の1本。
-      cutinPaid = {
-        ...cutinPaid,
-        last_paid_energy_colors: paidEnergyColorsOf(
-          paidNums, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped),
-      };
-      // ベット宣言（タスク12(lxxxiv)）: カットイン窓でもアーツ経路と同じくコインを支払える。
-      // UI 側でガード済みだが所持枚数を超えないよう丸め、is_betting_this_effect は
-      // 非宣言時に明示クリアする（前回ベットの持ち越し防止＝executeArts / castSpell と同型）。
-      const betCost = Math.min(Math.max(0, betCoins), my.coins);
-      cutinPaid = {
-        ...cutinPaid,
-        coins: Math.max(0, cutinPaid.coins - betCost),
-        coins_paid_this_turn: (cutinPaid.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
-        ...(betCost > 0 ? { actions_done: [...(cutinPaid.actions_done ?? []), 'COIN_SPENT'] } : {}),
-        is_betting_this_effect: betCost > 0 ? true : undefined,
-        bet_coins_paid: betCost > 0 ? betCost : undefined,
-      };
-      if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
-      // ON_COIN_PAID（C1 配線・カットインのベット）: 支払い後の盤面で反応【自】を収集しスタックへ積む。
-      const cutinCoin = betCost > 0
-        ? collectCoinPaidTriggers(user.id, cutinPaid, newCasterState)
-        : { entries: [] as StackEntry[], usedIds: [] as string[] };
-      cutinPaid = applyCoinPaidUsed(cutinPaid, cutinCoin); // 《ターン1回/2回》消化を永続化
-      // カットイン効果は inline 解決＝スタックを経由しないため、コイン反応は別途スタックへ積む
-      // （アーツ経路は queueCardEffects の extraEntries が同じ役割を担う）。
-      const cutinCoinStack = cutinCoin.entries.length > 0
-        ? (bs.effect_stack ? pushToStack(bs.effect_stack, cutinCoin.entries)
-          : initStack(bs.active_user_id ?? user.id, cutinCoin.entries))
-        : undefined;
-      // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
-      const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
-      appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
-      if (shouldCounterSpell) appendBattleLogs([`${cutinCard.CardName}：「${counterSpellName}」を打ち消した`]);
-      // カットイン効果発火: lrig_deckはACTIVATED、field/handはSPELL_CUTINタイミングのACTIVATEDを優先
-      const effects = effectsMap.get(cutinInstanceId) ?? effectsMap.get(getCardNum(cutinInstanceId)) ?? [];
-      const cutinEff = candidate.effect ?? (source === 'lrig_deck'
-        ? effects.find(e => e.effectType === 'ACTIVATED')
-        : effects.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN')));
-      if (!cutinEff) {
-        const myKey = isHost ? 'host_state' : 'guest_state';
-        const casterKey = casterIsHost ? 'host_state' : 'guest_state';
-        if (myKey === casterKey) {
-          await persist.commit(reduceBattle(bs, {
-            type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
-            ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
-          }));
-        } else {
-          await persist.commit(reduceBattle(bs, {
-            type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
-            caster: { key: casterKey, state: newCasterState },
-            ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
-          }));
-        }
-        return;
-      }
-      // ownerState=cutinPaid(me), otherState=newCasterState
-      const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap, bs.turn_phase);
-      const cutinIsOwnerTurn = bs.active_user_id === user.id;
-      const cutinAllColorSigniNums = new Set([...collectAllColorSigniForField(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectAllColorSigniForField(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
-      const cutinExtraColors = new Map([...collectFieldSigniExtraColors(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectFieldSigniExtraColors(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
-      const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap, battleCardMap);
-      const cutinDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState), cutinPaid, newCasterState, effectsMap, cutinIsOwnerTurn);
-      // 🆕§5.0 実装キュー「系統」（`WX07-014-E1`）＝「それ（打ち消したスペル）をトラッシュから…使用してもよい」
-      //   （`SEQUENCE[COUNTER_SPELL, STUB{PLAY_FREE}]`）が `card_num` を一度も渡していなかった＝
-      //   `STUB{PLAY_FREE}` は `ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum` で「それ」を決めるが
-      //   `sourceCardNum` はカットインしたこのカード自身＝**打ち消したはずのスペルではなくカットイン札を
-      //   もう一度使おうとする恒久 no-op**だった。⚠**打ち消しを行ったときだけ**渡す（`countersSpell:false` の
-      //   ピース等では「それ」が指すものが無い）。
-      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums, ...(shouldCounterSpell ? { lastProcessedCards: [card_num] } : {}) };
-      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
-      ctx.isOwnerTurn = cutinIsOwnerTurn;
-      let result = executeEffect(cutinEff, ctx);
-      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（効果1つの解決後）
-      if (result.logs.length > 0) appendBattleLogs(result.logs);
-      // myがhost/guestに応じてマッピング
-      let hostState  = isHost ? result.ownerState : result.otherState;
-      let guestState = isHost ? result.otherState : result.ownerState;
-      // 🔴§5.3 `O-117`＝**この経路は `result.forceEndTurn` を一度も読んでいなかった**。
-      //   `WX05-016`（エンドホール）は Timing が**スペルカットインだけ**＝ここが唯一の実行路なので、
-      //   条件を正しくしても**ターンは一度も終わらなかった**（実機 `b21end5colors` で発見）。
-      //   盤面処理はスタック解決経路と**同じ `applyForcedTurnEnd`**（判定を割らない）。
-      let cutinBeginNextTurn: { activeUserId: string } | undefined;
-      if (result.done && result.forceEndTurn) {
-        const activeIsHostFE = bs.active_user_id === bs.host_id;
-        const forcedFE = applyForcedTurnEnd(
-          activeIsHostFE ? hostState : guestState,
-          activeIsHostFE ? guestState : hostState,
-        );
-        if (activeIsHostFE) { hostState = forcedFE.activeAfter; guestState = forcedFE.nextAfter; }
-        else { guestState = forcedFE.activeAfter; hostState = forcedFE.nextAfter; }
-        cutinBeginNextTurn = {
-          activeUserId: (forcedFE.keepTurn ? bs.active_user_id : (activeIsHostFE ? bs.guest_id : bs.host_id)) as string,
-        };
-        appendBattleLogs(['ターンが強制終了されました', ...(forcedFE.log ? [forcedFE.log] : [])]);
-      }
-      await persist.commit(reduceBattle(bs, {
-        type: 'RESOLVE_EFFECT_STEP', hostState, guestState, clearPendingSpell: true,
-        pending: result.done ? null : ({ sourcePlayerId: user.id, sourceCardNum: cutinInstanceId, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
-        ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
-        ...(cutinBeginNextTurn ? { beginNextTurn: cutinBeginNextTurn } : {}),
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 🆕§5.6 `C-10` 第2段（2026-09-22）＝**本体は `controller/performCutinUse.ts`**（242行を逐語で移設し
+  //   応答者をパラメータ化）。🔴**旧はこの式が画面の「自分」で閉じており、CPU はカットイン窓で常にパスするしかなかった。**
+  //   ここは材料（応答者・エナ支払い元・画面だけが持つ口）を渡すだけ。
+  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys: Set<string> = new Set(), betCoins = 0) =>
+    performCutinUse(candidate, costIndices, underTrashKeys, betCoins, selectedCutinExceed, {
+      actor: my, opponent: op, actorId: user.id, actorIsHost: isHost, isActorTurn: isMyTurn,
+      energyPayPool: myEnergyPayPool, enaAllMulti: myEnaAllMulti, enaMultiStripped: myEnaMultiStripped,
+    }, performCtx(), {
+      closeCutin, loading,
+      queueCardEffects: async (cardNum, types, timings, myState, opState) => {
+        await queueCardEffects(cardNum, types as never, timings as never, myState, opState);
+      },
+      fetchLatest: async () => {
+        const { data, error } = await persist.fetchState();
+        return { data: data ?? null, error: error ? { message: error.message } : null };
+      },
+    });
 
   // フェイズ別・手札カードアクションを返す
   const getMyHandCardActions = (cardNum: string, handIndex: number): CardAction[] => {
