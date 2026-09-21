@@ -7,7 +7,7 @@ import type {
 } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition, evalConditionForContinuous } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
-import { fieldCandidates, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
+import { canSatisfyDiscardGroups, fieldCandidates, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
@@ -343,6 +343,33 @@ export function charmTrashAffordable(my: PlayerState, count: number | undefined)
 export function removeOppVirusAffordable(op: PlayerState, count: number | undefined): boolean {
   if (!count) return true;
   return (op.field.signi_virus ?? []).reduce((sum, n) => sum + n, 0) >= count;
+}
+
+/**
+ * 🆕**`cost.discardGroups`（「手札から○1枚と△1枚を捨てる」）を払える手札が在るか**（§5.7 `S-31` ② 第6段）。
+ *
+ * 🔴**提示ゲートに1行も無かった**＝条件に合う手札が無くても【起】が提示され、支払いUIの「発動」が
+ *   永久に押せない窓になっていた（CPU から撃つと無限ループの形）。
+ * 🔑**判定は支払いUIと同じ `canSatisfyDiscardGroups`**＝**手札からちょうどその枚数を選んだ組**に
+ *   割り当てが在るかを見る関数なので、**手札の部分集合を総当たりする**（枚数は最大でも2〜3枚）。
+ */
+export function discardGroupsAffordable(
+  hand: string[],
+  groups: { count: number; filter?: TargetFilter }[] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!groups?.length) return true;
+  const need = groups.reduce((sum, g) => sum + g.count, 0);
+  if (hand.length < need) return false;
+  const cards = hand.map(n => cardMap.get(getCardNum(n)));
+  const pick = (start: number, chosen: (CardData | undefined)[]): boolean => {
+    if (chosen.length === need) return canSatisfyDiscardGroups(chosen, groups);
+    for (let i = start; i < cards.length; i++) {
+      if (pick(i + 1, [...chosen, cards[i]])) return true;
+    }
+    return false;
+  };
+  return pick(0, []);
 }
 
 export function trashExileAffordable(

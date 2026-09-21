@@ -1,14 +1,14 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
-import { evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
+import { analyzeBeatSigniCost, beatSigniCostCount, evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { countAcce } from '../../utils/acce';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash } from './underAnySigniCost';
 import { canPayFieldDownCost } from './fieldDownCost';
 import { canPayAttachedOrUnderTrash } from './attachedOrUnderCost';
-import { canPayExceed, charmTrashAffordable, energyTrashCostSatisfied, handDiscardSigniAffordable, removeOppVirusAffordable, trashExileAffordable } from './costs';
+import { canPayExceed, charmTrashAffordable, discardGroupsAffordable, energyTrashCostSatisfied, handDiscardSigniAffordable, removeOppVirusAffordable, trashExileAffordable } from './costs';
 import { multiZoneExileAffordable } from './multiZoneExileCost';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
@@ -231,6 +231,20 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   ⚠支払いUI・引き落としと**同じ関数**（`canPayAttachedOrUnderTrash` / `payAttachedOrUnderTrash`）を通す。
     !(e.cost?.attachedOrUnderTrash
       && !canPayAttachedOrUnderTrash(my, e.cost.attachedOrUnderTrash.count)) &&
+    // 🆕**discardGroups**（§5.7 `S-31` ② 第6段）＝「手札から**青の＜電機＞1枚と黒の＜電機＞1枚**を捨てる」型。
+    //   🔴**ここに検算が1行も無かった**＝**条件に合う手札が無くても提示**され、支払いUIの「発動」が
+    //     永久に押せない窓になっていた（CPU から撃てば無限ループの形）。
+    //   ⚠判定は支払いUIと**同じ関数**（`canSatisfyDiscardGroups`）＝組み合わせの割り当てまで見る。
+    !(e.cost?.discardGroups && !discardGroupsAffordable(my.hand, e.cost.discardGroups, cardMap)) &&
+    // 🆕**discardVariable**（「＜宇宙＞のシグニを1枚以上捨てる」）＝最低枚数を満たす手札が要る。
+    !(e.cost?.discardVariable && my.hand.filter(n =>
+      !e.cost!.discardVariable!.filter || matchesFilter(cardMap.get(getCardNum(n)), e.cost!.discardVariable!.filter),
+    ).length < (e.cost.discardVariable.min ?? 1)) &&
+    // 🆕**charmTrashVariable**（「チャームを1枚以上トラッシュ」）＝最低枚数のチャームが要る。
+    !(e.cost?.charmTrashVariable
+      && (my.field.signi_charms ?? []).filter(Boolean).length < (e.cost.charmTrashVariable.min ?? 0)) &&
+    // 🆕**handBottomDeck**（「手札を1枚デッキの一番下に置く」）＝枚数が要る（`discard` と同じ軸・行き先だけ違う）。
+    !(e.cost?.handBottomDeck && handCount < e.cost.handBottomDeck) &&
     // 🆕**underAnySigniTrash**（§5.7 `S-31` ② 第5段）＝「**あなたのシグニの下から**カードN枚」。
     //   🔴検算も支払いも無く踏み倒せた。⚠候補は 【出】経路と同じ関数（全ゾーンの下＝最上段を除く）。
     !(e.cost?.underAnySigniTrash
@@ -267,8 +281,14 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     !(e.cost?.fieldToDeckTop && fieldTrashSelectableZones(e.cost.fieldToDeckTop, my, cardMap, zoneIndex).length < e.cost.fieldToDeckTop.count) &&
     // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
     !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, cardMap)) &&
-    // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）
-    !(e.cost?.beat_signi && my.field.signi.filter(s => (s?.length ?? 0) > 0).length < 1) &&
+    // beat_signi: 【ビート】にできるシグニが必要数いないと払えない。
+    // 🆕§5.7 `S-31` ② 第6段＝**支払い（`payBeatSigniCost`）と同じ解析**（`analyzeBeatSigniCost`）で見る。
+    //   🔴旧は「場にシグニが1体でも居れば提示」＝**「他のシグニ1体」なのに自分しか居ない盤面でも提示**され、
+    //     支払い時に黙って return していた（CPU から撃つと無限ループの形）。
+    !(beatSigniCostCount(e.cost?.beat_signi) > 0 && (() => {
+      const a = analyzeBeatSigniCost(my, topNum, cardMap, e.cost!.beat_signi!);
+      return (a.includeSelf && a.selfZone < 0) || a.eligibleOtherZones.length < a.otherPart;
+    })()) &&
 
     // lrigDown: アップ状態のルリグ（centerOnly / level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
     !(e.cost?.lrigDown && payLrigDownCost(my, e.cost.lrigDown, cardMap) === null) &&

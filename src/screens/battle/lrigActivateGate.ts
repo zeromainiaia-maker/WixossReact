@@ -2,12 +2,14 @@ import type { CardData, PlayerState } from '../../types';
 import { isCoinAbility } from '../../engine/coinAbilityNegation';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { collectLrigGrantedEffects, isKizunaActive } from '../../engine/effectEngine';
-import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
+import { analyzeBeatSigniCost, beatSigniCostCount, evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
 import { canPayFieldDownCost } from './fieldDownCost';
+import { canPayTrapToHandCost } from './trapToHandCost';
+import { discardGroupsAffordable, trashExileAffordable } from './costs';
 import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
 import { charmTrashAffordable, exceedColorsSatisfied, exceedPoolOf, removeOppVirusAffordable } from './costs';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
@@ -161,6 +163,17 @@ export function canActivateLrigEffect(
   // ⚠**`upToCount`（「N体まで」）は0体でも成立する**ので候補数で止めない＝止めると原文より狭くなる。
   if (eff.cost?.fieldTrash && !eff.cost.fieldTrash.upToCount
     && fieldTrashSelectableZones(eff.cost.fieldTrash, my, cardMap).length < eff.cost.fieldTrash.count) return false;
+  // 🆕**discardGroups / trashExile / beat_signi / trapToHand**（§5.7 `S-31` ② 第6段）＝
+  //   🔴**ルリグ【起】にはこの4つの検算が1つも無かった**（`trashExile` は支払いだけ index 経由で通っていた）。
+  //   ⚠どれも**場のシグニ【起】と同じ関数**を通す（写経しない）。
+  if (eff.cost?.discardGroups && !discardGroupsAffordable(my.hand, eff.cost.discardGroups, cardMap)) return false;
+  if (eff.cost?.trashExile && !trashExileAffordable(my.trash, eff.cost.trashExile, cardMap)) return false;
+  if (beatSigniCostCount(eff.cost?.beat_signi) > 0) {
+    // ⚠効果元はルリグ＝`selfEligible` の判定にセンタールリグを渡す（場のシグニではない）。
+    const beatA = analyzeBeatSigniCost(my, my.field.lrig.at(-1) ?? '', cardMap, eff.cost!.beat_signi!);
+    if ((beatA.includeSelf && beatA.selfZone < 0) || beatA.eligibleOtherZones.length < beatA.otherPart) return false;
+  }
+  if (!canPayTrapToHandCost(my, eff.cost?.trapToHand)) return false;
   // 🆕**fieldDown**（§5.7 `S-31` ② 第5段・`WXDi-P15-010-E2`）＝**検算も支払いも無く踏み倒せた**。
   //   ⚠**場のシグニ【起】と同じ funnel**（発生源はルリグなので `excludeSelf` は渡さない）。
   if (!canPayFieldDownCost(my, eff.cost?.fieldDown, cardMap)) return false;

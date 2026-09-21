@@ -20,6 +20,7 @@ import { payFieldDownCost } from '../fieldDownCost';
 import { payLrigDownCost } from '../lrigDownCost';
 import { payUnderAnySigniTrash, payUnderSelfTrash } from '../underAnySigniCost';
 import { payMultiZoneExileCost } from '../multiZoneExileCost';
+import { payHandBottomDeckCost } from '../handBottomDeckCost';
 import type { PerformCtx } from './performCtx';
 
 /**
@@ -91,7 +92,9 @@ export const performSigniActivated = async (
     // energyTrashAll: エナゾーンのカードをすべてトラッシュ（選択不要、自動）
     const energyTrashAllCards = effect.cost?.energyTrashAll ? [...signiActPay.energyAfter] : [];
     // 手札捨てコストを支払う
-    const discardedCards = [...discardCostIndices].map(i => my.hand[i]);
+    // 🆕§5.7 `S-31` ② 第6段＝**`handBottomDeck` は「捨てた」ではない**（行き先はデッキの一番下）＝
+    //   選択 state を共用しているので、ここで台帳・トラッシュ送りから外す（写経すると二重に動く）。
+    const discardedCards = effect.cost?.handBottomDeck ? [] : [...discardCostIndices].map(i => my.hand[i]);
     const discardVarCards = discardVarIndices ? [...discardVarIndices].map(i => my.hand[i]) : [];
     const discardVarLevelSum = discardVarCards.reduce((s, cn) => {
       const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10) || 0;
@@ -278,6 +281,16 @@ export const performSigniActivated = async (
       }
       if (movedCA.length < charmTrashNAct2) return; // 支払い不能
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+    }
+    // 🆕**handBottomDeck**（§5.7 `S-31` ② 第6段・`WXK10-072-E2`）＝「手札を１枚**デッキの一番下**に置く：」。
+    //   🔴**支払いも提示の検算も無く、手札を1枚も失わずに撃てた**。
+    //   ⚠**捨てる（`discard`）とは行き先が違う**（トラッシュではなくデッキの一番下）＝
+    //     選択 state は `discardCostIndices` を共用するが、**支払いは別の funnel**。
+    if (effect.cost?.handBottomDeck) {
+      const hbPaid = payHandBottomDeckCost(paid, discardCostIndices, effect.cost.handBottomDeck);
+      if (!hbPaid) { ctx.io.setLoading(false); return; }
+      paid = hbPaid.state;
+      ctx.io.appendLogs([`手札${hbPaid.moved.length}枚をデッキの一番下に置いた（コスト）`]);
     }
     // 🆕**underAnySigniTrash**（§5.7 `S-31` ② 第5段・`WXEX1-61-E2`／`WXK10-054-E2`）＝
     //   「**あなたのシグニの下から**カードN枚をトラッシュに置く：」。🔴**支払いも提示の検算も無かった**

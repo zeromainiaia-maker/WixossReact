@@ -10,6 +10,8 @@ import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldDownCost } from '../fieldDownCost';
+import { payTrapToHandCost } from '../trapToHandCost';
+import { beatSigniCostCount, payBeatSigniCost } from '../../../engine/effectExecutor';
 import { payLifeOnPlayCost } from '../lifeCost';
 import { payFieldTrashCost } from '../fieldTrashCost';
 import { effectiveCoinCost } from '../lrigActivateGate';
@@ -253,6 +255,25 @@ export const performLrigActivated = async (
       }
       if (movedCL.length < charmTrashNLrig) { ctx.io.setLoading(false); return; }
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
+    }
+    // 🆕**beat_signi**（§5.7 `S-31` ② 第6段・`WDK14-001-E2`「シグニ１体を【ビート】にする：」）＝
+    //   🔴**この経路には支払いが1行も無く、シグニを【ビート】にせずに撃てた**。
+    //   ⚠支払いは**場のシグニ【起】と同じ関数**（`payBeatSigniCost`）＝どれを【ビート】にするかは
+    //     **レベルの低い順で自動**（人間の選択UIはシグニ【起】側にしかない＝honest defer）。
+    //   ⚠効果元はルリグなので `sourceCardNum` にセンタールリグを渡す（`selfEligible` の判定に使う）。
+    if (beatSigniCostCount(effect.cost?.beat_signi) > 0) {
+      const beatPaidLg = payBeatSigniCost(paid, my.field.lrig.at(-1) ?? '', ctx.cardMap, effect.cost!.beat_signi!);
+      if (!beatPaidLg.ok) { ctx.io.setLoading(false); return; }
+      paid = beatPaidLg.state;
+      if (beatPaidLg.log) ctx.io.appendLogs([beatPaidLg.log]);
+    }
+    // 🆕**trapToHand**（§5.7 `S-31` ② 第6段・`WX21-003-E1`「あなたの【トラップ】１つを手札に加える：」）＝
+    //   🔴**支払いも検算も無く、トラップを設置したまま撃てた**。
+    if (effect.cost?.trapToHand) {
+      const trapPaid = payTrapToHandCost(paid, effect.cost.trapToHand);
+      if (!trapPaid) { ctx.io.setLoading(false); return; }
+      paid = trapPaid.state;
+      ctx.io.appendLogs([`【トラップ】${trapPaid.moved.length}つを手札に加えた（コスト）`]);
     }
     // 🆕**fieldDown**（§5.7 `S-31` ② 第5段・`WXDi-P15-010-E2`「アップ状態の＜防衛派＞のシグニ１体をダウンする：」）＝
     //   🔴**この経路には支払いが1行も無く、シグニを1体もダウンさせずに撃てた**。

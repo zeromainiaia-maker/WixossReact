@@ -61,7 +61,7 @@ live JSON の STUB id 種類 : 584（総ノード 3708 件）
         消費: src\screens\battle\guard.ts:19
      3件   3枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WX19-002, WXK03-002, WXK11-020
-        消費: src\engine\execUtils.ts:2533 / src\screens\battle\costs.ts:1288
+        消費: src\engine\execUtils.ts:2533 / src\screens\battle\costs.ts:1315
      3件   3枚  TREAT_AS_LEVEL1_IN_DECK_TRASH
         カード: WXDi-P01-039, WXDi-P05-004, WXDi-P05-086
         消費: src\engine\effectEngine.ts:8566 / src\engine\effectEngine.ts:8584 / src\engine\effectEngine.ts:8597

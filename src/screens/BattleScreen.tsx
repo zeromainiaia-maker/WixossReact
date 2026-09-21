@@ -401,6 +401,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [roomId]);
 
   const transitioningRef = useRef(false);
+  /** 🆕§5.1 `V-284`＝じゃんけんの解決を予約した「手の組」（再レンダーで張り直さないための鍵）。 */
+  const jankenResolveRef = useRef<string | null>(null);
   const leavingRef = useRef(false);
   const stackProcessingRef        = useRef(false);  // resolveStackNext の多重実行防止
   const lastResolvedEntryIdRef    = useRef<string | null>(null); // 直前に処理したキュー先頭のID（DB伝播前の二重処理防止）
@@ -495,15 +497,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const isHost = user.id === bs.host_id;
 
     // じゃんけん結果処理（両プレイヤー共通：どちらか一方が実行）
-    if (!transitioningRef.current && bs.setup_phase === 'JAN_KEN' && bs.host_janken && bs.guest_janken) {
-      transitioningRef.current = true;
+    // 🔴🆕**2026-09-22（§5.1 `V-284`）＝再レンダーのたびに解決を作り直さない。**
+    //   旧実装は `setTimeout(1800ms)` を cleanup で**毎回取り消して張り直して**いた＝
+    //   1.8秒より短い間隔で `bs` が更新され続けると（realtime のエコー等）**解決が永久に先送りされ**、
+    //   画面が「あいこ！ もう一度選んでください…」のまま固まる。
+    //   📏実測＝実機の通し対戦（`verifyFullMatch.mjs cpu`）が**3回中3回、初回だけ**この形で止まった
+    //   （再実行では通るので「たまの flake」に見えていた）。
+    //   🔑**直し方＝同じ手の組に対する予約は1つだけ**（`jankenResolveRef` に組を覚える）＝
+    //     再レンダーでは何もせず、走っているタイマーをそのまま完走させる。
+    //   ⚠**cleanup でタイマーを消さない**（消すと元の症状に戻る）。⚠失敗時は予約を解放して再試行できるようにする。
+    if (bs.setup_phase === 'JAN_KEN' && bs.host_janken && bs.guest_janken) {
+      const pairKey = `${bs.host_janken}/${bs.guest_janken}`;
+      if (jankenResolveRef.current === pairKey) return;
+      jankenResolveRef.current = pairKey;
       const winner = jankenWinner(bs.host_janken, bs.guest_janken, bs.host_id, bs.guest_id);
       const update = reduceBattle(bs, { type: 'RESOLVE_JANKEN', winnerId: winner });
-      const t = setTimeout(() => {
+      setTimeout(() => {
         persist.commit(update)
-          .then(() => { transitioningRef.current = false; });
+          .then(() => { jankenResolveRef.current = null; })
+          .catch(() => { jankenResolveRef.current = null; });
       }, 1800);
-      return () => { clearTimeout(t); transitioningRef.current = false; };
+      return;
     }
 
     // 以下はホストのみが担当するフェーズ遷移
@@ -2217,7 +2231,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             .from('battle_states').select('host_janken, guest_janken')
             .eq('room_id', roomId).single();
 
-          if (fresh?.host_janken && fresh?.guest_janken && !transitioningRef.current) {
+          // ⚠🆕§5.1 `V-284`＝**上の effect が同じ解決を予約していたら二重に commit しない**
+          //   （あいこの直後に CPU が選び直した手を、古いパッチで消してしまう）。
+          if (fresh?.host_janken && fresh?.guest_janken && !transitioningRef.current && !jankenResolveRef.current) {
             transitioningRef.current = true;
             const winner = jankenWinner(fresh.host_janken, fresh.guest_janken, bs.host_id, bs.guest_id);
             const transUpdate = reduceBattle(bs, { type: 'RESOLVE_JANKEN', winnerId: winner });

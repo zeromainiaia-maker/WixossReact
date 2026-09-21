@@ -71,9 +71,13 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               //   実測＝`WX21-043-E2`（＜毒牙＞1枚）／`WXDi-P16-085-E1`（レベル1のシグニ1枚）。
               //   ⚠`discard` との**同時指定は無い**（parser は片方しか立てない）ので枚数は加算でよい。
               const actHandDiscardSigni = eff.cost?.handDiscardSigni;
+              // 🆕§5.7 `S-31` ② 第6段＝**`handBottomDeck`（手札をデッキの一番下へ）も同じ選択UIで払う**。
+              //   🔴旧＝この UI が出ず、**1枚も選ばないまま「発動」でき、支払いもどこにも無かった**（踏み倒し）。
+              //   ⚠**行き先だけが違う**（トラッシュではなくデッキの一番下）＝支払いは別 funnel（`handBottomDeckCost.ts`）。
+              const actHandBottomDeck = eff.cost?.handBottomDeck ?? 0;
               const discardNeeded = actDiscardGroups
                 ? actDiscardGroups.reduce((s, g) => s + g.count, 0)
-                : (eff.cost?.discard ?? 0) + (actHandDiscardSigni?.count ?? 0);
+                : (eff.cost?.discard ?? 0) + (actHandDiscardSigni?.count ?? 0) + actHandBottomDeck;
               const actDiscardFilter = eff.cost?.discardFilter;
               const actFilterLabel = actDiscardGroups
                 ? actDiscardGroups.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')
@@ -229,6 +233,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                               actDiscardVar ? `手札から${fmtDiscardFilterLabel(actDiscardVar.filter) || 'カード'}${actDiscardVar.min}枚以上` :
                               actDiscardGroups ? `手札から${actFilterLabel}` :
                                 eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
+                                actHandBottomDeck > 0 ? `手札${actHandBottomDeck}枚をデッキの一番下へ` : null,
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                             // 🆕§5.3 `O-255`＝自傷パワーのコスト（ターン終了時まで）。
@@ -485,7 +490,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                   {!eff.cost?.discardAll && !actDiscardVar && discardNeeded > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
-                        手札から捨てるカードを選択: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
+                        {actHandBottomDeck > 0 ? '手札からデッキの一番下に置くカードを選択' : '手札から捨てるカードを選択'}: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
                         {actDiscardGroups ? `（${actFilterLabel}）` : actDiscardFilter ? `（${actFilterLabel}のみ）`
                           : actHandDiscardSigni ? `（${fmtHandDiscardSigniLabel(actHandDiscardSigni)}シグニのみ）` : ''}
                       </p>

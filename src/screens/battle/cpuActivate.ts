@@ -1,13 +1,13 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
-import { fieldTrashSelectableZones } from './fieldLimit';
+import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, canAddTrashExileIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, trashExileCostSatisfied, type WholeEnergyCostSubstituteOption } from './costs';
+import { fieldTrashGroupsSatisfied, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones } from './fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
 import { payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates, type UnderAnySigniCandidate } from './underAnySigniCost';
 import { cardStrength } from './cpuCardStrength';
 import { reserveKeptAfterPaying } from './cpuGrowReserve';
-import { getCardNum, matchesFilter } from '../../engine/execUtils';
+import { canSatisfyDiscardGroups, getCardNum, matchesFilter } from '../../engine/execUtils';
 import { cpuHandDiscardOrder } from './cpuHandLimit';
 import type { CpuPolicy } from './cpuPolicy';
 import { listActivatableSigniEffects } from './signiActivateGate';
@@ -104,6 +104,20 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'exceed',
   'multiZoneExile',
   'costSubstitute',
+  // 🆕§5.7 `S-31` ② 第6段（2026-09-22）＝**残りは「CPU に選ばせる判断」だけだった**キー群。
+  //   `discardGroups`／`discardVariable`／`discardUpTo`／`handBottomDeck`＝手札から選ぶ（`pickCpuDiscardCostIndices` が1本で決める）。
+  //   `trashExile`＝トラッシュから選ぶ（`pickCpuTrashExileIndices`）。
+  //   `fieldTrashGroups`＝場から組で選ぶ（`pickCpuFieldTrashZones`）。
+  //   `beat_signi`＝**支払い側が自動で選ぶ**（`payBeatSigniCost` のレベル昇順）＝この回に gate を同じ解析へ揃えた。
+  //   `charmTrashVariable`＝可変枚数は**最低枚数だけ**払う（`charmTrashVarCount` は CPU 経路では 0 なので下で渡す）。
+  'discardGroups',
+  'discardVariable',
+  'discardUpTo',
+  'handBottomDeck',
+  'trashExile',
+  'fieldTrashGroups',
+  'beat_signi',
+  'charmTrashVariable',
 ]);
 
 /**
@@ -121,11 +135,8 @@ export function cpuCanAutoPayActivatedCost(effect: CardEffect, actor: PlayerStat
   if (!cost) return true;
   for (const key of Object.keys(cost) as (keyof EffectCost)[]) {
     if (cost[key] === undefined) continue;
-    // `trashExile.self`（トラッシュの自分自身を除外）は自動。相手を選ぶ形は選択が要る。
-    if (key === 'trashExile') {
-      if (cost.trashExile?.self) continue;
-      return false;
-    }
+    // 🆕§5.7 `S-31` ② 第6段＝`trashExile` は**どちらの形も払える**（`.self` は自動／
+    //   それ以外は `pickCpuTrashExileIndices` が index を決める＝gate が集合制約まで検算済み）。
     // `discardFilter` は `discard` の付随情報＝`discard` 側で弾かれる。
     if (key === 'discardFilter' && cost.discard === undefined) continue;
     if (!CPU_AUTO_PAYABLE_COST_KEYS.has(key)) return false;
@@ -257,6 +268,8 @@ export interface CpuActivatedChoice {
   fieldTrashZones: Set<number>;
   /** 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすカード（`underSelfTrash`・`"<ゾーン>:<添字>"`）。 */
   underTrashKeys: Set<string>;
+  /** 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外する index（`trashExile`。`.self` は空）。 */
+  trashExileIndices: Set<number>;
 }
 
 /**
@@ -315,10 +328,34 @@ export function pickCpuDiscardCostIndices(p: {
   policy?: CpuPolicy;
 }): Set<number> | null {
   const spec = p.cost?.handDiscardSigni;
-  const plain = p.cost?.discard ?? 0;
+  // 🆕§5.7 `S-31` ② 第6段＝**手札から払う残り4キー**も同じ並び（弱い札から）で決める。
+  //   `handBottomDeck`＝行き先がデッキの一番下（支払いは別 funnel・**選択 state は `discard` と共用**）。
+  //   `discardVariable`／`discardUpTo`＝**枚数を決める判断**＝🔑**最低枚数だけ払う**
+  //     （`discardUpTo` は0枚でも成立するので**0枚**＝手札を失わない。帰結が「捨てた枚数ぶん」の形は
+  //      その帰結を評価できるようになってから増やす＝いまは過剰に払わない側へ倒す）。
+  //   `discardGroups`＝**組を満たす割り当て**を探す（下で別に組む）。
+  const plain = (p.cost?.discard ?? 0) + (p.cost?.handBottomDeck ?? 0)
+    + (p.cost?.discardVariable?.min ?? 0);
+  const groups = p.cost?.discardGroups;
   const picked = new Set<number>();
-  if (!spec && plain <= 0) return picked;
+  if (!spec && plain <= 0 && !groups) return picked;
   const order = cpuHandDiscardOrder(p.hand, p.cardMap, p.effectsOf, p.keepBonus, p.policy);
+  // 🆕**グループ指定**＝各グループの枠を、弱い札から順に埋める（`canSatisfyDiscardGroups` で最後に検算）。
+  if (groups) {
+    for (const g of groups) {
+      let need = g.count;
+      for (const i of order) {
+        if (need <= 0) break;
+        if (picked.has(i)) continue;
+        if (g.filter && !matchesFilter(p.cardMap.get(getCardNum(p.hand[i])), g.filter)) continue;
+        picked.add(i); need--;
+      }
+      if (need > 0) return null;
+    }
+    if (!canSatisfyDiscardGroups([...picked].map(i => p.cardMap.get(getCardNum(p.hand[i]))), groups)) return null;
+  }
+  // 🆕**可変枚数の絞り込み**＝`discardVariable` はフィルタに合う札からしか払えない。
+  const variableFilter = p.cost?.discardVariable?.filter;
   if (spec) {
     for (const i of order) {
       if (picked.size >= spec.count) break;
@@ -327,7 +364,7 @@ export function pickCpuDiscardCostIndices(p: {
     if (!handDiscardSigniCostSatisfied(p.hand, picked, spec, p.cardMap)) return null;
   }
   if (plain > 0) {
-    const filter = p.cost?.discardFilter;
+    const filter = p.cost?.discardFilter ?? variableFilter;
     const need = picked.size + plain;
     for (const i of order) {
       if (picked.size >= need) break;
@@ -338,6 +375,35 @@ export function pickCpuDiscardCostIndices(p: {
     if (picked.size < need) return null;
   }
   return picked;
+}
+
+/**
+ * 🆕**トラッシュから除外するコストで、どれを除外するか**（`trashExile`・§5.7 `S-31` ② 第6段）。
+ *
+ * 🔑**1枚ずつの可否は人間の支払いUIと同じ関数**＝`canAddTrashExileIndex`（集合制約「それぞれ名前の異なる」まで）
+ *   ＋最後に `trashExileCostSatisfied` で検算する。
+ * ⚠**`.self`（効果元自身を除外）は選択が要らない**＝空集合を返す（支払い側が自分で動かす）。
+ * ⚠**弱い札から**＝トラッシュは再利用の資源なので、強い札を残す（並びは盤面の札と同じ強さ表）。
+ * @returns 除外するトラッシュの index。**払えないなら `null`**。
+ */
+export function pickCpuTrashExileIndices(p: {
+  trash: string[];
+  cost: CardEffect['cost'];
+  cardMap: Map<string, CardData>;
+  effectsOf?: (id: string) => readonly CardEffect[];
+  policy?: CpuPolicy;
+}): Set<number> | null {
+  const spec = p.cost?.trashExile;
+  if (!spec || spec.self) return new Set();
+  const strength = (id: string) =>
+    cardStrength(p.cardMap.get(getCardNum(id)), p.effectsOf?.(id) ?? [], 'deploy', undefined, p.policy);
+  const order = p.trash.map((_, i) => i).sort((a, b) => strength(p.trash[a]) - strength(p.trash[b]) || a - b);
+  const chosen = new Set<number>();
+  for (const i of order) {
+    if (chosen.size >= (spec.count ?? 1)) break;
+    if (canAddTrashExileIndex(p.trash, chosen, i, spec, p.cardMap)) chosen.add(i);
+  }
+  return trashExileCostSatisfied(p.trash, chosen, spec, p.cardMap) ? chosen : null;
 }
 
 /**
@@ -464,6 +530,23 @@ export function pickCpuFieldTrashZones(p: {
   //   ⚠**選ぶ軸は同じでも行き先は違う**＝`fieldBanish` はエナゾーン・`fieldToDeckTop` はデッキの上・
   //     `fieldToLrigTrash` はルリグトラッシュ（🆕§5.7 `S-31` ② 第4段）。
   const ft = p.effect.cost?.fieldTrash ?? p.effect.cost?.fieldBanish ?? p.effect.cost?.fieldToDeckTop ?? p.effect.cost?.fieldToLrigTrash;
+  // 🆕§5.7 `S-31` ② 第6段＝**グループ指定**（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」＝`WX04-040-E1`）。
+  //   ⚠**枠ごとに別の条件**なので単一フィルタの経路では表せない＝ここで組を作り、
+  //     人間の支払いUIと同じ `fieldTrashGroupsSatisfied` で検算する。
+  const groups = p.effect.cost?.fieldTrashGroups;
+  if (groups) {
+    const zones = new Set<number>();
+    for (const g of groups) {
+      let need = g.count;
+      for (const zi of fieldTrashGroupsSelectableZones([g], p.actor, p.cardMap)) {
+        if (need <= 0) break;
+        if (zones.has(zi)) continue;
+        zones.add(zi); need--;
+      }
+      if (need > 0) return null;
+    }
+    return fieldTrashGroupsSatisfied(groups, [...zones], p.actor.field.signi, p.cardMap) ? zones : null;
+  }
   if (!ft) return new Set();
   const strength = (zi: number) => {
     const top = p.actor.field.signi[zi]?.at(-1) ?? '';
@@ -526,7 +609,13 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
       // 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすコスト（払えないなら候補から外す）。
       const underTrashKeys = pickCpuUnderSelfTrashKeys({ effect, actor, sourceZone: zoneIndex, cardMap });
       if (!underTrashKeys) continue;
-      yield { zoneIndex, cardNum, effect, costIndices, discardIndices, energyTrashIndices, fieldTrashZones, underTrashKeys };
+      // 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外するコスト（払えないなら候補から外す）。
+      const trashExileIndices = pickCpuTrashExileIndices({
+        trash: actor.trash, cost: effect.cost, cardMap,
+        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
+      });
+      if (!trashExileIndices) continue;
+      yield { zoneIndex, cardNum, effect, costIndices, discardIndices, energyTrashIndices, fieldTrashZones, underTrashKeys, trashExileIndices };
     }
   }
 }

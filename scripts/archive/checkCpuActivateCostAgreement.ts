@@ -7,7 +7,7 @@ import type { CardEffect } from '../../src/types/effects';
 import { mergeManualEffects } from '../../src/data/manualEffects';
 import { listActivatableSigniEffects } from '../../src/screens/battle/signiActivateGate';
 import { listActivatableLrigEffects } from '../../src/screens/battle/lrigActivateGate';
-import { cpuCanAutoPayActivatedCost, pickCpuUnderSelfTrashKeys, pickCpuFieldTrashZones, pickCpuTrashArtsNums } from '../../src/screens/battle/cpuActivate';
+import { cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuUnderSelfTrashKeys, pickCpuFieldTrashZones, pickCpuTrashArtsNums, pickCpuTrashExileIndices } from '../../src/screens/battle/cpuActivate';
 import { cpuCanAutoPayLrigCost } from '../../src/screens/battle/cpuLrigActivate';
 import { payUnderSelfTrash } from '../../src/screens/battle/underAnySigniCost';
 import { payDeckTrashCost } from '../../src/screens/battle/deckTrashCost';
@@ -47,11 +47,19 @@ const mk = (o: Partial<{ signi: (string[] | null)[]; lrig: string[]; charms: (st
 const artsPool = [...cardMap.values()].filter(c => (c.Type ?? '').includes('アーツ')).slice(0, 40).map(c => c.CardNum);
 const resonaNum = [...cardMap.values()].find(c => c.Type === 'レゾナ')?.CardNum ?? null;
 
+// 🆕§5.7 `S-31` ② 第6段＝種別・色・クラスが散らばる厚い手札／トラッシュ（指定つきコストを落とさない）
+const richHand = [...cardMap.values()].filter(c => c.Type === 'シグニ' || c.Type === 'スペル').slice(0, 60).map(c => c.CardNum);
+const richTrash = [...cardMap.values()].filter(c => c.Type === 'シグニ' || c.Type === 'スペル').slice(60, 140).map(c => c.CardNum);
+const trapNum = richHand[0] ?? null;
+
 const KEYS = ['underSelfTrash', 'charmTrash', 'removeOppVirus', 'selfPowerDown', 'deckTrash', 'fieldBanish', 'fieldToDeckTop',
   // 🆕§5.7 `S-31` ② 第4段
   'selfToDeckBottom', 'chargeCounterRemove',
   // 🆕§5.7 `S-31` ② 第5段
-  'underAnySigniTrash', 'exceed', 'multiZoneExile', 'fieldDown', 'costSubstitute'] as const;
+  'underAnySigniTrash', 'exceed', 'multiZoneExile', 'fieldDown', 'costSubstitute',
+  // 🆕§5.7 `S-31` ② 第6段
+  'discardGroups', 'discardVariable', 'discardUpTo', 'handBottomDeck', 'trashExile',
+  'fieldTrashGroups', 'beat_signi', 'charmTrashVariable'] as const;
 let okCount = 0, ngCount = 0;
 for (const [num, effs] of effectsMap) {
   const card = cardMap.get(num);
@@ -69,6 +77,10 @@ for (const [num, effs] of effectsMap) {
     });
     // 🆕§5.7 `S-31` ② 第4段＝【貯菌】を積んでおく（0個だと提示ゲートで落ちて母集団から消える）
     my.field.signi_chokkin = [5, 0, 0];
+    // 🆕§5.7 `S-31` ② 第6段＝手札・トラッシュを**全カードから厚く**取る（色・クラス・種別の指定つきコストが
+    //   「候補が無い」で提示ゲートに落ちると、母集団から静かに消えて計器が緑に見える）。
+    my.hand = richHand;
+    my.trash = richTrash;
     const op = mk({ signi: [[`${num}#o0`], null, null], virus: [3, 0, 0] });
     const shown = listActivatableSigniEffects({ my, op, zoneIndex: 0, phase: 'MAIN', isMyTurn: true, effectsMap, cardMap })
       .some(x => x.effectId === e.effectId);
@@ -76,7 +88,10 @@ for (const [num, effs] of effectsMap) {
     if (!auto) continue;
     const under = pickCpuUnderSelfTrashKeys({ effect: e, actor: my, sourceZone: 0, cardMap });
     const zones = pickCpuFieldTrashZones({ effect: e, actor: my, sourceZone: 0, cardMap });
-    const payable = !!under && !!zones
+    // 🆕§5.7 `S-31` ② 第6段＝手札・トラッシュから払う選択器も通す
+    const hand = pickCpuDiscardCostIndices({ hand: my.hand, cost: e.cost, cardMap });
+    const trashEx = pickCpuTrashExileIndices({ trash: my.trash, cost: e.cost, cardMap });
+    const payable = !!under && !!zones && !!hand && !!trashEx
       && (!e.cost.underSelfTrash || !!payUnderSelfTrash(my, 0, under, e.cost.underSelfTrash.count, cardMap, e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint))
       && (!e.cost.deckTrash || payDeckTrashCost(my, e.cost.deckTrash).state.deck.length === my.deck.length - e.cost.deckTrash);
     if (shown && !payable) { ngCount++; console.log(`🔴 提示は通るのに払えない ${num} ${e.effectId} ${keys.join('/')}`); }
@@ -94,11 +109,16 @@ for (const [num, effs] of effectsMap) {
       // 🆕§5.7 `S-31` ② 第4段
       'fieldToLrigTrash', 'trashArtsFromLrigDeck',
       // 🆕§5.7 `S-31` ② 第5段
-      'fieldDown', 'life_crash'] as const).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
+      'fieldDown', 'life_crash',
+      // 🆕§5.7 `S-31` ② 第6段
+      'discardGroups', 'trashExile', 'beat_signi', 'trapToHand'] as const).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
     if (keys.length === 0) continue;
     const my = mk({ signi: [['WD01-010#f0'], ['WD01-010#f1'], ['WD01-010#f2']], lrig: [num], charms: ['WD01-010#c0', null, null] });
     // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキに全色のアーツを積む（空だとアーツ徴収が提示ゲートで落ちる）
     my.lrig_deck = artsPool;
+    my.hand = richHand;
+    my.trash = richTrash;
+    my.field.signi_traps = [trapNum, trapNum, trapNum];
     // レゾナを場に置く（`fieldToLrigTrash` は「レゾナ1体」を要求する）
     if (resonaNum) my.field.signi = [[resonaNum], ['WD01-010#f1'], ['WD01-010#f2']];
     const op = mk({ virus: [3, 0, 0] });
@@ -107,8 +127,11 @@ for (const [num, effs] of effectsMap) {
     if (!cpuCanAutoPayLrigCost(e)) continue;
     const zones = pickCpuFieldTrashZones({ effect: e, actor: my, sourceZone: null, cardMap });
     const arts = pickCpuTrashArtsNums({ effect: e, actor: my, cardMap });
-    if (shown && (!zones || !arts)) { lng++; console.log(`🔴 ルリグ：提示は通るのに払えない ${num} ${e.effectId} ${keys.join('/')}`); }
-    else if (shown && zones && arts) lok++;
+    // 🆕§5.7 `S-31` ② 第6段
+    const handLg = pickCpuDiscardCostIndices({ hand: my.hand, cost: e.cost, cardMap });
+    const trashExLg = pickCpuTrashExileIndices({ trash: my.trash, cost: e.cost, cardMap });
+    if (shown && (!zones || !arts || !handLg || !trashExLg)) { lng++; console.log(`🔴 ルリグ：提示は通るのに払えない ${num} ${e.effectId} ${keys.join('/')}`); }
+    else if (shown && zones && arts && handLg && trashExLg) lok++;
   }
 }
 console.log(`場のシグニ：提示も支払いも通った ${okCount} / 食い違い ${ngCount}`);

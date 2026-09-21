@@ -698,6 +698,12 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   //   ⚠**`fieldToLrigTrash` は載せない**＝行き先（ルリグトラッシュ）をこの近似が持っていない
   //     ＝`null` を返して**その手は探索の外**（従来の優先順で撃つ）。
   'selfToDeckBottom', 'chargeCounterRemove', 'trashArtsFromLrigDeck',
+  // 🆕§5.7 `S-31` ② 第6段＝手札から払う残りのキー（**支払いの形は `discard` と同じ**＝本番が選んだ index を落とす）。
+  //   ⚠**`handBottomDeck` は行き先がデッキの一番下**だが、探索の採点は「手札から減った」ことだけを見るので
+  //     同じ扱いで足りる（デッキの順序は近似の外）。
+  'discardGroups', 'discardVariable', 'discardUpTo', 'handBottomDeck',
+  // ⚠**`trashExile`／`fieldTrashGroups`／`beat_signi`／`charmTrashVariable`／`trapToHand` は載せない**＝
+  //   トラッシュ・【ビート】ゾーン・チャーム・トラップの近似をこの盤面模型が持っていない ⇒ その手は探索の外。
   // 🆕§5.7 `S-31` ② 第5段＝`fieldDown` は既に写している（上の行）。
   //   ⚠**`exceed`／`underAnySigniTrash`／`multiZoneExile`／`life_crash`／`costSubstitute` は載せない**＝
   //     ルリグの下・下敷き・複数ゾーン・ライフの近似をこの盤面模型が持っていない ⇒ `null`＝その手は探索の外。
@@ -727,8 +733,13 @@ function payCpuSelfCostSim(
   }
   let out = s;
   // 🆕§5.7 `S-31` ②＝手札を捨てるコスト（**本番が選んだ index をそのまま払う**）。
-  if (cost.discard !== undefined || cost.handDiscardSigni !== undefined) {
-    const need = (cost.discard ?? 0) + (cost.handDiscardSigni?.count ?? 0);
+  if (cost.discard !== undefined || cost.handDiscardSigni !== undefined
+    || cost.discardGroups !== undefined || cost.discardVariable !== undefined
+    || cost.discardUpTo !== undefined || cost.handBottomDeck !== undefined) {
+    // 🆕§5.7 `S-31` ② 第6段＝**本番が選んだ枚数をそのまま払う**（可変枚数・グループ指定・デッキの下送りも同じ）。
+    const need = (cost.discard ?? 0) + (cost.handDiscardSigni?.count ?? 0)
+      + (cost.handBottomDeck ?? 0) + (cost.discardVariable?.min ?? 0)
+      + (cost.discardGroups?.reduce((sum, g) => sum + g.count, 0) ?? 0);
     const idx = [...(handDiscardIndices ?? [])];
     if (idx.length < need) return null;   // ⚠選べていないなら探索の外（タダで撃たせない）
     const drop = new Set(idx);

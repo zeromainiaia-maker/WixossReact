@@ -215,9 +215,12 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/screens/battle/attachedOrUnderCost';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
-import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuTrashArtsNums, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuTrashArtsNums, pickCpuTrashExileIndices, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { charmTrashAffordable, removeOppVirusAffordable, paySelectedExceed } from '../src/screens/battle/costs';
 import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
+import { discardGroupsAffordable } from '../src/screens/battle/costs';
+import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
+import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { trashArtsFromLrigDeckCandidates } from '../src/screens/battle/artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
 import { payDeckTrashCost } from '../src/screens/battle/deckTrashCost';
@@ -53366,15 +53369,21 @@ test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない�
   //   どれを捨てるかは `pickCpuDiscardCostIndices`（弱い札から・【ガード】は最後）。gate が枚数と中身を検算している。
   ok(can({ discard: 1 }), '🔴手札を捨てるコストで撃てなくなっている（`S-31` ② の退化）');
   ok(can({ handDiscardSigni: { count: 1, story: '電機' } }), '🔴中身の条件つき手札捨てで撃てない');
-  ok(!can({ discardVariable: { min: 1 } }), '可変手札捨ては撃たない（枚数を決める判断が要る）');
+  // 🆕§5.7 `S-31` ② 第6段（2026-09-22）＝**可変枚数も撃てるようになった**（較正）＝
+  //   🔑**最低枚数だけ払う**（`discardUpTo` は0枚）＝「枚数を決める判断」は過剰に払わない側へ倒してある。
+  ok(can({ discardVariable: { min: 1 } }), '🔴可変手札捨てで撃てなくなっている（`S-31` ② 第6段の退化）');
+  ok(can({ discardGroups: [{ count: 1 }] }), '🔴組で捨てるコストで撃てなくなっている');
   // 🆕§5.7 `S-31` ② 第2段（2026-09-21）＝**場・エナから払うコストも撃てるようになった**（較正）。
   ok(can({ fieldTrash: { count: 1 } }), '🔴場から払うコストで撃てなくなっている（`S-31` ② 第2段の退化）');
   ok(can({ energyTrash: { count: 1 } }), '🔴エナから払うコストで撃てなくなっている');
-  ok(!can({ beat_signi: 1 }), '【ビート】選択は撃たない');
+  // 🆕§5.7 `S-31` ② 第6段＝【ビート】も撃てるようになった（較正）＝**支払い側がレベルの低い順で自動**に選び、
+  //   提示ゲートを `analyzeBeatSigniCost` の軸へ揃えた（旧は「場に1体でも居れば提示」＝支払い不能で黙って return）。
+  ok(can({ beat_signi: 1 }), '🔴【ビート】のコストで撃てなくなっている（`S-31` ② 第6段の退化）');
   // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**効果元の下から落とすコストも撃てるようになった**（較正）＝
   //   どれを落とすかは `pickCpuUnderSelfTrashKeys`（gate が `canPayUnderSelfTrash` で集合制約まで検算している）。
   ok(can({ underSelfTrash: { count: 1 } }), '🔴下から落とすコストで撃てなくなっている（`S-31` ② 第3段の退化）');
-  ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
+  // 🆕§5.7 `S-31` ② 第6段＝トラッシュ除外も撃てるようになった（較正）＝index は `pickCpuTrashExileIndices`。
+  ok(can({ trashExile: { count: 1 } }), '🔴トラッシュ除外で撃てなくなっている（`S-31` ② 第6段の退化）');
   ok(can({ trashExile: { self: true } }), 'trashExile.self は自動');
   // 🔴allowlist であることの固定＝新しいコストキーが増えても「撃たない」側へ倒れる
   ok(!can({ handToEnergy: { count: 1 } }), '🔴allowlist に無いキーは撃たない');
@@ -53382,7 +53391,10 @@ test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない�
     '🔴allowlist から手札捨てが消えた（`S-31` ② の退化）');
   // 🆕§5.7 `S-31` ② 第3段＝`charmTrash` は**先に gate へ検算を足してから**載せた（較正）。
   //   ⚠規律は変わらない＝**gate が中身を検算しないキーは載せない**（`trashExile` はいまも外）。
-  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('trashExile') && !CPU_AUTO_PAYABLE_COST_KEYS.has('charmTrashVariable'),
+  // 🆕§5.7 `S-31` ② 第6段＝`trashExile`／`charmTrashVariable` も**gate へ検算を足してから**載せた（較正）。
+  //   ⚠規律は変わらない＝**選択の形を CPU が決められないキーは載せない**
+  //   （`attachedOrUnderTrash` は instance id の選択が要る／`handToEnergy` は口が無い）。
+  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('attachedOrUnderTrash') && !CPU_AUTO_PAYABLE_COST_KEYS.has('handToEnergy'),
     '🔴gate が中身を検算しないキーまで allowlist に入れた（`charmTrash` は無限ループの実績あり）');
   ok(!can({ coin: 4 }), 'コイン不足では撃たない');
   ok(can({ coin: 1 }), 'コインが足りれば撃てる');
@@ -54167,15 +54179,24 @@ test('O-1 cpuLrigActivate: 支払い内訳が要るコストは CPU が撃たな
   // 🆕§5.7 `S-31` ② 第2段（2026-09-21）＝**手札を捨てる／エナから落とすコストは撃てるようになった**（較正）。
   ok(can({ handDiscardSigni: { count: 1 } }), '🔴ルリグ【起】の手札捨てで撃てなくなっている（`S-31` ② 第2段の退化）');
   ok(can({ energyTrash: { count: 1 } }), '🔴ルリグ【起】のエナトラッシュで撃てなくなっている');
-  ok(!can({ discardGroups: [{ count: 1 }] }), '手札グループ捨ては撃たない');
-  ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
+  // 🆕§5.7 `S-31` ② 第6段＝ルリグ【起】も組で捨てられるようになった（較正）。
+  //   ⚠規律は変わらない＝**`performLrigActivated` に口が無いキーは載せない**（下の2つは今も外）。
+  ok(can({ discardGroups: [{ count: 1 }] }), '🔴ルリグ【起】の組で捨てるコストで撃てなくなっている');
+  ok(!can({ underSelfTrash: { count: 1 } }) && !can({ chargeCounterRemove: 1 }),
+    '🔴`performLrigActivated` に受け取る口が無いコスト（効果元シグニ前提）を allowlist に入れた');
+  // 🆕§5.7 `S-31` ② 第6段＝ルリグ【起】のトラッシュ除外も撃てるようになった（較正・index は共通の picker）。
+  ok(can({ trashExile: { count: 1 } }), '🔴ルリグ【起】のトラッシュ除外で撃てなくなっている');
   // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**場から払うコストも撃てるようになった**（較正）＝
   //   🔴第2段の「実行側に口が無い」は**誤り**で、口は `performLrigActivated` の `sel.fieldBanishZones` に在った
   //   （欠けていたのは CPU 側のゾーン選択だけ）。ゾーンは `pickCpuFieldTrashZones`。
   ok(can({ fieldTrash: { count: 1 } }), '🔴ルリグ【起】の場コストで撃てなくなっている（`S-31` ② 第3段の退化）');
-  ok(!can({ discardGroups: [{ count: 1 }] }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
-  ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups'),
-    '🔴allowlist の中身が変わった（手札捨ては入れた／選択の要るグループ捨ては入れない）');
+  ok(!can({ handToEnergy: { count: 1 } }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
+  // 🆕§5.7 `S-31` ② 第6段＝組で捨てるコストも**選び方を書いてから**載せた（較正）。
+  //   ⚠残す規律＝**効果元がシグニであることを前提にするキーはルリグ【起】に載せない**。
+  ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni') && CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups'),
+    '🔴allowlist の中身が変わった（手札捨て・組で捨てるはどちらも入れた）');
+  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('selfToDeckBottom'),
+    '🔴効果元シグニ前提のキーをルリグ【起】の allowlist に入れた');
 }));
 
 test('O-1 cpuLrigActivate: CPU のルリグ【起】選択は「撃てる・自動で払える・未使用」の3条件', () => withSavedCursor(() => {
@@ -90359,7 +90380,9 @@ test('§5.7 S-31 ② 第2段 エナ・場から払うコスト：弱いものか
   //   ⚠規律は変わらない＝**口が無いキーは載せない**（`fieldDown`／`discardGroups` は今も外）。
   // 🆕§5.7 `S-31` ② 第5段＝`fieldDown` も**支払いを新設してから**載せた（較正）。
   //   ⚠規律は変わらない＝**口が無いキーは載せない**（`discardGroups`／`trapToHand` は今も外）。
-  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('trapToHand'),
+  // 🆕§5.7 `S-31` ② 第6段＝`discardGroups`／`trapToHand` も**支払いを足してから**載せた（較正）。
+  //   ⚠規律は変わらない＝**効果元がシグニであることを前提にするキーはルリグ【起】に載せない**。
+  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('underSelfTrash') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('chargeCounterRemove'),
     '🔴`performLrigActivated` に受け取る口が無いコストを allowlist に入れた（宣言だけして踏み倒す側へ倒れる）');
 }));
 
@@ -90661,6 +90684,118 @@ test('§5.7 S-31 ② 第5段 残りの踏み倒し：下敷き全ゾーン／エ
   ok(/payFieldDownCost\(/.test(signiSrcE), '🔴`fieldDown` の支払いが2本に割れている（funnel を使っていない）');
   ok(/underAnySigniCostCandidates\(/.test(fs.readFileSync(join(root, 'src/screens/battle/modals/SigniActivatedModal.tsx'), 'utf-8')),
     '🔴人間が「あなたのシグニの下」から選ぶ UI が無い');
+}));
+
+test('§5.7 S-31 ② 第6段 残り全部：組で捨てる／可変枚数／デッキの下／トラッシュ除外／【ビート】／トラップ', () => withSavedCursor(() => {
+  // 🏁**これで「CPU が撃てない【起】」は 0 になった**（場のシグニ 695／ルリグ 567 のどちらも 0）。
+  // 🔴**この回に塞いだ踏み倒し3件**＝`handBottomDeck`（シグニ・**人間の選択UIも無かった**）／
+  //   `trapToHand`・`beat_signi`（ルリグ・支払いが1行も無かった）。
+  // 🔴**提示ゲートの穴4件**＝`discardGroups`（両方）／`trashExile`（ルリグ）／`beat_signi`（雑な検算）／
+  //   `discardVariable`・`charmTrashVariable`・`handBottomDeck` の枚数。
+  const cm31f = cardMap as Map<string, CardData>;
+  const SP1 = findCard(c => c.Type === 'スペル');
+  const SP2 = findCard(c => c.Type === 'スペル' && c.CardNum !== SP1);
+  const SIG_G = findCard(c => isSigni(c) && (c.Power ?? '') === '5000');
+  const SIG_H = findCard(c => isSigni(c) && (c.Power ?? '') === '10000');
+  ok(!!SP1 && !!SP2 && !!SIG_G && !!SIG_H, '前提崩れ＝検査に使う札が CSV に無い');
+  const GROUPS = [{ count: 1, filter: { cardType: 'スペル' } }, { count: 1, filter: { cardType: 'シグニ' } }];
+
+  // ── ① `discardGroups`＝組を満たす手札が無ければ**提示しない**（旧は検算が1行も無かった）──
+  const groupIds = (hand: string[]) => listActivatableSigniEffects({
+    my: { ...mkState({ signi: [SIG_G, null, null] }), hand } as PlayerState,
+    op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[SIG_G, [mkAct('T-DG', { cost: { discardGroups: GROUPS } as never })]]]) as Map<string, CardEffect[]>,
+    cardMap: cm31f,
+  }).map(e => e.effectId);
+  eq(groupIds([SIG_H, SIG_G]).length, 0, '🔴スペルが手札に無いのに「スペル1枚とシグニ1枚を捨てる」を提示した');
+  eq(groupIds([SP1, SP2]).length, 0, '🔴シグニが手札に無いのに提示した');
+  eq(groupIds([SP1, SIG_H]).join(','), 'T-DG', '両方在れば提示される（対照）');
+  ok(discardGroupsAffordable([SP1, SIG_H, SIG_G], GROUPS as never, cm31f), '🔴余分な手札があると組を見つけられない');
+  ok(!discardGroupsAffordable([SP1], GROUPS as never, cm31f), '🔴枚数が足りないのに払えると答えた');
+
+  // ── ② CPU の手札の選び方＝組／可変枚数／デッキの下 ──
+  const pickHand = (cost: object, hand: string[]) =>
+    pickCpuDiscardCostIndices({ hand, cost: cost as never, cardMap: cm31f });
+  const gPick = pickHand({ discardGroups: GROUPS }, [SIG_H, SP1, SIG_G]);
+  eq(gPick?.size, 2, '🔴組で捨てる2枚を選べていない');
+  ok(!!gPick && canSatisfyDiscardGroups([...gPick].map(i => cm31f.get([SIG_H, SP1, SIG_G][i])), GROUPS as never),
+    '🔴選んだ2枚が組の条件を満たしていない');
+  eq(pickHand({ discardGroups: GROUPS }, [SIG_H, SIG_G]), null, '🔴スペルが無いのに払えたことにした');
+  // 🔑**可変枚数は最低枚数だけ払う**（過剰に払わない側へ倒す）
+  eq(pickHand({ discardVariable: { min: 1 } }, [SIG_H, SP1])?.size, 1, '🔴「1枚以上捨てる」で最低枚数を選べていない');
+  eq(pickHand({ discardVariable: { min: 1, filter: { cardType: 'スペル' } } }, [SIG_H]), null,
+    '🔴条件に合う手札が無いのに払えたことにした');
+  eq(pickHand({ discardUpTo: 3 }, [SIG_H, SP1])?.size, 0, '🔴「3枚まで」で手札を捨ててしまった（0枚でよい）');
+  eq(pickHand({ handBottomDeck: 1 }, [SIG_H, SP1])?.size, 1, '🔴デッキの一番下へ置く札を選べていない');
+
+  // ── ③ `handBottomDeck`／`trapToHand` の支払い（**行き先が違う**＝トラッシュではない）──
+  const hbSt = { ...mkState({}), hand: [SIG_H, SP1] } as PlayerState;
+  const hbPaid = payHandBottomDeckCost(hbSt, new Set([0]), 1);
+  ok(!!hbPaid && hbPaid.state.hand.length === 1 && hbPaid.state.deck.at(-1) === SIG_H,
+    '🔴手札がデッキの**一番下**へ行っていない');
+  ok(!!hbPaid && !hbPaid.state.trash.includes(SIG_H), '🔴デッキの一番下へ置く札をトラッシュにも積んだ（二重）');
+  eq(payHandBottomDeckCost(hbSt, new Set(), 1), null, '🔴1枚も選ばずに払えたことにした');
+  const trapSt = (() => { const b = mkState({});
+    return { ...b, field: { ...b.field, signi_traps: [SP1, null, null] } } as PlayerState; })();
+  const trapPaid = payTrapToHandCost(trapSt, 1);
+  ok(!!trapPaid && trapPaid.state.hand.includes(SP1) && (trapPaid.state.field.signi_traps ?? [])[0] === null,
+    '🔴【トラップ】が手札に戻っていない');
+  eq(payTrapToHandCost(mkState({}), 1), null, '🔴トラップが無いのに払えたことにした');
+
+  // ── ④ `trashExile`＝弱い札から・集合制約は人間の支払いUIと同じ関数 ──
+  const teCost = { trashExile: { count: 2, selectionConstraint: { distinct: 'name' } } };
+  const tePick = pickCpuTrashExileIndices({ trash: [SP1, SP1, SP2], cost: teCost as never, cardMap: cm31f });
+  eq(tePick?.size, 2, '🔴「それぞれ名前の異なる2枚」を選べていない');
+  ok(!!tePick && new Set([...tePick].map(i => cm31f.get([SP1, SP1, SP2][i])?.CardName)).size === 2,
+    '🔴同名2枚を選んでしまった（集合制約）');
+  eq(pickCpuTrashExileIndices({ trash: [SP1, SP1], cost: teCost as never, cardMap: cm31f }), null,
+    '🔴同名しか無いのに払えたことにした');
+  eq(pickCpuTrashExileIndices({ trash: [], cost: { trashExile: { self: true } } as never, cardMap: cm31f })?.size, 0,
+    '🔴`.self` は選択不要（空集合）なのに払えないことにした');
+
+  // ── ⑤ `beat_signi`＝提示ゲートが**支払いと同じ解析**を使う（旧は「1体でも居れば提示」）──
+  const beatIds = (signi: (string | null)[]) => listActivatableSigniEffects({
+    my: mkState({ signi }), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[SIG_G, [mkAct('T-BT', { cost: { beat_signi: { count: 1, otherCount: 1 } } as never })]]]) as Map<string, CardEffect[]>,
+    cardMap: cm31f,
+  }).map(e => e.effectId);
+  eq(beatIds([SIG_G, null, null]).length, 0, '🔴「他のシグニ1体」なのに自分しか居ない盤面で提示した');
+  eq(beatIds([SIG_G, SIG_H, null]).join(','), 'T-BT', '他のシグニが居れば提示される（対照）');
+
+  // ── ⑥ `fieldTrashGroups`＝場から**組で**選ぶ（`WX04-040-E1`＝＜アーム＞1体と＜ウェポン＞1体）──
+  const armClass = String(cm31f.get(SIG_G)?.CardClass ?? '');
+  ok(armClass.length > 0, '前提崩れ＝クラスが読めない');
+  const fgZones = pickCpuFieldTrashZones({
+    effect: { effectId: 'FG', effectType: 'ACTIVATED',
+      cost: { fieldTrashGroups: [{ count: 1, filter: { cardType: 'シグニ' } }, { count: 1, filter: { cardType: 'シグニ' } }] } } as never,
+    actor: mkState({ signi: [SIG_G, SIG_H, null] }), sourceZone: 0, cardMap: cm31f });
+  eq(fgZones?.size, 2, '🔴場から組で2体を選べていない');
+  eq(pickCpuFieldTrashZones({
+    effect: { effectId: 'FG2', effectType: 'ACTIVATED',
+      cost: { fieldTrashGroups: [{ count: 1, filter: { cardType: 'シグニ' } }, { count: 1, filter: { cardType: 'シグニ' } }] } } as never,
+    actor: mkState({ signi: [SIG_G, null, null] }), sourceZone: 0, cardMap: cm31f }), null,
+    '🔴場のシグニが足りないのに払えたことにした');
+
+  // ── ⑦ 配線（allowlist・支払い・人間のUI）──
+  for (const k of ['discardGroups', 'discardVariable', 'discardUpTo', 'handBottomDeck', 'trashExile',
+    'fieldTrashGroups', 'beat_signi', 'charmTrashVariable'] as const) {
+    ok(CPU_AUTO_PAYABLE_COST_KEYS.has(k), `🔴場のシグニ【起】の allowlist から ${k} が消えた`);
+  }
+  for (const k of ['discardGroups', 'trashExile', 'beat_signi', 'trapToHand'] as const) {
+    ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has(k), `🔴ルリグ【起】の allowlist から ${k} が消えた`);
+  }
+  const lrigSrcF = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigActivated.ts'), 'utf-8');
+  ok(/payTrapToHandCost\(/.test(lrigSrcF) && /payBeatSigniCost\(/.test(lrigSrcF),
+    '🔴ルリグ【起】の実行がトラップ／【ビート】のコストを払っていない');
+  const signiSrcF = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniActivated.ts'), 'utf-8');
+  ok(/payHandBottomDeckCost\(/.test(signiSrcF), '🔴場のシグニ【起】の実行がデッキの一番下送りを払っていない');
+  // 🔴**行き先が違うものを「捨てた」台帳に混ぜない**（トラッシュへ二重に積まない）
+  ok(/cost\?\.handBottomDeck \? \[\] :/.test(signiSrcF),
+    '🔴デッキの一番下へ置く札を「捨てた」札として数えている（二重に動く）');
+  ok(/actHandBottomDeck/.test(fs.readFileSync(join(root, 'src/screens/battle/modals/SigniActivatedModal.tsx'), 'utf-8')),
+    '🔴人間がデッキの一番下へ置く札を選ぶ UI が無い');
+  ok(/trashExileIndices: choice\.trashExileIndices/.test(fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8')),
+    '🔴CPU の実行にトラッシュ除外の選択を渡していない');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuTrashArtsNums, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
+import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuTrashArtsNums, pickCpuTrashExileIndices, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { getCardNum } from '../../engine/execUtils';
 import type { CpuPolicy } from './cpuPolicy';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
@@ -85,6 +85,15 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   //   `life_crash`＝自分のライフクロスをNクラッシュ（自動・`payLifeOnPlayCost`／gate が枚数を検算）。
   'fieldDown',
   'life_crash',
+  // 🆕§5.7 `S-31` ② 第6段（2026-09-22）＝**残りは「CPU に選ばせる判断」だけだった**キー群。
+  //   `discardGroups`＝手札から組で捨てる（`pickCpuDiscardCostIndices`）。
+  //   `trashExile`＝トラッシュから除外（`pickCpuTrashExileIndices`）。
+  //   `beat_signi`＝**支払い側が自動で選ぶ**（この回に支払いと gate を足した）。
+  //   `trapToHand`＝【トラップ】を手札へ（**左のゾーンから自動**＝裏向きなので選択UIが無い）。
+  'discardGroups',
+  'trashExile',
+  'beat_signi',
+  'trapToHand',
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
@@ -115,6 +124,8 @@ export interface CpuLrigActivatedChoice {
   fieldBanishZones: Set<number>;
   /** 🆕§5.7 `S-31` ② 第4段＝`trashArtsFromLrigDeck` で捨てるアーツ（ルリグデッキの cardNum）。 */
   trashArtsNums: string[];
+  /** 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外する index（`trashExile`）。 */
+  trashExileIndices: Set<number>;
 }
 
 /**
@@ -205,7 +216,13 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
       effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
     });
     if (!trashArtsNums) continue;
-    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones, trashArtsNums };
+    // 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外するコスト（**選び方は場のシグニ【起】と同じ関数**）。
+    const trashExileIndices = pickCpuTrashExileIndices({
+      trash: p.actor.trash, cost: effect.cost, cardMap: p.cardMap,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
+    });
+    if (!trashExileIndices) continue;
+    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones, trashArtsNums, trashExileIndices };
   }
 }
 

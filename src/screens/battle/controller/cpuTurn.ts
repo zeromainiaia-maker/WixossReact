@@ -312,6 +312,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       energyTrashIndices: choice.energyTrashIndices, fieldTrashZones: choice.fieldTrashZones,
       // 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすコスト（`underSelfTrash`）。
       underTrashKeys: choice.underTrashKeys,
+      // 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外するコスト（`trashExile`）。
+      trashExileIndices: choice.trashExileIndices,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
@@ -356,6 +358,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       fieldBanishZones: choice.fieldBanishZones,
       // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキから徴収するアーツ。
       trashArtsNums: choice.trashArtsNums,
+      // 🆕§5.7 `S-31` ② 第6段＝トラッシュから除外するコスト。
+      trashExileIndices: choice.trashExileIndices,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
