@@ -21,6 +21,7 @@ import {
 } from './costs';
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
 import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
+import type { CpuResonaBudget } from './cpuCutin';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
@@ -474,15 +475,19 @@ export function cpuCutinInput(ctx: CpuMoveCtx, turnPhase: TurnPhase): {
   energyReserve: CpuEnergyReserve | undefined;
   effectivePowers: Map<string, number>;
   lrigClass: string;
+  /** 🆕§5.6 `C-13`＝レゾナのカットインを出せるかの枠（**`cpuSummonBudget` の1本**＝`listCpuResonas` と同じ数字）。 */
+  resonaBudget: CpuResonaBudget;
 } {
   const s = ctx.actor;
   const pool = buildEnergyPayPool(s, { turnPhase, isMyTurn: false, effectsMap: ctx.effectsMap });
   const { isAffordable } = basicAffordable(ctx, s);
+  const budget = cpuSummonBudget(ctx, s);
   return {
     pool, energyPoolNums: energyPoolCardNums(pool), cards: ctx.allCards, isAffordable,
     energyReserve: ctx.reserveFor(s),
     effectivePowers: calcFieldPowers(s, ctx.opponent, false, ctx.effectsMap, ctx.cardMap, turnPhase),
     lrigClass: centerClassOf(ctx, s),
+    resonaBudget: { lrigLevel: budget.lrigLevel, lrigLimit: budget.lrigLimit, fieldSigniTotal: budget.fieldSigniTotal },
   };
 }
 

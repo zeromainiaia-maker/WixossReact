@@ -12,6 +12,7 @@ import { buildBaseEffectsMap, buildBattleMaterials } from './battleMaterials';
 import { makeBoardDiffCollector } from './boardDiffTriggers';
 import { cpuTurnAction, type CpuTurnActions, type CpuTurnDeps } from './cpuTurn';
 import { handleCutinPass as handleCutinPassImpl } from './cutinPass';
+import { resolvePendingPiece as resolvePendingPieceImpl } from './resolvePendingPiece';
 import { makeEffectInteractionHandlers } from './effectInteraction';
 import { makeTrigCtx } from './execCtxDeps';
 import { createMemoryPersist, type MemoryBattlePersist } from './memoryPersist';
@@ -202,9 +203,12 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       performSigniActivated: wrap(performSigniActivatedImpl),
       performLrigActivated: wrap(performLrigActivatedImpl),
       resolvePendingSigniBattleFor: wrap(resolvePendingSigniBattleForImpl),
-      // ⚠ピースのカットイン解決（画面の `resolvePendingPiece`）は画面の口＝ヘッドレスでは見送りだけを行う。
+      // 🆕§5.6 `C-12`（2026-09-22）＝**ピースのカットイン解決も共有の1本**（`controller/resolvePendingPiece.ts`）。
+      //   🔴旧はここが no-op だったので、**ピース応答窓が開くと窓が閉じずに盤面が止まった**
+      //   （`C-12` で CPU がこの窓に応答するようになり、止まる経路が実際に踏まれるようになった）。
       handleCutinPass: () => handleCutinPassImpl(ctx(), {
-        closeCutin: () => {}, openFreeGrow: () => {}, resolvePendingPiece: async () => {}, loading: false,
+        closeCutin: () => {}, openFreeGrow: () => {},
+        resolvePendingPiece: () => resolvePendingPieceImpl(ctx()), loading: false,
       }),
     };
   };
@@ -310,6 +314,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
         policy: d.policy?.guest ?? DEFAULT_CPU_POLICY,
         observeMoves: d.observeMoves, observeChoice: d.observeChoice,
         checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
+        // 🆕§5.6 `C-12`＝ピース応答窓の「最新盤面の読み直し」（ヘッドレスは書き込み済みの行をそのまま返す）。
+        fetchLatest: async () => row(),
       });
       return true;
     }
@@ -331,6 +337,8 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       policy: d.policy?.host ?? DEFAULT_CPU_POLICY,
       observeMoves: d.observeMoves, observeChoice: d.observeChoice,
       checkPowerZeroBanish: () => makeRuleChecks(clientCtx(), { loading: false, isCpuBattle: true, memo }).checkAndBanishPowerZero(),
+      // 🆕§5.6 `C-12`＝🔴**鏡の席では鏡に映した行を返す**（そのまま返すと席が入れ替わった盤面で窓を閉じる）。
+      fetchLatest: async () => mirrored(),
     });
     return true;
   };

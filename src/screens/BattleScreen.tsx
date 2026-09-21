@@ -128,6 +128,7 @@ import {performLifeBurstResponse as performLifeBurstResponseImpl} from './battle
 import {performGrow as performGrowImpl} from './battle/controller/performGrow';
 import {performSpell as performSpellImpl} from './battle/controller/performSpell';
 import {queueCardEffects as queueCardEffectsImpl} from './battle/controller/queueCardEffects';
+import {resolvePendingPiece as resolvePendingPieceImpl} from './battle/controller/resolvePendingPiece';
 import type {PerformCtx} from './battle/controller/performCtx';
 import type {BattleIo} from './battle/controller/battleIo';
 import { resolveStackStep, type StackResolveDeps} from './battle/controller/stackResolve';
@@ -167,7 +168,6 @@ import {sideAttackEmptyZoneDealsDamage} from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
 import {handDiscardHistoryRecord} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
-import {closeTeamPieceCutinWindow} from './battle/turnScopedState';
 import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
 
@@ -3319,52 +3319,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // スペルカットインをパス → スペル解決（スペル効果を発火）
-  /**
-   * ピース応答窓を閉じて、使われたピースを解決する（§6.4 O-10・続き518）。
-   *
-   * ⚠**窓フラグは必ずここで落とす**（残すと「カットイン専用ピースが通常タイミングで撃てる」過剰実行に戻る）。
-   * ⚠`countered` のときは**解決せずゲームから除外**する（原文「打ち消されたピースはゲームから除外される」）。
-   * ⚠使う側の state は既に支払い済みで DB にある＝ここでは**現在の bs から読み直す**（再徴収しない）。
-   */
-  const resolvePendingPiece = async () => {
-    const ps = bs.pending_spell;
-    if (!ps || ps.kind !== 'piece') return;
-    const casterIsHost = ps.caster_id === bs.host_id;
-    const casterKey: PlayerStateKey = casterIsHost ? 'host_state' : 'guest_state';
-    const oppKey: PlayerStateKey = casterIsHost ? 'guest_state' : 'host_state';
-    const casterState = casterIsHost ? bs.host_state : bs.guest_state;
-    const oppState = casterIsHost ? bs.guest_state : bs.host_state;
-    const pieceName = battleCardMap.get(getCardNum(ps.card_num))?.CardName ?? ps.card_num;
-    // 応答側の窓フラグを落とす（＝この1点が「窓を閉じる」の定義）。
-    const oppClosed: PlayerState = closeTeamPieceCutinWindow(oppState);
-    // 打ち消されたか＝`COUNTER_TEAM_PIECE_AND_EXILE` が使った側に立てたフラグ（⚠読んだら落とす）。
-    if (casterState.piece_use_countered) {
-      // 打ち消し＝ルリグトラッシュへ置いた自分自身を**除外**へ移す。
-      const casterExiled: PlayerState = {
-        ...casterState,
-        piece_use_countered: undefined,
-        lrig_trash: casterState.lrig_trash.filter(n => n !== ps.card_num),
-        excluded: [...(casterState.excluded ?? []), ps.card_num],
-      };
-      appendBattleLogs([`${pieceName}の効果は打ち消され、ゲームから除外された`]);
-      await persist.commit(reduceBattle(bs, {
-        type: 'FINISH_SPELL', casterKey, casterState: casterExiled,
-        other: { key: oppKey, state: oppClosed },
-      }));
-      return;
-    }
-    // パス＝通常どおり解決する（ピースは AUTO/ACTIVATED を積む＝`executeArts` のピース枝と同じ形）。
-    await persist.commit(reduceBattle(bs, {
-      type: 'FINISH_SPELL', casterKey, casterState,
-      other: { key: oppKey, state: oppClosed },
-    }));
-    // ⚠**効果の持ち主は「ピースを使った側」**＝応答側のクライアントから解決するので `owner` を明示する
-    //   （省略すると自分の state へ書いてしまう。スペル側の `handleCutinPass` が caster を跨ぐのと同じ形）。
-    await queueCardEffects(ps.card_num, ['AUTO', 'ACTIVATED'],
-      ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'],
-      casterState, oppClosed, { key: oppKey, state: oppClosed }, 1, [],
-      { id: ps.caster_id, key: casterKey });
-  };
+  // 🆕§5.6 `C-12`（2026-09-22）＝**本体は `controller/resolvePendingPiece.ts`**（41行を逐語で移設）。
+  //   🔴**なぜ出したか**＝この窓は**応答側のクライアント**が閉じるので、画面の中に閉じていると
+  //   **CPU が応答したときに閉じる者がいない**（ヘッドレスでも no-op だった）。
+  const resolvePendingPiece = async () => resolvePendingPieceImpl(performCtx());
 
   // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝本体（194行）は `controller/cutinPass.ts` へ逐語で移設。画面は材料と UI を渡すだけ。
   const handleCutinPass = async () =>
@@ -4116,6 +4074,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     allCards: cards,
     cpuPlan,
     checkPowerZeroBanish: () => checkPowerZeroBanishRef.current?.(),
+    // 🆕§5.6 `C-12`＝ピース応答窓の「最新盤面の読み直し」（CPU が応答したときに窓を閉じるのに要る）。
+    fetchLatest: async () => (await persist.fetchState()).data ?? null,
   });
   cpuTurnRef.current = cpuTurnAction;
 

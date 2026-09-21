@@ -113,6 +113,10 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'targetIntentByScope', base: 1, values: [0] },
   // ── 🆕§5.7 `S-24`＝マリガンで確保しに行くレベル1の枚数（0＝旧規則＝レベル2を掘らない）。
   { key: 'mulliganLv1Target', base: 2, values: [0, 3] },
+  // ── 🆕§5.6 `C-11`＝カットインで打ち消すのに要る「得」の下限（0＝損でなければ打ち消す）。
+  //   ⚠**旧挙動（常に打ち消す）は `-Infinity`**＝`patchCpuPolicy` は有限の数値しか受けないので
+  //     プリセット `legacy-cutin` で当てる（走査表には入れられない）。
+  { key: 'cutinGainMin', base: 4000, values: [0, 8000] },
 ];
 
 /**

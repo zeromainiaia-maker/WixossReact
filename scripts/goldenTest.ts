@@ -223,7 +223,7 @@ import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost'
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
-import { cpuCanAutoPayCutin, pickCpuCutin } from '../src/screens/battle/cpuCutin';
+import { cpuCanAutoPayCutin, cutinCounterGain, pickCpuCutin } from '../src/screens/battle/cpuCutin';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { emptyHandActivateSelections, payHandActivateCost } from '../src/screens/battle/handActivateCost';
 import { emptyTrashActivateSelections, payTrashActivateCost } from '../src/screens/battle/trashActivateCost';
@@ -238,8 +238,8 @@ import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpu
 import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, listCpuArts, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
-import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
-import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
+import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { guardProbability, lifeBurstProbability, lifeCrushRisk, lrigAttackRisk } from '../src/screens/battle/cpuAttackRisk';
 import { LB_MAX, MAIN_MAX } from '../src/utils/deckBuildLimits';
 import { formatAbReport, formatMarginLine, meanInterval, splitSeeds, summarizeAb, tCritical95, wilsonInterval, type AbGameResult } from './selfPlayStats';
@@ -89538,7 +89538,7 @@ test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分�
     ok(knobKeys.has(k), `🔴盤面の重み「${k}」が §5.7 S-6 の走査表（SCAN_KNOBS）に無い＝調整対象から漏れている`);
   }
   for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks',
-    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue']) {
+    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue', 'cutinGainMin']) {
     ok(knobKeys.has(k), `🔴ポリシーの数値「${k}」が §5.7 S-6 の走査表に無い＝調整対象から漏れている`);
   }
   // 🆕§5.7 `S-6` 第2段＝**接頭辞つきの3群も全数**（`strength.` 14／`keyword.` 8／`plan.` 6）。
@@ -91099,6 +91099,189 @@ test('§5.6 C-10 第2段 CPU がカットイン窓で応答する（打ち消せ
   ok(/\[CPU\] カットイン: /.test(turnSrcC10), '🔴計器の anchor（`[CPU] カットイン: `）がソースに無い');
   const screenC10 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(/performCutinUse\(candidate, costIndices/.test(screenC10), '🔴画面が共有の実行関数を呼んでいない（2本に割れた）');
+}));
+
+test('§5.6 C-11 カットインの判断が「相手のスペルの危険度」を見る（打ち消す価値が無いなら撃たない）', () => withSavedCursor(() => {
+  // 🔴**`C-10` 第2段の v1 は「打ち消せるなら打ち消す・エナの軽い順」だけ**＝**ドローだけのスペルに最後のアーツを吐く**。
+  // 🔑**取り方**＝`S-4` の先読み（`cpuLookahead`）で「打ち消さなかった盤面」と「打ち消して札を失った盤面」を採点して比べる。
+  // ⚠**先読みを渡さない／解けない効果は従来どおり打ち消す**（判断の材料が無いまま撃たない側へ倒さない）。
+  const cmC11 = cardMap as Map<string, CardData>;
+  const allCardsC11 = [...cmC11.values()];
+  const SPELL_C11 = findCard(c => c.Type === 'スペル');
+  const artsC11 = allCardsC11.find(c => (c.Timing ?? '').includes('スペルカットイン') && (c.Type ?? '').includes('アーツ')
+    && ['', '-'].includes((c.Restriction ?? '').trim())
+    && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'
+      && Object.keys(e.cost ?? {}).every(k => k === 'energy' || k === 'none')))?.CardNum;
+  ok(!!artsC11, '前提崩れ＝素のエナコストだけのカットインアーツが CSV に無い');
+
+  // 🔑**相手のスペルの中身は合成する**＝実カードの綴りに依存せず「危険度」だけを振って比べる
+  //   （`lookahead.effectsOf` だけを差し替える＝候補の列挙は本物の `effectsMap` のまま）。
+  const mkSpellEff = (action: unknown): CardEffect => ({
+    effectId: `${SPELL_C11}-C11`, effectType: 'ACTIVATED', timing: ['MAIN'],
+    action: action as never, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+  } as CardEffect);
+  const drawOnly = mkSpellEff({ type: 'DRAW', owner: 'self', count: 2 });
+  const banishMine = mkSpellEff({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } });
+  const lctxC11 = (spellEff: CardEffect): LookaheadCtx => ({
+    cardMap: cmC11,
+    effectsOf: id => (id === SPELL_C11 ? [spellEff] : (effectsMap.get(id) ?? [])),
+    turnPhase: 'MAIN', isCpuTurn: false,
+  });
+  const cpuC11 = () => ({ ...mkState({ signi: [SIGNI_P12000, null, null] }), lrig_deck: [artsC11!], energy: fill(10) } as PlayerState);
+  const humanC11 = () => mkState({});
+  const candC11 = {
+    kind: 'effect' as const, card: cmC11.get(artsC11!)!, instanceId: artsC11!,
+    source: 'lrig_deck' as const, effect: (effectsMap.get(artsC11!) ?? []).find(e => e.effectType === 'ACTIVATED')!,
+  };
+
+  // ── ① **危険なスペルほど「打ち消す得」が大きい**（この順序が判断の本体）──
+  const gainDraw = cutinCounterGain({ candidate: candC11, costCount: 1, cpu: cpuC11(), opp: humanC11(), spellCardNum: SPELL_C11, lookahead: lctxC11(drawOnly) });
+  const gainBanish = cutinCounterGain({ candidate: candC11, costCount: 1, cpu: cpuC11(), opp: humanC11(), spellCardNum: SPELL_C11, lookahead: lctxC11(banishMine) });
+  ok(gainDraw !== null && gainBanish !== null, '🔴合成したスペルの先読みが解けない（前提崩れ）');
+  ok(gainBanish!.gain > gainDraw!.gain,
+    `🔴自分のシグニが消えるスペルと、相手がドローするだけのスペルを同じ危険度と見ている（${gainDraw!.gain} / ${gainBanish!.gain}）`);
+  // 🔑**既定の閾値（4000）の意味**＝📏実測の2つの帯の間に置く＝
+  //   ドローだけのスペル **1,000〜3,000**（エナコスト 0〜2）／自分のシグニが消えるスペル **5,000〜7,000**。
+  ok(gainDraw!.gain < DEFAULT_CPU_POLICY.cutinGainMin,
+    `🔴ドローだけのスペルが既定の閾値を超えている（${gainDraw!.gain} ≥ ${DEFAULT_CPU_POLICY.cutinGainMin}）＝最後の札を吐く`);
+  ok(gainBanish!.gain >= DEFAULT_CPU_POLICY.cutinGainMin,
+    `🔴自分のシグニが消えるスペルを打ち消さない（${gainBanish!.gain} < ${DEFAULT_CPU_POLICY.cutinGainMin}）`);
+  // 🔴**解けないスペル（`ACTIVATED` が無い）は `null`**＝呼び出し側は従来どおり打ち消す。
+  eq(cutinCounterGain({ candidate: candC11, costCount: 1, cpu: cpuC11(), opp: humanC11(), spellCardNum: SPELL_C11,
+    lookahead: { ...lctxC11(drawOnly), effectsOf: () => [] } }), null, '🔴先読みが解けないのに数字を返した');
+
+  // ── ② 選ぶところまで通す（先読みあり／なし／旧挙動）──
+  const pickC11 = (spellEff: CardEffect | null, policy?: CpuPolicy) => {
+    const cpu = cpuC11(), human = humanC11();
+    return pickCpuCutin({
+      my: cpu, op: human, cpuId: 'CPU',
+      pendingSpell: { card_num: SPELL_C11, caster_id: 'HUMAN', kind: 'spell' } as never,
+      hostState: human, guestState: cpu, hostId: 'HUMAN',
+      turnPhase: 'MAIN', isMyTurn: false, cardMap: cmC11, effectsMap,
+      cards: allCardsC11, energyPoolNums: cpu.energy, isAffordable: () => true, lrigClass: '',
+      ...(spellEff ? { lookahead: lctxC11(spellEff) } : {}),
+      ...(policy ? { policy } : {}),
+    } as never);
+  };
+  eq(pickC11(drawOnly), null, '🔴ドローだけのスペルに札を吐いた（`C-11` の本体）');
+  ok(!!pickC11(banishMine), '🔴自分のシグニが消えるスペルを打ち消さない');
+  ok(!!pickC11(null), '🔴先読みを渡さないと撃たなくなった（判断の材料が無いのに撃たない側へ倒れた）');
+  ok(!!pickC11(drawOnly, CPU_POLICIES['legacy-cutin']),
+    '🔴旧挙動のプリセット（`legacy-cutin`）で打ち消さない＝A/B の A 側が再現できない');
+
+  // ── ③ 配線＝閾値は**ポリシー**（`S-9` の規律＝分岐 flag を足さない）──
+  ok(Number.isFinite(DEFAULT_CPU_POLICY.cutinGainMin), '🔴既定の閾値が数値でない');
+  eq(CPU_POLICIES['legacy-cutin'].cutinGainMin, Number.NEGATIVE_INFINITY, '🔴`legacy-cutin` が「常に打ち消す」になっていない');
+  const turnSrcC11 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/lookahead: \{ \.\.\.cpuLookahead/.test(turnSrcC11), '🔴CPU がカットイン窓へ先読みを渡していない＝`C-11` の判断が死んでいる');
+}));
+
+test('§5.6 C-12 ピース応答窓で CPU が応答する（窓を閉じる口が無いなら応答しない）', () => withSavedCursor(() => {
+  // 🔴**この窓は応答側のクライアントが閉じる**＝`performCutinUse` のピース枝は
+  //   **支払い→効果→最新盤面の読み直し→応答完了フラグ**の順に進む（`completePieceCutinResponseAfterEffects`）。
+  //   `C-10` 第2段は no-op の `ui` を渡していたので、**CPU が応答した瞬間に窓が閉じず盤面が止まる**状態だった。
+  // 📏母集団＝窓を開く側（【使用条件】【チーム】のピース）／応答しうる札＝`WXDi-P05-006`（live 実測で1枚）。
+  const cmC12 = cardMap as Map<string, CardData>;
+  const allCardsC12 = [...cmC12.values()];
+  const RESPONDER = 'WXDi-P05-006';
+  ok(!!cmC12.get(RESPONDER), '前提崩れ＝カットインできるピースが CSV に無い');
+  const USED = allCardsC12.find(c => isPieceCardType(c.Type) && (c.EffectText ?? '').includes('【使用条件】【チーム】'))?.CardNum;
+  ok(!!USED, '前提崩れ＝【使用条件】【チーム】のピースが CSV に無い');
+
+  // ⚠**応答側の条件は「場にチーム3体」**（`LRIG_TEAM_COUNT >= 3`）＝センター＋アシスト2枚を同じチームで埋める
+  //   （`collectPieceCutinCandidates` は `condition` を**丸ごと**評価する＝ここを省くと候補0で静かに通る）。
+  const teamC12 = [...cmC12.values()].filter(c => c.Type === 'ルリグ' && (c.Team ?? '').includes('きゅるきゅるーん')).map(c => c.CardNum);
+  ok(teamC12.length >= 3, '前提崩れ＝チーム「きゅるきゅるーん☆」のルリグが3枚未満');
+  const mkC12 = (o: { allowPiece?: boolean } = {}) => {
+    const cpu = { ...mkState({ lrig: [teamC12[0]], assistL: [teamC12[1]], assistR: [teamC12[2]] }), lrig_deck: [RESPONDER], energy: fill(10) } as PlayerState;
+    const human = mkState({ lrig: fill(3) });
+    return pickCpuCutin({
+      my: cpu, op: human, cpuId: 'CPU',
+      pendingSpell: { card_num: USED!, caster_id: 'HUMAN', kind: 'piece' } as never,
+      hostState: human, guestState: cpu, hostId: 'HUMAN',
+      turnPhase: 'MAIN', isMyTurn: false, cardMap: cmC12, effectsMap,
+      cards: allCardsC12, energyPoolNums: cpu.energy, isAffordable: () => true, lrigClass: '',
+      ...(o.allowPiece ? { allowPieceWindow: true } : {}),
+    } as never);
+  };
+  // ── ① 🔴**窓を閉じる口が無いなら応答しない**（止まるより撃たない側へ倒す）──
+  eq(mkC12(), null, '🔴窓を閉じる口（`fetchLatest`）が無いのにピース窓へ応答した＝盤面がそこで止まる');
+  // ── ② 口があれば応答する ──
+  const picked = mkC12({ allowPiece: true });
+  ok(!!picked, '🔴ピース応答窓で CPU が応答しない（窓ごと踏んでいない）');
+  eq(picked!.candidate.instanceId, RESPONDER, '🔴応答に選んだ札が違う');
+  eq(picked!.candidate.kind === 'effect' ? (picked!.candidate.countersSpell ?? true) : true, false,
+    '🔴ピース窓の応答を「打ち消し」扱いにしている（打ち消すのは選択肢①を選んだときだけ）');
+
+  // ── ③ 配線＝実行の2つの口を**人間と同じ実体**で渡す（no-op だと窓が閉じない）──
+  const turnSrcC12 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/allowPieceWindow: !!d\.fetchLatest/.test(turnSrcC12), '🔴ピース窓の可否を `fetchLatest` の有無で決めていない');
+  ok(/queueCardEffectsImpl\(/.test(turnSrcC12), '🔴CPU がピース窓の効果を積む口に no-op を渡している');
+  ok(/cutin_response_complete/.test(turnSrcC12), '🔴同じ窓に2度応答しない安全弁が無い');
+  ok(/\[CPU\] カットイン（ピース）: /.test(turnSrcC12), '🔴計器の anchor（`[CPU] カットイン（ピース）: `）がソースに無い');
+  const screenC12 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(/fetchLatest: async \(\) => \(await persist\.fetchState\(\)\)\.data/.test(screenC12), '🔴画面が CPU へ最新盤面の口を渡していない');
+  ok(/resolvePendingPieceImpl\(performCtx\(\)\)/.test(screenC12), '🔴画面がピース解決の共有関数を呼んでいない（2本に割れた）');
+  const headlessC12 = fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf-8');
+  ok(/resolvePendingPiece: \(\) => resolvePendingPieceImpl\(/.test(headlessC12),
+    '🔴ヘッドレスのピース解決が no-op のまま＝自己対戦でこの窓が開くと止まる');
+  ok(/fetchLatest: async \(\) => mirrored\(\)/.test(headlessC12),
+    '🔴鏡の席が鏡に映さない行を返している＝席が入れ替わった盤面で窓を閉じる');
+}));
+
+test('§5.6 C-13 レゾナのカットインを CPU が使う（出す先・支払い・リミットは人間と同じ関数）', () => withSavedCursor(() => {
+  // 🔴**旧は `kind:'resona'` の候補を `pickCpuCutin` が丸ごと捨てていた**（出す先の選択が要る＝honest defer）。
+  // 🔑**受け皿は在った**＝支払いは `pickCpuResonaSelection`・出す先は `pickCpuResonaZone`（`cpuSummon.ts`）。
+  // 📏母集団＝レゾナ × `SPELL_CUTIN` を含む効果 3カード（`WX13-005B`／`WX13-006B`／`WX14-006B`）。
+  const cmC13 = cardMap as Map<string, CardData>;
+  const allCardsC13 = [...cmC13.values()];
+  const RESONA = 'WX13-005B';
+  ok(!!cmC13.get(RESONA), '前提崩れ＝`SPELL_CUTIN` のレゾナが CSV に無い');
+  // 出現条件＝「合計2枚のレゾナではない＜宇宙＞のシグニを手札とエナゾーンと場からトラッシュに置く」。
+  // ⚠**＜宇宙＞は `CardClass`（`精羅：宇宙`）**＝`Story` 列ではない（`Story` は `-`／`Dissona` しか入っていない）。
+  const uchu = allCardsC13.filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙')).map(c => c.CardNum);
+  ok(uchu.length >= 2, '前提崩れ＝＜宇宙＞のシグニが2枚未満');
+  const SPELL_C13 = findCard(c => c.Type === 'スペル');
+  const LRIG_C13 = findCard(c => c.Type === 'ルリグ' && (parseInt(c.Limit ?? '0', 10) || 0) >= 5);
+  const budgetC13 = { lrigLevel: 5, lrigLimit: 12, fieldSigniTotal: 0 };
+
+  const pickC13 = (o: { budget?: typeof budgetC13 | null; hand?: string[] } = {}) => {
+    const cpu = {
+      ...mkState({ lrig: [LRIG_C13] }), lrig_deck: [RESONA], energy: fill(8),
+      hand: o.hand ?? [uchu[0], uchu[1], ...fill(3)],
+    } as PlayerState;
+    const human = mkState({});
+    const budget = o.budget === undefined ? budgetC13 : o.budget;
+    return pickCpuCutin({
+      my: cpu, op: human, cpuId: 'CPU',
+      pendingSpell: { card_num: SPELL_C13, caster_id: 'HUMAN', kind: 'spell' } as never,
+      hostState: human, guestState: cpu, hostId: 'HUMAN',
+      turnPhase: 'MAIN', isMyTurn: false, cardMap: cmC13, effectsMap,
+      cards: allCardsC13, energyPoolNums: cpu.energy, isAffordable: () => true, lrigClass: '',
+      // 🔑枠の実体は `cpuSummonBudget`（`listCpuResonas` と同じ数字）。
+      ...(budget ? { resonaBudget: budget } : {}),
+    } as never);
+  };
+  // ── ① 出せるなら出す（支払いと配置先が付く）──
+  const got = pickC13();
+  ok(!!got, '🔴`SPELL_CUTIN` のレゾナを CPU が一度も使わない');
+  eq(got!.candidate.kind, 'resona', '🔴レゾナ以外を選んだ');
+  ok(!!got!.resona, '🔴出現条件の支払いと配置先が付いていない＝実行できない');
+  eq(got!.resona!.selection.items?.length, 2, '🔴出現条件の支払い（＜宇宙＞2枚）を組めていない');
+  ok(got!.resona!.zone >= 0 && got!.resona!.zone <= 2, '🔴配置先が場のゾーンでない');
+  // ── ② 🔴**枠を渡されなければ出さない**（枠を数え直すと人間とズレる＝honest defer）──
+  eq(pickC13({ budget: null }), null, '🔴枠（`resonaBudget`）を渡していないのにレゾナを出した');
+  // ── ③ **リミットを超えるなら出さない**（人間のモーダルと同じ式）──
+  eq(pickC13({ budget: { lrigLevel: 5, lrigLimit: 1, fieldSigniTotal: 0 } }), null, '🔴ルリグのリミットを超えてレゾナを出した');
+  // ── ④ **ルリグレベルより高いレゾナは出さない** ──
+  eq(pickC13({ budget: { lrigLevel: 0, lrigLimit: 12, fieldSigniTotal: 0 } }), null, '🔴ルリグレベルを超えるレゾナを出した');
+  // ── ⑤ **支払えないなら出さない** ──
+  eq(pickC13({ hand: fill(5) }), null, '🔴出現条件を払えないのにレゾナを出した');
+
+  // ── ⑥ 配線＝実行は人間と同じ `performSummonSigni`（`performCutinUse` はレゾナを受けない）──
+  const turnSrcC13 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/choice\.resona && choice\.candidate\.kind === 'resona'/.test(turnSrcC13), '🔴レゾナのカットインを実行する枝が無い');
+  ok(/\[CPU\] カットイン（レゾナ）: /.test(turnSrcC13), '🔴計器の anchor（`[CPU] カットイン（レゾナ）: `）がソースに無い');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

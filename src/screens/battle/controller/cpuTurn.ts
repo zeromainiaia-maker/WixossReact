@@ -1,4 +1,4 @@
-import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase} from '../../../types';
+import type {PlayerState, CardData, StackEntry, EffectStack, TurnPhase, BattleStateRow} from '../../../types';
 import type {CardEffect, TriggerOriginZone} from '../../../types/effects';
 import {calcFieldPowers, calcContinuousBlockedActions, checkActiveCondition, collectEnergyTrashSubstituteInfo, collectHandLimits, collectHandGuardIconClasses, drawPhaseLimitFromBlocked} from '../../../engine/effectEngine';
 import {getCardNum, evalUseCondition} from '../../../engine/effectExecutor';
@@ -10,6 +10,7 @@ import {type HandActivateSelections} from '../handActivateCost';
 import {cpuOffFieldLedgerKey, pickCpuOffFieldActivated, type CpuOffFieldChoice} from '../cpuOffFieldActivate';
 import {cutinCardName, pickCpuCutin} from '../cpuCutin';
 import {performCutinUse} from './performCutinUse';
+import {queueCardEffects as queueCardEffectsImpl} from './queueCardEffects';
 import {isEnaMultiStripped} from '../costs';
 import {collectEnaAllMulti} from '../artsUseGate';
 import {applyUpPhaseToField, upPhaseRecipient} from '../upPhase';
@@ -119,6 +120,16 @@ export interface CpuTurnDeps {
    * 🔑**golden が「本番で打った手は必ず列挙に出ている」を照合する口**（列挙の道が1本であることの検査）。
    */
   observeChoice?: (m: CpuMove) => void;
+  /**
+   * 🆕🔴§5.6 `C-12`（2026-09-22）＝**最新の盤面行を取り直す**（画面の `persist.fetchState`／ヘッドレスの `row()`）。
+   *
+   * 🔴**ピース応答窓だけが要る**＝`performCutinUse` の `kind==='piece'` 枝は
+   *   **支払い → 効果をスタックへ → 最新盤面を読み直す → 応答完了フラグ**の順に進む
+   *   （`completePieceCutinResponseAfterEffects`＝順序を固定する純関数）。
+   *   **commit の後に `c.bs` は古い**ので、ここで読み直さないと**完了フラグを書けず窓が閉じない**。
+   * ⚠**渡せない呼び出し元はピース窓に応答しない**（`pickCpuCutin` の `allowPieceWindow`）＝止まるより撃たない側へ倒す。
+   */
+  fetchLatest?: () => Promise<BattleStateRow | null>;
 }
 
 // 🆕§5.7 `S-5c` 第3段（2026-09-18）＝CPU の1手（`cpuTurnAction`・1,362行）を `BattleScreen` から**逐語で移設**。
@@ -435,14 +446,24 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   };
 
   /**
-   * 🆕**CPU のカットイン応答**（§5.6 `C-10` 第2段）＝人間のスペル／ピースに対して**打ち消せるなら打ち消す**。
+   * 🆕**CPU のカットイン応答**（§5.6 `C-10` 第2段）＝人間のスペル／ピースに対して**打ち消す価値があれば打ち消す**。
    *
    * ⚠**判定は `collectCutinCandidates`・実行は `performCutinUse`＝どちらも人間と同じ関数**（§5.6.3）。
    * ⚠**支払い内訳を人間が選ぶ形（エクシード・下のカード・ベット）は撃たない**（`cpuCanAutoPayCutin` の allowlist）。
    * ⚠**使わなかったら `false`**＝呼び出し元が従来どおり `handleCutinPass()` でパスする。
+   *
+   * 🆕**§5.6 `C-11`（2026-09-22）＝打ち消す価値を測る**＝先読み（`cpuLookahead`）を渡すと
+   *   「打ち消さなかった盤面」と「打ち消して札を失った盤面」を比べ、差が `cutinGainMin` に届かないなら撃たない。
+   * 🆕🔴**§5.6 `C-12`（2026-09-22）＝ピース応答窓**＝実行が**最新盤面の読み直し**を要る枝なので、
+   *   `queueCardEffects`（人間と同じ共有ヘルパ）と `d.fetchLatest` を渡す。**渡せないなら候補を出さない**
+   *   （`allowPieceWindow`＝旧は no-op の `ui` を渡していたので、**応答した瞬間に窓が閉じず盤面が止まった**）。
+   * 🆕**§5.6 `C-13`（2026-09-22）＝レゾナのカットイン**＝実行だけは `performCutinUse` ではなく
+   *   **人間と同じ `performSummonSigni`**（出現条件の支払い・配置・【出】）＝`tryCpuResona` と同じ形。
    */
   const tryCpuCutin = async (actorState: PlayerState): Promise<boolean> => {
     if (!bs.pending_spell) return false;
+    // 🔴**1つの窓に2度応答しない**＝ピース窓は応答しても `pending_spell` が残る（完了フラグが立つだけ）。
+    if (bs.pending_spell.cutin_response_complete) return false;
     // 🔑**材料は `cpuCutinInput` の1本**（エナ支払いの権威は `basicAffordable`＝グロウ／【起】と同じ）。
     const input = cpuCutinInput(cpuMoveCtx(actorState), bs.turn_phase as TurnPhase);
     const choice = pickCpuCutin({
@@ -450,20 +471,40 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       my: actorState, op: huSt, cpuId: CPU_PLAYER_ID,
       pendingSpell: bs.pending_spell, hostState: bs.host_state, guestState: bs.guest_state, hostId: bs.host_id,
       turnPhase: bs.turn_phase, isMyTurn: false, cardMap: battleCardMap, effectsMap,
+      // 🆕§5.6 `C-11`＝打ち消す価値の判断（渡さなければ従来どおり「打ち消せるなら打ち消す」）。
+      lookahead: { ...cpuLookahead, turnPhase: bs.turn_phase as TurnPhase, isCpuTurn: false },
+      policy: cpuPolicy,
+      // 🆕§5.6 `C-12`＝窓を閉じる口（`fetchLatest`）を持っているときだけピース窓に応答する。
+      allowPieceWindow: !!d.fetchLatest,
     });
     if (!choice) return false;
-    // ⚠文言は `census:play` の契約（anchor＝`[CPU] カットイン: `）。
-    appendBattleLogs([`[CPU] カットイン: ${cutinCardName(choice.candidate, battleCardMap)}`]);
+    // 🆕§5.6 `C-13`＝レゾナは**出す先の選択が要る**＝実行は人間と同じ `performSummonSigni`（`tryCpuResona` と同じ）。
+    if (choice.resona && choice.candidate.kind === 'resona') {
+      // ⚠文言は `census:play` の契約（anchor＝`[CPU] カットイン（レゾナ）: `）。
+      appendBattleLogs([`[CPU] カットイン（レゾナ）: ${cutinCardName(choice.candidate, battleCardMap)}（ゾーン${choice.resona.zone + 1}）`]);
+      await performSummonSigni(-1, choice.resona.zone,
+        { candidate: choice.candidate.resona, selection: choice.resona.selection }, undefined,
+        { ...cpuSummonCtx(actorState), actor: await cpuMarkUsed(actorState, choice.candidate.card.CardNum) });
+      return true;
+    }
+    // ⚠文言は `census:play` の契約（anchor＝`[CPU] カットイン: ` ／ ピース窓は `[CPU] カットイン（ピース）: `）。
+    appendBattleLogs([bs.pending_spell.kind === 'piece'
+      ? `[CPU] カットイン（ピース）: ${cutinCardName(choice.candidate, battleCardMap)}`
+      : `[CPU] カットイン: ${cutinCardName(choice.candidate, battleCardMap)}`]);
     await performCutinUse(choice.candidate, choice.costIndices, new Set(), 0, new Set(), {
       actor: actorState, opponent: huSt, actorId: CPU_PLAYER_ID, actorIsHost: false, isActorTurn: false,
       energyPayPool: input.pool,
       enaAllMulti: collectEnaAllMulti(actorState, huSt, true, effectsMap, battleCardMap),
       enaMultiStripped: isEnaMultiStripped(actorState, huSt, true, effectsMap, battleCardMap),
     }, c, {
-      // ⚠画面だけが持つ口＝CPU には無い（窓は `performCutinUse` 側が閉じる）。
+      // ⚠画面だけが持つ口＝CPU には無い（スペル窓は `performCutinUse` 側が閉じる）。
       closeCutin: () => {}, loading: false,
-      queueCardEffects: async () => {},
-      fetchLatest: async () => ({ data: null, error: null }),
+      // 🆕§5.6 `C-12`＝ピース窓の2つの口は**人間と同じ実体**を渡す（no-op だと窓が閉じない）。
+      queueCardEffects: async (cardNum, types, timings, myState, opState) => {
+        await queueCardEffectsImpl(cardNum, types as never, timings as never, myState, opState,
+          undefined, 1, [], { id: CPU_PLAYER_ID, key: 'guest_state' }, c);
+      },
+      fetchLatest: async () => ({ data: (await d.fetchLatest?.()) ?? null, error: null }),
     });
     return true;
   };

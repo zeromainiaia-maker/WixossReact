@@ -47,6 +47,13 @@ export const PLAY_MECHANISMS: PlayMechanism[] = [
   // 🆕§5.6 `C-10` 第2段（2026-09-22）＝**スペル／ピースへのカットイン応答**。
   //   🔴旧は「CPU は常にパス」＝**この窓ごと踏んでいなかった**（61カード／ユーザー作27デッキ中7デッキが該当）。
   { id: 'cutin', label: 'カットイン応答', pattern: /^\[CPU\] カットイン:/, anchor: '[CPU] カットイン:' },
+  // 🆕§5.6 `C-12` / `C-13`（2026-09-22）＝**ピース応答窓**と**レゾナのカットイン**。
+  //   🔴**`pending` の意味がここだけ違う**（`attackDecline` と同じ）＝実装は在るが
+  //   **ユーザー作27デッキに該当カードが0枚**（窓を開くピース11カード／`SPELL_CUTIN` レゾナ3カード）＝
+  //   自己対戦でも実機でも踏めない＝未踏に数えると §5.6 の止め時が永久に閉じない。
+  //   ⚠anchor はここでは検査されないので、**golden `§5.6 C-12` / `§5.6 C-13` が別に固定している**。
+  { id: 'cutinPiece', label: 'カットイン応答（ピース窓・§5.6 C-12・該当カードが実デッキに0枚）', pattern: /^\[CPU\] カットイン（ピース）:/, anchor: '[CPU] カットイン（ピース）: ', pending: 'C-12' },
+  { id: 'cutinResona', label: 'カットイン応答（レゾナ・§5.6 C-13・該当カードが実デッキに0枚）', pattern: /^\[CPU\] カットイン（レゾナ）:/, anchor: '[CPU] カットイン（レゾナ）: ', pending: 'C-13' },
   { id: 'assistGrow', label: 'アシストルリグのグロウ', pattern: /^\[CPU\] アシストグロウ:/, anchor: '[CPU] アシストグロウ:' },
   { id: 'resona', label: 'レゾナを出す', pattern: /^\[CPU\] レゾナ:/, anchor: '[CPU] レゾナ:' },
   { id: 'rise', label: 'ライズ', pattern: /^\[CPU\] ライズ:/, anchor: '[CPU] ライズ:' },

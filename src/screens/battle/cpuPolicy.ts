@@ -216,6 +216,22 @@ export interface CpuPolicy {
    * ⚠**上げても届かない**＝レベル1は山に12枚しかなく、全部掘っても手札平均2.2枚が上限（実測）。
    */
   readonly mulliganLv1Target: number;
+  /**
+   * 🆕§5.6 `C-11`（2026-09-22）＝**カットインでスペルを打ち消すために要る「得」の下限**（パワー換算）。
+   *
+   * 🔴**なぜ要るか**＝`C-10` 第2段の v1 は**「打ち消せるなら打ち消す・エナの軽い順」だけ**＝
+   *   **ドローだけのスペルに最後のアーツを吐く**。⇒ **打ち消した盤面**と**打ち消さずに解決させた盤面**を
+   *   `evaluateBoard` で採点して比べ、差がこの値に届かないなら撃たない（判定は `cutinCounterGain`）。
+   * 🔑**この値が「使い切りの札1枚」の値段**＝`evaluateBoard` は `lrig_deck` のカードを1点も数えないので、
+   *   閾値を 0 にするとエナの減り（1枚 1000）より大きい損なら何にでも撃つ。
+   *   📏**既定 4000 の根拠（2026-09-22 実測・`tmp` の採点器で直接測った）**＝
+   *     **相手がドロー2枚するだけのスペル＝得 1,000〜3,000**（`hand` 1500 × 2 − 払うエナ）／
+   *     **自分のシグニ1体が消えるスペル＝得 5,000〜7,000**（場の点数＋`openLane` 3000 の振れ − 払うエナ）。
+   *     ⇒ **4,000 は2つの帯の間**＝エナコスト 0〜2 のどれでも判定が反転しない（golden `§5.6 C-11` が固定）。
+   *   ⚠**手で置いた初期値**＝A/B（`--a legacy-cutin --b default`）で動かす対象（§5.7 `S-9` の規律）。
+   * ⚠**先読みが解けない効果は従来どおり打ち消す**（`simulateEffect` が `null`＝判断の材料が無い）。
+   */
+  readonly cutinGainMin: number;
 }
 
 /**
@@ -293,6 +309,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   targetIntentByScope: 1,
   // 🆕§5.7 `S-24`（2026-09-21 ユーザー決定）＝**レベル1を2枚は持っておく**（足りなければレベル2も戻して掘る）。
   mulliganLv1Target: 2,
+  // 🆕§5.6 `C-11`（2026-09-22）＝**打ち消す価値のないスペルに札を使わない**。旧挙動（常に打ち消す）は `legacy-cutin`。
+  cutinGainMin: 4000,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -317,6 +335,11 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'no-guard-keep': variant('no-guard-keep', { keepGuards: 0 }),
   /** ライフの価値を見ない（盤面の物量だけで判断する）＝配線の自己検査用。 */
   'ignore-life': variant('ignore-life', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, life: 0 } }),
+  /**
+   * 🆕§5.6 `C-11` の **A 側＝「打ち消せるなら必ず打ち消す」だった頃のカットイン判断**（`C-10` 第2段の v1）。
+   * ⚠**消さない**＝`C-11` の A/B（`--a legacy-cutin --b default`）で使う。
+   */
+  'legacy-cutin': variant('legacy-cutin', { cutinGainMin: Number.NEGATIVE_INFINITY }),
   /**
    * 🆕§5.7 `S-10` の **A 側＝2026-09-20 以前の盤面の採点そのもの**（生パワーを係数1.0 で加算・バトルの閾値項なし）。
    * 🔴**これは自己検査用ではなく「旧実装」**＝`S-10` の A/B（`--a legacy-power --b default`）で使う。
@@ -468,13 +491,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked' || key === 'targetIntentByScope' || key === 'mulliganLv1Target') {
+      || key === 'chargeFieldBlocked' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
+      || key === 'cutinGainMin') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / targetIntentByScope / mulliganLv1Target`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / targetIntentByScope / mulliganLv1Target / cutinGainMin`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }
