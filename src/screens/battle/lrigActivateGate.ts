@@ -6,7 +6,7 @@ import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
-import { exceedColorsSatisfied, exceedPoolOf } from './costs';
+import { charmTrashAffordable, exceedColorsSatisfied, exceedPoolOf, removeOppVirusAffordable } from './costs';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
 
@@ -144,6 +144,12 @@ export function canActivateLrigEffect(
   if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, cardMap) === null) return false;
   // 【起】《ダウン》＝このルリグが既にダウンしていると払えない（タスク12(cxxxi)）。
   if (eff.cost?.down_self && payLrigDownSelfCost(my) === null) return false;
+  // 🆕**charmTrash / removeOppVirus**（§5.7 `S-31` ② 第3段）＝**ここにも1行も無かった**。
+  //   🔴`charmTrash` は CPU の allowlist に載っているのに検算が無く、**枚数が足りないと
+  //     `performLrigActivated` が黙って return** する＝CPU が同じ【起】を選び直す形だった。
+  //   ⚠場のシグニ【起】と**同じ関数**（`costs.ts`）を通す。
+  if (!charmTrashAffordable(my, eff.cost?.charmTrash)) return false;
+  if (!removeOppVirusAffordable(op, eff.cost?.removeOppVirus)) return false;
   // fieldBanish: コストでバニッシュできる自分のシグニが必要数いないと払えない（§5.3 `O-67`）。
   // ⚠発生源はルリグなので `excludeSelf`（＝効果元シグニを除く）は効かない＝sourceZone は渡さない。
   if (eff.cost?.fieldBanish

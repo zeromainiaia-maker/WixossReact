@@ -215,7 +215,9 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/screens/battle/attachedOrUnderCost';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
-import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { charmTrashAffordable, removeOppVirusAffordable } from '../src/screens/battle/costs';
+import { payDeckTrashCost } from '../src/screens/battle/deckTrashCost';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS } from '../src/screens/battle/cpuLrigActivate';
 import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
@@ -53366,15 +53368,18 @@ test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない�
   ok(can({ fieldTrash: { count: 1 } }), '🔴場から払うコストで撃てなくなっている（`S-31` ② 第2段の退化）');
   ok(can({ energyTrash: { count: 1 } }), '🔴エナから払うコストで撃てなくなっている');
   ok(!can({ beat_signi: 1 }), '【ビート】選択は撃たない');
-  ok(!can({ underSelfTrash: { count: 1 } }), '下カード選択は撃たない');
-  ok(!can({ underSelfTrash: { count: 1 } }), '下のカードをどれ捨てるかは撃たない（まだ）');
+  // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**効果元の下から落とすコストも撃てるようになった**（較正）＝
+  //   どれを落とすかは `pickCpuUnderSelfTrashKeys`（gate が `canPayUnderSelfTrash` で集合制約まで検算している）。
+  ok(can({ underSelfTrash: { count: 1 } }), '🔴下から落とすコストで撃てなくなっている（`S-31` ② 第3段の退化）');
   ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
   ok(can({ trashExile: { self: true } }), 'trashExile.self は自動');
   // 🔴allowlist であることの固定＝新しいコストキーが増えても「撃たない」側へ倒れる
   ok(!can({ handToEnergy: { count: 1 } }), '🔴allowlist に無いキーは撃たない');
   ok(CPU_AUTO_PAYABLE_COST_KEYS.has('discard') && CPU_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni'),
     '🔴allowlist から手札捨てが消えた（`S-31` ② の退化）');
-  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('trashExile') && !CPU_AUTO_PAYABLE_COST_KEYS.has('charmTrash'),
+  // 🆕§5.7 `S-31` ② 第3段＝`charmTrash` は**先に gate へ検算を足してから**載せた（較正）。
+  //   ⚠規律は変わらない＝**gate が中身を検算しないキーは載せない**（`trashExile` はいまも外）。
+  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('trashExile') && !CPU_AUTO_PAYABLE_COST_KEYS.has('charmTrashVariable'),
     '🔴gate が中身を検算しないキーまで allowlist に入れた（`charmTrash` は無限ループの実績あり）');
   ok(!can({ coin: 4 }), 'コイン不足では撃たない');
   ok(can({ coin: 1 }), 'コインが足りれば撃てる');
@@ -54161,8 +54166,11 @@ test('O-1 cpuLrigActivate: 支払い内訳が要るコストは CPU が撃たな
   ok(can({ energyTrash: { count: 1 } }), '🔴ルリグ【起】のエナトラッシュで撃てなくなっている');
   ok(!can({ discardGroups: [{ count: 1 }] }), '手札グループ捨ては撃たない');
   ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
-  ok(!can({ fieldTrash: { count: 1 } }), '🔴`performLrigActivated` に口が無いコストを撃とうとしている');
-  ok(!can({ deckTrash: 1 }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
+  // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**場から払うコストも撃てるようになった**（較正）＝
+  //   🔴第2段の「実行側に口が無い」は**誤り**で、口は `performLrigActivated` の `sel.fieldBanishZones` に在った
+  //   （欠けていたのは CPU 側のゾーン選択だけ）。ゾーンは `pickCpuFieldTrashZones`。
+  ok(can({ fieldTrash: { count: 1 } }), '🔴ルリグ【起】の場コストで撃てなくなっている（`S-31` ② 第3段の退化）');
+  ok(!can({ fieldDown: { count: 1 } }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
   ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups'),
     '🔴allowlist の中身が変わった（手札捨ては入れた／選択の要るグループ捨ては入れない）');
 }));
@@ -90332,8 +90340,120 @@ test('§5.7 S-31 ② 第2段 エナ・場から払うコスト：弱いものか
     '🔴探索の近似適用にエナ・場のコストを渡していない＝タダで撃てる【起】に見える');
   ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni') && CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('energyTrash'),
     '🔴ルリグ【起】の allowlist から手札捨て・エナトラッシュが消えた');
-  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldTrash'),
+  // 🆕§5.7 `S-31` ② 第3段で `fieldTrash` を載せた（較正）＝**口は `sel.fieldBanishZones` に在った**。
+  //   ⚠規律そのものは変わらない＝**口が無いキーは載せない**（`fieldDown`／`trashArtsFromLrigDeck` などは今も外）。
+  ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldTrash'), '🔴ルリグ【起】の allowlist から場コストが消えた');
+  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldDown') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('trashArtsFromLrigDeck'),
     '🔴`performLrigActivated` に受け取る口が無いコストを allowlist に入れた（宣言だけして踏み倒す側へ倒れる）');
+}));
+
+test('§5.7 S-31 ② 第3段 自分の盤面・デッキから払うコスト：下カード／チャーム／ウィルス／デッキ削り', () => withSavedCursor(() => {
+  // 📏実測（2026-09-21・文脈別）＝場のシグニの【起】697効果のうち撃てない **51 → 21**／
+  //   ルリグの【起】567効果のうち **32 → 16**＝この回で **46効果**が撃てるようになった。
+  // 🔴**この回に見つけた別系統のバグ**＝`cost.deckTrash`（live 9効果）は**どちらの実行経路にも支払いが1行も無く、
+  //   人間も CPU も踏み倒して撃てていた**（提示ゲートは `costUnparsed` ではないので通る）。
+  const cm31c = cardMap as Map<string, CardData>;
+  const eff31c = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const SIG_A = findCard(c => isSigni(c) && (c.Power ?? '') === '2000' && (c.Color ?? '') === '赤');
+  const SIG_B = findCard(c => isSigni(c) && (c.Power ?? '') === '12000' && (c.Color ?? '') === '赤');
+  const SPELL31 = findCard(c => c.Type === 'スペル');
+  ok(!!SIG_A && !!SIG_B && !!SPELL31, '前提崩れ＝検査に使う札が CSV に無い');
+
+  // ── ① `underSelfTrash`＝効果元の**下**から落とす（live 13効果）──
+  //   🔑可否の権威は人間と同じ `canPayUnderSelfTrash` / `payUnderSelfTrash`（集合制約まで見る）。
+  const stackSt = (stack: string[]): PlayerState => {
+    const base = mkState({ signi: [SIG_A, null, null] });
+    return { ...base, field: { ...base.field, signi: [stack, null, null] } } as PlayerState;
+  };
+  const pickUnder = (cost: object, stack: string[], zone = 0) =>
+    pickCpuUnderSelfTrashKeys({ effect: { effectId: 'U', effectType: 'ACTIVATED', cost } as never,
+      actor: stackSt(stack), sourceZone: zone, cardMap: cm31c });
+  eq(pickUnder({}, [`${SIG_A}#t`])?.size, 0, 'コストが無いのに下から落とした');
+  eq(JSON.stringify([...(pickUnder({ underSelfTrash: { count: 1 } }, [`${SIG_B}#u0`, `${SIG_A}#top`]) ?? [])]),
+    JSON.stringify(['0:0']), '🔴下のカードを選べていない（キーは "<ゾーン>:<添字>"）');
+  eq(pickUnder({ underSelfTrash: { count: 1 } }, [`${SIG_A}#top`]), null,
+    '🔴下に1枚も無いのに払えたことにした（＝宣言だけして踏み倒す）');
+  eq(pickUnder({ underSelfTrash: { count: 2 } }, [`${SIG_B}#u0`, `${SIG_A}#top`]), null, '🔴枚数が足りないのに払えたことにした');
+  // 🔴フィルタ＝`cardType` だけを honor する規約（`underAnySigniCost.ts` の注記）
+  eq(pickUnder({ underSelfTrash: { count: 1, filter: { cardType: 'スペル' } } }, [`${SIG_B}#u0`, `${SIG_A}#top`]), null,
+    '🔴種別フィルタに合わない下カードで払えたことにした');
+  eq(pickUnder({ underSelfTrash: { count: 1, filter: { cardType: 'スペル' } } }, [`${SPELL31}#u0`, `${SIG_A}#top`])?.size, 1,
+    '🔴種別が合う下カードで払えていない');
+  // 🔴集合制約（「それぞれ同じ名前の」等）＝**組み合わせを探す**（先頭2枚を取って諦めない）
+  eq([...(pickUnder({ underSelfTrash: { count: 2, selectionConstraint: { same: 'name' } } },
+    [`${SIG_B}#u0`, `${SIG_A}#u1`, `${SIG_A}#u2`, `${SIG_B}#top`]) ?? [])].join(','), '0:1,0:2',
+    '🔴同名2枚の組を探していない（先頭から取って払えないと諦めている）');
+
+  // ── ② 行き先違いの3キーは**同じゾーン選択**（`fieldTrash` / `fieldBanish` / `fieldToDeckTop`）──
+  const fieldSt31c = mkState({ signi: [`${SIG_B}#f0`, `${SIG_A}#f1`, null] });
+  const pickZones31c = (cost: object, sourceZone: number | null = 0) =>
+    pickCpuFieldTrashZones({ effect: { effectId: 'Z', effectType: 'ACTIVATED', cost } as never,
+      actor: fieldSt31c, sourceZone, cardMap: cm31c, effectsOf: eff31c });
+  eq(JSON.stringify([...(pickZones31c({ fieldBanish: { count: 1 } }) ?? [])]), JSON.stringify([1]),
+    '🔴バニッシュのコストでゾーンを選べていない（弱い方から）');
+  eq(JSON.stringify([...(pickZones31c({ fieldToDeckTop: { count: 1 } }) ?? [])]), JSON.stringify([1]),
+    '🔴デッキの上へ置くコストでゾーンを選べていない');
+  eq(pickZones31c({ fieldBanish: { count: 3 } }), null, '🔴場のシグニが足りないのに払えたことにした');
+  // 🔴ルリグの【起】は `sourceZone: null`＝`excludeSelf` は効かない（効果元は場のシグニではない）
+  eq(JSON.stringify([...(pickZones31c({ fieldTrash: { count: 1, excludeSelf: true } }, null) ?? [])]), JSON.stringify([1]),
+    '🔴ルリグ【起】で `excludeSelf` を効かせてしまった（候補が不当に減る）');
+
+  // ── ③ 提示ゲートの検算＝`charmTrash` / `removeOppVirus`（**この回に足した**）──
+  //   🔴無いと `perform*` が支払い不能で**何も書かずに return** し、CPU が同じ【起】を選び直す（無限ループ）。
+  ok(charmTrashAffordable(mkState({}), undefined), 'コスト無しは常に払える');
+  ok(!charmTrashAffordable(mkState({}), 1), '🔴チャームが1枚も無いのに払えると答えた');
+  const withCharm = (() => { const b = mkState({ signi: [SIG_A, null, null] });
+    return { ...b, field: { ...b.field, signi_charms: [`${SPELL31}#c`, null, null] } } as PlayerState; })();
+  ok(charmTrashAffordable(withCharm, 1) && !charmTrashAffordable(withCharm, 2), '🔴チャームの枚数を数えていない');
+  ok(!removeOppVirusAffordable(mkState({}), 1), '🔴相手にウィルスが無いのに払えると答えた');
+  const withVirus = (() => { const b = mkState({ signi: [SIG_A, null, null] });
+    return { ...b, field: { ...b.field, signi_virus: [1, 0, 0] } } as PlayerState; })();
+  ok(removeOppVirusAffordable(withVirus, 1) && !removeOppVirusAffordable(withVirus, 2), '🔴ウィルスの数を数えていない');
+  // 提示ゲートまで届いているか（場のシグニ／ルリグの両方）
+  const charmIds = (my: PlayerState) => listActivatableSigniEffects({
+    my, op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[SIG_A, [mkAct('T-CH', { cost: { charmTrash: 1 } as never })]]]) as Map<string, CardEffect[]>,
+    cardMap: cm31c,
+  }).map(e => e.effectId);
+  eq(charmIds(mkState({ signi: [SIG_A, null, null] })).length, 0, '🔴チャームが無いのに【起】を提示した（踏み倒し）');
+  eq(charmIds(withCharm).join(','), 'T-CH', 'チャームが在れば提示される（対照）');
+  const virusLrigIds = (op: PlayerState) => listActivatableLrigEffects({
+    ...lrigGateArgs([mkLrigAct('L-VI', { cost: { removeOppVirus: 1 } as never })]), op,
+  }).map(e => e.effectId);
+  eq(virusLrigIds(mkState({})).length, 0, '🔴相手にウィルスが無いのにルリグ【起】を提示した');
+  eq(virusLrigIds(withVirus).join(','), 'L-VI', 'ウィルスが在れば提示される（対照）');
+
+  // ── ④ `deckTrash` の支払い（**新設**＝旧はどちらの経路にも1行も無かった）──
+  const deckSt = mkState({});
+  const beforeTop = deckSt.deck.slice(0, 2);
+  const paidDT = payDeckTrashCost(deckSt, 2);
+  eq(paidDT.state.deck.length, deckSt.deck.length - 2, '🔴デッキから引き落としていない（コストの踏み倒し）');
+  eq(JSON.stringify(paidDT.state.trash.slice(-2)), JSON.stringify(beforeTop), '🔴デッキの**一番上**から置いていない');
+  eq(payDeckTrashCost(deckSt, 0).state, deckSt, 'コスト0で盤面を動かした');
+  // ⚠枚数が足りなければ**在るだけ置く**（engine の `MILL` と同じ規約＝リフレッシュは解決後のルール処理）
+  const shortSt = { ...deckSt, deck: deckSt.deck.slice(0, 1) } as PlayerState;
+  eq(payDeckTrashCost(shortSt, 3).state.deck.length, 0, '🔴デッキが足りないときの規約が `MILL` と違う');
+
+  // ── ⑤ 配線＝allowlist・実行・探索の3地点（1つ欠けると「撃つと言って何も起きない」になる）──
+  for (const k of ['underSelfTrash', 'charmTrash', 'removeOppVirus', 'selfPowerDown', 'deckTrash', 'fieldBanish', 'fieldToDeckTop'] as const) {
+    ok(CPU_AUTO_PAYABLE_COST_KEYS.has(k), `🔴場のシグニ【起】の allowlist から ${k} が消えた`);
+  }
+  for (const k of ['fieldTrash', 'fieldBanish', 'removeOppVirus', 'exceedColors', 'deckTrash'] as const) {
+    ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has(k), `🔴ルリグ【起】の allowlist から ${k} が消えた`);
+  }
+  const turnSrcC = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/underTrashKeys: choice\.underTrashKeys/.test(turnSrcC), '🔴場のシグニ【起】の実行に下カードの選択を渡していない');
+  ok(/fieldBanishZones: choice\.fieldBanishZones/.test(turnSrcC), '🔴ルリグ【起】の実行に場のコストのゾーンを渡していない');
+  const movesSrcC = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf-8');
+  ok(/move\.choice\.fieldTrashZones, move\.choice\.underTrashKeys/.test(movesSrcC),
+    '🔴探索の近似適用に下カードのコストを渡していない＝タダで撃てる【起】に見える');
+  ok(/move\.choice\.energyTrashIndices, move\.choice\.fieldBanishZones/.test(movesSrcC),
+    '🔴探索の近似適用にルリグ【起】の場コストを渡していない');
+  // 🔑**支払いは1本**＝両方の実行経路が同じ funnel を呼ぶ（写経すると片側だけ踏み倒せる）
+  for (const f of ['performSigniActivated.ts', 'performLrigActivated.ts']) {
+    ok(/payDeckTrashCost\(/.test(fs.readFileSync(join(root, 'src/screens/battle/controller', f), 'utf-8')),
+      `🔴${f} が deckTrash を払っていない（コストの踏み倒し）`);
+  }
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

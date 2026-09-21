@@ -7,6 +7,7 @@ import { generateUUID } from '../battleUtils';
 import { type PlayerStateKey, reduceBattle } from '../controller/battleController';
 import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, activatedDiscardCostRecord, handDiscardHistoryRecord } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
+import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldTrashCost } from '../fieldTrashCost';
 import { effectiveCoinCost } from '../lrigActivateGate';
@@ -248,6 +249,13 @@ export const performLrigActivated = async (
       }
       if (movedCL.length < charmTrashNLrig) { ctx.io.setLoading(false); return; }
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
+    }
+    // 🆕**deckTrash**（§5.7 `S-31` ② 第3段）＝**この経路にも支払いが1行も無かった**。
+    //   ⚠支払いは `payDeckTrashCost` 1本（場のシグニ【起】と同じ関数＝写経しない）。
+    if (effect.cost?.deckTrash) {
+      const dtPaidLg = payDeckTrashCost(paid, effect.cost.deckTrash);
+      paid = dtPaidLg.state;
+      if (dtPaidLg.log) ctx.io.appendLogs([dtPaidLg.log]);
     }
     // removeOppVirus: 相手の場のウィルスN個を取り除く（ルリグ起動コスト）
     const removeVirusNLrig = effect.cost?.removeOppVirus ?? 0;

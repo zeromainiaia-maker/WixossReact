@@ -2,6 +2,7 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
 import { fieldTrashSelectableZones } from './fieldLimit';
+import { payUnderSelfTrash, underSelfCostCandidates, type UnderAnySigniCandidate } from './underAnySigniCost';
 import { cardStrength } from './cpuCardStrength';
 import { reserveKeptAfterPaying } from './cpuGrowReserve';
 import { getCardNum, matchesFilter } from '../../engine/execUtils';
@@ -69,12 +70,30 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   //   📏実測＝場のシグニの【起】738効果のうち `energyTrash` 37／`fieldTrash` 23。
   'energyTrash',
   'fieldTrash',
+  // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**自分の盤面から払うコスト**。
+  //   🔴**載せてよい理由は1つずつ違う**（allowlist の規律＝「gate が検算し、perform が実際に払う」）＝
+  //     `underSelfTrash`＝gate が `canPayUnderSelfTrash`／index は `pickCpuUnderSelfTrashKeys` が決める。
+  //     `fieldBanish`／`fieldToDeckTop`＝gate が `fieldTrashSelectableZones`／ゾーンは `pickCpuFieldTrashZones`。
+  //     `charmTrash`／`removeOppVirus`＝**この回に `signiActivateGate` へ検算を足した**（`costs.ts` の2本）。
+  //     `selfPowerDown`＝自傷なので常に払える（`perform` が `temp_power_mods` に積む）。
+  //     `deckTrash`＝**この回に支払い（`payDeckTrashCost`）を新設した**（旧は誰も払っていなかった）。
+  //   📏実測＝場のシグニの【起】697効果のうち `underSelfTrash` 13／`charmTrash` 5／`selfPowerDown` 3／
+  //     `removeOppVirus` 3／`deckTrash` 4／`fieldBanish` 1／`fieldToDeckTop` 1。
+  'underSelfTrash',
+  'fieldBanish',
+  'fieldToDeckTop',
+  'charmTrash',
+  'removeOppVirus',
+  'selfPowerDown',
+  'deckTrash',
 ]);
 
 /**
- * ⚠**`charmTrash` / `removeOppVirus` は載せない**（自動支払いではあるが `signiActivateGate` が
- * 数を検算していない）＝提示は通るのに `performSigniActivated` が支払い不能で**何も書かずに return** し、
- * CPU が同じ効果を選び直して**無限ループ**になる。載せるなら先に gate 側へ検算を足すこと。
+ * 🆕**`charmTrash` / `removeOppVirus` は 2026-09-21（§5.7 `S-31` ② 第3段）に載せた**＝
+ * それまで載せられなかったのは **`signiActivateGate` が数を検算していなかった**ためで、提示だけ通ると
+ * `performSigniActivated` が支払い不能で**何も書かずに return** し、CPU が同じ効果を選び直して
+ * **無限ループ**になる形だった。⇒ **gate 側へ検算（`charmTrashAffordable` / `removeOppVirusAffordable`）を
+ * 足してから**載せている。**新しいキーを載せるときも順番は同じ**（先に検算、あとで allowlist）。
  * （下の `pickCpuSigniActivated` を使う側にも、実行前に履歴を確定させる安全弁を置いてある。）
  */
 
@@ -213,8 +232,13 @@ export interface CpuActivatedChoice {
   discardIndices: Set<number>;
   /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index（`energyTrash`）。 */
   energyTrashIndices: Set<number>;
-  /** 🆕§5.7 `S-31` ② 第2段＝場からトラッシュするゾーン（`fieldTrash`）。 */
+  /**
+   * 🆕§5.7 `S-31` ② 第2段＝場から払うコストで選んだゾーン。
+   * ⚠**`fieldTrash`／`fieldBanish`／`fieldToDeckTop` の3キー共用**（行き先は `performSigniActivated` が決める）。
+   */
   fieldTrashZones: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすカード（`underSelfTrash`・`"<ゾーン>:<添字>"`）。 */
+  underTrashKeys: Set<string>;
 }
 
 /**
@@ -335,6 +359,39 @@ export function pickCpuEnergyTrashIndices(p: {
 }
 
 /**
+ * 🆕**効果元の下から払うコストで、どのカードを落とすか**（`underSelfTrash`・§5.7 `S-31` ② 第3段・2026-09-21）。
+ *
+ * 🔑**可否の権威は人間の支払いUIと同じ関数**＝`canPayUnderSelfTrash`（`selectionConstraint`＝
+ *   「それぞれ名前の異なる」「同じレベル」まで見る）／最後に `payUnderSelfTrash` で**実際に払える組か検算**する。
+ * ⚠**下のカードに強さの序列は無い**（どれも既に場から退いた札）＝**上から順**の決定論で選び、
+ *   制約つきの形だけ**組み合わせを探索**する（候補はスタック1本ぶん＝高々数枚）。
+ * @returns `payUnderSelfTrash` に渡すキー（`"<ゾーン>:<添字>"`）。**払えないなら `null`**。
+ */
+export function pickCpuUnderSelfTrashKeys(p: {
+  effect: CardEffect;
+  actor: PlayerState;
+  sourceZone: number;
+  cardMap: Map<string, CardData>;
+}): Set<string> | null {
+  const spec = p.effect.cost?.underSelfTrash;
+  if (!spec) return new Set();
+  const candidates = underSelfCostCandidates(p.actor, p.sourceZone, p.cardMap, spec.filter);
+  const pick = (start: number, chosen: UnderAnySigniCandidate[]): UnderAnySigniCandidate[] | null => {
+    if (chosen.length === spec.count) return chosen;
+    for (let i = start; i < candidates.length; i++) {
+      const next = [...chosen, candidates[i]];
+      // ⚠**途中で切らない**＝集合制約は「選び終えた組」で見るので、`payUnderSelfTrash` と同じ検算を最後に当てる。
+      const got = pick(i + 1, next);
+      if (got && payUnderSelfTrash(p.actor, p.sourceZone, new Set(got.map(c => `${c.zone}:${c.index}`)),
+        spec.count, p.cardMap, spec.filter, spec.selectionConstraint)) return got;
+    }
+    return null;
+  };
+  const picked = pick(0, []);
+  return picked ? new Set(picked.map(c => `${c.zone}:${c.index}`)) : null;
+}
+
+/**
  * 🆕**場から払うコストで、どのシグニをトラッシュするか**（§5.7 `S-31` ② 第2段）。
  * 🔑**候補のゾーンは `fieldTrashSelectableZones` の1本**（`excludeSelf`・フィルタは可否ゲートと同じ関数）。
  * ⚠**弱いシグニから**（レベル→強さの昇順）＝盤面をできるだけ削らない。
@@ -342,12 +399,17 @@ export function pickCpuEnergyTrashIndices(p: {
 export function pickCpuFieldTrashZones(p: {
   effect: CardEffect;
   actor: PlayerState;
-  sourceZone: number;
+  /** 場のシグニの【起】ならそのゾーン（`excludeSelf` 用）。ルリグの【起】は `null`＝自分を除く指定が効かない。 */
+  sourceZone: number | null;
   cardMap: Map<string, CardData>;
   effectsOf?: (id: string) => readonly CardEffect[];
   policy?: CpuPolicy;
 }): Set<number> | null {
-  const ft = p.effect.cost?.fieldTrash;
+  // 🆕§5.7 `S-31` ② 第3段＝**行き先違いの3キーは同じゾーン選択 state を使う**
+  //   （`performSigniActivated` / `performLrigActivated` が `fieldTrashZones` / `fieldBanishZones` の1つで受ける。
+  //    parser は3キーを同時に立てない＝型の注記どおり）。
+  //   ⚠**選ぶ軸は同じでも行き先は違う**＝`fieldBanish` はエナゾーン・`fieldToDeckTop` はデッキの上。
+  const ft = p.effect.cost?.fieldTrash ?? p.effect.cost?.fieldBanish ?? p.effect.cost?.fieldToDeckTop;
   if (!ft) return new Set();
   const strength = (zi: number) => {
     const top = p.actor.field.signi[zi]?.at(-1) ?? '';
@@ -355,9 +417,11 @@ export function pickCpuFieldTrashZones(p: {
     return [parseInt(card?.Level ?? '0', 10) || 0,
       cardStrength(card, p.effectsOf?.(top) ?? [], 'field', undefined, p.policy)] as const;
   };
-  const zones = fieldTrashSelectableZones(ft, p.actor, p.cardMap, p.sourceZone)
+  const zones = fieldTrashSelectableZones(ft, p.actor, p.cardMap, p.sourceZone ?? undefined)
     .sort((a, b) => strength(a)[0] - strength(b)[0] || strength(a)[1] - strength(b)[1] || a - b);
-  if (zones.length < ft.count && !ft.upToCount) return null;
+  // ⚠**「N体まで」（`upToCount`）は `fieldTrash` にしかない**＝他の2キーは必ず N 体払う。
+  const upTo = p.effect.cost?.fieldTrash?.upToCount ?? false;
+  if (zones.length < ft.count && !upTo) return null;
   return new Set(zones.slice(0, ft.count));
 }
 
@@ -405,7 +469,10 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
         effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
       });
       if (!fieldTrashZones) continue;
-      yield { zoneIndex, cardNum, effect, costIndices, discardIndices, energyTrashIndices, fieldTrashZones };
+      // 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすコスト（払えないなら候補から外す）。
+      const underTrashKeys = pickCpuUnderSelfTrashKeys({ effect, actor, sourceZone: zoneIndex, cardMap });
+      if (!underTrashKeys) continue;
+      yield { zoneIndex, cardNum, effect, costIndices, discardIndices, energyTrashIndices, fieldTrashZones, underTrashKeys };
     }
   }
 }

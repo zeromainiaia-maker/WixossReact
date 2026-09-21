@@ -1,5 +1,83 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-21（第446バッチ）§5.7 `S-31` ② 第3段＝**自分の盤面・デッキから払うコスト**（撃てない【起】 83 → 37）＋ `deckTrash` の踏み倒しを修正
+
+### 🔴 まず母集団を測り直した（文脈別・`scripts/archive/censusCpuUnplayableActivated.ts`）
+
+前回（第442バッチ）の残り一覧は **`signiActivateGate` が場のシグニ【起】として提示しない効果を含んでいた**
+（`trashActivated` / `energyActivated` / `handActivated` / `cost.discardSelfFromHand`＝**入口が場ではない**【起】。
+`discardSelfFromHand` 9効果はここで落ちる＝あれは `cpuOffFieldActivate` の担当）。⇒ **gate と同じ除外を掛けて数え直した。**
+
+| 文脈 | 【起】効果 | 撃てない（前） | 撃てない（後） |
+|---|---|---|---|
+| **場のシグニ**（`cpuActivate`） | 697 | **51（7.3%）** | 🏁**21（3.0%）** |
+| **ルリグ**（`cpuLrigActivate`） | 567 | **32（5.6%）** | 🏁**16（2.8%）** |
+| 合計 | 1,264 | 83 | 🏁**37**（＝**46効果**が撃てるようになった） |
+
+🔑**母集団は「その文脈の gate が提示するもの」で数える**（第442バッチの「allowlist を文脈ごとに」の続き）＝
+**提示されない効果を分母に入れると、直しようのない在庫を作る。**
+
+### 🔴 作業中に見つけた別系統のバグ＝`cost.deckTrash` は**誰も払っていなかった**
+
+- 原文「…**デッキの上からN枚をトラッシュに置く**：」（live **9効果**＝`SPK01-06-E1`／`WXDi-P08-010-E2` ほか）。
+- 🔴`performSigniActivated` も `performLrigActivated` も **`cost.deckTrash` を1行も読んでいなかった**＝
+  **人間も CPU もこのコストを踏み倒して撃てていた**。提示ゲートは `costUnparsed` ではないので通る。
+- ⇒ 🆕**`deckTrashCost.ts`（`payDeckTrashCost`）を新設し、両方の実行経路から呼ぶ**（写経しない）。
+  ⚠**枚数が足りなければ在るだけ置く**＝engine の `MILL`（`Math.min(count, deck.length)`）と同じ規約。
+  リフレッシュは効果の解決後にルール処理（`applyRefreshOnDone`）が行うのでここでは触らない。
+- 🔑**この形はどの計器にも映らない**＝JSON も逆翻訳も正しく、golden・smoke・fuzz も緑（例外が出ない）。
+  **「allowlist に載っていないキー」を1つずつ実行経路まで追ったときだけ見える。**
+
+### 入れたもの
+
+1. 🆕**提示ゲートの検算を2つ足した**（`costs.ts` の `charmTrashAffordable` / `removeOppVirusAffordable`）＝
+   **場のシグニ【起】とルリグ【起】の両方**へ。🔴**これが無いと `perform*` が支払い不能で何も書かずに return** し、
+   CPU が同じ【起】を選び直して**無限ループ**になる（`cpuActivate.ts` に「載せるなら先に gate へ検算を足すこと」と
+   注記が残っていたのがこの2キー）。⚠**ルリグ側は `charmTrash` を allowlist に載せたまま検算が無かった**＝既存の穴。
+2. 🆕**`pickCpuUnderSelfTrashKeys`**（効果元の**下**から落とすコスト＝`underSelfTrash` 13効果）。
+   🔑可否の権威は人間と同じ `canPayUnderSelfTrash` / `payUnderSelfTrash`（集合制約「それぞれ同じ名前の」まで見る）。
+   ⚠**下の札に強さの序列は無い**ので上から順の決定論。制約つきの形だけ**組を探す**（先頭2枚で諦めない）。
+3. **`pickCpuFieldTrashZones` を行き先違いの3キーへ広げた**（`fieldTrash` / `fieldBanish` / `fieldToDeckTop`）＝
+   **選ぶ軸は同じ**（`fieldTrashSelectableZones`・弱いシグニから）で**行き先だけ実行側が変える**。
+   🆕`sourceZone: number | null`＝**ルリグ【起】は `null`**（`excludeSelf` は効果元シグニ用なので効かせない）。
+4. **ルリグ【起】に場のコストを配線**（`CpuLrigActivatedChoice.fieldBanishZones` → `performLrigActivated`）。
+   🔴**第442バッチの「実行側に口が無い」は誤りだった**＝口は `sel.fieldBanishZones` に在り、
+   **欠けていたのは CPU 側のゾーン選択だけ**。⇒ golden の該当 assert を較正した。
+5. **allowlist を広げた**＝場のシグニ `underSelfTrash` / `charmTrash` / `removeOppVirus` / `selfPowerDown` /
+   `deckTrash` / `fieldBanish` / `fieldToDeckTop`、ルリグ `fieldTrash` / `fieldBanish` / `removeOppVirus` /
+   `exceedColors` / `deckTrash`。⚠**規律は変えていない**＝「gate が検算し、`perform*` が実際に払う」キーだけ。
+6. **探索の近似適用（`payCpuSelfCostSim`）にも同じ支払いを足した**（`underSelfTrash` / `charmTrash` /
+   `selfPowerDown` / `deckTrash`）＝払わせないと探索には**タダで撃てる【起】**に見える（`S-21` と同型）。
+   ⚠**`removeOppVirus` / `exceedColors` / `fieldBanish` / `fieldToDeckTop` は載せない**＝相手の盤面・ルリグの下・
+   エナ／デッキの上への行き先をこの近似は持っていない ⇒ `null` を返して**その手は探索の外**（従来の優先順で撃つ）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4364**＝`§5.7 S-31 ② 第3段` を1本追加）。
+- ⚠**較正した既存の golden 3本**＝`O-1 cpuActivate`（`underSelfTrash`／`charmTrash` の例を、**いまも外している**
+  キー `trashExile`／`charmTrashVariable` へ移した）・`O-1 cpuLrigActivate`（`fieldTrash` → `fieldDown`）・
+  `§5.7 S-31 ② 第2段`（`fieldTrash` は載った／代わりに口の無い `fieldDown`・`trashArtsFromLrigDeck` で規律を固定）。
+  **規律そのものは減っていない。**
+- 📏**実カードでの照合**（`scripts/archive/checkCpuActivateCostAgreement.ts`・engine だけ・決定論）＝新しく載せたキーを持つ live の【起】を
+  緩い盤面で提示ゲートに通し、**提示された 21（場のシグニ）＋ 8（ルリグ）のすべてで CPU の支払い選択が成立**。
+  **「提示は通るのに払えない」＝無限ループの形は0件。**
+- 🔴**実機 PASS**（`src/screens/` を触った回＝PLAN §2.2）＝`verifyFullMatch.mjs cpu` が
+  `VERIFY_DECK`（6ターン/153手）と `VERIFY_DECK_MECH`（5ターン/158手）の**両方で決着**。
+- ⚠**この回の効き目は A/B でも自己対戦でも測れない**＝🔴**ユーザー作27デッキの異なり367枚に、
+  今回載せたキーを持つ【起】は1枚も入っていない**（`S-20` と同型＝測定台がその型を踏まない）。
+  ⇒ **直接指標は「撃てない【起】の数」**（83 → 37）と上の実カード照合。
+- ⚠**反転確認**＝**能力の追加**（払える範囲の拡張）でポリシーではないのでプリセットは作っていない。
+  戻すなら allowlist から該当キーを外す。⚠`deckTrash` の支払いは**戻してはいけない**（踏み倒しの修正）。
+
+### ⚠ 残り（`S-31` ②の続き＝37効果）
+
+- 場のシグニ（21）＝`chargeCounterRemove` 2／`underAnySigniTrash` 2／`beat_signi` 2／`selfToDeckBottom` 2／
+  `exceed` 2／`fieldTrashGroups` 1／`costSubstitute` 1／`discardGroups` 1 ほか**全部 1〜2効果**。
+- ルリグ（16）＝`trashArtsFromLrigDeck` 5／`discardGroups` 3／`fieldToLrigTrash` 2／`fieldDown` 2 ほか。
+- 🔴**`selfToDeckBottom`／`chargeCounterRemove`／`fieldToLrigTrash`／`trashArtsFromLrigDeck` は
+  `deckTrash` と同じ形（実行経路に支払いが無い＝人間も踏み倒している）**＝**CPU の話ではなく支払いの穴**。
+  取るなら「支払い funnel を足す → gate へ検算 → allowlist」の順（この回と同じ）。
+
 ## 2026-09-21（第445バッチ）🆕§5.7 `S-31` ③＝**札の使いどころ**（アーツを守り／攻めで使う・この札は使わない）
 
 ### 何が足りなかったか

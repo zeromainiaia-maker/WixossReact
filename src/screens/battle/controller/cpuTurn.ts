@@ -310,6 +310,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       costIndices: choice.costIndices, discardCostIndices: choice.discardIndices,
       // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト。
       energyTrashIndices: choice.energyTrashIndices, fieldTrashZones: choice.fieldTrashZones,
+      // 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすコスト（`underSelfTrash`）。
+      underTrashKeys: choice.underTrashKeys,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
@@ -350,6 +352,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     await performLrigActivated(choice.effect, {
       costIndices: choice.costIndices,
       handDiscardIndices: choice.handDiscardIndices, energyTrashIndices: choice.energyTrashIndices,
+      // 🆕§5.7 `S-31` ② 第3段＝場から払うコスト（`fieldTrash` / `fieldBanish` で共用のゾーン）。
+      fieldBanishZones: choice.fieldBanishZones,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',

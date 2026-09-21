@@ -7,7 +7,7 @@ import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLi
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
 import { canPayAttachedOrUnderTrash } from './attachedOrUnderCost';
-import { energyTrashCostSatisfied, handDiscardSigniAffordable, trashExileAffordable } from './costs';
+import { charmTrashAffordable, energyTrashCostSatisfied, handDiscardSigniAffordable, removeOppVirusAffordable, trashExileAffordable } from './costs';
 import { multiZoneExileAffordable } from './multiZoneExileCost';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
@@ -222,6 +222,13 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   ⚠支払いUI・引き落としと**同じ関数**（`canPayAttachedOrUnderTrash` / `payAttachedOrUnderTrash`）を通す。
     !(e.cost?.attachedOrUnderTrash
       && !canPayAttachedOrUnderTrash(my, e.cost.attachedOrUnderTrash.count)) &&
+    // 🆕**charmTrash / removeOppVirus**（§5.7 `S-31` ② 第3段）＝**ここに1行も無かった**。
+    //   🔴`performSigniActivated` は枚数が足りないと**何も書かずに return** するので、
+    //     提示だけ通ると「撃てると言われたのに盤面が動かない」＝CPU が選び直して**無限ループ**になる
+    //     （`cpuActivate.ts` の allowlist にこの2キーを載せられなかった理由がこれ）。
+    //   ⚠支払い側と**同じ軸**の関数を通す（`costs.ts` の1本）。
+    charmTrashAffordable(my, e.cost?.charmTrash) &&
+    removeOppVirusAffordable(op, e.cost?.removeOppVirus) &&
     // fieldTrash: 場からトラッシュ可能なシグニ（excludeSelf=自身を除く）が必要数いないと支払えない
     !(e.cost?.fieldTrash && [0, 1, 2].filter(zi => {
       const ftTop = my.field.signi[zi]?.at(-1);

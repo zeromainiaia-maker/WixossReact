@@ -13,6 +13,8 @@ import { isPhaseSkipped } from './attackStepPhase';
 import { canSigniAttack, collectForcedAttackZones } from './signiAttackGate';
 import { centerLrigAttackBlock } from './lrigAttackGate';
 import { battleOutcome } from './battleOutcome';
+import { payDeckTrashCost } from './deckTrashCost';
+import { payUnderSelfTrash } from './underAnySigniCost';
 import {
   applyGrowCostReduction, colorlessPayableColorsOf, isEnaMultiStripped, isEnergyPaymentSelectionValid,
   parseCoinCost, parseGrowCost,
@@ -686,6 +688,12 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   'discard', 'discardFilter', 'handDiscardSigni',
   // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト（🔴払わせないと探索には「タダ」に見える）。
   'energyTrash', 'fieldTrash',
+  // 🆕§5.7 `S-31` ② 第3段＝自分の盤面・デッキから払うコスト。
+  //   ⚠**`removeOppVirus`／`exceedColors`／`fieldBanish`／`fieldToDeckTop` は載せない**＝
+  //     相手の盤面・ルリグの下・エナ／デッキの上への行き先をこの近似は持っていない。
+  //     載せないと `payCpuSelfCostSim` が `null` を返す＝**その手は探索の外**（＝従来の優先順で撃つ）。
+  //     🔑「払い方を知らないなら探索に入れない」＝タダで撃てると誤って採点するより安全側。
+  'underSelfTrash', 'charmTrash', 'selfPowerDown', 'deckTrash',
 ]);
 
 /**
@@ -700,6 +708,8 @@ function payCpuSelfCostSim(
   /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index／場からトラッシュするゾーン（本番と同じ選択）。 */
   energyTrashIndices?: Set<number>,
   fieldTrashZones?: Set<number>,
+  /** 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすカード（本番と同じ選択）。 */
+  underTrashKeys?: Set<string>,
 ): PlayerState | null {
   if (!cost) return s;
   for (const k of Object.keys(cost)) {
@@ -742,6 +752,35 @@ function payCpuSelfCostSim(
       cur = { ...cur, trash: [...cur.trash, top] };
     }
     out = cur;
+  }
+  // 🆕§5.7 `S-31` ② 第3段＝効果元の下から落とすコスト（**本番が選んだキーをそのまま払う**）。
+  //   ⚠支払いは人間・CPU と同じ `payUnderSelfTrash`（写経しない）＝ゾーンは効果元のスタック。
+  if (cost.underSelfTrash !== undefined) {
+    if (zoneIndex === null) return null;
+    const paidUnder = payUnderSelfTrash(
+      out, zoneIndex, underTrashKeys ?? new Set(), cost.underSelfTrash.count, cardMap,
+      cost.underSelfTrash.filter, cost.underSelfTrash.selectionConstraint);
+    if (!paidUnder) return null;
+    out = paidUnder.state;
+  }
+  // 🆕§5.7 `S-31` ② 第3段＝チャームをトラッシュするコスト（**支払い側と同じ軸**＝先頭ゾーンから自動）。
+  if (cost.charmTrash !== undefined && cost.charmTrash > 0) {
+    const charms = [...(out.field.signi_charms ?? [null, null, null])];
+    const moved: string[] = [];
+    for (let zi = 0; zi < charms.length && moved.length < cost.charmTrash; zi++) {
+      if (charms[zi]) { moved.push(charms[zi]!); charms[zi] = null; }
+    }
+    if (moved.length < cost.charmTrash) return null;
+    out = { ...out, field: { ...out.field, signi_charms: charms }, trash: [...out.trash, ...moved] };
+  }
+  // 🆕§5.7 `S-31` ② 第3段＝効果元のパワーを下げる自傷コスト（ターン終了時まで）。
+  if (cost.selfPowerDown !== undefined) {
+    out = { ...out, temp_power_mods: [...(out.temp_power_mods ?? []),
+      { cardNum: sourceCardNum, delta: -cost.selfPowerDown, srcCardNum: sourceCardNum }] };
+  }
+  // 🆕§5.7 `S-31` ② 第3段＝デッキの上から落とすコスト（**支払いは本番と同じ funnel**）。
+  if (cost.deckTrash !== undefined) {
+    out = payDeckTrashCost(out, cost.deckTrash).state;
   }
   if (cost.coin !== undefined) {
     if ((out.coins ?? 0) < cost.coin) return null;
@@ -988,7 +1027,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     case 'activate': {
       // 🆕§5.7 `S-21`＝**エナ以外の宣言コストも払う**（【起】の 569効果）。
       //   🔴旧はエナしか払わず、**《ダウン》も「自分をトラッシュ」もタダに見えていた**。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum, move.choice.discardIndices, move.choice.energyTrashIndices, move.choice.fieldTrashZones);
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum, move.choice.discardIndices, move.choice.energyTrashIndices, move.choice.fieldTrashZones, move.choice.underTrashKeys);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));
@@ -997,7 +1036,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       const src = actor.field.lrig.at(-1);
       if (!src) return null;
       // 🆕§5.7 `S-21`＝ルリグの【起】は `zoneIndex: null`（`down_self` は**ルリグ自身**をダウン）。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices);
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices, move.choice.fieldBanishZones);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, src, paid, opponent, lctxOf(move.phase));

@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
+import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { getCardNum } from '../../engine/execUtils';
 import type { CpuPolicy } from './cpuPolicy';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
@@ -53,11 +53,28 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   'collab',              // ライバートークンN個（gate が所持数を検算・実行側が deduct）＝§5.3 `O-292`
   // 🆕§5.7 `S-31` ② 第2段（2026-09-21）＝**手札を捨てる／エナから落とす**（index は下で決める）。
   //   📏実測＝ルリグの【起】571効果のうち `handDiscardSigni` 20／`discard` 8／`energyTrash` 15。
-  //   ⚠**`performLrigActivated` が受け取る口がある**ものだけ（`fieldTrash` は口が無いので載せない）。
+  //   ⚠**`performLrigActivated` が受け取る口がある**ものだけ
+  //     （⚠第2段の時点では「`fieldTrash` は口が無い」と書いたが**誤り**＝口は `sel.fieldBanishZones` に在った。
+  //      第3段で下の allowlist へ移した）。
   'discard',
   'discardFilter',
   'handDiscardSigni',
   'energyTrash',
+  // 🆕§5.7 `S-31` ② 第3段（2026-09-21）＝**場から払う／相手の印を外す／デッキを削るコスト**。
+  //   🔴**載せてよい理由は1つずつ違う**（規律＝「gate が検算し、`performLrigActivated` が実際に払う」）＝
+  //     `fieldTrash`／`fieldBanish`＝gate が `fieldTrashSelectableZones`／ゾーンは `pickCpuFieldTrashZones`
+  //       （**第2段では「実行側に口が無い」と書いたが、口は `sel.fieldBanishZones` に在った**＝
+  //        欠けていたのは CPU 側の選択だけだった）。
+  //     `removeOppVirus`＝**この回に `lrigActivateGate` へ検算を足した**（`charmTrash` も同じ）。
+  //     `exceedColors`＝gate が `exceedColorsSatisfied`／**支払いは `exceedIndices` 省略＝自動**（色を貪欲に満たす）。
+  //     `deckTrash`＝**この回に支払い（`payDeckTrashCost`）を新設した**。
+  //   📏実測＝ルリグの【起】567効果のうち `fieldTrash` 8／`exceedColors` 3／`deckTrash` 3／
+  //     `fieldBanish` 1／`removeOppVirus` 1。
+  'fieldTrash',
+  'fieldBanish',
+  'removeOppVirus',
+  'exceedColors',
+  'deckTrash',
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
@@ -81,6 +98,11 @@ export interface CpuLrigActivatedChoice {
   handDiscardIndices: Set<number>;
   /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index（`energyTrash`）。 */
   energyTrashIndices: Set<number>;
+  /**
+   * 🆕§5.7 `S-31` ② 第3段＝場から払うコストで選んだゾーン（`performLrigActivated` の `fieldBanishZones`）。
+   * ⚠**`fieldTrash` と `fieldBanish` の共用**＝行き先（トラッシュ／エナ）は実行側が決める。
+   */
+  fieldBanishZones: Set<number>;
 }
 
 /**
@@ -158,7 +180,14 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
       effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy, reserve: p.energyReserve,
     });
     if (!energyTrashIndices) continue;
-    yield { effect, costIndices, handDiscardIndices, energyTrashIndices };
+    // 🆕§5.7 `S-31` ② 第3段＝場から払うコスト（**選び方は場のシグニ【起】と同じ関数**）。
+    //   ⚠発生源はルリグなので `excludeSelf`（効果元シグニを除く）は効かない＝`sourceZone` は渡さない。
+    const fieldBanishZones = pickCpuFieldTrashZones({
+      effect, actor: p.actor, sourceZone: null, cardMap: p.cardMap,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
+    });
+    if (!fieldBanishZones) continue;
+    yield { effect, costIndices, handDiscardIndices, energyTrashIndices, fieldBanishZones };
   }
 }
 

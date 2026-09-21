@@ -323,6 +323,28 @@ export function canAddTrashExileIndex(
  * 可否ゲート用＝トラッシュに**制約を満たす組み合わせ**が存在するか。
  * 「それぞれ名前の異なる」は**異なる名前の枚数**で数える（`handDiscardSigniAffordable` と同じ規約）。
  */
+/**
+ * 🆕**`cost.charmTrash`（自分の場のチャームN枚をトラッシュ）を払えるか**（§5.7 `S-31` ② 第3段・2026-09-21）。
+ *
+ * 🔴**提示ゲートに1行も無かった**＝`performSigniActivated` / `performLrigActivated` は枚数が足りないと
+ *   **何も書かずに return** するので、CPU から見ると「撃てると言われたのに盤面が動かない」＝
+ *   同じ効果を選び直して**無限ループ**になる（`cpuActivate.ts` の allowlist にこの注意書きが残っていた）。
+ * ⚠**支払い側と同じ軸**＝先頭ゾーンから自動で取るので、必要なのは「チャームの総数」だけ。
+ */
+export function charmTrashAffordable(my: PlayerState, count: number | undefined): boolean {
+  if (!count) return true;
+  return (my.field.signi_charms ?? []).filter(Boolean).length >= count;
+}
+
+/**
+ * 🆕**`cost.removeOppVirus`（相手の場のウィルスN個を取り除く）を払えるか**（§5.7 `S-31` ② 第3段）。
+ * ⚠**相手の盤面を見るコスト**＝`charmTrashAffordable` と同じ理由で提示ゲートに要る。
+ */
+export function removeOppVirusAffordable(op: PlayerState, count: number | undefined): boolean {
+  if (!count) return true;
+  return (op.field.signi_virus ?? []).reduce((sum, n) => sum + n, 0) >= count;
+}
+
 export function trashExileAffordable(
   trash: string[],
   spec: import('../../types/effects').EffectCost['trashExile'] | undefined,

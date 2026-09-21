@@ -13,6 +13,7 @@ import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardH
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldToDeckTopCost } from '../fieldToDeckTopCost';
+import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldTrashCost } from '../fieldTrashCost';
 import { removeKeyToLrigTrash } from '../keyZone';
 import { payLrigDownCost } from '../lrigDownCost';
@@ -275,6 +276,14 @@ export const performSigniActivated = async (
       }
       if (movedCA.length < charmTrashNAct2) return; // 支払い不能
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+    }
+    // 🆕**deckTrash**（§5.7 `S-31` ② 第3段・`SPK01-06-E1` ほか live 9効果）＝
+    //   🔴**この経路にも支払いが1行も無かった**＝人間も CPU も踏み倒して撃てていた。
+    //   ⚠支払いは `payDeckTrashCost` 1本（ルリグ【起】と同じ関数＝写経しない）。
+    if (effect.cost?.deckTrash) {
+      const dtPaid = payDeckTrashCost(paid, effect.cost.deckTrash);
+      paid = dtPaid.state;
+      if (dtPaid.log) ctx.io.appendLogs([dtPaid.log]);
     }
     // charmTrashVariable: チャームを可変枚数トラッシュ（プレイヤーが選択した枚数）
     const charmVarActCost = effect.cost?.charmTrashVariable;
