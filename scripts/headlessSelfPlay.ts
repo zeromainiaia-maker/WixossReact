@@ -66,7 +66,7 @@ import { applyMulligan } from '../src/screens/battle/mulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
-import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
+import { formatAbReport, meanInterval, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck, type SelfPlayDeck } from './selfPlayDecks';
 import { buildScanSpecs, formatDivergeReport, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
 
@@ -288,6 +288,9 @@ async function playPair(seed: number, a: CpuPolicy, b: CpuPolicy): Promise<AbGam
     out.push({
       seed, swapped, reason: g.reason, steps: g.steps, turns: g.turns, ms: g.ms,
       winner: g.winner === '-' ? null : g.winner === aSeat ? 'A' : 'B',
+      // 🆕§5.7 `S-27`＝**A 視点の残ライフ差**。🔴**席を取り違えると符号が反転する**（A は swapped のとき guest 席）＝
+      //   `winner` と同じ `aSeat` から導く（別々に書くと片方だけ直して静かに嘘をつく）。
+      margin: aSeat === 'host' ? g.hostLife - g.guestLife : g.guestLife - g.hostLife,
     });
   }
   return out;
@@ -472,6 +475,10 @@ if (AB_MODE && ROUND_ROBIN.length >= 1) {
     console.log(`  ${deck.name.padEnd(14)} 組 ${sum.pairs.aSweep}-${sum.pairs.split}-${sum.pairs.bSweep}`
       + `｜組で見た勝率 ${sum.pairDecided === 0 ? '—' : `${(sum.pairRate * 100).toFixed(1)}%`}`
       + ` [${(sum.pairLo * 100).toFixed(1)}, ${(sum.pairHi * 100).toFixed(1)}]｜${verdict}`
+      // 🆕§5.7 `S-27`＝**連続量（補助）**＝1勝1敗の組も標本になるので、山ごとの表でも感度が上がる。
+      + `｜ライフ差 ${sum.marginMean === null ? '—' : `${sum.marginMean >= 0 ? '+' : ''}${sum.marginMean.toFixed(2)}`}`
+      + ` [${Number.isFinite(sum.marginLo) ? sum.marginLo.toFixed(2) : '—'}, ${Number.isFinite(sum.marginHi) ? sum.marginHi.toFixed(2) : '—'}]`
+      + `${sum.marginSignificant ? '🔎' : ''}`
       + `｜止まった ${sum.stalled}`);
   }
   const sig = rows.filter(r => r.sum.pairSignificant);
@@ -481,6 +488,25 @@ if (AB_MODE && ROUND_ROBIN.length >= 1) {
   console.log(`  A が弱い山 ${sig.filter(r => r.sum.pairRate <= 0.5).map(r => r.deck).join('／') || 'なし'}`);
   console.log(`  差が出なかった山 ${rows.filter(r => !r.sum.pairSignificant).map(r => r.deck).join('／') || 'なし'}`);
   console.log('🔴**1つの山の勝率でポリシーを一般化しない**＝この表が「山によって逆になる」ことを示すためにある。');
+  // 🆕§5.7 `S-27`＝**勝率では出ないが連続量では出た山**＝**戦数を積む価値がある**ことの安い合図。
+  //   🔴**採否の根拠にしない**（目的関数は勝率）＝「どこを深掘りするか」を決めるためだけに読む。
+  const marginOnly = rows.filter(r => !r.sum.pairSignificant && r.sum.marginSignificant);
+  console.log(`  連続量（ライフ差）だけで差が出た山 ${marginOnly.map(r => r.deck).join('／') || 'なし'}`
+    + `＝**勝率の判定ではない**＝その山で戦数を積むと差が出るかもしれない、という合図`);
+  // 🔴**多重比較**＝山の数だけ検定しているので、**何も差が無くても 5% は光る**。
+  //   実測（2026-09-21・4束 × 6山＝24セル）＝有意は3セル＝**偶然の期待値 1.2 と同じ桁**＝**1山の🔎で結論を書かない**。
+  console.log(`  ⚠**${rows.length}山ぶん検定している**＝差が無くても偶然 ${(rows.length * 0.05).toFixed(1)}山は光る`
+    + `（${marginOnly.length}山が光った）⇒ **1山の🔎だけで結論を書かない**`);
+  const allMargins = rows.flatMap(r => r.sum.pairMargins);
+  const agg = meanInterval(allMargins);
+  const tied = rows.reduce((a2, r) => a2 + r.sum.marginTied, 0);
+  const dec = rows.reduce((a2, r) => a2 + r.sum.decided, 0);
+  console.log(`  全山の合算＝ライフ差 平均 ${agg.mean >= 0 ? '+' : ''}${agg.mean.toFixed(2)}`
+    + ` [${Number.isFinite(agg.lo) ? agg.lo.toFixed(2) : '—'}, ${Number.isFinite(agg.hi) ? agg.hi.toFixed(2) : '—'}]（${agg.n}組）`
+    + `｜組の勝率で決着した組 ${rows.reduce((a2, r) => a2 + r.sum.pairDecided, 0)}／1勝1敗 ${rows.reduce((a2, r) => a2 + r.sum.pairs.split, 0)}`);
+  // 🔴**この指標の感度の上限**＝両者ライフ0での決着（ライフ0 はまだ敗北ではない）ではライフ差が 0＝勝敗と同じ情報しか無い。
+  console.log(`  ⚠両者ライフ0での決着 ${tied}/${dec}（${dec > 0 ? Math.round((tied / dec) * 100) : 0}%）`
+    + `＝そこではライフ差は勝敗と同じ情報しか持たない（この指標の感度の上限）`);
   console.log(`壁時計 ${((Date.now() - t0) / 1000).toFixed(0)}秒`);
   if (rows.some(r => r.sum.stalled > 0) && !ALLOW_STALL) process.exit(1);
   process.exit(0);

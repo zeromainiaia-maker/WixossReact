@@ -224,7 +224,7 @@ import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { guardProbability, lifeBurstProbability, lifeCrushRisk, lrigAttackRisk } from '../src/screens/battle/cpuAttackRisk';
 import { LB_MAX, MAIN_MAX } from '../src/utils/deckBuildLimits';
-import { formatAbReport, splitSeeds, summarizeAb, wilsonInterval, type AbGameResult } from './selfPlayStats';
+import { formatAbReport, formatMarginLine, meanInterval, splitSeeds, summarizeAb, tCritical95, wilsonInterval, type AbGameResult } from './selfPlayStats';
 import { deckActionTypes, formatDeckCoverage, MECH_DECK, resolveSelfPlayDeck } from './selfPlayDecks';
 import { buildScanSpecs, firstDivergence, formatDivergeReport, SCAN_KNOBS, screenSpeedup, summarizeDiverge, type DivergeRun } from './cpuWeightScan';
 import { checkSpellUse, isSpellUseBlockedFor } from '../src/screens/battle/spellUseGate';
@@ -87235,8 +87235,10 @@ test('§5.7 S-9 強さの A/B 測定台：席ごとのポリシー・席入れ�
     '🔴戦数を10倍にしても区間が狭まらない');
 
   // ── ⑤ 集計（席入れ替えの読み方）──
-  const g = (seed: number, swapped: boolean, winner: 'A' | 'B' | null): AbGameResult =>
-    ({ seed, swapped, winner, reason: winner ? 'finished' : 'idle', steps: 1, turns: 1, ms: 1 });
+  // 🆕§5.7 `S-27`＝`margin`（A 視点の残ライフ差）を持つ。既定は勝者側に +1／−1（符号だけ合わせる）。
+  const g = (seed: number, swapped: boolean, winner: 'A' | 'B' | null, margin?: number): AbGameResult =>
+    ({ seed, swapped, winner, reason: winner ? 'finished' : 'idle', steps: 1, turns: 1, ms: 1,
+      margin: margin ?? (winner === 'A' ? 1 : winner === 'B' ? -1 : 0) });
   const sum = summarizeAb([
     g(1, false, 'A'), g(1, true, 'A'),     // A が2連勝
     g(2, false, 'A'), g(2, true, 'B'),     // 1勝1敗
@@ -89559,6 +89561,81 @@ test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分�
   // 🔴**画面は走査を知らない**（`S-9` の規律＝測定台の都合で実機の挙動を変えない）。
   const screenScan = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
   ok(!screenScan.includes('cpuWeightScan'), '🔴画面が走査の道具を読んでいる');
+}));
+
+// ── 第431バッチ（2026-09-21）＝§5.7 `S-27`（A/B の感度＝勝敗の二値ではなく連続量で測る）───────────
+test('§5.7 S-27 A/B の感度：対ごとの残ライフ差・t 区間・「補助であって主の判定ではない」', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（`S-6` 第2段の実測）**＝多次元の重みを4束 × 96戦で A/B に掛けたら
+  //   **全6デッキで「差があるとは言えない」**＝合計 A2連勝 24 - 1勝1敗 144 - B2連勝 24。
+  //   **192組のうち144組（75%）が1勝1敗**＝`pairRate` はそれを**分母から外す**ので、
+  //   1候補に8分払っても**決着する組は10〜14**しか得られない＝**小さな差は原理的に測れない**。
+  // 🔑**直し方**＝1勝1敗の組も「**何点差で勝ったか**」を持っている＝**対ごとの残ライフ差**を足し上げる。
+
+  /** 1戦の結果（`margin`＝A 視点の残ライフ差）。 */
+  const g = (seed: number, swapped: boolean, winner: 'A' | 'B' | null, margin: number): AbGameResult =>
+    ({ seed, swapped, winner, reason: winner ? 'finished' : 'idle', steps: 1, turns: 1, ms: 1, margin });
+
+  // ── ① t 臨界値＝**正規近似（1.96）で済ませない**（小標本で区間を狭く出さない）──
+  ok(tCritical95(1) > 12 && tCritical95(2) > 4, `🔴自由度1〜2の臨界値が小さすぎる（${tCritical95(1)} / ${tCritical95(2)}）`);
+  ok(tCritical95(10) > tCritical95(30), '🔴自由度が増えても臨界値が下がらない');
+  ok(tCritical95(1000) < 1.97 && tCritical95(1000) >= 1.95, `🔴大標本で z（1.96）へ寄らない（${tCritical95(1000)}）`);
+  // ⚠表に無い自由度は**大きいほうの臨界値**（＝区間を狭くしない側）。
+  ok(tCritical95(35) >= tCritical95(40), '🔴表に無い自由度で区間を狭くする側へ倒した');
+  ok(!Number.isFinite(tCritical95(0)), '🔴自由度0で有限の臨界値を返した');
+
+  // ── ② 平均の区間＝**1件で「差あり」と言わない** ──
+  eq(meanInterval([]).n, 0, '空の標本数');
+  ok(!Number.isFinite(meanInterval([5]).lo), '🔴標本1件で有限の区間を出した＝1戦で「差あり」と言える');
+  const mi = meanInterval([1, 1, 1, 1]);
+  ok(mi.mean === 1 && mi.lo === 1 && mi.hi === 1, `🔴分散0の標本で区間が広がった（${mi.lo}〜${mi.hi}）`);
+  const wide = meanInterval([-5, 5, -5, 5]);
+  ok(wide.lo < 0 && wide.hi > 0, '🔴平均0・分散大の標本で区間が0を跨がない');
+  ok(meanInterval([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).hi - meanInterval([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).lo
+    > meanInterval(Array.from({ length: 100 }, (_, i) => (i % 10) + 1)).hi - meanInterval(Array.from({ length: 100 }, (_, i) => (i % 10) + 1)).lo,
+    '🔴標本を10倍にしても区間が縮まらない');
+
+  // ── ③ 🔑**本体＝1勝1敗の組が標本になる**（`pairRate` は分母から外す）──
+  const splitPairs = Array.from({ length: 12 }, (_, i) => [
+    g(i, false, 'A', 5),   // A は5枚残して勝つ
+    g(i, true, 'B', -1),   // B は1枚残して勝つ
+  ]).flat();
+  const sum27 = summarizeAb(splitPairs);
+  eq(sum27.pairs.split, 12, '前提崩れ＝全組が1勝1敗');
+  eq(sum27.pairDecided, 0, '前提崩れ＝勝率の標本は0組');
+  eq(sum27.pairRate, null, '🔴決着0組なのに勝率が出た');
+  eq(sum27.pairMargins.length, 12, '🔴1勝1敗の組が連続量の標本に入っていない＝`S-27` の本体が効いていない');
+  eq(sum27.marginMean, 4, '🔴対ごとの残ライフ差の合計（+5 と −1 で +4）になっていない');
+  ok(sum27.marginSignificant, '🔴勝率では標本0なのに、連続量でも差ありと言えない＝感度が上がっていない');
+  // 🔴**逆に、勝敗も余裕も互角なら連続量でも差なし**（「何でも差あり」と言う計器にしない）。
+  const evenPairs = Array.from({ length: 12 }, (_, i) => [g(i, false, 'A', 3), g(i, true, 'B', -3)]).flat();
+  ok(!summarizeAb(evenPairs).marginSignificant, '🔴互角の組で「差あり」と言った');
+  eq(summarizeAb(evenPairs).marginMean, 0, '🔴互角の組で平均が0にならない');
+
+  // ── ④ 🔴**ライフ0 はまだ敗北ではない**＝勝者もライフ0で勝てる（2026-09-21 に前提が外れた）──
+  //   実測＝WD13 の3戦のうち**2戦が `0/0` で決着**。⇒ `margin === 0` は**符号の食い違いではなく「接戦」**。
+  const tied = summarizeAb([g(1, false, 'A', 0), g(1, true, 'B', 0)]);
+  eq(tied.marginDisagree, 0, '🔴両者ライフ0の決着を「符号が逆」と数えた＝実測の7割弱が異常扱いになる');
+  eq(tied.marginTied, 2, '🔴両者ライフ0の決着を数えていない＝この指標の感度の上限が見えなくなる');
+  eq(tied.marginMean, 0, '接戦の組は0');
+  // **本当に符号が逆**（勝ったのにライフが少ない）＝ライフ差以外の決着＝嘘をつく分。
+  eq(summarizeAb([g(1, false, 'A', -3), g(1, true, 'B', -1)]).marginDisagree, 1, '🔴符号が逆の対戦を数えていない');
+
+  // ── ⑤ 表の文言＝**補助であって主の判定ではない**（ここが消えると採否の根拠に使われる）──
+  const line = formatMarginLine(sum27);
+  ok(line.includes('補助の指標'), '🔴連続量が「補助」だと書いていない＝勝率の代わりに使われる');
+  ok(line.includes('目的関数は勝率'), '🔴目的関数が勝率だと書いていない');
+  ok(line.includes('採否は上の「組で見た勝率」で決める'), '🔴採否をどちらで決めるか書いていない');
+  ok(formatMarginLine(summarizeAb([])).includes('標本なし'), '🔴標本0のときの文言が出ない');
+  ok(formatAbReport(sum27, 'a', 'b').includes('連続量'), '🔴勝率表に連続量の行が出ていない');
+  // 🔴**主の判定は差し替えていない**＝勝率の行は残っている。
+  ok(formatAbReport(sum27, 'a', 'b').includes('組で見た勝率（こちらを読む）'), '🔴主の判定（組の勝率）が表から消えた');
+
+  // ── ⑥ 配線＝**席を取り違えると符号が反転する**（A は swapped のとき guest 席）──
+  const hs27 = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
+  ok(/margin: aSeat === 'host' \? g\.hostLife - g\.guestLife : g\.guestLife - g\.hostLife/.test(hs27),
+    '🔴残ライフ差を `aSeat` から導いていない＝`winner` と別々に書くと片方だけ直して静かに符号が反転する');
+  ok(/winner: g\.winner === '-' \? null : g\.winner === aSeat \? 'A' : 'B'/.test(hs27),
+    '前提崩れ＝勝敗も同じ `aSeat` から導いているかの確認');
 }));
 
 if (listMode) {
