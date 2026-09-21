@@ -1,5 +1,6 @@
-import type { PlayerState } from '../../types';
-import { getCardNum } from '../../engine/execUtils';
+import type { CardData, PlayerState } from '../../types';
+import type { TargetFilter } from '../../types/effects';
+import { getCardNum, matchesFilter } from '../../engine/execUtils';
 import { DEFAULT_CPU_POLICY, type CpuPolicy, type PlanWeights } from './cpuPolicy';
 
 /**
@@ -69,6 +70,22 @@ export const CPU_TARGET_MODE_LABELS: Readonly<Record<CpuTargetMode, string>> = {
   weakest: '弱いもの',
 };
 
+/**
+ * 🆕**属性での指定**（§5.7 `S-32` ①・2026-09-21）＝**相手の札は名指しできない**（山が分からない）ので、
+ * **クラス・レベル・パワーの帯**で狙い／避けを書く。
+ * 🔑**判定は engine の `matchesFilter` の1本**＝CPU 用の第2のフィルタ言語を作らない
+ *   （`story`＝クラスの後半＝「電機」「天使」など41種／`levelRange`／`powerRange`）。
+ * ⚠**パワーは実効パワー**（`inter.candidatePowers`＝engine が算出した値）で見る。
+ */
+export interface CpuTargetFilter {
+  /** クラス（＜電機＞＜天使＞…＝`CardClass` の後半）。 */
+  story?: string;
+  levelMin?: number;
+  levelMax?: number;
+  powerMin?: number;
+  powerMax?: number;
+}
+
 /** 🆕§5.7 `S-32`＝対象の狙い方（デッキごと）。 */
 export interface CpuTargetPlan {
   mode: CpuTargetMode;
@@ -76,9 +93,39 @@ export interface CpuTargetPlan {
   prefer: string[];
   /** 固有のカード指定＝**狙わない**札（自分の札を守る／無駄撃ちを避ける）。 */
   avoid: string[];
+  /** 🆕属性で**狙う**（クラス・レベル◯以上・パワー◯以上）。 */
+  preferFilter?: CpuTargetFilter;
+  /** 🆕属性で**避ける**（クラス・レベル◯以下・パワー◯以下＝小物に撃たない）。 */
+  avoidFilter?: CpuTargetFilter;
 }
 
 export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { mode: 'strongest', prefer: [], avoid: [] };
+
+/** 🆕属性の指定を engine の `TargetFilter` へ（**変換はここ1本**）。空なら `undefined`。 */
+export function cpuTargetFilterToTargetFilter(f: CpuTargetFilter | undefined): TargetFilter | undefined {
+  if (!f) return undefined;
+  const out: TargetFilter = {};
+  if (f.story) out.story = f.story;
+  if (f.levelMin !== undefined || f.levelMax !== undefined) {
+    out.levelRange = { ...(f.levelMin !== undefined ? { min: f.levelMin } : {}), ...(f.levelMax !== undefined ? { max: f.levelMax } : {}) };
+  }
+  if (f.powerMin !== undefined || f.powerMax !== undefined) {
+    out.powerRange = { ...(f.powerMin !== undefined ? { min: f.powerMin } : {}), ...(f.powerMax !== undefined ? { max: f.powerMax } : {}) };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** DB の値から属性の指定を作る（⚠**知っているキーだけ**＝壊れた値は落ちる）。 */
+function toTargetFilter(raw: unknown): CpuTargetFilter | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const out: CpuTargetFilter = {
+    story: typeof r.story === 'string' && r.story ? r.story : undefined,
+    levelMin: num(r.levelMin), levelMax: num(r.levelMax), powerMin: num(r.powerMin), powerMax: num(r.powerMax),
+  };
+  return Object.values(out).some(v => v !== undefined) ? out : undefined;
+}
 
 export interface CpuDeckPlan {
   keyCards: string[];
@@ -142,6 +189,7 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
   const targeting: CpuTargetPlan = {
     mode: CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest',
     prefer: strList(t.prefer), avoid: strList(t.avoid),
+    preferFilter: toTargetFilter(t.preferFilter), avoidFilter: toTargetFilter(t.avoidFilter),
   };
   return { keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting };
 }
@@ -162,18 +210,31 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
 export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
   && (plan.targeting?.mode ?? 'strongest') === 'strongest'
-  && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0;
+  && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
+  && !plan.targeting?.preferFilter && !plan.targeting?.avoidFilter;
 
 /**
  * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果の対象を選ぶときだけ使う。
  * 🔑**狙う／狙わないは「相手の札」も指定できる**＝デッキに無くてもよい（`pruneCpuDeckPlan` が落とさない）。
  */
-export function planTargetBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
+export function planTargetBonus(
+  plan: CpuDeckPlan, id: string, policy?: CpuPolicy,
+  /** 🆕§5.7 `S-32` ①＝属性での指定を見るための札と実効パワー（省略すると固有のカード指定だけ）。 */
+  match?: { card?: CardData; power?: number },
+): number {
   const num = getCardNum(id);
   const W = policy?.planWeights ?? PLAN_WEIGHTS;
   const t = plan.targeting;
   if (!t) return 0;
-  return (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0);
+  let bonus = (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0);
+  // 🆕属性での指定＝**判定は engine の `matchesFilter`**（⚠実効パワーを渡す）。
+  if (match?.card) {
+    const pf = cpuTargetFilterToTargetFilter(t.preferFilter);
+    const af = cpuTargetFilterToTargetFilter(t.avoidFilter);
+    if (pf && matchesFilter(match.card, pf, match.power)) bonus += W.targetPrefer;
+    if (af && matchesFilter(match.card, af, match.power)) bonus += W.targetAvoid;
+  }
+  return bonus;
 }
 
 /** 手元に残す価値の加点（エナチャージ・手札上限の捨て札・サーチで使う）。 */

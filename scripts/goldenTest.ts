@@ -169,7 +169,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
-import { cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -90223,14 +90223,46 @@ test('§5.7 S-32 効果の対象の狙い方：大まかな指示（強い／落
 
   // ── ⑤ 配線＝応答側が作戦データから渡す／編集 UI がある ──
   const respond32 = cpuRespondSource();
-  ok(/targetMode: d\.cpuPlan\.targeting\?\.mode/.test(respond32) && /targetBonus: id => planTargetBonus\(d\.cpuPlan, id, d\.policy\)/.test(respond32),
-    '🔴対象の狙い方を作戦データから渡していない');
+  ok(/targetMode: d\.cpuPlan\.targeting\?\.mode/.test(respond32)
+    && /targetBonus: \(id, power\) => planTargetBonus\(d\.cpuPlan, id, d\.policy, \{ card: d\.cardMap\.get\(getCardNum\(id\)\), power \}\)/.test(respond32),
+  '🔴対象の狙い方を作戦データから渡していない（属性の指定には札と実効パワーが要る）');
   const modal32 = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
   ok(/data-testid="cpu-plan-target-mode"/.test(modal32), '🔴狙い方を選ぶ UI が無い');
   ok(/data-testid={`cpu-plan-prefer-\$\{c\.CardNum\}`}/.test(modal32) && /data-testid={`cpu-plan-avoid-\$\{c\.CardNum\}`}/.test(modal32),
     '🔴「狙う」「避ける」の UI が無い');
   // 🔴狙う／避けるは排他（両方に入ると足し引きが打ち消し合って「指定したのに効かない」になる）
   ok(/\[other\]: targeting\[other\]\.filter/.test(modal32), '🔴「狙う」と「避ける」を同時に指定できてしまう');
+
+  // ── 🆕⑥ §5.7 `S-32` ①＝**属性で狙う／避ける**（相手の札は名指しできないので帯で書く）──
+  const cardOf = (id: string) => cardMap.get(id.split('#')[0]);
+  const bonusWith = (plan: ReturnType<typeof normalizeCpuDeckPlan>, id: string) =>
+    planTargetBonus(plan, id, undefined, { card: cardOf(id), power: powers[id] });
+  const bigCard = cardOf(BIG)!, smallCard = cardOf(SMALL)!;
+  ok(bigCard && smallCard, '前提崩れ＝検査に使う札が CSV に無い');
+  // 🔑**パワーは実効パワーで見る**＝`candidatePowers` の値（印刷パワーではない）
+  const byPower = normalizeCpuDeckPlan({ targeting: { preferFilter: { powerMin: 10000 } } });
+  ok(bonusWith(byPower, BIG) > 0 && bonusWith(byPower, SMALL) === 0,
+    '🔴「パワー1万以上を狙う」が実効パワーで効いていない');
+  eq(JSON.stringify(pickCpuTargets(down5000, { ...base32, targetBonus: (id, p) => planTargetBonus(byPower, id, undefined, { card: cardOf(id), power: p }) })),
+    JSON.stringify([BIG]), '🔴属性で狙う指定が対象選択に届いていない');
+  // 避ける側＝**小物に撃たない**（パワー◯以下）
+  const avoidSmall = normalizeCpuDeckPlan({ targeting: { avoidFilter: { powerMax: 5000 } } });
+  ok(bonusWith(avoidSmall, SMALL) < 0 && bonusWith(avoidSmall, BIG) === 0, '🔴「パワー5千以下は避ける」が効かない');
+  // クラス（`story`）＝engine の `matchesFilter` の1本で判定する
+  const story = String(bigCard.CardClass ?? '').split('/')[0].split('：')[1] ?? '';
+  ok(story.length > 0, '前提崩れ＝クラスが読めない');
+  ok(bonusWith(normalizeCpuDeckPlan({ targeting: { preferFilter: { story } } }), BIG) > 0, '🔴クラス指定が効かない');
+  // 🔴**壊れた値は落とす／空の指定は残さない**
+  eq(normalizeCpuDeckPlan({ targeting: { preferFilter: { story: '', levelMin: 'x' } } }).targeting.preferFilter, undefined,
+    '🔴空・壊れた属性指定を「指定あり」として残した');
+  eq(JSON.stringify(cpuTargetFilterToTargetFilter({ story: '電機', levelMin: 3, powerMax: 8000 })),
+    JSON.stringify({ story: '電機', levelRange: { min: 3 }, powerRange: { max: 8000 } }),
+    '🔴属性の指定を engine の TargetFilter へ変換できていない');
+  eq(cpuTargetFilterToTargetFilter({}), undefined, '空の指定からフィルタを作った');
+  // 編集 UI（クラスは**全カード**から作る＝デッキの札だけでは相手を指定できない）
+  ok(/data-testid={`cpu-plan-\$\{key\}-story`}/.test(modal32) && /data-testid={`cpu-plan-\$\{key\}-power`}/.test(modal32),
+    '🔴属性で狙う／避ける UI が無い');
+  ok(/\[\.\.\.cardMap\.values\(\)\]/.test(modal32), '🔴クラスの一覧をデッキの札だけから作っている（相手の札を指定できない）');
 }));
 
 if (listMode) {

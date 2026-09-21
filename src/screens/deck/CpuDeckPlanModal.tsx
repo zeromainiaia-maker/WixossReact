@@ -3,7 +3,7 @@ import type { CardData, Deck } from '../../types';
 import {
   CPU_COMBO_USES, CPU_COMBO_USE_LABELS, CPU_TARGET_MODES, CPU_TARGET_MODE_LABELS,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
-  type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetMode,
+  type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetFilter, type CpuTargetMode,
 } from '../battle/cpuDeckPlan';
 
 /**
@@ -36,6 +36,21 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   // 🆕§5.7 `S-32`＝効果の対象の狙い方（大まかな指示＋固有のカード指定）。
   const targeting = plan.targeting ?? EMPTY_CPU_TARGET_PLAN;
   const saveTargeting = (next: Partial<typeof targeting>) => save({ ...plan, targeting: { ...targeting, ...next } });
+  /**
+   * 🆕§5.7 `S-32` ①＝**属性で狙う／避ける**（クラス・レベル・パワー帯）。
+   * 🔑**クラスの一覧は「全カードのクラス」から作る**＝相手の山は分からないので、デッキの札だけでは足りない。
+   */
+  const classOptions = [...new Set([...cardMap.values()]
+    .filter(c => c.Type === 'シグニ')
+    .flatMap(c => String(c.CardClass ?? '').split('/').filter(Boolean).map(k => k.split('：')[1] ?? k)))]
+    .sort((a, b) => a.localeCompare(b, 'ja'));
+  const saveFilter = (key: 'preferFilter' | 'avoidFilter', next: Partial<CpuTargetFilter>) => {
+    const merged: CpuTargetFilter = { ...(targeting[key] ?? {}), ...next };
+    // ⚠**空になったら消す**（`{}` を残すと「指定あり」に見えて `isEmptyCpuDeckPlan` が嘘をつく）。
+    const kept = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined && v !== '')) as CpuTargetFilter;
+    saveTargeting({ [key]: Object.keys(kept).length > 0 ? kept : undefined });
+  };
+  const numOrUndef = (v: string) => (v === '' ? undefined : Number(v));
   const toggleTarget = (key: 'prefer' | 'avoid', num: string) => {
     const list = targeting[key];
     // ⚠**狙う／狙わないは排他**（両方に入っていると足し引きが打ち消し合って「指定したのに効かない」になる）。
@@ -91,6 +106,33 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
             {CPU_TARGET_MODES.map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS[m]}</option>)}
           </select>
         </div>
+
+        {/* 🆕§5.7 `S-32` ①＝**属性で狙う／避ける**。⚠相手の札は名指しできないのでここで指定する。 */}
+        {([['preferFilter', '狙う', '#b83a3a', '以上'], ['avoidFilter', '避ける', '#555', '以下']] as const).map(([key, label, color, cmp]) => {
+          const f = targeting[key] ?? {};
+          const lvKey = key === 'preferFilter' ? 'levelMin' : 'levelMax';
+          const pwKey = key === 'preferFilter' ? 'powerMin' : 'powerMax';
+          return (
+            <div key={key} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ color, fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: 52 }}>{label}条件</span>
+              <select data-testid={`cpu-plan-${key}-story`} value={f.story ?? ''}
+                onChange={e => saveFilter(key, { story: e.target.value || undefined })} style={{ ...selectStyle, fontSize: 11 }}>
+                <option value="">クラス指定なし</option>
+                {classOptions.map(c => <option key={c} value={c}>＜{c}＞</option>)}
+              </select>
+              <select data-testid={`cpu-plan-${key}-level`} value={String(f[lvKey] ?? '')}
+                onChange={e => saveFilter(key, { [lvKey]: numOrUndef(e.target.value) })} style={{ ...selectStyle, fontSize: 11, flex: '0 0 96px' }}>
+                <option value="">レベル—</option>
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Lv{n}{cmp}</option>)}
+              </select>
+              <select data-testid={`cpu-plan-${key}-power`} value={String(f[pwKey] ?? '')}
+                onChange={e => saveFilter(key, { [pwKey]: numOrUndef(e.target.value) })} style={{ ...selectStyle, fontSize: 11, flex: '0 0 110px' }}>
+                <option value="">パワー—</option>
+                {[3000, 5000, 8000, 10000, 12000, 15000].map(n => <option key={n} value={n}>{n / 1000}千{cmp}</option>)}
+              </select>
+            </div>
+          );
+        })}
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 120 }}>
           {cards.map(c => (

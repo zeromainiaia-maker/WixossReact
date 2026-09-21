@@ -43,7 +43,8 @@ export interface CpuInteractionCtx {
    * ⚠**省略できる**＝渡さなければ `strongest`＋加点0＝`S-22` のときの挙動。
    */
   targetMode?: CpuTargetMode;
-  targetBonus?: (id: string) => number;
+  /** ⚠**実効パワーを渡す**（属性の「パワー◯以上」は印刷パワーでなく実効パワーで見る）。 */
+  targetBonus?: (id: string, power?: number) => number;
   /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
   energyReserve?: CpuEnergyReserve;
   /**
@@ -257,7 +258,8 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
   } else {
     const favorable = (id: string) => (intent === 'harm') !== isCpuOwned(id, cpuState);
     // 🆕§5.7 `S-32`＝**固有のカード指定**（狙う／狙わない）を価値に足し引きする。
-    const value = (id: string) => cardValue(id, ctx, inter.candidatePowers, ctx.targetBonus?.(id) ?? 0);
+    const value = (id: string) =>
+      cardValue(id, ctx, inter.candidatePowers, ctx.targetBonus?.(id, inter.candidatePowers?.[id]) ?? 0);
     // 🆕§5.7 `S-32`＝**大まかな指示**。⚠**既定は `strongest`＝`S-22` のときと同じ並び**。
     const mode = ctx.targetMode ?? 'strongest';
     const kills = (id: string) => targetKillableBy(

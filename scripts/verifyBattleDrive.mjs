@@ -60635,6 +60635,18 @@ scenarios.v268CpuDeckPlan = {
           return { pass: false, detail: `🔴対象の狙い方が DB に届かない（${JSON.stringify(saved3?.targeting)}）` };
         }
 
+        // 🆕§5.7 `S-32` ①＝**属性で狙う**（クラス・レベル・パワー帯）も画面から保存できる。
+        //   ⚠**クラスの一覧は全カードから作る**＝相手の札を指定するため（デッキの札だけでは足りない）。
+        await page.getByTestId('cpu-plan-preferFilter-power').selectOption('10000', { timeout: 3000 });
+        await page.waitForTimeout(600);
+        await page.getByTestId('cpu-plan-avoidFilter-level').selectOption('1', { timeout: 3000 });
+        await page.waitForTimeout(1500);
+        const saved4 = await readPlan(deck.id);
+        H.log(`②''' 保存された targeting=${JSON.stringify(saved4?.targeting)}`);
+        if (saved4?.targeting?.preferFilter?.powerMin !== 10000 || saved4?.targeting?.avoidFilter?.levelMax !== 1) {
+          return { pass: false, detail: `🔴属性での狙いが DB に届かない（${JSON.stringify(saved4?.targeting)}）` };
+        }
+
         // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
         if (!/【起】で使う/.test(draftText) || !/出す/.test(draftText)) {
           return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText}）` };
@@ -60642,7 +60654,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）が cpu_plan.targeting に届いた` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）が cpu_plan.targeting に届いた` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);
