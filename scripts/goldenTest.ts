@@ -221,6 +221,7 @@ import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
+import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
 import { trashArtsFromLrigDeckCandidates } from '../src/screens/battle/artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
 import { payDeckTrashCost } from '../src/screens/battle/deckTrashCost';
@@ -90796,6 +90797,83 @@ test('§5.7 S-31 ② 第6段 残り全部：組で捨てる／可変枚数／デ
     '🔴人間がデッキの一番下へ置く札を選ぶ UI が無い');
   ok(/trashExileIndices: choice\.trashExileIndices/.test(fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8')),
     '🔴CPU の実行にトラッシュ除外の選択を渡していない');
+}));
+
+test('§5.7 S-29 宣言の帰結のコスト：払える対象だけを候補にする（払えなければ絞らない）', () => withSavedCursor(() => {
+  // 🔴**何が起きていたか**＝「〈シグニ〉１体を**対象とし**、**それのレベル１につき**《無》を支払ってもよい。
+  //   そうした場合、それをバニッシュする」の族で、`S-22` の「相手の一番強い札を選ぶ」が
+  //   **レベルの高い札を選び、支払いの段で払えず空振る**（宣言だけして何も起きない）。
+  //   ⚠**宣言の対話（`SELECT_TARGET`）には後続のコストが1文字も入っていない**＝呼び出し元が効果の木から読む。
+  // 📏**母集団（2026-09-22 実測）**＝**live 14効果 / 14カード**（6キーの和集合）。
+  //   ⚠**ユーザー作27デッキには0枚**＝A/B でも自己対戦でも測れない（`S-20` と同型）＝**直接指標はこの golden**。
+  const cm29 = cardMap as Map<string, CardData>;
+  const LV = new Map<number, string>();
+  for (const c of cm29.values()) {
+    const lv = Number.parseInt(c.Level ?? '', 10);
+    if (c.Type === 'シグニ' && lv >= 1 && lv <= 5 && !LV.has(lv)) LV.set(lv, c.CardNum);
+  }
+  const lv5 = LV.get(5), lv2 = LV.get(2);
+  ok(!!lv5 && !!lv2, '前提崩れ＝レベル別のシグニが CSV に無い');
+
+  // ── ① 効果の木から「レベル１につき」のコストを読む ──
+  const costOf = (num: string) => {
+    for (const e of effectsMap.get(num) ?? []) { const c = declarationScalingCost(e); if (c) return c; }
+    return null;
+  };
+  eq(JSON.stringify(costOf('WXDi-P04-020')), JSON.stringify({ colorsPerLevel: ['無'] }),
+    '🔴「それのレベル１につき《無》を支払ってもよい」を読めていない');
+  eq(JSON.stringify(costOf('WX25-P1-092')), JSON.stringify({ colorsPerLevel: ['緑'] }), '🔴色の違う同型を読めていない');
+  eq(declarationScalingCost({ effectId: 'X', effectType: 'ACTIVATED',
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } } as never), null,
+    '🔴関係ない効果から倍率コストを読んだ（絞りが暴発する）');
+
+  // ── ② 払えない対象を外す／払えるなら強い方（`S-22` の並びのまま）──
+  const inter29 = {
+    type: 'SELECT_TARGET', count: 1, optional: false,
+    candidates: [lv5, lv2], targetScope: 'opp_field',
+    thenAction: { type: 'STUB', id: 'INTERNAL_NOOP' },
+  } as never;
+  const oppField = (() => { const b = mkState({});
+    return { ...b, field: { ...b.field, signi: [[lv5], [lv2], null] } } as PlayerState; })();
+  const pick29 = (energy: number, cost?: unknown) => pickCpuTargets(inter29, {
+    cpuState: { ...mkState({}), energy: fill(energy) } as PlayerState, oppState: oppField,
+    cardMap: cm29, followUpCost: cost as never,
+  } as never);
+  eq(pick29(2)[0], lv5, '前提＝旧挙動（コストを見ない）は一番強い＝レベル5を選ぶ');
+  eq(pick29(2, { colorsPerLevel: ['無'] })[0], lv2,
+    '🔴払えないレベル5を宣言している（＝宣言だけして空振る）');
+  eq(pick29(5, { colorsPerLevel: ['無'] })[0], lv5,
+    '🔴払えるのに弱い方を選んだ（`S-22` の「一番強い札」を壊している）');
+  // 🔴**払える対象が1つも無ければ絞らない**＝悪化させない（どう選んでも空振るなら従来どおり）
+  eq(pick29(0, { colorsPerLevel: ['無'] })[0], lv5, '🔴払える対象が無いときに候補を空にした');
+
+  // ── ③ 色以外の倍率（手札・エナ）も同じ軸 ──
+  const canAfford = (cost: object, hand: number, energy: number, cand: string) => canAffordDeclarationCost({
+    candidate: cand, cost: cost as never, cardMap: cm29,
+    cpuState: { ...mkState({}), hand: fill(hand), energy: fill(energy) } as PlayerState,
+    canPayColors: () => true,
+  });
+  ok(!canAfford({ handDiscardPerLevel: true }, 1, 9, lv5!), '🔴手札が足りないのに払えると答えた');
+  ok(canAfford({ handDiscardPerLevel: true }, 5, 9, lv5!), '🔴手札が足りるのに払えないと答えた');
+  ok(!canAfford({ energyTrashPerLevel: true }, 9, 1, lv5!), '🔴エナが足りないのに払えると答えた');
+  ok(canAfford({ energyTrashPerLevel: true }, 9, 5, lv5!), '🔴エナが足りるのに払えないと答えた');
+
+  // ── ④ 配線＝**本番の応答と探索の両方**に渡る（片方だけだと探索と本番が別の対象を選ぶ）──
+  const respondSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
+  ok(/followUpCost: declarationScalingCost\(/.test(respondSrc), '🔴本番の対象選択に帰結のコストを渡していない');
+  const lookSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuLookahead.ts'), 'utf-8');
+  ok(/declarationScalingCost\(effect\)/.test(lookSrc) && /followUpCost \}/.test(lookSrc),
+    '🔴探索の先読みに帰結のコストを渡していない（探索だけ別の対象を選ぶ）');
+
+  // ── ⑤ 母集団の記録（増減は ratchet にしない＝新カードで増えるのが正常）──
+  const scalingKeys = ['costColorsPerTargetLevel', 'costColorsPerTargetLevelSum',
+    'handDiscardCountFromTargetLevel', 'energyTrashCountFromTargetLevel'];
+  let scalingEffects = 0;
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    const json = JSON.stringify(e.action ?? {});
+    if (scalingKeys.some(k => json.includes(`"${k}"`))) scalingEffects++;
+  }
+  ok(scalingEffects >= 10, `🔴倍率コストの母集団が急に減った（実測 ${scalingEffects} / 2026-09-22 は 13）`);
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

@@ -8,6 +8,7 @@ import { shuffle as rngShuffle } from '../../engine/rng';
 import { declareNameCandidates } from './declareNameCandidates';
 import type { CpuEnergyReserve } from './cpuActivate';
 import { reserveKeptAfterPaying } from './cpuGrowReserve';
+import { canAffordDeclarationCost, type DeclarationScalingCost } from './cpuDeclarationCost';
 
 /**
  * 🆕**CPU の対話応答**（§5.6 `C-8`・2026-09-17）＝効果の途中で CPU に回ってくる選択（対象・選択肢・サーチ・
@@ -47,6 +48,12 @@ export interface CpuInteractionCtx {
   targetBonus?: (id: string, power?: number) => number;
   /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
   energyReserve?: CpuEnergyReserve;
+  /**
+   * 🆕§5.7 `S-29`（2026-09-22）＝**この対象宣言の「帰結のコスト」**（「それのレベル１につき《無》を支払ってもよい」）。
+   * 🔴**宣言の対話には後続ステップのコストが1文字も入っていない**ので、呼び出し元が効果の木から読んで渡す
+   * （`declarationScalingCost`）。⚠**省略できる**＝渡さなければ `S-22`／`S-32` のときの挙動。
+   */
+  followUpCost?: DeclarationScalingCost;
   /**
    * 🆕§5.7 `S-6` 第2段＝この CPU のポリシー（強さ表の重み・【ガード】温存の点数）。省略時は既定。
    * ⚠**席ごとに違うものが来る**（自己対戦の A/B）＝ここから先で `WEIGHTS`／`CPU_GUARD_KEEP_VALUE` を直接読まない。
@@ -229,9 +236,25 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
   // 🆕**選んでも場に出せない候補は選ばない**（§5.3 `O-534`・`R-48`①）＝engine が `unplaceableCards` で印を付ける。
   //   ⚠**可否は engine が決めた値をそのまま使う**（§5.6.3 の規律）＝CPU 側でレベルを測らない。
   //   ⚠全部が印つきなら空を返す＝engine 側が「対象なし」として空振らせる（無理に選んで no-op を作らない）。
-  const candidates = (inter.unplaceableCards ?? []).length > 0
+  const placeable = (inter.unplaceableCards ?? []).length > 0
     ? inter.candidates.filter(n => !inter.unplaceableCards!.includes(n))
     : inter.candidates;
+  // 🆕🔴**§5.7 `S-29`（2026-09-22）＝帰結のコストが「対象のレベル１につき」の形なら、払える対象だけを候補にする。**
+  //   🔴旧＝`S-22` の「相手の一番強い札を選ぶ」が**レベルの高い札を選び**、支払いの段で払えずに
+  //     **宣言だけして何も起きない**（`WXDi-P04-020-E1`＝「それのレベル１につき《無》を支払ってもよい。
+  //     そうした場合、それをバニッシュする」でレベル5を選ぶと《無》×5）。
+  //   ⚠**払える候補が1つも無ければ従来どおり**（絞らない）＝**悪化させない**（どう選んでも空振るなら同じ）。
+  //   ⚠可否は**CPU の任意コスト支払いと同じ関数**（`selectOptionalCostEnergy` ＋ グロウ予約）。
+  const affordable = ctx.followUpCost
+    ? placeable.filter(id => canAffordDeclarationCost({
+      candidate: id, cost: ctx.followUpCost!, cardMap, cpuState,
+      canPayColors: colors => {
+        const paid = selectOptionalCostEnergy(colors, cpuState, cardMap);
+        return !!paid && reserveKeptAfterPaying(ctx.energyReserve, cpuState.energy, paid);
+      },
+    }))
+    : placeable;
+  const candidates = affordable.length > 0 ? affordable : placeable;
   if (inter.totalPowerMax !== undefined) {
     // パワー合計上限つき＝パワーの小さい順に上限まで貪欲に（できるだけ多く）。
     const powers = inter.candidatePowers ?? {};

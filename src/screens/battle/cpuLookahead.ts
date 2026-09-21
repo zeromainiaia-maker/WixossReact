@@ -17,6 +17,7 @@ import {
   pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone,
   type CpuInteractionCtx,
 } from './cpuInteraction';
+import { declarationScalingCost, type DeclarationScalingCost } from './cpuDeclarationCost';
 
 /**
  * 🆕**浅い先読み**（§5.7 `S-4`・案A・2026-09-17）＝盤面をコピーして **engine だけで効果を解決**し、結果の盤面を採点する。
@@ -254,12 +255,16 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
 }
 
 /** 対話に答えて resume する（1手）。答えられない形は null。 */
-function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx): ExecResult | null {
+function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx,
+  // 🆕§5.7 `S-29`（2026-09-22）＝**いま先読みしている効果の「帰結のコスト」**（対象宣言の後ろに来る任意コスト）。
+  //   ⚠**本番の応答（`cpuInteractionRespond`）と同じものを渡す**＝渡さないと探索だけが別の対象を選ぶ。
+  followUpCost?: DeclarationScalingCost,
+): ExecResult | null {
   // 相手が選ぶ対話は、相手の立場（cpu と opp を入れ替え）で答える。
   const opponentChooses = 'opponentResponds' in pending && pending.opponentResponds === true;
   const me = opponentChooses ? ctx.otherState : ctx.ownerState;
   const them = opponentChooses ? ctx.ownerState : ctx.otherState;
-  const ictx: CpuInteractionCtx = { cpuState: me, oppState: them, cardMap: lctx.cardMap, effectsOf: lctx.effectsOf };
+  const ictx: CpuInteractionCtx = { cpuState: me, oppState: them, cardMap: lctx.cardMap, effectsOf: lctx.effectsOf, followUpCost };
   switch (pending.type) {
     case 'SELECT_TARGET': return resumeSelectTarget(pickCpuTargets(pending, ictx), pending, ctx);
     case 'SEARCH': return resumeSearch(pickCpuSearch(pending, ictx), pending, ctx);
@@ -309,10 +314,13 @@ export function simulateEffect(
       ownerState: hideDeckOrder(clone(cpu), seed), otherState: hideDeckOrder(clone(opp), seed ^ 0x9e3779b9), cardMap: lctx.cardMap, logs: [],
       sourceCardNum: sourceId, triggeringCardNum: sourceId, currentPhase: lctx.turnPhase ?? 'MAIN', isOwnerTurn: lctx.isCpuTurn ?? true,
     } as ExecCtx;
+    // 🆕§5.7 `S-29`＝この効果の対象宣言に「レベル１につき」のコストが続くなら、対象選択に渡す。
+    const followUpCost = declarationScalingCost(effect) ?? undefined;
     let result = executeEffect(effect, base);
     for (let step = 0; !result.done; step++) {
       if (step >= STEP_CAP) return null;
-      const next = answer(result.pending, { ...base, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs }, lctx);
+      const next = answer(result.pending, { ...base, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs }, lctx,
+        followUpCost);
       if (!next) return null;
       result = next;
     }

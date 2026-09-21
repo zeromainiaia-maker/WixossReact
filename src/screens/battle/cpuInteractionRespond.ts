@@ -9,6 +9,7 @@ import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
   pickCpuSearch, pickCpuTargets, pickCpuVirusZone, targetIntentFor, type CpuInteractionCtx,
 } from './cpuInteraction';
+import { declarationScalingCost } from './cpuDeclarationCost';
 
 /**
  * 🆕**CPU の対話応答の「宛先」を決める純関数**（§5.7 `S-5d` 第2段・2026-09-19）。
@@ -74,6 +75,11 @@ export function decideCpuInteractionResponse(
     // 🆕§5.7 `S-32` ①＝属性での指定（クラス・レベル・パワー帯）も見る＝札と**実効パワー**を渡す。
     targetBonus: (id, power) => planTargetBonus(d.cpuPlan, id, d.policy, { card: d.cardMap.get(getCardNum(id)), power }),
     policy: d.policy,
+    // 🆕§5.7 `S-29`（2026-09-22）＝**この宣言の帰結のコスト**（「それのレベル１につき〈コスト〉」）を
+    //   効果の木から読んで渡す（対話そのものには入っていない）。⚠見つからなければ `undefined`＝挙動不変。
+    followUpCost: declarationScalingCost(
+      (d.effectsMap.get(pe.sourceCardNum) ?? []).find(e => e.effectId === pe.effectId),
+    ) ?? undefined,
   };
   // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。
   cpuCtx.energyReserve = buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: d.cardMap, effectsMap: d.effectsMap, cards: d.cards });
