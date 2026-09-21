@@ -62,7 +62,7 @@ import { CPU_PLAYER_ID, assignGuestInstanceIds, assignInstanceIds } from '../src
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
 import { patchCpuPolicy, resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
-import { applyMulligan } from '../src/screens/battle/mulligan';
+import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
@@ -185,30 +185,48 @@ const HOST_ID = 'headless-host';
 /** 先攻の席（`--first`）。⚠ターン1のドローが1枚になるのは `first_player_id` の側（`cpuTurn.ts` の `drawCount`）。 */
 const firstId = () => (FIRST === 'HOST' ? HOST_ID : CPU_PLAYER_ID);
 
-/** 対戦開始時の1人ぶんの盤面（ルリグ配置 → マリガン無し → ライフクロス7枚）。 */
-function buildSide(guest: boolean, deck: SelfPlayDeck): PlayerState {
+/**
+ * 対戦開始時の1人ぶんの盤面（ルリグ配置 → **マリガン** → ライフクロス7枚）。
+ * 🆕🔴§5.7 `S-24`（2026-09-21）＝**旧は `applyMulligan(state, [])` 固定＝マリガンを一度も踏んでいなかった**
+ *   （実測＝`census:play` で4デッキ × 48戦すべて「マリガン 0回」＝**自己対戦の台が構造的に踏めない唯一の機構**）。
+ *   いまは**画面と同じ `performCpuMulligan`**（`controller/`）を通る＝`S-2` の作戦データも効く。
+ * ⚠**乱数を消費する**＝この修正で同じシードでも別の試合になる（過去の勝率とは比較できない＝ベースラインを撮り直した）。
+ */
+function buildSide(guest: boolean, deck: SelfPlayDeck, policy?: CpuPolicy): { state: PlayerState; logs: string[] } {
   const assign = guest ? assignGuestInstanceIds : assignInstanceIds;
   const lrigWithIds = assign(deck.lrigDeck);
   const mainWithIds = assign(shuffle([...deck.mainDeck]));
   const at = (n: string | null | undefined) => (n ? lrigWithIds[deck.lrigDeck.indexOf(n)] : null);
-  return applyMulligan(buildLrigSetupState({
-    lrigWithIds, mainWithIds, centerId: at(deck.roles.centerLrig)!,
-    assistLId: at(deck.roles.assistLrigL), assistRId: at(deck.roles.assistLrigR), cardMap,
-  }), []);
+  return performCpuMulligan({
+    state: buildLrigSetupState({
+      lrigWithIds, mainWithIds, centerId: at(deck.roles.centerLrig)!,
+      assistLId: at(deck.roles.assistLrigL), assistRId: at(deck.roles.assistLrigR), cardMap,
+    }),
+    cardMap, plan: deck.plan, policy,
+  });
 }
 
-/** ⚠**席ごとに山が違う**＝`host`／`guest` の順で組む（シャッフルの乱数の消費順もこの順）。 */
-function buildRow(seats: { host: SelfPlayDeck; guest: SelfPlayDeck }): BattleStateRow {
-  return {
+/**
+ * ⚠**席ごとに山が違う**＝`host`／`guest` の順で組む（シャッフルの乱数の消費順もこの順）。
+ * 🆕§5.7 `S-24`＝**マリガンのログも一緒に返す**（`createHeadlessMatch` の `initialLogs` へ渡す）＝
+ *   `npm run census:play` の規則 `mulligan` が自己対戦のログでも数えられる。
+ */
+function buildRow(
+  seats: { host: SelfPlayDeck; guest: SelfPlayDeck }, policy?: { host: CpuPolicy; guest: CpuPolicy },
+): { row: BattleStateRow; logs: string[] } {
+  const host = buildSide(false, seats.host, policy?.host);
+  const guest = buildSide(true, seats.guest, policy?.guest);
+  const row = {
     room_id: 'headless', host_id: HOST_ID, guest_id: CPU_PLAYER_ID,
     global_phase: 'PLAYING', setup_phase: null, turn_phase: 'UP', active_user_id: firstId(), turn_count: 1,
-    host_state: buildSide(false, seats.host), guest_state: buildSide(true, seats.guest),
+    host_state: host.state, guest_state: guest.state,
     game_logs: [], updated_at: new Date().toISOString(),
     host_lrig_selected: seats.host.roles.centerLrig, guest_lrig_selected: seats.guest.roles.centerLrig,
     host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
     first_player_id: firstId(), pending_spell: null, pending_effect: null, effect_stack: null,
     winner_id: null, host_end_ack: false, guest_end_ack: false,
   } as unknown as BattleStateRow;
+  return { row, logs: [...host.logs, ...guest.logs] };
 }
 
 interface GameOutcome { seed: number; reason: string; steps: number; turns: number; winner: string; ms: number; hostLife: number; guestLife: number }
@@ -251,8 +269,11 @@ async function playOne(seed: number, policy?: { host: CpuPolicy; guest: CpuPolic
   setRngSeed(seed);
   // 🆕§5.7 `S-23`＝**山もポリシーと一緒に席を入れ替える**（A の山は A のポリシーに付いて回る）。
   const seats = swapped ? { host: deckB, guest: deckA } : { host: deckA, guest: deckB };
-  const m = createHeadlessMatch(buildRow(seats), {
+  const setup = buildRow(seats, policy);
+  const m = createHeadlessMatch(setup.row, {
     cards, policy, observeMoves, observeChoice,
+    // 🆕§5.7 `S-24`＝**マリガンのログ**（対戦開始の段はここで組むので、ログもここから渡す）。
+    initialLogs: setup.logs,
     // 🆕§5.7 `S-23`＝**作戦データ（`S-2`）も席ごと**＝デッキごとに違うので1つに畳めない。
     cpuPlans: { host: seats.host.plan, guest: seats.guest.plan },
   });

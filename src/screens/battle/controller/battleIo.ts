@@ -30,8 +30,10 @@ export interface BattleIo {
 }
 
 /** ヘッドレス用の I/O（メモリ上の `BattlePersist` ＋ 配列ロガー ＋ no-op ロック）。 */
-export function createHeadlessIo(persist: BattlePersist): { io: BattleIo; logs: string[] } {
-  const logs: string[] = [];
+export function createHeadlessIo(persist: BattlePersist, initialLogs: readonly string[] = []): { io: BattleIo; logs: string[] } {
+  // 🆕§5.7 `S-24`＝**対戦開始前に積まれたログ（マリガン）を引き継ぐ**＝
+  //   ハーネスは対戦開始の段を `createHeadlessMatch` の外で組むので、その行の `game_logs` が続きの起点になる。
+  const logs: string[] = [...initialLogs];
   return {
     logs,
     io: {

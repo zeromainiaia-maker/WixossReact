@@ -170,6 +170,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyCpuMoveSim, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
@@ -86819,7 +86820,11 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   ok(/\+ planDeployBonus\(cpuPlan, id,/.test(battle), '🔴CPU の召喚に作戦データの加点が無い');
   // 🆕§5.7 `S-5d` 第2段＝対話応答の配線は `cpuInteractionRespond.ts` へ移った（較正）。
   // 🆕§5.7 `S-6` 第2段（2026-09-21）＝**作戦データの重みもポリシーから**＝`d.policy` も一緒に渡す（較正）。
-  ok(/planKeepsInMulligan\(cpuPlan, id\)/.test(battle) && /planBonus: id => planKeepBonus\(d\.cpuPlan, id, d\.policy\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データ（とポリシー）を渡していない');
+  // 🆕§5.7 `S-24`（2026-09-21）＝**マリガンの段は `controller/performMulligan.ts` へ移った**（較正＝配線は減っていない）＝
+  //   画面は `plan: cpuPlan` を渡し、判断の中で `planKeepsInMulligan` を引く。
+  ok(/performCpuMulligan\(\{ state: cpuSt, cardMap: battleCardMap, plan: cpuPlan \}\)/.test(battle)
+    && /planKeepsInMulligan\(p\.plan, id\)/.test(battle)
+    && /planBonus: id => planKeepBonus\(d\.cpuPlan, id, d\.policy\)/.test(cpuRespondSource()), '🔴マリガン／対話応答に作戦データ（とポリシー）を渡していない');
   const session = fs.readFileSync(join(root, 'src/screens/battle/hooks/useBattleSession.ts'), 'utf8');
   ok(/DECK_DATA_COLUMNS = '[^']*cpu_plan/.test(session), '🔴対戦で読むデッキの列に cpu_plan が無い');
 }));
@@ -89883,6 +89888,65 @@ test('§5.7 S-22 対象選択が効果の意味を見ている：`thenAction` �
     '🔴乱数に落ちた対象選択の印を literal で出していない＝`census:play` が黙って0件になる');
   ok(/id: 'targetRandom'/.test(fs.readFileSync(join(root, 'src/screens/battle/playCensus.ts'), 'utf-8')),
     '🔴`census:play` に規則が無い＝乱数に落ちた回数が測れない');
+}));
+
+test('§5.7 S-24 マリガン：自己対戦も引き直す／レベル1を優先して持つ', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**＝自己対戦（`headlessSelfPlay.ts`）は `applyMulligan(state, [])` 固定で、
+  //   **マリガンを一度も踏んでいなかった**（実測＝`census:play` で4デッキ × 48戦すべて「マリガン 0回」）。
+  //   ⇒ `S-2`（作戦データのキーカードを戻さない判断）が A/B に一度も乗っていなかった。
+  // 🆕🔴**規則は 2026-09-21 ユーザー決定＝「マリガンはレベル1を優先して持っておきたい」**。
+  // 📏実測（本物のデッキ6つ × 400手札）＝引き直す 87%→90%／Lv1 が0枚の手札 **6.1%→4.1%**。
+
+  const sig = (level: string) => findCard(c => c.Type === 'シグニ' && c.Level === level && c.Guard !== '1');
+  const [l1, l2, l3, l4] = [sig('1'), sig('2'), sig('3'), sig('4')];
+  const guard3 = findCard(c => c.Guard === '1' && c.Level === '3');
+  const spell = findCard(c => c.Type === 'スペル');
+  const pick = (hand: string[], policy?: CpuPolicy, keeps?: (id: string) => boolean) =>
+    JSON.stringify(pickCpuMulliganIndices(hand, cardMap, keeps, policy));
+
+  // ── ① Lv1 が足りない手札＝**Lv2 も戻して掘りに行く**（既定 `mulliganLv1Target: 2`）──
+  eq(pick([l1, l2, l3, guard3, spell]), JSON.stringify([1, 2]),
+    '🔴Lv1 が1枚しかないのに Lv2 を戻していない（レベル1を掘りに行かない）');
+  // ── ② Lv1 が足りている手札＝**Lv2 は温存**（Lv3 以上だけ戻す）──
+  eq(pick([l1, l1, l2, l3, l4]), JSON.stringify([3, 4]),
+    '🔴Lv1 が2枚あるのに Lv2 まで戻した（ターン2に出せる札を毎回捨てる）');
+  // ── ③ 戻さないもの＝**Lv1 シグニ・【ガード】・シグニ以外** ──
+  eq(pick([l1, guard3, spell]), JSON.stringify([]),
+    '🔴Lv1・【ガード】・シグニ以外を戻した（「戻さない」も正しい選択）');
+  // ── ④ §5.7 `S-2`＝作戦データのキーカードは戻さない（Lv1 不足でも）──
+  eq(pick([l1, l2, l4], undefined, id => id === l4), JSON.stringify([1]),
+    '🔴作戦データのキーカードを戻した');
+  // ── ⑤ 反転の口＝`legacy-mulligan` で旧規則（Lv3 以上だけ）──
+  eq(pick([l1, l2, l3, guard3, spell], CPU_POLICIES['legacy-mulligan']), JSON.stringify([2]),
+    '🔴`legacy-mulligan` で旧規則に戻らない＝A/B で切り分けられない');
+  eq(CPU_POLICIES['legacy-mulligan'].mulliganLv1Target, 0, '前提崩れ＝旧規則プリセットの値');
+  eq(DEFAULT_CPU_POLICY.mulliganLv1Target, 2, '🔴既定の「持っておきたい Lv1 の枚数」が変わった');
+
+  // ── ⑥ `performCpuMulligan`＝判断＋実行＋ログの1本（枚数は保存する）──
+  const deck24 = Array.from({ length: 20 }, (_, i) => `D${i}`);
+  const st24 = { ...mkState(), hand: [l1, l2, l3, guard3, spell], deck: deck24, life_cloth: [] } as PlayerState;
+  const plan24 = normalizeCpuDeckPlan(null);
+  const done = performCpuMulligan({ state: st24, cardMap, plan: plan24 });
+  eq(done.state.hand.length + done.state.deck.length + done.state.life_cloth.length, 25, '🔴マリガンでカードが増減した');
+  eq(done.state.life_cloth.length, 7, 'ライフクロスが7枚でない');
+  ok(/^\[CPU\] 引き直し: 2枚（/.test(done.logs[0]), `🔴引き直しのログが計器の文言と違う（${done.logs[0]}）`);
+  eq(performCpuMulligan({ state: { ...st24, hand: [l1, guard3, spell] } as PlayerState, cardMap, plan: plan24 }).logs[0],
+    '[CPU] 引き直さない', '🔴引き直さないときのログが違う（⚠`引き直し` に当たると踏破に数えてしまう）');
+
+  // ── ⑦ 配線＝画面も自己対戦も同じ1本を通る ──
+  const battle24 = battleScreenSource();
+  ok(/performCpuMulligan\(\{ state: cpuSt, cardMap: battleCardMap, plan: cpuPlan \}\)/.test(battle24),
+    '🔴画面が共通の関数を通っていない＝写経が2本に戻っている');
+  const harness = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
+  ok(/performCpuMulligan\(\{/.test(harness),
+    '🔴自己対戦がマリガンを踏んでいない（`S-24` の退化）＝`S-2` の判断が A/B に乗らない');
+  ok(!/from '\.\.\/src\/screens\/battle\/mulligan'/.test(harness),
+    '🔴自己対戦が `applyMulligan` を直に呼ぶ経路に戻っている（＝戻す札が空の固定に戻せる）');
+  ok(/initialLogs: setup\.logs/.test(harness),
+    '🔴マリガンのログを対戦ログへ渡していない＝`census:play` の `mulligan` が自己対戦で0件になる');
+  ok(/createHeadlessIo\(persist, d\.initialLogs \?\? \[\]\)/.test(
+    fs.readFileSync(join(root, 'src/screens/battle/controller/headlessMatch.ts'), 'utf-8')),
+  '🔴ヘッドレスのログが対戦開始前の分を引き継いでいない');
 }));
 
 if (listMode) {

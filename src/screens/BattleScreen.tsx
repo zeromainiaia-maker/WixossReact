@@ -140,11 +140,11 @@ import {clearZoneOnSigniLeave} from './battle/leaveFieldZone';
 import {planLimitExcess} from './battle/limitExcess';
 import {LimitExcessModal} from './battle/modals/LimitExcessModal';
 import {cpuBattleKey, lastCommitArrived, updatedAtKey, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu} from './battle/cpuDriver';
-import {pickCpuMulliganIndices} from './battle/cpuHandLimit';
-import {normalizeCpuDeckPlan, planKeepsInMulligan} from './battle/cpuDeckPlan';
+import {normalizeCpuDeckPlan} from './battle/cpuDeckPlan';
 // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝CPU の対話応答の振り分け（純関数）。
 import {decideCpuInteractionResponse} from './battle/cpuInteractionRespond';
 import {applyMulligan} from './battle/mulligan';
+import {performCpuMulligan} from './battle/controller/performMulligan';
 import {buildLrigSetupState} from './battle/lrigSetup';
 import {resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA} from '../utils/deckLrigSetup';
 import {listAssistGrowCandidates} from './battle/assistGrow';
@@ -2125,11 +2125,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cpuSt = bs.guest_state;
       // 🆕§5.6 `C-4`＝**CPU も引き直す**。戻す札は `pickCpuMulliganIndices`、処理は人間と同じ `applyMulligan`
       //   （旧実装は引き直さずライフを置くだけの別実装だった）。
-      const cpuMulligan = pickCpuMulliganIndices(cpuSt.hand, battleCardMap, id => planKeepsInMulligan(cpuPlan, id));
-      appendBattleLogs([cpuMulligan.length > 0
-        ? `[CPU] 引き直し: ${cpuMulligan.length}枚（${cpuMulligan.map(i => battleCardMap.get(cpuSt.hand[i])?.CardName ?? cpuSt.hand[i]).join('・')}）`
-        : '[CPU] 引き直さない']);
-      const newCpuSt: PlayerState = applyMulligan(cpuSt, cpuMulligan);
+      // 🆕§5.7 `S-24`（2026-09-21）＝**判断と実行を繋ぐ段も `controller/performMulligan.ts` の1本**にした
+      //   ＝自己対戦（`headlessSelfPlay.ts`）が同じ関数を通る（旧＝ここにしか無く、ハーネスはマリガンを踏めなかった）。
+      const cpuMull = performCpuMulligan({ state: cpuSt, cardMap: battleCardMap, plan: cpuPlan });
+      appendBattleLogs(cpuMull.logs);
+      const newCpuSt: PlayerState = cpuMull.state;
       await persist.commit(reduceBattle(bs, { type: 'COMPLETE_MULLIGAN', isHost: false, state: newCpuSt }));
       const { data: fresh } = await supabase
         .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')

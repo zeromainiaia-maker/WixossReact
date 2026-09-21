@@ -82,6 +82,12 @@ export interface HeadlessMatchDeps {
    * ⚠`policy` と同じ形（席のキー）で持つ＝A/B の席入れ替えは呼び出し側（`scripts/headlessSelfPlay.ts`）の仕事。
    */
   cpuPlans?: { host: CpuDeckPlan; guest: CpuDeckPlan };
+  /**
+   * 🆕§5.7 `S-24`＝**対戦開始前に積まれたログ**（マリガン）＝`logs` の起点。
+   * 🔑対戦開始（じゃんけん・マリガン・ルリグ配置）は**呼び出し側**が組む（`S-5` の但し書き）ので、
+   *   その段のログをここから引き継がないと `census:play` の規則 `mulligan` が自己対戦で0件になる。
+   */
+  initialLogs?: readonly string[];
   /** ルール処理の二重処理防止の指紋（省略時は新規）。 */
   memo?: RuleCheckMemo;
   /**
@@ -140,7 +146,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     throw new Error(`createHeadlessMatch: guest_id は CPU_PLAYER_ID である必要がある（${initial.guest_id}）`);
   }
   const persist = createMemoryPersist(initial);
-  const { io, logs } = createHeadlessIo(persist);
+  const { io, logs } = createHeadlessIo(persist, d.initialLogs ?? []);
   const row = () => persist.current()!;
   const cpuPlan = d.cpuPlan ?? normalizeCpuDeckPlan(undefined);
   /** 🆕§5.7 `S-23`＝その席の作戦データ（`cpuPlans` が無ければ従来どおり1つを共有）。 */

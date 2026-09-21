@@ -40,13 +40,29 @@ function discardOrder(
 }
 
 /**
- * マリガンで戻す手札の添字＝**レベル3以上のシグニ**（【ガード】持ちは除く）。
+ * マリガンで戻す手札の添字。
+ *
+ * 🆕🔴**規則（2026-09-21 ユーザー決定・§5.7 `S-24`）＝「レベル1を優先して持っておきたい」**
+ *   - **レベル3以上のシグニ**は常に戻す（【ガード】持ちは除く＝サーバントは Lv3 でも残す）。
+ *   - 🆕**手札のレベル1シグニが `mulliganLv1Target` 枚に満たなければ、レベル2のシグニも戻して掘りに行く。**
+ *   - **レベル1のシグニ・シグニ以外（スペル等）は戻さない。**
+ * 📏**実測（本物のデッキ6つ × 400手札）**＝引き直す 87%→90%／平均の戻し 1.83→2.42枚／
+ *   手札のレベル1 1.95→2.10枚／**レベル1が0枚の手札 6.1%→4.1%**。
+ *   ⚠**レベル1は山に12枚しかない**ので、全部掘っても平均2.2枚が上限（`mulliganLv1Target` を上げても届かない）。
  * ⚠「戻さない」も正しい選択なので、該当が無ければ空配列（引き直さない）。
+ * 🔴旧規則（レベル2を戻さない）は `CPU_POLICIES['legacy-mulligan']`（`mulliganLv1Target: 0`）。
  */
-export function pickCpuMulliganIndices(hand: string[], cardMap: Map<string, CardData>, keeps?: (id: string) => boolean): number[] {
+export function pickCpuMulliganIndices(
+  hand: string[], cardMap: Map<string, CardData>, keeps?: (id: string) => boolean, policy?: CpuPolicy,
+): number[] {
+  const isSigni = (num: string) => cardMap.get(getCardNum(num))?.Type === 'シグニ';
+  const target = policy?.mulliganLv1Target ?? DEFAULT_CPU_POLICY.mulliganLv1Target;
+  // 🔑**「足りているか」は引き直す前の手札で測る**（引いた後は分からない＝掘る判断が消える）。
+  const lv1InHand = hand.filter(num => isSigni(num) && levelOf(num, cardMap) === 1).length;
+  const minLevel = lv1InHand < target ? 2 : 3;
   return hand.map((num, i) => ({ num, i }))
     // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは戻さない。
-    .filter(({ num }) => cardMap.get(getCardNum(num))?.Type === 'シグニ' && levelOf(num, cardMap) >= 3 && !isGuard(num, cardMap) && !keeps?.(num))
+    .filter(({ num }) => isSigni(num) && levelOf(num, cardMap) >= minLevel && !isGuard(num, cardMap) && !keeps?.(num))
     .map(({ i }) => i);
 }
 
