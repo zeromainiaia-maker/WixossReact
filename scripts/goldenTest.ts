@@ -222,6 +222,7 @@ import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
+import { collectCutinCandidates } from '../src/screens/battle/cutinCandidates';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { emptyHandActivateSelections, payHandActivateCost } from '../src/screens/battle/handActivateCost';
 import { emptyTrashActivateSelections, payTrashActivateCost } from '../src/screens/battle/trashActivateCost';
@@ -90978,6 +90979,61 @@ test('§5.7 S-31 残り 入口が場ではない【起】2効果：手札／エ�
   // 🔴**その札がその置き場に無ければ払えない**（別の入口から撃たれても踏み倒せない）
   eq(payTrashActivateCost(enaEff!, mkState({}), mkState({}), emptyTrashActivateSelections(), cm31g, undefined, 'WXDi-P10-066'),
     null, '🔴エナゾーンに無いのに払えたことにした');
+}));
+
+test('§5.6 C-10 カットイン候補の列挙は1本（応答者をパラメータ化＝CPU からも呼べる）', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか**＝`BattleScreen.tsx` の `cutinCandidates`（149行の `useMemo`）は**画面の「自分」専用**だったので、
+  //   **CPU はスペルカットイン窓で常にパスするしかなかった**（`cpuTurn.ts` の「人間のスペルに対してCPUは常にパス」）。
+  // 📏**母集団（2026-09-22 実測）**＝カットインできる札は **61カード**（CSV `Timing` の「スペルカットイン」＋
+  //   `SPELL_CUTIN` タイミングの効果）／**ユーザー作27デッキ中 7デッキ**が持つ（A/B に入る `WD13`・`ケトッシー軸` を含む）
+  //   ＝**A/B で測れる穴**（`S-20` の「測定台がその型を踏まない」には当たらない）。
+  // 🔑この回は**列挙の1本化まで**（人間の挙動は不変）。CPU の応答は次段（実行側 `handleCutinUse` の応答者パラメータ化）。
+  const cmC10 = cardMap as Map<string, CardData>;
+  // ── ① 画面は**この関数**を呼ぶ（式を画面に写経し直したら落ちる）──
+  const screenSrc = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  ok(/collectCutinCandidates\(\{/.test(screenSrc), '🔴画面がカットイン候補の共有関数を呼んでいない（式を写経し直した）');
+  ok(!/const cutinCandidates: CutinCandidate\[\] = \(\(\) => \{/.test(screenSrc),
+    '🔴画面に古い `useMemo` 版の列挙が残っている（2本になると人間と CPU がズレる）');
+
+  // ── ② 手札のカットイン札が**応答者の手札にあるときだけ**候補に出る ──
+  //   （`WX17-031-E3`＝「【起】《スペルカットイン》手札からこのカードを捨てる：〜」）
+  const HAND_CUTIN = 'WX17-031';
+  const handEff = (effectsMap.get(HAND_CUTIN) ?? []).find(e => e.timing?.includes('SPELL_CUTIN'));
+  ok(!!handEff, '前提崩れ＝手札のカットイン札が live に無い');
+  const SPELL = findCard(c => c.Type === 'スペル');
+  const mkCutinInput = (hand: string[]) => {
+    const me = { ...mkState({}), hand } as PlayerState;
+    const them = mkState({});
+    return {
+      my: me, op: them, responderId: 'ME',
+      pendingSpell: { card_num: SPELL, caster_id: 'THEM', kind: 'spell' } as never,
+      hostState: them, guestState: me, hostId: 'THEM',
+      turnPhase: 'MAIN', isMyTurn: false, cardMap: cmC10, effectsMap, lrigClass: '',
+    };
+  };
+  const withCard = collectCutinCandidates(mkCutinInput([HAND_CUTIN, ...fill(4)]) as never)
+    .filter(c => c.kind === 'effect' && c.source === 'hand');
+  eq(withCard.length, 1, '🔴手札のカットイン札が候補に出ない（CPU からも人間からも使えない）');
+  eq(withCard[0].instanceId, HAND_CUTIN, '🔴候補の instance id が違う（実行時に札を見失う）');
+  eq(collectCutinCandidates(mkCutinInput(fill(5)) as never).filter(c => c.source === 'hand').length, 0,
+    '🔴手札に無いのに候補へ出した');
+
+  // ── ③ **自分が使ったスペルには応答しない**（窓は相手のスペルにだけ開く）──
+  const own = collectCutinCandidates({
+    ...mkCutinInput([HAND_CUTIN, ...fill(4)]),
+    pendingSpell: { card_num: SPELL, caster_id: 'ME', kind: 'spell' } as never,
+  } as never);
+  eq(own.length, 0, '🔴自分のスペルに自分でカットインしようとした');
+  eq(collectCutinCandidates({ ...mkCutinInput([HAND_CUTIN, ...fill(4)]), pendingSpell: null } as never).length, 0,
+    '🔴カットイン窓が開いていないのに候補を出した');
+
+  // ── ④ **打ち消されないスペル**（`next_spell_uncounterable`）には候補を出さない ──
+  const uncounterable = collectCutinCandidates({
+    ...mkCutinInput([HAND_CUTIN, ...fill(4)]),
+    hostState: { ...mkState({}), next_spell_uncounterable: true } as PlayerState,
+  } as never);
+  eq(uncounterable.filter(c => c.source === 'hand').length, 0,
+    '🔴「打ち消されない」スペルにカットイン候補を出した');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

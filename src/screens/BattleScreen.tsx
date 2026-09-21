@@ -23,9 +23,9 @@ import {payFieldToDeckTopCost} from './battle/fieldToDeckTopCost';
 import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
 import {listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
 import {isTrashImmuneByOpponent} from '../engine/execUtils';
-import {collectPieceCutinCandidates} from './battle/pieceCutin';
+import {collectCutinCandidates} from './battle/cutinCandidates';
 import {completePieceCutinResponseAfterEffects} from './battle/pieceCutinCommit';
-import {canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash} from './battle/underAnySigniCost';
+import {payUnderAnySigniTrash, payUnderSelfTrash} from './battle/underAnySigniCost';
 import {buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry} from './battle/energyPaySource';
 
 interface Props {
@@ -41,7 +41,7 @@ import {CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, assignInstanceId
 import {recordEnergyPlacements} from '../engine/energyPlacement';
 import {performEnergyCharge, type EnergyChargeSource} from './battle/controller/performEnergyCharge';
 import {mainPhaseGateOkFor} from '../engine/triggerCollect';
-import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, canAffordEnergyCostWithSubstitutes, findCounterSpellMaxCost, paySelectedExceed} from './battle/costs';
+import {isEnaMultiStripped, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, applyGrowCostReduction, paidEnergyColorsOf, parseCoinCost, canAffordEnergyCostWithSubstitutes, paySelectedExceed} from './battle/costs';
 import {meetsRestriction, effectiveLrigClass, listGrowCandidates, declaredSigniOverride} from './battle/growLogic';
 import {cardNameUseBlocked} from './battle/cardNameUseBlock';
 import {computeFieldSigniLimit} from './battle/fieldLimit';
@@ -150,7 +150,7 @@ import {resolveDeckLrigSetup, lrigRolesOfRow, deckLrigSetupProblem, DECK_LRIG_SE
 import {listAssistGrowCandidates} from './battle/assistGrow';
 import {clearEndOfAttackEffects} from './battle/attackDuration';
 import {reserveGrantedAutoUsage} from './battle/grantedAuto';
-import {getResonaSummonCandidate, getSpellCutinResonaCandidates, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate} from './battle/resonaSummon';
+import {getResonaSummonCandidate, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate} from './battle/resonaSummon';
 import {pendingEffectCardNums} from './battle/pendingEffectCards';
 import {planRiseSummon, type RiseSelection} from './battle/riseSummon';
 import {attackFieldTrashCost, canPayAttackFieldTrashCost, canPayLrigAttackFieldTrashCost} from './battle/attackFieldTrashCost';
@@ -2970,155 +2970,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
-  const cutinCandidates: CutinCandidate[] = (() => {
-    if (!bs.pending_spell || bs.pending_spell.caster_id === user.id) return [];
-    // §6.4 O-10（続き518）＝ピース応答窓。スペル窓とは**候補の出所も打ち消しの意味も違う**ので早期に分岐する。
-    if (bs.pending_spell.kind === 'piece') {
-      const usedPieceCard = battleCardMap.get(getCardNum(bs.pending_spell.card_num));
-      return collectPieceCutinCandidates({
-        responder: my, caster: op, usedPieceCard,
-        cardMap: battleCardMap, effectsMap, turnPhase: bs.turn_phase ?? undefined,
-      }).map(c => ({
-        kind: 'effect' as const, card: c.card, instanceId: c.instanceId,
-        source: 'lrig_deck' as const, effect: c.effect,
-        // ⚠打ち消しは**選択肢①を選んだときだけ**なので、窓を閉じる既定挙動としては打ち消さない。
-        countersSpell: false,
-      }));
-    }
-    // GRANT_NEXT_SPELL_UNCOUNTERABLE（WX04-008）は打ち消す従来候補だけを抑止する。
-    // SPELL_CUTINレゾナはスペルを打ち消さず先にON_PLAYを解決するため、この窓自体は残す。
-    const cutinCasterState = bs.pending_spell.caster_id === bs.host_id ? bs.host_state : bs.guest_state;
-    const spellUncounterable = !!cutinCasterState.next_spell_uncounterable;
-    const pendingSpellCard = battleCardMap.get(bs.pending_spell.card_num);
-    const pendingSpellCostTotal = pendingSpellCard
-      ? parseGrowCost(pendingSpellCard.Cost).reduce((s, c) => s + c.count, 0)
-      : 0;
-    const result: CutinCandidate[] = [];
-
-    // 1. lrig_deck: CSV Timing列に「スペルカットイン」を含むカード
-    if (!spellUncounterable) my.lrig_deck
-      .filter((id, i, arr) => arr.indexOf(id) === i)
-      .forEach(instanceId => {
-        const cardNum = getCardNum(instanceId);
-        const card = battleCardMap.get(cardNum);
-        if (!card || !card.Timing.includes('スペルカットイン')) return;
-        if (!meetsRestriction(card.Restriction, lrigClass,
-          hasIgnoreLrigRestriction(my, effectsMap, 'arts', card))) return;
-        const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
-        const eff = effs.find(e => e.effectType === 'ACTIVATED');
-        if (!canUseArtsCondition(effs, my, op, battleCardMap, instanceId, bs.turn_phase, isMyTurn, effectivePowers)) return;
-        const maxCost = eff ? findCounterSpellMaxCost(eff.action) : undefined;
-        if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
-        const dummyEff: import('../types/effects').CardEffect = eff ?? {
-          effectId: cardNum + '-cutin-dummy',
-          effectType: 'ACTIVATED',
-          timing: ['SPELL_CUTIN'],
-          action: { type: 'COUNTER_SPELL' },
-          duration: 'INSTANT',
-          mandatory: false,
-          parseStatus: 'MANUAL',
-        };
-        // アンチ・スペル・バツの②は、任意支払いを「このカットインを使う」
-        // 選択そのものとして扱う。通常のアーツ使用時は manualEffects の CHOOSE を使う。
-        if (cardNum === 'WX24-P3-036' && eff?.action.type === 'CHOOSE') {
-          const counterChoice = eff.action.choices.find(c => c.action.type === 'SEQUENCE'
-            && c.action.steps.some(s => s.type === 'COUNTER_SPELL'));
-          if (counterChoice) {
-            result.push({
-              kind: 'effect',
-              card, instanceId, source: 'lrig_deck',
-              effect: { ...eff, effectId: `${eff.effectId}-cutin-counter`, action: counterChoice.action },
-              additionalColorlessCost: pendingSpellCostTotal,
-              countersSpell: true,
-            });
-          }
-          return;
-        }
-        result.push({ kind: 'effect', card, instanceId, source: 'lrig_deck', effect: dummyEff });
-      });
-
-    // 2. lrig_field + key_piece: ACTIVATED効果にSPELL_CUTINタイミングを持つルリグ/キー
-    const lrigAndKeyIds = [
-      ...new Set(my.field.lrig.filter(Boolean)),
-      ...(my.field.key_piece ? [my.field.key_piece] : []),
-      ...(my.field.key_piece_extra ?? []),
-    ];
-    if (!spellUncounterable) lrigAndKeyIds.forEach(instanceId => {
-      const cardNum = getCardNum(instanceId);
-      const card = battleCardMap.get(cardNum);
-      if (!card) return;
-      const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
-      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
-      if (!eff) return;
-      if (eff.cost?.underSelfTrash) return;
-      if (eff.cost?.coin) return;
-      const maxCost = findCounterSpellMaxCost(eff.action);
-      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
-      // 使用条件（「あなたの場に＜凶蟲＞のシグニがある場合」等）を満たさないカットインは候補から除外
-      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
-      result.push({ kind: 'effect', card, instanceId, source: 'lrig_field', effect: eff });
-    });
-
-    // 2b. センタールリグへ**付与**された SPELL_CUTIN の【起】（タスク12(l)）。
-    // キーの「あなたのセンタールリグは以下の能力を得る。【起】《スペルカットインアイコン》エクシード１：…」を
-    // GRANT_LRIG_ABILITY.abilities へ入れ子にしたため、キーカード自身の effects を走査する 2. では拾えない。
-    // 2. と同じガード（uncounterable / underSelfTrash / coin / maxCost / condition）を通す。
-    if (!spellUncounterable) {
-      const cutinLrigId = my.field.lrig.at(-1);
-      const cutinLrigCard = cutinLrigId ? battleCardMap.get(getCardNum(cutinLrigId)) : undefined;
-      if (cutinLrigId && cutinLrigCard) {
-        for (const eff of grantedMyLrigEffects) {
-          if (eff.effectType !== 'ACTIVATED' || !eff.timing?.includes('SPELL_CUTIN')) continue;
-          if (eff.cost?.underSelfTrash) continue;
-          if (eff.cost?.coin) continue;
-          const maxCost = findCounterSpellMaxCost(eff.action);
-          if (maxCost !== undefined && pendingSpellCostTotal > maxCost) continue;
-          if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cutinLrigId, bs.turn_phase, effectivePowers)) continue;
-          result.push({ kind: 'effect', card: cutinLrigCard, instanceId: cutinLrigId, source: 'lrig_field', effect: eff });
-        }
-      }
-    }
-
-    // 3. signi_field: ACTIVATED効果にSPELL_CUTINタイミングを持つシグニ
-    if (!spellUncounterable) my.field.signi.forEach((zone, zoneIdx) => {
-      const topId = zone?.at(-1);
-      if (!topId) return;
-      const cardNum = getCardNum(topId);
-      const card = battleCardMap.get(cardNum);
-      if (!card) return;
-      const effs = effectsMap.get(topId) ?? effectsMap.get(cardNum) ?? [];
-      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
-      if (!eff) return;
-      if (eff.cost?.underSelfTrash && !canPayUnderSelfTrash(
-        my, zoneIdx, eff.cost.underSelfTrash.count, battleCardMap,
-        eff.cost.underSelfTrash.filter, eff.cost.underSelfTrash.selectionConstraint,
-      )) return;
-      const maxCost = findCounterSpellMaxCost(eff.action);
-      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
-      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, topId, bs.turn_phase, effectivePowers)) return;
-      result.push({ kind: 'effect', card, instanceId: topId, source: 'signi_field', effect: eff, zoneIdx });
-    });
-
-    // 4. hand: ACTIVATED効果にSPELL_CUTINタイミングを持つ手札カード
-    if (!spellUncounterable) my.hand.forEach((cardNum, handIdx) => {
-      const card = battleCardMap.get(cardNum);
-      if (!card) return;
-      const effs = effectsMap.get(cardNum) ?? [];
-      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
-      if (!eff) return;
-      const maxCost = findCounterSpellMaxCost(eff.action);
-      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
-      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) return;
-      result.push({ kind: 'effect', card, instanceId: cardNum, source: 'hand', effect: eff, handIdx });
-    });
-
-    for (const resona of getSpellCutinResonaCandidates(my, battleCardMap, effectsMap)) {
-      const card = battleCardMap.get(getCardNum(resona.cardNum));
-      if (card) result.push({ kind: 'resona', card, instanceId: resona.cardNum, source: 'lrig_deck', resona });
-    }
-
-    return result;
-  })();
+  // 🆕§5.6 `C-10`（2026-09-22）＝**候補の列挙は `cutinCandidates.ts` の1本**（149行を逐語で移設し応答者をパラメータ化）。
+  //   🔴**旧はこの式が画面の「自分」専用**だったので、**CPU はカットイン窓で常にパスするしかなかった**。
+  const cutinCandidates: CutinCandidate[] = collectCutinCandidates({
+    my, op, responderId: user.id, pendingSpell: bs.pending_spell,
+    hostState: bs.host_state, guestState: bs.guest_state, hostId: bs.host_id,
+    turnPhase: bs.turn_phase, isMyTurn, cardMap: battleCardMap, effectsMap,
+    effectivePowers, lrigClass,
+  });
 
   // 🆕§5.7 `S-5c` 第2段＝本体は `controller/performGrow.ts`（I/O 注入）。ここは材料を渡すだけ。
   const performGrow = (
