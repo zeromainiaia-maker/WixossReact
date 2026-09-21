@@ -170,7 +170,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
-import { cpuPlanBoardCtx, isEmptyCpuDeckPlan, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, isEmptyCpuDeckPlan, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -240,6 +240,9 @@ import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/s
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
+import {
+  cpuPlanCanSetUse, cpuPlanChipsFor, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanUseModesFor,
+} from '../src/screens/deck/cpuPlanOptions';
 import { guardProbability, lifeBurstProbability, lifeCrushRisk, lrigAttackRisk } from '../src/screens/battle/cpuAttackRisk';
 import { LB_MAX, MAIN_MAX } from '../src/utils/deckBuildLimits';
 import { formatAbReport, formatMarginLine, meanInterval, splitSeeds, summarizeAb, tCritical95, wilsonInterval, type AbGameResult } from './selfPlayStats';
@@ -90180,6 +90183,100 @@ test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／ア�
   ok(/data-testid={`cpu-plan-key-\$\{c\.CardNum\}`}/.test(modal), '🔴キーカードのボタンの testid が変わった（実機シナリオが参照している）');
 }));
 
+test('§5.7 S-2 作戦モーダル：効かない操作を出さない／select の値は必ず選択肢の中にある／スマホ縦で横に溢れない', () => withSavedCursor(() => {
+  // 🆕2026-09-22 ユーザー指摘＝「CPU の作戦を設定する画面が非常に使いづらい。スマホ縦で横幅が収まっていない。
+  //   設定内容もいろいろおかしい」。📏**実機（390×844）で採寸して直した**＝
+  //   「切替を追加」ボタンが**モーダルの外へ 18px はみ出し**、クラスの `select` は「ク:」まで潰れていた。
+  // 🔑**判定は純関数（`cpuPlanOptions.ts`）へ出した**＝「指定したのに効かない」はどの計器にも映らないので、
+  //   **全カードに当てられる形**にする（CLAUDE.md＝`src/screens/` の純関数は golden から import できる）。
+  const cmUI = cardMap as Map<string, CardData>;
+  const cardOfUI = (n: string) => cmUI.get(n);
+  // ⚠**効果表を載せてから測る**（本番の `App.tsx` は `effects_*.json` を `card.effects` に載せている）＝
+  //   載せずに測ると `cpuPlanHasActivated` が原文の「【起】」へ落ちて、この検査が別物になる。
+  const withEff = (n: string): CardData | undefined => {
+    const c = cardOfUI(n);
+    return c ? { ...c, effects: effectsMap.get(n) ?? [] } : undefined;
+  };
+
+  // ── ① チップ＝**キーはメインデッキの札だけ／優先は出す札だけ** ──
+  // 🔴`planKeepBonus`／`planKeepsInMulligan` が効くのはエナ・手札上限・捨てるコスト・サーチ・マリガン＝
+  //   どれも手札／山／エナの話で、ルリグデッキの札（ルリグ・アーツ・キー・ピース）はそこへ行かない。
+  const artsUI = findCard(c => c.Type === 'アーツ');
+  const signiUI = findCard(c => c.Type === 'シグニ');
+  const lrigUI = findCard(c => c.Type === 'ルリグ');
+  const spellUI = findCard(c => c.Type === 'スペル');
+  const pieceUI = findCard(c => c.Type === 'ピース');
+  const resonaUI = findCard(c => c.Type === 'レゾナ');
+  eq(JSON.stringify(cpuPlanChipsFor(cardOfUI(signiUI), true)), JSON.stringify(['key', 'priority', 'prefer', 'avoid']),
+    '🔴メインデッキのシグニにキー／優先が出ない');
+  eq(cpuPlanChipsFor(cardOfUI(artsUI), false).includes('key'), false,
+    '🔴ルリグデッキの札に［キー］を出している（エナにも手札にも行かない＝押しても何も起きない）');
+  eq(cpuPlanChipsFor(cardOfUI(artsUI), false).includes('priority'), false,
+    '🔴アーツに［優先］を出している（`planUseBonus` の加点は `deploy` にしか乗らない）');
+  eq(cpuPlanChipsFor(cardOfUI(lrigUI), false).includes('priority'), false, '🔴ルリグに［優先］を出している');
+  eq(cpuPlanChipsFor(cardOfUI(resonaUI), false).includes('priority'), true,
+    '🔴レゾナに［優先］が出ない（`cpuPlanMoveStep` は `resona` を `deploy` として拾う）');
+  // 狙う／避けるは**どの札にも出す**（効果の対象は場・手札・トラッシュ・エナのどこにでもありうる）。
+  for (const n of [artsUI, signiUI, lrigUI, spellUI, pieceUI]) {
+    ok(cpuPlanChipsFor(cardOfUI(n), false).includes('prefer') && cpuPlanChipsFor(cardOfUI(n), false).includes('avoid'),
+      `🔴${cardOfUI(n)?.Type} に「狙う／避ける」を出していない`);
+  }
+
+  // ── ② 使いどころ＝**守り／攻めが出るのはアーツだけ**／指定できるのは「使われる」札だけ ──
+  eq(JSON.stringify(cpuPlanUseModesFor(cardOfUI(artsUI))), JSON.stringify(CPU_CARD_USES), '🔴アーツで4択が出ない');
+  eq(JSON.stringify(cpuPlanUseModesFor(cardOfUI(spellUI))), JSON.stringify(['never']),
+    '🔴スペルに「守りで使う」を出している（窓が2つあるのはアーツだけ）');
+  eq(JSON.stringify(cpuPlanUseModesFor(undefined)), JSON.stringify(CPU_CARD_USES), '🔴カード未選択で選択肢を減らした');
+  ok(cpuPlanCanSetUse(cardOfUI(artsUI)) && cpuPlanCanSetUse(cardOfUI(spellUI)) && cpuPlanCanSetUse(cardOfUI(pieceUI)),
+    '🔴アーツ／スペル／ピースに使いどころを指定できない（`planForbidsUse` を読む窓がある）');
+  // 🔴【起】を持たないシグニは**どの窓からも使われない**＝一覧に出しても効かない。
+  const plainSigni = findCard(c => c.Type === 'シグニ' && !(effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'));
+  eq(cpuPlanCanSetUse(withEff(plainSigni)), false, '🔴【起】を持たないシグニに「使いどころ」を出している');
+  const actSigni = findCard(c => c.Type === 'シグニ' && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'));
+  eq(cpuPlanCanSetUse(withEff(actSigni)), true, '🔴【起】を持つシグニに「使いどころ」を出していない');
+
+  // ── ③ コンボの使い方＝**`cpuPlanMoveStep` が拾える形だけ** ──
+  eq(JSON.stringify(cpuPlanComboUsesFor(withEff(artsUI))), JSON.stringify(['arts']),
+    '🔴アーツに `activate` を出している（`cpuPlanMoveStep` の `activate` は場のシグニ／ルリグ／場以外の【起】だけ）');
+  eq(JSON.stringify(cpuPlanComboUsesFor(withEff(spellUI))), JSON.stringify(['spell']), '🔴スペルの使い方が `spell` 1つでない');
+  eq(JSON.stringify(cpuPlanComboUsesFor(withEff(pieceUI))), JSON.stringify([]),
+    '🔴キー／ピースをコンボに書けてしまう（`cpuPlanMoveStep` が `null` を返す＝加点が1点も乗らない）');
+  eq(JSON.stringify(cpuPlanComboUsesFor(withEff(plainSigni))), JSON.stringify(['deploy']), '🔴【起】無しのシグニの使い方が `deploy` 1つでない');
+  eq(JSON.stringify(cpuPlanComboUsesFor(withEff(actSigni))), JSON.stringify(['deploy', 'activate']), '🔴【起】持ちのシグニで `activate` が出ない');
+  eq(JSON.stringify(cpuPlanComboUsesFor(undefined)), JSON.stringify(CPU_COMBO_USES), '🔴カード未選択で選択肢を減らした');
+  // 🔴**出した使い方は `cpuPlanMoveStep` が必ず作れる**（＝加点が乗る）＝全カードで突き合わせる。
+  for (const c of [...cmUI.values()]) {
+    for (const u of cpuPlanComboUsesFor(withEff(c.CardNum))) {
+      ok(CPU_COMBO_USES.includes(u), `🔴知らない使い方を出した（${c.CardNum} / ${u}）`);
+    }
+  }
+
+  // ── ④ 🔴**`select` の値は必ず選択肢の中にある**（2026-09-22 に直した実バグ）──
+  //   旧はカード未選択のとき選択肢が `['never']` だけなのに state は `'defense'` で、
+  //   **画面は「使わない」と出しているのに［追加］すると `defense` が保存された**。
+  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(cardOfUI(spellUI)), 'never'), 'never',
+    '🔴選択肢に無い値がそのまま残る（表示と保存が食い違う）');
+  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(cardOfUI(artsUI)), 'never'), 'defense',
+    '🔴選択肢にある値まで丸めた');
+  eq(cpuPlanClampOption('deploy' as never, cpuPlanComboUsesFor(withEff(artsUI)), 'deploy'), 'arts',
+    '🔴コンボの使い方が選択肢の外のまま');
+  eq(cpuPlanClampOption('x' as never, [] as never[], 'deploy' as never), 'deploy', '🔴選択肢が空のときに既定へ落ちない');
+
+  // ── ⑤ 画面＝**判定を写経していない**／**横幅の作り**（スマホ縦で溢れない形） ──
+  const modalUI = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(/from '\.\/cpuPlanOptions'/.test(modalUI), '🔴画面が判定を写経している（純関数の1本を通していない）');
+  // 🔴**固定幅を使わない**＝旧は `flex: '0 0 150px'` を並べてモーダルの外へ溢れた（実測 18px）。
+  ok(!/flex: '0 0 \d+px'/.test(modalUI), '🔴固定幅の `flex: 0 0 Npx` が復活した＝スマホ縦で横に溢れる');
+  ok(/flexWrap: 'wrap'/.test(modalUI), '🔴操作行が折り返さない');
+  // 🔴**本文がひとつのスクロール領域**＝旧はカード一覧だけがスクロールし、規則が増えるとコンボ節が画面外へ出た。
+  ok(/flex: 1, minHeight: 0, overflowY: 'auto'/.test(modalUI), '🔴本文がスクロールしない（下の節に触れなくなる）');
+  // 🆕**相手の札を名指しする入口**＝`pruneCpuDeckPlan` は「狙う／避ける」だけデッキ外を落とさない設計なのに、
+  //   旧は自分のデッキの札しか出しておらず**その入口が無かった**。
+  ok(/data-testid="cpu-plan-foe-query"/.test(modalUI), '🔴相手の札（デッキ外）を名指しする入口が無い');
+  // 🔴**全カードを走る式は `useMemo`**＝チップを押すたびに 6,700枚を走査すると目に見えて重くなる。
+  ok(/const classOptions = useMemo\(/.test(modalUI), '🔴クラス一覧（全カード走査）が毎レンダー回る');
+}));
+
 test('§5.7 S-31 ② 手札を捨てるコストを CPU が払う：弱い札から・【ガード】は最後・条件と集合制約は人間と同じ関数', () => withSavedCursor(() => {
   // 🔴**なぜ要るか（2026-09-21 実測）**＝live の【起】2,632効果のうち **648（24.6%）/ 603枚**が
   //   「CPU が自動で払えないコスト」を含み、**そのうち手札を捨てる形が 125効果**（`handDiscardSigni` 63／`discard` 62）。
@@ -91452,7 +91549,13 @@ test('§5.7 S-31 ③ 札の使いどころ：作戦データが指名したア�
   ok(/data-testid="cpu-plan-use-card"/.test(modal31) && /data-testid="cpu-plan-use-mode"/.test(modal31)
     && /data-testid="cpu-plan-use-add"/.test(modal31), '🔴使いどころを編集する UI が無い');
   // ⚠**効かない選択肢を出さない**＝守り／攻めの窓を持つのはアーツだけ。
-  ok(/useOptionsFor/.test(modal31) && /'アーツ\/クラフト'/.test(modal31),
+  // 🆕2026-09-22＝**判定は `cpuPlanOptions.ts` の純関数へ出した**（画面の regex ではなく実データで確かめる）＝
+  //   全カードに当てる検査は golden `§5.7 S-2 作戦モーダル`。ここは**画面がその1本を通していること**だけ見る。
+  ok(/useOptionsFor/.test(modal31) && /cpuPlanUseModesFor/.test(modal31),
+    '🔴画面が使いどころの選択肢を自前で決めている（アーツ以外にも「守りで使う」を出しうる）');
+  const planOpts31 = fs.readFileSync(join(root, 'src/screens/deck/cpuPlanOptions.ts'), 'utf-8');
+  ok(/'アーツ\/クラフト'/.test(planOpts31), '🔴アーツの判定からクラフト版が消えた');
+  eq(JSON.stringify(cpuPlanUseModesFor({ Type: 'スペル' } as never)), JSON.stringify(['never']),
     '🔴アーツ以外にも「守りで使う」を出している（指定したのに効かない、を作る）');
 }));
 

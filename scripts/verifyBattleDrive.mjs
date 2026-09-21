@@ -60598,10 +60598,28 @@ scenarios.v268CpuDeckPlan = {
         //   （最初 `WX04-080` を書いて `selectOption` が "did not find some options" で 30秒タイムアウトした。
         //   あれは **`VERIFY_DECK_MECH` 側の札**で、①は盤面へ**注入**していただけだった）。
         //   ⇒ **セレクトの選択肢を読んで先頭2枚を使う**（どのデッキでも通る）。
+        // 📌93（2026-09-22）＝🔴**「使い方」の選択肢はカードの種別で絞られる**（`comboUsesFor`）＝
+        //   **使い方を決め打ちしない**（アーツに `deploy` を選ぼうとすると "did not find some options" で 30秒待つ）。
+        //   ⇒ **カードを選んでから、その札に出ている使い方を読んで使う。**
         const comboOptions = await page.getByTestId('cpu-plan-combo-card').locator('option')
           .evaluateAll(os => os.map(o => o.value).filter(Boolean));
         if (comboOptions.length < 2) return { pass: false, detail: `🔴コンボのカード選択肢が2枚未満（${JSON.stringify(comboOptions)}）` };
-        const [comboA, comboB] = comboOptions;
+        /** その札を選んだときに出る「使い方」（value と表示名）。 */
+        const usesOf = async (cardNum) => {
+          await page.getByTestId('cpu-plan-combo-card').selectOption(cardNum, { timeout: 3000 });
+          await page.waitForTimeout(250);
+          return await page.getByTestId('cpu-plan-combo-use').locator('option')
+            .evaluateAll(os => os.map(o => ({ v: o.value, t: o.textContent })));
+        };
+        const usesByCard = new Map();
+        for (const n of comboOptions.slice(0, 12)) usesByCard.set(n, await usesOf(n));
+        const pickBy = (want, exclude) => [...usesByCard.entries()]
+          .find(([n, us]) => n !== exclude && us.some(u => u.v === want))?.[0];
+        const comboA = pickBy('activate') ?? comboOptions[0];
+        const comboB = pickBy('deploy', comboA) ?? comboOptions.find(n => n !== comboA);
+        const useA = (usesByCard.get(comboA) ?? []).find(u => u.v === 'activate') ?? usesByCard.get(comboA)[0];
+        const useB = (usesByCard.get(comboB) ?? []).find(u => u.v === 'deploy') ?? usesByCard.get(comboB)[0];
+        H.log(`②' コンボの札＝${comboA}(${useA.v}) → ${comboB}(${useB.v})`);
         const addComboStep = async (cardNum, useVal) => {
           await page.getByTestId('cpu-plan-combo-card').selectOption(cardNum, { timeout: 3000 });
           await page.getByTestId('cpu-plan-combo-use').selectOption(useVal, { timeout: 3000 });
@@ -60609,8 +60627,8 @@ scenarios.v268CpuDeckPlan = {
           await page.getByTestId('cpu-plan-combo-step-add').click({ timeout: 1200 });
           await page.waitForTimeout(400);   // 📌7＝DOM の描画待ち
         };
-        await addComboStep(comboA, 'activate');
-        await addComboStep(comboB, 'deploy');
+        await addComboStep(comboA, useA.v);
+        await addComboStep(comboB, useB.v);
         const draft = page.getByTestId('cpu-plan-combo-draft').first();
         if (!(await draft.count())) return { pass: false, detail: '🔴手を足しても組み立て中のコンボが出ない' };
         const draftText = (await draft.textContent()) ?? '';
@@ -60620,7 +60638,7 @@ scenarios.v268CpuDeckPlan = {
         const saved2 = await readPlan(deck.id);
         H.log(`②' 保存された cpu_plan=${JSON.stringify(saved2)}`);
         const steps = saved2?.combos?.[0]?.steps ?? [];
-        const want = [{ num: comboA, use: 'activate' }, { num: comboB, use: 'deploy' }];
+        const want = [{ num: comboA, use: useA.v }, { num: comboB, use: useB.v }];
         if (JSON.stringify(steps) !== JSON.stringify(want)) {
           return { pass: false, detail: `🔴コンボの「使い方」が DB に届かない（steps=${JSON.stringify(steps)} / plan=${JSON.stringify(saved2)}）` };
         }
@@ -60663,32 +60681,44 @@ scenarios.v268CpuDeckPlan = {
         // 🆕§5.7 `S-31` ③＝**札の使いどころ**（アーツを守り／攻めで使う・この札は使わない）も画面から保存できる。
         //   🔴これが無いと、分類できないアーツ（ドロー・サーチ・強化）を CPU は一生使わない
         //   （実測＝ユーザー作21デッキのアーツ76種のうち自力で使えるのは24＝31.6%）。
-        await page.getByTestId('cpu-plan-use-card').selectOption(comboA, { timeout: 3000 });
+        // 📌93＝**一覧に出るのは「使わない」が効く札だけ**（アーツ・スペル・キー／ピース・【起】持ち）＝
+        //   コンボの選択肢とは集合が違う＝**ここでも選択肢を読んでから選ぶ**。
+        const useCardOptions = await page.getByTestId('cpu-plan-use-card').locator('option')
+          .evaluateAll(os => os.map(o => o.value).filter(Boolean));
+        if (useCardOptions.length === 0) return { pass: false, detail: '🔴使いどころに選べる札が1枚も無い' };
+        const useTarget = useCardOptions.includes(comboA) ? comboA : useCardOptions[0];
+        await page.getByTestId('cpu-plan-use-card').selectOption(useTarget, { timeout: 3000 });
         await page.waitForTimeout(400);
-        // ⚠`comboA` はアーツとは限らない＝**アーツ以外で出る選択肢は「使わない」だけ**（効かない選択肢を出さない）。
+        // ⚠`useTarget` はアーツとは限らない＝**アーツ以外で出る選択肢は「使わない」だけ**（効かない選択肢を出さない）。
         const useModes = await page.getByTestId('cpu-plan-use-mode').locator('option').evaluateAll(os => os.map(o => o.value));
-        H.log(`②''''' 使いどころの選択肢=${JSON.stringify(useModes)}`);
+        H.log(`②''''' 使いどころ＝${useTarget} 選択肢=${JSON.stringify(useModes)}`);
+        // 🔴📌93＝**`select` の value は必ず選択肢の中にある**（旧はカード未選択時 `defense` のまま
+        //   選択肢が `['never']` だけになり、画面は「使わない」なのに `defense` が保存された）。
+        const shownMode = await page.getByTestId('cpu-plan-use-mode').evaluate(el => el.value);
+        if (!useModes.includes(shownMode)) {
+          return { pass: false, detail: `🔴使いどころの表示と値が食い違う（value=${shownMode} / 選択肢=${JSON.stringify(useModes)}）` };
+        }
         await page.getByTestId('cpu-plan-use-mode').selectOption(useModes[0], { timeout: 3000 });
         await page.getByTestId('cpu-plan-use-add').click({ timeout: 1200 });
         await page.waitForTimeout(1500);
         const saved6 = await readPlan(deck.id);
         H.log(`②''''' 保存された cardUse=${JSON.stringify(saved6?.cardUse)}`);
-        if ((saved6?.cardUse ?? {})[comboA] !== useModes[0]) {
+        if ((saved6?.cardUse ?? {})[useTarget] !== useModes[0]) {
           return { pass: false, detail: `🔴札の使いどころが DB に届かない（${JSON.stringify(saved6?.cardUse)}）` };
         }
         // 🔑**保存した行が画面にも出る**＝読めなければ編集できない。
-        if (!(await page.getByTestId(`cpu-plan-use-row-${comboA}`).count())) {
+        if (!(await page.getByTestId(`cpu-plan-use-row-${useTarget}`).count())) {
           return { pass: false, detail: '🔴保存した使いどころが一覧に出ない' };
         }
 
         // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
-        if (!/【起】で使う/.test(draftText) || !/出す/.test(draftText)) {
-          return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText}）` };
+        if (!draftText.includes(useA.t) || !draftText.includes(useB.t)) {
+          return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText} / 期待=${useA.t},${useB.t}）` };
         }
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ）` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ・表示と値が一致）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);
