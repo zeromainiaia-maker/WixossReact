@@ -89949,6 +89949,79 @@ test('§5.7 S-24 マリガン：自己対戦も引き直す／レベル1を優�
   '🔴ヘッドレスのログが対戦開始前の分を引き継いでいない');
 }));
 
+test('§5.7 S-14 作戦データを探索にも効かせる：加点は打つ前の盤面で測り、手順に沿って累積する', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（2026-09-21 実測）**＝`S-25` で既定を「探索あり」へ上げた瞬間、**召喚を決めるのが
+  //   `pickCpuDeployCard`（`planDeployBonus` を足す側）から探索（`evaluateBoard` だけ）へ移った**＝
+  //   **`S-2` の作戦データ（`priorityCards`／`combos`）が黙って効かなくなっていた。**
+  // 📏実測＝作戦データを入れた6デッキの A/B で**3デッキが完全に同じ試合**（加点が1度も判断を変えていない）。
+  //   直した後＝**8/8 対戦で判断が変わる**（最初の分岐が 63手目 → 26手目）。
+  const cm14 = new InstanceMap<CardData>(cardMap);
+  const all14 = [...cardMap.values()];
+  const l14 = { cardMap: cm14 as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const mk14 = () => {
+    const st = mkState({ signi: [null, null, null] });
+    st.hand = ['WD01-013#h1', 'WD01-012#h2'];   // 小剣 ククリ(Lv1 P3000) / 中剣 フランベル(Lv2 P7000)
+    st.energy = ['WD03-013#e1', 'WD03-013#e2'];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];
+    st.lrig_deck = [];
+    return st;
+  };
+  const ctx14: CpuMoveCtx = {
+    actor: mk14(), opponent: mk14(), allCards: all14, battleCards: all14,
+    cardMap: cm14 as Map<string, CardData>, effectsMap, lookahead: l14, reserveFor: () => undefined,
+  };
+  const opts14 = { width: 4, depth: 4, pendingSpell: false };
+  const plain14 = searchCpuMove(ctx14, 'MAIN', opts14);
+  const firstDeploy = plain14.line.find(m => m.kind === 'deploy') as Extract<CpuMove, { kind: 'deploy' }> | undefined;
+  ok(!!firstDeploy, '前提崩れ＝この盤面で探索が召喚を1手も選ばない');
+  const other = ['WD01-013#h1', 'WD01-012#h2'].find(id => id !== firstDeploy!.id)!;
+
+  // ── ① 加点が効く＝加点を付けた札を探索が選ぶ（付けなければ別の札）──
+  const boosted = searchCpuMove(ctx14, 'MAIN', {
+    ...opts14, moveBonus: mv => (mv.kind === 'deploy' && mv.id === other ? 1e6 : 0),
+  });
+  eq((boosted.line.find(m => m.kind === 'deploy') as Extract<CpuMove, { kind: 'deploy' }> | undefined)?.id, other,
+    '🔴作戦データの加点が探索に届いていない（`S-25` で既定を上げたときの退化）');
+
+  // ── ② 既定は挙動不変（`moveBonus` を渡さない／0 を返す＝同じ手順）──
+  const zero = searchCpuMove(ctx14, 'MAIN', { ...opts14, moveBonus: () => 0 });
+  eq(zero.line.map(describeCpuMove).join(' → '), plain14.line.map(describeCpuMove).join(' → '),
+    '🔴加点0 で手順が変わった（既定の挙動を動かしている）');
+
+  // ── ③ 🔑加点は**打つ前の盤面**で測る（手札にあるか・場に出ているかで値が変わる＝`comboThenReady`）──
+  const seen: { inHand: boolean; onField: boolean }[] = [];
+  searchCpuMove(ctx14, 'MAIN', {
+    ...opts14,
+    moveBonus: (mv, board) => {
+      if (mv.kind === 'deploy') {
+        seen.push({
+          inHand: board.cpu.hand.includes(mv.id),
+          onField: board.cpu.field.signi.some(stk => stk?.includes(mv.id)),
+        });
+      }
+      return 0;
+    },
+  });
+  ok(seen.length > 0 && seen.every(x => x.inHand && !x.onField),
+    '🔴加点を「打った後の盤面」で測っている＝手札にある札の条件（`comboThenHold` ほか）が読めない');
+
+  // ── ④ 🔑手順に沿って累積する（2手ぶんの加点が終端の点数に乗る）──
+  const bonusEach = 12345;
+  const acc = searchCpuMove(ctx14, 'MAIN', { ...opts14, moveBonus: mv => (mv.kind === 'deploy' ? bonusEach : 0) });
+  const deploys = acc.line.filter(m => m.kind === 'deploy').length;
+  ok(deploys >= 1, '前提崩れ＝加点つきでも召喚が選ばれない');
+  ok(Math.abs((acc.score - plain14.score) - bonusEach * deploys) < 1e-6 || acc.line.length !== plain14.line.length,
+    `🔴加点が手順に沿って累積していない（${acc.score} - ${plain14.score} ≠ ${bonusEach} × ${deploys}）`);
+
+  // ── ⑤ 配線＝**加点の式は1本**（探索側も召喚側も同じ `planDeployBonus` を呼ぶ）──
+  const turnSrc14 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/moveBonus: \(mv, board\) => \(mv\.kind === 'deploy'/.test(turnSrc14),
+    '🔴探索に作戦データを渡していない＝`priorityCards`／`combos` が既定の CPU で効かない');
+  eq((turnSrc14.match(/planDeployBonus\(cpuPlan,/g) ?? []).length, 2,
+    '🔴`planDeployBonus` の呼び出し本数が変わった（探索側＋召喚側の2本＝式を2か所に書き直していないか）');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

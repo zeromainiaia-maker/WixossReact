@@ -88,6 +88,18 @@ export interface CpuSearchOpts {
    *   **「何もしない」を選ばせない**（登録票の案③）。
    */
   actionBias?: number;
+  /**
+   * 🆕🔴§5.7 `S-14`（2026-09-21）＝**1手ごとの加点**（`S-2` の作戦データ）。
+   * 🔴**なぜ要るか（実測）**＝`S-25` で既定を「探索あり」へ上げた瞬間、**召喚を決めるのが
+   *   `pickCpuDeployCard`（`planDeployBonus` を足す）から探索（`evaluateBoard` だけ）へ移った**＝
+   *   **作戦データの `priorityCards` と `combos` が黙って効かなくなっていた**（6デッキの A/B で
+   *   3デッキが**完全に同じ試合**＝加点が1度も判断を変えていない）。
+   * 🔑**手を打つ前の盤面で測り、手順に沿って累積する**（`risk` と同じ扱い）＝
+   *   「A を出してから B を出す」という**順序**に点が付く（`comboThenReady`）。
+   * ⚠**盤面の採点（`evaluateBoard`）には足さない**＝あれは左右対称の「有利さ」で、
+   *   作戦データは**自分の手の選び方**の話（相手側に同じ点を与えると意味が壊れる）。
+   */
+  moveBonus?: (move: CpuMove, board: CpuSimBoard) => number;
 }
 
 /**
@@ -95,7 +107,7 @@ export interface CpuSearchOpts {
  * 🔑**点数（`score`）はすでに `risk` を引いた後の値**＝ビームの並べ替えも「何もしない」との比較も
  *   全部この1つの数で行う（引く場所を2か所に書かない）。
  */
-interface Node { board: CpuSimBoard; line: CpuMove[]; score: number; risk: number }
+interface Node { board: CpuSimBoard; line: CpuMove[]; score: number; risk: number; bonus: number }
 
 /**
  * この盤面で**いま打つ1手**を探索で決める。
@@ -108,7 +120,7 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
   if (opts.width <= 0 || opts.depth <= 0) return empty;
   const nodeCap = opts.nodeCap ?? 400;
   let nodes = 0;
-  let beam: Node[] = [{ board: { cpu: ctx.actor, opp: ctx.opponent }, line: [], score: baseline, risk: 0 }];
+  let beam: Node[] = [{ board: { cpu: ctx.actor, opp: ctx.opponent }, line: [], score: baseline, risk: 0, bonus: 0 }];
   // 🆕§5.7 `S-21`＝**「何もしない」を除いた最善**を別に持つ（`best` は baseline と競合したあとの最善）。
   let bestAction: Node | null = null;
   // 🆕§5.7 `S-21`＝**根の盤面で探索が扱える候補の数**（`move === null` の意味を割る計器）。
@@ -128,8 +140,10 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
         if (d === 0) rootApplied++;
         // 🆕§5.7 `S-17` 第3段＝**期待損は手順に沿って累積する**（2回ライフを割れば2回ぶん背負う）。
         const risk = node.risk + (after.risk ?? 0);
-        const score = evaluateBoard(after.cpu, after.opp, ctx.lookahead) - risk;
-        const child: Node = { board: after, line: [...node.line, move], score, risk };
+        // 🆕§5.7 `S-14`＝作戦データの加点は**打つ前の盤面**（`node.board`）で測る（手札・場の条件を見るため）。
+        const bonus = node.bonus + (opts.moveBonus?.(move, node.board) ?? 0);
+        const score = evaluateBoard(after.cpu, after.opp, ctx.lookahead) - risk + bonus;
+        const child: Node = { board: after, line: [...node.line, move], score, risk, bonus };
         next.push(child);
         // ⚠**深いほうが良いとは限らない**＝途中の盤面も含めて最善を採る。
         if (!bestAction || score > bestAction.score) bestAction = child;

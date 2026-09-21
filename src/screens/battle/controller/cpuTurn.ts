@@ -905,6 +905,14 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         width: cpuPolicy.searchWidth, depth: cpuPolicy.searchDepth, pendingSpell: !!bs.pending_spell,
         // 🆕§5.7 `S-21`＝「行動する」側への下駄（既定 0＝従来どおり）。
         actionBias: cpuPolicy.actionBias,
+        // 🆕🔴§5.7 `S-14`（2026-09-21）＝**作戦データ（`S-2`）を探索にも効かせる**。
+        //   🔴`S-25` で既定を「探索あり」へ上げた瞬間、召喚を決めるのが下の `pickCpuDeployCard`
+        //   （`planDeployBonus` を足す側）から探索へ移り、**`priorityCards` と `combos` が黙って効かなくなっていた**。
+        //   ⚠**加点の式は1本**＝ここも下の `pickCpuDeployCard` も同じ `planDeployBonus` を呼ぶ。
+        moveBonus: (mv, board) => (mv.kind === 'deploy'
+          ? planDeployBonus(cpuPlan, mv.id, board.cpu.hand,
+            [...board.cpu.field.signi.map(stk => stk?.at(-1) ?? ''), ...board.cpu.field.lrig].filter(Boolean), cpuPolicy)
+          : 0),
       });
       if (searched.move && searched.move.kind !== 'deploy') {
         // 🔴**実行は人間と同じ `perform*`**（`doCpuSearchedMove`）＝探索用の近似適用では打たない。
