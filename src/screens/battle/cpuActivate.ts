@@ -1,6 +1,9 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { energyCostToString, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
+import { canAddHandDiscardSigniIndex, energyCostToString, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
+import { getCardNum, matchesFilter } from '../../engine/execUtils';
+import { cpuHandDiscardOrder } from './cpuHandLimit';
+import type { CpuPolicy } from './cpuPolicy';
 import { listActivatableSigniEffects } from './signiActivateGate';
 import { activateCostZeroApplies, applyActivateCostZero } from './activateCostZero';
 
@@ -48,6 +51,14 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'acceTrash',     // 先頭ゾーンから自動（`signiActivateGate` が枚数を検算している）
   'discardAll',    // 手札をすべて（選択不要）
   'energyTrashAll',// エナをすべて（選択不要）
+  // 🆕§5.7 `S-31` ②（2026-09-21）＝**手札を捨てるコスト**（`pickCpuDiscardCostIndices` が index を決める）。
+  //   🔴**載せてよい理由**＝`signiActivateGate` が**枚数も中身も検算している**
+  //   （`discard` は手札枚数／`handDiscardSigni` は `handDiscardSigniAffordable`）＝下の
+  //   「gate が数を検算していないキーは載せない」規律を満たす。
+  //   📏実測＝`handDiscardSigni` 63効果/60枚・`discard` 62効果/62枚（live の ACTIVATED 2,632効果中）。
+  'discard',
+  'discardFilter',
+  'handDiscardSigni',
 ]);
 
 /**
@@ -185,6 +196,11 @@ export interface CpuActivatedChoice {
   effect: CardEffect;
   /** `performSigniActivated` に渡すエナ pool index。 */
   costIndices: Set<number>;
+  /**
+   * 🆕§5.7 `S-31` ②＝`performSigniActivated` に渡す**手札を捨てるコストの index**
+   * （`discard` / `handDiscardSigni`）。コストが無ければ空。
+   */
+  discardIndices: Set<number>;
 }
 
 /**
@@ -213,6 +229,55 @@ export interface CpuSigniActivatedPickInput {
   contBlockedSelf?: Set<string>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
+  /** 🆕§5.7 `S-31` ②＝手札を捨てるコストで「手元に残す価値」を見る（作戦データ＝`planKeepBonus`）。 */
+  planKeepBonus?: (id: string) => number;
+  /** 🆕§5.7 `S-31` ②＝捨てる順の重み（席ごとのポリシー）。 */
+  policy?: CpuPolicy;
+}
+
+/**
+ * 🆕**手札を捨てるコストで、どれを捨てるか**（§5.7 `S-31` ②・2026-09-21）。
+ *
+ * 🔴**なぜ要るか（実測）**＝live の【起】2,632効果のうち **648（24.6%）/ 603枚**が
+ *   「CPU が自動で払えないコスト」を含み、**そのうち手札を捨てる形が 125効果**（`handDiscardSigni` 63／`discard` 62）。
+ *   ⚠**撃てないので `S-14` のコンボにも書けない**（`WD16` の `WX09-048` Ｆ・Ｍ・Ｓ がその実例）。
+ * 🔑**順番は手札上限の捨て札と同じ1本**（`cpuHandDiscardOrder`＝弱い札から・【ガード】は最後・作戦データの加点つき）。
+ * 🔑**1枚ずつの可否は人間のモーダルと同じ関数**＝`canAddHandDiscardSigniIndex`（集合制約「それぞれ名前の異なる」まで見る）／
+ *   `discardFilter` は engine の `matchesFilter`。**写経すると「CPU だけ払えないはずの札で払える」片肺になる。**
+ * @returns 払う index の集合。**払えないなら `null`**（＝その【起】は候補から外す）。
+ */
+export function pickCpuDiscardCostIndices(p: {
+  hand: string[];
+  cost: CardEffect['cost'];
+  cardMap: Map<string, CardData>;
+  effectsOf?: (id: string) => readonly CardEffect[];
+  keepBonus?: (id: string) => number;
+  policy?: CpuPolicy;
+}): Set<number> | null {
+  const spec = p.cost?.handDiscardSigni;
+  const plain = p.cost?.discard ?? 0;
+  const picked = new Set<number>();
+  if (!spec && plain <= 0) return picked;
+  const order = cpuHandDiscardOrder(p.hand, p.cardMap, p.effectsOf, p.keepBonus, p.policy);
+  if (spec) {
+    for (const i of order) {
+      if (picked.size >= spec.count) break;
+      if (canAddHandDiscardSigniIndex(p.hand, picked, i, spec, p.cardMap)) picked.add(i);
+    }
+    if (!handDiscardSigniCostSatisfied(p.hand, picked, spec, p.cardMap)) return null;
+  }
+  if (plain > 0) {
+    const filter = p.cost?.discardFilter;
+    const need = picked.size + plain;
+    for (const i of order) {
+      if (picked.size >= need) break;
+      if (picked.has(i)) continue;
+      if (filter && !matchesFilter(p.cardMap.get(getCardNum(p.hand[i])), filter)) continue;
+      picked.add(i);
+    }
+    if (picked.size < need) return null;
+  }
+  return picked;
 }
 
 /**
@@ -240,7 +305,13 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
         reserve: p.energyReserve,
       });
       if (!costIndices) continue;
-      yield { zoneIndex, cardNum, effect, costIndices };
+      // 🆕§5.7 `S-31` ②＝手札を捨てるコストの index（払えないなら候補から外す）。
+      const discardIndices = pickCpuDiscardCostIndices({
+        hand: actor.hand, cost: effect.cost, cardMap,
+        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], keepBonus: p.planKeepBonus, policy: p.policy,
+      });
+      if (!discardIndices) continue;
+      yield { zoneIndex, cardNum, effect, costIndices, discardIndices };
     }
   }
 }

@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-21（第439バッチ）🏁§5.1 `V-283`（コンボの「使い方」の保存）＋🏁§5.7 `S-31` ②＝**CPU が手札を捨てるコストを払えるようになった**
+
+### 🏁 `V-283`＝コンボの「使い方」を画面から保存できる（実機）
+
+- `v268CpuDeckPlan` に②'を足した＝**カード＋使い方 → 手を足す ×2 → コンボに追加**を実機で押し、
+  `cpu_plan.combos[0].steps` を DB で照合する。**PASS**（`{"steps":[{"num":"WD03-005","use":"activate"},{"num":"WXK09-021","use":"deploy"}]}`）。
+- ⚠🔴**踏んだ罠＝デッキの中身をハードコードした**＝最初 `WX04-080` を選ばせて `selectOption` が
+  **"did not find some options" で30秒タイムアウト**。あれは **`VERIFY_DECK_MECH` 側の札**で、
+  ①は盤面へ**注入**していただけだった（`VERIFY_DECK` は `verify-deck.json` 次第で中身が変わる）。
+  ⇒ **セレクトの選択肢を読んで先頭2枚を使う**形にした（どのデッキでも通る）。
+
+### 🏁 `S-31` ②＝**CPU が手札を捨てるコストを払えるようになった**
+
+- 🔴**何が起きていたか**＝`S-14` で書けるようになった `WD16` のコンボ（Ｆ・Ｍ・Ｓ の【起】でハンデス → Ｇ・Ｌ・Ｋ を出す）が
+  **1回も動かなかった**＝その【起】のコスト `handDiscardSigni`（手札から＜電機＞のシグニを1枚捨てる）が
+  **CPU の自動支払い allowlist に無く、そもそも撃てなかった**。
+- 📏**②母集団の実測**（`tmp_s31census.mjs`）＝live の **ACTIVATED 2,632効果**のうち
+  **648（24.6%）／603枚**が「CPU が自動で払えないコスト」を含む。内訳の上位＝
+  `exceed` 106／`betOptions` 68／**`handDiscardSigni` 63**／**`discard` 62**／`costReplacement` 57／`energyTrash` 52／…
+  ⇒ **この回は手札を捨てる2キー（125効果）だけ**を取った。
+- **直したこと**
+  1. 🆕**`pickCpuDiscardCostIndices`**（`cpuActivate.ts`）＝どれを捨てるかを決める。
+     🔑**順番は手札上限の捨て札と同じ1本**（`cpuHandDiscardOrder` を export＝弱い札から・**【ガード】は最後**・作戦データの加点つき）。
+     🔑**1枚ずつの可否は人間のモーダルと同じ関数**＝`canAddHandDiscardSigniIndex`（「それぞれ名前の異なる」まで見る）／
+     `discardFilter` は engine の `matchesFilter`。**払えなければ `null`＝その【起】は候補から外す。**
+  2. allowlist に `discard` / `discardFilter` / `handDiscardSigni` を追加。
+     🔴**載せてよい理由を明記**＝`signiActivateGate` が**枚数も中身も検算している**
+     （既存の「gate が数を検算していないキーは載せない＝無限ループになる」規律を満たす）。
+  3. **本番の実行**（`performSigniActivated` の `discardCostIndices`＝旧は `new Set()` 固定）と
+     **探索の近似適用**（`payCpuSelfCostSim`）の**両方に同じ index を渡す**。
+     🔴**探索に払わせないと「タダで撃てる【起】」に見えて過大評価になる**（`S-21` で踏んだ穴と同型）。
+- 📏**実測＝`WD16` の Ｆ・Ｍ・Ｓ の【起】が 0回 → 16回（4戦）**。`census:play` の「シグニの【起】」も 18回/8戦。
+- ⚠**この回で触ったのは場のシグニ【起】だけ**＝ルリグ【起】（`cpuLrigActivate.ts`）と場以外の【起】（`cpuOffFieldActivate.ts`）は
+  別の allowlist を持つ。**残りのコストキー（`energyTrash` 52／`fieldTrash` 31／`trashExile` 15 …）も未対応**＝`S-31` に残す。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4358**＝`§5.7 S-31 ②` を1本追加）。
+- **実機**＝`verifyBattleDrive.mjs v268CpuDeckPlan` **PASS**（`V-283`）／`verifyFullMatch.mjs cpu` **PASS**（5ターン/130手/168s）。
+- ⚠**較正した既存の golden 1本**＝`O-1 cpuActivate`（allowlist の「手札捨ては撃たない」→「撃てる」。
+  **撃たない側の固定は `fieldTrash` へ移した**＝allowlist の規律そのものは減っていない）。
+- ⚠**反転確認**＝この修正は**能力の追加**（払える範囲の拡張）でポリシーではない＝プリセットを作っていない。
+  戻すなら allowlist から3キーを外す。**直接指標は「その【起】の発動回数」**（0 → 16）。
+
+
 ## 2026-09-21（第438バッチ）🏁§5.7 `S-14`＝**コンボに「使い方」を持たせた**（出す／【起】で使う／アーツで撃つ／スペルで使う）
 
 **ユーザー決定＝「実装して、使ってみて不具合がありそうならまた報告する」**（2026-09-21）。

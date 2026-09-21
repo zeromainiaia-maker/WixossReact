@@ -28,6 +28,17 @@ const isGuard = (num: string, cardMap: Map<string, CardData>): boolean => cardMa
  * 🆕§5.7 `S-1`＝効果の一覧（`effectsOf`）があれば**強さ（パワー＋効果の点数）の低い札から**手放す。無ければ旧挙動（レベルの高い札から）。
  * 【ガード】は常に最後まで残す。
  */
+/**
+ * 🆕**手札を手放す順**（弱い札から・【ガード】は最後）＝§5.7 `S-31` ②（2026-09-21）で export した。
+ * 🔑**手札上限の捨て札と【起】のコスト支払いで同じ順を使う**（2か所に書かない）。
+ */
+export function cpuHandDiscardOrder(
+  hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[],
+  keepBonus?: (id: string) => number, policy?: CpuPolicy,
+): number[] {
+  return discardOrder(hand, cardMap, effectsOf, keepBonus, policy);
+}
+
 function discardOrder(
   hand: string[], cardMap: Map<string, CardData>, effectsOf?: (id: string) => readonly CardEffect[], keepBonus?: (id: string) => number,
   policy?: CpuPolicy,

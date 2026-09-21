@@ -69,6 +69,13 @@ export interface CpuMoveCtx {
   lookahead: LookaheadCtx;
   /** グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   reserveFor: (actor: PlayerState) => CpuEnergyReserve | undefined;
+  /**
+   * 🆕§5.7 `S-31` ②＝**手札を捨てるコストで「どれを捨てるか」**に効く作戦データの加点（`planKeepBonus`）。
+   * ⚠**省略できる**（渡さなければ強さだけで決める＝従来の順）。
+   */
+  planKeepBonus?: (id: string) => number;
+  /** 🆕§5.7 `S-31` ②＝捨てる順の重み（席ごとのポリシー）。省略時は既定。 */
+  policy?: CpuPolicy;
 }
 
 /** CPU の1手。探索（`S-16`）はこれを適用して次の盤面を作る。 */
@@ -391,6 +398,8 @@ export function cpuSigniActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_
     effectivePowers: calcFieldPowers(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, phase),
     // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
     isAffordable, wholeSubstitutes, pool,
+    // 🆕§5.7 `S-31` ②＝手札を捨てるコストの「どれを捨てるか」に効く（弱い札から・【ガード】と作戦の札は最後）。
+    planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
   };
 }
 
@@ -652,6 +661,9 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   'energy', 'none', 'costScaling', 'costReplacement',
   // 盤面側＝下の `payCpuSelfCostSim` が写す。
   'coin', 'down_self', 'lrigDown', 'fieldDown', 'trash_self', 'trash_key', 'discardAll', 'energyTrashAll',
+  // 🆕§5.7 `S-31` ②＝手札を捨てるコスト。🔴**探索にも同じ札を払わせる**
+  //   （払わないと探索には「タダで撃てる【起】」に見えて過大評価になる＝`S-21` で踏んだ穴と同型）。
+  'discard', 'discardFilter', 'handDiscardSigni',
 ]);
 
 /**
@@ -661,6 +673,8 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
 function payCpuSelfCostSim(
   cost: CardEffect['cost'], s: PlayerState, zoneIndex: number | null, cardMap: Map<string, CardData>,
   sourceCardNum: string,
+  /** 🆕§5.7 `S-31` ②＝手札を捨てるコストで実際に払う index（本番と同じ選択を渡す）。 */
+  handDiscardIndices?: Set<number>,
 ): PlayerState | null {
   if (!cost) return s;
   for (const k of Object.keys(cost)) {
@@ -668,6 +682,18 @@ function payCpuSelfCostSim(
     if (!CPU_SIM_PAYABLE_COST_KEYS.has(k)) return null;   // ⚠allowlist＝知らないコストは探索の外へ
   }
   let out = s;
+  // 🆕§5.7 `S-31` ②＝手札を捨てるコスト（**本番が選んだ index をそのまま払う**）。
+  if (cost.discard !== undefined || cost.handDiscardSigni !== undefined) {
+    const need = (cost.discard ?? 0) + (cost.handDiscardSigni?.count ?? 0);
+    const idx = [...(handDiscardIndices ?? [])];
+    if (idx.length < need) return null;   // ⚠選べていないなら探索の外（タダで撃たせない）
+    const drop = new Set(idx);
+    out = {
+      ...out,
+      hand: out.hand.filter((_, i) => !drop.has(i)),
+      trash: [...out.trash, ...idx.map(i => out.hand[i]).filter((n): n is string => !!n)],
+    };
+  }
   if (cost.coin !== undefined) {
     if ((out.coins ?? 0) < cost.coin) return null;
     // ⚠**`coins_paid_this_turn` も必ず加算する**＝`COINS_PAID_THIS_TURN` 条件がこれを読む
@@ -913,7 +939,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     case 'activate': {
       // 🆕§5.7 `S-21`＝**エナ以外の宣言コストも払う**（【起】の 569効果）。
       //   🔴旧はエナしか払わず、**《ダウン》も「自分をトラッシュ」もタダに見えていた**。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum);
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum, move.choice.discardIndices);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));

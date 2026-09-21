@@ -60505,7 +60505,7 @@ order.push('v267CpuInteractionPolicy');
 //   ②画面：CPU デッキの編集画面「🤖 CPU の作戦」の［キー］が DB（`cpu_plan.keyCards`）に届く。
 // 🔑**反転は①の中で取る**＝作戦を空にした同じ盤面では WD03-013 を置く（キーカードの有無だけが違う）。
 scenarios.v268CpuDeckPlan = {
-  title: 'V-268 CPU デッキの作戦：キーカードはエナに置かない（対戦）／［キー］が保存される（画面）',
+  title: 'V-268 CPU デッキの作戦：キーカードはエナに置かない（対戦）／［キー］とコンボの「使い方」が保存される（画面・V-283）',
   spec: {
     guestSet: { 'field.lrig': ['WD03-004#g1'], 'hand': ['WD03-013#g71', 'WX04-080#g72'], 'energy': [], 'actions_done': [], 'field.signi': [null, null, null] },
     top: { active: 'cpu', turn_phase: 'ENERGY', turn_count: 3 },
@@ -60589,10 +60589,49 @@ scenarios.v268CpuDeckPlan = {
         const saved = await readPlan(deck.id);
         H.log(`② 保存された cpu_plan=${JSON.stringify(saved)}`);
         if (!(saved?.keyCards ?? []).includes('WD03-013')) return { pass: false, detail: `🔴［キー］を押しても DB に届かない（${JSON.stringify(saved)}）` };
+
+        // 🆕§5.1 `V-283`（§5.7 `S-14`・2026-09-21）＝**コンボの「使い方」が画面から保存できる**。
+        // 🔑**ここだけが未踏だった**＝上の②が押すのは［キー］だけで、
+        //   `{num, use}` の列（カード＋使い方 → 手を足す → コンボに追加）は golden だけで固めていた。
+        // ⚠両方の札が `VERIFY_DECK` に入っていること（`verifySetupDeck.mjs`）＝入っていないと `pruneCpuDeckPlan` が落とす。
+        // ⚠🔴**デッキの中身をハードコードしない**＝`VERIFY_DECK` は `verify-deck.json` 次第で中身が変わる
+        //   （最初 `WX04-080` を書いて `selectOption` が "did not find some options" で 30秒タイムアウトした。
+        //   あれは **`VERIFY_DECK_MECH` 側の札**で、①は盤面へ**注入**していただけだった）。
+        //   ⇒ **セレクトの選択肢を読んで先頭2枚を使う**（どのデッキでも通る）。
+        const comboOptions = await page.getByTestId('cpu-plan-combo-card').locator('option')
+          .evaluateAll(os => os.map(o => o.value).filter(Boolean));
+        if (comboOptions.length < 2) return { pass: false, detail: `🔴コンボのカード選択肢が2枚未満（${JSON.stringify(comboOptions)}）` };
+        const [comboA, comboB] = comboOptions;
+        const addComboStep = async (cardNum, useVal) => {
+          await page.getByTestId('cpu-plan-combo-card').selectOption(cardNum, { timeout: 3000 });
+          await page.getByTestId('cpu-plan-combo-use').selectOption(useVal, { timeout: 3000 });
+          // 📌19＝`click()` に timeout を渡す（既定30秒待ちで実質ハングする）。
+          await page.getByTestId('cpu-plan-combo-step-add').click({ timeout: 1200 });
+          await page.waitForTimeout(400);   // 📌7＝DOM の描画待ち
+        };
+        await addComboStep(comboA, 'activate');
+        await addComboStep(comboB, 'deploy');
+        const draft = page.getByTestId('cpu-plan-combo-draft').first();
+        if (!(await draft.count())) return { pass: false, detail: '🔴手を足しても組み立て中のコンボが出ない' };
+        const draftText = (await draft.textContent()) ?? '';
+        await page.getByTestId('cpu-plan-combo-add').click({ timeout: 1200 });
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: `${SHOT}/v283-plan-combo.png`, fullPage: true });
+        const saved2 = await readPlan(deck.id);
+        H.log(`②' 保存された cpu_plan=${JSON.stringify(saved2)}`);
+        const steps = saved2?.combos?.[0]?.steps ?? [];
+        const want = [{ num: comboA, use: 'activate' }, { num: comboB, use: 'deploy' }];
+        if (JSON.stringify(steps) !== JSON.stringify(want)) {
+          return { pass: false, detail: `🔴コンボの「使い方」が DB に届かない（steps=${JSON.stringify(steps)} / plan=${JSON.stringify(saved2)}）` };
+        }
+        // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
+        if (!/【起】で使う/.test(draftText) || !/出す/.test(draftText)) {
+          return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText}）` };
+        }
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

@@ -246,6 +246,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   const cpuMoveCtx = (actorState: PlayerState): CpuMoveCtx => ({
     actor: actorState, opponent: huSt, allCards: cards, battleCards, cardMap: battleCardMap, effectsMap,
     lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor,
+    // 🆕§5.7 `S-31` ②＝手札を捨てるコストで「どれを捨てるか」（作戦データの札と【ガード】は最後）。
+    planKeepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy,
   });
   const tryCpuAssistGrow = async (actorState: PlayerState): Promise<boolean> => {
     const m = listCpuAssistGrows(cpuMoveCtx(actorState))[0];
@@ -301,7 +303,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     };
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: actActor }));
     await performSigniActivated(choice.cardNum, choice.effect, {
-      costIndices: choice.costIndices, discardCostIndices: new Set(),
+      // 🆕§5.7 `S-31` ②＝手札を捨てるコストも CPU が払う（旧は空＝そのコストを持つ【起】は撃てなかった）。
+      costIndices: choice.costIndices, discardCostIndices: choice.discardIndices,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, opponentId: bs.host_id,

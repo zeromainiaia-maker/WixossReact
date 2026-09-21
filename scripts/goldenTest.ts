@@ -214,7 +214,7 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/screens/battle/attachedOrUnderCost';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
-import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
 import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCountRule } from '../src/screens/battle/keyPieceUseGate';
@@ -53355,8 +53355,11 @@ test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない�
   ok(can({ energy: [{ color: '赤', count: 1 }] }), 'エナは内訳を自動で決められる');
   ok(can({ down_self: true }), 'down_self は自動支払い');
   ok(can({ lrigDown: { count: 1 } }), 'lrigDown は自動支払い');
-  ok(!can({ discard: 1 }), '🔴手札の何を捨てるかは盤面評価＝撃たない');
-  ok(!can({ discardVariable: { min: 1 } }), '可変手札捨ては撃たない');
+  // 🆕§5.7 `S-31` ②（2026-09-21）＝**手札を捨てるコストは撃てるようになった**（較正）＝
+  //   どれを捨てるかは `pickCpuDiscardCostIndices`（弱い札から・【ガード】は最後）。gate が枚数と中身を検算している。
+  ok(can({ discard: 1 }), '🔴手札を捨てるコストで撃てなくなっている（`S-31` ② の退化）');
+  ok(can({ handDiscardSigni: { count: 1, story: '電機' } }), '🔴中身の条件つき手札捨てで撃てない');
+  ok(!can({ discardVariable: { min: 1 } }), '可変手札捨ては撃たない（枚数を決める判断が要る）');
   ok(!can({ fieldTrash: { count: 1 } }), '場のどのシグニを捨てるかは撃たない');
   ok(!can({ beat_signi: 1 }), '【ビート】選択は撃たない');
   ok(!can({ underSelfTrash: { count: 1 } }), '下カード選択は撃たない');
@@ -53365,7 +53368,9 @@ test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない�
   ok(can({ trashExile: { self: true } }), 'trashExile.self は自動');
   // 🔴allowlist であることの固定＝新しいコストキーが増えても「撃たない」側へ倒れる
   ok(!can({ handToEnergy: { count: 1 } }), '🔴allowlist に無いキーは撃たない');
-  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('discard'), 'allowlist に手札捨ては含めない');
+  ok(CPU_AUTO_PAYABLE_COST_KEYS.has('discard') && CPU_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni'),
+    '🔴allowlist から手札捨てが消えた（`S-31` ② の退化）');
+  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('fieldTrash'), '🔴gate が中身を検算しないキーまで allowlist に入れた');
   ok(!can({ coin: 4 }), 'コイン不足では撃たない');
   ok(can({ coin: 1 }), 'コインが足りれば撃てる');
 }));
@@ -53403,11 +53408,16 @@ test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払え�
   eq(pickFor(free)?.effect.effectId, 'Z-FREE', 'コストなしの【起】を選ぶ');
   eq(pickFor(free, ['Z-FREE']), null, '🔴同じ効果はこのターン撃ち直さない（無限ループ防止）');
   // 支払えないコストの効果しか無ければ何も選ばない＝現状（何もしない）と同じ安全側
-  const paid = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-DISCARD', { cost: { discard: 1 } })]]]);
+  // 🆕§5.7 `S-31` ②＝`discard` は払えるようになったので、**まだ払えないコスト**で固定する（較正）。
+  const paid = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-FIELDTRASH', { cost: { fieldTrash: { count: 1 } } })]]]);
   eq(pickFor(paid), null, '支払い内訳の要る【起】は選ばない');
+  // 🔴**手札が空なら手札捨てのコストは払えない**＝選ばない（`pickCpuDiscardCostIndices` が null）。
+  const dis = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-DISCARD', { cost: { discard: 1 } })]]]);
+  eq(pickFor(dis, [], { ...actor, hand: [] } as PlayerState), null, '🔴手札が無いのに手札捨てのコストで撃った');
+  ok(!!pickFor(dis), '🔴手札があるのに手札捨てのコストで撃たない');
   // ゾーン順の決定論＝ゾーン0が撃てなければゾーン1へ進む
   const twoZones = new Map<string, CardEffect[]>([
-    [SIGNI, [mkAct('Z-DISCARD', { cost: { discard: 1 } })]],
+    [SIGNI, [mkAct('Z-FIELDTRASH2', { cost: { fieldTrash: { count: 1 } } })]],
     [SIGNI_P3000, [mkAct('Z-FREE2')]],
   ]);
   const got = pickFor(twoZones);
@@ -90099,6 +90109,60 @@ test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／ア�
     '🔴コンボを「手を足す → 追加」で組み立てられない（2手に限らない形になっていない）');
   ok(/CPU_COMBO_USE_LABELS/.test(modal), '🔴使い方の表示名を画面に写経している（表は `cpuDeckPlan.ts` の1本）');
   ok(/data-testid={`cpu-plan-key-\$\{c\.CardNum\}`}/.test(modal), '🔴キーカードのボタンの testid が変わった（実機シナリオが参照している）');
+}));
+
+test('§5.7 S-31 ② 手札を捨てるコストを CPU が払う：弱い札から・【ガード】は最後・条件と集合制約は人間と同じ関数', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（2026-09-21 実測）**＝live の【起】2,632効果のうち **648（24.6%）/ 603枚**が
+  //   「CPU が自動で払えないコスト」を含み、**そのうち手札を捨てる形が 125効果**（`handDiscardSigni` 63／`discard` 62）。
+  //   ⚠`S-14` のコンボにも書けなかった（`WD16` の `WX09-048` Ｆ・Ｍ・Ｓ＝実測 0回 → 16回/4戦）。
+  const cm31 = cardMap as Map<string, CardData>;
+  const eff31 = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const denki = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.Guard !== '1');
+  const denki2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.Guard !== '1' && c.CardNum !== denki);
+  const guard31 = findCard(c => c.Guard === '1' && isSigni(c));
+  const vanilla = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') === false && c.Guard !== '1');
+  const pick31 = (hand: string[], cost: object) =>
+    pickCpuDiscardCostIndices({ hand, cost: cost as never, cardMap: cm31, effectsOf: eff31 });
+
+  // ── ① コストが無ければ空（従来の呼び出し側を壊さない）──
+  eq(pick31([`${vanilla}#1`], {})?.size, 0, 'コストが無いのに何か捨てた');
+
+  // ── ② 🔑**中身の条件**は人間のモーダルと同じ関数で絞る（＜電機＞以外は捨てない）──
+  const mixed = [`${vanilla}#1`, `${denki}#2`];
+  const got = pick31(mixed, { handDiscardSigni: { count: 1, story: '電機' } });
+  eq(JSON.stringify([...(got ?? [])]), JSON.stringify([1]), '🔴条件に合わない札で手札捨てコストを払った');
+  eq(pick31([`${vanilla}#1`], { handDiscardSigni: { count: 1, story: '電機' } }), null,
+    '🔴条件に合う札が無いのに払えたことにした（撃てない【起】を撃つ）');
+
+  // ── ③ 🔑**【ガード】は最後**（手札上限の捨て札と同じ順＝`cpuHandDiscardOrder` の1本）──
+  const withGuard = [`${guard31}#1`, `${vanilla}#2`];
+  eq(JSON.stringify([...(pick31(withGuard, { discard: 1 }) ?? [])]), JSON.stringify([1]),
+    '🔴手札捨てコストで【ガード】を先に捨てた');
+
+  // ── ④ `discardFilter`＝engine の `matchesFilter` で絞る ──
+  eq(JSON.stringify([...(pick31(mixed, { discard: 1, discardFilter: { cardType: 'シグニ', story: '電機' } }) ?? [])]),
+    JSON.stringify([1]), '🔴`discardFilter` を見ずに捨てた');
+  eq(pick31([`${vanilla}#1`], { discard: 1, discardFilter: { cardType: 'スペル' } }), null,
+    '🔴フィルタに合う札が無いのに払えたことにした');
+
+  // ── ⑤ 枚数が足りなければ `null`（＝その【起】は候補から外す）──
+  eq(pick31([`${vanilla}#1`], { discard: 2 }), null, '🔴手札が足りないのに払えたことにした');
+
+  // ── ⑥ 🔑**集合制約（それぞれ名前の異なる）**まで見る＝同名2枚では払えない ──
+  const sameName = [`${denki}#1`, `${denki}#2`];
+  eq(pick31(sameName, { handDiscardSigni: { count: 2, story: '電機', selectionConstraint: { distinct: 'name' } } }), null,
+    '🔴同名2枚で「それぞれ名前の異なる2枚」を払った');
+  ok(!!pick31([`${denki}#1`, `${denki2}#2`],
+    { handDiscardSigni: { count: 2, story: '電機', selectionConstraint: { distinct: 'name' } } }),
+  '🔴名前の異なる2枚があるのに払えない');
+
+  // ── ⑦ 配線＝本番の実行にも探索にも**同じ index**が渡る ──
+  const turnSrc31 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/discardCostIndices: choice\.discardIndices/.test(turnSrc31),
+    '🔴本番の実行に手札捨ての index を渡していない（空のまま＝コストが払えず撃てない）');
+  const movesSrc31 = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf-8');
+  ok(/payCpuSelfCostSim\(move\.choice\.effect\.cost, actor, move\.choice\.zoneIndex, ctx\.cardMap, move\.choice\.cardNum, move\.choice\.discardIndices\)/.test(movesSrc31),
+    '🔴探索の近似適用に手札捨ての index を渡していない＝タダで撃てる【起】に見える（`S-21` と同型の穴）');
 }));
 
 if (listMode) {
