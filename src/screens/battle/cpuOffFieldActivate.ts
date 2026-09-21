@@ -14,6 +14,7 @@ import {
   emptyTrashActivateSelections, payTrashActivateCost, trashActivateHandDiscard, trashActivateTrashExile,
   type TrashActivateSelections,
 } from './trashActivateCost';
+import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * 🆕**CPU が場以外の【起】を使う**（§5.7 `S-7`・2026-09-17・ユーザー指示「`WD08-009` のようにトラッシュで起動効果を
@@ -157,6 +158,10 @@ export interface CpuOffFieldPickInput {
   energyReserve?: CpuEnergyReserve;
   /** 先読み（省略時は先読みせず、見つけた順の最初の1つ）。 */
   lookahead?: LookaheadCtx;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ。使うのは **「使わない」の指定（`never`）だけ**。省略可。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /**
@@ -177,6 +182,8 @@ export function* iterCpuOffFieldActivated(p: CpuOffFieldPickInput): Generator<Cp
       const cardNum = ids[index];
       if (seen.has(cardNum)) continue;
       seen.add(cardNum);
+      // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札の【起】は撃たない。
+      if (planForbidsUse(p.plan, cardNum)) continue;
       const effects = listOffFieldActivatableEffects({
         zone, cardNum, my: actor, op: opponent, turnPhase: p.phase, isMyTurn,
         cardMap, effectsMap: p.effectsMap, effectivePowers: p.effectivePowers, energyPool: p.energyPool,

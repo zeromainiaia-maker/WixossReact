@@ -8,6 +8,7 @@ import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
   listActivatableInheritedLrigEffects, listActivatableLrigEffects,
 } from './lrigActivateGate';
+import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * CPU がセンタールリグの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1` (c)）。
@@ -108,6 +109,10 @@ export interface CpuLrigActivatedPickInput {
   planKeepBonus?: (id: string) => number;
   /** 🆕§5.7 `S-31` ② 第2段＝捨てる／落とす順の重み（席ごとのポリシー）。 */
   policy?: CpuPolicy;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ。使うのは **「使わない」の指定（`never`）だけ**。省略可。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /** 🆕§5.7 `S-15`＝いま撃てるルリグ【起】を全部（①本来→②付与→③継承の順・遅延評価）。`pickCpuLrigActivated` は先頭を取るだけ。 */
@@ -125,6 +130,10 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
     ...listActivatableGrantedLrigEffects(gateInput, granted),
     ...listActivatableInheritedLrigEffects(gateInput),
   ];
+  // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いたルリグの【起】は撃たない
+  //   （⚠**判定はセンタールリグの札**＝付与・継承の効果もその札の【起】として出る）。
+  const centerLrig = p.actor.field.lrig.at(-1);
+  if (centerLrig && planForbidsUse(p.plan, centerLrig)) return;
   for (const effect of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;

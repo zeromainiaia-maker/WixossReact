@@ -248,6 +248,9 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor,
     // 🆕§5.7 `S-31` ②＝手札を捨てるコストで「どれを捨てるか」（作戦データの札と【ガード】は最後）。
     planKeepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy,
+    // 🆕§5.7 `S-31` ③＝札ごとの使いどころ（守り／攻め／使わない）。
+    //   🔑ここ1箇所で探索（`listCpuMoves`）と本番の貪欲な経路の**両方**に届く（配り口は `cpu*Input`）。
+    plan: cpuPlan,
   });
   const tryCpuAssistGrow = async (actorState: PlayerState): Promise<boolean> => {
     const m = listCpuAssistGrows(cpuMoveCtx(actorState))[0];
@@ -459,7 +462,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const payer = input.payer;
     const choice = preset ?? pick(input);
     if (!choice) return false;
-    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: [choice.kind], costIndices: choice.costIndices }, pool: payer.energyPayPool, turnPhase });
+    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: choice.kind === 'plan' ? [] : [choice.kind], costIndices: choice.costIndices }, pool: payer.energyPayPool, turnPhase });
     appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
     // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
     //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して

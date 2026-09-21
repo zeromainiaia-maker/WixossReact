@@ -60660,6 +60660,27 @@ scenarios.v268CpuDeckPlan = {
           return { pass: false, detail: `🔴狙い方の切替規則が DB に届かない（${JSON.stringify(saved5?.targeting?.rules)}）` };
         }
 
+        // 🆕§5.7 `S-31` ③＝**札の使いどころ**（アーツを守り／攻めで使う・この札は使わない）も画面から保存できる。
+        //   🔴これが無いと、分類できないアーツ（ドロー・サーチ・強化）を CPU は一生使わない
+        //   （実測＝ユーザー作21デッキのアーツ76種のうち自力で使えるのは24＝31.6%）。
+        await page.getByTestId('cpu-plan-use-card').selectOption(comboA, { timeout: 3000 });
+        await page.waitForTimeout(400);
+        // ⚠`comboA` はアーツとは限らない＝**アーツ以外で出る選択肢は「使わない」だけ**（効かない選択肢を出さない）。
+        const useModes = await page.getByTestId('cpu-plan-use-mode').locator('option').evaluateAll(os => os.map(o => o.value));
+        H.log(`②''''' 使いどころの選択肢=${JSON.stringify(useModes)}`);
+        await page.getByTestId('cpu-plan-use-mode').selectOption(useModes[0], { timeout: 3000 });
+        await page.getByTestId('cpu-plan-use-add').click({ timeout: 1200 });
+        await page.waitForTimeout(1500);
+        const saved6 = await readPlan(deck.id);
+        H.log(`②''''' 保存された cardUse=${JSON.stringify(saved6?.cardUse)}`);
+        if ((saved6?.cardUse ?? {})[comboA] !== useModes[0]) {
+          return { pass: false, detail: `🔴札の使いどころが DB に届かない（${JSON.stringify(saved6?.cardUse)}）` };
+        }
+        // 🔑**保存した行が画面にも出る**＝読めなければ編集できない。
+        if (!(await page.getByTestId(`cpu-plan-use-row-${comboA}`).count())) {
+          return { pass: false, detail: '🔴保存した使いどころが一覧に出ない' };
+        }
+
         // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
         if (!/【起】で使う/.test(draftText) || !/出す/.test(draftText)) {
           return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText}）` };
@@ -60667,7 +60688,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

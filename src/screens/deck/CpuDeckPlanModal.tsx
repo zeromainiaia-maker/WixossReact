@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
+  CPU_CARD_USES, CPU_CARD_USE_LABELS,
   CPU_COMBO_USES, CPU_COMBO_USE_LABELS, CPU_TARGET_MODES, CPU_TARGET_MODE_LABELS,
   CPU_TARGET_WHENS, CPU_TARGET_WHEN_LABELS,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
-  type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetFilter, type CpuTargetMode,
-  type CpuTargetWhen,
+  type CpuCardUse, type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetFilter,
+  type CpuTargetMode, type CpuTargetWhen,
 } from '../battle/cpuDeckPlan';
 
 /**
@@ -73,6 +74,36 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
       [other]: targeting[other].filter(n => n !== num),
     });
   };
+  /**
+   * 🆕§5.7 `S-31` ③＝**札の使いどころ**（守り／攻め／使わない）。
+   * 🔑**守り／攻めが出るのはアーツだけ**＝窓が2つあるのはアーツだけで、スペル・【起】・ピースに効くのは
+   *   「使わない」だけ。⚠**効かない選択肢を出さない**（「指定したのに効かない」を作らない）。
+   */
+  const cardUse = plan.cardUse ?? {};
+  const isArts = (n: string) => {
+    const t = cardMap.get(n)?.Type ?? '';
+    return t === 'アーツ' || t === 'アーツ/クラフト';
+  };
+  const useOptionsFor = (n: string): readonly CpuCardUse[] => (isArts(n) ? CPU_CARD_USES : ['never']);
+  // ⚠**ルリグデッキの札を先に**＝③の主役はアーツ（一覧の下まで探させない）。
+  const useCards = [...cards].sort((a, b) => Number(isArts(b.CardNum)) - Number(isArts(a.CardNum)));
+  const [useNum, setUseNum] = useState('');
+  const [useMode, setUseMode] = useState<CpuCardUse>('defense');
+  const pickUseCard = (n: string) => {
+    setUseNum(n);
+    // ⚠アーツ以外に切り替えたら「使わない」へ落とす（アーツ専用の選択肢が残らないように）。
+    if (n && !isArts(n)) setUseMode('never');
+  };
+  const addCardUse = () => {
+    if (!useNum) return;
+    save({ ...plan, cardUse: { ...cardUse, [useNum]: useMode } });
+    setUseNum('');
+  };
+  const removeCardUse = (n: string) => {
+    const next = { ...cardUse };
+    delete next[n];
+    save({ ...plan, cardUse: next });
+  };
   const toggle = (key: 'keyCards' | 'priorityCards', n: string) => {
     const list = plan[key];
     save({ ...plan, [key]: list.includes(n) ? list.filter(x => x !== n) : [...list, n] });
@@ -108,7 +139,8 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
           <b style={{ color: '#ffb84d' }}>キー</b>＝エナに置かない・捨てない・マリガンで戻さない／
           <b style={{ color: '#4da3ff' }}>優先</b>＝先に場に出す／
           <b style={{ color: '#7ddc7d' }}>コンボ</b>＝前の手が済むまで後の手は温存し、順番どおりに打つ／
-          <b style={{ color: '#ff8a8a' }}>狙う・避ける</b>＝効果の対象に選ぶ／選ばない
+          <b style={{ color: '#ff8a8a' }}>狙う・避ける</b>＝効果の対象に選ぶ／選ばない／
+          <b style={{ color: '#d08aff' }}>使いどころ</b>＝アーツを守り／攻めで使う・この札は使わない
         </p>
 
         {/* 🆕§5.7 `S-32`＝**大まかな指示**（対象の狙い方）。⚠既定は「パワー・効果が強いもの」＝挙動不変。 */}
@@ -172,6 +204,30 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               ・{CPU_TARGET_WHEN_LABELS[r.when]} → {CPU_TARGET_MODE_LABELS[r.mode]}
             </span>
             <button onClick={() => saveTargeting({ rules: rules.filter((_, k) => k !== i) })} style={chip(false, '#000')}>削除</button>
+          </div>
+        ))}
+
+        {/* 🆕§5.7 `S-31` ③＝札の使いどころ。🔴**分類できないアーツを使えるようにする唯一の口**
+            （実測＝ユーザー作21デッキのアーツ76種のうち CPU が自力で使えるのは24＝31.6%）。 */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ color: '#d08aff', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap' }}>使いどころ</span>
+          <select data-testid="cpu-plan-use-card" value={useNum} onChange={e => pickUseCard(e.target.value)} style={selectStyle}>
+            <option value="">カードを選ぶ</option>
+            {useCards.map(c => (
+              <option key={c.CardNum} value={c.CardNum}>{c.CardName}{isArts(c.CardNum) ? '（アーツ）' : ''}</option>
+            ))}
+          </select>
+          <select data-testid="cpu-plan-use-mode" value={useMode} onChange={e => setUseMode(e.target.value as CpuCardUse)}
+            style={{ ...selectStyle, flex: '0 0 150px' }}>
+            {useOptionsFor(useNum).map(u => <option key={u} value={u}>{CPU_CARD_USE_LABELS[u]}</option>)}
+          </select>
+          <button data-testid="cpu-plan-use-add" onClick={addCardUse} disabled={!useNum}
+            style={{ ...chip(!!useNum, '#7a3ab8'), padding: '6px 10px' }}>追加</button>
+        </div>
+        {Object.entries(cardUse).map(([n, u]) => (
+          <div key={n} data-testid={`cpu-plan-use-row-${n}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#ddd' }}>
+            <span style={{ flex: 1 }}>{nameOf(n)} → {CPU_CARD_USE_LABELS[u]}</span>
+            <button onClick={() => removeCardUse(n)} style={chip(false, '#000')}>削除</button>
           </div>
         ))}
 

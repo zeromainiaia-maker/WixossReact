@@ -157,16 +157,45 @@ function toTargetFilter(raw: unknown): CpuTargetFilter | undefined {
   return Object.values(out).some(v => v !== undefined) ? out : undefined;
 }
 
+/**
+ * 🆕**札の使いどころ**（§5.7 `S-31` ③・2026-09-21 ユーザー要望）。
+ *
+ * 🔴**なぜ要るか（実測）**＝CPU がアーツを使えるのは **`defensiveKindOf` が「守り」と分類できた札だけ**
+ *   （無効化／除去／軽減の3分類）。ユーザー作21デッキのアーツ **76種のうち CPU が使うのは 24（31.6%）**で、
+ *   **8デッキは1枚も使えない**。残り52種は「分類できない」＝ドロー・サーチ・強化・展開・手札破壊など
+ *   **盤面評価が要るので v1 が意図的に見送った**もの。⇒ **機械が決められない分類を、作り手が書く。**
+ *
+ * - `defense`＝**守りで使う**（相手のアタックステップ＝応答窓）
+ * - `offense`＝**攻めで使う**（自分のターン）
+ * - `both`＝どちらでも
+ * - `never`＝**使わない**（温存する／CPU が撃つと噛み合わない札）
+ *
+ * ⚠**`defense`/`offense` はアーツだけに効く**（窓が2つあるのはアーツだけ）。
+ *   スペル・【起】・ピースに効くのは **`never` だけ**＝「この札は撃たない」。
+ * ⚠**`never` は「使う」手だけを止める**（アーツ・スペル・【起】・ピース）＝**召喚（出す）は止めない**
+ *   （出したくない札はデッキから抜けばよい＝盤面に出す手まで止めると「手札に抱えて手札上限で捨てる」だけになる）。
+ */
+export type CpuCardUse = 'defense' | 'offense' | 'both' | 'never';
+
+/** 画面の選択肢の並び（`'auto'` は「既定」＝この表に**入れない**＝指定が無い状態）。 */
+export const CPU_CARD_USES: readonly CpuCardUse[] = ['defense', 'offense', 'both', 'never'];
+
+export const CPU_CARD_USE_LABELS: Readonly<Record<CpuCardUse, string>> = {
+  defense: '守りで使う', offense: '攻めで使う', both: '守りでも攻めでも使う', never: '使わない',
+};
+
 export interface CpuDeckPlan {
   keyCards: string[];
   priorityCards: string[];
   combos: CpuDeckCombo[];
   /** 🆕§5.7 `S-32`＝効果の対象の狙い方。 */
   targeting: CpuTargetPlan;
+  /** 🆕§5.7 `S-31` ③＝札ごとの使いどころ（カード番号 → 使いどころ。**指定が無い札は既定＝従来どおり**）。 */
+  cardUse: Record<string, CpuCardUse>;
 }
 
 export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = {
-  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN,
+  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN, cardUse: {},
 };
 
 /**
@@ -232,7 +261,21 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
         .filter(r => r.sourceCards.length > 0 || r.when !== 'always')
       : [],
   };
-  return { keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting };
+  return {
+    keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting,
+    cardUse: toCardUseMap(r.cardUse),
+  };
+}
+
+/** DB の1件を「札ごとの使いどころ」へ（⚠**知らない値は落とす**＝既定に戻る）。 */
+function toCardUseMap(raw: unknown): Record<string, CpuCardUse> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, CpuCardUse> = {};
+  for (const [num, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!num) continue;
+    if (CPU_CARD_USES.includes(v as CpuCardUse)) out[num] = v as CpuCardUse;
+  }
+  return out;
 }
 
 /** デッキに無いカードを作戦から外す（編集で抜いたカードが残らないように）。 */
@@ -253,6 +296,8 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
           .filter(r => r.sourceCards.length > 0 || r.when !== 'always'),
       }
       : EMPTY_CPU_TARGET_PLAN,
+    // 🆕§5.7 `S-31` ③＝**使いどころは自分の札にしか書けない**（`keyCards` と同じ側）＝デッキから抜けたら落とす。
+    cardUse: Object.fromEntries(Object.entries(plan.cardUse ?? {}).filter(([n]) => inDeck.has(n))),
   };
 }
 
@@ -261,7 +306,8 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   && (plan.targeting?.mode ?? 'strongest') === 'strongest'
   && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
   && !plan.targeting?.preferFilter && !plan.targeting?.avoidFilter
-  && (plan.targeting?.rules?.length ?? 0) === 0;
+  && (plan.targeting?.rules?.length ?? 0) === 0
+  && Object.keys(plan.cardUse ?? {}).length === 0;
 
 /**
  * 🆕**いまの狙い方**（§5.7 `S-32` ②③・2026-09-21）＝規則を上から見て**最初に当たった1つ**、無ければ既定。
@@ -319,6 +365,34 @@ export function planTargetBonus(
 }
 
 /** 手元に残す価値の加点（エナチャージ・手札上限の捨て札・サーチで使う）。 */
+/**
+ * 🆕**その札の使いどころ**（§5.7 `S-31` ③）。指定が無ければ `undefined`＝**既定＝従来の挙動**。
+ * 🔑**読むのはここ1本**＝アーツ・スペル・【起】・ピースの選び手は全部この関数を通す
+ *   （`cardUse` を直接引くと「指定はしたのに効かない窓」が出る）。
+ */
+export function planCardUse(plan: CpuDeckPlan | undefined, cardNum: string): CpuCardUse | undefined {
+  return plan?.cardUse?.[getCardNum(cardNum)];
+}
+
+/** 🆕**この札を CPU が「使う」ことを作戦データが禁じているか**（＝`never`）。 */
+export function planForbidsUse(plan: CpuDeckPlan | undefined, cardNum: string): boolean {
+  return planCardUse(plan, cardNum) === 'never';
+}
+
+/**
+ * 🆕**その窓でこのアーツを「使え」と作戦データが指名しているか**（§5.7 `S-31` ③）。
+ *
+ * 🔑**指名された札は `defensiveKindOf` の分類を通らなくてよい**＝これが③の本体
+ *   （分類できない52種＝ドロー・サーチ・強化・展開を、作り手の指定で使えるようにする）。
+ * ⚠`never` はここで false＝**指名の反対**（`planForbidsUse` が先に候補から外す）。
+ */
+export function planArtsMarkedFor(
+  plan: CpuDeckPlan | undefined, cardNum: string, window: 'defense' | 'offense',
+): boolean {
+  const use = planCardUse(plan, cardNum);
+  return use === 'both' || use === window;
+}
+
 export function planKeepBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
   const num = getCardNum(id);
   const W = policy?.planWeights ?? PLAN_WEIGHTS;

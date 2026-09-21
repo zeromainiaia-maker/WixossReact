@@ -23,7 +23,7 @@ import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } f
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import type { CpuComboUse } from './cpuDeckPlan';
+import type { CpuComboUse, CpuDeckPlan } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -76,6 +76,12 @@ export interface CpuMoveCtx {
   planKeepBonus?: (id: string) => number;
   /** 🆕§5.7 `S-31` ②＝捨てる順の重み（席ごとのポリシー）。省略時は既定。 */
   policy?: CpuPolicy;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ（**札ごとの使いどころ**）。
+   * 🔑**入力を組む場所（この下の `cpu*Input`）が唯一の配り口**＝探索（`listCpuMoves`）と
+   *   本番の貪欲な経路（`cpuTurn.ts` が `pickCpu*` を直接呼ぶ側）の**両方が同じ入力を通る**。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /** CPU の1手。探索（`S-16`）はこれを適用して次の盤面を作る。 */
@@ -400,6 +406,8 @@ export function cpuSigniActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_
     isAffordable, wholeSubstitutes, pool,
     // 🆕§5.7 `S-31` ②＝手札を捨てるコストの「どれを捨てるか」に効く（弱い札から・【ガード】と作戦の札は最後）。
     planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
+    // 🆕§5.7 `S-31` ③＝「使わない」の指定。
+    plan: ctx.plan,
   };
 }
 
@@ -419,6 +427,8 @@ export function cpuLrigActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_A
     isAffordable, wholeSubstitutes, pool,
     // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコストの選び方に効く。
     planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
+    // 🆕§5.7 `S-31` ③＝「使わない」の指定。
+    plan: ctx.plan,
   };
 }
 
@@ -433,6 +443,8 @@ export function cpuKeyPieceInput(ctx: CpuMoveCtx, turnPhase: 'MAIN' | 'ATTACK_AR
     actor: s, opponent: ctx.opponent, cards: ctx.battleCards, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
     payer, turnPhase, alreadyUsedNums: s.cpu_used_card_nums_this_turn ?? [],
     energyReserve: ctx.reserveFor(s),
+    // 🆕§5.7 `S-31` ③＝「使わない」の指定。
+    plan: ctx.plan,
     // 可否の権威は人間の `KeyUseModal` と同じ `isEnergyPaymentSelectionValid`（《無》の許可色を含む）。
     isAffordable: (selectedNums, costStr, card) => isEnergyPaymentSelectionValid({
       selectedEnergyNums: selectedNums, cards: ctx.battleCards, baseCost: costStr,
@@ -462,6 +474,8 @@ export function cpuOffFieldInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS' 
       : { ...ctx.lookahead, turnPhase: phase, isCpuTurn: false,
         powersOf: (c, o) => calcFieldPowers(c, o, false, ctx.effectsMap, ctx.cardMap, phase) },
     pool,
+    // 🆕§5.7 `S-31` ③＝「使わない」の指定。
+    plan: ctx.plan,
   };
 }
 
@@ -478,6 +492,8 @@ export function cpuArtsInput(ctx: CpuMoveCtx, turnPhase: TurnPhase): CpuArtsPick
     payer, turnPhase, alreadyUsedNums: s.cpu_used_card_nums_this_turn ?? [],
     lookahead: isActorTurn ? { ...ctx.lookahead, turnPhase } : undefined,
     energyReserve: ctx.reserveFor(s),
+    // 🆕§5.7 `S-31` ③＝**札ごとの使いどころ**（守り／攻め／使わない）。⚠アーツだけが窓を2つ持つ。
+    plan: ctx.plan,
     // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
     isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
       selectedEnergyNums: selectedNums, cards: ctx.battleCards, baseCost: costStr, extraCosts,
@@ -503,6 +519,8 @@ export function cpuSpellInput(ctx: CpuMoveCtx, pendingSpell: boolean): CpuMainSp
     alreadyUsedNums: s.cpu_used_card_nums_this_turn ?? [],
     lookahead: ctx.lookahead,
     energyReserve: ctx.reserveFor(s),
+    // 🆕§5.7 `S-31` ③＝「使わない」の指定。
+    plan: ctx.plan,
     isAffordable: (selectedNums, costStr, extraCosts) => isEnergyPaymentSelectionValid({
       selectedEnergyNums: selectedNums, cards: ctx.battleCards, baseCost: costStr, extraCosts,
       keywordGrants: s.keyword_grants, allMulti: payer.enaAllMulti,

@@ -4,6 +4,7 @@ import type { ArtsPayerCtx } from './artsUseGate';
 import { hasCpuUnsupportedAction } from './cpuArts';
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
+import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { type KeyPieceUseCheck, listUsableKeyPieces } from './keyPieceUseGate';
 import { MAYU_ENCOUNTER_A } from './mayuEncounter';
 
@@ -68,6 +69,11 @@ export interface CpuKeyPiecePickInput {
   effectivePowers?: Map<string, number>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ。使うのは **「使わない」の指定（`never`）だけ**
+   * （守り／攻めの窓を持つのはアーツだけ）。省略可＝渡さなければ従来どおり。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /** 🆕§5.7 `S-15`＝CPU がいま使えるキー／ピースを全部（ルリグデッキ順）。`pickCpuKeyPiece` はこれに順序を当てるだけ。 */
@@ -79,6 +85,8 @@ export function listCpuKeyPieces(p: CpuKeyPiecePickInput): CpuKeyPieceChoice[] {
     cards: p.cards, cardMap: p.cardMap, effectsMap: p.effectsMap, payer: p.payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
+    // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札は列挙にも出さない。
+    if (planForbidsUse(p.plan, card.CardNum)) continue;
     if (!cpuCanHandleKeyPiece(card, p.effectsMap.get(card.CardNum) ?? [])) continue;
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards: p.cards, costStr: check.effectiveCost,

@@ -4,6 +4,7 @@ import type { ArtsPayerCtx } from './artsUseGate';
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
 import { energyPoolCardNums } from './energyPaySource';
+import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { type SpellUseCheck, listCastableSpells } from './spellUseGate';
 import { scoreCardUseGain, SPELL_GAIN_MIN, type LookaheadCtx } from './cpuLookahead';
 
@@ -56,6 +57,11 @@ export interface CpuMainSpellPickInput {
   lookahead?: LookaheadCtx;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ。使うのは **「使わない」の指定（`never`）だけ**
+   * （守り／攻めの窓を持つのはアーツだけ）。省略可＝渡さなければ従来どおり。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /**
@@ -71,6 +77,8 @@ export function listCpuMainSpells(p: CpuMainSpellPickInput): CpuSpellChoice[] {
     cards, cardMap, effectsMap, payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
+    // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札は列挙にも出さない。
+    if (planForbidsUse(p.plan, card.CardNum)) continue;
     const acts = (effectsMap.get(card.CardNum) ?? []).filter(e => e.effectType === 'ACTIVATED');
     // ⚠アーツと同じ保険＝**`performSpell` はエナ以外の宣言コストを払わない**（手札捨てコストは
     //   支払いUI の任意支払いとは別物）。実測では live のスペル427枚すべて `cost` が `energy` のみ

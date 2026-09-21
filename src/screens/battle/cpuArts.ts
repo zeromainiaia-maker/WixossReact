@@ -5,6 +5,7 @@ import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseG
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
 import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
+import { planArtsMarkedFor, planCardUse, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * CPU が**アーツを使う**ための選択ロジック（§8／§6.4 `O-1` (a)(b)）。窓は2つ＝
@@ -31,6 +32,14 @@ import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
 export type CpuDefensiveKind = 'negate' | 'removal' | 'prevent';
 
 const KIND_PRIORITY: Record<CpuDefensiveKind, number> = { negate: 0, removal: 1, prevent: 2 };
+
+/**
+ * 🆕**選んだ理由**（§5.7 `S-31` ③）＝分類の3つに **`'plan'`＝作戦データが指名した**を足したもの。
+ * 🔴**`'plan'` が最優先**＝作り手が「この札を守り／攻めで使う」と書いたなら、機械の分類より先に使う。
+ */
+export type CpuArtsPickKind = CpuDefensiveKind | 'plan';
+
+const PICK_PRIORITY: Record<CpuArtsPickKind, number> = { plan: -1, negate: 0, removal: 1, prevent: 2 };
 
 /** ダメージそのものを止める／肩代わりするアクション。 */
 const PREVENT_TYPES = new Set<string>([
@@ -184,7 +193,8 @@ export function cpuCanPayArtsWithEnergyOnly(effects: readonly CardEffect[]): boo
 export interface CpuArtsChoice {
   card: CardData;
   check: ArtsUseCheck;
-  kind: CpuDefensiveKind;
+  /** 🆕`'plan'`＝作戦データの指名で選んだ（§5.7 `S-31` ③）。 */
+  kind: CpuArtsPickKind;
   /** `performArts` に渡すエナ pool index。 */
   costIndices: Set<number>;
 }
@@ -210,6 +220,11 @@ export interface CpuArtsPickInput {
   lookahead?: LookaheadCtx;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）＝応答アーツでも CPU の次のグロウ用エナを残す。 */
   energyReserve?: CpuEnergyReserve;
+  /**
+   * 🆕§5.7 `S-31` ③＝デッキの作戦データ（**札ごとの使いどころ**）。省略可＝**渡さなければ従来どおり**
+   * （分類できた札だけを、窓ごとの分類の絞りで使う）。
+   */
+  plan?: CpuDeckPlan;
 }
 
 /**
@@ -242,6 +257,15 @@ export function listCpuArts(p: CpuArtsPickInput, isMyTurn: boolean): CpuArtsCand
     cards, cardMap, effectsMap, payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
+    // 🆕§5.7 `S-31` ③＝作戦データの「使いどころ」は**列挙の段階で効かせる**。
+    //   🔴**なぜ pick 側だけでは足りないか（2026-09-21 の自己対戦で実測）**＝
+    //   **探索（`S-16`）はこの列挙をそのまま手にする**ので、分類（`defensiveKindOf`）の絞りを通らない。
+    //   ⇒ 窓の指定を pick 側にだけ書くと、**「守りで使う」と書いた札を探索が攻めで撃つ**。
+    //   - `never`＝どちらの窓にも出さない（温存が探索にも効く）
+    //   - `defense`/`offense`＝**その窓にだけ**出す（指定が無い札は従来どおり両方の窓に出る）
+    const use = planCardUse(p.plan, card.CardNum);
+    if (use === 'never') continue;
+    if ((use === 'defense' && isMyTurn) || (use === 'offense' && !isMyTurn)) continue;
     const effects = effectsMap.get(card.CardNum) ?? [];
     if (!cpuCanPayArtsWithEnergyOnly(effects)) continue;
     const acts = effects.filter(e => e.effectType === 'ACTIVATED');
@@ -265,11 +289,17 @@ export function listCpuArts(p: CpuArtsPickInput, isMyTurn: boolean): CpuArtsCand
 
 function pickCpuArtsBy(
   p: CpuArtsPickInput,
-  opts: { isMyTurn: boolean; allowKinds: ReadonlySet<CpuDefensiveKind> },
+  opts: { isMyTurn: boolean; allowKinds: ReadonlySet<CpuDefensiveKind>; window: 'defense' | 'offense' },
 ): CpuArtsChoice | null {
   const { actor, opponent } = p;
   const candidates: CpuArtsChoice[] = [];
   for (const { card, check, kinds, costIndices } of listCpuArts(p, opts.isMyTurn)) {
+    // 🆕§5.7 `S-31` ③＝**作戦データがこの窓に指名した札は、分類を通らなくても候補になる**。
+    //   🔴これが③の本体＝実測でユーザー作21デッキのアーツ76種のうち52種が「分類できない」（ドロー・サーチ・強化・展開）。
+    if (planArtsMarkedFor(p.plan, card.CardNum, opts.window)) {
+      candidates.push({ card, check, kind: 'plan', costIndices });
+      continue;
+    }
     const kind = kinds.find(k => opts.allowKinds.has(k));
     if (!kind) continue;
     candidates.push({ card, check, kind, costIndices });
@@ -279,24 +309,35 @@ function pickCpuArtsBy(
     const lrigIdOf = (num: string) => actor.lrig_deck.find(id => getCardNum(id) === num) ?? num;
     const scored = candidates
       .map(c => ({ c, gain: scoreCardUseGain(lrigIdOf(c.card.CardNum), c.costIndices.size, actor, opponent, p.lookahead!, 'lrig_deck') }))
-      .filter((x): x is { c: CpuArtsChoice; gain: number } => x.gain !== null && x.gain > 0)
-      .sort((a, b) => b.gain - a.gain);
+      // ⚠**指名された札は増分0でも残す**＝作り手が「攻めで使う」と書いた札は、盤面の点数に出ない見返り
+      //   （ドロー・サーチ）でも撃つ。🔴**解決できなかった（`null`）札は指名でも落とす**＝実行できないため。
+      .filter((x): x is { c: CpuArtsChoice; gain: number } => x.gain !== null && (x.gain > 0 || x.c.kind === 'plan'))
+      // 指名（`plan`）を先に、その中では増分の大きい順。
+      .sort((a, b) => (PICK_PRIORITY[a.c.kind] - PICK_PRIORITY[b.c.kind]) || (b.gain - a.gain));
     return scored[0]?.c ?? null;
   }
-  // 分類（無効化→除去→軽減）が第一。同点はルリグデッキ順＝決定論。
+  // 指名（作戦データ）→分類（無効化→除去→軽減）が第一。同点はルリグデッキ順＝決定論。
   const deckOrder = new Map<string, number>();
   actor.lrig_deck.forEach((instId, i) => {
     const num = getCardNum(instId);
     if (!deckOrder.has(num)) deckOrder.set(num, i);
   });
   candidates.sort((a, b) =>
-    (KIND_PRIORITY[a.kind] - KIND_PRIORITY[b.kind]) ||
+    (PICK_PRIORITY[a.kind] - PICK_PRIORITY[b.kind]) ||
     ((deckOrder.get(a.card.CardNum) ?? 0) - (deckOrder.get(b.card.CardNum) ?? 0)));
   return candidates[0];
 }
 
+/** 🆕§5.7 `S-31` ③＝その窓に指名された札が**1枚でも使える状態にあるか**（窓の足切りを外す判定）。 */
+function hasPlanMarkedArts(p: CpuArtsPickInput, isMyTurn: boolean, window: 'defense' | 'offense'): boolean {
+  if (!p.plan || Object.keys(p.plan.cardUse ?? {}).length === 0) return false;
+  return listCpuArts(p, isMyTurn).some(c => planArtsMarkedFor(p.plan, c.card.CardNum, window));
+}
+
 const ALL_KINDS: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal', 'prevent']);
 const REMOVAL_ONLY: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['removal']);
+/** 🆕分類では1枚も許さない窓（＝作戦データの指名だけで開く窓・§5.7 `S-31` ③）。 */
+const NO_KINDS: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>();
 /** 軽減（`prevent`）を温存する窓＝無効化と除去だけ許す。 */
 const KEEP_PREVENT: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal']);
 
@@ -319,9 +360,12 @@ export function responseArtsAllowedKinds(actor: PlayerState): ReadonlySet<CpuDef
  * （人間が1枚ずつ使うのと同じ順序）。
  */
 export function pickCpuResponseArts(p: CpuArtsPickInput): CpuArtsChoice | null {
+  // 🔴**`hasIncomingThreat` は指名された札にも効かせる**（§5.7 `S-31` ③の意図的な非対称）＝
+  //   これは「このアタックフェイズで実害が出るか」の判定で、**守りの札を撃つ意味がある窓そのもの**。
+  //   外すと、何も通らないアタックに対してもアーツを撃ち尽くす。⚠攻め側（`hasBlockedAttacker`）は逆＝下を見よ。
   if (!hasIncomingThreat(p.actor, p.opponent)) return null;
   // §8 `O-1` (g)＝ライフに余裕があるうちは**軽減（`prevent`）を温存**する（`responseArtsAllowedKinds`）。
-  return pickCpuArtsBy(p, { isMyTurn: false, allowKinds: responseArtsAllowedKinds(p.actor) });
+  return pickCpuArtsBy(p, { isMyTurn: false, allowKinds: responseArtsAllowedKinds(p.actor), window: 'defense' });
 }
 
 /**
@@ -335,6 +379,15 @@ export function pickCpuResponseArts(p: CpuArtsPickInput): CpuArtsChoice | null {
  *   - 無効化／ダメージ軽減は**自ターンには意味が無い**ので分類から外してある。
  */
 export function pickCpuOffensiveArts(p: CpuArtsPickInput): CpuArtsChoice | null {
-  if (!hasBlockedAttacker(p.actor, p.opponent)) return null;
-  return pickCpuArtsBy(p, { isMyTurn: true, allowKinds: REMOVAL_ONLY });
+  // 🆕§5.7 `S-31` ③＝**足切りは「除去のための足切り」なので、指名された札には掛けない**（応答窓と逆）＝
+  //   🔑`hasBlockedAttacker` は「正面が塞がれている＝除去すればアタックが通る」という
+  //   **除去に固有の理由**であって、ドロー・サーチ・強化を撃つ理由ではない。
+  //   ⚠代わりに、指名が無いときは従来どおり**除去だけ・塞がれているときだけ**（開幕に撃ち尽くさない）。
+  const blocked = hasBlockedAttacker(p.actor, p.opponent);
+  if (!blocked && !hasPlanMarkedArts(p, true, 'offense')) return null;
+  return pickCpuArtsBy(p, {
+    isMyTurn: true,
+    allowKinds: blocked ? REMOVAL_ONLY : NO_KINDS,
+    window: 'offense',
+  });
 }

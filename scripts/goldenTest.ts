@@ -170,7 +170,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
-import { cpuPlanBoardCtx, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, isEmptyCpuDeckPlan, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -221,7 +221,7 @@ import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlo
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
 import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCountRule } from '../src/screens/battle/keyPieceUseGate';
 import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpuKeyPiece';
-import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
+import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, listCpuArts, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard } from '../src/screens/battle/cpuLookahead';
@@ -86798,16 +86798,17 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   const A = 'WD03-013', B = 'WX04-080', K = 'WD01-013', X = 'WD03-012';
   // 読み込み＝形が崩れていても落ちない・自分自身とのコンボは捨てる
   // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**が作戦データに増えた（較正＝既定は `strongest` で挙動不変）。
+  // 🆕§5.7 `S-31` ③（2026-09-21）＝**札の使いどころ**（`cardUse`）が増えた（較正＝空なら挙動不変）。
   eq(JSON.stringify(normalizeCpuDeckPlan(null)),
-    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }),
+    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] }, cardUse: {} }),
     'null を空の作戦にしない');
   const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
   // 🆕§5.7 `S-14`（2026-09-21）＝**旧形 `{first, then}` は「出す → 出す」の2手へ変換される**（較正＝保存済みの作戦を壊さない）。
   eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X],
     combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }],
-    targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }), '作戦データの正規化が違う');
+    targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] }, cardUse: {} }), '作戦データの正規化が違う');
   eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])),
-    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }),
+    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] }, cardUse: {} }),
     '🔴デッキに無いカードが作戦に残った');
   // 加点
   ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
@@ -90384,6 +90385,127 @@ test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条�
   ok(/data-testid="cpu-plan-rule-card"/.test(modal) && /data-testid="cpu-plan-rule-when"/.test(modal)
     && /data-testid="cpu-plan-rule-add"/.test(modal), '🔴狙い方の切り替えを編集する UI が無い');
   ok(/disabled={!ruleCard && ruleWhen === 'always'}/.test(modal), '🔴何も絞っていない規則を追加できてしまう');
+}));
+
+test('§5.7 S-31 ③ 札の使いどころ：作戦データが指名したアーツは分類を通らなくても使う／「使わない」は列挙から消える', () => withSavedCursor(() => {
+  // 🆕2026-09-21 ユーザー要望＝「アーツの使いどころ（守り／攻め）・使わない札の指定」。
+  // 📏**なぜ要るか（実測）**＝🔴**攻めと守りで事情が違う**（自己対戦で測って分かった）＝
+  //   **攻め**は探索（既定 `searchWidth 4`）が列挙をそのまま手にするので**分類の絞りが掛からない**（もう撃っている）。
+  //   **守り**（`pickCpuResponseArts`）だけが分類で絞る＝**アタックフェイズに使えるのに分類できない 19種（25.0%）は
+  //   指定するまで一生撃たない**（21デッキ中13デッキが持つ）。
+  //   📏直接の効き目＝`WD01` 8戦で《バロック・ディフェンス》**0回 → 13回**（アーツ全体 25 → 38）。
+  const allCards = [...cardMap.values()];
+  const DRAW_ARTS = [mkArtsEff({ type: 'DRAW', owner: 'self', count: 2 })];   // 🔴分類できない＝従来は使わない
+  const NEGATE = [mkArtsEff({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })];
+  const plan31 = (use: string | null) =>
+    normalizeCpuDeckPlan(use ? { cardUse: { 'T-ARTS-1': use } } : {});
+
+  // ── 応答窓（相手のアタックステップ）──
+  const pickResp = (effs: CardEffect[], use: string | null, opponent?: PlayerState) => {
+    const f = artsFixture({ effs, opponent });
+    return pickCpuResponseArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: 'ATTACK_ARTS_OP', alreadyUsedNums: [],
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+      plan: plan31(use),
+    });
+  };
+  eq(pickResp(DRAW_ARTS, null), null, '前提＝分類できないアーツは指名が無ければ使わない（従来どおり）');
+  eq(pickResp(DRAW_ARTS, 'defense')?.card.CardNum, 'T-ARTS-1', '🔴「守りで使う」と書いたのに分類で落とされた（③の本体）');
+  eq(pickResp(DRAW_ARTS, 'defense')?.kind, 'plan', '🔴指名で選んだことが `kind` に出ない');
+  eq(pickResp(DRAW_ARTS, 'both')?.card.CardNum, 'T-ARTS-1', '「両方」は守りの窓でも使う');
+  eq(pickResp(DRAW_ARTS, 'offense'), null, '🔴「攻めで使う」と書いた札を守りの窓で撃った（窓の指定が効いていない）');
+  eq(pickResp(NEGATE, 'never'), null, '🔴「使わない」と書いた札を撃った（温存が効かない）');
+  eq(pickResp(NEGATE, null)?.card.CardNum, 'T-ARTS-1', '対照＝指定が無ければ従来どおり守りの札は撃つ');
+  // 🔴**非対称①**＝応答窓の足切り（`hasIncomingThreat`）は**指名された札にも効かせる**＝
+  //   これは「このアタックフェイズで実害が出るか」の判定＝守りの札を撃つ意味がある窓そのもの。
+  eq(pickResp(DRAW_ARTS, 'defense', mkState({})), null, '🔴脅威が無いのに撃った（アーツを撃ち尽くす）');
+
+  // ── 攻めの窓（自ターン）──
+  const pickOff31 = (effs: CardEffect[], use: string | null, opponent?: PlayerState) => {
+    const f = artsFixture({
+      card: { Timing: 'メインフェイズアタックフェイズ' }, effs,
+      actor: { ...mkState({ energy: 0, signi: [SIGNI, null, null] }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED] } as PlayerState,
+      opponent: opponent ?? mkState({ signi: [null, null, SIGNI] }),
+      turnPhase: 'MAIN', isActorTurn: true,
+    });
+    return pickCpuOffensiveArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: 'MAIN', alreadyUsedNums: [],
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+      plan: plan31(use),
+    });
+  };
+  eq(pickOff31(DRAW_ARTS, null), null, '前提＝自ターンは除去だけ（分類できない札は使わない）');
+  eq(pickOff31(DRAW_ARTS, 'offense')?.card.CardNum, 'T-ARTS-1', '🔴「攻めで使う」と書いたのに使わない');
+  eq(pickOff31(DRAW_ARTS, 'defense'), null, '🔴「守りで使う」と書いた札を自ターンに撃った');
+  // 🔴**非対称②**＝攻めの足切り（`hasBlockedAttacker`）は**指名された札には掛けない**＝
+  //   🔑あれは「正面が塞がれている＝除去すればアタックが通る」という**除去に固有の理由**であって、
+  //   ドロー・サーチ・強化を撃つ理由ではない。⚠指名が無いときは従来どおり足切りする（開幕に撃ち尽くさない）。
+  eq(pickOff31(DRAW_ARTS, 'offense', mkState({}))?.card.CardNum, 'T-ARTS-1',
+    '🔴相手の場が空だと指名した札まで撃たなくなる（除去の足切りが指名に掛かっている）');
+  eq(pickOff31([mkArtsEff({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })], null, mkState({})), null,
+    '対照＝指名が無ければ相手の場が空のとき除去は撃たない（従来の足切りは残っている）');
+  eq(pickOff31([mkArtsEff({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })], 'never'), null,
+    '🔴「使わない」は攻めの窓でも効く');
+
+  // ── ⑤ 🔴**列挙の段階で効いているか**（探索＝`S-16` はこの列挙をそのまま手にする）──
+  //   🔑**2026-09-21 の自己対戦で実測して見つけた穴**＝窓の指定を pick 側にだけ書くと、
+  //   **探索は分類の絞りを通らない**ので「守りで使う」と書いた札を**攻めで撃つ**。
+  const listed = (effs: CardEffect[], use: string | null, isMyTurn: boolean) => {
+    const f = artsFixture({
+      card: { Timing: 'メインフェイズアタックフェイズ' }, effs,
+      actor: { ...mkState({ energy: 0, signi: [SIGNI, null, null] }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED] } as PlayerState,
+      opponent: mkState({ signi: [null, null, SIGNI] }),
+      turnPhase: isMyTurn ? 'MAIN' : 'ATTACK_ARTS_OP', isActorTurn: isMyTurn,
+    });
+    return listCpuArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: isMyTurn ? 'MAIN' : 'ATTACK_ARTS_OP', alreadyUsedNums: [],
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+      plan: plan31(use),
+    }, isMyTurn).map(c => c.card.CardNum);
+  };
+  eq(JSON.stringify(listed(DRAW_ARTS, null, true)), '["T-ARTS-1"]',
+    '前提＝列挙は分類で絞らない（絞るのは選ぶ側）＝だからこそ探索には窓の指定が要る');
+  eq(JSON.stringify(listed(DRAW_ARTS, 'defense', true)), '[]',
+    '🔴「守りで使う」と書いた札が自ターンの列挙に出た＝探索が攻めで撃つ');
+  eq(JSON.stringify(listed(DRAW_ARTS, 'offense', false)), '[]',
+    '🔴「攻めで使う」と書いた札が相手ターンの列挙に出た');
+  eq(JSON.stringify(listed(DRAW_ARTS, 'both', true)), '["T-ARTS-1"]', '「両方」はどちらの窓にも出る');
+  eq(JSON.stringify(listed(DRAW_ARTS, 'never', true)), '[]', '🔴「使わない」が列挙から消えていない＝探索が撃つ');
+
+  // ── 正規化・prune・「作戦あり」の判定 ──
+  eq(JSON.stringify(normalizeCpuDeckPlan({ cardUse: { A: 'ぬるぽ', B: 'never' } }).cardUse), '{"B":"never"}',
+    '🔴知らない値を素通しした（既定に戻すのが正）');
+  eq(JSON.stringify(normalizeCpuDeckPlan({ cardUse: ['never'] }).cardUse), '{}', '🔴配列を渡されて壊れた');
+  eq(Object.keys(pruneCpuDeckPlan(normalizeCpuDeckPlan({ cardUse: { 'T-ARTS-1': 'never' } }), []).cardUse).length, 0,
+    '🔴デッキから抜けた札の指定が残った（`keyCards` と同じ側＝自分の札にしか書けない）');
+  ok(!isEmptyCpuDeckPlan(normalizeCpuDeckPlan({ cardUse: { A: 'never' } })),
+    '🔴使いどころだけ書いた作戦を「空」と判定した（保存されずに消える）');
+  ok(isEmptyCpuDeckPlan(normalizeCpuDeckPlan({})), '対照＝何も書いていなければ空');
+
+  // ── 配線＝「使わない」が**使う手の全部**に届いているか（アーツ以外は `never` だけが効く）──
+  for (const f of ['cpuSpell', 'cpuActivate', 'cpuLrigActivate', 'cpuOffFieldActivate', 'cpuKeyPiece']) {
+    const src = fs.readFileSync(join(root, `src/screens/battle/${f}.ts`), 'utf-8');
+    ok(/planForbidsUse\(p\.plan,/.test(src), `🔴${f} が「使わない」の指定を見ていない＝その手だけ温存が効かない`);
+  }
+  // 🔴**アーツだけは「列挙の段階」で効かせる**（下の ⑤ が挙動で確かめる）＝`planForbidsUse` ではなく `planCardUse`。
+  ok(/planCardUse\(p\.plan, card\.CardNum\)/.test(fs.readFileSync(join(root, 'src/screens/battle/cpuArts.ts'), 'utf-8')),
+    '🔴アーツの列挙が使いどころを見ていない＝探索が窓の指定を無視する');
+  const moves = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf-8');
+  // 🔑**配り口は `cpu*Input` の1段だけ**＝ここを通れば探索（`listCpuMoves`）と本番の貪欲な経路の両方に届く。
+  eq((moves.match(/plan: ctx\.plan,/g) ?? []).length, 6,
+    '🔴作戦データを渡していない入力がある（アーツ／スペル／場のシグニ【起】／ルリグ【起】／場以外の【起】／ピースの6本）');
+  const turn31 = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/plan: cpuPlan,/.test(turn31), '🔴本番が作戦データを `CpuMoveCtx` へ渡していない');
+  ok(/data-testid="cpu-plan-use-card"/.test(fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8')), '前提＝UI がある');
+  const modal31 = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(/data-testid="cpu-plan-use-card"/.test(modal31) && /data-testid="cpu-plan-use-mode"/.test(modal31)
+    && /data-testid="cpu-plan-use-add"/.test(modal31), '🔴使いどころを編集する UI が無い');
+  // ⚠**効かない選択肢を出さない**＝守り／攻めの窓を持つのはアーツだけ。
+  ok(/useOptionsFor/.test(modal31) && /'アーツ\/クラフト'/.test(modal31),
+    '🔴アーツ以外にも「守りで使う」を出している（指定したのに効かない、を作る）');
 }));
 
 test('§5.7 S-31 ① 「N体並べる」条件：見返りは実効パワー経由で盤面の採点に効く（作戦データは要らない）', () => withSavedCursor(() => {
