@@ -60624,6 +60624,17 @@ scenarios.v268CpuDeckPlan = {
         if (JSON.stringify(steps) !== JSON.stringify(want)) {
           return { pass: false, detail: `🔴コンボの「使い方」が DB に届かない（steps=${JSON.stringify(steps)} / plan=${JSON.stringify(saved2)}）` };
         }
+        // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**（大まかな指示＋固有のカード指定）も画面から保存できる。
+        await page.getByTestId('cpu-plan-target-mode').selectOption('killable', { timeout: 3000 });
+        await page.waitForTimeout(600);
+        await page.getByTestId(`cpu-plan-prefer-${comboA}`).click({ timeout: 1200 });
+        await page.waitForTimeout(1500);
+        const saved3 = await readPlan(deck.id);
+        H.log(`②'' 保存された targeting=${JSON.stringify(saved3?.targeting)}`);
+        if (saved3?.targeting?.mode !== 'killable' || !(saved3?.targeting?.prefer ?? []).includes(comboA)) {
+          return { pass: false, detail: `🔴対象の狙い方が DB に届かない（${JSON.stringify(saved3?.targeting)}）` };
+        }
+
         // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
         if (!/【起】で使う/.test(draftText) || !/出す/.test(draftText)) {
           return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText}）` };
@@ -60631,7 +60642,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）が cpu_plan.targeting に届いた` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

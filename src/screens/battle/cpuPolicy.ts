@@ -42,6 +42,10 @@ export interface PlanWeights {
   comboThenReady: number;
   /** コンボの仕上げ札を温存（始動札が手札にあって、まだ場にいない）＝**負の値**。 */
   comboThenHold: number;
+  /** 🆕§5.7 `S-32`＝**狙う札**（効果の対象に指定された固有のカード）への加点。 */
+  targetPrefer: number;
+  /** 🆕§5.7 `S-32`＝**狙わない札**への減点＝**負の値**。 */
+  targetAvoid: number;
 }
 
 /** 盤面の採点の重み（パワー換算）。`S-6` の自己対戦で調整する対象。 */
@@ -263,6 +267,11 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   planWeights: {
     keyKeep: 20000, comboKeep: 4000, priorityDeploy: 4000,
     comboFirst: 5000, comboThenReady: 8000, comboThenHold: -8000,
+    // 🆕§5.7 `S-32`（2026-09-21 ユーザー要望）＝**対象の狙い方**。
+    //   🔑**既定の作戦は空なので挙動は変わらない**（指定したデッキだけ動く）。
+    //   値は `keyKeep`（20000＝手元に残す価値）より小さく、`comboThenReady`（8000）より大きい桁に置いた
+    //   ＝**「この札を狙え」は強さの差（パワー数千）を覆すが、手元に残す判断ほどは強くない**。
+    targetPrefer: 12000, targetAvoid: -12000,
   },
   // 🆕§5.7 `S-6` 第2段＝**旧 `cpuInteraction.CPU_GUARD_KEEP_VALUE` をそのまま移設**。
   guardKeepValue: 8000,

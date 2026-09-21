@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
-  CPU_COMBO_USES, CPU_COMBO_USE_LABELS, EMPTY_CPU_DECK_PLAN, pruneCpuDeckPlan,
-  type CpuComboStep, type CpuComboUse, type CpuDeckPlan,
+  CPU_COMBO_USES, CPU_COMBO_USE_LABELS, CPU_TARGET_MODES, CPU_TARGET_MODE_LABELS,
+  EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
+  type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetMode,
 } from '../battle/cpuDeckPlan';
 
 /**
@@ -32,6 +33,18 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const stepLabel = (st: CpuComboStep) => `${nameOf(st.num)}（${CPU_COMBO_USE_LABELS[st.use]}）`;
 
   const save = (next: CpuDeckPlan) => onChange(pruneCpuDeckPlan(next, deckNums));
+  // 🆕§5.7 `S-32`＝効果の対象の狙い方（大まかな指示＋固有のカード指定）。
+  const targeting = plan.targeting ?? EMPTY_CPU_TARGET_PLAN;
+  const saveTargeting = (next: Partial<typeof targeting>) => save({ ...plan, targeting: { ...targeting, ...next } });
+  const toggleTarget = (key: 'prefer' | 'avoid', num: string) => {
+    const list = targeting[key];
+    // ⚠**狙う／狙わないは排他**（両方に入っていると足し引きが打ち消し合って「指定したのに効かない」になる）。
+    const other = key === 'prefer' ? 'avoid' : 'prefer';
+    saveTargeting({
+      [key]: list.includes(num) ? list.filter(n => n !== num) : [...list, num],
+      [other]: targeting[other].filter(n => n !== num),
+    });
+  };
   const toggle = (key: 'keyCards' | 'priorityCards', n: string) => {
     const list = plan[key];
     save({ ...plan, [key]: list.includes(n) ? list.filter(x => x !== n) : [...list, n] });
@@ -66,8 +79,18 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
         <p style={{ color: '#aaa', fontSize: 11, margin: 0, lineHeight: 1.6 }}>
           <b style={{ color: '#ffb84d' }}>キー</b>＝エナに置かない・捨てない・マリガンで戻さない／
           <b style={{ color: '#4da3ff' }}>優先</b>＝先に場に出す／
-          <b style={{ color: '#7ddc7d' }}>コンボ</b>＝前の手が済むまで後の手は温存し、順番どおりに打つ
+          <b style={{ color: '#7ddc7d' }}>コンボ</b>＝前の手が済むまで後の手は温存し、順番どおりに打つ／
+          <b style={{ color: '#ff8a8a' }}>狙う・避ける</b>＝効果の対象に選ぶ／選ばない
         </p>
+
+        {/* 🆕§5.7 `S-32`＝**大まかな指示**（対象の狙い方）。⚠既定は「パワー・効果が強いもの」＝挙動不変。 */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ color: '#ff8a8a', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap' }}>効果の対象</span>
+          <select data-testid="cpu-plan-target-mode" value={targeting.mode}
+            onChange={e => saveTargeting({ mode: e.target.value as CpuTargetMode })} style={selectStyle}>
+            {CPU_TARGET_MODES.map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS[m]}</option>)}
+          </select>
+        </div>
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 120 }}>
           {cards.map(c => (
@@ -77,6 +100,8 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               </span>
               <button data-testid={`cpu-plan-key-${c.CardNum}`} onClick={() => toggle('keyCards', c.CardNum)} style={chip(plan.keyCards.includes(c.CardNum), '#c77a00')}>キー</button>
               <button data-testid={`cpu-plan-priority-${c.CardNum}`} onClick={() => toggle('priorityCards', c.CardNum)} style={chip(plan.priorityCards.includes(c.CardNum), '#1f6fcc')}>優先</button>
+              <button data-testid={`cpu-plan-prefer-${c.CardNum}`} onClick={() => toggleTarget('prefer', c.CardNum)} style={chip(targeting.prefer.includes(c.CardNum), '#b83a3a')}>狙う</button>
+              <button data-testid={`cpu-plan-avoid-${c.CardNum}`} onClick={() => toggleTarget('avoid', c.CardNum)} style={chip(targeting.avoid.includes(c.CardNum), '#555')}>避ける</button>
             </div>
           ))}
         </div>

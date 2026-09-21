@@ -169,7 +169,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
-import { cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -182,7 +182,7 @@ import { cpuOffFieldLedgerKey, pickCpuHandActivateFieldTrash, pickCpuOffFieldAct
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
-import { CPU_GUARD_KEEP_VALUE, isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentFor, targetIntentOf } from '../src/screens/battle/cpuInteraction';
+import { CPU_GUARD_KEEP_VALUE, isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuSearch, pickCpuTargets, targetIntentFor, targetIntentOf, targetKillableBy } from '../src/screens/battle/cpuInteraction';
 import { assignLrigRole, deckLrigSetupProblem, isStartingLrig, lrigRoleBlockReason, lrigRoleOf, lrigRolesOfRow, pruneLrigRoles, resolveDeckLrigSetup } from '../src/utils/deckLrigSetup';
 import { buildVariantNumIndex, cardMatchesSearch, matchedVariantNums } from '../src/utils/cardSearch';
 import { cardAllowedInFormat, cardPoolsOf, detectDeckFormat, effectiveDeckFormat, isDivaCardNum, outOfFormatCardNums } from '../src/utils/deckFormat';
@@ -86788,12 +86788,18 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   // 🆕2026-09-17（ユーザー指摘「使うデッキによって強い行動が変わる」「複数のカードのコンボが強い」）。
   const A = 'WD03-013', B = 'WX04-080', K = 'WD01-013', X = 'WD03-012';
   // 読み込み＝形が崩れていても落ちない・自分自身とのコンボは捨てる
-  eq(JSON.stringify(normalizeCpuDeckPlan(null)), JSON.stringify({ keyCards: [], priorityCards: [], combos: [] }), 'null を空の作戦にしない');
+  // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**が作戦データに増えた（較正＝既定は `strongest` で挙動不変）。
+  eq(JSON.stringify(normalizeCpuDeckPlan(null)),
+    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [] } }),
+    'null を空の作戦にしない');
   const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
   // 🆕§5.7 `S-14`（2026-09-21）＝**旧形 `{first, then}` は「出す → 出す」の2手へ変換される**（較正＝保存済みの作戦を壊さない）。
   eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X],
-    combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }] }), '作戦データの正規化が違う');
-  eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])), JSON.stringify({ keyCards: [K], priorityCards: [], combos: [] }), '🔴デッキに無いカードが作戦に残った');
+    combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }],
+    targeting: { mode: 'strongest', prefer: [], avoid: [] } }), '作戦データの正規化が違う');
+  eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])),
+    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [] } }),
+    '🔴デッキに無いカードが作戦に残った');
   // 加点
   ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
   ok(planKeepsInMulligan(plan, `${B}#1`) && !planKeepsInMulligan(plan, `${X}#1`), 'マリガンで戻さない札が違う');
@@ -90163,6 +90169,68 @@ test('§5.7 S-31 ② 手札を捨てるコストを CPU が払う：弱い札か
   const movesSrc31 = fs.readFileSync(join(root, 'src/screens/battle/cpuMoves.ts'), 'utf-8');
   ok(/payCpuSelfCostSim\(move\.choice\.effect\.cost, actor, move\.choice\.zoneIndex, ctx\.cardMap, move\.choice\.cardNum, move\.choice\.discardIndices\)/.test(movesSrc31),
     '🔴探索の近似適用に手札捨ての index を渡していない＝タダで撃てる【起】に見える（`S-21` と同型の穴）');
+}));
+
+test('§5.7 S-32 効果の対象の狙い方：大まかな指示（強い／落とせる／弱い）と固有のカード指定（狙う／避ける）', () => withSavedCursor(() => {
+  // 🆕2026-09-21 ユーザー要望＝「相手のパワーの大きいもの」「パワーを下げることでバニッシュできるもの」
+  //   「固有のカード指定」など**大まかな指示から細かい指示まで**できるように。
+  // ⚠**既定は `strongest`＋加点0＝`S-22` のときと同じ並び**（指定したデッキだけ動く）。
+  const cm32 = new InstanceMap<CardData>(cardMap);
+  const eff32 = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const BIG = 'WD03-009#o1', SMALL = 'WX04-080#o2';      // 相手の場（強い／弱い）
+  const cpu32 = mkState({ signi: [null, null, null] });
+  const opp32 = mkState({ signi: [BIG, SMALL, null] });
+  const base32 = { cpuState: cpu32, oppState: opp32, cardMap: cm32, effectsOf: eff32 };
+  /** パワーを 5000 下げる効果＝`SMALL`（4000）は落ちるが `BIG`（12000）は落ちない、という盤面。 */
+  const powers = { [BIG]: 12000, [SMALL]: 4000 };
+  const down5000 = { type: 'SELECT_TARGET', candidates: [BIG, SMALL], count: 1, optional: false,
+    targetScope: 'opp_field', thenAction: { type: 'POWER_MODIFY', delta: -5000 }, candidatePowers: powers } as never;
+
+  // ── ① 既定（`strongest`）＝強い方を狙う（`S-22` のときと同じ）──
+  eq(JSON.stringify(pickCpuTargets(down5000, base32)), JSON.stringify([BIG]), '🔴既定の狙い方が変わった');
+
+  // ── ② 🔑`killable`＝**下げて落とせる方**を先に（強さより優先）──
+  eq(JSON.stringify(pickCpuTargets(down5000, { ...base32, targetMode: 'killable' })), JSON.stringify([SMALL]),
+    '🔴「パワーを下げて落とせるもの」を選ばない');
+  // ⚠**落とせる候補が無ければ強い順に戻る**（指示が空振りしても並びが壊れない）
+  const down1000 = { ...(down5000 as object), thenAction: { type: 'POWER_MODIFY', delta: -1000 } } as never;
+  eq(JSON.stringify(pickCpuTargets(down1000, { ...base32, targetMode: 'killable' })), JSON.stringify([BIG]),
+    '🔴どれも落とせないのに弱い方を選んだ');
+  // 🔴**バニッシュ等は「全部落とせる」＝並べ替えない**（`strongest` と同じ＝指示が効いたように見せない）
+  const banish32 = { ...(down5000 as object), thenAction: { type: 'BANISH' } } as never;
+  eq(JSON.stringify(pickCpuTargets(banish32, { ...base32, targetMode: 'killable' })), JSON.stringify([BIG]),
+    '🔴除去で「落とせる」を理由に弱い方を選んだ');
+  eq(targetKillableBy({ type: 'BANISH' }, BIG, powers), null, '🔴除去を「落とせるか分かる」側に数えた');
+  eq(targetKillableBy({ type: 'POWER_MODIFY', delta: -5000 }, SMALL, powers), true, 'パワーを下げて落とせる判定が違う');
+  eq(targetKillableBy({ type: 'POWER_SET', value: 0 }, BIG, powers), true, '🔴パワーを0にする効果を見ていない');
+
+  // ── ③ `weakest`＝弱い方（自分の札を差し出す向き）──
+  eq(JSON.stringify(pickCpuTargets(down5000, { ...base32, targetMode: 'weakest' })), JSON.stringify([SMALL]),
+    '🔴「弱いもの」を選ばない');
+
+  // ── ④ 🔑**固有のカード指定**（狙う／避ける）＝強さの差を覆す ──
+  const preferSmall = normalizeCpuDeckPlan({ targeting: { mode: 'strongest', prefer: [SMALL.split('#')[0]] } });
+  eq(JSON.stringify(pickCpuTargets(down5000, { ...base32, targetBonus: id => planTargetBonus(preferSmall, id) })),
+    JSON.stringify([SMALL]), '🔴「狙う」に指定した札を選ばない');
+  const avoidBig = normalizeCpuDeckPlan({ targeting: { mode: 'strongest', avoid: [BIG.split('#')[0]] } });
+  eq(JSON.stringify(pickCpuTargets(down5000, { ...base32, targetBonus: id => planTargetBonus(avoidBig, id) })),
+    JSON.stringify([SMALL]), '🔴「避ける」に指定した札を選んだ');
+  // 正規化＝壊れた mode は既定へ／狙う・避けるは文字列だけ
+  eq(normalizeCpuDeckPlan({ targeting: { mode: 'ぬるぽ' } }).targeting.mode, 'strongest', '🔴知らない狙い方を素通しした');
+  // 🔴**狙う／避けるは「相手の札」も指定できる**＝デッキに無くても `prune` で消えない
+  eq(pruneCpuDeckPlan(preferSmall, []).targeting.prefer.length, 1,
+    '🔴デッキに無い札（相手のエース）への「狙う」指定が保存のたびに消える');
+
+  // ── ⑤ 配線＝応答側が作戦データから渡す／編集 UI がある ──
+  const respond32 = cpuRespondSource();
+  ok(/targetMode: d\.cpuPlan\.targeting\?\.mode/.test(respond32) && /targetBonus: id => planTargetBonus\(d\.cpuPlan, id, d\.policy\)/.test(respond32),
+    '🔴対象の狙い方を作戦データから渡していない');
+  const modal32 = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(/data-testid="cpu-plan-target-mode"/.test(modal32), '🔴狙い方を選ぶ UI が無い');
+  ok(/data-testid={`cpu-plan-prefer-\$\{c\.CardNum\}`}/.test(modal32) && /data-testid={`cpu-plan-avoid-\$\{c\.CardNum\}`}/.test(modal32),
+    '🔴「狙う」「避ける」の UI が無い');
+  // 🔴狙う／避けるは排他（両方に入ると足し引きが打ち消し合って「指定したのに効かない」になる）
+  ok(/\[other\]: targeting\[other\]\.filter/.test(modal32), '🔴「狙う」と「避ける」を同時に指定できてしまう');
 }));
 
 if (listMode) {

@@ -2,7 +2,7 @@ import { InstanceMap } from './battleUtils';
 import type { CardData, PendingEffect, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve } from './cpuGrowReserve';
-import { planKeepBonus, type CpuDeckPlan } from './cpuDeckPlan';
+import { planKeepBonus, planTargetBonus, type CpuDeckPlan } from './cpuDeckPlan';
 import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
@@ -65,6 +65,9 @@ export function decideCpuInteractionResponse(
     // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
     effectsOf: id => d.effectsMap.get(id) ?? [],
     planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy),
+    // 🆕§5.7 `S-32`＝対象の狙い方（デッキごと・既定は `strongest`＋加点0＝挙動不変）。
+    targetMode: d.cpuPlan.targeting?.mode,
+    targetBonus: id => planTargetBonus(d.cpuPlan, id, d.policy),
     policy: d.policy,
   };
   // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。

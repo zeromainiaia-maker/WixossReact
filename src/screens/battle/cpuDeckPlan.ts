@@ -49,13 +49,48 @@ export interface CpuDeckCombo {
   steps: CpuComboStep[];
 }
 
+/**
+ * 🆕**効果の対象の狙い方**（§5.7 `S-32`・2026-09-21 ユーザー要望
+ * 「相手のパワーの大きいもの」「パワーを下げることでバニッシュできるもの」「固有のカード指定」）。
+ * - `strongest`＝**既定**。相手の価値（パワー＋効果）が高い順＝`S-22` で入れた挙動そのまま。
+ * - `killable`＝**その効果で場から離せる対象を先に**（パワーを下げて0以下にできる／バニッシュできる）。
+ *   🔴**「離せる」が分かるのはパワーを下げる効果だけ**＝バニッシュ等は全部離せるので `strongest` と同じになる。
+ * - `weakest`＝価値の低い順（⚠**自分の札を対象に取る効果**で「安いものを差し出す」向き）。
+ */
+export type CpuTargetMode = 'strongest' | 'killable' | 'weakest';
+
+/** 選べる狙い方（UI の並び順）。 */
+export const CPU_TARGET_MODES: readonly CpuTargetMode[] = ['strongest', 'killable', 'weakest'];
+
+/** 画面と逆引きの表示名。 */
+export const CPU_TARGET_MODE_LABELS: Readonly<Record<CpuTargetMode, string>> = {
+  strongest: 'パワー・効果が強いもの',
+  killable: 'パワーを下げて落とせるものを優先',
+  weakest: '弱いもの',
+};
+
+/** 🆕§5.7 `S-32`＝対象の狙い方（デッキごと）。 */
+export interface CpuTargetPlan {
+  mode: CpuTargetMode;
+  /** 固有のカード指定＝**優先して狙う**札。 */
+  prefer: string[];
+  /** 固有のカード指定＝**狙わない**札（自分の札を守る／無駄撃ちを避ける）。 */
+  avoid: string[];
+}
+
+export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { mode: 'strongest', prefer: [], avoid: [] };
+
 export interface CpuDeckPlan {
   keyCards: string[];
   priorityCards: string[];
   combos: CpuDeckCombo[];
+  /** 🆕§5.7 `S-32`＝効果の対象の狙い方。 */
+  targeting: CpuTargetPlan;
 }
 
-export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = { keyCards: [], priorityCards: [], combos: [] };
+export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = {
+  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN,
+};
 
 /**
  * 足し引きする点数（パワー換算）。`S-6` の自己対戦で調整する対象。
@@ -102,7 +137,13 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
       .map(toCombo)
       .filter((c): c is CpuDeckCombo => !!c)
     : [];
-  return { keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos };
+  // 🆕§5.7 `S-32`＝対象の狙い方（⚠**無い／壊れていれば既定**＝保存済みの作戦を壊さない）。
+  const t = (r.targeting && typeof r.targeting === 'object' ? r.targeting : {}) as Record<string, unknown>;
+  const targeting: CpuTargetPlan = {
+    mode: CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest',
+    prefer: strList(t.prefer), avoid: strList(t.avoid),
+  };
+  return { keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting };
 }
 
 /** デッキに無いカードを作戦から外す（編集で抜いたカードが残らないように）。 */
@@ -112,11 +153,28 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
     keyCards: plan.keyCards.filter(n => inDeck.has(n)),
     priorityCards: plan.priorityCards.filter(n => inDeck.has(n)),
     combos: plan.combos.filter(c => c.steps.every(st => inDeck.has(st.num))),
+    // ⚠**狙う札は「相手の札」もありうる**＝自分のデッキに無くてよい（`prune` で落とさない）。
+    //   🔴ここを keyCards と同じに扱うと、相手のエースを名指しで狙う指定が保存の度に消える。
+    targeting: plan.targeting ?? EMPTY_CPU_TARGET_PLAN,
   };
 }
 
 export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
-  plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0;
+  plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
+  && (plan.targeting?.mode ?? 'strongest') === 'strongest'
+  && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0;
+
+/**
+ * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果の対象を選ぶときだけ使う。
+ * 🔑**狙う／狙わないは「相手の札」も指定できる**＝デッキに無くてもよい（`pruneCpuDeckPlan` が落とさない）。
+ */
+export function planTargetBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
+  const num = getCardNum(id);
+  const W = policy?.planWeights ?? PLAN_WEIGHTS;
+  const t = plan.targeting;
+  if (!t) return 0;
+  return (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0);
+}
 
 /** 手元に残す価値の加点（エナチャージ・手札上限の捨て札・サーチで使う）。 */
 export function planKeepBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {

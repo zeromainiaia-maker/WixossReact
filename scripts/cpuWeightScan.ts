@@ -105,6 +105,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'plan.comboFirst', base: 5000, values: [2500, 10000] },
   { key: 'plan.comboThenReady', base: 8000, values: [4000, 16000] },
   { key: 'plan.comboThenHold', base: -8000, values: [-4000, -16000] },
+  { key: 'plan.targetPrefer', base: 12000, values: [6000, 24000] },
+  { key: 'plan.targetAvoid', base: -12000, values: [-6000, -24000] },
   // ── 🆕手札の【ガード】を手元に置く価値（効果で手札を捨てるときの並び）──
   { key: 'guardKeepValue', base: 8000, values: [4000, 16000] },
   // ── 🆕§5.7 `S-22`＝対象選択を置き場で決めるか（0＝旧挙動＝乱数）。⚠つまみではなく**反転確認の口**。

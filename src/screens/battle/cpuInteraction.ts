@@ -1,6 +1,7 @@
 import type { CardData, PendingInteractionDef, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { cardStrength } from './cpuCardStrength';
+import type { CpuTargetMode } from './cpuDeckPlan';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import { canAddToSelection, findValidConstrainedSelection, getCardNum, selectOptionalCostEnergy } from '../../engine/execUtils';
 import { shuffle as rngShuffle } from '../../engine/rng';
@@ -36,6 +37,13 @@ export interface CpuInteractionCtx {
   effectsOf?: (id: string) => readonly CardEffect[];
   /** 🆕§5.7 `S-2`＝CPU デッキの作戦データによる「手元に置く価値」の加点（キーカード・コンボのパーツ）。場のカードには足さない。 */
   planBonus?: (id: string) => number;
+  /**
+   * 🆕§5.7 `S-32`（2026-09-21 ユーザー要望）＝**効果の対象の狙い方**（デッキごとの指示）。
+   * `mode`＝大まかな指示（強いもの／落とせるもの／弱いもの）・`targetBonus`＝固有のカード指定（狙う／狙わない）。
+   * ⚠**省略できる**＝渡さなければ `strongest`＋加点0＝`S-22` のときの挙動。
+   */
+  targetMode?: CpuTargetMode;
+  targetBonus?: (id: string) => number;
   /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
   energyReserve?: CpuEnergyReserve;
   /**
@@ -160,14 +168,23 @@ export const CPU_GUARD_KEEP_VALUE = DEFAULT_CPU_POLICY.guardKeepValue;
  * 場のシグニは `field` 文脈（【出】は済んでいる）、手札・デッキ等は `deploy` 文脈で測る。
  * 効果の一覧が無ければパワーだけ（旧挙動）。
  */
-function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, number>): number {
+function cardValue(
+  id: string, ctx: CpuInteractionCtx, powers?: Record<string, number>,
+  /**
+   * 🆕§5.7 `S-32`＝**パワー換算の足し引き**（対象の狙い方の固有指定）。
+   * 🔴**ここへ足す**＝戻り値は `強さ × 100 + レベル` なので、**外側で足すと桁が2つ足りず効かない**
+   *   （実測＝`targetPrefer: 12000` を外側に足しても、パワー差 8000 は 800,000 なので1度も覆らなかった）。
+   */
+  extraStrength = 0,
+): number {
   const card = ctx.cardMap.get(getCardNum(id));
   const effects = ctx.effectsOf?.(id) ?? [];
   const onField = isOnField(id, ctx);
   const inCpuHand = ctx.cpuState.hand.includes(id);
   const strength = cardStrength(card, effects, onField ? 'field' : 'deploy', powers?.[id], ctx.policy)
     + (!onField && isCpuOwnedOrUnknown(id, ctx) ? (ctx.planBonus?.(id) ?? 0) : 0)
-    + (inCpuHand && card?.Guard === '1' ? (ctx.policy?.guardKeepValue ?? CPU_GUARD_KEEP_VALUE) : 0);
+    + (inCpuHand && card?.Guard === '1' ? (ctx.policy?.guardKeepValue ?? CPU_GUARD_KEEP_VALUE) : 0)
+    + extraStrength;
   return strength * 100 + (parseInt(card?.Level ?? '', 10) || 0);
 }
 
@@ -182,6 +199,30 @@ function cardValue(id: string, ctx: CpuInteractionCtx, powers?: Record<string, n
  * - 🆕**`thenAction` から読めないときは置き場で決める**（§5.7 `S-22`＝`targetIntentFor`）。
  * - 置き場でも分からなければ（`both_*`）乱数（旧実装と同じ）。
  */
+/**
+ * 🆕**その効果で、その対象を場から離せるか**（§5.7 `S-32`・2026-09-21）。
+ * 🔑**分かるのはパワーを下げる／固定する効果だけ**＝`POWER_MODIFY`（負）と `POWER_SET`。
+ *   バニッシュ等の除去は**全部離せる**ので `null` を返し、狙い方 `killable` は `strongest` と同じになる
+ *   （⚠「全部 true」にすると並べ替えが起きず、**効いているのか分からない**指示になる）。
+ * ⚠**実効パワーは `inter.candidatePowers`（engine が算出した値）だけを使う**＝CPU 側で計算し直さない。
+ */
+export function targetKillableBy(
+  action: { type?: string; delta?: unknown; value?: unknown } | undefined,
+  id: string, powers: Record<string, number> | undefined,
+): boolean | null {
+  const p = powers?.[id];
+  if (p === undefined) return null;
+  if (action?.type === 'POWER_MODIFY') {
+    const d = Number(action.delta);
+    return Number.isFinite(d) && d < 0 ? p + d <= 0 : null;
+  }
+  if (action?.type === 'POWER_SET') {
+    const v = Number(action.value);
+    return Number.isFinite(v) ? v <= 0 : null;
+  }
+  return null;
+}
+
 export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractionCtx): string[] {
   const { cardMap, cpuState } = ctx;
   // 🆕**選んでも場に出せない候補は選ばない**（§5.3 `O-534`・`R-48`①）＝engine が `unplaceableCards` で印を付ける。
@@ -215,8 +256,17 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
     ordered = [...candidates].sort((a, b) => value(a) - value(b));
   } else {
     const favorable = (id: string) => (intent === 'harm') !== isCpuOwned(id, cpuState);
-    const value = (id: string) => cardValue(id, ctx, inter.candidatePowers);
-    const good = candidates.filter(favorable).sort((a, b) => value(b) - value(a));
+    // 🆕§5.7 `S-32`＝**固有のカード指定**（狙う／狙わない）を価値に足し引きする。
+    const value = (id: string) => cardValue(id, ctx, inter.candidatePowers, ctx.targetBonus?.(id) ?? 0);
+    // 🆕§5.7 `S-32`＝**大まかな指示**。⚠**既定は `strongest`＝`S-22` のときと同じ並び**。
+    const mode = ctx.targetMode ?? 'strongest';
+    const kills = (id: string) => targetKillableBy(
+      inter.thenAction as { type?: string; delta?: unknown; value?: unknown }, id, inter.candidatePowers) === true;
+    /** 良い側の並び＝`weakest` は価値の低い順、`killable` は**落とせるものを先に**（その中は価値の高い順）。 */
+    const rankGood = (a: string, b: string) => (mode === 'weakest' ? value(a) - value(b)
+      : mode === 'killable' ? (Number(kills(b)) - Number(kills(a))) || (value(b) - value(a))
+        : value(b) - value(a));
+    const good = candidates.filter(favorable).sort(rankGood);
     const bad = candidates.filter(id => !favorable(id)).sort((a, b) => value(a) - value(b));
     ordered = inter.optional ? good : [...good, ...bad];
   }
