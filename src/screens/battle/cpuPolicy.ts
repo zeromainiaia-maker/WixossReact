@@ -173,6 +173,25 @@ export interface CpuPolicy {
    * ⚠`keepGuards`（何枚残すか＝召喚側）とは別物。こちらは**捨て札の並び**に効く点数。
    */
   readonly guardKeepValue: number;
+  /**
+   * 🆕§5.7 `S-26`＝**次のグロウに要る色の札をエナへ回す**優先度（パワー換算・**キープ値からの減点**）。
+   * 🔴**なぜ要るか（実測 2026-09-21）**＝**グロウ機会 214 のうち 15（7%）が払えず**、うち**7件は色の問題**
+   *   （天使軸1＝エナが無色しか無いのに《白》が要る）。`pickCpuEnergyChargeIndex` は**色を1度も見ていなかった**。
+   * 🔑**「グロウしないことがかなりの悪手」**（ユーザー）＝**予約（使わない）だけでなく確保（置きに行く）**が要る。
+   */
+  readonly chargeGrowColor: number;
+  /**
+   * 🆕§5.7 `S-26`＝**いまのルリグレベルで出せるシグニが足りないとき、その札を手札に残す**加点（パワー換算）。
+   * 🔴**なぜ要るか（実測 2026-09-21）**＝**ターン1（ルリグ Lv0〜1）でレベル1のシグニをエナへ置いている**
+   *   （ケトッシー軸＝`Lv1-ルリグLv0` が6回）。結果、**MAIN で空きゾーンがあるのに出せる札が手札に無い盤面が 22/98（22%）**。
+   * 🔑**終盤にレベル1を置くのは正しい**（`Lv1-ルリグLv4` は5回＝弱い札）＝**ルリグレベル相対**で決める。
+   */
+  readonly chargeKeepPlayable: number;
+  /**
+   * 🆕§5.7 `S-26`＝**当分出せないシグニ**（レベルがルリグレベル＋2以上）のキープ値に掛ける係数。
+   * ⚠**旧実装の 0.6 をそのまま数値にしただけ**（既定は挙動不変）。
+   */
+  readonly chargeFarLevelScale: number;
 }
 
 /**
@@ -227,6 +246,15 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   },
   // 🆕§5.7 `S-6` 第2段＝**旧 `cpuInteraction.CPU_GUARD_KEEP_VALUE` をそのまま移設**。
   guardKeepValue: 8000,
+  // 🆕§5.7 `S-26`（2026-09-21）＝**エナチャージの選び方**。🔴**既定を 0 にしない**＝これは調整つまみではなく
+  //   **実測したバグの修正**（グロウ機会の7%が払えない／出せる札が無い盤面が最大22%）。
+  //   ⚠**実機の挙動が変わる回**＝自己対戦の乱数列も動くので、この回にベースラインを撮り直す。
+  //   🔑値の根拠＝どちらも `guardKeepValue`（8000＝【ガード】を手元に置く価値）と同じ桁に置いた＝
+  //   **「グロウできない」「出す札が無い」は【ガード】を捨てるのと同じくらい避けたい**、という序列。
+  chargeGrowColor: 8000,
+  chargeKeepPlayable: 8000,
+  // 旧実装の 0.6 をそのまま（挙動不変）。
+  chargeFarLevelScale: 0.6,
 };
 
 /** ポリシーを1項目だけ差し替える（プリセットの定義用）。 */
@@ -297,6 +325,14 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
     searchWidth: 4, searchDepth: 4,
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1 },
   }),
+  /**
+   * 🆕🔴§5.7 `S-26`（2026-09-21）＝**エナチャージが「強さだけ」で選んでいた頃の CPU**＝A/B の A 側。
+   * ⚠**消さない**＝「ターンをまたいだチャージにして弱くなった」を後から測り直す唯一の口
+   *   （`--a legacy-charge --b default`）。
+   * 📏直した根拠＝**グロウ機会 214 のうち 15（7%）が払えず**（色7／枚数8）、
+   *   **MAIN で空きゾーンがあるのに出せる札が手札に無い盤面が 22/98（22%）**（ケトッシー軸）。
+   */
+  'legacy-charge': variant('legacy-charge', { chargeGrowColor: 0, chargeKeepPlayable: 0 }),
   'legacy-nextturn': variant('legacy-nextturn', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, growReady: 0, handEmpty: 0, guardKept: 0, lrigLevel: 0 },
   }),
@@ -383,13 +419,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     }
     if (key in weights) { weights = { ...weights, [key]: num }; continue; }
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
-      || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue') {
+      || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
+      || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

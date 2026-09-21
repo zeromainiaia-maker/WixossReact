@@ -23,6 +23,10 @@ export interface PlayMechanism {
 export const PLAY_MECHANISMS: PlayMechanism[] = [
   { id: 'mulligan', label: 'マリガン（引き直し）', pattern: /^\[CPU\] 引き直し/, anchor: '[CPU] 引き直し' },
   { id: 'assistPlace', label: 'アシストルリグの配置', pattern: /^\[CPU\] アシストルリグを配置:/, anchor: '[CPU] アシストルリグを配置:' },
+  // 🆕🔴§5.7 `S-26`（2026-09-21）＝**グロウ先はあるのにエナで払えなかった回数**＝**0 が正**（多いほど悪い）。
+  //   🔑**「グロウしないことがかなりの悪手」**（ユーザー）なのに、この失敗はどの計器にも映っていなかった。
+  //   実測（修正前・6デッキ × 4戦）＝**グロウ機会 214 のうち 15（7%）**（色7／枚数8）。
+  { id: 'growUnpayable', label: '🔴グロウできない（エナ不足）＝少ないほど良い', pattern: /^\[CPU\] グロウできない（エナ不足）/, anchor: '[CPU] グロウできない（エナ不足）' },
   { id: 'enaCharge', label: 'エナチャージ', pattern: /^\[CPU\] エナチャージ:/, anchor: '[CPU] エナチャージ:' },
   { id: 'grow', label: 'センターのグロウ', pattern: /^\[CPU\] グロウ:/, anchor: '[CPU] グロウ:' },
   { id: 'signiPlace', label: 'シグニ配置', pattern: /^\[CPU\] シグニ配置:/, anchor: '[CPU] シグニ配置:' },

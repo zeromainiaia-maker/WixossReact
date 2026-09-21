@@ -89638,6 +89638,94 @@ test('§5.7 S-27 A/B の感度：対ごとの残ライフ差・t 区間・「補
     '前提崩れ＝勝敗も同じ `aSeat` から導いているかの確認');
 }));
 
+// ── 第432バッチ（2026-09-21）＝§5.7 `S-26`（エナチャージをターンをまたいで決める）───────────
+test('§5.7 S-26 エナチャージの選び方：次のグロウの色を確保・出せる札を温存・ルリグレベル相対', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（2026-09-21 実測・6デッキ × 4戦）**＝
+  //   ①**グロウ機会 214 のうち 15（7%）でエナを払えずグロウできていない**（色7／枚数8）。
+  //     🔑**「グロウしないことがかなりの悪手」**（ユーザー）なのに、**この失敗はどの計器にも映っていなかった**。
+  //   ②**ターン1（ルリグ Lv0〜1）でレベル1のシグニをエナへ置いている**（ケトッシー軸＝`Lv1-ルリグLv0` が6回）＝
+  //     **MAIN で空きゾーンがあるのに出せる札が手札に無い盤面が 22/98（22%）**。
+  //   🔑**終盤にレベル1を置くのは正しい**（`Lv1-ルリグLv4` は5回＝ただ弱い札）＝**ルリグレベル相対**で決める。
+
+  const P = DEFAULT_CPU_POLICY;
+
+  // ── ① 既定値がポリシーにある（数値を2か所に書かない）──
+  ok(P.chargeGrowColor > 0, '🔴次のグロウの色を確保する重みが0＝色を見ない（実測の7件が直らない）');
+  ok(P.chargeKeepPlayable > 0, '🔴出せる札を温存する重みが0＝ターン1にレベル1を捨てる');
+  eq(P.chargeFarLevelScale, 0.6, '🔴当分出せない札の割引が旧実装（0.6）から変わった＝挙動が黙って変わる');
+  eq(patchCpuPolicy(P, 'chargeGrowColor=0').chargeGrowColor, 0, '🔴`--a-set` で振れない＝A/B に掛けられない');
+
+  // ── ② 🔴**次のグロウに要る色の札をエナへ置く** ──
+  //   同じ強さ・同じレベルの2枚（色だけ違う）を並べ、要る色のほうが選ばれること。
+  const colorMap = new Map<string, CardData>([
+    ['A', { CardNum: 'A', CardName: '白の札', Type: 'シグニ', Level: '1', Power: '3000', Color: '白' } as unknown as CardData],
+    ['B', { CardNum: 'B', CardName: '青の札', Type: 'シグニ', Level: '1', Power: '3000', Color: '青' } as unknown as CardData],
+  ]);
+  const handAB = ['A#1', 'B#1'];
+  const noEff = () => [] as CardEffect[];
+  eq(handAB[pickCpuEnergyChargeIndex(handAB, colorMap, noEff, 1)], 'A#1',
+    '前提崩れ＝同点なら添字の小さいほうが選ばれる（この検査の基準）');
+  eq(handAB[pickCpuEnergyChargeIndex(handAB, colorMap, noEff, 1, undefined, P, { needColors: ['青'] })], 'B#1',
+    '🔴次のグロウに要る色（青）の札をエナへ置いていない＝実測の7件（天使軸1）が直らない');
+  eq(handAB[pickCpuEnergyChargeIndex(handAB, colorMap, noEff, 1, undefined, P, { needColors: ['白'] })], 'A#1',
+    '🔴要る色が白なら白を置く（向きが逆になっていないか）');
+  // ⚠**要る色が空なら旧挙動**（強さだけ）。
+  eq(handAB[pickCpuEnergyChargeIndex(handAB, colorMap, noEff, 1, undefined, P, { needColors: [] })], 'A#1',
+    '🔴要る色が空なのに選択が変わった');
+
+  // ── ③ 🔴**いま出せる札が足りないなら温存する**（ルリグレベル相対）──
+  const lvMap = new Map<string, CardData>([
+    ['L1', { CardNum: 'L1', CardName: 'レベル1', Type: 'シグニ', Level: '1', Power: '1000', Color: '白' } as unknown as CardData],
+    ['L4', { CardNum: 'L4', CardName: 'レベル4', Type: 'シグニ', Level: '4', Power: '12000', Color: '白' } as unknown as CardData],
+  ]);
+  const handL = ['L1#1', 'L4#1'];
+  // ルリグ Lv1・空きゾーン3＝出せるのは L1 の1枚だけ ⇒ **L1 を温存して L4 を置く**。
+  eq(handL[pickCpuEnergyChargeIndex(handL, lvMap, noEff, 1, undefined, P, { emptyZones: 3 })], 'L4#1',
+    '🔴ターン1（ルリグ Lv1）で出せる唯一のレベル1をエナへ置いた＝実測 22/98 の盤面を作る');
+  // ルリグ Lv4＝どちらも出せる ⇒ **弱いほう（L1）を置く**のが正しい（終盤にレベル1を置くのは正しい）。
+  eq(handL[pickCpuEnergyChargeIndex(handL, lvMap, noEff, 4, undefined, P, { emptyZones: 3 })], 'L1#1',
+    '🔴ルリグ Lv4 でも高レベルを置いた＝「ルリグレベル相対」になっていない');
+  // ⚠`emptyZones` を渡さなければ旧挙動（温存の補正は効かない）。
+  // 🔴**これが直した相手**＝`emptyZones` を渡さない旧挙動では、**出せる唯一のレベル1をエナへ置いてしまう**
+  //   （L1 は強さ1000／L4 は 12000×0.6＝7200 なので、弱い L1 が選ばれる）。
+  eq(handL[pickCpuEnergyChargeIndex(handL, lvMap, noEff, 1)], 'L1#1',
+    '前提崩れ＝旧挙動は「強さの低い札」だけで選ぶ（この検査が直した相手そのもの）');
+
+  // ── ④ 【ガード】は最後まで残す（既存の規律を壊していない）──
+  const gMap = new Map<string, CardData>([
+    ['G', { CardNum: 'G', CardName: 'ガード', Type: 'シグニ', Level: '1', Power: '1000', Color: '白', Guard: '1' } as unknown as CardData],
+    ['N', { CardNum: 'N', CardName: '普通', Type: 'シグニ', Level: '1', Power: '9000', Color: '青' } as unknown as CardData],
+  ]);
+  eq(['G#1', 'N#1'][pickCpuEnergyChargeIndex(['G#1', 'N#1'], gMap, noEff, 4, undefined, P, { needColors: ['白'], emptyZones: 3 })], 'N#1',
+    '🔴要る色が白でも【ガード】をエナへ置いた＝守りの札を失う（`isGuard` の優先が壊れた）');
+
+  // ── ⑤ 🔴**「このターンのグロウ」を見ても遅い**＝1回グロウしたあとの盤面で色を見る ──
+  //   実測＝失敗3件は**全部**「今回は無料／払える ⇒ 要る色は空 ⇒ 無色をチャージ ⇒ 次のターンに払えない」だった。
+  const turnSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  // 🔑**2手先の判断は `cpuGrowReserve.ts` に閉じる**＝`cpuTurn.ts` は本番の実行しか書かない
+  //   （探索用の近似適用を持ち込まない＝golden `§5.7 S-16` ②のガードレール）。
+  const resSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuGrowReserve.ts'), 'utf-8');
+  ok(/applyCpuMoveSim\(ctx, growNow\)\?\.cpu/.test(resSrc),
+    '🔴エナチャージの判断が「1回グロウしたあとの盤面」を見ていない＝ターンをまたいだ考えになっていない');
+  ok(/const now = growShortColors\(\{ actor: ctx\.actor/.test(resSrc),
+    '🔴いまのグロウが払えないときに、そちらを優先していない');
+  ok(/needColors: chargeNeedColors\(cpuMoveCtx\(cpuSt\), cards\)/.test(turnSrc),
+    '🔴エナチャージに「確保しに行く色」を渡していない');
+  ok(/emptyZones: cpuSt\.field\.signi\.filter/.test(turnSrc), '🔴空きゾーンの数を渡していない＝温存の補正が死ぬ');
+
+  // ── ⑥ 🔴**失敗が計器に出る**（`census:play` の規則 `growUnpayable`）──
+  ok(/\[CPU\] グロウできない（エナ不足）/.test(turnSrc),
+    '🔴グロウできなかったことをログに出していない＝盤面も勝敗も静かに悪くなるだけで、どの計器にも映らない');
+  const censusSrc = fs.readFileSync(join(root, 'src/screens/battle/playCensus.ts'), 'utf-8');
+  ok(/id: 'growUnpayable'/.test(censusSrc) && /anchor: '\[CPU\] グロウできない（エナ不足）'/.test(censusSrc),
+    '🔴`census:play` に規則が無い＝文言を変えると黙って0件になる');
+
+  // ── ⑦ 判断は `controller/` に閉じる（`S-9` の規律＝画面に CPU の判断を散らさない）──
+  // ⚠`battleScreenSource()` は `controller/` も読むので、**画面の本体だけ**を見る。
+  ok(!fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8').includes('chargeNeedColors'),
+    '🔴画面が `chargeNeedColors` を呼んでいる＝CPU の判断が画面側に散る');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

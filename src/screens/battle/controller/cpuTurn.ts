@@ -40,7 +40,8 @@ import {getLrigAttackCrashState} from '../lrigCrash';
 import {pickCpuGuardHandIndex} from '../cpuGuard';
 import {pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards} from '../cpuHandLimit';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
-import {buildCpuGrowReserve} from '../cpuGrowReserve';
+import {buildCpuGrowReserve, chargeNeedColors} from '../cpuGrowReserve';
+import {listGrowCandidates} from '../growLogic';
 import {normalizeCpuDeckPlan, planDeployBonus, planKeepBonus} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
@@ -754,7 +755,18 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (!used && !blocked && cpuSt.hand.length > 0) {
       // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
       const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
-      const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy));
+      // 🆕§5.7 `S-26`（2026-09-21）＝**ターンをまたいだ情報**を渡す＝
+      //   ①**次のグロウでまだ足りない色**（置きに行く） ②**空きシグニゾーンの数**（出せる札を温存する）。
+      //   🔴**これが無いと「グロウできない」「出す札が無い」が繰り返し起きる**（実測＝7% と 22%）。
+      // 🔴🔑**「このターンのグロウ」を見ても遅い**（2026-09-21 実測で分かった）＝失敗した3件は**全部**
+      //   「**今回は無料／払える** ⇒ 要る色は空 ⇒ 無色をチャージ ⇒ **次のターン**に《白》が要って払えない」だった。
+      //   ⇒ **1回グロウしたあとの盤面**で足りない色を見る（＝ユーザーの言う「ターンをまたいだ考え」）。
+      //   ⚠**いまのグロウが払えないなら、そちらが先**（2手先より目先）。
+      const chargeCtx = {
+        needColors: chargeNeedColors(cpuMoveCtx(cpuSt), cards),
+        emptyZones: cpuSt.field.signi.filter(stk => !(stk ?? []).length).length,
+      };
+      const chargeIdx = Math.max(0, pickCpuEnergyChargeIndex(cpuSt.hand, battleCardMap, id => effectsMap.get(id) ?? [], cpuLrigLevelEna, id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy, chargeCtx));
       const charged = cpuSt.hand[chargeIdx];
       d.observeChoice?.({ kind: 'energy', handIndex: chargeIdx, id: charged });
       const chargedCard = battleCardMap.get(charged);
@@ -802,6 +814,12 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       // 候補は人間と同じ gate。コストは**払える1枚目**を選ぶ（決定論・盤面評価はしない）。
       // 🆕§5.7 `S-15`＝列挙は `listCpuGrows`（探索と同じ道）。
       const cpuGrowMove = listCpuGrows(cpuMoveCtx(cpuSt))[0];
+      // 🆕🔴§5.7 `S-26`（2026-09-21）＝**グロウ先はあるのにエナで払えなかった**ことをログに出す。
+      //   🔑**「グロウしないことがかなりの悪手」**（ユーザー）なのに、**この失敗はどの計器にも映っていなかった**
+      //   （盤面も勝敗も静かに悪くなるだけ）。⚠文言は `census:play` の規則 `growUnpayable` の契約。
+      if (!cpuGrowMove && listGrowCandidates({ my: cpuSt, cardMap: battleCardMap, effectsMap }).length > 0) {
+        appendBattleLogs([`[CPU] グロウできない（エナ不足）: エナ${cpuSt.energy.length}枚`]);
+      }
       if (cpuGrowMove) {
         d.observeChoice?.(cpuGrowMove);
         const { card: growCard, costIndices, pool: cpuGrowPool } = cpuGrowMove;

@@ -2,7 +2,7 @@ import type { CardData } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
 import type { CardEffect } from '../../types/effects';
 import { cardStrength } from './cpuCardStrength';
-import type { CpuPolicy } from './cpuPolicy';
+import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 
 /**
  * CPU の**マリガンで戻す札**と**手札上限で捨てる札**（§5.6 `C-4`・2026-09-17）。
@@ -60,21 +60,59 @@ export function pickCpuHandLimitDiscards(
 }
 
 /**
- * 🆕§5.7 `S-1`＝**エナチャージする手札**の添字＝強さの低い札（【ガード】は最後）。
- * ⚠ルリグのレベルより2以上高いシグニは、しばらく出せないので**強さを割り引く**（エナに回しやすくする）。
- * 旧実装は「手札の先頭1枚」固定だった（強い札でもエナに置いていた）。
+ * 🆕§5.7 `S-26`＝エナチャージの「どれを置くか」に要る**ターンをまたいだ情報**。
+ * ⚠**省略できる**＝渡さなければ `S-1` のときの挙動（強さだけ）に戻る。
+ */
+export interface CpuChargeCtx {
+  /**
+   * 🔴**次のグロウでまだ足りない色**（`cpuGrowReserve.growShortColors`）＝**この色の札はエナへ置きに行く**。
+   * 実測（2026-09-21）＝グロウ機会 214 のうち 15（7%）が払えず、**うち7件は色の問題**。
+   */
+  needColors?: readonly string[];
+  /**
+   * 🔴**空いているシグニゾーンの数**＝**いま出せる札が足りているか**を測るのに要る。
+   * 実測＝ターン1（ルリグ Lv0〜1）でレベル1のシグニをエナへ置いた結果、
+   * **MAIN で空きゾーンがあるのに出せる札が手札に無い盤面が 22/98（22%）**（ケトッシー軸）。
+   */
+  emptyZones?: number;
+}
+
+/**
+ * 🆕§5.7 `S-1`／`S-26`＝**エナチャージする手札**の添字（【ガード】は最後）。
+ *
+ * ■ キープ値＝**強さ（パワー＋効果の点数）**に、**ターンをまたいだ3つの補正**を足したもの。低いものからエナへ置く。
+ *   ① **当分出せない**（レベル ≧ ルリグレベル＋2）＝`chargeFarLevelScale` 倍に割り引く（旧実装の 0.6）。
+ *   ② 🆕**いま出せる札が足りない**（レベル ≦ ルリグレベルのシグニが空きゾーン数以下）＝`chargeKeepPlayable` を加点して温存する。
+ *      🔑**終盤にレベル1を置くのは正しい**（実測＝`Lv1-ルリグLv4` は5回＝ただ弱い札）＝**ルリグレベル相対**で決める。
+ *   ③ 🆕**次のグロウに要る色**を持つ札＝`chargeGrowColor` を減点して**エナへ置きに行く**。
+ * ■ 🔑**②と③は逆を向くことがある**（要る色の札が、いま出せる唯一の札）＝**数値の大小で決める**（既定は同額＝引き分けなら①の割引と強さで決まる）。
  * @returns 手札が空なら -1
  */
 export function pickCpuEnergyChargeIndex(
   hand: string[], cardMap: Map<string, CardData>, effectsOf: (id: string) => readonly CardEffect[], lrigLevel: number,
-  keepBonus?: (id: string) => number, policy?: CpuPolicy,
+  keepBonus?: (id: string) => number, policy?: CpuPolicy, charge?: CpuChargeCtx,
 ): number {
   if (hand.length === 0) return -1;
+  const W = policy ?? DEFAULT_CPU_POLICY;
+  const isSigni = (num: string) => cardMap.get(getCardNum(num))?.Type === 'シグニ';
+  /** いま出せるシグニ（レベル ≦ ルリグレベル）。⚠**リミットは見ない**（見るならコストの判定ごと要る＝ここでは枚数の目安）。 */
+  const playableNow = (num: string) => isSigni(num) && levelOf(num, cardMap) <= lrigLevel;
+  const playableCount = hand.filter(playableNow).length;
+  // 🔴**「足りない」の定義**＝空きゾーンを埋めるぶんに余りが無い（1枚も余らない）。
+  //   ⚠`emptyZones` を渡さなければこの補正は効かない（旧挙動）。
+  const scarce = charge?.emptyZones !== undefined && playableCount <= charge.emptyZones;
+  const needColors = new Set(charge?.needColors ?? []);
   const keepValue = (num: string) => {
     const card = cardMap.get(getCardNum(num));
     const base = cardStrength(card, effectsOf(num), 'deploy', undefined, policy);
+    // ① 当分出せない札は割り引く（エナへ回しやすくする）。
+    let v = isSigni(num) && levelOf(num, cardMap) >= lrigLevel + 2 ? base * W.chargeFarLevelScale : base;
+    // ② いま出せる札が足りないなら温存する。
+    if (scarce && playableNow(num)) v += W.chargeKeepPlayable;
+    // ③ 次のグロウに要る色なら置きに行く。⚠シグニ以外（スペル等）も色を持つので対象にする。
+    if (card?.Color && needColors.has(card.Color)) v -= W.chargeGrowColor;
     // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは残す（加点）。
-    return (card?.Type === 'シグニ' && levelOf(num, cardMap) >= lrigLevel + 2 ? base * 0.6 : base) + (keepBonus?.(num) ?? 0);
+    return v + (keepBonus?.(num) ?? 0);
   };
   return hand.map((_, i) => i).sort((a, b) =>
     Number(isGuard(hand[a], cardMap)) - Number(isGuard(hand[b], cardMap))
