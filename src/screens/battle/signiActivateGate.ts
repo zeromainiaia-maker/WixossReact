@@ -5,9 +5,10 @@ import { evalUseCondition, getCardNum, matchesFilter } from '../../engine/effect
 import { countAcce } from '../../utils/acce';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
-import { canPayUnderSelfTrash } from './underAnySigniCost';
+import { canPayUnderAnySigniTrash, canPayUnderSelfTrash } from './underAnySigniCost';
+import { canPayFieldDownCost } from './fieldDownCost';
 import { canPayAttachedOrUnderTrash } from './attachedOrUnderCost';
-import { charmTrashAffordable, energyTrashCostSatisfied, handDiscardSigniAffordable, removeOppVirusAffordable, trashExileAffordable } from './costs';
+import { canPayExceed, charmTrashAffordable, energyTrashCostSatisfied, handDiscardSigniAffordable, removeOppVirusAffordable, trashExileAffordable } from './costs';
 import { multiZoneExileAffordable } from './multiZoneExileCost';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
 // 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
@@ -188,6 +189,14 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   しかも `trashExile.self` の支払いは `trash.filter(cn => cn !== cardNum)`＝
     //   **場に在る札はトラッシュに無いので1枚も減らず、コストを踏み倒して撃てた**。
     !e.trashActivated && !e.energyActivated && !e.handActivated && !e.cost?.discardSelfFromHand &&
+    // 🆕🔴**§5.7 `S-31` ② 第5段（2026-09-22）＝コストが「その札が手札／エナに在ること」を前提にする形**も
+    //   ここで落とす（`O-262` と同じ家族）。⚠**parser が `handActivated`／`energyActivated` を立てていない**
+    //   2効果（`WX14-028-E2`「手札にあるこのカードをゲームから除外する：」／
+    //   `WXDi-P10-066-E2`「エナゾーンからこのカードをトラッシュに置く：」）が**場のシグニの【起】として提示され、
+    //   支払いがどこにも無いので完全に踏み倒して撃てた**。
+    // ⚠**これで撃てなくなる**（正しい入口＝手札／エナの【起】はまだ surface していない）＝
+    //   **踏み倒しのまま撃てるより安全側**。入口を作るのは §5.7 `S-31` の残り作業。
+    !e.cost?.handExileSelf && !e.cost?.energyTrashSelf &&
     // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
     //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
     !e.costUnparsed &&
@@ -222,6 +231,15 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     //   ⚠支払いUI・引き落としと**同じ関数**（`canPayAttachedOrUnderTrash` / `payAttachedOrUnderTrash`）を通す。
     !(e.cost?.attachedOrUnderTrash
       && !canPayAttachedOrUnderTrash(my, e.cost.attachedOrUnderTrash.count)) &&
+    // 🆕**underAnySigniTrash**（§5.7 `S-31` ② 第5段）＝「**あなたのシグニの下から**カードN枚」。
+    //   🔴検算も支払いも無く踏み倒せた。⚠候補は 【出】経路と同じ関数（全ゾーンの下＝最上段を除く）。
+    !(e.cost?.underAnySigniTrash
+      && !canPayUnderAnySigniTrash(my, e.cost.underAnySigniTrash.count)) &&
+    // 🆕**exceed**（§5.7 `S-31` ② 第5段）＝シグニの【起】にもエクシードのコストが在る。
+    //   ⚠可否はルリグ【起】と同じ関数（色指定込み）。
+    !(e.cost?.exceed && !canPayExceed(my, e.cost.exceed, e.cost.exceedColors, cardMap)) &&
+    // 🆕**fieldDown**＝支払い funnel と**同じ軸**で見る（旧はこのファイルに同じ規則が手書きされていた）。
+    canPayFieldDownCost(my, e.cost?.fieldDown, cardMap, topNum) &&
     // 🆕**chargeCounterRemove**（§5.7 `S-31` ② 第4段・`WX17-034`＝【貯菌】）＝
     //   🔴**提示の検算も支払いも無く、カウンター0個でも撃てた**（「相手のシグニ1体をトラッシュ」が
     //   コストなしで何度でも通っていた）。⚠支払い（`performSigniActivated`）と**同じ軸**＝効果元のゾーンの数。
@@ -251,15 +269,7 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, cardMap)) &&
     // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）
     !(e.cost?.beat_signi && my.field.signi.filter(s => (s?.length ?? 0) > 0).length < 1) &&
-    // fieldDown: アップ状態の該当シグニが必要数いないと支払えない
-    !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
-      const fdTop = my.field.signi[zi]?.at(-1);
-      if (!fdTop) return false;
-      if (e.cost!.fieldDown!.excludeSelf && zi === zoneIndex) return false;
-      if (my.field.signi_down?.[zi]) return false; // アップ状態のみ
-      const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
-      return matchesFilter(cardMap.get(getCardNum(fdTop)), fdCardFilter);
-    }).length < e.cost.fieldDown.count) &&
+
     // lrigDown: アップ状態のルリグ（centerOnly / level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
     !(e.cost?.lrigDown && payLrigDownCost(my, e.cost.lrigDown, cardMap) === null) &&
     (!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, cardMap, topNum, getPowers())) &&

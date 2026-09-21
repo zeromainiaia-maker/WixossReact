@@ -4,7 +4,7 @@ import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, energyCostToString
 import { fieldTrashSelectableZones } from './fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
-import { payUnderSelfTrash, underSelfCostCandidates, type UnderAnySigniCandidate } from './underAnySigniCost';
+import { payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates, type UnderAnySigniCandidate } from './underAnySigniCost';
 import { cardStrength } from './cpuCardStrength';
 import { reserveKeptAfterPaying } from './cpuGrowReserve';
 import { getCardNum, matchesFilter } from '../../engine/execUtils';
@@ -93,6 +93,17 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   //   `chargeCounterRemove`＝効果元の上の【貯菌】をN個取り除く（自動／**この回に提示の検算も足した**）。
   'selfToDeckBottom',
   'chargeCounterRemove',
+  // 🆕§5.7 `S-31` ② 第5段（2026-09-22）＝**この回に支払いを新設したキー**。
+  //   `underAnySigniTrash`＝全シグニの下から（キーは `pickCpuUnderSelfTrashKeys` が決める）。
+  //   `exceed`＝ルリグの下から自動（gate が `canPayExceed` で色まで検算）。
+  //   `multiZoneExile`＝手札・エナ・トラッシュから1枚ずつ（**自動選択**＝`filter` は cardName 一意）。
+  //   `fieldDown`＝支払い funnel（`fieldDownCost.ts`）を新設して両経路で共用した。
+  //   `costSubstitute`＝**支払いの代替手段の宣言**（「《青》の代わりに手札を捨ててもよい」）＝
+  //     🔑CPU は**代替を使わず素のコストを払う**ので、載せてよい（踏み倒しにならない）。
+  'underAnySigniTrash',
+  'exceed',
+  'multiZoneExile',
+  'costSubstitute',
 ]);
 
 /**
@@ -406,6 +417,15 @@ export function pickCpuUnderSelfTrashKeys(p: {
   sourceZone: number;
   cardMap: Map<string, CardData>;
 }): Set<string> | null {
+  // 🆕§5.7 `S-31` ② 第5段＝「**あなたのシグニの下から**」（全ゾーン版）＝**キーの形が同じ**なので
+  //   候補の出どころだけ差し替える（払えるかの検算は `payUnderAnySigniTrash` の1本）。
+  const anySpec = p.effect.cost?.underAnySigniTrash;
+  if (anySpec) {
+    const anyCands = underAnySigniCostCandidates(p.actor);
+    if (anyCands.length < anySpec.count) return null;
+    const keys = new Set(anyCands.slice(0, anySpec.count).map(c => `${c.zone}:${c.index}`));
+    return payUnderAnySigniTrash(p.actor, keys, anySpec.count) ? keys : null;
+  }
   const spec = p.effect.cost?.underSelfTrash;
   if (!spec) return new Set();
   const candidates = underSelfCostCandidates(p.actor, p.sourceZone, p.cardMap, spec.filter);

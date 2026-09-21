@@ -9,6 +9,8 @@ import { activatedEnergyTrashPaidCount, exceedColorsSatisfied, exceedPoolOf, act
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldBanishCost } from '../fieldBanishCost';
+import { payFieldDownCost } from '../fieldDownCost';
+import { payLifeOnPlayCost } from '../lifeCost';
 import { payFieldTrashCost } from '../fieldTrashCost';
 import { effectiveCoinCost } from '../lrigActivateGate';
 import { payLrigDownCost, payLrigDownSelfCost } from '../lrigDownCost';
@@ -251,6 +253,23 @@ export const performLrigActivated = async (
       }
       if (movedCL.length < charmTrashNLrig) { ctx.io.setLoading(false); return; }
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
+    }
+    // 🆕**fieldDown**（§5.7 `S-31` ② 第5段・`WXDi-P15-010-E2`「アップ状態の＜防衛派＞のシグニ１体をダウンする：」）＝
+    //   🔴**この経路には支払いが1行も無く、シグニを1体もダウンさせずに撃てた**。
+    //   ⚠支払いは**場のシグニ【起】と同じ関数**（`payFieldDownCost`）。発生源はルリグなので `excludeSelf` は渡さない。
+    if (effect.cost?.fieldDown) {
+      const fdPaidLg = payFieldDownCost(paid, effect.cost.fieldDown, ctx.cardMap);
+      if (!fdPaidLg) { ctx.io.setLoading(false); return; }
+      paid = fdPaidLg;
+    }
+    // 🆕**life_crash**（§5.7 `S-31` ② 第5段・`WXDi-P10-006-E2`「ライフクロス１枚をクラッシュする：」）＝
+    //   🔴**この経路にも支払いが無く、ライフを失わずに2枚引けた**。
+    //   ⚠支払いは【出】コストと同じ funnel（`payLifeOnPlayCost`）＝ライフバーストの扱いもそちらの1本に載る。
+    if (effect.cost?.life_crash) {
+      const lifePaidLg = payLifeOnPlayCost(paid, { life_crash: effect.cost.life_crash });
+      if (!lifePaidLg) { ctx.io.setLoading(false); return; }
+      paid = lifePaidLg.state;
+      if (lifePaidLg.logs.length > 0) ctx.io.appendLogs(lifePaidLg.logs);
     }
     // 🆕**trashArtsFromLrigDeck**（§5.7 `S-31` ② 第4段・live 5効果＝`WDK14-001-E3` ほか）＝
     //   「ルリグデッキから赤のアーツ1枚をルリグトラッシュに置く：」。

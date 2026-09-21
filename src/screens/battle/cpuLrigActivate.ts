@@ -80,6 +80,11 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   //   `trashArtsFromLrigDeck`＝ルリグデッキのアーツを徴収（どれを捨てるかは `pickCpuTrashArtsNums`）。
   'fieldToLrigTrash',
   'trashArtsFromLrigDeck',
+  // 🆕§5.7 `S-31` ② 第5段（2026-09-22）＝**この回に支払いを新設したキー**（どちらも旧は踏み倒せた）。
+  //   `fieldDown`＝アップ状態の該当シグニをN体ダウン（自動・`fieldDownCost.ts` の funnel）。
+  //   `life_crash`＝自分のライフクロスをNクラッシュ（自動・`payLifeOnPlayCost`／gate が枚数を検算）。
+  'fieldDown',
+  'life_crash',
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */

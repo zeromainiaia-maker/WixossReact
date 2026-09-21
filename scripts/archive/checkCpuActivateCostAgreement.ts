@@ -49,7 +49,9 @@ const resonaNum = [...cardMap.values()].find(c => c.Type === 'レゾナ')?.CardN
 
 const KEYS = ['underSelfTrash', 'charmTrash', 'removeOppVirus', 'selfPowerDown', 'deckTrash', 'fieldBanish', 'fieldToDeckTop',
   // 🆕§5.7 `S-31` ② 第4段
-  'selfToDeckBottom', 'chargeCounterRemove'] as const;
+  'selfToDeckBottom', 'chargeCounterRemove',
+  // 🆕§5.7 `S-31` ② 第5段
+  'underAnySigniTrash', 'exceed', 'multiZoneExile', 'fieldDown', 'costSubstitute'] as const;
 let okCount = 0, ngCount = 0;
 for (const [num, effs] of effectsMap) {
   const card = cardMap.get(num);
@@ -61,7 +63,9 @@ for (const [num, effs] of effectsMap) {
     // 十分に緩い盤面（下敷き2枚・チャーム3・相手ウィルス3・仲間2体）
     const my = mk({
       signi: [[`${num}#u0`, `${num}#u1`, num], [`WD01-010#z1`], [`WD01-010#z2`]],
-      charms: [`WD01-010#c0`, `WD01-010#c1`, `WD01-010#c2`], lrig: ['WD01-001'],
+      charms: [`WD01-010#c0`, `WD01-010#c1`, `WD01-010#c2`],
+      // 🆕§5.7 `S-31` ② 第5段＝**ルリグの下**を積む（エクシードの候補が0だと提示ゲートで落ちて母集団から消える）
+      lrig: ['WD01-001', 'WD01-002', 'WD01-003', 'WD01-004', 'WD01-005'],
     });
     // 🆕§5.7 `S-31` ② 第4段＝【貯菌】を積んでおく（0個だと提示ゲートで落ちて母集団から消える）
     my.field.signi_chokkin = [5, 0, 0];
@@ -88,7 +92,9 @@ for (const [num, effs] of effectsMap) {
     if (e.effectType !== 'ACTIVATED' || !e.cost) continue;
     const keys = (['fieldTrash', 'fieldBanish', 'removeOppVirus', 'exceedColors', 'deckTrash',
       // 🆕§5.7 `S-31` ② 第4段
-      'fieldToLrigTrash', 'trashArtsFromLrigDeck'] as const).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
+      'fieldToLrigTrash', 'trashArtsFromLrigDeck',
+      // 🆕§5.7 `S-31` ② 第5段
+      'fieldDown', 'life_crash'] as const).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
     if (keys.length === 0) continue;
     const my = mk({ signi: [['WD01-010#f0'], ['WD01-010#f1'], ['WD01-010#f2']], lrig: [num], charms: ['WD01-010#c0', null, null] });
     // 🆕§5.7 `S-31` ② 第4段＝ルリグデッキに全色のアーツを積む（空だとアーツ徴収が提示ゲートで落ちる）

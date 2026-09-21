@@ -698,6 +698,9 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   //   ⚠**`fieldToLrigTrash` は載せない**＝行き先（ルリグトラッシュ）をこの近似が持っていない
   //     ＝`null` を返して**その手は探索の外**（従来の優先順で撃つ）。
   'selfToDeckBottom', 'chargeCounterRemove', 'trashArtsFromLrigDeck',
+  // 🆕§5.7 `S-31` ② 第5段＝`fieldDown` は既に写している（上の行）。
+  //   ⚠**`exceed`／`underAnySigniTrash`／`multiZoneExile`／`life_crash`／`costSubstitute` は載せない**＝
+  //     ルリグの下・下敷き・複数ゾーン・ライフの近似をこの盤面模型が持っていない ⇒ `null`＝その手は探索の外。
 ]);
 
 /**

@@ -36,7 +36,9 @@ function report(label: string, types: string[], allow: ReadonlySet<keyof EffectC
       if ((e as unknown as { effectType?: string }).effectType !== 'ACTIVATED') continue;
       // 🔴場のシグニの gate は「入口が場ではない【起】」を除く（`signiActivateGate`）＝母集団からも除く。
       const ee = e as unknown as { trashActivated?: boolean; energyActivated?: boolean; handActivated?: boolean; costUnparsed?: boolean };
-      if (excludeOffField && (ee.trashActivated || ee.energyActivated || ee.handActivated || e.cost?.discardSelfFromHand)) continue;
+      // 🆕§5.7 `S-31` ② 第5段＝`handExileSelf`／`energyTrashSelf` も「入口が場ではない」形として gate が落とす。
+      if (excludeOffField && (ee.trashActivated || ee.energyActivated || ee.handActivated
+        || e.cost?.discardSelfFromHand || e.cost?.handExileSelf || e.cost?.energyTrashSelf)) continue;
       if (ee.costUnparsed) continue;
       total++;
       const cost = e.cost;

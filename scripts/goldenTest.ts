@@ -216,7 +216,8 @@ import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/screens/battle/attachedOrUnderCost';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuTrashArtsNums, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
-import { charmTrashAffordable, removeOppVirusAffordable } from '../src/screens/battle/costs';
+import { charmTrashAffordable, removeOppVirusAffordable, paySelectedExceed } from '../src/screens/battle/costs';
+import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { trashArtsFromLrigDeckCandidates } from '../src/screens/battle/artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
 import { payDeckTrashCost } from '../src/screens/battle/deckTrashCost';
@@ -54172,7 +54173,7 @@ test('O-1 cpuLrigActivate: 支払い内訳が要るコストは CPU が撃たな
   //   🔴第2段の「実行側に口が無い」は**誤り**で、口は `performLrigActivated` の `sel.fieldBanishZones` に在った
   //   （欠けていたのは CPU 側のゾーン選択だけ）。ゾーンは `pickCpuFieldTrashZones`。
   ok(can({ fieldTrash: { count: 1 } }), '🔴ルリグ【起】の場コストで撃てなくなっている（`S-31` ② 第3段の退化）');
-  ok(!can({ fieldDown: { count: 1 } }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
+  ok(!can({ discardGroups: [{ count: 1 }] }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
   ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups'),
     '🔴allowlist の中身が変わった（手札捨ては入れた／選択の要るグループ捨ては入れない）');
 }));
@@ -78595,8 +78596,17 @@ test('第244 SPDi43-06-E2: fieldDown.excludeSelf を提示判定と実支払い�
   }).some(e => e.effectId === 'SPDi43-06-E2');
   eq(offered(['SPDi43-06', null, null]), false, '自身しかいない盤面ではコストを払えない');
   eq(offered(['SPDi43-06', other, null]), true, '他のアップ状態シグニがいれば提示する');
+  // 🆕§5.7 `S-31` ② 第5段（2026-09-22）＝**支払いを `fieldDownCost.ts` の funnel へ出した**（較正）＝
+  //   ルリグ【起】には支払いが1行も無く踏み倒せたので、2本の写経ではなく1本に寄せた。
+  //   ⇒ 検査も「実行経路が効果元を渡しているか」＋「funnel が自身を除くか」の2つに割る。
   const paymentSource = battleScreenSource();
-  ok(paymentSource.includes('effect.cost.fieldDown.excludeSelf && fdTop === cardNum'),
+  ok(/payFieldDownCost\(\s*\{ \.\.\.my[\s\S]{0,160}?cardNum,/.test(paymentSource),
+    '🔴実支払い地点が効果元カードを渡していない（`excludeSelf` が効かなくなる）');
+  const downPaid = payFieldDownCost(
+    mkState({ signi: ['SPDi43-06', other, null] }),
+    { count: 1, filter: { cardType: 'シグニ' }, excludeSelf: true } as never,
+    cardMap as Map<string, CardData>, 'SPDi43-06');
+  ok(!!downPaid && (downPaid.field.signi_down ?? [])[0] === false && (downPaid.field.signi_down ?? [])[1] === true,
     '🔴実支払い地点も自身を候補から除外する');
 }));
 
@@ -90347,7 +90357,9 @@ test('§5.7 S-31 ② 第2段 エナ・場から払うコスト：弱いものか
   ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldTrash'), '🔴ルリグ【起】の allowlist から場コストが消えた');
   // 🆕§5.7 `S-31` ② 第4段＝`trashArtsFromLrigDeck` は**支払いを新設してから**載せた（較正）。
   //   ⚠規律は変わらない＝**口が無いキーは載せない**（`fieldDown`／`discardGroups` は今も外）。
-  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldDown') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups'),
+  // 🆕§5.7 `S-31` ② 第5段＝`fieldDown` も**支払いを新設してから**載せた（較正）。
+  //   ⚠規律は変わらない＝**口が無いキーは載せない**（`discardGroups`／`trapToHand` は今も外）。
+  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('discardGroups') && !CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('trapToHand'),
     '🔴`performLrigActivated` に受け取る口が無いコストを allowlist に入れた（宣言だけして踏み倒す側へ倒れる）');
 }));
 
@@ -90543,6 +90555,112 @@ test('§5.7 S-31 ② 第4段 誰も払っていなかったコスト4種：デ�
   const lrigModalD = fs.readFileSync(join(root, 'src/screens/battle/modals/LrigGrantedModal.tsx'), 'utf-8');
   ok(/data-testid={`lrigact-arts-\$\{getCardNum\(num\)\}`}/.test(lrigModalD), '🔴人間がアーツを選ぶ UI が無い');
   ok(/cost\?\.fieldToLrigTrash/.test(lrigModalD), '🔴人間の支払いUIがルリグトラッシュ行きのコストを出していない');
+}));
+
+test('§5.7 S-31 ② 第5段 残りの踏み倒し：下敷き全ゾーン／エクシード／複数ゾーン除外／ダウン／ライフ', () => withSavedCursor(() => {
+  // 🔴**この回も「CPU が撃てない」ではなく「実行経路がそのキーを読むか」で見つけた**＝
+  //   📏live 8効果＝`underAnySigniTrash` 2／`exceed`(シグニ) 2／`multiZoneExile` 1／`fieldDown`(ルリグ) 2／`life_crash`(ルリグ) 1。
+  //   ⚠**`multiZoneExile` は提示ゲートだけ在って支払いが無かった**＝**検算を足した回に支払い地点を付け忘れる**型。
+  const cm31e = cardMap as Map<string, CardData>;
+  const SIG_E = findCard(c => isSigni(c) && (c.Power ?? '') === '3000');
+  const SIG_F = findCard(c => isSigni(c) && (c.Power ?? '') === '8000');
+  ok(!!SIG_E && !!SIG_F, '前提崩れ＝検査に使う札が CSV に無い');
+
+  // ── ① `underAnySigniTrash`＝**全シグニの下**から（`underSelfTrash` は「このシグニの下」）──
+  const stacks = (a: string[], b: string[]): PlayerState => {
+    const base = mkState({ signi: [SIG_E, SIG_F, null] });
+    return { ...base, field: { ...base.field, signi: [a, b, null] } } as PlayerState;
+  };
+  const anySt = stacks([`${SIG_F}#u0`, SIG_E], [`${SIG_F}#u1`, `${SIG_F}#z1`]);
+  const anyIds = (my: PlayerState, count: number) => listActivatableSigniEffects({
+    my, op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[SIG_E, [mkAct('T-UA', { cost: { underAnySigniTrash: { count } } as never })]]]) as Map<string, CardEffect[]>,
+    cardMap: cm31e,
+  }).map(e => e.effectId);
+  eq(anyIds(stacks([SIG_E], [`${SIG_F}#z1`]), 1).length, 0, '🔴下に1枚も無いのに提示した（踏み倒し）');
+  eq(anyIds(anySt, 2).join(','), 'T-UA', '下が2枚あれば提示される（対照＝**別のシグニの下**も数える）');
+  eq(anyIds(anySt, 3).length, 0, '🔴下の合計が足りないのに提示した');
+  // 🔑CPU の選び方＝`pickCpuUnderSelfTrashKeys` が全ゾーン版も返す（キーの形は同じ）
+  const anyKeys = pickCpuUnderSelfTrashKeys({
+    effect: { effectId: 'U2', effectType: 'ACTIVATED', cost: { underAnySigniTrash: { count: 2 } } } as never,
+    actor: anySt, sourceZone: 0, cardMap: cm31e });
+  eq([...(anyKeys ?? [])].join(','), '0:0,1:0', '🔴全シグニの下から2枚を選べていない');
+  eq(pickCpuUnderSelfTrashKeys({
+    effect: { effectId: 'U3', effectType: 'ACTIVATED', cost: { underAnySigniTrash: { count: 5 } } } as never,
+    actor: anySt, sourceZone: 0, cardMap: cm31e }), null, '🔴下が足りないのに払えたことにした');
+
+  // ── ② `exceed`（**シグニ**の【起】にも在る）＝ルリグの下から自動で払う ──
+  const exceedSt = (under: number): PlayerState => {
+    const base = mkState({ signi: [SIG_E, null, null], lrig: Array.from({ length: under + 1 }, (_, i) => `WD01-00${i + 1}`) });
+    return base;
+  };
+  const exceedIds = (under: number) => listActivatableSigniEffects({
+    my: exceedSt(under), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[SIG_E, [mkAct('T-EX', { cost: { exceed: 2 } as never })]]]) as Map<string, CardEffect[]>,
+    cardMap: cm31e,
+  }).map(e => e.effectId);
+  eq(exceedIds(0).length, 0, '🔴ルリグの下が0枚なのにエクシードの【起】を提示した（踏み倒し）');
+  eq(exceedIds(1).length, 0, '🔴ルリグの下が足りないのに提示した');
+  eq(exceedIds(2).join(','), 'T-EX', 'ルリグの下が足りれば提示される（対照）');
+  // 🔑支払いはルリグ【起】と同じ関数（下から2枚がルリグトラッシュへ）
+  const exPaid = paySelectedExceed(exceedSt(2), 2, new Set([0, 1]), undefined, cm31e);
+  ok(!!exPaid && exPaid.lrig_trash.length === 2 && exPaid.field.lrig.length === 1,
+    '🔴エクシードの支払いでルリグの下が減っていない');
+
+  // ── ③ `fieldDown`＝支払い funnel は**場のシグニ【起】とルリグ【起】で1本**（旧はルリグに支払いが無かった）──
+  const downSt = mkState({ signi: [SIG_E, SIG_F, null] });
+  const fdCost = { count: 1, filter: { cardType: 'シグニ' } };
+  const fdPaid = payFieldDownCost(downSt, fdCost as never, cm31e);
+  ok(!!fdPaid && (fdPaid.field.signi_down ?? []).filter(Boolean).length === 1, '🔴ダウンのコストが盤面に効いていない');
+  eq(payFieldDownCost(downSt, { count: 3, filter: { cardType: 'シグニ' } } as never, cm31e), null,
+    '🔴アップ状態のシグニが足りないのに払えたことにした');
+  // 🔴`excludeSelf`＝効果元は選ばない（発生源が**ルリグ**なら渡さない＝効かない）
+  const selfTop = downSt.field.signi[0]?.at(-1) ?? '';
+  const fdExcl = payFieldDownCost(downSt, { count: 1, filter: { cardType: 'シグニ' }, excludeSelf: true } as never, cm31e, selfTop);
+  ok(!!fdExcl && (fdExcl.field.signi_down ?? [])[0] === false, '🔴`excludeSelf` なのに効果元をダウンさせた');
+  // ルリグ【起】の提示ゲートも同じ軸で見る
+  const lrigDownIds = (signi: (string | null)[]) =>
+    listActivatableLrigEffects(lrigGateArgs([mkLrigAct('L-FD', { cost: { fieldDown: fdCost } as never })], {
+      field: { ...mkState({ signi }).field, lrig: [LRIG_ANY] },
+    })).map(e => e.effectId);
+  eq(lrigDownIds([null, null, null]).length, 0, '🔴場が空なのにダウンのコストを踏み倒して提示した');
+  eq(lrigDownIds([SIG_E, null, null]).join(','), 'L-FD', 'シグニが居れば提示される（対照）');
+
+  // ── ④ `life_crash`（ルリグ【起】）＝ライフが足りなければ撃てない ──
+  const lifeIds = (life: number) =>
+    listActivatableLrigEffects(lrigGateArgs([mkLrigAct('L-LC', { cost: { life_crash: 1 } as never })], { life_cloth: fill(life) }))
+      .map(e => e.effectId);
+  eq(lifeIds(0).length, 0, '🔴ライフが0枚なのに「ライフをクラッシュする」コストで撃てた');
+  eq(lifeIds(2).join(','), 'L-LC', 'ライフが在れば提示される（対照）');
+
+  // ── ⑤ 入口が場ではない【起】を場のシグニとして出さない（`O-262` の家族）──
+  //   🔴`handExileSelf`／`energyTrashSelf` は parser が入口フラグを立てておらず、
+  //     **場のシグニの【起】として提示され、支払いもどこにも無く完全に踏み倒せた**。
+  for (const key of ['handExileSelf', 'energyTrashSelf'] as const) {
+    eq(listActivatableSigniEffects({
+      my: mkState({ signi: [SIG_E, null, null] }), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+      effectsMap: new Map([[SIG_E, [mkAct(`T-${key}`, { cost: { [key]: true } as never })]]]) as Map<string, CardEffect[]>,
+      cardMap: cm31e,
+    }).length, 0, `🔴入口が場ではない【起】（${key}）を場のシグニとして提示した`);
+  }
+
+  // ── ⑥ 配線（allowlist・支払い・人間のUI）──
+  for (const k of ['underAnySigniTrash', 'exceed', 'multiZoneExile', 'costSubstitute'] as const) {
+    ok(CPU_AUTO_PAYABLE_COST_KEYS.has(k), `🔴場のシグニ【起】の allowlist から ${k} が消えた`);
+  }
+  for (const k of ['fieldDown', 'life_crash'] as const) {
+    ok(CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has(k), `🔴ルリグ【起】の allowlist から ${k} が消えた`);
+  }
+  const signiSrcE = fs.readFileSync(join(root, 'src/screens/battle/controller/performSigniActivated.ts'), 'utf-8');
+  ok(/payUnderAnySigniTrash\(/.test(signiSrcE) && /paySelectedExceed\(/.test(signiSrcE) && /payMultiZoneExileCost\(/.test(signiSrcE),
+    '🔴場のシグニ【起】の実行がこの3キーを払っていない（コストの踏み倒し）');
+  const lrigSrcE = fs.readFileSync(join(root, 'src/screens/battle/controller/performLrigActivated.ts'), 'utf-8');
+  ok(/payFieldDownCost\(/.test(lrigSrcE) && /payLifeOnPlayCost\(/.test(lrigSrcE),
+    '🔴ルリグ【起】の実行がこの2キーを払っていない（コストの踏み倒し）');
+  // 🔑**支払いは1本**＝`fieldDown` は両方の実行経路が同じ funnel を呼ぶ（写経すると片方だけ落ちる）
+  ok(/payFieldDownCost\(/.test(signiSrcE), '🔴`fieldDown` の支払いが2本に割れている（funnel を使っていない）');
+  ok(/underAnySigniCostCandidates\(/.test(fs.readFileSync(join(root, 'src/screens/battle/modals/SigniActivatedModal.tsx'), 'utf-8')),
+    '🔴人間が「あなたのシグニの下」から選ぶ UI が無い');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

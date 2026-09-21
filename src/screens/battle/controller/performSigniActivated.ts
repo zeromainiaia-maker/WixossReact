@@ -1,5 +1,5 @@
 import { coinLedger } from '../../../engine/coinAbilityNegation';
-import { beatSigniCostCount, getCardNum, matchesFilter, payBeatSigniCost, removeFromField } from '../../../engine/effectExecutor';
+import { beatSigniCostCount, getCardNum, payBeatSigniCost, removeFromField } from '../../../engine/effectExecutor';
 import { initStack, pushToStack } from '../../../engine/effectStack';
 import { collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers } from '../../../engine/triggerCollect';
 import { type PlayerState, type StackEntry } from '../../../types';
@@ -9,15 +9,17 @@ import { activateCostZeroApplies } from '../activateCostZero';
 import { consumeActivateCostZero } from '../turnScopedState';
 import { generateUUID } from '../battleUtils';
 import { reduceBattle } from '../controller/battleController';
-import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord } from '../costs';
+import { activatedEnergyTrashPaidCount, activatedDiscardCostRecord, handDiscardHistoryRecord, paySelectedExceed } from '../costs';
 import { type EnergyPayEntry, planEnergyPayment } from '../energyPaySource';
 import { payFieldBanishCost } from '../fieldBanishCost';
 import { payFieldToDeckTopCost } from '../fieldToDeckTopCost';
 import { payDeckTrashCost } from '../deckTrashCost';
 import { payFieldTrashCost } from '../fieldTrashCost';
 import { removeKeyToLrigTrash } from '../keyZone';
+import { payFieldDownCost } from '../fieldDownCost';
 import { payLrigDownCost } from '../lrigDownCost';
-import { payUnderSelfTrash } from '../underAnySigniCost';
+import { payUnderAnySigniTrash, payUnderSelfTrash } from '../underAnySigniCost';
+import { payMultiZoneExileCost } from '../multiZoneExileCost';
 import type { PerformCtx } from './performCtx';
 
 /**
@@ -109,18 +111,18 @@ export const performSigniActivated = async (
       const zoneIdx = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx >= 0) newSigniDown[zoneIdx] = true;
     }
-    // fieldDown コスト: アップ状態の該当シグニN体をダウン（自動支払い：該当ゾーンを順にダウン）
+    // fieldDown コスト: アップ状態の該当シグニN体をダウン（自動支払い）。
+    // 🆕§5.7 `S-31` ② 第5段＝**支払いは `fieldDownCost.ts` の1本**（ルリグ【起】にも同じ関数を配線した＝
+    //   あちらは支払いが無く踏み倒せた）。⚠`down_self` 等で既にダウンさせた分を踏まえるため、
+    //   ここまでの `newSigniDown` を積んだ状態を渡す。
     if (effect.cost?.fieldDown) {
-      const { isUp: _iuFD, isDown: _idFD, ...fdCardFilter } = effect.cost.fieldDown.filter ?? {};
-      let remainingFD = effect.cost.fieldDown.count;
-      for (let zi = 0; zi < my.field.signi.length && remainingFD > 0; zi++) {
-        const fdTop = my.field.signi[zi]?.at(-1);
-        if (!fdTop || newSigniDown[zi]) continue;
-        if (effect.cost.fieldDown.excludeSelf && fdTop === cardNum) continue;
-        if (!matchesFilter(ctx.cardMap.get(getCardNum(fdTop)), fdCardFilter)) continue;
-        newSigniDown[zi] = true;
-        remainingFD--;
-      }
+      const fdState = payFieldDownCost(
+        { ...my, field: { ...my.field, signi_down: newSigniDown } },
+        effect.cost.fieldDown, ctx.cardMap, cardNum,
+      );
+      if (!fdState) { ctx.io.setLoading(false); return; }   // 払えない（提示ゲートでも弾いている）
+      const paidDown = fdState.field.signi_down ?? newSigniDown;
+      for (let zi = 0; zi < newSigniDown.length; zi++) newSigniDown[zi] = paidDown[zi] ?? newSigniDown[zi];
     }
     // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
     // 🔴§5.6 `C-9` `R-46`＝旧実装は **`key_piece_extra: []` と全消し**しており、増設枠のキーが
@@ -276,6 +278,40 @@ export const performSigniActivated = async (
       }
       if (movedCA.length < charmTrashNAct2) return; // 支払い不能
       paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+    }
+    // 🆕**underAnySigniTrash**（§5.7 `S-31` ② 第5段・`WXEX1-61-E2`／`WXK10-054-E2`）＝
+    //   「**あなたのシグニの下から**カードN枚をトラッシュに置く：」。🔴**支払いも提示の検算も無かった**
+    //   （`underSelfTrash`＝「**この**シグニの下から」だけが実装済みで、全シグニ版は素通りしていた）。
+    //   ⚠支払いは 【出】経路と同じ `payUnderAnySigniTrash`（キーの形も同じ `"<ゾーン>:<添字>"`）。
+    if (effect.cost?.underAnySigniTrash) {
+      const anyPaid = payUnderAnySigniTrash(paid, underTrashKeys, effect.cost.underAnySigniTrash.count);
+      if (!anyPaid) { ctx.io.setLoading(false); return; }
+      paid = {
+        ...anyPaid.state,
+        last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...anyPaid.moved],
+      };
+    }
+    // 🆕**exceed**（§5.7 `S-31` ② 第5段・`WXDi-P07-050-E3`「【起】エクシード４：」ほか）＝
+    //   🔴**シグニの【起】にもエクシードのコストが在る**（ルリグ専用ではない）のに、この経路には
+    //   支払いが1行も無く**ルリグの下を1枚も失わずに撃てた**。
+    //   ⚠支払いは**ルリグ【起】と同じ関数**（`paySelectedExceed`＝色指定もここで検算される）。
+    //   ⚠**選択UIは作らない＝下から自動**（ルリグ【起】で `exceedIndices` を省いたときと同じ既定）。
+    if (effect.cost?.exceed) {
+      const exceedPaid = paySelectedExceed(
+        paid, effect.cost.exceed,
+        new Set(Array.from({ length: effect.cost.exceed }, (_, i) => i)),
+        effect.cost.exceedColors, ctx.cardMap,
+      );
+      if (!exceedPaid) { ctx.io.setLoading(false); return; }
+      paid = exceedPaid;
+    }
+    // 🆕**multiZoneExile**（§5.7 `S-31` ② 第5段・`WXDi-P13-089-E3`）＝「手札とエナゾーンとトラッシュにある
+    //   《X》を１枚**ずつ**ゲームから除外する：」。🔴**提示ゲートだけが在って支払いが無かった**
+    //   （§5.3 の `multiZoneExileAffordable` は入れたのに、支払い地点を付け忘れていた）。
+    if (effect.cost?.multiZoneExile) {
+      const mzPaid = payMultiZoneExileCost(paid, effect.cost.multiZoneExile, ctx.cardMap);
+      if (!mzPaid) { ctx.io.setLoading(false); return; }
+      paid = mzPaid.state;
     }
     // 🆕**selfToDeckBottom**（§5.7 `S-31` ② 第4段・`WXK10-043-E2`／`WXDi-P08-062-E2`）＝
     //   「このシグニを場から**デッキの一番下**に置く：」。🔴**この経路に支払いが1行も無く踏み倒せた**

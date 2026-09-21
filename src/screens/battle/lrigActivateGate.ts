@@ -7,6 +7,7 @@ import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
 import { trashArtsFromLrigDeckCandidates } from './artsTrashCost';
+import { canPayFieldDownCost } from './fieldDownCost';
 import { isImmovableArtsFromLrigDeck } from '../../engine/execUtils';
 import { charmTrashAffordable, exceedColorsSatisfied, exceedPoolOf, removeOppVirusAffordable } from './costs';
 import { blockedByNoEmptySigniZone } from './emptyZoneGate';
@@ -160,6 +161,12 @@ export function canActivateLrigEffect(
   // ⚠**`upToCount`（「N体まで」）は0体でも成立する**ので候補数で止めない＝止めると原文より狭くなる。
   if (eff.cost?.fieldTrash && !eff.cost.fieldTrash.upToCount
     && fieldTrashSelectableZones(eff.cost.fieldTrash, my, cardMap).length < eff.cost.fieldTrash.count) return false;
+  // 🆕**fieldDown**（§5.7 `S-31` ② 第5段・`WXDi-P15-010-E2`）＝**検算も支払いも無く踏み倒せた**。
+  //   ⚠**場のシグニ【起】と同じ funnel**（発生源はルリグなので `excludeSelf` は渡さない）。
+  if (!canPayFieldDownCost(my, eff.cost?.fieldDown, cardMap)) return false;
+  // 🆕**life_crash**（§5.7 `S-31` ② 第5段・`WXDi-P10-006-E2`「ライフクロス１枚をクラッシュする：」）＝
+  //   ライフが足りなければ撃てない（支払いは `payLifeOnPlayCost`）。
+  if (eff.cost?.life_crash && my.life_cloth.length < eff.cost.life_crash) return false;
   // 🆕**fieldToLrigTrash**（§5.7 `S-31` ② 第4段・`WX07-001-E2`「レゾナ1体を場からルリグトラッシュに置く」）＝
   //   🔴**検算も支払いも無く踏み倒せた**。⚠**候補の軸は `fieldTrash` と同じ**（行き先だけが違う）。
   if (eff.cost?.fieldToLrigTrash

@@ -9,7 +9,7 @@ import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, energyCostToString, isEnergyPaymentSelectionValid, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { activateCostZeroApplies } from '../activateCostZero';
-import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
+import { payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../underAnySigniCost';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../attachedOrUnderCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -174,14 +174,22 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                   || (actFtUpTo ? selectedSigniActivatedFieldTrash.size <= actFtNeeded
                     : selectedSigniActivatedFieldTrash.size === actFtNeeded));
               const actUnderTrashCost = eff.cost?.underSelfTrash;
+              // 🆕§5.7 `S-31` ② 第5段＝「**あなたのシグニの下から**」（全ゾーン版・`WXEX1-61-E2` ほか）。
+              //   ⚠**キーの形（`"<ゾーン>:<添字>"`）が同じ**なので選択 state と下の UI を共用し、
+              //     候補の出どころと可否判定だけ差し替える（parser は2つを同時に立てない）。
+              const actUnderAnyCost = eff.cost?.underAnySigniTrash;
               const actUnderZone = my.field.signi.findIndex(stack => stack?.at(-1) === pendingSigniActivated.cardNum);
-              const actUnderCandidates = actUnderTrashCost && actUnderZone >= 0
-                ? underSelfCostCandidates(my, actUnderZone, battleCardMap, actUnderTrashCost.filter)
-                : [];
-              const actUnderTrashOk = !actUnderTrashCost || (actUnderZone >= 0 && payUnderSelfTrash(
-                my, actUnderZone, selectedSigniActivatedUnderTrash, actUnderTrashCost.count, battleCardMap,
-                actUnderTrashCost.filter, actUnderTrashCost.selectionConstraint,
-              ) !== null);
+              const actUnderCandidates = actUnderAnyCost
+                ? underAnySigniCostCandidates(my)
+                : actUnderTrashCost && actUnderZone >= 0
+                  ? underSelfCostCandidates(my, actUnderZone, battleCardMap, actUnderTrashCost.filter)
+                  : [];
+              const actUnderTrashOk = actUnderAnyCost
+                ? payUnderAnySigniTrash(my, selectedSigniActivatedUnderTrash, actUnderAnyCost.count) !== null
+                : !actUnderTrashCost || (actUnderZone >= 0 && payUnderSelfTrash(
+                  my, actUnderZone, selectedSigniActivatedUnderTrash, actUnderTrashCost.count, battleCardMap,
+                  actUnderTrashCost.filter, actUnderTrashCost.selectionConstraint,
+                ) !== null);
               // 🆕§5.3 `O-313`（2026-09-12・`WXK10-018-E2`）＝「シグニに**付いている**カード1枚か
               //   **下にある**カード1枚をトラッシュ」。
               // ⚠**選択 state は `selectedSigniActivatedUnderTrash` を共用する**（同じ効果に両方の
@@ -250,11 +258,11 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     </div>
                   )}
 
-                  {actUnderTrashCost && (
+                  {(actUnderTrashCost || actUnderAnyCost) && (
                     <>
                       <p style={{ color: actUnderTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
-                        このシグニの下から{actUnderTrashCost.filter?.cardType === 'スペル' ? 'スペル' : 'カード'}をトラッシュ:
-                        {' '}{selectedSigniActivatedUnderTrash.size} / {actUnderTrashCost.count}枚
+                        {actUnderAnyCost ? 'あなたのシグニの下からカードをトラッシュ' : `このシグニの下から${actUnderTrashCost?.filter?.cardType === 'スペル' ? 'スペル' : 'カード'}をトラッシュ`}:
+                        {' '}{selectedSigniActivatedUnderTrash.size} / {(actUnderTrashCost ?? actUnderAnyCost)!.count}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {actUnderCandidates.map(candidate => {
@@ -266,8 +274,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                               onClick={() => setSelectedSigniActivatedUnderTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(key)) { next.delete(key); return next; }
-                                if (next.size >= actUnderTrashCost.count) return prev;
-                                if (actUnderTrashCost.selectionConstraint?.same === 'name' && next.size > 0) {
+                                if (next.size >= (actUnderTrashCost ?? actUnderAnyCost)!.count) return prev;
+                                if (actUnderTrashCost?.selectionConstraint?.same === 'name' && next.size > 0) {
                                   const firstKey = [...next][0];
                                   const first = actUnderCandidates.find(x => `${x.zone}:${x.index}` === firstKey);
                                   const firstName = first ? battleCardMap.get(getCardNum(first.cardNum))?.CardName : undefined;
