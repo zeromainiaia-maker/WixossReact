@@ -169,6 +169,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
+import { calcFieldPowers } from '../src/engine/effectEngine';
 import { cpuPlanBoardCtx, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
@@ -90383,6 +90384,57 @@ test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条�
   ok(/data-testid="cpu-plan-rule-card"/.test(modal) && /data-testid="cpu-plan-rule-when"/.test(modal)
     && /data-testid="cpu-plan-rule-add"/.test(modal), '🔴狙い方の切り替えを編集する UI が無い');
   ok(/disabled={!ruleCard && ruleWhen === 'always'}/.test(modal), '🔴何も絞っていない規則を追加できてしまう');
+}));
+
+test('§5.7 S-31 ① 「N体並べる」条件：見返りは実効パワー経由で盤面の採点に効く（作戦データは要らない）', () => withSavedCursor(() => {
+  // 🆕2026-09-21＝`S-31` ①（「＜原子＞3体で全体＋2000」のような**並べる条件**を作戦データで書けるように）を
+  //   着手前に測ったら、**すでに効いていた**＝`evaluateBoard` は `powersOf`（`calcFieldPowers`）で
+  //   **並べた後の実効パワー**を見るので、`HAS_CARD_IN_FIELD` で開く効果の見返りがそのまま点数に出る。
+  // 📏実測＝自分の場の並びを条件にする効果 **147**／うち **109（74%）は `POWER_SET`/`POWER_MODIFY`**＝ここで見える。
+  //   残り38（`GRANT_KEYWORD` 10／`SEQUENCE` 10 ほか）はパワーに出ない＝`S-1` の強さ表が
+  //   **`activeCondition` を見ずに満額で数えている**（＝**過大評価**であって取りこぼしではない）。
+  const cmL = new InstanceMap<CardData>(cardMap);
+  // 🔴**効果表も instance ID で引けるようにする**＝`calcFieldPowers` は `effectsMap.get('WX04-079#1')` を引くので、
+  //   カード番号キーの素の Map を渡すと**CONTINUOUS が1つも当たらない**（この検査を書くときに実際に踏んだ）。
+  const emL = new InstanceMap<CardEffect[]>(effectsMap) as Map<string, CardEffect[]>;
+  const effL = (id: string) => effectsMap.get(id.split('#')[0]) ?? [];
+  const F = 'WX04-079';                       // 羅原 Ｆ（場に＜原子＞3体でシグニ全部 ＋2000）
+  const A = 'WX05-064', B = 'WX05-062';       // ＜原子＞（Lv1 P3000／Lv2 P7000）
+  ok(effL(F).some(e => (e.activeCondition as { type?: string } | undefined)?.type === 'HAS_CARD_IN_FIELD'),
+    '前提崩れ＝「並べる条件」を持つ札が live に無い');
+  // 同じレベルで**印刷パワーが上の**非＜原子＞（並べる条件を満たさない対照）
+  const other = findCard(c => isSigni(c) && (c.Level ?? '') === '2'
+    && (parseInt(c.Power ?? '', 10) || 0) > (parseInt(cardMap.get(B)?.Power ?? '', 10) || 0)
+    && !(c.CardClass ?? '').includes('原子'));
+  ok(!!other, '前提崩れ＝対照に使う非＜原子＞が見つからない');
+
+  const side = (signi: (string | null)[]): PlayerState => {
+    const st = mkState({ signi: [null, null, null] });
+    return { ...st, field: { ...st.field, signi: signi.map(x => (x ? [x] : null)) } } as PlayerState;
+  };
+  const oppL = side([null, null, null]);
+  const ctxL = {
+    cardMap: cmL as Map<string, CardData>, effectsOf: effL,
+    powersOf: (c: PlayerState, o: PlayerState) => calcFieldPowers(c, o, true, emL, cmL as Map<string, CardData>, 'MAIN'),
+  };
+  // ① 🔑**3体めを置くと全員のパワーが上がる**（engine の実効パワーがそう出る）
+  const two = side([`${F}#1`, `${A}#2`, null]);
+  const three = side([`${F}#1`, `${A}#2`, `${B}#3`]);
+  const pw = (st: PlayerState) => [...ctxL.powersOf(st, oppL).values()].reduce((a, b) => a + b, 0);
+  ok(pw(three) - pw(two) > (parseInt(cardMap.get(B)?.Power ?? '', 10) || 0),
+    `🔴「並べる条件」が実効パワーに出ていない（2体=${pw(two)} → 3体=${pw(three)}）`);
+  // ② 🔑**盤面の採点でも、条件を満たす方が上**（印刷パワーが下でも勝つ）
+  const rival = side([`${F}#1`, `${A}#2`, `${other}#3`]);
+  ok(evaluateBoard(three, oppL, ctxL) > evaluateBoard(rival, oppL, ctxL),
+    `🔴並べる条件を満たす置き方より、印刷パワーの高い札を選ぶ（${evaluateBoard(three, oppL, ctxL)} <= ${evaluateBoard(rival, oppL, ctxL)}）`);
+  // ③ 🔴**採点が実効パワーを見ていること自体**を固定する（`powersOf` を外すと ② は成立しない）
+  const noPowers = { cardMap: cmL as Map<string, CardData>, effectsOf: effL };
+  ok(evaluateBoard(three, oppL, noPowers) < evaluateBoard(rival, oppL, noPowers),
+    '前提崩れ＝実効パワーを渡さなくても同じ結果になる（この検査に判別力が無い）');
+  // ④ 配線＝本番が `powersOf` を渡している（外すと「並べる」も「パワー修正」も全部見えなくなる）
+  ok(/powersOf: \(c, o\) => calcFieldPowers\(c, o, true, effectsMap, battleCardMap, 'MAIN'\)/
+    .test(fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8')),
+  '🔴盤面の採点に実効パワーを渡していない＝並べる条件もパワー修正も見えない');
 }));
 
 if (listMode) {
