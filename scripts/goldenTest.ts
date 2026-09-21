@@ -169,7 +169,7 @@ import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cp
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
-import { cpuPlanBoardCtx, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -86798,15 +86798,15 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   // 読み込み＝形が崩れていても落ちない・自分自身とのコンボは捨てる
   // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**が作戦データに増えた（較正＝既定は `strongest` で挙動不変）。
   eq(JSON.stringify(normalizeCpuDeckPlan(null)),
-    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [] } }),
+    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }),
     'null を空の作戦にしない');
   const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
   // 🆕§5.7 `S-14`（2026-09-21）＝**旧形 `{first, then}` は「出す → 出す」の2手へ変換される**（較正＝保存済みの作戦を壊さない）。
   eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X],
     combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }],
-    targeting: { mode: 'strongest', prefer: [], avoid: [] } }), '作戦データの正規化が違う');
+    targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }), '作戦データの正規化が違う');
   eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])),
-    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [] } }),
+    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { mode: 'strongest', prefer: [], avoid: [], rules: [] } }),
     '🔴デッキに無いカードが作戦に残った');
   // 加点
   ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
@@ -90231,7 +90231,7 @@ test('§5.7 S-32 効果の対象の狙い方：大まかな指示（強い／落
 
   // ── ⑤ 配線＝応答側が作戦データから渡す／編集 UI がある ──
   const respond32 = cpuRespondSource();
-  ok(/targetMode: d\.cpuPlan\.targeting\?\.mode/.test(respond32)
+  ok(/targetMode: resolveCpuTargetMode\(d\.cpuPlan, \{/.test(respond32)
     && /targetBonus: \(id, power\) => planTargetBonus\(d\.cpuPlan, id, d\.policy, \{ card: d\.cardMap\.get\(getCardNum\(id\)\), power \}\)/.test(respond32),
   '🔴対象の狙い方を作戦データから渡していない（属性の指定には札と実効パワーが要る）');
   const modal32 = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
@@ -90332,6 +90332,57 @@ test('§5.7 S-31 ② 第2段 エナ・場から払うコスト：弱いものか
     '🔴ルリグ【起】の allowlist から手札捨て・エナトラッシュが消えた');
   ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('fieldTrash'),
     '🔴`performLrigActivated` に受け取る口が無いコストを allowlist に入れた（宣言だけして踏み倒す側へ倒れる）');
+}));
+
+test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {
+  // 🆕2026-09-21 ユーザー要望の「細かい指示」＝**この札の効果のときだけ**（③）と**盤面の条件のとき**（②）。
+  // 🔑**解決は `resolveCpuTargetMode` の1本**＝`pickCpuTargets` に盤面の条件判定を持ち込まない（`S-22` の形を壊さない）。
+  const A32 = 'WD03-013', B32 = 'WX04-080';
+  const st = (life: number, oppSigni: (string | null)[] = [null, null, null]) => ({
+    me: { ...mkState(), life_cloth: Array.from({ length: life }, (_, i) => `L#${i}`) } as PlayerState,
+    opp: { ...mkState({ signi: oppSigni as never }) } as PlayerState,
+  });
+  const plan = (rules: object[], mode = 'strongest') =>
+    normalizeCpuDeckPlan({ targeting: { mode, rules } });
+
+  // ── ① ③効果ごと＝その札の効果のときだけ切り替わる ──
+  const byCard = plan([{ sourceCards: [A32], when: 'always', mode: 'weakest' }]);
+  eq(resolveCpuTargetMode(byCard, { sourceCardNum: `${A32}#1`, ...st(7) }), 'weakest', '🔴指定した札の効果で切り替わらない');
+  eq(resolveCpuTargetMode(byCard, { sourceCardNum: `${B32}#1`, ...st(7) }), 'strongest', '🔴別の札の効果まで切り替わった');
+  eq(resolveCpuTargetMode(byCard, { ...st(7) }), 'strongest', '🔴効果元が分からないのに切り替えた');
+
+  // ── ② ②盤面の条件＝公開情報だけ（ライフの枚数・場のシグニの数）──
+  const byLife = plan([{ sourceCards: [], when: 'myLife2OrLess', mode: 'killable' }]);
+  eq(resolveCpuTargetMode(byLife, st(2)), 'killable', '🔴自分のライフ2枚以下で切り替わらない');
+  eq(resolveCpuTargetMode(byLife, st(3)), 'strongest', '🔴条件を満たしていないのに切り替えた');
+  const byOppField = plan([{ sourceCards: [], when: 'oppField3', mode: 'weakest' }]);
+  eq(resolveCpuTargetMode(byOppField, st(7, [`${A32}#1`, `${A32}#2`, `${A32}#3`])), 'weakest', '🔴相手の場3体で切り替わらない');
+  eq(resolveCpuTargetMode(byOppField, st(7, [`${A32}#1`, null, null])), 'strongest', '🔴相手の場が埋まっていないのに切り替えた');
+
+  // ── ③ 🔑**上から順に最初に当たった1つ**（下の規則は見ない）──
+  const ordered = plan([
+    { sourceCards: [], when: 'myLife2OrLess', mode: 'killable' },
+    { sourceCards: [], when: 'oppField3', mode: 'weakest' },
+  ]);
+  eq(resolveCpuTargetMode(ordered, st(2, [`${A32}#1`, `${A32}#2`, `${A32}#3`])), 'killable',
+    '🔴両方当たったときに下の規則を採った（上から順・最初の1つ）');
+
+  // ── ④ 正規化＝**何も絞っていない規則は落とす**（既定と同じで、上に置くと下を全部殺す）──
+  eq(plan([{ sourceCards: [], when: 'always', mode: 'weakest' }]).targeting.rules?.length, 0,
+    '🔴「どの効果でも・いつでも」の規則を残した（下の規則が永久に届かない）');
+  eq(plan([{ sourceCards: [A32], when: 'ぬるぽ', mode: 'ぬるぽ' }]).targeting.rules?.[0].when, 'always',
+    '🔴壊れた条件を素通しした');
+  // 🔴**規則の `sourceCards` は「自分の札」**＝デッキに無ければ落とす（狙う／避ける札とは逆）
+  eq(pruneCpuDeckPlan(byCard, []).targeting.rules?.length, 0, '🔴デッキに無い札の規則が残った');
+  eq(pruneCpuDeckPlan(byLife, []).targeting.rules?.length, 1, '🔴札を指定していない規則まで落とした');
+
+  // ── ⑤ 配線＝応答側が解決して渡す／編集 UI がある ──
+  const respond = cpuRespondSource();
+  ok(/sourceCardNum: pe\.sourceCardNum/.test(respond), '🔴効果元の札を渡していない＝効果ごとの指示が効かない');
+  const modal = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(/data-testid="cpu-plan-rule-card"/.test(modal) && /data-testid="cpu-plan-rule-when"/.test(modal)
+    && /data-testid="cpu-plan-rule-add"/.test(modal), '🔴狙い方の切り替えを編集する UI が無い');
+  ok(/disabled={!ruleCard && ruleWhen === 'always'}/.test(modal), '🔴何も絞っていない規則を追加できてしまう');
 }));
 
 if (listMode) {

@@ -86,6 +86,34 @@ export interface CpuTargetFilter {
   powerMax?: number;
 }
 
+/**
+ * 🆕**狙い方を切り替える条件**（§5.7 `S-32` ②・2026-09-21）。
+ * 🔑**閾値まで名前に入れた閉じた集合**＝自由な式を持たせると、**画面・保存・判定の3か所で解釈がずれる**。
+ * ⚠**見るのは公開情報だけ**（ライフの枚数・場のシグニの数）＝相手の手札は見ない（カンニング）。
+ */
+export type CpuTargetWhen = 'always' | 'myLife2OrLess' | 'oppLife2OrLess' | 'oppField3';
+
+export const CPU_TARGET_WHENS: readonly CpuTargetWhen[] = ['always', 'myLife2OrLess', 'oppLife2OrLess', 'oppField3'];
+
+export const CPU_TARGET_WHEN_LABELS: Readonly<Record<CpuTargetWhen, string>> = {
+  always: 'いつでも',
+  myLife2OrLess: '自分のライフが2枚以下',
+  oppLife2OrLess: '相手のライフが2枚以下',
+  oppField3: '相手の場が3体',
+};
+
+/**
+ * 🆕**狙い方の切り替え規則**（§5.7 `S-32` ②③）＝**上から順に、最初に当たった1つ**が狙い方を上書きする。
+ * - `sourceCards` が空＝**どの効果でも**／指定あり＝**その札の効果のときだけ**（③ 効果ごとの指示）。
+ * - `when` が `always` 以外＝**盤面の条件つき**（② 条件つき）。
+ * ⚠**当たらなければ `CpuTargetPlan.mode`**（＝既定の狙い方）へ落ちる。
+ */
+export interface CpuTargetRule {
+  sourceCards: string[];
+  when: CpuTargetWhen;
+  mode: CpuTargetMode;
+}
+
 /** 🆕§5.7 `S-32`＝対象の狙い方（デッキごと）。 */
 export interface CpuTargetPlan {
   mode: CpuTargetMode;
@@ -97,9 +125,11 @@ export interface CpuTargetPlan {
   preferFilter?: CpuTargetFilter;
   /** 🆕属性で**避ける**（クラス・レベル◯以下・パワー◯以下＝小物に撃たない）。 */
   avoidFilter?: CpuTargetFilter;
+  /** 🆕§5.7 `S-32` ②③＝狙い方の切り替え規則（上から順・最初に当たった1つ）。 */
+  rules?: CpuTargetRule[];
 }
 
-export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { mode: 'strongest', prefer: [], avoid: [] };
+export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { mode: 'strongest', prefer: [], avoid: [], rules: [] };
 
 /** 🆕属性の指定を engine の `TargetFilter` へ（**変換はここ1本**）。空なら `undefined`。 */
 export function cpuTargetFilterToTargetFilter(f: CpuTargetFilter | undefined): TargetFilter | undefined {
@@ -190,6 +220,17 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
     mode: CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest',
     prefer: strList(t.prefer), avoid: strList(t.avoid),
     preferFilter: toTargetFilter(t.preferFilter), avoidFilter: toTargetFilter(t.avoidFilter),
+    rules: Array.isArray(t.rules)
+      ? t.rules
+        .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+        .map(r => ({
+          sourceCards: strList(r.sourceCards),
+          when: CPU_TARGET_WHENS.includes(r.when as CpuTargetWhen) ? (r.when as CpuTargetWhen) : 'always',
+          mode: CPU_TARGET_MODES.includes(r.mode as CpuTargetMode) ? (r.mode as CpuTargetMode) : 'strongest',
+        }))
+        // ⚠**何も絞っていない規則は落とす**（`always` かつ札の指定なし＝既定と同じで、上に置くと下の規則を全部殺す）。
+        .filter(r => r.sourceCards.length > 0 || r.when !== 'always')
+      : [],
   };
   return { keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting };
 }
@@ -203,7 +244,15 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
     combos: plan.combos.filter(c => c.steps.every(st => inDeck.has(st.num))),
     // ⚠**狙う札は「相手の札」もありうる**＝自分のデッキに無くてよい（`prune` で落とさない）。
     //   🔴ここを keyCards と同じに扱うと、相手のエースを名指しで狙う指定が保存の度に消える。
-    targeting: plan.targeting ?? EMPTY_CPU_TARGET_PLAN,
+    //   🆕**規則の `sourceCards` は逆**＝**効果を出すのは自分の札**なので、デッキに無ければ落とす。
+    targeting: plan.targeting
+      ? {
+        ...plan.targeting,
+        rules: (plan.targeting.rules ?? [])
+          .map(r => ({ ...r, sourceCards: r.sourceCards.filter(n => inDeck.has(n)) }))
+          .filter(r => r.sourceCards.length > 0 || r.when !== 'always'),
+      }
+      : EMPTY_CPU_TARGET_PLAN,
   };
 }
 
@@ -211,7 +260,39 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
   && (plan.targeting?.mode ?? 'strongest') === 'strongest'
   && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
-  && !plan.targeting?.preferFilter && !plan.targeting?.avoidFilter;
+  && !plan.targeting?.preferFilter && !plan.targeting?.avoidFilter
+  && (plan.targeting?.rules?.length ?? 0) === 0;
+
+/**
+ * 🆕**いまの狙い方**（§5.7 `S-32` ②③・2026-09-21）＝規則を上から見て**最初に当たった1つ**、無ければ既定。
+ * 🔑**ここで解決する**（`pickCpuTargets` は解決済みの `mode` を受け取るだけ）＝
+ *   対象選択の関数に盤面の条件判定を持ち込まない（`S-22` の形を壊さない）。
+ * ⚠**見るのは公開情報だけ**＝ライフの枚数と場のシグニの数（相手の手札は見ない）。
+ */
+export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: {
+  /** 効果を出した札（`PendingEffect.sourceCardNum`）。 */
+  sourceCardNum?: string;
+  me: PlayerState;
+  opp: PlayerState;
+}): CpuTargetMode {
+  const t = plan.targeting;
+  if (!t) return 'strongest';
+  const src = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : undefined;
+  const holds = (w: CpuTargetWhen): boolean => {
+    switch (w) {
+      case 'always': return true;
+      case 'myLife2OrLess': return (ctx.me.life_cloth?.length ?? 0) <= 2;
+      case 'oppLife2OrLess': return (ctx.opp.life_cloth?.length ?? 0) <= 2;
+      case 'oppField3': return ctx.opp.field.signi.filter(z => (z?.length ?? 0) > 0).length >= 3;
+    }
+  };
+  for (const r of t.rules ?? []) {
+    if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
+    if (!holds(r.when)) continue;
+    return r.mode;
+  }
+  return t.mode;
+}
 
 /**
  * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果の対象を選ぶときだけ使う。

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
   CPU_COMBO_USES, CPU_COMBO_USE_LABELS, CPU_TARGET_MODES, CPU_TARGET_MODE_LABELS,
+  CPU_TARGET_WHENS, CPU_TARGET_WHEN_LABELS,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
   type CpuComboStep, type CpuComboUse, type CpuDeckPlan, type CpuTargetFilter, type CpuTargetMode,
+  type CpuTargetWhen,
 } from '../battle/cpuDeckPlan';
 
 /**
@@ -51,6 +53,17 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     saveTargeting({ [key]: Object.keys(kept).length > 0 ? kept : undefined });
   };
   const numOrUndef = (v: string) => (v === '' ? undefined : Number(v));
+  // 🆕§5.7 `S-32` ②③＝狙い方の切り替え規則（効果ごと・盤面の条件つき）。
+  const rules = targeting.rules ?? [];
+  const [ruleCard, setRuleCard] = useState('');
+  const [ruleWhen, setRuleWhen] = useState<CpuTargetWhen>('always');
+  const [ruleMode, setRuleMode] = useState<CpuTargetMode>('killable');
+  const addRule = () => {
+    // ⚠**何も絞っていない規則は足さない**（既定と同じで、上に置くと下の規則を全部殺す）。
+    if (!ruleCard && ruleWhen === 'always') return;
+    saveTargeting({ rules: [...rules, { sourceCards: ruleCard ? [ruleCard] : [], when: ruleWhen, mode: ruleMode }] });
+    setRuleCard('');
+  };
   const toggleTarget = (key: 'prefer' | 'avoid', num: string) => {
     const list = targeting[key];
     // ⚠**狙う／狙わないは排他**（両方に入っていると足し引きが打ち消し合って「指定したのに効かない」になる）。
@@ -133,6 +146,34 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
             </div>
           );
         })}
+
+        {/* 🆕§5.7 `S-32` ②③＝**狙い方の切り替え**（この札の効果のとき／盤面の条件のとき）。上から順に最初に当たった1つ。 */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <select data-testid="cpu-plan-rule-card" value={ruleCard} onChange={e => setRuleCard(e.target.value)}
+            style={{ ...selectStyle, fontSize: 11 }}>
+            <option value="">どの効果でも</option>
+            {cards.map(c => <option key={c.CardNum} value={c.CardNum}>{c.CardName}の効果</option>)}
+          </select>
+          <select data-testid="cpu-plan-rule-when" value={ruleWhen} onChange={e => setRuleWhen(e.target.value as CpuTargetWhen)}
+            style={{ ...selectStyle, fontSize: 11, flex: '0 0 150px' }}>
+            {CPU_TARGET_WHENS.map(w => <option key={w} value={w}>{CPU_TARGET_WHEN_LABELS[w]}</option>)}
+          </select>
+          <select data-testid="cpu-plan-rule-mode" value={ruleMode} onChange={e => setRuleMode(e.target.value as CpuTargetMode)}
+            style={{ ...selectStyle, fontSize: 11, flex: '0 0 150px' }}>
+            {CPU_TARGET_MODES.map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS[m]}</option>)}
+          </select>
+          <button data-testid="cpu-plan-rule-add" onClick={addRule} disabled={!ruleCard && ruleWhen === 'always'}
+            style={{ ...chip(!!ruleCard || ruleWhen !== 'always', '#2e8b2e'), padding: '6px 10px' }}>切替を追加</button>
+        </div>
+        {rules.map((r, i) => (
+          <div key={`${r.sourceCards.join(',')}/${r.when}/${r.mode}/${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#ddd' }}>
+            <span style={{ flex: 1 }}>
+              {r.sourceCards.length ? `${nameOf(r.sourceCards[0])}の効果` : 'どの効果でも'}
+              ・{CPU_TARGET_WHEN_LABELS[r.when]} → {CPU_TARGET_MODE_LABELS[r.mode]}
+            </span>
+            <button onClick={() => saveTargeting({ rules: rules.filter((_, k) => k !== i) })} style={chip(false, '#000')}>削除</button>
+          </div>
+        ))}
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 120 }}>
           {cards.map(c => (

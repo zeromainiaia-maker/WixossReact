@@ -3,7 +3,7 @@ import { getCardNum } from '../../engine/execUtils';
 import type { CardData, PendingEffect, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve } from './cpuGrowReserve';
-import { planKeepBonus, planTargetBonus, type CpuDeckPlan } from './cpuDeckPlan';
+import { planKeepBonus, planTargetBonus, resolveCpuTargetMode, type CpuDeckPlan } from './cpuDeckPlan';
 import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
@@ -67,7 +67,10 @@ export function decideCpuInteractionResponse(
     effectsOf: id => d.effectsMap.get(id) ?? [],
     planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy),
     // 🆕§5.7 `S-32`＝対象の狙い方（デッキごと・既定は `strongest`＋加点0＝挙動不変）。
-    targetMode: d.cpuPlan.targeting?.mode,
+    // 🆕§5.7 `S-32` ②③＝**狙い方はここで解決する**（効果ごと・盤面の条件つきの規則を上から見る）。
+    targetMode: resolveCpuTargetMode(d.cpuPlan, {
+      sourceCardNum: pe.sourceCardNum, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
+    }),
     // 🆕§5.7 `S-32` ①＝属性での指定（クラス・レベル・パワー帯）も見る＝札と**実効パワー**を渡す。
     targetBonus: (id, power) => planTargetBonus(d.cpuPlan, id, d.policy, { card: d.cardMap.get(getCardNum(id)), power }),
     policy: d.policy,
