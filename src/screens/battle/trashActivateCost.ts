@@ -25,6 +25,13 @@ const SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set([
   // 🆕**§5.3 `O-373`（2026-09-14）＝「トラッシュにある《X》N枚をゲームから除外する」（`count` 形）も払える。**
   //   モーダルにトラッシュの札を選ぶ列（`selections.trashExile`）を足した。
   'trashExile',
+  // 🆕🔴**§5.7 `S-31` 残り（2026-09-22）＝「その札がその置き場に在ること」をコストが要求する2形。**
+  //   `energyTrashSelf`＝「**エナゾーンから**このカードをトラッシュに置く：」（`WXDi-P10-066-E2`）
+  //   ⚠**手札側（`handExileSelf`）はこの経路ではない**＝`handActivateCost.ts` が権威（ゾーンごとに経路が違う）。
+  //   🔴**第448バッチまでは parser が入口フラグを立てず、場のシグニの【起】として提示され、
+  //     支払いもどこにも無かった**＝完全な踏み倒し。第449バッチで場から外し、この回で**正しい入口**を付けた。
+  //   ⚠支払いは下の `payTrashActivateCost`（`sourceCardNum` をその置き場から抜く）。
+  'energyTrashSelf',
 ]);
 
 /** 値が「指定あり」か（`discard: 0` や空配列は未指定と同じ扱い。旧 `&& v` 判定と互換）。 */
@@ -126,6 +133,9 @@ export function canOfferTrashActivate(
   // 🆕§5.3 `O-373`＝選択を伴う `trashExile{count}` は**支払いUIと同じ判定関数**で在庫を見る。
   //   ⚠効果元自身も候補に入る（`WXDi-P11-053-E1`「トラッシュに《メジェド》が4枚ある場合…4枚を除外する」＝自分込みの4枚）。
   if (effect.cost?.trashExile && !trashExileAffordable(my.trash, effect.cost.trashExile, cardMap)) return false;
+  // 🆕§5.7 `S-31` 残り＝**その札がその置き場に在ること**がコストそのもの（`sourceCardNum` を渡さない
+  //   呼び出しでは判定できないので、ここでは「置き場に1枚もない」形だけを弾く）。
+  if (effect.cost?.energyTrashSelf && my.energy.length === 0) return false;
   return trashActivateAutoCostShortfall(effect, my, op, cardMap) === null;
 }
 
@@ -199,6 +209,8 @@ export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op:
     cost.lrigDown ? fmtLrigDownCostLabel(cost.lrigDown) : null,
     (cost.exceed ?? 0) > 0 ? `エクシード${cost.exceed}${cost.exceedColors?.length ? `（${cost.exceedColors.join('と')}のカード）` : ''}` : null,
     cost.trashExile?.self ? 'このカードをゲームから除外' : null,
+    // 🆕§5.7 `S-31` 残り＝入口がその置き場であるコスト2形（表示が無いと「何も払わずに撃てた」ように見える）。
+    cost.energyTrashSelf ? 'エナゾーンにあるこのカードをトラッシュ' : null,
     trashActivateTrashExile(cost)
       ? `トラッシュから${cost.trashExile?.filter?.cardName ? `《${cost.trashExile.filter.cardName}》` : 'カード'}${cost.trashExile?.count}枚をゲームから除外` : null,
   ].filter((s): s is string => s !== null);
@@ -380,6 +392,17 @@ export function payTrashActivateCost(
       ...paid,
       trash: paid.trash.filter(cn => cn !== sourceCardNum),
       lrig_trash: [...paid.lrig_trash, sourceCardNum],
+    };
+  }
+  // 🆕**§5.7 `S-31` 残り（2026-09-22）＝入口がその置き場であるコスト2形の支払い。**
+  //   ⚠**行き先はトラッシュ**（原文「エナゾーンから**トラッシュに置く**」）。
+  //   ⚠**その札がエナゾーンに無ければ支払い不能**（踏み倒しを作らない）。
+  if (cost?.energyTrashSelf) {
+    if (!sourceCardNum || !paid.energy.includes(sourceCardNum)) return null;
+    paid = {
+      ...paid,
+      energy: paid.energy.filter(cn => cn !== sourceCardNum),
+      trash: [...paid.trash, sourceCardNum],
     };
   }
 

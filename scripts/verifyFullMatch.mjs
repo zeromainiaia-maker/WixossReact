@@ -620,6 +620,8 @@ async function clickDeckInFolders(page, name, tilePrefix) {
 async function driveSetup(seats, tag) {
   const hands = ['グー', 'チョキ', 'パー'];
   let idx = 0;
+  /** 🆕§5.1 `V-284`＝「あいこ」の画面が続いた周回数（12周＝約18秒で名前付きの失敗にする）。 */
+  let aikoRounds = 0;
   for (let i = 0; i < 80; i++) {
     let progressed = false;
     for (const S of seats) {
@@ -640,6 +642,17 @@ async function driveSetup(seats, tag) {
     }
     const st = await makeQuery(seats[0].page)().catch(() => null);
     if (st && !st.error && st.globalPhase === 'PLAYING') { console.log(`   PLAYING 到達（${i}周目）`); return true; }
+    // 🆕🔴**§5.1 `V-284`（2026-09-22）＝「あいこ」から復帰しないことを名前付きで落とす。**
+    //   🔑旧＝この形は 80周ぶん回ってから「セットアップが PLAYING へ到達しなかった」としか出ず、
+    //     **3回踏んで3回とも原因を取り違えた**（「ビルド直後の flake」だと思っていた）。真因は
+    //     じゃんけん解決の予約を再レンダーのたびに張り直していたこと（`BattleScreen.tsx`）。
+    if (/あいこ/.test(await seats[0].body())) {
+      aikoRounds++;
+      if (aikoRounds >= 12) {
+        console.log('   ❌ じゃんけんの「あいこ」から復帰しない（§5.1 `V-284` の再発を疑う）');
+        return false;
+      }
+    } else { aikoRounds = 0; }
     if (!progressed) await sleep(1200);
   }
   for (const S of seats) await S.page.screenshot({ path: `${SHOT}/${tag}-setup-fail-${S.name}.png`, fullPage: true }).catch(() => {});

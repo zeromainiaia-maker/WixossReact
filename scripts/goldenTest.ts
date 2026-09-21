@@ -222,6 +222,9 @@ import { discardGroupsAffordable } from '../src/screens/battle/costs';
 import { payHandBottomDeckCost } from '../src/screens/battle/handBottomDeckCost';
 import { payTrapToHandCost } from '../src/screens/battle/trapToHandCost';
 import { canAffordDeclarationCost, declarationScalingCost } from '../src/screens/battle/cpuDeclarationCost';
+import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
+import { emptyHandActivateSelections, payHandActivateCost } from '../src/screens/battle/handActivateCost';
+import { emptyTrashActivateSelections, payTrashActivateCost } from '../src/screens/battle/trashActivateCost';
 import { trashArtsFromLrigDeckCandidates } from '../src/screens/battle/artsTrashCost';
 import { isImmovableArtsFromLrigDeck } from '../src/engine/execUtils';
 import { payDeckTrashCost } from '../src/screens/battle/deckTrashCost';
@@ -90874,6 +90877,107 @@ test('§5.7 S-29 宣言の帰結のコスト：払える対象だけを候補に
     if (scalingKeys.some(k => json.includes(`"${k}"`))) scalingEffects++;
   }
   ok(scalingEffects >= 10, `🔴倍率コストの母集団が急に減った（実測 ${scalingEffects} / 2026-09-22 は 13）`);
+}));
+
+test('§5.1 V-284 じゃんけんの解決は再レンダーで作り直さない（あいこで止まらない）', () => withSavedCursor(() => {
+  // 🔴**何が起きていたか**（2026-09-22 第449バッチ）＝じゃんけん解決の `setTimeout(1800ms)` を
+  //   **effect の cleanup で毎回取り消して張り直して**いたため、**1.8秒より短い間隔で `bs` が更新され続けると
+  //   解決が永久に先送りされる**＝画面が「あいこ！ もう一度選んでください…」のまま固まる。
+  //   📏**実測＝実機の通し対戦が3回中3回、`dist` 作り直し直後の初回で止まった**（再実行では通るので flake に見えていた）。
+  // 🔑**この形は golden にも smoke にも映らない**（純関数は全部正しい＝壊れていたのは React の予約の仕方）
+  //   ⇒ **ソースの形で固定する**（このプロジェクトの React 配線ガードと同じやり方）。
+  // ⚠**実機の通し対戦そのものが最終的な証拠**＝修正後は `dist` 作り直し直後の初回で PASS（第449・450バッチ）。
+  const srcV284 = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf-8');
+  // ① 予約は「手の組」で1つだけ＝同じ組で再レンダーしても作り直さない
+  ok(/jankenResolveRef/.test(srcV284), '🔴じゃんけんの解決に予約の鍵（`jankenResolveRef`）が無い');
+  const branch = srcV284.slice(
+    srcV284.indexOf("if (bs.setup_phase === 'JAN_KEN' && bs.host_janken && bs.guest_janken)"),
+    srcV284.indexOf("// 以下はホストのみが担当するフェーズ遷移"));
+  ok(branch.length > 100, '前提崩れ＝じゃんけん解決の分岐が見つからない（形を変えたらこの検査も直す）');
+  ok(/const pairKey = /.test(branch) && /jankenResolveRef\.current === pairKey/.test(branch),
+    '🔴同じ手の組に対する予約が1つだけになっていない（再レンダーのたびに解決を作り直す）');
+  // ② 🔴**cleanup でタイマーを消さない**＝消すと元の症状（永久に先送り）に戻る
+  ok(!/clearTimeout/.test(branch), '🔴じゃんけん解決のタイマーを cleanup で取り消している（`V-284` の再発）');
+  ok(!/return \(\) =>/.test(branch), '🔴じゃんけん解決の分岐が cleanup を返している（予約が取り消される）');
+  // ③ 失敗しても予約を解放する（解放しないと二度と解決できない）
+  ok(/\.catch\(\(\) => \{ jankenResolveRef\.current = null; \}\)/.test(branch),
+    '🔴commit が失敗したときに予約を解放していない（そのまま固まる）');
+  // ④ クリック経路の第2の解決も同じ予約を見る（あいこ直後に CPU が選び直した手を古いパッチで消さない）
+  ok(/!transitioningRef\.current && !jankenResolveRef\.current/.test(srcV284),
+    '🔴クリック経路が effect の予約を見ていない（二重に commit する）');
+
+  // ⑤ ルール側＝**あいこなら両者の手を捨てて選び直しへ**（reducer は純関数なので直接確かめる）
+  const bsJk = { setup_phase: 'JAN_KEN', host_janken: 'グー', guest_janken: 'グー' } as never;
+  const tie = reduceBattle(bsJk, { type: 'RESOLVE_JANKEN', winnerId: null });
+  eq(tie.host_janken, null, '🔴あいこで先攻の手が残っている（選び直せない）');
+  eq(tie.guest_janken, null, '🔴あいこで後攻の手が残っている（選び直せない）');
+  eq((tie as { setup_phase?: string }).setup_phase, undefined, '🔴あいこでフェーズを進めた');
+  const win = reduceBattle(bsJk, { type: 'RESOLVE_JANKEN', winnerId: 'H' });
+  eq(win.setup_phase, 'LRIG_SELECT', '🔴勝敗が付いたのに次のフェーズへ進まない');
+  eq(win.first_player_id, 'H', '🔴先攻が記録されていない');
+}));
+
+test('§5.7 S-31 残り 入口が場ではない【起】2効果：手札／エナから提示し、その札を払う', () => withSavedCursor(() => {
+  // 🔴**経緯**＝`WX14-028-E2`「**手札にある**このカードをゲームから除外する：」／
+  //   `WXDi-P10-066-E2`「**エナゾーンから**このカードをトラッシュに置く：」は、
+  //   **parser が入口フラグ（`handActivated`／`energyActivated`）を立てておらず**、
+  //   ①**場のシグニの【起】として提示され** ②**支払いがどこにも無い**＝**完全な踏み倒し**だった（第448バッチで場から外した）。
+  // 🔑**直し方は `O-262` と同じ**＝**コストが「その札がその置き場に在ること」を要求しているなら、入口はその置き場**。
+  // ⚠**ゾーンごとに経路が違う**＝手札は `handActivateCost.ts`／トラッシュ・エナは `trashActivateCost.ts`。
+  const cm31g = cardMap as Map<string, CardData>;
+  const actOf = (num: string) => (effectsMap.get(num) ?? []).find(e => e.effectType === 'ACTIVATED'
+    && (e.cost?.handExileSelf || e.cost?.energyTrashSelf));
+
+  // ── ① live の入口フラグ（parser が立てる）──
+  const handEff = actOf('WX14-028');
+  const enaEff = actOf('WXDi-P10-066');
+  ok(!!handEff && !!enaEff, '前提崩れ＝検査に使う効果が live に無い');
+  eq(handEff!.handActivated, true, '🔴「手札にあるこのカードを除外する」の入口が手札になっていない');
+  eq(enaEff!.energyActivated, true, '🔴「エナゾーンからこのカードをトラッシュに置く」の入口がエナになっていない');
+  // 🔴**fresh（parser 直呼び）でも同じ**＝live だけ直っている（手当て）状態を作らない
+  for (const [num, key] of [['WX14-028', 'handActivated'], ['WXDi-P10-066', 'energyActivated']] as const) {
+    const fresh = parseCardEffects(cm31g.get(num)!).find(e => e.effectType === 'ACTIVATED'
+      && (e.cost?.handExileSelf || e.cost?.energyTrashSelf));
+    eq((fresh as unknown as Record<string, unknown> | undefined)?.[key], true,
+      `🔴parser が ${num} の入口フラグ（${key}）を立てていない`);
+  }
+
+  // ── ② その置き場から提示される／場のシグニとしては提示されない ──
+  const stWith = (o: { hand?: string[]; energy?: string[]; signi?: (string | null)[] }) => {
+    const b = mkState({ signi: o.signi as never });
+    return { ...b, hand: o.hand ?? b.hand, energy: o.energy ?? b.energy } as PlayerState;
+  };
+  const offered = (num: string, zone: 'hand' | 'energy') => listOffFieldActivatableEffects({
+    zone, cardNum: num, turnPhase: 'MAIN', isMyTurn: true, effectsMap, cardMap: cm31g,
+    my: zone === 'hand' ? stWith({ hand: [num, ...fill(4)] }) : stWith({ energy: [num, ...fill(4)] }),
+    op: mkState({}),
+  }).map(e => e.effectId);
+  eq(offered('WX14-028', 'hand').includes('WX14-028-E2'), true, '🔴手札の【起】として提示されない（撃てないまま）');
+  eq(offered('WXDi-P10-066', 'energy').includes('WXDi-P10-066-E2'), true, '🔴エナの【起】として提示されない');
+  for (const num of ['WX14-028', 'WXDi-P10-066']) {
+    eq(listActivatableSigniEffects({
+      my: mkState({ signi: [num, null, null] }), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+      effectsMap, cardMap: cm31g,
+    }).length, 0, `🔴${num} が場のシグニの【起】として提示された（踏み倒しの口が開いている）`);
+  }
+
+  // ── ③ 支払い＝その札が置き場から出る（**行き先が違う**）──
+  const handSt = stWith({ hand: ['WX14-028', ...fill(4)] });
+  const paidHand = payHandActivateCost({
+    effect: handEff!, my: handSt, op: mkState({}), cardNum: 'WX14-028', handIndex: 0,
+    selections: emptyHandActivateSelections(), cardMap: cm31g,
+  } as never);
+  ok(!!paidHand && !paidHand.my.hand.includes('WX14-028'), '🔴手札から抜けていない（コストの踏み倒し）');
+  ok(!!paidHand && (paidHand.my.excluded ?? []).includes('WX14-028'),
+    '🔴行き先が除外置き場になっていない（「捨てる」と混ぜている）');
+  ok(!!paidHand && !paidHand.my.trash.includes('WX14-028'), '🔴除外なのにトラッシュへ置いた');
+  const enaSt = stWith({ energy: ['WXDi-P10-066', ...fill(4)] });
+  const paidEna = payTrashActivateCost(enaEff!, enaSt, mkState({}), emptyTrashActivateSelections(), cm31g, undefined, 'WXDi-P10-066');
+  ok(!!paidEna && !paidEna.my.energy.includes('WXDi-P10-066'), '🔴エナゾーンから抜けていない（コストの踏み倒し）');
+  ok(!!paidEna && paidEna.my.trash.includes('WXDi-P10-066'), '🔴行き先がトラッシュになっていない');
+  // 🔴**その札がその置き場に無ければ払えない**（別の入口から撃たれても踏み倒せない）
+  eq(payTrashActivateCost(enaEff!, mkState({}), mkState({}), emptyTrashActivateSelections(), cm31g, undefined, 'WXDi-P10-066'),
+    null, '🔴エナゾーンに無いのに払えたことにした');
 }));
 
 test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条件つき（上から順に最初の1つ）', () => withSavedCursor(() => {

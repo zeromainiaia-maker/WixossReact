@@ -17,7 +17,12 @@ import { fieldTrashSelectableZones } from './fieldLimit';
  */
 
 /** 手札の【起】で払えるコストキー。**ここに無いキーが付いた効果は提示しない**。 */
-const HAND_SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set(['energy', 'discardSelfFromHand', 'removeOppVirus', 'fieldTrash']);
+const HAND_SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set(['energy', 'discardSelfFromHand', 'removeOppVirus', 'fieldTrash',
+  // 🆕🔴**§5.7 `S-31` 残り（2026-09-22）＝「**手札にある**このカードをゲームから除外する：」**（`WX14-028-E2`）。
+  //   🔴**第448バッチまでは parser が入口フラグを立てず、場のシグニの【起】として提示され、支払いもどこにも無かった**。
+  //   ⚠**捨てる（`discardSelfFromHand`）と行き先が違う**＝トラッシュではなく**除外置き場**（`excluded`）。
+  'handExileSelf',
+]);
 
 /** 手札の【起】で払えないコストキー（空なら払える形）。 */
 export function unsupportedHandActivateCostKeys(cost: EffectCost | undefined): string[] {
@@ -106,10 +111,14 @@ export function payHandActivateCost(p: {
   }
   const plan = planEnergyPayment(my, p.energyPool, p.selections.energy);
   const discardSelf = cost?.discardSelfFromHand === true;
+  // 🆕§5.7 `S-31` 残り＝**手札にあるこのカードをゲームから除外する**（`handExileSelf`）。
+  //   ⚠**捨てるのと同じく手札から抜くが、行き先が違う**（トラッシュではなく `excluded`）＝混ぜない。
+  const exileSelf = cost?.handExileSelf === true;
   let next: PlayerState = plan.applyTo({
     ...my,
-    hand: discardSelf ? my.hand.filter((_, i) => i !== p.handIndex) : my.hand,
+    hand: (discardSelf || exileSelf) ? my.hand.filter((_, i) => i !== p.handIndex) : my.hand,
     trash: [...my.trash, ...plan.paidNums, ...(discardSelf ? [cardNum] : [])],
+    ...(exileSelf ? { excluded: [...(my.excluded ?? []), cardNum] } : {}),
   });
   if (cost?.fieldTrash) {
     const ft = payFieldTrashCost({ state: { ...next, last_cost_trashed_cards: [] }, zones: p.selections.fieldTrash, cost, cardMap: p.cardMap });

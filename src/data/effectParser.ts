@@ -24502,7 +24502,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
   // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
-  const handActivated = cost?.discardSelfFromHand === true;
+  // 🆕🔴**§5.7 `S-31` 残り（2026-09-22）＝**コストが「その札が手札に在ること」を要求する形は入口も手札**。
+  //   `handExileSelf`＝「**手札にある**このカードをゲームから除外する：」（`WX14-028-E2`）。
+  //   🔴旧はこのフラグが立たず、**場のシグニの【起】として提示され、支払いもどこにも無かった**（踏み倒し）。
+  const handActivated = cost?.discardSelfFromHand === true || cost?.handExileSelf === true;
   // 「このシグニ/カードをトラッシュから場に出す」等のトラッシュ自己起動【起】はトラッシュゾーンUIの対象。
   // 🆕**「トラッシュにあるこのカードを**手札に加える**」も同じ入口**（2026-09-02・§5.3 `O-114`）。
   // 🔴旧は本体が「場に出す／シグニゾーンに出す」のときしか立たず、`WX10-096-E2`
@@ -24536,9 +24539,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // 🆕**エナゾーンにあるこのカードを手札に加える【起】**（§5.3 `O-114`・`WXDi-P06-077-E2`）。
   // ⚠**`trashActivated` と排他**＝入口（どのゾーンのカードをタップするか）が違うだけで、
   //   支払い・実行は同じ `trashActivateCost` / `executeTrashActivated` を通す。
+  // 🆕🔴**§5.7 `S-31` 残り（2026-09-22）＝コスト側も見る**＝
+  //   `energyTrashSelf`＝「**エナゾーンから**このカードをトラッシュに置く：」（`WXDi-P10-066-E2`）。
+  //   ⚠`trashActivated` の `trashExile.self`（§5.3 `O-262`）と**同じ理屈**＝
+  //     コストが「その置き場に在ること」を要求しているので、入口はその置き場しか無い。
   const energyActivated = effectType === 'ACTIVATED'
     && !trashActivated
-    && /エナゾーンからこの(?:シグニ|カード)を手札に加える/.test(actionText);
+    && (/エナゾーンからこの(?:シグニ|カード)を手札に加える/.test(actionText)
+      || cost?.energyTrashSelf === true);
   let activeCondition: ActiveCondition | undefined;
   let resolvedAction: EffectAction;
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
