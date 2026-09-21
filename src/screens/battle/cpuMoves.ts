@@ -417,6 +417,8 @@ export function cpuLrigActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_A
     alreadyActivated: s.cpu_activated_effect_ids_this_turn ?? [],
     effectivePowers: powers,
     isAffordable, wholeSubstitutes, pool,
+    // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコストの選び方に効く。
+    planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
   };
 }
 
@@ -664,6 +666,8 @@ const CPU_SIM_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set([
   // 🆕§5.7 `S-31` ②＝手札を捨てるコスト。🔴**探索にも同じ札を払わせる**
   //   （払わないと探索には「タダで撃てる【起】」に見えて過大評価になる＝`S-21` で踏んだ穴と同型）。
   'discard', 'discardFilter', 'handDiscardSigni',
+  // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト（🔴払わせないと探索には「タダ」に見える）。
+  'energyTrash', 'fieldTrash',
 ]);
 
 /**
@@ -675,6 +679,9 @@ function payCpuSelfCostSim(
   sourceCardNum: string,
   /** 🆕§5.7 `S-31` ②＝手札を捨てるコストで実際に払う index（本番と同じ選択を渡す）。 */
   handDiscardIndices?: Set<number>,
+  /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index／場からトラッシュするゾーン（本番と同じ選択）。 */
+  energyTrashIndices?: Set<number>,
+  fieldTrashZones?: Set<number>,
 ): PlayerState | null {
   if (!cost) return s;
   for (const k of Object.keys(cost)) {
@@ -693,6 +700,30 @@ function payCpuSelfCostSim(
       hand: out.hand.filter((_, i) => !drop.has(i)),
       trash: [...out.trash, ...idx.map(i => out.hand[i]).filter((n): n is string => !!n)],
     };
+  }
+  // 🆕§5.7 `S-31` ② 第2段＝エナから落とすコスト（**本番が選んだ index をそのまま払う**）。
+  if (cost.energyTrash !== undefined) {
+    const idx = [...(energyTrashIndices ?? [])];
+    if (idx.length < (cost.energyTrash.count ?? 0)) return null;
+    const drop = new Set(idx);
+    out = {
+      ...out,
+      energy: out.energy.filter((_, i) => !drop.has(i)),
+      trash: [...out.trash, ...idx.map(i => out.energy[i]).filter((n): n is string => !!n)],
+    };
+  }
+  // 🆕§5.7 `S-31` ② 第2段＝場からトラッシュするコスト。
+  if (cost.fieldTrash !== undefined) {
+    const zones = [...(fieldTrashZones ?? [])];
+    if (zones.length < (cost.fieldTrash.upToCount ? 0 : (cost.fieldTrash.count ?? 0))) return null;
+    let cur = out;
+    for (const zi of zones) {
+      const top = cur.field.signi[zi]?.at(-1);
+      if (!top) return null;
+      cur = removeFromField(top, cur);
+      cur = { ...cur, trash: [...cur.trash, top] };
+    }
+    out = cur;
   }
   if (cost.coin !== undefined) {
     if ((out.coins ?? 0) < cost.coin) return null;
@@ -939,7 +970,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     case 'activate': {
       // 🆕§5.7 `S-21`＝**エナ以外の宣言コストも払う**（【起】の 569効果）。
       //   🔴旧はエナしか払わず、**《ダウン》も「自分をトラッシュ」もタダに見えていた**。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum, move.choice.discardIndices);
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, move.choice.zoneIndex, ctx.cardMap, move.choice.cardNum, move.choice.discardIndices, move.choice.energyTrashIndices, move.choice.fieldTrashZones);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, move.choice.cardNum, paid, opponent, lctxOf(move.phase));
@@ -948,7 +979,7 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
       const src = actor.field.lrig.at(-1);
       if (!src) return null;
       // 🆕§5.7 `S-21`＝ルリグの【起】は `zoneIndex: null`（`down_self` は**ルリグ自身**をダウン）。
-      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src));
+      const selfPaid = payCpuSelfCostSim(move.choice.effect.cost, actor, null, ctx.cardMap, getCardNum(src), move.choice.handDiscardIndices, move.choice.energyTrashIndices);
       if (!selfPaid) return null;
       const paid = markActivated(payEnergy(selfPaid, move.pool, move.choice.costIndices), move.choice.effect.effectId);
       return simulateEffect(move.choice.effect, src, paid, opponent, lctxOf(move.phase));

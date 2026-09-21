@@ -305,6 +305,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     await performSigniActivated(choice.cardNum, choice.effect, {
       // 🆕§5.7 `S-31` ②＝手札を捨てるコストも CPU が払う（旧は空＝そのコストを持つ【起】は撃てなかった）。
       costIndices: choice.costIndices, discardCostIndices: choice.discardIndices,
+      // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト。
+      energyTrashIndices: choice.energyTrashIndices, fieldTrashZones: choice.fieldTrashZones,
     }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
@@ -341,7 +343,11 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       ],
     };
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: actActor }));
-    await performLrigActivated(choice.effect, { costIndices: choice.costIndices }, {
+    // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコストも CPU が払う。
+    await performLrigActivated(choice.effect, {
+      costIndices: choice.costIndices,
+      handDiscardIndices: choice.handDiscardIndices, energyTrashIndices: choice.energyTrashIndices,
+    }, {
       actor: actActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
       energyPayPool: pool,

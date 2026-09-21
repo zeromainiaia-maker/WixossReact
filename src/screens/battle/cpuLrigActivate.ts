@@ -1,6 +1,8 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { activatedEnergyCostStr, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
+import { activatedEnergyCostStr, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
+import { getCardNum } from '../../engine/execUtils';
+import type { CpuPolicy } from './cpuPolicy';
 import { applyNextLrigActCostReduction, type WholeEnergyCostSubstituteOption } from './costs';
 import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
@@ -48,6 +50,13 @@ export const CPU_LRIG_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = ne
   'charmTrash',          // 自分の場のチャームを先頭から自動
   'exileLrigFromLrigDeck', // ルリグデッキから自動（gate が枚数を検算している）
   'collab',              // ライバートークンN個（gate が所持数を検算・実行側が deduct）＝§5.3 `O-292`
+  // 🆕§5.7 `S-31` ② 第2段（2026-09-21）＝**手札を捨てる／エナから落とす**（index は下で決める）。
+  //   📏実測＝ルリグの【起】571効果のうち `handDiscardSigni` 20／`discard` 8／`energyTrash` 15。
+  //   ⚠**`performLrigActivated` が受け取る口がある**ものだけ（`fieldTrash` は口が無いので載せない）。
+  'discard',
+  'discardFilter',
+  'handDiscardSigni',
+  'energyTrash',
 ]);
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
@@ -67,6 +76,10 @@ export interface CpuLrigActivatedChoice {
   effect: CardEffect;
   /** `performLrigActivated` に渡すエナ pool index。 */
   costIndices: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第2段＝手札を捨てるコストの index（`discard` / `handDiscardSigni`）。 */
+  handDiscardIndices: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index（`energyTrash`）。 */
+  energyTrashIndices: Set<number>;
 }
 
 /**
@@ -91,6 +104,10 @@ export interface CpuLrigActivatedPickInput {
   effectivePowers?: Map<string, number>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
+  /** 🆕§5.7 `S-31` ② 第2段＝手札を捨てるコストで「手元に残す価値」を見る（作戦データ）。 */
+  planKeepBonus?: (id: string) => number;
+  /** 🆕§5.7 `S-31` ② 第2段＝捨てる／落とす順の重み（席ごとのポリシー）。 */
+  policy?: CpuPolicy;
 }
 
 /** 🆕§5.7 `S-15`＝いま撃てるルリグ【起】を全部（①本来→②付与→③継承の順・遅延評価）。`pickCpuLrigActivated` は先頭を取るだけ。 */
@@ -121,7 +138,18 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
       reserve: p.energyReserve,
     });
     if (!costIndices) continue;
-    yield { effect, costIndices };
+    // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコスト（**選び方は場のシグニ【起】と同じ関数**）。
+    const handDiscardIndices = pickCpuDiscardCostIndices({
+      hand: p.actor.hand, cost: effect.cost, cardMap: p.cardMap,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], keepBonus: p.planKeepBonus, policy: p.policy,
+    });
+    if (!handDiscardIndices) continue;
+    const energyTrashIndices = pickCpuEnergyTrashIndices({
+      energy: p.actor.energy, cost: effect.cost, cardMap: p.cardMap,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy, reserve: p.energyReserve,
+    });
+    if (!energyTrashIndices) continue;
+    yield { effect, costIndices, handDiscardIndices, energyTrashIndices };
   }
 }
 

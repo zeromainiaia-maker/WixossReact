@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-21（第442バッチ）§5.7 `S-31` ② 第2段＝**エナ・場から払うコストと、ルリグ【起】の手札捨て**（撃てない【起】 210 → 108）
+
+### 🔴 まず母集団を測り直した＝前回の「523効果」は過大だった
+
+- 前回は**場のシグニ用の allowlist を全ての【起】に当てて**数えていた＝
+  **ルリグ【起】では自動で払える `exceed`（106）などが「撃てない」に混ざっていた**。
+- 🔑**文脈ごとに、その文脈の allowlist で数え直す**（`tmp_s31b.ts`）＝
+
+| 文脈 | 【起】効果 | 撃てない（前） | 撃てない（後） |
+|---|---|---|---|
+| **場のシグニ**（`cpuActivate`） | 738 | **134（18.2%）** | 🏁**75（10.2%）** |
+| **ルリグ**（`cpuLrigActivate`） | 571 | **76（13.3%）** | 🏁**33（5.8%）** |
+| 合計 | 1,309 | 210 | 🏁**108**（＝**102効果が撃てるようになった**） |
+
+🔑**「24.6%が撃てない」は文脈を混ぜた数字だった**＝**allowlist が文脈ごとに違うなら、母集団も文脈ごとに数える。**
+
+### 入れたもの
+
+1. 🆕**`pickCpuEnergyTrashIndices`**（エナから落とすコスト＝`energyTrash`・シグニ37／ルリグ15）
+   🔑**1枚ずつの可否は人間の支払いUIと同じ関数**（`canAddEnergyTrashIndex` ＋ `matchesFilter`）＋`energyTrashCostSatisfied` で検算。
+   🔴**グロウの予約を壊さないエナを先に落とす**（`cpuGrowReserve`）＝エナを削ってグロウできなくなるのは `S-26` で直した失敗そのもの。
+   ⚠**予約を守れる組み合わせが無ければ予約を諦めて払う**（撃てないより良い）。それ以外は**弱い札から**。
+2. 🆕**`pickCpuFieldTrashZones`**（場からトラッシュ＝`fieldTrash`・シグニ23）
+   🔑**候補のゾーンは `fieldTrashSelectableZones` の1本**（`excludeSelf`・フィルタは可否ゲートと同じ関数）。**弱いシグニから**。
+3. **ルリグ【起】に手札捨て・エナトラッシュを配線**（`handDiscardSigni` 20／`discard` 8／`energyTrash` 15）
+   ＝**選び方は場のシグニ【起】と同じ関数**（`pickCpuDiscardCostIndices` / `pickCpuEnergyTrashIndices`）。
+   ⚠**`fieldTrash` はルリグ側に入れていない**＝`performLrigActivated` に受け取る口が無く、
+   **宣言だけして踏み倒す側へ倒れる**（allowlist の規律）。
+4. **探索の近似適用（`payCpuSelfCostSim`）も同じ index で払う**＝払わせないと探索には**タダで撃てる【起】**に見える（`S-21` と同型）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **4360**＝`§5.7 S-31 ② 第2段` を1本追加）。
+- 📏`census:play`（6デッキ × 12戦）＝**シグニの【起】26回／ルリグの【起】8回**。
+- ⚠**較正した既存の golden 4本**＝`O-1 cpuActivate`／`O-1 cpuLrigActivate`（allowlist の「撃たない」例を
+  **まだ払えないキー**（`underSelfTrash`／`fieldTrash`／`discardGroups`）へ移した＝**規律そのものは減っていない**）。
+- ⚠**反転確認**＝**能力の追加**（払える範囲の拡張）でポリシーではない＝プリセットは作っていない。
+  戻すなら allowlist から該当キーを外す。**直接指標は「撃てない【起】の数」**（210 → 108）。
+
+### ⚠ 残り（`S-31` ②の続き）
+
+- 場のシグニ＝`underSelfTrash` 13／`trashExile` 13／`discardSelfFromHand` 9／`charmTrash` 6／`removeOppVirus` 6 …
+- ルリグ＝`fieldTrash` 8（**実行側の口が無い**）／`trashArtsFromLrigDeck` 5／`deckTrash` 3／`discardGroups` 3 …
+
+
 ## 2026-09-21（第441バッチ）🏁§5.7 `S-32` ①＝**相手の札を「属性」で狙えるようにした**（クラス／レベル／パワー帯）
 
 ### なぜ要るか

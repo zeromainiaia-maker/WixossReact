@@ -1,6 +1,9 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
-import { canAddHandDiscardSigniIndex, energyCostToString, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
+import { canAddEnergyTrashIndex, canAddHandDiscardSigniIndex, energyCostToString, energyTrashCostSatisfied, handDiscardSigniCostSatisfied, parseGrowCost, type WholeEnergyCostSubstituteOption } from './costs';
+import { fieldTrashSelectableZones } from './fieldLimit';
+import { cardStrength } from './cpuCardStrength';
+import { reserveKeptAfterPaying } from './cpuGrowReserve';
 import { getCardNum, matchesFilter } from '../../engine/execUtils';
 import { cpuHandDiscardOrder } from './cpuHandLimit';
 import type { CpuPolicy } from './cpuPolicy';
@@ -59,6 +62,12 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'discard',
   'discardFilter',
   'handDiscardSigni',
+  // 🆕§5.7 `S-31` ② 第2段（2026-09-21）＝**エナ・場から払うコスト**（`pickCpuEnergyTrashIndices` /
+  //   `pickCpuFieldTrashZones` が index を決める）。🔴**どちらも `signiActivateGate` が枚数と中身を検算済み**
+  //   （`energyTrashCostSatisfied` ／ `fieldTrashSelectableZones`）。
+  //   📏実測＝場のシグニの【起】738効果のうち `energyTrash` 37／`fieldTrash` 23。
+  'energyTrash',
+  'fieldTrash',
 ]);
 
 /**
@@ -201,6 +210,10 @@ export interface CpuActivatedChoice {
    * （`discard` / `handDiscardSigni`）。コストが無ければ空。
    */
   discardIndices: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第2段＝エナから落とす index（`energyTrash`）。 */
+  energyTrashIndices: Set<number>;
+  /** 🆕§5.7 `S-31` ② 第2段＝場からトラッシュするゾーン（`fieldTrash`）。 */
+  fieldTrashZones: Set<number>;
 }
 
 /**
@@ -281,6 +294,69 @@ export function pickCpuDiscardCostIndices(p: {
 }
 
 /**
+ * 🆕**エナから払うコストで、どのエナを落とすか**（§5.7 `S-31` ② 第2段・2026-09-21）。
+ * 🔑**1枚ずつの可否は人間の支払いUIと同じ関数**＝`canAddEnergyTrashIndex`（集合制約つき）＋`matchesFilter`（`spec.filter`）。
+ * 🔴**次のグロウで払えなくなるエナは最後に回す**（`cpuGrowReserve`）＝エナを削って
+ *   グロウできなくなるのは `S-26` で直した失敗そのもの。
+ * ⚠**それ以外は弱い札から**（エナは色さえ合えば何でもよいので、強い札はトラッシュに残さない）。
+ * @returns 落とすエナの index。**払えないなら `null`**。
+ */
+export function pickCpuEnergyTrashIndices(p: {
+  energy: string[];
+  cost: CardEffect['cost'];
+  cardMap: Map<string, CardData>;
+  effectsOf?: (id: string) => readonly CardEffect[];
+  policy?: CpuPolicy;
+  reserve?: CpuEnergyReserve;
+}): Set<number> | null {
+  const spec = p.cost?.energyTrash;
+  if (!spec) return new Set();
+  const strength = (id: string) =>
+    cardStrength(p.cardMap.get(getCardNum(id)), p.effectsOf?.(id) ?? [], 'deploy', undefined, p.policy);
+  const order = p.energy.map((_, i) => i)
+    .filter(i => !spec.filter || matchesFilter(p.cardMap.get(getCardNum(p.energy[i])), spec.filter))
+    .sort((a, b) => strength(p.energy[a]) - strength(p.energy[b]) || a - b);
+  const pickFrom = (idx: readonly number[]) => {
+    const chosen = new Set<number>();
+    for (const i of idx) {
+      if (!spec.atLeast && chosen.size >= spec.count) break;
+      if (canAddEnergyTrashIndex(p.energy, chosen, i, spec, p.cardMap)) chosen.add(i);
+    }
+    return energyTrashCostSatisfied(p.energy, chosen, spec, p.cardMap) ? chosen : null;
+  };
+  // 🔴まず**グロウの予約を壊さない**エナだけで組む。組めなければ予約を諦めて全体から組む。
+  const keepable = order.filter(i => reserveKeptAfterPaying(p.reserve, p.energy, [p.energy[i]]));
+  return pickFrom(keepable) ?? pickFrom(order);
+}
+
+/**
+ * 🆕**場から払うコストで、どのシグニをトラッシュするか**（§5.7 `S-31` ② 第2段）。
+ * 🔑**候補のゾーンは `fieldTrashSelectableZones` の1本**（`excludeSelf`・フィルタは可否ゲートと同じ関数）。
+ * ⚠**弱いシグニから**（レベル→強さの昇順）＝盤面をできるだけ削らない。
+ */
+export function pickCpuFieldTrashZones(p: {
+  effect: CardEffect;
+  actor: PlayerState;
+  sourceZone: number;
+  cardMap: Map<string, CardData>;
+  effectsOf?: (id: string) => readonly CardEffect[];
+  policy?: CpuPolicy;
+}): Set<number> | null {
+  const ft = p.effect.cost?.fieldTrash;
+  if (!ft) return new Set();
+  const strength = (zi: number) => {
+    const top = p.actor.field.signi[zi]?.at(-1) ?? '';
+    const card = p.cardMap.get(getCardNum(top));
+    return [parseInt(card?.Level ?? '0', 10) || 0,
+      cardStrength(card, p.effectsOf?.(top) ?? [], 'field', undefined, p.policy)] as const;
+  };
+  const zones = fieldTrashSelectableZones(ft, p.actor, p.cardMap, p.sourceZone)
+    .sort((a, b) => strength(a)[0] - strength(b)[0] || strength(a)[1] - strength(b)[1] || a - b);
+  if (zones.length < ft.count && !ft.upToCount) return null;
+  return new Set(zones.slice(0, ft.count));
+}
+
+/**
  * 🆕§5.7 `S-15`＝CPU が**いま撃てる**場のシグニ【起】を**全部**、ゾーン順→効果定義順で列挙する（遅延評価）。
  * `pickCpuSigniActivated` はこの先頭を取るだけ＝「列挙」と「選ぶ」を割った（探索 `S-16` が全候補を要る）。
  */
@@ -311,7 +387,18 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
         effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], keepBonus: p.planKeepBonus, policy: p.policy,
       });
       if (!discardIndices) continue;
-      yield { zoneIndex, cardNum, effect, costIndices, discardIndices };
+      // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト（払えないなら候補から外す）。
+      const energyTrashIndices = pickCpuEnergyTrashIndices({
+        energy: actor.energy, cost: effect.cost, cardMap,
+        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], policy: p.policy, reserve: p.energyReserve,
+      });
+      if (!energyTrashIndices) continue;
+      const fieldTrashZones = pickCpuFieldTrashZones({
+        effect, actor, sourceZone: zoneIndex, cardMap,
+        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
+      });
+      if (!fieldTrashZones) continue;
+      yield { zoneIndex, cardNum, effect, costIndices, discardIndices, energyTrashIndices, fieldTrashZones };
     }
   }
 }
