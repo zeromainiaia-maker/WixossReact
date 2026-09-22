@@ -1,4 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
+import { privateLine, isInPublicZone } from './hiddenInfo';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword, textHasKeyword } from '../utils/keywords';
 import { enforceResonaZoneRule, resonaLeaveDestination } from './resonaZone';
 import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, lrigTeamMatches, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, matchesLrigStateFilter, calcSigniLevels, leaveToTrashWindowApplies, type BanishedCardAttrs } from './effectEngine';
@@ -1457,6 +1458,31 @@ export function setOwnerState(owner: Owner, s: PlayerState, ctx: ExecCtx): ExecC
 
 export function addLog(ctx: ExecCtx, msg: string): ExecCtx {
   return { ...ctx, logs: [...ctx.logs, msg] };
+}
+
+/**
+ * **共有ログに書いてよい札の表記**（§5.1 `V-286`）。
+ * 🔴`game_logs` は部屋で1本＝**相手の画面にそのまま出る**ので、
+ *   **いま公開領域（場・エナ・トラッシュ・ルリグトラッシュ・チェックゾーン・除外）に居る札だけ**名前を出し、
+ *   手札・デッキ・ルリグデッキ・ライフクロス・裏向きの置き場に居る札は伏せる。
+ * 🔑**両側を見る**＝相手の札を動かす効果（「対戦相手のデッキの一番上を…」）でも同じ規約で判定する。
+ * ⚠**「場に出せなかった」系のログで特に効く**＝デッキから探した札が出せずデッキに残るのに
+ *   名前だけログに出ていた（実測 109効果）。
+ */
+export function logCardLabel(ctx: ExecCtx, cardNum: string, fallback = 'カード１枚'): string {
+  if (isInPublicZone(ctx.ownerState, cardNum) || isInPublicZone(ctx.otherState, cardNum)) {
+    return ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
+  }
+  return fallback;
+}
+
+/**
+ * **自分だけに見える1行**を積む（§5.1 `V-286`・印と配送は `hiddenInfo.ts` / `appendBattleLogs`）。
+ * 🔑「デッキの一番上を**見る**」のように**見た本人しか知らないはずの札**をログで配るときに使う。
+ * ⚠共有ログ側には「見た」という事実だけを `addLog` で別に書く（相手にも進行が見える必要がある）。
+ */
+export function addPrivateLog(ctx: ExecCtx, msg: string): ExecCtx {
+  return { ...ctx, logs: [...ctx.logs, privateLine(msg)] };
 }
 
 // 任意コストが支払えるかチェック（色の一致を検証）

@@ -170,6 +170,8 @@ import {handDiscardHistoryRecord} from './battle/costs';
 import {crashSourceSuppressesLifeBurst} from './battle/lifeBurstSuppress';
 import {grantedStoreWatchers} from '../engine/grantedStore';
 import {isHandSigniPlayBlockedByPower} from '../engine/blockAction';
+import {splitLogsByVisibility} from '../engine/hiddenInfo';
+import {canShowPrivateLog} from './battle/privateLogVisibility';
 
 /**
  * 🔴**DB から来た行の `signi_acce` 旧形式（素の string）をここで一度だけ配列へ正す**（タスク12(cxxxiv)）。
@@ -364,6 +366,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const prevGameLogsLenRef = useRef<number>(0);
   // defer: true のログを main update 後に一括 flush するバッファ
   const pendingLogsRef = useRef<import('../types').GameLog[]>([]);
+  /**
+   * 🆕**§5.1 `V-286`＝自分だけに見えるログ**（DB へは行かない）。
+   * 🔴**`battleLogs` と混ぜない**＝下の Realtime 同期が `setBattleLogs(remote)` で**配列ごと入れ替える**ので、
+   *   混ぜると相手の1行が届いた瞬間に消える。描画時に時刻でマージする。
+   */
+  const [privateLogs, setPrivateLogs] = useState<import('../types').GameLog[]>([]);
+  /** `appendBattleLogs`（宣言はこれより上）から CPU 対戦かどうかを見るための控え。 */
+  const isCpuBattleRef = useRef(false);
+  isCpuBattleRef.current = isCpuBattle;
   useEffect(() => {
     const remote = bs?.game_logs ?? [];
     if (remote.length > prevGameLogsLenRef.current) {
@@ -375,7 +386,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const appendBattleLogs = useCallback((entries: string[], opts?: { defer?: boolean }) => {
     if (entries.length === 0 || !user) return;
     const now = new Date().toISOString();
-    const newLogs = entries.map(action => ({ timestamp: now, user_id: user.id, action }));
+    // 🆕🔴**§5.1 `V-286`＝「自分だけに見える行」をここで割る**（印は `hiddenInfo.ts`）。
+    //   `game_logs` は部屋で1本＝**RPC へ渡した瞬間に相手の画面に出る**ので、
+    //   「デッキの一番上を見る」のように**見た本人しか知らないはずの札**は
+    //   ローカルの `privateLogs` にだけ積み、**`newLogs`（＝DB 行）には絶対に入れない**。
+    const { shared, own } = splitLogsByVisibility(entries);
+    if (own.length > 0) {
+      // ⚠CPU 対戦では CPU の効果も**この**ブラウザで解決される＝CPU が手番を握っている間は出さない。
+      const cpuIsActing = cpuRunningRef.current
+        || bsRef.current?.active_user_id === CPU_PLAYER_ID
+        || bsRef.current?.pending_effect?.respondPlayerId === CPU_PLAYER_ID;
+      if (canShowPrivateLog({ isCpuBattle: isCpuBattleRef.current, cpuIsActing })) {
+        const ownLogs = own.map(action => ({ timestamp: now, user_id: user.id, action }));
+        setPrivateLogs(prev => [...prev, ...ownLogs].slice(-40));
+      }
+    }
+    if (shared.length === 0) return;
+    const newLogs = shared.map(action => ({ timestamp: now, user_id: user.id, action }));
     // ローカルに即時反映
     setBattleLogs(prev => {
       const next = [...prev, ...newLogs].slice(-200);
@@ -5790,13 +5817,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               position: 'relative',
             }}
           >
-            {[...battleLogs].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => {
+            {/* 🆕§5.1 `V-286`＝**自分だけに見える行（`privateLogs`）をここで合流**させる。
+                🔴DB 側（`battleLogs`）と混ぜて持たない＝Realtime 同期が配列ごと入れ替えるため。 */}
+            {[...battleLogs.map(l => ({ l, own: false })), ...privateLogs.map(l => ({ l, own: true }))]
+              .sort((a, b) => (a.l.timestamp < b.l.timestamp ? -1 : a.l.timestamp > b.l.timestamp ? 1 : 0))
+              .reverse().slice(0, logExpanded ? 60 : 2).map(({ l: log, own }, i) => {
               const text = log.user_id !== user.id
                 ? log.action.replace(/あなた/g, '\x00').replace(/相手/g, 'あなた').replace(/\x00/g, '相手')
                 : log.action;
               return (
-                <div key={i} style={{ fontSize: 10, color: i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {text}
+                <div key={i} data-testid={own ? 'private-log-line' : undefined}
+                  style={{ fontSize: 10, color: own ? '#d0bd6a' : i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {own ? `🔒 ${text}` : text}
                 </div>
               );
             })}

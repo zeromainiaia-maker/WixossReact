@@ -264,6 +264,8 @@ import { activatedEnergyCostStr } from '../src/screens/battle/cpuActivate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 import { facedownPeek } from '../src/screens/battle/facedownPeek';
+import { privateLine, isPrivateLogLine, stripPrivateMark, splitLogsByVisibility, isInPublicZone, publicCardLabel } from '../src/engine/hiddenInfo';
+import { canShowPrivateLog } from '../src/screens/battle/privateLogVisibility';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -85850,6 +85852,150 @@ test('§5.1 V-285 トリップワイヤ: 盤面の【トラップ】表示に札
     .map(({ l, n }) => `BoardComponents.tsx:${n} ${l.slice(0, 70)}`);
   eq(direct.join(' // '), '',
     '🔴`trapCardNum` から直接カードを引いている＝所有者の判定を迂回して中身を描ける');
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// §5.1 `V-286`＝非公開情報を共有ログへ漏らさない（`V-285`【トラップ】の横展開）
+//   🔴`game_logs` は部屋で1本（`appendBattleLogs` → `append_battle_logs` RPC → Realtime で相手へ）で
+//     **閲覧者ごとの絞り込みが型にも実装にも無い**＝engine が `addLog` に書いた札の名前はそのまま相手に見える。
+//   道具は2つだけ＝①`logCardLabel`（公開領域の札だけ名前を出す）②`addPrivateLog`（自分だけに見える行）。
+// ══════════════════════════════════════════════════════════════════════════
+test('§5.1 V-286: 自分だけに見える行は共有側へ混ざらない', () => {
+  const line = privateLine('デッキの一番上＝ヒミツ');
+  ok(isPrivateLogLine(line), '印がついていない');
+  eq(stripPrivateMark(line), 'デッキの一番上＝ヒミツ', '表示前に印を外せない');
+  const { shared, own } = splitLogsByVisibility(['共有の行', line]);
+  eq(shared.join('|'), '共有の行', '🔴自分だけの行が共有側（＝DB 行）へ混ざった');
+  eq(own.join('|'), 'デッキの一番上＝ヒミツ', '自分だけの行が落ちた');
+  eq(shared.some(l => isPrivateLogLine(l)), false, '🔴印つきの行がそのまま共有側に残っている');
+});
+
+// ⚠`mkState` は POOL カーソルを進めるので **`withSavedCursor` で包む**（包まないと後続テストが引く札が変わり、
+//   このテストと無関係な `§5.7 S-31` が落ちた＝`goldenTest.ts:155` の既知の罠）。
+test('§5.1 V-286: 公開領域の判定（名前を出してよい場所／いけない場所）', () => withSavedCursor(() => {
+  const st = mkState({ signi: [SIGNI, null, null] });
+  st.trash = ['T1']; st.energy = ['E1']; st.hand = ['H1']; st.deck = ['D1']; st.life_cloth = ['L1'];
+  st.field.signi_traps = ['TR1', null, null];
+  st.field.signi_charms = [null, 'CH1', null];
+  ok(isInPublicZone(st, 'T1'), 'トラッシュは公開領域');
+  ok(isInPublicZone(st, 'E1'), 'エナゾーンは公開領域');
+  ok(isInPublicZone(st, SIGNI), '場のシグニは公開領域');
+  // 反転＝ここが崩れると「名前を出してよい場所」が広がる
+  eq(isInPublicZone(st, 'H1'), false, '🔴手札を公開領域と判定している');
+  eq(isInPublicZone(st, 'D1'), false, '🔴デッキを公開領域と判定している');
+  eq(isInPublicZone(st, 'L1'), false, '🔴ライフクロスを公開領域と判定している');
+  eq(isInPublicZone(st, 'TR1'), false, '🔴【トラップ】を公開領域と判定している');
+  eq(isInPublicZone(st, 'CH1'), false, '🔴【チャーム】を公開領域と判定している');
+  eq(publicCardLabel(st, 'H1', 'ヒミツ'), 'カード１枚', '🔴手札の札の名前を共有ログへ出している');
+  eq(publicCardLabel(st, 'T1', 'ゴミ'), 'ゴミ', 'トラッシュの札は名前を出してよい');
+}));
+
+test('§5.1 V-286: CPU が手番を握っている間は自分だけの行を出さない', () => {
+  // 🔴CPU 対戦では CPU の効果も**人間のブラウザ**で解決される＝そのまま描くと立場が逆の `V-285` になる。
+  eq(canShowPrivateLog({ isCpuBattle: false, cpuIsActing: false }), true, 'オンライン対戦では出す');
+  eq(canShowPrivateLog({ isCpuBattle: false, cpuIsActing: true }), true, 'オンラインなら CPU 判定に関係なく出す');
+  eq(canShowPrivateLog({ isCpuBattle: true, cpuIsActing: false }), true, 'CPU 対戦でも自分が手番なら出す');
+  eq(canShowPrivateLog({ isCpuBattle: true, cpuIsActing: true }), false, '🔴CPU の非公開情報が人間に見える');
+});
+
+test('§5.1 V-286: 【シード】設置のログに札の名前を出さない（裏向きで置く）', () => withSavedCursor(() => {
+  // 原文の注記＝「（【シード】であるカードはシグニゾーン１つにつき１枚まで**裏向きで**置くことができ…）」
+  const ctx = mkCtx({}, {});
+  const top = ctx.ownerState.deck[0];
+  const name = ctx.cardMap.get(top.split('#')[0])?.CardName;
+  ok(!!name, '前提: デッキ上のカード名が引ける');
+  const r = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'INTERNAL_SEEDS_PLACE_LOOP', seedCards: [top] } } as unknown as CardEffect, ctx), ctx);
+  eq(((r.ownerState as PlayerState).field.signi_seeds ?? []).filter(Boolean).length, 1, '前提: 【シード】が1つ設置される');
+  eq(r.logs.filter(l => l.includes(name!)).join(' // '), '', '🔴裏向きの【シード】の名前が共有ログに出ている');
+}));
+
+test('§5.1 V-286: 手札→ライフクロスのログに札の名前を出さない（どちらも非公開）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const handNames = ctx.ownerState.hand
+    .map(n => ctx.cardMap.get(n.split('#')[0])?.CardName).filter((s): s is string => !!s);
+  ok(handNames.length > 0, '前提: 手札のカード名が引ける');
+  const lifeBefore = ctx.ownerState.life_cloth.length;
+  const r = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromHand: true } as unknown as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).life_cloth.length, lifeBefore + 1, '前提: ライフクロスが1枚増える');
+  eq(r.logs.filter(l => handNames.some(n => l.includes(n))).join(' // '), '',
+    '🔴手札からライフクロスへ置いた札の名前が共有ログに出ている');
+}));
+
+test('§5.1 V-286: 「見る」の中身は共有ログに出さず、見た本人にだけ配る', () => withSavedCursor(() => {
+  // 🔴旧実装は**相手のデッキの一番上とライフの一番上**を共有ログへ書いていた＝
+  //   相手は自分のデッキトップ／ライフトップを知りようがないのに知ってしまう（`WX10-070-E1` ほか）。
+  const ctx = mkCtx({}, {});
+  const topName = ctx.cardMap.get(ctx.otherState.deck[0].split('#')[0])?.CardName;
+  const lifeName = ctx.cardMap.get((ctx.otherState.life_cloth.at(-1) ?? '').split('#')[0])?.CardName;
+  ok(!!topName && !!lifeName, '前提: 相手のデッキ上・ライフ上のカード名が引ける');
+  const r = run({ type: 'LOOK_AT_DECK_AND_LIFE', targetOwner: 'opponent', mode: 'both' } as unknown as EffectAction, ctx);
+  const { shared, own } = splitLogsByVisibility(r.logs);
+  eq(shared.filter(l => l.includes(topName!) || l.includes(lifeName!)).join(' // '), '',
+    '🔴「見た」中身が共有ログに出ている（相手が自分の非公開札を知る）');
+  ok(own.some(l => l.includes(topName!) && l.includes(lifeName!)), '見た本人にも中身が届いていない');
+  ok(shared.some(l => l.includes('を見る')), '見たという事実は共有ログに残す');
+}));
+
+test('§5.1 V-286: 【チャーム】はデッキ発なら名前を伏せ、トラッシュ発なら残す（両方向）', () => withSavedCursor(() => {
+  const to = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+  // デッキの一番上＝相手は見ていない
+  const ctxD = mkCtx({ signi: ['WX04-052', null, null] }, {}, 'WX04-052');
+  const deckTop = ctxD.ownerState.deck[0];
+  const deckName = ctxD.cardMap.get(deckTop.split('#')[0])?.CardName;
+  ok(!!deckName, '前提: デッキ上のカード名が引ける');
+  const rD = run({ type: 'ATTACH_CHARM', charm: { type: 'DECK_CARD', owner: 'self', count: 1 }, to } as unknown as EffectAction, ctxD);
+  eq((rD.ownerState as PlayerState).field.signi_charms?.[0], deckTop, '前提: デッキトップが【チャーム】になる');
+  eq(rD.logs.filter(l => l.includes(deckName!)).join(' // '), '',
+    '🔴デッキから付けた【チャーム】の名前が共有ログに出ている（裏向きなのに中身が割れる）');
+  // 反転＝トラッシュ発は**相手が既に見ている**ので名前を残す（伏せすぎない）
+  const ctxT = mkCtx({ signi: ['WX04-052', null, null] }, {}, 'WX04-052');
+  const trashNames = ctxT.ownerState.trash
+    .map(n => ctxT.cardMap.get(n.split('#')[0])?.CardName).filter((s): s is string => !!s);
+  const rT = run({ type: 'ATTACH_CHARM', charm: { type: 'TRASH_CARD', owner: 'self', count: 1 }, to } as unknown as EffectAction, ctxT);
+  ok(!!(rT.ownerState as PlayerState).field.signi_charms?.[0], '前提: トラッシュから【チャーム】が付く');
+  ok(rT.logs.some(l => trashNames.some(n => l.includes(n))),
+    '公開領域（トラッシュ）から付けた【チャーム】の名前まで伏せている（伏せすぎ）');
+}));
+
+test('§5.1 V-286: 場が満杯で出せなかったデッキの札の名前を出さない', () => withSavedCursor(() => {
+  // 🔴実測 109効果＝「デッキから探して場に出し」で場が満杯だと、**デッキに残るのに名前だけログに出ていた**。
+  const ctx = mkCtx({ signi: [SIGNI, SIGNI, SIGNI] }, {});
+  const deckNames = ctx.ownerState.deck
+    .map(n => ctx.cardMap.get(n.split('#')[0])?.CardName).filter((s): s is string => !!s);
+  ok(deckNames.length > 0, '前提: デッキのカード名が引ける');
+  const r = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1,
+      then: { type: 'ADD_TO_FIELD', owner: 'self' } } } as unknown as CardEffect, ctx), ctx);
+  ok(r.logs.some(l => l.includes('配置不可')), '前提: 「配置不可」のログが出ている');
+  eq(r.logs.filter(l => deckNames.some(n => l.includes(n))).join(' // '), '',
+    '🔴場に出せずデッキに残った札の名前が共有ログに出ている');
+}));
+
+test('§5.1 V-286: 【マジックボックス】設置のログに札の名前を出さない（裏向きで設置）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const top = ctx.ownerState.deck[0];
+  const name = ctx.cardMap.get(top.split('#')[0])?.CardName;
+  ok(!!name, '前提: デッキ上のカード名が引ける');
+  const r = run({ type: 'STUB', id: 'INTERNAL_SET_MAGIC_BOX', value: '0:' + top } as unknown as EffectAction, ctx);
+  eq(((r.ownerState as PlayerState).field.signi_magic_boxes ?? [])[0], top, '前提: ゾーン1に設置される');
+  eq(r.logs.filter(l => l.includes(name!)).join(' // '), '', '🔴裏向きの【マジックボックス】の名前が共有ログに出ている');
+}));
+
+test('§5.1 V-286 トリップワイヤ: 自分だけの行を DB（相手）へ送らない', () => {
+  // 🔑**挙動のテストだけだと「別の口を足すときに写経で戻る」**ので、配送の形でも固定する（`V-285` と同じ作法）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/const \{ shared, own \} = splitLogsByVisibility\(entries\);/.test(src),
+    '`appendBattleLogs` が可視性で割っていない');
+  ok(/const newLogs = shared\.map\(action => \(\{ timestamp: now, user_id: user\.id, action \}\)\);/.test(src),
+    '🔴DB へ渡す行を `shared` 以外から作っている（自分だけの行が相手へ届く）');
+  ok(/setPrivateLogs\(prev => \[\.\.\.prev, \.\.\.ownLogs\]/.test(src), '自分だけの行をローカルに積んでいない');
+  ok(/canShowPrivateLog\(\{ isCpuBattle: isCpuBattleRef\.current, cpuIsActing \}\)/.test(src),
+    'CPU が手番のときの出し分けを通っていない');
+  // `p_logs` に渡すのは `newLogs`（＝shared 由来）と `toFlush`（その控え）だけ
+  const rpcArgs = [...src.matchAll(/p_logs:\s*([A-Za-z_][\w.]*)/g)].map(m => m[1]);
+  eq(rpcArgs.filter(a => a !== 'newLogs' && a !== 'toFlush').join(','), '',
+    '🔴RPC へ shared 以外を渡している (' + rpcArgs.join(',') + ')');
 });
 
 

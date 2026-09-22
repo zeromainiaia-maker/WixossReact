@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-22（第465バッチ）🔴**非公開情報が共有ログに出ていた＝`V-285`【トラップ】の横展開（8系統・約180効果）**（ユーザー指示「他の似たような問題がないか調べて」→「全部直して」）
+
+- **真因（1行）**＝`V-285` とまったく同じ＝**`game_logs` は部屋で1本**（`appendBattleLogs` → `append_battle_logs` RPC → Realtime で相手へ／閲覧者ごとの絞り込みは型にも実装にも無い）なのに、engine が**裏向きに置く札／「見る」だけの札／場に出せず非公開ゾーンに残った札**の名前を `addLog` に書いていた。
+- 🔑**在庫の取り方＝grep ではなくトレース**（`V-285` の教訓「文言の grep だけで在庫を数えると漏れる」への回答）＝`npm run census:traceinv` の全カードトレース（原文・盤面・**盤面差分**・ログ）を突き合わせ、**移動の向き**で数える計器を書いた＝`node --max-old-space-size=8192 scripts/archive/censusHiddenInfoLeak.mjs`。
+- 📏**実測（修正前 → 修正後）**＝**群1（非公開ゾーン → 裏向きの置き場）48件 → 1件**／**群2（非公開ゾーンに留まったまま）174件 → 46件**。🔑**残りは全件が偽陽性**＝原文に「公開」がある 38／途中でトラッシュを経由した 1／行き先が公開領域（場・トラッシュ・チェックゾーン）5／同名別インスタンス 1（分類は計器のヘッダに記録）。
+
+| 系統 | 実測 | 直した場所 |
+|---|---|---|
+| 【チャーム】（デッキ／手札発だけ伏せる） | 14効果 | `effectExecutor.ts` `execAttachCharm`（`charmNameVisible`） |
+| 【シード】設置（裏向きで置く） | 11効果 | `execStubPart2.ts` ×4（`INTERNAL_SEEDS_PLACE_LOOP`／`INTERNAL_SEED_TO_HAND_THEN_DECK_TOP` 2箇所／`INTERNAL_SEED_FROM_DECK_TOP_PLACE`） |
+| ライフクロス追加（手札／デッキ発） | 9効果 | `effectExecutor.ts` `ADD_TO_LIFE`（`fromSearch` と手札の2枝） |
+| 【マジックボックス】設置・開封の見出し | 7効果 | `execStubPart3.ts` `INTERNAL_SET_MAGIC_BOX`／`OPEN_MAGIC_BOX`（中身は `addPrivateLog` で所有者にだけ配る） |
+| 裏向きシグニゾーン／裏向きルリグゾーン | 3効果 | `execStubPart2.ts` `PLACE_FACEDOWN_SIGNI`／`effectExecutor.ts` `PLACE_FACEDOWN_LRIG_ZONE` |
+| **場に出せず非公開ゾーンに残った札** | **109効果** | `effectExecutor.ts`（空きゾーンなし／【ゲート】版／手札パワー制限／`deployLimitLogMessage` 3箇所）＋`execStubPart1.ts` 2箇所 |
+| 「見る」の中身 | 10効果 | `effectExecutor.ts` `execLookAtDeckAndLife`／`execStubPart1.ts` `LOOK_OPP_LIFE_TOP`・`TOP_TO_BOTTOM_OPTIONAL`／`execStubPart3.ts` `PLACE_LOOKED_CARD_UNDER_SIGNI`・`INTERNAL_LOOKED_CARD_UNDER_APPLY`・`OPTIONAL_SELF_MILL_TOP` |
+| 非公開のまま位置だけ変える | 8効果 | `effectExecutor.ts` `transferSpecificDeckCard`・`TRANSFER_TO_DECK`／`execStubPart1.ts` `INTERNAL_TOP_TO_BOTTOM`／`execStubPart2.ts` トラップアイコンの失敗枝 |
+
+- 🔴**特に重かった2件**＝①`LOOK_OPP_LIFE_TOP` の `self_life`（`WX25-P2-026-E2`「あなたのライフクロスを**すべて見て**」）が**自分のライフクロス8枚全部を共有ログへ書いていた** ②`execLookAtDeckAndLife`（`WX10-070-E1` ほか3効果）が**相手のデッキの一番上とライフの一番上**を共有ログへ書いていた＝**相手が自分の非公開札を知ってしまう**（漏れる向きが逆）。
+- **新しい機構（2つ）**
+  - **`src/engine/hiddenInfo.ts`（新設・純関数）**＝①`logCardLabel(ctx, cardNum)`＝**いま公開領域（場・エナ・トラッシュ・ルリグトラッシュ・チェックゾーン・除外）に居る札だけ名前を出す**（`isInPublicZone` が両側を見る）②`privateLine`／`isPrivateLogLine`／`splitLogsByVisibility`＝**自分だけに見える行**の印。
+  - **`addPrivateLog(ctx, msg)`（`execUtils.ts`）＋ `BattleScreen.appendBattleLogs`** が**印つきの行を RPC へ渡さない**（ローカル state `privateLogs` にだけ積み、画面では 🔒 付きで描く）。🔴**`battleLogs` と混ぜない**＝Realtime 同期が `setBattleLogs(remote)` で**配列ごと入れ替える**ので、混ぜると相手の1行が届いた瞬間に消える（描画時に時刻でマージする）。
+  - ⚠**CPU 対戦では CPU の効果も人間のブラウザで解決される**＝`canShowPrivateLog`（新設 `src/screens/battle/privateLogVisibility.ts`）で**CPU が手番を握っている間は自分だけの行も出さない**（出さない側へ倒す＝立場が逆の `V-285` を作らない）。**残る隙**＝自分のターン中に解決される CPU のトリガーは拾えない（**従来は共有ログに出ていたので悪化はしない**）。
+- 🔑**伏せすぎない**＝出所が**エナ・トラッシュ・場**なら名前を残す（相手が既に見ている）。golden に**両方向**を張った（【チャーム】のデッキ発／トラッシュ発）。
+- ⚠🔴**意図的に手を付けなかった1件（`O-537` へ登録）**＝「デッキから探して**手札に加える**」の札名。live の deck→hand サーチは **279効果のうち 272 が原文に「公開」**（＝名前を出すのが正しい）で、**真に非公開なのは7効果**（`WX09-010-E3`／`WX17-014-E1`/`WX21-021-E2` ほか）。受け皿の `revealPicked` が **live で2効果にしか付いていない**（parser 側の穴）ので、いま zone だけで伏せると**272効果の正当な公開が消える**。⇒ **parser で `revealPicked` を埋めてから伏せる**別バッチにする。
+- **検証**＝golden **10本**（機構3＝印の往復／公開領域の判定／CPU 出し分け、挙動6＝【シード】・【マジックボックス】・手札→ライフ・「見る」の共有/私的の分離・【チャーム】両方向・場が満杯、トリップワイヤ1＝`appendBattleLogs` が `shared` 以外を RPC へ渡さない）。📏**反転確認＝【シード】と「見る」を元に戻すと2本とも FAIL**。`npm run gates` **全緑**（golden **4395**）。
+- ⚠**golden を足すときに踏んだ罠**＝`mkState` は **POOL カーソルを進める**ので `withSavedCursor` で包まないと**無関係な `§5.7 S-31` が落ちる**（`goldenTest.ts:155` の既知の罠を実際に踏んだ＝FAIL 1件で気づいた）。
+- **実機**（`src/screens/` を触った＋新機構＝§2.2 でフル必須）＝新シナリオ **`v286HiddenInfoNotInSharedLog` PASS**（`WX04-096-E2`＝【起】《ダウン》でデッキの一番上を【チャーム】に → **DB の `game_logs` に札名が乗らない**／付与のログ自体は残る／画面のテキストにも出ない）。📏**反転確認＝`charmNameVisible` を外すと「想起する祝福を堕落の破戒　オリエンスにチャームとして付与」で FAIL。**
+- ✅**横並びで確認して問題が無かったもの**（同じ掃引で全部見た）＝**盤面描画**（相手の手札・デッキ・ライフ・ルリグデッキは**枚数だけ**／`CardSlot` の `faceDown` は裏面画像のみ／`HandCards` は相手側で `data-card-num` を落としている／【チャーム】【マジックボックス】の覗きは `isMe` ガード済み）、**インタラクションUI**（`EffectInteractionModal` は `respondPlayerId === user.id` のときしか描かない＝**選択肢ラベル・`visibleCards` は漏れない**＝「見た札を選ばせる」経路はログから名前を外すだけでよい）、**CPU の思考**（`opp.hand`／`opp.deck`／`opp.life_cloth` は `.length` しか読んでいない）。
+
 ## 2026-09-22（第464バッチ）🔴**【トラップ】の中身が相手に見えていた**（ユーザー指摘「相手のログには見えないようになっているよね？」＝**見えていた**）
 
 - **真因（1行）**＝**`game_logs` は部屋で1本**（`BattleScreen.appendBattleLogs` → `append_battle_logs` RPC → Realtime で相手へ）で**閲覧者ごとの絞り込みが型にも実装にも無い**のに、【トラップ】の設置ログが**札の名前を書いていた**＝裏向きで置いたカードが**そのまま相手の画面に出ていた**。

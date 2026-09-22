@@ -5,7 +5,7 @@ import type {
 import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
-  done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
+  done, addLog, addPrivateLog, logCardLabel, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
   matchesFilter, getCardNum, removeFromField, clearOnFieldAcquiredState, fieldCandidates, handCandidates,
   trashCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot, splitColors,
@@ -265,7 +265,12 @@ function execLookAtDeckAndLife(a: import('../types/effects').LookAtDeckAndLifeAc
   const deckTop = nm(s.deck[0]);
   const lifeTop = nm(s.life_cloth[s.life_cloth.length - 1]);
   const scope = a.mode === 'either' ? 'デッキの一番上かライフの一番上' : 'デッキの一番上とライフの一番上';
-  return done(addLog(ctx, `${who}の${scope}を見る（デッキ:${deckTop} / ライフ:${lifeTop}）`));
+  // 🆕🔴**§5.1 `V-286`＝「見る」は見た本人だけの情報**＝共有ログに中身を書かない。
+  //   🔴旧実装は**相手のデッキの一番上とライフの一番上を共有ログに書いていた**＝
+  //     相手は自分のデッキトップ／ライフトップを知りようがないのに知ってしまう（`WX10-070-E1` ほか3効果）。
+  //   ⇒ 事実だけ共有し、中身は `addPrivateLog`（DB へ行かない行）で見た本人にだけ配る。
+  return done(addPrivateLog(addLog(ctx, `${who}の${scope}を見る`),
+    `${who}の${scope}＝デッキ:${deckTop} / ライフ:${lifeTop}`));
 }
 
 /**
@@ -4924,7 +4929,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       // まとめて1回だけ見ると上限を跨いで置けてしまう）。
       const blockedDL = deployLimitBlockedFor(tgtOwner, n, cur, 0, placeZone);
       if (blockedDL) {
-        cur = addLog(cur, deployLimitLogMessage(blockedDL, ctx.cardMap.get(getCardNum(n))?.CardName ?? n));
+        cur = addLog(cur, deployLimitLogMessage(blockedDL, logCardLabel(ctx, n)));
         continue;
       }
       let newS = { ...s };
@@ -8141,13 +8146,14 @@ function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx:
   if (a.shuffle) {
     deck.push(cardNum);
     const newS = { ...state, deck: shuffle(deck) };
-    return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキに加えてシャッフル`), lastProcessedCards: [cardNum] });
+    // 🔴デッキ内での移動＝相手は見ていない（原文に「公開」は無い）＝名前を書かない（`V-286`）。
+    return done({ ...addLog(setOwnerState(owner, newS, ctx), `${logCardLabel(ctx, cardNum)}をデッキに加えてシャッフル`), lastProcessedCards: [cardNum] });
   }
   // 位置解決は `deckInsertIndex` 1本（`insertToDeck` と共有）。
   deck.splice(deckInsertIndex(a.position, deck.length), 0, cardNum);
   const posJa = deckInsertPosJa(a.position);
   const newS = { ...state, deck };
-  return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキの${posJa}に置く`), lastProcessedCards: [cardNum] });
+  return done({ ...addLog(setOwnerState(owner, newS, ctx), `${logCardLabel(ctx, cardNum)}をデッキの${posJa}に置く`), lastProcessedCards: [cardNum] });
 }
 
 function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
@@ -8804,11 +8810,15 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   ctx2 = setOwnerState(toOwner, newToState, ctx2);
 
   const nameOf = (n: string) => ctx.cardMap.get(n)?.CardName ?? n;
-  // 「〜をそれの【チャーム】にする。…それはアタックできない」の「それ」＝**チャームを付けた側のシグニ**。
-  // ⚠`lastProcessedCards` ではなく `storedTargetCards` に置く＝後続が `targetsStored` を明示した時だけ読む軸なので、
-  //   既存の ATTACH_CHARM 後続3件（POWER_MODIFY / GRANT_KEYWORD＝いずれも新規対象）に影響しない。
+  // 🆕🔴**§5.1 `V-286`＝【チャーム】は裏向きでシグニに付く**（原文の注記「（【チャーム】は裏向きでシグニに付き…）」）＝
+  //   出所が**デッキ／手札**なら相手はその札を見ていないので、**共有ログに名前を書かない**
+  //   （`game_logs` は部屋で1本＝そのまま相手の画面に出る。先行例＝`V-285`【トラップ】）。
+  //   ⚠**エナ／トラッシュ／場から付ける肢は名前を残す**＝その札は公開領域に居て相手が既に見ている。
+  //   🔑付け先のシグニ（`targetNums`）は場のカード＝常に公開。
+  const charmNameVisible = charmFromLocation !== 'deck' && charmFromLocation !== 'hand';
   return done({
-    ...addLog(ctx2, charmNums.map((c, i) => `${nameOf(c)}を${nameOf(targetNums[i])}にチャームとして付与`).join('／')),
+    ...addLog(ctx2, charmNums.map((c, i) =>
+      `${charmNameVisible ? nameOf(c) : 'カード１枚'}を${nameOf(targetNums[i])}にチャームとして付与`).join('／')),
     storedTargetCards: [...targetNums],
   });
 }
@@ -13497,7 +13507,7 @@ export function resumeRearrangeSigni(
       }
       const deployBlocked = deployLimitBlockedFor(pending.owner, pending.swapSourceNum, ctx, 1);
       if (deployBlocked) {
-        const label = ctx.cardMap.get(getCardNum(pending.swapSourceNum))?.CardName ?? pending.swapSourceNum;
+        const label = logCardLabel(ctx, pending.swapSourceNum);
         return continueAfterSwap(addLog(ctx, deployLimitLogMessage(deployBlocked, label)));
       }
       // 場を離れる側は通常の removeFromField 規約に従う（下敷き/チャーム/アクセはトラッシュ、
@@ -13965,7 +13975,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
             hand: sPFL.hand.filter((_, i) => i !== hi),
             facedown_lrig_zone_cards: [...(sPFL.facedown_lrig_zone_cards ?? []), cardNum],
           },
-        }, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を裏向きでルリグゾーンへ`),
+        // 🔴**裏向きで置く札の名前を書かない**（`V-286`）＝原文「あなたの手札を1枚ルリグゾーンに裏向きで置く」。
+        }, '手札から１枚を裏向きでルリグゾーンへ'),
         lastProcessedCards: [cardNum],
       });
     }
@@ -14111,7 +14122,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const printedPower = ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '';
         const power = printedPower === '∞' ? Infinity : parseInt(printedPower, 10);
         if (isHandSigniPlayBlockedByPower(state, power)) {
-          return done(addLog(notPlacedCtx, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は手札から場に出せない`));
+          return done(addLog(notPlacedCtx, `${logCardLabel(ctx, cardNum)}は手札から場に出せない`));
         }
       }
       // 配置制限（「シグニをN体までしか場に出せない」）。⚠**元の領域から取り除く前**に弾く
@@ -14119,8 +14130,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       {
         const blockedDF = deployLimitBlockedFor(owner, cardNum, ctx);
         if (blockedDF) {
-          return done(addLog(notPlacedCtx, deployLimitLogMessage(
-            blockedDF, ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum)));
+          return done(addLog(notPlacedCtx, deployLimitLogMessage(blockedDF, logCardLabel(ctx, cardNum))));
         }
       }
       // 空きゾーン判定。🔴§5.3 `O-524`（2026-09-16）＝**元の領域から取り除く前**に判定し、
@@ -14135,11 +14145,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         emptyZones = emptyZones.filter(z => gateZs.includes(z.i)).slice(0, 1);
         if (emptyZones.length === 0) {
           return done(addLog(notPlacedCtx,
-            `【ゲート】のある空きシグニゾーンがない（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+            `【ゲート】のある空きシグニゾーンがない（${logCardLabel(ctx, cardNum)}配置不可）`));
         }
       }
       if (emptyZones.length === 0) {
-        return done(addLog(notPlacedCtx, `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+        // 🆕🔴**§5.1 `V-286`＝出せなかった札はデッキ／手札に残る＝相手は見ていない**ので名前を書かない
+        //   （実測 109効果。`logCardLabel` が公開領域に居るときだけ名前を出す）。
+        //   ⚠原文が「公開する」と書いている経路でも伏せる側に倒れるが、**漏らすより軽い**（情報の取り逃し）。
+        return done(addLog(notPlacedCtx, `空きシグニゾーンなし（${logCardLabel(ctx, cardNum)}配置不可）`));
       }
       let newS = { ...state };
       const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
@@ -14678,15 +14691,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const newDeck = [...atlS.deck];
         newDeck.splice(di, 1);
         const newAtlS: PlayerState = { ...atlS, deck: newDeck, life_cloth: [...atlS.life_cloth, cardNum] };
-        return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
-          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
+        // 🆕🔴**§5.1 `V-286`＝デッキ→ライフクロスは「非公開→非公開」**＝共有ログに名前を書かない
+        //   （原文に「公開」が無い経路＝`WD23-023-E-BURST`「デッキからカード1枚を探してライフクロスに加え」）。
+        return done(addLog(setOwnerState(atlOwner, newAtlS, ctx), 'デッキから１枚をライフクロスに追加'));
       }
       if (hi < 0) return done(ctx);
       const newHand = [...atlS.hand];
       newHand.splice(hi, 1);
       const newAtlS: PlayerState = { ...atlS, hand: newHand, life_cloth: [...atlS.life_cloth, cardNum] };
+      // 🔴手札→ライフクロスも「非公開→非公開」＝名前を書かない（`V-286`。上の `fromSearch` と同じ理由）。
+      //   ⚠場／エナ／トラッシュからの3経路は上で名前を残している＝相手が既に見ている札。
       return done(addLog({ ...setOwnerState(atlOwner, newAtlS, ctx), lastProcessedCards: [cardNum] },
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
+        '手札から１枚をライフクロスに追加'));
     }
     case 'ENERGY_CHARGE': {
       // 外部SELECT_TARGET/SEARCH経由で選ばれた単一カードをエナゾーンへ。
@@ -14750,8 +14766,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         tdDeck.splice(deckInsertIndex(tdA.position, tdDeck.length), 0, cardNum);
         tdNew = { ...tdNew, deck: tdDeck };
       }
+      // 🔴手札／デッキからの移動は名前を書かない（`V-286`）。エナ・トラッシュ発は `logCardLabel` が名前を残す。
       return done(addLog(setOwnerState(tdOwner, tdNew, tdCtx),
-        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を${tdA.destination === 'lrig_deck' ? 'ルリグデッキ' : `デッキの${deckInsertPosJa(tdA.position)}`}へ`));
+        `${logCardLabel(tdCtx, cardNum)}を${tdA.destination === 'lrig_deck' ? 'ルリグデッキ' : `デッキの${deckInsertPosJa(tdA.position)}`}へ`));
     }
     case 'GRANT_PROTECTION': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。

@@ -61215,6 +61215,88 @@ scenarios.v285TrapHiddenFromOpponent = {
 order.push('v285TrapHiddenFromOpponent');
 
 
+// ── 🆕§5.1 `V-286`（2026-09-22）＝**非公開の札の名前を共有ログ（`game_logs`）へ書かない** ──
+// 🔴`V-285`（【トラップ】）と同じ穴が【チャーム】【シード】【マジックボックス】ライフクロス等に残っていた。
+//   engine 側は golden `§5.1 V-286` が固定する。ここで実機から確かめるのは **配送**＝
+//   「DB の `game_logs`（＝相手にそのまま届く行）に中身が乗っていない」こと。
+// 観測点＝`WX04-096-E2`「【起】《ダウン》：あなたの＜悪魔＞のシグニ１体を対象とし、
+//   あなたのデッキの一番上のカードをそれの【チャーム】にしてもよい。」
+//   ＝**デッキの一番上**（相手が知りようのない札）が**裏向きの【チャーム】**になる、この穴の典型。
+scenarios.v286HiddenInfoNotInSharedLog = {
+  title: 'V-286 デッキの一番上→【チャーム】＝共有ログに札の名前が乗らない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD05-001#1'],                  // ウリス（`WX04-096` は「ウリス限定」）
+      'field.signi': [['WX04-096#1'], null, null],   // 堕落の破戒 オリエンス＝＜悪魔＞＝自分自身を対象にできる
+      'field.signi_charms': [null, null, null],
+      // デッキの一番上＝この名前が共有ログに出たら赤。以降は無害な埋め札。
+      'deck': ['WD05-018#d1', 'WD01-013#d2', 'WD01-013#d3', 'WD01-013#d4', 'WD01-013#d5'],
+      'hand': [], 'trash': [], 'energy': ['WD05-010#e1', 'WD05-010#e2'], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'hand': [], 'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    const SECRET = '想起する祝福';        // WD05-018＝デッキの一番上の札名
+    const SECRET_NUM = 'WD05-018';
+    const st0 = await H.queryState();
+    H.log(`  v286 開始 deck=${JSON.stringify((st0?.host?.deckCards ?? []).slice(0, 2))} charms=${JSON.stringify(st0?.host?.fieldCharms)}`);
+    if (!(st0?.host?.deckCards ?? []).includes('WD05-018#d1')) {
+      return { pass: false, detail: '前提崩れ＝デッキの一番上に WD05-018 が置けていない' };
+    }
+    await H.ensureMain();
+    const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+    H.log(`  v286 labels: ${JSON.stringify(opened)}`);
+    const labels = opened?.labels ?? [];
+    const kiLabels = labels.filter(l => l.includes('【起】'));
+    if (kiLabels.length === 0) {
+      return { pass: false, detail: `前提崩れ＝【起】が提示されない labels=${JSON.stringify(labels)}` };
+    }
+    let did = await H.clickTextOrBtn(kiLabels);
+    H.log(`  v286 起クリック: ${did ?? 'なし'}`);
+    // 「してもよい」＝はい／対象確定を数ティックで進める
+    let attached = false;
+    for (let s = 0; s < 14 && !attached; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v286-${s}.png`, fullPage: true });
+      did = await H.clickTestId('pick-0');
+      if (!did) did = await H.clickTextOrBtn(['発動', 'はい', '決定', '確定', 'OK', '付ける', 'する']);
+      const st = await H.queryState();
+      attached = (st?.host?.fieldCharms ?? []).some(Boolean);
+      H.log(`  v286 [${s}] -> ${did ?? 'なし'} | charms=${JSON.stringify(st?.host?.fieldCharms)} pEff=${st?.pendingEffect ?? '-'}`);
+    }
+    const st1 = await H.queryState();
+    if (!attached) {
+      return { pass: false, detail: `前提崩れ＝【チャーム】が付かなかった logTail=${JSON.stringify((st1?.logTail ?? []).slice(-6))}` };
+    }
+    if ((st1?.host?.fieldCharms ?? [])[0] !== 'WD05-018#d1') {
+      return { pass: false, detail: `前提崩れ＝デッキの一番上が【チャーム】になっていない charms=${JSON.stringify(st1?.host?.fieldCharms)}` };
+    }
+    // 🔴本題＝DB の `game_logs`（相手にそのまま届く行）に中身が乗っていないこと
+    const logs = st1?.logTail ?? [];
+    const leaked = logs.filter(l => l.includes(SECRET) || l.includes(SECRET_NUM));
+    if (leaked.length > 0) {
+      return { pass: false, detail: `🔴共有ログにデッキの一番上の札名が乗っている: ${JSON.stringify(leaked)}` };
+    }
+    // 付与そのものは記録されていること（伏せすぎて何も残らない、を防ぐ）
+    if (!logs.some(l => l.includes('チャームとして付与'))) {
+      return { pass: false, detail: `前提崩れ＝【チャーム】付与のログが無い logTail=${JSON.stringify(logs.slice(-8))}` };
+    }
+    // 画面のテキストにも中身が出ていないこと（相手側の描画は `CharmModal` が `isMe` で止める）
+    const onScreen = await page.evaluate(({ name }) => (document.body.innerText ?? '').includes(name), { name: SECRET });
+    if (onScreen) {
+      return { pass: false, detail: `🔴画面のテキストにデッキの一番上の札名が出ている` };
+    }
+    return { pass: true, detail: `共有ログ ${logs.length}行に「${SECRET}」なし／付与ログはあり` };
+  },
+};
+order.push('v286HiddenInfoNotInSharedLog');
+
+
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
 //   このシグニをあなたの手札から場に出す。」

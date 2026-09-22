@@ -5,7 +5,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import { randomInt } from './rng';
 import {
-  done, addLog, needsInteraction, ownerState, setOwnerState,
+  done, addLog, addPrivateLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination, banishRedirectOpts,
   getCardNum, shuffle, addToBeatZone,
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
@@ -1601,7 +1601,10 @@ export function execStubPart3(
       trash: newTrashSMB,
       field: { ...ctx.ownerState.field, signi_magic_boxes: currentMBs },
     };
-    return done(addLog({ ...ctx, ownerState: newOwnerSMB }, `【マジックボックス】設置: ゾーン${zoneIdxSMB + 1}（${ctx.cardMap.get(cardSMB ?? '')?.CardName ?? cardSMB}）`));
+    // 🆕🔴**§5.1 `V-286`＝【マジックボックス】は裏向きで設置する**（原文の注記）＝**共有ログに名前を書かない**。
+    //   出所はデッキか手札（上の `filter` を見よ）＝相手はその札を見ていない。先行例＝`V-285`【トラップ】。
+    //   ⚠所有者は盤面の 📦 を押して中身を確認できる（`BoardComponents` の `showMBPeek`＝`isMe` ガード付き）。
+    return done(addLog({ ...ctx, ownerState: newOwnerSMB }, `【マジックボックス】設置: ゾーン${zoneIdxSMB + 1}`));
   }
   // OPEN_MAGIC_BOX: このシグニと同ゾーンのMBを表向きにしてトラッシュへ（任意）
   if (stub.id === 'OPEN_MAGIC_BOX') {
@@ -1612,7 +1615,9 @@ export function execStubPart3(
     const mbCardOMB = zoneIdxOMB >= 0 ? (mbsOMB[zoneIdxOMB] ?? null) : null;
     if (!mbCardOMB) return done(addLog({ ...ctx, lastProcessedCards: [] }, `ゾーン${zoneIdxOMB >= 0 ? zoneIdxOMB + 1 : '?'}にMBなし`));
     const mbNameOMB = ctx.cardMap.get(mbCardOMB ?? '')?.CardName ?? (mbCardOMB ?? '');
-    return needsInteraction(addLog(ctx, `【マジックボックス】（${mbNameOMB}）を表向きにしますか？`), {
+    // 🔴**見出しに名前を書かない**（裏向きのまま断ることがある＝断ったら相手に中身が割れたままになる・`V-286`）。
+    //   🔑**決めるのは所有者なので中身は要る**⇒ `addPrivateLog`＝自分の画面にだけ出す行で配る。
+    return needsInteraction(addPrivateLog(addLog(ctx, '【マジックボックス】を表向きにしますか？'), `【マジックボックス】の中身: ${mbNameOMB}`), {
       type: 'CHOOSE',
       options: [
         {
@@ -6344,7 +6349,9 @@ export function execStubPart3(
     if (deckOSM.length === 0) return done({ ...addLog(ctx, 'デッキにカードがない'), lastProcessedCards: [] });
     const topOSM = deckOSM[0];
     const nameOSM = ctx.cardMap.get(getCardNum(topOSM))?.CardName ?? topOSM;
-    return needsInteraction(addLog(ctx, `デッキの一番上（${nameOSM}）をトラッシュに置きますか？`), {
+    // 🔴**共有ログに名前を書かない**＝置くのを断ればその札はデッキに残る＝相手は知りようがない（`V-286`）。
+    //   ⚠選択肢ラベルには残す（`EffectInteractionModal` は応答者にしか描かない＝漏れない）。
+    return needsInteraction(addLog(ctx, 'デッキの一番上をトラッシュに置きますか？'), {
       type: 'CHOOSE', count: 1,
       options: [
         { id: 'mill', label: `${nameOSM}をトラッシュに置く`,
@@ -6398,7 +6405,9 @@ export function execStubPart3(
         value: `${selectedPLC}:${cn}` } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, `デッキの上から${lookPLC.length}枚を見た（${lookPLC.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('、')}）`),
+    // 🆕🔴**§5.1 `V-286`＝原文は「デッキの上からカードを２枚**見る**」**＝共有ログに中身を書かない。
+    //   🔑中身は上の選択肢ラベル（`${名}を下に置く`）が配る＝`EffectInteractionModal` は応答者にしか描かない。
+    return needsInteraction(addLog(ctx, `デッキの上から${lookPLC.length}枚を見た`),
       { type: 'CHOOSE', options: optsPLC, count: 1 });
   }
   if (stub.id === 'INTERNAL_LOOKED_CARD_UNDER_APPLY') {
@@ -6416,7 +6425,8 @@ export function execStubPart3(
     return done(addLog({
       ...ctx,
       ownerState: { ...ctx.ownerState, deck: newDeckILU, field: { ...ctx.ownerState.field, signi: newSigniILU } },
-    }, `${ctx.cardMap.get(getCardNum(pickILU))?.CardName ?? pickILU}を${ctx.cardMap.get(getCardNum(hostILU))?.CardName ?? hostILU}の下に置き、残り${restILU.length}枚をデッキの一番下へ`));
+      // 🔴**見た2枚はどちらも非公開**＝下に置く札の名前を書かない（置き先のシグニは場＝公開なので残す）。
+    }, `カード１枚を${ctx.cardMap.get(getCardNum(hostILU))?.CardName ?? hostILU}の下に置き、残り${restILU.length}枚をデッキの一番下へ`));
   }
 
   // OPP_SPLIT_HAND_TWO_PILES（`WX25-P2-022-E2`）

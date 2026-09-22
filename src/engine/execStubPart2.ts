@@ -8,7 +8,7 @@ import { randomInt, shuffle as rngShuffle } from './rng';
 import { textHasKeyword } from '../utils/keywords';
 import { effectiveCardOf, nameRuleScopeCards } from './nameIdentityRules';
 import {
-  done, doneFailed, addLog, needsInteraction, ownerState, setOwnerState,
+  done, doneFailed, addLog, logCardLabel, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
   getCardNum,
   createTokenInstanceId,
@@ -2975,7 +2975,8 @@ export function execStubPart2(
       const targetDataAT = ctx.cardMap.get(getCardNum(selectedAT));
       // 🆕**§5.3 `O-240`**＝付与された《トラップアイコン》も同じ funnel から取る。
       const trapIconAT = trapIconEffectOf(selectedAT, ctx);
-      if (!trapIconAT) return done(addLog(ctx, `${targetDataAT?.CardName ?? selectedAT}: トラップアイコン能力なし`));
+      // 🔴**チェックゾーンへ置けていない札はデッキに残る**＝公開領域に居るときだけ名前を出す（`V-286`）。
+      if (!trapIconAT) return done(addLog(ctx, `${logCardLabel(ctx, selectedAT)}: トラップアイコン能力なし`));
       if (trapIconSuppressed(ctx)) {
         return done(addLog({ ...ctx, trapActivated: true },
           `${targetDataAT?.CardName ?? selectedAT}の《トラップアイコン》はこのターン発動しない（トリガー能力抑止）`));
@@ -3260,7 +3261,10 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [headISPL] } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(newCtxISPL, `${ctx.cardMap.get(headISPL)?.CardName ?? headISPL}をシード設置`), {
+    // 🆕🔴**§5.1 `V-286`＝【シード】は裏向きで置く**（原文の注記「（【シード】であるカードは…裏向きで置くことができ）」）＝
+    //   **共有ログに札の名前を書かない**（`game_logs` は部屋で1本＝相手の画面に出る。先行例＝`V-285`【トラップ】）。
+    //   🔑選ばせる情報は `SEARCH` の `visibleCards` が配る（`EffectInteractionModal` は応答者にしか描かない）。
+    return needsInteraction(addLog(newCtxISPL, '【シード】として設置するゾーンを選択'), {
       type: 'CHOOSE',
       options: zoneOptsISPL,
       count: 1,
@@ -3424,7 +3428,8 @@ export function execStubPart2(
     seedsISTH[zoneIdxISTH] = null;
     const newHandISTH = [...ctx.ownerState.hand, seedCardISTH];
     let newOwnerISTH = { ...ctx.ownerState, hand: newHandISTH, field: { ...ctx.ownerState.field, signi_seeds: seedsISTH } };
-    if (newOwnerISTH.deck.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerISTH }, `${ctx.cardMap.get(seedCardISTH)?.CardName}を手札へ・デッキなし`));
+    // 🔴【シード】（裏向き）→手札＝どちらも非公開＝名前を書かない（`V-286`）。
+    if (newOwnerISTH.deck.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerISTH }, '【シード】を手札へ・デッキなし'));
     const topCardISTH = newOwnerISTH.deck[0];
     const newDeckISTH = newOwnerISTH.deck.slice(1);
     newOwnerISTH = { ...newOwnerISTH, deck: newDeckISTH };
@@ -3434,7 +3439,8 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [topCardISTH] } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISTH, lastProcessedCards: [topCardISTH] }, `デッキ上${ctx.cardMap.get(topCardISTH)?.CardName ?? topCardISTH}をシード設置`), {
+    // 🔴札の名前を書かない（裏向き＝`INTERNAL_SEEDS_PLACE_LOOP` と同じ理由・`V-286`）。
+    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISTH, lastProcessedCards: [topCardISTH] }, 'デッキの一番上を【シード】として設置するゾーンを選択'), {
       type: 'CHOOSE', options: zoneOptsISTH, count: 1,
     });
   }
@@ -3483,7 +3489,8 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [topCardSFDTP] } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerSFDTP, lastProcessedCards: [topCardSFDTP] }, `デッキ上${ctx.cardMap.get(topCardSFDTP)?.CardName ?? topCardSFDTP}をシード設置`), {
+    // 🔴札の名前を書かない（裏向き＝`INTERNAL_SEEDS_PLACE_LOOP` と同じ理由・`V-286`）。
+    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerSFDTP, lastProcessedCards: [topCardSFDTP] }, 'デッキの一番上を【シード】として設置するゾーンを選択'), {
       type: 'CHOOSE', options: zoneOptsSFDTP, count: 1,
     });
   }
@@ -3537,8 +3544,9 @@ export function execStubPart2(
       field: { ...sPFS.field, facedown_signi: fdPFS },
       pending_facedown_flip: { cardNum: pickedPFS, zoneIndex: zoneIdxPFS, powerBonus: bonusPFS, sourceCardNum: ctx.sourceCardNum ?? pickedPFS },
     };
+    // 🔴**裏向きに置く札の名前を書かない**（`V-286`）＝原文は「デッキの上から4枚**見る**。その中から1枚を**裏向きで**置く」。
     return done(addLog({ ...ctx, ownerState: sPFS },
-      `${ctx.cardMap.get(getCardNum(pickedPFS))?.CardName ?? pickedPFS}を裏向きでシグニゾーン${zoneIdxPFS + 1}に置く`));
+      `カード１枚を裏向きでシグニゾーン${zoneIdxPFS + 1}に置く`));
   }
   // RESOLVE_FACEDOWN_FLIP: 次の自メインフェイズ開始時、裏向きカードを表向きにするか選ぶ（合成トリガーから発火）。
   if (stub.id === 'RESOLVE_FACEDOWN_FLIP') {

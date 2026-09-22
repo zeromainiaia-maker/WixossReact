@@ -8,7 +8,7 @@ import type {
   EffectAction, EffectTarget, StubAction, BanishAction, TrashAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
-  done, addLog, needsInteraction, ownerState, setOwnerState,
+  done, addLog, addPrivateLog, logCardLabel, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter, evalCondition,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveCountRef,
@@ -429,7 +429,8 @@ export function execStubPart1(
         placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
       placementSourceCardNum: ctx.sourceCardNum,
       });
-      if (blockedPFSP) return done(addLog(ctx, deployLimitLogMessage(blockedPFSP, namePFSP)));
+      // 🔴出せなかった札は元の領域に残る＝公開領域に居るときだけ名前を出す（`V-286`）。
+      if (blockedPFSP) return done(addLog(ctx, deployLimitLogMessage(blockedPFSP, logCardLabel(ctx, pickPFSP))));
       const signiPFSP = ctx.ownerState.field.signi.map(s => (s ? [...s] : null)) as (string[] | null)[];
       signiPFSP[slotPFSP.frontZone] = [pickPFSP];
       const nextPFSP: PlayerState = {
@@ -1910,7 +1911,12 @@ export function execStubPart1(
         : specLT.zone === 'self_life' ? 'あなたのライフクロス' : '対戦相手のライフクロス上';
     if (viewedLT.length === 0) return done(addLog(ctx, `${zoneNameLT}なし`));
     const namesLT = viewedLT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    return done(addLog({ ...ctx, lastProcessedCards: viewedLT }, `${zoneNameLT}${viewedLT.length}枚を確認：${namesLT}`));
+    // 🆕🔴**§5.1 `V-286`＝「見る」の中身は共有ログに書かない。**
+    //   🔴旧実装は `self_life`（＝**自分のライフクロス全部**）や `opp_deck_top` の中身をそのまま共有ログへ書いていた
+    //     ＝相手に自分のライフが全部割れる／相手が自分のデッキトップを知る（`WX25-P2-026-E2`・`WXK02-003-E3`）。
+    //   ⚠`opp_hand` だけは相手が既に知っている情報だが、**規約を1本に保つ**ため同じ扱いにする。
+    return done(addPrivateLog(addLog({ ...ctx, lastProcessedCards: viewedLT }, `${zoneNameLT}${viewedLT.length}枚を確認`),
+      `${zoneNameLT}＝${namesLT}`));
   }
   // トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ
   if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
@@ -2479,7 +2485,9 @@ export function execStubPart1(
       ],
       count: 1,
     };
-    return needsInteraction(addLog(ctx, `デッキトップ：${topNameTTB}（デッキ下に置いてもよい）`), pendingTTB);
+    // 🔴共有ログに名前を書かない（原文は「デッキの一番上を**見て**」＝見た本人だけの情報・`V-286`）。
+    //   🔑中身は上の選択肢ラベル（`${topNameTTB}をデッキ下へ`）が配る＝`EffectInteractionModal` は応答者にしか描かない。
+    return needsInteraction(addLog(ctx, 'デッキの一番上を見た（デッキ下に置いてもよい）'), pendingTTB);
   }
   if (stub.id === 'INTERNAL_TOP_TO_BOTTOM') {
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
@@ -2487,7 +2495,7 @@ export function execStubPart1(
     const newDeckITTB = [...ctx.ownerState.deck.slice(1), topITTB];
     const newOwnerITTB = { ...ctx.ownerState, deck: newDeckITTB };
     return done(addLog({ ...ctx, ownerState: newOwnerITTB },
-      `${ctx.cardMap.get(topITTB)?.CardName ?? topITTB}をデッキ下へ`));
+      `${logCardLabel(ctx, topITTB)}をデッキ下へ`));
   }
   // 各プレイヤーがカードを1枚引き手札を1枚デッキ下に置く
   if (stub.id === 'DRAW_AND_PUT_HAND_TO_DECK_BOTTOM') {
@@ -2915,7 +2923,7 @@ export function execStubPart1(
     const signiPM = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const zonePM = signiPM.findIndex(z => !z || z.length === 0);
     const namePM = ctx.cardMap.get(getCardNum(milledPM))?.CardName ?? milledPM;
-    if (zonePM < 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, `空きシグニゾーンなし（${namePM}を場に出せない）`));
+    if (zonePM < 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, `空きシグニゾーンなし（${logCardLabel(ctx, milledPM)}を場に出せない）`));
     const blockedPM = deployLimitBlockReason({
       placingState: ctx.ownerState, opponentState: ctx.otherState,
       cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf,
