@@ -901,7 +901,8 @@ export function HandCards({ cardNums, cards, faceDown, getCardActions }: {
     : Math.min(cardW + 4, cw > cardW ? (cw - cardW) / (n - 1) : 4);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: n > 0 ? cardH : 0, flexShrink: 0 }}>
+    // 🆕2026-09-22＝**手札が0枚でも1枚分の高さを確保する**（ユーザー指摘＝0枚になると列が消えて盤面がガタつく）。
+    <div ref={containerRef} style={{ width: '100%', height: cardH, flexShrink: 0 }}>
       {n > 0 && (
         <div style={{ position: 'relative', height: cardH, width: '100%' }}>
           {cardNums.map((num, i) => (

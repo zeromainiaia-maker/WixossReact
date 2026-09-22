@@ -320,6 +320,15 @@ export default function SpectateScreen({ decks, cards, variantCards = [], folder
   );
 }
 
+/** 「この手」の欄の行数（固定）。 */
+const FRAME_LINES = 3;
+/** その手のログを固定行数へ収める（4行以上は最後の行を「…ほか N 行」にする）。 */
+function frameLines(lines: readonly string[]): { text: string; more?: boolean }[] {
+  if (lines.length <= FRAME_LINES) return lines.map(text => ({ text }));
+  const shown = lines.slice(0, FRAME_LINES - 1).map(text => ({ text }));
+  return [...shown, { text: `…ほか${lines.length - shown.length}行（下のログ欄）`, more: true }];
+}
+
 const SPEEDS = [
   { label: '0.5秒', ms: 500 },
   { label: '1秒', ms: 1000 },
@@ -426,15 +435,16 @@ function Replay({ rec, cards, initialFrame, onClose, onLeave }: {
       />
       <div style={{ width: '100%', maxWidth: 520, padding: '6px 8px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {/* 見出し（右上は最前面の ↺・終了が重なるので空ける） */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, paddingRight: 96, minHeight: 26 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, paddingRight: 96, height: 26 }}>
           <button onClick={onClose} style={{ background: 'none', border: C.borderUI, color: C.textDimmer, borderRadius: 4, padding: '4px 10px', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>別の対戦</button>
-          <span style={{ color: C.textAlt, fontSize: 11, lineHeight: 1.3 }}>
-            T{bs.turn_count}・{PHASE_LABEL[bs.turn_phase] ?? bs.turn_phase}・手番 {nameOf(bs.active_user_id)}
+          <span style={{ color: C.textAlt, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            T{bs.turn_count}・{PHASE_LABEL[bs.turn_phase] ?? bs.turn_phase}・手番 {bs.active_user_id === bs.host_id ? 'A' : bs.active_user_id === bs.guest_id ? 'B' : '-'}
           </span>
         </div>
 
         {/* B（上） */}
-        <div style={{ fontSize: 11, color: C.textDim }}>B「{rec.nameB}」 ライフ {bs.guest_state.life_cloth.length}</div>
+        {/* ⚠ライフは盤面に出ている（ユーザー指摘）＝ここはどちらが B かだけ。1行固定（折り返すと盤面がガタつく）。 */}
+        <div style={{ fontSize: 11, color: C.textDim, height: 16, lineHeight: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>B「{rec.nameB}」</div>
         {showHands && <HandCards cardNums={bs.guest_state.hand} cards={cards} />}
         <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>
           <PlayerField state={bs.guest_state} cards={cards} isMe={false} effectivePowers={effectivePowers} />
@@ -445,15 +455,21 @@ function Replay({ rec, cards, initialFrame, onClose, onLeave }: {
           <PlayerField state={bs.host_state} cards={cards} isMe={true} effectivePowers={effectivePowers} />
           {showHands && <HandCards cardNums={bs.host_state.hand} cards={cards} />}
         </div>
-        <div style={{ fontSize: 11, color: C.textDim }}>A「{rec.nameA}」 ライフ {bs.host_state.life_cloth.length}</div>
+        <div style={{ fontSize: 11, color: C.textDim, height: 16, lineHeight: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>A「{rec.nameA}」</div>
 
         {/* この手 */}
-        <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 6, padding: '6px 8px', fontSize: 12, minHeight: 36 }}>
-          <div style={{ color: C.accentLight, marginBottom: 2 }}>{idx} / {last} 手目</div>
-          {frame.newLogs.slice(0, 6).map((l, i) => <div key={i} style={{ color: C.textSub }}>{l}</div>)}
-          {frame.newLogs.length > 6 && <div style={{ color: C.textDim }}>…ほか{frame.newLogs.length - 6}行</div>}
-          {endNote && <div style={{ color: rec.end === 'finished' ? C.success : C.warn, marginTop: 4, fontWeight: 'bold' }}>{endNote}</div>}
-          {endNote && rec.error && <pre style={{ color: C.danger, fontSize: 10, whiteSpace: 'pre-wrap', margin: '4px 0 0' }}>{rec.error.slice(0, 600)}</pre>}
+        {/* 🆕2026-09-22＝**3行で固定**（ユーザー指摘＝2行・3行と変わると、進めるたびに下の操作ボタンがガタつく）。
+            長い行は「…」で切り、4行以上は2行＋「…ほか N 行」（全文は下のログ欄）。決着の表示は見出しの行に置く。 */}
+        <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 6, padding: '6px 8px', fontSize: 12, lineHeight: '18px' }}>
+          <div style={{ display: 'flex', gap: 8, height: 18, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            <span style={{ color: C.accentLight, flexShrink: 0 }}>{idx} / {last} 手目</span>
+            {endNote && <span style={{ color: rec.end === 'finished' ? C.success : C.warn, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{endNote}</span>}
+          </div>
+          <div data-testid="spectate-frame-lines" style={{ height: 18 * FRAME_LINES }}>
+            {frameLines(frame.newLogs).map((l, i) => (
+              <div key={i} style={{ color: l.more ? C.textDim : C.textSub, height: 18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.text}</div>
+            ))}
+          </div>
         </div>
 
         {/* 操作 */}
@@ -485,6 +501,8 @@ function Replay({ rec, cards, initialFrame, onClose, onLeave }: {
           {rec.logs.slice(0, frame.logCount).map((l, i) => (
             <div key={i} style={{ color: i >= frame.logCount - frame.newLogs.length ? C.textSub : C.textDimmer }}>{l}</div>
           ))}
+          {/* 計算中の例外は最後の手でだけ、ログ欄の末尾に出す（「この手」の欄の高さを変えない）。 */}
+          {endNote && rec.error && <pre style={{ color: C.danger, fontSize: 10, whiteSpace: 'pre-wrap', margin: '4px 0 0' }}>{rec.error.slice(0, 600)}</pre>}
         </div>
       </div>
     </div>
