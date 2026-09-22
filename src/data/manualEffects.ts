@@ -8558,6 +8558,32 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    // 🆕2026-09-22＝【ライフバースト】「あなたのデッキから《アクセアイコン》を持つシグニ１枚を探してエナゾーンに置く。
+    //   その後、**それを**対象のあなたのシグニ１体の【アクセ】にしてもよい。その後、デッキをシャッフルする。」
+    // 🔴旧 live は2文目が `STUB{ACCE_OP}`＝**ログを出すだけの no-op**（「アクセ操作（現在0個のアクセ）」）。
+    //   CPU 観戦の自己対戦ログで発覚（§5.7 `S-33` の検証中）。`ACCE_OP` を使うのは live でこの1効果だけ＝速いレーン。
+    // ⚠「それ」＝探してエナに置いた札＝`INTERNAL_ASK_ACCE_HOST` が `lastProcessedCards[0]` を読む（エナからも抜く）。
+    //   見つからなければ `lastProcessedCards` は空＝付け先を訊かない。「してもよい」＝`acceHostOptional`。
+    {
+      effectId: 'WD18-009-BURST',
+      effectType: 'LIFE_BURST',
+      timing: ['ON_LIFE_BURST'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+            filter: { cardType: 'シグニ', hasIcon: 'アクセ' }, maxCount: 1,
+            then: { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+          },
+          { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST', acceHostOptional: true },
+          { type: 'SHUFFLE_DECK', owner: 'self' },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
   ],
 
   // WX20-056-E2（戦乱の一輪　オイチ）【自】：このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、

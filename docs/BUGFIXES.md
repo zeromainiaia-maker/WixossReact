@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-22（第463バッチ）🆕**CPU がエナゾーンのアクセ【起】を使う**（§5.7 `S-33`・バグ報告 `a4d1cc1b`）＋ハンバのバースト no-op
+
+- **真因（1行）**＝エナから「このカード」を【アクセ】にする【起】（live 28効果・`ATTACH_ACCE`）は **`energyActivated` が立っていない**ので、場以外の【起】の提示判定（`offFieldActivateGate`＝人間と CPU の共通入口）に1件も出ず、**CPU は一度も使わなかった**（人間は `BattleScreen` の専用ボタンでだけ使えた）。
+- **直し方**＝①`isEnergyAcceActivated`／`acceHostAvailable`（付け先の有無＝engine と同じ `collectMultiAcceLimits`）をゲートに足した ②CPU の支払いは**そのカード自身をエナとして払わない**（`selectEnergyIndicesForCost` に `exclude`）③実行は既存の `executeTrashActivated`（エナを払って積むだけ＝人間の `executeEnergyActivated` と同じ）④画面の専用ボタンも**同じゲート**で有効／無効を決める。
+  - 🔴**人間側のバグも同時に直った**＝旧ボタンは `actions_done` に effectId があるだけで無効になり、**同名のアクセ2枚目をそのターンに付けられなかった**（原文に《ターン１回》は無い＝トラッシュ【起】で 2026-09-17 に直したのと同じ形）。
+- **ついでに見つけた no-op**＝《コードイート　ハンバ》（`WD18-009-BURST`）「…エナゾーンに置く。その後、**それを**…【アクセ】にしてもよい」の2文目が `STUB{ACCE_OP}`＝**ログだけ**（live でこの1効果だけ）⇒ `manualEffects.ts` に手書き（`INTERNAL_ASK_ACCE_HOST` ＋ 新キー `acceHostOptional`＝「してもよい」）→ `syncManualLive.ts` で live へ／逆翻訳に「にしてもよい」を描画。
+- **検証**＝golden 2件（S-33＝提示・付け先なし・同名2枚目・CPU が自分で払わない・画面が共通判定を通る／ハンバ＝付ける・断る・総数保存）＝**反転確認あり**（判定を外すと FAIL）／自己対戦 WD18 vs WD17 4戦で CPU が5回アクセ（1ターンにマヨ2枚＋ケチャを別々のシグニへ）／`npm run gates` 全緑。**実機必須（`src/screens/` の UI を変更）**＝`verifyBattleDrive` 新シナリオ `s33EnergyAcceSameNameTwice` PASS（マヨ2枚を同じターンに別のシグニへ）＋既存 `v14NormalSigniSecondAcceDisabled`／`v14Wx20028SecondAcceEnabledControl` PASS＋`DECK=WD18 verifyFullMatch cpu` PASS（5ターンで決着・この1戦では CPU がアクセを使う場面は無かった）。
+
 ## 2026-09-22（第462バッチ）🆕**CPU が【ベット】を判断する**（ユーザー要望「ベットも使うか考えるようにして」・報告 `8c59ee3c` の続き）
 
 - **真因（1行）**＝CPU はベットを**一度も宣言しなかった**（`CPU_ARTS_DECLINABLE_COST_KEYS`＝宣言しない前提）⇒ コインを持っていても《一騎当閃》ほかを常に弱い側で撃つ／撃てなかった。母集団＝**live のベット持ち アーツ61効果・スペル7効果**。

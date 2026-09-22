@@ -25066,6 +25066,74 @@ scenarios.v14Wx20028SecondAcceEnabledControl = {
   drive: (page, H) => driveV14SecondAcceAvailability(page, H, true),
 };
 
+// 🆕§5.7 `S-33`（2026-09-22）＝**同名のアクセ2枚目を同じターンに付けられる**。
+//   🔴旧ボタンは `actions_done` に effectId があるだけで押せなくなり、エナのマヨ2枚目を付けられなかった
+//     （原文に《ターン１回》は無い）。いまは CPU と同じ提示判定（`listOffFieldActivatableEffects`）で決める。
+//   ⚠マヨは《緑×0》＝支払いモーダルは「アクセ発動」を押すだけ。付け先は2体（ゾーン0・1）＝1体目に付いたあと
+//     2枚目は**もう1体**にしか付けられない（通常シグニのアクセ上限は1）。
+scenarios.s33EnergyAcceSameNameTwice = {
+  title: 'S-33 エナのマヨ2枚：1枚目を付けたあとも2枚目の【アクセ】ボタンが押せ、2体目に付く',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK03-001#8401'], 'field.signi': [['WX01-053#8402'], ['WD01-013#8403'], null],
+      'field.signi_acce': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': ['WD18-015#8404', 'WD18-015#8405'], 'trash': [], 'life_cloth': v14Life(8410), 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#8491'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v14Life(8420) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let presses = 0; let last = null; let secondEnabled = null;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      const st = await v14QueryBattleState(page); last = st;
+      const attached = [0, 1, 2].reduce((n, zi) => n + v14AcceCardsAt(st?.host, zi).length, 0);
+      if (attached >= 2 && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+      // 🔑罠17＝全角スペースは accessible name で ASCII に畳まれる＝`\s*` で吸収する。
+      const btns = page.getByRole('button', { name: /コードイート\s*マヨ【アクセ】/ });
+      const fire = page.getByRole('button', { name: 'アクセ発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click().catch(() => {}); did = 'btn:アクセ発動';
+      } else if (presses < 2 && attached === presses && await btns.count()) {
+        // 押すボタン＝まだエナにいるマヨのうち最初の1枚（2枚目は1枚目が付いた後に押す）。
+        let target = null;
+        for (let i = 0; i < await btns.count(); i++) {
+          const b = btns.nth(i);
+          if (await b.isVisible().catch(() => false)) { target = b; break; }
+        }
+        if (target) {
+          const en = await target.isEnabled().catch(() => false);
+          if (presses === 1) secondEnabled = en;
+          if (en) { await target.click().catch(() => {}); presses++; did = `btn:マヨ【アクセ】#${presses}`; }
+        }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+      H.log(`  s33[${s}] -> ${did ?? 'なし'} | fieldAcce=${JSON.stringify(st?.host?.fieldAcce)} energy=${st?.host?.energy} presses=${presses}`);
+      if (presses === 1 && attached === 1 && secondEnabled === false) break;
+    }
+    const fin = await v14QueryBattleState(page);
+    const counts = [0, 1, 2].map(zi => v14AcceCardsAt(fin?.host, zi).length);
+    // ⚠`v14QueryBattleState` の `energy` は**配列**（`H.queryState()` の枚数とは違う＝罠67の逆）。
+    const energyLeft = Array.isArray(fin?.host?.energy) ? fin.host.energy.length : Number(fin?.host?.energy ?? -1);
+    const pass = counts[0] === 1 && counts[1] === 1 && energyLeft === 0;
+    return {
+      pass,
+      detail: pass
+        ? `マヨ2枚を同じターンにそれぞれ別のシグニへ装着（アクセ=${JSON.stringify(counts)}・エナ 2→0・2枚目のボタン enabled=${secondEnabled}）`
+        : `2枚目を付けられない（アクセ=${JSON.stringify(counts)} エナ=${fin?.host?.energy} 2枚目のボタン enabled=${secondEnabled} presses=${presses} logs=${JSON.stringify(fin?.logs?.slice(-4))}）`,
+    };
+  },
+};
+
 scenarios.v14PermanentLrigGrantSurvivesHumanEndNoDiscard = {
   title: 'V-14 B-4 WXK03-001-E3：このゲームの間の相手ルリグ付与がhuman END(no-discard)を跨いで残る',
   spec: {
@@ -25171,7 +25239,7 @@ order.push('v14FacedownOwnReturnsHumanEndNoDiscard',
   'v14FacedownOpponentReturnsHumanEndNoDiscard', 'v14FacedownOpponentOccupiedTrashesHumanEndNoDiscard',
   'v14AttackFieldTrashPayTwoHuman', 'v14AttackFieldTrashOneHidesAction', 'v14AttackFieldTrashCpuDeterministic',
   'v14MultiAcceTwoDoesNotTrigger', 'v14MultiAcceThreeTriggers', 'v14MultiAcceLegacyStringOneLoads',
-  'v14NormalSigniSecondAcceDisabled', 'v14Wx20028SecondAcceEnabledControl',
+  'v14NormalSigniSecondAcceDisabled', 'v14Wx20028SecondAcceEnabledControl', 's33EnergyAcceSameNameTwice',
   'v14PermanentLrigGrantSurvivesHumanEndNoDiscard', 'v14PermanentPlayerGrantSurvivesHumanEndNoDiscard',
   'v14UntilOppTurnPowerExpiresCpuEnd');
 // ── V-14 END ──

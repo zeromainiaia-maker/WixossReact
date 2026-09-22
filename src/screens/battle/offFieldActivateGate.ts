@@ -1,7 +1,9 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
-import type { CardEffect, EffectTiming } from '../../types/effects';
+import type { AttachAcceAction, CardEffect, EffectTiming } from '../../types/effects';
 import { evalUseCondition } from '../../engine/effectExecutor';
-import { isTrashImmuneByOpponent } from '../../engine/execUtils';
+import { isTrashImmuneByOpponent, matchesFilter } from '../../engine/execUtils';
+import { collectMultiAcceLimits } from '../../engine/effectEngine';
+import { acceCardsAt } from '../../utils/acce';
 import type { EnergyPayEntry } from './energyPaySource';
 import { canOfferHandActivate } from './handActivateCost';
 import { canOfferTrashActivate } from './trashActivateCost';
@@ -17,6 +19,36 @@ import { applyActivateCostZero } from './activateCostZero';
  *   - 手札＝MAIN／ATTACK_ARTS／ATTACK_ARTS_OP（相手ターンのアーツステップ＝タイミング照合は ATTACK_ARTS）。
  */
 export type OffFieldZone = 'trash' | 'energy' | 'hand';
+
+/**
+ * 🆕**エナゾーンにある「このカード」を【アクセ】にする【起】**（2026-09-22・§5.7 `S-33`・バグ報告 `a4d1cc1b`）。
+ * 🔴**`energyActivated` が立っていない**（live 28効果・《コードイート　マヨ／ケチャ》ほか）＝旧はこのゲートに1件も出ず、
+ *   人間は `BattleScreen` の専用ボタンでだけ使え、**CPU は一度も使わなかった**。
+ * ⚠「エナから**選んで**」（`fromEnergy`）・手札・ルリグデッキからの形はここに入れない＝効果元は別のカード。
+ */
+export function isEnergyAcceActivated(eff: CardEffect): boolean {
+  if (eff.effectType !== 'ACTIVATED' || eff.action?.type !== 'ATTACH_ACCE') return false;
+  const a = eff.action as AttachAcceAction;
+  return !a.fromHand && !a.fromEnergy && !a.fromLrigDeck && !a.targetsLastProcessed
+    && a.sourceOwner !== 'opponent' && a.targetSigniOwner !== 'opponent';
+}
+
+/**
+ * 🆕【アクセ】を付けられる自分のシグニがいるか（engine の `canAttachAcceToHost` と同じ上限＝`collectMultiAcceLimits`）。
+ * ⚠付け先が0でも【起】は撃てるが、**コストだけ払って何も起きない**ので提示しない（人間の旧ボタンと同じ判定）。
+ */
+export function acceHostAvailable(
+  eff: CardEffect, my: PlayerState, op: PlayerState, cardMap: Map<string, CardData>, effectsMap: Map<string, CardEffect[]>,
+): boolean {
+  const filter = (eff.action as AttachAcceAction).targetFilter;
+  const limits = collectMultiAcceLimits(my, effectsMap, cardMap, op, true);
+  return my.field.signi.some((stack, zi) => {
+    const top = stack?.at(-1);
+    if (!top) return false;
+    if (filter && !matchesFilter(cardMap.get(top), filter)) return false;
+    return acceCardsAt(my.field, zi).length < (limits.get(top) ?? 1);
+  });
+}
 
 /** そのゾーンの【起】を使う窓のタイミング（窓でなければ null）。 */
 export function offFieldActivateTiming(zone: OffFieldZone, turnPhase: TurnPhase | string | null | undefined, isMyTurn: boolean): EffectTiming | null {
@@ -57,7 +89,9 @@ export function listOffFieldActivatableEffects(p: {
   const out: CardEffect[] = [];
   for (const eff of effectsMap.get(cardNum) ?? []) {
     if (eff.effectType !== 'ACTIVATED') continue;
-    if (zone === 'trash' ? !eff.trashActivated : zone === 'energy' ? !eff.energyActivated : !eff.handActivated) continue;
+    const energyAcce = zone === 'energy' && isEnergyAcceActivated(eff);
+    if (zone === 'trash' ? !eff.trashActivated : zone === 'energy' ? !(eff.energyActivated || energyAcce) : !eff.handActivated) continue;
+    if (energyAcce && !acceHostAvailable(eff, my, op, cardMap, effectsMap)) continue;
     // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになる（§6.4 O-11）。
     if (eff.costUnparsed) continue;
     if (!eff.timing?.includes(timing)) continue;

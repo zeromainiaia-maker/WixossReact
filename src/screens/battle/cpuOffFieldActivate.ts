@@ -64,6 +64,11 @@ function selectOffFieldCost(
   const energy = selectEnergyIndicesForCost({
     poolNums: p.energyPool.map(e => e.cardNum), cards: p.cards, costStr: activatedEnergyCostStr(costEffect),
     isAffordable: p.isAffordable, wholeSubstitutes: p.wholeSubstitutes, reserve: p.energyReserve,
+    // 🆕§5.7 `S-33`＝エナゾーンの【起】は**そのカード自身をエナとして払わない**（払うと【アクセ】にする札が消える）。
+    //   人間の支払いモーダル（`EnergyActivatedModal`）も効果元を候補から外している。
+    exclude: zone === 'energy'
+      ? new Set(p.energyPool.flatMap((e, i) => (e.cardNum === cardNum ? [i] : [])))
+      : undefined,
   });
   if (!energy) return null;
   const sel: TrashActivateSelections = { ...emptyTrashActivateSelections(), energy };

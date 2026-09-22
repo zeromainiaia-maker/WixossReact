@@ -186,6 +186,8 @@ export function selectEnergyIndicesForCost(p: {
   extraCosts?: readonly { color: string; count: number }[];
   /** 🆕払ったあとに残すもの（グロウ用エナ）。満たせない支払いは null。 */
   reserve?: CpuEnergyReserve;
+  /** 🆕支払いに使わない pool index（2026-09-22＝エナゾーンから【アクセ】にする札そのもの）。 */
+  exclude?: ReadonlySet<number>;
 }): Set<number> | null {
   const { poolNums, cards, costStr, isAffordable } = p;
   if (costStr === '') return new Set();
@@ -214,7 +216,7 @@ export function selectEnergyIndicesForCost(p: {
     for (const { color, count } of wanted) {
       if (color === '無') continue;
       for (let n = 0; n < count && !isSat(); n++) {
-        const idx = poolNums.findIndex((num, i) => !selected.has(i) && colorOf(num).includes(color));
+        const idx = poolNums.findIndex((num, i) => !selected.has(i) && !p.exclude?.has(i) && colorOf(num).includes(color));
         if (idx >= 0) selected.add(idx); else break;
       }
     }
@@ -222,6 +224,7 @@ export function selectEnergyIndicesForCost(p: {
     //   🆕予約があれば、予約に要る色のエナを後回しにする（グロウに要る色を《無》で潰さない）。
     const avoid = p.reserve?.avoidColors ?? [];
     const fillOrder = poolNums.map((_, i) => i)
+      .filter(i => !p.exclude?.has(i))
       .sort((a, b) => Number(avoid.some(c => colorOf(poolNums[a]).includes(c))) - Number(avoid.some(c => colorOf(poolNums[b]).includes(c))) || a - b);
     for (const i of fillOrder) { if (isSat()) break; selected.add(i); }
     if (!isSat()) return null;
@@ -239,7 +242,7 @@ export function selectEnergyIndicesForCost(p: {
       .reduce((sum, item) => sum + item.count, 0);
     if (!option.spec.counts.includes(replaceCount)) continue;
     for (let index = 0; index < poolNums.length; index++) {
-      if (tried.has(index) || !option.eligibleEnergyInstIds.has(poolNums[index])) continue;
+      if (tried.has(index) || p.exclude?.has(index) || !option.eligibleEnergyInstIds.has(poolNums[index])) continue;
       tried.add(index);
       const selected = trySelection({ index, option });
       if (selected) return selected;

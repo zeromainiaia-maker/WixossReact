@@ -7089,6 +7089,11 @@ export interface StubAction {
    */
   acceHostFilter?: TargetFilter;
   /**
+   * 🆕`INTERNAL_ASK_ACCE_HOST`＝「〜の【アクセ】にして**もよい**」（2026-09-22・`WD18-009-BURST`）＝付け先の選択に「付けない」枝を出す。
+   * ⚠既定（未指定）は従来どおり強制。
+   */
+  acceHostOptional?: boolean;
+  /**
    * 🆕**`PLACE_LOOKED_CARD_UNDER_SIGNI` の置き先シグニのフィルタ**（2026-09-14・§5.3 `O-372` 第3バッチ・
    * `WXK08-084-E1`「あなたの**＜ウェポン＞の**シグニ１体を対象とし…その中から１枚を**それの**下に置く」）。
    * 🔴置き先は**効果元ではなく対象のシグニ**なので、`PLACE_UNDER_SOURCE_SIGNI` の既定（効果元の下）では原文と違う。

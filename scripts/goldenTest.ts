@@ -179,7 +179,8 @@ import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
-import { cpuOffFieldLedgerKey, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
+import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
+import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
 import { applyMulligan } from '../src/screens/battle/mulligan';
 import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
 import { resolveNextPhaseAfterMain } from '../src/screens/battle/attackStepPhase';
@@ -89866,6 +89867,77 @@ test('CPU観戦のバグ報告3件（2026-09-22）：アーツを使い切る値
 }));
 
 // ── 2026-09-22＝CPU が【ベット】を判断する（ユーザー要望・報告 8c59ee3c の続き）───────────
+// ── §5.7 `S-33`（2026-09-22）＝エナゾーンのアクセ【起】を CPU も使う（バグ報告 `a4d1cc1b`）──
+test('§5.7 S-33 エナゾーンのアクセ【起】：提示判定に出る／付け先が無ければ出ない／同名2枚目も使える／CPU は自分自身をエナとして払わない', () => withSavedCursor(() => {
+  const cm = new InstanceMap<CardData>(cardMap);
+  const em = new InstanceMap<CardEffect[]>(effectsMap);   // 画面と同じく instance ID で引く
+  const allCards = [...cardMap.values()] as CardData[];
+  const MAYO = 'WD18-015', KETCHA = 'WD18-013';   // 《緑×0》／《緑》
+  const mayoE = (effectsMap.get(MAYO) ?? []).find(e => e.effectType === 'ACTIVATED')!;
+  ok(isEnergyAcceActivated(mayoE), '前提崩れ＝マヨの【起】がエナのアクセ【起】として判定されない');
+  ok(!mayoE.energyActivated, '前提崩れ＝`energyActivated` が立った（この判定は要らなくなった）');
+  const green = findCard(c => c.Type === 'シグニ' && c.Color === '緑' && c.CardNum !== MAYO && c.CardNum !== KETCHA);
+  const host = findCard(c => c.Type === 'シグニ' && c.Color !== '緑');
+  const me = mkState({ signi: [null, null, null] });
+  me.field.signi = [[`${host}#f1`], [], []] as typeof me.field.signi;
+  me.energy = [`${MAYO}#e1`, `${MAYO}#e2`, `${KETCHA}#e3`, `${green}#e4`];
+  const opp = mkState({ signi: [null, null, null] });
+  const gate = (st: PlayerState, cardNum: string) => listOffFieldActivatableEffects({
+    zone: 'energy', cardNum, my: st, op: opp, turnPhase: 'MAIN', isMyTurn: true, cardMap: cm, effectsMap: em,
+  }).map(e => e.effectId);
+  ok(gate(me, `${MAYO}#e1`).includes(mayoE.effectId), '🔴エナのマヨのアクセ【起】が提示判定に出ない＝CPU が一度も使わない（報告 a4d1cc1b）');
+  ok(gate({ ...me, actions_done: [mayoE.effectId] }, `${MAYO}#e2`).includes(mayoE.effectId),
+    '🔴同名のマヨ2枚目が、1枚目を使ったあと出ない（原文に《ターン１回》は無い）');
+  eq(gate({ ...me, field: { ...me.field, signi: [[], [], []] as typeof me.field.signi } }, `${MAYO}#e1`).length, 0,
+    '🔴付け先のシグニがいないのに提示した（コストだけ払って何も起きない）');
+  // CPU＝ケチャ（《緑》）は**ケチャ自身ではなく**別の緑で払う。
+  const poolOf = (st: PlayerState) => st.energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex }));
+  const choices = listCpuOffFieldActivated({
+    actor: me, opponent: opp, effectsMap: em, cardMap: cm, cards: allCards, phase: 'MAIN', energyPool: poolOf(me), alreadyActivated: [],
+    isAffordable: (sel, costStr) => isEnergyPaymentSelectionValid({ selectedEnergyNums: sel, cards: allCards, baseCost: costStr }),
+  });
+  const ketcha = choices.find(c => c.cardNum === `${KETCHA}#e3`);
+  ok(!!ketcha, '🔴CPU の候補にケチャのアクセ【起】が無い');
+  ok(!ketcha!.selections.energy.has(2), '🔴ケチャ自身をエナとして払った（【アクセ】にする札が消える）');
+  eq(ketcha!.selections.energy.size, 1, '別の緑1枚で払っていない');
+  ok(choices.some(c => c.cardNum === `${MAYO}#e1`) && choices.some(c => c.cardNum === `${MAYO}#e2`), '🔴マヨ2枚がそれぞれ候補に出ない');
+  // 画面＝専用ボタンも同じ提示判定を通す（旧 `alreadyDone` 判定に戻さない）。
+  const battle = battleScreenSource();
+  ok(battle.includes('isEnergyAcceActivated(eff)'), '🔴画面のアクセボタンが共通の判定を通っていない');
+  ok(!/const alreadyDone = my\.actions_done\?\.includes\(eff\.effectId\)/.test(battle), '🔴アクセボタンが effectId 単位の1ターン1回判定に戻っている');
+}));
+
+// ── 2026-09-22＝《コードイート　ハンバ》のライフバースト＝探してエナに置いた札を【アクセ】にしてもよい（旧 `STUB{ACCE_OP}` の no-op）──
+test('WD18-009-BURST: 探してエナに置いた札を、選んだシグニの【アクセ】にできる／断ればエナに残る', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WD18-009') ?? []).find(x => x.effectId === 'WD18-009-BURST');
+  ok(!!e, 'WD18-009-BURST が live に無い');
+  ok(!JSON.stringify(e!.action).includes('ACCE_OP'), '🔴ログだけの `ACCE_OP` に戻っている');
+  const host = findCard(c => c.Type === 'シグニ');
+  const acceCard = 'WD18-015';   // コードイート　マヨ（《アクセアイコン》持ち）
+  const total = (st: PlayerState) =>
+    trackedCardCount(st) + (st.field.signi_acce ?? []).reduce((n, slot) => n + (slot?.length ?? 0), 0);
+  const runBurst = (answerHost: string[]) => {
+    const ctx = exactDeckCtx([acceCard], 'WD18-009');
+    ctx.ownerState.field.signi = [[host], null, null];
+    const before = total(ctx.ownerState);
+    let r = executeAction(e!.action, ctx);
+    ok(!r.done && r.pending.type === 'SEARCH', 'デッキ検索の窓が出る');
+    r = resumeSearch([acceCard], r.pending as never, ctxAfter(r, ctx));
+    ok(!r.done && r.pending.type === 'SELECT_TARGET', '🔴付け先の選択が出ない（「それを【アクセ】にしてもよい」が no-op）');
+    ok((r.pending as { optional?: boolean }).optional === true, '🔴「してもよい」なのに断れない');
+    r = resumeSelectTarget(answerHost, r.pending as never, ctxAfter(r, ctx));
+    r = finish(r, ctx);
+    eq(total(r.ownerState), before, 'カード総数が変わらない');
+    return r.ownerState;
+  };
+  const attached = runBurst([host]);
+  ok((attached.field.signi_acce?.[0] ?? []).includes(acceCard), '🔴探した札がホストの【アクセ】にならない');
+  ok(!attached.energy.includes(acceCard) && !attached.deck.includes(acceCard), 'アクセにした札がエナ／デッキに残っている（複製）');
+  const declined = runBurst([]);
+  ok(declined.energy.includes(acceCard), '🔴断ったのに探した札がエナゾーンに無い');
+  ok(!(declined.field.signi_acce?.[0] ?? []).includes(acceCard), '断ったのにアクセになった');
+}));
+
 test('CPU のベット判断（2026-09-22）：ベットしないと対象がいない除去はベットする／コインが無ければしない／旧挙動は legacy-bet', () => withSavedCursor(() => {
   const cm = new InstanceMap<CardData>(cardMap);
   const IKKI = 'WXK01-011';

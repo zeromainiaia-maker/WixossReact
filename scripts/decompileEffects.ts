@@ -4264,9 +4264,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${a.selectTarget ? targetJa(a.selectTarget) : '対象'}を対象とする`;
       }
       if (a.id === 'INTERNAL_ASK_ACCE_HOST') {
-        if (a.targetsStored) return 'それを先に対象としたシグニの【アクセ】にする';
-        if (a.acceHostFilter?.thisCardOnly) return 'それをこのシグニの【アクセ】にする';
-        return `それをあなたの${filterJa(a.acceHostFilter)}シグニ1体の【アクセ】にする`;
+        // 🆕`acceHostOptional`＝「〜の【アクセ】にしてもよい」（`WD18-009-BURST`）。
+        const endAAH = a.acceHostOptional ? 'にしてもよい' : 'にする';
+        if (a.targetsStored) return `それを先に対象としたシグニの【アクセ】${endAAH}`;
+        if (a.acceHostFilter?.thisCardOnly) return `それをこのシグニの【アクセ】${endAAH}`;
+        return `それをあなたの${filterJa(a.acceHostFilter)}シグニ1体の【アクセ】${endAAH}`;
       }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // 🆕§5.3 `O-348`（2026-09-13）＝**原文エコー（`costText`）より payload を優先する**。

@@ -160,6 +160,8 @@ export function trashActivateVerbLabel(effect: CardEffect): string {
   //   `TRANSFER_TO_HAND`（＝トラッシュの**別の**札を手札に加える／`WXDi-P06-032-E3`）を
   //   拾うと「このカードを手札に加える」という嘘のラベルになる。
   if (effect.cost?.trashExile?.self) return 'このカードを除外して発動';
+  // 🆕§5.7 `S-33`＝エナゾーンのこのカードを【アクセ】にする【起】。
+  if (effect.action?.type === 'ATTACH_ACCE') return 'アクセ';
   const walk = (a: unknown): string | null => {
     if (!a || typeof a !== 'object') return null;
     const r = a as Record<string, unknown>;

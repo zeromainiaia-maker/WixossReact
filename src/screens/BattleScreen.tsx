@@ -3,7 +3,7 @@ import {supabase} from '../supabaseClient';
 import type {User} from '@supabase/supabase-js';
 import type {BattleStateRow, PlayerState, CardData, StackEntry, EffectStack} from '../types';
 import type {CardEffect} from '../types/effects';
-import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectMultiAcceLimits, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
+import {calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, collectColorlessOverrides, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEnergyCostSubstitutes, collectEichiStubEffects, collectSpecificCardCostReductions, collectLrigNameAliases, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectContinuousGrantedKeywords, resolveForcedSigniAttack, collectGrowCostReductions} from '../engine/effectEngine';
 import {getCardNum, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount} from '../engine/effectExecutor';
 import {getRiseRequirement, LRIG_BARRIER_CARD, countBarrierTokens, addBarrierTokens, canSatisfyDiscardGroups} from '../engine/execUtils';
 import {initStack, pushToStack, confirmTurnOrder, confirmOppOrder, isReadyToResolve} from '../engine/effectStack';
@@ -21,7 +21,7 @@ import {handActivateCostLabel, type HandActivateSelections} from './battle/handA
 import {payMultiZoneExileCost} from './battle/multiZoneExileCost';
 import {payFieldToDeckTopCost} from './battle/fieldToDeckTopCost';
 import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
-import {listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
+import {isEnergyAcceActivated, listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
 import {isTrashImmuneByOpponent} from '../engine/execUtils';
 import {collectCutinCandidates} from './battle/cutinCandidates';
 import {performCutinUse} from './battle/controller/performCutinUse';
@@ -3563,6 +3563,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       zone: 'energy', cardNum, my, op, turnPhase: phase, isMyTurn,
       cardMap: battleCardMap, effectsMap, effectivePowers, energyPool: myEnergyPayPool,
     })) {
+      // 🆕§5.7 `S-33`＝エナのアクセ【起】は専用ボタン（「【アクセ】」）が出す＝ここでは重ねない。
+      if (isEnergyAcceActivated(eff)) continue;
       const costLabel = trashActivateCostLabels(eff, my, op).join('・');
       actions.push({
         label: costLabel ? `【起】エナゾーンから手札に加える（${costLabel}）` : '【起】エナゾーンから手札に加える',
@@ -5729,36 +5731,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         {/* MAINフェイズ: エナゾーンのアクセカード発動ボタン */}
         {isMyTurn && bs.turn_phase === 'MAIN' && !loading && (() => {
-          const acceEffects: { cardNum: string; effect: import('../types/effects').CardEffect; alreadyDone: boolean }[] = [];
+          // 🆕§5.7 `S-33`＝使えるかは CPU と同じ `listOffFieldActivatableEffects`（付け先の有無・回数制限・能力喪失）で決める。
+          //   🔴旧は `actions_done` に effectId があるだけで押せなくなり、**同名のアクセ2枚目をそのターンに付けられなかった**
+          //     （原文に《ターン１回》は無い）＝トラッシュ【起】で 2026-09-17 に直したのと同じ形。
+          const acceEffects: { cardNum: string; effect: import('../types/effects').CardEffect; usable: boolean }[] = [];
           for (const energyCardNum of my.energy) {
+            const usableIds = new Set(listOffFieldActivatableEffects({
+              zone: 'energy', cardNum: energyCardNum, my, op, turnPhase: bs.turn_phase, isMyTurn,
+              cardMap: battleCardMap, effectsMap, effectivePowers, energyPool: myEnergyPayPool,
+            }).map(e => e.effectId));
             for (const eff of (effectsMap.get(energyCardNum) ?? [])) {
-              if (eff.effectType !== 'ACTIVATED') continue;
-              if (!eff.timing?.includes('MAIN')) continue;
-              if (eff.action.type !== 'ATTACH_ACCE') continue;
-              const alreadyDone = my.actions_done?.includes(eff.effectId) ?? false;
-              acceEffects.push({ cardNum: energyCardNum, effect: eff, alreadyDone });
+              if (!isEnergyAcceActivated(eff) || !eff.timing?.includes('MAIN')) continue;
+              acceEffects.push({ cardNum: energyCardNum, effect: eff, usable: usableIds.has(eff.effectId) });
             }
           }
           if (acceEffects.length === 0) return null;
           return (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {acceEffects.map(({ cardNum, effect, alreadyDone }) => {
+              {acceEffects.map(({ cardNum, effect, usable }) => {
                 const card = battleCardMap.get(cardNum);
-                // MULTI_ACCE_LIMIT: 多アクセ可能シグニ（max2個）を考慮したターゲット判定
-                const multiAcceLimits = collectMultiAcceLimits(my, effectsMap, battleCardMap, op, true);
-                const hasTarget = my.field.signi.some((s, i) => {
-                  if (!s?.length) return false;
-                  const topCn = s.at(-1)!;
-                  const limit = multiAcceLimits.get(topCn) ?? 1;
-                  return acceCardsAt(my.field, i).length < limit;
-                });
                 return (
                   <button key={cardNum + effect.effectId}
                     onClick={() => { openEnergyActivated({ cardNum, effect }); }}
-                    disabled={alreadyDone || !hasTarget || loading}
+                    disabled={!usable || loading}
                     style={{ padding: '4px 8px', borderRadius: 4, border: 'none', fontSize: 10, fontWeight: 'bold',
-                      backgroundColor: (alreadyDone || !hasTarget) ? C.disabled : '#4caf50',
-                      color: C.text, cursor: (alreadyDone || !hasTarget || loading) ? 'default' : 'pointer',
+                      backgroundColor: !usable ? C.disabled : '#4caf50',
+                      color: C.text, cursor: (!usable || loading) ? 'default' : 'pointer',
                       maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {card?.CardName ?? cardNum}【アクセ】
                   </button>

@@ -88,7 +88,8 @@ export function execStubPart3(
     if (hostsAAH.length === 0) return done(addLog(ctx, 'アクセできるシグニがいない'));
     return needsInteraction(
       addLog(ctx, `${ctx.cardMap.get(getCardNum(cardAAH))?.CardName ?? cardAAH}をどのシグニの【アクセ】にしますか？`), {
-        type: 'SELECT_TARGET', candidates: hostsAAH, count: 1, optional: false, targetScope: 'self_field',
+        // 🆕`acceHostOptional`＝「〜の【アクセ】にしてもよい」（`WD18-009-BURST`）。
+        type: 'SELECT_TARGET', candidates: hostsAAH, count: 1, optional: stub.acceHostOptional === true, targetScope: 'self_field',
         thenAction: { type: 'STUB', id: 'INTERNAL_ATTACH_ACCE_TO_HOST', value: cardAAH } as StubAction as EffectAction,
       });
   }
