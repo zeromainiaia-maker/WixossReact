@@ -92192,6 +92192,10 @@ test('2026-09-23 手札枚数のログ：増減を前後の枚数つきで出す
   const watcher = battle.slice(battle.indexOf('const cur = { host: bs.host_state?.hand?.length'), battle.indexOf('handCountLogLines(') + 200);
   ok(watcher.includes('user.id !== bs.host_id'), '🔴ホスト限定の枷が外れている＝同じ行が2回出る');
   ok(watcher.includes("bs.global_phase !== 'PLAYING'"), '🔴セットアップ（マリガン）の往復まで数えている');
+  // 🔴**戻した直後の跳びを「誰かが捨てた」ように書かない**（2026-09-23 `V-287` の実機で実測）。
+  //   ⚠この hook は `DONE` の後片付けより**先に**走るので、ref を消すだけでは間に合わない。
+  ok(watcher.includes("bs.rewind_request?.status === 'DONE'"),
+    '🔴手を戻した直後の盤面の跳びが手札増減のログとして出る（V-287 実機で実測した粗）');
 }));
 
 test('2026-09-23 手を戻す：何手目→スナップショット番号の解決と同意の向き（ユーザー要望）', () => withSavedCursor(() => {

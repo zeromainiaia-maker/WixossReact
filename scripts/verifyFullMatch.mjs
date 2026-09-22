@@ -19,6 +19,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { harnessAccounts } from './verifyAccounts.mjs';
 
 const SHOT = 'scratchpad-verify';
@@ -787,7 +788,18 @@ async function runPvpMatch(browser, url) {
   } finally { await ctxH.close().catch(() => {}); await ctxG.close().catch(() => {}); }
 }
 
+// 🆕**この2つは別のハーネスからも使う**（2026-09-23 `V-287`＝`scripts/verifyRewind.mjs`）。
+// 🔴**main は「直接実行したときだけ」走らせる**＝import しただけで通し対戦が始まらないようにする
+//   （export を足すだけだと、読み込んだ瞬間に build → preview → 対戦が走り出す）。
+export {
+  buildFirst, startPreview, killTree, login, cleanupRooms, makeSeat, makeQuery,
+  driveSetup, playOneStep, clickDeckInFolders, sleep, SHOT, accounts, SUPA_URL, ANON, DECK_NAME,
+};
+
+const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+
 // ── main ──────────────────────────────────────────────────────────────────────
+if (isMain) {
 let proc = null, code = 0;
 const results = [];
 try {
@@ -818,3 +830,4 @@ for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.m
 const allPass = results.length === MODES.length && results.every(r => r.pass);
 console.log(allPass ? '\n🎉 ALL PASS（リリースゲート＝通し対戦スモーク）' : '\n⚠️ 一部 FAIL');
 process.exit(code || (allPass ? 0 : 1));
+}

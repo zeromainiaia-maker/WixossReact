@@ -495,9 +495,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     prevHandCountRef.current = cur;
     if (bs.global_phase !== 'PLAYING') return;
     if (!prev || user.id !== bs.host_id) return;
+    // 🔴🆕**「手を戻した」ぶんの差は書かない**（2026-09-23 `V-287` の実機で実測）＝盤面が丸ごと
+    //   過去へ跳ぶので、そのままだと `相手の手札 -1枚（6枚→5枚）` が**戻した直後に出て、
+    //   誰かが札を捨てたように読める**。⚠下の `DONE` の後片付けで ref を消しているが、
+    //   この hook のほうが**先に**走るので間に合わない＝ここでも見る（基準の取り直しは上で済んでいる）。
+    if (bs.rewind_request?.status === 'DONE') return;
     const lines = handCountLogLines({ self: prev.host, opp: prev.guest }, { self: cur.host, opp: cur.guest });
     if (lines.length > 0) appendBattleLogs(lines);
-  }, [bs?.host_state?.hand?.length, bs?.guest_state?.hand?.length, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bs?.host_state?.hand?.length, bs?.guest_state?.hand?.length, bs?.global_phase, bs?.rewind_request?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     persist.fetchState()
