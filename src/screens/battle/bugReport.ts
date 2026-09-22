@@ -56,7 +56,7 @@ export interface BugReportRow {
      * 🔑`seed` と山が同じなら同じ試合が再計算できる（観戦は乱数を seed 固定で回す）。
      * ⚠観戦の `row` は DB に無い行＝`host_id` は `spectate-host`、`room_id` は観戦ごとの uuid。
      */
-    spectate?: { deckA: string; deckB: string; frame: number; totalFrames: number; seed: number };
+    spectate?: { deckA: string; deckB: string; frame: number; totalFrames: number; seed: number; firstMode?: 'random' | 'A' | 'B' };
   };
 }
 

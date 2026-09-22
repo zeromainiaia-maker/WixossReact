@@ -20,6 +20,7 @@ import {
   SPECTATE_ACTIVE_KEY, SPECTATE_FRAME_KEY, clearSpectateRecording, loadSpectateRecording, saveSpectateRecording,
 } from '../utils/spectateStore';
 import { BUILD_ID } from '../version';
+import { spectateLogLabel } from './battle/spectateLog';
 
 /**
  * 🆕**CPU 観戦**（2026-09-22）＝CPU 同士の1試合を**先に丸ごと計算**し、1手ごとの盤面を記録して
@@ -54,6 +55,8 @@ interface Recording {
   nameA: string;
   nameB: string;
   seed: number;
+  /** 先攻の決め方（`random` は seed の乱数で決まる）＝再計算に要る（`scripts/replaySpectateReport.ts`）。 */
+  firstMode?: 'random' | 'A' | 'B';
   /** 報告の `room_id`（観戦ごとの uuid＝報告を試合単位で束ねる）。 */
   sessionId: string;
 }
@@ -177,15 +180,21 @@ export default function SpectateScreen({ decks, cards, variantCards = [], folder
         cards: battleCards, initialLogs: setup.logs,
         cpuPlans: { host: toHeadlessDeck(a).plan, guest: toHeadlessDeck(b).plan },
       });
-      logs = m.logs;
-      frames = [{ row: m.row(), logCount: m.logs.length, newLogs: [...m.logs] }];
+      // 🆕2026-09-22＝**表示用のログは [A]/[B] 付き**（`spectateLog.ts`＝両席とも `[CPU]` で出るので誰の行動か読めなかった）。
+      logs = [
+        ...setup.seatLogs.host.map(l => spectateLogLabel(l, 'host')),
+        ...setup.seatLogs.guest.map(l => spectateLogLabel(l, 'guest')),
+      ];
+      frames = [{ row: m.row(), logCount: logs.length, newLogs: [...logs] }];
       for (let i = 0; i < MAX_STEPS; i++) {
         if (cancelRef.current) return;
         const kind = await m.step();
         const last = frames[frames.length - 1];
         const r = m.row();
-        if (m.logs.length > last.logCount || kind === 'finished') {
-          frames.push({ row: r, logCount: m.logs.length, newLogs: m.logs.slice(last.logCount) });
+        const added = m.logs.slice(logs.length).map(l => spectateLogLabel(l, m.lastActor()));
+        logs.push(...added);
+        if (added.length > 0 || kind === 'finished') {
+          frames.push({ row: r, logCount: logs.length, newLogs: added });
         } else {
           // ログの出ない段は直前の手へ畳む（盤面だけ最新にする）。
           frames[frames.length - 1] = { ...last, row: r };
@@ -206,7 +215,7 @@ export default function SpectateScreen({ decks, cards, variantCards = [], folder
     setProgress(null);
     if (frames.length === 0) { setRec(null); return; }
     const recording: Recording = {
-      frames, logs: [...logs], end, error, nameA: a.name, nameB: b.name, seed, sessionId: crypto.randomUUID(),
+      frames, logs: [...logs], end, error, nameA: a.name, nameB: b.name, seed, firstMode: first, sessionId: crypto.randomUUID(),
     };
     safeSession.set(SPECTATE_FRAME_KEY, '0');
     saveSpectateRecording(recording).catch(e => console.warn('[観戦] 記録の保存に失敗（リロードで戻れません）', e));
@@ -396,7 +405,7 @@ function Replay({ rec, cards, initialFrame, onClose, onLeave }: {
     });
     return {
       ...row,
-      snapshot: { ...row.snapshot, spectate: { deckA: rec.nameA, deckB: rec.nameB, frame: idx, totalFrames: last, seed: rec.seed } },
+      snapshot: { ...row.snapshot, spectate: { deckA: rec.nameA, deckB: rec.nameB, frame: idx, totalFrames: last, seed: rec.seed, firstMode: rec.firstMode } },
     };
   };
 

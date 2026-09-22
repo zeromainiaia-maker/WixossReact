@@ -1,6 +1,7 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect, EffectAction } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
+import { matchesFilter } from '../../engine/execUtils';
 import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseGate';
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { energyPoolCardNums } from './energyPaySource';
@@ -72,6 +73,37 @@ export function defensiveKindOf(action: EffectAction | undefined): CpuDefensiveK
     else if (type && REMOVAL_TYPES.has(type)) {
       const target = obj.target as { type?: string; owner?: string } | undefined;
       if (target?.owner === 'opponent' && target?.type === 'SIGNI') better('removal');
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  walk(action);
+  return found;
+}
+
+/**
+ * 🆕2026-09-22＝**除去の対象が相手の場に実際にいるか**（アクション木の除去ノードのどれか1つでも）。
+ *
+ * 🔴**なぜ要るか（ユーザーのバグ報告 `4d79fdf9`）**＝`defensiveKindOf` は「相手シグニを除去する札」までしか見ず、
+ *   **原文の条件（パワー12000以上・レベル3 …）に合う対象がいるか**を見ていなかった
+ *   ⇒ 相手の場がキョウギュ（7000）2体だけなのに《付和雷同》（相手のパワー12000以上のシグニ1体をバニッシュ）を緑3で撃った。
+ * ⚠**判定は engine と同じ `matchesFilter`**（実効パワーがあればそれで比べる）。
+ * ⚠「対象にならない」系の耐性までは見ていない。
+ */
+export function removalTargetExists(
+  action: EffectAction | undefined, opponent: PlayerState, cardMap: Map<string, CardData>, powers?: Map<string, number>,
+): boolean {
+  const tops = opponent.field.signi.map(z => z?.at(-1)).filter((x): x is string => !!x);
+  let found = false;
+  const walk = (node: unknown) => {
+    if (found || !node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const v of node) walk(v); return; }
+    const obj = node as Record<string, unknown>;
+    const type = typeof obj.type === 'string' ? obj.type : null;
+    if (type === 'SIGNI_ATTACK_BAN' && obj.owner === 'opponent') { if (tops.length > 0) found = true; return; }
+    if (type && REMOVAL_TYPES.has(type)) {
+      const target = obj.target as { type?: string; owner?: string; filter?: Parameters<typeof matchesFilter>[1] } | undefined;
+      if (target?.owner === 'opponent' && target?.type === 'SIGNI'
+        && tops.some(id => matchesFilter(cardMap.get(getCardNum(id)), target.filter, powers?.get(id)))) { found = true; return; }
     }
     for (const v of Object.values(obj)) walk(v);
   };
@@ -273,6 +305,8 @@ export function listCpuArts(p: CpuArtsPickInput, isMyTurn: boolean): CpuArtsCand
     const kinds = [...new Set(acts
       .map(e => defensiveKindOf(e.action))
       .filter((k): k is CpuDefensiveKind => k !== null))]
+      // 🆕2026-09-22＝**除去は対象がいるときだけ除去として数える**（バグ報告 `4d79fdf9`＝対象のいない《付和雷同》）。
+      .filter(k => k !== 'removal' || acts.some(e => removalTargetExists(e.action, opponent, cardMap, p.effectivePowers)))
       .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b]);
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards, costStr: check.effectiveCost,

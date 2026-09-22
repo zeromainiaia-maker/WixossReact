@@ -55,7 +55,11 @@ export function buildHeadlessRow(p: {
   cardMap: Map<string, CardData>;
   policy?: { host: CpuPolicy; guest: CpuPolicy };
   roomId?: string;
-}): { row: BattleStateRow; logs: string[] } {
+}): {
+  row: BattleStateRow; logs: string[];
+  /** 🆕2026-09-22＝席ごとのログ（CPU観戦が `[A]`/`[B]` を付けるため・`logs` は host → guest の順に連結したもの）。 */
+  seatLogs: { host: string[]; guest: string[] };
+} {
   const { seats, hostId, firstPlayerId, cardMap, policy } = p;
   const host = buildHeadlessSide(false, seats.host, cardMap, policy?.host);
   const guest = buildHeadlessSide(true, seats.guest, cardMap, policy?.guest);
@@ -69,5 +73,5 @@ export function buildHeadlessRow(p: {
     first_player_id: firstPlayerId, pending_spell: null, pending_effect: null, effect_stack: null,
     winner_id: null, host_end_ack: false, guest_end_ack: false,
   } as unknown as BattleStateRow;
-  return { row, logs: [...host.logs, ...guest.logs] };
+  return { row, logs: [...host.logs, ...guest.logs], seatLogs: { host: host.logs, guest: guest.logs } };
 }

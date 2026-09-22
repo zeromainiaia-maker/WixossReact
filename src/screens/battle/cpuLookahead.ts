@@ -205,6 +205,12 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     const guards = st.hand.filter(id => (ctx.cardMap.get(getCardNum(id)) ?? ctx.cardMap.get(id))?.Guard === '1').length;
     return Math.min(guards, ctx.policy?.keepGuards ?? DEFAULT_CPU_POLICY.keepGuards) * W.guardKept;
   };
+  /**
+   * 🆕2026-09-22＝**ルリグデッキに残っているアーツの価値**（`artsKept`・自分側だけ）。
+   * 🔴これが無いとアーツを使うことが**タダ**に見え、探索が「少しでも点が上がるアーツ」を撃ち尽くす（バグ報告 `aa903772`）。
+   */
+  const artsValue = (st: PlayerState) =>
+    st.lrig_deck.filter(id => (ctx.cardMap.get(getCardNum(id)) ?? ctx.cardMap.get(id))?.Type === 'アーツ').length * (W.artsKept ?? 0);
   /** センタールリグのレベル（🆕§5.7 `S-18`＝グロウの価値）。 */
   const lrigLevelOf = (st: PlayerState) => {
     const top = st.field.lrig.at(-1);
@@ -251,7 +257,8 @@ export function evaluateBoard(cpu: PlayerState, opp: PlayerState, ctx: Lookahead
     + (lrigLevelOf(cpu) - lrigLevelOf(opp)) * W.lrigLevel
     // 🆕§5.7 `S-18`＝次のターンの制約（左右対称）＋【ガード】の温存（自分側だけ＝相手の手札は非公開）。
     + (nextTurnValue(cpu) - nextTurnValue(opp))
-    + guardValue(cpu);
+    + guardValue(cpu)
+    + artsValue(cpu);
 }
 
 /** 対話に答えて resume する（1手）。答えられない形は null。 */

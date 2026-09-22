@@ -105,6 +105,16 @@ export interface BoardWeights {
    * ⚠`ATTACK_ARTS_OP`（相手のターンの応答）では**相手側に上乗せ**する（`isCpuTurn:false`）。
    */
   turnDamage: number;
+  /**
+   * 🆕2026-09-22＝**ルリグデッキに残っているアーツ1枚**（自分側だけ）。
+   * 🔴**なぜ要るか（ユーザーのバグ報告 `aa903772`）**＝アーツは**1回しか使えない資源**なのに採点に1点も入っていなかった
+   *   ⇒ 探索（`S-16`）には**アーツを使うことがタダ**に見え、**少しでも点が上がれば撃つ**。
+   *   実例＝すでに正面（1000）に勝っているパンダン（6000）へ《奇奇怪怪》（＋5000）を撃った＝得は `fieldPowerScale` ぶんの 1250 点だけ。
+   * 🔑**手札1枚（`hand`）より高く置く**＝アーツは手札の1枚より強い札が多く、しかも引き直せない。
+   * ⚠**自分側だけ**＝相手のルリグデッキの中身は非公開（`guardKept` と同じ理由）。
+   * ⚠**旧挙動は `CPU_POLICIES['legacy-arts']`**（A/B の A 側）。
+   */
+  artsKept: number;
 }
 
 /** 1つの CPU の「強さの設定」＝これを席ごとに変えて勝率を比べる。 */
@@ -249,6 +259,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
     growReady: 2500, handEmpty: -2000, guardKept: 800, lrigLevel: 2500,
     // 🆕§5.7 `S-21`（2026-09-20）＝**既定 0＝入れる前と同じ振る舞い**。値は A/B で決める（`search-damage` ほか）。
     turnDamage: 0,
+    // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。⚠手で決めた初期値＝A/B で調整する対象。
+    artsKept: 2500,
   },
   spellGainMin: 1000,
   keepGuards: 1,
@@ -345,6 +357,11 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * 🔴**これは自己検査用ではなく「旧実装」**＝`S-10` の A/B（`--a legacy-power --b default`）で使う。
    * ⚠**消さない**＝消すと `S-10` の判断が再現できなくなる（`S-6` が重みを動かしたあとでも旧点との比較が要る）。
    */
+  /**
+   * 🆕2026-09-22 の **A 側＝アーツを使い切る値段を入れる前の採点**（`artsKept: 0`）。
+   * ⚠**消さない**＝`--a legacy-arts --b default` の A/B で使う。
+   */
+  'legacy-arts': variant('legacy-arts', { boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, artsKept: 0 } }),
   'legacy-power': variant('legacy-power', {
     boardWeights: { ...DEFAULT_CPU_POLICY.boardWeights, fieldPowerScale: 1, laneWin: 0 },
   }),

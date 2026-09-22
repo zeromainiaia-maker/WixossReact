@@ -235,7 +235,8 @@ import { buildArtsPayerCtx, checkArtsUse, hasIgnoreLrigRestriction, isArtsUseBlo
 import { signiClauseColorFilter, hasAllSubject, stripRuleParens } from '../src/data/parserUtils';
 import { checkKeyPieceUse, keyPieceCostOf, lrigsOnFieldOf, pieceIgnoresLrigCountRule } from '../src/screens/battle/keyPieceUseGate';
 import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpuKeyPiece';
-import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, listCpuArts, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
+import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, listCpuArts, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, removalTargetExists, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
+import { spectateLogLabel } from '../src/screens/battle/spectateLog';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
@@ -89824,6 +89825,40 @@ test('§5.7 S-26 エナチャージの選び方：次のグロウの色を確保
 }));
 
 // ── 第433バッチ（2026-09-21）＝§5.7 `S-28`（場のシグニをエナチャージする）───────────
+test('CPU観戦のバグ報告3件（2026-09-22）：アーツを使い切る値段／除去は対象がいるときだけ／ログは [A]・[B]', () => withSavedCursor(() => {
+  // 報告 aa903772＝すでに勝っているパンダン（6000 vs 1000）へ《奇奇怪怪》（＋5000）＝アーツを使うことが採点上タダだった。
+  // 報告 4d79fdf9＝相手の場が 7000 だけなのに《付和雷同》（相手のパワー12000以上をバニッシュ）＝対象の条件を見ていなかった。
+  // 報告 c8b44086＝A が B のビグタットをバニッシュした手が「B が自分のシグニを」と読まれた＝両席とも [CPU] 表記だった。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [] };
+  const arts = findCard(c => c.Type === 'アーツ');
+  const side = (lrigDeck: string[]) => { const st = mkState({ signi: [null, null, null] }); st.hand = []; st.energy = []; st.field.lrig = ['WD03-003#r1']; st.lrig_deck = lrigDeck; return st; };
+  const opp = side([]);
+  const withArts = evaluateBoard(side([`${arts}#a1`, `${arts}#a2`]), opp, lctx);
+  const noArts = evaluateBoard(side([]), opp, lctx);
+  eq(withArts - noArts, 2 * DEFAULT_CPU_POLICY.boardWeights.artsKept, '🔴ルリグデッキに残っているアーツが採点に入っていない＝アーツを使うことがタダに見える');
+  ok(DEFAULT_CPU_POLICY.boardWeights.artsKept > DEFAULT_CPU_POLICY.boardWeights.fieldPowerScale * 5000,
+    '🔴アーツ1枚の値段が「勝っているシグニへの＋5000」（fieldPowerScale×5000）より安い＝報告 aa903772 が再発する');
+  eq(evaluateBoard(side([`${arts}#a1`]), opp, { ...lctx, policy: CPU_POLICIES['legacy-arts'] }) - evaluateBoard(side([]), opp, { ...lctx, policy: CPU_POLICIES['legacy-arts'] }), 0,
+    '前提崩れ＝`legacy-arts` が旧挙動（アーツの値段 0）に戻らない');
+
+  const p7000 = findCard(c => c.Type === 'シグニ' && c.Power === '7000');
+  const p12000 = findCard(c => c.Type === 'シグニ' && c.Power === '12000');
+  const oppWith = (ids: (string | null)[]) => { const st = mkState({ signi: [null, null, null] }); st.field.signi = ids.map(x => (x ? [x] : [])) as typeof st.field.signi; return st; };
+  const banish12000 = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { min: 12000 } } } } as unknown as EffectAction;
+  eq(removalTargetExists(banish12000, oppWith([`${p7000}#o1`, `${p7000}#o2`, null]), cm), false, '🔴対象（パワー12000以上）がいないのに除去として数えた＝報告 4d79fdf9');
+  eq(removalTargetExists(banish12000, oppWith([`${p7000}#o1`, `${p12000}#o2`, null]), cm), true, '対象がいるのに除去として数えない');
+  eq(removalTargetExists(banish12000, oppWith([`${p7000}#o1`, null, null]), cm, new Map([[`${p7000}#o1`, 12000]])), true, '実効パワーで比べていない（パワーを上げられたシグニを見落とす）');
+  eq(removalTargetExists(banish12000, oppWith([null, null, null]), cm), false, '相手の場が空なのに除去として数えた');
+
+  eq(spectateLogLabel('[CPU] アーツを使用: バッド・ナンバー', 'host'), '[A] アーツを使用: バッド・ナンバー', '🔴観戦ログの [CPU] が A の行動と読めない＝報告 c8b44086');
+  eq(spectateLogLabel('[CPU] アーツを使用: 付和雷同', 'guest'), '[B] アーツを使用: 付和雷同', '観戦ログの [CPU] が B の行動と読めない');
+  eq(spectateLogLabel('[自分] バッド・ナンバー の【起】効果', null), '[A] バッド・ナンバー の【起】効果', '[自分]（host＝A から見た表記）が A にならない');
+  eq(spectateLogLabel('[相手] 再三再四 の【起】効果', null), '[B] 再三再四 の【起】効果', '[相手] が B にならない');
+  eq(spectateLogLabel('[CPU] 2枚ドロー', null), '[CPU] 2枚ドロー', '席が分からないのに推測で書き換えた');
+  eq(spectateLogLabel('幻獣　ビグタットをバニッシュ', 'host'), '幻獣　ビグタットをバニッシュ', '行頭以外を書き換えた');
+}));
+
 test('CPU のエナチャージはグロウ後のルリグレベルで札の価値を測る（ルリグ Lv0→1 で Lv1 シグニを置かない）', () => withSavedCursor(() => {
   // 🔴ユーザー指摘（2026-09-22）「CPU がルリグレベル1の時にエナチャージでシグニレベル1のカードをチャージしている。すごく弱い行動」。
   //   真因＝エナフェイズは**グロウより前**なのに、いまのレベル（Lv0）で「いま出せる札」を判定していた

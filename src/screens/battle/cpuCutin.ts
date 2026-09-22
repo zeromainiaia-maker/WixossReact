@@ -181,7 +181,14 @@ export function cutinCounterGain(p: {
   const resolve = scoreAfterOpponentCard(p.spellCardNum, p.cpu, p.opp, p.lookahead);
   if (resolve === null) return null;
   const counter = scoreAfterCutin(p.candidate, p.costCount, p.cpu, p.opp, p.lookahead);
-  return { resolve, counter, gain: counter - resolve };
+  // 🆕2026-09-22＝`evaluateBoard` が**ルリグデッキのアーツを数えるようになった**（`artsKept`・バグ報告 `aa903772`）。
+  //   🔴**`cutinGainMin` は「使い切りの札1枚の値段込み」で測った閾値**なので、アーツの値段が差に入ったままだと**二重に引く**
+  //   （実測＝「自分のシグニが消えるスペル」の得 6000 → 3500 で閾値 4000 を割り、打ち消さなくなった＝golden `§5.6 C-11`）。
+  //   ⇒ アーツを使う候補のときだけ、盤面の点数から消えたアーツの値段を足し戻す（閾値の意味と判断は変えない）。
+  const artsRefund = p.candidate.source === 'lrig_deck' && p.candidate.card.Type === 'アーツ'
+    ? (p.lookahead.policy?.boardWeights ?? DEFAULT_CPU_POLICY.boardWeights).artsKept ?? 0
+    : 0;
+  return { resolve, counter, gain: counter - resolve + artsRefund };
 }
 
 /**

@@ -64,6 +64,12 @@ export interface HeadlessMatch {
   /** 1手だけ進める。 */
   step: () => Promise<HeadlessStepKind>;
   /**
+   * 🆕2026-09-22＝**直前の `step()` で判断した CPU の席**（CPU の1手／対話の応答のとき。それ以外は `null`）。
+   * 🔑**なぜ要るか（CPU観戦のバグ報告 `c8b44086`）**＝ログは**両席とも `[CPU]`** で出るので、
+   *   観戦している人には**どちらの CPU の行動か読めない**（A のアーツを B の行動と読んだ）。観戦画面はこれで `[A]`/`[B]` に書き換える。
+   */
+  lastActor: () => 'host' | 'guest' | null;
+  /**
    * 決着（`winner_id`）か手詰まり（`idle`）まで回す。
    * ⚠`cap` は**安全弁**＝自己対戦では必ず異常（無限ループの疑い）。
    */
@@ -227,6 +233,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       policy: (responderId === bs.host_id ? d.policy?.host : d.policy?.guest) ?? DEFAULT_CPU_POLICY,
     });
     if (!res) return false;
+    actor = responderId === bs.host_id ? 'host' : 'guest';
     const h = makeEffectInteractionHandlers(ctx, { loading: false });
     if (res.kind === 'rearrange') await h.handleRearrangeSigniConfirm(res.arrangement);
     else if (res.kind === 'allocate') await h.handleAllocatePowerConfirm(res.alloc);
@@ -307,6 +314,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     //   実機ではここで人間が答える。譲らないと**攻撃側の CPU を呼び続けて盤面が1歩も動かない**
     //   （試運転で実測＝T2 の `ATTACK_LRIG` で無限に空回りした）。
     if (cpuShouldAct(bs) && !cpuWaitingForHuman(bs)) {
+      actor = 'guest';
       await cpuTurnAction(ctxOf(bs, bs.host_id), {
         actions: actionsFor(() => ctxOf(row(), row().host_id)),
         allCards: d.cards, cpuPlan: planFor('guest'),
@@ -330,6 +338,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       commit: (patch: Partial<BattleStateRow>) => persist.commit(mirrorSeats(patch, hostId, guestId)),
     };
     const mirroredCtx = () => ctxOf(mirrored(), hostId, mirrorIo);
+    actor = 'host';
     await cpuTurnAction(mirroredCtx(), {
       actions: actionsFor(mirroredCtx),
       allCards: d.cards, cpuPlan: planFor('host'),
@@ -343,7 +352,10 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     return true;
   };
 
+  /** 直前の `step()` で判断した CPU の席（`lastActor`）。 */
+  let actor: 'host' | 'guest' | null = null;
   const step = async (): Promise<HeadlessStepKind> => {
+    actor = null;
     const bs = row();
     if (bs.winner_id || bs.global_phase === 'FINISHED') return 'finished';
     if (bs.pending_effect) return (await answerInteraction(bs, bs.pending_effect)) ? 'interaction' : 'idle';
@@ -363,5 +375,5 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
     return { steps: maxSteps, reason: 'cap' };
   };
 
-  return { persist, row, logs, step, run };
+  return { persist, row, logs, step, run, lastActor: () => actor };
 }

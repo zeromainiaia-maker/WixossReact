@@ -42,7 +42,7 @@ export interface ScanKnob {
 }
 
 /**
- * 🔴**走査する49個＝`patchCpuPolicy` が受け取れる全部**（`boardWeights` 12 ＋ `CpuPolicy` 8 ＋ `strength.` 14 ＋ `keyword.` 8 ＋ `plan.` 6 ＋ `guardKeepValue` 1）。
+ * 🔴**走査する50個＝`patchCpuPolicy` が受け取れる全部**（`boardWeights` 13 ＋ `CpuPolicy` 8 ＋ `strength.` 14 ＋ `keyword.` 8 ＋ `plan.` 6 ＋ `guardKeepValue` 1）。
  *
  * 🆕**2026-09-21（第2段）＝残り29個も `CpuPolicy` へ載せた**（第1段の実測＝振れるのは49個中20個だけだった）＝`strength.`（14）／`keyword.`（8）／`plan.`（6）／`guardKeepValue`（1）。
  * ⚠**接頭辞が要るのは名前が衝突するから**＝`energy`／`search` は `BoardWeights` にも同名のキーがある。
@@ -63,6 +63,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'lrigLevel', base: 2500, values: [1250, 5000] },
   // 既定 0 のつまみ＝「入れるとどうなるか」。値は**過去のプリセットの実績値**（`search-damage` ほか）。
   { key: 'turnDamage', base: 0, values: [3000] },
+  // 🆕2026-09-22＝アーツを使い切る値段（バグ報告 `aa903772`）。
+  { key: 'artsKept', base: 2500, values: [1250, 5000] },
   // ── ポリシー（`CpuPolicy`）──
   { key: 'spellGainMin', base: 1000, values: [0, 3000] },
   { key: 'keepGuards', base: 1, values: [0, 2] },
