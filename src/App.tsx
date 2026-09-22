@@ -10,6 +10,7 @@ import DeckListScreen from './screens/DeckListScreen';
 import DeckEditorScreen from './screens/DeckEditorScreen';
 import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
+import SpectateScreen from './screens/SpectateScreen';
 import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
 import { deckFromRow } from './utils/deckRow';
 
@@ -285,6 +286,15 @@ export default function App() {
           onBattleStart={(roomId, deckId, oppArtOverrides) => { setBattleRoomId(roomId); setBattleDeckId(deckId); setBattleOppArtOverrides(oppArtOverrides ?? {}); setViewMode('BATTLE'); }}
           onBack={() => setViewMode('START')}
         />
+      )}
+      {viewMode === 'SPECTATE' && user && (
+        allCards.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#fff' }}>
+            カードデータを読み込み中…
+          </div>
+        ) : (
+          <SpectateScreen decks={decks} cards={allCards} onBack={() => setViewMode('START')} />
+        )
       )}
       {viewMode === 'BATTLE' && user && battleRoomId && battleDeckId && (
         // カードマスタ（CSV/effects）の非同期fetchが未完了のままBattleScreenをマウントすると、

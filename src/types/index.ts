@@ -1,4 +1,4 @@
-export type ViewMode = 'LOGIN' | 'START' | 'DECK_LIST' | 'DECK_EDITOR' | 'MATCHMAKING' | 'BATTLE';
+export type ViewMode = 'LOGIN' | 'START' | 'DECK_LIST' | 'DECK_EDITOR' | 'MATCHMAKING' | 'BATTLE' | 'SPECTATE';
 
 export * from './effects';
 

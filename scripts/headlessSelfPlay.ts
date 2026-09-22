@@ -56,13 +56,12 @@ import fs from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import Papa from 'papaparse';
-import type { BattleStateRow, CardData, PlayerState, TurnPhase } from '../src/types';
-import { setRngSeed, shuffle } from '../src/engine/rng';
-import { CPU_PLAYER_ID, assignGuestInstanceIds, assignInstanceIds } from '../src/screens/battle/battleUtils';
+import type { BattleStateRow, CardData, TurnPhase } from '../src/types';
+import { setRngSeed } from '../src/engine/rng';
+import { CPU_PLAYER_ID } from '../src/screens/battle/battleUtils';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
 import { patchCpuPolicy, resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
-import { buildLrigSetupState } from '../src/screens/battle/lrigSetup';
-import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
+import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove, describeCpuLine, listSearchableCpuMoves } from '../src/screens/battle/cpuSearch';
@@ -186,47 +185,14 @@ const HOST_ID = 'headless-host';
 const firstId = () => (FIRST === 'HOST' ? HOST_ID : CPU_PLAYER_ID);
 
 /**
- * 対戦開始時の1人ぶんの盤面（ルリグ配置 → **マリガン** → ライフクロス7枚）。
- * 🆕🔴§5.7 `S-24`（2026-09-21）＝**旧は `applyMulligan(state, [])` 固定＝マリガンを一度も踏んでいなかった**
- *   （実測＝`census:play` で4デッキ × 48戦すべて「マリガン 0回」＝**自己対戦の台が構造的に踏めない唯一の機構**）。
- *   いまは**画面と同じ `performCpuMulligan`**（`controller/`）を通る＝`S-2` の作戦データも効く。
- * ⚠**乱数を消費する**＝この修正で同じシードでも別の試合になる（過去の勝率とは比較できない＝ベースラインを撮り直した）。
- */
-function buildSide(guest: boolean, deck: SelfPlayDeck, policy?: CpuPolicy): { state: PlayerState; logs: string[] } {
-  const assign = guest ? assignGuestInstanceIds : assignInstanceIds;
-  const lrigWithIds = assign(deck.lrigDeck);
-  const mainWithIds = assign(shuffle([...deck.mainDeck]));
-  const at = (n: string | null | undefined) => (n ? lrigWithIds[deck.lrigDeck.indexOf(n)] : null);
-  return performCpuMulligan({
-    state: buildLrigSetupState({
-      lrigWithIds, mainWithIds, centerId: at(deck.roles.centerLrig)!,
-      assistLId: at(deck.roles.assistLrigL), assistRId: at(deck.roles.assistLrigR), cardMap,
-    }),
-    cardMap, plan: deck.plan, policy,
-  });
-}
-
-/**
- * ⚠**席ごとに山が違う**＝`host`／`guest` の順で組む（シャッフルの乱数の消費順もこの順）。
- * 🆕§5.7 `S-24`＝**マリガンのログも一緒に返す**（`createHeadlessMatch` の `initialLogs` へ渡す）＝
- *   `npm run census:play` の規則 `mulligan` が自己対戦のログでも数えられる。
+ * 対戦開始の1行＝**観戦画面と同じ `buildHeadlessRow`**（`src/screens/battle/controller/headlessSetup.ts`）。
+ * 🆕§5.7 `S-24`＝マリガン（`performCpuMulligan`）とそのログも込み（`createHeadlessMatch` の `initialLogs` へ渡す）。
+ * ⚠**乱数を消費する**（host → guest の順）＝同じシードなら同じ山・同じ引き直しになる。
  */
 function buildRow(
   seats: { host: SelfPlayDeck; guest: SelfPlayDeck }, policy?: { host: CpuPolicy; guest: CpuPolicy },
 ): { row: BattleStateRow; logs: string[] } {
-  const host = buildSide(false, seats.host, policy?.host);
-  const guest = buildSide(true, seats.guest, policy?.guest);
-  const row = {
-    room_id: 'headless', host_id: HOST_ID, guest_id: CPU_PLAYER_ID,
-    global_phase: 'PLAYING', setup_phase: null, turn_phase: 'UP', active_user_id: firstId(), turn_count: 1,
-    host_state: host.state, guest_state: guest.state,
-    game_logs: [], updated_at: new Date().toISOString(),
-    host_lrig_selected: seats.host.roles.centerLrig, guest_lrig_selected: seats.guest.roles.centerLrig,
-    host_janken: null, guest_janken: null, host_mulligan_done: true, guest_mulligan_done: true,
-    first_player_id: firstId(), pending_spell: null, pending_effect: null, effect_stack: null,
-    winner_id: null, host_end_ack: false, guest_end_ack: false,
-  } as unknown as BattleStateRow;
-  return { row, logs: [...host.logs, ...guest.logs] };
+  return buildHeadlessRow({ seats, hostId: HOST_ID, firstPlayerId: firstId(), cardMap, policy });
 }
 
 interface GameOutcome { seed: number; reason: string; steps: number; turns: number; winner: string; ms: number; hostLife: number; guestLife: number }

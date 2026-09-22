@@ -90022,7 +90022,9 @@ test('§5.7 S-24 マリガン：自己対戦も引き直す／レベル1を優�
   ok(/performCpuMulligan\(\{ state: cpuSt, cardMap: battleCardMap, plan: cpuPlan \}\)/.test(battle24),
     '🔴画面が共通の関数を通っていない＝写経が2本に戻っている');
   const harness = fs.readFileSync(join(root, 'scripts/headlessSelfPlay.ts'), 'utf-8');
-  ok(/performCpuMulligan\(\{/.test(harness),
+  // 🆕2026-09-22＝開始盤面の組み立ては観戦画面と共有の `controller/headlessSetup.ts` へ移した＝自己対戦はそれを通る。
+  ok(/buildHeadlessRow\(\{/.test(harness) && /performCpuMulligan\(\{/.test(
+    fs.readFileSync(join(root, 'src/screens/battle/controller/headlessSetup.ts'), 'utf-8')),
     '🔴自己対戦がマリガンを踏んでいない（`S-24` の退化）＝`S-2` の判断が A/B に乗らない');
   ok(!/from '\.\.\/src\/screens\/battle\/mulligan'/.test(harness),
     '🔴自己対戦が `applyMulligan` を直に呼ぶ経路に戻っている（＝戻す札が空の固定に戻せる）');

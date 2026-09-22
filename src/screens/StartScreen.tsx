@@ -92,6 +92,18 @@ export default function StartScreen({ user, setViewMode, onCpuBattle: _onCpuBatt
       }}>
         デッキ編成
       </button>
+
+      <button data-testid="start-spectate" onClick={() => setViewMode('SPECTATE')} style={{
+        width: '260px',
+        padding: '16px',
+        borderRadius: '8px',
+        border: '1px solid #333',
+        backgroundColor: 'transparent',
+        color: '#ccc',
+        fontSize: '16px',
+      }}>
+        CPU観戦
+      </button>
     </div>
   );
 }
