@@ -551,7 +551,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const payer = input.payer;
     const choice = preset ?? pick(input);
     if (!choice) return false;
-    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: choice.kind === 'plan' ? [] : [choice.kind], costIndices: choice.costIndices }, pool: payer.energyPayPool, turnPhase });
+    if (isActorTurn) d.observeChoice?.({ kind: 'arts', choice: { card: choice.card, check: choice.check, kinds: choice.kind === 'plan' ? [] : [choice.kind], costIndices: choice.costIndices, betCoins: choice.betCoins ?? 0 }, pool: payer.energyPayPool, turnPhase });
     appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
     // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
     //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して
@@ -561,7 +561,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       cpu_used_card_nums_this_turn: [...(actorState.cpu_used_card_nums_this_turn ?? []), choice.card.CardNum],
     };
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: artsActor }));
-    await performArts(choice.card, { costIndices: choice.costIndices }, {
+    // 🆕2026-09-22＝ベットは人間と同じ口（`betCoins`）で宣言する（判断は `cpuBet.ts`）。
+    await performArts(choice.card, { costIndices: choice.costIndices, betCoins: choice.betCoins }, {
       actor: artsActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
       isActorTurn,
@@ -594,7 +595,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     };
     await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: spellActor }));
     await performSpell(choice.card, {
-      costIndices: choice.costIndices, handIdx: choice.handIndex,
+      costIndices: choice.costIndices, handIdx: choice.handIndex, betCoins: choice.betCoins,
     }, {
       actor: spellActor, opponent: huSt,
       actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
@@ -619,7 +620,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       case 'lrigActivate': return tryCpuLrigActivated(actorState, phase, move.choice);
       case 'offFieldActivate': return tryCpuOffFieldActivated(actorState, phase, move.choice);
       case 'arts': return tryCpuUseArts(actorState, phase, pickCpuOffensiveArts,
-        { card: move.choice.card, check: move.choice.check, kind: move.choice.kinds[0] ?? 'removal', costIndices: move.choice.costIndices });
+        { card: move.choice.card, check: move.choice.check, kind: move.choice.kinds[0] ?? 'removal', costIndices: move.choice.costIndices, betCoins: move.choice.betCoins });
       case 'spell': return tryCpuMainSpell(actorState, move.choice);
       default: return false;
     }

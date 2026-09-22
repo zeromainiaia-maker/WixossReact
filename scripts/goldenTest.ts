@@ -241,6 +241,7 @@ import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/s
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { cpuBetCoinsFor, cpuBetCoinsNeeded, withCpuBet } from '../src/screens/battle/cpuBet';
 import {
   cpuPlanCanSetUse, cpuPlanChipsFor, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanUseModesFor,
 } from '../src/screens/deck/cpuPlanOptions';
@@ -89548,7 +89549,7 @@ test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分�
     ok(knobKeys.has(k), `🔴盤面の重み「${k}」が §5.7 S-6 の走査表（SCAN_KNOBS）に無い＝調整対象から漏れている`);
   }
   for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks',
-    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue', 'cutinGainMin']) {
+    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue', 'cutinGainMin', 'betCoinValue']) {
     ok(knobKeys.has(k), `🔴ポリシーの数値「${k}」が §5.7 S-6 の走査表に無い＝調整対象から漏れている`);
   }
   // 🆕§5.7 `S-6` 第2段＝**接頭辞つきの3群も全数**（`strength.` 14／`keyword.` 8／`plan.` 6）。
@@ -89862,6 +89863,35 @@ test('CPU観戦のバグ報告3件（2026-09-22）：アーツを使い切る値
   eq(spectateLogLabel('[相手] 再三再四 の【起】効果', null), '[B] 再三再四 の【起】効果', '[相手] が B にならない');
   eq(spectateLogLabel('[CPU] 2枚ドロー', null), '[CPU] 2枚ドロー', '席が分からないのに推測で書き換えた');
   eq(spectateLogLabel('幻獣　ビグタットをバニッシュ', 'host'), '幻獣　ビグタットをバニッシュ', '行頭以外を書き換えた');
+}));
+
+// ── 2026-09-22＝CPU が【ベット】を判断する（ユーザー要望・報告 8c59ee3c の続き）───────────
+test('CPU のベット判断（2026-09-22）：ベットしないと対象がいない除去はベットする／コインが無ければしない／旧挙動は legacy-bet', () => withSavedCursor(() => {
+  const cm = new InstanceMap<CardData>(cardMap);
+  const IKKI = 'WXK01-011';
+  const effects = effectsMap.get(IKKI) ?? [];
+  eq(cpuBetCoinsNeeded(effects), 1, '前提崩れ＝《一騎当閃》のベットが《コイン》1枚でなくなった');
+  const p7000 = findCard(c => c.Type === 'シグニ' && c.Power === '7000');
+  const p12000 = findCard(c => c.Type === 'シグニ' && c.Power === '12000');
+  const oppWith = (ids: (string | null)[]) => { const st = mkState({ signi: [null, null, null] }); st.field.signi = ids.map(x => (x ? [x] : [])) as typeof st.field.signi; return st; };
+  const caster = (coins: number) => { const st = mkState({ signi: [null, null, null] }); st.coins = coins; st.lrig_deck = [`${IKKI}#a1`]; st.field.lrig = ['WD03-003#r1']; return st; };
+  const decide = (coins: number, opp: PlayerState, lookahead?: LookaheadCtx) => cpuBetCoinsFor({
+    cardId: `${IKKI}#a1`, effects, actor: caster(coins), opponent: opp, cardMap: cm, blockedSelf: new Set(),
+    kind: 'arts', from: 'lrig_deck', costCount: 2, betCostCount: 2, lookahead,
+  });
+  // ① 構造だけ（先読みなし＝応答窓）
+  eq(decide(1, oppWith([`${p12000}#o1`, null, null])), 1, '🔴ベットしないと対象（7000以下）がいないのにベットしない＝報告 8c59ee3c の手を撃てない');
+  eq(decide(0, oppWith([`${p12000}#o1`, null, null])), 0, '🔴コインが無いのにベットを宣言した');
+  eq(decide(1, oppWith([`${p7000}#o1`, null, null])), 0, 'ベットしなくても対象がいるのにコインを払った（先読みなしのとき）');
+  // ② 先読みあり＝ベットした盤面としない盤面の差で決める
+  const lctx: LookaheadCtx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [], turnPhase: 'MAIN', isCpuTurn: true };
+  eq(decide(1, oppWith([`${p12000}#o1`, null, null]), lctx), 1, '🔴先読みで、ベットすれば 12000 を退かせるのにベットしない');
+  eq(decide(1, oppWith([`${p12000}#o1`, null, null]), { ...lctx, policy: CPU_POLICIES['legacy-bet'] }), 0, '前提崩れ＝`legacy-bet` が旧挙動（ベットしない）に戻らない');
+  // ③ ベットした盤面は engine の「ベットしていた場合」が読む3キーを持つ
+  const bet = withCpuBet(caster(2), 1);
+  eq(JSON.stringify([bet.coins, bet.is_betting_this_effect, bet.bet_coins_paid]), '[1,true,1]', '🔴ベットの盤面が `performArts` と同じ形になっていない（コイン・フラグ・枚数）');
+  eq(removalTargetExists(effects.find(e => e.effectType === 'ACTIVATED')?.action, oppWith([`${p12000}#o1`, null, null]), cm, undefined, true), true,
+    '🔴ベットするときに then（20000以下）の枝を歩いていない');
 }));
 
 test('CPU のエナチャージはグロウ後のルリグレベルで札の価値を測る（ルリグ Lv0→1 で Lv1 シグニを置かない）', () => withSavedCursor(() => {

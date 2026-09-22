@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-22（第462バッチ）🆕**CPU が【ベット】を判断する**（ユーザー要望「ベットも使うか考えるようにして」・報告 `8c59ee3c` の続き）
+
+- **真因（1行）**＝CPU はベットを**一度も宣言しなかった**（`CPU_ARTS_DECLINABLE_COST_KEYS`＝宣言しない前提）⇒ コインを持っていても《一騎当閃》ほかを常に弱い側で撃つ／撃てなかった。母集団＝**live のベット持ち アーツ61効果・スペル7効果**。
+- **直し方**＝判断を `src/screens/battle/cpuBet.ts` に1本化。①**先読みがあれば**「ベットして使った盤面」−「ベットせずに使った盤面」の増分が **`betCoinValue`（既定 1500）× 枚数** 以上ならベット ②**先読みが無い窓（応答）**は「ベットしないと除去の対象がいないが、ベットすれば対象がいる」ときだけ ③ベットでコストが置き換わる札（`check.betCost`）は置き換え後の額で払う・ベットでしか払えないなら宣言できる限りベット。候補（`listCpuArts`／`listCpuMainSpells`）に `betCoins` を持たせ、採点（`withCpuBet`）・探索の近似適用（`cpuMoves`）・実行（`performArts`／`performSpell` の `betCoins`＝人間と同じ口）まで同じ値を流す。`removalTargetExists` に `betting` を足した。⚠**枚数を選べるベット（1効果）は v1 では宣言しない**。
+- **ポリシー**＝`betCoinValue` を追加（走査表 `SCAN_KNOBS` にも登録）／旧挙動はプリセット **`legacy-bet`**。
+- **検証**＝golden 1件（構造判定3通り・先読み・`legacy-bet`・ベット盤面の3キー・then 枝）＝**反転確認あり**／自己対戦 WD17 vs WD18 4戦で《試行錯誤》のベット（コイン2枚＝手札の緑シグニを3体まで場に）を4回宣言／A/B（`legacy-bet` vs `default`・WD17/WD18 × 12シード × 席入れ替え＝48戦）＝**2山とも差があるとは言えない**（WD18 は決着した組で 2−4＝直した後が上）／`npm run gates` 全緑。実機不要（`src/screens/battle/` の CPU 判断のみ・UI 変更なし）。
+
 ## 2026-09-22（第461バッチ）🔴**CPU観戦の報告2件**（`8c59ee3c`／`a4d1cc1b`・同じ1試合 WD18 vs WD17・seed 289488282）
 
 - **再現**＝`npm run replay:spectate`＝205手で一致（報告の版 v0.557 と HEAD の差は UI だけ）。⚠`scratchpad-decks/` が古く WD17/WD18 が無かった＝`listDecks.mjs --export` を回し直した。

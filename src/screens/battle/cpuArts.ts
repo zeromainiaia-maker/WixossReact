@@ -7,6 +7,7 @@ import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate
 import { energyPoolCardNums } from './energyPaySource';
 import { scoreCardUseGain, type LookaheadCtx } from './cpuLookahead';
 import { planArtsMarkedFor, planCardUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuBetCoinsFor, cpuBetCoinsNeeded, cpuCanDeclareBet, withCpuBet } from './cpuBet';
 
 /**
  * CPU が**アーツを使う**ための選択ロジック（§8／§6.4 `O-1` (a)(b)）。窓は2つ＝
@@ -23,7 +24,7 @@ import { planArtsMarkedFor, planCardUse, type CpuDeckPlan } from './cpuDeckPlan'
  * ■ v1 の意図的な限界（honest defer・広げるときは §7 の実機検証とセットで）
  *   - **分類できた札だけ**（下の `defensiveKindOf`）。強化・展開・ドロー・サーチは盤面評価が要るので使わない。
  *   - **効果側コスト（手札を捨てる等）があるアーツは使わない**＝内訳に盤面評価が要る。
- *     エナ（CSV `Cost`）だけで払える札に限る。**ベット／アンコール／ブーストも宣言しない**。
+ *     エナ（CSV `Cost`）だけで払える札に限る。**アンコール／ブーストは宣言しない**（🆕ベットは `cpuBet.ts` が判断する）。
  *   - **意味があるときだけ使う**＝応答は `hasIncomingThreat`、攻めは `hasBlockedAttacker`。
  *     ⚠これは「強い AI」ではなく「一方的に殴られない／一方的に止められない」ための最小線。
  *   - 優先度は**分類（無効化→除去→軽減）→ルリグデッキ順**の決定論（盤面評価はしない）。
@@ -91,11 +92,13 @@ export function defensiveKindOf(action: EffectAction | undefined): CpuDefensiveK
  *
  * 🆕2026-09-22＝**CPU が宣言しない任意コストの分岐は歩かない**（バグ報告 `8c59ee3c`）。
  *   《一騎当閃》は `CONDITIONAL{IS_BETTING}` の then＝パワー20000以下／else＝7000以下だが、
- *   CPU は【ベット】を宣言しない（`CPU_ARTS_DECLINABLE_COST_KEYS`）＝**実際に解決されるのは else だけ**。
+ *   ベットしない使用では**実際に解決されるのは else だけ**（宣言するかは `cpuBet.ts` が決めて `betting` で渡す）。
  *   両枝を歩いていたので、相手が 12000 だけの盤面で「対象あり」と数えて空撃ちしていた。
  */
 export function removalTargetExists(
   action: EffectAction | undefined, opponent: PlayerState, cardMap: Map<string, CardData>, powers?: Map<string, number>,
+  /** 🆕この使用で CPU がベットを宣言するか（`cpuBet.ts`）＝`IS_BETTING` の分岐のどちらを歩くか。ブーストは CPU が宣言しない。 */
+  betting = false,
 ): boolean {
   const tops = opponent.field.signi.map(z => z?.at(-1)).filter((x): x is string => !!x);
   let found = false;
@@ -107,7 +110,8 @@ export function removalTargetExists(
     if (type === 'CONDITIONAL') {
       const cond = obj.condition as { type?: string; negate?: boolean } | undefined;
       if (cond?.type === 'IS_BETTING' || cond?.type === 'IS_BOOSTING') {
-        walk(cond.negate ? obj.then : obj.else);
+        const declared = cond.type === 'IS_BETTING' && betting;
+        walk(declared !== !!cond.negate ? obj.then : obj.else);
         return;
       }
     }
@@ -241,6 +245,8 @@ export interface CpuArtsChoice {
   kind: CpuArtsPickKind;
   /** `performArts` に渡すエナ pool index。 */
   costIndices: Set<number>;
+  /** 🆕ベットするコインの枚数（省略＝0＝宣言しない）。 */
+  betCoins?: number;
 }
 
 export interface CpuArtsPickInput {
@@ -285,6 +291,8 @@ export interface CpuArtsCandidate {
   /** この札の【起】が持つ分類（`defensiveKindOf`・重複なし・`KIND_PRIORITY` 順）。 */
   kinds: CpuDefensiveKind[];
   costIndices: Set<number>;
+  /** 🆕ベットするコインの枚数（0＝宣言しない・`cpuBet.ts`）。`costIndices` はこの宣言に合わせた支払い。 */
+  betCoins: number;
 }
 
 /**
@@ -314,21 +322,38 @@ export function listCpuArts(p: CpuArtsPickInput, isMyTurn: boolean): CpuArtsCand
     if (!cpuCanPayArtsWithEnergyOnly(effects)) continue;
     const acts = effects.filter(e => e.effectType === 'ACTIVATED');
     if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
-    const kinds = [...new Set(acts
-      .map(e => defensiveKindOf(e.action))
-      .filter((k): k is CpuDefensiveKind => k !== null))]
-      // 🆕2026-09-22＝**除去は対象がいるときだけ除去として数える**（バグ報告 `4d79fdf9`＝対象のいない《付和雷同》）。
-      .filter(k => k !== 'removal' || acts.some(e => removalTargetExists(e.action, opponent, cardMap, p.effectivePowers)))
-      .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b]);
-    const costIndices = selectEnergyIndicesForCost({
-      poolNums, cards, costStr: check.effectiveCost,
-      isAffordable: (selectedNums, costStr) => p.isAffordable(selectedNums, costStr, check.extraCosts),
+    const selectFor = (costStr: string) => selectEnergyIndicesForCost({
+      poolNums, cards, costStr,
+      isAffordable: (selectedNums, cs) => p.isAffordable(selectedNums, cs, check.extraCosts),
       wholeSubstitutes: payer.wholeEnergySubstitutes,
       extraCosts: check.extraCosts,
       reserve: p.energyReserve,
     });
+    const plainIndices = selectFor(check.effectiveCost);
+    // 🆕2026-09-22＝**ベットするかを決める**（`cpuBet.ts`）。ベットでコストが置き換わる札（`check.betCost`）はその額で払う。
+    const betNeed = cpuBetCoinsNeeded(effects);
+    const betIndices = betNeed !== null && check.betCost !== null ? selectFor(check.betCost) : plainIndices;
+    let betCoins = 0;
+    if (betNeed !== null && betIndices) {
+      betCoins = plainIndices
+        ? cpuBetCoinsFor({
+            cardId: actor.lrig_deck.find(id => getCardNum(id) === card.CardNum) ?? card.CardNum,
+            effects, actor, opponent, cardMap, blockedSelf: payer.blockedSelf, kind: 'arts', from: 'lrig_deck',
+            costCount: plainIndices.size, betCostCount: betIndices.size,
+            effectivePowers: p.effectivePowers, lookahead: p.lookahead,
+          })
+        // ベットしないと払えない（置き換え後のコストでだけ払える）札は、宣言できるならベットする。
+        : (cpuCanDeclareBet(actor, payer.blockedSelf, 'arts', betNeed) ? betNeed : 0);
+    }
+    const costIndices = betCoins > 0 ? betIndices : plainIndices;
     if (!costIndices) continue;
-    candidates.push({ card, check, kinds, costIndices });
+    const kinds = [...new Set(acts
+      .map(e => defensiveKindOf(e.action))
+      .filter((k): k is CpuDefensiveKind => k !== null))]
+      // 🆕2026-09-22＝**除去は対象がいるときだけ除去として数える**（バグ報告 `4d79fdf9`＝対象のいない《付和雷同》）。
+      .filter(k => k !== 'removal' || acts.some(e => removalTargetExists(e.action, opponent, cardMap, p.effectivePowers, betCoins > 0)))
+      .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b]);
+    candidates.push({ card, check, kinds, costIndices, betCoins });
   }
   return candidates;
 }
@@ -339,22 +364,23 @@ function pickCpuArtsBy(
 ): CpuArtsChoice | null {
   const { actor, opponent } = p;
   const candidates: CpuArtsChoice[] = [];
-  for (const { card, check, kinds, costIndices } of listCpuArts(p, opts.isMyTurn)) {
+  for (const { card, check, kinds, costIndices, betCoins } of listCpuArts(p, opts.isMyTurn)) {
     // 🆕§5.7 `S-31` ③＝**作戦データがこの窓に指名した札は、分類を通らなくても候補になる**。
     //   🔴これが③の本体＝実測でユーザー作21デッキのアーツ76種のうち52種が「分類できない」（ドロー・サーチ・強化・展開）。
     if (planArtsMarkedFor(p.plan, card.CardNum, opts.window)) {
-      candidates.push({ card, check, kind: 'plan', costIndices });
+      candidates.push({ card, check, kind: 'plan', costIndices, betCoins });
       continue;
     }
     const kind = kinds.find(k => opts.allowKinds.has(k));
     if (!kind) continue;
-    candidates.push({ card, check, kind, costIndices });
+    candidates.push({ card, check, kind, costIndices, betCoins });
   }
   if (candidates.length === 0) return null;
   if (p.lookahead && opts.isMyTurn) {
     const lrigIdOf = (num: string) => actor.lrig_deck.find(id => getCardNum(id) === num) ?? num;
     const scored = candidates
-      .map(c => ({ c, gain: scoreCardUseGain(lrigIdOf(c.card.CardNum), c.costIndices.size, actor, opponent, p.lookahead!, 'lrig_deck') }))
+      // 🆕ベットする札は「ベットした盤面」で採点する（`withCpuBet`）。
+      .map(c => ({ c, gain: scoreCardUseGain(lrigIdOf(c.card.CardNum), c.costIndices.size, withCpuBet(actor, c.betCoins ?? 0), opponent, p.lookahead!, 'lrig_deck') }))
       // ⚠**指名された札は増分0でも残す**＝作り手が「攻めで使う」と書いた札は、盤面の点数に出ない見返り
       //   （ドロー・サーチ）でも撃つ。🔴**解決できなかった（`null`）札は指名でも落とす**＝実行できないため。
       .filter((x): x is { c: CpuArtsChoice; gain: number } => x.gain !== null && (x.gain > 0 || x.c.kind === 'plan'))

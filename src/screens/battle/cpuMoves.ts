@@ -19,6 +19,7 @@ import {
   applyGrowCostReduction, colorlessPayableColorsOf, isEnaMultiStripped, isEnergyPaymentSelectionValid,
   parseCoinCost, parseGrowCost,
 } from './costs';
+import { withCpuBet } from './cpuBet';
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
 import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import type { CpuResonaBudget } from './cpuCutin';
@@ -1126,14 +1127,15 @@ export function applyCpuMoveSim(ctx: CpuMoveCtx, move: CpuMove): CpuSimBoard | n
     }
     case 'arts': {
       const inst = actor.lrig_deck.find(id => getCardNum(id) === move.choice.card.CardNum) ?? move.choice.card.CardNum;
-      const paid = markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum);
+      // 🆕ベットする手は「ベットした盤面」で解く（`withCpuBet`＝`performArts` と同じ3キー）。
+      const paid = withCpuBet(markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum), move.choice.betCoins);
       const used: PlayerState = { ...paid, lrig_deck: paid.lrig_deck.filter(id => id !== inst) };
       return resolveActivated(inst, used, opponent, move.turnPhase);
     }
     case 'spell': {
       const inst = actor.hand[move.choice.handIndex];
       if (!inst) return null;
-      const paid = markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum);
+      const paid = withCpuBet(markUsed(payEnergy(actor, move.pool, move.choice.costIndices), move.choice.card.CardNum), move.choice.betCoins ?? 0);
       // ⚠近似＝スペルは解決後にトラッシュへ置かれる（カットイン窓・置換は解かない）。
       const used: PlayerState = {
         ...paid,

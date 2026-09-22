@@ -7,6 +7,7 @@ import { energyPoolCardNums } from './energyPaySource';
 import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { type SpellUseCheck, listCastableSpells } from './spellUseGate';
 import { scoreCardUseGain, SPELL_GAIN_MIN, type LookaheadCtx } from './cpuLookahead';
+import { cpuBetCoinsFor, withCpuBet } from './cpuBet';
 
 /**
  * CPU が**メインフェイズに手札のスペルを使う**ための選択ロジック（§8／§6.4 `O-1` (b)）。
@@ -23,7 +24,7 @@ import { scoreCardUseGain, SPELL_GAIN_MIN, type LookaheadCtx } from './cpuLookah
  *   - **任意支払い（手札を捨ててのコスト置換・使用時の任意支払い）は宣言しない**＝
  *     `checkSpellUse.effectiveCost`（基本コスト）がそのまま請求額になる。⚠だから CPU 側は
  *     `usable` だけでなく **`affordable` も見る**（`listCastableSpells` が両方で絞っている）。
- *   - **ベットも宣言しない**。
+ *   - 🆕**ベットは `cpuBet.ts` が判断する**（2026-09-22・スペルはベットでコストが変わらない）。
  */
 
 export interface CpuSpellChoice {
@@ -33,6 +34,8 @@ export interface CpuSpellChoice {
   check: SpellUseCheck;
   /** `performSpell` に渡すエナ pool index。 */
   costIndices: Set<number>;
+  /** 🆕ベットするコインの枚数（省略＝0＝宣言しない・`cpuBet.ts`）。 */
+  betCoins?: number;
 }
 
 export interface CpuMainSpellPickInput {
@@ -93,7 +96,12 @@ export function listCpuMainSpells(p: CpuMainSpellPickInput): CpuSpellChoice[] {
       reserve: p.energyReserve,
     });
     if (!costIndices) continue;
-    candidates.push({ card, handIndex, check, costIndices });
+    const betCoins = cpuBetCoinsFor({
+      cardId: actor.hand[handIndex], effects: acts, actor, opponent, cardMap, blockedSelf: payer.blockedSelf,
+      kind: 'spell', from: 'hand', costCount: costIndices.size, betCostCount: costIndices.size,
+      effectivePowers: p.effectivePowers, lookahead: p.lookahead,
+    });
+    candidates.push({ card, handIndex, check, costIndices, betCoins });
   }
   return candidates;
 }
@@ -111,7 +119,7 @@ export function pickCpuMainSpell(p: CpuMainSpellPickInput): CpuSpellChoice | nul
   if (p.lookahead) {
     // §5.7 `S-4c`＝結果の盤面で比べる（増分が下限に届かないスペルは使わない＝撃ち損をしない）。
     const scored = candidates
-      .map(c => ({ c, gain: scoreCardUseGain(actor.hand[c.handIndex], c.costIndices.size, actor, opponent, p.lookahead!, 'hand') }))
+      .map(c => ({ c, gain: scoreCardUseGain(actor.hand[c.handIndex], c.costIndices.size, withCpuBet(actor, c.betCoins ?? 0), opponent, p.lookahead!, 'hand') }))
       // 🆕§5.7 `S-9`＝下限は席ごとのポリシー（無ければ既定）。
       .filter((x): x is { c: CpuSpellChoice; gain: number } => x.gain !== null && x.gain >= (p.lookahead!.policy?.spellGainMin ?? SPELL_GAIN_MIN))
       .sort((a, b) => (b.gain - a.gain) || (a.c.handIndex - b.c.handIndex));

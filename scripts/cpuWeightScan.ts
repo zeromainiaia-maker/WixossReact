@@ -119,6 +119,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   //   ⚠**旧挙動（常に打ち消す）は `-Infinity`**＝`patchCpuPolicy` は有限の数値しか受けないので
   //     プリセット `legacy-cutin` で当てる（走査表には入れられない）。
   { key: 'cutinGainMin', base: 4000, values: [0, 8000] },
+  // ── 🆕2026-09-22＝コイン1枚の値段（【ベット】の判断）。⚠旧挙動（ベットしない）は `Infinity`＝プリセット `legacy-bet` で当てる。
+  { key: 'betCoinValue', base: 1500, values: [0, 4000] },
 ];
 
 /**
