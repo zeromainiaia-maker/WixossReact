@@ -242,6 +242,7 @@ import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/s
 import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { weightZeroSpecs, formatWeightEffect, isLiveSearchPhase } from './cpuWeightEffect';
 import { cpuBetCoinsFor, cpuBetCoinsNeeded, withCpuBet } from '../src/screens/battle/cpuBet';
 import {
   cpuPlanCanSetUse, cpuPlanChipsFor, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanUseModesFor,
@@ -87299,6 +87300,55 @@ test('§5.7 S-6 第3段: `no-board-eval` は盤面の重みを1つ残らず 0 �
   // 反転＝既定のほうは 0 だらけではない（対照が既定と同じになっていない）
   const defaultNonZero = Object.values(DEFAULT_CPU_POLICY.boardWeights).filter(v => v !== 0).length;
   ok(defaultNonZero >= 10, `🔴既定の盤面の重みがほとんど 0（${defaultNonZero}）＝対照との差が無い`);
+});
+
+
+// ── 🆕§5.7 `S-35`（2026-09-22）＝**重みの効きセンサス**（`npm run census:weights`）──
+// 🔴**`S-6` の結論を2桁安く再現する計器**＝1判断ごとに「その重みを 0 にした探索」をやり直して
+//   **選ぶ手が変わるか**だけを数える。📏実測＝1戦（実機が探索する判断43回）で
+//   `life` 0/43・`lrigLevel` 0/43＝**96戦 × 8本の A/B と同じ結論**が30秒で出た。
+test('§5.7 S-35: 重みの走査は `BoardWeights` の全キーから機械で作る（既定0だけ除く）', () => {
+  const specs = weightZeroSpecs(DEFAULT_CPU_POLICY);
+  const keys = specs.map(s => s.replace('=0', '')).sort();
+  const expected = Object.entries(DEFAULT_CPU_POLICY.boardWeights)
+    .filter(([, v]) => v !== 0).map(([k]) => k).sort();
+  eq(keys.join(','), expected.join(','),
+    '🔴走査するキーが `BoardWeights` と揃っていない＝新しい重みが「効くか」の検査から静かに漏れる');
+  // ⚠既定が 0 の重みは除く＝0 にしても何も動かないのに「効かなかった」の行として並ぶと読み違える。
+  const zeroDefault = Object.entries(DEFAULT_CPU_POLICY.boardWeights).filter(([, v]) => v === 0).map(([k]) => k);
+  for (const k of zeroDefault) ok(!keys.includes(k), `🔴既定が 0 の重み（${k}）を走査対象に入れている`);
+  ok(keys.length >= 10, `走査対象が少なすぎる（${keys.length}）＝計器が骨抜きになっている`);
+});
+
+test('§5.7 S-35: 「実機が探索するフェイズ」の判定が実機と一致する', () => {
+  // 🔴**計器は計測のため全フェイズで探索を回す**＝絞らないと「`GROW` の探索では効く」＝
+  //   **実機では一度も起きない効き**まで数える（実測＝`life` は全フェイズなら 13/142 だが実機の判断では 0/43）。
+  ok(isLiveSearchPhase('MAIN', false), 'MAIN は実機でも探索する');
+  eq(isLiveSearchPhase('ATTACK_SIGNI', false), false, '🔴`searchAttacks` が無いのにアタックを数えている');
+  ok(isLiveSearchPhase('ATTACK_SIGNI', true), '`searchAttacks` のときはアタックも実機の判断');
+  for (const p of ['ENERGY', 'GROW', 'ATTACK_ARTS', 'ATTACK_LRIG', 'UP']) {
+    eq(isLiveSearchPhase(p, true), false, `🔴${p} を実機の探索フェイズと判定している`);
+  }
+  // 🔑**実機側の条件とズレたら落とす**＝`BattleScreen` が探索を呼ぶのは MAIN（`cpuSearchOn`）。
+  const battle = battleScreenSource();
+  ok(/const cpuSearchOn = cpuPolicy\.searchWidth > 0 && cpuPolicy\.searchDepth > 0/.test(battle),
+    '🔴実機の探索の入切が変わった＝`isLiveSearchPhase` を合わせ直すこと');
+});
+
+test('§5.7 S-35: 0 の行は「効かなかった」と名指しし、読み方の3通りを必ず添える', () => {
+  // 🔑**0 の理由を1つに決めつけない**（`S-6` 第1段の分岐0と同じ）＝(a) 山に札が無い (b) 候補間で値が変わらない (c) 既定0。
+  const out = formatWeightEffect([
+    { spec: 'openLane=0', decisions: 10, changed: 4, liveDecisions: 5, liveChanged: 2 },
+    { spec: 'lrigLevel=0', decisions: 10, changed: 3, liveDecisions: 5, liveChanged: 0 },
+  ], 'テスト山');
+  ok(out.includes('lrigLevel'), '0 の重みを名指ししていない');
+  ok(out.includes('動かさなかった重み**＝lrigLevel'), '🔴0 の重みが名指しの一覧に出ていない');
+  ok(out.includes('(a)') && out.includes('(b)') && out.includes('(c)'), '🔴0 の読み方3通りが出ていない');
+  // 反転＝0 が無ければ名指しの行は出ない
+  const clean = formatWeightEffect([{ spec: 'openLane=0', decisions: 10, changed: 4, liveDecisions: 5, liveChanged: 2 }], 'テスト山');
+  ok(!clean.includes('動かさなかった重み'), '🔴0 が無いのに「動かさなかった」と書いている');
+  // 🔴**強さの判定と取り違えさせない**警告が必ず付く（手が変わる ≠ 強くなる）。
+  ok(out.includes('手が変わる ≠ 強くなる'), '🔴「手が変わる ≠ 強くなる」の警告が消えている');
 });
 
 test('§5.7 S-16 前半の探索：幅0で無効・扱えない手は選ばない・決定論・本番の盤面を触らない', () => withSavedCursor(() => {

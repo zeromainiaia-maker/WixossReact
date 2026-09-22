@@ -61,6 +61,7 @@ import { setRngSeed } from '../src/engine/rng';
 import { CPU_PLAYER_ID } from '../src/screens/battle/battleUtils';
 import { createHeadlessMatch } from '../src/screens/battle/controller/headlessMatch';
 import { patchCpuPolicy, resolveCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
+import { weightZeroSpecs, formatWeightEffect, isLiveSearchPhase, type WeightEffectRow } from './cpuWeightEffect';
 import { buildHeadlessRow } from '../src/screens/battle/controller/headlessSetup';
 import type { CpuTurnDeps } from '../src/screens/battle/controller/cpuTurn';
 import { applyCpuMoveSim, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
@@ -92,6 +93,12 @@ const B_NAME = strArg('--b', 'default');
  * 🔑**プリセットを足さずに仮説を試せる**＝重みの調整が「コードを変えないと測れない」状態を抜ける。
  */
 const A_SET = strArg('--a-set', '');
+/**
+ * 🆕§5.7 `S-35`＝**重みの効きセンサス**（`--census-moves` に同乗）。
+ * 1判断ごとに「その重みを 0 にした探索」をやり直し、**選ぶ手が変わるか**を数える。
+ * 🔑**A/B（1候補8分）を払う前に「そもそも argmax を動かせるか」を落とせる**。
+ */
+const WEIGHT_EFFECT = argv.includes('--weight-effect');
 const B_SET = strArg('--b-set', '');
 /** 名前 → プリセット → 差分（`--a-set`）。⚠差分は名前に残る（どの数値で回したか勝率表に出す）。 */
 const policyOf = (name: string, set: string): CpuPolicy => patchCpuPolicy(resolveCpuPolicy(name), set);
@@ -598,6 +605,13 @@ if (CENSUS_MOVES) {
     byPhase: {} as Record<string, number> };
   const samples: string[] = [];
   const rejSamples: string[] = [];
+  /**
+   * 🆕§5.7 `S-35`＝**重みの効き**＝「その重みを 0 にしたら探索が別の手を選ぶか」。
+   * 🔑**基準の探索はすでに走っている**ので、追加費用は「重みの数だけ探索をやり直す」だけ。
+   */
+  const weightRows: WeightEffectRow[] = WEIGHT_EFFECT
+    ? weightZeroSpecs(SEARCH_POLICY ?? resolveCpuPolicy(A_NAME)).map(spec => ({ spec, decisions: 0, changed: 0, liveDecisions: 0, liveChanged: 0 }))
+    : [];
   let lastSearch: { phase: string; move: CpuMove | null; line: CpuMove[]; gain: number; r: ReturnType<typeof searchCpuMove>; ctx: CpuMoveCtx } | null = null;
   onChoice = (_mv, d) => {
     if (!lastSearch) return;
@@ -645,6 +659,26 @@ if (CENSUS_MOVES) {
       search.nodes.push(r.nodes);
       search.gain.push(r.score - r.baseline);
       lastSearch = { phase, move: r.move, line: r.line, gain: r.score - r.baseline, r, ctx: sctx };
+      // 🆕§5.7 `S-35`＝**重みを1つずつ 0 にして同じ探索をやり直す**（選ぶ手が変わったかだけを数える）。
+      //   ⚠**基準と同じ `width`/`depth`/`actionBias`** で回す（片方だけ変えると「重みのせい」ではなくなる）。
+      if (WEIGHT_EFFECT && weightRows.length > 0) {
+        const base = r.move ? describeCpuMove(r.move) : '(打たない)';
+        const basePolicy = sctx.lookahead.policy ?? resolveCpuPolicy(A_NAME);
+        // 🔴**実機が探索するフェイズかどうかを分けて数える**（計器は計測のため全フェイズで回している）。
+        const live = isLiveSearchPhase(phase, !!basePolicy.searchAttacks);
+        for (const row of weightRows) {
+          const zeroed = { ...sctx, lookahead: { ...sctx.lookahead, policy: patchCpuPolicy(basePolicy, row.spec) } };
+          const rz = searchCpuMove(zeroed, phase, {
+            width: SEARCH_W, depth: SEARCH_D, pendingSpell: false, actionBias: SEARCH_POLICY?.actionBias ?? 0,
+          });
+          row.decisions++;
+          if (live) row.liveDecisions++;
+          if ((rz.move ? describeCpuMove(rz.move) : '(打たない)') !== base) {
+            row.changed++;
+            if (live) row.liveChanged++;
+          }
+        }
+      }
     }
     // 同じ盤面（応答待ちで再入した回）は1回だけ数える。
     const key = `${phase}|${moves.map(describeCpuMove).join(',')}|${ctx.actor.hand.join(',')}|${ctx.actor.energy.length}`;
@@ -704,6 +738,11 @@ if (CENSUS_MOVES) {
   // 🔑**種類ごとの適用できた／できなかった**＝`null` は「弱い手」ではなく**探索の外に置く手**（実行関数の写経を避けている）。
   console.log(`  適用の可否（種類別）＝${Object.entries(applied).sort((a, b) => (b[1].ok + b[1].ng) - (a[1].ok + a[1].ng))
     .map(([k, v]) => `${k} ${v.ok}/${v.ok + v.ng}`).join(' ｜ ')}`);
+  // 🆕§5.7 `S-35`＝重みの効き（`--weight-effect` のときだけ）。
+  if (WEIGHT_EFFECT && weightRows.length > 0) {
+    console.log('');
+    console.log(formatWeightEffect(weightRows, deckA.name === deckB.name ? deckA.name : `${deckA.name}/${deckB.name}`));
+  }
   process.exit(chk.failed() ? 1 : 0);
 }
 

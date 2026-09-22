@@ -15,6 +15,7 @@
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
     "selfplay": "tsx scripts/headlessSelfPlay.ts",
     "selfplay:ab": "tsx scripts/headlessSelfPlay.ts --jobs 8",
+    "census:weights": "tsx scripts/headlessSelfPlay.ts --census-moves --weight-effect",
     "selfplay:scan": "tsx scripts/headlessSelfPlay.ts --diverge --jobs 8",
     "audit": "tsx scripts/behaviorAudit.ts",
     "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
