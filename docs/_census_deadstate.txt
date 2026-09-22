@@ -9,17 +9,17 @@ PlayerState のキー: 382
   1765 読 / 113 書  energy
   1481 読 /  82 書  deck
   4032 読 /  72 書  field
-  2122 読 /  68 書  hand
+  2125 読 /  68 書  hand
   1896 読 /  66 書  trash
-   244 読 /  33 書  lrig_deck
+   247 読 /  33 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    201 読 /  25 書  lrig_trash
    131 読 /  19 書  keyword_grants
    307 読 /  18 書  actions_done
-   101 読 /  18 書  blocked_actions
+   102 読 /  18 書  blocked_actions
    171 読 /  17 書  life_cloth
+   109 読 /  14 書  coins
      3 読 /  14 書  opp_virus_removed_just
-   104 読 /  12 書  coins
      8 読 /  12 書  pending_banish_substitute
      2 読 /  11 書  self_optional_effect_taken
     11 読 /  10 書  pending_crash_source_card_nums
@@ -27,6 +27,7 @@ PlayerState のキー: 382
     21 読 /   9 書  pending_crashed_cards
      6 読 /   9 書  crash_source_card_num
     10 読 /   8 書  card_class_overrides
+     6 読 /   8 書  is_betting_this_effect
     13 読 /   7 書  story_overrides
      9 読 /   7 書  pending_crash_causes
      2 読 /   7 書  banish_redirect_battle_target_nums
@@ -36,7 +37,6 @@ PlayerState のキー: 382
      1 読 /   7 書  acce_just_done
     16 読 /   7 書  lrig_riding_signi
     19 読 /   7 書  lrig_upkeep_condition
-     6 読 /   7 書  is_betting_this_effect
      1 読 /   7 書  cancel_current_signi_attack
      5 読 /   6 書  crash_cause
     30 読 /   6 書  granted_effects
