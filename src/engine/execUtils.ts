@@ -80,6 +80,15 @@ export interface ExecCtx {
   /** カードでない処理個数（ウィルス等）。lastProcessedCards を偽カードで水増しせず後段へ渡す。 */
   lastProcessedCount?: number;
   lastLookTrashedCards?: string[]; // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
+  /**
+   * 🆕**§5.3 `O-537`（2026-09-22）＝この解決の中で「公開した」札**（§5.1 `V-286` の一部）。
+   * 🔴**共有ログに名前を書いてよいかの判定に使う**＝デッキやライフのような非公開ゾーンに居ても、
+   *   原文が「公開し」と書いていて実際に公開したのなら**相手は見ている**ので名前を出してよい。
+   * 書き手＝`applyDirectAction` の `SEQUENCE`（`REVEAL` ステップの直後）と `resumeSearch` の `revealPicked`。
+   * 読み手＝`logCardLabel` の1本だけ。
+   * ⚠**盤面ではなくこの解決だけの印**＝`PlayerState` へ持たせない（次の効果へ持ち越さない）。
+   */
+  publiclyRevealedCards?: string[];
   storedTargetCards?: string[]; // 任意コスト支払い前に固定した対象（支払いTRASHでlastProcessedCardsが上書きされても保持）
   leftFieldUnderCards?: string[]; // ON_LEAVE_FIELD 発火元の離場直前の下カード
   // 🆕§5.3 `O-272`＝離場直前のシグニゾーン添字（0〜2）。「正面にあった」の解決に使う（`StackEntry` と同義）。
@@ -1470,7 +1479,10 @@ export function addLog(ctx: ExecCtx, msg: string): ExecCtx {
  *   名前だけログに出ていた（実測 109効果）。
  */
 export function logCardLabel(ctx: ExecCtx, cardNum: string, fallback = 'カード１枚'): string {
-  if (isInPublicZone(ctx.ownerState, cardNum) || isInPublicZone(ctx.otherState, cardNum)) {
+  // 🔑**この解決の中で公開した札も「公開領域」と同じ扱い**（`O-537`）＝
+  //   「デッキから探して**公開し**手札に加える」は相手も見ているので名前を出す。
+  if (ctx.publiclyRevealedCards?.includes(cardNum)
+    || isInPublicZone(ctx.ownerState, cardNum) || isInPublicZone(ctx.otherState, cardNum)) {
     return ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
   }
   return fallback;

@@ -2342,7 +2342,10 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
       const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
-      const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
+      // 🆕🔴**§5.3 `O-537`（2026-09-22）＝公開の受け皿は2つある**＝`then` の `REVEAL` ステップ（手札行き）と
+      //   アクション側の `revealPicked`（場／エナ／トラッシュ／ライフ行き）。**片方しか読まないと逆翻訳から公開が消える**
+      //   ＝原文に「公開し」と書いてあるのに逆翻訳に出ず、そこだけ原文照合が効かない。
+      const reveal = (a.revealPicked || thenSteps.some((s: any) => s?.type === 'REVEAL')) ? '公開し' : '';
       const dest = a.handOrField ? (a.handOrFieldAsDown ? '手札に加えるかダウン状態で場に出す' : '手札に加えるか場に出す')
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
         // 🆕**2026-08-31 続き752**＝`asDown`（ダウン状態で場に出す）を描く。落とすとアップ配置と同じ文になり、

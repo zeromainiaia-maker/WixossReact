@@ -2578,7 +2578,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   ⚠`then` を `SEQUENCE[REVEAL, …]` に変えてはいけない＝`wrapHandOrField` の `markDeckSearch` が
     //   `then.type === 'ADD_TO_FIELD'` を見ており、engine の handOrField も `thenAction.owner` を読む
     //   （形を変えると「手札に加えるか場に出す」の二択が丸ごと消える）。
-    const revealsPicked = /探し(?:て|た).{0,4}公開/.test(t) && !(!toField && !toTrash && !toEnergy && !toLife && !toAcce && !toTrapZone);
+    // 🆕🔴**§5.3 `O-537`（2026-09-22）＝「公開し」の有無を1本の判定に寄せる。**
+    //   🔴旧実装は**手札行きの既定枝だけ `SEQUENCE[REVEAL, ADD_TO_HAND]` を無条件に返していた**＝
+    //     原文が「探して手札に加え」（公開と書いていない）でも**公開していた**（過剰実行・実測6効果）。
+    //     しかもその `REVEAL` が engine 側で「名前をログに出してよい」印に見えるので、
+    //     **非公開のサーチの札名が共有ログに出ていた**（§5.1 `V-286` の残り）。
+    const revealsPickedText = /探し(?:て|た).{0,4}公開/.test(t);
+    const revealsPicked = revealsPickedText && !(!toField && !toTrash && !toEnergy && !toLife && !toAcce && !toTrapZone);
     // 🆕**「それぞれ**同じ**レベルの」＝選択集合の同一性制約**（2026-08-27・Sheet1 B11・`WX06-016-BURST`
     //   「あなたのデッキから**それぞれ同じレベルの**＜天使＞のシグニ２枚を探して公開し手札に加え」）。
     // 🔴`SelectionConstraint` は「それぞれ**異なる**」（`distinct`）しか受けておらず、**同一性の側の語彙が無かった**
@@ -2610,7 +2616,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           ? { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }
           : toEnergy
             ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction
-            : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+            // 🔴**公開すると書いてあるときだけ `REVEAL` を挟む**（`O-537`）。
+            //   ⚠`then` の形（`SEQUENCE[REVEAL, ADD_TO_HAND]` か素の `ADD_TO_HAND` か）は
+            //     engine の `applyDirectAction` が**公開済みの印**として読む＝形を変えると札名の出し分けが崩れる。
+            : revealsPickedText
+              ? { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] }
+              : { type: 'ADD_TO_HAND', owner: 'self' },
       afterSearch: t.includes('シャッフル') ? { type: 'SHUFFLE_DECK', owner: 'self' } : undefined,
       // 「（それぞれ）**レベルの異なる**＜X＞のシグニN枚を探して」（§6.4 O-29・`WX17-003-E1`③）＝
       // **選択集合どうしの相互制約**（候補単体の条件ではない）なので `selectionConstraint` に載せる。

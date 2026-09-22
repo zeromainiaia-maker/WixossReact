@@ -85999,6 +85999,83 @@ test('§5.1 V-286 トリップワイヤ: 自分だけの行を DB（相手）へ
 });
 
 
+// ── 🆕§5.3 `O-537`（2026-09-22）＝デッキサーチの「公開し」を受け皿へ落とす（§5.1 `V-286` の残り）──
+// 🔴**旧実装は手札行きの既定枝だけ `SEQUENCE[REVEAL, ADD_TO_HAND]` を無条件に返していた**＝
+//   原文が「探して手札に加え」（公開と書いていない）でも公開していた（過剰実行・実測6効果）。
+//   しかもその `REVEAL` が engine 側で「名前をログに出してよい」印なので、
+//   **非公開のサーチの札名が共有ログに出ていた**（`V-286` の最後の1系統）。
+test('§5.3 O-537: デッキサーチは「公開した」ときだけ札名を共有ログに出す（両方向）', () => withSavedCursor(() => {
+  const mk = () => {
+    const c = mkCtx({}, {});
+    return { c, names: c.ownerState.deck.map(n => c.cardMap.get(n.split('#')[0])?.CardName).filter((s): s is string => !!s) };
+  };
+  const search = (then: unknown) => ({ type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+    filter: { cardType: 'シグニ' }, maxCount: 1, then }) as unknown as EffectAction;
+  // ① 公開する（原文「探して公開し手札に加える」＝live 272効果）＝名前を出す
+  const a = mk();
+  const rA = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: search({ type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] }) } as unknown as CardEffect, a.c), a.c);
+  const handA = (rA.ownerState as PlayerState).hand;
+  ok(handA.length > a.c.ownerState.hand.length, '前提: 手札が1枚増える');
+  ok(rA.logs.some(l => a.names.some(n => l.includes(n))),
+    '🔴公開したのに札名が共有ログに出ていない（相手が見てよい情報まで伏せている）');
+  // ② 公開しない（原文「探して手札に加え」＝live 6効果）＝名前を伏せる
+  const b = mk();
+  const rB = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: search({ type: 'ADD_TO_HAND', owner: 'self' }) } as unknown as CardEffect, b.c), b.c);
+  const handB = (rB.ownerState as PlayerState).hand;
+  ok(handB.length > b.c.ownerState.hand.length, '前提: 手札が1枚増える');
+  eq(rB.logs.filter(l => b.names.some(n => l.includes(n))).join(' // '), '',
+    '🔴公開していないサーチの札名が共有ログに出ている（デッキの中身が相手に割れる）');
+}));
+
+test('§5.3 O-537: live の deck→hand サーチは「原文に公開があるか」と受け皿が一致する', () => {
+  // 🔑**受け皿は2つある**＝`then` の `REVEAL` ステップ（手札行き）と `revealPicked`（場／エナ等の行き先）。
+  //   片方しか見ないと「公開しているのに伏せる／していないのに出す」が混ざる。
+  const srcText = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8')) as Record<string, string>;
+  const walk = (a: unknown, cb: (o: Record<string, unknown>) => void): void => {
+    if (!a || typeof a !== 'object') return;
+    cb(a as Record<string, unknown>);
+    for (const v of Object.values(a as Record<string, unknown>)) {
+      if (Array.isArray(v)) v.forEach(x => walk(x, cb));
+      else if (v && typeof v === 'object') walk(v, cb);
+    }
+  };
+  const mismatched: string[] = [];
+  let checked = 0;
+  // ⚠`effectsMap` の鍵は**カード番号**（live JSON の形）＝原文は効果ごとなので `e.effectId` で引く。
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const effectId = e.effectId as string;
+      walk(e.action, (a) => {
+        if (a.type !== 'SEARCH') return;
+        if ((a.from as { location?: string } | undefined)?.location !== 'deck') return;
+        const then = JSON.stringify(a.then ?? '');
+        if (!then.includes('ADD_TO_HAND')) return;
+        checked++;
+        const hasSink = /"type":"REVEAL"/.test(then) || a.revealPicked === true;
+        const says = /探し(?:て|た).{0,4}公開/.test(srcText[effectId] ?? '');
+        if (hasSink !== says) mismatched.push(`${effectId} 原文公開=${says} 受け皿=${hasSink}`);
+      });
+    }
+  }
+  ok(checked >= 270, `前提: deck→hand サーチを十分に走査している (${checked})`);
+  eq(mismatched.join(' // '), '',
+    '🔴原文の「公開」と受け皿（REVEAL / revealPicked）が食い違う＝札名の出し分けが原文と合わない');
+});
+
+test('§5.3 O-537 トリップワイヤ: 手札行きの `REVEAL` を無条件に戻さない', () => {
+  // 🔑挙動テストだけだと「別の行き先を足すときに写経で戻る」ので、parser の形でも固定する。
+  const src = fs.readFileSync(join(root, 'src/data/parsers/parseSentencePart1.ts'), 'utf8');
+  ok(/: revealsPickedText\s*\n\s*\? \{ type: 'SEQUENCE', steps: \[\{ type: 'REVEAL' \}, \{ type: 'ADD_TO_HAND', owner: 'self' \}\] \}/.test(src),
+    '🔴手札行きの `REVEAL` が「公開し」の判定を通っていない（原文に無い公開が復活する）');
+  // 逆翻訳も2つの受け皿を両方読む
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(/const reveal = \(a\.revealPicked \|\| thenSteps\.some\(/.test(dec),
+    '🔴逆翻訳が `revealPicked` を読んでいない＝原文の「公開し」が逆翻訳から消える');
+});
+
+
 
 test('R6-0: 相手トラッシュのカードを相手シグニの下に置く（シグニ2体＝ゾーン選択をまたいでも消えない）', () => withSavedCursor(() => {
   // 🔴旧実装は先にトラッシュから抜いて `lastProcessedCards` で運び、CHOOSE をまたぐと実画面では失われていた（`WXK11-069-E2`）。

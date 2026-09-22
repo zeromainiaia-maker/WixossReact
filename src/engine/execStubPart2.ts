@@ -3599,8 +3599,10 @@ export function execStubPart2(
       hand: [...ctx.ownerState.hand, pfTH.cardNum],
       pending_facedown_flip: undefined,
     };
+    // 🔴**表向きにせず手札へ＝誰も見ていない札**（`O-537`／`V-286`）＝共有ログに名前を書かない。
+    //   ⚠すぐ上の `FACEDOWN_FLIP_UP` は**表向きにして場へ出す**ので名前を出してよい（対の分岐）。
     return done(addLog({ ...ctx, ownerState: newSTH },
-      `${ctx.cardMap.get(getCardNum(pfTH.cardNum))?.CardName ?? pfTH.cardNum}を手札に加える`));
+      `${logCardLabel(ctx, pfTH.cardNum)}を手札に加える`));
   }
 
   // 裏向き系（field.facedown_signi へ移し、場のシグニとして扱わない）

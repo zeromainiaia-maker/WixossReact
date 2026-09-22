@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-22（第466バッチ）🔴**公開していないデッキサーチの札名が共有ログに出ていた**（§5.3 `O-537`＝§5.1 `V-286` の最後の1系統／🏁クローズ）
+
+- 🔴🔑**自分で書いた登録票が間違っていた**（着手前に測り直して分かった＝[LESSONS.md](./LESSONS.md) §4.1「登録票の向きを疑う」）。
+  - **票の見立て**＝「受け皿は `revealPicked`。live の deck→hand サーチ 279効果のうち 272 が原文に『公開』なのに付いているのは2効果だけ」
+  - 📏**実測**＝受け皿は **`then` の `REVEAL` ステップ**のほうで、**281効果中 278 に既に付いていた**。
+  - ⇒ **穴は逆だった**＝parser が**手札行きの既定枝でだけ `SEQUENCE[REVEAL, ADD_TO_HAND]` を無条件に返していた**＝原文が「探して手札に加え」（**公開と書いていない**）の**6効果まで公開していた**＝**過剰実行**。その `REVEAL` が engine 側で「名前を出してよい」印に見えるので、**非公開サーチの札名が共有ログに出ていた**。
+- **真因（1行）**＝`parseSentencePart1.ts` の「デッキから探す」規則で、**行き先が場／エナ／トラッシュ／ライフのときだけ `revealsPicked` で条件を見ており、手札行きは無条件**だった。
+- 📏**影響（実測）**＝deck→hand サーチ **281効果**＝公開する **272**（変化なし）／公開しない **9**（`REVEAL` を外した6＋元から無い3）。外した6＝`WX09-010-E3`／`WX15-033-E1`／`WX17-014-E1`／`WX21-021-E2`／`WX21-021-BURST`／`WXEX1-12-E2`。
+- **直し方**＝①**parser**＝`revealsPickedText`（`/探し(?:て|た).{0,4}公開/`）を切り出し、**手札行きの `REVEAL` もこれで条件付き**にした ②**engine**＝`ExecCtx.publiclyRevealedCards`（この解決で公開した札）を足し、`applyDirectAction` の `SEQUENCE` が **`REVEAL` ステップの直後に印を付ける**／`resumeSearch` の `revealPicked` 2箇所も付ける ③`logCardLabel` がこの印を「公開領域」と同じに扱う ④`ADD_TO_HAND` のログ2本と `FACEDOWN_FLIP_TO_HAND`（表向きにせず手札へ＝誰も見ていない札）を `logCardLabel` へ。
+  - 🔑🔴**印は `applyDirectAction` の `SEQUENCE` のループの中で付ける**＝このループは戻り値から `ownerState/otherState/logs` **しか引き継がない**ので、`execReveal` の戻り値に載せても**黙って落ちる**（新しい軸を足すときに必ず踏む形）。
+- 🆕**ついでに直した逆翻訳の穴**＝`decompileEffects.ts` が**受け皿を片方（`REVEAL` ステップ）しか読んでいなかった**＝`revealPicked` だけを持つ効果（場／エナ／トラッシュ／ライフ行き＝2026-08-27 の B5 バッチの産物）は**原文に「公開し」と書いてあるのに逆翻訳に出ず、そこだけ原文照合が効いていなかった**。📏`npm run regen` の差分＝**6効果から「公開し」が消え、13効果に「公開し」が付いた**（どちらも原文どおり）。
+- **`WX04-029-BURST`**（「探して公開し、手札に加えるか場に出し」）は manual 定義で受け皿が無く、このままでは伏せられてしまう ⇒ `manualEffects.ts` の2つの `SEARCH` に `revealPicked:true` を足して `npx tsx scripts/syncManualLive.ts WX04-029` で live へ。
+- **配送**＝`npm run build:effects` の収穫マージで6効果が `docs/_held_fresh.json` に落ちた ⇒ `node scripts/heldReview.mjs --adopt-sig "-REVEAL -SEQUENCE"`／`--adopt-sig "-REVEAL×2 -SEQUENCE×2"` で採用。⚠**署名がこの2群だけ**であることを確認してから採用した（カード単位で採るとそのカードの無関係な held 差分まで入る）。
+- **検証**＝golden **3本**（①挙動＝公開したら名前を出す／しなければ伏せる の**両方向** ②live 構造＝deck→hand サーチ全件で「原文に『探して公開』があるか」と「受け皿（`REVEAL` か `revealPicked`）があるか」が一致 ③トリップワイヤ＝parser の条件式と逆翻訳の2受け皿）。📏**反転確認＝`ADD_TO_HAND` のログを `logCardLabel` から戻すと ① が FAIL**（`幻獣　オウルを手札に加える` が出る）。`npm run gates` **全緑**（golden **4398**）。
+  - ⚠**②を書くとき `effectsMap` の鍵を効果IDだと思い込んで 250件の偽 FAIL を出した**＝鍵は**カード番号**（live JSON の形）で、原文は効果ごと＝`e.effectId` で引く。
+- 📏**リーク計器**（`node --max-old-space-size=8192 scripts/archive/censusHiddenInfoLeak.mjs`）＝**群2 が 46 → 40**（6効果ぶん減）。群1 は 1（既知の偽陽性）。
+- **実機不要**＝触ったのは `src/data/` `src/engine/` `public/data/` と `scripts/` だけで、**`src/screens/` は1行も触っていない**（配送機構は前バッチで実機 PASS 済み）。念のため `v286HiddenInfoNotInSharedLog` を回し直して **PASS**。
+
 ## 2026-09-22（第465バッチ）🔴**非公開情報が共有ログに出ていた＝`V-285`【トラップ】の横展開（8系統・約180効果）**（ユーザー指示「他の似たような問題がないか調べて」→「全部直して」）
 
 - **真因（1行）**＝`V-285` とまったく同じ＝**`game_logs` は部屋で1本**（`appendBattleLogs` → `append_battle_logs` RPC → Realtime で相手へ／閲覧者ごとの絞り込みは型にも実装にも無い）なのに、engine が**裏向きに置く札／「見る」だけの札／場に出せず非公開ゾーンに残った札**の名前を `addLog` に書いていた。

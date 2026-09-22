@@ -12711,7 +12711,8 @@ export function resumeSearch(
     };
     if (pending.revealPicked) {
       const names = picked.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
-      cur = addLog(cur, `${names}を公開`);
+      // 🆕`O-537`＝公開した札は以降のログで名前を出してよい（`logCardLabel` が読む）。
+      cur = { ...addLog(cur, `${names}を公開`), publiclyRevealedCards: [...(cur.publiclyRevealedCards ?? []), ...picked] };
     }
     if (pending.thenAction.type === 'TRANSFER_TO_DECK') {
       for (const cardNum of picked) {
@@ -12731,7 +12732,7 @@ export function resumeSearch(
   }
   if (pending.revealPicked && picked.length > 0) {
     const names = picked.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
-    cur = addLog(cur, `${names}を公開`);
+    cur = { ...addLog(cur, `${names}を公開`), publiclyRevealedCards: [...(cur.publiclyRevealedCards ?? []), ...picked] };
   }
   // handOrField: ピックしたシグニを「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」）。
   //   対象カードは pickCount 1（シグニ1枚）＝1回の CHOOSE。余剰（防御）は手札へ。
@@ -14035,7 +14036,6 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     //   `owner:'self'` の既存全効果は `ownerState('self', ctx) === ctx.ownerState` で挙動不変。
     case 'ADD_TO_HAND': {
       // インスタンスIDで正確な1枚を特定しデッキ/トラッシュから除去して手札へ
-      const cn = getCardNum(cardNum);
       const ownerH = (action as { owner?: Owner }).owner ?? 'self';
       let s = { ...ownerState(ownerH, ctx) };
       const di = s.deck.indexOf(cardNum);
@@ -14050,7 +14050,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const newS: PlayerState = { ...s, hand: [...s.hand, cardNum] };
-      return done(addLog(setOwnerState(ownerH, newS, ctx), `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
+      // 🆕🔴**§5.3 `O-537`＝公開していないサーチの札名を共有ログに書かない**（§5.1 `V-286` の残り）。
+      //   🔑`logCardLabel` は「公開領域に居る」か「この解決で `REVEAL` を通った」札だけ名前を出す＝
+      //     「探して**公開し**手札に加える」（272効果）は今までどおり名前が出る。
+      return done(addLog(setOwnerState(ownerH, newS, ctx), `${logCardLabel(ctx, cardNum)}を手札に加える`));
     }
     case 'ADD_TO_ENERGY': {
       // デッキ/トラッシュから除去してエナゾーンへ
@@ -14105,7 +14108,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           ? { ...newS, field: { ...newS.field, check: null }, hand: [...newS.hand, cardNum] }
           : { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== cardNum) }, hand: [...newS.hand, cardNum] };
       }
-      return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
+      return done(addLog(setOwnerState(src.owner, newS, ctx), `${logCardLabel(ctx, cardNum)}を手札に加える`));
     }
     case 'ADD_TO_FIELD': {
       const owner = (action as AddToFieldAction).owner;
@@ -14367,6 +14370,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const r = applyDirectAction(step, cardNum, cur);
         if (!r.done) return r;
         cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+        // 🆕🔴**§5.3 `O-537`＝`REVEAL` を通った札は「公開済み」**＝後続のステップでは名前をログに出してよい。
+        //   🔑印はここで付ける＝この for は `r` から `ownerState/otherState/logs` しか引き継がないので、
+        //     `execReveal` の戻り値に載せても**黙って落ちる**（新しい軸を足すときに必ず踏む形）。
+        if (step.type === 'REVEAL') {
+          cur = { ...cur, publiclyRevealedCards: [...(cur.publiclyRevealedCards ?? []), cardNum] };
+        }
       }
       return done(cur);
     }

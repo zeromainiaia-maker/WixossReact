@@ -17,3 +17,42 @@ WX10-006 WX15-058 WX15-061 WX20-049 WX24-P1-003 WX24-P4-028 WXK04-084
   原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、《無》を支払ってもよい。そうした場合、このシグニを場からトラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それをダウン状態で場に出す。,-
   - [0].action.steps[1].then.steps[0].bestEffort = true
 
+## -REVEAL -SEQUENCE ［4枚］
+WX09-010 WX15-033 WX17-014 WXEX1-12
+--- WX09-010
+  原文: 【出現条件】《メインフェイズアイコン》《甲冑　ローメイル》１体と《篭手　トレット》１体をあなたの場からトラッシュに置く【常】：あなたのシグニのパワーを＋1000する。【自】：このシグニがバニッシュされたとき、あなたのデッキから《篭手　トレット》１枚を探して場に出し、デッキをシャッフルする。【出】：あなたのデッキからカード１枚を探して手札に加え、デッキをシャッ
+  - [2].action.then.steps[0].type = "REVEAL"
+  - [2].action.then.steps[1].type = "ADD_TO_HAND"
+  - [2].action.then.steps[1].owner = "self"
+  ~ [2].action.then.type : "SEQUENCE" → "ADD_TO_HAND"
+  + [2].action.then.owner = "self"
+--- WX15-033
+  原文: 【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、《無》を支払ってもよい。そうした場合、あなたのデッキからカード１枚を探して手札に加え、デッキをシャッフルする。【出】：対戦相手の中央のシグニゾーンにあるシグニ１体を対象とし、対戦相手のライフクロスの枚数があなたより多い場合、それをバニッシュする。,：対戦相手は、手札を２枚捨てるかエナゾーンか
+  - [0].action.steps[1].then.then.steps[0].type = "REVEAL"
+  - [0].action.steps[1].then.then.steps[1].type = "ADD_TO_HAND"
+  - [0].action.steps[1].then.then.steps[1].owner = "self"
+  ~ [0].action.steps[1].then.then.type : "SEQUENCE" → "ADD_TO_HAND"
+  + [0].action.steps[1].then.then.owner = "self"
+--- WX17-014
+  原文: あなたのデッキからカードを２枚まで探して手札に加える。その後、対戦相手はあなたの手札を１枚見ないで選び、あなたはそれを捨てる。その後、デッキをシャッフルする。,-
+  - [0].action.steps[0].then.steps[0].type = "REVEAL"
+  - [0].action.steps[0].then.steps[1].type = "ADD_TO_HAND"
+  - [0].action.steps[0].then.steps[1].owner = "self"
+  ~ [0].action.steps[0].then.type : "SEQUENCE" → "ADD_TO_HAND"
+  + [0].action.steps[0].then.owner = "self"
+
+## -REVEAL×2 -SEQUENCE×2 ［1枚］
+WX21-021
+--- WX21-021
+  原文: 【常】：このシグニはすべてのクラスを持つ。【自】：レゾナの出現条件のために、このシグニが場からトラッシュに置かれたとき、あなたのデッキからカード１枚を探して手札に加え、デッキをシャッフルする。【起】《アタックフェイズアイコン》あなたのトラッシュにある《羅星姫　リゲルル》４枚をゲームから除外する：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。この能力
+  - [1].action.then.steps[0].type = "REVEAL"
+  - [1].action.then.steps[1].type = "ADD_TO_HAND"
+  - [1].action.then.steps[1].owner = "self"
+  - [3].action.then.steps[0].type = "REVEAL"
+  - [3].action.then.steps[1].type = "ADD_TO_HAND"
+  - [3].action.then.steps[1].owner = "self"
+  ~ [1].action.then.type : "SEQUENCE" → "ADD_TO_HAND"
+  + [1].action.then.owner = "self"
+  ~ [3].action.then.type : "SEQUENCE" → "ADD_TO_HAND"
+  + [3].action.then.owner = "self"
+
