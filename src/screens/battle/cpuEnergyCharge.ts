@@ -29,7 +29,10 @@ export interface CpuEnergyChargeInput {
   opponent: PlayerState;
   cardMap: Map<string, CardData>;
   effectsOf: (id: string) => readonly CardEffect[];
-  /** センタールリグのレベル（出せるシグニの上限）。 */
+  /**
+   * 札の価値を測るルリグレベル＝**このターンのメインでのレベル**（`mainPhaseLrigLevel`＝グロウ後）。
+   * ⚠いまのレベルを渡すと、このターンに出す札を「出せない札」と見てエナへ置く（2026-09-22 に直した）。
+   */
   lrigLevel: number;
   /** §5.7 `S-2`＝作戦データの「手元に置く価値」。 */
   keepBonus?: (id: string) => number;
@@ -38,6 +41,26 @@ export interface CpuEnergyChargeInput {
   charge?: CpuChargeCtx;
   /** 実効パワー（`calcFieldPowers`）。省略時は印刷パワー。 */
   powers?: Record<string, number>;
+}
+
+/**
+ * 🆕🔴**エナチャージで札の価値を測るときのルリグレベル**（2026-09-22・ユーザー指摘）＝**このターンのメインで立っているはずのレベル**。
+ *
+ * ■ **なぜ要るか**＝エナフェイズは**グロウより前**なので、いまのレベル（例 Lv0）で「いま出せる札」を判定すると、
+ *   **このターンのメインで出すはずの Lv1 シグニが「出せない札」扱い**になり温存の補正（`chargeKeepPlayable`）が効かない
+ *   ⇒ パワーの小さい Lv1 がいちばん安い札としてエナへ行く。
+ *   📏実測（CPU デッキ6つ × 2戦）＝ルリグ Lv≦1 の手札チャージ 48回のうち **Lv1 シグニが21回**、ほぼ全部が T1・T2（ルリグ Lv0）で、
+ *   手札に Lv3・Lv4 やスペルがあるのに Lv1 を置いていた。
+ * 🔑**札の価値は自分のルリグレベルで変わる**（ユーザー）＝基準は「グロウ後」のレベル。
+ * ⚠**グロウできる見込み**＝ルリグデッキに「いまのレベル＋1」のルリグがいて、グロウを禁じられていないこと
+ *   （コストは見ない＝グロウは最優先で払いに行く／払えない色は `chargeNeedColors` が別に確保しに行く）。
+ */
+export function mainPhaseLrigLevel(actor: PlayerState, cardMap: Map<string, CardData>): number {
+  const levelOf = (id: string | undefined) => (id ? parseInt(cardMap.get(getCardNum(id))?.Level ?? '', 10) || 0 : 0);
+  const cur = levelOf(actor.field.lrig.at(-1));
+  if (actor.blocked_actions?.includes('GROW')) return cur;
+  const canGrow = actor.lrig_deck.some(id => cardMap.get(getCardNum(id))?.Type === 'ルリグ' && levelOf(id) === cur + 1);
+  return canGrow ? cur + 1 : cur;
 }
 
 const powerOf = (id: string | undefined, cardMap: Map<string, CardData>, powers?: Record<string, number>): number => {

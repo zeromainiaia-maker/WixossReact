@@ -167,7 +167,7 @@ import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../sr
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
-import { fieldChargeAllowed, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
+import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
 import { cpuPlanBoardCtx, isEmptyCpuDeckPlan, cpuTargetFilterToTargetFilter, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
@@ -89824,6 +89824,33 @@ test('§5.7 S-26 エナチャージの選び方：次のグロウの色を確保
 }));
 
 // ── 第433バッチ（2026-09-21）＝§5.7 `S-28`（場のシグニをエナチャージする）───────────
+test('CPU のエナチャージはグロウ後のルリグレベルで札の価値を測る（ルリグ Lv0→1 で Lv1 シグニを置かない）', () => withSavedCursor(() => {
+  // 🔴ユーザー指摘（2026-09-22）「CPU がルリグレベル1の時にエナチャージでシグニレベル1のカードをチャージしている。すごく弱い行動」。
+  //   真因＝エナフェイズは**グロウより前**なのに、いまのレベル（Lv0）で「いま出せる札」を判定していた
+  //   ⇒ このターンに出す Lv1 が「出せない札」扱いで温存の補正が効かず、パワーの小さい Lv1 がエナへ行く。
+  //   📏実測（CPU デッキ6つ × 2戦）＝ルリグ Lv≦1 の手札チャージでの Lv1 シグニ **21回 → 9回**。
+  const cm = new Map<string, CardData>([
+    ['R0', { CardNum: 'R0', CardName: 'ルリグ0', Type: 'ルリグ', Level: '0' } as unknown as CardData],
+    ['R1', { CardNum: 'R1', CardName: 'ルリグ1', Type: 'ルリグ', Level: '1' } as unknown as CardData],
+    ['A1', { CardNum: 'A1', CardName: 'アーツ', Type: 'アーツ', Level: '' } as unknown as CardData],
+    ['L1', { CardNum: 'L1', CardName: 'レベル1', Type: 'シグニ', Level: '1', Power: '1000', Color: '白' } as unknown as CardData],
+    ['L4', { CardNum: 'L4', CardName: 'レベル4', Type: 'シグニ', Level: '4', Power: '12000', Color: '白' } as unknown as CardData],
+  ]);
+  const st = (lrigDeck: string[], blocked?: string[]) => ({
+    field: { lrig: ['R0#1'], signi: [null, null, null] }, lrig_deck: lrigDeck, hand: [], blocked_actions: blocked,
+  }) as unknown as PlayerState;
+  eq(mainPhaseLrigLevel(st(['R1#1', 'A1#1']), cm), 1, '🔴次のレベルのルリグがいるのにグロウ後のレベルになっていない');
+  eq(mainPhaseLrigLevel(st(['A1#1']), cm), 0, '次のレベルのルリグがいないのにレベルを上げた');
+  eq(mainPhaseLrigLevel(st(['R1#1'], ['GROW']), cm), 0, 'グロウを禁じられているのにレベルを上げた');
+  // グロウ後のレベルで測れば、このターンに出す Lv1 を温存して Lv4 を置く（既存の規則が効く）。
+  const hand = ['L1#1', 'L4#1'];
+  eq(hand[pickCpuEnergyChargeIndex(hand, cm, () => [], mainPhaseLrigLevel(st(['R1#1']), cm), undefined, undefined, { emptyZones: 3 })], 'L4#1',
+    '🔴ルリグ Lv0（このターン Lv1 へグロウ）で出す予定の Lv1 シグニをエナへ置いた');
+  const battle = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf8');
+  ok(battle.includes('const cpuLrigLevelEna = mainPhaseLrigLevel(cpuSt, battleCardMap);'),
+    '🔴CPU のエナチャージがグロウ前のルリグレベルで札の価値を測っている');
+}));
+
 test('§5.7 S-28 場のシグニをエナチャージ：実行は人間と同じ1本・門は2つ・正面は左右反転', () => withSavedCursor(() => {
   // 🔴**なぜ要るか（2026-09-21 ユーザー指摘）**＝**人間は前から場のシグニをエナへ置ける**のに、
   //   CPU は `pickCpuEnergyChargeIndex(cpuSt.hand, …)`＝**手札しか見ておらず一度も踏んだことが無かった**。

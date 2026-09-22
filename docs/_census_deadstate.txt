@@ -11,12 +11,12 @@ PlayerState のキー: 382
   4031 読 /  72 書  field
   2122 読 /  68 書  hand
   1896 読 /  66 書  trash
-   241 読 /  33 書  lrig_deck
+   242 読 /  33 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    201 読 /  25 書  lrig_trash
    131 読 /  19 書  keyword_grants
    307 読 /  18 書  actions_done
-   100 読 /  18 書  blocked_actions
+   101 読 /  18 書  blocked_actions
    173 読 /  17 書  life_cloth
      3 読 /  14 書  opp_virus_removed_just
    104 読 /  12 書  coins

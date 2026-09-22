@@ -43,7 +43,7 @@ import {guardableHandIndices} from '../guard';
 import {getLrigAttackCrashState} from '../lrigCrash';
 import {pickCpuGuardHandIndex} from '../cpuGuard';
 import {pickCpuHandLimitDiscards} from '../cpuHandLimit';
-import {pickCpuEnergyCharge} from '../cpuEnergyCharge';
+import {mainPhaseLrigLevel, pickCpuEnergyCharge} from '../cpuEnergyCharge';
 import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve, chargeNeedColors} from '../cpuGrowReserve';
@@ -860,7 +860,9 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (blocked) appendBattleLogs(['[CPU] エナフェイズをスキップする']);
     if (!used && !blocked && cpuSt.hand.length > 0) {
       // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
-      const cpuLrigLevelEna = parseInt(battleCardMap.get(cpuSt.field.lrig.at(-1) ?? '')?.Level ?? '0', 10) || 0;
+      // 🆕🔴2026-09-22＝**グロウ後のレベルで測る**（ユーザー指摘「CPU がルリグ Lv1 のときに Lv1 シグニをチャージしている」）＝
+      //   エナフェイズはグロウより前なので、いまのレベルで測ると**このターンに出す Lv1 を「出せない札」と見てエナへ置く**。
+      const cpuLrigLevelEna = mainPhaseLrigLevel(cpuSt, battleCardMap);
       // 🆕§5.7 `S-26`（2026-09-21）＝**ターンをまたいだ情報**を渡す＝
       //   ①**次のグロウでまだ足りない色**（置きに行く） ②**空きシグニゾーンの数**（出せる札を温存する）。
       //   🔴**これが無いと「グロウできない」「出す札が無い」が繰り返し起きる**（実測＝7% と 22%）。
