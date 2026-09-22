@@ -263,6 +263,7 @@ import { payTrashActivateCost, emptyTrashActivateSelections } from '../src/scree
 import { activatedEnergyCostStr } from '../src/screens/battle/cpuActivate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
+import { facedownPeek } from '../src/screens/battle/facedownPeek';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -85784,6 +85785,74 @@ test('R6-0: デッキ上N枚からトラップを設置すると、残りはデ�
   eq(st.deck.length, deckLen - 1, '🔴デッキから消えたのは設置した1枚だけ');
   eq(st.deck.slice(-2).join(), top3.slice(1).join(), '🔴残り2枚はデッキの一番下');
 }));
+
+test('§5.1 V-285: 【トラップ】の設置ログに札の名前を出さない（共有ログ＝相手に見える）', () => withSavedCursor(() => {
+  // 🔴**`game_logs` は部屋で1本**＝`BattleScreen` の `appendBattleLogs` が `append_battle_logs` RPC で書き、
+  //   Realtime で**相手にも同期される**（`GameLog` は timestamp/user_id/action/detail だけで、閲覧者ごとの
+  //   絞り込みは型にも実装にも無い）。⇒ **設置のログに札の名前を書くと「裏向きで設置する」が成立しない。**
+  // 📏実測（2026-09-22・`npx tsx scripts/behaviorAudit.ts --ids-file <トラップ63枚>`）＝
+  //   **20効果 / 19カード**で名前が出ていた（`ASK_TRAP_ZONE` の見出しと `PICK_TO_TRAP` の結果の2行）。
+  // ⚠「デッキの上からN枚**見る**」は非公開（ログにも名前は出ない）＝この経路では全ログを名前で検査してよい。
+  const ctx = mkCtx({}, {});
+  const top3 = ctx.ownerState.deck.slice(0, 3);
+  const names = top3.map(c => ctx.cardMap.get(c.split('#')[0])?.CardName).filter((s): s is string => !!s);
+  ok(names.length === 3, '前提: 山の上3枚のカード名が引けている');
+  const r = finishLikeBattleScreen(executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED', placeTrapReveal: { revealCount: 3 } } } as unknown as CardEffect, ctx), ctx);
+  const st = r.ownerState as PlayerState;
+  eq((st.field.signi_traps ?? []).filter(Boolean).length, 1, '前提: 【トラップ】が1つ設置されている');
+  const leaked = r.logs.filter(l => names.some(n => l.includes(n)));
+  eq(leaked.join(' // '), '', '🔴設置のログに札の名前が出ている＝裏向きのはずの【トラップ】が相手に見える');
+}));
+
+test('§5.1 V-285 トリップワイヤ: 【トラップ】設置のログ2本に札の名前を埋め込み直さない', () => {
+  // 🔑**挙動のテストだけだと「別の経路を足すときに写経で戻る」**ので、ソースの形でも固定する
+  //   （`V-284` と同じ作法）。⚠**エナゾーンの自分自身を設置する肢（`を【トラップ】として設置しますか？`）は
+  //   名前を出してよい**＝その札は**公開領域のエナ**に居るので相手には既に見えている。
+  const src = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(src.includes('を【トラップ】として設置しますか？'),
+    'エナの自分自身を設置する肢が消えている（本テストの前提が変わった＝テストも直す）');
+  const offenders = src.split(/\r?\n/)
+    .map((l, i) => ({ l: l.trim(), n: i + 1 }))
+    // ⚠**カギ括弧の有無で2通り書かれていた**（`をトラップとしてゾーン選択` が最初の掃除から漏れた）＝両方を見る。
+    .filter(({ l }) => /を【?トラップ】?として(ゾーン|設置するゾーン)/.test(l))
+    .map(({ l, n }) => `execStubPart2.ts:${n} ${l.slice(0, 70)}`);
+  eq(offenders.join(' // '), '',
+    '🔴【トラップ】の設置ログに札の名前を埋め込んでいる＝共有ログ経由で相手に見える');
+});
+
+test('§5.1 V-285: 裏向きの覗きは所有者だけ＝相手側には cardNum 自体を渡さない', () => {
+  // 🔴**`battle_state` は両者ぶんが1行で共有される**＝相手の `signi_traps` もクライアントまで降りてくる。
+  //   ⇒ **何を描かないかだけが裏向きを成立させている**ので、判定を JSX に散らさず1本に寄せる。
+  // 🔑**相手側で `cardNum` を返さない**のが肝＝返さなければ `alt` / `title` / `data-*` でも漏らしようがない。
+  const mine = facedownPeek('WX15-084', true);
+  eq(mine.canPeek, true, '自分の【トラップ】は覗ける');
+  eq(mine.canPeek ? mine.cardNum : '', 'WX15-084', '自分のぶんは中身が返る');
+  // 反転＝相手側（これが崩れると盤面から相手のトラップが読める）
+  const theirs = facedownPeek('WX15-084', false);
+  eq(theirs.canPeek, false, '🔴相手の【トラップ】が覗ける');
+  eq(JSON.stringify(theirs).includes('WX15-084'), false, '🔴相手側の戻り値に cardNum が入っている');
+  // 空ゾーン＝覗くものが無い
+  eq(facedownPeek(null, true).canPeek, false, '【トラップ】が無いゾーンで覗けることになっている');
+});
+
+test('§5.1 V-285 トリップワイヤ: 盤面の【トラップ】表示に札の名前・画像を出さない', () => {
+  // 🔑**バッジは自分側だけ押せる**（`pointerEvents`）＝相手側は押せないことまで形で固定する。
+  const src = fs.readFileSync(join(root, 'src/components/BoardComponents.tsx'), 'utf8');
+  ok(/trapPeek\.canPeek \? 'my-trap-marker' : 'op-trap-marker'/.test(src),
+    '【トラップ】の印が `facedownPeek` の判定で出し分けられていない');
+  ok(/pointerEvents: trapPeek\.canPeek \? 'auto' : 'none'/.test(src),
+    '🔴相手の【トラップ】のバッジが押せる形になっている');
+  // `trapCardNum` を直接 cards から引いて描く分岐を足していないか（覗きは必ず `trapPeek.cardNum` 経由）
+  const direct = src.split(/\r?\n/)
+    .map((l, i) => ({ l: l.trim(), n: i + 1 }))
+    .filter(({ l }) => /cards\.find\(/.test(l) && /trapCardNum/.test(l))
+    .map(({ l, n }) => `BoardComponents.tsx:${n} ${l.slice(0, 70)}`);
+  eq(direct.join(' // '), '',
+    '🔴`trapCardNum` から直接カードを引いている＝所有者の判定を迂回して中身を描ける');
+});
+
+
 
 test('R6-0: 相手トラッシュのカードを相手シグニの下に置く（シグニ2体＝ゾーン選択をまたいでも消えない）', () => withSavedCursor(() => {
   // 🔴旧実装は先にトラッシュから抜いて `lastProcessedCards` で運び、CHOOSE をまたぐと実画面では失われていた（`WXK11-069-E2`）。

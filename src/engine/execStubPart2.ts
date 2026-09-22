@@ -2448,6 +2448,8 @@ export function execStubPart2(
     if (candsTS.length === 0) return done({ ...addLog(ctx, 'トラップ設置：候補なし'), lastProcessedCards: [] });
     // 「設置してもよい」＝任意。⚠`energy_self` は選ぶ余地が無いので**枚数選択ではなく設置する/しないの2択**
     //   （`ADD_TO_FIELD` の thisCardOnly 経路と同規約）。
+    // ⚠**ここだけは名前を出してよい**＝`energy_self` の候補は**公開領域のエナゾーンに居る効果元自身**で、
+    //   相手には既に見えている（他の設置経路は裏向きなので名前を書かない＝golden `§5.1 V-285`）。
     if (srcTS === 'energy_self') {
       return needsInteraction(addLog(ctx, `${ctx.cardMap.get(getCardNum(candsTS[0]))?.CardName ?? candsTS[0]}を【トラップ】として設置しますか？`), {
         type: 'CHOOSE', count: 1, options: [
@@ -2549,7 +2551,6 @@ export function execStubPart2(
     const cardAT = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
     if (!cardAT) return done(addLog(ctx, 'トラップ設置：対象カードなし'));
     const trapsAT = ctx.ownerState.field.signi_traps ?? [null, null, null];
-    const nameAT = ctx.cardMap.get(getCardNum(cardAT))?.CardName ?? cardAT;
     const optsAT = [0, 1, 2].map(zi => ({
       id: `lpc_trap_zone_${zi}`,
       // 既に【トラップ】があるゾーンを選ぶと元のカードはトラッシュへ行く＝ラベルで明示する
@@ -2557,7 +2558,10 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_PICK_TO_TRAP', value: cardAT, count: zi } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, `${nameAT}を【トラップ】として設置するゾーンを選択`), {
+    // 🔴**札の名前を書かない**＝`game_logs` は部屋で1本で相手へ同期される（閲覧者ごとの絞り込みは無い）。
+    //   【トラップ】は**裏向き**で設置するものなので、ここに名前を出すと相手に中身が割れる（golden `§5.1 V-285`）。
+    //   ⚠設置した本人は**自分の【トラップ】を盤面からめくって確認できる**（`BoardComponents` の覗き）。
+    return needsInteraction(addLog(ctx, '【トラップ】として設置するゾーンを選択'), {
       type: 'CHOOSE', options: optsAT, count: 1,
     });
   }
@@ -2580,8 +2584,9 @@ export function execStubPart2(
       trash: trashPT,
       field: { ...ctx.ownerState.field, signi_traps: trapsPT },
     };
+    // 🔴**札の名前を書かない**（裏向き＝上の `INTERNAL_ASK_TRAP_ZONE` と同じ理由・golden `§5.1 V-285`）。
     return done(addLog({ ...ctx, ownerState: newOwnerPT, lastProcessedCards: [cardPT], trapSetOwners: [...(ctx.trapSetOwners ?? []), 'self'] },
-      `${ctx.cardMap.get(getCardNum(cardPT))?.CardName ?? cardPT}を【トラップ】としてゾーン${zonePT + 1}に設置`));
+      `【トラップ】をゾーン${zonePT + 1}に設置`));
   }
   // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
   // INTERNAL_SET_TRAP: 手札の1枚を指定ゾーンへ【トラップ】として置く（`lastProcessedCards[0]` を使う）。
@@ -2840,9 +2845,11 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_PICK_TO_TRAP', value: selectedPTFR, count: zi } as StubAction) as EffectAction,
       available: true,
     }));
+    // 🔴**札の名前を書かない**（裏向き＝`INTERNAL_ASK_TRAP_ZONE` と同じ理由・golden `§5.1 V-285`）。
+    //   ⚠この行は「【トラップ】」ではなく「トラップ」と書いていたので、**カギ括弧つきで grep した最初の掃除から漏れた**
+    //   ＝挙動のテスト（ログを名前で検査する側）が拾った。**文言の grep だけで在庫を数えない。**
     return needsInteraction(
-      addLog({ ...ctx, lastProcessedCards: [selectedPTFR] },
-        `${ctx.cardMap.get(selectedPTFR)?.CardName ?? selectedPTFR}をトラップとしてゾーン選択`),
+      addLog({ ...ctx, lastProcessedCards: [selectedPTFR] }, '【トラップ】として設置するゾーンを選択'),
       { type: 'CHOOSE', options: zoneOptsPTFR, count: 1 },
     );
   }

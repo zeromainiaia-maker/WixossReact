@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { CardData, PlayerState } from '../types';
 import { getCardNum } from '../engine/effectExecutor';
 import { normalizeAcceSlot } from '../utils/acce';
+import { facedownPeek } from '../screens/battle/facedownPeek';
 
 // ── テーマカラー ──────────────────────────────────────────────────────
 export const C = {
@@ -469,6 +470,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
   const [showCharmModal, setShowCharmModal] = useState(false);
   const [showFacedownModal, setShowFacedownModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
+  // 🔑**自分の【トラップ】だけ中身を見られる**＝裏向きなのは「相手に」であって所有者ではない（`§5.1 V-285`）。
+  //   判定は `facedownPeek` の1本（相手側では `cardNum` 自体が返らない）。
+  const [showTrapPeek, setShowTrapPeek] = useState(false);
+  const trapPeek = facedownPeek(trapCardNum, !!isMe);
   const facedownTop = facedownAttachedNums?.[0] ?? null;
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -506,12 +511,17 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
               : seedCardNum ? 'rgba(0,40,20,0.6)'
               : faceDownCardNum ? 'rgba(20,30,50,0.7)'
               : virusCount > 0 ? 'rgba(60,0,0,0.55)' : C.bgCardEmpty,
-            cursor: magicBoxCardNum && isMe ? 'pointer' : undefined,
+            cursor: (magicBoxCardNum && isMe) || trapPeek.canPeek ? 'pointer' : undefined,
           }}
-          onClick={() => { if (magicBoxCardNum && isMe) setShowMBPeek(true); }}
+          onClick={() => {
+            if (magicBoxCardNum && isMe) setShowMBPeek(true);
+            else if (trapPeek.canPeek) setShowTrapPeek(true);
+          }}
         >
           {trapCardNum ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            // 🔴**名前も画像も描かない**（相手にも同じものが見える）＝自分のぶんは下の覗きで開く。
+            <div data-testid={trapPeek.canPeek ? 'my-trap-marker' : 'op-trap-marker'}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>🪤</span>
               <span style={{ fontSize: 7, color: '#ffd700', fontWeight: 'bold', lineHeight: 1 }}>TRAP</span>
             </div>
@@ -574,6 +584,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         {showMBPeek && magicBoxCardNum && isMe && (() => {
           const mbCardData = cards.find(c => c.CardNum === magicBoxCardNum.split('#')[0]);
           return mbCardData ? <CardModal card={mbCardData} onClose={() => setShowMBPeek(false)} /> : null;
+        })()}
+        {showTrapPeek && trapPeek.canPeek && (() => {
+          const trapCardData = cards.find(c => c.CardNum === getCardNum(trapPeek.cardNum));
+          return trapCardData ? <CardModal card={trapCardData} onClose={() => setShowTrapPeek(false)} /> : null;
         })()}
       </div>
     );
@@ -754,12 +768,19 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
           </div>
         )}
         {trapCardNum && (
-          <div style={{
-            position: 'absolute', bottom: extraH + 2, left: 2,
-            backgroundColor: 'rgba(80,60,0,0.9)', color: '#ffd700',
-            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
-            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
-          }}>
+          // 🔑シグニが居るゾーンの【トラップ】は札の上のバッジ＝**自分のぶんだけ押して中身を見られる**。
+          //   ⚠押せるようにするので `stopPropagation`（親はシグニのカード詳細を開く）。
+          <div
+            data-testid={trapPeek.canPeek ? 'my-trap-marker' : 'op-trap-marker'}
+            onClick={e => { if (trapPeek.canPeek) { e.stopPropagation(); setShowTrapPeek(true); } }}
+            style={{
+              position: 'absolute', bottom: extraH + 2, left: 2,
+              backgroundColor: 'rgba(80,60,0,0.9)', color: '#ffd700',
+              fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+              padding: '1px 3px', lineHeight: 1, zIndex: n + 3,
+              pointerEvents: trapPeek.canPeek ? 'auto' : 'none',
+              cursor: trapPeek.canPeek ? 'pointer' : undefined,
+            }}>
             TRAP
           </div>
         )}
@@ -811,6 +832,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         <CharmModal cardNum={facedownTop} cards={cards} isMe={!!isMe} label="裏向きで付いたカード（非公開）"
           onClose={() => setShowFacedownModal(false)} />
       )}
+      {showTrapPeek && trapPeek.canPeek && (() => {
+        const trapCard = cards.find(c => c.CardNum === getCardNum(trapPeek.cardNum));
+        return trapCard ? <CardModal card={trapCard} onClose={() => setShowTrapPeek(false)} /> : null;
+      })()}
     </>
   );
 }

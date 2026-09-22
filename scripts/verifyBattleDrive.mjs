@@ -61133,6 +61133,87 @@ scenarios.v278RevealShowsAllCards = {
   },
 };
 order.push('v278RevealShowsAllCards');
+// ── 🆕§5.1 `V-285`（2026-09-22）＝**【トラップ】は相手に中身が見えない／自分は見える** ──────────
+// 🔴**発端**＝ユーザーの指摘「トラップを設置するとき相手のログには見えないよね？」＝**見えていた**。
+//   共有ログ（`game_logs`）に札の名前が出ていた（engine 側は golden `§5.1 V-285` で固定）。
+//   ここで確かめるのは**画面のほう**＝`battle_state` は両者ぶんが1行で降りてくるので、
+//   **何を描かないかだけが裏向きを成立させている**（golden からは React の描画は見えない）。
+// 観測点＝①相手のトラップは `op-trap-marker` だけで**名前も画像も出ない**・**押しても開かない**
+//        ②自分のトラップは `my-trap-marker` を押すと中身が開く（＝所有者は確認できる）
+// ⚠ログの観測は入れない＝この台は盤面を**注入**するので設置のログが出ない（そこは golden の担当）。
+scenarios.v285TrapHiddenFromOpponent = {
+  title: 'V-285 【トラップ】＝相手は中身が見えない／自分はめくって見える',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD05-001#1'],
+      // ゾーン0＝シグニなし（空きセルの枝）／ゾーン1＝シグニあり（バッジの枝）＝**2つの描画経路の両方**を踏む。
+      'field.signi': [null, ['WD01-013#1'], null],
+      'field.signi_traps': ['WD05-011#t1', 'WD05-018#t2', null],
+      'hand': [], 'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'field.signi_traps': ['WD05-010#t3', null, null],   // 廃悪の象徴　ベルゼ＝これが見えたら赤
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    const OP_TRAP_NUM = 'WD05-010', OP_TRAP_NAME = '廃悪の象徴';
+    const MY_TRAP_NUM = 'WD05-011', MY_TRAP_NAME = '堕落の砲女';
+    await page.waitForTimeout(1400);
+    await page.screenshot({ path: `${SHOT}/v285-board.png`, fullPage: true });
+
+    // 画面に出ている印の数＝前提（両方の枝が描けていること）。
+    const mine = await page.locator('[data-testid="my-trap-marker"]').count();
+    const theirs = await page.locator('[data-testid="op-trap-marker"]').count();
+    H.log(`  v285 印: my=${mine} op=${theirs}`);
+    if (mine !== 2 || theirs !== 1) {
+      return { pass: false, detail: `前提崩れ＝【トラップ】の印が想定と違う（my=${mine} 期待2 / op=${theirs} 期待1）` };
+    }
+
+    // 相手のトラップの中身が画面のどこにも出ていないこと（文字・画像の両方を見る）。
+    const leak = async () => page.evaluate(({ num, name }) => ({
+      text: (document.body.innerText ?? '').includes(name),
+      img: [...document.querySelectorAll('img')].some(el => (el.getAttribute('src') ?? '').includes(num)
+        || (el.getAttribute('alt') ?? '').includes(name)),
+    }), { num: OP_TRAP_NUM, name: OP_TRAP_NAME });
+    const before = await leak();
+    if (before.text || before.img) {
+      return { pass: false, detail: `🔴相手の【トラップ】の中身が最初から見えている（text=${before.text} img=${before.img}）` };
+    }
+
+    // 相手のトラップを押しても開かない（`pointerEvents:'none'` ＝ force クリックでも中身は出ない）。
+    await page.locator('[data-testid="op-trap-marker"]').first().click({ force: true }).catch(() => {});
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v285-op-click.png`, fullPage: true });
+    const after = await leak();
+    if (after.text || after.img) {
+      return { pass: false, detail: `🔴相手の【トラップ】を押したら中身が出た（text=${after.text} img=${after.img}）` };
+    }
+
+    // 反転＝自分のトラップは押すと中身が出る（所有者は確認できる）。
+    await page.locator('[data-testid="my-trap-marker"]').first().click().catch(() => {});
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/v285-my-click.png`, fullPage: true });
+    const opened = await page.evaluate(({ num, name }) => ({
+      text: (document.body.innerText ?? '').includes(name),
+      img: [...document.querySelectorAll('img')].some(el => (el.getAttribute('src') ?? '').includes(num)),
+    }), { num: MY_TRAP_NUM, name: MY_TRAP_NAME });
+    if (!opened.text && !opened.img) {
+      return { pass: false, detail: `🔴自分の【トラップ】を押しても中身が見えない（所有者が確認できない）` };
+    }
+    // 自分のを開いても相手のは漏れないままであること。
+    const still = await leak();
+    if (still.text || still.img) {
+      return { pass: false, detail: `🔴自分のを開いたら相手の【トラップ】まで出た（text=${still.text} img=${still.img}）` };
+    }
+    return { pass: true, detail: `相手の【トラップ】は文字も画像も出ず押しても開かない／自分のは開く（my=${mine} op=${theirs}）` };
+  },
+};
+order.push('v285TrapHiddenFromOpponent');
+
 
 // ── 🆕§5.1 `V-275`（2026-09-18）＝**手札の【起】の「公開＋場のシグニをトラッシュ」コスト**（§5.3 `O-533`）──
 // 観測点＝`WX18-036-E3`「【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：
