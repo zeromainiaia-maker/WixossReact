@@ -3,11 +3,11 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, Deck, Room } from '../types';
 import { deckLrigSetupProblem } from '../utils/deckLrigSetup';
-import { ALL_LRIG_FOLDER, ALL_LRIG_FOLDER_JA, deckKindOf, folderThumbKey, groupDecksByFolder, pickRandomDeck, withAllLrigFolder } from '../utils/deckFolders';
+import { deckKindOf, folderThumbKey, groupDecksByFolder } from '../utils/deckFolders';
 import { deckFromRow, type DeckRow } from '../utils/deckRow';
 import { buildVariantNumIndex } from '../utils/cardSearch';
-import { DECK_FORMATS, DECK_FORMAT_JA, effectiveDeckFormat, type DeckFormat } from '../utils/deckFormat';
 import { DeckFolderGrid, DeckFolderHeader } from './deck/DeckFolderGrid';
+import { CpuDeckPickerBody, CpuDeckPickerTabs, DeckTile, useCpuDeckPicker } from './deck/CpuDeckPicker';
 
 interface Props {
   user: User;
@@ -64,31 +64,12 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
       .then(({ data }) => { if (data) setCpuDecks((data as DeckRow[]).map(deckFromRow)); });
   }, []);
   const validCpuDecks = useMemo(() => cpuDecks.filter(isPlayable), [cpuDecks, cardMap]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cpuFolders = useMemo(() => groupDecksByFolder(validCpuDecks, cardMap), [validCpuDecks, cardMap]);
   const [playerOpenFolder, setPlayerOpenFolder] = useState<string | null>(null);
-  const [cpuOpenFolder, setCpuOpenFolder] = useState<string | null>(null);
-  /** CPU デッキの決め方＝`pick`（デッキを選ぶ）／`random`（ルリグタイプを選んでその中からランダム）。 */
-  const [cpuPickMode, setCpuPickMode] = useState<'pick' | 'random'>('pick');
-  const [cpuRandomFolder, setCpuRandomFolder] = useState<string | null>(null);
-  /** 🆕ランダム選出のフォーマット絞り込み（`'all'`＝絞らない）。フォルダの選択とは**直交**する。 */
-  const [cpuRandomFormat, setCpuRandomFormat] = useState<DeckFormat | 'all'>('all');
-
-  // 🆕フォーマットで絞った CPU デッキ → その中でルリグタイプ別フォルダ＋先頭に「全員のルリグ」。
-  //   🔑**絞り込みが先**＝フォルダの件数がそのまま「この条件で引ける数」になる（0 なら開始させない）。
-  const cpuRandomDecks = useMemo(
-    () => (cpuRandomFormat === 'all'
-      ? validCpuDecks
-      : validCpuDecks.filter(d => effectiveDeckFormat(d, cardMap, variantNumIndex) === cpuRandomFormat)),
-    [validCpuDecks, cpuRandomFormat, cardMap, variantNumIndex],
-  );
-  const cpuRandomFolders = useMemo(
-    () => withAllLrigFolder(groupDecksByFolder(cpuRandomDecks, cardMap), cpuRandomDecks),
-    [cpuRandomDecks, cardMap],
-  );
+  // 🆕2026-09-22＝CPU デッキの選び方は共有部品（CPU観戦と同じ画面＝`deck/CpuDeckPicker.tsx`）。
+  const cpuPicker = useCpuDeckPicker(validCpuDecks, cardMap, variantNumIndex);
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
   const [selectedDeckId, setSelectedDeckId] = useState<string>(validDecks[0]?.id ?? '');
-  const [cpuDeckId, setCpuDeckId] = useState<string>('');
   const [room, setRoom] = useState<Room | null>(null);
   const [passcodeInput, setPasscodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -112,9 +93,7 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
   // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
   const handleCpuBattle = async () => {
     // 🆕ランダムモード＝「対戦開始」を押した時点で、選んだルリグタイプのフォルダから1つ引く（デッキ名は見せない）。
-    const cpuDeckChosen = cpuPickMode === 'random'
-      ? pickRandomDeck(cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks ?? [])?.id ?? ''
-      : cpuDeckId;
+    const cpuDeckChosen = cpuPicker.resolve()?.id ?? '';
     if (!selectedDeckId || !cpuDeckChosen) return;
     setLoading(true); setError(null);
 
@@ -215,33 +194,6 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
     onBattleStart(room.id, selectedDeckId, (room as Room).guest_art_overrides);
   };
 
-  const renderDeckTile = (deck: Deck, isSelected: boolean, color: string, onClick: () => void) => {
-    const thumbnail = deck.thumbnailCardNum ? cardMap.get(deck.thumbnailCardNum) : null;
-    const shared = !!deck.userId && deck.userId !== user.id;
-    return (
-      <div
-        key={deck.id}
-        data-testid={`match-deck-${deck.name}`}
-        onClick={onClick}
-        style={{
-          cursor: 'pointer', backgroundColor: '#111', borderRadius: 8, padding: 8,
-          border: `2px solid ${isSelected ? color : '#222'}`,
-        }}
-      >
-        <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-          {thumbnail ? (
-            <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-          ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 12 }}>NO IMAGE</div>
-          )}
-        </div>
-        <p style={{ fontSize: 12, fontWeight: 'bold', margin: '0 0 4px', color: isSelected ? color : '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deck.name}</p>
-        <p style={{ fontSize: 10, color: '#555', margin: 0 }}>メイン {deck.mainDeck.length}/40 &nbsp; ルリグ {deck.lrigDeck.length}/10{shared ? ' ・公開' : ''}</p>
-      </div>
-    );
-  };
-
   if (step === 'SELECT_DECK') return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
       <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #222' }}>
@@ -268,7 +220,7 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
               <>
                 <DeckFolderHeader name={open.name} count={open.decks.length} accent="#007bff" onBack={() => setPlayerOpenFolder(null)} />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {open.decks.map(deck => renderDeckTile(deck, selectedDeckId === deck.id, '#007bff', () => setSelectedDeckId(deck.id)))}
+                  {open.decks.map(deck => <DeckTile key={deck.id} deck={deck} isSelected={selectedDeckId === deck.id} color="#007bff" onClick={() => setSelectedDeckId(deck.id)} cardMap={cardMap} myUserId={user.id} />)}
                 </div>
               </>
             );
@@ -324,87 +276,25 @@ export default function MatchmakingScreen({ user, decks, cards, variantCards = [
   );
 
   if (step === 'CPU_DECK_SELECT') {
-    const cpuOpen = cpuOpenFolder ? cpuFolders.find(f => f.name === cpuOpenFolder) : undefined;
-    // 🔴**候補0のフォルダでは開始させない**＝引けずに空 id で走ると部屋だけ出来て止まる。
-    const canStart = cpuPickMode === 'random'
-      ? (cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks.length ?? 0) > 0
-      : !!cpuDeckId;
-    const modeBtn = (mode: 'pick' | 'random', label: string) => (
-      <button data-testid={`cpu-pick-mode-${mode}`} onClick={() => setCpuPickMode(mode)} style={{
-        flex: 1, padding: '10px', border: 'none', borderBottom: `3px solid ${cpuPickMode === mode ? '#28a745' : 'transparent'}`,
-        backgroundColor: 'transparent', color: cpuPickMode === mode ? '#28a745' : '#666', fontSize: 14, fontWeight: cpuPickMode === mode ? 'bold' : 'normal', cursor: 'pointer',
-      }}>{label}</button>
-    );
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
         <div style={{ padding: '20px 20px 0', borderBottom: '1px solid #222' }}>
           <h2 style={{ color: '#fff', margin: '0 0 8px' }}>CPUの使用デッキを選択</h2>
-          <div style={{ display: 'flex' }}>
-            {modeBtn('pick', 'デッキを選ぶ')}
-            {modeBtn('random', 'ルリグタイプからランダム')}
-          </div>
+          <CpuDeckPickerTabs picker={cpuPicker} />
         </div>
-        {validCpuDecks.length === 0 ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: '#888', textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
-              使用可能なCPUデッキがありません。<br />
-              デッキ編成の「CPUデッキ」タブで、メインデッキ40枚・センタールリグを指定したデッキを作成してください。
-            </p>
-          </div>
-        ) : (
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-            {cpuPickMode === 'random' ? (
-              <>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#888' }}>フォーマットとルリグタイプを選ぶと、対戦開始時にその条件のデッキからランダムで1つ使います（デッキ名は表示しません）。</p>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                  {(['all', ...DECK_FORMATS] as const).map(f => {
-                    const on = cpuRandomFormat === f;
-                    const label = f === 'all' ? 'すべて' : DECK_FORMAT_JA[f];
-                    return (
-                      <button key={f} data-testid={`cpu-random-format-${f}`} onClick={() => { setCpuRandomFormat(f); setCpuRandomFolder(null); }} style={{
-                        padding: '6px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
-                        border: `1px solid ${on ? '#28a745' : '#333'}`,
-                        backgroundColor: on ? '#123d20' : 'transparent', color: on ? '#4ade80' : '#888',
-                        fontWeight: on ? 'bold' : 'normal',
-                      }}>{label}</button>
-                    );
-                  })}
-                </div>
-                {cpuRandomDecks.length === 0 ? (
-                  <p style={{ color: '#888', fontSize: 13 }}>このフォーマットの CPU デッキがありません。</p>
-                ) : (
-                  <DeckFolderGrid folders={cpuRandomFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuRandomFolder} selectedName={cpuRandomFolder}
-                    thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]} />
-                )}
-              </>
-            ) : !cpuOpen ? (
-              <DeckFolderGrid folders={cpuFolders} cardMap={cardMap} accent="#28a745" onOpen={setCpuOpenFolder}
-                thumbnailOf={name => folderThumbnails[folderThumbKey('cpu', name)]}
-                selectedName={cpuFolders.find(f => f.decks.some(d => d.id === cpuDeckId))?.name ?? null} />
-            ) : (
-              <>
-                <DeckFolderHeader name={cpuOpen.name} count={cpuOpen.decks.length} accent="#28a745" onBack={() => setCpuOpenFolder(null)} />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {cpuOpen.decks.map(deck => renderDeckTile(deck, cpuDeckId === deck.id, '#28a745', () => setCpuDeckId(deck.id)))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <CpuDeckPickerBody picker={cpuPicker} cardMap={cardMap} folderThumbnails={folderThumbnails} myUserId={user.id} />
         {error && <p style={{ color: '#ff4444', margin: '0 16px' }}>{error}</p>}
         {/* 🆕ランダムは「何から引くか」を押す前に読めるようにする（デッキ名は出さない＝引く楽しみを消さない）。 */}
-        {cpuPickMode === 'random' && cpuRandomFolder && (
+        {cpuPicker.mode === 'random' && cpuPicker.summary && (
           <p data-testid="cpu-random-summary" style={{ margin: '0 16px', fontSize: 12, color: '#4ade80' }}>
-            🎲 {cpuRandomFormat === 'all' ? 'すべてのフォーマット' : DECK_FORMAT_JA[cpuRandomFormat]}
-            ／{cpuRandomFolder === ALL_LRIG_FOLDER ? ALL_LRIG_FOLDER_JA : cpuRandomFolder}
-            ／候補 {cpuRandomFolders.find(f => f.name === cpuRandomFolder)?.decks.length ?? 0} デッキ
+            {cpuPicker.summary}
           </p>
         )}
         <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
           <button style={{ ...ghostBtn, flex: 1, maxWidth: 'none' }} onClick={() => setStep('SELECT_MODE')} disabled={loading}>戻る</button>
           <button
-            style={{ ...primaryBtn, flex: 1.2, maxWidth: 'none', backgroundColor: '#28a745', opacity: canStart ? 1 : 0.4 }}
-            disabled={loading || !canStart}
+            style={{ ...primaryBtn, flex: 1.2, maxWidth: 'none', backgroundColor: '#28a745', opacity: cpuPicker.canStart ? 1 : 0.4 }}
+            disabled={loading || !cpuPicker.canStart}
             onClick={handleCpuBattle}
           >
             {loading ? '準備中...' : '対戦開始'}

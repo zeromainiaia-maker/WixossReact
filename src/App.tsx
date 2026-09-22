@@ -11,6 +11,7 @@ import DeckEditorScreen from './screens/DeckEditorScreen';
 import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
 import SpectateScreen from './screens/SpectateScreen';
+import { SPECTATE_ACTIVE_KEY } from './utils/spectateStore';
 import { deckFolderOf, deckKindOf, folderThumbKey, type DeckKind } from './utils/deckFolders';
 import { deckFromRow } from './utils/deckRow';
 
@@ -40,6 +41,14 @@ export default function App() {
       setUser(u);
 
       if (u) {
+        // 🆕2026-09-22＝**CPU観戦中のリロードは観戦へ戻す**（記録は IndexedDB＝`utils/spectateStore.ts`）。
+        //   🔑**対戦中ルームへの復帰より先に見る**＝この印は観戦画面に入ったときにだけ立つ（＝いちばん最近の行き先）。
+        //   後にすると、終わらせずに残った PLAYING ルームがあるだけで観戦から対戦画面へ飛ばされる（実機で踏んだ）。
+        if (sessionStorage.getItem(SPECTATE_ACTIVE_KEY)) {
+          setViewMode('SPECTATE');
+          setLoading(false);
+          return;
+        }
         // PLAYING 状態のルームが残っていれば対戦画面へ直接復帰
         const { data } = await supabase
           .from('rooms')
@@ -293,7 +302,7 @@ export default function App() {
             カードデータを読み込み中…
           </div>
         ) : (
-          <SpectateScreen decks={decks} cards={allCards} onBack={() => setViewMode('START')} />
+          <SpectateScreen decks={decks} cards={allCards} variantCards={variantCards} folderThumbnails={folderThumbnails} myUserId={user.id} onBack={() => setViewMode('START')} />
         )
       )}
       {viewMode === 'BATTLE' && user && battleRoomId && battleDeckId && (

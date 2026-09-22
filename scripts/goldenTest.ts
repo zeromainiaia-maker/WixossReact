@@ -86701,7 +86701,11 @@ test('デッキのフォルダ（センターのルリグタイプ別）・種�
   ok(/from\('decks'\)\.select\('\*'\)\.eq\('deck_kind', 'cpu'\)\.order/.test(mm), '🔴CPU デッキの取得が deck_kind=cpu になっていない（または user_id で絞っている）');
   // 🆕2026-09-20＝抽選は**フォーマットで絞り込んだ後**のフォルダから引く（`cpuRandomFolders`）。
   //   ⚠**絞り込み前の `cpuFolders` に戻すとフォーマット指定が黙って効かなくなる**（`utils/deckFormat.ts`）。
-  ok(/pickRandomDeck\(cpuRandomFolders\.find\(f => f\.name === cpuRandomFolder\)/.test(mm), '🔴ランダムモードが選んだフォルダから引いていない');
+  // 🆕2026-09-22＝CPU デッキの選び方は共有部品（CPU観戦と同じ）＝`deck/CpuDeckPicker.tsx` を見る。
+  const picker = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPicker.tsx'), 'utf8');
+  ok(/useCpuDeckPicker\(validCpuDecks, cardMap, variantNumIndex\)/.test(mm), '🔴マッチングが共有の CPU デッキ選択を通っていない');
+  ok(/randomCandidates = randomFolders\.find\(f => f\.name === randomFolder\)/.test(picker) && picker.includes('pickRandomDeck(randomCandidates)'),
+    '🔴ランダムモードが選んだフォルダから引いていない');
 }));
 
 test('§5.6 C-9 R-23 先攻1ターン目はアタックフェイズだけ飛ばす（メインフェイズは行う・CPU も同じ）', () => withSavedCursor(() => {
@@ -89146,11 +89150,13 @@ test('デッキフォーマット: 画面の配線（追加可否・保存・CPU
   ok(app.includes("deck_format: 'allstar'"), '🔴新しいデッキに `allstar` を明示で入れていない（空デッキが推定で縛られる）');
 
   const mm = fs.readFileSync(join(root, 'src/screens/MatchmakingScreen.tsx'), 'utf-8');
+  // 🆕2026-09-22＝CPU デッキの選び方は共有部品（`deck/CpuDeckPicker.tsx`・CPU観戦も同じ）へ移した。
+  const picker = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPicker.tsx'), 'utf-8');
   // 🔴抽選は**絞り込み後**のフォルダから引く＝`cpuFolders`（絞り込み前）から引くと指定が効かない。
-  ok(mm.includes('pickRandomDeck(cpuRandomFolders.find'), '🔴CPU のランダム抽選が絞り込み前のフォルダから引いている');
-  ok(mm.includes('withAllLrigFolder('), '🔴「全員のルリグ」タイルが消えた');
+  ok(picker.includes('randomFolders.find(f => f.name === randomFolder)') && picker.includes('pickRandomDeck(randomCandidates)'), '🔴CPU のランダム抽選が絞り込み前のフォルダから引いている');
+  ok(picker.includes('withAllLrigFolder('), '🔴「全員のルリグ」タイルが消えた');
   ok(mm.includes('variantNumIndex'), '🔴マッチングがフォーマット判定に避難先索引を使っていない');
-  ok(mm.includes('decks.length ?? 0) > 0'), '🔴候補0のフォルダで対戦開始できる（空 id で部屋だけ出来て止まる）');
+  ok(picker.includes('randomCandidates.length > 0'), '🔴候補0のフォルダで対戦開始できる（空 id で部屋だけ出来て止まる）');
 });
 
 // ── 第421バッチ（2026-09-20）＝§5.7 `S-23`（本物のデッキで CPU を測る）────────────────

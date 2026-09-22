@@ -8,10 +8,13 @@
 //     その性質をもう一度作り直してもう一度壊すことになる。
 //   🔑**報告しても対戦は続く**＝終了ダイアログに同居させると「報告＝終了」になってしまい、
 //     「変だったけど続けられる」型が報告されなくなる（＋赤い「終了する」の誤爆も招く）。
+// 🆕2026-09-22＝**CPU観戦（`SpectateScreen`）も同じダイアログを使う**＝本体を `EndReportDialog` に出した
+//   （対戦の画面は `EndConfirmModal` がそれを包むだけ）。観戦は盤面の行が DB に無いので、
+//   報告の行は呼び出し側が組む（`buildReport`）。
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
-import { BUG_TAGS, buildBugReport, type BugTagId } from '../bugReport';
+import { BUG_TAGS, buildBugReport, type BugReportRow, type BugTagId } from '../bugReport';
 import { supabase } from '../../../supabaseClient';
 import { BUILD_ID } from '../../../version';
 import type { BattleModalCtx } from './types';
@@ -23,28 +26,55 @@ interface EndConfirmModalProps {
   handleEnd: () => void;
 }
 
-type View = 'confirm' | 'report' | 'sent';
-
 export function EndConfirmModal(p: EndConfirmModalProps) {
   const { loading, bs, user } = p.ctx;
-  const { showEndConfirm, setShowEndConfirm, handleEnd } = p;
+  return (
+    <EndReportDialog
+      open={p.showEndConfirm}
+      onClose={() => p.setShowEndConfirm(false)}
+      onEnd={p.handleEnd}
+      loading={loading}
+      buildReport={(tag, comment) => buildBugReport({ bs, myUserId: user.id, tag, comment, appVersion: BUILD_ID })}
+      sentNote={`ターン${bs.turn_count} / ${bs.turn_phase} の盤面を保存しました`}
+    />
+  );
+}
+
+type View = 'confirm' | 'report' | 'sent';
+
+/** 終了確認＋バグ報告のダイアログ本体（対戦・観戦で共有）。 */
+export function EndReportDialog(p: {
+  open: boolean;
+  onClose: () => void;
+  onEnd: () => void;
+  loading?: boolean;
+  /** 送る行を組む（押した瞬間の盤面で組む＝呼び出し側がいまの盤面を持っている）。省略時は報告ボタンを出さない（盤面が無い画面）。 */
+  buildReport?: (tag: BugTagId, comment: string) => BugReportRow;
+  /** 送信後の一言（どの局面を保存したか）。 */
+  sentNote?: string;
+  title?: string;
+  note?: string;
+  continueLabel?: string;
+}) {
+  const { open, loading = false } = p;
   const [view, setView] = useState<View>('confirm');
   const [tag, setTag] = useState<BugTagId | null>(null);
   const [comment, setComment] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const continueLabel = p.continueLabel ?? '対戦';
 
   const close = () => {
-    setShowEndConfirm(false);
+    p.onClose();
     // ⚠**閉じたら必ず初期状態へ戻す**＝戻さないと次に開いたとき前回の入力が残り、
     //   「別の場面の報告に前のコメントが付く」事故になる。
     setView('confirm'); setTag(null); setComment(''); setSendError(null);
   };
 
   const send = async () => {
-    if (!tag || sending) return;
+    if (!tag || sending || !p.buildReport) return;
     setSending(true); setSendError(null);
-    const row = buildBugReport({ bs, myUserId: user.id, tag, comment, appVersion: BUILD_ID });
+    const row = p.buildReport(tag, comment);
     const { error } = await supabase.from('bug_reports').insert([row]);
     setSending(false);
     // 🔴**失敗を黙って飲まない**＝送れていないのに送れたと見せると、報告が静かに消える。
@@ -59,7 +89,7 @@ export function EndConfirmModal(p: EndConfirmModalProps) {
 
   return (
     <>
-      {showEndConfirm && createPortal(
+      {open && createPortal(
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9999,
           backgroundColor: 'rgba(0,0,0,0.85)',
@@ -72,23 +102,24 @@ export function EndConfirmModal(p: EndConfirmModalProps) {
           }}>
             {view === 'confirm' && (<>
               <p style={{ color: C.text, fontSize: 16, fontWeight: 'bold', margin: '0 0 8px' }}>
-                対戦を終了しますか？
+                {p.title ?? '対戦を終了しますか？'}
               </p>
               <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 18px' }}>
-                ルームが削除され、対戦データは失われます
+                {p.note ?? 'ルームが削除され、対戦データは失われます'}
               </p>
               {/* 🔑報告は単独行・終了系ボタンから離す（誤爆防止）。 */}
-              <button
+              {p.buildReport && <button
                 data-testid="bugreport-open"
                 onClick={() => setView('report')}
                 style={{ ...btn({ width: '100%', marginBottom: 18, borderColor: '#3a6ea5', color: '#9ec5ef' }) }}
               >
-                バグを報告（対戦は続きます）
-              </button>
+                バグを報告（{continueLabel}は続きます）
+              </button>}
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={close} style={btn({ flex: 1 })}>キャンセル</button>
                 <button
-                  onClick={handleEnd}
+                  data-testid="endconfirm-end"
+                  onClick={p.onEnd}
                   disabled={loading}
                   style={btn({
                     flex: 1, border: 'none', backgroundColor: loading ? C.disabled : C.dangerEnd,
@@ -162,14 +193,14 @@ export function EndConfirmModal(p: EndConfirmModalProps) {
                 報告しました
               </p>
               <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 18px' }}>
-                ターン{bs.turn_count} / {bs.turn_phase} の盤面を保存しました
+                {p.sentNote}
               </p>
               <button
                 data-testid="bugreport-back-to-game"
                 onClick={close}
                 style={btn({ width: '100%', border: 'none', backgroundColor: C.success, color: C.text, fontWeight: 'bold' })}
               >
-                対戦に戻る
+                {continueLabel}に戻る
               </button>
             </>)}
           </div>
