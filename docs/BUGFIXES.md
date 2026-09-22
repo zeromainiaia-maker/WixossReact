@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-22（第461バッチ）🔴**CPU観戦の報告2件**（`8c59ee3c`／`a4d1cc1b`・同じ1試合 WD18 vs WD17・seed 289488282）
+
+- **再現**＝`npm run replay:spectate`＝205手で一致（報告の版 v0.557 と HEAD の差は UI だけ）。⚠`scratchpad-decks/` が古く WD17/WD18 が無かった＝`listDecks.mjs --export` を回し直した。
+- **① `8c59ee3c`「ベットできないのに《一騎当閃》を撃った」＝CPU の判断ミス**＝B が A のハンバ（12000）1体の盤面で《一騎当閃》（ベットなら20000以下／なしなら7000以下をバニッシュ）を撃ち空振り。**真因（1行）**＝`removalTargetExists`（第459バッチ）が `CONDITIONAL{IS_BETTING}` の**両枝**を歩き、CPU が宣言しない（`CPU_ARTS_DECLINABLE_COST_KEYS`）ベット側の20000以下で「対象あり」と数えた ⇒ `IS_BETTING`／`IS_BOOSTING` の分岐は**宣言しない側の枝だけ**を歩く。
+- **② `a4d1cc1b`「アクセを一度も発動しなかった」＝CPU の機能不足（未修正・PLAN §5.7 `S-33` に登録）**＝エナゾーンからのアクセ【起】（live 28効果）は `energyActivated` が立っておらず、CPU の場以外の【起】の列挙に出ない。
+- **検証**＝golden 1件へ2 assert 追加（**反転確認あり**＝修正を外すと FAIL）／再計算で155手目の《一騎当閃》が「アーツを使用しない」に変わる／`npm run gates` 全緑。実機不要（`src/screens/battle/` の CPU 判断の純関数のみ・UI 変更なし）。
+
 ## 2026-09-22（第460バッチ）画面のガタつき2件＋観戦のライフ表示の重複（ユーザー指摘）
 
 - **手札の列**＝`HandCards`（`BoardComponents.tsx`）が手札0枚で高さ0になり、対戦・観戦とも盤面が上下にずれていた ⇒ **0枚でもカード1枚分の高さ（70px）を常に確保**。

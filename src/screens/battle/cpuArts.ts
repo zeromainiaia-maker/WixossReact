@@ -88,6 +88,11 @@ export function defensiveKindOf(action: EffectAction | undefined): CpuDefensiveK
  *   ⇒ 相手の場がキョウギュ（7000）2体だけなのに《付和雷同》（相手のパワー12000以上のシグニ1体をバニッシュ）を緑3で撃った。
  * ⚠**判定は engine と同じ `matchesFilter`**（実効パワーがあればそれで比べる）。
  * ⚠「対象にならない」系の耐性までは見ていない。
+ *
+ * 🆕2026-09-22＝**CPU が宣言しない任意コストの分岐は歩かない**（バグ報告 `8c59ee3c`）。
+ *   《一騎当閃》は `CONDITIONAL{IS_BETTING}` の then＝パワー20000以下／else＝7000以下だが、
+ *   CPU は【ベット】を宣言しない（`CPU_ARTS_DECLINABLE_COST_KEYS`）＝**実際に解決されるのは else だけ**。
+ *   両枝を歩いていたので、相手が 12000 だけの盤面で「対象あり」と数えて空撃ちしていた。
  */
 export function removalTargetExists(
   action: EffectAction | undefined, opponent: PlayerState, cardMap: Map<string, CardData>, powers?: Map<string, number>,
@@ -99,6 +104,13 @@ export function removalTargetExists(
     if (Array.isArray(node)) { for (const v of node) walk(v); return; }
     const obj = node as Record<string, unknown>;
     const type = typeof obj.type === 'string' ? obj.type : null;
+    if (type === 'CONDITIONAL') {
+      const cond = obj.condition as { type?: string; negate?: boolean } | undefined;
+      if (cond?.type === 'IS_BETTING' || cond?.type === 'IS_BOOSTING') {
+        walk(cond.negate ? obj.then : obj.else);
+        return;
+      }
+    }
     if (type === 'SIGNI_ATTACK_BAN' && obj.owner === 'opponent') { if (tops.length > 0) found = true; return; }
     if (type && REMOVAL_TYPES.has(type)) {
       const target = obj.target as { type?: string; owner?: string; filter?: Parameters<typeof matchesFilter>[1] } | undefined;

@@ -89850,6 +89850,11 @@ test('CPU観戦のバグ報告3件（2026-09-22）：アーツを使い切る値
   eq(removalTargetExists(banish12000, oppWith([`${p7000}#o1`, `${p12000}#o2`, null]), cm), true, '対象がいるのに除去として数えない');
   eq(removalTargetExists(banish12000, oppWith([`${p7000}#o1`, null, null]), cm, new Map([[`${p7000}#o1`, 12000]])), true, '実効パワーで比べていない（パワーを上げられたシグニを見落とす）');
   eq(removalTargetExists(banish12000, oppWith([null, null, null]), cm), false, '相手の場が空なのに除去として数えた');
+  // 報告 8c59ee3c＝《一騎当閃》＝ベットなら20000以下／なしなら7000以下。CPU はベットしない＝else だけが解決される。
+  const ikki = (effectsMap.get('WXK01-011') ?? []).find(e => e.effectType === 'ACTIVATED')?.action;
+  ok(ikki?.type === 'CONDITIONAL', '前提崩れ＝《一騎当閃》が CONDITIONAL{IS_BETTING} でなくなった');
+  eq(removalTargetExists(ikki, oppWith([`${p12000}#o1`, null, null]), cm), false, '🔴CPU が宣言しないベット側の枝（20000以下）で「対象あり」と数えた＝報告 8c59ee3c');
+  eq(removalTargetExists(ikki, oppWith([`${p7000}#o1`, null, null]), cm), true, 'ベットしない側の枝（7000以下）の対象を見落とした');
 
   eq(spectateLogLabel('[CPU] アーツを使用: バッド・ナンバー', 'host'), '[A] アーツを使用: バッド・ナンバー', '🔴観戦ログの [CPU] が A の行動と読めない＝報告 c8b44086');
   eq(spectateLogLabel('[CPU] アーツを使用: 付和雷同', 'guest'), '[B] アーツを使用: 付和雷同', '観戦ログの [CPU] が B の行動と読めない');
