@@ -87278,6 +87278,29 @@ test('§5.7 S-16 探索の配線：既定は幅0（挙動不変）・実行は�
   }
 }));
 
+
+// ── 🆕§5.7 `S-6` 第3段（2026-09-22）＝測定台の**負の対照**（`no-board-eval`）──
+// 🔴**なぜ要るか**＝第2段は「重みを ±1オクターブ振っても勝率が動かない」で止まった。
+//   そこで「**差が無い**」と書くか「**測れていない**」と書くかは、**台が大きな差を検出できるか**で決まる。
+//   ⇒ 盤面を1点も採点しないポリシーを置いて測ったら **A が弱い山 4／合算ライフ差 -3.60 [-4.44, -2.77]**
+//   ＝**台は検出できる**＝第2段の結論は「差が無い」で読んでよい、と確定した。
+test('§5.7 S-6 第3段: `no-board-eval` は盤面の重みを1つ残らず 0 にする（測定台の負の対照）', () => {
+  const ctrl = CPU_POLICIES['no-board-eval'];
+  ok(!!ctrl, '🔴負の対照のプリセットが消えた＝台の検出力を測り直せない');
+  // 🔑**CLI から名前で引けること**（`--a no-board-eval`）＝1コマンドで検出力を測り直せるのが要件。
+  eq(resolveCpuPolicy('no-board-eval').name, 'no-board-eval', '🔴名前で引けない＝`--a no-board-eval` が既定に落ちる');
+  const nonZero = Object.entries(ctrl.boardWeights).filter(([, v]) => v !== 0).map(([k, v]) => `${k}=${v}`);
+  eq(nonZero.join(','), '', '🔴0 でない重みが残っている＝「盤面を採点しない」が成立していない');
+  // 🔑**キーの取りこぼしを止める**＝`BoardWeights` に重みを足したとき、対照から**その1つだけ漏れる**のが怖い
+  //   （対照が「ほぼ既定」になり、検出力の確認が静かに無意味になる）。
+  eq(Object.keys(ctrl.boardWeights).sort().join(','),
+    Object.keys(DEFAULT_CPU_POLICY.boardWeights).sort().join(','),
+    '🔴対照の重みのキーが既定と揃っていない＝新しい重みが対照から漏れる');
+  // 反転＝既定のほうは 0 だらけではない（対照が既定と同じになっていない）
+  const defaultNonZero = Object.values(DEFAULT_CPU_POLICY.boardWeights).filter(v => v !== 0).length;
+  ok(defaultNonZero >= 10, `🔴既定の盤面の重みがほとんど 0（${defaultNonZero}）＝対照との差が無い`);
+});
+
 test('§5.7 S-16 前半の探索：幅0で無効・扱えない手は選ばない・決定論・本番の盤面を触らない', () => withSavedCursor(() => {
   // 🔑**探索は「1手適用するたびに候補を出し直す」ビーム**（`listCpuMoves` → `applyCpuMoveSim` → `evaluateBoard`）。
   // ⚠**既定では動かない**＝`searchWidth` が 0 なら呼ばない（ポリシーの数値で入切する）。
