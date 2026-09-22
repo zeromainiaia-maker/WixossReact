@@ -39,6 +39,12 @@ export type BattleAction =
       /** effect_stack を併せて書く場合（null 明示でクリア）。省略時は触らない。 */
       effectStack?: EffectStack | null;
     }
+  /**
+   * 🆕**「手を戻す」の申請スロットを書く**（2026-09-23）＝`null` で取り下げ/後片付け。
+   * 🔑**盤面の列を1つも触らない**＝DB のトリガーは盤面が変わったときだけ `move_no` を進めるので、
+   *   申請のやりとりでスナップショットの枠（400手）を食い潰さない。
+   */
+  | { type: 'SET_REWIND_REQUEST'; request: BattleStateRow['rewind_request'] }
   /** 決着確認（終了ダイアログ）を了承する。 */
   /**
    * 🆕2026-09-17＝`cpuBattle` のときは**CPU（guest）の分も同時に**押す＝CPU の確認を待たない。
@@ -211,6 +217,8 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       return patch;
     }
+    case 'SET_REWIND_REQUEST':
+      return { rewind_request: action.request };
     case 'ACK_END':
       if (action.cpuBattle) return { host_end_ack: true, guest_end_ack: true };
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };

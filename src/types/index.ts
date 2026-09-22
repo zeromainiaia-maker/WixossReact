@@ -1996,6 +1996,13 @@ export interface GameLog {
   user_id: string;
   action: string;
   detail?: string;
+  /**
+   * 🆕**この行が書かれた時点の盤面番号**（`battle_states.move_no`＝2026-09-23「何手目に戻る」）。
+   * 🔑**画面に出る「何手目」はログの行番号**（通し・1始まり）で、そこから復元すべき
+   *   スナップショットを引くのがこの値（対応は `screens/battle/rewind.ts`）。
+   * ⚠**この機能より前に書かれた行には無い**＝無い行は戻し先にできない（`resolveRewindTarget`）。
+   */
+  move_no?: number;
 }
 
 export interface PendingSpell {
@@ -2350,6 +2357,33 @@ export interface BattleStateRow {
   winner_id: string | null;
   host_end_ack: boolean;
   guest_end_ack: boolean;
+  /**
+   * 🆕**盤面の通し番号**（2026-09-23「何手目に戻る」）＝**DB のトリガーが更新のたびに +1 する**
+   * （ログだけの更新では進まない）。同じ番号の行が `battle_snapshots` に写っている。
+   * ⚠**SQL（`docs/SQL_REWIND.md`）を流す前は列が無い**＝`undefined` で来る（機能は自動で隠れる）。
+   */
+  move_no?: number;
+  /** 🆕**「手を戻す」の申請**（相手の同意を取るための共有スロット）。判定は `screens/battle/rewind.ts`。 */
+  rewind_request?: RewindRequest | null;
+}
+
+/**
+ * 🆕**「手を戻す」の申請**（2026-09-23）＝`battle_states.rewind_request` に1つだけ載る共有スロット。
+ * 🔑**部屋に1つで足りる**＝同意が要る操作は同時に2つ走らせない（走らせると「どちらに同意したのか」が消える）。
+ */
+export interface RewindRequest {
+  /** 申請した側の user_id。 */
+  by: string;
+  /** 戻す先の**手番号**（ログの行番号・1始まり）。 */
+  logNo: number;
+  /** 復元する盤面の**スナップショット番号**（`battle_states.move_no`）。 */
+  stateNo: number;
+  /** その手のログ本文（相手が「何に同意するのか」を読めるように申請へ載せる）。 */
+  text: string;
+  /** `PENDING`＝返事待ち／`DECLINED`＝断られた／`DONE`＝戻し終えた。 */
+  status: 'PENDING' | 'DECLINED' | 'DONE';
+  /** 申請/返事の時刻（ISO）。 */
+  at: string;
 }
 
 // ルリグデッキに入るカードタイプ

@@ -92,6 +92,10 @@ import { applyGrowCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
+// 2026-09-23（ユーザー要望＋バグ報告 `5658e3f6`／`1f6f080a`）＝ログの視点・手札枚数・「何手目に戻る」。
+import { flipLogPerspective, logTextFor } from '../src/screens/battle/logPerspective';
+import { handCountLogLines } from '../src/screens/battle/handCountLog';
+import { resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending, REWIND_SNAPSHOT_KEEP } from '../src/screens/battle/rewind';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
 import { guardAlternativeClassCandidates } from '../src/screens/battle/guard';
@@ -85988,7 +85992,9 @@ test('§5.1 V-286 トリップワイヤ: 自分だけの行を DB（相手）へ
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/const \{ shared, own \} = splitLogsByVisibility\(entries\);/.test(src),
     '`appendBattleLogs` が可視性で割っていない');
-  ok(/const newLogs = shared\.map\(action => \(\{ timestamp: now, user_id: user\.id, action \}\)\);/.test(src),
+  // ⚠2026-09-23＝行に `move_no`（何手目に戻る用の盤面番号）を刻むようになったので末尾は可変。
+  //   **固定したいのは「`shared` から作る」ことだけ**なので、そこまでを見る。
+  ok(/const newLogs = shared\.map\(action => \(\{ timestamp: now, user_id: user\.id, action[,}]/.test(src),
     '🔴DB へ渡す行を `shared` 以外から作っている（自分だけの行が相手へ届く）');
   ok(/setPrivateLogs\(prev => \[\.\.\.prev, \.\.\.ownLogs\]/.test(src), '自分だけの行をローカルに積んでいない');
   ok(/canShowPrivateLog\(\{ isCpuBattle: isCpuBattleRef\.current, cpuIsActing \}\)/.test(src),
@@ -92150,6 +92156,81 @@ test('§5.7 S-31 ① 「N体並べる」条件：見返りは実効パワー経�
   ok(/powersOf: \(c, o\) => calcFieldPowers\(c, o, true, effectsMap, battleCardMap, 'MAIN'\)/
     .test(fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8')),
   '🔴盤面の採点に実効パワーを渡していない＝並べる条件もパワー修正も見えない');
+}));
+
+test('2026-09-23 ログの視点：相手が書いた行は「自分」も入れ替わる（バグ報告 1f6f080a）', () => withSavedCursor(() => {
+  // ① 語彙は2系統ある＝「あなた/相手」（画面のフェイズ行）と「自分/相手」（stackResolve・engine 本文）。
+  eq(flipLogPerspective('[自分] 付和雷同 の【起】効果'), '[相手] 付和雷同 の【起】効果',
+     '🔴相手が撃ったアーツが相手の画面で「自分」のまま出る（ユーザー報告そのもの）');
+  eq(flipLogPerspective('[あなた] メインフェイズ'), '[相手] メインフェイズ', 'あなた→相手が壊れた');
+  eq(flipLogPerspective('[相手] 逆出を使用'), '[あなた] 逆出を使用', '相手→あなたが壊れた');
+  // ② 本文中の一人称も入れ替わる（`effectExecutor.ts` の「自分のエナを…」型）。
+  eq(flipLogPerspective('自分のエナを3枚に調整（2枚トラッシュ）'), '相手のエナを3枚に調整（2枚トラッシュ）', '本文の「自分」が残っている');
+  // ③ 🔴長い語から当てる＝「対戦相手」を「対戦あなた」にしない。
+  eq(flipLogPerspective('対戦相手のシグニをバニッシュ'), 'あなたのシグニをバニッシュ', '「対戦相手」が壊れている');
+  // ④ 1回の走査＝入れ替えたものを二度入れ替えない。
+  eq(flipLogPerspective('あなたの手札を相手が見る'), '相手の手札をあなたが見る', '置換を重ねて元に戻っている');
+  // ⑤ 書き手本人の画面はそのまま。
+  eq(logTextFor({ user_id: 'u1', action: '[自分] X の【起】効果' }, 'u1'), '[自分] X の【起】効果', '自分の行まで入れ替えている');
+  eq(logTextFor({ user_id: 'u2', action: '[自分] X の【起】効果' }, 'u1'), '[相手] X の【起】効果', '他人の行を入れ替えていない');
+  // ⑥ 配線＝画面が旧インライン置換（番兵 \x00）に戻っていないこと。
+  const battle = battleScreenSource();
+  ok(battle.includes('logTextFor(log, user.id)'), '🔴ログ描画が logTextFor を通っていない');
+  ok(!battle.includes("replace(/あなた/g, '\x00')"), '🔴旧インライン置換が残っている＝「自分」がまた入れ替わらなくなる');
+}));
+
+test('2026-09-23 手札枚数のログ：増減を前後の枚数つきで出す（ユーザー要望）', () => withSavedCursor(() => {
+  const lines = (a: { self: number; opp: number }, b: { self: number; opp: number }) => handCountLogLines(a, b).join(' / ');
+  eq(lines({ self: 2, opp: 5 }, { self: 3, opp: 5 }), 'あなたの手札 +1枚（2枚→3枚）', 'ドローの行が出ていない');
+  eq(lines({ self: 3, opp: 5 }, { self: 1, opp: 5 }), 'あなたの手札 -2枚（3枚→1枚）', '減少の行が出ていない');
+  eq(lines({ self: 3, opp: 5 }, { self: 3, opp: 5 }), '', '変化が無いのに行が出ている');
+  eq(lines({ self: 3, opp: 5 }, { self: 4, opp: 4 }),
+     'あなたの手札 +1枚（3枚→4枚） / 相手の手札 -1枚（5枚→4枚）', '両者が同時に動いたとき片方しか出ていない');
+  // 🔴配線＝**ホスト側だけが書く**（両者が書くと同じ行が2回出る）。
+  const battle = battleScreenSource();
+  ok(battle.includes('handCountLogLines('), '🔴画面が手札枚数ウォッチャーを呼んでいない');
+  const watcher = battle.slice(battle.indexOf('const cur = { host: bs.host_state?.hand?.length'), battle.indexOf('handCountLogLines(') + 200);
+  ok(watcher.includes('user.id !== bs.host_id'), '🔴ホスト限定の枷が外れている＝同じ行が2回出る');
+  ok(watcher.includes("bs.global_phase !== 'PLAYING'"), '🔴セットアップ（マリガン）の往復まで数えている');
+}));
+
+test('2026-09-23 手を戻す：何手目→スナップショット番号の解決と同意の向き（ユーザー要望）', () => withSavedCursor(() => {
+  const log = (action: string, move_no?: number) => ({ timestamp: '2026-09-23T00:00:00Z', user_id: 'u1', action, ...(move_no === undefined ? {} : { move_no }) });
+  const logs = [log('古い行'), log('[あなた] メインフェイズ', 12), log('幻獣　ミスザクを召喚', 13)];
+  const t = resolveRewindTarget(logs, '3');
+  ok(t.ok && t.logNo === 3 && t.stateNo === 13 && t.text === '幻獣　ミスザクを召喚', '行番号→スナップショット番号の対応が壊れている');
+  ok(!resolveRewindTarget(logs, '4').ok, '🔴存在しない手番号を通している');
+  ok(!resolveRewindTarget(logs, '0').ok, '🔴0手目を通している（行番号は1始まり）');
+  ok(!resolveRewindTarget(logs, 'あ').ok, '数字以外を通している');
+  // 🔴**この機能より前のログ（move_no 無し）は戻し先にできない**＝近い手で黙って代用しない。
+  const old = resolveRewindTarget(logs, '1');
+  ok(!old.ok && old.reason.includes('保存されていません'), '🔴盤面が無い手を「戻せる」と判定している');
+  // 同意の向き＝申請した側は待機、相手は同意ダイアログ。
+  const req = { by: 'u1', logNo: 3, stateNo: 13, text: 'x', status: 'PENDING' as const, at: '2026-09-23T00:00:00Z' };
+  ok(shouldAskRewindConsent(req, 'u2') && !shouldAskRewindConsent(req, 'u1'), '🔴申請した本人に同意を聞いている');
+  ok(isMyRewindPending(req, 'u1') && !isMyRewindPending(req, 'u2'), '待機表示の向きが逆');
+  ok(!shouldAskRewindConsent({ ...req, status: 'DONE' }, 'u2'), '🔴済んだ申請でまだ同意を聞いている');
+  // 配線＝RPC 名・SQL・保存数が食い違っていないこと（食い違うと押した瞬間に必ず失敗する）。
+  const battle = battleScreenSource();
+  ok(battle.includes("supabase.rpc('rewind_battle'"), '🔴画面が rewind_battle RPC を呼んでいない');
+  ok(battle.includes("typeof bs?.move_no === 'number'"), '🔴SQL 未適用の環境で入口を隠していない');
+  const sql = fs.readFileSync(join(root, 'docs/SQL_REWIND.md'), 'utf8');
+  ok(sql.includes('create or replace function public.rewind_battle('), '🔴SQL に rewind_battle が無い');
+  ok(sql.includes(`move_no <= new.move_no - ${REWIND_SNAPSHOT_KEEP}`), '🔴保存する手数が SQL と TS で食い違っている');
+  // 🔴引数名は RPC の契約＝1つズレると「押した瞬間に必ず失敗する」ボタンになる（型検査も lint も踏めない層）。
+  for (const arg of ['p_room_id', 'p_state_no', 'p_log_no']) {
+    ok(battle.includes(`${arg}:`), `🔴画面が RPC 引数 ${arg} を渡していない`);
+    ok(sql.includes(`${arg} `) || sql.includes(`${arg},`), `🔴SQL に RPC 引数 ${arg} が無い`);
+  }
+  ok(!sql.includes(' row        jsonb'), '🔴履歴の列名が `row`（Postgres の ROW 構成子と衝突する）に戻っている');
+}));
+
+test('2026-09-23 リムーブのログ：場からトラッシュへ動いたら1行出す（バグ報告 5658e3f6）', () => withSavedCursor(() => {
+  // 🔴リムーブはルール処理（コスト/効果起因ではない）＝engine のログ経路を通らないので画面が書く。
+  const battle = battleScreenSource();
+  const h = battle.slice(battle.indexOf('const handleRemove = async ()'), battle.indexOf('const performArts = ('));
+  ok(h.includes('をリムーブ（場からトラッシュ）'), '🔴リムーブのログが無い＝盤面だけ黙って変わる（ユーザー報告）');
+  ok(h.includes('appendBattleLogs(removedSigniNums.map('), '🔴取り除いた枚数ぶん書いていない');
 }));
 
 if (listMode) {

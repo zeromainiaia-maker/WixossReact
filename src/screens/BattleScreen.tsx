@@ -27,6 +27,10 @@ import {collectCutinCandidates} from './battle/cutinCandidates';
 import {performCutinUse} from './battle/controller/performCutinUse';
 import {payUnderAnySigniTrash} from './battle/underAnySigniCost';
 import {buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, planEnergyPayment, type EnergyPayEntry} from './battle/energyPaySource';
+import {logTextFor} from './battle/logPerspective';
+import {handCountLogLines} from './battle/handCountLog';
+import {resolveRewindTarget, shouldAskRewindConsent, isMyRewindPending} from './battle/rewind';
+import {RewindConsentDialog, RewindWaitDialog} from './battle/modals/RewindDialogs';
 
 interface Props {
   user: User;
@@ -361,6 +365,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const prevTurnRef  = useRef<number | null>(null);
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD 検知用スナップショット（前回観測時のエナ・パワー）
   const prevEnergyRef = useRef<{ host: string[]; guest: string[] } | null>(null);
+  /** 🆕手札枚数の前回観測（2026-09-23＝手札の増減をログに出す）。 */
+  const prevHandCountRef = useRef<{ host: number; guest: number } | null>(null);
   const prevPowersRef = useRef<Map<string, number> | null>(null);
   // Realtime で受け取った game_logs をローカル state に同期
   const prevGameLogsLenRef = useRef<number>(0);
@@ -402,7 +408,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     if (shared.length === 0) return;
-    const newLogs = shared.map(action => ({ timestamp: now, user_id: user.id, action }));
+    // 🆕**行が書かれた時点の盤面番号を刻む**（2026-09-23「何手目に戻る」）＝
+    //   画面の「何手目」はログの行番号だが、**戻す先は盤面のスナップショット**なので対応を行に持たせる。
+    //   ⚠列が無い環境（SQL 未適用）では `undefined`＝その行は戻し先にできないだけで対戦は動く。
+    const moveNo = bsRef.current?.move_no;
+    const newLogs = shared.map(action => ({ timestamp: now, user_id: user.id, action, ...(typeof moveNo === 'number' ? { move_no: moveNo } : {}) }));
     // ローカルに即時反映
     setBattleLogs(prev => {
       const next = [...prev, ...newLogs].slice(-200);
@@ -473,6 +483,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     prevPhaseRef.current = phase;
     prevTurnRef.current  = turn;
   }, [bs?.turn_phase, bs?.turn_count, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 🆕**手札の枚数が変わったらログに出す**（2026-09-23 ユーザー要望）。判定は `battle/handCountLog.ts`。
+  // 🔴**書くのはホスト側だけ**＝`game_logs` は部屋で1本なので両者が書くと同じ行が2回出る
+  //   （先行例＝下の ON_ENERGY_CHARGE ウォッチャー「二重 push を避けるため push はホスト側のみ」）。
+  // ⚠**セットアップ中（マリガン）は数えない**＝配り直しの往復がそのままログに出て読めなくなる。
+  useEffect(() => {
+    if (!bs || !user) return;
+    const cur = { host: bs.host_state?.hand?.length ?? 0, guest: bs.guest_state?.hand?.length ?? 0 };
+    const prev = prevHandCountRef.current;
+    prevHandCountRef.current = cur;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (!prev || user.id !== bs.host_id) return;
+    const lines = handCountLogLines({ self: prev.host, opp: prev.guest }, { self: cur.host, opp: cur.guest });
+    if (lines.length > 0) appendBattleLogs(lines);
+  }, [bs?.host_state?.hand?.length, bs?.guest_state?.hand?.length, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     persist.fetchState()
@@ -2117,6 +2142,61 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.host_state?.pending_effect_grow, bs?.guest_state?.pending_effect_grow,
       bs?.active_user_id, loading, bs?.global_phase]);
 
+  /**
+   * ⚠🔴**このブロックも `if (!bs) return` より前**（上の2つの hook と同じ理由＝後ろに置くと React #310）。
+   *   `useState` と `useEffect` を含むので、`bs` 到着後の再レンダーで hook 数が増えると画面が丸ごと落ちる。
+   */
+  // ══════════ 「手を戻す」（2026-09-23 ユーザー要望・判定は `battle/rewind.ts`・SQL は `docs/SQL_REWIND.md`） ══════════
+  // 🔑**盤面の履歴は DB（`battle_snapshots`）が持つ**＝ここは「どの番号へ戻すか」を決めて RPC を呼ぶだけ。
+  // ⚠**SQL 未適用の環境では `move_no` が来ない**＝入口ごと出さない（押せるのに必ず失敗するボタンを作らない）。
+  const rewindAvailable = typeof bs?.move_no === 'number';
+  const rewindReq = bs?.rewind_request ?? null;
+  const [rewindBusy, setRewindBusy] = useState(false);
+  /** 申請を書く／取り下げる（盤面の列は触らないので `move_no` は進まない）。 */
+  const writeRewindRequest = async (request: BattleStateRow['rewind_request']) => {
+    if (!bs) return 'まだ対戦が読み込まれていません';
+    const { error } = await persist.commit(reduceBattle(bs, { type: 'SET_REWIND_REQUEST', request }));
+    return error ? error.message : null;
+  };
+  /** スナップショットを現在の行へ書き戻す（同意が済んでから呼ぶ）。 */
+  const applyRewind = async (logNo: number, stateNo: number) => {
+    const { error } = await supabase.rpc('rewind_battle', {
+      p_room_id: roomId, p_state_no: stateNo, p_log_no: logNo,
+    });
+    return error ? error.message : null;
+  };
+  const requestRewind = async (t: { logNo: number; stateNo: number; text: string }) => {
+    // 🔑**CPU 対戦は同意を取る相手が居ない**＝その場で戻す。
+    if (isCpuBattle) return applyRewind(t.logNo, t.stateNo);
+    return writeRewindRequest({ by: user.id, logNo: t.logNo, stateNo: t.stateNo, text: t.text, status: 'PENDING', at: new Date().toISOString() });
+  };
+  const acceptRewind = async () => {
+    if (!rewindReq || rewindBusy) return;
+    setRewindBusy(true);
+    // 🔴**RPC が申請を `DONE` にする**＝ここで先に消すと、相手の画面に「戻った」が伝わらない。
+    const err = await applyRewind(rewindReq.logNo, rewindReq.stateNo);
+    if (err) { await writeRewindRequest(null); console.error('[rewind]', err); }
+    setRewindBusy(false);
+  };
+  const declineRewind = async () => {
+    if (!rewindReq || rewindBusy) return;
+    setRewindBusy(true);
+    await writeRewindRequest({ ...rewindReq, status: 'DECLINED', at: new Date().toISOString() });
+    setRewindBusy(false);
+  };
+  useEffect(() => {
+    if (!bs || !rewindReq || rewindReq.status !== 'DONE') return;
+    // 🔴**戻した直後はローカルの「同じ処理を2度書かない」指紋が全部古い**＝両者とも捨てる。
+    //   残すと、戻した先で本来もう一度起きるべきルール処理が「済み」と見なされて盤面が進まなくなる。
+    ruleMemoRef.current = createRuleCheckMemo();
+    lastResolvedEntryIdRef.current = null;
+    prevPhaseRef.current = null; prevTurnRef.current = null;
+    prevEnergyRef.current = null; prevPowersRef.current = null;
+    prevHandCountRef.current = null;
+    // ⚠**申請の後片付けは `by` に書かれた側だけ**（両者が消すと同じ書き込みが二重に飛ぶ）。
+    if (rewindReq.by === user.id) void writeRewindRequest(null);
+  }, [rewindReq?.status, rewindReq?.by, rewindReq?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!bs) return (
     <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgSetup, color: C.text }}>
       読み込み中...
@@ -3108,6 +3188,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppUsage = opAfterTrash !== op
         ? { key: isHost ? ('guest_state' as const) : ('host_state' as const), state: opAfterTrash }
         : undefined;
+      // 🆕🔴**リムーブのログが1行も出ていなかった**（2026-09-22 バグ報告 `5658e3f6`）＝
+      //   場からトラッシュへ3枚動いても**ログは無言**で、相手の画面では盤面だけが変わっていた。
+      //   ⚠**コスト/効果起因ではないルール処理**（上のコメント）なので engine のログ経路を通らない＝ここで書く。
+      if (removedSigniNums.length > 0) {
+        appendBattleLogs(removedSigniNums.map(cn =>
+          `${battleCardMap.get(getCardNum(cn))?.CardName ?? cn}をリムーブ（場からトラッシュ）`));
+      }
       if (removeTrashEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, removeTrashEntries) : initStack(user.id, removeTrashEntries);
@@ -5587,6 +5674,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     onBack();
   };
 
+
   const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyPayPool, myEnergyTrashSubInfo, myWholeEnergySubstitutes, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions, myArtsPayerCtx };
 
   return (
@@ -5596,7 +5684,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <FinishedPopup ctx={modalCtx} isHost={isHost} handleEndAck={handleEndAck} />
 
       {/* 終了確認モーダル */}
-      <EndConfirmModal ctx={modalCtx} showEndConfirm={showEndConfirm} setShowEndConfirm={setShowEndConfirm} handleEnd={handleEnd} />
+      <EndConfirmModal ctx={modalCtx} showEndConfirm={showEndConfirm} setShowEndConfirm={setShowEndConfirm} handleEnd={handleEnd}
+        rewind={rewindAvailable ? {
+          logCount: bs?.game_logs?.length ?? 0,
+          resolve: (input) => resolveRewindTarget(bs?.game_logs ?? [], input),
+          request: requestRewind,
+          needsConsent: !isCpuBattle,
+        } : undefined} />
+
+      {/* 「手を戻す」の同意（相手から来た申請）／待機（自分が出した申請） */}
+      <RewindConsentDialog req={shouldAskRewindConsent(rewindReq, user.id) ? rewindReq : null}
+        busy={rewindBusy} onAccept={acceptRewind} onDecline={declineRewind} />
+      <RewindWaitDialog req={(rewindReq && rewindReq.by === user.id && (isMyRewindPending(rewindReq, user.id) || rewindReq.status === 'DECLINED')) ? rewindReq : null}
+        onCancel={() => { void writeRewindRequest(null); }} />
 
       {/* グロウ選択モーダル */}
       <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} growPayDiscard={growPayDiscard} toggleGrowPayDiscard={toggleGrowPayDiscard} />
@@ -5819,19 +5919,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           >
             {/* 🆕§5.1 `V-286`＝**自分だけに見える行（`privateLogs`）をここで合流**させる。
                 🔴DB 側（`battleLogs`）と混ぜて持たない＝Realtime 同期が配列ごと入れ替えるため。 */}
-            {[...battleLogs.map(l => ({ l, own: false })), ...privateLogs.map(l => ({ l, own: true }))]
+            {/* 🆕**行頭の「何手目」**（2026-09-23）＝`battleLogs` は末尾200件なので、
+                DB 側の総数から**通し番号の起点**を出す（⚠自分の書き込みが先行して
+                ローカルのほうが長いことがあるので `max` を取る）。`privateLogs` は DB に無い＝番号を振らない。 */}
+            {(() => {
+              const logTotal = Math.max(bs?.game_logs?.length ?? 0, battleLogs.length);
+              const logBase = logTotal - battleLogs.length;
+              return [...battleLogs.map((l, i) => ({ l, own: false, no: logBase + i + 1 })),
+                      ...privateLogs.map(l => ({ l, own: true, no: null as number | null }))]
               .sort((a, b) => (a.l.timestamp < b.l.timestamp ? -1 : a.l.timestamp > b.l.timestamp ? 1 : 0))
-              .reverse().slice(0, logExpanded ? 60 : 2).map(({ l: log, own }, i) => {
-              const text = log.user_id !== user.id
-                ? log.action.replace(/あなた/g, '\x00').replace(/相手/g, 'あなた').replace(/\x00/g, '相手')
-                : log.action;
+              .reverse().slice(0, logExpanded ? 60 : 2).map(({ l: log, own, no }, i) => {
+              // 🔴**視点の入れ替えは `logPerspective.ts` に1本化**（旧インラインは「自分」を入れ替え損ねていた）。
+              const text = logTextFor(log, user.id);
               return (
                 <div key={i} data-testid={own ? 'private-log-line' : undefined}
                   style={{ fontSize: 10, color: own ? '#d0bd6a' : i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {no !== null && <span style={{ color: '#5a6f6f', marginRight: 4 }}>{no}.</span>}
                   {own ? `🔒 ${text}` : text}
                 </div>
               );
-            })}
+            });
+            })()}
             <div style={{
               position: 'absolute', right: 6, top: '50%', transform: logExpanded ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
               fontSize: 8, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none', transition: 'transform 0.2s',
