@@ -38,6 +38,21 @@ export interface CpuDeployCandidate {
 export const CPU_KEEP_GUARDS = DEFAULT_CPU_POLICY.keepGuards;
 
 /**
+ * 🆕2026-09-25（ユーザー報告「CPU がガード持ちを場に出しすぎて弱い」）＝**この札を出すと手札の【ガード】が
+ * `keep` 枚を割り込むか**。探索（`cpuSearch.searchCpuMove`）が召喚の候補から外すのに使う。
+ * 🔑規則は `pickCpuDeployCard` の `keepGuards` と同じ（手札の【ガード】が `keep` 枚以下なら、【ガード】は出さない）。
+ * ⚠`keep` が 0 なら常に false（＝制限なし）。
+ */
+export function isGuardDeployHeldBack(
+  id: string, hand: readonly string[], cardMap: Map<string, CardData>, keep: number,
+): boolean {
+  if (keep <= 0) return false;
+  const isGuard = (n: string) => (cardMap.get(n.split('#')[0]) ?? cardMap.get(n))?.Guard === '1';
+  if (!isGuard(id)) return false;
+  return hand.filter(isGuard).length <= keep;
+}
+
+/**
  * いまのゾーンに置く1枚を選ぶ＝**「残りゾーンを埋められる範囲でいちばん強い札」**。
  *
  * 🔴**旧実装は「レベル昇順の最初の1枚」**だった＝リミットが余っていても弱い札から出すので、

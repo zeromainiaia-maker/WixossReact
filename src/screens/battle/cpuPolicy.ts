@@ -159,6 +159,11 @@ export interface CpuPolicy {
   /** 手札に残す【ガード】の枚数（`cpuBoardEval.pickCpuDeployCard`）。 */
   readonly keepGuards: number;
   /**
+   * 🆕2026-09-25＝**探索（`searchCpuMove`）でも手札に残す【ガード】の枚数**。0 なら探索では制限しない（＝導入前）。
+   * ⚠`keepGuards` は貪欲側（`pickCpuDeployCard`）＝探索が既定になってから召喚はこちらで決まる。
+   */
+  readonly searchKeepGuards: number;
+  /**
    * 🆕§5.7 `S-16`＝**メインフェイズの探索のビーム幅**（`cpuSearch.searchCpuMove`）。**0 なら探索しない**＝従来の優先順。
    * 🔑**分岐 flag ではなく数値**＝どの幅で回した結果かが勝率表から読める（§5.7 `S-9` の規律）。
    * ⚠**既定は 0**＝実機の挙動は変えない。上げる判断は A/B（`--b search`）で行う。
@@ -302,6 +307,12 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   },
   spellGainMin: 1000,
   keepGuards: 1,
+  // 🆕2026-09-25（ユーザー決定）＝**探索でも【ガード】を1枚は手札に残す。ただし、ほかに出せるシグニがあるときだけ**
+  //   （出せるのが【ガード】だけなら場を空けない）。自己対戦 A/B（6デッキ × 8シード＝96戦）＝**差なし**
+  //   （ライフ差 +0.00 [-0.21, 0.21]）＝CPU 同士では害が無いことだけ確かめた。人間の毎ターンのルリグアタックに対する価値は
+  //   自己対戦に映らないので、ユーザーの判断で既定にした。⚠例外なしの禁止は**弱くなった**（旧が2連勝12・新2）。
+  //   🔑旧挙動は `legacy-guard-search`（`searchKeepGuards: 0`）。
+  searchKeepGuards: 1,
   // 🆕🔴§5.7 `S-16`／`S-25`＝**2026-09-21 に既定を 4/4 へ上げた（ユーザー決定）**＝**実機の CPU が探索で打つようになった**。
   //   **根拠（`S-25` の実測・`search` vs `default`・6デッキ × 8シード＝96戦・止まり0）**＝
   //   **合算 組 83.3% [66.4, 92.7]**（強い＝ケトッシー軸 8-0-0／天使軸1 6-2-0／WD06 6-2-0／
@@ -385,6 +396,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'no-spell': variant('no-spell', { spellGainMin: Number.POSITIVE_INFINITY }),
   /** 【ガード】を手札に残さず全部場に出す＝配線の自己検査用。 */
   'no-guard-keep': variant('no-guard-keep', { keepGuards: 0 }),
+  /** 🆕2026-09-25＝探索で【ガード】を温存しない（`searchKeepGuards` を入れる前の既定）。 */
+  'legacy-guard-search': variant('legacy-guard-search', { searchKeepGuards: 0 }),
   /**
    * 🆕🔴§5.7 `S-6` 第3段（2026-09-22）＝**盤面をまったく採点しない**（`BoardWeights` を1つ残らず 0）。
    *
@@ -565,7 +578,7 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
       planW = { ...planW, [k]: num }; continue;
     }
     if (key in weights) { weights = { ...weights, [key]: num }; continue; }
-    if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'actionBias'
+    if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'searchKeepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
       || key === 'chargeFieldBlocked' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
@@ -574,7 +587,7 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
-      + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / actionBias / searchAttacks`
+      + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
       + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);

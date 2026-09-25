@@ -68,6 +68,7 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   // ── ポリシー（`CpuPolicy`）──
   { key: 'spellGainMin', base: 1000, values: [0, 3000] },
   { key: 'keepGuards', base: 1, values: [0, 2] },
+  { key: 'searchKeepGuards', base: 1, values: [0, 2] },
   { key: 'searchWidth', base: 4, values: [2, 8] },
   { key: 'searchDepth', base: 4, values: [2, 6] },
   { key: 'actionBias', base: 0, values: [1500] },

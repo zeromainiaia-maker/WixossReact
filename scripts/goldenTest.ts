@@ -244,7 +244,7 @@ import { cpuCanHandleKeyPiece, pickCpuKeyPiece } from '../src/screens/battle/cpu
 import { CPU_ARTS_DECLINABLE_COST_KEYS, CPU_ARTS_PAYABLE_COST_KEYS, CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, listCpuArts, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, removalTargetExists, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { spectateLogLabel } from '../src/screens/battle/spectateLog';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
-import { CPU_KEEP_GUARDS } from '../src/screens/battle/cpuBoardEval';
+import { CPU_KEEP_GUARDS, isGuardDeployHeldBack } from '../src/screens/battle/cpuBoardEval';
 import { BOARD_WEIGHTS, evaluateBoard, type LookaheadCtx } from '../src/screens/battle/cpuLookahead';
 import { CPU_POLICIES, DEFAULT_CPU_POLICY, resolveCpuPolicy, patchCpuPolicy, type CpuPolicy } from '../src/screens/battle/cpuPolicy';
 import { weightZeroSpecs, formatWeightEffect, isLiveSearchPhase } from './cpuWeightEffect';
@@ -87438,6 +87438,51 @@ test('§5.7 S-16 前半の探索：幅0で無効・扱えない手は選ばな�
   // ⑥ 展開の上限（安全弁）＝`nodeCap` を超えて広げない
   eq(searchCpuMove(ctx, 'MAIN', { width: 4, depth: 4, pendingSpell: false, nodeCap: 1 }).nodes <= 1, true, '🔴展開の上限を超えて探索した');
 }));
+
+test('2026-09-25 探索でも【ガード】を1枚残す（ほかに出せるシグニがあるときだけ）', () => withSavedCursor(() => {
+  // 🔴旧は探索が `pickCpuDeployCard` の温存規則を通らず、【ガード】持ちを場に出していた（ユーザー報告）。
+  const cm = new InstanceMap<CardData>(cardMap);
+  const allCards = [...cardMap.values()];
+  const G = 'WD01-017'; // サーバント　Ｏ（Lv1・【ガード】・パワー2000）
+  eq(cardMap.get(G)?.Guard, '1', '前提: WD01-017 は【ガード】');
+  const N = 'WD01-013';
+  ok(cardMap.get(N)?.Guard !== '1', '前提: WD01-013 は【ガード】ではない');
+  eq(isGuardDeployHeldBack(`${G}#h1`, [`${G}#h1`, `${N}#h2`], cm as Map<string, CardData>, 1), true, '手札の【ガード】が1枚なら温存');
+  eq(isGuardDeployHeldBack(`${G}#h1`, [`${G}#h1`, `${G}#h2`], cm as Map<string, CardData>, 1), false, '2枚あれば1枚は出してよい');
+  eq(isGuardDeployHeldBack(`${N}#h2`, [`${G}#h1`, `${N}#h2`], cm as Map<string, CardData>, 1), false, '【ガード】でない札は対象外');
+  eq(isGuardDeployHeldBack(`${G}#h1`, [`${G}#h1`], cm as Map<string, CardData>, 0), false, 'keep 0＝制限なし（legacy-guard-search）');
+  eq(DEFAULT_CPU_POLICY.searchKeepGuards, 1, '既定は1枚温存');
+  const lctx = { cardMap: cm as Map<string, CardData>, effectsOf: (id: string) => effectsMap.get(id.split('#')[0]) ?? [], policy: DEFAULT_CPU_POLICY };
+  // 🔑**効くのは「空きゾーンが1つで、【ガード】と他のシグニのどちらか1枚しか出せない」場面**＝判定は局面ごとなので、
+  //   空きゾーンが余っていれば他のシグニを出したあとで【ガード】も出す（出せるのが【ガード】だけなら場を空けない）。
+  const N1 = 'WXDi-P07-TK01-A'; // 【ガード】なし・Lv1・パワー1000（向かいの1000を上回れない）
+  const mk = (hand: string[], signi: (string[] | null)[]) => {
+    const st = mkState({ signi: [null, null, null] });
+    st.field.signi = signi;
+    st.hand = hand;
+    st.energy = ['WD03-013#e1', 'WD03-013#e2'];
+    st.life_cloth = ['WD01-013#l1', 'WD01-013#l2'];
+    st.field.lrig = ['WD03-003#r1'];
+    st.lrig_deck = [];
+    return st;
+  };
+  const ctxOf = (hand: string[], policy = DEFAULT_CPU_POLICY): CpuMoveCtx => ({
+    // 空きはゾーン3だけ（向かいは相手のゾーン1）。向かいはパワー1000＝【ガード】（2000）なら上回ってレーンを取れる（旧挙動が出す理由）。
+    actor: mk(hand, [['WD01-013#f1'], ['WD01-013#f2'], null]),
+    opponent: mk([], [['WD04-017#o1'], ['WD01-013#o2'], ['WD01-013#o3']]),
+    allCards, battleCards: allCards, cardMap: cm as Map<string, CardData>, effectsMap,
+    lookahead: { ...lctx, policy }, reserveFor: () => undefined,
+  });
+  const deployedIds = (hand: string[], policy = DEFAULT_CPU_POLICY) => searchCpuMove(ctxOf(hand, policy), 'MAIN', { width: 4, depth: 4, pendingSpell: false })
+    .line.filter(m => m.kind === 'deploy').map(m => (m as { id: string }).id.split('#')[0]);
+  const legacy = CPU_POLICIES['legacy-guard-search'];
+  ok(deployedIds([`${G}#h1`, `${N1}#h2`], legacy).includes(G), '感度: 旧挙動ではこの盤面で最後の【ガード】を出していた');
+  ok(!deployedIds([`${G}#h1`, `${N1}#h2`]).includes(G), '🔴ほかに出せるシグニがあるのに最後の【ガード】を出した');
+  // 反転: 【ガード】が2枚／【ガード】だけ＝温存しない＝旧挙動と同じ判断
+  eq(deployedIds([`${G}#h1`, `${G}#h2`]).join(','), deployedIds([`${G}#h1`, `${G}#h2`], legacy).join(','), '反転: 2枚あれば旧と同じ');
+  eq(deployedIds([`${G}#h1`]).join(','), deployedIds([`${G}#h1`], legacy).join(','), '反転: 【ガード】だけなら旧と同じ（場を空けない）');
+}));
+
 
 test('§5.7 S-16 探索用の1手適用：支払い・使用済みの印を写し、次の列挙が出し直せる（本番の盤面は触らない）', () => withSavedCursor(() => {
   // 🔑**探索（`S-16`）の前提**＝1手適用するたびに `listCpuMoves` を呼び直す＝

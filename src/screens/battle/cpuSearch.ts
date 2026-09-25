@@ -1,5 +1,7 @@
 import type { PlayerState, TurnPhase } from '../../types';
 import { evaluateBoard } from './cpuLookahead';
+import { isGuardDeployHeldBack } from './cpuBoardEval';
+import { DEFAULT_CPU_POLICY } from './cpuPolicy';
 import {
   applyCpuMoveSim, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove,
   type CpuMove, type CpuMoveCtx, type CpuSimBoard,
@@ -126,12 +128,23 @@ export function searchCpuMove(ctx: CpuMoveCtx, phase: TurnPhase, opts: CpuSearch
   // 🆕§5.7 `S-21`＝**根の盤面で探索が扱える候補の数**（`move === null` の意味を割る計器）。
   let rootCandidates = 0;
   let rootApplied = 0;
+  // 🆕2026-09-25＝**手札の【ガード】を温存する**（`CpuPolicy.searchKeepGuards`）。
+  //   🔴旧は探索が `pickCpuDeployCard` の温存規則を通らず、採点の `guardKept`（800×1枚）が場のシグニの価値に
+  //     負けて【ガード】持ちを場に出していた（実測＝4デッキ12戦でガード札の配置28回／ガードできなかったルリグアタック58回）。
+  const keepGuards = ctx.lookahead?.policy?.searchKeepGuards ?? DEFAULT_CPU_POLICY.searchKeepGuards;
   for (let d = 0; d < opts.depth; d++) {
     const next: Node[] = [];
     for (const node of beam) {
       const nodeCtx: CpuMoveCtx = { ...ctx, actor: node.board.cpu, opponent: node.board.opp };
-      for (const move of listCpuMoves(nodeCtx, phase, { pendingSpell: opts.pendingSpell })) {
+      const nodeMoves = listCpuMoves(nodeCtx, phase, { pendingSpell: opts.pendingSpell });
+      // 🔑**ほかに出せるシグニがあるときだけ**温存する＝出せるのが【ガード】だけなら場を空けない
+      //   （硬い禁止は自己対戦で弱くなった＝場が空いてシグニのアタックで削られる分が上回る）。
+      const heldBack = (m: CpuMove) => m.kind === 'deploy'
+        && isGuardDeployHeldBack(m.id, node.board.cpu.hand, ctx.cardMap, keepGuards);
+      const hasOtherDeploy = keepGuards > 0 && nodeMoves.some(m => m.kind === 'deploy' && !heldBack(m));
+      for (const move of nodeMoves) {
         if (!CPU_SIM_APPLICABLE_KINDS.has(move.kind)) continue;
+        if (hasOtherDeploy && heldBack(move)) continue;
         if (d === 0) rootCandidates++;
         if (nodes >= nodeCap) break;
         const after = applyCpuMoveSim(nodeCtx, move);
