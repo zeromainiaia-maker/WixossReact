@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { APP_VERSION } from '../version';
+import { SIGNUP_ENABLED } from '../config/signup';
 
 const toFakeEmail = (username: string): string => {
   const bytes = new TextEncoder().encode(username.trim());
@@ -41,6 +42,12 @@ export default function LoginScreen() {
     const email = toFakeEmail(username);
 
     if (isSignUp) {
+      // ⚠受け付け停止中は送らない（画面を開いたまま停止した場合の安全弁）。
+      if (!SIGNUP_ENABLED) {
+        alert('現在新規登録は受け付けていません');
+        setLoading(false);
+        return;
+      }
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -90,9 +97,14 @@ export default function LoginScreen() {
         {loading ? '...' : isSignUp ? '新規登録' : 'ログイン'}
       </button>
 
-      <button onClick={() => setIsSignUp(v => !v)} style={secondaryButtonStyle}>
-        {isSignUp ? 'ログインに戻る' : 'アカウントを作成'}
-      </button>
+      {/* 🆕新規アカウント作成の受け付けは `src/config/signup.ts` の1行で切り替える。 */}
+      {SIGNUP_ENABLED ? (
+        <button onClick={() => setIsSignUp(v => !v)} style={secondaryButtonStyle}>
+          {isSignUp ? 'ログインに戻る' : 'アカウントを作成'}
+        </button>
+      ) : (
+        <span data-testid="signup-closed" style={{ color: '#666', fontSize: 12 }}>現在、新規アカウントの作成を停止しています</span>
+      )}
 
       <span style={{ position: 'fixed', bottom: 12, left: 16, fontSize: 11, color: '#333' }}>
         {APP_VERSION}
