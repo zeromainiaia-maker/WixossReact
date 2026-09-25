@@ -117,6 +117,8 @@ export interface CpuPlanEffectOption {
   effectId: string;
   /** 画面の表示（例＝`E2【起】：対戦相手のシグニ１体を…`）。 */
   label: string;
+  /** 🆕2026-09-26 `S-36`＝**その効果の原文（全文）**＝E1／E2／ライフバーストの記号だけでは元の効果が分からない（ユーザー）。 */
+  text: string;
 }
 
 /** 効果の種類の表示（【出】と【自】は `onPlayIcon` で分ける）。 */
@@ -149,9 +151,12 @@ export function cpuPlanEffectOptions(
   return card.effects
     .filter(e => purpose === 'activate' ? e.effectType === 'ACTIVATED' : e.effectType !== 'CONTINUOUS')
     .map(e => {
-      const suffix = e.effectId.startsWith(prefix) ? e.effectId.slice(prefix.length) : e.effectId;
+      // ⚠ライフバーストは種類名だけ（`BURST` の記号は種類名と重なる）。
+      const suffix = e.effectType === 'LIFE_BURST' ? ''
+        : e.effectId.startsWith(prefix) ? e.effectId.slice(prefix.length) : e.effectId;
       const raw = e.effectType === 'LIFE_BURST' ? card.BurstText : textOf?.(card, e.effectId);
-      const text = (raw ?? '').replace(/\s+/g, '').slice(0, 36);
-      return { effectId: e.effectId, label: `${suffix}${effectKindLabel(e)}${text ? `：${text}` : ''}` };
+      const text = (raw ?? '').replace(/\s+/g, ' ').trim();
+      const head = text.replace(/\s+/g, '').slice(0, 36);
+      return { effectId: e.effectId, label: `${suffix}${effectKindLabel(e)}${head ? `：${head}` : ''}`, text };
     });
 }

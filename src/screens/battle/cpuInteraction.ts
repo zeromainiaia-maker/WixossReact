@@ -1,7 +1,8 @@
 import type { CardData, PendingInteractionDef, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { cardStrength } from './cpuCardStrength';
-import type { CpuTargetMode } from './cpuDeckPlan';
+import type { CpuSideTarget, CpuTargetMode, CpuTargetSide, CpuTargetSpec } from './cpuDeckPlan';
+import { cpuAttackValueOf } from './cpuBoardEval';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import { canAddToSelection, findValidConstrainedSelection, getCardNum, selectOptionalCostEnergy } from '../../engine/execUtils';
 import { shuffle as rngShuffle } from '../../engine/rng';
@@ -44,6 +45,16 @@ export interface CpuInteractionCtx {
    * ⚠**省略できる**＝渡さなければ `strongest`＋加点0＝`S-22` のときの挙動。
    */
   targetMode?: CpuTargetMode;
+  /**
+   * 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**（`resolveCpuTargetSpec` が解決した値）。
+   * 渡せば `targetMode` より優先する（`targetMode` は両側へ同じ狙い方を当てる旧い口）。
+   */
+  targetSpec?: CpuTargetSpec;
+  /**
+   * 🆕`S-36`＝**場のシグニの実効パワー**（engine の `calcFieldPowers`）＝「効果後に正面を上回る」で
+   * **候補ではない正面のシグニ**のパワーを引くのに使う。⚠**遅延評価**（その狙い方のときだけ計算する）。
+   */
+  fieldPowers?: () => ReadonlyMap<string, number>;
   /** ⚠**実効パワーを渡す**（属性の「パワー◯以上」は印刷パワーでなく実効パワーで見る）。 */
   targetBonus?: (id: string, power?: number) => number;
   /** 🆕グロウ用エナの予約＝効果の任意コスト（エナ）を払うと次のグロウが払えなくなるなら払わない。 */
@@ -231,6 +242,69 @@ export function targetKillableBy(
   return null;
 }
 
+/** 効果がパワーをどう変えるか（増減 `delta`／固定 `set`）。読めなければ `null`。 */
+function powerChangeOf(action: { type?: string; delta?: unknown; value?: unknown } | undefined): ((p: number) => number) | null {
+  if (action?.type === 'POWER_MODIFY') {
+    const d = Number(action.delta);
+    return Number.isFinite(d) && d !== 0 ? p => p + d : null;
+  }
+  if (action?.type === 'POWER_SET') {
+    const v = Number(action.value);
+    return Number.isFinite(v) ? () => v : null;
+  }
+  return null;
+}
+
+/** 場のシグニのゾーン（トップにいるときだけ）。 */
+function fieldZoneOf(id: string, st: PlayerState): number {
+  return st.field.signi.findIndex(stack => stack?.at(-1) === id);
+}
+
+/**
+ * 🆕**アップ状態の場のシグニか**（2026-09-26 `S-36`）＝場のトップにいて `signi_down` が立っていない。
+ * ⚠場にいない候補（手札・トラッシュ…）は `false`＝「アップ状態を優先」では後ろへ回る。
+ */
+export function targetIsUp(id: string, cpuState: PlayerState, oppState: PlayerState): boolean {
+  for (const st of [cpuState, oppState]) {
+    const zi = fieldZoneOf(id, st);
+    if (zi >= 0) return !st.field.signi_down?.[zi];
+  }
+  return false;
+}
+
+/**
+ * 🆕**効果の後、正面とのバトルに勝てるようになるか**（2026-09-26 `S-36` ユーザー要望
+ * 「効果後正面のパワーを上回る場合を自分と相手それぞれ」）。
+ * - 自分の札（`self`）＝効果後のパワーで**正面の相手シグニに勝てる**か（強化の狙い先）。
+ * - 相手の札（`opp`）＝効果後のパワーに**正面の自分のシグニが勝てる**か（弱体化の狙い先）。
+ * 🔑**勝ちは公式ルールどおり「パワー以上」**（`cpuAttackValueOf`＝アタック側が以上なら勝ち）。
+ * @returns `2`＝**この効果で勝てるようになる**（効果前は負け）／`1`＝効果前から勝てる／`0`＝勝てない・正面が空／
+ *   `null`＝分からない（パワーを変える効果でない・場にいない・パワーが読めない）。
+ */
+export function targetBeatsFrontBy(
+  action: { type?: string; delta?: unknown; value?: unknown } | undefined,
+  id: string, side: CpuTargetSide,
+  board: { cpuState: PlayerState; oppState: PlayerState; powerOf: (id: string) => number | undefined },
+): 0 | 1 | 2 | null {
+  const change = powerChangeOf(action);
+  if (!change) return null;
+  const own = side === 'self' ? board.cpuState : board.oppState;
+  const other = side === 'self' ? board.oppState : board.cpuState;
+  const zi = fieldZoneOf(id, own);
+  if (zi < 0) return null;
+  const p = board.powerOf(id);
+  if (p === undefined) return null;
+  const front = other.field.signi[2 - zi]?.at(-1);
+  if (!front) return 0;
+  const fp = board.powerOf(front);
+  if (fp === undefined) return null;
+  const after = change(p);
+  const wins = (mine: number, theirs: number) => cpuAttackValueOf(mine, theirs) === 'winBattle';
+  const before = side === 'self' ? wins(p, fp) : wins(fp, p);
+  const now = side === 'self' ? wins(after, fp) : wins(fp, after);
+  return now ? (before ? 1 : 2) : 0;
+}
+
 export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractionCtx): string[] {
   const { cardMap, cpuState } = ctx;
   // 🆕**選んでも場に出せない候補は選ばない**（§5.3 `O-534`・`R-48`①）＝engine が `unplaceableCards` で印を付ける。
@@ -284,13 +358,28 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
     const value = (id: string) =>
       cardValue(id, ctx, inter.candidatePowers, ctx.targetBonus?.(id, inter.candidatePowers?.[id]) ?? 0);
     // 🆕§5.7 `S-32`＝**大まかな指示**。⚠**既定は `strongest`＝`S-22` のときと同じ並び**。
-    const mode = ctx.targetMode ?? 'strongest';
-    const kills = (id: string) => targetKillableBy(
-      inter.thenAction as { type?: string; delta?: unknown; value?: unknown }, id, inter.candidatePowers) === true;
-    /** 良い側の並び＝`weakest` は価値の低い順、`killable` は**落とせるものを先に**（その中は価値の高い順）。 */
-    const rankGood = (a: string, b: string) => (mode === 'weakest' ? value(a) - value(b)
+    // 🆕2026-09-26 `S-36`＝**得になる側の持ち主で狙い方を使い分ける**（害＝相手の札／得＝自分の札）。
+    const side: CpuTargetSide = intent === 'harm' ? 'opp' : 'self';
+    const sideTarget: CpuSideTarget = ctx.targetSpec?.[side] ?? { mode: ctx.targetMode ?? 'strongest' };
+    const mode = sideTarget.mode;
+    const action = inter.thenAction as { type?: string; delta?: unknown; value?: unknown };
+    const kills = (id: string) => targetKillableBy(action, id, inter.candidatePowers) === true;
+    let fieldPowers: ReadonlyMap<string, number> | undefined;
+    const powerOf = (id: string) => inter.candidatePowers?.[id]
+      ?? (fieldPowers ??= ctx.fieldPowers?.() ?? new Map()).get(id);
+    const beats = (id: string) => targetBeatsFrontBy(action, id, side,
+      { cpuState: ctx.cpuState, oppState: ctx.oppState, powerOf }) ?? 0;
+    const up = (id: string) => Number(targetIsUp(id, ctx.cpuState, ctx.oppState));
+    /**
+     * 良い側の並び＝🆕「アップ状態を優先」が最初に効く → 狙い方
+     * （`weakest` は価値の低い順／`killable` は**落とせるものを先に**／`beatsFront` は**勝てるようになるものを先に**・
+     * どちらもその中は価値の高い順）。
+     */
+    const rankByMode = (a: string, b: string) => (mode === 'weakest' ? value(a) - value(b)
       : mode === 'killable' ? (Number(kills(b)) - Number(kills(a))) || (value(b) - value(a))
-        : value(b) - value(a));
+        : mode === 'beatsFront' ? (beats(b) - beats(a)) || (value(b) - value(a))
+          : value(b) - value(a));
+    const rankGood = (a: string, b: string) => (sideTarget.upFirst ? up(b) - up(a) : 0) || rankByMode(a, b);
     const good = candidates.filter(favorable).sort(rankGood);
     const bad = candidates.filter(id => !favorable(id)).sort((a, b) => value(a) - value(b));
     ordered = inter.optional ? good : [...good, ...bad];

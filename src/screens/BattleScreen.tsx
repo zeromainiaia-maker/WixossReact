@@ -954,6 +954,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       cpuPlayerId: CPU_PLAYER_ID, hostId: bs.host_id,
       hostState: bs.host_state, guestState: bs.guest_state,
       cards, cardMap: battleCardMap, effectsMap, cpuPlan,
+      activePlayerId: bs.active_user_id ?? undefined, turnPhase: bs.turn_phase,
     });
     if (!res) return;
     const timer = setTimeout(() => {

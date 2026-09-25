@@ -2,12 +2,23 @@ import { useMemo, useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
   CPU_CARD_USE_LABELS,
-  CPU_COMBO_USE_LABELS, CPU_TARGET_MODES, CPU_TARGET_MODE_LABELS,
+  CPU_COMBO_USE_LABELS, CPU_TARGET_MODES_BY_SIDE, CPU_TARGET_MODE_LABELS_BY_SIDE,
   CPU_TARGET_WHENS, CPU_TARGET_WHEN_LABELS,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
   type CpuCardUse, type CpuComboStep, type CpuComboUse, type CpuDeckPlan,
-  type CpuTargetMode, type CpuTargetWhen,
+  type CpuSideTarget, type CpuTargetMode, type CpuTargetSide, type CpuTargetWhen,
 } from '../battle/cpuDeckPlan';
+
+/** 片側の狙い方の入力値（`''`＝いつもどおり＝この側は指定しない）。 */
+interface SideForm { mode: CpuTargetMode | ''; up: boolean }
+const EMPTY_SIDE: SideForm = { mode: '', up: false };
+/** 入力値 → 保存する形（何も指定していなければ `undefined`＝この側は規則に当たらない）。 */
+const sideOf = (f: SideForm): CpuSideTarget | undefined =>
+  (f.mode || f.up) ? { mode: f.mode || 'strongest', ...(f.up ? { upFirst: true } : {}) } : undefined;
+const SIDE_NAMES: Record<CpuTargetSide, string> = { opp: '相手の札', self: '自分の札' };
+/** 片側の狙い方の表示。 */
+const sideText = (side: CpuTargetSide, t: CpuSideTarget | undefined) =>
+  t ? `${SIDE_NAMES[side]}: ${CPU_TARGET_MODE_LABELS_BY_SIDE[side][t.mode]}${t.upFirst ? '（アップ状態を優先）' : ''}` : '';
 import {
   cpuPlanCanSetUse, cpuPlanChipsFor, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanEffectOptions, cpuPlanIsArts,
   cpuPlanUseModesFor, type CpuPlanEffectOption,
@@ -64,8 +75,10 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
       return memo.get(key)!;
     };
   }, [cardMap]);
-  const effectLabel = (n: string, eid: string) =>
-    effectOptionsOf(n, 'pick').find(o => o.effectId === eid)?.label ?? eid;
+  const effectOption = (n: string, eid: string) => effectOptionsOf(n, 'pick').find(o => o.effectId === eid);
+  const effectLabel = (n: string, eid: string) => effectOption(n, eid)?.label ?? eid;
+  /** 🆕`S-36`＝**効果の原文（全文）**（E1／E2／ライフバーストの記号だけでは元の効果が分からない）。 */
+  const effectText = (n: string, eid: string) => effectOption(n, eid)?.text ?? '';
 
   // ── ② 効果の対象（狙い方の切り替え規則）──────────────────────
   const targeting = plan.targeting ?? EMPTY_CPU_TARGET_PLAN;
@@ -74,14 +87,21 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   /** 効果の選択＝`<カード番号>|<effectId>`（effectId 空＝その札のどの効果でも／全体空＝どの効果でも）。 */
   const [ruleSource, setRuleSource] = useState('');
   const [ruleWhen, setRuleWhen] = useState<CpuTargetWhen>('always');
-  const [ruleMode, setRuleMode] = useState<CpuTargetMode>('killable');
+  // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**（効果によっては自分のシグニを強くする）。
+  const [ruleOpp, setRuleOpp] = useState<SideForm>({ mode: 'killable', up: false });
+  const [ruleSelf, setRuleSelf] = useState<SideForm>(EMPTY_SIDE);
   /** 規則の効果に出す札＝**選ぶ効果を持つ札だけ**（【常】だけの札は対象を選ばない）。 */
   const ruleCards = cards.filter(c => effectOptionsOf(c.CardNum, 'pick').length > 0);
+  const [ruleNum, ruleEid] = ruleSource ? ruleSource.split('|') : ['', ''];
+  const canAddRule = !!(sideOf(ruleOpp) || sideOf(ruleSelf));
   const addRule = () => {
-    const [num, eid] = ruleSource ? ruleSource.split('|') : ['', ''];
+    const opp = sideOf(ruleOpp), self = sideOf(ruleSelf);
+    // ⚠**どちらの側も指定していない規則は足さない**（何も変えない規則は、上にあると下の規則を隠すだけ）。
+    if (!opp && !self) return;
     saveTargeting({
       rules: [...rules, {
-        sourceCards: num ? [num] : [], ...(eid ? { sourceEffectIds: [eid] } : {}), when: ruleWhen, mode: ruleMode,
+        sourceCards: ruleNum ? [ruleNum] : [], ...(ruleEid ? { sourceEffectIds: [ruleEid] } : {}), when: ruleWhen,
+        ...(opp ? { opp } : {}), ...(self ? { self } : {}),
       }],
     });
     setRuleSource('');
@@ -90,7 +110,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     if (r.sourceCards.length === 0) return 'どの効果でも';
     const n = r.sourceCards[0];
     const eid = r.sourceEffectIds?.[0];
-    return eid ? `${nameOf(n)}の ${effectLabel(n, eid)}` : `${nameOf(n)}の効果`;
+    return eid ? `${nameOf(n)}の ${effectLabel(n, eid).split('：')[0]}` : `${nameOf(n)}のどの効果でも`;
   };
   const toggleTarget = (key: 'prefer' | 'avoid', num: string) => {
     const list = targeting[key];
@@ -134,7 +154,8 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const [num, setNum] = useState('');
   const [use, setUse] = useState<CpuComboUse>('deploy');
   const [stepEffect, setStepEffect] = useState('');
-  const [pickMode, setPickMode] = useState<CpuTargetMode | ''>('');
+  const [pickOpp, setPickOpp] = useState<SideForm>(EMPTY_SIDE);
+  const [pickSelf, setPickSelf] = useState<SideForm>(EMPTY_SIDE);
   const [pickCards, setPickCards] = useState<string[]>([]);
   const comboCards = cards.filter(c => cpuPlanComboUsesFor(c).length > 0);
   const comboUses = cpuPlanComboUsesFor(num ? cardMap.get(num) : undefined);
@@ -142,7 +163,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   /** その手で選べる効果＝「【起】で使う」は【起】だけ／ほかは選ぶ先を持ちうる効果。 */
   const stepEffects = num ? effectOptionsOf(num, effectiveComboUse === 'activate' ? 'activate' : 'pick') : [];
   const effectiveStepEffect = stepEffects.some(o => o.effectId === stepEffect) ? stepEffect : '';
-  const resetStepForm = () => { setNum(''); setStepEffect(''); setPickMode(''); setPickCards([]); };
+  const resetStepForm = () => { setNum(''); setStepEffect(''); setPickOpp(EMPTY_SIDE); setPickSelf(EMPTY_SIDE); setPickCards([]); };
 
   const stepsOf = (t: number | 'new'): CpuComboStep[] => (t === 'new' ? draft : plan.combos[t]?.steps ?? []);
   const setStepsOf = (t: number | 'new', steps: CpuComboStep[]) => {
@@ -156,11 +177,12 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   };
   const addStep = () => {
     if (!num) return;
+    const opp = sideOf(pickOpp), self = sideOf(pickSelf);
     const step: CpuComboStep = {
       num, use: effectiveComboUse,
       ...(effectiveStepEffect ? { effectId: effectiveStepEffect } : {}),
-      ...(pickMode || pickCards.length
-        ? { pick: { ...(pickMode ? { mode: pickMode } : {}), ...(pickCards.length ? { cards: pickCards } : {}) } }
+      ...(opp || self || pickCards.length
+        ? { pick: { ...(opp ? { opp } : {}), ...(self ? { self } : {}), ...(pickCards.length ? { cards: pickCards } : {}) } }
         : {}),
     };
     const cur = stepsOf(editing);
@@ -186,7 +208,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const stepLabel = (st: CpuComboStep) => {
     const eff = st.effectId ? `・${effectLabel(st.num, st.effectId).split('：')[0]}` : '';
     const pickParts = [
-      st.pick?.mode ? CPU_TARGET_MODE_LABELS[st.pick.mode] : '',
+      sideText('opp', st.pick?.opp), sideText('self', st.pick?.self),
       (st.pick?.cards ?? []).map(nameOf).join('・'),
     ].filter(Boolean);
     return `${nameOf(st.num)}（${CPU_COMBO_USE_LABELS[st.use]}${eff}）${pickParts.length ? ` → 選ぶ先: ${pickParts.join('／')}` : ''}`;
@@ -221,6 +243,30 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const listRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#ddd', flexWrap: 'wrap' };
   const small = (color: string): React.CSSProperties => ({ ...chip(true, color), padding: '3px 6px', fontSize: 10 });
 
+  /** 🆕`S-36`＝効果の原文（全文）の枠。 */
+  const textBox = (text: string, testId?: string) => (text ? (
+    <div data-testid={testId} style={{ flex: '1 1 100%', color: '#aab', fontSize: 10, lineHeight: 1.5, padding: '4px 6px', borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.05)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{text}</div>
+  ) : null);
+
+  /**
+   * 🆕`S-36`＝**片側の狙い方の入力**（相手の札／自分の札）＝狙い方＋「アップ状態を優先」。
+   * 🔴**側ごとに選べる狙い方だけ出す**（`killable` は相手の札だけ＝効かない選択肢を出さない）。
+   */
+  const sideEditor = (side: CpuTargetSide, f: SideForm, set: (f: SideForm) => void, testPrefix: string) => (
+    <div style={row}>
+      <span style={{ color: side === 'opp' ? '#ff9a9a' : '#9ad0ff', fontSize: 11, flex: '0 0 auto', fontWeight: 'bold' }}>{SIDE_NAMES[side]}</span>
+      <select data-testid={`${testPrefix}-${side}-mode`} value={f.mode} onChange={e => set({ ...f, mode: e.target.value as CpuTargetMode | '' })}
+        style={{ ...selectStyle, fontSize: 11 }}>
+        <option value="">いつもどおり</option>
+        {CPU_TARGET_MODES_BY_SIDE[side].map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS_BY_SIDE[side][m]}</option>)}
+      </select>
+      <label style={{ color: '#bbb', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, flex: '0 0 auto' }}>
+        <input data-testid={`${testPrefix}-${side}-up`} type="checkbox" checked={f.up} onChange={e => set({ ...f, up: e.target.checked })} />
+        アップ状態を優先
+      </label>
+    </div>
+  );
+
   /** 手の一覧（新規・保存済み共通）。 */
   const stepList = (t: number | 'new') => stepsOf(t).map((st, i) => (
     <div key={`${st.num}/${st.use}/${st.effectId ?? ''}/${i}`} style={{ ...listRow, paddingLeft: 4 }}>
@@ -228,6 +274,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
       <button onClick={() => moveStep(t, i, -1)} disabled={i === 0} style={small('#335')}>↑</button>
       <button onClick={() => moveStep(t, i, 1)} disabled={i === stepsOf(t).length - 1} style={small('#335')}>↓</button>
       <button onClick={() => removeStep(t, i)} style={small('#522')}>×</button>
+      {st.effectId && textBox(effectText(st.num, st.effectId))}
     </div>
   ));
 
@@ -267,7 +314,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
 
           {/* ── ② 効果の狙い方 ───────────────────────────── */}
           <div style={section}>
-            {title('#ff8a8a', '効果の狙い方', '上から順に最初に当たった1つ。どれにも当たらなければ「パワー・効果が強いもの」。ライフバーストも効果ごとに選べる')}
+            {title('#ff8a8a', '効果の狙い方', '相手の札・自分の札ごとに、上から順に最初に当たった1つ。どれにも当たらなければ「パワー・効果が強いもの」。ライフバーストも効果ごとに選べる')}
             <div style={row}>
               <select data-testid="cpu-plan-rule-card" value={ruleSource} onChange={e => setRuleSource(e.target.value)}
                 style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}>
@@ -281,23 +328,27 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                   </optgroup>
                 ))}
               </select>
+              {/* 🆕`S-36`＝選んだ効果の原文（全文） */}
+              {ruleEid && textBox(effectText(ruleNum, ruleEid), 'cpu-plan-rule-text')}
               <select data-testid="cpu-plan-rule-when" value={ruleWhen} onChange={e => setRuleWhen(e.target.value as CpuTargetWhen)}
-                style={{ ...selectStyle, fontSize: 11 }}>
+                style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}>
                 {CPU_TARGET_WHENS.map(w => <option key={w} value={w}>{CPU_TARGET_WHEN_LABELS[w]}</option>)}
               </select>
-              <select data-testid="cpu-plan-rule-mode" value={ruleMode} onChange={e => setRuleMode(e.target.value as CpuTargetMode)}
-                style={{ ...selectStyle, fontSize: 11 }}>
-                {CPU_TARGET_MODES.map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS[m]}</option>)}
-              </select>
-              <button data-testid="cpu-plan-rule-add" onClick={addRule}
-                style={{ ...chip(true, '#2e8b2e'), padding: '7px 12px' }}>追加</button>
+            </div>
+            {sideEditor('opp', ruleOpp, setRuleOpp, 'cpu-plan-rule')}
+            {sideEditor('self', ruleSelf, setRuleSelf, 'cpu-plan-rule')}
+            <div style={row}>
+              <button data-testid="cpu-plan-rule-add" onClick={addRule} disabled={!canAddRule}
+                style={{ ...chip(canAddRule, '#2e8b2e'), padding: '7px 12px' }}>規則を追加</button>
             </div>
             {rules.map((r, i) => (
-              <div key={`${r.sourceCards.join(',')}/${r.sourceEffectIds?.join(',') ?? ''}/${r.when}/${r.mode}/${i}`} style={listRow}>
+              <div key={`${r.sourceCards.join(',')}/${r.sourceEffectIds?.join(',') ?? ''}/${r.when}/${JSON.stringify(r.opp)}/${JSON.stringify(r.self)}/${i}`}
+                style={{ ...listRow, border: '1px solid #33334d', borderRadius: 6, padding: 6 }}>
                 <span style={{ flex: '1 1 84px', minWidth: 0 }}>
-                  {ruleSourceLabel(r)}・{CPU_TARGET_WHEN_LABELS[r.when]} → {CPU_TARGET_MODE_LABELS[r.mode]}
+                  {ruleSourceLabel(r)}・{CPU_TARGET_WHEN_LABELS[r.when]} → {[sideText('opp', r.opp), sideText('self', r.self)].filter(Boolean).join('／')}
                 </span>
                 <button onClick={() => saveTargeting({ rules: rules.filter((_, k) => k !== i) })} style={chip(false, '#000')}>削除</button>
+                {r.sourceEffectIds?.[0] && textBox(effectText(r.sourceCards[0], r.sourceEffectIds[0]))}
               </div>
             ))}
           </div>
@@ -389,16 +440,16 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                     <option value="">{stepEffects.length > 1 ? 'どの効果でも' : '（効果は1つ）'}</option>
                     {stepEffects.map(o => <option key={o.effectId} value={o.effectId}>{o.label}</option>)}
                   </select>
+                  {/* 🆕`S-36`＝選んだ効果の原文（全文）。1つしか無ければそれを出す。 */}
+                  {textBox((stepEffects.find(o => o.effectId === effectiveStepEffect) ?? (stepEffects.length === 1 ? stepEffects[0] : undefined))?.text ?? '',
+                    'cpu-plan-combo-effect-text')}
                 </div>
               )}
+              {num && <span style={{ color: '#bbb', fontSize: 11 }}>選ぶ先（その効果が対象・カードを選ぶとき）</span>}
+              {num && sideEditor('opp', pickOpp, setPickOpp, 'cpu-plan-combo-pick')}
+              {num && sideEditor('self', pickSelf, setPickSelf, 'cpu-plan-combo-pick')}
               {num && (
                 <div style={row}>
-                  <span style={{ color: '#bbb', fontSize: 11, flex: '0 0 auto' }}>選ぶ先</span>
-                  <select data-testid="cpu-plan-combo-pick-mode" value={pickMode} onChange={e => setPickMode(e.target.value as CpuTargetMode | '')}
-                    style={{ ...selectStyle, fontSize: 11 }}>
-                    <option value="">狙い方はいつもどおり</option>
-                    {CPU_TARGET_MODES.map(m => <option key={m} value={m}>{CPU_TARGET_MODE_LABELS[m]}</option>)}
-                  </select>
                   <select data-testid="cpu-plan-combo-pick-card" value=""
                     onChange={e => { const v = e.target.value; if (v && !pickCards.includes(v)) setPickCards([...pickCards, v]); }}
                     style={{ ...selectStyle, fontSize: 11 }}>

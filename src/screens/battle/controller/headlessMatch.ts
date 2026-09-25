@@ -231,6 +231,7 @@ export function createHeadlessMatch(initial: BattleStateRow, d: HeadlessMatchDep
       cpuPlan: planFor(responderId === bs.host_id ? 'host' : 'guest'),
       // 🆕§5.7 `S-6` 第2段＝**答える席のポリシー**（強さ表の重み・【ガード】温存の点数）＝A/B が対象選択にも効く。
       policy: (responderId === bs.host_id ? d.policy?.host : d.policy?.guest) ?? DEFAULT_CPU_POLICY,
+      activePlayerId: bs.active_user_id ?? undefined, turnPhase: bs.turn_phase,
     });
     if (!res) return false;
     actor = responderId === bs.host_id ? 'host' : 'guest';

@@ -36,12 +36,14 @@ export const CPU_COMBO_USE_LABELS: Readonly<Record<CpuComboUse, string>> = {
 
 /**
  * 🆕**その効果が「選ぶ」ときの選び方**（2026-09-25 ユーザー要望「コンボでカードの効果やその効果の選ぶ先まで決めたい」）。
- * - `mode`＝対象の狙い方（未指定＝狙い方の切り替え規則へ落ちる）。
+ * - `opp`／`self`＝**相手の札を選ぶとき／自分の札を選ぶとき**の狙い方（🆕2026-09-26 `S-36`＝分けた。未指定＝規則へ落ちる）。
  * - `cards`＝**この札を優先して選ぶ**（対象・サーチ・公開から選ぶ、のどれにも効く＝`planTargetBonus`／`planKeepBonus` と同じ口）。
  *   ⚠**自分のデッキの札だけ**（`pruneCpuDeckPlan` がデッキ外を落とす）。
+ * ⚠旧形 `{ mode }` は**両側へ同じ狙い方**として読む（`normalizeCpuDeckPlan`＝旧の意味＝得になる側の並び）。
  */
 export interface CpuEffectPick {
-  mode?: CpuTargetMode;
+  opp?: CpuSideTarget;
+  self?: CpuSideTarget;
   cards?: string[];
 }
 
@@ -71,22 +73,70 @@ export interface CpuDeckCombo {
 /**
  * 🆕**効果の対象の狙い方**（§5.7 `S-32`・2026-09-21 ユーザー要望
  * 「相手のパワーの大きいもの」「パワーを下げることでバニッシュできるもの」「固有のカード指定」）。
- * - `strongest`＝**既定**。相手の価値（パワー＋効果）が高い順＝`S-22` で入れた挙動そのまま。
- * - `killable`＝**その効果で場から離せる対象を先に**（パワーを下げて0以下にできる／バニッシュできる）。
+ * - `strongest`＝**既定**。価値（パワー＋効果）が高い順＝`S-22` で入れた挙動そのまま。
+ * - `killable`＝**その効果で場から離せる対象を先に**（パワーを下げて0以下にできる）。**相手の札だけ**。
  *   🔴**「離せる」が分かるのはパワーを下げる効果だけ**＝バニッシュ等は全部離せるので `strongest` と同じになる。
  * - `weakest`＝価値の低い順（⚠**自分の札を対象に取る効果**で「安いものを差し出す」向き）。
+ * - 🆕`beatsFront`（2026-09-26 `S-36`）＝**効果の後、正面とのバトルに勝てるようになるものを先に**
+ *   （自分の札＝強化して正面の相手シグニを上回る／相手の札＝弱めて正面の自分のシグニが上回れる）。
+ *   🔑**バトルの勝ちは公式ルールどおり「パワー以上」**（`cpuAttackValueOf` と同じ）。
+ *   ⚠**分かるのはパワーを増減・固定する効果だけ**（それ以外は `strongest` と同じ並び）。
  */
-export type CpuTargetMode = 'strongest' | 'killable' | 'weakest';
+export type CpuTargetMode = 'strongest' | 'killable' | 'weakest' | 'beatsFront';
 
 /** 選べる狙い方（UI の並び順）。 */
-export const CPU_TARGET_MODES: readonly CpuTargetMode[] = ['strongest', 'killable', 'weakest'];
+export const CPU_TARGET_MODES: readonly CpuTargetMode[] = ['strongest', 'killable', 'weakest', 'beatsFront'];
 
-/** 画面と逆引きの表示名。 */
+/** 画面と逆引きの表示名（側を問わない短い名前＝ログ・旧形の表示）。 */
 export const CPU_TARGET_MODE_LABELS: Readonly<Record<CpuTargetMode, string>> = {
   strongest: 'パワー・効果が強いもの',
   killable: 'パワーを下げて落とせるものを優先',
   weakest: '弱いもの',
+  beatsFront: '効果後に正面を上回るもの',
 };
+
+/** 🆕2026-09-26 `S-36`＝狙い方を当てる側（相手の札／自分の札）。 */
+export type CpuTargetSide = 'opp' | 'self';
+
+/**
+ * 🆕**側ごとに選べる狙い方**（`S-36`）＝🔴**効かない選択肢を出さない**。
+ * `killable`（パワーを0以下にする）は**相手の札だけ**＝自分の札に当てる意味が無い。
+ */
+export const CPU_TARGET_MODES_BY_SIDE: Readonly<Record<CpuTargetSide, readonly CpuTargetMode[]>> = {
+  opp: ['strongest', 'killable', 'weakest', 'beatsFront'],
+  self: ['strongest', 'weakest', 'beatsFront'],
+};
+
+/** 🆕側ごとの表示名（`S-36`）＝「正面」がどちらのシグニかを名前に書く。 */
+export const CPU_TARGET_MODE_LABELS_BY_SIDE: Readonly<Record<CpuTargetSide, Readonly<Record<CpuTargetMode, string>>>> = {
+  opp: {
+    strongest: 'パワー・効果が強いもの',
+    killable: 'パワーを下げて落とせるもの',
+    weakest: '弱いもの',
+    beatsFront: '効果後、正面の自分のシグニが上回れるもの',
+  },
+  self: {
+    strongest: 'パワー・効果が強いもの',
+    killable: 'パワーを下げて落とせるもの',
+    weakest: '弱いもの',
+    beatsFront: '効果後、正面の相手シグニを上回るもの',
+  },
+};
+
+/** 🆕**片側の狙い方**（`S-36`）＝並びの主キー＋「アップ状態を優先」。 */
+export interface CpuSideTarget {
+  mode: CpuTargetMode;
+  /** 🆕**アップ状態のシグニを先に**（ダウン状態のものは後回し）＝狙い方より先に効く。 */
+  upFirst?: boolean;
+}
+
+/** 🆕**解決済みの狙い方**（両側）＝`pickCpuTargets` が候補の持ち主で使い分ける。 */
+export interface CpuTargetSpec {
+  opp: CpuSideTarget;
+  self: CpuSideTarget;
+}
+
+export const DEFAULT_CPU_TARGET_SPEC: CpuTargetSpec = { opp: { mode: 'strongest' }, self: { mode: 'strongest' } };
 
 /**
  * 🆕**狙い方を切り替える条件**（§5.7 `S-32` ②・2026-09-21）。
@@ -108,6 +158,8 @@ export const CPU_TARGET_WHEN_LABELS: Readonly<Record<CpuTargetWhen, string>> = {
  * 🆕**狙い方の切り替え規則**（§5.7 `S-32` ②③）＝**上から順に、最初に当たった1つ**が狙い方を決める。
  * - `sourceCards` が空＝**どの効果でも**／指定あり＝**その札の効果のときだけ**（③ 効果ごとの指示）。
  * - `when` が `always` 以外＝**盤面の条件つき**（② 条件つき）。
+ * - 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別の狙い方**（`opp`／`self`）。片側だけ書いた規則は、
+ *   **もう片側では当たらない扱い**＝下の規則へ落ちる（側ごとに独立に上から探す）。
  * 🆕2026-09-25＝**「どの効果でも・いつでも」も書ける**（削った「既定」の select の置き換え）＝正規化で**末尾へ回す**
  *   （上にあると下の規則が1つも当たらなくなる）。⚠**どれにも当たらなければ `strongest`**。
  */
@@ -119,7 +171,10 @@ export interface CpuTargetRule {
    */
   sourceEffectIds?: string[];
   when: CpuTargetWhen;
-  mode: CpuTargetMode;
+  /** 🆕相手の札を選ぶときの狙い方（未指定＝この規則は相手の札には当たらない）。 */
+  opp?: CpuSideTarget;
+  /** 🆕自分の札を選ぶときの狙い方（未指定＝この規則は自分の札には当たらない）。 */
+  self?: CpuSideTarget;
 }
 
 /**
@@ -223,10 +278,25 @@ const strList = (v: unknown): string[] =>
 function toEffectPick(raw: unknown): CpuEffectPick | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
-  const mode = CPU_TARGET_MODES.includes(r.mode as CpuTargetMode) ? (r.mode as CpuTargetMode) : undefined;
+  // ⚠旧形 `{ mode }`（2026-09-25）＝**両側へ同じ狙い方**（旧の意味＝得になる側の並び）。
+  const legacy = toSideTarget(r.mode !== undefined ? { mode: r.mode } : undefined);
+  const opp = toSideTarget(r.opp, 'opp') ?? legacy;
+  const self = toSideTarget(r.self, 'self') ?? (legacy && CPU_TARGET_MODES_BY_SIDE.self.includes(legacy.mode) ? legacy : undefined);
   const cards = strList(r.cards);
-  if (!mode && cards.length === 0) return undefined;
-  return { ...(mode ? { mode } : {}), ...(cards.length ? { cards } : {}) };
+  if (!opp && !self && cards.length === 0) return undefined;
+  return { ...(opp ? { opp } : {}), ...(self ? { self } : {}), ...(cards.length ? { cards } : {}) };
+}
+
+/**
+ * DB の値から片側の狙い方を作る（⚠知っている値だけ）。
+ * `side` を渡すと**その側で選べない狙い方は落とす**（自分の札の `killable` など＝効かない指定を残さない）。
+ */
+function toSideTarget(raw: unknown, side?: CpuTargetSide): CpuSideTarget | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const allowed = side ? CPU_TARGET_MODES_BY_SIDE[side] : CPU_TARGET_MODES;
+  if (!allowed.includes(r.mode as CpuTargetMode)) return undefined;
+  return { mode: r.mode as CpuTargetMode, ...(r.upFirst === true ? { upFirst: true } : {}) };
 }
 
 /**
@@ -254,19 +324,32 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
   const rules: CpuTargetRule[] = Array.isArray(t.rules)
     ? t.rules
       .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
-      .map(x => {
+      .map((x): CpuTargetRule | null => {
         const eids = strList(x.sourceEffectIds);
+        // ⚠旧形 `{ mode }`（〜2026-09-25）＝**両側へ同じ狙い方**（旧の意味＝得になる側の並び）。
+        const legacy = CPU_TARGET_MODES.includes(x.mode as CpuTargetMode) ? { mode: x.mode as CpuTargetMode } : undefined;
+        const opp = toSideTarget(x.opp, 'opp') ?? legacy;
+        const self = toSideTarget(x.self, 'self')
+          ?? (legacy && CPU_TARGET_MODES_BY_SIDE.self.includes(legacy.mode) ? legacy : undefined);
+        // ⚠**どちらの側にも狙い方が無い規則は落とす**（何も変えない規則は、上にあると下の規則を隠すだけ）。
+        if (!opp && !self) return null;
         return {
           sourceCards: strList(x.sourceCards),
           ...(eids.length ? { sourceEffectIds: eids } : {}),
           when: CPU_TARGET_WHENS.includes(x.when as CpuTargetWhen) ? (x.when as CpuTargetWhen) : 'always',
-          mode: CPU_TARGET_MODES.includes(x.mode as CpuTargetMode) ? (x.mode as CpuTargetMode) : 'strongest',
+          ...(opp ? { opp } : {}), ...(self ? { self } : {}),
         };
       })
+      .filter((x): x is CpuTargetRule => !!x)
     : [];
   // 🔴**旧「既定の狙い方」は末尾の規則へ移す**（2026-09-25 に select を削った＝保存済みの挙動を変えない）。
   const legacyMode = CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest';
-  if (legacyMode !== 'strongest') rules.push({ sourceCards: [], when: 'always', mode: legacyMode });
+  if (legacyMode !== 'strongest') {
+    rules.push({
+      sourceCards: [], when: 'always', opp: { mode: legacyMode },
+      ...(CPU_TARGET_MODES_BY_SIDE.self.includes(legacyMode) ? { self: { mode: legacyMode } } : {}),
+    });
+  }
   const targeting: CpuTargetPlan = { prefer: strList(t.prefer), avoid: strList(t.avoid), rules: orderRules(rules) };
   return {
     keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting,
@@ -289,7 +372,10 @@ function toCardUseMap(raw: unknown): Record<string, CpuCardUse> {
 function pruneStepPick(st: CpuComboStep, inDeck: ReadonlySet<string>): CpuComboStep {
   if (!st.pick) return st;
   const cards = (st.pick.cards ?? []).filter(n => inDeck.has(n));
-  const pick: CpuEffectPick = { ...(st.pick.mode ? { mode: st.pick.mode } : {}), ...(cards.length ? { cards } : {}) };
+  const pick: CpuEffectPick = {
+    ...(st.pick.opp ? { opp: st.pick.opp } : {}), ...(st.pick.self ? { self: st.pick.self } : {}),
+    ...(cards.length ? { cards } : {}),
+  };
   const { pick: _drop, ...rest } = st;
   return Object.keys(pick).length > 0 ? { ...rest, pick } : rest;
 }
@@ -323,25 +409,43 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   && (plan.targeting?.rules?.length ?? 0) === 0
   && Object.keys(plan.cardUse ?? {}).length === 0;
 
-/**
- * 🆕**いまの狙い方**（§5.7 `S-32` ②③・2026-09-21）＝①コンボの手の選び方 → ②規則を上から見て**最初に当たった1つ** → ③`strongest`。
- * 🔑**ここで解決する**（`pickCpuTargets` は解決済みの `mode` を受け取るだけ）＝
- *   対象選択の関数に盤面の条件判定を持ち込まない（`S-22` の形を壊さない）。
- * ⚠**見るのは公開情報だけ**＝ライフの枚数と場のシグニの数（相手の手札は見ない）。
- */
-export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: {
+/** 狙い方を解決する文脈。 */
+export interface CpuTargetResolveCtx {
   /** 効果を出した札（`PendingEffect.sourceCardNum`）。 */
   sourceCardNum?: string;
   /** 🆕その効果の `effectId`（`PendingEffect.effectId`）＝効果単位の規則・コンボの選び方に使う。 */
   effectId?: string;
   me: PlayerState;
   opp: PlayerState;
-}): CpuTargetMode {
-  // 🆕**コンボの手の選び方が最優先**（その効果を名指しした、いちばん具体的な指定）。
-  const stepMode = planEffectPick(plan, ctx.sourceCardNum, ctx.effectId)?.mode;
-  if (stepMode) return stepMode;
+}
+
+/**
+ * 🆕**いまの狙い方（両側）**（§5.7 `S-32` ②③／🆕2026-09-26 `S-36`＝相手の札・自分の札を別々に）。
+ * **側ごとに独立に**＝①コンボの手の選び方 → ②規則を上から見て**その側を書いた最初の1つ** → ③`strongest`。
+ * 🔑**ここで解決する**（`pickCpuTargets` は解決済みの狙い方を受け取るだけ）＝
+ *   対象選択の関数に盤面の条件判定を持ち込まない（`S-22` の形を壊さない）。
+ * ⚠**見るのは公開情報だけ**＝ライフの枚数と場のシグニの数（相手の手札は見ない）。
+ */
+export function resolveCpuTargetSpec(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx): CpuTargetSpec {
+  const pick = planEffectPick(plan, ctx.sourceCardNum, ctx.effectId);
+  return {
+    opp: pick?.opp ?? resolveRuleSide(plan, ctx, 'opp') ?? DEFAULT_CPU_TARGET_SPEC.opp,
+    self: pick?.self ?? resolveRuleSide(plan, ctx, 'self') ?? DEFAULT_CPU_TARGET_SPEC.self,
+  };
+}
+
+/**
+ * 旧 API（相手の札の狙い方だけ）。⚠**golden の較正用**＝画面・CPU は `resolveCpuTargetSpec` を使う
+ * （旧形の規則は両側へ同じ狙い方として読むので、旧の意味では相手側と同じ）。
+ */
+export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx): CpuTargetMode {
+  return resolveCpuTargetSpec(plan, ctx).opp.mode;
+}
+
+/** 規則を上から見て、**その側を書いた**最初に当たった1つ（無ければ `undefined`）。 */
+function resolveRuleSide(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx, side: CpuTargetSide): CpuSideTarget | undefined {
   const t = plan.targeting;
-  if (!t) return 'strongest';
+  if (!t) return undefined;
   const src = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : undefined;
   const holds = (w: CpuTargetWhen): boolean => {
     switch (w) {
@@ -352,12 +456,14 @@ export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: {
     }
   };
   for (const r of t.rules ?? []) {
+    const target = r[side];
+    if (!target) continue;
     if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
     if ((r.sourceEffectIds?.length ?? 0) > 0 && (!ctx.effectId || !r.sourceEffectIds!.includes(ctx.effectId))) continue;
     if (!holds(r.when)) continue;
-    return r.mode;
+    return target;
   }
-  return 'strongest';
+  return undefined;
 }
 
 /**

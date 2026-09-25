@@ -1,9 +1,10 @@
 import { InstanceMap } from './battleUtils';
 import { getCardNum } from '../../engine/execUtils';
-import type { CardData, PendingEffect, PlayerState } from '../../types';
+import type { CardData, PendingEffect, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve } from './cpuGrowReserve';
-import { planEffectPick, planKeepBonus, planTargetBonus, resolveCpuTargetMode, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
+import { planEffectPick, planKeepBonus, planTargetBonus, resolveCpuTargetSpec, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
+import { calcFieldPowers } from '../../engine/effectEngine';
 import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
@@ -49,6 +50,10 @@ export interface CpuInteractionRespondDeps {
   cpuPlan: CpuDeckPlan;
   /** 🆕§5.7 `S-6` 第2段＝この席の CPU のポリシー（省略時は既定＝画面は渡さない）。 */
   policy?: CpuPolicy;
+  /** 🆕2026-09-26 `S-36`＝手番のプレイヤー（実効パワーの計算＝「自分のターン中」の【常】に要る）。 */
+  activePlayerId?: string;
+  /** 🆕`S-36`＝いまのフェイズ（実効パワーの計算に要る）。 */
+  turnPhase?: TurnPhase;
 }
 
 export function decideCpuInteractionResponse(
@@ -73,9 +78,14 @@ export function decideCpuInteractionResponse(
     planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy) + pickBonus(id),
     // 🆕§5.7 `S-32`＝対象の狙い方（デッキごと・既定は `strongest`＋加点0＝挙動不変）。
     // 🆕§5.7 `S-32` ②③＝**狙い方はここで解決する**（効果ごと・盤面の条件つきの規則を上から見る）。
-    targetMode: resolveCpuTargetMode(d.cpuPlan, {
+    // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**。
+    targetSpec: resolveCpuTargetSpec(d.cpuPlan, {
       sourceCardNum: pe.sourceCardNum, effectId: pe.effectId, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
     }),
+    // 🆕`S-36`＝「効果後に正面を上回る」が正面のシグニのパワーを引く（engine の実効パワー・その狙い方のときだけ計算）。
+    fieldPowers: () => calcFieldPowers(
+      cpuIsHost ? d.hostState : d.guestState, cpuIsHost ? d.guestState : d.hostState,
+      d.activePlayerId === d.cpuPlayerId, d.effectsMap, d.cardMap, d.turnPhase),
     // 🆕2026-09-25＝属性での指定は削った。コンボの手が名指しした札（その効果の選ぶ先）を優先する。
     targetBonus: id => planTargetBonus(d.cpuPlan, id, d.policy, pick),
     policy: d.policy,
