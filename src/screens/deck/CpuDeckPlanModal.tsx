@@ -25,6 +25,10 @@ import {
   cpuPlanUseModesFor, type CpuPlanEffectOption,
 } from './cpuPlanOptions';
 import { getAbilityBlockTexts } from '../../data/effectParser';
+import {
+  CPU_STATE_DEFS, CPU_STATE_GROUP_LABELS, CPU_STATE_PLACE_LABELS, cpuStateDef, statePlacesFor,
+  type CpuStateGroup, type CpuStatePlace,
+} from '../battle/cpuPlanStates';
 
 /** 効果ごとの原文（能力ブロック）。引けなければ `undefined`＝種類だけの表示になる。 */
 const abilityTextOf = (card: CardData, effectId: string): string | undefined => {
@@ -91,9 +95,21 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const [ruleConds, setRuleConds] = useState<CpuTargetCond[]>([]);
   const [ruleCombine, setRuleCombine] = useState<CpuCondCombine>('and');
   const [condForm, setCondForm] = useState<CpuTargetCond>({ side: 'me', zone: 'life', cmp: 'le', n: 2 });
+  // 🆕2026-09-26＝**特殊状態**を選ぶと、置き場は「その状態を数えられる置き場」だけになる（相手の手札は出さない）。
+  const statePlaces = condForm.state ? statePlacesFor(condForm.state, condForm.side) : [];
+  const isPlayerState = !!condForm.state && cpuStateDef(condForm.state)?.group === 'player';
+  /** 置き場を選び直す（今の置き場が使えなければ先頭へ＝表示と保存を食い違わせない）。 */
+  const withValidZone = (f: CpuTargetCond): CpuTargetCond => {
+    if (!f.state) return f;
+    if (cpuStateDef(f.state)?.group === 'player') return { ...f, zone: 'field' };
+    const places = statePlacesFor(f.state, f.side);
+    return places.includes(f.zone as CpuStatePlace) ? f : { ...f, zone: places[0] ?? 'field' };
+  };
+  const setCond = (next: CpuTargetCond) => setCondForm(withValidZone(next));
   const addCond = () => {
     const n = Math.max(0, Math.min(99, Math.round(Number(condForm.n) || 0)));
-    const c = { ...condForm, n };
+    const { state, ...rest } = withValidZone(condForm);
+    const c: CpuTargetCond = { ...rest, n, ...(state ? { state } : {}) };
     // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
     if (ruleConds.some(x => JSON.stringify(x) === JSON.stringify(c))) return;
     setRuleConds([...ruleConds, c]);
@@ -364,18 +380,36 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
             <div style={{ ...row, border: '1px dashed #44446a', borderRadius: 6, padding: 6 }}>
               <span style={{ color: '#aaa', fontSize: 11, flex: '1 1 100%' }}>使うタイミング（条件なし＝いつでも）</span>
               <select data-testid="cpu-plan-cond-side" value={condForm.side} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCondForm({ ...condForm, side: e.target.value as CpuTargetCond['side'] })}>
+                onChange={e => setCond({ ...condForm, side: e.target.value as CpuTargetCond['side'] })}>
                 {CPU_COND_SIDES.map(v => <option key={v} value={v}>{CPU_COND_SIDE_LABELS[v]}</option>)}
               </select>
-              <select data-testid="cpu-plan-cond-zone" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCondForm({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
-                {CPU_COND_ZONES.map(v => <option key={v} value={v}>{CPU_COND_ZONE_LABELS[v]}</option>)}
+              {/* 🆕特殊状態（空＝置き場の枚数そのもの）。見出しは4群。 */}
+              <select data-testid="cpu-plan-cond-state" value={condForm.state ?? ''} style={{ ...selectStyle, fontSize: 11 }}
+                onChange={e => setCond({ ...condForm, state: e.target.value || undefined, zone: e.target.value ? condForm.zone : 'life' })}>
+                <option value="">（状態なし＝枚数そのもの）</option>
+                {(Object.keys(CPU_STATE_GROUP_LABELS) as CpuStateGroup[]).map(g => (
+                  <optgroup key={g} label={CPU_STATE_GROUP_LABELS[g]}>
+                    {CPU_STATE_DEFS.filter(d => d.group === g).map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                  </optgroup>
+                ))}
               </select>
+              {!condForm.state && (
+                <select data-testid="cpu-plan-cond-zone" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
+                  onChange={e => setCond({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
+                  {CPU_COND_ZONES.map(v => <option key={v} value={v}>{CPU_COND_ZONE_LABELS[v]}</option>)}
+                </select>
+              )}
+              {condForm.state && !isPlayerState && (
+                <select data-testid="cpu-plan-cond-place" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
+                  onChange={e => setCond({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
+                  {statePlaces.map(v => <option key={v} value={v}>{CPU_STATE_PLACE_LABELS[v]}</option>)}
+                </select>
+              )}
               <input data-testid="cpu-plan-cond-n" type="number" min={0} max={99} value={condForm.n}
-                onChange={e => setCondForm({ ...condForm, n: Number(e.target.value) })}
+                onChange={e => setCond({ ...condForm, n: Number(e.target.value) })}
                 style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
               <select data-testid="cpu-plan-cond-cmp" value={condForm.cmp} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCondForm({ ...condForm, cmp: e.target.value as CpuTargetCond['cmp'] })}>
+                onChange={e => setCond({ ...condForm, cmp: e.target.value as CpuTargetCond['cmp'] })}>
                 {CPU_COND_CMPS.map(v => <option key={v} value={v}>{CPU_COND_CMP_LABELS[v]}</option>)}
               </select>
               <button data-testid="cpu-plan-cond-add" onClick={addCond} style={{ ...chip(true, '#4a4a8a'), padding: '5px 10px' }}>条件を足す</button>

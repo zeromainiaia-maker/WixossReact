@@ -6,19 +6,19 @@ PlayerState のキー: 382
 
 
 ## 参考：書き込みの多い順（上位40）
-  1783 読 / 114 書  energy
+  1786 読 / 115 書  energy
   1482 読 /  82 書  deck
-  4049 読 /  73 書  field
-  2138 読 /  70 書  hand
-  1901 読 /  67 書  trash
+  4076 読 /  74 書  field
+  2140 読 /  71 書  hand
+  1904 読 /  68 書  trash
    247 読 /  33 書  lrig_deck
     57 読 /  33 書  temp_power_mods
    202 読 /  25 書  lrig_trash
-   131 読 /  19 書  keyword_grants
+   132 読 /  19 書  keyword_grants
    306 読 /  18 書  actions_done
    102 読 /  18 書  blocked_actions
    170 読 /  17 書  life_cloth
-   109 読 /  14 書  coins
+   110 読 /  14 書  coins
      3 読 /  14 書  opp_virus_removed_just
      8 読 /  12 書  pending_banish_substitute
      2 読 /  11 書  self_optional_effect_taken
@@ -35,12 +35,12 @@ PlayerState のキー: 382
      4 読 /   7 書  prevent_defeat
      5 読 /   7 書  signi_color_overrides
      1 読 /   7 書  acce_just_done
-    16 読 /   7 書  lrig_riding_signi
+    17 読 /   7 書  lrig_riding_signi
     19 読 /   7 書  lrig_upkeep_condition
      1 読 /   7 書  cancel_current_signi_attack
      5 読 /   6 書  crash_cause
     30 読 /   6 書  granted_effects
-    60 読 /   6 書  abilities_removed
+    64 読 /   6 書  abilities_removed
      1 読 /   6 書  draw_limit
     10 読 /   6 書  attack_phase_level_overrides
      4 読 /   6 書  signi_deploy_count_limit

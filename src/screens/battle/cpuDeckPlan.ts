@@ -1,6 +1,9 @@
-import type { PlayerState } from '../../types';
+import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/execUtils';
 import { DEFAULT_CPU_POLICY, type CpuPolicy, type PlanWeights } from './cpuPolicy';
+import {
+  CPU_STATE_PLACE_LABELS, countCardsInState, cpuStateDef, statePlacesFor, stateUnit, type CpuStatePlace,
+} from './cpuPlanStates';
 
 /**
  * 🆕**CPU デッキの作戦データ**（§5.7 `S-2`・2026-09-17）＝デッキごとに「どの札が大事か・何を先に出すか・どのコンボを狙うか」を持たせる。
@@ -147,32 +150,32 @@ export const DEFAULT_CPU_TARGET_SPEC: CpuTargetSpec = { opp: { mode: 'strongest'
  * ⚠旧形の `when` は `normalizeCpuDeckPlan` が条件へ読み替える（挙動不変）。
  */
 export type CpuCondSide = 'me' | 'opp';
-export type CpuCondZone = 'life' | 'hand' | 'energy' | 'trash' | 'field'
-  // 🆕2026-09-26＝**場の特殊状態の数**（その側の場で数える）。
-  | 'virus' | 'infected' | 'frozen' | 'charm' | 'acce' | 'rise';
+export type CpuCondZone = 'life' | 'hand' | 'energy' | 'trash' | 'field';
 export type CpuCondCmp = 'le' | 'ge' | 'eq';
 export type CpuCondCombine = 'and' | 'or';
 
 export interface CpuTargetCond {
   side: CpuCondSide;
+  /**
+   * 置き場。🆕`state` があるときは**その状態のカードを数える置き場**（`field`／`energy`／`hand`／`trash`）＝
+   * 使える置き場は `cpuPlanStates.statePlacesFor`（相手の手札は不可）。⚠プレイヤー側の状態（バリア・コイン）は `field` で保存し、置き場を見ない。
+   */
   zone: CpuCondZone;
   cmp: CpuCondCmp;
   /** 0〜99 の整数。 */
   n: number;
+  /** 🆕2026-09-26＝特殊状態（`cpuPlanStates.CPU_STATE_DEFS` のキー）。未指定＝その置き場の枚数そのもの。 */
+  state?: string;
 }
 
 export const CPU_COND_SIDES: readonly CpuCondSide[] = ['me', 'opp'];
-export const CPU_COND_ZONES: readonly CpuCondZone[] = [
-  'life', 'hand', 'energy', 'trash', 'field', 'virus', 'infected', 'frozen', 'charm', 'acce', 'rise',
-];
+export const CPU_COND_ZONES: readonly CpuCondZone[] = ['life', 'hand', 'energy', 'trash', 'field'];
 export const CPU_COND_CMPS: readonly CpuCondCmp[] = ['le', 'ge', 'eq'];
 export const CPU_COND_COMBINES: readonly CpuCondCombine[] = ['and', 'or'];
 
 export const CPU_COND_SIDE_LABELS: Readonly<Record<CpuCondSide, string>> = { me: '自分', opp: '相手' };
 export const CPU_COND_ZONE_LABELS: Readonly<Record<CpuCondZone, string>> = {
   life: 'ライフ', hand: '手札', energy: 'エナ', trash: 'トラッシュ', field: '場のシグニ',
-  virus: '場のウィルス', infected: '場の感染状態のシグニ', frozen: '場の凍結状態のシグニ',
-  charm: '場のチャーム付きシグニ', acce: '場のアクセ付きシグニ', rise: '場のライズ（下にカードがある）シグニ',
 };
 export const CPU_COND_CMP_LABELS: Readonly<Record<CpuCondCmp, string>> = { le: '以下', ge: '以上', eq: 'ちょうど' };
 export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> = {
@@ -181,7 +184,13 @@ export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> =
 
 /** 条件1つの表示（例「自分のライフが2枚以下」）。 */
 export function cpuTargetCondLabel(c: CpuTargetCond): string {
-  const unit = c.zone === 'life' || c.zone === 'hand' || c.zone === 'energy' || c.zone === 'trash' || c.zone === 'virus' ? '枚' : '体';
+  if (c.state) {
+    const def = cpuStateDef(c.state);
+    const place = def?.group === 'player' ? '' : `${CPU_STATE_PLACE_LABELS[c.zone as CpuStatePlace] ?? c.zone}の`;
+    const unit = stateUnit(c.state, c.zone as CpuStatePlace);
+    return `${CPU_COND_SIDE_LABELS[c.side]}の${place}${def?.label ?? c.state}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
+  }
+  const unit = c.zone === 'field' ? '体' : '枚';
   return `${CPU_COND_SIDE_LABELS[c.side]}の${CPU_COND_ZONE_LABELS[c.zone]}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
 }
 
@@ -191,24 +200,9 @@ export function cpuTargetCondsLabel(conds: readonly CpuTargetCond[], combine: Cp
   return conds.map(cpuTargetCondLabel).join(combine === 'or' ? ' または ' : ' かつ ');
 }
 
-/**
- * 盤面でその置き場の枚数（場のシグニは埋まっているゾーンの数）。
- * 🆕**特殊状態はシグニゾーン3つを見て数える**（読み方は engine のフィルタと同じ＝`matchesFilter` の `infected`／`hasCharm`／`hasAcce`／`isFrozen`／`hasUnderCards`）：
- * - `virus`＝ウィルスのあるゾーン（シグニがいなくても数える＝ウィルスはゾーンに置かれる）。
- * - `infected`＝ウィルスのあるゾーンにいるシグニ（ルール上の感染状態）。
- * - `rise`＝下にカードがあるシグニ（ライズで重ねたもの。⚠効果で下に置いたカードも数える）。
- */
+/** 盤面でその置き場の枚数（場のシグニは埋まっているゾーンの数）。特殊状態は `cpuPlanStates.countCardsInState`。 */
 function condCount(st: PlayerState, zone: CpuCondZone): number {
-  const f = st.field;
-  const occupied = (z: number) => (f.signi[z]?.length ?? 0) > 0;
-  const zones = (pred: (z: number) => boolean) => [0, 1, 2].filter(pred).length;
   switch (zone) {
-    case 'virus': return zones(z => (f.signi_virus?.[z] ?? 0) > 0);
-    case 'infected': return zones(z => occupied(z) && (f.signi_virus?.[z] ?? 0) > 0);
-    case 'frozen': return zones(z => occupied(z) && !!f.signi_frozen?.[z]);
-    case 'charm': return zones(z => occupied(z) && !!f.signi_charms?.[z]);
-    case 'acce': return zones(z => occupied(z) && (f.signi_acce?.[z]?.length ?? 0) > 0);
-    case 'rise': return zones(z => (f.signi[z]?.length ?? 0) >= 2);
     case 'life': return st.life_cloth?.length ?? 0;
     case 'hand': return st.hand?.length ?? 0;
     case 'energy': return st.energy?.length ?? 0;
@@ -220,10 +214,13 @@ function condCount(st: PlayerState, zone: CpuCondZone): number {
 /** 🆕**条件の判定（1本）**＝空なら常に真。 */
 export function cpuTargetCondHolds(
   conds: readonly CpuTargetCond[], combine: CpuCondCombine | undefined, me: PlayerState, opp: PlayerState,
+  /** 🆕キーワード能力の状態を数えるのに要る（無ければキーワードは0枚と数える）。 */
+  cardMap?: Map<string, CardData>,
 ): boolean {
   if (conds.length === 0) return true;
   const one = (c: CpuTargetCond) => {
-    const v = condCount(c.side === 'me' ? me : opp, c.zone);
+    const st = c.side === 'me' ? me : opp;
+    const v = c.state ? countCardsInState(st, c.state, c.zone as CpuStatePlace, cardMap) : condCount(st, c.zone);
     return c.cmp === 'le' ? v <= c.n : c.cmp === 'ge' ? v >= c.n : v === c.n;
   };
   return combine === 'or' ? conds.some(one) : conds.every(one);
@@ -237,15 +234,32 @@ const LEGACY_WHEN: Readonly<Record<string, CpuTargetCond[]>> = {
   oppField3: [{ side: 'opp', zone: 'field', cmp: 'ge', n: 3 }],
 };
 
-/** DB の値から条件を作る（⚠知っている値だけ・枚数は 0〜99 の整数へ丸める）。 */
+/** v0.576 の形（置き場＝場の特殊状態6つ）→ 新しい形（場 × 状態）。 */
+const LEGACY_STATE_ZONES = new Set(['virus', 'infected', 'frozen', 'charm', 'acce', 'rise']);
+
+/**
+ * DB の値から条件を作る（⚠知っている値だけ・枚数は 0〜99 の整数へ丸める）。
+ * 🔴**状態つきは置き場を `statePlacesFor` で検算する**＝相手の手札・場でしか成り立たない状態のエナ等は落とす（効かない条件を残さない）。
+ */
 function toCond(raw: unknown): CpuTargetCond | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (!CPU_COND_SIDES.includes(r.side as CpuCondSide) || !CPU_COND_ZONES.includes(r.zone as CpuCondZone)
-    || !CPU_COND_CMPS.includes(r.cmp as CpuCondCmp)) return null;
   const n = Number(r.n);
-  if (!Number.isFinite(n)) return null;
-  return { side: r.side as CpuCondSide, zone: r.zone as CpuCondZone, cmp: r.cmp as CpuCondCmp, n: Math.max(0, Math.min(99, Math.round(n))) };
+  if (!CPU_COND_SIDES.includes(r.side as CpuCondSide) || !CPU_COND_CMPS.includes(r.cmp as CpuCondCmp) || !Number.isFinite(n)) return null;
+  const side = r.side as CpuCondSide, cmp = r.cmp as CpuCondCmp, nn = Math.max(0, Math.min(99, Math.round(n)));
+  // ⚠v0.576 の旧形（zone に状態名）は「場 × その状態」へ。
+  const legacyState = typeof r.zone === 'string' && LEGACY_STATE_ZONES.has(r.zone) ? r.zone : undefined;
+  const state = legacyState ?? (typeof r.state === 'string' && r.state ? r.state : undefined);
+  const zone = legacyState ? 'field' : r.zone;
+  if (state !== undefined) {
+    const def = cpuStateDef(state);
+    if (!def) return null;
+    if (def.group === 'player') return { side, zone: 'field', cmp, n: nn, state };
+    if (!statePlacesFor(state, side).includes(zone as CpuStatePlace)) return null;
+    return { side, zone: zone as CpuCondZone, cmp, n: nn, state };
+  }
+  if (!CPU_COND_ZONES.includes(zone as CpuCondZone)) return null;
+  return { side, zone: zone as CpuCondZone, cmp, n: nn };
 }
 
 /**
@@ -551,6 +565,8 @@ export interface CpuTargetResolveCtx {
   effectId?: string;
   me: PlayerState;
   opp: PlayerState;
+  /** 🆕2026-09-26＝キーワード能力の状態を数えるのに要る（省略時はキーワードの条件は0枚と数える）。 */
+  cardMap?: Map<string, CardData>;
 }
 
 /**
@@ -586,7 +602,7 @@ function resolveRuleSide(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx, side: CpuT
     if (!target) continue;
     if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
     if ((r.sourceEffectIds?.length ?? 0) > 0 && (!ctx.effectId || !r.sourceEffectIds!.includes(ctx.effectId))) continue;
-    if (!cpuTargetCondHolds(r.conds, r.combine, ctx.me, ctx.opp)) continue;
+    if (!cpuTargetCondHolds(r.conds, r.combine, ctx.me, ctx.opp, ctx.cardMap)) continue;
     return target;
   }
   return undefined;

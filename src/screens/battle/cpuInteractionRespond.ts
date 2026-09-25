@@ -81,6 +81,8 @@ export function decideCpuInteractionResponse(
     // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**。
     targetSpec: resolveCpuTargetSpec(d.cpuPlan, {
       sourceCardNum: pe.sourceCardNum, effectId: pe.effectId, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
+      // 🆕2026-09-26＝使うタイミングの「キーワード能力の枚数」を数える。
+      cardMap: d.cardMap,
     }),
     // 🆕`S-36`＝「効果後に正面を上回る」が正面のシグニのパワーを引く（engine の実効パワー・その狙い方のときだけ計算）。
     fieldPowers: () => calcFieldPowers(

@@ -175,6 +175,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
+import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screens/battle/cpuPlanStates';
 import { cpuPlanBoardCtx, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
@@ -92554,6 +92555,50 @@ test('2026-09-26 作戦データ：狙い方の条件を複数（任意の枚数
   eq(resolveCpuTargetMode(plan, { me: mk({ life: 7 }), opp: mk({ hand: 2 }) }), 'strongest', '🔴条件を満たさないのに規則が当たった');
   eq(cpuTargetCondsLabel([lifeLe3, oppHandGe6], 'or'), '自分のライフが3枚以下 または 相手の手札が6枚以上', '🔴表示が違う');
   eq(cpuTargetCondsLabel([]), 'いつでも', '🔴条件なしの表示が違う');
+  // ── ⑤'（2026-09-26）特殊状態の一覧（ユーザー確認済み）＝自分／相手 × 場・エナ・手札・トラッシュ ──
+  const P = CPU_STATE_DEFS;
+  const condsOf = (conds: object[]) => normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], conds, opp: { mode: 'weakest' } }] } }).targeting.rules?.[0]?.conds;
+  eq(new Set(P.map(d => d.key)).size, P.length, '🔴状態のキーが重複している＝保存と判定で別物を指す');
+  for (const k of ['up', 'down', 'frozen', 'infected', 'awakened', 'drive', 'cross', 'armor', 'puppet', 'heaven', 'facedown', 'noAbilities', 'gateZone',
+    'virus', 'charm', 'acce', 'soul', 'rise', 'trap', 'seed', 'magicBox', 'chokkin', 'facedownAttached', 'beat',
+    'kwLancer', 'kwSLancer', 'kwAssassin', 'kwShadow', 'kwDoubleCrush', 'kwTripleCrush', 'kwShoot', 'kwGuard', 'kwMultiEna', 'kwLifeBurst',
+    'kwCharm', 'kwAcce', 'kwRise', 'kwTrap', 'kwSeed', 'kwMagicBox', 'kwDecore', 'kwHarmony', 'kwRide', 'kwChain', 'kwEichi', 'kwConvert',
+    'kwLimitUpper', 'kwAssist', 'kwGrow', 'lrigBarrier', 'signiBarrier', 'coin', 'lrigFrozen', 'lrigDown']) {
+    ok(P.some(d => d.key === k), `🔴ユーザーが確認した状態「${k}」が一覧から消えた`);
+  }
+  // 🔴**相手の手札は見えない**＝置き場の選択肢にも出さず、保存済みでも落とす。
+  eq(JSON.stringify(statePlacesFor('kwGuard', 'me')), JSON.stringify(['field', 'energy', 'hand', 'trash']), '🔴キーワードを4つの置き場で数えられない');
+  ok(!statePlacesFor('kwGuard', 'opp').includes('hand'), '🔴相手の手札の中身を条件に使える＝カンニング');
+  eq(JSON.stringify(statePlacesFor('frozen', 'me')), JSON.stringify(['field']), '🔴場でしか成り立たない状態をエナ等で数えられる');
+  eq(statePlacesFor('coin', 'me').length, 0, '🔴プレイヤーの状態に置き場を出した');
+  eq(JSON.stringify(condsOf([{ side: 'opp', zone: 'hand', cmp: 'ge', n: 1, state: 'kwGuard' }])), '[]', '🔴相手の手札の状態の条件を保存に残した');
+  eq(JSON.stringify(condsOf([{ side: 'me', zone: 'energy', cmp: 'ge', n: 1, state: 'frozen' }])), '[]', '🔴エナの凍結（ありえない条件）を残した');
+  eq(JSON.stringify(condsOf([{ side: 'me', zone: 'trash', cmp: 'ge', n: 1, state: 'ぬるぽ' }])), '[]', '🔴知らない状態を残した');
+  eq(JSON.stringify(condsOf([{ side: 'opp', zone: 'hand', cmp: 'ge', n: 5 }])), JSON.stringify([{ side: 'opp', zone: 'hand', cmp: 'ge', n: 5 }]),
+    '🔴相手の手札の「枚数」まで落とした（枚数は公開情報）');
+  // 🔑キーワードは**印刷された札**で数える（エナ・手札・トラッシュ）。場は付与まで見る。
+  const guardNum = [...cardMap.values()].find(c => c.Guard === '1')!.CardNum;
+  const lancerNum = [...cardMap.values()].find(c => isSigni(c) && /【ランサー】/.test(c.EffectText ?? '') && hasKeyword(c.CardNum, 'ランサー', cardMap))!.CardNum;
+  const plainNum = [...cardMap.values()].find(c => isSigni(c) && c.Guard !== '1' && !/【/.test(c.EffectText ?? '') && (c.EffectText ?? '').trim().length <= 1)!.CardNum;
+  const kw = { ...mk({}), energy: [`${guardNum}#1`, `${plainNum}#1`], hand: [`${guardNum}#2`, `${guardNum}#3`], trash: [`${lancerNum}#1`] } as PlayerState;
+  eq(countCardsInState(kw, 'kwGuard', 'energy', cardMap), 1, '🔴エナの【ガード】の数が違う');
+  eq(countCardsInState(kw, 'kwGuard', 'hand', cardMap), 2, '🔴手札の【ガード】の数が違う');
+  eq(countCardsInState(kw, 'kwLancer', 'trash', cardMap), 1, '🔴トラッシュの【ランサー】の数が違う');
+  eq(countCardsInState(kw, 'kwSLancer', 'trash', cardMap), 0, '🔴【ランサー】を【Ｓランサー】として数えた');
+  const grantSt = { ...mkState({ signi: [`${plainNum}#9`, null, null] as never }), keyword_grants: { [`${plainNum}#9`]: ['ランサー'] } } as PlayerState;
+  eq(countCardsInState(grantSt, 'kwLancer', 'field', cardMap), 1, '🔴場で付与された【ランサー】を数えていない');
+  eq(countCardsInState({ ...grantSt, abilities_removed: [`${plainNum}#9`] } as PlayerState, 'kwLancer', 'field', cardMap), 0, '🔴能力を失ったシグニのキーワードを数えた');
+  // プレイヤー側（バリア・コイン・ルリグの凍結）
+  const pl = { ...mk({}), coins: 3 } as PlayerState;
+  pl.field = { ...pl.field, lrig_frozen: true, assist_lrig_l_frozen: true, free_zone: ['WX24-P1-TK2A#1', 'WX24-P1-TK2A#2'] };
+  eq(countCardsInState(pl, 'coin', undefined, cardMap), 3, '🔴コインの枚数が違う');
+  eq(countCardsInState(pl, 'lrigFrozen', undefined, cardMap), 2, '🔴凍結状態のルリグの数が違う');
+  eq(countCardsInState(pl, 'lrigBarrier', undefined, cardMap), 2, '🔴ルリグバリアの数が違う');
+  // 判定まで届く（キーワードは cardMap を渡して数える）＋表示
+  const kwRule = normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], conds: [{ side: 'me', zone: 'hand', cmp: 'ge', n: 2, state: 'kwGuard' }], opp: { mode: 'weakest' } }] } });
+  eq(resolveCpuTargetMode(kwRule, { me: kw, opp: mk({}), cardMap }), 'weakest', '🔴手札の【ガード】2枚以上の規則が当たらない');
+  eq(cpuTargetCondsLabel([{ side: 'me', zone: 'hand', cmp: 'ge', n: 2, state: 'kwGuard' }]), '自分の手札の【ガード】が2枚以上', '🔴キーワードの表示が違う');
+  eq(cpuTargetCondsLabel([{ side: 'opp', zone: 'field', cmp: 'le', n: 0, state: 'signiBarrier' }]), '相手のシグニバリアが0枚以下', '🔴プレイヤーの状態の表示が違う');
   // ── ⑤ 🆕場の特殊状態の数（ウィルス／感染／凍結／チャーム／アクセ／ライズ）──
   const st5 = mkState({ signi: ['A#1', 'B#1', null] as never }) as PlayerState;
   st5.field = { ...st5.field,
@@ -92563,15 +92608,16 @@ test('2026-09-26 作戦データ：狙い方の条件を複数（任意の枚数
     signi_charms: ['C#1', null, null],
     signi_acce: [null, ['X#1'], null],
   };
-  const cnt = (zone: string, n: number) => cpuTargetCondHolds([{ side: 'me', zone: zone as never, cmp: 'eq', n }], 'and', st5, mk({}));
+  const cnt = (state: string, n: number) => cpuTargetCondHolds([{ side: 'me', zone: 'field', cmp: 'eq', n, state }], 'and', st5, mk({}));
   ok(cnt('virus', 2), '🔴ウィルスはゾーンごとに数える（シグニがいなくても）');
   ok(cnt('infected', 1), '🔴感染状態＝ウィルスのあるゾーンにいるシグニだけ');
   ok(cnt('frozen', 1), '🔴凍結は場にいるシグニだけ数える');
   ok(cnt('charm', 1) && cnt('acce', 1) && cnt('rise', 1), '🔴チャーム／アクセ／ライズの数が違う');
-  ok(!cpuTargetCondHolds([{ side: 'opp', zone: 'frozen', cmp: 'ge', n: 1 }], 'and', st5, mk({})), '🔴自分の場の凍結を相手の場として数えた');
-  eq(JSON.stringify(normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], conds: [{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }], opp: { mode: 'weakest' } }] } }).targeting.rules?.[0].conds),
-    JSON.stringify([{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }]), '🔴特殊状態の条件を保存で落とした');
-  eq(cpuTargetCondsLabel([{ side: 'opp', zone: 'frozen', cmp: 'ge', n: 2 }]), '相手の場の凍結状態のシグニが2体以上', '🔴特殊状態の表示が違う');
+  ok(!cpuTargetCondHolds([{ side: 'opp', zone: 'field', cmp: 'ge', n: 1, state: 'frozen' }], 'and', st5, mk({})), '🔴自分の場の凍結を相手の場として数えた');
+  // 🔴v0.576 の旧形（zone に状態名）は「場 × その状態」へ読み替える（保存済みの作戦を壊さない）。
+  eq(JSON.stringify(condsOf([{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }])),
+    JSON.stringify([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, state: 'infected' }]), '🔴v0.576 の旧形を読み替えていない');
+  eq(cpuTargetCondsLabel([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, state: 'frozen' }]), '相手の場の凍結状態が2体以上', '🔴特殊状態の表示が違う');
 }));
 
 if (listMode) {
