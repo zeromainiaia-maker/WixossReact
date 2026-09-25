@@ -1165,14 +1165,15 @@ export const CPU_SIM_APPLICABLE_KINDS: ReadonlySet<CpuMoveKind> =
  * ⚠`resona`／`rise` は**まだ探索に入らない**（`CPU_SIM_APPLICABLE_KINDS` の外）＝いまは加点が届かないが、
  *   入ったときに黙って落ちないよう対応づけだけ書いてある。
  */
-export function cpuPlanMoveStep(m: CpuMove, st: PlayerState): { num: string; use: CpuComboUse } | null {
+export function cpuPlanMoveStep(m: CpuMove, st: PlayerState): { num: string; use: CpuComboUse; effectId?: string } | null {
   switch (m.kind) {
     case 'deploy': return { num: getCardNum(m.id), use: 'deploy' };
     case 'resona': case 'rise': return { num: m.card.CardNum, use: 'deploy' };
-    case 'activate': case 'offFieldActivate': return { num: getCardNum(m.choice.cardNum), use: 'activate' };
+    // 🆕2026-09-25＝**どの【起】か**（`effectId`）も返す＝コンボの手が効果を名指ししたときに別の【起】へ加点しない。
+    case 'activate': case 'offFieldActivate': return { num: getCardNum(m.choice.cardNum), use: 'activate', effectId: m.choice.effect?.effectId };
     case 'lrigActivate': {
       const top = st.field.lrig.at(-1);
-      return top ? { num: getCardNum(top), use: 'activate' } : null;
+      return top ? { num: getCardNum(top), use: 'activate', effectId: m.choice.effect?.effectId } : null;
     }
     case 'arts': return { num: m.choice.card.CardNum, use: 'arts' };
     case 'spell': return { num: m.choice.card.CardNum, use: 'spell' };

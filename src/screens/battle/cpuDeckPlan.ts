@@ -1,6 +1,5 @@
-import type { CardData, PlayerState } from '../../types';
-import type { TargetFilter } from '../../types/effects';
-import { getCardNum, matchesFilter } from '../../engine/execUtils';
+import type { PlayerState } from '../../types';
+import { getCardNum } from '../../engine/execUtils';
 import { DEFAULT_CPU_POLICY, type CpuPolicy, type PlanWeights } from './cpuPolicy';
 
 /**
@@ -35,10 +34,29 @@ export const CPU_COMBO_USE_LABELS: Readonly<Record<CpuComboUse, string>> = {
   deploy: '出す', activate: '【起】で使う', arts: 'アーツで撃つ', spell: 'スペルで使う',
 };
 
+/**
+ * 🆕**その効果が「選ぶ」ときの選び方**（2026-09-25 ユーザー要望「コンボでカードの効果やその効果の選ぶ先まで決めたい」）。
+ * - `mode`＝対象の狙い方（未指定＝狙い方の切り替え規則へ落ちる）。
+ * - `cards`＝**この札を優先して選ぶ**（対象・サーチ・公開から選ぶ、のどれにも効く＝`planTargetBonus`／`planKeepBonus` と同じ口）。
+ *   ⚠**自分のデッキの札だけ**（`pruneCpuDeckPlan` がデッキ外を落とす）。
+ */
+export interface CpuEffectPick {
+  mode?: CpuTargetMode;
+  cards?: string[];
+}
+
 /** コンボの1手。 */
 export interface CpuComboStep {
   num: string;
   use: CpuComboUse;
+  /**
+   * 🆕**どの効果か**（2026-09-25）＝`-E1` / `-E2` / `-BURST` … の effectId。未指定＝その札のどの効果でも。
+   * 🔑`activate` では**どの【起】を使うか**まで絞る（加点も「済んだ」の判定もその効果だけ）。
+   *   `deploy`／`arts`／`spell` では `pick` を当てる効果を決めるだけ（出す・撃つこと自体は札単位）。
+   */
+  effectId?: string;
+  /** 🆕この手の効果が選ぶときの選び方（未指定＝いつもどおり）。 */
+  pick?: CpuEffectPick;
 }
 
 /**
@@ -71,22 +89,6 @@ export const CPU_TARGET_MODE_LABELS: Readonly<Record<CpuTargetMode, string>> = {
 };
 
 /**
- * 🆕**属性での指定**（§5.7 `S-32` ①・2026-09-21）＝**相手の札は名指しできない**（山が分からない）ので、
- * **クラス・レベル・パワーの帯**で狙い／避けを書く。
- * 🔑**判定は engine の `matchesFilter` の1本**＝CPU 用の第2のフィルタ言語を作らない
- *   （`story`＝クラスの後半＝「電機」「天使」など41種／`levelRange`／`powerRange`）。
- * ⚠**パワーは実効パワー**（`inter.candidatePowers`＝engine が算出した値）で見る。
- */
-export interface CpuTargetFilter {
-  /** クラス（＜電機＞＜天使＞…＝`CardClass` の後半）。 */
-  story?: string;
-  levelMin?: number;
-  levelMax?: number;
-  powerMin?: number;
-  powerMax?: number;
-}
-
-/**
  * 🆕**狙い方を切り替える条件**（§5.7 `S-32` ②・2026-09-21）。
  * 🔑**閾値まで名前に入れた閉じた集合**＝自由な式を持たせると、**画面・保存・判定の3か所で解釈がずれる**。
  * ⚠**見るのは公開情報だけ**（ライフの枚数・場のシグニの数）＝相手の手札は見ない（カンニング）。
@@ -103,59 +105,41 @@ export const CPU_TARGET_WHEN_LABELS: Readonly<Record<CpuTargetWhen, string>> = {
 };
 
 /**
- * 🆕**狙い方の切り替え規則**（§5.7 `S-32` ②③）＝**上から順に、最初に当たった1つ**が狙い方を上書きする。
+ * 🆕**狙い方の切り替え規則**（§5.7 `S-32` ②③）＝**上から順に、最初に当たった1つ**が狙い方を決める。
  * - `sourceCards` が空＝**どの効果でも**／指定あり＝**その札の効果のときだけ**（③ 効果ごとの指示）。
  * - `when` が `always` 以外＝**盤面の条件つき**（② 条件つき）。
- * ⚠**当たらなければ `CpuTargetPlan.mode`**（＝既定の狙い方）へ落ちる。
+ * 🆕2026-09-25＝**「どの効果でも・いつでも」も書ける**（削った「既定」の select の置き換え）＝正規化で**末尾へ回す**
+ *   （上にあると下の規則が1つも当たらなくなる）。⚠**どれにも当たらなければ `strongest`**。
  */
 export interface CpuTargetRule {
   sourceCards: string[];
+  /**
+   * 🆕**効果単位の指定**（2026-09-25 ユーザー要望「複数の効果を持つ札は効果ごとに区別する」・ライフバーストの狙い先）。
+   * 空＝`sourceCards` の札の**どの効果でも**／指定あり＝**その効果のときだけ**（`-E2` / `-BURST` …）。
+   */
+  sourceEffectIds?: string[];
   when: CpuTargetWhen;
   mode: CpuTargetMode;
 }
 
-/** 🆕§5.7 `S-32`＝対象の狙い方（デッキごと）。 */
+/**
+ * 🆕§5.7 `S-32`＝対象の狙い方（デッキごと）。
+ * 🔴**2026-09-25 に3つ削った**（ユーザー判断「ほぼ意味をなしていない」）：
+ *   ①**既定の狙い方**（`mode`）＝規則「どの効果でも・いつでも」と同じ意味の二重の入口
+ *   ②**属性で狙う／避ける**（クラス・レベル・パワー帯）＝相手の山は分からず、効果ごとの規則で書くほうが正確
+ *   ③**相手の札の名指し**＝相手の山は分からない（数千枚から1枚を当てにいく指定は当たらない）
+ *   ⚠保存済みの①は `normalizeCpuDeckPlan` が**末尾の規則へ移す**（挙動を変えない）。②③は読み捨てる。
+ */
 export interface CpuTargetPlan {
-  mode: CpuTargetMode;
-  /** 固有のカード指定＝**優先して狙う**札。 */
+  /** 固有のカード指定＝**優先して狙う**札（自分のデッキの札）。 */
   prefer: string[];
-  /** 固有のカード指定＝**狙わない**札（自分の札を守る／無駄撃ちを避ける）。 */
+  /** 固有のカード指定＝**狙わない**札（自分の札を守る）。 */
   avoid: string[];
-  /** 🆕属性で**狙う**（クラス・レベル◯以上・パワー◯以上）。 */
-  preferFilter?: CpuTargetFilter;
-  /** 🆕属性で**避ける**（クラス・レベル◯以下・パワー◯以下＝小物に撃たない）。 */
-  avoidFilter?: CpuTargetFilter;
   /** 🆕§5.7 `S-32` ②③＝狙い方の切り替え規則（上から順・最初に当たった1つ）。 */
   rules?: CpuTargetRule[];
 }
 
-export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { mode: 'strongest', prefer: [], avoid: [], rules: [] };
-
-/** 🆕属性の指定を engine の `TargetFilter` へ（**変換はここ1本**）。空なら `undefined`。 */
-export function cpuTargetFilterToTargetFilter(f: CpuTargetFilter | undefined): TargetFilter | undefined {
-  if (!f) return undefined;
-  const out: TargetFilter = {};
-  if (f.story) out.story = f.story;
-  if (f.levelMin !== undefined || f.levelMax !== undefined) {
-    out.levelRange = { ...(f.levelMin !== undefined ? { min: f.levelMin } : {}), ...(f.levelMax !== undefined ? { max: f.levelMax } : {}) };
-  }
-  if (f.powerMin !== undefined || f.powerMax !== undefined) {
-    out.powerRange = { ...(f.powerMin !== undefined ? { min: f.powerMin } : {}), ...(f.powerMax !== undefined ? { max: f.powerMax } : {}) };
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
-/** DB の値から属性の指定を作る（⚠**知っているキーだけ**＝壊れた値は落ちる）。 */
-function toTargetFilter(raw: unknown): CpuTargetFilter | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const r = raw as Record<string, unknown>;
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-  const out: CpuTargetFilter = {
-    story: typeof r.story === 'string' && r.story ? r.story : undefined,
-    levelMin: num(r.levelMin), levelMax: num(r.levelMax), powerMin: num(r.powerMin), powerMax: num(r.powerMax),
-  };
-  return Object.values(out).some(v => v !== undefined) ? out : undefined;
-}
+export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { prefer: [], avoid: [], rules: [] };
 
 /**
  * 🆕**札の使いどころ**（§5.7 `S-31` ③・2026-09-21 ユーザー要望）。
@@ -217,10 +201,12 @@ function toCombo(c: Record<string, unknown>): CpuDeckCombo | null {
       const r = raw as Record<string, unknown>;
       const num = String(r.num ?? '');
       const use = CPU_COMBO_USES.includes(r.use as CpuComboUse) ? (r.use as CpuComboUse) : 'deploy';
-      const key = `${num}/${use}`;
+      const effectId = typeof r.effectId === 'string' && r.effectId ? r.effectId : undefined;
+      const key = `${num}/${use}/${effectId ?? ''}`;
       if (!num || seen.has(key)) continue;
       seen.add(key);
-      steps.push({ num, use });
+      const pick = toEffectPick(r.pick);
+      steps.push({ num, use, ...(effectId ? { effectId } : {}), ...(pick ? { pick } : {}) });
     }
     return steps.length > 0 ? { steps } : null;
   }
@@ -232,6 +218,26 @@ function toCombo(c: Record<string, unknown>): CpuDeckCombo | null {
 
 const strList = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && x.length > 0))] : [];
+
+/** DB の値から「選び方」を作る（⚠知っている値だけ＝空なら `undefined`）。 */
+function toEffectPick(raw: unknown): CpuEffectPick | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const mode = CPU_TARGET_MODES.includes(r.mode as CpuTargetMode) ? (r.mode as CpuTargetMode) : undefined;
+  const cards = strList(r.cards);
+  if (!mode && cards.length === 0) return undefined;
+  return { ...(mode ? { mode } : {}), ...(cards.length ? { cards } : {}) };
+}
+
+/**
+ * 規則の並びを整える＝**何も絞らない規則（どの効果でも・いつでも）は末尾へ1つだけ**
+ * （上にあると下の規則が1つも当たらなくなる）。
+ */
+function orderRules(rules: readonly CpuTargetRule[]): CpuTargetRule[] {
+  const catchAll = (r: CpuTargetRule) => r.sourceCards.length === 0 && r.when === 'always';
+  const last = [...rules].reverse().find(catchAll);
+  return [...rules.filter(r => !catchAll(r)), ...(last ? [last] : [])];
+}
 
 /** DB の値（形が崩れていても）を作戦データへ。 */
 export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
@@ -245,22 +251,23 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
     : [];
   // 🆕§5.7 `S-32`＝対象の狙い方（⚠**無い／壊れていれば既定**＝保存済みの作戦を壊さない）。
   const t = (r.targeting && typeof r.targeting === 'object' ? r.targeting : {}) as Record<string, unknown>;
-  const targeting: CpuTargetPlan = {
-    mode: CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest',
-    prefer: strList(t.prefer), avoid: strList(t.avoid),
-    preferFilter: toTargetFilter(t.preferFilter), avoidFilter: toTargetFilter(t.avoidFilter),
-    rules: Array.isArray(t.rules)
-      ? t.rules
-        .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
-        .map(r => ({
-          sourceCards: strList(r.sourceCards),
-          when: CPU_TARGET_WHENS.includes(r.when as CpuTargetWhen) ? (r.when as CpuTargetWhen) : 'always',
-          mode: CPU_TARGET_MODES.includes(r.mode as CpuTargetMode) ? (r.mode as CpuTargetMode) : 'strongest',
-        }))
-        // ⚠**何も絞っていない規則は落とす**（`always` かつ札の指定なし＝既定と同じで、上に置くと下の規則を全部殺す）。
-        .filter(r => r.sourceCards.length > 0 || r.when !== 'always')
-      : [],
-  };
+  const rules: CpuTargetRule[] = Array.isArray(t.rules)
+    ? t.rules
+      .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+      .map(x => {
+        const eids = strList(x.sourceEffectIds);
+        return {
+          sourceCards: strList(x.sourceCards),
+          ...(eids.length ? { sourceEffectIds: eids } : {}),
+          when: CPU_TARGET_WHENS.includes(x.when as CpuTargetWhen) ? (x.when as CpuTargetWhen) : 'always',
+          mode: CPU_TARGET_MODES.includes(x.mode as CpuTargetMode) ? (x.mode as CpuTargetMode) : 'strongest',
+        };
+      })
+    : [];
+  // 🔴**旧「既定の狙い方」は末尾の規則へ移す**（2026-09-25 に select を削った＝保存済みの挙動を変えない）。
+  const legacyMode = CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest';
+  if (legacyMode !== 'strongest') rules.push({ sourceCards: [], when: 'always', mode: legacyMode });
+  const targeting: CpuTargetPlan = { prefer: strList(t.prefer), avoid: strList(t.avoid), rules: orderRules(rules) };
   return {
     keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting,
     cardUse: toCardUseMap(r.cardUse),
@@ -278,24 +285,33 @@ function toCardUseMap(raw: unknown): Record<string, CpuCardUse> {
   return out;
 }
 
+/** 手の「選び方」の札をデッキ内に絞る（空になったら `pick` ごと外す）。 */
+function pruneStepPick(st: CpuComboStep, inDeck: ReadonlySet<string>): CpuComboStep {
+  if (!st.pick) return st;
+  const cards = (st.pick.cards ?? []).filter(n => inDeck.has(n));
+  const pick: CpuEffectPick = { ...(st.pick.mode ? { mode: st.pick.mode } : {}), ...(cards.length ? { cards } : {}) };
+  const { pick: _drop, ...rest } = st;
+  return Object.keys(pick).length > 0 ? { ...rest, pick } : rest;
+}
+
 /** デッキに無いカードを作戦から外す（編集で抜いたカードが残らないように）。 */
 export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly string[]): CpuDeckPlan {
   const inDeck = new Set(deckCardNums.map(getCardNum));
+  const t = plan.targeting ?? EMPTY_CPU_TARGET_PLAN;
   return {
     keyCards: plan.keyCards.filter(n => inDeck.has(n)),
     priorityCards: plan.priorityCards.filter(n => inDeck.has(n)),
-    combos: plan.combos.filter(c => c.steps.every(st => inDeck.has(st.num))),
-    // ⚠**狙う札は「相手の札」もありうる**＝自分のデッキに無くてよい（`prune` で落とさない）。
-    //   🔴ここを keyCards と同じに扱うと、相手のエースを名指しで狙う指定が保存の度に消える。
-    //   🆕**規則の `sourceCards` は逆**＝**効果を出すのは自分の札**なので、デッキに無ければ落とす。
-    targeting: plan.targeting
-      ? {
-        ...plan.targeting,
-        rules: (plan.targeting.rules ?? [])
-          .map(r => ({ ...r, sourceCards: r.sourceCards.filter(n => inDeck.has(n)) }))
-          .filter(r => r.sourceCards.length > 0 || r.when !== 'always'),
-      }
-      : EMPTY_CPU_TARGET_PLAN,
+    combos: plan.combos
+      .filter(c => c.steps.every(st => inDeck.has(st.num)))
+      .map(c => ({ steps: c.steps.map(st => pruneStepPick(st, inDeck)) })),
+    // 🆕2026-09-25＝**相手の札の名指しを削った**＝狙う／避けるも自分のデッキの札だけ（デッキ外は落とす）。
+    //   規則の `sourceCards` も自分の札（効果を出す側）＝デッキから抜けたら規則ごと落とす（効果の指定だけ残すと
+    //   「どの効果でも」に化けて意味が変わる）。
+    targeting: {
+      prefer: t.prefer.filter(n => inDeck.has(n)),
+      avoid: t.avoid.filter(n => inDeck.has(n)),
+      rules: orderRules((t.rules ?? []).filter(r => r.sourceCards.every(n => inDeck.has(n)))),
+    },
     // 🆕§5.7 `S-31` ③＝**使いどころは自分の札にしか書けない**（`keyCards` と同じ側）＝デッキから抜けたら落とす。
     cardUse: Object.fromEntries(Object.entries(plan.cardUse ?? {}).filter(([n]) => inDeck.has(n))),
   };
@@ -303,14 +319,12 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
 
 export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
-  && (plan.targeting?.mode ?? 'strongest') === 'strongest'
   && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
-  && !plan.targeting?.preferFilter && !plan.targeting?.avoidFilter
   && (plan.targeting?.rules?.length ?? 0) === 0
   && Object.keys(plan.cardUse ?? {}).length === 0;
 
 /**
- * 🆕**いまの狙い方**（§5.7 `S-32` ②③・2026-09-21）＝規則を上から見て**最初に当たった1つ**、無ければ既定。
+ * 🆕**いまの狙い方**（§5.7 `S-32` ②③・2026-09-21）＝①コンボの手の選び方 → ②規則を上から見て**最初に当たった1つ** → ③`strongest`。
  * 🔑**ここで解決する**（`pickCpuTargets` は解決済みの `mode` を受け取るだけ）＝
  *   対象選択の関数に盤面の条件判定を持ち込まない（`S-22` の形を壊さない）。
  * ⚠**見るのは公開情報だけ**＝ライフの枚数と場のシグニの数（相手の手札は見ない）。
@@ -318,9 +332,14 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
 export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: {
   /** 効果を出した札（`PendingEffect.sourceCardNum`）。 */
   sourceCardNum?: string;
+  /** 🆕その効果の `effectId`（`PendingEffect.effectId`）＝効果単位の規則・コンボの選び方に使う。 */
+  effectId?: string;
   me: PlayerState;
   opp: PlayerState;
 }): CpuTargetMode {
+  // 🆕**コンボの手の選び方が最優先**（その効果を名指しした、いちばん具体的な指定）。
+  const stepMode = planEffectPick(plan, ctx.sourceCardNum, ctx.effectId)?.mode;
+  if (stepMode) return stepMode;
   const t = plan.targeting;
   if (!t) return 'strongest';
   const src = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : undefined;
@@ -334,33 +353,46 @@ export function resolveCpuTargetMode(plan: CpuDeckPlan, ctx: {
   };
   for (const r of t.rules ?? []) {
     if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
+    if ((r.sourceEffectIds?.length ?? 0) > 0 && (!ctx.effectId || !r.sourceEffectIds!.includes(ctx.effectId))) continue;
     if (!holds(r.when)) continue;
     return r.mode;
   }
-  return t.mode;
+  return 'strongest';
 }
 
 /**
- * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果の対象を選ぶときだけ使う。
- * 🔑**狙う／狙わないは「相手の札」も指定できる**＝デッキに無くてもよい（`pruneCpuDeckPlan` が落とさない）。
+ * 🆕**その効果に当たるコンボの手の「選び方」**（2026-09-25）＝札が一致し、手が効果を名指ししていれば**その効果のときだけ**。
+ * ⚠**最初に当たった手**（同じ札・同じ効果を2つのコンボに書いた場合は上のコンボが勝つ）。
+ */
+export function planEffectPick(
+  plan: CpuDeckPlan | undefined, sourceCardNum: string | undefined, effectId: string | undefined,
+): CpuEffectPick | undefined {
+  if (!plan || !sourceCardNum) return undefined;
+  const num = getCardNum(sourceCardNum);
+  for (const c of plan.combos) {
+    for (const st of c.steps) {
+      if (!st.pick || st.num !== num) continue;
+      if (st.effectId && st.effectId !== effectId) continue;
+      return st.pick;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果が対象・カードを選ぶときに使う。
+ * 🆕2026-09-25＝狙う／避けるは**自分のデッキの札だけ**（相手の札の名指しは削った）。
  */
 export function planTargetBonus(
   plan: CpuDeckPlan, id: string, policy?: CpuPolicy,
-  /** 🆕§5.7 `S-32` ①＝属性での指定を見るための札と実効パワー（省略すると固有のカード指定だけ）。 */
-  match?: { card?: CardData; power?: number },
+  /** 🆕2026-09-25＝いま解決中の効果に当たるコンボの手の「選び方」（`planEffectPick`）＝その札を優先して選ぶ。 */
+  pick?: CpuEffectPick,
 ): number {
   const num = getCardNum(id);
   const W = policy?.planWeights ?? PLAN_WEIGHTS;
   const t = plan.targeting;
-  if (!t) return 0;
-  let bonus = (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0);
-  // 🆕属性での指定＝**判定は engine の `matchesFilter`**（⚠実効パワーを渡す）。
-  if (match?.card) {
-    const pf = cpuTargetFilterToTargetFilter(t.preferFilter);
-    const af = cpuTargetFilterToTargetFilter(t.avoidFilter);
-    if (pf && matchesFilter(match.card, pf, match.power)) bonus += W.targetPrefer;
-    if (af && matchesFilter(match.card, af, match.power)) bonus += W.targetAvoid;
-  }
+  let bonus = t ? (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0) : 0;
+  if (pick?.cards?.includes(num)) bonus += W.targetPrefer;
   return bonus;
 }
 
@@ -450,6 +482,8 @@ export interface CpuPlanBoardCtx {
  */
 export function planUseBonus(
   plan: CpuDeckPlan, cardNum: string, use: CpuComboUse, ctx: CpuPlanBoardCtx, policy?: CpuPolicy,
+  /** 🆕2026-09-25＝その手の効果（`activate` のときだけ意味がある＝どの【起】か）。 */
+  effectId?: string,
 ): number {
   const num = getCardNum(cardNum);
   const W = policy?.planWeights ?? PLAN_WEIGHTS;
@@ -461,14 +495,18 @@ export function planUseBonus(
   const done = (st: CpuComboStep): boolean => {
     switch (st.use) {
       case 'deploy': return onField.has(st.num);
-      case 'activate': return (ctx.effectIdsOf?.(st.num) ?? []).some(eid => activated.has(eid));
+      case 'activate': return st.effectId
+        ? activated.has(st.effectId)
+        : (ctx.effectIdsOf?.(st.num) ?? []).some(eid => activated.has(eid));
       case 'arts': return lrigTrash.has(st.num);
       case 'spell': return trash.has(st.num);
     }
   };
   let bonus = use === 'deploy' && plan.priorityCards.includes(num) ? W.priorityDeploy : 0;
   for (const c of plan.combos) {
-    const i = c.steps.findIndex(st => st.num === num && st.use === use);
+    // 🆕**効果を名指しした【起】の手は、その効果の手でだけ当たる**（同じ札の別の【起】に加点しない）。
+    const i = c.steps.findIndex(st => st.num === num && st.use === use
+      && !(use === 'activate' && st.effectId && effectId && st.effectId !== effectId));
     if (i < 0 || done(c.steps[i])) continue;
     const prior = c.steps.slice(0, i);
     if (!prior.every(done)) {

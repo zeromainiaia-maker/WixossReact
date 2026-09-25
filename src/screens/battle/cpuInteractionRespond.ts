@@ -3,7 +3,7 @@ import { getCardNum } from '../../engine/execUtils';
 import type { CardData, PendingEffect, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve } from './cpuGrowReserve';
-import { planKeepBonus, planTargetBonus, resolveCpuTargetMode, type CpuDeckPlan } from './cpuDeckPlan';
+import { planEffectPick, planKeepBonus, planTargetBonus, resolveCpuTargetMode, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
 import type { CpuPolicy } from './cpuPolicy';
 import {
   isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange,
@@ -59,6 +59,9 @@ export function decideCpuInteractionResponse(
   //   旧＝この effect に直書きで、選択肢は「押せる先頭」固定（分岐の片側しか踏まない）・対象は完全ランダムだった。
   if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== d.cpuPlayerId) return null;
   const cpuIsHost = d.hostId === d.cpuPlayerId;
+  // 🆕2026-09-25＝**この効果に当たるコンボの手の「選び方」**（効果単位＝`pe.effectId` で E1/E2/BURST を区別する）。
+  const pick = planEffectPick(d.cpuPlan, pe.sourceCardNum, pe.effectId);
+  const pickBonus = (id: string) => (pick?.cards?.includes(getCardNum(id)) ? (d.policy?.planWeights ?? PLAN_WEIGHTS).targetPrefer : 0);
   const cpuCtx: CpuInteractionCtx = {
     cpuState: cpuIsHost ? d.hostState : d.guestState,
     oppState: cpuIsHost ? d.guestState : d.hostState,
@@ -66,14 +69,15 @@ export function decideCpuInteractionResponse(
     cardMap: new InstanceMap(d.cards.map(c => [c.CardNum, c] as [string, CardData])),
     // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
     effectsOf: id => d.effectsMap.get(id) ?? [],
-    planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy),
+    // 🆕2026-09-25＝コンボの手が名指しした札（サーチ・公開から選ぶ先）もここで優先する。
+    planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy) + pickBonus(id),
     // 🆕§5.7 `S-32`＝対象の狙い方（デッキごと・既定は `strongest`＋加点0＝挙動不変）。
     // 🆕§5.7 `S-32` ②③＝**狙い方はここで解決する**（効果ごと・盤面の条件つきの規則を上から見る）。
     targetMode: resolveCpuTargetMode(d.cpuPlan, {
-      sourceCardNum: pe.sourceCardNum, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
+      sourceCardNum: pe.sourceCardNum, effectId: pe.effectId, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
     }),
-    // 🆕§5.7 `S-32` ①＝属性での指定（クラス・レベル・パワー帯）も見る＝札と**実効パワー**を渡す。
-    targetBonus: (id, power) => planTargetBonus(d.cpuPlan, id, d.policy, { card: d.cardMap.get(getCardNum(id)), power }),
+    // 🆕2026-09-25＝属性での指定は削った。コンボの手が名指しした札（その効果の選ぶ先）を優先する。
+    targetBonus: id => planTargetBonus(d.cpuPlan, id, d.policy, pick),
     policy: d.policy,
     // 🆕§5.7 `S-29`（2026-09-22）＝**この宣言の帰結のコスト**（「それのレベル１につき〈コスト〉」）を
     //   効果の木から読んで渡す（対話そのものには入っていない）。⚠見つからなければ `undefined`＝挙動不変。

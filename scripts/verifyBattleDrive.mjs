@@ -60710,31 +60710,37 @@ scenarios.v268CpuDeckPlan = {
         if (JSON.stringify(steps) !== JSON.stringify(want)) {
           return { pass: false, detail: `🔴コンボの「使い方」が DB に届かない（steps=${JSON.stringify(steps)} / plan=${JSON.stringify(saved2)}）` };
         }
-        // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**（大まかな指示＋固有のカード指定）も画面から保存できる。
-        await page.getByTestId('cpu-plan-target-mode').selectOption('killable', { timeout: 3000 });
-        await page.waitForTimeout(600);
+        // 🆕2026-09-25＝**保存済みのコンボに手を足せる**＋**手ごとの「選ぶ先」**（旧は1手目ですぐ保存され、
+        //   ユーザーの山に1手だけのコンボが4件できていた）。3手目を［手を足す］で既存のコンボ1へ足す。
+        await page.getByTestId('cpu-plan-combo-edit-0').click({ timeout: 1200 });
+        await page.waitForTimeout(400);
+        const thirdCard = (await page.getByTestId('cpu-plan-combo-card').locator('option')
+          .evaluateAll(os => os.map(o => o.value).filter(Boolean))).find(v => v !== comboA && v !== comboB);
+        if (!thirdCard) return { pass: false, detail: '前提崩れ＝3手目に使える札が無い' };
+        await page.getByTestId('cpu-plan-combo-card').selectOption(thirdCard, { timeout: 3000 });
+        await page.waitForTimeout(300);
+        await page.getByTestId('cpu-plan-combo-pick-mode').selectOption('killable', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-combo-step-add').click({ timeout: 1200 });
+        await page.waitForTimeout(1500);
+        const saved2b = await readPlan(deck.id);
+        H.log(`②'b 3手目を足した cpu_plan.combos=${JSON.stringify(saved2b?.combos)}`);
+        const steps2b = saved2b?.combos?.[0]?.steps ?? [];
+        if ((saved2b?.combos ?? []).length !== 1 || steps2b.length !== 3 || steps2b[2]?.num !== thirdCard || steps2b[2]?.pick?.mode !== 'killable') {
+          return { pass: false, detail: `🔴保存済みのコンボに手（選ぶ先つき）を足せない（${JSON.stringify(saved2b?.combos)}）` };
+        }
+        // 🆕§5.7 `S-32`＝**狙う**（自分の札の固有指定）も画面から保存できる。
+        //   🔴2026-09-25＝「既定の狙い方」「属性で狙う／避ける」「相手の札を名指し」は削った（ユーザー判断）。
         await page.getByTestId(`cpu-plan-prefer-${comboA}`).click({ timeout: 1200 });
         await page.waitForTimeout(1500);
         const saved3 = await readPlan(deck.id);
         H.log(`②'' 保存された targeting=${JSON.stringify(saved3?.targeting)}`);
-        if (saved3?.targeting?.mode !== 'killable' || !(saved3?.targeting?.prefer ?? []).includes(comboA)) {
-          return { pass: false, detail: `🔴対象の狙い方が DB に届かない（${JSON.stringify(saved3?.targeting)}）` };
-        }
-
-        // 🆕§5.7 `S-32` ①＝**属性で狙う**（クラス・レベル・パワー帯）も画面から保存できる。
-        //   ⚠**クラスの一覧は全カードから作る**＝相手の札を指定するため（デッキの札だけでは足りない）。
-        await page.getByTestId('cpu-plan-preferFilter-power').selectOption('10000', { timeout: 3000 });
-        await page.waitForTimeout(600);
-        await page.getByTestId('cpu-plan-avoidFilter-level').selectOption('1', { timeout: 3000 });
-        await page.waitForTimeout(1500);
-        const saved4 = await readPlan(deck.id);
-        H.log(`②''' 保存された targeting=${JSON.stringify(saved4?.targeting)}`);
-        if (saved4?.targeting?.preferFilter?.powerMin !== 10000 || saved4?.targeting?.avoidFilter?.levelMax !== 1) {
-          return { pass: false, detail: `🔴属性での狙いが DB に届かない（${JSON.stringify(saved4?.targeting)}）` };
+        if (!(saved3?.targeting?.prefer ?? []).includes(comboA)) {
+          return { pass: false, detail: `🔴「狙う」が DB に届かない（${JSON.stringify(saved3?.targeting)}）` };
         }
 
         // 🆕§5.7 `S-32` ②③＝**狙い方の切り替え規則**（効果ごと・盤面の条件つき）も画面から保存できる。
-        await page.getByTestId('cpu-plan-rule-card').selectOption(comboA, { timeout: 3000 });
+        // 🆕2026-09-25＝値は `<カード番号>|<effectId>`（effectId 空＝その札のどの効果でも）。
+        await page.getByTestId('cpu-plan-rule-card').selectOption(`${comboA}|`, { timeout: 3000 });
         await page.getByTestId('cpu-plan-rule-when').selectOption('myLife2OrLess', { timeout: 3000 });
         await page.getByTestId('cpu-plan-rule-mode').selectOption('weakest', { timeout: 3000 });
         await page.getByTestId('cpu-plan-rule-add').click({ timeout: 1200 });
@@ -60786,7 +60792,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②''対象の狙い方（killable＋狙う札）と ②'''属性での狙い（パワー1万以上を狙う／Lv1以下を避ける）と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ・表示と値が一致）` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 弱いもの）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ・表示と値が一致）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

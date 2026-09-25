@@ -111,3 +111,47 @@ export function cpuPlanComboUsesFor(card: CardData | undefined | null): readonly
 export function cpuPlanClampOption<T extends string>(value: T, options: readonly T[], fallback: T): T {
   return options.includes(value) ? value : (options[0] ?? fallback);
 }
+
+/** 効果の選択肢（`cpuPlanEffectOptions`）。 */
+export interface CpuPlanEffectOption {
+  effectId: string;
+  /** 画面の表示（例＝`E2【起】：対戦相手のシグニ１体を…`）。 */
+  label: string;
+}
+
+/** 効果の種類の表示（【出】と【自】は `onPlayIcon` で分ける）。 */
+function effectKindLabel(e: { effectType: string; onPlayIcon?: boolean; timing?: readonly string[] }): string {
+  switch (e.effectType) {
+    case 'ACTIVATED': return '【起】';
+    case 'AUTO': return e.onPlayIcon ? '【出】' : '【自】';
+    case 'CONTINUOUS': return '【常】';
+    case 'LIFE_BURST': return 'ライフバースト';
+    case 'TRAP_ICON': return 'トラップ';
+    default: return e.effectType;
+  }
+}
+
+/**
+ * 🆕**その札の効果を1つずつ選ぶための選択肢**（2026-09-25 ユーザー要望「複数の効果を持つ札は効果ごとに区別する」
+ * 「ライフバーストの効果の狙い先も設定したい」）。
+ * 🔑**効果の単位は live の効果表の `effectId`**（`-E1` / `-E2` / `-BURST` …）＝engine が対話に載せる
+ *   `PendingEffect.effectId` と同じ値なので、選んだ指定がそのまま当たる。
+ * - `purpose: 'pick'`＝**その効果が選ぶ先**を決める用途＝【常】は選ばない（対象を選ばない）。
+ * - `purpose: 'activate'`＝コンボの「【起】で使う」＝【起】だけ。
+ * @param textOf 効果ごとの原文（省略すると種類だけ）。画面は `getAbilityBlockTexts` を渡す。
+ */
+export function cpuPlanEffectOptions(
+  card: CardData | undefined, purpose: 'pick' | 'activate',
+  textOf?: (card: CardData, effectId: string) => string | undefined,
+): CpuPlanEffectOption[] {
+  if (!card?.effects) return [];
+  const prefix = `${card.CardNum}-`;
+  return card.effects
+    .filter(e => purpose === 'activate' ? e.effectType === 'ACTIVATED' : e.effectType !== 'CONTINUOUS')
+    .map(e => {
+      const suffix = e.effectId.startsWith(prefix) ? e.effectId.slice(prefix.length) : e.effectId;
+      const raw = e.effectType === 'LIFE_BURST' ? card.BurstText : textOf?.(card, e.effectId);
+      const text = (raw ?? '').replace(/\s+/g, '').slice(0, 36);
+      return { effectId: e.effectId, label: `${suffix}${effectKindLabel(e)}${text ? `：${text}` : ''}` };
+    });
+}

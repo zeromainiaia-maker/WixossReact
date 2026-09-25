@@ -1022,7 +1022,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         moveBonus: (mv, board) => {
           const step = cpuPlanMoveStep(mv, board.cpu);
           if (!step) return 0;
-          return planUseBonus(cpuPlan, step.num, step.use, cpuPlanBoardCtx(board.cpu), cpuPolicy);
+          return planUseBonus(cpuPlan, step.num, step.use, cpuPlanBoardCtx(board.cpu), cpuPolicy, step.effectId);
         },
       });
       if (searched.move && searched.move.kind !== 'deploy') {
