@@ -61,6 +61,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, attackingLrigPrintedEffects, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, collectOppLifeBurstActivatedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectNaturalTrapTrigger } from '../src/engine/naturalTrap';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { collectSuppressedSigniTriggerNums, triggerEffectsForCollection } from '../src/engine/triggerCollect';
@@ -12499,6 +12500,38 @@ test('§5.3 O-263: ACTIVATE_TRAP の対象は payload で決まる（explicit＝
       'O-263 反転: trapTargetPicked が無ければ lastProcessedCards を選択として使わない');
   }
 }));
+
+// ── 2026-09-25（バグ報告 b16e1b03「トラップが発動しない」）：【トラップ】のルール上の誘発 ──
+// 🔴旧はカードの効果経由でしか【トラップ】を発動できず、**相手のアタックで一度も誘発しなかった**。
+//   ルール＝「このトラップの正面のシグニがアタックしたとき、同じシグニゾーンにシグニがない場合、表向きにしてもよい」。
+test('バグ報告 b16e1b03: 【トラップ】は正面のシグニのアタックで誘発する（同じゾーンにシグニがいないときだけ）', () => withSavedCursor(() => {
+  const DRAW2 = 'WX19-059';  // 《トラップアイコン》＝カードを2枚引く
+  const ENA2 = 'WX19-025';   // 《トラップアイコン》＝デッキから2枚エナチャージ
+  const def = mkCtx({}, {}).ownerState;
+  const withBoard = (traps: (string | null)[], signi: (string[] | null)[]) =>
+    ({ ...def, field: { ...def.field, signi_traps: traps, signi } }) as PlayerState;
+  const board = withBoard([DRAW2, null, ENA2], [null, null, null]);
+  eq(collectNaturalTrapTrigger(board, 0)?.trapCardNum, ENA2, 'ゾーン1からのアタック＝向かい側ゾーン3のトラップ');
+  eq(collectNaturalTrapTrigger(board, 2)?.trapCardNum, DRAW2, 'ゾーン3からのアタック＝向かい側ゾーン1のトラップ');
+  eq(collectNaturalTrapTrigger(board, 1), null, '反転: 正面にトラップが無ければ誘発しない');
+  eq(collectNaturalTrapTrigger(withBoard([DRAW2, null, ENA2], [null, null, [SIGNI]]), 0), null,
+    '反転: 同じゾーンにシグニがいれば誘発しない');
+  const trig = collectNaturalTrapTrigger(board, 0)!;
+  eq(trig.effect.mandatory, false, '「表向きにしてもよい」＝任意');
+  ok(!trig.label.includes(cardMap.get(ENA2)?.CardName ?? ENA2), '🔴裏向きの札の名前をラベルに出さない（V-285）');
+  // 解決＝固定したゾーンのトラップだけが発動する（先頭の DRAW2 ではない）
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.signi_traps = [DRAW2, null, ENA2];
+  const hand0 = ctx.ownerState.hand.length, ena0 = ctx.ownerState.energy.length;
+  const steps = (trig.effect.action as SequenceAction).steps;
+  const r = run(steps[1], ctx);
+  eq(r.ownerState.energy.length, ena0 + 2, '固定したゾーン3のトラップ（エナチャージ）が発動する');
+  eq(r.ownerState.hand.length, hand0, '反転: 先頭のトラップ（2枚引く）は発動しない');
+  eq(r.ownerState.field.signi_traps?.[0], DRAW2, '別ゾーンのトラップは場に残る');
+  const gone = run({ type: 'STUB', id: 'ACTIVATE_TRAP', trapZoneIndex: 1 } as EffectAction, ctx);
+  eq(gone.ownerState.hand.length + gone.ownerState.energy.length, hand0 + ena0, '反転: そのゾーンにトラップが無ければ何もしない');
+}));
+
 
 // ── 🆕🔴§5.3 `O-263`（2026-09-06・実機 `V-169` で発見）：`battleCardNums` のゾーン取りこぼしゲート ──
 // 🔴**何が起きたか**＝`field.signi_traps` が `battleCardNums` の走査に入っていなかったので、
@@ -65238,6 +65271,17 @@ test('索引C 2026-09-01: O-174 対象と同じシグニゾーンの【ウィル
   ok(ids.indexOf('STORE_LAST_PROCESSED_TARGETS') < ids.indexOf('REMOVE_VIRUS_TARGET_ZONE'),
     '対象の確定が除去より前にある（ゾーンを引く元が無いと no-op になる）');
 });
+
+test('バグ報告 56f71f42: シックネス・ラブはウィルスを取り除いた対象のパワーも下げる（WD19-007-E1）', () => withSavedCursor(() => {
+  // 🔴旧＝後段の POWER_MODIFY が `infected:true` で対象を再判定し、直前の除去で非感染になった対象を落としていた。
+  const eff = manualEffect('WD19-007', 'WD19-007-E1');
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, 'WD19-007');
+  ctx.otherState.field.signi_virus = [1, 0, 0];
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq((r.otherState.field.signi_virus ?? []).reduce((a, b) => a + b, 0), 0, '同じゾーンのウィルスを1つ取り除く');
+  eq(((r.otherState as PlayerState).temp_power_mods ?? []).filter(m => m.cardNum === SIGNI).reduce((s, m) => s + m.delta, 0),
+    -8000, '🔴ウィルスを取り除いた後もその対象のパワーを－8000する');
+}));
 
 test('索引C 2026-09-01: O-176/O-204 遅延トリガーが発生源の絞りを保持する', () => {
   // O-176＝「あなたの＜龍獣＞のシグニが…バニッシュしたとき」（WD15-023-E1）＝**バニッシュした側**の絞り。

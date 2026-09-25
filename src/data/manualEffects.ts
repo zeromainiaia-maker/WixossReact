@@ -2198,8 +2198,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝①【ウィルス】除去のステップが**丸ごと消えていた** ②`POWER_MODIFY` に `duration` が無く**恒久**の
   //   マイナスになっていた。🔑ゾーン限定の除去は既存ハンドラ `REMOVE_VIRUS_TARGET_ZONE`
   //   （`execStubPart1.ts:2157`＝`lastProcessedCards[0]` と同じゾーンのウィルスを1個）。
+  // 🔴2026-09-25（バグ報告 56f71f42）＝`POWER_MODIFY` の target に `infected:true` を残していたため、
+  //   **直前でウィルスを取り除いた対象が非感染になって候補から外れ、パワー修正が恒久 no-op**だった。
+  //   対象は `targetsStored` で確定済み＝後段では感染状態を再判定しない。
   'WD19-007': [
-    {"effectId":"WD19-007-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","infected":true}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"REMOVE_VIRUS_TARGET_ZONE"},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"targetsStored":true,"delta":-15000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","infected":true},"upToCount":false},"targetsStored":true,"delta":-8000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WD19-007-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","infected":true}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"REMOVE_VIRUS_TARGET_ZONE"},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"delta":-15000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"delta":-8000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // WX25-P3-053 ／ 原文【出】：このターン、**次とその次にあなたがダメージを受ける場合、代わりに**あなたのデッキの上から

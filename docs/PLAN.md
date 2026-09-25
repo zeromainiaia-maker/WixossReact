@@ -221,11 +221,12 @@ CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact"
 > 着手前に [DRIVE_TRAPS.md](./DRIVE_TRAPS.md) を読む。`verifyBattleDrive.mjs` は**必ず明示シナリオIDで**実行する（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL の切り分け**＝(a) シナリオの腐り → その場で直す (b) engine/parser のバグ → その場で直す (c) 未実装 → §5.3 へ登録。
 
-**残0**。直近の返済＝🆕**`V-287`**（「何手目に戻る」＝同意フロー・2026-09-23・`node scripts/verifyRewind.mjs`）／`V-286`（非公開の札の名前が共有ログに出ていた＝`V-285` の横展開8系統）／`V-285`（【トラップ】の中身が相手のログ・画面に見えていた）。
+**残1**。直近の返済＝🆕**`V-287`**（「何手目に戻る」＝同意フロー・2026-09-23・`node scripts/verifyRewind.mjs`）／`V-286`（非公開の札の名前が共有ログに出ていた＝`V-285` の横展開8系統）／`V-285`（【トラップ】の中身が相手のログ・画面に見えていた）。
 **返済済み `V-nn` の一覧は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「§5.1 返済済み `V-nn`（退避）」**（シナリオ名の正は `scripts/verifyBattleDrive.mjs`）。
 
 | ID | 観測点（何を見れば PASS か） | 出所 |
 |---|---|---|
+| `V-288` | 【トラップ】のルール上の誘発（`engine/naturalTrap.ts`＋`performSigniAttack.ts`）＝**人間が守備側**で、相手のシグニがアタックした正面のゾーンに【トラップ】だけがあるとき「発動しますか」が出て、はい→《トラップアイコン》が解決しトラップがトラッシュへ／いいえ→トラップが裏向きのまま残る。**反転**＝同じゾーンにシグニがいると出ない／正面以外のゾーンのトラップは出ない／相手の画面に札の名前が出ない（`V-285`）。CPU 守備側はヘッドレス（`replay:spectate` b16e1b03）で確認済み | バグ報告 `b16e1b03`（2026-09-25） |
 
 - `src/screens/` を触った回・新しい型や機構を足した回は `V-<次番号>` で登録する。**採番は `grep -o "scenarios\.v[0-9]\+" scripts/verifyBattleDrive.mjs | sort -n | tail` で実測する。**
 - 観測点は**反転側まで**書く（効かないはずの側・帰結の数値＝DRIVE_TRAPS 109〜110）。

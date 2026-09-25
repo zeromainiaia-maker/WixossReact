@@ -2705,6 +2705,11 @@ export function execStubPart2(
       zoneCandsAT = trapsAT[srcZoneAT] ? [srcZoneAT] : [];
       if (zoneCandsAT.length === 0) return done(addLog(ctx, 'このシグニと同じシグニゾーンに【トラップ】がない'));
     }
+    // 🆕ルール上の誘発（`naturalTrap.ts`・2026-09-25）＝ゾーンを固定する。誘発から解決までに離れていたら何もしない。
+    if (typeof stub.trapZoneIndex === 'number') {
+      zoneCandsAT = trapsAT[stub.trapZoneIndex] ? [stub.trapZoneIndex] : [];
+      if (zoneCandsAT.length === 0) return done(addLog(ctx, 'そのシグニゾーンに【トラップ】がない'));
+    }
     // lastProcessedCardsに指定があればそのトラップを優先、なければ最初のトラップ。
     // 🔴`explicit` だけは **`trapTargetPicked` が立っているときしか読まない**＝先行ステップの
     //   置き土産（`SP26-001-E1` は直前に設置したカードが残る）を「選択」と誤読しないため。

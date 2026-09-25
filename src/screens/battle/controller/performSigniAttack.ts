@@ -1,4 +1,5 @@
 import {collectOppSigniAttackResponses} from '../attackResponse';
+import {collectNaturalTrapTrigger} from '../../../engine/naturalTrap';
 import {calcFieldPowers, checkActiveCondition, collectGrantedFromLayer} from '../../../engine/effectEngine';
 import {getCardNum} from '../../../engine/effectExecutor';
 import {initStack, pushToStack} from '../../../engine/effectStack';
@@ -327,6 +328,22 @@ export const performSigniAttack = async (zoneIndex: number, p: {
     // 遅延分は拾えず、parser 側は設置を落として**起動した瞬間に相手シグニを1体トラッシュ**する
     // 過剰実行になっていた。triggeringCardNum＝アタッカーで帰結の「そのシグニ」が解ける。
     opAtkedEntries.push(...pureCollectSigniAttackDelayedTriggers(ctx.trigCtx(), defenderId, newOpState, myTopNum));
+
+    // 【トラップ】のルール上の誘発（2026-09-25・バグ報告 b16e1b03）＝正面のシグニがアタックし、
+    //   トラップと同じゾーンにシグニがいなければ表向きにしてもよい（`engine/naturalTrap.ts`）。
+    //   🔴旧はこの収集が無く、設置したトラップはアタックで一度も発動しなかった。
+    const naturalTrap = collectNaturalTrapTrigger(newOpState, zoneIndex);
+    if (naturalTrap) {
+      opAtkedEntries.push({
+        id: generateUUID(),
+        playerId: defenderId,
+        cardNum: naturalTrap.trapCardNum,
+        effectId: naturalTrap.effect.effectId,
+        label: naturalTrap.label,
+        effect: naturalTrap.effect,
+        triggeringCardNum: myTopNum,
+      } satisfies StackEntry);
+    }
 
     // ON_OPP_SIGNI_ATTACK_DIRECT: 正面が空（=守備側ルリグへの直接アタック）のとき、
     // 守備側ルリグの「コストを払ってアタックを無効にしてもよい」能力をスタックに積んで提示する（WX04-004-E2）。

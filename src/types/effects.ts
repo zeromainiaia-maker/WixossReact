@@ -7221,6 +7221,11 @@ export interface StubAction {
    */
   trapTargetScope?: 'explicit' | 'source_zone';
   /**
+   * 発動する【トラップ】のゾーン（0〜2）を固定する。ルール上の誘発（`src/engine/naturalTrap.ts`）が使う。
+   * 🔴そのゾーンに【トラップ】が無ければ何もしない（fail-closed＝別ゾーンを暴発させない）。
+   */
+  trapZoneIndex?: number;
+  /**
    * `trapTargetScope:'explicit'` の `SELECT_TARGET` を1往復した印。
    * 🔴**これが無いと「先行ステップが残した `lastProcessedCards`」を選択と誤読する**＝
    *   `SP26-001-E1` は直前に `LOOK_PICK_CHAIN` で設置したカードが残るので、

@@ -2184,6 +2184,13 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
   return done(addLog(ctx, 'カードを公開'));
 }
 
+// 公開したカードの名前をログ用に並べる（公開情報なので伏せない）。
+// 🔴2026-09-25（バグ報告 6bdc40b1）＝旧ログは「公開シグニのレベル合計N」だけで**何を公開したかが分からなかった**。
+//   レベル合計は `powerLteRevealedSigniLevelSum` の内部記録（state には残す）であって、原文の大半には無い語。
+function revealedNamesLog(revealed: string[], ctx: ExecCtx): string {
+  return revealed.length ? revealed.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('、') : 'なし';
+}
+
 // REVEAL_DECK_TOP（B2）: デッキの上から count 枚を公開（ピックしない）。公開シグニのレベル合計と公開カード番号を記録。
 // デッキからは取り除かない（公開のみ）。後続の動的閾値フィルタ・TRASH_REVEALED が記録を参照する。WX17-028。
 function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ctx: ExecCtx): ExecResult {
@@ -2210,7 +2217,7 @@ function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ct
     return s + (isNaN(lv) ? 0 : lv);
   }, 0);
   const newS: PlayerState = { ...state, last_revealed_signi_level_sum: levelSum, last_revealed_deck_cards: revealed };
-  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `デッキの上から${revealed.length}枚を公開（公開シグニのレベル合計${levelSum}）`), lastProcessedCards: revealed });
+  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `デッキの上から${revealed.length}枚を公開：${revealedNamesLog(revealed, ctx)}`), lastProcessedCards: revealed });
 }
 
 /**
@@ -13188,7 +13195,7 @@ export function resumeLookAndReorder(
       last_revealed_deck_cards: revealed,
     }, cur);
     const revealedCtx = {
-      ...addLog(withReveal, `デッキの一番上を公開`),
+      ...addLog(withReveal, `デッキの一番上を公開：${revealedNamesLog(revealed, ctx)}`),
       lastProcessedCards: revealed,
     };
     if (pending.continuation) return executeAction(pending.continuation, revealedCtx);
