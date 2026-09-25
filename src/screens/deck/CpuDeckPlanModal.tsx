@@ -3,10 +3,11 @@ import type { CardData, Deck } from '../../types';
 import {
   CPU_CARD_USE_LABELS, CPU_ENA_USES, CPU_ENA_USE_LABELS,
   CPU_COMBO_USE_LABELS, CPU_TARGET_MODES_BY_SIDE, CPU_TARGET_MODE_LABELS_BY_SIDE,
-  CPU_TARGET_WHENS, CPU_TARGET_WHEN_LABELS,
+  CPU_COND_CMPS, CPU_COND_CMP_LABELS, CPU_COND_COMBINES, CPU_COND_COMBINE_LABELS, CPU_COND_SIDES, CPU_COND_SIDE_LABELS,
+  CPU_COND_ZONES, CPU_COND_ZONE_LABELS, cpuTargetCondLabel, cpuTargetCondsLabel,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
   type CpuCardUse, type CpuComboStep, type CpuEnaUse, type CpuComboUse, type CpuDeckPlan,
-  type CpuSideTarget, type CpuTargetMode, type CpuTargetSide, type CpuTargetWhen,
+  type CpuSideTarget, type CpuTargetMode, type CpuTargetSide, type CpuTargetCond, type CpuCondCombine,
 } from '../battle/cpuDeckPlan';
 
 /** 片側の狙い方の入力値（`''`＝いつもどおり＝この側は指定しない）。 */
@@ -86,7 +87,17 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const rules = targeting.rules ?? [];
   /** 効果の選択＝`<カード番号>|<effectId>`（effectId 空＝その札のどの効果でも／全体空＝どの効果でも）。 */
   const [ruleSource, setRuleSource] = useState('');
-  const [ruleWhen, setRuleWhen] = useState<CpuTargetWhen>('always');
+  // 🆕2026-09-26＝**条件を複数**（どちらの・どの置き場が・何枚 以下／以上／ちょうど）＋**AND／OR**。空＝いつでも。
+  const [ruleConds, setRuleConds] = useState<CpuTargetCond[]>([]);
+  const [ruleCombine, setRuleCombine] = useState<CpuCondCombine>('and');
+  const [condForm, setCondForm] = useState<CpuTargetCond>({ side: 'me', zone: 'life', cmp: 'le', n: 2 });
+  const addCond = () => {
+    const n = Math.max(0, Math.min(99, Math.round(Number(condForm.n) || 0)));
+    const c = { ...condForm, n };
+    // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
+    if (ruleConds.some(x => JSON.stringify(x) === JSON.stringify(c))) return;
+    setRuleConds([...ruleConds, c]);
+  };
   // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**（効果によっては自分のシグニを強くする）。
   const [ruleOpp, setRuleOpp] = useState<SideForm>({ mode: 'killable', up: false });
   const [ruleSelf, setRuleSelf] = useState<SideForm>(EMPTY_SIDE);
@@ -100,11 +111,13 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     if (!opp && !self) return;
     saveTargeting({
       rules: [...rules, {
-        sourceCards: ruleNum ? [ruleNum] : [], ...(ruleEid ? { sourceEffectIds: [ruleEid] } : {}), when: ruleWhen,
+        sourceCards: ruleNum ? [ruleNum] : [], ...(ruleEid ? { sourceEffectIds: [ruleEid] } : {}),
+        conds: ruleConds, ...(ruleCombine === 'or' && ruleConds.length >= 2 ? { combine: 'or' as const } : {}),
         ...(opp ? { opp } : {}), ...(self ? { self } : {}),
       }],
     });
     setRuleSource('');
+    setRuleConds([]);
   };
   const ruleSourceLabel = (r: typeof rules[number]) => {
     if (r.sourceCards.length === 0) return 'どの効果でも';
@@ -346,10 +359,38 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               </select>
               {/* 🆕`S-36`＝選んだ効果の原文（全文） */}
               {ruleEid && textBox(effectText(ruleNum, ruleEid), 'cpu-plan-rule-text')}
-              <select data-testid="cpu-plan-rule-when" value={ruleWhen} onChange={e => setRuleWhen(e.target.value as CpuTargetWhen)}
-                style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}>
-                {CPU_TARGET_WHENS.map(w => <option key={w} value={w}>{CPU_TARGET_WHEN_LABELS[w]}</option>)}
+            </div>
+            {/* 🆕2026-09-26＝使うタイミング（条件を複数・AND／OR）。空＝いつでも。 */}
+            <div style={{ ...row, border: '1px dashed #44446a', borderRadius: 6, padding: 6 }}>
+              <span style={{ color: '#aaa', fontSize: 11, flex: '1 1 100%' }}>使うタイミング（条件なし＝いつでも）</span>
+              <select data-testid="cpu-plan-cond-side" value={condForm.side} style={{ ...selectStyle, fontSize: 11 }}
+                onChange={e => setCondForm({ ...condForm, side: e.target.value as CpuTargetCond['side'] })}>
+                {CPU_COND_SIDES.map(v => <option key={v} value={v}>{CPU_COND_SIDE_LABELS[v]}</option>)}
               </select>
+              <select data-testid="cpu-plan-cond-zone" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
+                onChange={e => setCondForm({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
+                {CPU_COND_ZONES.map(v => <option key={v} value={v}>{CPU_COND_ZONE_LABELS[v]}</option>)}
+              </select>
+              <input data-testid="cpu-plan-cond-n" type="number" min={0} max={99} value={condForm.n}
+                onChange={e => setCondForm({ ...condForm, n: Number(e.target.value) })}
+                style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
+              <select data-testid="cpu-plan-cond-cmp" value={condForm.cmp} style={{ ...selectStyle, fontSize: 11 }}
+                onChange={e => setCondForm({ ...condForm, cmp: e.target.value as CpuTargetCond['cmp'] })}>
+                {CPU_COND_CMPS.map(v => <option key={v} value={v}>{CPU_COND_CMP_LABELS[v]}</option>)}
+              </select>
+              <button data-testid="cpu-plan-cond-add" onClick={addCond} style={{ ...chip(true, '#4a4a8a'), padding: '5px 10px' }}>条件を足す</button>
+              {ruleConds.map((c, i) => (
+                <div key={`${JSON.stringify(c)}/${i}`} data-testid={`cpu-plan-cond-row-${i}`} style={{ ...listRow, flex: '1 1 100%' }}>
+                  <span style={{ flex: '1 1 84px', minWidth: 0 }}>{cpuTargetCondLabel(c)}</span>
+                  <button onClick={() => setRuleConds(ruleConds.filter((_, k) => k !== i))} style={chip(false, '#000')}>削除</button>
+                </div>
+              ))}
+              {ruleConds.length >= 2 && (
+                <select data-testid="cpu-plan-cond-combine" value={ruleCombine} style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}
+                  onChange={e => setRuleCombine(e.target.value as CpuCondCombine)}>
+                  {CPU_COND_COMBINES.map(v => <option key={v} value={v}>{CPU_COND_COMBINE_LABELS[v]}</option>)}
+                </select>
+              )}
             </div>
             {sideEditor('opp', ruleOpp, setRuleOpp, 'cpu-plan-rule')}
             {sideEditor('self', ruleSelf, setRuleSelf, 'cpu-plan-rule')}
@@ -358,10 +399,10 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                 style={{ ...chip(canAddRule, '#2e8b2e'), padding: '7px 12px' }}>規則を追加</button>
             </div>
             {rules.map((r, i) => (
-              <div key={`${r.sourceCards.join(',')}/${r.sourceEffectIds?.join(',') ?? ''}/${r.when}/${JSON.stringify(r.opp)}/${JSON.stringify(r.self)}/${i}`}
+              <div key={`${r.sourceCards.join(',')}/${r.sourceEffectIds?.join(',') ?? ''}/${JSON.stringify(r.conds)}/${r.combine ?? ''}/${JSON.stringify(r.opp)}/${JSON.stringify(r.self)}/${i}`}
                 style={{ ...listRow, border: '1px solid #33334d', borderRadius: 6, padding: 6 }}>
                 <span style={{ flex: '1 1 84px', minWidth: 0 }}>
-                  {ruleSourceLabel(r)}・{CPU_TARGET_WHEN_LABELS[r.when]} → {[sideText('opp', r.opp), sideText('self', r.self)].filter(Boolean).join('／')}
+                  {ruleSourceLabel(r)}・{cpuTargetCondsLabel(r.conds, r.combine)} → {[sideText('opp', r.opp), sideText('self', r.self)].filter(Boolean).join('／')}
                 </span>
                 <button onClick={() => saveTargeting({ rules: rules.filter((_, k) => k !== i) })} style={chip(false, '#000')}>削除</button>
                 {r.sourceEffectIds?.[0] && textBox(effectText(r.sourceCards[0], r.sourceEffectIds[0]))}

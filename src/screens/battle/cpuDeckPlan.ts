@@ -139,25 +139,98 @@ export interface CpuTargetSpec {
 export const DEFAULT_CPU_TARGET_SPEC: CpuTargetSpec = { opp: { mode: 'strongest' }, self: { mode: 'strongest' } };
 
 /**
- * 🆕**狙い方を切り替える条件**（§5.7 `S-32` ②・2026-09-21）。
- * 🔑**閾値まで名前に入れた閉じた集合**＝自由な式を持たせると、**画面・保存・判定の3か所で解釈がずれる**。
- * ⚠**見るのは公開情報だけ**（ライフの枚数・場のシグニの数）＝相手の手札は見ない（カンニング）。
+ * 🆕**狙い方を切り替える条件**（§5.7 `S-32` ②・2026-09-21／🆕2026-09-26 ユーザー要望で作り直し）。
+ * 🔴旧＝閉じた4択（`always`／`myLife2OrLess`／`oppLife2OrLess`／`oppField3`）を1つだけ。
+ * 🆕新＝**「どちらの・どの置き場が・何枚 以下／以上／ちょうど」の条件を複数**持ち、**全部（AND）／どれか（OR）**で組む。
+ * 🔑**式は構造で持つ**（自由な文字列の式にしない）＝画面・保存・判定の3か所で解釈がずれない。判定は `cpuTargetCondHolds` の1本。
+ * ⚠**見るのは公開情報だけ**（枚数）＝相手の手札の中身は見ない（カンニング）。
+ * ⚠旧形の `when` は `normalizeCpuDeckPlan` が条件へ読み替える（挙動不変）。
  */
-export type CpuTargetWhen = 'always' | 'myLife2OrLess' | 'oppLife2OrLess' | 'oppField3';
+export type CpuCondSide = 'me' | 'opp';
+export type CpuCondZone = 'life' | 'hand' | 'energy' | 'trash' | 'field';
+export type CpuCondCmp = 'le' | 'ge' | 'eq';
+export type CpuCondCombine = 'and' | 'or';
 
-export const CPU_TARGET_WHENS: readonly CpuTargetWhen[] = ['always', 'myLife2OrLess', 'oppLife2OrLess', 'oppField3'];
+export interface CpuTargetCond {
+  side: CpuCondSide;
+  zone: CpuCondZone;
+  cmp: CpuCondCmp;
+  /** 0〜99 の整数。 */
+  n: number;
+}
 
-export const CPU_TARGET_WHEN_LABELS: Readonly<Record<CpuTargetWhen, string>> = {
-  always: 'いつでも',
-  myLife2OrLess: '自分のライフが2枚以下',
-  oppLife2OrLess: '相手のライフが2枚以下',
-  oppField3: '相手の場が3体',
+export const CPU_COND_SIDES: readonly CpuCondSide[] = ['me', 'opp'];
+export const CPU_COND_ZONES: readonly CpuCondZone[] = ['life', 'hand', 'energy', 'trash', 'field'];
+export const CPU_COND_CMPS: readonly CpuCondCmp[] = ['le', 'ge', 'eq'];
+export const CPU_COND_COMBINES: readonly CpuCondCombine[] = ['and', 'or'];
+
+export const CPU_COND_SIDE_LABELS: Readonly<Record<CpuCondSide, string>> = { me: '自分', opp: '相手' };
+export const CPU_COND_ZONE_LABELS: Readonly<Record<CpuCondZone, string>> = {
+  life: 'ライフ', hand: '手札', energy: 'エナ', trash: 'トラッシュ', field: '場のシグニ',
 };
+export const CPU_COND_CMP_LABELS: Readonly<Record<CpuCondCmp, string>> = { le: '以下', ge: '以上', eq: 'ちょうど' };
+export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> = {
+  and: 'すべて満たす（AND）', or: 'どれか1つ満たす（OR）',
+};
+
+/** 条件1つの表示（例「自分のライフが2枚以下」）。 */
+export function cpuTargetCondLabel(c: CpuTargetCond): string {
+  const unit = c.zone === 'field' ? '体' : '枚';
+  return `${CPU_COND_SIDE_LABELS[c.side]}の${CPU_COND_ZONE_LABELS[c.zone]}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
+}
+
+/** 規則の条件の表示（空＝「いつでも」）。 */
+export function cpuTargetCondsLabel(conds: readonly CpuTargetCond[], combine: CpuCondCombine = 'and'): string {
+  if (conds.length === 0) return 'いつでも';
+  return conds.map(cpuTargetCondLabel).join(combine === 'or' ? ' または ' : ' かつ ');
+}
+
+/** 盤面でその置き場の枚数（場のシグニは埋まっているゾーンの数）。 */
+function condCount(st: PlayerState, zone: CpuCondZone): number {
+  switch (zone) {
+    case 'life': return st.life_cloth?.length ?? 0;
+    case 'hand': return st.hand?.length ?? 0;
+    case 'energy': return st.energy?.length ?? 0;
+    case 'trash': return st.trash?.length ?? 0;
+    case 'field': return st.field.signi.filter(z => (z?.length ?? 0) > 0).length;
+  }
+}
+
+/** 🆕**条件の判定（1本）**＝空なら常に真。 */
+export function cpuTargetCondHolds(
+  conds: readonly CpuTargetCond[], combine: CpuCondCombine | undefined, me: PlayerState, opp: PlayerState,
+): boolean {
+  if (conds.length === 0) return true;
+  const one = (c: CpuTargetCond) => {
+    const v = condCount(c.side === 'me' ? me : opp, c.zone);
+    return c.cmp === 'le' ? v <= c.n : c.cmp === 'ge' ? v >= c.n : v === c.n;
+  };
+  return combine === 'or' ? conds.some(one) : conds.every(one);
+}
+
+/** 旧形の `when`（閉じた4択）→ 条件。知らない値は「いつでも」。 */
+const LEGACY_WHEN: Readonly<Record<string, CpuTargetCond[]>> = {
+  always: [],
+  myLife2OrLess: [{ side: 'me', zone: 'life', cmp: 'le', n: 2 }],
+  oppLife2OrLess: [{ side: 'opp', zone: 'life', cmp: 'le', n: 2 }],
+  oppField3: [{ side: 'opp', zone: 'field', cmp: 'ge', n: 3 }],
+};
+
+/** DB の値から条件を作る（⚠知っている値だけ・枚数は 0〜99 の整数へ丸める）。 */
+function toCond(raw: unknown): CpuTargetCond | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (!CPU_COND_SIDES.includes(r.side as CpuCondSide) || !CPU_COND_ZONES.includes(r.zone as CpuCondZone)
+    || !CPU_COND_CMPS.includes(r.cmp as CpuCondCmp)) return null;
+  const n = Number(r.n);
+  if (!Number.isFinite(n)) return null;
+  return { side: r.side as CpuCondSide, zone: r.zone as CpuCondZone, cmp: r.cmp as CpuCondCmp, n: Math.max(0, Math.min(99, Math.round(n))) };
+}
 
 /**
  * 🆕**狙い方の切り替え規則**（§5.7 `S-32` ②③）＝**上から順に、最初に当たった1つ**が狙い方を決める。
  * - `sourceCards` が空＝**どの効果でも**／指定あり＝**その札の効果のときだけ**（③ 効果ごとの指示）。
- * - `when` が `always` 以外＝**盤面の条件つき**（② 条件つき）。
+ * - `conds` が空でない＝**盤面の条件つき**（② 条件つき・🆕2026-09-26＝複数の条件を AND／OR で組める）。
  * - 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別の狙い方**（`opp`／`self`）。片側だけ書いた規則は、
  *   **もう片側では当たらない扱い**＝下の規則へ落ちる（側ごとに独立に上から探す）。
  * 🆕2026-09-25＝**「どの効果でも・いつでも」も書ける**（削った「既定」の select の置き換え）＝正規化で**末尾へ回す**
@@ -170,7 +243,10 @@ export interface CpuTargetRule {
    * 空＝`sourceCards` の札の**どの効果でも**／指定あり＝**その効果のときだけ**（`-E2` / `-BURST` …）。
    */
   sourceEffectIds?: string[];
-  when: CpuTargetWhen;
+  /** 🆕2026-09-26＝盤面の条件（空＝いつでも）。 */
+  conds: CpuTargetCond[];
+  /** 🆕条件の組み方（未指定＝`and`）。⚠`or` のときだけ保存する。 */
+  combine?: CpuCondCombine;
   /** 🆕相手の札を選ぶときの狙い方（未指定＝この規則は相手の札には当たらない）。 */
   opp?: CpuSideTarget;
   /** 🆕自分の札を選ぶときの狙い方（未指定＝この規則は自分の札には当たらない）。 */
@@ -323,7 +399,7 @@ function toSideTarget(raw: unknown, side?: CpuTargetSide): CpuSideTarget | undef
  * （上にあると下の規則が1つも当たらなくなる）。
  */
 function orderRules(rules: readonly CpuTargetRule[]): CpuTargetRule[] {
-  const catchAll = (r: CpuTargetRule) => r.sourceCards.length === 0 && r.when === 'always';
+  const catchAll = (r: CpuTargetRule) => r.sourceCards.length === 0 && r.conds.length === 0;
   const last = [...rules].reverse().find(catchAll);
   return [...rules.filter(r => !catchAll(r)), ...(last ? [last] : [])];
 }
@@ -352,10 +428,15 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
           ?? (legacy && CPU_TARGET_MODES_BY_SIDE.self.includes(legacy.mode) ? legacy : undefined);
         // ⚠**どちらの側にも狙い方が無い規則は落とす**（何も変えない規則は、上にあると下の規則を隠すだけ）。
         if (!opp && !self) return null;
+        // 🆕2026-09-26＝条件の列。⚠旧形 `when` は条件へ読み替える（挙動不変）。
+        const conds = Array.isArray(x.conds)
+          ? x.conds.map(toCond).filter((c): c is CpuTargetCond => !!c)
+          : [...(LEGACY_WHEN[String(x.when ?? 'always')] ?? [])];
+        const combine: CpuCondCombine = x.combine === 'or' && conds.length >= 2 ? 'or' : 'and';
         return {
           sourceCards: strList(x.sourceCards),
           ...(eids.length ? { sourceEffectIds: eids } : {}),
-          when: CPU_TARGET_WHENS.includes(x.when as CpuTargetWhen) ? (x.when as CpuTargetWhen) : 'always',
+          conds, ...(combine === 'or' ? { combine } : {}),
           ...(opp ? { opp } : {}), ...(self ? { self } : {}),
         };
       })
@@ -365,7 +446,7 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
   const legacyMode = CPU_TARGET_MODES.includes(t.mode as CpuTargetMode) ? (t.mode as CpuTargetMode) : 'strongest';
   if (legacyMode !== 'strongest') {
     rules.push({
-      sourceCards: [], when: 'always', opp: { mode: legacyMode },
+      sourceCards: [], conds: [], opp: { mode: legacyMode },
       ...(CPU_TARGET_MODES_BY_SIDE.self.includes(legacyMode) ? { self: { mode: legacyMode } } : {}),
     });
   }
@@ -479,20 +560,12 @@ function resolveRuleSide(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx, side: CpuT
   const t = plan.targeting;
   if (!t) return undefined;
   const src = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : undefined;
-  const holds = (w: CpuTargetWhen): boolean => {
-    switch (w) {
-      case 'always': return true;
-      case 'myLife2OrLess': return (ctx.me.life_cloth?.length ?? 0) <= 2;
-      case 'oppLife2OrLess': return (ctx.opp.life_cloth?.length ?? 0) <= 2;
-      case 'oppField3': return ctx.opp.field.signi.filter(z => (z?.length ?? 0) > 0).length >= 3;
-    }
-  };
   for (const r of t.rules ?? []) {
     const target = r[side];
     if (!target) continue;
     if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
     if ((r.sourceEffectIds?.length ?? 0) > 0 && (!ctx.effectId || !r.sourceEffectIds!.includes(ctx.effectId))) continue;
-    if (!holds(r.when)) continue;
+    if (!cpuTargetCondHolds(r.conds, r.combine, ctx.me, ctx.opp)) continue;
     return target;
   }
   return undefined;

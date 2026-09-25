@@ -175,7 +175,7 @@ import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndi
 import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
-import { cpuPlanBoardCtx, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
@@ -91013,7 +91013,7 @@ test('§5.7 S-32 効果の対象の狙い方：大まかな指示（強い／落
     JSON.stringify([SMALL]), '🔴「避ける」に指定した札を選んだ');
   // 🆕2026-09-25＝**「既定の狙い方」は削った**＝保存済みの値は**末尾の規則「どの効果でも・いつでも」へ移す**（挙動不変）。
   eq(JSON.stringify(normalizeCpuDeckPlan({ targeting: { mode: 'killable' } }).targeting.rules),
-    JSON.stringify([{ sourceCards: [], when: 'always', opp: { mode: 'killable' } }]), '🔴保存済みの既定の狙い方が消えた（挙動が変わる）');
+    JSON.stringify([{ sourceCards: [], conds: [], opp: { mode: 'killable' } }]), '🔴保存済みの既定の狙い方が消えた（挙動が変わる）');
   eq(normalizeCpuDeckPlan({ targeting: { mode: 'ぬるぽ' } }).targeting.rules?.length, 0, '🔴知らない狙い方から規則を作った');
   // 🆕2026-09-25＝**相手の札の名指しは削った**＝狙う／避けるも自分のデッキの札だけ（デッキ外は落とす）。
   eq(pruneCpuDeckPlan(preferSmall, []).targeting.prefer.length, 0, '🔴デッキに無い札への「狙う」指定が残った');
@@ -92033,7 +92033,7 @@ test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条�
     '🔴「どの効果でも・いつでも」を末尾へ回していない（上にあると下の規則が1つも当たらない）');
   eq(resolveCpuTargetMode(catchAll, st(2)), 'killable', '🔴末尾の規則が上の規則を殺した');
   eq(resolveCpuTargetMode(catchAll, st(7)), 'weakest', '🔴末尾の「いつでも」が既定として効かない');
-  eq(plan([{ sourceCards: [A32], when: 'ぬるぽ', mode: 'weakest' }]).targeting.rules?.[0].when, 'always',
+  eq(JSON.stringify(plan([{ sourceCards: [A32], when: 'ぬるぽ', mode: 'weakest' }]).targeting.rules?.[0].conds), '[]',
     '🔴壊れた条件を素通しした');
   // 🆕2026-09-26 `S-36`＝**どちらの側にも狙い方が無い規則は落とす**（何も変えない規則は下の規則を隠すだけ）。
   eq(plan([{ sourceCards: [A32], when: 'always', mode: 'ぬるぽ' }]).targeting.rules?.length, 0, '🔴壊れた狙い方の規則を残した');
@@ -92045,7 +92045,7 @@ test('§5.7 S-32 ②③ 狙い方の切り替え：効果ごと・盤面の条�
   const respond = cpuRespondSource();
   ok(/sourceCardNum: pe\.sourceCardNum/.test(respond), '🔴効果元の札を渡していない＝効果ごとの指示が効かない');
   const modal = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
-  ok(/data-testid="cpu-plan-rule-card"/.test(modal) && /data-testid="cpu-plan-rule-when"/.test(modal)
+  ok(/data-testid="cpu-plan-rule-card"/.test(modal) && /data-testid="cpu-plan-cond-add"/.test(modal) && /data-testid="cpu-plan-cond-combine"/.test(modal)
     && /data-testid="cpu-plan-rule-add"/.test(modal), '🔴狙い方の切り替えを編集する UI が無い');
 }));
 
@@ -92135,7 +92135,7 @@ test('§5.7 S-36 狙い方の拡張：相手の札／自分の札で別々・効
     '🔴条件を満たさない規則が相手側に当たった');
   // 旧形 `{ mode }` は両側へ同じ狙い方（`killable` は自分の札に無い＝相手側だけ）
   eq(JSON.stringify(normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], when: 'always', mode: 'weakest' }] } }).targeting.rules?.[0]),
-    JSON.stringify({ sourceCards: [], when: 'always', opp: { mode: 'weakest' }, self: { mode: 'weakest' } }), '🔴旧形の狙い方を両側へ読んでいない');
+    JSON.stringify({ sourceCards: [], conds: [], opp: { mode: 'weakest' }, self: { mode: 'weakest' } }), '🔴旧形の狙い方を両側へ読んでいない');
   eq(normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], when: 'always', self: { mode: 'killable' } }] } }).targeting.rules?.length, 0,
     '🔴自分の札に効かない狙い方（落とせるもの）を保存した');
 
@@ -92508,6 +92508,52 @@ test('2026-09-26 CPU のエナ：スペルをエナへ置かない／作戦デ�
   ok(resp.includes('withEnaPayRank('), '🔴効果の任意コストの支払いに作戦データのエナの扱いが載っていない');
   const modal = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
   ok(modal.includes('cpu-plan-ena-mode') && modal.includes('mainNums.has(c.CardNum)'), '🔴作戦の画面にエナの扱いが無い／ルリグデッキの札まで出している');
+}));
+
+test('2026-09-26 作戦データ：狙い方の条件を複数（任意の枚数・手札／エナ／トラッシュ／場・AND／OR）', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（ユーザー要望）**＝旧は閉じた4択（ライフ2枚以下・相手の場3体…）を**1つだけ**。
+  //   枚数を任意にし、手札・エナ・トラッシュ・場の数も参照し、**複数の条件を AND／OR で組む**。
+  const mk = (o: Partial<Record<'life' | 'hand' | 'energy' | 'trash', number>>, field = 0) => ({
+    ...mkState({ signi: [0, 1, 2].map(i => (i < field ? `S#${i}` : null)) as never }),
+    life_cloth: Array.from({ length: o.life ?? 7 }, (_, i) => `L#${i}`),
+    hand: Array.from({ length: o.hand ?? 5 }, (_, i) => `H#${i}`),
+    energy: Array.from({ length: o.energy ?? 0 }, (_, i) => `E#${i}`),
+    trash: Array.from({ length: o.trash ?? 0 }, (_, i) => `T#${i}`),
+  }) as PlayerState;
+  const lifeLe3 = { side: 'me', zone: 'life', cmp: 'le', n: 3 } as const;
+  const oppHandGe6 = { side: 'opp', zone: 'hand', cmp: 'ge', n: 6 } as const;
+  // ── ① 置き場ごとの枚数・比較 ──
+  ok(cpuTargetCondHolds([lifeLe3], 'and', mk({ life: 3 }), mk({})), '🔴自分のライフ3枚（以下3）が成立しない');
+  ok(!cpuTargetCondHolds([lifeLe3], 'and', mk({ life: 4 }), mk({})), '🔴自分のライフ4枚で「3以下」が成立した');
+  ok(cpuTargetCondHolds([{ side: 'opp', zone: 'energy', cmp: 'eq', n: 2 }], 'and', mk({}), mk({ energy: 2 })), '🔴相手のエナ「ちょうど2」が成立しない');
+  ok(cpuTargetCondHolds([{ side: 'me', zone: 'trash', cmp: 'ge', n: 10 }], 'and', mk({ trash: 12 }), mk({})), '🔴自分のトラッシュ「10以上」が成立しない');
+  ok(cpuTargetCondHolds([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2 }], 'and', mk({}), mk({}, 2)), '🔴相手の場の数（埋まったゾーン）を数えていない');
+  ok(!cpuTargetCondHolds([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2 }], 'and', mk({}, 3), mk({}, 1)), '🔴自分と相手を取り違えた');
+  // ── ② AND／OR・空はいつでも ──
+  ok(cpuTargetCondHolds([], undefined, mk({}), mk({})), '🔴条件なしが「いつでも」になっていない');
+  ok(!cpuTargetCondHolds([lifeLe3, oppHandGe6], 'and', mk({ life: 2 }), mk({ hand: 3 })), '🔴AND なのに片方だけで成立した');
+  ok(cpuTargetCondHolds([lifeLe3, oppHandGe6], 'or', mk({ life: 2 }), mk({ hand: 3 })), '🔴OR なのに片方で成立しない');
+  ok(!cpuTargetCondHolds([lifeLe3, oppHandGe6], 'or', mk({ life: 5 }), mk({ hand: 3 })), '🔴OR で両方外れたのに成立した');
+  // ── ③ 正規化＝旧形 `when` の読み替え（挙動不変）・壊れた条件は落とす・枚数は丸める ──
+  const rulesOf = (rules: object[]) => normalizeCpuDeckPlan({ targeting: { rules } }).targeting.rules ?? [];
+  eq(JSON.stringify(rulesOf([{ sourceCards: ['X'], when: 'myLife2OrLess', mode: 'weakest' }])[0].conds),
+    JSON.stringify([{ side: 'me', zone: 'life', cmp: 'le', n: 2 }]), '🔴旧形「自分のライフ2枚以下」を読み替えていない');
+  eq(JSON.stringify(rulesOf([{ sourceCards: ['X'], when: 'oppField3', mode: 'weakest' }])[0].conds),
+    JSON.stringify([{ side: 'opp', zone: 'field', cmp: 'ge', n: 3 }]), '🔴旧形「相手の場が3体」を読み替えていない');
+  const r = rulesOf([{ sourceCards: ['X'], conds: [lifeLe3, { side: 'me', zone: 'deck', cmp: 'le', n: 1 }, { ...oppHandGe6, n: 150.4 }], combine: 'or', opp: { mode: 'weakest' } }])[0];
+  eq(JSON.stringify(r.conds), JSON.stringify([lifeLe3, { ...oppHandGe6, n: 99 }]), '🔴知らない置き場を残した／枚数を丸めていない');
+  eq(r.combine, 'or', '🔴OR を保存していない');
+  eq(rulesOf([{ sourceCards: ['X'], conds: [lifeLe3], combine: 'or', opp: { mode: 'weakest' } }])[0].combine, undefined,
+    '🔴条件1つで OR を残した（意味の無い値）');
+  // 🔑**条件なしの規則は「いつでも」＝札の指定も無ければ末尾へ回す**（上にあると下の規則が当たらない）。
+  eq(rulesOf([{ sourceCards: [], conds: [], opp: { mode: 'weakest' } }, { sourceCards: [], conds: [lifeLe3], opp: { mode: 'killable' } }])
+    .map(x => x.opp?.mode).join(','), 'killable,weakest', '🔴条件なしの規則を末尾へ回していない');
+  // ── ④ 解決に届く ──
+  const plan = normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], conds: [lifeLe3, oppHandGe6], combine: 'or', opp: { mode: 'weakest' } }] } });
+  eq(resolveCpuTargetMode(plan, { me: mk({ life: 7 }), opp: mk({ hand: 7 }) }), 'weakest', '🔴OR の条件で規則が当たらない');
+  eq(resolveCpuTargetMode(plan, { me: mk({ life: 7 }), opp: mk({ hand: 2 }) }), 'strongest', '🔴条件を満たさないのに規則が当たった');
+  eq(cpuTargetCondsLabel([lifeLe3, oppHandGe6], 'or'), '自分のライフが3枚以下 または 相手の手札が6枚以上', '🔴表示が違う');
+  eq(cpuTargetCondsLabel([]), 'いつでも', '🔴条件なしの表示が違う');
 }));
 
 if (listMode) {
