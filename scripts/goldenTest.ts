@@ -92554,6 +92554,24 @@ test('2026-09-26 作戦データ：狙い方の条件を複数（任意の枚数
   eq(resolveCpuTargetMode(plan, { me: mk({ life: 7 }), opp: mk({ hand: 2 }) }), 'strongest', '🔴条件を満たさないのに規則が当たった');
   eq(cpuTargetCondsLabel([lifeLe3, oppHandGe6], 'or'), '自分のライフが3枚以下 または 相手の手札が6枚以上', '🔴表示が違う');
   eq(cpuTargetCondsLabel([]), 'いつでも', '🔴条件なしの表示が違う');
+  // ── ⑤ 🆕場の特殊状態の数（ウィルス／感染／凍結／チャーム／アクセ／ライズ）──
+  const st5 = mkState({ signi: ['A#1', 'B#1', null] as never }) as PlayerState;
+  st5.field = { ...st5.field,
+    signi: [['U#1', 'A#1'], ['B#1'], []],           // ゾーン0＝下にカード（ライズ）
+    signi_virus: [1, 0, 1],                         // ゾーン2はシグニがいない＝ウィルスだが感染ではない
+    signi_frozen: [false, true, true],              // ゾーン2はシグニがいない＝数えない
+    signi_charms: ['C#1', null, null],
+    signi_acce: [null, ['X#1'], null],
+  };
+  const cnt = (zone: string, n: number) => cpuTargetCondHolds([{ side: 'me', zone: zone as never, cmp: 'eq', n }], 'and', st5, mk({}));
+  ok(cnt('virus', 2), '🔴ウィルスはゾーンごとに数える（シグニがいなくても）');
+  ok(cnt('infected', 1), '🔴感染状態＝ウィルスのあるゾーンにいるシグニだけ');
+  ok(cnt('frozen', 1), '🔴凍結は場にいるシグニだけ数える');
+  ok(cnt('charm', 1) && cnt('acce', 1) && cnt('rise', 1), '🔴チャーム／アクセ／ライズの数が違う');
+  ok(!cpuTargetCondHolds([{ side: 'opp', zone: 'frozen', cmp: 'ge', n: 1 }], 'and', st5, mk({})), '🔴自分の場の凍結を相手の場として数えた');
+  eq(JSON.stringify(normalizeCpuDeckPlan({ targeting: { rules: [{ sourceCards: [], conds: [{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }], opp: { mode: 'weakest' } }] } }).targeting.rules?.[0].conds),
+    JSON.stringify([{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }]), '🔴特殊状態の条件を保存で落とした');
+  eq(cpuTargetCondsLabel([{ side: 'opp', zone: 'frozen', cmp: 'ge', n: 2 }]), '相手の場の凍結状態のシグニが2体以上', '🔴特殊状態の表示が違う');
 }));
 
 if (listMode) {

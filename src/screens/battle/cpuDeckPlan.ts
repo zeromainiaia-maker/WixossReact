@@ -147,7 +147,9 @@ export const DEFAULT_CPU_TARGET_SPEC: CpuTargetSpec = { opp: { mode: 'strongest'
  * ⚠旧形の `when` は `normalizeCpuDeckPlan` が条件へ読み替える（挙動不変）。
  */
 export type CpuCondSide = 'me' | 'opp';
-export type CpuCondZone = 'life' | 'hand' | 'energy' | 'trash' | 'field';
+export type CpuCondZone = 'life' | 'hand' | 'energy' | 'trash' | 'field'
+  // 🆕2026-09-26＝**場の特殊状態の数**（その側の場で数える）。
+  | 'virus' | 'infected' | 'frozen' | 'charm' | 'acce' | 'rise';
 export type CpuCondCmp = 'le' | 'ge' | 'eq';
 export type CpuCondCombine = 'and' | 'or';
 
@@ -160,13 +162,17 @@ export interface CpuTargetCond {
 }
 
 export const CPU_COND_SIDES: readonly CpuCondSide[] = ['me', 'opp'];
-export const CPU_COND_ZONES: readonly CpuCondZone[] = ['life', 'hand', 'energy', 'trash', 'field'];
+export const CPU_COND_ZONES: readonly CpuCondZone[] = [
+  'life', 'hand', 'energy', 'trash', 'field', 'virus', 'infected', 'frozen', 'charm', 'acce', 'rise',
+];
 export const CPU_COND_CMPS: readonly CpuCondCmp[] = ['le', 'ge', 'eq'];
 export const CPU_COND_COMBINES: readonly CpuCondCombine[] = ['and', 'or'];
 
 export const CPU_COND_SIDE_LABELS: Readonly<Record<CpuCondSide, string>> = { me: '自分', opp: '相手' };
 export const CPU_COND_ZONE_LABELS: Readonly<Record<CpuCondZone, string>> = {
   life: 'ライフ', hand: '手札', energy: 'エナ', trash: 'トラッシュ', field: '場のシグニ',
+  virus: '場のウィルス', infected: '場の感染状態のシグニ', frozen: '場の凍結状態のシグニ',
+  charm: '場のチャーム付きシグニ', acce: '場のアクセ付きシグニ', rise: '場のライズ（下にカードがある）シグニ',
 };
 export const CPU_COND_CMP_LABELS: Readonly<Record<CpuCondCmp, string>> = { le: '以下', ge: '以上', eq: 'ちょうど' };
 export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> = {
@@ -175,7 +181,7 @@ export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> =
 
 /** 条件1つの表示（例「自分のライフが2枚以下」）。 */
 export function cpuTargetCondLabel(c: CpuTargetCond): string {
-  const unit = c.zone === 'field' ? '体' : '枚';
+  const unit = c.zone === 'life' || c.zone === 'hand' || c.zone === 'energy' || c.zone === 'trash' || c.zone === 'virus' ? '枚' : '体';
   return `${CPU_COND_SIDE_LABELS[c.side]}の${CPU_COND_ZONE_LABELS[c.zone]}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
 }
 
@@ -185,9 +191,24 @@ export function cpuTargetCondsLabel(conds: readonly CpuTargetCond[], combine: Cp
   return conds.map(cpuTargetCondLabel).join(combine === 'or' ? ' または ' : ' かつ ');
 }
 
-/** 盤面でその置き場の枚数（場のシグニは埋まっているゾーンの数）。 */
+/**
+ * 盤面でその置き場の枚数（場のシグニは埋まっているゾーンの数）。
+ * 🆕**特殊状態はシグニゾーン3つを見て数える**（読み方は engine のフィルタと同じ＝`matchesFilter` の `infected`／`hasCharm`／`hasAcce`／`isFrozen`／`hasUnderCards`）：
+ * - `virus`＝ウィルスのあるゾーン（シグニがいなくても数える＝ウィルスはゾーンに置かれる）。
+ * - `infected`＝ウィルスのあるゾーンにいるシグニ（ルール上の感染状態）。
+ * - `rise`＝下にカードがあるシグニ（ライズで重ねたもの。⚠効果で下に置いたカードも数える）。
+ */
 function condCount(st: PlayerState, zone: CpuCondZone): number {
+  const f = st.field;
+  const occupied = (z: number) => (f.signi[z]?.length ?? 0) > 0;
+  const zones = (pred: (z: number) => boolean) => [0, 1, 2].filter(pred).length;
   switch (zone) {
+    case 'virus': return zones(z => (f.signi_virus?.[z] ?? 0) > 0);
+    case 'infected': return zones(z => occupied(z) && (f.signi_virus?.[z] ?? 0) > 0);
+    case 'frozen': return zones(z => occupied(z) && !!f.signi_frozen?.[z]);
+    case 'charm': return zones(z => occupied(z) && !!f.signi_charms?.[z]);
+    case 'acce': return zones(z => occupied(z) && (f.signi_acce?.[z]?.length ?? 0) > 0);
+    case 'rise': return zones(z => (f.signi[z]?.length ?? 0) >= 2);
     case 'life': return st.life_cloth?.length ?? 0;
     case 'hand': return st.hand?.length ?? 0;
     case 'energy': return st.energy?.length ?? 0;
