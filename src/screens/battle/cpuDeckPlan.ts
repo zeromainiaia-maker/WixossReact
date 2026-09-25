@@ -223,6 +223,23 @@ export const CPU_CARD_USE_LABELS: Readonly<Record<CpuCardUse, string>> = {
   defense: '守りで使う', offense: '攻めで使う', both: '守りでも攻めでも使う', never: '使わない',
 };
 
+/**
+ * 🆕**エナゾーンにある札の扱い**（2026-09-26 ユーザー要望）＝CPU がエナでコストを払うとき、その札を**どの順で使うか**。
+ * - `spend`＝**積極的にコストとして使う**（ほかのエナより先に払う）。
+ * - `keep`＝**できるだけエナに温存する**（ほかのエナで払えるならそちらを使う）。🔴**使わないわけではない**＝
+ *   それを払わないとコストが足りないときは払う（「払えない」にはしない）。
+ * 🔑**読むのは `planEnaPayRank` の1本**＝支払いの選び手（`selectEnergyIndicesForCost`／召喚コスト／エナを落とすコスト／
+ *   効果の任意コスト）はこの順位で並べるだけ。可否は変えない。
+ * ⚠**メインデッキの札だけ**（エナに行くのはシグニとスペル）。
+ */
+export type CpuEnaUse = 'spend' | 'keep';
+
+export const CPU_ENA_USES: readonly CpuEnaUse[] = ['spend', 'keep'];
+
+export const CPU_ENA_USE_LABELS: Readonly<Record<CpuEnaUse, string>> = {
+  spend: '積極的にコストとして使う', keep: 'できるだけエナに温存する（必要なら使う）',
+};
+
 export interface CpuDeckPlan {
   keyCards: string[];
   priorityCards: string[];
@@ -231,10 +248,12 @@ export interface CpuDeckPlan {
   targeting: CpuTargetPlan;
   /** 🆕§5.7 `S-31` ③＝札ごとの使いどころ（カード番号 → 使いどころ。**指定が無い札は既定＝従来どおり**）。 */
   cardUse: Record<string, CpuCardUse>;
+  /** 🆕2026-09-26＝エナゾーンにある札の扱い（カード番号 → 扱い。**指定が無い札は既定＝従来どおり**）。 */
+  enaUse?: Record<string, CpuEnaUse>;
 }
 
 export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = {
-  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN, cardUse: {},
+  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN, cardUse: {}, enaUse: {},
 };
 
 /**
@@ -354,7 +373,18 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
   return {
     keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting,
     cardUse: toCardUseMap(r.cardUse),
+    enaUse: toEnaUseMap(r.enaUse),
   };
+}
+
+/** DB の1件を「エナゾーンにある札の扱い」へ（⚠**知らない値は落とす**＝既定に戻る）。 */
+function toEnaUseMap(raw: unknown): Record<string, CpuEnaUse> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, CpuEnaUse> = {};
+  for (const [num, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (num && CPU_ENA_USES.includes(v as CpuEnaUse)) out[num] = v as CpuEnaUse;
+  }
+  return out;
 }
 
 /** DB の1件を「札ごとの使いどころ」へ（⚠**知らない値は落とす**＝既定に戻る）。 */
@@ -400,6 +430,7 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
     },
     // 🆕§5.7 `S-31` ③＝**使いどころは自分の札にしか書けない**（`keyCards` と同じ側）＝デッキから抜けたら落とす。
     cardUse: Object.fromEntries(Object.entries(plan.cardUse ?? {}).filter(([n]) => inDeck.has(n))),
+    enaUse: Object.fromEntries(Object.entries(plan.enaUse ?? {}).filter(([n]) => inDeck.has(n))),
   };
 }
 
@@ -407,7 +438,8 @@ export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
   plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
   && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
   && (plan.targeting?.rules?.length ?? 0) === 0
-  && Object.keys(plan.cardUse ?? {}).length === 0;
+  && Object.keys(plan.cardUse ?? {}).length === 0
+  && Object.keys(plan.enaUse ?? {}).length === 0;
 
 /** 狙い方を解決する文脈。 */
 export interface CpuTargetResolveCtx {
@@ -530,6 +562,18 @@ export function planArtsMarkedFor(
   const use = planCardUse(plan, cardNum);
   return use === 'both' || use === window;
 }
+
+/**
+ * 🆕2026-09-26＝**エナで払う順位**（小さいほど先に払う）＝`spend` -1／指定なし 0／`keep` +1。
+ * ⚠instance ID（`#…`）でもカード番号でもよい。
+ */
+export function planEnaPayRank(plan: CpuDeckPlan | undefined, id: string): number {
+  const u = plan?.enaUse?.[getCardNum(id)];
+  return u === 'spend' ? -1 : u === 'keep' ? 1 : 0;
+}
+
+/** 作戦データにエナの扱いの指定が1つでもあるか（無ければ支払いの並びを1ビットも変えない）。 */
+export const planHasEnaUse = (plan: CpuDeckPlan | undefined): boolean => Object.keys(plan?.enaUse ?? {}).length > 0;
 
 export function planKeepBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
   const num = getCardNum(id);

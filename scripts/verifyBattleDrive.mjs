@@ -60788,6 +60788,26 @@ scenarios.v268CpuDeckPlan = {
           return { pass: false, detail: '🔴保存した使いどころが一覧に出ない' };
         }
 
+        // 🆕2026-09-26＝**エナの扱い**（エナにあるとき積極的に払う／できるだけ温存）も画面から保存できる。
+        //   ⚠一覧に出るのは**メインデッキの札だけ**（ルリグデッキの札はエナに来ない）。
+        const enaOptions = await page.getByTestId('cpu-plan-ena-card').locator('option')
+          .evaluateAll(os => os.map(o => o.value).filter(Boolean));
+        if (enaOptions.length === 0) return { pass: false, detail: '🔴エナの扱いに選べる札が1枚も無い' };
+        if (enaOptions.includes('WD03-004')) return { pass: false, detail: '🔴エナの扱いにルリグ（ルリグデッキの札）が出ている' };
+        const enaTarget = enaOptions[0];
+        await page.getByTestId('cpu-plan-ena-card').selectOption(enaTarget, { timeout: 3000 });
+        await page.getByTestId('cpu-plan-ena-mode').selectOption('keep', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-ena-add').click({ timeout: 1200 });
+        await page.waitForTimeout(1500);
+        const saved7 = await readPlan(deck.id);
+        H.log(`②'''''' 保存された enaUse=${JSON.stringify(saved7?.enaUse)}`);
+        if ((saved7?.enaUse ?? {})[enaTarget] !== 'keep') {
+          return { pass: false, detail: `🔴エナの扱いが DB に届かない（${JSON.stringify(saved7?.enaUse)}）` };
+        }
+        if (!(await page.getByTestId(`cpu-plan-ena-row-${enaTarget}`).count())) {
+          return { pass: false, detail: '🔴保存したエナの扱いが一覧に出ない' };
+        }
+
         // 🔑**画面の表示も見る**＝保存できても読めなければ編集できない（使い方の表示名）。
         if (!draftText.includes(useA.t) || !draftText.includes(useB.t)) {
           return { pass: false, detail: `🔴組み立て中の表示に使い方が出ていない（${draftText} / 期待=${useA.t},${useB.t}）` };
@@ -60795,7 +60815,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ・表示と値が一致）` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ２枚以下 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はアーツ以外なら「使わない」だけ・表示と値が一致） ②''''''エナの扱い（温存）が cpu_plan.enaUse に届いた（メインデッキの札だけ）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

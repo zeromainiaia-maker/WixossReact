@@ -12,6 +12,15 @@ import { reserveKeptAfterPaying } from './cpuGrowReserve';
 import { canAffordDeclarationCost, type DeclarationScalingCost } from './cpuDeclarationCost';
 
 /**
+ * 🆕2026-09-26＝**作戦データの「エナの扱い」で並べ替えたエナ**を持つ盤面（`selectOptionalCostEnergy` は先頭から払う）。
+ * ⚠並べ替えは安定＝順位が無ければ元の盤面そのもの（挙動不変）。返す instance ID は元と同じなので実行側は変わらない。
+ */
+const payOrderedState = (st: PlayerState, reserve: CpuEnergyReserve | undefined): PlayerState => {
+  const rank = reserve?.payRank;
+  return rank ? { ...st, energy: [...st.energy].sort((a, b) => rank(a) - rank(b)) } : st;
+};
+
+/**
  * 🆕**CPU の対話応答**（§5.6 `C-8`・2026-09-17）＝効果の途中で CPU に回ってくる選択（対象・選択肢・サーチ・
  * パワーの割り振り・ゾーン・配置し直し）に**何と答えるか**を決める純関数群。
  *
@@ -323,7 +332,7 @@ export function pickCpuTargets(inter: Inter<'SELECT_TARGET'>, ctx: CpuInteractio
     ? placeable.filter(id => canAffordDeclarationCost({
       candidate: id, cost: ctx.followUpCost!, cardMap, cpuState,
       canPayColors: colors => {
-        const paid = selectOptionalCostEnergy(colors, cpuState, cardMap);
+        const paid = selectOptionalCostEnergy(colors, payOrderedState(cpuState, ctx.energyReserve), cardMap);
         return !!paid && reserveKeptAfterPaying(ctx.energyReserve, cpuState.energy, paid);
       },
     }))
@@ -436,7 +445,7 @@ export function pickCpuChoice(inter: Inter<'CHOOSE'>, ctx: CpuInteractionCtx): s
     if (!opt.costColors?.length) return [opt.id];
     // ⚠支払いのある肢は**肢IDだけでは払えない**（タスク12(cii)）＝支払うエナの instanceId を後ろに付ける。
     //   選べないのに `available` だった場合は null（＝その肢は選ばない）。
-    const paid = selectOptionalCostEnergy(opt.costColors, ctx.cpuState, ctx.cardMap);
+    const paid = selectOptionalCostEnergy(opt.costColors, payOrderedState(ctx.cpuState, ctx.energyReserve), ctx.cardMap);
     if (paid && !reserveKeptAfterPaying(ctx.energyReserve, ctx.cpuState.energy, paid)) return null;
     return paid ? [opt.id, ...paid] : null;
   };

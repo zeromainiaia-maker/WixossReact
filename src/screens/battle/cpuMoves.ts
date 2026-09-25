@@ -27,7 +27,7 @@ import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } f
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import type { CpuComboUse, CpuDeckPlan } from './cpuDeckPlan';
+import { planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -157,6 +157,11 @@ export function listCpuEnergyCharges(s: PlayerState): CpuMove[] {
 // ─── グロウ ───────────────────────────────────────────────────
 
 /** いま払えるグロウ先を全部（`listGrowCandidates` の順）。⚠`canGrowNow` は `listCpuMoves` 側で見る。 */
+/** 🆕2026-09-26＝作戦データの「エナゾーンにある札の扱い」の払う順位（指定が無ければ `undefined`＝旧挙動）。 */
+function enaPayRankOf(ctx: CpuMoveCtx): ((num: string) => number) | undefined {
+  return planHasEnaUse(ctx.plan) ? num => planEnaPayRank(ctx.plan, num) : undefined;
+}
+
 export function listCpuGrows(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'grow' }>[] {
   const s = ctx.actor;
   const pool = buildEnergyPayPool(s, { turnPhase: 'GROW', isMyTurn: true, effectsMap: ctx.effectsMap });
@@ -169,7 +174,8 @@ export function listCpuGrows(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'grow' }
     const costStr = applyGrowCostReduction(card.GrowCost, red);
     const coinNeed = parseCoinCost(card.GrowCost);
     if (coinNeed > 0 && (s.coins ?? 0) < coinNeed) continue;
-    const costIndices = selectEnergyIndicesForCost({ poolNums, cards: ctx.allCards, costStr, isAffordable, wholeSubstitutes });
+    // 🆕2026-09-26＝作戦データの「エナの扱い」で払う順を決める（⚠グロウは予約で縛らない＝順位だけ）。
+    const costIndices = selectEnergyIndicesForCost({ poolNums, cards: ctx.allCards, costStr, isAffordable, wholeSubstitutes, payRank: enaPayRankOf(ctx) });
     if (!costIndices) continue;
     out.push({ kind: 'grow', card, costIndices, pool });
   }
@@ -253,18 +259,23 @@ export function cpuDeployPlaceable(
 export function cpuPaySigniCostEnergy(ctx: CpuMoveCtx, s: PlayerState, card: CardData): string[] | null {
   const signiCosts = parseGrowCost(card.Cost);
   if (signiCosts.length === 0) return s.energy;
-  let newEnergy = [...s.energy];
+  // 🆕2026-09-26＝作戦データの「エナの扱い」の順に払う（順位が無ければエナの並び順＝旧挙動）。
+  //   ⚠添字で持つ（テストの盤面には instance ID の無い同じ番号が並ぶことがある）。
+  const rank = enaPayRankOf(ctx);
+  const payOrder = s.energy.map((_, i) => i);
+  if (rank) payOrder.sort((a, b) => rank(s.energy[a]) - rank(s.energy[b]) || a - b);
+  const paidIdx = new Set<number>();
   for (const { color, count } of signiCosts) {
     let paid = 0;
-    const after = newEnergy.filter(eNum => {
-      if (paid >= count) return true;
-      const eColor = ctx.allCards.find(c => c.CardNum === getCardNum(eNum))?.Color ?? '';
-      if (color === '無' || eColor.includes(color)) { paid++; return false; }
-      return true;
-    });
+    for (const i of payOrder) {
+      if (paid >= count) break;
+      if (paidIdx.has(i)) continue;
+      const eColor = ctx.allCards.find(c => c.CardNum === getCardNum(s.energy[i]))?.Color ?? '';
+      if (color === '無' || eColor.includes(color)) { paid++; paidIdx.add(i); }
+    }
     if (paid < count) return null;
-    newEnergy = after;
   }
+  const newEnergy = s.energy.filter((_, i) => !paidIdx.has(i));
   // 🆕グロウ用エナの予約＝払った残りで次のグロウが払えないなら、この札は出さない。
   const reserve = ctx.reserveFor(s);
   if (reserve && !reserve.keepsAfter(newEnergy)) return null;

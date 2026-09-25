@@ -172,6 +172,11 @@ export interface CpuEnergyReserve {
   keepsAfter: (remainingNums: string[]) => boolean;
   /** 《無》の枠を埋めるときに**後回しにする色**（予約に要る色を先に使わない）。 */
   avoidColors: readonly string[];
+  /**
+   * 🆕2026-09-26＝**作戦データの「エナゾーンにある札の扱い」**（`cpuDeckPlan.planEnaPayRank`）＝小さいほど先に払う。
+   * ⚠**並べ方だけ**（可否は変えない）。組み立ては `cpuGrowReserve.withEnaPayRank`。
+   */
+  payRank?: (num: string) => number;
 }
 
 export function selectEnergyIndicesForCost(p: {
@@ -188,8 +193,14 @@ export function selectEnergyIndicesForCost(p: {
   reserve?: CpuEnergyReserve;
   /** 🆕支払いに使わない pool index（2026-09-22＝エナゾーンから【アクセ】にする札そのもの）。 */
   exclude?: ReadonlySet<number>;
+  /** 🆕2026-09-26＝払う順位（小さいほど先）。省略時は `reserve.payRank`。どちらも無ければ pool の並び順。 */
+  payRank?: (num: string) => number;
 }): Set<number> | null {
   const { poolNums, cards, costStr, isAffordable } = p;
+  const payRank = p.payRank ?? p.reserve?.payRank;
+  const rankOf = (i: number) => (payRank ? payRank(poolNums[i]) : 0);
+  /** 🆕pool index を払う順に（順位 → pool の並び）。順位が無ければ pool の並びそのもの＝旧挙動。 */
+  const payOrder = poolNums.map((_, i) => i).sort((a, b) => rankOf(a) - rankOf(b) || a - b);
   if (costStr === '') return new Set();
   const colorOf = (num: string) => {
     const base = num.indexOf('#') > 0 ? num.slice(0, num.indexOf('#')) : num;
@@ -216,16 +227,18 @@ export function selectEnergyIndicesForCost(p: {
     for (const { color, count } of wanted) {
       if (color === '無') continue;
       for (let n = 0; n < count && !isSat(); n++) {
-        const idx = poolNums.findIndex((num, i) => !selected.has(i) && !p.exclude?.has(i) && colorOf(num).includes(color));
-        if (idx >= 0) selected.add(idx); else break;
+        const idx = payOrder.find(i => !selected.has(i) && !p.exclude?.has(i) && colorOf(poolNums[i]).includes(color));
+        if (idx !== undefined) selected.add(idx); else break;
       }
     }
     // ②残りは先頭から足していく（《無》スロット・マルチエナでの充当はここで埋まる）。
     //   🆕予約があれば、予約に要る色のエナを後回しにする（グロウに要る色を《無》で潰さない）。
     const avoid = p.reserve?.avoidColors ?? [];
+    //   🆕作戦データの「エナの扱い」は予約の次に効く（グロウできなくなるのは必ず避ける＝予約が先）。
     const fillOrder = poolNums.map((_, i) => i)
       .filter(i => !p.exclude?.has(i))
-      .sort((a, b) => Number(avoid.some(c => colorOf(poolNums[a]).includes(c))) - Number(avoid.some(c => colorOf(poolNums[b]).includes(c))) || a - b);
+      .sort((a, b) => Number(avoid.some(c => colorOf(poolNums[a]).includes(c))) - Number(avoid.some(c => colorOf(poolNums[b]).includes(c)))
+        || rankOf(a) - rankOf(b) || a - b);
     for (const i of fillOrder) { if (isSat()) break; selected.add(i); }
     if (!isSat()) return null;
     if (p.reserve && !p.reserve.keepsAfter(poolNums.filter((_, i) => !selected.has(i)))) return null;
@@ -431,7 +444,9 @@ export function pickCpuEnergyTrashIndices(p: {
     cardStrength(p.cardMap.get(getCardNum(id)), p.effectsOf?.(id) ?? [], 'deploy', undefined, p.policy);
   const order = p.energy.map((_, i) => i)
     .filter(i => !spec.filter || matchesFilter(p.cardMap.get(getCardNum(p.energy[i])), spec.filter))
-    .sort((a, b) => strength(p.energy[a]) - strength(p.energy[b]) || a - b);
+    // 🆕2026-09-26＝作戦データの「エナの扱い」が先（温存する札は最後に落とす）。
+    .sort((a, b) => (p.reserve?.payRank?.(p.energy[a]) ?? 0) - (p.reserve?.payRank?.(p.energy[b]) ?? 0)
+      || strength(p.energy[a]) - strength(p.energy[b]) || a - b);
   const pickFrom = (idx: readonly number[]) => {
     const chosen = new Set<number>();
     for (const i of idx) {

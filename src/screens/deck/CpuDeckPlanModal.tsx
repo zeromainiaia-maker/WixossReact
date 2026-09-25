@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { CardData, Deck } from '../../types';
 import {
-  CPU_CARD_USE_LABELS,
+  CPU_CARD_USE_LABELS, CPU_ENA_USES, CPU_ENA_USE_LABELS,
   CPU_COMBO_USE_LABELS, CPU_TARGET_MODES_BY_SIDE, CPU_TARGET_MODE_LABELS_BY_SIDE,
   CPU_TARGET_WHENS, CPU_TARGET_WHEN_LABELS,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
-  type CpuCardUse, type CpuComboStep, type CpuComboUse, type CpuDeckPlan,
+  type CpuCardUse, type CpuComboStep, type CpuEnaUse, type CpuComboUse, type CpuDeckPlan,
   type CpuSideTarget, type CpuTargetMode, type CpuTargetSide, type CpuTargetWhen,
 } from '../battle/cpuDeckPlan';
 
@@ -141,6 +141,22 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     const next = { ...cardUse };
     delete next[n];
     save({ ...plan, cardUse: next });
+  };
+  // ── 🆕2026-09-26 エナの扱い ────────────────────────────────
+  //   ⚠**メインデッキの札だけ**（エナに行くのはシグニとスペル＝ルリグデッキの札はエナに来ない）。
+  const enaUse = plan.enaUse ?? {};
+  const enaCards = cards.filter(c => mainNums.has(c.CardNum));
+  const [enaNum, setEnaNum] = useState('');
+  const [enaMode, setEnaMode] = useState<CpuEnaUse>('keep');
+  const addEnaUse = () => {
+    if (!enaNum) return;
+    save({ ...plan, enaUse: { ...enaUse, [enaNum]: enaMode } });
+    setEnaNum('');
+  };
+  const removeEnaUse = (n: string) => {
+    const next = { ...enaUse };
+    delete next[n];
+    save({ ...plan, enaUse: next });
   };
   const toggle = (key: 'keyCards' | 'priorityCards', n: string) => {
     const list = plan[key];
@@ -374,6 +390,29 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               <div key={n} data-testid={`cpu-plan-use-row-${n}`} style={listRow}>
                 <span style={{ flex: '1 1 84px', minWidth: 0 }}>{nameOf(n)} → {CPU_CARD_USE_LABELS[u]}</span>
                 <button onClick={() => removeCardUse(n)} style={chip(false, '#000')}>削除</button>
+              </div>
+            ))}
+          </div>
+
+          {/* ── 🆕エナの扱い ─────────────────────────────── */}
+          <div style={section}>
+            {title('#e0b050', 'エナの扱い', 'エナゾーンにあるとき、コストの支払いで先に使うか、できるだけ残すか（残す札も、足りなければ使う）')}
+            <div style={row}>
+              <select data-testid="cpu-plan-ena-card" value={enaNum} onChange={e => setEnaNum(e.target.value)} style={selectStyle}>
+                <option value="">カードを選ぶ</option>
+                {enaCards.map(c => <option key={c.CardNum} value={c.CardNum}>{c.CardName}</option>)}
+              </select>
+              <select data-testid="cpu-plan-ena-mode" value={enaMode} onChange={e => setEnaMode(e.target.value as CpuEnaUse)}
+                style={selectStyle}>
+                {CPU_ENA_USES.map(u => <option key={u} value={u}>{CPU_ENA_USE_LABELS[u]}</option>)}
+              </select>
+              <button data-testid="cpu-plan-ena-add" onClick={addEnaUse} disabled={!enaNum}
+                style={{ ...chip(!!enaNum, '#a07820'), padding: '7px 12px' }}>追加</button>
+            </div>
+            {Object.entries(enaUse).map(([n, u]) => (
+              <div key={n} data-testid={`cpu-plan-ena-row-${n}`} style={listRow}>
+                <span style={{ flex: '1 1 84px', minWidth: 0 }}>{nameOf(n)} → {CPU_ENA_USE_LABELS[u]}</span>
+                <button onClick={() => removeEnaUse(n)} style={chip(false, '#000')}>削除</button>
               </div>
             ))}
           </div>

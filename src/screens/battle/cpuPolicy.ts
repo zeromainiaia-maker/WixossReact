@@ -250,6 +250,14 @@ export interface CpuPolicy {
    */
   readonly chargeFieldBlocked: number;
   /**
+   * 🆕2026-09-26（ユーザー指摘「CPU がスペルを積極的にエナチャージしてしまう」）＝**手札のスペルをエナへ置かない**加点（パワー換算）。
+   * 🔴**なぜ要るか**＝スペルは**パワーを持たない**ので強さ（`cardStrength`）が効果の点数だけになり、
+   *   シグニより必ず安く見えて**真っ先にエナへ行く**。しかも**エナに置いたスペルはほとんど再利用できない**
+   *   （シグニは場に出す／エナから回収する経路が多いが、スペルはエナで色を払うだけになる）。
+   * ⚠**0 で旧挙動**（`legacy-spellcharge`）。
+   */
+  readonly chargeSpellKeep: number;
+  /**
    * 🆕§5.7 `S-22`＝**`thenAction` から損得が読めない対象選択を「置き場（`targetScope`）」で決める**か（0＝旧挙動＝乱数）。
    * 🔴**0 にすると対象宣言が乱数に戻る**（`STUB{SELECT_TARGET_ONLY}` は `thenAction` に印しか持たない）。
    * 📏実測（修正前・本物のデッキ6つ × 1戦）＝CPU が答えた `SELECT_TARGET` **66件のうち32件（48%）が乱数**。
@@ -364,6 +372,10 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   // 🆕§5.7 `S-28`（2026-09-21）＝**場のシグニをエナへ置く**。値は `guardKeepValue` と同じ桁に置いた
   //   （＝「バトルで落ちる札を残す」ことは【ガード】を捨てるのと同じくらい避けたい、という序列）。
   chargeFieldBlocked: 8000,
+  // 🆕2026-09-26＝**スペルをエナへ置かない**（ユーザー指摘）。値は他のチャージの補正と同じ桁
+  //   （＝「使えるスペルを色の足しにする」ことは【ガード】を捨てるのと同じくらい避けたい、という序列）。
+  //   ⚠次のグロウに要る色（`chargeGrowColor`）と同額＝**グロウの色が足りないときは、その色のスペルも置きに行く**（引き分けは強さで決まる）。
+  chargeSpellKeep: 8000,
   // 🆕§5.7 `S-22`（2026-09-21）＝**既定で有効**。🔴これは調整つまみではなく**実測したバグの修正**
   //   （対象選択の 48% が乱数で、最大の塊は「宣言の後ろでバニッシュされる相手のシグニ」を乱数で選んでいた）。
   //   ⚠**実機の挙動が変わる回**＝自己対戦の乱数列も動くので、この回にベースラインを撮り直す。
@@ -489,6 +501,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
    * ⚠**消さない**＝この機構だけを切り分けて測り直す唯一の口。
    */
   'legacy-fieldcharge': variant('legacy-fieldcharge', { chargeFieldBlocked: 0 }),
+  /** 🆕2026-09-26＝**スペルを手札に残す加点を入れる前**（スペルは効果の点数だけで比べられ、真っ先にエナへ行っていた）。 */
+  'legacy-spellcharge': variant('legacy-spellcharge', { chargeSpellKeep: 0 }),
   /** 🆕§5.7 `S-22` を入れる前＝`thenAction` で読めない対象選択は乱数（対象宣言が全部ここに落ちていた）。 */
   'legacy-targetrandom': variant('legacy-targetrandom', { targetIntentByScope: 0 }),
   /** 🆕§5.7 `S-24` を入れる前のマリガン規則＝レベル3以上だけを戻す（レベル2は掘らない）。 */
@@ -581,14 +595,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'searchKeepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
+      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
       || key === 'cutinGainMin' || key === 'betCoinValue') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

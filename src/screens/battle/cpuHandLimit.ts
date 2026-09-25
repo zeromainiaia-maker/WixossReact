@@ -105,6 +105,15 @@ export interface CpuChargeCtx {
 }
 
 /**
+ * 🆕2026-09-26＝**スペルをエナへ置かない加点**（`chargeSpellKeep`）。
+ * 🔑**手札どうしの比較（`pickCpuEnergyChargeIndex`）と、手札 vs 場のシグニの比較（`pickCpuEnergyCharge`）で同じ1本を使う**
+ *   （片方だけに足すと「手札の中では残すのに、場のシグニとの比較では安く見える」ずれが出る）。
+ */
+export function spellChargeKeep(card: CardData | undefined, policy?: CpuPolicy): number {
+  return (card?.Type ?? '').startsWith('スペル') ? (policy ?? DEFAULT_CPU_POLICY).chargeSpellKeep : 0;
+}
+
+/**
  * 🆕§5.7 `S-1`／`S-26`＝**エナチャージする手札**の添字（【ガード】は最後）。
  *
  * ■ キープ値＝**強さ（パワー＋効果の点数）**に、**ターンをまたいだ3つの補正**を足したもの。低いものからエナへ置く。
@@ -112,6 +121,8 @@ export interface CpuChargeCtx {
  *   ② 🆕**いま出せる札が足りない**（レベル ≦ ルリグレベルのシグニが空きゾーン数以下）＝`chargeKeepPlayable` を加点して温存する。
  *      🔑**終盤にレベル1を置くのは正しい**（実測＝`Lv1-ルリグLv4` は5回＝ただ弱い札）＝**ルリグレベル相対**で決める。
  *   ③ 🆕**次のグロウに要る色**を持つ札＝`chargeGrowColor` を減点して**エナへ置きに行く**。
+ *   ④ 🆕**スペル**＝`chargeSpellKeep` を加点して**手札に残す**（2026-09-26 ユーザー指摘＝パワーが無いので真っ先にエナへ行っていた。
+ *      エナに置いたスペルはほとんど再利用できない）。
  * ■ 🔑**②と③は逆を向くことがある**（要る色の札が、いま出せる唯一の札）＝**数値の大小で決める**（既定は同額＝引き分けなら①の割引と強さで決まる）。
  * @returns 手札が空なら -1
  */
@@ -138,6 +149,8 @@ export function pickCpuEnergyChargeIndex(
     if (scarce && playableNow(num)) v += W.chargeKeepPlayable;
     // ③ 次のグロウに要る色なら置きに行く。⚠シグニ以外（スペル等）も色を持つので対象にする。
     if (card?.Color && needColors.has(card.Color)) v -= W.chargeGrowColor;
+    // ④ スペルは手札に残す（`chargeSpellKeep`）。
+    v += spellChargeKeep(card, policy);
     // §5.7 `S-2`＝作戦データのキーカード・コンボのパーツは残す（加点）。
     return v + (keepBonus?.(num) ?? 0);
   };

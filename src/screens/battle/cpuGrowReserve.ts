@@ -6,6 +6,7 @@ import { applyGrowCostReduction, isEnaMultiStripped, isEnergyPaymentSelectionVal
 import { listGrowCandidates } from './growLogic';
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { applyCpuMoveSim, listCpuGrows, type CpuMoveCtx } from './cpuMoves';
+import { planEnaPayRank, planHasEnaUse, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * 🆕**グロウ用エナの予約**（2026-09-17・ユーザー指示）＝「アーツなどエナコストが必要な行動で、グロウ用のエナが無くなって
@@ -107,6 +108,20 @@ export function chargeNeedColors(ctx: CpuMoveCtx, cards: CardData[]): string[] {
   if (!growNow) return [];
   const after = applyCpuMoveSim(ctx, growNow)?.cpu;
   return after ? growShortColors({ actor: after, ...base }) : [];
+}
+
+/**
+ * 🆕2026-09-26＝**作戦データの「エナゾーンにある札の扱い」を支払いの予約に載せる**（`CpuEnergyReserve.payRank`）。
+ * 🔑**予約に載せる理由**＝エナを払う選び手（アーツ・スペル・【起】・キー／ピース・カットイン・アシストグロウ・効果の任意コスト）は
+ *   **全部この予約を受け取っている**＝1か所で全部の窓に届く（窓ごとに引数を足すと、足し忘れた窓だけ効かない）。
+ * ⚠**グロウ先が無い（予約が `undefined`）ときも順位だけの予約を返す**（`keepsAfter` は常に真＝何も縛らない）。
+ * ⚠**指定が無ければ元の予約をそのまま返す**＝挙動は1ビットも変わらない。
+ * 🔴**「次のグロウが払えるか」の判定（`canPayNextGrow`・`growShortColors`）にはこれを通さない**＝`undefined` が「グロウ先が無い」の意味を持つ。
+ */
+export function withEnaPayRank(reserve: CpuEnergyReserve | undefined, plan: CpuDeckPlan | undefined): CpuEnergyReserve | undefined {
+  if (!planHasEnaUse(plan)) return reserve;
+  const payRank = (num: string) => planEnaPayRank(plan, num);
+  return reserve ? { ...reserve, payRank } : { keepsAfter: () => true, avoidColors: [], payRank };
 }
 
 /** 払う予定のエナ（instance ID）を除いた残りで予約を満たせるか（手で選ぶ支払い＝召喚コスト・効果の任意コスト用）。 */

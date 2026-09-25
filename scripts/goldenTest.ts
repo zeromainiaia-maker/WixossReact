@@ -171,7 +171,7 @@ import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
-import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices } from '../src/screens/battle/cpuHandLimit';
+import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices, spellChargeKeep } from '../src/screens/battle/cpuHandLimit';
 import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
@@ -181,7 +181,7 @@ import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteracti
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyCpuMoveSim, cpuPlanMoveStep, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
-import { buildCpuGrowReserve } from '../src/screens/battle/cpuGrowReserve';
+import { buildCpuGrowReserve, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
@@ -87200,15 +87200,15 @@ test('§5.7 S-2 CPU デッキの作戦データ：キーカードは手元に残
   // 🆕§5.7 `S-32`（2026-09-21）＝**対象の狙い方**が作戦データに増えた（較正＝既定は `strongest` で挙動不変）。
   // 🆕§5.7 `S-31` ③（2026-09-21）＝**札の使いどころ**（`cardUse`）が増えた（較正＝空なら挙動不変）。
   eq(JSON.stringify(normalizeCpuDeckPlan(null)),
-    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {} }),
+    JSON.stringify({ keyCards: [], priorityCards: [], combos: [], targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {}, enaUse: {} }),
     'null を空の作戦にしない');
   const plan = normalizeCpuDeckPlan({ keyCards: [K, K, 3], priorityCards: [X], combos: [{ first: A, then: B }, { first: A, then: A }, 'bad'] });
   // 🆕§5.7 `S-14`（2026-09-21）＝**旧形 `{first, then}` は「出す → 出す」の2手へ変換される**（較正＝保存済みの作戦を壊さない）。
   eq(JSON.stringify(plan), JSON.stringify({ keyCards: [K], priorityCards: [X],
     combos: [{ steps: [{ num: A, use: 'deploy' }, { num: B, use: 'deploy' }] }],
-    targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {} }), '作戦データの正規化が違う');
+    targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {}, enaUse: {} }), '作戦データの正規化が違う');
   eq(JSON.stringify(pruneCpuDeckPlan(plan, [`${A}#1`, K])),
-    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {} }),
+    JSON.stringify({ keyCards: [K], priorityCards: [], combos: [], targeting: { prefer: [], avoid: [], rules: [] }, cardUse: {}, enaUse: {} }),
     '🔴デッキに無いカードが作戦に残った');
   // 加点
   ok(planKeepBonus(plan, `${K}#3`) > 0 && planKeepBonus(plan, `${A}#3`) > 0 && planKeepBonus(plan, `${X}#3`) === 0, 'キーカード／コンボのパーツを手元に残す加点が違う');
@@ -87589,7 +87589,7 @@ test('§5.7 S-4 浅い先読み：engine で効果を解決した結果の盤面
   const battle = battleScreenSource();
   ok(/lookahead: cpuLookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない');
   // 🆕§5.7 `S-15`＝入力の組み立ては `cpuMoves.ts`（`ctx.lookahead` は `cpuTurn.ts` の `cpuLookahead`）。
-  ok(/lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor/.test(battle), '🔴CPU の候補列挙の文脈に先読みを渡していない');
+  ok(/lookahead: cpuLookahead, reserveFor: s => withEnaPayRank\(cpuGrowReserveFor\(s\), cpuPlan\)/.test(battle), '🔴CPU の候補列挙の文脈に先読みを渡していない');
   ok(/lookahead: ctx\.lookahead,/.test(battle), '🔴CPU のスペル選択に先読みを渡していない（`cpuSpellInput`）');
   ok(/lookahead: isActorTurn \? \{ \.\.\.ctx\.lookahead, turnPhase \} : undefined/.test(battle), '🔴CPU の攻めのアーツに先読みを渡していない');
 }));
@@ -88208,14 +88208,14 @@ test('CPU のグロウ用エナの予約：アーツ等でエナを払って次�
   const battle = battleScreenSource();
   // §5.7 `S-7`＝場以外の【起】（トラッシュ／手札／エナ）で6か所目。
   // 🆕§5.7 `S-15`＝入力の組み立ては `cpuMoves.ts`（`ctx.reserveFor` は `cpuTurn.ts` の `cpuGrowReserveFor`）。
-  ok(/reserveFor: cpuGrowReserveFor/.test(battle), '🔴CPU の候補列挙の文脈にグロウ用エナの予約を渡していない');
+  ok(/reserveFor: s => withEnaPayRank\(cpuGrowReserveFor\(s\), cpuPlan\)/.test(battle), '🔴CPU の候補列挙の文脈にグロウ用エナの予約を渡していない');
   // 🆕§5.6 `C-10` 第2段（2026-09-22）＝**カットイン窓で7か所目**（CPU が人間のスペルに応答するようになった）。
   //   ⚠**増えたのは口が1つ増えたから**＝較正であって退化ではない。
   eq((battle.match(/energyReserve: ctx\.reserveFor\(s\)/g) ?? []).length, 7, '🔴アーツ／スペル／シグニ【起】／ルリグ【起】／キー・ピース／場以外の【起】／カットインのどれかに予約を渡していない');
   ok(/reserve: ctx\.reserveFor\(s\),/.test(battle), '🔴アシストグロウに予約を渡していない（ユーザー指示＝アーツと同じ扱い）');
   ok(/reserve && !reserve\.keepsAfter\(newEnergy\)/.test(battle), '🔴召喚コストの支払いに予約が無い');
   // 🆕§5.7 `S-5d` 第2段＝効果の任意コストの予約は `cpuInteractionRespond.ts` へ移った（較正）。
-  ok(/cpuCtx\.energyReserve = buildCpuGrowReserve\(/.test(cpuRespondSource()), '🔴効果の任意コストの支払いに予約が無い');
+  ok(/cpuCtx\.energyReserve = withEnaPayRank\(\s*buildCpuGrowReserve\(/.test(cpuRespondSource()), '🔴効果の任意コストの支払いに予約が無い');
 }));
 
 test('§5.6 C-9 R-27 強制終了でも予約済みの追加ターンは開始する', () => withSavedCursor(() => {
@@ -90010,7 +90010,7 @@ test('§5.7 S-6 重みの分岐スクリーニング：走査表の網羅・分�
     ok(knobKeys.has(k), `🔴盤面の重み「${k}」が §5.7 S-6 の走査表（SCAN_KNOBS）に無い＝調整対象から漏れている`);
   }
   for (const k of ['spellGainMin', 'keepGuards', 'searchWidth', 'searchDepth', 'actionBias', 'searchAttacks',
-    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue', 'cutinGainMin', 'betCoinValue']) {
+    'lifeBurstCost', 'guardDeckCount', 'guardKeepValue', 'cutinGainMin', 'betCoinValue', 'chargeSpellKeep']) {
     ok(knobKeys.has(k), `🔴ポリシーの数値「${k}」が §5.7 S-6 の走査表に無い＝調整対象から漏れている`);
   }
   // 🆕§5.7 `S-6` 第2段＝**接頭辞つきの3群も全数**（`strength.` 14／`keyword.` 8／`plan.` 6）。
@@ -92450,6 +92450,64 @@ test('2026-09-23 リムーブのログ：場からトラッシュへ動いたら
   const h = battle.slice(battle.indexOf('const handleRemove = async ()'), battle.indexOf('const performArts = ('));
   ok(h.includes('をリムーブ（場からトラッシュ）'), '🔴リムーブのログが無い＝盤面だけ黙って変わる（ユーザー報告）');
   ok(h.includes('appendBattleLogs(removedSigniNums.map('), '🔴取り除いた枚数ぶん書いていない');
+}));
+
+test('2026-09-26 CPU のエナ：スペルをエナへ置かない／作戦データの「エナの扱い」（積極的に払う・温存）', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（ユーザー指摘）**＝①スペルはパワーを持たないので強さが効果の点数だけ＝**真っ先にエナへ行く**
+  //   （エナに置いたスペルはほとんど再利用できない）。②作戦データで「エナにあるとき先に払う／できるだけ残す」を決めたい。
+  const P = DEFAULT_CPU_POLICY;
+  const noEff = () => [] as CardEffect[];
+  // ── ① スペルを手札に残す ──
+  const m = new Map<string, CardData>([
+    ['S', { CardNum: 'S', CardName: 'スペル', Type: 'スペル', Level: '', Power: '', Color: '白' } as unknown as CardData],
+    ['L1', { CardNum: 'L1', CardName: 'レベル1', Type: 'シグニ', Level: '1', Power: '3000', Color: '白' } as unknown as CardData],
+  ]);
+  const hand = ['S#1', 'L1#1'];
+  ok(P.chargeSpellKeep > 0, '🔴既定でスペルを残す加点が0＝スペルが真っ先にエナへ行く');
+  eq(spellChargeKeep(m.get('S'), P), P.chargeSpellKeep, '🔴スペルに加点が載らない');
+  eq(spellChargeKeep(m.get('L1'), P), 0, '🔴シグニにまでスペルの加点が載った');
+  eq(hand[pickCpuEnergyChargeIndex(hand, m, noEff, 3, undefined, P)], 'L1#1', '🔴パワーの無いスペルをエナへ置いた（ユーザー指摘の症状）');
+  eq(hand[pickCpuEnergyChargeIndex(hand, m, noEff, 3, undefined, CPU_POLICIES['legacy-spellcharge'])], 'S#1',
+    '前提崩れ＝旧挙動（加点0）ではスペルが先に行く（反転確認）');
+  eq(patchCpuPolicy(P, 'chargeSpellKeep=0').chargeSpellKeep, 0, '🔴`--a-set` で振れない＝A/B に掛けられない');
+
+  // ── ② 作戦データの「エナの扱い」＝読み込み・デッキ外は落とす ──
+  const plan = normalizeCpuDeckPlan({ enaUse: { A: 'keep', B: 'spend', C: 'bogus' } });
+  eq(JSON.stringify(plan.enaUse), JSON.stringify({ A: 'keep', B: 'spend' }), '🔴知らない値を残した／正しい値を落とした');
+  eq(JSON.stringify(pruneCpuDeckPlan(plan, ['A#1']).enaUse), JSON.stringify({ A: 'keep' }), '🔴デッキに無い札の指定が残った');
+  ok(!isEmptyCpuDeckPlan(pruneCpuDeckPlan(plan, ['A'])), '🔴エナの扱いだけの作戦を「空」と見た');
+  eq(withEnaPayRank(undefined, normalizeCpuDeckPlan({})), undefined, '🔴指定が無いのに予約を作った＝挙動が黙って変わる');
+
+  // ── ③ 支払いの並び＝温存は後、積極は先（可否は変えない）──
+  const allCards = [...cardMap.values()];
+  const reds = allCards.filter(c => isSigni(c) && c.Color === '赤').slice(0, 3).map(c => c.CardNum);
+  ok(reds.length === 3, '前提崩れ＝赤のシグニが3枚ない');
+  const isAffordable = (nums: string[], costStr: string) => canAffordGrowCost(nums, allCards, costStr);
+  const pool = [`${reds[0]}#1`, `${reds[1]}#1`, `${reds[2]}#1`];
+  const pay = (enaUse: Record<string, string>, costStr: string) => {
+    const r = withEnaPayRank(undefined, normalizeCpuDeckPlan({ enaUse }));
+    return [...(selectEnergyIndicesForCost({ poolNums: pool, cards: allCards, costStr, isAffordable, reserve: r }) ?? [])].sort();
+  };
+  eq(JSON.stringify(pay({}, '《赤》×1')), '[0]', '前提崩れ＝指定なしは並び順（先頭）から払う');
+  eq(JSON.stringify(pay({ [reds[0]]: 'keep' }, '《赤》×1')), '[1]', '🔴温存する札を先に払った');
+  eq(JSON.stringify(pay({ [reds[2]]: 'spend' }, '《赤》×1')), '[2]', '🔴積極的に払う札を先に使っていない');
+  eq(JSON.stringify(pay({ [reds[2]]: 'spend' }, '《無》×1')), '[2]', '🔴《無》の枠でも積極的に払う札を先に使っていない');
+  eq(JSON.stringify(pay({ [reds[0]]: 'keep', [reds[1]]: 'keep', [reds[2]]: 'keep' }, '《赤》×3')), '[0,1,2]',
+    '🔴温存の札しか無いと払えなくなった（「使わないわけではない」）');
+  // エナを落とすコストも温存を最後に回す。
+  const trash = pickCpuEnergyTrashIndices({
+    energy: pool, cost: { energyTrash: { count: 1 } } as CardEffect['cost'], cardMap, policy: P,
+    reserve: withEnaPayRank(undefined, normalizeCpuDeckPlan({ enaUse: { [reds[0]]: 'keep', [reds[1]]: 'keep' } })),
+  });
+  eq(JSON.stringify([...(trash ?? [])]), '[2]', '🔴エナを落とすコストで温存する札を落とした');
+
+  // ── ④ 配線＝本番の CPU の支払いに届いている ──
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(turn.includes('reserveFor: s => withEnaPayRank(cpuGrowReserveFor(s), cpuPlan)'), '🔴CPU の支払いの予約に作戦データのエナの扱いが載っていない');
+  const resp = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
+  ok(resp.includes('withEnaPayRank('), '🔴効果の任意コストの支払いに作戦データのエナの扱いが載っていない');
+  const modal = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(modal.includes('cpu-plan-ena-mode') && modal.includes('mainNums.has(c.CardNum)'), '🔴作戦の画面にエナの扱いが無い／ルリグデッキの札まで出している');
 }));
 
 if (listMode) {

@@ -46,7 +46,7 @@ import {pickCpuHandLimitDiscards} from '../cpuHandLimit';
 import {mainPhaseLrigLevel, pickCpuEnergyCharge} from '../cpuEnergyCharge';
 import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
-import {buildCpuGrowReserve, chargeNeedColors} from '../cpuGrowReserve';
+import {buildCpuGrowReserve, chargeNeedColors, withEnaPayRank} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
 import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planUseBonus} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
@@ -260,7 +260,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   // 🆕§5.7 `S-15`＝候補の列挙は `cpuMoves.ts`（探索と本番で同じ道）。ここは「選んで実行する」だけ。
   const cpuMoveCtx = (actorState: PlayerState): CpuMoveCtx => ({
     actor: actorState, opponent: huSt, allCards: cards, battleCards, cardMap: battleCardMap, effectsMap,
-    lookahead: cpuLookahead, reserveFor: cpuGrowReserveFor,
+    // 🆕2026-09-26＝作戦データの「エナゾーンにある札の扱い」（積極的に払う／温存）を支払いの予約に載せる。
+    lookahead: cpuLookahead, reserveFor: s => withEnaPayRank(cpuGrowReserveFor(s), cpuPlan),
     // 🆕§5.7 `S-31` ②＝手札を捨てるコストで「どれを捨てるか」（作戦データの札と【ガード】は最後）。
     planKeepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy,
     // 🆕§5.7 `S-31` ③＝札ごとの使いどころ（守り／攻め／使わない）。

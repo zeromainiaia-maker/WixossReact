@@ -3,7 +3,7 @@ import type { CardEffect } from '../../types/effects';
 import { getCardNum } from '../../engine/execUtils';
 import { cardStrength } from './cpuCardStrength';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import { pickCpuEnergyChargeIndex, type CpuChargeCtx } from './cpuHandLimit';
+import { pickCpuEnergyChargeIndex, spellChargeKeep, type CpuChargeCtx } from './cpuHandLimit';
 import type { EnergyChargeSource } from './controller/performEnergyCharge';
 
 /**
@@ -106,6 +106,8 @@ export function pickCpuEnergyCharge(p: CpuEnergyChargeInput): EnergyChargeSource
   const handValue = handIndex >= 0
     ? cardStrength(p.cardMap.get(getCardNum(p.actor.hand[handIndex])), p.effectsOf(p.actor.hand[handIndex]), 'deploy', undefined, p.policy)
       + (p.keepBonus?.(p.actor.hand[handIndex]) ?? 0)
+      // 🆕2026-09-26＝スペルは手札に残す（手札どうしの比較と同じ加点）。
+      + spellChargeKeep(p.cardMap.get(getCardNum(p.actor.hand[handIndex])), p.policy)
     : Number.POSITIVE_INFINITY;
   let best: { zone: number; value: number } | null = null;
   for (let zone = 0; zone < p.actor.field.signi.length; zone++) {

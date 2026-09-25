@@ -2,7 +2,7 @@ import { InstanceMap } from './battleUtils';
 import { getCardNum } from '../../engine/execUtils';
 import type { CardData, PendingEffect, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
-import { buildCpuGrowReserve } from './cpuGrowReserve';
+import { buildCpuGrowReserve, withEnaPayRank } from './cpuGrowReserve';
 import { planEffectPick, planKeepBonus, planTargetBonus, resolveCpuTargetSpec, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
 import { calcFieldPowers } from '../../engine/effectEngine';
 import type { CpuPolicy } from './cpuPolicy';
@@ -96,7 +96,10 @@ export function decideCpuInteractionResponse(
     ) ?? undefined,
   };
   // 🆕グロウ用エナの予約（ユーザー指示「エナを使ってグロウできなくなることは必ず避ける」）。
-  cpuCtx.energyReserve = buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: d.cardMap, effectsMap: d.effectsMap, cards: d.cards });
+  //   🆕2026-09-26＝作戦データの「エナゾーンにある札の扱い」（積極的に払う／温存）も載せる。
+  cpuCtx.energyReserve = withEnaPayRank(
+    buildCpuGrowReserve({ actor: cpuCtx.cpuState, opponent: cpuCtx.oppState, cardMap: d.cardMap, effectsMap: d.effectsMap, cards: d.cards }),
+    d.cpuPlan);
   // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
   if (inter.type === 'REARRANGE_SIGNI') {
     return { kind: 'rearrange', arrangement: pickCpuRearrange(inter) };

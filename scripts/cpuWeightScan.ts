@@ -112,6 +112,8 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'plan.targetAvoid', base: -12000, values: [-6000, -24000] },
   // ── 🆕手札の【ガード】を手元に置く価値（効果で手札を捨てるときの並び）──
   { key: 'guardKeepValue', base: 8000, values: [4000, 16000] },
+  // ── 🆕2026-09-26＝スペルを手札に残す加点（0＝旧挙動＝スペルが真っ先にエナへ行く）。
+  { key: 'chargeSpellKeep', base: 8000, values: [0, 16000] },
   // ── 🆕§5.7 `S-22`＝対象選択を置き場で決めるか（0＝旧挙動＝乱数）。⚠つまみではなく**反転確認の口**。
   { key: 'targetIntentByScope', base: 1, values: [0] },
   // ── 🆕§5.7 `S-24`＝マリガンで確保しに行くレベル1の枚数（0＝旧規則＝レベル2を掘らない）。
