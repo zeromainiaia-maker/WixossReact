@@ -67,6 +67,12 @@ export function decideCpuInteractionResponse(
   // 🆕2026-09-25＝**この効果に当たるコンボの手の「選び方」**（効果単位＝`pe.effectId` で E1/E2/BURST を区別する）。
   const pick = planEffectPick(d.cpuPlan, pe.sourceCardNum, pe.effectId);
   const pickBonus = (id: string) => (pick?.cards?.includes(getCardNum(id)) ? (d.policy?.planWeights ?? PLAN_WEIGHTS).targetPrefer : 0);
+  // 🆕2026-09-26＝実効パワー（engine の `calcFieldPowers`）は**1回だけ・要るときだけ**計算する
+  //   （「効果後に正面を上回る」と、使うタイミングの「場のパワー〇以上のシグニが n 体」の両方が引く）。
+  let fieldPowersCache: ReadonlyMap<string, number> | undefined;
+  const fieldPowers = () => (fieldPowersCache ??= calcFieldPowers(
+    cpuIsHost ? d.hostState : d.guestState, cpuIsHost ? d.guestState : d.hostState,
+    d.activePlayerId === d.cpuPlayerId, d.effectsMap, d.cardMap, d.turnPhase));
   const cpuCtx: CpuInteractionCtx = {
     cpuState: cpuIsHost ? d.hostState : d.guestState,
     oppState: cpuIsHost ? d.guestState : d.hostState,
@@ -83,11 +89,10 @@ export function decideCpuInteractionResponse(
       sourceCardNum: pe.sourceCardNum, effectId: pe.effectId, me: cpuIsHost ? d.hostState : d.guestState, opp: cpuIsHost ? d.guestState : d.hostState,
       // 🆕2026-09-26＝使うタイミングの「キーワード能力の枚数」を数える。
       cardMap: d.cardMap,
+      fieldPowers,
     }),
     // 🆕`S-36`＝「効果後に正面を上回る」が正面のシグニのパワーを引く（engine の実効パワー・その狙い方のときだけ計算）。
-    fieldPowers: () => calcFieldPowers(
-      cpuIsHost ? d.hostState : d.guestState, cpuIsHost ? d.guestState : d.hostState,
-      d.activePlayerId === d.cpuPlayerId, d.effectsMap, d.cardMap, d.turnPhase),
+    fieldPowers,
     // 🆕2026-09-25＝属性での指定は削った。コンボの手が名指しした札（その効果の選ぶ先）を優先する。
     targetBonus: id => planTargetBonus(d.cpuPlan, id, d.policy, pick),
     policy: d.policy,

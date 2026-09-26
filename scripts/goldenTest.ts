@@ -176,11 +176,11 @@ import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
 import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screens/battle/cpuPlanStates';
-import { cpuPlanBoardCtx, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
+import { cpuPlanBoardCtx, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planKeepBonus, planKeepsInMulligan, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
-import { applyCpuMoveSim, cpuPlanMoveStep, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { applyCpuMoveSim, cpuPlanMoveStep, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
@@ -90860,18 +90860,39 @@ test('§5.7 S-2 作戦モーダル：効かない操作を出さない／select 
       `🔴${cardOfUI(n)?.Type} に「狙う／避ける」を出していない`);
   }
 
-  // ── ② 使いどころ＝**守り／攻めが出るのはアーツだけ**／指定できるのは「使われる」札だけ ──
-  eq(JSON.stringify(cpuPlanUseModesFor(cardOfUI(artsUI))), JSON.stringify(CPU_CARD_USES), '🔴アーツで4択が出ない');
-  eq(JSON.stringify(cpuPlanUseModesFor(cardOfUI(spellUI))), JSON.stringify(['never']),
-    '🔴スペルに「守りで使う」を出している（窓が2つあるのはアーツだけ）');
+  // ── ② 使いどころ＝🆕2026-09-26 `S-37`＝**アタックフェイズに使える札だけ**・**その札が持つ窓だけ**を出す ──
+  //   🔴旧＝アーツ以外は「使わない」しか選べず、スペルは「使わない」だけの死んだ行だった（`S-37`）。
+  const atkArtsUI = findCard(c => c.Type === 'アーツ' && c.Timing.includes('アタックフェイズ'));
+  const mainArtsUI = findCard(c => c.Type === 'アーツ' && !c.Timing.includes('アタックフェイズ'));
+  const atkAssistUI = findCard(c => c.Type === 'アシストルリグ' && c.Timing.includes('アタックフェイズ'));
+  const mainAssistUI = findCard(c => c.Type === 'アシストルリグ' && !c.Timing.includes('アタックフェイズ'));
+  const atkPieceUI = findCard(c => c.Type === 'ピース' && c.Timing.includes('アタックフェイズ'));
+  const hasAtkAct = (n: string, hand?: boolean) => (effectsMap.get(n) ?? []).some(e => e.effectType === 'ACTIVATED'
+    && (e.timing ?? []).includes('ATTACK_ARTS') && (hand === undefined || !!e.handActivated === hand));
+  const atkActSigni = findCard(c => c.Type === 'シグニ' && hasAtkAct(c.CardNum, false) && !hasAtkAct(c.CardNum, true));
+  const atkActLrig = findCard(c => c.Type === 'ルリグ' && hasAtkAct(c.CardNum));
+  const handAtkAct = findCard(c => hasAtkAct(c.CardNum, true) && c.Type !== 'アーツ' && c.Type !== 'アシストルリグ');
+  eq(JSON.stringify(cpuPlanUseModesFor(withEff(atkArtsUI))), JSON.stringify(CPU_CARD_USES), '🔴アタックフェイズのアーツで4択が出ない');
+  eq(JSON.stringify(cpuPlanUseModesFor(withEff(atkAssistUI))), JSON.stringify(CPU_CARD_USES),
+    '🔴アタックフェイズのアシストルリグで守り／攻めが出ない（相手のアタックフェイズにもグロウできる）');
+  eq(JSON.stringify(cpuPlanUseModesFor(withEff(handAtkAct))), JSON.stringify(CPU_CARD_USES),
+    '🔴手札の《アタックフェイズアイコン》【起】で守りが出ない（`offFieldActivateTiming` は相手のアーツステップも開く）');
+  for (const [n, what] of [[atkPieceUI, 'ピース'], [atkActSigni, 'シグニの【起】'], [atkActLrig, 'ルリグの【起】']] as const) {
+    eq(JSON.stringify(cpuPlanUseModesFor(withEff(n))), JSON.stringify(['offense', 'never']),
+      `🔴アタックフェイズの${what}に「守り」を出している（自分のターンでしか使えない）／攻めが出ない`);
+  }
+  for (const [n, what] of [[spellUI, 'スペル'], [mainArtsUI, 'メインだけのアーツ'], [mainAssistUI, 'メインだけのアシストルリグ']] as const) {
+    eq(cpuPlanCanSetUse(withEff(n)), false, `🔴${what}を使いどころに出している（アタックフェイズに使えない＝S-37）`);
+  }
   eq(JSON.stringify(cpuPlanUseModesFor(undefined)), JSON.stringify(CPU_CARD_USES), '🔴カード未選択で選択肢を減らした');
-  ok(cpuPlanCanSetUse(cardOfUI(artsUI)) && cpuPlanCanSetUse(cardOfUI(spellUI)) && cpuPlanCanSetUse(cardOfUI(pieceUI)),
-    '🔴アーツ／スペル／ピースに使いどころを指定できない（`planForbidsUse` を読む窓がある）');
   // 🔴【起】を持たないシグニは**どの窓からも使われない**＝一覧に出しても効かない。
   const plainSigni = findCard(c => c.Type === 'シグニ' && !(effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'));
   eq(cpuPlanCanSetUse(withEff(plainSigni)), false, '🔴【起】を持たないシグニに「使いどころ」を出している');
+  const mainActSigni = findCard(c => c.Type === 'シグニ' && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED') && !hasAtkAct(c.CardNum));
+  eq(cpuPlanCanSetUse(withEff(mainActSigni)), false, '🔴メインフェイズの【起】だけのシグニに「使いどころ」を出している');
+  eq(cpuPlanCanSetUse(withEff(atkActSigni)), true, '🔴《アタックフェイズアイコン》の【起】を持つシグニに「使いどころ」を出していない');
+  eq(cpuPlanCanSetUse(withEff(atkActLrig)), true, '🔴《アタックフェイズアイコン》の【起】を持つルリグに「使いどころ」を出していない');
   const actSigni = findCard(c => c.Type === 'シグニ' && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'ACTIVATED'));
-  eq(cpuPlanCanSetUse(withEff(actSigni)), true, '🔴【起】を持つシグニに「使いどころ」を出していない');
 
   // ── ③ コンボの使い方＝**`cpuPlanMoveStep` が拾える形だけ** ──
   eq(JSON.stringify(cpuPlanComboUsesFor(withEff(artsUI))), JSON.stringify(['arts']),
@@ -90892,9 +90913,9 @@ test('§5.7 S-2 作戦モーダル：効かない操作を出さない／select 
   // ── ④ 🔴**`select` の値は必ず選択肢の中にある**（2026-09-22 に直した実バグ）──
   //   旧はカード未選択のとき選択肢が `['never']` だけなのに state は `'defense'` で、
   //   **画面は「使わない」と出しているのに［追加］すると `defense` が保存された**。
-  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(cardOfUI(spellUI)), 'never'), 'never',
+  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(withEff(atkPieceUI)), 'never'), 'offense',
     '🔴選択肢に無い値がそのまま残る（表示と保存が食い違う）');
-  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(cardOfUI(artsUI)), 'never'), 'defense',
+  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(withEff(atkArtsUI)), 'never'), 'defense',
     '🔴選択肢にある値まで丸めた');
   eq(cpuPlanClampOption('deploy' as never, cpuPlanComboUsesFor(withEff(artsUI)), 'deploy'), 'arts',
     '🔴コンボの使い方が選択肢の外のまま');
@@ -92297,7 +92318,8 @@ test('§5.7 S-31 ③ 札の使いどころ：作戦データが指名したア�
   // ── 配線＝「使わない」が**使う手の全部**に届いているか（アーツ以外は `never` だけが効く）──
   for (const f of ['cpuSpell', 'cpuActivate', 'cpuLrigActivate', 'cpuOffFieldActivate', 'cpuKeyPiece']) {
     const src = fs.readFileSync(join(root, `src/screens/battle/${f}.ts`), 'utf-8');
-    ok(/planForbidsUse\(p\.plan,/.test(src), `🔴${f} が「使わない」の指定を見ていない＝その手だけ温存が効かない`);
+    // 🆕2026-09-26 `S-37`＝スペル以外は窓つきの `planAllowsUseIn`（「使わない」も含む）。
+    ok(/planForbidsUse\(p\.plan,/.test(src) || /planAllowsUseIn\(p\.plan,/.test(src), `🔴${f} が「使わない」の指定を見ていない＝その手だけ温存が効かない`);
   }
   // 🔴**アーツだけは「列挙の段階」で効かせる**（下の ⑤ が挙動で確かめる）＝`planForbidsUse` ではなく `planCardUse`。
   ok(/planCardUse\(p\.plan, card\.CardNum\)/.test(fs.readFileSync(join(root, 'src/screens/battle/cpuArts.ts'), 'utf-8')),
@@ -92319,8 +92341,8 @@ test('§5.7 S-31 ③ 札の使いどころ：作戦データが指名したア�
     '🔴画面が使いどころの選択肢を自前で決めている（アーツ以外にも「守りで使う」を出しうる）');
   const planOpts31 = fs.readFileSync(join(root, 'src/screens/deck/cpuPlanOptions.ts'), 'utf-8');
   ok(/'アーツ\/クラフト'/.test(planOpts31), '🔴アーツの判定からクラフト版が消えた');
-  eq(JSON.stringify(cpuPlanUseModesFor({ Type: 'スペル' } as never)), JSON.stringify(['never']),
-    '🔴アーツ以外にも「守りで使う」を出している（指定したのに効かない、を作る）');
+  eq(JSON.stringify(cpuPlanUseModesFor({ Type: 'スペル', Timing: 'メインフェイズ' } as never)), JSON.stringify([]),
+    '🔴スペルに使いどころを出している（アタックフェイズに使えない＝`S-37`）');
 }));
 
 test('§5.7 S-31 ① 「N体並べる」条件：見返りは実効パワー経由で盤面の採点に効く（作戦データは要らない）', () => withSavedCursor(() => {
@@ -92618,6 +92640,78 @@ test('2026-09-26 作戦データ：狙い方の条件を複数（任意の枚数
   eq(JSON.stringify(condsOf([{ side: 'opp', zone: 'infected', cmp: 'ge', n: 2 }])),
     JSON.stringify([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, state: 'infected' }]), '🔴v0.576 の旧形を読み替えていない');
   eq(cpuTargetCondsLabel([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, state: 'frozen' }]), '相手の場の凍結状態が2体以上', '🔴特殊状態の表示が違う');
+}));
+test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇以上／以下のシグニが n 体」＋S-37 使いどころはアタックフェイズの窓', () => withSavedCursor(() => {
+  // ── ① パワーの条件（ユーザー要望「自分・相手の場にパワー〇〇以上以下が何体以上以下」）──
+  //   🔑実効パワー（`calcFieldPowers`）を渡せばそれで、渡さなければ印刷値で数える。
+  const P3 = SIGNI_P3000, P12 = SIGNI_P12000;
+  const board = (ids: (string | null)[]) => mkState({ signi: ids as never });
+  const opp = board([`${P12}#a`, `${P12}#b`, `${P3}#c`]);
+  const me = board([null, null, null]);
+  const cond = (power: number, powerCmp: 'ge' | 'le' | undefined, cmp: 'ge' | 'le' | 'eq', n: number) =>
+    ({ side: 'opp', zone: 'field', cmp, n, power, ...(powerCmp ? { powerCmp } : {}) }) as const;
+  ok(cpuTargetCondHolds([cond(12000, undefined, 'ge', 2)], 'and', me, opp, cardMap), '🔴相手の場のパワー12000以上が2体で成立しない');
+  ok(!cpuTargetCondHolds([cond(12000, undefined, 'ge', 3)], 'and', me, opp, cardMap), '🔴パワー3000のシグニを12000以上として数えた');
+  ok(cpuTargetCondHolds([cond(5000, 'le', 'eq', 1)], 'and', me, opp, cardMap), '🔴パワー5000以下がちょうど1体で成立しない');
+  ok(!cpuTargetCondHolds([{ ...cond(1000, undefined, 'ge', 1), side: 'me' }], 'and', me, opp, cardMap), '🔴自分の場（空）を相手の場として数えた');
+  // 実効パワーが渡されたらそちらで数える（常在の修正込み）。
+  const boosted = new Map([[`${P3}#c`, 15000]]);
+  ok(cpuTargetCondHolds([cond(12000, undefined, 'ge', 3)], 'and', me, opp, cardMap, () => boosted),
+    '🔴実効パワー（修正込み）で数えていない＝印刷値のまま');
+  // 正規化＝場のシグニだけ・`ge` は保存しない・範囲の丸め。
+  const norm = (c: unknown) => normalizeCpuDeckPlan({ targeting: { rules: [{ conds: [c], opp: { mode: 'weakest' } }] } }).targeting.rules?.[0]?.conds;
+  eq(JSON.stringify(norm({ side: 'opp', zone: 'field', cmp: 'ge', n: 2, power: 12000, powerCmp: 'ge' })),
+    JSON.stringify([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, power: 12000 }]), '🔴パワーの条件の正規化が違う（`ge` は保存しない）');
+  eq(JSON.stringify(norm({ side: 'me', zone: 'field', cmp: 'le', n: 1, power: 5000.4, powerCmp: 'le' })),
+    JSON.stringify([{ side: 'me', zone: 'field', cmp: 'le', n: 1, power: 5000, powerCmp: 'le' }]), '🔴`le` を落とした／丸めていない');
+  eq(JSON.stringify(norm({ side: 'me', zone: 'hand', cmp: 'ge', n: 1, power: 5000 })),
+    JSON.stringify([{ side: 'me', zone: 'hand', cmp: 'ge', n: 1 }]), '🔴手札にパワーの条件を残した（効かない条件）');
+  eq(cpuTargetCondsLabel([cond(12000, undefined, 'ge', 2)]), '相手の場のパワー12000以上のシグニが2体以上', '🔴パワーの条件の表示が違う');
+  eq(cpuTargetCondsLabel([{ ...cond(5000, 'le', 'le', 1), side: 'me' }]), '自分の場のパワー5000以下のシグニが1体以下', '🔴パワー以下の表示が違う');
+  const resp = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
+  ok(/fieldPowers,\r?\n\s+\}\),/.test(resp), '🔴本番の狙い方の解決に実効パワーを渡していない（印刷値で数える）');
+  const modalP = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
+  ok(modalP.includes('cpu-plan-cond-powercmp') && modalP.includes('cpu-plan-cond-power"'), '🔴作戦の画面にパワーの条件が無い');
+
+  // ── ② S-37＝アーツ以外の窓（`planAllowsUseIn`）──
+  const plan = (u?: string) => normalizeCpuDeckPlan(u ? { cardUse: { X: u } } : {});
+  const allow = (u: string | undefined) => (['main', 'attack', 'oppAttack'] as const).map(w => planAllowsUseIn(plan(u), 'X#1', w) ? 1 : 0).join('');
+  eq(allow(undefined), '111', '🔴指定なしで窓を絞った（従来どおりが正）');
+  eq(allow('never'), '000', '🔴「使わない」が効かない');
+  eq(allow('offense'), '010', '🔴「攻め」＝自分のアタックフェイズだけになっていない');
+  eq(allow('defense'), '001', '🔴「守り」＝相手のアタックフェイズだけになっていない');
+  eq(allow('both'), '011', '🔴「両方」＝両方のアタックフェイズ（メインでは使わない）になっていない');
+  for (const f of ['cpuActivate', 'cpuLrigActivate', 'cpuOffFieldActivate', 'cpuKeyPiece', 'cpuMoves']) {
+    ok(fs.readFileSync(join(root, `src/screens/battle/${f}.ts`), 'utf-8').includes('planAllowsUseIn('), `🔴${f} が使いどころの窓を見ていない`);
+  }
+
+  // ── ③ S-37＝アシストグロウをアタックフェイズの窓でも（作戦データで書いた札だけ）──
+  const ASSIST1 = 'WXDi-P01-021';   // ノヴァ Lv1・グロウコスト《無》×０・メインフェイズ／アタックフェイズ
+  const assist0 = findCard(c => c.Type === 'ルリグ' && c.Level === '0' && (c.CardClass ?? '').includes('ノヴァ'));
+  const center = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const cm = cardMap as Map<string, CardData>;
+  const actor = () => {
+    const st = mkState({ lrig: [center], assistL: [assist0] });
+    st.lrig_deck = [ASSIST1];
+    return st;
+  };
+  const threat = board([`${P12}#t`, null, null]);   // 正面が空いたアップ状態のシグニ＝実害の見込みあり
+  const grows = (u: string | undefined, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP', oppSt = threat) => listCpuAssistGrows({
+    actor: actor(), opponent: oppSt, allCards: [...cardMap.values()], battleCards: [...cardMap.values()], cardMap: cm, effectsMap,
+    reserveFor: () => undefined, plan: normalizeCpuDeckPlan(u ? { cardUse: { [ASSIST1]: u } } : {}),
+  }, phase).map(m => m.card.CardNum).join(',');
+  eq(grows(undefined, 'MAIN'), ASSIST1, '前提崩れ＝メインフェイズにアシストグロウの候補が出ない');
+  eq(grows(undefined, 'ATTACK_ARTS'), '', '🔴指定なしの札をアタックフェイズでグロウした（挙動不変が正）');
+  eq(grows('offense', 'MAIN'), '', '🔴「攻め」と書いた札をメインフェイズでグロウした');
+  eq(grows('offense', 'ATTACK_ARTS'), ASSIST1, '🔴「攻め」と書いた札を自分のアタックフェイズでグロウしない');
+  eq(grows('offense', 'ATTACK_ARTS_OP'), '', '🔴「攻め」と書いた札を相手のアタックフェイズでグロウした');
+  eq(grows('defense', 'ATTACK_ARTS_OP'), ASSIST1, '🔴「守り」と書いた札を相手のアタックフェイズでグロウしない');
+  eq(grows('defense', 'ATTACK_ARTS_OP', board([null, null, null])), '', '🔴実害の見込みが無いのに守りでグロウした');
+  eq(grows('both', 'ATTACK_ARTS') + '/' + grows('both', 'ATTACK_ARTS_OP'), `${ASSIST1}/${ASSIST1}`, '🔴「両方」が片方の窓でしか効かない');
+  eq(grows('never', 'MAIN'), '', '🔴「使わない」と書いたアシストルリグをグロウした');
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')") && turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')"),
+    '🔴本番のアタックフェイズの窓にアシストグロウが無い');
 }));
 
 if (listMode) {

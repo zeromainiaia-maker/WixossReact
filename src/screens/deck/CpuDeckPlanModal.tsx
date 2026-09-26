@@ -3,7 +3,7 @@ import type { CardData, Deck } from '../../types';
 import {
   CPU_CARD_USE_LABELS, CPU_ENA_USES, CPU_ENA_USE_LABELS,
   CPU_COMBO_USE_LABELS, CPU_TARGET_MODES_BY_SIDE, CPU_TARGET_MODE_LABELS_BY_SIDE,
-  CPU_COND_CMPS, CPU_COND_CMP_LABELS, CPU_COND_COMBINES, CPU_COND_COMBINE_LABELS, CPU_COND_SIDES, CPU_COND_SIDE_LABELS,
+  CPU_COND_CMPS, CPU_COND_CMP_LABELS, CPU_COND_POWER_CMPS, CPU_COND_POWER_MAX, type CpuCondPowerCmp, CPU_COND_COMBINES, CPU_COND_COMBINE_LABELS, CPU_COND_SIDES, CPU_COND_SIDE_LABELS,
   CPU_COND_ZONES, CPU_COND_ZONE_LABELS, cpuTargetCondLabel, cpuTargetCondsLabel,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
   type CpuCardUse, type CpuComboStep, type CpuEnaUse, type CpuComboUse, type CpuDeckPlan,
@@ -100,6 +100,11 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const isPlayerState = !!condForm.state && cpuStateDef(condForm.state)?.group === 'player';
   /** 置き場を選び直す（今の置き場が使えなければ先頭へ＝表示と保存を食い違わせない）。 */
   const withValidZone = (f: CpuTargetCond): CpuTargetCond => {
+    // 🆕2026-09-26＝パワーで絞れるのは「場のシグニ」（状態なし）だけ＝ほかへ切り替えたら外す。
+    if (f.power !== undefined && (f.state || f.zone !== 'field')) {
+      const { power: _p, powerCmp: _c, ...rest } = f;
+      return withValidZone(rest);
+    }
     if (!f.state) return f;
     if (cpuStateDef(f.state)?.group === 'player') return { ...f, zone: 'field' };
     const places = statePlacesFor(f.state, f.side);
@@ -108,8 +113,13 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const setCond = (next: CpuTargetCond) => setCondForm(withValidZone(next));
   const addCond = () => {
     const n = Math.max(0, Math.min(99, Math.round(Number(condForm.n) || 0)));
-    const { state, ...rest } = withValidZone(condForm);
-    const c: CpuTargetCond = { ...rest, n, ...(state ? { state } : {}) };
+    const { state, power, powerCmp, ...rest } = withValidZone(condForm);
+    // ⚠保存の形は正規化（`toCond`）と同じにする＝`powerCmp` は `le` のときだけ（同じ条件の重複判定を JSON で比べるため）。
+    const pw = power === undefined ? undefined : Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(Number(power) || 0)));
+    const c: CpuTargetCond = {
+      ...rest, n, ...(state ? { state } : {}),
+      ...(pw !== undefined ? { power: pw, ...(powerCmp === 'le' ? { powerCmp } : {}) } : {}),
+    };
     // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
     if (ruleConds.some(x => JSON.stringify(x) === JSON.stringify(c))) return;
     setRuleConds([...ruleConds, c]);
@@ -405,6 +415,24 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                   {statePlaces.map(v => <option key={v} value={v}>{CPU_STATE_PLACE_LABELS[v]}</option>)}
                 </select>
               )}
+              {/* 🆕2026-09-26＝場のシグニを**パワーで絞る**（「パワー12000以上のシグニが2体以上」）。実効パワーで数える。 */}
+              {!condForm.state && condForm.zone === 'field' && (
+                <select data-testid="cpu-plan-cond-powercmp" value={condForm.power === undefined ? '' : (condForm.powerCmp ?? 'ge')}
+                  style={{ ...selectStyle, fontSize: 11 }}
+                  onChange={e => {
+                    const v = e.target.value as CpuCondPowerCmp | '';
+                    if (!v) { const { power: _p, powerCmp: _c, ...rest } = condForm; setCond(rest); return; }
+                    setCond({ ...condForm, power: condForm.power ?? 12000, powerCmp: v });
+                  }}>
+                  <option value="">パワーで絞らない</option>
+                  {CPU_COND_POWER_CMPS.map(v => <option key={v} value={v}>パワー〇{CPU_COND_CMP_LABELS[v]}</option>)}
+                </select>
+              )}
+              {!condForm.state && condForm.zone === 'field' && condForm.power !== undefined && (
+                <input data-testid="cpu-plan-cond-power" type="number" min={0} max={CPU_COND_POWER_MAX} step={1000} value={condForm.power}
+                  onChange={e => setCond({ ...condForm, power: Number(e.target.value) })}
+                  style={{ ...inputStyle, width: 72, flex: '0 0 auto', fontSize: 11 }} />
+              )}
               <input data-testid="cpu-plan-cond-n" type="number" min={0} max={99} value={condForm.n}
                 onChange={e => setCond({ ...condForm, n: Number(e.target.value) })}
                 style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
@@ -446,7 +474,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
 
           {/* ── ③ 使いどころ ─────────────────────────────── */}
           <div style={section}>
-            {title('#d08aff', '使いどころ', '守り／攻めが選べるのはアーツだけ。ほかは「使わない」だけが効く')}
+            {title('#d08aff', '使いどころ', 'アタックフェイズに使える札だけ。守り＝相手のアタックフェイズ／攻め＝自分のアタックフェイズ（アーツはメインフェイズも）')}
             <div style={row}>
               <select data-testid="cpu-plan-use-card" value={useNum} onChange={e => setUseNum(e.target.value)} style={selectStyle}>
                 <option value="">カードを選ぶ</option>

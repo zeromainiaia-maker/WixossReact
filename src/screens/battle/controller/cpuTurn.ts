@@ -268,10 +268,14 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     //   🔑ここ1箇所で探索（`listCpuMoves`）と本番の貪欲な経路の**両方**に届く（配り口は `cpu*Input`）。
     plan: cpuPlan,
   });
-  const tryCpuAssistGrow = async (actorState: PlayerState): Promise<boolean> => {
-    const m = listCpuAssistGrows(cpuMoveCtx(actorState))[0];
+  const tryCpuAssistGrow = async (
+    actorState: PlayerState, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP' = 'MAIN',
+  ): Promise<boolean> => {
+    // 🆕2026-09-26 `S-37`＝アタックフェイズの窓でも（作戦データで「攻め／守り／両方」と書いた札だけ）。
+    const m = listCpuAssistGrows(cpuMoveCtx(actorState), phase)[0];
     if (!m) return false;
-    d.observeChoice?.(m);
+    // ⚠観測フック（探索の候補列挙との突き合わせ）はメインフェイズの手だけ＝アタックフェイズの列挙には載せていない。
+    if (phase === 'MAIN') d.observeChoice?.(m);
     const { card, side, costIndices, pool } = m;
     appendBattleLogs([`[CPU] アシストグロウ: ${card.CardName}（Lv.${card.Level}・${side === 'l' ? '左' : '右'}）`]);
     await performAssistGrow(card, side, costIndices, {
@@ -724,6 +728,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
     // ── §8／§6.4 O-1 (a): CPU が人間のアタックフェイズに応答アーツで守る ──────────
     if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS_OP', pickCpuResponseArts)) return;
+    // 🆕2026-09-26 `S-37`＝「守り」と書いたアシストルリグを相手のアタックフェイズにグロウする。
+    if (await tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')) return;
     // 🆕§5.7 `S-7`＝手札の《アタックフェイズアイコン》【起】で応答する（判定・実行は人間と同じ・先読みで得なものだけ）。
     if (await tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
     appendBattleLogs(['[CPU] アーツを使用しない']);
@@ -1313,6 +1319,8 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS', pickCpuOffensiveArts)) return;
     // 🆕§5.6 `C-7`＝Timing が「アタックフェイズ」のピース（MAIN で使えなかった札）。
     if (await tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS')) return;
+    // 🆕2026-09-26 `S-37`＝「攻め」と書いたアシストルリグを自分のアタックフェイズにグロウする。
+    if (await tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')) return;
     // §8／§6.4 O-1 (c)＝《アタックフェイズアイコン》付きシグニ【起】（`timing:['ATTACK_ARTS']`）。
     // ⚠**MAIN 窓では出ない**（`signiActivateGate` が timing で切る）＝この窓を足すまで恒久 no-op だった。
     if (await tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS')) return;

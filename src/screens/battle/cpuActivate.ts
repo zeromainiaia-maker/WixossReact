@@ -12,7 +12,7 @@ import { cpuHandDiscardOrder } from './cpuHandLimit';
 import type { CpuPolicy } from './cpuPolicy';
 import { listActivatableSigniEffects } from './signiActivateGate';
 import { activateCostZeroApplies, applyActivateCostZero } from './activateCostZero';
-import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuUseWindowOf, planAllowsUseIn, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * CPU が場のシグニの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1`）。
@@ -590,7 +590,8 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
     const cardNum = actor.field.signi[zoneIndex]?.at(-1);
     if (!cardNum) continue;
     // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札の【起】は撃たない。
-    if (planForbidsUse(p.plan, cardNum)) continue;
+    //   🆕2026-09-26 `S-37`＝「攻め」＝自分のアタックフェイズだけ（メインでは撃たない）。
+    if (!planAllowsUseIn(p.plan, cardNum, cpuUseWindowOf(p.phase))) continue;
     const usable = listActivatableSigniEffects({
       my: actor, op: opponent, zoneIndex, phase: p.phase, isMyTurn: true,
       effectsMap, cardMap, effectivePowers: p.effectivePowers, contBlockedSelf: p.contBlockedSelf,

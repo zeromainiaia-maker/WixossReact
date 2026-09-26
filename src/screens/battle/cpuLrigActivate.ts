@@ -8,7 +8,7 @@ import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
   listActivatableInheritedLrigEffects, listActivatableLrigEffects,
 } from './lrigActivateGate';
-import { planForbidsUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuUseWindowOf, planAllowsUseIn, type CpuDeckPlan } from './cpuDeckPlan';
 
 /**
  * CPU がセンタールリグの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1` (c)）。
@@ -178,7 +178,7 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
   // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いたルリグの【起】は撃たない
   //   （⚠**判定はセンタールリグの札**＝付与・継承の効果もその札の【起】として出る）。
   const centerLrig = p.actor.field.lrig.at(-1);
-  if (centerLrig && planForbidsUse(p.plan, centerLrig)) return;
+  if (centerLrig && !planAllowsUseIn(p.plan, centerLrig, cpuUseWindowOf(p.phase))) return;
   for (const effect of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;

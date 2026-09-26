@@ -21,13 +21,13 @@ import {
 } from './costs';
 import { withCpuBet } from './cpuBet';
 import { listCpuSigniActivated, selectEnergyIndicesForCost, type CpuActivatedChoice, type CpuEnergyReserve, type CpuSigniActivatedPickInput } from './cpuActivate';
-import { listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
+import { hasIncomingThreat, listCpuArts, type CpuArtsCandidate, type CpuArtsPickInput } from './cpuArts';
 import type { CpuResonaBudget } from './cpuCutin';
 import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } from './cpuKeyPiece';
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import { planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuUseWindowOf, planAllowsUseIn, planCardUse as planCardUseOf, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -304,19 +304,33 @@ export function listCpuDeploys(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'deplo
 
 // ─── アシストグロウ・レゾナ・ライズ（§5.6 `C-5`/`C-6`） ─────────────────
 
-/** いまできるアシストグロウを全部（左→右・候補順）。 */
-export function listCpuAssistGrows(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'assistGrow' }>[] {
+/**
+ * いまできるアシストグロウを全部（左→右・候補順）。
+ * 🆕2026-09-26 `S-37`＝**アタックフェイズの窓**（自分の `ATTACK_ARTS`／相手の `ATTACK_ARTS_OP`）でもグロウする。
+ *   ⚠**アタックフェイズでグロウするのは作戦データで「攻め／守り／両方」と書いた札だけ**（`planAllowsUseIn`）＝
+ *   指定なしの札は従来どおりメインフェイズだけ（挙動不変）。
+ *   ⚠相手のアタックフェイズは**実害が出る見込みがあるときだけ**（`hasIncomingThreat`＝守りのアーツと同じ足切り）。
+ */
+export function listCpuAssistGrows(
+  ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP' = 'MAIN',
+): Extract<CpuMove, { kind: 'assistGrow' }>[] {
   const s = ctx.actor;
-  const pool = buildEnergyPayPool(s, { turnPhase: 'MAIN', isMyTurn: true, effectsMap: ctx.effectsMap });
+  const isOwnerTurn = phase !== 'ATTACK_ARTS_OP';
+  const window = cpuUseWindowOf(phase);
+  if (window === 'oppAttack' && !hasIncomingThreat(s, ctx.opponent)) return [];
+  const pool = buildEnergyPayPool(s, { turnPhase: phase, isMyTurn: isOwnerTurn, effectsMap: ctx.effectsMap });
   const { isAffordable, wholeSubstitutes } = basicAffordable(ctx, s);
   const out: Extract<CpuMove, { kind: 'assistGrow' }>[] = [];
   for (const side of ['l', 'r'] as const) {
-    for (const card of listAssistGrowCandidates({ state: s, side, phase: 'MAIN', isOwnerTurn: true, cardMap: ctx.cardMap })) {
+    for (const card of listAssistGrowCandidates({ state: s, side, phase, isOwnerTurn, cardMap: ctx.cardMap })) {
       if (usedThisTurn(s, card.CardNum)) continue;
+      // 🆕`S-37`＝メインでは「攻め／守り」と書いた札を温存し、アタックフェイズでは書いた札だけを使う。
+      if (window === 'main' ? !planAllowsUseIn(ctx.plan, card.CardNum, 'main')
+        : planCardUseOf(ctx.plan, card.CardNum) === undefined || !planAllowsUseIn(ctx.plan, card.CardNum, window)) continue;
       // ⚠コインは `performAssistGrow` が払わない＝コインを要する札は選ばない（踏み倒さない）。
       if (parseCoinCost(card.GrowCost) > 0) continue;
       const costStr = applyGrowCostReduction(card.GrowCost,
-        collectGrowCostReductions(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, card.CardNum));
+        collectGrowCostReductions(s, ctx.opponent, isOwnerTurn, ctx.effectsMap, ctx.cardMap, card.CardNum));
       const costIndices = selectEnergyIndicesForCost({
         poolNums: energyPoolCardNums(pool), cards: ctx.allCards, costStr, isAffordable, wholeSubstitutes,
         // アシストグロウはアーツと同じ扱い（ユーザー指示）＝センターの次のグロウ用エナを残す。

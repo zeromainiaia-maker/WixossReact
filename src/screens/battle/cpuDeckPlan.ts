@@ -166,7 +166,20 @@ export interface CpuTargetCond {
   n: number;
   /** 🆕2026-09-26＝特殊状態（`cpuPlanStates.CPU_STATE_DEFS` のキー）。未指定＝その置き場の枚数そのもの。 */
   state?: string;
+  /**
+   * 🆕2026-09-26＝**パワーで絞る**（`zone: 'field'`・`state` なしのときだけ）＝「場のパワー〈power〉以上／以下のシグニが n 体…」。
+   * 🔑パワーは**実効パワー**（engine の `calcFieldPowers`＝常在の修正込み）。渡されない経路では印刷値で数える。
+   */
+  power?: number;
+  /** パワーの比べ方（`power` があるときだけ・未指定は保存しない＝`ge`）。 */
+  powerCmp?: CpuCondPowerCmp;
 }
+
+/** 🆕パワーの比べ方（「ちょうど」は置かない＝パワーは 1000 刻みでも修正で端数が出る）。 */
+export type CpuCondPowerCmp = 'ge' | 'le';
+export const CPU_COND_POWER_CMPS: readonly CpuCondPowerCmp[] = ['ge', 'le'];
+/** パワーの上限（∞ は数えない＝入力の上限だけ決める）。 */
+export const CPU_COND_POWER_MAX = 99999;
 
 export const CPU_COND_SIDES: readonly CpuCondSide[] = ['me', 'opp'];
 export const CPU_COND_ZONES: readonly CpuCondZone[] = ['life', 'hand', 'energy', 'trash', 'field'];
@@ -190,6 +203,9 @@ export function cpuTargetCondLabel(c: CpuTargetCond): string {
     const unit = stateUnit(c.state, c.zone as CpuStatePlace);
     return `${CPU_COND_SIDE_LABELS[c.side]}の${place}${def?.label ?? c.state}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
   }
+  if (c.power !== undefined && c.zone === 'field') {
+    return `${CPU_COND_SIDE_LABELS[c.side]}の場のパワー${c.power}${CPU_COND_CMP_LABELS[c.powerCmp ?? 'ge']}のシグニが${c.n}体${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
+  }
   const unit = c.zone === 'field' ? '体' : '枚';
   return `${CPU_COND_SIDE_LABELS[c.side]}の${CPU_COND_ZONE_LABELS[c.zone]}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
 }
@@ -211,16 +227,43 @@ function condCount(st: PlayerState, zone: CpuCondZone): number {
   }
 }
 
+/**
+ * 🆕**場のパワー〈power〉以上／以下のシグニの数**（2026-09-26）。
+ * 🔑実効パワーは `fieldPowers`（`calcFieldPowers` の結果＝instance ID で引く）。無ければ印刷値（`card.Power`）。
+ * ⚠パワーが読めないシグニ（`-` など）は数えない。
+ */
+function countFieldPower(
+  st: PlayerState, power: number, cmp: CpuCondPowerCmp,
+  cardMap: Map<string, CardData> | undefined, fieldPowers: ReadonlyMap<string, number> | undefined,
+): number {
+  let n = 0;
+  for (const stack of st.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    const printed = cardMap?.get(getCardNum(top))?.Power;
+    const p = fieldPowers?.get(top) ?? (printed === '∞' ? Infinity : parseInt(printed ?? '', 10));
+    if (Number.isNaN(p)) continue;
+    if (cmp === 'le' ? p <= power : p >= power) n++;
+  }
+  return n;
+}
+
 /** 🆕**条件の判定（1本）**＝空なら常に真。 */
 export function cpuTargetCondHolds(
   conds: readonly CpuTargetCond[], combine: CpuCondCombine | undefined, me: PlayerState, opp: PlayerState,
   /** 🆕キーワード能力の状態を数えるのに要る（無ければキーワードは0枚と数える）。 */
   cardMap?: Map<string, CardData>,
+  /** 🆕パワーの条件で使う実効パワー（`calcFieldPowers`・遅延＝パワーの条件があるときだけ計算）。無ければ印刷値。 */
+  fieldPowers?: () => ReadonlyMap<string, number>,
 ): boolean {
   if (conds.length === 0) return true;
+  let powers: ReadonlyMap<string, number> | undefined;
   const one = (c: CpuTargetCond) => {
     const st = c.side === 'me' ? me : opp;
-    const v = c.state ? countCardsInState(st, c.state, c.zone as CpuStatePlace, cardMap) : condCount(st, c.zone);
+    const v = c.state ? countCardsInState(st, c.state, c.zone as CpuStatePlace, cardMap)
+      : c.power !== undefined && c.zone === 'field'
+        ? countFieldPower(st, c.power, c.powerCmp ?? 'ge', cardMap, powers ??= fieldPowers?.())
+        : condCount(st, c.zone);
     return c.cmp === 'le' ? v <= c.n : c.cmp === 'ge' ? v >= c.n : v === c.n;
   };
   return combine === 'or' ? conds.some(one) : conds.every(one);
@@ -259,6 +302,15 @@ function toCond(raw: unknown): CpuTargetCond | null {
     return { side, zone: zone as CpuCondZone, cmp, n: nn, state };
   }
   if (!CPU_COND_ZONES.includes(zone as CpuCondZone)) return null;
+  // 🆕パワーの条件は場のシグニだけ（ほかの置き場に付いていたら読み捨てる＝効かない条件を残さない）。
+  const pw = Number(r.power);
+  if (zone === 'field' && r.power !== undefined && r.power !== null && Number.isFinite(pw)) {
+    const powerCmp = CPU_COND_POWER_CMPS.includes(r.powerCmp as CpuCondPowerCmp) ? (r.powerCmp as CpuCondPowerCmp) : 'ge';
+    return {
+      side, zone: 'field', cmp, n: nn, power: Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(pw))),
+      ...(powerCmp === 'le' ? { powerCmp } : {}),
+    };
+  }
   return { side, zone: zone as CpuCondZone, cmp, n: nn };
 }
 
@@ -320,8 +372,13 @@ export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { prefer: [], avoid: [], rul
  * - `both`＝どちらでも
  * - `never`＝**使わない**（温存する／CPU が撃つと噛み合わない札）
  *
- * ⚠**`defense`/`offense` はアーツだけに効く**（窓が2つあるのはアーツだけ）。
- *   スペル・【起】・ピースに効くのは **`never` だけ**＝「この札は撃たない」。
+ * 🆕2026-09-26 `S-37`＝**「使いどころ」はアタックフェイズに使える札だけに書く**（ユーザー判断）＝
+ *   ⚠狙い方の規則の「使うタイミング」は**狙い方を切り替えるだけ**（スペルを使うか否かは決めない）。
+ *   - **アーツ**＝`defense`＝相手のアタックフェイズ／`offense`＝**自分のターン**（メインフェイズも含む・従来どおり）＋分類の絞りを外す指名。
+ *   - 🆕**アーツ以外**（アシストルリグ・ピース・《アタックフェイズアイコン》の【起】）＝**窓を絞るだけ**（`planAllowsUseIn`）：
+ *     `offense`＝**自分のアタックフェイズだけ**（メインフェイズでは使わない）／`defense`＝**相手のアタックフェイズだけ**／
+ *     `both`＝両方のアタックフェイズ（メインでは使わない）。指定なし＝従来どおり。
+ *   ⚠スペルに保存済みの `never` は従来どおり効く（`planForbidsUse`）。
  * ⚠**`never` は「使う」手だけを止める**（アーツ・スペル・【起】・ピース）＝**召喚（出す）は止めない**
  *   （出したくない札はデッキから抜けばよい＝盤面に出す手まで止めると「手札に抱えて手札上限で捨てる」だけになる）。
  */
@@ -567,6 +624,8 @@ export interface CpuTargetResolveCtx {
   opp: PlayerState;
   /** 🆕2026-09-26＝キーワード能力の状態を数えるのに要る（省略時はキーワードの条件は0枚と数える）。 */
   cardMap?: Map<string, CardData>;
+  /** 🆕2026-09-26＝パワーの条件で使う実効パワー（遅延）。省略時は印刷値。 */
+  fieldPowers?: () => ReadonlyMap<string, number>;
 }
 
 /**
@@ -602,7 +661,7 @@ function resolveRuleSide(plan: CpuDeckPlan, ctx: CpuTargetResolveCtx, side: CpuT
     if (!target) continue;
     if (r.sourceCards.length > 0 && (!src || !r.sourceCards.includes(src))) continue;
     if ((r.sourceEffectIds?.length ?? 0) > 0 && (!ctx.effectId || !r.sourceEffectIds!.includes(ctx.effectId))) continue;
-    if (!cpuTargetCondHolds(r.conds, r.combine, ctx.me, ctx.opp, ctx.cardMap)) continue;
+    if (!cpuTargetCondHolds(r.conds, r.combine, ctx.me, ctx.opp, ctx.cardMap, ctx.fieldPowers)) continue;
     return target;
   }
   return undefined;
@@ -652,6 +711,28 @@ export function planTargetBonus(
  */
 export function planCardUse(plan: CpuDeckPlan | undefined, cardNum: string): CpuCardUse | undefined {
   return plan?.cardUse?.[getCardNum(cardNum)];
+}
+
+/** 🆕2026-09-26 `S-37`＝アーツ以外の札を使う窓（メインフェイズ／自分のアタックフェイズ／相手のアタックフェイズ）。 */
+export type CpuUseWindow = 'main' | 'attack' | 'oppAttack';
+
+/** フェイズ → 窓（`ATTACK_ARTS_OP` だけが相手のアタックフェイズ）。 */
+export const cpuUseWindowOf = (phase: string): CpuUseWindow =>
+  phase === 'ATTACK_ARTS_OP' ? 'oppAttack' : phase === 'MAIN' ? 'main' : 'attack';
+
+/**
+ * 🆕**その窓でこの札（アーツ以外）を使ってよいか**（2026-09-26 `S-37`）。
+ * 🔑**アーツ以外の「使う」手はここ1本**（ピース・【起】・アシストグロウ）＝指定なしは常に true（従来どおり）。
+ * ⚠アーツは `listCpuArts` が別に読む（`offense` がメインフェイズを含む＝指名の意味が違う）。
+ */
+export function planAllowsUseIn(plan: CpuDeckPlan | undefined, cardNum: string, window: CpuUseWindow): boolean {
+  switch (planCardUse(plan, cardNum)) {
+    case undefined: return true;
+    case 'never': return false;
+    case 'offense': return window === 'attack';
+    case 'defense': return window === 'oppAttack';
+    case 'both': return window !== 'main';
+  }
 }
 
 /** 🆕**この札を CPU が「使う」ことを作戦データが禁じているか**（＝`never`）。 */
