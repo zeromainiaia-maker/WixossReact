@@ -60855,6 +60855,57 @@ scenarios.v268CpuDeckPlan = {
   },
 };
 order.push('v268CpuDeckPlan');
+// 🆕2026-09-26（ルール＝ユーザー確認）＝**使用タイミングにアタックフェイズがあるものは、相手ターンの相手のアーツステップでも起動できる**。
+//   旧は場のシグニ・ルリグ・トラッシュ・エナの《アタックフェイズアイコン》【起】が自分のターンだけだった（手札とアーツだけが開いていた）。
+//   `WX19-022-E2`＝「【起】《アタックフェイズアイコン》《ダウン》：対戦相手のシグニ1体をダウンする」を、
+//   CPU のターンの `ATTACK_ARTS_OP`（人間＝非ターンプレイヤーのアーツステップ）で人間が撃てることを見る。
+scenarios.oppArtsStepSigniActivate = {
+  title: '2026-09-26 相手のアーツステップで場のシグニの《アタックフェイズアイコン》【起】を撃てる（WX19-022-E2）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#26901'],
+      'field.signi': [['WX19-022#26902'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'actions_done': [], 'blocked_actions': [], 'abilities_removed': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#26911'],
+      'field.signi': [['WD01-013#26912'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2, effect_stack: null, pending_effect: null },
+  },
+  async drive(page, H) {
+    let opened = false; let actClicked = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!actClicked) {
+        const actBtn = page.getByRole('button', { name: '【起】ダウン', exact: true }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) {
+          await actBtn.click().catch(() => {}); did = 'btn:【起】ダウン'; actClicked = true;
+        } else if (!opened || s % 4 === 3) {
+          did = await H.clickTestId('my-signi-zone-0'); opened = true;
+        }
+      }
+      if (!did) {
+        const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+      }
+      if (!did && actClicked) did = await H.stdStep();
+      const st = await H.queryState();
+      H.log(`  oppArtsAct[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase ?? '-'} hDown=${JSON.stringify(st?.host?.signiDown)} gDown=${JSON.stringify(st?.guest?.signiDown)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if ((st?.host?.signiDown ?? [])[0] === true && (st?.guest?.signiDown ?? [])[0] === true && !st?.pendingEffect) {
+        return { pass: true, detail: `相手ターンの ATTACK_ARTS_OP で【起】ダウンを提示→コスト（自身ダウン）を払い→相手のシグニをダウン（hDown=${JSON.stringify(st.host.signiDown)} gDown=${JSON.stringify(st.guest.signiDown)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `🔴未完了（actClicked=${actClicked} hDown=${JSON.stringify(fin?.host?.signiDown)} gDown=${JSON.stringify(fin?.guest?.signiDown)} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('oppArtsStepSigniActivate');
 
 // ── 🆕§5.1 `V-269`（2026-09-17）＝**浅い先読みで CPU がスペルを使う／使わない**（§5.7 `S-4c`）──
 // 🔑旧＝CPU のスペルは「正面が塞がれているときの除去だけ」。先読み（`scoreCardUseGain`）を渡すと、**使った結果の盤面が良くなる**スペルを使う。

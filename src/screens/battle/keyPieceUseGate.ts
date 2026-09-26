@@ -149,7 +149,9 @@ export function checkKeyPieceUse(p: KeyPieceUseGateInput): KeyPieceUseCheck {
     (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ')) ||
     // CSV Timing が「アタックフェイズ」のピース14枚（メイン+アタック11／アタックのみ3）。
     (isPiece && isMyTurn && timing.includes('アタックフェイズ')
-      && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS'));
+      && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS')) ||
+    // 🆕2026-09-26（ルール＝ユーザー確認）＝使用タイミングにアタックフェイズがあるものは、相手ターンの相手のアーツステップでも使える。
+    (isPiece && !isMyTurn && timing.includes('アタックフェイズ') && phase === 'ATTACK_ARTS_OP');
   const placeable = selfPlaceOk && phaseOk && pieceLrigCountOk(card, my, effectsMap);
   const affordable = my.coins >= cost.coinNeeded
     // §5.3 `O-245`＝キー／ピースは `coin_use_restriction` の対象（旧実装はモーダルだけが見ていた）。

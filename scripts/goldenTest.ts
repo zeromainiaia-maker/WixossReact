@@ -180,10 +180,10 @@ import { cpuPlanBoardCtx, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLab
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
-import { applyCpuMoveSim, cpuPlanMoveStep, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
+import { applyCpuMoveSim, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
-import { listOffFieldActivatableEffects } from '../src/screens/battle/offFieldActivateGate';
+import { listOffFieldActivatableEffects, offFieldActivateTiming } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
 import { isEnergyAcceActivated } from '../src/screens/battle/offFieldActivateGate';
@@ -222,7 +222,7 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { attachedOrUnderCostCandidates, payAttachedOrUnderTrash } from '../src/screens/battle/attachedOrUnderCost';
 import { multiZoneExileAffordable, payMultiZoneExileCost } from '../src/screens/battle/multiZoneExileCost';
-import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuTrashArtsNums, pickCpuTrashExileIndices, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, listCpuSigniActivated, pickCpuDiscardCostIndices, pickCpuEnergyTrashIndices, pickCpuFieldTrashZones, pickCpuSigniActivated, pickCpuTrashArtsNums, pickCpuTrashExileIndices, pickCpuUnderSelfTrashKeys, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { charmTrashAffordable, removeOppVirusAffordable, paySelectedExceed } from '../src/screens/battle/costs';
 import { payFieldDownCost } from '../src/screens/battle/fieldDownCost';
 import { discardGroupsAffordable } from '../src/screens/battle/costs';
@@ -90875,11 +90875,10 @@ test('§5.7 S-2 作戦モーダル：効かない操作を出さない／select 
   eq(JSON.stringify(cpuPlanUseModesFor(withEff(atkArtsUI))), JSON.stringify(CPU_CARD_USES), '🔴アタックフェイズのアーツで4択が出ない');
   eq(JSON.stringify(cpuPlanUseModesFor(withEff(atkAssistUI))), JSON.stringify(CPU_CARD_USES),
     '🔴アタックフェイズのアシストルリグで守り／攻めが出ない（相手のアタックフェイズにもグロウできる）');
-  eq(JSON.stringify(cpuPlanUseModesFor(withEff(handAtkAct))), JSON.stringify(CPU_CARD_USES),
-    '🔴手札の《アタックフェイズアイコン》【起】で守りが出ない（`offFieldActivateTiming` は相手のアーツステップも開く）');
-  for (const [n, what] of [[atkPieceUI, 'ピース'], [atkActSigni, 'シグニの【起】'], [atkActLrig, 'ルリグの【起】']] as const) {
-    eq(JSON.stringify(cpuPlanUseModesFor(withEff(n))), JSON.stringify(['offense', 'never']),
-      `🔴アタックフェイズの${what}に「守り」を出している（自分のターンでしか使えない）／攻めが出ない`);
+  // 🆕2026-09-26（ルール＝ユーザー確認）＝使用タイミングにアタックフェイズがあるものは相手のアーツステップでも使える＝全部4択。
+  for (const [n, what] of [[handAtkAct, '手札の【起】'], [atkPieceUI, 'ピース'], [atkActSigni, 'シグニの【起】'], [atkActLrig, 'ルリグの【起】']] as const) {
+    eq(JSON.stringify(cpuPlanUseModesFor(withEff(n))), JSON.stringify(CPU_CARD_USES),
+      `🔴アタックフェイズの${what}で守り／攻めが出ない（相手のアーツステップでも使える）`);
   }
   for (const [n, what] of [[spellUI, 'スペル'], [mainArtsUI, 'メインだけのアーツ'], [mainAssistUI, 'メインだけのアシストルリグ']] as const) {
     eq(cpuPlanCanSetUse(withEff(n)), false, `🔴${what}を使いどころに出している（アタックフェイズに使えない＝S-37）`);
@@ -90913,7 +90912,7 @@ test('§5.7 S-2 作戦モーダル：効かない操作を出さない／select 
   // ── ④ 🔴**`select` の値は必ず選択肢の中にある**（2026-09-22 に直した実バグ）──
   //   旧はカード未選択のとき選択肢が `['never']` だけなのに state は `'defense'` で、
   //   **画面は「使わない」と出しているのに［追加］すると `defense` が保存された**。
-  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(withEff(atkPieceUI)), 'never'), 'offense',
+  eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(withEff(spellUI)), 'never'), 'never',
     '🔴選択肢に無い値がそのまま残る（表示と保存が食い違う）');
   eq(cpuPlanClampOption('defense' as never, cpuPlanUseModesFor(withEff(atkArtsUI)), 'never'), 'defense',
     '🔴選択肢にある値まで丸めた');
@@ -92712,6 +92711,61 @@ test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇
   const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
   ok(turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS')") && turn.includes("tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')"),
     '🔴本番のアタックフェイズの窓にアシストグロウが無い');
+}));
+test('2026-09-26 ルール：使用タイミングにアタックフェイズがあるものは相手ターンの相手のアーツステップでも使える（ピース・場／場以外の【起】）', () => withSavedCursor(() => {
+  // 🔑ルール（ユーザー確認）＝「使用タイミングにアタックフェイズがあるものは、相手ターンの相手アーツステップで起動できる」。
+  //   🔴旧＝相手のアーツステップ（`ATTACK_ARTS_OP`）を開いていたのは**アーツ・アシストルリグ・手札の【起】だけ**で、
+  //   ピース／場のシグニ・ルリグ・シード・トラッシュ・エナの《アタックフェイズアイコン》【起】は自分のターンだけだった。
+  const cm = cardMap as Map<string, CardData>;
+  // ① 場以外の【起】の窓＝どのゾーンも相手のアーツステップを開く（タイミング照合は ATTACK_ARTS）。
+  for (const z of ['hand', 'trash', 'energy'] as const) {
+    eq(offFieldActivateTiming(z, 'ATTACK_ARTS_OP', false), 'ATTACK_ARTS', `🔴${z} の【起】が相手のアーツステップで開かない`);
+    eq(offFieldActivateTiming(z, 'ATTACK_ARTS_OP', true), null, `${z}: 自分がターンプレイヤーなのに ATTACK_ARTS_OP を開いた`);
+    eq(offFieldActivateTiming(z, 'MAIN', false), null, `🔴${z}: 相手のメインフェイズに開いた`);
+  }
+  // ② ピース＝相手のアーツステップで使える（使用タイミングにアタックフェイズがあるものだけ）。
+  const center = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const assist = findCard(c => c.Type === 'ルリグ' && c.Level === '0' && c.CardNum !== center);
+  const three = mkState({ lrig: [center], assistL: [assist], assistR: [assist] });
+  const pieceCheck = (num: string, phase: string, myTurn: boolean) => checkKeyPieceUse({
+    card: cm.get(num)!, my: three, op: mkState({ lrig: [center] }), isMyTurn: myTurn, turnPhase: phase,
+    cards: [...cm.values()], cardMap: cm, effectsMap,
+    payer: buildArtsPayerCtx({ actor: three, opponent: mkState({ lrig: [center] }), isActorTurn: myTurn, turnPhase: phase as TurnPhase, cardMap: cm, effectsMap }),
+  });
+  const atkPiece = findCard(c => c.Type === 'ピース' && c.Timing.includes('アタックフェイズ'));
+  const mainPiece = findCard(c => c.Type === 'ピース' && !c.Timing.includes('アタックフェイズ') && c.Timing.includes('メインフェイズ'));
+  ok(pieceCheck(atkPiece, 'ATTACK_ARTS_OP', false).placeable, '🔴アタックフェイズのピースを相手のアーツステップで使えない');
+  eq(pieceCheck(mainPiece, 'ATTACK_ARTS_OP', false).placeable, false, '🔴メインフェイズだけのピースを相手のアーツステップで使えた');
+  eq(pieceCheck(atkPiece, 'ATTACK_ARTS_OP', true).placeable, false, '自分のターンに ATTACK_ARTS_OP で使えた（窓の取り違え）');
+  // ③ シードの【起】＝相手ターンは `phase:'ATTACK_ARTS'` のときだけ開く（メインは閉じたまま）。
+  const seedSrc = fs.readFileSync(join(root, 'src/screens/battle/signiActivateGate.ts'), 'utf-8');
+  ok(/if \(!isMyTurn && phase !== 'ATTACK_ARTS'\) return \[\];/.test(seedSrc), '🔴シードの【起】が相手のアーツステップで開かない');
+  // ④ 人間の入口（BattleScreen）＝シグニ・ルリグ・トラッシュ・エナ。
+  const battle = battleScreenSource();
+  ok(/const oppArtsStep = !isMyTurn && bs\.turn_phase === 'ATTACK_ARTS_OP';/.test(battle), '🔴人間の場のシグニの【起】が相手のアーツステップで出ない');
+  ok(/const lrigOppArtsStep = !isMyTurn && bs\.turn_phase === 'ATTACK_ARTS_OP';/.test(battle), '🔴人間のルリグの【起】が相手のアーツステップで出ない');
+  ok(/offFieldActivateTiming\('trash', phase, isMyTurn\)/.test(battle) && /offFieldActivateTiming\('energy', phase, isMyTurn\)/.test(battle),
+    '🔴人間のトラッシュ／エナの【起】が窓を写経している（`offFieldActivateTiming` の1本を通す）');
+  // ⑤ CPU＝相手のアーツステップでは**作戦データで「守り／両方」と書いた札だけ**撃つ（指定なしは撃たない＝従来どおり）。
+  const SIG = 'WX19-022';   // 《アタックフェイズアイコン》【起】ダウン：（`WX19-022-E2`）
+  const actor = mkState({ lrig: [center], signi: [SIG, null, null] });
+  const opp = mkState({ lrig: [center], signi: [null, null, SIGNI] });
+  const ctx: CpuMoveCtx = {
+    actor, opponent: opp, allCards: [...cm.values()], battleCards: [...cm.values()], cardMap: cm, effectsMap,
+    reserveFor: () => undefined,
+  };
+  const oppStepIds = (use?: string) => listCpuSigniActivated(cpuSigniActivatedInput(
+    { ...ctx, plan: normalizeCpuDeckPlan(use ? { cardUse: { [SIG]: use } } : {}) }, 'ATTACK_ARTS', false)).map(c => c.effect.effectId);
+  ok(oppStepIds('defense').includes(`${SIG}-E2`), `🔴「守り」と書いた ${SIG} の【起】を相手のアーツステップで撃たない`);
+  ok(oppStepIds('both').includes(`${SIG}-E2`), '🔴「両方」が相手のアーツステップで効かない');
+  eq(oppStepIds().length, 0, '🔴作戦の指定なしで相手ターンに【起】を撃った（従来の挙動が変わる）');
+  eq(oppStepIds('offense').length, 0, '🔴「攻め」と書いた札を相手のアーツステップで撃った');
+  ok(listCpuSigniActivated(cpuSigniActivatedInput(ctx, 'ATTACK_ARTS')).some(c => c.effect.effectId === `${SIG}-E2`),
+    '対照＝自分のアーツステップでは指定なしでも撃てる（従来どおり）');
+  eq(planAllowsUseIn(normalizeCpuDeckPlan({}), 'X', 'oppAttack', true), false, '🔴`requireMark` なのに指定なしを通した');
+  const turn = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(["tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS_OP')", "tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS_OP')", "tryCpuLrigActivated(cpuSt, 'ATTACK_ARTS_OP')"].every(x => turn.includes(x)),
+    '🔴CPU の相手のアーツステップにピース／シグニ／ルリグの【起】が無い');
 }));
 
 if (listMode) {

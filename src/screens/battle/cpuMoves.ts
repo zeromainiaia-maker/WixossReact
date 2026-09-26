@@ -27,7 +27,7 @@ import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } f
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import { cpuUseWindowOf, planAllowsUseIn, planCardUse as planCardUseOf, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuUseWindowOf, planAllowsUseIn, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -325,8 +325,7 @@ export function listCpuAssistGrows(
     for (const card of listAssistGrowCandidates({ state: s, side, phase, isOwnerTurn, cardMap: ctx.cardMap })) {
       if (usedThisTurn(s, card.CardNum)) continue;
       // 🆕`S-37`＝メインでは「攻め／守り」と書いた札を温存し、アタックフェイズでは書いた札だけを使う。
-      if (window === 'main' ? !planAllowsUseIn(ctx.plan, card.CardNum, 'main')
-        : planCardUseOf(ctx.plan, card.CardNum) === undefined || !planAllowsUseIn(ctx.plan, card.CardNum, window)) continue;
+      if (!planAllowsUseIn(ctx.plan, card.CardNum, window, window !== 'main')) continue;
       // ⚠コインは `performAssistGrow` が払わない＝コインを要する札は選ばない（踏み倒さない）。
       if (parseCoinCost(card.GrowCost) > 0) continue;
       const costStr = applyGrowCostReduction(card.GrowCost,
@@ -421,16 +420,20 @@ export function listCpuRises(ctx: CpuMoveCtx): Extract<CpuMove, { kind: 'rise' }
 // ─── 【起】・ピース・アーツ・スペル（各 picker の入力を1か所で組む） ───────────────
 
 /** 場のシグニ【起】の入力（`pickCpuSigniActivated`／`listCpuSigniActivated` 共用）。 */
-export function cpuSigniActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS'): CpuSigniActivatedPickInput & { pool: EnergyPayEntry[] } {
+export function cpuSigniActivatedInput(
+  ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS',
+  /** 🆕2026-09-26＝`false`＝相手ターンの相手のアーツステップ（`phase` は `'ATTACK_ARTS'`）。 */
+  isMyTurn = true,
+): CpuSigniActivatedPickInput & { pool: EnergyPayEntry[] } {
   const s = ctx.actor;
-  const pool = buildEnergyPayPool(s, { turnPhase: phase, isMyTurn: true, effectsMap: ctx.effectsMap });
+  const pool = buildEnergyPayPool(s, { turnPhase: isMyTurn ? phase : 'ATTACK_ARTS_OP', isMyTurn, effectsMap: ctx.effectsMap });
   const { isAffordable, wholeSubstitutes } = basicAffordable(ctx, s);
   return {
     actor: s, opponent: ctx.opponent, effectsMap: ctx.effectsMap, cardMap: ctx.cardMap, cards: ctx.allCards,
-    phase, energyPoolNums: energyPoolCardNums(pool),
+    phase, isMyTurn, energyPoolNums: energyPoolCardNums(pool),
     energyReserve: ctx.reserveFor(s),
     alreadyActivated: s.cpu_activated_effect_ids_this_turn ?? [],
-    effectivePowers: calcFieldPowers(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, phase),
+    effectivePowers: calcFieldPowers(s, ctx.opponent, isMyTurn, ctx.effectsMap, ctx.cardMap, phase),
     // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
     isAffordable, wholeSubstitutes, pool,
     // 🆕§5.7 `S-31` ②＝手札を捨てるコストの「どれを捨てるか」に効く（弱い札から・【ガード】と作戦の札は最後）。
@@ -441,15 +444,19 @@ export function cpuSigniActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_
 }
 
 /** センタールリグ【起】の入力。 */
-export function cpuLrigActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS'): CpuLrigActivatedPickInput & { pool: EnergyPayEntry[] } {
+export function cpuLrigActivatedInput(
+  ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_ARTS',
+  /** 🆕2026-09-26＝`false`＝相手ターンの相手のアーツステップ（`phase` は `'ATTACK_ARTS'`）。 */
+  isMyTurn = true,
+): CpuLrigActivatedPickInput & { pool: EnergyPayEntry[] } {
   const s = ctx.actor;
-  const pool = buildEnergyPayPool(s, { turnPhase: phase, isMyTurn: true, effectsMap: ctx.effectsMap });
-  const powers = calcFieldPowers(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, phase);
+  const pool = buildEnergyPayPool(s, { turnPhase: isMyTurn ? phase : 'ATTACK_ARTS_OP', isMyTurn, effectsMap: ctx.effectsMap });
+  const powers = calcFieldPowers(s, ctx.opponent, isMyTurn, ctx.effectsMap, ctx.cardMap, phase);
   const { isAffordable, wholeSubstitutes } = basicAffordable(ctx, s);
-  const blockedSelf = calcContinuousBlockedActions(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, powers).forSelf;
+  const blockedSelf = calcContinuousBlockedActions(s, ctx.opponent, isMyTurn, ctx.effectsMap, ctx.cardMap, powers).forSelf;
   return {
     actor: s, opponent: ctx.opponent, effectsMap: ctx.effectsMap, cardMap: ctx.cardMap, cards: ctx.allCards,
-    phase, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
+    phase, isMyTurn, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
     energyReserve: ctx.reserveFor(s),
     alreadyActivated: s.cpu_activated_effect_ids_this_turn ?? [],
     effectivePowers: powers,
@@ -462,10 +469,11 @@ export function cpuLrigActivatedInput(ctx: CpuMoveCtx, phase: 'MAIN' | 'ATTACK_A
 }
 
 /** キー／ピースの入力。 */
-export function cpuKeyPieceInput(ctx: CpuMoveCtx, turnPhase: 'MAIN' | 'ATTACK_ARTS'): CpuKeyPiecePickInput {
+export function cpuKeyPieceInput(ctx: CpuMoveCtx, turnPhase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): CpuKeyPiecePickInput {
   const s = ctx.actor;
   const payer = buildArtsPayerCtx({
-    actor: s, opponent: ctx.opponent, isActorTurn: true,
+    // 🆕2026-09-26＝`ATTACK_ARTS_OP`＝相手ターンの相手のアーツステップ（ピースだけ）。
+    actor: s, opponent: ctx.opponent, isActorTurn: turnPhase !== 'ATTACK_ARTS_OP',
     turnPhase, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
   });
   return {

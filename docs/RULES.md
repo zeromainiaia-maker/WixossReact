@@ -54,6 +54,7 @@
 | R-27 | 「このターンを終了する」（強制終了）でも、**予約済みの追加ターン／相手のスキップは効く**はず | `turnScopedState.applyForcedTurnEnd` → `resolveTurnHandover`（通常のターン終了3経路と同じ判定） | 🔴→✅（**2026-09-17 ユーザー裁定＝「追加ターンを得た状態で強制終了を食らった場合、追加ターンを開始する」**。旧は `resolveTurnHandover` を見ず**常に交代**＝追加ターンが消えて相手のターンになっていた。アップを受けるのも `upPhaseRecipient` と同じ読み。`V-261`） |
 | R-28 | 1ターン中に**ターンプレイヤーの2回目のリフレッシュ**ならそのターンを終了（EN Refresh） | `refreshTurnEnd.ts` `refreshForcesTurnEnd`（消費＝スタック解決＋`BattleScreen` のルール処理 funnel） | 🔴→✅（**2026-09-17**＝**数えるのは全経路が通る `applyRefreshState` 1本で正しかった**が、**ターンを終了する側が効果スタックの解決経路1本にしか無かった**＝スペル解決・選択の再開・ドローフェイズのリフレッシュでは終わらなかった（無限ループを止められない）。`V-253`／反転 `V-254`） |
 | R-29 | マリガン＝初手5枚から任意枚数を1回だけ（EN Mulligan） | `lrigSetup.ts`（初手5枚）→ `mulligan.ts` `applyMulligan`（人間・CPU 共通）→ `*_mulligan_done` | 👀（2026-09-17 確認＝戻す枚数は任意（0〜5）・戻してからシャッフルして同数を引く・完了フラグで1回だけ・その後デッキ上7枚をライフクロス） |
+| R-30 | **使用タイミングにアタックフェイズがあるもの**（アーツ・ピース・アシストルリグのグロウ・《アタックフェイズアイコン》の【起】）は、自分のアーツステップに加えて**相手ターンの相手のアーツステップ（`ATTACK_ARTS_OP`）でも使える／起動できる**（ユーザー確認 2026-09-26） | 提示＝`artsUseGate`／`keyPieceUseGate.checkKeyPieceUse`／`assistGrow.listAssistGrowCandidates`／`offFieldActivateTiming`（手札・トラッシュ・エナ）／`BattleScreen` の `getMySigniZoneActions`・`getMyLrigFieldActions`（場のシグニ・シード・ルリグ＝ゲートへ `phase:'ATTACK_ARTS'` で渡す） | 🔴→✅（**2026-09-26**＝ピースと場のシグニ・シード・ルリグ・トラッシュ・エナの【起】は**自分のターンだけ**だった（手札の【起】・アーツ・アシストだけが開いていた）。golden「2026-09-26 ルール：使用タイミングにアタックフェイズ…」／実機 `oppArtsStepSigniActivate`） |
 
 ### 2.3 ゾーン移動の行き先・ルール処理
 

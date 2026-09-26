@@ -149,8 +149,8 @@ export interface CpuOffFieldPickInput {
   cardMap: Map<string, CardData>;
   cards: CardData[];
   /**
-   * CPU のターンの窓（`MAIN`／`ATTACK_ARTS`）か、🆕**人間のターンのアーツステップ（`ATTACK_ARTS_OP`）**＝手札の《アタックフェイズアイコン》【起】で応答する窓。
-   * ⚠`ATTACK_ARTS_OP` ではトラッシュ・エナの【起】は提示判定が出さない（自分のターンだけの窓）。
+   * CPU のターンの窓（`MAIN`／`ATTACK_ARTS`）か、🆕**人間のターンのアーツステップ（`ATTACK_ARTS_OP`）**＝《アタックフェイズアイコン》【起】で応答する窓。
+   * 🆕2026-09-26＝`ATTACK_ARTS_OP` は手札だけでなくトラッシュ・エナの【起】も開く（`offFieldActivateTiming`）。
    */
   phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP';
   /** `buildEnergyPayPool(actor, ...)`。 */

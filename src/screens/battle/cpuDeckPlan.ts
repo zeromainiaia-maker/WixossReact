@@ -725,9 +725,16 @@ export const cpuUseWindowOf = (phase: string): CpuUseWindow =>
  * 🔑**アーツ以外の「使う」手はここ1本**（ピース・【起】・アシストグロウ）＝指定なしは常に true（従来どおり）。
  * ⚠アーツは `listCpuArts` が別に読む（`offense` がメインフェイズを含む＝指名の意味が違う）。
  */
-export function planAllowsUseIn(plan: CpuDeckPlan | undefined, cardNum: string, window: CpuUseWindow): boolean {
+export function planAllowsUseIn(
+  plan: CpuDeckPlan | undefined, cardNum: string, window: CpuUseWindow,
+  /**
+   * 🆕2026-09-26＝`true`＝**指定なしを「使わない」として扱う**（相手のアーツステップで、ピース・場のシグニ／ルリグの【起】を
+   * 作戦データで書いた札だけ撃つため）。⚠場以外の【起】（手札・トラッシュ・エナ）は先読みで得なものだけ撃つので既定のまま。
+   */
+  requireMark = false,
+): boolean {
   switch (planCardUse(plan, cardNum)) {
-    case undefined: return true;
+    case undefined: return !requireMark;
     case 'never': return false;
     case 'offense': return window === 'attack';
     case 'defense': return window === 'oppAttack';

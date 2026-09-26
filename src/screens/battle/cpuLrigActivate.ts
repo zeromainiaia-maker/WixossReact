@@ -139,6 +139,11 @@ export interface CpuLrigActivatedPickInput {
   cardMap: Map<string, CardData>;
   cards: CardData[];
   phase: 'MAIN' | 'ATTACK_ARTS';
+  /**
+   * 🆕2026-09-26＝`false`＝**相手ターンの相手のアーツステップ**（`ATTACK_ARTS_OP`）で撃つ（`phase` は `'ATTACK_ARTS'`）。
+   * ルール＝使用タイミングにアタックフェイズがある【起】はそこでも起動できる（ユーザー確認）。省略＝`true`。
+   */
+  isMyTurn?: boolean;
   /** `buildEnergyPayPool(actor, ...)` の各エントリの cardNum（pool index 順）。 */
   energyPoolNums: string[];
   /** `calcContinuousBlockedActions(actor, ...).forSelf`。 */
@@ -167,9 +172,8 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
     effectsMap: p.effectsMap, cardMap: p.cardMap,
     blockedSelf: p.blockedSelf, effectivePowers: p.effectivePowers,
   };
-  // ⚠CPU の【起】は**自分のターン**でしか撃たない（呼び出し元が MAIN/ATTACK_ARTS 窓でだけ呼ぶ）＝
-  //   付与の収集に渡す `isMyTurn` は常に true。
-  const granted = collectGrantedLrigEffects(p.actor, p.opponent, true, p.effectsMap, p.cardMap);
+  // 🆕2026-09-26＝相手のアーツステップ（`isMyTurn:false`）でも撃つ＝付与の収集にもその値を渡す。
+  const granted = collectGrantedLrigEffects(p.actor, p.opponent, p.isMyTurn ?? true, p.effectsMap, p.cardMap);
   const usable = [
     ...listActivatableLrigEffects(gateInput),
     ...listActivatableGrantedLrigEffects(gateInput, granted),
@@ -178,7 +182,7 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
   // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いたルリグの【起】は撃たない
   //   （⚠**判定はセンタールリグの札**＝付与・継承の効果もその札の【起】として出る）。
   const centerLrig = p.actor.field.lrig.at(-1);
-  if (centerLrig && !planAllowsUseIn(p.plan, centerLrig, cpuUseWindowOf(p.phase))) return;
+  if (centerLrig && !planAllowsUseIn(p.plan, centerLrig, p.isMyTurn === false ? 'oppAttack' : cpuUseWindowOf(p.phase), p.isMyTurn === false)) return;
   for (const effect of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;

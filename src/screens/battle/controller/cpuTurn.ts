@@ -305,15 +305,19 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
   };
   const tryCpuSigniActivated = async (
     actorState: PlayerState,
-    phase: 'MAIN' | 'ATTACK_ARTS',
+    /** 🆕2026-09-26＝`ATTACK_ARTS_OP`＝相手ターンの相手のアーツステップ（《アタックフェイズアイコン》【起】）。 */
+    phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP',
     /** 🆕§5.7 `S-16`＝探索が選んだ手（渡されたらここでは選ばない）。 */
     preset?: CpuActivatedChoice,
   ): Promise<boolean> => {
-    const input = cpuSigniActivatedInput(cpuMoveCtx(actorState), phase);
+    const oppStep = phase === 'ATTACK_ARTS_OP';
+    const gatePhase = oppStep ? 'ATTACK_ARTS' : phase;
+    const input = cpuSigniActivatedInput(cpuMoveCtx(actorState), gatePhase, !oppStep);
     const pool = input.pool;
     const choice = preset ?? pickCpuSigniActivated(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'activate', choice, pool, phase });
+    // ⚠観測フック（探索の候補列挙との突き合わせ）は自分のターンの手だけ。
+    if (!oppStep) d.observeChoice?.({ kind: 'activate', choice, pool, phase: gatePhase });
     appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
     // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
     //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
@@ -352,14 +356,17 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    */
   const tryCpuLrigActivated = async (
     actorState: PlayerState,
-    phase: 'MAIN' | 'ATTACK_ARTS',
+    /** 🆕2026-09-26＝`ATTACK_ARTS_OP`＝相手ターンの相手のアーツステップ（《アタックフェイズアイコン》【起】）。 */
+    phase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP',
     preset?: CpuLrigActivatedChoice,
   ): Promise<boolean> => {
-    const input = cpuLrigActivatedInput(cpuMoveCtx(actorState), phase);
+    const oppStep = phase === 'ATTACK_ARTS_OP';
+    const gatePhase = oppStep ? 'ATTACK_ARTS' : phase;
+    const input = cpuLrigActivatedInput(cpuMoveCtx(actorState), gatePhase, !oppStep);
     const pool = input.pool;
     const choice = preset ?? pickCpuLrigActivated(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'lrigActivate', choice, pool, phase });
+    if (!oppStep) d.observeChoice?.({ kind: 'lrigActivate', choice, pool, phase: gatePhase });
     const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
     appendBattleLogs([`[CPU] ルリグの【起】を発動: ${lrigName}`]);
     // ⚠安全弁＝実行より先に「撃った」履歴を確定させる（シグニ【起】と同じ理由）。
@@ -394,18 +401,20 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
    * ⚠**安全弁**＝実行より先に `cpu_used_card_nums_this_turn` へ札を刻む（`performKeyPiece` は使用条件の再検算で黙って return しうる）。
    * ⚠ピースのカットイン窓（人間が打ち消しピースを持つとき）は `pending_spell`（caster＝CPU）で止まり、上の早期 return が受ける。
    */
-  const tryCpuKeyPiece = async (actorState: PlayerState, turnPhase: 'MAIN' | 'ATTACK_ARTS'): Promise<boolean> => {
+  const tryCpuKeyPiece = async (actorState: PlayerState, turnPhase: 'MAIN' | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP'): Promise<boolean> => {
     if (bs.pending_spell) return false;
+    // 🆕2026-09-26＝`ATTACK_ARTS_OP`＝相手ターンの相手のアーツステップ（使用タイミングにアタックフェイズがあるピース）。
+    const isActorTurn = turnPhase !== 'ATTACK_ARTS_OP';
     const input = cpuKeyPieceInput(cpuMoveCtx(actorState), turnPhase);
     const payer = input.payer;
     const choice = pickCpuKeyPiece(input);
     if (!choice) return false;
-    d.observeChoice?.({ kind: 'piece', choice, pool: payer.energyPayPool });
+    if (isActorTurn) d.observeChoice?.({ kind: 'piece', choice, pool: payer.energyPayPool });
     // ⚠文言は `census:play` の契約（anchor は `[CPU] ピース:` / `[CPU] キー:` をそのまま含むこと）。
     appendBattleLogs([choice.check.isPiece ? `[CPU] ピース: ${choice.card.CardName}` : `[CPU] キー: ${choice.card.CardName}`]);
     await performKeyPiece(choice.card, choice.costIndices, {
       actor: await cpuMarkUsed(actorState, choice.card.CardNum), opponent: huSt,
-      actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn: true,
+      actorId: CPU_PLAYER_ID, actorKey: 'guest_state', isActorTurn,
       energyPayPool: payer.energyPayPool, coinNeeded: choice.check.coinNeeded,
     });
     return true;
@@ -730,6 +739,13 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS_OP', pickCpuResponseArts)) return;
     // 🆕2026-09-26 `S-37`＝「守り」と書いたアシストルリグを相手のアタックフェイズにグロウする。
     if (await tryCpuAssistGrow(cpuSt, 'ATTACK_ARTS_OP')) return;
+    // 🆕2026-09-26（ルール＝ユーザー確認）＝使用タイミングにアタックフェイズがあるものは相手のアーツステップでも使える
+    //   ＝ピース／場のシグニ・ルリグの《アタックフェイズアイコン》【起】（手札・トラッシュ・エナは下の場以外の【起】）。
+    //   ⚠**作戦データで「守り／両方」と書いた札だけ**（`planAllowsUseIn(…, 'oppAttack', true)`）＝指定なしの札は
+    //   相手ターンに撃たない（先読みなしで相手ターンに撃ち尽くさない・従来の挙動を変えない）。
+    if (await tryCpuKeyPiece(cpuSt, 'ATTACK_ARTS_OP')) return;
+    if (await tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
+    if (await tryCpuLrigActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
     // 🆕§5.7 `S-7`＝手札の《アタックフェイズアイコン》【起】で応答する（判定・実行は人間と同じ・先読みで得なものだけ）。
     if (await tryCpuOffFieldActivated(cpuSt, 'ATTACK_ARTS_OP')) return;
     appendBattleLogs(['[CPU] アーツを使用しない']);

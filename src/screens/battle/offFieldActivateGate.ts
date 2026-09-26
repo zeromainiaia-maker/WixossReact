@@ -14,9 +14,11 @@ import { applyActivateCostZero } from './activateCostZero';
  * **いま使えるか**を決める1本。人間のカードアクション（`getMyTrashCardActions`／`getMyEnergyCardActions`／
  * `getMyHandCardActions`）と CPU（`cpuOffFieldActivate.ts`）が**同じ関数**を呼ぶ（§5.6.3＝可否の判定を写経しない）。
  *
- * ■ 窓（人間の旧実装と同じ）
- *   - トラッシュ／エナ＝**自分のターン**の MAIN（《メインフェイズアイコン》）と ATTACK_ARTS（《アタックフェイズアイコン》）。
- *   - 手札＝MAIN／ATTACK_ARTS／ATTACK_ARTS_OP（相手ターンのアーツステップ＝タイミング照合は ATTACK_ARTS）。
+ * ■ 窓
+ *   - どのゾーンも＝自分のターンの MAIN（《メインフェイズアイコン》）と ATTACK_ARTS（《アタックフェイズアイコン》）、
+ *     **相手ターンの相手のアーツステップ `ATTACK_ARTS_OP`**（タイミング照合は ATTACK_ARTS）。
+ *   🆕2026-09-26（ルール＝ユーザー確認「使用タイミングにアタックフェイズがあるものは、相手ターンの相手アーツステップで起動できる」）＝
+ *     旧はトラッシュ／エナを自分のターンだけにしていた（手札だけが相手のアーツステップを開いていた）。
  */
 export type OffFieldZone = 'trash' | 'energy' | 'hand';
 
@@ -51,13 +53,9 @@ export function acceHostAvailable(
 }
 
 /** そのゾーンの【起】を使う窓のタイミング（窓でなければ null）。 */
-export function offFieldActivateTiming(zone: OffFieldZone, turnPhase: TurnPhase | string | null | undefined, isMyTurn: boolean): EffectTiming | null {
-  if (zone === 'hand') {
-    if (turnPhase === 'MAIN' || turnPhase === 'ATTACK_ARTS') return isMyTurn ? turnPhase : null;
-    return turnPhase === 'ATTACK_ARTS_OP' && !isMyTurn ? 'ATTACK_ARTS' : null;
-  }
-  if (!isMyTurn) return null;
-  return turnPhase === 'MAIN' ? 'MAIN' : turnPhase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
+export function offFieldActivateTiming(_zone: OffFieldZone, turnPhase: TurnPhase | string | null | undefined, isMyTurn: boolean): EffectTiming | null {
+  if (turnPhase === 'MAIN' || turnPhase === 'ATTACK_ARTS') return isMyTurn ? turnPhase : null;
+  return turnPhase === 'ATTACK_ARTS_OP' && !isMyTurn ? 'ATTACK_ARTS' : null;
 }
 
 /**

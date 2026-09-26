@@ -304,6 +304,11 @@ export interface CpuSigniActivatedPickInput {
   cards: CardData[];
   /** `'MAIN'`＝無印【起】／`'ATTACK_ARTS'`＝《アタックフェイズアイコン》付き【起】。 */
   phase: 'MAIN' | 'ATTACK_ARTS';
+  /**
+   * 🆕2026-09-26＝`false`＝**相手ターンの相手のアーツステップ**（`ATTACK_ARTS_OP`）で撃つ（`phase` は `'ATTACK_ARTS'`）。
+   * ルール＝使用タイミングにアタックフェイズがある【起】はそこでも起動できる（ユーザー確認）。省略＝`true`。
+   */
+  isMyTurn?: boolean;
   /** `buildEnergyPayPool(actor, ...)` の各エントリの cardNum（pool index 順）。 */
   energyPoolNums: string[];
   /** このターン CPU が既に撃った effectId（同じ効果を撃ち直さない）。 */
@@ -591,9 +596,10 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
     if (!cardNum) continue;
     // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札の【起】は撃たない。
     //   🆕2026-09-26 `S-37`＝「攻め」＝自分のアタックフェイズだけ（メインでは撃たない）。
-    if (!planAllowsUseIn(p.plan, cardNum, cpuUseWindowOf(p.phase))) continue;
+    //   🆕相手のアーツステップ（`isMyTurn:false`）は「守り／両方」と書いた札だけ。
+    if (!planAllowsUseIn(p.plan, cardNum, p.isMyTurn === false ? 'oppAttack' : cpuUseWindowOf(p.phase), p.isMyTurn === false)) continue;
     const usable = listActivatableSigniEffects({
-      my: actor, op: opponent, zoneIndex, phase: p.phase, isMyTurn: true,
+      my: actor, op: opponent, zoneIndex, phase: p.phase, isMyTurn: p.isMyTurn ?? true,
       effectsMap, cardMap, effectivePowers: p.effectivePowers, contBlockedSelf: p.contBlockedSelf,
     });
     for (const effect of usable) {

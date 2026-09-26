@@ -21,7 +21,7 @@ import {handActivateCostLabel, type HandActivateSelections} from './battle/handA
 import {payMultiZoneExileCost} from './battle/multiZoneExileCost';
 import {payFieldToDeckTopCost} from './battle/fieldToDeckTopCost';
 import {trashActivateCostLabels, trashActivateVerbLabel} from './battle/trashActivateCost';
-import {isEnergyAcceActivated, listOffFieldActivatableEffects} from './battle/offFieldActivateGate';
+import {isEnergyAcceActivated, listOffFieldActivatableEffects, offFieldActivateTiming} from './battle/offFieldActivateGate';
 import {isTrashImmuneByOpponent} from '../engine/execUtils';
 import {collectCutinCandidates} from './battle/cutinCandidates';
 import {performCutinUse} from './battle/controller/performCutinUse';
@@ -3624,11 +3624,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return [];
     const actions: CardAction[] = [];
     // 《メインフェイズアイコン》＝自分の MAIN／《アタックフェイズアイコン》＝アーツステップ。
-    // ATTACK_ARTS_OP（相手ターンのアーツステップ）は自分のトラッシュ起動の窓ではない。
+    // 🆕2026-09-26（ルール＝ユーザー確認）＝相手ターンの相手のアーツステップ（`ATTACK_ARTS_OP`）でも起動できる。
+    //   ⚠窓の判定は `offFieldActivateTiming` の1本（下の `listOffFieldActivatableEffects` が見る）＝ここで写経しない。
     const phase = bs.turn_phase;
-    const trashTiming: import('../types/effects').EffectTiming | null =
-      phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
-    if (!isMyTurn || !trashTiming) return actions;
+    if (!offFieldActivateTiming('trash', phase, isMyTurn)) return actions;
     // §6.4 O-17:「対戦相手の（すべての領域／手札と場とエナゾーンとトラッシュに）あるシグニは能力を失う」は
     // トラッシュのカードにも `abilities_removed` を積む。⚠ここで見ないと**トラッシュ起動だけが素通り**して、
     // 領域を跨いだ能力喪失が「候補を広げただけの見せかけ」になる。
@@ -3637,7 +3636,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 相手の場に宣言があれば**自分のトラッシュ起動は丸ごと使えない**。
     if (isTrashImmuneByOpponent(op, battleCardMap, effectsMap)) return actions;
     // 🆕**§5.3 `O-185`＝「このターン使用してもよい」で許可されたスペル**（【起】ではない別入口）。
-    if ((my.trash_spells_usable_this_turn ?? []).some(e => e.cardNum === cardNum && e.from === 'self')) {
+    // ⚠スペルの使用は自分のターンだけ（相手のアーツステップはこの入口の窓ではない）。
+    if (isMyTurn && (my.trash_spells_usable_this_turn ?? []).some(e => e.cardNum === cardNum && e.from === 'self')) {
       actions.push({
         label: '【使用】このターン使用できる（コストを支払う）',
         color: '#ff6b35',
@@ -3674,9 +3674,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return [];
     const actions: CardAction[] = [];
     const phase = bs.turn_phase;
-    const energyTiming: import('../types/effects').EffectTiming | null =
-      phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
-    if (!isMyTurn || !energyTiming) return actions;
+    // 🆕2026-09-26＝窓の判定は `offFieldActivateTiming` の1本（相手のアーツステップを含む）。
+    if (!offFieldActivateTiming('energy', phase, isMyTurn)) return actions;
     if (my.abilities_removed?.includes(cardNum)) return actions;
     // 🆕§5.7 `S-7`＝提示の判定は CPU と同じ `listOffFieldActivatableEffects` 1本。
     for (const eff of listOffFieldActivatableEffects({
@@ -5129,7 +5128,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // シグニゾーンのカードアクション（エナチャージ / 起動 / アタック）
   const getMySigniZoneActions = (rawZoneIdx: number): CardAction[] => {
-    if (!isMyTurn || loading) return [];
+    // 🆕2026-09-26（ルール＝ユーザー確認）＝**使用タイミングにアタックフェイズがある【起】は、相手ターンの相手のアーツステップでも起動できる**
+    //   （`ATTACK_ARTS_OP`＝自分が非ターンプレイヤーのアーツステップ）。判定は同じゲートに `phase: 'ATTACK_ARTS'` で渡す。
+    const oppArtsStep = !isMyTurn && bs.turn_phase === 'ATTACK_ARTS_OP';
+    if ((!isMyTurn && !oppArtsStep) || loading) return [];
     const stack = my.field.signi[rawZoneIdx];
 
     if (bs.turn_phase === 'ENERGY') {
@@ -5142,7 +5144,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // MAIN（メインフェイズ）と ATTACK_ARTS（自分のアタックフェイズ＝アーツステップ）の場シグニ【起】発動。
     // 《アタックフェイズアイコン》付き【起】（timing:['ATTACK_ARTS']）はアタックフェイズのみ、無印【起】（timing未指定/['MAIN']）はメインのみ。
-    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
+    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS' || oppArtsStep) {
+      const actPhase: 'MAIN' | 'ATTACK_ARTS' = bs.turn_phase === 'MAIN' ? 'MAIN' : 'ATTACK_ARTS';
       // 🆕**§5.3 `O-218`（2026-09-04）＝【シード】として置いたカードの【起】を提示する。**
       //   🔴engine（`SEED_BLOOM{seedTargetSelf}`）は完成済みで、欠けていたのは**入口だけ**だった
       //     ＝`field.signi_seeds` を読むのは cardMap のロード1箇所で、能力を surface するコードが無かった。
@@ -5151,7 +5154,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const seedNum = my.field.signi_seeds?.[rawZoneIdx] ?? null;
       if (seedNum) {
         for (const seedEff of listActivatableSeedEffects({
-          my, op, zoneIndex: rawZoneIdx, phase: bs.turn_phase, isMyTurn,
+          my, op, zoneIndex: rawZoneIdx, phase: actPhase, isMyTurn,
           effectsMap, cardMap: battleCardMap, energyPool: myEnergyPayPool,
           effectivePowers, contBlockedSelf: contBlocked.forSelf,
         })) {
@@ -5167,7 +5170,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const topNum = stack[stack.length - 1];
       // GATE: 【起】の発動可否は `signiActivateGate` に一本化（人間ボタン／CPU の候補フィルタと同じ関数）。
       const activatable = listActivatableSigniEffects({
-        my, op, zoneIndex: rawZoneIdx, phase: bs.turn_phase, isMyTurn,
+        my, op, zoneIndex: rawZoneIdx, phase: actPhase, isMyTurn,
         effectsMap, cardMap: battleCardMap, effectivePowers, contBlockedSelf: contBlocked.forSelf,
       });
       if (activatable.length === 0) return seedActions;
@@ -5281,7 +5284,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ルリグゾーンのカードアクション（ルリグアタック）
   const getMyLrigFieldActions = (): CardAction[] => {
-    if (!isMyTurn || loading) return [];
+    // 🆕2026-09-26＝《アタックフェイズアイコン》の【起】は相手ターンの相手のアーツステップでも起動できる（シグニと同じ）。
+    const lrigOppArtsStep = !isMyTurn && bs.turn_phase === 'ATTACK_ARTS_OP';
+    if ((!isMyTurn && !lrigOppArtsStep) || loading) return [];
     if (my.field.lrig.length === 0) return [];
 
     // MAINフェイズ：センタールリグのACTIVATED能力 + 付与されたACTIVATED能力を表示
@@ -5402,7 +5407,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ATTACK_ARTSフェイズ（自分のアタックフェイズ）：《アタックフェイズアイコン》付きルリグ【起】（timing:['ATTACK_ARTS']）を表示。
     // MAIN分岐のSONG_FRAGMENT/継承/ガードバリア等のMAIN固有処理は対象外（timingがATTACK_ARTSの能力のみ）。
-    if (bs.turn_phase === 'ATTACK_ARTS') {
+    if (bs.turn_phase === 'ATTACK_ARTS' || lrigOppArtsStep) {
       const lrigTopAA = my.field.lrig.at(-1) ?? '';
       const lrigActionsAA: CardAction[] = [];
       const buildCostLabelAA = (eff: import('../types/effects').CardEffect): string => {

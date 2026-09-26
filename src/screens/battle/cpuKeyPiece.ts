@@ -60,7 +60,7 @@ export interface CpuKeyPiecePickInput {
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
   payer: ArtsPayerCtx;
-  /** 自ターンの窓（`'MAIN'` か `'ATTACK_ARTS'`）。 */
+  /** 自ターンの窓（`'MAIN'` か `'ATTACK_ARTS'`）／🆕相手ターンの相手のアーツステップ（`'ATTACK_ARTS_OP'`＝ピースだけ）。 */
   turnPhase: TurnPhase;
   /** このターン CPU が既に使った札（同じ札を選び直さない安全弁）。 */
   alreadyUsedNums: readonly string[];
@@ -81,12 +81,12 @@ export function listCpuKeyPieces(p: CpuKeyPiecePickInput): CpuKeyPieceChoice[] {
   const poolNums = energyPoolCardNums(p.payer.energyPayPool);
   const candidates: CpuKeyPieceChoice[] = [];
   for (const { card, check } of listUsableKeyPieces({
-    my: p.actor, op: p.opponent, isMyTurn: true, turnPhase: p.turnPhase,
+    my: p.actor, op: p.opponent, isMyTurn: p.turnPhase !== 'ATTACK_ARTS_OP', turnPhase: p.turnPhase,
     cards: p.cards, cardMap: p.cardMap, effectsMap: p.effectsMap, payer: p.payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
     // 🆕§5.7 `S-31` ③＝作戦データが「使わない」と書いた札は列挙にも出さない。
-    if (!planAllowsUseIn(p.plan, card.CardNum, cpuUseWindowOf(p.turnPhase))) continue;
+    if (!planAllowsUseIn(p.plan, card.CardNum, cpuUseWindowOf(p.turnPhase), p.turnPhase === 'ATTACK_ARTS_OP')) continue;
     if (!cpuCanHandleKeyPiece(card, p.effectsMap.get(card.CardNum) ?? [])) continue;
     const costIndices = selectEnergyIndicesForCost({
       poolNums, cards: p.cards, costStr: check.effectiveCost,

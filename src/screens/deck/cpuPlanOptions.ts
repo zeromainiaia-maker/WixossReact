@@ -66,12 +66,9 @@ export function cpuPlanChipsFor(card: CardData | undefined, inMainDeck: boolean)
 
 /**
  * 🆕**その札をアタックフェイズのどの窓で使えるか**（2026-09-26 `S-37`・ユーザー判断＝「使いどころ」はアタックフェイズに使える札だけ）。
- * 🔑**窓は engine の提示判定と1対1**（判定を写経しない＝ここは「その窓に出うるか」の種別だけを見る）：
- * - アーツ（CSV `Timing` に「アタックフェイズ」）＝自分／相手の両方（`artsUseGate` の `ATTACK_ARTS`／`ATTACK_ARTS_OP`）。
- * - アシストルリグ（同）＝両方（`assistGrow.listAssistGrowCandidates`）。
- * - ピース（同）＝**自分のだけ**（`keyPieceUseGate` は自ターンだけ）。
- * - 《アタックフェイズアイコン》の【起】（`timing` に `ATTACK_ARTS`）＝**手札の【起】は両方**（`offFieldActivateTiming`）／
- *   場のシグニ・ルリグ・トラッシュ・エナの【起】は**自分のだけ**（`signiActivateGate`／`lrigActivateGate` は自ターンだけ）。
+ * 🔑**ルール（ユーザー確認）＝使用タイミングにアタックフェイズがあるものは、自分のアーツステップと相手ターンの相手のアーツステップの両方で使える**
+ *   ＝アーツ・アシストルリグ・ピース（CSV `Timing` に「アタックフェイズ」）と《アタックフェイズアイコン》の【起】（`timing` に `ATTACK_ARTS`）は
+ *   すべて両方の窓を持つ（提示判定＝`artsUseGate`／`assistGrow`／`keyPieceUseGate`／`signiActivateGate`／`lrigActivateGate`／`offFieldActivateTiming`）。
  * ⚠スペルは0枚（全シートの CSV `Timing` にアタックフェイズを持つスペルが無い＝メインフェイズとカットインだけ）。
  */
 export function cpuPlanAttackWindows(card: CardData | undefined | null): { offense: boolean; defense: boolean } {
@@ -79,17 +76,12 @@ export function cpuPlanAttackWindows(card: CardData | undefined | null): { offen
   if (!card) return none;
   const t = card.Type ?? '';
   const atk = (card.Timing ?? '').includes('アタックフェイズ');
-  if ((cpuPlanIsArts(card) || t === 'アシストルリグ') && atk) return { offense: true, defense: true };
-  // ⚠メインフェイズだけのアーツ・アシストルリグは窓なし（効果の `timing` を見て「攻め」だけにしない＝アーツの攻めは意味が違う）。
-  if (cpuPlanIsArts(card) || t === 'アシストルリグ') return none;
-  let offense = t.includes('ピース') && atk;
-  let defense = false;
-  for (const e of card.effects ?? []) {
-    if (e.effectType !== 'ACTIVATED' || !(e.timing ?? []).some(x => x === 'ATTACK_ARTS' || x === 'ATTACK')) continue;
-    offense = true;
-    if (e.handActivated) defense = true;
-  }
-  return { offense, defense };
+  const both = { offense: true, defense: true };
+  if ((cpuPlanIsArts(card) || t === 'アシストルリグ' || t.includes('ピース')) && atk) return both;
+  // ⚠メインフェイズだけのアーツ・アシストルリグ・ピースは窓なし（効果の `timing` を見て窓を作らない＝アーツの攻めは意味が違う）。
+  if (cpuPlanIsArts(card) || t === 'アシストルリグ' || t.includes('ピース')) return none;
+  return (card.effects ?? []).some(e => e.effectType === 'ACTIVATED' && (e.timing ?? []).some(x => x === 'ATTACK_ARTS' || x === 'ATTACK'))
+    ? both : none;
 }
 
 /**
@@ -104,7 +96,7 @@ export const cpuPlanCanSetUse = (card: CardData | undefined): boolean => {
 
 /**
  * その札に出す「使いどころ」の選択肢（🆕2026-09-26 `S-37`＝**その札が持つ窓だけ**）。
- * - 自分・相手の両方のアタックフェイズに使える札＝守り／攻め／両方／使わない。
+ * - 自分・相手の両方のアタックフェイズに使える札＝守り／攻め／両方／使わない（いまはアタックフェイズの札は全部これ）。
  * - 自分のアタックフェイズだけ＝攻め／使わない（守りの窓が無い）。
  * ⚠**カード未選択（`undefined`）では全部**＝まだ絞れないので選択肢を減らさない。
  */

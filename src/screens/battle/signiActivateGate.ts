@@ -85,7 +85,8 @@ export function listActivatableSeedEffects(p: {
   contBlockedSelf?: Set<string>;
 }): CardEffect[] {
   const { my, op, zoneIndex, phase, isMyTurn, effectsMap, cardMap } = p;
-  if (!isMyTurn) return [];
+  // 🆕2026-09-26＝相手ターンは相手のアーツステップ（呼び出し元が `phase: 'ATTACK_ARTS'` で渡す）だけ開く。
+  if (!isMyTurn && phase !== 'ATTACK_ARTS') return [];
   const seedNum = my.field.signi_seeds?.[zoneIndex] ?? null;
   if (!seedNum) return [];
   if (my.abilities_removed?.includes(seedNum)) return [];
