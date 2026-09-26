@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-26（第479バッチ）🔴→✅ ルール R-30＝使用タイミングにアタックフェイズがあるものは相手ターンの相手のアーツステップでも使える（ユーザー確認）
+
+`src/screens/` を触った＋窓を足したので §2.2 により実機まで（`node scripts/verifyBattleDrive.mjs oppArtsStepSigniActivate` PASS 5秒 新設／`v268CpuDeckPlan` PASS 47秒）。`npm run gates` 全緑（golden 4415）。
+
+- **真因**＝相手のアーツステップ（`ATTACK_ARTS_OP`）を開いていたのはアーツ・アシストルリグ・手札の【起】だけで、**ピース／場のシグニ・シード・ルリグ・トラッシュ・エナの《アタックフェイズアイコン》【起】は自分のターンだけ**だった（人間も CPU も）。
+- **直し方**＝判定は既存のゲートのまま、入口を開けた：`BattleScreen` の `getMySigniZoneActions`／`getMyLrigFieldActions`（相手のアーツステップでゲートへ `phase:'ATTACK_ARTS'`・`isMyTurn:false`）、`offFieldActivateTiming`（全ゾーンで `ATTACK_ARTS_OP`）、`getMyTrash/EnergyCardActions` は窓の写経をやめて同関数を通す、`checkKeyPieceUse`（ピース）、`listActivatableSeedEffects`。トラッシュの「このターン使用できるスペル」は自分のターンだけのまま。
+- **CPU**＝`ATTACK_ARTS_OP` でピース／場のシグニ／ルリグの【起】も試す。⚠**作戦データで「守り／両方」と書いた札だけ**（`planAllowsUseIn(…, 'oppAttack', requireMark)`）＝指定なしは相手ターンに撃たない（従来の挙動を変えない・先読みなしで撃ち尽くさない）。場以外の【起】は従来どおり先読みで得なものだけ。
+- **作戦モーダル**＝アタックフェイズに使える札は全部「守り／攻め／両方／使わない」（第478バッチで「攻め／使わない」にしていた札も守りを出す）。
+- **検証**＝golden「2026-09-26 ルール：使用タイミングにアタックフェイズ…」新設（場以外の窓3ゾーン×3・ピースの窓・シード・人間の入口・CPU の指定4通り＋対照）。反転確認＝CPU の `requireMark` を外すと FAIL。実機＝CPU のターンの `ATTACK_ARTS_OP` で人間が `WX19-022-E2`（【起】ダウン）を撃ち、コスト→対象選択→相手のシグニがダウン。記録＝`docs/RULES.md` `R-30`。
+- ⚠**未確認**＝ルリグ【起】・ピース・トラッシュ／エナ【起】の相手ターン実行は実機で踏んでいない（実行関数はターン非依存＝golden と同じ判定を通る）。
+
 ## 2026-09-26（第478バッチ）作戦データ＝使うタイミングに「場のパワー〇以上／以下のシグニが n 体」／🏁`S-37` 使いどころはアタックフェイズに使える札だけ（守り／攻め）
 
 `src/screens/` を触った＋CPU の窓（アシストグロウ）を足したので §2.2 により実機まで（`node scripts/verifyBattleDrive.mjs v268CpuDeckPlan` PASS 48秒）。`npm run gates` 全緑。
