@@ -92647,11 +92647,14 @@ test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇
   const board = (ids: (string | null)[]) => mkState({ signi: ids as never });
   const opp = board([`${P12}#a`, `${P12}#b`, `${P3}#c`]);
   const me = board([null, null, null]);
-  const cond = (power: number, powerCmp: 'ge' | 'le' | undefined, cmp: 'ge' | 'le' | 'eq', n: number) =>
+  const cond = (power: number, powerCmp: 'ge' | 'le' | 'eq' | undefined, cmp: 'ge' | 'le' | 'eq', n: number) =>
     ({ side: 'opp', zone: 'field', cmp, n, power, ...(powerCmp ? { powerCmp } : {}) }) as const;
   ok(cpuTargetCondHolds([cond(12000, undefined, 'ge', 2)], 'and', me, opp, cardMap), '🔴相手の場のパワー12000以上が2体で成立しない');
   ok(!cpuTargetCondHolds([cond(12000, undefined, 'ge', 3)], 'and', me, opp, cardMap), '🔴パワー3000のシグニを12000以上として数えた');
   ok(cpuTargetCondHolds([cond(5000, 'le', 'eq', 1)], 'and', me, opp, cardMap), '🔴パワー5000以下がちょうど1体で成立しない');
+  // 🆕2026-09-26 ユーザー要望＝パワー「ちょうど」。
+  ok(cpuTargetCondHolds([cond(12000, 'eq', 'eq', 2)], 'and', me, opp, cardMap), '🔴パワー12000ちょうどが2体で成立しない');
+  ok(!cpuTargetCondHolds([cond(11000, 'eq', 'ge', 1)], 'and', me, opp, cardMap), '🔴パワー「ちょうど」を以上として数えた');
   ok(!cpuTargetCondHolds([{ ...cond(1000, undefined, 'ge', 1), side: 'me' }], 'and', me, opp, cardMap), '🔴自分の場（空）を相手の場として数えた');
   // 実効パワーが渡されたらそちらで数える（常在の修正込み）。
   const boosted = new Map([[`${P3}#c`, 15000]]);
@@ -92663,14 +92666,20 @@ test('2026-09-26 作戦データ：使うタイミングに「場のパワー〇
     JSON.stringify([{ side: 'opp', zone: 'field', cmp: 'ge', n: 2, power: 12000 }]), '🔴パワーの条件の正規化が違う（`ge` は保存しない）');
   eq(JSON.stringify(norm({ side: 'me', zone: 'field', cmp: 'le', n: 1, power: 5000.4, powerCmp: 'le' })),
     JSON.stringify([{ side: 'me', zone: 'field', cmp: 'le', n: 1, power: 5000, powerCmp: 'le' }]), '🔴`le` を落とした／丸めていない');
+  eq(JSON.stringify(norm({ side: 'me', zone: 'field', cmp: 'ge', n: 1, power: 3000, powerCmp: 'eq' })),
+    JSON.stringify([{ side: 'me', zone: 'field', cmp: 'ge', n: 1, power: 3000, powerCmp: 'eq' }]), '🔴パワー「ちょうど」を落とした');
   eq(JSON.stringify(norm({ side: 'me', zone: 'hand', cmp: 'ge', n: 1, power: 5000 })),
     JSON.stringify([{ side: 'me', zone: 'hand', cmp: 'ge', n: 1 }]), '🔴手札にパワーの条件を残した（効かない条件）');
-  eq(cpuTargetCondsLabel([cond(12000, undefined, 'ge', 2)]), '相手の場のパワー12000以上のシグニが2体以上', '🔴パワーの条件の表示が違う');
-  eq(cpuTargetCondsLabel([{ ...cond(5000, 'le', 'le', 1), side: 'me' }]), '自分の場のパワー5000以下のシグニが1体以下', '🔴パワー以下の表示が違う');
+  // ⚠パワーの条件の単位は「枚」（2026-09-26 ユーザー指定＝画面の入力欄の横と同じ `cpuCondUnit`）。
+  eq(cpuTargetCondsLabel([cond(12000, undefined, 'ge', 2)]), '相手の場のパワー12000以上のシグニが2枚以上', '🔴パワーの条件の表示が違う');
+  eq(cpuTargetCondsLabel([{ ...cond(5000, 'le', 'le', 1), side: 'me' }]), '自分の場のパワー5000以下のシグニが1枚以下', '🔴パワー以下の表示が違う');
+  eq(cpuTargetCondsLabel([cond(12000, 'eq', 'eq', 2)]), '相手の場のパワー12000ちょうどのシグニが2枚', '🔴パワー「ちょうど」の表示が違う');
   const resp = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
   ok(/fieldPowers,\r?\n\s+\}\),/.test(resp), '🔴本番の狙い方の解決に実効パワーを渡していない（印刷値で数える）');
   const modalP = fs.readFileSync(join(root, 'src/screens/deck/CpuDeckPlanModal.tsx'), 'utf-8');
   ok(modalP.includes('cpu-plan-cond-powercmp') && modalP.includes('cpu-plan-cond-power"'), '🔴作戦の画面にパワーの条件が無い');
+  ok(modalP.includes('cpu-plan-cond-unit') && modalP.includes('cpuCondUnit(') && modalP.includes('（状態指定なし）'),
+    '🔴枚数の単位が入力欄の外に出ていない／「状態指定なし」の表記でない');
 
   // ── ② S-37＝アーツ以外の窓（`planAllowsUseIn`）──
   const plan = (u?: string) => normalizeCpuDeckPlan(u ? { cardUse: { X: u } } : {});

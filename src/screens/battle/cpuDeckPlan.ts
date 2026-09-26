@@ -175,9 +175,9 @@ export interface CpuTargetCond {
   powerCmp?: CpuCondPowerCmp;
 }
 
-/** 🆕パワーの比べ方（「ちょうど」は置かない＝パワーは 1000 刻みでも修正で端数が出る）。 */
-export type CpuCondPowerCmp = 'ge' | 'le';
-export const CPU_COND_POWER_CMPS: readonly CpuCondPowerCmp[] = ['ge', 'le'];
+/** 🆕パワーの比べ方（🆕2026-09-26 ユーザー要望で「ちょうど」も）。 */
+export type CpuCondPowerCmp = 'ge' | 'le' | 'eq';
+export const CPU_COND_POWER_CMPS: readonly CpuCondPowerCmp[] = ['ge', 'le', 'eq'];
 /** パワーの上限（∞ は数えない＝入力の上限だけ決める）。 */
 export const CPU_COND_POWER_MAX = 99999;
 
@@ -195,18 +195,27 @@ export const CPU_COND_COMBINE_LABELS: Readonly<Record<CpuCondCombine, string>> =
   and: 'すべて満たす（AND）', or: 'どれか1つ満たす（OR）',
 };
 
+/**
+ * 🆕**条件の枚数の単位**（表示と画面の入力欄の横の両方がこれを読む＝食い違わせない）。
+ * ⚠パワーの条件は「枚」（2026-09-26 ユーザー指定）。
+ */
+export function cpuCondUnit(c: CpuTargetCond): string {
+  if (c.state) return stateUnit(c.state, c.zone as CpuStatePlace);
+  if (c.power !== undefined && c.zone === 'field') return '枚';
+  return c.zone === 'field' ? '体' : '枚';
+}
+
 /** 条件1つの表示（例「自分のライフが2枚以下」）。 */
 export function cpuTargetCondLabel(c: CpuTargetCond): string {
+  const unit = cpuCondUnit(c);
   if (c.state) {
     const def = cpuStateDef(c.state);
     const place = def?.group === 'player' ? '' : `${CPU_STATE_PLACE_LABELS[c.zone as CpuStatePlace] ?? c.zone}の`;
-    const unit = stateUnit(c.state, c.zone as CpuStatePlace);
     return `${CPU_COND_SIDE_LABELS[c.side]}の${place}${def?.label ?? c.state}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
   }
   if (c.power !== undefined && c.zone === 'field') {
-    return `${CPU_COND_SIDE_LABELS[c.side]}の場のパワー${c.power}${CPU_COND_CMP_LABELS[c.powerCmp ?? 'ge']}のシグニが${c.n}体${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
+    return `${CPU_COND_SIDE_LABELS[c.side]}の場のパワー${c.power}${CPU_COND_CMP_LABELS[c.powerCmp ?? 'ge']}のシグニが${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
   }
-  const unit = c.zone === 'field' ? '体' : '枚';
   return `${CPU_COND_SIDE_LABELS[c.side]}の${CPU_COND_ZONE_LABELS[c.zone]}が${c.n}${unit}${c.cmp === 'eq' ? '' : CPU_COND_CMP_LABELS[c.cmp]}`;
 }
 
@@ -243,7 +252,7 @@ function countFieldPower(
     const printed = cardMap?.get(getCardNum(top))?.Power;
     const p = fieldPowers?.get(top) ?? (printed === '∞' ? Infinity : parseInt(printed ?? '', 10));
     if (Number.isNaN(p)) continue;
-    if (cmp === 'le' ? p <= power : p >= power) n++;
+    if (cmp === 'le' ? p <= power : cmp === 'eq' ? p === power : p >= power) n++;
   }
   return n;
 }
@@ -308,7 +317,7 @@ function toCond(raw: unknown): CpuTargetCond | null {
     const powerCmp = CPU_COND_POWER_CMPS.includes(r.powerCmp as CpuCondPowerCmp) ? (r.powerCmp as CpuCondPowerCmp) : 'ge';
     return {
       side, zone: 'field', cmp, n: nn, power: Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(pw))),
-      ...(powerCmp === 'le' ? { powerCmp } : {}),
+      ...(powerCmp !== 'ge' ? { powerCmp } : {}),
     };
   }
   return { side, zone: zone as CpuCondZone, cmp, n: nn };

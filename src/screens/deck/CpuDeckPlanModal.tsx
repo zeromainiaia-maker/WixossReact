@@ -3,7 +3,7 @@ import type { CardData, Deck } from '../../types';
 import {
   CPU_CARD_USE_LABELS, CPU_ENA_USES, CPU_ENA_USE_LABELS,
   CPU_COMBO_USE_LABELS, CPU_TARGET_MODES_BY_SIDE, CPU_TARGET_MODE_LABELS_BY_SIDE,
-  CPU_COND_CMPS, CPU_COND_CMP_LABELS, CPU_COND_POWER_CMPS, CPU_COND_POWER_MAX, type CpuCondPowerCmp, CPU_COND_COMBINES, CPU_COND_COMBINE_LABELS, CPU_COND_SIDES, CPU_COND_SIDE_LABELS,
+  CPU_COND_CMPS, CPU_COND_CMP_LABELS, CPU_COND_POWER_CMPS, CPU_COND_POWER_MAX, cpuCondUnit, type CpuCondPowerCmp, CPU_COND_COMBINES, CPU_COND_COMBINE_LABELS, CPU_COND_SIDES, CPU_COND_SIDE_LABELS,
   CPU_COND_ZONES, CPU_COND_ZONE_LABELS, cpuTargetCondLabel, cpuTargetCondsLabel,
   EMPTY_CPU_DECK_PLAN, EMPTY_CPU_TARGET_PLAN, pruneCpuDeckPlan,
   type CpuCardUse, type CpuComboStep, type CpuEnaUse, type CpuComboUse, type CpuDeckPlan,
@@ -114,11 +114,11 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const addCond = () => {
     const n = Math.max(0, Math.min(99, Math.round(Number(condForm.n) || 0)));
     const { state, power, powerCmp, ...rest } = withValidZone(condForm);
-    // ⚠保存の形は正規化（`toCond`）と同じにする＝`powerCmp` は `le` のときだけ（同じ条件の重複判定を JSON で比べるため）。
+    // ⚠保存の形は正規化（`toCond`）と同じにする＝`powerCmp` は `ge` 以外のときだけ（同じ条件の重複判定を JSON で比べるため）。
     const pw = power === undefined ? undefined : Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(Number(power) || 0)));
     const c: CpuTargetCond = {
       ...rest, n, ...(state ? { state } : {}),
-      ...(pw !== undefined ? { power: pw, ...(powerCmp === 'le' ? { powerCmp } : {}) } : {}),
+      ...(pw !== undefined ? { power: pw, ...(powerCmp && powerCmp !== 'ge' ? { powerCmp } : {}) } : {}),
     };
     // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
     if (ruleConds.some(x => JSON.stringify(x) === JSON.stringify(c))) return;
@@ -396,7 +396,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               {/* 🆕特殊状態（空＝置き場の枚数そのもの）。見出しは4群。 */}
               <select data-testid="cpu-plan-cond-state" value={condForm.state ?? ''} style={{ ...selectStyle, fontSize: 11 }}
                 onChange={e => setCond({ ...condForm, state: e.target.value || undefined, zone: e.target.value ? condForm.zone : 'life' })}>
-                <option value="">（状態なし＝枚数そのもの）</option>
+                <option value="">（状態指定なし）</option>
                 {(Object.keys(CPU_STATE_GROUP_LABELS) as CpuStateGroup[]).map(g => (
                   <optgroup key={g} label={CPU_STATE_GROUP_LABELS[g]}>
                     {CPU_STATE_DEFS.filter(d => d.group === g).map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
@@ -436,6 +436,8 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               <input data-testid="cpu-plan-cond-n" type="number" min={0} max={99} value={condForm.n}
                 onChange={e => setCond({ ...condForm, n: Number(e.target.value) })}
                 style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
+              {/* 🆕2026-09-26＝枚数の単位を入力欄の外に出す（パワー指定のとき何の数か分かりづらかった）。単位は表示と同じ `cpuCondUnit`。 */}
+              <span data-testid="cpu-plan-cond-unit" style={{ color: '#ccc', fontSize: 11, alignSelf: 'center' }}>{cpuCondUnit(withValidZone(condForm))}</span>
               <select data-testid="cpu-plan-cond-cmp" value={condForm.cmp} style={{ ...selectStyle, fontSize: 11 }}
                 onChange={e => setCond({ ...condForm, cmp: e.target.value as CpuTargetCond['cmp'] })}>
                 {CPU_COND_CMPS.map(v => <option key={v} value={v}>{CPU_COND_CMP_LABELS[v]}</option>)}

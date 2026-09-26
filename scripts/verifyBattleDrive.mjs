@@ -60769,6 +60769,14 @@ scenarios.v268CpuDeckPlan = {
         await page.getByTestId('cpu-plan-cond-zone').selectOption('field', { timeout: 3000 });
         await page.getByTestId('cpu-plan-cond-powercmp').selectOption('ge', { timeout: 3000 });
         await page.getByTestId('cpu-plan-cond-power').fill('12000', { timeout: 3000 });
+        // 🆕2026-09-26＝枚数の単位は入力欄の外（パワー指定のとき「枚」）／状態の既定の表記は「（状態指定なし）」。
+        const unitText = (await page.getByTestId('cpu-plan-cond-unit').textContent().catch(() => '')) ?? '';
+        const stateNone = await page.getByTestId('cpu-plan-cond-state').locator('option[value=""]').textContent().catch(() => '');
+        if (unitText.trim() !== '枚' || stateNone !== '（状態指定なし）') {
+          return { pass: false, detail: `🔴単位／表記が違う（unit=${unitText} stateNone=${stateNone}）` };
+        }
+        const powerCmps = await page.getByTestId('cpu-plan-cond-powercmp').locator('option').evaluateAll(os => os.map(o => o.value));
+        if (!powerCmps.includes('eq')) return { pass: false, detail: `🔴パワーに「ちょうど」が無い（${JSON.stringify(powerCmps)}）` };
         await page.getByTestId('cpu-plan-cond-n').fill('2', { timeout: 3000 });
         await page.getByTestId('cpu-plan-cond-cmp').selectOption('ge', { timeout: 3000 });
         await page.getByTestId('cpu-plan-cond-add').click({ timeout: 1200 });
@@ -60847,7 +60855,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ3枚以下 または 相手の手札5枚以上 または 自分の手札の【ガード】1枚以上 または 相手の場のパワー12000以上が2体以上 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はその札が持つアタックフェイズの窓だけ・表示と値が一致） ②''''''エナの扱い（温存）が cpu_plan.enaUse に届いた（メインデッキの札だけ）` };
+      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ3枚以下 または 相手の手札5枚以上 または 自分の手札の【ガード】1枚以上 または 相手の場のパワー12000以上が2枚以上 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はその札が持つアタックフェイズの窓だけ・表示と値が一致） ②''''''エナの扱い（温存）が cpu_plan.enaUse に届いた（メインデッキの札だけ）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);
