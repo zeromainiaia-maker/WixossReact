@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { CardData } from '../src/types';
 import { deckLrigSetupProblem, DECK_LRIG_SETUP_PROBLEM_JA, lrigRolesOfRow, type DeckLrigRoles } from '../src/utils/deckLrigSetup';
-import { normalizeCpuDeckPlan, pruneCpuDeckPlan, EMPTY_CPU_DECK_PLAN, type CpuDeckPlan } from '../src/screens/battle/cpuDeckPlan';
+import { isEmptyCpuDeckPlan, normalizeCpuDeckPlan, pruneCpuDeckPlan, EMPTY_CPU_DECK_PLAN, type CpuDeckPlan } from '../src/screens/battle/cpuDeckPlan';
 
 /**
  * 🆕**自己対戦の「山」を差し替える**（§5.7 `S-23`／`S-20` ①③・2026-09-20）＝
@@ -170,7 +170,7 @@ export function formatDeckCoverage(decks: SelfPlayDeck[]): string {
   for (const d of decks) {
     const t = deckActionTypes(d);
     for (const x of t) union.add(x);
-    lines.push(`  山「${d.name}」＝踏みうる型 ${t.size}種／作戦データ ${d.plan.keyCards.length + d.plan.priorityCards.length + d.plan.combos.length > 0 ? 'あり' : 'なし'}`);
+    lines.push(`  山「${d.name}」＝踏みうる型 ${t.size}種／作戦データ ${isEmptyCpuDeckPlan(d.plan) ? 'なし' : 'あり'}`);
   }
   if (decks.length > 1) lines.push(`  合算＝${union.size}種`);
   return lines.join('\n');

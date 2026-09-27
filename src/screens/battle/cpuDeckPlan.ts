@@ -12,8 +12,13 @@ import {
  *   `S-1` の強さ表はカード1枚ずつの採点なので、**デッキ固有の役割とカード同士の組み合わせ**は表せない。探索（`S-3`）なしで決まる部分をデータで持つ。
  *
  * ■ 中身（`decks.cpu_plan`・CPU デッキだけ）
- *   - `keyCards`＝キーカード：エナに置かない・捨てない・マリガンで戻さない・サーチで優先する。
- *   - `priorityCards`＝優先して出す札。
+ *   - 🔴**キーカード（`keyCards`）は 2026-09-27 に撤去した**（ユーザー判断）＝「エナに置かない・捨てない・マリガンで戻さない」は
+ *     **Lv の高い札を序盤の手札に抱え込ませて弱くした**（インフル軸の実測＝コンボの札を守る同じ仕組みを止めると作戦なしと同じ試合に戻った）。
+ *     コンボの札を手元に残す加点（`comboKeep`）とマリガンで戻さない扱いも一緒に外した。保存済みの `keyCards` は読み捨てる。
+ *   - 🔴**「札の役割」（優先して出す `priorityCards`・狙う `prefer`・避ける `avoid`）も同日に撤去した**（ユーザー判断）＝
+ *     狙う／避けるは**効果の良し悪しを見ない一律の加点**（自分の札を「避ける」と強化の対象からも外れる）、優先は状況で変わる。
+ *     実測でも判断を1手も変えず（インフル軸の案4）、ユーザーの34デッキで使っているデッキは0件だった。保存済みの値は読み捨てる。
+ *     効果ごとの向きは**狙い方の規則**とコンボの手の「選ぶ先」で書く。
  *   - `combos`＝**順番に打つ手の列**（🆕§5.7 `S-14`）：1手ごとに**出す／【起】で使う／アーツで撃つ／スペルで使う**を持つ。
  *     後の手の札が手元にあれば前の手を先に打ち、前の手が済むまで後の手は温存し、前が済んだら後を最優先にする。
  *
@@ -40,7 +45,7 @@ export const CPU_COMBO_USE_LABELS: Readonly<Record<CpuComboUse, string>> = {
 /**
  * 🆕**その効果が「選ぶ」ときの選び方**（2026-09-25 ユーザー要望「コンボでカードの効果やその効果の選ぶ先まで決めたい」）。
  * - `opp`／`self`＝**相手の札を選ぶとき／自分の札を選ぶとき**の狙い方（🆕2026-09-26 `S-36`＝分けた。未指定＝規則へ落ちる）。
- * - `cards`＝**この札を優先して選ぶ**（対象・サーチ・公開から選ぶ、のどれにも効く＝`planTargetBonus`／`planKeepBonus` と同じ口）。
+ * - `cards`＝**この札を優先して選ぶ**（対象・サーチ・公開から選ぶ、のどれにも効く＝`planTargetBonus` と同じ口）。
  *   ⚠**自分のデッキの札だけ**（`pruneCpuDeckPlan` がデッキ外を落とす）。
  * ⚠旧形 `{ mode }` は**両側へ同じ狙い方**として読む（`normalizeCpuDeckPlan`＝旧の意味＝得になる側の並び）。
  */
@@ -71,6 +76,16 @@ export interface CpuComboStep {
  */
 export interface CpuDeckCombo {
   steps: CpuComboStep[];
+  /**
+   * 🆕2026-09-27＝**コンボを始める条件**（狙い方の規則と同じ形・判定も同じ `cpuTargetCondHolds`）。空・未指定＝いつでも。
+   * 🔑**見るのは「まだ1手も済んでいない」ときだけ**＝始めたコンボは条件が崩れても最後まで打つ
+   *   （「相手の場にウィルスが0」で始めたコンボは、1手目のクロコウジがウィルスを置いた瞬間に条件が崩れる）。
+   * 🔴**なぜ要るか（実測 2026-09-27・インフル軸）**＝条件の無い「クロコウジ → インフル」は、クロコウジの【出】が働かない盤面でも
+   *   クロコウジを先に出させ（配置 78回 vs 作戦なし 44回）、残ライフ差 −1.04 で有意に弱くなった。
+   */
+  conds?: CpuTargetCond[];
+  /** 条件の組み方（未指定＝`and`）。⚠`or` のときだけ保存する。 */
+  combine?: CpuCondCombine;
 }
 
 /**
@@ -356,17 +371,14 @@ export interface CpuTargetRule {
  *   ②**属性で狙う／避ける**（クラス・レベル・パワー帯）＝相手の山は分からず、効果ごとの規則で書くほうが正確
  *   ③**相手の札の名指し**＝相手の山は分からない（数千枚から1枚を当てにいく指定は当たらない）
  *   ⚠保存済みの①は `normalizeCpuDeckPlan` が**末尾の規則へ移す**（挙動を変えない）。②③は読み捨てる。
+ * 🔴**2026-09-27 に「狙う／避ける」（自分の札の固有指定）も削った**＝効果の良し悪しを見ない一律の加点だった（冒頭）。
  */
 export interface CpuTargetPlan {
-  /** 固有のカード指定＝**優先して狙う**札（自分のデッキの札）。 */
-  prefer: string[];
-  /** 固有のカード指定＝**狙わない**札（自分の札を守る）。 */
-  avoid: string[];
   /** 🆕§5.7 `S-32` ②③＝狙い方の切り替え規則（上から順・最初に当たった1つ）。 */
   rules?: CpuTargetRule[];
 }
 
-export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { prefer: [], avoid: [], rules: [] };
+export const EMPTY_CPU_TARGET_PLAN: CpuTargetPlan = { rules: [] };
 
 /**
  * 🆕**札の使いどころ**（§5.7 `S-31` ③・2026-09-21 ユーザー要望）。
@@ -418,8 +430,6 @@ export const CPU_ENA_USE_LABELS: Readonly<Record<CpuEnaUse, string>> = {
 };
 
 export interface CpuDeckPlan {
-  keyCards: string[];
-  priorityCards: string[];
   combos: CpuDeckCombo[];
   /** 🆕§5.7 `S-32`＝効果の対象の狙い方。 */
   targeting: CpuTargetPlan;
@@ -430,7 +440,7 @@ export interface CpuDeckPlan {
 }
 
 export const EMPTY_CPU_DECK_PLAN: CpuDeckPlan = {
-  keyCards: [], priorityCards: [], combos: [], targeting: EMPTY_CPU_TARGET_PLAN, cardUse: {}, enaUse: {},
+  combos: [], targeting: EMPTY_CPU_TARGET_PLAN, cardUse: {}, enaUse: {},
 };
 
 /**
@@ -459,7 +469,11 @@ function toCombo(c: Record<string, unknown>): CpuDeckCombo | null {
       const pick = toEffectPick(r.pick);
       steps.push({ num, use, ...(effectId ? { effectId } : {}), ...(pick ? { pick } : {}) });
     }
-    return steps.length > 0 ? { steps } : null;
+    if (steps.length === 0) return null;
+    // 🆕2026-09-27＝始める条件（規則の条件と同じ読み方＝知らない値は落とす）。
+    const conds = Array.isArray(c.conds) ? c.conds.map(toCond).filter((x): x is CpuTargetCond => !!x) : [];
+    const combine: CpuCondCombine = c.combine === 'or' && conds.length >= 2 ? 'or' : 'and';
+    return { steps, ...(conds.length > 0 ? { conds } : {}), ...(combine === 'or' ? { combine } : {}) };
   }
   // 🔴旧形＝「A を出す → B を出す」。
   const first = String(c.first ?? ''), then = String(c.then ?? '');
@@ -551,9 +565,11 @@ export function normalizeCpuDeckPlan(raw: unknown): CpuDeckPlan {
       ...(CPU_TARGET_MODES_BY_SIDE.self.includes(legacyMode) ? { self: { mode: legacyMode } } : {}),
     });
   }
-  const targeting: CpuTargetPlan = { prefer: strList(t.prefer), avoid: strList(t.avoid), rules: orderRules(rules) };
+  // 🔴`prefer`／`avoid` は読み捨てる（2026-09-27 撤去）。
+  const targeting: CpuTargetPlan = { rules: orderRules(rules) };
   return {
-    keyCards: strList(r.keyCards), priorityCards: strList(r.priorityCards), combos, targeting,
+    // 🔴`keyCards`・`priorityCards` は読み捨てる（2026-09-27 撤去＝保存済みの値があっても効かせない）。
+    combos, targeting,
     cardUse: toCardUseMap(r.cardUse),
     enaUse: toEnaUseMap(r.enaUse),
   };
@@ -597,28 +613,22 @@ export function pruneCpuDeckPlan(plan: CpuDeckPlan, deckCardNums: readonly strin
   const inDeck = new Set(deckCardNums.map(getCardNum));
   const t = plan.targeting ?? EMPTY_CPU_TARGET_PLAN;
   return {
-    keyCards: plan.keyCards.filter(n => inDeck.has(n)),
-    priorityCards: plan.priorityCards.filter(n => inDeck.has(n)),
     combos: plan.combos
       .filter(c => c.steps.every(st => inDeck.has(st.num)))
-      .map(c => ({ steps: c.steps.map(st => pruneStepPick(st, inDeck)) })),
-    // 🆕2026-09-25＝**相手の札の名指しを削った**＝狙う／避けるも自分のデッキの札だけ（デッキ外は落とす）。
-    //   規則の `sourceCards` も自分の札（効果を出す側）＝デッキから抜けたら規則ごと落とす（効果の指定だけ残すと
+      .map(c => ({ ...c, steps: c.steps.map(st => pruneStepPick(st, inDeck)) })),
+    // 規則の `sourceCards` は自分の札（効果を出す側）＝デッキから抜けたら規則ごと落とす（効果の指定だけ残すと
     //   「どの効果でも」に化けて意味が変わる）。
     targeting: {
-      prefer: t.prefer.filter(n => inDeck.has(n)),
-      avoid: t.avoid.filter(n => inDeck.has(n)),
       rules: orderRules((t.rules ?? []).filter(r => r.sourceCards.every(n => inDeck.has(n)))),
     },
-    // 🆕§5.7 `S-31` ③＝**使いどころは自分の札にしか書けない**（`keyCards` と同じ側）＝デッキから抜けたら落とす。
+    // 🆕§5.7 `S-31` ③＝**使いどころは自分の札にしか書けない**＝デッキから抜けたら落とす。
     cardUse: Object.fromEntries(Object.entries(plan.cardUse ?? {}).filter(([n]) => inDeck.has(n))),
     enaUse: Object.fromEntries(Object.entries(plan.enaUse ?? {}).filter(([n]) => inDeck.has(n))),
   };
 }
 
 export const isEmptyCpuDeckPlan = (plan: CpuDeckPlan): boolean =>
-  plan.keyCards.length === 0 && plan.priorityCards.length === 0 && plan.combos.length === 0
-  && (plan.targeting?.prefer.length ?? 0) === 0 && (plan.targeting?.avoid.length ?? 0) === 0
+  plan.combos.length === 0
   && (plan.targeting?.rules?.length ?? 0) === 0
   && Object.keys(plan.cardUse ?? {}).length === 0
   && Object.keys(plan.enaUse ?? {}).length === 0;
@@ -697,22 +707,18 @@ export function planEffectPick(
 
 /**
  * 🆕**固有のカード指定の加点**（§5.7 `S-32`）＝効果が対象・カードを選ぶときに使う。
- * 🆕2026-09-25＝狙う／避けるは**自分のデッキの札だけ**（相手の札の名指しは削った）。
+ * 🔴2026-09-27＝デッキ全体の「狙う／避ける」は撤去した＝**コンボの手が名指しした札（その効果のときだけ）**だけを加点する。
  */
 export function planTargetBonus(
-  plan: CpuDeckPlan, id: string, policy?: CpuPolicy,
+  id: string, policy?: CpuPolicy,
   /** 🆕2026-09-25＝いま解決中の効果に当たるコンボの手の「選び方」（`planEffectPick`）＝その札を優先して選ぶ。 */
   pick?: CpuEffectPick,
 ): number {
   const num = getCardNum(id);
   const W = policy?.planWeights ?? PLAN_WEIGHTS;
-  const t = plan.targeting;
-  let bonus = t ? (t.prefer.includes(num) ? W.targetPrefer : 0) + (t.avoid.includes(num) ? W.targetAvoid : 0) : 0;
-  if (pick?.cards?.includes(num)) bonus += W.targetPrefer;
-  return bonus;
+  return pick?.cards?.includes(num) ? W.targetPrefer : 0;
 }
 
-/** 手元に残す価値の加点（エナチャージ・手札上限の捨て札・サーチで使う）。 */
 /**
  * 🆕**その札の使いどころ**（§5.7 `S-31` ③）。指定が無ければ `undefined`＝**既定＝従来の挙動**。
  * 🔑**読むのはここ1本**＝アーツ・スペル・【起】・ピースの選び手は全部この関数を通す
@@ -782,21 +788,6 @@ export function planEnaPayRank(plan: CpuDeckPlan | undefined, id: string): numbe
 /** 作戦データにエナの扱いの指定が1つでもあるか（無ければ支払いの並びを1ビットも変えない）。 */
 export const planHasEnaUse = (plan: CpuDeckPlan | undefined): boolean => Object.keys(plan?.enaUse ?? {}).length > 0;
 
-export function planKeepBonus(plan: CpuDeckPlan, id: string, policy?: CpuPolicy): number {
-  const num = getCardNum(id);
-  const W = policy?.planWeights ?? PLAN_WEIGHTS;
-  let bonus = 0;
-  if (plan.keyCards.includes(num)) bonus += W.keyKeep;
-  if (plan.combos.some(c => c.steps.some(st => st.num === num))) bonus += W.comboKeep;
-  return bonus;
-}
-
-/** マリガンで戻さない札（キーカードとコンボのパーツ）。 */
-export function planKeepsInMulligan(plan: CpuDeckPlan, id: string): boolean {
-  const num = getCardNum(id);
-  return plan.keyCards.includes(num) || plan.combos.some(c => c.steps.some(st => st.num === num));
-}
-
 /**
  * 🆕**加点を測るための盤面**（§5.7 `S-14`）＝「その手がもう済んだか」「その札がまだ手元にあるか」を見るのに要る。
  * ⚠**instance ID（`#…`）でもカード番号でもよい**（`getCardNum` で剥がす）。
@@ -823,16 +814,55 @@ export interface CpuPlanBoardCtx {
   lrigTrash?: readonly string[];
   /** 🆕使用済みのスペル（トラッシュ）。 */
   trash?: readonly string[];
+  /**
+   * 🆕2026-09-27＝**コンボを始める条件**（`CpuDeckCombo.conds`）を判定する盤面。
+   * ⚠**無ければ条件つきのコンボは「条件を満たさない」扱い**（確かめられない条件で加点しない）。
+   */
+  condBoard?: { me: PlayerState; opp: PlayerState; cardMap?: Map<string, CardData> };
+  /**
+   * 🆕2026-09-27＝**このターンにあと何を出せるか**（「出す」手どうしのコンボが同じターンに収まるかの判定）。
+   * ⚠**無ければ従来どおり**（手元にあるかだけを見る）。作るのは `cpuMoves.cpuPlanDeployRoom`。
+   */
+  deployRoom?: CpuPlanDeployRoom;
+}
+
+/** 🆕2026-09-27＝このターンの召喚の残り枠（`cpuDeployBudget` と体数上限から作る）。 */
+export interface CpuPlanDeployRoom {
+  /** センタールリグのレベル（これを超えるシグニは出せない）。 */
+  lrigLevel: number;
+  /** リミットの残り（リミット − 場のシグニの合計レベル）。 */
+  limitLeft: number;
+  /** あと何体出せるか（空きゾーンと体数上限の小さいほう）。 */
+  zonesLeft: number;
+  /** カード番号 → レベル。 */
+  levelOf: (num: string) => number;
+}
+
+/** 🆕2026-09-27＝**この札をまとめてこのターンに出せるか**（レベル・リミットの残り・体数）。 */
+export function cpuPlanDeploysFit(room: CpuPlanDeployRoom, nums: readonly string[]): boolean {
+  if (nums.length > room.zonesLeft) return false;
+  let sum = 0;
+  for (const n of nums) {
+    const lv = room.levelOf(n);
+    if (lv > room.lrigLevel) return false;
+    sum += lv;
+  }
+  return sum <= room.limitLeft;
 }
 
 /**
  * 🆕**その札をその使い方で「いま」使うことへの加点**（§5.7 `S-14`・2026-09-21）。
  *
- * - **優先して出す札**＝`deploy` のときだけ `priorityDeploy`。
  * - **コンボ**＝その手がコンボの何手目かで決まる：
  *   - **前の手が全部済んでいる** → 1手目なら `comboFirst`（⚠**後ろの手の札が手元にあるときだけ**）／2手目以降は `comboThenReady`。
  *   - **前の手が済んでいない** → `comboThenHold`（負＝温存する。⚠**その前の札が手元にあるときだけ**）。
  *   - **もう済んだ手**は加点しない。
+ * - 🆕2026-09-27＝**始める条件**（`conds`）＝まだ1手も済んでいないコンボは、条件を満たすときだけ加点・温存する。
+ * - 🆕2026-09-27＝**「出す」どうしは同じターンに収まるときだけ**（`deployRoom` があるとき）＝
+ *   1手目の `comboFirst` は**次の手が出す手なら、その札が手札にあり2枚ともこのターンに出せるとき**だけ／
+ *   `comboThenHold` は**前の出す手と合わせてこのターンに出せるとき**だけ。
+ *   🔴**なぜ要るか（実測 2026-09-27・インフル軸）**＝Lv1 のクロコウジを「インフルが手札にある」だけで先に出し、
+ *   インフル（Lv4）を出せないターンにもゾーンを埋めていた。
  * 🔑**「済んだ」の判定は使い方ごと**＝`deploy`＝場にいる／`activate`＝このターンその札の【起】を使った／
  *   `arts`＝ルリグトラッシュにある／`spell`＝トラッシュにある。
  *   ⚠**`arts`／`spell` は「このターン使った」ではなく「使用済みの置き場にある」の近似**（ターンを跨いでも済み扱い）。
@@ -859,21 +889,40 @@ export function planUseBonus(
       case 'spell': return trash.has(st.num);
     }
   };
-  let bonus = use === 'deploy' && plan.priorityCards.includes(num) ? W.priorityDeploy : 0;
+  const inHand = nums(ctx.hand);
+  const room = ctx.deployRoom;
+  /** この手を打てる手元か（`deployRoom` があるとき「出す」手は手札だけ＝トラッシュ・エナからは出せない）。 */
+  const ready = (st: CpuComboStep) => (room && st.use === 'deploy' ? inHand.has(st.num) : avail.has(st.num));
+  /** これらの手（のうち出す手）をこのターンにまとめて出せるか（`deployRoom` が無ければ常に真＝従来どおり）。 */
+  const fits = (steps: readonly CpuComboStep[]) =>
+    !room || cpuPlanDeploysFit(room, steps.filter(st => st.use === 'deploy').map(st => st.num));
+  const thisStep: CpuComboStep = { num, use };
+  let bonus = 0;
   for (const c of plan.combos) {
     // 🆕**効果を名指しした【起】の手は、その効果の手でだけ当たる**（同じ札の別の【起】に加点しない）。
     const i = c.steps.findIndex(st => st.num === num && st.use === use
       && !(use === 'activate' && st.effectId && effectId && st.effectId !== effectId));
     if (i < 0 || done(c.steps[i])) continue;
+    // 🆕始める条件＝まだ1手も済んでいないときだけ見る（始めたコンボは最後まで打つ）。
+    if (c.conds?.length && !c.steps.some(done)) {
+      const b = ctx.condBoard;
+      if (!b || !cpuTargetCondHolds(c.conds, c.combine, b.me, b.opp, b.cardMap)) continue;
+    }
     const prior = c.steps.slice(0, i);
     if (!prior.every(done)) {
       // まだ前の手が残っている＝温存する（⚠その前の札が手元にあるときだけ＝引けていないなら待たない）。
-      if (prior.some(st => !done(st) && avail.has(st.num))) bonus += W.comboThenHold;
+      // 🆕⚠前の出す手と合わせてこのターンに出せないなら待たない（待っても今ターンは並ばない）。
+      const pending = prior.filter(st => !done(st) && ready(st));
+      if (pending.length > 0 && fits([...pending, thisStep])) bonus += W.comboThenHold;
       continue;
     }
     if (i > 0) { bonus += W.comboThenReady; continue; }
     const later = c.steps.slice(1);
-    if (later.length === 0 || later.some(st => avail.has(st.num))) bonus += W.comboFirst;
+    const next = later[0];
+    const nextFits = room && next?.use === 'deploy'
+      ? ready(next) && fits([thisStep, next])
+      : later.some(st => avail.has(st.num));
+    if (later.length === 0 || nextFits) bonus += W.comboFirst;
   }
   return bonus;
 }
@@ -885,6 +934,8 @@ export function planUseBonus(
  */
 export function cpuPlanBoardCtx(
   st: PlayerState, effectIdsOf?: (num: string) => readonly string[],
+  /** 🆕2026-09-27＝相手の盤面（コンボの始める条件）と召喚の残り枠。 */
+  extra?: { opp?: PlayerState; cardMap?: Map<string, CardData>; deployRoom?: CpuPlanDeployRoom },
 ): CpuPlanBoardCtx {
   const field = [...st.field.signi.map(stk => stk?.at(-1) ?? ''), ...st.field.lrig].filter(Boolean);
   return {
@@ -895,6 +946,8 @@ export function cpuPlanBoardCtx(
     effectIdsOf,
     lrigTrash: st.lrig_trash,
     trash: st.trash,
+    ...(extra?.opp ? { condBoard: { me: st, opp: extra.opp, cardMap: extra.cardMap } } : {}),
+    ...(extra?.deployRoom ? { deployRoom: extra.deployRoom } : {}),
   };
 }
 
@@ -904,6 +957,8 @@ export function cpuPlanBoardCtx(
  */
 export function planDeployBonus(
   plan: CpuDeckPlan, id: string, handIds: readonly string[], fieldIds: readonly string[], policy?: CpuPolicy,
+  /** 🆕2026-09-27＝コンボの始める条件・召喚の残り枠（`cpuPlanBoardCtx` の同名と同じ）。 */
+  extra?: Pick<CpuPlanBoardCtx, 'condBoard' | 'deployRoom'>,
 ): number {
-  return planUseBonus(plan, id, 'deploy', { hand: handIds, field: fieldIds }, policy);
+  return planUseBonus(plan, id, 'deploy', { hand: handIds, field: fieldIds, ...extra }, policy);
 }

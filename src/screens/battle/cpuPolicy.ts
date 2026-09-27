@@ -27,25 +27,18 @@ export type StrengthWeights = Record<keyof CardFeatures, number>;
 
 /**
  * 🆕§5.7 `S-6` 第2段＝**デッキの作戦データ（`S-2`）の足し引き**（`cpuDeckPlan.PLAN_WEIGHTS` の実体）。
- * ⚠`--a-set` では **`plan.` を前に付ける**（`plan.keyKeep=10000`）。
+ * ⚠`--a-set` では **`plan.` を前に付ける**（`plan.comboFirst=10000`）。
  */
 export interface PlanWeights {
-  /** キーカードをエナ・捨て札にしない。 */
-  keyKeep: number;
-  /** コンボのパーツを手元に残す。 */
-  comboKeep: number;
-  /** 優先して出す。 */
-  priorityDeploy: number;
+  // 🔴2026-09-27＝`keyKeep`・`comboKeep`・`priorityDeploy`・`targetAvoid` は撤去した（`cpuDeckPlan.ts` 冒頭）。
   /** コンボの始動札（相方が手札にある）。 */
   comboFirst: number;
   /** コンボの仕上げ札（始動札が場にある）。 */
   comboThenReady: number;
   /** コンボの仕上げ札を温存（始動札が手札にあって、まだ場にいない）＝**負の値**。 */
   comboThenHold: number;
-  /** 🆕§5.7 `S-32`＝**狙う札**（効果の対象に指定された固有のカード）への加点。 */
+  /** 🆕§5.7 `S-32`＝**コンボの手が名指しした「選ぶ先」の札**への加点。 */
   targetPrefer: number;
-  /** 🆕§5.7 `S-32`＝**狙わない札**への減点＝**負の値**。 */
-  targetAvoid: number;
 }
 
 /**
@@ -350,13 +343,11 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   },
   // 🆕§5.7 `S-6` 第2段＝**旧 `cpuDeckPlan.PLAN_WEIGHTS` をそのまま移設**。
   planWeights: {
-    keyKeep: 20000, comboKeep: 4000, priorityDeploy: 4000,
     comboFirst: 5000, comboThenReady: 8000, comboThenHold: -8000,
-    // 🆕§5.7 `S-32`（2026-09-21 ユーザー要望）＝**対象の狙い方**。
-    //   🔑**既定の作戦は空なので挙動は変わらない**（指定したデッキだけ動く）。
-    //   値は `keyKeep`（20000＝手元に残す価値）より小さく、`comboThenReady`（8000）より大きい桁に置いた
-    //   ＝**「この札を狙え」は強さの差（パワー数千）を覆すが、手元に残す判断ほどは強くない**。
-    targetPrefer: 12000, targetAvoid: -12000,
+    // 🆕§5.7 `S-32`（2026-09-21 ユーザー要望）＝**コンボの手が名指しした「選ぶ先」の札**への加点。
+    //   🔴2026-09-27＝デッキ全体の「狙う／避ける」（と `targetAvoid`）は撤去した＝いまはコンボの手の指定だけが使う。
+    //   値は `comboThenReady`（8000）より大きい桁に置いた＝**「この札を選べ」は強さの差（パワー数千）を覆す**。
+    targetPrefer: 12000,
   },
   // 🆕§5.7 `S-6` 第2段＝**旧 `cpuInteraction.CPU_GUARD_KEEP_VALUE` をそのまま移設**。
   guardKeepValue: 8000,

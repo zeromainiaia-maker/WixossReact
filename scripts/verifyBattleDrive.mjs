@@ -60568,12 +60568,12 @@ order.push('v267CpuInteractionPolicy');
 
 // ── 🆕§5.1 `V-268`（2026-09-17）＝**CPU デッキの作戦データ**（§5.7 `S-2`）──
 // 🔑ユーザー指摘「使うデッキによって強い行動が変わる」「コンボが強い」＝デッキごとにキーカード・優先して出す札・コンボを持たせた（`decks.cpu_plan`）。
-// 観測点＝①対戦：CPU デッキ（このルームの `guest_deck_id`）の作戦で WD03-013 をキーカードにすると、CPU のエナフェイズで
-//   同じ強さ（3000・効果なし）の WX04-080 をエナに置く（作戦なしなら手札の先頭＝WD03-013）
-//   ②画面：CPU デッキの編集画面「🤖 CPU の作戦」の［キー］が DB（`cpu_plan.keyCards`）に届く。
-// 🔑**反転は①の中で取る**＝作戦を空にした同じ盤面では WD03-013 を置く（キーカードの有無だけが違う）。
+// 🔴2026-09-27＝**キーカードは撤去した**（ユーザー判断＝Lv の高い札を初手に抱え込ませて弱くした・`cpuDeckPlan.ts` 冒頭）。
+// 観測点＝①対戦：**保存済みの `keyCards` が DB に残っていても効かない**＝作戦なしと同じ札（手札の先頭＝WD03-013）をエナに置く
+//   ②画面：「🤖 CPU の作戦」に［キー］が無い ②'〜 コンボ・狙い方・使いどころ・エナの扱いが DB に届く
+//   🆕②'c コンボの「始める条件」が DB に届き、手を足しても消えない。
 scenarios.v268CpuDeckPlan = {
-  title: 'V-268 CPU デッキの作戦：キーカードはエナに置かない（対戦）／［キー］とコンボの「使い方」が保存される（画面・V-283）',
+  title: 'V-268 CPU デッキの作戦：保存済みのキーカードは効かない（対戦）／コンボの「使い方」と「始める条件」が保存される（画面・V-283）',
   spec: {
     guestSet: { 'field.lrig': ['WD03-004#g1'], 'hand': ['WD03-013#g71', 'WX04-080#g72'], 'energy': [], 'actions_done': [], 'field.signi': [null, null, null] },
     top: { active: 'cpu', turn_phase: 'ENERGY', turn_count: 3 },
@@ -60620,14 +60620,14 @@ scenarios.v268CpuDeckPlan = {
     };
     try {
       const withoutPlan = await chargeWith(null, '作戦なし');
-      const withPlan = await chargeWith({ keyCards: ['WD03-013'], priorityCards: [], combos: [] }, '作戦あり');
+      const withPlan = await chargeWith({ keyCards: ['WD03-013'], priorityCards: [], combos: [] }, '旧キーカードあり');
       if (!withoutPlan || !withPlan) return { pass: false, detail: `前提崩れ＝CPU のエナチャージを観測できない（なし=${JSON.stringify(withoutPlan)} あり=${JSON.stringify(withPlan)}）` };
       if (!withoutPlan.includes('WD03-013#g71')) return { pass: false, detail: `前提崩れ＝作戦なしで手札の先頭（WD03-013）以外を置いた（${JSON.stringify(withoutPlan)}）` };
-      if (withPlan.includes('WD03-013#g71') || !withPlan.includes('WX04-080#g72')) {
-        return { pass: false, detail: `🔴キーカード（WD03-013）をエナに置いた＝作戦データが CPU に届いていない（${JSON.stringify(withPlan)}）` };
+      if (!withPlan.includes('WD03-013#g71')) {
+        return { pass: false, detail: `🔴撤去したキーカード（WD03-013）がまだ効いている＝エナに置かなかった（${JSON.stringify(withPlan)}）` };
       }
 
-      // ② 画面＝［キー］が DB に届く（START 画面へ行くためルームを一時停止）
+      // ② 画面＝［キー］が無い（START 画面へ行くためルームを一時停止）
       await setPlan(deck.id, null);
       const paused = await rest(async (URL_, h, uid) => {
         const rooms = (await (await fetch(`${URL_}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h })).json()) ?? [];
@@ -60649,14 +60649,12 @@ scenarios.v268CpuDeckPlan = {
         if (!(await open.count())) return { pass: false, detail: '🔴CPU デッキのデッキ設定に「🤖 CPU の作戦」が無い' };
         await open.click();
         await page.waitForTimeout(600);
-        const keyBtn = page.getByTestId('cpu-plan-key-WD03-013').first();
-        if (!(await keyBtn.count())) return { pass: false, detail: '🔴CPU の作戦にデッキのカード（WD03-013）の［キー］が無い' };
-        await keyBtn.click();
-        await page.waitForTimeout(1500);
         await page.screenshot({ path: `${SHOT}/v268-plan.png`, fullPage: true });
-        const saved = await readPlan(deck.id);
-        H.log(`② 保存された cpu_plan=${JSON.stringify(saved)}`);
-        if (!(saved?.keyCards ?? []).includes('WD03-013')) return { pass: false, detail: `🔴［キー］を押しても DB に届かない（${JSON.stringify(saved)}）` };
+        // 🔴2026-09-27＝「札の役割」（［キー］［優先］［狙う］［避ける］）は節ごと撤去した。
+        for (const p of ['key', 'priority', 'prefer', 'avoid']) {
+          if (await page.locator(`[data-testid^="cpu-plan-${p}-"]`).count()) return { pass: false, detail: `🔴撤去した「札の役割」（cpu-plan-${p}-）が CPU の作戦に残っている` };
+        }
+        if (!(await page.getByTestId('cpu-plan-combo-card').count())) return { pass: false, detail: '前提崩れ＝コンボの入力欄も無い（作戦の画面が開いていない）' };
 
         // 🆕§5.1 `V-283`（§5.7 `S-14`・2026-09-21）＝**コンボの「使い方」が画面から保存できる**。
         // 🔑**ここだけが未踏だった**＝上の②が押すのは［キー］だけで、
@@ -60729,15 +60727,24 @@ scenarios.v268CpuDeckPlan = {
         if ((saved2b?.combos ?? []).length !== 1 || steps2b.length !== 3 || steps2b[2]?.num !== thirdCard || steps2b[2]?.pick?.opp?.mode !== 'killable') {
           return { pass: false, detail: `🔴保存済みのコンボに手（選ぶ先つき）を足せない（${JSON.stringify(saved2b?.combos)}）` };
         }
-        // 🆕§5.7 `S-32`＝**狙う**（自分の札の固有指定）も画面から保存できる。
-        //   🔴2026-09-25＝「既定の狙い方」「属性で狙う／避ける」「相手の札を名指し」は削った（ユーザー判断）。
-        await page.getByTestId(`cpu-plan-prefer-${comboA}`).click({ timeout: 1200 });
+        // 🆕2026-09-27＝**コンボを始める条件**（足し先＝いま緑枠のコンボ1）＝「相手の場のウィルスが0個」。
+        //   🔑**手を足した後に付ける**＝手の追加・並べ替え（`setStepsOf`）で条件が消えないことも同時に見る。
+        await page.getByTestId('cpu-plan-combo-cond-side').selectOption('opp', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-combo-cond-state').selectOption('virus', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-combo-cond-n').fill('0', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-combo-cond-cmp').selectOption('eq', { timeout: 3000 });
+        await page.getByTestId('cpu-plan-combo-cond-add').click({ timeout: 1200 });
         await page.waitForTimeout(1500);
-        const saved3 = await readPlan(deck.id);
-        H.log(`②'' 保存された targeting=${JSON.stringify(saved3?.targeting)}`);
-        if (!(saved3?.targeting?.prefer ?? []).includes(comboA)) {
-          return { pass: false, detail: `🔴「狙う」が DB に届かない（${JSON.stringify(saved3?.targeting)}）` };
+        // 3手目を1つ上へ（手の並べ替えでも条件が残るか）
+        await page.locator('button:has-text("↑")').nth(2).click({ timeout: 1200 }).catch(() => {});
+        await page.waitForTimeout(1500);
+        const saved2c = await readPlan(deck.id);
+        H.log(`②'c 始める条件つきの cpu_plan.combos=${JSON.stringify(saved2c?.combos)}`);
+        const cond2c = saved2c?.combos?.[0]?.conds?.[0];
+        if ((saved2c?.combos?.[0]?.steps ?? []).length !== 3 || cond2c?.side !== 'opp' || cond2c?.state !== 'virus' || cond2c?.cmp !== 'eq' || cond2c?.n !== 0) {
+          return { pass: false, detail: `🔴コンボの始める条件が DB に届かない／手を並べ替えたら消えた（${JSON.stringify(saved2c?.combos)}）` };
         }
+        if (!(await page.getByTestId('cpu-plan-combo-conds-0').count())) return { pass: false, detail: '🔴保存したコンボの始める条件が一覧に出ない' };
 
         // 🆕§5.7 `S-32` ②③＝**狙い方の切り替え規則**（効果ごと・盤面の条件つき）も画面から保存できる。
         // 🆕2026-09-25＝値は `<カード番号>|<effectId>`（effectId 空＝その札のどの効果でも）。
@@ -60855,7 +60862,7 @@ scenarios.v268CpuDeckPlan = {
       } finally {
         await rest(async (URL_, h, uid, a) => { for (const id of a.ids) await fetch(`${URL_}/rest/v1/rooms?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ status: 'PLAYING' }) }); return true; }, { ids: paused });
       }
-      return { pass: true, detail: `①作戦なし＝WD03-013 をエナ／作戦あり（キーカード WD03-013）＝WX04-080 をエナ ②画面の［キー］が cpu_plan.keyCards に保存された ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②''［狙う］と ②''''狙い方の切替規則（この札の効果・自分のライフ3枚以下 または 相手の手札5枚以上 または 自分の手札の【ガード】1枚以上 または 相手の場のパワー12000以上が2枚以上 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はその札が持つアタックフェイズの窓だけ・表示と値が一致） ②''''''エナの扱い（温存）が cpu_plan.enaUse に届いた（メインデッキの札だけ）` };
+      return { pass: true, detail: `①作戦なし・旧キーカードあり（撤去済み）のどちらも WD03-013 をエナ ②画面に「札の役割」（キー・優先・狙う・避ける）が無い ②'コンボの「使い方」（【起】で使う → 出す）が cpu_plan.combos[0].steps に届いた ②'b保存済みのコンボに3手目（選ぶ先＝落とせるもの）を足せた ②'cコンボの始める条件（相手の場のウィルス0個）が保存され、手を並べ替えても残った ②''''狙い方の切替規則（この札の効果・自分のライフ3枚以下 または 相手の手札5枚以上 または 自分の手札の【ガード】1枚以上 または 相手の場のパワー12000以上が2枚以上 → 相手の札は弱いもの／自分の札はアップ状態を優先）が cpu_plan.targeting に届いた ②'''''札の使いどころが cpu_plan.cardUse に届いた（選択肢はその札が持つアタックフェイズの窓だけ・表示と値が一致） ②''''''エナの扱い（温存）が cpu_plan.enaUse に届いた（メインデッキの札だけ）` };
     } finally {
       await setPlan(deck.id, original).catch(() => {});
       H.log(`片付け＝CPU デッキの作戦を元に戻した（${JSON.stringify(original)}）`);

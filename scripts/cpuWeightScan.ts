@@ -102,14 +102,10 @@ export const SCAN_KNOBS: readonly ScanKnob[] = [
   { key: 'keyword.バニッシュされない', base: 3000, values: [1500, 6000] },
   { key: 'keyword.シュート', base: 2000, values: [1000, 4000] },
   // ── 🆕作戦データの足し引き（`plan.`）⚠**作戦データを持つ山でしか効かない**（`cpu_plan` つきは実測5デッキ）──
-  { key: 'plan.keyKeep', base: 20000, values: [10000, 40000] },
-  { key: 'plan.comboKeep', base: 4000, values: [2000, 8000] },
-  { key: 'plan.priorityDeploy', base: 4000, values: [2000, 8000] },
   { key: 'plan.comboFirst', base: 5000, values: [2500, 10000] },
   { key: 'plan.comboThenReady', base: 8000, values: [4000, 16000] },
   { key: 'plan.comboThenHold', base: -8000, values: [-4000, -16000] },
   { key: 'plan.targetPrefer', base: 12000, values: [6000, 24000] },
-  { key: 'plan.targetAvoid', base: -12000, values: [-6000, -24000] },
   // ── 🆕手札の【ガード】を手元に置く価値（効果で手札を捨てるときの並び）──
   { key: 'guardKeepValue', base: 8000, values: [4000, 16000] },
   // ── 🆕2026-09-26＝スペルを手札に残す加点（0＝旧挙動＝スペルが真っ先にエナへ行く）。

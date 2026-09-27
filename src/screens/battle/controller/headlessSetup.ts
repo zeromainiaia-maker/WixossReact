@@ -38,7 +38,7 @@ export function buildHeadlessSide(
       lrigWithIds, mainWithIds, centerId: at(deck.roles.centerLrig)!,
       assistLId: at(deck.roles.assistLrigL), assistRId: at(deck.roles.assistLrigR), cardMap,
     }),
-    cardMap, plan: deck.plan, policy,
+    cardMap, policy,
   });
 }
 

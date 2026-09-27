@@ -45,24 +45,7 @@ export const cpuPlanHasActivated = (card: CardData | undefined): boolean => {
   return (card.EffectText ?? '').includes('【起】');
 };
 
-/** 一覧の行に出すチップ。 */
-export type CpuPlanChip = 'key' | 'priority' | 'prefer' | 'avoid';
-
-/**
- * その札の行に出してよいチップ（🔴**効かない操作を出さない**）。
- * - `key`＝**メインデッキの札だけ**。`planKeepBonus`／`planKeepsInMulligan` が効くのは
- *   **エナチャージ・手札上限の捨て札・手札を捨てるコスト・サーチ・マリガン**＝どれも手札／山／エナの話で、
- *   ルリグデッキの札（ルリグ・アーツ・キー・ピース・レゾナ）は**そのどこにも行かない**。
- * - `priority`＝**出す札だけ**。`planUseBonus` が `priorityDeploy` を足すのは `use === 'deploy'` のときだけ。
- * - `prefer`/`avoid`＝**全部**（`planTargetBonus` は効果が選んだ対象すべてに掛かる＝場・手札・トラッシュ・エナ）。
- */
-export function cpuPlanChipsFor(card: CardData | undefined, inMainDeck: boolean): readonly CpuPlanChip[] {
-  const out: CpuPlanChip[] = [];
-  if (inMainDeck) out.push('key');
-  if (cpuPlanIsDeployable(card)) out.push('priority');
-  out.push('prefer', 'avoid');
-  return out;
-}
+// 🔴2026-09-27＝「札の役割」の一覧（［キー］［優先］［狙う］［避ける］のチップ）は撤去した（`cpuDeckPlan.ts` 冒頭）。
 
 /**
  * 🆕**その札をアタックフェイズのどの窓で使えるか**（2026-09-26 `S-37`・ユーザー判断＝「使いどころ」はアタックフェイズに使える札だけ）。

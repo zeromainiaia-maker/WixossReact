@@ -155,8 +155,6 @@ export interface CpuLrigActivatedPickInput {
   effectivePowers?: Map<string, number>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
-  /** 🆕§5.7 `S-31` ② 第2段＝手札を捨てるコストで「手元に残す価値」を見る（作戦データ）。 */
-  planKeepBonus?: (id: string) => number;
   /** 🆕§5.7 `S-31` ② 第2段＝捨てる／落とす順の重み（席ごとのポリシー）。 */
   policy?: CpuPolicy;
   /**
@@ -199,7 +197,7 @@ export function* iterCpuLrigActivated(p: CpuLrigActivatedPickInput): Generator<C
     // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコスト（**選び方は場のシグニ【起】と同じ関数**）。
     const handDiscardIndices = pickCpuDiscardCostIndices({
       hand: p.actor.hand, cost: effect.cost, cardMap: p.cardMap,
-      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], keepBonus: p.planKeepBonus, policy: p.policy,
+      effectsOf: id => p.effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
     });
     if (!handDiscardIndices) continue;
     const energyTrashIndices = pickCpuEnergyTrashIndices({

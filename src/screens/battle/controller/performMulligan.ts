@@ -1,7 +1,6 @@
 import type { CardData, PlayerState } from '../../../types';
 import { getCardNum } from '../../../engine/execUtils';
 import { pickCpuMulliganIndices } from '../cpuHandLimit';
-import { planKeepsInMulligan, type CpuDeckPlan } from '../cpuDeckPlan';
 import type { CpuPolicy } from '../cpuPolicy';
 import { applyMulligan } from '../mulligan';
 
@@ -25,13 +24,12 @@ import { applyMulligan } from '../mulligan';
 export function performCpuMulligan(p: {
   state: PlayerState;
   cardMap: Map<string, CardData>;
-  /** §5.7 `S-2`＝キーカード・コンボのパーツは戻さない。 */
-  plan: CpuDeckPlan;
+  // 🔴2026-09-27＝作戦（キーカード・コンボの札）で戻さない札を決めるのはやめた（`cpuDeckPlan.ts` 冒頭）。
   /** §5.7 `S-24`＝`mulliganLv1Target`（席ごとに違うものが来る＝A/B の口）。 */
   policy?: CpuPolicy;
 }): { state: PlayerState; logs: string[] } {
   const { state, cardMap } = p;
-  const idx = pickCpuMulliganIndices(state.hand, cardMap, id => planKeepsInMulligan(p.plan, id), p.policy);
+  const idx = pickCpuMulliganIndices(state.hand, cardMap, undefined, p.policy);
   const name = (i: number) => cardMap.get(getCardNum(state.hand[i]))?.CardName ?? state.hand[i];
   return {
     state: applyMulligan(state, idx),

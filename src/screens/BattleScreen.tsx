@@ -2253,7 +2253,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   （旧実装は引き直さずライフを置くだけの別実装だった）。
       // 🆕§5.7 `S-24`（2026-09-21）＝**判断と実行を繋ぐ段も `controller/performMulligan.ts` の1本**にした
       //   ＝自己対戦（`headlessSelfPlay.ts`）が同じ関数を通る（旧＝ここにしか無く、ハーネスはマリガンを踏めなかった）。
-      const cpuMull = performCpuMulligan({ state: cpuSt, cardMap: battleCardMap, plan: cpuPlan });
+      const cpuMull = performCpuMulligan({ state: cpuSt, cardMap: battleCardMap });
       appendBattleLogs(cpuMull.logs);
       const newCpuSt: PlayerState = cpuMull.state;
       await persist.commit(reduceBattle(bs, { type: 'COMPLETE_MULLIGAN', isHost: false, state: newCpuSt }));

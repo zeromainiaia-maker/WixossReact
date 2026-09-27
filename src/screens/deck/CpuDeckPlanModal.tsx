@@ -21,7 +21,7 @@ const SIDE_NAMES: Record<CpuTargetSide, string> = { opp: '相手の札', self: '
 const sideText = (side: CpuTargetSide, t: CpuSideTarget | undefined) =>
   t ? `${SIDE_NAMES[side]}: ${CPU_TARGET_MODE_LABELS_BY_SIDE[side][t.mode]}${t.upFirst ? '（アップ状態を優先）' : ''}` : '';
 import {
-  cpuPlanCanSetUse, cpuPlanChipsFor, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanEffectOptions, cpuPlanIsArts,
+  cpuPlanCanSetUse, cpuPlanClampOption, cpuPlanComboUsesFor, cpuPlanEffectOptions, cpuPlanIsArts,
   cpuPlanUseModesFor, type CpuPlanEffectOption,
 } from './cpuPlanOptions';
 import { getAbilityBlockTexts } from '../../data/effectParser';
@@ -30,13 +30,52 @@ import {
   type CpuStateGroup, type CpuStatePlace,
 } from '../battle/cpuPlanStates';
 
+/**
+ * 置き場を選び直す（今の置き場が使えなければ先頭へ＝表示と保存を食い違わせない）。
+ * 🆕2026-09-26＝パワーで絞れるのは「場のシグニ」（状態なし）だけ＝ほかへ切り替えたら外す。
+ */
+const withValidZone = (f: CpuTargetCond): CpuTargetCond => {
+  if (f.power !== undefined && (f.state || f.zone !== 'field')) {
+    const { power: _p, powerCmp: _c, ...rest } = f;
+    return withValidZone(rest);
+  }
+  if (!f.state) return f;
+  if (cpuStateDef(f.state)?.group === 'player') return { ...f, zone: 'field' };
+  const places = statePlacesFor(f.state, f.side);
+  return places.includes(f.zone as CpuStatePlace) ? f : { ...f, zone: places[0] ?? 'field' };
+};
+
+/**
+ * 🆕2026-09-27＝**条件の入力欄1つぶんの状態**（狙い方の規則の「使うタイミング」とコンボの「始める条件」で別々に持つ）。
+ * `add` は保存の形（正規化 `toCond` と同じ）に整えて足す＝同じ条件は2度足さない。
+ */
+function useCondForm() {
+  const [form, setForm] = useState<CpuTargetCond>({ side: 'me', zone: 'life', cmp: 'le', n: 2 });
+  const set = (next: CpuTargetCond) => setForm(withValidZone(next));
+  const add = (conds: readonly CpuTargetCond[]): CpuTargetCond[] | null => {
+    const n = Math.max(0, Math.min(99, Math.round(Number(form.n) || 0)));
+    const { state, power, powerCmp, ...rest } = withValidZone(form);
+    // ⚠保存の形は正規化（`toCond`）と同じにする＝`powerCmp` は `ge` 以外のときだけ（同じ条件の重複判定を JSON で比べるため）。
+    const pw = power === undefined ? undefined : Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(Number(power) || 0)));
+    const c: CpuTargetCond = {
+      ...rest, n, ...(state ? { state } : {}),
+      ...(pw !== undefined ? { power: pw, ...(powerCmp && powerCmp !== 'ge' ? { powerCmp } : {}) } : {}),
+    };
+    // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
+    if (conds.some(x => JSON.stringify(x) === JSON.stringify(c))) return null;
+    return [...conds, c];
+  };
+  return { form, set, add };
+}
+type CondForm = ReturnType<typeof useCondForm>;
+
 /** 効果ごとの原文（能力ブロック）。引けなければ `undefined`＝種類だけの表示になる。 */
 const abilityTextOf = (card: CardData, effectId: string): string | undefined => {
   try { return getAbilityBlockTexts(card).get(effectId); } catch { return undefined; }
 };
 
 /**
- * 🆕**CPU の作戦**の編集（§5.7 `S-2`・CPU デッキだけ）＝キーカード・優先して出す札・コンボ・対象の狙い方・使いどころ。
+ * 🆕**CPU の作戦**の編集（§5.7 `S-2`・CPU デッキだけ）＝効果の狙い方・使いどころ・エナの扱い・コンボ（「札の役割」＝キー・優先・狙う・避けるは 2026-09-27 に撤去）。
  * 保存はデッキの更新（`onChange`）と同じ経路＝`decks.cpu_plan`。デッキに無いカードは保存時に外す（`pruneCpuDeckPlan`）。
  *
  * 🆕🔴**2026-09-25（ユーザー指摘）で②④を作り直した。**
@@ -69,7 +108,6 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const save = (next: CpuDeckPlan) => onChange(pruneCpuDeckPlan(next, deckNums));
 
   const isArts = (n: string) => cpuPlanIsArts(cardMap.get(n));
-  const chipsFor = (n: string) => cpuPlanChipsFor(cardMap.get(n), mainNums.has(n));
 
   /** 効果の選択肢（カードごとに1度だけ作る＝原文の切り出しはカード単位でキャッシュされる）。 */
   const effectOptionsOf = useMemo(() => {
@@ -94,36 +132,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   // 🆕2026-09-26＝**条件を複数**（どちらの・どの置き場が・何枚 以下／以上／ちょうど）＋**AND／OR**。空＝いつでも。
   const [ruleConds, setRuleConds] = useState<CpuTargetCond[]>([]);
   const [ruleCombine, setRuleCombine] = useState<CpuCondCombine>('and');
-  const [condForm, setCondForm] = useState<CpuTargetCond>({ side: 'me', zone: 'life', cmp: 'le', n: 2 });
-  // 🆕2026-09-26＝**特殊状態**を選ぶと、置き場は「その状態を数えられる置き場」だけになる（相手の手札は出さない）。
-  const statePlaces = condForm.state ? statePlacesFor(condForm.state, condForm.side) : [];
-  const isPlayerState = !!condForm.state && cpuStateDef(condForm.state)?.group === 'player';
-  /** 置き場を選び直す（今の置き場が使えなければ先頭へ＝表示と保存を食い違わせない）。 */
-  const withValidZone = (f: CpuTargetCond): CpuTargetCond => {
-    // 🆕2026-09-26＝パワーで絞れるのは「場のシグニ」（状態なし）だけ＝ほかへ切り替えたら外す。
-    if (f.power !== undefined && (f.state || f.zone !== 'field')) {
-      const { power: _p, powerCmp: _c, ...rest } = f;
-      return withValidZone(rest);
-    }
-    if (!f.state) return f;
-    if (cpuStateDef(f.state)?.group === 'player') return { ...f, zone: 'field' };
-    const places = statePlacesFor(f.state, f.side);
-    return places.includes(f.zone as CpuStatePlace) ? f : { ...f, zone: places[0] ?? 'field' };
-  };
-  const setCond = (next: CpuTargetCond) => setCondForm(withValidZone(next));
-  const addCond = () => {
-    const n = Math.max(0, Math.min(99, Math.round(Number(condForm.n) || 0)));
-    const { state, power, powerCmp, ...rest } = withValidZone(condForm);
-    // ⚠保存の形は正規化（`toCond`）と同じにする＝`powerCmp` は `ge` 以外のときだけ（同じ条件の重複判定を JSON で比べるため）。
-    const pw = power === undefined ? undefined : Math.max(0, Math.min(CPU_COND_POWER_MAX, Math.round(Number(power) || 0)));
-    const c: CpuTargetCond = {
-      ...rest, n, ...(state ? { state } : {}),
-      ...(pw !== undefined ? { power: pw, ...(powerCmp && powerCmp !== 'ge' ? { powerCmp } : {}) } : {}),
-    };
-    // ⚠同じ条件は2度足さない（AND でも OR でも意味が変わらない）。
-    if (ruleConds.some(x => JSON.stringify(x) === JSON.stringify(c))) return;
-    setRuleConds([...ruleConds, c]);
-  };
+  const ruleCondForm = useCondForm();
   // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**（効果によっては自分のシグニを強くする）。
   const [ruleOpp, setRuleOpp] = useState<SideForm>({ mode: 'killable', up: false });
   const [ruleSelf, setRuleSelf] = useState<SideForm>(EMPTY_SIDE);
@@ -150,15 +159,6 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     const n = r.sourceCards[0];
     const eid = r.sourceEffectIds?.[0];
     return eid ? `${nameOf(n)}の ${effectLabel(n, eid).split('：')[0]}` : `${nameOf(n)}のどの効果でも`;
-  };
-  const toggleTarget = (key: 'prefer' | 'avoid', num: string) => {
-    const list = targeting[key];
-    // ⚠**狙う／狙わないは排他**（両方に入っていると足し引きが打ち消し合って「指定したのに効かない」になる）。
-    const other = key === 'prefer' ? 'avoid' : 'prefer';
-    saveTargeting({
-      [key]: list.includes(num) ? list.filter(n => n !== num) : [...list, num],
-      [other]: targeting[other].filter(n => n !== num),
-    });
   };
 
   // ── ③ 使いどころ ────────────────────────────────────────
@@ -197,10 +197,6 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     delete next[n];
     save({ ...plan, enaUse: next });
   };
-  const toggle = (key: 'keyCards' | 'priorityCards', n: string) => {
-    const list = plan[key];
-    save({ ...plan, [key]: list.includes(n) ? list.filter(x => x !== n) : [...list, n] });
-  };
 
   // ── ④ コンボ ────────────────────────────────────────────
   /** 手を足す先＝`'new'`（組み立て中の新しいコンボ）か、保存済みコンボの添字。 */
@@ -220,13 +216,29 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   const effectiveStepEffect = stepEffects.some(o => o.effectId === stepEffect) ? stepEffect : '';
   const resetStepForm = () => { setNum(''); setStepEffect(''); setPickOpp(EMPTY_SIDE); setPickSelf(EMPTY_SIDE); setPickCards([]); };
 
+  // 🆕2026-09-27＝**コンボを始める条件**（足し先のコンボ＝緑枠に対して編集する）。空＝いつでも。
+  const [draftConds, setDraftConds] = useState<CpuTargetCond[]>([]);
+  const [draftCombine, setDraftCombine] = useState<CpuCondCombine>('and');
+  const comboCondForm = useCondForm();
+  const condsOf = (t: number | 'new'): CpuTargetCond[] => (t === 'new' ? draftConds : plan.combos[t]?.conds ?? []);
+  const combineOf = (t: number | 'new'): CpuCondCombine => (t === 'new' ? draftCombine : plan.combos[t]?.combine ?? 'and');
+  /** 保存の形＝条件が無ければ持たない／`or` は2つ以上のときだけ（正規化と同じ）。 */
+  const withConds = (c: { steps: CpuComboStep[] }, conds: CpuTargetCond[], combine: CpuCondCombine) => ({
+    steps: c.steps, ...(conds.length > 0 ? { conds } : {}), ...(combine === 'or' && conds.length >= 2 ? { combine } : {}),
+  });
+  const setCondsOf = (t: number | 'new', conds: CpuTargetCond[], combine: CpuCondCombine) => {
+    if (t === 'new') { setDraftConds(conds); setDraftCombine(combine); return; }
+    save({ ...plan, combos: plan.combos.map((c, i) => (i === t ? withConds(c, conds, combine) : c)) });
+  };
+
   const stepsOf = (t: number | 'new'): CpuComboStep[] => (t === 'new' ? draft : plan.combos[t]?.steps ?? []);
   const setStepsOf = (t: number | 'new', steps: CpuComboStep[]) => {
     if (t === 'new') { setDraft(steps); return; }
     // ⚠**手が0になったコンボは消す**（空のコンボは正規化で落ちる＝残すと表示と保存が食い違う）。
+    // ⚠手を入れ替えても**始める条件は残す**（`{ steps }` だけで上書きすると条件が消える）。
     const combos = steps.length === 0
       ? plan.combos.filter((_, i) => i !== t)
-      : plan.combos.map((c, i) => (i === t ? { steps } : c));
+      : plan.combos.map((c, i) => (i === t ? { ...c, steps } : c));
     save({ ...plan, combos });
     if (steps.length === 0) setEditing('new');
   };
@@ -257,8 +269,10 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
   /** 🔴**新しいコンボは2手以上でだけ保存できる**（1手のコンボは「優先して出す」と同じ意味にしかならない）。 */
   const saveDraft = () => {
     if (draft.length < 2) return;
-    save({ ...plan, combos: [...plan.combos, { steps: draft }] });
+    save({ ...plan, combos: [...plan.combos, withConds({ steps: draft }, draftConds, draftCombine)] });
     setDraft([]);
+    setDraftConds([]);
+    setDraftCombine('and');
   };
   const stepLabel = (st: CpuComboStep) => {
     const eff = st.effectId ? `・${effectLabel(st.num, st.effectId).split('：')[0]}` : '';
@@ -268,12 +282,6 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     ].filter(Boolean);
     return `${nameOf(st.num)}（${CPU_COMBO_USE_LABELS[st.use]}${eff}）${pickParts.length ? ` → 選ぶ先: ${pickParts.join('／')}` : ''}`;
   };
-
-  // ── 一覧の絞り込み（40枚超のデッキをスマホで探せるように）──
-  const [listQuery, setListQuery] = useState('');
-  const listCards = listQuery.trim()
-    ? cards.filter(c => c.CardName?.includes(listQuery.trim()))
-    : cards;
 
   const chip = (active: boolean, color: string): React.CSSProperties => ({
     border: 'none', borderRadius: 4, padding: '4px 7px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
@@ -322,6 +330,92 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
     </div>
   );
 
+  /**
+   * 🆕2026-09-27＝**条件の入力欄**（狙い方の規則の「使うタイミング」とコンボの「始める条件」で共通）。
+   * ⚠testid は `testPrefix` で分ける（規則側は従来どおり `cpu-plan-cond`＝実機シナリオが参照している）。
+   */
+  const condEditor = (
+    f: CondForm, conds: CpuTargetCond[], combine: CpuCondCombine,
+    onChange: (conds: CpuTargetCond[], combine: CpuCondCombine) => void, heading: string, testPrefix: string,
+  ) => {
+    const form = f.form;
+    // 🆕2026-09-26＝**特殊状態**を選ぶと、置き場は「その状態を数えられる置き場」だけになる（相手の手札は出さない）。
+    const statePlaces = form.state ? statePlacesFor(form.state, form.side) : [];
+    const isPlayerState = !!form.state && cpuStateDef(form.state)?.group === 'player';
+    const addCond = () => { const next = f.add(conds); if (next) onChange(next, combine); };
+    return (
+      <div style={{ ...row, border: '1px dashed #44446a', borderRadius: 6, padding: 6 }}>
+        <span style={{ color: '#aaa', fontSize: 11, flex: '1 1 100%' }}>{heading}</span>
+        <select data-testid={`${testPrefix}-side`} value={form.side} style={{ ...selectStyle, fontSize: 11 }}
+          onChange={e => f.set({ ...form, side: e.target.value as CpuTargetCond['side'] })}>
+          {CPU_COND_SIDES.map(v => <option key={v} value={v}>{CPU_COND_SIDE_LABELS[v]}</option>)}
+        </select>
+        {/* 🆕特殊状態（空＝置き場の枚数そのもの）。見出しは4群。 */}
+        <select data-testid={`${testPrefix}-state`} value={form.state ?? ''} style={{ ...selectStyle, fontSize: 11 }}
+          onChange={e => f.set({ ...form, state: e.target.value || undefined, zone: e.target.value ? form.zone : 'life' })}>
+          <option value="">（状態指定なし）</option>
+          {(Object.keys(CPU_STATE_GROUP_LABELS) as CpuStateGroup[]).map(g => (
+            <optgroup key={g} label={CPU_STATE_GROUP_LABELS[g]}>
+              {CPU_STATE_DEFS.filter(d => d.group === g).map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {!form.state && (
+          <select data-testid={`${testPrefix}-zone`} value={form.zone} style={{ ...selectStyle, fontSize: 11 }}
+            onChange={e => f.set({ ...form, zone: e.target.value as CpuTargetCond['zone'] })}>
+            {CPU_COND_ZONES.map(v => <option key={v} value={v}>{CPU_COND_ZONE_LABELS[v]}</option>)}
+          </select>
+        )}
+        {form.state && !isPlayerState && (
+          <select data-testid={`${testPrefix}-place`} value={form.zone} style={{ ...selectStyle, fontSize: 11 }}
+            onChange={e => f.set({ ...form, zone: e.target.value as CpuTargetCond['zone'] })}>
+            {statePlaces.map(v => <option key={v} value={v}>{CPU_STATE_PLACE_LABELS[v]}</option>)}
+          </select>
+        )}
+        {/* 🆕2026-09-26＝場のシグニを**パワーで絞る**（「パワー12000以上のシグニが2体以上」）。実効パワーで数える。 */}
+        {!form.state && form.zone === 'field' && (
+          <select data-testid={`${testPrefix}-powercmp`} value={form.power === undefined ? '' : (form.powerCmp ?? 'ge')}
+            style={{ ...selectStyle, fontSize: 11 }}
+            onChange={e => {
+              const v = e.target.value as CpuCondPowerCmp | '';
+              if (!v) { const { power: _p, powerCmp: _c, ...rest } = form; f.set(rest); return; }
+              f.set({ ...form, power: form.power ?? 12000, powerCmp: v });
+            }}>
+            <option value="">パワーで絞らない</option>
+            {CPU_COND_POWER_CMPS.map(v => <option key={v} value={v}>パワー〇{CPU_COND_CMP_LABELS[v]}</option>)}
+          </select>
+        )}
+        {!form.state && form.zone === 'field' && form.power !== undefined && (
+          <input data-testid={`${testPrefix}-power`} type="number" min={0} max={CPU_COND_POWER_MAX} step={1000} value={form.power}
+            onChange={e => f.set({ ...form, power: Number(e.target.value) })}
+            style={{ ...inputStyle, width: 72, flex: '0 0 auto', fontSize: 11 }} />
+        )}
+        <input data-testid={`${testPrefix}-n`} type="number" min={0} max={99} value={form.n}
+          onChange={e => f.set({ ...form, n: Number(e.target.value) })}
+          style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
+        {/* 🆕2026-09-26＝枚数の単位を入力欄の外に出す（パワー指定のとき何の数か分かりづらかった）。単位は表示と同じ `cpuCondUnit`。 */}
+        <span data-testid={`${testPrefix}-unit`} style={{ color: '#ccc', fontSize: 11, alignSelf: 'center' }}>{cpuCondUnit(withValidZone(form))}</span>
+        <select data-testid={`${testPrefix}-cmp`} value={form.cmp} style={{ ...selectStyle, fontSize: 11 }}
+          onChange={e => f.set({ ...form, cmp: e.target.value as CpuTargetCond['cmp'] })}>
+          {CPU_COND_CMPS.map(v => <option key={v} value={v}>{CPU_COND_CMP_LABELS[v]}</option>)}
+        </select>
+        <button data-testid={`${testPrefix}-add`} onClick={addCond} style={{ ...chip(true, '#4a4a8a'), padding: '5px 10px' }}>条件を足す</button>
+        {conds.map((c, i) => (
+          <div key={`${JSON.stringify(c)}/${i}`} data-testid={`${testPrefix}-row-${i}`} style={{ ...listRow, flex: '1 1 100%' }}>
+            <span style={{ flex: '1 1 84px', minWidth: 0 }}>{cpuTargetCondLabel(c)}</span>
+            <button onClick={() => onChange(conds.filter((_, k) => k !== i), combine)} style={chip(false, '#000')}>削除</button>
+          </div>
+        ))}
+        {conds.length >= 2 && (
+          <select data-testid={`${testPrefix}-combine`} value={combine} style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}
+            onChange={e => onChange(conds, e.target.value as CpuCondCombine)}>
+            {CPU_COND_COMBINES.map(v => <option key={v} value={v}>{CPU_COND_COMBINE_LABELS[v]}</option>)}
+          </select>
+        )}
+      </div>
+    );
+  };
+
   /** 手の一覧（新規・保存済み共通）。 */
   const stepList = (t: number | 'new') => stepsOf(t).map((st, i) => (
     <div key={`${st.num}/${st.use}/${st.effectId ?? ''}/${i}`} style={{ ...listRow, paddingLeft: 4 }}>
@@ -343,30 +437,7 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* ── ① 札の役割 ───────────────────────────────── */}
-          <div style={section}>
-            {title('#ffb84d', '札の役割', 'キー＝エナ・捨て札・マリガンで手放さない／優先＝先に場に出す／狙う・避ける＝効果の対象に選ぶ・選ばない（自分の札）')}
-            <input value={listQuery} onChange={e => setListQuery(e.target.value)} placeholder="カード名で絞り込む" style={{ ...inputStyle, flex: '1 1 auto' }} />
-            <div style={{ maxHeight: 264, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {listCards.map(c => (
-                <div key={c.CardNum} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 6px', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 6, flexWrap: 'wrap' }}>
-                  <span style={{ color: '#ddd', fontSize: 12, flex: '1 1 84px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.CardName}<span style={{ color: '#666', fontSize: 10, marginLeft: 6 }}>{c.Type}{c.Level && c.Level !== '-' ? ` Lv${c.Level}` : ''}</span>
-                  </span>
-                  {chipsFor(c.CardNum).includes('key') && (
-                    <button data-testid={`cpu-plan-key-${c.CardNum}`} onClick={() => toggle('keyCards', c.CardNum)} style={chip(plan.keyCards.includes(c.CardNum), '#c77a00')}>キー</button>
-                  )}
-                  {chipsFor(c.CardNum).includes('priority') && (
-                    <button data-testid={`cpu-plan-priority-${c.CardNum}`} onClick={() => toggle('priorityCards', c.CardNum)} style={chip(plan.priorityCards.includes(c.CardNum), '#1f6fcc')}>優先</button>
-                  )}
-                  <button data-testid={`cpu-plan-prefer-${c.CardNum}`} onClick={() => toggleTarget('prefer', c.CardNum)} style={chip(targeting.prefer.includes(c.CardNum), '#b83a3a')}>狙う</button>
-                  <button data-testid={`cpu-plan-avoid-${c.CardNum}`} onClick={() => toggleTarget('avoid', c.CardNum)} style={chip(targeting.avoid.includes(c.CardNum), '#555')}>避ける</button>
-                </div>
-              ))}
-              {listCards.length === 0 && <span style={{ color: '#666', fontSize: 11 }}>該当なし</span>}
-            </div>
-          </div>
-
+          {/* 🔴2026-09-27＝「① 札の役割」（［キー］［優先］［狙う］［避ける］）は節ごと撤去した（`cpuDeckPlan.ts` 冒頭）。 */}
           {/* ── ② 効果の狙い方 ───────────────────────────── */}
           <div style={section}>
             {title('#ff8a8a', '効果の狙い方', '相手の札・自分の札ごとに、上から順に最初に当たった1つ。どれにも当たらなければ「パワー・効果が強いもの」。ライフバーストも効果ごとに選べる')}
@@ -387,75 +458,8 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
               {ruleEid && textBox(effectText(ruleNum, ruleEid), 'cpu-plan-rule-text')}
             </div>
             {/* 🆕2026-09-26＝使うタイミング（条件を複数・AND／OR）。空＝いつでも。 */}
-            <div style={{ ...row, border: '1px dashed #44446a', borderRadius: 6, padding: 6 }}>
-              <span style={{ color: '#aaa', fontSize: 11, flex: '1 1 100%' }}>使うタイミング（条件なし＝いつでも）</span>
-              <select data-testid="cpu-plan-cond-side" value={condForm.side} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCond({ ...condForm, side: e.target.value as CpuTargetCond['side'] })}>
-                {CPU_COND_SIDES.map(v => <option key={v} value={v}>{CPU_COND_SIDE_LABELS[v]}</option>)}
-              </select>
-              {/* 🆕特殊状態（空＝置き場の枚数そのもの）。見出しは4群。 */}
-              <select data-testid="cpu-plan-cond-state" value={condForm.state ?? ''} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCond({ ...condForm, state: e.target.value || undefined, zone: e.target.value ? condForm.zone : 'life' })}>
-                <option value="">（状態指定なし）</option>
-                {(Object.keys(CPU_STATE_GROUP_LABELS) as CpuStateGroup[]).map(g => (
-                  <optgroup key={g} label={CPU_STATE_GROUP_LABELS[g]}>
-                    {CPU_STATE_DEFS.filter(d => d.group === g).map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-              {!condForm.state && (
-                <select data-testid="cpu-plan-cond-zone" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
-                  onChange={e => setCond({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
-                  {CPU_COND_ZONES.map(v => <option key={v} value={v}>{CPU_COND_ZONE_LABELS[v]}</option>)}
-                </select>
-              )}
-              {condForm.state && !isPlayerState && (
-                <select data-testid="cpu-plan-cond-place" value={condForm.zone} style={{ ...selectStyle, fontSize: 11 }}
-                  onChange={e => setCond({ ...condForm, zone: e.target.value as CpuTargetCond['zone'] })}>
-                  {statePlaces.map(v => <option key={v} value={v}>{CPU_STATE_PLACE_LABELS[v]}</option>)}
-                </select>
-              )}
-              {/* 🆕2026-09-26＝場のシグニを**パワーで絞る**（「パワー12000以上のシグニが2体以上」）。実効パワーで数える。 */}
-              {!condForm.state && condForm.zone === 'field' && (
-                <select data-testid="cpu-plan-cond-powercmp" value={condForm.power === undefined ? '' : (condForm.powerCmp ?? 'ge')}
-                  style={{ ...selectStyle, fontSize: 11 }}
-                  onChange={e => {
-                    const v = e.target.value as CpuCondPowerCmp | '';
-                    if (!v) { const { power: _p, powerCmp: _c, ...rest } = condForm; setCond(rest); return; }
-                    setCond({ ...condForm, power: condForm.power ?? 12000, powerCmp: v });
-                  }}>
-                  <option value="">パワーで絞らない</option>
-                  {CPU_COND_POWER_CMPS.map(v => <option key={v} value={v}>パワー〇{CPU_COND_CMP_LABELS[v]}</option>)}
-                </select>
-              )}
-              {!condForm.state && condForm.zone === 'field' && condForm.power !== undefined && (
-                <input data-testid="cpu-plan-cond-power" type="number" min={0} max={CPU_COND_POWER_MAX} step={1000} value={condForm.power}
-                  onChange={e => setCond({ ...condForm, power: Number(e.target.value) })}
-                  style={{ ...inputStyle, width: 72, flex: '0 0 auto', fontSize: 11 }} />
-              )}
-              <input data-testid="cpu-plan-cond-n" type="number" min={0} max={99} value={condForm.n}
-                onChange={e => setCond({ ...condForm, n: Number(e.target.value) })}
-                style={{ ...inputStyle, width: 56, flex: '0 0 auto', fontSize: 11 }} />
-              {/* 🆕2026-09-26＝枚数の単位を入力欄の外に出す（パワー指定のとき何の数か分かりづらかった）。単位は表示と同じ `cpuCondUnit`。 */}
-              <span data-testid="cpu-plan-cond-unit" style={{ color: '#ccc', fontSize: 11, alignSelf: 'center' }}>{cpuCondUnit(withValidZone(condForm))}</span>
-              <select data-testid="cpu-plan-cond-cmp" value={condForm.cmp} style={{ ...selectStyle, fontSize: 11 }}
-                onChange={e => setCond({ ...condForm, cmp: e.target.value as CpuTargetCond['cmp'] })}>
-                {CPU_COND_CMPS.map(v => <option key={v} value={v}>{CPU_COND_CMP_LABELS[v]}</option>)}
-              </select>
-              <button data-testid="cpu-plan-cond-add" onClick={addCond} style={{ ...chip(true, '#4a4a8a'), padding: '5px 10px' }}>条件を足す</button>
-              {ruleConds.map((c, i) => (
-                <div key={`${JSON.stringify(c)}/${i}`} data-testid={`cpu-plan-cond-row-${i}`} style={{ ...listRow, flex: '1 1 100%' }}>
-                  <span style={{ flex: '1 1 84px', minWidth: 0 }}>{cpuTargetCondLabel(c)}</span>
-                  <button onClick={() => setRuleConds(ruleConds.filter((_, k) => k !== i))} style={chip(false, '#000')}>削除</button>
-                </div>
-              ))}
-              {ruleConds.length >= 2 && (
-                <select data-testid="cpu-plan-cond-combine" value={ruleCombine} style={{ ...selectStyle, fontSize: 11, flex: '1 1 100%' }}
-                  onChange={e => setRuleCombine(e.target.value as CpuCondCombine)}>
-                  {CPU_COND_COMBINES.map(v => <option key={v} value={v}>{CPU_COND_COMBINE_LABELS[v]}</option>)}
-                </select>
-              )}
-            </div>
+            {condEditor(ruleCondForm, ruleConds, ruleCombine, (c, cb) => { setRuleConds(c); setRuleCombine(cb); },
+              '使うタイミング（条件なし＝いつでも）', 'cpu-plan-cond')}
             {sideEditor('opp', ruleOpp, setRuleOpp, 'cpu-plan-rule')}
             {sideEditor('self', ruleSelf, setRuleSelf, 'cpu-plan-rule')}
             <div style={row}>
@@ -537,6 +541,11 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                   <button onClick={() => { save({ ...plan, combos: plan.combos.filter((_, i) => i !== ci) }); setEditing('new'); }}
                     style={chip(false, '#000')}>削除</button>
                 </div>
+                {c.conds?.length ? (
+                  <span data-testid={`cpu-plan-combo-conds-${ci}`} style={{ color: '#bbb', fontSize: 10, paddingLeft: 4 }}>
+                    始める条件：{cpuTargetCondsLabel(c.conds, c.combine)}
+                  </span>
+                ) : null}
                 {stepList(ci)}
                 {c.steps.length < 2 && (
                   <span style={{ color: '#e0a040', fontSize: 10 }}>⚠1手だけのコンボは「優先して出す」と同じ意味にしかならない＝［手を足す］で2手目以降を足す</span>
@@ -551,6 +560,9 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                 {editing !== 'new' && <button onClick={() => setEditing('new')} style={chip(false, '#2e6fb8')}>こちらに手を足す</button>}
               </div>
               {draft.length > 0 && <span data-testid="cpu-plan-combo-draft" style={{ display: 'none' }}>{draft.map(stepLabel).join(' → ')}</span>}
+              {draftConds.length > 0 && (
+                <span style={{ color: '#bbb', fontSize: 10, paddingLeft: 4 }}>始める条件：{cpuTargetCondsLabel(draftConds, draftCombine)}</span>
+              )}
               {stepList('new')}
               <div style={row}>
                 <button data-testid="cpu-plan-combo-add" onClick={saveDraft} disabled={draft.length < 2}
@@ -613,6 +625,10 @@ export function CpuDeckPlanModal({ deck, cardMap, onChange, onClose }: {
                 <button data-testid="cpu-plan-combo-step-add" onClick={addStep} disabled={!num}
                   style={{ ...chip(!!num, '#2e6fb8'), padding: '7px 12px' }}>手を足す</button>
               </div>
+              {/* 🆕2026-09-27＝足し先のコンボを始める条件（1手も済んでいないときだけ見る＝始めたら最後まで打つ）。 */}
+              {condEditor(comboCondForm, condsOf(editing), combineOf(editing), (c, cb) => setCondsOf(editing, c, cb),
+                `始める条件（${editing === 'new' ? '新しいコンボ' : `コンボ${editing + 1}`}・条件なし＝いつでも。1手目を打った後は条件が崩れても最後まで打つ）`,
+                'cpu-plan-combo-cond')}
             </div>
           </div>
         </div>

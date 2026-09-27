@@ -27,7 +27,7 @@ import { listCpuKeyPieces, type CpuKeyPieceChoice, type CpuKeyPiecePickInput } f
 import { lifeCrushRisk, lrigAttackRisk } from './cpuAttackRisk';
 import { cpuAttackTriggerEffectsOf, cpuOnPlayEffectsOf, simulateEffect, type LookaheadCtx } from './cpuLookahead';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
-import { cpuUseWindowOf, planAllowsUseIn, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan } from './cpuDeckPlan';
+import { cpuUseWindowOf, planAllowsUseIn, planEnaPayRank, planHasEnaUse, type CpuComboUse, type CpuDeckPlan, type CpuPlanDeployRoom } from './cpuDeckPlan';
 import { listCpuLrigActivated, type CpuLrigActivatedChoice, type CpuLrigActivatedPickInput } from './cpuLrigActivate';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, paidBoard, type CpuOffFieldChoice, type CpuOffFieldPickInput } from './cpuOffFieldActivate';
 import { listCpuMainSpells, type CpuMainSpellPickInput, type CpuSpellChoice } from './cpuSpell';
@@ -73,11 +73,6 @@ export interface CpuMoveCtx {
   lookahead: LookaheadCtx;
   /** グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   reserveFor: (actor: PlayerState) => CpuEnergyReserve | undefined;
-  /**
-   * 🆕§5.7 `S-31` ②＝**手札を捨てるコストで「どれを捨てるか」**に効く作戦データの加点（`planKeepBonus`）。
-   * ⚠**省略できる**（渡さなければ強さだけで決める＝従来の順）。
-   */
-  planKeepBonus?: (id: string) => number;
   /** 🆕§5.7 `S-31` ②＝捨てる順の重み（席ごとのポリシー）。省略時は既定。 */
   policy?: CpuPolicy;
   /**
@@ -206,6 +201,22 @@ export function cpuDeployBudget(ctx: CpuMoveCtx, s: PlayerState): { lrigLevel: n
     fieldTotal += parseInt(topCard?.Level ?? '0') || 0;
   }
   return { lrigLevel, limit, fieldTotal };
+}
+
+/**
+ * 🆕2026-09-27＝**作戦のコンボ用の召喚の残り枠**（`planUseBonus` の `deployRoom`）＝レベル・リミットの残り・あと何体。
+ * ⚠**ゾーンの個別の制限（正面強制・配置禁止）は見ない**＝空きゾーンの数と体数上限だけの近似。
+ */
+export function cpuPlanDeployRoom(ctx: CpuMoveCtx, s: PlayerState): CpuPlanDeployRoom {
+  const { lrigLevel, limit, fieldTotal } = cpuDeployBudget(ctx, s);
+  const placed = s.field.signi.filter(stk => (stk ?? []).length > 0).length;
+  const empty = s.field.signi.length - placed;
+  return {
+    lrigLevel,
+    limitLeft: limit - fieldTotal,
+    zonesLeft: Math.max(0, Math.min(empty, cpuFieldSigniCap(ctx, s) - placed)),
+    levelOf: num => parseInt(ctx.cardMap.get(getCardNum(num))?.Level ?? '0') || 0,
+  };
 }
 
 /** 場に出せるシグニの体数の上限（`LIMIT_ALL_FIELD_N` と `DEPLOY_RESTRICT` の小さい方）。 */
@@ -437,7 +448,7 @@ export function cpuSigniActivatedInput(
     // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
     isAffordable, wholeSubstitutes, pool,
     // 🆕§5.7 `S-31` ②＝手札を捨てるコストの「どれを捨てるか」に効く（弱い札から・【ガード】と作戦の札は最後）。
-    planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
+    policy: ctx.policy,
     // 🆕§5.7 `S-31` ③＝「使わない」の指定。
     plan: ctx.plan,
   };
@@ -462,7 +473,7 @@ export function cpuLrigActivatedInput(
     effectivePowers: powers,
     isAffordable, wholeSubstitutes, pool,
     // 🆕§5.7 `S-31` ② 第2段＝手札を捨てる／エナから落とすコストの選び方に効く。
-    planKeepBonus: ctx.planKeepBonus, policy: ctx.policy,
+    policy: ctx.policy,
     // 🆕§5.7 `S-31` ③＝「使わない」の指定。
     plan: ctx.plan,
   };

@@ -319,8 +319,6 @@ export interface CpuSigniActivatedPickInput {
   contBlockedSelf?: Set<string>;
   /** 🆕グロウ用エナの予約（`cpuGrowReserve.ts`）。 */
   energyReserve?: CpuEnergyReserve;
-  /** 🆕§5.7 `S-31` ②＝手札を捨てるコストで「手元に残す価値」を見る（作戦データ＝`planKeepBonus`）。 */
-  planKeepBonus?: (id: string) => number;
   /** 🆕§5.7 `S-31` ②＝捨てる順の重み（席ごとのポリシー）。 */
   policy?: CpuPolicy;
   /**
@@ -617,7 +615,7 @@ export function* iterCpuSigniActivated(p: CpuSigniActivatedPickInput): Generator
       // 🆕§5.7 `S-31` ②＝手札を捨てるコストの index（払えないなら候補から外す）。
       const discardIndices = pickCpuDiscardCostIndices({
         hand: actor.hand, cost: effect.cost, cardMap,
-        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], keepBonus: p.planKeepBonus, policy: p.policy,
+        effectsOf: id => effectsMap.get(getCardNum(id)) ?? [], policy: p.policy,
       });
       if (!discardIndices) continue;
       // 🆕§5.7 `S-31` ② 第2段＝エナ・場から払うコスト（払えないなら候補から外す）。

@@ -48,7 +48,7 @@ import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
 import {buildCpuGrowReserve, chargeNeedColors, withEnaPayRank} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
-import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planKeepBonus, planUseBonus} from '../cpuDeckPlan';
+import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planUseBonus} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
 import {clearTurnGrantedLrigAbilities} from '../grantedAuto';
 import {activateNextTurnDeployCountLimit} from '../deployCountLimit';
@@ -62,7 +62,7 @@ import {type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpu
 import {pickCpuKeyPiece} from '../cpuKeyPiece';
 import {pickCpuMainSpell, type CpuSpellChoice} from '../cpuSpell';
 import {searchCpuMove} from '../cpuSearch';
-import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
+import {type CpuMove, type CpuMoveCtx, cpuArtsInput, cpuDeployBudget, cpuDeployPlaceable, cpuDeployZoneOpen, cpuFieldSigniCap, cpuHandSignis, cpuKeyPieceInput, cpuLrigActivatedInput, cpuCutinInput, cpuOffFieldInput, cpuPlanDeployRoom, cpuPlanMoveStep, cpuPaySigniCostEnergy, cpuSigniActivatedInput, cpuSpellInput, cpuSummonBudget, listCpuAssistGrows, listCpuGrows, listCpuMoves, listCpuResonas, listCpuRises} from '../cpuMoves';
 import {assistLrigAttackableSlots} from '../assistLrigAttack';
 import {activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState} from '../turnScopedState';
 import {DEFAULT_CPU_POLICY, type CpuPolicy} from '../cpuPolicy';
@@ -262,8 +262,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     actor: actorState, opponent: huSt, allCards: cards, battleCards, cardMap: battleCardMap, effectsMap,
     // 🆕2026-09-26＝作戦データの「エナゾーンにある札の扱い」（積極的に払う／温存）を支払いの予約に載せる。
     lookahead: cpuLookahead, reserveFor: s => withEnaPayRank(cpuGrowReserveFor(s), cpuPlan),
-    // 🆕§5.7 `S-31` ②＝手札を捨てるコストで「どれを捨てるか」（作戦データの札と【ガード】は最後）。
-    planKeepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy,
+    policy: cpuPolicy,
     // 🆕§5.7 `S-31` ③＝札ごとの使いどころ（守り／攻め／使わない）。
     //   🔑ここ1箇所で探索（`listCpuMoves`）と本番の貪欲な経路の**両方**に届く（配り口は `cpu*Input`）。
     plan: cpuPlan,
@@ -901,7 +900,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       // 🆕🔴§5.7 `S-28`（2026-09-21）＝**手札だけでなく場のシグニも候補にする**（人間は前から出来た）。
       const chargeSource = pickCpuEnergyCharge({
         actor: cpuSt, opponent: huSt, cardMap: battleCardMap, effectsOf: id => effectsMap.get(id) ?? [],
-        lrigLevel: cpuLrigLevelEna, keepBonus: id => planKeepBonus(cpuPlan, id, cpuPolicy), policy: cpuPolicy, charge: chargeCtx,
+        lrigLevel: cpuLrigLevelEna, policy: cpuPolicy, charge: chargeCtx,
         powers: Object.fromEntries(calcFieldPowers(cpuSt, huSt, true, effectsMap, battleCardMap, 'ENERGY')),
       });
       if (!chargeSource) return;
@@ -1045,7 +1044,10 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
         moveBonus: (mv, board) => {
           const step = cpuPlanMoveStep(mv, board.cpu);
           if (!step) return 0;
-          return planUseBonus(cpuPlan, step.num, step.use, cpuPlanBoardCtx(board.cpu), cpuPolicy, step.effectId);
+          // 🆕2026-09-27＝相手の盤面（コンボの始める条件）と召喚の残り枠（出す手どうしが同じターンに収まるか）。
+          return planUseBonus(cpuPlan, step.num, step.use, cpuPlanBoardCtx(board.cpu, undefined, {
+            opp: board.opp, cardMap: battleCardMap, deployRoom: cpuPlanDeployRoom(cpuMoveCtx(board.cpu), board.cpu),
+          }), cpuPolicy, step.effectId);
         },
       });
       if (searched.move && searched.move.kind !== 'deploy') {
@@ -1094,7 +1096,10 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
           // §5.7 `S-4b`＝このゾーンに出して【出】を解決した**結果の盤面の点数**（先読み）＋ `S-2` 作戦データの加点。
           value: scoreDeploy(id, zone, newCpuSt, cpuHuSt, cpuLookahead)
             + planDeployBonus(cpuPlan, id, handSignis.map(h => h.id),
-              [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean), cpuPolicy),
+              [...newCpuSt.field.signi.map(stk => stk?.at(-1) ?? ''), ...newCpuSt.field.lrig].filter(Boolean), cpuPolicy,
+              // 🆕2026-09-27＝探索の側（`moveBonus`）と同じ材料を渡す（式は `planUseBonus` の1本）。
+              { condBoard: { me: newCpuSt, opp: cpuHuSt, cardMap: battleCardMap },
+                deployRoom: cpuPlanDeployRoom(cpuMoveCtx(newCpuSt), newCpuSt) }),
           guard: card!.Guard === '1',
         })),
         handGuardCount: handSignis.filter(({ card }) => card?.Guard === '1').length,
@@ -1588,7 +1593,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     let cpuTrashEND = cpuEndState.trash;
     const cpuHandLimit = collectHandLimits(cpuEndState, huEndState, battleCardMap, effectsMap);
     if (cpuHandEND.length > cpuHandLimit) {
-      const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], id => planKeepBonus(cpuPlan, id, cpuPolicy), cpuPolicy);
+      const discardIdx = pickCpuHandLimitDiscards(cpuHandEND, cpuHandEND.length - cpuHandLimit, battleCardMap, id => effectsMap.get(id) ?? [], undefined, cpuPolicy);
       const discardNums = discardIdx.map(i => cpuHandEND[i]);
       appendBattleLogs([`[CPU] 手札上限: ${cpuHandEND.length}枚→${cpuHandEND.length - discardNums.length}枚（${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て）`]);
       cpuHandEND = cpuHandEND.filter((_, i) => !discardIdx.includes(i));

@@ -3,7 +3,7 @@ import { getCardNum } from '../../engine/execUtils';
 import type { CardData, PendingEffect, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { buildCpuGrowReserve, withEnaPayRank } from './cpuGrowReserve';
-import { planEffectPick, planKeepBonus, planTargetBonus, resolveCpuTargetSpec, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
+import { planEffectPick, planTargetBonus, resolveCpuTargetSpec, PLAN_WEIGHTS, type CpuDeckPlan } from './cpuDeckPlan';
 import { calcFieldPowers } from '../../engine/effectEngine';
 import type { CpuPolicy } from './cpuPolicy';
 import {
@@ -81,7 +81,7 @@ export function decideCpuInteractionResponse(
     // §5.7 `S-1`＝「パワー＋効果の強さ」で比べるための効果の一覧（付与を含む）。
     effectsOf: id => d.effectsMap.get(id) ?? [],
     // 🆕2026-09-25＝コンボの手が名指しした札（サーチ・公開から選ぶ先）もここで優先する。
-    planBonus: id => planKeepBonus(d.cpuPlan, id, d.policy) + pickBonus(id),
+    planBonus: id => pickBonus(id),
     // 🆕§5.7 `S-32`＝対象の狙い方（デッキごと・既定は `strongest`＋加点0＝挙動不変）。
     // 🆕§5.7 `S-32` ②③＝**狙い方はここで解決する**（効果ごと・盤面の条件つきの規則を上から見る）。
     // 🆕2026-09-26 `S-36`＝**相手の札・自分の札で別々の狙い方**。
@@ -94,7 +94,7 @@ export function decideCpuInteractionResponse(
     // 🆕`S-36`＝「効果後に正面を上回る」が正面のシグニのパワーを引く（engine の実効パワー・その狙い方のときだけ計算）。
     fieldPowers,
     // 🆕2026-09-25＝属性での指定は削った。コンボの手が名指しした札（その効果の選ぶ先）を優先する。
-    targetBonus: id => planTargetBonus(d.cpuPlan, id, d.policy, pick),
+    targetBonus: id => planTargetBonus(id, d.policy, pick),
     policy: d.policy,
     // 🆕§5.7 `S-29`（2026-09-22）＝**この宣言の帰結のコスト**（「それのレベル１につき〈コスト〉」）を
     //   効果の木から読んで渡す（対話そのものには入っていない）。⚠見つからなければ `undefined`＝挙動不変。
