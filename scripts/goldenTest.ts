@@ -90859,6 +90859,41 @@ test('2026-09-28 ルール：実行できない選択肢は選べない（CHOOSE
   // ── ④ どの肢も実行できない＝何も起きない ──
   const none = executeAction(mk([banishOpp, discard2]), mkCtx({ hand: 1 }, {}));
   ok(none.done && none.logs.some(l => l.includes('実行できる選択肢がない')), '🔴どの肢も実行できないのに選択を求めた');
+  // ── ⑥ 🆕2026-09-28＝「N体を対象とし」は N に届かなければ選べない／「N体まで」は1体でも選べる ──
+  const pm2 = (upTo: boolean) => ({ choiceId: 'pm', label: '相手のシグニ2体を対象とし－2000', action: { type: 'POWER_MODIFY', delta: -2000, duration: 'UNTIL_END_OF_TURN', target: { type: 'SIGNI', owner: 'opponent', count: 2, upToCount: upTo, filter: { cardType: 'シグニ' } } } });
+  eq(availOf(mk([pm2(false), draw]), {}, { signi: [SIGNI, null, null] })?.pm, false, '🔴「2体を対象とし」で1体しかいないのに選べる');
+  eq(availOf(mk([pm2(false), draw]), {}, { signi: [SIGNI, SIGNI_L1, null] })?.pm, true, '🔴「2体を対象とし」で2体いるのに選べない');
+  eq(availOf(mk([pm2(true), draw]), {}, { signi: [SIGNI, null, null] })?.pm, true, '🔴「2体まで」で1体いるのに選べない');
+  // ── ⑦ 🆕同日＝エナゾーンからトラッシュに置く肢は枚数が足りなくても（0枚でも）選べる ──
+  const enaTrash3 = { choiceId: 'ena', label: '対戦相手は自分のエナゾーンからカードを3枚選びトラッシュに置く', action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 3 }, opponentSelects: true } };
+  eq(availOf(mk([enaTrash3, draw]), {}, { energy: 0 })?.ena, true, '🔴相手のエナが0枚で「3枚選びトラッシュ」を塞いだ（あるだけ全部＝何も起きない）');
+
+  // ── ⑧ 実カード（ユーザーが1件ずつ判断した原文）──
+  const chooseNodeOf = (eid: string): EffectAction => {
+    const card = eid.replace(/-E\d+$/, '');
+    const find = (a: unknown): unknown => {
+      if (!a || typeof a !== 'object') return null;
+      if ((a as { type?: string }).type === 'CHOOSE') return a;
+      for (const v of Object.values(a)) { const r = find(v); if (r) return r; }
+      return null;
+    };
+    const node = find(effectsMap.get(card)?.find(e => e.effectId === eid)?.action);
+    if (!node) throw new Error(`${eid}: CHOOSE が live に無い`);
+    return node as EffectAction;
+  };
+  const availReal = (eid: string, owner: Parameters<typeof mkCtx>[0], other: Parameters<typeof mkCtx>[1], src: string) => {
+    const res = executeAction(chooseNodeOf(eid), mkCtx(owner, other, src));
+    return res.done ? null : (res.pending as { options: { id: string; available: boolean }[] }).options.map(o => o.available);
+  };
+  // WX17-Re14 ①「対戦相手のシグニ２体を対象とし」＝1体ならだめ・2体なら可
+  eq(availReal('WX17-Re14-E1', {}, { signi: [SIGNI, null, null] }, 'WX17-Re14')?.[0], false, '🔴WX17-Re14 ①：相手のシグニ1体で選べる');
+  eq(availReal('WX17-Re14-E1', {}, { signi: [SIGNI, SIGNI_L1, null] }, 'WX17-Re14')?.[0], true, '🔴WX17-Re14 ①：相手のシグニ2体で選べない');
+  // WD22-011-G ②「あなたのシグニ２体をバニッシュする」＝1体ならだめ
+  eq(availReal('WD22-011-G-E1', { signi: [SIGNI, null, null] }, {}, 'WD22-011-G')?.[1], false, '🔴WD22-011-G ②：自分のシグニ1体で選べる');
+  eq(availReal('WD22-011-G-E1', { signi: [SIGNI, SIGNI_L1, null] }, {}, 'WD22-011-G')?.[1], true, '🔴WD22-011-G ②：自分のシグニ2体で選べない');
+  // WX24-P2-018 ①「対戦相手は自分のエナゾーンからカードを３枚選び」＝2枚以下でも可（すべて選ぶ）
+  eq(availReal('WX24-P2-018-E2', {}, { energy: 2 }, 'WX24-P2-018')?.[0], true, '🔴WX24-P2-018 ①：相手のエナ2枚で選べない');
+
   // ── ⑤ 試しの実行は本番の盤面を書き換えない ──
   const ctx5 = mkCtx({ hand: 2 }, { signi: [SIGNI, null, null] });
   const before = JSON.stringify([ctx5.ownerState, ctx5.otherState]);

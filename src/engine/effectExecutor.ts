@@ -7654,10 +7654,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
  * - 自分の手札を決まった枚数だけ捨てる／公開する肢は、**枚数がそろわなければ選べない**（一部だけでは実行したことにならない）。
  * - ⚠**`STUB` を含む肢は判定しない**（未実装の処理は盤面を変えないことがある＝塞ぐと本来選べる肢を塞ぐ）。
  * - ⚠**「何もしない」肢（空の `SEQUENCE`・`NOOP`）は常に選べる**＝何も起きないこと自体が選択の中身（断る側）。
+ * - 🆕2026-09-28（ユーザー判断・原文10効果を1件ずつ）＝**「N体（枚）を対象とし」は N に届かなければ選べない**
+ *   （「N体**まで**」は1体でも選べる）＝試しの実行で出た対象選択が「まで」でなく、候補が必要数に届かなければ選べない。
+ *   例：WX17-Re14 ①「対戦相手のシグニ２体を対象とし」・WX25-P1-097 ②・WX22-Re03 ②・WD22-011-G ②「あなたのシグニ２体をバニッシュする」。
+ * - 🆕同日＝**エナゾーンからカードをトラッシュに置く肢は枚数が足りなくても選べる**（あるだけ全部＝0枚なら何も起きない）。
+ *   例：WX24-P2-018 ①・WXDi-P14-002 ②（原文「２枚以下の場合、それらをすべて選ぶ」）・WXDi-P11-002 ②（強制効果）・
+ *   WXDi-P03-004 ②（《無》×5 の支払い＝ライフクロスが0枚でも選べて何も起きない）。選択肢の中のこの形は4効果とも同じ判断。
  * - ⚠本番の乱数列は消費しない（固定の列に差し替えて戻す）。例外は「選べる」側に倒す。
  */
 function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
   if (JSON.stringify(action).includes('"STUB"')) return true;
+  const firstStep = (action.type === 'SEQUENCE' ? (action as SequenceAction).steps[0] : action) as { type?: string; target?: EffectTarget } | undefined;
+  if (firstStep?.type === 'TRASH' && firstStep.target?.type === 'ENERGY_CARD') return true;
   if ((action.type as string) === 'NOOP' || (action.type === 'SEQUENCE' && ((action as SequenceAction).steps ?? []).length === 0)) return true;
   const top = (action.type === 'SEQUENCE' ? (action as SequenceAction).steps[0] : action) as { type?: string; source?: EffectTarget; target?: EffectTarget } | undefined;
   const ref = top?.source ?? top?.target;
@@ -7671,7 +7679,11 @@ function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
     const res = executeAction(action, {
       ...ctx, logs: [], ownerState: structuredClone(ctx.ownerState), otherState: structuredClone(ctx.otherState),
     });
-    if (!res.done) return true;
+    if (!res.done) {
+      // 「N体を対象とし」（「まで」でない）で候補が N に届かない＝選べない。
+      const p = res.pending;
+      return !(p.type === 'SELECT_TARGET' && !p.optional && typeof p.count === 'number' && p.candidates.length < p.count);
+    }
     return JSON.stringify([res.ownerState, res.otherState]) !== before;
   } catch {
     return true;
