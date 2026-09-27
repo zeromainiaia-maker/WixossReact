@@ -1,5 +1,6 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
 import { applyRefreshState } from './refresh';
+import { currentRng, mulberry32, setRng } from './rng';
 import type {
   CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, SelectColorAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, AttachFacedownFromHandAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
 import type { ExecCtx, ExecResult
@@ -7645,6 +7646,40 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   return done(cur);
 }
 
+/**
+ * 🆕2026-09-28（ユーザー判断＝**実行できない選択肢は選べない**）＝その肢を選んで何か起きるか。
+ * 🔑**候補を数えて写すのではなく、盤面のコピーで試しに実行して見る**＝対象の候補を集める処理はアクションごとに別々
+ *   （保護・動的な絞り込みを含む）で、写すとずれて「選べるはずの肢を塞ぐ」ほうへ壊れるため。
+ * - 対話（対象を選ぶ等）が出る＝候補がある＝選べる。盤面が1つも変わらずに終わる＝何も起きない＝選べない。
+ * - 自分の手札を決まった枚数だけ捨てる／公開する肢は、**枚数がそろわなければ選べない**（一部だけでは実行したことにならない）。
+ * - ⚠**`STUB` を含む肢は判定しない**（未実装の処理は盤面を変えないことがある＝塞ぐと本来選べる肢を塞ぐ）。
+ * - ⚠**「何もしない」肢（空の `SEQUENCE`・`NOOP`）は常に選べる**＝何も起きないこと自体が選択の中身（断る側）。
+ * - ⚠本番の乱数列は消費しない（固定の列に差し替えて戻す）。例外は「選べる」側に倒す。
+ */
+function choiceExecutable(action: EffectAction, ctx: ExecCtx): boolean {
+  if (JSON.stringify(action).includes('"STUB"')) return true;
+  if ((action.type as string) === 'NOOP' || (action.type === 'SEQUENCE' && ((action as SequenceAction).steps ?? []).length === 0)) return true;
+  const top = (action.type === 'SEQUENCE' ? (action as SequenceAction).steps[0] : action) as { type?: string; source?: EffectTarget; target?: EffectTarget } | undefined;
+  const ref = top?.source ?? top?.target;
+  if ((top?.type === 'TRASH' || top?.type === 'REVEAL') && ref?.type === 'HAND_CARD' && ref.owner === 'self'
+    && typeof ref.count === 'number' && !ref.upToCount
+    && handCandidates(ctx.ownerState, ref.filter, ctx.cardMap, ctx.treatAsClassAllZones).length < ref.count) return false;
+  const prevRng = currentRng();
+  setRng(mulberry32(0x5eed));
+  try {
+    const before = JSON.stringify([ctx.ownerState, ctx.otherState]);
+    const res = executeAction(action, {
+      ...ctx, logs: [], ownerState: structuredClone(ctx.ownerState), otherState: structuredClone(ctx.otherState),
+    });
+    if (!res.done) return true;
+    return JSON.stringify([res.ownerState, res.otherState]) !== before;
+  } catch {
+    return true;
+  } finally {
+    setRng(prevRng);
+  }
+}
+
 function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
   // 🆕`noRepeat`＝「まだ選んでいないもの１つを選ぶ」（`WXDi-P11-003-E1-GRANT`）。
   //   🔑記録キーは **実行時に組み立てる**（live JSON には `noRepeat` しか入れない）＝
@@ -7667,8 +7702,14 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
         ] } as SequenceAction as EffectAction)
       : freezeStoredTargets(ch.action, ctx),
     available: (ch.condition ? evalCondition(ch.condition, ctx) : true)
-      && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`)),
+      && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`))
+      // 🆕2026-09-28＝実行できない肢は選べない（`choiceExecutable`）。
+      && choiceExecutable(ch.action, ctx),
   }));
+  // 🆕2026-09-28＝どの肢も実行できない＝何も起きない（`noRepeat` の「選び終えた」と同じ帰結）。
+  if (!a.noRepeat && options.every(o => !o.available)) {
+    return done(addLog(ctx, '実行できる選択肢がない（何も起きない）'));
+  }
   // 全部選び終えた（＝候補0）なら何も起こらない。原文「まだ選んでいないもの」の自然な帰結。
   if (a.noRepeat && options.every(o => !o.available)) {
     return done(addLog(ctx, 'まだ選んでいない選択肢がない（何も起きない）'));

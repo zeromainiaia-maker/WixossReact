@@ -3,7 +3,7 @@
 
 ## I1（0効果）
 
-## I2（267効果）
+## I2（268効果）
 WX01-028-E1	base/both	選択肢なし・差分: 自制限: [なし]→[ルリグ付与能力x1]
 WX02-073-E1	base/both	選択肢なし・差分: 自S源: 自トラッシュ → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX02-073:trash"] ; 自状態 signi_played_from_non_hand_this_turn: なし → ["自S源"]
 WX04-015-E1	base/both	選択肢なし・差分: 相デッキの並びが変わった（残り12枚）
@@ -219,6 +219,7 @@ WXK02-070-E1	base/both	選択肢なし・差分: 自デッキの並びが変わ�
 WXK02-071-E1	base/both	選択肢なし・差分: 自S源: 自シグニ0(上) → 自手札 ; 自デッキ上1: 自デッキ[0] → 自シグニ0(上) ; 自デッキ上1: 状態[なし]→[ダウン]
 WXK03-001-E3	base/both	選択肢なし・差分: 相制限: [なし]→[ルリグ付与能力x2]
 WXK03-020-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX10-048:hand"]
+WXK03-049-E1	empty/both	選択肢なし・差分: 自状態 deck_shuffled_count: なし → 1
 WXK06-023-E2	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX01-087:hand"]
 WXK06-025-E2	base/both	選択肢なし・差分: 相S丙: 相シグニ2(上) → 相トラッシュ ; 相手札対象: 相手札 → 相シグニ2(上) ; 相状態 signi_placed_origin_this_turn: なし → ["WX01-077:hand"]
 WXK06-034-E1	base/both	選択肢なし・差分: 自S対象0: 自シグニ0(上) → 自手札 ; 自手札対象: 自手札 → 自シグニ0(上) ; 自状態 signi_placed_origin_this_turn: なし → ["WX15-037:hand"]

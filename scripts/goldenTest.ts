@@ -805,7 +805,10 @@ test('task12(lxxxii) wave4: ARTS class-energy optional cost records payment for 
   const prioke = [...cardMap.values()].filter(c => (c.CardClass ?? '').includes('プリオケ')).slice(0, 3).map(c => c.CardNum);
   ok(prioke.length === 3, '＜プリオケ＞を3枚用意');
   const open = (pay: boolean) => {
-    const base = mkCtx({}, {}, SOURCE);
+    // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。
+    const priokeSigni = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('プリオケ'));
+    const bigSigni = findCard(c => isSigni(c) && parseInt(c.Power || '0') >= 10000);
+    const base = mkCtx({ signi: [priokeSigni, null, null] }, { signi: [bigSigni, null, null] }, SOURCE);
     base.ownerState = { ...base.ownerState, energy: [...prioke], trash: [], field: { ...base.ownerState.field, check: SOURCE } };
     const first = executeEffect(effect, base);
     ok(!first.done && first.pending.type === 'CHOOSE', '任意支払いを提示');
@@ -41467,7 +41470,7 @@ test('WX15-067-E1: pre-use virus count is scoped to cost and CHOOSE 0/1/2+', () 
 
     const effect = mergeManualEffects('WX15-067', effectsMap.get('WX15-067') ?? [])
       .find(e => e.effectId === 'WX15-067-E1')!;
-    const choose = (removed: number) => executeEffect(effect, { ...mkCtx({}, {}, 'WX15-067#spell'), preUseVirusRemoved: removed });
+    const choose = (removed: number) => executeEffect(effect, { ...mkCtx({}, { signi: [SIGNI, null, null] }, 'WX15-067#spell'), preUseVirusRemoved: removed })   // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。;
     const r0 = choose(0);
     ok(!r0.done && r0.pending.type === 'CHOOSE' && r0.pending.count === 1 && !r0.pending.upTo, '0 viruses: choose exactly 1');
     const r1 = choose(1);
@@ -58069,8 +58072,12 @@ function batch32ChooseTrash(choiceId: 'c0' | 'c1', trash: string[], picked: stri
   ctx.ownerState.trash = [...trash];
   if (withKey) ctx.otherState.field.key_piece = batch31SyntheticCard('B32-KEY', 'キー', {});
   const choice = executeEffect(effect, ctx);
-  ok(!choice.done && choice.pending.type === 'CHOOSE', `A4/A5: ${choiceId}を選べる`);
-  if (choice.done || choice.pending.type !== 'CHOOSE') throw new Error('A4/A5: CHOOSEなし');
+  // 🆕2026-09-28＝「実行できない選択肢は選べない」＝合計を作れない／相手のキーが無い盤面では**選択肢自体が出ず何も起きない**
+  //   （旧＝選択肢は出て、選んだ後で拒否されていた）。拒否の検査（手札に加わらない・done）はそのまま成り立つ。
+  if (choice.done) return choice;
+  ok(choice.pending.type === 'CHOOSE', `A4/A5: ${choiceId}を選べる`);
+  if (choice.pending.type !== 'CHOOSE') throw new Error('A4/A5: CHOOSEなし');
+  ok(choice.pending.options.find(o => o.id === choiceId)?.available === true, `A4/A5: ${choiceId}が選べる盤面`);
   const offered = resumeChoose(choiceId, choice.pending, ctxAfter(choice, ctx));
   if (offered.done) return offered;
   ok(offered.pending.type === 'SELECT_TARGET', `A4/A5: ${choiceId}のトラッシュ選択`);
@@ -64965,7 +64972,7 @@ test('段2 Sheet3① E2E: WXEX1-40 の2閾値を CONTINUOUS collector が別々�
 test('段2 Sheet3① E2E: WXK07-028 はチャーム数で発動・選択数・選択肢3を切り替える', () => withSavedCursor(() => {
   const effect = sheet3b1Fresh('WXK07-028', 'WXK07-028-E1');
   const make = (charms: number) => {
-    const ctx = mkCtx({ signi: ['WXK07-028', SIGNI_L1, SIGNI_L2] }, {}, 'WXK07-028');
+    const ctx = mkCtx({ signi: ['WXK07-028', SIGNI_L1, SIGNI_L2] }, { signi: [SIGNI_L3, null, null] }, 'WXK07-028');   // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。
     ctx.ownerState.field.signi_charms = [charms >= 1 ? SIGNI : null, charms >= 2 ? SIGNI_L3 : null, charms >= 3 ? SIGNI_L4 : null];
     return ctx;
   };
@@ -72408,7 +72415,7 @@ test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex で
     ok(!!tawil && !!other, '＜タウィル＞のルリグと、そうでないルリグが CSV にある');
     if (tawil && other) {
       const run = (lrigNum: string) => {
-        const ctx = mkCtx({ lrig: [lrigNum] }, {}, 'WX12-005');
+        const ctx = mkCtx({ lrig: [lrigNum] }, { lrig: [other.CardNum], signi: [SIGNI, null, null] }, 'WX12-005');   // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。
         const r = executeEffect(cmc, ctx);
         ok(!r.done && r.pending.type === 'CHOOSE', `${lrigNum}: 選択肢が提示される`);
         return !r.done && r.pending.type === 'CHOOSE' ? r.pending.count : -1;
@@ -73323,7 +73330,8 @@ test('§5.3 O-251: 宣言した数だけコストが増える（0つなら印刷
 
 test('§5.3 O-251: CHOOSE は宣言した数ちょうどに固定される（払った分より多く選べない）', () => withSavedCursor(() => {
   const live = findEffectDeep(effectsMap.get('PR-K056') ?? [], 'PR-K056-E1')!;
-  const base = mkCtx({}, { hand: 3 });
+  // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。
+  const base = mkCtx({}, { hand: 3, signi: [SIGNI_L1, SIGNI_L4, null] });
   // 3つ宣言＝3つちょうど（`upTo` は落ちる）
   const r3 = executeEffect(live, { ...base, ownerState: { ...base.ownerState, declared_choose_count: 3 } } as ExecCtx);
   ok(!r3.done && r3.pending.type === 'CHOOSE', 'CHOOSE を提示する');
@@ -77747,7 +77755,7 @@ test('WXDi-P05-006-E1 live: 通常使用を許しつつチームピースのカ�
 test('WXDi-P14-002-E1 live: センタールリグのレベル数まで選べ、参照不能なら0', () => withSavedCursor(() => {
   const action = effectsMap.get('WXDi-P14-002')!.find(e => e.effectId === 'WXDi-P14-002-E1')!.action;
   const lrig3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
-  const offer = executeAction(action, mkCtx({ lrig: [lrig3] }, {}));
+  const offer = executeAction(action, mkCtx({ lrig: [lrig3] }, { signi: [SIGNI, null, null] }));   // 🆕2026-09-28＝「実行できない選択肢は選べない」（execChoose）＝対象の候補を盤面に置く（空の盤面では肢が選べなくなる）。
   ok(!offer.done && offer.pending.type === 'CHOOSE', 'Lv3でCHOOSEを提示');
   if (!offer.done) {
     eq(offer.pending.count, 3, 'Lv3なので最大3つ');
@@ -90820,6 +90828,42 @@ test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／ア�
   // 🔴2026-09-27＝［キー］は撤去した（反転＝ボタンが残っていたら押しても何も起きない）。
   ok(!/cpu-plan-key-/.test(modal), '🔴撤去した［キー］のボタンが画面に残っている');
   ok(!/cpu-plan-(priority|prefer|avoid)-/.test(modal), '🔴撤去した［優先］［狙う］［避ける］が画面に残っている');
+}));
+
+test('2026-09-28 ルール：実行できない選択肢は選べない（CHOOSE の全カード）', () => withSavedCursor(() => {
+  // 🔑**ユーザー判断（2026-09-27〜28）**＝「A するか、B する」でも「以下の N つから選ぶ」でも、**実行できない肢は選べない**。
+  //   判定は `execChoose` の `choiceExecutable`＝**盤面のコピーで試しに実行して、何も変わらなければ選べない**
+  //   （対象の候補を数える処理はアクションごとに別々で、写すとずれるため）。
+  const mk = (choices: { choiceId: string; label: string; action: unknown }[], count = 1) =>
+    ({ type: 'CHOOSE', choose_count: count, from_count: choices.length, choices }) as unknown as EffectAction;
+  const banishOpp = { choiceId: 'banish', label: '相手のシグニ1体をバニッシュ', action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } };
+  const draw = { choiceId: 'draw', label: '1枚引く', action: { type: 'DRAW', owner: 'self', count: 1 } };
+  const nothing = { choiceId: 'none', label: '何もしない', action: { type: 'SEQUENCE', steps: [] } };
+  const discard2 = { choiceId: 'discard2', label: '手札を2枚捨てる', action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } } };
+  const stub = { choiceId: 'stub', label: '未実装の処理', action: { type: 'STUB', id: 'GOLDEN_UNKNOWN_STUB' } };
+  const availOf = (action: EffectAction, owner: Parameters<typeof mkCtx>[0], other: Parameters<typeof mkCtx>[1]) => {
+    const res = executeAction(action, mkCtx(owner, other));
+    return res.done ? null : Object.fromEntries((res.pending as { options: { id: string; available: boolean }[] }).options.map(o => [o.id, o.available]));
+  };
+  // ── ① 対象がいない肢は選べない（いれば選べる）──
+  eq(JSON.stringify(availOf(mk([banishOpp, draw, nothing]), {}, {})), JSON.stringify({ banish: false, draw: true, none: true }),
+    '🔴相手の場が空なのに「バニッシュ」を選べる');
+  eq(JSON.stringify(availOf(mk([banishOpp, draw]), {}, { signi: [SIGNI, null, null] })), JSON.stringify({ banish: true, draw: true }),
+    '🔴相手のシグニがいるのに「バニッシュ」を選べない');
+  // ── ② 自分の手札を決まった枚数使う肢は、枚数がそろわなければ選べない（一部だけでは実行したことにならない）──
+  eq(availOf(mk([discard2, draw]), { hand: 1 }, {})?.discard2, false, '🔴手札1枚で「手札を2枚捨てる」を選べる');
+  eq(availOf(mk([discard2, draw]), { hand: 2 }, {})?.discard2, true, '🔴手札2枚で「手札を2枚捨てる」を選べない');
+  // ── ③ 「何もしない」と未実装（STUB）は常に選べる（塞ぐと本来選べる肢を塞ぐ）──
+  eq(availOf(mk([banishOpp, nothing]), {}, {})?.none, true, '🔴「何もしない」を塞いだ');
+  eq(availOf(mk([banishOpp, stub]), {}, {})?.stub, true, '🔴STUB を含む肢を塞いだ（判定できない肢は選べるまま）');
+  // ── ④ どの肢も実行できない＝何も起きない ──
+  const none = executeAction(mk([banishOpp, discard2]), mkCtx({ hand: 1 }, {}));
+  ok(none.done && none.logs.some(l => l.includes('実行できる選択肢がない')), '🔴どの肢も実行できないのに選択を求めた');
+  // ── ⑤ 試しの実行は本番の盤面を書き換えない ──
+  const ctx5 = mkCtx({ hand: 2 }, { signi: [SIGNI, null, null] });
+  const before = JSON.stringify([ctx5.ownerState, ctx5.otherState]);
+  executeAction(mk([banishOpp, discard2, draw]), ctx5);
+  eq(JSON.stringify([ctx5.ownerState, ctx5.otherState]), before, '🔴選べるかの試しの実行が盤面を書き換えた');
 }));
 
 test('2026-09-27 ディノス：公開できなければ「公開する」は選べない／CPU は「AかB」を先読みで選ぶ', () => withSavedCursor(() => {

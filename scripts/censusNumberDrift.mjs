@@ -26,7 +26,9 @@ const offset = argOf('--offset', 0);
 const src = JSON.parse(fs.readFileSync('docs/_effect_srctext.json', 'utf8'));
 let sheets = '';
 for (const f of fs.readdirSync('docs').filter(x => /^decompile_sheet[0-9]+[.]txt$/.test(x))) {
-  sheets += fs.readFileSync('docs/' + f, 'utf8');
+  // 🔴2026-09-28＝**改行コードを揃える**＝git から取り出した CRLF のシートでは行末の CR が照合を邪魔し、
+  //   そのシートのカードが照合から落ちて件数が減っていた（sheet2 だけ CRLF で 32→25＝計器の較正）。
+  sheets += fs.readFileSync('docs/' + f, 'utf8').replace(/\r\n/g, '\n');
 }
 // カード単位で逆翻訳を束ねる（効果単位で比べると兄弟効果ぶんが偽陽性になる）
 const cardDec = new Map();
