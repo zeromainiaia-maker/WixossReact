@@ -7716,7 +7716,11 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     available: (ch.condition ? evalCondition(ch.condition, ctx) : true)
       && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`))
       // 🆕2026-09-28＝実行できない肢は選べない（`choiceExecutable`）。
-      && choiceExecutable(ch.action, ctx),
+      //   ⚠**「まだ選んでいないもの１つを選ぶ」（`noRepeat`）は対象外**（ユーザー判断＝WXDi-P11-002 は強制効果＝
+      //   ①「手札を２枚捨てる」は２枚以下ならすべて捨てる／②エナは足りなければすべて／③「自分のシグニ１体を選びトラッシュ」は
+      //   いなくても選べて何も起きない）＝選択肢を1つずつ消化していく強制の手順で、実行できない肢を塞ぐと手順が崩れる。
+      //   同じ形は WXDi-P11-003・PR-469 の計3枚。
+      && (a.noRepeat === true || choiceExecutable(ch.action, ctx)),
   }));
   // 🆕2026-09-28＝どの肢も実行できない＝何も起きない（`noRepeat` の「選び終えた」と同じ帰結）。
   if (!a.noRepeat && options.every(o => !o.available)) {

@@ -90894,6 +90894,30 @@ test('2026-09-28 ルール：実行できない選択肢は選べない（CHOOSE
   // WX24-P2-018 ①「対戦相手は自分のエナゾーンからカードを３枚選び」＝2枚以下でも可（すべて選ぶ）
   eq(availReal('WX24-P2-018-E2', {}, { energy: 2 }, 'WX24-P2-018')?.[0], true, '🔴WX24-P2-018 ①：相手のエナ2枚で選べない');
 
+  // ── ⑨ 🆕同日＝「まだ選んでいないもの１つを選ぶ」（`noRepeat`）は対象外＝どの肢も選べて、できる分だけ実行する ──
+  //   ユーザー判断＝WXDi-P11-002 は強制効果：①「手札を２枚捨てる」は２枚以下ならすべて捨てる／
+  //   ③「自分のシグニ１体を選びトラッシュに置く」はいなくても選べて何も起きない。
+  const p11 = chooseNodeOf('WXDi-P11-002-E1');
+  ok((p11 as { noRepeat?: boolean }).noRepeat === true, '前提崩れ＝WXDi-P11-002 の選択が「まだ選んでいないもの」形でない');
+  const poor = mkCtx({ hand: 1, energy: 0 }, {});
+  const r11 = executeAction(p11, poor);
+  ok(!r11.done && r11.pending.type === 'CHOOSE', '🔴手札1枚・エナ0・シグニ0で WXDi-P11-002 の選択が出ない');
+  if (!r11.done && r11.pending.type === 'CHOOSE') {
+    eq(JSON.stringify(r11.pending.options.map(o => o.available)), JSON.stringify([true, true, true]),
+      '🔴強制の「まだ選んでいないもの」形で、足りない肢を塞いだ');
+    // ①＝手札1枚しか無ければ、その1枚を捨てる（2枚に届かなくてよい）
+    const pick1 = resumeChoose(r11.pending.options[0].id, r11.pending, { ...poor, ownerState: r11.ownerState, otherState: r11.otherState });
+    ok(!pick1.done && pick1.pending.type === 'SELECT_TARGET', '🔴①を選んでも捨てる札を選ぶ場面が出ない');
+    if (!pick1.done && pick1.pending.type === 'SELECT_TARGET') {
+      eq(pick1.pending.candidates.length, 1, '前提崩れ＝捨てる候補が1枚でない');
+      const fin = resumeSelectTarget(pick1.pending.candidates, pick1.pending, { ...poor, ownerState: pick1.ownerState, otherState: pick1.otherState });
+      eq(fin.ownerState.hand.length, 0, '🔴手札1枚で①を選んだのに、その1枚を捨てていない');
+    }
+    // ③＝シグニがいなくても選べて、何も起きない（例外で止まらない）
+    const pick3 = resumeChoose(r11.pending.options[2].id, r11.pending, { ...poor, ownerState: r11.ownerState, otherState: r11.otherState });
+    ok(pick3.done, '🔴シグニがいないのに③で対話が出た／止まった');
+  }
+
   // ── ⑤ 試しの実行は本番の盤面を書き換えない ──
   const ctx5 = mkCtx({ hand: 2 }, { signi: [SIGNI, null, null] });
   const before = JSON.stringify([ctx5.ownerState, ctx5.otherState]);
