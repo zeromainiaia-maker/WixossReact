@@ -60543,7 +60543,11 @@ scenarios.v267CpuInteractionPolicy = {
       ],
     } } });
     const st1 = await waitFor(st => (st.guest?.hand ?? 0) >= hand0 + 2, '①');
-    const chooseLog = await H.findLog(/\[CPU\] 選択: /);
+    // 🔴2026-09-27＝**witness は DOM ではなく `logTail`（DB 側の `game_logs`）で取る**（§4.4-13／§4.4-16）＝
+    //   `H.findLog`（`document.body.innerText`）はログ欄に出ていない行を拾えず、CPU は正しく選んでいるのに
+    //   「ログが無い」で FAIL していた（v0.582 時点から再現・手札は 1→3 と正しく増えていた）。
+    const chooseLog = ((await H.queryState())?.logTail ?? []).find(l => /\[CPU\] 選択: /.test(l))
+      ?? await H.findLog(/\[CPU\] 選択: /);
     H.log(`① hand ${hand0}→${st1?.guest?.hand} log=${chooseLog}`);
     if (!st1) return { pass: false, detail: `🔴CPU が選択肢に応答しない／断った（hand ${hand0}→変化なし・log=${chooseLog ?? '—'}）` };
     if (!chooseLog || !/2枚引く/.test(chooseLog) || /（断る）/.test(chooseLog)) return { pass: false, detail: `🔴選択ログがする側を示していない（${chooseLog ?? '—'}）` };

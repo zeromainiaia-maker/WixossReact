@@ -257,6 +257,11 @@ export interface CpuPolicy {
    */
   readonly chargeSkipSlack: number;
   /**
+   * 🆕2026-09-27（ユーザー指摘「WDA3 のディノスを CPU が弱く使っている」）＝**「AかB」の選択肢を各肢を解決した盤面で比べる**か
+   * （`cpuLookahead.bestChoiceByLookahead`）。🔴**0 なら旧挙動＝押せる肢から乱数**（`legacy-choice`）。
+   */
+  readonly choiceLookahead: number;
+  /**
    * 🆕§5.7 `S-22`＝**`thenAction` から損得が読めない対象選択を「置き場（`targetScope`）」で決める**か（0＝旧挙動＝乱数）。
    * 🔴**0 にすると対象宣言が乱数に戻る**（`STUB{SELECT_TARGET_ONLY}` は `thenAction` に印しか持たない）。
    * 📏実測（修正前・本物のデッキ6つ × 1戦）＝CPU が答えた `SELECT_TARGET` **66件のうち32件（48%）が乱数**。
@@ -375,6 +380,8 @@ export const DEFAULT_CPU_POLICY: CpuPolicy = {
   chargeSpellKeep: 8000,
   // 🆕2026-09-27＝**エナが足りていればチャージしない**（ユーザー指摘）。値は自己対戦（`selfplay:ab`）で決める。
   chargeSkipSlack: 1,
+  // 🆕2026-09-27＝「AかB」を先読みで選ぶ（ユーザー指摘）。
+  choiceLookahead: 1,
   // 🆕§5.7 `S-22`（2026-09-21）＝**既定で有効**。🔴これは調整つまみではなく**実測したバグの修正**
   //   （対象選択の 48% が乱数で、最大の塊は「宣言の後ろでバニッシュされる相手のシグニ」を乱数で選んでいた）。
   //   ⚠**実機の挙動が変わる回**＝自己対戦の乱数列も動くので、この回にベースラインを撮り直す。
@@ -502,6 +509,8 @@ export const CPU_POLICIES: Record<string, CpuPolicy> = {
   'legacy-fieldcharge': variant('legacy-fieldcharge', { chargeFieldBlocked: 0 }),
   // 🆕2026-09-27＝エナが足りていても常にチャージする（旧挙動）。
   'legacy-chargeskip': variant('legacy-chargeskip', { chargeSkipSlack: -1 }),
+  // 🆕2026-09-27＝「AかB」の選択肢を乱数で選ぶ（旧挙動）。
+  'legacy-choice': variant('legacy-choice', { choiceLookahead: 0 }),
   /** 🆕2026-09-26＝**スペルを手札に残す加点を入れる前**（スペルは効果の点数だけで比べられ、真っ先にエナへ行っていた）。 */
   'legacy-spellcharge': variant('legacy-spellcharge', { chargeSpellKeep: 0 }),
   /** 🆕§5.7 `S-22` を入れる前＝`thenAction` で読めない対象選択は乱数（対象宣言が全部ここに落ちていた）。 */
@@ -596,14 +605,14 @@ export function patchCpuPolicy(base: CpuPolicy, spec: string): CpuPolicy {
     if (key === 'searchWidth' || key === 'searchDepth' || key === 'spellGainMin' || key === 'keepGuards' || key === 'searchKeepGuards' || key === 'actionBias'
       || key === 'lifeBurstCost' || key === 'guardDeckCount' || key === 'guardKeepValue'
       || key === 'chargeGrowColor' || key === 'chargeKeepPlayable' || key === 'chargeFarLevelScale'
-      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
+      || key === 'chargeFieldBlocked' || key === 'chargeSpellKeep' || key === 'chargeSkipSlack' || key === 'choiceLookahead' || key === 'targetIntentByScope' || key === 'mulliganLv1Target'
       || key === 'cutinGainMin' || key === 'betCoinValue') {
       top[key] = num; continue;
     }
     if (key === 'searchAttacks') { top[key] = num !== 0; continue; }
     throw new Error(`unknown CPU policy key: ${key}（重み＝${Object.keys(base.boardWeights).join(' / ')}`
       + ` ／ ポリシー＝searchWidth / searchDepth / spellGainMin / keepGuards / searchKeepGuards / actionBias / searchAttacks`
-      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
+      + ` / lifeBurstCost / guardDeckCount / guardKeepValue / chargeGrowColor / chargeKeepPlayable / chargeFarLevelScale / chargeFieldBlocked / chargeSpellKeep / chargeSkipSlack / choiceLookahead / targetIntentByScope / mulliganLv1Target / cutinGainMin / betCoinValue`
       + ` ／ 接頭辞つき＝strength.<${Object.keys(base.strengthWeights).join('|')}>`
       + ` / plan.<${Object.keys(base.planWeights).join('|')}> / keyword.<キーワード名>）`);
   }

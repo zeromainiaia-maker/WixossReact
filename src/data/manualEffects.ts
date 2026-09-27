@@ -10148,6 +10148,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           {
             choiceId: 'reveal',
             label: '手札から赤と緑の＜龍獣＞のシグニを1枚ずつ公開する',
+            // 🆕2026-09-27（ユーザー判断＝「A するか、B する」で A が実行できないとき A は選べない）＝
+            //   赤と緑の＜龍獣＞が1枚ずつ手札に無ければ公開は選べない（旧＝条件が無く、公開できないまま場に残れた）。
+            //   同じ形の WX14-072／WX14-075（＜天使＞を公開するか、トラッシュ）は前から HAND_COUNT_FILTER を持っている。
+            condition: { type: 'AND', conditions: [
+              { type: 'HAND_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: '龍獣', color: '赤' }, operator: 'gte', value: 1 },
+              { type: 'HAND_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: '龍獣', color: '緑' }, operator: 'gte', value: 1 },
+            ] },
             action: {
               type: 'REVEAL',
               source: {

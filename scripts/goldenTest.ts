@@ -179,7 +179,7 @@ import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screen
 import { cpuPlanBoardCtx, cpuPlanDeploysFit, planAllowsUseIn, cpuTargetCondHolds, cpuTargetCondsLabel, isEmptyCpuDeckPlan, normalizeCpuDeckPlan, planEffectPick, planDeployBonus, planTargetBonus, planUseBonus, pruneCpuDeckPlan, resolveCpuTargetMode, resolveCpuTargetSpec, PLAN_WEIGHTS, CPU_CARD_USES, CPU_COMBO_USES } from '../src/screens/battle/cpuDeckPlan';
 import { performCpuMulligan } from '../src/screens/battle/controller/performMulligan';
 import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteractionRespond';
-import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
+import { cpuOnPlayEffectsOf, pickCpuChoiceByLookahead, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyCpuMoveSim, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
 import { buildCpuGrowReserve, cpuChargeNeedOf, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
@@ -87137,7 +87137,8 @@ test('§5.6 C-8 CPU の対話応答（純関数）：損得の分かる選択は
   // 🆕§5.7 `S-5d` 第2段（2026-09-19）＝**振り分けも `cpuInteractionRespond.ts` へ移した**ので両方を読む
   //   （画面に残るのは遅延と委譲だけ）。**配線の本数は不変＝較正であって退化ではない。**
   const battle = cpuRespondSource();
-  ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
+  // 🆕2026-09-27＝「AかB」はまず先読み（`pickCpuChoiceByLookahead`）、比べられなければ純関数（較正＝純関数の口は残っている）。
+  ok(/selected = pickCpuTargets\(inter, cpuCtx\)/.test(battle) && /selected = looked \? \[looked\] : pickCpuChoice\(inter, cpuCtx\)/.test(battle), '🔴CPU の対話応答が純関数を通っていない');
   ok(!/const firstAvail = inter\.options\.find/.test(battle), '🔴「押せる先頭」の直書きが残っている');
 }));
 
@@ -90819,6 +90820,53 @@ test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／ア�
   // 🔴2026-09-27＝［キー］は撤去した（反転＝ボタンが残っていたら押しても何も起きない）。
   ok(!/cpu-plan-key-/.test(modal), '🔴撤去した［キー］のボタンが画面に残っている');
   ok(!/cpu-plan-(priority|prefer|avoid)-/.test(modal), '🔴撤去した［優先］［狙う］［避ける］が画面に残っている');
+}));
+
+test('2026-09-27 ディノス：公開できなければ「公開する」は選べない／CPU は「AかB」を先読みで選ぶ', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（ユーザー指摘「WDA3 のディノスを CPU が弱く使っている」）**＝2つ重なっていた：
+  //   ①engine＝「公開する」に条件が無く、**赤と緑がそろっていなくても選べた**（公開しないまま場に残れる）。
+  //     ユーザー判断＝「A するか、B する」で **A が実行できないとき A は選べない**（同形の WX14-072／075 は前から条件つき）。
+  //   ②CPU＝「AかB」を**押せる肢から乱数**で選んでいた＝公開できるのに半分は自分をトラッシュ（WDA3 8戦で 13回）。
+  const DINOS = 'WX21-054', RED = 'WX21-053', GREEN = 'WX21-064';   // ノトト（赤＜龍獣＞）・トロス（緑＜龍獣＞）
+  eq(cardMap.get(RED)?.Color, '赤', '前提崩れ＝ノトトの色');
+  eq(cardMap.get(GREEN)?.Color, '緑', '前提崩れ＝トロスの色');
+  const e2 = effectsMap.get(DINOS)!.find(e => e.effectId === `${DINOS}-E2`)!;
+  const cm = new InstanceMap<CardData>(cardMap);
+  const run = (hand: string[]) => {
+    const ctx = mkCtx({ signi: [`${DINOS}#f1`, null, null] }, {}, `${DINOS}#f1`);
+    ctx.ownerState = { ...ctx.ownerState, hand };
+    ctx.cardMap = cm;
+    return { ctx, res: executeEffect(e2, ctx) };
+  };
+  const availOf = (hand: string[]) => {
+    const { res } = run(hand);
+    ok(!res.done && res.pending.type === 'CHOOSE', '前提崩れ＝【出】が選択肢にならない');
+    return Object.fromEntries((res.pending as { options: { id: string; available: boolean }[] }).options.map(o => [o.id, o.available]));
+  };
+  // ── ① engine＝赤と緑がそろっていなければ「公開する」は押せない ──
+  eq(JSON.stringify(availOf([`${RED}#h1`])), JSON.stringify({ reveal: false, trash_self: true }), '🔴赤しか無いのに「公開する」を選べる');
+  eq(JSON.stringify(availOf([`${GREEN}#h1`, `${GREEN}#h2`])), JSON.stringify({ reveal: false, trash_self: true }), '🔴緑しか無いのに「公開する」を選べる');
+  eq(JSON.stringify(availOf([`${RED}#h1`, `${GREEN}#h2`])), JSON.stringify({ reveal: true, trash_self: true }), '🔴赤と緑がそろっているのに「公開する」を選べない');
+  // ── ② CPU＝そろっていれば先読みで「公開する」（自分をトラッシュしない）──
+  const lctx: LookaheadCtx = { cardMap: cm, effectsOf: id => effectsMap.get(getCardNumG(id)) ?? [] };
+  const both = run([`${RED}#h1`, `${GREEN}#h2`]);
+  if (!both.res.done) {
+    const ctxAfter = { ...both.ctx, ownerState: both.res.ownerState, otherState: both.res.otherState };
+    eq(pickCpuChoiceByLookahead(both.res.pending, ctxAfter, lctx), 'reveal', '🔴公開できるのに先読みで「公開する」を選ばない');
+    eq(pickCpuChoiceByLookahead(both.res.pending, ctxAfter, { ...lctx, policy: CPU_POLICIES['legacy-choice'] }), null,
+      '🔴`legacy-choice` で先読みが止まらない（A/B の口）');
+  }
+  // 片方しか押せないときは先読みしない（比べる肢が1つ＝従来の選び方で唯一の肢を選ぶ）
+  const redOnly = run([`${RED}#h1`]);
+  if (!redOnly.res.done) {
+    eq(pickCpuChoiceByLookahead(redOnly.res.pending, { ...redOnly.ctx, ownerState: redOnly.res.ownerState, otherState: redOnly.res.otherState }, lctx),
+      null, '🔴押せる肢が1つなのに先読みで答えた');
+  }
+  // ── ③ 配線＝本番の応答が先読みを通す（ログに「（先読み）」）──
+  const respSrc = fs.readFileSync(join(root, 'src/screens/battle/cpuInteractionRespond.ts'), 'utf-8');
+  ok(/selected = looked \? \[looked\] : pickCpuChoice\(inter, cpuCtx\);/.test(respSrc) && respSrc.includes("'（先読み）'"),
+    '🔴本番の選択肢の応答が先読みを通っていない');
+  ok(SCAN_KNOBS.some(k => k.key === 'choiceLookahead'), '🔴走査表に `choiceLookahead` が無い');
 }));
 
 test('2026-09-27 CPU のエナチャージ：エナが足りていれば置かない（色不足・手札上限超えなら置く）', () => withSavedCursor(() => {

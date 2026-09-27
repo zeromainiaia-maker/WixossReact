@@ -14,7 +14,7 @@ import { effectValueOf } from './cpuCardStrength';
 import { cpuAttackValueOf } from './cpuBoardEval';
 import { DEFAULT_CPU_POLICY, type CpuPolicy } from './cpuPolicy';
 import {
-  pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone,
+  isDeclineOption, pickCpuAllocatePower, pickCpuChoice, pickCpuEmptySigniZone, pickCpuRearrange, pickCpuSearch, pickCpuTargets, pickCpuVirusZone,
   type CpuInteractionCtx,
 } from './cpuInteraction';
 import { declarationScalingCost, type DeclarationScalingCost } from './cpuDeclarationCost';
@@ -266,6 +266,8 @@ function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx
   // 🆕§5.7 `S-29`（2026-09-22）＝**いま先読みしている効果の「帰結のコスト」**（対象宣言の後ろに来る任意コスト）。
   //   ⚠**本番の応答（`cpuInteractionRespond`）と同じものを渡す**＝渡さないと探索だけが別の対象を選ぶ。
   followUpCost?: DeclarationScalingCost,
+  /** 🆕2026-09-27＝いま何段目の選択肢の先読みの中か（`bestChoiceByLookahead` の入れ子の上限）。 */
+  choiceDepth = 0,
 ): ExecResult | null {
   // 相手が選ぶ対話は、相手の立場（cpu と opp を入れ替え）で答える。
   const opponentChooses = 'opponentResponds' in pending && pending.opponentResponds === true;
@@ -276,6 +278,9 @@ function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx
     case 'SELECT_TARGET': return resumeSelectTarget(pickCpuTargets(pending, ictx), pending, ctx);
     case 'SEARCH': return resumeSearch(pickCpuSearch(pending, ictx), pending, ctx);
     case 'CHOOSE': {
+      // 🆕2026-09-27＝「AかB」は各肢を解決して比べる（比べられなければ従来の選び方）。
+      const best = opponentChooses ? null : bestChoiceByLookahead(pending, ctx, lctx, followUpCost, choiceDepth);
+      if (best) return resumeChoose(best, pending, ctx);
       const picked = pickCpuChoice(pending, ictx);
       const id = picked[0] ?? '';
       const opt = pending.options.find(o => o.id === id);
@@ -305,6 +310,75 @@ function answer(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx
   }
 }
 
+/** 対話に答え続けて効果を最後まで解決する（CPU が効果の持ち主）。解決しきれなければ null。 */
+function runToDone(
+  first: ExecResult, base: ExecCtx, lctx: LookaheadCtx, followUpCost: DeclarationScalingCost | undefined, choiceDepth: number,
+): { cpu: PlayerState; opp: PlayerState } | null {
+  let result = first;
+  for (let step = 0; !result.done; step++) {
+    if (step >= STEP_CAP) return null;
+    const next = answer(result.pending, { ...base, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs }, lctx,
+      followUpCost, choiceDepth);
+    if (!next) return null;
+    result = next;
+  }
+  return { cpu: result.ownerState, opp: result.otherState };
+}
+
+/** 🆕2026-09-27＝選択肢の先読みの入れ子の上限（肢の中でまた「AかB」が出たら、そこから先は従来の選び方）。 */
+const CHOICE_DEPTH = 2;
+
+/**
+ * 🆕2026-09-27（ユーザー指摘「WDA3 のディノスを CPU が弱く使っている」）＝**「AかB」の選択肢を、各肢を解決した盤面で比べる**。
+ * 🔴**なぜ要るか**＝`pickCpuChoice` は「AかB」を**押せる肢から乱数で**選んでいた＝ディノスの【出】
+ *   （「赤と緑の＜龍獣＞を公開する」か「このシグニを場からトラッシュに置く」）で、公開できるのに半分は自分をトラッシュしていた。
+ * ■ 比べるのは**支払いの無い「AかB」だけ**＝断る肢がある形（「する」側を選ぶ）・支払いのある肢・複数選択・カード名の宣言・
+ *   相手が選ぶ形は従来どおり（`null` を返す）。
+ * ■ 各肢は**最後まで解決して** `evaluateBoard`（CPU＝`ctx.ownerState` の目線）で採点し、**一番高い肢が1つに決まるときだけ**返す
+ *   （同点・解決しきれない肢しか無いなら `null`＝従来の選び方）。
+ */
+function bestChoiceByLookahead(
+  pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx,
+  followUpCost: DeclarationScalingCost | undefined, choiceDepth: number,
+): string | null {
+  if (pending.type !== 'CHOOSE' || choiceDepth >= CHOICE_DEPTH) return null;
+  if ((lctx.policy ?? DEFAULT_CPU_POLICY).choiceLookahead <= 0) return null;   // 旧挙動（`legacy-choice`）
+  if (pending.multiSelect || pending.namePool || pending.opponentResponds || pending.leaveSubstituteAsk || pending.costlessOpponentChoice) return null;
+  const avail = pending.options.filter(o => o.available);
+  if (avail.some(isDeclineOption) || avail.some(o => o.costColors?.length || o.coinCost)) return null;
+  if (avail.length < 2) return null;
+  let best: { id: string; v: number } | null = null;
+  let tied = false;
+  for (const o of avail) {
+    const end = runToDone(resumeChoose(o.id, pending, ctx), ctx, lctx, followUpCost, choiceDepth + 1);
+    if (!end) continue;
+    const v = evaluateBoard(end.cpu, end.opp, lctx);
+    if (!best || v > best.v) { best = { id: o.id, v }; tied = false; } else if (v === best.v) tied = true;
+  }
+  return best && !tied ? best.id : null;
+}
+
+/**
+ * 🆕2026-09-27＝**本番の応答で「AかB」を先読みで選ぶ**（`cpuInteractionRespond`）。比べられなければ `null`＝従来の選び方。
+ * ⚠**本番の盤面は書き換えない・本番の乱数列を消費しない・山の順序を見ない**（`simulateEffect` と同じ規律）。
+ */
+export function pickCpuChoiceByLookahead(pending: PendingInteractionDef, ctx: ExecCtx, lctx: LookaheadCtx): string | null {
+  const prevRng = currentRng();
+  setRng(mulberry32(0x5eed));
+  try {
+    const seed = boardSeed(ctx.ownerState, ctx.otherState, lctx.turnPhase ?? 'MAIN');
+    const hidden: ExecCtx = {
+      ...ctx, logs: [],
+      ownerState: hideDeckOrder(clone(ctx.ownerState), seed), otherState: hideDeckOrder(clone(ctx.otherState), seed ^ 0x9e3779b9),
+    };
+    return bestChoiceByLookahead(pending, hidden, lctx, undefined, 0);
+  } catch {
+    return null;
+  } finally {
+    setRng(prevRng);
+  }
+}
+
 /**
  * 効果を1つ解決した盤面（CPU が効果の持ち主）。解決しきれなければ null。
  * ⚠渡した盤面は書き換えない（コピーで解決する）。
@@ -323,15 +397,7 @@ export function simulateEffect(
     } as ExecCtx;
     // 🆕§5.7 `S-29`＝この効果の対象宣言に「レベル１につき」のコストが続くなら、対象選択に渡す。
     const followUpCost = declarationScalingCost(effect) ?? undefined;
-    let result = executeEffect(effect, base);
-    for (let step = 0; !result.done; step++) {
-      if (step >= STEP_CAP) return null;
-      const next = answer(result.pending, { ...base, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs }, lctx,
-        followUpCost);
-      if (!next) return null;
-      result = next;
-    }
-    return { cpu: result.ownerState, opp: result.otherState };
+    return runToDone(executeEffect(effect, base), base, lctx, followUpCost, 0);
   } catch {
     return null;
   } finally {
