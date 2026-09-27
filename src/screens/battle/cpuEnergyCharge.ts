@@ -63,6 +63,43 @@ export function mainPhaseLrigLevel(actor: PlayerState, cardMap: Map<string, Card
   return canGrow ? cur + 1 : cur;
 }
 
+/**
+ * 🆕2026-09-27＝**エナチャージを「するか」の材料**（何を置くかは `pickCpuEnergyCharge`）。枚数はすべてエナの枚数。
+ * 作るのは `cpuGrowReserve.cpuChargeNeedOf`（盤面から読む）＝ここは判定だけの純関数。
+ */
+export interface CpuChargeNeed {
+  /** いまのエナの枚数。 */
+  energy: number;
+  /** このターンのグロウの一番安いコスト（グロウ先が無ければ 0）。 */
+  growNow: number;
+  /** グロウの後に払いうる一番重いコスト（ルリグデッキに残るアーツ・手札のスペル／シグニ）。 */
+  spendMax: number;
+  /** いまの手札の枚数（ドロー後）。 */
+  hand: number;
+  /** 手札の上限（`collectHandLimits`）。 */
+  handLimit: number;
+  /** 次のグロウに足りない色の数（`chargeNeedColors`）。 */
+  needColors: number;
+}
+
+/**
+ * 🆕2026-09-27（ユーザー指摘「エナが大量にあってもエナチャージして手札を減らし弱くなっている」）＝**エナチャージをするか**。
+ * 🔴**なぜ要るか**＝旧実装は**手札が1枚でもあれば必ず置いていた**（「何を置くか」しか判断していなかった）。
+ * 🔑**比べ方**＝エナをもう1枚置く価値（足りないなら高い／足りていれば0）と、手札を1枚失う損（手札上限で捨てる札なら0）：
+ *   ①次のグロウに足りない色がある → 置く（`S-26`＝グロウしないのはかなりの悪手）
+ *   ②手札が上限を超えている → 置く（置いた札は、置かなければ捨てていた札）
+ *   ③エナが「このターンのグロウ ＋ 一番重い支払い ＋ 余裕（`chargeSkipSlack`）」に届いていない → 置く
+ *   それ以外は置かない。⚠**`chargeSkipSlack` が負なら常に置く**（旧挙動＝`legacy-chargeskip`）。
+ * ⚠**コストの軽減・ベット・【起】のコストは見ない**（重いほうへ寄る＝置きすぎる側の近似）。
+ */
+export function cpuShouldChargeEnergy(n: CpuChargeNeed, policy?: CpuPolicy): boolean {
+  const slack = (policy ?? DEFAULT_CPU_POLICY).chargeSkipSlack;
+  if (slack < 0) return true;
+  if (n.needColors > 0) return true;
+  if (n.hand > n.handLimit) return true;
+  return n.energy < n.growNow + n.spendMax + slack;
+}
+
 const powerOf = (id: string | undefined, cardMap: Map<string, CardData>, powers?: Record<string, number>): number => {
   if (!id) return -1;
   if (powers && powers[id] !== undefined) return powers[id];

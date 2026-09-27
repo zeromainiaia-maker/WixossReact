@@ -7,6 +7,7 @@ import { listGrowCandidates } from './growLogic';
 import { selectEnergyIndicesForCost, type CpuEnergyReserve } from './cpuActivate';
 import { applyCpuMoveSim, listCpuGrows, type CpuMoveCtx } from './cpuMoves';
 import { planEnaPayRank, planHasEnaUse, type CpuDeckPlan } from './cpuDeckPlan';
+import type { CpuChargeNeed } from './cpuEnergyCharge';
 
 /**
  * 🆕**グロウ用エナの予約**（2026-09-17・ユーザー指示）＝「アーツなどエナコストが必要な行動で、グロウ用のエナが無くなって
@@ -108,6 +109,32 @@ export function chargeNeedColors(ctx: CpuMoveCtx, cards: CardData[]): string[] {
   if (!growNow) return [];
   const after = applyCpuMoveSim(ctx, growNow)?.cpu;
   return after ? growShortColors({ actor: after, ...base }) : [];
+}
+
+/**
+ * 🆕2026-09-27＝**エナチャージを「するか」の材料を盤面から読む**（判定は `cpuEnergyCharge.cpuShouldChargeEnergy`）。
+ * - `growNow`＝このターンのグロウ先のうち一番安いコスト（軽減は人間と同じ `collectGrowCostReductions`＝`buildCpuGrowReserve` と同じ読み方）。
+ * - `spendMax`＝**ルリグデッキに残るアーツ**と**手札のスペル・シグニ**のうち一番重いコスト（CSV の `Cost`）。
+ * ⚠**コインは数えない**（`parseGrowCost` がエナだけを返す）。
+ */
+export function cpuChargeNeedOf(ctx: CpuMoveCtx, handLimit: number, needColors: number): CpuChargeNeed {
+  const s = ctx.actor;
+  const total = (raw: string | undefined) => parseGrowCost(raw ?? '').reduce((a, it) => a + it.count, 0);
+  const grows = listGrowCandidates({ my: s, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap })
+    .map(card => total(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(s, ctx.opponent, true, ctx.effectsMap, ctx.cardMap, card.CardNum))));
+  const cardOf = (id: string) => ctx.cardMap.get(id.split('#')[0]);
+  const spends = [
+    ...s.lrig_deck.map(cardOf).filter(c => c?.Type === 'アーツ'),
+    ...s.hand.map(cardOf).filter(c => c?.Type === 'スペル' || c?.Type === 'シグニ'),
+  ].map(c => total(c?.Cost));
+  return {
+    energy: s.energy.length,
+    growNow: grows.length > 0 ? Math.min(...grows) : 0,
+    spendMax: spends.length > 0 ? Math.max(...spends) : 0,
+    hand: s.hand.length,
+    handLimit,
+    needColors,
+  };
 }
 
 /**

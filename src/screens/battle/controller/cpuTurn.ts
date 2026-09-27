@@ -43,10 +43,10 @@ import {guardableHandIndices} from '../guard';
 import {getLrigAttackCrashState} from '../lrigCrash';
 import {pickCpuGuardHandIndex} from '../cpuGuard';
 import {pickCpuHandLimitDiscards} from '../cpuHandLimit';
-import {mainPhaseLrigLevel, pickCpuEnergyCharge} from '../cpuEnergyCharge';
+import {cpuShouldChargeEnergy, mainPhaseLrigLevel, pickCpuEnergyCharge} from '../cpuEnergyCharge';
 import {performEnergyCharge} from './performEnergyCharge';
 import {scoreDeploy, type LookaheadCtx} from '../cpuLookahead';
-import {buildCpuGrowReserve, chargeNeedColors, withEnaPayRank} from '../cpuGrowReserve';
+import {buildCpuGrowReserve, chargeNeedColors, cpuChargeNeedOf, withEnaPayRank} from '../cpuGrowReserve';
 import {listGrowCandidates} from '../growLogic';
 import {cpuPlanBoardCtx, normalizeCpuDeckPlan, planDeployBonus, planUseBonus} from '../cpuDeckPlan';
 import {clearEndOfAttackPhaseDelayedTriggers} from '../attackDuration';
@@ -881,7 +881,15 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
     const blocked = (cpuSt.blocked_actions?.includes('ENERGY') ?? false)
       || isPhaseSkipped('ENERGY', cpuSt, cpuContBlockedSelf);
     if (blocked) appendBattleLogs(['[CPU] エナフェイズをスキップする']);
-    if (!used && !blocked && cpuSt.hand.length > 0) {
+    // 🆕2026-09-27（ユーザー指摘）＝**エナが足りていればチャージしない**（手札を1枚減らすだけになる）。
+    //   判定は純関数 `cpuShouldChargeEnergy`（材料は `cpuChargeNeedOf`）＝色が足りない／手札が上限を超えるなら置く。
+    const chargeNeedColorsNow = !used && !blocked && cpuSt.hand.length > 0 ? chargeNeedColors(cpuMoveCtx(cpuSt), cards) : [];
+    const chargeNeed = cpuChargeNeedOf(cpuMoveCtx(cpuSt), collectHandLimits(cpuSt, huSt, battleCardMap, effectsMap), chargeNeedColorsNow.length);
+    const wantCharge = cpuShouldChargeEnergy(chargeNeed, cpuPolicy);
+    if (!used && !blocked && cpuSt.hand.length > 0 && !wantCharge) {
+      appendBattleLogs([`[CPU] エナチャージしない（エナ${chargeNeed.energy}枚で足りる）`]);
+    }
+    if (!used && !blocked && cpuSt.hand.length > 0 && wantCharge) {
       // 🆕§5.7 `S-1`＝旧「手札の先頭1枚」固定をやめ、**強さ（パワー＋効果の点数）の低い札**をエナへ（【ガード】は最後）。
       // 🆕🔴2026-09-22＝**グロウ後のレベルで測る**（ユーザー指摘「CPU がルリグ Lv1 のときに Lv1 シグニをチャージしている」）＝
       //   エナフェイズはグロウより前なので、いまのレベルで測ると**このターンに出す Lv1 を「出せない札」と見てエナへ置く**。
@@ -894,7 +902,7 @@ export async function cpuTurnAction(c: PerformCtx, d: CpuTurnDeps): Promise<void
       //   ⇒ **1回グロウしたあとの盤面**で足りない色を見る（＝ユーザーの言う「ターンをまたいだ考え」）。
       //   ⚠**いまのグロウが払えないなら、そちらが先**（2手先より目先）。
       const chargeCtx = {
-        needColors: chargeNeedColors(cpuMoveCtx(cpuSt), cards),
+        needColors: chargeNeedColorsNow,
         emptyZones: cpuSt.field.signi.filter(stk => !(stk ?? []).length).length,
       };
       // 🆕🔴§5.7 `S-28`（2026-09-21）＝**手札だけでなく場のシグニも候補にする**（人間は前から出来た）。

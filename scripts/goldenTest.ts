@@ -172,7 +172,7 @@ import { canCardGuard, guardableHandIndices, makeGuardLevelBlocker } from '../sr
 import { pickCpuGuardHandIndex } from '../src/screens/battle/cpuGuard';
 import { CPU_WATCHDOG_IDLE_MS, cpuBattleKey, lastCommitArrived, cpuShouldAct, cpuWaitingForHuman, cpuWatchdogShouldCheck, sameBattleForCpu } from '../src/screens/battle/cpuDriver';
 import { pickCpuEnergyChargeIndex, pickCpuHandLimitDiscards, pickCpuMulliganIndices, spellChargeKeep } from '../src/screens/battle/cpuHandLimit';
-import { fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
+import { cpuShouldChargeEnergy, fieldChargeAllowed, mainPhaseLrigLevel, pickCpuEnergyCharge } from '../src/screens/battle/cpuEnergyCharge';
 import { cardFeatures, cardStrength, effectValueOf, KEYWORD_VALUE, WEIGHTS as STRENGTH_WEIGHTS } from '../src/screens/battle/cpuCardStrength';
 import { calcFieldPowers } from '../src/engine/effectEngine';
 import { CPU_STATE_DEFS, countCardsInState, statePlacesFor } from '../src/screens/battle/cpuPlanStates';
@@ -182,7 +182,7 @@ import { decideCpuInteractionResponse } from '../src/screens/battle/cpuInteracti
 import { cpuOnPlayEffectsOf, scoreCardUseGain, scoreDeploy, simulateEffect, SPELL_GAIN_MIN } from '../src/screens/battle/cpuLookahead';
 import { applyCpuMoveSim, cpuPlanMoveStep, cpuSigniActivatedInput, listCpuAssistGrows, listCpuMoves, CPU_SIM_APPLICABLE_KINDS, describeCpuMove, type CpuMove, type CpuMoveCtx } from '../src/screens/battle/cpuMoves';
 import { searchCpuMove } from '../src/screens/battle/cpuSearch';
-import { buildCpuGrowReserve, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
+import { buildCpuGrowReserve, cpuChargeNeedOf, withEnaPayRank } from '../src/screens/battle/cpuGrowReserve';
 import { listOffFieldActivatableEffects, offFieldActivateTiming } from '../src/screens/battle/offFieldActivateGate';
 import { canOfferHandActivate, payHandActivateCost, unsupportedHandActivateCostKeys } from '../src/screens/battle/handActivateCost';
 import { cpuOffFieldLedgerKey, listCpuOffFieldActivated, pickCpuHandActivateFieldTrash, pickCpuOffFieldActivated } from '../src/screens/battle/cpuOffFieldActivate';
@@ -90263,7 +90263,8 @@ test('§5.7 S-26 エナチャージの選び方：次のグロウの色を確保
     '🔴エナチャージの判断が「1回グロウしたあとの盤面」を見ていない＝ターンをまたいだ考えになっていない');
   ok(/const now = growShortColors\(\{ actor: ctx\.actor/.test(resSrc),
     '🔴いまのグロウが払えないときに、そちらを優先していない');
-  ok(/needColors: chargeNeedColors\(cpuMoveCtx\(cpuSt\), cards\)/.test(turnSrc),
+  // 🆕2026-09-27＝「するか」の判定（`cpuShouldChargeEnergy`）と共有するため一度だけ計算して渡す（較正）。
+  ok(/const chargeNeedColorsNow = [^\n]*chargeNeedColors\(cpuMoveCtx\(cpuSt\), cards\)/.test(turnSrc) && /needColors: chargeNeedColorsNow,/.test(turnSrc),
     '🔴エナチャージに「確保しに行く色」を渡していない');
   ok(/emptyZones: cpuSt\.field\.signi\.filter/.test(turnSrc), '🔴空きゾーンの数を渡していない＝温存の補正が死ぬ');
 
@@ -90818,6 +90819,43 @@ test('§5.7 S-14 第2段 コンボの「使い方」：出す／【起】／ア�
   // 🔴2026-09-27＝［キー］は撤去した（反転＝ボタンが残っていたら押しても何も起きない）。
   ok(!/cpu-plan-key-/.test(modal), '🔴撤去した［キー］のボタンが画面に残っている');
   ok(!/cpu-plan-(priority|prefer|avoid)-/.test(modal), '🔴撤去した［優先］［狙う］［避ける］が画面に残っている');
+}));
+
+test('2026-09-27 CPU のエナチャージ：エナが足りていれば置かない（色不足・手札上限超えなら置く）', () => withSavedCursor(() => {
+  // 🔴**なぜ要るか（ユーザー指摘）**＝「エナが大量にあってもエナチャージして手札を減らし弱くなっている」。
+  //   旧実装は**手札が1枚でもあれば必ず置いた**（`cpuTurn.ts` の条件は `hand.length > 0` だけ）。
+  const base = { energy: 5, growNow: 1, spendMax: 3, hand: 4, handLimit: 6, needColors: 0 };
+  const P = (slack: number) => patchCpuPolicy(DEFAULT_CPU_POLICY, `chargeSkipSlack=${slack}`);
+  // ── ① エナが「グロウ 1 ＋ 一番重い支払い 3 ＋ 余裕」に届いていれば置かない ──
+  eq(cpuShouldChargeEnergy(base, P(1)), false, '🔴エナ5枚で足りる（1+3+1）のにチャージした');
+  eq(cpuShouldChargeEnergy({ ...base, energy: 4 }, P(1)), true, '🔴エナが足りない（4 < 5）のにチャージしない');
+  eq(cpuShouldChargeEnergy(base, P(2)), true, '🔴余裕を2枚にしたのに足りる扱いにした');
+  // ── ② 色が足りない／手札が上限を超えるなら、エナが多くても置く ──
+  eq(cpuShouldChargeEnergy({ ...base, energy: 20, needColors: 1 }, P(1)), true, '🔴次のグロウの色が足りないのに置かない（グロウできなくなる）');
+  eq(cpuShouldChargeEnergy({ ...base, energy: 20, hand: 7 }, P(1)), true, '🔴手札が上限を超えている（置かなければ捨てる札）のに置かない');
+  eq(cpuShouldChargeEnergy({ ...base, energy: 20, hand: 6 }, P(1)), false, '🔴手札が上限ちょうどでエナが足りているのに置いた');
+  // ── ③ 反転の口＝負なら常に置く（旧挙動）──
+  eq(cpuShouldChargeEnergy({ ...base, energy: 99 }, CPU_POLICIES['legacy-chargeskip']), true, '🔴`legacy-chargeskip` で旧挙動（常に置く）に戻らない');
+  ok(DEFAULT_CPU_POLICY.chargeSkipSlack >= 0, '🔴既定で「足りていれば置かない」が切れている');
+
+  // ── ④ 材料＝盤面から読む（インフル軸の実カード）──
+  //   ルリグ＝其ノ壱（Lv1）→ 次は其ノ爾（《黒》×１）／ルリグデッキのアーツ＝バイオ・ハザード（《黒》×３）・ブラック・サルベージ（《黒》×０）
+  //   手札＝ブラック・タイアップ（スペル《黒》×１）・インフル（シグニ・コストなし）
+  eq(cardMap.get('WX15-024')?.GrowCost, '《黒》×１', '前提崩れ＝其ノ爾のグロウコスト');
+  eq(cardMap.get('WX15-026')?.Cost, '《黒》×３', '前提崩れ＝バイオ・ハザードのコスト');
+  const me = { ...mkState({ lrig: ['WD19-004#l1'] }), lrig_deck: ['WX15-024#l2', 'WX15-026#a1', 'WD19-008#a2'],
+    hand: ['WX15-118#h1', 'WX16-032#h2'], energy: ['WD04-017#e1', 'WD04-017#e2', 'WD04-017#e3'] } as PlayerState;
+  // ⚠本番と同じ `InstanceMap`（今のルリグを instance ID のまま引く＝素の Map だとグロウ先が0件になる）。
+  const need = cpuChargeNeedOf({ actor: me, opponent: mkState(), cardMap: new InstanceMap<CardData>(cardMap), effectsMap } as never, 6, 0);
+  eq(JSON.stringify(need), JSON.stringify({ energy: 3, growNow: 1, spendMax: 3, hand: 2, handLimit: 6, needColors: 0 }),
+    '🔴エナチャージの材料（グロウの一番安いコスト・一番重い支払い）の読み方が違う');
+
+  // ── ⑤ 配線＝エナフェイズがこの判定を通る（チャージしないときはログを出してグロウへ進む）──
+  const turnSrc = fs.readFileSync(join(root, 'src/screens/battle/controller/cpuTurn.ts'), 'utf-8');
+  ok(/const wantCharge = cpuShouldChargeEnergy\(chargeNeed, cpuPolicy\);/.test(turnSrc)
+    && /cpuSt\.hand\.length > 0 && wantCharge\) \{/.test(turnSrc)
+    && turnSrc.includes('[CPU] エナチャージしない（エナ'), '🔴エナフェイズが「置くか」の判定を通っていない');
+  ok(SCAN_KNOBS.some(k => k.key === 'chargeSkipSlack'), '🔴走査表に `chargeSkipSlack` が無い（調整対象から静かに消える）');
 }));
 
 test('§5.7 コンボの始める条件と「同じターンに出せるか」（2026-09-27・インフル軸）', () => withSavedCursor(() => {
